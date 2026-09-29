@@ -116,7 +116,7 @@ const NODES_DIR = join(DATA_DIR, 'templates', 'nodes')
  *
  * 它们跨进程活下来：上一次跑留下的"上次打开的图"与"折叠表"会变成这一次的**前提**，
  * 于是同一条断言在两次跑里验的其实是两件事（同事实测被上一次的残留搞红过一次）。
- * 本脚本每次都用 `wl-graph-select` 显式选图、从"全展开"起步，所以开跑先把这两把键清掉。
+ * 本脚本每次都用图选择器显式选图、从"全展开"起步，所以开跑先把这两把键清掉。
  */
 const STORAGE_KEYS = ['workflow-lite.lastGraph', 'workflow-lite.palette.collapsed']
 
@@ -260,17 +260,27 @@ const clickTextExact = (text) =>
      return true;
    })()`
 
-/** React 受控 `<select>` 要这样赋值才会触发 onChange。 */
-const pickGraph = (name) =>
-  `(() => {
-     const sel = [...document.querySelectorAll('select')]
-       .find((el) => [...el.options].some((o) => o.value === ${JSON.stringify(name)}));
-     if (!sel) return false;
-     const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
-     setter.call(sel, ${JSON.stringify(name)});
-     sel.dispatchEvent(new Event('change', { bubbles: true }));
-     return true;
-   })()`
+/** 打开「图」下拉并把它当前列出的图名列回来（第 4 步：证明 `graph/list` 真的到了 DOM）。 */
+const listGraphsExpr = `(() => {
+   const trigger = document.querySelector('[data-testid="wl-graph-trigger"]');
+   if (trigger === null) return 0;
+   if (trigger.getAttribute('aria-expanded') !== 'true') trigger.click();
+   const options = [...document.querySelectorAll('[data-testid="wl-graph-listbox"] [role="option"]')];
+   const values = options.map((o) => o.dataset.value).filter((v) => typeof v === 'string' && v !== '');
+   /*
+    * 空的时候返回 **0 而不是空数组**：waitFor 判的是真假值，而空数组是**真值**，
+    * 返回 [] 会让它第一次轮询就"成功"、拿着"一张图都没有"去断言。
+    * 点开下拉与 React 把列表渲染出来不在同一个事件循环里，所以必须让它继续轮询。
+    */
+   return values.length > 0 ? values : 0;
+ })()`
+
+/** 把刚打开的下拉收起来（浮层留着会挡住后面靠真实指针的步骤）。 */
+const closeGraphListboxExpr = `(() => {
+   const trigger = document.querySelector('[data-testid="wl-graph-trigger"]');
+   if (trigger !== null && trigger.getAttribute('aria-expanded') === 'true') trigger.click();
+   return true;
+ })()`
 
 /** 备第二张图：**空图**（验空态可操作）与**带 fail 边 + 回边 + fail 回边**的图（验箭头与语气叠加）。 */
 async function seedExtra() {
@@ -777,16 +787,10 @@ const main = async () => {
     await session.evaluate(clickText(TAB_LABEL))
     console.log(`  3 画布 tab 在并已点开（tabs=${JSON.stringify(tabs)}）`)
 
-    // 4) graph/list 真的走通了：选择器里有我们备的那张图
-    const listed = await waitFor(
-      session,
-      `(() => {
-         const sel = [...document.querySelectorAll('select')]
-           .find((el) => [...el.options].some((o) => o.value === ${JSON.stringify(NAME)}));
-         return sel ? [...sel.options].map((o) => o.value).filter((v) => v !== '') : 0;
-       })()`,
-      { timeoutMs: 20_000 },
-    )
+    // 4) graph/list 真的走通了：下拉里列得出我们备的那张图
+    const listed = await waitFor(session, listGraphsExpr, { timeoutMs: 20_000 })
+    /* 下拉留着会挡住后面靠真实指针的步骤，读完就收起来。 */
+    await session.evaluate(closeGraphListboxExpr)
     check(
       Array.isArray(listed) && listed.includes(NAME),
       `graph/list 应经真实 RPC 回执送到选择器，实得 ${JSON.stringify(listed)}`,
@@ -935,8 +939,12 @@ const main = async () => {
     )
 
     // 6) 选图 → graph/load → React Flow 渲染出节点
-    const picked = await session.evaluate(pickGraph(NAME))
-    check(picked === true, '应能从选择器里选中备好的图')
+    /*
+     * 选图走共享的 `selectGraph`：它驱动自绘 combobox（点触发器 → 筛选 → 点 `[role=option]`），
+     * 并等到**页面自己认了这张图**（触发器显示图名 + 画布渲染出东西）。
+     * 原来的 `pickGraph` 是给原生 `<select>` 赋值的，那条路已经没有了。
+     */
+    await selectGraph(session, NAME)
     /*
      * 这里用 `readSettled`（等到**正好 2**）而不是裸的 `waitFor(length)`：裸长度第一次读到
      * 非零就返回，而 React Flow 挂载两个节点并不保证在同一个瞬间可见——实测就赶上过一次
@@ -1973,7 +1981,7 @@ const main = async () => {
     } catch (error) {
       const scene = await session.evaluate(
         `(() => {
-           const sel = document.querySelector('[data-testid="wl-graph-select"]');
+           const trigger = document.querySelector('[data-testid="wl-graph-trigger"]');
            const groups = [...document.querySelectorAll('.react-flow__edge')];
            const status = document.querySelector('[data-testid="wl-status"]');
            const banner = document.querySelector('[class*="banner"]');
@@ -2154,6 +2162,34 @@ const main = async () => {
       }
     }
     check(edgeRowNode !== null, 'EDGES_NAME 里点不到任何节点卡，右栏边行这条验不到')
+    /*
+     * 边清单现在**默认收起**：右栏降密改成「节点 / 计划」两个页签之后，入/出边收成一行摘要
+     *（`上游 N · 下游 M`），点开才把行放进 DOM。所以先把它展开再量——下面的断言一个字不改，
+     * 仍然是"行不是按钮、不截断、点了选中态不变"。
+     */
+    const edgesToggled = await session.evaluate(`(() => {
+       const el = document.querySelector('[data-testid="wl-edges-toggle"]');
+       if (!(el instanceof HTMLElement)) return 'no-toggle';
+       if (el.getAttribute('aria-expanded') !== 'true') el.click();
+       return 'clicked';
+     })()`)
+    check(
+      edgesToggled === 'clicked',
+      `29c-1: 选中 ${edgeRowNode} 后应有一行边摘要开关，实得 ${JSON.stringify(edgesToggled)}`,
+    )
+    /*
+     * 点完**不能**立刻读 `aria-expanded`：那是 React 的状态，重渲染不在同一个事件循环里，
+     * 同步读回来必定还是点击前的 `false`（第一版就是这么假红的）。轮询到它真的翻开。
+     */
+    const expanded = await waitFor(
+      session,
+      `(() => {
+         const el = document.querySelector('[data-testid="wl-edges-toggle"]');
+         return el !== null && el.getAttribute('aria-expanded') === 'true' ? 1 : 0;
+       })()`,
+      { timeoutMs: 5_000 },
+    )
+    check(expanded === 1, '29c-1: 展开边摘要之后 aria-expanded 应为 true')
     await waitFor(
       session,
       `document.querySelectorAll('[data-testid="wl-inspector"] [class*="edgeRow"]').length > 0`,
@@ -2363,7 +2399,7 @@ const main = async () => {
          const path = target === null ? null : target.querySelector('.react-flow__edge-path');
          const canvas = document.querySelector('[data-testid="wl-canvas"]');
          const viewport = document.querySelector('.react-flow__viewport');
-         const select = document.querySelector('[data-testid="wl-graph-select"]');
+         const trigger = document.querySelector('[data-testid="wl-graph-trigger"]');
          const frame = canvas ? canvas.getBoundingClientRect() : null;
          return {
            edgeCount: edges.length,

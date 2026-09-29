@@ -87,42 +87,52 @@ export async function openCanvasTab(session, { label = '工作流' } = {}) {
 }
 
 /**
- * 用**受控 `<select>` 的原生 setter + change 事件**选图。
+ * 打开「图」下拉的可搜索列表（自绘 combobox，不是原生 `<select>`）。
  *
- * 之所以点名 `wl-graph-select` 而不是"找任意一个含该 option 的 select"：
- * 顶栏有两个 select（图 / 从模板新建），按 option 猜是脚本自己在猜产品结构。
+ * 上一版这里点的是 `wl-graph-select` 那个原生 `<select>`：它不可搜索、样式也跟不了主题，
+ * 已经换成自绘组件。驱动方式跟着换成"点触发器 → 在筛选框里输入 → 点命中的 option"。
  */
-export const selectGraphExpr = (name) =>
-  `(() => {
-     const sel = document.querySelector('[data-testid="wl-graph-select"]');
-     if (!(sel instanceof HTMLSelectElement)) return 'no-select';
-     const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
-     setter.call(sel, ${JSON.stringify(name)});
-     sel.dispatchEvent(new Event('change', { bubbles: true }));
-     return sel.value;
-   })()`
+async function openGraphListbox(session, timeoutMs) {
+  const opened = await session.evaluate(`(() => {
+    const trigger = document.querySelector('[data-testid="wl-graph-trigger"]');
+    if (trigger === null) return 'no-trigger';
+    if (trigger.getAttribute('aria-expanded') === 'true') return 'already';
+    trigger.click();
+    return 'clicked';
+  })()`)
+  if (opened === 'no-trigger') throw new Error('找不到 wl-graph-trigger：图选择器没渲染出来')
+  await waitFor(session, `document.querySelector('[data-testid="wl-graph-listbox"]') !== null`, {
+    timeoutMs: 5_000,
+  })
+}
 
-/** 显式选中某张图，并等到画布真的把它渲染出来（或确认它是空图）。 */
+/**
+ * 显式选中某张图，并等到画布真的把它渲染出来（或确认它是空图）。
+ *
+ * 判据仍是**页面自己认了这张图**，不是脚本读回自己写进去的值：触发器上要出现图名，
+ * 状态不能是只读，且画布上要么有节点、要么是空态。
+ */
 export async function selectGraph(session, name, { timeoutMs = 25_000 } = {}) {
-  // `graph/list` 是异步来的：option 还没到就赋值，受控 select 会回落到空串。
-  await waitFor(
-    session,
-    `(() => {
-       const sel = document.querySelector('[data-testid="wl-graph-select"]');
-       if (!(sel instanceof HTMLSelectElement)) return 0;
-       return [...sel.options].filter((o) => o.value === ${JSON.stringify(name)}).length;
-     })()`,
-    { timeoutMs },
-  )
-  const picked = await session.evaluate(selectGraphExpr(name))
-  // 受控 select 在 React 收到 change、重渲染之前会短暂显示旧值（`open()` 是异步的），
-  // 所以这里**不能**把即时读回的字符串当结论——真正的判据是下面等它变成目标图。
-  if (picked === 'no-select') throw new Error('找不到 wl-graph-select')
+  await openGraphListbox(session, timeoutMs)
+  // `graph/list` 是异步来的：列表可能还没有这张图，先在筛选框里输入并等它出现。
+  await setReactInput(session, '[data-testid="wl-graph-filter"]', name)
+  const optionSel = `[data-testid="wl-graph-listbox"] [role="option"][data-value=${JSON.stringify(name)}]`
+  await waitFor(session, `document.querySelector(${JSON.stringify(optionSel)}) !== null`, {
+    timeoutMs,
+  })
+  const picked = await session.evaluate(`(() => {
+    const option = document.querySelector(${JSON.stringify(optionSel)});
+    if (!(option instanceof HTMLElement)) return false;
+    option.click();
+    return true;
+  })()`)
+  if (picked !== true) throw new Error(`下拉里点不到图 ${name}`)
   return waitFor(
     session,
     `(() => {
-       const sel = document.querySelector('[data-testid="wl-graph-select"]');
-       if (!sel || sel.value !== ${JSON.stringify(name)}) return 0;
+       const trigger = document.querySelector('[data-testid="wl-graph-trigger"]');
+       if (trigger === null) return 0;
+       if (!(trigger.textContent || '').includes(${JSON.stringify(name)})) return 0;
        const status = document.querySelector('[data-testid="wl-status"]');
        if (status && (status.textContent || '').includes('只读')) return 0;
        return document.querySelectorAll('.react-flow__node').length || (document.querySelector('[data-testid="wl-empty-action"]') ? 1 : 0);
@@ -308,6 +318,8 @@ export const MOD = { alt: 1, ctrl: 2, meta: 4, shift: 8 }
 
 const VK = {
   z: 90,
+  ArrowDown: 40,
+  ArrowUp: 38,
   y: 89,
   Escape: 27,
   Enter: 13,
@@ -360,7 +372,7 @@ export async function screenshot(session, name) {
  * 从零走到画布：设视口 → 导航 → 等客户端半加载 → 进会话 → 开「工作流」tab → 显式选图。
  *
  * **不依赖"自动打开上次那张图"**：A16 的自动打开是产品行为，验收要能独立于它成立，
- * 所以每次都用 `wl-graph-select` 显式选图。
+ * 所以每次都用图选择器显式选图。
  */
 export async function bootToCanvas(session, graphName, { width = 1440, height = 900 } = {}) {
   await session.send('Emulation.setDeviceMetricsOverride', {

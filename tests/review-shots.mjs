@@ -332,7 +332,10 @@ const PROBE = `(() => {
          （"拖一个进来" / "松手放在这里"）在 78 张图里 0 命中，同时判错了"写了但不可见"和"没写"。 */
       all: root ? (root.textContent || '').trim().slice(0, 3000) : null,
       status: visibleText('[data-testid="wl-status"]'),
-      graphSelect: (() => { const s = q('[data-testid="wl-graph-select"]'); return s ? s.value : null })(),
+      graphSelect: (() => {
+        const el = q('[data-testid="wl-graph-trigger"]')
+        return el ? (el.textContent || '').trim().slice(0, 60) : null
+      })(),
       library: visibleText('[data-testid="wl-library"]'),
       inspector: visibleText('[data-testid="wl-inspector"]'),
       summary: visibleText('[data-testid="wl-graph-summary"]'),
@@ -558,47 +561,113 @@ async function settle(session) {
  * 稳态，不是那一帧——否则语料会随机少拍几个状态，而"少一张图"看起来跟"这个状态没问题"一样。
  */
 async function waitForGraphDrawn(session, { nodes = 1, edges = 1 } = {}) {
-  await waitFor(
-    session,
-    `document.querySelectorAll('.react-flow__node').length >= ${nodes}
+  try {
+    await waitFor(
+      session,
+      `document.querySelectorAll('.react-flow__node').length >= ${nodes}
       && document.querySelectorAll('.react-flow__edge').length >= ${edges}`,
-    { timeoutMs: 8_000 },
-  )
+      { timeoutMs: 8_000 },
+    )
+  } catch {
+    /*
+     * 超时不能只丢一句"等不到"。上一轮这条就是静默红的：6 个节点渲染着、边却是 0 条，
+     * 几百毫秒后才回来（`@xyflow/react` 在视图变化期间会短暂摘掉边）。把当时的真实计数
+     * 与视口变换一起打出来，才分得清"边没渲染完"和"图压根没加载"。
+     */
+    const diag = await session.evaluate(`(() => {
+      const vp = document.querySelector('.react-flow__viewport');
+      const canvas = document.querySelector('[data-testid="wl-canvas"]');
+      const r = canvas ? canvas.getBoundingClientRect() : null;
+      return {
+        nodes: document.querySelectorAll('.react-flow__node').length,
+        edges: document.querySelectorAll('.react-flow__edge').length,
+        edgesSvg: document.querySelectorAll('.react-flow__edges').length,
+        transform: vp ? getComputedStyle(vp).transform : null,
+        canvas: r ? Math.round(r.width) + 'x' + Math.round(r.height) : null,
+        wanted: { nodes: ${nodes}, edges: ${edges} },
+      };
+    })()`)
+    throw new Error(`等图元渲染超时（要 ${nodes} 节点 / ${edges} 边）：${JSON.stringify(diag)}`)
+  }
 }
 
-/** 真实指针点一下画布里的第 index 个节点卡片中心。 */
-async function clickNode(session, index) {
-  await waitForGraphDrawn(session, { nodes: index + 1, edges: 0 })
-  const point = await session.evaluate(`(() => {
-    const el = [...document.querySelectorAll('.react-flow__node')][${index}]
-    if (!el) return null
-    const r = el.getBoundingClientRect()
-    return { x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2) }
+/**
+ * 真实指针点一下画布里的某个节点卡片中心。
+ *
+ * **落点必须落在画布矩形里**，这条以前没有，是被一次"整页被点走"教训出来的：
+ * 缩放提到 0.7 之后图比画布宽，靠外的节点 `getBoundingClientRect()` 仍报它的真实位置，
+ * 但那个点已经在画布**外面**了——实测 760 宽下节点中心跑到 x=244，扎进宿主自己的会话
+ * 列表，一点就把整页导航走（画布消失，脚本却报"图元渲染超时"，指错了方向）。
+ *
+ * 所以先按 `prefer` 试，试不到就在画布里找**任意一个中心可点**的节点，都没有就带着
+ * 当时的几何报清楚。
+ */
+async function clickNode(session, prefer = 0) {
+  await waitForGraphDrawn(session, { nodes: 1, edges: 0 })
+  const target = await session.evaluate(`(() => {
+    const canvas = document.querySelector('[data-testid="wl-canvas"]');
+    if (canvas === null) return { error: 'no-canvas' };
+    const c = canvas.getBoundingClientRect();
+    const inside = (x, y) => x > c.left + 12 && x < c.right - 12 && y > c.top + 12 && y < c.bottom - 12;
+    const nodes = [...document.querySelectorAll('.react-flow__node')];
+    const ordered = nodes.slice(${prefer}).concat(nodes.slice(0, ${prefer}));
+    for (const el of ordered) {
+      const r = el.getBoundingClientRect();
+      const x = r.x + r.width / 2;
+      const y = r.y + r.height / 2;
+      if (inside(x, y)) return { point: { x: Math.round(x), y: Math.round(y) }, id: el.getAttribute('data-id') };
+    }
+    const first = nodes.length > 0 ? nodes[0].getBoundingClientRect() : null;
+    return {
+      error: 'none-inside',
+      canvas: { left: Math.round(c.left), top: Math.round(c.top), right: Math.round(c.right), bottom: Math.round(c.bottom) },
+      first: first === null ? null : { x: Math.round(first.x), y: Math.round(first.y), w: Math.round(first.width) },
+      count: nodes.length,
+    };
   })()`)
-  if (point === null) throw new Error(`画布上没有第 ${index} 个节点`)
-  await mouseClick(session, point)
-  return point
+  if (target.error !== undefined) throw new Error(`画布内没有可点的节点：${JSON.stringify(target)}`)
+  await mouseClick(session, target.point)
+  return target.id
 }
 
-/** 真实指针点一下画布里的第 index 条边的中点。 */
-async function clickEdge(session, index) {
-  await waitForGraphDrawn(session, { nodes: 1, edges: index + 1 })
-  const point = await session.evaluate(`(() => {
-    const el = [...document.querySelectorAll('.react-flow__edge')][${index}]
-    if (!el) return null
-    const path = el.querySelector('.react-flow__edge-path') || el.querySelector('path')
-    if (!path) return null
-    const p = path.getPointAtLength(path.getTotalLength() / 2)
-    const m = path.getScreenCTM()
-    if (!m) return null
-    const svg = path.ownerSVGElement
-    const pt = svg.createSVGPoint(); pt.x = p.x; pt.y = p.y
-    const s = pt.matrixTransform(m)
-    return { x: Math.round(s.x), y: Math.round(s.y) }
+/**
+ * 真实指针点一下画布里的某条边。
+ *
+ * 同 `clickNode`：边的中点也可能落在画布外（图比画布宽时很常见），所以沿路径试几个
+ * 采样点，取第一个落在画布里的。
+ */
+async function clickEdge(session, prefer = 0) {
+  await waitForGraphDrawn(session, { nodes: 1, edges: prefer + 1 })
+  const target = await session.evaluate(`(() => {
+    const canvas = document.querySelector('[data-testid="wl-canvas"]');
+    if (canvas === null) return { error: 'no-canvas' };
+    const c = canvas.getBoundingClientRect();
+    const inside = (x, y) => x > c.left + 12 && x < c.right - 12 && y > c.top + 12 && y < c.bottom - 12;
+    const edges = [...document.querySelectorAll('.react-flow__edge')];
+    const ordered = edges.slice(${prefer}).concat(edges.slice(0, ${prefer}));
+    for (const el of ordered) {
+      const path = el.querySelector('.react-flow__edge-path') || el.querySelector('path');
+      if (path === null) continue;
+      const total = path.getTotalLength();
+      const m = path.getScreenCTM();
+      if (m === null) continue;
+      const svg = path.ownerSVGElement;
+      for (const at of [0.5, 0.42, 0.58, 0.34, 0.66, 0.26, 0.74]) {
+        const p = path.getPointAtLength(total * at);
+        const pt = svg.createSVGPoint();
+        pt.x = p.x;
+        pt.y = p.y;
+        const s = pt.matrixTransform(m);
+        if (inside(s.x, s.y)) {
+          return { point: { x: Math.round(s.x), y: Math.round(s.y) }, id: el.getAttribute('data-id'), at: at };
+        }
+      }
+    }
+    return { error: 'none-inside', count: edges.length };
   })()`)
-  if (point === null) throw new Error(`画布上没有第 ${index} 条边`)
-  await mouseClick(session, point)
-  return point
+  if (target.error !== undefined) throw new Error(`画布内没有可点的边：${JSON.stringify(target)}`)
+  await mouseClick(session, target.point)
+  return target.id
 }
 
 /** 点一个 data-testid，点完等一拍。 */
@@ -714,8 +783,9 @@ async function stateSweep(session) {
   await shoot(session, 's-long-main', '长标签 / 长提示词 / 长条件，都没选中')
   await clickNode(session, 0)
   await shoot(session, 's-long-node', '选中长内容节点：右栏能编辑吗？')
-  await clickTestId(session, 'wl-plan-copy')
-  await shoot(session, 's-long-plan-dispatch', '计划预览默认页签（引用路径）')
+  /* 右栏现在是「节点 / 计划」两个页签，编译预览只在计划页里——先切过去再取景。 */
+  await clickTestId(session, 'wl-inspector-tab-plan')
+  await shoot(session, 's-long-plan-dispatch', '计划页：默认页签（引用路径）')
 
   await boot(session, DENSE, 1440, 900)
   await shoot(session, 's-dense', '24 节点密集图')
@@ -774,10 +844,11 @@ async function stateSweep(session) {
     clickCount: 1,
   })
 
-  /* 计划预览两种页签：默认是「引用路径」，另一档是「内联全文」。 */
+  /* 计划页的两种视图：默认是「引用路径」，另一档是「内联全文」。 */
   await boot(session, MAIN, 1440, 900)
   await clickNode(session, 1)
-  await shoot(session, 's-plan-dispatch', '计划预览 = 引用路径')
+  await clickTestId(session, 'wl-inspector-tab-plan')
+  await shoot(session, 's-plan-dispatch', '计划页 = 引用路径')
   await session.evaluate(`(() => {
     const btn = [...document.querySelectorAll('[data-testid="wl-inspector"] button')]
       .find((b) => (b.textContent || '').trim() === '内联全文')
