@@ -651,6 +651,24 @@ const edgePointExpr = (id, offset) => `(() => {
  })()`
 
 /**
+ * 等到某条边**真的渲染出来**再量。
+ *
+ * 视图变化期间（容器 resize 后的自适应、`fitView`）`@xyflow/react` 会把边短暂从 DOM 里
+ * 摘掉：实测同一时刻 6 个节点都在、`.react-flow__edge` 却是 **0 条**，`viewportTransform`
+ * 已经是自适应后的值，几百毫秒后边才回来。第 25 步早就为同一类"刚挂载的过渡态"立过
+ * "轮询到收敛"的规矩——这里要量的是**稳态**，不是那一帧。
+ *
+ * 这条是 29c-6 反复红过之后补的：当时只打印 `null`，看不出是"边被重名了"还是"整批边
+ * 还没渲染"，只能靠猜。诊断把它钉成了后者。
+ */
+const waitForEdgeRendered = (session, id) =>
+  waitFor(
+    session,
+    `document.querySelector('.react-flow__edge[data-id=' + JSON.stringify(${JSON.stringify(id)}) + ']') !== null`,
+    { timeoutMs: 6_000 },
+  )
+
+/**
  * 控制台错误的**归属划分**：本插件（画布）的错 vs 宿主外壳的噪音。
  *
  * 断言只认本插件的错。宿主外壳在会话引用被释放时会抛
@@ -699,6 +717,15 @@ const main = async () => {
       mobile: false,
     })
     await session.navigate(authenticatedUrl())
+    /*
+     * 让页面相信自己有焦点。
+     *
+     * headless Chrome 里 `document.hasFocus()` 是 false，`:focus` / `:focus-visible` 一律
+     * 不匹配——实测"输入框已经拿到 `document.activeElement`，但 `el.matches('input:focus')`
+     * 仍是 false、`outline-style` 是 none"。验收要模拟的是**用户看着的这个窗口**，
+     * 不是一个后台标签页；不开这一档，任何聚焦反馈都不在观测范围内。
+     */
+    await session.send('Emulation.setFocusEmulationEnabled', { enabled: true })
     /*
      * 只统计**这次导航之后**的控制台错误。
      *
@@ -2253,6 +2280,7 @@ const main = async () => {
      */
     await session.evaluate(clickTestIdExpr('wl-fit'))
     await new Promise((resolve) => setTimeout(resolve, 600))
+    await waitForEdgeRendered(session, EDGE_ID)
     const midPoint = await session.evaluate(edgePointExpr(EDGE_ID, 0))
     check(midPoint !== null, `29c-2: 画布上找不到边 ${EDGE_ID}（EDGES_NAME 的种子变了？）`)
     check(
@@ -2321,7 +2349,36 @@ const main = async () => {
         `29c-6: Escape 之后应当什么都不选（右栏回到整图概览），实得 ${JSON.stringify(dbg)}`,
       )
     }
+    await waitForEdgeRendered(session, EDGE_ID)
     const offPoint = await session.evaluate(edgePointExpr(EDGE_ID, 12))
+    if (offPoint === null) {
+      /*
+       * `edgePointExpr` 只在**边元素 / 路径 / CTM 三者缺一**时返回 null，而它离上一条
+       * 断言只隔一次点边和一次 Esc。曾经这里只打印一个 `null`，等于什么都没说：看不出
+       * 是"边被重名了"还是"整批边没渲染出来"。把此刻的 DOM 原样端出来，别让下一个人猜。
+       */
+      const diag = await session.evaluate(`(() => {
+         const edges = [...document.querySelectorAll('.react-flow__edge')];
+         const target = document.querySelector('.react-flow__edge[data-id=' + JSON.stringify(${JSON.stringify('check1->build1')}) + ']');
+         const path = target === null ? null : target.querySelector('.react-flow__edge-path');
+         const canvas = document.querySelector('[data-testid="wl-canvas"]');
+         const viewport = document.querySelector('.react-flow__viewport');
+         const select = document.querySelector('[data-testid="wl-graph-select"]');
+         const frame = canvas ? canvas.getBoundingClientRect() : null;
+         return {
+           edgeCount: edges.length,
+           edgeIds: edges.map((el) => el.getAttribute('data-id')),
+           targetFound: target !== null,
+           targetHasPath: path !== null,
+           targetCtm: path === null ? null : String(path.getScreenCTM()),
+           viewportTransform: viewport === null ? null : getComputedStyle(viewport).transform,
+           canvas: frame === null ? null : { w: Math.round(frame.width), h: Math.round(frame.height) },
+           graphSelect: select === null ? null : select.value,
+           nodeCount: document.querySelectorAll('.react-flow__node').length,
+         };
+       })()`)
+      console.log(`  29c-6 诊断：${JSON.stringify(diag)}`)
+    }
     check(
       offPoint !== null &&
         offPoint.insideCanvas === true &&
