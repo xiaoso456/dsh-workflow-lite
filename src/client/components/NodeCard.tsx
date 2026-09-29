@@ -46,16 +46,29 @@ export interface CardData extends Record<string, unknown> {
   actionsText: string
 }
 
+/**
+ * 状态点的语气（只表达状态，不表达选中）：孤立 > 校验出错 > 没声明产出 / 校验警告 > **正常（不点）**。
+ *
+ * 正常态返回空串、**不渲染点**：绝大多数节点都是正常的，每张卡都挂一枚绿点的话，
+ * 一屏下来那点绿本身就是新的装饰噪声，"要看的那一张"反而淹掉了。状态色只在**它真的在
+ * 说什么**的时候出现——这是这套配色里唯一允许语义色登场的场合。
+ * 孤立与校验出错都算危险：否则一张报错的卡上会同时挂着绿点和红角标。
+ */
+function dotTone(data: CardData): string {
+  if (data.upstream === 0 && data.downstream === 0) return css.dotDanger
+  if (data.state === 'invalid') return css.dotDanger
+  if (data.state === 'warn' || data.output === undefined) return css.dotWarn
+  return ''
+}
+
 /** 节点卡片。 */
 export function WorkflowNodeCard({
   id,
   data,
   selected,
 }: NodeProps<Node<CardData>>): React.JSX.Element {
-  const tone =
-    data.state === 'invalid' ? css.nodeInvalid : data.state === 'warn' ? css.nodeWarn : css.nodeOk
   return (
-    <div className={[css.node, tone, selected === true ? css.nodeSelected : ''].join(' ')}>
+    <div className={[css.node, selected === true ? css.nodeSelected : ''].join(' ')}>
       <Handle type="target" position={Position.Left} className={css.handle} />
       <div
         className={css.cardActions}
@@ -98,8 +111,19 @@ export function WorkflowNodeCard({
         卡片宽 132–220px、还要按画布缩放渲染，长标签必然截断；`title` 是全文的零成本兜底，
         少了它，两个同前缀的长标签在画布上就分不出来（只能点开去右栏确认点对了没有）。
       */}
-      <div className={css.nodeTitle} title={data.label}>
-        {data.label}
+      <div className={css.nodeHead}>
+        {/*
+          状态点是**纯视觉**的一枚 6px 圆点：可读文案（“孤立 / 未声明产出”）需要新的
+          locale 键，而 locale 表本轮冻结，所以不给它塞 title / aria-label，
+          避免把没翻译的中文硬编码进组件。
+          **正常态整枚不渲染**（`dotTone` 返回空串）：每张卡都挂绿点等于一屏噪声。
+        */}
+        {dotTone(data) === '' ? null : (
+          <span className={[css.statusDot, dotTone(data)].join(' ')} aria-hidden="true" />
+        )}
+        <div className={css.nodeTitle} title={data.label}>
+          {data.label}
+        </div>
       </div>
       <div className={css.nodeMeta}>
         ↑{data.upstream} ↓{data.downstream}

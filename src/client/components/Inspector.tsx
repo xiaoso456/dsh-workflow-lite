@@ -137,7 +137,8 @@ export function Inspector(props: InspectorProps): React.JSX.Element {
    */
   const tabs = (
     <div className={css.tabBar} data-wl-pane={pane}>
-      <div className={ui.tabs} role="tablist">
+      {/* `tabSegments` 只负责让分段控件占满整行：两个同级视图对半分。 */}
+      <div className={[ui.tabs, css.tabSegments].join(' ')} role="tablist">
         <button
           type="button"
           role="tab"
@@ -357,11 +358,13 @@ function EdgesBlock(props: {
         <span className={css.chevron} aria-hidden="true">
           {open ? '▾' : '▸'}
         </span>
-        <span>
-          {t('panel.upstream')} {incoming.length}
+        <span className={css.edgesStat}>
+          <span>{t('panel.upstream')}</span>
+          <span className={css.edgesStatValue}>{incoming.length}</span>
         </span>
-        <span>
-          {t('panel.downstream')} {outgoing.length}
+        <span className={css.edgesStat}>
+          <span>{t('panel.downstream')}</span>
+          <span className={css.edgesStatValue}>{outgoing.length}</span>
         </span>
       </button>
       {open && (

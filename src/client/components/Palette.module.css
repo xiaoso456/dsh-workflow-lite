@@ -83,11 +83,12 @@
  * 「新建空白节点」这枚 CTA（空图时画布正中唯一能点的东西）点下去只做一件事：
  * 把焦点挪到这个输入框，屏幕上别的像素一个都不动。焦点落在哪必须看得见，所以这里
  * 不靠宿主的 `:focus-visible`（编程式聚焦不一定匹配它，实测聚焦前后该区域像素直方图
- * 完全一致），改用 `:focus` 兜底，再叠一圈软色光环：描边 + 外圈，明暗两套主题都成立。
+ * 完全一致），改用 `:focus` 兜底。环走 `--wl-ring`（它与强调色同源），外面再叠一圈
+ * `--wl-accent-soft` 的软光环——半透明的环单靠自己不够显眼，这一圈是"看得见"的保证。
  */
 .newNode > input:focus {
   border-color: var(--wl-accent);
-  outline: 2px solid var(--wl-accent);
+  outline: 2px solid var(--wl-ring);
   outline-offset: 1px;
   box-shadow: 0 0 0 3px var(--wl-accent-soft);
 }
@@ -119,24 +120,26 @@
 /*
  * 整个分节头就是展开/收起的开关（原生 button），所以三态都要有：它看着像一行标签，
  * 但摸上去必须是控件（上一版的教训就是"一节只有一个不可点的小三角"）。
+ *
+ * 分组靠**留白**：上面 `--wl-gap-3`(12px) 把它和上一节拉开，不用描边去切。
+ * 底是**实色**：窄窗下这个头会钉在滚动容器顶沿，滚动时条目从它下面经过，
+ * 半透明底会把这些条目透出来，看着像叠字。
  */
 .sectionHead {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--wl-gap-1);
   width: 100%;
-  padding: 4px 6px;
-  border: 1px solid transparent;
+  padding: var(--wl-gap-3) 6px var(--wl-gap-1);
+  border: none;
   border-radius: var(--wl-radius-control);
-  /*
-   * 底必须是**实色**：窄窗下这个头会钉在滚动容器顶沿（见文件末尾的媒体查询），
-   * 滚动时条目会从它下面经过，半透明底会把这些条目透出来，看着像叠字。
-   */
   background: var(--wl-surface);
   color: inherit;
   font: inherit;
   text-align: left;
   cursor: pointer;
+  /* 同条目：只有按下那一下的位移参与过渡，底色瞬时切换。 */
+  transition: transform var(--wl-dur) var(--wl-ease);
 }
 
 .sectionHead:hover {
@@ -148,7 +151,7 @@
 }
 
 .sectionHead:focus-visible {
-  outline: 2px solid var(--wl-accent);
+  outline: 2px solid var(--wl-ring);
   outline-offset: 1px;
 }
 
@@ -159,9 +162,10 @@
  * 「内置 node / 自定义 node」渲染成 `内置 NODE`，CSS 改一个字，看到的就是另一个词。
  *
  * 内边距归 `.sectionHead`（整行可点，悬停底色要铺满整行），这一格只留排版。
+ * 颜色取最弱那一档：它是分组标签，不该比它下面的条目更响。
  */
 .sectionLabel {
-  color: var(--wl-text-dim);
+  color: var(--wl-text-mute);
   font-size: var(--wl-font-micro);
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -169,7 +173,7 @@
 
 /*
  * 分节头右侧的项数。写死等宽数字，折叠/展开切换时右边这一列不抖。
- * `margin-left: auto` 把它顶到行尾：和自定义组的组头（组名 flex:1 把数字顶到右边）对齐。
+ * `margin-left: auto` 把它顶到行尾（整行可点的底色铺满）。
  */
 .sectionCount {
   margin-left: auto;
@@ -182,67 +186,33 @@
   margin: 0;
   padding: 4px 10px 8px;
   color: var(--wl-text-mute);
-  font-size: 12px;
+  font-size: var(--wl-font-meta);
 }
 
-/* ── 可折叠组（只给自定义节点用）─────────────────────── */
+/* ── 两节各自的条目层（都是平铺的一层）────────────────── */
 
 /*
- * 内置 node 是平铺的：没有组头、没有折叠，所以它要的就是组体那份横向内边距——
- * 与 `.group` 下的条目左右对齐。
- *
- * **两列网格**：六个起点从六行压成三行（约省 100px），这是这一栏降密最大的一笔。
+ * 内置 node 用**两列网格**：六个起点从六行压成三行（约省 100px），这是这一栏降密最大的一笔。
  * 窄窗也保持两列：那一栏在窄窗只有一百来像素高，退回单列等于又把它顶回"一条都看不见"。
  * 每格仍是一个完整的、可点可拖的原生 button。
  */
 .flatList {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px;
-  padding: 0 8px 4px;
-}
-
-.group {
-  padding: 0 8px;
+  gap: var(--wl-gap-1);
+  padding: 0 8px var(--wl-gap-1);
 }
 
 /*
- * 组体：条目之间的间距统一 4px（条目自己不再带外边距，否则网格里会叠成 12px）。
- * 自定义节点的条目仍是一列——模板名长短不一，塞进两列只会天天折行。
+ * 自定义 node **单列**。理由在内容上：模板名是用户自己起的、长度没有上限（`exec-lint`、
+ * 「执行·静态检查」都在现实里出现过），塞进两列那 90px 宽的格子里会被省略号吃掉大半；
+ * 而这一节也没有内置那样的 id 列可以用来让位。名字可读 > 省两行高度。
  */
-.groupBody {
+.templateList {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding-bottom: 4px;
-}
-
-.groupHead {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  padding: 4px 6px;
-  border: 1px solid transparent;
-  border-radius: var(--wl-radius-control);
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.groupHead:hover {
-  background: var(--wl-hover);
-}
-
-.groupHead:active {
-  transform: translateY(1px);
-}
-
-.groupHead:focus-visible {
-  outline: 2px solid var(--wl-accent);
-  outline-offset: 1px;
+  gap: var(--wl-gap-1);
+  padding: 0 8px var(--wl-gap-1);
 }
 
 .chevron {
@@ -254,63 +224,58 @@
   text-align: center;
 }
 
-/*
- * 组头右侧的「项数」与坏模板徽标。写死等宽数字，折叠/展开切换时右边这列不抖。
- * 徽标（`.badge`，来自 ui.module.css）自己带 3px 上边距，靠行内基线对齐才不歪——
- * 所以这里保持行内布局，不要改成 flex。
- */
-.groupCount {
-  flex: 0 0 auto;
-  color: var(--wl-text-mute);
-  font-size: var(--wl-font-micro);
-  font-variant-numeric: tabular-nums;
-}
-
 /* ── 可拖条目 ─────────────────────────────────────────────── */
 
+/*
+ * 条目是一张**软填充的小卡片**：控件档的底 + 1px 极淡描边，悬停时整条抬起一像素、
+ * 底再上一档。
+ *
+ * 这里刻意**没有**两样东西：
+ * - 绿色左边条。那是装饰色，不表达任何状态；状态色（ok / danger / warn）只在真的
+ *   表达状态的地方出现。
+ * - `⠿` 那种"拖拽把手"。它不是图标，是一段噪声；"能拖"由 `cursor: grab` 与悬停时的
+ *   抬起表达（键盘与触屏用户走的是"点一下"，本来就没有拖这个动作）。
+ */
 .item {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--wl-gap-1);
   width: 100%;
   /* 28px 是"更矮"和"仍然点得准"之间的那一档（24px 是靶点下限）。 */
   min-height: 28px;
   padding: 2px 6px;
-  border: 1px solid transparent;
+  border: 1px solid var(--wl-border);
   border-radius: var(--wl-radius-control);
-  background: var(--wl-bg);
-  color: inherit;
+  background: var(--wl-control);
+  color: var(--wl-text-dim);
   font: inherit;
+  font-size: var(--wl-font-micro);
   text-align: left;
   /* 抓手光标：这是「可以拖走」的第一眼暗示。 */
   cursor: grab;
+  /* 只动 transform：动效规矩是"只动合成层属性"，底色变化不参与过渡（瞬时切换）。 */
+  transition: transform var(--wl-dur) var(--wl-ease);
 }
 
 .item:hover:not(:disabled) {
   border-color: var(--wl-border-strong);
-  background: var(--wl-hover);
+  background: var(--wl-control-hover);
+  transform: translateY(-1px);
 }
 
 .item:active:not(:disabled) {
-  transform: translateY(1px);
+  transform: translateY(0);
   cursor: grabbing;
 }
 
 .item:focus-visible {
-  outline: 2px solid var(--wl-accent);
+  outline: 2px solid var(--wl-ring);
   outline-offset: 1px;
 }
 
 .item:disabled {
   opacity: 0.45;
   cursor: not-allowed;
-}
-
-.itemGrip {
-  flex: 0 0 auto;
-  color: var(--wl-text-mute);
-  font-size: var(--wl-font-micro);
-  line-height: 1;
 }
 
 /*
@@ -323,6 +288,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  /* 11px 的字要靠字重撑起点分量，否则和右边的 id 一样轻。 */
+  font-weight: 500;
 }
 
 .itemPreset .itemName {
@@ -343,16 +310,30 @@
   text-overflow: ellipsis;
 }
 
+/*
+ * 悬停时 id 从 mute 提一档到 dim。两个理由：
+ * - hover 的底比静止底亮一档，11px 的 mute 压上去会在暗色里掉到 4.5:1 以下（实测约 3.9:1）；
+ * - 顺带给"这一条是活的"第二个暗示（除了抬起一像素）。
+ *
+ * 放在 `.itemId` / `.itemPreset .itemId` **之后**：选择器特化更高的一条要写在后面，
+ * 否则会被"特化倒序"的规则挑出来（而且将来加同特化的规则时顺序才是可预期的）。
+ */
+.item:hover:not(:disabled) .itemId {
+  color: var(--wl-text-dim);
+}
+
 .itemBad {
   flex: 0 0 auto;
   color: var(--wl-danger);
-  font-size: 11px;
+  font-size: var(--wl-font-micro);
 }
 
 /*
  * 拖拽影像：一个常驻的、移出视口的节点卡形状空壳，`dragstart` 时由 `setDragImage`
  * 抓一次像素。之所以常驻而不是现造现挂：React 自己管着它，就不必在拖拽开始那一瞬
  * 往文档里塞外来节点（那会和协调打架），而且它还在 `.root` 子树里，变量照常继承。
+ * 它是**浮层**，所以按浮层取面（`--wl-overlay` + 浮层阴影），
+ * 圆角也走浮层那一档。
  */
 .dragGhost {
   position: fixed;
@@ -361,14 +342,14 @@
   max-width: 220px;
   overflow: hidden;
   padding: 6px 10px;
-  border: 1px solid var(--wl-accent);
-  border-radius: var(--wl-radius-card);
-  background: var(--wl-surface);
+  border: 1px solid var(--wl-accent-line);
+  border-radius: var(--wl-radius-lg);
+  background: var(--wl-overlay);
   color: var(--wl-text);
-  font-size: 12px;
+  font-size: var(--wl-font-meta);
   white-space: nowrap;
   text-overflow: ellipsis;
-  box-shadow: 0 4px 12px rgb(0 0 0 / 18%);
+  box-shadow: var(--wl-shadow-overlay);
   pointer-events: none;
 }
 
@@ -468,64 +449,6 @@
   flex: 1 1 auto;
 }
 
-/* ── 旧类名（交互改版后已被上面那批替代，保留以免打断别处的引用）── */
-
-.paletteGroup {
-  padding: 2px 0 8px;
-}
-
-.paletteItem {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: calc(100% - 16px);
-  margin: 2px 8px;
-  padding: 5px 8px;
-  border: 1px solid transparent;
-  border-radius: var(--wl-radius-control);
-  background: var(--wl-bg);
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.paletteItem:hover:not(:disabled) {
-  border-color: var(--wl-border-strong);
-}
-
-.paletteItem:active:not(:disabled) {
-  transform: translateY(1px);
-}
-
-.paletteItem:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.paletteItem:focus-visible {
-  outline: 2px solid var(--wl-accent);
-  outline-offset: 1px;
-}
-
-.paletteItemName {
-  flex: 1 1 auto;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.paletteItemId {
-  color: var(--wl-text-mute);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 11px;
-}
-
-.paletteItemBad {
-  color: var(--wl-danger);
-  font-size: 11px;
-}
-
 /* ── 窄窗（三栏竖排）：并成一行 + 把分节头钉住 ─────────── */
 
 /*
@@ -534,7 +457,8 @@
  *
  *   1. 把「筛选 + 全部收起」与「节点 id 新建 + ＋」并成一行（**只在这里并**，宽窗不并，
  *      理由见上面 `.shell` 的注释）；
- *   2. 让两个分节头钉在滚动容器顶沿（底色已在基础规则里换成实色）。
+ *   2. 让两个分节头钉在滚动容器顶沿（底色已在基础规则里换成实色），并且**收掉
+ *      那 12px 的分组留白**——窄窗每一像素都要换条目，分组靠"钉住的头"本身就够了。
  *
  * 合起来壳从 146px 压到 107px：860 能露出一整行网格（2 条），760 露 19px 残片。
  *
@@ -549,7 +473,7 @@
   .shell {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--wl-gap-1);
     padding: 2px 8px 4px;
   }
 
@@ -567,6 +491,21 @@
     position: sticky;
     top: 0;
     z-index: 1;
-    padding: 3px 6px;
+    padding: 4px 6px;
+  }
+}
+
+/*
+ * 动效降级：抬起与过渡都是装饰，系统说不要动就不要动（状态该变还是照变——
+ * hover 的底色仍在，只是不再有位移与过渡）。
+ */
+@media (prefers-reduced-motion: reduce) {
+  .item,
+  .sectionHead {
+    transition: none;
+  }
+
+  .item:hover:not(:disabled) {
+    transform: none;
   }
 }

@@ -1,13 +1,19 @@
 /**
- * dsh-workflow-lite — 可搜索下拉与溢出菜单的样式。
+ * dsh-workflow-lite — 可搜索下拉、溢出菜单，以及工具条的 ghost 按钮。
  *
- * 令牌全部来自 `.root`（CanvasView.module.css）继承下来的 `--wl-*`：底色 `--wl-control*`、
- * 描边 `--wl-border-strong`、字号 `--wl-font-*`、间距 `--wl-gap-*`（4 / 8 / 12 三档）、
- * 圆角 `--wl-radius-control`（控件）与 `--wl-radius-card`（浮层）。这里不另立新值。
+ * 令牌全部来自 `.root`（CanvasView.module.css）继承下来的 `--wl-*`：面（`--wl-overlay` /
+ * `--wl-surface-2` / `--wl-control*`）、描边（`--wl-border*`）、强调（`--wl-accent*` / `--wl-ring`）、
+ * 悬停（`--wl-hover*`）、字号（`--wl-font-*`）、间距（`--wl-gap-*`）、圆角（`--wl-radius-*`）、
+ * 动效（`--wl-ease` / `--wl-dur` / `--wl-shadow-overlay`）。这里**不出现任何裸色值**。
  *
  * 浮层用 `position: fixed` 留在触发器的子树里（**不 portal**）：`fixed` 盒的包含块是视口，
  * 顶栏那个 `overflow-x: auto` 裁不到它；而 portal 到 `document.body` 会让 `.root` 上的
  * `--wl-*` 令牌全部失效（继承链断了），只能再抄一份。详见 Combobox.tsx 的模块注释。
+ *
+ * 三层语言（不要混）：
+ * - **控件**：抬起的实心底（`--wl-control`）+ 极淡描边，悬停亮一档（触发器、筛选框）；
+ * - **ghost**：透明底、没有常驻描边，只有 hover/focus/按下才有底（工具条按钮、`⋯`）；
+ * - **浮层**：整块更亮的面（`--wl-overlay`）+ 更强的描边 + `--wl-shadow-overlay`（下拉、菜单、提示）。
  *
  * @module @xiaoso/dsh-workflow-lite/client/components/Combobox
  */
@@ -24,6 +30,8 @@
  *
  * `role="combobox"` 挂在它上面（ARIA 的 select-only 组合框形态）：有 `aria-expanded`
  * 与 `aria-controls`，展开后焦点交给筛选框、高亮由 `aria-activedescendant` 表达。
+ *
+ * 展开时给一圈 `--wl-ring`：焦点随即进了筛选框，这一圈是"触发器与浮层是一体的"的唯一提示。
  */
 .trigger {
   display: inline-flex;
@@ -33,26 +41,36 @@
   min-width: 180px;
   max-width: 260px;
   padding: var(--wl-gap-1) var(--wl-gap-2);
-  border: 1px solid var(--wl-border-strong);
+  border: 1px solid var(--wl-border);
   border-radius: var(--wl-radius-control);
   background: var(--wl-control);
   color: var(--wl-text);
-  font-family: inherit;
-  font-size: var(--wl-font-body);
+  font: inherit;
   text-align: left;
   cursor: pointer;
+  transition:
+    background-color var(--wl-dur) var(--wl-ease),
+    border-color var(--wl-dur) var(--wl-ease),
+    box-shadow var(--wl-dur) var(--wl-ease),
+    color var(--wl-dur) var(--wl-ease);
 }
 
 .trigger:hover {
   background: var(--wl-control-hover);
 }
 
-.trigger[aria-expanded="true"] {
+.trigger:active {
   background: var(--wl-control-active);
 }
 
+.trigger[aria-expanded="true"] {
+  border-color: transparent;
+  background: var(--wl-control-active);
+  box-shadow: 0 0 0 2px var(--wl-ring);
+}
+
 .trigger:focus-visible {
-  outline: 2px solid var(--wl-accent);
+  outline: 2px solid var(--wl-ring);
   outline-offset: 1px;
 }
 
@@ -68,21 +86,34 @@
 .valueMeta,
 .optionMeta {
   flex: 0 0 auto;
-  color: var(--wl-text-mute);
+  color: var(--wl-text-dim);
   font-size: var(--wl-font-meta);
 }
 
+/*
+ * 箭头。展开时翻个身——只动 `transform`，160ms 缓出，不重排任何东西。
+ * 它是个 flex 子项（不是裸 inline），所以 `transform` 真的生效。
+ */
 .chevron {
   flex: 0 0 auto;
-  color: var(--wl-text-dim);
+  color: var(--wl-text-mute);
   font-size: var(--wl-font-micro);
+  transition: transform var(--wl-dur) var(--wl-ease);
+}
+
+.trigger[aria-expanded="true"] .chevron {
+  transform: rotate(180deg);
 }
 
 /*
  * 浮层本体（下拉与菜单共用）。
  *
- * `max-height` 给一个上限而不是固定值：图多的时候列表自己滚，浮层不会长到视口外面；
- * `min()` 里的 60vh 保证矮窗口下也留得出空间。
+ * 抬层级靠"更亮的面 + 更强的描边"，阴影只做辅助（暗底上阴影本来就不成立）。
+ * `max-height` 给上限而不是固定值：条目多的时候列表自己滚，浮层不会长到视口外面。
+ *
+ * 进场只动 `opacity` 与 `transform`（2px 上浮），`--wl-dur` 走完。注意：动画期间浮层身上
+ * 有 `transform`，会把里面的 `position: fixed` 元素（菜单项的悬浮提示）的包含块临时改成它——
+ * 提示有 350ms 延迟、动画只有 160ms，等提示该出现时那层 transform 早就没了。
  */
 .popover {
   position: fixed;
@@ -94,33 +125,56 @@
   max-height: min(320px, 60vh);
   padding: var(--wl-gap-2);
   border: 1px solid var(--wl-border-strong);
-  border-radius: var(--wl-radius-card);
-  background: var(--wl-surface);
+  border-radius: var(--wl-radius-lg);
+  background: var(--wl-overlay);
   overflow: hidden auto;
-  box-shadow: var(--dsw-elevation-panel, 0 4px 12px rgb(0 0 0 / 18%));
+  box-shadow: var(--wl-shadow-overlay);
+  animation: pop-in var(--wl-dur) var(--wl-ease) both;
 }
 
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/*
+ * 筛选框：**无描边** + 一档软填充。
+ *
+ * 描边保留 1px 但设成透明：这样聚焦加环时盒子尺寸不变（与触发器同高），浮层不会抖一下。
+ */
 .filter {
   box-sizing: border-box;
   width: 100%;
   padding: var(--wl-gap-1) var(--wl-gap-2);
-  border: 1px solid var(--wl-border-strong);
+  border: 1px solid transparent;
   border-radius: var(--wl-radius-control);
-  background: var(--wl-control);
+  background: var(--wl-surface-2);
   color: var(--wl-text);
-  font-family: inherit;
-  font-size: var(--wl-font-body);
+  font: inherit;
+  transition:
+    background-color var(--wl-dur) var(--wl-ease),
+    box-shadow var(--wl-dur) var(--wl-ease);
 }
 
 .filter:focus-visible {
-  outline: 2px solid var(--wl-accent);
-  outline-offset: 1px;
+  outline: 2px solid var(--wl-ring);
+  outline-offset: -1px;
 }
 
+/*
+ * 空结果。用 `--wl-text-dim` 而不是更弱的 `--wl-text-mute`：这是一句**要读**的说明
+ *（"没有匹配的图"），深色浮层上 mute 只有 3.37:1，dim 是 6.3:1。
+ */
 .noMatch {
   margin: 0;
   padding: var(--wl-gap-1) var(--wl-gap-2);
-  color: var(--wl-text-mute);
+  color: var(--wl-text-dim);
   font-size: var(--wl-font-meta);
 }
 
@@ -149,17 +203,32 @@
   color: var(--wl-text);
   font-size: var(--wl-font-body);
   cursor: pointer;
+  transition:
+    background-color var(--wl-dur) var(--wl-ease),
+    color var(--wl-dur) var(--wl-ease);
 }
 
-/* 高亮（键盘 `↑↓` 或指针悬停）：`data-active` 由组件写在当前那一项上。 */
-.option[data-active],
+/* 指针路过：半透明悬停底，落在浮层那个面上。 */
 .option:hover {
-  background: var(--wl-control-hover);
+  background: var(--wl-hover);
 }
 
-/* 已选中：底色用强调色的浅档，与"只是路过"的高亮区分开。 */
-.option[aria-selected="true"] {
+/*
+ * 键盘高亮（`data-active` 由组件写在当前那一项上）：整条染成强调色的浅底。
+ *
+ * **文字仍用正文色，不用强调色**：实测强调色压在强调浅底上深色只有 3.76:1、浅色 4.71:1，
+ * 13px 正文按 AA 要 4.5:1，深色那档不达标。强调色留给"选中"那个状态标记（对勾 / 字重），
+ * 底色的位移本身已经足够说明"回车就选它"。
+ */
+.option[data-active] {
   background: var(--wl-accent-soft);
+  color: var(--wl-text);
+}
+
+/* 已选中：不着底，用强调色文字 + 加粗与"路过"区分；高亮时两者叠加成浅底 + 强调色文字。 */
+.option[aria-selected="true"] {
+  color: var(--wl-accent);
+  font-weight: 600;
 }
 
 .optionLabel {
@@ -172,34 +241,40 @@
 
 /* ── 溢出菜单 ─────────────────────────────────────────────── */
 
+/* `⋯`：ghost 图标按钮——默认只有图标，悬停/展开才出现底。 */
 .iconTrigger {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  min-width: 26px;
-  height: 22px;
-  padding: 0 var(--wl-gap-1);
-  border: 1px solid var(--wl-border-strong);
+  inline-size: 22px;
+  block-size: 22px;
+  padding: 0;
+  border: 1px solid transparent;
   border-radius: var(--wl-radius-control);
-  background: var(--wl-control);
-  color: var(--wl-text);
-  font-family: inherit;
+  background: transparent;
+  color: var(--wl-text-dim);
+  font: inherit;
   font-size: var(--wl-font-body);
   line-height: 1;
   cursor: pointer;
+  transition:
+    background-color var(--wl-dur) var(--wl-ease),
+    color var(--wl-dur) var(--wl-ease);
 }
 
 .iconTrigger:hover {
   background: var(--wl-control-hover);
+  color: var(--wl-text);
 }
 
 .iconTrigger[aria-expanded="true"] {
   background: var(--wl-control-active);
+  color: var(--wl-text);
 }
 
 .iconTrigger:focus-visible {
-  outline: 2px solid var(--wl-accent);
+  outline: 2px solid var(--wl-ring);
   outline-offset: 1px;
 }
 
@@ -243,19 +318,26 @@
   border-radius: var(--wl-radius-control);
   background: transparent;
   color: var(--wl-text);
-  font-family: inherit;
+  font: inherit;
   font-size: var(--wl-font-body);
   text-align: left;
   cursor: pointer;
+  transition:
+    background-color var(--wl-dur) var(--wl-ease),
+    color var(--wl-dur) var(--wl-ease);
 }
 
-.menuItem:hover:not(:disabled),
-.menuItem:focus-visible {
-  background: var(--wl-control-hover);
+.menuItem:hover:not(:disabled) {
+  background: var(--wl-hover);
+}
+
+.menuItem:active:not(:disabled) {
+  background: var(--wl-hover-strong);
 }
 
 .menuItem:focus-visible {
-  outline: 2px solid var(--wl-accent);
+  background: var(--wl-hover);
+  outline: 2px solid var(--wl-ring);
   outline-offset: -2px;
 }
 
@@ -268,6 +350,11 @@
   color: var(--wl-danger);
 }
 
+.menuItemDanger:hover:not(:disabled),
+.menuItemDanger:focus-visible {
+  background: var(--wl-danger-soft);
+}
+
 .menuLabel {
   flex: 1 1 auto;
   min-width: 0;
@@ -278,7 +365,7 @@
 
 .menuCaret {
   flex: 0 0 auto;
-  color: var(--wl-text-dim);
+  color: var(--wl-text-mute);
   font-size: var(--wl-font-micro);
 }
 
@@ -295,4 +382,125 @@
   height: 1px;
   margin: var(--wl-gap-1) 0;
   background: var(--wl-border);
+}
+
+/* ── 工具条按钮（ghost 原子） ─────────────────────────────── */
+
+/*
+ * 工具条上那排按钮。
+ *
+ * 它们**不复用 `ui.button`**：那个原子是"面板里的控件"（实心 `--wl-control` 底），而工具条要的
+ * 是 ghost 语言（透明底、无常驻描边、hover 才亮），两者是两套形态而不是同一种东西的两种尺寸。
+ * `ui.module.css` 头部那条规矩也正是这么说的——"需要新类加在自己的模块里"。
+ * 顺带解决了同名的坑：跨模块的 `.button` 与 `.ghost` 特异度相同（都是 0,1,0），
+ * 谁赢要看样式注入顺序，而那个顺序不由我们决定——干脆不共用。
+ *
+ * 尺寸与 `ui.button` 对齐（`font: inherit` + `--wl-gap-1/--wl-gap-2` 内边距 + 1px 透明描边），
+ * 所以一行里的"新建"（主按钮，实心强调色）与这几个 ghost 按钮同高。
+ */
+.ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--wl-gap-1);
+  box-sizing: border-box;
+  padding: var(--wl-gap-1) var(--wl-gap-2);
+  border: 1px solid transparent;
+  border-radius: var(--wl-radius-control);
+  background: transparent;
+  color: var(--wl-text-dim);
+  font: inherit;
+  cursor: pointer;
+  transition:
+    background-color var(--wl-dur) var(--wl-ease),
+    color var(--wl-dur) var(--wl-ease);
+}
+
+.ghost:hover:not(:disabled) {
+  background: var(--wl-hover);
+  color: var(--wl-text);
+}
+
+.ghost:active:not(:disabled) {
+  background: var(--wl-hover-strong);
+  color: var(--wl-text);
+}
+
+.ghost:focus-visible {
+  outline: 2px solid var(--wl-ring);
+  outline-offset: 1px;
+}
+
+.ghost:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* 破坏性动作：文字就是危险色，悬停底用危险色的浅档（而不是中性悬停底）。 */
+.ghostDanger {
+  color: var(--wl-danger);
+}
+
+.ghostDanger:hover:not(:disabled),
+.ghostDanger:active:not(:disabled) {
+  background: var(--wl-danger-soft);
+  color: var(--wl-danger);
+}
+
+/* `?` 这类纯图标按钮：同一套 ghost 语言，盒子是方的（与 `⋯` 同尺寸）。 */
+.ghostIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  inline-size: 22px;
+  block-size: 22px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--wl-radius-control);
+  background: transparent;
+  color: var(--wl-text-dim);
+  font: inherit;
+  font-size: var(--wl-font-meta);
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background-color var(--wl-dur) var(--wl-ease),
+    color var(--wl-dur) var(--wl-ease);
+}
+
+.ghostIcon:hover {
+  background: var(--wl-hover);
+  color: var(--wl-text);
+}
+
+.ghostIcon[aria-expanded="true"] {
+  background: var(--wl-hover-strong);
+  color: var(--wl-text);
+}
+
+.ghostIcon:focus-visible {
+  outline: 2px solid var(--wl-ring);
+  outline-offset: 1px;
+}
+
+/* ── 动效降级 ─────────────────────────────────────────────── */
+
+/*
+ * `prefers-reduced-motion` 下把过渡与进场动画全部关掉：动效是锦上添花，
+ * 对前庭敏感的人是实打实的干扰。（只列本文件里会动的那些类。）
+ */
+@media (prefers-reduced-motion: reduce) {
+  .trigger,
+  .chevron,
+  .popover,
+  .filter,
+  .option,
+  .iconTrigger,
+  .menuItem,
+  .ghost,
+  .ghostDanger,
+  .ghostIcon {
+    transition: none;
+    animation: none;
+  }
 }

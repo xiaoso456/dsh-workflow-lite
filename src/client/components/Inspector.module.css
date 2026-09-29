@@ -1,6 +1,10 @@
 /**
  * dsh-workflow-lite — 右栏（节点页 / 计划页 / 边编辑）样式。
  *
+ * 形状语言：一个字段 = **一行 11px 小标签 + 一个软填充的体**（`ui.field` / `ui.input`），
+ * 不是一排一模一样的描边盒子；页签是**分段控件**（`ui.tabs` 的凹槽 + 抬起的选中块）。
+ * 右栏自己不画第二个框：整栏只有页签下那一条淡线，其余靠留白分。
+ *
  * 两页的显隐只有一处根据：`.tabBar` 上的 `data-wl-pane`（`node` / `plan`）。
  * 两页的内容都常驻 DOM，谁在场全部由 CSS 推出来。之所以不写在 React 里：
  *
@@ -15,21 +19,30 @@
 /* ── 页签行 ───────────────────────────────────────────────── */
 
 /*
- * 页签行。全右栏**唯一一条分隔线**就画在这里：以前每段各自 `border-top`，
- * 一列下来四五条横线，读起来像表格。
+ * 页签行。右栏**唯一一条分隔线**画在这里：以前每段各自 `border-top`，一列下来
+ * 四五条横线，读起来像表格。页签本身走 `ui.tabs` 的分段控件，这里只做两件事：
+ * 给它上下留白，以及让它**占满整行**（两个同级视图对半分，比缩在左上角成一颗药丸更像控件）。
  */
 .tabBar {
   display: flex;
   align-items: center;
-  padding: 12px 10px;
+  padding: var(--wl-gap-3) 10px;
   border-bottom: 1px solid var(--wl-border);
+}
+
+.tabSegments {
+  flex: 1 1 auto;
+}
+
+.tabSegments > * {
+  flex: 1 1 auto;
 }
 
 /* ── 属性面板 ─────────────────────────────────────────────── */
 
 /* 一段面板（属性 / 整图概览）。段与段之间靠留白分，不靠边框。 */
 .panel {
-  padding: 4px 0 12px;
+  padding: var(--wl-gap-1) 0 var(--wl-gap-3);
 }
 
 /*
@@ -37,25 +50,26 @@
  * `.summaryRow` / `.summaryKey` / `.summaryValue` 是**通用的一行 / 键 / 值**，
  * 节点 id 那一行与编译预览头部的 planId 都复用它们；类名就这几个，
  * 不为"再来一行"这种需求自造新类。
+ * 口径：键走 `--wl-text-mute`（与字段标签同一档），值走 `--wl-text` + 等宽数字。
  */
 .graphSummary {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 0 10px 12px;
+  gap: var(--wl-gap-1);
+  padding: 0 10px var(--wl-gap-3);
 }
 
 .summaryRow {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: var(--wl-gap-2);
   min-width: 0;
 }
 
 .summaryKey {
   flex: 0 0 auto;
-  color: var(--wl-text-dim);
-  font-size: var(--wl-font-meta);
+  color: var(--wl-text-mute);
+  font-size: var(--wl-font-micro);
 }
 
 /*
@@ -72,10 +86,12 @@
   font-size: var(--wl-font-meta);
 }
 
-/* 概览里的值靠右对齐；节点 id 输入框在概览外，保持左对齐（那是要读的 id）。 */
+/* 概览里的值靠右对齐，并且要比键亮：键是标签，值才是要读的东西。 */
 .graphSummary .summaryValue {
   margin-left: auto;
   text-align: right;
+  color: var(--wl-text);
+  font-variant-numeric: tabular-nums;
 }
 
 /* 占位文案（例如还没打开任何图）不按值来读。 */
@@ -84,7 +100,7 @@
 }
 
 /*
- * 提示词是这张图的载荷本体，占最大面积。
+ * 提示词字段：体是 `ui.textarea` 的样式，这里只管它的高度与右下角那行字数。
  * min-height 落在 textarea 自己身上：`ui.textarea` 的 132px 是"普通文本域"的尺度，
  * 这里要的是"正文字段"的尺度。选择器带元素名，才压得过注入顺序在后面的 `ui.module.css`。
  */
@@ -101,7 +117,7 @@
    * "正文字段"，上限 420px 给高视口封顶。
    *
    * 系数 30vh 是"节点页一屏读完"倒推出来的：这个框每长 10px，节点页就整体长 10px。
-   * 30vh 下 1440×900 与 1920×1080 的节点页都不出滚动条（量到 `scrollH == clientH`），
+   * 30vh 下 1440×900 与 1920×1080 的节点页都不出滚动条（量到 scrollH == clientH），
    * 1100×720 起才开始溢出（改版前这一栏是 1081px 塞进 784px，一直在滚）。
    */
   min-height: clamp(168px, 30vh, 420px);
@@ -111,91 +127,120 @@
 
 .charCount {
   position: absolute;
-  right: 16px;
-  bottom: 5px;
-  color: var(--wl-text-mute);
+  right: var(--wl-gap-3);
+  bottom: var(--wl-gap-1);
+  color: var(--wl-text-dim);
   font-family: var(--wl-font-mono);
   font-size: var(--wl-font-micro);
+  font-variant-numeric: tabular-nums;
   pointer-events: none;
 }
 
 /*
  * 面板底部的节点级操作（复制 / 删除）。
- * 不再画 `border-top`：这一列现在只有页签下那一条线，段与段之间靠留白。
+ * 不画 `border-top`：这一列现在只有页签下那一条线，段与段之间靠留白。
  */
 .nodeActions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 4px;
-  padding-top: 12px;
+  gap: var(--wl-gap-2);
+  margin-top: var(--wl-gap-1);
+  padding-top: var(--wl-gap-3);
 }
 
+/* 字段组之间的节奏：12px。挨太紧就又变回"一排抽屉"。 */
 .form {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 4px 10px 12px;
+  gap: var(--wl-gap-3);
+  padding: var(--wl-gap-1) 10px var(--wl-gap-3);
 }
+
+/* ── 边摘要（默认收起）───────────────────────────────────── */
 
 /*
  * 入 / 出边摘要：一行一个开关，紧贴在展开后的清单上面。
- * 样式对齐左栏「校验」那个折叠头（透明底、无边框、hover 才变色），
- * 免得右栏又冒出一个"像按钮的按钮"。
+ * 它没有按钮的形状（透明底、无边框），悬停才浮出一层底——和左栏「校验」那个折叠头
+ * 同一套语言，免得右栏又冒出一个"像按钮的按钮"。
  */
 .edgesBlock {
-  padding-bottom: 12px;
+  padding-bottom: var(--wl-gap-3);
 }
 
 .edgesToggle {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--wl-gap-3);
   width: 100%;
-  padding: 8px 10px;
+  padding: var(--wl-gap-2) 10px;
   border: none;
+  border-radius: var(--wl-radius-control);
   background: transparent;
-  color: var(--wl-text-dim);
+  color: var(--wl-text-mute);
   font: inherit;
   font-size: var(--wl-font-micro);
   text-align: left;
   cursor: pointer;
+  transition:
+    background-color var(--wl-dur) var(--wl-ease),
+    color var(--wl-dur) var(--wl-ease);
 }
 
+/* 悬停整行提亮：标签跟着亮起来，数字本来就是亮的（它自己带色）。 */
 .edgesToggle:hover {
+  background: var(--wl-hover);
   color: var(--wl-text);
 }
 
 .edgesToggle:focus-visible {
-  outline: 2px solid var(--wl-accent);
+  outline: 2px solid var(--wl-ring);
   outline-offset: -2px;
 }
 
 .chevron {
   flex: 0 0 auto;
-  color: var(--wl-text-mute);
+  color: var(--wl-text-faint);
+}
+
+/* 摘要里的一格：`上游` + 数字。 */
+.edgesStat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--wl-gap-1);
+}
+
+/* 数字是值，跟键拉开一档；等宽数字让两个格子的数字对齐。 */
+.edgesStatValue {
+  color: var(--wl-text);
+  font-variant-numeric: tabular-nums;
 }
 
 .edgeList {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--wl-gap-1);
   margin: 0;
-  padding: 0 10px 12px;
+  padding: 0 10px var(--wl-gap-3);
   list-style: none;
 }
 
+/*
+ * 边的形状来自 `--wl-surface-2` 这一档面 + 1px 淡边：浅色档里那一档面与面板同色，
+ * 描边就是唯一的形状来源；深色档里它比面板亮一档，面自己就立住了。
+ * 正常行与回边行的差别只在那一条虚线（语义：循环里返回的那条，不是装饰）。
+ */
 .edgeRow {
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 4px 6px;
   border: 1px solid var(--wl-border);
-  border-radius: var(--wl-radius-control);
-  background: var(--wl-bg);
+  border-radius: var(--wl-radius-sm);
+  background: var(--wl-surface-2);
 }
 
 .edgeRowBack {
+  border-color: var(--wl-border);
   border-style: dashed;
 }
 
@@ -232,7 +277,7 @@
 .dirIn,
 .dirOut {
   flex: 0 0 auto;
-  color: var(--wl-text-mute);
+  color: var(--wl-text-faint);
   font-size: var(--wl-font-micro);
   line-height: 1;
 }
@@ -246,7 +291,7 @@
 .tagBack {
   flex: 0 0 auto;
   white-space: nowrap;
-  color: var(--wl-text-mute);
+  color: var(--wl-text-dim);
   font-size: var(--wl-font-micro);
 }
 
@@ -257,7 +302,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 8px;
+  gap: var(--wl-gap-2);
   font-family: var(--wl-font-mono);
   font-size: var(--wl-font-meta);
 }
@@ -268,30 +313,32 @@
 }
 
 .edgeArrow {
-  color: var(--wl-text-mute);
+  color: var(--wl-text-faint);
 }
 
 /*
  * 条件的点选行。
  *
  * 四个格子复用站点统一的按钮样式（`.button`），这里只负责"当前值是哪一个"的高亮。
- * 高亮用全站唯一的强调色 `--wl-accent`：与选中环、当前 tab 同一套语气。
+ * 按钮本身没有可见描边，所以选中由三样一起说：强调色的底、强调色的字、一条
+ * `--wl-accent-line` 描边。与选中环、当前页签是同一套语气。
  */
 .condRow {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: var(--wl-gap-1);
 }
 
 /*
- * 当前值那一格。`hover` 那一支必须一起写：`ui.button:hover` 比这条特异度高，
+  * 当前值那一格：强调色的底 + 一条 `--wl-accent-line` 描边（文字保持正常色，理由同页签）。
+ * * 当前值那一格。`hover` 那一支必须一起写：`ui.button:hover` 比这条特异度高，
  * 不显式覆盖的话鼠标一放上去高亮就没了。
  */
 .condActive,
 .condActive:hover:not(:disabled) {
-  border-color: var(--wl-accent);
+  border-color: var(--wl-accent-line);
   background: var(--wl-accent-soft);
-  color: var(--wl-accent);
+  color: var(--wl-text);
 }
 
 /* 自定义值输入框：与点选格同一行，宽度按"十来个字符"给。 */
@@ -312,14 +359,14 @@
   display: none;
   flex-direction: column;
   min-height: 0;
-  padding-bottom: 12px;
+  padding-bottom: var(--wl-gap-3);
 }
 
 .planActions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  padding: 0 10px 12px;
+  gap: var(--wl-gap-2);
+  padding: 0 10px var(--wl-gap-3);
 }
 
 /*
@@ -347,16 +394,18 @@
  * 决定（`flex: 1 1 auto` + `min-height: 0`），所以正文窗口就是"栏有多高、它有多高"。
  * 以前它被固定成 320px、还排在右栏第 4 段：正文 2500px 的计划只露 15px，
  * 想读到它得先把整栏滚 331px 下去，两层滚动叠在一起。
+ * 形状是一口**凹下去的井**（`--wl-surface-board`，与画布同档），没有描边：这么大一块
+ * 再画个框，整栏就到处都是框；而且浅色档里 surface / surface-2 是同一个白，只有这一档
+ * 面能在两种主题下都把"这是一块可滚的正文"说出来。
  */
 .plan {
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
   margin: 0 10px;
-  padding: 8px 10px;
-  border: 1px solid var(--wl-border);
+  padding: var(--wl-gap-2) 10px;
   border-radius: var(--wl-radius-card);
-  background: var(--wl-bg);
+  background: var(--wl-surface-board);
   font-family: var(--wl-font-mono);
   font-size: var(--wl-font-meta);
   line-height: 1.5;

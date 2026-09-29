@@ -1,31 +1,72 @@
 /**
- * dsh-workflow-lite — 共享原子样式（按钮 / 输入 / 面板头 / 标签页 / 提示条 / 状态点）。
+ * dsh-workflow-lite — 共享原子样式（按钮 / 输入体 / 面板头 / 分段控件 / 提示条 / 状态点）。
  *
  * **这些类不定义 `--wl-*` 变量**——它们从 `.root`（在 CanvasView.module.css 里）继承。
  * 因此本文件的类**只能用在 `.root` 子树内**。
  *
- * 本文件由 Lead 独占写入；别的组件模块不要往这里加类，需要新类加在自己的模块里。
+ * 别的组件模块不要往这里加类：需要新类就加在自己的模块里。这里的类只解决"到处都该长一样"
+ * 的那几件事，只服务一处的样式留在它自己的模块。
+ *
+ * 形状语言（用户说"样式非常别扭"，这一版按它重刷）：
+ * - **靠面抬高层级，不靠描边**。输入体用 `--wl-surface-2` 软填充（静止时一根线都不画，
+ *   悬停才浮出 1px `--wl-border`）；按钮与图标按钮用 `--wl-control`，而它浅色档就是白，
+ *   与面板同色，所以那 1px 淡描边在浅色下是按钮唯一的形状来源。
+ *   深色档里两级面自己就分出层级，描边几乎看不见。
+ * - **聚焦才出环**：`--wl-ring` 2px，平时不画。
+ * - 圆角两档：控件（按钮 / 输入体 / 分段控件）走 `--wl-radius-control`，
+ *   更小的东西（徽标 / 键帽）走 `--wl-radius-sm`。别处不许冒出第三个数。
+ * - 强调色一个：`--wl-accent` + `--wl-accent-on`；语义色只在表达状态时出现。
+ * - 过渡只动 color / background / transform，`var(--wl-dur) var(--wl-ease)`；
+ *   减动效时整段降级为 none（见文件末尾）。
  *
  * @module @xiaoso/dsh-workflow-lite/client/components/ui
  */
 
+/* ── 输入体 ───────────────────────────────────────────────── */
+
+/*
+ * 字段组的"体"：**软填充，没有描边**。形状由 `--wl-surface-2` 这一档面给（浅色档它比面板
+ * 暗一点、深色档比面板亮一点，两种主题都立得住），所以静止时一根线条都不画——
+ * 用户原话就是"到处都框……像一排抽屉"。
+ * `border` 仍留 1px 透明：所有档位尺寸一致，一排控件不会谁高谁矮。
+ */
 .select,
 .input,
 .textarea {
-  border: 1px solid var(--wl-border-strong);
+  border: 1px solid transparent;
   border-radius: var(--wl-radius-control);
-  background: var(--wl-control);
+  background: var(--wl-surface-2);
   color: inherit;
   font: inherit;
   padding: var(--wl-gap-1) var(--wl-gap-2);
+  transition:
+    background-color var(--wl-dur) var(--wl-ease),
+    border-color var(--wl-dur) var(--wl-ease);
 }
 
+/* 悬停才浮出一条极淡的边：静止不画框，但"这里能输入"仍要有反馈。 */
+.input:hover:not(:disabled):not(.readonly),
+.select:hover:not(:disabled),
+.textarea:hover:not(:disabled) {
+  border-color: var(--wl-border);
+}
+
+/*
+ * 占位文字走最弱的一档，和真值拉开：`--wl-text-faint` 就是为它准备的。
+ */
+.input::placeholder,
+.textarea::placeholder {
+  color: var(--wl-text-faint);
+}
+
+/* 聚焦才出环。平时不画：每个控件都挂着环，就等于到处都框。 */
 .select:focus-visible,
 .input:focus-visible,
 .textarea:focus-visible,
 .button:focus-visible,
+.iconButton:focus-visible,
 .tab:focus-visible {
-  outline: 2px solid var(--wl-accent);
+  outline: 2px solid var(--wl-ring);
   outline-offset: 1px;
 }
 
@@ -34,19 +75,38 @@
 }
 
 /*
- * 控件底一律走 `--wl-control`，不用 `--wl-bg`：`--wl-bg` 就是宿主的 `bg-base`，
- * 而画布板与工具条所在的那一层也是 `bg-base`，暗色下按钮与自己的父容器完全同色
- * （实测形状对比 1.00:1，按钮没有形状），并且比顶栏面板更暗，看着是一个个洞。
- * 悬停、按下各上一档，形状与反馈都留在原地。
+ * 只读值不给"面"：它旁边通常就有一个动作按钮（例如「复制 id」），再画一个框只是
+ * 多一个抽屉。它仍然可聚焦（`readOnly` 的输入框能选中文字），所以焦点环留着。
+ * 这条必须写在 `.input` 之后：同权重，靠顺序取胜。
+ */
+.readonly {
+  border-color: transparent;
+  background: transparent;
+  color: var(--wl-text-dim);
+  font-family: var(--wl-font-mono);
+}
+
+/* ── 按钮 ─────────────────────────────────────────────────── */
+
+/*
+ * 默认按钮 = 抬起的小片：形状主要来自 `--wl-control` 这一档面，不靠描边。
+ * 那 1px `--wl-border` 不是装饰：浅色档里 control 与 panel 是同一个白，没有它按钮
+ * 就完全没有形状（深色档里它几乎看不见，形状由面给）。`border` 各档一律留 1px，
+ * primary / ghost 与它尺寸才完全一致。
  */
 .button {
-  border: 1px solid var(--wl-border-strong);
+  border: 1px solid var(--wl-border);
   border-radius: var(--wl-radius-control);
   background: var(--wl-control);
   color: inherit;
   font: inherit;
   padding: var(--wl-gap-1) var(--wl-gap-2);
   cursor: pointer;
+  transition:
+    background-color var(--wl-dur) var(--wl-ease),
+    border-color var(--wl-dur) var(--wl-ease),
+    color var(--wl-dur) var(--wl-ease),
+    transform var(--wl-dur) var(--wl-ease);
 }
 
 .button:hover:not(:disabled) {
@@ -55,7 +115,7 @@
 
 .button:active:not(:disabled) {
   background: var(--wl-control-active);
-  transform: translateY(1px);
+  transform: translateY(0.5px);
 }
 
 .button:disabled {
@@ -63,31 +123,53 @@
   cursor: not-allowed;
 }
 
+/* 主行动：实心强调色 + `--wl-accent-on`（两支主题各自算过对比度）。底已经立住了，框去掉。 */
 .buttonPrimary {
-  border-color: var(--wl-accent);
+  border-color: transparent;
   background: var(--wl-accent);
-  color: var(--dsw-alias-label-primary-foreground, #ffffff);
+  color: var(--wl-accent-on);
 }
 
 .buttonPrimary:hover:not(:disabled) {
-  background: var(--dsw-alias-button-primary-hover, var(--wl-accent));
+  background: var(--wl-accent-hover);
 }
 
 /*
- * 主按钮按下时不能被 `.button:active` 改成控件底：两条同特异度（0,3,0），
- * 按源码顺序取胜，所以这一条必须写在它后面。
+ * 按下时不能被 `.button:active` 改成控件底：同特异度（0,3,0），按源码顺序取胜，
+ * 所以这一条必须写在它后面。
  */
 .buttonPrimary:active:not(:disabled) {
-  background: var(--dsw-alias-button-primary-hover, var(--wl-accent));
+  background: var(--wl-accent-hover);
+  transform: translateY(0.5px);
 }
 
+/*
+ * 危险动作：形状仍是普通按钮，只有文字带语义色；悬停才铺一层危险底。
+ * 放在 `.button:hover` 之后：同特异度，靠顺序覆盖那层通用悬停底。
+ */
 .buttonDanger {
   color: var(--wl-danger);
 }
 
 .buttonDanger:hover:not(:disabled) {
   background: var(--wl-danger-soft);
+  color: var(--wl-danger);
 }
+
+/*
+ * 幽灵按钮：平时**完全透明**（连那 1px 淡边也不要），放在描边容器里不会变成双层框；
+ * 悬停才浮出一层 `--wl-hover`，落在任何面上都成立。
+ */
+.buttonGhost {
+  border-color: transparent;
+  background: transparent;
+}
+
+.buttonGhost:hover:not(:disabled) {
+  background: var(--wl-hover);
+}
+
+/* ── 状态点 / 提示条 ─────────────────────────────────────── */
 
 .status {
   display: inline-flex;
@@ -105,7 +187,7 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--wl-text-mute);
+  background: var(--wl-text-dim);
 }
 
 .statusOk::before {
@@ -123,8 +205,6 @@
 .statusError::before {
   background: var(--wl-danger);
 }
-
-/* ── 提示条 ───────────────────────────────────────────────── */
 
 .banner {
   display: flex;
@@ -147,6 +227,8 @@
   background: var(--wl-danger-soft);
   color: var(--wl-danger);
 }
+
+/* ── 面板头 ───────────────────────────────────────────────── */
 
 .panelHead {
   display: flex;
@@ -186,12 +268,39 @@
 }
 
 /*
- * 副文案（「上游 / 下游 0 / 1」这类读数）拿自然宽度：被压窄就等于没写。
+ * 副文案（计数这类读数）拿自然宽度，并且用等宽数字：被压窄就等于没写。
  * `:not(:first-child)` 留给只有一个 span 的面板头（整图概览 / 边编辑 / 编译预览），
  * 那种标题仍按上面的标题规则可缩。
  */
 .panelHead > span:last-child:not(:first-child) {
   flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 字段组 ───────────────────────────────────────────────── */
+
+/*
+ * 一个字段 = 一行小号标签 + 一个输入体。标签走 `--wl-text-mute`、11px，和值
+ *（`--wl-text`）拉开层级，读起来是"标签 + 内容"而不是两个并排的框。
+ * 这一档在面板上是 4.83:1（浅）/ 5.4:1（暗），11px 也过 AA。
+ */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wl-gap-1);
+}
+
+.field > span {
+  color: var(--wl-text-mute);
+  font-size: var(--wl-font-micro);
+}
+
+.textarea {
+  min-height: 132px;
+  resize: vertical;
+  font-family: var(--wl-font-mono);
+  font-size: var(--wl-font-meta);
+  line-height: 1.5;
 }
 
 .muted {
@@ -205,37 +314,13 @@
   display: inline-block;
   margin-top: var(--wl-gap-1);
   padding: 0 var(--wl-gap-1);
-  border-radius: var(--wl-radius-control);
+  border-radius: var(--wl-radius-sm);
   background: var(--wl-surface-2);
   color: var(--wl-text-dim);
   font-size: var(--wl-font-micro);
 }
 
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--wl-gap-1);
-}
-
-.field > span {
-  color: var(--wl-text-dim);
-  font-size: var(--wl-font-meta);
-}
-
-.textarea {
-  min-height: 132px;
-  resize: vertical;
-  font-family: var(--wl-font-mono);
-  font-size: var(--wl-font-meta);
-  line-height: 1.5;
-}
-
-.readonly {
-  background: var(--wl-surface-2);
-  color: var(--wl-text-dim);
-  font-family: var(--wl-font-mono);
-}
-
+/* 问题行：语义色只在真的表达状态时出现，形状保持"一行文字"。 */
 .problem {
   margin: 0;
   color: var(--wl-danger);
@@ -250,14 +335,18 @@
   color: var(--wl-text-dim);
 }
 
+/* ── 分段控件 ─────────────────────────────────────────────── */
+
+/*
+ * 一个凹槽（`--wl-surface-2`）+ 里面一枚抬起的选中块（`.tabActive`）。**不画描边**：
+ * 层级完全由两级面与强调色给出，这是"页签不再是描边盒子"的实现。
+ */
 .tabs {
   display: inline-flex;
-  gap: var(--wl-gap-1);
-  padding: var(--wl-gap-1);
-  border: 1px solid var(--wl-border);
+  gap: 2px;
+  padding: 2px;
   border-radius: var(--wl-radius-control);
-  /* 控件容器同样不用 `--wl-bg`：暗色下它在面板上是更暗的一档，会凹成一条槽。 */
-  background: var(--wl-control);
+  background: var(--wl-surface-2);
 }
 
 /*
@@ -265,51 +354,46 @@
  * 一个字宽，于是 ≤1100 时这两个页签会被折成两行（实测 23px → 40px 高），
  * 把「引用路径 / 内联全文」这个二选一变成要逐字拼读。
  * `.tab` 与 `.tabActive` 是**互斥**应用的（调用处是三元），所以两条都要写。
+ * 内圆角跟着凹槽的 2px 内缩走：容器 padding 一改这里也要改。
  */
 .tab {
   border: none;
-  /* 内圆角跟着 `.tabs` 的内缩走，容器 padding 一改这里也要改。 */
-  border-radius: calc(var(--wl-radius-control) - 4px);
+  border-radius: calc(var(--wl-radius-control) - 2px);
   background: transparent;
   color: var(--wl-text-dim);
   font: inherit;
   padding: var(--wl-gap-1) var(--wl-gap-2);
   cursor: pointer;
   white-space: nowrap;
+  transition:
+    background-color var(--wl-dur) var(--wl-ease),
+    color var(--wl-dur) var(--wl-ease);
 }
 
 .tab:hover {
+  background: var(--wl-hover);
   color: var(--wl-text);
 }
 
-.tabActive {
-  background: var(--wl-accent);
-  color: var(--dsw-alias-label-primary-foreground, #ffffff);
-  white-space: nowrap;
-}
-
-.tabActive:hover {
-  color: var(--dsw-alias-label-primary-foreground, #ffffff);
-}
-
-/* ── 交互改版补充的原子 ──── */
-
 /*
- * 无边框按钮：用于「次要动作」。放在已有描边的容器里时再加一圈描边，
- * 层级就变成两层框，读起来像嵌套卡片。
+ * 选中块：强调色的**底**（`--wl-accent-soft`）+ 正常文字色。放在 `.tab` 之后：
+ * 同特异度，靠顺序覆盖悬停那层底。
+ *
+ * 文字**不用**强调色：accent 压在 accent-soft 上暗色档只有 4.0~4.2:1，而"哪一页是当前页"
+ * 这件事由整块底说就够了，没必要拿对比度去换。悬停也要显式写，否则鼠标一放上去选中态就掉。
  */
-.buttonGhost {
-  border-color: transparent;
-  background: transparent;
+.tabActive,
+.tabActive:hover {
+  background: var(--wl-accent-soft);
+  color: var(--wl-text);
 }
 
-.buttonGhost:hover:not(:disabled) {
-  border-color: var(--wl-border-strong);
-}
+/* ── 方块图标按钮 / 键帽 / 隐藏文字 ───────────────────────── */
 
 /*
  * 方形图标按钮。inline-size 与 block-size 写死，是为了让一排图标按钮无论
  * 里面放一个字符还是一个 svg 都一样宽——否则它们会随内容宽度抖动。
+ * 那 1px 淡边的作用与 `.button` 相同：浅色档靠它给出形状。
  */
 .iconButton {
   display: inline-flex;
@@ -318,8 +402,7 @@
   inline-size: 22px;
   block-size: 22px;
   padding: 0;
-  /* 不再是无形状的裸图标：底与描边都按控件档给，悬停换档，按下有位移。 */
-  border: 1px solid var(--wl-border-strong);
+  border: 1px solid var(--wl-border);
   border-radius: var(--wl-radius-control);
   background: var(--wl-control);
   color: var(--wl-text-dim);
@@ -327,6 +410,10 @@
   font-size: var(--wl-font-meta);
   line-height: 1;
   cursor: pointer;
+  transition:
+    background-color var(--wl-dur) var(--wl-ease),
+    color var(--wl-dur) var(--wl-ease),
+    transform var(--wl-dur) var(--wl-ease);
 }
 
 .iconButton:hover:not(:disabled) {
@@ -336,12 +423,7 @@
 
 .iconButton:active:not(:disabled) {
   background: var(--wl-control-active);
-  transform: translateY(1px);
-}
-
-.iconButton:focus-visible {
-  outline: 2px solid var(--wl-accent);
-  outline-offset: 1px;
+  transform: translateY(0.5px);
 }
 
 .iconButton:disabled {
@@ -352,6 +434,20 @@
 .iconButtonDanger:hover:not(:disabled) {
   background: var(--wl-danger-soft);
   color: var(--wl-danger);
+}
+
+.kbd {
+  display: inline-block;
+  min-inline-size: 16px;
+  padding: 0 var(--wl-gap-1);
+  border: 1px solid var(--wl-border);
+  border-radius: var(--wl-radius-sm);
+  background: var(--wl-surface-2);
+  color: var(--wl-text-dim);
+  font-family: var(--wl-font-mono);
+  font-size: var(--wl-font-micro);
+  line-height: 16px;
+  text-align: center;
 }
 
 /* 只给读屏软件的文字：图标按钮的可读名走它，不拿 title 冒充 label。 */
@@ -367,32 +463,29 @@
   border: 0;
 }
 
-/* 快捷键提示的小键帽。 */
-.kbd {
-  display: inline-block;
-  min-inline-size: 16px;
-  padding: 0 var(--wl-gap-1);
-  border: 1px solid var(--wl-border-strong);
-  border-radius: calc(var(--wl-radius-control) - 3px);
-  background: var(--wl-surface-2);
-  color: var(--wl-text-dim);
-  font-family: var(--wl-font-mono);
-  font-size: var(--wl-font-micro);
-  line-height: 16px;
-  text-align: center;
-}
-
 /* 把后面的东西顶到右边。 */
 .spacer {
   flex: 1 1 auto;
 }
 
 /*
- * 降级：本轮的动效只有「按下位移」这一种，减动效时去掉它。
- * 上面那些 :hover 变色属于状态转换，不产生位移，保留。
+ * 降级：这一版的动效就是过渡与"按下微位移"两种，减动效时两种都去掉。
+ * 颜色本身还是瞬时的（那属于状态，不是运动），保留。
  */
 @media (prefers-reduced-motion: reduce) {
+  .select,
+  .input,
+  .textarea,
+  .button,
+  .buttonPrimary,
+  .iconButton,
+  .tab,
+  .tabActive {
+    transition: none;
+  }
+
   .button:active:not(:disabled),
+  .buttonPrimary:active:not(:disabled),
   .iconButton:active:not(:disabled) {
     transform: none;
   }

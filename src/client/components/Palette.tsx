@@ -1,15 +1,16 @@
 /**
  * dsh-workflow-lite — 左栏：节点库（筛选 / 折叠 / 拖源） + 校验面板。
  *
- * 节点库有两个来源，**分节展示不混**：内置 node（`presets.ts`，节内**平铺**）与自定义 node
- * （`templates/nodes/*.json`，**按前缀分组**）。**两个分节本身都可折叠**，自定义节点各自的
- * 前缀组还能再折一层；内置那一节内部刻意不再分角色组。
+ * 节点库有两个来源，**分节展示不混**：内置 node（`presets.ts`）与自定义 node
+ * （`templates/nodes/*.json`）。**两个分节都可折叠**；两节**内部都是平铺的一层**。
+ * 自定义节点**不再按名字前缀分二级组**（用户明确说不要二级分类）——入参那边仍是
+ * 「按前缀分好组」的形状，这里只把 items 摊平，于是内置与模板在界面上同处一个层级。
  *
  * 条目**拖**进画布落在指针处，**点**则落在视野中心——点不是拖的退化写法，它是键盘
  * 与触屏唯一的路径（`draggable` 只在指针设备上成立），所以两条都得留着。
  *
  * 折叠状态是**受控**的（`collapsed` / `onToggleGroup`）：谁持有那份 localStorage 读写
- * 谁就持有状态，这里只解释「组键」与「此刻该不该展开」。组键、折叠表解析、筛选匹配
+ * 谁就持有状态，这里只解释「分节键」与「此刻该不该展开」。分节键、折叠表解析、筛选匹配
  * 全是 `presets.ts` 里的纯函数（有单测）。
  *
  * @module @xiaoso/dsh-workflow-lite/client/components/Palette
@@ -21,10 +22,6 @@ import type { TemplateEntry, ValidationLevel, ValidationProblem } from '../../sh
 import { DND_MIME, type DragPayload, encodeDragPayload } from '../core/dnd.ts'
 import type { LocaleKey } from '../core/locales.ts'
 import {
-  type FilteredGroup,
-  filterGroups,
-  groupKey,
-  groupLabel,
   isFiltering,
   isGroupExpanded,
   matchesFilter,
@@ -197,11 +194,14 @@ export interface PaletteProps {
   disabled: boolean
   /** 内置 node：**平铺列表**（节内不再按角色分组，但整节本身可折叠）。 */
   presets: readonly NodePreset[]
-  /** 自定义 node：按模板名前缀分的组（组本身可折叠，整节也可折叠）。 */
+  /**
+   * 自定义 node：入参仍是「按模板名前缀分好组」的形状（数据组织归上一层），
+   * 但**渲染时摊平**——二级分类已按用户要求去掉，见函数体里 `templates` 那一处。
+   */
   templates: readonly PaletteGroup<TemplateEntry>[]
-  /** 已折叠的键（两个分节键 + 自定义组键，受控）。 */
+  /** 已折叠的键：只有两个分节键（二级分组的组键已不再产生）。 */
   collapsed: readonly string[]
-  onToggleGroup: (groupKey: string) => void
+  onToggleGroup: (key: string) => void
   filter: string
   onFilter: (value: string) => void
   /** 点击条目：在视野中心加一个。 */
@@ -213,7 +213,7 @@ export interface PaletteProps {
    * 一次性把折叠状态整份换掉（「全部展开 / 全部收起」用）。
    *
    * 刻意不拆成"逐个 `onToggleGroup`"：逐个会发出 N 次状态更新、写 N 次 localStorage，
-   * 中间态还会被渲染出来。组键清单在面板这层才知道，所以由面板算好整份交出去。
+   * 中间态还会被渲染出来。键清单在面板这层才知道，所以由面板算好整份交出去。
    */
   onSetCollapsed: (collapsed: readonly string[]) => void
 }
@@ -268,58 +268,6 @@ function PaletteSection(props: {
   )
 }
 
-/** 一个可折叠组：组头（chevron + 组名 + 项数）与组体（条目）。只给自定义节点用。 */
-function PaletteGroupSection<T>(props: {
-  t: Translate
-  source: PaletteSource
-  group: FilteredGroup<T>
-  collapsed: readonly string[]
-  filtering: boolean
-  /** 条目在 React 列表里的稳定键。 */
-  keyOf: (item: T) => string
-  /** 该组里坏模板的条数（0 = 不显示徽标）。 */
-  badCount: number
-  onToggleGroup: (key: string) => void
-  renderItem: (item: T) => React.JSX.Element
-}): React.JSX.Element {
-  const key = groupKey(props.source, props.group.group)
-  const expanded = isGroupExpanded(key, props.collapsed, props.filtering)
-  // 折起来时条目**从 DOM 里消失**（而不是 `hidden`）：否则 tab 顺序里还留着一串
-  // 看不见的按钮。外层那个 div 留着，好让 `aria-controls` 永远指得到东西。
-  const bodyId = `wl-group-body-${props.source}-${props.group.group}`
-  return (
-    <div className={css.group} data-testid={`wl-group-${key}`}>
-      <button
-        type="button"
-        className={css.groupHead}
-        data-testid={`wl-group-toggle-${key}`}
-        aria-expanded={expanded}
-        aria-controls={bodyId}
-        onClick={() => props.onToggleGroup(key)}
-      >
-        <span className={css.chevron} aria-hidden="true">
-          {expanded ? '▾' : '▸'}
-        </span>
-        <span className={css.itemName}>{groupLabel(props.group.group, props.t)}</span>
-        <span className={css.groupCount}>
-          {props.badCount > 0 && (
-            <>
-              <span className={ui.badge}>{props.badCount}</span>{' '}
-            </>
-          )}
-          {props.filtering ? `${props.group.hits} / ${props.group.total}` : props.group.total}
-        </span>
-      </button>
-      <div id={bodyId} className={css.groupBody}>
-        {expanded &&
-          props.group.items.map((item) => (
-            <Fragment key={props.keyOf(item)}>{props.renderItem(item)}</Fragment>
-          ))}
-      </div>
-    </div>
-  )
-}
-
 /** 节点库。 */
 export function Palette(props: PaletteProps): React.JSX.Element {
   const { t, disabled } = props
@@ -332,38 +280,38 @@ export function Palette(props: PaletteProps): React.JSX.Element {
   const presetHits = props.presets.filter((preset) =>
     matchesFilter(`${t(preset.labelKey)} ${preset.id}`, props.filter),
   )
-  const templateGroups = filterGroups(props.templates, props.filter, (entry) => entry.name)
-  const noMatch = filtering && presetHits.length === 0 && templateGroups.length === 0
+  /*
+   * 模板**直接平铺**：入参是按名字前缀分好组的（`exec` / 其他），这里摊平成一列——
+   * 用户明确说不要二级分类。分组不再参与渲染，也不再进折叠表。
+   */
+  const templates = props.templates.flatMap((group) => group.items)
+  const templateHits = templates.filter((entry) => matchesFilter(entry.name, props.filter))
+  const noMatch = filtering && presetHits.length === 0 && templateHits.length === 0
 
   /**
-   * 项数文案：不筛时是总数，筛的时候是「命中数 / 总数」，与组头同一个口径，
-   * 用户要能看出这一节还有多少没显示出来。总数是 0 就整格不显示。
+   * 项数文案：不筛时是总数，筛的时候是「命中数 / 总数」，口径与从前一致（用户要能看出
+   * 这一节还有多少没显示出来）。总数是 0 就整格不显示（写个 0 只是噪声）。
    */
   const countText = (hits: number, total: number): string | null => {
     if (total === 0) return null
     return filtering ? `${hits} / ${total}` : `${total}`
   }
   const presetTotal = props.presets.length
-  const templateTotal = props.templates.reduce((sum, group) => sum + group.items.length, 0)
-  const templateHits = templateGroups.reduce((sum, group) => sum + group.hits, 0)
+  const templateTotal = templates.length
 
   /**
-   * 全部折叠键：**两个分节键 + 所有自定义组键**。
+   * 「全部收起 / 全部展开」的折叠对象：**只剩两个分节键**。
    *
-   * 分节键走 `section:` 命名空间、组键走 `<来源>:<组名>`，两套不重叠（见 `sectionKey`）。
-   * 内置那一节**内部**没有组（平铺），它的折叠对象只有分节键这一个。
+   * 二级分组去掉之后就没有组键了（前缀组不再渲染）；折叠表里可能还留着上一版写下的
+   * `disk:exec` 一类的旧键，它们不再对应任何东西，自然也不会生效。
    */
-  const everyGroupKey = [
-    sectionKey('builtin'),
-    sectionKey('disk'),
-    ...props.templates.map((group) => groupKey('disk', group.group)),
-  ]
+  const sectionKeys = [sectionKey('builtin'), sectionKey('disk')]
   /*
    * 「全都折起来了」这件事只在**没在筛选**时才可能成立：筛选态下 `isGroupExpanded`
-   * 一律返回 true（命中的组必须当场可见）。原来不看 `filtering`，于是筛出结果时两个
+   * 一律返回 true（命中的必须当场可见）。原来不看 `filtering`，于是筛出结果时两个
    * 分节明明都是 ▾、按钮却写着「全部展开」——文案在陈述一件与眼前事实相反的事。
    */
-  const allCollapsed = !filtering && everyGroupKey.every((key) => props.collapsed.includes(key))
+  const allCollapsed = !filtering && sectionKeys.every((key) => props.collapsed.includes(key))
 
   const dragGhostRef = useRef<HTMLDivElement | null>(null)
   const blankInputRef = useRef<HTMLInputElement | null>(null)
@@ -409,7 +357,8 @@ export function Palette(props: PaletteProps): React.JSX.Element {
     const label = t(preset.labelKey)
     /*
      * 条目同时是可拖源和按钮：`title` 补全「拖或点」，`aria-label` 再把可读名与
-     * 机器 id 一起念出来（`⠿` 是 aria-hidden，读屏原先只能听到"侦察scan 按钮"）。
+     * 机器 id 一起念出来。条目上**没有拖拽把手**——"能拖"由光标与悬停的抬起表达，
+     * 那个盲文字符只是一段噪声。
      */
     const hint = `${label}（${preset.id}），${t('palette.addHint')}`
     return (
@@ -425,9 +374,6 @@ export function Palette(props: PaletteProps): React.JSX.Element {
         onClick={() => props.onAddPreset(preset)}
         onDragStart={(event) => startDrag(event, { kind: 'preset', id: preset.id }, label)}
       >
-        <span className={css.itemGrip} aria-hidden="true">
-          ⠿
-        </span>
         <span className={css.itemName}>{label}</span>
         {/* 两列网格的格子里放不下长 id（`implement` / `review` / `report` 会截成 `impl…`），
             所以截断这件事得能恢复：指到 id 上给全文。 */}
@@ -458,9 +404,6 @@ export function Palette(props: PaletteProps): React.JSX.Element {
           startDrag(event, { kind: 'template', name: entry.name }, entry.name)
         }
       >
-        <span className={css.itemGrip} aria-hidden="true">
-          ⠿
-        </span>
         <span className={css.itemName}>{entry.name}</span>
         {invalid && <span className={css.itemBad}>!</span>}
       </button>
@@ -520,7 +463,7 @@ export function Palette(props: PaletteProps): React.JSX.Element {
                 ? t('palette.collapseFiltering')
                 : t(allCollapsed ? 'palette.expandAll' : 'palette.collapseAll')
             }
-            onClick={() => props.onSetCollapsed(allCollapsed ? [] : everyGroupKey)}
+            onClick={() => props.onSetCollapsed(allCollapsed ? [] : sectionKeys)}
           >
             {t(allCollapsed ? 'palette.expandAll' : 'palette.collapseAll')}
           </button>
@@ -608,28 +551,23 @@ export function Palette(props: PaletteProps): React.JSX.Element {
             t={t}
             source="disk"
             labelKey="palette.disk"
-            count={countText(templateHits, templateTotal)}
+            count={countText(templateHits.length, templateTotal)}
             collapsed={props.collapsed}
             filtering={filtering}
             onToggleGroup={props.onToggleGroup}
           >
-            {props.templates.length === 0 ? (
+            {/*
+              自定义 node 节**内部也是平铺的一层**：没有前缀组、没有二级折叠
+              （用户明确说不要二级分类）。模板名长短不一，所以这一列不排两列网格。
+            */}
+            {templates.length === 0 ? (
               <p className={css.empty}>{t('palette.diskEmpty')}</p>
             ) : (
-              templateGroups.map((group) => (
-                <PaletteGroupSection
-                  key={groupKey('disk', group.group)}
-                  t={t}
-                  source="disk"
-                  group={group}
-                  collapsed={props.collapsed}
-                  filtering={filtering}
-                  keyOf={(entry) => entry.name}
-                  badCount={group.items.filter((entry) => entry.invalid === true).length}
-                  onToggleGroup={props.onToggleGroup}
-                  renderItem={templateItem}
-                />
-              ))
+              <div className={css.templateList}>
+                {templateHits.map((entry) => (
+                  <Fragment key={entry.name}>{templateItem(entry)}</Fragment>
+                ))}
+              </div>
             )}
           </PaletteSection>
         </>

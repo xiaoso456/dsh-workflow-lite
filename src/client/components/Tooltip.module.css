@@ -4,6 +4,10 @@
  * 配色与字号全部走 `.root`（CanvasView.module.css）里那套 `--wl-*` 令牌：本组件只挂在
  * 画布视图内部，令牌由那一层继承下来，这里不重复声明（重复一份迟早会跟那边漂开）。
  *
+ * 提示是**浮层语言里最轻的一档**：面用 `--wl-overlay`（与下拉/菜单同一个面）、描边只要
+ * 一条 `--wl-border`、圆角 `--wl-radius-sm`、字 `--wl-font-micro`——它的任务是"顺手看一眼
+ * 的注解"，压过被它遮住的东西反而喧宾夺主。
+ *
  * @module @xiaoso/dsh-workflow-lite/client/components/Tooltip
  */
 
@@ -28,6 +32,8 @@
  *
  * `z-index` 要压过画布上的浮层（快捷键说明是 8）与两个下拉/菜单（50）。
  *
+ * 出现只动 `opacity` + 2px 上浮，`--wl-dur` 走完：提示是瞬时的，位移再大就成了"跳出来"。
+ *
  * `pointer-events: none` **是必需的**：提示会盖在宿主旁边（工具条下方就是画布），
  * 能吃指针的话鼠标一移动过去就触发宿主自己的 `pointerleave`，提示会一开一关地抖。
  */
@@ -37,13 +43,32 @@
   box-sizing: border-box;
   max-width: 280px;
   padding: var(--wl-gap-1) var(--wl-gap-2);
-  border: 1px solid var(--wl-border-strong);
-  border-radius: var(--wl-radius-control);
-  background: var(--wl-surface);
+  border: 1px solid var(--wl-border);
+  border-radius: var(--wl-radius-sm);
+  background: var(--wl-overlay);
   color: var(--wl-text);
-  font-size: var(--wl-font-meta);
+  font-size: var(--wl-font-micro);
   line-height: 1.4;
   text-align: center;
-  box-shadow: var(--dsw-elevation-panel, 0 4px 12px rgb(0 0 0 / 18%));
+  box-shadow: var(--wl-shadow-overlay);
   pointer-events: none;
+  animation: tip-in var(--wl-dur) var(--wl-ease) both;
+}
+
+@keyframes tip-in {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 动效降级：只关动效，位置与可读性一点不变。 */
+@media (prefers-reduced-motion: reduce) {
+  .tip {
+    animation: none;
+  }
 }

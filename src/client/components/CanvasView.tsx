@@ -57,6 +57,13 @@ import {
 } from '../core/state.ts'
 import { decideSave, statusKey } from '../core/sync.ts'
 import css from './CanvasView.module.css'
+/*
+ * 工具条那排按钮的 ghost 原子住在下拉组件的样式模块里（`combo.ghost` /
+ * `combo.ghostDanger` / `combo.ghostIcon`）：本轮只有那两个新模块能新增样式，而工具条按钮要的
+ * 是"透明底 + hover 才亮"这套与面板控件不同的形态，不该再借 `ui.button` 那个实心原子。
+ * 详见 `Combobox.module.css` 里"工具条按钮（ghost 原子）"那一段。
+ */
+import combo from './Combobox.module.css'
 import {
   Combobox,
   type ComboboxOption,
@@ -1643,14 +1650,17 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
               */}
               <div className={css.canvasBarScroll}>
                 {/*
-                  四个按钮的说明从原生 `title` 换成 `<Tooltip>`：原生提示要等一秒、
-                  暗色下是一块系统白板，而且键盘焦点上根本不出现。键位尾巴从
-                  `SHORTCUT_ROWS` 取（见 `shortcutHint`），不在这里再抄一遍键名。
+                  工具条按钮走 **ghost 语言**（透明底、无常驻描边，hover/focus 才亮）：
+                  一排实心描边盒子看着像"一排抽屉"。这五个类来自 `Combobox.module.css`
+                  ——本轮的写范围里只有那两个新模块能放样式，工具条的按钮原子就写在那里
+                  （`ui.module.css` 头部那条规矩也是这么说的：需要新类加在自己的模块里）。
+                  说明从原生 `title` 换成 `<Tooltip>`；键位尾巴从 `SHORTCUT_ROWS` 取
+                  （见 `shortcutHint`），不在这里再抄一遍键名。
                 */}
                 <Tooltip label={t('shortcut.undo') + shortcutHint('shortcut.undo')}>
                   <button
                     type="button"
-                    className={ui.button}
+                    className={combo.ghost}
                     data-testid="wl-undo"
                     disabled={state.past.length === 0}
                     onClick={() => mutate({ type: 'undo' })}
@@ -1661,7 +1671,7 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
                 <Tooltip label={t('shortcut.redo') + shortcutHint('shortcut.redo')}>
                   <button
                     type="button"
-                    className={ui.button}
+                    className={combo.ghost}
                     data-testid="wl-redo"
                     disabled={state.future.length === 0}
                     onClick={() => mutate({ type: 'redo' })}
@@ -1673,7 +1683,7 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
                 <Tooltip label={t('shortcut.relayout') + shortcutHint('shortcut.relayout')}>
                   <button
                     type="button"
-                    className={ui.button}
+                    className={combo.ghost}
                     data-testid="wl-layout"
                     disabled={state.document === null}
                     onClick={relayout}
@@ -1684,7 +1694,7 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
                 <Tooltip label={t('shortcut.fit') + shortcutHint('shortcut.fit')}>
                   <button
                     type="button"
-                    className={ui.button}
+                    className={combo.ghost}
                     data-testid="wl-fit"
                     disabled={flow === null}
                     onClick={() => {
@@ -1698,7 +1708,7 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
                 <Tooltip label={t('shortcut.delete') + shortcutHint('shortcut.delete')}>
                   <button
                     type="button"
-                    className={[ui.button, ui.buttonDanger].join(' ')}
+                    className={[combo.ghost, combo.ghostDanger].join(' ')}
                     data-testid="wl-delete"
                     disabled={selected === undefined}
                     onClick={deleteSelected}
@@ -1711,7 +1721,7 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
               {overLimit && <span className={ui.problemWarn}>{t('canvas.noFitForHuge')}</span>}
               <button
                 type="button"
-                className={ui.iconButton}
+                className={combo.ghostIcon}
                 data-testid="wl-shortcuts"
                 title={t('toolbar.shortcuts')}
                 aria-label={t('toolbar.shortcuts')}

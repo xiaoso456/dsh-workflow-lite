@@ -21,102 +21,100 @@
  */
 
 .root {
-  --wl-bg: var(--dsw-alias-bg-base, #ffffff);
-  --wl-surface: var(--dsw-alias-bg-layer-1, #fafafa);
-  --wl-surface-2: var(--dsw-alias-bg-layer-2, #f4f4f5);
   /*
-   * 画布（图板）的底色，比白的面板低一档。
+   * ── 自带的设计令牌 ─────────────────────────────────────────
    *
-   * 宿主的浅色主题里 `bg-base`、`bg-layer-1`、`bg-layer-2` **全是 #ffffff**：面板、画布、
-   * 节点卡、边标签底于是全同色，只剩 4% 的发丝边分界（实测 1.09:1）。鼠标落在哪一栏决定
-   * 滚轮是缩放画布还是滚栏、落点是拖节点还是拖面板——画布从哪儿开始必须看得出来。
-   *
-   * **为什么压画布而不是压面板**：面板上压着 11px 的弱化文字（节点 id、planId 这类），
-   * 浅色档是 #6b7280；面板一旦不是纯白，节点库的悬停底（半透明黑再叠一层）会把这
-   * 一对颜色从 4.35:1 拖到 4.16:1，把一个已经擦线的 AA 问题推得更低。压画布则面板上
-   * 一个字的对比度都不动，顺带让白底的节点卡、边标签底、缩放控件从图板上浮起来。
-   *
-   * 画布上唯一的弱化文字是空态那行 12px：它随之下到 4.63:1（浅色档取宿主调色板最浅的
-   * 一档 #f9fafb），仍然合格；再深一档（bluish-60 #f5f6f7）会掉到 4.47:1，为了分栏把
-   * 可读性赔进去不划算。深色档沿用 `bg-base`（#151517，与改动前完全一致）：深色下面板
-   * （#232324）本来就与画布分得开，而画布再暗也没有更低的一档可用了。
+   * **不再跟随宿主配色**。宿主那套的问题不是难看，是**给不了层级**：浅色下
+   * bg-base / layer-1 / layer-2 / layer-3 全是 #ffffff；深色下四档只差 5%~8%，而且
+   * `brand-primary` 是**正文字色**（浅 #0f1115 / 深 #f9fafb），拿它当填充只会得到
+   * 一块惨白或纯黑。深色 UI 的"质感"来自**亮度阶梯**——阴影在暗底上不成立，
+   * 面抬高就该更亮——所以这里自己定五档面，从画布井到浮层逐级变亮。
    */
-  --wl-surface-board: light-dark(
-    var(--dsw-static-neutral-bluish-50, #f9fafb),
-    var(--dsw-alias-bg-base, #151517)
-  );
-  --wl-border: var(--dsw-alias-border-l1, #e4e4e7);
-  --wl-border-strong: var(--dsw-alias-border-l2, #d4d4d8);
+  --wl-canvas: light-dark(#f2f3f6, #0c0d10);
+  --wl-bg: light-dark(#fbfbfc, #121317);
+  --wl-surface: light-dark(#ffffff, #17191e);
+  --wl-surface-2: light-dark(#f3f5f8, #1e2127);
+  /* 画布井：最深的一档，节点卡与边都浮在它上面。 */
+  --wl-surface-board: light-dark(#f2f3f6, #0c0d10);
+  --wl-overlay: light-dark(#ffffff, #262a32);
+  --wl-border: light-dark(rgb(15 17 21 / 8%), rgb(255 255 255 / 7%));
+  --wl-border-strong: light-dark(rgb(15 17 21 / 14%), rgb(255 255 255 / 12%));
+  --wl-border-bright: light-dark(rgb(15 17 21 / 20%), rgb(255 255 255 / 18%));
+
+  /* 控件底：比面板再亮一档，任何底色上自己立得住，不靠描边撑形状。 */
+  --wl-control: light-dark(#ffffff, #22252b);
+  --wl-control-hover: light-dark(#f3f4f7, #2b2f36);
+  --wl-control-active: light-dark(#e9ebef, #333840);
+  /* 节点卡：与控件同档，比画布井亮两档，卡"浮"起来。 */
+  --wl-card: light-dark(#ffffff, #1e2127);
+  --wl-card-hover: light-dark(#fbfcfd, #24272e);
+
   /*
-   * 控件底（按钮 / 输入框 / 下拉 / 图标按钮）。**不能**用 `--wl-bg`：它就是宿主的
-   * `bg-base`，而画布板用的也是 `bg-base`，于是暗色下工具条按钮与自己的父容器
-   * 完全相同（实测形状对比 **1.00:1**，按钮根本没有形状），顶栏按钮也只有 1.16:1，
-   * 而且控件比面板**更暗**——看起来是一个个洞，不是控件。
+   * 文字四级。**dim 与 mute 都必须过 AA（4.5:1）**，因为 11px 的 id、计数、字段标签全在
+   * 这两档上——这不是"次要就可以不管"的地方。faint 只给**纯装饰**（分隔符、装饰箭头、
+   * aria-hidden 的图标），不许承载任何要读的信息。
    *
-   * 取值过程：宿主暗色档的面层级是 base #151517 / layer-1 #232324 / layer-2 #2c2c2e /
-   * layer-3 #353638。**先取 layer-2，量出来只有 1.13:1（对面板）/ 1.31:1（对画布板）**——
-   * 比"完全没有形状"好，但仍然要靠 12% 白描边去撑，等于按钮的形状一半靠边。
-   * 抬到 layer-3 之后是 1.30:1 / 1.51:1，悬停再上一档到显式 #414345（约 1.62:1），
-   * 按钮在任何底色上都自己立得住，不再依赖描边。
-   * 浅色档宿主那四层**全是 #ffffff**，拿不到层级，只能显式白底、靠描边画形状（宿主自己的写法）。
+   * 实测（相对亮度算的对比度）：dim 浅 8.2:1 / 深 10.1:1；mute 浅 ≈5.2:1 / 深 ≈6:1。
+   *
+   * **mute 的浅色档踩过两次同一个坑**：它必须按"**它实际会落在哪个面**"来定，不是按纯白。
+   * 第一版给 #838a95（纯白上只有 3.48:1）；改成 #6b7280 后纯白上是 4.83:1 达标，可一旦落到
+   * 本文件新加的浅色面上就掉到 **4.36:1（on --wl-surface-board）** 与 4.43:1（on --wl-surface-2），
+   * 因为那些面本身不是白的。所以按**最深的那个落点**（#f2f3f6）取到 #5f6772，留出余量。
    */
-  --wl-control: light-dark(#ffffff, var(--dsw-alias-bg-layer-3, #353638));
-  --wl-control-hover: light-dark(#f4f5f7, #414345);
-  --wl-control-active: light-dark(#eceef1, #3a3c3e);
+  --wl-text: light-dark(#12141a, #e9ebef);
+  --wl-text-dim: light-dark(#4a515c, #b7bec9);
+  --wl-text-mute: light-dark(#5f6772, #9298a0);
+  --wl-text-faint: light-dark(#9ca3af, #6b7280);
+
   /*
-   * 节点卡的底色。暗色下它原本与画布板同值（都是 `bg-base` #151517），卡在板上等于没有卡，
-   * 只剩 6% 的白描边——一屏节点读起来就是"黑底上一堆灰字"。
-   * 取 layer-2，比画布板亮两档，卡片真的浮起来；悬停再上一档。
+   * 强调色：**自带的一支靛蓝**，不复用宿主。
+   *
+   * 暗色档要**同时提亮度与饱和度**，否则浅色档的蓝在暗底上会发灰——这是深色主题最
+   * 常见的翻车点（把浅色强调色原样搬过去）。两支取同色相、各自适配明暗：
+   * 浅色 #4e5be0、暗色 #7c8cff（更亮更饱和，观感仍是同一支蓝）。
+   * 与语义色（绿=通过 / 红=失败 / 琥珀=警告）色相拉开，不打架。
    */
-  --wl-card: light-dark(#ffffff, var(--dsw-alias-bg-layer-2, #2c2c2e));
-  --wl-card-hover: light-dark(#ffffff, var(--dsw-alias-bg-layer-3, #353638));
-  /*
-   * 字号只留三档：正文 13 / 次级 12 / 最小 11。
-   * 此前散落着 10、10.5、11、11.5、12、13 六档，且同一个语义在四个文件里各写各的
-   * （节点 id 在右栏 12px、在卡片上 11px、在节点库 11px）。
-   */
+  --wl-accent: light-dark(#4e5be0, #7c8cff);
+  --wl-accent-hover: light-dark(#4350d6, #8f9dff);
+  /* 强调色之上的文字色：靛蓝底配近黑/近白，两种主题各自算过对比度。 */
+  --wl-accent-on: light-dark(#ffffff, #0b0c10);
+  --wl-accent-soft: light-dark(rgb(78 91 224 / 10%), rgb(124 140 255 / 16%));
+  --wl-accent-line: light-dark(rgb(78 91 224 / 45%), rgb(124 140 255 / 55%));
+  /* 焦点环：2px，与强调色同源，永远不摘。 */
+  --wl-ring: light-dark(rgb(78 91 224 / 45%), rgb(124 140 255 / 55%));
+
+  /* 悬停底：半透明，落在任何面上都成立。 */
+  --wl-hover: light-dark(rgb(15 17 21 / 5%), rgb(255 255 255 / 6%));
+  --wl-hover-strong: light-dark(rgb(15 17 21 / 9%), rgb(255 255 255 / 10%));
+
+  /* 语义色：只在真正表达状态时用（通过 / 失败 / 警告 / 正常）。 */
+  --wl-danger: light-dark(#c8362b, #ff6b61);
+  --wl-danger-soft: light-dark(rgb(200 54 43 / 9%), rgb(255 107 97 / 14%));
+  --wl-warn: light-dark(#a16207, #e3b341);
+  --wl-warn-soft: light-dark(rgb(161 98 7 / 10%), rgb(227 179 65 / 14%));
+  --wl-ok: light-dark(#14815a, #4ac97e);
+  --wl-ok-soft: light-dark(rgb(20 129 90 / 10%), rgb(74 201 126 / 14%));
+
+  /* 连线：拓扑是这张图的全部结构，必须到 3:1。 */
+  --wl-edge: light-dark(#5c636e, #9aa2ae);
+
+  /* 字号三档 + 一档等宽；间距三档；圆角三档（控件 / 卡片 / 浮层）。 */
   --wl-font-body: 13px;
   --wl-font-meta: 12px;
   --wl-font-micro: 11px;
-  /*
-   * 等宽字族只声明一次。此前它在四个组件文件里硬编码了 12 次，
-   * 想换字体得改 12 处，而且已经出现了 11 / 11.5 / 12 三种字号混用。
-   */
   --wl-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  /*
-   * 间距只有三档：4 / 8 / 12。此前是 2 / 3 / 4 / 6 / 8 / 12 混用，
-   * 同一个工具条里 `gap: 6px` 而它下面的滚动容器又 `gap: 3px`，视觉上没有节奏。
-   */
   --wl-gap-1: 4px;
   --wl-gap-2: 8px;
   --wl-gap-3: 12px;
-  --wl-text: var(--dsw-alias-label-primary, #18181b);
-  --wl-text-dim: var(--dsw-alias-label-secondary, #52525b);
-  /*
-   * 这一档刻意**不用**宿主的 caption token（暗色下它是 rgb(129,133,140)，
-   * 在 rgb(35,35,36) 底上只有 4.24:1，AA 要求 4.5）。CSS 没有"把 token 调亮一档"
-   * 的写法，所以取显式值：浅色 #6b7280（白底 4.83:1）、暗色 #9298a0（#232324 底 5.40:1）。
-   * 两档都仍是"比正文弱"的一级，层级没丢。
-   */
-  --wl-text-mute: light-dark(#6b7280, #9298a0);
-  /*
-   * 普通连线的颜色。**不能**用边框档（`--wl-border-strong`）：那是 4%~12% 的透明黑/白，
-   * 合成到画布底色上浅色只有 1.25:1、深色 1.40:1，而边是这张图唯一的拓扑信息
-   * （WCAG 1.4.11 对"理解内容所必需的图形对象"要求 3:1）。
-   * 取次级正文色：浅 #61666b on #ffffff = 5.80:1、深 #cfd3d6 on #151517 = 12.11:1。
-   * 比它更淡的第三档（浅 3.70:1）虽然也过线，但 20 多个节点的密集图里会糊成一片。
-   */
-  --wl-edge: var(--wl-text-dim);
-  --wl-accent: var(--dsw-alias-brand-primary, #2f6feb);
-  --wl-accent-soft: var(--dsw-alias-interactive-bg-hover-accent, #e8f0fe);
-  --wl-hover: var(--dsw-alias-interactive-bg-hover, rgb(0 0 0 / 4%));
-  --wl-danger: light-dark(#b42318, #f97066);
-  --wl-danger-soft: light-dark(#fef3f2, #3a1d1a);
-  --wl-warn: light-dark(#b54708, #fdb022);
-  --wl-warn-soft: light-dark(#fffaeb, #3a2c14);
-  --wl-ok: light-dark(#12805c, #4ed4a4);
-  --wl-radius-control: var(--dsw-radius-sm, 8px);
-  --wl-radius-card: var(--dsw-radius-md, 12px);
+  --wl-radius-sm: 6px;
+  --wl-radius-control: 8px;
+  --wl-radius-card: 10px;
+  --wl-radius-lg: 14px;
+  /* 浮层阴影：暗底上阴影几乎不可见，所以主要靠"更亮的面 + 更强的描边"，阴影只做辅助。 */
+  --wl-shadow-overlay: light-dark(0 8px 24px rgb(15 17 21 / 12%), 0 10px 28px rgb(0 0 0 / 45%));
+  /* 动效：只动 transform / opacity，160ms 走完，缓出。 */
+  --wl-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --wl-dur: 160ms;
 
   display: flex;
   flex-direction: column;
@@ -141,7 +139,7 @@
   background: var(--wl-bg);
   color: var(--wl-text);
   font-family: var(--dsw-font-family, inherit);
-  font-size: 13px;
+  font-size: var(--wl-font-body);
   line-height: 1.5;
 }
 
@@ -228,7 +226,7 @@
 
 .label {
   color: var(--wl-text-dim);
-  font-size: 12px;
+  font-size: var(--wl-font-meta);
 }
 
 /* ── 主体三栏 ─────────────────────────────────────────────── */
@@ -352,25 +350,26 @@
  */
 .shortcutPanel {
   position: absolute;
-  top: calc(100% + 4px);
-  right: 8px;
+  top: calc(100% + var(--wl-gap-1));
+  right: var(--wl-gap-2);
   z-index: 8;
   min-width: 216px;
-  padding: 6px 8px 8px;
+  padding: var(--wl-gap-2);
   border: 1px solid var(--wl-border-strong);
-  border-radius: var(--wl-radius-card);
-  background: var(--wl-surface);
-  box-shadow: var(--dsw-elevation-panel, 0 4px 12px rgb(0 0 0 / 18%));
+  /* 浮层用最大的一档圆角与最亮的一档面（暗底上“抬起来”靠更亮的面，不靠阴影）。 */
+  border-radius: var(--wl-radius-lg);
+  background: var(--wl-overlay);
+  box-shadow: var(--wl-shadow-overlay);
 }
 
 .shortcutHead {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding-bottom: 4px;
+  gap: var(--wl-gap-2);
+  padding-bottom: var(--wl-gap-1);
   color: var(--wl-text-dim);
-  font-size: 11px;
+  font-size: var(--wl-font-micro);
   font-weight: 600;
   letter-spacing: 0.04em;
 }
@@ -378,7 +377,7 @@
 .shortcutList {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: var(--wl-gap-1);
   margin: 0;
 }
 
@@ -386,17 +385,17 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--wl-gap-3);
 }
 
 .shortcutRow dt {
   color: var(--wl-text-dim);
-  font-size: 12px;
+  font-size: var(--wl-font-meta);
 }
 
 .shortcutRow dd {
   display: flex;
-  gap: 3px;
+  gap: var(--wl-gap-1);
   margin: 0;
 }
 
@@ -453,15 +452,15 @@
   top: 100%;
   left: 50%;
   transform: translateX(-50%);
-  margin-top: 6px;
-  padding: 1px 6px;
+  margin-top: var(--wl-gap-1);
+  padding: var(--wl-gap-1) var(--wl-gap-2);
   border: 1px solid var(--wl-accent);
-  border-radius: var(--wl-radius-control);
+  border-radius: var(--wl-radius-sm);
   /*
-   * 用控件档而不是 `--wl-bg`：深色下 `--wl-bg` 就是画布板的底色，
-   * 这个落点标签的底于是与网格点同色，"加底色"这件事白做了。
+   * 走浮层档而不是控件档：它是漂在画布上、盖着网格点与连线的一枚标签，
+   * 控件档在深色下与卡面同值，“加底色”这件事就白做了。
    */
-  background: var(--wl-control);
+  background: var(--wl-overlay);
   color: var(--wl-text);
   font-size: var(--wl-font-micro);
   white-space: nowrap;
@@ -495,11 +494,13 @@
   background: var(--wl-border);
 }
 
-/* React Flow 自带的控件按宿主 token 重刷，别让它是一块白板 */
+/* React Flow 自带的控件（缩放 / 适应）按本视图的令牌重刷：控件档的底、极淡描边、浮层阴影。 */
 .canvas :global(.react-flow__controls) {
-  box-shadow: var(--dsw-elevation-panel, 0 1px 3px rgb(0 0 0 / 12%));
   border: 1px solid var(--wl-border);
   border-radius: var(--wl-radius-control);
+  background: var(--wl-control);
+  /* 暗底上阴影几乎不可见，所以“浮起来”主要靠底与描边；阴影只做辅助。 */
+  box-shadow: var(--wl-shadow-overlay);
   overflow: hidden;
 }
 
@@ -509,7 +510,10 @@
   border: none;
   border-bottom: 1px solid var(--wl-border);
   background: var(--wl-control);
-  fill: var(--wl-text);
+  fill: var(--wl-text-dim);
+  transition:
+    background-color var(--wl-dur) var(--wl-ease),
+    fill var(--wl-dur) var(--wl-ease);
 }
 
 .canvas :global(.react-flow__controls-button:last-child) {
@@ -561,20 +565,26 @@
 
 .canvas :global(.react-flow__edge-text) {
   fill: var(--wl-text-dim);
-  font-size: 10px;
+  font-size: var(--wl-font-micro);
 }
 
 /*
  * 边标签的**底**（一个 `<rect>`）。
  *
- * @xyflow/react 自带 `fill: #fff`，而我们以前只改了上面的文字色——于是深色画布上，
- * 每条带 `when` 的边旁边都垫着一块白板，看着就是脏东西（用户报的"排版错乱"）。
- * 换成面板色 + 一条描边，让它读起来是"一枚小标签"。
+ * 两个坑：
+ * 1. @xyflow/react 自带 `fill: #fff`。不改就是深色画布上一块白板。所以走 `--wl-overlay`
+ *    （五档面里专给浮层的那一档），再加上 `--wl-border` 的一圈描边，让它读起来是“一枚
+ *    贴在连线上的小标签”，而不是一块底色。
+ * 2. 圆角只能从 CSS 给：`rx` / `ry` 是 SVG 的几何属性，CSS 的优先级高于元素上的属性，
+ *    所以这里能盖掉 @xyflow 自带的 `labelBgBorderRadius`（那个 prop 在
+ *    CanvasView.tsx 上，不归本文件管）。浏览器不支持几何属性时退化成直角，无副作用。
  */
 .canvas :global(.react-flow__edge-textbg) {
-  fill: var(--wl-surface-2);
+  fill: var(--wl-overlay);
   stroke: var(--wl-border);
   stroke-width: 1;
+  rx: var(--wl-radius-sm);
+  ry: var(--wl-radius-sm);
 }
 
 /*
@@ -610,9 +620,10 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 24px 15%;
+  gap: var(--wl-gap-2);
+  padding: var(--wl-gap-3) 15%;
   color: var(--wl-text-mute);
+  font-size: var(--wl-font-micro);
   text-align: center;
   pointer-events: auto;
 }
@@ -620,6 +631,32 @@
 .canvasEmptyTitle {
   margin: 0;
   color: var(--wl-text-dim);
+  font-size: var(--wl-font-body);
+}
+
+/*
+ * 说明行与主行动按钮：**不**用大白字压深底。
+ *
+ * 两者的类落在别的模块里（说明行是 `ui.muted`、按钮是 `ui.button`，归 fix-panel），
+ * 而空态的结构在 CanvasView.tsx（归 fix-canvas）——所以用 `.canvasEmpty` 的子选择器
+ * 把**这一处**的语气提上来：说明降到最弱一档且去掉 `ui.muted` 自带的面板内缩（居中布局里
+ * 那圈内缩会让两行字看着偏），按钮按强调色做成这一屏唯一的主行动。
+ */
+.canvasEmpty > p:not(.canvasEmptyTitle) {
+  padding: 0;
+  color: var(--wl-text-mute);
+  font-size: var(--wl-font-micro);
+}
+
+.canvasEmpty button {
+  border-color: var(--wl-accent);
+  background: var(--wl-accent);
+  color: var(--wl-accent-on);
+}
+
+.canvasEmpty button:hover:not(:disabled) {
+  border-color: var(--wl-accent-hover);
+  background: var(--wl-accent-hover);
 }
 
 .raw {
