@@ -1,0 +1,9 @@
+# 全仓库统一 LF：源码与文档都是 LF 写的，
+# 不让 core.autocrlf 在 checkout 时把它们转成 CRLF（那会让每次拉取都产生整文件 diff）。
+* text=auto eol=lf
+
+# 二进制：别做任何行尾/编码转换。
+*.png binary
+*.webp binary
+*.jpg binary
+*.ico binary

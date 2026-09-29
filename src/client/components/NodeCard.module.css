@@ -1,0 +1,112 @@
+/**
+ * dsh-workflow-lite — 画布上的节点卡样式。
+ *
+ * @module @xiaoso/dsh-workflow-lite/client/components/NodeCard
+ */
+
+/* ── 节点卡 ───────────────────────────────────────────────── */
+
+.node {
+  min-width: 132px;
+  max-width: 220px;
+  padding: 7px 9px;
+  /* 操作簇挂在这张卡上（绝对定位），所以卡自己是定位上下文。 */
+  position: relative;
+  /*
+   * 默认描边走**弱**的 border-l1 而不是 border-l2：暗色主题下宿主的 brand primary
+   * 自己就是近白色（rgb(249,250,251)），跟 border-l2 几乎同色——于是"选中环"和
+   * "普通描边"分不出来（独立审计 P15）。把普通描边让开，白色才专属于选中与焦点。
+   */
+  border: 1px solid var(--wl-border);
+  border-left: 3px solid var(--wl-text-mute);
+  border-radius: var(--wl-radius-card);
+  background: var(--wl-bg);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 6%);
+}
+
+.nodeSelected {
+  border-color: var(--wl-accent);
+  box-shadow: 0 0 0 2px var(--wl-accent-soft);
+}
+
+.nodeInvalid {
+  border-left-color: var(--wl-danger);
+}
+
+.nodeWarn {
+  border-left-color: var(--wl-warn);
+}
+
+.nodeOk {
+  border-left-color: var(--wl-ok);
+}
+
+/*
+ * 悬停 / 聚焦操作簇（§2.4）。平时 opacity 0 且不吃指针事件；不吃指针事件是关键：
+ * 否则卡右上角那一小块就成了隐形按钮区，想从那里开始拖节点会被 `nodrag` 挡下来。
+ * 键盘用户靠 :focus-within 看到它（Tab 进按钮时 opacity 转 1）。
+ */
+.cardActions {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.node:hover .cardActions,
+.node:focus-within .cardActions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/*
+ * 提权到两个类：`ui.module.css` 的注入顺序跟在自研模块后面，单类选择器压不过
+ * `.iconButton` 的 `background: transparent`，图标压在标题上就没法读了。
+ */
+.node .cardAction {
+  border-color: var(--wl-border);
+  background: var(--wl-bg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cardActions {
+    transition: none;
+  }
+}
+
+.nodeTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.nodeMeta {
+  margin-top: 3px;
+  color: var(--wl-text-mute);
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.nodeOut {
+  margin-top: 2px;
+  color: var(--wl-text-dim);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.badgeUnplaced {
+  display: inline-block;
+  margin-top: 3px;
+  padding: 0 5px;
+  border-radius: var(--wl-radius-control);
+  background: var(--wl-warn-soft);
+  color: var(--wl-warn);
+  font-size: 10px;
+}

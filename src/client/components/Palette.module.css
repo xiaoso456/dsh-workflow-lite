@@ -1,0 +1,421 @@
+/**
+ * dsh-workflow-lite — 左栏（节点库 + 校验面板）样式。
+ *
+ * 规矩（和画布外壳一致）：
+ * - 圆角只有两档：控件 `--wl-radius-control`、卡片 `--wl-radius-card`。
+ * - 所有可点元素都有 `:hover` / `:focus-visible` / `:active` 三态。
+ * - `--wl-*` 变量由 `.root`（CanvasView.module.css）定义，本文件的类只能用在它子树里。
+ *
+ * @module @xiaoso/dsh-workflow-lite/client/components/Palette
+ */
+
+.library {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* ── 筛选与新建空白节点 ───────────────────────────────────── */
+
+.filterRow,
+.newNode {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px 6px;
+}
+
+.filterRow > input,
+.newNode > input {
+  flex: 1 1 auto;
+  /* 不加 min-width: 0 的话，input 的固有宽度会把这一行撑破而不是收缩。 */
+  min-width: 0;
+}
+
+.newNode > button,
+.filterRow > button {
+  flex: 0 0 auto;
+}
+
+/* 「全部展开 / 全部收起」：这一行本来就只有 200 来像素宽，四个字一旦折行会把输入框挤扁。 */
+.collapseAll {
+  white-space: nowrap;
+}
+
+/* 校验失败的提示紧贴输入框下方：红字 + 左对齐，和输入框同一个内边距。 */
+.formProblem {
+  padding: 0 10px 4px;
+}
+
+/* ── 分节头（内置 node / 自定义 node）────────────────────── */
+
+/*
+ * 整个分节头就是展开/收起的开关（原生 button），所以三态都要有：它看着像一行标签，
+ * 但摸上去必须是控件（上一版的教训就是"一节只有一个不可点的小三角"）。
+ */
+.sectionHead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 8px 2px;
+  border: 1px solid transparent;
+  border-radius: var(--wl-radius-control);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sectionHead:hover {
+  background: var(--wl-hover);
+}
+
+.sectionHead:active {
+  transform: translateY(1px);
+}
+
+.sectionHead:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+/*
+ * 分节名（`palette.builtin` / `palette.disk`）的字号层级。
+ *
+ * **不做 `text-transform: uppercase`**：这两条标签现在带英文字面 `node`，大写会把用户点名要的
+ * 「内置 node / 自定义 node」渲染成 `内置 NODE`，CSS 改一个字，看到的就是另一个词。
+ *
+ * 内边距归 `.sectionHead`（整行可点，悬停底色要铺满整行），这一格只留排版。
+ */
+.sectionLabel {
+  color: var(--wl-text-dim);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+/*
+ * 分节头右侧的项数。写死等宽数字，折叠/展开切换时右边这一列不抖。
+ * `margin-left: auto` 把它顶到行尾：和自定义组的组头（组名 flex:1 把数字顶到右边）对齐。
+ */
+.sectionCount {
+  margin-left: auto;
+  color: var(--wl-text-mute);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.empty {
+  margin: 0;
+  padding: 4px 10px 8px;
+  color: var(--wl-text-mute);
+  font-size: 12px;
+}
+
+/* ── 可折叠组（只给自定义节点用）─────────────────────── */
+
+/*
+ * 内置 node 是平铺的：没有组头、没有折叠，所以它要的就是组体那份横向内边距——
+ * 与 `.group` 下的条目左右对齐。
+ */
+.flatList {
+  padding: 0 8px;
+}
+
+.group {
+  padding: 0 8px;
+}
+
+.groupHead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 3px 2px;
+  border: 1px solid transparent;
+  border-radius: var(--wl-radius-control);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.groupHead:hover {
+  background: var(--wl-hover);
+}
+
+.groupHead:active {
+  transform: translateY(1px);
+}
+
+.groupHead:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+.chevron {
+  flex: 0 0 auto;
+  width: 12px;
+  color: var(--wl-text-mute);
+  font-size: 10px;
+  line-height: 1;
+  text-align: center;
+}
+
+/*
+ * 组头右侧的「项数」与坏模板徽标。写死等宽数字，折叠/展开切换时右边这列不抖。
+ * 徽标（`.badge`，来自 ui.module.css）自己带 3px 上边距，靠行内基线对齐才不歪——
+ * 所以这里保持行内布局，不要改成 flex。
+ */
+.groupCount {
+  flex: 0 0 auto;
+  color: var(--wl-text-mute);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 可拖条目 ─────────────────────────────────────────────── */
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  margin: 1px 0;
+  padding: 5px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--wl-radius-control);
+  background: var(--wl-bg);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  /* 抓手光标：这是「可以拖走」的第一眼暗示。 */
+  cursor: grab;
+}
+
+.item:hover:not(:disabled) {
+  border-color: var(--wl-border-strong);
+  background: var(--wl-hover);
+}
+
+.item:active:not(:disabled) {
+  transform: translateY(1px);
+  cursor: grabbing;
+}
+
+.item:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+.item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.itemGrip {
+  flex: 0 0 auto;
+  color: var(--wl-text-mute);
+  font-size: 10px;
+  line-height: 1;
+}
+
+.itemName {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.itemId {
+  flex: 0 0 auto;
+  color: var(--wl-text-mute);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+}
+
+.itemBad {
+  flex: 0 0 auto;
+  color: var(--wl-danger);
+  font-size: 11px;
+}
+
+/*
+ * 拖拽影像：一个常驻的、移出视口的节点卡形状空壳，`dragstart` 时由 `setDragImage`
+ * 抓一次像素。之所以常驻而不是现造现挂：React 自己管着它，就不必在拖拽开始那一瞬
+ * 往文档里塞外来节点（那会和协调打架），而且它还在 `.root` 子树里，变量照常继承。
+ */
+.dragGhost {
+  position: fixed;
+  top: -1000px;
+  left: -1000px;
+  max-width: 220px;
+  overflow: hidden;
+  padding: 6px 10px;
+  border: 1px solid var(--wl-accent);
+  border-radius: var(--wl-radius-card);
+  background: var(--wl-surface);
+  color: var(--wl-text);
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 18%);
+  pointer-events: none;
+}
+
+/* ── 校验面板 ─────────────────────────────────────────────── */
+
+/* 面板头整体就是展开/收起开关：点标题那一片都算，别逼用户去戳那个小三角。 */
+.verifyToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.verifyToggle:hover {
+  color: var(--wl-text);
+}
+
+.verifyToggle:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+/* 折叠时右侧那一行：总数 + 各级别计数 + 「没有问题」。 */
+.verifyMeta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.verifyList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0 8px 12px;
+  list-style: none;
+}
+
+.verifyItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: var(--wl-radius-control);
+  background: var(--wl-bg);
+  font-size: 12px;
+}
+
+.verifyItemClickable {
+  width: 100%;
+  border: 1px solid transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.verifyItemClickable:hover {
+  border-color: var(--wl-border-strong);
+}
+
+.verifyItemClickable:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+.verifyLevel {
+  flex: 0 0 auto;
+  padding: 0 4px;
+  border-radius: var(--wl-radius-control);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.verifySave,
+.verifyCompile {
+  background: var(--wl-danger-soft);
+  color: var(--wl-danger);
+}
+
+.verifyWarning {
+  background: var(--wl-warn-soft);
+  color: var(--wl-warn);
+}
+
+.verifyHint {
+  background: var(--wl-surface-2);
+  color: var(--wl-text-dim);
+}
+
+.verifyText {
+  flex: 1 1 auto;
+}
+
+/* ── 旧类名（交互重设计后已被上面那批替代，保留以免打断别处的引用）── */
+
+.paletteGroup {
+  padding: 2px 0 8px;
+}
+
+.paletteItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: calc(100% - 16px);
+  margin: 2px 8px;
+  padding: 5px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--wl-radius-control);
+  background: var(--wl-bg);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.paletteItem:hover:not(:disabled) {
+  border-color: var(--wl-border-strong);
+}
+
+.paletteItem:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.paletteItem:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.paletteItem:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+.paletteItemName {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.paletteItemId {
+  color: var(--wl-text-mute);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+}
+
+.paletteItemBad {
+  color: var(--wl-danger);
+  font-size: 11px;
+}

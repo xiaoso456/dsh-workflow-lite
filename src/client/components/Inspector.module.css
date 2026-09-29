@@ -1,0 +1,279 @@
+/**
+ * dsh-workflow-lite — 右栏（节点属性 / 整图概览 / 编译预览）样式。
+ *
+ * @module @xiaoso/dsh-workflow-lite/client/components/Inspector
+ */
+
+/* ── 属性面板 ─────────────────────────────────────────────── */
+
+/* 一段面板（属性 / 整图概览）。段与段之间靠边框分，不靠间距。 */
+.panel {
+  padding-bottom: 6px;
+}
+
+/*
+ * 整图概览：未选中节点时的内容（§2.5）。
+ * `.summaryRow` / `.summaryKey` / `.summaryValue` 是**通用的一行 / 键 / 值**，
+ * 节点 id 那一行与编译预览头部的 planId 都复用它们；契约 §4.3 只给了这几个类名，
+ * 不为"再来一行"这种需求自造新类。
+ */
+.graphSummary {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 0 10px 4px;
+}
+
+.summaryRow {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.summaryKey {
+  flex: 0 0 auto;
+  color: var(--wl-text-dim);
+  font-size: 12px;
+}
+
+/*
+ * 值那一格：吃掉剩余宽度、超长省略、等宽字（图名、计数、hash 都是机器可读的东西）。
+ * 用在 `<input>` 上时就是"这一格是值"，不写颜色，让 `ui.readonly` 自己的色说了算。
+ */
+.summaryValue {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+
+/* 概览里的值靠右对齐；节点 id 输入框在概览外，保持左对齐（那是要读的 id）。 */
+.graphSummary .summaryValue {
+  margin-left: auto;
+  text-align: right;
+}
+
+/* 占位文案（例如还没打开任何图）不按值来读。 */
+.empty {
+  color: var(--wl-text-mute);
+}
+
+/*
+ * 提示词是这张图的载荷本体，占最大面积（§2.5）。
+ * min-height 落在 textarea 自己身上：`ui.textarea` 的 132px 是"普通文本域"的尺度，
+ * 这里要的是"正文字段"的尺度。选择器带元素名，才压得过注入顺序在后面的 `ui.module.css`。
+ */
+.promptField {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.promptField > textarea {
+  min-height: 168px;
+  /* 底部留出字数那一行的位置，别让最后一行字被压住。 */
+  padding-bottom: 20px;
+}
+
+.charCount {
+  position: absolute;
+  right: 16px;
+  bottom: 5px;
+  color: var(--wl-text-mute);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  pointer-events: none;
+}
+
+/* 面板底部的节点级操作（复制 / 删除）。 */
+.nodeActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+  padding-top: 8px;
+  border-top: 1px solid var(--wl-border);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 10px 10px;
+}
+
+.edgeList {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0;
+  padding: 0 10px 8px;
+  list-style: none;
+}
+
+.edgeRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border: 1px solid var(--wl-border);
+  border-radius: var(--wl-radius-control);
+  background: var(--wl-bg);
+}
+
+.edgeRowBack {
+  border-style: dashed;
+}
+
+/*
+ * 另一端（显示名 + id）。
+ *
+ * **刻意不吃省略号**（与上一版相反）：`flex: 0 0 auto` 让它保持自然宽度。
+ * 它被压窄只会把字吃掉，而"显示名（id）"是这一行最要紧的信息；
+ * 整行真的放不下时该改排布，而不是拿截断把问题盖起来。
+ * 它现在是**只读文字**（不再是一个切节点的按钮），所以也没有 hover / focus 态。
+ */
+.edgeName {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+}
+
+/*
+ * 「条件 <值>」那一格：同样是自然宽度、不截断。
+ * 值是 `pass` / `fail` / 自由文本 / 空值时的「无条件」，都是固定字数的短串。
+ */
+.whenLabel {
+  flex: 0 0 auto;
+  color: var(--wl-text-dim);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+/*
+ * 边行左侧的方向指示。所在的那一段标题已经说了"入边 / 出边"，所以它只是给眼睛的
+ * 冗余确认（读屏软件那边用 aria-hidden 挡掉了）。两个类分开留，方便以后各自调色。
+ */
+.dirIn,
+.dirOut {
+  flex: 0 0 auto;
+  color: var(--wl-text-mute);
+  font-size: 11px;
+  line-height: 1;
+}
+
+/*
+ * 「回边」小标。
+ *
+ * 可见文字是短的那一个（`BACK_TAG_TEXT` 常量），完整说明挂在 `title` 上——
+ * 上一版把整句话当可见文字，窄右栏里只能靠省略号吃掉一半，那等于没写。
+ */
+.tagBack {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  color: var(--wl-text-mute);
+  font-size: 10px;
+}
+
+/* ── 边编辑区（选中一条边时）─────────────────────────────── */
+
+/* 两端那一行：`甲（alpha） → 乙（beta）`。等宽字，因为括号里是 id。 */
+.edgeEnds {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+
+/* 名字再长也让它折行（`anywhere`），而不是溢出右栏。 */
+.edgeEnd {
+  overflow-wrap: anywhere;
+}
+
+.edgeArrow {
+  color: var(--wl-text-mute);
+}
+
+/*
+ * 条件的点选行。
+ *
+ * 四个格子复用站点统一的按钮样式（`.button`），这里只负责"当前值是哪一个"的高亮。
+ * 高亮用全站唯一的强调色 `--wl-accent`：与选中环、当前 tab 同一套语气。
+ */
+.condRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/*
+ * 当前值那一格。`hover` 那一支必须一起写：`ui.button:hover` 比这条特异度高，
+ * 不显式覆盖的话鼠标一放上去高亮就没了。
+ */
+.condActive,
+.condActive:hover:not(:disabled) {
+  border-color: var(--wl-accent);
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent);
+}
+
+/* 自定义值输入框：与点选格同一行，宽度按"十来个字符"给。 */
+.condInput {
+  box-sizing: border-box;
+  width: 120px;
+}
+
+/* ── 编译预览（右栏一段，不做底部抽屉：会话页底部有浮动的输入框会盖住它）── */
+
+.planBlock {
+  border-top: 1px solid var(--wl-border);
+  margin-top: 4px;
+  padding-bottom: 6px;
+}
+
+.planActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 0 10px 6px;
+}
+
+/*
+ * 编译预览头部右侧的 planId（内容哈希）。
+ * `ui.panelHead` 自带大写转换、字距与粗体，而哈希要按原样逐字读，所以这里逐项覆盖回去。
+ */
+.planMeta {
+  overflow: hidden;
+  max-width: 120px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--wl-text-mute);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  user-select: text;
+}
+
+.plan {
+  max-height: 320px;
+  overflow: auto;
+  margin: 0 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--wl-border);
+  border-radius: var(--wl-radius-card);
+  background: var(--wl-bg);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}

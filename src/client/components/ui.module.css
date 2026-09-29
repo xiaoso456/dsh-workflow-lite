@@ -1,0 +1,361 @@
+/**
+ * dsh-workflow-lite — 共享原子样式（按钮 / 输入 / 面板头 / 标签页 / 提示条 / 状态点）。
+ *
+ * **这些类不定义 `--wl-*` 变量**——它们从 `.root`（在 CanvasView.module.css 里）继承。
+ * 因此本文件的类**只能用在 `.root` 子树内**。
+ *
+ * 本文件由 Lead 独占写入；别的组件模块不要往这里加类，需要新类加在自己的模块里。
+ *
+ * @module @xiaoso/dsh-workflow-lite/client/components/ui
+ */
+
+.select,
+.input,
+.textarea {
+  border: 1px solid var(--wl-border-strong);
+  border-radius: var(--wl-radius-control);
+  background: var(--wl-bg);
+  color: inherit;
+  font: inherit;
+  padding: 3px 6px;
+}
+
+.select:focus-visible,
+.input:focus-visible,
+.textarea:focus-visible,
+.button:focus-visible,
+.tab:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+.select {
+  max-width: 260px;
+}
+
+.button {
+  border: 1px solid var(--wl-border-strong);
+  border-radius: var(--wl-radius-control);
+  background: var(--wl-bg);
+  color: inherit;
+  font: inherit;
+  padding: 3px 9px;
+  cursor: pointer;
+}
+
+.button:hover:not(:disabled) {
+  background: var(--wl-hover);
+}
+
+.button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.buttonPrimary {
+  border-color: var(--wl-accent);
+  background: var(--wl-accent);
+  color: var(--dsw-alias-label-primary-foreground, #ffffff);
+}
+
+.buttonPrimary:hover:not(:disabled) {
+  background: var(--dsw-alias-button-primary-hover, var(--wl-accent));
+}
+
+.buttonDanger {
+  color: var(--wl-danger);
+}
+
+.buttonDanger:hover:not(:disabled) {
+  background: var(--wl-danger-soft);
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: var(--wl-radius-control);
+  background: var(--wl-surface-2);
+  color: var(--wl-text-dim);
+  font-size: 12px;
+}
+
+.status::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--wl-text-mute);
+}
+
+.statusOk::before {
+  background: var(--wl-ok);
+}
+
+.statusBusy::before {
+  background: var(--wl-accent);
+}
+
+.statusDirty::before {
+  background: var(--wl-warn);
+}
+
+.statusError::before {
+  background: var(--wl-danger);
+}
+
+/* ── 提示条 ───────────────────────────────────────────────── */
+
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--wl-border);
+  background: var(--wl-warn-soft);
+  color: var(--wl-warn);
+  font-size: 12px;
+  flex: 0 0 auto;
+}
+
+.bannerInfo {
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent);
+}
+
+.bannerDanger {
+  background: var(--wl-danger-soft);
+  color: var(--wl-danger);
+}
+
+.panelHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 8px 10px 4px;
+  color: var(--wl-text-dim);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.panelHeadSub {
+  color: var(--wl-text-mute);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/*
+ * 标题那一栏永远不折行。`panelHead` 是 `space-between` 的两栏，副文案一长就把标题
+ * 挤成两行——实测出现过「节点库」被截成「节点 / 库」、中间还插着副文案的一行，完全读不出来。
+ * 要缩就缩副文案自己。
+ */
+.panelHead > span:first-child {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.panelHead > span:last-child {
+  min-width: 0;
+}
+
+.muted {
+  margin: 0;
+  padding: 4px 10px 8px;
+  color: var(--wl-text-mute);
+  font-size: 12px;
+}
+
+.badge {
+  display: inline-block;
+  margin-top: 3px;
+  padding: 0 5px;
+  border-radius: var(--wl-radius-control);
+  background: var(--wl-surface-2);
+  color: var(--wl-text-dim);
+  font-size: 10px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.field > span {
+  color: var(--wl-text-dim);
+  font-size: 12px;
+}
+
+.textarea {
+  min-height: 132px;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.readonly {
+  background: var(--wl-surface-2);
+  color: var(--wl-text-dim);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.problem {
+  margin: 0;
+  color: var(--wl-danger);
+  font-size: 12px;
+}
+
+.problemWarn {
+  color: var(--wl-warn);
+}
+
+.problemHint {
+  color: var(--wl-text-dim);
+}
+
+.tabs {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--wl-border);
+  border-radius: var(--wl-radius-control);
+  background: var(--wl-bg);
+}
+
+.tab {
+  border: none;
+  border-radius: calc(var(--wl-radius-control) - 2px);
+  background: transparent;
+  color: var(--wl-text-dim);
+  font: inherit;
+  padding: 2px 9px;
+  cursor: pointer;
+}
+
+.tab:hover {
+  color: var(--wl-text);
+}
+
+.tabActive {
+  background: var(--wl-accent);
+  color: var(--dsw-alias-label-primary-foreground, #ffffff);
+}
+
+.tabActive:hover {
+  color: var(--dsw-alias-label-primary-foreground, #ffffff);
+}
+
+/* ── 交互重设计补充的原子（契约见 docs/.review/交互重设计.md §4.3）──── */
+
+/*
+ * 无边框按钮：用于「次要动作」。放在已有描边的容器里时再加一圈描边，
+ * 层级就变成两层框，读起来像嵌套卡片。
+ */
+.buttonGhost {
+  border-color: transparent;
+  background: transparent;
+}
+
+.buttonGhost:hover:not(:disabled) {
+  border-color: var(--wl-border-strong);
+}
+
+/*
+ * 方形图标按钮。inline-size 与 block-size 写死，是为了让一排图标按钮无论
+ * 里面放一个字符还是一个 svg 都一样宽——否则它们会随内容宽度抖动。
+ */
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 22px;
+  block-size: 22px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--wl-radius-control);
+  background: transparent;
+  color: var(--wl-text-dim);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.iconButton:hover:not(:disabled) {
+  border-color: var(--wl-border-strong);
+  background: var(--wl-bg);
+  color: var(--wl-text);
+}
+
+.iconButton:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.iconButton:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+.iconButton:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.iconButtonDanger:hover:not(:disabled) {
+  background: var(--wl-danger-soft);
+  color: var(--wl-danger);
+}
+
+/* 只给读屏软件的文字：图标按钮的可读名走它，不拿 title 冒充 label。 */
+.srOnly {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* 快捷键提示的小键帽。 */
+.kbd {
+  display: inline-block;
+  min-inline-size: 16px;
+  padding: 0 4px;
+  border: 1px solid var(--wl-border-strong);
+  border-radius: calc(var(--wl-radius-control) - 3px);
+  background: var(--wl-surface-2);
+  color: var(--wl-text-dim);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+}
+
+/* 把后面的东西顶到右边。 */
+.spacer {
+  flex: 1 1 auto;
+}
+
+/*
+ * 降级：本轮的动效只有「按下位移」这一种，减动效时去掉它。
+ * 上面那些 :hover 变色属于状态转换，不产生位移，保留。
+ */
+@media (prefers-reduced-motion: reduce) {
+  .button:active:not(:disabled),
+  .iconButton:active:not(:disabled) {
+    transform: none;
+  }
+}

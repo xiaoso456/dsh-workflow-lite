@@ -1,0 +1,499 @@
+/**
+ * dsh-workflow-lite — 画布外壳样式（根变量 / 顶栏 / 三栏 / 画布 / 拖放落点）。
+ *
+ * 这是一个**编辑器**，不是落地页：密度优先、状态齐全、不做装饰。
+ *
+ * **配色走宿主的设计 token**（`--dsw-alias-*`），不自己造一套：token 本身随主题换值，
+ * 所以深浅色是**自动**的，不需要 `prefers-color-scheme` 分支，也不会在应用切主题时跟丢了。
+ * 少数 token 里没有的语义色（危险/警告/正常）用 `color-scheme` 感知的 `light-dark()` 写，
+ * 跟随宿主设在 `<html>` 上的 color-scheme。
+ *
+ * **唯一的例外是 `--wl-text-mute`**：宿主的 caption token 在本视图的暗色底上只有
+ * 4.24:1，低于 AA 的 4.5（独立审计 P14 实测 17 处不合格，全是这一对颜色）。
+ * CSS 没法把别人的 token "调亮一点"，所以这一档改用显式值——见下面那行注释。
+ *
+ * 规矩（本文件自己的锁）：
+ * - **圆角只有两档**：控件 `--wl-radius-control`、面板与节点卡 `--wl-radius-card`。别处不许冒出第三个数。
+ * - **强调色只有一个**：`--wl-accent`。选中环、主按钮、当前 tab 都用它。
+ * - 所有交互元素都有 `:hover` / `:focus-visible` / `:active` 三态。
+ *
+ * @module @xiaoso/dsh-workflow-lite/client/components/CanvasView
+ */
+
+.root {
+  --wl-bg: var(--dsw-alias-bg-base, #ffffff);
+  --wl-surface: var(--dsw-alias-bg-layer-1, #fafafa);
+  --wl-surface-2: var(--dsw-alias-bg-layer-2, #f4f4f5);
+  --wl-border: var(--dsw-alias-border-l1, #e4e4e7);
+  --wl-border-strong: var(--dsw-alias-border-l2, #d4d4d8);
+  --wl-text: var(--dsw-alias-label-primary, #18181b);
+  --wl-text-dim: var(--dsw-alias-label-secondary, #52525b);
+  /*
+   * 这一档刻意**不用**宿主的 caption token（暗色下它是 rgb(129,133,140)，
+   * 在 rgb(35,35,36) 底上只有 4.24:1，AA 要求 4.5）。CSS 没有"把 token 调亮一档"
+   * 的写法，所以取显式值：浅色 #6b7280（白底 4.83:1）、暗色 #9298a0（#232324 底 5.40:1）。
+   * 两档都仍是"比正文弱"的一级，层级没丢。
+   */
+  --wl-text-mute: light-dark(#6b7280, #9298a0);
+  --wl-accent: var(--dsw-alias-brand-primary, #2f6feb);
+  --wl-accent-soft: var(--dsw-alias-interactive-bg-hover-accent, #e8f0fe);
+  --wl-hover: var(--dsw-alias-interactive-bg-hover, rgb(0 0 0 / 4%));
+  --wl-danger: light-dark(#b42318, #f97066);
+  --wl-danger-soft: light-dark(#fef3f2, #3a1d1a);
+  --wl-warn: light-dark(#b54708, #fdb022);
+  --wl-warn-soft: light-dark(#fffaeb, #3a2c14);
+  --wl-ok: light-dark(#12805c, #4ed4a4);
+  --wl-radius-control: var(--dsw-radius-sm, 8px);
+  --wl-radius-card: var(--dsw-radius-md, 12px);
+
+  display: flex;
+  flex-direction: column;
+  /*
+   * 高度模型（独立审计 P9 的根因）：
+   *
+   * 宿主把本视图挂在 `.viewArea{display:flex; flex:1 0 auto; min-height:auto}` 里。
+   * `flex-shrink:0` + `min-height:auto` 意味着**那一层既不会被内容顶开、也不会收缩**：
+   * 我的根一旦按内容撑到 679px，`.viewArea` 就跟着变成 679px，而它外面的
+   * `[data-conversation-scroll]`（overflow-y:auto）只有 408px —— 于是整个会话面板在滚，
+   * 顶栏与三栏表头全被滚出视野。
+   *
+   * 修法：把 `flex-basis` 压到 0，让我的"理想高度"是 0。这样 `.viewArea` 的 content
+   * 高度也变成 0，它自己的 `flex-grow:1` 再把它撑满真正的可用高度，我在里面 `flex:1` 填满。
+   * `height:100%` 留着兜底：万一将来宿主那层不是 flex 容器（`flex` 属性会被忽略），
+   * 它仍然能对确定高度的父级生效。
+   */
+  flex: 1 1 0;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--wl-bg);
+  color: var(--wl-text);
+  font-family: var(--dsw-font-family, inherit);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/*
+ * 画布占满会话详情页：**把会话页自己的那两件"会话 chrome"藏掉**。
+ *
+ * 1. **底部输入框**：宿主把它渲染成活动视图的**兄弟**
+ *    （`[data-conversation-scroll]` 下、`[data-conversation-region="composer"]`），
+ *    并且没有"某个视图不显示输入框"的开关（`composerSeat{flex:none}` 恒在）。
+ * 2. **会话列宽拖拽柄**：`WidthControls` 也是 `.body` 的兄弟，两条 10px 宽、
+ *    整列高、`cursor:col-resize` 的透明条（`[data-width-handle="left"|"right"]`）。
+ *    在「对话」视图里它们调整聊天列宽；画布满页时它们只是两条浮在画布上的
+ *    **隐形热区**——鼠标划过去会冒出拖拽光标与"拖动能改会话列宽"的提示，
+ *    看着就是坏了。
+ *
+ * 同生态的 `dsh-image-gen` 也是整页占满的样子。这里的 `:has()` 把作用域
+ * **限定在"我的视图挂载着"这一种情况下**：切回「对话」时我的根节点被卸载，
+ * `:has()` 立刻不成立，输入框与拖拽柄自己回来。
+ *
+ * 选的是宿主的 **data 属性**而不是它的 CSS-module 哈希类名（`wSkVaW_*` 会在版本间变，
+ * data 属性是给外部的稳定钩子）。**只收 `[data-conversation-content]` 里面**——
+ * 左侧导航栏那个 `[data-side="sidebar"]` 拖拽柄属于应用外壳，不归这里管，不能误伤。
+ *
+ * 万一将来属性改名，最坏结果是这两件照旧显示——不会崩，也不会误伤别的视图。
+ */
+:global(
+  [data-conversation-content]:has([data-workflow-lite-view]) [data-conversation-region="composer"]
+),
+:global([data-conversation-content]:has([data-workflow-lite-view]) [data-width-handle]) {
+  display: none;
+}
+
+/* ── 顶栏 ─────────────────────────────────────────────────── */
+
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--wl-border);
+  background: var(--wl-surface);
+  flex: 0 0 auto;
+}
+
+.barSpacer {
+  flex: 1 1 auto;
+}
+
+.label {
+  color: var(--wl-text-dim);
+  font-size: 12px;
+}
+
+/* ── 主体三栏 ─────────────────────────────────────────────── */
+
+.body {
+  display: grid;
+  grid-template-columns: 208px minmax(0, 1fr) 320px;
+  /*
+   * 只有一行，而那一行**必须**按容器高度算。留空的话行是 `auto`，
+   * 会被最高的那一栏（右栏的属性 + 编译预览轻松过 900px）撑开，
+   * 于是整个根变高、外面的会话面板开始滚——退回 P9 那个毛病。
+   */
+  grid-template-rows: minmax(0, 1fr);
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+@media (max-width: 1180px) {
+  .body {
+    grid-template-columns: 180px minmax(0, 1fr) 272px;
+  }
+}
+
+@media (max-width: 900px) {
+  /*
+   * 窄屏：三栏竖着排。行高一律 `1fr`（而不是写死 150/240），
+   * 因为写死会在矮视口上直接超出可用高度、又把整页顶成可滚。
+   * 每一栏自己 `overflow: auto`，所以“看得见的条数”由栏高决定而不是被截断。
+   * 画布那行给多一点。
+   */
+  .body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1fr);
+  }
+}
+
+.side,
+.inspector {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: auto;
+  background: var(--wl-surface);
+}
+
+.side {
+  border-right: 1px solid var(--wl-border);
+}
+
+.inspector {
+  border-left: 1px solid var(--wl-border);
+}
+
+/*
+ * 侧栏里的每一段都**不许被压缩**，要滚就滚侧栏自己。
+ *
+ * `.side` / `.inspector` 是 `display: flex; flex-direction: column; overflow: auto`，
+ * 而 flex 子项的默认 `flex-shrink: 1` 会让它们在容器变矮时**先被压扁**，压扁之后
+ * 里面的内容（没有自己的 overflow）就溢出来压在相邻段落上。
+ * 实测（762×484）：侧栏 clientHeight 100 / scrollHeight 379，于是「节点 id」输入框
+ * （211–238）和「校验」面板（216–244）**真的叠在一起**——矮视口下左栏根本没法读。
+ *
+ * 加上 `flex: 0 0 auto` 之后，段落保持自然高度、总高超出容器，`overflow: auto` 才真正生效
+ * （滚动条出现在侧栏上）。高视口下本来就不溢出，所以这条对 1440×900 没有可见影响。
+ */
+.side > *,
+.inspector > * {
+  flex: 0 0 auto;
+}
+
+/* ── 画布区 ───────────────────────────────────────────────── */
+
+.canvasWrap {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--wl-bg);
+}
+
+.canvasBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--wl-border);
+  flex: 0 0 auto;
+  /* 快捷键说明挂在它的下沿（绝对定位），所以它是定位上下文。 */
+  position: relative;
+}
+
+/*
+ * 快捷键说明。**浮层**而不是撑开的区块：画布高度一变，React Flow 就要重新 fitView，
+ * 节点位置会自己跳一下——为了看一张说明表把用户的图推一遍不值得。
+ */
+.shortcutPanel {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 8px;
+  z-index: 8;
+  min-width: 216px;
+  padding: 6px 8px 8px;
+  border: 1px solid var(--wl-border-strong);
+  border-radius: var(--wl-radius-card);
+  background: var(--wl-surface);
+  box-shadow: var(--dsw-elevation-panel, 0 4px 12px rgb(0 0 0 / 18%));
+}
+
+.shortcutHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 4px;
+  color: var(--wl-text-dim);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.shortcutList {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0;
+}
+
+.shortcutRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.shortcutRow dt {
+  color: var(--wl-text-dim);
+  font-size: 12px;
+}
+
+.shortcutRow dd {
+  display: flex;
+  gap: 3px;
+  margin: 0;
+}
+
+.canvas {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/*
+ * 有东西拖在画布上时的描边高亮。
+ *
+ * 用 `outline` 而不是 `border`：outline 不参与布局，加/去都不会引起重排，
+ * 拖拽期间每秒几十次的状态切换，任何一次重排都是白给的抖动。
+ * `outline-offset: -6px` 把描边收到容器内侧，免得贴边时被相邻面板盖住。
+ */
+.canvasDrop {
+  outline: 2px dashed var(--wl-accent);
+  outline-offset: -6px;
+}
+
+/*
+ * 落点标记：24x24 的十字，跟着指针走。
+ *
+ * `left/top: 0` + `margin: -12px` 让"元素中心"落在 transform 给的那个点上；
+ * 位置由 `dragover` 直接写 `style.transform`（不进 React state，否则每帧重渲染全图）。
+ */
+.dropMarker {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 24px;
+  height: 24px;
+  margin: -12px 0 0 -12px;
+  border: 2px solid var(--wl-accent);
+  border-radius: var(--wl-radius-control);
+  background: var(--wl-accent-soft);
+  z-index: 6;
+  pointer-events: none;
+}
+
+/* 作者样式里的 `display` 会盖过 UA 的 `[hidden]`，所以这条要显式写死。 */
+.dropMarker[hidden] {
+  display: none;
+}
+
+/*
+ * 十字下面那行字。绝对定位挂在十字外面，这样它不参与十字的 24x24 尺寸
+ *（十字的中心要对准落点，尺寸一变就对不准了）。
+ * 加底色是因为画布上本来就有网格点与连线，不加底的字会糊在一起。
+ */
+.dropMarkerText {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 6px;
+  padding: 1px 6px;
+  border: 1px solid var(--wl-accent);
+  border-radius: var(--wl-radius-control);
+  background: var(--wl-bg);
+  color: var(--wl-text);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.dropMarker::before,
+.dropMarker::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  background: var(--wl-accent);
+  transform: translate(-50%, -50%);
+}
+
+.dropMarker::before {
+  width: 2px;
+  height: 12px;
+}
+
+.dropMarker::after {
+  width: 12px;
+  height: 2px;
+}
+
+/* 工具条上把三组按钮分开的竖线（撤销重做 / 视图 / 删除）。 */
+.divider {
+  flex: 0 0 auto;
+  width: 1px;
+  height: 16px;
+  background: var(--wl-border);
+}
+
+/* React Flow 自带的控件按宿主 token 重刷，别让它是一块白板 */
+.canvas :global(.react-flow__controls) {
+  box-shadow: var(--dsw-elevation-panel, 0 1px 3px rgb(0 0 0 / 12%));
+  border: 1px solid var(--wl-border);
+  border-radius: var(--wl-radius-control);
+  overflow: hidden;
+}
+
+.canvas :global(.react-flow__controls-button) {
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-bottom: 1px solid var(--wl-border);
+  background: var(--wl-bg);
+  fill: var(--wl-text-dim);
+}
+
+.canvas :global(.react-flow__controls-button:last-child) {
+  border-bottom: none;
+}
+
+.canvas :global(.react-flow__controls-button:hover) {
+  background: var(--wl-hover);
+  fill: var(--wl-text);
+}
+
+.canvas :global(.react-flow__controls-button svg) {
+  fill: inherit;
+  max-width: 14px;
+  max-height: 14px;
+}
+
+/* 边：回边虚线、fail 边用危险色 —— 与计划里的语义对齐 */
+.canvas :global(.react-flow__edge-path) {
+  stroke: var(--wl-border-strong);
+  stroke-width: 1.5;
+}
+
+/*
+ * 边的三种语气。
+ *
+ * `.edge` / `.edgeBack` / `.edgeFail` 是 `CanvasView.tsx` 挂在 React Flow 边上的
+ * `className`（互斥三选一）。**v1 里这三个类被引用却从没被定义过**——于是
+ * 「回边虚线、fail 边用危险色」这句注释一直只是注释，样式从未生效。这里补上。
+ *
+ * 必须写成 `.edgeX :global(.react-flow__edge-path)` 的后代选择器：`className` 落在
+ * 边的 `<g>` 上，而 `stroke` 是画在里面的 `<path>` 上的，写在 `<g>` 上不生效。
+ * 与上面 `.canvas :global(...)` 那条特异度相同（都是 0,2,0），靠**源码顺序**取胜，
+ * 所以这三条必须排在它后面。
+ */
+.edge :global(.react-flow__edge-path) {
+  stroke: var(--wl-border-strong);
+}
+
+.edgeBack :global(.react-flow__edge-path) {
+  stroke-dasharray: 5 4;
+}
+
+.edgeFail :global(.react-flow__edge-path) {
+  stroke: var(--wl-danger);
+}
+
+.canvas :global(.react-flow__edge-text) {
+  fill: var(--wl-text-dim);
+  font-size: 10px;
+}
+
+/*
+ * 边标签的**底**（一个 `<rect>`）。
+ *
+ * @xyflow/react 自带 `fill: #fff`，而我们以前只改了上面的文字色——于是深色画布上，
+ * 每条带 `when` 的边旁边都垫着一块白板，看着就是脏东西（用户报的"排版错乱"）。
+ * 换成面板色 + 一条描边，让它读起来是"一枚小标签"。
+ */
+.canvas :global(.react-flow__edge-textbg) {
+  fill: var(--wl-surface-2);
+  stroke: var(--wl-border);
+  stroke-width: 1;
+}
+
+/*
+ * 选中的边。
+ *
+ * React Flow 会给被选中的边加 `.selected`（`<g class="react-flow__edge selected">`），
+ * 这里只管把"右栏现在编辑的是这一条"说出来：强调色 + 加粗，标签底也换成强调色的浅底。
+ *
+ * 特异度（0,4,0）**高于**上面三条语气规则与 @xyflow 自带的选中色，所以 fail 边、
+ * 回边被选中时看得到选中态；反过来，没选中的边语气一个字节都没变（虚线、危险色原样），
+ * 那三条规则与 `markerEnd` 也一行没动（验收第 29/29b 步在量它们）。
+ */
+.canvas :global(.react-flow__edge.selected .react-flow__edge-path) {
+  stroke: var(--wl-accent);
+  stroke-width: 3;
+}
+
+.canvas :global(.react-flow__edge.selected .react-flow__edge-textbg) {
+  fill: var(--wl-accent-soft);
+}
+
+/*
+ * 空图空态。
+ *
+ * `pointer-events: auto`（原先是 `none`）：空态里有一个「新建空白节点」按钮，
+ * 盖在画布上的这层如果吃掉不了点击，按钮就是死的。代价是空图时按不到 React Flow
+ * 的缩放控件：空图上它们本来也没用。
+ */
+.canvasEmpty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px 15%;
+  color: var(--wl-text-mute);
+  text-align: center;
+  pointer-events: auto;
+}
+
+.canvasEmptyTitle {
+  margin: 0;
+  color: var(--wl-text-dim);
+}
+
+.raw {
+  max-height: none;
+  overflow: auto;
+  margin: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--wl-border);
+  border-radius: var(--wl-radius-card);
+  background: var(--wl-bg);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}

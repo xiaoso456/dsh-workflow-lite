@@ -1,0 +1,14 @@
+node_modules/
+lib/
+dist/
+*.log
+tests/runs/
+
+# 参考先例：别的插件的源码，115MB，是设计期的读物、不是本项目源码
+refs/
+
+# 本地状态：meow-memory 的记忆库与会话日志
+.dsh-meow/
+
+# 用户要求：docs/ 先不进版本库（设计文档、审读记录、交付说明都只留在工作区）
+docs/
