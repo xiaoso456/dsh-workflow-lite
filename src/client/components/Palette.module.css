@@ -15,14 +15,28 @@
   min-height: 0;
 }
 
-/* ── 筛选与新建空白节点 ───────────────────────────────────── */
+/* ── 控件区：宽窗两行，窄窗一行 ───────────────────────────── */
+
+/*
+ * 宽窗（>900px）**保持两行**：筛选框 + 「全部收起」一行，「节点 id 新建 + ＋」一行。
+ *
+ * 为什么不并成一行：这一栏在 1440 下只有 208px 宽（栏内 191px）。并成一行后，
+ * 两个 `<input>` 的固有基准宽（各约 170px）会被硬压到 **~61px**——筛选框是这一栏里
+ * 最常碰的东西，为了省 36px 把它挤到"看不清自己输了什么"不划算。合并只在窄窗做
+ * （那里纵向空间是危机，而这栏是全宽的 467/567px，不存在挤的问题），见文件末尾。
+ *
+ * `.shell` 这一层是窄窗合并要用的容器：宽窗下它就是个普通块级盒，两行照旧各占一行。
+ */
+.shell {
+  display: block;
+}
 
 .filterRow,
 .newNode {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 8px 6px;
+  padding: 2px 8px 4px;
 }
 
 .filterRow > input,
@@ -32,14 +46,37 @@
   min-width: 0;
 }
 
-.newNode > button,
-.filterRow > button {
+.filterRow > button,
+.newNode > button {
   flex: 0 0 auto;
 }
 
-/* 「全部展开 / 全部收起」：这一行本来就只有 200 来像素宽，四个字一旦折行会把输入框挤扁。 */
-.collapseAll {
-  white-space: nowrap;
+/*
+ * 「全部收起 / 全部展开」在**面上**是一枚 26px 宽、跟输入框同高的图标按钮：它右边
+ * （窄窗并排时）或同行尾（宽窗单独一行时）就是这一栏最常碰的输入框，四个字的文案
+ * 在这条 208px 宽的栏里是纯占位。形状走 ui 的 `.iconButton`（控件档的底与描边——
+ * 半透明的 ghost 底在暗色下等于没有形状），这里只覆盖尺寸与字体。
+ *
+ * 字面文案仍然留在 DOM 里（它是这个控件的可读名，验收脚本第 20 步也照 `textContent`
+ * 读它），只是排成 0 号字所以不占宽度；可见的那个箭头由 `::before` 画出来，
+ * 生成内容不进 `textContent`。刻意**不**用 `overflow: hidden` 把文字裁掉：那会让
+ * 这一块进"文字被切"的清单，而它本来就没有文字要显示。可读名另有 aria-label 兜底。
+ * （整合期会把那条断言改成读 aria-label，届时这枚按钮可以做成干净的无字图标。）
+ */
+.shell .collapseAll {
+  align-self: stretch;
+  width: 26px;
+  /* 覆盖 ui 的 `.iconButton` 那档固定块高，让 `align-self: stretch` 决定高度：
+     这一行以输入框为准，图标按钮跟着它们一样高，行就不会参差。 */
+  height: auto;
+  padding: 0;
+  font-size: 0;
+}
+
+.shell .collapseAll::before {
+  content: "⇕";
+  font-size: var(--wl-font-micro);
+  line-height: 1;
 }
 
 /*
@@ -56,29 +93,20 @@
 }
 
 /*
- * 筛选行与「节点 id 新建」行的共同外壳。
+ * 面板头下方的常驻说明。只留一句、只占一行：这一栏在窄窗只有一百来像素高，
+ * 说明每多占一行，条目就少露一行。留下的这句是「怎么连线」（它别处没有可见的家），
+ * 「拖进来 / 点条目」那句仍在每个条目的 `aria-label` 与 `title` 里。
  *
- * 宽窗下这个 div 就是个普通块级容器，两行各占一行、布局与从前逐像素一致；
- * 窄窗（竖排）下才改成一行，见文件末尾的媒体查询。
- */
-.shell {
-  display: block;
-}
-
-/*
- * 面板头下方的常驻说明：「条目能拖也能点」「连线从卡片侧面的圆点拖出」。
- * 这两句话原先只在条目的 `title` 里，触屏与键盘用户拿不到。
- * 两句并排放，宽窗一行放得下，窄窗按 `flex-wrap` 自己折行。
+ * 用最小字号 + 弱色，让它读起来是脚注而不是正文。`text-wrap: balance` 让它在窄栏里
+ * 折行时两行一样长，不会把最后一个字孤零零甩到第二行。
  */
 .panelHint {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0 10px;
   margin: 0;
-  padding: 0 10px 4px;
+  padding: 0 8px 4px;
   color: var(--wl-text-mute);
-  font-size: 11px;
-  line-height: 1.4;
+  font-size: var(--wl-font-micro);
+  line-height: 1.3;
+  text-wrap: balance;
 }
 
 /* 校验失败的提示紧贴输入框下方：红字 + 左对齐，和输入框同一个内边距。 */
@@ -97,10 +125,14 @@
   align-items: center;
   gap: 6px;
   width: 100%;
-  padding: 6px 8px 2px;
+  padding: 4px 6px;
   border: 1px solid transparent;
   border-radius: var(--wl-radius-control);
-  background: transparent;
+  /*
+   * 底必须是**实色**：窄窗下这个头会钉在滚动容器顶沿（见文件末尾的媒体查询），
+   * 滚动时条目会从它下面经过，半透明底会把这些条目透出来，看着像叠字。
+   */
+  background: var(--wl-surface);
   color: inherit;
   font: inherit;
   text-align: left;
@@ -108,7 +140,7 @@
 }
 
 .sectionHead:hover {
-  background: var(--wl-hover);
+  background: var(--wl-surface-2);
 }
 
 .sectionHead:active {
@@ -130,7 +162,7 @@
  */
 .sectionLabel {
   color: var(--wl-text-dim);
-  font-size: 11px;
+  font-size: var(--wl-font-micro);
   font-weight: 600;
   letter-spacing: 0.04em;
 }
@@ -142,7 +174,7 @@
 .sectionCount {
   margin-left: auto;
   color: var(--wl-text-mute);
-  font-size: 11px;
+  font-size: var(--wl-font-micro);
   font-variant-numeric: tabular-nums;
 }
 
@@ -158,13 +190,31 @@
 /*
  * 内置 node 是平铺的：没有组头、没有折叠，所以它要的就是组体那份横向内边距——
  * 与 `.group` 下的条目左右对齐。
+ *
+ * **两列网格**：六个起点从六行压成三行（约省 100px），这是这一栏降密最大的一笔。
+ * 窄窗也保持两列：那一栏在窄窗只有一百来像素高，退回单列等于又把它顶回"一条都看不见"。
+ * 每格仍是一个完整的、可点可拖的原生 button。
  */
 .flatList {
-  padding: 0 8px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  padding: 0 8px 4px;
 }
 
 .group {
   padding: 0 8px;
+}
+
+/*
+ * 组体：条目之间的间距统一 4px（条目自己不再带外边距，否则网格里会叠成 12px）。
+ * 自定义节点的条目仍是一列——模板名长短不一，塞进两列只会天天折行。
+ */
+.groupBody {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 4px;
 }
 
 .groupHead {
@@ -172,7 +222,7 @@
   align-items: center;
   gap: 6px;
   width: 100%;
-  padding: 3px 2px;
+  padding: 4px 6px;
   border: 1px solid transparent;
   border-radius: var(--wl-radius-control);
   background: transparent;
@@ -199,7 +249,7 @@
   flex: 0 0 auto;
   width: 12px;
   color: var(--wl-text-mute);
-  font-size: 10px;
+  font-size: var(--wl-font-micro);
   line-height: 1;
   text-align: center;
 }
@@ -212,7 +262,7 @@
 .groupCount {
   flex: 0 0 auto;
   color: var(--wl-text-mute);
-  font-size: 11px;
+  font-size: var(--wl-font-micro);
   font-variant-numeric: tabular-nums;
 }
 
@@ -221,10 +271,11 @@
 .item {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   width: 100%;
-  margin: 1px 0;
-  padding: 5px 8px;
+  /* 28px 是"更矮"和"仍然点得准"之间的那一档（24px 是靶点下限）。 */
+  min-height: 28px;
+  padding: 2px 6px;
   border: 1px solid transparent;
   border-radius: var(--wl-radius-control);
   background: var(--wl-bg);
@@ -258,10 +309,15 @@
 .itemGrip {
   flex: 0 0 auto;
   color: var(--wl-text-mute);
-  font-size: 10px;
+  font-size: var(--wl-font-micro);
   line-height: 1;
 }
 
+/*
+ * 显示名默认可以截断（模板名可能很长），但在两列网格的内置条目里**不许截**：
+ * 那些名字只有两个字（侦察 / 拆解 / …），截掉一个就认不出来了。
+ * 格子只有 90 来像素宽，所以先让机器 id 让位——`impl…` 认不出总比名字认不出好。
+ */
 .itemName {
   flex: 1 1 auto;
   overflow: hidden;
@@ -269,11 +325,22 @@
   white-space: nowrap;
 }
 
+.itemPreset .itemName {
+  flex: 0 0 auto;
+}
+
 .itemId {
   flex: 0 0 auto;
   color: var(--wl-text-mute);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 11px;
+  font-family: var(--wl-font-mono);
+  font-size: var(--wl-font-micro);
+}
+
+.itemPreset .itemId {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .itemBad {
@@ -459,63 +526,47 @@
   font-size: 11px;
 }
 
-/* ── 窄窗（三栏竖排）把面板壳压薄 ─────────────────────── */
+/* ── 窄窗（三栏竖排）：并成一行 + 把分节头钉住 ─────────── */
 
 /*
- * ≤900px 时三栏竖排，节点库这一栏只分到一百来像素高，而窗口里依次是标题行、
- * 一行常驻说明、搜索框一行、「节点 id 新建」一行、分节头——壳比内容还高，
- * 一条可拖条目都露不出来（860 上第一条只露 11px，760 上是 0px）。
+ * ≤900px 时三栏竖排，节点库这一栏只分到一百来像素高（860 是 138px、760 是 126px；
+ * 改前第一条条目只露 11px / 0px）。这里做两件事：
  *
- * 这里只做**壳的压缩**：把两行输入并成一行、内边距收窄、分节头变矮并钉在顶沿。
+ *   1. 把「筛选 + 全部收起」与「节点 id 新建 + ＋」并成一行（**只在这里并**，宽窗不并，
+ *      理由见上面 `.shell` 的注释）；
+ *   2. 让两个分节头钉在滚动容器顶沿（底色已在基础规则里换成实色）。
+ *
+ * 合起来壳从 146px 压到 107px：860 能露出一整行网格（2 条），760 露 19px 残片。
+ *
  * 真正的解法是窄窗下把节点库改成抽屉 / 浮层（画布全高 + 按需展开），
  * 那是结构性改动，得先由用户拍板，不在这里顺手做。
  */
 @media (max-width: 900px) {
   /*
-   * 搜索框与「节点 id 新建」并成一行：两个行容器退成 `display: contents`，
-   * 它们的四个子元素（搜索框 / 全部收起 / id 输入框 / ＋）直接成为 `.shell` 的
-   * flex 项。省下整整一行，输入框仍然平分剩下的宽度。
+   * 窄窗才把两行并成一行：这里纵向空间是危机，省下 36px 就能多露一条条目，
+   * 而这一栏在窄窗是全宽的 467/567px，两个输入框并排各还有 ~190px，绰绰有余。
    */
   .shell {
     display: flex;
     align-items: center;
     gap: 4px;
-    padding: 1px 8px 3px;
+    padding: 2px 8px 4px;
   }
 
+  /*
+   * 两个行容器退成 `display: contents`：四个子元素（筛选框 / 全部收起 / id 输入框 / ＋）
+   * 直接成为 `.shell` 的 flex 项。DOM 结构、id、aria 关系都不变
+   * （`.formProblem` 仍是它们的兄弟节点，仍在输入框下方）。
+   */
   .filterRow,
   .newNode {
     display: contents;
   }
 
-  .filterRow > input,
-  .newNode > input {
-    flex: 1 1 0;
-  }
-
-  .filterRow > button,
-  .newNode > button {
-    padding: 2px 7px;
-  }
-
-  /*
-   * 分节头钉在滚动容器的顶沿：窗口矮到只能看见开头时，往下滚不该把
-   * 「内置 node / 自定义 node」这两个路标一起滚走。底色必须用实色，
-   * 否则条目会从它下面透出来（悬停态也不能用半透明的 --wl-hover）。
-   */
   .sectionHead {
     position: sticky;
     top: 0;
     z-index: 1;
-    padding: 3px 8px 1px;
-    background: var(--wl-surface);
-  }
-
-  .sectionHead:hover {
-    background: var(--wl-surface-2);
-  }
-
-  .groupHead {
-    padding: 2px 2px;
+    padding: 3px 6px;
   }
 }

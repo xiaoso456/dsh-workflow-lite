@@ -1,14 +1,35 @@
 /**
- * dsh-workflow-lite — 右栏（节点属性 / 整图概览 / 编译预览）样式。
+ * dsh-workflow-lite — 右栏（节点页 / 计划页 / 边编辑）样式。
+ *
+ * 两页的显隐只有一处根据：`.tabBar` 上的 `data-wl-pane`（`node` / `plan`）。
+ * 两页的内容都常驻 DOM，谁在场全部由 CSS 推出来。之所以不写在 React 里：
+ *
+ * 1. 编译预览那一块由画布那边作为**兄弟节点**渲染（`<Inspector/>` 之后），React 侧
+ *    拿不到它的显隐；留一枚 CSS 认得的属性，两边就都能读同一份状态。
+ * 2. 计划页要独占剩余高度，而 `.inspector` 自己的规则在画布那个模块里
+ *    （`.inspector > * { flex: 0 0 auto }`），这里要压过它只能靠更高的选择器权重。
  *
  * @module @xiaoso/dsh-workflow-lite/client/components/Inspector
  */
 
+/* ── 页签行 ───────────────────────────────────────────────── */
+
+/*
+ * 页签行。全右栏**唯一一条分隔线**就画在这里：以前每段各自 `border-top`，
+ * 一列下来四五条横线，读起来像表格。
+ */
+.tabBar {
+  display: flex;
+  align-items: center;
+  padding: 12px 10px;
+  border-bottom: 1px solid var(--wl-border);
+}
+
 /* ── 属性面板 ─────────────────────────────────────────────── */
 
-/* 一段面板（属性 / 整图概览）。段与段之间靠边框分，不靠间距。 */
+/* 一段面板（属性 / 整图概览）。段与段之间靠留白分，不靠边框。 */
 .panel {
-  padding-bottom: 6px;
+  padding: 4px 0 12px;
 }
 
 /*
@@ -20,8 +41,8 @@
 .graphSummary {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  padding: 0 10px 4px;
+  gap: 4px;
+  padding: 0 10px 12px;
 }
 
 .summaryRow {
@@ -34,7 +55,7 @@
 .summaryKey {
   flex: 0 0 auto;
   color: var(--wl-text-dim);
-  font-size: 12px;
+  font-size: var(--wl-font-meta);
 }
 
 /*
@@ -47,8 +68,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
+  font-family: var(--wl-font-mono);
+  font-size: var(--wl-font-meta);
 }
 
 /* 概览里的值靠右对齐；节点 id 输入框在概览外，保持左对齐（那是要读的 id）。 */
@@ -79,10 +100,9 @@
    * 在长 URL 里改一个参数要先滚下去、改完再滚回来。下限 168px 保证矮视口上它还是
    * "正文字段"，上限 420px 给高视口封顶。
    *
-   * 系数取 30vh 而不是更大：这个框每长 10px，下面那一段就整体下移 10px，而右栏
-   * 本来就装不下。1100×720 这一档，节点面板底在 637、编译预览页签再低 13px、
-   * 折叠线在 721；34vh 会把面板底推到 714（页签 727，越过折叠线），
-   * 30vh 停在 685（页签 698，还留 23px）。
+   * 系数 30vh 是"节点页一屏读完"倒推出来的：这个框每长 10px，节点页就整体长 10px。
+   * 30vh 下 1440×900 与 1920×1080 的节点页都不出滚动条（量到 `scrollH == clientH`），
+   * 1100×720 起才开始溢出（改版前这一栏是 1081px 塞进 784px，一直在滚）。
    */
   min-height: clamp(168px, 30vh, 420px);
   /* 底部留出字数那一行的位置，别让最后一行字被压住。 */
@@ -94,34 +114,74 @@
   right: 16px;
   bottom: 5px;
   color: var(--wl-text-mute);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 11px;
+  font-family: var(--wl-font-mono);
+  font-size: var(--wl-font-micro);
   pointer-events: none;
 }
 
-/* 面板底部的节点级操作（复制 / 删除）。 */
+/*
+ * 面板底部的节点级操作（复制 / 删除）。
+ * 不再画 `border-top`：这一列现在只有页签下那一条线，段与段之间靠留白。
+ */
 .nodeActions {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 2px;
-  padding-top: 8px;
-  border-top: 1px solid var(--wl-border);
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 12px;
 }
 
 .form {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 4px 10px 10px;
+  padding: 4px 10px 12px;
+}
+
+/*
+ * 入 / 出边摘要：一行一个开关，紧贴在展开后的清单上面。
+ * 样式对齐左栏「校验」那个折叠头（透明底、无边框、hover 才变色），
+ * 免得右栏又冒出一个"像按钮的按钮"。
+ */
+.edgesBlock {
+  padding-bottom: 12px;
+}
+
+.edgesToggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  background: transparent;
+  color: var(--wl-text-dim);
+  font: inherit;
+  font-size: var(--wl-font-micro);
+  text-align: left;
+  cursor: pointer;
+}
+
+.edgesToggle:hover {
+  color: var(--wl-text);
+}
+
+.edgesToggle:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: -2px;
+}
+
+.chevron {
+  flex: 0 0 auto;
+  color: var(--wl-text-mute);
 }
 
 .edgeList {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
   margin: 0;
-  padding: 0 10px 8px;
+  padding: 0 10px 12px;
   list-style: none;
 }
 
@@ -150,8 +210,8 @@
 .edgeName {
   flex: 0 0 auto;
   white-space: nowrap;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 11px;
+  font-family: var(--wl-font-mono);
+  font-size: var(--wl-font-micro);
 }
 
 /*
@@ -161,7 +221,7 @@
 .whenLabel {
   flex: 0 0 auto;
   color: var(--wl-text-dim);
-  font-size: 11px;
+  font-size: var(--wl-font-micro);
   white-space: nowrap;
 }
 
@@ -173,7 +233,7 @@
 .dirOut {
   flex: 0 0 auto;
   color: var(--wl-text-mute);
-  font-size: 11px;
+  font-size: var(--wl-font-micro);
   line-height: 1;
 }
 
@@ -187,7 +247,7 @@
   flex: 0 0 auto;
   white-space: nowrap;
   color: var(--wl-text-mute);
-  font-size: 10px;
+  font-size: var(--wl-font-micro);
 }
 
 /* ── 边编辑区（选中一条边时）─────────────────────────────── */
@@ -197,9 +257,9 @@
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 6px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
+  gap: 8px;
+  font-family: var(--wl-font-mono);
+  font-size: var(--wl-font-meta);
 }
 
 /* 名字再长也让它折行（`anywhere`），而不是溢出右栏。 */
@@ -240,32 +300,26 @@
   width: 120px;
 }
 
-/* ── 编译预览（右栏一段，不做底部抽屉：会话页底部有浮动的输入框会盖住它）── */
-
-.planBlock {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  border-top: 1px solid var(--wl-border);
-  margin-top: 4px;
-  padding-bottom: 6px;
-}
+/* ── 编译预览（计划页的全部内容，不做底部抽屉：会话页底部有浮动的输入框会盖住它）── */
 
 /*
- * 进 / 出边清单：**保持 DOM 里的原位，排在编译预览之前**。
- *
- * 曾经试过用 `order: 1` 把它排到编译预览之后，好把计划页签抬到折叠线以上。已回退：
- * 编译预览是右栏唯一"高度会长"的一段（正文量到 2500px），多露出 70px 不改变体验——
- * 人横竖都要滚它；但代价是把边清单推到 1440×900 下折叠线下 350px，而"这个节点连着谁"
- * 是读一次就够、必须一眼看到的信息。拿一个必然要滚的长块去换一个必须一眼看到的信息，
- * 是亏的。计划页签要抬，正确的解法是把它做成右栏顶部的视图切换，不是挪别的段。
+ * 编译预览块由画布那边渲染（`<Inspector/>` 的兄弟节点），所以它的显隐和高度都由
+ * `.tabBar` 上的 `data-wl-pane` 推出来。**默认隐藏**：没选边时右栏是边编辑区、
+ * 什么都没选时是整图概览，那些形态下它都必须是隐形的那一个。
+ * 计划页那一支写在文件末尾的「两页的显隐」里（要压过 `.inspector > *`，见那里的说明）。
  */
+.planBlock {
+  display: none;
+  flex-direction: column;
+  min-height: 0;
+  padding-bottom: 12px;
+}
 
 .planActions {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  padding: 0 10px 6px;
+  gap: 8px;
+  padding: 0 10px 12px;
 }
 
 /*
@@ -278,8 +332,8 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--wl-text-mute);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 11px;
+  font-family: var(--wl-font-mono);
+  font-size: var(--wl-font-micro);
   font-weight: 400;
   letter-spacing: 0;
   text-transform: none;
@@ -289,26 +343,50 @@
 /*
  * 计划正文那一格。
  *
- * 以前是写死的 `max-height: 320px`：正文 2500px 的计划挤在 338px 的窗口里，
- * 右栏自己还得再滚 331px 才够得到它，两层滚动叠在一起。现在上限跟视口走
- * （量出来 1440×900 下框高 414px、1920×1080 下 493px，1100×720 / 980×660
- * 收回到 335 / 308px），短计划仍是自然高度，不留空盒子。
- * `flex: 1 1 auto` + `min-height: 0` 是留给"这块被放进有定高的栏"的情形：
- * 那时它吃掉剩余高度，滚动只发生在这一格里面；今天父级是内容撑高，所以不吃也不缩。
+ * **不再有 `max-height`**：计划页整页只有这一块内容，高度由 `.planBlock` 剩下的空间
+ * 决定（`flex: 1 1 auto` + `min-height: 0`），所以正文窗口就是"栏有多高、它有多高"。
+ * 以前它被固定成 320px、还排在右栏第 4 段：正文 2500px 的计划只露 15px，
+ * 想读到它得先把整栏滚 331px 下去，两层滚动叠在一起。
  */
 .plan {
   flex: 1 1 auto;
   min-height: 0;
-  max-height: clamp(220px, 44vh, 560px);
   overflow: auto;
   margin: 0 10px;
   padding: 8px 10px;
   border: 1px solid var(--wl-border);
   border-radius: var(--wl-radius-card);
   background: var(--wl-bg);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 11.5px;
+  font-family: var(--wl-font-mono);
+  font-size: var(--wl-font-meta);
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* ── 两页的显隐 ───────────────────────────────────────────── */
+
+/*
+ * 这一节刻意放在**最后**：它要压过的都是上面那些基础规则（选择器权重更高，
+ * 位置上也不该倒过来写）。
+ *
+ * 开关只有 `.tabBar` 上的 `data-wl-pane` 一枚属性：
+ * - `plan` 页：节点页的两段让位，编译预览独占剩下的高度；
+ * - `node` 页：编译预览那一支不命中，它保持上面的 `display: none`。
+ *
+ * 编译预览块由画布那边渲染，所以这一节的两条规则都必须从**兄弟位置**去认它
+ * （`<Inspector/>` 的顶层元素之后就是 `<PlanBlock/>`）。
+ *
+ * 属性不是装饰：`.inspector > * { flex: 0 0 auto }` 写在画布那个模块里，只写类名
+ * （同权重）能不能压过它取决于样式注入顺序。计划页的高度是承重墙，不能靠运气。
+ */
+[data-wl-pane="plan"] ~ .panel,
+[data-wl-pane="plan"] ~ .edgesBlock {
+  display: none;
+}
+
+[data-wl-pane="plan"] ~ .planBlock {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
 }

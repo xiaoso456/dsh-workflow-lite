@@ -9,24 +9,27 @@
 .node {
   min-width: 132px;
   max-width: 220px;
-  padding: 7px 9px;
+  padding: var(--wl-gap-2) var(--wl-gap-3);
   /* 操作簇挂在这张卡上（绝对定位），所以卡自己是定位上下文。 */
   position: relative;
   /*
-   * 默认描边走**弱**的 border-l1 而不是 border-l2：暗色主题下宿主的 brand primary
-   * 自己就是近白色（rgb(249,250,251)），跟 border-l2 几乎同色——于是"选中环"和
-   * "普通描边"分不出来（独立审计 P15）。把普通描边让开，白色才专属于选中与焦点。
+   * 卡片是一层**独立表面**：暗色下画布板是宿主的 `bg-base`，卡底取 `--wl-card`
+   * （layer-2），卡才真的浮起来——此前卡底与画布板同值，卡等于不存在。
+   * 描边走 `--wl-border-strong`：卡有了自己的底色之后，普通描边不必再让位给
+   * 选中环；选中由**不透明的强调色描边 + 加宽的浅色外环**区分（见 `.nodeSelected`）。
    */
-  border: 1px solid var(--wl-border);
+  border: 1px solid var(--wl-border-strong);
   border-left: 3px solid var(--wl-text-mute);
   border-radius: var(--wl-radius-card);
-  background: var(--wl-bg);
+  background: var(--wl-card);
   box-shadow: 0 1px 2px rgb(0 0 0 / 6%);
+  font-size: var(--wl-font-body);
+  line-height: 1.5;
 }
 
 .nodeSelected {
   border-color: var(--wl-accent);
-  box-shadow: 0 0 0 2px var(--wl-accent-soft);
+  box-shadow: 0 0 0 4px var(--wl-accent-soft);
 }
 
 .nodeInvalid {
@@ -48,10 +51,10 @@
  */
 .cardActions {
   position: absolute;
-  top: 3px;
-  right: 3px;
+  top: var(--wl-gap-1);
+  right: var(--wl-gap-1);
   display: flex;
-  gap: 2px;
+  gap: var(--wl-gap-1);
   opacity: 0;
   pointer-events: none;
   transition: opacity 120ms ease;
@@ -65,11 +68,16 @@
 
 /*
  * 提权到两个类：`ui.module.css` 的注入顺序跟在自研模块后面，单类选择器压不过
- * `.iconButton` 的 `background: transparent`，图标压在标题上就没法读了。
+ * `.iconButton` 的背景，图标压在标题上就没法读了。
+ *
+ * 底色取 `--wl-control-hover`（控件档再上一档），不是 `--wl-control`：卡面自己
+ * 已经在控件那一档（暗色同为 layer-2），卡上再放一个同档的控件就没有形状（1.00:1）。
+ * 卡面本轮也不做 hover 换底：操作簇只在 hover / focus 时露出，卡面若同时升到
+ * 这一档，指针落上去的那一刻卡与操作按钮会同色，形状恰好消失。
  */
 .node .cardAction {
-  border-color: var(--wl-border);
-  background: var(--wl-bg);
+  border-color: var(--wl-border-strong);
+  background: var(--wl-control-hover);
 }
 
 /*
@@ -88,7 +96,8 @@
 .node .handle {
   width: 10px;
   height: 10px;
-  border: 2px solid var(--wl-bg);
+  /* 圆环取卡面自己的底色：圆点挂在卡的左右边缘上，环色跟上卡面，卡才像被穿了个孔。 */
+  border: 2px solid var(--wl-card);
   background: var(--wl-accent);
 }
 
@@ -119,27 +128,33 @@
 }
 
 .nodeMeta {
-  margin-top: 3px;
+  margin-top: var(--wl-gap-1);
   color: var(--wl-text-mute);
-  font-size: 11px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--wl-font-micro);
+  font-family: var(--wl-font-mono);
 }
 
 .nodeOut {
-  margin-top: 2px;
+  margin-top: var(--wl-gap-1);
   color: var(--wl-text-dim);
-  font-size: 11px;
+  font-size: var(--wl-font-micro);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+/* 产出值是 `false` 时包了一层 `<code>`，UA 会给它自己的等宽族，这里拉回卡片的字族。 */
+.nodeOut code {
+  font-family: inherit;
+  font-size: inherit;
+}
+
 .badgeUnplaced {
   display: inline-block;
-  margin-top: 3px;
-  padding: 0 5px;
+  margin-top: var(--wl-gap-1);
+  padding: 0 var(--wl-gap-1);
   border-radius: var(--wl-radius-control);
   background: var(--wl-warn-soft);
   color: var(--wl-warn);
-  font-size: 10px;
+  font-size: var(--wl-font-micro);
 }

@@ -14,10 +14,10 @@
 .textarea {
   border: 1px solid var(--wl-border-strong);
   border-radius: var(--wl-radius-control);
-  background: var(--wl-bg);
+  background: var(--wl-control);
   color: inherit;
   font: inherit;
-  padding: 3px 6px;
+  padding: var(--wl-gap-1) var(--wl-gap-2);
 }
 
 .select:focus-visible,
@@ -33,21 +33,28 @@
   max-width: 260px;
 }
 
+/*
+ * 控件底一律走 `--wl-control`，不用 `--wl-bg`：`--wl-bg` 就是宿主的 `bg-base`，
+ * 而画布板与工具条所在的那一层也是 `bg-base`，暗色下按钮与自己的父容器完全同色
+ * （实测形状对比 1.00:1，按钮没有形状），并且比顶栏面板更暗，看着是一个个洞。
+ * 悬停、按下各上一档，形状与反馈都留在原地。
+ */
 .button {
   border: 1px solid var(--wl-border-strong);
   border-radius: var(--wl-radius-control);
-  background: var(--wl-bg);
+  background: var(--wl-control);
   color: inherit;
   font: inherit;
-  padding: 3px 9px;
+  padding: var(--wl-gap-1) var(--wl-gap-2);
   cursor: pointer;
 }
 
 .button:hover:not(:disabled) {
-  background: var(--wl-hover);
+  background: var(--wl-control-hover);
 }
 
 .button:active:not(:disabled) {
+  background: var(--wl-control-active);
   transform: translateY(1px);
 }
 
@@ -66,6 +73,14 @@
   background: var(--dsw-alias-button-primary-hover, var(--wl-accent));
 }
 
+/*
+ * 主按钮按下时不能被 `.button:active` 改成控件底：两条同特异度（0,3,0），
+ * 按源码顺序取胜，所以这一条必须写在它后面。
+ */
+.buttonPrimary:active:not(:disabled) {
+  background: var(--dsw-alias-button-primary-hover, var(--wl-accent));
+}
+
 .buttonDanger {
   color: var(--wl-danger);
 }
@@ -77,12 +92,12 @@
 .status {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 2px 8px;
+  gap: var(--wl-gap-1);
+  padding: var(--wl-gap-1) var(--wl-gap-2);
   border-radius: var(--wl-radius-control);
   background: var(--wl-surface-2);
   color: var(--wl-text-dim);
-  font-size: 12px;
+  font-size: var(--wl-font-meta);
 }
 
 .status::before {
@@ -114,12 +129,12 @@
 .banner {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
+  gap: var(--wl-gap-2);
+  padding: var(--wl-gap-2) 10px;
   border-bottom: 1px solid var(--wl-border);
   background: var(--wl-warn-soft);
   color: var(--wl-warn);
-  font-size: 12px;
+  font-size: var(--wl-font-meta);
   flex: 0 0 auto;
 }
 
@@ -137,10 +152,11 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 6px;
-  padding: 8px 10px 4px;
+  gap: var(--wl-gap-2);
+  /* 左右 10px 是四个组件文件共用的面板内缩，不在这份文件的 4/8/12 管辖内。 */
+  padding: var(--wl-gap-2) 10px var(--wl-gap-1);
   color: var(--wl-text-dim);
-  font-size: 11px;
+  font-size: var(--wl-font-micro);
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -180,50 +196,50 @@
 
 .muted {
   margin: 0;
-  padding: 4px 10px 8px;
+  padding: var(--wl-gap-1) 10px var(--wl-gap-2);
   color: var(--wl-text-mute);
-  font-size: 12px;
+  font-size: var(--wl-font-meta);
 }
 
 .badge {
   display: inline-block;
-  margin-top: 3px;
-  padding: 0 5px;
+  margin-top: var(--wl-gap-1);
+  padding: 0 var(--wl-gap-1);
   border-radius: var(--wl-radius-control);
   background: var(--wl-surface-2);
   color: var(--wl-text-dim);
-  font-size: 10px;
+  font-size: var(--wl-font-micro);
 }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: var(--wl-gap-1);
 }
 
 .field > span {
   color: var(--wl-text-dim);
-  font-size: 12px;
+  font-size: var(--wl-font-meta);
 }
 
 .textarea {
   min-height: 132px;
   resize: vertical;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
-  line-height: 1.45;
+  font-family: var(--wl-font-mono);
+  font-size: var(--wl-font-meta);
+  line-height: 1.5;
 }
 
 .readonly {
   background: var(--wl-surface-2);
   color: var(--wl-text-dim);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--wl-font-mono);
 }
 
 .problem {
   margin: 0;
   color: var(--wl-danger);
-  font-size: 12px;
+  font-size: var(--wl-font-meta);
 }
 
 .problemWarn {
@@ -236,11 +252,12 @@
 
 .tabs {
   display: inline-flex;
-  gap: 2px;
-  padding: 2px;
+  gap: var(--wl-gap-1);
+  padding: var(--wl-gap-1);
   border: 1px solid var(--wl-border);
   border-radius: var(--wl-radius-control);
-  background: var(--wl-bg);
+  /* 控件容器同样不用 `--wl-bg`：暗色下它在面板上是更暗的一档，会凹成一条槽。 */
+  background: var(--wl-control);
 }
 
 /*
@@ -251,11 +268,12 @@
  */
 .tab {
   border: none;
-  border-radius: calc(var(--wl-radius-control) - 2px);
+  /* 内圆角跟着 `.tabs` 的内缩走，容器 padding 一改这里也要改。 */
+  border-radius: calc(var(--wl-radius-control) - 4px);
   background: transparent;
   color: var(--wl-text-dim);
   font: inherit;
-  padding: 2px 9px;
+  padding: var(--wl-gap-1) var(--wl-gap-2);
   cursor: pointer;
   white-space: nowrap;
 }
@@ -300,23 +318,24 @@
   inline-size: 22px;
   block-size: 22px;
   padding: 0;
-  border: 1px solid transparent;
+  /* 不再是无形状的裸图标：底与描边都按控件档给，悬停换档，按下有位移。 */
+  border: 1px solid var(--wl-border-strong);
   border-radius: var(--wl-radius-control);
-  background: transparent;
+  background: var(--wl-control);
   color: var(--wl-text-dim);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--wl-font-meta);
   line-height: 1;
   cursor: pointer;
 }
 
 .iconButton:hover:not(:disabled) {
-  border-color: var(--wl-border-strong);
-  background: var(--wl-bg);
+  background: var(--wl-control-hover);
   color: var(--wl-text);
 }
 
 .iconButton:active:not(:disabled) {
+  background: var(--wl-control-active);
   transform: translateY(1px);
 }
 
@@ -352,13 +371,13 @@
 .kbd {
   display: inline-block;
   min-inline-size: 16px;
-  padding: 0 4px;
+  padding: 0 var(--wl-gap-1);
   border: 1px solid var(--wl-border-strong);
   border-radius: calc(var(--wl-radius-control) - 3px);
   background: var(--wl-surface-2);
   color: var(--wl-text-dim);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 10px;
+  font-family: var(--wl-font-mono);
+  font-size: var(--wl-font-micro);
   line-height: 16px;
   text-align: center;
 }

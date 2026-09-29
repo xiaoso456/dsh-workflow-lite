@@ -1,13 +1,18 @@
 /**
- * dsh-workflow-lite — 右栏：整图概览 / 节点属性面板 + 边编辑；编译预览一段。
+ * dsh-workflow-lite — 右栏：两个视图（`节点` / `计划`）+ 边编辑。
  *
  * 边是**独立对象**（有自己的 `edge.id`），所以属性面板里对每条入/出边单独给一个
  * `when` 输入框。改 `when` 等于「断开旧边 + 连上新边」——
  * 因为 `edge.id` 的构造式里带 `when`（`<source>-><target>#<when>`），这是宿主定的规则。
  *
- * 版式上，提示词是这张图的**载荷本体**，排在
- * id / 显示名 / 产出之前、占最大面积；未选中节点时展示整图概览，不再是一块死文案
- * 所以本模块的渲染顺序是刻意的，别按"字段重要性"重排回去。
+ * 版式上，提示词是这张图的**载荷本体**，排在 id / 显示名 / 产出之前、占最大面积；
+ * 未选中节点时「节点」页展示整图概览，不再是一块死文案。所以本模块的渲染顺序是刻意的，
+ * 别按"字段重要性"重排回去。
+ *
+ * 编译预览**不再跟在节点属性后面堆成一列**：那样 1440×900 下右栏内容 1081~1258px 塞进
+ * 784px 的窗口、要滚 331~479px，计划正文只露 15px。它现在是顶部的第二个视图，
+ * 点一下 `计划` 就独占整栏高度。页签状态只活在本组件里（`useState`），不落 localStorage：
+ * 那是"我现在看哪一页"，不是产品偏好。
  *
  * @module @xiaoso/dsh-workflow-lite/client/components/Inspector
  */
@@ -91,16 +96,29 @@ export interface InspectorProps {
 /** 复制 id 之后显示「已复制」的时长（与编译预览的复制按钮一致）。 */
 const COPIED_MS = 1600
 
+/** 右栏顶部的两个视图。 */
+type RightPane = 'node' | 'plan'
+
 /** 属性面板。 */
 export function Inspector(props: InspectorProps): React.JSX.Element {
   const { t, node } = props
   const [idCopied, setIdCopied] = useState(false)
+  const [pane, setPane] = useState<RightPane>('node')
   const nodeId = node?.id ?? null
+  const edgeId = props.edge?.edge.id ?? null
 
   // 换节点就把「已复制」收起来：否则切到另一个节点，按钮还挂着上一个节点的结果。
   useEffect(() => {
     setIdCopied(false)
   }, [nodeId])
+
+  /*
+   * 画布上选中了东西（节点 / 边）就把右栏拉回「节点」页：人点了画布、右栏却还停在一大段
+   * 计划上，那一下点击看起来就是没反应。点页签自己不经过这里（依赖没变）。
+   */
+  useEffect(() => {
+    setPane('node')
+  }, [nodeId, edgeId])
 
   useEffect(() => {
     if (!idCopied) return
@@ -108,26 +126,71 @@ export function Inspector(props: InspectorProps): React.JSX.Element {
     return () => clearTimeout(timer)
   }, [idCopied])
 
+  /*
+   * 页签行。
+   *
+   * `data-wl-pane` 是这一套显隐的**唯一开关**：两页的内容都常驻 DOM，谁在场由 CSS 按这枚
+   * 属性推出来（见 `Inspector.module.css`）。这么做的两个理由：
+   *   1. 编译预览那一块由画布那边作为**兄弟节点**渲染（`<Inspector/>` 之后），React 侧
+   *      管不到它的显隐，只能留一个 CSS 认得的锚点；
+   *   2. 两页都不卸载，切回来时输入框的滚动位置、边清单的展开态都还在。
+   */
+  const tabs = (
+    <div className={css.tabBar} data-wl-pane={pane}>
+      <div className={ui.tabs} role="tablist">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={pane === 'node'}
+          data-testid="wl-inspector-tab-node"
+          className={pane === 'node' ? ui.tabActive : ui.tab}
+          onClick={() => setPane('node')}
+        >
+          {t('panel.tabNode')}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={pane === 'plan'}
+          data-testid="wl-inspector-tab-plan"
+          className={pane === 'plan' ? ui.tabActive : ui.tab}
+          onClick={() => setPane('plan')}
+        >
+          {t('panel.tabPlan')}
+        </button>
+      </div>
+    </div>
+  )
+
   if (node === undefined) {
     /*
-     * 没选节点时右栏只有一个入口：选中的边 → 边编辑区，什么都没选 → 整图概览。
+     * 没选节点时「节点」页有两个入口：选了边 → 边编辑区，什么都没选 → 整图概览。
+     *
+     * 选中边时**整栏换成边编辑区、不画页签**：条件那一格有"正在输入"的本地草稿，
+     * 切页会把这块组件卸掉、草稿无声丢掉；边编辑又是一次性的窄任务，旁边挂一个
+     * 「计划」页只是噪声。要看计划，点一下画布空白把选中清掉即可。
      *
      * `key` 用 `source->target`（**不含 `when`**）：`when` 是边 id 的一部分，拿它当 key
      * 的话，用户点一下「fail」就会把这一块整个重挂载，正在自定义输入框里的草稿、
      * 以及输入框的焦点都会没（那个"只能敲进一个字符"的 bug 就是同一个根因）。
      */
-    if (props.edge === undefined) {
-      return <GraphSummaryBlock t={t} summary={props.summary} />
+    if (props.edge !== undefined) {
+      const view = props.edge
+      return (
+        <EdgeInspector
+          key={`${view.edge.source}->${view.edge.target}`}
+          t={t}
+          view={view}
+          onSetWhen={props.onSetWhen}
+          onDisconnect={props.onDisconnect}
+        />
+      )
     }
-    const view = props.edge
     return (
-      <EdgeInspector
-        key={`${view.edge.source}->${view.edge.target}`}
-        t={t}
-        view={view}
-        onSetWhen={props.onSetWhen}
-        onDisconnect={props.onDisconnect}
-      />
+      <>
+        {tabs}
+        <GraphSummaryBlock t={t} summary={props.summary} />
+      </>
     )
   }
 
@@ -149,17 +212,18 @@ export function Inspector(props: InspectorProps): React.JSX.Element {
 
   return (
     <>
+      {tabs}
       <section className={css.panel}>
         <div className={ui.panelHead}>
           {/*
             tooltip 给的是**被省略号吃掉的那段文本**：标题栏放的是用户内容（显示名），
             长起来会被截断，而 id 恰恰不是被截的那一项。显示名为空时标题回落到 id，
             这时 tooltip 跟着写 id，别让它空着。
+
+            上下游计数不再挂在这一行：它和下面的边摘要说的是同一件事，
+            隔 40px 写两遍是噪声。
           */}
           <span title={name}>{name}</span>
-          <span className={ui.panelHeadSub}>
-            {t('panel.counts')} {props.incoming.length} / {props.outgoing.length}
-          </span>
         </div>
 
         <div className={css.form}>
@@ -246,22 +310,75 @@ export function Inspector(props: InspectorProps): React.JSX.Element {
         </div>
       </section>
 
-      <section>
-        <div className={ui.panelHead}>
-          <span>{t('panel.edgesIn')}</span>
-          <span className={ui.panelHeadSub}>{props.incoming.length}</span>
-        </div>
-        <EdgeList t={t} views={props.incoming} dir="in" />
-      </section>
-
-      <section>
-        <div className={ui.panelHead}>
-          <span>{t('panel.edgesOut')}</span>
-          <span className={ui.panelHeadSub}>{props.outgoing.length}</span>
-        </div>
-        <EdgeList t={t} views={props.outgoing} dir="out" />
-      </section>
+      <EdgesBlock t={t} incoming={props.incoming} outgoing={props.outgoing} />
     </>
+  )
+}
+
+/**
+ * 入 / 出边清单（**默认收起成一行摘要**）。
+ *
+ * 收起是这次降密的一半：这两段展开要占 135~175px，而"这个节点连着谁"的**计数**
+ * 一行就说完，明细属于"要看的时候再看"。摘要是唯一的开关，所以它紧贴在清单上面，
+ * 点开之后眼前立刻多出那两段（不是在上方点、在下方变）。
+ *
+ * 展开后仍是**只读行**：用户拍板过"点行什么都不做，只能从画布点边"，
+ * 这些行不是按钮、没有 click handler、没有 hover 态。
+ */
+function EdgesBlock(props: {
+  t: Translate
+  incoming: readonly EdgeView[]
+  outgoing: readonly EdgeView[]
+}): React.JSX.Element {
+  const { t, incoming, outgoing } = props
+  const [open, setOpen] = useState(false)
+
+  // 一条边都没有时不给一个"点开也是空的"开关，照旧只说一句。
+  if (incoming.length === 0 && outgoing.length === 0) {
+    return (
+      <section className={css.edgesBlock}>
+        <p className={ui.muted}>{t('panel.noEdges')}</p>
+      </section>
+    )
+  }
+
+  const label = open ? t('panel.edgesHide') : t('panel.edgesShow')
+  return (
+    <section className={css.edgesBlock}>
+      <button
+        type="button"
+        className={css.edgesToggle}
+        data-testid="wl-edges-toggle"
+        aria-expanded={open}
+        aria-label={label}
+        title={label}
+        onClick={() => setOpen(!open)}
+      >
+        <span className={css.chevron} aria-hidden="true">
+          {open ? '▾' : '▸'}
+        </span>
+        <span>
+          {t('panel.upstream')} {incoming.length}
+        </span>
+        <span>
+          {t('panel.downstream')} {outgoing.length}
+        </span>
+      </button>
+      {open && (
+        <>
+          <div className={ui.panelHead}>
+            <span>{t('panel.edgesIn')}</span>
+            <span className={ui.panelHeadSub}>{incoming.length}</span>
+          </div>
+          <EdgeList t={t} views={incoming} dir="in" />
+          <div className={ui.panelHead}>
+            <span>{t('panel.edgesOut')}</span>
+            <span className={ui.panelHeadSub}>{outgoing.length}</span>
+          </div>
+          <EdgeList t={t} views={outgoing} dir="out" />
+        </>
+      )}
+    </section>
   )
 }
 

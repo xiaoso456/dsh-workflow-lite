@@ -1,0 +1,49 @@
+/**
+ * dsh-workflow-lite — 悬浮提示的样式。
+ *
+ * 配色与字号全部走 `.root`（CanvasView.module.css）里那套 `--wl-*` 令牌：本组件只挂在
+ * 画布视图内部，令牌由那一层继承下来，这里不重复声明（重复一份迟早会跟那边漂开）。
+ *
+ * @module @xiaoso/dsh-workflow-lite/client/components/Tooltip
+ */
+
+/*
+ * 宿主：**只做命中区与定位锚点**，不接管布局。
+ *
+ * `inline-flex` 让被包住的控件保持原来的盒子（不会因为外面多了一层而变成块级、撑满父容器）；
+ * `min-width: 0` 保证它在 flex 容器里可以被压窄（默认 `min-width: auto` 会以内容为下限，
+ * 顶栏那种横向滚动容器里会被顶出溢出）。
+ */
+.host {
+  display: inline-flex;
+  min-width: 0;
+}
+
+/*
+ * 提示本体。
+ *
+ * `position: fixed`：它留在宿主的子树里（不 portal），靠"包含块是视口"这件事浮出来——
+ * 祖先的 `overflow: auto` 裁不到它，同时又保住了 `.root` 上那套 `--wl-*` 令牌的继承
+ *（portal 到 body 就继承不到了）。详见 Tooltip.tsx 的模块注释。
+ *
+ * `z-index` 要压过画布上的浮层（快捷键说明是 8）与两个下拉/菜单（50）。
+ *
+ * `pointer-events: none` **是必需的**：提示会盖在宿主旁边（工具条下方就是画布），
+ * 能吃指针的话鼠标一移动过去就触发宿主自己的 `pointerleave`，提示会一开一关地抖。
+ */
+.tip {
+  position: fixed;
+  z-index: 60;
+  box-sizing: border-box;
+  max-width: 280px;
+  padding: var(--wl-gap-1) var(--wl-gap-2);
+  border: 1px solid var(--wl-border-strong);
+  border-radius: var(--wl-radius-control);
+  background: var(--wl-surface);
+  color: var(--wl-text);
+  font-size: var(--wl-font-meta);
+  line-height: 1.4;
+  text-align: center;
+  box-shadow: var(--dsw-elevation-panel, 0 4px 12px rgb(0 0 0 / 18%));
+  pointer-events: none;
+}

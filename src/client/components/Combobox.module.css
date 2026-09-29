@@ -1,0 +1,298 @@
+/**
+ * dsh-workflow-lite — 可搜索下拉与溢出菜单的样式。
+ *
+ * 令牌全部来自 `.root`（CanvasView.module.css）继承下来的 `--wl-*`：底色 `--wl-control*`、
+ * 描边 `--wl-border-strong`、字号 `--wl-font-*`、间距 `--wl-gap-*`（4 / 8 / 12 三档）、
+ * 圆角 `--wl-radius-control`（控件）与 `--wl-radius-card`（浮层）。这里不另立新值。
+ *
+ * 浮层用 `position: fixed` 留在触发器的子树里（**不 portal**）：`fixed` 盒的包含块是视口，
+ * 顶栏那个 `overflow-x: auto` 裁不到它；而 portal 到 `document.body` 会让 `.root` 上的
+ * `--wl-*` 令牌全部失效（继承链断了），只能再抄一份。详见 Combobox.tsx 的模块注释。
+ *
+ * @module @xiaoso/dsh-workflow-lite/client/components/Combobox
+ */
+
+/* ── 可搜索下拉 ───────────────────────────────────────────── */
+
+.root {
+  display: inline-flex;
+  min-width: 0;
+}
+
+/*
+ * 触发器。
+ *
+ * `role="combobox"` 挂在它上面（ARIA 的 select-only 组合框形态）：有 `aria-expanded`
+ * 与 `aria-controls`，展开后焦点交给筛选框、高亮由 `aria-activedescendant` 表达。
+ */
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--wl-gap-2);
+  box-sizing: border-box;
+  min-width: 180px;
+  max-width: 260px;
+  padding: var(--wl-gap-1) var(--wl-gap-2);
+  border: 1px solid var(--wl-border-strong);
+  border-radius: var(--wl-radius-control);
+  background: var(--wl-control);
+  color: var(--wl-text);
+  font-family: inherit;
+  font-size: var(--wl-font-body);
+  text-align: left;
+  cursor: pointer;
+}
+
+.trigger:hover {
+  background: var(--wl-control-hover);
+}
+
+.trigger[aria-expanded="true"] {
+  background: var(--wl-control-active);
+}
+
+.trigger:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+/* 图名可能很长：让它在触发器里省略，别把顶栏撑开（完整名字在悬浮提示与列表里）。 */
+.value {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.valueMeta,
+.optionMeta {
+  flex: 0 0 auto;
+  color: var(--wl-text-mute);
+  font-size: var(--wl-font-meta);
+}
+
+.chevron {
+  flex: 0 0 auto;
+  color: var(--wl-text-dim);
+  font-size: var(--wl-font-micro);
+}
+
+/*
+ * 浮层本体（下拉与菜单共用）。
+ *
+ * `max-height` 给一个上限而不是固定值：图多的时候列表自己滚，浮层不会长到视口外面；
+ * `min()` 里的 60vh 保证矮窗口下也留得出空间。
+ */
+.popover {
+  position: fixed;
+  z-index: 50;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--wl-gap-1);
+  max-height: min(320px, 60vh);
+  padding: var(--wl-gap-2);
+  border: 1px solid var(--wl-border-strong);
+  border-radius: var(--wl-radius-card);
+  background: var(--wl-surface);
+  overflow: hidden auto;
+  box-shadow: var(--dsw-elevation-panel, 0 4px 12px rgb(0 0 0 / 18%));
+}
+
+.filter {
+  box-sizing: border-box;
+  width: 100%;
+  padding: var(--wl-gap-1) var(--wl-gap-2);
+  border: 1px solid var(--wl-border-strong);
+  border-radius: var(--wl-radius-control);
+  background: var(--wl-control);
+  color: var(--wl-text);
+  font-family: inherit;
+  font-size: var(--wl-font-body);
+}
+
+.filter:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+.noMatch {
+  margin: 0;
+  padding: var(--wl-gap-1) var(--wl-gap-2);
+  color: var(--wl-text-mute);
+  font-size: var(--wl-font-meta);
+}
+
+/*
+ * 列表：`min-height: 0` + `flex: 1 1 auto` 才会在 `max-height` 里滚，
+ * 而不是把浮层顶高（flex 子项的默认下限是内容高度）。
+ */
+.list {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--wl-gap-2);
+  padding: var(--wl-gap-1) var(--wl-gap-2);
+  border-radius: var(--wl-radius-control);
+  color: var(--wl-text);
+  font-size: var(--wl-font-body);
+  cursor: pointer;
+}
+
+/* 高亮（键盘 `↑↓` 或指针悬停）：`data-active` 由组件写在当前那一项上。 */
+.option[data-active],
+.option:hover {
+  background: var(--wl-control-hover);
+}
+
+/* 已选中：底色用强调色的浅档，与"只是路过"的高亮区分开。 */
+.option[aria-selected="true"] {
+  background: var(--wl-accent-soft);
+}
+
+.optionLabel {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── 溢出菜单 ─────────────────────────────────────────────── */
+
+.iconTrigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 26px;
+  height: 22px;
+  padding: 0 var(--wl-gap-1);
+  border: 1px solid var(--wl-border-strong);
+  border-radius: var(--wl-radius-control);
+  background: var(--wl-control);
+  color: var(--wl-text);
+  font-family: inherit;
+  font-size: var(--wl-font-body);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.iconTrigger:hover {
+  background: var(--wl-control-hover);
+}
+
+.iconTrigger[aria-expanded="true"] {
+  background: var(--wl-control-active);
+}
+
+.iconTrigger:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+.menuBlock {
+  display: flex;
+  flex-direction: column;
+}
+
+/*
+ * 一行菜单项。
+ *
+ * 行里其实是三层：行容器 → `Tooltip` 的宿主 `<span>` → `role="menuitem"` 的按钮。
+ * 宿主的 `display: inline-flex` 让它按内容收缩，于是按钮只有文字那么宽——悬停高亮只盖住
+ * 几个字、右边一大片点不中。这里用**元素选择器**（`> span`）把宿主撑满一行：
+ * "Tooltip 的宿主是一个 `<span>`"是那个组件的固定契约（它的模块注释里写了），
+ * 所以这条不会因为 CSS Modules 的类名 hash 而变化。
+ */
+.menuRow {
+  display: flex;
+}
+
+.menuRow > span {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.menuRow > span > button {
+  flex: 1 1 auto;
+}
+
+.menuItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--wl-gap-2);
+  box-sizing: border-box;
+  width: 100%;
+  padding: var(--wl-gap-1) var(--wl-gap-2);
+  border: none;
+  border-radius: var(--wl-radius-control);
+  background: transparent;
+  color: var(--wl-text);
+  font-family: inherit;
+  font-size: var(--wl-font-body);
+  text-align: left;
+  cursor: pointer;
+}
+
+.menuItem:hover:not(:disabled),
+.menuItem:focus-visible {
+  background: var(--wl-control-hover);
+}
+
+.menuItem:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: -2px;
+}
+
+.menuItem:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.menuItemDanger {
+  color: var(--wl-danger);
+}
+
+.menuLabel {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menuCaret {
+  flex: 0 0 auto;
+  color: var(--wl-text-dim);
+  font-size: var(--wl-font-micro);
+}
+
+/* 子菜单就地展开（不做浮在旁边的子面板：窄窗下旁边没有位置）。缩进一格表示层级。 */
+.submenu {
+  display: flex;
+  flex-direction: column;
+  margin-left: var(--wl-gap-2);
+  padding-left: var(--wl-gap-2);
+  border-left: 1px solid var(--wl-border);
+}
+
+.menuSeparator {
+  height: 1px;
+  margin: var(--wl-gap-1) 0;
+  background: var(--wl-border);
+}

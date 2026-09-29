@@ -310,7 +310,7 @@ function PaletteGroupSection<T>(props: {
           {props.filtering ? `${props.group.hits} / ${props.group.total}` : props.group.total}
         </span>
       </button>
-      <div id={bodyId}>
+      <div id={bodyId} className={css.groupBody}>
         {expanded &&
           props.group.items.map((item) => (
             <Fragment key={props.keyOf(item)}>{props.renderItem(item)}</Fragment>
@@ -415,7 +415,8 @@ export function Palette(props: PaletteProps): React.JSX.Element {
     return (
       <button
         type="button"
-        className={css.item}
+        /* 两列网格里的那一版条目：显示名要先留住，机器 id 先让位（见样式文件）。 */
+        className={[css.item, css.itemPreset].join(' ')}
         data-testid={`wl-item-preset-${preset.id}`}
         draggable={!disabled}
         disabled={disabled}
@@ -428,7 +429,11 @@ export function Palette(props: PaletteProps): React.JSX.Element {
           ⠿
         </span>
         <span className={css.itemName}>{label}</span>
-        <span className={css.itemId}>{preset.id}</span>
+        {/* 两列网格的格子里放不下长 id（`implement` / `review` / `report` 会截成 `impl…`），
+            所以截断这件事得能恢复：指到 id 上给全文。 */}
+        <span className={css.itemId} title={preset.id}>
+          {preset.id}
+        </span>
       </button>
     )
   }
@@ -468,13 +473,13 @@ export function Palette(props: PaletteProps): React.JSX.Element {
         <span>{t('palette.title')}</span>
       </div>
       {/*
-        条目能拖也能点、连线要从卡片侧面的圆点拖出——这两件事原先只写在条目的 `title` 里，
-        触屏与键盘用户永远看不到（`title` 对它们不弹）。做成常驻小字：宽窗一行放得下两句，
-        窄窗自行折行。
+        常驻说明收成一句：面板头下面这行每多一行，条目就少露一行，而这一栏在窄窗只有
+        一百来像素高。留下的这句是「怎么连线」——它别处再没有可见的家（原先只写在画布容器的
+        `title` 里，而 `title` 对触屏与键盘用户不弹）；「拖进来 / 点条目」那句仍在每个条目的
+        `aria-label` 与 `title` 里。
       */}
       <p className={css.panelHint} data-testid="wl-palette-hint">
-        <span>{t('palette.addHint')}</span>
-        <span>{t('palette.connectHint')}</span>
+        {t('palette.connectHint')}
       </p>
 
       {/*
@@ -493,19 +498,23 @@ export function Palette(props: PaletteProps): React.JSX.Element {
             onChange={(event) => props.onFilter(event.target.value)}
           />
           {/*
-            一个按钮两种文案：全都收起了就提示"能展开"，否则提示"能收起"。
-            比并排两个按钮省一半横向空间，而且当下该做哪件事永远是它自己。
-            **常驻**：折叠对象里有那两个分节（内置那一节也有），永远有东西可收，
-            不再按"有没有自定义组"决定渲不渲染。
+            一个按钮两种含义：全都收起了就提示"能展开"，否则提示"能收起"。
+            **常驻**：折叠对象里有那两个分节（内置那一节也有），永远有东西可收。
+
+            这一行现在要和筛选框、新建输入框、＋ 挤在同一条线上，四个字的文案会把两个
+            输入框压到不可用，所以它在**面上**是一枚 26px 宽、跟输入框同高的图标按钮
+            （箭头由样式文件画），可读名由 aria-label 给出。字面文案仍留在 DOM 里：
+            它是这个控件的可读名的一部分，验收脚本也按 `textContent` 读它。
 
             筛选态下它没有可做的事：命中的组必须当场可见，`isGroupExpanded` 在
             `filtering` 时一律回 true。既然按了也不会有任何变化，就灰掉并用 title 说清。
           */}
           <button
             type="button"
-            className={[ui.button, ui.buttonGhost, css.collapseAll].join(' ')}
+            className={[ui.iconButton, css.collapseAll].join(' ')}
             data-testid="wl-collapse-all"
             disabled={filtering}
+            aria-label={t(allCollapsed ? 'palette.expandAll' : 'palette.collapseAll')}
             title={
               filtering
                 ? t('palette.collapseFiltering')

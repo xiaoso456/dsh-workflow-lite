@@ -47,6 +47,49 @@
   );
   --wl-border: var(--dsw-alias-border-l1, #e4e4e7);
   --wl-border-strong: var(--dsw-alias-border-l2, #d4d4d8);
+  /*
+   * 控件底（按钮 / 输入框 / 下拉 / 图标按钮）。**不能**用 `--wl-bg`：它就是宿主的
+   * `bg-base`，而画布板用的也是 `bg-base`，于是暗色下工具条按钮与自己的父容器
+   * 完全相同（实测形状对比 **1.00:1**，按钮根本没有形状），顶栏按钮也只有 1.16:1，
+   * 而且控件比面板**更暗**——看起来是一个个洞，不是控件。
+   *
+   * 取值过程：宿主暗色档的面层级是 base #151517 / layer-1 #232324 / layer-2 #2c2c2e /
+   * layer-3 #353638。**先取 layer-2，量出来只有 1.13:1（对面板）/ 1.31:1（对画布板）**——
+   * 比"完全没有形状"好，但仍然要靠 12% 白描边去撑，等于按钮的形状一半靠边。
+   * 抬到 layer-3 之后是 1.30:1 / 1.51:1，悬停再上一档到显式 #414345（约 1.62:1），
+   * 按钮在任何底色上都自己立得住，不再依赖描边。
+   * 浅色档宿主那四层**全是 #ffffff**，拿不到层级，只能显式白底、靠描边画形状（宿主自己的写法）。
+   */
+  --wl-control: light-dark(#ffffff, var(--dsw-alias-bg-layer-3, #353638));
+  --wl-control-hover: light-dark(#f4f5f7, #414345);
+  --wl-control-active: light-dark(#eceef1, #3a3c3e);
+  /*
+   * 节点卡的底色。暗色下它原本与画布板同值（都是 `bg-base` #151517），卡在板上等于没有卡，
+   * 只剩 6% 的白描边——一屏节点读起来就是"黑底上一堆灰字"。
+   * 取 layer-2，比画布板亮两档，卡片真的浮起来；悬停再上一档。
+   */
+  --wl-card: light-dark(#ffffff, var(--dsw-alias-bg-layer-2, #2c2c2e));
+  --wl-card-hover: light-dark(#ffffff, var(--dsw-alias-bg-layer-3, #353638));
+  /*
+   * 字号只留三档：正文 13 / 次级 12 / 最小 11。
+   * 此前散落着 10、10.5、11、11.5、12、13 六档，且同一个语义在四个文件里各写各的
+   * （节点 id 在右栏 12px、在卡片上 11px、在节点库 11px）。
+   */
+  --wl-font-body: 13px;
+  --wl-font-meta: 12px;
+  --wl-font-micro: 11px;
+  /*
+   * 等宽字族只声明一次。此前它在四个组件文件里硬编码了 12 次，
+   * 想换字体得改 12 处，而且已经出现了 11 / 11.5 / 12 三种字号混用。
+   */
+  --wl-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /*
+   * 间距只有三档：4 / 8 / 12。此前是 2 / 3 / 4 / 6 / 8 / 12 混用，
+   * 同一个工具条里 `gap: 6px` 而它下面的滚动容器又 `gap: 3px`，视觉上没有节奏。
+   */
+  --wl-gap-1: 4px;
+  --wl-gap-2: 8px;
+  --wl-gap-3: 12px;
   --wl-text: var(--dsw-alias-label-primary, #18181b);
   --wl-text-dim: var(--dsw-alias-label-secondary, #52525b);
   /*
@@ -145,7 +188,7 @@
   /* 细滚动条：默认宽度的横向滚动条会在窄窗下再吃掉十几像素的画布高度。 */
   scrollbar-width: thin;
   align-items: center;
-  gap: 6px;
+  gap: var(--wl-gap-2);
   padding: 6px 10px;
   border-bottom: 1px solid var(--wl-border);
   background: var(--wl-surface);
@@ -278,7 +321,7 @@
    */
   flex-wrap: nowrap;
   align-items: center;
-  gap: 6px;
+  gap: var(--wl-gap-2);
   padding: 6px 10px;
   border-bottom: 1px solid var(--wl-border);
   flex: 0 0 auto;
@@ -297,7 +340,7 @@
   flex: 0 1 auto;
   min-width: 0;
   align-items: center;
-  gap: 6px;
+  gap: var(--wl-gap-2);
   overflow-x: auto;
   /* 细滚动条：默认宽度的横向滚动条会在窄窗下再吃掉十几像素的画布高度。 */
   scrollbar-width: thin;
@@ -414,9 +457,13 @@
   padding: 1px 6px;
   border: 1px solid var(--wl-accent);
   border-radius: var(--wl-radius-control);
-  background: var(--wl-bg);
+  /*
+   * 用控件档而不是 `--wl-bg`：深色下 `--wl-bg` 就是画布板的底色，
+   * 这个落点标签的底于是与网格点同色，"加底色"这件事白做了。
+   */
+  background: var(--wl-control);
   color: var(--wl-text);
-  font-size: 11px;
+  font-size: var(--wl-font-micro);
   white-space: nowrap;
 }
 
@@ -461,8 +508,8 @@
   height: 26px;
   border: none;
   border-bottom: 1px solid var(--wl-border);
-  background: var(--wl-bg);
-  fill: var(--wl-text-dim);
+  background: var(--wl-control);
+  fill: var(--wl-text);
 }
 
 .canvas :global(.react-flow__controls-button:last-child) {
@@ -470,7 +517,7 @@
 }
 
 .canvas :global(.react-flow__controls-button:hover) {
-  background: var(--wl-hover);
+  background: var(--wl-control-hover);
   fill: var(--wl-text);
 }
 
@@ -583,8 +630,8 @@
   border: 1px solid var(--wl-border);
   border-radius: var(--wl-radius-card);
   background: var(--wl-bg);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 11px;
+  font-family: var(--wl-font-mono);
+  font-size: var(--wl-font-micro);
   white-space: pre-wrap;
   word-break: break-word;
 }

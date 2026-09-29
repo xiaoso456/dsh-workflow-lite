@@ -58,6 +58,13 @@ import {
 import { decideSave, statusKey } from '../core/sync.ts'
 import css from './CanvasView.module.css'
 import {
+  Combobox,
+  type ComboboxOption,
+  MenuButton,
+  type MenuEntry,
+  type MenuSubItem,
+} from './Combobox.tsx'
+import {
   type EdgeEditorView,
   type EdgeView,
   type GraphSummary,
@@ -66,6 +73,7 @@ import {
 } from './Inspector.tsx'
 import { type CardData, WorkflowNodeCard } from './NodeCard.tsx'
 import { Palette, ValidationPanel } from './Palette.tsx'
+import { Tooltip } from './Tooltip.tsx'
 import ui from './ui.module.css'
 
 /** 客户端入口注入的业务面。 */
@@ -112,6 +120,20 @@ const EDGE_INTERACTION_WIDTH = 28
  */
 const MIN_ZOOM = 0.1
 
+/**
+ * **自动**适应视图时的缩放下限：0.7。
+ *
+ * `MIN_ZOOM`（0.1）管的是"用户自己能把图画多小"，这个管的是"程序自动把图放多大"。
+ * 两者必须分开，因为默认把整图塞进来会得出一个读不了的缩放：一张 8 节点的四列图世界宽
+ * 约 1000 单位，装进 1440 下 625px 的画布需要 ~0.46，节点卡只有 93px 宽、正文约 6px——
+ * 实测就是这个数，人打开图看到的是"一屏认不出的灰字"。
+ *
+ * 所以自动路径（初次加载、容器尺寸变化、重新布局）**不低于 0.7**：卡片保持 ~155px、
+ * 正文能读，代价是图比画布宽、要平移。用户想看全貌有两条明确的路：工具条的「适应视图」
+ * 与快捷键 F——那两个入口是**用户主动要求"装下全部"**，仍用 `MIN_ZOOM` 真的装满。
+ */
+const FIT_MIN_ZOOM = 0.7
+
 /** 适应视图时四周留的空白比例。初次加载、工具条按钮、容器尺寸变化三个入口共用一份。 */
 const FIT_PADDING = 0.15
 
@@ -134,6 +156,20 @@ const SHORTCUT_ROWS: readonly { key: LocaleKey; combos: readonly string[] }[] = 
   { key: 'shortcut.fit', combos: ['F'] },
   { key: 'shortcut.relayout', combos: ['L'] },
 ]
+
+/**
+ * 工具条按钮悬浮提示上的键位尾巴（`适应视图 (F)`）。
+ *
+ * 键位从 `SHORTCUT_ROWS` 里取，不在这里再写一遍：`Ctrl+Z` 这类字符串写两处，
+ * 改一处漏一处的时候，提示会开始骗人（那张表是界面上唯一的键位事实源）。
+ * @param key - 要取键位的动作（`shortcut.*`）。
+ * @returns ` (F)` 这样的尾巴；没有对应键位时给空串。
+ */
+function shortcutHint(key: LocaleKey): string {
+  const row = SHORTCUT_ROWS.find((candidate) => candidate.key === key)
+  const combo = row?.combos[0]
+  return combo === undefined ? '' : ` (${combo})`
+}
 
 /** 上次打开的图（A16）。多张图是常态，重挂载时不能只看"目录里恰好一张"。 */
 const LAST_GRAPH_KEY = 'workflow-lite.lastGraph'
@@ -538,7 +574,7 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
         if (canvasRef.current !== element) return
         const current = stateRef.current
         if (current.document === null || current.document.nodes.length === 0) return
-        void flow.fitView({ padding: FIT_PADDING, minZoom: MIN_ZOOM, duration: 0 })
+        void flow.fitView({ padding: FIT_PADDING, minZoom: FIT_MIN_ZOOM, duration: 0 })
       }, RESIZE_DEBOUNCE_MS)
     })
     observer.observe(element)
@@ -1200,7 +1236,7 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
     mutate({ type: 'setPositions', positions: Object.fromEntries(positions) })
     // 坐标要等 React 渲染进去再 fit，所以排到下一帧；padding 与别的适应视图入口一致。
     setTimeout(() => {
-      void flow?.fitView({ padding: FIT_PADDING, minZoom: MIN_ZOOM, duration: 220 })
+      void flow?.fitView({ padding: FIT_PADDING, minZoom: FIT_MIN_ZOOM, duration: 220 })
     }, 0)
   }, [analysis, mutate, flow])
 
@@ -1234,6 +1270,67 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
     () => groupNodeTemplates(catalog?.templates.nodes ?? []),
     [catalog],
   )
+
+  /**
+   * 图选择的选项。名字 + 节点数；解析不了的那份跟一个警示符，但**仍然可选**——
+   * 点开它落到只读错误态，人能看到原文去修，比"选不中"更好。
+   */
+  const graphOptions = useMemo<ComboboxOption[]>(
+    () =>
+      (catalog?.workflows ?? []).map((entry) => ({
+        value: entry.name,
+        label: entry.name,
+        meta: `${entry.nodeCount} ${t('picker.nodeCount')}${entry.invalid === true ? ' ⚠' : ''}`,
+      })),
+    [catalog, t],
+  )
+
+  /**
+   * 顶栏 `⋯` 里的低频动作：从模板新建 / 重命名 / 删除 / 重新加载。
+   *
+   * 顶栏此前摆着两个原生下拉 + 五个按钮，≤1100 就折行（折行直接吃画布高度）。
+   * 收进菜单之后顶栏只剩三个控件，宽窄都能一行放下。
+   */
+  const moreEntries = useMemo<MenuEntry[]>(() => {
+    const templates: MenuSubItem[] = (catalog?.templates.workflows ?? []).map((entry) => ({
+      key: entry.name,
+      label: entry.name,
+      // 模板坏了就没法拿它建图（与从前那个 `<option disabled>` 一致）。
+      disabled: entry.invalid === true,
+      onSelect: () => {
+        void createGraph(entry.name)
+      },
+    }))
+    return [
+      {
+        kind: 'submenu',
+        key: 'template',
+        label: t('picker.fromTemplate'),
+        disabled: templates.length === 0,
+        items: templates,
+      },
+      { kind: 'separator', key: 'sep-file' },
+      {
+        kind: 'item',
+        key: 'rename',
+        label: t('picker.rename'),
+        disabled: state.name === null,
+        onSelect: () => setRenaming(state.name ?? ''),
+      },
+      {
+        kind: 'item',
+        key: 'remove',
+        label: t('picker.remove'),
+        danger: true,
+        disabled: state.name === null,
+        onSelect: () => {
+          if (state.name !== null) void removeGraph(state.name)
+        },
+      },
+      { kind: 'separator', key: 'sep-reload' },
+      { kind: 'item', key: 'reload', label: t('picker.reload'), onSelect: reload },
+    ]
+  }, [catalog, createGraph, removeGraph, reload, state.name, t])
 
   // ── 拖放落点 ─────────────────────────────────────────
 
@@ -1405,62 +1502,27 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
         {renaming === null ? (
           <>
             <span className={css.label}>{t('picker.label')}</span>
-            <select
-              className={ui.select}
-              data-testid="wl-graph-select"
+            {/*
+              图选择：可搜索下拉替掉了原生 `<select>`（原生弹层跟不了主题、也不能搜）。
+              它自己带 `wl-graph-combobox` 等锚点，见那个组件的模块注释。
+            */}
+            <Combobox
+              t={t}
               value={state.name ?? ''}
-              onChange={(event) => {
-                const name = event.target.value
-                if (name !== '') void open(name)
+              placeholder={t('picker.empty')}
+              options={graphOptions}
+              onSelect={(name) => {
+                void open(name)
               }}
+            />
+            <button
+              type="button"
+              className={[ui.button, ui.buttonPrimary].join(' ')}
+              onClick={() => void createGraph()}
             >
-              <option value="">{t('picker.empty')}</option>
-              {(catalog?.workflows ?? []).map((entry) => (
-                <option key={entry.name} value={entry.name}>
-                  {entry.name}（{entry.nodeCount}）{entry.invalid === true ? ' ⚠' : ''}
-                </option>
-              ))}
-            </select>
-            <button type="button" className={ui.button} onClick={() => void createGraph()}>
               {t('picker.new')}
             </button>
-            <select
-              className={ui.select}
-              value=""
-              onChange={(event) => {
-                const from = event.target.value
-                if (from !== '') void createGraph(from)
-              }}
-            >
-              <option value="">{t('picker.fromTemplate')}</option>
-              {(catalog?.templates.workflows ?? []).map((entry) => (
-                <option key={entry.name} value={entry.name} disabled={entry.invalid === true}>
-                  {entry.name}
-                  {entry.invalid === true ? ' ⚠' : ''}
-                </option>
-              ))}
-            </select>
-            {state.name !== null && (
-              <>
-                <button
-                  type="button"
-                  className={ui.button}
-                  onClick={() => setRenaming(state.name ?? '')}
-                >
-                  {t('picker.rename')}
-                </button>
-                <button
-                  type="button"
-                  className={[ui.button, ui.buttonDanger].join(' ')}
-                  onClick={() => void removeGraph(state.name ?? '')}
-                >
-                  {t('picker.remove')}
-                </button>
-              </>
-            )}
-            <button type="button" className={ui.button} onClick={reload}>
-              {t('picker.reload')}
-            </button>
+            <MenuButton label={t('picker.more')} entries={moreEntries} testId="wl-more-menu" />
           </>
         ) : (
           <>
@@ -1580,57 +1642,70 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
                 一旦它有了 `overflow`，那个浮层会被裁在工具条里。
               */}
               <div className={css.canvasBarScroll}>
-                <button
-                  type="button"
-                  className={ui.button}
-                  data-testid="wl-undo"
-                  disabled={state.past.length === 0}
-                  title={t('toolbar.undoTitle')}
-                  onClick={() => mutate({ type: 'undo' })}
-                >
-                  ↶ {t('toolbar.undo')}
-                </button>
-                <button
-                  type="button"
-                  className={ui.button}
-                  data-testid="wl-redo"
-                  disabled={state.future.length === 0}
-                  title={t('toolbar.redoTitle')}
-                  onClick={() => mutate({ type: 'redo' })}
-                >
-                  ↷ {t('toolbar.redo')}
-                </button>
+                {/*
+                  四个按钮的说明从原生 `title` 换成 `<Tooltip>`：原生提示要等一秒、
+                  暗色下是一块系统白板，而且键盘焦点上根本不出现。键位尾巴从
+                  `SHORTCUT_ROWS` 取（见 `shortcutHint`），不在这里再抄一遍键名。
+                */}
+                <Tooltip label={t('shortcut.undo') + shortcutHint('shortcut.undo')}>
+                  <button
+                    type="button"
+                    className={ui.button}
+                    data-testid="wl-undo"
+                    disabled={state.past.length === 0}
+                    onClick={() => mutate({ type: 'undo' })}
+                  >
+                    ↶ {t('toolbar.undo')}
+                  </button>
+                </Tooltip>
+                <Tooltip label={t('shortcut.redo') + shortcutHint('shortcut.redo')}>
+                  <button
+                    type="button"
+                    className={ui.button}
+                    data-testid="wl-redo"
+                    disabled={state.future.length === 0}
+                    onClick={() => mutate({ type: 'redo' })}
+                  >
+                    ↷ {t('toolbar.redo')}
+                  </button>
+                </Tooltip>
                 <span className={css.divider} />
-                <button
-                  type="button"
-                  className={ui.button}
-                  data-testid="wl-layout"
-                  disabled={state.document === null}
-                  onClick={relayout}
-                >
-                  {t('canvas.layout')}
-                </button>
-                <button
-                  type="button"
-                  className={ui.button}
-                  data-testid="wl-fit"
-                  disabled={flow === null}
-                  onClick={() => {
-                    void flow?.fitView({ padding: FIT_PADDING, minZoom: MIN_ZOOM, duration: 220 })
-                  }}
-                >
-                  {t('canvas.fit')}
-                </button>
+                <Tooltip label={t('shortcut.relayout') + shortcutHint('shortcut.relayout')}>
+                  <button
+                    type="button"
+                    className={ui.button}
+                    data-testid="wl-layout"
+                    disabled={state.document === null}
+                    onClick={relayout}
+                  >
+                    {t('canvas.layout')}
+                  </button>
+                </Tooltip>
+                <Tooltip label={t('shortcut.fit') + shortcutHint('shortcut.fit')}>
+                  <button
+                    type="button"
+                    className={ui.button}
+                    data-testid="wl-fit"
+                    disabled={flow === null}
+                    onClick={() => {
+                      void flow?.fitView({ padding: FIT_PADDING, minZoom: MIN_ZOOM, duration: 220 })
+                    }}
+                  >
+                    {t('canvas.fit')}
+                  </button>
+                </Tooltip>
                 <span className={css.divider} />
-                <button
-                  type="button"
-                  className={[ui.button, ui.buttonDanger].join(' ')}
-                  data-testid="wl-delete"
-                  disabled={selected === undefined}
-                  onClick={deleteSelected}
-                >
-                  {t('canvas.deleteNode')}
-                </button>
+                <Tooltip label={t('shortcut.delete') + shortcutHint('shortcut.delete')}>
+                  <button
+                    type="button"
+                    className={[ui.button, ui.buttonDanger].join(' ')}
+                    data-testid="wl-delete"
+                    disabled={selected === undefined}
+                    onClick={deleteSelected}
+                  >
+                    {t('canvas.deleteNode')}
+                  </button>
+                </Tooltip>
               </div>
               <span className={css.barSpacer} />
               {overLimit && <span className={ui.problemWarn}>{t('canvas.noFitForHuge')}</span>}
@@ -1761,7 +1836,7 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
                 }}
                 minZoom={MIN_ZOOM}
                 fitView
-                fitViewOptions={{ padding: FIT_PADDING, minZoom: MIN_ZOOM }}
+                fitViewOptions={{ padding: FIT_PADDING, minZoom: FIT_MIN_ZOOM }}
               >
                 <Background variant={BackgroundVariant.Dots} gap={16} />
                 {/* 控件放右上：会话页底部浮着输入框，放左下会被盖住。 */}
