@@ -1,14 +1,21 @@
+# 依赖与构建产物
 node_modules/
-lib/
-dist/
+
+# ⚠️ 锚定到仓库根（前导斜杠）。不锚的话 `lib/` 会匹配**任意层级**叫 lib 的目录，
+# 把 tests/lib/（验收脚本依赖的测试基建：cdp-session / web-session / canvas-harness）
+# 一起吞掉——那是真发生过的事，clone 下来跑 tests/cdp-canvas.mjs 会直接 import 失败。
+/lib/
+/dist/
+
+# 日志与测试产物
 *.log
-tests/runs/
+/tests/runs/
 
 # 参考先例：别的插件的源码，115MB，是设计期的读物、不是本项目源码
-refs/
+/refs/
 
 # 本地状态：meow-memory 的记忆库与会话日志
-.dsh-meow/
+/.dsh-meow/
 
 # 用户要求：docs/ 先不进版本库（设计文档、审读记录、交付说明都只留在工作区）
-docs/
+/docs/
