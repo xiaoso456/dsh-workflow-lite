@@ -103,6 +103,22 @@ const WHEN_PRESETS = ['pass', 'fail']
 const EDGE_INTERACTION_WIDTH = 28
 
 /**
+ * 画布缩放下限。
+ *
+ * @xyflow/react 的默认值是 0.5，于是「重新布局」与「适应视图」都被夹在 0.5：一张 24 个
+ * 节点的链排出来近 6000 单位宽，装进画布需要 ~0.1 的缩放，夹在 0.5 就等于"按了适应视图
+ * 也还是装不下"。0.1 让 `fitView` 真的能把整图放进来；代价是密集图会缩得很小，
+ * 但"看得见全部"与"每张卡都读得清"只能二选一，而缩放大小用户可以自己再调回来。
+ */
+const MIN_ZOOM = 0.1
+
+/** 适应视图时四周留的空白比例。初次加载、工具条按钮、容器尺寸变化三个入口共用一份。 */
+const FIT_PADDING = 0.15
+
+/** 容器尺寸变化的防抖窗口：拖窗口时不要让 fitView 跟着每一帧跳。 */
+const RESIZE_DEBOUNCE_MS = 200
+
+/**
  * 快捷键说明表。
  *
  * 它不是装饰：本轮才加上的 `Ctrl+Z` / `Delete` / `/` 在界面上**没有任何别的痕迹**，
@@ -245,6 +261,13 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
   const canvasRef = useRef<HTMLDivElement>(null)
   /** 落点标记。`dragover` 里直接改它的 `style.transform`，绕开 React 渲染。 */
   const dropMarkerRef = useRef<HTMLDivElement>(null)
+  /**
+   * 用户有没有自己平移/缩放过画布。
+   *
+   * 一旦为真，容器尺寸变化就不再重算视图——把人的视角抢回全图比"不重算"更烦人。
+   * 只有**用户发起**的移动才算（`onMoveStart` 的事件参数为 `null` 时是程序触发的，见那里的注释）。
+   */
+  const userMovedRef = useRef(false)
   const lastEditAt = useRef<number | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const stateRef = useRef(state)
@@ -478,6 +501,53 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
     return () => root.removeEventListener('mousedown', onMouseDown)
   }, [])
 
+  /**
+   * 容器尺寸变了就重算一次视图（防抖）。
+   *
+   * React Flow 只在初始化（`fitView` prop）与显式调用时算视图，容器变窄不会重算：实测画布
+   * 从 1105px 缩到 241px 时节点卡还是原尺寸（77x37），8 个节点只有 4 个落在可见区，
+   * 而工具栏里唯一能救的「适应视图」在同一视口被折到了第二行。所以这一步不能指望用户点。
+   *
+   * **两条刹车，缺一不可**：
+   * 1. 只在尺寸真的变了才动。ResizeObserver 在 `observe` 时会立刻回调一次，那次只记基线；
+   * 2. 用户自己平移/缩放过就永久停手（见 `userMovedRef`）。每次 resize 都把人的视角抢回
+   *    全图，比"不重算"更烦人——人刚放大到某个节点，一拖窗口就跳回全图。
+   */
+  useEffect(() => {
+    const element = canvasRef.current
+    if (element === null || flow === null) return
+    // 非浏览器环境（老宿主的内嵌视图 / 测试）没有这个 API，静默跳过即可。
+    if (typeof ResizeObserver === 'undefined') return
+    let lastWidth = element.clientWidth
+    let lastHeight = element.clientHeight
+    let resizeTimer: ReturnType<typeof setTimeout> | null = null
+    const observer = new ResizeObserver(() => {
+      const width = element.clientWidth
+      const height = element.clientHeight
+      if (width === lastWidth && height === lastHeight) return
+      lastWidth = width
+      lastHeight = height
+      if (userMovedRef.current) return
+      if (resizeTimer !== null) clearTimeout(resizeTimer)
+      resizeTimer = setTimeout(() => {
+        resizeTimer = null
+        /*
+         * 画布容器可能已经被换掉了（保存级破损会整块换成只读预览）：那时 `flow` 指向的是
+         * 一个已经卸载的实例，拿它去 fit 只会对着空气量尺寸。认元素身份，不认 `flow` 新旧。
+         */
+        if (canvasRef.current !== element) return
+        const current = stateRef.current
+        if (current.document === null || current.document.nodes.length === 0) return
+        void flow.fitView({ padding: FIT_PADDING, minZoom: MIN_ZOOM, duration: 0 })
+      }, RESIZE_DEBOUNCE_MS)
+    })
+    observer.observe(element)
+    return () => {
+      observer.disconnect()
+      if (resizeTimer !== null) clearTimeout(resizeTimer)
+    }
+  }, [flow])
+
   // 离开前 flush：卸载 + 页面隐藏两条路都要走（浏览器不保证 onbeforeunload 里能发 RPC）。
   useEffect(() => {
     const onHidden = (): void => {
@@ -560,6 +630,12 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
         })
         // A16：打开成功才写"上次打开的图"，失败的图名不该留在这里当地雷。
         writeStored(LAST_GRAPH_KEY, loaded.name)
+        /*
+         * 新图进来 = 一次"首次布局"：把"用户动过视口"那笔账清掉，让之后的容器尺寸变化
+         * 还能为**这张新图**重算一次视图。不清的话，在图 A 上平移一次会让图 B 永远失去
+         * 自适应（`userMovedRef` 是会话级的，图 A 的操作不该替图 B 做决定）。
+         */
+        userMovedRef.current = false
       } catch (error) {
         dispatch({ type: 'loadFailed', message: messageOf(error) })
       }
@@ -809,7 +885,8 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
             type: MarkerType.ArrowClosed,
             width: 12,
             height: 12,
-            color: when === 'fail' ? 'var(--wl-danger)' : 'var(--wl-border-strong)',
+            // 箭头跟着线的颜色走（`--wl-edge`）；fail 边仍用危险色。
+            color: when === 'fail' ? 'var(--wl-danger)' : 'var(--wl-edge)',
           },
         }
       })
@@ -1121,7 +1198,10 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
     if (document === null || analysis === null) return
     const positions = layoutAll(document, analysis.batches)
     mutate({ type: 'setPositions', positions: Object.fromEntries(positions) })
-    setTimeout(() => flow?.fitView({ padding: 0.2, duration: 220 }), 0)
+    // 坐标要等 React 渲染进去再 fit，所以排到下一帧；padding 与别的适应视图入口一致。
+    setTimeout(() => {
+      void flow?.fitView({ padding: FIT_PADDING, minZoom: MIN_ZOOM, duration: 220 })
+    }, 0)
   }, [analysis, mutate, flow])
 
   /** 折叠组：受控状态在画布（它才是跨重挂载活下来的那一层），持久化跟着一起写。 */
@@ -1273,7 +1353,7 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
         }
         case 'f': {
           event.preventDefault()
-          flow?.fitView({ padding: 0.2, duration: 220 })
+          void flow?.fitView({ padding: FIT_PADDING, minZoom: MIN_ZOOM, duration: 220 })
           return
         }
         case 'l': {
@@ -1493,55 +1573,65 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
 
           <div className={css.canvasWrap}>
             <div className={css.canvasBar}>
-              <button
-                type="button"
-                className={ui.button}
-                data-testid="wl-undo"
-                disabled={state.past.length === 0}
-                title={t('toolbar.undoTitle')}
-                onClick={() => mutate({ type: 'undo' })}
-              >
-                ↶ {t('toolbar.undo')}
-              </button>
-              <button
-                type="button"
-                className={ui.button}
-                data-testid="wl-redo"
-                disabled={state.future.length === 0}
-                title={t('toolbar.redoTitle')}
-                onClick={() => mutate({ type: 'redo' })}
-              >
-                ↷ {t('toolbar.redo')}
-              </button>
-              <span className={css.divider} />
-              <button
-                type="button"
-                className={ui.button}
-                data-testid="wl-layout"
-                disabled={state.document === null}
-                onClick={relayout}
-              >
-                {t('canvas.layout')}
-              </button>
-              <button
-                type="button"
-                className={ui.button}
-                data-testid="wl-fit"
-                disabled={flow === null}
-                onClick={() => flow?.fitView({ padding: 0.2, duration: 220 })}
-              >
-                {t('canvas.fit')}
-              </button>
-              <span className={css.divider} />
-              <button
-                type="button"
-                className={[ui.button, ui.buttonDanger].join(' ')}
-                data-testid="wl-delete"
-                disabled={selected === undefined}
-                onClick={deleteSelected}
-              >
-                {t('canvas.deleteNode')}
-              </button>
+              {/*
+                左侧这几个按钮装进自己的横向滚动容器：窄窗下它们缩到可用宽度并出滚动条，
+                而不是把整条工具条折成第二行（折行直接吃掉画布高度）。
+                滚动容器**不能是 `.canvasBar` 自己**：它还是右侧快捷键说明浮层的定位上下文，
+                一旦它有了 `overflow`，那个浮层会被裁在工具条里。
+              */}
+              <div className={css.canvasBarScroll}>
+                <button
+                  type="button"
+                  className={ui.button}
+                  data-testid="wl-undo"
+                  disabled={state.past.length === 0}
+                  title={t('toolbar.undoTitle')}
+                  onClick={() => mutate({ type: 'undo' })}
+                >
+                  ↶ {t('toolbar.undo')}
+                </button>
+                <button
+                  type="button"
+                  className={ui.button}
+                  data-testid="wl-redo"
+                  disabled={state.future.length === 0}
+                  title={t('toolbar.redoTitle')}
+                  onClick={() => mutate({ type: 'redo' })}
+                >
+                  ↷ {t('toolbar.redo')}
+                </button>
+                <span className={css.divider} />
+                <button
+                  type="button"
+                  className={ui.button}
+                  data-testid="wl-layout"
+                  disabled={state.document === null}
+                  onClick={relayout}
+                >
+                  {t('canvas.layout')}
+                </button>
+                <button
+                  type="button"
+                  className={ui.button}
+                  data-testid="wl-fit"
+                  disabled={flow === null}
+                  onClick={() => {
+                    void flow?.fitView({ padding: FIT_PADDING, minZoom: MIN_ZOOM, duration: 220 })
+                  }}
+                >
+                  {t('canvas.fit')}
+                </button>
+                <span className={css.divider} />
+                <button
+                  type="button"
+                  className={[ui.button, ui.buttonDanger].join(' ')}
+                  data-testid="wl-delete"
+                  disabled={selected === undefined}
+                  onClick={deleteSelected}
+                >
+                  {t('canvas.deleteNode')}
+                </button>
+              </div>
               <span className={css.barSpacer} />
               {overLimit && <span className={ui.problemWarn}>{t('canvas.noFitForHuge')}</span>}
               <button
@@ -1631,6 +1721,19 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
                     target: connection.target,
                   })
                 }}
+                /*
+                 * 用户自己动过视口就记一笔：容器尺寸变化不再重算视图（见 ResizeObserver 那个
+                 * effect 的两条刹车）。
+                 *
+                 * 判据是**事件参数为 null**：`fitView` / `setViewport` 这类程序触发的移动
+                 * 没有 DOM 事件，React Flow 传 `null`（它自己的类型就是这么写的，
+                 * `onMoveEnd` 的文档也明说"非用户发起时事件参数为 null"）。不用
+                 * `onMoveEnd` 是因为拖拽和滚轮各自在结束时才报，而这里只需要知道"人碰过"。
+                 */
+                onMoveStart={(event) => {
+                  if (event === null) return
+                  userMovedRef.current = true
+                }}
                 onMoveEnd={(_event, viewport) => mutate({ type: 'setViewport', viewport })}
                 onNodeDragStop={() => {
                   // 一次拖拽到此为止：断开合并，下一条改动是新的一条历史。
@@ -1656,7 +1759,9 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
                   dispatch({ type: 'select' })
                   canvasRef.current?.focus()
                 }}
+                minZoom={MIN_ZOOM}
                 fitView
+                fitViewOptions={{ padding: FIT_PADDING, minZoom: MIN_ZOOM }}
               >
                 <Background variant={BackgroundVariant.Dots} gap={16} />
                 {/* 控件放右上：会话页底部浮着输入框，放左下会被盖住。 */}

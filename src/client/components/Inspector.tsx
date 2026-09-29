@@ -151,7 +151,12 @@ export function Inspector(props: InspectorProps): React.JSX.Element {
     <>
       <section className={css.panel}>
         <div className={ui.panelHead}>
-          <span title={node.id}>{name}</span>
+          {/*
+            tooltip 给的是**被省略号吃掉的那段文本**：标题栏放的是用户内容（显示名），
+            长起来会被截断，而 id 恰恰不是被截的那一项。显示名为空时标题回落到 id，
+            这时 tooltip 跟着写 id，别让它空着。
+          */}
+          <span title={name}>{name}</span>
           <span className={ui.panelHeadSub}>
             {t('panel.counts')} {props.incoming.length} / {props.outgoing.length}
           </span>
@@ -612,13 +617,22 @@ export function PlanBlock(props: {
               {planIdCopied ? t('panel.idCopied') : plan.id}
             </button>
           )}
-          <div className={ui.tabs}>
+          {/*
+            `role="tablist"` / `role="tab"` / `aria-selected`：这两格在视觉上一直是
+            二选一的页签，但读屏软件以前只看到两个无名按钮，读不出"当前选的是哪一版"。
+            `data-testid` 是给测试与语料脚本的锚点：以前只能按中文文案定位，
+            改一个字就打断它们。
+          */}
+          <div className={ui.tabs} role="tablist">
             {/*
               两个 tab 的差别（路径 vs 正文）只写在这两个词里，光看标题分不出来，
               所以各挂一条 `title` 说明；文案在 locales 里，别在这里另写一份。
             */}
             <button
               type="button"
+              role="tab"
+              aria-selected={props.tab === 'dispatch'}
+              data-testid="wl-plan-tab-dispatch"
               className={props.tab === 'dispatch' ? ui.tabActive : ui.tab}
               title={t('plan.dispatchHint')}
               onClick={() => props.onTab('dispatch')}
@@ -627,6 +641,9 @@ export function PlanBlock(props: {
             </button>
             <button
               type="button"
+              role="tab"
+              aria-selected={props.tab === 'full'}
+              data-testid="wl-plan-tab-full"
               className={props.tab === 'full' ? ui.tabActive : ui.tab}
               title={t('plan.fullHint')}
               onClick={() => props.onTab('full')}

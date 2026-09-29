@@ -42,6 +42,45 @@
   white-space: nowrap;
 }
 
+/*
+ * 「新建空白节点」这枚 CTA（空图时画布正中唯一能点的东西）点下去只做一件事：
+ * 把焦点挪到这个输入框，屏幕上别的像素一个都不动。焦点落在哪必须看得见，所以这里
+ * 不靠宿主的 `:focus-visible`（编程式聚焦不一定匹配它，实测聚焦前后该区域像素直方图
+ * 完全一致），改用 `:focus` 兜底，再叠一圈软色光环：描边 + 外圈，明暗两套主题都成立。
+ */
+.newNode > input:focus {
+  border-color: var(--wl-accent);
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 3px var(--wl-accent-soft);
+}
+
+/*
+ * 筛选行与「节点 id 新建」行的共同外壳。
+ *
+ * 宽窗下这个 div 就是个普通块级容器，两行各占一行、布局与从前逐像素一致；
+ * 窄窗（竖排）下才改成一行，见文件末尾的媒体查询。
+ */
+.shell {
+  display: block;
+}
+
+/*
+ * 面板头下方的常驻说明：「条目能拖也能点」「连线从卡片侧面的圆点拖出」。
+ * 这两句话原先只在条目的 `title` 里，触屏与键盘用户拿不到。
+ * 两句并排放，宽窗一行放得下，窄窗按 `flex-wrap` 自己折行。
+ */
+.panelHint {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 10px;
+  margin: 0;
+  padding: 0 10px 4px;
+  color: var(--wl-text-mute);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
 /* 校验失败的提示紧贴输入框下方：红字 + 左对齐，和输入框同一个内边距。 */
 .formProblem {
   padding: 0 10px 4px;
@@ -418,4 +457,65 @@
 .paletteItemBad {
   color: var(--wl-danger);
   font-size: 11px;
+}
+
+/* ── 窄窗（三栏竖排）把面板壳压薄 ─────────────────────── */
+
+/*
+ * ≤900px 时三栏竖排，节点库这一栏只分到一百来像素高，而窗口里依次是标题行、
+ * 一行常驻说明、搜索框一行、「节点 id 新建」一行、分节头——壳比内容还高，
+ * 一条可拖条目都露不出来（860 上第一条只露 11px，760 上是 0px）。
+ *
+ * 这里只做**壳的压缩**：把两行输入并成一行、内边距收窄、分节头变矮并钉在顶沿。
+ * 真正的解法是窄窗下把节点库改成抽屉 / 浮层（画布全高 + 按需展开），
+ * 那是结构性改动，得先由用户拍板，不在这里顺手做。
+ */
+@media (max-width: 900px) {
+  /*
+   * 搜索框与「节点 id 新建」并成一行：两个行容器退成 `display: contents`，
+   * 它们的四个子元素（搜索框 / 全部收起 / id 输入框 / ＋）直接成为 `.shell` 的
+   * flex 项。省下整整一行，输入框仍然平分剩下的宽度。
+   */
+  .shell {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 8px 3px;
+  }
+
+  .filterRow,
+  .newNode {
+    display: contents;
+  }
+
+  .filterRow > input,
+  .newNode > input {
+    flex: 1 1 0;
+  }
+
+  .filterRow > button,
+  .newNode > button {
+    padding: 2px 7px;
+  }
+
+  /*
+   * 分节头钉在滚动容器的顶沿：窗口矮到只能看见开头时，往下滚不该把
+   * 「内置 node / 自定义 node」这两个路标一起滚走。底色必须用实色，
+   * 否则条目会从它下面透出来（悬停态也不能用半透明的 --wl-hover）。
+   */
+  .sectionHead {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding: 3px 8px 1px;
+    background: var(--wl-surface);
+  }
+
+  .sectionHead:hover {
+    background: var(--wl-surface-2);
+  }
+
+  .groupHead {
+    padding: 2px 2px;
+  }
 }

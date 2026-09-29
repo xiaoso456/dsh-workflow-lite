@@ -89,6 +89,18 @@ export const LAYOUT_ROW_H = 140
 /** 栅格原点（左上角第一个格子的坐标）。 */
 export const LAYOUT_ORIGIN: Point = { x: 120, y: 80 }
 
+/**
+ * 自动布局一行放几列（排满一行就换行）。
+ *
+ * **必须折行**：列 = 执行批次序，而一条 24 个节点的长链有 24 个批次——不折行就是
+ * 24 列 1 行、单排 5980 单位宽，任何画布都装不下（视口缩到 0.1 仍然只是一条横线，
+ * 节点卡小到读不出字）。按 6 列折行之后同一张图是 6 列 4 行，比例接近普通屏幕，
+ * 缩放后卡片的可读性也就回来了。
+ *
+ * 6 是"一张卡够宽（260px 列距）又不至于把视口撑成一个竖条"的折中：再小会让纵向太长。
+ */
+export const LAYOUT_COLUMNS = 6
+
 export const initialCanvasState: CanvasState = {
   name: null,
   document: null,
@@ -333,7 +345,10 @@ export function withNewNode(
 }
 
 /**
- * 按**执行批次**摆位：列 = 批次序，行 = 批内序。
+ * 按**执行批次**摆位：格子按批次序走，行 = 批内序。
+ *
+ * 格子先按 `LAYOUT_COLUMNS` 横向铺满再折到下一排——只横着排的话长链会拉成一条
+ * 几千单位宽的横线（见 `LAYOUT_COLUMNS` 的注释）。
  *
  * 它确定性、不吃额外依赖，而且**反映执行次序**——比不分青红皂白的环形布局好读。
  * 两条入口共用同一套几何：`layoutMissing` 只补没摆过的，`layoutAll` 显式重排整图。
@@ -358,12 +373,15 @@ function placeNodes(
   }
   if (targets.size === 0) return placed
   for (const [column, batch] of batches.entries()) {
+    /*
+     * 折行：`column` 是执行批次序，横排铺满 `LAYOUT_COLUMNS` 列之后换到下一排。
+     * 每个批次占一个独立格子，所以批内节点按 `row` 纵向排不会和别的批次撞。
+     */
+    const cellX = LAYOUT_ORIGIN.x + (column % LAYOUT_COLUMNS) * LAYOUT_COLUMN_W
+    const cellY = LAYOUT_ORIGIN.y + Math.floor(column / LAYOUT_COLUMNS) * LAYOUT_ROW_H
     for (const [row, id] of batch.nodes.entries()) {
       if (!targets.has(idKey(id))) continue
-      placed.set(id, {
-        x: LAYOUT_ORIGIN.x + column * LAYOUT_COLUMN_W,
-        y: LAYOUT_ORIGIN.y + row * LAYOUT_ROW_H,
-      })
+      placed.set(id, { x: cellX, y: cellY + row * LAYOUT_ROW_H })
     }
   }
   return placed

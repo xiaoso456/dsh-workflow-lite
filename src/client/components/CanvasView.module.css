@@ -24,6 +24,27 @@
   --wl-bg: var(--dsw-alias-bg-base, #ffffff);
   --wl-surface: var(--dsw-alias-bg-layer-1, #fafafa);
   --wl-surface-2: var(--dsw-alias-bg-layer-2, #f4f4f5);
+  /*
+   * 画布（图板）的底色，比白的面板低一档。
+   *
+   * 宿主的浅色主题里 `bg-base`、`bg-layer-1`、`bg-layer-2` **全是 #ffffff**：面板、画布、
+   * 节点卡、边标签底于是全同色，只剩 4% 的发丝边分界（实测 1.09:1）。鼠标落在哪一栏决定
+   * 滚轮是缩放画布还是滚栏、落点是拖节点还是拖面板——画布从哪儿开始必须看得出来。
+   *
+   * **为什么压画布而不是压面板**：面板上压着 11px 的弱化文字（节点 id、planId 这类），
+   * 浅色档是 #6b7280；面板一旦不是纯白，节点库的悬停底（半透明黑再叠一层）会把这
+   * 一对颜色从 4.35:1 拖到 4.16:1，把一个已经擦线的 AA 问题推得更低。压画布则面板上
+   * 一个字的对比度都不动，顺带让白底的节点卡、边标签底、缩放控件从图板上浮起来。
+   *
+   * 画布上唯一的弱化文字是空态那行 12px：它随之下到 4.63:1（浅色档取宿主调色板最浅的
+   * 一档 #f9fafb），仍然合格；再深一档（bluish-60 #f5f6f7）会掉到 4.47:1，为了分栏把
+   * 可读性赔进去不划算。深色档沿用 `bg-base`（#151517，与改动前完全一致）：深色下面板
+   * （#232324）本来就与画布分得开，而画布再暗也没有更低的一档可用了。
+   */
+  --wl-surface-board: light-dark(
+    var(--dsw-static-neutral-bluish-50, #f9fafb),
+    var(--dsw-alias-bg-base, #151517)
+  );
   --wl-border: var(--dsw-alias-border-l1, #e4e4e7);
   --wl-border-strong: var(--dsw-alias-border-l2, #d4d4d8);
   --wl-text: var(--dsw-alias-label-primary, #18181b);
@@ -35,6 +56,14 @@
    * 两档都仍是"比正文弱"的一级，层级没丢。
    */
   --wl-text-mute: light-dark(#6b7280, #9298a0);
+  /*
+   * 普通连线的颜色。**不能**用边框档（`--wl-border-strong`）：那是 4%~12% 的透明黑/白，
+   * 合成到画布底色上浅色只有 1.25:1、深色 1.40:1，而边是这张图唯一的拓扑信息
+   * （WCAG 1.4.11 对"理解内容所必需的图形对象"要求 3:1）。
+   * 取次级正文色：浅 #61666b on #ffffff = 5.80:1、深 #cfd3d6 on #151517 = 12.11:1。
+   * 比它更淡的第三档（浅 3.70:1）虽然也过线，但 20 多个节点的密集图里会糊成一片。
+   */
+  --wl-edge: var(--wl-text-dim);
   --wl-accent: var(--dsw-alias-brand-primary, #2f6feb);
   --wl-accent-soft: var(--dsw-alias-interactive-bg-hover-accent, #e8f0fe);
   --wl-hover: var(--dsw-alias-interactive-bg-hover, rgb(0 0 0 / 4%));
@@ -106,12 +135,47 @@
 
 .bar {
   display: flex;
-  flex-wrap: wrap;
+  /*
+   * **不折行**：折行会让顶栏从 41px 长到 69~74px，吃掉的正好是画布的纵向预算
+   * （980 宽时两条工具条各折一行、净损失 62px，而那一档画布本来就只剩 442px）。
+   * 装不下就横向滚。
+   */
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  /* 细滚动条：默认宽度的横向滚动条会在窄窗下再吃掉十几像素的画布高度。 */
+  scrollbar-width: thin;
   align-items: center;
   gap: 6px;
   padding: 6px 10px;
   border-bottom: 1px solid var(--wl-border);
   background: var(--wl-surface);
+  flex: 0 0 auto;
+}
+
+/*
+ * 状态徽章钉在右端。
+ *
+ * 顶栏改成横向滚动之后，它在最右边、会被滚出视野——而"有没有未保存的改动"是这一栏里
+ * 唯一需要一直看得见的东西。`position: sticky` 让它在滚动容器里固定住；
+ * 底色由 `ui.status` 自带（不透明），所以滚过去的按钮不会从它底下透出来。
+ */
+.bar > :global([data-testid="wl-status"]) {
+  position: sticky;
+  right: 0;
+  flex: 0 0 auto;
+}
+
+/*
+ * 工具条里的每一项都**不许被压扁**（间隔 `.barSpacer` 与画布工具条的滚动容器除外）。
+ *
+ * 中文标签在任何两个字之间都能断行，于是 flex 默认的 `min-width: auto` 只值**一个字**的
+ * 宽度：不写这条的话，`nowrap` 之下按钮会被压成一根竖条、文字在按钮里换行——"折行吃画布
+ * 高度"照旧，只是从"整条折行"变成"每个按钮自己折行"。定死自然宽度之后，装不下就真的
+ * 横向滚（配合下面的 `overflow-x: auto`）。
+ */
+.bar > :not(.barSpacer),
+.canvasBar > :not(.canvasBarScroll):not(.barSpacer),
+.canvasBarScroll > * {
   flex: 0 0 auto;
 }
 
@@ -199,12 +263,20 @@
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  background: var(--wl-bg);
+  /* 图板比面板低一档：画布的边界、以及白底的节点卡/边标签底/缩放控件才浮得出来。 */
+  background: var(--wl-surface-board);
 }
 
 .canvasBar {
   display: flex;
-  flex-wrap: wrap;
+  /*
+   * 同上（顶栏那条）：折行 = 直接吃画布高度，而且「适应视图」这个修复手段本身在 980
+   * 会被折到第二行藏起来。
+   *
+   * **滚动放在里面那一层**（`.canvasBarScroll`），不在这一层：这一层还是快捷键说明浮层的
+   * 定位上下文，而 `overflow` 一旦不是 `visible`，浮层会被裁在这条工具条里。
+   */
+  flex-wrap: nowrap;
   align-items: center;
   gap: 6px;
   padding: 6px 10px;
@@ -212,6 +284,23 @@
   flex: 0 0 auto;
   /* 快捷键说明挂在它的下沿（绝对定位），所以它是定位上下文。 */
   position: relative;
+}
+
+/*
+ * 画布工具条里"会横向滚"的那一半（撤销/重做/重排/适应/删除）。
+ *
+ * 它自己横向滚，右侧的溢出提示、「?」与状态位不跟着滚（`min-width: 0` 让它能被压窄，
+ * 窄窗下按钮区缩到可用宽度并出滚动条，而不是把整条工具条折成两行）。
+ */
+.canvasBarScroll {
+  display: flex;
+  flex: 0 1 auto;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  /* 细滚动条：默认宽度的横向滚动条会在窄窗下再吃掉十几像素的画布高度。 */
+  scrollbar-width: thin;
 }
 
 /*
@@ -393,16 +482,18 @@
 
 /* 边：回边虚线、fail 边用危险色 —— 与计划里的语义对齐 */
 .canvas :global(.react-flow__edge-path) {
-  stroke: var(--wl-border-strong);
+  stroke: var(--wl-edge);
   stroke-width: 1.5;
 }
 
 /*
- * 边的三种语气。
+ * 边的三种语气（**可叠加**：fail 边同时是回边时虚线 + 危险色都要在）。
  *
- * `.edge` / `.edgeBack` / `.edgeFail` 是 `CanvasView.tsx` 挂在 React Flow 边上的
- * `className`（互斥三选一）。**v1 里这三个类被引用却从没被定义过**——于是
- * 「回边虚线、fail 边用危险色」这句注释一直只是注释，样式从未生效。这里补上。
+ * `.edge` 是每一条边都有的底（普通连线的颜色，见 `--wl-edge` 的注释），
+ * `.edgeBack` 只加虚线、`.edgeFail` 只换颜色——两条规则管的是不同属性，叠着用不会互相覆盖。
+ *
+ * **v1 里这三个类被引用却从没被定义过**——于是「回边虚线、fail 边用危险色」
+ * 那句注释一直只是注释，样式从未生效。这里补上。
  *
  * 必须写成 `.edgeX :global(.react-flow__edge-path)` 的后代选择器：`className` 落在
  * 边的 `<g>` 上，而 `stroke` 是画在里面的 `<path>` 上的，写在 `<g>` 上不生效。
@@ -410,7 +501,7 @@
  * 所以这三条必须排在它后面。
  */
 .edge :global(.react-flow__edge-path) {
-  stroke: var(--wl-border-strong);
+  stroke: var(--wl-edge);
 }
 
 .edgeBack :global(.react-flow__edge-path) {

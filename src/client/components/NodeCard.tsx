@@ -56,7 +56,7 @@ export function WorkflowNodeCard({
     data.state === 'invalid' ? css.nodeInvalid : data.state === 'warn' ? css.nodeWarn : css.nodeOk
   return (
     <div className={[css.node, tone, selected === true ? css.nodeSelected : ''].join(' ')}>
-      <Handle type="target" position={Position.Left} />
+      <Handle type="target" position={Position.Left} className={css.handle} />
       <div
         className={css.cardActions}
         data-testid={`wl-node-actions-${id}`}
@@ -94,18 +94,24 @@ export function WorkflowNodeCard({
           ×
         </button>
       </div>
-      <div className={css.nodeTitle}>{data.label}</div>
+      {/*
+        卡片宽 132–220px、还要按画布缩放渲染，长标签必然截断；`title` 是全文的零成本兜底，
+        少了它，两个同前缀的长标签在画布上就分不出来（只能点开去右栏确认点对了没有）。
+      */}
+      <div className={css.nodeTitle} title={data.label}>
+        {data.label}
+      </div>
       <div className={css.nodeMeta}>
         ↑{data.upstream} ↓{data.downstream}
       </div>
       {data.output === undefined ? null : (
-        <div className={css.nodeOut}>
+        <div className={css.nodeOut} title={data.output === false ? 'false' : data.output}>
           {data.output === false ? <code>false</code> : data.output}
         </div>
       )}
       {data.state === 'invalid' && <span className={ui.badge}>{data.invalidText}</span>}
       {data.unplaced && <span className={css.badgeUnplaced}>{data.unplacedText}</span>}
-      <Handle type="source" position={Position.Right} />
+      <Handle type="source" position={Position.Right} className={css.handle} />
     </div>
   )
 }

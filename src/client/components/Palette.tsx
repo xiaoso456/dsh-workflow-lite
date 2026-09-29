@@ -358,9 +358,15 @@ export function Palette(props: PaletteProps): React.JSX.Element {
     sectionKey('disk'),
     ...props.templates.map((group) => groupKey('disk', group.group)),
   ]
-  const allCollapsed = everyGroupKey.every((key) => props.collapsed.includes(key))
+  /*
+   * 「全都折起来了」这件事只在**没在筛选**时才可能成立：筛选态下 `isGroupExpanded`
+   * 一律返回 true（命中的组必须当场可见）。原来不看 `filtering`，于是筛出结果时两个
+   * 分节明明都是 ▾、按钮却写着「全部展开」——文案在陈述一件与眼前事实相反的事。
+   */
+  const allCollapsed = !filtering && everyGroupKey.every((key) => props.collapsed.includes(key))
 
   const dragGhostRef = useRef<HTMLDivElement | null>(null)
+  const blankInputRef = useRef<HTMLInputElement | null>(null)
   const [draft, setDraft] = useState('')
   const [nameError, setNameError] = useState<string | null>(null)
 
@@ -401,6 +407,11 @@ export function Palette(props: PaletteProps): React.JSX.Element {
 
   const presetItem = (preset: NodePreset): React.JSX.Element => {
     const label = t(preset.labelKey)
+    /*
+     * 条目同时是可拖源和按钮：`title` 补全「拖或点」，`aria-label` 再把可读名与
+     * 机器 id 一起念出来（`⠿` 是 aria-hidden，读屏原先只能听到"侦察scan 按钮"）。
+     */
+    const hint = `${label}（${preset.id}），${t('palette.addHint')}`
     return (
       <button
         type="button"
@@ -409,6 +420,7 @@ export function Palette(props: PaletteProps): React.JSX.Element {
         draggable={!disabled}
         disabled={disabled}
         title={`${label}，${t('palette.dragHint')}`}
+        aria-label={hint}
         onClick={() => props.onAddPreset(preset)}
         onDragStart={(event) => startDrag(event, { kind: 'preset', id: preset.id }, label)}
       >
@@ -435,6 +447,7 @@ export function Palette(props: PaletteProps): React.JSX.Element {
         draggable={!blocked}
         disabled={blocked}
         title={hint}
+        aria-label={invalid ? title : `${title}，${t('palette.addHint')}`}
         onClick={() => props.onAddTemplate(entry)}
         onDragStart={(event) =>
           startDrag(event, { kind: 'template', name: entry.name }, entry.name)
@@ -454,65 +467,102 @@ export function Palette(props: PaletteProps): React.JSX.Element {
       <div className={ui.panelHead}>
         <span>{t('palette.title')}</span>
       </div>
+      {/*
+        条目能拖也能点、连线要从卡片侧面的圆点拖出——这两件事原先只写在条目的 `title` 里，
+        触屏与键盘用户永远看不到（`title` 对它们不弹）。做成常驻小字：宽窗一行放得下两句，
+        窄窗自行折行。
+      */}
+      <p className={css.panelHint} data-testid="wl-palette-hint">
+        <span>{t('palette.addHint')}</span>
+        <span>{t('palette.connectHint')}</span>
+      </p>
 
-      <div className={css.filterRow}>
-        <input
-          type="text"
-          className={ui.input}
-          data-testid="wl-library-filter"
-          value={props.filter}
-          placeholder={t('palette.filter')}
-          aria-label={t('palette.filter')}
-          onChange={(event) => props.onFilter(event.target.value)}
-        />
-        {/*
-          一个按钮两种文案：全都收起了就提示"能展开"，否则提示"能收起"。
-          比并排两个按钮省一半横向空间，而且当下该做哪件事永远是它自己。
-          **常驻**：折叠对象里有那两个分节（内置那一节也有），永远有东西可收，
-          不再按"有没有自定义组"决定渲不渲染。
-        */}
-        <button
-          type="button"
-          className={[ui.button, ui.buttonGhost, css.collapseAll].join(' ')}
-          data-testid="wl-collapse-all"
-          onClick={() => props.onSetCollapsed(allCollapsed ? [] : everyGroupKey)}
-        >
-          {t(allCollapsed ? 'palette.expandAll' : 'palette.collapseAll')}
-        </button>
-      </div>
+      {/*
+        筛选行与「节点 id 新建」行的共同外壳：宽窗下两行各占一行（普通块级容器，
+        不改变任何既有布局），窄窗下并成一行，见样式文件末尾的媒体查询。
+      */}
+      <div className={css.shell}>
+        <div className={css.filterRow}>
+          <input
+            type="text"
+            className={ui.input}
+            data-testid="wl-library-filter"
+            value={props.filter}
+            placeholder={t('palette.filter')}
+            aria-label={t('palette.filter')}
+            onChange={(event) => props.onFilter(event.target.value)}
+          />
+          {/*
+            一个按钮两种文案：全都收起了就提示"能展开"，否则提示"能收起"。
+            比并排两个按钮省一半横向空间，而且当下该做哪件事永远是它自己。
+            **常驻**：折叠对象里有那两个分节（内置那一节也有），永远有东西可收，
+            不再按"有没有自定义组"决定渲不渲染。
 
-      <div className={css.newNode}>
-        <input
-          type="text"
-          className={ui.input}
-          data-testid="wl-new-node-input"
-          value={draft}
-          placeholder={t('palette.newPlaceholder')}
-          aria-label={t('palette.newBlank')}
-          aria-invalid={nameError !== null}
-          disabled={disabled}
-          onChange={(event) => {
-            setDraft(event.target.value)
-            // 边打边把上一次的红字撤掉：留着它就是在骂一个已经改过的输入。
-            if (nameError !== null) setNameError(null)
-          }}
-          onKeyDown={(event) => {
-            if (event.key !== 'Enter') return
-            event.preventDefault()
-            submitBlank()
-          }}
-        />
-        <button
-          type="button"
-          className={[ui.button, ui.buttonPrimary].join(' ')}
-          data-testid="wl-new-node-submit"
-          disabled={disabled || draft.trim() === ''}
-          aria-label={t('palette.newBlank')}
-          title={t('palette.newBlank')}
-          onClick={submitBlank}
-        >
-          ＋
-        </button>
+            筛选态下它没有可做的事：命中的组必须当场可见，`isGroupExpanded` 在
+            `filtering` 时一律回 true。既然按了也不会有任何变化，就灰掉并用 title 说清。
+          */}
+          <button
+            type="button"
+            className={[ui.button, ui.buttonGhost, css.collapseAll].join(' ')}
+            data-testid="wl-collapse-all"
+            disabled={filtering}
+            title={
+              filtering
+                ? t('palette.collapseFiltering')
+                : t(allCollapsed ? 'palette.expandAll' : 'palette.collapseAll')
+            }
+            onClick={() => props.onSetCollapsed(allCollapsed ? [] : everyGroupKey)}
+          >
+            {t(allCollapsed ? 'palette.expandAll' : 'palette.collapseAll')}
+          </button>
+        </div>
+
+        <div className={css.newNode}>
+          <input
+            type="text"
+            className={ui.input}
+            data-testid="wl-new-node-input"
+            ref={blankInputRef}
+            value={draft}
+            placeholder={t('palette.newPlaceholder')}
+            aria-label={t('palette.newBlank')}
+            aria-invalid={nameError !== null}
+            disabled={disabled}
+            onFocus={() => {
+              /*
+                空图那枚 CTA（画布正中唯一能点的东西）点下去只做一件事：把焦点扔进这里。
+                窄窗下节点库与画布不在同一屏，焦点飞进来而这一格还在视野外，
+                用户看到的仍然是"什么都没发生"，所以把这一格滚进视野。
+                jsdom 里没有 `scrollIntoView`，先判一下再调。
+              */
+              const input = blankInputRef.current
+              if (input !== null && typeof input.scrollIntoView === 'function') {
+                input.scrollIntoView({ block: 'nearest' })
+              }
+            }}
+            onChange={(event) => {
+              setDraft(event.target.value)
+              // 边打边把上一次的红字撤掉：留着它就是在骂一个已经改过的输入。
+              if (nameError !== null) setNameError(null)
+            }}
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter') return
+              event.preventDefault()
+              submitBlank()
+            }}
+          />
+          <button
+            type="button"
+            className={[ui.button, ui.buttonPrimary].join(' ')}
+            data-testid="wl-new-node-submit"
+            disabled={disabled || draft.trim() === ''}
+            aria-label={t('palette.newBlank')}
+            title={t('palette.newBlank')}
+            onClick={submitBlank}
+          >
+            ＋
+          </button>
+        </div>
       </div>
       {nameError !== null && (
         <p className={[ui.problem, css.formProblem].join(' ')} role="alert">

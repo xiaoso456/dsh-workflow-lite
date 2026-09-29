@@ -154,17 +154,28 @@
 }
 
 /*
- * 标题那一栏永远不折行。`panelHead` 是 `space-between` 的两栏，副文案一长就把标题
- * 挤成两行——实测出现过「节点库」被截成「节点 / 库」、中间还插着副文案的一行，完全读不出来。
- * 要缩就缩副文案自己。
+ * 标题不折行，但**可缩**。标题栏里放用户内容的那一处（节点面板的显示名）长度不设上限，
+ * 48 字的标签以前靠 `flex: 0 0 auto` 撑穿整栏：右栏 314px 被撑到 576px、多出一条横滚条，
+ * 右边的副文案被压成 0 宽 132 高，一个字都看不见。现在让标题自己让位（超出打省略号）。
+ *
+ * 不折行的理由不变：`panelHead` 是 `space-between` 的两栏，标题一折行就变成
+ * 「节点 / 库」中间还插着副文案的一行，完全读不出来。
  */
 .panelHead > span:first-child {
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.panelHead > span:last-child {
-  min-width: 0;
+/*
+ * 副文案（「上游 / 下游 0 / 1」这类读数）拿自然宽度：被压窄就等于没写。
+ * `:not(:first-child)` 留给只有一个 span 的面板头（整图概览 / 边编辑 / 编译预览），
+ * 那种标题仍按上面的标题规则可缩。
+ */
+.panelHead > span:last-child:not(:first-child) {
+  flex: 0 0 auto;
 }
 
 .muted {
@@ -232,6 +243,12 @@
   background: var(--wl-bg);
 }
 
+/*
+ * `white-space: nowrap` 是补的：中文标签任意两字之间都可断行，`min-width:auto` 只值
+ * 一个字宽，于是 ≤1100 时这两个页签会被折成两行（实测 23px → 40px 高），
+ * 把「引用路径 / 内联全文」这个二选一变成要逐字拼读。
+ * `.tab` 与 `.tabActive` 是**互斥**应用的（调用处是三元），所以两条都要写。
+ */
 .tab {
   border: none;
   border-radius: calc(var(--wl-radius-control) - 2px);
@@ -240,6 +257,7 @@
   font: inherit;
   padding: 2px 9px;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .tab:hover {
@@ -249,6 +267,7 @@
 .tabActive {
   background: var(--wl-accent);
   color: var(--dsw-alias-label-primary-foreground, #ffffff);
+  white-space: nowrap;
 }
 
 .tabActive:hover {

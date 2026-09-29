@@ -72,6 +72,39 @@
   background: var(--wl-bg);
 }
 
+/*
+ * 连接点（React Flow 的 `Handle`）。库默认给的是 6×6 的深蓝小点（芯 `#1a192b`），
+ * 暗色主题下与卡片底几乎同色（约 1.06:1），卡片再缩到 0.7 倍时屏幕上只剩 4px 左右；
+ * 而它是"从卡片侧面拖出连线"唯一的手柄，本该是这张卡上最先被认出来的东西。
+ *
+ * 视觉尺寸放大到 10px 并换成主题强调色：浅色下强调色对白底 4.6:1，
+ * 暗色下强调色本身是近白色、对暗底远高于 3:1，两套主题都立得住。
+ * 命中区再用 `::after` 撑到 24px，免得缩小后只剩几像素、点不准也拖不住。
+ * `::after` 挂在 handle 本身上：它是绝对定位元素，定位上下文现成。
+ *
+ * 悬停只加光环、不做 `transform: scale`：React Flow 靠 `translate(0, -50%)`
+ * 把圆点垂直居中，覆盖 `transform` 会让它整块跳位。
+ */
+.node .handle {
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--wl-bg);
+  background: var(--wl-accent);
+}
+
+.node .handle::after {
+  content: "";
+  position: absolute;
+  inset: -7px;
+  border-radius: 50%;
+}
+
+.node:hover .handle,
+.node .handle:hover {
+  box-shadow: 0 0 0 3px var(--wl-accent-soft);
+  cursor: crosshair;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .cardActions {
     transition: none;

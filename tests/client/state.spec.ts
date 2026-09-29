@@ -12,6 +12,8 @@ import {
   initialCanvasState,
   isTypingTarget,
   LAYOUT_COLUMN_W,
+  LAYOUT_COLUMNS,
+  LAYOUT_ORIGIN,
   LAYOUT_ROW_H,
   layoutAll,
   layoutMissing,
@@ -23,7 +25,7 @@ import {
   withoutNode,
 } from '../../src/client/core/state.ts'
 import { decideSave, statusKey } from '../../src/client/core/sync.ts'
-import type { Point, WorkflowDocument } from '../../src/shared/types.ts'
+import type { ExecutionBatch, Point, WorkflowDocument } from '../../src/shared/types.ts'
 
 function sampleDocument(): WorkflowDocument {
   return {
@@ -505,13 +507,60 @@ describe('layoutAll / layoutMissing', () => {
     expect([...second]).toEqual([...first])
   })
 
-  it('列 = 批次序：靠后的批次 x 更大', () => {
+  it('同一排里：靠后的批次 x 更大', () => {
     const placed = layoutAll(sampleDocument(), batches)
     const scan = placed.get('scan')
     const report = placed.get('report')
     expect(scan).toBeDefined()
     expect(report).toBeDefined()
     expect((report?.x ?? 0) > (scan?.x ?? 0)).toBe(true)
+  })
+
+  /** 一条 n0 → n1 → … 的长链：每个节点各自一个批次（最坏情形）。 */
+  function chainOf(count: number): {
+    document: WorkflowDocument
+    batches: ExecutionBatch[]
+  } {
+    const ids = Array.from({ length: count }, (_value, index) => `n${index}`)
+    return {
+      document: {
+        nodes: ids.map((id) => ({
+          id,
+          type: 'wfNode',
+          position: { x: 0, y: 0 },
+          data: {},
+        })),
+        edges: [],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+      batches: ids.map((id) => ({ nodes: [id] })),
+    }
+  }
+
+  /*
+   * 折行的回归：一条 24 长的链（24 个批次）不折行就是 24 列 1 行，
+   * 单排跨度 23 * 260 = 5980 单位，任何画布都装不下。下面两条把"排满 LAYOUT_COLUMNS
+   * 列就换行"钉住，改回单排就红。
+   */
+  it('排满 LAYOUT_COLUMNS 列后折到下一排', () => {
+    const { document, batches: chain } = chainOf(LAYOUT_COLUMNS + 1)
+    const placed = layoutAll(document, chain)
+    expect(placed.get('n0')).toEqual(LAYOUT_ORIGIN)
+    expect(placed.get(`n${LAYOUT_COLUMNS}`)).toEqual({
+      x: LAYOUT_ORIGIN.x,
+      y: LAYOUT_ORIGIN.y + LAYOUT_ROW_H,
+    })
+  })
+
+  it('24 个批次的链不再是一整排', () => {
+    const { document, batches: chain } = chainOf(24)
+    const placed = layoutAll(document, chain)
+    const xs = [...placed.values()].map((point) => point.x)
+    const ys = [...placed.values()].map((point) => point.y)
+    const width = Math.max(...xs) - Math.min(...xs)
+    // 折行之后宽度被 LAYOUT_COLUMNS 列封顶，而高度一定不止一排。
+    expect(width).toBe((LAYOUT_COLUMNS - 1) * LAYOUT_COLUMN_W)
+    expect(new Set(ys).size).toBeGreaterThan(1)
   })
 
   it('空图不摆位', () => {

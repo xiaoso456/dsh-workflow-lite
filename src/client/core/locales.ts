@@ -150,6 +150,9 @@ export const zh = {
   'palette.dragHint': '拖到画布放置；点击则放在视野中心',
   'palette.expandAll': '全部展开',
   'palette.collapseAll': '全部收起',
+  'palette.addHint': '拖进画布，或直接点条目',
+  'palette.connectHint': '从节点右侧圆点拖到另一个节点即可连线',
+  'palette.collapseFiltering': '筛选时一律展开，清空筛选后再收起',
 
   // 画布空态与拖放
   'canvas.emptyTitle': '这张图还没有节点',
@@ -338,6 +341,9 @@ export const en: Record<LocaleKey, string> = {
   'palette.dragHint': 'Drag onto the canvas to place; click to drop it in the middle',
   'palette.expandAll': 'Expand all',
   'palette.collapseAll': 'Collapse all',
+  'palette.addHint': 'Drag it in, or click the entry',
+  'palette.connectHint': 'Drag from the dot on a node edge onto another node to connect',
+  'palette.collapseFiltering': 'Filtering keeps every group open; clear the filter to collapse',
 
   'canvas.emptyTitle': 'This graph has no nodes yet',
   'canvas.emptyBody':
