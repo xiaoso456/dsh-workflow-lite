@@ -1230,104 +1230,119 @@ const main = async () => {
     )
 
     /*
-     * 19) 自定义 node：分组折叠 + localStorage 持久化（刷新后仍折叠）
+     * 19) 自定义 node：**平铺** + 分节折叠持久化
      *
-     * 内置那一节现在是**平铺**的、没有组可折，所以折叠这件事整体挪到**自定义 node** 上：
-     * 先往数据目录的 `templates/nodes/` 造四个模板（`exec` 前缀三个 ⇒ 成组；`solo` 落单 ⇒ 其他），
+     * 先往数据目录的 `templates/nodes/` 造四个模板（`exec-` 前缀三个 + 落单的 `solo`），
      * 再刷新页面让节点库重新拉一次 `graph/templates`。
-     *
-     * 组键仍是 `<来源>:<组名>`（`groupKey()` 的契约），但组名这次是**前缀原文** `exec`
-     * （不再映射到内置那五个角色名），所以钩子是 `wl-group-toggle-disk:exec`；
-     * 落单的进「其他」，钩子是 `wl-group-toggle-disk:`。
      */
     await writeTemplateFixtures()
     await bootCanvas(session, NAME)
-    const groupToggles = await waitFor(
+    /*
+     * **二级分类已经被去掉了**（用户要求：「不需要有二级分类节点」）：模板直接平铺在
+     * 「自定义 node」下面，不再有 `exec` / `其他` 这一层。
+     *
+     * 所以这一步断言两件事：四个模板条目都平铺出来了，而且**一个二级分组钩子都不存在**。
+     * 后者才是这次改动的回归网——分组层要是哪天回来，这里立刻红。
+     */
+    const flatTemplates = await waitFor(
       session,
       `(() => {
-         const ids = [...document.querySelectorAll('[data-testid^="wl-group-toggle-"]')]
+         const items = [...document.querySelectorAll('[data-testid^="wl-item-template-"]')]
            .map((el) => el.getAttribute('data-testid'));
-         return ids.includes('wl-group-toggle-disk:exec') && ids.includes('wl-group-toggle-disk:')
-           ? ids
-           : 0;
+         return items.length === 4 ? items : 0;
        })()`,
       { timeoutMs: 20_000 },
     )
     check(
-      groupToggles.includes('wl-group-toggle-disk:exec'),
-      `自造模板后应出现「exec」组（组键 = 前缀原文），实得 ${JSON.stringify(groupToggles)}`,
+      flatTemplates.length === 4,
+      `自造 4 个模板后应平铺出 4 个条目，实得 ${JSON.stringify(flatTemplates)}`,
+    )
+    const groupToggles = await session.evaluate(
+      `[...document.querySelectorAll('[data-testid^="wl-group-toggle-"]')]
+         .map((el) => el.getAttribute('data-testid'))`,
     )
     check(
-      groupToggles.includes('wl-group-toggle-disk:'),
-      `落单的模板应进「其他」（组键 disk:），实得 ${JSON.stringify(groupToggles)}`,
+      groupToggles.length === 0,
+      `节点库不该再有任何二级分组钩子（用户要求去掉二级分类），实得 ${JSON.stringify(groupToggles)}`,
     )
-    check(
-      groupToggles.every((id) => !id.startsWith('wl-group-toggle-builtin')),
-      `内置 node 不该有折叠钩子（平铺无组），实得 ${JSON.stringify(groupToggles)}`,
+    console.log(
+      `  19a 自造模板平铺 + 无二级分组 ok（条目 ${flatTemplates.length} 个，分组钩子 ${groupToggles.length} 个）`,
     )
-    console.log(`  19a 自造模板 + 刷新节点库 ok（实际钩子 ${JSON.stringify(groupToggles)}）`)
 
-    const execToggle = '[data-testid="wl-group-toggle-disk:exec"]'
-    const execItem = '[data-testid="wl-item-template-exec-code"]'
-    const execExpanded = `document.querySelector('${execToggle}')?.getAttribute('aria-expanded')`
+    /*
+     * 19) 「自定义 node」分节折叠 + 持久化
+     *
+     * 原来这一步测的是**二级分组**（`exec` / `其他`）的折叠与持久化。用户要求去掉二级分类
+     * 之后那一层没有主体了，所以把同样的语义挪到**分节**上：它仍然是"折叠表要跨刷新活下来"
+     * 的回归网，而这件事第 5a 步只在「内置 node」上验过，自定义那一半此前没有覆盖。
+     */
+    const diskToggle = '[data-testid="wl-section-toggle-disk"]'
+    const diskItem = '[data-testid="wl-item-template-exec-code"]'
+    const diskExpanded = `document.querySelector('${diskToggle}')?.getAttribute('aria-expanded')`
     // 归一到「展开」：上一次跑留下的偏好可能就是折叠的，那不是产品的问题，但结论必须从干净状态出。
     for (let attempt = 0; attempt < 2; attempt += 1) {
-      if ((await session.evaluate(execExpanded)) === 'true') break
-      await session.evaluate(clickTestIdExpr('wl-group-toggle-disk:exec'))
+      if ((await session.evaluate(diskExpanded)) === 'true') break
+      await session.evaluate(clickTestIdExpr('wl-section-toggle-disk'))
       await new Promise((resolve) => setTimeout(resolve, 250))
     }
-    check((await session.evaluate(execExpanded)) === 'true', '折叠测试前应能先把 exec 组展开')
-    await session.evaluate(clickTestIdExpr('wl-group-toggle-disk:exec'))
-    const collapsed = await waitFor(
+    check(
+      (await session.evaluate(diskExpanded)) === 'true',
+      '折叠测试前应能先把「自定义 node」分节展开',
+    )
+    await session.evaluate(clickTestIdExpr('wl-section-toggle-disk'))
+    const diskCollapsed = await waitFor(
       session,
       `(() => {
-         const toggle = document.querySelector('${execToggle}');
-         const item = document.querySelector('${execItem}');
+         const toggle = document.querySelector('${diskToggle}');
+         const item = document.querySelector('${diskItem}');
          return toggle && toggle.getAttribute('aria-expanded') === 'false' && item === null
            ? { expanded: 'false', itemGone: true }
            : 0;
        })()`,
     )
-    check(collapsed.itemGone === true, '折叠后该组成员应从 DOM 消失（不能只是 hidden）')
+    check(
+      diskCollapsed.itemGone === true,
+      '折叠后该分节的模板条目应从 DOM 消失（不能只是 hidden）',
+    )
     // 刷新页面：canvas 重新挂载，折叠状态从 localStorage 读回来。
     await bootCanvas(session, NAME)
     // 刷新之后**等收敛**再读：`bootCanvas` 只保证图渲染出来了，节点库那一栏可能还是上一帧。
-    const afterReload = await readSettled(
+    const diskAfterReload = await readSettled(
       session,
       `(() => {
-         const toggle = document.querySelector('${execToggle}');
+         const toggle = document.querySelector('${diskToggle}');
          return {
            expanded: toggle ? toggle.getAttribute('aria-expanded') : null,
-           itemGone: document.querySelector('${execItem}') === null,
+           itemGone: document.querySelector('${diskItem}') === null,
            stored: localStorage.getItem('workflow-lite.palette.collapsed'),
          };
        })()`,
       (value) => value !== null && value.expanded === 'false' && value.itemGone === true,
     )
     check(
-      afterReload.expanded === 'false' && afterReload.itemGone === true,
-      `刷新后 exec 组应仍是折叠的（localStorage 持久化），实得 ${JSON.stringify(afterReload)}`,
+      diskAfterReload.expanded === 'false' && diskAfterReload.itemGone === true,
+      `刷新后「自定义 node」应仍是折叠的（localStorage 持久化），实得 ${JSON.stringify(diskAfterReload)}`,
     )
-    await session.evaluate(clickTestIdExpr('wl-group-toggle-disk:exec'))
-    await waitFor(session, `document.querySelector('${execItem}') !== null`, {
+    await session.evaluate(clickTestIdExpr('wl-section-toggle-disk'))
+    await waitFor(session, `document.querySelector('${diskItem}') !== null`, {
       timeoutMs: 5_000,
     })
-    console.log(`  19 自定义节点分组折叠 + 持久化 ok（localStorage=${afterReload.stored}）`)
+    console.log(`  19 自定义 node 分节折叠 + 持久化 ok（localStorage=${diskAfterReload.stored}）`)
 
     /*
      * 20) 「全部收起 / 全部展开」
      *
-     * 按钮**常驻**（不再按"有没有自定义组"决定渲不渲染），一次把**两个分节 + 所有自定义节点组**
-     * 都收起/展开。所以这里两边一起断言：
+     * 按钮**常驻**，一次把**两个分节**都收起/展开。所以这里两边一起断言：
      * 收起时两个分节头的 `aria-expanded` 都是 false、六条内置与全部自定义条目都不在 DOM；
-     * 展开时两个分节头与两个组的 `aria-expanded` 都回到 true、条目都回来。
+     * 展开时两个分节头都回到 true、条目都回来。
      *
-     * 收起那一刻自定义组的组头自己也随分节一起从 DOM 消失（分节体不渲染），所以"组也被收起了"
-     * 这件事靠 `localStorage` 里那份折叠表证明：四个键（两个分节 + 两个组）一个都不能少。
+     * 折叠表里只该有**两个分节键**：二级分类去掉之后，`disk:exec` / `disk:` 这类组键不再产生，
+     * 这里顺带断言"一个分组钩子都不存在"（分组层要是回来，立刻红）。
      */
     const diskToggleSel = '[data-testid^="wl-group-toggle-disk"]'
     const sectionToggleSel = '[data-testid^="wl-section-toggle-"]'
-    const collapseKeys = ['section:builtin', 'section:disk', 'disk:exec', 'disk:']
+    /* 二级分类去掉之后，折叠表只剩两个分节键（`disk:exec` / `disk:` 这类不再产生）。 */
+    const collapseKeys = ['section:builtin', 'section:disk']
     await session.evaluate(clickTestIdExpr('wl-collapse-all'))
     const allCollapsed = await waitFor(
       session,
@@ -1362,7 +1377,8 @@ const main = async () => {
       `(() => {
          const sections = [...document.querySelectorAll('${sectionToggleSel}')];
          const toggles = [...document.querySelectorAll('${diskToggleSel}')];
-         if (sections.length !== 2 || toggles.length !== 2) return 0;
+         /* 二级分类去掉之后不该再有任何分组钩子；两个分节 + 0 个组才是对的。 */
+         if (sections.length !== 2 || toggles.length !== 0) return 0;
          const expandedSections = sections.filter((t) => t.getAttribute('aria-expanded') === 'true').length;
          const expanded = toggles.filter((t) => t.getAttribute('aria-expanded') === 'true').length;
          const templates = document.querySelectorAll('[data-testid^="wl-item-template-"]').length;
@@ -1383,7 +1399,7 @@ const main = async () => {
       `全部展开后按钮文案应回到「全部收起」，实得 ${JSON.stringify(allExpanded.label)}`,
     )
     console.log(
-      `  20 全部收起 / 全部展开 ok（${allCollapsed.sections} 个分节 + 2 个自定义组一起收：收起时内置 ${allCollapsed.builtin} 项、自定义 ${allCollapsed.templates} 项都不在 DOM，折叠表 ${allCollapsed.stored}；展开后回到内置 ${allExpanded.builtin} 项 + 自定义 ${allExpanded.items} 项）`,
+      `  20 全部收起 / 全部展开 ok（${allCollapsed.sections} 个分节一起收：收起时内置 ${allCollapsed.builtin} 项、自定义 ${allCollapsed.templates} 项都不在 DOM、分组钩子 ${allCollapsed.groups} 个，折叠表 ${allCollapsed.stored}；展开后回到内置 ${allExpanded.builtin} 项 + 自定义 ${allExpanded.items} 项）`,
     )
 
     /*
@@ -1989,8 +2005,7 @@ const main = async () => {
            const edgesLayer = document.querySelector('.react-flow__edges');
            const paneBox = pane ? pane.getBoundingClientRect() : null;
            return {
-             graph: sel ? sel.value : null,
-             options: sel ? [...sel.options].map((option) => option.value) : [],
+             graph: trigger ? (trigger.textContent || '').trim() : null,
              edges: groups.length,
              edgeIds: groups.map((group) => group.getAttribute('data-id')),
              nodes: [...document.querySelectorAll('.react-flow__node')].map((node) => node.getAttribute('data-id')),

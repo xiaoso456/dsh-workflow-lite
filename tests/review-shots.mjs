@@ -226,6 +226,11 @@ const PROBE = `(() => {
      * 按 color 比等于永远拿默认黑去比，下一轮把边标签改淡也不会报。认 svg 祖先再取 fill。
      */
     const inSvg = el.closest('svg') !== null
+    /*
+     * 纯装饰跳过：aria-hidden 的文字语义就是"不承载信息"，令牌注释里也写明 faint 只给这种。
+     * 不跳过的话，右栏每张图都会稳定刷几笔"装饰箭头对比度不足"的噪声。
+     */
+    if (el.closest('[aria-hidden="true"]') !== null) continue
     const fgRaw = inSvg ? getComputedStyle(el).fill : cs.color
     const fg0 = parse(fgRaw)
     if (!fg0) continue
