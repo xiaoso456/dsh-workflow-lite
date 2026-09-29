@@ -2,9 +2,8 @@
  * dsh-workflow-lite — 字面约束与默认值。
  *
  * 这里放**格式契约里写死的字面量**（字符集、长度上限、键序之外的那些数）。
- * 随部署变化的取值**不在这里**——那些一律是 Config 字段（见 `shared/config.ts` 与设计文档 §9）。
+ * 随部署变化的取值**不在这里**——那些一律是 Config 字段（见 `shared/config.ts`）。
  *
- * 出处：`docs/设计文档.md` §3.2（格式契约）、§3.3（校验）、§9（配置项）。
  * @module @xiaoso/dsh-workflow-lite/shared/limits
  */
 

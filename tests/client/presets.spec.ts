@@ -166,13 +166,13 @@ describe('groupLabel', () => {
 })
 
 /* ─────────────────────────────────────────────────────────────
- * 折叠与筛选（§2.2）
+ * 折叠与筛选
  *
  * 这一段的攻法：折叠状态是**偏好**不是事实，所以任何读不懂的输入都必须回落"全展开"
  * 而不是抛异常或半解析；组键则必须在两个来源之间真的区分得开（尤其是空组名）。
  * ───────────────────────────────────────────────────────────── */
 
-describe('组键（§2.2）', () => {
+describe('组键', () => {
   it('格式是 <来源>:<组名>', () => {
     expect(groupKey('disk', 'exec')).toBe('disk:exec')
     expect(groupKey('disk', '')).toBe('disk:')
@@ -194,7 +194,7 @@ describe('组键（§2.2）', () => {
   })
 })
 
-describe('分节键（§2.2）', () => {
+describe('分节键', () => {
   it('格式是 section:<来源>，两个分节各一个键', () => {
     expect(sectionKey('builtin')).toBe('section:builtin')
     expect(sectionKey('disk')).toBe('section:disk')
@@ -315,7 +315,7 @@ describe('readCollapsed / writeCollapsed', () => {
   })
 })
 
-describe('筛选（§2.2）', () => {
+describe('筛选', () => {
   it('只有空白不算筛（空词等于不筛，而不是没有东西匹配）', () => {
     expect(isFiltering('')).toBe(false)
     expect(isFiltering('   ')).toBe(false)

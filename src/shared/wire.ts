@@ -94,7 +94,7 @@ export interface GraphListRequest {
  * `graph/list` 的回执。
  *
  * 比工具侧的 `ListResult` 多一个 `limits`：画布要自己判「超 `maxNodes` ⇒ 只摆网格假位、
- * 不跑自动布局」（§6.5），而那条判据是活配置，只有 host 知道。
+ * 不跑自动布局」，而那条判据是活配置，只有 host 知道。
  */
 export interface GraphListResponse extends ListResult {
   limits: {
@@ -125,7 +125,7 @@ export interface GraphSaveRequest {
   document: WorkflowDocument
   /** 加载时拿到的哈希。null = 新建后首次写。 */
   baseHash: string | null
-  /** 画布「保留我的」：合并出冲突也照写，冲突 id 以本地为准。**工具写路径不传**（§7.2）。 */
+  /** 画布「保留我的」：合并出冲突也照写，冲突 id 以本地为准。**工具写路径不传**。 */
   force?: boolean
 }
 export interface GraphSaveResponse {
@@ -176,9 +176,9 @@ export interface GraphTemplatesResponse {
 }
 
 /**
- * `graph/nodeTemplate` —— 读一个**节点模板的 `data` 本体**，供画布拖入实例化（§6.4）。
+ * `graph/nodeTemplate` —— 读一个**节点模板的 `data` 本体**，供画布拖入实例化。
  *
- * 为什么要单独一条：`graph/templates` 只列名字（§8.2 的 `list` 口径），而
+ * 为什么要单独一条：`graph/templates` 只列名字（工具 `list` 的口径），而
  * 「拖入模板节点」= 复制模板的 `data` 本体 + 分配新 `id` + 新 `position`。
  * 没有这条，磁盘模板在画布上就只是个点不动的名字。
  */

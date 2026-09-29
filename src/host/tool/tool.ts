@@ -4,7 +4,7 @@
  * **一个工具 + 一个 action 枚举**：枚举本身就是能力清单，模型看枚举就知道这张图能干什么，
  * 不必先记住一长串工具名再挑；也避开 DSH 内置的 `workflow` 工具（跑 JS 编排脚本）。
  *
- * 返回通道只有三条（§8.2）：
+ * 返回通道只有三条：
  * - **被规则拒绝** → 一律 `{ error: { code, message, detail? } }`（`code ∈ {not_found, invalid_args,
  *   blocked, conflict, io_error}`）——它是**返回**而不是抛，好让模型读到结构化失败。
  * - **`problems` 只在 `compile` 里出现**，装编译级错误。

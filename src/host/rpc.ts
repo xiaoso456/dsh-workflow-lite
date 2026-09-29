@@ -237,7 +237,7 @@ async function dispatch(
       const name = requireString(input, 'name')
       const outcome = await deps.repository.readTemplate('nodes', name)
       if (!outcome.ok) return failFrom(outcome.error)
-      // `readTemplate('nodes')` 给的就是 `data` 本体（§3.2）；这里按形状把
+      // `readTemplate('nodes')` 给的就是 `data` 本体；这里按形状把
       // 「一张图」那一支排掉——`WorkflowDocument` 必带 `nodes`，`NodeData` 不带。
       const data = outcome.result
       if ('nodes' in data) {

@@ -2,12 +2,12 @@
  * dsh-workflow-lite — 右栏：整图概览 / 节点属性面板 + 边编辑；编译预览一段。
  *
  * 边是**独立对象**（有自己的 `edge.id`），所以属性面板里对每条入/出边单独给一个
- * `when` 输入框（§6.4「属性面板」+ §2.1）。改 `when` 等于「断开旧边 + 连上新边」——
+ * `when` 输入框。改 `when` 等于「断开旧边 + 连上新边」——
  * 因为 `edge.id` 的构造式里带 `when`（`<source>-><target>#<when>`），这是宿主定的规则。
  *
- * 版式按 `docs/.review/交互重设计.md` §2.5：提示词是这张图的**载荷本体**，排在
+ * 版式上，提示词是这张图的**载荷本体**，排在
  * id / 显示名 / 产出之前、占最大面积；未选中节点时展示整图概览，不再是一块死文案
- * （原文 A10）。所以本模块的渲染顺序是刻意的，别按"字段重要性"重排回去。
+ * 所以本模块的渲染顺序是刻意的，别按"字段重要性"重排回去。
  *
  * @module @xiaoso/dsh-workflow-lite/client/components/Inspector
  */
@@ -62,7 +62,7 @@ export interface GraphSummary {
   planId: string
 }
 
-/** 属性面板的完整入参（契约冻结：`docs/.review/交互重设计.md` §4.4）。 */
+/** 属性面板的完整入参（接口冻结）。 */
 export interface InspectorProps {
   t: Translate
   node: WorkflowNode | undefined
@@ -297,7 +297,7 @@ function GraphSummaryBlock(props: { t: Translate; summary: GraphSummary }): Reac
  * 概览里的一行：左键右值。
  *
  * `.summaryRow` / `.summaryValue` 是**通用的一行 / 一格**，节点 id 那一行也复用它们
- * （契约 §4.3 只给了这几个类名，不再自造新类）。
+ * （类名就这几个，不再自造新类）。
  */
 function SummaryRow(props: { label: string; value: string; empty?: boolean }): React.JSX.Element {
   return (
@@ -572,7 +572,7 @@ export function PlanBlock(props: {
     return () => clearTimeout(timer)
   }, [planIdCopied])
 
-  /** 导出 = 触发浏览器下载，插件自己不写盘（§9）。只给整卷版。 */
+  /** 导出 = 触发浏览器下载，插件自己不写盘。只给整卷版。 */
   const exportFull = (): void => {
     if (plan === null || plan.blocked) return
     const blob = new Blob([plan.text], { type: 'text/markdown;charset=utf-8' })

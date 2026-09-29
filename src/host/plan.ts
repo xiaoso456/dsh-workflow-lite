@@ -5,7 +5,7 @@
  * 图（从仓储读）、路径映射（`planId` 决定）、以及该图的校验结论（进 ⑥ 段）。
  * **物化**（把载荷写进 `.dispatch/<图名>/<planId>/`）也只在这里发生——它是编译唯一的 I/O。
  *
- * 失败姿态照 §5.1 / §5.5：有编译级问题时 `plan` 为空串、`problems` 必填，
+ * 失败姿态：有编译级问题时 `plan` 为空串、`problems` 必填，
  * **绝不返回一份残缺计划**；物化失败 ⇒ `io_error`（图本身没坏，不该是 `invalid_args`）。
  *
  * @module @xiaoso/dsh-workflow-lite/host/plan

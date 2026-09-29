@@ -255,7 +255,7 @@
   color: var(--dsw-alias-label-primary-foreground, #ffffff);
 }
 
-/* ── 交互重设计补充的原子（契约见 docs/.review/交互重设计.md §4.3）──── */
+/* ── 交互改版补充的原子 ──── */
 
 /*
  * 无边框按钮：用于「次要动作」。放在已有描边的容器里时再加一圈描边，

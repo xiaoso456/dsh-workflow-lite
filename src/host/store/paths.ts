@@ -1,12 +1,12 @@
 /**
  * dsh-workflow-lite — 数据目录的路径构造与「什么算一个图文件」的扫描判据。
  *
- * 规则出处：`docs/设计文档.md` §3.1（目录与布局）。三件要紧的事：
+ * 目录与布局，三件要紧的事：
  * - **同名目录也算被占用**（`create` / `save_as_template` 加序号、`rename_workflow` 拒绝）；
  * - `.dispatch/` 以 `.` 开头 ⇒ 一切扫描**天然忽略**，它也**不参与任何读入**；
  * - 扫描只认「普通文件 + 非隐藏 + 以 `.json` 结尾（不区分大小写）」，其余条目
  *   （非 `.json`、隐藏文件、`.tmp-*`、子目录、符号链接、编辑器残渣）一律忽略，
- *   由调用方逐条报提示（见 §3.3）。
+ *   由调用方逐条报提示。
  *
  * 本模块只做**只读**文件系统访问（`stat` / `readdir`）与路径拼接；一切写入在 `atomic.ts`。
  * 依赖方向严格单向：`atomic.ts` → 本模块 → `shared/*`，不成环。
@@ -139,7 +139,7 @@ const EMPTY_SCAN: DirScan = { names: [], ignored: [], directories: [] }
 
 /**
  * 扫一个「一文件一 JSON」的目录。**目录不存在 = 空**（首次启动的常态），不抛错。
- * 判据（§3.1）：普通文件 · 非隐藏（文件名以 `.` 开头即视为隐藏）· 以 `.json` 结尾（不区分大小写）。
+ * 判据：普通文件 · 非隐藏（文件名以 `.` 开头即视为隐藏）· 以 `.json` 结尾（不区分大小写）。
  */
 export async function scanJsonDir(dir: string): Promise<DirScan> {
   let entries: Dirent[]
@@ -234,7 +234,7 @@ async function nameOccupant(dir: string, name: string): Promise<NameOccupant> {
 
 /**
  * 旧结构（md 版）是否在场：`workflows/` 下有**目录**，或 `dataDir` 顶层有 `nodes/`。
- * 只在启动 / `list` 呈现，报一条专用提示，**不进图列表**（§3.1、§3.3 末节）。
+ * 只在启动 / `list` 呈现，报一条专用提示，**不进图列表**。
  */
 export async function legacyStructureDetected(dataDir: string): Promise<boolean> {
   const scan = await scanWorkflowDir(dataDir)

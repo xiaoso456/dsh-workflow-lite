@@ -84,10 +84,10 @@ const NODE_TYPES = { wfNode: WorkflowNodeCard }
 /** 保存防抖（配置键 `saveDebounceMs` 的默认值，画布侧照默认值跑）。 */
 const DEBOUNCE_MS = 400
 
-/** 超 `maxNodes` 时的网格假位（§6.5：不跑自动布局，但坐标仍存盘）。 */
+/** 超 `maxNodes` 时的网格假位：不跑自动布局，但坐标仍存盘。 */
 const GRID_COLUMNS = 4
 
-/** `when` 的预置词下拉（`VERDICT` 约定，§2.2）。 */
+/** `when` 的预置词下拉（`VERDICT` 约定）。 */
 const WHEN_PRESETS = ['pass', 'fail']
 
 /**
@@ -213,7 +213,8 @@ function readLastGraph(): string | null {
  * 按契约的 testid 找元素并聚焦。
  *
  * 跨组件的焦点转移（空态按钮 → 节点库输入框、`/` → 筛选框）只有这一个口子：
- * 走 testid 而不是 ref，是因为它是本文档冻结的稳定钩子，不依赖另一个组件的内部结构。
+ * 走 testid 而不是 ref，是因为它是一个**冻结的稳定钩子**（跨组件的契约），
+ * 不依赖另一个组件的内部结构。
  */
 function focusTestId(testId: string): void {
   const target = window.document.querySelector(`[data-testid="${testId}"]`)
@@ -509,7 +510,7 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
    * 而且界面上一点提示都没有（状态还显示“就绪”）。实测复现：加一个节点后立刻切图再切回，
    * 节点在 DOM 与 `graph/load` 里都没了。
    *
-   * （设计文档 §6.5 “切走 → 立即写”当时只盖住了卸载/页面隐藏两条路，
+   * （“切走 → 立即写”当时只盖住了卸载/页面隐藏两条路，
    * “在视图内换图”这条没盖——“切走”不只指离开这个 tab。）
    *
    * 写两轮是因为“切图的那一瞬已经有一笔写在途”这种情形：等它落地后可能又有新的脏
@@ -538,7 +539,7 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
         const loaded = await rpc.call('graph/load', { name })
         const blocking = loaded.problems.filter((problem) => problem.level === 'save')
         if (blocking.length > 0) {
-          // 保存级破损 ⇒ **只读错误态**：留着原文给人改，不写盘（§3.3）。
+          // 保存级破损 ⇒ **只读错误态**：留着原文给人改，不写盘。
           dispatch({
             type: 'loadFailed',
             message: blocking.map((problem) => problem.message).join('；'),
@@ -593,7 +594,7 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
   const overLimit = state.document !== null && state.document.nodes.length > maxNodes
 
   /**
-   * 位置补位（§6.5）：只在**没摆过**的节点上跑，并且**回写**——补位是真实改动，
+   * 位置补位：只在**没摆过**的节点上跑，并且**回写**——补位是真实改动，
    * 由防抖写落盘。跑一次就够了：写完之后文档里就没有 `(0,0)` 了。
    */
   const unplacedKey = useMemo(() => {
@@ -971,7 +972,7 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
     if (state.name !== null && !state.blocked) void buildPlan(planTab === 'full')
   }, [state.name, state.blocked, planTab, buildPlan])
 
-  // 焦点检查（§7.2）：只做提示，**不自动重载**——正看着的图突然自己变了更糟。
+  // 焦点检查：只做提示，**不自动重载**——正看着的图突然自己变了更糟。
   useEffect(() => {
     if (state.name === null || state.blocked) return
     const onFocus = (): void => {
@@ -1114,7 +1115,7 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
     void open(current.name)
   }, [open, t])
 
-  /** 显式重排（§6.4 / §6.5）：整图重算一次坐标，然后落盘。 */
+  /** 显式重排：整图重算一次坐标，然后落盘。 */
   const relayout = useCallback((): void => {
     const document = stateRef.current.document
     if (document === null || analysis === null) return
@@ -1154,7 +1155,7 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
     [catalog],
   )
 
-  // ── 拖放落点（§2.3）─────────────────────────────────────────
+  // ── 拖放落点 ─────────────────────────────────────────
 
   /**
    * 拖拽经过画布。
@@ -1215,7 +1216,7 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
     [flow, addPreset, addTemplate, catalog],
   )
 
-  // ── 键盘（§4.6）────────────────────────────────────────────
+  // ── 键盘 ────────────────────────────────────────────
 
   /**
    * 快捷键处理器挂在**根节点**上，不挂 window、也不只挂画布容器。

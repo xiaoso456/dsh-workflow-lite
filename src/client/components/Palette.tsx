@@ -84,7 +84,7 @@ function levelKey(level: ValidationLevel): LocaleKey {
 /**
  * 校验面板：可折叠。折叠时只占一行（总数 + 各级别计数），展开时是四级列表。
  *
- * 有归属的问题点一下选中那个节点（§6.4）。展开态可以受控（`expanded` / `onToggle`），
+ * 有归属的问题点一下选中那个节点。展开态可以受控（`expanded` / `onToggle`），
  * 不传就自管——画布那边一直是不传的调法，别为了折叠逼它加状态。
  */
 export function ValidationPanel(props: {
@@ -191,7 +191,7 @@ export function ValidationPanel(props: {
   )
 }
 
-/** 节点库的 props（契约见 docs/.review/交互重设计.md §4.4）。 */
+/** 节点库的 props。 */
 export interface PaletteProps {
   t: Translate
   disabled: boolean

@@ -29,7 +29,7 @@ afterEach(async () => {
   await rm(dataDir, { recursive: true, force: true })
 })
 
-/** 建出 §5.6 那张示例图（scan / auth-review / fix-auth / report）。 */
+/** 建出黄金示例图（scan / auth-review / fix-auth / report）。 */
 async function seedGolden(): Promise<void> {
   expect((await repository.create('code-review')).ok).toBe(true)
   const nodes = [

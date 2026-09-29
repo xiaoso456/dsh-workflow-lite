@@ -1,5 +1,5 @@
 /**
- * dsh-workflow-lite — 文件仓储：唯一的副作用边界（§4 host 行、§7）。
+ * dsh-workflow-lite — 文件仓储：唯一的副作用边界。
  *
  * 这一层兑现四条硬规矩：
  * 1. **单文件原子写**——一切写入都经 `atomic.writeFileAtomic`；
@@ -14,8 +14,8 @@
  * `code ∈ { not_found, invalid_args, blocked, conflict, io_error }`。
  *
  * 校验分工：本模块只把「读出的文本 → 文档」交给**注入的** `validate`（`shared/validate.ts`
- * 落地后由 host 装配），外加两条只有存储层才知道的判据——`workflow_dir_collision`（§3.1 的
- * `.json` 与同名目录并存）与"合并后的终稿先自检再落盘"（用 `readDocument` 复核 canonical 文本）。
+ * 落地后由 host 装配），外加两条只有存储层才知道的判据——`workflow_dir_collision`
+ * （`.json` 与同名目录并存）与"合并后的终稿先自检再落盘"（用 `readDocument` 复核 canonical 文本）。
  * @module @xiaoso/dsh-workflow-lite/host/store/repository
  */
 
@@ -143,7 +143,7 @@ export type DocumentValidator = (
   workflow: string,
 ) => ValidationProblem[]
 
-/** 模板预检器（可注入）。缺省只做结构判据 + "零节点的图模板算编译级"（§3.3）。 */
+/** 模板预检器（可注入）。缺省只做结构判据 + "零节点的图模板算编译级"。 */
 export type TemplateValidator = (
   kind: TemplateKind,
   value: WorkflowDocument | NodeData,
@@ -310,7 +310,7 @@ function emptyDocument(): WorkflowDocument {
 }
 
 /**
- * §3.3 编译级里与存储强相关的那一条：**图内没有节点**。
+ * 编译级里与存储强相关的那一条：**图内没有节点**。
  * 它同时决定「零节点的图模板算 invalid、拒绝作为 `from`」与「空图拒绝存为模板」。
  * 其余编译级规则（`prompt` 为空、超 `maxNodes`）归校验层，仓储不内联。
  */
@@ -434,7 +434,7 @@ class FileRepository implements Repository {
 
   /**
    * 基线快照：`"<图名>\0<整图哈希>" → document`，只记 `load()` / 上一次写落盘的那个版本。
-   * **它不服务任何读路径**（`list` / `read` / `compile` 永远直接读盘，§7.2「不设内容缓存」），
+   * **它不服务任何读路径**（`list` / `read` / `compile` 永远直接读盘，不设内容缓存），
    * 只为了让 `save()` 拿得到 `mergeDocuments` 需要的 `base`。
    *
    * 同名留多个快照是必要的：画布与工具可能各自持有旧基线并发写，只留最新一份的话
@@ -504,7 +504,7 @@ class FileRepository implements Repository {
 
     const problems: ValidationProblem[] = []
     if (occupant === 'both') {
-      // §3.1：`workflows/<名>.json` 与 `workflows/<名>/` 同时存在 ⇒ 保存级，拒绝加载。
+      // `workflows/<名>.json` 与 `workflows/<名>/` 同时存在 ⇒ 保存级，拒绝加载。
       problems.push(
         saveProblem(
           'workflow_dir_collision',
@@ -662,7 +662,7 @@ class FileRepository implements Repository {
       ...readDocument(finalText).problems,
       ...this.validate(document, name),
     ].filter((problem) => problem.level === 'save')
-    // 悬空 edge 的权威判据在 §3.3 / 校验层；这里拦是因为**只有合并会亲手造出**它
+    // 悬空 edge 的权威判据在校验层（`shared/validate.ts`）；这里拦是因为**只有合并会亲手造出**它
     // （本地删了 A、磁盘上 meanwhile 多了一条指向 A 的边）——仓储绝不写出打不开的文件。
     for (const edge of analyzeGraph(document).danglingEdges) {
       selfProblems.push(saveProblem('edge_dangling', `悬空 edge：${edge.id}`))
@@ -744,7 +744,7 @@ class FileRepository implements Repository {
         const template = await this.readWorkflowTemplate(options.from)
         if (!template.ok) return template
         document = cloneDocument(template.result)
-        // §3.3：模板定义的是"节点怎么摆"，但"你上次看到哪"不该继承。
+        // 模板定义的是"节点怎么摆"，但"你上次看到哪"不该继承。
         document.viewport = { x: 0, y: 0, zoom: 1 }
       }
 
@@ -815,7 +815,7 @@ class FileRepository implements Repository {
       const targetFile = workflowFile(this.dataDir, target)
       try {
         if (sameName(from, target)) {
-          // Windows 上"只改大小写"要两步 rename（§3.2）。
+          // Windows 上"只改大小写"要两步 rename。
           const temp = tempName(sourceFile)
           await renamePath(sourceFile, temp)
           await renamePath(temp, targetFile)
@@ -985,7 +985,7 @@ class FileRepository implements Repository {
       } else if (existing !== undefined) {
         position = existing.position
       } else {
-        // 补位由上层跑分层布局；这里先留占位并报提示（§3.3「position 缺失的补位」）。
+        // 补位由上层跑分层布局；这里先留占位并报提示（position 缺失的补位）。
         position = { x: 0, y: 0 }
         warnings.push({
           level: 'hint',
@@ -1049,7 +1049,7 @@ class FileRepository implements Repository {
     return this.mutate(workflow, async (document) => {
       const target = findNode(document, node)
       if (target === undefined) return fail('not_found', `节点 ${node} 不存在`, { node })
-      // 删节点**必须连带删边**，否则立刻产生悬空 edge、整图不可加载（§3.3）。
+      // 删节点**必须连带删边**，否则立刻产生悬空 edge、整图不可加载。
       const orphans = document.edges.filter(
         (edge) =>
           idKey(edge.source) === idKey(target.id) || idKey(edge.target) === idKey(target.id),
@@ -1234,7 +1234,7 @@ class FileRepository implements Repository {
     return ok({ text, problems })
   }
 
-  /** 模板预检：结构 + 注入的 `validateTemplate` + §3.3 的"零节点图模板算编译级"。 */
+  /** 模板预检：结构 + 注入的 `validateTemplate` + "零节点图模板算编译级"。 */
   private templateProblems(kind: TemplateKind, name: string, text: string): ValidationProblem[] {
     if (kind === 'nodes') {
       const parsed = parseNodeData(text)

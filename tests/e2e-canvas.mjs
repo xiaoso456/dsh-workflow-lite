@@ -24,7 +24,7 @@ function check(condition, message) {
   if (!condition) throw new Error(`FAIL: ${message}`)
 }
 
-/** 拼一张 §5.6 形状的图（三条边 + 四个节点，含一个环）。 */
+/** 拼一张样张形状的图（三条边 + 四个节点，含一个环）。 */
 function demoDocument() {
   const node = (id, label, prompt, output) => ({
     id,

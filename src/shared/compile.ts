@@ -2,9 +2,9 @@
  * dsh-workflow-lite — 派发计划编译器（产品核心）。
  *
  * **纯函数**：不碰磁盘、不看时钟、不用随机数——同一份 `PlanFacts` + 同一份 `GraphAnalysis`
- * + 同一份可选入参 ⇒ **逐字节相同**的输出。物化载荷是 I/O，不在这里（见设计文档 §5.7）。
+ * + 同一份可选入参 ⇒ **逐字节相同**的输出。物化载荷是 I/O，不在这里。
  *
- * 只有一份段结构（§5.3），两个视图共用：
+ * 只有一份段结构，两个视图共用：
  * - **派发版** {@link buildPlan}：② 段的「任务描述路径」给出绝对路径，**正文一个字都不进计划**。
  * - **整卷版** {@link buildFullText}：同一份段结构，把路径引用换成**逐节点内联正文**。
  *
@@ -14,7 +14,6 @@
  * 计划里的节点引用：② 段清单表**首列**写 `label（id）`（{@link displayName}），
  * 其余位置一律写 `id`——`id` 唯一，且与载荷文件名一致。
  *
- * 规则出处：`docs/设计文档.md` §2.2、§5.1–§5.6。
  * @module @xiaoso/dsh-workflow-lite/shared/compile
  */
 
@@ -66,10 +65,10 @@ const BATCH_HEADING = '**执行批次**（按前置分层、忽略回边）：'
 /** ② 段批次块之后的固定附注。 */
 const BATCH_FOOTNOTE = '（同一批次不代表同时执行——互斥分支只会走一条。）'
 
-/** 无出口循环：② 段不给假模板，直接把后果说清（措辞取自 §3.3）。 */
+/** 无出口循环：② 段不给假模板，直接把后果说清（措辞取自校验层）。 */
 const NO_EXIT_LINE = '**循环体没有出口**——环上没有任何指向环外的条件边，会无限重复。'
 
-/** 无出口循环的 ⑥ 段警告文案——与 §3.3 的规则措辞逐字一致。 */
+/** 无出口循环的 ⑥ 段警告文案——与校验层（`shared/validate.ts`）的警告文案逐字一致。 */
 const LOOP_WITHOUT_EXIT_MESSAGE =
   '循环体没有出口（环上没有任何指向环外的条件边）——会无限重复，自环同理'
 
@@ -92,7 +91,7 @@ const DASH = '—'
 /**
  * {@link buildPlan} / {@link buildFullText} 的**可选**入参（必填签名不变）。
  *
- * ⑥ 段「图的注意事项」逐字取自校验结论（§3.3），所以警告与提示必须由调用方带进来；
+ * ⑥ 段「图的注意事项」逐字取自校验结论（`shared/validate.ts`），所以警告与提示必须由调用方带进来；
  * 这里收**该图的全部** `ValidationProblem`——`warning` / `hint` 进 ⑥ 段，
  * `compile` 级与内部判定合并后决定"是否拒绝出计划"（`plan` 为空串）。
  */
@@ -126,7 +125,7 @@ export function buildPlan(
  *
  * ② 段清单表不再有「任务描述路径」列（路径是本机私有的、带不走），
  * 段尾追加 `### 节点正文`，逐节点内联 `data.prompt` 原文。
- * 有编译级问题时返回空串（与 §5.5 的失败姿态一致——不替它编内容、也不给空正文放行）。
+ * 有编译级问题时返回空串（与派发版的失败姿态一致——不替它编内容、也不给空正文放行）。
  */
 export function buildFullText(
   facts: PlanFacts,
@@ -223,7 +222,7 @@ function conditionalEdgesOf(ctx: RenderContext, id: string): WorkflowEdge[] {
   return (ctx.outEdges.get(id) ?? []).filter((edge) => whenOf(edge) !== undefined)
 }
 
-/** 带条件出边的节点（含非分支点——单条条件出边也算，见 §5.3 ④）。按 `id` 码位序。 */
+/** 带条件出边的节点（含非分支点——单条条件出边也算）。按 `id` 码位序。 */
 function verdictNodeIds(ctx: RenderContext): string[] {
   const ids: string[] = []
   for (const id of ctx.analysis.nodeIds) {
@@ -480,7 +479,7 @@ function verdictValues(ctx: RenderContext, id: string): string[] {
   return [...values].sort(byId).map((value) => code(`${VERDICT_PREFIX}${value}`))
 }
 
-/** ⑤ 动态尾：两个字段，缺省时按 §5.3 的字面渲染「未指定」。 */
+/** ⑤ 动态尾：两个字段，缺省时渲染字面量「未指定」。 */
 function dynamicSection(facts: PlanFacts): string {
   const goal = facts.goal === undefined || facts.goal === '' ? '未指定' : facts.goal
   const cwd = facts.cwd === undefined || facts.cwd === '' ? '未指定' : facts.cwd
@@ -543,7 +542,7 @@ interface PlanNote {
 }
 
 /**
- * ⑥ 段的行：**该图的警告与提示**，逐字取自校验结论（§3.3）。只在非空时出现、固定置尾。
+ * ⑥ 段的行：**该图的警告与提示**，逐字取自校验结论（`shared/validate.ts`）。只在非空时出现、固定置尾。
  * 调用方没报「循环无出口」而图里确有这种环时，这里补一条——不编含糊话，走警告。
  */
 function planNotes(analysis: GraphAnalysis, options?: PlanOptions): PlanNote[] {

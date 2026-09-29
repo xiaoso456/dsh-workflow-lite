@@ -1,5 +1,5 @@
 /**
- * dsh-workflow-lite — 编译时的载荷物化（§3.1 `.dispatch/` 的规矩、§5.2）。
+ * dsh-workflow-lite — 编译时的载荷物化（`.dispatch/` 的规矩）。
  *
  * 路径 = `<dataDir>/.dispatch/<图名>/<planId>/<节点 id>.md`。三条硬规矩：
  * 1. **一次成功编译先清空该图该 `planId` 的目录、再写**——不做增量、不做局部改写；

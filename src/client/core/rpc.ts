@@ -71,7 +71,7 @@ export function requireRpcCarrier(service: unknown): RpcCarrier {
  * 端点失败——带 host 给的 `code` 与结构化 `detail`。
  *
  * 为什么不是裸 `Error`：`conflict` 的 `detail.ids` 是**冲突清单**，画布要靠它
- * 告诉用户"哪几个 id 双方都改过"（§7.2）。丢掉 detail 就只能显示一句"冲突了"。
+ * 告诉用户"哪几个 id 双方都改过"。丢掉 detail 就只能显示一句"冲突了"。
  */
 export class WorkflowLiteRpcError extends Error {
   /** host 的失败码（`not_found` / `invalid_args` / `blocked` / `conflict` / `io_error`）。 */

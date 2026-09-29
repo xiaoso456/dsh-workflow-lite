@@ -31,7 +31,7 @@ export const zh = {
   'confirm.remove': '删掉这张图？删了不可恢复。',
   'confirm.discard': '有未保存的改动，重新加载会丢掉它们。继续？',
 
-  // ── 外部改动提示条（§7.2）──────────────────────────────────
+  // ── 外部改动提示条 ──────────────────────────────────
   'external.changed': '文件已被外部修改，点此重新加载',
   'conflict.prompt': '写之前发现磁盘变过了，这些 id 双方都改过，选一个：',
   'conflict.keepMine': '保留我的',
@@ -114,7 +114,7 @@ export const zh = {
   'plan.empty': '还没有可预览的计划。',
   'plan.planId': 'planId',
 
-  // ── 校验面板（§6.4）─────────────────────────────────────────
+  // ── 校验面板 ─────────────────────────────────────────
   'verify.title': '校验',
   'verify.ok': '没有问题',
   'verify.level.save': '错误 · 保存级',
@@ -140,7 +140,7 @@ export const zh = {
   'node.missingPrompt': '缺提示词正文（编译级）',
   'blocked.readonly': '这张图有保存级问题，已进入只读错误态——不写盘。原文见下方。',
 
-  // ── 交互重设计新增（契约见 docs/.review/交互重设计.md §4.7）────
+  // ── 交互改版新增 ────
 
   // 节点库
   'palette.filter': '筛选起点与节点',
@@ -329,7 +329,7 @@ export const en: Record<LocaleKey, string> = {
   'blocked.readonly':
     'This graph has save-level problems and is now read-only. The raw text is below.',
 
-  // ── Interaction redesign additions (contract: docs/.review/交互重设计.md §4.7) ──
+  // ── Interaction redesign additions ──
 
   'palette.filter': 'Filter starters and nodes',
   'palette.newPlaceholder': 'Node id, Enter to create',

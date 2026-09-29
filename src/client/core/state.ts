@@ -46,11 +46,11 @@ export interface CanvasState {
    * 节点属性与边编辑区。选中态由**画布**发起（点节点 / 点边 / 点空白），右栏只反映。
    */
   selectedEdge: string | null
-  /** 加载时 host 给的**全部四级问题**——校验面板的数据源（§6.4）。 */
+  /** 加载时 host 给的**全部四级问题**——校验面板的数据源。 */
   problems: ValidationProblem[]
   /** 同源的警告与提示（`problems` 里 `warning` / `hint` 那两级的线格式副本）。 */
   warnings: ToolWarning[]
-  /** 保存级破损时的**原始文本**，只读错误态展示用（§3.3）。 */
+  /** 保存级破损时的**原始文本**，只读错误态展示用。 */
   raw: string | null
   /** 只读错误态：图不可加载（保存级破损 / 已被删或改名）。**此态下一律不写盘。** */
   blocked: boolean
@@ -338,7 +338,7 @@ export function withNewNode(
  * 它确定性、不吃额外依赖，而且**反映执行次序**——比不分青红皂白的环形布局好读。
  * 两条入口共用同一套几何：`layoutMissing` 只补没摆过的，`layoutAll` 显式重排整图。
  *
- * （设计文档写的是 elkjs；v1 用这个同步回落代替，理由见交付说明。）
+ * （原本选型是 elkjs；v1 用这个同步回落代替。）
  *
  * @param document - 要摆的图。
  * @param batches - `analyzeGraph` 给的执行批次。
@@ -378,7 +378,7 @@ export function layoutMissing(
 }
 
 /**
- * 显式重排整图（§6.4 的「自动布局」按钮 / §6.5「显式请求重排」）——**每个节点都重算**。
+ * 显式重排整图（「自动布局」按钮 / 显式请求重排）——**每个节点都重算**。
  *
  * 与 `layoutMissing` 同一套几何：同一张图必然摆成同一版式，所以它是幂等的。
  */
@@ -516,7 +516,7 @@ export function reduce(state: CanvasState, action: CanvasAction): CanvasState {
 
     case 'saveSucceeded': {
       // **保存期间又来改动 ⇒ 仍然脏**。无条件清脏会让"在途改动"被当成已落盘，
-      // 紧接着的回读就会用磁盘版本把它盖掉（§7.2 / §13 那条数据丢失路径）。
+      // 紧接着的回读就会用磁盘版本把它盖掉（那条数据丢失路径）。
       const dirty = state.editSeq !== state.savingSeq
       return {
         ...state,

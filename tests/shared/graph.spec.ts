@@ -29,7 +29,7 @@ function doc(nodes: WorkflowNode[], edges: WorkflowEdge[]): WorkflowDocument {
 }
 
 /**
- * 设计文档 §5.6 的示例图：`workflows/code-review.json`。
+ * 样张里的示例图：`workflows/code-review.json`。
  *   scan ──▶ auth-review ──(fail)──▶ fix-auth
  *                ▲                    │
  *                └────────────────────┘   （回边，无条件）
@@ -129,7 +129,7 @@ describe('analyzeGraph —— 黄金示例图', () => {
     expect(cycle?.entry).toBe('auth-review')
     expect(cycle?.backEdges).toEqual(['fix-auth->auth-review'])
     // 出口 = 从环内指向环外**且带条件**的边。`auth-review→fix-auth#fail` 的目标在 SCC 内，
-    // 它只是“再转一圈”，不是出口——这与 §5.6 样张的循环句一致。
+    // 它只是“再转一圈”，不是出口——这与样张的循环句一致。
     expect(cycle?.exits).toEqual(['auth-review->report#pass'])
     expect(cycle === undefined ? true : cycleHasNoExit(cycle)).toBe(false)
   })

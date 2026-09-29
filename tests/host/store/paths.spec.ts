@@ -31,7 +31,7 @@ afterEach(async () => {
 })
 
 describe('路径构造', () => {
-  it('图文件 / 模板 / 派发目录的形状与 §3.1 一致', () => {
+  it('图文件 / 模板 / 派发目录的形状符合约定', () => {
     expect(relative(root, workflowFile(root, 'code-review'))).toBe(
       join('workflows', 'code-review.json'),
     )
@@ -64,7 +64,7 @@ describe('tempName', () => {
   })
 })
 
-describe('扫描判据（§3.1「什么算一个图文件」）', () => {
+describe('扫描判据（什么算一个图文件）', () => {
   it('只认普通文件 + 非隐藏 + .json（后缀不区分大小写），其余各归 ignored / directories', async () => {
     const dir = workflowsDir(root)
     await mkdir(dir, { recursive: true })

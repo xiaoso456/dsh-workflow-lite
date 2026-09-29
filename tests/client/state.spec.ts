@@ -365,7 +365,7 @@ describe('statusKey', () => {
   })
 })
 
-describe('reduce —— 校验态与只读错误态（§3.3 / §6.4）', () => {
+describe('reduce —— 校验态与只读错误态', () => {
   it('loaded 把四级问题与警告存下来，并清掉只读态', () => {
     const problem = { level: 'compile', code: 'prompt_missing', message: '缺正文', node: 'scan' }
     const state = reduce(initialCanvasState, {
@@ -486,7 +486,7 @@ describe('reduce —— 重排与改 when', () => {
   })
 })
 
-describe('layoutAll / layoutMissing（§6.5）', () => {
+describe('layoutAll / layoutMissing', () => {
   const batches = [{ nodes: ['scan'] }, { nodes: ['auth-review'] }, { nodes: ['report'] }] as never
 
   it('layoutMissing 只补 (0,0) 的占位节点', () => {
@@ -520,7 +520,7 @@ describe('layoutAll / layoutMissing（§6.5）', () => {
 })
 
 /* ─────────────────────────────────────────────────────────────
- * 撤销 / 重做（§4.5）
+ * 撤销 / 重做
  *
  * 这一段的攻法：先按语义把"合并键"当成真正的状态来看，再专门打三处最容易写歪的地方：
  * 无键动作打断合并链、refreshed 不许清历史、空栈必须彻底 no-op。
@@ -1196,7 +1196,7 @@ describe('撤销/重做 —— 内容正确性', () => {
   })
 })
 
-describe('duplicateNode（§4.5）', () => {
+describe('duplicateNode', () => {
   it('偏移常量是右下 24px', () => {
     expect(DUPLICATE_OFFSET).toBe(24)
   })
@@ -1308,7 +1308,7 @@ describe('duplicateNode（§4.5）', () => {
   })
 })
 
-describe('isTypingTarget（§4.6）', () => {
+describe('isTypingTarget', () => {
   it('INPUT / TEXTAREA / SELECT 都为真，大小写不敏感', () => {
     expect(isTypingTarget({ tagName: 'INPUT' })).toBe(true)
     expect(isTypingTarget({ tagName: 'input' })).toBe(true)

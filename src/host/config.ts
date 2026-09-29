@@ -8,7 +8,6 @@
  * 部署相关的取值一律走这里：`dataDir`（数据根）、`maxNodes`、`maxResultBytes`
  * （单次返回字节上限）、`saveDebounceMs`、`routePrefix`、`installSkill`。
  *
- * 出处：设计文档 §9。
  * @module @xiaoso/dsh-workflow-lite/host/config
  */
 
