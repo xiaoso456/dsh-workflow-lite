@@ -1300,10 +1300,7 @@ const main = async () => {
            : 0;
        })()`,
     )
-    check(
-      diskCollapsed.itemGone === true,
-      '折叠后该分节的模板条目应从 DOM 消失（不能只是 hidden）',
-    )
+    check(diskCollapsed.itemGone === true, '折叠后该分节的模板条目应从 DOM 消失（不能只是 hidden）')
     // 刷新页面：canvas 重新挂载，折叠状态从 localStorage 读回来。
     await bootCanvas(session, NAME)
     // 刷新之后**等收敛**再读：`bootCanvas` 只保证图渲染出来了，节点库那一栏可能还是上一帧。
@@ -1363,13 +1360,14 @@ const main = async () => {
            builtin,
            templates,
            stored,
-           label: (document.querySelector('[data-testid="wl-collapse-all"]')?.textContent || '').trim(),
+           /* 无字图标按钮：可读名在 aria-label 上，textContent 是空的。 */
+           label: document.querySelector('[data-testid="wl-collapse-all"]')?.getAttribute('aria-label') || null,
          };
        })()`,
     )
     check(
       allCollapsed.label === '全部展开',
-      `全部收起后按钮文案应变成「全部展开」，实得 ${JSON.stringify(allCollapsed.label)}`,
+      `全部收起后按钮的可读名（aria-label）应变成「全部展开」，实得 ${JSON.stringify(allCollapsed.label)}`,
     )
     await session.evaluate(clickTestIdExpr('wl-collapse-all'))
     const allExpanded = await waitFor(
@@ -1390,13 +1388,14 @@ const main = async () => {
            groups: toggles.length,
            builtin,
            items: templates,
-           label: (document.querySelector('[data-testid="wl-collapse-all"]')?.textContent || '').trim(),
+           /* 无字图标按钮：可读名在 aria-label 上，textContent 是空的。 */
+           label: document.querySelector('[data-testid="wl-collapse-all"]')?.getAttribute('aria-label') || null,
          };
        })()`,
     )
     check(
       allExpanded.label === '全部收起',
-      `全部展开后按钮文案应回到「全部收起」，实得 ${JSON.stringify(allExpanded.label)}`,
+      `全部展开后按钮的可读名（aria-label）应回到「全部收起」，实得 ${JSON.stringify(allExpanded.label)}`,
     )
     console.log(
       `  20 全部收起 / 全部展开 ok（${allCollapsed.sections} 个分节一起收：收起时内置 ${allCollapsed.builtin} 项、自定义 ${allCollapsed.templates} 项都不在 DOM、分组钩子 ${allCollapsed.groups} 个，折叠表 ${allCollapsed.stored}；展开后回到内置 ${allExpanded.builtin} 项 + 自定义 ${allExpanded.items} 项）`,

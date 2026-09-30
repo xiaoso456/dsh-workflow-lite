@@ -202,23 +202,36 @@ const PROBE = `(() => {
   const ratio = (a, b) => { const l1 = lum(a); const l2 = lum(b)
     return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05) }
   /*
-   * 底色：从元素往上找第一层**不透明**的 background-color。
+   * 实际底色：把祖先链上的 background-color **逐层合成**，直到遇见一层不透明的。
    *
-   * 找不到就**返回 null 并跳过**，绝不兜底成白色：宿主深色主题的底往往不是
-   * background-color（渐变 / 图片 / 宿主自己的包装层），兜白会把"深底浅字"
-   * 一律算成 1.05:1 的假阳性。顺带把找到的祖先链记下来，方便人去图里核对。
+   * 早先的写法是"取第一层 a >= 1 的"，于是**凡是压在低透明度底上的文字都被跳过**——
+   * 提示条、徽标、状态点、下拉高亮项全是这种（底色是该色 9%~16% 叠在面板上）。
+   * 那一整类恰好就是语义色最容易不达标的地方：实测浅色下 warn 4.32、ok 4.26 就这样
+   * 一直没被报出来。合成之后它们才进统计。
+   *
+   * 找不到不透明底仍然**返回 null 并跳过**，绝不兜底成白色（宿主深色主题的底往往不是
+   * background-color，兜白会把"深底浅字"一律算成 1.05:1 的假阳性）。
    */
-  const bgChainOf = (el) => { const chain = []
+  const effectiveBgOf = (el) => { const stack = []
     let n = el
+    let base = null
     while (n) {
       const cs2 = getComputedStyle(n)
       const c = parse(cs2.backgroundColor)
-      if (c && c.a > 0.001) chain.push({ el: n.tagName.toLowerCase() + (n.getAttribute('data-testid') ? '[' + n.getAttribute('data-testid') + ']' : ''),
-        bg: cs2.backgroundColor })
-      if (chain.length >= 3) break
+      if (c && c.a > 0.001) {
+        stack.push({ el: n.tagName.toLowerCase() + (n.getAttribute('data-testid') ? '[' + n.getAttribute('data-testid') + ']' : ''),
+          rgba: cs2.backgroundColor, c: c })
+        if (c.a >= 0.999) { base = c; break }
+      }
+      if (n === document.documentElement) break
       n = n.parentElement
     }
-    return chain }
+    if (base === null) return null
+    /* stack 是"从近到远"，合成要从最远的不透明层往上刷。 */
+    let out = base
+    for (let i = stack.length - 2; i >= 0; i -= 1) out = over(stack[i].c, out)
+    return { color: out, from: stack[stack.length - 1].el, chain: stack.map((x) => x.el + ' ' + x.rgba) }
+  }
   const lowContrast = []
   for (const { el, cs, own } of textNodes.slice(0, 400)) {
     /*
@@ -234,11 +247,9 @@ const PROBE = `(() => {
     const fgRaw = inSvg ? getComputedStyle(el).fill : cs.color
     const fg0 = parse(fgRaw)
     if (!fg0) continue
-    const chain = bgChainOf(el)
-    const top = chain[0]
-    if (!top) continue
-    const raw = parse(top.bg)
-    if (!raw || raw.a < 1) continue
+    const bgInfo = effectiveBgOf(el)
+    if (bgInfo === null) continue
+    const raw = bgInfo.color
     const fg = fg0.a < 1 ? over(fg0, raw) : fg0
     const px = parseFloat(cs.fontSize); const bold = Number(cs.fontWeight) >= 700
     const large = px >= 24 || (bold && px >= 18.66)
@@ -246,7 +257,8 @@ const PROBE = `(() => {
     const val = ratio(fg, raw)
     if (val < need - 0.02 && lowContrast.length < 25) {
       lowContrast.push({ el: el.tagName.toLowerCase() + (el.getAttribute('data-testid') ? '[' + el.getAttribute('data-testid') + ']' : ''),
-        text: own, fg: cs.color, bg: top.bg, bgFrom: top.el, chain,
+        text: own, fg: cs.color, bg: 'rgb(' + Math.round(raw.r) + ',' + Math.round(raw.g) + ',' + Math.round(raw.b) + ')',
+        bgFrom: bgInfo.from, chain: bgInfo.chain,
         px: Math.round(px), ratio: Math.round(val * 100) / 100, need })
     }
   }
