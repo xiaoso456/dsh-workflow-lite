@@ -269,12 +269,11 @@
   cursor: grabbing;
 }
 
-.item:focus-visible {
-  outline: 2px solid var(--wl-ring);
-  outline-offset: 1px;
-}
-
-.item:disabled {
+/*
+ * 条目是 `<div role="listitem">`（只能拖，不是按钮），所以"不可用"走 `aria-disabled`：
+ * 一条不可拖的条目在视觉上要和可用状态明确分开。
+ */
+.item[aria-disabled="true"] {
   opacity: 0.45;
   cursor: not-allowed;
 }

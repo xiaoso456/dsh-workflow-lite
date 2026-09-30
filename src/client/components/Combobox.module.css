@@ -435,17 +435,6 @@
   cursor: not-allowed;
 }
 
-/* 破坏性动作：文字就是危险色，悬停底用危险色的浅档（而不是中性悬停底）。 */
-.ghostDanger {
-  color: var(--wl-danger);
-}
-
-.ghostDanger:hover:not(:disabled),
-.ghostDanger:active:not(:disabled) {
-  background: var(--wl-danger-soft);
-  color: var(--wl-danger);
-}
-
 /* `?` 这类纯图标按钮：同一套 ghost 语言，盒子是方的（与 `⋯` 同尺寸）。 */
 .ghostIcon {
   display: inline-flex;
@@ -498,7 +487,6 @@
   .iconTrigger,
   .menuItem,
   .ghost,
-  .ghostDanger,
   .ghostIcon {
     transition: none;
     animation: none;

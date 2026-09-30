@@ -418,7 +418,13 @@ export interface MenuButtonProps {
   /** 触发器的 `aria-label` 与它的悬浮提示（同源，免得两处写不一样）。 */
   label: string
   entries: readonly MenuEntry[]
+  /** 浮层的 `data-testid`。触发器默认挂 `wl-more-trigger`（既有锚点，不许改名）。 */
   testId: string
+  /**
+   * 触发器的 `data-testid`。默认 `wl-more-trigger`；**页面上有第二个溢出菜单时必须给**，
+   * 否则两个触发器同名，选择器指哪一个都说不清。
+   */
+  triggerTestId?: string
 }
 
 /**
@@ -431,6 +437,7 @@ export interface MenuButtonProps {
  */
 export function MenuButton(props: MenuButtonProps): React.JSX.Element {
   const { label, entries, testId } = props
+  const triggerTestId = props.triggerTestId ?? 'wl-more-trigger'
   const [expanded, setExpanded] = useState<string | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const popRef = useRef<HTMLDivElement>(null)
@@ -570,7 +577,7 @@ export function MenuButton(props: MenuButtonProps): React.JSX.Element {
         <button
           type="button"
           className={css.iconTrigger}
-          data-testid="wl-more-trigger"
+          data-testid={triggerTestId}
           ref={triggerRef}
           aria-label={label}
           aria-haspopup="menu"

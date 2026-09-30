@@ -187,21 +187,6 @@ export function ValidationPanel(props: {
   )
 }
 
-/**
- * 键盘激活一个节点库条目：`Enter` / `Space` 走"加一个"这条路。
- *
- * **鼠标点击不加节点。** 用户明确要求过「节点模板应当拖动进画布，而不是点击进画布」，
- * 所以这些条目没有 `click` handler——拖是给指针的那条路，而键盘没有拖，于是把同一个
- * 加节点动作挂在按键上（`preventDefault` 顺带吃掉浏览器由按键合成的那次 `click`）。
- */
-function activateByKeyboard(add: () => void) {
-  return (event: React.KeyboardEvent<HTMLButtonElement>): void => {
-    if (event.key !== 'Enter' && event.key !== ' ') return
-    event.preventDefault()
-    add()
-  }
-}
-
 /** 节点库的 props。 */
 export interface PaletteProps {
   t: Translate
@@ -221,9 +206,10 @@ export interface PaletteProps {
   filter: string
   onFilter: (value: string) => void
   /**
-   * 加一个到图里（拖放的落点由调用方给；缺省落在视口中心）。
+   * 加一个到图里（拖放的落点由调用方给）。
    *
-   * 只有**拖放**与**键盘激活**会走到这里：条目本身没有 `click` handler。
+   * **只有拖放会走到这里**：条目不是按钮，点了、按回车都不加节点（用户明确要求
+   * 「拖动进画布，而不是点击进画布」，随后又拍板"键盘回车那条也去掉"）。
    */
   onAddPreset: (preset: NodePreset) => void
   onAddTemplate: (entry: TemplateEntry) => void
@@ -342,7 +328,7 @@ export function Palette(props: PaletteProps): React.JSX.Element {
    * 拖拽影像用那个常驻的空壳（`dragGhostRef`），`setDragImage` 只在拖拽开始那一瞬抓像素。
    */
   const startDrag = (
-    event: React.DragEvent<HTMLButtonElement>,
+    event: React.DragEvent<HTMLElement>,
     payload: DragPayload,
     label: string,
   ): void => {
@@ -375,22 +361,26 @@ export function Palette(props: PaletteProps): React.JSX.Element {
   const presetItem = (preset: NodePreset): React.JSX.Element => {
     const label = t(preset.labelKey)
     /*
-     * 条目是**拖源**，不是"点一下就加进来"的按钮：`title` 与 `aria-label` 只说拖，
-     * 机器 id 让 `aria-label` 一起念出来。条目上**没有拖拽把手**——"能拖"由光标与
-     * 悬停的抬起表达，那个盲文字符只是一段噪声。
+     * 条目是**拖源**，不是按钮：`<div role="listitem">`，进不了 tab 序，键盘敲不出节点。
+     *
+     * 为什么不做成 `<button>`：按钮的语义就是"按下去会发生什么"，而这里按下去什么都不该
+     * 发生（用户明确要求"只能拖进去"，随后把键盘回车那条也去掉了）。留一个按了没反应的
+     * 按钮，比让键盘用户根本遇不到它更坏。
+     *
+     * `title` 与 `aria-label` 只说拖，机器 id 一起念出来。条目上**没有拖拽把手**——
+     * "能拖"由光标与悬停的抬起表达，那个盲文字符只是一段噪声。
      */
     const hint = `${label}（${preset.id}），${t('palette.dragHint')}`
     return (
-      <button
-        type="button"
+      <div
         /* 两列网格里的那一版条目：显示名要先留住，机器 id 先让位（见样式文件）。 */
         className={[css.item, css.itemPreset].join(' ')}
         data-testid={`wl-item-preset-${preset.id}`}
+        role="listitem"
         draggable={!disabled}
-        disabled={disabled}
+        aria-disabled={disabled}
         title={`${label}，${t('palette.dragHint')}`}
         aria-label={hint}
-        onKeyDown={activateByKeyboard(() => props.onAddPreset(preset))}
         onDragStart={(event) => startDrag(event, { kind: 'preset', id: preset.id }, label)}
       >
         <span className={css.itemName}>{label}</span>
@@ -399,7 +389,7 @@ export function Palette(props: PaletteProps): React.JSX.Element {
         <span className={css.itemId} title={preset.id}>
           {preset.id}
         </span>
-      </button>
+      </div>
     )
   }
 
@@ -410,22 +400,21 @@ export function Palette(props: PaletteProps): React.JSX.Element {
     const title = invalid ? (entry.reason ?? t('palette.invalid')) : entry.name
     const hint = invalid ? title : `${title}，${t('palette.dragHint')}`
     return (
-      <button
-        type="button"
+      <div
         className={css.item}
         data-testid={`wl-item-template-${entry.name}`}
+        role="listitem"
         draggable={!blocked}
-        disabled={blocked}
+        aria-disabled={blocked}
         title={hint}
         aria-label={hint}
-        onKeyDown={activateByKeyboard(() => props.onAddTemplate(entry))}
         onDragStart={(event) =>
           startDrag(event, { kind: 'template', name: entry.name }, entry.name)
         }
       >
         <span className={css.itemName}>{entry.name}</span>
         {invalid && <span className={css.itemBad}>!</span>}
-      </button>
+      </div>
     )
   }
 
@@ -563,7 +552,7 @@ export function Palette(props: PaletteProps): React.JSX.Element {
               它本来就是一条主线的六个起点，分成五堆只会让人多跨一层折叠。
               可折叠的是整个分节，那个开关在分节头上。
             */}
-            <div className={css.flatList}>
+            <div className={css.flatList} role="list" aria-label={t('palette.builtin')}>
               {presetHits.map((preset) => (
                 <Fragment key={preset.id}>{presetItem(preset)}</Fragment>
               ))}
@@ -586,7 +575,7 @@ export function Palette(props: PaletteProps): React.JSX.Element {
             {props.templates.length === 0 ? (
               <p className={css.empty}>{t('palette.diskEmpty')}</p>
             ) : (
-              <div className={css.templateList}>
+              <div className={css.templateList} role="list" aria-label={t('palette.disk')}>
                 {templateHits.map((entry) => (
                   <Fragment key={entry.name}>{templateItem(entry)}</Fragment>
                 ))}

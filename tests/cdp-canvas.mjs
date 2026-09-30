@@ -36,9 +36,9 @@
  *    数据目录的 `templates/nodes/` 写四个模板（`exec` 前缀三个成组 + 落单的 `solo` 进「其他」），
  *    刷新页面后验折叠/持久化/全部收起/筛选。跑完**无论成败**在 `finally` 里删干净。
  *    这一步顺带补上了一个空白：`templates/nodes/` 非空时「自定义 node」那一节长什么样，以前从没验过。
- *  - 条目是**拖源**：点它不加节点（用户明确要求「节点模板应当拖动进画布，而不是点击进画布」）。
- *    于是第 22b 步改用**拖**加节点、第 25 步反过来断言"连点两次什么都没发生"（哪天 `click`
- *    handler 回来会立刻红）、第 32 步改用**键盘回车**（条目聚焦后按回车）驱动加节点。
+ *  - 条目是**拖源**：点它不加节点、按回车也不加（用户两轮分别拍过这两条）。于是第 22b、
+ *    32 步都用**拖**加节点，第 25 步反过来断言"连点两次什么都没发生"（哪天 `click`
+ *    handler 回来会立刻红）；第 8 步的删除改从工具条右端「⋯」进（危险动作，窄窗放不下）。
  *
  * usage: DSH_WEB_TOKEN=<token> DSH_CDP_HTTP=http://127.0.0.1:9223 node tests/cdp-canvas.mjs
  */
@@ -834,7 +834,10 @@ const main = async () => {
          return {
            builtinSection: sectionText('wl-section-builtin'),
            diskSection: sectionText('wl-section-disk'),
-           preset: [...document.querySelectorAll('button')].some((el) => (el.textContent || '').includes(${JSON.stringify(PRESET_LABEL)})),
+           preset: (() => {
+             const el = document.querySelector('[data-testid="wl-item-preset-scan"]');
+             return el !== null && (el.textContent || '').includes(${JSON.stringify(PRESET_LABEL)});
+           })(),
            title: text.includes('节点库'),
            items: testIds('wl-item-preset-'),
            builtinToggles: testIds('wl-group-toggle-builtin'),
@@ -986,10 +989,29 @@ const main = async () => {
     check(grew === 3, `拖一个起点进画布应新增一个节点（2 → 3），实得 ${grew}`)
     console.log(`  7 新增节点 ok（${nodes} → ${grew}，拖入）`)
 
-    // 8) 删除节点（工具条上的按钮）
+    // 8) 删除节点（工具条右端「⋯」里的危险动作）
     const beforeDelete = grew
-    const deleted = await session.evaluate(clickTextExact('删除选中节点'))
-    check(deleted === true, '应能点中「删除选中节点」')
+    /*
+     * 删除从工具条明面收进了「⋯」：四个只读视图动词常驻，危险动作隔一层菜单
+     * （工具条在 ≤1180 放不下第五个动词，滚动区里那个点不到）。先开菜单，再点那一项。
+     */
+    await session.evaluate(clickTestIdExpr('wl-toolbar-more-trigger'))
+    const deleteMenuOpen = await waitFor(
+      session,
+      `document.querySelector('[data-testid="wl-toolbar-more-menu"]') !== null ? 1 : 0`,
+      { timeoutMs: 5_000 },
+    )
+    check(deleteMenuOpen === 1, '点工具条右端的「⋯」应打开溢出菜单')
+    const deleted = await session.evaluate(`(() => {
+       const menu = document.querySelector('[data-testid="wl-toolbar-more-menu"]');
+       if (menu === null) return false;
+       const hit = [...menu.querySelectorAll('[role="menuitem"]')]
+         .find((el) => (el.textContent || '').trim() === '删除选中节点');
+       if (!hit) return false;
+       hit.click();
+       return true;
+     })()`)
+    check(deleted === true, '溢出菜单里应有「删除选中节点」这一项')
     const shrank = await readSettled(
       session,
       'document.querySelectorAll(".react-flow__node").length',
@@ -2657,16 +2679,13 @@ const main = async () => {
      */
     const idsBeforeAlias = (await session.evaluate(nodeListExpr)).map((node) => node.id)
     /*
-     * 用**键盘**加这个节点（把条目聚焦起来按回车）：条目点了不加节点，键盘这条是给只用键盘
-     * 的人的等价路径——顺带把它也钉进验收。
+     * 用**拖**加这个节点：条目点了不加、按回车也不加（两轮都拍过），拖是唯一那条路。
      */
-    await session.evaluate(`(() => {
-       const el = document.querySelector('[data-testid="wl-item-preset-implement"]');
-       if (!(el instanceof HTMLElement)) return false;
-       el.focus();
-       return document.activeElement === el;
+    const aliasDropAt = await session.evaluate(`(() => {
+       const r = document.querySelector('[data-testid="wl-canvas"]').getBoundingClientRect();
+       return { x: Math.round(r.x + r.width * 0.5), y: Math.round(r.y + r.height * 0.82) };
      })()`)
-    await pressKey(session, 'Enter')
+    await dragItemTo(session, { itemTestId: 'wl-item-preset-implement', to: aliasDropAt })
     const aliasId = await waitFor(
       session,
       `(() => {
@@ -2681,7 +2700,7 @@ const main = async () => {
     const beforeAlias = await session.evaluate(nodeCountExpr)
     check(
       beforeAlias === idsBeforeAlias.length + 1,
-      `键盘在条目上按回车应新增一个节点（${idsBeforeAlias.length} → ${idsBeforeAlias.length + 1}），实得 ${beforeAlias}`,
+      `拖一个起点进画布应新增一个节点（${idsBeforeAlias.length} → ${idsBeforeAlias.length + 1}），实得 ${beforeAlias}`,
     )
     await focusCanvas()
     await pressShortcut(session, 'z', ['ctrl'])

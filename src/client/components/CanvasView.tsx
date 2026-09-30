@@ -53,7 +53,7 @@ import { decideSave, statusKey } from '../core/sync.ts'
 import css from './CanvasView.module.css'
 /*
  * 工具条那排按钮的 ghost 原子住在下拉组件的样式模块里（`combo.ghost` /
- * `combo.ghostDanger` / `combo.ghostIcon`）：本轮只有那两个新模块能新增样式，而工具条按钮要的
+ * `combo.ghostIcon`）：本轮只有那两个新模块能新增样式，而工具条按钮要的
  * 是"透明底 + hover 才亮"这套与面板控件不同的形态，不该再借 `ui.button` 那个实心原子。
  * 详见 `Combobox.module.css` 里"工具条按钮（ghost 原子）"那一段。
  */
@@ -1356,6 +1356,26 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
     ]
   }, [catalog, createGraph, removeGraph, reload, state.name, t])
 
+  /**
+   * 画布工具条右端那个「⋯」里的条目。
+   *
+   * 眼下只有一条：删除选中节点。它是工具条上唯一的**危险动作**，也是那个在 ≤1180
+   * 宽放不下、会被横向滚动推到可视区外的那个。
+   */
+  const canvasMoreEntries = useMemo<MenuEntry[]>(
+    () => [
+      {
+        kind: 'item',
+        key: 'delete',
+        label: t('canvas.deleteNode'),
+        danger: true,
+        disabled: selected === undefined,
+        onSelect: deleteSelected,
+      },
+    ],
+    [deleteSelected, selected, t],
+  )
+
   // ── 拖放落点 ─────────────────────────────────────────
 
   /**
@@ -1752,21 +1772,22 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
                     {t('canvas.fit')}
                   </button>
                 </Tooltip>
-                <span className={css.divider} />
-                <Tooltip label={t('shortcut.delete') + shortcutHint('shortcut.delete')}>
-                  <button
-                    type="button"
-                    className={[combo.ghost, combo.ghostDanger].join(' ')}
-                    data-testid="wl-delete"
-                    disabled={selected === undefined}
-                    onClick={deleteSelected}
-                  >
-                    {t('canvas.deleteNode')}
-                  </button>
-                </Tooltip>
               </div>
               <span className={css.barSpacer} />
               {overLimit && <span className={ui.problemWarn}>{t('canvas.noFitForHuge')}</span>}
+              {/*
+                删除是**危险动作**，收进「⋯」。两个理由：
+                ① 工具条在 ≤1180 放不下第五个动词，滚动区放不下的东西会被推到可视区外——
+                   一个看不见的删除按钮比没有更糟，所以它落在**不参与横向滚动的固定段**里；
+                ② 它带 `--wl-danger`，与旁边四个只读视图动词不是一类，隔一层菜单少一次误触。
+                其余四个动词**常驻明面**（用户明确说过它们不需要收进 `⋯`）。
+              */}
+              <MenuButton
+                label={t('toolbar.more')}
+                testId="wl-toolbar-more-menu"
+                triggerTestId="wl-toolbar-more-trigger"
+                entries={canvasMoreEntries}
+              />
               <button
                 type="button"
                 className={combo.ghostIcon}

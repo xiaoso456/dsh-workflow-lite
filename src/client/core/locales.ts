@@ -174,6 +174,7 @@ export const zh = {
   'toolbar.undoTitle': '撤销（Ctrl+Z）',
   'toolbar.redoTitle': '重做（Ctrl+Shift+Z）',
   'toolbar.shortcuts': '快捷键',
+  'toolbar.more': '更多操作',
 
   // 节点卡操作簇
   'node.duplicate': '复制节点',
@@ -372,6 +373,7 @@ export const en: Record<LocaleKey, string> = {
   'toolbar.undoTitle': 'Undo (Ctrl+Z)',
   'toolbar.redoTitle': 'Redo (Ctrl+Shift+Z)',
   'toolbar.shortcuts': 'Shortcuts',
+  'toolbar.more': 'More actions',
 
   'node.duplicate': 'Duplicate node',
   'node.remove': 'Delete node',
