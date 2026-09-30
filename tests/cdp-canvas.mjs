@@ -36,6 +36,9 @@
  *    数据目录的 `templates/nodes/` 写四个模板（`exec` 前缀三个成组 + 落单的 `solo` 进「其他」），
  *    刷新页面后验折叠/持久化/全部收起/筛选。跑完**无论成败**在 `finally` 里删干净。
  *    这一步顺带补上了一个空白：`templates/nodes/` 非空时「自定义 node」那一节长什么样，以前从没验过。
+ *  - 条目是**拖源**：点它不加节点（用户明确要求「节点模板应当拖动进画布，而不是点击进画布」）。
+ *    于是第 22b 步改用**拖**加节点、第 25 步反过来断言"连点两次什么都没发生"（哪天 `click`
+ *    handler 回来会立刻红）、第 32 步改用**键盘回车**（条目聚焦后按回车）驱动加节点。
  *
  * usage: DSH_WEB_TOKEN=<token> DSH_CDP_HTTP=http://127.0.0.1:9223 node tests/cdp-canvas.mjs
  */
@@ -961,11 +964,17 @@ const main = async () => {
     console.log(`  6 graph/load + React Flow 渲染 ok（${nodes} 个节点）`)
 
     // 7) 新增节点（用户点名的「没有新增」）
-    const added = await session.evaluate(clickText(PRESET_LABEL))
-    check(added === true, `应能点中内置起点「${PRESET_LABEL}」`)
+    //
+    // 用**拖**加：条目点了不加节点（第 25 步反过来断言这件事），拖才是那条真能加进图里的路。
+    const geom7 = await readGeometry(session, '7')
+    const scanDropAt = {
+      x: Math.round(geom7.canvas.x + geom7.canvas.w * 0.3),
+      y: Math.round(geom7.canvas.y + geom7.canvas.h * 0.72),
+    }
+    await dragItemTo(session, { itemTestId: 'wl-item-preset-scan', to: scanDropAt })
     /*
      * 同样等**正好 3**（理由同第 6 步）：裸的 `waitFor(length)` 一读到真值就返回，
-     * 而"点击 → React 提交新节点"之间有一个不保证在同一个瞬间完成的间隙（第 5a 步刷新过页面，
+     * 而"松手 → React 提交新节点"之间有一个不保证在同一个瞬间完成的间隙（第 5a 步刷新过页面，
      * 这一下实测赶上过一次中间态）。超时仍把最后一次真实读数交给下面的 `check` 出结论。
      */
     const grew = await readSettled(
@@ -974,8 +983,8 @@ const main = async () => {
       (value) => value === 3,
       { timeoutMs: 15_000 },
     )
-    check(grew === 3, `点一个起点应新增一个节点（2 → 3），实得 ${grew}`)
-    console.log(`  7 新增节点 ok（${nodes} → ${grew}）`)
+    check(grew === 3, `拖一个起点进画布应新增一个节点（2 → 3），实得 ${grew}`)
+    console.log(`  7 新增节点 ok（${nodes} → ${grew}，拖入）`)
 
     // 8) 删除节点（工具条上的按钮）
     const beforeDelete = grew
@@ -1586,7 +1595,15 @@ const main = async () => {
 
     // 22b) 加节点 → Ctrl+Z → 回原值 → Ctrl+Shift+Z → 又 +1
     const beforeUndo = await session.evaluate(nodeCountExpr)
-    await session.evaluate(clickTestIdExpr('wl-item-preset-review'))
+    /*
+     * 用**拖**加这个节点，不是点：条目点了不加节点（用户明确要求只能拖进画布），
+     * 所以这条断言顺带证明「拖」是那条真能加进图里的路。
+     */
+    const reviewDropAt = await session.evaluate(`(() => {
+       const r = document.querySelector('[data-testid="wl-canvas"]').getBoundingClientRect();
+       return { x: Math.round(r.x + r.width * 0.32), y: Math.round(r.y + r.height * 0.74) };
+     })()`)
+    await dragItemTo(session, { itemTestId: 'wl-item-preset-review', to: reviewDropAt })
     await waitFor(
       session,
       `document.querySelectorAll('.react-flow__node').length === ${beforeUndo + 1}`,
@@ -1688,7 +1705,14 @@ const main = async () => {
     )
     console.log(`  24 复制节点 ok（report → report-2；${beforeDup} → ${afterDup}）`)
 
-    // 25) 连点同一个条目两次：两个节点的坐标**必须不同**（独立审计 P3 的回归）
+    // 25) 点节点库条目**不加**节点（连点也不加），而"输入框新建"的两个节点**必须不重合**
+    //
+    // 前半条是用户明确要求的行为：「节点模板应当拖动进画布，而不是点击进画布」——条目是拖源，
+    // 点它一下（或连点两下）都不该往图里加东西。这里反过来断言"什么都没发生"，
+    // 哪天 `click` handler 又回来会立刻红。
+    //
+    // 后半条是独立审计 P3 的回归：由 `newPosition` 补位的两个节点不能逐像素重合。
+    // 点条目不再产生"无落点添加"之后，这条路只剩"输入框敲个 id 回车"，所以那两个节点改从那儿建。
     //
     // 落点要**量完立刻验**：节点库那一栏会随"校验面板/计划"之类的内容重排，
     // 先量后点之间隔一次 React 渲染的话，点就可能落到邻居条目上（实测红过一次）。
@@ -1711,14 +1735,27 @@ const main = async () => {
     )
     const beforeFix = await session.evaluate(nodeCountExpr)
     await mouseClick(session, fixPoint)
-    await waitFor(
-      session,
-      `document.querySelectorAll('.react-flow__node').length === ${beforeFix + 1}`,
-      {
-        timeoutMs: 5_000,
-      },
-    )
     await mouseClick(session, fixPoint)
+    /*
+     * 点完**等一拍**再读：React 提交节点不在同一个事件循环里，立刻读会把"还没提交"当成
+     * "没加"——这里等的是**负结果**，不能只轮询一次就下结论（那会假绿）。
+     */
+    await new Promise((resolve) => setTimeout(resolve, 600))
+    const afterClicks = await session.evaluate(nodeCountExpr)
+    check(
+      afterClicks === beforeFix,
+      `点节点库条目不该往图里加节点（连点两次也不该）：${beforeFix} → 实得 ${afterClicks}`,
+    )
+    /*
+     * 那两个 fix 系节点改从**输入框**新建。输入同一个名字两次，`uniqueNodeId` 给出 fix 与 fix-2。
+     * 提交时机是回车（见第 28 步），所以这里敲完就回一次车。
+     */
+    const blankInputSel = '[data-testid="wl-new-node-input"]'
+    for (let index = 0; index < 2; index += 1) {
+      await session.evaluate(`document.querySelector(${JSON.stringify(blankInputSel)}).focus()`)
+      await setReactInput(session, blankInputSel, 'fix')
+      await pressKey(session, 'Enter', { text: '\r' })
+    }
     await waitFor(
       session,
       `document.querySelectorAll('.react-flow__node').length === ${beforeFix + 2}`,
@@ -1808,7 +1845,7 @@ const main = async () => {
     for (const info of fixBoxes.nodes) {
       check(
         info.missing !== true && info.inside === true,
-        `连点出来的 ${info.id} 必须完整落在画布可见区内：节点 ${JSON.stringify(info.box)}，画布 ${JSON.stringify(fixBoxes.canvas)}，越界（左/上/右/下）${JSON.stringify(info.over)}px`,
+        `新建出来的 ${info.id} 必须完整落在画布可见区内：节点 ${JSON.stringify(info.box)}，画布 ${JSON.stringify(fixBoxes.canvas)}，越界（左/上/右/下）${JSON.stringify(info.over)}px`,
       )
     }
     console.log(
@@ -1816,17 +1853,17 @@ const main = async () => {
     )
     check(
       fixNodes[0].id !== fixNodes[1].id,
-      `连点两次的节点 id 不该相同，实得 ${JSON.stringify(fixNodes.map((n) => n.id))}`,
+      `先后新建的两个节点 id 不该相同，实得 ${JSON.stringify(fixNodes.map((n) => n.id))}`,
     )
     check(
       twoFixes.distance > 20,
-      `连点两次的节点不能重合：${fixNodes[0].id}=${JSON.stringify(twoFixes.first)} ${fixNodes[1].id}=${JSON.stringify(twoFixes.second)}（间距 ${Math.round(twoFixes.distance)}px）；` +
+      `先后新建的两个节点不能重合：${fixNodes[0].id}=${JSON.stringify(twoFixes.first)} ${fixNodes[1].id}=${JSON.stringify(twoFixes.second)}（间距 ${Math.round(twoFixes.distance)}px）；` +
         `此刻 zoom=${geom25.viewport.zoom.toFixed(3)} 画布=${Math.round(geom25.canvas.w)}×${Math.round(geom25.canvas.h)}（可见 flow 区 ${Math.round(geom25.canvas.w / geom25.viewport.zoom)}×${Math.round(geom25.canvas.h / geom25.viewport.zoom)}），` +
         `补位的每轴上限=${JSON.stringify(limit25)}（环步长 260/140），全部节点=${JSON.stringify(allPositions)}`,
     )
     const idsAfter25 = (await session.evaluate(nodeListExpr)).map((node) => node.id).sort()
     console.log(
-      `  25b 连点不叠 ok（${fixNodes[0].id} 与 ${fixNodes[1].id} 间距 ${Math.round(twoFixes.distance)}px；此刻画布上 ${JSON.stringify(idsAfter25)}）`,
+      `  25b 点不加 / 新建不叠 ok（${fixNodes[0].id} 与 ${fixNodes[1].id} 间距 ${Math.round(twoFixes.distance)}px；此刻画布上 ${JSON.stringify(idsAfter25)}）`,
     )
 
     // 26) 键盘：Esc 取消选中；`/` 聚焦筛选框
@@ -2619,7 +2656,17 @@ const main = async () => {
      * 这样撤销/重做断言的是"同一个节点回来了"，而不是"节点数变了"。
      */
     const idsBeforeAlias = (await session.evaluate(nodeListExpr)).map((node) => node.id)
-    await session.evaluate(clickTestIdExpr('wl-item-preset-implement'))
+    /*
+     * 用**键盘**加这个节点（把条目聚焦起来按回车）：条目点了不加节点，键盘这条是给只用键盘
+     * 的人的等价路径——顺带把它也钉进验收。
+     */
+    await session.evaluate(`(() => {
+       const el = document.querySelector('[data-testid="wl-item-preset-implement"]');
+       if (!(el instanceof HTMLElement)) return false;
+       el.focus();
+       return document.activeElement === el;
+     })()`)
+    await pressKey(session, 'Enter')
     const aliasId = await waitFor(
       session,
       `(() => {
@@ -2634,7 +2681,7 @@ const main = async () => {
     const beforeAlias = await session.evaluate(nodeCountExpr)
     check(
       beforeAlias === idsBeforeAlias.length + 1,
-      `点节点库条目应新增一个节点（${idsBeforeAlias.length} → ${idsBeforeAlias.length + 1}），实得 ${beforeAlias}`,
+      `键盘在条目上按回车应新增一个节点（${idsBeforeAlias.length} → ${idsBeforeAlias.length + 1}），实得 ${beforeAlias}`,
     )
     await focusCanvas()
     await pressShortcut(session, 'z', ['ctrl'])

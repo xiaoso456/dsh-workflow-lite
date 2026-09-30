@@ -187,6 +187,21 @@ export function ValidationPanel(props: {
   )
 }
 
+/**
+ * 键盘激活一个节点库条目：`Enter` / `Space` 走"加一个"这条路。
+ *
+ * **鼠标点击不加节点。** 用户明确要求过「节点模板应当拖动进画布，而不是点击进画布」，
+ * 所以这些条目没有 `click` handler——拖是给指针的那条路，而键盘没有拖，于是把同一个
+ * 加节点动作挂在按键上（`preventDefault` 顺带吃掉浏览器由按键合成的那次 `click`）。
+ */
+function activateByKeyboard(add: () => void) {
+  return (event: React.KeyboardEvent<HTMLButtonElement>): void => {
+    if (event.key !== 'Enter' && event.key !== ' ') return
+    event.preventDefault()
+    add()
+  }
+}
+
 /** 节点库的 props。 */
 export interface PaletteProps {
   t: Translate
@@ -205,7 +220,11 @@ export interface PaletteProps {
   onToggleGroup: (key: string) => void
   filter: string
   onFilter: (value: string) => void
-  /** 点击条目：在视野中心加一个。 */
+  /**
+   * 加一个到图里（拖放的落点由调用方给；缺省落在视口中心）。
+   *
+   * 只有**拖放**与**键盘激活**会走到这里：条目本身没有 `click` handler。
+   */
   onAddPreset: (preset: NodePreset) => void
   onAddTemplate: (entry: TemplateEntry) => void
   /** 空白节点：id 由面板内输入框给出。 */
@@ -356,11 +375,11 @@ export function Palette(props: PaletteProps): React.JSX.Element {
   const presetItem = (preset: NodePreset): React.JSX.Element => {
     const label = t(preset.labelKey)
     /*
-     * 条目同时是可拖源和按钮：`title` 补全「拖或点」，`aria-label` 再把可读名与
-     * 机器 id 一起念出来。条目上**没有拖拽把手**——"能拖"由光标与悬停的抬起表达，
-     * 那个盲文字符只是一段噪声。
+     * 条目是**拖源**，不是"点一下就加进来"的按钮：`title` 与 `aria-label` 只说拖，
+     * 机器 id 让 `aria-label` 一起念出来。条目上**没有拖拽把手**——"能拖"由光标与
+     * 悬停的抬起表达，那个盲文字符只是一段噪声。
      */
-    const hint = `${label}（${preset.id}），${t('palette.addHint')}`
+    const hint = `${label}（${preset.id}），${t('palette.dragHint')}`
     return (
       <button
         type="button"
@@ -371,7 +390,7 @@ export function Palette(props: PaletteProps): React.JSX.Element {
         disabled={disabled}
         title={`${label}，${t('palette.dragHint')}`}
         aria-label={hint}
-        onClick={() => props.onAddPreset(preset)}
+        onKeyDown={activateByKeyboard(() => props.onAddPreset(preset))}
         onDragStart={(event) => startDrag(event, { kind: 'preset', id: preset.id }, label)}
       >
         <span className={css.itemName}>{label}</span>
@@ -385,7 +404,7 @@ export function Palette(props: PaletteProps): React.JSX.Element {
   }
 
   const templateItem = (entry: TemplateEntry): React.JSX.Element => {
-    // 坏模板拖不得也点不得：它的 data 本体读不出来，拖进去只能得到一个空节点。
+    // 坏模板拖不得也加不得：它的 data 本体读不出来，进去只能得到一个空节点。
     const invalid = entry.invalid === true
     const blocked = disabled || invalid
     const title = invalid ? (entry.reason ?? t('palette.invalid')) : entry.name
@@ -398,8 +417,8 @@ export function Palette(props: PaletteProps): React.JSX.Element {
         draggable={!blocked}
         disabled={blocked}
         title={hint}
-        aria-label={invalid ? title : `${title}，${t('palette.addHint')}`}
-        onClick={() => props.onAddTemplate(entry)}
+        aria-label={hint}
+        onKeyDown={activateByKeyboard(() => props.onAddTemplate(entry))}
         onDragStart={(event) =>
           startDrag(event, { kind: 'template', name: entry.name }, entry.name)
         }
@@ -418,7 +437,7 @@ export function Palette(props: PaletteProps): React.JSX.Element {
       {/*
         常驻说明收成一句：面板头下面这行每多一行，条目就少露一行，而这一栏在窄窗只有
         一百来像素高。留下的这句是「怎么连线」——它别处再没有可见的家（原先只写在画布容器的
-        `title` 里，而 `title` 对触屏与键盘用户不弹）；「拖进来 / 点条目」那句仍在每个条目的
+        `title` 里，而 `title` 对触屏与键盘用户不弹）；「拖到画布放置」那句仍在每个条目的
         `aria-label` 与 `title` 里。
       */}
       <p className={css.panelHint} data-testid="wl-palette-hint">

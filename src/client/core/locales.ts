@@ -156,10 +156,9 @@ export const zh = {
   'palette.newPlaceholder': '节点 id，回车新建',
   'palette.newBlank': '新建空白节点',
   'palette.noMatch': '没有匹配的项',
-  'palette.dragHint': '拖到画布放置；点击则放在视野中心',
+  'palette.dragHint': '拖到画布放置',
   'palette.expandAll': '全部展开',
   'palette.collapseAll': '全部收起',
-  'palette.addHint': '拖进画布，或直接点条目',
   'palette.connectHint': '从节点右侧圆点拖到另一个节点即可连线',
   'palette.collapseFiltering': '筛选时一律展开，清空筛选后再收起',
 
@@ -356,10 +355,9 @@ export const en: Record<LocaleKey, string> = {
   'palette.newPlaceholder': 'Node id, Enter to create',
   'palette.newBlank': 'New blank node',
   'palette.noMatch': 'Nothing matches',
-  'palette.dragHint': 'Drag onto the canvas to place; click to drop it in the middle',
+  'palette.dragHint': 'Drag onto the canvas to place',
   'palette.expandAll': 'Expand all',
   'palette.collapseAll': 'Collapse all',
-  'palette.addHint': 'Drag it in, or click the entry',
   'palette.connectHint': 'Drag from the dot on a node edge onto another node to connect',
   'palette.collapseFiltering': 'Filtering keeps every group open; clear the filter to collapse',
 
