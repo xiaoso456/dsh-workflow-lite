@@ -53,7 +53,6 @@ export const zh = {
   'palette.title': '节点库',
   'palette.builtin': '内置 node',
   'palette.disk': '自定义 node',
-  'palette.diskEmpty': '还没有自定义节点。把节点模板 JSON 放进 templates/nodes/ 就会出现在这里。',
   'palette.invalid': '模板坏了',
   'palette.added': '已加入',
 
@@ -152,20 +151,28 @@ export const zh = {
   // ── 交互改版新增 ────
 
   // 节点库
-  'palette.filter': '筛选起点与节点',
-  'palette.newPlaceholder': '节点 id，回车新建',
-  'palette.newBlank': '新建空白节点',
-  'palette.noMatch': '没有匹配的项',
   'palette.dragHint': '拖到画布放置',
-  'palette.expandAll': '全部展开',
-  'palette.collapseAll': '全部收起',
-  'palette.connectHint': '从节点右侧圆点拖到另一个节点即可连线',
-  'palette.collapseFiltering': '筛选时一律展开，清空筛选后再收起',
+  'palette.newTemplate': '新建节点模板',
+  'palette.newTemplateHint': '点它新建一个自定义节点模板',
+
+  // 新建节点模板对话框
+  'template.title': '新建节点模板',
+  'template.name': '模板名',
+  'template.namePlaceholder': '例如 my-check',
+  'template.label': '显示名',
+  'template.labelPlaceholder': '留空就显示模板名',
+  'template.prompt': '提示词',
+  'template.promptPlaceholder': '这个节点要做什么，产出什么。',
+  'template.output': '产出',
+  'template.outputPlaceholder': '例如 check.md；留空表示不声明',
+  'template.create': '创建',
+  'template.cancel': '取消',
+  'template.fileHint':
+    '模板名就是文件名（templates/nodes/<名>.json），建好之后它出现在「自定义 node」里。',
 
   // 画布空态与拖放
   'canvas.emptyTitle': '这张图还没有节点',
-  'canvas.emptyBody': '从左侧节点库拖一个进来，或用左侧输入框新建一个。',
-  'canvas.emptyAction': '新建空白节点',
+  'canvas.emptyBody': '从左侧节点库拖一个进来。',
   'canvas.dropHere': '松手放在这里',
 
   // 画布工具条
@@ -203,7 +210,6 @@ export const zh = {
   'shortcut.redo': '重做',
   'shortcut.delete': '删除选中的节点',
   'shortcut.escape': '取消选中',
-  'shortcut.filter': '聚焦节点库筛选',
   'shortcut.fit': '适应视图',
   'shortcut.relayout': '重新布局',
   'shortcut.close': '关闭',
@@ -257,8 +263,6 @@ export const en: Record<LocaleKey, string> = {
   'palette.title': 'Node palette',
   'palette.builtin': 'Built-in nodes',
   'palette.disk': 'Custom nodes',
-  'palette.diskEmpty':
-    'No custom nodes yet. Drop a node template JSON into templates/nodes/ and it shows up here.',
   'palette.invalid': 'Broken template',
   'palette.added': 'Added',
 
@@ -352,20 +356,29 @@ export const en: Record<LocaleKey, string> = {
 
   // ── Interaction redesign additions ──
 
-  'palette.filter': 'Filter starters and nodes',
-  'palette.newPlaceholder': 'Node id, Enter to create',
-  'palette.newBlank': 'New blank node',
-  'palette.noMatch': 'Nothing matches',
+  // 节点库
   'palette.dragHint': 'Drag onto the canvas to place',
-  'palette.expandAll': 'Expand all',
-  'palette.collapseAll': 'Collapse all',
-  'palette.connectHint': 'Drag from the dot on a node edge onto another node to connect',
-  'palette.collapseFiltering': 'Filtering keeps every group open; clear the filter to collapse',
+  'palette.newTemplate': 'New node template',
+  'palette.newTemplateHint': 'Create a custom node template',
 
+  // 新建节点模板对话框
+  'template.title': 'New node template',
+  'template.name': 'Template name',
+  'template.namePlaceholder': 'e.g. my-check',
+  'template.label': 'Display name',
+  'template.labelPlaceholder': 'Falls back to the template name',
+  'template.prompt': 'Prompt',
+  'template.promptPlaceholder': 'What this node does, and what it produces.',
+  'template.output': 'Output',
+  'template.outputPlaceholder': 'e.g. check.md; leave empty for none',
+  'template.create': 'Create',
+  'template.cancel': 'Cancel',
+  'template.fileHint':
+    'The name is the file name (templates/nodes/<name>.json). It shows up under Custom nodes.',
+
+  // 画布空态与拖放
   'canvas.emptyTitle': 'This graph has no nodes yet',
-  'canvas.emptyBody':
-    'Drag one in from the palette on the left, or create one with the field there.',
-  'canvas.emptyAction': 'New blank node',
+  'canvas.emptyBody': 'Drag one in from the palette on the left.',
   'canvas.dropHere': 'Drop it here',
 
   'toolbar.undo': 'Undo',
@@ -398,7 +411,6 @@ export const en: Record<LocaleKey, string> = {
   'shortcut.redo': 'Redo',
   'shortcut.delete': 'Delete selected node',
   'shortcut.escape': 'Clear selection',
-  'shortcut.filter': 'Focus the palette filter',
   'shortcut.fit': 'Fit view',
   'shortcut.relayout': 'Re-layout',
   'shortcut.close': 'Close',

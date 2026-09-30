@@ -21,6 +21,7 @@ import {
   RpcId,
 } from '@deepseek-ai/dsh-client-connection'
 import { normalizeDocument } from '../shared/model.ts'
+import type { NodeData } from '../shared/types.ts'
 import {
   endpointName,
   type GraphLoadResponse,
@@ -143,6 +144,23 @@ function optionalString(input: Record<string, unknown>, field: string): string |
   return typeof value === 'string' && value !== '' ? value : undefined
 }
 
+/**
+ * 把线上来的 `data` 形状归一成节点的 `data` 本体：只认 `label` / `prompt` / `output`。
+ *
+ * `prompt` 缺省当**空串**：空 prompt 是编译级问题（由图上的校验面板去说），
+ * 不该在这里被拦成"参数不合法"——那会把"内容还没写完的模板"变成"建不出来"。
+ */
+function readNodeData(value: unknown): NodeData {
+  const input = value === undefined || value === null ? {} : asRecord(value)
+  const data: NodeData = { prompt: optionalString(input, 'prompt') ?? '' }
+  const label = optionalString(input, 'label')
+  if (label !== undefined) data.label = label
+  const output = input.output
+  if (typeof output === 'string') data.output = output
+  else if (output === false) data.output = false
+  return data
+}
+
 // ─────────────────────────────────────────────────────────────
 // 分派
 // ─────────────────────────────────────────────────────────────
@@ -244,6 +262,14 @@ async function dispatch(
         return fail('internal', `模板 ${name} 不是节点模板（读出来的是整张图）`)
       }
       return ok({ name, data })
+    }
+
+    case 'graph/nodeTemplateCreate': {
+      const input = asRecord(payload)
+      const name = requireString(input, 'name')
+      const outcome = await deps.repository.createNodeTemplate(name, readNodeData(input.data))
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok({ name, warnings: outcome.result.warnings })
     }
 
     case 'plan/build': {

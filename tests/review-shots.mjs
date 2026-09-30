@@ -759,14 +759,25 @@ async function clearPrefs(session) {
   })()`)
 }
 
-/** 节点库折着就把「全部收起 / 展开」按一下，直到要找的条目在 DOM 里。 */
+/** 节点库折着就把两个分节头逐个点开，直到要找的条目在 DOM 里。 */
 async function ensurePaletteExpanded(session, testId = 'wl-item-preset-implement') {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const present = await session.evaluate(
       `Boolean(document.querySelector('[data-testid=${JSON.stringify(testId)}]'))`,
     )
     if (present === true) return
-    await clickTestId(session, 'wl-collapse-all')
+    /*
+     * 从前这里按的是「全部收起 / 全部展开」那枚按钮——它随筛选行一起删了（用户：那三行
+     * "纯纯垃圾交互"）。现在只能逐个分节点头：点开两个分节头与那一枚按钮等价。
+     */
+    for (const source of ['builtin', 'disk']) {
+      await session.evaluate(`(() => {
+        const toggle = document.querySelector('[data-testid="wl-section-toggle-${source}"]');
+        if (toggle !== null && toggle.getAttribute('aria-expanded') === 'false') toggle.click();
+        return true;
+      })()`)
+    }
+    await new Promise((resolve) => setTimeout(resolve, 200))
   }
   throw new Error(`节点库展不开：找不到 ${testId}`)
 }
@@ -793,8 +804,7 @@ async function viewportSweep(session) {
 async function stateSweep(session) {
   await boot(session, EMPTY, 1440, 900)
   await shoot(session, 's-empty', '空图：没有人告诉人下一步该干嘛？')
-  await clickTestId(session, 'wl-empty-action')
-  await shoot(session, 's-empty-action', '空图点了「建第一个节点」之后，焦点去哪了？')
+  /* 空态里那枚「新建空白节点」按钮随 id 输入框一起删了，空态现在只有一句说明。 */
 
   await boot(session, LONG, 1440, 900)
   await shoot(session, 's-long-main', '长标签 / 长提示词 / 长条件，都没选中')
@@ -813,20 +823,16 @@ async function stateSweep(session) {
   await shoot(session, 's-main-1440', '主图基线')
   await hoverTestId(session, 'wl-item-preset-scan')
   await shoot(session, 's-palette-hover', '悬停节点库条目')
+  /* 新界面：这一栏唯一那个「＋」——悬停态 + 它打开的对话框各拍一张。 */
+  await hoverTestId(session, 'wl-template-add')
+  await shoot(session, 's-palette-add', '悬停「＋」：新建节点模板')
+  await clickTestId(session, 'wl-template-add')
+  await shoot(session, 's-template-dialog', '「新建节点模板」对话框')
+  await clickTestId(session, 'wl-template-cancel')
   await clickTestId(session, 'wl-section-toggle-builtin')
   await shoot(session, 's-palette-builtin-collapsed', '折起「内置 node」')
   await clickTestId(session, 'wl-section-toggle-disk')
   await shoot(session, 's-palette-disk-collapsed', '连同「自定义 node」一起折起')
-  await clickTestId(session, 'wl-collapse-all')
-  await shoot(session, 's-palette-all-collapsed', '「全部收起」之后')
-  await session.evaluate(`(() => { const i = document.querySelector('[data-testid="wl-library-filter"]');
-    if (i instanceof HTMLInputElement) { i.focus(); return true } return false })()`)
-  await session.evaluate(`(() => { const i = document.querySelector('[data-testid="wl-library-filter"]');
-    if (!(i instanceof HTMLInputElement)) return false
-    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set
-    setter.call(i, 'exec'); i.dispatchEvent(new Event('input', { bubbles: true })); return true })()`)
-  await new Promise((resolve) => setTimeout(resolve, 260))
-  await shoot(session, 's-palette-filter', '筛选 exec：剩下什么、还看得懂吗？')
 
   await boot(session, MAIN, 1440, 900)
   const target = await session.evaluate(`(() => {

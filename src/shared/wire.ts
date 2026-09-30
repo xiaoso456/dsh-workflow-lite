@@ -47,6 +47,7 @@ export const WORKFLOW_LITE_ENDPOINTS = [
   'graph/delete',
   'graph/templates',
   'graph/nodeTemplate',
+  'graph/nodeTemplateCreate',
   'plan/build',
 ] as const
 
@@ -190,6 +191,24 @@ export interface GraphNodeTemplateResponse {
   data: NodeData
 }
 
+/**
+ * `graph/nodeTemplateCreate` —— 在 `templates/nodes/` 下**新建**一个节点模板。
+ *
+ * 从前模板只能手写 JSON 丢进目录里；画布上「自定义 node」那一节的「＋」磁贴要靠这条
+ * 把它建出来。名字是人在对话框里指着输的，所以**撞名报 `conflict`，既不覆盖也不自动加序号**
+ * （自动改名会让人找不到刚建的那个；覆盖别人的模板更不可接受）。
+ */
+export interface GraphNodeTemplateCreateRequest {
+  name: string
+  /** 模板本体 = 节点的 `data`（`label` / `prompt` / `output`）。 */
+  data: NodeData
+}
+export interface GraphNodeTemplateCreateResponse {
+  /** 实际写入的模板名（＝入参；撞名会在写之前报错）。 */
+  name: string
+  warnings: WireWarning[]
+}
+
 /** `plan/build` —— 画布上的编译预览（两个 tab）。 */
 export interface PlanBuildRequest {
   name: string
@@ -220,6 +239,10 @@ export interface WorkflowLiteRpcMap {
   'graph/delete': { args: GraphDeleteRequest; result: GraphDeleteResponse }
   'graph/templates': { args: GraphTemplatesRequest; result: GraphTemplatesResponse }
   'graph/nodeTemplate': { args: GraphNodeTemplateRequest; result: GraphNodeTemplateResponse }
+  'graph/nodeTemplateCreate': {
+    args: GraphNodeTemplateCreateRequest
+    result: GraphNodeTemplateCreateResponse
+  }
   'plan/build': { args: PlanBuildRequest; result: PlanBuildResponse }
 }
 

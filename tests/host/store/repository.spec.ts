@@ -581,6 +581,65 @@ describe('saveAsTemplate', () => {
   })
 })
 
+describe('createNodeTemplate', () => {
+  it('文件顶层就是 data 本体（不套壳），并且当场出现在 list 里、读得回来', async () => {
+    const written = expectOk(
+      await repo.createNodeTemplate('my-check', { label: '我的检查', prompt: '检查一遍。' }),
+    )
+    expect(written.changed[0]?.id).toBe('my-check')
+
+    const raw = await readFileText(templateFile(root, 'nodes', 'my-check'))
+    expect(raw).not.toBeNull()
+    // 顶层直接是三个字段：套一层 `{data: …}` 的话 `readTemplate('nodes')` 会读成空模板。
+    expect(Object.keys(JSON.parse(raw ?? '{}')).sort()).toEqual(['label', 'prompt'])
+    expect(raw?.endsWith('\n')).toBe(true)
+
+    expect((await repo.list()).templates.nodes.map((entry) => entry.name)).toEqual(['my-check'])
+    expect(expectOk(await repo.readTemplate('nodes', 'my-check'))).toEqual({
+      label: '我的检查',
+      prompt: '检查一遍。',
+    })
+  })
+
+  it('output 三态：字符串写出来、缺省不写这个键', async () => {
+    expectOk(await repo.createNodeTemplate('with-out', { prompt: 'P', output: 'x.md' }))
+    expectOk(await repo.createNodeTemplate('no-out', { prompt: 'P' }))
+    expect(
+      JSON.parse((await readFileText(templateFile(root, 'nodes', 'with-out'))) ?? '{}'),
+    ).toEqual({ prompt: 'P', output: 'x.md' })
+    expect(JSON.parse((await readFileText(templateFile(root, 'nodes', 'no-out'))) ?? '{}')).toEqual(
+      {
+        prompt: 'P',
+      },
+    )
+  })
+
+  it('撞名 ⇒ conflict，**不覆盖也不加序号**，原文件一字未动', async () => {
+    expectOk(await repo.createNodeTemplate('twin', { prompt: '原来的' }))
+    const failure = expectError(await repo.createNodeTemplate('twin', { prompt: '新的' }))
+    expect(failure.code).toBe('conflict')
+    expect(failure.detail?.occupant).toBe('file')
+
+    // 没有 `twin-2`，也没有把 `twin` 改写成新的。
+    expect((await repo.list()).templates.nodes.map((entry) => entry.name)).toEqual(['twin'])
+    expect(expectOk(await repo.readTemplate('nodes', 'twin'))).toEqual({ prompt: '原来的' })
+  })
+
+  it('被同名目录占位也算冲突（同名目录算被占用）', async () => {
+    await mkdir(join(templatesDir(root, 'nodes'), 'dirish'), { recursive: true })
+    expect(expectError(await repo.createNodeTemplate('dirish', { prompt: 'P' })).code).toBe(
+      'conflict',
+    )
+  })
+
+  it('非法名 ⇒ blocked，且什么都没落盘', async () => {
+    expect(expectError(await repo.createNodeTemplate('../escape', { prompt: 'P' })).code).toBe(
+      'blocked',
+    )
+    expect((await repo.list()).templates.nodes).toEqual([])
+  })
+})
+
 describe('list', () => {
   it('列出图与模板，坏的标 invalid + reason，杂项条目各报一条提示', async () => {
     expectOk(await repo.create('good'))

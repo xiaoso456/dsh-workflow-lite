@@ -135,7 +135,13 @@ export async function selectGraph(session, name, { timeoutMs = 25_000 } = {}) {
        if (!(trigger.textContent || '').includes(${JSON.stringify(name)})) return 0;
        const status = document.querySelector('[data-testid="wl-status"]');
        if (status && (status.textContent || '').includes('只读')) return 0;
-       return document.querySelectorAll('.react-flow__node').length || (document.querySelector('[data-testid="wl-empty-action"]') ? 1 : 0);
+       /*
+        * 空图**没有节点**，从前靠"空态里那枚「新建空白节点」按钮在不在"当就绪信号；
+        * 那枚按钮随 id 输入框一起删了，现在读空态那句说明文字——它才是"空态真的渲染出来了"。
+        */
+       const canvas = document.querySelector('[data-testid="wl-canvas"]');
+       if (canvas !== null && (canvas.innerText || '').includes('这张图还没有节点')) return 1;
+       return document.querySelectorAll('.react-flow__node').length || 0;
      })()`,
     { timeoutMs },
   )

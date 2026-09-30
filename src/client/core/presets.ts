@@ -147,34 +147,15 @@ export function writeCollapsed(
 }
 
 /**
- * 筛选框里算不算「正在筛」。两处判断（过滤条目、强制展开）共用这一条规则：
- * 只有空白不算筛——空词等于不筛，而不是「没有东西匹配」。
- */
-export function isFiltering(filter: string): boolean {
-  return filter.trim() !== ''
-}
-
-/** 名字是否命中筛选词：大小写不敏感的子串匹配；空筛选词一律命中。 */
-export function matchesFilter(text: string, filter: string): boolean {
-  const needle = filter.trim().toLowerCase()
-  if (needle === '') return true
-  return text.toLowerCase().includes(needle)
-}
-
-/**
  * 某个折叠键此刻是否展开。
  *
  * 名字里的 "group" 是历史：这个判定原先服务于二级分组，二级分类去掉之后它只服务两个
  * 分节（`section:builtin` / `section:disk`），判定本身与键的含义无关——给一个键，
  * 回答它现在是不是展开的。
  *
- * 筛选中**一律展开**：输了筛选词却看到一片折起来的分节，会让人以为筛坏了——
- * 命中的东西必须当场可见。`filtering` 由调用方按 {@link isFiltering} 给出。
+ * 从前这里还有第三个参数 `filtering`（筛选态一律展开）。筛选框整个删掉之后，
+ * "命中的必须当场可见"这条前提不存在了，展开与否只剩「用户折过没有」这一件事。
  */
-export function isGroupExpanded(
-  key: string,
-  collapsed: readonly string[],
-  filtering: boolean,
-): boolean {
-  return filtering || !collapsed.includes(key)
+export function isGroupExpanded(key: string, collapsed: readonly string[]): boolean {
+  return !collapsed.includes(key)
 }

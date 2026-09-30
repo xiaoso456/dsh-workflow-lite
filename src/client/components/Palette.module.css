@@ -15,106 +15,6 @@
   min-height: 0;
 }
 
-/* ── 控件区：宽窗两行，窄窗一行 ───────────────────────────── */
-
-/*
- * 宽窗（>900px）**保持两行**：筛选框 + 「全部收起」一行，「节点 id 新建 + ＋」一行。
- *
- * 为什么不并成一行：这一栏在 1440 下只有 208px 宽（栏内 191px）。并成一行后，
- * 两个 `<input>` 的固有基准宽（各约 170px）会被硬压到 **~61px**——筛选框是这一栏里
- * 最常碰的东西，为了省 36px 把它挤到"看不清自己输了什么"不划算。合并只在窄窗做
- * （那里纵向空间是危机，而这栏是全宽的 467/567px，不存在挤的问题），见文件末尾。
- *
- * `.shell` 这一层是窄窗合并要用的容器：宽窗下它就是个普通块级盒，两行照旧各占一行。
- */
-.shell {
-  display: block;
-}
-
-.filterRow,
-.newNode {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px 4px;
-}
-
-.filterRow > input,
-.newNode > input {
-  flex: 1 1 auto;
-  /* 不加 min-width: 0 的话，input 的固有宽度会把这一行撑破而不是收缩。 */
-  min-width: 0;
-}
-
-.filterRow > button,
-.newNode > button {
-  flex: 0 0 auto;
-}
-
-/*
- * 「全部收起 / 全部展开」在**面上**是一枚 26px 宽、跟输入框同高的图标按钮：它右边
- * （窄窗并排时）或同行尾（宽窗单独一行时）就是这一栏最常碰的输入框，四个字的文案
- * 在这条 208px 宽的栏里是纯占位。形状走 ui 的 `.iconButton`（控件档的底与描边——
- * 半透明的 ghost 底在暗色下等于没有形状），这里只覆盖尺寸与字体。
- *
- * 字面文案仍然留在 DOM 里（它是这个控件的可读名，验收脚本第 20 步也照 `textContent`
- * 读它），只是排成 0 号字所以不占宽度；可见的那个箭头由 `::before` 画出来，
- * 生成内容不进 `textContent`。刻意**不**用 `overflow: hidden` 把文字裁掉：那会让
- * 这一块进"文字被切"的清单，而它本来就没有文字要显示。可读名另有 aria-label 兜底。
- * （整合期会把那条断言改成读 aria-label，届时这枚按钮可以做成干净的无字图标。）
- */
-.shell .collapseAll {
-  align-self: stretch;
-  width: 26px;
-  /* 覆盖 ui 的 `.iconButton` 那档固定块高，让 `align-self: stretch` 决定高度：
-     这一行以输入框为准，图标按钮跟着它们一样高，行就不会参差。 */
-  height: auto;
-  padding: 0;
-}
-
-/* 按钮本身无字（可读名走 aria-label），箭头是纯装饰，所以画在伪元素上。 */
-.shell .collapseAll::before {
-  content: "⇕";
-  font-size: var(--wl-font-micro);
-  line-height: 1;
-}
-
-/*
- * 「新建空白节点」这枚 CTA（空图时画布正中唯一能点的东西）点下去只做一件事：
- * 把焦点挪到这个输入框，屏幕上别的像素一个都不动。焦点落在哪必须看得见，所以这里
- * 不靠宿主的 `:focus-visible`（编程式聚焦不一定匹配它，实测聚焦前后该区域像素直方图
- * 完全一致），改用 `:focus` 兜底。环走 `--wl-ring`（它与强调色同源），外面再叠一圈
- * `--wl-accent-soft` 的软光环——半透明的环单靠自己不够显眼，这一圈是"看得见"的保证。
- */
-.newNode > input:focus {
-  border-color: var(--wl-accent);
-  outline: 2px solid var(--wl-ring);
-  outline-offset: 1px;
-  box-shadow: 0 0 0 3px var(--wl-accent-soft);
-}
-
-/*
- * 面板头下方的常驻说明。只留一句、只占一行：这一栏在窄窗只有一百来像素高，
- * 说明每多占一行，条目就少露一行。留下的这句是「怎么连线」（它别处没有可见的家），
- * 「拖到画布放置」那句仍在每个条目的 `aria-label` 与 `title` 里。
- *
- * 用最小字号 + 弱色，让它读起来是脚注而不是正文。`text-wrap: balance` 让它在窄栏里
- * 折行时两行一样长，不会把最后一个字孤零零甩到第二行。
- */
-.panelHint {
-  margin: 0;
-  padding: 0 8px 4px;
-  color: var(--wl-text-mute);
-  font-size: var(--wl-font-micro);
-  line-height: 1.3;
-  text-wrap: balance;
-}
-
-/* 校验失败的提示紧贴输入框下方：红字 + 左对齐，和输入框同一个内边距。 */
-.formProblem {
-  padding: 0 10px 4px;
-}
-
 /* ── 分节头（内置 node / 自定义 node）────────────────────── */
 
 /*
@@ -205,15 +105,26 @@
 }
 
 /*
+ * 「自定义 node」那一节的两格：上面一格是模板列表（`role="list"`），下面一格是「＋」。
+ * 内缩与行距归这一层，两格之间才是同一条 4px 的缝——不然 ＋ 会比上面的模板少缩进 8px。
+ */
+.templateStack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wl-gap-1);
+  padding: 0 8px var(--wl-gap-1);
+}
+
+/*
  * 自定义 node **单列**。理由在内容上：模板名是用户自己起的、长度没有上限（`exec-lint`、
  * 「执行·静态检查」都在现实里出现过），塞进两列那 90px 宽的格子里会被省略号吃掉大半；
  * 而这一节也没有内置那样的 id 列可以用来让位。名字可读 > 省两行高度。
+ * （内缩与行距在 `.templateStack` 上，这一层只管列布局。）
  */
 .templateList {
   display: flex;
   flex-direction: column;
   gap: var(--wl-gap-1);
-  padding: 0 8px var(--wl-gap-1);
 }
 
 .chevron {
@@ -235,7 +146,11 @@
  * - 绿色左边条。那是装饰色，不表达任何状态；状态色（ok / danger / warn）只在真的
  *   表达状态的地方出现。
  * - `⠿` 那种"拖拽把手"。它不是图标，是一段噪声；"能拖"由 `cursor: grab` 与悬停时的
- *   抬起表达（键盘与触屏用户走的是"点一下"，本来就没有拖这个动作）。
+ *   抬起表达。
+ *
+ * 条目**不是按钮**（`<div role="listitem">`）：它只能拖，点了什么都不该发生，
+ * 所以也没有 `:focus-visible`——它根本进不了 tab 序。（这一节里的例外是末尾那枚「＋」，
+ * 它是个真按钮。）
  */
 .item {
   display: flex;
@@ -326,6 +241,39 @@
   flex: 0 0 auto;
   color: var(--wl-danger);
   font-size: var(--wl-font-micro);
+}
+
+/*
+ * 「自定义 node」末尾那枚「＋」：形状与别的条目**同列同高**（用户的要求是"和 node 按钮
+ * 一样，只不过样式不一样"），语气不同——虚线边 + 强调色的 ＋，一眼看出它不是一个模板，
+ * 而是一个动作。它是这一节里**唯一**的按钮：条目是拖源（点了不加），而它点了要开对话框。
+ */
+.itemAdd {
+  justify-content: center;
+  border-style: dashed;
+  border-color: var(--wl-border-strong);
+  background: transparent;
+  color: var(--wl-text-dim);
+  cursor: pointer;
+}
+
+.itemAdd:hover:not(:disabled) {
+  border-color: var(--wl-accent);
+  background: var(--wl-accent-soft);
+  color: var(--wl-text);
+}
+
+.itemAddPlus {
+  flex: 0 0 auto;
+  color: var(--wl-accent);
+  font-size: var(--wl-font-body);
+  line-height: 1;
+}
+
+/* 不可用时（没打开图）那枚 ＋ 也退成灰的：`[aria-disabled]` 那一档管不到 `:disabled`。 */
+.itemAdd:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 /*
@@ -449,44 +397,17 @@
   flex: 1 1 auto;
 }
 
-/* ── 窄窗（三栏竖排）：并成一行 + 把分节头钉住 ─────────── */
+/* ── 窄窗：把分节头钉住 ─────────── */
 
 /*
- * ≤900px 时三栏竖排，节点库这一栏只分到一百来像素高（860 是 138px、760 是 126px；
- * 改前第一条条目只露 11px / 0px）。这里做两件事：
+ * ≤900px 时这一栏不再是三栏里的一列，而是「画布全高 + 左栏抽屉」里的那一块
+ *（抽屉宽度 `min(320px, 84%)`）。这里只剩一件事：让两个分节头钉在滚动容器顶沿
+ *（底色已换成实色），并**收掉那 12px 的分组留白**——窄窗每一像素都要换条目，
+ * 分组靠"钉住的头"本身就够了。
  *
- *   1. 把「筛选 + 全部收起」与「节点 id 新建 + ＋」并成一行（**只在这里并**，宽窗不并，
- *      理由见上面 `.shell` 的注释）；
- *   2. 让两个分节头钉在滚动容器顶沿（底色已在基础规则里换成实色），并且**收掉
- *      那 12px 的分组留白**——窄窗每一像素都要换条目，分组靠"钉住的头"本身就够了。
- *
- * 合起来壳从 146px 压到 107px：860 能露出一整行网格（2 条），760 露 19px 残片。
- *
- * 真正的解法是窄窗下把节点库改成抽屉 / 浮层（画布全高 + 按需展开），
- * 那是结构性改动，得先由用户拍板，不在这里顺手做。
+ * 从前这里还有"把筛选行与新建行并成一行"那一段：那两行连同它们的输入框一起删了。
  */
 @media (max-width: 900px) {
-  /*
-   * 窄窗才把两行并成一行：这里纵向空间是危机，省下 36px 就能多露一条条目，
-   * 而这一栏在窄窗是全宽的 467/567px，两个输入框并排各还有 ~190px，绰绰有余。
-   */
-  .shell {
-    display: flex;
-    align-items: center;
-    gap: var(--wl-gap-1);
-    padding: 2px 8px 4px;
-  }
-
-  /*
-   * 两个行容器退成 `display: contents`：四个子元素（筛选框 / 全部收起 / id 输入框 / ＋）
-   * 直接成为 `.shell` 的 flex 项。DOM 结构、id、aria 关系都不变
-   * （`.formProblem` 仍是它们的兄弟节点，仍在输入框下方）。
-   */
-  .filterRow,
-  .newNode {
-    display: contents;
-  }
-
   .sectionHead {
     position: sticky;
     top: 0;

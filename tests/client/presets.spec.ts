@@ -14,9 +14,7 @@
 
 import { describe, expect, it } from 'vitest'
 import {
-  isFiltering,
   isGroupExpanded,
-  matchesFilter,
   NODE_PRESETS,
   PALETTE_COLLAPSED_KEY,
   parseCollapsed,
@@ -59,10 +57,10 @@ describe('内置 node', () => {
 })
 
 /* ─────────────────────────────────────────────────────────────
- * 折叠与筛选
+ * 折叠
  *
  * 这一段的攻法：折叠状态是**偏好**不是事实，所以任何读不懂的输入都必须回落"全展开"
- * 而不是抛异常或半解析。
+ * 而不是抛异常或半解析。（筛选那一段随筛选框一起删了。）
  * ───────────────────────────────────────────────────────────── */
 
 describe('分节键', () => {
@@ -166,48 +164,16 @@ describe('readCollapsed / writeCollapsed', () => {
   })
 })
 
-describe('筛选', () => {
-  it('只有空白不算筛（空词等于不筛，而不是没有东西匹配）', () => {
-    expect(isFiltering('')).toBe(false)
-    expect(isFiltering('   ')).toBe(false)
-    expect(isFiltering('\t\n')).toBe(false)
-    expect(isFiltering('a')).toBe(true)
-    expect(isFiltering(' a ')).toBe(true)
-  })
-
-  it('匹配是大小写不敏感的子串；空词一律命中', () => {
-    expect(matchesFilter('Scan Notes', 'SCAN')).toBe(true)
-    expect(matchesFilter('scan notes', 'can')).toBe(true)
-    expect(matchesFilter('扫描', '扫')).toBe(true)
-    expect(matchesFilter('扫描', 'SCAN')).toBe(false)
-    expect(matchesFilter('scan', '')).toBe(true)
-    expect(matchesFilter('scan', '   ')).toBe(true)
-    expect(matchesFilter('scan', ' scan ')).toBe(true)
-    expect(matchesFilter('scan', 'zzz')).toBe(false)
-  })
-
-  it('筛出的是原条目本身，不是副本（点它加节点要拿到原参数）', () => {
-    const items = [{ name: 'exec-code' }]
-    const hits = items.filter((item) => matchesFilter(item.name, 'code'))
-    expect(hits[0]).toBe(items[0])
-  })
-})
-
 describe('isGroupExpanded', () => {
   it('折叠表里有就折，没有就展开', () => {
-    expect(isGroupExpanded('section:builtin', [], false)).toBe(true)
-    expect(isGroupExpanded('section:builtin', ['section:builtin'], false)).toBe(false)
-  })
-
-  it('筛选中一律展开（命中的东西必须当场可见）', () => {
-    expect(isGroupExpanded('section:builtin', ['section:builtin'], true)).toBe(true)
-    expect(isGroupExpanded('section:disk', ['section:disk'], true)).toBe(true)
+    expect(isGroupExpanded('section:builtin', [])).toBe(true)
+    expect(isGroupExpanded('section:builtin', ['section:builtin'])).toBe(false)
   })
 
   it('两个分节的键互不牵连', () => {
-    expect(isGroupExpanded('section:builtin', ['section:builtin'], false)).toBe(false)
-    expect(isGroupExpanded('section:disk', ['section:builtin'], false)).toBe(true)
+    expect(isGroupExpanded('section:builtin', ['section:builtin'])).toBe(false)
+    expect(isGroupExpanded('section:disk', ['section:builtin'])).toBe(true)
     // 上一版留下的组键（`disk:exec` 一类）对不上任何分节键，因此不会误折。
-    expect(isGroupExpanded('section:disk', ['disk:exec'], false)).toBe(true)
+    expect(isGroupExpanded('section:disk', ['disk:exec'])).toBe(true)
   })
 })

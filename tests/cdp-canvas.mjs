@@ -18,8 +18,6 @@
  *  - 第 29 步：新增一条**既是 `when:'fail'` 又是回边**的边（第二组环里的 `retry2->retry1#fail`），
  *    断言它同时满足「`stroke-dasharray` 非空（回边）」与「`stroke` 是危险色（fail）」——
  *    旧实现三选一，这条边只拿到虚线、丢掉危险色；原有「普通 fail 边」「普通回边」两条断言保留。
- *  - 第 25 步：除"两个落点不重合"外，再断言新节点的 `getBoundingClientRect()` **四条边都落在
- *    `[data-testid="wl-canvas"]` 的矩形内**（上轮红过的"越界 29px、那半截点不到"）。
  *  - 新增两步键盘路径（第 31、32 步）：`Delete` 删选中节点、`Ctrl+Y` 作为重做别名。
  *    这两条都先自检"按点真的压在目标卡片上"，且**轮询到收敛**：刚挂载的卡片有几百毫秒
  *    `elementFromPoint` 会落到画布 pane 上的过渡态，拿它判红是脚本在跟渲染时序较劲。
@@ -32,13 +30,19 @@
  *    5a 接着验用户问的那件事「怎么不支持展开收起」：两个**分节头**各是一个带 `aria-expanded` /
  *    `aria-controls` 的原生 button（`wl-section-toggle-*`），点整行就折；折内置分节后六个条目不
  *    在 DOM，刷新页面仍折叠（`localStorage` 的 `section:builtin`），最后恢复展开。
- *  - 第 19/20/21 步：内置没有组可折了，这三步整体挪到**自定义 node** 上——脚本自己往
- *    数据目录的 `templates/nodes/` 写四个模板（`exec` 前缀三个成组 + 落单的 `solo` 进「其他」），
- *    刷新页面后验折叠/持久化/全部收起/筛选。跑完**无论成败**在 `finally` 里删干净。
- *    这一步顺带补上了一个空白：`templates/nodes/` 非空时「自定义 node」那一节长什么样，以前从没验过。
+ *  - 第 19a/19 步：内置没有组可折了，折叠与持久化整体挪到**自定义 node** 上——脚本自己往
+ *    数据目录的 `templates/nodes/` 写四个模板（`exec-` 前缀三个 + 落单的 `solo`）。跑完
+ *    **无论成败**在 `finally` 里删干净。
+ *  - 第 20/21 步：「自定义 node」末尾那枚「＋」开**对话框**建模板（`graph/nodeTemplateCreate`），
+ *    以及两条失败路径（非法名 / 撞名都就地红字、都不落盘）。它替换掉的正是从前那一行
+ *    「节点 id，回车新建」——那个建的是图里的节点，现在建的是一个新的自定义节点类型。
+ *    第 28 步收尾：把对话框建的模板拖进画布，断言节点拿到了模板的 label / prompt / output。
+ *  - 第 25 步：点条目（连点两次）**一个节点都不许加**；`avoidOverlap` 那套"无落点补位"
+ *    连同它的 25a/25b 断言一起删了（加节点只剩拖这一条路，落点永远是人指的）。
+ *  - 第 27 步反过来断言空态里**一个按钮都没有**、且空态不吃指针（那枚「新建空白节点」
+ *    随 id 输入框一起删了）。第 26 步的 `/` 聚焦筛选也随之删掉。
  *  - 条目是**拖源**：点它不加节点、按回车也不加（用户两轮分别拍过这两条）。于是第 22b、
- *    32 步都用**拖**加节点，第 25 步反过来断言"连点两次什么都没发生"（哪天 `click`
- *    handler 回来会立刻红）；第 8 步的删除改从工具条右端「⋯」进（危险动作，窄窗放不下）。
+ *    32 步都用**拖**加节点；第 8 步的删除改从工具条右端「⋯」进（危险动作，窄窗放不下）。
  *
  * usage: DSH_WEB_TOKEN=<token> DSH_CDP_HTTP=http://127.0.0.1:9223 node tests/cdp-canvas.mjs
  */
@@ -135,11 +139,15 @@ async function writeTemplateFixtures() {
   }
 }
 
+/** 第 20 步用「＋」对话框建出来的那个模板名；跑完也要删干净。 */
+const CREATED_TEMPLATE = 'dlg-check'
+
 /** 删掉自造模板。**失败路径也要跑**：数据目录只该剩下原本就有的东西。 */
 async function removeTemplateFixtures() {
   for (const [name] of TEMPLATE_FIXTURES) {
     await rm(join(NODES_DIR, `${name}.json`), { force: true }).catch(() => {})
   }
+  await rm(join(NODES_DIR, `${CREATED_TEMPLATE}.json`), { force: true }).catch(() => {})
 }
 
 /**
@@ -1358,111 +1366,124 @@ const main = async () => {
     console.log(`  19 自定义 node 分节折叠 + 持久化 ok（localStorage=${diskAfterReload.stored}）`)
 
     /*
-     * 20) 「全部收起 / 全部展开」
+     * 20) 「自定义 node」末尾那枚「＋」：开对话框 → 建一个模板 → 当场出现在列表里
      *
-     * 按钮**常驻**，一次把**两个分节**都收起/展开。所以这里两边一起断言：
-     * 收起时两个分节头的 `aria-expanded` 都是 false、六条内置与全部自定义条目都不在 DOM；
-     * 展开时两个分节头都回到 true、条目都回来。
-     *
-     * 折叠表里只该有**两个分节键**：二级分类去掉之后，`disk:exec` / `disk:` 这类组键不再产生，
-     * 这里顺带断言"一个分组钩子都不存在"（分组层要是回来，立刻红）。
+     * 这一条替换掉的正是原先那一行「节点 id，回车新建」：那个新建的是**图里的节点**，
+     * 现在这一栏建的是一件更根本的东西——一个新的自定义节点类型（落成
+     * `templates/nodes/<名>.json`）。它同时是 `graph/nodeTemplateCreate` 这条新路由的
+     * 端到端证据：真浏览器 + 真客户端 RPC，一路走到磁盘。
      */
-    const diskToggleSel = '[data-testid^="wl-group-toggle-disk"]'
-    const sectionToggleSel = '[data-testid^="wl-section-toggle-"]'
-    /* 二级分类去掉之后，折叠表只剩两个分节键（`disk:exec` / `disk:` 这类不再产生）。 */
-    const collapseKeys = ['section:builtin', 'section:disk']
-    await session.evaluate(clickTestIdExpr('wl-collapse-all'))
-    const allCollapsed = await waitFor(
+    const createdName = CREATED_TEMPLATE
+    await session.evaluate(clickTestIdExpr('wl-template-add'))
+    const dialogOpen = await waitFor(
       session,
-      `(() => {
-         const sections = [...document.querySelectorAll('${sectionToggleSel}')];
-         if (sections.length !== 2) return 0;
-         const expanded = sections.filter((t) => t.getAttribute('aria-expanded') === 'true').length;
-         const templates = document.querySelectorAll('[data-testid^="wl-item-template-"]').length;
-         const builtin = document.querySelectorAll('[data-testid^="wl-item-preset-"]').length;
-         const groups = document.querySelectorAll('${diskToggleSel}').length;
-         if (expanded !== 0 || templates !== 0 || builtin !== 0 || groups !== 0) return 0;
-         const stored = localStorage.getItem('workflow-lite.palette.collapsed') || '';
-         const wanted = ${JSON.stringify(collapseKeys)};
-         if (!wanted.every((key) => stored.includes(JSON.stringify(key)))) return 0;
-         return {
-           sections: sections.length,
-           groups,
-           builtin,
-           templates,
-           stored,
-           /* 无字图标按钮：可读名在 aria-label 上，textContent 是空的。 */
-           label: document.querySelector('[data-testid="wl-collapse-all"]')?.getAttribute('aria-label') || null,
-         };
-       })()`,
+      `document.querySelector('[data-testid="wl-template-panel"]') !== null ? 1 : 0`,
+      { timeoutMs: 5_000 },
+    )
+    check(dialogOpen === 1, '点「＋」应打开「新建节点模板」对话框')
+    const nameFocused = await session.evaluate(
+      `document.activeElement?.getAttribute('data-testid') === 'wl-template-name'`,
+    )
+    check(nameFocused === true, '对话框打开后焦点应落在「模板名」上（打开就能打字）')
+    await setReactInput(session, '[data-testid="wl-template-name"]', createdName)
+    await setReactInput(session, '[data-testid="wl-template-label"]', '对话框建的')
+    await setReactInput(
+      session,
+      '[data-testid="wl-template-prompt"]',
+      '这条模板是从对话框建出来的。',
+    )
+    await setReactInput(session, '[data-testid="wl-template-output"]', 'dlg.md')
+    await session.evaluate(clickTestIdExpr('wl-template-create'))
+    const createdTile = await waitFor(
+      session,
+      `document.querySelector('[data-testid="wl-item-template-' + ${JSON.stringify(createdName)} + '"]') !== null ? 1 : 0`,
+      { timeoutMs: 5_000 },
     )
     check(
-      allCollapsed.label === '全部展开',
-      `全部收起后按钮的可读名（aria-label）应变成「全部展开」，实得 ${JSON.stringify(allCollapsed.label)}`,
+      createdTile === 1,
+      `建成之后「自定义 node」里应多出 ${createdName} 这一条（目录要当场重拉）`,
     )
-    await session.evaluate(clickTestIdExpr('wl-collapse-all'))
-    const allExpanded = await waitFor(
-      session,
-      `(() => {
-         const sections = [...document.querySelectorAll('${sectionToggleSel}')];
-         const toggles = [...document.querySelectorAll('${diskToggleSel}')];
-         /* 二级分类去掉之后不该再有任何分组钩子；两个分节 + 0 个组才是对的。 */
-         if (sections.length !== 2 || toggles.length !== 0) return 0;
-         const expandedSections = sections.filter((t) => t.getAttribute('aria-expanded') === 'true').length;
-         const expanded = toggles.filter((t) => t.getAttribute('aria-expanded') === 'true').length;
-         const templates = document.querySelectorAll('[data-testid^="wl-item-template-"]').length;
-         const builtin = document.querySelectorAll('[data-testid^="wl-item-preset-"]').length;
-         if (expandedSections !== 2 || expanded !== toggles.length) return 0;
-         if (templates !== ${TEMPLATE_FIXTURES.length} || builtin !== ${BUILTIN_IDS.length}) return 0;
-         return {
-           sections: sections.length,
-           groups: toggles.length,
-           builtin,
-           items: templates,
-           /* 无字图标按钮：可读名在 aria-label 上，textContent 是空的。 */
-           label: document.querySelector('[data-testid="wl-collapse-all"]')?.getAttribute('aria-label') || null,
-         };
-       })()`,
+    const dialogClosed = await session.evaluate(
+      `document.querySelector('[data-testid="wl-template-panel"]') === null`,
+    )
+    check(dialogClosed === true, '建成之后对话框应自己关掉')
+    /* 盘上真的写了文件：读回来必须是那三样（模板文件顶层就是 data 本体，不套壳）。 */
+    const onDisk = await rpc('graph/nodeTemplate', { name: createdName })
+    check(
+      onDisk.data.prompt === '这条模板是从对话框建出来的。' &&
+        onDisk.data.label === '对话框建的' &&
+        onDisk.data.output === 'dlg.md',
+      `盘上的模板内容应与对话框里填的一致，实得 ${JSON.stringify(onDisk.data)}`,
+    )
+    const itemCount20 = await session.evaluate(
+      `document.querySelectorAll('[data-testid^="wl-item-template-"]').length`,
     )
     check(
-      allExpanded.label === '全部收起',
-      `全部展开后按钮的可读名（aria-label）应回到「全部收起」，实得 ${JSON.stringify(allExpanded.label)}`,
+      itemCount20 === TEMPLATE_FIXTURES.length + 1,
+      `此时自定义 node 应有 ${TEMPLATE_FIXTURES.length} + 1 条，实得 ${itemCount20}`,
     )
     console.log(
-      `  20 全部收起 / 全部展开 ok（${allCollapsed.sections} 个分节一起收：收起时内置 ${allCollapsed.builtin} 项、自定义 ${allCollapsed.templates} 项都不在 DOM、分组钩子 ${allCollapsed.groups} 个，折叠表 ${allCollapsed.stored}；展开后回到内置 ${allExpanded.builtin} 项 + 自定义 ${allExpanded.items} 项）`,
+      `  20 「＋」建模板 ok（${createdName}：对话框 → 落盘 → 列表当场多一条，共 ${itemCount20} 条）`,
     )
 
     /*
-     * 21) 筛选：内置按「显示名 / preset id」平铺过滤，自定义按模板名过滤。
+     * 21) 对话框的两条失败路径：**非法名**与**撞名**都就地红字、都不关框、都不落盘
      *
-     * 筛 `exec` 时内置六个一个都不该命中（它们的显示名与 preset id 里都没有 exec），
-     * 自定义里只有 `exec-*` 三个命中（`solo` 不命中），零命中的「其他」组整组消失。
+     * 这是"输入错误 ≠ 图坏了"这条纪律在模板上的延续：错误停在这个对话框里，
+     * 既不写盘、也不去动画布的状态（从前那一步测的是"非法节点 id 不能把图打成只读错误态"，
+     * 那条路随输入框一起删了，同一条纪律在这里接着守）。
      */
-    await setReactInput(session, '[data-testid="wl-library-filter"]', 'exec')
-    const filtered = await waitFor(
+    await session.evaluate(clickTestIdExpr('wl-template-add'))
+    await waitFor(
+      session,
+      `document.querySelector('[data-testid="wl-template-name"]') !== null ? 1 : 0`,
+      { timeoutMs: 5_000 },
+    )
+    await setReactInput(session, '[data-testid="wl-template-name"]', 'bad name')
+    await session.evaluate(clickTestIdExpr('wl-template-create'))
+    const invalidNameError = await waitFor(
       session,
       `(() => {
-         const items = [...document.querySelectorAll('[data-testid^="wl-item-template-"]')]
-           .map((el) => el.getAttribute('data-testid'));
-         const wanted = ['wl-item-template-exec-code', 'wl-item-template-exec-test', 'wl-item-template-exec-lint'];
-         const presets = document.querySelectorAll('[data-testid^="wl-item-preset-"]').length;
-         if (items.length !== 3 || presets !== 0) return 0;
-         return wanted.every((id) => items.includes(id)) ? items : 0;
+         const alert = document.querySelector('[data-testid="wl-template-panel"] [role="alert"]');
+         const input = document.querySelector('[data-testid="wl-template-name"]');
+         return alert !== null && (alert.textContent || '') !== '' && input?.getAttribute('aria-invalid') === 'true'
+           ? alert.textContent
+           : 0;
        })()`,
       { timeoutMs: 5_000 },
     )
     check(
-      filtered.length === 3,
-      `筛选 exec 后应只剩 3 个自定义节点，实得 ${JSON.stringify(filtered)}`,
+      typeof invalidNameError === 'string',
+      `非法模板名应就地红字（role=alert + aria-invalid），实得 ${JSON.stringify(invalidNameError)}`,
     )
-    await setReactInput(session, '[data-testid="wl-library-filter"]', '')
-    await waitFor(
+    /* 撞名：换成已经存在的那一个，红字应来自 host 的 conflict。 */
+    await setReactInput(session, '[data-testid="wl-template-name"]', createdName)
+    await session.evaluate(clickTestIdExpr('wl-template-create'))
+    const conflictError = await waitFor(
       session,
-      `document.querySelectorAll('[data-testid^="wl-item-"]').length === ${BUILTIN_IDS.length + TEMPLATE_FIXTURES.length}`,
+      `(() => {
+         const alert = document.querySelector('[data-testid="wl-template-panel"] [role="alert"]');
+         return alert !== null && (alert.textContent || '').includes('已存在') ? alert.textContent : 0;
+       })()`,
       { timeoutMs: 5_000 },
     )
+    check(
+      typeof conflictError === 'string',
+      '撞名应报「已存在」（host 的 conflict），而不是悄悄改名',
+    )
+    await session.evaluate(clickTestIdExpr('wl-template-cancel'))
+    const dialogGone = await waitFor(
+      session,
+      `document.querySelector('[data-testid="wl-template-panel"]') === null ? 1 : 0`,
+      { timeoutMs: 5_000 },
+    )
+    check(dialogGone === 1, '「取消」应关掉对话框')
+    const stillOne = await session.evaluate(
+      `document.querySelectorAll('[data-testid^="wl-item-template-"]').length`,
+    )
+    check(stillOne === TEMPLATE_FIXTURES.length + 1, `两条失败路径都不该多出条目，实得 ${stillOne}`)
     console.log(
-      `  21 筛选 ok（exec → ${filtered.length} 个自定义节点；清空后回到 ${BUILTIN_IDS.length + TEMPLATE_FIXTURES.length} 项）`,
+      `  21 对话框校验 ok（非法名「${invalidNameError}」；撞名「${conflictError}」；取消后条目仍是 ${stillOne} 条）`,
     )
 
     // 22) 撤销 / 重做 + 「一次拖拽 = 一次撤销」的合并语义
@@ -1769,126 +1790,19 @@ const main = async () => {
       `点节点库条目不该往图里加节点（连点两次也不该）：${beforeFix} → 实得 ${afterClicks}`,
     )
     /*
-     * 那两个 fix 系节点改从**输入框**新建。输入同一个名字两次，`uniqueNodeId` 给出 fix 与 fix-2。
-     * 提交时机是回车（见第 28 步），所以这里敲完就回一次车。
-     */
-    const blankInputSel = '[data-testid="wl-new-node-input"]'
-    for (let index = 0; index < 2; index += 1) {
-      await session.evaluate(`document.querySelector(${JSON.stringify(blankInputSel)}).focus()`)
-      await setReactInput(session, blankInputSel, 'fix')
-      await pressKey(session, 'Enter', { text: '\r' })
-    }
-    await waitFor(
-      session,
-      `document.querySelectorAll('.react-flow__node').length === ${beforeFix + 2}`,
-      {
-        timeoutMs: 5_000,
-      },
-    )
-    const fixNodes = (await session.evaluate(nodeListExpr)).filter(
-      (node) => node.id === 'fix' || node.id.startsWith('fix-'),
-    )
-    check(
-      fixNodes.length === 2,
-      `连点两次应得到两个 fix 系节点，实得 ${JSON.stringify(fixNodes)}（全部 ${JSON.stringify((await session.evaluate(nodeListExpr)).map((n) => n.id))}）`,
-    )
-    const twoFixes = {
-      first: fixNodes[0],
-      second: fixNodes[1],
-      distance: Math.hypot(fixNodes[0].x - fixNodes[1].x, fixNodes[0].y - fixNodes[1].y),
-    }
-    /*
-     * 诊断用（红了要能一眼区分"产品坏了"与"脚本算错了"）：此刻的视口、画布尺寸，
-     * 以及补位算法拿到的每轴上限 = 半宽/半高 ÷ zoom − 半张卡（实现在 CanvasView.newPosition）。
-     * 环步长是 260/140 ⇒ 上限一旦小于 260，非零的 x 槽位全被拒，避让就退化成"永远放中心"。
-     */
-    const geom25 = await readGeometry(session, '25')
-    const limit25 = {
-      x: Math.round(geom25.canvas.w / (2 * geom25.viewport.zoom) - 112),
-      y: Math.round(geom25.canvas.h / (2 * geom25.viewport.zoom) - 48),
-    }
-    const allPositions = (await session.evaluate(nodeListExpr)).map(
-      (node) => `${node.id}@${node.x},${node.y}`,
-    )
-    /*
-     * 25a) 新节点**必须完整落在画布可见区内**：卡片 `getBoundingClientRect()` 的四条边都要
-     *      在 `[data-testid="wl-canvas"]` 的矩形里。上轮红过一次的正是"越界 29px、标题被裁、
-     *      那半截点不到"——越界量按左/上/右/下四个方向分别报出来，失败时不用再猜。
-     *      （子像素上留 0.5px 容差：`getBoundingClientRect` 是浮点，边界上差 1e-13 不该判红。）
+     * 落点唯一化这件事**已经没有需要守的机制了**：加节点只剩"从节点库拖进来"一条路，
+     * 落点永远是用户指的那一点；从前那条"没有落点、只能落在视口中心、于是需要
+     * `avoidOverlap` 补位"的路（点条目、敲 id 回车）整条删掉了。
      *
-     * 先验这条、再验"不重合"：两条都红了要能一次看全（这条失败不会挡住另一条的结论）。
+     * 所以这里不再有 25a/25b 那两条关于避让与越界的断言——它们守的函数连同那段机制一起没了。
+     * 反过来，上面"连点两次一个节点都不该多"这条**变重要了**：它是"点击绝不加节点"的回归网。
      */
-    const fixBoxesExpression = `(() => {
-       const canvas = document.querySelector('[data-testid="wl-canvas"]');
-       if (!canvas) return null;
-       const frame = canvas.getBoundingClientRect();
-       const round = (n) => Math.round(n * 10) / 10;
-       const ids = ${JSON.stringify(fixNodes.map((node) => node.id))};
-       return {
-         canvas: { left: round(frame.left), top: round(frame.top), right: round(frame.right), bottom: round(frame.bottom) },
-         nodes: ids.map((id) => {
-           const el = document.querySelector('.react-flow__node[data-id=' + JSON.stringify(id) + ']');
-           if (!el) return { id, missing: true };
-           const box = el.getBoundingClientRect();
-           const over = {
-             left: Math.max(0, frame.left - box.left),
-             top: Math.max(0, frame.top - box.top),
-             right: Math.max(0, box.right - frame.right),
-             bottom: Math.max(0, box.bottom - frame.bottom),
-           };
-           const point = document.elementFromPoint(
-             Math.round(box.left + box.width / 2),
-             Math.round(box.top + box.height / 2),
-           );
-           const owner = point ? point.closest('.react-flow__node') : null;
-           return {
-             id,
-             box: { left: round(box.left), top: round(box.top), right: round(box.right), bottom: round(box.bottom) },
-             over: { left: round(over.left), top: round(over.top), right: round(over.right), bottom: round(over.bottom) },
-             inside:
-               over.left <= 0.5 && over.top <= 0.5 && over.right <= 0.5 && over.bottom <= 0.5,
-             hit: owner ? owner.getAttribute('data-id') : null,
-           };
-         }),
-       };
-     })()`
-    /*
-     * `hit`（卡片中心能不能点中它自己）**只作证据、不作断言**：刚插进来的节点在 React Flow
-     * 量完尺寸之前有一小段命中测试还落在 pane 上的过渡态（实测约几百毫秒），拿它判红会是脚本
-     * 自己在跟过渡态较劲。但既然要报，就等到收敛再报——`readSettled` 超时不抛，读数仍是真值。
-     */
-    const fixBoxes = await readSettled(
-      session,
-      fixBoxesExpression,
-      (value) => value?.nodes.every((info) => info.hit === info.id) === true,
-      { timeoutMs: 2_500 },
-    )
-    check(fixBoxes !== null, '读不到 wl-canvas 的矩形，没法判定新节点有没有越界')
-    for (const info of fixBoxes.nodes) {
-      check(
-        info.missing !== true && info.inside === true,
-        `新建出来的 ${info.id} 必须完整落在画布可见区内：节点 ${JSON.stringify(info.box)}，画布 ${JSON.stringify(fixBoxes.canvas)}，越界（左/上/右/下）${JSON.stringify(info.over)}px`,
-      )
-    }
-    console.log(
-      `  25a 新节点完整落在画布可见区内 ok（四边越界 ${JSON.stringify(fixBoxes.nodes.map((info) => info.over))}；中心命中 ${JSON.stringify(fixBoxes.nodes.map((info) => info.hit))}）`,
-    )
-    check(
-      fixNodes[0].id !== fixNodes[1].id,
-      `先后新建的两个节点 id 不该相同，实得 ${JSON.stringify(fixNodes.map((n) => n.id))}`,
-    )
-    check(
-      twoFixes.distance > 20,
-      `先后新建的两个节点不能重合：${fixNodes[0].id}=${JSON.stringify(twoFixes.first)} ${fixNodes[1].id}=${JSON.stringify(twoFixes.second)}（间距 ${Math.round(twoFixes.distance)}px）；` +
-        `此刻 zoom=${geom25.viewport.zoom.toFixed(3)} 画布=${Math.round(geom25.canvas.w)}×${Math.round(geom25.canvas.h)}（可见 flow 区 ${Math.round(geom25.canvas.w / geom25.viewport.zoom)}×${Math.round(geom25.canvas.h / geom25.viewport.zoom)}），` +
-        `补位的每轴上限=${JSON.stringify(limit25)}（环步长 260/140），全部节点=${JSON.stringify(allPositions)}`,
-    )
     const idsAfter25 = (await session.evaluate(nodeListExpr)).map((node) => node.id).sort()
     console.log(
-      `  25b 点不加 / 新建不叠 ok（${fixNodes[0].id} 与 ${fixNodes[1].id} 间距 ${Math.round(twoFixes.distance)}px；此刻画布上 ${JSON.stringify(idsAfter25)}）`,
+      `  25 点不加 ok（连点两次节点数仍是 ${beforeFix}；此刻画布上 ${JSON.stringify(idsAfter25)}）`,
     )
 
-    // 26) 键盘：Esc 取消选中；`/` 聚焦筛选框
+    // 26) 键盘：Esc 取消选中（`/` 聚焦筛选框那条随筛选框一起删了）
     const scanBox = await waitFor(session, nodeBoxExpr('scan'), { timeoutMs: 5_000 })
     check(scanBox !== null, '找不到 scan 节点卡（或它可见部分太小）')
     await mouseClick(session, scanBox.center)
@@ -1899,146 +1813,115 @@ const main = async () => {
     await waitFor(session, `document.querySelectorAll('.react-flow__node.selected').length === 0`, {
       timeoutMs: 5_000,
     })
-    await focusCanvas()
-    await pressKey(session, '/', { code: 'Slash', text: '/' })
-    await waitFor(
-      session,
-      `document.activeElement?.getAttribute('data-testid') === 'wl-library-filter'`,
-      { timeoutMs: 5_000 },
-    )
-    console.log('  26 键盘 ok（Esc 取消选中；/ 聚焦到 wl-library-filter）')
+    console.log('  26 键盘 ok（Esc 取消选中）')
 
-    // 27) 空图的空态可操作
+    /*
+     * 27) 空图空态：**只有一句说明、一个按钮都没有**，而且不吃指针
+     *
+     * 从前空态里有一枚「新建空白节点」按钮，点它把焦点送到左栏的 id 输入框。那个输入框
+     * （以及"无落点添加"整条路）已经删掉，空态就没有可点的东西了——于是两件事都要断言：
+     *   ① 说明文字在（"这张图还没有节点"）；
+     *   ② 空态层 `pointer-events: none`，画布正中那一点**落不到任何控件上**——它盖住
+     *      整块画布，吃掉指针就等于空图时既平移不了也缩放不了。
+     *
+     * 这是"删掉一层结构就反过来断言它不存在"的写法：按钮哪天回来，这里立刻红。
+     */
     const emptyRendered = await selectGraph(session, EMPTY_NAME)
-    check(
-      emptyRendered === 1,
-      `空图应渲染空态（没有节点、但有可操作的按钮），实得 ${emptyRendered}`,
-    )
-    const emptyAction = await session.evaluate(
+    check(emptyRendered === 1, `空图应渲染空态，实得 ${emptyRendered}`)
+    const emptyState = await waitFor(
+      session,
       `(() => {
-         const el = document.querySelector('[data-testid="wl-empty-action"]');
-         if (!el) return null;
-         const box = el.getBoundingClientRect();
-         const style = getComputedStyle(el);
+         const layer = document.querySelector('[data-testid="wl-canvas-empty"]');
+         const canvas = document.querySelector('[data-testid="wl-canvas"]');
+         if (layer === null || canvas === null) return 0;
+         const box = canvas.getBoundingClientRect();
+         const hit = document.elementFromPoint(
+           Math.round(box.left + box.width / 2),
+           Math.round(box.top + box.height / 2),
+         );
          return {
-           disabled: el.disabled === true,
-           pointerEvents: style.pointerEvents,
-           w: Math.round(box.width),
-           h: Math.round(box.height),
-           x: Math.round(box.left + box.width / 2),
-           y: Math.round(box.top + box.height / 2),
+           text: (layer.textContent || '').trim().slice(0, 40),
+           buttons: layer.querySelectorAll('button').length,
+           hitTag: hit ? hit.tagName.toLowerCase() : 'nothing',
+           hitInButton: hit ? hit.closest('button') !== null : false,
+           hitIsLayer: hit === layer || (hit !== null && layer.contains(hit)),
          };
-       })()`,
-    )
-    check(
-      emptyAction !== null &&
-        emptyAction.disabled === false &&
-        emptyAction.pointerEvents !== 'none' &&
-        emptyAction.w > 0,
-      `空图上应有可点的「新建空白节点」，实得 ${JSON.stringify(emptyAction)}`,
-    )
-    await mouseClick(session, { x: emptyAction.x, y: emptyAction.y })
-    await waitFor(
-      session,
-      `document.activeElement?.getAttribute('data-testid') === 'wl-new-node-input'`,
-      { timeoutMs: 5_000 },
-    )
-    console.log(`  27 空图空态可操作 ok（点按钮后焦点到 wl-new-node-input）`)
-
-    // 28) 非法 id（含空格）只能就地红字，**不能把整张图打进只读错误态**（独立审计 P1）
-    await selectGraph(session, NAME)
-    //
-    // 先等节点数**收敛**再立基线：`selectGraph` 只保证"选中了这张图"，DOM 还在换帧时读到的是
-    // 中间态（实测同一脚本两次跑分别读到 4 和 5）。基线不收敛，"节点数没变"这条就只是两次
-    // 中间态相等，说明不了任何事——顺带把 id 清单打出来，红了能看出是哪一张图的内容。
-    const beforeInvalidIds = await waitFor(
-      session,
-      `(() => {
-         const ids = [...document.querySelectorAll('.react-flow__node')].map((el) => el.getAttribute('data-id')).sort();
-         return ids.length > 0 ? ids : 0;
        })()`,
       { timeoutMs: 10_000 },
     )
-    await new Promise((resolve) => setTimeout(resolve, 250))
-    const beforeInvalidSettled = await session.evaluate(
-      `[...document.querySelectorAll('.react-flow__node')].map((el) => el.getAttribute('data-id')).sort()`,
-    )
-    if (beforeInvalidSettled.length !== beforeInvalidIds.length) {
-      console.log(
-        `  28 提示：选图后节点数仍在变（${beforeInvalidIds.length} → ${beforeInvalidSettled.length}），已多等一帧再立基线`,
-      )
-    }
-    const beforeInvalid = beforeInvalidSettled.length
-    /*
-     * **断言**（原本只是诊断）：切图不许丢掉未落盘的改动。
-     *
-     * 这条守的是一个真缺陷：改一下 → 400ms 防抖窗口内切走 → 那次改动**无声消失**
-     * （磁盘与画布一起回退到上一次保存的样子，状态还显示"就绪"）。第 25→27→28 步
-     * 正好落在这个窗口里，所以以前每跑一轮都会丢两三个节点；产品侧修法是
-     * `open()` 换图前把待写的改动冲掉（`flushBeforeSwitch`）。
-     *
-     * 只断言"没丢"这一个方向：反方向（画布上多出节点）不代表数据丢失，
-     * 而且可能来自磁盘版本与本地版本的正常合并，不适合钉死。
-     */
-    const diskBeforeInvalid = await rpc('graph/load', { name: NAME })
-      .then((loaded) => loaded.document.nodes.map((node) => node.id).sort())
-      .catch(() => null)
-    const lostAfterSwitch = idsAfter25.filter((id) => !beforeInvalidSettled.includes(id))
-    const returnedAfterSwitch = beforeInvalidSettled.filter((id) => !idsAfter25.includes(id))
     check(
-      lostAfterSwitch.length === 0,
-      `切图不能丢掉未落盘的改动（少了 ${JSON.stringify(lostAfterSwitch)}）：` +
-        `画布 ${JSON.stringify(beforeInvalidSettled)} vs 第 25 步 ${JSON.stringify(idsAfter25)}`,
+      emptyState.text.includes('这张图还没有节点'),
+      `空态层里应有那句说明文字，实得 ${JSON.stringify(emptyState.text)}`,
+    )
+    check(
+      emptyState.buttons === 0,
+      `空态里不该再有任何按钮（那枚「新建空白节点」随输入框一起删了），实得 ${emptyState.buttons} 个`,
+    )
+    /*
+     * 空态层盖住整块画布，**必须不吃指针**（`pointer-events: none`）：否则空图时既平移不了
+     * 也缩放不了。判据取"画布正中那一点命中的不是空态层、也不是任何按钮"。
+     */
+    check(
+      emptyState.hitIsLayer === false && emptyState.hitInButton === false,
+      `空态不该吃掉指针：画布中心那一点命中的是 ${JSON.stringify(emptyState)}`,
     )
     console.log(
-      `  28a 切图不丢改动 ok（画布 ${JSON.stringify(beforeInvalidSettled)}；磁盘 ${JSON.stringify(diskBeforeInvalid)}；多出 ${JSON.stringify(returnedAfterSwitch)}）`,
+      `  27 空图空态 ok（只有说明文字、0 个按钮；中心命中 ${emptyState.hitTag}，未落进控件）`,
     )
-    await session.evaluate(`document.querySelector('[data-testid="wl-new-node-input"]').focus()`)
-    await setReactInput(session, '[data-testid="wl-new-node-input"]', 'bad id')
-    await pressKey(session, 'Enter', { text: '\r' })
-    const invalidState = await waitFor(
+
+    /*
+     * 28) 「＋」建出来的那个模板能拖进画布，并且**带着它自己的内容**（模板 → 节点实例化）
+     *
+     * 从前这一步测的是"非法节点 id 不能把整张图打进只读错误态"——那条路随 id 输入框一起删了，
+     * 同一条纪律（输入错误 ≠ 图坏了）已经挪到第 21 步的对话框校验里。这里换成新链路收尾：
+     * 对话框建的模板 → 拖入 → 节点拿到模板的 label / prompt / output。
+     */
+    const beforeDrag28 = await session.evaluate(nodeCountExpr)
+    const templateDropAt = await session.evaluate(`(() => {
+       const r = document.querySelector('[data-testid="wl-canvas"]').getBoundingClientRect();
+       return { x: Math.round(r.x + r.width * 0.62), y: Math.round(r.y + r.height * 0.62) };
+     })()`)
+    await dragItemTo(session, {
+      itemTestId: `wl-item-template-${createdName}`,
+      to: templateDropAt,
+    })
+    const instantiated = await waitFor(
       session,
       `(() => {
-         const input = document.querySelector('[data-testid="wl-new-node-input"]');
-         if (!input) return 0;
-         const alert = document.querySelector('[data-testid="wl-library"] [role="alert"]');
-         const inputBox = input.getBoundingClientRect();
-         const alertBox = alert ? alert.getBoundingClientRect() : null;
-         const banner = document.querySelector('[class*="bannerDanger"]');
-         const status = document.querySelector('[data-testid="wl-status"]');
-         return {
-           ariaInvalid: input.getAttribute('aria-invalid'),
-           alertText: alert ? (alert.textContent || '').trim() : null,
-           alertBelow: alertBox ? alertBox.top >= inputBox.bottom - 2 : false,
-           nodes: document.querySelectorAll('.react-flow__node').length,
-           ids: [...document.querySelectorAll('.react-flow__node')].map((el) => el.getAttribute('data-id')).sort(),
-           dangerBanner: banner !== null,
-           statusText: status ? (status.textContent || '').trim() : null,
-         };
+         const el = document.querySelector('.react-flow__node[data-id=${JSON.stringify(createdName)}]');
+         if (el === null) return 0;
+         const text = (el.textContent || '').trim();
+         return text.includes('对话框建的') && text.includes('dlg.md') ? text : 0;
        })()`,
       { timeoutMs: 5_000 },
     )
     check(
-      invalidState.ariaInvalid === 'true',
-      `非法 id 应让输入框 aria-invalid=true，实得 ${JSON.stringify(invalidState)}`,
+      typeof instantiated === 'string',
+      `拖进去的节点卡上应显示模板的显示名与产出，实得 ${JSON.stringify(instantiated)}`,
+    )
+    /*
+     * 提示词也要跟过来（它是模板的正文，不是卡面能显示的东西）：新加的节点会被选中，
+     * 右栏那块 `wl-prompt` 就是它的提示词；等它挂上再读，避免读到上一帧的节点。
+     */
+    const instantiatedPrompt = await waitFor(
+      session,
+      `(() => {
+         const el = document.querySelector('[data-testid="wl-prompt"]');
+         return el !== null && el.value === '这条模板是从对话框建出来的。' ? el.value : 0;
+       })()`,
+      { timeoutMs: 5_000 },
     )
     check(
-      typeof invalidState.alertText === 'string' &&
-        invalidState.alertText.length > 0 &&
-        invalidState.alertBelow === true,
-      `非法 id 应在输入框**下方**就地给出红字（role=alert），实得 ${JSON.stringify(invalidState)}`,
+      instantiatedPrompt === '这条模板是从对话框建出来的。',
+      `拖进去的节点应带着模板的提示词，实得 ${JSON.stringify(instantiatedPrompt)}`,
     )
+    const count28 = await session.evaluate(nodeCountExpr)
     check(
-      invalidState.nodes === beforeInvalid && invalidState.nodes > 0,
-      `非法 id 绝不能打死画布：节点数应保持 ${beforeInvalid}（${JSON.stringify(beforeInvalidSettled)}），实得 ${JSON.stringify(invalidState)}`,
+      count28 === beforeDrag28 + 1,
+      `拖入模板应新增一个节点（${beforeDrag28} → ${beforeDrag28 + 1}），实得 ${count28}`,
     )
-    check(
-      invalidState.dangerBanner === false && !(invalidState.statusText ?? '').includes('只读'),
-      `非法 id 不该进入只读错误态（红横幅 / 状态「只读」），实得 ${JSON.stringify(invalidState)}`,
-    )
-    await setReactInput(session, '[data-testid="wl-new-node-input"]', '')
     console.log(
-      `  28 非法 id 就地红字、画布仍在 ok（aria-invalid=true，节点数仍 ${invalidState.nodes}${JSON.stringify(invalidState.ids)}，无红横幅、状态=${JSON.stringify(invalidState.statusText)}）`,
+      `  28 模板实例化 ok（${createdName} 拖入后带着模板的 label / prompt / output；${beforeDrag28} → ${count28}）`,
     )
 
     // 29) 边有箭头：fail 边与回边的 marker-end 非空、箭头描边不是 none、回边虚线

@@ -17,14 +17,11 @@
  */
 
 import { Fragment, type ReactNode, useId, useRef, useState } from 'react'
-import { checkName } from '../../shared/naming.ts'
 import type { TemplateEntry, ValidationLevel, ValidationProblem } from '../../shared/types.ts'
 import { DND_MIME, type DragPayload, encodeDragPayload } from '../core/dnd.ts'
 import type { LocaleKey } from '../core/locales.ts'
 import {
-  isFiltering,
   isGroupExpanded,
-  matchesFilter,
   type NodePreset,
   type PaletteSource,
   sectionKey,
@@ -203,25 +200,13 @@ export interface PaletteProps {
   /** 已折叠的键：只有两个分节键（二级分组的组键已不再产生）。 */
   collapsed: readonly string[]
   onToggleGroup: (key: string) => void
-  filter: string
-  onFilter: (value: string) => void
   /**
-   * 加一个到图里（拖放的落点由调用方给）。
+   * 「自定义 node」末尾那枚「＋」：**新建一个节点模板**（开对话框，不在这里就地输入）。
    *
-   * **只有拖放会走到这里**：条目不是按钮，点了、按回车都不加节点（用户明确要求
-   * 「拖动进画布，而不是点击进画布」，随后又拍板"键盘回车那条也去掉"）。
+   * 这一条替换掉的正是原先那一行「节点 id，回车新建」：那个新建的是**图里的节点**，
+   * 而"新建"在这个视图里真正该指的是一件更根本的事——造一个新的自定义节点类型。
    */
-  onAddPreset: (preset: NodePreset) => void
-  onAddTemplate: (entry: TemplateEntry) => void
-  /** 空白节点：id 由面板内输入框给出。 */
-  onCreateBlank: (id: string) => void
-  /**
-   * 一次性把折叠状态整份换掉（「全部展开 / 全部收起」用）。
-   *
-   * 刻意不拆成"逐个 `onToggleGroup`"：逐个会发出 N 次状态更新、写 N 次 localStorage，
-   * 中间态还会被渲染出来。键清单在面板这层才知道，所以由面板算好整份交出去。
-   */
-  onSetCollapsed: (collapsed: readonly string[]) => void
+  onNewTemplate: () => void
 }
 
 /**
@@ -238,12 +223,11 @@ function PaletteSection(props: {
   /** 项数文案；`null` = 这一节没有项，项数不显示（写个 0 只是噪声）。 */
   count: string | null
   collapsed: readonly string[]
-  filtering: boolean
   onToggleGroup: (key: string) => void
   children: ReactNode
 }): React.JSX.Element {
   const key = sectionKey(props.source)
-  const expanded = isGroupExpanded(key, props.collapsed, props.filtering)
+  const expanded = isGroupExpanded(key, props.collapsed)
   // 折起来时内容**从 DOM 里消失**（而不是 `hidden`）：否则 tab 顺序里还留着一串
   // 看不见的按钮。外层那个 div 留着，好让 `aria-controls` 永远指得到东西。
   const bodyId = `wl-section-body-${props.source}`
@@ -277,51 +261,16 @@ function PaletteSection(props: {
 /** 节点库。 */
 export function Palette(props: PaletteProps): React.JSX.Element {
   const { t, disabled } = props
-  const filtering = isFiltering(props.filter)
-  /*
-   * 筛选词打**显示名与机器 id**两样：内置 node 是词典里的显示名 + preset id
-   *（条目上也确实把这个 id 等宽显示出来了，用户看得到就会照着敲），
-   * 自定义 node 是模板名。
-   */
-  const presetHits = props.presets.filter((preset) =>
-    matchesFilter(`${t(preset.labelKey)} ${preset.id}`, props.filter),
-  )
   /*
    * 模板**直接平铺**（入参就已经是一列条目）：用户明确说不要二级分类，
    * 分组既不参与渲染，也不进折叠表。
    */
-  const templateHits = props.templates.filter((entry) => matchesFilter(entry.name, props.filter))
-  const noMatch = filtering && presetHits.length === 0 && templateHits.length === 0
+  const templateEntries = props.templates
 
-  /**
-   * 项数文案：不筛时是总数，筛的时候是「命中数 / 总数」，口径与从前一致（用户要能看出
-   * 这一节还有多少没显示出来）。总数是 0 就整格不显示（写个 0 只是噪声）。
-   */
-  const countText = (hits: number, total: number): string | null => {
-    if (total === 0) return null
-    return filtering ? `${hits} / ${total}` : `${total}`
-  }
-  const presetTotal = props.presets.length
-  const templateTotal = props.templates.length
-
-  /**
-   * 「全部收起 / 全部展开」的折叠对象：**只剩两个分节键**。
-   *
-   * 二级分组去掉之后就没有组键了（前缀组不再渲染）；折叠表里可能还留着上一版写下的
-   * `disk:exec` 一类的旧键，它们不再对应任何东西，自然也不会生效。
-   */
-  const sectionKeys = [sectionKey('builtin'), sectionKey('disk')]
-  /*
-   * 「全都折起来了」这件事只在**没在筛选**时才可能成立：筛选态下 `isGroupExpanded`
-   * 一律返回 true（命中的必须当场可见）。原来不看 `filtering`，于是筛出结果时两个
-   * 分节明明都是 ▾、按钮却写着「全部展开」——文案在陈述一件与眼前事实相反的事。
-   */
-  const allCollapsed = !filtering && sectionKeys.every((key) => props.collapsed.includes(key))
+  /** 项数文案；这一节没有项就不显示（写个 0 只是噪声）。 */
+  const countText = (total: number): string | null => (total === 0 ? null : `${total}`)
 
   const dragGhostRef = useRef<HTMLDivElement | null>(null)
-  const blankInputRef = useRef<HTMLInputElement | null>(null)
-  const [draft, setDraft] = useState('')
-  const [nameError, setNameError] = useState<string | null>(null)
 
   /**
    * 把条目装进 dataTransfer。载荷的编解码归 `core/dnd.ts`，这里只负责装车；
@@ -342,20 +291,6 @@ export function Palette(props: PaletteProps): React.JSX.Element {
       ghost.textContent = label
       transfer.setDragImage(ghost, 12, 16)
     }
-  }
-
-  /** 新建空白节点：id 先过 `checkName`，不合法就地红字，绝不让坏 id 进文档。 */
-  const submitBlank = (): void => {
-    const id = draft.trim()
-    if (id === '') return
-    const problem = checkName(id)
-    if (problem !== null) {
-      setNameError(problem.message)
-      return
-    }
-    setNameError(null)
-    setDraft('')
-    props.onCreateBlank(id)
   }
 
   const presetItem = (preset: NodePreset): React.JSX.Element => {
@@ -418,172 +353,89 @@ export function Palette(props: PaletteProps): React.JSX.Element {
     )
   }
 
+  /**
+   * 「自定义 node」末尾那枚「＋」：**新建一个节点模板**。
+   *
+   * 形状与别的条目**同列同高**（用户的要求："和 node 按钮一样，只不过样式不一样"），
+   * 语气不同：虚线边 + 强调色的 ＋，一眼看出它不是一个模板而是一个动作。
+   * 点它**开对话框**：模板有四个字段，塞进 28px 高的一行里没法用。
+   */
+  const addTemplateItem = (): React.JSX.Element => (
+    <button
+      type="button"
+      className={[css.item, css.itemAdd].join(' ')}
+      data-testid="wl-template-add"
+      disabled={disabled}
+      title={t('palette.newTemplate')}
+      aria-label={t('palette.newTemplate')}
+      onClick={props.onNewTemplate}
+    >
+      <span className={css.itemAddPlus} aria-hidden="true">
+        ＋
+      </span>
+      <span className={css.itemName}>{t('palette.newTemplate')}</span>
+    </button>
+  )
+
   return (
     <section className={css.library} data-testid="wl-library">
       <div className={ui.panelHead}>
         <span>{t('palette.title')}</span>
       </div>
-      {/*
-        常驻说明收成一句：面板头下面这行每多一行，条目就少露一行，而这一栏在窄窗只有
-        一百来像素高。留下的这句是「怎么连线」——它别处再没有可见的家（原先只写在画布容器的
-        `title` 里，而 `title` 对触屏与键盘用户不弹）；「拖到画布放置」那句仍在每个条目的
-        `aria-label` 与 `title` 里。
-      */}
-      <p className={css.panelHint} data-testid="wl-palette-hint">
-        {t('palette.connectHint')}
-      </p>
 
       {/*
-        筛选行与「节点 id 新建」行的共同外壳：宽窗下两行各占一行（普通块级容器，
-        不改变任何既有布局），窄窗下并成一行，见样式文件末尾的媒体查询。
+        这一栏上面**没有说明行、没有筛选框、没有"新建"输入行**了。
+
+        那三行是这一版的删项：常驻说明只是把"怎么连线"写两遍（画布容器上本来就有一条
+        `title`），筛选在十来条目下没有意义，「节点 id，回车新建」新建的是图里的节点——
+        而这一栏要建的其实是**节点模板**，那件事搬到了「自定义 node」末尾的「＋」里（开对话框）。
+        省下的高度直接变成能看见的条目数，这一栏在窄窗只有一百来像素高。
       */}
-      <div className={css.shell}>
-        <div className={css.filterRow}>
-          <input
-            type="text"
-            className={ui.input}
-            data-testid="wl-library-filter"
-            value={props.filter}
-            placeholder={t('palette.filter')}
-            aria-label={t('palette.filter')}
-            onChange={(event) => props.onFilter(event.target.value)}
-          />
-          {/*
-            一个按钮两种含义：全都收起了就提示"能展开"，否则提示"能收起"。
-            **常驻**：折叠对象里有那两个分节（内置那一节也有），永远有东西可收。
-
-            这一行现在要和筛选框、新建输入框、＋ 挤在同一条线上，四个字的文案会把两个
-            输入框压到不可用，所以它在**面上**是一枚 26px 宽、跟输入框同高的图标按钮
-            （箭头由样式文件画），可读名由 aria-label 给出。字面文案仍留在 DOM 里：
-            它是这个控件的可读名的一部分，验收脚本也按 `textContent` 读它。
-
-            筛选态下它没有可做的事：命中的组必须当场可见，`isGroupExpanded` 在
-            `filtering` 时一律回 true。既然按了也不会有任何变化，就灰掉并用 title 说清。
-          */}
-          <button
-            type="button"
-            className={[ui.iconButton, css.collapseAll].join(' ')}
-            data-testid="wl-collapse-all"
-            disabled={filtering}
-            aria-label={t(allCollapsed ? 'palette.expandAll' : 'palette.collapseAll')}
-            title={
-              filtering
-                ? t('palette.collapseFiltering')
-                : t(allCollapsed ? 'palette.expandAll' : 'palette.collapseAll')
-            }
-            onClick={() => props.onSetCollapsed(allCollapsed ? [] : sectionKeys)}
-            /*
-             * 无字图标按钮：箭头由 `.collapseAll::before` 画（装饰，不进无障碍树），
-             * 可读名走上面的 `aria-label` / `title`。
-             * 以前这里塞着一份 0 号字的文案，只为迁就验收第 20 步读 `textContent`——
-             * 那条断言已改成读 `aria-label`，这里就不用再演了。
-             */
-          />
+      <PaletteSection
+        t={t}
+        source="builtin"
+        labelKey="palette.builtin"
+        count={countText(props.presets.length)}
+        collapsed={props.collapsed}
+        onToggleGroup={props.onToggleGroup}
+      >
+        {/*
+          内置 node 节**内部**是**平铺**的：没有组头、没有二级折叠、没有按角色分堆。
+          它本来就是一条主线的六个起点，分成五堆只会让人多跨一层折叠。
+          可折叠的是整个分节，那个开关在分节头上。
+        */}
+        <div className={css.flatList} role="list" aria-label={t('palette.builtin')}>
+          {props.presets.map((preset) => (
+            <Fragment key={preset.id}>{presetItem(preset)}</Fragment>
+          ))}
         </div>
+      </PaletteSection>
 
-        <div className={css.newNode}>
-          <input
-            type="text"
-            className={ui.input}
-            data-testid="wl-new-node-input"
-            ref={blankInputRef}
-            value={draft}
-            placeholder={t('palette.newPlaceholder')}
-            aria-label={t('palette.newBlank')}
-            aria-invalid={nameError !== null}
-            disabled={disabled}
-            onFocus={() => {
-              /*
-                空图那枚 CTA（画布正中唯一能点的东西）点下去只做一件事：把焦点扔进这里。
-                窄窗下节点库与画布不在同一屏，焦点飞进来而这一格还在视野外，
-                用户看到的仍然是"什么都没发生"，所以把这一格滚进视野。
-                jsdom 里没有 `scrollIntoView`，先判一下再调。
-              */
-              const input = blankInputRef.current
-              if (input !== null && typeof input.scrollIntoView === 'function') {
-                input.scrollIntoView({ block: 'nearest' })
-              }
-            }}
-            onChange={(event) => {
-              setDraft(event.target.value)
-              // 边打边把上一次的红字撤掉：留着它就是在骂一个已经改过的输入。
-              if (nameError !== null) setNameError(null)
-            }}
-            onKeyDown={(event) => {
-              if (event.key !== 'Enter') return
-              event.preventDefault()
-              submitBlank()
-            }}
-          />
-          <button
-            type="button"
-            className={[ui.button, ui.buttonPrimary].join(' ')}
-            data-testid="wl-new-node-submit"
-            disabled={disabled || draft.trim() === ''}
-            aria-label={t('palette.newBlank')}
-            title={t('palette.newBlank')}
-            onClick={submitBlank}
-          >
-            ＋
-          </button>
+      <PaletteSection
+        t={t}
+        source="disk"
+        labelKey="palette.disk"
+        count={countText(templateEntries.length)}
+        collapsed={props.collapsed}
+        onToggleGroup={props.onToggleGroup}
+      >
+        {/*
+          自定义 node 节**内部也是平铺的一层**：没有前缀组、没有二级折叠
+          （用户明确说不要二级分类）。模板名长短不一，所以这一列不排两列网格。
+
+          模板那一格是 `role="list"`（条目都是 `listitem`），末尾那枚「＋」**在外面**：
+          它是一个真按钮，而 `role="list"` 的孩子只允许 `listitem`，混进去就是无效结构。
+          外面这层 `.templateStack` 只负责把两格的排布（内缩与行距）接起来。
+        */}
+        <div className={css.templateStack}>
+          <div className={css.templateList} role="list" aria-label={t('palette.disk')}>
+            {templateEntries.map((entry) => (
+              <Fragment key={entry.name}>{templateItem(entry)}</Fragment>
+            ))}
+          </div>
+          {addTemplateItem()}
         </div>
-      </div>
-      {nameError !== null && (
-        <p className={[ui.problem, css.formProblem].join(' ')} role="alert">
-          {nameError}
-        </p>
-      )}
-
-      {noMatch ? (
-        <p className={css.empty}>{t('palette.noMatch')}</p>
-      ) : (
-        <>
-          <PaletteSection
-            t={t}
-            source="builtin"
-            labelKey="palette.builtin"
-            count={countText(presetHits.length, presetTotal)}
-            collapsed={props.collapsed}
-            filtering={filtering}
-            onToggleGroup={props.onToggleGroup}
-          >
-            {/*
-              内置 node 节**内部**是**平铺**的：没有组头、没有二级折叠、没有按角色分堆。
-              它本来就是一条主线的六个起点，分成五堆只会让人多跨一层折叠。
-              可折叠的是整个分节，那个开关在分节头上。
-            */}
-            <div className={css.flatList} role="list" aria-label={t('palette.builtin')}>
-              {presetHits.map((preset) => (
-                <Fragment key={preset.id}>{presetItem(preset)}</Fragment>
-              ))}
-            </div>
-          </PaletteSection>
-
-          <PaletteSection
-            t={t}
-            source="disk"
-            labelKey="palette.disk"
-            count={countText(templateHits.length, templateTotal)}
-            collapsed={props.collapsed}
-            filtering={filtering}
-            onToggleGroup={props.onToggleGroup}
-          >
-            {/*
-              自定义 node 节**内部也是平铺的一层**：没有前缀组、没有二级折叠
-              （用户明确说不要二级分类）。模板名长短不一，所以这一列不排两列网格。
-            */}
-            {props.templates.length === 0 ? (
-              <p className={css.empty}>{t('palette.diskEmpty')}</p>
-            ) : (
-              <div className={css.templateList} role="list" aria-label={t('palette.disk')}>
-                {templateHits.map((entry) => (
-                  <Fragment key={entry.name}>{templateItem(entry)}</Fragment>
-                ))}
-              </div>
-            )}
-          </PaletteSection>
-        </>
-      )}
+      </PaletteSection>
 
       {/* 拖拽影像的常驻空壳：移出视口、不接指针，只在 dragstart 时被 setDragImage 抓一次。 */}
       <div className={css.dragGhost} ref={dragGhostRef} aria-hidden="true" />

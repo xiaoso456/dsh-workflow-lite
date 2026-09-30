@@ -199,6 +199,13 @@ export interface Repository {
   saveAsTemplate(workflow: string, options?: SaveAsTemplateOptions): Promise<Outcome<WriteResult>>
   /** 读一个模板：`kind='workflows'` 给整图文档，`kind='nodes'` 给 `data` 本体。 */
   readTemplate(kind: TemplateKind, name: string): Promise<Outcome<WorkflowTemplate | NodeData>>
+  /**
+   * 新建一个节点模板文件（`templates/nodes/<名>.json`）。
+   *
+   * 名字撞了报 `conflict`：**不覆盖、也不自动加序号**——名字是人在对话框里指着输的，
+   * 悄悄改名会让他找不到刚建的那个。
+   */
+  createNodeTemplate(name: string, data: NodeData): Promise<Outcome<WriteResult>>
   writeNode(workflow: string, upsert: NodeUpsert): Promise<Outcome<WriteResult>>
   setLabel(workflow: string, node: string, label: string): Promise<Outcome<WriteResult>>
   deleteNode(workflow: string, node: string): Promise<Outcome<WriteResult>>
@@ -1202,6 +1209,53 @@ class FileRepository implements Repository {
     return ok(parsed.data)
   }
 
+  async createNodeTemplate(name: string, data: NodeData): Promise<Outcome<WriteResult>> {
+    return this.withLock(async () => {
+      const resolved = this.resolveName(name)
+      if (!resolved.ok) return resolved
+      const templateName = resolved.result
+      const ready = await this.ensureLayout()
+      if (!ready.ok) return ready
+
+      const target = templateFile(this.dataDir, 'nodes', templateName)
+      /*
+       * 撞名 = **冲突**，不是"改名后接着写"。
+       *
+       * 与 `create`（建图）刻意不同：那条路上名字常常是自动取的（"未命名"），撞了加序号
+       * 是帮忙；这条路上名字是人在对话框里指名输的，静默改名会让人对着列表找不到刚建的那个，
+       * 而覆盖别人的模板更不可接受。
+       */
+      const occupant = await templateOccupant(this.dataDir, 'nodes', templateName)
+      if (occupant !== null) {
+        return fail(
+          'conflict',
+          `节点模板 ${templateName} 已存在（${describeOccupant(occupant)}）`,
+          {
+            template: templateName,
+            kind: 'nodes',
+            occupant,
+          },
+        )
+      }
+      try {
+        await writeFileAtomic(target, writeNodeTemplate(data))
+      } catch (error) {
+        return mapWriteFailure(error, target)
+      }
+      return ok({
+        changed: [
+          {
+            kind: 'workflow',
+            op: 'add',
+            id: templateName,
+            detail: { template: 'nodes', created: true },
+          },
+        ],
+        warnings: [],
+      })
+    })
+  }
+
   /** 读出模板文本并做预检：坏的（保存级 / 编译级）一律 `blocked`，绝不复制半成品。 */
   private async loadTemplateText(
     kind: TemplateKind,
@@ -1489,6 +1543,20 @@ class FileRepository implements Repository {
       if (key.startsWith(prefix)) this.baselines.delete(key)
     }
   }
+}
+
+/**
+ * 节点模板文件的规范化写出：固定键序（`label` / `prompt` / `output`）、缺省项不写、
+ * 末尾一个换行。与 {@link parseNodeData} 是同一套形状——**文件顶层就是 `data` 本体**，
+ * 不套 `{ data: … }` 壳。`prompt` 总是写出来（空串也写）：那是这个模板的正文，
+ * 缺键与空串在读者眼里是两件事，别让它含糊。
+ */
+function writeNodeTemplate(data: NodeData): string {
+  const out: Record<string, unknown> = {}
+  if (data.label !== undefined && data.label !== '') out.label = data.label
+  out.prompt = data.prompt ?? ''
+  if (data.output !== undefined) out.output = data.output
+  return `${JSON.stringify(out, null, 2)}\n`
 }
 
 /** 节点模板 = 一个 `data` 本体；这里只做形状归一，规则判定交给校验层。 */

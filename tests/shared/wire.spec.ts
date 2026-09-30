@@ -99,6 +99,7 @@ describe('RPC 目标', () => {
   it('端点两两不同，且数量就是契约里的那几条', () => {
     const names = WORKFLOW_LITE_ENDPOINTS.map((endpoint) => endpointName(endpoint))
     expect(new Set(names).size).toBe(names.length)
-    expect(names).toHaveLength(9)
+    // 十条：`graph/nodeTemplateCreate` 是「自定义 node」那枚「＋」加进来的（模板从前只能手写）。
+    expect(names).toHaveLength(10)
   })
 })

@@ -35,7 +35,6 @@ import type { LocaleKey, NS } from '../core/locales.ts'
 import { NODE_PRESETS, type NodePreset, readCollapsed, writeCollapsed } from '../core/presets.ts'
 import { type WorkflowLiteRpc, WorkflowLiteRpcError } from '../core/rpc.ts'
 import {
-  avoidOverlap,
   type CanvasState,
   duplicateNode,
   findNode,
@@ -43,8 +42,6 @@ import {
   isTypingTarget,
   layoutAll,
   layoutMissing,
-  NODE_FOOTPRINT_H,
-  NODE_FOOTPRINT_W,
   needsSave,
   reduce,
   uniqueNodeId,
@@ -73,6 +70,7 @@ import {
   PlanBlock,
 } from './Inspector.tsx'
 import { type CardData, WorkflowNodeCard } from './NodeCard.tsx'
+import { NodeTemplateDialog } from './NodeTemplateDialog.tsx'
 import { Palette, ValidationPanel } from './Palette.tsx'
 import { Tooltip } from './Tooltip.tsx'
 import ui from './ui.module.css'
@@ -153,7 +151,6 @@ const SHORTCUT_ROWS: readonly { key: LocaleKey; combos: readonly string[] }[] = 
   { key: 'shortcut.redo', combos: ['Ctrl+Shift+Z', 'Ctrl+Y'] },
   { key: 'shortcut.delete', combos: ['Delete'] },
   { key: 'shortcut.escape', combos: ['Esc'] },
-  { key: 'shortcut.filter', combos: ['/'] },
   { key: 'shortcut.fit', combos: ['F'] },
   { key: 'shortcut.relayout', combos: ['L'] },
 ]
@@ -215,14 +212,6 @@ function gridFallback(document: { nodes: { id: string; position: Point }[] }): M
   return placed
 }
 
-/** 新节点落点：从第一个空位起按网格铺，避免盖住已有节点。 */
-function nextPosition(count: number): Point {
-  return {
-    x: 120 + (count % GRID_COLUMNS) * 260,
-    y: 80 + Math.floor(count / GRID_COLUMNS) * 140,
-  }
-}
-
 /**
  * 拿一次 `localStorage`。**读取这个属性本身就可能抛**（隐私模式 / 被策略禁掉），
  * 所以连它一起包进去——调用方拿到 `null` 就当"这台机器没地方存偏好"。
@@ -263,18 +252,6 @@ function readLastGraph(): string | null {
 }
 
 /**
- * 按契约的 testid 找元素并聚焦。
- *
- * 跨组件的焦点转移（空态按钮 → 节点库输入框、`/` → 筛选框）只有这一个口子：
- * 走 testid 而不是 ref，是因为它是一个**冻结的稳定钩子**（跨组件的契约），
- * 不依赖另一个组件的内部结构。
- */
-function focusTestId(testId: string): void {
-  const target = window.document.querySelector(`[data-testid="${testId}"]`)
-  if (target instanceof HTMLElement) target.focus()
-}
-
-/**
  * 画布本体。
  * @param props - 槽位 props + 注入的 rpc + 词典。
  */
@@ -289,7 +266,8 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
   const [conflict, setConflict] = useState<{ message: string; ids: string[] } | null>(null)
   const [flow, setFlow] = useState<ReactFlowInstance<FlowNode, FlowEdge> | null>(null)
   const [collapsed, setCollapsed] = useState<readonly string[]>(() => readCollapsed(safeStorage()))
-  const [filter, setFilter] = useState('')
+  /** 「新建节点模板」对话框开着没有。 */
+  const [templateDialog, setTemplateDialog] = useState(false)
   /** 有没有东西正拖在画布上。**一次拖拽只变两次**，指针坐标不走 state（见 `onDragOver`）。 */
   const [dropActive, setDropActive] = useState(false)
   /** 快捷键说明是否展开。 */
@@ -322,45 +300,6 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
   const scheduleRef = useRef<((reason: 'edit' | 'settled' | 'leaving' | 'manual') => void) | null>(
     null,
   )
-
-  /**
-   * 新节点落点：看得见的地方优先（视口中心）。
-   *
-   * 拿到中心之后还要过一道 `avoidOverlap`："点一下节点库条目"这个动作没有指针位置，
-   * 连点两次就会得到**逐像素重合的两个节点**——上面那个看得见，下面那个既看不见也点不中，
-   * 界面还不会说“这里有两个”（独立审计 P3）。拖放进来的落点不走这里，那是用户明确指的。
-   */
-  const newPosition = useCallback((): Point => {
-    const document = stateRef.current.document
-    const rect = canvasRef.current?.getBoundingClientRect()
-    if (flow !== null && rect !== undefined) {
-      const center = flow.screenToFlowPosition({
-        x: rect.left + rect.width / 2,
-        y: rect.top + rect.height / 2,
-      })
-      if (document === null) return center
-      /*
-       * 把**可见区**交给避让：候选会被夹进这个区间，于是新节点一定完整落在画布上。
-       *
-       * 为什么区间是**不对称**的：`node.position` 是卡片的**左上角**。一张宽 `W` 的卡
-       * 要完整落在以 `center` 为中心、半宽 `halfW` 的可见区里，左上角得落在
-       * `[center.x - halfW, center.x + halfW - W]`——右边界要多减一个卡宽。
-       * （第一版写成了对称的 `halfW - W/2`，两头都错：既拒掉合法的左向槽位、
-       * 又在右向放松半张卡，最后把避让逼成"永远放中心"。）
-       */
-      const { zoom } = flow.getViewport()
-      const safeZoom = zoom > 0 ? zoom : 1
-      const halfW = rect.width / (2 * safeZoom)
-      const halfH = rect.height / (2 * safeZoom)
-      return avoidOverlap(document, center, 4, {
-        minX: -halfW,
-        maxX: Math.max(-halfW, halfW - NODE_FOOTPRINT_W),
-        minY: -halfH,
-        maxY: Math.max(-halfH, halfH - NODE_FOOTPRINT_H),
-      })
-    }
-    return nextPosition(document?.nodes.length ?? 0)
-  }, [flow])
 
   /** 落盘（唯一的写路径）。`force` = 「保留我的」（冲突也写）。 */
   const save = useCallback(
@@ -1128,25 +1067,28 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
   // ── 动作 ────────────────────────────────────────────────────
 
   /**
-   * 加一个节点。`at` 是拖放落点（flow 坐标）；不给就落在视野中心。
+   * 加一个节点。`at` 是拖放落点（flow 坐标）——**必填**。
+   *
+   * 没有"缺省落点"这一支了：加节点只有"从节点库拖进来"这一条路（点、回车都不加，
+   * 见 `Palette` 的注释），所以落点永远是用户明确指的那一个。从前那个"落在视口中心 +
+   * `avoidOverlap` 补位"的机制随之整块删掉（它存在只因为曾经有"无落点的添加"）。
    * 落点坐标的归一化在 `withNewNode` 里做，这里不重复。
    */
   const addNode = useCallback(
-    (base: string, data: NodeData, at?: Point): void => {
+    (base: string, data: NodeData, at: Point): void => {
       const document = stateRef.current.document
       if (document === null) return
       const id = uniqueNodeId(document, base)
-      mutate({ type: 'addNode', id, data, position: at ?? newPosition() })
+      mutate({ type: 'addNode', id, data, position: at })
       dispatch({ type: 'select', node: id })
       // 加完把键盘焦点收到画布上：紧跟着的 Ctrl+Z / Delete / 拖节点都作用在画布上。
-      // 焦点在输入框里时不抢：节点库的 id 输入框就是靠这条保住"敲一个再敲一个"。
       if (!isTypingTarget(window.document.activeElement)) canvasRef.current?.focus()
     },
-    [mutate, newPosition],
+    [mutate],
   )
 
   const addPreset = useCallback(
-    (preset: NodePreset, at?: Point): void => {
+    (preset: NodePreset, at: Point): void => {
       addNode(
         preset.id,
         {
@@ -1161,7 +1103,7 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
   )
 
   const addTemplate = useCallback(
-    (entry: TemplateEntry, at?: Point): void => {
+    (entry: TemplateEntry, at: Point): void => {
       void rpc
         .call('graph/nodeTemplate', { name: entry.name })
         .then((result) => addNode(entry.name, result.data, at))
@@ -1170,25 +1112,6 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
         })
     },
     [rpc, addNode],
-  )
-
-  /** 节点库的「新建空白节点」：id 由那一栏的输入框给，这里只管落点。 */
-  const createBlank = useCallback(
-    (base: string): void => {
-      const id = base.trim()
-      if (id === '') return
-      /*
-       * 名字不合法就**直接不动**，绝不走 `loadFailed`。
-       *
-       * `loadFailed` 在 reducer 里是**无条件** `blocked: true` 的（它表达的是"这张图读不出来"），
-       * 拿它报一个输入校验错误会把整张图打进只读错误态、画布整块消失（独立审计 P1）。
-       * 输入框那边自己会就地报红（它先跑 `checkName`），所以这里到不了；
-       * 留着这一支只是把"非法输入 ≠ 图坏了"这条界线写在代码里。
-       */
-      if (checkName(id) !== null) return
-      addNode(id, { prompt: '' })
-    },
-    [addNode],
   )
 
   const createGraph = useCallback(
@@ -1273,19 +1196,14 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
     })
   }, [])
 
-  /** 「全部展开 / 全部收起」：组键清单由面板算好整份交过来，这里只负责存。 */
-  const setCollapsedAll = useCallback((next: readonly string[]): void => {
-    setCollapsed(next)
-    writeCollapsed(safeStorage(), next)
-  }, [])
-
-  const focusLibraryFilter = useCallback((): void => {
-    focusTestId('wl-library-filter')
-  }, [])
-
-  const focusNewNodeInput = useCallback((): void => {
-    focusTestId('wl-new-node-input')
-  }, [])
+  /**
+   * 「新建节点模板」对话框确认后：目录变了，重拉一次 catalog（新磁贴要当场出现），
+   * 然后把焦点还给画布——对话框关掉之后，焦点不该留在一个已经不在 DOM 里的按钮上。
+   */
+  const closeTemplateDialog = useCallback((): void => {
+    setTemplateDialog(false)
+    void refreshCatalog().finally(() => canvasRef.current?.focus())
+  }, [refreshCatalog])
 
   /**
    * 自定义 node 的条目：**平铺一列**。
@@ -1487,11 +1405,6 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
           deleteSelected()
           return
         }
-        case '/': {
-          event.preventDefault()
-          focusLibraryFilter()
-          return
-        }
         case 'f': {
           event.preventDefault()
           void flow?.fitView({ padding: FIT_PADDING, minZoom: MIN_ZOOM, duration: 220 })
@@ -1506,16 +1419,7 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
           return
       }
     },
-    [
-      selected,
-      selectedEdge,
-      deleteSelected,
-      deleteSelectedEdge,
-      focusLibraryFilter,
-      flow,
-      relayout,
-      mutate,
-    ],
+    [selected, selectedEdge, deleteSelected, deleteSelectedEdge, flow, relayout, mutate],
   )
 
   const blockedNotice = state.blocked
@@ -1666,12 +1570,7 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
               templates={templateEntries}
               collapsed={collapsed}
               onToggleGroup={toggleGroup}
-              onSetCollapsed={setCollapsedAll}
-              filter={filter}
-              onFilter={setFilter}
-              onAddPreset={addPreset}
-              onAddTemplate={addTemplate}
-              onCreateBlank={createBlank}
+              onNewTemplate={() => setTemplateDialog(true)}
             />
             <ValidationPanel
               t={t}
@@ -1927,17 +1826,9 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
                 <Controls position="top-right" showInteractive={false} />
               </ReactFlow>
               {flowNodes.length === 0 && (
-                <div className={css.canvasEmpty}>
+                <div className={css.canvasEmpty} data-testid="wl-canvas-empty">
                   <p className={css.canvasEmptyTitle}>{t('canvas.emptyTitle')}</p>
                   <p className={ui.muted}>{t('canvas.emptyBody')}</p>
-                  <button
-                    type="button"
-                    className={ui.button}
-                    data-testid="wl-empty-action"
-                    onClick={focusNewNodeInput}
-                  >
-                    {t('canvas.emptyAction')}
-                  </button>
                 </div>
               )}
               {/*
@@ -2011,6 +1902,26 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
             <PlanBlock t={t} plan={plan} tab={planTab} onTab={setPlanTab} />
           </aside>
         </div>
+      )}
+
+      {/*
+        「新建节点模板」对话框。挂在根节点里（不是 portal）：`position: fixed` 的盒
+        仍然待在 `.root` 的子树里，于是那一整套 `--wl-*` 令牌照常继承——这与下拉、
+        菜单、快捷键说明是同一个做法。
+      */}
+      {templateDialog && (
+        <NodeTemplateDialog
+          t={t}
+          create={(name, data) =>
+            rpc.call('graph/nodeTemplateCreate', { name, data }).then(() => undefined)
+          }
+          onCreated={closeTemplateDialog}
+          onCancel={() => {
+            setTemplateDialog(false)
+            // 焦点还给画布：关掉的框里那个按钮已经不在 DOM 上了，焦点不能留在一个幽灵上。
+            canvasRef.current?.focus()
+          }}
+        />
       )}
     </div>
   )

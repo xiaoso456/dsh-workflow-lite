@@ -797,11 +797,9 @@
 }
 
 /*
- * 空图空态。
- *
- * `pointer-events: auto`（原先是 `none`）：空态里有一个「新建空白节点」按钮，
- * 盖在画布上的这层如果吃掉不了点击，按钮就是死的。代价是空图时按不到 React Flow
- * 的缩放控件：空图上它们本来也没用。
+ * 空图空态。**纯文字、没有按钮**（从前那个「新建空白节点」按钮随"无落点添加"一起删了：
+ * 加节点只有"从节点库拖进来"这一条路），所以这一层重新回到 `pointer-events: none`——
+ * 它盖住整块画布，吃掉指针就等于空图时既平移不了也缩放不了。
  */
 .canvasEmpty {
   position: absolute;
@@ -815,7 +813,7 @@
   color: var(--wl-text-mute);
   font-size: var(--wl-font-micro);
   text-align: center;
-  pointer-events: auto;
+  pointer-events: none;
 }
 
 .canvasEmptyTitle {
@@ -825,28 +823,13 @@
 }
 
 /*
- * 说明行与主行动按钮：**不**用大白字压深底。
- *
- * 两者的类落在别的模块里（说明行是 `ui.muted`、按钮是 `ui.button`，归 fix-panel），
- * 而空态的结构在 CanvasView.tsx（归 fix-canvas）——所以用 `.canvasEmpty` 的子选择器
- * 把**这一处**的语气提上来：说明降到最弱一档且去掉 `ui.muted` 自带的面板内缩（居中布局里
- * 那圈内缩会让两行字看着偏），按钮按强调色做成这一屏唯一的主行动。
+ * 说明行：这一处的语气由空态收口——说明降到最弱一档，并去掉 `ui.muted` 自带的面板内缩
+ *（居中布局里那圈内缩会让两行字看着偏）。
  */
 .canvasEmpty > p:not(.canvasEmptyTitle) {
   padding: 0;
   color: var(--wl-text-mute);
   font-size: var(--wl-font-micro);
-}
-
-.canvasEmpty button {
-  border-color: var(--wl-accent);
-  background: var(--wl-accent);
-  color: var(--wl-accent-on);
-}
-
-.canvasEmpty button:hover:not(:disabled) {
-  border-color: var(--wl-accent-hover);
-  background: var(--wl-accent-hover);
 }
 
 .raw {
