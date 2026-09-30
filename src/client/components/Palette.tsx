@@ -26,7 +26,6 @@ import {
   isGroupExpanded,
   matchesFilter,
   type NodePreset,
-  type PaletteGroup,
   type PaletteSource,
   sectionKey,
 } from '../core/presets.ts'
@@ -195,10 +194,12 @@ export interface PaletteProps {
   /** 内置 node：**平铺列表**（节内不再按角色分组，但整节本身可折叠）。 */
   presets: readonly NodePreset[]
   /**
-   * 自定义 node：入参仍是「按模板名前缀分好组」的形状（数据组织归上一层），
-   * 但**渲染时摊平**——二级分类已按用户要求去掉，见函数体里 `templates` 那一处。
+   * 自定义 node：**平铺的条目列表**（一层，不再有二级分类）。
+   *
+   * 从前这里是「按模板名前缀分好组」的形状，面板拿到后还得自己摊平——那层分组是用户明确
+   * 说不想要的东西，所以分组本身连同它的工具一起删了，上一层的入参也改成平铺。
    */
-  templates: readonly PaletteGroup<TemplateEntry>[]
+  templates: readonly TemplateEntry[]
   /** 已折叠的键：只有两个分节键（二级分组的组键已不再产生）。 */
   collapsed: readonly string[]
   onToggleGroup: (key: string) => void
@@ -281,11 +282,10 @@ export function Palette(props: PaletteProps): React.JSX.Element {
     matchesFilter(`${t(preset.labelKey)} ${preset.id}`, props.filter),
   )
   /*
-   * 模板**直接平铺**：入参是按名字前缀分好组的（`exec` / 其他），这里摊平成一列——
-   * 用户明确说不要二级分类。分组不再参与渲染，也不再进折叠表。
+   * 模板**直接平铺**（入参就已经是一列条目）：用户明确说不要二级分类，
+   * 分组既不参与渲染，也不进折叠表。
    */
-  const templates = props.templates.flatMap((group) => group.items)
-  const templateHits = templates.filter((entry) => matchesFilter(entry.name, props.filter))
+  const templateHits = props.templates.filter((entry) => matchesFilter(entry.name, props.filter))
   const noMatch = filtering && presetHits.length === 0 && templateHits.length === 0
 
   /**
@@ -297,7 +297,7 @@ export function Palette(props: PaletteProps): React.JSX.Element {
     return filtering ? `${hits} / ${total}` : `${total}`
   }
   const presetTotal = props.presets.length
-  const templateTotal = templates.length
+  const templateTotal = props.templates.length
 
   /**
    * 「全部收起 / 全部展开」的折叠对象：**只剩两个分节键**。
@@ -464,9 +464,13 @@ export function Palette(props: PaletteProps): React.JSX.Element {
                 : t(allCollapsed ? 'palette.expandAll' : 'palette.collapseAll')
             }
             onClick={() => props.onSetCollapsed(allCollapsed ? [] : sectionKeys)}
-          >
-            {t(allCollapsed ? 'palette.expandAll' : 'palette.collapseAll')}
-          </button>
+            /*
+             * 无字图标按钮：箭头由 `.collapseAll::before` 画（装饰，不进无障碍树），
+             * 可读名走上面的 `aria-label` / `title`。
+             * 以前这里塞着一份 0 号字的文案，只为迁就验收第 20 步读 `textContent`——
+             * 那条断言已改成读 `aria-label`，这里就不用再演了。
+             */
+          />
         </div>
 
         <div className={css.newNode}>
@@ -560,7 +564,7 @@ export function Palette(props: PaletteProps): React.JSX.Element {
               自定义 node 节**内部也是平铺的一层**：没有前缀组、没有二级折叠
               （用户明确说不要二级分类）。模板名长短不一，所以这一列不排两列网格。
             */}
-            {templates.length === 0 ? (
+            {props.templates.length === 0 ? (
               <p className={css.empty}>{t('palette.diskEmpty')}</p>
             ) : (
               <div className={css.templateList}>

@@ -32,13 +32,7 @@ import type { NodeData, Point, TemplateEntry } from '../../shared/types.ts'
 import type { GraphListResponse } from '../../shared/wire.ts'
 import { readDragPayload } from '../core/dnd.ts'
 import type { LocaleKey, NS } from '../core/locales.ts'
-import {
-  groupNodeTemplates,
-  NODE_PRESETS,
-  type NodePreset,
-  readCollapsed,
-  writeCollapsed,
-} from '../core/presets.ts'
+import { NODE_PRESETS, type NodePreset, readCollapsed, writeCollapsed } from '../core/presets.ts'
 import { type WorkflowLiteRpc, WorkflowLiteRpcError } from '../core/rpc.ts'
 import {
   avoidOverlap,
@@ -300,6 +294,15 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
   const [dropActive, setDropActive] = useState(false)
   /** 快捷键说明是否展开。 */
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  /**
+   * 窄窗（≤900px）下哪个浮层开着：左栏抽屉、右栏底部浮层，或都不开。
+   *
+   * **默认 `'none'`（两个都关着）是硬要求**：窄窗里画布拿满高度，两个浮层是盖在它上面的
+   * `position: absolute` 块——默认打开就等于把画布整个盖住，画布既看不见也点不动
+   * （节点选中、拖拽、连线全都落空）。宽窗下这个值不产生任何效果：那两个浮层样式只在
+   * `@media (max-width: 900px)` 里成立，触发按钮在宽窗也是 `display: none`。
+   */
+  const [drawer, setDrawer] = useState<'none' | 'library' | 'inspector'>('none')
   const rootRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLDivElement>(null)
   /** 落点标记。`dragover` 里直接改它的 `style.transform`，绕开 React 渲染。 */
@@ -543,6 +546,17 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
     root.addEventListener('mousedown', onMouseDown)
     return () => root.removeEventListener('mousedown', onMouseDown)
   }, [])
+
+  /**
+   * 窄窗下选中节点或边，就把右栏浮层推上来。
+   *
+   * 窄窗里右栏不在画布旁边（它是一个盖在底部的浮层，默认关着），点了节点却什么都不出现，
+   * 看起来就是"点了没反应"。宽窗下这里只是改一个不参与布局的状态，没有任何视觉影响。
+   */
+  useEffect(() => {
+    if (state.selected === null && state.selectedEdge === null) return
+    setDrawer('inspector')
+  }, [state.selected, state.selectedEdge])
 
   /**
    * 容器尺寸变了就重算一次视图（防抖）。
@@ -1273,10 +1287,13 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
     focusTestId('wl-new-node-input')
   }, [])
 
-  const templateGroups = useMemo(
-    () => groupNodeTemplates(catalog?.templates.nodes ?? []),
-    [catalog],
-  )
+  /**
+   * 自定义 node 的条目：**平铺一列**。
+   *
+   * 从前这里要按模板名前缀分好组再交给面板去摊平，那层分组已被用户否掉（"不需要有二级分类
+   * 节点"），分组工具连同它的哨兵组名一起删了——数据在这条链上只有一层。
+   */
+  const templateEntries = catalog?.templates.nodes ?? []
 
   /**
    * 图选择的选项。名字 + 节点数；解析不了的那份跟一个警示符，但**仍然可选**——
@@ -1614,13 +1631,19 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
       )}
 
       {!blockedNotice && (
-        <div className={css.body}>
+        /*
+         * `data-wl-drawer` 是窄窗那两个浮层的**唯一开关**（值就是当前开着的那一个）：
+         * 左栏抽屉与右栏底部浮层的 CSS 都挂在 `.body[data-wl-drawer]` 下面，
+         * 所以只读错误态那张 `.body`（没有这个属性、也没有工具条）不受影响。
+         * 宽窗下这枚属性不匹配任何规则。
+         */
+        <div className={css.body} data-wl-drawer={drawer}>
           <aside className={css.side}>
             <Palette
               t={t}
               disabled={state.document === null}
               presets={NODE_PRESETS}
-              templates={templateGroups}
+              templates={templateEntries}
               collapsed={collapsed}
               onToggleGroup={toggleGroup}
               onSetCollapsed={setCollapsedAll}
@@ -1650,12 +1673,37 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
               */}
               <div className={css.canvasBarScroll}>
                 {/*
+                  窄窗（≤900px）才有的两个开关：左栏抽屉、右栏底部浮层。
+                  `.drawerButton` / `.drawerDivider` 在宽窗是 `display: none`——这两个按钮
+                  与后面那条竖线在 >900px 一个像素都不占，宽窗布局与从前逐字节一致。
+                */}
+                <button
+                  type="button"
+                  className={css.drawerButton}
+                  data-testid="wl-drawer-library"
+                  aria-label={t('palette.title')}
+                  aria-expanded={drawer === 'library'}
+                  onClick={() => setDrawer(drawer === 'library' ? 'none' : 'library')}
+                >
+                  <span aria-hidden="true">☰</span>
+                </button>
+                <button
+                  type="button"
+                  className={css.drawerButton}
+                  data-testid="wl-drawer-inspector"
+                  aria-label={t('panel.title')}
+                  aria-expanded={drawer === 'inspector'}
+                  onClick={() => setDrawer(drawer === 'inspector' ? 'none' : 'inspector')}
+                >
+                  <span aria-hidden="true">▤</span>
+                </button>
+                <span className={[css.divider, css.drawerDivider].join(' ')} />
+                {/*
                   工具条按钮走 **ghost 语言**（透明底、无常驻描边，hover/focus 才亮）：
-                  一排实心描边盒子看着像"一排抽屉"。这五个类来自 `Combobox.module.css`
-                  ——本轮的写范围里只有那两个新模块能放样式，工具条的按钮原子就写在那里
-                  （`ui.module.css` 头部那条规矩也是这么说的：需要新类加在自己的模块里）。
-                  说明从原生 `title` 换成 `<Tooltip>`；键位尾巴从 `SHORTCUT_ROWS` 取
-                  （见 `shortcutHint`），不在这里再抄一遍键名。
+                  一排实心描边盒子看着像"一排抽屉"。这五个类住在 `Combobox.module.css`
+                  （`ui.module.css` 头部那条规矩：需要新类加在自己的模块里；工具条要的形态
+                  与面板控件不是一套）。说明从原生 `title` 换成 `<Tooltip>`；键位尾巴从
+                  `SHORTCUT_ROWS` 取（见 `shortcutHint`），不在这里再抄一遍键名。
                 */}
                 <Tooltip label={t('shortcut.undo') + shortcutHint('shortcut.undo')}>
                   <button
@@ -1839,9 +1887,14 @@ export function CanvasView(props: CanvasViewProps): React.JSX.Element {
                   dispatch({ type: 'select', edge: edge.id })
                   canvasRef.current?.focus()
                 }}
-                /* 点空白 = 节点与边都不选（右栏回到整图概览），同样把焦点收回画布。 */
+                /*
+                 * 点空白 = 节点与边都不选（右栏回到整图概览），同样把焦点收回画布。
+                 * 窄窗下这还兼作那两个浮层的"点击外部关闭"：手一碰画布就把盖着它的抽屉
+                 * 收回去，否则想点被盖住的那半边只能先去找工具条上的按钮。
+                 */
                 onPaneClick={() => {
                   dispatch({ type: 'select' })
+                  setDrawer('none')
                   canvasRef.current?.focus()
                 }}
                 minZoom={MIN_ZOOM}

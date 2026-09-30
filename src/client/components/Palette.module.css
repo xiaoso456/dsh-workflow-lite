@@ -70,9 +70,9 @@
      这一行以输入框为准，图标按钮跟着它们一样高，行就不会参差。 */
   height: auto;
   padding: 0;
-  font-size: 0;
 }
 
+/* 按钮本身无字（可读名走 aria-label），箭头是纯装饰，所以画在伪元素上。 */
 .shell .collapseAll::before {
   content: "⇕";
   font-size: var(--wl-font-micro);

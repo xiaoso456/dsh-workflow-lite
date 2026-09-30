@@ -47,7 +47,7 @@
   --wl-control-active: light-dark(#e9ebef, #333840);
   /* 节点卡：与控件同档，比画布井亮两档，卡"浮"起来。 */
   --wl-card: light-dark(#ffffff, #1e2127);
-  --wl-card-hover: light-dark(#fbfcfd, #24272e);
+  --wl-card-hover: light-dark(#f7f8fa, #24272e);
 
   /*
    * 文字四级。**dim 与 mute 都必须过 AA（4.5:1）**，因为 11px 的 id、计数、字段标签全在
@@ -87,12 +87,20 @@
   --wl-hover: light-dark(rgb(15 17 21 / 5%), rgb(255 255 255 / 6%));
   --wl-hover-strong: light-dark(rgb(15 17 21 / 9%), rgb(255 255 255 / 10%));
 
-  /* 语义色：只在真正表达状态时用（通过 / 失败 / 警告 / 正常）。 */
-  --wl-danger: light-dark(#c8362b, #ff6b61);
+  /*
+   * 语义色：只在真正表达状态时用（通过 / 失败 / 警告 / 正常）。
+   *
+   * 浅色档取值有个坑：这三支色主要是压在**它们自己的 soft 底**上（提示条、徽标、状态点），
+   * 而 soft 底是该色低透明度叠在白上——于是"色 vs 白"合格不等于"色 vs 自己的 soft 底"合格。
+   * 实测初值全部不过：danger #c8362b 4.57、warn #a16207 **4.32**、ok #14815a **4.26**。
+   * 所以按**最坏落点**（自己的 soft 底叠白）重取：#b3281e 5.60 / #8a5200 5.52 / #0f6f4d 5.34。
+   * 暗色档本来就够（5.18 / 6.88 / 6.45），不动。
+   */
+  --wl-danger: light-dark(#b3281e, #ff6b61);
   --wl-danger-soft: light-dark(rgb(200 54 43 / 9%), rgb(255 107 97 / 14%));
-  --wl-warn: light-dark(#a16207, #e3b341);
+  --wl-warn: light-dark(#8a5200, #e3b341);
   --wl-warn-soft: light-dark(rgb(161 98 7 / 10%), rgb(227 179 65 / 14%));
-  --wl-ok: light-dark(#14815a, #4ac97e);
+  --wl-ok: light-dark(#0f6f4d, #4ac97e);
   --wl-ok-soft: light-dark(rgb(20 129 90 / 10%), rgb(74 201 126 / 14%));
 
   /* 连线：拓扑是这张图的全部结构，必须到 3:1。 */
@@ -250,16 +258,166 @@
   }
 }
 
+/*
+ * 计划页激活时放宽右栏。
+ *
+ * 编译预览的正文动辄两三千像素，挤在 320px（≤1180px 时 272px）的栏里每行都要折三四次，
+ * 只能靠在框内滚动读。用户切到「计划」页签就是在读它，这一刻值得把画布让出一点宽度；
+ * 切回「节点」页签自动复原（`data-wl-pane` 是 Inspector 页签容器上的既有属性，那一套
+ * 显隐都靠它）。
+ *
+ * 窄窗（≤900px）没有"右栏那一列"——右栏变成底部浮层了，所以下面那条单列规则必须压过
+ * 这两条：它与 `:has()` 的特异度**相同**（都是 0,2,0），靠**源码顺序**取胜。
+ * 换句话说：这段必须写在窄窗那段之前。
+ */
+.body:has([data-wl-pane="plan"]) {
+  grid-template-columns: 208px minmax(0, 1fr) 480px;
+}
+
+@media (max-width: 1180px) {
+  .body:has([data-wl-pane="plan"]) {
+    grid-template-columns: 180px minmax(0, 1fr) 420px;
+  }
+}
+
+/*
+ * ── 窄窗（≤900px）：画布全高 + 左栏抽屉 + 右栏底部浮层 ──────
+ *
+ * 从前这里是三行竖排（1fr / 1.4fr / 1fr），画布只分到约 29%——实测 148~164px 高，
+ * 而左栏那个壳自己就占 107px、画布工具条再吃掉约 40px：三栏都"只能看见开头"，
+ * 画布只占视口 16%。
+ *
+ * 现在画布吃满整块高度，另外两栏改成盖在它上面的浮层，而且**默认都关着**
+ *（`data-wl-drawer="none"`）：默认打开就等于把画布整个盖住，节点选中 / 拖拽 / 连线
+ * 全部落空——这既是体验问题，也会让"点画布上的节点"这类验收步骤直接失效。
+ */
 @media (max-width: 900px) {
   /*
-   * 窄屏：三栏竖着排。行高一律 `1fr`（而不是写死 150/240），
-   * 因为写死会在矮视口上直接超出可用高度、又把整页顶成可滚。
-   * 每一栏自己 `overflow: auto`，所以“看得见的条数”由栏高决定而不是被截断。
-   * 画布那行给多一点。
+   * 只读错误态那张 `.body`**没有** `data-wl-drawer`：它保持三行竖排。
+   * 那一屏没有工具条，两个浮层没有开关，改成抽屉等于把校验面板藏起来。
    */
   .body {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1fr);
+  }
+
+  /* 正常态：单列单行，画布拿满高度。`position: relative` 给下面两个浮层当定位基准。 */
+  .body[data-wl-drawer] {
+    position: relative;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  /*
+   * 左栏 = 左侧抽屉。关闭时整块推到容器外（用 `transform` 而不是 `display: none`：
+   * 后者没有过渡，而且抽屉里的滚动位置每次都会重建）。只过渡 `transform`。
+   */
+  .body[data-wl-drawer] .side {
+    position: absolute;
+    inset-block: 0;
+    left: 0;
+    /*
+     * `84%` 而不是 `84vw`：`%` 相对定位祖先（`.body`，也就是画布那一块），
+     * `vw` 是**视口**宽。宿主侧栏会吃掉一截视口，于是"视口够宽但画布根很窄"时
+     * `min(320px, 84vw)` 会取到 320px——比容器还宽，抽屉直接溢出插件面板。
+     */
+    width: min(320px, 84%);
+    z-index: 20;
+    border-right: 1px solid var(--wl-border-strong);
+    box-shadow: var(--wl-shadow-overlay);
+    transform: translateX(-102%);
+    transition: transform var(--wl-dur) var(--wl-ease);
+  }
+
+  .body[data-wl-drawer="library"] .side {
+    transform: translateX(0);
+  }
+
+  /*
+   * 右栏 = 底部浮层。高度 `min(54vh, 420px)`：矮窗口下别顶到画布上沿，高窗口下也别把
+   * 画布全占了。顶边描边 + 顶部圆角把它与画布分开（它是盖在画布上的，不是画布的一段）。
+   */
+  .body[data-wl-drawer] .inspector {
+    position: absolute;
+    inset-inline: 0;
+    bottom: 0;
+    height: min(54vh, 420px);
+    z-index: 20;
+    border-left: none;
+    border-top: 1px solid var(--wl-border-strong);
+    border-start-start-radius: var(--wl-radius-lg);
+    border-start-end-radius: var(--wl-radius-lg);
+    box-shadow: var(--wl-shadow-overlay);
+    transform: translateY(102%);
+    transition: transform var(--wl-dur) var(--wl-ease);
+  }
+
+  .body[data-wl-drawer="inspector"] .inspector {
+    transform: translateY(0);
+  }
+}
+
+/*
+ * 窄窗那两个开关：宽窗**不渲染**（`display: none`——不占位、不画线，宽窗布局与从前
+ * 逐字节一致），≤900px 才出现。显隐只由这两条规则管，别的规则不要碰 `display`。
+ */
+.drawerButton {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  inline-size: 22px;
+  block-size: 22px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--wl-radius-control);
+  background: transparent;
+  color: var(--wl-text-dim);
+  font: inherit;
+  /* 字形按最小一档：它是图形化的开关，不该跟旁边的文字按钮抢注意力。 */
+  font-size: var(--wl-font-micro);
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background-color var(--wl-dur) var(--wl-ease),
+    color var(--wl-dur) var(--wl-ease);
+}
+
+.drawerButton:hover {
+  background: var(--wl-hover);
+  color: var(--wl-text);
+}
+
+.drawerButton[aria-expanded="true"] {
+  background: var(--wl-hover-strong);
+  color: var(--wl-text);
+}
+
+.drawerButton:focus-visible {
+  outline: 2px solid var(--wl-ring);
+  outline-offset: 1px;
+}
+
+/* 两个抽屉开关与其余工具条按钮之间的那条竖线：同样只在窄窗存在。 */
+.drawerDivider {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .drawerButton {
+    display: inline-flex;
+  }
+
+  .drawerDivider {
+    display: block;
+  }
+}
+
+/* 动效降级：抽屉与浮层直接归位，不做位移过渡。 */
+@media (prefers-reduced-motion: reduce) {
+  .body[data-wl-drawer] .side,
+  .body[data-wl-drawer] .inspector {
+    transition: none;
   }
 }
 
