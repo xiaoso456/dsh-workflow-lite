@@ -162,13 +162,14 @@
  * 「内置 node / 自定义 node」渲染成 `内置 NODE`，CSS 改一个字，看到的就是另一个词。
  *
  * 内边距归 `.sectionHead`（整行可点，悬停底色要铺满整行），这一格只留排版。
- * 颜色取最弱那一档：它是分组标签，不该比它下面的条目更响。
+ * 字号跟条目同号（12px）、字重压过条目（600 vs 500）：它是这一节的标题，
+ * 只能比条目不弱，不能反过来——从前它是 11px 而条目 11px、正文 13px，标题最小。
  */
 .sectionLabel {
   color: var(--wl-text-mute);
-  font-size: var(--wl-font-micro);
+  font-size: var(--wl-font-meta);
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.02em;
 }
 
 /*
@@ -249,7 +250,7 @@
   background: var(--wl-control);
   color: var(--wl-text-dim);
   font: inherit;
-  font-size: var(--wl-font-micro);
+  font-size: var(--wl-font-meta);
   text-align: left;
   /* 抓手光标：这是「可以拖走」的第一眼暗示。 */
   cursor: grab;
@@ -288,7 +289,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  /* 11px 的字要靠字重撑起点分量，否则和右边的 id 一样轻。 */
+  /* 12px 的字要靠字重撑起点分量，否则和右边的 id 一样轻。 */
   font-weight: 500;
 }
 
@@ -400,7 +401,7 @@
   padding: 4px 6px;
   border-radius: var(--wl-radius-control);
   background: var(--wl-bg);
-  font-size: 12px;
+  font-size: var(--wl-font-meta);
 }
 
 .verifyItemClickable {
@@ -425,7 +426,7 @@
   flex: 0 0 auto;
   padding: 0 4px;
   border-radius: var(--wl-radius-control);
-  font-size: 10px;
+  font-size: var(--wl-font-micro);
   white-space: nowrap;
 }
 

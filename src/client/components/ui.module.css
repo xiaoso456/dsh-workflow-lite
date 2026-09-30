@@ -65,7 +65,8 @@
 .textarea:focus-visible,
 .button:focus-visible,
 .iconButton:focus-visible,
-.tab:focus-visible {
+.tab:focus-visible,
+.tabActive:focus-visible {
   outline: 2px solid var(--wl-ring);
   outline-offset: 1px;
 }
@@ -230,6 +231,14 @@
 
 /* ── 面板头 ───────────────────────────────────────────────── */
 
+/*
+ * 面板头 = 这一栏的**标题**，所以它比自己栏里的正文大一档、也更亮：
+ * 从前它是 11px 的弱色（micro + `--wl-text-dim`），而栏里的正文是 13px 的亮色——
+ * 于是"标题比正文还小、还暗"，用户一眼就看出来了。
+ *
+ * `letter-spacing` 只在拉丁文上有意义（中文加字距只是散架），保留它是因为 en 词典里
+ * 这些标签是 `Node palette` 这样的多词串。
+ */
 .panelHead {
   display: flex;
   align-items: center;
@@ -237,15 +246,19 @@
   gap: var(--wl-gap-2);
   /* 左右 10px 是四个组件文件共用的面板内缩，不在这份文件的 4/8/12 管辖内。 */
   padding: var(--wl-gap-2) 10px var(--wl-gap-1);
-  color: var(--wl-text-dim);
-  font-size: var(--wl-font-micro);
+  color: var(--wl-text);
+  font-size: var(--wl-font-body);
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
 }
 
+/*
+ * 副文案（计数这类读数）比标题小一档：它是读数，不是标题。
+ */
 .panelHeadSub {
   color: var(--wl-text-mute);
+  font-size: var(--wl-font-meta);
   font-weight: 400;
   text-transform: none;
   letter-spacing: 0;
@@ -280,9 +293,11 @@
 /* ── 字段组 ───────────────────────────────────────────────── */
 
 /*
- * 一个字段 = 一行小号标签 + 一个输入体。标签走 `--wl-text-mute`、11px，和值
- *（`--wl-text`）拉开层级，读起来是"标签 + 内容"而不是两个并排的框。
- * 这一档在面板上是 4.83:1（浅）/ 5.4:1（暗），11px 也过 AA。
+ * 一个字段 = 一行标签 + 一个输入体。
+ *
+ * 标签与**它的值同号**（`--wl-font-body`），只靠颜色差一档（mute vs text）分主次：
+ * 从前标签是 11px 的弱色，下面的值却是 12~13px 的亮色，读起来就是"正文比标题还大"。
+ * 这一档在面板上是 5.24:1（浅）/ 6.05:1（暗），13px 稳稳过 AA。
  */
 .field {
   display: flex;
@@ -292,14 +307,14 @@
 
 .field > span {
   color: var(--wl-text-mute);
-  font-size: var(--wl-font-micro);
+  font-size: var(--wl-font-body);
 }
 
 .textarea {
   min-height: 132px;
   resize: vertical;
   font-family: var(--wl-font-mono);
-  font-size: var(--wl-font-meta);
+  font-size: var(--wl-font-body);
   line-height: 1.5;
 }
 
@@ -353,10 +368,14 @@
  * `white-space: nowrap` 是补的：中文标签任意两字之间都可断行，`min-width:auto` 只值
  * 一个字宽，于是 ≤1100 时这两个页签会被折成两行（实测 23px → 40px 高），
  * 把「引用路径 / 内联全文」这个二选一变成要逐字拼读。
- * `.tab` 与 `.tabActive` 是**互斥**应用的（调用处是三元），所以两条都要写。
+ *
+ * `.tab` 与 `.tabActive` 是**互斥**应用的（调用处是三元），所以基础块必须写两个选择器。
+ * 从前只写了 `.tab`，于是**选中那一枚退回浏览器的默认字号 13.3333px**——同一排两个页签
+ * 大小不一，实测被用户当场圈出来。同理，焦点环那组选择器也要带上 `.tabActive`。
  * 内圆角跟着凹槽的 2px 内缩走：容器 padding 一改这里也要改。
  */
-.tab {
+.tab,
+.tabActive {
   border: none;
   border-radius: calc(var(--wl-radius-control) - 2px);
   background: transparent;

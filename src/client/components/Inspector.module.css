@@ -66,10 +66,11 @@
   min-width: 0;
 }
 
+/* 概览的键与它的值同号（12px），只靠颜色分主次：键小一档就又成"正文比标题大"。 */
 .summaryKey {
   flex: 0 0 auto;
   color: var(--wl-text-mute);
-  font-size: var(--wl-font-micro);
+  font-size: var(--wl-font-meta);
 }
 
 /*

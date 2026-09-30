@@ -106,7 +106,17 @@
   /* 连线：拓扑是这张图的全部结构，必须到 3:1。 */
   --wl-edge: light-dark(#5c636e, #9aa2ae);
 
-  /* 字号三档 + 一档等宽；间距三档；圆角三档（控件 / 卡片 / 浮层）。 */
+  /*
+   * 字号三档 + 一档等宽；间距三档；圆角三档（控件 / 卡片 / 浮层）。
+   *
+   * **每一档管什么，是这份设计系统的一部分**（用错档就会出现"正文比标题还大"）：
+   *   body  13px —— 标题（面板头 / 分节头 / 浮层标题 / 节点卡标题）与正文（值 / 按钮 / 正文块）
+   *                共用同一号，主次由字重（600 vs 400）与颜色（text vs mute）给；
+   *   meta  12px —— 次要标签与元信息：分节名、条目名、边行名、说明、状态、问题行、概览的键与值；
+   *   micro 11px —— 计数、id、徽标、键帽、装饰箭头、脚注。
+   * 规矩：**任何"标题/标签"的字号不得小于它管辖的那段内容**；反例见 git 历史里的
+   * 11px 面板头压在 13px 正文上，以及互斥类名漏写导致选中页签退回浏览器默认字号。
+   */
   --wl-font-body: 13px;
   --wl-font-meta: 12px;
   --wl-font-micro: 11px;
@@ -520,16 +530,19 @@
   box-shadow: var(--wl-shadow-overlay);
 }
 
+/*
+ * 浮层的标题与面板头同一档：它下面那 8 行是 12px 的正文，标题比正文小就成了倒挂。
+ */
 .shortcutHead {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--wl-gap-2);
   padding-bottom: var(--wl-gap-1);
-  color: var(--wl-text-dim);
-  font-size: var(--wl-font-micro);
+  color: var(--wl-text);
+  font-size: var(--wl-font-body);
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.02em;
 }
 
 .shortcutList {
