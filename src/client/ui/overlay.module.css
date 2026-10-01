@@ -64,6 +64,10 @@
   width: 200px;
 }
 
+.views {
+  width: 128px;
+}
+
 .dialogHint {
   flex: none;
   margin: 0;
@@ -79,15 +83,27 @@
   min-height: 0;
   margin: 0 12px 12px;
   overflow: hidden;
+  border: 1px solid var(--wl-line);
   border-radius: 10px;
-  background: var(--wl-fill);
+  background: var(--wl-panel);
+}
+
+.planScroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+}
+
+.planDoc {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 18px 24px 28px;
 }
 
 .plan {
-  flex: 1 1 auto;
   margin: 0;
   padding: 14px 16px;
-  overflow: auto;
   color: var(--wl-text);
   font-family: var(--wl-mono);
   font-size: var(--wl-fs-meta);
@@ -151,7 +167,7 @@
   padding: 8px 10px;
   border: 0;
   border-radius: var(--wl-r-control);
-  background: var(--wl-panel);
+  background: var(--wl-fill);
   color: var(--wl-text);
   font: inherit;
   font-size: var(--wl-fs-meta);

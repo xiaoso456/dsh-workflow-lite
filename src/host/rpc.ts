@@ -272,6 +272,31 @@ async function dispatch(
       return ok({ name, warnings: outcome.result.warnings })
     }
 
+    case 'graph/nodeTemplateDraft': {
+      const input = asRecord(payload)
+      const name = requireString(input, 'name')
+      const outcome = await deps.repository.readNodeTemplateDraft(name)
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok({ name, data: outcome.result })
+    }
+
+    case 'graph/nodeTemplateSave': {
+      const input = asRecord(payload)
+      const name = requireString(input, 'name')
+      const from = optionalString(input, 'from')
+      const outcome = await deps.repository.saveNodeTemplate(name, readNodeData(input.data), from)
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok({ name, warnings: outcome.result.warnings })
+    }
+
+    case 'graph/nodeTemplateDelete': {
+      const input = asRecord(payload)
+      const name = requireString(input, 'name')
+      const outcome = await deps.repository.deleteNodeTemplate(name)
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok({ warnings: outcome.result.warnings })
+    }
+
     case 'plan/build': {
       const input = asRecord(payload)
       const name = requireString(input, 'name')

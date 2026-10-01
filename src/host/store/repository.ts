@@ -206,6 +206,18 @@ export interface Repository {
    * 悄悄改名会让他找不到刚建的那个。
    */
   createNodeTemplate(name: string, data: NodeData): Promise<Outcome<WriteResult>>
+  /**
+   * 读一个节点模板给人**编辑**：只挡保存级（文件坏了），提示词还空着之类的编译级问题照样给出来——
+   * 半成品正是要打开来改的。（`readTemplate` 是"拿去用"的那条路，半成品一律挡掉。）
+   */
+  readNodeTemplateDraft(name: string): Promise<Outcome<NodeData>>
+  /**
+   * 覆盖保存一个**已存在**的节点模板；给了 `from` 且与 `name` 不同就是"改名并保存"：
+   * 新名字被占用报 `conflict`（不覆盖别人的），写好新文件再删旧文件。
+   */
+  saveNodeTemplate(name: string, data: NodeData, from?: string): Promise<Outcome<WriteResult>>
+  /** 删除一个节点模板文件。不存在报 `not_found`。 */
+  deleteNodeTemplate(name: string): Promise<Outcome<WriteResult>>
   writeNode(workflow: string, upsert: NodeUpsert): Promise<Outcome<WriteResult>>
   setLabel(workflow: string, node: string, label: string): Promise<Outcome<WriteResult>>
   deleteNode(workflow: string, node: string): Promise<Outcome<WriteResult>>
@@ -1250,6 +1262,115 @@ class FileRepository implements Repository {
             id: templateName,
             detail: { template: 'nodes', created: true },
           },
+        ],
+        warnings: [],
+      })
+    })
+  }
+
+  async readNodeTemplateDraft(name: string): Promise<Outcome<NodeData>> {
+    const resolved = this.resolveName(name)
+    if (!resolved.ok) return resolved
+    const text = await readFileText(templateFile(this.dataDir, 'nodes', resolved.result))
+    if (text === null) {
+      return fail('not_found', `节点模板 ${resolved.result} 不存在`, {
+        template: resolved.result,
+        kind: 'nodes',
+      })
+    }
+    const parsed = parseNodeData(text)
+    if (hasLevel(parsed.problems, 'save')) {
+      return fail('blocked', `节点模板 ${resolved.result} 不可读`, {
+        problems: onlyLevel(parsed.problems, 'save'),
+      })
+    }
+    return ok(parsed.data)
+  }
+
+  async saveNodeTemplate(
+    name: string,
+    data: NodeData,
+    from?: string,
+  ): Promise<Outcome<WriteResult>> {
+    return this.withLock(async () => {
+      const resolved = this.resolveName(name)
+      if (!resolved.ok) return resolved
+      const templateName = resolved.result
+      let previous = templateName
+      if (from !== undefined) {
+        const source = this.resolveName(from)
+        if (!source.ok) return source
+        previous = source.result
+      }
+      const ready = await this.ensureLayout()
+      if (!ready.ok) return ready
+
+      const oldFile = templateFile(this.dataDir, 'nodes', previous)
+      if ((await readFileText(oldFile)) === null) {
+        return fail('not_found', `节点模板 ${previous} 不存在`, {
+          template: previous,
+          kind: 'nodes',
+        })
+      }
+      // 改名：新名字必须空着（大小写不同的同一个名字算自己，Windows 上它们本来就是同一个文件）。
+      const renaming = previous !== templateName
+      if (renaming && !sameName(previous, templateName)) {
+        const occupant = await templateOccupant(this.dataDir, 'nodes', templateName)
+        if (occupant !== null) {
+          return fail(
+            'conflict',
+            `节点模板 ${templateName} 已存在（${describeOccupant(occupant)}）`,
+            { template: templateName, kind: 'nodes', occupant },
+          )
+        }
+      }
+      const target = templateFile(this.dataDir, 'nodes', templateName)
+      try {
+        if (renaming && sameName(previous, templateName)) {
+          // 只改大小写：新旧在不区分大小写的盘上是同一个文件，先写再删会把刚写的删掉。
+          await unlinkFile(oldFile)
+          await writeFileAtomic(target, writeNodeTemplate(data))
+        } else {
+          // 先写新的再删旧的：中途失败最多多出一份，不会两份都没有。
+          await writeFileAtomic(target, writeNodeTemplate(data))
+          if (renaming) await unlinkFile(oldFile)
+        }
+      } catch (error) {
+        return mapWriteFailure(error, target)
+      }
+      return ok({
+        changed: [
+          {
+            kind: 'workflow',
+            op: renaming ? 'rename' : 'update',
+            id: templateName,
+            detail: { template: 'nodes', ...(renaming ? { from: previous } : {}) },
+          },
+        ],
+        warnings: [],
+      })
+    })
+  }
+
+  async deleteNodeTemplate(name: string): Promise<Outcome<WriteResult>> {
+    return this.withLock(async () => {
+      const resolved = this.resolveName(name)
+      if (!resolved.ok) return resolved
+      const target = templateFile(this.dataDir, 'nodes', resolved.result)
+      if ((await readFileText(target)) === null) {
+        return fail('not_found', `节点模板 ${resolved.result} 不存在`, {
+          template: resolved.result,
+          kind: 'nodes',
+        })
+      }
+      try {
+        await unlinkFile(target)
+      } catch (error) {
+        return mapWriteFailure(error, target)
+      }
+      return ok({
+        changed: [
+          { kind: 'workflow', op: 'delete', id: resolved.result, detail: { template: 'nodes' } },
         ],
         warnings: [],
       })

@@ -20,12 +20,15 @@ import {
   pressKey,
   pressShortcut,
   screenshot,
+  setReactInput,
 } from './lib/canvas-harness.mjs'
 import { openPage, waitFor } from './lib/cdp-session.mjs'
 import { rpc } from './lib/web-session.mjs'
 
 const NAME = `ui-${Date.now().toString(36)}`
 const RENAMED = `${NAME}-renamed`
+const STEP = `${NAME}-step`
+const STEP_NEW = `${NAME}-new`
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 let step = 0
@@ -263,10 +266,116 @@ async function run(session) {
     session,
     `(document.querySelector('[data-testid="wl-plan-text"]')?.textContent || '').includes('检查所有测试是否通过。')`,
   )
+  // 默认按 Markdown 排版：计划里的事实表渲染成真正的表格；切到源码就是原文。
+  check(
+    await session.evaluate(`document.querySelector('[data-testid="wl-plan-text"] table') !== null`),
+    '排版视图里应有渲染出来的表格',
+  )
   await screenshot(session, 'ui-04-plan.png')
+  await session.evaluate(
+    `[...document.querySelectorAll('[data-testid="wl-plan"] [role="radio"]')][3].click()`,
+  )
+  await waitFor(
+    session,
+    `(document.querySelector('[data-testid="wl-plan-text"] pre')?.textContent || '').includes('| ')`,
+  )
   await pressKey(session, 'Escape')
   await waitFor(session, `document.querySelector('[data-testid="wl-plan"]') === null`)
-  pass('预览计划：两个版本都对，Esc 关闭')
+  pass('预览计划：两个版本都对，默认排版、可切源码，Esc 关闭')
+
+  // 10a) 步骤库：两节都能收起展开。
+  await session.evaluate(clickTestId('wl-lib-section-builtin'))
+  await waitFor(session, `document.querySelector('[data-testid="wl-lib-preset-scan"]') === null`)
+  await session.evaluate(clickTestId('wl-lib-section-builtin'))
+  await waitFor(session, exists('wl-lib-preset-scan'))
+  await session.evaluate(clickTestId('wl-lib-section-custom'))
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-lib-section-custom"]').getAttribute('aria-expanded') === 'false'`,
+  )
+  await session.evaluate(clickTestId('wl-lib-section-custom'))
+  pass('「常用步骤」「我的步骤」都能收起、展开')
+
+  // 10b) 点内置步骤：右侧只读展示提示词，没有任何输入框，也没有"连接"。
+  await session.evaluate(clickTestId('wl-lib-preset-review'))
+  await waitFor(session, exists('wl-step-panel'))
+  check(
+    await session.evaluate(
+      `(document.querySelector('[data-testid="wl-step-prompt"]')?.textContent || '').includes('VERDICT')`,
+    ),
+    '内置步骤的提示词应展示出来',
+  )
+  check(
+    (await session.evaluate(
+      `document.querySelectorAll('[data-testid="wl-step-panel"] input, [data-testid="wl-step-panel"] textarea').length`,
+    )) === 0,
+    '内置步骤不该有可编辑的输入框',
+  )
+  check(!(await session.evaluate(exists('wl-inspector'))), '看库里的条目时不该同时开着步骤属性')
+  await screenshot(session, 'ui-05-preset.png')
+  pass('点内置步骤 → 右侧只读展示')
+
+  // 10c) 复制为我的步骤 → 改文件名 → 保存：磁盘上出现这份模板，库里出现这一项。
+  await session.evaluate(clickTestId('wl-step-copy'))
+  await waitFor(session, exists('wl-step-name'))
+  await setReactInput(session, '[data-testid="wl-step-name"]', STEP)
+  await session.evaluate(clickTestId('wl-step-save'))
+  await waitFor(session, exists(`wl-lib-template-${STEP}`))
+  const copied = await rpc('graph/nodeTemplateDraft', { name: STEP })
+  check(copied.data.prompt.includes('VERDICT'), `复制出来的应带着内置提示词：${copied.data.prompt}`)
+  pass('复制为我的步骤并保存 → 落盘、出现在「我的步骤」')
+
+  // 10d) 在右侧改我的步骤，Ctrl+S 保存。
+  await waitFor(
+    session,
+    `(document.querySelector('textarea[data-testid="wl-step-prompt"]')?.value || '').includes('VERDICT')`,
+  )
+  await setReactInput(session, 'textarea[data-testid="wl-step-prompt"]', '改过的提示词')
+  await session.evaluate(`document.querySelector('textarea[data-testid="wl-step-prompt"]').focus()`)
+  await pressKey(session, 's', { modifiers: MOD.ctrl })
+  const deadline = Date.now() + 6000
+  for (;;) {
+    const draft = await rpc('graph/nodeTemplateDraft', { name: STEP })
+    if (draft.data.prompt === '改过的提示词') break
+    if (Date.now() > deadline)
+      throw new Error(`FAIL: Ctrl+S 没有把改动存下去：${draft.data.prompt}`)
+    await sleep(200)
+  }
+  await screenshot(session, 'ui-06-mine.png')
+  pass('编辑我的步骤，Ctrl+S 保存落盘')
+
+  // 10e) 「添加到画布」→ 图里多出这一步。
+  await session.evaluate(clickTestId('wl-step-add'))
+  await onDisk(NAME, (doc) => idsOf(doc).includes(STEP), `步骤 ${STEP}`)
+  pass('从右侧面板添加到画布')
+
+  // 10f) 删除我的步骤（要确认）。
+  await session.evaluate(clickTestId(`wl-lib-template-${STEP}`))
+  await waitFor(session, exists('wl-step-delete'))
+  await session.evaluate(clickTestId('wl-step-delete'))
+  await waitFor(session, exists('wl-step-delete-confirm'))
+  await session.evaluate(clickTestId('wl-step-delete-confirm'))
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-lib-template-${STEP}"]') === null`,
+  )
+  const gone = await rpc('graph/nodeTemplateDraft', { name: STEP }).catch((error) => error)
+  check(gone instanceof Error, '删除后磁盘上不该还有这份模板')
+  pass('删除我的步骤 → 库里与磁盘上都没了')
+
+  // 10g) 「＋」新建一个我的步骤。
+  await session.evaluate(clickTestId('wl-lib-new'))
+  await waitFor(session, exists('wl-step-name'))
+  await setReactInput(session, '[data-testid="wl-step-name"]', STEP_NEW)
+  await setReactInput(session, 'textarea[data-testid="wl-step-prompt"]', '全新的步骤')
+  await session.evaluate(clickTestId('wl-step-save'))
+  await waitFor(session, exists(`wl-lib-template-${STEP_NEW}`))
+  check(
+    (await rpc('graph/nodeTemplateDraft', { name: STEP_NEW })).data.prompt === '全新的步骤',
+    '新建的步骤应落盘',
+  )
+  pass('「＋」新建我的步骤')
+  await pressKey(session, 'Escape')
 
   // 10b) 模型用工具在别处改了这张图：本地没有未存的改动时，回到窗口就自动同步过来。
   const disk = await rpc('graph/load', { name: NAME })
@@ -324,5 +433,8 @@ try {
   process.exitCode = 1
 } finally {
   for (const name of [NAME, RENAMED]) await rpc('graph/delete', { name }).catch(() => {})
+  for (const name of [STEP, STEP_NEW]) {
+    await rpc('graph/nodeTemplateDelete', { name }).catch(() => {})
+  }
   session.close()
 }

@@ -78,6 +78,15 @@ export const PRESETS: readonly StepPreset[] = [
   },
 ]
 
+/**
+ * 右侧面板正在看步骤库里的哪一项（与画布上的选中互斥）。
+ * `new` = 正在新建一个「我的步骤」，`seed` 是预填的内容（复制内置步骤时带过来）。
+ */
+export type LibraryFocus =
+  | { kind: 'preset'; id: string }
+  | { kind: 'template'; name: string }
+  | { kind: 'new'; seed: NodeData; name: string }
+
 /** 空白步骤的建议 id。 */
 export const BLANK_ID = 'step'
 

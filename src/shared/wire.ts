@@ -48,6 +48,9 @@ export const WORKFLOW_LITE_ENDPOINTS = [
   'graph/templates',
   'graph/nodeTemplate',
   'graph/nodeTemplateCreate',
+  'graph/nodeTemplateDraft',
+  'graph/nodeTemplateSave',
+  'graph/nodeTemplateDelete',
   'plan/build',
 ] as const
 
@@ -209,6 +212,39 @@ export interface GraphNodeTemplateCreateResponse {
   warnings: WireWarning[]
 }
 
+/**
+ * `graph/nodeTemplateDraft` —— 读一个节点模板给人**编辑**（「我的步骤」的属性面板）。
+ *
+ * 与 `graph/nodeTemplate` 的区别：那条是"拿去用"，提示词还空着的半成品会被挡掉；
+ * 这条只挡文件本身坏了的，半成品正是要打开来改的。
+ */
+export interface GraphNodeTemplateDraftRequest {
+  name: string
+}
+export type GraphNodeTemplateDraftResponse = GraphNodeTemplateResponse
+
+/**
+ * `graph/nodeTemplateSave` —— 覆盖保存一个**已存在**的节点模板。
+ * 给了 `from`（旧名字）且与 `name` 不同 = 改名并保存；新名字被占用报 `conflict`。
+ */
+export interface GraphNodeTemplateSaveRequest {
+  name: string
+  data: NodeData
+  from?: string
+}
+export interface GraphNodeTemplateSaveResponse {
+  name: string
+  warnings: WireWarning[]
+}
+
+/** `graph/nodeTemplateDelete` —— 删除一个节点模板。 */
+export interface GraphNodeTemplateDeleteRequest {
+  name: string
+}
+export interface GraphNodeTemplateDeleteResponse {
+  warnings: WireWarning[]
+}
+
 /** `plan/build` —— 画布上的编译预览（两个 tab）。 */
 export interface PlanBuildRequest {
   name: string
@@ -242,6 +278,18 @@ export interface WorkflowLiteRpcMap {
   'graph/nodeTemplateCreate': {
     args: GraphNodeTemplateCreateRequest
     result: GraphNodeTemplateCreateResponse
+  }
+  'graph/nodeTemplateDraft': {
+    args: GraphNodeTemplateDraftRequest
+    result: GraphNodeTemplateDraftResponse
+  }
+  'graph/nodeTemplateSave': {
+    args: GraphNodeTemplateSaveRequest
+    result: GraphNodeTemplateSaveResponse
+  }
+  'graph/nodeTemplateDelete': {
+    args: GraphNodeTemplateDeleteRequest
+    result: GraphNodeTemplateDeleteResponse
   }
   'plan/build': { args: PlanBuildRequest; result: PlanBuildResponse }
 }

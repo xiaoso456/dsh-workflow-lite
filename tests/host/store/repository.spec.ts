@@ -640,6 +640,59 @@ describe('createNodeTemplate', () => {
   })
 })
 
+describe('节点模板的编辑：draft / save / delete', () => {
+  it('半成品（提示词空着）拿去用会被挡，但能打开来编辑', async () => {
+    expectOk(await repo.createNodeTemplate('draft', { label: '草稿', prompt: '' }))
+    expect(expectError(await repo.readTemplate('nodes', 'draft')).code).toBe('blocked')
+    expect(expectOk(await repo.readNodeTemplateDraft('draft'))).toEqual({
+      label: '草稿',
+      prompt: '',
+    })
+    expect(expectError(await repo.readNodeTemplateDraft('nope')).code).toBe('not_found')
+  })
+
+  it('覆盖保存只改已存在的；不存在 ⇒ not_found，不会顺手新建', async () => {
+    expectOk(await repo.createNodeTemplate('edit-me', { prompt: '旧' }))
+    expectOk(await repo.saveNodeTemplate('edit-me', { prompt: '新', output: false }))
+    expect(expectOk(await repo.readTemplate('nodes', 'edit-me'))).toEqual({
+      prompt: '新',
+      output: false,
+    })
+    expect(expectError(await repo.saveNodeTemplate('ghost', { prompt: 'x' })).code).toBe(
+      'not_found',
+    )
+    expect((await repo.list()).templates.nodes.map((entry) => entry.name)).toEqual(['edit-me'])
+  })
+
+  it('改名并保存：新文件在、旧文件没了；新名字被占用 ⇒ conflict，两边都不动', async () => {
+    expectOk(await repo.createNodeTemplate('old-name', { prompt: 'A' }))
+    expectOk(await repo.createNodeTemplate('taken', { prompt: 'B' }))
+    const clash = expectError(await repo.saveNodeTemplate('taken', { prompt: 'A2' }, 'old-name'))
+    expect(clash.code).toBe('conflict')
+    expect(expectOk(await repo.readTemplate('nodes', 'taken'))).toEqual({ prompt: 'B' })
+
+    expectOk(await repo.saveNodeTemplate('new-name', { prompt: 'A2' }, 'old-name'))
+    expect((await repo.list()).templates.nodes.map((entry) => entry.name).sort()).toEqual([
+      'new-name',
+      'taken',
+    ])
+    expect(expectOk(await repo.readTemplate('nodes', 'new-name'))).toEqual({ prompt: 'A2' })
+  })
+
+  it('只改大小写的改名不会把文件弄丢', async () => {
+    expectOk(await repo.createNodeTemplate('case', { prompt: 'A' }))
+    expectOk(await repo.saveNodeTemplate('Case', { prompt: 'A' }, 'case'))
+    expect(expectOk(await repo.readTemplate('nodes', 'Case'))).toEqual({ prompt: 'A' })
+  })
+
+  it('删除：删掉就不在列表里；再删一次 ⇒ not_found', async () => {
+    expectOk(await repo.createNodeTemplate('bye', { prompt: 'x' }))
+    expectOk(await repo.deleteNodeTemplate('bye'))
+    expect((await repo.list()).templates.nodes).toEqual([])
+    expect(expectError(await repo.deleteNodeTemplate('bye')).code).toBe('not_found')
+  })
+})
+
 describe('list', () => {
   it('列出图与模板，坏的标 invalid + reason，杂项条目各报一条提示', async () => {
     expectOk(await repo.create('good'))

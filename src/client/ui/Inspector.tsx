@@ -74,18 +74,9 @@ function NodePanel(props: InspectorProps & { node: WorkflowNode }): React.JSX.El
   const merge = (field: string): string => `${idKey(node.id)}:${field}`
   const promptRef = useRef<HTMLTextAreaElement>(null)
 
-  // 产出文件：选了「写入文件」但还没填出合法路径时，这份草稿只活在面板里。
-  const [mode, setMode] = useState<OutputMode>(outputMode(node.data.output))
-  const [draft, setDraft] = useState(typeof node.data.output === 'string' ? node.data.output : '')
   const [copied, setCopied] = useState(false)
   const [templating, setTemplating] = useState(false)
   const [templateName, setTemplateName] = useState(node.id)
-
-  // 换了一个步骤（或撤销改了它的产出）就从文档重新取值。
-  useEffect(() => {
-    setMode(outputMode(node.data.output))
-    setDraft(typeof node.data.output === 'string' ? node.data.output : '')
-  }, [node.data.output])
 
   useEffect(() => {
     setTemplating(false)
@@ -94,23 +85,10 @@ function NodePanel(props: InspectorProps & { node: WorkflowNode }): React.JSX.El
     if (props.focusPrompt) promptRef.current?.focus()
   }, [node.id])
 
-  const outputError = mode === 'file' && draft !== '' ? checkOutput(draft) : null
   const prompt = node.data.prompt ?? ''
   const key = idKey(node.id)
   const incoming = doc.edges.filter((edge) => idKey(edge.target) === key)
   const outgoing = doc.edges.filter((edge) => idKey(edge.source) === key)
-
-  const chooseMode = (next: OutputMode): void => {
-    setMode(next)
-    if (next === 'unset') onEdit({ type: 'patchNode', id: node.id, patch: { output: undefined } })
-    if (next === 'none') onEdit({ type: 'patchNode', id: node.id, patch: { output: false } })
-    if (next === 'file') {
-      // 给一个现成的文件名，省得人面对一个空框。
-      const value = draft !== '' && checkOutput(draft) === null ? draft : `${node.id}.md`
-      setDraft(value)
-      onEdit({ type: 'patchNode', id: node.id, patch: { output: value } })
-    }
-  }
 
   return (
     <aside
@@ -191,47 +169,20 @@ function NodePanel(props: InspectorProps & { node: WorkflowNode }): React.JSX.El
           <p className={css.help}>{t('ins.promptHint')}</p>
         </section>
 
-        <section className={css.field}>
-          <div className={css.label}>
-            <span>{t('ins.output')}</span>
-          </div>
-          <Segmented<OutputMode>
-            label={t('ins.output')}
-            value={mode}
-            onChange={chooseMode}
-            options={[
-              { value: 'unset', label: t('ins.output.unset') },
-              { value: 'file', label: t('ins.output.file') },
-              { value: 'none', label: t('ins.output.none') },
-            ]}
-          />
-          {mode === 'file' && (
-            <>
-              <input
-                className={cx(ui.input, ui.mono, ui.rise)}
-                value={draft}
-                placeholder={t('ins.outputPlaceholder')}
-                aria-label={t('ins.output')}
-                aria-invalid={outputError !== null}
-                data-testid="wl-ins-output"
-                onChange={(event) => {
-                  const value = event.currentTarget.value
-                  setDraft(value)
-                  if (value !== '' && checkOutput(value) === null) {
-                    onEdit({
-                      type: 'patchNode',
-                      id: node.id,
-                      patch: { output: value },
-                      merge: merge('output'),
-                    })
-                  }
-                }}
-                onBlur={props.onSeal}
-              />
-              {outputError !== null && <p className={css.error}>{t('ins.outputInvalid')}</p>}
-            </>
-          )}
-        </section>
+        <OutputField
+          t={t}
+          value={node.data.output}
+          suggest={`${node.id}.md`}
+          onChange={(output, typing) =>
+            onEdit({
+              type: 'patchNode',
+              id: node.id,
+              patch: { output },
+              ...(typing ? { merge: merge('output') } : {}),
+            })
+          }
+          onBlur={props.onSeal}
+        />
 
         <section className={css.field}>
           <div className={css.label}>
@@ -340,6 +291,83 @@ function NodePanel(props: InspectorProps & { node: WorkflowNode }): React.JSX.El
         )}
       </footer>
     </aside>
+  )
+}
+
+/**
+ * 产出文件的三态：不声明 / 写入文件 / 不产出。
+ *
+ * 选了「写入文件」但还没填出合法路径时，那份草稿只活在这里，不交出去——交出去的永远是能保存的值。
+ * 步骤面板与「我的步骤」编辑器共用它。
+ */
+export function OutputField(props: {
+  t: T
+  value: string | false | undefined
+  /** 切到「写入文件」时预填的文件名。 */
+  suggest: string
+  /** `typing` = 正在输入框里连续打字（调用方可以据此合并撤销步）。 */
+  onChange(value: string | false | undefined, typing: boolean): void
+  onBlur?: () => void
+}): React.JSX.Element {
+  const { t, value } = props
+  const [mode, setMode] = useState<OutputMode>(outputMode(value))
+  const [draft, setDraft] = useState(typeof value === 'string' ? value : '')
+
+  // 外面的值变了（撤销、换了一个步骤）就跟着走。
+  useEffect(() => {
+    setMode(outputMode(value))
+    setDraft(typeof value === 'string' ? value : '')
+  }, [value])
+
+  const error = mode === 'file' && draft !== '' ? checkOutput(draft) : null
+
+  const choose = (next: OutputMode): void => {
+    setMode(next)
+    if (next === 'unset') props.onChange(undefined, false)
+    if (next === 'none') props.onChange(false, false)
+    if (next === 'file') {
+      // 给一个现成的文件名，省得人面对一个空框。
+      const filled = draft !== '' && checkOutput(draft) === null ? draft : props.suggest
+      setDraft(filled)
+      props.onChange(filled, false)
+    }
+  }
+
+  return (
+    <section className={css.field}>
+      <div className={css.label}>
+        <span>{t('ins.output')}</span>
+      </div>
+      <Segmented<OutputMode>
+        label={t('ins.output')}
+        value={mode}
+        onChange={choose}
+        options={[
+          { value: 'unset', label: t('ins.output.unset') },
+          { value: 'file', label: t('ins.output.file') },
+          { value: 'none', label: t('ins.output.none') },
+        ]}
+      />
+      {mode === 'file' && (
+        <>
+          <input
+            className={cx(ui.input, ui.mono, ui.rise)}
+            value={draft}
+            placeholder={t('ins.outputPlaceholder')}
+            aria-label={t('ins.output')}
+            aria-invalid={error !== null}
+            data-testid="wl-ins-output"
+            onChange={(event) => {
+              const next = event.currentTarget.value
+              setDraft(next)
+              if (next !== '' && checkOutput(next) === null) props.onChange(next, true)
+            }}
+            onBlur={props.onBlur}
+          />
+          {error !== null && <p className={css.error}>{t('ins.outputInvalid')}</p>}
+        </>
+      )}
+    </section>
   )
 }
 

@@ -12,11 +12,13 @@ import type { PlanBuildResponse } from '../../shared/wire.ts'
 import type { T } from '../i18n.ts'
 import { errorMessage } from '../rpc.ts'
 import { Icon } from './Icon.tsx'
+import { Markdown } from './Markdown.tsx'
 import css from './overlay.module.css'
 import { copyText, cx, Segmented } from './primitives.tsx'
 import ui from './ui.module.css'
 
 type Version = 'model' | 'human'
+type View = 'rendered' | 'source'
 
 export function PlanDialog(props: {
   t: T
@@ -27,6 +29,8 @@ export function PlanDialog(props: {
 }): React.JSX.Element {
   const { t } = props
   const [version, setVersion] = useState<Version>('model')
+  /** 排版看（默认）还是看源码——复制与下载永远是源码。 */
+  const [view, setView] = useState<View>('rendered')
   const [result, setResult] = useState<PlanBuildResponse | null>(null)
   const [failure, setFailure] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
@@ -109,6 +113,17 @@ export function PlanDialog(props: {
               ]}
             />
           </div>
+          <div className={css.views}>
+            <Segmented<View>
+              label={t('plan.rendered')}
+              value={view}
+              onChange={setView}
+              options={[
+                { value: 'rendered', label: t('plan.rendered') },
+                { value: 'source', label: t('plan.source') },
+              ]}
+            />
+          </div>
           <span className={ui.grow} />
           <button
             type="button"
@@ -179,9 +194,13 @@ export function PlanDialog(props: {
               ))}
             </div>
           ) : (
-            <pre className={cx(css.plan, ui.fade)} data-testid="wl-plan-text">
-              {result.plan}
-            </pre>
+            <div className={cx(css.planScroll, ui.fade)} data-testid="wl-plan-text" key={view}>
+              {view === 'rendered' ? (
+                <Markdown text={result.plan} className={css.planDoc} />
+              ) : (
+                <pre className={css.plan}>{result.plan}</pre>
+              )}
+            </div>
           )}
         </div>
       </div>

@@ -68,10 +68,11 @@ export const zh = {
 
   // ── 步骤库 ──────────────────────────────────────────────────
   'lib.title': '步骤库',
-  'lib.hint': '拖到画布上',
+  'lib.hint': '拖到画布上使用',
   'lib.builtin': '常用步骤',
-  'lib.custom': '我的模板',
-  'lib.customEmpty': '选中一个步骤，点「存为模板」，它就会出现在这里。',
+  'lib.custom': '我的步骤',
+  'lib.newCustom': '新建我的步骤',
+  'lib.customEmpty': '点上面的「＋」新建一个，或选中画布上的步骤，点「存为我的步骤」。',
   'lib.broken': '模板文件有问题',
   'lib.blank': '空白步骤',
   'lib.blankDesc': '从零写提示词',
@@ -117,7 +118,7 @@ export const zh = {
   'node.add': '添加下一步',
   'node.duplicate': '复制',
   'node.delete': '删除步骤',
-  'node.saveTemplate': '存为模板',
+  'node.saveTemplate': '存为我的步骤',
 
   // ── 属性面板：步骤 ──────────────────────────────────────────
   'ins.name': '名称',
@@ -137,10 +138,33 @@ export const zh = {
   'ins.noLinks': '还没有连接。从步骤右侧的圆点拖出一条线。',
   'ins.copyId': '复制步骤 ID',
 
-  'tpl.name': '模板名',
+  'tpl.name': '文件名',
   'tpl.placeholder': '例如 my-check',
   'tpl.save': '保存',
-  'tpl.saved': '已存为模板',
+  'tpl.saved': '已存为我的步骤',
+
+  // ── 步骤库条目的详情 ────────────────────────────────────────
+  'step.builtin': '内置',
+  'step.mine': '我的步骤',
+  'step.readonlyNote':
+    '内置步骤不能修改。拖到画布上之后，那一份可以随意改；想要自己的版本，就复制成「我的步骤」。',
+  'step.addToCanvas': '添加到画布',
+  'step.copyToMine': '复制为我的步骤',
+  'step.save': '保存',
+  'step.saving': '保存中…',
+  'step.unsaved': '未保存',
+  'step.saved': '已保存',
+  'step.created': '已创建',
+  'step.deleted': '已删除',
+  'step.delete': '删除这个步骤',
+  'step.deleteConfirm': '删除后不可恢复',
+  'step.fileName': '文件名',
+  'step.fileNameHint': '存为 templates/nodes/<文件名>.json，也是拖到画布上时的步骤 ID。',
+  'step.labelPlaceholder': '步骤名称',
+  'step.loading': '读取中…',
+  'step.newTitle': '新建我的步骤',
+  'step.noFile': '不产出文件',
+  'step.noOutput': '未声明产出',
 
   // ── 属性面板：连线 ──────────────────────────────────────────
   'edge.title': '连线',
@@ -163,6 +187,8 @@ export const zh = {
   'plan.forModelHint': '步骤的提示词以文件路径引用，执行到哪一步才去读哪一份。',
   'plan.forHumanHint': '提示词全部内联，适合通读、存档或贴给别人。',
   'plan.download': '下载',
+  'plan.rendered': '排版',
+  'plan.source': '源码',
   'plan.loading': '正在生成…',
   'plan.blocked': '还有问题没修完，计划暂时生成不了。',
 
@@ -256,10 +282,12 @@ export const en: Record<LocaleKey, string> = {
   'issues.level.hint': 'Suggestion',
 
   'lib.title': 'Step library',
-  'lib.hint': 'Drag onto the canvas',
+  'lib.hint': 'Drag onto the canvas to use',
   'lib.builtin': 'Common steps',
-  'lib.custom': 'My templates',
-  'lib.customEmpty': 'Select a step and choose "Save as template" to see it here.',
+  'lib.custom': 'My steps',
+  'lib.newCustom': 'New step of my own',
+  'lib.customEmpty':
+    'Use the + above to create one, or select a step on the canvas and choose "Save to my steps".',
   'lib.broken': 'Template file has problems',
   'lib.blank': 'Blank step',
   'lib.blankDesc': 'Write a prompt from scratch',
@@ -304,7 +332,7 @@ export const en: Record<LocaleKey, string> = {
   'node.add': 'Add next step',
   'node.duplicate': 'Duplicate',
   'node.delete': 'Delete step',
-  'node.saveTemplate': 'Save as template',
+  'node.saveTemplate': 'Save to my steps',
 
   'ins.name': 'Name',
   'ins.prompt': 'Prompt',
@@ -323,10 +351,33 @@ export const en: Record<LocaleKey, string> = {
   'ins.noLinks': 'No connections yet. Drag a line out of the dot on the right of a step.',
   'ins.copyId': 'Copy step ID',
 
-  'tpl.name': 'Template name',
+  'tpl.name': 'File name',
   'tpl.placeholder': 'e.g. my-check',
   'tpl.save': 'Save',
-  'tpl.saved': 'Saved as template',
+  'tpl.saved': 'Saved to my steps',
+
+  'step.builtin': 'Built-in',
+  'step.mine': 'My step',
+  'step.readonlyNote':
+    'Built-in steps cannot be edited. Once dropped on the canvas, that copy is yours to change; for your own reusable version, copy it to My steps.',
+  'step.addToCanvas': 'Add to canvas',
+  'step.copyToMine': 'Copy to my steps',
+  'step.save': 'Save',
+  'step.saving': 'Saving…',
+  'step.unsaved': 'Unsaved',
+  'step.saved': 'Saved',
+  'step.created': 'Created',
+  'step.deleted': 'Deleted',
+  'step.delete': 'Delete this step',
+  'step.deleteConfirm': 'This cannot be undone',
+  'step.fileName': 'File name',
+  'step.fileNameHint':
+    'Stored as templates/nodes/<file name>.json; also the step ID when dropped on the canvas.',
+  'step.labelPlaceholder': 'Step name',
+  'step.loading': 'Loading…',
+  'step.newTitle': 'New step of my own',
+  'step.noFile': 'No file output',
+  'step.noOutput': 'Output undeclared',
 
   'edge.title': 'Connection',
   'edge.when': 'When to follow this line',
@@ -348,6 +399,8 @@ export const en: Record<LocaleKey, string> = {
     'Step prompts are referenced by file path; each is read only when its step runs.',
   'plan.forHumanHint': 'All prompts inlined: good for reading through, archiving or sharing.',
   'plan.download': 'Download',
+  'plan.rendered': 'Formatted',
+  'plan.source': 'Source',
   'plan.loading': 'Generating…',
   'plan.blocked': 'There are still problems to fix before a plan can be generated.',
 

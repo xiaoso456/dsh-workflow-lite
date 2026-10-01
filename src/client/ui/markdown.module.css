@@ -1,0 +1,151 @@
+/**
+ * dsh-workflow-lite — Markdown 排版（计划预览）。
+ */
+
+.md {
+  color: var(--wl-text);
+  font-size: var(--wl-fs-body);
+  line-height: 1.75;
+  word-break: break-word;
+}
+
+.md > :first-child {
+  margin-top: 0;
+}
+
+.md h1,
+.md h2,
+.md h3,
+.md h4,
+.md h5,
+.md h6 {
+  margin: 1.6em 0 0.6em;
+  font-weight: 650;
+  line-height: 1.35;
+  letter-spacing: -0.005em;
+}
+
+.md h1 {
+  font-size: 20px;
+}
+
+.md h2 {
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--wl-line);
+  font-size: 17px;
+}
+
+.md h3 {
+  font-size: 15px;
+}
+
+.md h4,
+.md h5,
+.md h6 {
+  color: var(--wl-text-2);
+  font-size: 14px;
+}
+
+.md p,
+.md ul,
+.md ol,
+.md blockquote,
+.md .tableWrap,
+.md .code {
+  margin: 0 0 0.9em;
+}
+
+.md ul,
+.md ol {
+  padding-left: 1.4em;
+}
+
+.md li + li {
+  margin-top: 0.25em;
+}
+
+.md li::marker {
+  color: var(--wl-text-3);
+}
+
+.md strong {
+  font-weight: 650;
+}
+
+.md a {
+  color: var(--wl-accent-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.md code {
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--wl-fill-strong);
+  font-family: var(--wl-mono);
+  font-size: 0.88em;
+}
+
+.md hr {
+  height: 1px;
+  margin: 1.4em 0;
+  border: 0;
+  background: var(--wl-line);
+}
+
+.md blockquote {
+  padding: 2px 0 2px 12px;
+  border-left: 3px solid var(--wl-line-strong);
+  color: var(--wl-text-2);
+}
+
+.md .code {
+  padding: 12px 14px;
+  overflow-x: auto;
+  border-radius: var(--wl-r-control);
+  background: var(--wl-fill-strong);
+  line-height: 1.6;
+}
+
+.md .code code {
+  padding: 0;
+  background: transparent;
+  font-size: var(--wl-fs-meta);
+  white-space: pre;
+}
+
+.md .tableWrap {
+  overflow-x: auto;
+  border: 1px solid var(--wl-line);
+  border-radius: var(--wl-r-control);
+}
+
+.md .tableWrap table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--wl-fs-meta);
+  line-height: 1.55;
+}
+
+.md .tableWrap th,
+.md .tableWrap td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--wl-line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.md .tableWrap th {
+  background: var(--wl-fill);
+  color: var(--wl-text-2);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.md .tableWrap tr:last-child td {
+  border-bottom: 0;
+}
+
+.md .tableWrap code {
+  word-break: break-all;
+}

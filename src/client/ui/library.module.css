@@ -60,14 +60,6 @@
   scrollbar-width: thin;
 }
 
-.section {
-  margin: 10px 8px 4px;
-  color: var(--wl-text-3);
-  font-size: var(--wl-fs-micro);
-  font-weight: 600;
-  letter-spacing: 0.04em;
-}
-
 .item {
   position: relative;
   display: flex;
@@ -187,6 +179,98 @@
 
   .item[data-nudge],
   .hint[data-flash="true"] {
+    animation: none;
+  }
+}
+
+/* ── 分节（可收起）─────────────────────────────────────────── */
+
+.sectionHead {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin: 8px 0 2px;
+  padding-right: 2px;
+}
+
+.sectionToggle {
+  display: inline-flex;
+  flex: 1 1 auto;
+  gap: 4px;
+  align-items: center;
+  height: 26px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--wl-text-3);
+  font: inherit;
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sectionToggle:hover {
+  background: var(--wl-hover);
+  color: var(--wl-text-2);
+}
+
+.sectionToggle:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: -2px;
+}
+
+.sectionToggle svg {
+  transition: transform 180ms var(--wl-ease);
+}
+
+.sectionToggle[aria-expanded="false"] svg {
+  transform: rotate(-90deg);
+}
+
+.sectionHead [data-on="true"] {
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: groupIn 200ms var(--wl-ease) backwards;
+}
+
+@keyframes groupIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+.item[data-active="true"] {
+  background: var(--wl-accent-soft);
+}
+
+.item[data-active="true"] .itemTitle {
+  color: var(--wl-accent-text);
+}
+
+.item[data-broken="true"] {
+  cursor: pointer;
+}
+
+.item[data-broken="true"] .itemDesc {
+  color: var(--wl-danger);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sectionToggle svg {
+    transition: none;
+  }
+
+  .group {
     animation: none;
   }
 }

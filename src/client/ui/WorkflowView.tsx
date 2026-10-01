@@ -15,8 +15,15 @@ import type { NodeData, Point } from '../../shared/types.ts'
 import { useWorkflow, type Workflow } from '../app/useWorkflow.ts'
 import type { LocaleKey, NS, T } from '../i18n.ts'
 import { findNode, type Selection } from '../model/editor.ts'
-import { NODE_H, NODE_W, tidy } from '../model/layout.ts'
-import { BLANK_ID, PRESETS, presetData, type StepSource, starterGraph } from '../model/library.ts'
+import { freeSpot, NODE_H, NODE_W, tidy } from '../model/layout.ts'
+import {
+  BLANK_ID,
+  type LibraryFocus,
+  PRESETS,
+  presetData,
+  type StepSource,
+  starterGraph,
+} from '../model/library.ts'
 import type { WorkflowLiteRpc } from '../rpc.ts'
 import { type AddRequest, Canvas } from './Canvas.tsx'
 import { Icon } from './Icon.tsx'
@@ -25,6 +32,7 @@ import { Library } from './Library.tsx'
 import { PlanDialog } from './PlanDialog.tsx'
 import { cx, Popover } from './primitives.tsx'
 import { QuickAdd } from './QuickAdd.tsx'
+import { StepPanel } from './StepPanel.tsx'
 import css from './shell.module.css'
 import { TopBar } from './TopBar.tsx'
 import ui from './ui.module.css'
@@ -135,12 +143,20 @@ function Shell(props: { rpc: WorkflowLiteRpc; t: T }): React.JSX.Element {
     writeLibraryPref(!libraryPref)
   }, [narrow, libraryPref])
 
-  // 窄视图：选中了东西（底部抽屉要出来）就把步骤库抽屉收回去，两块不叠在一起。
-  useEffect(() => {
-    if (narrow && state.selection !== null) setLibraryDrawer(false)
-  }, [narrow, state.selection])
+  /** 右侧面板正在看步骤库里的哪一项；与画布上的选中互斥。 */
+  const [focus, setFocus] = useState<LibraryFocus | null>(null)
 
-  const hasInspector = state.selection !== null && !narrow
+  // 画布上选中了东西（点的，或刚加进来的步骤接管了选中）：右侧面板让给它。
+  useEffect(() => {
+    if (state.selection !== null) setFocus(null)
+  }, [state.selection])
+
+  // 窄视图：右侧（底部抽屉）要出来时把步骤库抽屉收回去，两块不叠在一起。
+  useEffect(() => {
+    if (narrow && (state.selection !== null || focus !== null)) setLibraryDrawer(false)
+  }, [narrow, state.selection, focus])
+
+  const hasInspector = (state.selection !== null || focus !== null) && !narrow
   const insets = {
     left: libraryOpen && !narrow ? LIBRARY_W + GAP : 0,
     right: hasInspector ? inspectorW + GAP : 0,
@@ -313,9 +329,54 @@ function Shell(props: { rpc: WorkflowLiteRpc; t: T }): React.JSX.Element {
   const select = useCallback(
     (selection: Selection): void => {
       setFocusPrompt(false)
+      setFocus(null)
       wf.select(selection)
     },
     [wf],
+  )
+
+  /** 在步骤库里点了一项：放掉画布上的选中，右侧改看它。 */
+  const focusLibrary = useCallback(
+    (next: LibraryFocus | null): void => {
+      if (next !== null) wf.select(null)
+      setFocus(next)
+    },
+    [wf],
+  )
+
+  /** 「我的步骤」里还没被占用的文件名：`base`、`base-2`、`base-3`… */
+  const freeStepName = useCallback(
+    (base: string): string => {
+      const taken = new Set((wf.catalog?.templates.nodes ?? []).map((e) => e.name.toLowerCase()))
+      if (!taken.has(base.toLowerCase())) return base
+      for (let n = 2; ; n += 1) {
+        if (!taken.has(`${base}-${n}`.toLowerCase())) return `${base}-${n}`
+      }
+    },
+    [wf.catalog],
+  )
+
+  /** 右侧面板里的「添加到画布」：放在没被浮层盖住的那块的正中间，被占了就往下找。 */
+  const addToCanvas = useCallback(
+    (source: StepSource): void => {
+      const root = rootRef.current
+      if (root === null || state.doc === null) return
+      const box = root.getBoundingClientRect()
+      const { left, right } = insetsRef.current
+      const center = flow.screenToFlowPosition({
+        x: box.left + left + (box.width - left - right) / 2,
+        y: box.top + box.height / 2,
+      })
+      const want = { x: center.x - NODE_W / 2, y: center.y - NODE_H / 2 }
+      void addStep(
+        source,
+        freeSpot(
+          state.doc.nodes.map((node) => node.position),
+          want,
+        ),
+      )
+    },
+    [state.doc, flow, addStep],
   )
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void => {
@@ -411,30 +472,58 @@ function Shell(props: { rpc: WorkflowLiteRpc; t: T }): React.JSX.Element {
 
       {state.phase === 'ready' && (
         <div className={css.library} aria-hidden={!libraryOpen}>
-          <Library t={t} templates={wf.catalog?.templates.nodes ?? []} onClose={toggleLibrary} />
-        </div>
-      )}
-
-      {state.phase === 'ready' && doc !== null && analysis !== null && state.selection !== null && (
-        <div className={css.inspector}>
-          <Inspector
+          <Library
             t={t}
-            doc={doc}
-            analysis={analysis}
-            selection={state.selection}
-            focusPrompt={focusPrompt && state.selection.kind === 'node'}
-            onEdit={wf.edit}
-            onSelect={select}
-            onSeal={wf.seal}
-            onDuplicate={duplicate}
-            onRemoveNode={(id) => {
-              wf.edit({ type: 'removeNode', id })
-              focusCanvas()
-            }}
-            onSaveTemplate={wf.saveTemplate}
+            templates={wf.catalog?.templates.nodes ?? []}
+            focus={focus}
+            onFocus={focusLibrary}
+            onNewStep={() =>
+              focusLibrary({ kind: 'new', seed: { prompt: '' }, name: freeStepName('my-step') })
+            }
+            onClose={toggleLibrary}
           />
         </div>
       )}
+
+      {state.phase === 'ready' && focus !== null && (
+        <div className={css.inspector}>
+          <StepPanel
+            t={t}
+            wf={wf}
+            focus={focus}
+            onFocus={focusLibrary}
+            onAddToCanvas={addToCanvas}
+            onCopyToMine={(seed, id) =>
+              focusLibrary({ kind: 'new', seed, name: freeStepName(`my-${id}`) })
+            }
+          />
+        </div>
+      )}
+
+      {state.phase === 'ready' &&
+        focus === null &&
+        doc !== null &&
+        analysis !== null &&
+        state.selection !== null && (
+          <div className={css.inspector}>
+            <Inspector
+              t={t}
+              doc={doc}
+              analysis={analysis}
+              selection={state.selection}
+              focusPrompt={focusPrompt && state.selection.kind === 'node'}
+              onEdit={wf.edit}
+              onSelect={select}
+              onSeal={wf.seal}
+              onDuplicate={duplicate}
+              onRemoveNode={(id) => {
+                wf.edit({ type: 'removeNode', id })
+                focusCanvas()
+              }}
+              onSaveTemplate={wf.saveTemplate}
+            />
+          </div>
+        )}
 
       {state.phase === 'ready' && (
         <ZoomDock t={t} keysOpen={keysOpen} setKeysOpen={setKeysOpen} onFit={() => fitAll()} />

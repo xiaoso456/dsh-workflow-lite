@@ -72,6 +72,11 @@ export interface Workflow {
   buildPlan(full: boolean): Promise<PlanBuildResponse>
   loadTemplate(name: string): Promise<NodeData | null>
   saveTemplate(name: string, data: NodeData): Promise<boolean>
+  /** 读「我的步骤」给人编辑（提示词空着的半成品也能读）。 */
+  loadTemplateDraft(name: string): Promise<NodeData | null>
+  /** 覆盖保存「我的步骤」；`name` 与 `from` 不同就是改名。成功返回保存后的名字。 */
+  updateTemplate(name: string, data: NodeData, from: string): Promise<string | null>
+  deleteTemplate(name: string): Promise<boolean>
   notify(text: string, tone?: Toast['tone']): void
 }
 
@@ -468,6 +473,54 @@ export function useWorkflow(rpc: WorkflowLiteRpc, t: T): Workflow {
     [rpc, refreshCatalog, notify, fail],
   )
 
+  const loadTemplateDraft = useCallback(
+    async (name: string): Promise<NodeData | null> => {
+      try {
+        return (await rpc.call('graph/nodeTemplateDraft', { name })).data
+      } catch (error) {
+        fail(error)
+        return null
+      }
+    },
+    [rpc, fail],
+  )
+
+  const updateTemplate = useCallback(
+    async (raw: string, data: NodeData, from: string): Promise<string | null> => {
+      const name = normalizeName(raw.trim())
+      const problem = checkName(name)
+      if (problem !== null) {
+        notify(problem.message, 'error')
+        return null
+      }
+      try {
+        await rpc.call('graph/nodeTemplateSave', { name, data, from })
+        await refreshCatalog()
+        notify(tRef.current('step.saved'))
+        return name
+      } catch (error) {
+        fail(error)
+        return null
+      }
+    },
+    [rpc, refreshCatalog, notify, fail],
+  )
+
+  const deleteTemplate = useCallback(
+    async (name: string): Promise<boolean> => {
+      try {
+        await rpc.call('graph/nodeTemplateDelete', { name })
+        await refreshCatalog()
+        notify(tRef.current('step.deleted'))
+        return true
+      } catch (error) {
+        fail(error)
+        return false
+      }
+    },
+    [rpc, refreshCatalog, notify, fail],
+  )
+
   // ── 生命周期 ────────────────────────────────────────────────
 
   useEffect(() => {
@@ -575,6 +628,9 @@ export function useWorkflow(rpc: WorkflowLiteRpc, t: T): Workflow {
     buildPlan,
     loadTemplate,
     saveTemplate,
+    loadTemplateDraft,
+    updateTemplate,
+    deleteTemplate,
     notify,
   }
 }
