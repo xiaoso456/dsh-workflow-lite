@@ -1,0 +1,468 @@
+/**
+ * dsh-workflow-lite — 视图外壳：设计令牌 + 整体版式。
+ *
+ * 版式是**画布优先**：画布铺满整个视图，其余一切（顶栏、步骤库、属性面板、缩放）都是
+ * 浮在画布上的圆角面板。没选中东西时右边什么都没有——界面上只留当下用得着的。
+ *
+ * 配色自带一套，用 `light-dark()` 跟随宿主设在 `<html>` 上的 `color-scheme`；
+ * 层级靠"面越高越亮 + 细描边 + 柔和阴影"给出，强调色只有一支。
+ */
+
+.root {
+  /* 面 */
+  --wl-canvas: light-dark(#f3f4f7, #0d0e12);
+  --wl-dot: light-dark(rgb(24 28 48 / 18%), rgb(255 255 255 / 14%));
+  --wl-panel: light-dark(#ffffff, #1a1c22);
+  --wl-fill: light-dark(#f2f3f7, #24272f);
+  --wl-fill-strong: light-dark(#e9ebf1, #2c3039);
+  --wl-hover: light-dark(rgb(24 28 48 / 6%), rgb(255 255 255 / 7%));
+  --wl-line: light-dark(rgb(24 28 48 / 9%), rgb(255 255 255 / 9%));
+  --wl-line-strong: light-dark(rgb(24 28 48 / 16%), rgb(255 255 255 / 16%));
+  --wl-scrim: light-dark(rgb(20 22 34 / 28%), rgb(0 0 0 / 55%));
+
+  /* 文字三级。第三级也要过 AA（4.5:1），它承载说明与计数。 */
+  --wl-text: light-dark(#15171e, #eceef3);
+  --wl-text-2: light-dark(#474d5b, #b9bfcb);
+  --wl-text-3: light-dark(#616877, #9299a7);
+
+  /* 强调色：一支靛紫。暗色档同时提亮度与饱和度，不然在暗底上会发灰。 */
+  --wl-accent: light-dark(#5856d6, #8f8df8);
+  --wl-accent-strong: light-dark(#4a48c4, #a3a1ff);
+  --wl-accent-on: light-dark(#ffffff, #12121c);
+  --wl-accent-text: light-dark(#4340b8, #b1afff);
+  --wl-accent-soft: light-dark(rgb(88 86 214 / 10%), rgb(143 141 248 / 18%));
+
+  /* 语义色：只在表达状态时用。 */
+  --wl-danger: light-dark(#c0392f, #ff7a70);
+  --wl-danger-soft: light-dark(rgb(192 57 47 / 9%), rgb(255 122 112 / 15%));
+  --wl-warn: light-dark(#94590a, #f0b955);
+  --wl-warn-soft: light-dark(rgb(148 89 10 / 10%), rgb(240 185 85 / 15%));
+  --wl-ok: light-dark(#167a54, #56d08e);
+  --wl-ok-soft: light-dark(rgb(22 122 84 / 10%), rgb(86 208 142 / 15%));
+
+  /* 连线：拓扑是这张图的全部结构，必须看得清。 */
+  --wl-edge: light-dark(#8088a0, #6f7789);
+
+  /* 步骤种类的记号色。 */
+  --wl-k-scan: light-dark(#2f6fde, #74aaff);
+  --wl-k-plan: light-dark(#7a4fd6, #b598ff);
+  --wl-k-implement: light-dark(#16875a, #56d08e);
+  --wl-k-review: light-dark(#a86400, #f0b955);
+  --wl-k-fix: light-dark(#c84a2b, #ff8e70);
+  --wl-k-report: light-dark(#0f7f8a, #55d2dd);
+  --wl-k-blank: light-dark(#5c6475, #a3aab8);
+
+  --wl-tip: light-dark(#1e2029, #eceef3);
+  --wl-tip-on: light-dark(#f4f5f8, #15171e);
+
+  /* 字号三档 + 标题一档；圆角三档。 */
+  --wl-fs-title: 15px;
+  --wl-fs-body: 13px;
+  --wl-fs-meta: 12px;
+  --wl-fs-micro: 11px;
+  --wl-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --wl-r-control: 8px;
+  --wl-r-card: 12px;
+  --wl-r-panel: 14px;
+
+  /* `light-dark()` 只接受颜色，所以阴影的几何写在外面、只有颜色分明暗。 */
+  --wl-shadow-thumb: 0 1px 2px light-dark(rgb(20 24 44 / 14%), rgb(0 0 0 / 50%));
+  --wl-shadow-1:
+    0 1px 2px light-dark(rgb(20 24 44 / 5%), rgb(0 0 0 / 30%)),
+    0 6px 20px light-dark(rgb(20 24 44 / 7%), rgb(0 0 0 / 32%));
+  --wl-shadow-2:
+    0 2px 6px light-dark(rgb(20 24 44 / 7%), rgb(0 0 0 / 36%)),
+    0 16px 40px light-dark(rgb(20 24 44 / 14%), rgb(0 0 0 / 50%));
+
+  /* 动效：只动 transform / opacity，缓出。 */
+  --wl-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  --wl-gap: 12px;
+  --wl-top: 60px;
+  --wl-library-w: 216px;
+  /* 与 WorkflowView 里的 `inspectorWidth()` 同一个式子。 */
+  --wl-inspector-w: clamp(300px, 30cqw, 360px);
+
+  position: relative;
+  /*
+   * 宿主把视图挂在 `flex: 1 0 auto; min-height: auto` 的容器里：按内容撑高的话，外层的
+   * 会话滚动区会跟着滚。把 flex-basis 压到 0，让"理想高度"是 0，再由 flex-grow 填满。
+   * `height: 100%` 兜底宿主那层不是 flex 容器的情况。
+   */
+  flex: 1 1 0;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  isolation: isolate;
+  container-type: inline-size;
+  background: var(--wl-canvas);
+  color: var(--wl-text);
+  font-family: var(--dsw-font-family, inherit);
+  font-size: var(--wl-fs-body);
+  line-height: 1.5;
+  outline: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+.root *,
+.root *::before,
+.root *::after {
+  box-sizing: border-box;
+}
+
+/*
+ * 画布占满会话详情页：把会话页自己的输入框与列宽拖拽柄藏掉。
+ *
+ * 宿主把它们渲染成活动视图的兄弟，且没有"某个视图不显示输入框"的开关。`:has()` 把作用域
+ * 限定在"我的视图挂载着"这一种情况下：切回「对话」时根节点卸载，它们自己回来。
+ * 选的是宿主的 data 属性（给外部的稳定钩子），不是会在版本间变的哈希类名。
+ */
+:global(
+  [data-conversation-content]:has([data-workflow-lite-view]) [data-conversation-region="composer"]
+),
+:global([data-conversation-content]:has([data-workflow-lite-view]) [data-width-handle]) {
+  display: none;
+}
+
+.canvas {
+  position: absolute;
+  inset: 0;
+}
+
+/* ── 顶栏 ─────────────────────────────────────────────────── */
+
+.top {
+  position: absolute;
+  top: var(--wl-gap);
+  right: var(--wl-gap);
+  left: var(--wl-gap);
+  z-index: 6;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  /* 顶栏中间那段空白要能透过去点到画布。 */
+  pointer-events: none;
+}
+
+.top > * {
+  pointer-events: auto;
+}
+
+/* ── 步骤库（左）──────────────────────────────────────────── */
+
+.library {
+  position: absolute;
+  top: var(--wl-top);
+  bottom: var(--wl-gap);
+  left: var(--wl-gap);
+  z-index: 4;
+  width: var(--wl-library-w);
+  transition:
+    transform 240ms var(--wl-ease),
+    opacity 180ms linear,
+    visibility 0s;
+}
+
+.root[data-library="closed"] .library {
+  visibility: hidden;
+  opacity: 0;
+  transform: translateX(-24px);
+  /* 先滑走再隐藏：`visibility` 等过渡走完才切，收起的库不留在 Tab 序里。 */
+  transition:
+    transform 200ms var(--wl-ease),
+    opacity 160ms linear,
+    visibility 0s 200ms;
+}
+
+/* ── 属性面板（右）────────────────────────────────────────── */
+
+.inspector {
+  position: absolute;
+  top: var(--wl-top);
+  right: var(--wl-gap);
+  bottom: var(--wl-gap);
+  z-index: 5;
+  width: var(--wl-inspector-w);
+  animation: slideIn 240ms var(--wl-ease) both;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+}
+
+@keyframes sheetIn {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+}
+
+/* ── 左下角：缩放与快捷键 ─────────────────────────────────── */
+
+.dock {
+  position: absolute;
+  bottom: var(--wl-gap);
+  left: var(--wl-gap);
+  z-index: 4;
+  display: flex;
+  gap: 2px;
+  align-items: center;
+  padding: 3px;
+  /* 步骤库开着时让到它右边：位置靠 transform 挪。 */
+  transform: translateX(calc(var(--wl-library-w) + var(--wl-gap)));
+  transition: transform 240ms var(--wl-ease);
+}
+
+.root[data-library="closed"] .dock {
+  transform: translateX(0);
+}
+
+.zoom {
+  min-width: 44px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.keys {
+  width: 250px;
+  padding: 10px 12px;
+}
+
+.keysTitle {
+  margin: 0 0 6px;
+  font-size: var(--wl-fs-body);
+  font-weight: 600;
+}
+
+.keysRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 28px;
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-meta);
+}
+
+.keysRow span:last-child {
+  display: inline-flex;
+  gap: 4px;
+}
+
+/* ── 提示条 / 轻提示 ──────────────────────────────────────── */
+
+/* 居中用的位移放在座位上，入场动画放在里面那层——两个 transform 不打架。 */
+.bannerSeat {
+  position: absolute;
+  top: var(--wl-top);
+  left: 50%;
+  z-index: 7;
+  width: max-content;
+  max-width: min(560px, calc(100% - 2 * var(--wl-gap)));
+  transform: translateX(-50%);
+}
+
+.banner {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 6px 6px 12px;
+  font-size: var(--wl-fs-meta);
+}
+
+.bannerDanger {
+  border-color: color-mix(in srgb, var(--wl-danger) 40%, transparent);
+}
+
+.bannerText {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.bannerIds {
+  color: var(--wl-text-3);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+}
+
+.toastSeat {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  z-index: 40;
+  max-width: calc(100% - 2 * var(--wl-gap));
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.toast {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--wl-tip);
+  color: var(--wl-tip-on);
+  font-size: var(--wl-fs-meta);
+  font-weight: 500;
+  box-shadow: var(--wl-shadow-2);
+}
+
+.toast[data-tone="error"] {
+  background: var(--wl-danger);
+  color: var(--wl-accent-on);
+}
+
+/* ── 居中的整页状态（欢迎 / 读不了）───────────────────────── */
+
+.stage {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  padding: 72px 16px 24px;
+  overflow: auto;
+}
+
+.welcome {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  width: min(420px, 100%);
+  padding: 32px 28px 28px;
+  text-align: center;
+}
+
+.welcomeArt {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 8px;
+  color: var(--wl-text-3);
+}
+
+.welcomeTitle {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.welcomeBody {
+  margin: 0 0 12px;
+  color: var(--wl-text-3);
+}
+
+.welcomeList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--wl-line);
+  text-align: left;
+}
+
+.broken {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(680px, 100%);
+  max-height: 100%;
+  padding: 20px;
+}
+
+.brokenHead {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.brokenIcon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: var(--wl-danger-soft);
+  color: var(--wl-danger);
+}
+
+.brokenTitle {
+  margin: 0;
+  font-size: var(--wl-fs-title);
+  font-weight: 600;
+}
+
+.brokenBody {
+  margin: 2px 0 0;
+  color: var(--wl-text-3);
+}
+
+.brokenMessage {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--wl-r-control);
+  background: var(--wl-danger-soft);
+  color: var(--wl-danger);
+  font-size: var(--wl-fs-meta);
+}
+
+.raw {
+  flex: 1 1 auto;
+  min-height: 80px;
+  margin: 0;
+  padding: 10px 12px;
+  overflow: auto;
+  border-radius: var(--wl-r-control);
+  background: var(--wl-fill);
+  color: var(--wl-text-2);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ── 窄视图：属性面板变成底部抽屉，步骤库盖在画布上 ───────── */
+
+@container (max-width: 760px) {
+  .inspector {
+    top: auto;
+    right: 8px;
+    left: 8px;
+    width: auto;
+    height: min(62%, 460px);
+    animation-name: sheetIn;
+  }
+
+  .dock,
+  .root[data-library="closed"] .dock {
+    transform: none;
+  }
+
+  .root[data-library="open"] .dock {
+    visibility: hidden;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .library,
+  .dock {
+    transition: none;
+  }
+
+  .inspector {
+    animation: none;
+  }
+}

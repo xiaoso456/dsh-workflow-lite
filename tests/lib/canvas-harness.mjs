@@ -87,60 +87,33 @@ export async function openCanvasTab(session, { label = '工作流' } = {}) {
 }
 
 /**
- * 打开「图」下拉的可搜索列表（自绘 combobox，不是原生 `<select>`）。
+ * 显式打开某个工作流，并等到画布真的把它渲染出来（或确认它是空的）。
  *
- * 上一版这里点的是 `wl-graph-select` 那个原生 `<select>`：它不可搜索、样式也跟不了主题，
- * 已经换成自绘组件。驱动方式跟着换成"点触发器 → 在筛选框里输入 → 点命中的 option"。
- */
-async function openGraphListbox(session, timeoutMs) {
-  const opened = await session.evaluate(`(() => {
-    const trigger = document.querySelector('[data-testid="wl-graph-trigger"]');
-    if (trigger === null) return 'no-trigger';
-    if (trigger.getAttribute('aria-expanded') === 'true') return 'already';
-    trigger.click();
-    return 'clicked';
-  })()`)
-  if (opened === 'no-trigger') throw new Error('找不到 wl-graph-trigger：图选择器没渲染出来')
-  await waitFor(session, `document.querySelector('[data-testid="wl-graph-listbox"]') !== null`, {
-    timeoutMs: 5_000,
-  })
-}
-
-/**
- * 显式选中某张图，并等到画布真的把它渲染出来（或确认它是空图）。
- *
- * 判据仍是**页面自己认了这张图**，不是脚本读回自己写进去的值：触发器上要出现图名，
- * 状态不能是只读，且画布上要么有节点、要么是空态。
+ * 走的是用户那条路：点顶栏的工作流名 → 在下拉里点那一行。判据是**页面自己认了它**：
+ * 顶栏上出现这个名字，且画布上要么有步骤、要么是空态。
  */
 export async function selectGraph(session, name, { timeoutMs = 25_000 } = {}) {
-  await openGraphListbox(session, timeoutMs)
-  // `graph/list` 是异步来的：列表可能还没有这张图，先在筛选框里输入并等它出现。
-  await setReactInput(session, '[data-testid="wl-graph-filter"]', name)
-  const optionSel = `[data-testid="wl-graph-listbox"] [role="option"][data-value=${JSON.stringify(name)}]`
-  await waitFor(session, `document.querySelector(${JSON.stringify(optionSel)}) !== null`, {
+  await waitFor(session, `document.querySelector('[data-testid="wl-switcher"]') !== null`, {
     timeoutMs,
   })
-  const picked = await session.evaluate(`(() => {
-    const option = document.querySelector(${JSON.stringify(optionSel)});
-    if (!(option instanceof HTMLElement)) return false;
-    option.click();
-    return true;
-  })()`)
-  if (picked !== true) throw new Error(`下拉里点不到图 ${name}`)
+  const optionSel = `[role="option"][data-value=${JSON.stringify(name)}]`
+  const already = await session.evaluate(
+    `(document.querySelector('[data-testid="wl-switcher"]')?.textContent || '').trim() === ${JSON.stringify(name)}`,
+  )
+  if (already !== true) {
+    await session.evaluate(`document.querySelector('[data-testid="wl-switcher"]').click()`)
+    // 列表是打开下拉时现拉的：等这一行出现。
+    await waitFor(session, `document.querySelector(${JSON.stringify(optionSel)}) !== null`, {
+      timeoutMs,
+    })
+    await session.evaluate(`document.querySelector(${JSON.stringify(optionSel)}).click()`)
+  }
   return waitFor(
     session,
     `(() => {
-       const trigger = document.querySelector('[data-testid="wl-graph-trigger"]');
-       if (trigger === null) return 0;
-       if (!(trigger.textContent || '').includes(${JSON.stringify(name)})) return 0;
-       const status = document.querySelector('[data-testid="wl-status"]');
-       if (status && (status.textContent || '').includes('只读')) return 0;
-       /*
-        * 空图**没有节点**，从前靠"空态里那枚「新建空白节点」按钮在不在"当就绪信号；
-        * 那枚按钮随 id 输入框一起删了，现在读空态那句说明文字——它才是"空态真的渲染出来了"。
-        */
-       const canvas = document.querySelector('[data-testid="wl-canvas"]');
-       if (canvas !== null && (canvas.innerText || '').includes('这张图还没有节点')) return 1;
+       const trigger = document.querySelector('[data-testid="wl-switcher"]');
+       if (trigger === null || (trigger.textContent || '').trim() !== ${JSON.stringify(name)}) return 0;
+       if (document.querySelector('[data-testid="wl-empty"]') !== null) return 1;
        return document.querySelectorAll('.react-flow__node').length || 0;
      })()`,
     { timeoutMs },
@@ -184,7 +157,9 @@ export async function centerOf(session, selector) {
   const box = await session.evaluate(`(() => {
      const el = document.querySelector(${JSON.stringify(selector)});
      if (!el) return null;
-     el.scrollIntoView({ block: 'center', inline: 'center' });
+     // 'nearest'：已经看得见就一动不动。'center' 会把宿主页面里 overflow:hidden 的外层容器
+     // 也横向滚过去（整页错位，之后算出来的坐标全部落空）。
+     el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
      const r = el.getBoundingClientRect();
      return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height };
    })()`)

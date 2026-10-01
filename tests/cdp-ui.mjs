@@ -1,0 +1,328 @@
+/**
+ * 工作流视图的真浏览器验收：真指针、真键盘、真拖放，结论以**磁盘**为准。
+ *
+ * 走一遍新用户会走的路：空图 → 从步骤库拖一个进来 → 点「＋」接一步 → 双击空白处加空白步骤
+ * 并写提示词 → 拖线连接 → 改连线条件 → 删除与撤销 → 整理布局 → 预览计划 → 改名 → 删除。
+ * 每一步都读回 `graph/load` 确认真的落了盘，而不是只看界面。
+ *
+ * 前置：测试实例在跑（`dsh --profile workflow-lite-dev --port 3190`），headless Chrome 开着
+ * DevTools 端口；环境变量同 `tests/e2e-canvas.mjs`（`DSH_WEB_TOKEN` 等）。
+ *
+ * usage: DSH_WEB_TOKEN=<token> node tests/cdp-ui.mjs
+ */
+
+import {
+  bootToCanvas,
+  centerOf,
+  dragItemTo,
+  MOD,
+  mouseClick,
+  pressKey,
+  pressShortcut,
+  screenshot,
+} from './lib/canvas-harness.mjs'
+import { openPage, waitFor } from './lib/cdp-session.mjs'
+import { rpc } from './lib/web-session.mjs'
+
+const NAME = `ui-${Date.now().toString(36)}`
+const RENAMED = `${NAME}-renamed`
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+let step = 0
+function check(condition, message) {
+  if (!condition) throw new Error(`FAIL: ${message}`)
+}
+function pass(message) {
+  step += 1
+  console.log(`  ${String(step).padStart(2)} ${message}`)
+}
+
+/** 等保存落盘：状态回到「已保存」且磁盘上的文档满足条件。 */
+async function onDisk(name, predicate, what) {
+  const deadline = Date.now() + 8_000
+  let last
+  for (;;) {
+    last = (await rpc('graph/load', { name })).document
+    if (predicate(last)) return last
+    if (Date.now() > deadline)
+      throw new Error(`FAIL: 磁盘上等不到 ${what}\n${JSON.stringify(last)}`)
+    await sleep(250)
+  }
+}
+
+const idsOf = (doc) => doc.nodes.map((node) => node.id).sort()
+const edgeIds = (doc) => doc.edges.map((edge) => edge.id).sort()
+
+/** 某个步骤卡上某个连接点的屏幕中心。 */
+async function handleCenter(session, nodeId, type) {
+  return centerOf(
+    session,
+    `.react-flow__node[data-id=${JSON.stringify(nodeId)}] .react-flow__handle.${type}`,
+  )
+}
+
+/** 一条连线的中点（屏幕坐标），用来"点在线上"。 */
+async function edgeMidpoint(session, edgeId) {
+  const point = await session.evaluate(`(() => {
+    const path = document.querySelector('.react-flow__edge[data-id=' + JSON.stringify(${JSON.stringify(edgeId)}) + '] path.react-flow__edge-path');
+    if (!path) return null;
+    const mid = path.getPointAtLength(path.getTotalLength() / 2);
+    const m = path.getScreenCTM();
+    return { x: Math.round(mid.x * m.a + m.e), y: Math.round(mid.y * m.d + m.f) };
+  })()`)
+  if (point === null) throw new Error(`找不到连线 ${edgeId}`)
+  return point
+}
+
+async function pointerDrag(session, from, to, steps = 8) {
+  await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: from.x, y: from.y })
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mousePressed',
+    x: from.x,
+    y: from.y,
+    button: 'left',
+    buttons: 1,
+    clickCount: 1,
+  })
+  for (let index = 1; index <= steps; index += 1) {
+    await session.send('Input.dispatchMouseEvent', {
+      type: 'mouseMoved',
+      x: Math.round(from.x + ((to.x - from.x) * index) / steps),
+      y: Math.round(from.y + ((to.y - from.y) * index) / steps),
+      button: 'left',
+      buttons: 1,
+    })
+    await sleep(16)
+  }
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseReleased',
+    x: to.x,
+    y: to.y,
+    button: 'left',
+    buttons: 0,
+    clickCount: 1,
+  })
+}
+
+async function doubleClick(session, point) {
+  for (const clickCount of [1, 2]) {
+    await session.send('Input.dispatchMouseEvent', {
+      type: 'mousePressed',
+      x: point.x,
+      y: point.y,
+      button: 'left',
+      buttons: 1,
+      clickCount,
+    })
+    await session.send('Input.dispatchMouseEvent', {
+      type: 'mouseReleased',
+      x: point.x,
+      y: point.y,
+      button: 'left',
+      buttons: 0,
+      clickCount,
+    })
+  }
+}
+
+const exists = (testId) => `document.querySelector('[data-testid="${testId}"]') !== null`
+const clickTestId = (testId) =>
+  `(() => { const el = document.querySelector('[data-testid="${testId}"]'); if (!el) return false; el.click(); return true })()`
+
+async function run(session) {
+  console.log(`# 工作流视图验收：${NAME}`)
+  await rpc('graph/create', { name: NAME })
+  await bootToCanvas(session, NAME)
+
+  // 1) 空图：空态说明在，示例按钮在；检查结果不亮红。
+  await waitFor(session, exists('wl-empty'))
+  check(await session.evaluate(exists('wl-starter')), '空态里应有「插入示例流程」')
+  check(!(await session.evaluate(exists('wl-issues'))), '空图不该亮检查结果')
+  await screenshot(session, 'ui-01-empty.png')
+  pass('空图显示空态')
+
+  // 2) 从步骤库拖「侦察」到画布中间。
+  const canvasBox = await session.evaluate(`(() => {
+    const r = document.querySelector('[data-testid="wl-canvas"]').getBoundingClientRect();
+    return { x: r.left, y: r.top, w: r.width, h: r.height };
+  })()`)
+  const center = {
+    x: Math.round(canvasBox.x + canvasBox.w * 0.45),
+    y: Math.round(canvasBox.y + canvasBox.h * 0.45),
+  }
+  const { data } = await dragItemTo(session, { itemTestId: 'wl-lib-preset-scan', to: center })
+  check(
+    data.items.some((item) => item.mimeType === 'application/x-workflow-lite-step'),
+    '拖出来的数据里应有自家 MIME',
+  )
+  await waitFor(session, `document.querySelector('.react-flow__node[data-id="scan"]') !== null`)
+  await waitFor(session, exists('wl-inspector'))
+  await onDisk(NAME, (doc) => idsOf(doc).join() === 'scan', '步骤 scan')
+  pass('拖入「侦察」→ 画布出现、属性面板打开、已落盘')
+
+  // 3) 点 scan 右侧的「＋」→ 就地菜单 → 选「拆解」：接在后面并连上。
+  await mouseClick(session, await handleCenter(session, 'scan', 'source'))
+  await waitFor(session, exists('wl-quick-add'))
+  await session.evaluate(clickTestId('wl-quick-plan'))
+  await waitFor(session, `document.querySelector('.react-flow__node[data-id="plan"]') !== null`)
+  const afterPlus = await onDisk(NAME, (doc) => doc.edges.length === 1, '连线 scan->plan')
+  check(edgeIds(afterPlus).join() === 'scan->plan', `应连上 scan->plan：${edgeIds(afterPlus)}`)
+  const scanAt = afterPlus.nodes.find((node) => node.id === 'scan').position
+  const planAt = afterPlus.nodes.find((node) => node.id === 'plan').position
+  check(planAt.x > scanAt.x, '「添加下一步」应落在右边')
+  pass('点「＋」添加下一步 → 自动连线、落在右侧')
+
+  // 4) 双击空白处 → 空白步骤，光标直接进提示词；打字落盘。
+  const blankAt = {
+    x: Math.round(canvasBox.x + canvasBox.w * 0.45),
+    y: Math.round(canvasBox.y + canvasBox.h * 0.78),
+  }
+  await doubleClick(session, blankAt)
+  await waitFor(session, exists('wl-quick-add'))
+  await session.evaluate(clickTestId('wl-quick-blank'))
+  await waitFor(session, `document.querySelector('.react-flow__node[data-id="step"]') !== null`)
+  await waitFor(session, `document.activeElement?.getAttribute('data-testid') === 'wl-ins-prompt'`)
+  await session.send('Input.insertText', { text: '检查所有测试是否通过。' })
+  await onDisk(
+    NAME,
+    (doc) => doc.nodes.find((node) => node.id === 'step')?.data.prompt === '检查所有测试是否通过。',
+    'step 的提示词',
+  )
+  pass('双击空白处加空白步骤 → 提示词自动聚焦、输入落盘')
+
+  // 5) 从 plan 的出口拖线到 step 的入口。
+  await pointerDrag(
+    session,
+    await handleCenter(session, 'plan', 'source'),
+    await handleCenter(session, 'step', 'target'),
+  )
+  await onDisk(NAME, (doc) => edgeIds(doc).includes('plan->step'), '连线 plan->step')
+  pass('拖线连接 plan → step')
+
+  // 6) 点中连线 → 属性面板改成「未通过」→ 边 id 跟着变。
+  await mouseClick(session, await edgeMidpoint(session, 'scan->plan'))
+  await waitFor(session, `document.querySelector('[data-testid="wl-delete-edge"]') !== null`)
+  await session.evaluate(`(() => {
+    const radio = [...document.querySelectorAll('[data-testid="wl-inspector"] [role="radio"]')][2];
+    radio.click();
+  })()`)
+  await onDisk(NAME, (doc) => edgeIds(doc).includes('scan->plan#fail'), '连线条件 fail')
+  check(
+    await session.evaluate(`document.querySelector('[data-testid="wl-delete-edge"]') !== null`),
+    '改条件后连线面板应仍然开着（选中跟着新 id 走）',
+  )
+  await screenshot(session, 'ui-02-edge.png')
+  pass('选中连线并改为「未通过」→ 落盘为 scan->plan#fail')
+
+  // 7) Delete 删连线 → Ctrl+Z 撤回。
+  await pressKey(session, 'Delete')
+  await onDisk(NAME, (doc) => !edgeIds(doc).includes('scan->plan#fail'), '删掉连线')
+  await pressShortcut(session, 'z')
+  await onDisk(NAME, (doc) => edgeIds(doc).includes('scan->plan#fail'), '撤销后连线回来')
+  pass('Delete 删连线、Ctrl+Z 撤回')
+
+  // 8) 点选 step，Ctrl+D 复制；Delete 删掉副本。
+  await mouseClick(session, await centerOf(session, '.react-flow__node[data-id="step"]'))
+  await pressKey(session, 'd', { modifiers: MOD.ctrl })
+  await onDisk(NAME, (doc) => idsOf(doc).includes('step-2'), '复制出来的 step-2')
+  await pressKey(session, 'Delete')
+  await onDisk(NAME, (doc) => !idsOf(doc).includes('step-2'), '删掉 step-2')
+  pass('Ctrl+D 复制步骤、Delete 删除')
+
+  // 9) 按 L 整理布局：同一列里的卡片不重叠。
+  await mouseClick(session, {
+    x: Math.round(canvasBox.x + canvasBox.w - 60),
+    y: Math.round(canvasBox.y + canvasBox.h - 60),
+  })
+  await pressKey(session, 'l')
+  const tidied = await onDisk(
+    NAME,
+    (doc) => doc.nodes.find((node) => node.id === 'scan').position.x === 80,
+    '整理后的坐标',
+  )
+  const positions = tidied.nodes.map((node) => node.position)
+  for (const [index, a] of positions.entries()) {
+    for (const b of positions.slice(index + 1)) {
+      check(Math.abs(a.x - b.x) > 200 || Math.abs(a.y - b.y) > 100, '整理后卡片不该重叠')
+    }
+  }
+  await sleep(600)
+  await screenshot(session, 'ui-03-tidy.png')
+  pass('L 整理布局 → 按执行顺序分列、不重叠')
+
+  // 10) 预览计划：给模型的版本引用 .dispatch，给人看的版本内联提示词。
+  await session.evaluate(clickTestId('wl-preview'))
+  await waitFor(
+    session,
+    `(document.querySelector('[data-testid="wl-plan-text"]')?.textContent || '').includes('.dispatch')`,
+  )
+  await session.evaluate(
+    `[...document.querySelectorAll('[data-testid="wl-plan"] [role="radio"]')][1].click()`,
+  )
+  await waitFor(
+    session,
+    `(document.querySelector('[data-testid="wl-plan-text"]')?.textContent || '').includes('检查所有测试是否通过。')`,
+  )
+  await screenshot(session, 'ui-04-plan.png')
+  await pressKey(session, 'Escape')
+  await waitFor(session, `document.querySelector('[data-testid="wl-plan"]') === null`)
+  pass('预览计划：两个版本都对，Esc 关闭')
+
+  // 10b) 模型用工具在别处改了这张图：本地没有未存的改动时，回到窗口就自动同步过来。
+  const disk = await rpc('graph/load', { name: NAME })
+  const outside = structuredClone(disk.document)
+  outside.nodes.find((node) => node.id === 'step').data.label = '外部改名'
+  await rpc('graph/save', { name: NAME, document: outside, baseHash: disk.hash })
+  await session.evaluate(`window.dispatchEvent(new Event('focus'))`)
+  await waitFor(
+    session,
+    `(document.querySelector('.react-flow__node[data-id="step"]')?.textContent || '').includes('外部改名')`,
+  )
+  pass('别处改了文件 → 回到窗口时自动同步（本地无改动）')
+
+  // 11) 改名：双击顶栏的名字 → 输入 → 回车。
+  await session.evaluate(
+    `document.querySelector('[data-testid="wl-switcher"]').dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))`,
+  )
+  await waitFor(session, exists('wl-rename'))
+  await session.evaluate(
+    `(() => { const el = document.querySelector('[data-testid="wl-rename"]'); el.value = ${JSON.stringify(RENAMED)}; el.focus(); })()`,
+  )
+  await pressKey(session, 'Enter', { code: 'Enter', text: '\r' })
+  await waitFor(
+    session,
+    `(document.querySelector('[data-testid="wl-switcher"]')?.textContent || '').trim() === ${JSON.stringify(RENAMED)}`,
+  )
+  const listed = await rpc('graph/list', {})
+  check(
+    listed.workflows.some((entry) => entry.name === RENAMED),
+    '改名后目录里应是新名字',
+  )
+  pass('双击名字改名 → 磁盘上跟着改')
+
+  // 12) 删除：下拉里点删除 → 确认 → 回到欢迎页。
+  await session.evaluate(clickTestId('wl-switcher'))
+  await waitFor(session, exists('wl-delete'))
+  await session.evaluate(clickTestId('wl-delete'))
+  await waitFor(session, exists('wl-delete-confirm'))
+  await session.evaluate(clickTestId('wl-delete-confirm'))
+  await waitFor(session, exists('wl-welcome'))
+  const after = await rpc('graph/list', {})
+  check(!after.workflows.some((entry) => entry.name === RENAMED), '删除后目录里不该还有它')
+  pass('删除工作流 → 回到欢迎页')
+
+  check(session.errors.length === 0, `页面不该有报错：${JSON.stringify(session.errors)}`)
+  console.log('\n✅ 工作流视图验收全部通过')
+}
+
+const session = await openPage()
+try {
+  await run(session)
+} catch (error) {
+  await screenshot(session, 'ui-failure.png').catch(() => {})
+  console.error(`\n❌ 第 ${step + 1} 步失败：${error.message}`)
+  process.exitCode = 1
+} finally {
+  for (const name of [NAME, RENAMED]) await rpc('graph/delete', { name }).catch(() => {})
+  session.close()
+}

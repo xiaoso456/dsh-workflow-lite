@@ -1,0 +1,206 @@
+/**
+ * dsh-workflow-lite — 盖在画布上的东西：计划对话框、就地添加菜单。
+ */
+
+/* ── 计划对话框 ───────────────────────────────────────────── */
+
+.scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--wl-scrim);
+}
+
+.dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(900px, 100%);
+  height: min(760px, 100%);
+  overflow: hidden;
+  box-shadow: var(--wl-shadow-2);
+  outline: none;
+  animation: dialogIn 240ms var(--wl-ease) backwards;
+}
+
+@keyframes dialogIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+}
+
+.dialogHead {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 12px 12px 4px 18px;
+}
+
+.dialogTitle {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-right: 8px;
+  font-size: var(--wl-fs-title);
+  font-weight: 600;
+}
+
+.planId {
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--wl-fill);
+  color: var(--wl-text-3);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+  font-weight: 400;
+}
+
+.versions {
+  width: 200px;
+}
+
+.dialogHint {
+  flex: none;
+  margin: 0;
+  padding: 0 18px 10px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+}
+
+.dialogBody {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  margin: 0 12px 12px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--wl-fill);
+}
+
+.plan {
+  flex: 1 1 auto;
+  margin: 0;
+  padding: 14px 16px;
+  overflow: auto;
+  color: var(--wl-text);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-meta);
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+  scrollbar-width: thin;
+}
+
+.loading {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  color: var(--wl-text-3);
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--wl-line-strong);
+  border-top-color: var(--wl-accent);
+  border-radius: 50%;
+  animation: spin 700ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.failure {
+  margin: 16px;
+  color: var(--wl-danger);
+}
+
+.blocked {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px;
+  overflow: auto;
+}
+
+.blockedTitle {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 0 0 8px;
+  color: var(--wl-danger);
+  font-weight: 600;
+}
+
+.blockedItem {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--wl-r-control);
+  background: var(--wl-panel);
+  color: var(--wl-text);
+  font: inherit;
+  font-size: var(--wl-fs-meta);
+  text-align: left;
+  cursor: pointer;
+}
+
+.blockedItem:hover {
+  background: var(--wl-hover);
+}
+
+.blockedItem:disabled {
+  cursor: default;
+}
+
+/* ── 就地添加 ─────────────────────────────────────────────── */
+
+.quick {
+  position: absolute;
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: 260px;
+  max-height: calc(100% - 16px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  padding: 6px;
+  box-shadow: var(--wl-shadow-2);
+  transform-origin: top left;
+  animation: quickIn 170ms var(--wl-ease) backwards;
+}
+
+@keyframes quickIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+
+.quickKind {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialog,
+  .quick {
+    animation: none;
+  }
+}

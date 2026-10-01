@@ -1,0 +1,370 @@
+/**
+ * dsh-workflow-lite — 画布：步骤卡、连接点、连线、拖放占位、空态。
+ *
+ * React Flow 自己的类名（`.react-flow__*`）都收在 `.wrap` 下面改，不外溢到宿主页面。
+ * 节点外层那个 `.react-flow__node` 的 `transform` 归 React Flow 定位用——所有入场与悬停
+ * 动效都做在里面的 `.card` 上，两个 transform 不打架。
+ */
+
+.wrap {
+  position: absolute;
+  inset: 0;
+  outline: none;
+}
+
+.wrap :global(.react-flow) {
+  --xy-background-color: transparent;
+  background: transparent;
+}
+
+.wrap :global(.react-flow__pane) {
+  cursor: default;
+}
+
+.wrap :global(.react-flow__pane.dragging) {
+  cursor: grabbing;
+}
+
+/* 节点外层：没有自己的底色与描边，一切交给 `.card`。 */
+.wrap :global(.react-flow__node) {
+  border: 0;
+  border-radius: var(--wl-r-card);
+  background: transparent;
+}
+
+.wrap :global(.react-flow__node:focus-visible) {
+  outline: none;
+}
+
+/* ── 步骤卡 ───────────────────────────────────────────────── */
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 216px;
+  padding: 10px 12px 12px;
+  border: 1px solid var(--wl-line);
+  border-radius: var(--wl-r-card);
+  background: var(--wl-panel);
+  box-shadow: var(--wl-shadow-1);
+  cursor: grab;
+  /* 只填充"开始之前"：动画走完就交还给普通样式，悬停的 transform 过渡才生效。 */
+  animation: cardIn 260ms var(--wl-ease) backwards;
+  transition: transform 180ms var(--wl-ease);
+}
+
+/* 选中环画在伪元素上，渐显只动它的 opacity。 */
+.card::after {
+  position: absolute;
+  inset: -1px;
+  border: 2px solid var(--wl-accent);
+  border-radius: inherit;
+  box-shadow: 0 0 0 4px var(--wl-accent-soft);
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms linear;
+}
+
+.card:hover {
+  transform: translateY(-1px);
+}
+
+.cardSelected::after {
+  opacity: 1;
+}
+
+:global(.react-flow__node.dragging) .card {
+  cursor: grabbing;
+  transform: scale(1.02);
+}
+
+.wrap :global(.react-flow__node:focus-visible) .card {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 3px;
+}
+
+@keyframes cardIn {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+}
+
+.cardHead {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+.cardTitle {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--wl-fs-body);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cardFlag {
+  display: inline-flex;
+  flex: none;
+  color: var(--wl-warn);
+}
+
+.cardFlag[data-tone="error"] {
+  color: var(--wl-danger);
+}
+
+.cardBody {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+  line-height: 1.5;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  word-break: break-word;
+}
+
+.cardBodyEmpty {
+  color: var(--wl-danger);
+  font-style: italic;
+}
+
+.cardOutput {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  align-self: flex-start;
+  max-width: 100%;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 6px;
+  background: var(--wl-fill);
+  color: var(--wl-text-2);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+}
+
+.cardOutput span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── 连接点 ───────────────────────────────────────────────── */
+
+/*
+ * 命中区 20px、画出来的圆点 10px：点和拖都不用像素级对准。
+ * 连接点自己的 transform 归 React Flow 定位用，放大动效做在伪元素上。
+ */
+.wrap :global(.react-flow__handle).handle {
+  width: 20px;
+  height: 20px;
+  min-width: 0;
+  min-height: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+}
+
+.handle::after {
+  position: absolute;
+  inset: 5px;
+  border: 2px solid var(--wl-edge);
+  border-radius: 50%;
+  background: var(--wl-panel);
+  content: "";
+  transition: transform 160ms var(--wl-ease);
+}
+
+.handleSource {
+  cursor: crosshair;
+}
+
+/* 出口圆点悬停时放大成一个「＋」按钮：点它加下一步，拖它连线。 */
+.handleSource::before {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  color: var(--wl-accent-on);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  content: "+";
+  opacity: 0;
+  transition: opacity 120ms linear;
+}
+
+.handleSource:hover::after,
+.cardSelected .handleSource::after,
+.card:hover .handleSource::after {
+  border-color: var(--wl-accent);
+}
+
+.handleSource:hover::after {
+  background: var(--wl-accent);
+  transform: scale(1.8);
+}
+
+.handleSource:hover::before {
+  opacity: 1;
+}
+
+.wrap :global(.react-flow__handle.connectingto)::after,
+.wrap :global(.react-flow__handle.valid)::after {
+  border-color: var(--wl-accent);
+  background: var(--wl-accent);
+  transform: scale(1.5);
+}
+
+/* ── 连线 ─────────────────────────────────────────────────── */
+
+.link :global(.react-flow__edge-path) {
+  stroke: var(--wl-edge);
+  stroke-width: 1.6;
+}
+
+.linkPass :global(.react-flow__edge-path) {
+  stroke: var(--wl-ok);
+}
+
+.linkFail :global(.react-flow__edge-path) {
+  stroke: var(--wl-danger);
+}
+
+.linkBack :global(.react-flow__edge-path) {
+  stroke-dasharray: 6 5;
+}
+
+.link:hover :global(.react-flow__edge-path) {
+  stroke-width: 2.4;
+}
+
+.wrap :global(.react-flow__edge.selected) :global(.react-flow__edge-path) {
+  stroke: var(--wl-accent);
+  stroke-width: 2.4;
+}
+
+.wrap :global(.react-flow__connection-path) {
+  stroke: var(--wl-accent);
+  stroke-dasharray: 5 5;
+  stroke-width: 1.8;
+}
+
+.linkLabel {
+  position: absolute;
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--wl-line-strong);
+  border-radius: 999px;
+  background: var(--wl-panel);
+  color: var(--wl-text-2);
+  font: inherit;
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  pointer-events: all;
+}
+
+.linkLabel[data-when="pass"] {
+  border-color: color-mix(in srgb, var(--wl-ok) 45%, transparent);
+  background: color-mix(in srgb, var(--wl-ok) 10%, var(--wl-panel));
+  color: var(--wl-ok);
+}
+
+.linkLabel[data-when="fail"] {
+  border-color: color-mix(in srgb, var(--wl-danger) 45%, transparent);
+  background: color-mix(in srgb, var(--wl-danger) 10%, var(--wl-panel));
+  color: var(--wl-danger);
+}
+
+.linkLabel[data-selected="true"] {
+  border-color: var(--wl-accent);
+  background: var(--wl-accent);
+  color: var(--wl-accent-on);
+}
+
+/* ── 拖放占位 ─────────────────────────────────────────────── */
+
+.ghost {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  width: 216px;
+  height: 84px;
+  border: 2px dashed var(--wl-accent);
+  border-radius: var(--wl-r-card);
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+  font-size: var(--wl-fs-meta);
+  font-weight: 600;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms linear;
+  will-change: transform;
+}
+
+.wrap[data-dropping="true"] .ghost {
+  opacity: 1;
+}
+
+/* ── 空态 ─────────────────────────────────────────────────── */
+
+.empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  pointer-events: none;
+}
+
+.emptyCard {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+  max-width: 340px;
+  padding: 24px 28px;
+  text-align: center;
+  pointer-events: auto;
+}
+
+.emptyTitle {
+  margin: 0;
+  font-size: var(--wl-fs-title);
+  font-weight: 600;
+}
+
+.emptyBody {
+  margin: 0 0 10px;
+  color: var(--wl-text-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .card::after,
+  .handle::after,
+  .handleSource::before,
+  .ghost {
+    animation: none;
+    transition: none;
+  }
+}

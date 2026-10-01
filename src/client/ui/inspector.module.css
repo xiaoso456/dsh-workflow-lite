@@ -1,0 +1,302 @@
+/**
+ * dsh-workflow-lite — 属性面板。
+ */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.head {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  align-items: center;
+  padding: 12px 10px 4px 14px;
+}
+
+.headTitle {
+  flex: 1 1 auto;
+  font-size: var(--wl-fs-title);
+  font-weight: 600;
+}
+
+.titleInput {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 32px;
+  margin-left: -6px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: var(--wl-r-control);
+  background: transparent;
+  color: var(--wl-text);
+  font: inherit;
+  font-size: var(--wl-fs-title);
+  font-weight: 600;
+}
+
+.titleInput::placeholder {
+  color: var(--wl-text-3);
+}
+
+.titleInput:hover {
+  background: var(--wl-fill);
+}
+
+.titleInput:focus {
+  border-color: var(--wl-accent);
+  background: var(--wl-panel);
+  outline: none;
+}
+
+.idChip {
+  display: inline-flex;
+  flex: none;
+  gap: 6px;
+  align-items: center;
+  align-self: flex-start;
+  height: 22px;
+  margin: 0 0 4px 50px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--wl-text-3);
+  font: inherit;
+  font-size: var(--wl-fs-micro);
+  cursor: pointer;
+}
+
+.idChip:hover {
+  background: var(--wl-hover);
+  color: var(--wl-text-2);
+}
+
+.idChip span {
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.idChip code {
+  font-family: var(--wl-mono);
+}
+
+.body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 18px;
+  min-height: 0;
+  padding: 10px 14px 16px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* 提示词是这一栏的主角：它吃掉剩余高度。 */
+.fieldGrow {
+  flex: 1 0 auto;
+}
+
+.label {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  justify-content: space-between;
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-meta);
+  font-weight: 600;
+}
+
+.count {
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.prompt {
+  flex: 1 0 auto;
+  min-height: 200px;
+  font-size: var(--wl-fs-body);
+}
+
+.help {
+  margin: 0;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.55;
+}
+
+.error {
+  margin: 0;
+  color: var(--wl-danger);
+  font-size: var(--wl-fs-micro);
+}
+
+.note {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--wl-r-control);
+  background: var(--wl-fill);
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-micro);
+}
+
+.links {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.link {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  min-height: 32px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--wl-r-control);
+  background: transparent;
+  color: var(--wl-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.link:hover {
+  background: var(--wl-hover);
+}
+
+.linkDir {
+  flex: none;
+  width: 34px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+.linkName {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.whenChip {
+  flex: none;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--wl-fill);
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+}
+
+.whenChip[data-when="pass"] {
+  background: var(--wl-ok-soft);
+  color: var(--wl-ok);
+}
+
+.whenChip[data-when="fail"] {
+  background: var(--wl-danger-soft);
+  color: var(--wl-danger);
+}
+
+.foot {
+  display: flex;
+  flex: none;
+  gap: 6px;
+  align-items: center;
+  padding: 10px 12px;
+  border-top: 1px solid var(--wl-line);
+}
+
+.templateForm {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 6px;
+  align-items: center;
+}
+
+/* ── 连线 ─────────────────────────────────────────────────── */
+
+.edgeIcon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+}
+
+.ends {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.end {
+  display: flex;
+  flex: 1 1 0;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--wl-line);
+  border-radius: 10px;
+  background: var(--wl-panel);
+  color: var(--wl-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.end:hover {
+  background: var(--wl-hover);
+}
+
+.endName {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.endArrow {
+  display: inline-flex;
+  flex: none;
+  color: var(--wl-text-3);
+}
+
+.verdict {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.verdictCode {
+  align-self: flex-start;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--wl-fill);
+  color: var(--wl-text);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-meta);
+}

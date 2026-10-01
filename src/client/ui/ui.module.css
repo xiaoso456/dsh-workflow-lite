@@ -1,0 +1,498 @@
+/**
+ * dsh-workflow-lite — 控件原子（按钮 / 输入 / 分段 / 浮层 / 菜单 / 提示）。
+ *
+ * 设计令牌（`--wl-*`）定义在 `shell.module.css` 的根节点上，这里只消费。
+ *
+ * **动效的规矩**：只给 `transform` 与 `opacity` 做过渡和动画——这两样由合成器处理，
+ * 不触发布局与重绘。颜色、边框、阴影的变化一律瞬时切换；需要"渐显的阴影/描边"时，
+ * 把它画在伪元素上，动那个伪元素的 `opacity`。
+ */
+
+/* ── 按钮 ─────────────────────────────────────────────────── */
+
+.btn {
+  display: inline-flex;
+  flex: none;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--wl-r-control);
+  background: transparent;
+  color: var(--wl-text-2);
+  font: inherit;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  transition: transform 120ms var(--wl-ease);
+}
+
+.btn:hover {
+  background: var(--wl-hover);
+  color: var(--wl-text);
+}
+
+.btn:active {
+  transform: scale(0.96);
+}
+
+.btn:focus-visible,
+.input:focus-visible,
+.textarea:focus-visible,
+.menuItem:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+.btn:disabled {
+  opacity: 0.38;
+  pointer-events: none;
+}
+
+/* 只有图标的方按钮。 */
+.icon {
+  width: 32px;
+  padding: 0;
+}
+
+.small {
+  height: 26px;
+  padding: 0 8px;
+  font-size: var(--wl-fs-meta);
+}
+
+.small.icon {
+  width: 26px;
+  padding: 0;
+}
+
+.primary {
+  background: var(--wl-accent);
+  color: var(--wl-accent-on);
+}
+
+.primary:hover {
+  background: var(--wl-accent-strong);
+  color: var(--wl-accent-on);
+}
+
+.soft {
+  background: var(--wl-fill);
+  color: var(--wl-text);
+}
+
+.soft:hover {
+  background: var(--wl-fill-strong);
+}
+
+.danger {
+  color: var(--wl-danger);
+}
+
+.danger:hover {
+  background: var(--wl-danger-soft);
+  color: var(--wl-danger);
+}
+
+.dangerSolid {
+  background: var(--wl-danger);
+  color: var(--wl-accent-on);
+}
+
+.dangerSolid:hover {
+  background: var(--wl-danger);
+  color: var(--wl-accent-on);
+}
+
+/* ── 输入 ─────────────────────────────────────────────────── */
+
+.input,
+.textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid transparent;
+  border-radius: var(--wl-r-control);
+  background: var(--wl-fill);
+  color: var(--wl-text);
+  font: inherit;
+}
+
+.input {
+  height: 32px;
+  padding: 0 10px;
+}
+
+.textarea {
+  display: block;
+  padding: 9px 10px;
+  line-height: 1.6;
+  resize: none;
+}
+
+.input::placeholder,
+.textarea::placeholder {
+  color: var(--wl-text-3);
+  opacity: 0.8;
+}
+
+.input:hover,
+.textarea:hover {
+  background: var(--wl-fill-strong);
+}
+
+.input:focus,
+.textarea:focus {
+  border-color: var(--wl-accent);
+  background: var(--wl-panel);
+  outline: none;
+}
+
+.input[aria-invalid="true"] {
+  border-color: var(--wl-danger);
+}
+
+.mono {
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-meta);
+}
+
+/* ── 分段选择 ─────────────────────────────────────────────── */
+
+.seg {
+  position: relative;
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  padding: 2px;
+  border-radius: var(--wl-r-control);
+  background: var(--wl-fill);
+}
+
+/* 滑块：宽度 = 一格，位置靠 transform 挪（合成器动画）。 */
+.segThumb {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  border-radius: 6px;
+  background: var(--wl-panel);
+  box-shadow: var(--wl-shadow-thumb);
+  transition: transform 200ms var(--wl-ease);
+  pointer-events: none;
+}
+
+.segItem {
+  position: relative;
+  height: 28px;
+  padding: 0 6px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--wl-text-3);
+  font: inherit;
+  font-size: var(--wl-fs-meta);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.segItem:hover {
+  color: var(--wl-text);
+}
+
+.segItem[aria-checked="true"] {
+  color: var(--wl-text);
+}
+
+.segItem:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: -2px;
+}
+
+/* ── 面板与浮层 ───────────────────────────────────────────── */
+
+.panel {
+  border: 1px solid var(--wl-line);
+  border-radius: var(--wl-r-panel);
+  background: var(--wl-panel);
+  box-shadow: var(--wl-shadow-1);
+}
+
+.anchor {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+
+.popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 30;
+  min-width: 220px;
+  padding: 6px;
+  border: 1px solid var(--wl-line);
+  border-radius: var(--wl-r-card);
+  background: var(--wl-panel);
+  box-shadow: var(--wl-shadow-2);
+  transform-origin: top left;
+  animation: pop 160ms var(--wl-ease) both;
+}
+
+.popoverEnd {
+  right: 0;
+  left: auto;
+  transform-origin: top right;
+}
+
+.popoverUp {
+  top: auto;
+  bottom: calc(100% + 8px);
+  transform-origin: bottom left;
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.97);
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+.rise {
+  animation: rise 220ms var(--wl-ease) both;
+}
+
+.fade {
+  animation: fade 160ms linear both;
+}
+
+/* ── 菜单 ─────────────────────────────────────────────────── */
+
+.menuItem {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  min-height: 34px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--wl-r-control);
+  background: transparent;
+  color: var(--wl-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menuItem:hover {
+  background: var(--wl-hover);
+}
+
+.menuItem:disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.menuItem[data-active="true"] {
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+}
+
+.menuItem[data-danger="true"] {
+  color: var(--wl-danger);
+}
+
+.menuItem[data-danger="true"]:hover {
+  background: var(--wl-danger-soft);
+}
+
+.menuLabel {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menuMeta {
+  flex: none;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+.menuTitle {
+  padding: 8px 8px 4px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.menuSep {
+  height: 1px;
+  margin: 6px 2px;
+  background: var(--wl-line);
+}
+
+/* ── 悬停提示（纯 CSS）────────────────────────────────────── */
+
+.tip {
+  position: relative;
+}
+
+.tip::after {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  z-index: 40;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--wl-tip);
+  color: var(--wl-tip-on);
+  font-size: var(--wl-fs-micro);
+  font-weight: 500;
+  line-height: 1.5;
+  white-space: nowrap;
+  content: attr(data-tip);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -3px);
+  transition:
+    opacity 120ms linear,
+    transform 120ms var(--wl-ease);
+}
+
+.tip:hover::after,
+.tip:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  transition-delay: 380ms;
+}
+
+/* 靠右对齐：贴着右边缘的按钮用，免得提示伸出视图外被裁掉。 */
+.tipEnd::after {
+  right: 0;
+  left: auto;
+  transform: translate(0, -3px);
+}
+
+.tipEnd:hover::after,
+.tipEnd:focus-visible::after {
+  transform: translate(0, 0);
+}
+
+.tipStart::after {
+  left: 0;
+  transform: translate(0, -3px);
+}
+
+.tipStart:hover::after,
+.tipStart:focus-visible::after {
+  transform: translate(0, 0);
+}
+
+.tipUp::after {
+  top: auto;
+  bottom: calc(100% + 8px);
+}
+
+/* ── 杂项 ─────────────────────────────────────────────────── */
+
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 6px;
+  border: 1px solid var(--wl-line-strong);
+  border-radius: 5px;
+  background: var(--wl-fill);
+  color: var(--wl-text-2);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+}
+
+.divider {
+  flex: none;
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: var(--wl-line);
+}
+
+.grow {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* 步骤种类的色块：`data-kind` 定色，块本身只用这一个色的深浅两档。 */
+.kind {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--wl-kind) 14%, transparent);
+  color: var(--wl-kind);
+}
+
+.kind[data-kind="scan"] {
+  --wl-kind: var(--wl-k-scan);
+}
+
+.kind[data-kind="plan"] {
+  --wl-kind: var(--wl-k-plan);
+}
+
+.kind[data-kind="implement"] {
+  --wl-kind: var(--wl-k-implement);
+}
+
+.kind[data-kind="review"] {
+  --wl-kind: var(--wl-k-review);
+}
+
+.kind[data-kind="fix"] {
+  --wl-kind: var(--wl-k-fix);
+}
+
+.kind[data-kind="report"] {
+  --wl-kind: var(--wl-k-report);
+}
+
+.kind[data-kind="blank"] {
+  --wl-kind: var(--wl-k-blank);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn,
+  .segThumb,
+  .tip::after {
+    transition: none;
+  }
+
+  .popover,
+  .rise,
+  .fade {
+    animation: none;
+  }
+}
