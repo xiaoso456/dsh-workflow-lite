@@ -712,3 +712,10 @@
     transition: none;
   }
 }
+
+/* 字段名 + 跟在后面的「?」。 */
+.labelMain {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}

@@ -61,11 +61,13 @@ export const zh = {
   'settings.title': '工作流设置',
   'settings.root': '产出根目录',
   'settings.rootPlaceholder': '留空 = 工作区根目录，例如 docs/out 或 D:/artifacts',
-  'settings.rootHint':
-    '每个步骤的产出文件都拼在这个目录下。可以写相对路径（相对工作区）或绝对路径，保存时会自动标准化。',
+  'settings.rootTipJoin': '每个步骤的产出文件都拼在这个目录下，组成最终写入的路径。',
+  'settings.rootTipKinds': '相对路径以工作区为起点；也可以写绝对路径，例如 D:/artifacts。',
+  'settings.rootTipNormalize':
+    '保存时自动标准化：分隔符统一成 /，去掉多余的 //、./ 和末尾的 /。不支持 ~。',
+  'settings.rootTipEmpty': '留空 = 产出直接写在工作区根目录。',
   'settings.rootRelative': '相对工作区',
   'settings.rootAbsolute': '绝对路径',
-  'settings.rootWorkspace': '工作区根目录',
   'settings.preview': '例如',
   'settings.mode': '执行方式',
   'settings.mode.auto': '自动',
@@ -77,6 +79,9 @@ export const zh = {
   'settings.mode.team': 'Agent 团队',
   'settings.mode.teamDesc': '主 agent 当 Team Lead，给步骤建队员，队员之间能互相发消息。',
   'settings.leaderNote': '后两种方式里，主 agent 只负责派发、选分支、推进循环和最后汇报。',
+  'settings.modeTipPlan': '执行方式会写进派发计划的开头，告诉主 agent 怎么组织这次执行。',
+  'settings.modeTipTools':
+    '子代理与 Agent 团队依赖 DSH 的对应工具；工具不可用时，计划会让主 agent 说明后改成自己逐个执行。',
   'settings.conflict': '工作流设置',
 
   // ── 检查 ────────────────────────────────────────────────────
@@ -329,11 +334,14 @@ export const en: Record<LocaleKey, string> = {
   'settings.title': 'Workflow settings',
   'settings.root': 'Output root',
   'settings.rootPlaceholder': 'Empty = workspace root, e.g. docs/out or D:/artifacts',
-  'settings.rootHint':
-    "Every step's output files are placed under this folder. Relative (to the workspace) or absolute; normalized when saved.",
+  'settings.rootTipJoin': "Every step's output files go under this folder to form the final path.",
+  'settings.rootTipKinds':
+    'Relative paths start at the workspace; absolute paths such as D:/artifacts also work.',
+  'settings.rootTipNormalize':
+    'Normalized when saved: separators become /, extra //, ./ and the trailing / are removed. ~ is not supported.',
+  'settings.rootTipEmpty': 'Empty = outputs go straight into the workspace root.',
   'settings.rootRelative': 'Relative to workspace',
   'settings.rootAbsolute': 'Absolute path',
-  'settings.rootWorkspace': 'Workspace root',
   'settings.preview': 'e.g.',
   'settings.mode': 'Execution mode',
   'settings.mode.auto': 'Auto',
@@ -347,6 +355,10 @@ export const en: Record<LocaleKey, string> = {
     'The main agent is Team Lead; steps go to teammates who can message each other.',
   'settings.leaderNote':
     'In the last two modes the main agent only dispatches, picks branches, drives loops and reports.',
+  'settings.modeTipPlan':
+    'The mode is written at the top of the dispatch plan and tells the main agent how to run it.',
+  'settings.modeTipTools':
+    'Subagents and Agent teams rely on the matching DSH tools; if they are missing, the plan has the main agent say so and run the steps itself.',
   'settings.conflict': 'workflow settings',
 
   'issues.title': 'Checks',

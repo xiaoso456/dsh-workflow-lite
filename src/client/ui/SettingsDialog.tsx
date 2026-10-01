@@ -24,7 +24,7 @@ import type { LocaleKey, T } from '../i18n.ts'
 import { Icon, type IconName } from './Icon.tsx'
 import css from './inspector.module.css'
 import overlay from './overlay.module.css'
-import { cx, Modal } from './primitives.tsx'
+import { cx, HelpTip, Modal } from './primitives.tsx'
 import ui from './ui.module.css'
 
 const MODE_TEXT: Record<ExecutionMode, { icon: IconName; title: LocaleKey; desc: LocaleKey }> = {
@@ -70,6 +70,7 @@ export function SettingsDialog(props: {
     <Modal
       label={t('settings.title')}
       testId="wl-settings"
+      className={overlay.sheetSettings}
       onDismiss={() => {
         if (!dirty) props.onClose()
       }}
@@ -112,8 +113,26 @@ export function SettingsDialog(props: {
 
         <div className={overlay.sheetBody}>
           <section className={css.field}>
-            <label className={css.label} htmlFor="wl-settings-root">
-              <span>{t('settings.root')}</span>
+            <div className={css.label}>
+              <span className={css.labelMain}>
+                {t('settings.root')}
+                <HelpTip label={t('settings.root')} testId="wl-settings-root-help">
+                  <p className={ui.hintTitle}>{t('settings.root')}</p>
+                  <ul className={ui.hintList}>
+                    <li>{t('settings.rootTipJoin')}</li>
+                    <li>{t('settings.rootTipKinds')}</li>
+                    <li>{t('settings.rootTipNormalize')}</li>
+                    <li>{t('settings.rootTipEmpty')}</li>
+                  </ul>
+                  {/* 示例跟着输入框实时变：拼接与标准化和编译器是同一份。 */}
+                  <p className={ui.hintExample} data-testid="wl-settings-preview">
+                    <span>{t('settings.preview')}</span>
+                    <code>{props.sample}</code>
+                    <span aria-hidden="true">→</span>
+                    <code>{resolveOutputPath(normalized, props.sample)}</code>
+                  </p>
+                </HelpTip>
+              </span>
               {normalized !== undefined && (
                 <span className={css.rootKind} data-absolute={isAbsoluteRoot(normalized)}>
                   {isAbsoluteRoot(normalized)
@@ -121,42 +140,35 @@ export function SettingsDialog(props: {
                     : t('settings.rootRelative')}
                 </span>
               )}
-            </label>
+            </div>
             <input
-              id="wl-settings-root"
               ref={rootRef}
               className={cx(ui.input, ui.mono)}
               value={root}
               placeholder={t('settings.rootPlaceholder')}
+              aria-label={t('settings.root')}
               aria-invalid={problem !== null}
               data-testid="wl-settings-root"
               spellCheck={false}
               autoComplete="off"
               onChange={(event) => setRoot(event.currentTarget.value)}
             />
-            {problem !== null ? (
-              <p className={css.error}>{problem.message}</p>
-            ) : (
-              <>
-                <div className={css.rootPreview} data-testid="wl-settings-preview">
-                  <span className={css.rootPreviewLabel}>{t('settings.preview')}</span>
-                  <code>{props.sample}</code>
-                  <Icon name="arrowRight" size={12} />
-                  <code className={css.rootPreviewResult}>
-                    {resolveOutputPath(normalized, props.sample)}
-                  </code>
-                  {normalized === undefined && (
-                    <span className={css.rootPreviewLabel}>（{t('settings.rootWorkspace')}）</span>
-                  )}
-                </div>
-                <p className={css.help}>{t('settings.rootHint')}</p>
-              </>
-            )}
+            {problem !== null && <p className={css.error}>{problem.message}</p>}
           </section>
 
           <section className={css.field}>
             <div className={css.label}>
-              <span>{t('settings.mode')}</span>
+              <span className={css.labelMain}>
+                {t('settings.mode')}
+                <HelpTip label={t('settings.mode')} testId="wl-settings-mode-help">
+                  <p className={ui.hintTitle}>{t('settings.mode')}</p>
+                  <ul className={ui.hintList}>
+                    <li>{t('settings.modeTipPlan')}</li>
+                    <li>{t('settings.leaderNote')}</li>
+                    <li>{t('settings.modeTipTools')}</li>
+                  </ul>
+                </HelpTip>
+              </span>
             </div>
             <div className={css.modes} role="radiogroup" aria-label={t('settings.mode')}>
               {EXECUTION_MODES.map((value) => {
@@ -183,7 +195,6 @@ export function SettingsDialog(props: {
                 )
               })}
             </div>
-            <p className={css.help}>{t('settings.leaderNote')}</p>
           </section>
         </div>
 

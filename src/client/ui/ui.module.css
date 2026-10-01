@@ -496,3 +496,115 @@
     animation: none;
   }
 }
+
+/* ── 「?」说明 ────────────────────────────────────────────── */
+
+.hint {
+  position: relative;
+  display: inline-flex;
+  align-self: center;
+}
+
+.hintButton {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--wl-text-3);
+  cursor: help;
+}
+
+.hintButton:hover,
+.hintButton:focus-visible {
+  background: var(--wl-hover);
+  color: var(--wl-accent-text);
+  outline: none;
+}
+
+/* 浮层挂在视图根上（不在对话框的滚动区里），由组件算好 left / top。接住指针、文字可选。 */
+.hintPanel {
+  position: absolute;
+  z-index: 45;
+  width: 320px;
+  max-width: calc(100% - 16px);
+  padding: 10px 12px;
+  border: 1px solid var(--wl-line);
+  border-radius: 10px;
+  background: var(--wl-panel);
+  box-shadow: var(--wl-shadow-2);
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-micro);
+  font-weight: 400;
+  line-height: 1.6;
+  text-align: left;
+  white-space: normal;
+  cursor: auto;
+  outline: none;
+  user-select: text;
+  animation: hintIn 140ms var(--wl-ease) both;
+}
+
+.hintPanel[data-up="true"] {
+  animation-name: hintInUp;
+}
+
+@keyframes hintIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes hintInUp {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+.hintButton[data-open="true"] {
+  background: var(--wl-hover);
+  color: var(--wl-accent-text);
+}
+
+.hintTitle {
+  margin: 0 0 4px;
+  color: var(--wl-text);
+  font-size: var(--wl-fs-meta);
+  font-weight: 600;
+}
+
+.hintList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding-left: 16px;
+}
+
+.hintExample {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  align-items: center;
+  margin: 8px 0 0;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--wl-fill);
+}
+
+.hintExample code {
+  color: var(--wl-text);
+  font-family: var(--wl-mono);
+  word-break: break-all;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hintPanel {
+    animation: none;
+  }
+}

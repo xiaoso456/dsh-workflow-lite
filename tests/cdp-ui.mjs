@@ -347,13 +347,58 @@ async function run(session) {
   await session.evaluate(clickTestId('wl-settings-open'))
   await waitFor(session, exists('wl-settings'))
   await setReactInput(session, '[data-testid="wl-settings-root"]', 'artifacts//run/')
-  await waitFor(
-    session,
-    `(document.querySelector('[data-testid="wl-settings-preview"]')?.textContent || '').includes('artifacts/run/')`,
-  )
   await session.evaluate(clickTestId('wl-settings-mode-subagent'))
   await sleep(350)
+  // 打开就不该有滚动条：内容放得下。
+  check(
+    await session.evaluate(`(() => {
+      const body = document.querySelector('[data-testid="wl-settings"] form > div');
+      return body.scrollHeight <= body.clientHeight;
+    })()`),
+    '工作流设置打开时不该出现滚动条',
+  )
   await screenshot(session, 'ui-02e-settings.png')
+  // 说明与拼接示例收在「?」里：平时不在，悬停才浮出。
+  check(!(await session.evaluate(exists('wl-settings-root-help-panel'))), '说明平时应收起')
+  await mouseMove(session, await centerOf(session, '[data-testid="wl-settings-root-help"]'))
+  await waitFor(session, exists('wl-settings-root-help-panel'))
+  check(
+    (
+      await session.evaluate(
+        `document.querySelector('[data-testid="wl-settings-preview"]').textContent`,
+      )
+    ).includes('artifacts/run/'),
+    '说明里的拼接示例应跟着输入实时变化',
+  )
+  check(
+    await session.evaluate(
+      `!document.querySelector('[data-testid="wl-settings"]').contains(document.querySelector('[data-testid="wl-settings-root-help-panel"]'))`,
+    ),
+    '说明浮层不该挂在对话框的滚动区里',
+  )
+  // 鼠标从「?」移进浮层：浮层不收；在里面拖选文字能选中，对话框也不会被关掉。
+  const panelBox = await session.evaluate(`(() => {
+    const r = document.querySelector('[data-testid="wl-settings-root-help-panel"] li').getBoundingClientRect();
+    return { x: Math.round(r.left + 4), y: Math.round(r.top + 8), right: Math.round(r.right - 8) };
+  })()`)
+  await mouseMove(session, { x: panelBox.x + 20, y: panelBox.y })
+  await sleep(500)
+  check(await session.evaluate(exists('wl-settings-root-help-panel')), '鼠标移进浮层后浮层应还在')
+  await pointerDrag(session, { x: panelBox.x, y: panelBox.y }, { x: panelBox.right, y: panelBox.y })
+  await sleep(200)
+  check(
+    (await session.evaluate('window.getSelection().toString()')).length > 4,
+    '浮层里的文字应能拖选',
+  )
+  check(await session.evaluate(exists('wl-settings-root-help-panel')), '拖选之后浮层应还在')
+  check(await session.evaluate(exists('wl-settings')), '在浮层里操作不该关掉对话框')
+  await screenshot(session, 'ui-02f-settings-help.png')
+  await pressKey(session, 'Escape')
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-settings-root-help-panel"]') === null`,
+  )
+  check(await session.evaluate(exists('wl-settings')), 'Esc 先只收起说明浮层')
   await session.evaluate(clickTestId('wl-settings-done'))
   await waitFor(session, `document.querySelector('[data-testid="wl-settings"]') === null`)
   await onDisk(

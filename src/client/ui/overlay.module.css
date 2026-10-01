@@ -227,6 +227,12 @@
   animation: dialogIn 220ms var(--wl-ease) backwards;
 }
 
+/* 工作流设置：四张执行方式卡片要并排放得下，内容也不该一打开就滚动——给宽一点、高一点。 */
+.sheetSettings {
+  width: min(580px, 100%);
+  min-height: min(440px, 100%);
+}
+
 .sheetForm {
   display: flex;
   flex: 1 1 auto;

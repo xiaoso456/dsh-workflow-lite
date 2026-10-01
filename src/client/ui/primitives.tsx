@@ -4,7 +4,15 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/primitives
  */
 
-import { createContext, type RefObject, useContext, useEffect, useRef } from 'react'
+import {
+  createContext,
+  type RefObject,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
 import { createPortal } from 'react-dom'
 import overlay from './overlay.module.css'
 import ui from './ui.module.css'
@@ -210,6 +218,159 @@ export function Modal(props: {
     </div>
   )
   return host === null ? tree : createPortal(tree, host)
+}
+
+/** 「?」说明的浮层：悬停多久才出来、离开多久才收（留出把鼠标移进浮层的时间）。 */
+const HINT_OPEN_MS = 120
+const HINT_CLOSE_MS = 220
+const HINT_W = 320
+const HINT_GAP = 6
+
+/**
+ * 「?」说明：平时只占一个小图标，悬停 / 聚焦 / 点击时浮出一段说明。
+ *
+ * - 浮层挂到视图根（和模态框同一个挂载点），不在对话框的滚动区里：既不会被裁掉，
+ *   也不会因为一块看不见的浮层把滚动区撑出滚动条。
+ * - 鼠标可以从「?」移进浮层：离开图标后稍等一下再收，进了浮层就不收；浮层接住指针，
+ *   里面的文字能选中复制，点击不会穿透到后面。
+ * - 点「?」钉住（触屏也能用），点别处或按 Esc 收起。下面放不下时自动弹到上方。
+ */
+export function HelpTip(props: {
+  label: string
+  children: React.ReactNode
+  testId?: string
+}): React.JSX.Element {
+  const host = useContext(ModalHost)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const [open, setOpen] = useState<'off' | 'hover' | 'pinned'>('off')
+  const [place, setPlace] = useState<{ left: number; top: number; up: boolean } | null>(null)
+  const timer = useRef(0)
+
+  const cancel = (): void => window.clearTimeout(timer.current)
+  const later = (next: 'off' | 'hover', ms: number): void => {
+    cancel()
+    timer.current = window.setTimeout(() => setOpen(next), ms)
+  }
+  useEffect(() => () => window.clearTimeout(timer.current), [])
+
+  // 摆位置：先按"图标正下方、左边对齐"放，量出浮层高度后，下面放不下就翻到上方。
+  useLayoutEffect(() => {
+    if (open === 'off') {
+      setPlace(null)
+      return
+    }
+    const button = buttonRef.current
+    const root = host ?? document.body
+    if (button === null) return
+    const box = button.getBoundingClientRect()
+    const area = root.getBoundingClientRect()
+    const height = panelRef.current?.offsetHeight ?? 0
+    const left = Math.max(8, Math.min(box.left - area.left - 8, area.width - HINT_W - 8))
+    const below = box.bottom - area.top + HINT_GAP
+    const up = below + height > area.height - 8 && box.top - area.top - HINT_GAP - height > 8
+    setPlace({ left, top: up ? box.top - area.top - HINT_GAP - height : below, up })
+  }, [open, host])
+
+  // 打开时：在图标与浮层之外按下指针、滚动、按 Esc 都收起。
+  useEffect(() => {
+    if (open === 'off') return
+    const inside = (target: EventTarget | null): boolean =>
+      target instanceof Node &&
+      (buttonRef.current?.contains(target) === true || panelRef.current?.contains(target) === true)
+    const onDown = (event: PointerEvent): void => {
+      if (!inside(event.target)) setOpen('off')
+    }
+    const onScroll = (event: Event): void => {
+      if (!inside(event.target)) setOpen('off')
+    }
+    document.addEventListener('pointerdown', onDown, true)
+    document.addEventListener('scroll', onScroll, true)
+    return () => {
+      document.removeEventListener('pointerdown', onDown, true)
+      document.removeEventListener('scroll', onScroll, true)
+    }
+  }, [open])
+
+  const onKeyDown = (event: React.KeyboardEvent): void => {
+    if (event.key !== 'Escape' || open === 'off') return
+    // 只收浮层，不连带关掉外面的对话框。
+    event.stopPropagation()
+    setOpen('off')
+    buttonRef.current?.focus()
+  }
+
+  const panel =
+    open === 'off' ? null : (
+      <div
+        ref={panelRef}
+        className={ui.hintPanel}
+        role="tooltip"
+        // 可聚焦（不进 Tab 序）：在浮层里点一下选文字时，焦点从「?」移进来而不是丢掉，浮层不会因失焦收起。
+        tabIndex={-1}
+        data-up={place?.up === true}
+        data-testid={props.testId === undefined ? undefined : `${props.testId}-panel`}
+        style={{
+          left: place?.left ?? 0,
+          top: place?.top ?? 0,
+          // 第一帧还没量好位置：先藏着量高度，摆好了再出现（避免闪一下）。
+          visibility: place === null ? 'hidden' : 'visible',
+        }}
+        onPointerEnter={cancel}
+        onPointerLeave={() => {
+          if (open === 'hover') later('off', HINT_CLOSE_MS)
+        }}
+        onKeyDown={onKeyDown}
+      >
+        {props.children}
+      </div>
+    )
+
+  return (
+    <span className={ui.hint}>
+      <button
+        ref={buttonRef}
+        type="button"
+        className={ui.hintButton}
+        aria-label={props.label}
+        aria-expanded={open !== 'off'}
+        data-open={open !== 'off'}
+        data-testid={props.testId}
+        onPointerEnter={() => {
+          if (open === 'off') later('hover', HINT_OPEN_MS)
+          else cancel()
+        }}
+        onPointerLeave={() => {
+          if (open === 'hover') later('off', HINT_CLOSE_MS)
+          else if (open === 'off') cancel()
+        }}
+        onFocus={() => {
+          if (open === 'off') setOpen('hover')
+        }}
+        onBlur={(event) => {
+          if (open === 'hover' && !panelRef.current?.contains(event.relatedTarget as Node | null)) {
+            setOpen('off')
+          }
+        }}
+        onClick={() => {
+          cancel()
+          setOpen((current) => (current === 'pinned' ? 'off' : 'pinned'))
+        }}
+        onKeyDown={onKeyDown}
+      >
+        <svg width={14} height={14} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth={1.8} />
+          <path
+            d="M9.6 9.4a2.5 2.5 0 014.9.6c0 1.7-2.5 2.1-2.5 3.6M12 16.9v.1"
+            stroke="currentColor"
+            strokeWidth={1.8}
+            strokeLinecap="round"
+          />
+        </svg>
+      </button>
+      {panel !== null && (host === null ? panel : createPortal(panel, host))}
+    </span>
+  )
 }
 
 /** 把一段文字写进剪贴板；环境不允许就安静地失败。 */
