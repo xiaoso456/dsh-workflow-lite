@@ -55,6 +55,29 @@ export const zh = {
   'tool.keys': '快捷键',
   'tool.preview': '预览计划',
   'tool.library': '步骤库',
+  'tool.settings': '工作流设置',
+
+  // ── 工作流设置 ──────────────────────────────────────────────
+  'settings.title': '工作流设置',
+  'settings.root': '产出根目录',
+  'settings.rootPlaceholder': '留空 = 工作区根目录，例如 docs/out 或 D:/artifacts',
+  'settings.rootHint':
+    '每个步骤的产出文件都拼在这个目录下。可以写相对路径（相对工作区）或绝对路径，保存时会自动标准化。',
+  'settings.rootRelative': '相对工作区',
+  'settings.rootAbsolute': '绝对路径',
+  'settings.rootWorkspace': '工作区根目录',
+  'settings.preview': '例如',
+  'settings.mode': '执行方式',
+  'settings.mode.auto': '自动',
+  'settings.mode.autoDesc': '不做规定，由主 agent 自己决定怎么执行。',
+  'settings.mode.serial': '串行',
+  'settings.mode.serialDesc': '主 agent 本人按顺序一步一步做，不派子代理。',
+  'settings.mode.subagent': '主 agent + 子代理',
+  'settings.mode.subagentDesc': '主 agent 当 leader，每个步骤派一个子代理去做。',
+  'settings.mode.team': 'Agent 团队',
+  'settings.mode.teamDesc': '主 agent 当 Team Lead，给步骤建队员，队员之间能互相发消息。',
+  'settings.leaderNote': '后两种方式里，主 agent 只负责派发、选分支、推进循环和最后汇报。',
+  'settings.conflict': '工作流设置',
 
   // ── 检查 ────────────────────────────────────────────────────
   'issues.title': '检查',
@@ -194,6 +217,7 @@ export const zh = {
   'out.done': '完成',
   'out.peekTitle': '产出',
   'out.peekHint': '点文件查看或编辑',
+  'out.finalPath': '最终写入',
 
   // ── 属性面板：连线 ──────────────────────────────────────────
   'edge.title': '连线',
@@ -300,6 +324,30 @@ export const en: Record<LocaleKey, string> = {
   'tool.keys': 'Shortcuts',
   'tool.preview': 'Preview plan',
   'tool.library': 'Step library',
+  'tool.settings': 'Workflow settings',
+
+  'settings.title': 'Workflow settings',
+  'settings.root': 'Output root',
+  'settings.rootPlaceholder': 'Empty = workspace root, e.g. docs/out or D:/artifacts',
+  'settings.rootHint':
+    "Every step's output files are placed under this folder. Relative (to the workspace) or absolute; normalized when saved.",
+  'settings.rootRelative': 'Relative to workspace',
+  'settings.rootAbsolute': 'Absolute path',
+  'settings.rootWorkspace': 'Workspace root',
+  'settings.preview': 'e.g.',
+  'settings.mode': 'Execution mode',
+  'settings.mode.auto': 'Auto',
+  'settings.mode.autoDesc': 'No rule; the main agent decides how to run it.',
+  'settings.mode.serial': 'Serial',
+  'settings.mode.serialDesc': 'The main agent does every step itself, one at a time.',
+  'settings.mode.subagent': 'Main agent + subagents',
+  'settings.mode.subagentDesc': 'The main agent leads and hands each step to a subagent.',
+  'settings.mode.team': 'Agent team',
+  'settings.mode.teamDesc':
+    'The main agent is Team Lead; steps go to teammates who can message each other.',
+  'settings.leaderNote':
+    'In the last two modes the main agent only dispatches, picks branches, drives loops and reports.',
+  'settings.conflict': 'workflow settings',
 
   'issues.title': 'Checks',
   'issues.none': 'No problems',
@@ -446,6 +494,7 @@ export const en: Record<LocaleKey, string> = {
   'out.done': 'Done',
   'out.peekTitle': 'Outputs',
   'out.peekHint': 'Click a file to view or edit',
+  'out.finalPath': 'Written to',
 
   'edge.title': 'Connection',
   'edge.when': 'When to follow this line',

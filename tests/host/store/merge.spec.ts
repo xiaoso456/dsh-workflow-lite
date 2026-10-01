@@ -204,3 +204,28 @@ describe('mergeDocuments —— 视图态与坐标永不冲突', () => {
     expect(findNode(result.document, 'a')?.position).toEqual({ x: 8, y: 9 })
   })
 })
+
+describe('mergeDocuments —— 工作流设置按字段合并', () => {
+  const base = { ...doc([node('a')]), settings: { outputRoot: 'out' } }
+
+  it('一边改根目录、一边改执行方式：两边都留下，不报冲突', () => {
+    const mine = { ...base, settings: { outputRoot: 'build/out' } }
+    const theirs = { ...base, settings: { outputRoot: 'out', mode: 'team' as const } }
+    const merged = mergeDocuments(base, mine, theirs)
+    expect(merged.document.settings).toEqual({ outputRoot: 'build/out', mode: 'team' })
+    expect(merged.conflictIds).toEqual([])
+  })
+
+  it('同一字段两边改成不一样：报 settings 冲突，本地优先', () => {
+    const mine = { ...base, settings: { outputRoot: 'mine' } }
+    const theirs = { ...base, settings: { outputRoot: 'theirs' } }
+    const merged = mergeDocuments(base, mine, theirs)
+    expect(merged.document.settings).toEqual({ outputRoot: 'mine' })
+    expect(merged.conflictIds).toEqual(['settings'])
+  })
+
+  it('对方清掉了设置、本地没动：采纳清除', () => {
+    const merged = mergeDocuments(base, base, doc([node('a')]))
+    expect(merged.document.settings).toBeUndefined()
+  })
+})

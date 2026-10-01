@@ -31,6 +31,7 @@ import {
   checkWhen,
   isVerdictWhen,
 } from './naming.ts'
+import { checkOutputRoot } from './outputPaths.ts'
 import type {
   ValidationCode,
   ValidationLevel,
@@ -105,6 +106,11 @@ export function validateDocument(
       ),
     )
   }
+
+  // ── 保存级：工作流设置 ──────────────────────────────────────
+  const root = document.settings?.outputRoot
+  const rootProblem = root === undefined ? null : checkOutputRoot(root)
+  if (rootProblem !== null) save.push(mk('save', rootProblem.code, rootProblem.message))
 
   // ── 保存级：id 唯一性（大小写不敏感——它们会撞同一个载荷文件名） ──
   const byKey = new Map<string, string[]>()

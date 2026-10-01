@@ -15,11 +15,33 @@
 /** 节点类型标记。取值集合只有这一个；读到未知 `type` 按它渲染并报**警告**。 */
 export const NODE_TYPE = 'wfNode'
 
-/** 一张图 = 一个 JSON 的顶层形状（React Flow 原生三件套）。 */
+/** 一张图 = 一个 JSON 的顶层形状（React Flow 原生三件套 + 可选的工作流设置）。 */
 export interface WorkflowDocument {
   nodes: WorkflowNode[]
   edges: WorkflowEdge[]
   viewport: Viewport
+  /** 整张工作流的设置；全是缺省值时整键不写（老文件不受影响）。 */
+  settings?: WorkflowSettings
+}
+
+/**
+ * 执行方式：
+ * - `auto` 不规定，由主 agent 自己决定（缺省）；
+ * - `serial` 主 agent 本人逐个执行；
+ * - `subagent` 主 agent 当 leader，每个节点派一个子代理；
+ * - `team` 主 agent 当 Team Lead，节点交给 Agent Team 的队员。
+ */
+export const EXECUTION_MODES = ['auto', 'serial', 'subagent', 'team'] as const
+export type ExecutionMode = (typeof EXECUTION_MODES)[number]
+
+export interface WorkflowSettings {
+  /**
+   * 产出根目录：相对路径（相对工作区）或绝对路径，存规范化后的写法（`shared/outputPaths.ts`）。
+   * 编译时每个产出文件都拼在它下面。缺省 = 工作区根。
+   */
+  outputRoot?: string
+  /** 执行方式；缺省 = `auto`（`auto` 不写盘）。 */
+  mode?: Exclude<ExecutionMode, 'auto'>
 }
 
 export interface Viewport {
@@ -84,7 +106,7 @@ export interface EdgeData {
 }
 
 /** 顶层键序（canonical writer 与白名单的唯一口径）。 */
-export const DOCUMENT_KEYS = ['nodes', 'edges', 'viewport'] as const
+export const DOCUMENT_KEYS = ['nodes', 'edges', 'viewport', 'settings'] as const
 
 /** node 的写出键序。 */
 export const NODE_KEYS = ['id', 'type', 'position', 'data'] as const
@@ -162,6 +184,7 @@ export type ValidationCode =
   | 'output_invalid'
   | 'name_invalid'
   | 'workflow_dir_collision'
+  | 'settings_invalid'
   // 编译级
   | 'prompt_empty'
   | 'too_many_nodes'
@@ -194,7 +217,7 @@ export interface ValidationProblem {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 工具线格式（唯一工具 workflow_lite，12 个 action）
+// 工具线格式（唯一工具 workflow_lite，13 个 action）
 // ─────────────────────────────────────────────────────────────
 
 export const TOOL_NAME = 'workflow_lite'
@@ -212,6 +235,7 @@ export const ACTIONS = [
   'rename_workflow',
   'delete_workflow',
   'save_as_template',
+  'configure',
 ] as const
 
 export type Action = (typeof ACTIONS)[number]
@@ -287,6 +311,8 @@ export interface NodeIndexEntry {
 export interface ReadIndexResult {
   workflow: string
   viewport: Viewport
+  /** 工作流设置（有才给）。 */
+  settings?: WorkflowSettings
   nodes: NodeIndexEntry[]
   warnings: ToolWarning[]
 }
@@ -327,6 +353,7 @@ export type ToolSuccess =
   | { action: 'rename_workflow'; result: WriteResult }
   | { action: 'delete_workflow'; result: WriteResult }
   | { action: 'save_as_template'; result: WriteResult }
+  | { action: 'configure'; result: WriteResult }
 
 // ─────────────────────────────────────────────────────────────
 // 图语义（供编译器与画布共用）

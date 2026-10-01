@@ -749,3 +749,86 @@ describe('自然语言条件', () => {
     expect(single).toContain('**条件**：`a` 完成后，只有当「用户确认了方案」时才走 `b`。')
   })
 })
+
+describe('工作流设置：产出根目录', () => {
+  const nodes = [
+    n('scan', '扫', {
+      output: [{ path: 'scan.md', rule: '列出可疑点' }, { path: './data/risk.json' }],
+    }),
+    n('fix', '修', { output: 'fix.md' }),
+  ]
+  const withRoot = (outputRoot: string): WorkflowDocument => ({
+    ...doc(nodes, [edge('scan', 'fix')]),
+    settings: { outputRoot },
+  })
+
+  it('相对根目录：表格、交付句子、产出要求里的路径都拼好并标准化', () => {
+    const plan = planFor(withRoot('artifacts/run'))
+    expect(plan).toContain('**产出根目录**：`artifacts/run`（相对工作区）')
+    expect(tableRow(plan, 'scan')).toContain('artifacts/run/scan.md、artifacts/run/data/risk.json')
+    expect(plan).toContain('`fix` 的输入来自 `scan` 的产出 `artifacts/run/scan.md`')
+    expect(plan).toContain('- `scan` → `artifacts/run/scan.md`：列出可疑点')
+    expect(plan).toContain('产出一律写到产出根目录下')
+  })
+
+  it('Windows 绝对根目录：反斜杠与尾斜杠都规范掉，不会出现 // 或缺分隔符', () => {
+    const plan = planFor(withRoot('D:\\work\\out\\\\'))
+    expect(plan).toContain('**产出根目录**：`D:/work/out`（绝对路径）')
+    expect(tableRow(plan, 'fix')).toContain('D:/work/out/fix.md')
+    expect(plan).not.toMatch(/out\/\/|out[^/]fix/u)
+  })
+
+  it('没配根目录时与原来逐字一致', () => {
+    const plain = planFor(doc(nodes, [edge('scan', 'fix')]))
+    expect(plain).not.toContain('产出根目录')
+    expect(tableRow(plain, 'scan')).toContain('scan.md、data/risk.json')
+    expect(plain).toContain('产出写到工作区里')
+  })
+})
+
+describe('工作流设置：执行方式', () => {
+  const base = doc([n('a', 'x'), n('b', 'y')], [edge('a', 'b')])
+  const planIn = (mode?: 'serial' | 'subagent' | 'team'): string =>
+    planFor(mode === undefined ? base : { ...base, settings: { mode } })
+
+  it('缺省（自动）保留原来的"不规定怎么执行"', () => {
+    expect(planIn()).toContain('**它不规定你怎么执行**')
+  })
+
+  it('串行：主 agent 本人逐个做', () => {
+    const plan = planIn('serial')
+    expect(plan).toContain('**执行方式：串行。**')
+    expect(plan).not.toContain('它不规定你怎么执行')
+  })
+
+  it('子代理：主 agent 当 leader、用 subagent 工具派发，并给出工具不可用时的退路', () => {
+    const plan = planIn('subagent')
+    expect(plan).toContain('你是 leader')
+    expect(plan).toContain('`subagent`')
+    expect(plan).toContain('这些工具不可用时')
+  })
+
+  it('团队：主 agent 当 Team Lead，用 Agent Team 的工具', () => {
+    const plan = planIn('team')
+    expect(plan).toContain('你是 Team Lead')
+    for (const tool of ['`spawn_teammate`', '`send_message`', '`wait_agent`']) {
+      expect(plan).toContain(tool)
+    }
+  })
+
+  it('设置参与内容寻址：换执行方式就换 planId', () => {
+    expect(planIdOf(base)).not.toBe(planIdOf({ ...base, settings: { mode: 'team' } }))
+  })
+})
+
+describe('执行方式：leader 形态不让主 agent 进入角色', () => {
+  it('子代理 / 团队模式换掉"进入那个角色"那句', () => {
+    const base = doc([n('a', 'x')], [])
+    for (const mode of ['subagent', 'team'] as const) {
+      const plan = planFor({ ...base, settings: { mode } })
+      expect(plan).toContain('不要自己扮演这些角色')
+      expect(plan).not.toContain('进入那个角色')
+    }
+    expect(planFor({ ...base, settings: { mode: 'serial' } })).toContain('进入那个角色')
+  })
+})

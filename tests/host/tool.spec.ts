@@ -302,3 +302,52 @@ describe('workflow_lite —— 正常路径', () => {
     expect(node.id).toBe('mine')
   })
 })
+
+describe('workflow_lite —— configure（工作流设置）', () => {
+  it('改根目录与执行方式 → read 带回设置、compile 用上它们', async () => {
+    await run({ action: 'create', workflow: 'cfg' })
+    await run({ action: 'write_node', workflow: 'cfg', node: 'a', content: '做事', output: 'a.md' })
+    const done = record(
+      await run({
+        action: 'configure',
+        workflow: 'cfg',
+        output_root: 'out//run/',
+        mode: 'subagent',
+      }),
+    )
+    expect(done.changed).toBeDefined()
+    const index = record(await run({ action: 'read', workflow: 'cfg' }))
+    expect(index.settings).toEqual({ outputRoot: 'out/run', mode: 'subagent' })
+    const compiled = record(await run({ action: 'compile', workflow: 'cfg' }, EXEC))
+    expect(String(compiled.plan)).toContain('out/run/a.md')
+    expect(String(compiled.plan)).toContain('`subagent`')
+
+    // 空串清根目录、auto 清执行方式：设置整键消失。
+    await run({ action: 'configure', workflow: 'cfg', output_root: '', mode: 'auto' })
+    expect(record(await run({ action: 'read', workflow: 'cfg' })).settings).toBeUndefined()
+  })
+
+  it('什么都不给、或根目录不合法：invalid_args', async () => {
+    await run({ action: 'create', workflow: 'cfg2' })
+    expect(errorCode(await run({ action: 'configure', workflow: 'cfg2' }))).toBe('invalid_args')
+    expect(
+      errorCode(await run({ action: 'configure', workflow: 'cfg2', output_root: '~/out' })),
+    ).toBe('invalid_args')
+  })
+})
+
+describe('工作流设置的校验', () => {
+  it('根目录带控制字符是保存级 settings_invalid', () => {
+    const report = validateDocument(
+      {
+        nodes: [],
+        edges: [],
+        viewport: { x: 0, y: 0, zoom: 1 },
+        settings: { outputRoot: 'a\u0007b' },
+      },
+      { workflowName: 'g', maxNodes: 200 },
+    )
+    expect(report.save.map((problem) => problem.code)).toContain('settings_invalid')
+    expect(report.canLoad).toBe(false)
+  })
+})

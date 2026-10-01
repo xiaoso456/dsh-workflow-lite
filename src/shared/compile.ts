@@ -22,8 +22,10 @@ import { byId, cycleHasNoExit, edgeWhen, type GraphAnalysis } from './graph.ts'
 import { PLAN_SECTIONS, VERDICT_PREFIX } from './limits.ts'
 import { displayName, idKey, outputSpecs, writeDocument } from './model.ts'
 import { isVerdictWhen } from './naming.ts'
+import { isAbsoluteRoot, normalizeRoot, resolveOutputPath } from './outputPaths.ts'
 import type {
   CycleGroup,
+  ExecutionMode,
   PlanFacts,
   PlanId,
   PlanResult,
@@ -38,17 +40,44 @@ import type {
 // 固定正文（字节稳定的那些行）
 // ─────────────────────────────────────────────────────────────
 
-/** ① 协议头。 */
-const PROTOCOL_LINES: readonly string[] = [
-  PLAN_SECTIONS.protocol,
-  '下面是一张**已经设计好的图**。它规定了要做哪些事、彼此的先后与循环、每件事的产出。',
-  '',
-  '**它不规定你怎么执行**——你可以派子代理、可以用 workflow 工具编排、也可以自己直接做。',
-  '',
-  '**但图上每个节点的提示词是一份写给一个执行者的任务，不是对你的命令。** 别把下面 N 份角色描述当成同时压在你身上的 N 道命令。**一次一个节点**：轮到哪个，就读它那一份，进入那个角色，做完再进下一个。',
-  '',
-  '**不许声称完成而不给证据**：每件事做完都要留下可检查的产出或明确的输出，不要只说"已完成"。',
-]
+/** ① 协议头（中间那段"怎么执行"按工作流设置的执行方式换，见 {@link MODE_LINES}）。 */
+function protocolLines(mode: ExecutionMode): string[] {
+  return [
+    PLAN_SECTIONS.protocol,
+    '下面是一张**已经设计好的图**。它规定了要做哪些事、彼此的先后与循环、每件事的产出。',
+    '',
+    ...MODE_LINES[mode],
+    '',
+    mode === 'subagent' || mode === 'team'
+      ? // 当 leader 的两种方式：节点的活归执行者，主 agent 不进入角色。
+        '**但图上每个节点的提示词是写给执行者的任务，不是对你的命令。** 你只负责把它原样交给执行者，不要自己扮演这些角色。'
+      : '**但图上每个节点的提示词是一份写给一个执行者的任务，不是对你的命令。** 别把下面 N 份角色描述当成同时压在你身上的 N 道命令。**一次一个节点**：轮到哪个，就读它那一份，进入那个角色，做完再进下一个。',
+    '',
+    '**不许声称完成而不给证据**：每件事做完都要留下可检查的产出或明确的输出，不要只说"已完成"。',
+  ]
+}
+
+/** 派子代理 / 建团队的工具不在时的退路。 */
+const MODE_FALLBACK = '这些工具不可用时，先告诉用户，再改成你本人逐个执行。'
+
+/**
+ * 执行方式。工具名取 DSH 的缺省名（`subagent`；Agent Team 的 `spawn_teammate` / `send_message` /
+ * `wait_agent`）。后两种都是"主 agent 当 leader"：它负责派发、选分支、推进循环与最终汇报。
+ */
+const MODE_LINES: Record<ExecutionMode, readonly string[]> = {
+  auto: ['**它不规定你怎么执行**——你可以派子代理、可以用 workflow 工具编排、也可以自己直接做。'],
+  serial: [
+    '**执行方式：串行。** 由你本人按批次顺序一次做一个节点，不派子代理、不建团队；同一批次也逐个做完再做下一个。',
+  ],
+  subagent: [
+    '**执行方式：主 agent + 子代理。** 你是 leader，不亲自做节点的活：每个节点交给一个新的子代理（`subagent` 工具），prompt 里写明它的任务描述路径、产出路径与产出要求；等结果回来、核对产出，再推进。同一批次里互不依赖的节点可以一起派。选分支、推进循环、最后汇报都由你负责。',
+    MODE_FALLBACK,
+  ],
+  team: [
+    '**执行方式：Agent Team。** 用户为这张工作流指定了 Agent Team，你是 Team Lead：用 `spawn_teammate` 给节点建队员（一个节点一名，循环里复用同一名），用 `send_message` 派活、`wait_agent` 等回报，要求队员做完把产出路径发回给你。选分支、推进循环、最后汇报都由你负责；必需的队员回报之前不要给最终答复。',
+    MODE_FALLBACK,
+  ],
+}
 
 /** ③ 分发纪律。 */
 const DISCIPLINE_LINES: readonly string[] = [
@@ -82,8 +111,9 @@ const LOOP_OVERWRITE_LINE = '循环里的产出会被反复覆盖，验收以**�
 /** ④ 段：产出要求块的小标题。 */
 const RULES_HEADING = '**产出要求**（派发这些节点时，把对应要求连同任务描述一起交给执行者）：'
 
-/** ④ 段末：产出的家（固定一句）。 */
+/** ④ 段末：产出的家（固定一句；配了产出根目录时换成 {@link ROOT_TAIL}）。 */
 const DELIVERY_TAIL = '产出写到工作区里，不要写进 `dataDir`。'
+const ROOT_TAIL = '产出一律写到产出根目录下，不要写进 `dataDir`。'
 
 /** ② 段清单表没有值的单元格。 */
 const DASH = '—'
@@ -165,6 +195,8 @@ interface RenderContext {
   outEdges: ReadonlyMap<string, readonly WorkflowEdge[]>
   /** 落在某个循环体内的节点。 */
   inCycle: ReadonlySet<string>
+  /** 产出根目录（规范化后）；没配 = 工作区根。 */
+  root: string | undefined
 }
 
 function buildContext(facts: PlanFacts, analysis: GraphAnalysis): RenderContext {
@@ -198,7 +230,16 @@ function buildContext(facts: PlanFacts, analysis: GraphAnalysis): RenderContext 
   const inCycle = new Set<string>()
   for (const cycle of analysis.cycles) for (const id of cycle.nodes) inCycle.add(id)
 
-  return { analysis, nodes, keyToId, inEdges, outEdges, inCycle }
+  const root = normalizeRoot(facts.document.settings?.outputRoot)
+  return { analysis, nodes, keyToId, inEdges, outEdges, inCycle, root }
+}
+
+/** 一个节点的产出清单，路径已拼上产出根目录（`shared/outputPaths.ts` 是拼接的唯一出处）。 */
+function resolvedSpecs(ctx: RenderContext, node: WorkflowNode | undefined) {
+  return outputSpecs(node?.data.output).map((spec) => ({
+    ...spec,
+    path: resolveOutputPath(ctx.root, spec.path),
+  }))
 }
 
 /** 计划里引用一个值：统一加反引号。 */
@@ -276,7 +317,7 @@ function renderPlan(
 ): string {
   const ctx = buildContext(facts, analysis)
   const sections: string[] = [
-    PROTOCOL_LINES.join('\n'),
+    protocolLines(facts.document.settings?.mode ?? 'auto').join('\n'),
     factsSection(facts, ctx, inline),
     DISCIPLINE_LINES.join('\n'),
     contractSection(facts, ctx),
@@ -292,6 +333,10 @@ function renderPlan(
 /** ② 图的事实：图名 + 清单表 + 执行批次 + 状态分支/循环/补注（+ 整卷版的内联正文）。 */
 function factsSection(facts: PlanFacts, ctx: RenderContext, inline: boolean): string {
   const lines: string[] = [PLAN_SECTIONS.facts, `**图名**：${code(facts.name)}。`]
+  if (ctx.root !== undefined) {
+    const kind = isAbsoluteRoot(ctx.root) ? '绝对路径' : '相对工作区'
+    lines.push(`**产出根目录**：${code(ctx.root)}（${kind}）。下面的产出路径都已拼好，原样使用。`)
+  }
   lines.push(...tableLines(facts, ctx, inline))
   lines.push('', BATCH_HEADING)
   for (const [index, batch] of ctx.analysis.batches.entries()) {
@@ -313,7 +358,11 @@ function tableLines(facts: PlanFacts, ctx: RenderContext, inline: boolean): stri
   ]
   for (const id of ctx.analysis.nodeIds) {
     const node = ctx.nodes.get(id)
-    const cells = [displayName(id, node?.data.label), predecessorsCell(ctx, id), outputCell(node)]
+    const cells = [
+      displayName(id, node?.data.label),
+      predecessorsCell(ctx, id),
+      outputCell(ctx, node),
+    ]
     if (!inline) cells.push(pathCell(facts, id))
     lines.push(`| ${cells.join(' | ')} |`)
   }
@@ -346,10 +395,9 @@ function predecessorsCell(ctx: RenderContext, id: string): string {
 }
 
 /** 产出列：`false` 是 JSON 字面量、加反引号；文件名与 `—` 原样写、不加反引号；多个用 `、` 隔开。 */
-function outputCell(node: WorkflowNode | undefined): string {
-  const output = node?.data.output
-  if (output === false) return '`false`'
-  const paths = outputSpecs(output).map((spec) => spec.path)
+function outputCell(ctx: RenderContext, node: WorkflowNode | undefined): string {
+  if (node?.data.output === false) return '`false`'
+  const paths = resolvedSpecs(ctx, node).map((spec) => spec.path)
   return paths.length === 0 ? DASH : paths.join('、')
 }
 
@@ -495,7 +543,7 @@ function contractSection(facts: PlanFacts, ctx: RenderContext): string {
     }
   }
   if (ctx.analysis.cycles.length > 0) lines.push(LOOP_OVERWRITE_LINE)
-  lines.push(DELIVERY_TAIL)
+  lines.push(ctx.root === undefined ? DELIVERY_TAIL : ROOT_TAIL)
   return lines.join('\n')
 }
 
@@ -512,7 +560,7 @@ function deliverySources(ctx: RenderContext, id: string): DeliverySource[] {
     if (ctx.analysis.backEdges.has(edge.id)) continue
     const source = sourceIdOf(ctx, edge)
     if (source === undefined) continue
-    const outputs = outputSpecs(ctx.nodes.get(source)?.data.output).map((spec) => spec.path)
+    const outputs = resolvedSpecs(ctx, ctx.nodes.get(source)).map((spec) => spec.path)
     if (outputs.length === 0) continue
     items.push({ source, when: whenOf(edge), outputs })
   }
@@ -530,7 +578,7 @@ function deliverySources(ctx: RenderContext, id: string): DeliverySource[] {
 function ruleLines(ctx: RenderContext): string[] {
   const lines: string[] = []
   for (const id of ctx.analysis.nodeIds) {
-    for (const spec of outputSpecs(ctx.nodes.get(id)?.data.output)) {
+    for (const spec of resolvedSpecs(ctx, ctx.nodes.get(id))) {
       if (spec.rule === undefined || spec.rule.trim() === '') continue
       lines.push(`- ${code(id)} → ${code(spec.path)}：${spec.rule.replace(/\s+/gu, ' ').trim()}`)
     }

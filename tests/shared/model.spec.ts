@@ -384,3 +384,35 @@ describe('产出清单与描述', () => {
     expect(sameNodeData({ output: [{ path: 'a.md', rule: 'x' }] }, { output: 'a.md' })).toBe(false)
   })
 })
+
+describe('工作流设置', () => {
+  it('全缺省时不写 settings 键（老文件逐字节不变）', () => {
+    const text = writeDocument(doc())
+    expect(text).not.toContain('settings')
+    expect(writeDocument(doc({ settings: { mode: 'auto' as never } }))).not.toContain('settings')
+  })
+
+  it('读入时根目录标准化、认不出的执行方式当缺省；写出排在 viewport 之后', () => {
+    const parsed = normalizeDocument({
+      nodes: [],
+      edges: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      settings: { outputRoot: ' out//run/ ', mode: 'team', extra: 1 },
+    })
+    expect(parsed.document?.settings).toEqual({ outputRoot: 'out/run', mode: 'team' })
+    const text = writeDocument(parsed.document ?? doc())
+    expect(text.indexOf('"viewport"')).toBeLessThan(text.indexOf('"settings"'))
+    expect(
+      normalizeDocument({ nodes: [], edges: [], settings: { mode: 'warp' } }).document?.settings,
+    ).toBeUndefined()
+  })
+
+  it('往返稳定，cloneDocument 不和原件共用设置对象', () => {
+    const original = doc({ settings: { outputRoot: 'D:/out', mode: 'subagent' } })
+    const again = readDocument(writeDocument(original)).document
+    expect(again?.settings).toEqual(original.settings)
+    const copy = cloneDocument(original)
+    expect(copy.settings).toEqual(original.settings)
+    expect(copy.settings).not.toBe(original.settings)
+  })
+})

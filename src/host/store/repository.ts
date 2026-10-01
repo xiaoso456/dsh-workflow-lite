@@ -32,7 +32,9 @@ import {
   normalizeCoord,
   readDocument,
   readNodeData,
+  readSettings,
   sameNodeData,
+  sameSettings,
   writeDocument,
 } from '../../shared/model.ts'
 import {
@@ -44,9 +46,11 @@ import {
   normalizeName,
   sameName,
 } from '../../shared/naming.ts'
+import { checkOutputRoot } from '../../shared/outputPaths.ts'
 import {
   type ChangedEntry,
   type ErrorCode,
+  type ExecutionMode,
   type ListResult,
   NODE_TYPE,
   type NodeData,
@@ -229,6 +233,11 @@ export interface Repository {
   deleteNodeTemplate(name: string): Promise<Outcome<WriteResult>>
   writeNode(workflow: string, upsert: NodeUpsert): Promise<Outcome<WriteResult>>
   setLabel(workflow: string, node: string, label: string): Promise<Outcome<WriteResult>>
+  /** 改工作流设置（产出根目录、执行方式）；给了的字段才改。 */
+  configure(
+    workflow: string,
+    patch: { outputRoot?: string; mode?: ExecutionMode },
+  ): Promise<Outcome<WriteResult>>
   deleteNode(workflow: string, node: string): Promise<Outcome<WriteResult>>
   connect(
     workflow: string,
@@ -1080,6 +1089,39 @@ class FileRepository implements Repository {
         ok: true,
         document,
         changed: [{ kind: 'node', op: 'update', id: target.id, detail: { field: 'label' } }],
+        warnings: [],
+      }
+    })
+  }
+
+  /**
+   * 改工作流设置。给了的字段才改：`outputRoot` 空串 = 清除（回到工作区根），`mode: 'auto'` = 清除。
+   */
+  async configure(
+    workflow: string,
+    patch: { outputRoot?: string; mode?: ExecutionMode },
+  ): Promise<Outcome<WriteResult>> {
+    return this.mutate(workflow, async (document) => {
+      if (patch.outputRoot !== undefined) {
+        const issue = checkOutputRoot(patch.outputRoot)
+        if (issue !== null) {
+          return fail('invalid_args', `output_root 不合法：${issue.message}`, { code: issue.code })
+        }
+      }
+      const before = document.settings
+      const next = readSettings({
+        outputRoot: patch.outputRoot ?? before?.outputRoot,
+        mode: patch.mode ?? before?.mode,
+      })
+      if (sameSettings(before, next)) return { ok: true, document, changed: [], warnings: [] }
+      if (next === undefined) delete document.settings
+      else document.settings = next
+      return {
+        ok: true,
+        document,
+        changed: [
+          { kind: 'workflow', op: 'update', id: workflow, detail: { settings: next ?? {} } },
+        ],
         warnings: [],
       }
     })

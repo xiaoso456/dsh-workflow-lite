@@ -11,7 +11,8 @@
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { ReactFlowProvider, useReactFlow, useViewport } from '@xyflow/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { NodeData, Point } from '../../shared/types.ts'
+import { outputSpecs, SETTINGS_CONFLICT_ID } from '../../shared/model.ts'
+import type { NodeData, Point, WorkflowDocument } from '../../shared/types.ts'
 import { useWorkflow, type Workflow } from '../app/useWorkflow.ts'
 import type { LocaleKey, NS, T } from '../i18n.ts'
 import { findNode, type Selection } from '../model/editor.ts'
@@ -33,6 +34,7 @@ import type { OutputRequest } from './Outputs.tsx'
 import { PlanDialog } from './PlanDialog.tsx'
 import { cx, ModalHostProvider, Popover } from './primitives.tsx'
 import { QuickAdd } from './QuickAdd.tsx'
+import { SettingsDialog } from './SettingsDialog.tsx'
 import { StepPanel } from './StepPanel.tsx'
 import css from './shell.module.css'
 import { TopBar } from './TopBar.tsx'
@@ -122,6 +124,7 @@ function Shell(props: { rpc: WorkflowLiteRpc; t: T }): React.JSX.Element {
   const [libraryDrawer, setLibraryDrawer] = useState(false)
   const libraryOpen = narrow ? libraryDrawer : libraryPref
   const [planOpen, setPlanOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [quick, setQuick] = useState<(AddRequest & { at: Point }) | null>(null)
   const [keysOpen, setKeysOpen] = useState(false)
   /** 刚加进来的空白步骤：属性面板出来时把光标放进提示词。 */
@@ -486,6 +489,7 @@ function Shell(props: { rpc: WorkflowLiteRpc; t: T }): React.JSX.Element {
             onTidy={relayout}
             onLocate={locate}
             onPreview={() => setPlanOpen(true)}
+            onSettings={() => setSettingsOpen(true)}
           />
         </div>
 
@@ -557,7 +561,12 @@ function Shell(props: { rpc: WorkflowLiteRpc; t: T }): React.JSX.Element {
               <span className={css.bannerText}>
                 {t('banner.conflict')}
                 {wf.conflict.length > 0 && (
-                  <span className={css.bannerIds}> · {wf.conflict.join(', ')}</span>
+                  <span className={css.bannerIds}>
+                    {' · '}
+                    {wf.conflict
+                      .map((id) => (id === SETTINGS_CONFLICT_ID ? t('settings.conflict') : id))
+                      .join(', ')}
+                  </span>
                 )}
               </span>
               <button
@@ -600,6 +609,20 @@ function Shell(props: { rpc: WorkflowLiteRpc; t: T }): React.JSX.Element {
           />
         )}
 
+        {settingsOpen && state.name !== null && doc !== null && (
+          <SettingsDialog
+            t={t}
+            name={state.name}
+            settings={doc.settings}
+            sample={sampleOutput(doc)}
+            onSave={(settings) => {
+              setSettingsOpen(false)
+              wf.edit({ type: 'setSettings', settings })
+            }}
+            onClose={() => setSettingsOpen(false)}
+          />
+        )}
+
         {planOpen && state.name !== null && (
           <PlanDialog
             t={t}
@@ -628,6 +651,15 @@ function Shell(props: { rpc: WorkflowLiteRpc; t: T }): React.JSX.Element {
       </ModalHostProvider>
     </div>
   )
+}
+
+/** 设置对话框里拼接预览用的示例：图里第一个产出文件，没有就用 `plan.md`。 */
+function sampleOutput(doc: WorkflowDocument): string {
+  for (const node of doc.nodes) {
+    const [first] = outputSpecs(node.data.output)
+    if (first !== undefined) return first.path
+  }
+  return 'plan.md'
 }
 
 // ─────────────────────────────────────────────────────────────

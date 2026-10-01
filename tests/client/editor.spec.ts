@@ -259,3 +259,22 @@ describe('保存', () => {
     expect(synced.past).toEqual([])
   })
 })
+
+describe('工作流设置', () => {
+  it('setSettings 规范化后写进文档，算一条撤销步；全缺省等于清掉', () => {
+    const state = run(loaded(doc()), {
+      type: 'setSettings',
+      settings: { outputRoot: 'out//run/', mode: 'serial' },
+    })
+    expect(state.doc?.settings).toEqual({ outputRoot: 'out/run', mode: 'serial' })
+    expect(isDirty(state)).toBe(true)
+    expect(run(state, { type: 'undo' }).doc?.settings).toBeUndefined()
+    const cleared = run(state, { type: 'setSettings', settings: { outputRoot: ' ' } })
+    expect(cleared.doc !== null && 'settings' in cleared.doc).toBe(false)
+  })
+
+  it('没变化的设置不算改动', () => {
+    const start = loaded(doc({ settings: { mode: 'team' } }))
+    expect(run(start, { type: 'setSettings', settings: { mode: 'team' } })).toBe(start)
+  })
+})

@@ -37,6 +37,14 @@ const PATHS = {
   reload: 'M20 12a8 8 0 11-2.4-5.7M20 4v5h-5',
   arrowRight: 'M5 12h14M13 6l6 6-6 6',
   folder: 'M3 7h6l2 2h10v10H3z',
+  sliders: 'M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4',
+  // 执行方式
+  modeAuto:
+    'M12 3v3M12 18v3M3 12h3M18 12h3M6.3 6.3l2.1 2.1M15.6 15.6l2.1 2.1M6.3 17.7l2.1-2.1M15.6 8.4l2.1-2.1',
+  modeSerial: 'M3 10h5v4H3zM16 10h5v4h-5zM8 12h8M13 9.5l3 2.5-3 2.5',
+  modeSubagent: 'M9 3h6v5H9zM3 16h5v5H3zM16 16h5v5h-5zM12 8v4M5.5 16v-4h13v4',
+  modeTeam:
+    'M9 11a3 3 0 100-6 3 3 0 000 6zM3 20c0-3 2.7-5 6-5s6 2 6 5M16 5.5a3 3 0 010 5.5M18 15c1.8.6 3 2.4 3 5',
   // 步骤种类
   scan: 'M11 18a7 7 0 100-14 7 7 0 000 14zM20 20l-4-4M8.5 11h5',
   plan: 'M9 6h11M9 12h11M9 18h11M4 6h1M4 12h1M4 18h1',

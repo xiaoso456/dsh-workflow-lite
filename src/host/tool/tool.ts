@@ -23,6 +23,7 @@ import { idKey } from '../../shared/model.ts'
 import { checkName } from '../../shared/naming.ts'
 import type {
   ChangedEntry,
+  ExecutionMode,
   NodeIndexEntry,
   ReadIndexResult,
   ReadNodeResult,
@@ -31,7 +32,7 @@ import type {
   WorkflowDocument,
   WorkflowNode,
 } from '../../shared/types.ts'
-import { ACTIONS, type Action, TOOL_NAME } from '../../shared/types.ts'
+import { ACTIONS, type Action, EXECUTION_MODES, TOOL_NAME } from '../../shared/types.ts'
 import { compileWorkflow } from '../plan.ts'
 import { writeFileAtomic } from '../store/atomic.ts'
 import { templateFile, templateOccupant } from '../store/paths.ts'
@@ -57,7 +58,8 @@ const DESCRIPTION = [
   'compile 编译成派发计划并把载荷物化进 .dispatch（模型据此自己组织执行）/ ',
   'create 新建图（可从工作流模板）/ write_node 新建或覆盖一个节点 / set_label 改显示名（id 不可改）/ ',
   'delete_node 删节点（连带删边）/ connect、disconnect 增删边 / rename_workflow、delete_workflow 改名删图 / ',
-  'save_as_template 存成模板（给了 node 就存成节点模板）。',
+  'save_as_template 存成模板（给了 node 就存成节点模板）/ ',
+  'configure 改工作流设置（output_root 产出根目录、mode 执行方式）。',
   '节点定位一律用 id。',
 ].join('')
 
@@ -201,6 +203,8 @@ export interface WorkflowLiteArgs {
   when?: string
   goal?: string
   full?: boolean
+  output_root?: string
+  mode?: ExecutionMode
 }
 
 /** `execute` 真正用到的那一小块执行上下文（完整 `ToolRunContext` 结构上兼容它）。 */
@@ -267,6 +271,7 @@ export function createWorkflowLiteHandler(
           const result: ReadIndexResult = {
             workflow: name,
             viewport: load.document.viewport,
+            ...(load.document.settings === undefined ? {} : { settings: load.document.settings }),
             nodes: sortedNodes(load.document).map((node) =>
               indexEntry(load.document ?? document0(), node),
             ),
@@ -435,6 +440,22 @@ export function createWorkflowLiteHandler(
         return finish(outcome.result)
       }
 
+      case 'configure': {
+        const name = requireWorkflow(args.workflow)
+        if (name === null) return missingWorkflow()
+        if (args.output_root === undefined && args.mode === undefined) {
+          return errorValue({
+            error: { code: 'invalid_args', message: 'configure 需要 output_root 或 mode' },
+          })
+        }
+        const outcome = await repository.configure(name, {
+          ...(args.output_root === undefined ? {} : { outputRoot: args.output_root }),
+          ...(args.mode === undefined ? {} : { mode: args.mode }),
+        })
+        if (!outcome.ok) return errorValue(outcome)
+        return finish(outcome.result)
+      }
+
       default: {
         // switch 必须穷尽：走到这里说明 `ACTIONS` 与分派不同步。
         const exhaustive: never = action
@@ -508,6 +529,17 @@ export const PARAMETERS = {
   },
   goal: { type: 'string', description: 'compile：本次目标（进派发计划的动态尾）。' },
   full: { type: 'boolean', description: 'compile：true = 整卷版（内联正文，给人读）。' },
+  output_root: {
+    type: 'string',
+    description:
+      'configure：产出根目录（相对工作区或绝对路径），编译时拼在每个产出文件前面；空串 = 清除。',
+  },
+  mode: {
+    type: 'string',
+    enum: [...EXECUTION_MODES],
+    description:
+      'configure：执行方式。auto 由主 agent 决定 / serial 本人串行 / subagent 主 agent 派子代理 / team 主 agent 当 Agent Team 的 Lead。',
+  },
 } as const
 
 /**

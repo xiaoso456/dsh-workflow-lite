@@ -18,7 +18,9 @@ import {
   idKey,
   makeEdgeId,
   normalizeCoord,
+  readSettings,
   sameNodeData,
+  sameSettings,
 } from '../../shared/model.ts'
 import {
   NODE_TYPE,
@@ -29,6 +31,7 @@ import {
   type WorkflowDocument,
   type WorkflowEdge,
   type WorkflowNode,
+  type WorkflowSettings,
 } from '../../shared/types.ts'
 
 /** 选中态：步骤、连线，或什么都不选。用一个联合表达，互斥是结构上保证的。 */
@@ -117,6 +120,8 @@ export type Edit =
   | { type: 'setWhen'; id: string; when: string | undefined; merge?: string }
   /** 视口是视图状态：照样落盘，但不进撤销栈。 */
   | { type: 'setViewport'; viewport: Viewport }
+  /** 换掉整份工作流设置（设置对话框「完成」时一次交出来 = 一条撤销步）。 */
+  | { type: 'setSettings'; settings: WorkflowSettings | undefined }
 
 export type Action =
   | Edit
@@ -367,6 +372,14 @@ function applyEdit(doc: WorkflowDocument, selection: Selection, edit: Edit): App
       if (current.x === x && current.y === y && current.zoom === zoom) return null
       return { doc: { ...doc, viewport: { x, y, zoom } }, selection }
     }
+
+    case 'setSettings': {
+      // 走一遍和写盘同一份的规范化：根目录标准化、缺省值不留。
+      const settings = readSettings(edit.settings)
+      if (sameSettings(doc.settings, settings)) return null
+      const { settings: _old, ...rest } = doc
+      return { doc: settings === undefined ? rest : { ...rest, settings }, selection }
+    }
   }
 }
 
@@ -381,6 +394,7 @@ function isEdit(action: Action): action is Edit {
     case 'removeEdge':
     case 'setWhen':
     case 'setViewport':
+    case 'setSettings':
       return true
     default:
       return false

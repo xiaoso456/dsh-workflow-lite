@@ -65,9 +65,9 @@ export default defineConfig([
     clean: false,
     deps: {
       neverBundle: CLIENT_EXTERNALS,
-      // tsdown 默认会把 `dependencies` 外部化——但 `@xyflow/react` / `elkjs` 是我们自己的产物，
+      // tsdown 默认会把 `dependencies` 外部化——但 `@xyflow/react` / `elkjs` / `pathe` 是我们自己的产物，
       // 必须**打进来**：模块加载器只认冻结的平台 externals，留在 require() 里就是运行时报错。
-      alwaysBundle: [/^@xyflow\//, /^elkjs($|\/)/],
+      alwaysBundle: [/^@xyflow\//, /^elkjs($|\/)/, /^pathe($|\/)/],
     },
     define: {
       'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV ?? 'production'),

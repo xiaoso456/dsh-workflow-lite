@@ -343,6 +343,49 @@ async function run(session) {
   )
   pass('悬停卡片产出 → 浮窗列出文件与规则；点文件 → 打开它的编辑框，Esc 只关框')
 
+  // 7e) 工作流设置：产出根目录（带多余斜杠，保存时标准化）+ 执行方式。
+  await session.evaluate(clickTestId('wl-settings-open'))
+  await waitFor(session, exists('wl-settings'))
+  await setReactInput(session, '[data-testid="wl-settings-root"]', 'artifacts//run/')
+  await waitFor(
+    session,
+    `(document.querySelector('[data-testid="wl-settings-preview"]')?.textContent || '').includes('artifacts/run/')`,
+  )
+  await session.evaluate(clickTestId('wl-settings-mode-subagent'))
+  await sleep(350)
+  await screenshot(session, 'ui-02e-settings.png')
+  await session.evaluate(clickTestId('wl-settings-done'))
+  await waitFor(session, `document.querySelector('[data-testid="wl-settings"]') === null`)
+  await onDisk(
+    NAME,
+    (doc) => doc.settings?.outputRoot === 'artifacts/run' && doc.settings?.mode === 'subagent',
+    '工作流设置',
+  )
+  check(
+    await session.evaluate(
+      `document.querySelector('[data-testid="wl-settings-open"]').getAttribute('data-configured') === 'true'`,
+    ),
+    '改过设置后顶栏按钮应挂上小点',
+  )
+  // 产出编辑框里预览最终路径。
+  await mouseClick(session, await centerOf(session, '.react-flow__node[data-id="plan"]'))
+  await waitFor(session, exists('wl-output-item'))
+  await session.evaluate(
+    `document.querySelector('[data-testid="wl-inspector"] [data-testid="wl-output-item"]').click()`,
+  )
+  await waitFor(session, exists('wl-output-final'))
+  check(
+    (
+      await session.evaluate(
+        `document.querySelector('[data-testid="wl-output-final"]').textContent`,
+      )
+    ).includes('artifacts/run/plan.md'),
+    '产出编辑框应预览拼好的最终路径',
+  )
+  await pressKey(session, 'Escape')
+  await waitFor(session, `document.querySelector('[data-testid="wl-output-dialog"]') === null`)
+  pass('工作流设置：根目录标准化落盘、执行方式落盘，产出框预览最终路径')
+
   // 8) 点选 step，Ctrl+D 复制；Delete 删掉副本。
   await mouseClick(session, await centerOf(session, '.react-flow__node[data-id="step"]'))
   await pressKey(session, 'd', { modifiers: MOD.ctrl })
@@ -385,6 +428,8 @@ async function run(session) {
   check(!modelPlan.includes(`VERDICT: ${CONDITION}`), '自然语言条件不该要求 VERDICT 行')
   check(modelPlan.includes(RULE), '生成规则应进计划的产出要求')
   check(modelPlan.includes('plan-risks.md'), '第二个产出应进计划')
+  check(modelPlan.includes('artifacts/run/plan-risks.md'), '产出路径应拼上产出根目录')
+  check(modelPlan.includes('你是 leader'), '执行方式应进计划')
   await session.evaluate(
     `[...document.querySelectorAll('[data-testid="wl-plan"] [role="radio"]')][1].click()`,
   )

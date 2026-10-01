@@ -360,3 +360,35 @@
     animation: none;
   }
 }
+
+/* 工作流设置：改过设置时右上角一个小点。 */
+.settings {
+  position: relative;
+}
+
+.settings::before {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--wl-accent);
+  content: "";
+  opacity: 0;
+  transform: scale(0.4);
+  transition:
+    opacity 140ms linear,
+    transform 180ms var(--wl-ease);
+}
+
+.settings[data-configured="true"]::before {
+  opacity: 1;
+  transform: scale(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings::before {
+    transition: none;
+  }
+}

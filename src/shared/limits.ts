@@ -42,6 +42,9 @@ export const MAX_VERDICT_CODEPOINTS = 32
 /** 一个节点的描述 / 一条产出规则的长度上限（码点）——同样只防病态输入。 */
 export const MAX_TEXT_CODEPOINTS = 2000
 
+/** 工作流设置里「产出根目录」的长度上限（码点）。 */
+export const MAX_ROOT_CODEPOINTS = 1024
+
 /** `label` 长度上限（码点）——只防病态输入，不参与任何判定。 */
 export const MAX_LABEL_CODEPOINTS = 200
 

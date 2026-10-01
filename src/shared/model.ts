@@ -13,8 +13,10 @@
  */
 
 import { COORD_DECIMALS } from './limits.ts'
+import { normalizeRoot } from './outputPaths.ts'
 import {
   type EdgeData,
+  EXECUTION_MODES,
   NODE_TYPE,
   type NodeData,
   type OutputSpec,
@@ -23,6 +25,7 @@ import {
   type WorkflowDocument,
   type WorkflowEdge,
   type WorkflowNode,
+  type WorkflowSettings,
 } from './types.ts'
 
 /** node 的 data 键序。 */
@@ -166,6 +169,33 @@ export function cloneNodeData(data: NodeData): NodeData {
   return copy
 }
 
+/**
+ * 从原始对象里挑出工作流设置的已知键。根目录存规范化后的写法；认不出的执行方式当缺省（`auto`）。
+ * 全是缺省值时返回 `undefined`（文件里不写这个键）。
+ */
+export function readSettings(raw: unknown): WorkflowSettings | undefined {
+  if (!isPlainObject(raw)) return undefined
+  const settings: WorkflowSettings = {}
+  if (typeof raw.outputRoot === 'string') {
+    const root = normalizeRoot(raw.outputRoot)
+    if (root !== undefined) settings.outputRoot = root
+  }
+  const mode = EXECUTION_MODES.find((candidate) => candidate === raw.mode)
+  if (mode !== undefined && mode !== 'auto') settings.mode = mode
+  return Object.keys(settings).length > 0 ? settings : undefined
+}
+
+/** 冲突清单里代表「工作流设置」的那一项（设置没有 id，用这个固定键）。 */
+export const SETTINGS_CONFLICT_ID = 'settings'
+
+/** 两份设置是否相同（缺省与缺省相等）。 */
+export function sameSettings(
+  a: WorkflowSettings | undefined,
+  b: WorkflowSettings | undefined,
+): boolean {
+  return a?.outputRoot === b?.outputRoot && (a?.mode ?? 'auto') === (b?.mode ?? 'auto')
+}
+
 /** 从原始对象里挑出边 `data` 的已知键。 */
 function readEdgeData(raw: unknown): EdgeData | undefined {
   if (!isPlainObject(raw)) return undefined
@@ -280,7 +310,16 @@ export function normalizeDocument(input: unknown): ParseOutcome {
     )
   }
 
-  return { document: { nodes, edges, viewport: viewport ?? { x: 0, y: 0, zoom: 1 } }, problems }
+  const settings = readSettings(input.settings)
+  return {
+    document: {
+      nodes,
+      edges,
+      viewport: viewport ?? { x: 0, y: 0, zoom: 1 },
+      ...(settings === undefined ? {} : { settings }),
+    },
+    problems,
+  }
 }
 
 /** `JSON.parse` + {@link normalizeDocument}。解析失败就是保存级。 */
@@ -344,6 +383,7 @@ function pickEdge(edge: WorkflowEdge): Record<string, unknown> {
  * 被限制在改动的那一个块里（2 空格缩进的每节点／每边一个多行块）。
  */
 export function writeDocument(document: WorkflowDocument): string {
+  const settings = readSettings(document.settings)
   const payload = {
     nodes: document.nodes.map(pickNode),
     edges: document.edges.map(pickEdge),
@@ -352,6 +392,15 @@ export function writeDocument(document: WorkflowDocument): string {
       y: normalizeCoord(document.viewport.y),
       zoom: normalizeCoord(document.viewport.zoom),
     },
+    // 设置排在最后、全缺省时不写：老文件逐字节不变。
+    ...(settings === undefined
+      ? {}
+      : {
+          settings: {
+            ...(settings.outputRoot === undefined ? {} : { outputRoot: settings.outputRoot }),
+            ...(settings.mode === undefined ? {} : { mode: settings.mode }),
+          },
+        }),
   }
   return `${JSON.stringify(payload, null, 2)}\n`
 }
@@ -369,6 +418,7 @@ export function cloneDocument(document: WorkflowDocument): WorkflowDocument {
       ...(edge.data === undefined ? {} : { data: { ...edge.data } }),
     })),
     viewport: { ...document.viewport },
+    ...(document.settings === undefined ? {} : { settings: { ...document.settings } }),
   }
 }
 

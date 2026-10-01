@@ -1,6 +1,6 @@
 /**
  * dsh-workflow-lite — 顶栏：左边是"我在哪张工作流、存好了没有"，右边是撤销重做、整理、
- * 检查结果与「预览计划」。
+ * 工作流设置、检查结果与「预览计划」。
  *
  * 低频的文件操作（新建、改名、删除、重新加载）都收在工作流名字的下拉里，
  * 顶栏上常驻的只有高频动作。
@@ -26,6 +26,7 @@ export interface TopBarProps {
   onTidy(): void
   onLocate(nodeId: string): void
   onPreview(): void
+  onSettings(): void
 }
 
 type SaveTone = 'loading' | 'saving' | 'error' | 'dirty' | 'saved'
@@ -139,6 +140,18 @@ export function TopBar(props: TopBarProps): React.JSX.Element {
             onClick={props.onTidy}
           >
             <Icon name="tidy" size={16} />
+          </button>
+          <button
+            type="button"
+            className={cx(ui.btn, ui.icon, ui.tip, css.settings)}
+            data-tip={t('tool.settings')}
+            aria-label={t('tool.settings')}
+            data-testid="wl-settings-open"
+            // 改过设置（不是全缺省）时右上角挂一个小点：一眼看出这张图有自己的配置。
+            data-configured={state.doc?.settings !== undefined}
+            onClick={props.onSettings}
+          >
+            <Icon name="sliders" size={16} />
           </button>
           {/* 空图的"没有步骤"不必亮红：画布中间的空态已经在说这件事。 */}
           {state.doc !== null && state.doc.nodes.length > 0 && (

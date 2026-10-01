@@ -15,6 +15,7 @@ import { useEffect, useRef, useState } from 'react'
 import { MAX_TEXT_CODEPOINTS } from '../../shared/limits.ts'
 import { canonicalOutput, outputSpecs } from '../../shared/model.ts'
 import { checkOutput, checkText, codepointLength } from '../../shared/naming.ts'
+import { resolveOutputPath } from '../../shared/outputPaths.ts'
 import type { NodeData, OutputSpec } from '../../shared/types.ts'
 import type { T } from '../i18n.ts'
 import { Icon } from './Icon.tsx'
@@ -51,6 +52,8 @@ export function OutputField(props: {
   suggest: string
   /** 这些产出属于谁（模态框的副标题）。 */
   owner: string
+  /** 工作流设置里的产出根目录：编辑框里据此预览最终写到哪。 */
+  root?: string | undefined
   onChange(value: NodeData['output']): void
   request?: OutputRequest | null
   onRequestDone?: () => void
@@ -147,6 +150,7 @@ export function OutputField(props: {
         <OutputEditor
           t={t}
           owner={props.owner}
+          root={props.root}
           initial={editing === 'new' ? null : (specs[editing] ?? null)}
           suggest={freePath(props.suggest, specs)}
           taken={specs.filter((_, at) => at !== editing).map((spec) => spec.path)}
@@ -286,6 +290,7 @@ function SheetHead(props: {
 function OutputEditor(props: {
   t: T
   owner: string
+  root: string | undefined
   /** `null` = 新加一项。 */
   initial: OutputSpec | null
   suggest: string
@@ -390,6 +395,14 @@ function OutputEditor(props: {
             />
             {pathError !== null && path !== '' ? (
               <p className={css.error}>{pathError}</p>
+            ) : props.root !== undefined && pathError === null ? (
+              // 配了产出根目录：直接给出拼好、标准化之后的最终路径（和编译器同一份拼接）。
+              <div className={css.rootPreview} data-testid="wl-output-final">
+                <span className={css.rootPreviewLabel}>{t('out.finalPath')}</span>
+                <code className={css.rootPreviewResult}>
+                  {resolveOutputPath(props.root, trimmed)}
+                </code>
+              </div>
             ) : (
               <p className={css.help}>{t('out.pathHint')}</p>
             )}

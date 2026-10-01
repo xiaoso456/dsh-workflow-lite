@@ -14,13 +14,14 @@
  * @module @xiaoso/dsh-workflow-lite/host/store/merge
  */
 
-import { idKey, sameNodeData as sameData } from '../../shared/model.ts'
+import { idKey, SETTINGS_CONFLICT_ID, sameNodeData as sameData } from '../../shared/model.ts'
 import type {
   NodeData,
   Point,
   WorkflowDocument,
   WorkflowEdge,
   WorkflowNode,
+  WorkflowSettings,
 } from '../../shared/types.ts'
 
 export interface MergeResult {
@@ -38,13 +39,43 @@ export function mergeDocuments(
   theirs: WorkflowDocument,
 ): MergeResult {
   const conflicts = new Set<string>()
+  const settings = mergeSettings(base, mine, theirs, conflicts)
   const document: WorkflowDocument = {
     nodes: mergeNodes(base, mine, theirs, conflicts),
     edges: mergeEdges(base, mine, theirs, conflicts),
     // 纯视图态：本地优先。
     viewport: { ...mine.viewport },
+    ...(settings === undefined ? {} : { settings }),
   }
   return { document, conflictIds: [...conflicts] }
+}
+
+/**
+ * 工作流设置按字段合并：谁改了用谁的；双方都改成不一样的 ⇒ 冲突，本地优先。
+ */
+function mergeSettings(
+  base: WorkflowDocument,
+  mine: WorkflowDocument,
+  theirs: WorkflowDocument,
+  conflicts: Set<string>,
+): WorkflowSettings | undefined {
+  const pick = <K extends keyof WorkflowSettings>(key: K): WorkflowSettings[K] => {
+    const origin = base.settings?.[key]
+    const local = mine.settings?.[key]
+    const other = theirs.settings?.[key]
+    if (local !== origin && other !== origin && local !== other) {
+      conflicts.add(SETTINGS_CONFLICT_ID)
+      return local
+    }
+    return local === origin ? other : local
+  }
+  const outputRoot = pick('outputRoot')
+  const mode = pick('mode')
+  if (outputRoot === undefined && mode === undefined) return undefined
+  return {
+    ...(outputRoot === undefined ? {} : { outputRoot }),
+    ...(mode === undefined ? {} : { mode }),
+  }
 }
 
 // ─────────────────────────────────────────────────────────────

@@ -185,6 +185,7 @@ function NodePanel(props: InspectorProps & { node: WorkflowNode }): React.JSX.El
           value={node.data.output}
           suggest={`${node.id}.md`}
           owner={titleOf(node, node.id)}
+          root={doc.settings?.outputRoot}
           onChange={(output) => onEdit({ type: 'patchNode', id: node.id, patch: { output } })}
           request={
             props.outputRequest !== null && idKey(props.outputRequest.node) === key
