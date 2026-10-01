@@ -24,6 +24,7 @@ import {
   type Node,
   type NodeChange,
   type NodeProps,
+  NodeToolbar,
   Position,
   ReactFlow,
   useReactFlow,
@@ -31,8 +32,10 @@ import {
 import '@xyflow/react/dist/base.css'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { GraphAnalysis } from '../../shared/graph.ts'
-import { idKey } from '../../shared/model.ts'
+import { idKey, outputSpecs } from '../../shared/model.ts'
 import type {
+  NodeData,
+  OutputSpec,
   Point,
   ValidationProblem,
   WorkflowDocument,
@@ -76,6 +79,8 @@ export interface CanvasProps {
   onRequestAdd(request: AddRequest): void
   onDropSource(source: StepSource, flow: Point): void
   onStarter(): void
+  /** 在卡片的产出浮窗里点了某个文件（或「添加」）：选中这个步骤并打开那一项的编辑框。 */
+  onOpenOutput(nodeId: string, index: number | 'new'): void
 }
 
 type Tone = 'ok' | 'warn' | 'error'
@@ -84,13 +89,22 @@ interface StepData extends Record<string, unknown> {
   title: string
   kind: StepKind
   excerpt: string
-  output: string | false | undefined
+  output: NodeData['output']
   tone: Tone
   note: string
   noPromptText: string
   noFileText: string
   addText: string
+  peekText: PeekText
   onAdd: (id: string, anchor: Element) => void
+  onOpenOutput: (id: string, index: number | 'new') => void
+}
+
+interface PeekText {
+  title: string
+  hint: string
+  noRule: string
+  add: string
 }
 
 interface LinkData extends Record<string, unknown> {
@@ -113,7 +127,7 @@ const AUTO_FIT = { minZoom: 0.55, maxZoom: 1 }
 // ─────────────────────────────────────────────────────────────
 
 const StepCard = memo(function StepCard(props: NodeProps<StepNode>): React.JSX.Element {
-  const { data, id, selected } = props
+  const { data, id, selected, dragging } = props
   return (
     <div
       className={cx(css.card, selected && css.cardSelected)}
@@ -138,11 +152,21 @@ const StepCard = memo(function StepCard(props: NodeProps<StepNode>): React.JSX.E
       ) : (
         <p className={css.cardBody}>{data.excerpt}</p>
       )}
-      {data.output !== undefined && (
+      {data.output === false && (
         <span className={css.cardOutput}>
           <Icon name="file" size={12} />
-          <span>{data.output === false ? data.noFileText : data.output}</span>
+          <span>{data.noFileText}</span>
         </span>
+      )}
+      {data.output !== undefined && data.output !== false && (
+        <CardOutputs
+          id={id}
+          specs={outputSpecs(data.output)}
+          selected={selected}
+          dragging={dragging}
+          text={data.peekText}
+          onOpen={data.onOpenOutput}
+        />
       )}
       <Handle
         type="source"
@@ -242,13 +266,211 @@ const LinkLine = memo(function LinkLine(props: EdgeProps<LinkEdge>): React.JSX.E
             onClick={() => data?.onPick(id)}
           >
             {data?.back === true && <Icon name="loop" size={11} />}
-            {text !== '' && <span>{text}</span>}
+            {text !== '' && <span className={css.linkText}>{text}</span>}
+            {/* 长条件在线上只露一截，悬停时弹出全文。 */}
+            {text.length > LABEL_FULL_AT && (
+              <span className={css.linkTip} role="tooltip">
+                {text}
+              </span>
+            )}
           </button>
         </EdgeLabelRenderer>
       )}
     </>
   )
 })
+
+/** 条件超过这么多字就在线上截断、悬停看全文（与 CSS 里标签的最大宽度大致对应）。 */
+const LABEL_FULL_AT = 12
+
+/** 悬停多久才弹出产出浮窗（扫过去不该一路弹）、离开多久才收起（留出移进浮窗的时间）。 */
+const PEEK_OPEN_MS = 260
+const PEEK_CLOSE_MS = 180
+/** 浮窗宽度（与 CSS 的 `.peek` 一致）与估算高度：决定往哪边弹才不被属性面板或画布底边挡住。 */
+const PEEK_W = 288
+const peekHeight = (count: number): number => 84 + Math.min(count, 4) * 58
+
+/**
+ * 卡片底部的产出：第一个文件 + "+N"。
+ *
+ * 悬停弹出浮窗，列出全部文件与各自的生成规则；点一下就钉住（点别处或取消选中才收起）。
+ * 浮窗里点某个文件 = 选中这个步骤并打开那一项的编辑框；「添加」同理。
+ * 浮窗走 `NodeToolbar`：它跟着卡片平移缩放，但字号不随缩放变小，也压在别的卡片和连线标签上面。
+ */
+function CardOutputs(props: {
+  id: string
+  specs: readonly OutputSpec[]
+  selected: boolean
+  dragging: boolean
+  text: PeekText
+  onOpen: (id: string, index: number | 'new') => void
+}): React.JSX.Element | null {
+  const { id, specs, text } = props
+  const [peek, setPeek] = useState<'off' | 'hover' | 'pinned'>('off')
+  const [place, setPlace] = useState<{ side: Position; align: 'start' | 'end' }>({
+    side: Position.Bottom,
+    align: 'start',
+  })
+  const timer = useRef(0)
+  const chipsRef = useRef<HTMLButtonElement>(null)
+  const peekRef = useRef<HTMLDivElement>(null)
+
+  const cancel = (): void => window.clearTimeout(timer.current)
+  const later = (next: 'off' | 'hover', ms: number): void => {
+    cancel()
+    timer.current = window.setTimeout(() => {
+      if (next === 'hover') settle()
+      setPeek(next)
+    }, ms)
+  }
+
+  /**
+   * 弹出前看一眼周围：右边会被属性面板盖住就改成右对齐（往左展开），
+   * 下面放不下就弹到卡片上方。没被盖住的那块画布的右边界由画布根节点上的 `data-inset-right` 给出。
+   */
+  const settle = (): void => {
+    const chips = chipsRef.current
+    const card = chips?.closest('.react-flow__node')
+    const wrap = chips?.closest<HTMLElement>('[data-testid="wl-canvas"]')
+    if (card === null || card === undefined || wrap === null || wrap === undefined) return
+    const box = card.getBoundingClientRect()
+    const area = wrap.getBoundingClientRect()
+    const right = area.right - Number(wrap.dataset.insetRight ?? 0) - 8
+    const below = area.bottom - box.bottom - 12
+    setPlace({
+      align: box.left + PEEK_W > right && box.right - PEEK_W > area.left ? 'end' : 'start',
+      side:
+        below < peekHeight(specs.length) && box.top - area.top > below
+          ? Position.Top
+          : Position.Bottom,
+    })
+  }
+
+  useEffect(() => () => window.clearTimeout(timer.current), [])
+
+  // 拖卡片时收起；取消选中时把钉住的也收起。
+  useEffect(() => {
+    if (!props.dragging) return
+    window.clearTimeout(timer.current)
+    setPeek('off')
+  }, [props.dragging])
+  useEffect(() => {
+    if (!props.selected) setPeek((current) => (current === 'pinned' ? 'off' : current))
+  }, [props.selected])
+
+  // 钉住时：在卡片与浮窗之外按下指针就收起（捕获阶段：React Flow 会拦掉画布上的冒泡）。
+  useEffect(() => {
+    if (peek !== 'pinned') return
+    const onDown = (event: PointerEvent): void => {
+      const target = event.target
+      if (!(target instanceof globalThis.Node)) return
+      if (chipsRef.current?.contains(target) || peekRef.current?.contains(target)) return
+      setPeek('off')
+    }
+    document.addEventListener('pointerdown', onDown, true)
+    return () => document.removeEventListener('pointerdown', onDown, true)
+  }, [peek])
+
+  const [first, ...rest] = specs
+  if (first === undefined) return null
+  const open = (index: number | 'new'): void => {
+    cancel()
+    setPeek('off')
+    props.onOpen(id, index)
+  }
+
+  return (
+    <>
+      <button
+        ref={chipsRef}
+        type="button"
+        className={css.cardOutputs}
+        data-testid="wl-card-outputs"
+        data-open={peek !== 'off'}
+        aria-expanded={peek !== 'off'}
+        onPointerEnter={() => {
+          if (peek === 'off') later('hover', PEEK_OPEN_MS)
+          else cancel()
+        }}
+        onPointerLeave={() => {
+          if (peek === 'hover') later('off', PEEK_CLOSE_MS)
+          else if (peek === 'off') cancel()
+        }}
+        // 不拦冒泡：点产出也会选中这张卡，右边的面板一起出来。
+        onClick={() => {
+          cancel()
+          if (peek === 'off') settle()
+          setPeek((current) => (current === 'pinned' ? 'off' : 'pinned'))
+        }}
+      >
+        <span className={css.cardOutput}>
+          <Icon name="file" size={12} />
+          <span>{first.path}</span>
+        </span>
+        {rest.length > 0 && <span className={css.cardMore}>+{rest.length}</span>}
+      </button>
+      <NodeToolbar
+        isVisible={peek !== 'off'}
+        position={place.side}
+        align={place.align}
+        offset={6}
+        className="nodrag nopan nowheel"
+        style={{ zIndex: 30 }}
+      >
+        <div
+          ref={peekRef}
+          className={css.peek}
+          data-side={place.side}
+          data-align={place.align}
+          role="group"
+          aria-label={text.title}
+          data-testid="wl-output-peek"
+          onPointerEnter={cancel}
+          onPointerLeave={() => {
+            if (peek === 'hover') later('off', PEEK_CLOSE_MS)
+          }}
+        >
+          <div className={css.peekHead}>
+            <span>{text.title}</span>
+            <span className={css.peekCount}>{specs.length}</span>
+            <span className={css.peekHint}>{text.hint}</span>
+          </div>
+          <div className={css.peekList}>
+            {specs.map((spec, index) => {
+              const rule = spec.rule?.trim() ?? ''
+              return (
+                <button
+                  key={spec.path}
+                  type="button"
+                  className={css.peekItem}
+                  data-testid="wl-peek-item"
+                  onClick={() => open(index)}
+                >
+                  <span className={css.peekIcon}>
+                    <Icon name="file" size={13} />
+                  </span>
+                  <span className={css.peekPath}>{spec.path}</span>
+                  <span className={cx(css.peekRule, rule === '' && css.peekRuleEmpty)}>
+                    {rule === '' ? text.noRule : rule}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+          <button
+            type="button"
+            className={css.peekAdd}
+            data-testid="wl-peek-add"
+            onClick={() => open('new')}
+          >
+            <Icon name="plus" size={13} />
+            {text.add}
+          </button>
+        </div>
+      </NodeToolbar>
+    </>
+  )
+}
 
 /** `nodeTypes` / `edgeTypes` 必须是稳定引用，否则 React Flow 每次渲染都重建全部节点。 */
 const NODE_TYPES = { wfNode: StepCard }
@@ -315,6 +537,14 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
     [onRequestAdd],
   )
 
+  // 节点对象是缓存的（见上）：回调走 ref，引用永远不变，缓存里的旧节点拿到的也是最新的处理函数。
+  const openOutputRef = useRef(props.onOpenOutput)
+  openOutputRef.current = props.onOpenOutput
+  const onOpenOutput = useCallback(
+    (id: string, index: number | 'new'): void => openOutputRef.current(id, index),
+    [],
+  )
+
   const onPick = useCallback(
     (id: string): void => {
       onSelect({ kind: 'edge', id })
@@ -330,6 +560,12 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
       addText: t('node.add'),
       pass: t('edge.pass'),
       fail: t('edge.fail'),
+      peek: {
+        title: t('out.peekTitle'),
+        hint: t('out.peekHint'),
+        noRule: t('out.noRule'),
+        add: t('ins.output.add'),
+      },
     }),
     [t],
   )
@@ -367,14 +603,20 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
           title:
             node.data.label === undefined || node.data.label === '' ? node.id : node.data.label,
           kind: kindOf(node.id),
-          excerpt: excerptOf(prompt),
+          // 写了描述就用描述（那是给人看的一句话），没写才摘提示词。
+          excerpt:
+            node.data.description !== undefined && node.data.description.trim() !== ''
+              ? node.data.description
+              : excerptOf(prompt),
           output: node.data.output,
           tone,
           note,
           noPromptText: texts.noPromptText,
           noFileText: texts.noFileText,
           addText: texts.addText,
+          peekText: texts.peek,
           onAdd,
+          onOpenOutput,
         },
       }
       // 拖动中的对象每帧都不同，不进缓存；松手后按文档里的新坐标重建一次再缓存。
@@ -383,7 +625,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
     })
     cache.current = next
     return list
-  }, [doc.nodes, selection, tones, dragging, texts, onAdd])
+  }, [doc.nodes, selection, tones, dragging, texts, onAdd, onOpenOutput])
 
   const edges = useMemo<LinkEdge[]>(() => {
     const selectedId = selection?.kind === 'edge' ? selection.id : null
@@ -534,6 +776,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
       tabIndex={-1}
       data-testid="wl-canvas"
       data-dropping={dropping}
+      data-inset-right={props.insets.right}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}

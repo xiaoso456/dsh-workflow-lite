@@ -20,7 +20,7 @@ import {
   clientRequestSchema,
   RpcId,
 } from '@deepseek-ai/dsh-client-connection'
-import { normalizeDocument } from '../shared/model.ts'
+import { normalizeDocument, readNodeData as readDataFields } from '../shared/model.ts'
 import type { NodeData } from '../shared/types.ts'
 import {
   endpointName,
@@ -152,13 +152,10 @@ function optionalString(input: Record<string, unknown>, field: string): string |
  */
 function readNodeData(value: unknown): NodeData {
   const input = value === undefined || value === null ? {} : asRecord(value)
-  const data: NodeData = { prompt: optionalString(input, 'prompt') ?? '' }
-  const label = optionalString(input, 'label')
-  if (label !== undefined) data.label = label
-  const output = input.output
-  if (typeof output === 'string') data.output = output
-  else if (output === false) data.output = false
-  return data
+  const data = readDataFields(input)
+  if (data.label === '') delete data.label
+  if (data.description === '') delete data.description
+  return { ...data, prompt: data.prompt ?? '' }
 }
 
 // ─────────────────────────────────────────────────────────────

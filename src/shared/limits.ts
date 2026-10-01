@@ -25,8 +25,22 @@ export const COORD_DECIMALS = 2
 /** 名字长度上限（码点）。适用于图名 / 模板名 / `node.id`。 */
 export const MAX_NAME_CODEPOINTS = 64
 
-/** `when` 值长度上限（码点）。 */
-export const MAX_WHEN_CODEPOINTS = 32
+/**
+ * `when` 值长度上限（码点）。
+ *
+ * 这是软编排：条件可以是一句、一段自然语言（"测试全绿且没有新增警告"），由执行者自己判断。
+ * 上限只防病态输入。
+ */
+export const MAX_WHEN_CODEPOINTS = 2000
+
+/**
+ * 判定词（走 `VERDICT: <值>` 约定的那种）的长度上限。短标识（pass / fail / retry）是判定词，
+ * 其余的是自然语言条件——编译器对两者的写法不同，见 `isVerdictWhen`。
+ */
+export const MAX_VERDICT_CODEPOINTS = 32
+
+/** 一个节点的描述 / 一条产出规则的长度上限（码点）——同样只防病态输入。 */
+export const MAX_TEXT_CODEPOINTS = 2000
 
 /** `label` 长度上限（码点）——只防病态输入，不参与任何判定。 */
 export const MAX_LABEL_CODEPOINTS = 200

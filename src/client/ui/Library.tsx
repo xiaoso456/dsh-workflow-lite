@@ -242,7 +242,11 @@ export function Library(props: {
                   icon="bookmark"
                   kind="blank"
                   title={entry.name}
-                  desc={entry.invalid === true ? (entry.reason ?? t('lib.broken')) : t('lib.hint')}
+                  desc={
+                    entry.invalid === true
+                      ? (entry.reason ?? t('lib.broken'))
+                      : (entry.description ?? t('lib.noDescription'))
+                  }
                   active={focus?.kind === 'template' && focus.name === entry.name}
                   draggable={entry.invalid !== true}
                   testId={`wl-lib-template-${entry.name}`}

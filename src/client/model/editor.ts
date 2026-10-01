@@ -13,7 +13,13 @@
  * @module @xiaoso/dsh-workflow-lite/client/model/editor
  */
 
-import { idKey, makeEdgeId, normalizeCoord } from '../../shared/model.ts'
+import {
+  canonicalOutput,
+  idKey,
+  makeEdgeId,
+  normalizeCoord,
+  sameNodeData,
+} from '../../shared/model.ts'
 import {
   NODE_TYPE,
   type NodeData,
@@ -107,7 +113,8 @@ export type Edit =
   | { type: 'patchNode'; id: string; patch: Partial<NodeData>; merge?: string }
   | { type: 'connect'; source: string; target: string; when?: string }
   | { type: 'removeEdge'; id: string }
-  | { type: 'setWhen'; id: string; when: string | undefined }
+  /** 改条件。`merge` 相同的连续改动并成一条撤销步（在自定义条件里连续打字）。 */
+  | { type: 'setWhen'; id: string; when: string | undefined; merge?: string }
   /** 视口是视图状态：照样落盘，但不进撤销栈。 */
   | { type: 'setViewport'; viewport: Viewport }
 
@@ -286,16 +293,15 @@ function applyEdit(doc: WorkflowDocument, selection: Selection, edit: Edit): App
       const node = findNode(doc, edit.id)
       if (node === undefined) return null
       const data: NodeData = { ...node.data, ...edit.patch }
-      for (const key of ['label', 'prompt', 'output'] as const) {
+      for (const key of ['label', 'description', 'prompt', 'output'] as const) {
         if (key in edit.patch && edit.patch[key] === undefined) delete data[key]
       }
-      if (
-        data.label === node.data.label &&
-        data.prompt === node.data.prompt &&
-        data.output === node.data.output
-      ) {
-        return null
+      if ('output' in edit.patch) {
+        const output = canonicalOutput(data.output)
+        if (output === undefined) delete data.output
+        else data.output = output
       }
+      if (sameNodeData(data, node.data)) return null
       return {
         doc: {
           ...doc,
@@ -396,7 +402,7 @@ function historyAfter(
   if (edit.type === 'setViewport' || (edit.type === 'moveNodes' && edit.silent === true)) {
     return { past: state.past, future: state.future, mergeKey: state.mergeKey }
   }
-  const key = edit.type === 'patchNode' ? (edit.merge ?? null) : null
+  const key = edit.type === 'patchNode' || edit.type === 'setWhen' ? (edit.merge ?? null) : null
   // 同一个合并键：栈顶已经是这次交互开始之前的快照，不再压。
   if (key !== null && key === state.mergeKey) {
     return { past: state.past, future: [], mergeKey: key }

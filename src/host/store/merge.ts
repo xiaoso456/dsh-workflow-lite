@@ -14,7 +14,7 @@
  * @module @xiaoso/dsh-workflow-lite/host/store/merge
  */
 
-import { idKey } from '../../shared/model.ts'
+import { idKey, sameNodeData as sameData } from '../../shared/model.ts'
 import type {
   NodeData,
   Point,
@@ -132,11 +132,11 @@ function indexNodes(nodes: readonly WorkflowNode[]): Map<string, WorkflowNode> {
   return map
 }
 
-/** 冲突判据只看 `data` 三个字段（`label` / `prompt` / `output`），缺省与缺省相等。 */
+/** 冲突判据只看 `data` 的内容字段（显示名 / 描述 / 提示词 / 产出），缺省与缺省相等。 */
 function sameNodeData(a: WorkflowNode, b: WorkflowNode): boolean {
   const left: NodeData = a.data
   const right: NodeData = b.data
-  return left.label === right.label && left.prompt === right.prompt && left.output === right.output
+  return sameData(left, right)
 }
 
 function samePosition(a: Point, b: Point): boolean {

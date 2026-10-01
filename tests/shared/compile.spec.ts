@@ -684,3 +684,68 @@ describe('整卷版与派发版的差异', () => {
     )
   })
 })
+
+describe('多个产出与生成规则', () => {
+  const document = doc(
+    [
+      n('scan', '扫一遍', {
+        output: [
+          { path: 'scan.md', rule: '列出可疑点，每条带文件路径与行号' },
+          { path: 'risk.json' },
+        ],
+      }),
+      n('fix', '修', { output: 'fix.md' }),
+    ],
+    [edge('scan', 'fix')],
+  )
+  const plan = planFor(document)
+
+  it('清单表的产出列列出全部文件', () => {
+    expect(tableRow(plan, 'scan')).toContain('scan.md、risk.json')
+  })
+
+  it('交付句子带上全部产出', () => {
+    expect(plan).toContain('`fix` 的输入来自 `scan` 的产出 `scan.md`、`risk.json`')
+  })
+
+  it('生成规则进交付契约的「产出要求」，没写规则的不列', () => {
+    expect(plan).toContain('**产出要求**')
+    expect(plan).toContain('- `scan` → `scan.md`：列出可疑点，每条带文件路径与行号')
+    expect(plan).not.toContain('`risk.json`：')
+  })
+
+  it('没有任何规则时不出现「产出要求」', () => {
+    const plain = planFor(doc([n('a', 'x', { output: 'a.md' })], []))
+    expect(plain).not.toContain('**产出要求**')
+  })
+})
+
+describe('自然语言条件', () => {
+  const long = '测试全部通过，且没有新增 lint 警告，并且 `CHANGELOG` 已更新'
+  const document = doc(
+    [n('check', '检查'), n('ship', '发布'), n('rework', '返工', { output: 'rework.md' })],
+    [edge('check', 'ship', long), edge('check', 'rework', 'fail'), edge('rework', 'check')],
+  )
+  const plan = planFor(document)
+
+  it('表格里只标"满足条件时"，原文写在分支说明里（用「」，不用反引号）', () => {
+    expect(tableRow(plan, 'ship')).toContain('check（满足条件时）')
+    expect(plan).toContain(`当「${long}」时走 \`ship\``)
+    expect(plan).toContain('`when=fail` 走 `rework`')
+  })
+
+  it('判定词仍然要求 VERDICT 行；自然语言条件交给执行者判断', () => {
+    expect(plan).toContain('回复的最后一行必须是 `VERDICT: fail`')
+    expect(plan).not.toContain(`VERDICT: ${long}`)
+    expect(plan).toContain('由你对照它的产出判断各条件是否成立')
+  })
+
+  it('循环出口是自然语言条件时，写成"直到……成立"', () => {
+    expect(plan).toContain(`完成后「${long}」成立，然后走 \`ship\` 离开循环`)
+  })
+
+  it('只有一条出边的自然语言条件也写明', () => {
+    const single = planFor(doc([n('a', 'x'), n('b', 'y')], [edge('a', 'b', '用户确认了方案')]))
+    expect(single).toContain('**条件**：`a` 完成后，只有当「用户确认了方案」时才走 `b`。')
+  })
+})

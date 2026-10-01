@@ -29,8 +29,9 @@ import { type AddRequest, Canvas } from './Canvas.tsx'
 import { Icon } from './Icon.tsx'
 import { Inspector } from './Inspector.tsx'
 import { Library } from './Library.tsx'
+import type { OutputRequest } from './Outputs.tsx'
 import { PlanDialog } from './PlanDialog.tsx'
-import { cx, Popover } from './primitives.tsx'
+import { cx, ModalHostProvider, Popover } from './primitives.tsx'
 import { QuickAdd } from './QuickAdd.tsx'
 import { StepPanel } from './StepPanel.tsx'
 import css from './shell.module.css'
@@ -108,6 +109,8 @@ function Shell(props: { rpc: WorkflowLiteRpc; t: T }): React.JSX.Element {
   const { state, analysis } = wf
   const flow = useReactFlow()
   const rootRef = useRef<HTMLDivElement>(null)
+  /** 模态框挂载点（就是视图根）：要等根节点挂上才有，所以放 state。 */
+  const [modalHost, setModalHost] = useState<HTMLElement | null>(null)
   const [size, setSize] = useState({ width: 1200, height: 800 })
   const narrow = size.width <= NARROW
   const inspectorW = inspectorWidth(size.width)
@@ -126,6 +129,7 @@ function Shell(props: { rpc: WorkflowLiteRpc; t: T }): React.JSX.Element {
 
   useEffect(() => {
     const element = rootRef.current
+    setModalHost(element)
     if (element === null || typeof ResizeObserver === 'undefined') return
     const observer = new ResizeObserver(() => {
       setSize({ width: element.clientWidth, height: element.clientHeight })
@@ -335,6 +339,19 @@ function Shell(props: { rpc: WorkflowLiteRpc; t: T }): React.JSX.Element {
     [wf],
   )
 
+  /** 画布卡片的产出浮窗里点了某个文件：选中那个步骤，让属性面板打开那一项的编辑框。 */
+  const [outputRequest, setOutputRequest] = useState<(OutputRequest & { node: string }) | null>(
+    null,
+  )
+  const openOutput = useCallback(
+    (node: string, index: number | 'new'): void => {
+      select({ kind: 'node', id: node })
+      setOutputRequest((previous) => ({ node, index, seq: (previous?.seq ?? 0) + 1 }))
+    },
+    [select],
+  )
+  const outputRequestDone = useCallback((): void => setOutputRequest(null), [])
+
   /** 在步骤库里点了一项：放掉画布上的选中，右侧改看它。 */
   const focusLibrary = useCallback(
     (next: LibraryFocus | null): void => {
@@ -433,177 +450,182 @@ function Shell(props: { rpc: WorkflowLiteRpc; t: T }): React.JSX.Element {
       aria-label={t('tab.label')}
       onKeyDown={onKeyDown}
     >
-      <div className={css.canvas}>
-        {state.phase === 'ready' && doc !== null && analysis !== null && (
-          <Canvas
-            t={t}
-            doc={doc}
-            analysis={analysis}
-            loadKey={`${state.name ?? ''}#${state.loadSeq}`}
-            selection={state.selection}
-            problems={state.problems}
-            insets={insets}
-            onEdit={wf.edit}
-            onSelect={select}
-            onRequestAdd={requestAdd}
-            onDropSource={(source, at) => void addStep(source, at)}
-            onStarter={() => {
-              wf.edit({ type: 'addGraph', ...starterGraph(t) })
-              fitSoon()
-            }}
-          />
-        )}
-      </div>
-
-      {state.phase === 'idle' && wf.catalog !== null && <Welcome t={t} wf={wf} />}
-      {state.phase === 'broken' && <Broken t={t} wf={wf} />}
-
-      <div className={css.top}>
-        <TopBar
-          t={t}
-          wf={wf}
-          libraryOpen={libraryOpen}
-          onToggleLibrary={toggleLibrary}
-          onTidy={relayout}
-          onLocate={locate}
-          onPreview={() => setPlanOpen(true)}
-        />
-      </div>
-
-      {state.phase === 'ready' && (
-        <div className={css.library} aria-hidden={!libraryOpen}>
-          <Library
-            t={t}
-            templates={wf.catalog?.templates.nodes ?? []}
-            focus={focus}
-            onFocus={focusLibrary}
-            onNewStep={() =>
-              focusLibrary({ kind: 'new', seed: { prompt: '' }, name: freeStepName('my-step') })
-            }
-            onClose={toggleLibrary}
-          />
-        </div>
-      )}
-
-      {state.phase === 'ready' && focus !== null && (
-        <div className={css.inspector}>
-          <StepPanel
-            t={t}
-            wf={wf}
-            focus={focus}
-            onFocus={focusLibrary}
-            onAddToCanvas={addToCanvas}
-            onCopyToMine={(seed, id) =>
-              focusLibrary({ kind: 'new', seed, name: freeStepName(`my-${id}`) })
-            }
-          />
-        </div>
-      )}
-
-      {state.phase === 'ready' &&
-        focus === null &&
-        doc !== null &&
-        analysis !== null &&
-        state.selection !== null && (
-          <div className={css.inspector}>
-            <Inspector
+      <ModalHostProvider value={modalHost}>
+        <div className={css.canvas}>
+          {state.phase === 'ready' && doc !== null && analysis !== null && (
+            <Canvas
               t={t}
               doc={doc}
               analysis={analysis}
+              loadKey={`${state.name ?? ''}#${state.loadSeq}`}
               selection={state.selection}
-              focusPrompt={focusPrompt && state.selection.kind === 'node'}
+              problems={state.problems}
+              insets={insets}
               onEdit={wf.edit}
               onSelect={select}
-              onSeal={wf.seal}
-              onDuplicate={duplicate}
-              onRemoveNode={(id) => {
-                wf.edit({ type: 'removeNode', id })
-                focusCanvas()
+              onRequestAdd={requestAdd}
+              onDropSource={(source, at) => void addStep(source, at)}
+              onStarter={() => {
+                wf.edit({ type: 'addGraph', ...starterGraph(t) })
+                fitSoon()
               }}
-              onSaveTemplate={wf.saveTemplate}
+              onOpenOutput={openOutput}
+            />
+          )}
+        </div>
+
+        {state.phase === 'idle' && wf.catalog !== null && <Welcome t={t} wf={wf} />}
+        {state.phase === 'broken' && <Broken t={t} wf={wf} />}
+
+        <div className={css.top}>
+          <TopBar
+            t={t}
+            wf={wf}
+            libraryOpen={libraryOpen}
+            onToggleLibrary={toggleLibrary}
+            onTidy={relayout}
+            onLocate={locate}
+            onPreview={() => setPlanOpen(true)}
+          />
+        </div>
+
+        {state.phase === 'ready' && (
+          <div className={css.library} aria-hidden={!libraryOpen}>
+            <Library
+              t={t}
+              templates={wf.catalog?.templates.nodes ?? []}
+              focus={focus}
+              onFocus={focusLibrary}
+              onNewStep={() =>
+                focusLibrary({ kind: 'new', seed: { prompt: '' }, name: freeStepName('my-step') })
+              }
+              onClose={toggleLibrary}
             />
           </div>
         )}
 
-      {state.phase === 'ready' && (
-        <ZoomDock t={t} keysOpen={keysOpen} setKeysOpen={setKeysOpen} onFit={() => fitAll()} />
-      )}
+        {state.phase === 'ready' && focus !== null && (
+          <div className={css.inspector}>
+            <StepPanel
+              t={t}
+              wf={wf}
+              focus={focus}
+              onFocus={focusLibrary}
+              onAddToCanvas={addToCanvas}
+              onCopyToMine={(seed, id) =>
+                focusLibrary({ kind: 'new', seed, name: freeStepName(`my-${id}`) })
+              }
+            />
+          </div>
+        )}
 
-      {wf.conflict !== null && (
-        <div className={css.bannerSeat}>
-          <div className={cx(ui.panel, css.banner, css.bannerDanger, ui.rise)} role="alert">
-            <Icon name="alert" size={15} />
-            <span className={css.bannerText}>
-              {t('banner.conflict')}
-              {wf.conflict.length > 0 && (
-                <span className={css.bannerIds}> · {wf.conflict.join(', ')}</span>
+        {state.phase === 'ready' &&
+          focus === null &&
+          doc !== null &&
+          analysis !== null &&
+          state.selection !== null && (
+            <div className={css.inspector}>
+              <Inspector
+                t={t}
+                doc={doc}
+                analysis={analysis}
+                selection={state.selection}
+                focusPrompt={focusPrompt && state.selection.kind === 'node'}
+                onEdit={wf.edit}
+                onSelect={select}
+                onSeal={wf.seal}
+                onDuplicate={duplicate}
+                onRemoveNode={(id) => {
+                  wf.edit({ type: 'removeNode', id })
+                  focusCanvas()
+                }}
+                onSaveTemplate={wf.saveTemplate}
+                outputRequest={outputRequest}
+                onOutputRequestDone={outputRequestDone}
+              />
+            </div>
+          )}
+
+        {state.phase === 'ready' && (
+          <ZoomDock t={t} keysOpen={keysOpen} setKeysOpen={setKeysOpen} onFit={() => fitAll()} />
+        )}
+
+        {wf.conflict !== null && (
+          <div className={css.bannerSeat}>
+            <div className={cx(ui.panel, css.banner, css.bannerDanger, ui.rise)} role="alert">
+              <Icon name="alert" size={15} />
+              <span className={css.bannerText}>
+                {t('banner.conflict')}
+                {wf.conflict.length > 0 && (
+                  <span className={css.bannerIds}> · {wf.conflict.join(', ')}</span>
+                )}
+              </span>
+              <button
+                type="button"
+                className={cx(ui.btn, ui.small, ui.primary)}
+                onClick={wf.keepMine}
+              >
+                {t('banner.keepMine')}
+              </button>
+              <button type="button" className={cx(ui.btn, ui.small, ui.soft)} onClick={wf.reload}>
+                {t('banner.useDisk')}
+              </button>
+            </div>
+          </div>
+        )}
+        {wf.conflict === null && wf.external && (
+          <div className={css.bannerSeat}>
+            <div className={cx(ui.panel, css.banner, ui.rise)} role="status">
+              <Icon name="info" size={15} />
+              <span className={css.bannerText}>{t('banner.external')}</span>
+              <button type="button" className={cx(ui.btn, ui.small, ui.soft)} onClick={wf.reload}>
+                {t('banner.reload')}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {quick !== null && (
+          <QuickAdd
+            t={t}
+            at={quick.at}
+            bounds={size}
+            templates={wf.catalog?.templates.nodes ?? []}
+            onClose={() => setQuick(null)}
+            onPick={(source) => {
+              const request = quick
+              setQuick(null)
+              void addStep(source, request.flow, request.from)
+            }}
+          />
+        )}
+
+        {planOpen && state.name !== null && (
+          <PlanDialog
+            t={t}
+            name={state.name}
+            build={wf.buildPlan}
+            onLocate={locate}
+            onClose={() => {
+              setPlanOpen(false)
+              focusCanvas()
+            }}
+          />
+        )}
+
+        {wf.toast !== null && (
+          <div className={css.toastSeat} key={wf.toast.id}>
+            <div className={cx(css.toast, ui.rise)} data-tone={wf.toast.tone} role="status">
+              {wf.toast.tone === 'error' ? (
+                <Icon name="alert" size={14} />
+              ) : (
+                <Icon name="check" size={14} />
               )}
-            </span>
-            <button
-              type="button"
-              className={cx(ui.btn, ui.small, ui.primary)}
-              onClick={wf.keepMine}
-            >
-              {t('banner.keepMine')}
-            </button>
-            <button type="button" className={cx(ui.btn, ui.small, ui.soft)} onClick={wf.reload}>
-              {t('banner.useDisk')}
-            </button>
+              <span>{wf.toast.text}</span>
+            </div>
           </div>
-        </div>
-      )}
-      {wf.conflict === null && wf.external && (
-        <div className={css.bannerSeat}>
-          <div className={cx(ui.panel, css.banner, ui.rise)} role="status">
-            <Icon name="info" size={15} />
-            <span className={css.bannerText}>{t('banner.external')}</span>
-            <button type="button" className={cx(ui.btn, ui.small, ui.soft)} onClick={wf.reload}>
-              {t('banner.reload')}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {quick !== null && (
-        <QuickAdd
-          t={t}
-          at={quick.at}
-          bounds={size}
-          templates={wf.catalog?.templates.nodes ?? []}
-          onClose={() => setQuick(null)}
-          onPick={(source) => {
-            const request = quick
-            setQuick(null)
-            void addStep(source, request.flow, request.from)
-          }}
-        />
-      )}
-
-      {planOpen && state.name !== null && (
-        <PlanDialog
-          t={t}
-          name={state.name}
-          build={wf.buildPlan}
-          onLocate={locate}
-          onClose={() => {
-            setPlanOpen(false)
-            focusCanvas()
-          }}
-        />
-      )}
-
-      {wf.toast !== null && (
-        <div className={css.toastSeat} key={wf.toast.id}>
-          <div className={cx(css.toast, ui.rise)} data-tone={wf.toast.tone} role="status">
-            {wf.toast.tone === 'error' ? (
-              <Icon name="alert" size={14} />
-            ) : (
-              <Icon name="check" size={14} />
-            )}
-            <span>{wf.toast.text}</span>
-          </div>
-        </div>
-      )}
+        )}
+      </ModalHostProvider>
     </div>
   )
 }

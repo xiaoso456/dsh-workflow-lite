@@ -20,7 +20,8 @@
 import { createHash } from 'node:crypto'
 import { byId, cycleHasNoExit, edgeWhen, type GraphAnalysis } from './graph.ts'
 import { PLAN_SECTIONS, VERDICT_PREFIX } from './limits.ts'
-import { displayName, idKey, writeDocument } from './model.ts'
+import { displayName, idKey, outputSpecs, writeDocument } from './model.ts'
+import { isVerdictWhen } from './naming.ts'
 import type {
   CycleGroup,
   PlanFacts,
@@ -77,6 +78,9 @@ const MISSING_CWD_NOTE = '基目录未指定，请向调用方确认。'
 
 /** ④ 段：循环内产出会被覆盖。 */
 const LOOP_OVERWRITE_LINE = '循环里的产出会被反复覆盖，验收以**最终一轮**为准。'
+
+/** ④ 段：产出要求块的小标题。 */
+const RULES_HEADING = '**产出要求**（派发这些节点时，把对应要求连同任务描述一起交给执行者）：'
 
 /** ④ 段末：产出的家（固定一句）。 */
 const DELIVERY_TAIL = '产出写到工作区里，不要写进 `dataDir`。'
@@ -217,6 +221,13 @@ function whenOf(edge: WorkflowEdge): string | undefined {
   return edgeWhen(edge)
 }
 
+/**
+ * 把一句自然语言条件写进计划：压成一行、用「」括起来（不用反引号——条件里可能本来就有反引号）。
+ */
+function condition(text: string): string {
+  return `「${text.replace(/\s+/gu, ' ').trim()}」`
+}
+
 /** 出边里的条件边（≥1 条 ⇒ 该节点必须在回复末行给出判定）。 */
 function conditionalEdgesOf(ctx: RenderContext, id: string): WorkflowEdge[] {
   return (ctx.outEdges.get(id) ?? []).filter((edge) => whenOf(edge) !== undefined)
@@ -323,20 +334,23 @@ function predecessorsCell(ctx: RenderContext, id: string): string {
     if (source === undefined) continue
     const when = whenOf(edge)
     const isBack = ctx.analysis.backEdges.has(edge.id)
-    if (when !== undefined && isBack) items.push(`${source}（when=${when}，循环中返回）`)
-    else if (when !== undefined) items.push(`${source}（when=${when}）`)
+    // 表格单元格里放不下一段话：自然语言条件只标"满足条件时"，原文写在表下的分支说明里。
+    const guard =
+      when === undefined ? undefined : isVerdictWhen(when) ? `when=${when}` : '满足条件时'
+    if (guard !== undefined && isBack) items.push(`${source}（${guard}，循环中返回）`)
+    else if (guard !== undefined) items.push(`${source}（${guard}）`)
     else if (isBack) items.push(`${source}（循环中返回）`)
     else items.push(source)
   }
   return items.length === 0 ? DASH : items.join('；')
 }
 
-/** 产出列：`false` 是 JSON 字面量、加反引号；文件名与 `—` 原样写、不加反引号。 */
+/** 产出列：`false` 是 JSON 字面量、加反引号；文件名与 `—` 原样写、不加反引号；多个用 `、` 隔开。 */
 function outputCell(node: WorkflowNode | undefined): string {
   const output = node?.data.output
   if (output === false) return '`false`'
-  if (typeof output === 'string' && output !== '') return output
-  return DASH
+  const paths = outputSpecs(output).map((spec) => spec.path)
+  return paths.length === 0 ? DASH : paths.join('、')
 }
 
 /** 任务描述路径：host 算好的**绝对路径**；映射缺失时给 `—`（不编路径）。 */
@@ -345,20 +359,34 @@ function pathCell(facts: PlanFacts, id: string): string {
   return path === undefined ? DASH : code(path)
 }
 
-/** 状态分支：分支点逐条列出「`when=X` 走 `Y`」。 */
+/**
+ * 状态分支：分支点逐条列出「`when=X` 走 `Y`」/「当「条件」时走 `Y`」。
+ * 只有一条出边、但它带着自然语言条件的节点也在这里写明（否则那句条件在计划里无处可见）。
+ */
 function branchLines(ctx: RenderContext): string[] {
   const lines: string[] = []
   for (const id of ctx.analysis.nodeIds) {
     const outgoing = ctx.outEdges.get(id) ?? []
-    if (outgoing.length <= 1) continue
     const conditional = sortOutgoing(ctx, conditionalEdgesOf(ctx, id))
     if (conditional.length === 0) continue
+    if (outgoing.length <= 1) {
+      const [edge] = conditional
+      const when = edge === undefined ? undefined : whenOf(edge)
+      const target = edge === undefined ? undefined : targetIdOf(ctx, edge)
+      if (when === undefined || target === undefined || isVerdictWhen(when)) continue
+      lines.push(`**条件**：${code(id)} 完成后，只有当${condition(when)}时才走 ${code(target)}。`)
+      continue
+    }
     const items: string[] = []
     for (const edge of conditional) {
       const when = whenOf(edge)
       const target = targetIdOf(ctx, edge)
       if (when === undefined || target === undefined) continue
-      items.push(`${code(`when=${when}`)} 走 ${code(target)}`)
+      items.push(
+        isVerdictWhen(when)
+          ? `${code(`when=${when}`)} 走 ${code(target)}`
+          : `当${condition(when)}时走 ${code(target)}`,
+      )
     }
     if (items.length === 0) continue
     const exclusive = conditional.length === 2 && outgoing.length === 2 ? '，两条互斥。' : '。'
@@ -386,7 +414,9 @@ function cycleLines(ctx: RenderContext): string[] {
       const target = targetIdOf(ctx, edge)
       if (when === undefined || source === undefined || target === undefined) continue
       tails.push(
-        `**重复执行 ${chain}，直到 ${code(source)} 给出 ${code(`${VERDICT_PREFIX}${when}`)}，然后走 ${code(target)} 离开循环**。`,
+        isVerdictWhen(when)
+          ? `**重复执行 ${chain}，直到 ${code(source)} 给出 ${code(`${VERDICT_PREFIX}${when}`)}，然后走 ${code(target)} 离开循环**。`
+          : `**重复执行 ${chain}，直到 ${code(source)} 完成后${condition(when)}成立，然后走 ${code(target)} 离开循环**。`,
       )
     }
     lines.push(tails.length === 0 ? `${head}${NO_EXIT_LINE}` : `${head}${tails.join('')}`)
@@ -410,13 +440,21 @@ function cycleChain(ctx: RenderContext, cycle: CycleGroup): string {
   return ordered.map(code).join(' → ')
 }
 
-/** 补注①：带条件出边的节点每次执行都必须给出明确判定（后果句按是否在环内二选一）。 */
+/**
+ * 补注①：带条件出边的节点每次执行都必须给出能据以选路的东西（后果句按是否在环内二选一）。
+ * 判定词要的是明确结论；自然语言条件要的是足够判断条件的事实。
+ */
 function requirementLines(ctx: RenderContext): string[] {
   return verdictNodeIds(ctx).map((id) => {
     const consequence = ctx.inCycle.has(id)
       ? '否则循环的退出条件无从判断'
       : '否则下游无法判断该走哪条边'
-    return `**要求**：${code(id)} **每次执行**都必须产出明确的**通过 / 不通过**结论，${consequence}。`
+    const usesVerdict = conditionalEdgesOf(ctx, id).some((edge) =>
+      isVerdictWhen(whenOf(edge) ?? ''),
+    )
+    return usesVerdict
+      ? `**要求**：${code(id)} **每次执行**都必须产出明确的**通过 / 不通过**结论，${consequence}。`
+      : `**要求**：${code(id)} **每次执行**都必须把结果写清楚，足以判断上面的条件是否成立，${consequence}。`
   })
 }
 
@@ -427,18 +465,34 @@ function contractSection(facts: PlanFacts, ctx: RenderContext): string {
   const sentences: string[] = []
   for (const id of ctx.analysis.nodeIds) {
     for (const source of deliverySources(ctx, id)) {
-      const prefix = source.when === undefined ? '' : `（当 ${code(source.when)} 成立时）`
+      const prefix =
+        source.when === undefined
+          ? ''
+          : isVerdictWhen(source.when)
+            ? `（当 ${code(source.when)} 成立时）`
+            : `（当${condition(source.when)}成立时）`
       sentences.push(
-        `${prefix}${code(id)} 的输入来自 ${code(source.source)} 的产出 ${code(source.output)}`,
+        `${prefix}${code(id)} 的输入来自 ${code(source.source)} 的产出 ${source.outputs.map(code).join('、')}`,
       )
     }
   }
   if (sentences.length > 0) lines.push(`产出按表里的文件名落地：${sentences.join('；')}。`)
   if (missingCwd(facts)) lines.push(MISSING_CWD_NOTE)
 
+  const rules = ruleLines(ctx)
+  if (rules.length > 0) lines.push(RULES_HEADING, ...rules)
+
   for (const id of verdictNodeIds(ctx)) {
     const values = verdictValues(ctx, id)
-    lines.push(`分支判定：${code(id)} 回复的最后一行必须是 ${values.join(' 或 ')}，不得省略。`)
+    if (values.length > 0) {
+      lines.push(`分支判定：${code(id)} 回复的最后一行必须是 ${values.join(' 或 ')}，不得省略。`)
+    }
+    const judged = conditionalEdgesOf(ctx, id).some((edge) => !isVerdictWhen(whenOf(edge) ?? ''))
+    if (judged) {
+      lines.push(
+        `分支判定：${code(id)} 完成后，由你对照它的产出判断各条件是否成立，再决定走哪条边。`,
+      )
+    }
   }
   if (ctx.analysis.cycles.length > 0) lines.push(LOOP_OVERWRITE_LINE)
   lines.push(DELIVERY_TAIL)
@@ -448,19 +502,19 @@ function contractSection(facts: PlanFacts, ctx: RenderContext): string {
 interface DeliverySource {
   source: string
   when?: string
-  output: string
+  outputs: string[]
 }
 
-/** 交付来源 = 全部前置中声明了非空字符串 `output` 且**非回边**的节点（回边由循环段说明）。 */
+/** 交付来源 = 全部前置中声明了产出文件且**非回边**的节点（回边由循环段说明）。 */
 function deliverySources(ctx: RenderContext, id: string): DeliverySource[] {
   const items: DeliverySource[] = []
   for (const edge of ctx.inEdges.get(id) ?? []) {
     if (ctx.analysis.backEdges.has(edge.id)) continue
     const source = sourceIdOf(ctx, edge)
     if (source === undefined) continue
-    const output = ctx.nodes.get(source)?.data.output
-    if (typeof output !== 'string' || output === '') continue
-    items.push({ source, when: whenOf(edge), output })
+    const outputs = outputSpecs(ctx.nodes.get(source)?.data.output).map((spec) => spec.path)
+    if (outputs.length === 0) continue
+    items.push({ source, when: whenOf(edge), outputs })
   }
   return items.sort((a, b) => {
     const bySource = byId(a.source, b.source)
@@ -469,12 +523,27 @@ function deliverySources(ctx: RenderContext, id: string): DeliverySource[] {
   })
 }
 
-/** 判定取值集合：该节点全部带 `when` 的出边的取值，去重后**按码位序升序**、各自加反引号。 */
+/**
+ * 产出要求：每个带生成规则的产出一行，按节点 `id` 码位序、节点内按声明顺序。
+ * 载荷文件只放提示词原文，所以规则写在这里，由派发者一并交给执行者。
+ */
+function ruleLines(ctx: RenderContext): string[] {
+  const lines: string[] = []
+  for (const id of ctx.analysis.nodeIds) {
+    for (const spec of outputSpecs(ctx.nodes.get(id)?.data.output)) {
+      if (spec.rule === undefined || spec.rule.trim() === '') continue
+      lines.push(`- ${code(id)} → ${code(spec.path)}：${spec.rule.replace(/\s+/gu, ' ').trim()}`)
+    }
+  }
+  return lines
+}
+
+/** 判定取值集合：该节点全部带判定词的出边的取值，去重后**按码位序升序**、各自加反引号。 */
 function verdictValues(ctx: RenderContext, id: string): string[] {
   const values = new Set<string>()
   for (const edge of conditionalEdgesOf(ctx, id)) {
     const when = whenOf(edge)
-    if (when !== undefined) values.add(when)
+    if (when !== undefined && isVerdictWhen(when)) values.add(when)
   }
   return [...values].sort(byId).map((value) => code(`${VERDICT_PREFIX}${value}`))
 }

@@ -214,9 +214,103 @@
   border-radius: 6px;
 }
 
+/* ── 模态框（编辑一项内容）────────────────────────────────── */
+
+.sheet {
+  display: flex;
+  flex-direction: column;
+  width: min(520px, 100%);
+  max-height: 100%;
+  overflow: hidden;
+  box-shadow: var(--wl-shadow-2);
+  outline: none;
+  animation: dialogIn 220ms var(--wl-ease) backwards;
+}
+
+.sheetForm {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.sheetHead {
+  display: flex;
+  flex: none;
+  gap: 10px;
+  align-items: center;
+  padding: 14px 12px 6px 16px;
+}
+
+.sheetIcon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+}
+
+.sheetTitles {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.sheetTitle {
+  margin: 0;
+  font-size: var(--wl-fs-title);
+  font-weight: 600;
+}
+
+.sheetSub {
+  margin: 0;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sheetBody {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 18px;
+  min-height: 0;
+  padding: 12px 16px 16px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.sheetFoot {
+  display: flex;
+  flex: none;
+  gap: 6px;
+  align-items: center;
+  padding: 10px 12px;
+  border-top: 1px solid var(--wl-line);
+}
+
+.sheetKeys {
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  white-space: nowrap;
+}
+
+@container (max-width: 520px) {
+  .sheetKeys {
+    display: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .dialog,
-  .quick {
+  .quick,
+  .sheet {
     animation: none;
   }
 }

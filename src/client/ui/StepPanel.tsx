@@ -4,7 +4,7 @@
  * - **常用步骤**是内置的：只读展示提示词与产出，不能改。能做的只有"添加到画布"和
  *   "复制为我的步骤"（复制出来的那份就可以随便改了）。连接这类只对画布上的步骤有意义的
  *   东西，这里不出现。
- * - **我的步骤**就是 `templates/nodes/<文件名>.json`：可以改名称、提示词、产出、文件名，
+ * - **我的步骤**就是 `templates/nodes/<ID>.json`：可以改 ID、名称、描述、提示词、产出，
  *   显式保存（Ctrl+S 也行），也可以删除。离开时还有没保存的改动，就顺手保存一次——
  *   改了一半一点别处就丢，比"多保存了一次"糟糕得多。
  *
@@ -18,8 +18,9 @@ import type { Workflow } from '../app/useWorkflow.ts'
 import type { T } from '../i18n.ts'
 import { type LibraryFocus, PRESETS, presetData, type StepSource } from '../model/library.ts'
 import { Icon } from './Icon.tsx'
-import { OutputField } from './Inspector.tsx'
+import { DescriptionField } from './Inspector.tsx'
 import css from './inspector.module.css'
+import { OutputField, OutputList } from './Outputs.tsx'
 import { cx } from './primitives.tsx'
 import ui from './ui.module.css'
 
@@ -41,16 +42,6 @@ export function StepPanel(props: StepPanelProps): React.JSX.Element | null {
     return <MineEditor key={`mine:${focus.name}`} {...props} original={focus.name} seed={null} />
   }
   return <MineEditor key="mine:new" {...props} original={null} seed={focus} />
-}
-
-function OutputBadge(props: { t: T; output: string | false | undefined }): React.JSX.Element {
-  const { t, output } = props
-  return (
-    <span className={css.readonlyChip}>
-      <Icon name="file" size={13} />
-      {output === undefined ? t('step.noOutput') : output === false ? t('step.noFile') : output}
-    </span>
-  )
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -102,7 +93,7 @@ function PresetView(props: StepPanelProps & { id: string }): React.JSX.Element |
           <div className={css.label}>
             <span>{t('ins.output')}</span>
           </div>
-          <OutputBadge t={t} output={data.output} />
+          <OutputList t={t} output={data.output} owner={t(preset.labelKey)} />
         </section>
         <p className={css.note}>
           <Icon name="info" size={13} />
@@ -226,7 +217,7 @@ function MineEditor(
     setDraft((current) => {
       if (current === null) return current
       const data: NodeData = { ...current.data, ...next }
-      for (const key of ['label', 'prompt', 'output'] as const) {
+      for (const key of ['label', 'description', 'prompt', 'output'] as const) {
         if (key in next && next[key] === undefined) delete data[key]
       }
       return { ...current, data }
@@ -284,14 +275,14 @@ function MineEditor(
       <div className={css.body}>
         <section className={css.field}>
           <div className={css.label}>
-            <span>{t('step.fileName')}</span>
+            <span>{t('step.id')}</span>
           </div>
           <input
             ref={nameRef}
             className={cx(ui.input, ui.mono)}
             value={draft.name}
             placeholder={t('tpl.placeholder')}
-            aria-label={t('step.fileName')}
+            aria-label={t('step.id')}
             aria-invalid={nameProblem !== null && draft.name !== ''}
             data-testid="wl-step-name"
             spellCheck={false}
@@ -303,10 +294,17 @@ function MineEditor(
           {nameProblem !== null && draft.name !== '' ? (
             <p className={css.error}>{nameProblem.message}</p>
           ) : (
-            <p className={css.help}>{t('step.fileNameHint')}</p>
+            <p className={css.help}>{t('step.idHint')}</p>
           )}
         </section>
 
+        <DescriptionField
+          t={t}
+          value={draft.data.description ?? ''}
+          onChange={(description) =>
+            patch({ description: description === '' ? undefined : description })
+          }
+        />
         <section className={cx(css.field, css.fieldGrow)}>
           <div className={css.label}>
             <span>{t('ins.prompt')}</span>
@@ -329,6 +327,7 @@ function MineEditor(
           t={t}
           value={draft.data.output}
           suggest={`${normalized === '' ? 'output' : normalized}.md`}
+          owner={draft.data.label ?? normalized}
           onChange={(output) => patch({ output })}
         />
       </div>

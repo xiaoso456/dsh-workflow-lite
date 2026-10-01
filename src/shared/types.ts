@@ -45,10 +45,24 @@ export interface WorkflowNode {
 export interface NodeData {
   /** 显示名。不要求唯一、不参与寻址与排序；缺省或空串时回落渲染 `id`。**不得含换行或 `|`**。 */
   label?: string
+  /** 一句话说明这一步做什么（给人看：步骤库、卡片）。**不进计划**，也不进载荷。 */
+  description?: string
   /** 提示词正文，逐字交给执行者。**缺失或为空串 = 编译级**（允许落盘、阻塞编译）。 */
   prompt?: string
-  /** 产出契约**三态**：字符串 = 产出；`false` = 显式声明不产出文件；缺省 = 未声明。 */
-  output?: string | false
+  /**
+   * 产出契约：
+   * - 字符串 = 一个产出文件（老写法，也是"一个产出、没有规则"时的规范写法）；
+   * - 数组 = 一个或多个产出，每个可带生成规则（规则进计划的交付契约）；
+   * - `false` = 显式声明不产出文件；缺省 = 未声明。
+   */
+  output?: string | false | OutputSpec[]
+}
+
+/** 一个产出：文件路径（相对工作区根）+ 可选的生成规则。 */
+export interface OutputSpec {
+  path: string
+  /** 这份产出该怎么写：格式、必须包含什么、给谁看。 */
+  rule?: string
 }
 
 export interface WorkflowEdge {
@@ -239,6 +253,8 @@ export interface TemplateEntry {
   name: string
   invalid?: true
   reason?: string
+  /** 节点模板的一句话描述（有才给）。 */
+  description?: string
 }
 
 export interface WorkflowEntry {
@@ -265,7 +281,7 @@ export interface NodeIndexEntry {
   label?: string
   /** 前置（含回边）的 `id`，按 `id` 码位序。 */
   predecessors: string[]
-  output?: string | false
+  output?: NodeData['output']
 }
 
 export interface ReadIndexResult {

@@ -16,6 +16,8 @@ import {
   ILLEGAL_NAME_CHARS,
   MAX_LABEL_CODEPOINTS,
   MAX_NAME_CODEPOINTS,
+  MAX_TEXT_CODEPOINTS,
+  MAX_VERDICT_CODEPOINTS,
   MAX_WHEN_CODEPOINTS,
   WINDOWS_RESERVED,
 } from './limits.ts'
@@ -79,20 +81,39 @@ export function checkName(raw: string): NameProblem | null {
 /**
  * 校验 `when` 的值（条件出边的判据）。
  *
- * 允许中文、字母、数字、`-`、`_`；**不许**空白、`,`、`=`、引号、换行；
- * 长度 ≤ {@link MAX_WHEN_CODEPOINTS} 码点；**空串非法**（缺省才是"无条件边"）。
+ * 两种都合法：短的判定词（`pass` / `fail` / `retry`，走 `VERDICT:` 约定），或者一句自然语言条件
+ * （"测试全绿且没有新增警告"）。只拦三样：空串（要无条件边就整条不写 `when`）、换行与控制字符
+ * （条件要能写进计划里的一句话）、超长。
  */
 export function checkWhen(raw: string): NameProblem | null {
-  if (raw === '') return fail('when_invalid', 'when 不得为空串——要"无条件边"就整条不写 when')
-  const value = normalizeWhen(raw)
-  if (codepointLength(value) > MAX_WHEN_CODEPOINTS) {
-    return fail('when_invalid', `when 长度不得超过 ${MAX_WHEN_CODEPOINTS} 个码点`)
+  if (raw.trim() === '') {
+    return fail('when_invalid', '条件不能为空——要"无条件"就整条不写 when')
   }
-  if (!/^[\p{L}\p{N}_-]+$/u.test(value)) {
-    return fail(
-      'when_invalid',
-      'when 只允许中文、字母、数字、- 与 _（不许空白、逗号、等号、引号、换行）',
-    )
+  const value = normalizeWhen(raw)
+  if (CONTROL_CHARS.test(value)) {
+    return fail('when_invalid', '条件不能包含换行或控制字符')
+  }
+  if (codepointLength(value) > MAX_WHEN_CODEPOINTS) {
+    return fail('when_invalid', `条件不能超过 ${MAX_WHEN_CODEPOINTS} 个字`)
+  }
+  return null
+}
+
+/**
+ * 这个条件是不是判定词：一个短的英文标识（≤ {@link MAX_VERDICT_CODEPOINTS} 个字符，只含字母、
+ * 数字、`-`、`_`），如 `pass` / `fail` / `needs-review`。
+ *
+ * 判定词由上游在回复末行写 `VERDICT: <值>` 来选路；其余（包括"用户确认了方案"这类中文短句）
+ * 都按自然语言条件处理：由执行者读了上游产出之后自己判断成立与否——计划里两种的写法不同。
+ */
+export function isVerdictWhen(value: string): boolean {
+  return value.length <= MAX_VERDICT_CODEPOINTS && /^[A-Za-z0-9_-]+$/.test(value)
+}
+
+/** 校验节点描述 / 产出规则这类自由文本：只防病态长度。 */
+export function checkText(raw: string, what: string): NameProblem | null {
+  if (codepointLength(raw) > MAX_TEXT_CODEPOINTS) {
+    return fail('output_invalid', `${what}不能超过 ${MAX_TEXT_CODEPOINTS} 个字`)
   }
   return null
 }

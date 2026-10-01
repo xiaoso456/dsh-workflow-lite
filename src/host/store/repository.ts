@@ -24,18 +24,22 @@ import { join } from 'node:path'
 
 import { analyzeGraph } from '../../shared/graph.ts'
 import {
+  canonicalOutput,
   cloneDocument,
   findNode,
   idKey,
   makeEdgeId,
   normalizeCoord,
   readDocument,
+  readNodeData,
+  sameNodeData,
   writeDocument,
 } from '../../shared/model.ts'
 import {
   checkLabel,
   checkName,
   checkOutput,
+  checkText,
   checkWhen,
   normalizeName,
   sameName,
@@ -46,6 +50,7 @@ import {
   type ListResult,
   NODE_TYPE,
   type NodeData,
+  type OutputSpec,
   type Point,
   type TemplateEntry,
   type ToolError,
@@ -178,6 +183,10 @@ export interface NodeUpsert {
   label?: string
   /** 产出契约三态：字符串 = 产出；`false` = 显式不产出；`null` = 清除。 */
   output?: string | false | null
+  /** 一个或多个产出（可带生成规则）；给了它就整份替换 `output`（`noOutput` 仍然优先）。 */
+  outputs?: OutputSpec[]
+  /** 一句话描述；空串 = 清除。 */
+  description?: string
   /** `true` ⇒ `output: false`（与 `output` 同时给出时以本字段为准）。 */
   noOutput?: boolean
   /** 从 `templates/nodes/<from>.json` 取 `data` 本体（**不复制模板的 `id` 与 `position`**）。 */
@@ -357,13 +366,14 @@ function setPromptValue(data: NodeData, prompt: string | undefined): void {
   else data.prompt = prompt
 }
 
-function setOutputValue(data: NodeData, output: string | false | undefined): void {
-  if (output === undefined) delete data.output
-  else data.output = output
+function setOutputValue(data: NodeData, output: NodeData['output']): void {
+  const value = canonicalOutput(output)
+  if (value === undefined) delete data.output
+  else data.output = value
 }
 
 function sameData(a: NodeData, b: NodeData): boolean {
-  return a.label === b.label && a.prompt === b.prompt && a.output === b.output
+  return sameNodeData(a, b)
 }
 
 function sameEdgeContent(a: WorkflowEdge, b: WorkflowEdge): boolean {
@@ -973,8 +983,14 @@ class FileRepository implements Repository {
           return fail('blocked', `label 不合法：${labelIssue.message}`, { code: labelIssue.code })
         }
       }
-      if (typeof upsert.output === 'string') {
-        const outputIssue = checkOutput(upsert.output)
+      const requested = [
+        ...(typeof upsert.output === 'string' ? [{ path: upsert.output }] : []),
+        ...(upsert.outputs ?? []),
+      ]
+      for (const spec of requested) {
+        const outputIssue =
+          checkOutput(spec.path) ??
+          (spec.rule === undefined ? null : checkText(spec.rule, '产出规则'))
         if (outputIssue !== null) {
           return fail('blocked', `output 不合法：${outputIssue.message}`, {
             code: outputIssue.code,
@@ -994,8 +1010,13 @@ class FileRepository implements Repository {
       if (upsert.label !== undefined)
         setLabelValue(data, upsert.label === '' ? undefined : upsert.label)
       if (upsert.noOutput === true) setOutputValue(data, false)
+      else if (upsert.outputs !== undefined) setOutputValue(data, upsert.outputs)
       else if (upsert.output === null) setOutputValue(data, undefined)
       else if (upsert.output !== undefined) setOutputValue(data, upsert.output)
+      if (upsert.description !== undefined) {
+        if (upsert.description === '') delete data.description
+        else data.description = upsert.description
+      }
 
       const warnings: ToolWarning[] = []
       let position: Point
@@ -1622,10 +1643,13 @@ class FileRepository implements Repository {
       const errors = this.templateProblems(kind, name, text).filter(
         (problem) => problem.level === 'save' || problem.level === 'compile',
       )
+      // 节点模板顺带给出它的描述：步骤库的条目上要显示"这一步做什么"。
+      const description = kind === 'nodes' ? parseNodeData(text).data.description : undefined
+      const described = description === undefined || description === '' ? {} : { description }
       if (errors.length > 0) {
-        entries.push({ name, invalid: true, reason: describeProblems(errors) })
+        entries.push({ name, invalid: true, reason: describeProblems(errors), ...described })
       } else {
-        entries.push({ name })
+        entries.push({ name, ...described })
       }
     }
     return entries
@@ -1675,8 +1699,12 @@ class FileRepository implements Repository {
 function writeNodeTemplate(data: NodeData): string {
   const out: Record<string, unknown> = {}
   if (data.label !== undefined && data.label !== '') out.label = data.label
+  if (data.description !== undefined && data.description !== '') {
+    out.description = data.description
+  }
   out.prompt = data.prompt ?? ''
-  if (data.output !== undefined) out.output = data.output
+  const output = canonicalOutput(data.output)
+  if (output !== undefined) out.output = output
   return `${JSON.stringify(out, null, 2)}\n`
 }
 
@@ -1699,11 +1727,7 @@ function parseNodeData(text: string): { data: NodeData; problems: ValidationProb
   if (!isRecord(parsed)) {
     return { data: {}, problems: [saveProblem('schema_invalid', '节点模板必须是一个 JSON 对象')] }
   }
-  const data: NodeData = {}
-  if (typeof parsed.label === 'string') data.label = parsed.label
-  if (typeof parsed.prompt === 'string') data.prompt = parsed.prompt
-  if (typeof parsed.output === 'string') data.output = parsed.output
-  else if (parsed.output === false) data.output = false
+  const data = readNodeData(parsed)
   const problems: ValidationProblem[] = []
   if (data.prompt === undefined || data.prompt === '') {
     problems.push({

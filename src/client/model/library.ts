@@ -24,6 +24,8 @@ export interface StepPreset {
   promptKey: LocaleKey
   /** 产出契约；`false` = 显式声明不产出文件。 */
   output?: string | false
+  /** 产出文件的生成规则（进计划的「产出要求」）。 */
+  ruleKey?: LocaleKey
 }
 
 /** 呈现顺序 = 一条常见主线的顺序。 */
@@ -34,6 +36,7 @@ export const PRESETS: readonly StepPreset[] = [
     labelKey: 'preset.scan.label',
     descKey: 'preset.scan.desc',
     promptKey: 'preset.scan.prompt',
+    ruleKey: 'preset.scan.rule',
     output: 'scan-notes.md',
   },
   {
@@ -42,6 +45,7 @@ export const PRESETS: readonly StepPreset[] = [
     labelKey: 'preset.plan.label',
     descKey: 'preset.plan.desc',
     promptKey: 'preset.plan.prompt',
+    ruleKey: 'preset.plan.rule',
     output: 'plan.md',
   },
   {
@@ -50,6 +54,7 @@ export const PRESETS: readonly StepPreset[] = [
     labelKey: 'preset.implement.label',
     descKey: 'preset.implement.desc',
     promptKey: 'preset.implement.prompt',
+    ruleKey: 'preset.implement.rule',
     output: 'changes.md',
   },
   {
@@ -58,6 +63,7 @@ export const PRESETS: readonly StepPreset[] = [
     labelKey: 'preset.review.label',
     descKey: 'preset.review.desc',
     promptKey: 'preset.review.prompt',
+    ruleKey: 'preset.review.rule',
     output: 'review.md',
   },
   {
@@ -66,6 +72,7 @@ export const PRESETS: readonly StepPreset[] = [
     labelKey: 'preset.fix.label',
     descKey: 'preset.fix.desc',
     promptKey: 'preset.fix.prompt',
+    ruleKey: 'preset.fix.rule',
     output: 'fix-notes.md',
   },
   {
@@ -94,8 +101,16 @@ export const BLANK_ID = 'step'
 export function presetData(preset: StepPreset, t: T): NodeData {
   return {
     label: t(preset.labelKey),
+    description: t(preset.descKey),
     prompt: t(preset.promptKey),
-    ...(preset.output === undefined ? {} : { output: preset.output }),
+    ...(preset.output === undefined
+      ? {}
+      : {
+          output:
+            typeof preset.output === 'string' && preset.ruleKey !== undefined
+              ? [{ path: preset.output, rule: t(preset.ruleKey) }]
+              : preset.output,
+        }),
   }
 }
 

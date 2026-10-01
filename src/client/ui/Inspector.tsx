@@ -13,14 +13,16 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { GraphAnalysis } from '../../shared/graph.ts'
+import { MAX_TEXT_CODEPOINTS } from '../../shared/limits.ts'
 import { idKey } from '../../shared/model.ts'
-import { checkOutput, checkWhen } from '../../shared/naming.ts'
+import { checkText, checkWhen, isVerdictWhen } from '../../shared/naming.ts'
 import type { NodeData, WorkflowDocument, WorkflowEdge, WorkflowNode } from '../../shared/types.ts'
 import type { T } from '../i18n.ts'
 import { type Edit, findNode, type Selection, whenOf } from '../model/editor.ts'
 import { kindOf } from '../model/library.ts'
 import { Icon, kindIcon } from './Icon.tsx'
 import css from './inspector.module.css'
+import { OutputField, type OutputRequest } from './Outputs.tsx'
 import { copyText, cx, Segmented } from './primitives.tsx'
 import ui from './ui.module.css'
 
@@ -37,6 +39,9 @@ export interface InspectorProps {
   onDuplicate(id: string): void
   onRemoveNode(id: string): void
   onSaveTemplate(name: string, data: NodeData): Promise<boolean>
+  /** 画布卡片的产出浮窗里点了某个文件：打开它的编辑框。 */
+  outputRequest: (OutputRequest & { node: string }) | null
+  onOutputRequestDone(): void
 }
 
 function titleOf(node: WorkflowNode | undefined, fallback: string): string {
@@ -61,13 +66,6 @@ export function Inspector(props: InspectorProps): React.JSX.Element | null {
 // ─────────────────────────────────────────────────────────────
 // 步骤
 // ─────────────────────────────────────────────────────────────
-
-type OutputMode = 'unset' | 'file' | 'none'
-
-function outputMode(output: string | false | undefined): OutputMode {
-  if (output === undefined) return 'unset'
-  return output === false ? 'none' : 'file'
-}
 
 function NodePanel(props: InspectorProps & { node: WorkflowNode }): React.JSX.Element {
   const { t, node, doc, analysis, onEdit, onSelect } = props
@@ -141,6 +139,19 @@ function NodePanel(props: InspectorProps & { node: WorkflowNode }): React.JSX.El
       </button>
 
       <div className={css.body}>
+        <DescriptionField
+          t={t}
+          value={node.data.description ?? ''}
+          onChange={(description) =>
+            onEdit({
+              type: 'patchNode',
+              id: node.id,
+              patch: { description: description === '' ? undefined : description },
+              merge: merge('description'),
+            })
+          }
+          onBlur={props.onSeal}
+        />
         <section className={cx(css.field, css.fieldGrow)}>
           <div className={css.label}>
             <span>{t('ins.prompt')}</span>
@@ -173,15 +184,14 @@ function NodePanel(props: InspectorProps & { node: WorkflowNode }): React.JSX.El
           t={t}
           value={node.data.output}
           suggest={`${node.id}.md`}
-          onChange={(output, typing) =>
-            onEdit({
-              type: 'patchNode',
-              id: node.id,
-              patch: { output },
-              ...(typing ? { merge: merge('output') } : {}),
-            })
+          owner={titleOf(node, node.id)}
+          onChange={(output) => onEdit({ type: 'patchNode', id: node.id, patch: { output } })}
+          request={
+            props.outputRequest !== null && idKey(props.outputRequest.node) === key
+              ? props.outputRequest
+              : null
           }
-          onBlur={props.onSeal}
+          onRequestDone={props.onOutputRequestDone}
         />
 
         <section className={css.field}>
@@ -294,79 +304,33 @@ function NodePanel(props: InspectorProps & { node: WorkflowNode }): React.JSX.El
   )
 }
 
-/**
- * 产出文件的三态：不声明 / 写入文件 / 不产出。
- *
- * 选了「写入文件」但还没填出合法路径时，那份草稿只活在这里，不交出去——交出去的永远是能保存的值。
- * 步骤面板与「我的步骤」编辑器共用它。
- */
-export function OutputField(props: {
+/** 一句话描述（给人看：步骤库条目、画布卡片），不进计划。 */
+export function DescriptionField(props: {
   t: T
-  value: string | false | undefined
-  /** 切到「写入文件」时预填的文件名。 */
-  suggest: string
-  /** `typing` = 正在输入框里连续打字（调用方可以据此合并撤销步）。 */
-  onChange(value: string | false | undefined, typing: boolean): void
+  value: string
+  onChange(value: string): void
   onBlur?: () => void
 }): React.JSX.Element {
-  const { t, value } = props
-  const [mode, setMode] = useState<OutputMode>(outputMode(value))
-  const [draft, setDraft] = useState(typeof value === 'string' ? value : '')
-
-  // 外面的值变了（撤销、换了一个步骤）就跟着走。
-  useEffect(() => {
-    setMode(outputMode(value))
-    setDraft(typeof value === 'string' ? value : '')
-  }, [value])
-
-  const error = mode === 'file' && draft !== '' ? checkOutput(draft) : null
-
-  const choose = (next: OutputMode): void => {
-    setMode(next)
-    if (next === 'unset') props.onChange(undefined, false)
-    if (next === 'none') props.onChange(false, false)
-    if (next === 'file') {
-      // 给一个现成的文件名，省得人面对一个空框。
-      const filled = draft !== '' && checkOutput(draft) === null ? draft : props.suggest
-      setDraft(filled)
-      props.onChange(filled, false)
-    }
-  }
-
+  const { t } = props
+  const problem = checkText(props.value, t('ins.description'))
   return (
     <section className={css.field}>
       <div className={css.label}>
-        <span>{t('ins.output')}</span>
+        <span>{t('ins.description')}</span>
       </div>
-      <Segmented<OutputMode>
-        label={t('ins.output')}
-        value={mode}
-        onChange={choose}
-        options={[
-          { value: 'unset', label: t('ins.output.unset') },
-          { value: 'file', label: t('ins.output.file') },
-          { value: 'none', label: t('ins.output.none') },
-        ]}
+      <input
+        className={ui.input}
+        value={props.value}
+        placeholder={t('ins.descriptionPlaceholder')}
+        aria-label={t('ins.description')}
+        aria-invalid={problem !== null}
+        maxLength={MAX_TEXT_CODEPOINTS}
+        data-testid="wl-description"
+        // 描述是一行字：换行直接不让打进来。
+        onChange={(event) => props.onChange(event.currentTarget.value.replace(/[\r\n]+/gu, ' '))}
+        onBlur={props.onBlur}
       />
-      {mode === 'file' && (
-        <>
-          <input
-            className={cx(ui.input, ui.mono, ui.rise)}
-            value={draft}
-            placeholder={t('ins.outputPlaceholder')}
-            aria-label={t('ins.output')}
-            aria-invalid={error !== null}
-            data-testid="wl-ins-output"
-            onChange={(event) => {
-              const next = event.currentTarget.value
-              setDraft(next)
-              if (next !== '' && checkOutput(next) === null) props.onChange(next, true)
-            }}
-            onBlur={props.onBlur}
-          />
-          {error !== null && <p className={css.error}>{t('ins.outputInvalid')}</p>}
-        </>
-      )}
+      {problem !== null && <p className={css.error}>{problem.message}</p>}
     </section>
   )
 }
@@ -387,7 +351,7 @@ function LinkRow(props: {
       <span className={css.linkName}>{props.other}</span>
       {props.back && <Icon name="loop" size={12} />}
       {when !== undefined && (
-        <span className={css.whenChip} data-when={when}>
+        <span className={css.whenChip} data-when={when} title={when}>
           {when === 'pass' ? t('edge.pass') : when === 'fail' ? t('edge.fail') : when}
         </span>
       )}
@@ -414,26 +378,35 @@ function EdgePanel(props: InspectorProps & { edge: WorkflowEdge }): React.JSX.El
   const source = findNode(doc, edge.source)
   const target = findNode(doc, edge.target)
   const back = analysis.backEdges.has(edge.id)
+  /** 最近一次自己交出去的条件：外面的值等于它就不回灌（回灌会吃掉正在打的尾部空格）。 */
+  const emitted = useRef(when)
+  const merge = `${idKey(edge.source)}->${idKey(edge.target)}:when`
 
-  // 选中跟着改判据搬到了新 id 上，这里的 `edge` 也就换了：重新取模式。
+  // 撤销、或在画布上换了一条线：从文档重新取模式与草稿。
   useEffect(() => {
+    if (when === emitted.current) return
+    emitted.current = when
     const next = whenMode(when)
     setMode((current) => (current === 'custom' && next === 'always' ? current : next))
     if (next === 'custom') setDraft(when ?? '')
   }, [when])
 
-  const customError = mode === 'custom' && draft !== '' ? checkWhen(draft) : null
+  const setWhen = (value: string | undefined, typing = false): void => {
+    emitted.current = value
+    onEdit({ type: 'setWhen', id: edge.id, when: value, ...(typing ? { merge } : {}) })
+  }
+
+  const condition = draft.trim()
+  const customError = mode === 'custom' && condition !== '' ? checkWhen(condition) : null
 
   const choose = (next: WhenMode): void => {
     setMode(next)
-    if (next === 'always') onEdit({ type: 'setWhen', id: edge.id, when: undefined })
-    if (next === 'pass' || next === 'fail') onEdit({ type: 'setWhen', id: edge.id, when: next })
-    if (next === 'custom' && draft !== '' && checkWhen(draft) === null) {
-      onEdit({ type: 'setWhen', id: edge.id, when: draft })
-    }
+    if (next === 'always') setWhen(undefined)
+    if (next === 'pass' || next === 'fail') setWhen(next)
+    if (next === 'custom' && condition !== '' && checkWhen(condition) === null) setWhen(condition)
   }
 
-  const verdict = mode === 'custom' ? draft : mode
+  const verdict = mode === 'custom' ? condition : mode
   return (
     <aside
       className={cx(ui.panel, css.panel)}
@@ -499,33 +472,35 @@ function EdgePanel(props: InspectorProps & { edge: WorkflowEdge }): React.JSX.El
           />
           {mode === 'custom' && (
             <>
-              <input
-                className={cx(ui.input, ui.mono, ui.rise)}
+              <textarea
+                className={cx(ui.textarea, css.condition, ui.rise)}
                 value={draft}
+                rows={3}
                 placeholder={t('edge.customPlaceholder')}
                 aria-label={t('edge.custom')}
                 aria-invalid={customError !== null}
                 data-testid="wl-edge-custom"
                 onChange={(event) => {
-                  const value = event.currentTarget.value.trim()
+                  // 条件要能写进计划里的一句话：换行就地换成空格。
+                  const value = event.currentTarget.value.replace(/[\r\n]+/gu, ' ')
                   setDraft(value)
-                  if (value !== '' && checkWhen(value) === null) {
-                    onEdit({ type: 'setWhen', id: edge.id, when: value })
-                  }
+                  const trimmed = value.trim()
+                  if (trimmed !== '' && checkWhen(trimmed) === null) setWhen(trimmed, true)
                 }}
+                onBlur={props.onSeal}
               />
-              {customError !== null && <p className={css.error}>{t('edge.customInvalid')}</p>}
+              {customError !== null && <p className={css.error}>{customError.message}</p>}
             </>
           )}
           {mode === 'always' ? (
             <p className={css.help}>{t('edge.hintAlways')}</p>
+          ) : verdict === '' ? null : isVerdictWhen(verdict) ? (
+            <div className={css.verdict}>
+              <p className={css.help}>{t('edge.hintVerdict')}</p>
+              <code className={css.verdictCode}>VERDICT: {verdict}</code>
+            </div>
           ) : (
-            verdict !== '' && (
-              <div className={css.verdict}>
-                <p className={css.help}>{t('edge.hintVerdict')}</p>
-                <code className={css.verdictCode}>VERDICT: {verdict}</code>
-              </div>
-            )
+            <p className={css.help}>{t('edge.hintJudge')}</p>
           )}
           {back && (
             <p className={css.note}>

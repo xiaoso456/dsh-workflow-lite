@@ -197,6 +197,10 @@
 
 .whenChip {
   flex: none;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   padding: 1px 7px;
   border-radius: 999px;
   background: var(--wl-fill);
@@ -378,4 +382,188 @@
   color: var(--wl-warn);
   font-size: var(--wl-fs-micro);
   white-space: nowrap;
+}
+
+/* ── 产出文件清单 ─────────────────────────────────────────── */
+
+.outList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.outItem {
+  position: relative;
+}
+
+/* 一行 = 一个文件：图标占两行高，右边是路径与规则摘要。整行就是按钮。 */
+.outMain {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 16px;
+  gap: 2px 10px;
+  align-items: center;
+  width: 100%;
+  padding: 8px 10px 8px 8px;
+  border: 1px solid var(--wl-line);
+  border-radius: 10px;
+  background: var(--wl-panel);
+  color: var(--wl-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.outMain:hover {
+  border-color: var(--wl-line-strong);
+  background: var(--wl-hover);
+}
+
+.outMain:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+.outIcon {
+  display: grid;
+  grid-row: span 2;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+}
+
+.outMain[data-editable="false"] .outIcon {
+  background: var(--wl-fill);
+  color: var(--wl-text-2);
+}
+
+.outPath {
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-meta);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.outRule {
+  display: -webkit-box;
+  grid-column: 2;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.5;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  word-break: break-word;
+}
+
+.outRuleEmpty {
+  font-style: italic;
+}
+
+.outMain[data-editable="true"] .outRuleEmpty {
+  color: var(--wl-accent-text);
+  font-style: normal;
+  opacity: 0.8;
+}
+
+/* 行尾的小箭头 / 铅笔：悬停时才浮出来，说明"点这一行"。 */
+.outGo {
+  display: inline-flex;
+  grid-row: 1 / span 2;
+  grid-column: 3;
+  color: var(--wl-text-3);
+  opacity: 0;
+  transform: translateX(-3px);
+  transition:
+    opacity 120ms linear,
+    transform 160ms var(--wl-ease);
+}
+
+.outMain:hover .outGo,
+.outMain:focus-visible .outGo {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* 可删的行：删除钮压在行尾，悬停时换掉那支铅笔。 */
+.outRemove {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  opacity: 0;
+  transform: translateY(-50%);
+  transition: opacity 120ms linear;
+}
+
+.outItem:hover .outRemove,
+.outRemove:focus-visible {
+  opacity: 1;
+}
+
+.outItem:has(.outRemove):hover .outGo {
+  opacity: 0;
+}
+
+.outAdd {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  height: 34px;
+  border: 1px dashed var(--wl-line-strong);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--wl-accent-text);
+  font: inherit;
+  font-size: var(--wl-fs-meta);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.outAdd:hover {
+  border-color: var(--wl-accent);
+  background: var(--wl-accent-soft);
+}
+
+.outAdd:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+/* 模态框里的生成规则：有地方好好写一段。 */
+.ruleArea {
+  min-height: 180px;
+  font-size: var(--wl-fs-body);
+  line-height: 1.6;
+}
+
+.optional {
+  margin-left: 6px;
+  color: var(--wl-text-3);
+  font-weight: 400;
+}
+
+.readonlyShort {
+  flex: none;
+  min-height: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .outGo,
+  .outRemove {
+    transition: none;
+  }
+}
+
+/* 自定义条件：一段话，不是一个短词。 */
+.condition {
+  min-height: 76px;
+  font-size: var(--wl-fs-body);
 }

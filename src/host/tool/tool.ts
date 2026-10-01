@@ -190,6 +190,8 @@ export interface WorkflowLiteArgs {
   content?: string
   label?: string
   output?: string
+  outputs?: { path: string; rule?: string }[]
+  description?: string
   no_output?: boolean
   from_template?: string
   from?: string
@@ -329,6 +331,12 @@ export function createWorkflowLiteHandler(
         if (args.content !== undefined) upsert.content = args.content
         if (args.label !== undefined) upsert.label = args.label
         if (args.output !== undefined) upsert.output = args.output
+        if (args.outputs !== undefined) {
+          upsert.outputs = args.outputs.map((spec) =>
+            spec.rule === undefined ? { path: spec.path } : { path: spec.path, rule: spec.rule },
+          )
+        }
+        if (args.description !== undefined) upsert.description = args.description
         if (args.no_output === true) upsert.noOutput = true
         if (args.from_template !== undefined) upsert.fromTemplate = args.from_template
         const outcome = await repository.writeNode(name, upsert)
@@ -460,6 +468,23 @@ export const PARAMETERS = {
     description: 'write_node / set_label：显示名。不要求唯一；空串 = 清除（回落显示 id）。',
   },
   output: { type: 'string', description: 'write_node：产出契约（相对工作区根的路径）。' },
+  outputs: {
+    type: 'array',
+    description:
+      'write_node：一个或多个产出，每个可带生成规则（规则进派发计划的交付契约）。给了它就整份替换 output。',
+    items: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        path: { type: 'string', required: true, description: '相对工作区根的产出路径。' },
+        rule: { type: 'string', description: '这份产出该怎么写：格式、必须包含什么。' },
+      },
+    },
+  },
+  description: {
+    type: 'string',
+    description: 'write_node：一句话说明这一步做什么（给人看，不进计划）；空串 = 清除。',
+  },
   no_output: {
     type: 'boolean',
     description: 'write_node：true ⇒ 显式声明本节点不产出文件（写 output: false）。',
@@ -478,7 +503,8 @@ export const PARAMETERS = {
   target: { type: 'string', description: 'connect / disconnect：目标节点 id。' },
   when: {
     type: 'string',
-    description: 'connect / disconnect：条件值（缺省 = 无条件边）。同一条边只在一处出现。',
+    description:
+      'connect / disconnect：条件（缺省 = 无条件边）。短判定词（pass / fail）走 VERDICT 约定；也可以写一句自然语言条件，由执行者判断。',
   },
   goal: { type: 'string', description: 'compile：本次目标（进派发计划的动态尾）。' },
   full: { type: 'boolean', description: 'compile：true = 整卷版（内联正文，给人读）。' },

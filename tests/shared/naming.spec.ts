@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
+import { MAX_WHEN_CODEPOINTS } from '../../src/shared/limits.ts'
 import {
   checkLabel,
   checkName,
   checkOutput,
   checkWhen,
   codepointLength,
+  isVerdictWhen,
   normalizeName,
   sameName,
 } from '../../src/shared/naming.ts'
@@ -86,15 +88,28 @@ describe('checkWhen', () => {
     expect(checkWhen('')?.code).toBe('when_invalid')
   })
 
-  it('空白、逗号、等号、引号、换行都要拒', () => {
-    for (const bad of ['a b', 'a,b', 'a=b', 'a"b', "a'b", 'a\nb']) {
-      expect(checkWhen(bad)?.code, bad).toBe('when_invalid')
+  it('软编排：一整句自然语言条件也合法（空格、标点、引号都行）', () => {
+    for (const ok of ['a b', 'a,b', 'a=b', 'a"b', "a'b", '测试全绿，且没有新增 "warning"。']) {
+      expect(checkWhen(ok), ok).toBeNull()
     }
   })
 
-  it('长度上限 32 码点', () => {
-    expect(checkWhen('a'.repeat(32))).toBeNull()
-    expect(checkWhen('a'.repeat(33))?.code).toBe('when_invalid')
+  it('只拒三样：全空白、换行 / 控制字符、超长——报错说的就是真实原因', () => {
+    expect(checkWhen('   ')?.message).toContain('不能为空')
+    expect(checkWhen('a\nb')?.message).toContain('换行')
+    expect(checkWhen('a'.repeat(MAX_WHEN_CODEPOINTS))).toBeNull()
+    expect(checkWhen('a'.repeat(MAX_WHEN_CODEPOINTS + 1))?.message).toContain('不能超过')
+  })
+})
+
+describe('isVerdictWhen', () => {
+  it('短的英文标识是判定词，中文短句与一句话都是自然语言条件', () => {
+    expect(isVerdictWhen('pass')).toBe(true)
+    expect(isVerdictWhen('retry-2')).toBe(true)
+    expect(isVerdictWhen('需要人工复核')).toBe(false)
+    expect(isVerdictWhen('测试全绿且没有新增警告，可以合并')).toBe(false)
+    expect(isVerdictWhen('a b')).toBe(false)
+    expect(isVerdictWhen('a'.repeat(33))).toBe(false)
   })
 })
 

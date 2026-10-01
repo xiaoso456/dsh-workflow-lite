@@ -17,6 +17,7 @@ import {
   dragItemTo,
   MOD,
   mouseClick,
+  mouseMove,
   pressKey,
   pressShortcut,
   screenshot,
@@ -28,6 +29,9 @@ import { rpc } from './lib/web-session.mjs'
 const NAME = `ui-${Date.now().toString(36)}`
 const RENAMED = `${NAME}-renamed`
 const STEP = `${NAME}-step`
+const CONDITION = '测试全部通过，并且没有新增 lint 警告，同时改动说明里写清楚了验证方法'
+const RULE = '按优先级列出风险，每条写清影响范围与应对办法'
+const PLAN_RULE = '有序的任务清单：每条写清改哪个文件、验收标准是什么。'
 const STEP_NEW = `${NAME}-new`
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -224,6 +228,121 @@ async function run(session) {
   await onDisk(NAME, (doc) => edgeIds(doc).includes('scan->plan#fail'), '撤销后连线回来')
   pass('Delete 删连线、Ctrl+Z 撤回')
 
+  // 7b) 自定义条件：一整句自然语言，可以很长；线上截断显示，悬停看全文。
+  await mouseClick(session, await edgeMidpoint(session, 'scan->plan#fail'))
+  await waitFor(session, exists('wl-delete-edge'))
+  await session.evaluate(
+    `[...document.querySelectorAll('[data-testid="wl-inspector"] [role="radio"]')][3].click()`,
+  )
+  await waitFor(session, exists('wl-edge-custom'))
+  await setReactInput(session, '[data-testid="wl-edge-custom"]', CONDITION)
+  await onDisk(NAME, (doc) => edgeIds(doc).includes(`scan->plan#${CONDITION}`), '自定义条件')
+  check(
+    !(await session.evaluate(
+      `document.querySelector('[data-testid="wl-inspector"] p')?.textContent?.includes('只能用文字') === true`,
+    )),
+    '合法的长条件不该报错',
+  )
+  check(
+    await session.evaluate(
+      `[...document.querySelectorAll('.react-flow__edgelabel-renderer [role="tooltip"]')].some((el) => el.textContent === ${JSON.stringify(CONDITION)})`,
+    ),
+    '线上的长条件应带一份全文悬停提示',
+  )
+  await mouseMove(session, await centerOf(session, '.react-flow__edgelabel-renderer button'))
+  await sleep(500)
+  await screenshot(session, 'ui-02b-condition.png')
+  pass('自定义条件写一整句话 → 落盘，线上截断、悬停看全文')
+
+  // 7c) 多个产出：面板里是一张清单，点「添加」在模态框里写路径与生成规则。
+  await mouseClick(session, await centerOf(session, '.react-flow__node[data-id="plan"]'))
+  await waitFor(session, exists('wl-output-add'))
+  check(
+    (
+      await session.evaluate(
+        `document.querySelector('[data-testid="wl-inspector"] [data-testid="wl-output-item"]')?.textContent || ''`,
+      )
+    ).includes(PLAN_RULE),
+    '内置「拆解」插进来时应带着产出的生成规则，并显示在清单里',
+  )
+  await session.evaluate(clickTestId('wl-output-add'))
+  await waitFor(session, exists('wl-output-dialog'))
+  check(
+    (await session.evaluate(`document.querySelector('[data-testid="wl-output-path"]').value`)) ===
+      'plan-2.md',
+    '新加的产出应预填一个没被占用的文件名',
+  )
+  await setReactInput(session, '[data-testid="wl-output-path"]', 'plan-risks.md')
+  await setReactInput(session, '[data-testid="wl-output-rule"]', RULE)
+  await sleep(350)
+  await screenshot(session, 'ui-02c-dialog.png')
+  await session.evaluate(clickTestId('wl-output-done'))
+  await waitFor(session, `document.querySelector('[data-testid="wl-output-dialog"]') === null`)
+  await onDisk(
+    NAME,
+    (doc) =>
+      JSON.stringify(doc.nodes.find((node) => node.id === 'plan')?.data.output) ===
+      JSON.stringify([
+        { path: 'plan.md', rule: PLAN_RULE },
+        { path: 'plan-risks.md', rule: RULE },
+      ]),
+    'plan 的两个产出与规则',
+  )
+  check(
+    (await session.evaluate(
+      `document.querySelectorAll('[data-testid="wl-inspector"] [data-testid="wl-output-item"]').length`,
+    )) === 2,
+    '清单里应有两个文件',
+  )
+  await screenshot(session, 'ui-02c-outputs.png')
+  pass('多个产出：清单 + 模态框编辑 → 落盘为清单')
+
+  // 7d) 画布联动：悬停卡片上的产出弹出浮窗（全部文件 + 规则），点其中一个直接打开它的编辑框。
+  await sleep(400)
+  await mouseMove(
+    session,
+    await centerOf(session, '.react-flow__node[data-id="plan"] [data-testid="wl-card-outputs"]'),
+  )
+  await waitFor(session, exists('wl-output-peek'))
+  const peekText = await session.evaluate(
+    `document.querySelector('[data-testid="wl-output-peek"]').textContent`,
+  )
+  check(
+    peekText.includes('plan-risks.md') && peekText.includes(RULE),
+    `浮窗应列出全部产出与规则：${peekText}`,
+  )
+  check(
+    (
+      await session.evaluate(
+        `document.querySelector('.react-flow__node[data-id="plan"]').textContent`,
+      )
+    ).includes('+1'),
+    '卡片上应显示 +1',
+  )
+  await sleep(350)
+  await screenshot(session, 'ui-02d-peek.png')
+  await mouseMove(session, await centerOf(session, '[data-testid="wl-peek-item"]:nth-of-type(2)'))
+  await mouseClick(session, await centerOf(session, '[data-testid="wl-peek-item"]:nth-of-type(2)'))
+  await waitFor(session, exists('wl-output-dialog'))
+  check(
+    (await session.evaluate(`document.querySelector('[data-testid="wl-output-path"]').value`)) ===
+      'plan-risks.md',
+    '从浮窗点开的应是那一个文件',
+  )
+  check(
+    (await session.evaluate(`document.activeElement?.getAttribute('data-testid')`)) ===
+      'wl-output-rule',
+    '打开已有的产出时光标应在生成规则里',
+  )
+  await pressKey(session, 'Escape')
+  await waitFor(session, `document.querySelector('[data-testid="wl-output-dialog"]') === null`)
+  check(await session.evaluate(exists('wl-inspector')), 'Esc 只关模态框，不该连带取消选中')
+  check(
+    await session.evaluate(`document.querySelector('[data-testid="wl-output-peek"]') === null`),
+    '点了浮窗里的文件之后浮窗应收起',
+  )
+  pass('悬停卡片产出 → 浮窗列出文件与规则；点文件 → 打开它的编辑框，Esc 只关框')
+
   // 8) 点选 step，Ctrl+D 复制；Delete 删掉副本。
   await mouseClick(session, await centerOf(session, '.react-flow__node[data-id="step"]'))
   await pressKey(session, 'd', { modifiers: MOD.ctrl })
@@ -259,6 +378,13 @@ async function run(session) {
     session,
     `(document.querySelector('[data-testid="wl-plan-text"]')?.textContent || '').includes('.dispatch')`,
   )
+  const modelPlan = await session.evaluate(
+    `document.querySelector('[data-testid="wl-plan-text"]').textContent`,
+  )
+  check(modelPlan.includes(`「${CONDITION}」`), '计划里应原样引用自然语言条件')
+  check(!modelPlan.includes(`VERDICT: ${CONDITION}`), '自然语言条件不该要求 VERDICT 行')
+  check(modelPlan.includes(RULE), '生成规则应进计划的产出要求')
+  check(modelPlan.includes('plan-risks.md'), '第二个产出应进计划')
   await session.evaluate(
     `[...document.querySelectorAll('[data-testid="wl-plan"] [role="radio"]')][1].click()`,
   )
@@ -313,11 +439,35 @@ async function run(session) {
   )
   check(!(await session.evaluate(exists('wl-inspector'))), '看库里的条目时不该同时开着步骤属性')
   await screenshot(session, 'ui-05-preset.png')
-  pass('点内置步骤 → 右侧只读展示')
+  // 内置步骤的产出文件也能点开，看它的生成规则（只读）。
+  await session.evaluate(
+    `document.querySelector('[data-testid="wl-step-panel"] [data-testid="wl-output-item"]').click()`,
+  )
+  await waitFor(session, exists('wl-output-rule-view'))
+  check(
+    (await session.evaluate(
+      `document.querySelectorAll('[data-testid="wl-output-dialog"] input, [data-testid="wl-output-dialog"] textarea').length`,
+    )) === 0,
+    '内置步骤的产出详情不该可编辑',
+  )
+  await sleep(350)
+  await screenshot(session, 'ui-05b-preset-output.png')
+  await session.evaluate(clickTestId('wl-output-done'))
+  await waitFor(session, `document.querySelector('[data-testid="wl-output-dialog"]') === null`)
+  check(await session.evaluate(exists('wl-step-panel')), '关掉产出详情后内置步骤面板应还开着')
+  pass('点内置步骤 → 右侧只读展示，产出文件可点开看规则')
 
   // 10c) 复制为我的步骤 → 改文件名 → 保存：磁盘上出现这份模板，库里出现这一项。
   await session.evaluate(clickTestId('wl-step-copy'))
   await waitFor(session, exists('wl-step-name'))
+  check(
+    await session.evaluate(`(() => {
+      const id = document.querySelector('[data-testid="wl-step-name"]');
+      const desc = document.querySelector('[data-testid="wl-step-panel"] [data-testid="wl-description"]');
+      return Boolean(id.compareDocumentPosition(desc) & Node.DOCUMENT_POSITION_FOLLOWING);
+    })()`),
+    'ID 应排在描述上面',
+  )
   await setReactInput(session, '[data-testid="wl-step-name"]', STEP)
   await session.evaluate(clickTestId('wl-step-save'))
   await waitFor(session, exists(`wl-lib-template-${STEP}`))
@@ -331,16 +481,25 @@ async function run(session) {
     `(document.querySelector('textarea[data-testid="wl-step-prompt"]')?.value || '').includes('VERDICT')`,
   )
   await setReactInput(session, 'textarea[data-testid="wl-step-prompt"]', '改过的提示词')
+  await setReactInput(
+    session,
+    '[data-testid="wl-step-panel"] [data-testid="wl-description"]',
+    '我自己的审查',
+  )
   await session.evaluate(`document.querySelector('textarea[data-testid="wl-step-prompt"]').focus()`)
   await pressKey(session, 's', { modifiers: MOD.ctrl })
   const deadline = Date.now() + 6000
   for (;;) {
     const draft = await rpc('graph/nodeTemplateDraft', { name: STEP })
-    if (draft.data.prompt === '改过的提示词') break
+    if (draft.data.prompt === '改过的提示词' && draft.data.description === '我自己的审查') break
     if (Date.now() > deadline)
       throw new Error(`FAIL: Ctrl+S 没有把改动存下去：${draft.data.prompt}`)
     await sleep(200)
   }
+  await waitFor(
+    session,
+    `(document.querySelector('[data-testid="wl-lib-template-${STEP}"]')?.textContent || '').includes('我自己的审查')`,
+  )
   await screenshot(session, 'ui-06-mine.png')
   pass('编辑我的步骤，Ctrl+S 保存落盘')
 

@@ -9,7 +9,9 @@ import {
   normalizeCoord,
   normalizeDocument,
   outgoingEdges,
+  outputSpecs,
   readDocument,
+  sameNodeData,
   writeDocument,
 } from '../../src/shared/model.ts'
 import type { WorkflowDocument } from '../../src/shared/types.ts'
@@ -330,5 +332,55 @@ describe('cloneDocument', () => {
     expect(d.nodes[0]?.position.x).toBe(1)
     expect(d.nodes[0]?.data.prompt).toBe('P')
     expect(d.edges[0]?.data?.when).toBe('pass')
+  })
+})
+
+describe('产出清单与描述', () => {
+  it('一个产出且没有规则写成字符串；多个或带规则写成数组；描述照写', () => {
+    const base = { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } }
+    const node = (output: unknown, description?: string) => ({
+      id: 'a',
+      type: 'wfNode',
+      position: { x: 1, y: 2 },
+      data: { prompt: 'p', output, ...(description === undefined ? {} : { description }) },
+    })
+    const read = (output: unknown, description?: string) =>
+      readDocument(JSON.stringify({ ...base, nodes: [node(output, description)] })).document
+        ?.nodes[0]?.data
+
+    expect(read([{ path: 'a.md' }])?.output).toBe('a.md')
+    expect(read([{ path: 'a.md', rule: '  ' }])?.output).toBe('a.md')
+    expect(read([{ path: 'a.md', rule: 'r' }, { path: 'b.md' }])?.output).toEqual([
+      { path: 'a.md', rule: 'r' },
+      { path: 'b.md' },
+    ])
+    expect(read([])?.output).toBeUndefined()
+    expect(read([{ nope: 1 }, { path: 'b.md' }])?.output).toBe('b.md')
+    expect(read('x.md', '做什么')?.description).toBe('做什么')
+  })
+
+  it('写出时产出也走规范写法，键序 label / description / prompt / output', () => {
+    const text = writeDocument({
+      nodes: [
+        {
+          id: 'a',
+          type: 'wfNode',
+          position: { x: 0, y: 0 },
+          data: { output: [{ path: 'a.md' }], prompt: 'p', description: 'd', label: 'L' },
+        },
+      ],
+      edges: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+    })
+    const data = JSON.parse(text).nodes[0].data
+    expect(Object.keys(data)).toEqual(['label', 'description', 'prompt', 'output'])
+    expect(data.output).toBe('a.md')
+  })
+
+  it('outputSpecs / sameNodeData', () => {
+    expect(outputSpecs(false)).toEqual([])
+    expect(outputSpecs('a.md')).toEqual([{ path: 'a.md' }])
+    expect(sameNodeData({ output: 'a.md' }, { output: [{ path: 'a.md' }] })).toBe(true)
+    expect(sameNodeData({ output: [{ path: 'a.md', rule: 'x' }] }, { output: 'a.md' })).toBe(false)
   })
 })

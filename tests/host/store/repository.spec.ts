@@ -525,7 +525,7 @@ describe('connect / disconnect', () => {
   it('端点不存在 ⇒ not_found；when 非法 ⇒ blocked', async () => {
     await seedTwo()
     expect(expectError(await repo.connect('w', 'a', 'ghost')).code).toBe('not_found')
-    expect(expectError(await repo.connect('w', 'a', 'b', 'has space')).code).toBe('blocked')
+    expect(expectError(await repo.connect('w', 'a', 'b', 'line\nbreak')).code).toBe('blocked')
     expect(expectError(await repo.connect('w', 'a', 'b', '')).code).toBe('blocked')
   })
 
@@ -677,6 +677,19 @@ describe('节点模板的编辑：draft / save / delete', () => {
       'taken',
     ])
     expect(expectOk(await repo.readTemplate('nodes', 'new-name'))).toEqual({ prompt: 'A2' })
+  })
+
+  it('描述与多个产出（带规则）原样存下、读回', async () => {
+    const data = {
+      label: '检查',
+      description: '跑一遍检查',
+      prompt: 'P',
+      output: [{ path: 'a.md', rule: '列出问题' }, { path: 'b.json' }],
+    }
+    expectOk(await repo.createNodeTemplate('rich', data))
+    const raw = JSON.parse((await readFileText(templateFile(root, 'nodes', 'rich'))) ?? '{}')
+    expect(Object.keys(raw)).toEqual(['label', 'description', 'prompt', 'output'])
+    expect(expectOk(await repo.readNodeTemplateDraft('rich'))).toEqual(data)
   })
 
   it('只改大小写的改名不会把文件弄丢', async () => {

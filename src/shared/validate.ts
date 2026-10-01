@@ -22,8 +22,15 @@ import {
   type GraphAnalysis,
 } from './graph.ts'
 import { WELL_KNOWN_WHEN } from './limits.ts'
-import { idKey } from './model.ts'
-import { checkLabel, checkName, checkOutput, checkWhen } from './naming.ts'
+import { idKey, outputSpecs } from './model.ts'
+import {
+  checkLabel,
+  checkName,
+  checkOutput,
+  checkText,
+  checkWhen,
+  isVerdictWhen,
+} from './naming.ts'
 import type {
   ValidationCode,
   ValidationLevel,
@@ -129,12 +136,33 @@ export function validateDocument(
 
   // ── 保存级：每个节点的字段规则 ──────────────────────────────
   for (const node of document.nodes) {
-    const output = node.data.output
-    if (typeof output === 'string') {
-      const problem = checkOutput(output)
+    const seenPaths = new Set<string>()
+    for (const spec of outputSpecs(node.data.output)) {
+      const problem =
+        checkOutput(spec.path) ??
+        (spec.rule === undefined ? null : checkText(spec.rule, '产出规则'))
       if (problem !== null) {
         save.push(
           mk('save', problem.code, `节点 ${node.id} 的 output 不合法：${problem.message}`, {
+            node: node.id,
+          }),
+        )
+      }
+      // 同一个节点里把同一个文件声明两遍：两条规则会互相打架。
+      if (seenPaths.has(spec.path)) {
+        save.push(
+          mk('save', 'output_invalid', `节点 ${node.id} 重复声明了产出 ${spec.path}`, {
+            node: node.id,
+          }),
+        )
+      }
+      seenPaths.add(spec.path)
+    }
+    if (typeof node.data.description === 'string') {
+      const problem = checkText(node.data.description, '描述')
+      if (problem !== null) {
+        save.push(
+          mk('save', 'label_invalid', `节点 ${node.id} 的描述不合法：${problem.message}`, {
             node: node.id,
           }),
         )
@@ -252,9 +280,9 @@ export function validateDocument(
   }
   const outputOwners = new Map<string, string[]>()
   for (const node of document.nodes) {
-    const output = node.data.output
-    if (typeof output !== 'string' || output === '') continue
-    outputOwners.set(output, [...(outputOwners.get(output) ?? []), node.id])
+    for (const { path } of outputSpecs(node.data.output)) {
+      outputOwners.set(path, [...(outputOwners.get(path) ?? []), node.id])
+    }
   }
   for (const [output, owners] of outputOwners) {
     if (owners.length < 2) continue
@@ -321,6 +349,8 @@ export function validateDocument(
     }
     for (const value of whens) {
       if (WELL_KNOWN_WHEN.includes(value as (typeof WELL_KNOWN_WHEN)[number])) continue
+      // 自然语言条件是刻意的写法（由执行者判断），不提示；只提示自造的判定词。
+      if (!isVerdictWhen(value)) continue
       hint.push(
         mk(
           'hint',

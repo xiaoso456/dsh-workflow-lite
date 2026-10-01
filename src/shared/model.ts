@@ -17,6 +17,7 @@ import {
   type EdgeData,
   NODE_TYPE,
   type NodeData,
+  type OutputSpec,
   type ValidationProblem,
   type Viewport,
   type WorkflowDocument,
@@ -25,7 +26,7 @@ import {
 } from './types.ts'
 
 /** node 的 data 键序。 */
-const DATA_KEYS = ['label', 'prompt', 'output'] as const
+const DATA_KEYS = ['label', 'description', 'prompt', 'output'] as const
 /** edge 的 data 键序。 */
 const EDGE_DATA_KEYS = ['when', 'label'] as const
 
@@ -99,15 +100,70 @@ function readViewport(raw: unknown): Viewport | null {
   }
 }
 
-/** 从原始对象里挑出 `data` 的已知键；返回 `undefined` 表示"整体缺省"。 */
-function readNodeData(raw: unknown): NodeData {
+/**
+ * 从原始对象里挑出 `data` 的已知键（图里的节点与节点模板共用这一份）。
+ * 产出数组里认不出的元素（不是对象、没有字符串 `path`）直接略过。
+ */
+export function readNodeData(raw: unknown): NodeData {
   if (!isPlainObject(raw)) return {}
   const data: NodeData = {}
   if (typeof raw.label === 'string') data.label = raw.label
+  if (typeof raw.description === 'string') data.description = raw.description
   if (typeof raw.prompt === 'string') data.prompt = raw.prompt
   if (typeof raw.output === 'string') data.output = raw.output
   else if (raw.output === false) data.output = false
+  else if (Array.isArray(raw.output)) {
+    const specs: OutputSpec[] = []
+    for (const item of raw.output) {
+      if (!isPlainObject(item) || typeof item.path !== 'string') continue
+      specs.push(
+        typeof item.rule === 'string' ? { path: item.path, rule: item.rule } : { path: item.path },
+      )
+    }
+    const output = canonicalOutput(specs)
+    if (output !== undefined) data.output = output
+  }
   return data
+}
+
+/**
+ * 产出的规范写法：空数组 = 未声明；只有一个产出且没有规则 = 写成字符串（老写法，文件保持不变）；
+ * 规则是空白的当没写。其余原样（数组顺序永不重排）。
+ */
+export function canonicalOutput(output: NodeData['output']): NodeData['output'] {
+  if (!Array.isArray(output)) return output
+  const specs = output.map((spec) =>
+    spec.rule === undefined || spec.rule.trim() === '' ? { path: spec.path } : { ...spec },
+  )
+  if (specs.length === 0) return undefined
+  const [only] = specs
+  if (specs.length === 1 && only !== undefined && only.rule === undefined) return only.path
+  return specs
+}
+
+/** 把任意写法的产出摊成一张清单（`false` 与未声明都是空清单）。 */
+export function outputSpecs(output: NodeData['output']): OutputSpec[] {
+  if (typeof output === 'string') return output === '' ? [] : [{ path: output }]
+  if (Array.isArray(output)) return output.map((spec) => ({ ...spec }))
+  return []
+}
+
+/** 两份 `data` 内容是否相同（产出按规范写法比，数组逐项比）。 */
+export function sameNodeData(a: NodeData, b: NodeData): boolean {
+  return (
+    a.label === b.label &&
+    a.description === b.description &&
+    a.prompt === b.prompt &&
+    JSON.stringify(canonicalOutput(a.output) ?? null) ===
+      JSON.stringify(canonicalOutput(b.output) ?? null)
+  )
+}
+
+/** 深拷一份 `data`（产出数组不和原件共用）。 */
+export function cloneNodeData(data: NodeData): NodeData {
+  const copy: NodeData = { ...data }
+  if (Array.isArray(data.output)) copy.output = data.output.map((spec) => ({ ...spec }))
+  return copy
 }
 
 /** 从原始对象里挑出边 `data` 的已知键。 */
@@ -255,7 +311,7 @@ export function readDocument(text: string): ParseOutcome {
 function pickNode(node: WorkflowNode): Record<string, unknown> {
   const data: Record<string, unknown> = {}
   for (const key of DATA_KEYS) {
-    const value = node.data[key]
+    const value = key === 'output' ? canonicalOutput(node.data.output) : node.data[key]
     if (value !== undefined) data[key] = value
   }
   return {
@@ -306,7 +362,7 @@ export function cloneDocument(document: WorkflowDocument): WorkflowDocument {
     nodes: document.nodes.map((node) => ({
       ...node,
       position: { ...node.position },
-      data: { ...node.data },
+      data: cloneNodeData(node.data),
     })),
     edges: document.edges.map((edge) => ({
       ...edge,

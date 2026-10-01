@@ -9,7 +9,8 @@ import {
   presetData,
   starterGraph,
 } from '../../src/client/model/library.ts'
-import { checkLabel, checkName } from '../../src/shared/naming.ts'
+import { outputSpecs } from '../../src/shared/model.ts'
+import { checkLabel, checkName, checkText } from '../../src/shared/naming.ts'
 
 const t = (key: LocaleKey): string => zh[key]
 
@@ -51,6 +52,23 @@ describe('内置步骤', () => {
       expect(checkLabel(t(preset.labelKey))).toBeNull()
       expect(checkLabel(en[preset.labelKey])).toBeNull()
       expect(presetData(preset, t).prompt).not.toBe('')
+    }
+  })
+
+  it('写文件的内置步骤都带生成规则，规则能过保存校验', () => {
+    for (const preset of PRESETS) {
+      const { output } = presetData(preset, t)
+      if (preset.output === false) {
+        expect(output).toBe(false)
+        continue
+      }
+      const specs = outputSpecs(output)
+      expect(specs).toHaveLength(1)
+      expect(specs[0]?.path).toBe(preset.output)
+      expect(specs[0]?.rule ?? '').not.toBe('')
+      expect(checkText(specs[0]?.rule ?? '', 'rule')).toBeNull()
+      // 英文词典里也有对应的规则。
+      if (preset.ruleKey !== undefined) expect(en[preset.ruleKey]).not.toBe('')
     }
   })
 
