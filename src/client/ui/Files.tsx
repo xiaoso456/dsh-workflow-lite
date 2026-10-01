@@ -143,7 +143,7 @@ export function StepFilesField(props: {
             row(
               file,
               edge,
-              <span className={css.access} data-update={update}>
+              <span className={css.access} data-access={update ? 'update' : 'produce'}>
                 {update ? t('file.update') : t('file.produce')}
               </span>,
               file.data.rule?.replace(/\s+/gu, ' ') ?? t('file.noRule'),
@@ -159,7 +159,9 @@ export function StepFilesField(props: {
             return row(
               file,
               edge,
-              <span className={css.access}>{t('file.read')}</span>,
+              <span className={css.access} data-access="read">
+                {t('file.read')}
+              </span>,
               from === '' ? t('file.noWriters') : `${t('file.from')} ${from}`,
             )
           })}
@@ -489,7 +491,13 @@ export function FilePanel(props: {
                 const edge = edgeOf(node.id, reader)
                 return edge === undefined
                   ? null
-                  : stepRow(reader, <span className={css.access}>{t('file.read')}</span>, edge)
+                  : stepRow(
+                      reader,
+                      <span className={css.access} data-access="read">
+                        {t('file.read')}
+                      </span>,
+                      edge,
+                    )
               })}
             </div>
           )}
@@ -526,6 +534,7 @@ function ModeToggle(props: {
         type="button"
         role="radio"
         aria-checked={!props.update}
+        data-access="produce"
         onClick={() => props.onChange(false)}
       >
         {t('file.produce')}
@@ -534,7 +543,7 @@ function ModeToggle(props: {
         type="button"
         role="radio"
         aria-checked={props.update}
-        data-update="true"
+        data-access="update"
         data-testid="wl-file-mode-update"
         onClick={() => props.onChange(true)}
       >

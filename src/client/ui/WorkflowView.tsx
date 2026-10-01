@@ -762,7 +762,65 @@ function ZoomDock(props: {
           </div>
         ))}
       </Popover>
+      <span className={cx(ui.divider, css.legendDivider)} />
+      <LineLegend t={t} />
     </div>
+  )
+}
+
+/** 图例里的四种线：样本的线型、颜色、箭头与画布上一致。 */
+const LEGEND: readonly {
+  key: 'flow' | 'produce' | 'update' | 'read'
+  label: LocaleKey
+  tip: LocaleKey
+}[] = [
+  { key: 'flow', label: 'legend.flow', tip: 'legend.flowTip' },
+  { key: 'produce', label: 'file.produce', tip: 'legend.produceTip' },
+  { key: 'update', label: 'file.update', tip: 'legend.updateTip' },
+  { key: 'read', label: 'file.read', tip: 'legend.readTip' },
+]
+
+/** 左下角常驻的线条图例：四种线各一个小样本，悬停看一句解释。 */
+function LineLegend(props: { t: T }): React.JSX.Element {
+  const { t } = props
+  return (
+    <ul className={css.legend} aria-label={t('legend.title')} data-testid="wl-legend">
+      {LEGEND.map((item) => (
+        <li
+          key={item.key}
+          className={cx(css.legendItem, ui.tip, ui.tipUp)}
+          data-line={item.key}
+          data-tip={t(item.tip)}
+        >
+          <svg width="22" height="10" viewBox="0 0 22 10" aria-hidden="true">
+            <line x1="1" y1="5" x2="16" y2="5" />
+            <path d="M15 1.8 L21 5 L15 8.2 Z" />
+            {item.key === 'update' && <path d="M7 1.8 L1 5 L7 8.2 Z" />}
+          </svg>
+          <span>{t(item.label)}</span>
+        </li>
+      ))}
+      <li
+        className={cx(css.legendItem, ui.tip, ui.tipUp)}
+        data-port="in"
+        data-tip={t('legend.inTip')}
+      >
+        <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+          <circle cx="5" cy="5" r="3.6" />
+        </svg>
+        <span>{t('legend.in')}</span>
+      </li>
+      <li
+        className={cx(css.legendItem, ui.tip, ui.tipUp, ui.tipEnd)}
+        data-port="out"
+        data-tip={t('legend.outTip')}
+      >
+        <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+          <circle cx="5" cy="5" r="3.6" />
+        </svg>
+        <span>{t('legend.out')}</span>
+      </li>
+    </ul>
   )
 }
 

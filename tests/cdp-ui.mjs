@@ -96,7 +96,7 @@ async function edgeMidpoint(session, edgeId) {
   return point
 }
 
-async function pointerDrag(session, from, to, steps = 8) {
+async function pointerDrag(session, from, to, steps = 8, { release = true } = {}) {
   await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: from.x, y: from.y })
   await session.send('Input.dispatchMouseEvent', {
     type: 'mousePressed',
@@ -116,6 +116,7 @@ async function pointerDrag(session, from, to, steps = 8) {
     })
     await sleep(16)
   }
+  if (!release) return
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseReleased',
     x: to.x,
@@ -325,6 +326,9 @@ async function run(session) {
   // 7d) 文件卡上悬停：写它、读它的步骤标出角色，其余淡下去；点开改要求与路径，读写线跟着节点走。
   const risksCard = `.react-flow__node[data-id=${JSON.stringify(risksId)}]`
   await waitFor(session, `document.querySelector('${risksCard}') !== null`)
+  // 新卡落在画布最下面，可能被左下角的缩放条（带图例）压住：先看全图。
+  await session.evaluate(clickTestId('wl-fit'))
+  await sleep(500)
   await mouseMove(session, await centerOf(session, risksCard))
   await waitFor(
     session,
@@ -345,7 +349,7 @@ async function run(session) {
   // 从文件卡右边的点拖到 step 左边 = step 读它。
   await pointerDrag(
     session,
-    await centerOf(session, `${risksCard} .react-flow__handle.source`),
+    await centerOf(session, `${risksCard} .react-flow__handle.source[data-handleid="out"]`),
     await handleCenter(session, 'step', 'target'),
   )
   await onDisk(
@@ -365,6 +369,53 @@ async function run(session) {
     ).includes('step'),
     '文件卡面板应列出读它的步骤',
   )
+  // 选中文件卡：连着它的读写线"活"起来——中点标明种类、光带在走（合成线程上的 transform 动画）。
+  await waitFor(
+    session,
+    `(() => {
+      const chips = [...document.querySelectorAll('[data-testid="wl-io-chip"][data-active="true"]')].map((el) => el.dataset.access);
+      return chips.includes('produce') && chips.includes('read');
+    })()`,
+  )
+  check(
+    await session.evaluate(
+      `[...document.querySelectorAll('[data-testid="wl-flow-streak"]')].some((el) => el.getAnimations().some((a) => a.playState === 'running'))`,
+    ),
+    '选中文件卡时，连着它的线上应有流动的光带',
+  )
+  // 光带的颜色必须是画布上某条线的描边色（不能红线上跑蓝光）。
+  check(
+    await session.evaluate(`(() => {
+      const strokes = new Set([...document.querySelectorAll('.react-flow__edge path.react-flow__edge-path')].map((el) => getComputedStyle(el).stroke));
+      const lit = [...document.querySelectorAll('[data-testid="wl-flow-streak"]')].filter((el) => el.getAnimations().length > 0);
+      return lit.length > 0 && lit.every((el) => strokes.has(getComputedStyle(el).color));
+    })()`),
+    '光带颜色应和它所在的线一致',
+  )
+  check(
+    (await session.evaluate(
+      `document.querySelectorAll('[data-testid="wl-legend"] [data-line]').length`,
+    )) === 4,
+    '左下角应常驻四种线的图例',
+  )
+  // 每条线的两头都要落在一个看得见的连接点上（不能悬在卡片边上没有点的地方）。
+  const dangling = await session.evaluate(`(() => {
+    const dots = [...document.querySelectorAll('.react-flow__handle')]
+      .filter((el) => getComputedStyle(el).opacity === '1')
+      .map((el) => { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+    const bad = [];
+    for (const path of document.querySelectorAll('.react-flow__edge path.react-flow__edge-path')) {
+      const m = path.getScreenCTM();
+      const total = path.getTotalLength();
+      for (const at of [0, total]) {
+        const p = path.getPointAtLength(at);
+        const x = p.x * m.a + m.e, y = p.y * m.d + m.f;
+        if (!dots.some((d) => Math.hypot(d.x - x, d.y - y) <= 12)) bad.push(path.closest('.react-flow__edge').dataset.id);
+      }
+    }
+    return bad;
+  })()`)
+  check(dangling.length === 0, `这些线的端点没有落在连接点上：${dangling.join(', ')}`)
   await screenshot(session, 'ui-02d-file-panel.png')
   pass('文件卡：悬停高亮上下游；面板里改要求；从文件卡拖线到步骤 = 读取')
 
@@ -497,15 +548,37 @@ async function run(session) {
     (doc) => doc.edges.find((edge) => edge.id === 'plan->step')?.data?.handoff?.note === NOTE,
     '再打开时说明还在',
   )
-  // 从 step 底边拖到 plan.md：plan 已经在写它，接着写默认是「在原文件上更新」。
-  await pointerDrag(
+  // 从 step 底边拖到 plan.md 卡片上任意位置：plan 已经在写它，接着写默认是「在原文件上更新」。
+  // 拖的过程中只露出能连的点（文件卡上沿），松手前指针旁就预告「更新 step → plan.md」。
+  const writeFrom = await centerOf(
     session,
-    await centerOf(
-      session,
-      '.react-flow__node[data-id="step"] .react-flow__handle.source[data-handleid="file"]',
-    ),
-    await centerOf(session, '.react-flow__node[data-id="file-plan.md"] .react-flow__handle.target'),
+    '.react-flow__node[data-id="step"] .react-flow__handle.source[data-handleid="file"]',
   )
+  const writeTo = await centerOf(session, '.react-flow__node[data-id="file-plan.md"]')
+  await pointerDrag(session, writeFrom, writeTo, 10, { release: false })
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-link-preview"][data-kind="update"]')?.textContent.includes('plan.md')`,
+  )
+  check(
+    await session.evaluate(`(() => {
+      const opacity = (sel) => getComputedStyle(document.querySelector(sel)).opacity;
+      return opacity('.react-flow__node[data-id="plan"] .react-flow__handle[data-handleid="in"]') === '0'
+        && opacity('.react-flow__node[data-id="plan"] .react-flow__handle[data-handleid="out"]') === '0'
+        && opacity('.react-flow__node[data-id="file-plan.md"] .react-flow__handle[data-handleid="in"]') === '1'
+        && opacity('.react-flow__node[data-id="file-plan.md"] .react-flow__handle[data-handleid="out"]') === '0';
+    })()`),
+    '拖写入线时只应露出文件卡上沿的入口',
+  )
+  await screenshot(session, 'ui-02i-drag-preview.png')
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseReleased',
+    x: writeTo.x,
+    y: writeTo.y,
+    button: 'left',
+    buttons: 0,
+    clickCount: 1,
+  })
   await onDisk(
     NAME,
     (doc) => doc.edges.find((edge) => edge.id === 'step->file-plan.md')?.data?.update === true,

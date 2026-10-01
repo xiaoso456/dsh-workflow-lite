@@ -5,32 +5,35 @@
  * 浮在画布上的圆角面板。没选中东西时右边什么都没有——界面上只留当下用得着的。
  *
  * 配色自带一套，用 `light-dark()` 跟随宿主设在 `<html>` 上的 `color-scheme`；
- * 层级靠"面越高越亮 + 细描边 + 柔和阴影"给出，强调色只有一支。
+ * 层级靠"面越高越亮 + 细描边 + 柔和阴影"给出。
+ *
+ * 色彩分工：界面本身是中性的石板灰 + 一支湛蓝强调色（按钮、选中、焦点）；画布上的颜色
+ * 只用来说"数据怎么走"——产出绿、更新琥珀、读取青，步骤之间的流程线保持中性。
  */
 
 .root {
-  /* 面 */
-  --wl-canvas: light-dark(#f3f4f7, #0d0e12);
-  --wl-dot: light-dark(rgb(24 28 48 / 18%), rgb(255 255 255 / 14%));
-  --wl-panel: light-dark(#ffffff, #1a1c22);
-  --wl-fill: light-dark(#f2f3f7, #24272f);
-  --wl-fill-strong: light-dark(#e9ebf1, #2c3039);
-  --wl-hover: light-dark(rgb(24 28 48 / 6%), rgb(255 255 255 / 7%));
-  --wl-line: light-dark(rgb(24 28 48 / 9%), rgb(255 255 255 / 9%));
-  --wl-line-strong: light-dark(rgb(24 28 48 / 16%), rgb(255 255 255 / 16%));
-  --wl-scrim: light-dark(rgb(20 22 34 / 28%), rgb(0 0 0 / 55%));
+  /* 面：带一点冷调的石板灰，暗色档不是纯黑。 */
+  --wl-canvas: light-dark(#f2f4f7, #0e1116);
+  --wl-dot: light-dark(rgb(22 32 52 / 17%), rgb(226 234 248 / 13%));
+  --wl-panel: light-dark(#ffffff, #181c23);
+  --wl-fill: light-dark(#f1f3f6, #222730);
+  --wl-fill-strong: light-dark(#e7eaf0, #2a303b);
+  --wl-hover: light-dark(rgb(22 32 52 / 6%), rgb(226 234 248 / 7%));
+  --wl-line: light-dark(rgb(22 32 52 / 9%), rgb(226 234 248 / 9%));
+  --wl-line-strong: light-dark(rgb(22 32 52 / 16%), rgb(226 234 248 / 16%));
+  --wl-scrim: light-dark(rgb(16 22 34 / 28%), rgb(0 0 0 / 55%));
 
   /* 文字三级。第三级也要过 AA（4.5:1），它承载说明与计数。 */
-  --wl-text: light-dark(#15171e, #eceef3);
-  --wl-text-2: light-dark(#474d5b, #b9bfcb);
-  --wl-text-3: light-dark(#616877, #9299a7);
+  --wl-text: light-dark(#131820, #e9edf3);
+  --wl-text-2: light-dark(#444c5a, #b6bdc9);
+  --wl-text-3: light-dark(#5e6676, #9098a6);
 
-  /* 强调色：一支靛紫。暗色档同时提亮度与饱和度，不然在暗底上会发灰。 */
-  --wl-accent: light-dark(#5856d6, #8f8df8);
-  --wl-accent-strong: light-dark(#4a48c4, #a3a1ff);
-  --wl-accent-on: light-dark(#ffffff, #12121c);
-  --wl-accent-text: light-dark(#4340b8, #b1afff);
-  --wl-accent-soft: light-dark(rgb(88 86 214 / 10%), rgb(143 141 248 / 18%));
+  /* 强调色：一支湛蓝。暗色档提亮、略降饱和，在暗底上不刺眼也不发灰。 */
+  --wl-accent: light-dark(#1f6feb, #4d94ff);
+  --wl-accent-strong: light-dark(#195dcc, #6eaaff);
+  --wl-accent-on: light-dark(#ffffff, #05132b);
+  --wl-accent-text: light-dark(#1a5fd0, #86b8ff);
+  --wl-accent-soft: light-dark(rgb(31 111 235 / 10%), rgb(77 148 255 / 17%));
 
   /* 语义色：只在表达状态时用。 */
   --wl-danger: light-dark(#c0392f, #ff7a70);
@@ -40,16 +43,33 @@
   --wl-ok: light-dark(#167a54, #56d08e);
   --wl-ok-soft: light-dark(rgb(22 122 84 / 10%), rgb(86 208 142 / 15%));
 
-  /* 连线：拓扑是这张图的全部结构，必须看得清。 */
-  --wl-edge: light-dark(#8088a0, #6f7789);
+  /* 流程线（步骤 → 步骤）：中性，是图的骨架；和选中的步骤相连时加深。 */
+  --wl-flow: light-dark(#8b93a4, #697285);
+  --wl-flow-active: light-dark(#4a5263, #c4cbd6);
 
-  /* 文件卡：和步骤种类都不撞的一种蓝灰，一眼看出"这是一份文件，不是一个步骤"。 */
-  --wl-file: light-dark(#356c8c, #82bde0);
-  --wl-file-soft: light-dark(rgb(53 108 140 / 10%), rgb(130 189 224 / 15%));
+  /*
+   * 读写线（步骤 ↔ 文件）：三种各一色，借了代码评审里"新增 / 修改"的直觉——
+   * 产出 = 绿（新写一份）、更新 = 琥珀（在原文件上改）、读取 = 青（拿来用）。
+   * 这几个色也直接当文字色用（线上的小牌子、面板里的标签），亮色档都过 4.5:1。
+   */
+  --wl-io-produce: light-dark(#17824f, #4fd08f);
+  --wl-io-update: light-dark(#a96200, #f1b04a);
+  --wl-io-read: light-dark(#0b7c9c, #4ac6e6);
+
+  /*
+   * 文件卡：纸面接近面板色（干净），靠左侧的类型签、折角和平铺的描边和步骤卡分开；
+   * 类型签与折角背面用一档很淡的石板蓝。它连着的线才有鲜明的颜色。
+   */
+  --wl-file: light-dark(#52627a, #a7b4c8);
+  --wl-file-soft: light-dark(rgb(82 98 122 / 10%), rgb(167 180 200 / 13%));
+  --wl-file-surface: light-dark(#fafbfd, #1b2029);
+  --wl-file-border: light-dark(#cdd5e0, #353f4f);
+  --wl-file-tab: light-dark(#eaeff6, #232a35);
+  --wl-file-back: light-dark(#dfe5ee, #2d3644);
 
   /* 步骤种类的记号色。 */
   --wl-k-scan: light-dark(#2f6fde, #74aaff);
-  --wl-k-plan: light-dark(#7a4fd6, #b598ff);
+  --wl-k-plan: light-dark(#6b5bd2, #a99cf5);
   --wl-k-implement: light-dark(#16875a, #56d08e);
   --wl-k-review: light-dark(#a86400, #f0b955);
   --wl-k-fix: light-dark(#c84a2b, #ff8e70);
@@ -258,6 +278,87 @@
   gap: 4px;
 }
 
+/* ── 线条图例（缩放条右半截）─────────────────────────────── */
+
+.legend {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+  margin: 0;
+  padding: 0 4px 0 0;
+  list-style: none;
+}
+
+.legendItem {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  height: 26px;
+  padding: 0 6px;
+  border-radius: 6px;
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-micro);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.legendItem:hover {
+  background: var(--wl-hover);
+}
+
+.legendItem svg {
+  flex: none;
+  overflow: visible;
+}
+
+.legendItem line {
+  stroke: var(--wl-line-color);
+  stroke-width: 1.8;
+}
+
+.legendItem path {
+  fill: var(--wl-line-color);
+}
+
+.legendItem[data-line="flow"] {
+  --wl-line-color: var(--wl-flow-active);
+}
+
+.legendItem[data-line="produce"] {
+  --wl-line-color: var(--wl-io-produce);
+}
+
+.legendItem[data-line="update"] {
+  --wl-line-color: var(--wl-io-update);
+}
+
+.legendItem[data-line="read"] {
+  --wl-line-color: var(--wl-io-read);
+}
+
+.legendItem[data-line="read"] line {
+  stroke-dasharray: 4 3;
+}
+
+/* 连接点图例：空心圈 = 入口，实心点 = 出口。 */
+.legendItem[data-port] circle {
+  stroke: var(--wl-flow-active);
+  stroke-width: 1.8;
+}
+
+.legendItem[data-port="in"] {
+  margin-left: 6px;
+}
+
+.legendItem[data-port="in"] circle {
+  fill: var(--wl-panel);
+}
+
+.legendItem[data-port="out"] circle {
+  fill: var(--wl-flow-active);
+}
+
 /* ── 提示条 / 轻提示 ──────────────────────────────────────── */
 
 /* 居中用的位移放在座位上，入场动画放在里面那层——两个 transform 不打架。 */
@@ -436,6 +537,14 @@
   line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* 放不下就收起图例（缩放条不能和右边的属性面板撞上）。 */
+@container (max-width: 980px) {
+  .legend,
+  .legendDivider {
+    display: none;
+  }
 }
 
 /* ── 窄视图：属性面板变成底部抽屉，步骤库盖在画布上 ───────── */

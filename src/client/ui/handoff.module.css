@@ -2,7 +2,7 @@
  * dsh-workflow-lite — 交接与文件：属性面板里的文件清单 / 文件卡面板 / 交接开关，
  * 画布连线上的交接标记与悬停卡片。
  *
- * 颜色口径：读取 = 中性，在原文件上更新 = 琥珀色（"会改这份文件"），执行结果 = 主色。
+ * 颜色口径与画布上的线一致：产出 = 绿，在原文件上更新 = 琥珀，读取 = 青；执行结果 = 主色。
  */
 
 /* ── 通用的小块 ───────────────────────────────────────────── */
@@ -99,9 +99,22 @@
   white-space: nowrap;
 }
 
-.access[data-update="true"] {
-  background: var(--wl-warn-soft);
-  color: var(--wl-warn);
+/* 与画布上那条线同色：产出绿、更新琥珀、读取青。 */
+.access[data-access="produce"] {
+  --wl-chip: var(--wl-io-produce);
+}
+
+.access[data-access="update"] {
+  --wl-chip: var(--wl-io-update);
+}
+
+.access[data-access="read"] {
+  --wl-chip: var(--wl-io-read);
+}
+
+.access[data-access] {
+  background: color-mix(in srgb, var(--wl-chip) 12%, transparent);
+  color: var(--wl-chip);
 }
 
 /* ── 连接清单里的交接摘要 ─────────────────────────────────── */
@@ -383,10 +396,18 @@
   color: var(--wl-text);
 }
 
-.accessSeg button[data-update="true"][aria-checked="true"] {
-  background: var(--wl-warn-soft);
+.accessSeg button[data-access="produce"] {
+  --wl-chip: var(--wl-io-produce);
+}
+
+.accessSeg button[data-access="update"] {
+  --wl-chip: var(--wl-io-update);
+}
+
+.accessSeg button[aria-checked="true"][data-access] {
+  background: color-mix(in srgb, var(--wl-chip) 14%, var(--wl-panel));
   box-shadow: none;
-  color: var(--wl-warn);
+  color: var(--wl-chip);
 }
 
 .accessSeg button:focus-visible {
@@ -406,7 +427,8 @@
   border: 1px solid var(--wl-line-strong);
   border-radius: 999px;
   background: var(--wl-panel);
-  color: var(--wl-accent-text);
+  /* 线上的东西和线同色：流程线是中性的，标记也是中性的；红线上就是红的。 */
+  color: var(--wl-text-2);
   font: inherit;
   font-size: var(--wl-fs-micro);
   font-weight: 600;
@@ -419,8 +441,13 @@
 
 .mark:hover,
 .mark[data-open="true"] {
-  border-color: var(--wl-accent);
+  border-color: currentColor;
   transform: scale(1.06);
+}
+
+.mark[data-fail="true"] {
+  border-color: color-mix(in srgb, var(--wl-danger) 45%, transparent);
+  color: var(--wl-danger);
 }
 
 /* 只管先后：灰的、虚线框。 */
@@ -446,7 +473,7 @@
   height: 7px;
   border: 1.5px solid var(--wl-panel);
   border-radius: 50%;
-  background: var(--wl-accent);
+  background: currentColor;
 }
 
 /* 悬停卡片（挂在视图根上，跟 `?` 说明同一套浮层）。 */

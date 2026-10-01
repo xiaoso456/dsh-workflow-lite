@@ -284,7 +284,7 @@ function freePath(path: string, taken: ReadonlySet<string>): string {
 }
 
 /** 这份文件已经有步骤在写（`except` 除外）——再接上来的写入默认是"在原文件上更新"。 */
-function alreadyWritten(doc: WorkflowDocument, fileId: string, except?: string): boolean {
+export function alreadyWritten(doc: WorkflowDocument, fileId: string, except?: string): boolean {
   return doc.edges.some(
     (edge) =>
       idKey(edge.target) === idKey(fileId) &&

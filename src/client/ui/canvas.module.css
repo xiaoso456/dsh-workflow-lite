@@ -172,8 +172,13 @@
 /* ── 连接点 ───────────────────────────────────────────────── */
 
 /*
- * 命中区 20px、画出来的圆点 10px：点和拖都不用像素级对准。
- * 连接点自己的 transform 归 React Flow 定位用，放大动效做在伪元素上。
+ * 入口 = 空心圈（线从这里进来），出口 = 实心点（从这里拖出去）。颜色说明它管哪种线：
+ * - 步骤左（入口）/ 右（出口）：流程，中性色；
+ * - 步骤底边偏右的方点（出口）：写文件，产出绿——平时藏着，悬停 / 选中 / 挂着线时才露；
+ * - 文件上沿（入口）：被写入，产出绿；文件右侧（出口）：被读取，读取青。
+ * 另有几个备用点（步骤上边的写点、步骤上下边偏左的读点、文件下沿与左侧）：只有线挂上去才显示——
+ * 每条读写线都落在一个真实的点上，挂哪个由画布按两张卡的位置挑（见 model/route.ts）。
+ * 命中区 20px、画出来的点 10px。连接点自己的 transform 归 React Flow 定位用，动效做在伪元素上。
  */
 .wrap :global(.react-flow__handle).handle {
   width: 20px;
@@ -185,21 +190,58 @@
   background: transparent;
 }
 
+/* 上下边上不在正中的点：沿边摆在 `--wl-at` 成处（与 model/route.ts 的 STEP_SPOTS 同一个数）。 */
+.wrap :global(.react-flow__handle).spotted {
+  left: calc(var(--wl-at) * 100%);
+}
+
 .handle::after {
   position: absolute;
   inset: 5px;
-  border: 2px solid var(--wl-edge);
+  box-sizing: border-box;
+  border: 2px solid var(--wl-h);
   border-radius: 50%;
   background: var(--wl-panel);
   content: "";
   transition: transform 160ms var(--wl-ease);
 }
 
-.handleSource {
+.handleOut {
   cursor: crosshair;
 }
 
-/* 出口圆点悬停时放大成一个「＋」按钮：点它加下一步，拖它连线。 */
+.handleOut::after {
+  background: var(--wl-h);
+}
+
+.hStepIn {
+  --wl-h: var(--wl-flow);
+}
+
+.handleSource {
+  --wl-h: var(--wl-flow-active);
+}
+
+.handleFile,
+.handleFileUp,
+.hFileIn,
+.hFileInBottom {
+  --wl-h: var(--wl-io-produce);
+}
+
+.handleRead,
+.handleReadLeft,
+.hRead,
+.hReadTop {
+  --wl-h: var(--wl-io-read);
+}
+
+.handleFile::after,
+.handleFileUp::after {
+  border-radius: 3px;
+}
+
+/* 步骤出口悬停时放大成一个「＋」按钮：点它加下一步，拖它连线。 */
 .handleSource::before {
   position: absolute;
   inset: 0;
@@ -215,14 +257,11 @@
   transition: opacity 120ms linear;
 }
 
-.handleSource:hover::after,
-.cardSelected .handleSource::after,
-.card:hover .handleSource::after {
-  border-color: var(--wl-accent);
+.handleSource:hover {
+  --wl-h: var(--wl-accent);
 }
 
 .handleSource:hover::after {
-  background: var(--wl-accent);
   transform: scale(1.8);
 }
 
@@ -230,22 +269,143 @@
   opacity: 1;
 }
 
-.wrap :global(.react-flow__handle.connectingto)::after,
-.wrap :global(.react-flow__handle.valid)::after {
-  border-color: var(--wl-accent);
-  background: var(--wl-accent);
+.handleOut:not(.handleSource):hover::after {
+  transform: scale(1.6);
+}
+
+/* 平时藏着的点：步骤底边的写点（悬停 / 选中 / 挂着线才露）和备用点（挂着线才露）。 */
+.wrap :global(.react-flow__handle).handleFile,
+.wrap :global(.react-flow__handle).handleAux {
+  opacity: 0;
+  transition: opacity 120ms linear;
+}
+
+.wrap :global(.react-flow__handle).handleAux {
+  pointer-events: none;
+}
+
+/*
+ * ── 拖线时：只留下能连的连接点 ──
+ * `data-drag` 是起点的种类（见 model/connect.ts）。其余连接点全部藏起来、不接指针；
+ * 能连的那个把命中区扩到整张卡片（四周再多 12px）：拖到卡片上任意位置都算连到它，
+ * 画出来的点仍留在卡片边上原来的位置。
+ */
+.wrap[data-drag] :global(.react-flow__handle).handle {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.wrap[data-drag] :global(.react-flow__handle.connectingfrom).handle {
+  opacity: 1;
+}
+
+.wrap[data-drag="flow"] :global(.react-flow__handle).hStepIn,
+.wrap[data-drag="read"] :global(.react-flow__handle).hRead,
+.wrap[data-drag="write"] :global(.react-flow__handle).hFileIn,
+.wrap[data-drag="back"] :global(.react-flow__handle).handleSource,
+.wrap[data-drag="back"] :global(.react-flow__handle).handleRead,
+.wrap[data-drag="readBack"] :global(.react-flow__handle).handleRead,
+.wrap[data-drag="writeBack"] :global(.react-flow__handle).handleFile {
+  top: 50%;
+  right: auto;
+  bottom: auto;
+  left: 50%;
+  width: calc(100% + 24px);
+  height: calc(100% + 24px);
+  border-radius: 18px;
+  opacity: 1;
+  pointer-events: all;
+  transform: translate(-50%, -50%);
+}
+
+/* 不在拖线时：悬停 / 选中步骤卡露出写点；挂着线的点一直露着。 */
+.wrap:not([data-drag]) .cardSelected :global(.react-flow__handle).handleFile,
+.wrap:not([data-drag]) .card:hover :global(.react-flow__handle).handleFile,
+.wrap:not([data-drag]) :global(.react-flow__handle).handle[data-used="true"] {
+  opacity: 1;
+  pointer-events: all;
+}
+
+/* 起点所在的那张卡：除了起点，别的点都不露（不能连自己）。 */
+.wrap[data-drag]
+  :global(.react-flow__node):has(:global(.connectingfrom))
+  :global(.react-flow__handle):not(:global(.connectingfrom)) {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* 扩大了命中区的点：把画出来的圆点放回卡片边上（命中区比卡片四周各大 12px）。 */
+.wrap[data-drag] .hStepIn:not(:global(.connectingfrom))::after {
+  inset: calc(50% - 5px) auto auto 7px;
+  width: 10px;
+  height: 10px;
+}
+
+.wrap[data-drag] .handleSource:not(:global(.connectingfrom))::after,
+.wrap[data-drag] .handleRead:not(:global(.connectingfrom))::after {
+  inset: calc(50% - 5px) 7px auto auto;
+  width: 10px;
+  height: 10px;
+}
+
+.wrap[data-drag] .hFileIn:not(:global(.connectingfrom))::after {
+  inset: 7px auto auto calc(50% - 5px);
+  width: 10px;
+  height: 10px;
+}
+
+.wrap[data-drag] .handleFile:not(:global(.connectingfrom))::after,
+.wrap[data-drag] .hRead:not(:global(.connectingfrom))::after {
+  inset: auto auto 7px calc((100% - 24px) * var(--wl-at) + 7px);
+  width: 10px;
+  height: 10px;
+}
+
+/* 落到能连的点上（还没松手）：点放大、整张卡按连上后的线色亮起来。 */
+.wrap :global(.react-flow__handle.valid).handle {
+  --wl-h: var(--wl-drag, var(--wl-accent));
+}
+
+.wrap :global(.react-flow__handle.valid).handle::after {
   transform: scale(1.5);
+}
+
+.wrap[data-drag] .card:has(:global(.react-flow__handle.valid))::after,
+.wrap[data-drag] .fileCard:has(:global(.react-flow__handle.valid))::after {
+  border-color: var(--wl-drag);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--wl-drag) 18%, transparent);
+  opacity: 1;
 }
 
 /* ── 连线 ─────────────────────────────────────────────────── */
 
+/*
+ * 版式语法：「左右走流程，上下走文件」。
+ * - 流程线（步骤 → 步骤）：中性实线，略粗，是图的骨架；「未通过」的回退线标红、虚线。
+ * - 读写线（步骤 ↔ 文件）：产出 = 绿实线，更新 = 琥珀实线（两头箭头），读取 = 青虚线。
+ * 选中 / 悬停 / 与选中的东西相连时线会"活"起来：描粗 + 光带流动（见 FlowStreaks），其余的淡下去。
+ */
+
 .link :global(.react-flow__edge-path) {
-  stroke: var(--wl-edge);
-  stroke-width: 1.6;
+  stroke: var(--wl-flow);
+  stroke-width: 1.8;
 }
 
-.linkPass :global(.react-flow__edge-path) {
-  stroke: var(--wl-ok);
+.fileLink :global(.react-flow__edge-path) {
+  stroke-width: 1.7;
+}
+
+.fileLinkProduce :global(.react-flow__edge-path) {
+  stroke: var(--wl-io-produce);
+}
+
+.fileLinkUpdate :global(.react-flow__edge-path) {
+  stroke: var(--wl-io-update);
+}
+
+.fileLinkRead :global(.react-flow__edge-path) {
+  stroke: var(--wl-io-read);
+  stroke-dasharray: 6 4;
 }
 
 .linkFail :global(.react-flow__edge-path) {
@@ -256,52 +416,213 @@
   stroke-dasharray: 6 5;
 }
 
-/* 只管先后的步骤间线：淡一点。 */
+/* 只管先后的步骤间线：点划，它不交任何东西。 */
 .linkOrderOnly :global(.react-flow__edge-path) {
-  opacity: 0.55;
-}
-
-/* ── 读写线 ───────────────────────────────────────────────── */
-
-.fileLink :global(.react-flow__edge-path) {
-  stroke: var(--wl-edge);
-  stroke-dasharray: 5 4;
-  stroke-width: 1.4;
-}
-
-.fileLinkRead :global(.react-flow__edge-path) {
-  stroke-dasharray: 2 4;
+  stroke-dasharray: 2 5;
   stroke-linecap: round;
 }
 
-.fileLinkUpdate :global(.react-flow__edge-path) {
-  stroke: var(--wl-warn);
-  stroke-width: 1.6;
-}
-
-.fileLink:hover :global(.react-flow__edge-path) {
-  stroke-width: 2.2;
-}
-
-.link:hover :global(.react-flow__edge-path) {
+/* 悬停 / 活着：描粗；流程线还要加深（读写线保持自己的颜色）。 */
+.link:hover :global(.react-flow__edge-path),
+.fileLink:hover :global(.react-flow__edge-path),
+.fileLink.linkActive :global(.react-flow__edge-path) {
   stroke-width: 2.4;
 }
 
-/* 悬停某个文件时，连着它的读写线描深。 */
-.link.linkCarry :global(.react-flow__edge-path) {
-  stroke: var(--wl-accent);
+.link.linkActive :global(.react-flow__edge-path) {
+  stroke: var(--wl-flow-active);
   stroke-width: 2.4;
 }
 
-.wrap :global(.react-flow__edge.selected) :global(.react-flow__edge-path) {
-  stroke: var(--wl-accent);
-  stroke-width: 2.4;
+.link.linkFail.linkActive :global(.react-flow__edge-path) {
+  stroke: var(--wl-danger);
 }
 
-.wrap :global(.react-flow__connection-path) {
+/* 选中：流程线换成强调色；读写线保持本色、再粗一点（底下还有光晕）。 */
+.wrap .link:global(.selected) :global(.react-flow__edge-path) {
   stroke: var(--wl-accent);
+  stroke-width: 2.6;
+}
+
+.wrap .fileLink:global(.selected) :global(.react-flow__edge-path) {
+  stroke-width: 2.8;
+}
+
+/* 活着的读写线底下垫一道同色的宽光晕。 */
+.fileHalo {
+  fill: none;
+  stroke-width: 10;
+  stroke-linecap: round;
+  stroke-opacity: 0.16;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 280ms ease;
+}
+
+.fileHalo[data-active="true"] {
+  opacity: 1;
+}
+
+/* 正在拖的线：没落到目标上是虚线；落到能连的点上变实线（颜色都由 ConnectionLine 给）。 */
+.connection {
+  fill: none;
   stroke-dasharray: 5 5;
   stroke-width: 1.8;
+}
+
+.connection[data-snapped="true"] {
+  stroke-dasharray: none;
+  stroke-width: 2.4;
+}
+
+/* 指针旁的预告：这条线连上后是什么、数据从谁流向谁。 */
+.previewSeat {
+  overflow: visible;
+  pointer-events: none;
+}
+
+/* 预告条居中压在指针正上方：不挡住要落的卡片，也不会伸到右侧面板底下。 */
+.previewSeat > span {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.preview {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  max-width: 100%;
+  height: 24px;
+  padding: 0 9px 0 7px;
+  border: 1px solid var(--wl-line-strong);
+  border-radius: 999px;
+  background: var(--wl-panel);
+  box-shadow: var(--wl-shadow-1);
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  white-space: nowrap;
+  animation: previewIn 140ms ease-out backwards;
+}
+
+.preview[data-kind] {
+  border-color: color-mix(in srgb, var(--wl-chip) 45%, transparent);
+  color: var(--wl-text-2);
+}
+
+.previewKind {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+  color: var(--wl-chip);
+  font-weight: 700;
+}
+
+.previewRoute {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.previewMuted {
+  color: var(--wl-text-3);
+}
+
+@keyframes previewIn {
+  from {
+    opacity: 0;
+  }
+}
+
+/* 读写线中点的小牌子：产出 / 更新 / 读取。不接指针，点它等于点线。 */
+.ioChip {
+  position: absolute;
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+  height: 20px;
+  padding: 0 7px 0 6px;
+  border: 1px solid color-mix(in srgb, var(--wl-chip) 38%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--wl-chip) 11%, var(--wl-panel));
+  box-shadow: var(--wl-shadow-thumb);
+  color: var(--wl-chip);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  /* 定位用的 transform 写在行内，显隐只动 opacity。 */
+  transition: opacity 220ms ease;
+}
+
+.ioChip[data-active="true"] {
+  opacity: 1;
+}
+
+.ioChip[data-access="produce"] {
+  --wl-chip: var(--wl-io-produce);
+}
+
+.ioChip[data-access="update"] {
+  --wl-chip: var(--wl-io-update);
+}
+
+.ioChip[data-access="read"] {
+  --wl-chip: var(--wl-io-read);
+}
+
+/*
+ * 流动的光带（FlowStreaks）：一串沿线走的小点组成，贴着曲线弯、不伸出线头。
+ * 外层位置全由 Web Animations 的 transform 关键帧给出；里层只管大小和颜色（头大尾小）。
+ * 整组淡入淡出（只动 opacity）。`color` 只为让验收脚本读到解析后的颜色。
+ */
+.streaks {
+  position: absolute;
+  top: 0;
+  left: 0;
+  color: var(--wl-streak);
+  pointer-events: none;
+  animation: streaksIn 420ms ease-out backwards;
+  transition: opacity 300ms ease-in;
+}
+
+.streaks[data-leaving="true"] {
+  opacity: 0;
+}
+
+@keyframes streaksIn {
+  from {
+    opacity: 0;
+  }
+}
+
+.streakDot {
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0;
+}
+
+.streakDot > span {
+  display: block;
+  border-radius: 50%;
+  background: var(--wl-streak);
+}
+
+/* 光带的头：带一点同色的光晕。 */
+.streakDot[data-testid] > span {
+  box-shadow: 0 0 6px 1px color-mix(in srgb, var(--wl-streak) 60%, transparent);
+}
+
+/* 量线长用的隐形路径。 */
+.probe {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .linkLabel {
@@ -497,22 +818,32 @@
   animation: roleIn 160ms var(--wl-ease) backwards;
 }
 
+/* 角色标与它那条读写线同色：产出绿、更新琥珀、读取青。 */
 .roleTag[data-role="producer"] {
-  background: var(--wl-accent);
-  color: var(--wl-accent-on);
+  background: var(--wl-io-produce);
+  color: var(--wl-panel);
 }
 
 .roleTag[data-role="updater"] {
-  background: var(--wl-warn);
+  background: var(--wl-io-update);
+  color: var(--wl-panel);
+}
+
+.roleTag[data-role="reader"] {
+  background: var(--wl-io-read);
   color: var(--wl-panel);
 }
 
 .card[data-role="producer"] {
-  border-color: var(--wl-accent);
+  border-color: var(--wl-io-produce);
 }
 
 .card[data-role="updater"] {
-  border-color: var(--wl-warn);
+  border-color: var(--wl-io-update);
+}
+
+.card[data-role="reader"] {
+  border-color: var(--wl-io-read);
 }
 
 @keyframes roleIn {
@@ -522,9 +853,13 @@
   }
 }
 
-.linkDim {
-  opacity: 0.25;
+.link,
+.fileLink {
   transition: opacity 160ms linear;
+}
+
+.linkDim {
+  opacity: 0.22;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -532,7 +867,11 @@
     animation: none;
   }
 
-  .linkDim {
+  .link,
+  .fileLink,
+  .ioChip,
+  .streaks {
+    animation: none;
     transition: none;
   }
 }
@@ -540,21 +879,22 @@
 /* ── 文件卡 ───────────────────────────────────────────────── */
 
 /*
- * 比步骤卡小一号、底色带一点蓝灰、右上角折一个角：一眼看出"这是一份文件"。
- * 左边的点接写入（步骤 → 文件），右边的点拖出去是读取（文件 → 步骤）。
+ * 文件卡要和步骤卡一眼分开——步骤是"会做事的卡片"，文件是"一张贴了类型签的纸"：
+ * - 左边一条类型签：整条竖着贴在卡片左侧，印着扩展名（MD / JSON……），步骤卡没有这种结构；
+ * - 右上角一个折角，圆角更小（步骤 12px，文件 7px）；
+ * - 平铺：没有步骤卡那样的投影，描边清楚；
+ * - 更窄更矮，文件名用等宽字。
+ * 上沿的点接写入（步骤 → 文件），右边的点拖出去是读取（文件 → 步骤）。
  */
 .fileCard {
   position: relative;
   display: flex;
-  gap: 9px;
-  align-items: center;
+  align-items: stretch;
   width: 188px;
-  min-height: 52px;
-  padding: 8px 12px 8px 9px;
-  border: 1px solid color-mix(in srgb, var(--wl-file) 35%, var(--wl-line));
-  border-radius: 10px 16px 10px 10px;
-  background: color-mix(in srgb, var(--wl-file) 6%, var(--wl-panel));
-  box-shadow: var(--wl-shadow-1);
+  min-height: 48px;
+  border: 1px solid var(--wl-file-border);
+  border-radius: 7px 0 7px 7px;
+  background: var(--wl-file-surface);
   cursor: grab;
   animation: cardIn 260ms var(--wl-ease) backwards;
   transition:
@@ -562,19 +902,16 @@
     opacity 160ms linear;
 }
 
-/* 折角：右上角一块小三角。 */
+/* 折角：右上角切掉一块（画布色），露出纸背，左下一道细阴影。 */
 .fileCard::before {
   position: absolute;
   top: -1px;
   right: -1px;
-  width: 14px;
-  height: 14px;
-  border-bottom-left-radius: 4px;
-  background: linear-gradient(
-    225deg,
-    var(--wl-canvas) 50%,
-    color-mix(in srgb, var(--wl-file) 30%, var(--wl-panel)) 50%
-  );
+  width: 16px;
+  height: 16px;
+  border-bottom-left-radius: 3px;
+  background: linear-gradient(225deg, var(--wl-canvas) 50%, var(--wl-file-back) 50%);
+  box-shadow: -1px 1px 1.5px light-dark(rgb(30 50 80 / 16%), rgb(0 0 0 / 40%));
   content: "";
 }
 
@@ -600,9 +937,6 @@
 
 .fileCard[data-focused="true"] {
   border-color: var(--wl-file);
-  box-shadow:
-    var(--wl-shadow-1),
-    0 0 0 3px var(--wl-file-soft);
 }
 
 :global(.react-flow__node.dragging) .fileCard {
@@ -610,15 +944,25 @@
   transform: scale(1.02);
 }
 
-.fileGlyph {
+/* 类型签：左侧整条，浅底 + 扩展名（没有扩展名就是一个文件图标）。 */
+.fileTab {
   display: grid;
   flex: none;
   place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  background: var(--wl-file-soft);
+  width: 34px;
+  border-right: 1px solid var(--wl-file-border);
+  border-radius: 6px 0 0 6px;
+  background: var(--wl-file-tab);
   color: var(--wl-file);
+  font-family: var(--wl-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.fileCard > .cardFlag {
+  align-self: center;
+  margin-right: 16px;
 }
 
 .fileText {
@@ -626,7 +970,9 @@
   flex: 1 1 auto;
   flex-direction: column;
   gap: 1px;
+  justify-content: center;
   min-width: 0;
+  padding: 6px 16px 6px 10px;
 }
 
 .fileName {
@@ -651,49 +997,10 @@
   font-family: var(--wl-mono);
 }
 
-/* 文件卡右边的点：拖出去 = 读取。悬停时亮成文件色。 */
-.handleRead {
-  cursor: crosshair;
-}
-
-.handleRead:hover::after,
-.fileCard:hover .handleRead::after,
-.fileCard.cardSelected .handleRead::after {
-  border-color: var(--wl-file);
-}
-
-.handleRead:hover::after {
-  background: var(--wl-file);
-  transform: scale(1.6);
-}
-
 @media (prefers-reduced-motion: reduce) {
   .fileCard,
   .fileCard::after {
     animation: none;
     transition: none;
   }
-}
-
-/* 步骤底边的「写文件」点：平时藏着，悬停或选中卡片时才露出来（文件色）。 */
-.wrap :global(.react-flow__handle).handleFile {
-  opacity: 0;
-  cursor: crosshair;
-  transition: opacity 120ms linear;
-}
-
-.wrap .cardSelected :global(.react-flow__handle).handleFile,
-.wrap :global(.react-flow__handle.connectingfrom).handleFile,
-.wrap .card:hover :global(.react-flow__handle).handleFile {
-  opacity: 1;
-}
-
-.handleFile::after {
-  border-color: var(--wl-file);
-  border-radius: 4px;
-}
-
-.handleFile:hover::after {
-  background: var(--wl-file);
-  transform: scale(1.6);
 }
