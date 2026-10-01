@@ -13,13 +13,18 @@
  */
 
 import { COORD_DECIMALS } from './limits.ts'
-import { normalizeRoot } from './outputPaths.ts'
+import { normalizeRoot, outputKey } from './outputPaths.ts'
 import {
   type EdgeData,
   EXECUTION_MODES,
+  FILE_TYPE,
+  type FileData,
+  type FileNode,
+  type Handoff,
   NODE_TYPE,
   type NodeData,
   type OutputSpec,
+  type StepNode,
   type ValidationProblem,
   type Viewport,
   type WorkflowDocument,
@@ -31,7 +36,7 @@ import {
 /** node 的 data 键序。 */
 const DATA_KEYS = ['label', 'description', 'prompt', 'output'] as const
 /** edge 的 data 键序。 */
-const EDGE_DATA_KEYS = ['when', 'label'] as const
+const EDGE_DATA_KEYS = ['when', 'label', 'handoff', 'update'] as const
 
 /** 坐标归一化：`round(v * 100) / 100`（2 位小数）。 */
 export function normalizeCoord(value: number): number {
@@ -196,13 +201,157 @@ export function sameSettings(
   return a?.outputRoot === b?.outputRoot && (a?.mode ?? 'auto') === (b?.mode ?? 'auto')
 }
 
+/** 交接：`false` 原样；对象只认字符串 `note`（空白说明 = 缺省）；其余值当没写（= 交执行结果）。 */
+export function readHandoff(raw: unknown): Handoff | false | undefined {
+  if (raw === false) return false
+  if (!isPlainObject(raw) || typeof raw.note !== 'string') return undefined
+  return canonicalHandoff({ note: raw.note })
+}
+
+/** 交接的规范写法：空白说明 = 缺省（交执行结果、不附说明）。 */
+export function canonicalHandoff(
+  handoff: Handoff | false | undefined,
+): Handoff | false | undefined {
+  if (handoff === undefined || handoff === false) return handoff
+  return handoff.note.trim() === '' ? undefined : { note: handoff.note }
+}
+
+/** 两份交接是否相同（按规范写法比；缺省与缺省相等）。 */
+export function sameHandoff(
+  a: Handoff | false | undefined,
+  b: Handoff | false | undefined,
+): boolean {
+  return JSON.stringify(canonicalHandoff(a) ?? null) === JSON.stringify(canonicalHandoff(b) ?? null)
+}
+
+/** 两条边的 `data` 内容是否相同（条件、标签、交接、写入方式）。 */
+export function sameEdgeData(a: EdgeData | undefined, b: EdgeData | undefined): boolean {
+  return (
+    a?.when === b?.when &&
+    a?.label === b?.label &&
+    a?.update === b?.update &&
+    sameHandoff(a?.handoff, b?.handoff)
+  )
+}
+
+/** 深拷一份边的 `data`。 */
+function cloneEdgeData(data: EdgeData): EdgeData {
+  const copy: EdgeData = { ...data }
+  if (data.handoff !== undefined && data.handoff !== false) copy.handoff = { ...data.handoff }
+  return copy
+}
+
 /** 从原始对象里挑出边 `data` 的已知键。 */
 function readEdgeData(raw: unknown): EdgeData | undefined {
   if (!isPlainObject(raw)) return undefined
   const data: EdgeData = {}
   if (typeof raw.when === 'string') data.when = raw.when
   if (typeof raw.label === 'string') data.label = raw.label
+  const handoff = readHandoff(raw.handoff)
+  if (handoff !== undefined) data.handoff = handoff
+  if (raw.update === true) data.update = true
   return Object.keys(data).length > 0 ? data : undefined
+}
+
+// ─────────────────────────────────────────────────────────────
+// 文件节点
+// ─────────────────────────────────────────────────────────────
+
+export function isStep(node: WorkflowNode): node is StepNode {
+  return node.type !== FILE_TYPE
+}
+
+export function isFile(node: WorkflowNode): node is FileNode {
+  return node.type === FILE_TYPE
+}
+
+/** 文件节点 `data` 的已知键；没有字符串 `path` 时给空串（校验层报保存级）。 */
+export function readFileData(raw: unknown): FileData {
+  if (!isPlainObject(raw)) return { path: '' }
+  const data: FileData = { path: typeof raw.path === 'string' ? raw.path : '' }
+  if (typeof raw.rule === 'string' && raw.rule.trim() !== '') data.rule = raw.rule
+  return data
+}
+
+/** 两个节点的内容是否相同（类型 + `data`；坐标不算）。 */
+export function sameNodeContent(a: WorkflowNode, b: WorkflowNode): boolean {
+  if (isFile(a) || isFile(b)) {
+    return (
+      isFile(a) &&
+      isFile(b) &&
+      a.data.path === b.data.path &&
+      (a.data.rule ?? '') === (b.data.rule ?? '')
+    )
+  }
+  return sameNodeData(a.data, b.data)
+}
+
+/**
+ * 从文件路径起一个文件节点 id：取文件名、换掉文件名里不许出现的字符，前面加 `file-`；
+ * 撞名（大小写不敏感）就加 `-2`、`-3`…
+ */
+export function fileIdFor(path: string, taken: (id: string) => boolean): string {
+  const name =
+    path
+      .split(/[\\/]/u)
+      .filter((part) => part !== '' && part !== '.')
+      .pop() ?? 'file'
+  // 文件名里不许出现的字符（Windows 非法字符、空白、控制字符）换成 `-`。
+  const safe = [...name]
+    .map((ch) => (/[<>:"/\\|?*\s]/u.test(ch) || (ch.codePointAt(0) ?? 0) < 32 ? '-' : ch))
+    .join('')
+    .replace(/-+/gu, '-')
+    .replace(/\.+$/u, '')
+  const base = `file-${safe}`.slice(0, 60)
+  if (!taken(base)) return base
+  for (let n = 2; ; n += 1) {
+    const candidate = `${base}-${n}`
+    if (!taken(candidate)) return candidate
+  }
+}
+
+/**
+ * 老图迁移：步骤上的 `output` 展开成文件节点 + 「步骤 → 文件」的写入线（同一路径共用一个文件节点）。
+ * 新文件节点的坐标是 `(0,0)`（"还没摆过"），由画布的布局补位。
+ * @returns 迁移过的步骤 id（没有就是空数组）。
+ */
+export function migrateOutputs(nodes: WorkflowNode[], edges: WorkflowEdge[]): string[] {
+  const migrated: string[] = []
+  const taken = new Set(nodes.map((node) => idKey(node.id)))
+  const byPath = new Map<string, FileNode>()
+  for (const node of nodes) {
+    if (isFile(node)) byPath.set(outputKey(node.data.path), node)
+  }
+  const edgeIds = new Set(edges.map((edge) => edge.id))
+  for (const node of [...nodes]) {
+    if (!isStep(node) || node.data.output === undefined) continue
+    for (const spec of outputSpecs(node.data.output)) {
+      let file = byPath.get(outputKey(spec.path))
+      if (file === undefined) {
+        const id = fileIdFor(spec.path, (candidate) => taken.has(idKey(candidate)))
+        taken.add(idKey(id))
+        file = {
+          id,
+          type: FILE_TYPE,
+          position: { x: 0, y: 0 },
+          data:
+            spec.rule === undefined ? { path: spec.path } : { path: spec.path, rule: spec.rule },
+        }
+        nodes.push(file)
+        byPath.set(outputKey(spec.path), file)
+      } else if (file.data.rule === undefined && spec.rule !== undefined) {
+        file.data = { ...file.data, rule: spec.rule }
+      }
+      const id = makeEdgeId(node.id, file.id)
+      if (edgeIds.has(id)) continue
+      edgeIds.add(id)
+      edges.push({ id, source: node.id, target: file.id, sourceHandle: null, targetHandle: null })
+    }
+    const { output: _old, ...rest } = node.data
+    node.data = rest
+    migrated.push(node.id)
+  }
+  return migrated
 }
 
 /**
@@ -252,6 +401,15 @@ export function normalizeDocument(input: unknown): ParseOutcome {
           node: raw.id,
         }),
       )
+    }
+    if (raw.type === FILE_TYPE) {
+      nodes.push({
+        id: raw.id,
+        type: FILE_TYPE,
+        position: position ?? { x: 0, y: 0 },
+        data: readFileData(raw.data),
+      })
+      continue
     }
     if (typeof raw.type === 'string' && raw.type !== NODE_TYPE) {
       problems.push(
@@ -310,6 +468,17 @@ export function normalizeDocument(input: unknown): ParseOutcome {
     )
   }
 
+  const migrated = migrateOutputs(nodes, edges)
+  if (migrated.length > 0) {
+    problems.push(
+      problem(
+        'hint',
+        'legacy_structure',
+        `步骤 ${migrated.join(' / ')} 上的产出已转成文件节点（保存时写成新结构）`,
+      ),
+    )
+  }
+
   const settings = readSettings(input.settings)
   return {
     document: {
@@ -348,6 +517,19 @@ export function readDocument(text: string): ParseOutcome {
 
 /** 按固定键序挑键——凡是键序表之外的字段一律不写（白名单）。 */
 function pickNode(node: WorkflowNode): Record<string, unknown> {
+  const position = { x: normalizeCoord(node.position.x), y: normalizeCoord(node.position.y) }
+  if (isFile(node)) {
+    const rule = node.data.rule
+    return {
+      id: node.id,
+      type: FILE_TYPE,
+      position,
+      data: {
+        path: node.data.path,
+        ...(rule === undefined || rule.trim() === '' ? {} : { rule }),
+      },
+    }
+  }
   const data: Record<string, unknown> = {}
   for (const key of DATA_KEYS) {
     const value = key === 'output' ? canonicalOutput(node.data.output) : node.data[key]
@@ -356,7 +538,7 @@ function pickNode(node: WorkflowNode): Record<string, unknown> {
   return {
     id: node.id,
     type: NODE_TYPE,
-    position: { x: normalizeCoord(node.position.x), y: normalizeCoord(node.position.y) },
+    position,
     data,
   }
 }
@@ -371,7 +553,7 @@ function pickEdge(edge: WorkflowEdge): Record<string, unknown> {
   }
   const data: Record<string, unknown> = {}
   for (const key of EDGE_DATA_KEYS) {
-    const value = edge.data?.[key]
+    const value = key === 'handoff' ? canonicalHandoff(edge.data?.handoff) : edge.data?.[key]
     if (value !== undefined) data[key] = value
   }
   if (Object.keys(data).length > 0) out.data = data
@@ -408,14 +590,14 @@ export function writeDocument(document: WorkflowDocument): string {
 /** 深拷贝一份文档（工具做读-改-写时用，避免就地改调用方的对象）。 */
 export function cloneDocument(document: WorkflowDocument): WorkflowDocument {
   return {
-    nodes: document.nodes.map((node) => ({
-      ...node,
-      position: { ...node.position },
-      data: cloneNodeData(node.data),
-    })),
+    nodes: document.nodes.map((node) =>
+      isFile(node)
+        ? { ...node, position: { ...node.position }, data: { ...node.data } }
+        : { ...node, position: { ...node.position }, data: cloneNodeData(node.data) },
+    ),
     edges: document.edges.map((edge) => ({
       ...edge,
-      ...(edge.data === undefined ? {} : { data: { ...edge.data } }),
+      ...(edge.data === undefined ? {} : { data: cloneEdgeData(edge.data) }),
     })),
     viewport: { ...document.viewport },
     ...(document.settings === undefined ? {} : { settings: { ...document.settings } }),

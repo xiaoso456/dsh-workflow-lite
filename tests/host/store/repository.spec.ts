@@ -91,6 +91,11 @@ async function readGraph(name: string): Promise<WorkflowDocument | null> {
   return text === null ? null : readDocument(text).document
 }
 
+/** 步骤的 `data`（文件节点给空对象）。 */
+function dataOf(node: WorkflowNode | undefined): NodeData {
+  return node !== undefined && node.type === 'wfNode' ? node.data : {}
+}
+
 function nodeIds(document: WorkflowDocument | null): string[] {
   return (document?.nodes ?? []).map((node) => node.id).sort()
 }
@@ -248,7 +253,7 @@ describe('save', () => {
 
     expect(saved.changed).toEqual([{ kind: 'node', op: 'add', id: 'a' }])
     expect(saved.hash).not.toBe(loaded.hash)
-    expect((await readGraph('w'))?.nodes[0]?.data.prompt).toBe('P')
+    expect(dataOf((await readGraph('w'))?.nodes[0]).prompt).toBe('P')
   })
 
   it('写前哈希不一致但改的是不同节点 ⇒ 自动合并、不报冲突', async () => {
@@ -265,8 +270,8 @@ describe('save', () => {
     const saved = expectOk(await repo.save('m', mine, { baseHash: loaded.hash }))
     expect(saved.warnings.some((w) => w.code === 'workflow_dir_collision')).toBe(false)
     const final = await readGraph('m')
-    expect(final?.nodes.find((node) => node.id === 'a')?.data.prompt).toBe('A2')
-    expect(final?.nodes.find((node) => node.id === 'b')?.data.prompt).toBe('B2')
+    expect(dataOf(final?.nodes.find((node) => node.id === 'a')).prompt).toBe('A2')
+    expect(dataOf(final?.nodes.find((node) => node.id === 'b')).prompt).toBe('B2')
     expect(saved.changed.map((entry) => entry.id).sort()).toEqual(['a'])
   })
 
@@ -282,7 +287,7 @@ describe('save', () => {
     const error = expectError(await repo.save('c', mine, { baseHash: loaded.hash }))
     expect(error.code).toBe('conflict')
     expect(error.detail?.ids).toEqual(['a'])
-    expect((await readGraph('c'))?.nodes[0]?.data.prompt).toBe('theirs')
+    expect(dataOf((await readGraph('c'))?.nodes[0]).prompt).toBe('theirs')
   })
 
   it('force=true（画布「保留我的」）⇒ 冲突也写，本地优先', async () => {
@@ -297,7 +302,7 @@ describe('save', () => {
         force: true,
       }),
     )
-    expect((await readGraph('f'))?.nodes[0]?.data.prompt).toBe('mine')
+    expect(dataOf((await readGraph('f'))?.nodes[0]).prompt).toBe('mine')
   })
 
   it('目标不存在 ⇒ not_found（绝不隐式创建）', async () => {
@@ -362,8 +367,8 @@ describe('save', () => {
     expectOk(await second)
 
     const final = await readGraph('p')
-    expect(final?.nodes.find((node) => node.id === 'a')?.data.prompt).toBe('A2')
-    expect(final?.nodes.find((node) => node.id === 'b')?.data.prompt).toBe('B2')
+    expect(dataOf(final?.nodes.find((node) => node.id === 'a')).prompt).toBe('A2')
+    expect(dataOf(final?.nodes.find((node) => node.id === 'b')).prompt).toBe('B2')
   })
 })
 
@@ -452,16 +457,56 @@ describe('writeNode / setLabel / deleteNode', () => {
 
     const written = expectOk(await repo.writeNode('w', { id: 'rev', fromTemplate: 'reviewer' }))
     expect(written.warnings.some((w) => w.code === 'position_filled')).toBe(true)
-    const node = (await readGraph('w'))?.nodes[0]
+    const graph = await readGraph('w')
+    const node = graph?.nodes[0]
     expect(node?.id).toBe('rev')
     expect(node?.position).toEqual({ x: 0, y: 0 })
-    expect(node?.data).toEqual({ label: '审查', prompt: 'R', output: 'r.md' })
+    // 模板里的产出展开成文件节点 + 写入线，步骤自己的 data 里不留 output。
+    expect(node?.data).toEqual({ label: '审查', prompt: 'R' })
+    expect(graph?.nodes[1]).toMatchObject({
+      id: 'file-r.md',
+      type: 'wfFile',
+      data: { path: 'r.md' },
+    })
+    expect(graph?.edges.map((edge) => edge.id)).toEqual(['rev->file-r.md'])
   })
 
-  it('no_output=true 写第三态 output:false', async () => {
+  it('outputs 建好文件节点并连上；再写一遍只留清单里的；no_output 断开并删掉没人连的文件节点', async () => {
     expectOk(await repo.create('w'))
-    expectOk(await repo.writeNode('w', { id: 'a', content: 'P', noOutput: true }))
-    expect((await readGraph('w'))?.nodes[0]?.data.output).toBe(false)
+    expectOk(
+      await repo.writeNode('w', {
+        id: 'a',
+        content: 'P',
+        outputs: [{ path: 'x.md', rule: 'r' }, { path: 'y.md' }],
+      }),
+    )
+    let graph = await readGraph('w')
+    expect(graph?.nodes.map((node) => node.id)).toEqual(['a', 'file-x.md', 'file-y.md'])
+    expect(graph?.nodes[1]?.data).toEqual({ path: 'x.md', rule: 'r' })
+    expectOk(await repo.writeNode('w', { id: 'b', content: 'Q', output: 'x.md' }))
+    graph = await readGraph('w')
+    // 别人已经在写 x.md：接着写默认是在原文件上更新。
+    expect(graph?.edges.find((edge) => edge.id === 'b->file-x.md')?.data).toEqual({ update: true })
+    expectOk(await repo.writeNode('w', { id: 'a', noOutput: true }))
+    graph = await readGraph('w')
+    expect(graph?.nodes.map((node) => node.id)).toEqual(['a', 'file-x.md', 'b'])
+    expect(graph?.edges.map((edge) => edge.id)).toEqual(['b->file-x.md'])
+  })
+
+  it('writeFile 新建 / 改路径与规则；connect 连读写线，update 只用在步骤 → 文件', async () => {
+    expectOk(await repo.create('w'))
+    expectOk(await repo.writeNode('w', { id: 'a', content: 'P' }))
+    expectOk(await repo.writeFile('w', { path: 'notes.md', rule: '要点' }))
+    expectOk(await repo.writeFile('w', { id: 'file-notes.md', path: 'docs/notes.md', rule: '' }))
+    expectOk(await repo.connect('w', 'a', 'file-notes.md', undefined, undefined, true))
+    const graph = await readGraph('w')
+    expect(graph?.nodes[1]?.data).toEqual({ path: 'docs/notes.md' })
+    expect(graph?.edges[0]?.data).toEqual({ update: true })
+    expect(expectError(await repo.connect('w', 'file-notes.md', 'a', 'fail')).code).toBe(
+      'invalid_args',
+    )
+    expect(expectError(await repo.writeFile('w', { id: 'a', rule: 'x' })).code).toBe('blocked')
+    expect(expectError(await repo.writeFile('w', { path: '../x.md' })).code).toBe('blocked')
   })
 
   it('图不存在 ⇒ not_found；节点 id 非法 ⇒ blocked；模板不存在 ⇒ not_found', async () => {
@@ -479,9 +524,9 @@ describe('writeNode / setLabel / deleteNode', () => {
     expectOk(await repo.create('w'))
     expectOk(await repo.writeNode('w', { id: 'a', content: 'P', label: '旧' }))
     expectOk(await repo.setLabel('w', 'a', '新'))
-    expect((await readGraph('w'))?.nodes[0]?.data.label).toBe('新')
+    expect(dataOf((await readGraph('w'))?.nodes[0]).label).toBe('新')
     expectOk(await repo.setLabel('w', 'a', ''))
-    expect((await readGraph('w'))?.nodes[0]?.data.label).toBeUndefined()
+    expect(dataOf((await readGraph('w'))?.nodes[0]).label).toBeUndefined()
     expect(expectError(await repo.setLabel('w', 'ghost', 'x')).code).toBe('not_found')
     expect(expectError(await repo.setLabel('w', 'a', '含|竖线')).code).toBe('blocked')
   })

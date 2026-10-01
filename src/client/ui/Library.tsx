@@ -187,6 +187,30 @@ export function Library(props: {
           </span>
         </button>
 
+        {/* 文件卡：和空白步骤一样只能拖。拖到画布上是一张独立的文件卡，再连到步骤上。 */}
+        <button
+          type="button"
+          className={css.item}
+          draggable
+          data-testid="wl-lib-file"
+          onDragStart={(event) => {
+            event.dataTransfer.setData(DND_MIME, encodeStepSource({ kind: 'file' }))
+            event.dataTransfer.effectAllowed = 'copy'
+          }}
+          onClick={() => setHinting((value) => value + 1)}
+        >
+          <span className={cx(ui.kind, css.fileKind)}>
+            <Icon name="file" size={15} />
+          </span>
+          <span className={css.itemText}>
+            <span className={css.itemTitle}>{t('lib.file')}</span>
+            <span className={css.itemDesc}>{t('lib.fileDesc')}</span>
+          </span>
+          <span className={css.grip} aria-hidden="true">
+            ⋮⋮
+          </span>
+        </button>
+
         <SectionHead
           label={t('lib.builtin')}
           open={open('builtin')}

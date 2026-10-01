@@ -7,10 +7,10 @@
  * @module @xiaoso/dsh-workflow-lite/client/model/library
  */
 
-import type { NodeData, WorkflowNode } from '../../shared/types.ts'
-import { NODE_TYPE } from '../../shared/types.ts'
+import type { Handoff, NodeData, WorkflowNode } from '../../shared/types.ts'
+import { FILE_TYPE, NODE_TYPE } from '../../shared/types.ts'
 import type { LocaleKey, T } from '../i18n.ts'
-import { COL_STEP, ROW_STEP } from './layout.ts'
+import { COL_STEP } from './layout.ts'
 
 /** 步骤的"种类"——只决定图标与色调，不进文档。 */
 export type StepKind = 'scan' | 'plan' | 'implement' | 'review' | 'fix' | 'report' | 'blank'
@@ -127,41 +127,64 @@ export function kindOf(id: string): StepKind {
 
 /**
  * 示例流程：侦察 → 拆解 → 实现 → 审查，通过去汇总，未通过去修复再回到审查。
- * 一次把顺序、分支、循环三种形态都摆出来，比任何说明文字都快。
+ * 一次把顺序、分支、循环、文件（含几步共用的审查报告）都摆出来，比任何说明文字都快：
+ * 每一步的产出是挂在它右下方的文件卡；审查报告由修复在原文件上打钩，汇总读它的最终版。
  */
 export function starterGraph(t: T): {
   nodes: WorkflowNode[]
-  edges: { source: string; target: string; when?: string }[]
+  edges: {
+    source: string
+    target: string
+    when?: string
+    handoff?: Handoff | false
+    update?: boolean
+  }[]
 } {
+  const x = (column: number): number => 80 + column * COL_STEP
   const at: Record<string, [number, number]> = {
-    scan: [0, 0],
-    plan: [1, 0],
-    implement: [2, 0],
-    review: [3, 0],
-    report: [4, 0],
-    // 修复放在汇总下面：未通过的线往右下走，修完的回线沿两行之间的走廊回到审查。
-    fix: [4, 1],
+    scan: [x(0), 120],
+    plan: [x(1), 120],
+    implement: [x(2), 120],
+    review: [x(3), 120],
+    report: [x(4), 120],
+    // 修复放在汇总下面、文件那一排再往下：未通过的线往下走，修完的回线回到审查。
+    fix: [x(4), 520],
   }
-  const nodes = PRESETS.map((preset) => {
-    const [column, row] = at[preset.id] ?? [0, 0]
-    return {
-      id: preset.id,
-      type: NODE_TYPE,
-      position: { x: 80 + column * COL_STEP, y: 120 + row * (ROW_STEP + 64) },
-      data: presetData(preset, t),
-    }
-  })
-  return {
-    nodes,
-    edges: [
-      { source: 'scan', target: 'plan' },
-      { source: 'plan', target: 'implement' },
-      { source: 'implement', target: 'review' },
-      { source: 'review', target: 'report', when: 'pass' },
-      { source: 'review', target: 'fix', when: 'fail' },
-      { source: 'fix', target: 'review' },
-    ],
+  const nodes: WorkflowNode[] = []
+  const edges: ReturnType<typeof starterGraph>['edges'] = []
+  for (const preset of PRESETS) {
+    const [px, py] = at[preset.id] ?? [0, 0]
+    const { output: _template, ...data } = presetData(preset, t)
+    nodes.push({ id: preset.id, type: NODE_TYPE, position: { x: px, y: py }, data })
+    if (typeof preset.output !== 'string') continue
+    const fileId = `file-${preset.output}`
+    nodes.push({
+      id: fileId,
+      type: FILE_TYPE,
+      position: { x: px + 40, y: py + 132 },
+      data: {
+        path: preset.output,
+        ...(preset.ruleKey === undefined ? {} : { rule: t(preset.ruleKey) }),
+      },
+    })
+    edges.push({ source: preset.id, target: fileId })
   }
+  edges.push(
+    { source: 'scan', target: 'plan' },
+    { source: 'plan', target: 'implement' },
+    { source: 'implement', target: 'review' },
+    { source: 'review', target: 'report', when: 'pass' },
+    { source: 'review', target: 'fix', when: 'fail', handoff: { note: t('starter.fixNote') } },
+    { source: 'fix', target: 'review', handoff: { note: t('starter.recheckNote') } },
+    // 读：每一步读上一步的产出；审查报告被修复就地更新，汇总读它的最终版。
+    { source: 'file-scan-notes.md', target: 'plan' },
+    { source: 'file-plan.md', target: 'implement' },
+    { source: 'file-changes.md', target: 'review' },
+    { source: 'fix', target: 'file-review.md', update: true },
+    { source: 'file-review.md', target: 'report' },
+    { source: 'file-fix-notes.md', target: 'review' },
+  )
+  return { nodes, edges }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -174,6 +197,8 @@ export const DND_MIME = 'application/x-workflow-lite-step'
 /** 从库里拿出来的东西：空白步骤、内置步骤，或磁盘上的节点模板。 */
 export type StepSource =
   | { kind: 'blank' }
+  /** 一张文件卡（不是步骤，但同样从库里拖、从菜单里加）。 */
+  | { kind: 'file' }
   | { kind: 'preset'; id: string }
   | { kind: 'template'; name: string }
 
@@ -205,6 +230,8 @@ export function decodeStepSource(raw: string | null | undefined): StepSource | n
   switch (fields.get('kind')) {
     case 'blank':
       return { kind: 'blank' }
+    case 'file':
+      return { kind: 'file' }
     case 'preset': {
       const id = text('id')
       return id === null ? null : { kind: 'preset', id }

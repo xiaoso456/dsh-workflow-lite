@@ -220,143 +220,194 @@ export function Modal(props: {
   return host === null ? tree : createPortal(tree, host)
 }
 
-/** 「?」说明的浮层：悬停多久才出来、离开多久才收（留出把鼠标移进浮层的时间）。 */
-const HINT_OPEN_MS = 120
-const HINT_CLOSE_MS = 220
-const HINT_W = 320
-const HINT_GAP = 6
+/** 浮层与触发器之间的间距。 */
+const FLOAT_GAP = 6
+
+export type FloatState = 'off' | 'hover' | 'pinned'
 
 /**
- * 「?」说明：平时只占一个小图标，悬停 / 聚焦 / 点击时浮出一段说明。
+ * 悬停浮层的状态与摆位（「?」说明、画布连线上的交接卡片共用）。
  *
- * - 浮层挂到视图根（和模态框同一个挂载点），不在对话框的滚动区里：既不会被裁掉，
- *   也不会因为一块看不见的浮层把滚动区撑出滚动条。
- * - 鼠标可以从「?」移进浮层：离开图标后稍等一下再收，进了浮层就不收；浮层接住指针，
+ * - 浮层挂到视图根（和模态框同一个挂载点）：不被滚动区裁掉，也不会把滚动区撑出滚动条；
+ *   画布缩放时字号也不跟着变小。
+ * - 鼠标可以从触发器移进浮层：离开触发器后稍等一下再收，进了浮层就不收；浮层接住指针，
  *   里面的文字能选中复制，点击不会穿透到后面。
- * - 点「?」钉住（触屏也能用），点别处或按 Esc 收起。下面放不下时自动弹到上方。
+ * - 在触发器与浮层之外按下指针、滚动、滚轮缩放画布都收起；Esc 只收浮层。
+ * - 先按"触发器正下方、左边对齐"放，量出高度后下面放不下就翻到上方，左右夹在视图里。
  */
-export function HelpTip(props: {
-  label: string
-  children: React.ReactNode
-  testId?: string
-}): React.JSX.Element {
+export function useFloat<A extends HTMLElement>(options: {
+  openMs: number
+  closeMs: number
+  width: number
+}): {
+  state: FloatState
+  setState: (next: FloatState | ((current: FloatState) => FloatState)) => void
+  anchorRef: RefObject<A>
+  panelRef: RefObject<HTMLDivElement>
+  /** 取消还没生效的悬停开 / 关。 */
+  cancel: () => void
+  /** 悬停触发：挂到触发器上。 */
+  hoverProps: { onPointerEnter: () => void; onPointerLeave: () => void }
+  onKeyDown: (event: React.KeyboardEvent) => void
+  /** 把浮层内容包一层定位壳，挂到视图根。 */
+  render: (props: {
+    className: string
+    testId?: string | undefined
+    label?: string
+    children: React.ReactNode
+  }) => React.ReactNode
+} {
   const host = useContext(ModalHost)
-  const buttonRef = useRef<HTMLButtonElement>(null)
+  const anchorRef = useRef<A>(null)
   const panelRef = useRef<HTMLDivElement>(null)
-  const [open, setOpen] = useState<'off' | 'hover' | 'pinned'>('off')
+  const [state, setState] = useState<FloatState>('off')
   const [place, setPlace] = useState<{ left: number; top: number; up: boolean } | null>(null)
   const timer = useRef(0)
+  const { openMs, closeMs, width } = options
 
   const cancel = (): void => window.clearTimeout(timer.current)
   const later = (next: 'off' | 'hover', ms: number): void => {
     cancel()
-    timer.current = window.setTimeout(() => setOpen(next), ms)
+    timer.current = window.setTimeout(() => setState(next), ms)
   }
   useEffect(() => () => window.clearTimeout(timer.current), [])
 
-  // 摆位置：先按"图标正下方、左边对齐"放，量出浮层高度后，下面放不下就翻到上方。
   useLayoutEffect(() => {
-    if (open === 'off') {
+    if (state === 'off') {
       setPlace(null)
       return
     }
-    const button = buttonRef.current
+    const anchor = anchorRef.current
     const root = host ?? document.body
-    if (button === null) return
-    const box = button.getBoundingClientRect()
+    if (anchor === null) return
+    const box = anchor.getBoundingClientRect()
     const area = root.getBoundingClientRect()
     const height = panelRef.current?.offsetHeight ?? 0
-    const left = Math.max(8, Math.min(box.left - area.left - 8, area.width - HINT_W - 8))
-    const below = box.bottom - area.top + HINT_GAP
-    const up = below + height > area.height - 8 && box.top - area.top - HINT_GAP - height > 8
-    setPlace({ left, top: up ? box.top - area.top - HINT_GAP - height : below, up })
-  }, [open, host])
+    const left = Math.max(8, Math.min(box.left - area.left - 8, area.width - width - 8))
+    const below = box.bottom - area.top + FLOAT_GAP
+    const up = below + height > area.height - 8 && box.top - area.top - FLOAT_GAP - height > 8
+    setPlace({ left, top: up ? box.top - area.top - FLOAT_GAP - height : below, up })
+  }, [state, host, width])
 
-  // 打开时：在图标与浮层之外按下指针、滚动、按 Esc 都收起。
   useEffect(() => {
-    if (open === 'off') return
+    if (state === 'off') return
     const inside = (target: EventTarget | null): boolean =>
       target instanceof Node &&
-      (buttonRef.current?.contains(target) === true || panelRef.current?.contains(target) === true)
-    const onDown = (event: PointerEvent): void => {
-      if (!inside(event.target)) setOpen('off')
+      (anchorRef.current?.contains(target) === true || panelRef.current?.contains(target) === true)
+    const onAway = (event: Event): void => {
+      if (!inside(event.target)) setState('off')
     }
-    const onScroll = (event: Event): void => {
-      if (!inside(event.target)) setOpen('off')
-    }
-    document.addEventListener('pointerdown', onDown, true)
-    document.addEventListener('scroll', onScroll, true)
+    document.addEventListener('pointerdown', onAway, true)
+    document.addEventListener('scroll', onAway, true)
+    document.addEventListener('wheel', onAway, true)
     return () => {
-      document.removeEventListener('pointerdown', onDown, true)
-      document.removeEventListener('scroll', onScroll, true)
+      document.removeEventListener('pointerdown', onAway, true)
+      document.removeEventListener('scroll', onAway, true)
+      document.removeEventListener('wheel', onAway, true)
     }
-  }, [open])
+  }, [state])
 
   const onKeyDown = (event: React.KeyboardEvent): void => {
-    if (event.key !== 'Escape' || open === 'off') return
-    // 只收浮层，不连带关掉外面的对话框。
+    if (event.key !== 'Escape' || state === 'off') return
+    // 只收浮层，不连带关掉外面的对话框、也不取消画布上的选中。
     event.stopPropagation()
-    setOpen('off')
-    buttonRef.current?.focus()
+    setState('off')
+    anchorRef.current?.focus()
   }
 
-  const panel =
-    open === 'off' ? null : (
+  const hoverProps = {
+    onPointerEnter: () => {
+      if (state === 'off') later('hover', openMs)
+      else cancel()
+    },
+    onPointerLeave: () => {
+      if (state === 'hover') later('off', closeMs)
+      else if (state === 'off') cancel()
+    },
+  }
+
+  const render: ReturnType<typeof useFloat>['render'] = (props) => {
+    if (state === 'off') return null
+    const panel = (
       <div
         ref={panelRef}
-        className={ui.hintPanel}
+        className={props.className}
         role="tooltip"
-        // 可聚焦（不进 Tab 序）：在浮层里点一下选文字时，焦点从「?」移进来而不是丢掉，浮层不会因失焦收起。
+        aria-label={props.label}
+        // 可聚焦（不进 Tab 序）：在浮层里点一下选文字时，焦点移进来而不是丢掉。
         tabIndex={-1}
         data-up={place?.up === true}
-        data-testid={props.testId === undefined ? undefined : `${props.testId}-panel`}
+        data-testid={props.testId}
         style={{
           left: place?.left ?? 0,
           top: place?.top ?? 0,
+          width,
           // 第一帧还没量好位置：先藏着量高度，摆好了再出现（避免闪一下）。
           visibility: place === null ? 'hidden' : 'visible',
         }}
         onPointerEnter={cancel}
         onPointerLeave={() => {
-          if (open === 'hover') later('off', HINT_CLOSE_MS)
+          if (state === 'hover') later('off', closeMs)
         }}
         onKeyDown={onKeyDown}
       >
         {props.children}
       </div>
     )
+    return host === null ? panel : createPortal(panel, host)
+  }
 
+  return { state, setState, anchorRef, panelRef, cancel, hoverProps, onKeyDown, render }
+}
+
+/** 「?」说明：悬停多久才出来、离开多久才收（留出把鼠标移进浮层的时间）。 */
+const HINT_OPEN_MS = 120
+const HINT_CLOSE_MS = 220
+const HINT_W = 320
+
+/**
+ * 「?」说明：平时只占一个小图标，悬停 / 聚焦 / 点击时浮出一段说明（浮层行为见 {@link useFloat}）。
+ * 点「?」钉住（触屏也能用），点别处或按 Esc 收起。
+ */
+export function HelpTip(props: {
+  label: string
+  children: React.ReactNode
+  testId?: string
+}): React.JSX.Element {
+  const float = useFloat<HTMLButtonElement>({
+    openMs: HINT_OPEN_MS,
+    closeMs: HINT_CLOSE_MS,
+    width: HINT_W,
+  })
+  const { state, setState } = float
   return (
     <span className={ui.hint}>
       <button
-        ref={buttonRef}
+        ref={float.anchorRef}
         type="button"
         className={ui.hintButton}
         aria-label={props.label}
-        aria-expanded={open !== 'off'}
-        data-open={open !== 'off'}
+        aria-expanded={state !== 'off'}
+        data-open={state !== 'off'}
         data-testid={props.testId}
-        onPointerEnter={() => {
-          if (open === 'off') later('hover', HINT_OPEN_MS)
-          else cancel()
-        }}
-        onPointerLeave={() => {
-          if (open === 'hover') later('off', HINT_CLOSE_MS)
-          else if (open === 'off') cancel()
-        }}
+        {...float.hoverProps}
         onFocus={() => {
-          if (open === 'off') setOpen('hover')
+          if (state === 'off') setState('hover')
         }}
         onBlur={(event) => {
-          if (open === 'hover' && !panelRef.current?.contains(event.relatedTarget as Node | null)) {
-            setOpen('off')
+          const next = event.relatedTarget
+          if (
+            state === 'hover' &&
+            !(next instanceof Node && float.panelRef.current?.contains(next))
+          ) {
+            setState('off')
           }
         }}
         onClick={() => {
-          cancel()
-          setOpen((current) => (current === 'pinned' ? 'off' : 'pinned'))
+          float.cancel()
+          setState((current) => (current === 'pinned' ? 'off' : 'pinned'))
         }}
-        onKeyDown={onKeyDown}
+        onKeyDown={float.onKeyDown}
       >
         <svg width={14} height={14} viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth={1.8} />
@@ -368,7 +419,11 @@ export function HelpTip(props: {
           />
         </svg>
       </button>
-      {panel !== null && (host === null ? panel : createPortal(panel, host))}
+      {float.render({
+        className: ui.hintPanel,
+        testId: props.testId === undefined ? undefined : `${props.testId}-panel`,
+        children: props.children,
+      })}
     </span>
   )
 }

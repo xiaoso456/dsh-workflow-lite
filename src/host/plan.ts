@@ -13,6 +13,7 @@
 
 import { buildFullText, buildPlan, planIdOf } from '../shared/compile.ts'
 import { analyzeGraph } from '../shared/graph.ts'
+import { isStep } from '../shared/model.ts'
 import type {
   PlanId,
   PlanResult,
@@ -80,7 +81,10 @@ export async function compileWorkflow(
   const analysis = analyzeGraph(document)
   const planId = planIdOf(document)
   const payloadPaths = new Map<string, string>(
-    document.nodes.map((node) => [node.id, payloadFile(dataDir, name, planId, node.id)]),
+    // 只有步骤有载荷（文件节点是数据，不是任务）。
+    document.nodes
+      .filter(isStep)
+      .map((node) => [node.id, payloadFile(dataDir, name, planId, node.id)]),
   )
 
   const facts = {
@@ -122,6 +126,7 @@ export async function compileWorkflow(
   // 物化：编译唯一的 I/O。失败 ⇒ io_error。
   const payloads = new Map<string, string>(
     document.nodes
+      .filter(isStep)
       .filter((node) => typeof node.data.prompt === 'string')
       .map((node) => [node.id, node.data.prompt ?? '']),
   )

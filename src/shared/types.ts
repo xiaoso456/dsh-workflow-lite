@@ -12,8 +12,11 @@
 // 图 JSON（事实源）
 // ─────────────────────────────────────────────────────────────
 
-/** 节点类型标记。取值集合只有这一个；读到未知 `type` 按它渲染并报**警告**。 */
+/** 步骤节点的类型标记。读到未知 `type` 按步骤渲染并报**警告**。 */
 export const NODE_TYPE = 'wfNode'
+
+/** 文件节点的类型标记：一份产出 / 输入文件，步骤写它（步骤 → 文件）、读它（文件 → 步骤）。 */
+export const FILE_TYPE = 'wfFile'
 
 /** 一张图 = 一个 JSON 的顶层形状（React Flow 原生三件套 + 可选的工作流设置）。 */
 export interface WorkflowDocument {
@@ -55,13 +58,34 @@ export interface Point {
   y: number
 }
 
-export interface WorkflowNode {
+/** 图里的节点：步骤，或文件。 */
+export type WorkflowNode = StepNode | FileNode
+
+export interface StepNode {
   /** 身份，**创建后不可改**；同时是载荷文件名 ⇒ 受文件名约束。图内**大小写不敏感唯一**。 */
   id: string
-  type: string
-  /** **存盘**。缺失 → 分层布局补位并回写（提示级），不算保存级。 */
+  type: typeof NODE_TYPE
+  /** **存盘**。缺失（或 `(0,0)`）→ 布局补位并回写，不算保存级。 */
   position: Point
   data: NodeData
+}
+
+/**
+ * 文件节点：一份独立的文件，和执行结果不同，它不依赖某一次运行——几个步骤可以先后写它、读它。
+ * `id` 与步骤共用一个命名空间（图内大小写不敏感唯一），但不产生载荷文件。
+ */
+export interface FileNode {
+  id: string
+  type: typeof FILE_TYPE
+  position: Point
+  data: FileData
+}
+
+export interface FileData {
+  /** 文件路径：相对产出根目录（没配根目录就是相对工作区），禁止绝对路径与 `..`。 */
+  path: string
+  /** 这份文件该怎么写：格式、必须包含什么、给谁看。进计划。 */
+  rule?: string
 }
 
 export interface NodeData {
@@ -72,10 +96,9 @@ export interface NodeData {
   /** 提示词正文，逐字交给执行者。**缺失或为空串 = 编译级**（允许落盘、阻塞编译）。 */
   prompt?: string
   /**
-   * 产出契约：
-   * - 字符串 = 一个产出文件（老写法，也是"一个产出、没有规则"时的规范写法）；
-   * - 数组 = 一个或多个产出，每个可带生成规则（规则进计划的交付契约）；
-   * - `false` = 显式声明不产出文件；缺省 = 未声明。
+   * 产出契约——**只在步骤模板里用**（模板放到画布上时展开成文件节点）；
+   * 图里的产出是文件节点，老图里步骤上的 `output` 读入时自动迁成文件节点。
+   * - 字符串 = 一个产出文件；数组 = 一个或多个，每个可带生成规则；`false` = 不产出文件。
    */
   output?: string | false | OutputSpec[]
 }
@@ -103,6 +126,24 @@ export interface EdgeData {
   when?: string
   /** 作者手写的语义短标签，不参与任何判定。 */
   label?: string
+  /**
+   * 交接（只用在步骤 → 步骤的线上）：上游这一次的执行结果交不交给下游。
+   * - 缺省 = 交：把上游回复里的结论与要点交给下游；
+   * - 对象 = 交，并附一段交接说明（下游拿到之后怎么用）；
+   * - `false` = 只管先后，什么都不交。
+   * 文件不走这里——文件是独立的节点，谁写谁读看连到它的线。
+   */
+  handoff?: Handoff | false
+  /**
+   * 写入方式（只用在步骤 → 文件的线上）：缺省 = 产出（整份写出 / 覆盖）；
+   * `true` = 在原文件上更新（先读再改，比如修完在问题清单里打钩）。
+   */
+  update?: true
+}
+
+/** 交接说明（空白说明的规范写法是"不写"，即缺省）。 */
+export interface Handoff {
+  note: string
 }
 
 /** 顶层键序（canonical writer 与白名单的唯一口径）。 */
@@ -185,6 +226,8 @@ export type ValidationCode =
   | 'name_invalid'
   | 'workflow_dir_collision'
   | 'settings_invalid'
+  | 'handoff_invalid'
+  | 'file_edge_invalid'
   // 编译级
   | 'prompt_empty'
   | 'too_many_nodes'
@@ -194,13 +237,15 @@ export type ValidationCode =
   | 'mixed_conditional_edges'
   | 'duplicate_edge'
   | 'shared_output'
+  | 'file_overwritten'
   | 'unknown_node_type'
   | 'unknown_fields_dropped'
   // 提示
   | 'branch_not_exhaustive'
   | 'freeform_when'
   | 'multi_back_edges'
-  | 'missing_output'
+  | 'file_unwritten'
+  | 'file_order'
   | 'stray_entry'
   | 'position_filled'
   | 'legacy_structure'
@@ -217,7 +262,7 @@ export interface ValidationProblem {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 工具线格式（唯一工具 workflow_lite，13 个 action）
+// 工具线格式（唯一工具 workflow_lite，14 个 action）
 // ─────────────────────────────────────────────────────────────
 
 export const TOOL_NAME = 'workflow_lite'
@@ -236,6 +281,7 @@ export const ACTIONS = [
   'delete_workflow',
   'save_as_template',
   'configure',
+  'write_file',
 ] as const
 
 export type Action = (typeof ACTIONS)[number]
@@ -303,9 +349,23 @@ export interface ListResult {
 export interface NodeIndexEntry {
   id: string
   label?: string
-  /** 前置（含回边）的 `id`，按 `id` 码位序。 */
+  /** 前置步骤（含回边）的 `id`，按 `id` 码位序。 */
   predecessors: string[]
-  output?: NodeData['output']
+  /** 它读的文件（路径）。 */
+  reads?: string[]
+  /** 它写的文件（路径；`update` = 在原文件上更新）。 */
+  writes?: { path: string; update?: true }[]
+}
+
+/** 索引里的一个文件节点。 */
+export interface FileIndexEntry {
+  id: string
+  path: string
+  rule?: string
+  /** 写它的步骤 id（`update` = 在原文件上更新）。 */
+  writers: { id: string; update?: true }[]
+  /** 读它的步骤 id。 */
+  readers: string[]
 }
 
 export interface ReadIndexResult {
@@ -314,6 +374,8 @@ export interface ReadIndexResult {
   /** 工作流设置（有才给）。 */
   settings?: WorkflowSettings
   nodes: NodeIndexEntry[]
+  /** 文件节点（有才给）。 */
+  files?: FileIndexEntry[]
   warnings: ToolWarning[]
 }
 
@@ -354,6 +416,7 @@ export type ToolSuccess =
   | { action: 'delete_workflow'; result: WriteResult }
   | { action: 'save_as_template'; result: WriteResult }
   | { action: 'configure'; result: WriteResult }
+  | { action: 'write_file'; result: WriteResult }
 
 // ─────────────────────────────────────────────────────────────
 // 图语义（供编译器与画布共用）

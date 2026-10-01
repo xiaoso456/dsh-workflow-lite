@@ -38,6 +38,9 @@ const PATHS = {
   arrowRight: 'M5 12h14M13 6l6 6-6 6',
   folder: 'M3 7h6l2 2h10v10H3z',
   sliders: 'M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4',
+  // 交接
+  handoff: 'M4 8l8-4 8 4v8l-8 4-8-4zM4 8l8 4 8-4M12 12v8',
+  result: 'M5 5h14v10h-8l-4 4v-4H5zM9 9.5h6M9 12h4',
   // 执行方式
   modeAuto:
     'M12 3v3M12 18v3M3 12h3M18 12h3M6.3 6.3l2.1 2.1M15.6 15.6l2.1 2.1M6.3 17.7l2.1-2.1M15.6 8.4l2.1-2.1',

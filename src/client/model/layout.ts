@@ -9,17 +9,96 @@
  * @module @xiaoso/dsh-workflow-lite/client/model/layout
  */
 
+import { fileGraph } from '../../shared/files.ts'
 import type { GraphAnalysis } from '../../shared/graph.ts'
 import { byId } from '../../shared/graph.ts'
-import type { Point, WorkflowDocument } from '../../shared/types.ts'
+import { isFile } from '../../shared/model.ts'
+import type { Point, WorkflowDocument, WorkflowNode } from '../../shared/types.ts'
 
 /** 步骤卡的宽度（CSS 里写死同一个数）与估算高度。 */
 export const NODE_W = 216
 export const NODE_H = 96
 
+/** 文件卡的宽度（CSS 里写死同一个数）与估算高度。 */
+export const FILE_W = 188
+export const FILE_H = 56
+
 /** 列距与行距。 */
 export const COL_STEP = 284
 export const ROW_STEP = 132
+
+/**
+ * 文件卡相对写它的步骤：挂在步骤正下方、稍往右错一点——写线从步骤底边落下来，
+ * 读线从文件右边连到下一列的步骤（文件右沿要在下一列左边之前）。
+ */
+const FILE_DX = 40
+const FILE_DY = NODE_H + 36
+const FILE_ROW = FILE_H + 20
+
+interface Box {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+function boxOf(node: WorkflowNode, at: Point = node.position): Box {
+  return isFile(node)
+    ? { x: at.x, y: at.y, w: FILE_W, h: FILE_H }
+    : { x: at.x, y: at.y, w: NODE_W, h: NODE_H }
+}
+
+function hits(a: Box, b: Box): boolean {
+  const gap = 16
+  return (
+    a.x < b.x + b.w + gap && b.x < a.x + a.w + gap && a.y < b.y + b.h + gap && b.y < a.y + a.h + gap
+  )
+}
+
+/** 从 `want` 起往下找一个不压住任何已有卡片的位置（按真实尺寸比）。 */
+function freeBox(occupied: readonly Box[], want: Box, step: number): Point {
+  const spot = { ...want }
+  while (occupied.some((box) => hits(box, spot))) spot.y += step
+  return { x: spot.x, y: spot.y }
+}
+
+/**
+ * 一个文件卡该放哪：挂在写它的步骤（没人写就是读它的步骤）的右下方，被占了就往下找。
+ * @param anchor - 写它 / 读它的步骤的坐标；没有就放在版面左下。
+ */
+export function fileSpot(doc: WorkflowDocument, anchor: Point | undefined, skip?: string): Point {
+  const occupied = doc.nodes
+    .filter((node) => node.id !== skip && !isUnplaced(node.position))
+    .map((node) => boxOf(node))
+  const base =
+    anchor ??
+    (occupied.length === 0
+      ? ORIGIN
+      : {
+          x: Math.min(...occupied.map((box) => box.x)),
+          y: Math.max(...occupied.map((box) => box.y + box.h)),
+        })
+  return freeBox(
+    occupied,
+    { x: base.x + FILE_DX, y: base.y + FILE_DY, w: FILE_W, h: FILE_H },
+    FILE_ROW,
+  )
+}
+
+/** 文件卡的锚点：第一个写它的步骤，没有就第一个读它的步骤。 */
+function anchorOf(
+  doc: WorkflowDocument,
+  fileId: string,
+  position: (id: string) => Point | undefined,
+): Point | undefined {
+  const info = fileGraph(doc).get(fileId)
+  if (info === undefined) return undefined
+  for (const id of [...info.writers.map((writer) => writer.id), ...info.readers]) {
+    const at = position(id)
+    if (at !== undefined) return at
+  }
+  return undefined
+}
 
 const ORIGIN: Point = { x: 80, y: 80 }
 
@@ -55,15 +134,34 @@ export function tidy(doc: WorkflowDocument, analysis: GraphAnalysis): Record<str
       placed[id] = { x: ORIGIN.x + columnIndex * COL_STEP, y: top + rowIndex * ROW_STEP }
     })
   })
-  // 批次之外的节点（理论上没有）：排在最后一列之后，别让它们叠在原点。
+  // 批次之外的步骤（理论上没有）：排在最后一列之后，别让它们叠在原点。
   let stray = 0
   for (const node of doc.nodes) {
-    if (placed[node.id] !== undefined) continue
+    if (placed[node.id] !== undefined || isFile(node)) continue
     placed[node.id] = {
       x: ORIGIN.x + columns.length * COL_STEP,
       y: ORIGIN.y + stray * ROW_STEP,
     }
     stray += 1
+  }
+  // 文件卡：挂在写它的步骤右下方；按文件中的顺序摆，后摆的避开先摆的。
+  const boxes: Box[] = doc.nodes
+    .filter((node) => !isFile(node) && placed[node.id] !== undefined)
+    .map((node) => boxOf(node, placed[node.id]))
+  const bottom = Math.max(ORIGIN.y, ...boxes.map((box) => box.y + box.h))
+  let loose = 0
+  for (const node of doc.nodes) {
+    if (!isFile(node)) continue
+    const anchor = anchorOf(doc, node.id, (id) => placed[id])
+    const want = anchor ?? { x: ORIGIN.x + loose * (FILE_W + 24) - FILE_DX, y: bottom }
+    if (anchor === undefined) loose += 1
+    const spot = freeBox(
+      boxes,
+      { x: want.x + FILE_DX, y: want.y + FILE_DY, w: FILE_W, h: FILE_H },
+      FILE_ROW,
+    )
+    placed[node.id] = spot
+    boxes.push(boxOf(node, spot))
   }
   return placed
 }
@@ -111,6 +209,7 @@ export function placeMissing(
   const bottom = Math.max(...[...position.values()].map((point) => point.y))
   const left = Math.min(...[...position.values()].map((point) => point.x))
   const placed: Record<string, Point> = {}
+  const occupied = (): Point[] => [...position.values()]
   // 按批次序走：同一轮里先摆上游，下游才有参照。
   for (const id of analysis.batches.flatMap((batch) => batch.nodes)) {
     if (position.has(id)) continue
@@ -125,10 +224,25 @@ export function placeMissing(
     position.set(id, spot)
     placed[id] = spot
   }
-  // 批次里没有的节点（理论上没有）：放到版面下方，别让它留在原点。
+  // 文件卡（模型用工具加的、老图迁移出来的）：挂到写它的步骤右下方。
+  for (const node of missing) {
+    if (placed[node.id] !== undefined || !isFile(node)) continue
+    const anchor = anchorOf(doc, node.id, (id) => position.get(id))
+    const current: WorkflowDocument = {
+      ...doc,
+      nodes: doc.nodes.map((item) => {
+        const at = position.get(item.id)
+        return at === undefined ? { ...item, position: { x: 0, y: 0 } } : { ...item, position: at }
+      }),
+    }
+    const spot = fileSpot(current, anchor, node.id)
+    position.set(node.id, spot)
+    placed[node.id] = spot
+  }
+  // 批次里没有的步骤（理论上没有）：放到版面下方，别让它留在原点。
   for (const node of missing) {
     if (placed[node.id] !== undefined) continue
-    const spot = freeSpot([...position.values()], { x: left, y: bottom + ROW_STEP })
+    const spot = freeSpot(occupied(), { x: left, y: bottom + ROW_STEP })
     position.set(node.id, spot)
     placed[node.id] = spot
   }

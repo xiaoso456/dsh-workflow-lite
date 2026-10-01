@@ -60,7 +60,9 @@
   cursor: grab;
   /* 只填充"开始之前"：动画走完就交还给普通样式，悬停的 transform 过渡才生效。 */
   animation: cardIn 260ms var(--wl-ease) backwards;
-  transition: transform 180ms var(--wl-ease);
+  transition:
+    transform 180ms var(--wl-ease),
+    opacity 160ms linear;
 }
 
 /* 选中环画在伪元素上，渐显只动它的 opacity。 */
@@ -254,7 +256,40 @@
   stroke-dasharray: 6 5;
 }
 
+/* 只管先后的步骤间线：淡一点。 */
+.linkOrderOnly :global(.react-flow__edge-path) {
+  opacity: 0.55;
+}
+
+/* ── 读写线 ───────────────────────────────────────────────── */
+
+.fileLink :global(.react-flow__edge-path) {
+  stroke: var(--wl-edge);
+  stroke-dasharray: 5 4;
+  stroke-width: 1.4;
+}
+
+.fileLinkRead :global(.react-flow__edge-path) {
+  stroke-dasharray: 2 4;
+  stroke-linecap: round;
+}
+
+.fileLinkUpdate :global(.react-flow__edge-path) {
+  stroke: var(--wl-warn);
+  stroke-width: 1.6;
+}
+
+.fileLink:hover :global(.react-flow__edge-path) {
+  stroke-width: 2.2;
+}
+
 .link:hover :global(.react-flow__edge-path) {
+  stroke-width: 2.4;
+}
+
+/* 悬停某个文件时，连着它的读写线描深。 */
+.link.linkCarry :global(.react-flow__edge-path) {
+  stroke: var(--wl-accent);
   stroke-width: 2.4;
 }
 
@@ -270,7 +305,7 @@
 }
 
 .linkLabel {
-  position: absolute;
+  position: relative;
   display: inline-flex;
   gap: 3px;
   align-items: center;
@@ -377,227 +412,6 @@
   }
 }
 
-/* ── 多个产出 ─────────────────────────────────────────────── */
-
-/* 产出这一截是个按钮：悬停弹浮窗、点一下钉住。卡片照样能从这里拖走。 */
-.cardOutputs {
-  display: inline-flex;
-  gap: 4px;
-  align-items: center;
-  align-self: flex-start;
-  max-width: 100%;
-  min-width: 0;
-  margin: -2px;
-  padding: 2px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-}
-
-.cardOutputs .cardOutput {
-  min-width: 0;
-}
-
-.cardOutputs:focus-visible {
-  outline: 2px solid var(--wl-accent);
-  outline-offset: 1px;
-}
-
-/* ── 产出浮窗（挂在卡片下沿，跟着卡片走）─────────────────── */
-
-.wrap :global(.react-flow__node-toolbar) {
-  pointer-events: all;
-}
-
-.peek {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  width: 288px;
-  padding: 6px;
-  border: 1px solid var(--wl-line);
-  border-radius: 12px;
-  background: var(--wl-panel);
-  box-shadow: var(--wl-shadow-2);
-  color: var(--wl-text);
-  font-size: var(--wl-fs-body);
-  cursor: default;
-  transform-origin: top left;
-  animation: peekIn 160ms var(--wl-ease) backwards;
-}
-
-/* 从挨着卡片的那个角长出来。 */
-.peek[data-align="end"] {
-  transform-origin: top right;
-}
-
-.peek[data-side="top"] {
-  transform-origin: bottom left;
-}
-
-.peek[data-side="top"][data-align="end"] {
-  transform-origin: bottom right;
-}
-
-@keyframes peekIn {
-  from {
-    opacity: 0;
-    transform: scale(0.96);
-  }
-}
-
-.peekHead {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  padding: 4px 6px 6px;
-  color: var(--wl-text-2);
-  font-size: var(--wl-fs-meta);
-  font-weight: 600;
-}
-
-.peekCount {
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 999px;
-  background: var(--wl-fill);
-  color: var(--wl-text-3);
-  font-size: var(--wl-fs-micro);
-  line-height: 18px;
-  text-align: center;
-}
-
-.peekHint {
-  margin-left: auto;
-  color: var(--wl-text-3);
-  font-size: var(--wl-fs-micro);
-  font-weight: 400;
-}
-
-.peekList {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  max-height: 260px;
-  overflow-y: auto;
-  scrollbar-width: thin;
-}
-
-.peekItem {
-  display: grid;
-  grid-template-columns: 26px minmax(0, 1fr);
-  gap: 1px 8px;
-  align-items: center;
-  width: 100%;
-  padding: 6px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--wl-text);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.peekItem:hover,
-.peekItem:focus-visible {
-  background: var(--wl-hover);
-  outline: none;
-}
-
-.peekIcon {
-  display: grid;
-  grid-row: span 2;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 7px;
-  background: var(--wl-accent-soft);
-  color: var(--wl-accent-text);
-}
-
-.peekPath {
-  min-width: 0;
-  overflow: hidden;
-  font-family: var(--wl-mono);
-  font-size: var(--wl-fs-meta);
-  font-weight: 500;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.peekRule {
-  display: -webkit-box;
-  grid-column: 2;
-  min-width: 0;
-  overflow: hidden;
-  color: var(--wl-text-3);
-  font-size: var(--wl-fs-micro);
-  line-height: 1.5;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  line-clamp: 3;
-  word-break: break-word;
-}
-
-.peekRuleEmpty {
-  font-style: italic;
-}
-
-.peekAdd {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  height: 30px;
-  margin-top: 2px;
-  padding: 0 8px;
-  border: 0;
-  border-top: 1px solid var(--wl-line);
-  border-radius: 0 0 8px 8px;
-  background: transparent;
-  color: var(--wl-accent-text);
-  font: inherit;
-  font-size: var(--wl-fs-meta);
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.peekAdd:hover,
-.peekAdd:focus-visible {
-  background: var(--wl-accent-soft);
-  outline: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .peek {
-    animation: none;
-  }
-}
-
-.cardMore {
-  flex: none;
-  height: 22px;
-  padding: 0 6px;
-  border-radius: 6px;
-  background: var(--wl-fill);
-  color: var(--wl-text-3);
-  font-size: var(--wl-fs-micro);
-  font-weight: 600;
-  line-height: 22px;
-}
-
-.cardOutputs:hover .cardOutput,
-.cardOutputs:hover .cardMore,
-.cardOutputs[data-open="true"] .cardOutput,
-.cardOutputs[data-open="true"] .cardMore {
-  background: var(--wl-accent-soft);
-  color: var(--wl-accent-text);
-}
-
 /* ── 长条件：截断 + 悬停全文 ──────────────────────────────── */
 
 .linkText {
@@ -642,4 +456,244 @@
   .linkTip {
     transition: none;
   }
+}
+
+/* ── 连线标签：条件在上、交接标记在下 ─────────────────────── */
+
+.linkLabels {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: center;
+  pointer-events: none;
+}
+
+/* ── 悬停文件：用到它的步骤标角色，其余淡下去 ─────────────── */
+
+.fileCard[data-dim="true"] {
+  opacity: 0.32;
+}
+
+.card[data-dim="true"] {
+  opacity: 0.32;
+}
+
+.roleTag {
+  position: absolute;
+  top: -10px;
+  right: 10px;
+  z-index: 2;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--wl-fill-strong);
+  color: var(--wl-text);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+  line-height: 20px;
+  box-shadow: var(--wl-shadow-1);
+  pointer-events: none;
+  animation: roleIn 160ms var(--wl-ease) backwards;
+}
+
+.roleTag[data-role="producer"] {
+  background: var(--wl-accent);
+  color: var(--wl-accent-on);
+}
+
+.roleTag[data-role="updater"] {
+  background: var(--wl-warn);
+  color: var(--wl-panel);
+}
+
+.card[data-role="producer"] {
+  border-color: var(--wl-accent);
+}
+
+.card[data-role="updater"] {
+  border-color: var(--wl-warn);
+}
+
+@keyframes roleIn {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+}
+
+.linkDim {
+  opacity: 0.25;
+  transition: opacity 160ms linear;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .roleTag {
+    animation: none;
+  }
+
+  .linkDim {
+    transition: none;
+  }
+}
+
+/* ── 文件卡 ───────────────────────────────────────────────── */
+
+/*
+ * 比步骤卡小一号、底色带一点蓝灰、右上角折一个角：一眼看出"这是一份文件"。
+ * 左边的点接写入（步骤 → 文件），右边的点拖出去是读取（文件 → 步骤）。
+ */
+.fileCard {
+  position: relative;
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  width: 188px;
+  min-height: 52px;
+  padding: 8px 12px 8px 9px;
+  border: 1px solid color-mix(in srgb, var(--wl-file) 35%, var(--wl-line));
+  border-radius: 10px 16px 10px 10px;
+  background: color-mix(in srgb, var(--wl-file) 6%, var(--wl-panel));
+  box-shadow: var(--wl-shadow-1);
+  cursor: grab;
+  animation: cardIn 260ms var(--wl-ease) backwards;
+  transition:
+    transform 180ms var(--wl-ease),
+    opacity 160ms linear;
+}
+
+/* 折角：右上角一块小三角。 */
+.fileCard::before {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  width: 14px;
+  height: 14px;
+  border-bottom-left-radius: 4px;
+  background: linear-gradient(
+    225deg,
+    var(--wl-canvas) 50%,
+    color-mix(in srgb, var(--wl-file) 30%, var(--wl-panel)) 50%
+  );
+  content: "";
+}
+
+.fileCard::after {
+  position: absolute;
+  inset: -1px;
+  border: 2px solid var(--wl-accent);
+  border-radius: inherit;
+  box-shadow: 0 0 0 4px var(--wl-accent-soft);
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms linear;
+}
+
+.fileCard:hover {
+  transform: translateY(-1px);
+}
+
+.fileCard.cardSelected::after {
+  opacity: 1;
+}
+
+.fileCard[data-focused="true"] {
+  border-color: var(--wl-file);
+  box-shadow:
+    var(--wl-shadow-1),
+    0 0 0 3px var(--wl-file-soft);
+}
+
+:global(.react-flow__node.dragging) .fileCard {
+  cursor: grabbing;
+  transform: scale(1.02);
+}
+
+.fileGlyph {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--wl-file-soft);
+  color: var(--wl-file);
+}
+
+.fileText {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.fileName {
+  overflow: hidden;
+  color: var(--wl-text);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-meta);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fileRule {
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fileRuleEmpty {
+  font-family: var(--wl-mono);
+}
+
+/* 文件卡右边的点：拖出去 = 读取。悬停时亮成文件色。 */
+.handleRead {
+  cursor: crosshair;
+}
+
+.handleRead:hover::after,
+.fileCard:hover .handleRead::after,
+.fileCard.cardSelected .handleRead::after {
+  border-color: var(--wl-file);
+}
+
+.handleRead:hover::after {
+  background: var(--wl-file);
+  transform: scale(1.6);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fileCard,
+  .fileCard::after {
+    animation: none;
+    transition: none;
+  }
+}
+
+/* 步骤底边的「写文件」点：平时藏着，悬停或选中卡片时才露出来（文件色）。 */
+.wrap :global(.react-flow__handle).handleFile {
+  opacity: 0;
+  cursor: crosshair;
+  transition: opacity 120ms linear;
+}
+
+.wrap .cardSelected :global(.react-flow__handle).handleFile,
+.wrap :global(.react-flow__handle.connectingfrom).handleFile,
+.wrap .card:hover :global(.react-flow__handle).handleFile {
+  opacity: 1;
+}
+
+.handleFile::after {
+  border-color: var(--wl-file);
+  border-radius: 4px;
+}
+
+.handleFile:hover::after {
+  background: var(--wl-file);
+  transform: scale(1.6);
 }

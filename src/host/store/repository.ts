@@ -21,19 +21,24 @@
 
 import { stat } from 'node:fs/promises'
 import { join } from 'node:path'
-
+import { fileByPath, newFileNode, setStepOutputs, splitOutputs } from '../../shared/files.ts'
 import { analyzeGraph } from '../../shared/graph.ts'
 import {
+  canonicalHandoff,
   canonicalOutput,
   cloneDocument,
   findNode,
   idKey,
+  isFile,
+  isStep,
   makeEdgeId,
   normalizeCoord,
   readDocument,
   readNodeData,
   readSettings,
-  sameNodeData,
+  sameEdgeData,
+  sameHandoff,
+  sameNodeContent,
   sameSettings,
   writeDocument,
 } from '../../shared/model.ts'
@@ -51,11 +56,14 @@ import {
   type ChangedEntry,
   type ErrorCode,
   type ExecutionMode,
+  type FileNode,
+  type Handoff,
   type ListResult,
   NODE_TYPE,
   type NodeData,
   type OutputSpec,
   type Point,
+  type StepNode,
   type TemplateEntry,
   type ToolError,
   type ToolWarning,
@@ -185,18 +193,30 @@ export interface NodeUpsert {
   content?: string
   /** 显示名；空串 = 清除（回落渲染 `id`）。 */
   label?: string
-  /** 产出契约三态：字符串 = 产出；`false` = 显式不产出；`null` = 清除。 */
+  /**
+   * 它写的文件（一个路径）；`false` / `null` = 不写任何文件。产出是文件节点：
+   * 路径已有文件节点就连上，没有就新建（见 `shared/files.ts` 的 `setStepOutputs`）。
+   */
   output?: string | false | null
-  /** 一个或多个产出（可带生成规则）；给了它就整份替换 `output`（`noOutput` 仍然优先）。 */
+  /** 一个或多个写入的文件（可带生成规则）；给了它就整份替换（`noOutput` 仍然优先）。 */
   outputs?: OutputSpec[]
   /** 一句话描述；空串 = 清除。 */
   description?: string
-  /** `true` ⇒ `output: false`（与 `output` 同时给出时以本字段为准）。 */
+  /** `true` ⇒ 不写任何文件（与 `output` 同时给出时以本字段为准）。 */
   noOutput?: boolean
   /** 从 `templates/nodes/<from>.json` 取 `data` 本体（**不复制模板的 `id` 与 `position`**）。 */
   fromTemplate?: string
   /** 显式坐标；缺省时新建节点留 `{0,0}` 并报 `position_filled` 提示（布局由上层跑）。 */
   position?: Point
+}
+
+/** `write_file`：新建或修改一个文件节点。 */
+export interface FileUpsert {
+  /** 文件节点 id；缺省时按路径找，找不到就从文件名起一个。 */
+  id?: string
+  path?: string
+  /** 生成规则；空串 = 清除。 */
+  rule?: string
 }
 
 export interface Repository {
@@ -232,6 +252,7 @@ export interface Repository {
   /** 删除一个节点模板文件。不存在报 `not_found`。 */
   deleteNodeTemplate(name: string): Promise<Outcome<WriteResult>>
   writeNode(workflow: string, upsert: NodeUpsert): Promise<Outcome<WriteResult>>
+  writeFile(workflow: string, upsert: FileUpsert): Promise<Outcome<WriteResult>>
   setLabel(workflow: string, node: string, label: string): Promise<Outcome<WriteResult>>
   /** 改工作流设置（产出根目录、执行方式）；给了的字段才改。 */
   configure(
@@ -244,6 +265,8 @@ export interface Repository {
     source: string,
     target: string,
     when?: string,
+    handoff?: Handoff | false | null,
+    update?: boolean,
   ): Promise<Outcome<WriteResult>>
   disconnect(
     workflow: string,
@@ -375,23 +398,12 @@ function setPromptValue(data: NodeData, prompt: string | undefined): void {
   else data.prompt = prompt
 }
 
-function setOutputValue(data: NodeData, output: NodeData['output']): void {
-  const value = canonicalOutput(output)
-  if (value === undefined) delete data.output
-  else data.output = value
-}
-
-function sameData(a: NodeData, b: NodeData): boolean {
-  return sameNodeData(a, b)
+function sameData(a: WorkflowNode, b: WorkflowNode): boolean {
+  return sameNodeContent(a, b)
 }
 
 function sameEdgeContent(a: WorkflowEdge, b: WorkflowEdge): boolean {
-  return (
-    a.source === b.source &&
-    a.target === b.target &&
-    a.data?.when === b.data?.when &&
-    a.data?.label === b.data?.label
-  )
+  return a.source === b.source && a.target === b.target && sameEdgeData(a.data, b.data)
 }
 
 /** `before → after` 的变更摘要（`save` 回告用）。 */
@@ -411,7 +423,7 @@ export function diffDocuments(
   for (const node of after.nodes) {
     const prior = beforeNodes.get(idKey(node.id))
     if (prior === undefined) changed.push({ kind: 'node', op: 'add', id: node.id })
-    else if (!sameData(prior.data, node.data) || !samePoint(prior.position, node.position)) {
+    else if (!sameData(prior, node) || !samePoint(prior.position, node.position)) {
       changed.push({ kind: 'node', op: 'update', id: node.id })
     }
   }
@@ -1007,25 +1019,33 @@ class FileRepository implements Repository {
         }
       }
 
-      const existing = findNode(document, rawId)
+      const found = findNode(document, rawId)
+      if (found !== undefined && isFile(found)) {
+        return fail('blocked', `${rawId} 是文件节点，改它请用 write_file`, { id: rawId })
+      }
+      const existing = found
       let data: NodeData = existing === undefined ? {} : { ...existing.data }
+      let outputs: OutputSpec[] | undefined
       if (upsert.fromTemplate !== undefined) {
         const template = await this.readNodeTemplate(upsert.fromTemplate)
         if (!template.ok) return template
-        // 节点模板 = `data` 本体；**不复制模板的 `id` 与 `position`**。
-        data = { ...template.result }
+        // 节点模板 = `data` 本体；**不复制模板的 `id` 与 `position`**；模板里的产出展开成文件节点。
+        const split = splitOutputs(template.result)
+        data = split.data
+        if (split.outputs.length > 0) outputs = split.outputs
       }
       if (upsert.content !== undefined) setPromptValue(data, upsert.content)
       if (upsert.label !== undefined)
         setLabelValue(data, upsert.label === '' ? undefined : upsert.label)
-      if (upsert.noOutput === true) setOutputValue(data, false)
-      else if (upsert.outputs !== undefined) setOutputValue(data, upsert.outputs)
-      else if (upsert.output === null) setOutputValue(data, undefined)
-      else if (upsert.output !== undefined) setOutputValue(data, upsert.output)
+      if (upsert.noOutput === true || upsert.output === false || upsert.output === null)
+        outputs = []
+      else if (upsert.outputs !== undefined) outputs = upsert.outputs
+      else if (typeof upsert.output === 'string') outputs = [{ path: upsert.output }]
       if (upsert.description !== undefined) {
         if (upsert.description === '') delete data.description
         else data.description = upsert.description
       }
+      delete data.output
 
       const warnings: ToolWarning[] = []
       let position: Point
@@ -1044,7 +1064,7 @@ class FileRepository implements Repository {
         })
       }
 
-      const node: WorkflowNode = {
+      const node: StepNode = {
         id: existing === undefined ? rawId : existing.id,
         type: NODE_TYPE,
         position: { x: normalizeCoord(position.x), y: normalizeCoord(position.y) },
@@ -1056,6 +1076,7 @@ class FileRepository implements Repository {
           idKey(current.id) === idKey(node.id) ? node : current,
         )
       }
+      const created = outputs === undefined ? [] : setStepOutputs(document, node.id, outputs)
       return {
         ok: true,
         document,
@@ -1066,8 +1087,69 @@ class FileRepository implements Repository {
             id: node.id,
             detail: { fromTemplate: upsert.fromTemplate ?? null },
           },
+          ...created.map((id) => ({ kind: 'node' as const, op: 'add' as const, id })),
         ],
         warnings,
+      }
+    })
+  }
+
+  async writeFile(workflow: string, upsert: FileUpsert): Promise<Outcome<WriteResult>> {
+    return this.mutate(workflow, async (document) => {
+      if (upsert.path !== undefined) {
+        const issue = checkOutput(upsert.path)
+        if (issue !== null)
+          return fail('blocked', `path 不合法：${issue.message}`, { code: issue.code })
+      }
+      if (upsert.rule !== undefined) {
+        const issue = checkText(upsert.rule, '生成规则')
+        if (issue !== null) return fail('blocked', issue.message, { code: issue.code })
+      }
+      let target =
+        upsert.id !== undefined
+          ? findNode(document, upsert.id)
+          : upsert.path === undefined
+            ? undefined
+            : fileByPath(document, upsert.path)
+      if (target !== undefined && !isFile(target)) {
+        return fail('blocked', `${target.id} 是步骤，不是文件节点`, { id: target.id })
+      }
+      const rule =
+        upsert.rule === undefined ? undefined : upsert.rule.trim() === '' ? null : upsert.rule
+      if (target === undefined) {
+        if (upsert.path === undefined) {
+          return fail('invalid_args', 'write_file 新建文件节点需要 path', { id: upsert.id ?? null })
+        }
+        if (upsert.id !== undefined) {
+          const idIssue = checkName(upsert.id)
+          if (idIssue !== null) {
+            return fail('blocked', `节点 id 不合法：${idIssue.message}`, { code: idIssue.code })
+          }
+        }
+        const fresh = newFileNode(document, { path: upsert.path, ...(rule ? { rule } : {}) })
+        target = upsert.id === undefined ? fresh : { ...fresh, id: upsert.id }
+        document.nodes = [...document.nodes, target]
+        return {
+          ok: true,
+          document,
+          changed: [{ kind: 'node', op: 'add', id: target.id }],
+          warnings: [],
+        }
+      }
+      const file = target
+      const data: FileNode['data'] = { ...file.data }
+      if (upsert.path !== undefined) data.path = upsert.path
+      if (rule === null) delete data.rule
+      else if (rule !== undefined) data.rule = rule
+      if (data.path === file.data.path && data.rule === file.data.rule) {
+        return { ok: true, document, changed: [], warnings: [] }
+      }
+      document.nodes = document.nodes.map((node) => (node === file ? { ...file, data } : node))
+      return {
+        ok: true,
+        document,
+        changed: [{ kind: 'node', op: 'update', id: file.id }],
+        warnings: [],
       }
     })
   }
@@ -1076,6 +1158,15 @@ class FileRepository implements Repository {
     return this.mutate(workflow, async (document) => {
       const target = findNode(document, node)
       if (target === undefined) return fail('not_found', `节点 ${node} 不存在`, { node })
+      if (isFile(target)) {
+        return fail(
+          'invalid_args',
+          `${target.id} 是文件节点，没有显示名（改路径请用 write_file）`,
+          {
+            node,
+          },
+        )
+      }
       const issue = checkLabel(label)
       if (issue !== null) {
         return fail('blocked', `label 不合法：${issue.message}`, { code: issue.code, node })
@@ -1155,17 +1246,34 @@ class FileRepository implements Repository {
     })
   }
 
+  /**
+   * 连一条边。给了 `handoff` 就顺带设置它的交接（`null` = 回到自动，`false` = 只管先后）；
+   * 边已存在时只改交接（没给 `handoff` 就是幂等的空操作）。
+   */
   async connect(
     workflow: string,
     source: string,
     target: string,
     when?: string,
+    handoff?: Handoff | false | null,
+    update?: boolean,
   ): Promise<Outcome<WriteResult>> {
     return this.mutate(workflow, async (document) => {
       const from = findNode(document, source)
       if (from === undefined) return fail('not_found', `源节点 ${source} 不存在`, { node: source })
       const to = findNode(document, target)
       if (to === undefined) return fail('not_found', `目标节点 ${target} 不存在`, { node: target })
+      // 线的种类由两端决定：步骤 → 步骤是先后；步骤 → 文件是写；文件 → 步骤是读。
+      if (isFile(from) && isFile(to)) {
+        return fail('invalid_args', '文件不能直接连到文件', { source, target })
+      }
+      const touchesFile = isFile(from) || isFile(to)
+      if (touchesFile && (when !== undefined || (handoff !== undefined && handoff !== null))) {
+        return fail('invalid_args', '连着文件的线不能带 when 或 handoff', { source, target })
+      }
+      if (update !== undefined && !(isStep(from) && isFile(to))) {
+        return fail('invalid_args', 'update 只用在「步骤 → 文件」的线上', { source, target })
+      }
 
       let whenValue: string | undefined
       if (when !== undefined) {
@@ -1176,23 +1284,62 @@ class FileRepository implements Repository {
         whenValue = when
       }
 
-      // 幂等：同 source + target + when 已存在 ⇒ 不新增、成功、不回报变更。
-      const duplicate = document.edges.some(
+      const nextHandoff = handoff === null ? undefined : canonicalHandoff(handoff)
+      if (nextHandoff !== undefined && nextHandoff !== false) {
+        const issue = checkText(nextHandoff.note, '交接说明')
+        if (issue !== null) return fail('blocked', issue.message, { code: 'handoff_invalid' })
+      }
+
+      // 幂等：同 source + target + when 已存在 ⇒ 不新增；给了交接就只改交接。
+      const existing = document.edges.find(
         (edge) =>
           idKey(edge.source) === idKey(from.id) &&
           idKey(edge.target) === idKey(to.id) &&
           (edge.data?.when ?? undefined) === whenValue,
       )
-      if (duplicate) return { ok: true, document, changed: [], warnings: [] }
+      if (existing !== undefined) {
+        const sameUpdate = update === undefined || (existing.data?.update === true) === update
+        if (
+          (handoff === undefined || sameHandoff(existing.data?.handoff, nextHandoff)) &&
+          sameUpdate
+        ) {
+          return { ok: true, document, changed: [], warnings: [] }
+        }
+        const data = { ...existing.data }
+        if (handoff !== undefined) {
+          if (nextHandoff === undefined) delete data.handoff
+          else data.handoff = nextHandoff
+        }
+        if (update === true) data.update = true
+        else if (update === false) delete data.update
+        const updated: WorkflowEdge = { ...existing }
+        if (Object.keys(data).length === 0) delete updated.data
+        else updated.data = data
+        document.edges = document.edges.map((edge) => (edge === existing ? updated : edge))
+        return {
+          ok: true,
+          document,
+          changed: [{ kind: 'edge', op: 'update', id: existing.id }],
+          warnings: [],
+        }
+      }
 
       const id = makeEdgeId(from.id, to.id, whenValue)
+      // 这份文件已经有别的步骤在写：没说写入方式时，接着写默认是"在原文件上更新"。
+      const writtenBefore =
+        isFile(to) && document.edges.some((edge) => idKey(edge.target) === idKey(to.id))
+      const data = {
+        ...(whenValue === undefined ? {} : { when: whenValue }),
+        ...(nextHandoff === undefined ? {} : { handoff: nextHandoff }),
+        ...((update ?? writtenBefore) && isFile(to) ? { update: true as const } : {}),
+      }
       const edge: WorkflowEdge = {
         id,
         source: from.id,
         target: to.id,
         sourceHandle: null,
         targetHandle: null,
-        ...(whenValue === undefined ? {} : { data: { when: whenValue } }),
+        ...(Object.keys(data).length === 0 ? {} : { data }),
       }
       document.edges = [...document.edges, edge]
       return { ok: true, document, changed: [{ kind: 'edge', op: 'add', id }], warnings: [] }

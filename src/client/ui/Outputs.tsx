@@ -286,8 +286,12 @@ function SheetHead(props: {
   )
 }
 
-/** 编辑（或新加）一个产出文件：路径 + 生成规则。 */
-function OutputEditor(props: {
+/**
+ * 编辑（或新加）一个产出文件：路径 + 生成规则。步骤模板的产出清单用它；
+ * 画布上给步骤「新建产出文件」也用它（`title` 换成那边的说法）。
+ */
+export function OutputEditor(props: {
+  title?: string
   t: T
   owner: string
   root: string | undefined
@@ -343,7 +347,7 @@ function OutputEditor(props: {
 
   return (
     <Modal
-      label={initial === null ? t('out.newTitle') : t('out.editTitle')}
+      label={props.title ?? (initial === null ? t('out.newTitle') : t('out.editTitle'))}
       testId="wl-output-dialog"
       // 有没写完的改动时，点遮罩不关——一不小心点歪就丢掉一段规则太亏了。Esc 和「取消」照常。
       onDismiss={() => {
@@ -372,7 +376,7 @@ function OutputEditor(props: {
         <SheetHead
           t={t}
           icon={initial === null ? 'plus' : 'file'}
-          title={initial === null ? t('out.newTitle') : t('out.editTitle')}
+          title={props.title ?? (initial === null ? t('out.newTitle') : t('out.editTitle'))}
           owner={props.owner}
           onClose={props.onClose}
         />

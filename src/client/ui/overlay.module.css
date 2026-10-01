@@ -320,3 +320,9 @@
     animation: none;
   }
 }
+
+/* 就地添加菜单里的「文件」项：文件卡的颜色。 */
+.quickFile {
+  background: var(--wl-file-soft);
+  color: var(--wl-file);
+}

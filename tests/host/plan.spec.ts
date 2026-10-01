@@ -204,15 +204,12 @@ describe('compileWorkflow —— 端到端：图 → 计划 + 物化', () => {
 describe('compileWorkflow 与校验层的接线', () => {
   it('图的警告与提示会出现在 ⑥ 段（有警告时）', async () => {
     await seedGolden()
-    // 给 auth-review 加一个"有入边但缺 output"的节点，制造一条 missing_output 提示。
-    expect(
-      (await repository.writeNode('code-review', { id: 'extra', content: '顺手做点别的' })).ok,
-    ).toBe(true)
-    expect((await repository.connect('code-review', 'scan', 'extra')).ok).toBe(true)
+    // 加一个孤立的文件节点，制造一条 stray_entry 提示。
+    expect((await repository.writeFile('code-review', { path: 'loose.md' })).ok).toBe(true)
     const outcome = await compileWorkflow(repository, dataDir, 'code-review', {})
     expect(outcome.ok).toBe(true)
     if (!outcome.ok) return
-    expect(outcome.result.warnings.some((warning) => warning.code === 'missing_output')).toBe(true)
+    expect(outcome.result.warnings.some((warning) => warning.code === 'stray_entry')).toBe(true)
     expect(outcome.result.plan).toContain('## 图的注意事项')
   })
 

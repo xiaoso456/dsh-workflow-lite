@@ -1,0 +1,537 @@
+/**
+ * dsh-workflow-lite — 交接与文件：属性面板里的文件清单 / 文件卡面板 / 交接开关，
+ * 画布连线上的交接标记与悬停卡片。
+ *
+ * 颜色口径：读取 = 中性，在原文件上更新 = 琥珀色（"会改这份文件"），执行结果 = 主色。
+ */
+
+/* ── 通用的小块 ───────────────────────────────────────────── */
+
+.grow {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.subLabel {
+  margin: 2px 0 0;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+}
+
+.empty {
+  margin: 0;
+  padding: 6px 8px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.55;
+}
+
+.detailIcon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: var(--wl-fill);
+  color: var(--wl-text-3);
+}
+
+.detailIcon[data-result="true"] {
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+}
+
+.pickText {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.detailPath,
+.detailTitle {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text);
+  font-size: var(--wl-fs-meta);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detailPath {
+  font-family: var(--wl-mono);
+}
+
+.detailMeta {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detailNote {
+  margin: 0 2px;
+  padding: 7px 10px;
+  border-left: 3px solid var(--wl-accent);
+  border-radius: 4px 8px 8px 4px;
+  background: var(--wl-fill);
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* 产出 / 更新 / 读取 的小牌子。 */
+.access {
+  flex: none;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--wl-fill);
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.access[data-update="true"] {
+  background: var(--wl-warn-soft);
+  color: var(--wl-warn);
+}
+
+/* ── 连接清单里的交接摘要 ─────────────────────────────────── */
+
+.chips {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+}
+
+.chip {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: var(--wl-fill);
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-micro);
+}
+
+.chip[data-result="true"] {
+  flex: none;
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+}
+
+.chipMuted {
+  color: var(--wl-text-3);
+  font-style: italic;
+}
+
+.chipText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── 交接开关 ─────────────────────────────────────────────── */
+
+.resultRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 7px 10px 7px 8px;
+  border: 1px solid var(--wl-line);
+  border-radius: 10px;
+  background: var(--wl-panel);
+  cursor: pointer;
+}
+
+.resultRow:hover {
+  background: var(--wl-hover);
+}
+
+.resultRow[data-checked="true"] {
+  border-color: color-mix(in srgb, var(--wl-accent) 45%, var(--wl-line));
+  background: color-mix(in srgb, var(--wl-accent) 5%, var(--wl-panel));
+}
+
+.check {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  margin: 0 2px;
+  accent-color: var(--wl-accent);
+  cursor: pointer;
+}
+
+.note {
+  min-height: 72px;
+  font-size: var(--wl-fs-body);
+  line-height: 1.55;
+}
+
+/* ── 文件清单（选中步骤 / 选中文件卡）─────────────────────── */
+
+.fileGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fileRow {
+  position: relative;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding-right: 4px;
+  border: 1px solid var(--wl-line);
+  border-radius: 10px;
+  background: var(--wl-panel);
+}
+
+.fileRow:hover {
+  border-color: var(--wl-line-strong);
+  background: var(--wl-hover);
+}
+
+.fileRowMain {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  padding: 6px 4px 6px 7px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.fileRowMain:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: -2px;
+}
+
+.fileRowRemove {
+  flex: none;
+  opacity: 0;
+  transition: opacity 120ms linear;
+}
+
+.fileRow:hover .fileRowRemove,
+.fileRowRemove:focus-visible {
+  opacity: 1;
+}
+
+.fileIcon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: var(--wl-file-soft);
+  color: var(--wl-file);
+}
+
+.fileActions {
+  display: flex;
+  gap: 6px;
+}
+
+.outAddLike {
+  display: flex;
+  flex: 1 1 0;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  border: 1px dashed var(--wl-line-strong);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--wl-accent-text);
+  font: inherit;
+  font-size: var(--wl-fs-meta);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.outAddLike:hover {
+  border-color: var(--wl-accent);
+  background: var(--wl-accent-soft);
+}
+
+.outAddLike:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+/* 「关联已有文件」的下拉：每个文件一行，后面是「读取」「写入」两个按钮。 */
+.linkMenu {
+  width: 300px;
+  max-height: 280px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  padding: 4px;
+}
+
+.linkItem {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 4px;
+  border-radius: 8px;
+}
+
+.linkItem:hover {
+  background: var(--wl-hover);
+}
+
+.linkPath {
+  flex: 1 1 auto;
+}
+
+.linkAction {
+  flex: none;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--wl-line);
+  border-radius: 6px;
+  background: var(--wl-panel);
+  color: var(--wl-text-2);
+  font: inherit;
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.linkAction:hover {
+  border-color: var(--wl-accent);
+  color: var(--wl-accent-text);
+}
+
+/* 文件卡面板的标题。 */
+.fileBadge {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--wl-file-soft);
+  color: var(--wl-file);
+}
+
+.fileTitle {
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--wl-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ruleArea {
+  min-height: 120px;
+  font-size: var(--wl-fs-body);
+  line-height: 1.6;
+}
+
+/* 整份写出 / 在原文件上更新：两格的小开关。 */
+.accessSeg {
+  display: inline-flex;
+  flex: none;
+  padding: 2px;
+  border-radius: 7px;
+  background: var(--wl-fill);
+}
+
+.accessSeg button {
+  height: 22px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--wl-text-3);
+  font: inherit;
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.accessSeg button:hover {
+  color: var(--wl-text);
+}
+
+.accessSeg button[aria-checked="true"] {
+  background: var(--wl-panel);
+  box-shadow: var(--wl-shadow-thumb);
+  color: var(--wl-text);
+}
+
+.accessSeg button[data-update="true"][aria-checked="true"] {
+  background: var(--wl-warn-soft);
+  box-shadow: none;
+  color: var(--wl-warn);
+}
+
+.accessSeg button:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 0;
+}
+
+/* ── 画布：步骤间连线上的交接标记 ─────────────────────────── */
+
+.mark {
+  position: relative;
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+  height: 20px;
+  padding: 0 6px;
+  border: 1px solid var(--wl-line-strong);
+  border-radius: 999px;
+  background: var(--wl-panel);
+  color: var(--wl-accent-text);
+  font: inherit;
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  pointer-events: all;
+  transition: transform 140ms var(--wl-ease);
+}
+
+.mark:hover,
+.mark[data-open="true"] {
+  border-color: var(--wl-accent);
+  transform: scale(1.06);
+}
+
+/* 只管先后：灰的、虚线框。 */
+.mark[data-none="true"] {
+  border-style: dashed;
+  color: var(--wl-text-3);
+  font-weight: 500;
+}
+
+.mark[data-selected="true"] {
+  border-style: solid;
+  border-color: var(--wl-accent);
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+}
+
+/* 附了交接说明：右上角一个小点。 */
+.markDot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 7px;
+  height: 7px;
+  border: 1.5px solid var(--wl-panel);
+  border-radius: 50%;
+  background: var(--wl-accent);
+}
+
+/* 悬停卡片（挂在视图根上，跟 `?` 说明同一套浮层）。 */
+.card {
+  position: absolute;
+  z-index: 45;
+  max-width: calc(100% - 16px);
+  padding: 8px;
+  border: 1px solid var(--wl-line);
+  border-radius: 12px;
+  background: var(--wl-panel);
+  box-shadow: var(--wl-shadow-2);
+  color: var(--wl-text);
+  font-size: var(--wl-fs-body);
+  text-align: left;
+  cursor: auto;
+  outline: none;
+  user-select: text;
+  animation: cardIn 150ms var(--wl-ease) both;
+}
+
+.card[data-up="true"] {
+  animation-name: cardInUp;
+}
+
+@keyframes cardIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes cardInUp {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+.cardHead {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+  padding: 2px 4px 8px;
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-meta);
+  font-weight: 600;
+}
+
+.cardIcon {
+  display: inline-flex;
+  flex: none;
+  color: var(--wl-accent-text);
+}
+
+/* 标题不许被挤得折行：它很短，让后面的路线去省略。 */
+.cardTitle {
+  flex: none;
+  white-space: nowrap;
+}
+
+.cardRoute {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cardFoot {
+  margin: 6px 4px 0;
+  padding-top: 6px;
+  border-top: 1px solid var(--wl-line);
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mark,
+  .card,
+  .fileRowRemove {
+    animation: none;
+    transition: none;
+  }
+}

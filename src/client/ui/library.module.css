@@ -274,3 +274,9 @@
     animation: none;
   }
 }
+
+/* 步骤库里的「文件」：文件卡的颜色。 */
+.fileKind {
+  background: var(--wl-file-soft);
+  color: var(--wl-file);
+}

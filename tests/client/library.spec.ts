@@ -9,8 +9,10 @@ import {
   presetData,
   starterGraph,
 } from '../../src/client/model/library.ts'
-import { outputSpecs } from '../../src/shared/model.ts'
+import { isFile, isStep, makeEdgeId, outputSpecs } from '../../src/shared/model.ts'
 import { checkLabel, checkName, checkText } from '../../src/shared/naming.ts'
+import type { WorkflowDocument } from '../../src/shared/types.ts'
+import { validateDocument } from '../../src/shared/validate.ts'
 
 const t = (key: LocaleKey): string => zh[key]
 
@@ -92,5 +94,48 @@ describe('内置步骤', () => {
 describe('词典', () => {
   it('中英文键完全一致', () => {
     expect(Object.keys(en).sort()).toEqual(Object.keys(zh).sort())
+  })
+})
+
+describe('示例流程的文件与交接', () => {
+  it('每个写文件的内置步骤挂一张文件卡；审查报告被修复在原文件上更新、汇总读它；整张图过保存校验', () => {
+    const { nodes, edges } = starterGraph(t)
+    const files = nodes.filter(isFile)
+    expect(files.map((node) => node.data.path)).toEqual([
+      'scan-notes.md',
+      'plan.md',
+      'changes.md',
+      'review.md',
+      'fix-notes.md',
+    ])
+    expect(nodes.filter(isStep).every((node) => node.data.output === undefined)).toBe(true)
+    const update = edges.find((edge) => edge.source === 'fix' && edge.target === 'file-review.md')
+    expect(update?.update).toBe(true)
+    expect(edges.some((edge) => edge.source === 'file-review.md' && edge.target === 'report')).toBe(
+      true,
+    )
+    const fix = edges.find((edge) => edge.source === 'review' && edge.target === 'fix')
+    expect(fix?.handoff).toEqual({ note: zh['starter.fixNote'] })
+
+    const document: WorkflowDocument = {
+      nodes,
+      edges: edges.map((edge) => ({
+        id: makeEdgeId(edge.source, edge.target, edge.when),
+        source: edge.source,
+        target: edge.target,
+        sourceHandle: null,
+        targetHandle: null,
+        data: {
+          ...(edge.when === undefined ? {} : { when: edge.when }),
+          ...(edge.handoff === undefined ? {} : { handoff: edge.handoff }),
+          ...(edge.update === true ? { update: true as const } : {}),
+        },
+      })),
+      viewport: { x: 0, y: 0, zoom: 1 },
+    }
+    const report = validateDocument(document, { workflowName: 'starter', maxNodes: 200 })
+    expect(report.save).toEqual([])
+    expect(report.warning).toEqual([])
+    expect(en['starter.fixNote']).not.toBe('')
   })
 })

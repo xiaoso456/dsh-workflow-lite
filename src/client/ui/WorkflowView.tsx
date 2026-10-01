@@ -11,7 +11,7 @@
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { ReactFlowProvider, useReactFlow, useViewport } from '@xyflow/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { outputSpecs, SETTINGS_CONFLICT_ID } from '../../shared/model.ts'
+import { isFile, SETTINGS_CONFLICT_ID } from '../../shared/model.ts'
 import type { NodeData, Point, WorkflowDocument } from '../../shared/types.ts'
 import { useWorkflow, type Workflow } from '../app/useWorkflow.ts'
 import type { LocaleKey, NS, T } from '../i18n.ts'
@@ -27,10 +27,10 @@ import {
 } from '../model/library.ts'
 import type { WorkflowLiteRpc } from '../rpc.ts'
 import { type AddRequest, Canvas } from './Canvas.tsx'
+import { freeFilePath } from './Files.tsx'
 import { Icon } from './Icon.tsx'
 import { Inspector } from './Inspector.tsx'
 import { Library } from './Library.tsx'
-import type { OutputRequest } from './Outputs.tsx'
 import { PlanDialog } from './PlanDialog.tsx'
 import { cx, ModalHostProvider, Popover } from './primitives.tsx'
 import { QuickAdd } from './QuickAdd.tsx'
@@ -275,6 +275,20 @@ function Shell(props: { rpc: WorkflowLiteRpc; t: T }): React.JSX.Element {
     async (source: StepSource, position: Point, from?: string): Promise<void> => {
       let id: string
       let data: NodeData
+      if (source.kind === 'file') {
+        // 文件卡：从步骤的「＋」加的就是这一步写的文件；别处加的是一张独立的文件卡。加完选中它，好改路径。
+        const doc = state.doc
+        if (doc === null) return
+        const writer = from === undefined ? undefined : findNode(doc, from)
+        const step = writer !== undefined && !isFile(writer) ? writer : undefined
+        wf.edit({
+          type: 'addFile',
+          path: freeFilePath(doc, step === undefined ? t('file.default') : `${step.id}.md`),
+          ...(step === undefined ? { position } : { writer: step.id }),
+          select: true,
+        })
+        return
+      }
       if (source.kind === 'blank') {
         id = BLANK_ID
         data = { prompt: '' }
@@ -294,7 +308,7 @@ function Shell(props: { rpc: WorkflowLiteRpc; t: T }): React.JSX.Element {
       wf.edit({ type: 'addNode', id, data, position, ...(from === undefined ? {} : { from }) })
       if (source.kind !== 'blank') focusCanvas()
     },
-    [t, wf, focusCanvas],
+    [t, wf, focusCanvas, state.doc],
   )
 
   const requestAdd = useCallback((request: AddRequest): void => {
@@ -310,7 +324,7 @@ function Shell(props: { rpc: WorkflowLiteRpc; t: T }): React.JSX.Element {
   const duplicate = useCallback(
     (id: string): void => {
       const node = state.doc === null ? undefined : findNode(state.doc, id)
-      if (node === undefined) return
+      if (node === undefined || isFile(node)) return
       wf.edit({
         type: 'addNode',
         id: node.id,
@@ -342,18 +356,13 @@ function Shell(props: { rpc: WorkflowLiteRpc; t: T }): React.JSX.Element {
     [wf],
   )
 
-  /** 画布卡片的产出浮窗里点了某个文件：选中那个步骤，让属性面板打开那一项的编辑框。 */
-  const [outputRequest, setOutputRequest] = useState<(OutputRequest & { node: string }) | null>(
-    null,
-  )
-  const openOutput = useCallback(
-    (node: string, index: number | 'new'): void => {
-      select({ kind: 'node', id: node })
-      setOutputRequest((previous) => ({ node, index, seq: (previous?.seq ?? 0) + 1 }))
-    },
-    [select],
-  )
-  const outputRequestDone = useCallback((): void => setOutputRequest(null), [])
+  /** 正在悬停的文件（画布、面板、交接卡片里都能悬停）：画布据此高亮用到它的步骤。 */
+  const [focusFile, setFocusFile] = useState<string | null>(null)
+  const onFocusFile = useCallback((id: string | null): void => setFocusFile(id), [])
+  // 换了选中，面板整块换掉：悬停着的那一行等不到 pointerleave，高亮跟着收掉。
+  useEffect(() => {
+    setFocusFile(null)
+  }, [state.selection])
 
   /** 在步骤库里点了一项：放掉画布上的选中，右侧改看它。 */
   const focusLibrary = useCallback(
@@ -472,7 +481,8 @@ function Shell(props: { rpc: WorkflowLiteRpc; t: T }): React.JSX.Element {
                 wf.edit({ type: 'addGraph', ...starterGraph(t) })
                 fitSoon()
               }}
-              onOpenOutput={openOutput}
+              focusFile={focusFile}
+              onFocusFile={onFocusFile}
             />
           )}
         </div>
@@ -544,8 +554,7 @@ function Shell(props: { rpc: WorkflowLiteRpc; t: T }): React.JSX.Element {
                   focusCanvas()
                 }}
                 onSaveTemplate={wf.saveTemplate}
-                outputRequest={outputRequest}
-                onOutputRequestDone={outputRequestDone}
+                onFocusFile={onFocusFile}
               />
             </div>
           )}
@@ -600,6 +609,7 @@ function Shell(props: { rpc: WorkflowLiteRpc; t: T }): React.JSX.Element {
             at={quick.at}
             bounds={size}
             templates={wf.catalog?.templates.nodes ?? []}
+            origin={quickOrigin(doc, quick.from)}
             onClose={() => setQuick(null)}
             onPick={(source) => {
               const request = quick
@@ -653,13 +663,21 @@ function Shell(props: { rpc: WorkflowLiteRpc; t: T }): React.JSX.Element {
   )
 }
 
+/** 就地添加菜单从哪儿来：步骤的「＋」、文件卡拖出来的线，或空白处。 */
+function quickOrigin(
+  doc: WorkflowDocument | null,
+  from: string | undefined,
+): 'step' | 'file' | 'none' {
+  if (doc === null || from === undefined) return 'none'
+  const node = findNode(doc, from)
+  if (node === undefined) return 'none'
+  return isFile(node) ? 'file' : 'step'
+}
+
 /** 设置对话框里拼接预览用的示例：图里第一个产出文件，没有就用 `plan.md`。 */
 function sampleOutput(doc: WorkflowDocument): string {
-  for (const node of doc.nodes) {
-    const [first] = outputSpecs(node.data.output)
-    if (first !== undefined) return first.path
-  }
-  return 'plan.md'
+  const file = doc.nodes.find(isFile)
+  return file === undefined ? 'plan.md' : file.data.path
 }
 
 // ─────────────────────────────────────────────────────────────

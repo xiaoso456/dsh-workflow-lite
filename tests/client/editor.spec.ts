@@ -6,10 +6,26 @@ import {
   isDirty,
   reduce,
 } from '../../src/client/model/editor.ts'
-import type { NodeData, WorkflowDocument } from '../../src/shared/types.ts'
+import { isFile, isStep } from '../../src/shared/model.ts'
+import type {
+  FileNode,
+  NodeData,
+  StepNode,
+  WorkflowDocument,
+  WorkflowNode,
+} from '../../src/shared/types.ts'
 
-function node(id: string, data: NodeData = { prompt: `do ${id}` }, x = 100, y = 100) {
+function node(id: string, data: NodeData = { prompt: `do ${id}` }, x = 100, y = 100): StepNode {
   return { id, type: 'wfNode', position: { x, y }, data }
+}
+
+function file(id: string, path: string, x = 300, y = 300): FileNode {
+  return { id, type: 'wfFile', position: { x, y }, data: { path } }
+}
+
+/** 步骤的 `data`（文件节点给 `undefined`）。 */
+function stepData(item: WorkflowNode | undefined): NodeData | undefined {
+  return item !== undefined && isStep(item) ? item.data : undefined
 }
 
 function edge(source: string, target: string, when?: string) {
@@ -139,7 +155,7 @@ describe('改步骤内容', () => {
       },
     )
     expect(sealed.past).toHaveLength(2)
-    expect(run(sealed, { type: 'undo' }, { type: 'undo' }).doc?.nodes[0]?.data.prompt).toBe('')
+    expect(stepData(run(sealed, { type: 'undo' }, { type: 'undo' }).doc?.nodes[0])?.prompt).toBe('')
   })
 
   it('值为 undefined 的键表示清掉；没有实际变化就原样返回', () => {
@@ -276,5 +292,116 @@ describe('工作流设置', () => {
   it('没变化的设置不算改动', () => {
     const start = loaded(doc({ settings: { mode: 'team' } }))
     expect(run(start, { type: 'setSettings', settings: { mode: 'team' } })).toBe(start)
+  })
+})
+
+describe('交接（步骤 → 步骤）', () => {
+  const nodes = [node('review'), node('fix')]
+
+  it('附说明是一条撤销步；说明里连续打字并成一条；undefined 回到缺省，false = 只管先后', () => {
+    const start = loaded(doc({ nodes, edges: [edge('review', 'fix')] }))
+    const typed = run(
+      start,
+      { type: 'setHandoff', id: 'review->fix', handoff: { note: '修' }, merge: 'm' },
+      { type: 'setHandoff', id: 'review->fix', handoff: { note: '修完' }, merge: 'm' },
+    )
+    expect(typed.doc?.edges[0]?.data).toEqual({ handoff: { note: '修完' } })
+    expect(typed.past).toHaveLength(1)
+    const reset = reduce(typed, { type: 'setHandoff', id: 'review->fix', handoff: undefined })
+    expect(reset.doc?.edges[0]?.data).toBeUndefined()
+    // 空白说明的规范写法就是缺省：没变。
+    expect(reduce(reset, { type: 'setHandoff', id: 'review->fix', handoff: { note: '  ' } })).toBe(
+      reset,
+    )
+    const none = reduce(reset, { type: 'setHandoff', id: 'review->fix', handoff: false })
+    expect(none.doc?.edges[0]?.data).toEqual({ handoff: false })
+  })
+
+  it('改条件时交接跟着搬到新边上', () => {
+    const noted = { ...edge('review', 'fix'), data: { handoff: { note: 'n' } } }
+    const state = reduce(loaded(doc({ nodes, edges: [noted] })), {
+      type: 'setWhen',
+      id: 'review->fix',
+      when: 'fail',
+    })
+    expect(state.doc?.edges[0]?.data).toEqual({ when: 'fail', handoff: { note: 'n' } })
+  })
+})
+
+describe('文件节点', () => {
+  it('加步骤时模板里的产出展开成挂在它右下方的新文件节点；路径被占了就加序号', () => {
+    const start = loaded(doc({ nodes: [file('file-r', 'review.md')] }))
+    const state = reduce(start, {
+      type: 'addNode',
+      id: 'review',
+      data: { prompt: 'p', output: [{ path: 'review.md', rule: 'r' }, { path: 'notes.md' }] },
+      position: { x: 100, y: 100 },
+    })
+    const added = state.doc?.nodes.filter(isFile).slice(1) ?? []
+    expect(added.map((item) => item.data)).toEqual([
+      { path: 'review-2.md', rule: 'r' },
+      { path: 'notes.md' },
+    ])
+    expect(added.every((item) => item.position.x > 100 && item.position.y > 100)).toBe(true)
+    expect(stepData(state.doc?.nodes.find((item) => item.id === 'review'))?.output).toBeUndefined()
+    expect(state.doc?.edges.map((item) => item.target)).toEqual(added.map((item) => item.id))
+    expect(state.past).toHaveLength(1)
+  })
+
+  it('addFile：给了 writer 就连写入线、给了 reader 就连读取线；select 决定选中谁', () => {
+    const start = loaded(doc({ nodes: [node('a'), node('b')] }))
+    const state = reduce(start, { type: 'addFile', path: 'x.md', writer: 'a', reader: 'b' })
+    const created = state.doc?.nodes.find(isFile)
+    expect(created?.id).toBe('file-x.md')
+    expect(state.doc?.edges.map((item) => item.id)).toEqual(['a->file-x.md', 'file-x.md->b'])
+    expect(state.selection).toBeNull()
+    const selected = reduce(start, { type: 'addFile', path: 'y.md', select: true })
+    expect(selected.selection).toEqual({ kind: 'node', id: 'file-y.md' })
+  })
+
+  it('连线：文件已经有人写，再接上来的写入默认是更新；文件不能连文件；连着文件的线不带条件', () => {
+    const start = loaded(
+      doc({
+        nodes: [node('a'), node('b'), file('f', 'f.md'), file('g', 'g.md')],
+        edges: [edge('a', 'f')],
+      }),
+    )
+    const state = reduce(start, { type: 'connect', source: 'b', target: 'f', when: 'fail' })
+    expect(state.doc?.edges[1]).toMatchObject({ id: 'b->f', data: { update: true } })
+    expect(reduce(start, { type: 'connect', source: 'f', target: 'g' })).toBe(start)
+    const fresh = reduce(start, { type: 'connect', source: 'b', target: 'g' })
+    expect(fresh.doc?.edges[1]?.data).toBeUndefined()
+  })
+
+  it('setUpdate 切写入方式；patchFile 改路径与规则（空白规则 = 清掉），连续打字并成一条', () => {
+    const start = loaded(doc({ nodes: [node('a'), file('f', 'f.md')], edges: [edge('a', 'f')] }))
+    const updated = reduce(start, { type: 'setUpdate', id: 'a->f', update: true })
+    expect(updated.doc?.edges[0]?.data).toEqual({ update: true })
+    expect(reduce(updated, { type: 'setUpdate', id: 'a->f', update: true })).toBe(updated)
+    const back = reduce(updated, { type: 'setUpdate', id: 'a->f', update: false })
+    expect(back.doc?.edges[0]?.data).toBeUndefined()
+
+    const typed = run(
+      start,
+      { type: 'patchFile', id: 'f', patch: { rule: '问' }, merge: 'f:rule' },
+      { type: 'patchFile', id: 'f', patch: { rule: '问题清单' }, merge: 'f:rule' },
+    )
+    expect(typed.doc?.nodes[1]?.data).toEqual({ path: 'f.md', rule: '问题清单' })
+    expect(typed.past).toHaveLength(1)
+    const cleared = reduce(typed, { type: 'patchFile', id: 'f', patch: { rule: ' ' } })
+    expect(cleared.doc?.nodes[1]?.data).toEqual({ path: 'f.md' })
+    // 不是文件节点：patchFile 不动它。
+    expect(reduce(start, { type: 'patchFile', id: 'a', patch: { path: 'x' } })).toBe(start)
+  })
+
+  it('删文件节点连带删掉连着它的线', () => {
+    const start = loaded(
+      doc({
+        nodes: [node('a'), node('b'), file('f', 'f.md')],
+        edges: [edge('a', 'b'), edge('a', 'f'), edge('f', 'b')],
+      }),
+    )
+    const state = reduce(start, { type: 'removeNode', id: 'f' })
+    expect(state.doc?.edges.map((item) => item.id)).toEqual(['a->b'])
   })
 })

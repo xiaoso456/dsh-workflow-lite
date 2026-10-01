@@ -2,7 +2,8 @@
  * dsh-workflow-lite — 就地添加步骤的小菜单。
  *
  * 三个入口共用它：双击画布空白处、点步骤右侧的「＋」、把连线拖到空白处松手。
- * 后两种会把新步骤顺手连在来源步骤后面。
+ * 后两种会把新步骤顺手连在来源后面。从步骤出发时第一项是「产出文件」（这一步写的文件卡）；
+ * 从文件卡拖出来时只列步骤（新步骤读这份文件）；在空白处还能放一张独立的文件卡。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/QuickAdd
  */
@@ -26,6 +27,8 @@ export function QuickAdd(props: {
   at: { x: number; y: number }
   bounds: { width: number; height: number }
   templates: readonly TemplateEntry[]
+  /** 从哪儿来：步骤的「＋」/ 文件卡拖出来的线 / 空白处。 */
+  origin: 'step' | 'file' | 'none'
   onPick(source: StepSource): void
   onClose(): void
 }): React.JSX.Element {
@@ -71,6 +74,24 @@ export function QuickAdd(props: {
       onKeyDown={move}
     >
       <p className={ui.menuTitle}>{t('quick.title')}</p>
+      {props.origin === 'step' && (
+        <>
+          <button
+            type="button"
+            role="menuitem"
+            className={ui.menuItem}
+            data-testid="wl-quick-file"
+            onClick={() => props.onPick({ kind: 'file' })}
+          >
+            <span className={cx(ui.kind, css.quickKind, css.quickFile)}>
+              <Icon name="file" size={13} />
+            </span>
+            <span className={ui.menuLabel}>{t('quick.file')}</span>
+            <span className={ui.menuMeta}>{t('quick.fileDesc')}</span>
+          </button>
+          <div className={ui.menuSep} />
+        </>
+      )}
       <button
         type="button"
         role="menuitem"
@@ -83,6 +104,21 @@ export function QuickAdd(props: {
         </span>
         <span className={ui.menuLabel}>{t('lib.blank')}</span>
       </button>
+      {props.origin === 'none' && (
+        <button
+          type="button"
+          role="menuitem"
+          className={ui.menuItem}
+          data-testid="wl-quick-file"
+          onClick={() => props.onPick({ kind: 'file' })}
+        >
+          <span className={cx(ui.kind, css.quickKind, css.quickFile)}>
+            <Icon name="file" size={13} />
+          </span>
+          <span className={ui.menuLabel}>{t('quick.looseFile')}</span>
+          <span className={ui.menuMeta}>{t('quick.looseFileDesc')}</span>
+        </button>
+      )}
       {PRESETS.map((preset) => (
         <button
           key={preset.id}

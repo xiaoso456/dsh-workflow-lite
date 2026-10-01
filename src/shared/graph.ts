@@ -15,7 +15,7 @@
  * @module @xiaoso/dsh-workflow-lite/shared/graph
  */
 
-import { idKey } from './model.ts'
+import { idKey, isStep } from './model.ts'
 import type {
   CycleGroup,
   EdgeShape,
@@ -44,7 +44,7 @@ export function byId(a: string, b: string): number {
 }
 
 export interface GraphAnalysis {
-  /** 全部节点 id，按 `id` 码位序。 */
+  /** 全部**步骤** id，按 `id` 码位序（文件节点不在其中）。 */
   nodeIds: string[]
   /** 边 id → 边。 */
   edgesById: Map<string, WorkflowEdge>
@@ -88,8 +88,11 @@ export function edgeWhen(edge: WorkflowEdge): string | undefined {
  * "图坏了"与"坏在哪"，而不是在分析阶段就崩掉。
  */
 export function analyzeGraph(document: WorkflowDocument): GraphAnalysis {
-  const nodeIds = document.nodes.map((node) => node.id).sort(byId)
-  const known = new Set(nodeIds.map(idKey))
+  // 执行次序只看步骤与步骤之间的线；文件节点和读写线不参与环、批次与前置。
+  const steps = document.nodes.filter(isStep)
+  const nodeIds = steps.map((node) => node.id).sort(byId)
+  const known = new Set(document.nodes.map((node) => idKey(node.id)))
+  const stepKeys = new Set(nodeIds.map(idKey))
 
   const edgesById = new Map<string, WorkflowEdge>()
   const danglingEdges: WorkflowEdge[] = []
@@ -99,7 +102,9 @@ export function analyzeGraph(document: WorkflowDocument): GraphAnalysis {
       danglingEdges.push(edge)
     }
   }
-  const liveEdges = document.edges.filter((edge) => !danglingEdges.includes(edge))
+  const liveEdges = document.edges.filter(
+    (edge) => stepKeys.has(idKey(edge.source)) && stepKeys.has(idKey(edge.target)),
+  )
 
   const outMap = new Map<string, WorkflowEdge[]>()
   const inMap = new Map<string, WorkflowEdge[]>()

@@ -13,6 +13,7 @@
  * @module @xiaoso/dsh-workflow-lite/shared/validate
  */
 
+import { edgeKind, fileGraph, flowEdges, nodeIndex } from './files.ts'
 import {
   analyzeGraph,
   byId,
@@ -22,7 +23,7 @@ import {
   type GraphAnalysis,
 } from './graph.ts'
 import { WELL_KNOWN_WHEN } from './limits.ts'
-import { idKey, outputSpecs } from './model.ts'
+import { idKey, isFile, isStep, outputSpecs } from './model.ts'
 import {
   checkLabel,
   checkName,
@@ -31,7 +32,7 @@ import {
   checkWhen,
   isVerdictWhen,
 } from './naming.ts'
-import { checkOutputRoot } from './outputPaths.ts'
+import { checkOutputRoot, outputKey } from './outputPaths.ts'
 import type {
   ValidationCode,
   ValidationLevel,
@@ -92,6 +93,10 @@ export function validateDocument(
   const warning: ValidationProblem[] = []
   const hint: ValidationProblem[] = []
 
+  const steps = document.nodes.filter(isStep)
+  const nodes = nodeIndex(document)
+  const flow = flowEdges(document)
+
   // ── 保存级：图名与节点 id 的文件名约束 ──────────────────────
   const nameProblem = checkName(options.workflowName)
   if (nameProblem !== null) {
@@ -142,11 +147,19 @@ export function validateDocument(
 
   // ── 保存级：每个节点的字段规则 ──────────────────────────────
   for (const node of document.nodes) {
-    const seenPaths = new Set<string>()
-    for (const spec of outputSpecs(node.data.output)) {
+    if (isFile(node)) {
       const problem =
-        checkOutput(spec.path) ??
-        (spec.rule === undefined ? null : checkText(spec.rule, '产出规则'))
+        checkOutput(node.data.path) ??
+        (node.data.rule === undefined ? null : checkText(node.data.rule, '生成规则'))
+      if (problem !== null) {
+        save.push(
+          mk('save', problem.code, `文件 ${node.id} 不合法：${problem.message}`, { node: node.id }),
+        )
+      }
+      continue
+    }
+    for (const spec of outputSpecs(node.data.output)) {
+      const problem = checkOutput(spec.path)
       if (problem !== null) {
         save.push(
           mk('save', problem.code, `节点 ${node.id} 的 output 不合法：${problem.message}`, {
@@ -154,15 +167,6 @@ export function validateDocument(
           }),
         )
       }
-      // 同一个节点里把同一个文件声明两遍：两条规则会互相打架。
-      if (seenPaths.has(spec.path)) {
-        save.push(
-          mk('save', 'output_invalid', `节点 ${node.id} 重复声明了产出 ${spec.path}`, {
-            node: node.id,
-          }),
-        )
-      }
-      seenPaths.add(spec.path)
     }
     if (typeof node.data.description === 'string') {
       const problem = checkText(node.data.description, '描述')
@@ -203,6 +207,27 @@ export function validateDocument(
         )
       }
     }
+    const handoff = edge.data?.handoff
+    if (
+      handoff !== undefined &&
+      handoff !== false &&
+      checkText(handoff.note, '交接说明') !== null
+    ) {
+      save.push(mk('save', 'handoff_invalid', `边 ${edge.id} 的交接说明太长`, { edge: edge.id }))
+    }
+    // 线的种类由两端决定：条件与交接只属于步骤间的线，写入方式只属于步骤 → 文件。
+    const kind = edgeKind(nodes, edge)
+    const misplaced =
+      kind === 'invalid'
+        ? '文件不能直接连到文件'
+        : kind !== 'flow' && (edge.data?.when !== undefined || handoff !== undefined)
+          ? '连着文件的线不能带条件或交接'
+          : kind !== 'write' && edge.data?.update === true
+            ? '只有「步骤 → 文件」的线才有写入方式'
+            : null
+    if (misplaced !== null) {
+      save.push(mk('save', 'file_edge_invalid', `边 ${edge.id}：${misplaced}`, { edge: edge.id }))
+    }
   }
   for (const [id, count] of seenEdgeIds) {
     if (count > 1) save.push(mk('save', 'edge_id_duplicate', `边 id 重复：${id}`, { edge: id }))
@@ -221,8 +246,8 @@ export function validateDocument(
   }
 
   // ── 编译级 ──────────────────────────────────────────────────
-  if (document.nodes.length === 0) {
-    compile.push(mk('compile', 'no_nodes', '图内没有节点，无法编译'))
+  if (steps.length === 0) {
+    compile.push(mk('compile', 'no_nodes', '图内没有步骤，无法编译'))
   }
   if (document.nodes.length > options.maxNodes) {
     compile.push(
@@ -233,7 +258,7 @@ export function validateDocument(
       ),
     )
   }
-  for (const node of document.nodes) {
+  for (const node of steps) {
     if (node.data.prompt === undefined || node.data.prompt === '') {
       compile.push(
         mk('compile', 'prompt_empty', `节点 ${node.id} 没有提示词正文——执行者会拿到一个空任务`, {
@@ -256,11 +281,8 @@ export function validateDocument(
       )
     }
   }
-  for (const node of document.nodes) {
-    if (
-      classifyShape(document.edges.filter((edge) => idKey(edge.source) === idKey(node.id))) ===
-      'mixed'
-    ) {
+  for (const node of steps) {
+    if (classifyShape(flow.filter((edge) => idKey(edge.source) === idKey(node.id))) === 'mixed') {
       warning.push(
         mk(
           'warning',
@@ -284,22 +306,38 @@ export function validateDocument(
       ),
     )
   }
-  const outputOwners = new Map<string, string[]>()
+  // 两个文件节点指向同一个路径：它们其实是同一份文件，应该合成一个。
+  const pathOwners = new Map<string, string[]>()
   for (const node of document.nodes) {
-    for (const { path } of outputSpecs(node.data.output)) {
-      outputOwners.set(path, [...(outputOwners.get(path) ?? []), node.id])
-    }
+    if (!isFile(node)) continue
+    const key = outputKey(node.data.path)
+    pathOwners.set(key, [...(pathOwners.get(key) ?? []), node.id])
   }
-  for (const [output, owners] of outputOwners) {
+  for (const [path, owners] of pathOwners) {
     if (owners.length < 2) continue
     warning.push(
       mk(
         'warning',
         'shared_output',
-        `多个节点声明了同一个产出 ${output}：${[...owners].sort(byId).join(' / ')}`,
+        `文件 ${[...owners].sort(byId).join(' / ')} 指向同一个路径 ${path}——它们是同一份文件，合成一个文件节点再让各步骤连过来`,
         { node: owners[0] },
       ),
     )
+  }
+  const files = fileGraph(document)
+  for (const info of files.values()) {
+    // 不止一个步骤整份写它：后写的会把先写的覆盖掉。
+    const producers = info.writers.filter((writer) => !writer.update).map((writer) => writer.id)
+    if (producers.length > 1) {
+      warning.push(
+        mk(
+          'warning',
+          'file_overwritten',
+          `${[...producers].sort(byId).join(' / ')} 都整份写入 ${info.file.data.path}——后写的会覆盖先写的；要接着写请把后面的改成「更新」`,
+          { node: info.file.id },
+        ),
+      )
+    }
   }
 
   // ── 提示 ────────────────────────────────────────────────────
@@ -315,21 +353,43 @@ export function validateDocument(
       )
     }
   }
-  const multiNode = document.nodes.length > 1
-  for (const node of document.nodes) {
-    const incoming = document.edges.filter((edge) => idKey(edge.target) === idKey(node.id))
-    const outgoing = document.edges.filter((edge) => idKey(edge.source) === idKey(node.id))
-    if (incoming.length > 0 && node.data.output === undefined) {
+  for (const info of files.values()) {
+    const { file } = info
+    if (info.writers.length === 0 && info.readers.length === 0) {
+      hint.push(
+        mk('hint', 'stray_entry', `文件 ${file.data.path} 没有连任何步骤`, { node: file.id }),
+      )
+      continue
+    }
+    if (info.writers.length === 0) {
+      hint.push(
+        mk('hint', 'file_unwritten', `没有步骤写入 ${file.data.path}——如果它是现成的文件可以忽略`, {
+          node: file.id,
+        }),
+      )
+      continue
+    }
+    // 读它的步骤不在任何一个写它的步骤下游：执行到它时，这份文件可能还没写出来。
+    for (const reader of info.readers) {
+      if (info.writers.some((writer) => writer.id === reader)) continue
+      const reached = info.writers.some((writer) => reaches(analysis, writer.id, reader))
+      if (reached) continue
       hint.push(
         mk(
           'hint',
-          'missing_output',
-          `节点 ${node.id} 有入边但没写 output——可能是漏了产出声明，确实不产出请显式写 output: false`,
-          { node: node.id },
+          'file_order',
+          `${reader} 读取 ${file.data.path}，但写它的步骤不在 ${reader} 的上游——执行到 ${reader} 时它可能还没写出来`,
+          { node: reader },
         ),
       )
     }
-    if (multiNode && incoming.length === 0 && outgoing.length === 0) {
+  }
+
+  const multiStep = steps.length > 1
+  for (const node of steps) {
+    const incoming = flow.filter((edge) => idKey(edge.target) === idKey(node.id))
+    const outgoing = flow.filter((edge) => idKey(edge.source) === idKey(node.id))
+    if (multiStep && incoming.length === 0 && outgoing.length === 0) {
       hint.push(
         mk('hint', 'stray_entry', `节点 ${node.id} 既没有上游也没有下游——孤立节点`, {
           node: node.id,
@@ -384,6 +444,22 @@ export function validateDocument(
     canLoad: save.length === 0,
     canCompile: compile.length === 0,
   }
+}
+
+/** 从步骤 `from` 沿步骤间的线（含回边）能不能走到 `to`。 */
+function reaches(analysis: GraphAnalysis, from: string, to: string): boolean {
+  const seen = new Set([idKey(from)])
+  const queue = [from]
+  while (queue.length > 0) {
+    const current = queue.shift() as string
+    for (const next of analysis.successors.get(current) ?? []) {
+      if (idKey(next) === idKey(to)) return true
+      if (seen.has(idKey(next))) continue
+      seen.add(idKey(next))
+      queue.push(next)
+    }
+  }
+  return false
 }
 
 /** 把一份报告摊平成一条通道（`warnings` 用；`problems` 只装编译级，见 8.2）。 */

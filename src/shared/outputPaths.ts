@@ -44,6 +44,14 @@ export function resolveOutputPath(root: string | undefined, path: string): strin
   return base === undefined ? normalize(path.trim()) : join(base, path.trim())
 }
 
+/**
+ * 一个产出文件的身份：规范化后的相对路径（`./a.md` 与 `a.md` 是同一份）。
+ * 交接引用产出、统计「谁在用这份文件」都按它比较。
+ */
+export function outputKey(path: string): string {
+  return resolveOutputPath(undefined, path)
+}
+
 /** 根目录合不合法：只拦控制字符、`~`（不会被展开）与超长；相对、绝对、`..` 都允许。 */
 export function checkOutputRoot(raw: string): NameProblem | null {
   const value = raw.trim()

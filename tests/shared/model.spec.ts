@@ -5,12 +5,15 @@ import {
   findNode,
   idKey,
   incomingEdges,
+  isFile,
+  isStep,
   makeEdgeId,
   normalizeCoord,
   normalizeDocument,
   outgoingEdges,
   outputSpecs,
   readDocument,
+  readNodeData,
   sameNodeData,
   writeDocument,
 } from '../../src/shared/model.ts'
@@ -116,23 +119,50 @@ describe('normalizeDocument', () => {
     }
   })
 
-  it('output 三态：字符串 / false / 缺省', () => {
+  it('老图迁移：步骤上的 output 展开成文件节点 + 写入线，同一路径共用一个；false 与认不出的值丢掉', () => {
     const out = normalizeDocument({
       nodes: [
         { id: 'a', type: 'wfNode', position: { x: 0, y: 0 }, data: { output: 'x.md' } },
         { id: 'b', type: 'wfNode', position: { x: 0, y: 0 }, data: { output: false } },
-        { id: 'c', type: 'wfNode', position: { x: 0, y: 0 }, data: {} },
+        {
+          id: 'c',
+          type: 'wfNode',
+          position: { x: 0, y: 0 },
+          data: { output: [{ path: './x.md', rule: 'r' }, { path: 'y.md' }] },
+        },
         { id: 'd', type: 'wfNode', position: { x: 0, y: 0 }, data: { output: 42 } },
       ],
       edges: [],
       viewport: {},
     })
-    expect(out.document?.nodes.map((n) => n.data.output)).toEqual([
-      'x.md',
-      false,
-      undefined,
-      undefined,
+    const document = out.document
+    expect(document).not.toBeNull()
+    if (document === null) return
+    expect(document.nodes.filter(isStep).every((node) => node.data.output === undefined)).toBe(true)
+    const files = document.nodes.filter(isFile)
+    expect(files.map((node) => [node.id, node.data])).toEqual([
+      ['file-x.md', { path: 'x.md', rule: 'r' }],
+      ['file-y.md', { path: 'y.md' }],
     ])
+    expect(files.every((node) => node.position.x === 0 && node.position.y === 0)).toBe(true)
+    expect(document.edges.map((edge) => edge.id)).toEqual([
+      'a->file-x.md',
+      'c->file-x.md',
+      'c->file-y.md',
+    ])
+    expect(out.problems.some((problem) => problem.code === 'legacy_structure')).toBe(true)
+  })
+
+  it('文件节点：读 path / rule，空白规则不留；没有 path 给空串（由校验层报保存级）', () => {
+    const out = normalizeDocument({
+      nodes: [
+        { id: 'f', type: 'wfFile', position: { x: 1, y: 2 }, data: { path: 'a.md', rule: ' ' } },
+        { id: 'g', type: 'wfFile', position: { x: 1, y: 2 }, data: {} },
+      ],
+      edges: [],
+      viewport: {},
+    })
+    expect(out.document?.nodes.map((node) => node.data)).toEqual([{ path: 'a.md' }, { path: '' }])
   })
 
   it('边 data 全空时整键省略', () => {
@@ -255,13 +285,19 @@ describe('writeDocument（canonical writer）', () => {
           id: 'auth-review',
           type: 'wfNode',
           position: { x: 320, y: 180 },
-          data: { label: '认证审查', prompt: '你是审查者。', output: 'auth-findings.md' },
+          data: { label: '认证审查', prompt: '你是审查者。' },
         },
         {
           id: 'fix-auth',
           type: 'wfNode',
           position: { x: 320, y: 320 },
-          data: { prompt: '修', output: false },
+          data: { prompt: '修' },
+        },
+        {
+          id: 'file-findings',
+          type: 'wfFile',
+          position: { x: 400, y: 260 },
+          data: { path: 'auth-findings.md', rule: '问题清单' },
         },
       ],
       edges: [
@@ -271,7 +307,22 @@ describe('writeDocument（canonical writer）', () => {
           target: 'fix-auth',
           sourceHandle: null,
           targetHandle: null,
-          data: { when: 'fail' },
+          data: { when: 'fail', handoff: { note: '逐条修' } },
+        },
+        {
+          id: 'auth-review->file-findings',
+          source: 'auth-review',
+          target: 'file-findings',
+          sourceHandle: null,
+          targetHandle: null,
+        },
+        {
+          id: 'fix-auth->file-findings',
+          source: 'fix-auth',
+          target: 'file-findings',
+          sourceHandle: null,
+          targetHandle: null,
+          data: { update: true },
         },
       ],
       viewport: { x: 12, y: -8, zoom: 1 },
@@ -322,7 +373,7 @@ describe('cloneDocument', () => {
     const copy = cloneDocument(d)
     const copiedNode = copy.nodes[0]
     const copiedEdge = copy.edges[0]
-    if (copiedNode !== undefined) {
+    if (copiedNode !== undefined && isStep(copiedNode)) {
       copiedNode.position.x = 99
       copiedNode.data.prompt = 'CHANGED'
     }
@@ -330,33 +381,22 @@ describe('cloneDocument', () => {
       copiedEdge.data.when = 'fail'
     }
     expect(d.nodes[0]?.position.x).toBe(1)
-    expect(d.nodes[0]?.data.prompt).toBe('P')
+    const original = d.nodes[0]
+    expect(original !== undefined && isStep(original) ? original.data.prompt : null).toBe('P')
     expect(d.edges[0]?.data?.when).toBe('pass')
   })
 })
 
 describe('产出清单与描述', () => {
-  it('一个产出且没有规则写成字符串；多个或带规则写成数组；描述照写', () => {
-    const base = { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } }
-    const node = (output: unknown, description?: string) => ({
-      id: 'a',
-      type: 'wfNode',
-      position: { x: 1, y: 2 },
-      data: { prompt: 'p', output, ...(description === undefined ? {} : { description }) },
-    })
-    const read = (output: unknown, description?: string) =>
-      readDocument(JSON.stringify({ ...base, nodes: [node(output, description)] })).document
-        ?.nodes[0]?.data
-
-    expect(read([{ path: 'a.md' }])?.output).toBe('a.md')
-    expect(read([{ path: 'a.md', rule: '  ' }])?.output).toBe('a.md')
-    expect(read([{ path: 'a.md', rule: 'r' }, { path: 'b.md' }])?.output).toEqual([
-      { path: 'a.md', rule: 'r' },
-      { path: 'b.md' },
-    ])
-    expect(read([])?.output).toBeUndefined()
-    expect(read([{ nope: 1 }, { path: 'b.md' }])?.output).toBe('b.md')
-    expect(read('x.md', '做什么')?.description).toBe('做什么')
+  it('节点模板的 data 里产出照旧走规范写法：一个且没规则写成字符串；描述照写', () => {
+    expect(readNodeData({ output: [{ path: 'a.md' }] }).output).toBe('a.md')
+    expect(readNodeData({ output: [{ path: 'a.md', rule: '  ' }] }).output).toBe('a.md')
+    expect(
+      readNodeData({ output: [{ path: 'a.md', rule: 'r' }, { path: 'b.md' }] }).output,
+    ).toEqual([{ path: 'a.md', rule: 'r' }, { path: 'b.md' }])
+    expect(readNodeData({ output: [] }).output).toBeUndefined()
+    expect(readNodeData({ output: [{ nope: 1 }, { path: 'b.md' }] }).output).toBe('b.md')
+    expect(readNodeData({ output: 'x.md', description: '做什么' }).description).toBe('做什么')
   })
 
   it('写出时产出也走规范写法，键序 label / description / prompt / output', () => {

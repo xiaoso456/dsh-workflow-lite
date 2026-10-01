@@ -33,6 +33,8 @@ const CONDITION = '测试全部通过，并且没有新增 lint 警告，同时�
 const RULE = '按优先级列出风险，每条写清影响范围与应对办法'
 const PLAN_RULE = '有序的任务清单：每条写清改哪个文件、验收标准是什么。'
 const STEP_NEW = `${NAME}-new`
+const NOTE = '按 plan.md 逐条执行，做完的条目在原文件里打钩'
+const FILE_RULE = '风险清单，每条一行「- [ ] 风险：应对」，处理完打钩'
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 let step = 0
@@ -57,8 +59,21 @@ async function onDisk(name, predicate, what) {
   }
 }
 
-const idsOf = (doc) => doc.nodes.map((node) => node.id).sort()
-const edgeIds = (doc) => doc.edges.map((edge) => edge.id).sort()
+/** 步骤的 id（文件卡另算）。 */
+const idsOf = (doc) =>
+  doc.nodes
+    .filter((node) => node.type !== 'wfFile')
+    .map((node) => node.id)
+    .sort()
+const fileOf = (doc, path) =>
+  doc.nodes.find((node) => node.type === 'wfFile' && node.data.path === path)
+const isFileId = (doc, id) => doc.nodes.some((node) => node.id === id && node.type === 'wfFile')
+/** 步骤之间的线（连着文件卡的读写线另算）。 */
+const edgeIds = (doc) =>
+  doc.edges
+    .filter((edge) => !isFileId(doc, edge.source) && !isFileId(doc, edge.target))
+    .map((edge) => edge.id)
+    .sort()
 
 /** 某个步骤卡上某个连接点的屏幕中心。 */
 async function handleCenter(session, nodeId, type) {
@@ -172,7 +187,7 @@ async function run(session) {
   await waitFor(session, exists('wl-quick-add'))
   await session.evaluate(clickTestId('wl-quick-plan'))
   await waitFor(session, `document.querySelector('.react-flow__node[data-id="plan"]') !== null`)
-  const afterPlus = await onDisk(NAME, (doc) => doc.edges.length === 1, '连线 scan->plan')
+  const afterPlus = await onDisk(NAME, (doc) => edgeIds(doc).length === 1, '连线 scan->plan')
   check(edgeIds(afterPlus).join() === 'scan->plan', `应连上 scan->plan：${edgeIds(afterPlus)}`)
   const scanAt = afterPlus.nodes.find((node) => node.id === 'scan').position
   const planAt = afterPlus.nodes.find((node) => node.id === 'plan').position
@@ -249,28 +264,37 @@ async function run(session) {
     ),
     '线上的长条件应带一份全文悬停提示',
   )
-  await mouseMove(session, await centerOf(session, '.react-flow__edgelabel-renderer button'))
+  await mouseMove(
+    session,
+    await centerOf(session, '.react-flow__edgelabel-renderer button[data-when]'),
+  )
   await sleep(500)
   await screenshot(session, 'ui-02b-condition.png')
   pass('自定义条件写一整句话 → 落盘，线上截断、悬停看全文')
 
-  // 7c) 多个产出：面板里是一张清单，点「添加」在模态框里写路径与生成规则。
+  // 7c) 文件卡：内置步骤插进来时带着它的产出文件卡；面板里「新建产出文件」再加一张，连上写入线。
+  check(
+    await session.evaluate(
+      `document.querySelector('.react-flow__node[data-id="file-plan.md"] [data-testid="wl-file"]') !== null`,
+    ),
+    '内置「拆解」插进来时应带着它的产出文件卡',
+  )
   await mouseClick(session, await centerOf(session, '.react-flow__node[data-id="plan"]'))
-  await waitFor(session, exists('wl-output-add'))
+  await waitFor(session, exists('wl-file-new'))
   check(
     (
       await session.evaluate(
-        `document.querySelector('[data-testid="wl-inspector"] [data-testid="wl-output-item"]')?.textContent || ''`,
+        `document.querySelector('[data-testid="wl-step-files"] [data-testid="wl-step-file"]')?.textContent || ''`,
       )
     ).includes(PLAN_RULE),
-    '内置「拆解」插进来时应带着产出的生成规则，并显示在清单里',
+    '步骤面板的「文件」里应列出它写的文件与要求',
   )
-  await session.evaluate(clickTestId('wl-output-add'))
+  await session.evaluate(clickTestId('wl-file-new'))
   await waitFor(session, exists('wl-output-dialog'))
   check(
     (await session.evaluate(`document.querySelector('[data-testid="wl-output-path"]').value`)) ===
       'plan-2.md',
-    '新加的产出应预填一个没被占用的文件名',
+    '新建产出文件应预填一个没被占用的文件名',
   )
   await setReactInput(session, '[data-testid="wl-output-path"]', 'plan-risks.md')
   await setReactInput(session, '[data-testid="wl-output-rule"]', RULE)
@@ -278,70 +302,71 @@ async function run(session) {
   await screenshot(session, 'ui-02c-dialog.png')
   await session.evaluate(clickTestId('wl-output-done'))
   await waitFor(session, `document.querySelector('[data-testid="wl-output-dialog"]') === null`)
-  await onDisk(
+  const withFile = await onDisk(
     NAME,
     (doc) =>
-      JSON.stringify(doc.nodes.find((node) => node.id === 'plan')?.data.output) ===
-      JSON.stringify([
-        { path: 'plan.md', rule: PLAN_RULE },
-        { path: 'plan-risks.md', rule: RULE },
-      ]),
-    'plan 的两个产出与规则',
+      fileOf(doc, 'plan-risks.md')?.data.rule === RULE &&
+      doc.edges.some(
+        (edge) => edge.source === 'plan' && edge.target === fileOf(doc, 'plan-risks.md').id,
+      ),
+    '新文件卡与 plan 的写入线',
   )
   check(
     (await session.evaluate(
-      `document.querySelectorAll('[data-testid="wl-inspector"] [data-testid="wl-output-item"]').length`,
+      `document.querySelectorAll('[data-testid="wl-step-files"] [data-testid="wl-step-file"]').length`,
     )) === 2,
-    '清单里应有两个文件',
+    '步骤面板里应列出两个写入的文件',
   )
-  await screenshot(session, 'ui-02c-outputs.png')
-  pass('多个产出：清单 + 模态框编辑 → 落盘为清单')
-
-  // 7d) 画布联动：悬停卡片上的产出弹出浮窗（全部文件 + 规则），点其中一个直接打开它的编辑框。
+  const risksId = fileOf(withFile, 'plan-risks.md').id
   await sleep(400)
-  await mouseMove(
+  await screenshot(session, 'ui-02c-files.png')
+  pass('文件卡：内置步骤带着产出卡；「新建产出文件」→ 新卡 + 写入线落盘')
+
+  // 7d) 文件卡上悬停：写它、读它的步骤标出角色，其余淡下去；点开改要求与路径，读写线跟着节点走。
+  const risksCard = `.react-flow__node[data-id=${JSON.stringify(risksId)}]`
+  await waitFor(session, `document.querySelector('${risksCard}') !== null`)
+  await mouseMove(session, await centerOf(session, risksCard))
+  await waitFor(
     session,
-    await centerOf(session, '.react-flow__node[data-id="plan"] [data-testid="wl-card-outputs"]'),
-  )
-  await waitFor(session, exists('wl-output-peek'))
-  const peekText = await session.evaluate(
-    `document.querySelector('[data-testid="wl-output-peek"]').textContent`,
+    `document.querySelector('.react-flow__node[data-id="plan"] [data-testid="wl-step"]')?.getAttribute('data-role') === 'producer'`,
   )
   check(
-    peekText.includes('plan-risks.md') && peekText.includes(RULE),
-    `浮窗应列出全部产出与规则：${peekText}`,
+    (await session.evaluate(
+      `document.querySelector('.react-flow__node[data-id="scan"] [data-testid="wl-step"]').getAttribute('data-dim')`,
+    )) === 'true',
+    '与这份文件无关的步骤应淡下去',
   )
+  await sleep(300)
+  await screenshot(session, 'ui-02d-file-hover.png')
+  await mouseClick(session, await centerOf(session, risksCard))
+  await waitFor(session, exists('wl-file-rule'))
+  await setReactInput(session, '[data-testid="wl-file-rule"]', FILE_RULE)
+  await onDisk(NAME, (doc) => fileOf(doc, 'plan-risks.md')?.data.rule === FILE_RULE, '文件卡的要求')
+  // 从文件卡右边的点拖到 step 左边 = step 读它。
+  await pointerDrag(
+    session,
+    await centerOf(session, `${risksCard} .react-flow__handle.source`),
+    await handleCenter(session, 'step', 'target'),
+  )
+  await onDisk(
+    NAME,
+    (doc) => doc.edges.some((edge) => edge.source === risksId && edge.target === 'step'),
+    '读取线 文件 → step',
+  )
+  // 连上之后选中的是那条新线（面板里是读取说明）；回到文件卡看「读它的步骤」。
+  await waitFor(session, exists('wl-delete-edge'))
+  await mouseClick(session, await centerOf(session, risksCard))
+  await waitFor(session, exists('wl-file-readers'))
   check(
     (
       await session.evaluate(
-        `document.querySelector('.react-flow__node[data-id="plan"]').textContent`,
+        `document.querySelector('[data-testid="wl-file-readers"]').textContent`,
       )
-    ).includes('+1'),
-    '卡片上应显示 +1',
+    ).includes('step'),
+    '文件卡面板应列出读它的步骤',
   )
-  await sleep(350)
-  await screenshot(session, 'ui-02d-peek.png')
-  await mouseMove(session, await centerOf(session, '[data-testid="wl-peek-item"]:nth-of-type(2)'))
-  await mouseClick(session, await centerOf(session, '[data-testid="wl-peek-item"]:nth-of-type(2)'))
-  await waitFor(session, exists('wl-output-dialog'))
-  check(
-    (await session.evaluate(`document.querySelector('[data-testid="wl-output-path"]').value`)) ===
-      'plan-risks.md',
-    '从浮窗点开的应是那一个文件',
-  )
-  check(
-    (await session.evaluate(`document.activeElement?.getAttribute('data-testid')`)) ===
-      'wl-output-rule',
-    '打开已有的产出时光标应在生成规则里',
-  )
-  await pressKey(session, 'Escape')
-  await waitFor(session, `document.querySelector('[data-testid="wl-output-dialog"]') === null`)
-  check(await session.evaluate(exists('wl-inspector')), 'Esc 只关模态框，不该连带取消选中')
-  check(
-    await session.evaluate(`document.querySelector('[data-testid="wl-output-peek"]') === null`),
-    '点了浮窗里的文件之后浮窗应收起',
-  )
-  pass('悬停卡片产出 → 浮窗列出文件与规则；点文件 → 打开它的编辑框，Esc 只关框')
+  await screenshot(session, 'ui-02d-file-panel.png')
+  pass('文件卡：悬停高亮上下游；面板里改要求；从文件卡拖线到步骤 = 读取')
 
   // 7e) 工作流设置：产出根目录（带多余斜杠，保存时标准化）+ 执行方式。
   await session.evaluate(clickTestId('wl-settings-open'))
@@ -412,24 +437,92 @@ async function run(session) {
     ),
     '改过设置后顶栏按钮应挂上小点',
   )
-  // 产出编辑框里预览最终路径。
-  await mouseClick(session, await centerOf(session, '.react-flow__node[data-id="plan"]'))
-  await waitFor(session, exists('wl-output-item'))
-  await session.evaluate(
-    `document.querySelector('[data-testid="wl-inspector"] [data-testid="wl-output-item"]').click()`,
+  // 文件卡面板里预览最终路径。
+  await mouseClick(session, await centerOf(session, '.react-flow__node[data-id="file-plan.md"]'))
+  await waitFor(session, exists('wl-file-final'))
+  check(
+    (
+      await session.evaluate(`document.querySelector('[data-testid="wl-file-final"]').textContent`)
+    ).includes('artifacts/run/plan.md'),
+    '文件卡面板应预览拼好的最终路径',
   )
-  await waitFor(session, exists('wl-output-final'))
+  pass('工作流设置：根目录标准化落盘、执行方式落盘，文件卡预览最终路径')
+
+  // 7f) 交接：步骤之间的线缺省交执行结果（不画标记）；附说明后出现标记、悬停看说明；关掉 = 只管先后。
+  const mark = '[data-testid="wl-handoff-mark"][data-edge="plan->step"]'
+  check(
+    !(await session.evaluate(`document.querySelector('${mark}') !== null`)),
+    '缺省的交接不画标记',
+  )
+  await mouseClick(session, await edgeMidpoint(session, 'plan->step'))
+  await waitFor(session, exists('wl-handoff'))
+  check(
+    await session.evaluate(`document.querySelector('[data-testid="wl-handoff-result"]').checked`),
+    '缺省应交执行结果',
+  )
+  await setReactInput(session, '[data-testid="wl-handoff-note"]', NOTE)
+  await onDisk(
+    NAME,
+    (doc) => doc.edges.find((edge) => edge.id === 'plan->step')?.data?.handoff?.note === NOTE,
+    '交接说明',
+  )
+  await waitFor(session, `document.querySelector('${mark}') !== null`)
+  await screenshot(session, 'ui-02g-handoff-edit.png')
+  await mouseMove(session, await centerOf(session, mark))
+  await waitFor(session, exists('wl-handoff-card'))
   check(
     (
       await session.evaluate(
-        `document.querySelector('[data-testid="wl-output-final"]').textContent`,
+        `document.querySelector('[data-testid="wl-handoff-card"]').textContent`,
       )
-    ).includes('artifacts/run/plan.md'),
-    '产出编辑框应预览拼好的最终路径',
+    ).includes(NOTE),
+    '悬停标记应看到交接说明',
   )
-  await pressKey(session, 'Escape')
-  await waitFor(session, `document.querySelector('[data-testid="wl-output-dialog"]') === null`)
-  pass('工作流设置：根目录标准化落盘、执行方式落盘，产出框预览最终路径')
+  await sleep(300)
+  await screenshot(session, 'ui-02h-handoff-card.png')
+  await mouseMove(session, {
+    x: Math.round(canvasBox.x + 40),
+    y: Math.round(canvasBox.y + canvasBox.h - 40),
+  })
+  await session.evaluate(clickTestId('wl-handoff-result'))
+  await onDisk(
+    NAME,
+    (doc) => doc.edges.find((edge) => edge.id === 'plan->step')?.data?.handoff === false,
+    '只管先后',
+  )
+  await waitFor(session, `document.querySelector('${mark}')?.getAttribute('data-none') === 'true'`)
+  await session.evaluate(clickTestId('wl-handoff-result'))
+  await onDisk(
+    NAME,
+    (doc) => doc.edges.find((edge) => edge.id === 'plan->step')?.data?.handoff?.note === NOTE,
+    '再打开时说明还在',
+  )
+  // 从 step 底边拖到 plan.md：plan 已经在写它，接着写默认是「在原文件上更新」。
+  await pointerDrag(
+    session,
+    await centerOf(
+      session,
+      '.react-flow__node[data-id="step"] .react-flow__handle.source[data-handleid="file"]',
+    ),
+    await centerOf(session, '.react-flow__node[data-id="file-plan.md"] .react-flow__handle.target'),
+  )
+  await onDisk(
+    NAME,
+    (doc) => doc.edges.find((edge) => edge.id === 'step->file-plan.md')?.data?.update === true,
+    'step 在原文件上更新 plan.md',
+  )
+  // 改文件卡的路径：读写线连着的是卡片，不用改任何引用。
+  await mouseClick(session, await centerOf(session, risksCard))
+  await waitFor(session, exists('wl-file-path'))
+  await setReactInput(session, '[data-testid="wl-file-path"]', 'risks.md')
+  await onDisk(
+    NAME,
+    (doc) =>
+      fileOf(doc, 'risks.md') !== undefined &&
+      doc.edges.some((edge) => edge.source === risksId && edge.target === 'step'),
+    '改了路径，读写线照旧',
+  )
+  pass('交接：说明落盘、标记 + 悬停卡片；只管先后；从步骤底边拖到文件 = 更新；改路径线照旧')
 
   // 8) 点选 step，Ctrl+D 复制；Delete 删掉副本。
   await mouseClick(session, await centerOf(session, '.react-flow__node[data-id="step"]'))
@@ -450,10 +543,15 @@ async function run(session) {
     (doc) => doc.nodes.find((node) => node.id === 'scan').position.x === 80,
     '整理后的坐标',
   )
-  const positions = tidied.nodes.map((node) => node.position)
-  for (const [index, a] of positions.entries()) {
-    for (const b of positions.slice(index + 1)) {
-      check(Math.abs(a.x - b.x) > 200 || Math.abs(a.y - b.y) > 100, '整理后卡片不该重叠')
+  const boxes = tidied.nodes.map((node) =>
+    node.type === 'wfFile'
+      ? { ...node.position, w: 188, h: 52 }
+      : { ...node.position, w: 216, h: 70 },
+  )
+  for (const [index, a] of boxes.entries()) {
+    for (const b of boxes.slice(index + 1)) {
+      const apart = a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y
+      check(apart, `整理后卡片不该重叠：${JSON.stringify([a, b])}`)
     }
   }
   await sleep(600)
@@ -471,10 +569,17 @@ async function run(session) {
   )
   check(modelPlan.includes(`「${CONDITION}」`), '计划里应原样引用自然语言条件')
   check(!modelPlan.includes(`VERDICT: ${CONDITION}`), '自然语言条件不该要求 VERDICT 行')
-  check(modelPlan.includes(RULE), '生成规则应进计划的产出要求')
-  check(modelPlan.includes('plan-risks.md'), '第二个产出应进计划')
-  check(modelPlan.includes('artifacts/run/plan-risks.md'), '产出路径应拼上产出根目录')
+  // 第二个文件在 7f 里改名成了 risks.md。
+  check(modelPlan.includes('artifacts/run/risks.md'), '文件应进计划，路径拼上产出根目录')
+  check(modelPlan.includes(FILE_RULE), '文件的要求应进计划')
   check(modelPlan.includes('你是 leader'), '执行方式应进计划')
+  // 排版视图里反引号已经渲染成代码样式，textContent 里没有它们。
+  check(
+    modelPlan.includes('artifacts/run/plan.md：plan 产出；step 在原文件上更新。'),
+    '文件块应写清谁产出、谁在原文件上更新',
+  )
+  check(modelPlan.includes('artifacts/run/risks.md：plan 产出；step 读取。'), '读取应进文件块')
+  check(modelPlan.includes(NOTE), '交接说明应进计划')
   await session.evaluate(
     `[...document.querySelectorAll('[data-testid="wl-plan"] [role="radio"]')][1].click()`,
   )

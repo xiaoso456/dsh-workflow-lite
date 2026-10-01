@@ -276,11 +276,23 @@ describe('workflow_lite —— 正常路径', () => {
     void index
   })
 
-  it('no_output 表达第三态（写 output: false）', async () => {
+  it('output 建文件节点；read 索引里步骤带 reads / writes，另有 files 清单', async () => {
     await run({ action: 'create', workflow: 'wf' })
-    await run({ action: 'write_node', workflow: 'wf', node: 'a', content: 'A', no_output: true })
-    const one = record(await run({ action: 'read', workflow: 'wf', node: 'a' }))
-    expect(JSON.stringify(one)).toContain('"output":false')
+    await run({ action: 'write_node', workflow: 'wf', node: 'a', content: 'A', output: 'a.md' })
+    await run({ action: 'write_node', workflow: 'wf', node: 'b', content: 'B' })
+    await run({ action: 'connect', workflow: 'wf', source: 'file-a.md', target: 'b' })
+    const index = record(await run({ action: 'read', workflow: 'wf' }))
+    expect(index.nodes).toEqual([
+      { id: 'a', predecessors: [], writes: [{ path: 'a.md' }] },
+      { id: 'b', predecessors: [], reads: ['a.md'] },
+    ])
+    expect(index.files).toEqual([
+      { id: 'file-a.md', path: 'a.md', writers: [{ id: 'a' }], readers: ['b'] },
+    ])
+    // no_output：断开写入线，没人连的文件节点一并删掉——这里 b 还在读它，所以留着。
+    await run({ action: 'write_node', workflow: 'wf', node: 'a', no_output: true })
+    const after = record(await run({ action: 'read', workflow: 'wf' }))
+    expect(after.files).toEqual([{ id: 'file-a.md', path: 'a.md', writers: [], readers: ['b'] }])
   })
 
   it('from_template 取模板的 data 本体（不复制 id 与 position）', async () => {
@@ -349,5 +361,158 @@ describe('工作流设置的校验', () => {
     )
     expect(report.save.map((problem) => problem.code)).toContain('settings_invalid')
     expect(report.canLoad).toBe(false)
+  })
+})
+
+describe('workflow_lite —— 文件节点与交接', () => {
+  it('write_file 建文件节点；connect 连写（update）与读；步骤间的线可附交接说明或只管先后', async () => {
+    await run({ action: 'create', workflow: 'h' })
+    await run({
+      action: 'write_node',
+      workflow: 'h',
+      node: 'review',
+      content: '审',
+      output: 'issues.md',
+    })
+    await run({ action: 'write_node', workflow: 'h', node: 'fix', content: '修' })
+    await run({ action: 'write_node', workflow: 'h', node: 'report', content: '汇' })
+    await run({
+      action: 'write_file',
+      workflow: 'h',
+      path: 'issues.md',
+      rule: '问题清单，修好打钩',
+    })
+    await run({
+      action: 'connect',
+      workflow: 'h',
+      source: 'fix',
+      target: 'file-issues.md',
+      update: true,
+    })
+    await run({ action: 'connect', workflow: 'h', source: 'file-issues.md', target: 'report' })
+    const added = record(
+      await run({
+        action: 'connect',
+        workflow: 'h',
+        source: 'review',
+        target: 'fix',
+        handoff_note: '逐条修',
+      }),
+    )
+    expect(JSON.stringify(added.changed)).toContain('"op":"add"')
+    await run({
+      action: 'connect',
+      workflow: 'h',
+      source: 'fix',
+      target: 'report',
+      handoff: 'none',
+    })
+
+    const plan = String(record(await run({ action: 'compile', workflow: 'h' }, EXEC)).plan)
+    expect(plan).toContain(
+      '- `issues.md`：`review` 产出；`fix` 在原文件上更新；`report` 读取。要求：问题清单，修好打钩',
+    )
+    expect(plan).toContain('- `review` → `fix`：说明：逐条修')
+    expect(plan).toContain('- `fix` → `report`：只管先后，不交执行结果。')
+
+    // 已存在的边：handoff=result 回到缺省（交执行结果、不附说明）。
+    const reset = record(
+      await run({
+        action: 'connect',
+        workflow: 'h',
+        source: 'review',
+        target: 'fix',
+        handoff: 'result',
+      }),
+    )
+    expect(JSON.stringify(reset.changed)).toContain('"op":"update"')
+    const detail = record(await run({ action: 'read', workflow: 'h', node: 'review' }))
+    const flow = (detail.edges as JsonValue[]).map(record).find((edge) => edge.target === 'fix')
+    expect(flow?.data).toBeUndefined()
+  })
+
+  it('连着文件的线不能带 when / 交接；文件不能连文件；write_file 路径不合法 → blocked', async () => {
+    await run({ action: 'create', workflow: 'h2' })
+    await run({ action: 'write_node', workflow: 'h2', node: 'a', content: 'A', output: 'a.md' })
+    await run({ action: 'write_file', workflow: 'h2', path: 'b.md' })
+    expect(
+      errorCode(
+        await run({
+          action: 'connect',
+          workflow: 'h2',
+          source: 'file-a.md',
+          target: 'a',
+          when: 'fail',
+        }),
+      ),
+    ).toBe('invalid_args')
+    expect(
+      errorCode(
+        await run({ action: 'connect', workflow: 'h2', source: 'file-a.md', target: 'file-b.md' }),
+      ),
+    ).toBe('invalid_args')
+    expect(errorCode(await run({ action: 'write_file', workflow: 'h2', path: '/abs.md' }))).toBe(
+      'blocked',
+    )
+    expect(errorCode(await run({ action: 'write_file', workflow: 'h2' }))).toBe('invalid_args')
+  })
+})
+
+describe('文件节点的校验', () => {
+  const base = (extra: { nodes?: unknown[]; edges?: unknown[] }) => ({
+    nodes: [
+      { id: 'a', type: 'wfNode', position: { x: 0, y: 0 }, data: { prompt: 'A' } },
+      { id: 'b', type: 'wfNode', position: { x: 0, y: 0 }, data: { prompt: 'B' } },
+      { id: 'f', type: 'wfFile', position: { x: 0, y: 0 }, data: { path: 'f.md' } },
+      ...(extra.nodes ?? []),
+    ],
+    edges: extra.edges ?? [],
+    viewport: { x: 0, y: 0, zoom: 1 },
+  })
+  const line = (source: string, target: string, data?: unknown) => ({
+    id: `${source}->${target}`,
+    source,
+    target,
+    sourceHandle: null,
+    targetHandle: null,
+    ...(data === undefined ? {} : { data }),
+  })
+  const check = (document: unknown) =>
+    validateDocument(document as never, { workflowName: 'g', maxNodes: 200 })
+
+  it('文件连文件、连着文件的线带条件：保存级 file_edge_invalid；路径不合法：保存级', () => {
+    const files = check(
+      base({
+        nodes: [{ id: 'g', type: 'wfFile', position: { x: 0, y: 0 }, data: { path: 'g.md' } }],
+        edges: [line('f', 'g'), line('a', 'f', { when: 'fail' })],
+      }),
+    )
+    expect(files.save.filter((problem) => problem.code === 'file_edge_invalid')).toHaveLength(2)
+    const bad = check(
+      base({
+        nodes: [{ id: 'h', type: 'wfFile', position: { x: 0, y: 0 }, data: { path: '../h' } }],
+      }),
+    )
+    expect(bad.save.map((problem) => problem.code)).toContain('output_invalid')
+  })
+
+  it('两个步骤都整份写同一份文件：警告 file_overwritten；改成更新就没有', () => {
+    const both = check(base({ edges: [line('a', 'b'), line('a', 'f'), line('b', 'f')] }))
+    expect(both.warning.map((problem) => problem.code)).toContain('file_overwritten')
+    const updated = check(
+      base({ edges: [line('a', 'b'), line('a', 'f'), line('b', 'f', { update: true })] }),
+    )
+    expect(updated.warning.map((problem) => problem.code)).not.toContain('file_overwritten')
+  })
+
+  it('提示：没人写的文件 file_unwritten；读者不在写者下游 file_order；孤立文件 stray_entry', () => {
+    const unwritten = check(base({ edges: [line('f', 'a')] }))
+    expect(unwritten.hint.map((problem) => problem.code)).toContain('file_unwritten')
+    const order = check(base({ edges: [line('a', 'f'), line('f', 'b')] }))
+    expect(order.hint.find((problem) => problem.code === 'file_order')?.node).toBe('b')
+    const fine = check(base({ edges: [line('a', 'b'), line('a', 'f'), line('f', 'b')] }))
+    expect(fine.hint.map((problem) => problem.code)).not.toContain('file_order')
+    const lonely = check(base({ edges: [line('a', 'b')] }))
+    expect(lonely.hint.find((problem) => problem.code === 'stray_entry')?.node).toBe('f')
   })
 })

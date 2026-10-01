@@ -18,19 +18,22 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
+import { fileGraph, outputsOf, stepFiles } from '../../shared/files.ts'
 import { analyzeGraph, compareByCodepoint } from '../../shared/graph.ts'
-import { idKey } from '../../shared/model.ts'
+import { canonicalOutput, idKey, isFile, isStep } from '../../shared/model.ts'
 import { checkName } from '../../shared/naming.ts'
 import type {
   ChangedEntry,
   ExecutionMode,
+  FileIndexEntry,
+  Handoff,
   NodeIndexEntry,
   ReadIndexResult,
   ReadNodeResult,
+  StepNode,
   ToolWarning,
   ValidationProblem,
   WorkflowDocument,
-  WorkflowNode,
 } from '../../shared/types.ts'
 import { ACTIONS, type Action, EXECUTION_MODES, TOOL_NAME } from '../../shared/types.ts'
 import { compileWorkflow } from '../plan.ts'
@@ -59,7 +62,9 @@ const DESCRIPTION = [
   'create 新建图（可从工作流模板）/ write_node 新建或覆盖一个节点 / set_label 改显示名（id 不可改）/ ',
   'delete_node 删节点（连带删边）/ connect、disconnect 增删边 / rename_workflow、delete_workflow 改名删图 / ',
   'save_as_template 存成模板（给了 node 就存成节点模板）/ ',
-  'configure 改工作流设置（output_root 产出根目录、mode 执行方式）。',
+  'configure 改工作流设置（output_root 产出根目录、mode 执行方式）/ write_file 新建或修改文件节点。',
+  '文件是独立的节点：connect 步骤 → 文件 = 写它（update 选在原文件上更新），文件 → 步骤 = 读它；',
+  'write_node 的 output/outputs 也会自动建好文件节点并连上。步骤 → 步骤的线缺省交上游的执行结果（handoff / handoff_note 可改）。',
   '节点定位一律用 id。',
 ].join('')
 
@@ -103,21 +108,44 @@ function cwdOf(exec: ToolExecView | undefined): string | undefined {
   return exec?.agent?.session?.header?.cwd
 }
 
-/** 节点的索引条目（不含正文）。 */
-function indexEntry(document: WorkflowDocument, node: WorkflowNode): NodeIndexEntry {
+/** 步骤的索引条目（不含正文）：前置步骤，以及它读、写的文件。 */
+function indexEntry(document: WorkflowDocument, node: StepNode): NodeIndexEntry {
   const analysis = analyzeGraph(document)
   const predecessors = (analysis.predecessors.get(node.id) ?? []).slice().sort(compareByCodepoint)
+  const files = stepFiles(document, node.id)
   return {
     id: node.id,
     ...(node.data.label === undefined ? {} : { label: node.data.label }),
     predecessors,
-    ...(node.data.output === undefined ? {} : { output: node.data.output }),
+    ...(files.reads.length === 0 ? {} : { reads: files.reads.map(({ file }) => file.data.path) }),
+    ...(files.writes.length === 0
+      ? {}
+      : {
+          writes: files.writes.map(({ file, update }) =>
+            update ? { path: file.data.path, update: true as const } : { path: file.data.path },
+          ),
+        }),
   }
 }
 
-/** 按 `id` 码位序排节点。 */
-function sortedNodes(document: WorkflowDocument): WorkflowNode[] {
-  return [...document.nodes].sort((a, b) => compareByCodepoint(a.id, b.id))
+/** 文件节点的索引条目：谁写、谁读。 */
+function fileEntries(document: WorkflowDocument): FileIndexEntry[] {
+  return [...fileGraph(document).values()]
+    .sort((a, b) => compareByCodepoint(a.file.id, b.file.id))
+    .map(({ file, writers, readers }) => ({
+      id: file.id,
+      path: file.data.path,
+      ...(file.data.rule === undefined ? {} : { rule: file.data.rule }),
+      writers: writers.map((writer) =>
+        writer.update ? { id: writer.id, update: true as const } : { id: writer.id },
+      ),
+      readers,
+    }))
+}
+
+/** 按 `id` 码位序排步骤。 */
+function sortedNodes(document: WorkflowDocument): StepNode[] {
+  return document.nodes.filter(isStep).sort((a, b) => compareByCodepoint(a.id, b.id))
 }
 
 /** 把一份 `LoadResult` 的问题分成 warnings 与 problems（只装编译级）。 */
@@ -150,6 +178,12 @@ async function saveNodeAsTemplate(
       error: { code: 'not_found', message: `图 ${workflow} 里没有节点 ${nodeId}` },
     }
   }
+  if (isFile(node)) {
+    return {
+      ok: false,
+      error: { code: 'invalid_args', message: `${node.id} 是文件节点，只有步骤能存成节点模板` },
+    }
+  }
   const base = to ?? node.id
   const nameProblem = checkName(base)
   if (nameProblem !== null) {
@@ -165,11 +199,10 @@ async function saveNodeAsTemplate(
     }
     name = `${base}-${n + 1}`
   }
-  // 节点模板 = 节点的 `data` 本体（**不带 id / position**）。
-  await writeFileAtomic(
-    templateFile(dataDir, 'nodes', name),
-    `${JSON.stringify(node.data, null, 2)}\n`,
-  )
+  // 节点模板 = 节点的 `data` 本体（**不带 id / position**）+ 它写的文件（作为产出清单）。
+  const outputs = outputsOf(load.document, node.id)
+  const data = outputs.length === 0 ? node.data : { ...node.data, output: canonicalOutput(outputs) }
+  await writeFileAtomic(templateFile(dataDir, 'nodes', name), `${JSON.stringify(data, null, 2)}\n`)
   return {
     ok: true,
     result: [
@@ -205,6 +238,22 @@ export interface WorkflowLiteArgs {
   full?: boolean
   output_root?: string
   mode?: ExecutionMode
+  handoff?: 'result' | 'none'
+  handoff_note?: string
+  update?: boolean
+  path?: string
+  rule?: string
+}
+
+/**
+ * connect 的交接参数 → 仓储的入参：`undefined` = 不动，`null` = 回到缺省（交执行结果、不附说明），
+ * `false` = 只管先后，对象 = 交执行结果并附说明。
+ */
+function handoffOf(args: WorkflowLiteArgs): Handoff | false | null | undefined {
+  if (args.handoff === 'none') return false
+  if (args.handoff_note !== undefined) return { note: args.handoff_note }
+  if (args.handoff === 'result') return null
+  return undefined
 }
 
 /** `execute` 真正用到的那一小块执行上下文（完整 `ToolRunContext` 结构上兼容它）。 */
@@ -275,6 +324,7 @@ export function createWorkflowLiteHandler(
             nodes: sortedNodes(load.document).map((node) =>
               indexEntry(load.document ?? document0(), node),
             ),
+            ...(load.document.nodes.some(isFile) ? { files: fileEntries(load.document) } : {}),
             warnings,
           }
           return finish(result)
@@ -288,8 +338,13 @@ export function createWorkflowLiteHandler(
         const result: ReadNodeResult = {
           workflow: name,
           node,
+          // 文件节点给连着它的全部线（谁写、谁读）；步骤给出边。
           edges: load.document.edges
-            .filter((edge) => idKey(edge.source) === idKey(nodeId))
+            .filter((edge) =>
+              isFile(node)
+                ? idKey(edge.source) === idKey(nodeId) || idKey(edge.target) === idKey(nodeId)
+                : idKey(edge.source) === idKey(nodeId),
+            )
             .sort((a, b) => compareByCodepoint(a.id, b.id)),
           warnings,
         }
@@ -397,7 +452,14 @@ export function createWorkflowLiteHandler(
         }
         const outcome =
           action === 'connect'
-            ? await repository.connect(name, args.source, args.target, args.when)
+            ? await repository.connect(
+                name,
+                args.source,
+                args.target,
+                args.when,
+                handoffOf(args),
+                args.update,
+              )
             : await repository.disconnect(name, args.source, args.target, args.when)
         if (!outcome.ok) return errorValue(outcome)
         return finish(outcome.result)
@@ -451,6 +513,23 @@ export function createWorkflowLiteHandler(
         const outcome = await repository.configure(name, {
           ...(args.output_root === undefined ? {} : { outputRoot: args.output_root }),
           ...(args.mode === undefined ? {} : { mode: args.mode }),
+        })
+        if (!outcome.ok) return errorValue(outcome)
+        return finish(outcome.result)
+      }
+
+      case 'write_file': {
+        const name = requireWorkflow(args.workflow)
+        if (name === null) return missingWorkflow()
+        if (args.node === undefined && args.path === undefined) {
+          return errorValue({
+            error: { code: 'invalid_args', message: 'write_file 需要 node（文件节点 id）或 path' },
+          })
+        }
+        const outcome = await repository.writeFile(name, {
+          ...(args.node === undefined || args.node === '' ? {} : { id: args.node }),
+          ...(args.path === undefined ? {} : { path: args.path }),
+          ...(args.rule === undefined ? {} : { rule: args.rule }),
         })
         if (!outcome.ok) return errorValue(outcome)
         return finish(outcome.result)
@@ -527,6 +606,27 @@ export const PARAMETERS = {
     description:
       'connect / disconnect：条件（缺省 = 无条件边）。短判定词（pass / fail）走 VERDICT 约定；也可以写一句自然语言条件，由执行者判断。',
   },
+  handoff: {
+    type: 'string',
+    enum: ['result', 'none'],
+    description:
+      'connect（步骤 → 步骤）：result（缺省）把上游这一次的执行结果交给下游 / none 只管先后。边已存在时只改交接。',
+  },
+  handoff_note: {
+    type: 'string',
+    description:
+      'connect（步骤 → 步骤）：交接说明——下游拿到执行结果之后怎么用（进派发计划）；空串 = 清除。',
+  },
+  update: {
+    type: 'boolean',
+    description:
+      'connect（步骤 → 文件）：true = 在原文件上更新（先读再改，如修完在问题清单里打钩）；false = 整份写出。缺省：文件还没人写就是整份写出，已经有人写就是更新。',
+  },
+  path: {
+    type: 'string',
+    description: 'write_file：文件路径（相对产出根目录，不能是绝对路径或含 ..）。',
+  },
+  rule: { type: 'string', description: 'write_file：这份文件该怎么写；空串 = 清除。' },
   goal: { type: 'string', description: 'compile：本次目标（进派发计划的动态尾）。' },
   full: { type: 'boolean', description: 'compile：true = 整卷版（内联正文，给人读）。' },
   output_root: {

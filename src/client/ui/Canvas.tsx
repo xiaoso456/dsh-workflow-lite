@@ -24,26 +24,31 @@ import {
   type Node,
   type NodeChange,
   type NodeProps,
-  NodeToolbar,
   Position,
   ReactFlow,
   useReactFlow,
 } from '@xyflow/react'
 import '@xyflow/react/dist/base.css'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  edgeKind,
+  type FileRole,
+  fileGraph,
+  nodeIndex,
+  resolveHandoff,
+  roleOf,
+} from '../../shared/files.ts'
 import type { GraphAnalysis } from '../../shared/graph.ts'
-import { idKey, outputSpecs } from '../../shared/model.ts'
+import { idKey, isFile } from '../../shared/model.ts'
 import type {
-  NodeData,
-  OutputSpec,
   Point,
   ValidationProblem,
   WorkflowDocument,
   WorkflowNode,
 } from '../../shared/types.ts'
-import type { T } from '../i18n.ts'
+import type { LocaleKey, T } from '../i18n.ts'
 import { type Edit, type Selection, whenOf } from '../model/editor.ts'
-import { NODE_H, NODE_W, nextTo } from '../model/layout.ts'
+import { FILE_W, NODE_H, NODE_W, nextTo } from '../model/layout.ts'
 import {
   DND_MIME,
   decodeStepSource,
@@ -52,15 +57,18 @@ import {
   type StepSource,
 } from '../model/library.ts'
 import css from './canvas.module.css'
+import { baseName, freeFilePath } from './Files.tsx'
+import type { FocusFile } from './Handoff.tsx'
+import hand from './handoff.module.css'
 import { Icon, kindIcon } from './Icon.tsx'
-import { cx } from './primitives.tsx'
+import { cx, useFloat } from './primitives.tsx'
 import ui from './ui.module.css'
 
 /** 「在这里加一个步骤」的请求：屏幕坐标用来摆菜单，画布坐标用来落节点。 */
 export interface AddRequest {
   client: Point
   flow: Point
-  /** 顺手从这个步骤连过来。 */
+  /** 顺手从这个节点连过来（步骤 = 接一步；文件 = 新步骤读它）。 */
   from?: string
 }
 
@@ -79,8 +87,9 @@ export interface CanvasProps {
   onRequestAdd(request: AddRequest): void
   onDropSource(source: StepSource, flow: Point): void
   onStarter(): void
-  /** 在卡片的产出浮窗里点了某个文件（或「添加」）：选中这个步骤并打开那一项的编辑框。 */
-  onOpenOutput(nodeId: string, index: number | 'new'): void
+  /** 正在悬停的文件卡 id：用到它的步骤标出角色，其余的淡下去。 */
+  focusFile: string | null
+  onFocusFile: FocusFile
 }
 
 type Tone = 'ok' | 'warn' | 'error'
@@ -89,33 +98,63 @@ interface StepData extends Record<string, unknown> {
   title: string
   kind: StepKind
   excerpt: string
-  output: NodeData['output']
   tone: Tone
   note: string
   noPromptText: string
-  noFileText: string
   addText: string
-  peekText: PeekText
+  fileText: string
+  /** 悬停某个文件时，这个步骤与它的关系；`dim` = 与它无关，淡下去。 */
+  role: FileRole | null
+  roleText: string
+  dim: boolean
   onAdd: (id: string, anchor: Element) => void
-  onOpenOutput: (id: string, index: number | 'new') => void
 }
 
-interface PeekText {
-  title: string
-  hint: string
-  noRule: string
-  add: string
+interface FileCardData extends Record<string, unknown> {
+  name: string
+  path: string
+  rule: string
+  noRuleText: string
+  tone: Tone
+  note: string
+  /** 正在被悬停（或它的上下游正在被看）。 */
+  focused: boolean
+  dim: boolean
+  readText: string
+  onFocusFile: FocusFile
 }
 
 interface LinkData extends Record<string, unknown> {
   when: string | undefined
   back: boolean
   text: string
+  /** 只在不是缺省时画交接标记：附了说明，或只管先后。 */
+  handoff: { note?: string; none: boolean } | null
+  /** 交接卡片的标题行：「上游 → 下游」。 */
+  route: string
+  t: T
   onPick: (id: string) => void
 }
 
-type StepNode = Node<StepData, 'wfNode'>
+interface FileLinkData extends Record<string, unknown> {
+  kind: 'write' | 'read'
+  update: boolean
+  dim: boolean
+  carry: boolean
+}
+
+type StepFlowNode = Node<StepData, 'wfNode'>
+type FileFlowNode = Node<FileCardData, 'wfFile'>
+type FlowNode = StepFlowNode | FileFlowNode
 type LinkEdge = Edge<LinkData, 'wfEdge'>
+type FileEdge = Edge<FileLinkData, 'wfFileLink'>
+type FlowEdge = LinkEdge | FileEdge
+
+const ROLE_TEXT: Record<FileRole, LocaleKey> = {
+  producer: 'role.producer',
+  updater: 'role.updater',
+  reader: 'role.reader',
+}
 
 const MIN_ZOOM = 0.2
 const MAX_ZOOM = 1.5
@@ -126,16 +165,23 @@ const AUTO_FIT = { minZoom: 0.55, maxZoom: 1 }
 // 步骤卡
 // ─────────────────────────────────────────────────────────────
 
-const StepCard = memo(function StepCard(props: NodeProps<StepNode>): React.JSX.Element {
-  const { data, id, selected, dragging } = props
+const StepCard = memo(function StepCard(props: NodeProps<StepFlowNode>): React.JSX.Element {
+  const { data, id, selected } = props
   return (
     <div
       className={cx(css.card, selected && css.cardSelected)}
       data-tone={data.tone}
+      data-dim={data.dim}
+      data-role={data.role ?? undefined}
       data-testid="wl-step"
       title={data.note === '' ? undefined : data.note}
     >
-      <Handle type="target" position={Position.Left} className={css.handle} />
+      {data.role !== null && (
+        <span className={css.roleTag} data-role={data.role} data-testid="wl-step-role">
+          {data.roleText}
+        </span>
+      )}
+      <Handle id="in" type="target" position={Position.Left} className={css.handle} />
       <div className={css.cardHead}>
         <span className={ui.kind} data-kind={data.kind}>
           <Icon name={kindIcon(data.kind)} size={15} />
@@ -152,28 +198,21 @@ const StepCard = memo(function StepCard(props: NodeProps<StepNode>): React.JSX.E
       ) : (
         <p className={css.cardBody}>{data.excerpt}</p>
       )}
-      {data.output === false && (
-        <span className={css.cardOutput}>
-          <Icon name="file" size={12} />
-          <span>{data.noFileText}</span>
-        </span>
-      )}
-      {data.output !== undefined && data.output !== false && (
-        <CardOutputs
-          id={id}
-          specs={outputSpecs(data.output)}
-          selected={selected}
-          dragging={dragging}
-          text={data.peekText}
-          onOpen={data.onOpenOutput}
-        />
-      )}
       <Handle
+        id="out"
         type="source"
         position={Position.Right}
         className={cx(css.handle, css.handleSource)}
         title={data.addText}
         onClick={(event) => data.onAdd(id, event.currentTarget)}
+      />
+      {/* 底边的点：拖到文件卡上 = 写它；拖到空白处 = 就地新建一个产出文件。 */}
+      <Handle
+        id="file"
+        type="source"
+        position={Position.Bottom}
+        className={cx(css.handle, css.handleFile)}
+        title={data.fileText}
       />
     </div>
   )
@@ -252,229 +291,208 @@ const LinkLine = memo(function LinkLine(props: EdgeProps<LinkEdge>): React.JSX.E
     ? detour(sourceX, sourceY, targetX, targetY)
     : getBezierPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition })
   const text = data?.text ?? ''
+  const showWhen = text !== '' || data?.back === true
+  const handoff = data?.handoff ?? null
   return (
     <>
       <BaseEdge id={id} path={path} interactionWidth={28} {...(markerEnd ? { markerEnd } : {})} />
-      {(text !== '' || data?.back === true) && (
+      {(showWhen || handoff !== null) && data !== undefined && (
         <EdgeLabelRenderer>
-          <button
-            type="button"
-            className={cx(css.linkLabel, 'nodrag', 'nopan')}
-            data-when={data?.when === 'pass' || data?.when === 'fail' ? data.when : 'other'}
-            data-selected={props.selected === true}
+          {/* 条件在上、交接在下，竖着叠在线的中点：两张卡之间的空隙放不下横排的两块。 */}
+          <div
+            className={cx(css.linkLabels, 'nodrag', 'nopan')}
             style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
-            onClick={() => data?.onPick(id)}
           >
-            {data?.back === true && <Icon name="loop" size={11} />}
-            {text !== '' && <span className={css.linkText}>{text}</span>}
-            {/* 长条件在线上只露一截，悬停时弹出全文。 */}
-            {text.length > LABEL_FULL_AT && (
-              <span className={css.linkTip} role="tooltip">
-                {text}
-              </span>
+            {showWhen && (
+              <button
+                type="button"
+                className={css.linkLabel}
+                data-when={data.when === 'pass' || data.when === 'fail' ? data.when : 'other'}
+                data-selected={props.selected === true}
+                onClick={() => data.onPick(id)}
+              >
+                {data.back && <Icon name="loop" size={11} />}
+                {text !== '' && <span className={css.linkText}>{text}</span>}
+                {/* 长条件在线上只露一截，悬停时弹出全文。 */}
+                {text.length > LABEL_FULL_AT && (
+                  <span className={css.linkTip} role="tooltip">
+                    {text}
+                  </span>
+                )}
+              </button>
             )}
-          </button>
+            {handoff !== null && (
+              <HandoffMark
+                edgeId={id}
+                handoff={handoff}
+                route={data.route}
+                t={data.t}
+                selected={props.selected === true}
+                onPick={data.onPick}
+              />
+            )}
+          </div>
         </EdgeLabelRenderer>
       )}
     </>
   )
 })
 
-/** 条件超过这么多字就在线上截断、悬停看全文（与 CSS 里标签的最大宽度大致对应）。 */
-const LABEL_FULL_AT = 12
-
-/** 悬停多久才弹出产出浮窗（扫过去不该一路弹）、离开多久才收起（留出移进浮窗的时间）。 */
-const PEEK_OPEN_MS = 260
-const PEEK_CLOSE_MS = 180
-/** 浮窗宽度（与 CSS 的 `.peek` 一致）与估算高度：决定往哪边弹才不被属性面板或画布底边挡住。 */
-const PEEK_W = 288
-const peekHeight = (count: number): number => 84 + Math.min(count, 4) * 58
+/** 交接卡片：悬停多久才弹出（扫过画布不该一路弹）、离开多久才收。 */
+const MARK_OPEN_MS = 220
+const MARK_CLOSE_MS = 200
+const MARK_CARD_W = 300
 
 /**
- * 卡片底部的产出：第一个文件 + "+N"。
- *
- * 悬停弹出浮窗，列出全部文件与各自的生成规则；点一下就钉住（点别处或取消选中才收起）。
- * 浮窗里点某个文件 = 选中这个步骤并打开那一项的编辑框；「添加」同理。
- * 浮窗走 `NodeToolbar`：它跟着卡片平移缩放，但字号不随缩放变小，也压在别的卡片和连线标签上面。
+ * 步骤之间的线上的交接标记——只在不是缺省时出现（缺省就是交执行结果，画出来只会满屏都是）：
+ * 附了交接说明是一个对话气泡（悬停看说明），只管先后是一个「只管先后」的灰标。点它选中这条线。
  */
-function CardOutputs(props: {
-  id: string
-  specs: readonly OutputSpec[]
+function HandoffMark(props: {
+  edgeId: string
+  handoff: { note?: string; none: boolean }
+  route: string
+  t: T
   selected: boolean
-  dragging: boolean
-  text: PeekText
-  onOpen: (id: string, index: number | 'new') => void
-}): React.JSX.Element | null {
-  const { id, specs, text } = props
-  const [peek, setPeek] = useState<'off' | 'hover' | 'pinned'>('off')
-  const [place, setPlace] = useState<{ side: Position; align: 'start' | 'end' }>({
-    side: Position.Bottom,
-    align: 'start',
+  onPick: (id: string) => void
+}): React.JSX.Element {
+  const { handoff, t } = props
+  const float = useFloat<HTMLButtonElement>({
+    openMs: MARK_OPEN_MS,
+    closeMs: MARK_CLOSE_MS,
+    width: MARK_CARD_W,
   })
-  const timer = useRef(0)
-  const chipsRef = useRef<HTMLButtonElement>(null)
-  const peekRef = useRef<HTMLDivElement>(null)
-
-  const cancel = (): void => window.clearTimeout(timer.current)
-  const later = (next: 'off' | 'hover', ms: number): void => {
-    cancel()
-    timer.current = window.setTimeout(() => {
-      if (next === 'hover') settle()
-      setPeek(next)
-    }, ms)
-  }
-
-  /**
-   * 弹出前看一眼周围：右边会被属性面板盖住就改成右对齐（往左展开），
-   * 下面放不下就弹到卡片上方。没被盖住的那块画布的右边界由画布根节点上的 `data-inset-right` 给出。
-   */
-  const settle = (): void => {
-    const chips = chipsRef.current
-    const card = chips?.closest('.react-flow__node')
-    const wrap = chips?.closest<HTMLElement>('[data-testid="wl-canvas"]')
-    if (card === null || card === undefined || wrap === null || wrap === undefined) return
-    const box = card.getBoundingClientRect()
-    const area = wrap.getBoundingClientRect()
-    const right = area.right - Number(wrap.dataset.insetRight ?? 0) - 8
-    const below = area.bottom - box.bottom - 12
-    setPlace({
-      align: box.left + PEEK_W > right && box.right - PEEK_W > area.left ? 'end' : 'start',
-      side:
-        below < peekHeight(specs.length) && box.top - area.top > below
-          ? Position.Top
-          : Position.Bottom,
-    })
-  }
-
-  useEffect(() => () => window.clearTimeout(timer.current), [])
-
-  // 拖卡片时收起；取消选中时把钉住的也收起。
-  useEffect(() => {
-    if (!props.dragging) return
-    window.clearTimeout(timer.current)
-    setPeek('off')
-  }, [props.dragging])
-  useEffect(() => {
-    if (!props.selected) setPeek((current) => (current === 'pinned' ? 'off' : current))
-  }, [props.selected])
-
-  // 钉住时：在卡片与浮窗之外按下指针就收起（捕获阶段：React Flow 会拦掉画布上的冒泡）。
-  useEffect(() => {
-    if (peek !== 'pinned') return
-    const onDown = (event: PointerEvent): void => {
-      const target = event.target
-      if (!(target instanceof globalThis.Node)) return
-      if (chipsRef.current?.contains(target) || peekRef.current?.contains(target)) return
-      setPeek('off')
-    }
-    document.addEventListener('pointerdown', onDown, true)
-    return () => document.removeEventListener('pointerdown', onDown, true)
-  }, [peek])
-
-  const [first, ...rest] = specs
-  if (first === undefined) return null
-  const open = (index: number | 'new'): void => {
-    cancel()
-    setPeek('off')
-    props.onOpen(id, index)
-  }
-
   return (
     <>
       <button
-        ref={chipsRef}
+        ref={float.anchorRef}
         type="button"
-        className={css.cardOutputs}
-        data-testid="wl-card-outputs"
-        data-open={peek !== 'off'}
-        aria-expanded={peek !== 'off'}
-        onPointerEnter={() => {
-          if (peek === 'off') later('hover', PEEK_OPEN_MS)
-          else cancel()
-        }}
-        onPointerLeave={() => {
-          if (peek === 'hover') later('off', PEEK_CLOSE_MS)
-          else if (peek === 'off') cancel()
-        }}
-        // 不拦冒泡：点产出也会选中这张卡，右边的面板一起出来。
+        className={hand.mark}
+        data-none={handoff.none}
+        data-selected={props.selected}
+        data-open={float.state !== 'off'}
+        data-testid="wl-handoff-mark"
+        data-edge={props.edgeId}
+        aria-label={`${t('hand.title')} · ${props.route}`}
+        {...(handoff.none ? {} : float.hoverProps)}
         onClick={() => {
-          cancel()
-          if (peek === 'off') settle()
-          setPeek((current) => (current === 'pinned' ? 'off' : 'pinned'))
+          float.setState('off')
+          props.onPick(props.edgeId)
         }}
+        onKeyDown={float.onKeyDown}
       >
-        <span className={css.cardOutput}>
-          <Icon name="file" size={12} />
-          <span>{first.path}</span>
-        </span>
-        {rest.length > 0 && <span className={css.cardMore}>+{rest.length}</span>}
+        {handoff.none ? (
+          <span>{t('hand.flowOnly')}</span>
+        ) : (
+          <>
+            <Icon name="result" size={12} />
+            <span className={hand.markDot} />
+          </>
+        )}
       </button>
-      <NodeToolbar
-        isVisible={peek !== 'off'}
-        position={place.side}
-        align={place.align}
-        offset={6}
-        className="nodrag nopan nowheel"
-        style={{ zIndex: 30 }}
-      >
-        <div
-          ref={peekRef}
-          className={css.peek}
-          data-side={place.side}
-          data-align={place.align}
-          role="group"
-          aria-label={text.title}
-          data-testid="wl-output-peek"
-          onPointerEnter={cancel}
-          onPointerLeave={() => {
-            if (peek === 'hover') later('off', PEEK_CLOSE_MS)
-          }}
-        >
-          <div className={css.peekHead}>
-            <span>{text.title}</span>
-            <span className={css.peekCount}>{specs.length}</span>
-            <span className={css.peekHint}>{text.hint}</span>
-          </div>
-          <div className={css.peekList}>
-            {specs.map((spec, index) => {
-              const rule = spec.rule?.trim() ?? ''
-              return (
-                <button
-                  key={spec.path}
-                  type="button"
-                  className={css.peekItem}
-                  data-testid="wl-peek-item"
-                  onClick={() => open(index)}
-                >
-                  <span className={css.peekIcon}>
-                    <Icon name="file" size={13} />
-                  </span>
-                  <span className={css.peekPath}>{spec.path}</span>
-                  <span className={cx(css.peekRule, rule === '' && css.peekRuleEmpty)}>
-                    {rule === '' ? text.noRule : rule}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
-          <button
-            type="button"
-            className={css.peekAdd}
-            data-testid="wl-peek-add"
-            onClick={() => open('new')}
-          >
-            <Icon name="plus" size={13} />
-            {text.add}
-          </button>
-        </div>
-      </NodeToolbar>
+      {float.render({
+        className: hand.card,
+        testId: 'wl-handoff-card',
+        label: t('hand.title'),
+        children: (
+          <>
+            <div className={hand.cardHead}>
+              <span className={hand.cardIcon}>
+                <Icon name="result" size={14} />
+              </span>
+              <span className={hand.cardTitle}>{t('hand.note')}</span>
+              <span className={hand.cardRoute}>{props.route}</span>
+            </div>
+            <div className={hand.detailNote}>{handoff.note}</div>
+            <p className={hand.cardFoot}>{t('hand.editHint')}</p>
+          </>
+        ),
+      })}
     </>
   )
 }
 
+/** 条件超过这么多字就在线上截断、悬停看全文（与 CSS 里标签的最大宽度大致对应）。 */
+const LABEL_FULL_AT = 12
+
+// ─────────────────────────────────────────────────────────────
+// 文件卡与读写线
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * 文件卡：一份独立的文件。左边的点接「步骤 → 文件」（写），右边的点拖出去连到步骤（读）。
+ * 悬停时画布高亮所有写它、读它的步骤。
+ */
+const FileCard = memo(function FileCard(props: NodeProps<FileFlowNode>): React.JSX.Element {
+  const { data, id, selected } = props
+  return (
+    <div
+      className={cx(css.fileCard, selected && css.cardSelected)}
+      data-focused={data.focused}
+      data-dim={data.dim}
+      data-tone={data.tone}
+      data-testid="wl-file"
+      title={data.note === '' ? data.path : `${data.path}\n${data.note}`}
+      onPointerEnter={() => data.onFocusFile(id)}
+      onPointerLeave={() => data.onFocusFile(null)}
+    >
+      {/* 上边接写入（步骤从底边拖下来），右边拖出去是读取。 */}
+      <Handle id="in" type="target" position={Position.Top} className={css.handle} />
+      <span className={css.fileGlyph}>
+        <Icon name="file" size={15} />
+      </span>
+      <span className={css.fileText}>
+        <span className={css.fileName}>{data.name}</span>
+        <span className={cx(css.fileRule, data.rule === '' && css.fileRuleEmpty)}>
+          {data.rule === '' ? data.path : data.rule}
+        </span>
+      </span>
+      {data.tone !== 'ok' && (
+        <span className={css.cardFlag} data-tone={data.tone}>
+          <Icon name="alert" size={12} />
+        </span>
+      )}
+      <Handle
+        id="out"
+        type="source"
+        position={Position.Right}
+        className={cx(css.handle, css.handleRead)}
+        title={data.readText}
+      />
+    </div>
+  )
+})
+
+/**
+ * 读写线：写 = 从步骤底边落到文件上沿的虚线；在原文件上更新 = 琥珀色、两头都有箭头（读了再写回去）；
+ * 读 = 从文件右边连到步骤的点线。读线真往回走很远时和步骤间的线一样绕开卡片。
+ */
+const FileLine = memo(function FileLine(props: EdgeProps<FileEdge>): React.JSX.Element {
+  const { id, markerEnd, markerStart, sourceX, sourceY, targetX, targetY } = props
+  const backwards = props.data?.kind === 'read' && targetX < sourceX - 40
+  const [path] = backwards
+    ? detour(sourceX, sourceY, targetX, targetY)
+    : getBezierPath({
+        sourceX,
+        sourceY,
+        targetX,
+        targetY,
+        sourcePosition: props.sourcePosition,
+        targetPosition: props.targetPosition,
+      })
+  return (
+    <BaseEdge
+      id={id}
+      path={path}
+      interactionWidth={20}
+      {...(markerEnd ? { markerEnd } : {})}
+      {...(markerStart ? { markerStart } : {})}
+    />
+  )
+})
+
 /** `nodeTypes` / `edgeTypes` 必须是稳定引用，否则 React Flow 每次渲染都重建全部节点。 */
-const NODE_TYPES = { wfNode: StepCard }
-const EDGE_TYPES = { wfEdge: LinkLine }
+const NODE_TYPES = { wfNode: StepCard, wfFile: FileCard }
+const EDGE_TYPES = { wfEdge: LinkLine, wfFileLink: FileLine }
 
 // ─────────────────────────────────────────────────────────────
 // 画布
@@ -489,13 +507,23 @@ function excerptOf(prompt: string | undefined): string {
 interface CacheEntry {
   node: WorkflowNode
   signature: string
-  flow: StepNode
+  flow: FlowNode
 }
 
 export function Canvas(props: CanvasProps): React.JSX.Element {
-  const { t, doc, analysis, selection, problems, onEdit, onSelect, onRequestAdd, onDropSource } =
-    props
-  const flow = useReactFlow<StepNode, LinkEdge>()
+  const {
+    t,
+    doc,
+    analysis,
+    selection,
+    problems,
+    focusFile,
+    onEdit,
+    onSelect,
+    onRequestAdd,
+    onDropSource,
+  } = props
+  const flow = useReactFlow<FlowNode, FlowEdge>()
   const wrapRef = useRef<HTMLDivElement>(null)
   const ghostRef = useRef<HTMLDivElement>(null)
   const [dropping, setDropping] = useState(false)
@@ -538,12 +566,16 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
   )
 
   // 节点对象是缓存的（见上）：回调走 ref，引用永远不变，缓存里的旧节点拿到的也是最新的处理函数。
-  const openOutputRef = useRef(props.onOpenOutput)
-  openOutputRef.current = props.onOpenOutput
-  const onOpenOutput = useCallback(
-    (id: string, index: number | 'new'): void => openOutputRef.current(id, index),
-    [],
+  const focusFileRef = useRef(props.onFocusFile)
+  focusFileRef.current = props.onFocusFile
+  const onFocusFile = useCallback((id: string | null): void => focusFileRef.current(id), [])
+
+  /** 每份文件谁写、谁读（悬停文件卡时据此标角色）。 */
+  const files = useMemo(
+    () => fileGraph({ nodes: doc.nodes, edges: doc.edges, viewport: doc.viewport }),
+    [doc.nodes, doc.edges],
   )
+  const focused = focusFile === null ? undefined : files.get(focusFile)
 
   const onPick = useCallback(
     (id: string): void => {
@@ -556,32 +588,83 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
   const texts = useMemo(
     () => ({
       noPromptText: t('node.noPrompt'),
-      noFileText: t('node.noFile'),
       addText: t('node.add'),
+      fileText: t('node.fileHandle'),
+      readText: t('file.connectHint'),
+      noRuleText: t('file.noRule'),
       pass: t('edge.pass'),
       fail: t('edge.fail'),
-      peek: {
-        title: t('out.peekTitle'),
-        hint: t('out.peekHint'),
-        noRule: t('out.noRule'),
-        add: t('ins.output.add'),
-      },
     }),
     [t],
   )
 
-  const nodes = useMemo<StepNode[]>(() => {
+  const nodes = useMemo<FlowNode[]>(() => {
     const next = new Map<string, CacheEntry>()
     const selectedId = selection?.kind === 'node' ? idKey(selection.id) : null
-    const list = doc.nodes.map((node) => {
-      const prompt = node.data.prompt
-      const empty = prompt === undefined || prompt.trim() === ''
+    const list = doc.nodes.map((node): FlowNode => {
       const reported = tones.get(idKey(node.id))
-      const tone: Tone = empty ? 'error' : (reported?.tone ?? 'ok')
-      const note = empty ? texts.noPromptText : (reported?.note ?? '')
       const selected = idKey(node.id) === selectedId
       const moving = dragging[node.id]
-      const signature = `${selected}|${tone}|${note}|${texts.addText}`
+      let signature: string
+      let build: () => FlowNode
+      if (isFile(node)) {
+        const isFocus = focusFile !== null && idKey(focusFile) === idKey(node.id)
+        const tone: Tone = reported?.tone ?? 'ok'
+        const note = reported?.note ?? ''
+        const dim = focusFile !== null && !isFocus
+        signature = `${selected}|${tone}|${note}|${isFocus}|${dim}|${texts.readText}`
+        build = () => ({
+          id: node.id,
+          type: 'wfFile',
+          position: moving ?? node.position,
+          selected,
+          data: {
+            name: baseName(node.data.path),
+            path: node.data.path,
+            rule: (node.data.rule ?? '').replace(/\s+/gu, ' ').trim(),
+            noRuleText: texts.noRuleText,
+            tone,
+            note,
+            focused: isFocus,
+            dim,
+            readText: texts.readText,
+            onFocusFile,
+          },
+        })
+      } else {
+        const prompt = node.data.prompt
+        const empty = prompt === undefined || prompt.trim() === ''
+        const tone: Tone = empty ? 'error' : (reported?.tone ?? 'ok')
+        const note = empty ? texts.noPromptText : (reported?.note ?? '')
+        const role = focused === undefined ? null : roleOf(focused, node.id)
+        const dim = focusFile !== null && role === null
+        signature = `${selected}|${tone}|${note}|${texts.addText}|${texts.fileText}|${role}|${dim}`
+        build = () => ({
+          id: node.id,
+          type: 'wfNode',
+          position: moving ?? node.position,
+          selected,
+          data: {
+            title:
+              node.data.label === undefined || node.data.label === '' ? node.id : node.data.label,
+            kind: kindOf(node.id),
+            // 写了描述就用描述（那是给人看的一句话），没写才摘提示词。
+            excerpt:
+              node.data.description !== undefined && node.data.description.trim() !== ''
+                ? node.data.description
+                : excerptOf(prompt),
+            tone,
+            note,
+            noPromptText: texts.noPromptText,
+            addText: texts.addText,
+            fileText: texts.fileText,
+            role,
+            roleText: role === null ? '' : t(ROLE_TEXT[role]),
+            dim,
+            onAdd,
+          },
+        })
+      }
       const cached = cache.current.get(node.id)
       if (
         moving === undefined &&
@@ -593,46 +676,65 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
         return cached.flow
       }
       const size = measured.current.get(node.id)
-      const built: StepNode = {
-        id: node.id,
-        type: 'wfNode',
-        position: moving ?? node.position,
-        selected,
-        ...(size === undefined ? {} : { measured: size }),
-        data: {
-          title:
-            node.data.label === undefined || node.data.label === '' ? node.id : node.data.label,
-          kind: kindOf(node.id),
-          // 写了描述就用描述（那是给人看的一句话），没写才摘提示词。
-          excerpt:
-            node.data.description !== undefined && node.data.description.trim() !== ''
-              ? node.data.description
-              : excerptOf(prompt),
-          output: node.data.output,
-          tone,
-          note,
-          noPromptText: texts.noPromptText,
-          noFileText: texts.noFileText,
-          addText: texts.addText,
-          peekText: texts.peek,
-          onAdd,
-          onOpenOutput,
-        },
-      }
+      const built = build()
+      if (size !== undefined) built.measured = size
       // 拖动中的对象每帧都不同，不进缓存；松手后按文档里的新坐标重建一次再缓存。
       if (moving === undefined) next.set(node.id, { node, signature, flow: built })
       return built
     })
     cache.current = next
     return list
-  }, [doc.nodes, selection, tones, dragging, texts, onAdd, onOpenOutput])
+  }, [doc.nodes, selection, tones, dragging, texts, onAdd, onFocusFile, focused, focusFile, t])
 
-  const edges = useMemo<LinkEdge[]>(() => {
+  const edges = useMemo<FlowEdge[]>(() => {
     const selectedId = selection?.kind === 'edge' ? selection.id : null
-    return doc.edges.map((edge) => {
+    const index = nodeIndex(doc)
+    const nameOf = (id: string): string => {
+      const node = index.get(idKey(id))
+      if (node === undefined || isFile(node)) return id
+      return node.data.label === undefined || node.data.label === '' ? id : node.data.label
+    }
+    const focusKey = focusFile === null ? null : idKey(focusFile)
+    return doc.edges.map((edge): FlowEdge => {
+      const selected = edge.id === selectedId
+      const kind = edgeKind(index, edge)
+      if (kind === 'write' || kind === 'read') {
+        const update = kind === 'write' && edge.data?.update === true
+        // 悬停某个文件时：连着它的读写线描深，别的淡下去。
+        const carry =
+          focusKey !== null && (idKey(edge.source) === focusKey || idKey(edge.target) === focusKey)
+        const color = selected
+          ? 'var(--wl-accent)'
+          : update
+            ? 'var(--wl-warn)'
+            : carry
+              ? 'var(--wl-accent)'
+              : 'var(--wl-edge)'
+        const arrow = { type: MarkerType.ArrowClosed, width: 14, height: 14, color }
+        return {
+          id: edge.id,
+          type: 'wfFileLink',
+          source: edge.source,
+          target: edge.target,
+          // 写：步骤底边 → 文件上沿；读：文件右边 → 步骤左边。
+          sourceHandle: kind === 'write' ? 'file' : 'out',
+          targetHandle: 'in',
+          selected,
+          className: cx(
+            css.fileLink,
+            kind === 'read' && css.fileLinkRead,
+            update && css.fileLinkUpdate,
+            carry && css.linkCarry,
+            focusKey !== null && !carry && css.linkDim,
+          ),
+          markerEnd: arrow,
+          ...(update ? { markerStart: { ...arrow, orient: 'auto-start-reverse' } } : {}),
+          data: { kind, update, dim: focusKey !== null && !carry, carry },
+        }
+      }
       const when = whenOf(edge)
       const back = analysis.backEdges.has(edge.id)
-      const selected = edge.id === selectedId
+      const handoff = resolveHandoff(edge.data?.handoff)
       const color = selected
         ? 'var(--wl-accent)'
         : when === 'fail'
@@ -645,12 +747,16 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
         type: 'wfEdge',
         source: edge.source,
         target: edge.target,
+        sourceHandle: 'out',
+        targetHandle: 'in',
         selected,
         className: cx(
           css.link,
           when === 'fail' && css.linkFail,
           when === 'pass' && css.linkPass,
           back && css.linkBack,
+          !handoff.result && css.linkOrderOnly,
+          focusKey !== null && css.linkDim,
         ),
         // 箭头颜色传 CSS 变量：React Flow 把它写进箭头的内联样式，跟着主题与语气走。
         markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color },
@@ -658,14 +764,23 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
           when,
           back,
           text: when === 'pass' ? texts.pass : when === 'fail' ? texts.fail : (when ?? ''),
+          handoff:
+            !handoff.result || handoff.note !== undefined
+              ? {
+                  none: !handoff.result,
+                  ...(handoff.note === undefined ? {} : { note: handoff.note }),
+                }
+              : null,
+          route: `${nameOf(edge.source)} → ${nameOf(edge.target)}`,
+          t,
           onPick,
         },
       }
     })
-  }, [doc.edges, analysis, selection, texts, onPick])
+  }, [doc, analysis, selection, texts, onPick, focusFile, t])
 
   const onNodesChange = useCallback(
-    (changes: NodeChange<StepNode>[]): void => {
+    (changes: NodeChange<FlowNode>[]): void => {
       let moved: Record<string, Point> | null = null
       const settled: Record<string, Point> = {}
       let finished = false
@@ -789,7 +904,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
         onRequestAdd({ client, flow: { x: at.x - NODE_W / 2, y: at.y - NODE_H / 2 } })
       }}
     >
-      <ReactFlow<StepNode, LinkEdge>
+      <ReactFlow<FlowNode, FlowEdge>
         nodes={nodes}
         edges={edges}
         nodeTypes={NODE_TYPES}
@@ -808,12 +923,19 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
         connectionRadius={28}
         proOptions={{ hideAttribution: true }}
         onNodesChange={onNodesChange}
-        isValidConnection={(connection) => connection.source !== connection.target}
+        // 不连自己；文件不能直接连文件（两头都是文件卡的线没有意义）。
+        isValidConnection={(connection) => {
+          if (connection.source === connection.target) return false
+          const index = nodeIndex(docRef.current)
+          const source = index.get(idKey(connection.source))
+          const target = index.get(idKey(connection.target))
+          return !(source !== undefined && target !== undefined && isFile(source) && isFile(target))
+        }}
         onConnect={(connection) => {
           onEdit({ type: 'connect', source: connection.source, target: connection.target })
         }}
         onConnectEnd={(event, state) => {
-          // 线拖到空白处松手：就地加一个步骤并连上。
+          // 线拖到空白处松手：就地加一个步骤并连上；从步骤底边拖出来的是新建一个产出文件。
           if (state.isValid === true || state.fromNode === null) return
           if (state.fromHandle?.type !== 'source') return
           const point = 'changedTouches' in event ? event.changedTouches[0] : event
@@ -822,6 +944,16 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
           if (!(target instanceof Element) || !target.classList.contains('react-flow__pane')) return
           const client = { x: point.clientX, y: point.clientY }
           const at = flow.screenToFlowPosition(client)
+          if (state.fromHandle.id === 'file') {
+            onEdit({
+              type: 'addFile',
+              path: freeFilePath(docRef.current, `${state.fromNode.id}.md`),
+              position: { x: at.x - FILE_W / 2, y: at.y },
+              writer: state.fromNode.id,
+              select: true,
+            })
+            return
+          }
           onRequestAdd({ client, flow: { x: at.x, y: at.y - NODE_H / 2 }, from: state.fromNode.id })
         }}
         onNodeClick={(_event, node) => onSelect({ kind: 'node', id: node.id })}

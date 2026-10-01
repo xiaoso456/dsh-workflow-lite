@@ -12,17 +12,26 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
+import { edgeKind, flowEdges, nodeIndex, outputsOf } from '../../shared/files.ts'
 import type { GraphAnalysis } from '../../shared/graph.ts'
 import { MAX_TEXT_CODEPOINTS } from '../../shared/limits.ts'
-import { idKey } from '../../shared/model.ts'
+import { canonicalOutput, idKey, isFile } from '../../shared/model.ts'
 import { checkText, checkWhen, isVerdictWhen } from '../../shared/naming.ts'
-import type { NodeData, WorkflowDocument, WorkflowEdge, WorkflowNode } from '../../shared/types.ts'
+import type {
+  NodeData,
+  StepNode,
+  WorkflowDocument,
+  WorkflowEdge,
+  WorkflowNode,
+} from '../../shared/types.ts'
 import type { T } from '../i18n.ts'
 import { type Edit, findNode, type Selection, whenOf } from '../model/editor.ts'
 import { kindOf } from '../model/library.ts'
+import { FileEdgeBody, FilePanel, StepFilesField, stepName } from './Files.tsx'
+import { type FocusFile, HandoffChip, HandoffField } from './Handoff.tsx'
+import hand from './handoff.module.css'
 import { Icon, kindIcon } from './Icon.tsx'
 import css from './inspector.module.css'
-import { OutputField, type OutputRequest } from './Outputs.tsx'
 import { copyText, cx, Segmented } from './primitives.tsx'
 import ui from './ui.module.css'
 
@@ -39,22 +48,37 @@ export interface InspectorProps {
   onDuplicate(id: string): void
   onRemoveNode(id: string): void
   onSaveTemplate(name: string, data: NodeData): Promise<boolean>
-  /** 画布卡片的产出浮窗里点了某个文件：打开它的编辑框。 */
-  outputRequest: (OutputRequest & { node: string }) | null
-  onOutputRequestDone(): void
+  /** 悬停到一个文件：画布高亮用到它的步骤。 */
+  onFocusFile: FocusFile
 }
 
 function titleOf(node: WorkflowNode | undefined, fallback: string): string {
-  if (node === undefined) return fallback
-  return node.data.label === undefined || node.data.label === '' ? node.id : node.data.label
+  if (node !== undefined && isFile(node)) return node.data.path
+  return stepName(node, fallback)
 }
 
 export function Inspector(props: InspectorProps): React.JSX.Element | null {
   const { doc, selection } = props
   if (selection.kind === 'node') {
     const node = findNode(doc, selection.id)
-    // 换一个步骤就换一个面板实例：草稿、"存为模板"表单这些局部状态不该串到别的步骤上。
-    return node === undefined ? null : <NodePanel key={idKey(node.id)} {...props} node={node} />
+    if (node === undefined) return null
+    // 换一个节点就换一个面板实例：草稿、"存为模板"表单这些局部状态不该串到别的节点上。
+    if (isFile(node)) {
+      return (
+        <FilePanel
+          key={idKey(node.id)}
+          t={props.t}
+          doc={doc}
+          node={node}
+          onEdit={props.onEdit}
+          onSelect={props.onSelect}
+          onSeal={props.onSeal}
+          onFocusFile={props.onFocusFile}
+          onRemove={props.onRemoveNode}
+        />
+      )
+    }
+    return <NodePanel key={idKey(node.id)} {...props} node={node} />
   }
   const edge = doc.edges.find((candidate) => candidate.id === selection.id)
   // 连线按两端认实例而不按 id：改判据会换 id，按 id 认的话每敲一个字面板都会重建、丢焦点。
@@ -67,7 +91,7 @@ export function Inspector(props: InspectorProps): React.JSX.Element | null {
 // 步骤
 // ─────────────────────────────────────────────────────────────
 
-function NodePanel(props: InspectorProps & { node: WorkflowNode }): React.JSX.Element {
+function NodePanel(props: InspectorProps & { node: StepNode }): React.JSX.Element {
   const { t, node, doc, analysis, onEdit, onSelect } = props
   const merge = (field: string): string => `${idKey(node.id)}:${field}`
   const promptRef = useRef<HTMLTextAreaElement>(null)
@@ -85,8 +109,10 @@ function NodePanel(props: InspectorProps & { node: WorkflowNode }): React.JSX.El
 
   const prompt = node.data.prompt ?? ''
   const key = idKey(node.id)
-  const incoming = doc.edges.filter((edge) => idKey(edge.target) === key)
-  const outgoing = doc.edges.filter((edge) => idKey(edge.source) === key)
+  // 连接清单只列步骤之间的线；连着文件的线在上面的「文件」里。
+  const flow = flowEdges(doc)
+  const incoming = flow.filter((edge) => idKey(edge.target) === key)
+  const outgoing = flow.filter((edge) => idKey(edge.source) === key)
 
   return (
     <aside
@@ -180,52 +206,58 @@ function NodePanel(props: InspectorProps & { node: WorkflowNode }): React.JSX.El
           <p className={css.help}>{t('ins.promptHint')}</p>
         </section>
 
-        <OutputField
+        <StepFilesField
           t={t}
-          value={node.data.output}
-          suggest={`${node.id}.md`}
-          owner={titleOf(node, node.id)}
-          root={doc.settings?.outputRoot}
-          onChange={(output) => onEdit({ type: 'patchNode', id: node.id, patch: { output } })}
-          request={
-            props.outputRequest !== null && idKey(props.outputRequest.node) === key
-              ? props.outputRequest
-              : null
-          }
-          onRequestDone={props.onOutputRequestDone}
+          doc={doc}
+          step={node}
+          onEdit={onEdit}
+          onSelect={onSelect}
+          onFocusFile={props.onFocusFile}
         />
 
-        <section className={css.field}>
+        <section className={css.field} data-testid="wl-links">
           <div className={css.label}>
             <span>{t('ins.links')}</span>
           </div>
           {incoming.length === 0 && outgoing.length === 0 ? (
             <p className={css.help}>{t('ins.noLinks')}</p>
           ) : (
-            <div className={css.links}>
-              {incoming.map((edge) => (
-                <LinkRow
-                  key={edge.id}
-                  t={t}
-                  edge={edge}
-                  direction="in"
-                  other={titleOf(findNode(doc, edge.source), edge.source)}
-                  back={analysis.backEdges.has(edge.id)}
-                  onPick={() => onSelect({ kind: 'edge', id: edge.id })}
-                />
-              ))}
-              {outgoing.map((edge) => (
-                <LinkRow
-                  key={edge.id}
-                  t={t}
-                  edge={edge}
-                  direction="out"
-                  other={titleOf(findNode(doc, edge.target), edge.target)}
-                  back={analysis.backEdges.has(edge.id)}
-                  onPick={() => onSelect({ kind: 'edge', id: edge.id })}
-                />
-              ))}
-            </div>
+            <>
+              {incoming.length > 0 && (
+                <div className={css.links}>
+                  <p className={css.linkGroup}>{t('ins.from')}</p>
+                  {incoming.map((edge) => (
+                    <LinkRow
+                      key={edge.id}
+                      t={t}
+                      edge={edge}
+                      direction="in"
+                      other={titleOf(findNode(doc, edge.source), edge.source)}
+                      back={analysis.backEdges.has(edge.id)}
+                      handoff={<HandoffChip t={t} edge={edge} />}
+                      onPick={() => onSelect({ kind: 'edge', id: edge.id })}
+                    />
+                  ))}
+                </div>
+              )}
+              {outgoing.length > 0 && (
+                <div className={css.links}>
+                  <p className={css.linkGroup}>{t('ins.to')}</p>
+                  {outgoing.map((edge) => (
+                    <LinkRow
+                      key={edge.id}
+                      t={t}
+                      edge={edge}
+                      direction="out"
+                      other={titleOf(findNode(doc, edge.target), edge.target)}
+                      back={analysis.backEdges.has(edge.id)}
+                      handoff={<HandoffChip t={t} edge={edge} />}
+                      onPick={() => onSelect({ kind: 'edge', id: edge.id })}
+                    />
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </section>
       </div>
@@ -236,7 +268,13 @@ function NodePanel(props: InspectorProps & { node: WorkflowNode }): React.JSX.El
             className={cx(css.templateForm, ui.rise)}
             onSubmit={(event) => {
               event.preventDefault()
-              void props.onSaveTemplate(templateName, node.data).then((ok) => {
+              // 模板 = 步骤的 `data` + 它写的文件（作为产出清单，放回画布时再展开成文件卡）。
+              const outputs = outputsOf(doc, node.id)
+              const data =
+                outputs.length === 0
+                  ? node.data
+                  : { ...node.data, output: canonicalOutput(outputs) }
+              void props.onSaveTemplate(templateName, data).then((ok) => {
                 if (ok) setTemplating(false)
               })
             }}
@@ -336,26 +374,52 @@ export function DescriptionField(props: {
   )
 }
 
+/**
+ * 连接清单的一行：对面的步骤、条件，下面一行是这条线交接了什么（悬停文件 = 画布高亮）。
+ * 整行点下去选中这条线。
+ */
+/** 连线两端的小图标：步骤用种类图标，文件用文件图标。 */
+function EndIcon(props: { node: WorkflowNode | undefined; id: string }): React.JSX.Element {
+  if (props.node !== undefined && isFile(props.node)) {
+    return (
+      <span className={hand.fileIcon}>
+        <Icon name="file" size={13} />
+      </span>
+    )
+  }
+  return (
+    <span className={ui.kind} data-kind={kindOf(props.id)}>
+      <Icon name={kindIcon(kindOf(props.id))} size={14} />
+    </span>
+  )
+}
+
 function LinkRow(props: {
   t: T
   edge: WorkflowEdge
   direction: 'in' | 'out'
   other: string
   back: boolean
+  handoff: React.ReactNode
   onPick: () => void
 }): React.JSX.Element {
   const { t, edge } = props
   const when = whenOf(edge)
   return (
-    <button type="button" className={css.link} onClick={props.onPick}>
-      <span className={css.linkDir}>{props.direction === 'in' ? t('ins.from') : t('ins.to')}</span>
-      <span className={css.linkName}>{props.other}</span>
-      {props.back && <Icon name="loop" size={12} />}
-      {when !== undefined && (
-        <span className={css.whenChip} data-when={when} title={when}>
-          {when === 'pass' ? t('edge.pass') : when === 'fail' ? t('edge.fail') : when}
+    <button type="button" className={css.link} data-testid="wl-link-row" onClick={props.onPick}>
+      <span className={css.linkTop}>
+        <span className={css.linkDir} data-dir={props.direction}>
+          <Icon name="arrowRight" size={12} />
         </span>
-      )}
+        <span className={css.linkName}>{props.other}</span>
+        {props.back && <Icon name="loop" size={12} />}
+        {when !== undefined && (
+          <span className={css.whenChip} data-when={when} title={when}>
+            {when === 'pass' ? t('edge.pass') : when === 'fail' ? t('edge.fail') : when}
+          </span>
+        )}
+      </span>
+      <span className={css.linkHandoff}>{props.handoff}</span>
     </button>
   )
 }
@@ -379,6 +443,7 @@ function EdgePanel(props: InspectorProps & { edge: WorkflowEdge }): React.JSX.El
   const source = findNode(doc, edge.source)
   const target = findNode(doc, edge.target)
   const back = analysis.backEdges.has(edge.id)
+  const kind = edgeKind(nodeIndex(doc), edge)
   /** 最近一次自己交出去的条件：外面的值等于它就不回灌（回灌会吃掉正在打的尾部空格）。 */
   const emitted = useRef(when)
   const merge = `${idKey(edge.source)}->${idKey(edge.target)}:when`
@@ -416,9 +481,11 @@ function EdgePanel(props: InspectorProps & { edge: WorkflowEdge }): React.JSX.El
     >
       <header className={css.head}>
         <span className={css.edgeIcon}>
-          <Icon name={back ? 'loop' : 'arrowRight'} size={16} />
+          <Icon name={kind === 'flow' ? (back ? 'loop' : 'arrowRight') : 'file'} size={16} />
         </span>
-        <span className={css.headTitle}>{t('edge.title')}</span>
+        <span className={css.headTitle}>
+          {kind === 'write' ? t('edge.write') : kind === 'read' ? t('edge.read') : t('edge.title')}
+        </span>
         <button
           type="button"
           className={cx(ui.btn, ui.icon, ui.small)}
@@ -436,9 +503,7 @@ function EdgePanel(props: InspectorProps & { edge: WorkflowEdge }): React.JSX.El
             className={css.end}
             onClick={() => onSelect({ kind: 'node', id: edge.source })}
           >
-            <span className={ui.kind} data-kind={kindOf(edge.source)}>
-              <Icon name={kindIcon(kindOf(edge.source))} size={14} />
-            </span>
+            <EndIcon node={source} id={edge.source} />
             <span className={css.endName}>{titleOf(source, edge.source)}</span>
           </button>
           <span className={css.endArrow}>
@@ -449,67 +514,79 @@ function EdgePanel(props: InspectorProps & { edge: WorkflowEdge }): React.JSX.El
             className={css.end}
             onClick={() => onSelect({ kind: 'node', id: edge.target })}
           >
-            <span className={ui.kind} data-kind={kindOf(edge.target)}>
-              <Icon name={kindIcon(kindOf(edge.target))} size={14} />
-            </span>
+            <EndIcon node={target} id={edge.target} />
             <span className={css.endName}>{titleOf(target, edge.target)}</span>
           </button>
         </div>
 
-        <section className={css.field}>
-          <div className={css.label}>
-            <span>{t('edge.when')}</span>
-          </div>
-          <Segmented<WhenMode>
-            label={t('edge.when')}
-            value={mode}
-            onChange={choose}
-            options={[
-              { value: 'always', label: t('edge.always') },
-              { value: 'pass', label: t('edge.pass') },
-              { value: 'fail', label: t('edge.fail') },
-              { value: 'custom', label: t('edge.custom') },
-            ]}
-          />
-          {mode === 'custom' && (
-            <>
-              <textarea
-                className={cx(ui.textarea, css.condition, ui.rise)}
-                value={draft}
-                rows={3}
-                placeholder={t('edge.customPlaceholder')}
-                aria-label={t('edge.custom')}
-                aria-invalid={customError !== null}
-                data-testid="wl-edge-custom"
-                onChange={(event) => {
-                  // 条件要能写进计划里的一句话：换行就地换成空格。
-                  const value = event.currentTarget.value.replace(/[\r\n]+/gu, ' ')
-                  setDraft(value)
-                  const trimmed = value.trim()
-                  if (trimmed !== '' && checkWhen(trimmed) === null) setWhen(trimmed, true)
-                }}
-                onBlur={props.onSeal}
+        {kind === 'write' || kind === 'read' ? (
+          <FileEdgeBody t={t} edge={edge} kind={kind} onEdit={onEdit} />
+        ) : (
+          <>
+            <section className={css.field}>
+              <div className={css.label}>
+                <span>{t('edge.when')}</span>
+              </div>
+              <Segmented<WhenMode>
+                label={t('edge.when')}
+                value={mode}
+                onChange={choose}
+                options={[
+                  { value: 'always', label: t('edge.always') },
+                  { value: 'pass', label: t('edge.pass') },
+                  { value: 'fail', label: t('edge.fail') },
+                  { value: 'custom', label: t('edge.custom') },
+                ]}
               />
-              {customError !== null && <p className={css.error}>{customError.message}</p>}
-            </>
-          )}
-          {mode === 'always' ? (
-            <p className={css.help}>{t('edge.hintAlways')}</p>
-          ) : verdict === '' ? null : isVerdictWhen(verdict) ? (
-            <div className={css.verdict}>
-              <p className={css.help}>{t('edge.hintVerdict')}</p>
-              <code className={css.verdictCode}>VERDICT: {verdict}</code>
-            </div>
-          ) : (
-            <p className={css.help}>{t('edge.hintJudge')}</p>
-          )}
-          {back && (
-            <p className={css.note}>
-              <Icon name="loop" size={13} />
-              {t('edge.loop')}
-            </p>
-          )}
-        </section>
+              {mode === 'custom' && (
+                <>
+                  <textarea
+                    className={cx(ui.textarea, css.condition, ui.rise)}
+                    value={draft}
+                    rows={3}
+                    placeholder={t('edge.customPlaceholder')}
+                    aria-label={t('edge.custom')}
+                    aria-invalid={customError !== null}
+                    data-testid="wl-edge-custom"
+                    onChange={(event) => {
+                      // 条件要能写进计划里的一句话：换行就地换成空格。
+                      const value = event.currentTarget.value.replace(/[\r\n]+/gu, ' ')
+                      setDraft(value)
+                      const trimmed = value.trim()
+                      if (trimmed !== '' && checkWhen(trimmed) === null) setWhen(trimmed, true)
+                    }}
+                    onBlur={props.onSeal}
+                  />
+                  {customError !== null && <p className={css.error}>{customError.message}</p>}
+                </>
+              )}
+              {mode === 'always' ? (
+                <p className={css.help}>{t('edge.hintAlways')}</p>
+              ) : verdict === '' ? null : isVerdictWhen(verdict) ? (
+                <div className={css.verdict}>
+                  <p className={css.help}>{t('edge.hintVerdict')}</p>
+                  <code className={css.verdictCode}>VERDICT: {verdict}</code>
+                </div>
+              ) : (
+                <p className={css.help}>{t('edge.hintJudge')}</p>
+              )}
+              {back && (
+                <p className={css.note}>
+                  <Icon name="loop" size={13} />
+                  {t('edge.loop')}
+                </p>
+              )}
+            </section>
+
+            <HandoffField
+              t={t}
+              edge={edge}
+              source={titleOf(source, edge.source)}
+              onEdit={onEdit}
+              onSeal={props.onSeal}
+            />
+          </>
+        )}
       </div>
 
       <footer className={css.foot}>

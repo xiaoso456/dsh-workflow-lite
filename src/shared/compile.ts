@@ -18,9 +18,10 @@
  */
 
 import { createHash } from 'node:crypto'
+import { fileGraph, resolveHandoff, stepFiles } from './files.ts'
 import { byId, cycleHasNoExit, edgeWhen, type GraphAnalysis } from './graph.ts'
 import { PLAN_SECTIONS, VERDICT_PREFIX } from './limits.ts'
-import { displayName, idKey, outputSpecs, writeDocument } from './model.ts'
+import { displayName, idKey, isStep, writeDocument } from './model.ts'
 import { isVerdictWhen } from './naming.ts'
 import { isAbsoluteRoot, normalizeRoot, resolveOutputPath } from './outputPaths.ts'
 import type {
@@ -29,11 +30,11 @@ import type {
   PlanFacts,
   PlanId,
   PlanResult,
+  StepNode,
   ValidationCode,
   ValidationProblem,
   WorkflowDocument,
   WorkflowEdge,
-  WorkflowNode,
 } from './types.ts'
 
 // ─────────────────────────────────────────────────────────────
@@ -70,11 +71,11 @@ const MODE_LINES: Record<ExecutionMode, readonly string[]> = {
     '**执行方式：串行。** 由你本人按批次顺序一次做一个节点，不派子代理、不建团队；同一批次也逐个做完再做下一个。',
   ],
   subagent: [
-    '**执行方式：主 agent + 子代理。** 你是 leader，不亲自做节点的活：每个节点交给一个新的子代理（`subagent` 工具），prompt 里写明它的任务描述路径、产出路径与产出要求；等结果回来、核对产出，再推进。同一批次里互不依赖的节点可以一起派。选分支、推进循环、最后汇报都由你负责。',
+    '**执行方式：主 agent + 子代理。** 你是 leader，不亲自做节点的活：每个节点交给一个新的子代理（`subagent` 工具），prompt 里写明它的任务描述路径、产出路径、产出要求与交接内容；等结果回来、核对产出，再推进。同一批次里互不依赖的节点可以一起派。选分支、推进循环、最后汇报都由你负责。',
     MODE_FALLBACK,
   ],
   team: [
-    '**执行方式：Agent Team。** 用户为这张工作流指定了 Agent Team，你是 Team Lead：用 `spawn_teammate` 给节点建队员（一个节点一名，循环里复用同一名），用 `send_message` 派活、`wait_agent` 等回报，要求队员做完把产出路径发回给你。选分支、推进循环、最后汇报都由你负责；必需的队员回报之前不要给最终答复。',
+    '**执行方式：Agent Team。** 用户为这张工作流指定了 Agent Team，你是 Team Lead：用 `spawn_teammate` 给节点建队员（一个节点一名，循环里复用同一名），用 `send_message` 派活（附上交接内容）、`wait_agent` 等回报，要求队员做完把产出路径发回给你。选分支、推进循环、最后汇报都由你负责；必需的队员回报之前不要给最终答复。',
     MODE_FALLBACK,
   ],
 }
@@ -108,8 +109,14 @@ const MISSING_CWD_NOTE = '基目录未指定，请向调用方确认。'
 /** ④ 段：循环内产出会被覆盖。 */
 const LOOP_OVERWRITE_LINE = '循环里的产出会被反复覆盖，验收以**最终一轮**为准。'
 
-/** ④ 段：产出要求块的小标题。 */
-const RULES_HEADING = '**产出要求**（派发这些节点时，把对应要求连同任务描述一起交给执行者）：'
+/** ④ 段：文件块的小标题。 */
+const FILES_HEADING =
+  '**文件**（派发节点时，把它要读、要写的文件路径连同要求交给执行者；标了「更新」的直接在原文件上改，不要另存副本）：'
+
+/** ④ 段：交接——缺省就交执行结果，这一句说清；例外与说明逐条列在后面。 */
+const HANDOFF_LINE =
+  '**交接**：轮到一个节点时，把它直接上游这一次的执行结果（回复里的结论与要点）交给它。'
+const HANDOFF_EXCEPTIONS = '例外与交接说明：'
 
 /** ④ 段末：产出的家（固定一句；配了产出根目录时换成 {@link ROOT_TAIL}）。 */
 const DELIVERY_TAIL = '产出写到工作区里，不要写进 `dataDir`。'
@@ -185,8 +192,8 @@ export function planIdOf(document: WorkflowDocument): PlanId {
 interface RenderContext {
   /** 图分析（环、回边、批次、出边形态）。 */
   analysis: GraphAnalysis
-  /** 规范 `id` → 节点。同 `id` 重复（保存级）时稳定地取文件中第一条。 */
-  nodes: ReadonlyMap<string, WorkflowNode>
+  /** 规范 `id` → 步骤。同 `id` 重复（保存级）时稳定地取文件中第一条。 */
+  nodes: ReadonlyMap<string, StepNode>
   /** `idKey` → 规范 `id`（图内大小写不敏感唯一，渲染一律用规范大小写）。 */
   keyToId: ReadonlyMap<string, string>
   /** 目标节点（规范 `id`）→ 指向它的活边（悬空边是保存级，不参与渲染）。 */
@@ -197,17 +204,21 @@ interface RenderContext {
   inCycle: ReadonlySet<string>
   /** 产出根目录（规范化后）；没配 = 工作区根。 */
   root: string | undefined
+  /** 原图（文件读写按它统计）。 */
+  document: WorkflowDocument
 }
 
 function buildContext(facts: PlanFacts, analysis: GraphAnalysis): RenderContext {
+  // 只认步骤：连着文件的线两端有一头不在这里，自然不进前置、分支与循环。
+  const steps = facts.document.nodes.filter(isStep)
   const keyToId = new Map<string, string>()
-  for (const node of facts.document.nodes) {
+  for (const node of steps) {
     const key = idKey(node.id)
     if (!keyToId.has(key)) keyToId.set(key, node.id)
   }
 
-  const nodes = new Map<string, WorkflowNode>()
-  for (const node of facts.document.nodes) {
+  const nodes = new Map<string, StepNode>()
+  for (const node of steps) {
     const canonical = keyToId.get(idKey(node.id))
     if (canonical === undefined || nodes.has(canonical)) continue
     nodes.set(canonical, node)
@@ -231,15 +242,32 @@ function buildContext(facts: PlanFacts, analysis: GraphAnalysis): RenderContext 
   for (const cycle of analysis.cycles) for (const id of cycle.nodes) inCycle.add(id)
 
   const root = normalizeRoot(facts.document.settings?.outputRoot)
-  return { analysis, nodes, keyToId, inEdges, outEdges, inCycle, root }
+  return {
+    analysis,
+    nodes,
+    keyToId,
+    inEdges,
+    outEdges,
+    inCycle,
+    root,
+    document: facts.document,
+  }
 }
 
-/** 一个节点的产出清单，路径已拼上产出根目录（`shared/outputPaths.ts` 是拼接的唯一出处）。 */
-function resolvedSpecs(ctx: RenderContext, node: WorkflowNode | undefined) {
-  return outputSpecs(node?.data.output).map((spec) => ({
-    ...spec,
-    path: resolveOutputPath(ctx.root, spec.path),
-  }))
+/** 一个步骤读、写的文件（按连线在文件里的顺序），路径已拼上产出根目录（`shared/outputPaths.ts` 是拼接的唯一出处）。 */
+function filesOf(ctx: RenderContext, id: string) {
+  const files = stepFiles(ctx.document, id)
+  // 既读又写的文件只记在写入列（在原文件上更新本来就要先读）。
+  const written = new Set(files.writes.map((item) => item.file.id))
+  return {
+    reads: files.reads
+      .filter((item) => !written.has(item.file.id))
+      .map((item) => resolveOutputPath(ctx.root, item.file.data.path)),
+    writes: files.writes.map((item) => ({
+      path: resolveOutputPath(ctx.root, item.file.data.path),
+      update: item.update,
+    })),
+  }
 }
 
 /** 计划里引用一个值：统一加反引号。 */
@@ -353,15 +381,17 @@ function factsSection(facts: PlanFacts, ctx: RenderContext, inline: boolean): st
 /** 节点清单表：**按 `id` 码位序**的行序；首列是 `label（id）`。 */
 function tableLines(facts: PlanFacts, ctx: RenderContext, inline: boolean): string[] {
   const lines: string[] = [
-    inline ? '| `label（id）` | 前置 | 产出 |' : '| `label（id）` | 前置 | 产出 | 任务描述路径 |',
-    inline ? '|---|---|---|' : '|---|---|---|---|',
+    inline
+      ? '| `label（id）` | 前置 | 读取 | 写入 |'
+      : '| `label（id）` | 前置 | 读取 | 写入 | 任务描述路径 |',
+    inline ? '|---|---|---|---|' : '|---|---|---|---|---|',
   ]
   for (const id of ctx.analysis.nodeIds) {
     const node = ctx.nodes.get(id)
     const cells = [
       displayName(id, node?.data.label),
       predecessorsCell(ctx, id),
-      outputCell(ctx, node),
+      ...fileCells(ctx, id),
     ]
     if (!inline) cells.push(pathCell(facts, id))
     lines.push(`| ${cells.join(' | ')} |`)
@@ -394,11 +424,15 @@ function predecessorsCell(ctx: RenderContext, id: string): string {
   return items.length === 0 ? DASH : items.join('；')
 }
 
-/** 产出列：`false` 是 JSON 字面量、加反引号；文件名与 `—` 原样写、不加反引号；多个用 `、` 隔开。 */
-function outputCell(ctx: RenderContext, node: WorkflowNode | undefined): string {
-  if (node?.data.output === false) return '`false`'
-  const paths = resolvedSpecs(ctx, node).map((spec) => spec.path)
-  return paths.length === 0 ? DASH : paths.join('、')
+/** 读取列与写入列：文件名原样写、不加反引号，多个用 `、` 隔开；在原文件上更新的标「（更新）」。 */
+function fileCells(ctx: RenderContext, id: string): [string, string] {
+  const { reads, writes } = filesOf(ctx, id)
+  return [
+    reads.length === 0 ? DASH : reads.join('、'),
+    writes.length === 0
+      ? DASH
+      : writes.map((file) => (file.update ? `${file.path}（更新）` : file.path)).join('、'),
+  ]
 }
 
 /** 任务描述路径：host 算好的**绝对路径**；映射缺失时给 `—`（不编路径）。 */
@@ -506,29 +540,20 @@ function requirementLines(ctx: RenderContext): string[] {
   })
 }
 
-/** ④ 交付契约：输入来源、分支判定、循环覆盖、产出的家。 */
+/** ④ 交付契约：文件、交接、分支判定、循环覆盖、产出的家。 */
 function contractSection(facts: PlanFacts, ctx: RenderContext): string {
   const lines: string[] = [PLAN_SECTIONS.contract]
 
-  const sentences: string[] = []
-  for (const id of ctx.analysis.nodeIds) {
-    for (const source of deliverySources(ctx, id)) {
-      const prefix =
-        source.when === undefined
-          ? ''
-          : isVerdictWhen(source.when)
-            ? `（当 ${code(source.when)} 成立时）`
-            : `（当${condition(source.when)}成立时）`
-      sentences.push(
-        `${prefix}${code(id)} 的输入来自 ${code(source.source)} 的产出 ${source.outputs.map(code).join('、')}`,
-      )
-    }
-  }
-  if (sentences.length > 0) lines.push(`产出按表里的文件名落地：${sentences.join('；')}。`)
+  const files = fileLines(ctx)
+  if (files.length > 0) lines.push(FILES_HEADING, ...files)
   if (missingCwd(facts)) lines.push(MISSING_CWD_NOTE)
-
-  const rules = ruleLines(ctx)
-  if (rules.length > 0) lines.push(RULES_HEADING, ...rules)
+  if (ctx.analysis.nodeIds.length > 1) {
+    const exceptions = handoffLines(ctx)
+    lines.push(
+      exceptions.length === 0 ? HANDOFF_LINE : `${HANDOFF_LINE}${HANDOFF_EXCEPTIONS}`,
+      ...exceptions,
+    )
+  }
 
   for (const id of verdictNodeIds(ctx)) {
     const values = verdictValues(ctx, id)
@@ -547,40 +572,59 @@ function contractSection(facts: PlanFacts, ctx: RenderContext): string {
   return lines.join('\n')
 }
 
-interface DeliverySource {
-  source: string
-  when?: string
-  outputs: string[]
-}
-
-/** 交付来源 = 全部前置中声明了产出文件且**非回边**的节点（回边由循环段说明）。 */
-function deliverySources(ctx: RenderContext, id: string): DeliverySource[] {
-  const items: DeliverySource[] = []
-  for (const edge of ctx.inEdges.get(id) ?? []) {
-    if (ctx.analysis.backEdges.has(edge.id)) continue
-    const source = sourceIdOf(ctx, edge)
-    if (source === undefined) continue
-    const outputs = resolvedSpecs(ctx, ctx.nodes.get(source)).map((spec) => spec.path)
-    if (outputs.length === 0) continue
-    items.push({ source, when: whenOf(edge), outputs })
-  }
-  return items.sort((a, b) => {
-    const bySource = byId(a.source, b.source)
-    if (bySource !== 0) return bySource
-    return byId(a.when ?? '', b.when ?? '')
+/**
+ * 文件：每个文件节点一行，按路径码位序。写清谁产出、谁在原文件上更新、谁读（各组内按 `id` 码位序），
+ * 有生成规则就跟在后面。没连任何步骤的文件不写。
+ */
+function fileLines(ctx: RenderContext): string[] {
+  const steps = new Set(ctx.analysis.nodeIds)
+  const items = [...fileGraph(ctx.document).values()]
+    .filter((info) => info.writers.length > 0 || info.readers.length > 0)
+    .sort((a, b) => byId(a.file.data.path, b.file.data.path))
+  return items.map((info) => {
+    const roles: string[] = []
+    const group = (ids: readonly string[], verb: string): void => {
+      const known = ids.filter((id) => steps.has(id))
+      if (known.length > 0) roles.push(`${[...known].sort(byId).map(code).join('、')} ${verb}`)
+    }
+    group(
+      info.writers.filter((writer) => !writer.update).map((writer) => writer.id),
+      '产出',
+    )
+    group(
+      info.writers.filter((writer) => writer.update).map((writer) => writer.id),
+      '在原文件上更新',
+    )
+    group(info.readers, '读取')
+    const rule = info.file.data.rule?.replace(/\s+/gu, ' ').trim()
+    const tail = rule === undefined || rule === '' ? '' : `要求：${rule}`
+    return `- ${code(resolveOutputPath(ctx.root, info.file.data.path))}：${roles.join('；')}。${tail}`
   })
 }
 
 /**
- * 产出要求：每个带生成规则的产出一行，按节点 `id` 码位序、节点内按声明顺序。
- * 载荷文件只放提示词原文，所以规则写在这里，由派发者一并交给执行者。
+ * 交接的例外：只管先后的线、附了交接说明的线，各一行。按**下游** `id` 码位序、同一下游按上游排。
  */
-function ruleLines(ctx: RenderContext): string[] {
+function handoffLines(ctx: RenderContext): string[] {
   const lines: string[] = []
   for (const id of ctx.analysis.nodeIds) {
-    for (const spec of resolvedSpecs(ctx, ctx.nodes.get(id))) {
-      if (spec.rule === undefined || spec.rule.trim() === '') continue
-      lines.push(`- ${code(id)} → ${code(spec.path)}：${spec.rule.replace(/\s+/gu, ' ').trim()}`)
+    for (const edge of sortIncoming(ctx, ctx.inEdges.get(id) ?? [])) {
+      const source = sourceIdOf(ctx, edge)
+      if (source === undefined) continue
+      const handoff = resolveHandoff(edge.data?.handoff)
+      if (handoff.result && handoff.note === undefined) continue
+
+      const when = whenOf(edge)
+      const guards: string[] = []
+      if (when !== undefined) {
+        guards.push(isVerdictWhen(when) ? `当 ${code(when)} 成立时` : `当${condition(when)}成立时`)
+      }
+      if (ctx.analysis.backEdges.has(edge.id)) guards.push('循环回来时')
+      const guard = guards.length === 0 ? '' : `（${guards.join('，')}）`
+      const body = handoff.result
+        ? `说明：${(handoff.note ?? '').replace(/\s+/gu, ' ').trim()}`
+        : '只管先后，不交执行结果。'
+      lines.push(`- ${code(source)} → ${code(id)}${guard}：${body}`)
     }
   }
   return lines
@@ -633,11 +677,12 @@ function compileProblemsOf(facts: PlanFacts, options?: PlanOptions): ValidationP
     if (problem.level === 'compile') add(problem)
   }
 
-  if (facts.document.nodes.length === 0) {
-    add({ level: 'compile', code: 'no_nodes', message: '图内没有节点，无法编译' })
+  const steps = facts.document.nodes.filter(isStep)
+  if (steps.length === 0) {
+    add({ level: 'compile', code: 'no_nodes', message: '图内没有步骤，无法编译' })
   }
-  for (const id of facts.document.nodes.map((node) => node.id).sort(byId)) {
-    const prompt = facts.document.nodes.find((node) => node.id === id)?.data.prompt
+  for (const id of steps.map((node) => node.id).sort(byId)) {
+    const prompt = steps.find((node) => node.id === id)?.data.prompt
     if (prompt === undefined || prompt === '') {
       add({
         level: 'compile',

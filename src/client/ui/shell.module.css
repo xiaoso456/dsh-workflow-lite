@@ -43,6 +43,10 @@
   /* 连线：拓扑是这张图的全部结构，必须看得清。 */
   --wl-edge: light-dark(#8088a0, #6f7789);
 
+  /* 文件卡：和步骤种类都不撞的一种蓝灰，一眼看出"这是一份文件，不是一个步骤"。 */
+  --wl-file: light-dark(#356c8c, #82bde0);
+  --wl-file-soft: light-dark(rgb(53 108 140 / 10%), rgb(130 189 224 / 15%));
+
   /* 步骤种类的记号色。 */
   --wl-k-scan: light-dark(#2f6fde, #74aaff);
   --wl-k-plan: light-dark(#7a4fd6, #b598ff);

@@ -13,19 +13,29 @@
  * @module @xiaoso/dsh-workflow-lite/client/model/editor
  */
 
+import { newFileNode, setStepOutputs, splitOutputs } from '../../shared/files.ts'
 import {
+  canonicalHandoff,
   canonicalOutput,
   idKey,
+  isFile,
+  isStep,
   makeEdgeId,
   normalizeCoord,
   readSettings,
+  sameHandoff,
   sameNodeData,
   sameSettings,
 } from '../../shared/model.ts'
+import { outputKey } from '../../shared/outputPaths.ts'
 import {
+  type EdgeData,
+  type FileData,
+  type Handoff,
   NODE_TYPE,
   type NodeData,
   type Point,
+  type StepNode,
   type ValidationProblem,
   type Viewport,
   type WorkflowDocument,
@@ -33,6 +43,7 @@ import {
   type WorkflowNode,
   type WorkflowSettings,
 } from '../../shared/types.ts'
+import { fileSpot } from './layout.ts'
 
 /** 选中态：步骤、连线，或什么都不选。用一个联合表达，互斥是结构上保证的。 */
 export type Selection = { kind: 'node'; id: string } | { kind: 'edge'; id: string } | null
@@ -92,16 +103,36 @@ export type Edit =
   | {
       type: 'addNode'
       id: string
+      /** 步骤的 `data`；带着 `output`（来自模板）时展开成挂在它右下方的文件节点。 */
       data: NodeData
       position: Point
-      /** 顺手从这个步骤连一条线过来（「添加下一步」）。 */
+      /** 顺手从这个节点连一条线过来（「添加下一步」；从文件拖出来 = 新步骤读这份文件）。 */
       from?: string
+    }
+  /**
+   * 加一个文件节点。给了 `writer` 就连「步骤 → 文件」（写），给了 `reader` 就连「文件 → 步骤」（读）。
+   * 没给坐标时挂在写它（读它）的步骤右下方。`select` = 加完选中它（缺省不动选中）。
+   */
+  | {
+      type: 'addFile'
+      path: string
+      rule?: string
+      position?: Point
+      writer?: string
+      reader?: string
+      select?: boolean
     }
   /** 一次加进一小片图（示例流程）：算一条撤销步。 */
   | {
       type: 'addGraph'
       nodes: WorkflowNode[]
-      edges: { source: string; target: string; when?: string }[]
+      edges: {
+        source: string
+        target: string
+        when?: string
+        handoff?: Handoff | false
+        update?: boolean
+      }[]
     }
   | { type: 'removeNode'; id: string }
   /**
@@ -114,10 +145,19 @@ export type Edit =
    * `merge` 相同的连续改动并成一条撤销步（连续打字）。
    */
   | { type: 'patchNode'; id: string; patch: Partial<NodeData>; merge?: string }
+  /** 改文件节点：路径 / 生成规则（`rule: undefined` = 清掉）。 */
+  | { type: 'patchFile'; id: string; patch: Partial<FileData>; merge?: string }
   | { type: 'connect'; source: string; target: string; when?: string }
   | { type: 'removeEdge'; id: string }
   /** 改条件。`merge` 相同的连续改动并成一条撤销步（在自定义条件里连续打字）。 */
   | { type: 'setWhen'; id: string; when: string | undefined; merge?: string }
+  /**
+   * 改交接（步骤 → 步骤）。`undefined` = 交执行结果，`false` = 只管先后，对象 = 交执行结果并附说明。
+   * `merge` 相同的连续改动并成一条撤销步（在交接说明里连续打字）。
+   */
+  | { type: 'setHandoff'; id: string; handoff: Handoff | false | undefined; merge?: string }
+  /** 改写入方式（步骤 → 文件）：整份写出 / 在原文件上更新。 */
+  | { type: 'setUpdate'; id: string; update: boolean }
   /** 视口是视图状态：照样落盘，但不进撤销栈。 */
   | { type: 'setViewport'; viewport: Viewport }
   /** 换掉整份工作流设置（设置对话框「完成」时一次交出来 = 一条撤销步）。 */
@@ -210,24 +250,60 @@ interface Applied {
   selection: Selection
 }
 
-function newEdge(source: string, target: string, when: string | undefined): WorkflowEdge {
+function newEdge(
+  source: string,
+  target: string,
+  when: string | undefined,
+  extra: { handoff?: Handoff | false | undefined; update?: boolean | undefined } = {},
+): WorkflowEdge {
+  const data = {
+    ...(when === undefined || when === '' ? {} : { when }),
+    ...(extra.handoff === undefined ? {} : { handoff: extra.handoff }),
+    ...(extra.update === true ? { update: true as const } : {}),
+  }
   return {
     id: makeEdgeId(source, target, when),
     source,
     target,
     sourceHandle: null,
     targetHandle: null,
-    ...(when === undefined || when === '' ? {} : { data: { when } }),
+    ...(Object.keys(data).length === 0 ? {} : { data }),
   }
 }
 
-function newNode(id: string, data: NodeData, position: Point): WorkflowNode {
-  return {
-    id,
-    type: NODE_TYPE,
-    position: { x: normalizeCoord(position.x), y: normalizeCoord(position.y) },
-    data,
+/** 路径被占了就在文件名后面加 `-2`、`-3`…（`taken` 里是规范化、小写后的路径）。 */
+function freePath(path: string, taken: ReadonlySet<string>): string {
+  if (!taken.has(outputKey(path).toLowerCase())) return path
+  const dot = path.lastIndexOf('.')
+  const slash = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
+  const cut = dot > slash + 1 ? dot : path.length
+  for (let n = 2; ; n += 1) {
+    const candidate = `${path.slice(0, cut)}-${n}${path.slice(cut)}`
+    if (!taken.has(outputKey(candidate).toLowerCase())) return candidate
   }
+}
+
+/** 这份文件已经有步骤在写（`except` 除外）——再接上来的写入默认是"在原文件上更新"。 */
+function alreadyWritten(doc: WorkflowDocument, fileId: string, except?: string): boolean {
+  return doc.edges.some(
+    (edge) =>
+      idKey(edge.target) === idKey(fileId) &&
+      (except === undefined || idKey(edge.source) !== idKey(except)),
+  )
+}
+
+/** 换掉一条边的 `data`（空了就整键不留）。 */
+function withEdgeData(edge: WorkflowEdge, data: EdgeData): WorkflowEdge {
+  const { data: _old, ...rest } = edge
+  return Object.keys(data).length === 0 ? rest : { ...rest, data }
+}
+
+function at(position: Point): Point {
+  return { x: normalizeCoord(position.x), y: normalizeCoord(position.y) }
+}
+
+function newNode(id: string, data: NodeData, position: Point): StepNode {
+  return { id, type: NODE_TYPE, position: at(position), data }
 }
 
 function applyEdit(doc: WorkflowDocument, selection: Selection, edit: Edit): Applied | null {
@@ -235,15 +311,44 @@ function applyEdit(doc: WorkflowDocument, selection: Selection, edit: Edit): App
     case 'addNode': {
       const id = uniqueNodeId(doc, edit.id)
       const source = edit.from === undefined ? undefined : findNode(doc, edit.from)
+      const { data, outputs } = splitOutputs(edit.data)
+      const next: WorkflowDocument = {
+        ...doc,
+        nodes: [...doc.nodes, newNode(id, data, edit.position)],
+        edges: source === undefined ? doc.edges : [...doc.edges, newEdge(source.id, id, undefined)],
+      }
+      // 模板里的产出：各成一个**新的**文件节点（路径被占了就加序号），挂在新步骤右下方，连上写入线。
+      // 要和已有的文件共用一份，在画布上把线连过去就是了。
+      if (outputs.length > 0) {
+        const taken = new Set(
+          doc.nodes.filter(isFile).map((node) => outputKey(node.data.path).toLowerCase()),
+        )
+        const fresh = outputs.map((spec) => {
+          const path = freePath(spec.path, taken)
+          taken.add(outputKey(path).toLowerCase())
+          return { ...spec, path }
+        })
+        setStepOutputs(next, id, fresh, () => fileSpot(next, edit.position))
+      }
+      // 新步骤接管选中：加完接着就是改它。
+      return { doc: next, selection: { kind: 'node', id } }
+    }
+
+    case 'addFile': {
+      const writer = edit.writer === undefined ? undefined : findNode(doc, edit.writer)
+      const reader = edit.reader === undefined ? undefined : findNode(doc, edit.reader)
+      const anchor = writer ?? reader
+      const file = newFileNode(
+        doc,
+        edit.rule === undefined ? { path: edit.path } : { path: edit.path, rule: edit.rule },
+        at(edit.position ?? fileSpot(doc, anchor?.position)),
+      )
+      const edges = [...doc.edges]
+      if (writer !== undefined && isStep(writer)) edges.push(newEdge(writer.id, file.id, undefined))
+      if (reader !== undefined && isStep(reader)) edges.push(newEdge(file.id, reader.id, undefined))
       return {
-        doc: {
-          ...doc,
-          nodes: [...doc.nodes, newNode(id, edit.data, edit.position)],
-          edges:
-            source === undefined ? doc.edges : [...doc.edges, newEdge(source.id, id, undefined)],
-        },
-        // 新步骤接管选中：加完接着就是改它。
-        selection: { kind: 'node', id },
+        doc: { ...doc, nodes: [...doc.nodes, file], edges },
+        selection: edit.select === true ? { kind: 'node', id: file.id } : selection,
       }
     }
 
@@ -254,14 +359,17 @@ function applyEdit(doc: WorkflowDocument, selection: Selection, edit: Edit): App
       for (const node of edit.nodes) {
         const id = uniqueNodeId(next, node.id)
         renamed.set(node.id, id)
-        next = { ...next, nodes: [...next.nodes, newNode(id, node.data, node.position)] }
+        const added: WorkflowNode = isFile(node)
+          ? { ...node, id, position: at(node.position), data: { ...node.data } }
+          : newNode(id, node.data, node.position)
+        next = { ...next, nodes: [...next.nodes, added] }
       }
       const edges = [...next.edges]
       for (const edge of edit.edges) {
         const source = renamed.get(edge.source)
         const target = renamed.get(edge.target)
         if (source === undefined || target === undefined) continue
-        edges.push(newEdge(source, target, edge.when))
+        edges.push(newEdge(source, target, edge.when, edge))
       }
       if (renamed.size === 0) return null
       return { doc: { ...next, edges }, selection: null }
@@ -296,7 +404,7 @@ function applyEdit(doc: WorkflowDocument, selection: Selection, edit: Edit): App
 
     case 'patchNode': {
       const node = findNode(doc, edit.id)
-      if (node === undefined) return null
+      if (node === undefined || !isStep(node)) return null
       const data: NodeData = { ...node.data, ...edit.patch }
       for (const key of ['label', 'description', 'prompt', 'output'] as const) {
         if (key in edit.patch && edit.patch[key] === undefined) delete data[key]
@@ -316,11 +424,36 @@ function applyEdit(doc: WorkflowDocument, selection: Selection, edit: Edit): App
       }
     }
 
+    case 'patchFile': {
+      const node = findNode(doc, edit.id)
+      if (node === undefined || !isFile(node)) return null
+      const data: FileData = { ...node.data, ...edit.patch }
+      if (
+        'rule' in edit.patch &&
+        (edit.patch.rule === undefined || edit.patch.rule.trim() === '')
+      ) {
+        delete data.rule
+      }
+      if (data.path === node.data.path && data.rule === node.data.rule) return null
+      return {
+        doc: {
+          ...doc,
+          nodes: doc.nodes.map((candidate) => (candidate === node ? { ...node, data } : candidate)),
+        },
+        selection,
+      }
+    }
+
     case 'connect': {
       const source = findNode(doc, edit.source)
       const target = findNode(doc, edit.target)
       if (source === undefined || target === undefined) return null
-      const edge = newEdge(source.id, target.id, edit.when)
+      // 文件不能直接连文件；连着文件的线没有条件。
+      if (isFile(source) && isFile(target)) return null
+      const toFile = isFile(target)
+      const edge = newEdge(source.id, target.id, isFile(source) || toFile ? undefined : edit.when, {
+        update: toFile && alreadyWritten(doc, target.id, source.id),
+      })
       if (findEdge(doc, edge.id) !== undefined) return null
       return {
         doc: { ...doc, edges: [...doc.edges, edge] },
@@ -342,19 +475,9 @@ function applyEdit(doc: WorkflowDocument, selection: Selection, edit: Edit): App
       // `when` 是边 id 的一部分：改它等于换一条边。目标 id 已被占用就不动（不造重复边）。
       const id = makeEdgeId(edge.source, edge.target, when)
       if (findEdge(doc, id) !== undefined) return null
-      const label = edge.data?.label
-      const data = {
-        ...(when === undefined ? {} : { when }),
-        ...(label === undefined ? {} : { label }),
-      }
-      const replaced: WorkflowEdge = {
-        id,
-        source: edge.source,
-        target: edge.target,
-        sourceHandle: null,
-        targetHandle: null,
-        ...(Object.keys(data).length === 0 ? {} : { data }),
-      }
+      // 标签与交接跟着搬到新边上，只换条件。
+      const { when: _old, ...kept } = edge.data ?? {}
+      const replaced = withEdgeData({ ...edge, id }, when === undefined ? kept : { when, ...kept })
       return {
         doc: {
           ...doc,
@@ -363,6 +486,36 @@ function applyEdit(doc: WorkflowDocument, selection: Selection, edit: Edit): App
         // 选中跟着搬到新 id 上，否则正在编辑的那条线会从面板里消失。
         selection:
           selection?.kind === 'edge' && selection.id === edge.id ? { kind: 'edge', id } : selection,
+      }
+    }
+
+    case 'setHandoff': {
+      const edge = findEdge(doc, edit.id)
+      if (edge === undefined) return null
+      const handoff = canonicalHandoff(edit.handoff)
+      if (sameHandoff(edge.data?.handoff, handoff)) return null
+      const { handoff: _old, ...rest } = edge.data ?? {}
+      const replaced = withEdgeData(edge, handoff === undefined ? rest : { ...rest, handoff })
+      return {
+        doc: {
+          ...doc,
+          edges: doc.edges.map((candidate) => (candidate === edge ? replaced : candidate)),
+        },
+        selection,
+      }
+    }
+
+    case 'setUpdate': {
+      const edge = findEdge(doc, edit.id)
+      if (edge === undefined || (edge.data?.update === true) === edit.update) return null
+      const { update: _old, ...rest } = edge.data ?? {}
+      const replaced = withEdgeData(edge, edit.update ? { ...rest, update: true } : rest)
+      return {
+        doc: {
+          ...doc,
+          edges: doc.edges.map((candidate) => (candidate === edge ? replaced : candidate)),
+        },
+        selection,
       }
     }
 
@@ -386,6 +539,9 @@ function applyEdit(doc: WorkflowDocument, selection: Selection, edit: Edit): App
 function isEdit(action: Action): action is Edit {
   switch (action.type) {
     case 'addNode':
+    case 'addFile':
+    case 'patchFile':
+    case 'setUpdate':
     case 'addGraph':
     case 'removeNode':
     case 'moveNodes':
@@ -393,6 +549,7 @@ function isEdit(action: Action): action is Edit {
     case 'connect':
     case 'removeEdge':
     case 'setWhen':
+    case 'setHandoff':
     case 'setViewport':
     case 'setSettings':
       return true
@@ -416,7 +573,13 @@ function historyAfter(
   if (edit.type === 'setViewport' || (edit.type === 'moveNodes' && edit.silent === true)) {
     return { past: state.past, future: state.future, mergeKey: state.mergeKey }
   }
-  const key = edit.type === 'patchNode' || edit.type === 'setWhen' ? (edit.merge ?? null) : null
+  const key =
+    edit.type === 'patchNode' ||
+    edit.type === 'patchFile' ||
+    edit.type === 'setWhen' ||
+    edit.type === 'setHandoff'
+      ? (edit.merge ?? null)
+      : null
   // 同一个合并键：栈顶已经是这次交互开始之前的快照，不再压。
   if (key !== null && key === state.mergeKey) {
     return { past: state.past, future: [], mergeKey: key }

@@ -129,6 +129,9 @@ export const zh = {
   'preset.fix.desc': '按审查结论逐条修',
   'preset.fix.prompt': '按上游的审查结论逐条修复。\n不要顺手做审查里没提的重构。',
   'preset.fix.rule': '修复说明：逐条对应审查清单，写清改法与验证结果。',
+  'starter.fixNote':
+    '按 review.md 的问题清单逐条修复：修好的条目在原文件里打钩 [x]，修不了的在条目下写明原因；改法与验证结果写进 fix-notes.md。',
+  'starter.recheckNote': '重新审查时对照 review.md 里的勾选与 fix-notes.md，逐条确认真的修好了。',
   'preset.report.label': '汇总',
   'preset.report.desc': '写给人看的结论',
   'preset.report.prompt':
@@ -237,6 +240,74 @@ export const zh = {
   'edge.hintJudge': '执行者会读上游的产出，自己判断这句话是否成立，成立就走这条线。',
   'edge.loop': '这条线回到前面的步骤，形成循环。',
   'edge.remove': '删除连线',
+
+  // ── 交接（步骤 → 步骤：上游这一次的执行结果）────────────────
+  'hand.title': '交接',
+  'hand.result': '把上游的执行结果交给下游',
+  'hand.resultHint': '回复里的结论与要点（不是全文）。文件不走这里——连到文件卡上。',
+  'hand.resultShort': '执行结果',
+  'hand.resultOf': ' 的执行结果',
+  'hand.flowOnly': '只管先后',
+  'hand.flowOnlyHint': '下游等上游做完才开始，但不拿上游的执行结果。',
+  'hand.note': '交接说明',
+  'hand.notePlaceholder':
+    '例如：按 review.md 逐条修复；修好的在对应条目前打钩 [x]，修不了的写明原因。',
+  'hand.noteHint': '写进派发计划，下游拿到执行结果时一起看到。',
+  'hand.editHint': '点击编辑交接',
+  'hand.tipWhat':
+    '执行结果是上游这一次运行的回复（结论与要点），沿步骤之间的线交给下游；缺省就交。',
+  'hand.tipFiles':
+    '文件是独立的卡片：步骤连到文件 = 写它，文件连到步骤 = 读它。几个步骤连同一个文件，它就是共用的一份。',
+
+  // ── 文件节点 ────────────────────────────────────────────────
+  'file.title': '文件',
+  'node.fileHandle': '拖到文件卡上 = 写入；拖到空白处 = 新建一个产出文件',
+  'file.from': '来自',
+  'file.path': '文件路径',
+  'file.pathHint': '相对产出根目录（没配根目录就是相对工作区）。',
+  'file.pathTaken': '已经有文件卡用这个路径了',
+  'file.rule': '这份文件该怎么写',
+  'file.rulePlaceholder':
+    '格式、必须包含什么、给谁看。例如：问题清单，每条一行「- [ ] 位置：问题」，修好后打钩。',
+  'file.ruleHint': '写进派发计划，写它的步骤会照着写。',
+  'file.noRule': '还没写要求',
+  'file.writers': '写它的步骤',
+  'file.readers': '读它的步骤',
+  'file.noWriters': '还没有步骤写它。从步骤底边的圆点拖一条线到这张卡上。',
+  'file.noReaders': '还没有步骤读它。从这张卡右侧的圆点拖一条线到步骤上。',
+  'file.produce': '产出',
+  'file.produceLong': '整份写出',
+  'file.update': '更新',
+  'file.updateLong': '在原文件上更新',
+  'file.read': '读取',
+  'file.delete': '删除文件卡',
+  'file.writes': '写入',
+  'file.reads': '读取',
+  'file.none':
+    '这一步还没有连文件。产出文件会挂在它右下方；要读别的步骤写的文件，从那张文件卡拖线过来。',
+  'file.new': '新建产出文件',
+  'file.link': '关联已有文件',
+  'file.linkEmpty': '图里还没有别的文件卡。',
+  'file.linkRead': '读取',
+  'file.linkWrite': '写入',
+  'file.unlink': '断开',
+  'file.newTitle': '新建产出文件',
+  'file.default': 'notes.md',
+  'file.modeHint':
+    '「更新」= 先读再在原文件上改（比如修完在问题清单里打钩）；「产出」= 整份写出，会覆盖之前的内容。',
+  'file.readHint': '执行这一步时，会把这份文件的路径交给它去读。',
+  'file.connectHint': '从步骤底边的圆点拖线到文件卡 = 写入；从文件卡右侧的圆点拖到步骤 = 读取。',
+  'edge.write': '写入文件',
+  'edge.read': '读取文件',
+  'role.producer': '产出',
+  'role.updater': '更新',
+  'role.reader': '读取',
+  'lib.file': '文件',
+  'lib.fileDesc': '一份可读可写的文件，连到步骤上',
+  'quick.file': '产出文件',
+  'quick.fileDesc': '这一步写的文件',
+  'quick.looseFile': '文件',
+  'quick.looseFileDesc': '一份独立的文件卡',
 
   // ── 计划预览 ────────────────────────────────────────────────
   'plan.title': '派发计划',
@@ -413,6 +484,10 @@ export const en: Record<LocaleKey, string> = {
     'Fix each item from the upstream review.\nDo not refactor anything the review did not raise.',
   'preset.fix.rule':
     'A fix note mapping item by item to the review list, with the change and the verification result.',
+  'starter.fixNote':
+    'Fix review.md item by item: tick [x] each fixed item in the file itself and explain under any item you could not fix; record how you fixed and verified each one in fix-notes.md.',
+  'starter.recheckNote':
+    'When re-reviewing, check the ticks in review.md against fix-notes.md and confirm each fix for real.',
   'preset.report.label': 'Summarise',
   'preset.report.desc': 'Write the conclusion for a human',
   'preset.report.prompt':
@@ -522,6 +597,78 @@ export const en: Record<LocaleKey, string> = {
     'The executor reads the upstream output and judges whether this holds; if it does, this line is followed.',
   'edge.loop': 'This line goes back to an earlier step and forms a loop.',
   'edge.remove': 'Delete connection',
+
+  'hand.title': 'Handoff',
+  'hand.result': 'Pass the upstream result downstream',
+  'hand.resultHint':
+    'The conclusions and key points of its reply, not the full text. Files do not go here — connect them as file cards.',
+  'hand.resultShort': 'Result',
+  'hand.resultOf': ' — result',
+  'hand.flowOnly': 'Order only',
+  'hand.flowOnlyHint':
+    'The downstream step waits for the upstream one but does not receive its result.',
+  'hand.note': 'Handoff note',
+  'hand.notePlaceholder':
+    'e.g. Fix review.md item by item; tick [x] each fixed item and explain the ones you could not fix.',
+  'hand.noteHint': 'Goes into the dispatch plan; the downstream step sees it with the result.',
+  'hand.editHint': 'Click to edit the handoff',
+  'hand.tipWhat':
+    "The result is the upstream step's reply for this run (conclusions and key points), passed along step-to-step lines; it is passed by default.",
+  'hand.tipFiles':
+    'Files are separate cards: step → file means it writes the file, file → step means it reads it. Several steps on one file share it.',
+
+  'file.title': 'File',
+  'node.fileHandle':
+    'Drag onto a file card to write it; drop on empty space to create an output file',
+  'file.from': 'from',
+  'file.path': 'File path',
+  'file.pathHint': 'Relative to the output root (or the workspace if no root is set).',
+  'file.pathTaken': 'Another file card already uses this path',
+  'file.rule': 'How this file should be written',
+  'file.rulePlaceholder':
+    'Format, what it must contain, who reads it. e.g. an issue list, one "- [ ] location: problem" per line, ticked when fixed.',
+  'file.ruleHint': 'Goes into the dispatch plan; steps that write it follow it.',
+  'file.noRule': 'No requirements yet',
+  'file.writers': 'Written by',
+  'file.readers': 'Read by',
+  'file.noWriters':
+    'No step writes it yet. Drag a line from the dot at the bottom of a step onto this card.',
+  'file.noReaders':
+    'No step reads it yet. Drag a line from the dot on the right of this card to a step.',
+  'file.produce': 'Create',
+  'file.produceLong': 'Writes it whole',
+  'file.update': 'Update',
+  'file.updateLong': 'Updates it in place',
+  'file.read': 'Read',
+  'file.delete': 'Delete file card',
+  'file.writes': 'Writes',
+  'file.reads': 'Reads',
+  'file.none':
+    'This step has no files yet. Output files hang below it; to read a file another step writes, drag a line from that file card.',
+  'file.new': 'New output file',
+  'file.link': 'Link an existing file',
+  'file.linkEmpty': 'There are no other file cards yet.',
+  'file.linkRead': 'Read',
+  'file.linkWrite': 'Write',
+  'file.unlink': 'Disconnect',
+  'file.newTitle': 'New output file',
+  'file.default': 'notes.md',
+  'file.modeHint':
+    '"Update" reads the file and edits it in place (e.g. ticks fixed items); "Create" writes it whole and replaces earlier content.',
+  'file.readHint': 'When this step runs it is given the path of this file to read.',
+  'file.connectHint':
+    'Drag from the dot at the bottom of a step to a file card to write it; from the dot on the right of a file card to a step to read it.',
+  'edge.write': 'Writes a file',
+  'edge.read': 'Reads a file',
+  'role.producer': 'Creates',
+  'role.updater': 'Updates',
+  'role.reader': 'Reads',
+  'lib.file': 'File',
+  'lib.fileDesc': 'A file steps can write and read',
+  'quick.file': 'Output file',
+  'quick.fileDesc': 'A file this step writes',
+  'quick.looseFile': 'File',
+  'quick.looseFileDesc': 'A standalone file card',
 
   'plan.title': 'Dispatch plan',
   'plan.forModel': 'For the model',

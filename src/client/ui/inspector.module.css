@@ -162,11 +162,12 @@
 
 .link {
   display: flex;
-  gap: 8px;
-  align-items: center;
+  flex-direction: column;
+  gap: 4px;
+  align-items: stretch;
   width: 100%;
   min-height: 32px;
-  padding: 0 8px;
+  padding: 6px 8px;
   border: 0;
   border-radius: var(--wl-r-control);
   background: transparent;
@@ -180,11 +181,40 @@
   background: var(--wl-hover);
 }
 
+/* 一行连接：上面是对面的步骤与条件，下面是交接摘要。 */
+.linkTop {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
 .linkDir {
+  display: inline-flex;
   flex: none;
-  width: 34px;
+  color: var(--wl-text-3);
+}
+
+/* 上游那一组：箭头朝左，"从它那里来"。 */
+.linkDir[data-dir="in"] {
+  transform: scaleX(-1);
+}
+
+.linkHandoff {
+  display: flex;
+  min-width: 0;
+  padding-left: 20px;
+}
+
+.linkGroup {
+  margin: 2px 0 2px 8px;
   color: var(--wl-text-3);
   font-size: var(--wl-fs-micro);
+  font-weight: 600;
+}
+
+.links + .links {
+  margin-top: 6px;
 }
 
 .linkName {

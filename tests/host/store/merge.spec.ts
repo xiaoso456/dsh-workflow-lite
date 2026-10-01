@@ -48,6 +48,11 @@ function nodeIds(document: WorkflowDocument): string[] {
   return document.nodes.map((item) => item.id).sort()
 }
 
+function promptOf(document: WorkflowDocument, id: string): string | undefined {
+  const found = findNode(document, id)
+  return found !== undefined && found.type === 'wfNode' ? found.data.prompt : undefined
+}
+
 function findNode(document: WorkflowDocument, id: string): WorkflowNode | undefined {
   return document.nodes.find((item) => item.id === id)
 }
@@ -60,8 +65,8 @@ describe('mergeDocuments —— 不同 id 各自被改 ⇒ 自动合并、不报
 
     const result = mergeDocuments(base, mine, theirs)
     expect(result.conflictIds).toEqual([])
-    expect(findNode(result.document, 'a')?.data.prompt).toBe('A2')
-    expect(findNode(result.document, 'b')?.data.prompt).toBe('B2')
+    expect(promptOf(result.document, 'a')).toBe('A2')
+    expect(promptOf(result.document, 'b')).toBe('B2')
   })
 
   it('只有对方改了 ⇒ 采纳对方的', () => {
@@ -71,7 +76,7 @@ describe('mergeDocuments —— 不同 id 各自被改 ⇒ 自动合并、不报
 
     const result = mergeDocuments(base, mine, theirs)
     expect(result.conflictIds).toEqual([])
-    expect(findNode(result.document, 'a')?.data.prompt).toBe('A2')
+    expect(promptOf(result.document, 'a')).toBe('A2')
   })
 
   it('两边各自新增不同节点 ⇒ 都留下', () => {
@@ -121,7 +126,7 @@ describe('mergeDocuments —— 冲突的两种情形', () => {
 
     const result = mergeDocuments(base, mine, theirs)
     expect(result.conflictIds).toEqual(['a'])
-    expect(findNode(result.document, 'a')?.data.prompt).toBe('mine')
+    expect(promptOf(result.document, 'a')).toBe('mine')
   })
 
   it('同一个 id 一方删、一方改 ⇒ 冲突', () => {
@@ -200,7 +205,7 @@ describe('mergeDocuments —— 视图态与坐标永不冲突', () => {
 
     const result = mergeDocuments(base, mine, theirs)
     expect(result.conflictIds).toEqual([])
-    expect(findNode(result.document, 'a')?.data.prompt).toBe('A2')
+    expect(promptOf(result.document, 'a')).toBe('A2')
     expect(findNode(result.document, 'a')?.position).toEqual({ x: 8, y: 9 })
   })
 })
@@ -227,5 +232,39 @@ describe('mergeDocuments —— 工作流设置按字段合并', () => {
   it('对方清掉了设置、本地没动：采纳清除', () => {
     const merged = mergeDocuments(base, base, doc([node('a')]))
     expect(merged.document.settings).toBeUndefined()
+  })
+})
+
+describe('mergeDocuments —— 交接与写入方式算边的内容，文件节点按内容合并', () => {
+  const plain = edge('a->b', 'a', 'b')
+  const base = doc([node('a'), node('b')], [plain])
+  const withData = (data: EdgeData): WorkflowDocument =>
+    doc([node('a'), node('b')], [{ ...plain, data }])
+
+  it('只有对方改了交接：采纳对方的', () => {
+    const merged = mergeDocuments(base, base, withData({ handoff: { note: 'n' } }))
+    expect(merged.document.edges[0]?.data?.handoff).toEqual({ note: 'n' })
+    expect(merged.conflictIds).toEqual([])
+  })
+
+  it('两边改成不一样（交接 / 写入方式）：报这条边冲突，本地优先', () => {
+    const merged = mergeDocuments(base, withData({ handoff: false }), withData({ update: true }))
+    expect(merged.conflictIds).toEqual(['a->b'])
+    expect(merged.document.edges[0]?.data?.handoff).toBe(false)
+  })
+
+  it('文件节点：一边改路径、一边没动 ⇒ 采纳改动；两边都改成不一样 ⇒ 冲突', () => {
+    const fileNode = (path: string): WorkflowNode => ({
+      id: 'f',
+      type: 'wfFile',
+      position: { x: 0, y: 0 },
+      data: { path },
+    })
+    const origin = doc([fileNode('a.md')])
+    expect(mergeDocuments(origin, origin, doc([fileNode('b.md')])).document.nodes[0]?.data).toEqual(
+      { path: 'b.md' },
+    )
+    const clash = mergeDocuments(origin, doc([fileNode('c.md')]), doc([fileNode('b.md')]))
+    expect(clash.conflictIds).toEqual(['f'])
   })
 })

@@ -14,9 +14,8 @@
  * @module @xiaoso/dsh-workflow-lite/host/store/merge
  */
 
-import { idKey, SETTINGS_CONFLICT_ID, sameNodeData as sameData } from '../../shared/model.ts'
+import { idKey, SETTINGS_CONFLICT_ID, sameEdgeData, sameNodeContent } from '../../shared/model.ts'
 import type {
-  NodeData,
   Point,
   WorkflowDocument,
   WorkflowEdge,
@@ -163,11 +162,9 @@ function indexNodes(nodes: readonly WorkflowNode[]): Map<string, WorkflowNode> {
   return map
 }
 
-/** 冲突判据只看 `data` 的内容字段（显示名 / 描述 / 提示词 / 产出），缺省与缺省相等。 */
+/** 冲突判据只看内容（类型 + `data`；步骤是显示名 / 描述 / 提示词，文件是路径 / 规则），缺省与缺省相等。 */
 function sameNodeData(a: WorkflowNode, b: WorkflowNode): boolean {
-  const left: NodeData = a.data
-  const right: NodeData = b.data
-  return sameData(left, right)
+  return sameNodeContent(a, b)
 }
 
 function samePosition(a: Point, b: Point): boolean {
@@ -248,12 +245,7 @@ function indexEdges(edges: readonly WorkflowEdge[]): Map<string, WorkflowEdge> {
   return map
 }
 
-/** 边的"内容"＝端点 + `data` 两字段；边没有独立的视图态。 */
+/** 边的"内容"＝端点 + `data`（条件、标签、交接）；边没有独立的视图态。 */
 function sameEdge(a: WorkflowEdge, b: WorkflowEdge): boolean {
-  return (
-    a.source === b.source &&
-    a.target === b.target &&
-    a.data?.when === b.data?.when &&
-    a.data?.label === b.data?.label
-  )
+  return a.source === b.source && a.target === b.target && sameEdgeData(a.data, b.data)
 }

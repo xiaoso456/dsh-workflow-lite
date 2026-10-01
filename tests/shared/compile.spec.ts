@@ -9,7 +9,7 @@
 import { describe, expect, it } from 'vitest'
 import { buildFullText, buildPlan, type PlanOptions, planIdOf } from '../../src/shared/compile.ts'
 import { analyzeGraph } from '../../src/shared/graph.ts'
-import { makeEdgeId } from '../../src/shared/model.ts'
+import { isStep, makeEdgeId, migrateOutputs } from '../../src/shared/model.ts'
 import {
   NODE_TYPE,
   type NodeData,
@@ -43,8 +43,12 @@ function edge(source: string, target: string, when?: string): WorkflowEdge {
   }
 }
 
+/** 测试里图照老写法把产出写在步骤上：和读盘一样先迁成文件节点（编译器只认文件节点）。 */
 function doc(nodes: WorkflowNode[], edges: WorkflowEdge[]): WorkflowDocument {
-  return { nodes, edges, viewport: { x: 0, y: 0, zoom: 1 } }
+  const allNodes = nodes.map((item) => ({ ...item, data: { ...item.data } })) as WorkflowNode[]
+  const allEdges = [...edges]
+  migrateOutputs(allNodes, allEdges)
+  return { nodes: allNodes, edges: allEdges, viewport: { x: 0, y: 0, zoom: 1 } }
 }
 
 const PAYLOAD_ROOT = String.raw`C:\ws\.dispatch\demo\3f9a1c2e`
@@ -122,12 +126,12 @@ const GOLDEN_LINES: readonly string[] = [
   '',
   '## 图的事实',
   '**图名**：`code-review`。',
-  '| `label（id）` | 前置 | 产出 | 任务描述路径 |',
-  '|---|---|---|---|',
-  '| 认证审查（auth-review） | scan；fix-auth（循环中返回） | auth-findings.md | `…\\workflow-lite\\.dispatch\\code-review\\3f9a1c2e\\auth-review.md` |',
-  '| 修复（fix-auth） | auth-review（when=fail） | `false` | `…\\workflow-lite\\.dispatch\\code-review\\3f9a1c2e\\fix-auth.md` |',
-  '| 报告（report） | auth-review（when=pass） | review-report.md | `…\\workflow-lite\\.dispatch\\code-review\\3f9a1c2e\\report.md` |',
-  '| 扫描（scan） | — | scan.json | `…\\workflow-lite\\.dispatch\\code-review\\3f9a1c2e\\scan.md` |',
+  '| `label（id）` | 前置 | 读取 | 写入 | 任务描述路径 |',
+  '|---|---|---|---|---|',
+  '| 认证审查（auth-review） | scan；fix-auth（循环中返回） | scan.json | auth-findings.md | `…\\workflow-lite\\.dispatch\\code-review\\3f9a1c2e\\auth-review.md` |',
+  '| 修复（fix-auth） | auth-review（when=fail） | — | auth-findings.md（更新） | `…\\workflow-lite\\.dispatch\\code-review\\3f9a1c2e\\fix-auth.md` |',
+  '| 报告（report） | auth-review（when=pass） | auth-findings.md | review-report.md | `…\\workflow-lite\\.dispatch\\code-review\\3f9a1c2e\\report.md` |',
+  '| 扫描（scan） | — | — | scan.json | `…\\workflow-lite\\.dispatch\\code-review\\3f9a1c2e\\scan.md` |',
   '',
   '**执行批次**（按前置分层、忽略回边）：',
   '- 批次 1：`scan`',
@@ -147,7 +151,11 @@ const GOLDEN_LINES: readonly string[] = [
   '- 循环体每转一圈，重新读一次任务描述——每轮是一份独立任务。',
   '',
   '## 交付契约',
-  '产出按表里的文件名落地：`auth-review` 的输入来自 `scan` 的产出 `scan.json`；（当 `fail` 成立时）`fix-auth` 的输入来自 `auth-review` 的产出 `auth-findings.md`；（当 `pass` 成立时）`report` 的输入来自 `auth-review` 的产出 `auth-findings.md`。',
+  '**文件**（派发节点时，把它要读、要写的文件路径连同要求交给执行者；标了「更新」的直接在原文件上改，不要另存副本）：',
+  '- `auth-findings.md`：`auth-review` 产出；`fix-auth` 在原文件上更新；`report` 读取。',
+  '- `review-report.md`：`report` 产出。',
+  '- `scan.json`：`scan` 产出；`auth-review` 读取。',
+  '**交接**：轮到一个节点时，把它直接上游这一次的执行结果（回复里的结论与要点）交给它。',
   '分支判定：`auth-review` 回复的最后一行必须是 `VERDICT: fail` 或 `VERDICT: pass`，不得省略。',
   '循环里的产出会被反复覆盖，验收以**最终一轮**为准。',
   '产出写到工作区里，不要写进 `dataDir`。',
@@ -171,7 +179,7 @@ function goldenDocument(): WorkflowDocument {
         label: '认证审查',
         output: 'auth-findings.md',
       }),
-      n('fix-auth', '按审查结论修掉认证问题。', { label: '修复', output: false }),
+      n('fix-auth', '按审查结论修掉认证问题。', { label: '修复' }),
       n('report', '汇总审查与修复，产出报告。', { label: '报告', output: 'review-report.md' }),
     ],
     [
@@ -179,6 +187,10 @@ function goldenDocument(): WorkflowDocument {
       edge('auth-review', 'fix-auth', 'fail'),
       edge('fix-auth', 'auth-review'),
       edge('auth-review', 'report', 'pass'),
+      // 文件：审查读扫描结果；修复在原文件上处理审查结论；报告读审查结论的最终版。
+      edge('file-scan.json', 'auth-review'),
+      { ...edge('fix-auth', 'file-auth-findings.md'), data: { update: true } },
+      edge('file-auth-findings.md', 'report'),
     ],
   )
 }
@@ -230,7 +242,7 @@ describe('黄金用例：设计定稿样张', () => {
     const facts = goldenFacts()
     const plan = buildPlan(facts, analyzeGraph(facts.document)).plan
 
-    for (const item of facts.document.nodes) {
+    for (const item of facts.document.nodes.filter(isStep)) {
       expect(plan).not.toContain(item.data.prompt ?? '')
     }
   })
@@ -263,8 +275,8 @@ describe('② 段：节点清单表', () => {
     const plan = planFor(document)
 
     expect(tableFirstCells(plan)).toEqual(['甲（a）', 'b'])
-    expect(tableRow(plan, 'a')).toBe(`| 甲（a） | — | a.md | \`${PAYLOAD_ROOT}\\a.md\` |`)
-    expect(tableRow(plan, 'b')).toBe(`| b | a | b.md | \`${PAYLOAD_ROOT}\\b.md\` |`)
+    expect(tableRow(plan, 'a')).toBe(`| 甲（a） | — | — | a.md | \`${PAYLOAD_ROOT}\\a.md\` |`)
+    expect(tableRow(plan, 'b')).toBe(`| b | a | — | b.md | \`${PAYLOAD_ROOT}\\b.md\` |`)
   })
 
   it('label 缺省或空串时首列只写 id', () => {
@@ -272,16 +284,21 @@ describe('② 段：节点清单表', () => {
     expect(tableFirstCells(planFor(document))).toEqual(['a', 'b'])
   })
 
-  it('产出列：只有 false 带反引号', () => {
+  it('读取列与写入列：按连线写文件名；在原文件上更新的标「（更新）」；没有写 —', () => {
     const document = doc(
-      [n('a', 'A', { output: 'x.md' }), n('b', 'B', { output: false }), n('c', 'C')],
-      [edge('a', 'b'), edge('b', 'c')],
+      [n('a', 'A', { output: 'x.md' }), n('b', 'B'), n('c', 'C')],
+      [
+        edge('a', 'b'),
+        edge('b', 'c'),
+        edge('file-x.md', 'b'),
+        { ...edge('c', 'file-x.md'), data: { update: true } },
+      ],
     )
     const plan = planFor(document)
 
-    expect(tableRow(plan, 'a')).toContain('| x.md |')
-    expect(tableRow(plan, 'b')).toContain('| `false` |')
-    expect(tableRow(plan, 'c')).toContain('| — |')
+    expect(tableRow(plan, 'a')).toContain('| — | — | x.md |')
+    expect(tableRow(plan, 'b')).toContain('| a | x.md | — |')
+    expect(tableRow(plan, 'c')).toContain('| b | — | x.md（更新） |')
   })
 
   it('前置列：环外入边在前（按源 id 码位序）、回边在后并加注', () => {
@@ -311,7 +328,7 @@ describe('② 段：节点清单表', () => {
       analyzeGraph(document),
     ).plan
 
-    expect(tableRow(plan, 'a')).toBe('| a | — | — | — |')
+    expect(tableRow(plan, 'a')).toBe('| a | — | — | — | — |')
   })
 })
 
@@ -458,34 +475,71 @@ describe('② 段：循环渲染', () => {
 // ─────────────────────────────────────────────────────────────
 
 describe('④ 段：交付契约', () => {
-  it('无条件入边不加前缀；条件入边加「（当 … 成立时）」；句子按 X 的 id 码位序、用 ； 连接', () => {
+  it('文件：每个文件一行，按路径码位序；产出 → 更新 → 读取，有要求跟在后面', () => {
     const document = doc(
-      [n('a', 'A', { output: 'a.md' }), n('b', 'B', { output: 'b.md' }), n('c', 'C')],
-      [edge('a', 'c'), edge('b', 'c', 'go')],
+      [
+        n('scan', 'S', { output: [{ path: 'scan.md', rule: '列出可疑点' }] }),
+        n('review', 'R', { output: 'issues.md' }),
+        n('fix', 'F'),
+        n('verify', 'V'),
+      ],
+      [
+        edge('scan', 'review'),
+        edge('review', 'fix'),
+        edge('fix', 'verify'),
+        edge('file-scan.md', 'review'),
+        { ...edge('fix', 'file-issues.md'), data: { update: true } },
+        edge('file-issues.md', 'verify'),
+      ],
     )
     const plan = planFor(document)
 
     expect(plan).toContain(
-      '产出按表里的文件名落地：`c` 的输入来自 `a` 的产出 `a.md`；（当 `go` 成立时）`c` 的输入来自 `b` 的产出 `b.md`。',
+      [
+        '**文件**（派发节点时，把它要读、要写的文件路径连同要求交给执行者；标了「更新」的直接在原文件上改，不要另存副本）：',
+        '- `issues.md`：`review` 产出；`fix` 在原文件上更新；`verify` 读取。',
+        '- `scan.md`：`scan` 产出；`review` 读取。要求：列出可疑点',
+      ].join('\n'),
     )
   })
 
-  it('output: false 或缺省都不作为来源，下游不产生这一行', () => {
+  it('没有连任何步骤的文件不写；一个文件都没有就没有文件块', () => {
+    const lonely = doc([n('a', 'A')], [])
+    lonely.nodes.push({
+      id: 'file-x',
+      type: 'wfFile',
+      position: { x: 0, y: 0 },
+      data: { path: 'x.md' },
+    })
+    expect(planFor(lonely)).not.toContain('**文件**')
+  })
+
+  it('交接：缺省一句话说清；附了说明、只管先后的线逐条列出', () => {
+    const fix = edge('review', 'fix', 'fail')
+    fix.data = { when: 'fail', handoff: { note: '逐条修复，\n修好的打钩' } }
+    const silent = edge('fix', 'verify')
+    silent.data = { handoff: false }
     const document = doc(
-      [n('a', 'A', { output: false }), n('b', 'B', { output: 'b.md' })],
-      [edge('a', 'b')],
+      [n('review', 'R'), n('fix', 'F'), n('verify', 'V')],
+      [fix, silent, edge('fix', 'review')],
     )
     const plan = planFor(document)
 
-    expect(plan).not.toContain('的输入来自')
-    expect(plan).toContain('产出写到工作区里，不要写进 `dataDir`。')
+    expect(plan).toContain(
+      [
+        '**交接**：轮到一个节点时，把它直接上游这一次的执行结果（回复里的结论与要点）交给它。例外与交接说明：',
+        '- `review` → `fix`（当 `fail` 成立时，循环回来时）：说明：逐条修复， 修好的打钩',
+        '- `fix` → `verify`：只管先后，不交执行结果。',
+      ].join('\n'),
+    )
   })
 
-  it('回边不渲染输入行（循环中返回时的输入由循环段说明）', () => {
-    const plan = planFor(goldenDocument())
-
-    expect(plan).toContain('`auth-review` 的输入来自 `scan` 的产出 `scan.json`')
-    expect(plan).not.toContain('`auth-review` 的输入来自 `fix-auth`')
+  it('没有例外时交接只有一句；只有一个步骤时不写交接', () => {
+    const plain = planFor(doc([n('a', 'A'), n('b', 'B')], [edge('a', 'b')]))
+    expect(plain).toContain(
+      '**交接**：轮到一个节点时，把它直接上游这一次的执行结果（回复里的结论与要点）交给它。\n',
+    )
+    expect(planFor(doc([n('a', 'A')], []))).not.toContain('**交接**')
   })
 
   it('VERDICT 模板：取值去重、按码位序升序、用「或」连接、每个值各自加反引号', () => {
@@ -534,17 +588,17 @@ describe('⑥ 段：图的注意事项', () => {
       },
       {
         level: 'hint',
-        code: 'missing_output',
-        message: 'b 有入边但 output 缺省——可能是漏了产出声明',
+        code: 'file_unwritten',
+        message: '没有步骤写入 x.md——如果它是现成的文件可以忽略',
       },
     ]
     const plan = planFor(document, {}, { problems })
 
     expect(plan).toContain('## 图的注意事项')
     expect(plan).toContain('- 两个及以上节点声明了同一个非空字符串 output')
-    expect(plan).toContain('- b 有入边但 output 缺省——可能是漏了产出声明')
-    expect(plan.endsWith('- b 有入边但 output 缺省——可能是漏了产出声明\n')).toBe(true)
-    expect(plan.indexOf('两个及以上节点')).toBeLessThan(plan.indexOf('b 有入边但 output 缺省'))
+    expect(plan).toContain('- 没有步骤写入 x.md——如果它是现成的文件可以忽略')
+    expect(plan.endsWith('- 没有步骤写入 x.md——如果它是现成的文件可以忽略\n')).toBe(true)
+    expect(plan.indexOf('两个及以上节点')).toBeLessThan(plan.indexOf('没有步骤写入 x.md'))
   })
 
   it('无警告无提示时不出现 ⑥', () => {
@@ -581,13 +635,13 @@ describe('编译级问题：拒绝出计划', () => {
     ])
   })
 
-  it('空图 ⇒ 「图内没有节点，无法编译」', () => {
+  it('空图 ⇒ 「图内没有步骤，无法编译」', () => {
     const document = doc([], [])
     const result = buildPlan(factsOf(document), analyzeGraph(document))
 
     expect(result.plan).toBe('')
     expect(result.problems).toEqual([
-      { level: 'compile', code: 'no_nodes', message: '图内没有节点，无法编译' },
+      { level: 'compile', code: 'no_nodes', message: '图内没有步骤，无法编译' },
     ])
   })
 
@@ -674,10 +728,10 @@ describe('整卷版与派发版的差异', () => {
     expect(full).not.toContain('.dispatch')
     expect(full).toContain('### 节点正文')
     expect(full).toContain('#### 认证审查（auth-review）')
-    for (const item of facts.document.nodes) {
+    for (const item of facts.document.nodes.filter(isStep)) {
       expect(full).toContain(item.data.prompt ?? '')
     }
-    expect(full).toContain('| `label（id）` | 前置 | 产出 |')
+    expect(full).toContain('| `label（id）` | 前置 | 读取 | 写入 |')
     expect(full).not.toContain('任务描述路径')
     expect(full.indexOf('#### 认证审查（auth-review）')).toBeLessThan(
       full.indexOf('#### 修复（fix-auth）'),
@@ -700,23 +754,13 @@ describe('多个产出与生成规则', () => {
   )
   const plan = planFor(document)
 
-  it('清单表的产出列列出全部文件', () => {
+  it('写入列列出全部文件（按连线顺序）', () => {
     expect(tableRow(plan, 'scan')).toContain('scan.md、risk.json')
   })
 
-  it('交付句子带上全部产出', () => {
-    expect(plan).toContain('`fix` 的输入来自 `scan` 的产出 `scan.md`、`risk.json`')
-  })
-
-  it('生成规则进交付契约的「产出要求」，没写规则的不列', () => {
-    expect(plan).toContain('**产出要求**')
-    expect(plan).toContain('- `scan` → `scan.md`：列出可疑点，每条带文件路径与行号')
-    expect(plan).not.toContain('`risk.json`：')
-  })
-
-  it('没有任何规则时不出现「产出要求」', () => {
-    const plain = planFor(doc([n('a', 'x', { output: 'a.md' })], []))
-    expect(plain).not.toContain('**产出要求**')
+  it('生成规则跟在文件后面，没写规则的不带「要求」', () => {
+    expect(plan).toContain('- `scan.md`：`scan` 产出。要求：列出可疑点，每条带文件路径与行号')
+    expect(plan).toContain('- `risk.json`：`scan` 产出。\n')
   })
 })
 
@@ -762,12 +806,12 @@ describe('工作流设置：产出根目录', () => {
     settings: { outputRoot },
   })
 
-  it('相对根目录：表格、交付句子、产出要求里的路径都拼好并标准化', () => {
+  it('相对根目录：表格与文件块里的路径都拼好并标准化', () => {
     const plan = planFor(withRoot('artifacts/run'))
     expect(plan).toContain('**产出根目录**：`artifacts/run`（相对工作区）')
     expect(tableRow(plan, 'scan')).toContain('artifacts/run/scan.md、artifacts/run/data/risk.json')
-    expect(plan).toContain('`fix` 的输入来自 `scan` 的产出 `artifacts/run/scan.md`')
-    expect(plan).toContain('- `scan` → `artifacts/run/scan.md`：列出可疑点')
+    expect(plan).toContain('- `artifacts/run/scan.md`：`scan` 产出。要求：列出可疑点')
+    expect(plan).toContain('- `artifacts/run/data/risk.json`：`scan` 产出。')
     expect(plan).toContain('产出一律写到产出根目录下')
   })
 
