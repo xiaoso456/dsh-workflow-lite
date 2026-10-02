@@ -325,21 +325,143 @@
   font-size: var(--wl-fs-meta);
 }
 
-.preview {
-  height: 42px;
-  padding: 0 16px;
-  border-radius: 12px;
-  box-shadow: var(--wl-shadow-1);
+/* ── 预览 / 执行 ───────────────────────────────────────────── */
+
+/*
+ * 执行和左边实例下拉的触发器一个样子：平时不着色，悬停整块一起亮。
+ * 左半「▶ 执行」在本会话执行，右半箭头打开会话选择；悬停时两半之间浮出一道细线。
+ */
+.run {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  border-radius: var(--wl-r-control);
+  transition: background-color 120ms ease;
+}
+
+.run:hover,
+.run[data-open="true"] {
+  background: var(--wl-hover);
+}
+
+.run[data-disabled="true"] {
+  background: transparent;
+  opacity: 0.42;
+}
+
+.runMain,
+.runMore {
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--wl-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.runMain {
+  gap: 6px;
+  padding: 0 6px 0 10px;
+  border-radius: var(--wl-r-control) 0 0 var(--wl-r-control);
+  font-weight: 600;
+}
+
+.run .runMain svg {
+  flex: none;
+  color: var(--wl-accent-text);
+}
+
+.runMain[data-busy="true"] svg {
+  animation: spin 1.2s linear infinite;
+}
+
+.runMore {
+  justify-content: center;
+  width: 26px;
+  padding: 0 4px 0 2px;
+  border-radius: 0 var(--wl-r-control) var(--wl-r-control) 0;
+  color: var(--wl-text-3);
+}
+
+.run .runMore svg {
+  flex: none;
+  transition: transform 180ms var(--wl-ease);
+}
+
+.runMore[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+
+.run[data-disabled="true"] .runMain,
+.run[data-disabled="true"] .runMore {
+  cursor: not-allowed;
+}
+
+.runMain:focus-visible,
+.runMore:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: -2px;
+}
+
+.runMore::before {
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 0;
+  width: 1px;
+  background: var(--wl-line-strong);
+  content: "";
+  opacity: 0;
+  transition: opacity 120ms linear;
+}
+
+.run:not([data-disabled="true"]):hover .runMore::before {
+  opacity: 1;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.picker {
+  width: 320px;
+}
+
+.sessionDot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin: 0 3px;
+  border-radius: 50%;
+  background: var(--wl-text-3);
+  opacity: 0.5;
+}
+
+.sessionDot[data-running="true"] {
+  background: var(--wl-ok);
+  opacity: 1;
+}
+
+.pickerHint {
+  margin: 4px 0 0;
+  padding: 8px 8px 2px;
+  border-top: 1px solid var(--wl-line);
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.5;
 }
 
 @container (max-width: 760px) {
-  .previewText {
+  .runText {
     display: none;
   }
 
-  .preview {
-    width: 42px;
-    padding: 0;
+  .runMain {
+    padding: 0 2px 0 9px;
   }
 
   .switch {
@@ -352,7 +474,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .switch svg {
+  .switch svg,
+  .run .runMore svg {
     transition: none;
   }
 

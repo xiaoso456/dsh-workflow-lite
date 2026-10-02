@@ -1,10 +1,12 @@
 /**
  * dsh-workflow-lite — 「工作流设置」对话框：整张工作流的全局配置。
  *
- * 两项：
+ * 三项：
  * - **产出根目录**：每个步骤的产出文件编译时都拼在它下面。边打字边预览拼出来的样子，
  *   拼接与标准化走 `shared/outputPaths.ts`（和编译器同一份），这里看到的就是计划里写的。
+ *   没配时输入框里就是默认值（`.workflow-lite/runs/{instance}/out`）；保存成默认值 = 不写这个键。
  * - **执行方式**：自动 / 串行 / 主 agent + 子代理 / Agent 团队。后两种主 agent 当 leader。
+ * - **记录运行状态**：打开后每次编译建一个工作流实例和它的状态文件，画布能切到实例看进度、改状态。
  *
  * 「完成」时一次交出去（一次改动 = 一条撤销步）。
  *
@@ -15,9 +17,11 @@ import { useEffect, useRef, useState } from 'react'
 import { readSettings } from '../../shared/model.ts'
 import {
   checkOutputRoot,
+  DEFAULT_OUTPUT_ROOT,
   isAbsoluteRoot,
   normalizeRoot,
   resolveOutputPath,
+  rootOf,
 } from '../../shared/outputPaths.ts'
 import { EXECUTION_MODES, type ExecutionMode, type WorkflowSettings } from '../../shared/types.ts'
 import type { LocaleKey, T } from '../i18n.ts'
@@ -48,8 +52,10 @@ export function SettingsDialog(props: {
   onClose(): void
 }): React.JSX.Element {
   const { t } = props
-  const [root, setRoot] = useState(props.settings?.outputRoot ?? '')
+  const initialRoot = rootOf(props.settings)
+  const [root, setRoot] = useState(initialRoot)
   const [mode, setMode] = useState<ExecutionMode>(props.settings?.mode ?? 'auto')
+  const [runState, setRunState] = useState(props.settings?.runState === true)
   const rootRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -58,12 +64,16 @@ export function SettingsDialog(props: {
 
   const problem = checkOutputRoot(root)
   const normalized = problem === null ? normalizeRoot(root) : undefined
+  /** 等于默认值（或留空）：保存时不写，跟着默认值走。 */
+  const isDefault = root.trim() === '' || normalized === DEFAULT_OUTPUT_ROOT
   const dirty =
-    root !== (props.settings?.outputRoot ?? '') || mode !== (props.settings?.mode ?? 'auto')
+    root !== initialRoot ||
+    mode !== (props.settings?.mode ?? 'auto') ||
+    runState !== (props.settings?.runState === true)
 
   const submit = (): void => {
     if (problem !== null) return
-    props.onSave(readSettings({ outputRoot: root, mode }))
+    props.onSave(readSettings({ outputRoot: isDefault ? '' : root, mode, runState }))
   }
 
   return (
@@ -123,22 +133,49 @@ export function SettingsDialog(props: {
                     <li>{t('settings.rootTipKinds')}</li>
                     <li>{t('settings.rootTipNormalize')}</li>
                     <li>{t('settings.rootTipEmpty')}</li>
+                    <li>{t('settings.rootTipToken')}</li>
                   </ul>
                   {/* 示例跟着输入框实时变：拼接与标准化和编译器是同一份。 */}
                   <p className={ui.hintExample} data-testid="wl-settings-preview">
                     <span>{t('settings.preview')}</span>
                     <code>{props.sample}</code>
                     <span aria-hidden="true">→</span>
-                    <code>{resolveOutputPath(normalized, props.sample)}</code>
+                    <code>
+                      {resolveOutputPath(
+                        isDefault ? DEFAULT_OUTPUT_ROOT : normalized,
+                        props.sample,
+                      )}
+                    </code>
                   </p>
                 </HelpTip>
               </span>
-              {normalized !== undefined && (
-                <span className={css.rootKind} data-absolute={isAbsoluteRoot(normalized)}>
-                  {isAbsoluteRoot(normalized)
-                    ? t('settings.rootAbsolute')
-                    : t('settings.rootRelative')}
+              {problem === null && (
+                <span
+                  className={css.rootKind}
+                  data-absolute={normalized !== undefined && isAbsoluteRoot(normalized)}
+                  data-testid="wl-settings-root-kind"
+                >
+                  {isDefault
+                    ? t('settings.rootDefault')
+                    : normalized === undefined
+                      ? t('settings.rootWorkspace')
+                      : isAbsoluteRoot(normalized)
+                        ? t('settings.rootAbsolute')
+                        : t('settings.rootRelative')}
                 </span>
+              )}
+              {!isDefault && (
+                <button
+                  type="button"
+                  className={cx(ui.btn, ui.small, css.rootReset)}
+                  data-testid="wl-settings-root-reset"
+                  onClick={() => {
+                    setRoot(DEFAULT_OUTPUT_ROOT)
+                    rootRef.current?.focus()
+                  }}
+                >
+                  {t('settings.rootReset')}
+                </button>
               )}
             </div>
             <input
@@ -195,6 +232,39 @@ export function SettingsDialog(props: {
                 )
               })}
             </div>
+          </section>
+
+          <section className={css.field}>
+            <div className={css.label}>
+              <span className={css.labelMain}>
+                {t('settings.runState')}
+                <HelpTip label={t('settings.runState')} testId="wl-settings-run-help">
+                  <p className={ui.hintTitle}>{t('settings.runState')}</p>
+                  <ul className={ui.hintList}>
+                    <li>{t('settings.runStateTipInstance')}</li>
+                    <li>{t('settings.runStateTipWriter')}</li>
+                    <li>{t('settings.runStateTipView')}</li>
+                  </ul>
+                </HelpTip>
+              </span>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={runState}
+              className={css.mode}
+              data-testid="wl-settings-run-state"
+              onClick={() => setRunState(!runState)}
+            >
+              <span className={css.modeIcon}>
+                <Icon name="runs" size={16} />
+              </span>
+              <span className={css.modeTitle}>{t('settings.runStateOn')}</span>
+              <span className={css.modeDesc}>{t('settings.runStateDesc')}</span>
+              <span className={css.modeCheck} aria-hidden="true">
+                <Icon name="check" size={12} />
+              </span>
+            </button>
           </section>
         </div>
 

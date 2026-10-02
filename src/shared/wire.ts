@@ -8,6 +8,7 @@
  * @module @xiaoso/dsh-workflow-lite/shared/wire
  */
 
+import type { InstanceSummary, InstanceView, StateEdit } from './runState.ts'
 import type {
   CompileResult,
   ListResult,
@@ -52,6 +53,14 @@ export const WORKFLOW_LITE_ENDPOINTS = [
   'graph/nodeTemplateSave',
   'graph/nodeTemplateDelete',
   'plan/build',
+  'run/list',
+  'run/load',
+  'run/bind',
+  'run/save',
+  'run/delete',
+  'run/storage',
+  'run/start',
+  'run/file',
 ] as const
 
 export type WorkflowLiteEndpoint = (typeof WORKFLOW_LITE_ENDPOINTS)[number]
@@ -292,6 +301,120 @@ export interface WorkflowLiteRpcMap {
     result: GraphNodeTemplateDeleteResponse
   }
   'plan/build': { args: PlanBuildRequest; result: PlanBuildResponse }
+  'run/list': { args: RunListRequest; result: RunListResponse }
+  'run/load': { args: RunLoadRequest; result: RunLoadResponse }
+  'run/bind': { args: RunBindRequest; result: { transferred: boolean } }
+  'run/save': { args: RunSaveRequest; result: RunSaveResponse }
+  'run/delete': { args: RunDeleteRequest; result: { removed: true } }
+  'run/storage': { args: RunStorageRequest; result: StorageStats }
+  'run/start': { args: RunStartRequest; result: RunStartResponse }
+  'run/file': { args: RunFileRequest; result: RunFileResponse }
+}
+
+// ── 工作流实例 ─────────────────────
+
+/** `run/list`：`session` 给了且 `all` 不为真时只列这个会话的。 */
+export interface RunListRequest {
+  session?: string
+  all?: boolean
+}
+export interface RunListResponse {
+  instances: InstanceSummary[]
+  /** 请求方会话的当前实例。 */
+  current?: string
+}
+
+/** `run/load`：`since` = 上次拿到的 `mtime`，文件没变就只回 `unchanged`。 */
+export interface RunLoadRequest {
+  id: string
+  session?: string
+  since?: number
+}
+export type RunLoadResponse = InstanceView | { unchanged: true; mtime: number }
+
+/** `run/bind`：设会话的当前实例（实例属于别的会话时转过来）。 */
+export interface RunBindRequest {
+  id: string
+  session: string
+}
+
+/** `run/save`：保存用户在画布上攒的改动，并通知模型。 */
+export interface RunSaveRequest {
+  id: string
+  session?: string
+  edits: StateEdit[]
+  /** 给模型的说明（可选）。 */
+  note?: string
+}
+export interface RunSaveResponse {
+  /** 通知送到模型了没有；没送到时模型下次调用工具会收到。 */
+  notified: boolean
+  mtime: number
+}
+
+/** `run/delete`：删实例记录与快照；`withState` 为真时连状态文件一起删。 */
+export interface RunDeleteRequest {
+  id: string
+  withState?: boolean
+}
+
+/**
+ * `run/start`：画布上的「执行」——用模板现在的样子建一个新实例，归到 `session`，
+ * 回一句要发进那个会话的话（前端走会话输入框的标准发送流程发出去）。
+ */
+export interface RunStartRequest {
+  workflow: string
+  session: string
+  /** 那个会话的工作区（状态文件建在这里、计划的 ⑤ 段也用它）。 */
+  cwd?: string
+}
+export interface RunStartResponse {
+  instance: InstanceSummary
+  prompt: string
+}
+
+/** `run/file` 整份带回正文的上限（字节）；再大只回元信息。 */
+export const RUN_FILE_TEXT_MAX = 256 * 1024
+
+/** 文件能怎么看：Markdown / 纯文本带正文；二进制、太大、不在只有元信息。 */
+export type RunFileKind = 'markdown' | 'text' | 'binary' | 'tooLarge' | 'missing'
+
+/**
+ * `run/file`：看实例里的一份产出文件。`node` = 快照里的文件节点；`path` = 实例工作区里的相对路径
+ * （状态文件 `outputs` 里写的）。工作区外的一律拒绝。
+ */
+export interface RunFileRequest {
+  id: string
+  node?: string
+  path?: string
+}
+export interface RunFileResponse {
+  /** 绝对路径（交给系统程序打开用）。 */
+  path: string
+  /** 给人看的路径（相对工作区）。 */
+  display: string
+  exists: boolean
+  size: number
+  mtime: number
+  kind: RunFileKind
+  /** `markdown` / `text` 时才有。 */
+  text?: string
+  limit: number
+}
+
+/** `run/storage`：存储统计与清理。 */
+export interface RunStorageRequest {
+  action?: 'stats' | 'clearDispatch' | 'clearFinished'
+}
+export interface StorageStats {
+  dataDir: string
+  instances: number
+  /** 已结束（完成 / 已取消）的实例数。 */
+  finished: number
+  dispatchFiles: number
+  dispatchBytes: number
+  /** 这次清理删掉了几项（只在清理动作里有）。 */
+  cleared?: number
 }
 
 /** 画布内部用的节点索引（host 的 `read` 索引与它同构）。 */

@@ -13,7 +13,7 @@
  */
 
 import { COORD_DECIMALS } from './limits.ts'
-import { normalizeRoot, outputKey } from './outputPaths.ts'
+import { normalizeRoot, outputKey, WORKSPACE_ROOT } from './outputPaths.ts'
 import {
   type EdgeData,
   EXECUTION_MODES,
@@ -181,12 +181,13 @@ export function cloneNodeData(data: NodeData): NodeData {
 export function readSettings(raw: unknown): WorkflowSettings | undefined {
   if (!isPlainObject(raw)) return undefined
   const settings: WorkflowSettings = {}
-  if (typeof raw.outputRoot === 'string') {
-    const root = normalizeRoot(raw.outputRoot)
-    if (root !== undefined) settings.outputRoot = root
+  // 空串 = 没配（用默认根目录）；`.` = 明确写在工作区根，原样留着。
+  if (typeof raw.outputRoot === 'string' && raw.outputRoot.trim() !== '') {
+    settings.outputRoot = normalizeRoot(raw.outputRoot) ?? WORKSPACE_ROOT
   }
   const mode = EXECUTION_MODES.find((candidate) => candidate === raw.mode)
   if (mode !== undefined && mode !== 'auto') settings.mode = mode
+  if (raw.runState === true) settings.runState = true
   return Object.keys(settings).length > 0 ? settings : undefined
 }
 
@@ -198,7 +199,11 @@ export function sameSettings(
   a: WorkflowSettings | undefined,
   b: WorkflowSettings | undefined,
 ): boolean {
-  return a?.outputRoot === b?.outputRoot && (a?.mode ?? 'auto') === (b?.mode ?? 'auto')
+  return (
+    a?.outputRoot === b?.outputRoot &&
+    (a?.mode ?? 'auto') === (b?.mode ?? 'auto') &&
+    a?.runState === b?.runState
+  )
 }
 
 /** 交接：`false` 原样；对象只认字符串 `note`（空白说明 = 缺省）；其余值当没写（= 交执行结果）。 */
@@ -581,6 +586,7 @@ export function writeDocument(document: WorkflowDocument): string {
           settings: {
             ...(settings.outputRoot === undefined ? {} : { outputRoot: settings.outputRoot }),
             ...(settings.mode === undefined ? {} : { mode: settings.mode }),
+            ...(settings.runState === undefined ? {} : { runState: settings.runState }),
           },
         }),
   }

@@ -1,0 +1,449 @@
+/**
+ * dsh-workflow-lite — 实例里的产出文件：类型签、文件行、文件面板、查看框、「打开方式」按钮。
+ */
+
+/* ── 类型签：按类型配色，印扩展名 ───────────────────────────── */
+
+[data-file-kind] {
+  --wl-fk: var(--wl-file);
+}
+
+[data-file-kind="markdown"] {
+  --wl-fk: var(--wl-flow-always);
+}
+
+[data-file-kind="code"] {
+  --wl-fk: var(--wl-ok);
+}
+
+[data-file-kind="data"] {
+  --wl-fk: var(--wl-warn);
+}
+
+[data-file-kind="image"] {
+  --wl-fk: var(--wl-io-update);
+}
+
+.tag {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  min-width: 30px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--wl-fk) 13%, var(--wl-panel));
+  color: var(--wl-fk);
+  font-family: var(--wl-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.tagLarge {
+  min-width: 38px;
+  height: 26px;
+  border-radius: 7px;
+  font-size: 11px;
+}
+
+/* ── 文件行（步骤面板的产出 / 读取、文件面板的写它 / 读它）──────── */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  width: 100%;
+  min-height: 40px;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--wl-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.row:hover {
+  background: var(--wl-hover);
+}
+
+.row:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: -2px;
+}
+
+.rowText {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.rowName {
+  overflow: hidden;
+  font-size: var(--wl-fs-meta);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowSub {
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowEnd {
+  display: inline-flex;
+  flex: none;
+  gap: 6px;
+  align-items: center;
+}
+
+.mode {
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+}
+
+.mode[data-mode="produce"] {
+  background: color-mix(in srgb, var(--wl-io-produce) 14%, transparent);
+  color: var(--wl-io-produce);
+}
+
+.mode[data-mode="update"] {
+  background: color-mix(in srgb, var(--wl-io-update) 14%, transparent);
+  color: var(--wl-io-update);
+}
+
+.mode[data-mode="read"] {
+  background: color-mix(in srgb, var(--wl-io-read) 14%, transparent);
+  color: var(--wl-io-read);
+}
+
+/* 生成没有：一个小圆标，生成了是绿勾、没生成是空心圈。 */
+.made {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  color: var(--wl-text-3);
+}
+
+.made[data-made="true"] {
+  color: var(--wl-ok);
+}
+
+.groupTitle {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin: 0;
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-meta);
+  font-weight: 600;
+}
+
+.groupCount {
+  color: var(--wl-text-3);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 文件面板（实例里选中一份文件）──────────────────────────── */
+
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hero {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.heroActions {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  align-items: center;
+  margin-right: -4px;
+}
+
+.heroText {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.heroName {
+  overflow: hidden;
+  font-size: var(--wl-fs-body);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 路径可能很长（默认放在 .workflow-lite/runs/<实例>/out 下）：折成两行，再长才省略。 */
+.heroPath {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.45;
+  word-break: break-all;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.state {
+  display: inline-flex;
+  flex: none;
+  gap: 4px;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px 0 6px;
+  border-radius: 999px;
+  background: var(--wl-fill);
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+}
+
+.state[data-made="true"] {
+  background: var(--wl-ok-soft);
+  color: var(--wl-ok);
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: center;
+  padding-left: 48px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 大小、时间之间用小圆点隔开。 */
+.metaItem + .metaItem::before {
+  margin-right: 10px;
+  content: "·";
+}
+
+.preview {
+  position: relative;
+  max-height: 210px;
+  overflow: hidden;
+  border: 1px solid var(--wl-line);
+  border-radius: 8px;
+  background: var(--wl-fill);
+  cursor: pointer;
+}
+
+.preview:hover {
+  border-color: var(--wl-line-strong);
+}
+
+.preview:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+.previewText {
+  margin: 0;
+  padding: 10px 12px;
+  color: var(--wl-text-2);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* 内容被截住时底部淡出，提示还有。 */
+.preview[data-clipped="true"]::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 48px;
+  background: linear-gradient(transparent, var(--wl-fill));
+  content: "";
+  pointer-events: none;
+}
+
+.previewNote {
+  margin: 0;
+  padding: 12px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.55;
+}
+
+/* ── 「用其他程序打开」菜单 ─────────────────────────────────── */
+
+.apps {
+  width: 260px;
+}
+
+.appList {
+  display: flex;
+  flex-direction: column;
+  max-height: min(340px, 50vh);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.appIcon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  object-fit: contain;
+}
+
+/* ── 查看框 ────────────────────────────────────────────────── */
+
+.viewer[role="dialog"] {
+  display: flex;
+  flex-direction: column;
+  width: min(920px, calc(100% - 48px));
+  max-width: none;
+  height: min(780px, calc(100% - 48px));
+  padding: 0;
+  overflow: hidden;
+}
+
+.viewerHead {
+  display: flex;
+  flex: none;
+  gap: 10px;
+  align-items: center;
+  padding: 12px 12px 10px 16px;
+  border-bottom: 1px solid var(--wl-line);
+}
+
+.viewerTitle {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.viewerName {
+  overflow: hidden;
+  font-size: var(--wl-fs-title);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.viewerMeta {
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.viewerMeta code {
+  font-family: var(--wl-mono);
+}
+
+.viewerViews {
+  width: 132px;
+  flex: none;
+}
+
+.viewerBody {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+}
+
+.viewerDoc {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 20px 28px 32px;
+}
+
+.viewerSource {
+  margin: 0;
+  padding: 16px 20px;
+  color: var(--wl-text);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-meta);
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+  tab-size: 2;
+}
+
+.viewerState {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 32px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+  text-align: center;
+}
+
+.viewerStateIcon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--wl-fill);
+  color: var(--wl-text-2);
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--wl-line-strong);
+  border-top-color: var(--wl-accent);
+  border-radius: 50%;
+  animation: spin 700ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

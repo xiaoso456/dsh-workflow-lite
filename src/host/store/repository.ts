@@ -257,7 +257,7 @@ export interface Repository {
   /** 改工作流设置（产出根目录、执行方式）；给了的字段才改。 */
   configure(
     workflow: string,
-    patch: { outputRoot?: string; mode?: ExecutionMode },
+    patch: { outputRoot?: string; mode?: ExecutionMode; runState?: boolean },
   ): Promise<Outcome<WriteResult>>
   deleteNode(workflow: string, node: string): Promise<Outcome<WriteResult>>
   connect(
@@ -1186,11 +1186,12 @@ class FileRepository implements Repository {
   }
 
   /**
-   * 改工作流设置。给了的字段才改：`outputRoot` 空串 = 清除（回到工作区根），`mode: 'auto'` = 清除。
+   * 改工作流设置。给了的字段才改：`outputRoot` 空串 = 清除（回到默认的
+   * `.workflow-lite/runs/{instance}/out`）、`.` = 工作区根，`mode: 'auto'` = 清除。
    */
   async configure(
     workflow: string,
-    patch: { outputRoot?: string; mode?: ExecutionMode },
+    patch: { outputRoot?: string; mode?: ExecutionMode; runState?: boolean },
   ): Promise<Outcome<WriteResult>> {
     return this.mutate(workflow, async (document) => {
       if (patch.outputRoot !== undefined) {
@@ -1203,6 +1204,7 @@ class FileRepository implements Repository {
       const next = readSettings({
         outputRoot: patch.outputRoot ?? before?.outputRoot,
         mode: patch.mode ?? before?.mode,
+        runState: patch.runState ?? before?.runState,
       })
       if (sameSettings(before, next)) return { ok: true, document, changed: [], warnings: [] }
       if (next === undefined) delete document.settings

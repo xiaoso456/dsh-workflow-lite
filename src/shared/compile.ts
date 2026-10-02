@@ -80,6 +80,31 @@ const MODE_LINES: Record<ExecutionMode, readonly string[]> = {
   ],
 }
 
+/**
+ * 「运行状态」段（工作流开了「记录运行状态」时才有）：状态文件在哪、谁改、什么时候改、怎么校验、
+ * 怎么接着跑。格式全文在 skill `workflow-run-state`，这里只放执行时离不开的规矩。
+ */
+export function runStateLines(section: RunStateSection): string[] {
+  const lines = [
+    PLAN_SECTIONS.runState,
+    `这次执行要把进度记进状态文件 ${code(section.statePath)}（YAML，插件已经按初始状态建好）。`,
+    '',
+    '- **由你来改。** 子代理、队员不碰这个文件——派发时告诉他们"不要改状态文件"，他们做完把结论、判定和产出路径报给你，由你记。用户也可能在画布上改它，所以**每次改之前先重新读一遍**，只改你要改的地方，不要拿旧内容整份覆盖。',
+    '- **什么时候改**：开始执行时把顶层 `status` 改成 `running`；派发一个节点之前，把它改成 `running`、`round` 加 1、写 `startedAt`；它做完，改成 `done` 或 `failed`，写 `finishedAt`、一句 `summary` 和实际产出 `outputs`，有条件出边的写 `verdict`；分支没走到的节点改成 `skipped`；需要用户回答时改成 `waiting`；全部走完把顶层 `status` 改成 `done`。每次改动都在 `log` 末尾追加一条，并更新 `updatedAt`（时间带时区，例如 2026-10-02T14:30:00+08:00）。',
+  ]
+  if (section.validator !== undefined) {
+    lines.push(
+      `- **改完就校验**：\`node "${section.validator}" "${section.statePath}"\`。报错就按提示改好再往下走。`,
+    )
+  }
+  lines.push(
+    '- **中断后继续**：先读状态文件，从第一个没完成的节点接着做；停在 `running` 的节点视为被打断，重做这一轮。换了会话就先调用 `workflow_lite` 的 `resume`。',
+    '- **用户改了状态**：会收到一条「用户修改了运行状态」的通知，列出改了什么。照最新的状态调整：改回 `pending` 的节点要重新执行，`skipped` 的不再执行，顶层是 `waiting` 就停下来问用户。',
+    '- 字段的完整含义与例子在 skill `workflow-run-state` 里，拿不准时去读。',
+  )
+  return lines
+}
+
 /** ③ 分发纪律。 */
 const DISCIPLINE_LINES: readonly string[] = [
   PLAN_SECTIONS.discipline,
@@ -139,6 +164,16 @@ const DASH = '—'
 export interface PlanOptions {
   /** 该图本次校验出的全部问题。 */
   problems?: readonly ValidationProblem[]
+  /** 这次执行要记运行状态：计划末尾追加「运行状态」段（见 {@link runStateLines}）。 */
+  runState?: RunStateSection
+}
+
+/** 「运行状态」段要的几样东西（host 建好实例后给）。 */
+export interface RunStateSection {
+  /** 状态文件的绝对路径。 */
+  statePath: string
+  /** 校验脚本的绝对路径；拿不到（比如包里缺文件）时省略，段里就不写校验命令。 */
+  validator?: string
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -355,6 +390,7 @@ function renderPlan(
   if (notes.length > 0) {
     sections.push([PLAN_SECTIONS.notes, ...notes.map((note) => `- ${note.message}`)].join('\n'))
   }
+  if (options?.runState !== undefined) sections.push(runStateLines(options.runState).join('\n'))
   return `${sections.join('\n\n')}\n`
 }
 

@@ -99,7 +99,7 @@ describe('RPC 目标', () => {
   it('端点两两不同，且数量就是契约里的那几条', () => {
     const names = WORKFLOW_LITE_ENDPOINTS.map((endpoint) => endpointName(endpoint))
     expect(new Set(names).size).toBe(names.length)
-    // 十三条：「我的步骤」在画布上可建、可改、可删（模板从前只能手写）。
-    expect(names).toHaveLength(13)
+    // 十三条图与模板，加六条工作流实例（run/list · load · bind · save · delete · storage）。
+    expect(names).toHaveLength(21)
   })
 })

@@ -15,7 +15,7 @@ import { type FileInfo, fileGraph, stepFiles } from '../../shared/files.ts'
 import { MAX_TEXT_CODEPOINTS } from '../../shared/limits.ts'
 import { idKey, isFile } from '../../shared/model.ts'
 import { checkOutput, codepointLength } from '../../shared/naming.ts'
-import { outputKey, resolveOutputPath } from '../../shared/outputPaths.ts'
+import { normalizeRoot, outputKey, resolveOutputPath, rootOf } from '../../shared/outputPaths.ts'
 import type {
   FileNode,
   StepNode,
@@ -240,7 +240,7 @@ export function StepFilesField(props: {
           t={t}
           title={t('file.newTitle')}
           owner={stepName(step, step.id)}
-          root={doc.settings?.outputRoot}
+          root={normalizeRoot(rootOf(doc.settings))}
           initial={null}
           suggest={freeFilePath(doc, `${step.id}.md`)}
           taken={doc.nodes.filter(isFile).map((node) => node.data.path)}
@@ -313,7 +313,8 @@ export function FilePanel(props: {
         : taken
           ? t('file.pathTaken')
           : null
-  const root = doc.settings?.outputRoot
+  // 产出根目录（没配是默认的实例目录）；写在工作区根时为 `undefined`。
+  const root = normalizeRoot(rootOf(doc.settings))
 
   const stepRow = (id: string, extra: React.ReactNode, edge: WorkflowEdge): React.JSX.Element => {
     const step = findNode(doc, id)

@@ -37,6 +37,7 @@ import type {
 } from '../../shared/types.ts'
 import { ACTIONS, type Action, EXECUTION_MODES, TOOL_NAME } from '../../shared/types.ts'
 import { compileWorkflow } from '../plan.ts'
+import type { RunService, SessionRef } from '../runs/service.ts'
 import { writeFileAtomic } from '../store/atomic.ts'
 import { templateFile, templateOccupant } from '../store/paths.ts'
 import {
@@ -52,6 +53,8 @@ export interface ToolDeps {
   repository: Repository
   dataDir: () => string
   maxResultBytes: () => number
+  /** 工作流实例（运行状态）；不给就当没有这块能力（`runs` / `resume` 报错，编译不建实例）。 */
+  runs?: RunService
 }
 
 const DESCRIPTION = [
@@ -62,7 +65,9 @@ const DESCRIPTION = [
   'create 新建图（可从工作流模板）/ write_node 新建或覆盖一个节点 / set_label 改显示名（id 不可改）/ ',
   'delete_node 删节点（连带删边）/ connect、disconnect 增删边 / rename_workflow、delete_workflow 改名删图 / ',
   'save_as_template 存成模板（给了 node 就存成节点模板）/ ',
-  'configure 改工作流设置（output_root 产出根目录、mode 执行方式）/ write_file 新建或修改文件节点。',
+  'configure 改工作流设置（output_root 产出根目录、mode 执行方式、run_state 记录运行状态）/ write_file 新建或修改文件节点 / ',
+  'runs 列工作流实例 / resume 拿一个实例的计划接着跑。开了 run_state 的图，compile 会建一个工作流实例和它的状态文件；中断后接着跑用 resume。',
+  '用户在画布上点「执行」时会发来一句带实例 id 的话：用 resume 拿那个实例的计划，照着执行。',
   '文件是独立的节点：connect 步骤 → 文件 = 写它（update 选在原文件上更新），文件 → 步骤 = 读它；',
   'write_node 的 output/outputs 也会自动建好文件节点并连上。步骤 → 步骤的线缺省交上游的执行结果（handoff / handoff_note 可改）。',
   '节点定位一律用 id。',
@@ -106,6 +111,21 @@ function toJsonValue(value: unknown): JsonValue {
 /** 从 `exec` 取执行者的工作区根（进 ⑤ 的 cwd）。`exec` 缺失时返回 undefined（纯函数自足）。 */
 function cwdOf(exec: ToolExecView | undefined): string | undefined {
   return exec?.agent?.session?.header?.cwd
+}
+
+/**
+ * 调用方的会话：子代理的会话不产生自己的实例归属，沿 `parentSession` 归到发起它的会话。
+ */
+function sessionOf(exec: ToolExecView | undefined): SessionRef {
+  const header = exec?.agent?.session?.header
+  const id =
+    header?.origin === 'subagent' && header.parentSession !== undefined
+      ? header.parentSession
+      : header?.id
+  return {
+    ...(id === undefined ? {} : { id }),
+    ...(header?.cwd === undefined ? {} : { cwd: header.cwd }),
+  }
 }
 
 /** 步骤的索引条目（不含正文）：前置步骤，以及它读、写的文件。 */
@@ -243,6 +263,9 @@ export interface WorkflowLiteArgs {
   update?: boolean
   path?: string
   rule?: string
+  run_state?: boolean
+  instance?: string
+  all?: boolean
 }
 
 /**
@@ -258,7 +281,11 @@ function handoffOf(args: WorkflowLiteArgs): Handoff | false | null | undefined {
 
 /** `execute` 真正用到的那一小块执行上下文（完整 `ToolRunContext` 结构上兼容它）。 */
 export interface ToolExecView {
-  agent?: { session?: { header?: { cwd?: string } } }
+  agent?: {
+    session?: {
+      header?: { id?: string; cwd?: string; origin?: string; parentSession?: string }
+    }
+  }
 }
 
 /**
@@ -274,11 +301,18 @@ export function createWorkflowLiteHandler(
     const repository = deps.repository
     const cap = deps.maxResultBytes()
 
+    const session = sessionOf(exec)
+    // 用户在画布上改了状态、当时没送到模型的通知：随这次调用的返回值一起交给它。
+    const notices = deps.runs === undefined ? [] : await deps.runs.takeNotices(session.id)
     const finish = (value: unknown, warnings?: ToolWarning[]): JsonValue => {
+      const withNotices =
+        notices.length === 0
+          ? value
+          : { ...(value as Record<string, unknown>), userNotices: notices }
       const withWarnings =
         warnings === undefined || warnings.length === 0
-          ? value
-          : { ...(value as Record<string, unknown>), warnings }
+          ? withNotices
+          : { ...(withNotices as Record<string, unknown>), warnings }
       const serialized = JSON.stringify(withWarnings)
       if (serialized !== undefined && serialized.length > cap) {
         return toJsonValue({
@@ -354,6 +388,7 @@ export function createWorkflowLiteHandler(
       case 'compile': {
         const name = requireWorkflow(args.workflow)
         if (name === null) return missingWorkflow()
+        const runs = deps.runs
         const outcome = await compileWorkflow(
           repository,
           deps.dataDir(),
@@ -361,8 +396,52 @@ export function createWorkflowLiteHandler(
           {
             ...(args.full === true ? { full: true } : {}),
             ...(args.goal === undefined ? {} : { goal: args.goal }),
+            // 派发版是要拿去执行的：产出根目录里的 {instance} 要换成实际的值。
+            ...(args.full === true ? {} : { execute: true }),
+            // 开了「记录运行状态」的图：编译成功就建一个工作流实例（整卷版是给人看的，不建）。
+            ...(runs === undefined || args.full === true
+              ? {}
+              : {
+                  prepareRun: (_planId: string, document: WorkflowDocument) =>
+                    runs.prepare({
+                      workflow: name,
+                      document,
+                      session,
+                      ...(args.goal === undefined ? {} : { goal: args.goal }),
+                    }),
+                }),
           },
           cwdOf(exec),
+        )
+        if (!outcome.ok) return errorValue(outcome)
+        const { run, ...rest } = outcome.result
+        return finish(
+          run === undefined
+            ? rest
+            : {
+                ...rest,
+                ...run,
+                ...(session.cwd === undefined
+                  ? {
+                      runWarning:
+                        '这次调用没有会话工作区，状态文件放在了数据目录里；沙箱只允许写工作区时可能写不进去',
+                    }
+                  : {}),
+              },
+        )
+      }
+
+      case 'runs': {
+        if (deps.runs === undefined) return noRuns()
+        const list = await deps.runs.list(session.id, args.all === true || session.id === undefined)
+        return finish({ instances: list })
+      }
+
+      case 'resume': {
+        if (deps.runs === undefined) return noRuns()
+        const outcome = await deps.runs.resume(
+          args.instance === undefined || args.instance === '' ? undefined : args.instance,
+          session,
         )
         if (!outcome.ok) return errorValue(outcome)
         return finish(outcome.result)
@@ -505,14 +584,22 @@ export function createWorkflowLiteHandler(
       case 'configure': {
         const name = requireWorkflow(args.workflow)
         if (name === null) return missingWorkflow()
-        if (args.output_root === undefined && args.mode === undefined) {
+        if (
+          args.output_root === undefined &&
+          args.mode === undefined &&
+          args.run_state === undefined
+        ) {
           return errorValue({
-            error: { code: 'invalid_args', message: 'configure 需要 output_root 或 mode' },
+            error: {
+              code: 'invalid_args',
+              message: 'configure 需要 output_root、mode 或 run_state',
+            },
           })
         }
         const outcome = await repository.configure(name, {
           ...(args.output_root === undefined ? {} : { outputRoot: args.output_root }),
           ...(args.mode === undefined ? {} : { mode: args.mode }),
+          ...(args.run_state === undefined ? {} : { runState: args.run_state }),
         })
         if (!outcome.ok) return errorValue(outcome)
         return finish(outcome.result)
@@ -632,8 +719,18 @@ export const PARAMETERS = {
   output_root: {
     type: 'string',
     description:
-      'configure：产出根目录（相对工作区或绝对路径），编译时拼在每个产出文件前面；空串 = 清除。',
+      'configure：产出根目录（相对工作区或绝对路径），编译时拼在每个产出文件前面；{instance} 换成实例 id。空串 = 清除（默认 .workflow-lite/runs/{instance}/out），. = 工作区根目录。',
   },
+  run_state: {
+    type: 'boolean',
+    description:
+      'configure：记录运行状态。打开后每次 compile 建一个工作流实例和它的 YAML 状态文件，执行时按计划末尾「运行状态」段维护。',
+  },
+  instance: {
+    type: 'string',
+    description: 'resume：实例 id（缺省 = 本会话当前的实例；用户从画布上执行时会给出）。',
+  },
+  all: { type: 'boolean', description: 'runs：true = 列所有会话的实例（缺省只列本会话的）。' },
   mode: {
     type: 'string',
     enum: [...EXECUTION_MODES],
@@ -671,6 +768,12 @@ export function registerWorkflowLiteTool(ctx: Context, deps: ToolDeps): () => vo
 
 function document0(): WorkflowDocument {
   return { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } }
+}
+
+function noRuns(): JsonValue {
+  return errorValue({
+    error: { code: 'invalid_args', message: '工作流实例不可用（插件没有装配运行状态这块能力）' },
+  })
 }
 
 function requireWorkflow(value: string | undefined): string | null {

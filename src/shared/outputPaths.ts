@@ -17,7 +17,7 @@ import { codepointLength, type NameProblem } from './naming.ts'
 
 /**
  * 根目录的规范写法：去首尾空白、`pathe.normalize`、去掉尾斜杠（`/`、`C:/`、`//srv/share` 这类根本身除外）。
- * 空串与 `.` 都表示"工作区根"，返回 `undefined`（= 不配置）。
+ * 空串与 `.` 都表示"工作区根"，返回 `undefined`（拼接时不加前缀）。
  */
 export function normalizeRoot(raw: string | undefined): string | undefined {
   if (raw === undefined) return undefined
@@ -28,6 +28,25 @@ export function normalizeRoot(raw: string | undefined): string | undefined {
     value = value.slice(0, -1)
   }
   return value === '.' || value === '' ? undefined : value
+}
+
+/** 根目录里的这个记号建实例时换成实例 id（每次执行的产出各放各的）。 */
+export const INSTANCE_TOKEN = '{instance}'
+
+/** 没配产出根目录时用它：和状态文件放在一起，每个实例一个 `out`。 */
+export const DEFAULT_OUTPUT_ROOT = `.workflow-lite/runs/${INSTANCE_TOKEN}/out`
+
+/** 写 `.` = 明确要写在工作区根目录（和"没配"区分开：没配是 {@link DEFAULT_OUTPUT_ROOT}）。 */
+export const WORKSPACE_ROOT = '.'
+
+/** 一张图实际用的产出根目录（还没换实例 id）：没配就是默认值。 */
+export function rootOf(settings: { outputRoot?: string } | undefined): string {
+  return settings?.outputRoot ?? DEFAULT_OUTPUT_ROOT
+}
+
+/** 把根目录里的 {@link INSTANCE_TOKEN} 换成 `instance`，再规范化；结果是工作区根时回 `.`。 */
+export function bindRoot(root: string, instance: string): string {
+  return normalizeRoot(root.split(INSTANCE_TOKEN).join(instance)) ?? WORKSPACE_ROOT
 }
 
 /** 根目录是不是绝对路径（`/x`、`C:/x`、`//srv/share`；`C:` 这种盘符相对写法规范化后也算）。 */

@@ -45,6 +45,11 @@ export interface WorkflowSettings {
   outputRoot?: string
   /** 执行方式；缺省 = `auto`（`auto` 不写盘）。 */
   mode?: Exclude<ExecutionMode, 'auto'>
+  /**
+   * 记录运行状态：打开后每次编译建一个工作流实例，带一份由主 agent 维护的 YAML 状态文件
+   * 缺省 = 关（关时不写盘）。
+   */
+  runState?: true
 }
 
 export interface Viewport {
@@ -262,7 +267,7 @@ export interface ValidationProblem {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 工具线格式（唯一工具 workflow_lite，14 个 action）
+// 工具线格式（唯一工具 workflow_lite，16 个 action）
 // ─────────────────────────────────────────────────────────────
 
 export const TOOL_NAME = 'workflow_lite'
@@ -282,6 +287,8 @@ export const ACTIONS = [
   'save_as_template',
   'configure',
   'write_file',
+  'runs',
+  'resume',
 ] as const
 
 export type Action = (typeof ACTIONS)[number]
@@ -417,6 +424,8 @@ export type ToolSuccess =
   | { action: 'save_as_template'; result: WriteResult }
   | { action: 'configure'; result: WriteResult }
   | { action: 'write_file'; result: WriteResult }
+  | { action: 'runs'; result: unknown }
+  | { action: 'resume'; result: unknown }
 
 // ─────────────────────────────────────────────────────────────
 // 图语义（供编译器与画布共用）

@@ -9,10 +9,13 @@
  */
 
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import { ReactFlowProvider, useReactFlow, useViewport } from '@xyflow/react'
+import { ReactFlowProvider, useReactFlow } from '@xyflow/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { isFile, SETTINGS_CONFLICT_ID } from '../../shared/model.ts'
 import type { NodeData, Point, WorkflowDocument } from '../../shared/types.ts'
+import type { Desktop } from '../app/desktop.ts'
+import { type SessionBridge, useSessionRows } from '../app/sessions.ts'
+import { useRuns } from '../app/useRuns.ts'
 import { useWorkflow, type Workflow } from '../app/useWorkflow.ts'
 import type { LocaleKey, NS, T } from '../i18n.ts'
 import { findNode, type Selection } from '../model/editor.ts'
@@ -25,15 +28,18 @@ import {
   type StepSource,
   starterGraph,
 } from '../model/library.ts'
-import type { WorkflowLiteRpc } from '../rpc.ts'
+import { errorMessage, type WorkflowLiteRpc } from '../rpc.ts'
 import { type AddRequest, Canvas } from './Canvas.tsx'
+import { ZoomDock } from './Dock.tsx'
 import { freeFilePath } from './Files.tsx'
+import { HubDialog } from './HubDialog.tsx'
 import { Icon } from './Icon.tsx'
 import { Inspector } from './Inspector.tsx'
 import { Library } from './Library.tsx'
 import { PlanDialog } from './PlanDialog.tsx'
-import { cx, ModalHostProvider, Popover } from './primitives.tsx'
+import { cx, ModalHostProvider } from './primitives.tsx'
 import { QuickAdd } from './QuickAdd.tsx'
+import { RunView } from './RunView.tsx'
 import { SettingsDialog } from './SettingsDialog.tsx'
 import { StepPanel } from './StepPanel.tsx'
 import css from './shell.module.css'
@@ -43,6 +49,12 @@ import ui from './ui.module.css'
 /** 客户端入口注入的业务面。 */
 export interface WorkflowViewInjected {
   rpc: WorkflowLiteRpc
+  /** 这个 tab 所在的会话。 */
+  sessionId?: string
+  /** 会话列表与发消息（「执行」用）；宿主缺相应服务时不给。 */
+  sessions?: SessionBridge
+  /** 用系统程序打开文件；宿主没有桌面能力时不给。 */
+  desktop?: Desktop
 }
 
 /** 槽位给这个组件的完整 props。 */
@@ -86,29 +98,125 @@ function writeLibraryPref(open: boolean): void {
   }
 }
 
-const SHORTCUTS: readonly { key: LocaleKey; combos: readonly string[] }[] = [
-  { key: 'keys.add', combos: [] },
-  { key: 'keys.undo', combos: ['Ctrl', 'Z'] },
-  { key: 'keys.redo', combos: ['Ctrl', 'Shift', 'Z'] },
-  { key: 'keys.duplicate', combos: ['Ctrl', 'D'] },
-  { key: 'keys.delete', combos: ['Delete'] },
-  { key: 'keys.deselect', combos: ['Esc'] },
-  { key: 'keys.fit', combos: ['F'] },
-  { key: 'keys.tidy', combos: ['L'] },
-]
-
 export function WorkflowView(props: WorkflowViewProps): React.JSX.Element {
   return (
     <ReactFlowProvider>
-      <Shell rpc={props.rpc} t={props.t as T} />
+      <Shell
+        rpc={props.rpc}
+        t={props.t as T}
+        session={props.sessionId}
+        {...(props.sessions === undefined ? {} : { sessions: props.sessions })}
+        {...(props.desktop === undefined ? {} : { desktop: props.desktop })}
+      />
     </ReactFlowProvider>
   )
 }
 
-function Shell(props: { rpc: WorkflowLiteRpc; t: T }): React.JSX.Element {
+/** 实例列表多久刷新一次（模型在会话里编译出新实例时，tab 里能看到提示）。 */
+const RUNS_REFRESH_MS = 8000
+
+function Shell(props: {
+  rpc: WorkflowLiteRpc
+  t: T
+  session: string | undefined
+  sessions?: SessionBridge
+  desktop?: Desktop
+}): React.JSX.Element {
   const { t } = props
   const wf = useWorkflow(props.rpc, t)
   const { state, analysis } = wf
+  const runs = useRuns(props.rpc, props.session)
+  /** 正在看的工作流实例；`null` = 模板编辑。 */
+  const [runId, setRunId] = useState<string | null>(null)
+  const [hubOpen, setHubOpen] = useState(false)
+  /** 本会话刚出现的新实例（模型编译了一次）：模板编辑时顶部提示一下。 */
+  const [freshRun, setFreshRun] = useState<string | null>(null)
+  const seenCurrent = useRef<string | undefined | null>(null)
+  // 打开 tab：本会话有当前实例就直接看它（只在第一次拿到列表时做）。
+  useEffect(() => {
+    if (!runs.loaded) return
+    if (seenCurrent.current === null) {
+      seenCurrent.current = runs.current
+      if (runs.current !== undefined) setRunId(runs.current)
+      return
+    }
+    if (runs.current !== undefined && runs.current !== seenCurrent.current) {
+      if (runId === null) setFreshRun(runs.current)
+    }
+    seenCurrent.current = runs.current
+  }, [runs.loaded, runs.current, runId])
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void runs.refresh()
+    }, RUNS_REFRESH_MS)
+    return () => window.clearInterval(timer)
+  }, [runs.refresh])
+  const openRun = useCallback((id: string): void => {
+    setFreshRun(null)
+    setRunId(id)
+  }, [])
+  const openTemplate = useCallback(
+    (name: string): void => {
+      setRunId(null)
+      if (state.name !== name) void wf.open(name)
+    },
+    [state.name, wf],
+  )
+  // ── 执行 ────────────────────────────────────────────────────
+  const sessionRows = useSessionRows(props.sessions)
+  const [starting, setStarting] = useState(false)
+  const launchBlocked: LocaleKey | null =
+    props.sessions === undefined || !props.sessions.available()
+      ? 'launch.noBridge'
+      : props.session === undefined
+        ? 'launch.noSession'
+        : wf.conflict !== null
+          ? 'launch.conflict'
+          : state.problems.some((p) => p.level === 'save' || p.level === 'compile')
+            ? 'launch.fixFirst'
+            : null
+  /**
+   * 执行：先把没存的改动存下去（实例拿磁盘上的那份做快照），建实例，再往目标会话发那句话。
+   * 发不出去就把刚建的实例删掉，不留一个没人认领的实例。
+   */
+  const startRun = useCallback(
+    async (target: string): Promise<void> => {
+      const name = state.name
+      const bridge = props.sessions
+      if (name === null || bridge === undefined) return
+      setStarting(true)
+      try {
+        if (!(await wf.flush())) throw new Error(t('launch.unsaved'))
+        const row = sessionRows.find((candidate) => candidate.id === target)
+        const started = await props.rpc.call('run/start', {
+          workflow: name,
+          session: target,
+          ...(row?.cwd === undefined ? {} : { cwd: row.cwd }),
+        })
+        try {
+          await bridge.deliver(target, started.prompt)
+        } catch (error) {
+          await props.rpc
+            .call('run/delete', { id: started.instance.id, withState: true })
+            .catch(() => {})
+          throw error
+        }
+        await runs.refresh()
+        if (target === props.session) {
+          seenCurrent.current = started.instance.id
+          openRun(started.instance.id)
+        } else {
+          wf.notify(t('launch.sent').replace('{title}', row?.title ?? target))
+        }
+      } catch (error) {
+        wf.notify(`${t('launch.failed')}：${errorMessage(error)}`, 'error')
+      } finally {
+        setStarting(false)
+      }
+    },
+    [state.name, props.sessions, props.rpc, props.session, wf, t, sessionRows, runs, openRun],
+  )
+
   /** 当前的图（异步排版回来时据此判断图是不是已经变了）。 */
   const docRef = useRef(state.doc)
   docRef.current = state.doc
@@ -428,7 +536,7 @@ function Shell(props: { rpc: WorkflowLiteRpc; t: T }): React.JSX.Element {
   )
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void => {
-    if (state.phase !== 'ready') return
+    if (state.phase !== 'ready' || runId !== null) return
     const typing = isTyping(event.target)
     const mod = event.ctrlKey || event.metaKey
     const key = event.key.toLowerCase()
@@ -472,215 +580,306 @@ function Shell(props: { rpc: WorkflowLiteRpc; t: T }): React.JSX.Element {
   const doc = state.doc
   // 右侧面板（属性 / 步骤详情）开着没有：左下角的图例按剩下的宽度决定摊开还是收成按钮。
   const panelOpen =
-    state.phase === 'ready' &&
-    (focus !== null || (doc !== null && analysis !== null && state.selection !== null))
+    runId !== null ||
+    (state.phase === 'ready' &&
+      (focus !== null || (doc !== null && analysis !== null && state.selection !== null)))
+  const hub = hubOpen && (
+    <HubDialog
+      t={t}
+      rpc={props.rpc}
+      session={props.session}
+      runs={runs}
+      onOpenRun={openRun}
+      onClose={() => setHubOpen(false)}
+    />
+  )
   return (
     <div
       ref={rootRef}
       className={css.root}
       data-testid="wl-root"
       data-workflow-lite-view=""
-      data-library={libraryOpen ? 'open' : 'closed'}
+      data-library={libraryOpen && runId === null ? 'open' : 'closed'}
       data-panel={panelOpen ? 'open' : 'closed'}
+      data-mode={runId === null ? 'template' : 'run'}
+      data-session={props.session}
       role="region"
       aria-label={t('tab.label')}
       onKeyDown={onKeyDown}
     >
       <ModalHostProvider value={modalHost}>
-        <div className={css.canvas}>
-          {state.phase === 'ready' && doc !== null && analysis !== null && (
-            <Canvas
+        {runId !== null ? (
+          <>
+            <RunView
               t={t}
-              doc={doc}
-              analysis={analysis}
-              loadKey={`${state.name ?? ''}#${state.loadSeq}`}
-              selection={state.selection}
-              problems={state.problems}
-              insets={insets}
-              onEdit={wf.edit}
-              onSelect={select}
-              onRequestAdd={requestAdd}
-              onDropSource={(source, at) => void addStep(source, at)}
-              onStarter={() => {
-                wf.edit({ type: 'addGraph', ...starterGraph(t) })
-                fitSoon()
-              }}
-              focusFile={focusFile}
-              onFocusFile={onFocusFile}
+              rpc={props.rpc}
+              session={props.session}
+              id={runId}
+              runs={runs}
+              workflows={wf.catalog?.workflows ?? []}
+              narrow={narrow}
+              inspectorW={inspectorW}
+              onOpenRun={openRun}
+              onOpenTemplate={openTemplate}
+              onOpenHub={() => setHubOpen(true)}
+              {...(props.desktop === undefined ? {} : { desktop: props.desktop })}
             />
-          )}
-        </div>
+            {hub}
+          </>
+        ) : (
+          <>
+            <div className={css.canvas}>
+              {state.phase === 'ready' && doc !== null && analysis !== null && (
+                <Canvas
+                  t={t}
+                  doc={doc}
+                  analysis={analysis}
+                  loadKey={`${state.name ?? ''}#${state.loadSeq}`}
+                  selection={state.selection}
+                  problems={state.problems}
+                  insets={insets}
+                  onEdit={wf.edit}
+                  onSelect={select}
+                  onRequestAdd={requestAdd}
+                  onDropSource={(source, at) => void addStep(source, at)}
+                  onStarter={() => {
+                    wf.edit({ type: 'addGraph', ...starterGraph(t) })
+                    fitSoon()
+                  }}
+                  focusFile={focusFile}
+                  onFocusFile={onFocusFile}
+                />
+              )}
+            </div>
 
-        {state.phase === 'idle' && wf.catalog !== null && <Welcome t={t} wf={wf} />}
-        {state.phase === 'broken' && <Broken t={t} wf={wf} />}
+            {state.phase === 'idle' && wf.catalog !== null && <Welcome t={t} wf={wf} />}
+            {state.phase === 'broken' && <Broken t={t} wf={wf} />}
 
-        <div className={css.top}>
-          <TopBar
-            t={t}
-            wf={wf}
-            libraryOpen={libraryOpen}
-            onToggleLibrary={toggleLibrary}
-            onTidy={relayout}
-            onLocate={locate}
-            onPreview={() => setPlanOpen(true)}
-            onSettings={() => setSettingsOpen(true)}
-          />
-        </div>
-
-        {state.phase === 'ready' && (
-          <div className={css.library} aria-hidden={!libraryOpen}>
-            <Library
-              t={t}
-              templates={wf.catalog?.templates.nodes ?? []}
-              focus={focus}
-              onFocus={focusLibrary}
-              onNewStep={() =>
-                focusLibrary({ kind: 'new', seed: { prompt: '' }, name: freeStepName('my-step') })
-              }
-              onClose={toggleLibrary}
-            />
-          </div>
-        )}
-
-        {state.phase === 'ready' && focus !== null && (
-          <div className={css.inspector}>
-            <StepPanel
-              t={t}
-              wf={wf}
-              focus={focus}
-              onFocus={focusLibrary}
-              onAddToCanvas={addToCanvas}
-              onCopyToMine={(seed, id) =>
-                focusLibrary({ kind: 'new', seed, name: freeStepName(`my-${id}`) })
-              }
-            />
-          </div>
-        )}
-
-        {state.phase === 'ready' &&
-          focus === null &&
-          doc !== null &&
-          analysis !== null &&
-          state.selection !== null && (
-            <div className={css.inspector}>
-              <Inspector
+            <div className={css.top}>
+              <TopBar
                 t={t}
-                doc={doc}
-                analysis={analysis}
-                selection={state.selection}
-                focusPrompt={focusPrompt && state.selection.kind === 'node'}
-                onEdit={wf.edit}
-                onSelect={select}
-                onSeal={wf.seal}
-                onDuplicate={duplicate}
-                onRemoveNode={(id) => {
-                  wf.edit({ type: 'removeNode', id })
-                  focusCanvas()
+                wf={wf}
+                libraryOpen={libraryOpen}
+                onToggleLibrary={toggleLibrary}
+                onTidy={relayout}
+                onLocate={locate}
+                onPreview={() => setPlanOpen(true)}
+                launch={{
+                  blocked: launchBlocked,
+                  starting,
+                  session: props.session,
+                  rows: sessionRows,
+                  onRun: (target) => void startRun(target),
                 }}
-                onSaveTemplate={wf.saveTemplate}
-                onFocusFile={onFocusFile}
+                onSettings={() => setSettingsOpen(true)}
+                runs={runs}
+                onOpenRun={openRun}
+                onOpenHub={() => setHubOpen(true)}
               />
             </div>
-          )}
 
-        {state.phase === 'ready' && (
-          <ZoomDock t={t} keysOpen={keysOpen} setKeysOpen={setKeysOpen} onFit={() => fitAll()} />
-        )}
+            {state.phase === 'ready' && (
+              <div className={css.library} aria-hidden={!libraryOpen}>
+                <Library
+                  t={t}
+                  templates={wf.catalog?.templates.nodes ?? []}
+                  focus={focus}
+                  onFocus={focusLibrary}
+                  onNewStep={() =>
+                    focusLibrary({
+                      kind: 'new',
+                      seed: { prompt: '' },
+                      name: freeStepName('my-step'),
+                    })
+                  }
+                  onClose={toggleLibrary}
+                />
+              </div>
+            )}
 
-        {wf.conflict !== null && (
-          <div className={css.bannerSeat}>
-            <div className={cx(ui.panel, css.banner, css.bannerDanger, ui.rise)} role="alert">
-              <Icon name="alert" size={15} />
-              <span className={css.bannerText}>
-                {t('banner.conflict')}
-                {wf.conflict.length > 0 && (
-                  <span className={css.bannerIds}>
-                    {' · '}
-                    {wf.conflict
-                      .map((id) => (id === SETTINGS_CONFLICT_ID ? t('settings.conflict') : id))
-                      .join(', ')}
-                  </span>
-                )}
-              </span>
-              <button
-                type="button"
-                className={cx(ui.btn, ui.small, ui.primary)}
-                onClick={wf.keepMine}
-              >
-                {t('banner.keepMine')}
-              </button>
-              <button type="button" className={cx(ui.btn, ui.small, ui.soft)} onClick={wf.reload}>
-                {t('banner.useDisk')}
-              </button>
-            </div>
-          </div>
-        )}
-        {wf.conflict === null && wf.external && (
-          <div className={css.bannerSeat}>
-            <div className={cx(ui.panel, css.banner, ui.rise)} role="status">
-              <Icon name="info" size={15} />
-              <span className={css.bannerText}>{t('banner.external')}</span>
-              <button type="button" className={cx(ui.btn, ui.small, ui.soft)} onClick={wf.reload}>
-                {t('banner.reload')}
-              </button>
-            </div>
-          </div>
-        )}
+            {state.phase === 'ready' && focus !== null && (
+              <div className={css.inspector}>
+                <StepPanel
+                  t={t}
+                  wf={wf}
+                  focus={focus}
+                  onFocus={focusLibrary}
+                  onAddToCanvas={addToCanvas}
+                  onCopyToMine={(seed, id) =>
+                    focusLibrary({ kind: 'new', seed, name: freeStepName(`my-${id}`) })
+                  }
+                />
+              </div>
+            )}
 
-        {quick !== null && (
-          <QuickAdd
-            t={t}
-            at={quick.at}
-            bounds={size}
-            templates={wf.catalog?.templates.nodes ?? []}
-            origin={quickOrigin(doc, quick.from)}
-            onClose={() => setQuick(null)}
-            onPick={(source) => {
-              const request = quick
-              setQuick(null)
-              void addStep(source, request.flow, request.from)
-            }}
-          />
-        )}
-
-        {settingsOpen && state.name !== null && doc !== null && (
-          <SettingsDialog
-            t={t}
-            name={state.name}
-            settings={doc.settings}
-            sample={sampleOutput(doc)}
-            onSave={(settings) => {
-              setSettingsOpen(false)
-              wf.edit({ type: 'setSettings', settings })
-            }}
-            onClose={() => setSettingsOpen(false)}
-          />
-        )}
-
-        {planOpen && state.name !== null && (
-          <PlanDialog
-            t={t}
-            name={state.name}
-            build={wf.buildPlan}
-            onLocate={locate}
-            onClose={() => {
-              setPlanOpen(false)
-              focusCanvas()
-            }}
-          />
-        )}
-
-        {wf.toast !== null && (
-          <div className={css.toastSeat} key={wf.toast.id}>
-            <div className={cx(css.toast, ui.rise)} data-tone={wf.toast.tone} role="status">
-              {wf.toast.tone === 'error' ? (
-                <Icon name="alert" size={14} />
-              ) : (
-                <Icon name="check" size={14} />
+            {state.phase === 'ready' &&
+              focus === null &&
+              doc !== null &&
+              analysis !== null &&
+              state.selection !== null && (
+                <div className={css.inspector}>
+                  <Inspector
+                    t={t}
+                    doc={doc}
+                    analysis={analysis}
+                    selection={state.selection}
+                    focusPrompt={focusPrompt && state.selection.kind === 'node'}
+                    onEdit={wf.edit}
+                    onSelect={select}
+                    onSeal={wf.seal}
+                    onDuplicate={duplicate}
+                    onRemoveNode={(id) => {
+                      wf.edit({ type: 'removeNode', id })
+                      focusCanvas()
+                    }}
+                    onSaveTemplate={wf.saveTemplate}
+                    onFocusFile={onFocusFile}
+                  />
+                </div>
               )}
-              <span>{wf.toast.text}</span>
-            </div>
-          </div>
+
+            {state.phase === 'ready' && (
+              <ZoomDock
+                t={t}
+                keysOpen={keysOpen}
+                setKeysOpen={setKeysOpen}
+                onFit={() => fitAll()}
+              />
+            )}
+
+            {wf.conflict !== null && (
+              <div className={css.bannerSeat}>
+                <div className={cx(ui.panel, css.banner, css.bannerDanger, ui.rise)} role="alert">
+                  <Icon name="alert" size={15} />
+                  <span className={css.bannerText}>
+                    {t('banner.conflict')}
+                    {wf.conflict.length > 0 && (
+                      <span className={css.bannerIds}>
+                        {' · '}
+                        {wf.conflict
+                          .map((id) => (id === SETTINGS_CONFLICT_ID ? t('settings.conflict') : id))
+                          .join(', ')}
+                      </span>
+                    )}
+                  </span>
+                  <button
+                    type="button"
+                    className={cx(ui.btn, ui.small, ui.primary)}
+                    onClick={wf.keepMine}
+                  >
+                    {t('banner.keepMine')}
+                  </button>
+                  <button
+                    type="button"
+                    className={cx(ui.btn, ui.small, ui.soft)}
+                    onClick={wf.reload}
+                  >
+                    {t('banner.useDisk')}
+                  </button>
+                </div>
+              </div>
+            )}
+            {wf.conflict === null && !wf.external && freshRun !== null && (
+              <div className={css.bannerSeat}>
+                <div
+                  className={cx(ui.panel, css.banner, ui.rise)}
+                  role="status"
+                  data-testid="wl-fresh-run"
+                >
+                  <Icon name="play" size={15} />
+                  <span className={css.bannerText}>{t('run.freshBanner')}</span>
+                  <button
+                    type="button"
+                    className={cx(ui.btn, ui.small, ui.primary)}
+                    onClick={() => openRun(freshRun)}
+                  >
+                    {t('run.freshOpen')}
+                  </button>
+                  <button
+                    type="button"
+                    className={cx(ui.btn, ui.icon, ui.small)}
+                    aria-label={t('common.close')}
+                    onClick={() => setFreshRun(null)}
+                  >
+                    <Icon name="x" size={14} />
+                  </button>
+                </div>
+              </div>
+            )}
+            {wf.conflict === null && wf.external && (
+              <div className={css.bannerSeat}>
+                <div className={cx(ui.panel, css.banner, ui.rise)} role="status">
+                  <Icon name="info" size={15} />
+                  <span className={css.bannerText}>{t('banner.external')}</span>
+                  <button
+                    type="button"
+                    className={cx(ui.btn, ui.small, ui.soft)}
+                    onClick={wf.reload}
+                  >
+                    {t('banner.reload')}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {quick !== null && (
+              <QuickAdd
+                t={t}
+                at={quick.at}
+                bounds={size}
+                templates={wf.catalog?.templates.nodes ?? []}
+                origin={quickOrigin(doc, quick.from)}
+                onClose={() => setQuick(null)}
+                onPick={(source) => {
+                  const request = quick
+                  setQuick(null)
+                  void addStep(source, request.flow, request.from)
+                }}
+              />
+            )}
+
+            {settingsOpen && state.name !== null && doc !== null && (
+              <SettingsDialog
+                t={t}
+                name={state.name}
+                settings={doc.settings}
+                sample={sampleOutput(doc)}
+                onSave={(settings) => {
+                  setSettingsOpen(false)
+                  wf.edit({ type: 'setSettings', settings })
+                }}
+                onClose={() => setSettingsOpen(false)}
+              />
+            )}
+
+            {planOpen && state.name !== null && (
+              <PlanDialog
+                t={t}
+                name={state.name}
+                build={wf.buildPlan}
+                onLocate={locate}
+                onClose={() => {
+                  setPlanOpen(false)
+                  focusCanvas()
+                }}
+              />
+            )}
+
+            {hub}
+
+            {wf.toast !== null && (
+              <div className={css.toastSeat} key={wf.toast.id}>
+                <div className={cx(css.toast, ui.rise)} data-tone={wf.toast.tone} role="status">
+                  {wf.toast.tone === 'error' ? (
+                    <Icon name="alert" size={14} />
+                  ) : (
+                    <Icon name="check" size={14} />
+                  )}
+                  <span>{wf.toast.text}</span>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </ModalHostProvider>
     </div>
@@ -702,217 +901,6 @@ function quickOrigin(
 function sampleOutput(doc: WorkflowDocument): string {
   const file = doc.nodes.find(isFile)
   return file === undefined ? 'plan.md' : file.data.path
-}
-
-// ─────────────────────────────────────────────────────────────
-// 左下角：缩放与快捷键
-// ─────────────────────────────────────────────────────────────
-
-function ZoomDock(props: {
-  t: T
-  keysOpen: boolean
-  setKeysOpen: (open: boolean) => void
-  onFit: () => void
-}): React.JSX.Element {
-  const { t } = props
-  const flow = useReactFlow()
-  const { zoom } = useViewport()
-  const [legendOpen, setLegendOpen] = useState(false)
-  return (
-    <div className={cx(ui.panel, css.dock)}>
-      <button
-        type="button"
-        className={cx(ui.btn, ui.icon, ui.small, ui.tip, ui.tipUp, ui.tipStart)}
-        data-tip={t('tool.zoomOut')}
-        aria-label={t('tool.zoomOut')}
-        onClick={() => void flow.zoomOut({ duration: 200 })}
-      >
-        <Icon name="minus" size={15} />
-      </button>
-      <span className={css.zoom}>{Math.round(zoom * 100)}%</span>
-      <button
-        type="button"
-        className={cx(ui.btn, ui.icon, ui.small, ui.tip, ui.tipUp)}
-        data-tip={t('tool.zoomIn')}
-        aria-label={t('tool.zoomIn')}
-        onClick={() => void flow.zoomIn({ duration: 200 })}
-      >
-        <Icon name="plus" size={15} />
-      </button>
-      <button
-        type="button"
-        className={cx(ui.btn, ui.icon, ui.small, ui.tip, ui.tipUp)}
-        data-tip={`${t('tool.fit')}  F`}
-        aria-label={t('tool.fit')}
-        data-testid="wl-fit"
-        onClick={props.onFit}
-      >
-        <Icon name="fit" size={15} />
-      </button>
-      <span className={ui.divider} />
-      <Popover
-        open={props.keysOpen}
-        onClose={() => props.setKeysOpen(false)}
-        up
-        label={t('keys.title')}
-        className={css.keys}
-        trigger={
-          <button
-            type="button"
-            className={cx(ui.btn, ui.icon, ui.small, ui.tip, ui.tipUp)}
-            data-tip={t('tool.keys')}
-            aria-label={t('tool.keys')}
-            aria-expanded={props.keysOpen}
-            onClick={() => props.setKeysOpen(!props.keysOpen)}
-          >
-            <Icon name="keyboard" size={15} />
-          </button>
-        }
-      >
-        <p className={css.keysTitle}>{t('keys.title')}</p>
-        {SHORTCUTS.map((row) => (
-          <div key={row.key} className={css.keysRow}>
-            <span>{t(row.key)}</span>
-            <span>
-              {row.combos.length === 0 ? (
-                <span className={ui.kbd}>{t('keys.addCombo')}</span>
-              ) : (
-                row.combos.map((combo) => (
-                  <kbd key={combo} className={ui.kbd}>
-                    {combo}
-                  </kbd>
-                ))
-              )}
-            </span>
-          </div>
-        ))}
-      </Popover>
-      <span className={ui.divider} />
-      <LineLegend t={t} />
-      {/* 放不下整排图例时（左右两边的面板都开着、窗口又窄）收成一个按钮，点开看同一份图例。 */}
-      <span className={css.legendCompact}>
-        <Popover
-          open={legendOpen}
-          onClose={() => setLegendOpen(false)}
-          up
-          label={t('legend.title')}
-          className={css.legendPop}
-          trigger={
-            <button
-              type="button"
-              className={cx(ui.btn, ui.small, css.legendToggle)}
-              aria-expanded={legendOpen}
-              data-testid="wl-legend-toggle"
-              onClick={() => setLegendOpen(!legendOpen)}
-            >
-              <svg width="14" height="12" viewBox="0 0 14 12" aria-hidden="true">
-                <line x1="1" y1="2" x2="13" y2="2" data-line="always" />
-                <line x1="1" y1="6" x2="13" y2="6" data-line="produce" />
-                <line x1="1" y1="10" x2="13" y2="10" data-line="read" />
-              </svg>
-              {t('legend.short')}
-            </button>
-          }
-        >
-          <LegendSheet t={t} />
-        </Popover>
-      </span>
-    </div>
-  )
-}
-
-type LegendLine = 'always' | 'pass' | 'fail' | 'custom' | 'produce' | 'update' | 'read'
-
-/** 图例里的七种线，按两组排：流程线的四种条件、读写线的三种。样本的线型、颜色、箭头与画布上一致。 */
-const LEGEND: readonly (readonly { key: LegendLine; label: LocaleKey; tip: LocaleKey }[])[] = [
-  [
-    { key: 'always', label: 'edge.always', tip: 'legend.alwaysTip' },
-    { key: 'pass', label: 'edge.pass', tip: 'legend.passTip' },
-    { key: 'fail', label: 'edge.fail', tip: 'legend.failTip' },
-    { key: 'custom', label: 'edge.custom', tip: 'legend.customTip' },
-  ],
-  [
-    { key: 'produce', label: 'file.produce', tip: 'legend.produceTip' },
-    { key: 'update', label: 'file.update', tip: 'legend.updateTip' },
-    { key: 'read', label: 'file.read', tip: 'legend.readTip' },
-  ],
-]
-
-/** 一种线的小样本：线型、颜色、箭头与画布上一致（颜色和虚线由外层的 `data-line` 给）。 */
-function LineSample(props: { line: LegendLine }): React.JSX.Element {
-  return (
-    <svg width="20" height="10" viewBox="0 0 20 10" aria-hidden="true">
-      <line x1="1" y1="5" x2="14" y2="5" />
-      <path d="M13 1.8 L19 5 L13 8.2 Z" />
-      {props.line === 'update' && <path d="M7 1.8 L1 5 L7 8.2 Z" />}
-    </svg>
-  )
-}
-
-/** 收起时点开的图例：两组线各一个小标题，每种线一行，解释直接写出来（不用再悬停）。 */
-function LegendSheet(props: { t: T }): React.JSX.Element {
-  const { t } = props
-  const heads: readonly LocaleKey[] = ['legend.groupFlow', 'legend.groupFile']
-  return (
-    <div data-testid="wl-legend-sheet">
-      {LEGEND.map((group, index) => (
-        <section key={heads[index]} className={css.legendGroup}>
-          <p className={css.legendHead}>{t(heads[index] ?? 'legend.title')}</p>
-          {group.map((item) => (
-            <div key={item.key} className={css.legendRow} data-line={item.key}>
-              <LineSample line={item.key} />
-              <span className={css.legendName}>{t(item.label)}</span>
-              <span className={css.legendTip}>{t(item.tip)}</span>
-            </div>
-          ))}
-        </section>
-      ))}
-      <p className={css.legendFoot}>{t('legend.portsTip')}</p>
-    </div>
-  )
-}
-
-/** 左下角常驻的线条图例：七种线各一个小样本，悬停看一句解释；最后是入口 / 出口两种连接点。 */
-function LineLegend(props: { t: T }): React.JSX.Element {
-  const { t } = props
-  return (
-    <ul className={css.legend} aria-label={t('legend.title')} data-testid="wl-legend">
-      {LEGEND.map((group) => [
-        ...group.map((item) => (
-          <li
-            key={item.key}
-            className={cx(css.legendItem, ui.tip, ui.tipUp)}
-            data-line={item.key}
-            data-tip={t(item.tip)}
-          >
-            <LineSample line={item.key} />
-            <span>{t(item.label)}</span>
-          </li>
-        )),
-        <li key={`${group[0]?.key}-sep`} className={css.legendSep} aria-hidden="true" />,
-      ])}
-      <li
-        className={cx(css.legendItem, ui.tip, ui.tipUp)}
-        data-port="in"
-        data-tip={t('legend.inTip')}
-      >
-        <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
-          <circle cx="5" cy="5" r="3.6" />
-        </svg>
-        <span>{t('legend.in')}</span>
-      </li>
-      <li
-        className={cx(css.legendItem, ui.tip, ui.tipUp, ui.tipEnd)}
-        data-port="out"
-        data-tip={t('legend.outTip')}
-      >
-        <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
-          <circle cx="5" cy="5" r="3.6" />
-        </svg>
-        <span>{t('legend.out')}</span>
-      </li>
-    </ul>
-  )
 }
 
 // ─────────────────────────────────────────────────────────────

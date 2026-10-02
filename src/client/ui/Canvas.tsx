@@ -52,6 +52,7 @@ import {
 } from '../../shared/files.ts'
 import type { GraphAnalysis } from '../../shared/graph.ts'
 import { idKey, isFile } from '../../shared/model.ts'
+import type { NodeStatus } from '../../shared/runState.ts'
 import type {
   Point,
   ValidationProblem,
@@ -102,7 +103,7 @@ import { baseName, freeFilePath } from './Files.tsx'
 import { FlowStreaks } from './FlowStreaks.tsx'
 import type { FocusFile } from './Handoff.tsx'
 import hand from './handoff.module.css'
-import { Icon, kindIcon } from './Icon.tsx'
+import { Icon, type IconName, kindIcon } from './Icon.tsx'
 import { ACCESS_COLOR, type Access, WHEN_COLOR, type WhenKind, whenKind } from './lines.ts'
 import { cx, useFloat } from './primitives.tsx'
 import ui from './ui.module.css'
@@ -133,9 +134,35 @@ export interface CanvasProps {
   /** 正在悬停的文件卡 id：用到它的步骤标出角色，其余的淡下去。 */
   focusFile: string | null
   onFocusFile: FocusFile
+  /**
+   * 工作流实例视图：图不能改（不能拖、连、删、加），每张步骤卡挂上运行状态，走过的线亮、没走过的淡。
+   * 缺省 = 模板编辑。
+   */
+  run?: RunDecor
+}
+
+/** 实例视图给画布的装饰。 */
+export interface RunDecor {
+  /** 每个步骤此刻的状态（已经叠上草稿）。 */
+  nodes: Readonly<Record<string, { status: NodeStatus; round: number; edited: boolean }>>
+  /** 走过的线。 */
+  taken: ReadonlySet<string>
+  /** 文件节点对应的文件在不在。 */
+  files: Readonly<Record<string, boolean>>
+  /** 点卡片上的状态小标：在它旁边弹出改状态的菜单。 */
+  onStatus(id: string, anchor: Element): void
 }
 
 type Tone = 'ok' | 'warn' | 'error'
+
+/** 卡片上的运行状态小标。 */
+interface StepRun {
+  status: NodeStatus
+  round: number
+  edited: boolean
+  label: string
+  roundText: string
+}
 
 interface StepData extends Record<string, unknown> {
   title: string
@@ -153,6 +180,9 @@ interface StepData extends Record<string, unknown> {
   roleText: string
   dim: boolean
   onAdd: (id: string, anchor: Element) => void
+  /** 实例视图里的运行状态；模板编辑时为 `null`。 */
+  run: StepRun | null
+  onRunStatus: (id: string, anchor: Element) => void
 }
 
 interface FileCardData extends Record<string, unknown> {
@@ -169,6 +199,9 @@ interface FileCardData extends Record<string, unknown> {
   dim: boolean
   readText: string
   onFocusFile: FocusFile
+  /** 实例视图：这份文件已经生成了没有（模板编辑时为 `null`）。 */
+  generated: boolean | null
+  generatedText: string
 }
 
 interface LinkData extends Record<string, unknown> {
@@ -223,6 +256,25 @@ const ACCESS_TEXT: Record<Access, LocaleKey> = {
 
 const ACCESS_ICON = { produce: 'pencil', update: 'reload', read: 'eye' } as const
 
+/** 运行状态的图标与文案。 */
+const RUN_ICON: Record<NodeStatus, IconName> = {
+  pending: 'clock',
+  running: 'play',
+  waiting: 'hourglass',
+  done: 'check',
+  failed: 'alert',
+  skipped: 'skip',
+}
+
+export const RUN_TEXT: Record<NodeStatus, LocaleKey> = {
+  pending: 'run.status.pending',
+  running: 'run.status.running',
+  waiting: 'run.status.waiting',
+  done: 'run.status.done',
+  failed: 'run.status.failed',
+  skipped: 'run.status.skipped',
+}
+
 const NO_HANDLES: readonly string[] = []
 
 const MIN_ZOOM = 0.2
@@ -247,9 +299,28 @@ const StepCard = memo(function StepCard(props: NodeProps<StepFlowNode>): React.J
       data-tone={data.tone}
       data-dim={data.dim}
       data-role={data.role ?? undefined}
+      data-run={data.run?.status}
       data-testid="wl-step"
       title={data.note === '' ? undefined : data.note}
     >
+      {data.run !== null && (
+        <button
+          type="button"
+          className={cx(css.runChip, 'nodrag')}
+          data-status={data.run.status}
+          data-edited={data.run.edited}
+          data-testid="wl-run-chip"
+          aria-haspopup="menu"
+          onClick={(event) => {
+            event.stopPropagation()
+            data.onRunStatus(id, event.currentTarget)
+          }}
+        >
+          <Icon name={RUN_ICON[data.run.status]} size={11} />
+          <span>{data.run.label}</span>
+          {data.run.round > 1 && <span className={css.runRound}>{data.run.roundText}</span>}
+        </button>
+      )}
       {data.role !== null && (
         <span className={css.roleTag} data-role={data.role} data-testid="wl-step-role">
           {data.roleText}
@@ -665,7 +736,7 @@ function extensionOf(name: string): string {
 function FileTab(props: { name: string }): React.JSX.Element {
   const ext = extensionOf(props.name)
   return (
-    <span className={css.fileTab} aria-hidden="true">
+    <span className={css.fileTab} data-long={ext.length > 3} aria-hidden="true">
       {ext === '' ? <Icon name="file" size={14} /> : ext}
     </span>
   )
@@ -701,6 +772,11 @@ const FileCard = memo(function FileCard(props: NodeProps<FileFlowNode>): React.J
       {data.tone !== 'ok' && (
         <span className={css.cardFlag} data-tone={data.tone}>
           <Icon name="alert" size={12} />
+        </span>
+      )}
+      {data.generated === true && (
+        <span className={css.fileMade} title={data.generatedText} data-testid="wl-file-made">
+          <Icon name="check" size={12} />
         </span>
       )}
       <Handle
@@ -1001,7 +1077,9 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
     onSelect,
     onRequestAdd,
     onDropSource,
+    run,
   } = props
+  const readOnly = run !== undefined
   const flow = useReactFlow<FlowNode, FlowEdge>()
   const wrapRef = useRef<HTMLDivElement>(null)
   const ghostRef = useRef<HTMLDivElement>(null)
@@ -1050,6 +1128,12 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
   const focusFileRef = useRef(props.onFocusFile)
   focusFileRef.current = props.onFocusFile
   const onFocusFile = useCallback((id: string | null): void => focusFileRef.current(id), [])
+  const runStatusRef = useRef(run?.onStatus)
+  runStatusRef.current = run?.onStatus
+  const onRunStatus = useCallback(
+    (id: string, anchor: Element): void => runStatusRef.current?.(id, anchor),
+    [],
+  )
 
   /** 每份文件谁写、谁读（悬停文件卡时据此标角色）。 */
   const files = useMemo(
@@ -1120,6 +1204,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
       noRuleText: t('file.noRule'),
       pass: t('edge.pass'),
       fail: t('edge.fail'),
+      generated: t('run.fileMade'),
       produce: t(ACCESS_TEXT.produce),
       update: t(ACCESS_TEXT.update),
       read: t(ACCESS_TEXT.read),
@@ -1241,7 +1326,8 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
         const tone: Tone = reported?.tone ?? 'ok'
         const note = reported?.note ?? ''
         const dim = focusFile !== null && !isFocus
-        signature = `${selected}|${tone}|${note}|${isFocus}|${dim}|${texts.readText}|${used.join(',')}`
+        const generated = run === undefined ? null : (run.files[node.id] ?? false)
+        signature = `${selected}|${tone}|${note}|${isFocus}|${dim}|${texts.readText}|${used.join(',')}|${generated}`
         build = () => ({
           id: node.id,
           type: 'wfFile',
@@ -1259,6 +1345,8 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
             dim,
             readText: texts.readText,
             onFocusFile,
+            generated,
+            generatedText: texts.generated,
           },
         })
       } else {
@@ -1268,7 +1356,16 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
         const note = empty ? texts.noPromptText : (reported?.note ?? '')
         const role = focused === undefined ? null : roleOf(focused, node.id)
         const dim = focusFile !== null && role === null
-        signature = `${selected}|${tone}|${note}|${texts.addText}|${texts.fileText}|${role}|${dim}|${used.join(',')}`
+        const state = run?.nodes[node.id]
+        const stepRun: StepRun | null =
+          state === undefined
+            ? null
+            : {
+                ...state,
+                label: t(RUN_TEXT[state.status]),
+                roundText: t('run.round').replace('{n}', String(state.round)),
+              }
+        signature = `${selected}|${tone}|${note}|${texts.addText}|${texts.fileText}|${role}|${dim}|${used.join(',')}|${stepRun === null ? '' : `${stepRun.status}/${stepRun.round}/${stepRun.edited}/${stepRun.label}`}`
         build = () => ({
           id: node.id,
           type: 'wfNode',
@@ -1293,6 +1390,8 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
             roleText: role === null ? '' : t(ROLE_TEXT[role]),
             dim,
             onAdd,
+            run: stepRun,
+            onRunStatus,
           },
         })
       }
@@ -1327,6 +1426,8 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
     focusFile,
     routes,
     t,
+    run,
+    onRunStatus,
   ])
 
   const edges = useMemo<FlowEdge[]>(() => {
@@ -1350,8 +1451,11 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
       const kind = edgeKind(index, edge)
       const touches =
         spotlight !== null && (idKey(edge.source) === spotlight || idKey(edge.target) === spotlight)
-      const active = selected || edge.id === hoverEdge || touches
-      const dim = spotlight !== null && !touches && !selected
+      // 实例视图：走过的线照常、没走过的淡下去；通往正在执行的步骤的线上跑光带。
+      const taken = run === undefined || run.taken.has(edge.id)
+      const live = run !== undefined && taken && run.nodes[edge.target]?.status === 'running'
+      const active = selected || edge.id === hoverEdge || touches || live
+      const dim = (spotlight !== null && !touches && !selected) || (!taken && !selected)
       if (kind === 'write' || kind === 'read') {
         const access: Access =
           kind === 'read' ? 'read' : edge.data?.update === true ? 'update' : 'produce'
@@ -1435,7 +1539,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
       ...list.filter((edge) => edge.data?.active !== true),
       ...list.filter((edge) => edge.data?.active === true),
     ]
-  }, [doc, analysis, selection, texts, onPick, focusFile, hoverEdge, routes, t])
+  }, [doc, analysis, selection, texts, onPick, focusFile, hoverEdge, routes, t, run])
 
   const onNodesChange = useCallback(
     (changes: NodeChange<FlowNode>[]): void => {
@@ -1558,15 +1662,17 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
       // tabIndex=-1：可被脚本/点击聚焦从而收到键盘事件，但不进 Tab 序。
       tabIndex={-1}
       data-testid="wl-canvas"
+      data-readonly={readOnly}
       data-dropping={dropping}
       data-drag={drag?.kind ?? undefined}
       style={drag === null ? undefined : ({ '--wl-drag': drag.color } as React.CSSProperties)}
       data-inset-right={props.insets.right}
-      onDragOver={onDragOver}
-      onDragLeave={onDragLeave}
-      onDrop={onDrop}
+      onDragOver={readOnly ? undefined : onDragOver}
+      onDragLeave={readOnly ? undefined : onDragLeave}
+      onDrop={readOnly ? undefined : onDrop}
       onDoubleClick={(event) => {
-        // 双击空白处加步骤；双击在卡片或连线上不算。
+        // 双击空白处加步骤；双击在卡片或连线上不算。实例视图里图不能改。
+        if (readOnly) return
         const target = event.target
         if (!(target instanceof Element) || !target.classList.contains('react-flow__pane')) return
         const client = { x: event.clientX, y: event.clientY }
@@ -1591,6 +1697,8 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
           zoomOnDoubleClick={false}
           elevateNodesOnSelect={false}
           nodeDragThreshold={2}
+          nodesDraggable={!readOnly}
+          nodesConnectable={!readOnly}
           connectionRadius={28}
           connectionLineComponent={ConnectionLine}
           proOptions={{ hideAttribution: true }}
@@ -1643,15 +1751,15 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
             focusCanvas()
           }}
           onMoveEnd={(event, viewport) => {
-            // 只记人动的视口；程序触发的移动（看全图、定位）事件参数是 null。
-            if (event !== null) onEdit({ type: 'setViewport', viewport })
+            // 只记人动的视口；程序触发的移动（看全图、定位）事件参数是 null。实例的快照不写回。
+            if (event !== null && !readOnly) onEdit({ type: 'setViewport', viewport })
           }}
         >
           <Background variant={BackgroundVariant.Dots} gap={20} size={1.6} color="var(--wl-dot)" />
         </ReactFlow>
       </DragInfo.Provider>
 
-      {doc.nodes.length === 0 && (
+      {doc.nodes.length === 0 && !readOnly && (
         <div className={css.empty} data-testid="wl-empty">
           <div className={cx(ui.panel, css.emptyCard, ui.rise)}>
             <p className={css.emptyTitle}>{t('canvas.emptyTitle')}</p>

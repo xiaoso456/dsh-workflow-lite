@@ -70,6 +70,8 @@ export interface Workflow {
   keepMine(): void
   refreshCatalog(): Promise<void>
   buildPlan(full: boolean): Promise<PlanBuildResponse>
+  /** 把待写的改动立刻存下去（「执行」之前：实例要拿磁盘上的那份做快照）。存不下去回 `false`。 */
+  flush(): Promise<boolean>
   loadTemplate(name: string): Promise<NodeData | null>
   saveTemplate(name: string, data: NodeData): Promise<boolean>
   /** 读「我的步骤」给人编辑（提示词空着的半成品也能读）。 */
@@ -244,6 +246,12 @@ export function useWorkflow(rpc: WorkflowLiteRpc, t: T): Workflow {
       if (stateRef.current.saveError !== null) return
     }
   }, [save])
+
+  const flushSaved = useCallback(async (): Promise<boolean> => {
+    await flush()
+    const current = stateRef.current
+    return current.saveError === null && !current.saving && !isDirty(current)
+  }, [flush])
 
   // ── 编辑 ────────────────────────────────────────────────────
 
@@ -633,6 +641,7 @@ export function useWorkflow(rpc: WorkflowLiteRpc, t: T): Workflow {
     keepMine,
     refreshCatalog,
     buildPlan,
+    flush: flushSaved,
     loadTemplate,
     saveTemplate,
     loadTemplateDraft,

@@ -1,6 +1,6 @@
 /**
  * dsh-workflow-lite — 顶栏：左边是"我在哪张工作流、存好了没有"，右边是撤销重做、整理、
- * 工作流设置、检查结果与「预览计划」。
+ * 工作流设置、检查结果，以及「预览 / 执行」组。
  *
  * 低频的文件操作（新建、改名、删除、重新加载）都收在工作流名字的下拉里，
  * 顶栏上常驻的只有高频动作。
@@ -10,11 +10,14 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ValidationLevel, ValidationProblem } from '../../shared/types.ts'
+import type { Runs } from '../app/useRuns.ts'
 import type { Workflow } from '../app/useWorkflow.ts'
 import type { LocaleKey, T } from '../i18n.ts'
 import { isDirty } from '../model/editor.ts'
 import { Icon } from './Icon.tsx'
+import { Launch, type LaunchProps } from './Launch.tsx'
 import { cx, Popover } from './primitives.tsx'
+import { RunMenuSection } from './RunView.tsx'
 import css from './topbar.module.css'
 import ui from './ui.module.css'
 
@@ -26,7 +29,13 @@ export interface TopBarProps {
   onTidy(): void
   onLocate(nodeId: string): void
   onPreview(): void
+  /** 「执行」那一半要的东西。 */
+  launch: Pick<LaunchProps, 'blocked' | 'starting' | 'session' | 'rows' | 'onRun'>
   onSettings(): void
+  /** 本会话的工作流实例（下拉里「本会话的实例」那一段）。 */
+  runs: Runs
+  onOpenRun(id: string): void
+  onOpenHub(): void
 }
 
 type SaveTone = 'loading' | 'saving' | 'error' | 'dirty' | 'saved'
@@ -67,11 +76,22 @@ export function TopBar(props: TopBarProps): React.JSX.Element {
   return (
     <div className={css.bar}>
       <div className={cx(ui.panel, css.pill)}>
+        <button
+          type="button"
+          className={cx(ui.btn, ui.icon, ui.tip, ui.tipStart)}
+          data-tip={t('hub.title')}
+          aria-label={t('hub.title')}
+          data-testid="wl-hub-open"
+          onClick={props.onOpenHub}
+        >
+          <Icon name="hub" size={16} />
+        </button>
+        {!ready && <span className={ui.divider} />}
         {ready && (
           <>
             <button
               type="button"
-              className={cx(ui.btn, ui.icon, ui.tip, ui.tipStart)}
+              className={cx(ui.btn, ui.icon, ui.tip)}
               data-tip={t('tool.library')}
               aria-label={t('tool.library')}
               aria-pressed={props.libraryOpen}
@@ -164,16 +184,16 @@ export function TopBar(props: TopBarProps): React.JSX.Element {
       )}
 
       {ready && (
-        <button
-          type="button"
-          className={cx(ui.btn, ui.primary, css.preview)}
-          data-testid="wl-preview"
-          disabled={state.doc === null || state.doc.nodes.length === 0}
-          onClick={props.onPreview}
-        >
-          <Icon name="play" size={13} />
-          <span className={css.previewText}>{t('tool.preview')}</span>
-        </button>
+        <Launch
+          t={t}
+          empty={state.doc === null || state.doc.nodes.length === 0}
+          blocked={props.launch.blocked}
+          starting={props.launch.starting}
+          session={props.launch.session}
+          rows={props.launch.rows}
+          onPreview={props.onPreview}
+          onRun={props.launch.onRun}
+        />
       )}
     </div>
   )
@@ -272,6 +292,7 @@ function Switcher(props: TopBarProps): React.JSX.Element {
             }
             setOpen(true)
             void wf.refreshCatalog()
+            void props.runs.refresh()
           }}
           onDoubleClick={() => {
             if (state.name === null) return
@@ -284,6 +305,21 @@ function Switcher(props: TopBarProps): React.JSX.Element {
         </button>
       }
     >
+      <RunMenuSection
+        t={t}
+        runs={props.runs}
+        activeId={null}
+        onOpenRun={(id) => {
+          close()
+          props.onOpenRun(id)
+        }}
+      />
+      {props.runs.list.length > 0 && (
+        <>
+          <div className={ui.menuSep} />
+          <p className={ui.menuTitle}>{t('run.workflows')}</p>
+        </>
+      )}
       {workflows.length > 6 && (
         <div className={css.search}>
           <Icon name="search" size={14} />

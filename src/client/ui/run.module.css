@@ -1,0 +1,596 @@
+/**
+ * dsh-workflow-lite — 工作流实例视图：顶栏、右栏、改状态的小菜单、草稿栏、工作流中心。
+ */
+
+/* ── 状态色：每种状态一个 --wl-run，小标、圆点、进度条共用 ───────── */
+
+[data-run-status] {
+  --wl-run: var(--wl-text-3);
+}
+
+[data-run-status="running"] {
+  --wl-run: var(--wl-accent);
+}
+
+[data-run-status="done"] {
+  --wl-run: var(--wl-ok);
+}
+
+[data-run-status="failed"] {
+  --wl-run: var(--wl-danger);
+}
+
+[data-run-status="waiting"] {
+  --wl-run: var(--wl-warn);
+}
+
+[data-run-status="cancelled"],
+[data-run-status="skipped"],
+[data-run-status="untracked"] {
+  --wl-run: var(--wl-text-3);
+}
+
+/* 状态小标（顶栏、列表、面板里都用它）。 */
+.status {
+  display: inline-flex;
+  flex: none;
+  gap: 4px;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px 0 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--wl-run) 13%, var(--wl-panel));
+  color: var(--wl-run);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--wl-run);
+}
+
+/* ── 顶栏 ──────────────────────────────────────────────────── */
+
+.switchButton {
+  max-width: 400px;
+  padding-left: 8px;
+}
+
+/* 实例下拉的触发器内容（外面那个按钮自己有悬停底色，这里不再叠一层）。 */
+.switch {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+  max-width: 340px;
+  color: var(--wl-text);
+  font-weight: 600;
+}
+
+.switchKind {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+}
+
+.switchName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.switchTime {
+  flex: none;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.progress {
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 实例列表（下拉与工作流中心共用的一行）──────────────────── */
+
+.row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+/* 两行的实例项：上下留点空，标题别贴着高亮块的上沿。 */
+.item {
+  padding-block: 7px;
+}
+
+.rowMain {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.rowTitle {
+  overflow: hidden;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowMeta {
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.current {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  color: var(--wl-accent-text);
+}
+
+/* 「设为当前」：平时淡着，悬停到这一行才亮。 */
+.bind {
+  color: var(--wl-text-3);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.row:hover .bind,
+.bind:focus-visible {
+  opacity: 1;
+}
+
+/* ── 右栏 ──────────────────────────────────────────────────── */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sectionTitle {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0;
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-meta);
+  font-weight: 600;
+}
+
+/* 状态按钮组：一排可换行的小按钮，选中的那个填色。 */
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.choice {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  height: 26px;
+  padding: 0 10px 0 8px;
+  border: 1px solid var(--wl-line-strong);
+  border-radius: 999px;
+  background: var(--wl-panel);
+  color: var(--wl-text-2);
+  font: inherit;
+  font-size: var(--wl-fs-meta);
+  cursor: pointer;
+}
+
+.choice:hover {
+  border-color: color-mix(in srgb, var(--wl-run) 60%, transparent);
+  color: var(--wl-text);
+}
+
+.choice[aria-checked="true"] {
+  border-color: color-mix(in srgb, var(--wl-run) 55%, transparent);
+  background: color-mix(in srgb, var(--wl-run) 14%, var(--wl-panel));
+  color: var(--wl-run);
+  font-weight: 600;
+}
+
+.choice:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+/* 改了还没保存的字段：标题旁一个小圆点。 */
+.edited {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: var(--wl-accent);
+  vertical-align: 1px;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 6px 12px;
+  margin: 0;
+  font-size: var(--wl-fs-meta);
+}
+
+.facts dt {
+  color: var(--wl-text-3);
+}
+
+.facts dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--wl-text);
+}
+
+.path {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.path code {
+  min-width: 0;
+  color: var(--wl-text-2);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+  overflow-wrap: anywhere;
+}
+
+.bar {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--wl-fill);
+}
+
+.barFill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--wl-ok);
+  transform-origin: left center;
+  transition: transform 320ms var(--wl-ease);
+}
+
+.stepper {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.stepperValue {
+  min-width: 28px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* 概览：上面几块按内容高，时间线吃掉剩下的高度、自己滚动（矮屏时整栏滚，时间线保底高度）。 */
+.bodyOverview > * {
+  flex: none;
+}
+
+.bodyOverview > .timelineSection {
+  flex: 1 1 0;
+  min-height: 200px;
+}
+
+.timelineScroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0 -6px;
+  padding: 0 6px 4px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+/* 说明、摘要：随内容长高，到一定高度再滚。 */
+.autoArea {
+  min-height: 56px;
+  max-height: 160px;
+  field-sizing: content;
+  resize: none;
+}
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.event {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 8px;
+  padding: 6px 4px;
+  border-radius: 6px;
+  font-size: var(--wl-fs-micro);
+  cursor: pointer;
+}
+
+.event:hover {
+  background: var(--wl-hover);
+}
+
+.eventTime {
+  color: var(--wl-text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.eventText {
+  color: var(--wl-text-2);
+  overflow-wrap: anywhere;
+}
+
+.eventText b {
+  color: var(--wl-text);
+  font-weight: 600;
+}
+
+.eventUser {
+  color: var(--wl-accent-text);
+  font-weight: 600;
+}
+
+.outputs {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+}
+
+/* ── 改状态的小菜单（贴着卡片上的状态小标弹出）──────────────── */
+
+.menu {
+  position: absolute;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  width: 220px;
+  padding: 4px;
+  animation: menuIn 120ms ease-out backwards;
+}
+
+@keyframes menuIn {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}
+
+.menu [data-run-status] .dot {
+  margin: 0 2px;
+}
+
+.menuHint {
+  margin: 4px 8px 6px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+/* ── 草稿栏 ────────────────────────────────────────────────── */
+
+.draftSeat {
+  position: absolute;
+  bottom: var(--wl-gap);
+  left: 50%;
+  z-index: 6;
+  width: max-content;
+  max-width: calc(100% - 2 * var(--wl-gap));
+  transform: translateX(-50%);
+}
+
+.draft {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 6px 6px 12px;
+}
+
+.draftCount {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  font-size: var(--wl-fs-meta);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.draftNote {
+  width: 240px;
+  height: 30px;
+  font-size: var(--wl-fs-meta);
+}
+
+.draftList {
+  width: 380px;
+  max-height: 320px;
+  padding: 8px;
+  overflow-y: auto;
+}
+
+.change {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 5px 4px;
+  font-size: var(--wl-fs-meta);
+}
+
+.change + .change {
+  border-top: 1px solid var(--wl-line);
+}
+
+.changeText {
+  overflow-wrap: anywhere;
+}
+
+.changeText s {
+  color: var(--wl-text-3);
+}
+
+.conflict {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 8px;
+  background: var(--wl-warn-soft);
+  font-size: var(--wl-fs-meta);
+}
+
+.conflictActions {
+  display: flex;
+  gap: 6px;
+}
+
+/* ── 工作流中心 ────────────────────────────────────────────── */
+
+.hub {
+  display: grid;
+  grid-template-columns: 168px minmax(0, 1fr);
+  width: min(880px, calc(100vw - 48px));
+  height: min(560px, calc(100vh - 96px));
+  padding: 0;
+  overflow: hidden;
+}
+
+.hubNav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 8px;
+  border-right: 1px solid var(--wl-line);
+  background: var(--wl-fill);
+}
+
+.hubTitle {
+  margin: 0 8px 10px;
+  font-size: var(--wl-fs-title);
+  font-weight: 600;
+}
+
+.hubBody {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.hubHead {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 12px 12px 8px 16px;
+}
+
+.hubHeadTitle {
+  flex: 1 1 auto;
+  font-weight: 600;
+}
+
+.hubList {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 0 8px 12px;
+  overflow-y: auto;
+}
+
+.hubRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px;
+  border-radius: 8px;
+}
+
+.hubRow:hover {
+  background: var(--wl-hover);
+}
+
+.hubActions {
+  display: flex;
+  gap: 4px;
+  opacity: 0.55;
+  transition: opacity 120ms ease;
+}
+
+.hubRow:hover .hubActions,
+.hubRow:focus-within .hubActions {
+  opacity: 1;
+}
+
+.hubEmpty {
+  margin: 40px auto;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+  text-align: center;
+}
+
+.hubConfirm {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  grid-column: 1 / -1;
+  padding: 8px;
+  border-radius: 8px;
+  background: var(--wl-danger-soft);
+  font-size: var(--wl-fs-meta);
+}
+
+.hubConfirm label {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px 16px;
+  align-items: center;
+  margin: 0;
+  padding: 4px 16px 16px;
+  font-size: var(--wl-fs-meta);
+}
+
+.stats dt {
+  color: var(--wl-text-3);
+}
+
+.stats dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}

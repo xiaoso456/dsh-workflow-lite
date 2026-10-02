@@ -21,6 +21,7 @@ import {
   RpcId,
 } from '@deepseek-ai/dsh-client-connection'
 import { normalizeDocument, readNodeData as readDataFields } from '../shared/model.ts'
+import type { StateEdit } from '../shared/runState.ts'
 import type { NodeData } from '../shared/types.ts'
 import {
   endpointName,
@@ -30,6 +31,8 @@ import {
   type WorkflowLiteEndpoint,
 } from '../shared/wire.ts'
 import { compileWorkflow } from './plan.ts'
+import type { RunService } from './runs/service.ts'
+import { storageAction } from './runs/storage.ts'
 import { type LoadResult, problemsToWarnings, type Repository } from './store/repository.ts'
 
 /** 路由需要的活依赖。 */
@@ -38,6 +41,8 @@ export interface RpcDeps {
   dataDir: () => string
   /** 画布要用的两个活配置值（`graph/list` 一并回给它，见 `GraphListResponse`）。 */
   limits: () => { maxNodes: number; saveDebounceMs: number }
+  /** 工作流实例（`run/*`）。 */
+  runs: RunService
 }
 
 type RpcResult<T> = ConnectionRpcResult<T>
@@ -156,6 +161,24 @@ function readNodeData(value: unknown): NodeData {
   if (data.label === '') delete data.label
   if (data.description === '') delete data.description
   return { ...data, prompt: data.prompt ?? '' }
+}
+
+/** 一处状态改动：路径是字符串数组，值只能是文字、数字、文字列表或 `null`（删掉）。 */
+function readEdit(raw: unknown): StateEdit {
+  const input = asRecord(raw)
+  const path = input.path
+  if (!Array.isArray(path) || path.some((key) => typeof key !== 'string')) {
+    throw new Error('edit.path must be an array of strings')
+  }
+  return { path: path as string[], from: readEditValue(input.from), to: readEditValue(input.to) }
+}
+
+function readEditValue(value: unknown): StateEdit['to'] {
+  if (value === undefined || value === null) return null
+  if (typeof value === 'string' || typeof value === 'number') return value
+  if (Array.isArray(value) && value.every((item) => typeof item === 'string'))
+    return value as string[]
+  throw new Error('edit value must be a string, number, string[] or null')
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -309,6 +332,97 @@ async function dispatch(
         },
         cwd,
       )
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok(outcome.result)
+    }
+
+    case 'run/list': {
+      const input = asRecord(payload)
+      const session = optionalString(input, 'session')
+      const all = input.all === true || session === undefined
+      const instances = await deps.runs.list(session, all)
+      const current = session === undefined ? undefined : await deps.runs.currentOf(session)
+      return ok({ instances, ...(current === undefined ? {} : { current }) })
+    }
+
+    case 'run/load': {
+      const input = asRecord(payload)
+      const id = requireString(input, 'id')
+      const since = typeof input.since === 'number' ? input.since : undefined
+      const outcome = await deps.runs.view(id, optionalString(input, 'session'), since)
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok(outcome.result)
+    }
+
+    case 'run/bind': {
+      const input = asRecord(payload)
+      const outcome = await deps.runs.bind(
+        requireString(input, 'id'),
+        requireString(input, 'session'),
+      )
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok(outcome.result)
+    }
+
+    case 'run/save': {
+      const input = asRecord(payload)
+      const id = requireString(input, 'id')
+      if (!Array.isArray(input.edits)) throw new Error('edits must be an array')
+      const edits = input.edits.map(readEdit)
+      const note = optionalString(input, 'note')
+      const outcome = await deps.runs.save(id, optionalString(input, 'session'), edits, note)
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok(outcome.result)
+    }
+
+    case 'run/delete': {
+      const input = asRecord(payload)
+      const outcome = await deps.runs.remove(requireString(input, 'id'), input.withState === true)
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok(outcome.result)
+    }
+
+    case 'run/storage': {
+      const input = asRecord(payload)
+      const action = optionalString(input, 'action') ?? 'stats'
+      if (action !== 'stats' && action !== 'clearDispatch' && action !== 'clearFinished') {
+        throw new Error(`unknown storage action ${action}`)
+      }
+      return ok(await storageAction(deps.runs, deps.dataDir(), action))
+    }
+
+    case 'run/start': {
+      const input = asRecord(payload)
+      const workflow = requireString(input, 'workflow')
+      const session = requireString(input, 'session')
+      const cwd = optionalString(input, 'cwd')
+      const load = await deps.repository.load(workflow)
+      if (!load.exists) return failFrom({ code: 'not_found', message: `图 ${workflow} 不存在` })
+      if (!load.loadable || load.document === null) {
+        return failFrom({
+          code: 'blocked',
+          message: `图 ${workflow} 有保存级问题，无法执行`,
+          detail: { problems: load.problems },
+        })
+      }
+      const outcome = await deps.runs.start({
+        workflow,
+        document: load.document,
+        problems: load.problems,
+        session: { id: session, ...(cwd === undefined ? {} : { cwd }) },
+      })
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok(outcome.result)
+    }
+
+    case 'run/file': {
+      const input = asRecord(payload)
+      const id = requireString(input, 'id')
+      const node = optionalString(input, 'node')
+      const path = optionalString(input, 'path')
+      if (node === undefined && path === undefined)
+        throw new Error('run/file requires node or path')
+      const outcome = await deps.runs.file(id, node !== undefined ? { node } : { path: path ?? '' })
       if (!outcome.ok) return failFrom(outcome.error)
       return ok(outcome.result)
     }

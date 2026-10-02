@@ -12,6 +12,7 @@ import type { StepKind } from '../model/library.ts'
 const PATHS = {
   chevronDown: 'M6 9l6 6 6-6',
   chevronLeft: 'M15 6l-6 6 6 6',
+  chevronRight: 'M9 6l6 6-6 6',
   plus: 'M12 5v14M5 12h14',
   minus: 'M5 12h14',
   x: 'M6 6l12 12M18 6L6 18',
@@ -58,6 +59,21 @@ const PATHS = {
   fix: 'M14.5 6.5a4 4 0 005 5L10 21l-3.5-3.5L16 8M14.5 6.5L17 4M6.5 17.5L9 20',
   report: 'M7 3h7l4 4v14H7zM14 3v4h4M10 12h5M10 16h5',
   blank: 'M5 5h14v14H5zM9 12h6M12 9v6',
+  // 运行状态
+  clock: 'M12 21a9 9 0 100-18 9 9 0 000 18zM12 7.5V12l3 2',
+  pause: 'M9 5v14M15 5v14',
+  stop: 'M7 7h10v10H7z',
+  skip: 'M5 6l8 6-8 6zM17 6v12',
+  hourglass: 'M7 3h10M7 21h10M8 3c0 5 8 5 8 9s-8 4-8 9M16 3c0 5-8 5-8 9s8 4 8 9',
+  hub: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
+  runs: 'M4 6h3M4 12h3M4 18h3M10 6h10M10 12h10M10 18h10',
+  storage:
+    'M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3zM4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3',
+  // 文件与实例
+  pin: 'M9 3.5h6l-1 5.5 3.5 3.5h-11L10 9zM12 12.5V21',
+  external: 'M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5',
+  folderOpen: 'M3 7V5h6l2 2h8v3M3 7v12h15l3-9H6.5L3 19',
+  circle: 'M12 20a8 8 0 100-16 8 8 0 000 16z',
 } as const
 
 export type IconName = keyof typeof PATHS

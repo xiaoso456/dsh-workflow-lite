@@ -604,6 +604,7 @@
 /* ── 工作流设置 ───────────────────────────────────────────── */
 
 .rootKind {
+  margin-left: auto;
   padding: 1px 7px;
   border-radius: 999px;
   background: var(--wl-fill);
@@ -615,6 +616,14 @@
 .rootKind[data-absolute="true"] {
   background: var(--wl-accent-soft);
   color: var(--wl-accent-text);
+}
+
+.rootReset {
+  height: 22px;
+  margin: -4px -6px -4px 0;
+  padding: 0 6px;
+  color: var(--wl-accent-text);
+  font-size: var(--wl-fs-micro);
 }
 
 /* 拼接预览：示例产出 → 最终路径。 */

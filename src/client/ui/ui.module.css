@@ -356,6 +356,7 @@
 }
 
 .menuTitle {
+  margin: 0;
   padding: 8px 8px 4px;
   color: var(--wl-text-3);
   font-size: var(--wl-fs-micro);

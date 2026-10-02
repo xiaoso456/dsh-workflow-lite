@@ -15,6 +15,12 @@ import type {} from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
+import { createDesktop, type SessionRemote } from './app/desktop.ts'
+import {
+  type ConversationService,
+  createSessionBridge,
+  type SessionsService,
+} from './app/sessions.ts'
 import { en, NS, zh } from './i18n.ts'
 import { createWorkflowLiteRpc, requireRpcCarrier } from './rpc.ts'
 import { WorkflowView, type WorkflowViewInjected } from './ui/WorkflowView.tsx'
@@ -34,6 +40,25 @@ export function apply(ctx: ClientContext): void {
 
   const rpc = createWorkflowLiteRpc(requireRpcCarrier(ctx.get('connection')))
 
+  // 「执行」要的会话列表与发消息：两个服务可选，接上了才能用（缺了视图照常，只是「执行」灰掉）。
+  const sessions = createSessionBridge()
+  ctx.inject(['sessions', 'conversation'], (sub) => {
+    sessions.attach(
+      sub.get('sessions') as unknown as SessionsService,
+      sub.get('conversation') as unknown as ConversationService,
+    )
+    sub.effect(() => () => sessions.detach(), 'workflow-lite: session bridge')
+  })
+
+  // 「用其他程序打开」产出文件：借宿主的 Session Remote，可选。
+  const desktop = createDesktop()
+  ctx.inject(['remote', 'remote.session'], (sub) => {
+    const remote = sub.get('remote') as unknown as { session?: SessionRemote } | undefined
+    if (remote?.session === undefined) return
+    desktop.attach(remote.session)
+    sub.effect(() => () => desktop.detach(), 'workflow-lite: desktop bridge')
+  })
+
   ctx.slots.inject('conversation.view', () =>
     ctx.slots.register(
       {
@@ -43,7 +68,13 @@ export function apply(ctx: ClientContext): void {
         label: () =>
           ctx.locale.getLocale().active.startsWith('zh') ? zh['tab.label'] : en['tab.label'],
         locale: NS,
-        inject: (): WorkflowViewInjected => ({ rpc }),
+        // 会话页的 tab 拿得到当前会话：工作流实例按会话归属（打开 tab 时默认显示本会话的当前实例）。
+        inject: (sessionId): WorkflowViewInjected => ({
+          rpc,
+          sessionId: String(sessionId),
+          sessions,
+          desktop,
+        }),
       },
       WorkflowView,
     ),

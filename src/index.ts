@@ -6,7 +6,9 @@
  * 挂到共享 Connection 的 `/api` 通道上（只在有 web 的 profile 里挂，缺它不影响工具可用）。
  *
  * 这个插件**不执行任何节点**：它只管理文件、渲染画布、把图编译成一份派发计划，
- * 拿到计划的模型自己决定怎么执行。没有运行态，就没有并发/超时/重试/锁/心跳/恢复。
+ * 拿到计划的模型自己决定怎么执行。插件不调度，就没有并发/超时/重试/锁/心跳/恢复。
+ * 工作流开了「记录运行状态」时，编译会多建一个工作流实例：进度由主 agent 写进一份 YAML 状态文件，
+ * 插件只负责建实例、把它画出来、把用户在画布上的改动写回并通知模型。
  *
  * @module @xiaoso/dsh-workflow-lite
  */
@@ -23,6 +25,9 @@ import {
   type WorkflowLiteSettings,
 } from './host/config.ts'
 import { registerWorkflowLiteRpc } from './host/rpc.ts'
+import { createNotify } from './host/runs/notice.ts'
+import { RunService } from './host/runs/service.ts'
+import { registerRunStateSkill, validatorPath } from './host/runs/skill.ts'
 import { createRepository, type Repository, reportProblems } from './host/store/repository.ts'
 import { registerWorkflowLiteTool } from './host/tool/tool.ts'
 import { validateDocument } from './shared/validate.ts'
@@ -66,6 +71,22 @@ export async function apply(ctx: Context, config: WorkflowLiteSettings): Promise
     ctx.logger.warn(`[workflow-lite] 数据目录不可用：${layout.error.message}`)
   }
 
+  // 工作流实例（开了「记录运行状态」的图才用得上）：建实例、读写状态文件、把用户的改动通知给模型。
+  const runs = new RunService({
+    dataDir: () => config.dataDir.get(),
+    validator: validatorPath,
+    notify: createNotify(ctx),
+  })
+
+  // 按需 skill：状态文件的完整格式与校验脚本。`skills` 服务不在时跳过，计划里的那段照写。
+  ctx.inject(['skills'], (skillsCtx) => {
+    if (!config.installSkill.get()) return
+    skillsCtx.effect(
+      () => registerRunStateSkill(skillsCtx),
+      'workflow-lite: workflow-run-state skill',
+    )
+  })
+
   // 唯一的工具：**始终注册**，没有 `off`/`read`/`readwrite` 那套档位——
   // 装不装这个插件才是开关；要临时限制用 DSH 自己的工具过滤。
   ctx.effect(
@@ -74,6 +95,7 @@ export async function apply(ctx: Context, config: WorkflowLiteSettings): Promise
         repository,
         dataDir: () => config.dataDir.get(),
         maxResultBytes: () => config.maxResultBytes.get(),
+        runs,
       }),
     'workflow-lite: workflow_lite tool',
   )
@@ -87,6 +109,7 @@ export async function apply(ctx: Context, config: WorkflowLiteSettings): Promise
         maxNodes: config.maxNodes.get(),
         saveDebounceMs: config.saveDebounceMs.get(),
       }),
+      runs,
     })
   })
 }

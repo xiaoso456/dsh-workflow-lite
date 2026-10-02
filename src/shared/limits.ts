@@ -87,4 +87,5 @@ export const PLAN_SECTIONS = {
   contract: '## 交付契约',
   dynamic: '## 本次目标',
   notes: '## 图的注意事项',
+  runState: '## 运行状态',
 } as const
