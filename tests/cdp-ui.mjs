@@ -403,12 +403,12 @@ async function run(session) {
     })()`),
     '光带颜色应和它所在的线一致',
   )
-  // 七种线（总是 / 通过 / 未通过 / 自定义 / 产出 / 更新 / 读取）各一色，谁也不和谁重样。
+  // 八种线（总是 / 通过 / 未通过 / 自定义 / 产出 / 更新 / 读取 / 交回答）各一色，谁也不和谁重样。
   const legendColors = await session.evaluate(
     `[...document.querySelectorAll('[data-testid="wl-legend"] [data-line] line')].map((el) => getComputedStyle(el).stroke)`,
   )
-  check(legendColors.length === 7, `左下角应常驻七种线的图例，实际 ${legendColors.length}`)
-  check(new Set(legendColors).size === 7, `七种线的颜色不能重样：${legendColors.join(' / ')}`)
+  check(legendColors.length === 8, `左下角应常驻八种线的图例，实际 ${legendColors.length}`)
+  check(new Set(legendColors).size === 8, `八种线的颜色不能重样：${legendColors.join(' / ')}`)
   // 每条线的两头都要落在一个看得见的连接点上（不能悬在卡片边上没有点的地方）。
   const dangling = await session.evaluate(`(() => {
     const dots = [...document.querySelectorAll('.react-flow__handle')]

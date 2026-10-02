@@ -22,6 +22,7 @@ import { analyzeGraph } from '../shared/graph.ts'
 import { isStep } from '../shared/model.ts'
 import { bindRoot, INSTANCE_TOKEN, rootOf } from '../shared/outputPaths.ts'
 import type {
+  InputAnswer,
   PlanId,
   PlanResult,
   ToolWarning,
@@ -48,6 +49,11 @@ export interface CompileOptions {
   goal?: string
   /** 实例：给了就按它出计划、把任务描述写进实例目录；不给是预览（留 `{instance}`，不写文件）。 */
   instance?: PlanInstance
+  /**
+   * 用户对输入节点的回答。不给 = 预览（回答处写「执行时填写」）；给了 = 真的要执行
+   * （没回答的用默认值，必填的还空着就是编译级）。
+   */
+  answers?: Readonly<Record<string, InputAnswer>>
 }
 
 export interface CompileBundle {
@@ -131,6 +137,7 @@ export async function compileDocument(
     ...(options.goal === undefined ? {} : { goal: options.goal }),
     ...(cwd === undefined ? {} : { cwd }),
     instance: id,
+    ...(options.answers === undefined ? {} : { answers: options.answers }),
     payloadPaths,
   }
   const planOptions = { problems, ...(tracked ? { runState: { instance: id } } : {}) }
@@ -146,7 +153,7 @@ export async function compileDocument(
       result: {
         planId,
         plan: text,
-        problems: text === '' ? compileProblemsOf(problems) : [],
+        problems: text === '' ? buildPlan(facts, analysis, planOptions).problems : [],
         warnings,
         payloadPaths: asRecord(),
       },
@@ -188,11 +195,6 @@ export async function compileDocument(
     ok: true,
     result: { planId, plan: result.plan, problems: [], warnings, payloadPaths: asRecord() },
   }
-}
-
-/** 从一份问题清单里挑出编译级——整卷版被拒时要把它们回告出去。 */
-function compileProblemsOf(problems: readonly ValidationProblem[]): ValidationProblem[] {
-  return problems.filter((problem) => problem.level === 'compile')
 }
 
 /** 该图的警告与提示（画布校验面板用）。 */

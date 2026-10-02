@@ -20,7 +20,8 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import { fileGraph, outputsOf, stepFiles } from '../../shared/files.ts'
 import { analyzeGraph, compareByCodepoint } from '../../shared/graph.ts'
-import { canonicalOutput, idKey, isFile, isStep } from '../../shared/model.ts'
+import { inputKind, inputReaders, orderedInputs, stepInputs } from '../../shared/inputs.ts'
+import { canonicalOutput, idKey, isFile, isInput, isStep } from '../../shared/model.ts'
 import { checkName } from '../../shared/naming.ts'
 import { NODE_STATUSES, RUN_STATUSES } from '../../shared/runState.ts'
 import type {
@@ -28,6 +29,8 @@ import type {
   ExecutionMode,
   FileIndexEntry,
   Handoff,
+  InputAnswer,
+  InputIndexEntry,
   NodeIndexEntry,
   ReadIndexResult,
   ReadNodeResult,
@@ -36,12 +39,19 @@ import type {
   ValidationProblem,
   WorkflowDocument,
 } from '../../shared/types.ts'
-import { ACTIONS, type Action, EXECUTION_MODES, TOOL_NAME } from '../../shared/types.ts'
+import {
+  ACTIONS,
+  type Action,
+  EXECUTION_MODES,
+  INPUT_KINDS,
+  TOOL_NAME,
+} from '../../shared/types.ts'
 import { compileWorkflow } from '../plan.ts'
 import type { NodePatch, RunService, SessionRef, StatePatch } from '../runs/service.ts'
 import { writeFileAtomic } from '../store/atomic.ts'
 import { templateFile, templateOccupant } from '../store/paths.ts'
 import {
+  type InputUpsert,
   MAX_SEQUENTIAL,
   type NodeUpsert,
   type Outcome,
@@ -71,6 +81,8 @@ const DESCRIPTION = [
   '用户在画布上点「执行」时会发来一句带实例 id 的话：用 resume 拿那个实例的计划，照着执行。',
   '文件是独立的节点：connect 步骤 → 文件 = 写它（update 选在原文件上更新），文件 → 步骤 = 读它；',
   'write_node 的 output/outputs 也会自动建好文件节点并连上。步骤 → 步骤的线缺省交上游的执行结果（handoff / handoff_note 可改）。',
+  '输入节点是执行前问用户的问题：write_node 带 input 新建或修改，connect 输入 → 步骤 = 把回答交给它。',
+  '图里有输入节点时，compile 带 answers 给出用户的回答（没给的用默认值）；必填的没回答会回 problems，先问用户再编译。',
   '节点定位一律用 id。',
 ].join('')
 
@@ -134,6 +146,7 @@ function indexEntry(document: WorkflowDocument, node: StepNode): NodeIndexEntry 
   const analysis = analyzeGraph(document)
   const predecessors = (analysis.predecessors.get(node.id) ?? []).slice().sort(compareByCodepoint)
   const files = stepFiles(document, node.id)
+  const inputs = stepInputs(document, node.id)
   return {
     id: node.id,
     ...(node.data.label === undefined ? {} : { label: node.data.label }),
@@ -146,7 +159,72 @@ function indexEntry(document: WorkflowDocument, node: StepNode): NodeIndexEntry 
             update ? { path: file.data.path, update: true as const } : { path: file.data.path },
           ),
         }),
+    ...(inputs.length === 0 ? {} : { inputs: inputs.map((input) => input.id) }),
   }
+}
+
+/** 输入节点的索引条目：问题、题型、选项、默认值、交给谁（占位与说明是给填写的人看的，不给）。 */
+function inputEntries(document: WorkflowDocument): InputIndexEntry[] {
+  return orderedInputs(document).map(({ id, data }) => ({
+    id,
+    question: data.question,
+    kind: inputKind(data),
+    ...(data.options === undefined ? {} : { options: data.options }),
+    ...(data.default === undefined ? {} : { default: data.default }),
+    ...(data.required === true ? { required: true as const } : {}),
+    readers: inputReaders(document, id),
+  }))
+}
+
+/** `compile` 的 answers（[{ id, value | values }]）→ 输入 id → 回答。形状不对就回一句给模型看的错。 */
+function answersOf(args: WorkflowLiteArgs): Record<string, InputAnswer> | string | undefined {
+  if (args.answers === undefined) return undefined
+  if (!Array.isArray(args.answers)) return 'answers 要写成 [{ id, value }]（多选用 values）'
+  const answers: Record<string, InputAnswer> = {}
+  for (const raw of args.answers) {
+    if (typeof raw !== 'object' || raw === null || typeof raw.id !== 'string' || raw.id === '') {
+      return 'answers 的每一项都要有 id（输入节点 id）'
+    }
+    if (Array.isArray(raw.values)) {
+      if (raw.values.some((item) => typeof item !== 'string')) {
+        return `answers.${raw.id}.values 必须是文字列表`
+      }
+      answers[raw.id] = raw.values
+    } else if (typeof raw.value === 'string') {
+      answers[raw.id] = raw.value
+    } else {
+      return `answers.${raw.id} 要给 value（文字题、单选）或 values（多选）`
+    }
+  }
+  return answers
+}
+
+/** write_node 的 input 参数 → 仓储的入参。 */
+function inputUpsertOf(id: string, input: InputArgs): InputUpsert | string {
+  const upsert: InputUpsert = { id }
+  if (input.kind !== undefined) {
+    const kind = INPUT_KINDS.find((candidate) => candidate === input.kind)
+    if (kind === undefined) {
+      return `input.kind 不认识：${input.kind}（可选：${INPUT_KINDS.join(' / ')}）`
+    }
+    upsert.kind = kind
+  }
+  for (const key of ['question', 'placeholder', 'hint'] as const) {
+    const value = input[key]
+    if (value === undefined) continue
+    if (typeof value !== 'string') return `input.${key} 必须是文字`
+    upsert[key] = value
+  }
+  if (input.options !== undefined) {
+    if (!Array.isArray(input.options) || input.options.some((item) => typeof item !== 'string')) {
+      return 'input.options 必须是文字列表'
+    }
+    upsert.options = input.options
+  }
+  if (input.default !== undefined) upsert.default = input.default
+  if (input.defaults !== undefined) upsert.default = input.defaults
+  if (input.required !== undefined) upsert.required = input.required === true
+  return upsert
 }
 
 /** 文件节点的索引条目：谁写、谁读。 */
@@ -199,10 +277,13 @@ async function saveNodeAsTemplate(
       error: { code: 'not_found', message: `图 ${workflow} 里没有节点 ${nodeId}` },
     }
   }
-  if (isFile(node)) {
+  if (isFile(node) || isInput(node)) {
     return {
       ok: false,
-      error: { code: 'invalid_args', message: `${node.id} 是文件节点，只有步骤能存成节点模板` },
+      error: {
+        code: 'invalid_args',
+        message: `${node.id} 是${isFile(node) ? '文件' : '输入'}节点，只有步骤能存成节点模板`,
+      },
     }
   }
   const base = to ?? node.id
@@ -271,6 +352,27 @@ export interface WorkflowLiteArgs {
   note?: string
   nodes?: NodePatchArgs[]
   log?: string
+  input?: InputArgs
+  answers?: AnswerArgs[]
+}
+
+/** write_node 的 input（与参数声明同构）。 */
+export interface InputArgs {
+  question?: string
+  kind?: string
+  options?: string[]
+  default?: string
+  defaults?: string[]
+  placeholder?: string
+  hint?: string
+  required?: boolean
+}
+
+/** compile 的 answers 里的一项。 */
+export interface AnswerArgs {
+  id: string
+  value?: string
+  values?: string[]
 }
 
 /** `state` 动作里一个步骤的改动（与参数声明同构）。 */
@@ -423,6 +525,7 @@ export function createWorkflowLiteHandler(
               indexEntry(load.document ?? document0(), node),
             ),
             ...(load.document.nodes.some(isFile) ? { files: fileEntries(load.document) } : {}),
+            ...(load.document.nodes.some(isInput) ? { inputs: inputEntries(load.document) } : {}),
             warnings,
           }
           return finish(result)
@@ -439,7 +542,7 @@ export function createWorkflowLiteHandler(
           // 文件节点给连着它的全部线（谁写、谁读）；步骤给出边。
           edges: load.document.edges
             .filter((edge) =>
-              isFile(node)
+              isFile(node) || isInput(node)
                 ? idKey(edge.source) === idKey(nodeId) || idKey(edge.target) === idKey(nodeId)
                 : idKey(edge.source) === idKey(nodeId),
             )
@@ -453,6 +556,10 @@ export function createWorkflowLiteHandler(
         const name = requireWorkflow(args.workflow)
         if (name === null) return missingWorkflow()
         const runs = deps.runs
+        const answers = answersOf(args)
+        if (typeof answers === 'string') {
+          return errorValue({ error: { code: 'invalid_args', message: answers } })
+        }
         // 整卷版是给人看的：不建实例，路径里留着 {instance}。
         if (args.full === true || runs === undefined) {
           const outcome = await compileWorkflow(
@@ -462,6 +569,7 @@ export function createWorkflowLiteHandler(
             {
               ...(args.full === true ? { full: true } : {}),
               ...(args.goal === undefined ? {} : { goal: args.goal }),
+              ...(answers === undefined ? {} : { answers }),
             },
             cwdOf(exec),
           )
@@ -488,6 +596,7 @@ export function createWorkflowLiteHandler(
           problems: load.problems,
           session,
           ...(args.goal === undefined ? {} : { goal: args.goal }),
+          answers: answers ?? {},
         })
         if (!outcome.ok) return errorValue(outcome)
         return finish(outcome.result)
@@ -542,6 +651,15 @@ export function createWorkflowLiteHandler(
           return errorValue({
             error: { code: 'invalid_args', message: 'write_node 需要 node（节点 id）' },
           })
+        }
+        if (args.input !== undefined) {
+          const input = inputUpsertOf(args.node, args.input)
+          if (typeof input === 'string') {
+            return errorValue({ error: { code: 'invalid_args', message: input } })
+          }
+          const outcome = await repository.writeInput(name, input)
+          if (!outcome.ok) return errorValue(outcome)
+          return finish(outcome.result)
         }
         const upsert: NodeUpsert = { id: args.node }
         if (args.content !== undefined) upsert.content = args.content
@@ -843,6 +961,44 @@ export const PARAMETERS = {
     },
   },
   log: { type: 'string', description: 'state：往流水追加一条说明。' },
+  input: {
+    type: 'object',
+    description:
+      'write_node：给了它就是新建或修改一个输入节点（执行前问用户的问题；问题与回答进计划，占位与说明只给填写的人看）。',
+    additionalProperties: false,
+    properties: {
+      question: { type: 'string', description: '问题（一行）；新建时必填。' },
+      kind: {
+        type: 'string',
+        enum: [...INPUT_KINDS],
+        description: 'text 一句话（缺省）/ textarea 多行 / choice 单选 / multi 多选。',
+      },
+      options: {
+        type: 'array',
+        items: { type: 'string' },
+        description: '选项（choice / multi）。',
+      },
+      default: { type: 'string', description: '默认值（文字题的预填文字、单选的一个选项）。' },
+      defaults: { type: 'array', items: { type: 'string' }, description: '多选的默认选项。' },
+      placeholder: { type: 'string', description: '输入框里的灰字；空串 = 清除。' },
+      hint: { type: 'string', description: '填写时显示的说明；空串 = 清除。' },
+      required: { type: 'boolean', description: '必填。' },
+    },
+  },
+  answers: {
+    type: 'array',
+    description:
+      'compile：用户对输入节点的回答，每项一个；没给的用默认值。用户在画布上点「执行」时已经填过，不用再给。',
+    items: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        id: { type: 'string', required: true, description: '输入节点 id。' },
+        value: { type: 'string', description: '文字题、单选的回答。' },
+        values: { type: 'array', items: { type: 'string' }, description: '多选选中的项。' },
+      },
+    },
+  },
   all: { type: 'boolean', description: 'runs：true = 列所有会话的实例（缺省只列本会话的）。' },
   mode: {
     type: 'string',

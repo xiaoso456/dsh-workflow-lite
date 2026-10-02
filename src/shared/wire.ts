@@ -11,6 +11,7 @@
 import type { InstanceSummary, InstanceView, StateEdit } from './runState.ts'
 import type {
   CompileResult,
+  InputAnswer,
   ListResult,
   NodeData,
   NodeIndexEntry,
@@ -367,6 +368,8 @@ export interface RunStartRequest {
   session: string
   /** 那个会话的工作区（状态文件建在这里、计划的 ⑤ 段也用它）。 */
   cwd?: string
+  /** 用户在「执行」前对输入节点的回答（输入 id → 回答）；没回答的用默认值。 */
+  answers?: Record<string, InputAnswer>
 }
 export interface RunStartResponse {
   instance: InstanceSummary

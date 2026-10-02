@@ -594,3 +594,64 @@
   margin: 0;
   overflow-wrap: anywhere;
 }
+
+/* ── 选中输入节点：用户这次的回答 ─────────────────────────── */
+
+.inputDetail {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.inputHead {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.inputQuestion {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-top: 3px;
+  font-weight: 600;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.inputAnswer {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--wl-r-control);
+  background: var(--wl-fill);
+  color: var(--wl-text);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.inputAnswerEmpty {
+  margin: 0;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+}
+
+.inputPicked {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.inputPicked li {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--wl-text);
+}
+
+.inputPicked svg {
+  flex: none;
+  color: var(--wl-accent-text);
+}

@@ -42,6 +42,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import type { Appearance } from '../../shared/appearance.ts'
 import {
   edgeKind,
   type FileRole,
@@ -51,9 +52,11 @@ import {
   roleOf,
 } from '../../shared/files.ts'
 import type { GraphAnalysis } from '../../shared/graph.ts'
-import { idKey, isFile } from '../../shared/model.ts'
+import { inputKind } from '../../shared/inputs.ts'
+import { idKey, isFile, isInput } from '../../shared/model.ts'
 import type { NodeStatus } from '../../shared/runState.ts'
 import type {
+  InputKind,
   Point,
   ValidationProblem,
   WorkflowDocument,
@@ -61,6 +64,7 @@ import type {
 } from '../../shared/types.ts'
 import type { LocaleKey, T } from '../i18n.ts'
 import {
+  type CardKind,
   type DragKind,
   dragKindOf,
   type HandleLink,
@@ -69,14 +73,8 @@ import {
   previewLink,
 } from '../model/connect.ts'
 import { type Edit, type Selection, whenOf } from '../model/editor.ts'
-import { FILE_H, FILE_W, NODE_H, NODE_W, nextTo } from '../model/layout.ts'
-import {
-  DND_MIME,
-  decodeStepSource,
-  kindOf,
-  type StepKind,
-  type StepSource,
-} from '../model/library.ts'
+import { cardSize, FILE_H, FILE_W, NODE_H, NODE_W, nextTo } from '../model/layout.ts'
+import { DND_MIME, decodeStepSource, type StepSource } from '../model/library.ts'
 import {
   bezierBlocked,
   FILE_SPOTS,
@@ -103,9 +101,10 @@ import { baseName, freeFilePath } from './Files.tsx'
 import { FlowStreaks } from './FlowStreaks.tsx'
 import type { FocusFile } from './Handoff.tsx'
 import hand from './handoff.module.css'
-import { Icon, type IconName, kindIcon } from './Icon.tsx'
+import { Icon, type IconName } from './Icon.tsx'
 import { ACCESS_COLOR, type Access, WHEN_COLOR, type WhenKind, whenKind } from './lines.ts'
 import { cx, useFloat } from './primitives.tsx'
+import { lookOf, StepMark } from './StepMark.tsx'
 import ui from './ui.module.css'
 
 /** 「在这里加一个步骤」的请求：屏幕坐标用来摆菜单，画布坐标用来落节点。 */
@@ -168,7 +167,7 @@ interface StepData extends Record<string, unknown> {
   title: string
   /** 挂着读写线的连接点（这些点才显示出来）。 */
   used: readonly string[]
-  kind: StepKind
+  look: Appearance
   excerpt: string
   tone: Tone
   note: string
@@ -235,9 +234,23 @@ interface FileLinkData extends Record<string, unknown> {
   chipText: string
 }
 
+/** 输入卡：问题 + 一行「单选 · 3 个选项 · 必填」。 */
+interface InputCardData extends Record<string, unknown> {
+  question: string
+  meta: string
+  kind: InputKind
+  tone: Tone
+  note: string
+  emptyText: string
+  connectText: string
+  /** 悬停某个文件时它跟着淡下去（它不是文件的读写方）。 */
+  dim: boolean
+}
+
 type StepFlowNode = Node<StepData, 'wfNode'>
 type FileFlowNode = Node<FileCardData, 'wfFile'>
-type FlowNode = StepFlowNode | FileFlowNode
+type InputFlowNode = Node<InputCardData, 'wfInput'>
+type FlowNode = StepFlowNode | FileFlowNode | InputFlowNode
 type LinkEdge = Edge<LinkData, 'wfEdge'>
 type FileEdge = Edge<FileLinkData, 'wfFileLink'>
 type FlowEdge = LinkEdge | FileEdge
@@ -252,9 +265,23 @@ const ACCESS_TEXT: Record<Access, LocaleKey> = {
   produce: 'file.produce',
   update: 'file.update',
   read: 'file.read',
+  ask: 'file.ask',
 }
 
-const ACCESS_ICON = { produce: 'pencil', update: 'reload', read: 'eye' } as const
+const ACCESS_ICON = { produce: 'pencil', update: 'reload', read: 'eye', ask: 'ask' } as const
+
+/** 输入卡左侧签上的图标：按交互方式。 */
+const INPUT_ICON = {
+  text: 'inputText',
+  textarea: 'inputArea',
+  choice: 'inputChoice',
+  multi: 'inputMulti',
+} as const
+
+/** React Flow 节点类型 → 拖线起点的卡种。 */
+function cardKindOf(type: string | undefined): CardKind {
+  return type === 'wfFile' ? 'file' : type === 'wfInput' ? 'input' : 'step'
+}
 
 /** 运行状态的图标与文案。 */
 const RUN_ICON: Record<NodeStatus, IconName> = {
@@ -333,9 +360,7 @@ const StepCard = memo(function StepCard(props: NodeProps<StepFlowNode>): React.J
         className={cx(css.handle, css.handleIn, css.hStepIn)}
       />
       <div className={css.cardHead}>
-        <span className={ui.kind} data-kind={data.kind}>
-          <Icon name={kindIcon(data.kind)} size={15} />
-        </span>
+        <StepMark look={data.look} />
         <span className={css.cardTitle}>{data.title}</span>
         {data.tone !== 'ok' && (
           <span className={css.cardFlag} data-tone={data.tone}>
@@ -790,6 +815,46 @@ const FileCard = memo(function FileCard(props: NodeProps<FileFlowNode>): React.J
   )
 })
 
+/**
+ * 输入卡：执行前问用户的一个问题。左边一条墨色的签印着交互方式，右边的点拖到步骤上 = 把回答交给它。
+ * 没有入口——输入不从任何地方来，是用户填的。
+ */
+const InputCard = memo(function InputCard(props: NodeProps<InputFlowNode>): React.JSX.Element {
+  const { data, selected } = props
+  const empty = data.question === ''
+  return (
+    <div
+      className={cx(css.inputCard, selected && css.cardSelected)}
+      data-tone={data.tone}
+      data-dim={data.dim}
+      data-testid="wl-input"
+      title={data.note === '' ? undefined : data.note}
+    >
+      <span className={css.inputTab} aria-hidden="true">
+        <Icon name={INPUT_ICON[data.kind]} size={14} />
+      </span>
+      <span className={css.fileText}>
+        <span className={cx(css.inputQuestion, empty && css.inputEmpty)}>
+          {empty ? data.emptyText : data.question}
+        </span>
+        <span className={css.fileRule}>{data.meta}</span>
+      </span>
+      {data.tone !== 'ok' && (
+        <span className={css.cardFlag} data-tone={data.tone}>
+          <Icon name="alert" size={12} />
+        </span>
+      )}
+      <Handle
+        id="out"
+        type="source"
+        position={Position.Right}
+        className={cx(css.handle, css.handleOut, css.handleRead, css.handleAsk)}
+        title={data.connectText}
+      />
+    </div>
+  )
+})
+
 const SIDE_POSITION: Record<Side, Position> = {
   top: Position.Top,
   right: Position.Right,
@@ -886,6 +951,7 @@ const PREVIEW_ICON = {
   produce: 'pencil',
   update: 'reload',
   read: 'eye',
+  ask: 'ask',
 } as const
 
 const PREVIEW_TEXT: Record<LinkPreview['kind'], LocaleKey> = {
@@ -893,12 +959,14 @@ const PREVIEW_TEXT: Record<LinkPreview['kind'], LocaleKey> = {
   produce: 'file.produce',
   update: 'file.update',
   read: 'file.read',
+  ask: 'edge.ask',
 }
 
 const DRAG_HINT: Record<DragKind, LocaleKey> = {
   flow: 'link.hintFlow',
   write: 'link.hintWrite',
   read: 'link.hintRead',
+  ask: 'link.hintAsk',
   back: 'link.hintBack',
   writeBack: 'link.hintWriteBack',
   readBack: 'link.hintReadBack',
@@ -908,10 +976,12 @@ const DRAG_HINT: Record<DragKind, LocaleKey> = {
 function dragColor(kind: DragKind | null): string {
   if (kind === 'write' || kind === 'writeBack') return ACCESS_COLOR.produce
   if (kind === 'read' || kind === 'readBack') return ACCESS_COLOR.read
+  if (kind === 'ask') return ACCESS_COLOR.ask
   return WHEN_COLOR.always
 }
 
 function nodeName(node: WorkflowNode): string {
+  if (isInput(node)) return node.data.question
   if (isFile(node)) return baseName(node.data.path)
   return node.data.label === undefined || node.data.label === '' ? node.id : node.data.label
 }
@@ -945,7 +1015,7 @@ function linkOf(
  */
 function ConnectionLine(props: ConnectionLineComponentProps<FlowNode>): React.JSX.Element {
   const info = useContext(DragInfo)
-  const kind = dragKindOf(props.fromNode.type === 'wfFile', props.fromHandle.id)
+  const kind = dragKindOf(cardKindOf(props.fromNode.type), props.fromHandle.id)
   const preview =
     info !== null && props.toNode !== null && props.connectionStatus === 'valid'
       ? info.preview(
@@ -958,12 +1028,13 @@ function ConnectionLine(props: ConnectionLineComponentProps<FlowNode>): React.JS
     to: { x: number; y: number; side: Side }
   } | null = null
   if (preview !== null && preview.kind !== 'flow' && props.toNode !== null) {
-    const fileNode = props.fromNode.type === 'wfFile' ? props.fromNode : props.toNode
+    const fileNode = props.fromNode.type === 'wfNode' ? props.toNode : props.fromNode
     const stepNode = fileNode === props.fromNode ? props.toNode : props.fromNode
     const step = rectOf(stepNode, NODE_W, NODE_H)
     const file = rectOf(fileNode, FILE_W, FILE_H)
     if (step !== null && file !== null) {
-      ends = fileLinkEnds(preview.kind === 'read' ? 'read' : 'write', step, file)
+      const reading = preview.kind === 'read' || preview.kind === 'ask'
+      ends = fileLinkEnds(reading ? 'read' : 'write', step, file)
     }
   }
   let path: string
@@ -976,7 +1047,7 @@ function ConnectionLine(props: ConnectionLineComponentProps<FlowNode>): React.JS
       targetY: props.toY,
       targetPosition: props.toPosition,
     })
-  } else if (preview?.kind === 'read') {
+  } else if (preview?.kind === 'read' || preview?.kind === 'ask') {
     ;[path] = getBezierPath({
       sourceX: ends.from.x,
       sourceY: ends.from.y,
@@ -1046,7 +1117,7 @@ function ConnectionLine(props: ConnectionLineComponentProps<FlowNode>): React.JS
 }
 
 /** `nodeTypes` / `edgeTypes` 必须是稳定引用，否则 React Flow 每次渲染都重建全部节点。 */
-const NODE_TYPES = { wfNode: StepCard, wfFile: FileCard }
+const NODE_TYPES = { wfNode: StepCard, wfFile: FileCard, wfInput: InputCard }
 const EDGE_TYPES = { wfEdge: LinkLine, wfFileLink: FileLine }
 
 // ─────────────────────────────────────────────────────────────
@@ -1150,7 +1221,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
     connection.inProgress
       ? JSON.stringify([
           connection.fromNode.id,
-          connection.fromNode.type === 'wfFile',
+          cardKindOf(connection.fromNode.type),
           connection.fromHandle.id ?? null,
           connection.fromHandle.type,
           connection.toNode?.id ?? null,
@@ -1165,18 +1236,18 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
   )
   const drag = useMemo(() => {
     if (dragKey === '') return null
-    const [fromNode, fromFile, fromHandle, fromType, toNode, toHandle, valid] = JSON.parse(
+    const [fromNode, fromCard, fromHandle, fromType, toNode, toHandle, valid] = JSON.parse(
       dragKey,
     ) as [
       string,
-      boolean,
+      CardKind,
       string | null,
       'source' | 'target',
       string | null,
       string | null,
       boolean,
     ]
-    const kind = dragKindOf(fromFile, fromHandle)
+    const kind = dragKindOf(fromCard, fromHandle)
     const preview =
       valid && toNode !== null
         ? previewLink(doc, linkOf(fromNode, { id: fromHandle, type: fromType }, toNode, toHandle))
@@ -1201,6 +1272,16 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
       addText: t('node.add'),
       fileText: t('node.fileHandle'),
       readText: t('file.connectHint'),
+      askText: t('input.connectHint'),
+      emptyQuestion: t('input.questionEmpty'),
+      required: t('input.required'),
+      inputKinds: {
+        text: t('input.kind.text'),
+        textarea: t('input.kind.textarea'),
+        choice: t('input.kind.choice'),
+        multi: t('input.kind.multi'),
+      },
+      optionsCount: t('input.optionsCount'),
       noRuleText: t('file.noRule'),
       pass: t('edge.pass'),
       fail: t('edge.fail'),
@@ -1208,6 +1289,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
       produce: t(ACCESS_TEXT.produce),
       update: t(ACCESS_TEXT.update),
       read: t(ACCESS_TEXT.read),
+      ask: t(ACCESS_TEXT.ask),
     }),
     [t],
   )
@@ -1221,11 +1303,12 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
     const rectFor = (node: WorkflowNode): Rect => {
       const at = dragging[node.id] ?? node.position
       const size = measured.current.get(node.id)
+      const nominal = cardSize(node)
       return {
         x: at.x,
         y: at.y,
-        w: size?.width ?? (isFile(node) ? FILE_W : NODE_W),
-        h: size?.height ?? (isFile(node) ? FILE_H : NODE_H),
+        w: size?.width ?? nominal.w,
+        h: size?.height ?? nominal.h,
       }
     }
     const handles = new Map<string, { source: string; target: string }>()
@@ -1261,33 +1344,34 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
         lanes.set(edge.id, freeLane(boxes, to.x - ROUTE_PAD, sx + LOOP_REACH, laneStart(sy, ty)))
         continue
       }
-      if (kind !== 'write' && kind !== 'read') continue
-      const stepId = kind === 'write' ? edge.source : edge.target
-      const fileId = kind === 'write' ? edge.target : edge.source
+      if (kind !== 'write' && kind !== 'read' && kind !== 'ask') continue
+      // 输入 → 步骤的走法和读文件一样（输入卡在这里就是一张"被读"的卡）。
+      const way = kind === 'write' ? 'write' : 'read'
+      const stepId = way === 'write' ? edge.source : edge.target
+      const fileId = way === 'write' ? edge.target : edge.source
       const stepBox = rects.get(idKey(stepId))
       const fileBox = rects.get(idKey(fileId))
       if (stepBox === undefined || fileBox === undefined) continue
-      const route = routeFileLink(kind, stepBox, fileBox)
+      const route = routeFileLink(way, stepBox, fileBox)
       let stepHandle: StepFileHandle = route.step
       // 平时的走法（写 = 树干直角，读 = 贝塞尔）压到别的卡片时，改走绕开卡片的直角折线；
       // 上下两个点都试一试，挑便宜的那条。
       const skip = [stepBox, fileBox]
       const fileEnd = spotOf(fileBox, FILE_SPOTS[route.file])
       const stepEnd = spotOf(stepBox, STEP_SPOTS[route.step])
-      const simple = kind === 'write' ? writePoints(stepEnd, fileEnd, fileBox.h) : null
+      const simple = way === 'write' ? writePoints(stepEnd, fileEnd, fileBox.h) : null
       const blocked =
         simple === null
           ? fileBox.x + fileBox.w / 2 > stepBox.x + stepBox.w / 2 ||
             bezierBlocked(fileEnd, stepEnd, boxes, skip)
           : simple.length !== 3 || pointsBlocked(simple, boxes, skip)
       if (blocked) {
-        const options: StepFileHandle[] =
-          kind === 'write' ? ['file', 'fileUp'] : ['read', 'readTop']
+        const options: StepFileHandle[] = way === 'write' ? ['file', 'fileUp'] : ['read', 'readTop']
         let best: { handle: StepFileHandle; route: OrthoRoute } | null = null
         for (const handle of options) {
           const end = spotOf(stepBox, STEP_SPOTS[handle])
           const found =
-            kind === 'write'
+            way === 'write'
               ? orthoRoute(end, fileEnd, boxes, stepBox, fileBox)
               : orthoRoute(fileEnd, end, boxes, fileBox, stepBox)
           if (found !== null && (best === null || found.cost < best.route.cost)) {
@@ -1301,7 +1385,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
       }
       handles.set(
         edge.id,
-        kind === 'write'
+        way === 'write'
           ? { source: stepHandle, target: route.file }
           : { source: route.file, target: stepHandle },
       )
@@ -1321,7 +1405,38 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
       let signature: string
       let build: () => FlowNode
       const used = routes.used.get(idKey(node.id)) ?? NO_HANDLES
-      if (isFile(node)) {
+      if (isInput(node)) {
+        const tone: Tone = reported?.tone ?? 'ok'
+        const note = reported?.note ?? ''
+        const dim = focusFile !== null
+        const kind = inputKind(node.data)
+        const question = node.data.question.trim()
+        const options = (node.data.options ?? []).filter((option) => option.trim() !== '')
+        const meta = [
+          texts.inputKinds[kind],
+          ...(kind === 'choice' || kind === 'multi'
+            ? [texts.optionsCount.replace('{n}', String(options.length))]
+            : []),
+          ...(node.data.required === true ? [texts.required] : []),
+        ].join(' · ')
+        signature = `${selected}|${tone}|${note}|${dim}|${texts.askText}|${meta}`
+        build = () => ({
+          id: node.id,
+          type: 'wfInput',
+          position: moving ?? node.position,
+          selected,
+          data: {
+            question,
+            meta,
+            kind,
+            tone,
+            note,
+            emptyText: texts.emptyQuestion,
+            connectText: texts.askText,
+            dim,
+          },
+        })
+      } else if (isFile(node)) {
         const isFocus = focusFile !== null && idKey(focusFile) === idKey(node.id)
         const tone: Tone = reported?.tone ?? 'ok'
         const note = reported?.note ?? ''
@@ -1375,7 +1490,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
             used,
             title:
               node.data.label === undefined || node.data.label === '' ? node.id : node.data.label,
-            kind: kindOf(node.id),
+            look: lookOf(node.id, node.data),
             // 写了描述就用描述（那是给人看的一句话），没写才摘提示词。
             excerpt:
               node.data.description !== undefined && node.data.description.trim() !== ''
@@ -1436,6 +1551,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
     const nameOf = (id: string): string => {
       const node = index.get(idKey(id))
       if (node === undefined || isFile(node)) return id
+      if (isInput(node)) return node.data.question
       return node.data.label === undefined || node.data.label === '' ? id : node.data.label
     }
     // 聚光：悬停的文件卡优先，其次是选中的节点。和它相连的线"活"起来（光带流动、标明种类），
@@ -1456,9 +1572,15 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
       const live = run !== undefined && taken && run.nodes[edge.target]?.status === 'running'
       const active = selected || edge.id === hoverEdge || touches || live
       const dim = (spotlight !== null && !touches && !selected) || (!taken && !selected)
-      if (kind === 'write' || kind === 'read') {
+      if (kind === 'write' || kind === 'read' || kind === 'ask') {
         const access: Access =
-          kind === 'read' ? 'read' : edge.data?.update === true ? 'update' : 'produce'
+          kind === 'ask'
+            ? 'ask'
+            : kind === 'read'
+              ? 'read'
+              : edge.data?.update === true
+                ? 'update'
+                : 'produce'
         const color = ACCESS_COLOR[access]
         const arrow = { type: MarkerType.ArrowClosed, width: 14, height: 14, color }
         return {
@@ -1473,6 +1595,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
           className: cx(
             css.fileLink,
             access === 'read' && css.fileLinkRead,
+            access === 'ask' && css.fileLinkAsk,
             active && css.linkActive,
             dim && css.linkDim,
           ),
@@ -1482,7 +1605,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
             ? { markerStart: { ...arrow, orient: 'auto-start-reverse' } }
             : {}),
           data: {
-            kind,
+            kind: kind === 'write' ? 'write' : 'read',
             access,
             color,
             active,

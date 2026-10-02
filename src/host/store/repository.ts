@@ -21,6 +21,7 @@
 
 import { stat } from 'node:fs/promises'
 import { join } from 'node:path'
+import { pickAppearance } from '../../shared/appearance.ts'
 import { fileByPath, newFileNode, setStepOutputs, splitOutputs } from '../../shared/files.ts'
 import { analyzeGraph } from '../../shared/graph.ts'
 import {
@@ -30,10 +31,12 @@ import {
   findNode,
   idKey,
   isFile,
+  isInput,
   isStep,
   makeEdgeId,
   normalizeCoord,
   readDocument,
+  readInputData,
   readNodeData,
   readSettings,
   sameEdgeData,
@@ -58,6 +61,9 @@ import {
   type ExecutionMode,
   type FileNode,
   type Handoff,
+  INPUT_TYPE,
+  type InputData,
+  type InputNode,
   type ListResult,
   NODE_TYPE,
   type NodeData,
@@ -210,6 +216,22 @@ export interface NodeUpsert {
   position?: Point
 }
 
+/**
+ * `write_node` 带 `input`：新建或改一个输入节点。给了的字段才改（`kind` 换了会按新题型重新规范化选项与默认值）；
+ * 文字字段空串 = 清除。
+ */
+export interface InputUpsert {
+  id: string
+  question?: string
+  kind?: InputData['kind'] | 'text'
+  options?: string[]
+  default?: string | string[]
+  placeholder?: string
+  hint?: string
+  required?: boolean
+  position?: Point
+}
+
 /** `write_file`：新建或修改一个文件节点。 */
 export interface FileUpsert {
   /** 文件节点 id；缺省时按路径找，找不到就从文件名起一个。 */
@@ -253,6 +275,7 @@ export interface Repository {
   deleteNodeTemplate(name: string): Promise<Outcome<WriteResult>>
   writeNode(workflow: string, upsert: NodeUpsert): Promise<Outcome<WriteResult>>
   writeFile(workflow: string, upsert: FileUpsert): Promise<Outcome<WriteResult>>
+  writeInput(workflow: string, upsert: InputUpsert): Promise<Outcome<WriteResult>>
   setLabel(workflow: string, node: string, label: string): Promise<Outcome<WriteResult>>
   /** 改工作流设置（产出根目录、执行方式）；给了的字段才改。 */
   configure(
@@ -1023,6 +1046,9 @@ class FileRepository implements Repository {
       if (found !== undefined && isFile(found)) {
         return fail('blocked', `${rawId} 是文件节点，改它请用 write_file`, { id: rawId })
       }
+      if (found !== undefined && isInput(found)) {
+        return fail('blocked', `${rawId} 是输入节点，改它请带上 input`, { id: rawId })
+      }
       const existing = found
       let data: NodeData = existing === undefined ? {} : { ...existing.data }
       let outputs: OutputSpec[] | undefined
@@ -1046,6 +1072,11 @@ class FileRepository implements Repository {
         else data.description = upsert.description
       }
       delete data.output
+      if (existing === undefined) {
+        // 新步骤：没指定图标与颜色就挑图里用得最少的，尽量不和别的步骤重样。
+        const look = pickAppearance(document.nodes, data, rawId)
+        data = { ...data, icon: look.icon, color: look.color }
+      }
 
       const warnings: ToolWarning[] = []
       let position: Point
@@ -1090,6 +1121,59 @@ class FileRepository implements Repository {
           ...created.map((id) => ({ kind: 'node' as const, op: 'add' as const, id })),
         ],
         warnings,
+      }
+    })
+  }
+
+  async writeInput(workflow: string, upsert: InputUpsert): Promise<Outcome<WriteResult>> {
+    return this.mutate(workflow, async (document) => {
+      const rawId = normalizeName(upsert.id)
+      const idIssue = checkName(rawId)
+      if (idIssue !== null) {
+        return fail('blocked', `节点 id 不合法：${idIssue.message}`, { code: idIssue.code })
+      }
+      const found = findNode(document, rawId)
+      if (found !== undefined && !isInput(found)) {
+        return fail('blocked', `${found.id} 不是输入节点`, { id: found.id })
+      }
+      if (found === undefined && (upsert.question === undefined || upsert.question.trim() === '')) {
+        return fail('invalid_args', '新建输入节点需要 input.question（问用户的问题）', {
+          id: rawId,
+        })
+      }
+      const base: Record<string, unknown> = found === undefined ? {} : { ...found.data }
+      const text = (key: 'question' | 'placeholder' | 'hint', value: string | undefined): void => {
+        if (value === undefined) return
+        if (value.trim() === '' && key !== 'question') delete base[key]
+        else base[key] = value
+      }
+      text('question', upsert.question)
+      text('placeholder', upsert.placeholder)
+      text('hint', upsert.hint)
+      if (upsert.kind !== undefined) base.kind = upsert.kind
+      if (upsert.options !== undefined) base.options = upsert.options
+      if (upsert.default !== undefined) base.default = upsert.default
+      if (upsert.required !== undefined) base.required = upsert.required
+      const data = readInputData(base)
+      if (typeof data.question === 'string' && /[\r\n]/u.test(data.question)) {
+        return fail('blocked', '问题不得包含换行（要多说几句请写在 hint 里）', { id: rawId })
+      }
+      const position = upsert.position ?? found?.position ?? { x: 0, y: 0 }
+      const node: InputNode = {
+        id: found?.id ?? rawId,
+        type: INPUT_TYPE,
+        position: { x: normalizeCoord(position.x), y: normalizeCoord(position.y) },
+        data,
+      }
+      document.nodes =
+        found === undefined
+          ? [...document.nodes, node]
+          : document.nodes.map((current) => (current === found ? node : current))
+      return {
+        ok: true,
+        document,
+        changed: [{ kind: 'node', op: found === undefined ? 'add' : 'update', id: node.id }],
+        warnings: [],
       }
     })
   }
@@ -1158,6 +1242,15 @@ class FileRepository implements Repository {
     return this.mutate(workflow, async (document) => {
       const target = findNode(document, node)
       if (target === undefined) return fail('not_found', `节点 ${node} 不存在`, { node })
+      if (isInput(target)) {
+        return fail(
+          'invalid_args',
+          `${target.id} 是输入节点，没有显示名（改问题请用 input.question）`,
+          {
+            node,
+          },
+        )
+      }
       if (isFile(target)) {
         return fail(
           'invalid_args',
@@ -1269,9 +1362,15 @@ class FileRepository implements Repository {
       if (isFile(from) && isFile(to)) {
         return fail('invalid_args', '文件不能直接连到文件', { source, target })
       }
-      const touchesFile = isFile(from) || isFile(to)
+      if (isInput(to)) {
+        return fail('invalid_args', '不能连进输入节点——输入只往外连到步骤', { source, target })
+      }
+      if (isInput(from) && !isStep(to)) {
+        return fail('invalid_args', '输入节点只能连到步骤', { source, target })
+      }
+      const touchesFile = isFile(from) || isFile(to) || isInput(from)
       if (touchesFile && (when !== undefined || (handoff !== undefined && handoff !== null))) {
-        return fail('invalid_args', '连着文件的线不能带 when 或 handoff', { source, target })
+        return fail('invalid_args', '连着文件或输入的线不能带 when 或 handoff', { source, target })
       }
       if (update !== undefined && !(isStep(from) && isFile(to))) {
         return fail('invalid_args', 'update 只用在「步骤 → 文件」的线上', { source, target })
@@ -1835,8 +1934,14 @@ class FileRepository implements Repository {
         (problem) => problem.level === 'save' || problem.level === 'compile',
       )
       // 节点模板顺带给出它的描述：步骤库的条目上要显示"这一步做什么"。
-      const description = kind === 'nodes' ? parseNodeData(text).data.description : undefined
-      const described = description === undefined || description === '' ? {} : { description }
+      const data = kind === 'nodes' ? parseNodeData(text).data : undefined
+      const description = data?.description
+      const described = {
+        ...(description === undefined || description === '' ? {} : { description }),
+        // 我的步骤自己选的图标与颜色：步骤库的条目照着画。
+        ...(data?.icon === undefined ? {} : { icon: data.icon }),
+        ...(data?.color === undefined ? {} : { color: data.color }),
+      }
       if (errors.length > 0) {
         entries.push({ name, invalid: true, reason: describeProblems(errors), ...described })
       } else {
@@ -1882,7 +1987,7 @@ class FileRepository implements Repository {
 }
 
 /**
- * 节点模板文件的规范化写出：固定键序（`label` / `prompt` / `output`）、缺省项不写、
+ * 节点模板文件的规范化写出：固定键序（`label` / `description` / `icon` / `color` / `prompt` / `output`）、缺省项不写、
  * 末尾一个换行。与 {@link parseNodeData} 是同一套形状——**文件顶层就是 `data` 本体**，
  * 不套 `{ data: … }` 壳。`prompt` 总是写出来（空串也写）：那是这个模板的正文，
  * 缺键与空串在读者眼里是两件事，别让它含糊。
@@ -1893,6 +1998,8 @@ function writeNodeTemplate(data: NodeData): string {
   if (data.description !== undefined && data.description !== '') {
     out.description = data.description
   }
+  if (data.icon !== undefined) out.icon = data.icon
+  if (data.color !== undefined) out.color = data.color
   out.prompt = data.prompt ?? ''
   const output = canonicalOutput(data.output)
   if (output !== undefined) out.output = output

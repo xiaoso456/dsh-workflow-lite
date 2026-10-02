@@ -12,7 +12,12 @@
 import { flowEdges } from './files.ts'
 import { edgeWhen } from './graph.ts'
 import { isStep } from './model.ts'
-import { EXECUTION_MODES, type ExecutionMode, type WorkflowDocument } from './types.ts'
+import {
+  EXECUTION_MODES,
+  type ExecutionMode,
+  type InputAnswer,
+  type WorkflowDocument,
+} from './types.ts'
 
 // ─────────────────────────────────────────────────────────────
 // 词汇表
@@ -606,6 +611,8 @@ export interface InstanceView {
   mtime: number
   /** 快照里每个文件节点对应的文件在不在（文件节点 id → 是否存在）。 */
   files: Record<string, boolean>
+  /** 用户执行前对输入节点的回答（已补上默认值；输入 id → 回答）。 */
+  answers: Record<string, InputAnswer>
 }
 
 /** 用户在画布上的一处改动。`null` = 删掉这个字段。 */

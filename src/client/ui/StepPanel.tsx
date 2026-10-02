@@ -12,16 +12,19 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
+import { appearanceOf, presetAppearance } from '../../shared/appearance.ts'
 import { checkName, normalizeName } from '../../shared/naming.ts'
 import type { NodeData } from '../../shared/types.ts'
 import type { Workflow } from '../app/useWorkflow.ts'
 import type { T } from '../i18n.ts'
 import { type LibraryFocus, PRESETS, presetData, type StepSource } from '../model/library.ts'
+import { AppearancePicker } from './AppearancePicker.tsx'
 import { Icon } from './Icon.tsx'
 import { DescriptionField } from './Inspector.tsx'
 import css from './inspector.module.css'
 import { OutputField, OutputList } from './Outputs.tsx'
 import { cx } from './primitives.tsx'
+import { StepMark } from './StepMark.tsx'
 import ui from './ui.module.css'
 
 export interface StepPanelProps {
@@ -61,9 +64,7 @@ function PresetView(props: StepPanelProps & { id: string }): React.JSX.Element |
       aria-label={t(preset.labelKey)}
     >
       <header className={css.head}>
-        <span className={ui.kind} data-kind={preset.kind}>
-          <Icon name={preset.kind} size={16} />
-        </span>
+        <StepMark look={presetAppearance(preset.id)} size={16} />
         <span className={css.headTitle}>{t(preset.labelKey)}</span>
         <span className={css.badge}>{t('step.builtin')}</span>
         <button
@@ -217,7 +218,7 @@ function MineEditor(
     setDraft((current) => {
       if (current === null) return current
       const data: NodeData = { ...current.data, ...next }
-      for (const key of ['label', 'description', 'prompt', 'output'] as const) {
+      for (const key of ['label', 'description', 'icon', 'color', 'prompt', 'output'] as const) {
         if (key in next && next[key] === undefined) delete data[key]
       }
       return { ...current, data }
@@ -246,9 +247,13 @@ function MineEditor(
       }}
     >
       <header className={css.head}>
-        <span className={ui.kind} data-kind="blank">
-          <Icon name="bookmark" size={16} />
-        </span>
+        {/* 我的步骤的样子：新建时已挑好一个不重样的，点这里换；存进模板，拖到画布上的步骤照着它。 */}
+        <AppearancePicker
+          t={t}
+          look={appearanceOf(normalized === '' ? 'step' : normalized, draft.data)}
+          custom={draft.data.icon !== undefined || draft.data.color !== undefined}
+          onChange={(next) => patch(next)}
+        />
         <input
           className={css.titleInput}
           value={draft.data.label ?? ''}

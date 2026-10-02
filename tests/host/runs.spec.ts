@@ -688,3 +688,89 @@ describe('归属与恢复', () => {
     expect((await runs.view(id, 's1')).ok).toBe(false)
   })
 })
+
+describe('用户输入', () => {
+  beforeEach(async () => {
+    await run({
+      action: 'write_node',
+      workflow: 'cr',
+      node: 'focus',
+      input: { question: '重点看哪里？', required: true },
+    })
+    await run({
+      action: 'write_node',
+      workflow: 'cr',
+      node: 'depth',
+      input: { question: '审多细？', kind: 'choice', options: ['粗看', '细看'], default: '粗看' },
+    })
+    await run({ action: 'connect', workflow: 'cr', source: 'focus', target: 'review' })
+  })
+
+  async function startWith(
+    answers: unknown,
+  ): Promise<{ ok: boolean; id?: string; error?: string }> {
+    const load = await repository.load('cr')
+    if (load.document === null) throw new Error('load failed')
+    const outcome = await runs.start({
+      workflow: 'cr',
+      document: load.document,
+      problems: load.problems,
+      session: { id: 's1', cwd: workspace },
+      answers,
+    })
+    return outcome.ok
+      ? { ok: true, id: outcome.result.instance.id }
+      : { ok: false, error: outcome.error.code }
+  }
+
+  it('画布上执行：回答随实例存下，resume 拿到的计划里有问题与回答，画布读得到回答', async () => {
+    const started = await startWith({ focus: '并发与锁' })
+    expect(started.ok).toBe(true)
+    const id = String(started.id)
+    const saved = JSON.parse(await readFile(join(dataDir, 'runs', id, 'inputs.json'), 'utf8'))
+    expect(saved).toEqual({ focus: '并发与锁', depth: '粗看' })
+    const resumed = record(await run({ action: 'resume', instance: id }, exec('s1')))
+    expect(String(resumed.plan)).toContain('- 问：重点看哪里？（交给 `review`）\n  答：并发与锁')
+    expect(String(resumed.plan)).toContain('- 问：审多细？（交给所有步骤）\n  答：粗看')
+    expect((await view(id)).answers).toEqual({ focus: '并发与锁', depth: '粗看' })
+  })
+
+  it('必填没填：不建实例；选了不在选项里的：invalid_args', async () => {
+    expect(await startWith({})).toEqual({ ok: false, error: 'blocked' })
+    expect(await startWith({ focus: 'x', depth: '随便' })).toEqual({
+      ok: false,
+      error: 'invalid_args',
+    })
+    expect(await runs.list(undefined, true)).toEqual([])
+  })
+
+  it('工具编译：没给回答回 problems（不建实例）；给了建实例；回答不同不复用', async () => {
+    await run({ action: 'configure', workflow: 'cr', run_state: true })
+    const blocked = record(await run({ action: 'compile', workflow: 'cr' }, exec('s1')))
+    expect(blocked.plan).toBe('')
+    expect((blocked.problems as JsonValue[]).map((p) => record(p).code)).toEqual(['input_missing'])
+    expect(await runs.list(undefined, true)).toEqual([])
+
+    const first = record(
+      await run(
+        { action: 'compile', workflow: 'cr', answers: [{ id: 'focus', value: 'A' }] },
+        exec('s1'),
+      ),
+    )
+    const again = record(
+      await run(
+        { action: 'compile', workflow: 'cr', answers: [{ id: 'focus', value: 'A' }] },
+        exec('s1'),
+      ),
+    )
+    const other = record(
+      await run(
+        { action: 'compile', workflow: 'cr', answers: [{ id: 'focus', value: 'B' }] },
+        exec('s1'),
+      ),
+    )
+    expect(again.instance).toBe(first.instance)
+    expect(other.instance).not.toBe(first.instance)
+    expect(String(other.plan)).toContain('答：B')
+  })
+})

@@ -12,6 +12,7 @@
  */
 
 import { useState } from 'react'
+import { appearanceOf, presetAppearance } from '../../shared/appearance.ts'
 import type { TemplateEntry } from '../../shared/types.ts'
 import type { T } from '../i18n.ts'
 import {
@@ -21,12 +22,15 @@ import {
   PRESETS,
   type StepSource,
 } from '../model/library.ts'
-import { Icon, type IconName } from './Icon.tsx'
+import { Icon } from './Icon.tsx'
 import css from './library.module.css'
 import { cx } from './primitives.tsx'
+import { StepMark } from './StepMark.tsx'
 import ui from './ui.module.css'
 
 type Section = 'builtin' | 'custom'
+
+const SECTIONS: readonly Section[] = ['builtin', 'custom']
 
 const SECTIONS_KEY = 'workflow-lite.library.collapsed'
 
@@ -34,7 +38,7 @@ function readCollapsed(): Section[] {
   try {
     const parsed: unknown = JSON.parse(window.localStorage.getItem(SECTIONS_KEY) ?? '[]')
     return Array.isArray(parsed)
-      ? parsed.filter((value): value is Section => value === 'builtin' || value === 'custom')
+      ? parsed.filter((value): value is Section => SECTIONS.includes(value as Section))
       : []
   } catch {
     // 读不懂或读不了：全展开。折叠状态是便利不是事实，不该为它让整栏打不开。
@@ -52,8 +56,8 @@ function writeCollapsed(collapsed: readonly Section[]): void {
 
 function Item(props: {
   source: StepSource
-  icon: IconName
-  kind: string
+  /** 左边的图标块。 */
+  mark: React.ReactNode
   title: string
   desc: string
   active: boolean
@@ -77,9 +81,40 @@ function Item(props: {
       }}
       onClick={props.onClick}
     >
-      <span className={ui.kind} data-kind={props.kind}>
-        <Icon name={props.icon} size={15} />
+      {props.mark}
+      <span className={css.itemText}>
+        <span className={css.itemTitle}>{props.title}</span>
+        <span className={css.itemDesc}>{props.desc}</span>
       </span>
+      <span className={css.grip} aria-hidden="true">
+        ⋮⋮
+      </span>
+    </button>
+  )
+}
+
+/** 只能拖、点了只提示「拖过去」的条目（用户输入）。 */
+function DragOnly(props: {
+  source: StepSource
+  mark: React.ReactNode
+  title: string
+  desc: string
+  testId: string
+  onClick: () => void
+}): React.JSX.Element {
+  return (
+    <button
+      type="button"
+      className={css.item}
+      draggable
+      data-testid={props.testId}
+      onDragStart={(event) => {
+        event.dataTransfer.setData(DND_MIME, encodeStepSource(props.source))
+        event.dataTransfer.effectAllowed = 'copy'
+      }}
+      onClick={props.onClick}
+    >
+      {props.mark}
       <span className={css.itemText}>
         <span className={css.itemTitle}>{props.title}</span>
         <span className={css.itemDesc}>{props.desc}</span>
@@ -175,9 +210,7 @@ export function Library(props: {
             setHinting((value) => value + 1)
           }}
         >
-          <span className={ui.kind} data-kind="blank">
-            <Icon name="blank" size={15} />
-          </span>
+          <StepMark look={presetAppearance('blank')} />
           <span className={css.itemText}>
             <span className={css.itemTitle}>{t('lib.blank')}</span>
             <span className={css.itemDesc}>{t('lib.blankDesc')}</span>
@@ -211,6 +244,20 @@ export function Library(props: {
           </span>
         </button>
 
+        {/* 用户输入：执行前问用户的一个问题。和文件卡一样只能拖；交互方式（一句话、多行、单选、多选）在属性面板里切换。 */}
+        <DragOnly
+          source={{ kind: 'input' }}
+          mark={
+            <span className={cx(ui.kind, css.inputKind)}>
+              <Icon name="ask" size={15} />
+            </span>
+          }
+          title={t('lib.input')}
+          desc={t('lib.inputDesc')}
+          testId="wl-lib-input"
+          onClick={() => setHinting((value) => value + 1)}
+        />
+
         <SectionHead
           label={t('lib.builtin')}
           open={open('builtin')}
@@ -223,8 +270,7 @@ export function Library(props: {
               <Item
                 key={preset.id}
                 source={{ kind: 'preset', id: preset.id }}
-                icon={preset.kind}
-                kind={preset.kind}
+                mark={<StepMark look={presetAppearance(preset.id)} />}
                 title={t(preset.labelKey)}
                 desc={t(preset.descKey)}
                 active={focus?.kind === 'preset' && focus.id === preset.id}
@@ -263,8 +309,15 @@ export function Library(props: {
                 <Item
                   key={entry.name}
                   source={{ kind: 'template', name: entry.name }}
-                  icon="bookmark"
-                  kind="blank"
+                  mark={
+                    entry.icon === undefined && entry.color === undefined ? (
+                      <span className={ui.kind}>
+                        <Icon name="bookmark" size={15} />
+                      </span>
+                    ) : (
+                      <StepMark look={appearanceOf(entry.name, entry)} />
+                    )
+                  }
                   title={entry.name}
                   desc={
                     entry.invalid === true

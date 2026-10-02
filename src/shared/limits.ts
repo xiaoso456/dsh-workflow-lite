@@ -48,6 +48,9 @@ export const MAX_ROOT_CODEPOINTS = 1024
 /** `label` 长度上限（码点）——只防病态输入，不参与任何判定。 */
 export const MAX_LABEL_CODEPOINTS = 200
 
+/** 一个选择题最多几个选项（再多就不是执行前顺手点一下的事了）。 */
+export const MAX_OPTIONS = 30
+
 /**
  * Windows 文件名非法字符。`node.id` / 图名 / 模板名共用这一套（它们都要落成文件名）。
  * 注意：`|` 也在这里——它同时会打断计划里的 markdown 表格，`label` 另有单列规则。

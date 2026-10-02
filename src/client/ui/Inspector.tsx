@@ -15,7 +15,7 @@ import { useEffect, useRef, useState } from 'react'
 import { edgeKind, flowEdges, nodeIndex, outputsOf } from '../../shared/files.ts'
 import type { GraphAnalysis } from '../../shared/graph.ts'
 import { MAX_TEXT_CODEPOINTS } from '../../shared/limits.ts'
-import { canonicalOutput, idKey, isFile } from '../../shared/model.ts'
+import { canonicalOutput, idKey, isFile, isInput } from '../../shared/model.ts'
 import { checkText, checkWhen, isVerdictWhen } from '../../shared/naming.ts'
 import type {
   NodeData,
@@ -26,14 +26,16 @@ import type {
 } from '../../shared/types.ts'
 import type { T } from '../i18n.ts'
 import { type Edit, findNode, type Selection, whenOf } from '../model/editor.ts'
-import { kindOf } from '../model/library.ts'
+import { AppearancePicker } from './AppearancePicker.tsx'
 import { FileEdgeBody, FilePanel, StepFilesField, stepName } from './Files.tsx'
 import { type FocusFile, HandoffChip, HandoffField } from './Handoff.tsx'
 import hand from './handoff.module.css'
-import { Icon, kindIcon } from './Icon.tsx'
+import { Icon } from './Icon.tsx'
+import { InputPanel, StepInputsField } from './InputPanel.tsx'
 import css from './inspector.module.css'
 import { WHEN_COLOR, type WhenKind, whenKind } from './lines.ts'
 import { copyText, cx, Segmented } from './primitives.tsx'
+import { lookOf, StepMark } from './StepMark.tsx'
 import ui from './ui.module.css'
 
 export interface InspectorProps {
@@ -75,6 +77,20 @@ export function Inspector(props: InspectorProps): React.JSX.Element | null {
           onSelect={props.onSelect}
           onSeal={props.onSeal}
           onFocusFile={props.onFocusFile}
+          onRemove={props.onRemoveNode}
+        />
+      )
+    }
+    if (isInput(node)) {
+      return (
+        <InputPanel
+          key={idKey(node.id)}
+          t={props.t}
+          doc={doc}
+          node={node}
+          onEdit={props.onEdit}
+          onSelect={props.onSelect}
+          onSeal={props.onSeal}
           onRemove={props.onRemoveNode}
         />
       )
@@ -122,9 +138,12 @@ function NodePanel(props: InspectorProps & { node: StepNode }): React.JSX.Elemen
       aria-label={t('ins.name')}
     >
       <header className={css.head}>
-        <span className={ui.kind} data-kind={kindOf(node.id)}>
-          <Icon name={kindIcon(kindOf(node.id))} size={16} />
-        </span>
+        <AppearancePicker
+          t={t}
+          look={lookOf(node.id, node.data)}
+          custom={node.data.icon !== undefined || node.data.color !== undefined}
+          onChange={(patch) => onEdit({ type: 'patchNode', id: node.id, patch })}
+        />
         <input
           className={css.titleInput}
           value={node.data.label ?? ''}
@@ -215,6 +234,8 @@ function NodePanel(props: InspectorProps & { node: StepNode }): React.JSX.Elemen
           onSelect={onSelect}
           onFocusFile={props.onFocusFile}
         />
+
+        <StepInputsField t={t} doc={doc} step={node} onSelect={onSelect} />
 
         <section className={css.field} data-testid="wl-links">
           <div className={css.label}>
@@ -381,6 +402,13 @@ export function DescriptionField(props: {
  */
 /** 连线两端的小图标：步骤用种类图标，文件用文件图标。 */
 function EndIcon(props: { node: WorkflowNode | undefined; id: string }): React.JSX.Element {
+  if (props.node !== undefined && isInput(props.node)) {
+    return (
+      <span className={hand.askIcon}>
+        <Icon name="ask" size={13} />
+      </span>
+    )
+  }
   if (props.node !== undefined && isFile(props.node)) {
     return (
       <span className={hand.fileIcon}>
@@ -388,11 +416,8 @@ function EndIcon(props: { node: WorkflowNode | undefined; id: string }): React.J
       </span>
     )
   }
-  return (
-    <span className={ui.kind} data-kind={kindOf(props.id)}>
-      <Icon name={kindIcon(kindOf(props.id))} size={14} />
-    </span>
-  )
+  const step = props.node !== undefined && !isFile(props.node) ? props.node : undefined
+  return <StepMark look={lookOf(props.id, step?.data)} size={14} />
 }
 
 function LinkRow(props: {
@@ -475,10 +500,21 @@ function EdgePanel(props: InspectorProps & { edge: WorkflowEdge }): React.JSX.El
     >
       <header className={css.head}>
         <span className={css.edgeIcon}>
-          <Icon name={kind === 'flow' ? (back ? 'loop' : 'arrowRight') : 'file'} size={16} />
+          <Icon
+            name={
+              kind === 'flow' ? (back ? 'loop' : 'arrowRight') : kind === 'ask' ? 'ask' : 'file'
+            }
+            size={16}
+          />
         </span>
         <span className={css.headTitle}>
-          {kind === 'write' ? t('edge.write') : kind === 'read' ? t('edge.read') : t('edge.title')}
+          {kind === 'write'
+            ? t('edge.write')
+            : kind === 'read'
+              ? t('edge.read')
+              : kind === 'ask'
+                ? t('edge.askTitle')
+                : t('edge.title')}
         </span>
         <button
           type="button"
@@ -513,7 +549,11 @@ function EdgePanel(props: InspectorProps & { edge: WorkflowEdge }): React.JSX.El
           </button>
         </div>
 
-        {kind === 'write' || kind === 'read' ? (
+        {kind === 'ask' ? (
+          <p className={css.help} data-testid="wl-edge-ask">
+            {t('edge.askHint')}
+          </p>
+        ) : kind === 'write' || kind === 'read' ? (
           <FileEdgeBody t={t} edge={edge} kind={kind} onEdit={onEdit} />
         ) : (
           <>

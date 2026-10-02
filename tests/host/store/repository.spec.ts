@@ -443,7 +443,8 @@ describe('writeNode / setLabel / deleteNode', () => {
     const updated = expectOk(await repo.writeNode('w', { id: 'scan', content: 'P2' }))
     expect(updated.changed[0]).toMatchObject({ kind: 'node', op: 'update', id: 'scan' })
     const node = (await readGraph('w'))?.nodes[0]
-    expect(node?.data).toEqual({ prompt: 'P2', label: '扫描' })
+    // 新步骤带上了样子：id 是内置步骤的名字就照它的样子。
+    expect(node?.data).toEqual({ prompt: 'P2', label: '扫描', icon: 'scan', color: 'blue' })
     expect(node?.position).toEqual({ x: 3, y: 4 })
   })
 
@@ -462,7 +463,7 @@ describe('writeNode / setLabel / deleteNode', () => {
     expect(node?.id).toBe('rev')
     expect(node?.position).toEqual({ x: 0, y: 0 })
     // 模板里的产出展开成文件节点 + 写入线，步骤自己的 data 里不留 output。
-    expect(node?.data).toEqual({ label: '审查', prompt: 'R' })
+    expect(node?.data).toEqual({ label: '审查', prompt: 'R', icon: 'idea', color: 'blue' })
     expect(graph?.nodes[1]).toMatchObject({
       id: 'file-r.md',
       type: 'wfFile',

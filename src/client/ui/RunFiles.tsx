@@ -18,17 +18,23 @@ import type { Desktop } from '../app/desktop.ts'
 import { type FileTarget, useRunFile } from '../app/useRunFile.ts'
 import type { T } from '../i18n.ts'
 import { fileBaseName, fileDirName, formatBytes } from '../model/fileKind.ts'
-import { kindOf } from '../model/library.ts'
 import { shortTime } from '../model/time.ts'
 import type { WorkflowLiteRpc } from '../rpc.ts'
 import { RUN_TEXT } from './Canvas.tsx'
 import { FileTag } from './FileTag.tsx'
 import css from './files.module.css'
-import { Icon, kindIcon } from './Icon.tsx'
+import { Icon } from './Icon.tsx'
 import { OpenWith } from './OpenWith.tsx'
 import { cx } from './primitives.tsx'
 import run from './run.module.css'
+import { lookOf, StepMark } from './StepMark.tsx'
 import ui from './ui.module.css'
+
+/** 快照里一个步骤的样子。 */
+function stepLook(doc: WorkflowDocument, id: string) {
+  const node = doc.nodes.find((candidate) => candidate.id === id)
+  return lookOf(id, node !== undefined && isStep(node) ? node.data : undefined)
+}
 
 /** 预览里最多放几行。 */
 const PREVIEW_LINES = 14
@@ -134,9 +140,7 @@ export function RunFileDetail(props: {
         data-id={id}
         onClick={() => props.onSelectStep(id)}
       >
-        <span className={ui.kind} data-kind={kindOf(id)}>
-          <Icon name={kindIcon(kindOf(id))} size={13} />
-        </span>
+        <StepMark look={stepLook(snapshot, id)} size={13} />
         <span className={css.rowText}>
           <span className={css.rowName}>{stepLabel(snapshot, id)}</span>
         </span>

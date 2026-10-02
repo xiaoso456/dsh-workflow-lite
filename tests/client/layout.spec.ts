@@ -265,3 +265,30 @@ describe('freeSpot / nextTo', () => {
     expect(nextTo(doc, { x: 100, y: 100 })).toEqual({ x: 100 + COL_STEP, y: 100 })
   })
 })
+
+describe('输入卡的位置', () => {
+  it('整图重排：输入卡放在第一个用到它的步骤的前一列；没连的放到版面下方', async () => {
+    const doc = graph(['a', 'b'], [['a', 'b']])
+    doc.nodes.push(
+      { id: 'q', type: 'wfInput', position: { x: 0, y: 0 }, data: { question: '问' } },
+      { id: 'loose', type: 'wfInput', position: { x: 0, y: 0 }, data: { question: '问 2' } },
+    )
+    doc.edges.push({ id: 'q->b', source: 'q', target: 'b', sourceHandle: null, targetHandle: null })
+    const placed = await tidy(doc, analyzeGraph(doc))
+    const a = placed.a as Point
+    const b = placed.b as Point
+    const q = placed.q as Point
+    expect(q.x).toBeLessThan(b.x)
+    expect(q.x).toBeGreaterThanOrEqual(a.x)
+    expect((placed.loose as Point).y).toBeGreaterThan(Math.max(a.y, b.y, q.y))
+  })
+
+  it('补位：模型新加的输入卡挨着读它的步骤、放在左边', async () => {
+    const doc = graph(['a'], [], { a: { x: 600, y: 200 } })
+    doc.nodes.push({ id: 'q', type: 'wfInput', position: { x: 0, y: 0 }, data: { question: '问' } })
+    doc.edges.push({ id: 'q->a', source: 'q', target: 'a', sourceHandle: null, targetHandle: null })
+    const placed = await placeMissing(doc, analyzeGraph(doc))
+    expect((placed.q as Point).x).toBeLessThan(600)
+    expect((placed.q as Point).y).toBe(200)
+  })
+})

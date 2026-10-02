@@ -518,3 +518,103 @@ describe('文件节点的校验', () => {
     expect(lonely.hint.find((problem) => problem.code === 'stray_entry')?.node).toBe('f')
   })
 })
+
+describe('workflow_lite —— 输入节点', () => {
+  async function build(): Promise<void> {
+    await run({ action: 'create', workflow: 'g' })
+    await run({ action: 'write_node', workflow: 'g', node: 'scan', content: '扫一遍' })
+    await run({
+      action: 'write_node',
+      workflow: 'g',
+      node: 'dir',
+      input: { question: '扫哪个目录？', required: true, hint: '只写一个', placeholder: 'src/' },
+    })
+    await run({
+      action: 'write_node',
+      workflow: 'g',
+      node: 'lang',
+      input: {
+        question: '用什么语言？',
+        kind: 'choice',
+        options: ['中文', 'English'],
+        default: '中文',
+      },
+    })
+    await run({ action: 'connect', workflow: 'g', source: 'dir', target: 'scan' })
+  }
+
+  it('write_node 带 input 建输入节点；read 索引列出问题与交给谁（不含占位与说明）', async () => {
+    await build()
+    const index = record(await run({ action: 'read', workflow: 'g' }))
+    const inputs = index.inputs as JsonValue[]
+    expect(inputs).toHaveLength(2)
+    expect(record(inputs[0] as JsonValue)).toEqual({
+      id: 'dir',
+      question: '扫哪个目录？',
+      kind: 'text',
+      required: true,
+      readers: ['scan'],
+    })
+    expect(record(inputs[1] as JsonValue)).toMatchObject({
+      id: 'lang',
+      kind: 'choice',
+      readers: [],
+    })
+    const scan = record((index.nodes as JsonValue[])[0] as JsonValue)
+    expect(scan.inputs).toEqual(['dir'])
+    // 新步骤带上了样子。
+    const node = record(record(await run({ action: 'read', workflow: 'g', node: 'scan' })).node)
+    expect(record(node.data).icon).toBe('scan')
+  })
+
+  it('输入节点没有显示名、不能存成模板、不能被连进去；新建时必须给问题', async () => {
+    await build()
+    expect(
+      errorCode(await run({ action: 'set_label', workflow: 'g', node: 'dir', label: 'x' })),
+    ).toBe('invalid_args')
+    expect(errorCode(await run({ action: 'save_as_template', workflow: 'g', node: 'dir' }))).toBe(
+      'invalid_args',
+    )
+    expect(
+      errorCode(await run({ action: 'connect', workflow: 'g', source: 'scan', target: 'dir' })),
+    ).toBe('invalid_args')
+    expect(
+      errorCode(await run({ action: 'write_node', workflow: 'g', node: 'q2', input: {} })),
+    ).toBe('invalid_args')
+    expect(
+      errorCode(
+        await run({ action: 'write_node', workflow: 'g', node: 'dir', input: { kind: 'slider' } }),
+      ),
+    ).toBe('invalid_args')
+  })
+
+  it('compile：带 answers 写进计划；必填没回答回 problems；answers 形状不对 invalid_args', async () => {
+    await build()
+    const answered = record(
+      await run(
+        { action: 'compile', workflow: 'g', answers: [{ id: 'dir', value: 'src/' }] },
+        EXEC,
+      ),
+    )
+    expect(answered.plan).toContain('- 问：扫哪个目录？（交给 `scan`）\n  答：src/')
+    expect(answered.plan).toContain('- 问：用什么语言？（交给所有步骤）\n  答：中文')
+    expect(answered.plan).not.toContain('只写一个')
+
+    const preview = record(await run({ action: 'compile', workflow: 'g' }, EXEC))
+    expect(preview.plan).toContain('（执行时由用户填写）')
+
+    const missing = record(await run({ action: 'compile', workflow: 'g', answers: [] }, EXEC))
+    expect(missing.plan).toBe('')
+    expect((missing.problems as JsonValue[]).map((p) => record(p).code)).toEqual(['input_missing'])
+
+    expect(
+      errorCode(await run({ action: 'compile', workflow: 'g', answers: [{ id: 'dir' }] }, EXEC)),
+    ).toBe('invalid_args')
+  })
+
+  it('参数 schema 带上 input 与 answers，仍能编成合法的 JSON Schema', () => {
+    const schema = parameterSchemaSpecToJsonSchema(PARAMETERS)
+    expect(schema.properties?.input).toBeDefined()
+    expect(schema.properties?.answers).toBeDefined()
+  })
+})

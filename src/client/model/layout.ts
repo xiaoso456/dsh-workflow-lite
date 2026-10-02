@@ -22,7 +22,8 @@ import type { ElkExtendedEdge, ElkNode } from 'elkjs/lib/elk-api.js'
 import { edgeKind, fileGraph, nodeIndex, resolveHandoff } from '../../shared/files.ts'
 import type { GraphAnalysis } from '../../shared/graph.ts'
 import { byId, edgeWhen } from '../../shared/graph.ts'
-import { idKey, isFile } from '../../shared/model.ts'
+import { inputReaders } from '../../shared/inputs.ts'
+import { idKey, isFile, isInput } from '../../shared/model.ts'
 import type { Point, WorkflowDocument, WorkflowEdge, WorkflowNode } from '../../shared/types.ts'
 
 /** 步骤卡的宽度（CSS 里写死同一个数）与估算高度。 */
@@ -32,6 +33,16 @@ export const NODE_H = 96
 /** 文件卡的宽度（CSS 里写死同一个数）与估算高度。 */
 export const FILE_W = 180
 export const FILE_H = 56
+
+/** 输入卡的宽度（CSS 里写死同一个数）与估算高度：和文件卡一样大，一样挂在读它的步骤旁边。 */
+export const INPUT_W = 180
+export const INPUT_H = 56
+
+/** 一张卡的标称尺寸（还没量出来时按它算）。 */
+export function cardSize(node: WorkflowNode): { w: number; h: number } {
+  if (isInput(node)) return { w: INPUT_W, h: INPUT_H }
+  return isFile(node) ? { w: FILE_W, h: FILE_H } : { w: NODE_W, h: NODE_H }
+}
 
 /**
  * 文件卡相对写它的步骤：往右缩进 `FILE_DX`（左边要让出树干和拐弯），第一张离步骤底边
@@ -60,9 +71,8 @@ interface Box {
 }
 
 function boxOf(node: WorkflowNode, at: Point = node.position): Box {
-  return isFile(node)
-    ? { x: at.x, y: at.y, w: FILE_W, h: FILE_H }
-    : { x: at.x, y: at.y, w: NODE_W, h: NODE_H }
+  const size = cardSize(node)
+  return { x: at.x, y: at.y, w: size.w, h: size.h }
 }
 
 function hits(a: Box, b: Box): boolean {
@@ -99,6 +109,28 @@ export function fileSpot(doc: WorkflowDocument, anchor: Point | undefined, skip?
     occupied,
     { x: base.x + FILE_DX, y: base.y + NODE_H + FILE_DY, w: FILE_W, h: FILE_H },
     FILE_ROW,
+  )
+}
+
+/**
+ * 一个输入卡该放哪：读它的步骤左边、和步骤上沿对齐，被占了就往下找；没有读它的步骤就放在版面左上方。
+ */
+export function inputSpot(doc: WorkflowDocument, reader: Point | undefined, skip?: string): Point {
+  const occupied = doc.nodes
+    .filter((node) => node.id !== skip && !isUnplaced(node.position))
+    .map((node) => boxOf(node))
+  const base =
+    reader ??
+    (occupied.length === 0
+      ? { x: ORIGIN.x + INPUT_W + LAYER_GAP, y: ORIGIN.y }
+      : {
+          x: Math.min(...occupied.map((box) => box.x)),
+          y: Math.min(...occupied.map((box) => box.y)),
+        })
+  return freeBox(
+    occupied,
+    { x: base.x - INPUT_W - LAYER_GAP, y: base.y, w: INPUT_W, h: INPUT_H },
+    INPUT_H + FILE_GAP,
   )
 }
 
@@ -185,15 +217,14 @@ export async function tidy(
   sizeOf: SizeOf = () => undefined,
 ): Promise<Record<string, Point>> {
   const index = nodeIndex(doc)
-  const heightOf = (node: WorkflowNode): number =>
-    sizeOf(node.id)?.height ?? (isFile(node) ? FILE_H : NODE_H)
+  const heightOf = (node: WorkflowNode): number => sizeOf(node.id)?.height ?? cardSize(node).h
 
   // ── 每个步骤在第几列（= 执行批次）──
   const column = new Map<string, number>()
   analysis.batches.forEach((batch, batchIndex) => {
     for (const id of batch.nodes) column.set(idKey(id), batchIndex)
   })
-  const steps = doc.nodes.filter((node) => !isFile(node))
+  const steps = doc.nodes.filter((node) => !isFile(node) && !isInput(node))
   // 批次之外的步骤（理论上没有）：排在最后一列之后。
   for (const node of steps) {
     if (!column.has(idKey(node.id))) column.set(idKey(node.id), analysis.batches.length)
@@ -206,6 +237,13 @@ export async function tidy(
   const inputs: { node: WorkflowNode; column: number }[] = []
   const loose: WorkflowNode[] = []
   for (const node of doc.nodes) {
+    // 输入节点和没人写的文件一样：单独成块，放在第一个用到它的步骤的前一列。
+    if (isInput(node)) {
+      const readers = inputReaders(doc, node.id)
+      if (readers.length === 0) loose.push(node)
+      else inputs.push({ node, column: Math.min(...readers.map(columnOf)) - 1 })
+      continue
+    }
     if (!isFile(node)) continue
     const info = files.get(node.id)
     const writers = info?.writers.map((writer) => writer.id) ?? []
@@ -300,7 +338,7 @@ export async function tidy(
       if (width > 0 && columnOf(target) === from + 1) {
         pitch.set(from, Math.max(pitch.get(from) ?? COL_STEP, NODE_W + width + 28))
       }
-    } else if (kind === 'read') {
+    } else if (kind === 'read' || kind === 'ask') {
       const reader = stepId(idKey(edge.target))
       if (reader === undefined) continue
       // 读线也拉一把：读的文件挂在谁下面，就把谁和读它的步骤摆近一点（只算往右的）。
@@ -342,7 +380,7 @@ export async function tidy(
     if (node === undefined) continue
     const x = columnX(blockColumn(block.id))
     const y = (block.y ?? 0) - minY + ORIGIN.y
-    if (isFile(node)) {
+    if (isFile(node) || isInput(node)) {
       put(node, x + FILE_DX, y)
       continue
     }
@@ -416,6 +454,23 @@ export async function placeMissing(
     const spot = freeSpot([...position.values()], want)
     position.set(id, spot)
     placed[id] = spot
+  }
+  // 输入卡（模型用工具加的）：放到第一个用到它的步骤左边。
+  for (const node of missing) {
+    if (placed[node.id] !== undefined || !isInput(node)) continue
+    const reader = inputReaders(doc, node.id)
+      .map((id) => position.get(id))
+      .find((point) => point !== undefined)
+    const current: WorkflowDocument = {
+      ...doc,
+      nodes: doc.nodes.map((item) => ({
+        ...item,
+        position: position.get(item.id) ?? { x: 0, y: 0 },
+      })),
+    }
+    const spot = inputSpot(current, reader, node.id)
+    position.set(node.id, spot)
+    placed[node.id] = spot
   }
   // 文件卡（模型用工具加的、老图迁移出来的）：挂到写它的步骤下面。
   for (const node of missing) {

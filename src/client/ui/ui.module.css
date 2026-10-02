@@ -460,7 +460,7 @@
   min-width: 0;
 }
 
-/* 步骤种类的色块：`data-kind` 定色，块本身只用这一个色的深浅两档。 */
+/* 步骤的图标块：`data-color` 定色（色板见 shell.module.css），块本身只用这一个色的深浅两档。 */
 .kind {
   display: inline-flex;
   flex: none;
@@ -469,36 +469,46 @@
   width: 28px;
   height: 28px;
   border-radius: 8px;
+  --wl-kind: var(--wl-c-slate);
+
   background: color-mix(in srgb, var(--wl-kind) 14%, transparent);
   color: var(--wl-kind);
 }
 
-.kind[data-kind="scan"] {
-  --wl-kind: var(--wl-k-scan);
+.kind[data-color="blue"] {
+  --wl-kind: var(--wl-c-blue);
 }
 
-.kind[data-kind="plan"] {
-  --wl-kind: var(--wl-k-plan);
+.kind[data-color="green"] {
+  --wl-kind: var(--wl-c-green);
 }
 
-.kind[data-kind="implement"] {
-  --wl-kind: var(--wl-k-implement);
+.kind[data-color="amber"] {
+  --wl-kind: var(--wl-c-amber);
 }
 
-.kind[data-kind="review"] {
-  --wl-kind: var(--wl-k-review);
+.kind[data-color="coral"] {
+  --wl-kind: var(--wl-c-coral);
 }
 
-.kind[data-kind="fix"] {
-  --wl-kind: var(--wl-k-fix);
+.kind[data-color="teal"] {
+  --wl-kind: var(--wl-c-teal);
 }
 
-.kind[data-kind="report"] {
-  --wl-kind: var(--wl-k-report);
+.kind[data-color="pink"] {
+  --wl-kind: var(--wl-c-pink);
 }
 
-.kind[data-kind="blank"] {
-  --wl-kind: var(--wl-k-blank);
+.kind[data-color="olive"] {
+  --wl-kind: var(--wl-c-olive);
+}
+
+.kind[data-color="violet"] {
+  --wl-kind: var(--wl-c-violet);
+}
+
+.kind[data-color="slate"] {
+  --wl-kind: var(--wl-c-slate);
 }
 
 @media (prefers-reduced-motion: reduce) {

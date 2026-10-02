@@ -18,6 +18,9 @@ export const NODE_TYPE = 'wfNode'
 /** 文件节点的类型标记：一份产出 / 输入文件，步骤写它（步骤 → 文件）、读它（文件 → 步骤）。 */
 export const FILE_TYPE = 'wfFile'
 
+/** 输入节点的类型标记：执行前问用户的一个问题，连到用得着回答的步骤上（输入 → 步骤）。 */
+export const INPUT_TYPE = 'wfInput'
+
 /** 一张图 = 一个 JSON 的顶层形状（React Flow 原生三件套 + 可选的工作流设置）。 */
 export interface WorkflowDocument {
   nodes: WorkflowNode[]
@@ -63,8 +66,8 @@ export interface Point {
   y: number
 }
 
-/** 图里的节点：步骤，或文件。 */
-export type WorkflowNode = StepNode | FileNode
+/** 图里的节点：步骤、文件，或输入。 */
+export type WorkflowNode = StepNode | FileNode | InputNode
 
 export interface StepNode {
   /** 身份，**创建后不可改**；同时是载荷文件名 ⇒ 受文件名约束。图内**大小写不敏感唯一**。 */
@@ -93,11 +96,51 @@ export interface FileData {
   rule?: string
 }
 
+/**
+ * 输入节点：执行前问用户的一个问题。用户点「执行」时先填好它们，编译时**问题与回答**进计划，
+ * 占位与说明只给填写的人看，不进计划。
+ * `id` 与步骤、文件共用一个命名空间，但不产生载荷文件。
+ */
+export interface InputNode {
+  id: string
+  type: typeof INPUT_TYPE
+  position: Point
+  data: InputData
+}
+
+/** 输入的交互方式：单行文字 / 多行文字 / 单选 / 多选。 */
+export const INPUT_KINDS = ['text', 'textarea', 'choice', 'multi'] as const
+export type InputKind = (typeof INPUT_KINDS)[number]
+
+/** 一份回答：文字题与单选是一段文字，多选是选中的那几项（按选项顺序）。 */
+export type InputAnswer = string | string[]
+
+export interface InputData {
+  /** 问题：原样进计划。空 = 编译级。**不得含换行**。 */
+  question: string
+  /** 交互方式；缺省 = `text`（`text` 不写盘）。 */
+  kind?: Exclude<InputKind, 'text'>
+  /** 选项（单选 / 多选用；其余方式不写）。 */
+  options?: string[]
+  /** 默认值：文字题是预填的文字，单选是一个选项，多选是若干选项。用户没改就用它。 */
+  default?: InputAnswer
+  /** 占位：输入框里的灰字。不进计划。 */
+  placeholder?: string
+  /** 说明：填写时显示在问题下面。不进计划。 */
+  hint?: string
+  /** 必填：没有回答（也没有默认值）时不能执行。 */
+  required?: true
+}
+
 export interface NodeData {
   /** 显示名。不要求唯一、不参与寻址与排序；缺省或空串时回落渲染 `id`。**不得含换行或 `|`**。 */
   label?: string
   /** 一句话说明这一步做什么（给人看：步骤库、卡片）。**不进计划**，也不进载荷。 */
   description?: string
+  /** 卡片上的图标（图标库里的名字，见 `shared/appearance.ts`）；缺省按 id 猜。不进计划。 */
+  icon?: string
+  /** 卡片的颜色（色板里的名字）；缺省按 id 猜。不进计划。 */
+  color?: string
   /** 提示词正文，逐字交给执行者。**缺失或为空串 = 编译级**（允许落盘、阻塞编译）。 */
   prompt?: string
   /**
@@ -194,6 +237,11 @@ export interface PlanFacts {
   cwd?: string
   /** 工作流实例 id（预览时是 `{instance}`）；不给就不写。 */
   instance?: string
+  /**
+   * 用户对输入节点的回答（输入 id → 回答）。**不给 = 预览**：问题照写，回答处写「执行时填写」；
+   * 给了（哪怕是空对象）= 真的要执行：没回答的用默认值，必填的还空着就是编译级。
+   */
+  answers?: Readonly<Record<string, InputAnswer>>
   /** 路径映射：节点 id → 绝对载荷路径（host 侧算好注入，编译器本身不碰磁盘）。 */
   payloadPaths: ReadonlyMap<string, string>
 }
@@ -235,16 +283,21 @@ export type ValidationCode =
   | 'settings_invalid'
   | 'handoff_invalid'
   | 'file_edge_invalid'
+  | 'input_invalid'
   // 编译级
   | 'prompt_empty'
   | 'too_many_nodes'
   | 'no_nodes'
+  | 'input_question_empty'
+  | 'input_options_empty'
+  | 'input_missing'
   // 警告
   | 'loop_without_exit'
   | 'mixed_conditional_edges'
   | 'duplicate_edge'
   | 'shared_output'
   | 'file_overwritten'
+  | 'input_default_invalid'
   | 'unknown_node_type'
   | 'unknown_fields_dropped'
   // 提示
@@ -335,6 +388,9 @@ export interface TemplateEntry {
   reason?: string
   /** 节点模板的一句话描述（有才给）。 */
   description?: string
+  /** 节点模板选的图标与颜色（有才给）。 */
+  icon?: string
+  color?: string
 }
 
 export interface WorkflowEntry {
@@ -365,6 +421,20 @@ export interface NodeIndexEntry {
   reads?: string[]
   /** 它写的文件（路径；`update` = 在原文件上更新）。 */
   writes?: { path: string; update?: true }[]
+  /** 交给它的用户输入（输入节点 id）。 */
+  inputs?: string[]
+}
+
+/** 索引里的一个输入节点（不含占位与说明——那是给填写的人看的）。 */
+export interface InputIndexEntry {
+  id: string
+  question: string
+  kind: InputKind
+  options?: string[]
+  default?: InputAnswer
+  required?: true
+  /** 回答交给哪些步骤；空 = 交给整个工作流。 */
+  readers: string[]
 }
 
 /** 索引里的一个文件节点。 */
@@ -386,6 +456,8 @@ export interface ReadIndexResult {
   nodes: NodeIndexEntry[]
   /** 文件节点（有才给）。 */
   files?: FileIndexEntry[]
+  /** 输入节点（有才给），按画布上从上到下的顺序。 */
+  inputs?: InputIndexEntry[]
   warnings: ToolWarning[]
 }
 

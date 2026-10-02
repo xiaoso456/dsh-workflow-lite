@@ -12,6 +12,7 @@
  * @module @xiaoso/dsh-workflow-lite/shared/model
  */
 
+import { isStepColor, isStepIcon } from './appearance.ts'
 import { COORD_DECIMALS } from './limits.ts'
 import { normalizeRoot, outputKey, WORKSPACE_ROOT } from './outputPaths.ts'
 import {
@@ -21,6 +22,11 @@ import {
   type FileData,
   type FileNode,
   type Handoff,
+  INPUT_KINDS,
+  INPUT_TYPE,
+  type InputAnswer,
+  type InputData,
+  type InputNode,
   NODE_TYPE,
   type NodeData,
   type OutputSpec,
@@ -34,7 +40,17 @@ import {
 } from './types.ts'
 
 /** node 的 data 键序。 */
-const DATA_KEYS = ['label', 'description', 'prompt', 'output'] as const
+const DATA_KEYS = ['label', 'description', 'icon', 'color', 'prompt', 'output'] as const
+/** 输入节点的 data 键序。 */
+const INPUT_KEYS = [
+  'question',
+  'kind',
+  'options',
+  'default',
+  'placeholder',
+  'hint',
+  'required',
+] as const
 /** edge 的 data 键序。 */
 const EDGE_DATA_KEYS = ['when', 'label', 'handoff', 'update'] as const
 
@@ -117,6 +133,9 @@ export function readNodeData(raw: unknown): NodeData {
   const data: NodeData = {}
   if (typeof raw.label === 'string') data.label = raw.label
   if (typeof raw.description === 'string') data.description = raw.description
+  // 图标与颜色只认图标库与色板里的名字；不认识的当没写（回落按 id 猜）。
+  if (isStepIcon(raw.icon)) data.icon = raw.icon
+  if (isStepColor(raw.color)) data.color = raw.color
   if (typeof raw.prompt === 'string') data.prompt = raw.prompt
   if (typeof raw.output === 'string') data.output = raw.output
   else if (raw.output === false) data.output = false
@@ -161,10 +180,20 @@ export function sameNodeData(a: NodeData, b: NodeData): boolean {
   return (
     a.label === b.label &&
     a.description === b.description &&
+    a.icon === b.icon &&
+    a.color === b.color &&
     a.prompt === b.prompt &&
     JSON.stringify(canonicalOutput(a.output) ?? null) ===
       JSON.stringify(canonicalOutput(b.output) ?? null)
   )
+}
+
+/** 深拷一份输入节点的 `data`（选项与多选默认值不和原件共用）。 */
+export function cloneInputData(data: InputData): InputData {
+  const copy: InputData = { ...data }
+  if (data.options !== undefined) copy.options = [...data.options]
+  if (Array.isArray(data.default)) copy.default = [...data.default]
+  return copy
 }
 
 /** 深拷一份 `data`（产出数组不和原件共用）。 */
@@ -263,7 +292,11 @@ function readEdgeData(raw: unknown): EdgeData | undefined {
 // ─────────────────────────────────────────────────────────────
 
 export function isStep(node: WorkflowNode): node is StepNode {
-  return node.type !== FILE_TYPE
+  return node.type !== FILE_TYPE && node.type !== INPUT_TYPE
+}
+
+export function isInput(node: WorkflowNode): node is InputNode {
+  return node.type === INPUT_TYPE
 }
 
 export function isFile(node: WorkflowNode): node is FileNode {
@@ -278,8 +311,85 @@ export function readFileData(raw: unknown): FileData {
   return data
 }
 
+/** 一段文字：去掉首尾空白后为空就当没写。 */
+function filled(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() !== '' ? value : undefined
+}
+
+/**
+ * 输入节点 `data` 的已知键，顺手规范化：选项去空、去重；不认识的交互方式当单行文字；
+ * 默认值按交互方式取形（文字题 / 单选是一段文字，多选是若干选项）。没有字符串 `question` 时给空串（编译级）。
+ */
+export function readInputData(raw: unknown): InputData {
+  if (!isPlainObject(raw)) return { question: '' }
+  const kind = INPUT_KINDS.find((candidate) => candidate === raw.kind) ?? 'text'
+  const data: InputData = { question: typeof raw.question === 'string' ? raw.question : '' }
+  if (kind !== 'text') data.kind = kind
+  const choice = kind === 'choice' || kind === 'multi'
+  if (choice && Array.isArray(raw.options)) {
+    const options: string[] = []
+    for (const item of raw.options) {
+      if (typeof item !== 'string') continue
+      const option = item.trim()
+      if (option !== '' && !options.includes(option)) options.push(option)
+    }
+    if (options.length > 0) data.options = options
+  }
+  const fallback = readAnswer(kind, raw.default)
+  if (fallback !== undefined) data.default = fallback
+  if (!choice) {
+    const placeholder = filled(raw.placeholder)
+    if (placeholder !== undefined) data.placeholder = placeholder
+  }
+  const hint = filled(raw.hint)
+  if (hint !== undefined) data.hint = hint
+  if (raw.required === true) data.required = true
+  return data
+}
+
+/**
+ * 一份回答按交互方式取形：文字题与单选是一段文字（空白 = 没回答），多选是去空、去重后的若干项
+ * （一项都没有 = 没回答）。形状对不上（比如多选给了一段文字）时也尽量接住。
+ */
+export function readAnswer(
+  kind: InputData['kind'] | 'text',
+  raw: unknown,
+): InputAnswer | undefined {
+  if (kind === 'multi') {
+    const items = Array.isArray(raw) ? raw : typeof raw === 'string' ? [raw] : []
+    const picked: string[] = []
+    for (const item of items) {
+      if (typeof item !== 'string') continue
+      const value = item.trim()
+      if (value !== '' && !picked.includes(value)) picked.push(value)
+    }
+    return picked.length > 0 ? picked : undefined
+  }
+  const text = Array.isArray(raw) && raw.length === 1 ? raw[0] : raw
+  if (typeof text !== 'string' || text.trim() === '') return undefined
+  return kind === 'choice' ? text.trim() : text
+}
+
+/** 输入节点 `data` 的规范写法（读入的规范化 + 固定键序），写盘与比较都用它。 */
+export function canonicalInput(data: InputData): InputData {
+  const normalized = readInputData(data)
+  const out: Record<string, unknown> = {}
+  for (const key of INPUT_KEYS) {
+    const value = normalized[key]
+    if (value !== undefined) out[key] = value
+  }
+  return out as unknown as InputData
+}
+
 /** 两个节点的内容是否相同（类型 + `data`；坐标不算）。 */
 export function sameNodeContent(a: WorkflowNode, b: WorkflowNode): boolean {
+  if (isInput(a) || isInput(b)) {
+    return (
+      isInput(a) &&
+      isInput(b) &&
+      JSON.stringify(canonicalInput(a.data)) === JSON.stringify(canonicalInput(b.data))
+    )
+  }
   if (isFile(a) || isFile(b)) {
     return (
       isFile(a) &&
@@ -416,6 +526,15 @@ export function normalizeDocument(input: unknown): ParseOutcome {
       })
       continue
     }
+    if (raw.type === INPUT_TYPE) {
+      nodes.push({
+        id: raw.id,
+        type: INPUT_TYPE,
+        position: position ?? { x: 0, y: 0 },
+        data: readInputData(raw.data),
+      })
+      continue
+    }
     if (typeof raw.type === 'string' && raw.type !== NODE_TYPE) {
       problems.push(
         problem(
@@ -523,6 +642,9 @@ export function readDocument(text: string): ParseOutcome {
 /** 按固定键序挑键——凡是键序表之外的字段一律不写（白名单）。 */
 function pickNode(node: WorkflowNode): Record<string, unknown> {
   const position = { x: normalizeCoord(node.position.x), y: normalizeCoord(node.position.y) }
+  if (isInput(node)) {
+    return { id: node.id, type: INPUT_TYPE, position, data: canonicalInput(node.data) }
+  }
   if (isFile(node)) {
     const rule = node.data.rule
     return {
@@ -596,11 +718,14 @@ export function writeDocument(document: WorkflowDocument): string {
 /** 深拷贝一份文档（工具做读-改-写时用，避免就地改调用方的对象）。 */
 export function cloneDocument(document: WorkflowDocument): WorkflowDocument {
   return {
-    nodes: document.nodes.map((node) =>
-      isFile(node)
+    nodes: document.nodes.map((node): WorkflowNode => {
+      if (isInput(node)) {
+        return { ...node, position: { ...node.position }, data: cloneInputData(node.data) }
+      }
+      return isFile(node)
         ? { ...node, position: { ...node.position }, data: { ...node.data } }
-        : { ...node, position: { ...node.position }, data: cloneNodeData(node.data) },
-    ),
+        : { ...node, position: { ...node.position }, data: cloneNodeData(node.data) }
+    }),
     edges: document.edges.map((edge) => ({
       ...edge,
       ...(edge.data === undefined ? {} : { data: cloneEdgeData(edge.data) }),

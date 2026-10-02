@@ -405,3 +405,80 @@ describe('文件节点', () => {
     expect(state.doc?.edges.map((item) => item.id)).toEqual(['a->b'])
   })
 })
+
+describe('输入节点与步骤的样子', () => {
+  const ask = { question: '目标？' }
+
+  it('加输入：给了读它的步骤就连上「输入 → 步骤」、放在它左边，并选中它', () => {
+    const state = run(loaded(doc({ nodes: [node('scan', undefined, 500, 200)] })), {
+      type: 'addInput',
+      id: 'ask',
+      data: ask,
+      reader: 'scan',
+    })
+    const added = state.doc?.nodes.find((item) => item.id === 'ask')
+    expect(added?.type).toBe('wfInput')
+    expect((added?.position.x ?? 0) < 500).toBe(true)
+    expect(state.doc?.edges.map((item) => item.id)).toEqual(['ask->scan'])
+    expect(state.selection).toEqual({ kind: 'node', id: 'ask' })
+  })
+
+  it('连线：输入只连步骤、不带条件；不能连进输入', () => {
+    const base = loaded(
+      doc({
+        nodes: [
+          node('a'),
+          { id: 'q', type: 'wfInput', position: { x: 0, y: 0 }, data: ask },
+          file('f', 'f.md'),
+        ],
+      }),
+    )
+    const linked = run(base, { type: 'connect', source: 'q', target: 'a', when: 'pass' })
+    expect(linked.doc?.edges).toEqual([edge('q', 'a')])
+    expect(run(base, { type: 'connect', source: 'a', target: 'q' }).doc?.edges).toEqual([])
+    expect(run(base, { type: 'connect', source: 'q', target: 'f' }).doc?.edges).toEqual([])
+  })
+
+  it('改输入：去掉值为 undefined 的键，打字时不吃尾部空格；连续打字合成一条撤销步', () => {
+    const base = loaded(
+      doc({ nodes: [{ id: 'q', type: 'wfInput', position: { x: 0, y: 0 }, data: ask }] }),
+    )
+    const typed = run(
+      base,
+      { type: 'patchInput', id: 'q', patch: { question: '目标 ' }, merge: 'q' },
+      { type: 'patchInput', id: 'q', patch: { question: '目标 是' }, merge: 'q' },
+      { type: 'patchInput', id: 'q', patch: { required: true } },
+    )
+    const data = typed.doc?.nodes[0]?.data
+    expect(data).toEqual({ question: '目标 是', required: true })
+    expect(typed.past).toHaveLength(2)
+    const cleared = run(typed, { type: 'patchInput', id: 'q', patch: { required: undefined } })
+    expect(cleared.doc?.nodes[0]?.data).toEqual({ question: '目标 是' })
+  })
+
+  it('加步骤：没带图标颜色的挑一个不和别人重样的，带了的照用', () => {
+    let state = loaded(doc())
+    for (const id of ['a', 'b', 'c']) {
+      state = run(state, { type: 'addNode', id, data: { prompt: id }, position: { x: 0, y: 0 } })
+    }
+    const looks = state.doc?.nodes.map((item) => `${stepData(item)?.icon}/${stepData(item)?.color}`)
+    expect(new Set(looks).size).toBe(3)
+    const kept = run(state, {
+      type: 'addNode',
+      id: 'd',
+      data: { prompt: 'd', icon: 'bug', color: 'pink' },
+      position: { x: 0, y: 0 },
+    })
+    expect(stepData(kept.doc?.nodes[3])).toMatchObject({ icon: 'bug', color: 'pink' })
+  })
+
+  it('改样子：patchNode 的 undefined 清掉图标与颜色', () => {
+    const base = loaded(doc({ nodes: [node('a', { prompt: 'p', icon: 'bug', color: 'teal' })] }))
+    const cleared = run(base, {
+      type: 'patchNode',
+      id: 'a',
+      patch: { icon: undefined, color: undefined },
+    })
+    expect(stepData(cleared.doc?.nodes[0])).toEqual({ prompt: 'p' })
+  })
+})

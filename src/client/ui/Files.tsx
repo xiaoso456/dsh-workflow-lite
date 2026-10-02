@@ -13,7 +13,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { type FileInfo, fileGraph, stepFiles } from '../../shared/files.ts'
 import { MAX_TEXT_CODEPOINTS } from '../../shared/limits.ts'
-import { idKey, isFile } from '../../shared/model.ts'
+import { idKey, isFile, isInput, isStep } from '../../shared/model.ts'
 import { checkOutput, codepointLength } from '../../shared/naming.ts'
 import { normalizeRoot, outputKey, resolveOutputPath, rootOf } from '../../shared/outputPaths.ts'
 import type {
@@ -25,18 +25,19 @@ import type {
 } from '../../shared/types.ts'
 import type { T } from '../i18n.ts'
 import { type Edit, findNode, type Selection } from '../model/editor.ts'
-import { kindOf } from '../model/library.ts'
 import type { FocusFile } from './Handoff.tsx'
 import css from './handoff.module.css'
-import { Icon, kindIcon } from './Icon.tsx'
+import { Icon } from './Icon.tsx'
 import ins from './inspector.module.css'
 import { OutputEditor } from './Outputs.tsx'
 import { cx, Popover, Segmented } from './primitives.tsx'
+import { lookOf, StepMark } from './StepMark.tsx'
 import ui from './ui.module.css'
 
 /** 步骤的显示名。 */
 export function stepName(node: WorkflowNode | undefined, fallback: string): string {
   if (node === undefined || isFile(node)) return fallback
+  if (isInput(node)) return node.data.question.trim() === '' ? node.id : node.data.question
   return node.data.label === undefined || node.data.label === '' ? node.id : node.data.label
 }
 
@@ -325,9 +326,10 @@ export function FilePanel(props: {
           className={css.fileRowMain}
           onClick={() => props.onSelect({ kind: 'node', id })}
         >
-          <span className={ui.kind} data-kind={kindOf(id)}>
-            <Icon name={kindIcon(kindOf(id))} size={13} />
-          </span>
+          <StepMark
+            look={lookOf(id, step !== undefined && isStep(step) ? step.data : undefined)}
+            size={13}
+          />
           <span className={cx(css.detailTitle, css.grow)}>{stepName(step, id)}</span>
         </button>
         {extra}

@@ -1,0 +1,184 @@
+/**
+ * dsh-workflow-lite — 「执行前填写」对话框。
+ */
+
+.sheet {
+  width: min(560px, 100%);
+}
+
+.headIcon {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+}
+
+.body {
+  gap: 14px;
+}
+
+.question {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--wl-line);
+  border-radius: var(--wl-r-card);
+}
+
+.qHead {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.qIndex {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--wl-ask-soft);
+  color: var(--wl-io-ask);
+  font-size: var(--wl-fs-micro);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  transform: translateY(-1px);
+}
+
+.qText {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--wl-text);
+  font-weight: 600;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.required {
+  flex: none;
+  padding: 0 6px;
+  border-radius: 5px;
+  background: var(--wl-danger-soft);
+  color: var(--wl-danger);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+  line-height: 18px;
+}
+
+.qHint {
+  margin: -2px 0 0 28px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.area {
+  min-height: 92px;
+  resize: vertical;
+}
+
+.choices {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pickHint {
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+.choice {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid var(--wl-line);
+  border-radius: var(--wl-r-control);
+  background: transparent;
+  color: var(--wl-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms linear;
+}
+
+.choice:hover {
+  background: var(--wl-hover);
+}
+
+.choice:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+.choice[aria-pressed="true"] {
+  border-color: var(--wl-accent);
+  background: var(--wl-accent-soft);
+}
+
+.mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--wl-line-strong);
+  border-radius: 50%;
+  background: var(--wl-panel);
+  color: var(--wl-accent-on);
+}
+
+.choice[data-shape="box"] .mark {
+  border-radius: 4px;
+}
+
+.mark svg {
+  opacity: 0;
+}
+
+.choice[aria-pressed="true"] .mark {
+  border-color: var(--wl-accent);
+  background: var(--wl-accent);
+}
+
+.choice[aria-pressed="true"] .mark svg {
+  opacity: 1;
+}
+
+.choiceText {
+  flex: 1 1 auto;
+  min-width: 0;
+  word-break: break-word;
+}
+
+.defaultTag {
+  flex: none;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+.where {
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.missing {
+  color: var(--wl-danger);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .choice {
+    transition: none;
+  }
+}

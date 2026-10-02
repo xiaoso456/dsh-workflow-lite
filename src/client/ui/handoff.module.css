@@ -261,6 +261,18 @@
   color: var(--wl-file);
 }
 
+/* 输入节点的小图标：墨色的提问气泡（和交回答的线同色）。 */
+.askIcon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: var(--wl-ask-soft);
+  color: var(--wl-io-ask);
+}
+
 .fileActions {
   display: flex;
   gap: 6px;

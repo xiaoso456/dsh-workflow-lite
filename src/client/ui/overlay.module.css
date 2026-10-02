@@ -321,6 +321,12 @@
   }
 }
 
+/* 就地添加菜单里的「用户输入」项：输入卡的墨色。 */
+.quickInput {
+  background: var(--wl-ask-soft);
+  color: var(--wl-io-ask);
+}
+
 /* 就地添加菜单里的「文件」项：文件卡的颜色。 */
 .quickFile {
   background: var(--wl-file-soft);

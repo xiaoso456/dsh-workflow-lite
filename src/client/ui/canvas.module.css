@@ -297,6 +297,7 @@
 
 .wrap[data-drag="flow"] :global(.react-flow__handle).hStepIn,
 .wrap[data-drag="read"] :global(.react-flow__handle).hRead,
+.wrap[data-drag="ask"] :global(.react-flow__handle).hRead,
 .wrap[data-drag="write"] :global(.react-flow__handle).hFileIn,
 .wrap[data-drag="back"] :global(.react-flow__handle).handleSource,
 .wrap[data-drag="back"] :global(.react-flow__handle).handleRead,
@@ -371,10 +372,10 @@
 /* ── 连线 ─────────────────────────────────────────────────── */
 
 /*
- * 版式语法：「左右走流程，上下走文件」。七种线各一色（见 shell.module.css 的线色），色由线组件内联给出，
+ * 版式语法：「左右走流程，上下走文件」。八种线各一色（见 shell.module.css 的线色），色由线组件内联给出，
  * 这里只管粗细和线型：
  * - 流程线（步骤 → 步骤）：实线，略粗，是图的骨架；回头的线虚线，只管先后的点划。
- * - 读写线（步骤 ↔ 文件）：产出、更新实线（更新两头箭头），读取虚线。
+ * - 读写线（步骤 ↔ 文件）：产出、更新实线（更新两头箭头），读取虚线；交回答（输入 → 步骤）圆点线。
  * 选中 / 悬停 / 与选中的东西相连时线会"活"起来：描粗 + 光晕 + 光带流动（见 FlowStreaks），其余的淡下去。
  */
 
@@ -389,6 +390,12 @@
 /* 读取是密的短虚线、回头的流程线是疏的长虚线：两种虚线挨在一起时节奏也不一样。 */
 .fileLinkRead :global(.react-flow__edge-path) {
   stroke-dasharray: 4 4;
+}
+
+/* 交回答的线（输入 → 步骤）：圆点线，和读取的短虚线节奏不同。 */
+.fileLinkAsk :global(.react-flow__edge-path) {
+  stroke-dasharray: 1 4;
+  stroke-linecap: round;
 }
 
 .linkBack :global(.react-flow__edge-path) {
@@ -962,6 +969,112 @@
 @media (prefers-reduced-motion: reduce) {
   .fileCard,
   .fileCard::after {
+    animation: none;
+    transition: none;
+  }
+}
+
+/* ── 输入卡 ───────────────────────────────────────────────── */
+
+/*
+ * 输入卡：执行前问用户的一个问题。和文件卡一样大、一样平铺，但不是一张纸——
+ * 圆角四角一样（没有折角），左边一条墨色的签印着交互方式（一句话 / 多行 / 单选 / 多选），
+ * 描边是虚线：它的内容要等用户填了才有。右边的点拖到步骤上 = 把回答交给它。
+ */
+.inputCard {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  width: 180px;
+  min-height: 48px;
+  border: 1px dashed color-mix(in srgb, var(--wl-io-ask) 45%, transparent);
+  border-radius: 10px;
+  background: var(--wl-file-surface);
+  cursor: grab;
+  animation: cardIn 260ms var(--wl-ease) backwards;
+  transition:
+    transform 180ms var(--wl-ease),
+    opacity 160ms linear;
+}
+
+.inputCard::after {
+  position: absolute;
+  inset: -1px;
+  border: 2px solid var(--wl-accent);
+  border-radius: inherit;
+  box-shadow: 0 0 0 4px var(--wl-accent-soft);
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms linear;
+}
+
+.inputCard:hover {
+  transform: translateY(-1px);
+}
+
+.inputCard.cardSelected::after {
+  opacity: 1;
+}
+
+.inputCard[data-dim="true"] {
+  opacity: 0.32;
+}
+
+:global(.react-flow__node.dragging) .inputCard {
+  cursor: grabbing;
+  transform: scale(1.02);
+}
+
+.inputTab {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 34px;
+  border-radius: 9px 0 0 9px;
+  background: var(--wl-ask-soft);
+  color: var(--wl-io-ask);
+}
+
+.inputQuestion {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--wl-text);
+  font-size: var(--wl-fs-meta);
+  font-weight: 600;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.inputEmpty {
+  color: var(--wl-text-3);
+  font-weight: 500;
+}
+
+.inputCard > .cardFlag {
+  align-self: center;
+  margin-right: 14px;
+}
+
+/* 输入卡右边的点：墨色（交回答的线也是这个色）。 */
+.handleRead.handleAsk {
+  --wl-h: var(--wl-io-ask);
+}
+
+.wrap[data-drag] .inputCard:has(:global(.react-flow__handle.valid))::after {
+  border-color: var(--wl-drag);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--wl-drag) 18%, transparent);
+  opacity: 1;
+}
+
+.ioChip[data-access="ask"] {
+  --wl-chip: var(--wl-io-ask);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inputCard,
+  .inputCard::after {
     animation: none;
     transition: none;
   }

@@ -410,6 +410,7 @@ async function dispatch(
         document: load.document,
         problems: load.problems,
         session: { id: session, ...(cwd === undefined ? {} : { cwd }) },
+        answers: input.answers,
       })
       if (!outcome.ok) return failFrom(outcome.error)
       return ok(outcome.result)

@@ -2,19 +2,22 @@
  * dsh-workflow-lite — 就地添加步骤的小菜单。
  *
  * 三个入口共用它：双击画布空白处、点步骤右侧的「＋」、把连线拖到空白处松手。
- * 后两种会把新步骤顺手连在来源后面。从步骤出发时第一项是「产出文件」（这一步写的文件卡）；
- * 从文件卡拖出来时只列步骤（新步骤读这份文件）；在空白处还能放一张独立的文件卡。
+ * 后两种会把新步骤顺手连在来源后面。从步骤出发时前两项是「产出文件」（这一步写的文件卡）和
+ * 「用户输入」（执行前问用户、回答交给这一步）；从文件卡、输入卡拖出来时只列步骤（新步骤读它）；
+ * 在空白处还能放一张独立的文件卡或输入卡。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/QuickAdd
  */
 
 import { useLayoutEffect, useRef, useState } from 'react'
+import { appearanceOf, presetAppearance } from '../../shared/appearance.ts'
 import type { TemplateEntry } from '../../shared/types.ts'
 import type { T } from '../i18n.ts'
 import { PRESETS, type StepSource } from '../model/library.ts'
 import { Icon } from './Icon.tsx'
 import css from './overlay.module.css'
 import { cx, useDismiss } from './primitives.tsx'
+import { StepMark } from './StepMark.tsx'
 import ui from './ui.module.css'
 
 /** 菜单的估算尺寸：用来在贴边时往回收，别伸出视图外。 */
@@ -27,8 +30,8 @@ export function QuickAdd(props: {
   at: { x: number; y: number }
   bounds: { width: number; height: number }
   templates: readonly TemplateEntry[]
-  /** 从哪儿来：步骤的「＋」/ 文件卡拖出来的线 / 空白处。 */
-  origin: 'step' | 'file' | 'none'
+  /** 从哪儿来：步骤的「＋」/ 文件卡、输入卡拖出来的线 / 空白处。 */
+  origin: 'step' | 'file' | 'input' | 'none'
   onPick(source: StepSource): void
   onClose(): void
 }): React.JSX.Element {
@@ -89,6 +92,19 @@ export function QuickAdd(props: {
             <span className={ui.menuLabel}>{t('quick.file')}</span>
             <span className={ui.menuMeta}>{t('quick.fileDesc')}</span>
           </button>
+          <button
+            type="button"
+            role="menuitem"
+            className={ui.menuItem}
+            data-testid="wl-quick-input"
+            onClick={() => props.onPick({ kind: 'input' })}
+          >
+            <span className={cx(ui.kind, css.quickKind, css.quickInput)}>
+              <Icon name="ask" size={13} />
+            </span>
+            <span className={ui.menuLabel}>{t('quick.input')}</span>
+            <span className={ui.menuMeta}>{t('quick.inputDesc')}</span>
+          </button>
           <div className={ui.menuSep} />
         </>
       )}
@@ -99,9 +115,7 @@ export function QuickAdd(props: {
         data-testid="wl-quick-blank"
         onClick={() => props.onPick({ kind: 'blank' })}
       >
-        <span className={cx(ui.kind, css.quickKind)} data-kind="blank">
-          <Icon name="blank" size={13} />
-        </span>
+        <StepMark look={presetAppearance('blank')} size={13} className={css.quickKind} />
         <span className={ui.menuLabel}>{t('lib.blank')}</span>
       </button>
       {props.origin === 'none' && (
@@ -119,6 +133,21 @@ export function QuickAdd(props: {
           <span className={ui.menuMeta}>{t('quick.looseFileDesc')}</span>
         </button>
       )}
+      {props.origin === 'none' && (
+        <button
+          type="button"
+          role="menuitem"
+          className={ui.menuItem}
+          data-testid="wl-quick-input"
+          onClick={() => props.onPick({ kind: 'input' })}
+        >
+          <span className={cx(ui.kind, css.quickKind, css.quickInput)}>
+            <Icon name="ask" size={13} />
+          </span>
+          <span className={ui.menuLabel}>{t('quick.looseInput')}</span>
+          <span className={ui.menuMeta}>{t('quick.looseInputDesc')}</span>
+        </button>
+      )}
       {PRESETS.map((preset) => (
         <button
           key={preset.id}
@@ -128,9 +157,7 @@ export function QuickAdd(props: {
           data-testid={`wl-quick-${preset.id}`}
           onClick={() => props.onPick({ kind: 'preset', id: preset.id })}
         >
-          <span className={cx(ui.kind, css.quickKind)} data-kind={preset.kind}>
-            <Icon name={preset.kind} size={13} />
-          </span>
+          <StepMark look={presetAppearance(preset.id)} size={13} className={css.quickKind} />
           <span className={ui.menuLabel}>{t(preset.labelKey)}</span>
           <span className={ui.menuMeta}>{t(preset.descKey)}</span>
         </button>
@@ -144,9 +171,13 @@ export function QuickAdd(props: {
           className={ui.menuItem}
           onClick={() => props.onPick({ kind: 'template', name: entry.name })}
         >
-          <span className={cx(ui.kind, css.quickKind)} data-kind="blank">
-            <Icon name="bookmark" size={13} />
-          </span>
+          {entry.icon === undefined && entry.color === undefined ? (
+            <span className={cx(ui.kind, css.quickKind)}>
+              <Icon name="bookmark" size={13} />
+            </span>
+          ) : (
+            <StepMark look={appearanceOf(entry.name, entry)} size={13} className={css.quickKind} />
+          )}
           <span className={ui.menuLabel}>{entry.name}</span>
         </button>
       ))}

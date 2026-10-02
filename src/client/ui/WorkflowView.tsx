@@ -11,8 +11,10 @@
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { ReactFlowProvider, useReactFlow } from '@xyflow/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { isFile, SETTINGS_CONFLICT_ID } from '../../shared/model.ts'
-import type { NodeData, Point, WorkflowDocument } from '../../shared/types.ts'
+import { pickTemplateAppearance } from '../../shared/appearance.ts'
+import { orderedInputs } from '../../shared/inputs.ts'
+import { isFile, isInput, SETTINGS_CONFLICT_ID } from '../../shared/model.ts'
+import type { InputAnswer, NodeData, Point, WorkflowDocument } from '../../shared/types.ts'
 import type { Desktop } from '../app/desktop.ts'
 import { type SessionBridge, useSessionRows } from '../app/sessions.ts'
 import { useRuns } from '../app/useRuns.ts'
@@ -22,6 +24,8 @@ import { findNode, type Selection } from '../model/editor.ts'
 import { freeSpot, NODE_H, NODE_W, tidy } from '../model/layout.ts'
 import {
   BLANK_ID,
+  INPUT_ID,
+  inputData,
   type LibraryFocus,
   PRESETS,
   presetData,
@@ -34,6 +38,7 @@ import { ZoomDock } from './Dock.tsx'
 import { freeFilePath } from './Files.tsx'
 import { HubDialog } from './HubDialog.tsx'
 import { Icon } from './Icon.tsx'
+import { InputsDialog } from './InputsDialog.tsx'
 import { Inspector } from './Inspector.tsx'
 import { Library } from './Library.tsx'
 import { PlanDialog } from './PlanDialog.tsx'
@@ -186,9 +191,10 @@ function Shell(props: {
    * 再往目标会话发那句话，然后跳过去看它跑。发不出去就把刚建的实例删掉，不留一个没人认领的实例。
    *
    * @param target - 会话 id；`null` = 在本工作区新建一个会话。
+   * @param answers - 用户在「执行前填写」里的回答（图里有输入节点时）。
    */
   const startRun = useCallback(
-    async (target: string | null): Promise<void> => {
+    async (target: string | null, answers?: Record<string, InputAnswer>): Promise<void> => {
       const name = state.name
       const bridge = props.sessions
       if (name === null || bridge === undefined || props.session === undefined) return
@@ -202,6 +208,7 @@ function Shell(props: {
           workflow: name,
           session,
           ...(cwd === undefined ? {} : { cwd }),
+          ...(answers === undefined ? {} : { answers }),
         })
         try {
           await bridge.deliver(session, started.prompt)
@@ -239,6 +246,24 @@ function Shell(props: {
       runs,
       openRun,
     ],
+  )
+
+  /**
+   * 「执行」的入口：图里有输入节点就先弹「执行前填写」，填好再执行；没有就直接执行。
+   * 上一次填的回答按工作流记着（只在这个视图里），再执行时预先填好。
+   */
+  const [asking, setAsking] = useState<{ target: string | null } | null>(null)
+  const lastAnswers = useRef(new Map<string, Record<string, InputAnswer>>())
+  const launch = useCallback(
+    (target: string | null): void => {
+      const doc = state.doc
+      if (doc?.nodes.some(isInput)) {
+        setAsking({ target })
+        return
+      }
+      void startRun(target)
+    },
+    [state.doc, startRun],
   )
 
   /** 当前的图（异步排版回来时据此判断图是不是已经变了）。 */
@@ -440,6 +465,21 @@ function Shell(props: {
         })
         return
       }
+      if (source.kind === 'input') {
+        // 输入卡：从步骤的「＋」加的就是这一步要的输入（放在它左边、连上）；别处加的落在原地。加完选中它，好写问题。
+        const doc = state.doc
+        if (doc === null) return
+        const reader = from === undefined ? undefined : findNode(doc, from)
+        const step =
+          reader !== undefined && !isFile(reader) && !isInput(reader) ? reader : undefined
+        wf.edit({
+          type: 'addInput',
+          id: INPUT_ID,
+          data: inputData(t),
+          ...(step === undefined ? { position } : { reader: step.id }),
+        })
+        return
+      }
       if (source.kind === 'blank') {
         id = BLANK_ID
         data = { prompt: '' }
@@ -476,6 +516,15 @@ function Shell(props: {
     (id: string): void => {
       const node = state.doc === null ? undefined : findNode(state.doc, id)
       if (node === undefined || isFile(node)) return
+      if (isInput(node)) {
+        wf.edit({
+          type: 'addInput',
+          id: node.id,
+          data: node.data,
+          position: { x: node.position.x + 32, y: node.position.y + 32 },
+        })
+        return
+      }
       wf.edit({
         type: 'addNode',
         id: node.id,
@@ -533,6 +582,13 @@ function Shell(props: {
         if (!taken.has(`${base}-${n}`.toLowerCase())) return `${base}-${n}`
       }
     },
+    [wf.catalog],
+  )
+
+  /** 新的「我的步骤」的样子：避开内置步骤和已有的我的步骤，尽量不重样。 */
+  const freshTemplateLook = useCallback(
+    (): Pick<NodeData, 'icon' | 'color'> =>
+      pickTemplateAppearance(wf.catalog?.templates.nodes ?? []),
     [wf.catalog],
   )
 
@@ -694,7 +750,7 @@ function Shell(props: {
                   session: props.session,
                   rows: sessionRows,
                   canCreate,
-                  onRun: (target) => void startRun(target),
+                  onRun: launch,
                 }}
                 onSettings={() => setSettingsOpen(true)}
                 runs={runs}
@@ -713,7 +769,7 @@ function Shell(props: {
                   onNewStep={() =>
                     focusLibrary({
                       kind: 'new',
-                      seed: { prompt: '' },
+                      seed: { prompt: '', ...freshTemplateLook() },
                       name: freeStepName('my-step'),
                     })
                   }
@@ -731,7 +787,11 @@ function Shell(props: {
                   onFocus={focusLibrary}
                   onAddToCanvas={addToCanvas}
                   onCopyToMine={(seed, id) =>
-                    focusLibrary({ kind: 'new', seed, name: freeStepName(`my-${id}`) })
+                    focusLibrary({
+                      kind: 'new',
+                      seed: { ...seed, ...freshTemplateLook() },
+                      name: freeStepName(`my-${id}`),
+                    })
                   }
                 />
               </div>
@@ -877,6 +937,30 @@ function Shell(props: {
               />
             )}
 
+            {asking !== null && state.name !== null && doc !== null && (
+              <InputsDialog
+                t={t}
+                name={state.name}
+                inputs={orderedInputs(doc)}
+                initial={lastAnswers.current.get(state.name)}
+                where={
+                  asking.target === null
+                    ? t('launch.newSession')
+                    : asking.target === props.session
+                      ? t('launch.here')
+                      : (sessionRows.find((row) => row.id === asking.target)?.title ??
+                        asking.target)
+                }
+                onSubmit={(answers) => {
+                  const target = asking.target
+                  if (state.name !== null) lastAnswers.current.set(state.name, answers)
+                  setAsking(null)
+                  void startRun(target, answers)
+                }}
+                onClose={() => setAsking(null)}
+              />
+            )}
+
             {planOpen && state.name !== null && (
               <PlanDialog
                 t={t}
@@ -915,10 +999,11 @@ function Shell(props: {
 function quickOrigin(
   doc: WorkflowDocument | null,
   from: string | undefined,
-): 'step' | 'file' | 'none' {
+): 'step' | 'file' | 'input' | 'none' {
   if (doc === null || from === undefined) return 'none'
   const node = findNode(doc, from)
   if (node === undefined) return 'none'
+  if (isInput(node)) return 'input'
   return isFile(node) ? 'file' : 'step'
 }
 

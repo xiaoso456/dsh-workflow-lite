@@ -1,0 +1,193 @@
+/**
+ * dsh-workflow-lite — 图标与颜色的选择浮层。
+ */
+
+.trigger {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.trigger:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 2px;
+}
+
+/* 右下角的小调色盘：告诉人这块能点。平时淡，悬停时清楚。 */
+.badge {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  display: grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  border: 1px solid var(--wl-line-strong);
+  border-radius: 50%;
+  background: var(--wl-panel);
+  color: var(--wl-text-3);
+  opacity: 0.7;
+  transition: opacity 120ms linear;
+}
+
+.trigger:hover .badge,
+.trigger[aria-expanded="true"] .badge {
+  opacity: 1;
+}
+
+.pop {
+  width: 292px;
+  padding: 10px 12px 12px;
+}
+
+.head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 26px;
+}
+
+.title {
+  font-weight: 600;
+}
+
+.reset {
+  height: 24px;
+  padding: 0 8px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+.group {
+  margin: 8px 0 6px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+}
+
+.colors {
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  gap: 4px;
+}
+
+.swatch {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--wl-swatch);
+  color: var(--wl-panel);
+  cursor: pointer;
+  transition: transform 120ms var(--wl-ease);
+}
+
+.swatch:hover {
+  transform: scale(1.12);
+}
+
+.swatch svg {
+  opacity: 0;
+}
+
+.swatch[aria-checked="true"] svg {
+  opacity: 1;
+}
+
+.swatch:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 2px;
+}
+
+.swatch[data-color="blue"],
+.icons[data-color="blue"] {
+  --wl-swatch: var(--wl-c-blue);
+}
+
+.swatch[data-color="green"],
+.icons[data-color="green"] {
+  --wl-swatch: var(--wl-c-green);
+}
+
+.swatch[data-color="amber"],
+.icons[data-color="amber"] {
+  --wl-swatch: var(--wl-c-amber);
+}
+
+.swatch[data-color="coral"],
+.icons[data-color="coral"] {
+  --wl-swatch: var(--wl-c-coral);
+}
+
+.swatch[data-color="teal"],
+.icons[data-color="teal"] {
+  --wl-swatch: var(--wl-c-teal);
+}
+
+.swatch[data-color="pink"],
+.icons[data-color="pink"] {
+  --wl-swatch: var(--wl-c-pink);
+}
+
+.swatch[data-color="olive"],
+.icons[data-color="olive"] {
+  --wl-swatch: var(--wl-c-olive);
+}
+
+.swatch[data-color="violet"],
+.icons[data-color="violet"] {
+  --wl-swatch: var(--wl-c-violet);
+}
+
+.swatch[data-color="slate"],
+.icons[data-color="slate"] {
+  --wl-swatch: var(--wl-c-slate);
+}
+
+.icons {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 2px;
+}
+
+.icon {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--wl-text-2);
+  cursor: pointer;
+}
+
+.icon:hover {
+  background: var(--wl-hover);
+}
+
+/* 选中的图标：当前颜色的浅底 + 当前颜色的笔画，和卡片上的图标块一个样子。 */
+.icon[aria-checked="true"] {
+  background: color-mix(in srgb, var(--wl-swatch) 16%, transparent);
+  color: var(--wl-swatch);
+}
+
+.icon:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: -2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .swatch,
+  .badge {
+    transition: none;
+  }
+}

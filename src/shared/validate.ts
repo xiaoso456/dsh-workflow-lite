@@ -22,8 +22,9 @@ import {
   edgeWhen,
   type GraphAnalysis,
 } from './graph.ts'
-import { WELL_KNOWN_WHEN } from './limits.ts'
-import { idKey, isFile, isStep, outputSpecs } from './model.ts'
+import { inputKind, isChoiceKind, normalizeAnswer } from './inputs.ts'
+import { MAX_OPTIONS, WELL_KNOWN_WHEN } from './limits.ts'
+import { idKey, isFile, isInput, isStep, outputSpecs } from './model.ts'
 import {
   checkLabel,
   checkName,
@@ -34,11 +35,13 @@ import {
 } from './naming.ts'
 import { checkOutputRoot, outputKey } from './outputPaths.ts'
 import type {
+  InputData,
   ValidationCode,
   ValidationLevel,
   ValidationProblem,
   WorkflowDocument,
   WorkflowEdge,
+  WorkflowNode,
 } from './types.ts'
 
 export interface ValidateOptions {
@@ -147,6 +150,17 @@ export function validateDocument(
 
   // ── 保存级：每个节点的字段规则 ──────────────────────────────
   for (const node of document.nodes) {
+    if (isInput(node)) {
+      const problem = inputProblem(node.data)
+      if (problem !== null) {
+        save.push(
+          mk('save', 'input_invalid', `输入 ${node.id} 不合法：${problem.message}`, {
+            node: node.id,
+          }),
+        )
+      }
+      continue
+    }
     if (isFile(node)) {
       const problem =
         checkOutput(node.data.path) ??
@@ -219,9 +233,9 @@ export function validateDocument(
     const kind = edgeKind(nodes, edge)
     const misplaced =
       kind === 'invalid'
-        ? '文件不能直接连到文件'
+        ? invalidReason(nodes.get(idKey(edge.source)), nodes.get(idKey(edge.target)))
         : kind !== 'flow' && (edge.data?.when !== undefined || handoff !== undefined)
-          ? '连着文件的线不能带条件或交接'
+          ? '连着文件或输入的线不能带条件或交接'
           : kind !== 'write' && edge.data?.update === true
             ? '只有「步骤 → 文件」的线才有写入方式'
             : null
@@ -268,7 +282,41 @@ export function validateDocument(
     }
   }
 
+  for (const node of document.nodes) {
+    if (!isInput(node)) continue
+    if (node.data.question.trim() === '') {
+      compile.push(
+        mk('compile', 'input_question_empty', `输入 ${node.id} 还没写问题——执行时没法问用户`, {
+          node: node.id,
+        }),
+      )
+    }
+    if (isChoiceKind(inputKind(node.data)) && (node.data.options?.length ?? 0) === 0) {
+      compile.push(
+        mk('compile', 'input_options_empty', `输入 ${node.id} 是选择题，但还没有选项`, {
+          node: node.id,
+        }),
+      )
+    }
+  }
+
   // ── 警告 ────────────────────────────────────────────────────
+  for (const node of document.nodes) {
+    if (!isInput(node) || node.data.default === undefined) continue
+    if (!isChoiceKind(inputKind(node.data)) || (node.data.options?.length ?? 0) === 0) continue
+    const picked = normalizeAnswer(node.data, node.data.default)
+    const given = [node.data.default].flat()
+    if (picked === undefined || [picked].flat().length !== given.length) {
+      warning.push(
+        mk(
+          'warning',
+          'input_default_invalid',
+          `输入 ${node.id} 的默认值 ${given.join('、')} 不在选项里——执行时会当没有默认值`,
+          { node: node.id },
+        ),
+      )
+    }
+  }
   for (const cycle of analysis.cycles) {
     if (cycleHasNoExit(cycle)) {
       warning.push(
@@ -444,6 +492,35 @@ export function validateDocument(
     canLoad: save.length === 0,
     canCompile: compile.length === 0,
   }
+}
+
+/** 输入节点的字段规则（保存级）：问题一行、各段文字不超长、选项不太多。 */
+function inputProblem(data: InputData): { message: string } | null {
+  if (/[\r\n]/u.test(data.question)) {
+    return { message: '问题不得包含换行（要多说几句请写在说明里）' }
+  }
+  const texts: [string | undefined, string][] = [
+    [data.question, '问题'],
+    [data.placeholder, '占位'],
+    [data.hint, '说明'],
+    [typeof data.default === 'string' ? data.default : undefined, '默认值'],
+    ...(data.options ?? []).map((option): [string, string] => [option, '选项']),
+  ]
+  for (const [text, what] of texts) {
+    const problem = text === undefined ? null : checkText(text, what)
+    if (problem !== null) return problem
+  }
+  if ((data.options?.length ?? 0) > MAX_OPTIONS) {
+    return { message: `选项不能超过 ${MAX_OPTIONS} 个` }
+  }
+  return null
+}
+
+/** 两端都在、但种类不成立的线错在哪。 */
+function invalidReason(source: WorkflowNode | undefined, target: WorkflowNode | undefined): string {
+  if (target !== undefined && isInput(target)) return '不能连进输入节点——输入只往外连到步骤'
+  if (source !== undefined && isInput(source)) return '输入节点只能连到步骤'
+  return '文件不能直接连到文件'
 }
 
 /** 从步骤 `from` 沿步骤间的线（含回边）能不能走到 `to`。 */

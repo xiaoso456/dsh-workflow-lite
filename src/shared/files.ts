@@ -12,7 +12,7 @@
  * @module @xiaoso/dsh-workflow-lite/shared/files
  */
 
-import { fileIdFor, idKey, isFile, isStep, makeEdgeId, outputSpecs } from './model.ts'
+import { fileIdFor, idKey, isFile, isInput, isStep, makeEdgeId, outputSpecs } from './model.ts'
 import { outputKey } from './outputPaths.ts'
 import {
   FILE_TYPE,
@@ -32,9 +32,10 @@ import {
 /**
  * - `flow`：步骤 → 步骤（先后，带条件与交接）；
  * - `write`：步骤 → 文件；`read`：文件 → 步骤；
- * - `invalid`：文件 → 文件（保存级）；`dangling`：端点不存在。
+ * - `ask`：输入 → 步骤（把用户的回答交给它）；
+ * - `invalid`：文件 → 文件、连进输入节点、输入连到文件（保存级）；`dangling`：端点不存在。
  */
-export type EdgeKind = 'flow' | 'write' | 'read' | 'invalid' | 'dangling'
+export type EdgeKind = 'flow' | 'write' | 'read' | 'ask' | 'invalid' | 'dangling'
 
 /** 按 `idKey` 查节点（同 id 重复时取第一个）。 */
 export function nodeIndex(document: WorkflowDocument): Map<string, WorkflowNode> {
@@ -50,6 +51,8 @@ export function edgeKind(nodes: ReadonlyMap<string, WorkflowNode>, edge: Workflo
   const source = nodes.get(idKey(edge.source))
   const target = nodes.get(idKey(edge.target))
   if (source === undefined || target === undefined) return 'dangling'
+  if (isInput(target)) return 'invalid'
+  if (isInput(source)) return isStep(target) ? 'ask' : 'invalid'
   if (isFile(source)) return isFile(target) ? 'invalid' : 'read'
   return isFile(target) ? 'write' : 'flow'
 }

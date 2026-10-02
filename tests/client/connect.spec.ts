@@ -24,14 +24,16 @@ const doc: WorkflowDocument = {
 
 describe('起点的种类', () => {
   it('按节点类型与连接点认出是哪种拖线', () => {
-    expect(dragKindOf(false, 'out')).toBe('flow')
-    expect(dragKindOf(false, 'file')).toBe('write')
-    expect(dragKindOf(false, 'in')).toBe('back')
-    expect(dragKindOf(true, 'out')).toBe('read')
-    expect(dragKindOf(true, 'in')).toBe('writeBack')
-    expect(dragKindOf(true, 'file')).toBeNull()
-    expect(dragKindOf(false, 'fileUp')).toBe('write')
-    expect(dragKindOf(false, 'readTop')).toBe('readBack')
+    expect(dragKindOf('step', 'out')).toBe('flow')
+    expect(dragKindOf('step', 'file')).toBe('write')
+    expect(dragKindOf('step', 'in')).toBe('back')
+    expect(dragKindOf('file', 'out')).toBe('read')
+    expect(dragKindOf('file', 'in')).toBe('writeBack')
+    expect(dragKindOf('file', 'file')).toBeNull()
+    expect(dragKindOf('step', 'fileUp')).toBe('write')
+    expect(dragKindOf('step', 'readTop')).toBe('readBack')
+    expect(dragKindOf('input', 'out')).toBe('ask')
+    expect(dragKindOf('input', 'in')).toBeNull()
   })
 })
 
@@ -94,5 +96,32 @@ describe('连上会是什么线', () => {
     expect(
       previewLink(doc, { source: 'f', sourceHandle: 'out', target: 'g', targetHandle: 'in' }),
     ).toBeNull()
+  })
+})
+
+describe('输入卡的线', () => {
+  const doc: WorkflowDocument = {
+    nodes: [
+      { id: 's', type: 'wfNode', position: { x: 400, y: 0 }, data: { prompt: 'p' } },
+      { id: 'q', type: 'wfInput', position: { x: 0, y: 0 }, data: { question: '问' } },
+    ],
+    edges: [],
+    viewport: { x: 0, y: 0, zoom: 1 },
+  }
+
+  it('输入右边只连步骤的入口 / 读点；什么都不能连进输入', () => {
+    expect(
+      linkAllowed(doc, { source: 'q', sourceHandle: 'out', target: 's', targetHandle: 'read' }),
+    ).toBe(true)
+    expect(
+      linkAllowed(doc, { source: 'q', sourceHandle: 'out', target: 's', targetHandle: 'in' }),
+    ).toBe(true)
+    expect(
+      linkAllowed(doc, { source: 's', sourceHandle: 'out', target: 'q', targetHandle: 'out' }),
+    ).toBe(false)
+    expect(
+      previewLink(doc, { source: 'q', sourceHandle: 'out', target: 's', targetHandle: 'read' })
+        ?.kind,
+    ).toBe('ask')
   })
 })

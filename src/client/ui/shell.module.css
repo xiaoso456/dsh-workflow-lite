@@ -44,7 +44,7 @@
   --wl-ok-soft: light-dark(rgb(22 122 84 / 10%), rgb(86 208 142 / 15%));
 
   /*
-   * 线色：七种线各一色，谁也不和谁重样。
+   * 线色：七种彩色的线各一色，谁也不和谁重样；第八种交回答（输入 → 步骤）是中性的墨色 `--wl-io-ask`。
    * - 流程线（步骤 → 步骤）按条件分：总是 = 蓝（主干）、通过 = 绿、未通过 = 红、自定义条件 = 紫。
    * - 读写线（步骤 ↔ 文件）按读写分：产出 = 金（新的产物）、更新 = 洋红（在原文件上改）、读取 = 青。
    * 两套主题各自按 OKLab 算过两两色差（正常视觉 ΔE 都 ≥ 13，同一组里的更大）；
@@ -70,14 +70,23 @@
   --wl-file-tab: light-dark(#eaeff6, #232a35);
   --wl-file-back: light-dark(#dfe5ee, #2d3644);
 
-  /* 步骤种类的记号色。 */
-  --wl-k-scan: light-dark(#2f6fde, #74aaff);
-  --wl-k-plan: light-dark(#6b5bd2, #a99cf5);
-  --wl-k-implement: light-dark(#16875a, #56d08e);
-  --wl-k-review: light-dark(#a86400, #f0b955);
-  --wl-k-fix: light-dark(#c84a2b, #ff8e70);
-  --wl-k-report: light-dark(#0f7f8a, #55d2dd);
-  --wl-k-blank: light-dark(#5c6475, #a3aab8);
+  /*
+   * 步骤卡的色板（shared/appearance.ts 的 STEP_COLORS）：图标块用这一个色的深浅两档。
+   * 亮色档在白底上都过 4.5:1（图标块里的图标就是这个色）。
+   */
+  --wl-c-blue: light-dark(#2f6fde, #74aaff);
+  --wl-c-green: light-dark(#16875a, #56d08e);
+  --wl-c-amber: light-dark(#a86400, #f0b955);
+  --wl-c-coral: light-dark(#c84a2b, #ff8e70);
+  --wl-c-teal: light-dark(#0f7f8a, #55d2dd);
+  --wl-c-pink: light-dark(#c2367a, #f58cbd);
+  --wl-c-olive: light-dark(#5f7a12, #b4d65a);
+  --wl-c-violet: light-dark(#6b5bd2, #a99cf5);
+  --wl-c-slate: light-dark(#5c6475, #a3aab8);
+
+  /* 输入节点：用户的话，用一档中性的墨色（和七种线色都不撞，见 lines.ts）。 */
+  --wl-io-ask: light-dark(#3d4452, #dfe3ea);
+  --wl-ask-soft: light-dark(rgb(61 68 82 / 9%), rgb(223 227 234 / 12%));
 
   --wl-tip: light-dark(#1e2029, #eceef3);
   --wl-tip-on: light-dark(#f4f5f8, #15171e);
@@ -360,6 +369,15 @@
   stroke-dasharray: 4 3;
 }
 
+.dock [data-line="ask"] {
+  --wl-line-color: var(--wl-io-ask);
+}
+
+.dock [data-line="ask"] line {
+  stroke-dasharray: 1 3;
+  stroke-linecap: round;
+}
+
 /* 连接点图例：空心圈 = 入口，实心点 = 出口。各种线都这样，所以样本用中性色。 */
 .legendItem[data-port] circle {
   stroke: var(--wl-text-2);
@@ -624,10 +642,10 @@
 
 /*
  * 整排图例放得下才摊开，放不下就收成「图例」按钮——缩放条不能伸到右侧面板底下。
- * 门槛 = 缩放条连同整排图例约 770px + 左边的步骤库（开着时）+ 右边的面板（开着时，最宽 360px）+ 间距，
+ * 门槛 = 缩放条连同整排图例约 840px + 左边的步骤库（开着时）+ 右边的面板（开着时，最宽 360px）+ 间距，
  * 留了些余量给英文界面。
  */
-@container (max-width: 840px) {
+@container (max-width: 910px) {
   .legend {
     display: none;
   }
@@ -637,7 +655,7 @@
   }
 }
 
-@container (max-width: 1080px) {
+@container (max-width: 1150px) {
   .root[data-library="open"] .legend {
     display: none;
   }
@@ -647,7 +665,7 @@
   }
 }
 
-@container (max-width: 1220px) {
+@container (max-width: 1290px) {
   .root[data-panel="open"] .legend {
     display: none;
   }
@@ -657,7 +675,7 @@
   }
 }
 
-@container (max-width: 1460px) {
+@container (max-width: 1530px) {
   .root[data-library="open"][data-panel="open"] .legend {
     display: none;
   }

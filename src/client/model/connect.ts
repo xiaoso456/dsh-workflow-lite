@@ -6,7 +6,8 @@
  * - 步骤右 `out`：出口——只连下一个步骤（流程）；
  * - 步骤底 `file`：出口——只连文件卡（写入）；
  * - 文件左 `in`：入口——只接步骤的写点（写入）；
- * - 文件右 `out`：出口——只连步骤（读取）。
+ * - 文件右 `out`：出口——只连步骤（读取）；
+ * - 输入右 `out`：出口——只连步骤（把回答交给它，落点和读文件一样）。输入没有入口。
  * 步骤上还有几个备用点（上边的写点 `fileUp`、上下边的读点 `read` / `readTop`），挂哪个由画布按位置挑。
  *
  * 画布据此在拖线时只露出能连的连接点，并在松手前预告这条线的含义。
@@ -15,7 +16,7 @@
  */
 
 import { nodeIndex } from '../../shared/files.ts'
-import { idKey, isFile, makeEdgeId } from '../../shared/model.ts'
+import { idKey, isFile, isInput, isStep, makeEdgeId } from '../../shared/model.ts'
 import type { WorkflowDocument, WorkflowNode } from '../../shared/types.ts'
 import { alreadyWritten, findEdge } from './editor.ts'
 
@@ -23,15 +24,16 @@ import { alreadyWritten, findEdge } from './editor.ts'
  * 正在拖的是哪种线（按起点）：
  * `flow` 步骤右 → 找步骤；`write` 步骤底/上的写点 → 找文件；`read` 文件右 → 找步骤；
  * `back` 从步骤左边倒着拖 → 找步骤右 / 文件右；`writeBack` 从文件左边倒着拖 → 找步骤的写点；
- * `readBack` 从步骤的读点倒着拖 → 找文件。
+ * `readBack` 从步骤的读点倒着拖 → 找文件或输入；`ask` 输入右 → 找步骤。
  */
-export type DragKind = 'flow' | 'write' | 'read' | 'back' | 'writeBack' | 'readBack'
+export type DragKind = 'flow' | 'write' | 'read' | 'ask' | 'back' | 'writeBack' | 'readBack'
 
-export function dragKindOf(
-  fromFile: boolean,
-  handleId: string | null | undefined,
-): DragKind | null {
-  if (fromFile) {
+/** 拖线起点是哪种卡。 */
+export type CardKind = 'step' | 'file' | 'input'
+
+export function dragKindOf(from: CardKind, handleId: string | null | undefined): DragKind | null {
+  if (from === 'input') return handleId === 'out' ? 'ask' : null
+  if (from === 'file') {
     if (handleId === 'out') return 'read'
     if (handleId === 'in') return 'writeBack'
     return null
@@ -65,14 +67,16 @@ export function linkAllowed(doc: WorkflowDocument, link: HandleLink): boolean {
   if (source === undefined || target === undefined) return false
   const from = link.sourceHandle ?? ''
   const to = link.targetHandle ?? ''
+  if (isInput(target)) return false
+  if (isInput(source)) return FILE_OUT.has(from) && isStep(target) && STEP_READ.has(to)
   if (isFile(source)) return FILE_OUT.has(from) && !isFile(target) && STEP_READ.has(to)
   if (STEP_WRITE.has(from)) return isFile(target) && FILE_IN.has(to)
-  return from === 'out' && !isFile(target) && to === 'in'
+  return from === 'out' && isStep(target) && to === 'in'
 }
 
-/** 连上之后会是什么线：流程 / 产出 / 更新 / 读取；`exists` = 已经连着了，松手什么也不会变。 */
+/** 连上之后会是什么线：流程 / 产出 / 更新 / 读取 / 交回答；`exists` = 已经连着了，松手什么也不会变。 */
 export interface LinkPreview {
-  kind: 'flow' | 'produce' | 'update' | 'read'
+  kind: 'flow' | 'produce' | 'update' | 'read' | 'ask'
   source: WorkflowNode
   target: WorkflowNode
   exists: boolean
@@ -84,6 +88,7 @@ export function previewLink(doc: WorkflowDocument, link: HandleLink): LinkPrevie
   const source = index.get(idKey(link.source)) as WorkflowNode
   const target = index.get(idKey(link.target)) as WorkflowNode
   const exists = findEdge(doc, makeEdgeId(source.id, target.id)) !== undefined
+  if (isInput(source)) return { kind: 'ask', source, target, exists }
   if (isFile(source)) return { kind: 'read', source, target, exists }
   if (isFile(target)) {
     // 与编辑器的 `connect` 同一条规则：别人已经在写这份文件，再接上来默认是在原文件上更新。

@@ -276,6 +276,12 @@
 }
 
 /* 步骤库里的「文件」：文件卡的颜色。 */
+/* 输入的图标块：墨色（和交回答的线、画布上的输入卡同色）。 */
+.inputKind {
+  background: var(--wl-ask-soft);
+  color: var(--wl-io-ask);
+}
+
 .fileKind {
   background: var(--wl-file-soft);
   color: var(--wl-file);

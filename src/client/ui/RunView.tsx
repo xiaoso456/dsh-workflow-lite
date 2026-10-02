@@ -11,7 +11,7 @@
 import { useReactFlow } from '@xyflow/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { analyzeGraph } from '../../shared/graph.ts'
-import { isFile, isStep } from '../../shared/model.ts'
+import { isFile, isInput, isStep } from '../../shared/model.ts'
 import {
   graphFacts,
   type InstanceSummary,
@@ -25,7 +25,7 @@ import {
   type StateEdit,
   takenEdges,
 } from '../../shared/runState.ts'
-import type { FileNode, WorkflowDocument, WorkflowEntry } from '../../shared/types.ts'
+import type { FileNode, InputNode, WorkflowDocument, WorkflowEntry } from '../../shared/types.ts'
 import type { Desktop } from '../app/desktop.ts'
 import type { FileTarget } from '../app/useRunFile.ts'
 import { type Run, type Runs, useRun } from '../app/useRuns.ts'
@@ -43,6 +43,7 @@ import { Icon, type IconName } from './Icon.tsx'
 import css from './inspector.module.css'
 import { copyText, cx, Popover } from './primitives.tsx'
 import { RunFileDetail, StepFileList } from './RunFiles.tsx'
+import { RunInputDetail } from './RunInput.tsx'
 import run from './run.module.css'
 import shell from './shell.module.css'
 import top from './topbar.module.css'
@@ -281,6 +282,10 @@ export function RunView(props: RunViewProps): React.JSX.Element {
     selection?.kind === 'node'
       ? snapshot?.nodes.find((node): node is FileNode => node.id === selection.id && isFile(node))
       : undefined
+  const selectedInput =
+    selection?.kind === 'node'
+      ? snapshot?.nodes.find((node): node is InputNode => node.id === selection.id && isInput(node))
+      : undefined
   const menuNode = menu === null ? undefined : shown?.nodes[menu.id]
 
   return (
@@ -326,6 +331,7 @@ export function RunView(props: RunViewProps): React.JSX.Element {
             verdicts={facts?.verdicts ?? {}}
             selected={selectedNode}
             selectedFile={selectedFile ?? null}
+            selectedInput={selectedInput ?? null}
             desktop={props.desktop}
             onSelect={(nodeId) =>
               setSelection(nodeId === null ? null : { kind: 'node', id: nodeId })
@@ -757,13 +763,14 @@ function RunPanel(props: {
   verdicts: Readonly<Record<string, string[]>>
   selected: string | null
   selectedFile: FileNode | null
+  selectedInput: InputNode | null
   desktop: Desktop | undefined
   onSelect(id: string | null): void
   onRerun(id: string): void
   onFocusFile(id: string | null): void
   onView(target: FileTarget, title: string): void
 }): React.JSX.Element {
-  const { t, current, snapshot, selected, selectedFile } = props
+  const { t, current, snapshot, selected, selectedFile, selectedInput } = props
   const state = current.shown
   const summary = current.view?.summary
   const made = current.view?.files ?? {}
@@ -777,14 +784,27 @@ function RunPanel(props: {
       : id
   }
   const title =
-    selectedFile !== null
-      ? t('file.title')
-      : selected === null
-        ? t('run.overview')
-        : labelOf(selected)
-  const overview = selectedFile === null && selected === null && state !== null
+    selectedInput !== null
+      ? t('input.title')
+      : selectedFile !== null
+        ? t('file.title')
+        : selected === null
+          ? t('run.overview')
+          : labelOf(selected)
+  const overview =
+    selectedFile === null && selectedInput === null && selected === null && state !== null
   let body: React.ReactNode
-  if (selectedFile !== null) {
+  if (selectedInput !== null) {
+    body = (
+      <RunInputDetail
+        t={t}
+        snapshot={snapshot}
+        input={selectedInput}
+        answer={current.view?.answers?.[selectedInput.id]}
+        onSelectStep={props.onSelect}
+      />
+    )
+  } else if (selectedFile !== null) {
     body = (
       <RunFileDetail
         t={t}
@@ -862,7 +882,7 @@ function RunPanel(props: {
       aria-label={t('run.panel')}
     >
       <header className={css.head}>
-        {(selected !== null || selectedFile !== null) && (
+        {(selected !== null || selectedFile !== null || selectedInput !== null) && (
           <button
             type="button"
             className={cx(ui.btn, ui.icon, ui.small)}

@@ -46,6 +46,11 @@ export function snapshotFile(dataDir: string, id: string): string {
   return join(runDir(dataDir, id), 'graph.json')
 }
 
+/** 用户执行前对输入节点的回答（输入 id → 回答），和图快照放在一起。 */
+export function answersFile(dataDir: string, id: string): string {
+  return join(runDir(dataDir, id), 'inputs.json')
+}
+
 /** 实例目录：有工作区就放工作区（沙箱 `workspace-write` 档能写，执行者也找得到），否则退回数据目录。 */
 export function instanceDir(dataDir: string, id: string, cwd: string | undefined): string {
   return cwd === undefined ? runDir(dataDir, id) : join(cwd, WORKSPACE_RUNS_DIR, id)

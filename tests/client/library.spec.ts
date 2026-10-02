@@ -4,14 +4,16 @@ import { en, zh } from '../../src/client/i18n.ts'
 import {
   decodeStepSource,
   encodeStepSource,
-  kindOf,
+  INPUT_KIND_OPTIONS,
+  inputData,
   PRESETS,
   presetData,
   starterGraph,
 } from '../../src/client/model/library.ts'
+import { guessAppearance } from '../../src/shared/appearance.ts'
 import { isFile, isStep, makeEdgeId, outputSpecs } from '../../src/shared/model.ts'
 import { checkLabel, checkName, checkText } from '../../src/shared/naming.ts'
-import type { WorkflowDocument } from '../../src/shared/types.ts'
+import { INPUT_KINDS, type WorkflowDocument } from '../../src/shared/types.ts'
 import { validateDocument } from '../../src/shared/validate.ts'
 
 const t = (key: LocaleKey): string => zh[key]
@@ -20,6 +22,8 @@ describe('拖放载荷', () => {
   it('编码后能原样解回来', () => {
     for (const source of [
       { kind: 'blank' },
+      { kind: 'file' },
+      { kind: 'input' },
       { kind: 'preset', id: 'scan' },
       { kind: 'template', name: 'my-check' },
     ] as const) {
@@ -44,6 +48,13 @@ describe('拖放载荷', () => {
     ]) {
       expect(decodeStepSource(raw)).toBeNull()
     }
+  })
+})
+
+describe('用户输入', () => {
+  it('库里只有一个：拖出来是一句话，交互方式在属性面板里切换（四种都列得出）', () => {
+    expect(inputData(t)).toEqual({ question: zh['input.seed.text'] })
+    expect(INPUT_KIND_OPTIONS.map((option) => option.kind)).toEqual([...INPUT_KINDS])
   })
 })
 
@@ -74,10 +85,10 @@ describe('内置步骤', () => {
     }
   })
 
-  it('从 id 认种类：带序号的副本也认得', () => {
-    expect(kindOf('review')).toBe('review')
-    expect(kindOf('Review-3')).toBe('review')
-    expect(kindOf('something')).toBe('blank')
+  it('从 id 认样子：带序号的副本也认得', () => {
+    expect(guessAppearance('review')).toEqual({ icon: 'review', color: 'amber' })
+    expect(guessAppearance('Review-3')).toEqual({ icon: 'review', color: 'amber' })
+    expect(guessAppearance('something')).toEqual({ icon: 'blank', color: 'slate' })
   })
 
   it('示例流程的每条线都连着真实存在的步骤', () => {

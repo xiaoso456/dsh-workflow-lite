@@ -7,18 +7,15 @@
  * @module @xiaoso/dsh-workflow-lite/client/model/library
  */
 
-import type { Handoff, NodeData, WorkflowNode } from '../../shared/types.ts'
+import { presetAppearance } from '../../shared/appearance.ts'
+import type { Handoff, InputData, InputKind, NodeData, WorkflowNode } from '../../shared/types.ts'
 import { FILE_TYPE, NODE_TYPE } from '../../shared/types.ts'
 import type { LocaleKey, T } from '../i18n.ts'
 import { COL_STEP } from './layout.ts'
 
-/** 步骤的"种类"——只决定图标与色调，不进文档。 */
-export type StepKind = 'scan' | 'plan' | 'implement' | 'review' | 'fix' | 'report' | 'blank'
-
 export interface StepPreset {
   /** 建议的节点 id（撞名由 `uniqueNodeId` 加序号）。 */
   id: string
-  kind: StepKind
   labelKey: LocaleKey
   descKey: LocaleKey
   promptKey: LocaleKey
@@ -32,7 +29,6 @@ export interface StepPreset {
 export const PRESETS: readonly StepPreset[] = [
   {
     id: 'scan',
-    kind: 'scan',
     labelKey: 'preset.scan.label',
     descKey: 'preset.scan.desc',
     promptKey: 'preset.scan.prompt',
@@ -41,7 +37,6 @@ export const PRESETS: readonly StepPreset[] = [
   },
   {
     id: 'plan',
-    kind: 'plan',
     labelKey: 'preset.plan.label',
     descKey: 'preset.plan.desc',
     promptKey: 'preset.plan.prompt',
@@ -50,7 +45,6 @@ export const PRESETS: readonly StepPreset[] = [
   },
   {
     id: 'implement',
-    kind: 'implement',
     labelKey: 'preset.implement.label',
     descKey: 'preset.implement.desc',
     promptKey: 'preset.implement.prompt',
@@ -59,7 +53,6 @@ export const PRESETS: readonly StepPreset[] = [
   },
   {
     id: 'review',
-    kind: 'review',
     labelKey: 'preset.review.label',
     descKey: 'preset.review.desc',
     promptKey: 'preset.review.prompt',
@@ -68,7 +61,6 @@ export const PRESETS: readonly StepPreset[] = [
   },
   {
     id: 'fix',
-    kind: 'fix',
     labelKey: 'preset.fix.label',
     descKey: 'preset.fix.desc',
     promptKey: 'preset.fix.prompt',
@@ -77,7 +69,6 @@ export const PRESETS: readonly StepPreset[] = [
   },
   {
     id: 'report',
-    kind: 'report',
     labelKey: 'preset.report.label',
     descKey: 'preset.report.desc',
     promptKey: 'preset.report.prompt',
@@ -97,11 +88,38 @@ export type LibraryFocus =
 /** 空白步骤的建议 id。 */
 export const BLANK_ID = 'step'
 
+/** 输入节点的建议 id。 */
+export const INPUT_ID = 'ask'
+
+/**
+ * 输入的四种交互（呈现顺序）与文案。步骤库里只有一个「用户输入」，拖到画布上默认是一句话，
+ * 在属性面板里切换交互方式。
+ */
+export const INPUT_KIND_OPTIONS: readonly { kind: InputKind; labelKey: LocaleKey }[] = [
+  { kind: 'text', labelKey: 'input.kind.text' },
+  { kind: 'textarea', labelKey: 'input.kind.textarea' },
+  { kind: 'choice', labelKey: 'input.kind.choice' },
+  { kind: 'multi', labelKey: 'input.kind.multi' },
+]
+
+/** 交互方式的显示名。 */
+export function inputKindLabel(kind: InputKind): LocaleKey {
+  return INPUT_KIND_OPTIONS.find((option) => option.kind === kind)?.labelKey ?? 'input.kind.text'
+}
+
+/** 新输入节点的 `data`：一句话，带一个起手的问题（空问题挡编译）。 */
+export function inputData(t: T): InputData {
+  return { question: t('input.seed.text') }
+}
+
 /** 内置步骤实例化成节点的 `data`。 */
 export function presetData(preset: StepPreset, t: T): NodeData {
+  const look = presetAppearance(preset.id)
   return {
     label: t(preset.labelKey),
     description: t(preset.descKey),
+    icon: look.icon,
+    color: look.color,
     prompt: t(preset.promptKey),
     ...(preset.output === undefined
       ? {}
@@ -112,17 +130,6 @@ export function presetData(preset: StepPreset, t: T): NodeData {
               : preset.output,
         }),
   }
-}
-
-/**
- * 从节点 id 猜它的种类：`review`、`review-2` 都算 `review`。
- *
- * 文档里不存"种类"（一个节点就是 label / prompt / output），图标只是个认路的记号，
- * 猜不中就是通用图标，不影响任何行为。
- */
-export function kindOf(id: string): StepKind {
-  const base = id.toLowerCase().replace(/-\d+$/u, '')
-  return PRESETS.find((preset) => preset.id === base)?.kind ?? 'blank'
 }
 
 /**
@@ -199,6 +206,8 @@ export type StepSource =
   | { kind: 'blank' }
   /** 一张文件卡（不是步骤，但同样从库里拖、从菜单里加）。 */
   | { kind: 'file' }
+  /** 一个输入节点（执行前问用户的问题）。 */
+  | { kind: 'input' }
   | { kind: 'preset'; id: string }
   | { kind: 'template'; name: string }
 
@@ -232,6 +241,8 @@ export function decodeStepSource(raw: string | null | undefined): StepSource | n
       return { kind: 'blank' }
     case 'file':
       return { kind: 'file' }
+    case 'input':
+      return { kind: 'input' }
     case 'preset': {
       const id = text('id')
       return id === null ? null : { kind: 'preset', id }

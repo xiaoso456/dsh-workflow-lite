@@ -141,9 +141,12 @@ export function ZoomDock(props: {
   )
 }
 
-type LegendLine = 'always' | 'pass' | 'fail' | 'custom' | 'produce' | 'update' | 'read'
+type LegendLine = 'always' | 'pass' | 'fail' | 'custom' | 'produce' | 'update' | 'read' | 'ask'
 
-/** 图例里的七种线，按两组排：流程线的四种条件、读写线的三种。样本的线型、颜色、箭头与画布上一致。 */
+/**
+ * 图例里的八种线，按两组排：流程线的四种条件；读写线的三种加上交回答（输入 → 步骤）。
+ * 样本的线型、颜色、箭头与画布上一致。
+ */
 const LEGEND: readonly (readonly { key: LegendLine; label: LocaleKey; tip: LocaleKey }[])[] = [
   [
     { key: 'always', label: 'edge.always', tip: 'legend.alwaysTip' },
@@ -155,6 +158,7 @@ const LEGEND: readonly (readonly { key: LegendLine; label: LocaleKey; tip: Local
     { key: 'produce', label: 'file.produce', tip: 'legend.produceTip' },
     { key: 'update', label: 'file.update', tip: 'legend.updateTip' },
     { key: 'read', label: 'file.read', tip: 'legend.readTip' },
+    { key: 'ask', label: 'file.ask', tip: 'legend.askTip' },
   ],
 ]
 
@@ -192,7 +196,7 @@ function LegendSheet(props: { t: T }): React.JSX.Element {
   )
 }
 
-/** 左下角常驻的线条图例：七种线各一个小样本，悬停看一句解释；最后是入口 / 出口两种连接点。 */
+/** 左下角常驻的线条图例：八种线各一个小样本，悬停看一句解释；最后是入口 / 出口两种连接点。 */
 function LineLegend(props: { t: T }): React.JSX.Element {
   const { t } = props
   return (

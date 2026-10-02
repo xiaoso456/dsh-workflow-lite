@@ -7,9 +7,10 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/Icon
  */
 
-import type { StepKind } from '../model/library.ts'
+import type { StepIcon } from '../../shared/appearance.ts'
+import { STEP_ICON_PATHS } from './stepIcons.ts'
 
-const PATHS = {
+const BASE_PATHS = {
   chevronDown: 'M6 9l6 6 6-6',
   chevronLeft: 'M15 6l-6 6 6 6',
   chevronRight: 'M9 6l6 6-6 6',
@@ -51,14 +52,15 @@ const PATHS = {
   modeSubagent: 'M9 3h6v5H9zM3 16h5v5H3zM16 16h5v5h-5zM12 8v4M5.5 16v-4h13v4',
   modeTeam:
     'M9 11a3 3 0 100-6 3 3 0 000 6zM3 20c0-3 2.7-5 6-5s6 2 6 5M16 5.5a3 3 0 010 5.5M18 15c1.8.6 3 2.4 3 5',
-  // 步骤种类
-  scan: 'M11 18a7 7 0 100-14 7 7 0 000 14zM20 20l-4-4M8.5 11h5',
-  plan: 'M9 6h11M9 12h11M9 18h11M4 6h1M4 12h1M4 18h1',
-  implement: 'M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 5l-3 14',
-  review: 'M12 3l7 3v6c0 4-3 7.5-7 9-4-1.5-7-5-7-9V6zM9 12l2 2 4-4',
-  fix: 'M14.5 6.5a4 4 0 005 5L10 21l-3.5-3.5L16 8M14.5 6.5L17 4M6.5 17.5L9 20',
-  report: 'M7 3h7l4 4v14H7zM14 3v4h4M10 12h5M10 16h5',
-  blank: 'M5 5h14v14H5zM9 12h6M12 9v6',
+  // 输入节点：问用户（提问气泡），四种交互方式
+  ask: 'M5 5h14v10H10l-4 4v-4H5zM10 8.6a2 2 0 113 1.7c-.6.4-1 .8-1 1.4M12 12.9v.2',
+  inputText: 'M4 7h16v10H4zM8 10v4',
+  inputArea: 'M4 5h16v14H4zM8 9h8M8 12h8M8 15h5',
+  inputChoice:
+    'M7 9.5a2 2 0 100-4 2 2 0 000 4zM7 18.5a2 2 0 100-4 2 2 0 000 4zM12 7.5h8M12 16.5h8M7 8.2v-1.4',
+  inputMulti: 'M4 5h5v5H4zM5.4 7.6l1 1 1.6-2M4 14h5v5H4zM12 7.5h8M12 16.5h8',
+  palette:
+    'M12 3a9 9 0 000 18c1.1 0 1.6-.8 1.6-1.6 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-.9.7-1.6 1.6-1.6H16a5 5 0 005-5c0-4-4-7.4-9-7.4zM7.5 12h.01M9.5 8h.01M14.5 8h.01',
   // 运行状态
   clock: 'M12 21a9 9 0 100-18 9 9 0 000 18zM12 7.5V12l3 2',
   pause: 'M9 5v14M15 5v14',
@@ -75,6 +77,11 @@ const PATHS = {
   folderOpen: 'M3 7V5h6l2 2h8v3M3 7v12h15l3-9H6.5L3 19',
   circle: 'M12 20a8 8 0 100-16 8 8 0 000 16z',
 } as const
+
+const PATHS: Record<keyof typeof BASE_PATHS | StepIcon, string> = {
+  ...BASE_PATHS,
+  ...STEP_ICON_PATHS,
+}
 
 export type IconName = keyof typeof PATHS
 
@@ -96,9 +103,4 @@ export function Icon(props: { name: IconName; size?: number }): React.JSX.Elemen
       <path d={PATHS[props.name]} />
     </svg>
   )
-}
-
-/** 步骤种类对应的图标（种类名恰好就是图标名）。 */
-export function kindIcon(kind: StepKind): IconName {
-  return kind
 }

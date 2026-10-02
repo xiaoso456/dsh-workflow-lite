@@ -12,6 +12,7 @@ import { rmdir, stat } from 'node:fs/promises'
 import { dirname, isAbsolute, join } from 'node:path'
 import { Document, isSeq, parseDocument } from 'yaml'
 import { planIdOf } from '../../shared/compile.ts'
+import { checkAnswers, sameAnswers } from '../../shared/inputs.ts'
 import { isFile, isStep, readDocument, writeDocument } from '../../shared/model.ts'
 import { bindRoot, resolveOutputPath, rootOf, WORKSPACE_ROOT } from '../../shared/outputPaths.ts'
 import {
@@ -37,7 +38,12 @@ import {
   statusFields,
   validateRunState,
 } from '../../shared/runState.ts'
-import type { ExecutionMode, ValidationProblem, WorkflowDocument } from '../../shared/types.ts'
+import type {
+  ExecutionMode,
+  InputAnswer,
+  ValidationProblem,
+  WorkflowDocument,
+} from '../../shared/types.ts'
 import type { RunFileResponse } from '../../shared/wire.ts'
 import { type CompileBundle, compileDocument } from '../plan.ts'
 import {
@@ -50,6 +56,7 @@ import {
 import type { Outcome } from '../store/repository.ts'
 import { type RunFileTarget, readRunFile, resolveRunFile } from './files.ts'
 import {
+  answersFile,
   ensureWorkspaceIgnore,
   type InstanceIndex,
   InstanceStore,
@@ -349,6 +356,8 @@ export class RunService {
     document: WorkflowDocument
     session: SessionRef
     goal?: string
+    /** 用户对输入节点的回答（已核对、补上默认值）；没有输入节点就是空的。 */
+    answers?: Readonly<Record<string, InputAnswer>>
     /** 建状态文件（缺省按图的「记录运行状态」开关）。 */
     track?: boolean
     /** 复用本会话还没开始过的同一份实例（缺省复用；画布上点「执行」每次都是新的一次）。 */
@@ -365,7 +374,8 @@ export class RunService {
       if (
         current !== undefined &&
         current.workflow === input.workflow &&
-        current.planId === planIdOf(pinRoot(input.document, current.id))
+        current.planId === planIdOf(pinRoot(input.document, current.id)) &&
+        sameAnswers(await this.answersOf(current), input.answers ?? {})
       ) {
         const read = await this.readState(current)
         if (read.state?.status === 'pending' && read.state.log.length === 0) {
@@ -383,6 +393,10 @@ export class RunService {
     try {
       await ensureDir(runDir(dataDir, id))
       await writeFileAtomic(graph, writeDocument(snapshot))
+      const answers = input.answers ?? {}
+      if (Object.keys(answers).length > 0) {
+        await writeFileAtomic(answersFile(dataDir, id), `${JSON.stringify(answers, null, 2)}\n`)
+      }
       // 工作区里的隐藏目录：放一个忽略一切的 .gitignore，状态、任务描述与默认产出不进版本库。
       if (cwd !== undefined) await ensureWorkspaceIgnore(cwd)
       if (statePath !== undefined) {
@@ -426,6 +440,26 @@ export class RunService {
     return { ok: true, result: record }
   }
 
+  /** 实例建立时用户给的回答（没有输入节点、或文件不在时是空的）。 */
+  private async answersOf(record: InstanceRecord): Promise<Record<string, InputAnswer>> {
+    const text = await readFileText(answersFile(this.deps.dataDir(), record.id))
+    if (text === null) return {}
+    try {
+      const raw: unknown = JSON.parse(text)
+      if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return {}
+      const answers: Record<string, InputAnswer> = {}
+      for (const [key, value] of Object.entries(raw)) {
+        if (typeof value === 'string') answers[key] = value
+        else if (Array.isArray(value) && value.every((item) => typeof item === 'string')) {
+          answers[key] = value
+        }
+      }
+      return answers
+    } catch {
+      return {}
+    }
+  }
+
   /** 按实例的快照出计划，把任务描述写进实例目录。 */
   private async planOf(
     record: InstanceRecord,
@@ -440,6 +474,7 @@ export class RunService {
       this.problemsOf(document, record.workflow),
       {
         ...(record.goal === undefined ? {} : { goal: record.goal }),
+        answers: await this.answersOf(record),
         instance: {
           id: record.id,
           dir: instanceDir(this.deps.dataDir(), record.id, where),
@@ -460,13 +495,19 @@ export class RunService {
     problems: readonly ValidationProblem[]
     session: SessionRef
     goal?: string
+    /** 用户对输入节点的回答（输入 id → 回答）；没回答的用默认值。 */
+    answers?: unknown
   }): Promise<Outcome<InstancePlan | CompileBundle>> {
+    const answers = checkAnswers(input.document, input.answers)
+    if (answers.errors.length > 0) {
+      return fail('invalid_args', `answers 填得不对：${answers.errors.join('；')}`)
+    }
     const check = await compileDocument(
       this.deps.dataDir(),
       input.workflow,
       input.document,
       input.problems,
-      input.goal === undefined ? {} : { goal: input.goal },
+      { ...(input.goal === undefined ? {} : { goal: input.goal }), answers: answers.answers },
       input.session.cwd,
     )
     if (!check.ok || check.result.problems.length > 0) return check
@@ -475,6 +516,7 @@ export class RunService {
       document: input.document,
       session: input.session,
       ...(input.goal === undefined ? {} : { goal: input.goal }),
+      answers: answers.answers,
     })
     if (!prepared.ok) return prepared
     const resumed = await this.resume(prepared.result.id, input.session)
@@ -498,13 +540,19 @@ export class RunService {
     document: WorkflowDocument
     problems: readonly ValidationProblem[]
     session: SessionRef & { id: string }
+    /** 用户在「执行」前填的回答（输入 id → 回答）。 */
+    answers?: unknown
   }): Promise<Outcome<{ instance: InstanceSummary; prompt: string }>> {
+    const answers = checkAnswers(input.document, input.answers)
+    if (answers.errors.length > 0) {
+      return fail('invalid_args', answers.errors.join('；'))
+    }
     const compiled = await compileDocument(
       this.deps.dataDir(),
       input.workflow,
       input.document,
       input.problems,
-      {},
+      { answers: answers.answers },
       input.session.cwd,
     )
     if (!compiled.ok) return compiled
@@ -517,6 +565,7 @@ export class RunService {
       workflow: input.workflow,
       document: input.document,
       session: input.session,
+      answers: answers.answers,
       reuse: false,
     })
     if (!prepared.ok) return prepared
@@ -673,6 +722,7 @@ export class RunService {
         issues: read.text === null ? [] : read.issues,
         mtime: read.mtime,
         files,
+        answers: await this.answersOf(record),
       },
     }
   }
