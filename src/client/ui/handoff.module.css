@@ -2,7 +2,7 @@
  * dsh-workflow-lite — 交接与文件：属性面板里的文件清单 / 文件卡面板 / 交接开关，
  * 画布连线上的交接标记与悬停卡片。
  *
- * 颜色口径与画布上的线一致：产出 = 绿，在原文件上更新 = 琥珀，读取 = 青；执行结果 = 主色。
+ * 颜色口径与画布上的线一致：产出 = 金，在原文件上更新 = 洋红，读取 = 青；执行结果 = 主色。
  */
 
 /* ── 通用的小块 ───────────────────────────────────────────── */
@@ -99,7 +99,7 @@
   white-space: nowrap;
 }
 
-/* 与画布上那条线同色：产出绿、更新琥珀、读取青。 */
+/* 与画布上那条线同色：产出金、更新洋红、读取青。 */
 .access[data-access="produce"] {
   --wl-chip: var(--wl-io-produce);
 }
@@ -424,11 +424,11 @@
   align-items: center;
   height: 20px;
   padding: 0 6px;
-  border: 1px solid var(--wl-line-strong);
+  border: 1px solid color-mix(in srgb, var(--wl-chip) 45%, transparent);
   border-radius: 999px;
   background: var(--wl-panel);
-  /* 线上的东西和线同色：流程线是中性的，标记也是中性的；红线上就是红的。 */
-  color: var(--wl-text-2);
+  /* 线上的东西和线同色：`--wl-chip` 是它所在那条线的颜色。 */
+  color: var(--wl-chip);
   font: inherit;
   font-size: var(--wl-fs-micro);
   font-weight: 600;
@@ -445,23 +445,16 @@
   transform: scale(1.06);
 }
 
-.mark[data-fail="true"] {
-  border-color: color-mix(in srgb, var(--wl-danger) 45%, transparent);
-  color: var(--wl-danger);
-}
-
-/* 只管先后：灰的、虚线框。 */
+/* 只管先后：虚线框、字细一档（它什么都不交）。 */
 .mark[data-none="true"] {
   border-style: dashed;
-  color: var(--wl-text-3);
   font-weight: 500;
 }
 
 .mark[data-selected="true"] {
   border-style: solid;
-  border-color: var(--wl-accent);
-  background: var(--wl-accent-soft);
-  color: var(--wl-accent-text);
+  border-color: var(--wl-chip);
+  background: color-mix(in srgb, var(--wl-chip) 14%, var(--wl-panel));
 }
 
 /* 附了交接说明：右上角一个小点。 */

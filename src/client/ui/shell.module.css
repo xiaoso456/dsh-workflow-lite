@@ -8,7 +8,7 @@
  * 层级靠"面越高越亮 + 细描边 + 柔和阴影"给出。
  *
  * 色彩分工：界面本身是中性的石板灰 + 一支湛蓝强调色（按钮、选中、焦点）；画布上的颜色
- * 只用来说"数据怎么走"——产出绿、更新琥珀、读取青，步骤之间的流程线保持中性。
+ * 只用来说"线是哪一种"——流程线按条件（总是蓝、通过绿、未通过红、自定义紫），读写线按读写（产出金、更新洋红、读取青）。
  */
 
 .root {
@@ -43,18 +43,21 @@
   --wl-ok: light-dark(#167a54, #56d08e);
   --wl-ok-soft: light-dark(rgb(22 122 84 / 10%), rgb(86 208 142 / 15%));
 
-  /* 流程线（步骤 → 步骤）：中性，是图的骨架；和选中的步骤相连时加深。 */
-  --wl-flow: light-dark(#8b93a4, #697285);
-  --wl-flow-active: light-dark(#4a5263, #c4cbd6);
-
   /*
-   * 读写线（步骤 ↔ 文件）：三种各一色，借了代码评审里"新增 / 修改"的直觉——
-   * 产出 = 绿（新写一份）、更新 = 琥珀（在原文件上改）、读取 = 青（拿来用）。
-   * 这几个色也直接当文字色用（线上的小牌子、面板里的标签），亮色档都过 4.5:1。
+   * 线色：七种线各一色，谁也不和谁重样。
+   * - 流程线（步骤 → 步骤）按条件分：总是 = 蓝（主干）、通过 = 绿、未通过 = 红、自定义条件 = 紫。
+   * - 读写线（步骤 ↔ 文件）按读写分：产出 = 金（新的产物）、更新 = 洋红（在原文件上改）、读取 = 青。
+   * 两套主题各自按 OKLab 算过两两色差（正常视觉 ΔE 都 ≥ 13，同一组里的更大）；
+   * 色弱时红绿、蓝紫难分，所以每种线还有第二重记号：条件牌子、读取是虚线、更新两头有箭头。
+   * 这几个色也直接当文字色用（线上的牌子、面板里的标签），亮色档在白底上都过 4.5:1。
    */
-  --wl-io-produce: light-dark(#17824f, #4fd08f);
-  --wl-io-update: light-dark(#a96200, #f1b04a);
-  --wl-io-read: light-dark(#0b7c9c, #4ac6e6);
+  --wl-flow-always: light-dark(#1e59cd, #4f99f9);
+  --wl-flow-pass: light-dark(#1c882d, #5cdc78);
+  --wl-flow-fail: light-dark(#d73626, #ff7865);
+  --wl-flow-custom: light-dark(#9251cf, #d3adff);
+  --wl-io-produce: light-dark(#9d6b00, #f7cc4b);
+  --wl-io-update: light-dark(#b2268b, #ed62c1);
+  --wl-io-read: light-dark(#008295, #50d9ef);
 
   /*
    * 文件卡：纸面接近面板色（干净），靠左侧的类型签、折角和平铺的描边和步骤卡分开；
@@ -307,48 +310,60 @@
   background: var(--wl-hover);
 }
 
-.legendItem svg {
+/* 线的小样本（整排图例、收起后的图例单、按钮上的三道线共用）：颜色跟着 `data-line` 走。 */
+.legend svg,
+.legendRow svg {
   flex: none;
   overflow: visible;
 }
 
-.legendItem line {
+.dock [data-line] line,
+.dock line[data-line] {
   stroke: var(--wl-line-color);
   stroke-width: 1.8;
 }
 
-.legendItem path {
+.dock [data-line] path {
   fill: var(--wl-line-color);
 }
 
-.legendItem[data-line="flow"] {
-  --wl-line-color: var(--wl-flow-active);
+.dock [data-line="always"] {
+  --wl-line-color: var(--wl-flow-always);
 }
 
-.legendItem[data-line="produce"] {
+.dock [data-line="pass"] {
+  --wl-line-color: var(--wl-flow-pass);
+}
+
+.dock [data-line="fail"] {
+  --wl-line-color: var(--wl-flow-fail);
+}
+
+.dock [data-line="custom"] {
+  --wl-line-color: var(--wl-flow-custom);
+}
+
+.dock [data-line="produce"] {
   --wl-line-color: var(--wl-io-produce);
 }
 
-.legendItem[data-line="update"] {
+.dock [data-line="update"] {
   --wl-line-color: var(--wl-io-update);
 }
 
-.legendItem[data-line="read"] {
+.dock [data-line="read"] {
   --wl-line-color: var(--wl-io-read);
 }
 
-.legendItem[data-line="read"] line {
+.dock [data-line="read"] line,
+.dock line[data-line="read"] {
   stroke-dasharray: 4 3;
 }
 
-/* 连接点图例：空心圈 = 入口，实心点 = 出口。 */
+/* 连接点图例：空心圈 = 入口，实心点 = 出口。各种线都这样，所以样本用中性色。 */
 .legendItem[data-port] circle {
-  stroke: var(--wl-flow-active);
+  stroke: var(--wl-text-2);
   stroke-width: 1.8;
-}
-
-.legendItem[data-port="in"] {
-  margin-left: 6px;
 }
 
 .legendItem[data-port="in"] circle {
@@ -356,7 +371,75 @@
 }
 
 .legendItem[data-port="out"] circle {
-  fill: var(--wl-flow-active);
+  fill: var(--wl-text-2);
+}
+
+/* 三组（流程线 / 读写线 / 连接点）之间的一道细竖线。 */
+.legendSep {
+  width: 1px;
+  height: 14px;
+  margin: 0 4px;
+  background: var(--wl-line-strong);
+}
+
+/* 放不下整排图例时的收起形态：一个「图例」按钮（三道彩线 + 字），点开是一张图例单。 */
+.legendCompact {
+  display: none;
+}
+
+.legendToggle {
+  gap: 6px;
+  padding: 0 8px;
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-micro);
+}
+
+.legendToggle line[data-line] {
+  stroke-linecap: round;
+}
+
+.legendPop {
+  width: 344px;
+  padding: 10px 12px;
+}
+
+.legendGroup + .legendGroup {
+  margin-top: 8px;
+}
+
+.legendHead {
+  margin: 0 0 4px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+}
+
+.legendRow {
+  display: grid;
+  grid-template-columns: 20px 44px 1fr;
+  gap: 8px;
+  align-items: center;
+  min-height: 24px;
+  font-size: var(--wl-fs-micro);
+}
+
+.legendName {
+  color: var(--wl-text);
+  font-weight: 600;
+}
+
+.legendTip {
+  color: var(--wl-text-3);
+  line-height: 1.4;
+}
+
+.legendFoot {
+  margin: 8px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--wl-line);
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.5;
 }
 
 /* ── 提示条 / 轻提示 ──────────────────────────────────────── */
@@ -539,11 +622,48 @@
   word-break: break-word;
 }
 
-/* 放不下就收起图例（缩放条不能和右边的属性面板撞上）。 */
-@container (max-width: 980px) {
-  .legend,
-  .legendDivider {
+/*
+ * 整排图例放得下才摊开，放不下就收成「图例」按钮——缩放条不能伸到右侧面板底下。
+ * 门槛 = 缩放条连同整排图例约 770px + 左边的步骤库（开着时）+ 右边的面板（开着时，最宽 360px）+ 间距，
+ * 留了些余量给英文界面。
+ */
+@container (max-width: 840px) {
+  .legend {
     display: none;
+  }
+
+  .legendCompact {
+    display: inline-flex;
+  }
+}
+
+@container (max-width: 1080px) {
+  .root[data-library="open"] .legend {
+    display: none;
+  }
+
+  .root[data-library="open"] .legendCompact {
+    display: inline-flex;
+  }
+}
+
+@container (max-width: 1220px) {
+  .root[data-panel="open"] .legend {
+    display: none;
+  }
+
+  .root[data-panel="open"] .legendCompact {
+    display: inline-flex;
+  }
+}
+
+@container (max-width: 1460px) {
+  .root[data-library="open"][data-panel="open"] .legend {
+    display: none;
+  }
+
+  .root[data-library="open"][data-panel="open"] .legendCompact {
+    display: inline-flex;
   }
 }
 

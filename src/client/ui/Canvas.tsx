@@ -77,12 +77,25 @@ import {
   type StepSource,
 } from '../model/library.ts'
 import {
+  bezierBlocked,
+  FILE_SPOTS,
   fileLinkEnds,
+  flowBlocked,
+  flowPath,
+  freeLane,
+  LOOP_REACH,
+  nearestLane,
+  type OrthoRoute,
+  orthoRoute,
+  pointsBlocked,
   type Rect,
   routeFileLink,
   type Side,
   type Spot,
   STEP_SPOTS,
+  type StepFileHandle,
+  spotOf,
+  writePoints,
 } from '../model/route.ts'
 import css from './canvas.module.css'
 import { baseName, freeFilePath } from './Files.tsx'
@@ -90,6 +103,7 @@ import { FlowStreaks } from './FlowStreaks.tsx'
 import type { FocusFile } from './Handoff.tsx'
 import hand from './handoff.module.css'
 import { Icon, kindIcon } from './Icon.tsx'
+import { ACCESS_COLOR, type Access, WHEN_COLOR, type WhenKind, whenKind } from './lines.ts'
 import { cx, useFloat } from './primitives.tsx'
 import ui from './ui.module.css'
 
@@ -158,7 +172,8 @@ interface FileCardData extends Record<string, unknown> {
 }
 
 interface LinkData extends Record<string, unknown> {
-  when: string | undefined
+  /** 条件的种类：决定线色（见 lines.ts）。 */
+  when: WhenKind
   back: boolean
   text: string
   /** 只在不是缺省时画交接标记：附了说明，或只管先后。 */
@@ -167,14 +182,13 @@ interface LinkData extends Record<string, unknown> {
   route: string
   /** 和选中（或悬停）的东西相连：线上有光带沿着方向流动。只管先后的线不流动——它什么都不交。 */
   active: boolean
-  /** 这条线此刻的描边色（箭头、光带都用它，三者永远一致）。 */
+  /** 线色（按条件分，一个 `var(--wl-flow-…)`）：箭头、光带、光晕、线上的牌子都用它。 */
   color: string
+  /** 横着走的走廊 y（画布按卡片位置挑的）：往回走的线，或往右走却会压到卡片的线；其余是 `null`。 */
+  lane: number | null
   t: T
   onPick: (id: string) => void
 }
-
-/** 读写线的三种：整份写出 / 在原文件上更新 / 读取。颜色、线型、线上的小牌子都按它来。 */
-type Access = 'produce' | 'update' | 'read'
 
 interface FileLinkData extends Record<string, unknown> {
   kind: 'write' | 'read'
@@ -183,6 +197,8 @@ interface FileLinkData extends Record<string, unknown> {
   color: string
   /** 与选中 / 悬停的东西相连：描粗、加光晕、光带流动、中点挂上「产出 / 更新 / 读取」的小牌子。 */
   active: boolean
+  /** 平时的走法会压到别的卡片时，画布挑的绕行直角折线（含两头）；不用绕就是 `null`。 */
+  points: [number, number][] | null
   chipText: string
 }
 
@@ -203,13 +219,6 @@ const ACCESS_TEXT: Record<Access, LocaleKey> = {
   produce: 'file.produce',
   update: 'file.update',
   read: 'file.read',
-}
-
-/** 读写线的颜色：和面板里的小牌子、图例、悬停角色标同一套。 */
-const ACCESS_COLOR: Record<Access, string> = {
-  produce: 'var(--wl-io-produce)',
-  update: 'var(--wl-io-update)',
-  read: 'var(--wl-io-read)',
 }
 
 const ACCESS_ICON = { produce: 'pencil', update: 'reload', read: 'eye' } as const
@@ -276,7 +285,7 @@ const StepCard = memo(function StepCard(props: NodeProps<StepFlowNode>): React.J
         title={data.addText}
         onClick={(event) => data.onAdd(id, event.currentTarget)}
       />
-      {/* 底边偏右的方点：拖到文件卡上 = 写它；拖到空白处 = 就地新建一个产出文件。
+      {/* 底边偏左的方点（文件树的树干）：拖到文件卡上 = 写它；拖到空白处 = 就地新建一个产出文件。
           其余读写点平时不露，有线挂上才显示（线挂在哪个点上见 model/route.ts）。 */}
       <Handle
         id="file"
@@ -349,14 +358,86 @@ function roundedPath(points: readonly [number, number][]): string {
 }
 
 /**
+ * 写线：从步骤的写点竖着出去、横着进文件卡左边的直角折线（折点见 route.ts 的 `writePoints`）。
+ * @returns `[路径, 标签 x, 标签 y]`：标签落在竖段（树干）的中间，绕行时落在横走的那段中间。
+ */
+function writePath(
+  sourceX: number,
+  sourceY: number,
+  sourcePosition: Position,
+  targetX: number,
+  targetY: number,
+): [string, number, number] {
+  const points = writePoints(
+    { x: sourceX, y: sourceY, side: sourcePosition === Position.Top ? 'top' : 'bottom' },
+    { x: targetX, y: targetY },
+    FILE_H,
+  )
+  const path = roundedPath(points)
+  if (points.length === 3) return [path, sourceX, (sourceY + targetY) / 2]
+  const [ax, ay] = points[1] as [number, number]
+  const [bx] = points[2] as [number, number]
+  return [path, (ax + bx) / 2, ay]
+}
+
+/**
+ * 画布挑好的绕行折线（见 route.ts 的 `orthoRoute`）：两头换成 React Flow 量出来的连接点坐标
+ * （和按卡片尺寸算的可能差一两个像素），伸出去的那一小段跟着对齐，线才严丝合缝地接在点上。
+ * @returns `[路径, 标签 x, 标签 y]`：标签落在最长那一段的中间。
+ */
+function routedPath(
+  points: readonly [number, number][],
+  sourceX: number,
+  sourceY: number,
+  targetX: number,
+  targetY: number,
+): [string, number, number] {
+  const fixed = points.map((point) => [...point] as [number, number])
+  const snap = (end: number, next: number, x: number, y: number): void => {
+    const at = fixed[end] as [number, number]
+    const near = fixed[next] as [number, number] | undefined
+    if (near !== undefined) {
+      // 伸出去的那段是竖的就对齐 x，横的就对齐 y。
+      if (near[0] === at[0]) near[0] = x
+      else near[1] = y
+    }
+    fixed[end] = [x, y]
+  }
+  snap(0, 1, sourceX, sourceY)
+  snap(fixed.length - 1, fixed.length - 2, targetX, targetY)
+  let best = 0
+  let mid: [number, number] = [sourceX, sourceY]
+  for (let index = 1; index < fixed.length; index += 1) {
+    const [ax, ay] = fixed[index - 1] as [number, number]
+    const [bx, by] = fixed[index] as [number, number]
+    const length = Math.abs(bx - ax) + Math.abs(by - ay)
+    if (length > best) {
+      best = length
+      mid = [(ax + bx) / 2, (ay + by) / 2]
+    }
+  }
+  return [roundedPath(fixed), mid[0], mid[1]]
+}
+
+/** 往回走的线从哪儿开始找走廊：两张卡上下错开时从两行中间找，挨在同一行时从两张卡下方找。 */
+function laneStart(sy: number, ty: number): number {
+  return Math.abs(ty - sy) > NODE_H + 40 ? (sy + ty) / 2 : Math.max(sy, ty) + NODE_H / 2 + 18
+}
+
+/**
  * 往回走的线：从出口向右伸出去，拐到一条横向"走廊"上走回来，再从左边进入目标。
- * 两张卡上下错开时走廊在两行中间；挨在同一行时走廊在两张卡下方。
+ * 走廊由画布按卡片的位置挑（`freeLane`：不压到任何卡片，包括步骤下面挂着的文件卡）；
+ * 右边那条竖段让过出口下面那串文件卡多伸出来的一截。
  * @returns `[路径, 标签 x, 标签 y]`（标签落在走廊正中）。
  */
-function detour(sx: number, sy: number, tx: number, ty: number): [string, number, number] {
-  const apart = Math.abs(ty - sy) > NODE_H + 40
-  const lane = apart ? (sy + ty) / 2 : Math.max(sy, ty) + NODE_H / 2 + 44
-  const right = sx + ROUTE_PAD
+function detour(
+  sx: number,
+  sy: number,
+  tx: number,
+  ty: number,
+  lane: number,
+): [string, number, number] {
+  const right = sx + LOOP_REACH
   const left = tx - ROUTE_PAD
   const path = roundedPath([
     [sx, sy],
@@ -370,48 +451,91 @@ function detour(sx: number, sy: number, tx: number, ty: number): [string, number
   return [path, left + (right - left) * 0.3, lane]
 }
 
+/**
+ * 往右走、但贝塞尔会压到中间某张卡片的线（跨列的线最常见）：改走直角，先横着出去到列间的空当，
+ * 竖着到一条不压卡片的走廊，横着过去，再竖着对齐入口进去。
+ * @returns `[路径, 标签 x, 标签 y]`（标签落在走廊正中）。
+ */
+function bypass(
+  sx: number,
+  sy: number,
+  tx: number,
+  ty: number,
+  lane: number,
+): [string, number, number] {
+  const right = sx + LOOP_REACH
+  const left = tx - ROUTE_PAD
+  const points: [number, number][] = [
+    [sx, sy],
+    [right, sy],
+    [right, lane],
+    [left, lane],
+    [left, ty],
+    [tx, ty],
+  ]
+  // 走廊正好和某一头齐平时，那一头的拐弯就省掉（不留零长的段）。
+  const kept = points.filter((point, index) => {
+    const previous = points[index - 1]
+    const next = points[index + 1]
+    if (previous === undefined || next === undefined) return true
+    const straight =
+      (previous[0] === point[0] && point[0] === next[0]) ||
+      (previous[1] === point[1] && point[1] === next[1])
+    return !straight
+  })
+  return [roundedPath(kept), (right + left) / 2, lane]
+}
+
 const LinkLine = memo(function LinkLine(props: EdgeProps<LinkEdge>): React.JSX.Element {
-  const {
-    id,
-    data,
-    markerEnd,
-    sourceX,
-    sourceY,
-    targetX,
-    targetY,
-    sourcePosition,
-    targetPosition,
-  } = props
+  const { id, data, markerEnd, sourceX, sourceY, targetX, targetY } = props
   // 往回走的线（循环、或终点在起点左边）用圆角折线绕开卡片；贝塞尔在这种时候会拧成一个结。
   const backwards = targetX < sourceX + 8
+  const lane = data?.lane ?? null
   const [path, labelX, labelY] = backwards
-    ? detour(sourceX, sourceY, targetX, targetY)
-    : getBezierPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition })
+    ? detour(sourceX, sourceY, targetX, targetY, lane ?? laneStart(sourceY, targetY))
+    : lane === null
+      ? flowPath(sourceX, sourceY, targetX, targetY)
+      : bypass(sourceX, sourceY, targetX, targetY, lane)
   const text = data?.text ?? ''
   const showWhen = text !== '' || data?.back === true
   const handoff = data?.handoff ?? null
+  const color = data?.color ?? WHEN_COLOR.always
   return (
     <>
-      <BaseEdge id={id} path={path} interactionWidth={28} {...(markerEnd ? { markerEnd } : {})} />
+      <path
+        d={path}
+        className={css.halo}
+        data-active={data?.active === true}
+        style={{ stroke: color }}
+      />
+      <BaseEdge
+        id={id}
+        path={path}
+        interactionWidth={28}
+        style={{ stroke: color }}
+        {...(markerEnd ? { markerEnd } : {})}
+      />
       {data !== undefined && (
-        <FlowStreaks
-          path={path}
-          color={data.color}
-          active={data.active && handoff?.none !== true}
-        />
+        <FlowStreaks path={path} color={color} active={data.active && handoff?.none !== true} />
       )}
       {(showWhen || handoff !== null) && data !== undefined && (
         <EdgeLabelRenderer>
-          {/* 条件在上、交接在下，竖着叠在线的中点：两张卡之间的空隙放不下横排的两块。 */}
+          {/* 条件在上、交接在下，竖着叠在线的中点：两张卡之间的空隙放不下横排的两块。
+              两块都和线同色。 */}
           <div
             className={cx(css.linkLabels, 'nodrag', 'nopan')}
-            style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
+            style={
+              {
+                transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
+                '--wl-chip': color,
+              } as React.CSSProperties
+            }
           >
             {showWhen && (
               <button
                 type="button"
                 className={css.linkLabel}
-                data-when={data.when === 'pass' || data.when === 'fail' ? data.when : 'other'}
+                data-when={data.when}
                 data-selected={props.selected === true}
                 onClick={() => data.onPick(id)}
               >
@@ -427,7 +551,6 @@ const LinkLine = memo(function LinkLine(props: EdgeProps<LinkEdge>): React.JSX.E
             )}
             {handoff !== null && (
               <HandoffMark
-                fail={data.when === 'fail'}
                 edgeId={id}
                 handoff={handoff}
                 route={data.route}
@@ -450,11 +573,10 @@ const MARK_CARD_W = 300
 
 /**
  * 步骤之间的线上的交接标记——只在不是缺省时出现（缺省就是交执行结果，画出来只会满屏都是）：
- * 附了交接说明是一个对话气泡（悬停看说明），只管先后是一个「只管先后」的灰标。点它选中这条线。
+ * 附了交接说明是一个对话气泡（悬停看说明），只管先后是一个虚线框的「只管先后」。点它选中这条线。
+ * 颜色跟着线走（父层给的 `--wl-chip`）。
  */
 function HandoffMark(props: {
-  /** 在「未通过」的红线上：标记也跟着线变红（线上的东西和线同色）。 */
-  fail: boolean
   edgeId: string
   handoff: { note?: string; none: boolean }
   route: string
@@ -475,7 +597,6 @@ function HandoffMark(props: {
         type="button"
         className={hand.mark}
         data-none={handoff.none}
-        data-fail={props.fail}
         data-selected={props.selected}
         data-open={float.state !== 'off'}
         data-testid="wl-handoff-mark"
@@ -563,26 +684,12 @@ const FileCard = memo(function FileCard(props: NodeProps<FileFlowNode>): React.J
       onPointerEnter={() => data.onFocusFile(id)}
       onPointerLeave={() => data.onFocusFile(null)}
     >
-      {/* 上边接写入（步骤从底边拖下来），右边拖出去是读取。 */}
+      {/* 和步骤卡一样左进右出：左边接写入（写线从步骤的写点落下来、横着进来），右边拖出去是读取。 */}
       <Handle
         id="in"
         type="target"
-        position={Position.Top}
-        className={cx(css.handle, css.handleIn, css.hFileIn)}
-      />
-      <Handle
-        id="inBottom"
-        type="target"
-        position={Position.Bottom}
-        className={cx(css.handle, css.handleIn, css.hFileInBottom, css.handleAux)}
-        data-used={data.used.includes('inBottom')}
-      />
-      <Handle
-        id="outLeft"
-        type="source"
         position={Position.Left}
-        className={cx(css.handle, css.handleOut, css.handleReadLeft, css.handleAux)}
-        data-used={data.used.includes('outLeft')}
+        className={cx(css.handle, css.handleIn, css.hFileIn)}
       />
       <FileTab name={data.name} />
       <span className={css.fileText}>
@@ -629,22 +736,36 @@ function rectOf(node: InternalNode | undefined, width: number, height: number): 
 /**
  * 读写线：「左右走流程，上下走文件」——两头都落在真实的连接点上；挂哪个点由画布按两张卡
  * 当下的位置挑（见 `route.ts`），拖动卡片时线会跟着换到合适的点。
- * 三种各有颜色与线型：产出 = 绿色实线，在原文件上更新 = 琥珀色实线、两头箭头，读取 = 青色虚线。
+ * 三种各有颜色与线型：产出 = 金色实线，在原文件上更新 = 洋红实线、两头箭头，读取 = 青色虚线。
  * 与选中的东西相连时描粗、加光晕、光带按数据方向流动，中点挂一个小牌子写明是哪种。
  */
 const FileLine = memo(function FileLine(props: EdgeProps<FileEdge>): React.JSX.Element {
   const { id, data, markerEnd, markerStart } = props
-  const [path, labelX, labelY] = getBezierPath(props)
+  // 写线走直角（文件挂在步骤下面，几条写线共用一根树干再分叉）；读线是贝塞尔曲线。
+  const points = data?.points ?? null
+  const [path, labelX, labelY] =
+    points !== null
+      ? routedPath(points, props.sourceX, props.sourceY, props.targetX, props.targetY)
+      : data?.kind === 'write'
+        ? writePath(
+            props.sourceX,
+            props.sourceY,
+            props.sourcePosition,
+            props.targetX,
+            props.targetY,
+          )
+        : getBezierPath(props)
   const active = data?.active === true
-  const color = data?.color ?? 'var(--wl-flow)'
+  const color = data?.color ?? ACCESS_COLOR.produce
   return (
     <>
       {/* 光晕常驻、平时透明：活起来时淡入，不活了淡出，不会一闪而现。 */}
-      <path d={path} className={css.fileHalo} data-active={active} style={{ stroke: color }} />
+      <path d={path} className={css.halo} data-active={active} style={{ stroke: color }} />
       <BaseEdge
         id={id}
         path={path}
         interactionWidth={20}
+        style={{ stroke: color }}
         {...(markerEnd ? { markerEnd } : {})}
         {...(markerStart ? { markerStart } : {})}
       />
@@ -678,9 +799,9 @@ interface DragContext {
 
 const DragInfo = createContext<DragContext | null>(null)
 
-/** 各种线的颜色（流程线拖的时候用强调色，和选中的流程线一致）。 */
+/** 连上后那种线的颜色（新连的流程线没有条件，就是「总是」的蓝）。 */
 const PREVIEW_COLOR: Record<LinkPreview['kind'], string> = {
-  flow: 'var(--wl-accent)',
+  flow: WHEN_COLOR.always,
   ...ACCESS_COLOR,
 }
 
@@ -711,7 +832,7 @@ const DRAG_HINT: Record<DragKind, LocaleKey> = {
 function dragColor(kind: DragKind | null): string {
   if (kind === 'write' || kind === 'writeBack') return ACCESS_COLOR.produce
   if (kind === 'read' || kind === 'readBack') return ACCESS_COLOR.read
-  return 'var(--wl-accent)'
+  return WHEN_COLOR.always
 }
 
 function nodeName(node: WorkflowNode): string {
@@ -769,24 +890,34 @@ function ConnectionLine(props: ConnectionLineComponentProps<FlowNode>): React.JS
       ends = fileLinkEnds(preview.kind === 'read' ? 'read' : 'write', step, file)
     }
   }
-  const [path] =
-    ends === null
-      ? getBezierPath({
-          sourceX: props.fromX,
-          sourceY: props.fromY,
-          sourcePosition: props.fromPosition,
-          targetX: props.toX,
-          targetY: props.toY,
-          targetPosition: props.toPosition,
-        })
-      : getBezierPath({
-          sourceX: ends.from.x,
-          sourceY: ends.from.y,
-          sourcePosition: SIDE_POSITION[ends.from.side],
-          targetX: ends.to.x,
-          targetY: ends.to.y,
-          targetPosition: SIDE_POSITION[ends.to.side],
-        })
+  let path: string
+  if (ends === null) {
+    ;[path] = getBezierPath({
+      sourceX: props.fromX,
+      sourceY: props.fromY,
+      sourcePosition: props.fromPosition,
+      targetX: props.toX,
+      targetY: props.toY,
+      targetPosition: props.toPosition,
+    })
+  } else if (preview?.kind === 'read') {
+    ;[path] = getBezierPath({
+      sourceX: ends.from.x,
+      sourceY: ends.from.y,
+      sourcePosition: SIDE_POSITION[ends.from.side],
+      targetX: ends.to.x,
+      targetY: ends.to.y,
+      targetPosition: SIDE_POSITION[ends.to.side],
+    })
+  } else {
+    ;[path] = writePath(
+      ends.from.x,
+      ends.from.y,
+      SIDE_POSITION[ends.from.side],
+      ends.to.x,
+      ends.to.y,
+    )
+  }
   const color = preview === null ? dragColor(kind) : PREVIEW_COLOR[preview.kind]
   // 预告条的落点：落到卡片上时居中贴在那张卡的上方（不挡卡片内容）；否则在指针正上方。
   const target =
@@ -875,6 +1006,8 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
   const wrapRef = useRef<HTMLDivElement>(null)
   const ghostRef = useRef<HTMLDivElement>(null)
   const [dropping, setDropping] = useState(false)
+  /** 卡片尺寸量出来 / 变了就加一：线的走法要按真实尺寸重算。 */
+  const [sized, setSized] = useState(0)
   /** 拖动中的临时坐标（松手才写进文档）。 */
   const [dragging, setDragging] = useState<Record<string, Point>>({})
   const draggingRef = useRef(dragging)
@@ -1012,6 +1145,11 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
     }
     const handles = new Map<string, { source: string; target: string }>()
     const used = new Map<string, string[]>()
+    const lanes = new Map<string, number>()
+    /** 改走绕行直角折线的读写线：折点（含两头）。 */
+    const bends = new Map<string, [number, number][]>()
+    const rects = new Map(doc.nodes.map((node) => [idKey(node.id), rectFor(node)]))
+    const boxes = [...rects.values()]
     const mark = (nodeId: string, handle: string): void => {
       const list = used.get(idKey(nodeId)) ?? []
       if (!list.includes(handle)) list.push(handle)
@@ -1019,24 +1157,74 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
     }
     for (const edge of doc.edges) {
       const kind = edgeKind(index, edge)
+      if (kind === 'flow') {
+        // 往回走的线（终点在出口左边）：挑一条不压到任何卡片的走廊。
+        const from = rects.get(idKey(edge.source))
+        const to = rects.get(idKey(edge.target))
+        if (from === undefined || to === undefined) continue
+        const sx = from.x + from.w
+        const sy = from.y + from.h / 2
+        const ty = to.y + to.h / 2
+        if (to.x >= sx + 8) {
+          // 往右走：贝塞尔压到中间的卡片（跨列时常见）才改走直角，挑离终点那一行最近的走廊。
+          const others = boxes.filter((box) => box !== from && box !== to)
+          if (flowBlocked(others, sx, sy, to.x, ty)) {
+            lanes.set(edge.id, nearestLane(others, sx + LOOP_REACH, to.x - ROUTE_PAD, ty))
+          }
+          continue
+        }
+        lanes.set(edge.id, freeLane(boxes, to.x - ROUTE_PAD, sx + LOOP_REACH, laneStart(sy, ty)))
+        continue
+      }
       if (kind !== 'write' && kind !== 'read') continue
       const stepId = kind === 'write' ? edge.source : edge.target
       const fileId = kind === 'write' ? edge.target : edge.source
-      const step = index.get(idKey(stepId))
-      const file = index.get(idKey(fileId))
-      if (step === undefined || file === undefined) continue
-      const route = routeFileLink(kind, rectFor(step), rectFor(file))
+      const stepBox = rects.get(idKey(stepId))
+      const fileBox = rects.get(idKey(fileId))
+      if (stepBox === undefined || fileBox === undefined) continue
+      const route = routeFileLink(kind, stepBox, fileBox)
+      let stepHandle: StepFileHandle = route.step
+      // 平时的走法（写 = 树干直角，读 = 贝塞尔）压到别的卡片时，改走绕开卡片的直角折线；
+      // 上下两个点都试一试，挑便宜的那条。
+      const skip = [stepBox, fileBox]
+      const fileEnd = spotOf(fileBox, FILE_SPOTS[route.file])
+      const stepEnd = spotOf(stepBox, STEP_SPOTS[route.step])
+      const simple = kind === 'write' ? writePoints(stepEnd, fileEnd, fileBox.h) : null
+      const blocked =
+        simple === null
+          ? fileBox.x + fileBox.w / 2 > stepBox.x + stepBox.w / 2 ||
+            bezierBlocked(fileEnd, stepEnd, boxes, skip)
+          : simple.length !== 3 || pointsBlocked(simple, boxes, skip)
+      if (blocked) {
+        const options: StepFileHandle[] =
+          kind === 'write' ? ['file', 'fileUp'] : ['read', 'readTop']
+        let best: { handle: StepFileHandle; route: OrthoRoute } | null = null
+        for (const handle of options) {
+          const end = spotOf(stepBox, STEP_SPOTS[handle])
+          const found =
+            kind === 'write'
+              ? orthoRoute(end, fileEnd, boxes, stepBox, fileBox)
+              : orthoRoute(fileEnd, end, boxes, fileBox, stepBox)
+          if (found !== null && (best === null || found.cost < best.route.cost)) {
+            best = { handle, route: found }
+          }
+        }
+        if (best !== null) {
+          stepHandle = best.handle
+          bends.set(edge.id, best.route.points)
+        }
+      }
       handles.set(
         edge.id,
         kind === 'write'
-          ? { source: route.step, target: route.file }
-          : { source: route.file, target: route.step },
+          ? { source: stepHandle, target: route.file }
+          : { source: route.file, target: stepHandle },
       )
-      mark(stepId, route.step)
+      mark(stepId, stepHandle)
       mark(fileId, route.file)
     }
-    return { handles, used }
-  }, [doc, dragging])
+    return { handles, used, lanes, bends }
+  }, [doc, dragging, sized])
 
   const nodes = useMemo<FlowNode[]>(() => {
     const next = new Map<string, CacheEntry>()
@@ -1181,8 +1369,6 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
           className: cx(
             css.fileLink,
             access === 'read' && css.fileLinkRead,
-            access === 'update' && css.fileLinkUpdate,
-            access === 'produce' && css.fileLinkProduce,
             active && css.linkActive,
             dim && css.linkDim,
           ),
@@ -1191,20 +1377,22 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
           ...(access === 'update'
             ? { markerStart: { ...arrow, orient: 'auto-start-reverse' } }
             : {}),
-          data: { kind, access, color, active, chipText: texts[access] },
+          data: {
+            kind,
+            access,
+            color,
+            active,
+            chipText: texts[access],
+            points: routes.bends.get(edge.id) ?? null,
+          },
         }
       }
       const when = whenOf(edge)
+      const mode = whenKind(when)
       const back = analysis.backEdges.has(edge.id)
       const handoff = resolveHandoff(edge.data?.handoff)
-      // 步骤之间的线是中性色：颜色留给文件的读写；只有「未通过」的回退线标红。
-      const color = selected
-        ? 'var(--wl-accent)'
-        : when === 'fail'
-          ? 'var(--wl-danger)'
-          : active
-            ? 'var(--wl-flow-active)'
-            : 'var(--wl-flow)'
+      // 线色只看条件：选中 / 悬停时描粗、加光晕，不换色——一条线从头到尾就是那一个颜色。
+      const color = WHEN_COLOR[mode]
       return {
         id: edge.id,
         type: 'wfEdge',
@@ -1215,7 +1403,6 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
         selected,
         className: cx(
           css.link,
-          when === 'fail' && css.linkFail,
           back && css.linkBack,
           !handoff.result && css.linkOrderOnly,
           active && css.linkActive,
@@ -1224,7 +1411,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
         // 箭头颜色传 CSS 变量：React Flow 把它写进箭头的内联样式，跟着主题与语气走。
         markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color },
         data: {
-          when,
+          when: mode,
           back,
           text: when === 'pass' ? texts.pass : when === 'fail' ? texts.fail : (when ?? ''),
           handoff:
@@ -1237,6 +1424,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
           route: `${nameOf(edge.source)} → ${nameOf(edge.target)}`,
           active,
           color,
+          lane: routes.lanes.get(edge.id) ?? null,
           t,
           onPick,
         },
@@ -1252,10 +1440,19 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
   const onNodesChange = useCallback(
     (changes: NodeChange<FlowNode>[]): void => {
       let moved: Record<string, Point> | null = null
+      let resized = false
       const settled: Record<string, Point> = {}
       let finished = false
       for (const change of changes) {
         if (change.type === 'dimensions' && change.dimensions !== undefined) {
+          const before = measured.current.get(change.id)
+          if (
+            before === undefined ||
+            Math.abs(before.width - change.dimensions.width) > 0.5 ||
+            Math.abs(before.height - change.dimensions.height) > 0.5
+          ) {
+            resized = true
+          }
           measured.current.set(change.id, change.dimensions)
           continue
         }
@@ -1267,6 +1464,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
           moved = { ...(moved ?? draggingRef.current), [change.id]: change.position }
         }
       }
+      if (resized) setSized((count) => count + 1)
       if (finished) {
         // 松手：把这次拖拽的终点一次写进文档，同一批里清掉临时坐标。
         onEdit({ type: 'moveNodes', positions: { ...draggingRef.current, ...settled } })
@@ -1418,7 +1616,8 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
               onEdit({
                 type: 'addFile',
                 path: freeFilePath(docRef.current, `${state.fromNode.id}.md`),
-                position: { x: at.x - FILE_W / 2, y: at.y },
+                // 松手处就是新文件卡左边的入口：线落在哪，卡就从哪接上。
+                position: { x: at.x, y: at.y - FILE_H / 2 },
                 writer: state.fromNode.id,
                 select: true,
               })

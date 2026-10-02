@@ -134,6 +134,8 @@ export default defineConfig([
     ],
     outputOptions: {
       entryFileNames: 'client.js',
+      // 模块加载器只认这一个文件：按需 import() 的模块（ELK）也内联进来，不拆出单独的块。
+      codeSplitting: false,
       banner: `window.__ModuleLoader__.load({ id: ${JSON.stringify(ID)}, factory: (require) => {`,
       footer: 'return module.exports; } });',
       intro: 'var module = { exports: {} }; var exports = module.exports;',

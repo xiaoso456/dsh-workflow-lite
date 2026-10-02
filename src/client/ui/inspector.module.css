@@ -233,20 +233,23 @@
   white-space: nowrap;
   padding: 1px 7px;
   border-radius: 999px;
-  background: var(--wl-fill);
-  color: var(--wl-text-2);
+  background: color-mix(in srgb, var(--wl-chip) 12%, var(--wl-panel));
+  color: var(--wl-chip);
   font-size: var(--wl-fs-micro);
   font-weight: 600;
 }
 
+/* 和画布上那条线同色。 */
 .whenChip[data-when="pass"] {
-  background: var(--wl-ok-soft);
-  color: var(--wl-ok);
+  --wl-chip: var(--wl-flow-pass);
 }
 
 .whenChip[data-when="fail"] {
-  background: var(--wl-danger-soft);
-  color: var(--wl-danger);
+  --wl-chip: var(--wl-flow-fail);
+}
+
+.whenChip[data-when="custom"] {
+  --wl-chip: var(--wl-flow-custom);
 }
 
 .foot {

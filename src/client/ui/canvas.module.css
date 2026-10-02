@@ -173,10 +173,10 @@
 
 /*
  * 入口 = 空心圈（线从这里进来），出口 = 实心点（从这里拖出去）。颜色说明它管哪种线：
- * - 步骤左（入口）/ 右（出口）：流程，中性色；
- * - 步骤底边偏右的方点（出口）：写文件，产出绿——平时藏着，悬停 / 选中 / 挂着线时才露；
- * - 文件上沿（入口）：被写入，产出绿；文件右侧（出口）：被读取，读取青。
- * 另有几个备用点（步骤上边的写点、步骤上下边偏左的读点、文件下沿与左侧）：只有线挂上去才显示——
+ * - 步骤左（入口）/ 右（出口）：流程，「总是」的蓝；
+ * - 步骤底边偏左的方点（出口）：写文件，产出金——平时藏着，悬停 / 选中 / 挂着线时才露；
+ * - 文件卡和步骤卡一样左进右出：左边（入口）被写入，产出金；右边（出口）被读取，读取青。
+ * 另有几个备用点（步骤上边的写点、步骤上下边贴左角的读点）：只有线挂上去才显示——
  * 每条读写线都落在一个真实的点上，挂哪个由画布按两张卡的位置挑（见 model/route.ts）。
  * 命中区 20px、画出来的点 10px。连接点自己的 transform 归 React Flow 定位用，动效做在伪元素上。
  */
@@ -214,23 +214,19 @@
   background: var(--wl-h);
 }
 
-.hStepIn {
-  --wl-h: var(--wl-flow);
-}
-
+/* 步骤的左右两点接流程线：用主干「总是」的蓝（各种条件的线都从这两个点进出）。 */
+.hStepIn,
 .handleSource {
-  --wl-h: var(--wl-flow-active);
+  --wl-h: var(--wl-flow-always);
 }
 
 .handleFile,
 .handleFileUp,
-.hFileIn,
-.hFileInBottom {
+.hFileIn {
   --wl-h: var(--wl-io-produce);
 }
 
 .handleRead,
-.handleReadLeft,
 .hRead,
 .hReadTop {
   --wl-h: var(--wl-io-read);
@@ -335,7 +331,8 @@
 }
 
 /* 扩大了命中区的点：把画出来的圆点放回卡片边上（命中区比卡片四周各大 12px）。 */
-.wrap[data-drag] .hStepIn:not(:global(.connectingfrom))::after {
+.wrap[data-drag] .hStepIn:not(:global(.connectingfrom))::after,
+.wrap[data-drag] .hFileIn:not(:global(.connectingfrom))::after {
   inset: calc(50% - 5px) auto auto 7px;
   width: 10px;
   height: 10px;
@@ -344,12 +341,6 @@
 .wrap[data-drag] .handleSource:not(:global(.connectingfrom))::after,
 .wrap[data-drag] .handleRead:not(:global(.connectingfrom))::after {
   inset: calc(50% - 5px) 7px auto auto;
-  width: 10px;
-  height: 10px;
-}
-
-.wrap[data-drag] .hFileIn:not(:global(.connectingfrom))::after {
-  inset: 7px auto auto calc(50% - 5px);
   width: 10px;
   height: 10px;
 }
@@ -380,14 +371,14 @@
 /* ── 连线 ─────────────────────────────────────────────────── */
 
 /*
- * 版式语法：「左右走流程，上下走文件」。
- * - 流程线（步骤 → 步骤）：中性实线，略粗，是图的骨架；「未通过」的回退线标红、虚线。
- * - 读写线（步骤 ↔ 文件）：产出 = 绿实线，更新 = 琥珀实线（两头箭头），读取 = 青虚线。
- * 选中 / 悬停 / 与选中的东西相连时线会"活"起来：描粗 + 光带流动（见 FlowStreaks），其余的淡下去。
+ * 版式语法：「左右走流程，上下走文件」。七种线各一色（见 shell.module.css 的线色），色由线组件内联给出，
+ * 这里只管粗细和线型：
+ * - 流程线（步骤 → 步骤）：实线，略粗，是图的骨架；回头的线虚线，只管先后的点划。
+ * - 读写线（步骤 ↔ 文件）：产出、更新实线（更新两头箭头），读取虚线。
+ * 选中 / 悬停 / 与选中的东西相连时线会"活"起来：描粗 + 光晕 + 光带流动（见 FlowStreaks），其余的淡下去。
  */
 
 .link :global(.react-flow__edge-path) {
-  stroke: var(--wl-flow);
   stroke-width: 1.8;
 }
 
@@ -395,25 +386,13 @@
   stroke-width: 1.7;
 }
 
-.fileLinkProduce :global(.react-flow__edge-path) {
-  stroke: var(--wl-io-produce);
-}
-
-.fileLinkUpdate :global(.react-flow__edge-path) {
-  stroke: var(--wl-io-update);
-}
-
+/* 读取是密的短虚线、回头的流程线是疏的长虚线：两种虚线挨在一起时节奏也不一样。 */
 .fileLinkRead :global(.react-flow__edge-path) {
-  stroke: var(--wl-io-read);
-  stroke-dasharray: 6 4;
-}
-
-.linkFail :global(.react-flow__edge-path) {
-  stroke: var(--wl-danger);
+  stroke-dasharray: 4 4;
 }
 
 .linkBack :global(.react-flow__edge-path) {
-  stroke-dasharray: 6 5;
+  stroke-dasharray: 11 6;
 }
 
 /* 只管先后的步骤间线：点划，它不交任何东西。 */
@@ -422,34 +401,22 @@
   stroke-linecap: round;
 }
 
-/* 悬停 / 活着：描粗；流程线还要加深（读写线保持自己的颜色）。 */
+/* 悬停 / 活着：描粗，颜色不变。 */
 .link:hover :global(.react-flow__edge-path),
 .fileLink:hover :global(.react-flow__edge-path),
+.link.linkActive :global(.react-flow__edge-path),
 .fileLink.linkActive :global(.react-flow__edge-path) {
   stroke-width: 2.4;
 }
 
-.link.linkActive :global(.react-flow__edge-path) {
-  stroke: var(--wl-flow-active);
-  stroke-width: 2.4;
-}
-
-.link.linkFail.linkActive :global(.react-flow__edge-path) {
-  stroke: var(--wl-danger);
-}
-
-/* 选中：流程线换成强调色；读写线保持本色、再粗一点（底下还有光晕）。 */
-.wrap .link:global(.selected) :global(.react-flow__edge-path) {
-  stroke: var(--wl-accent);
-  stroke-width: 2.6;
-}
-
+/* 选中：再粗一点（底下还有光晕）。 */
+.wrap .link:global(.selected) :global(.react-flow__edge-path),
 .wrap .fileLink:global(.selected) :global(.react-flow__edge-path) {
   stroke-width: 2.8;
 }
 
-/* 活着的读写线底下垫一道同色的宽光晕。 */
-.fileHalo {
+/* 活着的线底下垫一道同色的宽光晕。 */
+.halo {
   fill: none;
   stroke-width: 10;
   stroke-linecap: round;
@@ -459,7 +426,7 @@
   transition: opacity 280ms ease;
 }
 
-.fileHalo[data-active="true"] {
+.halo[data-active="true"] {
   opacity: 1;
 }
 
@@ -625,6 +592,7 @@
   pointer-events: none;
 }
 
+/* 条件牌子和它那条线同色（`--wl-chip` 由线给）；选中时填满。 */
 .linkLabel {
   position: relative;
   display: inline-flex;
@@ -632,10 +600,10 @@
   align-items: center;
   height: 22px;
   padding: 0 8px;
-  border: 1px solid var(--wl-line-strong);
+  border: 1px solid color-mix(in srgb, var(--wl-chip) 45%, transparent);
   border-radius: 999px;
-  background: var(--wl-panel);
-  color: var(--wl-text-2);
+  background: color-mix(in srgb, var(--wl-chip) 10%, var(--wl-panel));
+  color: var(--wl-chip);
   font: inherit;
   font-size: var(--wl-fs-micro);
   font-weight: 600;
@@ -644,22 +612,10 @@
   pointer-events: all;
 }
 
-.linkLabel[data-when="pass"] {
-  border-color: color-mix(in srgb, var(--wl-ok) 45%, transparent);
-  background: color-mix(in srgb, var(--wl-ok) 10%, var(--wl-panel));
-  color: var(--wl-ok);
-}
-
-.linkLabel[data-when="fail"] {
-  border-color: color-mix(in srgb, var(--wl-danger) 45%, transparent);
-  background: color-mix(in srgb, var(--wl-danger) 10%, var(--wl-panel));
-  color: var(--wl-danger);
-}
-
 .linkLabel[data-selected="true"] {
-  border-color: var(--wl-accent);
-  background: var(--wl-accent);
-  color: var(--wl-accent-on);
+  border-color: var(--wl-chip);
+  background: var(--wl-chip);
+  color: var(--wl-panel);
 }
 
 /* ── 拖放占位 ─────────────────────────────────────────────── */
@@ -818,7 +774,7 @@
   animation: roleIn 160ms var(--wl-ease) backwards;
 }
 
-/* 角色标与它那条读写线同色：产出绿、更新琥珀、读取青。 */
+/* 角色标与它那条读写线同色：产出金、更新洋红、读取青。 */
 .roleTag[data-role="producer"] {
   background: var(--wl-io-produce);
   color: var(--wl-panel);
@@ -884,13 +840,13 @@
  * - 右上角一个折角，圆角更小（步骤 12px，文件 7px）；
  * - 平铺：没有步骤卡那样的投影，描边清楚；
  * - 更窄更矮，文件名用等宽字。
- * 上沿的点接写入（步骤 → 文件），右边的点拖出去是读取（文件 → 步骤）。
+ * 左边的点接写入（步骤 → 文件），右边的点拖出去是读取（文件 → 步骤）。
  */
 .fileCard {
   position: relative;
   display: flex;
   align-items: stretch;
-  width: 188px;
+  width: 180px;
   min-height: 48px;
   border: 1px solid var(--wl-file-border);
   border-radius: 7px 0 7px 7px;

@@ -214,6 +214,23 @@
   outline-offset: -2px;
 }
 
+/* 选项前的小色点：没选中时淡一些，选中时是实色。 */
+.segDot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 5px;
+  border-radius: 50%;
+  vertical-align: 1px;
+  opacity: 0.55;
+  transition: opacity 160ms ease;
+}
+
+.segItem[aria-checked="true"] .segDot,
+.segItem:hover .segDot {
+  opacity: 1;
+}
+
 /* ── 面板与浮层 ───────────────────────────────────────────── */
 
 .panel {

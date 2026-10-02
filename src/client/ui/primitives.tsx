@@ -97,7 +97,8 @@ export function Popover(props: {
 export function Segmented<V extends string>(props: {
   label: string
   value: V
-  options: readonly { value: V; label: string }[]
+  /** `color`：选项前的小色点（比如条件的四种线色），和画布上对应的东西同色。 */
+  options: readonly { value: V; label: string; color?: string }[]
   onChange: (value: V) => void
 }): React.JSX.Element {
   const index = Math.max(
@@ -122,6 +123,9 @@ export function Segmented<V extends string>(props: {
           className={ui.segItem}
           onClick={() => props.onChange(option.value)}
         >
+          {option.color !== undefined && (
+            <span className={ui.segDot} style={{ background: option.color }} />
+          )}
           {option.label}
         </button>
       ))}

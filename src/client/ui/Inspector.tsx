@@ -32,6 +32,7 @@ import { type FocusFile, HandoffChip, HandoffField } from './Handoff.tsx'
 import hand from './handoff.module.css'
 import { Icon, kindIcon } from './Icon.tsx'
 import css from './inspector.module.css'
+import { WHEN_COLOR, type WhenKind, whenKind } from './lines.ts'
 import { copyText, cx, Segmented } from './primitives.tsx'
 import ui from './ui.module.css'
 
@@ -414,7 +415,7 @@ function LinkRow(props: {
         <span className={css.linkName}>{props.other}</span>
         {props.back && <Icon name="loop" size={12} />}
         {when !== undefined && (
-          <span className={css.whenChip} data-when={when} title={when}>
+          <span className={css.whenChip} data-when={whenKind(when)} title={when}>
             {when === 'pass' ? t('edge.pass') : when === 'fail' ? t('edge.fail') : when}
           </span>
         )}
@@ -428,17 +429,10 @@ function LinkRow(props: {
 // 连线
 // ─────────────────────────────────────────────────────────────
 
-type WhenMode = 'always' | 'pass' | 'fail' | 'custom'
-
-function whenMode(when: string | undefined): WhenMode {
-  if (when === undefined) return 'always'
-  return when === 'pass' || when === 'fail' ? when : 'custom'
-}
-
 function EdgePanel(props: InspectorProps & { edge: WorkflowEdge }): React.JSX.Element {
   const { t, edge, doc, analysis, onEdit, onSelect } = props
   const when = whenOf(edge)
-  const [mode, setMode] = useState<WhenMode>(whenMode(when))
+  const [mode, setMode] = useState<WhenKind>(whenKind(when))
   const [draft, setDraft] = useState(mode === 'custom' ? (when ?? '') : '')
   const source = findNode(doc, edge.source)
   const target = findNode(doc, edge.target)
@@ -452,7 +446,7 @@ function EdgePanel(props: InspectorProps & { edge: WorkflowEdge }): React.JSX.El
   useEffect(() => {
     if (when === emitted.current) return
     emitted.current = when
-    const next = whenMode(when)
+    const next = whenKind(when)
     setMode((current) => (current === 'custom' && next === 'always' ? current : next))
     if (next === 'custom') setDraft(when ?? '')
   }, [when])
@@ -465,7 +459,7 @@ function EdgePanel(props: InspectorProps & { edge: WorkflowEdge }): React.JSX.El
   const condition = draft.trim()
   const customError = mode === 'custom' && condition !== '' ? checkWhen(condition) : null
 
-  const choose = (next: WhenMode): void => {
+  const choose = (next: WhenKind): void => {
     setMode(next)
     if (next === 'always') setWhen(undefined)
     if (next === 'pass' || next === 'fail') setWhen(next)
@@ -527,15 +521,15 @@ function EdgePanel(props: InspectorProps & { edge: WorkflowEdge }): React.JSX.El
               <div className={css.label}>
                 <span>{t('edge.when')}</span>
               </div>
-              <Segmented<WhenMode>
+              <Segmented<WhenKind>
                 label={t('edge.when')}
                 value={mode}
                 onChange={choose}
                 options={[
-                  { value: 'always', label: t('edge.always') },
-                  { value: 'pass', label: t('edge.pass') },
-                  { value: 'fail', label: t('edge.fail') },
-                  { value: 'custom', label: t('edge.custom') },
+                  { value: 'always', label: t('edge.always'), color: WHEN_COLOR.always },
+                  { value: 'pass', label: t('edge.pass'), color: WHEN_COLOR.pass },
+                  { value: 'fail', label: t('edge.fail'), color: WHEN_COLOR.fail },
+                  { value: 'custom', label: t('edge.custom'), color: WHEN_COLOR.custom },
                 ]}
               />
               {mode === 'custom' && (

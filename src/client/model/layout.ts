@@ -1,39 +1,56 @@
 /**
- * dsh-workflow-lite — 自动布局（纯函数，同步，不吃额外依赖）。
+ * dsh-workflow-lite — 自动布局。
  *
- * 从左到右分层：**列 = 执行批次**，所以版面本身就在讲执行次序；同一列里按上游的平均
- * 行号排，让连线尽量不交叉；每一列相对最高的那一列垂直居中。
+ * 整图重排交给 ELK（`elkjs` 的 layered 算法）：分层、同层排序（减少交叉）、算坐标都是它做的。
+ * 我们只把自己的版式语法喂给它：
+ * - **列 = 执行批次**：用 ELK 的 interactive 分层，按批次给出横坐标，版面本身就在讲执行次序；
+ * - **文件挂在写它的步骤下面**：一个步骤和它写的文件在 ELK 眼里是一整块（步骤卡 + 下面竖着一串
+ *   文件卡），块的高度随文件数变，ELK 按真实高度排，谁也压不到谁；文件卡往右缩进，写线从步骤的
+ *   写点竖着落下来、分叉进每张文件卡的左边（见 route.ts），不会穿过任何卡片；
+ * - 没人写、只被读的文件（输入）单独成块，放在第一个读它的步骤的前一列；
+ * - 流程线的进出口固定在步骤卡（不是整块）的半高处，ELK 才会把一条链摆成一条直线。
+ * - 列距整齐划一；只有相邻两列之间的线上挂着条件牌子 / 交接标记时，把那一处拉开到放得下牌子。
+ *
+ * 补位（只给个别新节点找地方）仍是同步的就近规则：已经摆好的版面一律不动。
  *
  * `(0,0)` 是"还没摆过"的哨兵值（host 新建节点时的初始坐标），所以版面原点不落在它上面。
  *
  * @module @xiaoso/dsh-workflow-lite/client/model/layout
  */
 
-import { fileGraph } from '../../shared/files.ts'
+import type { ElkExtendedEdge, ElkNode } from 'elkjs/lib/elk-api.js'
+import { edgeKind, fileGraph, nodeIndex, resolveHandoff } from '../../shared/files.ts'
 import type { GraphAnalysis } from '../../shared/graph.ts'
-import { byId } from '../../shared/graph.ts'
-import { isFile } from '../../shared/model.ts'
-import type { Point, WorkflowDocument, WorkflowNode } from '../../shared/types.ts'
+import { byId, edgeWhen } from '../../shared/graph.ts'
+import { idKey, isFile } from '../../shared/model.ts'
+import type { Point, WorkflowDocument, WorkflowEdge, WorkflowNode } from '../../shared/types.ts'
 
 /** 步骤卡的宽度（CSS 里写死同一个数）与估算高度。 */
 export const NODE_W = 216
 export const NODE_H = 96
 
 /** 文件卡的宽度（CSS 里写死同一个数）与估算高度。 */
-export const FILE_W = 188
+export const FILE_W = 180
 export const FILE_H = 56
 
-/** 列距与行距。 */
-export const COL_STEP = 284
-export const ROW_STEP = 132
-
 /**
- * 文件卡相对写它的步骤：挂在步骤正下方、稍往右错一点——写线从步骤底边落下来，
- * 读线从文件右边连到下一列的步骤（文件右沿要在下一列左边之前）。
+ * 文件卡相对写它的步骤：往右缩进 `FILE_DX`（左边要让出树干和拐弯），第一张离步骤底边
+ * `FILE_DY`，往下每张隔 `FILE_GAP`。
  */
-const FILE_DX = 40
-const FILE_DY = NODE_H + 36
-const FILE_ROW = FILE_H + 20
+export const FILE_DX = 84
+const FILE_DY = 22
+const FILE_GAP = 14
+const FILE_ROW = FILE_H + FILE_GAP
+
+/** 一块（步骤 + 它的文件）的宽度：块与块等宽，列才对得齐。 */
+const BLOCK_W = FILE_DX + FILE_W
+/** 列与列之间留的空（块的右沿到下一列左沿）、同一列里块与块的上下间距。 */
+const LAYER_GAP = 64
+const BLOCK_GAP = 36
+
+/** 列距（「添加下一步」也按它往右挪一列）与行距。 */
+export const COL_STEP = BLOCK_W + LAYER_GAP
+export const ROW_STEP = 132
 
 interface Box {
   x: number
@@ -49,7 +66,7 @@ function boxOf(node: WorkflowNode, at: Point = node.position): Box {
 }
 
 function hits(a: Box, b: Box): boolean {
-  const gap = 16
+  const gap = 12
   return (
     a.x < b.x + b.w + gap && b.x < a.x + a.w + gap && a.y < b.y + b.h + gap && b.y < a.y + a.h + gap
   )
@@ -63,7 +80,7 @@ function freeBox(occupied: readonly Box[], want: Box, step: number): Point {
 }
 
 /**
- * 一个文件卡该放哪：挂在写它的步骤（没人写就是读它的步骤）的右下方，被占了就往下找。
+ * 一个文件卡该放哪：挂在写它的步骤（没人写就是读它的步骤）下面、往右缩进，被占了就往下找。
  * @param anchor - 写它 / 读它的步骤的坐标；没有就放在版面左下。
  */
 export function fileSpot(doc: WorkflowDocument, anchor: Point | undefined, skip?: string): Point {
@@ -80,7 +97,7 @@ export function fileSpot(doc: WorkflowDocument, anchor: Point | undefined, skip?
         })
   return freeBox(
     occupied,
-    { x: base.x + FILE_DX, y: base.y + FILE_DY, w: FILE_W, h: FILE_H },
+    { x: base.x + FILE_DX, y: base.y + NODE_H + FILE_DY, w: FILE_W, h: FILE_H },
     FILE_ROW,
   )
 }
@@ -107,62 +124,238 @@ export function isUnplaced(position: Point): boolean {
   return position.x === 0 && position.y === 0
 }
 
-/** 整图重排：每个节点都重算，同一张图必然摆成同一版式。 */
-export function tidy(doc: WorkflowDocument, analysis: GraphAnalysis): Record<string, Point> {
-  const row = new Map<string, number>()
-  const columns: string[][] = []
-  for (const batch of analysis.batches) {
-    const rank = (id: string): number => {
-      const rows = (analysis.predecessors.get(id) ?? [])
-        .map((predecessor) => row.get(predecessor))
-        .filter((value): value is number => value !== undefined)
-      if (rows.length === 0) return Number.POSITIVE_INFINITY
-      return rows.reduce((sum, value) => sum + value, 0) / rows.length
-    }
-    const ordered = [...batch.nodes].sort((a, b) => rank(a) - rank(b) || byId(a, b))
-    ordered.forEach((id, index) => {
-      row.set(id, index)
-    })
-    columns.push(ordered)
-  }
+/** 一段文字在线上小牌子里大约多宽（中日韩字按全角算），不超过牌子文字的最大宽度。 */
+function textWidth(text: string): number {
+  let width = 0
+  for (const char of text) width += (char.codePointAt(0) ?? 0) >= 0x2e80 ? 11 : 6.5
+  return Math.min(120, width)
+}
 
-  const tallest = Math.max(1, ...columns.map((column) => column.length))
-  const placed: Record<string, Point> = {}
-  columns.forEach((column, columnIndex) => {
-    const top = ORIGIN.y + ((tallest - column.length) / 2) * ROW_STEP
-    column.forEach((id, rowIndex) => {
-      placed[id] = { x: ORIGIN.x + columnIndex * COL_STEP, y: top + rowIndex * ROW_STEP }
-    })
+/**
+ * 步骤之间那条线上挂的东西（条件牌子、交接标记）大约多宽；什么都不挂是 0。
+ * 「通过 / 未通过」在画布上是翻译过的短词，按三个字算。
+ */
+function labelWidth(edge: WorkflowEdge, back: boolean): number {
+  const when = edgeWhen(edge)
+  const handoff = resolveHandoff(edge.data?.handoff)
+  const text =
+    when === undefined ? 0 : textWidth(when === 'pass' || when === 'fail' ? '未通过' : when)
+  const condition = when === undefined && !back ? 0 : 18 + text + (back ? 14 : 0)
+  const mark = !handoff.result ? 18 + textWidth('只管先后') : handoff.note === undefined ? 0 : 34
+  return Math.max(condition, mark)
+}
+
+/** 量出来的卡片尺寸（画布上已经渲染过的卡）；没有就按估算尺寸。 */
+export type SizeOf = (id: string) => { width: number; height: number } | undefined
+
+/** ELK 的引擎按需加载：只有真的要整图重排时才初始化（它不小）。 */
+let engine: Promise<{ layout(graph: ElkNode): Promise<ElkNode> }> | null = null
+
+function elk(): Promise<{ layout(graph: ElkNode): Promise<ElkNode> }> {
+  engine ??= import('elkjs/lib/elk.bundled.js').then((module) => new module.default())
+  return engine
+}
+
+const ELK_OPTIONS: Record<string, string> = {
+  'elk.algorithm': 'layered',
+  'elk.direction': 'RIGHT',
+  // 列 = 执行批次：按我们给的横坐标分层，而不是让 ELK 自己挪。
+  'elk.layered.layering.strategy': 'INTERACTIVE',
+  'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
+  'elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
+  'elk.layered.nodePlacement.bk.fixedAlignment': 'BALANCED',
+  // 线由画布自己画；折线路由不会为了竖段占道把列距撑开，列距才是恒定的。
+  'elk.edgeRouting': 'POLYLINE',
+  'elk.spacing.nodeNode': String(BLOCK_GAP),
+  'elk.layered.spacing.nodeNodeBetweenLayers': String(LAYER_GAP),
+  'elk.layered.spacing.edgeNodeBetweenLayers': '0',
+  'elk.spacing.edgeNode': '0',
+  'elk.spacing.edgeEdge': '0',
+  // 不连通的几块也排在同一套列里（分开排各自从第 0 列起，列就对不齐了）。
+  'elk.separateConnectedComponents': 'false',
+}
+
+/**
+ * 整图重排：每个节点都重算，同一张图必然摆成同一版式。
+ * @param sizeOf - 卡片的真实尺寸（步骤卡的高度随内容变）；不给就按估算尺寸。
+ */
+export async function tidy(
+  doc: WorkflowDocument,
+  analysis: GraphAnalysis,
+  sizeOf: SizeOf = () => undefined,
+): Promise<Record<string, Point>> {
+  const index = nodeIndex(doc)
+  const heightOf = (node: WorkflowNode): number =>
+    sizeOf(node.id)?.height ?? (isFile(node) ? FILE_H : NODE_H)
+
+  // ── 每个步骤在第几列（= 执行批次）──
+  const column = new Map<string, number>()
+  analysis.batches.forEach((batch, batchIndex) => {
+    for (const id of batch.nodes) column.set(idKey(id), batchIndex)
   })
-  // 批次之外的步骤（理论上没有）：排在最后一列之后，别让它们叠在原点。
-  let stray = 0
-  for (const node of doc.nodes) {
-    if (placed[node.id] !== undefined || isFile(node)) continue
-    placed[node.id] = {
-      x: ORIGIN.x + columns.length * COL_STEP,
-      y: ORIGIN.y + stray * ROW_STEP,
-    }
-    stray += 1
+  const steps = doc.nodes.filter((node) => !isFile(node))
+  // 批次之外的步骤（理论上没有）：排在最后一列之后。
+  for (const node of steps) {
+    if (!column.has(idKey(node.id))) column.set(idKey(node.id), analysis.batches.length)
   }
-  // 文件卡：挂在写它的步骤右下方；按文件中的顺序摆，后摆的避开先摆的。
-  const boxes: Box[] = doc.nodes
-    .filter((node) => !isFile(node) && placed[node.id] !== undefined)
-    .map((node) => boxOf(node, placed[node.id]))
-  const bottom = Math.max(ORIGIN.y, ...boxes.map((box) => box.y + box.h))
-  let loose = 0
+  const columnOf = (id: string): number => column.get(idKey(id)) ?? 0
+
+  // ── 文件归谁：最早那一列写它的步骤；没人写就是输入文件，单独成块 ──
+  const files = fileGraph(doc)
+  const owned = new Map<string, WorkflowNode[]>()
+  const inputs: { node: WorkflowNode; column: number }[] = []
+  const loose: WorkflowNode[] = []
   for (const node of doc.nodes) {
     if (!isFile(node)) continue
-    const anchor = anchorOf(doc, node.id, (id) => placed[id])
-    const want = anchor ?? { x: ORIGIN.x + loose * (FILE_W + 24) - FILE_DX, y: bottom }
-    if (anchor === undefined) loose += 1
-    const spot = freeBox(
-      boxes,
-      { x: want.x + FILE_DX, y: want.y + FILE_DY, w: FILE_W, h: FILE_H },
-      FILE_ROW,
-    )
-    placed[node.id] = spot
-    boxes.push(boxOf(node, spot))
+    const info = files.get(node.id)
+    const writers = info?.writers.map((writer) => writer.id) ?? []
+    if (writers.length > 0) {
+      const owner = [...writers].sort((a, b) => columnOf(a) - columnOf(b))[0] as string
+      const list = owned.get(idKey(owner)) ?? []
+      list.push(node)
+      owned.set(idKey(owner), list)
+      continue
+    }
+    const readers = info?.readers ?? []
+    if (readers.length === 0) {
+      loose.push(node)
+      continue
+    }
+    inputs.push({ node, column: Math.min(...readers.map(columnOf)) - 1 })
   }
+
+  // ── 喂给 ELK 的图 ──
+  const children: ElkNode[] = []
+  const stepHeight = new Map<string, number>()
+  for (const node of [...steps].sort(
+    (a, b) => columnOf(a.id) - columnOf(b.id) || byId(a.id, b.id),
+  )) {
+    const height = heightOf(node)
+    stepHeight.set(node.id, height)
+    const count = owned.get(idKey(node.id))?.length ?? 0
+    const blockH = height + (count === 0 ? 0 : FILE_DY + count * FILE_H + (count - 1) * FILE_GAP)
+    children.push({
+      id: node.id,
+      x: columnOf(node.id) * COL_STEP,
+      y: 0,
+      width: BLOCK_W,
+      height: blockH,
+      layoutOptions: { 'elk.portConstraints': 'FIXED_POS' },
+      ports: [
+        { id: `${node.id}\u0000in`, x: 0, y: height / 2, width: 0, height: 0 },
+        { id: `${node.id}\u0000out`, x: BLOCK_W, y: height / 2, width: 0, height: 0 },
+      ],
+    })
+  }
+  for (const input of inputs) {
+    children.push({
+      id: input.node.id,
+      x: input.column * COL_STEP,
+      y: 0,
+      width: BLOCK_W,
+      height: heightOf(input.node),
+      layoutOptions: { 'elk.portConstraints': 'FIXED_POS' },
+      ports: [
+        {
+          id: `${input.node.id}\u0000out`,
+          x: BLOCK_W,
+          y: heightOf(input.node) / 2,
+          width: 0,
+          height: 0,
+        },
+      ],
+    })
+  }
+
+  const edges: ElkExtendedEdge[] = []
+  const linked = new Set<string>()
+  const link = (source: string, target: string): void => {
+    const key = `${idKey(source)}\u0000${idKey(target)}`
+    if (linked.has(key)) return
+    linked.add(key)
+    edges.push({
+      id: `e${edges.length}`,
+      sources: [`${source}\u0000out`],
+      targets: [`${target}\u0000in`],
+    })
+  }
+  // 相邻两列之间的线上挂着牌子时，把这两列拉开到放得下牌子（不压到两头的步骤卡）。
+  const pitch = new Map<number, number>()
+  const ownerOf = new Map<string, string>()
+  for (const [owner, list] of owned) {
+    for (const file of list) ownerOf.set(idKey(file.id), owner)
+  }
+  const stepId = (key: string): string | undefined => index.get(key)?.id
+  for (const edge of doc.edges) {
+    const kind = edgeKind(index, edge)
+    if (kind === 'flow') {
+      // 回边（循环往回走的线）不参与排版：它们本来就是逆着列走的。
+      if (analysis.backEdges.has(edge.id)) continue
+      const source = stepId(idKey(edge.source))
+      const target = stepId(idKey(edge.target))
+      if (source === undefined || target === undefined) continue
+      link(source, target)
+      const from = columnOf(source)
+      const width = labelWidth(edge, false)
+      if (width > 0 && columnOf(target) === from + 1) {
+        pitch.set(from, Math.max(pitch.get(from) ?? COL_STEP, NODE_W + width + 28))
+      }
+    } else if (kind === 'read') {
+      const reader = stepId(idKey(edge.target))
+      if (reader === undefined) continue
+      // 读线也拉一把：读的文件挂在谁下面，就把谁和读它的步骤摆近一点（只算往右的）。
+      const owner = ownerOf.get(idKey(edge.source))
+      const from = owner === undefined ? stepId(idKey(edge.source)) : stepId(owner)
+      if (from === undefined) continue
+      const fromColumn = owner === undefined ? columnOf(reader) - 1 : columnOf(from)
+      if (fromColumn < columnOf(reader)) link(from, reader)
+    }
+  }
+
+  const laid = await (await elk()).layout({
+    id: 'root',
+    layoutOptions: ELK_OPTIONS,
+    children,
+    edges,
+  })
+
+  // ── 从块的位置还原每张卡的位置 ──
+  // 横坐标按列直接给（ELK 会为线留出不等的列距，我们要的是整齐的列，只为牌子让位）；纵坐标用 ELK 的。
+  const blocks = laid.children ?? []
+  const inputColumn = new Map(inputs.map((input) => [idKey(input.node.id), input.column]))
+  const blockColumn = (id: string): number => inputColumn.get(idKey(id)) ?? columnOf(id)
+  const firstColumn = Math.min(...blocks.map((block) => blockColumn(block.id)))
+  const columnX = (target: number): number => {
+    let x = ORIGIN.x
+    for (let at = firstColumn; at < target; at += 1) x += pitch.get(at) ?? COL_STEP
+    return x
+  }
+  const minY = Math.min(...blocks.map((block) => block.y ?? 0))
+  const placed: Record<string, Point> = {}
+  let bottom = ORIGIN.y
+  const put = (node: WorkflowNode, x: number, y: number): void => {
+    placed[node.id] = { x, y: Math.round(y) }
+    bottom = Math.max(bottom, Math.round(y) + heightOf(node))
+  }
+  for (const block of blocks) {
+    const node = index.get(idKey(block.id))
+    if (node === undefined) continue
+    const x = columnX(blockColumn(block.id))
+    const y = (block.y ?? 0) - minY + ORIGIN.y
+    if (isFile(node)) {
+      put(node, x + FILE_DX, y)
+      continue
+    }
+    put(node, x, y)
+    const top = y + (stepHeight.get(node.id) ?? NODE_H) + FILE_DY
+    owned.get(idKey(node.id))?.forEach((file, row) => {
+      put(file, x + FILE_DX, top + row * FILE_ROW)
+    })
+  }
+  // 谁都不连的文件：在版面下方排成一行。
+  loose.forEach((node, slot) => {
+    placed[node.id] = { x: ORIGIN.x + slot * (FILE_W + 24), y: bottom + 48 }
+  })
   return placed
 }
 
@@ -194,10 +387,10 @@ export function nextTo(doc: WorkflowDocument, source: Point): Point {
  * 全都没摆过 ⇒ 整图重排；只有个别没摆过（模型用工具新加了一步）⇒ 挨着它的上游放，
  * 不去动用户已经摆好的版面。
  */
-export function placeMissing(
+export async function placeMissing(
   doc: WorkflowDocument,
   analysis: GraphAnalysis,
-): Record<string, Point> {
+): Promise<Record<string, Point>> {
   const missing = doc.nodes.filter((node) => isUnplaced(node.position))
   if (missing.length === 0) return {}
   if (missing.length === doc.nodes.length) return tidy(doc, analysis)
@@ -224,7 +417,7 @@ export function placeMissing(
     position.set(id, spot)
     placed[id] = spot
   }
-  // 文件卡（模型用工具加的、老图迁移出来的）：挂到写它的步骤右下方。
+  // 文件卡（模型用工具加的、老图迁移出来的）：挂到写它的步骤下面。
   for (const node of missing) {
     if (placed[node.id] !== undefined || !isFile(node)) continue
     const anchor = anchorOf(doc, node.id, (id) => position.get(id))

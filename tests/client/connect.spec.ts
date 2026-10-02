@@ -32,7 +32,6 @@ describe('起点的种类', () => {
     expect(dragKindOf(true, 'file')).toBeNull()
     expect(dragKindOf(false, 'fileUp')).toBe('write')
     expect(dragKindOf(false, 'readTop')).toBe('readBack')
-    expect(dragKindOf(true, 'inBottom')).toBe('writeBack')
   })
 })
 
@@ -47,11 +46,12 @@ describe('能不能连', () => {
     expect(link('f', 'out', 'fix')).toBe(true)
     expect(link('f', 'out', 'g')).toBe(false)
     expect(link('fix', 'out', 'fix')).toBe(false)
-    // 备用点：读点 / 上边的写点 / 文件下沿与左侧，分工同上。
+    // 备用点：读点 / 上边的写点，分工同上。
     const raw = (source: string, sourceHandle: string, target: string, targetHandle: string) =>
       linkAllowed(doc, { source, sourceHandle, target, targetHandle })
-    expect(raw('f', 'outLeft', 'fix', 'readTop')).toBe(true)
-    expect(raw('fix', 'fileUp', 'g', 'inBottom')).toBe(true)
+    expect(raw('f', 'out', 'fix', 'readTop')).toBe(true)
+    expect(raw('fix', 'fileUp', 'g', 'in')).toBe(true)
+    expect(raw('f', 'in', 'fix', 'read')).toBe(false)
     expect(raw('review', 'out', 'fix', 'read')).toBe(false)
     expect(raw('fix', 'file', 'f', 'out')).toBe(false)
     expect(

@@ -596,9 +596,16 @@ export function useWorkflow(rpc: WorkflowLiteRpc, t: T): Workflow {
     const current = stateRef.current
     if (current.phase !== 'ready' || current.doc === null || analysis === null) return
     if (current.doc !== state.doc) return
-    const positions = placeMissing(current.doc, analysis)
-    if (Object.keys(positions).length === 0) return
-    edit({ type: 'moveNodes', positions, silent: true })
+    const doc = current.doc
+    let live = true
+    void placeMissing(doc, analysis).then((positions) => {
+      // 整图重排是异步的：等它的时候图变了（或卸载了）就作废，下一轮会按新图重算。
+      if (!live || stateRef.current.doc !== doc || Object.keys(positions).length === 0) return
+      edit({ type: 'moveNodes', positions, silent: true })
+    })
+    return () => {
+      live = false
+    }
   }, [state.doc, analysis, edit])
 
   const clearFresh = useCallback((): void => setFresh(null), [])

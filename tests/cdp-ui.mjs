@@ -234,6 +234,16 @@ async function run(session) {
     await session.evaluate(`document.querySelector('[data-testid="wl-delete-edge"]') !== null`),
     '改条件后连线面板应仍然开着（选中跟着新 id 走）',
   )
+  // 线色跟着条件走：未通过的线是图例里「未通过」的颜色，没条件的线是「总是」的颜色。
+  const strokeOf = (id) =>
+    `getComputedStyle(document.querySelector('.react-flow__edge[data-id="${id}"] path.react-flow__edge-path')).stroke`
+  const legendStroke = (line) =>
+    `getComputedStyle(document.querySelector('[data-testid="wl-legend"] [data-line="${line}"] line')).stroke`
+  await waitFor(session, `${strokeOf('scan->plan#fail')} === ${legendStroke('fail')}`)
+  check(
+    await session.evaluate(`${strokeOf('plan->step')} === ${legendStroke('always')}`),
+    '没有条件的线应是「总是」的颜色',
+  )
   await screenshot(session, 'ui-02-edge.png')
   pass('选中连线并改为「未通过」→ 落盘为 scan->plan#fail')
 
@@ -259,6 +269,7 @@ async function run(session) {
     )),
     '合法的长条件不该报错',
   )
+  await waitFor(session, `${strokeOf(`scan->plan#${CONDITION}`)} === ${legendStroke('custom')}`)
   check(
     await session.evaluate(
       `[...document.querySelectorAll('.react-flow__edgelabel-renderer [role="tooltip"]')].some((el) => el.textContent === ${JSON.stringify(CONDITION)})`,
@@ -392,12 +403,12 @@ async function run(session) {
     })()`),
     '光带颜色应和它所在的线一致',
   )
-  check(
-    (await session.evaluate(
-      `document.querySelectorAll('[data-testid="wl-legend"] [data-line]').length`,
-    )) === 4,
-    '左下角应常驻四种线的图例',
+  // 七种线（总是 / 通过 / 未通过 / 自定义 / 产出 / 更新 / 读取）各一色，谁也不和谁重样。
+  const legendColors = await session.evaluate(
+    `[...document.querySelectorAll('[data-testid="wl-legend"] [data-line] line')].map((el) => getComputedStyle(el).stroke)`,
   )
+  check(legendColors.length === 7, `左下角应常驻七种线的图例，实际 ${legendColors.length}`)
+  check(new Set(legendColors).size === 7, `七种线的颜色不能重样：${legendColors.join(' / ')}`)
   // 每条线的两头都要落在一个看得见的连接点上（不能悬在卡片边上没有点的地方）。
   const dangling = await session.evaluate(`(() => {
     const dots = [...document.querySelectorAll('.react-flow__handle')]
@@ -618,7 +629,7 @@ async function run(session) {
   )
   const boxes = tidied.nodes.map((node) =>
     node.type === 'wfFile'
-      ? { ...node.position, w: 188, h: 52 }
+      ? { ...node.position, w: 180, h: 52 }
       : { ...node.position, w: 216, h: 70 },
   )
   for (const [index, a] of boxes.entries()) {
@@ -628,6 +639,38 @@ async function run(session) {
     }
   }
   await sleep(600)
+  // 整理后的每一条线（按浏览器里真实画出来的路径取样）都不穿过除两头之外的任何卡片。
+  const ends = Object.fromEntries(tidied.edges.map((edge) => [edge.id, [edge.source, edge.target]]))
+  const crossings = await session.evaluate(`(() => {
+    const ends = ${JSON.stringify(ends)};
+    const cards = [...document.querySelectorAll('.react-flow__node')].map((node) => {
+      const r = node.getBoundingClientRect();
+      return { id: node.dataset.id, l: r.left + 3, r: r.right - 3, t: r.top + 3, b: r.bottom - 3 };
+    });
+    const bad = [];
+    let sampled = 0;
+    for (const edge of document.querySelectorAll('.react-flow__edge')) {
+      const id = edge.dataset.id;
+      const path = edge.querySelector('path.react-flow__edge-path');
+      if (!path || !ends[id]) continue;
+      sampled += 1;
+      const ctm = path.getScreenCTM();
+      const total = path.getTotalLength();
+      for (let at = 10; at < total - 10; at += 6) {
+        const p = path.getPointAtLength(at);
+        const x = ctm.a * p.x + ctm.c * p.y + ctm.e;
+        const y = ctm.b * p.x + ctm.d * p.y + ctm.f;
+        const hit = cards.find((c) => !ends[id].includes(c.id) && x > c.l && x < c.r && y > c.t && y < c.b);
+        if (hit) { bad.push(id + ' 穿过 ' + hit.id); break; }
+      }
+    }
+    return { bad, sampled };
+  })()`)
+  check(
+    crossings.sampled === tidied.edges.length,
+    `每条线都要取样：${crossings.sampled}/${tidied.edges.length}`,
+  )
+  check(crossings.bad.length === 0, `整理后有线穿过卡片：${crossings.bad.join('；')}`)
   await screenshot(session, 'ui-03-tidy.png')
   pass('L 整理布局 → 按执行顺序分列、不重叠')
 

@@ -109,6 +109,9 @@ function Shell(props: { rpc: WorkflowLiteRpc; t: T }): React.JSX.Element {
   const { t } = props
   const wf = useWorkflow(props.rpc, t)
   const { state, analysis } = wf
+  /** 当前的图（异步排版回来时据此判断图是不是已经变了）。 */
+  const docRef = useRef(state.doc)
+  docRef.current = state.doc
   const flow = useReactFlow()
   const rootRef = useRef<HTMLDivElement>(null)
   /** 模态框挂载点（就是视图根）：要等根节点挂上才有，所以放 state。 */
@@ -266,10 +269,26 @@ function Shell(props: { rpc: WorkflowLiteRpc; t: T }): React.JSX.Element {
   }, [selectedNode, narrow, flow, inspectorW])
 
   const relayout = useCallback((): void => {
-    if (state.doc === null || analysis === null || state.doc.nodes.length === 0) return
-    wf.edit({ type: 'moveNodes', positions: tidy(state.doc, analysis) })
-    fitSoon()
-  }, [state.doc, analysis, wf, fitSoon])
+    const doc = state.doc
+    if (doc === null || analysis === null || doc.nodes.length === 0) return
+    // 按卡片量出来的真实尺寸排（步骤卡的高度随描述长短变）。
+    const sizeOf = (id: string): { width: number; height: number } | undefined => {
+      const measured = flow.getInternalNode(id)?.measured
+      return measured?.width === undefined || measured.height === undefined
+        ? undefined
+        : { width: measured.width, height: measured.height }
+    }
+    const ids = (nodes: readonly { id: string }[]): string =>
+      nodes.map((node) => node.id).join('\n')
+    void tidy(doc, analysis, sizeOf).then((positions) => {
+      // 排版是异步的（第一次还要加载 ELK）：这期间加了 / 删了节点就作废，别拿旧图的版式盖掉新改动。
+      // 只是存盘回执换了个文档对象、节点没变，照常应用。
+      const current = docRef.current
+      if (current === null || ids(current.nodes) !== ids(doc.nodes)) return
+      wf.edit({ type: 'moveNodes', positions })
+      fitSoon()
+    })
+  }, [state.doc, analysis, wf, fitSoon, flow])
 
   const addStep = useCallback(
     async (source: StepSource, position: Point, from?: string): Promise<void> => {
@@ -451,6 +470,10 @@ function Shell(props: { rpc: WorkflowLiteRpc; t: T }): React.JSX.Element {
   }
 
   const doc = state.doc
+  // 右侧面板（属性 / 步骤详情）开着没有：左下角的图例按剩下的宽度决定摊开还是收成按钮。
+  const panelOpen =
+    state.phase === 'ready' &&
+    (focus !== null || (doc !== null && analysis !== null && state.selection !== null))
   return (
     <div
       ref={rootRef}
@@ -458,6 +481,7 @@ function Shell(props: { rpc: WorkflowLiteRpc; t: T }): React.JSX.Element {
       data-testid="wl-root"
       data-workflow-lite-view=""
       data-library={libraryOpen ? 'open' : 'closed'}
+      data-panel={panelOpen ? 'open' : 'closed'}
       role="region"
       aria-label={t('tab.label')}
       onKeyDown={onKeyDown}
@@ -693,6 +717,7 @@ function ZoomDock(props: {
   const { t } = props
   const flow = useReactFlow()
   const { zoom } = useViewport()
+  const [legendOpen, setLegendOpen] = useState(false)
   return (
     <div className={cx(ui.panel, css.dock)}>
       <button
@@ -762,44 +787,110 @@ function ZoomDock(props: {
           </div>
         ))}
       </Popover>
-      <span className={cx(ui.divider, css.legendDivider)} />
+      <span className={ui.divider} />
       <LineLegend t={t} />
+      {/* 放不下整排图例时（左右两边的面板都开着、窗口又窄）收成一个按钮，点开看同一份图例。 */}
+      <span className={css.legendCompact}>
+        <Popover
+          open={legendOpen}
+          onClose={() => setLegendOpen(false)}
+          up
+          label={t('legend.title')}
+          className={css.legendPop}
+          trigger={
+            <button
+              type="button"
+              className={cx(ui.btn, ui.small, css.legendToggle)}
+              aria-expanded={legendOpen}
+              data-testid="wl-legend-toggle"
+              onClick={() => setLegendOpen(!legendOpen)}
+            >
+              <svg width="14" height="12" viewBox="0 0 14 12" aria-hidden="true">
+                <line x1="1" y1="2" x2="13" y2="2" data-line="always" />
+                <line x1="1" y1="6" x2="13" y2="6" data-line="produce" />
+                <line x1="1" y1="10" x2="13" y2="10" data-line="read" />
+              </svg>
+              {t('legend.short')}
+            </button>
+          }
+        >
+          <LegendSheet t={t} />
+        </Popover>
+      </span>
     </div>
   )
 }
 
-/** 图例里的四种线：样本的线型、颜色、箭头与画布上一致。 */
-const LEGEND: readonly {
-  key: 'flow' | 'produce' | 'update' | 'read'
-  label: LocaleKey
-  tip: LocaleKey
-}[] = [
-  { key: 'flow', label: 'legend.flow', tip: 'legend.flowTip' },
-  { key: 'produce', label: 'file.produce', tip: 'legend.produceTip' },
-  { key: 'update', label: 'file.update', tip: 'legend.updateTip' },
-  { key: 'read', label: 'file.read', tip: 'legend.readTip' },
+type LegendLine = 'always' | 'pass' | 'fail' | 'custom' | 'produce' | 'update' | 'read'
+
+/** 图例里的七种线，按两组排：流程线的四种条件、读写线的三种。样本的线型、颜色、箭头与画布上一致。 */
+const LEGEND: readonly (readonly { key: LegendLine; label: LocaleKey; tip: LocaleKey }[])[] = [
+  [
+    { key: 'always', label: 'edge.always', tip: 'legend.alwaysTip' },
+    { key: 'pass', label: 'edge.pass', tip: 'legend.passTip' },
+    { key: 'fail', label: 'edge.fail', tip: 'legend.failTip' },
+    { key: 'custom', label: 'edge.custom', tip: 'legend.customTip' },
+  ],
+  [
+    { key: 'produce', label: 'file.produce', tip: 'legend.produceTip' },
+    { key: 'update', label: 'file.update', tip: 'legend.updateTip' },
+    { key: 'read', label: 'file.read', tip: 'legend.readTip' },
+  ],
 ]
 
-/** 左下角常驻的线条图例：四种线各一个小样本，悬停看一句解释。 */
+/** 一种线的小样本：线型、颜色、箭头与画布上一致（颜色和虚线由外层的 `data-line` 给）。 */
+function LineSample(props: { line: LegendLine }): React.JSX.Element {
+  return (
+    <svg width="20" height="10" viewBox="0 0 20 10" aria-hidden="true">
+      <line x1="1" y1="5" x2="14" y2="5" />
+      <path d="M13 1.8 L19 5 L13 8.2 Z" />
+      {props.line === 'update' && <path d="M7 1.8 L1 5 L7 8.2 Z" />}
+    </svg>
+  )
+}
+
+/** 收起时点开的图例：两组线各一个小标题，每种线一行，解释直接写出来（不用再悬停）。 */
+function LegendSheet(props: { t: T }): React.JSX.Element {
+  const { t } = props
+  const heads: readonly LocaleKey[] = ['legend.groupFlow', 'legend.groupFile']
+  return (
+    <div data-testid="wl-legend-sheet">
+      {LEGEND.map((group, index) => (
+        <section key={heads[index]} className={css.legendGroup}>
+          <p className={css.legendHead}>{t(heads[index] ?? 'legend.title')}</p>
+          {group.map((item) => (
+            <div key={item.key} className={css.legendRow} data-line={item.key}>
+              <LineSample line={item.key} />
+              <span className={css.legendName}>{t(item.label)}</span>
+              <span className={css.legendTip}>{t(item.tip)}</span>
+            </div>
+          ))}
+        </section>
+      ))}
+      <p className={css.legendFoot}>{t('legend.portsTip')}</p>
+    </div>
+  )
+}
+
+/** 左下角常驻的线条图例：七种线各一个小样本，悬停看一句解释；最后是入口 / 出口两种连接点。 */
 function LineLegend(props: { t: T }): React.JSX.Element {
   const { t } = props
   return (
     <ul className={css.legend} aria-label={t('legend.title')} data-testid="wl-legend">
-      {LEGEND.map((item) => (
-        <li
-          key={item.key}
-          className={cx(css.legendItem, ui.tip, ui.tipUp)}
-          data-line={item.key}
-          data-tip={t(item.tip)}
-        >
-          <svg width="22" height="10" viewBox="0 0 22 10" aria-hidden="true">
-            <line x1="1" y1="5" x2="16" y2="5" />
-            <path d="M15 1.8 L21 5 L15 8.2 Z" />
-            {item.key === 'update' && <path d="M7 1.8 L1 5 L7 8.2 Z" />}
-          </svg>
-          <span>{t(item.label)}</span>
-        </li>
-      ))}
+      {LEGEND.map((group) => [
+        ...group.map((item) => (
+          <li
+            key={item.key}
+            className={cx(css.legendItem, ui.tip, ui.tipUp)}
+            data-line={item.key}
+            data-tip={t(item.tip)}
+          >
+            <LineSample line={item.key} />
+            <span>{t(item.label)}</span>
+          </li>
+        )),
+        <li key={`${group[0]?.key}-sep`} className={css.legendSep} aria-hidden="true" />,
+      ])}
       <li
         className={cx(css.legendItem, ui.tip, ui.tipUp)}
         data-port="in"

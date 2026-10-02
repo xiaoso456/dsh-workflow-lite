@@ -5,8 +5,9 @@
  * - 步骤左 `in`：入口——接上游步骤（流程）或文件卡（读取）；
  * - 步骤右 `out`：出口——只连下一个步骤（流程）；
  * - 步骤底 `file`：出口——只连文件卡（写入）；
- * - 文件上 `in`：入口——只接步骤底边（写入）；
+ * - 文件左 `in`：入口——只接步骤的写点（写入）；
  * - 文件右 `out`：出口——只连步骤（读取）。
+ * 步骤上还有几个备用点（上边的写点 `fileUp`、上下边的读点 `read` / `readTop`），挂哪个由画布按位置挑。
  *
  * 画布据此在拖线时只露出能连的连接点，并在松手前预告这条线的含义。
  *
@@ -20,8 +21,8 @@ import { alreadyWritten, findEdge } from './editor.ts'
 
 /**
  * 正在拖的是哪种线（按起点）：
- * `flow` 步骤右 → 找步骤；`write` 步骤底/上的写点 → 找文件；`read` 文件右/左 → 找步骤；
- * `back` 从步骤左边倒着拖 → 找步骤右 / 文件右；`writeBack` 从文件上沿/下沿倒着拖 → 找步骤的写点；
+ * `flow` 步骤右 → 找步骤；`write` 步骤底/上的写点 → 找文件；`read` 文件右 → 找步骤；
+ * `back` 从步骤左边倒着拖 → 找步骤右 / 文件右；`writeBack` 从文件左边倒着拖 → 找步骤的写点；
  * `readBack` 从步骤的读点倒着拖 → 找文件。
  */
 export type DragKind = 'flow' | 'write' | 'read' | 'back' | 'writeBack' | 'readBack'
@@ -31,8 +32,8 @@ export function dragKindOf(
   handleId: string | null | undefined,
 ): DragKind | null {
   if (fromFile) {
-    if (handleId === 'out' || handleId === 'outLeft') return 'read'
-    if (handleId === 'in' || handleId === 'inBottom') return 'writeBack'
+    if (handleId === 'out') return 'read'
+    if (handleId === 'in') return 'writeBack'
     return null
   }
   if (handleId === 'out') return 'flow'
@@ -44,8 +45,8 @@ export function dragKindOf(
 
 const STEP_WRITE = new Set(['file', 'fileUp'])
 const STEP_READ = new Set(['in', 'read', 'readTop'])
-const FILE_IN = new Set(['in', 'inBottom'])
-const FILE_OUT = new Set(['out', 'outLeft'])
+const FILE_IN = new Set(['in'])
+const FILE_OUT = new Set(['out'])
 
 /** React Flow 交过来的连接（已按 source → target 摆正）。 */
 export interface HandleLink {
