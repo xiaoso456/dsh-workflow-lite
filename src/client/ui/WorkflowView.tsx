@@ -105,6 +105,7 @@ export function WorkflowView(props: WorkflowViewProps): React.JSX.Element {
         rpc={props.rpc}
         t={props.t as T}
         session={props.sessionId}
+        openView={props.openView}
         {...(props.sessions === undefined ? {} : { sessions: props.sessions })}
         {...(props.desktop === undefined ? {} : { desktop: props.desktop })}
       />
@@ -119,6 +120,8 @@ function Shell(props: {
   rpc: WorkflowLiteRpc
   t: T
   session: string | undefined
+  /** 切到本会话的另一个 tab（执行后切到对话看它跑）。 */
+  openView(view: string, focus: string): void
   sessions?: SessionBridge
   desktop?: Desktop
 }): React.JSX.Element {
@@ -175,26 +178,33 @@ function Shell(props: {
           : state.problems.some((p) => p.level === 'save' || p.level === 'compile')
             ? 'launch.fixFirst'
             : null
+  /** 本会话的工作区（新建会话建在这里；预览计划也按它写工作区路径）。 */
+  const sessionCwd = sessionRows.find((row) => row.id === props.session)?.cwd
+  const canCreate = props.sessions?.canCreate() === true && props.session !== undefined
   /**
-   * 执行：先把没存的改动存下去（实例拿磁盘上的那份做快照），建实例，再往目标会话发那句话。
-   * 发不出去就把刚建的实例删掉，不留一个没人认领的实例。
+   * 执行：先把没存的改动存下去（实例拿磁盘上的那份做快照），要新建会话就先建好，建实例，
+   * 再往目标会话发那句话，然后跳过去看它跑。发不出去就把刚建的实例删掉，不留一个没人认领的实例。
+   *
+   * @param target - 会话 id；`null` = 在本工作区新建一个会话。
    */
   const startRun = useCallback(
-    async (target: string): Promise<void> => {
+    async (target: string | null): Promise<void> => {
       const name = state.name
       const bridge = props.sessions
-      if (name === null || bridge === undefined) return
+      if (name === null || bridge === undefined || props.session === undefined) return
       setStarting(true)
       try {
         if (!(await wf.flush())) throw new Error(t('launch.unsaved'))
-        const row = sessionRows.find((candidate) => candidate.id === target)
+        const session = target ?? (await bridge.create(props.session, sessionCwd))
+        const row = sessionRows.find((candidate) => candidate.id === session)
+        const cwd = row?.cwd ?? (target === null ? sessionCwd : undefined)
         const started = await props.rpc.call('run/start', {
           workflow: name,
-          session: target,
-          ...(row?.cwd === undefined ? {} : { cwd: row.cwd }),
+          session,
+          ...(cwd === undefined ? {} : { cwd }),
         })
         try {
-          await bridge.deliver(target, started.prompt)
+          await bridge.deliver(session, started.prompt)
         } catch (error) {
           await props.rpc
             .call('run/delete', { id: started.instance.id, withState: true })
@@ -202,11 +212,13 @@ function Shell(props: {
           throw error
         }
         await runs.refresh()
-        if (target === props.session) {
+        if (session === props.session) {
+          // 本会话：切到对话 tab 看它跑（回到工作流 tab 时显示的就是这个实例）。
           seenCurrent.current = started.instance.id
           openRun(started.instance.id)
-        } else {
-          wf.notify(t('launch.sent').replace('{title}', row?.title ?? target))
+          props.openView('chat', 'workflow-lite:run')
+        } else if (!bridge.open(session)) {
+          wf.notify(t('launch.sent').replace('{title}', row?.title ?? session))
         }
       } catch (error) {
         wf.notify(`${t('launch.failed')}：${errorMessage(error)}`, 'error')
@@ -214,7 +226,19 @@ function Shell(props: {
         setStarting(false)
       }
     },
-    [state.name, props.sessions, props.rpc, props.session, wf, t, sessionRows, runs, openRun],
+    [
+      state.name,
+      props.sessions,
+      props.rpc,
+      props.session,
+      props.openView,
+      wf,
+      t,
+      sessionRows,
+      sessionCwd,
+      runs,
+      openRun,
+    ],
   )
 
   /** 当前的图（异步排版回来时据此判断图是不是已经变了）。 */
@@ -669,6 +693,7 @@ function Shell(props: {
                   starting,
                   session: props.session,
                   rows: sessionRows,
+                  canCreate,
                   onRun: (target) => void startRun(target),
                 }}
                 onSettings={() => setSettingsOpen(true)}
@@ -856,7 +881,7 @@ function Shell(props: {
               <PlanDialog
                 t={t}
                 name={state.name}
-                build={wf.buildPlan}
+                build={(full) => wf.buildPlan(full, sessionCwd)}
                 onLocate={locate}
                 onClose={() => {
                   setPlanOpen(false)

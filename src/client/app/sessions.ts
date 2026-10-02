@@ -1,12 +1,15 @@
 /**
- * dsh-workflow-lite — 会话桥：画布上的「执行」要列出同一工作区的会话、往选中的会话里发一句话。
+ * dsh-workflow-lite — 会话桥：画布上的「执行」要列出同一工作区的会话、在同一工作区新建会话、
+ * 往选中的会话里发一句话，发完跳过去。
  *
- * 两样都借宿主现成的东西，不自己造：
- * - 会话列表：Session Controller 的 `sessions.list`（和侧栏同一份数据）；
+ * 都借宿主现成的东西，不自己造：
+ * - 会话列表与新建：Session Controller 的 `sessions.list` / `sessions.create`（和侧栏同一份数据）；
+ *   新建时按 Workspace Controller 找到本会话所在的工作区，新会话归在同一组里；
  * - 发消息：会话输入框的标准发送流程（`conversation.input.for(会话 ctx)` 的 `setDraft` + `submit`），
- *   和用户自己敲回车一模一样——会话正忙时按用户的设置排队或插话。
+ *   和用户自己敲回车一模一样——会话正忙时按用户的设置排队或插话；
+ * - 跳过去：`uiWorkspace.openSession`（和点侧栏一样）。
  *
- * 两个服务都是**可选**的：入口用 `ctx.inject` 的子上下文接上，缺了只是「执行」用不了，视图照常。
+ * 这些服务都是**可选**的：入口用 `ctx.inject` 的子上下文接上，缺了只是对应的能力用不了，视图照常。
  * 宿主的类型包不在依赖里，这里只声明用到的那几个成员。
  *
  * @module @xiaoso/dsh-workflow-lite/client/app/sessions
@@ -62,11 +65,24 @@ interface SessionSummary {
 /** `ctx.sessions` 用到的部分。 */
 export interface SessionsService {
   list: Observable<{ ids: readonly string[]; byId: Readonly<Record<string, SessionSummary>> }>
+  create(opts?: { workspaceId?: string; cwd?: string }): Promise<string>
   using<T>(
     target: string,
     options: { source: string },
     operation: (reference: { binding: { ctx: unknown } }) => T | Promise<T>,
   ): Promise<T>
+}
+
+/** `ctx.workspaces` 用到的部分。 */
+export interface WorkspacesService {
+  list: Observable<{
+    items: readonly { workspaceId: string; path: string; sessionIds: readonly string[] }[]
+  }>
+}
+
+/** `ctx.uiWorkspace` 用到的部分。 */
+export interface UiWorkspaceService {
+  openSession(target: string): void
 }
 
 /** 发出去之后等多久还没被输入框接走，就算没发出去。 */
@@ -80,14 +96,26 @@ export interface SessionBridge {
   subscribe(fn: () => void): () => void
   /** 往会话里发一句话；没发出去就抛错（错误信息给人看）。 */
   deliver(session: string, text: string): Promise<void>
+  /** 能不能新建会话。 */
+  canCreate(): boolean
+  /** 在 `from` 所在的工作区新建一个会话（拿不到工作区就按 `cwd` 建），回新会话的 id。 */
+  create(from: string, cwd: string | undefined): Promise<string>
+  /** 跳到一个会话（宿主没有导航能力时什么也不做，回 `false`）。 */
+  open(session: string): boolean
 }
 
 /** 入口里建一个，服务接上 / 断开时调 `attach` / `detach`。 */
 export function createSessionBridge(): SessionBridge & {
   attach(sessions: SessionsService, conversation: ConversationService): void
   detach(): void
+  attachWorkspaces(
+    workspaces: WorkspacesService | undefined,
+    ui: UiWorkspaceService | undefined,
+  ): void
 } {
   let services: { sessions: SessionsService; conversation: ConversationService } | null = null
+  let workspaces: WorkspacesService | undefined
+  let navigation: UiWorkspaceService | undefined
   let unsubscribe: (() => void) | null = null
   let cache: readonly SessionRow[] = []
   let cachedFrom: unknown = null
@@ -134,6 +162,29 @@ export function createSessionBridge(): SessionBridge & {
       unsubscribe = null
       services = null
       emit()
+    },
+    attachWorkspaces(nextWorkspaces, ui) {
+      workspaces = nextWorkspaces
+      navigation = ui
+      emit()
+    },
+    canCreate: () => services !== null,
+    async create(from, cwd) {
+      const current = services
+      if (current === null) throw new Error('会话服务没有就绪')
+      const items = workspaces?.list.getSnapshot().items ?? []
+      const workspace =
+        items.find((item) => item.sessionIds.includes(from)) ??
+        items.find((item) => sameDir(item.path, cwd))
+      if (workspace !== undefined)
+        return current.sessions.create({ workspaceId: workspace.workspaceId })
+      if (cwd === undefined) throw new Error('不知道本会话在哪个工作区，没法新建会话')
+      return current.sessions.create({ cwd })
+    },
+    open(session) {
+      if (navigation === undefined) return false
+      navigation.openSession(session)
+      return true
     },
     available: () => services !== null,
     rows,
@@ -221,7 +272,7 @@ async function submitThrough(input: SessionInput, text: string): Promise<void> {
 }
 
 /** 同一个工作区：路径大小写、分隔符不同也算同一个（Windows）。 */
-function sameDir(a: string | undefined, b: string | undefined): boolean {
+export function sameDir(a: string | undefined, b: string | undefined): boolean {
   if (a === undefined || b === undefined) return false
   const norm = (value: string): string => value.replace(/[\\/]+$/u, '').replace(/\\/gu, '/')
   return norm(a).toLowerCase() === norm(b).toLowerCase()

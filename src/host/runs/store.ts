@@ -1,11 +1,12 @@
 /**
  * dsh-workflow-lite — 工作流实例：落盘位置与实例索引。
  *
- * 三处文件：
+ * 落盘位置：
  * - `<dataDir>/instances.json`：实例索引，全局一份，**只有插件写**（进程内写锁 + 原子写）；
- * - `<dataDir>/runs/<实例 id>/graph.json`：编译那一刻的图快照，建立后只读；
- * - `<工作区>/.workflow-lite/runs/<实例 id>.yaml`：状态文件，主 agent 维护（拿不到工作区时退到
- *   `<dataDir>/runs/<实例 id>/state.yaml`）。
+ * - `<dataDir>/runs/<实例 id>/graph.json`：建实例那一刻的图快照，建立后只读；
+ * - **实例目录** `<工作区>/.workflow-lite/runs/<实例 id>/`（拿不到工作区时退到 `<dataDir>/runs/<实例 id>/`）：
+ *   `state.yaml` 状态（插件写：模型经 `state` 动作、用户经画布）、`tasks/` 各步骤的任务描述、
+ *   `out/` 默认的产出根目录。早先的实例状态文件在 `runs/<实例 id>.yaml`，索引里记着绝对路径，照旧能读。
  *
  * 状态不进索引：进度的事实源只有状态文件，索引只记"在哪、属于谁"。
  *
@@ -20,15 +21,13 @@ import { ensureDir, readFileText, renamePath, writeFileAtomic } from '../store/a
 
 export const INSTANCES_FILE = 'instances.json'
 export const RUNS_DIR = 'runs'
-/** 工作区里放状态文件的目录（隐藏目录，里面放一个忽略一切的 `.gitignore`）。 */
+/** 工作区里放实例目录的地方（隐藏目录，里面放一个忽略一切的 `.gitignore`）。 */
 export const WORKSPACE_RUNS_DIR = join('.workflow-lite', 'runs')
+/** 实例目录里放任务描述的子目录。 */
+export const TASKS_DIR = 'tasks'
 
-/**
- * 工作区里 `.workflow-lite/` 放一个忽略一切的 `.gitignore`（状态文件、默认的产出都不进版本库）。
- * 给了 `root` 时只在它落在 `.workflow-lite/` 下时才放。
- */
-export async function ensureWorkspaceIgnore(cwd: string, root?: string): Promise<void> {
-  if (root !== undefined && !/^\.workflow-lite(\/|$)/u.test(root)) return
+/** 工作区里 `.workflow-lite/` 放一个忽略一切的 `.gitignore`（状态、任务描述、默认产出都不进版本库）。 */
+export async function ensureWorkspaceIgnore(cwd: string): Promise<void> {
   const file = join(cwd, WORKSPACE_RUNS_DIR, '..', '.gitignore')
   if ((await readFileText(file)) !== null) return
   await ensureDir(dirname(file))
@@ -47,11 +46,14 @@ export function snapshotFile(dataDir: string, id: string): string {
   return join(runDir(dataDir, id), 'graph.json')
 }
 
-/** 状态文件放哪：有工作区就放工作区（沙箱 `workspace-write` 档能写），否则退回数据目录。 */
+/** 实例目录：有工作区就放工作区（沙箱 `workspace-write` 档能写，执行者也找得到），否则退回数据目录。 */
+export function instanceDir(dataDir: string, id: string, cwd: string | undefined): string {
+  return cwd === undefined ? runDir(dataDir, id) : join(cwd, WORKSPACE_RUNS_DIR, id)
+}
+
+/** 状态文件：实例目录里的 `state.yaml`。 */
 export function statePathFor(dataDir: string, id: string, cwd: string | undefined): string {
-  return cwd === undefined
-    ? join(runDir(dataDir, id), 'state.yaml')
-    : join(cwd, WORKSPACE_RUNS_DIR, `${id}.yaml`)
+  return join(instanceDir(dataDir, id, cwd), 'state.yaml')
 }
 
 /** 实例 id：`<YYYYMMDD>-<HHmmss>-<4 位十六进制>`，按时间天然有序、能当文件名。 */

@@ -7,7 +7,13 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { buildFullText, buildPlan, type PlanOptions, planIdOf } from '../../src/shared/compile.ts'
+import {
+  buildFullText,
+  buildPlan,
+  type PlanOptions,
+  planIdOf,
+  runStateLines,
+} from '../../src/shared/compile.ts'
 import { analyzeGraph } from '../../src/shared/graph.ts'
 import { isStep, makeEdgeId, migrateOutputs } from '../../src/shared/model.ts'
 import {
@@ -109,7 +115,7 @@ function sectionHeadings(text: string): string[] {
  *    不是编译产物（它自己在说"这里为可读性截了前缀"）——编译器不产出这种句子，故不设期望。
  *    去掉它之后，表与批次块之间只留**一个**空行。
  * 2. 样张末行是 ⑤ 段的占位符 `<动态尾：…>`，由本实现按「目标：/工作区路径：」
- *    两个字面字段渲染（见 `dynamicSection`），故期望值在 `## 本次目标` 之后接这两行。
+ *    两个字面字段渲染（见 `dynamicSection`），故期望值在 `## 本次执行` 之后接这两行。
  *
  * 样张里的路径前缀被省略成 `…`，期望值用 `GOLDEN_PREFIX` 把它还原成
  * 编译时真的会算出的前缀——`…\workflow-lite\…` 之后**每一个字符**都与样张相同。
@@ -160,7 +166,7 @@ const GOLDEN_LINES: readonly string[] = [
   '循环里的产出会被反复覆盖，验收以**最终一轮**为准。',
   '产出写到工作区里，不要写进 `dataDir`。',
   '',
-  '## 本次目标',
+  '## 本次执行',
 ]
 
 /** 样张省略掉的那个前缀：`…` 处真的是这份宿主路径。 */
@@ -256,7 +262,7 @@ describe('黄金用例：设计定稿样张', () => {
       '## 图的事实',
       '## 分发纪律',
       '## 交付契约',
-      '## 本次目标',
+      '## 本次执行',
     ])
     expect(plan).not.toContain('## 图的注意事项')
   })
@@ -554,11 +560,11 @@ describe('④ 段：交付契约', () => {
     )
   })
 
-  it('goal / cwd 缺省：⑤ 渲染「未指定」，④ 补「基目录未指定，请向调用方确认」', () => {
+  it('goal 缺省：⑤ 不写目标那一行；cwd 缺省渲染「未指定」，④ 补「基目录未指定，请向调用方确认」', () => {
     const document = doc([n('a', 'A', { output: 'a.md' }), n('b', 'B')], [edge('a', 'b')])
     const plan = planFor(document)
 
-    expect(plan).toContain('目标：未指定')
+    expect(plan).not.toContain('目标：')
     expect(plan).toContain('工作区路径：未指定')
     expect(plan).toContain('基目录未指定，请向调用方确认。')
   })
@@ -570,6 +576,16 @@ describe('④ 段：交付契约', () => {
     expect(plan).toContain('目标：把活干完')
     expect(plan).toContain(`工作区路径：${String.raw`D:\work\ws`}`)
     expect(plan).not.toContain('未指定')
+  })
+
+  it('给了实例 id：⑤ 写出它；开了运行状态的段落让模型用 state 动作、不碰文件', () => {
+    const document = doc([n('a', 'A')], [])
+    const plan = planFor(document, { cwd: 'D:/ws', instance: '20261002-143012-a3f9' })
+    expect(plan).toContain('工作流实例：`20261002-143012-a3f9`')
+    const lines = runStateLines({ instance: '20261002-143012-a3f9' }).join('\n')
+    expect(lines).toContain('`state` 动作记，不要直接编辑状态文件')
+    expect(lines).toContain('"instance":"20261002-143012-a3f9"')
+    expect(lines).toContain('resume')
   })
 })
 

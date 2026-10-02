@@ -410,9 +410,9 @@ describe('workflow_lite —— 文件节点与交接', () => {
 
     const compiled = record(await run({ action: 'compile', workflow: 'h' }, EXEC))
     const plan = String(compiled.plan)
-    // 没配产出根目录、也不记运行状态：默认目录里的 {instance} 换成 planId。
+    // 没配产出根目录：默认落在实例自己的 out 下（这里没装实例服务，实例 id 处留着 {instance}）。
     expect(plan).toContain(
-      `- \`.workflow-lite/runs/${String(compiled.planId)}/out/issues.md\`：\`review\` 产出；\`fix\` 在原文件上更新；\`report\` 读取。要求：问题清单，修好打钩`,
+      `- \`.workflow-lite/runs/{instance}/out/issues.md\`：\`review\` 产出；\`fix\` 在原文件上更新；\`report\` 读取。要求：问题清单，修好打钩`,
     )
     expect(plan).toContain('- `review` → `fix`：说明：逐条修')
     expect(plan).toContain('- `fix` → `report`：只管先后，不交执行结果。')

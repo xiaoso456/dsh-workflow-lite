@@ -22,6 +22,7 @@ import { fileGraph, outputsOf, stepFiles } from '../../shared/files.ts'
 import { analyzeGraph, compareByCodepoint } from '../../shared/graph.ts'
 import { canonicalOutput, idKey, isFile, isStep } from '../../shared/model.ts'
 import { checkName } from '../../shared/naming.ts'
+import { NODE_STATUSES, RUN_STATUSES } from '../../shared/runState.ts'
 import type {
   ChangedEntry,
   ExecutionMode,
@@ -37,7 +38,7 @@ import type {
 } from '../../shared/types.ts'
 import { ACTIONS, type Action, EXECUTION_MODES, TOOL_NAME } from '../../shared/types.ts'
 import { compileWorkflow } from '../plan.ts'
-import type { RunService, SessionRef } from '../runs/service.ts'
+import type { NodePatch, RunService, SessionRef, StatePatch } from '../runs/service.ts'
 import { writeFileAtomic } from '../store/atomic.ts'
 import { templateFile, templateOccupant } from '../store/paths.ts'
 import {
@@ -61,12 +62,12 @@ const DESCRIPTION = [
   '管理轻量工作流的图文件：一张图 = 一个 JSON（React Flow 原生 nodes/edges/viewport），',
   '每个节点的提示词内联在 node.data.prompt 里。用 action 选动作：',
   'list 列出图与模板 / read 读图（不给 node 只回索引、绝不含正文；给 node 才回那一个节点的正文）/ ',
-  'compile 编译成派发计划并把载荷物化进 .dispatch（模型据此自己组织执行）/ ',
+  'compile 编译成派发计划：建一个工作流实例，各步骤的任务描述写进工作区的 .workflow-lite/runs/<实例>/tasks/（模型据此自己组织执行；full=true 是给人看的整卷版，不建实例）/ ',
   'create 新建图（可从工作流模板）/ write_node 新建或覆盖一个节点 / set_label 改显示名（id 不可改）/ ',
   'delete_node 删节点（连带删边）/ connect、disconnect 增删边 / rename_workflow、delete_workflow 改名删图 / ',
   'save_as_template 存成模板（给了 node 就存成节点模板）/ ',
   'configure 改工作流设置（output_root 产出根目录、mode 执行方式、run_state 记录运行状态）/ write_file 新建或修改文件节点 / ',
-  'runs 列工作流实例 / resume 拿一个实例的计划接着跑。开了 run_state 的图，compile 会建一个工作流实例和它的状态文件；中断后接着跑用 resume。',
+  'runs 列工作流实例 / resume 拿一个实例的计划接着跑 / state 看或改实例的运行状态（开了 run_state 的图按计划末尾「运行状态」段用它记进度，不要直接编辑状态文件；插件补时间、轮次、流水并校验）。',
   '用户在画布上点「执行」时会发来一句带实例 id 的话：用 resume 拿那个实例的计划，照着执行。',
   '文件是独立的节点：connect 步骤 → 文件 = 写它（update 选在原文件上更新），文件 → 步骤 = 读它；',
   'write_node 的 output/outputs 也会自动建好文件节点并连上。步骤 → 步骤的线缺省交上游的执行结果（handoff / handoff_note 可改）。',
@@ -266,6 +267,69 @@ export interface WorkflowLiteArgs {
   run_state?: boolean
   instance?: string
   all?: boolean
+  status?: string
+  note?: string
+  nodes?: NodePatchArgs[]
+  log?: string
+}
+
+/** `state` 动作里一个步骤的改动（与参数声明同构）。 */
+export interface NodePatchArgs {
+  id: string
+  status?: string
+  summary?: string
+  outputs?: string[]
+  verdict?: string
+  error?: string
+  by?: string
+}
+
+/** 把 `state` 的参数整理成服务的入参；状态值不认识就回一句给模型看的错。 */
+function statePatchOf(args: WorkflowLiteArgs): StatePatch | string {
+  const patch: StatePatch = {}
+  if (args.status !== undefined) {
+    const status = RUN_STATUSES.find((candidate) => candidate === args.status)
+    if (status === undefined)
+      return `status 不认识：${args.status}（可选：${RUN_STATUSES.join(' / ')}）`
+    patch.status = status
+  }
+  if (args.note !== undefined) patch.note = args.note
+  if (args.log !== undefined) patch.log = args.log
+  if (args.nodes !== undefined) {
+    if (!Array.isArray(args.nodes)) return 'nodes 要写成 [{ id, status, summary, … }]'
+    const nodes: Record<string, NodePatch> = {}
+    for (const raw of args.nodes) {
+      if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+        return 'nodes 的每一项要写成 { id, status, summary, … }'
+      }
+      const id = raw.id
+      if (typeof id !== 'string' || id === '') return 'nodes 的每一项都要有 id（步骤 id）'
+      if (nodes[id] !== undefined) return `nodes 里步骤 ${id} 出现了两次，合成一项`
+      const node: NodePatch = {}
+      if (raw.status !== undefined) {
+        const status = NODE_STATUSES.find((candidate) => candidate === raw.status)
+        if (status === undefined) {
+          return `nodes.${id}.status 不认识：${raw.status}（可选：${NODE_STATUSES.join(' / ')}）`
+        }
+        node.status = status
+      }
+      for (const key of ['summary', 'verdict', 'error', 'by'] as const) {
+        const value = raw[key]
+        if (value === undefined) continue
+        if (typeof value !== 'string') return `nodes.${id}.${key} 必须是文字`
+        node[key] = value
+      }
+      if (raw.outputs !== undefined) {
+        if (!Array.isArray(raw.outputs) || raw.outputs.some((item) => typeof item !== 'string')) {
+          return `nodes.${id}.outputs 必须是文件路径的列表`
+        }
+        node.outputs = raw.outputs
+      }
+      nodes[id] = node
+    }
+    patch.nodes = nodes
+  }
+  return patch
 }
 
 /**
@@ -389,46 +453,44 @@ export function createWorkflowLiteHandler(
         const name = requireWorkflow(args.workflow)
         if (name === null) return missingWorkflow()
         const runs = deps.runs
-        const outcome = await compileWorkflow(
-          repository,
-          deps.dataDir(),
-          name,
-          {
-            ...(args.full === true ? { full: true } : {}),
-            ...(args.goal === undefined ? {} : { goal: args.goal }),
-            // 派发版是要拿去执行的：产出根目录里的 {instance} 要换成实际的值。
-            ...(args.full === true ? {} : { execute: true }),
-            // 开了「记录运行状态」的图：编译成功就建一个工作流实例（整卷版是给人看的，不建）。
-            ...(runs === undefined || args.full === true
-              ? {}
-              : {
-                  prepareRun: (_planId: string, document: WorkflowDocument) =>
-                    runs.prepare({
-                      workflow: name,
-                      document,
-                      session,
-                      ...(args.goal === undefined ? {} : { goal: args.goal }),
-                    }),
-                }),
-          },
-          cwdOf(exec),
-        )
+        // 整卷版是给人看的：不建实例，路径里留着 {instance}。
+        if (args.full === true || runs === undefined) {
+          const outcome = await compileWorkflow(
+            repository,
+            deps.dataDir(),
+            name,
+            {
+              ...(args.full === true ? { full: true } : {}),
+              ...(args.goal === undefined ? {} : { goal: args.goal }),
+            },
+            cwdOf(exec),
+          )
+          if (!outcome.ok) return errorValue(outcome)
+          return finish(outcome.result)
+        }
+        const load = await repository.load(name)
+        if (!load.exists) {
+          return errorValue({ error: { code: 'not_found', message: `图 ${name} 不存在` } })
+        }
+        if (!load.loadable || load.document === null) {
+          return errorValue({
+            error: {
+              code: 'blocked',
+              message: `图 ${name} 有保存级问题，无法加载：${load.problems.map((p) => p.message).join('；')}`,
+              detail: { problems: load.problems },
+            },
+          })
+        }
+        // 派发版：建一个工作流实例，按它出计划（和画布上点「执行」之后 resume 拿到的一样）。
+        const outcome = await runs.compile({
+          workflow: name,
+          document: load.document,
+          problems: load.problems,
+          session,
+          ...(args.goal === undefined ? {} : { goal: args.goal }),
+        })
         if (!outcome.ok) return errorValue(outcome)
-        const { run, ...rest } = outcome.result
-        return finish(
-          run === undefined
-            ? rest
-            : {
-                ...rest,
-                ...run,
-                ...(session.cwd === undefined
-                  ? {
-                      runWarning:
-                        '这次调用没有会话工作区，状态文件放在了数据目录里；沙箱只允许写工作区时可能写不进去',
-                    }
-                  : {}),
-              },
-        )
+        return finish(outcome.result)
       }
 
       case 'runs': {
@@ -442,6 +504,21 @@ export function createWorkflowLiteHandler(
         const outcome = await deps.runs.resume(
           args.instance === undefined || args.instance === '' ? undefined : args.instance,
           session,
+        )
+        if (!outcome.ok) return errorValue(outcome)
+        return finish(outcome.result)
+      }
+
+      case 'state': {
+        if (deps.runs === undefined) return noRuns()
+        const patch = statePatchOf(args)
+        if (typeof patch === 'string') {
+          return errorValue({ error: { code: 'invalid_args', message: patch } })
+        }
+        const outcome = await deps.runs.state(
+          args.instance === undefined || args.instance === '' ? undefined : args.instance,
+          session,
+          patch,
         )
         if (!outcome.ok) return errorValue(outcome)
         return finish(outcome.result)
@@ -714,7 +791,10 @@ export const PARAMETERS = {
     description: 'write_file：文件路径（相对产出根目录，不能是绝对路径或含 ..）。',
   },
   rule: { type: 'string', description: 'write_file：这份文件该怎么写；空串 = 清除。' },
-  goal: { type: 'string', description: 'compile：本次目标（进派发计划的动态尾）。' },
+  goal: {
+    type: 'string',
+    description: 'compile：本次目标（用户说了要做成什么时写，进计划的「本次执行」段）。',
+  },
   full: { type: 'boolean', description: 'compile：true = 整卷版（内联正文，给人读）。' },
   output_root: {
     type: 'string',
@@ -724,12 +804,45 @@ export const PARAMETERS = {
   run_state: {
     type: 'boolean',
     description:
-      'configure：记录运行状态。打开后每次 compile 建一个工作流实例和它的 YAML 状态文件，执行时按计划末尾「运行状态」段维护。',
+      'configure：记录运行状态。打开后每个工作流实例都带一份运行状态，执行时按计划末尾「运行状态」段用 state 记进度。',
   },
   instance: {
     type: 'string',
-    description: 'resume：实例 id（缺省 = 本会话当前的实例；用户从画布上执行时会给出）。',
+    description: 'resume / state：实例 id（缺省 = 本会话当前的实例；用户从画布上执行时会给出）。',
   },
+  status: {
+    type: 'string',
+    enum: [...RUN_STATUSES],
+    description: 'state：整体状态。',
+  },
+  note: {
+    type: 'string',
+    description:
+      'state：整体的一句说明（waiting 写等什么、failed / cancelled 写原因）；空串 = 清掉。',
+  },
+  nodes: {
+    type: 'array',
+    description:
+      'state：要改的步骤，每项一个。改 status 时插件自动补轮次、开始 / 结束时间和流水；done 带 summary、outputs，有条件出边的带 verdict（取它出边的条件值）；failed 带 error。',
+    items: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        id: { type: 'string', required: true, description: '步骤 id（大小写与图一致）。' },
+        status: { type: 'string', enum: [...NODE_STATUSES], description: '步骤状态。' },
+        summary: { type: 'string', description: '一两句结论（200 字以内）；空串 = 清掉。' },
+        outputs: {
+          type: 'array',
+          items: { type: 'string' },
+          description: '这一轮实际写出的文件路径（照计划里给的路径写）。',
+        },
+        verdict: { type: 'string', description: '判定：它出边的条件值之一（如 pass / fail）。' },
+        error: { type: 'string', description: '失败原因。' },
+        by: { type: 'string', description: '谁做的：self / subagent / 队员名。' },
+      },
+    },
+  },
+  log: { type: 'string', description: 'state：往流水追加一条说明。' },
   all: { type: 'boolean', description: 'runs：true = 列所有会话的实例（缺省只列本会话的）。' },
   mode: {
     type: 'string',

@@ -3,7 +3,6 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { compileWorkflow } from '../../src/host/plan.ts'
-import { payloadFile } from '../../src/host/store/paths.ts'
 import {
   createRepository,
   type Repository,
@@ -64,11 +63,19 @@ async function seedGolden(): Promise<void> {
 }
 
 describe('compileWorkflow —— 端到端：图 → 计划 + 物化', () => {
-  it('正常编译：出计划、planId 是内容哈希、载荷落进 .dispatch 且与 prompt 逐字相同', async () => {
+  it('对着实例编译：出计划，任务描述写进实例目录的 tasks/ 且与 prompt 逐字相同', async () => {
     await seedGolden()
-    const outcome = await compileWorkflow(repository, dataDir, 'code-review', {
-      goal: '把认证模块的安全问题清干净',
-    })
+    const dir = join(dataDir, 'ws', '.workflow-lite', 'runs', '20261002-143012-a3f9')
+    const outcome = await compileWorkflow(
+      repository,
+      dataDir,
+      'code-review',
+      {
+        goal: '把认证模块的安全问题清干净',
+        instance: { id: '20261002-143012-a3f9', dir, tracked: false },
+      },
+      join(dataDir, 'ws'),
+    )
     expect(outcome.ok, outcome.ok ? '' : outcome.error.message).toBe(true)
     if (!outcome.ok) return
 
@@ -77,29 +84,54 @@ describe('compileWorkflow —— 端到端：图 → 计划 + 物化', () => {
     expect(planId).toMatch(/^[0-9a-f]{8}$/)
     expect(plan).not.toBe('')
 
-    // 派发计划：五段齐全、正文一个字都不在里面、路径引用指向物化产物。
+    // 派发计划：五段齐全、正文一个字都不在里面、路径引用指向实例目录里的任务描述。
     for (const marker of [
       '## 你拿到的是什么',
       '## 图的事实',
       '## 分发纪律',
       '## 交付契约',
-      '## 本次目标',
+      '## 本次执行',
     ]) {
       expect(plan).toContain(marker)
     }
     expect(plan).not.toContain('你是审查者')
+    expect(plan).not.toContain('{instance}')
+    expect(plan).toContain('工作流实例：`20261002-143012-a3f9`')
+    expect(payloadPaths['auth-review']).toBe(join(dir, 'tasks', 'auth-review.md'))
     expect(plan).toContain(payloadPaths['auth-review'] ?? '')
+    // 没配产出根目录：默认落在实例自己的 out 下。
+    expect(plan).toContain('`.workflow-lite/runs/20261002-143012-a3f9/out`')
 
-    // 物化：文件存在、内容与 data.prompt 字节相同。
-    const materialized = await readFile(
-      payloadFile(dataDir, 'code-review', planId, 'auth-review'),
-      'utf8',
-    )
-    expect(materialized).toBe('你是审查者，只审认证相关代码。')
-    expect(payloadPaths['auth-review']).toContain(planId)
+    const written = await readFile(join(dir, 'tasks', 'auth-review.md'), 'utf8')
+    expect(written).toBe('你是审查者，只审认证相关代码。')
+    // 工作区的 .workflow-lite 不进版本库。
+    expect(await readFile(join(dataDir, 'ws', '.workflow-lite', '.gitignore'), 'utf8')).toBe('*\n')
 
     // 警告与提示走同一条通道（这张图上 auth-review 有入边但 fix-auth 显式 false ⇒ 不该有 missing_output）。
     expect(warnings.some((warning) => warning.nodes?.includes('auth-review') === true)).toBe(false)
+  })
+
+  it('预览（不给实例）：同一份计划，实例 id 处留 {instance}，什么文件都不写', async () => {
+    await seedGolden()
+    expect((await repository.configure('code-review', { runState: true })).ok).toBe(true)
+    const outcome = await compileWorkflow(
+      repository,
+      dataDir,
+      'code-review',
+      {},
+      join(dataDir, 'ws'),
+    )
+    expect(outcome.ok).toBe(true)
+    if (!outcome.ok) return
+    const { plan, payloadPaths } = outcome.result
+    expect(payloadPaths.scan).toBe(
+      join(dataDir, 'ws', '.workflow-lite', 'runs', '{instance}', 'tasks', 'scan.md'),
+    )
+    expect(plan).toContain('工作流实例：`{instance}`')
+    expect(plan).toContain('## 运行状态')
+    expect(plan).toContain('"instance":"{instance}"')
+    const { access } = await import('node:fs/promises')
+    await expect(access(join(dataDir, 'ws'))).rejects.toThrow()
   })
 
   it('planId 由图内容决定：同内容重复编译得同一目录（幂等覆盖）', async () => {
@@ -112,19 +144,20 @@ describe('compileWorkflow —— 端到端：图 → 计划 + 物化', () => {
     expect(second.result.plan).toBe(first.result.plan)
   })
 
-  it('编译级（空正文）⇒ plan 为空串、problems 非空，且**不物化**', async () => {
+  it('编译级（空正文）⇒ plan 为空串、problems 非空，且**不写任务描述**', async () => {
     await seedGolden()
     expect((await repository.writeNode('code-review', { id: 'scan', content: '' })).ok).toBe(true)
-    const outcome = await compileWorkflow(repository, dataDir, 'code-review', {})
+    const dir = join(dataDir, 'inst')
+    const outcome = await compileWorkflow(repository, dataDir, 'code-review', {
+      instance: { id: '20261002-143012-a3f9', dir, tracked: false },
+    })
     expect(outcome.ok).toBe(true)
     if (!outcome.ok) return
     expect(outcome.result.plan).toBe('')
     expect(outcome.result.problems.map((problem) => problem.code)).toContain('prompt_empty')
-    // 不物化：目录不该出现（否则会留下与"没有计划"对不上的载荷）。
+    // 不写：目录不该出现（否则会留下与"没有计划"对不上的任务描述）。
     const { access } = await import('node:fs/promises')
-    await expect(
-      access(payloadFile(dataDir, 'code-review', outcome.result.planId, 'scan')),
-    ).rejects.toThrow()
+    await expect(access(join(dir, 'tasks'))).rejects.toThrow()
   })
 
   it('整卷版：内联全部正文、不物化', async () => {
@@ -135,9 +168,7 @@ describe('compileWorkflow —— 端到端：图 → 计划 + 物化', () => {
     expect(outcome.result.plan).toContain('你是审查者，只审认证相关代码。')
     expect(outcome.result.plan).toContain('扫描仓库，把疑点写成 scan.json。')
     // 路径引用退位
-    expect(outcome.result.plan).not.toContain(
-      payloadFile(dataDir, 'code-review', outcome.result.planId, 'scan'),
-    )
+    expect(outcome.result.plan).not.toContain(outcome.result.payloadPaths.scan ?? '')
   })
 
   it('图不存在 ⇒ not_found（绝不隐式创建）', async () => {
@@ -179,12 +210,12 @@ describe('compileWorkflow —— 端到端：图 → 计划 + 物化', () => {
     expect(outcome.error.detail).toBeDefined()
   })
 
-  it('cwd / goal 缺省时 ⑤ 渲染「未指定」；给了就照写', async () => {
+  it('cwd 缺省时 ⑤ 渲染「未指定」、goal 缺省时不写目标；给了就照写', async () => {
     await seedGolden()
     const bare = await compileWorkflow(repository, dataDir, 'code-review', {})
     expect(bare.ok).toBe(true)
     if (!bare.ok) return
-    expect(bare.result.plan).toContain('目标：未指定')
+    expect(bare.result.plan).not.toContain('目标：')
     expect(bare.result.plan).toContain('工作区路径：未指定')
 
     const given = await compileWorkflow(

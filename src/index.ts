@@ -7,8 +7,8 @@
  *
  * 这个插件**不执行任何节点**：它只管理文件、渲染画布、把图编译成一份派发计划，
  * 拿到计划的模型自己决定怎么执行。插件不调度，就没有并发/超时/重试/锁/心跳/恢复。
- * 工作流开了「记录运行状态」时，编译会多建一个工作流实例：进度由主 agent 写进一份 YAML 状态文件，
- * 插件只负责建实例、把它画出来、把用户在画布上的改动写回并通知模型。
+ * 每次执行都是一个工作流实例：图的快照 + 工作区里的实例目录（任务描述、默认产出）。开了「记录运行状态」
+ * 的图还带一份状态：主 agent 经工具的 `state` 动作记进度，用户在画布上看、改，改动通知回模型。
  *
  * @module @xiaoso/dsh-workflow-lite
  */
@@ -27,9 +27,10 @@ import {
 import { registerWorkflowLiteRpc } from './host/rpc.ts'
 import { createNotify } from './host/runs/notice.ts'
 import { RunService } from './host/runs/service.ts'
-import { registerRunStateSkill, validatorPath } from './host/runs/skill.ts'
+import { registerRunStateSkill } from './host/runs/skill.ts'
 import { createRepository, type Repository, reportProblems } from './host/store/repository.ts'
 import { registerWorkflowLiteTool } from './host/tool/tool.ts'
+import type { WorkflowDocument } from './shared/types.ts'
 import { validateDocument } from './shared/validate.ts'
 
 /** Host 插件名（也是 profile patch 那行的 id）。 */
@@ -52,17 +53,15 @@ export const inject = ['tools']
  * @param config - 解析后的活配置（`Volatile` 引用，写入时就地更新）。
  */
 export async function apply(ctx: Context, config: WorkflowLiteSettings): Promise<void> {
-  const repository: Repository = createRepository({
-    dataDir: config.dataDir.get(),
-    // 仓储不认识 Config：`maxNodes` 这类活值由装配方闭包进来。
-    validate: (document, workflow) =>
-      reportProblems(
-        validateDocument(document, {
-          workflowName: workflow,
-          maxNodes: config.maxNodes.get(),
-        }),
-      ),
-  })
+  // 仓储不认识 Config：`maxNodes` 这类活值由装配方闭包进来。
+  const validate = (document: WorkflowDocument, workflow: string) =>
+    reportProblems(
+      validateDocument(document, {
+        workflowName: workflow,
+        maxNodes: config.maxNodes.get(),
+      }),
+    )
+  const repository: Repository = createRepository({ dataDir: config.dataDir.get(), validate })
 
   // 首次启动按需建 `workflows/` 与 `templates/{workflows,nodes}`；**不建 `.dispatch/`**
   // （那是派生物，编译时才出现）。目录不可用只是警告——工具会把它翻成 `invalid_args`。
@@ -71,14 +70,14 @@ export async function apply(ctx: Context, config: WorkflowLiteSettings): Promise
     ctx.logger.warn(`[workflow-lite] 数据目录不可用：${layout.error.message}`)
   }
 
-  // 工作流实例（开了「记录运行状态」的图才用得上）：建实例、读写状态文件、把用户的改动通知给模型。
+  // 工作流实例：建实例、出计划、读写运行状态、把用户的改动通知给模型。
   const runs = new RunService({
     dataDir: () => config.dataDir.get(),
-    validator: validatorPath,
+    validate,
     notify: createNotify(ctx),
   })
 
-  // 按需 skill：状态文件的完整格式与校验脚本。`skills` 服务不在时跳过，计划里的那段照写。
+  // 按需 skill：运行状态的字段与 `state` 动作的用法。`skills` 服务不在时跳过，计划里的那段照写。
   ctx.inject(['skills'], (skillsCtx) => {
     if (!config.installSkill.get()) return
     skillsCtx.effect(

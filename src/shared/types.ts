@@ -188,10 +188,12 @@ export interface PayloadPath {
 export interface PlanFacts {
   name: string
   document: WorkflowDocument
-  /** 本次目标；缺省时 ⑤ 段渲染「目标：未指定」。 */
+  /** 本次目标；缺省时 ⑤ 段不写这一行。 */
   goal?: string
   /** 工作区路径（＝ ⑤ 段的 cwd）；取不到时 ⑤ 渲染「工作区路径：未指定」。 */
   cwd?: string
+  /** 工作流实例 id（预览时是 `{instance}`）；不给就不写。 */
+  instance?: string
   /** 路径映射：节点 id → 绝对载荷路径（host 侧算好注入，编译器本身不碰磁盘）。 */
   payloadPaths: ReadonlyMap<string, string>
 }
@@ -289,6 +291,7 @@ export const ACTIONS = [
   'write_file',
   'runs',
   'resume',
+  'state',
 ] as const
 
 export type Action = (typeof ACTIONS)[number]

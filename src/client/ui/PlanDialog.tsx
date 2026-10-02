@@ -1,8 +1,9 @@
 /**
  * dsh-workflow-lite — 「预览计划」对话框：把当前工作流编译成派发计划给人看。
  *
- * 两个版本：「给模型」是真正派发的那份（提示词以载荷路径引用）；「给人看」把提示词内联，
- * 适合通读与存档。打开前会先把没落盘的改动写下去——编译读的是磁盘。
+ * 两个版本：「给模型」就是执行时模型拿到的那份（提示词以任务描述路径引用，工作区按本会话的写）；
+ * 「给人看」把提示词内联，适合通读与存档。实例 id 执行时才有，计划里先留着 `{instance}`。
+ * 打开前会先把没落盘的改动写下去——编译读的是磁盘。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/PlanDialog
  */
@@ -98,9 +99,6 @@ export function PlanDialog(props: {
         <header className={css.dialogHead}>
           <div className={css.dialogTitle}>
             <span>{t('plan.title')}</span>
-            {result !== null && result.planId !== '' && !blocked && (
-              <code className={css.planId}>{result.planId}</code>
-            )}
           </div>
           <div className={css.versions}>
             <Segmented<Version>

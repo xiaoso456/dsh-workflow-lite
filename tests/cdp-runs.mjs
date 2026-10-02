@@ -70,7 +70,7 @@ const DOC = {
   settings: { runState: true },
 }
 
-const runs = new RunService({ dataDir: () => DATA_DIR, validator: () => undefined })
+const runs = new RunService({ dataDir: () => DATA_DIR, validate: () => [] })
 const session = await openPage()
 let instance = null
 let statePath = null
@@ -98,8 +98,8 @@ try {
     goal: '验收',
   })
   check(prepared.ok, `建实例失败：${JSON.stringify(prepared)}`)
-  instance = prepared.result.info.instance
-  statePath = prepared.result.info.statePath
+  instance = prepared.result.id
+  statePath = prepared.result.statePath
   pass(`建实例 ${instance}（假会话、临时工作区）`)
 
   // 1) 工作流中心 → 运行实例 → 查看。
@@ -424,8 +424,20 @@ try {
     await session.evaluate(`document.querySelector('[data-testid="wl-preview"]') !== null`),
     '预览按钮还在（只留图标）',
   )
+  check(
+    (await session.evaluate(
+      `document.querySelector('[data-testid="wl-run-start"]').getAttribute('aria-label')`,
+    )) === '新建会话执行',
+    '主按钮缺省是新建会话执行',
+  )
   await session.evaluate(`document.querySelector('[data-testid="wl-run-more"]').click()`)
   await waitFor(session, `document.querySelectorAll('[data-testid="wl-run-session"]').length > 0`)
+  check(
+    await session.evaluate(
+      `(() => { const menu = document.querySelector('[data-testid="wl-run-new"]'); const first = document.querySelector('[data-testid="wl-run-session"]'); return menu !== null && (menu.compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0 })()`,
+    ),
+    '下拉第一项应是「新建会话」',
+  )
   check(
     (await session.evaluate(
       `document.querySelector('[data-testid="wl-run-session"]').dataset.value`,
@@ -439,7 +451,25 @@ try {
     code: 'Escape',
     windowsVirtualKeyCode: 27,
   })
-  pass('「预览 / 执行」组：执行可点，选会话的下拉列出本工作区会话、本会话在最前')
+  // 预览计划：和执行时模型拿到的同一份——工作区写本会话的，实例 id 先留 {instance}，带运行状态段。
+  await session.evaluate(`document.querySelector('[data-testid="wl-preview"]').click()`)
+  await waitFor(session, `document.querySelector('[data-testid="wl-plan-text"]') !== null`, {
+    timeoutMs: 8000,
+  })
+  const planText = await session.evaluate(
+    `document.querySelector('[data-testid="wl-plan-text"]').innerText`,
+  )
+  check(!planText.includes('未指定'), '预览里的工作区路径应是本会话的')
+  check(planText.includes('{instance}'), '预览里实例 id 处应留着 {instance}')
+  check(planText.includes('state'), '开了运行状态的预览应带「运行状态」段（用 state 动作记）')
+  check(!planText.includes('目标：'), '没给目标就不写目标那一行')
+  await session.evaluate(
+    `document.querySelector('[data-testid="wl-plan"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`,
+  )
+  await waitFor(session, `document.querySelector('[data-testid="wl-plan"]') === null`)
+  pass(
+    '「预览 / 执行」组：缺省新建会话执行；下拉第一项是新建会话，下面是本工作区会话、本会话在最前；预览和执行时的计划对得上',
+  )
 
   // 14) 不记运行状态的实例（没开开关时从画布执行建出来的）：只显示图，右栏说明为什么没有进度。
   const plain = await rpc('graph/load', { name: NAME })

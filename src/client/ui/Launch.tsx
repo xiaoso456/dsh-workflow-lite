@@ -2,8 +2,9 @@
  * dsh-workflow-lite — 顶栏右端的「预览 / 执行」组。
  *
  * 左边是预览计划（只留图标）；右边是执行，样子和实例下拉的触发器一样（平时不着色，悬停才亮）：
- * 「▶ 执行」在本会话执行，旁边的小箭头打开会话选择，可以搜同一工作区的会话、挑一个执行。
- * 执行 = 用模板现在的样子建一个实例，往那个会话发一句话。
+ * 「▶ 执行」缺省在同一工作区**新建一个会话**执行；旁边的小箭头打开选择：第一项就是新建会话，
+ * 下面可以搜同一工作区的会话、挑一个执行。
+ * 执行 = 用模板现在的样子建一个实例，往那个会话发一句话，然后跳过去看它跑。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/Launch
  */
@@ -28,8 +29,11 @@ export interface LaunchProps {
   /** 这个 tab 所在的会话。 */
   session: string | undefined
   rows: readonly SessionRow[]
+  /** 能在同一工作区新建会话（缺省的执行方式）；不能时主按钮退回本会话。 */
+  canCreate: boolean
   onPreview(): void
-  onRun(session: string): void
+  /** `null` = 新建会话执行。 */
+  onRun(session: string | null): void
 }
 
 export function Launch(props: LaunchProps): React.JSX.Element {
@@ -47,8 +51,17 @@ export function Launch(props: LaunchProps): React.JSX.Element {
       ? choices
       : choices.filter((row) => row.title.toLowerCase().includes(needle))
   }, [choices, query])
-  const runTip = props.blocked === null ? t('launch.runHere') : t(props.blocked)
+  const runTip =
+    props.blocked !== null
+      ? t(props.blocked)
+      : props.canCreate
+        ? t('launch.runNew')
+        : t('launch.runHere')
   const runDisabled = props.empty || props.blocked !== null || props.starting
+  const run = (target: string | null): void => {
+    close()
+    props.onRun(target)
+  }
 
   return (
     <div className={cx(ui.panel, css.pill)} data-testid="wl-launch">
@@ -82,9 +95,9 @@ export function Launch(props: LaunchProps): React.JSX.Element {
               // 不能点时也要看得到原因：灰掉但保留悬停提示。
               aria-disabled={runDisabled}
               onClick={() => {
-                if (runDisabled || props.session === undefined) return
-                close()
-                props.onRun(props.session)
+                if (runDisabled) return
+                if (props.canCreate) run(null)
+                else if (props.session !== undefined) run(props.session)
               }}
             >
               <Icon name={props.starting ? 'reload' : 'play'} size={13} />
@@ -110,7 +123,22 @@ export function Launch(props: LaunchProps): React.JSX.Element {
           </div>
         }
       >
-        <p className={ui.menuTitle}>{t('launch.pick')}</p>
+        <p className={ui.menuTitle}>{t('launch.where')}</p>
+        {props.canCreate && (
+          <>
+            <button
+              type="button"
+              className={cx(ui.menuItem, css.newSession)}
+              data-testid="wl-run-new"
+              onClick={() => run(null)}
+            >
+              <Icon name="plus" size={15} />
+              <span className={ui.menuLabel}>{t('launch.newSession')}</span>
+              <span className={ui.menuMeta}>{t('launch.default')}</span>
+            </button>
+            <div className={ui.menuSep} />
+          </>
+        )}
         <div className={css.search}>
           <Icon name="search" size={14} />
           <input
@@ -135,10 +163,7 @@ export function Launch(props: LaunchProps): React.JSX.Element {
               className={ui.menuItem}
               data-value={row.id}
               data-testid="wl-run-session"
-              onClick={() => {
-                close()
-                props.onRun(row.id)
-              }}
+              onClick={() => run(row.id)}
             >
               <span className={css.sessionDot} data-running={row.running} />
               <span className={ui.menuLabel}>{row.title}</span>

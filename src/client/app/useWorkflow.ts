@@ -69,7 +69,8 @@ export interface Workflow {
   retrySave(): void
   keepMine(): void
   refreshCatalog(): Promise<void>
-  buildPlan(full: boolean): Promise<PlanBuildResponse>
+  /** 预览计划；`cwd` = 执行时的工作区（计划里的工作区路径、任务描述路径按它写）。 */
+  buildPlan(full: boolean, cwd?: string): Promise<PlanBuildResponse>
   /** 把待写的改动立刻存下去（「执行」之前：实例要拿磁盘上的那份做快照）。存不下去回 `false`。 */
   flush(): Promise<boolean>
   loadTemplate(name: string): Promise<NodeData | null>
@@ -438,12 +439,16 @@ export function useWorkflow(rpc: WorkflowLiteRpc, t: T): Workflow {
   const keepMine = useCallback((): void => void save(true), [save])
 
   const buildPlan = useCallback(
-    async (full: boolean): Promise<PlanBuildResponse> => {
+    async (full: boolean, cwd?: string): Promise<PlanBuildResponse> => {
       const name = stateRef.current.name
       if (name === null) throw new Error(tRef.current('error.generic'))
       // 编译读的是磁盘：先把改动写下去，预览才是"现在这张图"的计划。
       await flush()
-      return rpc.call('plan/build', { name, ...(full ? { full: true } : {}) })
+      return rpc.call('plan/build', {
+        name,
+        ...(full ? { full: true } : {}),
+        ...(cwd === undefined ? {} : { cwd }),
+      })
     },
     [rpc, flush],
   )

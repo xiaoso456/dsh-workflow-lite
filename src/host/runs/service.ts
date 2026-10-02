@@ -1,17 +1,17 @@
 /**
  * dsh-workflow-lite — 工作流实例的业务面：建实例、列、读、绑定、删、恢复、保存用户的改动。
  *
- * 工具（`compile` / `resume` / `runs`）与画布 RPC（`run/*`）共用这一层。状态文件的读写在这里：
- * 读用 `yaml` 解析后交给 `shared/runState.ts` 校验；用户的改动用 `yaml` 的 Document 接口
- * **只改动过的那几处**——保留主 agent 写的注释与排版。
+ * 工具（`compile` / `resume` / `runs` / `state`）与画布 RPC（`run/*`）共用这一层。状态文件只有插件写：
+ * 模型经 `state` 动作改（插件补时间、轮次、流水，改完校验），用户经画布改（逐字段核对冲突）。
+ * 同一个实例的写入排队进行，不会互相覆盖。
  *
  * @module @xiaoso/dsh-workflow-lite/host/runs/service
  */
 
-import { stat } from 'node:fs/promises'
+import { rmdir, stat } from 'node:fs/promises'
 import { dirname, isAbsolute, join } from 'node:path'
 import { Document, isSeq, parseDocument } from 'yaml'
-import { planIdOf, type RunStateSection } from '../../shared/compile.ts'
+import { planIdOf } from '../../shared/compile.ts'
 import { isFile, isStep, readDocument, writeDocument } from '../../shared/model.ts'
 import { bindRoot, resolveOutputPath, rootOf, WORKSPACE_ROOT } from '../../shared/outputPaths.ts'
 import {
@@ -23,15 +23,23 @@ import {
   type InstanceView,
   initialRunState,
   isoNow,
+  type LogEvent,
+  NODE_STATUSES,
+  type NodeRunState,
+  type NodeStatus,
   progressOf,
+  RUN_STATUSES,
+  type RunLogEntry,
   type RunState,
   type RunStateIssue,
+  type RunStatus,
   type StateEdit,
+  statusFields,
   validateRunState,
 } from '../../shared/runState.ts'
 import type { ExecutionMode, ValidationProblem, WorkflowDocument } from '../../shared/types.ts'
 import type { RunFileResponse } from '../../shared/wire.ts'
-import { type CompileBundle, compileDocument, type PreparedRun } from '../plan.ts'
+import { type CompileBundle, compileDocument } from '../plan.ts'
 import {
   ensureDir,
   readFileText,
@@ -45,11 +53,13 @@ import {
   ensureWorkspaceIgnore,
   type InstanceIndex,
   InstanceStore,
+  instanceDir,
   isInstanceId,
   newInstanceId,
   runDir,
   snapshotFile,
   statePathFor,
+  TASKS_DIR,
 } from './store.ts'
 
 /** 把一条通知送进会话（`steer`：空闲就开一轮，正在跑就排进下一步）。送到了回 `true`。 */
@@ -57,9 +67,58 @@ export type Notify = (session: string, text: string, summary: string) => Promise
 
 export interface RunServiceDeps {
   dataDir: () => string
-  /** 校验脚本的绝对路径（包里缺它时 `undefined`，计划里就不写校验命令）。 */
-  validator: () => string | undefined
+  /** 校验一张图（计划的 ⑥ 段「图的注意事项」要它）；不给就当没有警告。 */
+  validate?: (document: WorkflowDocument, workflow: string) => ValidationProblem[]
   notify?: Notify
+}
+
+/** 模型经 `state` 动作对一个步骤的改动。 */
+export interface NodePatch {
+  status?: NodeStatus
+  summary?: string
+  outputs?: string[]
+  verdict?: string
+  error?: string
+  by?: string
+}
+
+/** 模型经 `state` 动作的一次改动；什么都不给 = 只看。 */
+export interface StatePatch {
+  status?: RunStatus
+  /** 空串 = 清掉。 */
+  note?: string
+  nodes?: Record<string, NodePatch>
+  /** 追加一条说明（流水里记成 `note`）。 */
+  log?: string
+}
+
+/** `state` 动作回给模型的东西：当前状态的要点。 */
+export interface StateReport {
+  instance: string
+  workflow: string
+  status: RunStatus
+  note?: string
+  updatedAt: string
+  progress: {
+    done: number
+    total: number
+    running?: string[]
+    waiting?: string[]
+    failed?: string[]
+  }
+  nodes: Record<string, NodeRunState>
+  /** 最近几条流水。 */
+  recentLog: RunLogEntry[]
+  /** 这次改了什么（只看时没有）。 */
+  applied?: string[]
+  /** 这次才开始记状态（实例原本不记）。 */
+  created?: true
+}
+
+/** `compile` / `resume` 回给模型的东西。 */
+export type InstancePlan = CompileBundle & {
+  instance: string
+  progress: Record<string, unknown>
 }
 
 /** 会话信息：工具从执行上下文取，画布从槽位给。 */
@@ -99,20 +158,36 @@ const fail = <T>(
   error: { code, message, ...(detail === undefined ? {} : { detail }) },
 })
 
-function header(validator: string | undefined, statePath: string): string {
-  return [
-    ' workflow-lite 运行状态（字段含义见 skill workflow-run-state）。',
-    ' 执行期间由主 agent 维护；version / instance / workflow / plan / graph / mode 是插件写的，不要改。',
-    ' 每次改之前先重新读一遍（用户可能在画布上改过），只改要改的地方。',
-    ...(validator === undefined ? [] : [` 改完运行：node "${validator}" "${statePath}"`]),
-  ].join('\n')
-}
+const HEADER = [
+  ' workflow-lite 运行状态（字段含义见 skill workflow-run-state）。',
+  ' 由插件维护：模型用 workflow_lite 的 state 动作改，用户在画布上改。不要直接编辑这个文件。',
+].join('\n')
 
 /** 状态 → YAML 文本（长摘要不折行，纯数字的字符串自动加引号）。 */
-function stateText(state: RunState, validator: string | undefined, statePath: string): string {
+function stateText(state: RunState): string {
   const doc = new Document(state)
-  doc.commentBefore = header(validator, statePath)
+  doc.commentBefore = HEADER
   return doc.toString({ lineWidth: 0 })
+}
+
+/** 整体状态改动记进流水的事件。 */
+const RUN_EVENT: Record<RunStatus, LogEvent> = {
+  pending: 'note',
+  running: 'start',
+  waiting: 'waiting',
+  done: 'done',
+  failed: 'failed',
+  cancelled: 'note',
+}
+
+/** 步骤状态改动记进流水的事件。 */
+const NODE_EVENT: Record<NodeStatus, LogEvent> = {
+  pending: 'note',
+  running: 'start',
+  waiting: 'waiting',
+  done: 'done',
+  failed: 'failed',
+  skipped: 'skipped',
 }
 
 function valueAt(root: unknown, path: readonly string[]): EditValue {
@@ -187,11 +262,42 @@ export function describeEdits(edits: readonly StateEdit[]): string[] {
  * （计划在工具结果里，对话里照样看得到）。
  */
 export function startPrompt(record: InstanceRecord): string {
-  const state = record.statePath === undefined ? '' : '，并按计划里「运行状态」一段维护状态文件'
+  const state =
+    record.statePath === undefined
+      ? ''
+      : `，并按计划里「运行状态」一段用 workflow_lite 的 state 动作（instance=${record.id}）记录进度`
   return [
     `执行工作流「${record.workflow}」（实例 ${record.id}）。`,
     `请调用 workflow_lite：action=resume，instance=${record.id}，拿到计划后按计划执行${state}。`,
   ].join('\n')
+}
+
+/** 进度摘要（`resume` / `compile` 回给模型）。 */
+function progressReport(
+  record: InstanceRecord,
+  read: { state: RunState | null; text: string | null; issues: RunStateIssue[] },
+): Record<string, unknown> {
+  if (record.statePath === undefined) return { tracked: false }
+  if (read.state === null) {
+    return { stateProblem: read.text === null ? 'missing' : 'invalid', issues: read.issues }
+  }
+  const p = progressOf(read.state)
+  const next = Object.entries(read.state.nodes).find(
+    ([, node]) => node.status !== 'done' && node.status !== 'skipped',
+  )?.[0]
+  return {
+    status: read.state.status,
+    done: p.done,
+    total: p.total,
+    ...(p.running.length > 0 ? { interrupted: p.running } : {}),
+    ...(p.waiting.length > 0 ? { waiting: p.waiting } : {}),
+    ...(p.failed.length > 0 ? { failed: p.failed } : {}),
+    ...(next === undefined ? {} : { next }),
+  }
+}
+
+function isRecordLike(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /** 快照里的产出根目录定死成这个实例的（见 {@link RunService.prepare}）。 */
@@ -205,10 +311,28 @@ function pinRoot(document: WorkflowDocument, id: string): WorkflowDocument {
 export class RunService {
   readonly store: InstanceStore
   private readonly deps: RunServiceDeps
+  /** 每个实例的写入排队（模型的 `state`、用户的保存、插件记流水不会互相覆盖）。 */
+  private readonly queues = new Map<string, Promise<unknown>>()
 
   constructor(deps: RunServiceDeps) {
     this.deps = deps
     this.store = new InstanceStore(deps.dataDir)
+  }
+
+  /** 同一个实例的写入一个接一个来。 */
+  private serial<T>(id: string, task: () => Promise<T>): Promise<T> {
+    const previous = this.queues.get(id) ?? Promise.resolve()
+    const next = previous.then(task, task)
+    const settled = next.catch(() => {})
+    this.queues.set(id, settled)
+    void settled.then(() => {
+      if (this.queues.get(id) === settled) this.queues.delete(id)
+    })
+    return next
+  }
+
+  private problemsOf(document: WorkflowDocument, workflow: string): ValidationProblem[] {
+    return this.deps.validate?.(document, workflow) ?? []
   }
 
   // ── 建立 ───────────────────────────────────────────────────
@@ -225,15 +349,15 @@ export class RunService {
     document: WorkflowDocument
     session: SessionRef
     goal?: string
-    /** 建状态文件（缺省建）；画布上「执行」一张没开「记录运行状态」的图时为假。 */
+    /** 建状态文件（缺省按图的「记录运行状态」开关）。 */
     track?: boolean
     /** 复用本会话还没开始过的同一份实例（缺省复用；画布上点「执行」每次都是新的一次）。 */
     reuse?: boolean
-  }): Promise<Outcome<PreparedRun>> {
+  }): Promise<Outcome<InstanceRecord>> {
     const dataDir = this.deps.dataDir()
     const mode: ExecutionMode = input.document.settings?.mode ?? 'auto'
     const session = input.session.id
-    const track = input.track !== false
+    const track = input.track ?? input.document.settings?.runState === true
     if (session !== undefined && track && input.reuse !== false) {
       const index = await this.store.read()
       const currentId = index.current[session]
@@ -245,7 +369,7 @@ export class RunService {
       ) {
         const read = await this.readState(current)
         if (read.state?.status === 'pending' && read.state.log.length === 0) {
-          return { ok: true, result: this.prepared(current) }
+          return { ok: true, result: current }
         }
       }
     }
@@ -259,7 +383,7 @@ export class RunService {
     try {
       await ensureDir(runDir(dataDir, id))
       await writeFileAtomic(graph, writeDocument(snapshot))
-      // 工作区里的隐藏目录：放一个忽略一切的 .gitignore，状态文件与默认产出不进版本库。
+      // 工作区里的隐藏目录：放一个忽略一切的 .gitignore，状态、任务描述与默认产出不进版本库。
       if (cwd !== undefined) await ensureWorkspaceIgnore(cwd)
       if (statePath !== undefined) {
         const state = initialRunState({
@@ -273,7 +397,7 @@ export class RunService {
           steps: input.document.nodes.filter(isStep).map((node) => node.id),
         })
         await ensureDir(dirname(statePath))
-        await writeFileAtomic(statePath, stateText(state, this.deps.validator(), statePath))
+        await writeFileAtomic(statePath, stateText(state))
       }
     } catch (error) {
       return fail(
@@ -299,17 +423,69 @@ export class RunService {
       index.instances.push(record)
       if (session !== undefined) index.current[session] = id
     })
-    return { ok: true, result: { ...this.prepared(record), document: snapshot } }
+    return { ok: true, result: record }
   }
 
-  private prepared(record: InstanceRecord): PreparedRun {
-    if (record.statePath === undefined) return { info: { instance: record.id } }
-    const validator = this.deps.validator()
-    const section: RunStateSection = {
-      statePath: record.statePath,
-      ...(validator === undefined ? {} : { validator }),
+  /** 按实例的快照出计划，把任务描述写进实例目录。 */
+  private async planOf(
+    record: InstanceRecord,
+    document: WorkflowDocument,
+    cwd: string | undefined,
+  ): Promise<Outcome<CompileBundle>> {
+    const where = record.cwd ?? cwd
+    return compileDocument(
+      this.deps.dataDir(),
+      record.workflow,
+      document,
+      this.problemsOf(document, record.workflow),
+      {
+        ...(record.goal === undefined ? {} : { goal: record.goal }),
+        instance: {
+          id: record.id,
+          dir: instanceDir(this.deps.dataDir(), record.id, where),
+          tracked: record.statePath !== undefined,
+        },
+      },
+      where,
+    )
+  }
+
+  /**
+   * 工具的 `compile`：图编译得出计划就建一个实例（开了「记录运行状态」才有状态；本会话还没开始过的
+   * 同一份会复用），回给模型的和 `resume` 一样。编译级问题照常回 `problems`、不建实例。
+   */
+  async compile(input: {
+    workflow: string
+    document: WorkflowDocument
+    problems: readonly ValidationProblem[]
+    session: SessionRef
+    goal?: string
+  }): Promise<Outcome<InstancePlan | CompileBundle>> {
+    const check = await compileDocument(
+      this.deps.dataDir(),
+      input.workflow,
+      input.document,
+      input.problems,
+      input.goal === undefined ? {} : { goal: input.goal },
+      input.session.cwd,
+    )
+    if (!check.ok || check.result.problems.length > 0) return check
+    const prepared = await this.prepare({
+      workflow: input.workflow,
+      document: input.document,
+      session: input.session,
+      ...(input.goal === undefined ? {} : { goal: input.goal }),
+    })
+    if (!prepared.ok) return prepared
+    const resumed = await this.resume(prepared.result.id, input.session)
+    if (!resumed.ok) return resumed
+    // 读入阶段的警告（快照校验不到的那些，比如文件里的问题）也带上。
+    const seen = new Set(resumed.result.warnings.map((warning) => JSON.stringify(warning)))
+    const extra = check.result.warnings.filter((warning) => !seen.has(JSON.stringify(warning)))
+    return {
+      ok: true,
+      result: { ...resumed.result, warnings: [...resumed.result.warnings, ...extra] },
     }
-    return { section, info: { instance: record.id, statePath: record.statePath } }
   }
 
   /**
@@ -341,11 +517,10 @@ export class RunService {
       workflow: input.workflow,
       document: input.document,
       session: input.session,
-      track: input.document.settings?.runState === true,
       reuse: false,
     })
     if (!prepared.ok) return prepared
-    const id = prepared.result.info.instance ?? ''
+    const id = prepared.result.id
     const index = await this.store.read()
     const record = index.instances.find((candidate) => candidate.id === id)
     if (record === undefined) return fail('not_found', `实例 ${id} 不存在`)
@@ -576,24 +751,23 @@ export class RunService {
     })
     if (record === null) return fail('not_found', `实例 ${id} 不存在`)
     await removeTree(runDir(this.deps.dataDir(), id))
-    if (withState && record.statePath !== undefined) await unlinkFile(record.statePath)
+    if (withState) {
+      // 状态与任务描述一起删；产出（out/）是用户要的东西，留着。
+      if (record.statePath !== undefined) await unlinkFile(record.statePath)
+      const dir = instanceDir(this.deps.dataDir(), id, record.cwd)
+      await removeTree(join(dir, TASKS_DIR))
+      await rmdir(dir).catch(() => {})
+    }
     return { ok: true, result: { removed: true } }
   }
 
   // ── 恢复 ───────────────────────────────────────────────────
 
   /**
-   * 接着跑一个实例：从快照重建计划（同一个 `planId`；载荷不在就重新物化），带上运行状态段，
+   * 接着跑一个实例：从快照重建计划（任务描述不在就重新写），带上运行状态段，
    * 再给一份摘要。实例属于别的会话时先转过来。
    */
-  async resume(
-    id: string | undefined,
-    session: SessionRef,
-  ): Promise<
-    Outcome<
-      CompileBundle & { instance: string; statePath?: string; progress: Record<string, unknown> }
-    >
-  > {
+  async resume(id: string | undefined, session: SessionRef): Promise<Outcome<InstancePlan>> {
     const index = await this.store.read()
     const target = id ?? (session.id === undefined ? undefined : index.current[session.id])
     if (target === undefined) {
@@ -604,52 +778,238 @@ export class RunService {
     const document = await this.snapshot(record)
     if (document === null) return fail('not_found', `实例 ${target} 的图快照不见了`)
     if (session.id !== undefined) await this.bind(record.id, session.id)
-    const compiled = await compileDocument(
-      this.deps.dataDir(),
-      record.workflow,
-      document,
-      [],
-      {
-        ...(record.goal === undefined ? {} : { goal: record.goal }),
-        prepareRun: async () => ({ ok: true, result: this.prepared(record) }),
-      },
-      record.cwd ?? session.cwd,
-    )
+    const compiled = await this.planOf(record, document, session.cwd)
     if (!compiled.ok) return compiled
     const read = await this.readState(record, document)
-    const progress: Record<string, unknown> =
-      record.statePath === undefined
-        ? { tracked: false }
-        : read.state === null
-          ? { stateProblem: read.text === null ? 'missing' : 'invalid', issues: read.issues }
-          : (() => {
-              const p = progressOf(read.state)
-              const next = Object.entries(read.state.nodes).find(
-                ([, node]) => node.status !== 'done' && node.status !== 'skipped',
-              )?.[0]
-              return {
-                status: read.state.status,
-                done: p.done,
-                total: p.total,
-                ...(p.running.length > 0 ? { interrupted: p.running } : {}),
-                ...(p.waiting.length > 0 ? { waiting: p.waiting } : {}),
-                ...(p.failed.length > 0 ? { failed: p.failed } : {}),
-                ...(next === undefined ? {} : { next }),
-              }
-            })()
-    // 还没开始过的（刚从画布上「执行」建出来）不算恢复，不记流水。
+    // 还没开始过的（刚建出来）不算恢复，不记流水。
     if (read.state !== null && (read.state.status !== 'pending' || read.state.log.length > 0)) {
       await this.appendLog(record, { event: 'resume' }).catch(() => {})
     }
     return {
       ok: true,
-      result: {
-        ...compiled.result,
-        instance: record.id,
-        ...(record.statePath === undefined ? {} : { statePath: record.statePath }),
-        progress,
-      },
+      result: { ...compiled.result, instance: record.id, progress: progressReport(record, read) },
     }
+  }
+
+  // ── 模型记进度 ─────────────────────────────────────────────
+
+  /**
+   * 工具的 `state`：看或改一个实例的运行状态。
+   *
+   * - 不带改动 = 只看；
+   * - 改步骤状态时插件补上轮次、开始 / 结束时间（{@link statusFields}），每处状态变化记一条流水，更新 `updatedAt`；
+   * - 改完整份校验，不合法就整次拒绝、回问题清单（文件不动）；
+   * - 实例原本不记状态（或状态文件不见了）时，按初始状态新建再改。
+   */
+  async state(
+    id: string | undefined,
+    session: SessionRef,
+    patch: StatePatch,
+  ): Promise<Outcome<StateReport>> {
+    const index = await this.store.read()
+    const target = id ?? (session.id === undefined ? undefined : index.current[session.id])
+    if (target === undefined) {
+      return fail('not_found', '这个会话没有当前的工作流实例；给 instance，或先 compile / resume')
+    }
+    if (!isInstanceId(target)) return fail('invalid_args', `实例 id 不合法：${target}`)
+    const found = index.instances.find((candidate) => candidate.id === target)
+    if (found === undefined) return fail('not_found', `实例 ${target} 不存在`)
+    const document = await this.snapshot(found)
+    if (document === null) return fail('not_found', `实例 ${target} 的图快照不见了`)
+    const facts = graphFacts(document)
+    const changing =
+      patch.status !== undefined ||
+      patch.note !== undefined ||
+      patch.log !== undefined ||
+      Object.keys(patch.nodes ?? {}).length > 0
+
+    // 步骤 id 先对一遍：大小写不对、写了文件节点都在这里说清楚。
+    for (const key of Object.keys(patch.nodes ?? {})) {
+      if (facts.steps.includes(key)) continue
+      const near = facts.steps.find((step) => step.toLowerCase() === key.toLowerCase())
+      return fail(
+        'invalid_args',
+        near === undefined
+          ? `图里没有步骤 ${key}（文件节点不记状态）；步骤有：${facts.steps.join('、')}`
+          : `图里没有步骤 ${key}，是不是 ${near}（大小写要一致）`,
+      )
+    }
+    if (!changing && found.statePath === undefined) {
+      return fail(
+        'not_found',
+        `实例 ${target} 不记运行状态；要开始记，带上改动调用 state（比如 status=running）`,
+      )
+    }
+
+    return this.serial(target, async () => {
+      // 排队期间索引可能变了（别的调用先建了状态），重新取一次。
+      const record =
+        (await this.store.read()).instances.find((candidate) => candidate.id === target) ?? found
+      const now = isoNow()
+      let created = false
+      let raw: unknown = null
+      const statePath = record.statePath ?? statePathFor(this.deps.dataDir(), record.id, record.cwd)
+      const text = record.statePath === undefined ? null : await readFileText(record.statePath)
+      if (text !== null) {
+        const doc = parseDocument(text)
+        if (doc.errors.length === 0) raw = doc.toJS()
+      }
+      if (!isRecordLike(raw)) {
+        if (!changing) {
+          return fail<StateReport>('blocked', `实例 ${target} 的状态文件读不出来`, {
+            statePath,
+          })
+        }
+        // 新建（不记状态的实例开始记 / 文件不见了 / 写坏了）：从初始状态起步。
+        created = true
+        raw = initialRunState({
+          instance: record.id,
+          workflow: record.workflow,
+          plan: record.planId,
+          graph: snapshotFile(this.deps.dataDir(), record.id),
+          mode: record.mode,
+          ...(record.goal === undefined ? {} : { goal: record.goal }),
+          now,
+          steps: facts.steps,
+        })
+      }
+      const draft = structuredClone(raw) as Record<string, unknown>
+      const applied = changing ? this.applyPatch(draft, patch, now) : []
+      const check = validateRunState(draft, facts, {
+        instance: record.id,
+        workflow: record.workflow,
+        plan: record.planId,
+      })
+      if (check.state === null) {
+        return fail<StateReport>(
+          'invalid_args',
+          changing ? '改完的状态不合法，没有保存' : '状态文件现在不合法',
+          { issues: check.issues.map((issue) => `${issue.path}: ${issue.message}`) },
+        )
+      }
+      if (changing) {
+        try {
+          await ensureDir(dirname(statePath))
+          if (record.cwd !== undefined) await ensureWorkspaceIgnore(record.cwd)
+          await writeFileAtomic(statePath, stateText(check.state))
+        } catch (error) {
+          return fail<StateReport>(
+            'io_error',
+            `写状态失败：${error instanceof Error ? error.message : String(error)}`,
+          )
+        }
+        if (record.statePath === undefined) {
+          await this.store.update((current) => {
+            const entry = current.instances.find((candidate) => candidate.id === record.id)
+            if (entry !== undefined) entry.statePath = statePath
+          })
+        }
+      }
+      const state = check.state
+      const p = progressOf(state)
+      return {
+        ok: true as const,
+        result: {
+          instance: record.id,
+          workflow: record.workflow,
+          status: state.status,
+          ...(state.note === undefined ? {} : { note: state.note }),
+          updatedAt: state.updatedAt,
+          progress: {
+            done: p.done,
+            total: p.total,
+            ...(p.running.length > 0 ? { running: p.running } : {}),
+            ...(p.waiting.length > 0 ? { waiting: p.waiting } : {}),
+            ...(p.failed.length > 0 ? { failed: p.failed } : {}),
+          },
+          nodes: state.nodes,
+          recentLog: state.log.slice(-5),
+          ...(changing ? { applied } : {}),
+          ...(created ? { created: true as const } : {}),
+        },
+      }
+    })
+  }
+
+  /** 把一次改动落到状态对象上（就地改），回给模型看的改动清单。 */
+  private applyPatch(draft: Record<string, unknown>, patch: StatePatch, now: string): string[] {
+    const applied: string[] = []
+    const log: Record<string, unknown>[] = Array.isArray(draft.log)
+      ? (draft.log as Record<string, unknown>[])
+      : []
+    draft.log = log
+    const nodes: Record<string, Record<string, unknown>> = isRecordLike(draft.nodes)
+      ? (draft.nodes as Record<string, Record<string, unknown>>)
+      : {}
+    draft.nodes = nodes
+
+    // 整体开始记在步骤前面，整体收尾（done / failed …）记在步骤后面——流水按发生的顺序读。
+    const top = RUN_STATUSES.find((status) => status === draft.status)
+    const topChange = patch.status !== undefined && patch.status !== top ? patch.status : undefined
+    const recordTop = (status: RunStatus): void => {
+      draft.status = status
+      applied.push(`整体：${top ?? '（无）'} → ${status}`)
+      log.push({
+        at: now,
+        event: RUN_EVENT[status],
+        ...(status === 'cancelled' ? { detail: '整体取消' } : {}),
+        ...(status === 'pending' ? { detail: '整体改回待执行' } : {}),
+      })
+    }
+    if (topChange === 'running') recordTop(topChange)
+
+    for (const [id, change] of Object.entries(patch.nodes ?? {})) {
+      const node: Record<string, unknown> = isRecordLike(nodes[id]) ? nodes[id] : {}
+      nodes[id] = node
+      const before = NODE_STATUSES.find((status) => status === node.status) ?? 'pending'
+      if (change.status !== undefined && change.status !== before) {
+        const fields = statusFields(node as unknown as NodeRunState, change.status, now)
+        for (const [key, value] of Object.entries(fields)) {
+          if (value === null) delete node[key]
+          else node[key] = value
+        }
+        applied.push(`步骤 ${id}：${before} → ${change.status}`)
+      }
+      for (const key of ['summary', 'verdict', 'error', 'by'] as const) {
+        const value = change[key]
+        if (value === undefined) continue
+        if (value.trim() === '') delete node[key]
+        else node[key] = value
+        applied.push(`步骤 ${id}：写了 ${key}`)
+      }
+      if (change.outputs !== undefined) {
+        if (change.outputs.length === 0) delete node.outputs
+        else node.outputs = change.outputs
+        applied.push(`步骤 ${id}：写了 outputs`)
+      }
+      if (change.status !== undefined && change.status !== before) {
+        const status = change.status
+        log.push({
+          at: now,
+          node: id,
+          event: NODE_EVENT[status],
+          ...(typeof node.round === 'number' ? { round: node.round } : {}),
+          ...(status === 'done' && typeof node.verdict === 'string'
+            ? { verdict: node.verdict }
+            : {}),
+          ...(status === 'failed' && typeof node.error === 'string' ? { detail: node.error } : {}),
+          ...(status === 'pending' ? { detail: '改回待执行' } : {}),
+        })
+      }
+    }
+
+    if (topChange !== undefined && topChange !== 'running') recordTop(topChange)
+    if (patch.note !== undefined) {
+      if (patch.note.trim() === '') delete draft.note
+      else draft.note = patch.note
+      applied.push('写了 note')
+    }
+    if (patch.log !== undefined && patch.log.trim() !== '') {
+      log.push({ at: now, event: 'note', detail: patch.log })
+      applied.push('记了一条说明')
+    }
+    draft.updatedAt = now
+    return applied
   }
 
   // ── 用户的改动 ─────────────────────────────────────────────
@@ -659,6 +1019,15 @@ export class RunService {
    * 只改这几处、追加一条 `edit` 流水、更新 `updatedAt`，校验通过才原子写；然后通知模型。
    */
   async save(
+    id: string,
+    session: string | undefined,
+    edits: readonly StateEdit[],
+    note: string | undefined,
+  ): Promise<Outcome<SaveResult>> {
+    return this.serial(id, () => this.saveNow(id, session, edits, note))
+  }
+
+  private async saveNow(
     id: string,
     session: string | undefined,
     edits: readonly StateEdit[],
@@ -785,7 +1154,14 @@ export class RunService {
   }
 
   /** 插件替用户 / 自己往状态文件追加一条流水（转移、恢复）。文件不合法就不动它。 */
-  private async appendLog(
+  private appendLog(
+    record: InstanceRecord,
+    entry: { event: 'transfer' | 'resume'; detail?: string },
+  ): Promise<void> {
+    return this.serial(record.id, () => this.appendLogNow(record, entry))
+  }
+
+  private async appendLogNow(
     record: InstanceRecord,
     entry: { event: 'transfer' | 'resume'; detail?: string },
   ): Promise<void> {

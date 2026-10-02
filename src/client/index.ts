@@ -20,6 +20,8 @@ import {
   type ConversationService,
   createSessionBridge,
   type SessionsService,
+  type UiWorkspaceService,
+  type WorkspacesService,
 } from './app/sessions.ts'
 import { en, NS, zh } from './i18n.ts'
 import { createWorkflowLiteRpc, requireRpcCarrier } from './rpc.ts'
@@ -48,6 +50,17 @@ export function apply(ctx: ClientContext): void {
       sub.get('conversation') as unknown as ConversationService,
     )
     sub.effect(() => () => sessions.detach(), 'workflow-lite: session bridge')
+  })
+  // 「新建会话执行」要知道本会话在哪个工作区，执行完跳到那个会话：两个服务同样可选。
+  ctx.inject(['workspaces', 'uiWorkspace'], (sub) => {
+    sessions.attachWorkspaces(
+      sub.get('workspaces') as unknown as WorkspacesService | undefined,
+      sub.get('uiWorkspace') as unknown as UiWorkspaceService | undefined,
+    )
+    sub.effect(
+      () => () => sessions.attachWorkspaces(undefined, undefined),
+      'workflow-lite: workspace navigation',
+    )
   })
 
   // 「用其他程序打开」产出文件：借宿主的 Session Remote，可选。

@@ -431,6 +431,12 @@
   width: 320px;
 }
 
+/* 新建会话：缺省的去处，图标用主色点一下。 */
+.picker .newSession svg {
+  flex: none;
+  color: var(--wl-accent-text);
+}
+
 .sessionDot {
   flex: none;
   width: 7px;

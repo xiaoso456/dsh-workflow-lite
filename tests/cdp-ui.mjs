@@ -674,11 +674,11 @@ async function run(session) {
   await screenshot(session, 'ui-03-tidy.png')
   pass('L 整理布局 → 按执行顺序分列、不重叠')
 
-  // 10) 预览计划：给模型的版本引用 .dispatch，给人看的版本内联提示词。
+  // 10) 预览计划：给模型的版本引用实例目录里的任务描述（实例 id 先留 {instance}），给人看的版本内联提示词。
   await session.evaluate(clickTestId('wl-preview'))
   await waitFor(
     session,
-    `(document.querySelector('[data-testid="wl-plan-text"]')?.textContent || '').includes('.dispatch')`,
+    `(document.querySelector('[data-testid="wl-plan-text"]')?.textContent || '').includes('{instance}')`,
   )
   const modelPlan = await session.evaluate(
     `document.querySelector('[data-testid="wl-plan-text"]').textContent`,

@@ -55,20 +55,6 @@ export default defineConfig([
     },
   },
   {
-    // 随 skill `workflow-run-state` 分发的状态文件校验脚本：单文件、零外部依赖（`yaml` 打进来），
-    // 模型用 `node <路径>` 直接跑。host 按 `lib/skills/workflow-run-state/` 找它（见 host/runs/skill.ts）。
-    entry: { 'skills/workflow-run-state/validate-state': 'src/skill/validate-state.ts' },
-    outDir: 'lib',
-    format: ['esm'],
-    platform: 'node',
-    target: 'es2024',
-    dts: false,
-    clean: false,
-    deps: {
-      alwaysBundle: [/^yaml($|\/)/],
-    },
-  },
-  {
     // Browser half: the React Flow canvas, the workflow picker, the plan preview.
     entry: { client: 'src/client/index.ts' },
     outDir: 'lib',

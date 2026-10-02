@@ -38,7 +38,6 @@
   "files": [
     "lib/index.mjs",
     "lib/client.js",
-    "lib/skills/**/*.mjs",
     "cordis.patch.yml",
     "lib/types/**/*.d.ts"
   ],

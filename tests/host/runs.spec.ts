@@ -55,7 +55,8 @@ beforeEach(async () => {
   deliver = true
   runs = new RunService({
     dataDir: () => dataDir,
-    validator: () => '/plugin/lib/skills/workflow-run-state/validate-state.mjs',
+    validate: (document, workflow) =>
+      reportProblems(validateDocument(document, { workflowName: workflow, maxNodes: 200 })),
     notify: async (session, text, summary) => {
       if (!deliver) return false
       notified.push({ session, text, summary })
@@ -89,9 +90,17 @@ afterEach(async () => {
   await rm(dataDir, { recursive: true, force: true })
 })
 
+/** 状态文件在哪（工具的返回值里刻意不给路径：模型只经 state 动作改它）。 */
+async function statePathOf(id: string): Promise<string | undefined> {
+  return (await runs.list(undefined, true)).find((item) => item.id === id)?.statePath
+}
+
 async function compileWithRuns(session = 's1'): Promise<Record<string, unknown>> {
   await run({ action: 'configure', workflow: 'cr', run_state: true })
-  return record(await run({ action: 'compile', workflow: 'cr', goal: '审一遍' }, exec(session)))
+  const result = record(
+    await run({ action: 'compile', workflow: 'cr', goal: '审一遍' }, exec(session)),
+  )
+  return { ...result, statePath: await statePathOf(String(result.instance)) }
 }
 
 async function view(id: string, session = 's1'): Promise<InstanceView> {
@@ -101,21 +110,28 @@ async function view(id: string, session = 's1'): Promise<InstanceView> {
 }
 
 describe('编译建实例', () => {
-  it('没开运行状态：照常编译，不建实例、计划里没有运行状态段', async () => {
+  it('没开运行状态：也建实例（任务描述写进实例目录），但没有状态、计划里没有运行状态段', async () => {
     const result = record(await run({ action: 'compile', workflow: 'cr' }, exec('s1')))
-    expect(result.instance).toBeUndefined()
+    const id = String(result.instance)
     expect(String(result.plan)).not.toContain('## 运行状态')
-    expect(await runs.list('s1', false)).toEqual([])
+    expect(String(result.plan)).toContain(`工作流实例：\`${id}\``)
+    expect(record(result.progress).tracked).toBe(false)
+    const list = await runs.list('s1', false)
+    expect(list.map((item) => [item.id, item.statePath])).toEqual([[id, undefined]])
+    const task = join(workspace, '.workflow-lite', 'runs', id, 'tasks', 'scan.md')
+    expect(record(result.payloadPaths).scan).toBe(task)
+    expect(await readFile(task, 'utf8')).toBe('做 scan')
   })
 
-  it('开了：建快照与初始状态文件，计划带运行状态段，本会话当前实例就是它', async () => {
+  it('开了：建快照与初始状态，计划带运行状态段（用 state 动作记），本会话当前实例就是它', async () => {
     const result = await compileWithRuns()
     const id = String(result.instance)
     const statePath = String(result.statePath)
-    expect(statePath).toBe(join(workspace, '.workflow-lite', 'runs', `${id}.yaml`))
+    expect(statePath).toBe(join(workspace, '.workflow-lite', 'runs', id, 'state.yaml'))
     expect(String(result.plan)).toContain('## 运行状态')
-    expect(String(result.plan)).toContain(statePath)
-    expect(String(result.plan)).toContain('validate-state.mjs')
+    expect(String(result.plan)).toContain(`"instance":"${id}"`)
+    expect(String(result.plan)).not.toContain(statePath)
+    expect(String(result.plan)).toContain('目标：审一遍')
     const text = await readFile(statePath, 'utf8')
     expect(text.startsWith('# workflow-lite 运行状态')).toBe(true)
     const state = parse(text)
@@ -435,11 +451,11 @@ describe('产出根目录', () => {
     expect((await view(String(plain.instance), 's2')).document.settings?.outputRoot).toBe('.')
   })
 
-  it('不记运行状态的编译：没有实例 id，{instance} 换成 planId；预览原样留着记号', async () => {
+  it('不记运行状态的编译也建实例：{instance} 换成实例 id；整卷版（给人看）原样留着记号', async () => {
     await withNotes()
     const compiled = record(await run({ action: 'compile', workflow: 'cr' }, exec('s1')))
     expect(String(compiled.plan)).toContain(
-      `\`.workflow-lite/runs/${String(compiled.planId)}/out/notes.md\``,
+      `\`.workflow-lite/runs/${String(compiled.instance)}/out/notes.md\``,
     )
     const full = record(await run({ action: 'compile', workflow: 'cr', full: true }, exec('s1')))
     expect(String(full.plan)).toContain('.workflow-lite/runs/{instance}/out/notes.md')
@@ -460,6 +476,146 @@ describe('产出根目录', () => {
     const old = await runs.file(id, { node: fileId })
     expect(old.ok && old.result.display).toBe('notes.md')
     expect(old.ok && old.result.exists).toBe(true)
+  })
+})
+
+describe('模型用 state 记进度', () => {
+  function errorOf(value: unknown): Record<string, unknown> | undefined {
+    const error = record(value).error
+    return error === undefined ? undefined : record(error)
+  }
+
+  it('不带改动 = 看；改步骤状态时插件补轮次、时间与流水，整体状态也记一条', async () => {
+    const compiled = await compileWithRuns()
+    const id = String(compiled.instance)
+    const looked = record(await run({ action: 'state', instance: id }, exec('s1')))
+    expect(looked.status).toBe('pending')
+    expect(looked.applied).toBeUndefined()
+
+    const started = record(
+      await run(
+        {
+          action: 'state',
+          status: 'running',
+          nodes: [{ id: 'scan', status: 'running', by: 'subagent' }],
+        },
+        exec('s1'),
+      ),
+    )
+    expect(errorOf(started)).toBeUndefined()
+    expect(started.instance).toBe(id)
+    const scan = record(record(started.nodes).scan)
+    expect(scan.status).toBe('running')
+    expect(scan.round).toBe(1)
+    expect(typeof scan.startedAt).toBe('string')
+    expect(scan.by).toBe('subagent')
+
+    const state = parse(await readFile(String(compiled.statePath), 'utf8'))
+    expect(state.status).toBe('running')
+    expect(
+      state.log.map((entry: { event: string; node?: string }) => [entry.event, entry.node]),
+    ).toEqual([
+      ['start', undefined],
+      ['start', 'scan'],
+    ])
+    expect(
+      (await readFile(String(compiled.statePath), 'utf8')).startsWith('# workflow-lite 运行状态'),
+    ).toBe(true)
+  })
+
+  it('改完不合法就整次拒绝、文件不动：有条件出边的步骤 done 要带 verdict', async () => {
+    const compiled = await compileWithRuns()
+    const id = String(compiled.instance)
+    await run(
+      { action: 'state', instance: id, nodes: [{ id: 'review', status: 'running' }] },
+      exec('s1'),
+    )
+    const before = await readFile(String(compiled.statePath), 'utf8')
+    const rejected = errorOf(
+      await run(
+        {
+          action: 'state',
+          instance: id,
+          nodes: [{ id: 'review', status: 'done', summary: '看完了' }],
+        },
+        exec('s1'),
+      ),
+    )
+    expect(rejected?.code).toBe('invalid_args')
+    expect(JSON.stringify(rejected?.detail)).toContain('nodes.review.verdict')
+    expect(JSON.stringify(rejected?.detail)).toContain('pass')
+    expect(await readFile(String(compiled.statePath), 'utf8')).toBe(before)
+
+    const done = record(
+      await run(
+        {
+          action: 'state',
+          instance: id,
+          nodes: [
+            { id: 'review', status: 'done', verdict: 'fail', summary: '2 处问题' },
+            { id: 'fix', status: 'running' },
+          ],
+        },
+        exec('s1'),
+      ),
+    )
+    expect(errorOf(done)).toBeUndefined()
+    const state = parse(await readFile(String(compiled.statePath), 'utf8'))
+    expect(state.nodes.review).toMatchObject({ status: 'done', verdict: 'fail', round: 1 })
+    expect(typeof state.nodes.review.finishedAt).toBe('string')
+    expect(state.log.at(-2)).toMatchObject({ node: 'review', event: 'done', verdict: 'fail' })
+    expect(state.log.at(-1)).toMatchObject({ node: 'fix', event: 'start', round: 1 })
+  })
+
+  it('步骤 id 不对、状态值不认识：说清楚哪里不对', async () => {
+    const compiled = await compileWithRuns()
+    const id = String(compiled.instance)
+    const wrongCase = errorOf(
+      await run(
+        { action: 'state', instance: id, nodes: [{ id: 'Scan', status: 'running' }] },
+        exec('s1'),
+      ),
+    )
+    expect(String(wrongCase?.message)).toContain('scan')
+    const badStatus = errorOf(
+      await run({ action: 'state', instance: id, status: 'finished' }, exec('s1')),
+    )
+    expect(String(badStatus?.message)).toContain('cancelled')
+  })
+
+  it('不记状态的实例：只看会说明；带上改动就新建状态再改', async () => {
+    const compiled = record(await run({ action: 'compile', workflow: 'cr' }, exec('s1')))
+    const id = String(compiled.instance)
+    expect(errorOf(await run({ action: 'state', instance: id }, exec('s1')))?.code).toBe(
+      'not_found',
+    )
+    const created = record(
+      await run({ action: 'state', instance: id, status: 'running' }, exec('s1')),
+    )
+    expect(created.created).toBe(true)
+    const statePath = await statePathOf(id)
+    expect(statePath).toBe(join(workspace, '.workflow-lite', 'runs', id, 'state.yaml'))
+    const state = parse(await readFile(String(statePath), 'utf8'))
+    expect(state.status).toBe('running')
+    expect(Object.keys(state.nodes)).toEqual(['scan', 'review', 'fix', 'report'])
+  })
+
+  it('同时来的几次改动排队写，一个都不丢', async () => {
+    const compiled = await compileWithRuns()
+    const id = String(compiled.instance)
+    await Promise.all(
+      ['scan', 'review', 'fix', 'report'].map((step) =>
+        run(
+          { action: 'state', instance: id, nodes: [{ id: step, status: 'running' }] },
+          exec('s1'),
+        ),
+      ),
+    )
+    const state = parse(await readFile(String(compiled.statePath), 'utf8'))
+    for (const step of ['scan', 'review', 'fix', 'report']) {
+      expect(state.nodes[step].status).toBe('running')
+    }
+    expect(state.log).toHaveLength(4)
   })
 })
 

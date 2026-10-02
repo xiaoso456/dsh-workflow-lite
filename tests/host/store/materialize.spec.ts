@@ -28,9 +28,7 @@ describe('materialize', () => {
     const windowsPrompt = '第一行\r\n第二行（没有尾换行）'
     const unixPrompt = 'line1\nline2\n'
     await materialize(
-      root,
-      'graph',
-      'plan0001',
+      payloadDir(root, 'graph', 'plan0001'),
       new Map([
         ['scan', windowsPrompt],
         ['fix', unixPrompt],
@@ -50,9 +48,7 @@ describe('materialize', () => {
 
   it('同 planId 重编先清空该目录再写（幂等覆盖，不留上一轮的残骸）', async () => {
     await materialize(
-      root,
-      'graph',
-      'plan0001',
+      payloadDir(root, 'graph', 'plan0001'),
       new Map([
         ['a', 'A'],
         ['b', 'B'],
@@ -60,15 +56,15 @@ describe('materialize', () => {
     )
     expect(await listDir(payloadDir(root, 'graph', 'plan0001'))).toEqual(['a.md', 'b.md'])
 
-    await materialize(root, 'graph', 'plan0001', new Map([['a', 'A2']]))
+    await materialize(payloadDir(root, 'graph', 'plan0001'), new Map([['a', 'A2']]))
     expect(await listDir(payloadDir(root, 'graph', 'plan0001'))).toEqual(['a.md'])
     expect(await readFile(payloadFile(root, 'graph', 'plan0001', 'a'), 'utf8')).toBe('A2')
   })
 
   it('不同 planId 各自成目录、互不影响；不同图名隔离', async () => {
-    await materialize(root, 'graph', 'plan0001', new Map([['a', 'A1']]))
-    await materialize(root, 'graph', 'plan0002', new Map([['a', 'A2']]))
-    await materialize(root, 'other', 'plan0001', new Map([['a', 'OTHER']]))
+    await materialize(payloadDir(root, 'graph', 'plan0001'), new Map([['a', 'A1']]))
+    await materialize(payloadDir(root, 'graph', 'plan0002'), new Map([['a', 'A2']]))
+    await materialize(payloadDir(root, 'other', 'plan0001'), new Map([['a', 'OTHER']]))
 
     expect(await readFile(payloadFile(root, 'graph', 'plan0001', 'a'), 'utf8')).toBe('A1')
     expect(await readFile(payloadFile(root, 'graph', 'plan0002', 'a'), 'utf8')).toBe('A2')
@@ -80,12 +76,12 @@ describe('materialize', () => {
   })
 
   it('空载荷集 ⇒ 只留下一个空目录（不抛错）', async () => {
-    await materialize(root, 'graph', 'plan0001', new Map())
+    await materialize(payloadDir(root, 'graph', 'plan0001'), new Map())
     expect(await listDir(payloadDir(root, 'graph', 'plan0001'))).toEqual([])
   })
 
   it('不留 .tmp- 临时文件', async () => {
-    await materialize(root, 'graph', 'plan0001', new Map([['a', 'A']]))
+    await materialize(payloadDir(root, 'graph', 'plan0001'), new Map([['a', 'A']]))
     expect(await listDir(dispatchRoot(root))).toEqual(['graph'])
     expect(await listDir(payloadDir(root, 'graph', 'plan0001'))).toEqual(['a.md'])
   })
@@ -94,22 +90,22 @@ describe('materialize', () => {
     const blocker = join(root, 'blocker')
     await writeFile(blocker, 'x')
     await expect(
-      materialize(join(blocker, 'sub'), 'graph', 'plan0001', new Map([['a', 'A']])),
+      materialize(payloadDir(join(blocker, 'sub'), 'graph', 'plan0001'), new Map([['a', 'A']])),
     ).rejects.toThrow()
   })
 
   it('非法节点 id ⇒ 抛错（纵深防御：id 同时是文件名）', async () => {
     await expect(
-      materialize(root, 'graph', 'plan0001', new Map([['../escape', 'A']])),
+      materialize(payloadDir(root, 'graph', 'plan0001'), new Map([['../escape', 'A']])),
     ).rejects.toThrow()
   })
 
   it('物化目录是派生物：整个删掉后重编照常重建', async () => {
-    await materialize(root, 'graph', 'plan0001', new Map([['a', 'A']]))
+    await materialize(payloadDir(root, 'graph', 'plan0001'), new Map([['a', 'A']]))
     await rm(dispatchRoot(root), { recursive: true, force: true })
     expect(await pathKind(dispatchRoot(root))).toBe('missing')
 
-    await materialize(root, 'graph', 'plan0001', new Map([['a', 'A']]))
+    await materialize(payloadDir(root, 'graph', 'plan0001'), new Map([['a', 'A']]))
     expect(await readFile(payloadFile(root, 'graph', 'plan0001', 'a'), 'utf8')).toBe('A')
   })
 })
@@ -118,7 +114,7 @@ describe('materialize 与 .dispatch 的扫描隔离', () => {
   it('.dispatch 以 . 开头 ⇒ 不会被当成图文件扫到', async () => {
     await mkdir(join(root, 'workflows'), { recursive: true })
     await writeFile(join(root, 'workflows', 'graph.json'), '{"nodes":[],"edges":[]}\n')
-    await materialize(root, 'graph', 'plan0001', new Map([['a', 'A']]))
+    await materialize(payloadDir(root, 'graph', 'plan0001'), new Map([['a', 'A']]))
 
     const entries = await readdir(join(root, 'workflows'))
     expect(entries).toEqual(['graph.json'])

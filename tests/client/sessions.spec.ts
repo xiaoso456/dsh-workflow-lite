@@ -3,7 +3,13 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { pickable, type SessionRow } from '../../src/client/app/sessions.ts'
+import {
+  type ConversationService,
+  createSessionBridge,
+  pickable,
+  type SessionRow,
+  type SessionsService,
+} from '../../src/client/app/sessions.ts'
 
 function row(id: string, patch: Partial<SessionRow> = {}): SessionRow {
   return {
@@ -34,5 +40,62 @@ describe('pickable', () => {
   it('不知道本会话的工作区时不按工作区筛', () => {
     const rows = [row('self', { cwd: undefined }), row('a', { cwd: 'X:\\y' })]
     expect(pickable(rows, 'self').map((item) => item.id)).toEqual(['self', 'a'])
+  })
+})
+
+describe('新建会话执行', () => {
+  function bridgeWith(created: { workspaceId?: string; cwd?: string }[]) {
+    const list = { ids: [], byId: {} }
+    const sessions: SessionsService = {
+      list: { getSnapshot: () => list, subscribe: () => () => {} },
+      create: async (opts) => {
+        created.push(opts ?? {})
+        return 'new-session'
+      },
+      using: async () => {
+        throw new Error('unused')
+      },
+    }
+    const conversation: ConversationService = {
+      input: {
+        for: () => {
+          throw new Error('unused')
+        },
+      },
+    }
+    const bridge = createSessionBridge()
+    bridge.attach(sessions, conversation)
+    return bridge
+  }
+
+  it('新会话建在本会话所在的工作区里（归同一组）；找不到工作区就按目录建', async () => {
+    const created: { workspaceId?: string; cwd?: string }[] = []
+    const bridge = bridgeWith(created)
+    const opened: string[] = []
+    bridge.attachWorkspaces(
+      {
+        list: {
+          getSnapshot: () => ({
+            items: [
+              { workspaceId: 'w-other', path: 'D:\\other', sessionIds: ['x'] },
+              { workspaceId: 'w-app', path: 'D:\\code\\app', sessionIds: ['self'] },
+            ],
+          }),
+          subscribe: () => () => {},
+        },
+      },
+      { openSession: (id) => opened.push(id) },
+    )
+    expect(bridge.canCreate()).toBe(true)
+    expect(await bridge.create('self', 'D:\\code\\app')).toBe('new-session')
+    expect(await bridge.create('orphan', 'd:/code/app/')).toBe('new-session')
+    expect(created).toEqual([{ workspaceId: 'w-app' }, { workspaceId: 'w-app' }])
+    expect(bridge.open('new-session')).toBe(true)
+    expect(opened).toEqual(['new-session'])
+
+    bridge.attachWorkspaces(undefined, undefined)
+    expect(await bridge.create('self', 'D:\\code\\app')).toBe('new-session')
+    expect(created.at(-1)).toEqual({ cwd: 'D:\\code\\app' })
+    expect(bridge.open('new-session')).toBe(false)
   })
 })

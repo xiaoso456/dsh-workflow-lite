@@ -30,7 +30,7 @@ export interface TopBarProps {
   onLocate(nodeId: string): void
   onPreview(): void
   /** 「执行」那一半要的东西。 */
-  launch: Pick<LaunchProps, 'blocked' | 'starting' | 'session' | 'rows' | 'onRun'>
+  launch: Pick<LaunchProps, 'blocked' | 'starting' | 'session' | 'rows' | 'canCreate' | 'onRun'>
   onSettings(): void
   /** 本会话的工作流实例（下拉里「本会话的实例」那一段）。 */
   runs: Runs
@@ -191,6 +191,7 @@ export function TopBar(props: TopBarProps): React.JSX.Element {
           starting={props.launch.starting}
           session={props.launch.session}
           rows={props.launch.rows}
+          canCreate={props.launch.canCreate}
           onPreview={props.onPreview}
           onRun={props.launch.onRun}
         />
