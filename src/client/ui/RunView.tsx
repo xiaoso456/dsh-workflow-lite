@@ -11,7 +11,7 @@
 import { useReactFlow } from '@xyflow/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { analyzeGraph } from '../../shared/graph.ts'
-import { isFile, isInput, isStep } from '../../shared/model.ts'
+import { isInput, isResource, isStep } from '../../shared/model.ts'
 import {
   graphFacts,
   type InstanceSummary,
@@ -25,7 +25,12 @@ import {
   type StateEdit,
   takenEdges,
 } from '../../shared/runState.ts'
-import type { FileNode, InputNode, WorkflowDocument, WorkflowEntry } from '../../shared/types.ts'
+import type {
+  InputNode,
+  ResourceNode,
+  WorkflowDocument,
+  WorkflowEntry,
+} from '../../shared/types.ts'
 import type { Desktop } from '../app/desktop.ts'
 import type { FileTarget } from '../app/useRunFile.ts'
 import { type Run, type Runs, useRun } from '../app/useRuns.ts'
@@ -42,7 +47,7 @@ import { FileViewer } from './FileViewer.tsx'
 import { Icon, type IconName } from './Icon.tsx'
 import css from './inspector.module.css'
 import { copyText, cx, Popover } from './primitives.tsx'
-import { RunFileDetail, StepFileList } from './RunFiles.tsx'
+import { RunResourceDetail, StepResourceList } from './RunFiles.tsx'
 import { RunInputDetail } from './RunInput.tsx'
 import run from './run.module.css'
 import shell from './shell.module.css'
@@ -280,7 +285,9 @@ export function RunView(props: RunViewProps): React.JSX.Element {
   const selectedNode = selection?.kind === 'node' && steps.has(selection.id) ? selection.id : null
   const selectedFile =
     selection?.kind === 'node'
-      ? snapshot?.nodes.find((node): node is FileNode => node.id === selection.id && isFile(node))
+      ? snapshot?.nodes.find(
+          (node): node is ResourceNode => node.id === selection.id && isResource(node),
+        )
       : undefined
   const selectedInput =
     selection?.kind === 'node'
@@ -762,7 +769,7 @@ function RunPanel(props: {
   snapshot: WorkflowDocument
   verdicts: Readonly<Record<string, string[]>>
   selected: string | null
-  selectedFile: FileNode | null
+  selectedFile: ResourceNode | null
   selectedInput: InputNode | null
   desktop: Desktop | undefined
   onSelect(id: string | null): void
@@ -787,7 +794,7 @@ function RunPanel(props: {
     selectedInput !== null
       ? t('input.title')
       : selectedFile !== null
-        ? t('file.title')
+        ? t('res.title')
         : selected === null
           ? t('run.overview')
           : labelOf(selected)
@@ -806,13 +813,14 @@ function RunPanel(props: {
     )
   } else if (selectedFile !== null) {
     body = (
-      <RunFileDetail
+      <RunResourceDetail
+        key={selectedFile.id}
         t={t}
         rpc={props.rpc}
         instance={props.instance}
         snapshot={snapshot}
-        file={selectedFile}
-        made={made[selectedFile.id] === true}
+        resource={selectedFile}
+        made={made[selectedFile.id] ?? []}
         state={state}
         version={current.view?.mtime ?? 0}
         desktop={props.desktop}
@@ -823,15 +831,15 @@ function RunPanel(props: {
       />
     )
   } else if (state === null && selected !== null) {
-    // 没有状态（不记进度，或状态文件读不出来）：步骤只能看它读写哪些文件。
+    // 没有状态（不记进度，或状态文件读不出来）：步骤只能看它读写哪些资源。
     body = (
-      <StepFileList
+      <StepResourceList
         t={t}
         snapshot={snapshot}
         step={selected}
         reported={[]}
         made={made}
-        onSelectFile={props.onSelect}
+        onSelectResource={props.onSelect}
         onFocusFile={props.onFocusFile}
         onViewPath={(path) => props.onView({ path }, fileBaseName(path))}
       />
@@ -861,13 +869,13 @@ function RunPanel(props: {
         verdicts={props.verdicts[selected]}
         onRerun={() => props.onRerun(selected)}
         files={
-          <StepFileList
+          <StepResourceList
             t={t}
             snapshot={snapshot}
             step={selected}
             reported={state.nodes[selected]?.outputs ?? []}
             made={made}
-            onSelectFile={props.onSelect}
+            onSelectResource={props.onSelect}
             onFocusFile={props.onFocusFile}
             onViewPath={(path) => props.onView({ path }, fileBaseName(path))}
           />

@@ -10,9 +10,9 @@
  * @module @xiaoso/dsh-workflow-lite/shared/inputs
  */
 
-import { edgeKind, nodeIndex } from './files.ts'
 import { byId } from './graph.ts'
 import { idKey, isInput, readAnswer } from './model.ts'
+import { edgeKind, nodeIndex } from './resources.ts'
 import type { InputAnswer, InputData, InputKind, InputNode, WorkflowDocument } from './types.ts'
 
 /** 交互方式（缺省 = 单行文字）。 */

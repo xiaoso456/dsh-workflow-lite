@@ -12,11 +12,11 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
-import { edgeKind, flowEdges, nodeIndex, outputsOf } from '../../shared/files.ts'
 import type { GraphAnalysis } from '../../shared/graph.ts'
 import { MAX_TEXT_CODEPOINTS } from '../../shared/limits.ts'
-import { canonicalOutput, idKey, isFile, isInput } from '../../shared/model.ts'
+import { canonicalOutput, idKey, isInput, isResource } from '../../shared/model.ts'
 import { checkText, checkWhen, isVerdictWhen } from '../../shared/naming.ts'
+import { edgeKind, flowEdges, nodeIndex, outputsOf } from '../../shared/resources.ts'
 import type {
   NodeData,
   StepNode,
@@ -24,10 +24,10 @@ import type {
   WorkflowEdge,
   WorkflowNode,
 } from '../../shared/types.ts'
+import type { HostAccess } from '../app/host.ts'
 import type { T } from '../i18n.ts'
 import { type Edit, findNode, type Selection, whenOf } from '../model/editor.ts'
 import { AppearancePicker } from './AppearancePicker.tsx'
-import { FileEdgeBody, FilePanel, StepFilesField, stepName } from './Files.tsx'
 import { type FocusFile, HandoffChip, HandoffField } from './Handoff.tsx'
 import hand from './handoff.module.css'
 import { Icon } from './Icon.tsx'
@@ -35,6 +35,9 @@ import { InputPanel, StepInputsField } from './InputPanel.tsx'
 import css from './inspector.module.css'
 import { WHEN_COLOR, type WhenKind, whenKind } from './lines.ts'
 import { copyText, cx, Segmented } from './primitives.tsx'
+import { ResourcePanel } from './ResourcePanel.tsx'
+import { ResourceEdgeBody, ResourceIcon, StepResourcesField } from './Resources.tsx'
+import { stepName } from './resourceUi.ts'
 import { lookOf, StepMark } from './StepMark.tsx'
 import ui from './ui.module.css'
 
@@ -51,12 +54,13 @@ export interface InspectorProps {
   onDuplicate(id: string): void
   onRemoveNode(id: string): void
   onSaveTemplate(name: string, data: NodeData): Promise<boolean>
-  /** 悬停到一个文件：画布高亮用到它的步骤。 */
+  /** 悬停到一个资源：画布高亮用到它的步骤。 */
   onFocusFile: FocusFile
+  /** 给资源选文件、文件夹、Skill 时看主机。 */
+  host: HostAccess
 }
 
 function titleOf(node: WorkflowNode | undefined, fallback: string): string {
-  if (node !== undefined && isFile(node)) return node.data.path
   return stepName(node, fallback)
 }
 
@@ -66,13 +70,14 @@ export function Inspector(props: InspectorProps): React.JSX.Element | null {
     const node = findNode(doc, selection.id)
     if (node === undefined) return null
     // 换一个节点就换一个面板实例：草稿、"存为模板"表单这些局部状态不该串到别的节点上。
-    if (isFile(node)) {
+    if (isResource(node)) {
       return (
-        <FilePanel
+        <ResourcePanel
           key={idKey(node.id)}
           t={props.t}
           doc={doc}
           node={node}
+          host={props.host}
           onEdit={props.onEdit}
           onSelect={props.onSelect}
           onSeal={props.onSeal}
@@ -126,7 +131,7 @@ function NodePanel(props: InspectorProps & { node: StepNode }): React.JSX.Elemen
 
   const prompt = node.data.prompt ?? ''
   const key = idKey(node.id)
-  // 连接清单只列步骤之间的线；连着文件的线在上面的「文件」里。
+  // 连接清单只列步骤之间的线；连着资源的线在上面的「资源」里。
   const flow = flowEdges(doc)
   const incoming = flow.filter((edge) => idKey(edge.target) === key)
   const outgoing = flow.filter((edge) => idKey(edge.source) === key)
@@ -226,7 +231,7 @@ function NodePanel(props: InspectorProps & { node: StepNode }): React.JSX.Elemen
           <p className={css.help}>{t('ins.promptHint')}</p>
         </section>
 
-        <StepFilesField
+        <StepResourcesField
           t={t}
           doc={doc}
           step={node}
@@ -290,7 +295,7 @@ function NodePanel(props: InspectorProps & { node: StepNode }): React.JSX.Elemen
             className={cx(css.templateForm, ui.rise)}
             onSubmit={(event) => {
               event.preventDefault()
-              // 模板 = 步骤的 `data` + 它写的文件（作为产出清单，放回画布时再展开成文件卡）。
+              // 模板 = 步骤的 `data` + 它写的文件（作为产出清单，放回画布时再展开成资源卡）。
               const outputs = outputsOf(doc, node.id)
               const data =
                 outputs.length === 0
@@ -400,7 +405,7 @@ export function DescriptionField(props: {
  * 连接清单的一行：对面的步骤、条件，下面一行是这条线交接了什么（悬停文件 = 画布高亮）。
  * 整行点下去选中这条线。
  */
-/** 连线两端的小图标：步骤用种类图标，文件用文件图标。 */
+/** 连线两端的小图标：步骤用它的图标，资源用资源图标。 */
 function EndIcon(props: { node: WorkflowNode | undefined; id: string }): React.JSX.Element {
   if (props.node !== undefined && isInput(props.node)) {
     return (
@@ -409,14 +414,10 @@ function EndIcon(props: { node: WorkflowNode | undefined; id: string }): React.J
       </span>
     )
   }
-  if (props.node !== undefined && isFile(props.node)) {
-    return (
-      <span className={hand.fileIcon}>
-        <Icon name="file" size={13} />
-      </span>
-    )
+  if (props.node !== undefined && isResource(props.node)) {
+    return <ResourceIcon resource={props.node} />
   }
-  const step = props.node !== undefined && !isFile(props.node) ? props.node : undefined
+  const step = props.node !== undefined && !isResource(props.node) ? props.node : undefined
   return <StepMark look={lookOf(props.id, step?.data)} size={14} />
 }
 
@@ -502,7 +503,7 @@ function EdgePanel(props: InspectorProps & { edge: WorkflowEdge }): React.JSX.El
         <span className={css.edgeIcon}>
           <Icon
             name={
-              kind === 'flow' ? (back ? 'loop' : 'arrowRight') : kind === 'ask' ? 'ask' : 'file'
+              kind === 'flow' ? (back ? 'loop' : 'arrowRight') : kind === 'ask' ? 'ask' : 'layers'
             }
             size={16}
           />
@@ -554,7 +555,7 @@ function EdgePanel(props: InspectorProps & { edge: WorkflowEdge }): React.JSX.El
             {t('edge.askHint')}
           </p>
         ) : kind === 'write' || kind === 'read' ? (
-          <FileEdgeBody t={t} edge={edge} kind={kind} onEdit={onEdit} />
+          <ResourceEdgeBody t={t} edge={edge} kind={kind} onEdit={onEdit} />
         ) : (
           <>
             <section className={css.field}>

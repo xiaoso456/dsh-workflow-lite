@@ -18,22 +18,23 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
-import { fileGraph, outputsOf, stepFiles } from '../../shared/files.ts'
 import { analyzeGraph, compareByCodepoint } from '../../shared/graph.ts'
 import { inputKind, inputReaders, orderedInputs, stepInputs } from '../../shared/inputs.ts'
-import { canonicalOutput, idKey, isFile, isInput, isStep } from '../../shared/model.ts'
+import { canonicalOutput, idKey, isInput, isResource, isStep } from '../../shared/model.ts'
 import { checkName } from '../../shared/naming.ts'
+import { outputsOf, resourceGraph, stepResources } from '../../shared/resources.ts'
 import { NODE_STATUSES, RUN_STATUSES } from '../../shared/runState.ts'
 import type {
   ChangedEntry,
   ExecutionMode,
-  FileIndexEntry,
   Handoff,
   InputAnswer,
   InputIndexEntry,
   NodeIndexEntry,
   ReadIndexResult,
   ReadNodeResult,
+  ResourceIndexEntry,
+  ResourceItem,
   StepNode,
   ToolWarning,
   ValidationProblem,
@@ -44,6 +45,7 @@ import {
   type Action,
   EXECUTION_MODES,
   INPUT_KINDS,
+  RESOURCE_KINDS,
   TOOL_NAME,
 } from '../../shared/types.ts'
 import { compileWorkflow } from '../plan.ts'
@@ -57,6 +59,7 @@ import {
   type Outcome,
   problemsToWarnings,
   type Repository,
+  type ResourceUpsert,
 } from '../store/repository.ts'
 
 /** 工具需要的三个活依赖（`dataDir` / `maxResultBytes` 是活配置，所以取函数而不是值）。 */
@@ -76,11 +79,12 @@ const DESCRIPTION = [
   'create 新建图（可从工作流模板）/ write_node 新建或覆盖一个节点 / set_label 改显示名（id 不可改）/ ',
   'delete_node 删节点（连带删边）/ connect、disconnect 增删边 / rename_workflow、delete_workflow 改名删图 / ',
   'save_as_template 存成模板（给了 node 就存成节点模板）/ ',
-  'configure 改工作流设置（output_root 产出根目录、mode 执行方式、run_state 记录运行状态）/ write_file 新建或修改文件节点 / ',
+  'configure 改工作流设置（output_root 产出根目录、mode 执行方式、run_state 记录运行状态）/ write_resource 新建或修改资源节点 / ',
   'runs 列工作流实例 / resume 拿一个实例的计划接着跑 / state 看或改实例的运行状态（开了 run_state 的图按计划末尾「运行状态」段用它记进度，不要直接编辑状态文件；插件补时间、轮次、流水并校验）。',
   '用户在画布上点「执行」时会发来一句带实例 id 的话：用 resume 拿那个实例的计划，照着执行。',
-  '文件是独立的节点：connect 步骤 → 文件 = 写它（update 选在原文件上更新），文件 → 步骤 = 读它；',
-  'write_node 的 output/outputs 也会自动建好文件节点并连上。步骤 → 步骤的线缺省交上游的执行结果（handoff / handoff_note 可改）。',
+  '资源是独立的节点，一个资源里可以放好几项（file 文件、folder 文件夹、url 网址、skill、text 自定义）：',
+  'connect 步骤 → 资源 = 写它（写其中的文件与文件夹；update 选在原文件上更新），资源 → 步骤 = 读它，一条线都没连的资源交给整个工作流；',
+  'write_node 的 output/outputs 也会自动建好放着这个文件的资源并连上。步骤 → 步骤的线缺省交上游的执行结果（handoff / handoff_note 可改）。',
   '输入节点是执行前问用户的问题：write_node 带 input 新建或修改，connect 输入 → 步骤 = 把回答交给它。',
   '图里有输入节点时，compile 带 answers 给出用户的回答（没给的用默认值）；必填的没回答会回 problems，先问用户再编译。',
   '节点定位一律用 id。',
@@ -141,22 +145,24 @@ function sessionOf(exec: ToolExecView | undefined): SessionRef {
   }
 }
 
-/** 步骤的索引条目（不含正文）：前置步骤，以及它读、写的文件。 */
+/** 步骤的索引条目（不含正文）：前置步骤，以及它读、写的资源。 */
 function indexEntry(document: WorkflowDocument, node: StepNode): NodeIndexEntry {
   const analysis = analyzeGraph(document)
   const predecessors = (analysis.predecessors.get(node.id) ?? []).slice().sort(compareByCodepoint)
-  const files = stepFiles(document, node.id)
+  const linked = stepResources(document, node.id)
   const inputs = stepInputs(document, node.id)
   return {
     id: node.id,
     ...(node.data.label === undefined ? {} : { label: node.data.label }),
     predecessors,
-    ...(files.reads.length === 0 ? {} : { reads: files.reads.map(({ file }) => file.data.path) }),
-    ...(files.writes.length === 0
+    ...(linked.reads.length === 0
+      ? {}
+      : { reads: linked.reads.map(({ resource }) => resource.id) }),
+    ...(linked.writes.length === 0
       ? {}
       : {
-          writes: files.writes.map(({ file, update }) =>
-            update ? { path: file.data.path, update: true as const } : { path: file.data.path },
+          writes: linked.writes.map(({ resource, update }) =>
+            update ? { id: resource.id, update: true as const } : { id: resource.id },
           ),
         }),
     ...(inputs.length === 0 ? {} : { inputs: inputs.map((input) => input.id) }),
@@ -227,19 +233,53 @@ function inputUpsertOf(id: string, input: InputArgs): InputUpsert | string {
   return upsert
 }
 
-/** 文件节点的索引条目：谁写、谁读。 */
-function fileEntries(document: WorkflowDocument): FileIndexEntry[] {
-  return [...fileGraph(document).values()]
-    .sort((a, b) => compareByCodepoint(a.file.id, b.file.id))
-    .map(({ file, writers, readers }) => ({
-      id: file.id,
-      path: file.data.path,
-      ...(file.data.rule === undefined ? {} : { rule: file.data.rule }),
+/** 资源节点的索引条目：名字、内容、谁写、谁读（描述是给人看的，不给）。 */
+function resourceEntries(document: WorkflowDocument): ResourceIndexEntry[] {
+  return [...resourceGraph(document).values()]
+    .sort((a, b) => compareByCodepoint(a.resource.id, b.resource.id))
+    .map(({ resource, writers, readers }) => ({
+      id: resource.id,
+      ...(resource.data.label === undefined ? {} : { label: resource.data.label }),
+      items: resource.data.items,
       writers: writers.map((writer) =>
         writer.update ? { id: writer.id, update: true as const } : { id: writer.id },
       ),
       readers,
     }))
+}
+
+/** write_resource 的 resource 参数 → 仓储的入参。形状不对就回一句给模型看的错。 */
+function resourceUpsertOf(node: string | undefined, input: ResourceArgs): ResourceUpsert | string {
+  const upsert: ResourceUpsert = node === undefined || node === '' ? {} : { id: node }
+  for (const key of ['label', 'description'] as const) {
+    const value = input[key]
+    if (value === undefined) continue
+    if (typeof value !== 'string') return `resource.${key} 必须是文字`
+    upsert[key] = value
+  }
+  if (input.items !== undefined) {
+    if (!Array.isArray(input.items)) return 'resource.items 要写成 [{ kind, value, note }]'
+    const items: ResourceItem[] = []
+    for (const [index, raw] of input.items.entries()) {
+      if (typeof raw !== 'object' || raw === null)
+        return `resource.items[${index}] 要写成 { kind, value }`
+      const kind = RESOURCE_KINDS.find((candidate) => candidate === raw.kind)
+      if (kind === undefined) {
+        return `resource.items[${index}].kind 不认识：${String(raw.kind)}（可选：${RESOURCE_KINDS.join(' / ')}）`
+      }
+      if (typeof raw.value !== 'string') return `resource.items[${index}].value 必须是文字`
+      if (raw.note !== undefined && typeof raw.note !== 'string') {
+        return `resource.items[${index}].note 必须是文字`
+      }
+      items.push(
+        raw.note === undefined
+          ? { kind, value: raw.value }
+          : { kind, value: raw.value, note: raw.note },
+      )
+    }
+    upsert.items = items
+  }
+  return upsert
 }
 
 /** 按 `id` 码位序排步骤。 */
@@ -277,12 +317,12 @@ async function saveNodeAsTemplate(
       error: { code: 'not_found', message: `图 ${workflow} 里没有节点 ${nodeId}` },
     }
   }
-  if (isFile(node) || isInput(node)) {
+  if (isResource(node) || isInput(node)) {
     return {
       ok: false,
       error: {
         code: 'invalid_args',
-        message: `${node.id} 是${isFile(node) ? '文件' : '输入'}节点，只有步骤能存成节点模板`,
+        message: `${node.id} 是${isResource(node) ? '资源' : '输入'}节点，只有步骤能存成节点模板`,
       },
     }
   }
@@ -343,8 +383,6 @@ export interface WorkflowLiteArgs {
   handoff?: 'result' | 'none'
   handoff_note?: string
   update?: boolean
-  path?: string
-  rule?: string
   run_state?: boolean
   instance?: string
   all?: boolean
@@ -354,6 +392,14 @@ export interface WorkflowLiteArgs {
   log?: string
   input?: InputArgs
   answers?: AnswerArgs[]
+  resource?: ResourceArgs
+}
+
+/** write_resource 的 resource（与参数声明同构）。 */
+export interface ResourceArgs {
+  label?: string
+  description?: string
+  items?: { kind: string; value: string; note?: string }[]
 }
 
 /** write_node 的 input（与参数声明同构）。 */
@@ -524,7 +570,9 @@ export function createWorkflowLiteHandler(
             nodes: sortedNodes(load.document).map((node) =>
               indexEntry(load.document ?? document0(), node),
             ),
-            ...(load.document.nodes.some(isFile) ? { files: fileEntries(load.document) } : {}),
+            ...(load.document.nodes.some(isResource)
+              ? { resources: resourceEntries(load.document) }
+              : {}),
             ...(load.document.nodes.some(isInput) ? { inputs: inputEntries(load.document) } : {}),
             warnings,
           }
@@ -539,10 +587,10 @@ export function createWorkflowLiteHandler(
         const result: ReadNodeResult = {
           workflow: name,
           node,
-          // 文件节点给连着它的全部线（谁写、谁读）；步骤给出边。
+          // 资源与输入节点给连着它的全部线（谁写、谁读）；步骤给出边。
           edges: load.document.edges
             .filter((edge) =>
-              isFile(node) || isInput(node)
+              isResource(node) || isInput(node)
                 ? idKey(edge.source) === idKey(nodeId) || idKey(edge.target) === idKey(nodeId)
                 : idKey(edge.source) === idKey(nodeId),
             )
@@ -800,19 +848,22 @@ export function createWorkflowLiteHandler(
         return finish(outcome.result)
       }
 
-      case 'write_file': {
+      case 'write_resource': {
         const name = requireWorkflow(args.workflow)
         if (name === null) return missingWorkflow()
-        if (args.node === undefined && args.path === undefined) {
+        if ((args.node === undefined || args.node === '') && args.resource === undefined) {
           return errorValue({
-            error: { code: 'invalid_args', message: 'write_file 需要 node（文件节点 id）或 path' },
+            error: {
+              code: 'invalid_args',
+              message: 'write_resource 需要 resource（新建）或 node + resource（修改）',
+            },
           })
         }
-        const outcome = await repository.writeFile(name, {
-          ...(args.node === undefined || args.node === '' ? {} : { id: args.node }),
-          ...(args.path === undefined ? {} : { path: args.path }),
-          ...(args.rule === undefined ? {} : { rule: args.rule }),
-        })
+        const upsert = resourceUpsertOf(args.node, args.resource ?? {})
+        if (typeof upsert === 'string') {
+          return errorValue({ error: { code: 'invalid_args', message: upsert } })
+        }
+        const outcome = await repository.writeResource(name, upsert)
         if (!outcome.ok) return errorValue(outcome)
         return finish(outcome.result)
       }
@@ -902,13 +953,44 @@ export const PARAMETERS = {
   update: {
     type: 'boolean',
     description:
-      'connect（步骤 → 文件）：true = 在原文件上更新（先读再改，如修完在问题清单里打钩）；false = 整份写出。缺省：文件还没人写就是整份写出，已经有人写就是更新。',
+      'connect（步骤 → 资源）：true = 在原文件上更新（先读再改，如修完在问题清单里打钩）；false = 整份写出。缺省：资源还没人写就是整份写出，已经有人写就是更新。',
   },
-  path: {
-    type: 'string',
-    description: 'write_file：文件路径（相对产出根目录，不能是绝对路径或含 ..）。',
+  resource: {
+    type: 'object',
+    description:
+      'write_resource：资源的内容（给了 node 就是修改那个资源，给了的字段才改；没给 node 就是新建）。',
+    additionalProperties: false,
+    properties: {
+      label: { type: 'string', description: '名字（计划里称呼它）；空串 = 清除。' },
+      description: { type: 'string', description: '一句话描述（给人看，不进计划）；空串 = 清除。' },
+      items: {
+        type: 'array',
+        description: '全部内容（整份替换），按顺序。',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            kind: {
+              type: 'string',
+              enum: [...RESOURCE_KINDS],
+              required: true,
+              description:
+                'file 文件 / folder 文件夹（value 是路径：绝对路径原样用；相对路径有步骤写它时在产出根目录下，只被读时相对工作区）/ url 网址 / skill（value 是 skill 名）/ text 自定义（value 是用户自己写的一段提示词，原样交给读它的步骤）。',
+            },
+            value: {
+              type: 'string',
+              required: true,
+              description: '路径 / 网址 / skill 名 / 正文。',
+            },
+            note: {
+              type: 'string',
+              description: '这一项怎么用（写文件时是生成要求）；text 不用。',
+            },
+          },
+        },
+      },
+    },
   },
-  rule: { type: 'string', description: 'write_file：这份文件该怎么写；空串 = 清除。' },
   goal: {
     type: 'string',
     description: 'compile：本次目标（用户说了要做成什么时写，进计划的「本次执行」段）。',

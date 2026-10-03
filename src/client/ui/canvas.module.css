@@ -222,7 +222,7 @@
 
 .handleFile,
 .handleFileUp,
-.hFileIn {
+.hResIn {
   --wl-h: var(--wl-io-produce);
 }
 
@@ -298,7 +298,7 @@
 .wrap[data-drag="flow"] :global(.react-flow__handle).hStepIn,
 .wrap[data-drag="read"] :global(.react-flow__handle).hRead,
 .wrap[data-drag="ask"] :global(.react-flow__handle).hRead,
-.wrap[data-drag="write"] :global(.react-flow__handle).hFileIn,
+.wrap[data-drag="write"] :global(.react-flow__handle).hResIn,
 .wrap[data-drag="back"] :global(.react-flow__handle).handleSource,
 .wrap[data-drag="back"] :global(.react-flow__handle).handleRead,
 .wrap[data-drag="readBack"] :global(.react-flow__handle).handleRead,
@@ -333,7 +333,7 @@
 
 /* 扩大了命中区的点：把画出来的圆点放回卡片边上（命中区比卡片四周各大 12px）。 */
 .wrap[data-drag] .hStepIn:not(:global(.connectingfrom))::after,
-.wrap[data-drag] .hFileIn:not(:global(.connectingfrom))::after {
+.wrap[data-drag] .hResIn:not(:global(.connectingfrom))::after {
   inset: calc(50% - 5px) auto auto 7px;
   width: 10px;
   height: 10px;
@@ -363,7 +363,7 @@
 }
 
 .wrap[data-drag] .card:has(:global(.react-flow__handle.valid))::after,
-.wrap[data-drag] .fileCard:has(:global(.react-flow__handle.valid))::after {
+.wrap[data-drag] .resCard:has(:global(.react-flow__handle.valid))::after {
   border-color: var(--wl-drag);
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--wl-drag) 18%, transparent);
   opacity: 1;
@@ -755,7 +755,7 @@
 
 /* ── 悬停文件：用到它的步骤标角色，其余淡下去 ─────────────── */
 
-.fileCard[data-dim="true"] {
+.resCard[data-dim="true"] {
   opacity: 0.32;
 }
 
@@ -839,21 +839,21 @@
   }
 }
 
-/* ── 文件卡 ───────────────────────────────────────────────── */
+/* ── 资源卡 ───────────────────────────────────────────────── */
 
 /*
- * 文件卡要和步骤卡一眼分开——步骤是"会做事的卡片"，文件是"一张贴了类型签的纸"：
- * - 左边一条类型签：整条竖着贴在卡片左侧，印着扩展名（MD / JSON……），步骤卡没有这种结构；
- * - 右上角一个折角，圆角更小（步骤 12px，文件 7px）；
- * - 平铺：没有步骤卡那样的投影，描边清楚；
- * - 更窄更矮，文件名用等宽字。
- * 左边的点接写入（步骤 → 文件），右边的点拖出去是读取（文件 → 步骤）。
+ * 资源卡要和步骤卡一眼分开——步骤是"会做事的卡片"，资源是"一张贴了类型签的纸"：
+ * - 右上角一个折角，圆角更小（步骤 12px，资源 7px）；平铺，没有投影，描边清楚；
+ * - 紧凑的一行（只有一项、没起名字）：左边一条类型签，印着扩展名（MD / JSON……）或种类图标；
+ * - 展开的清单（起了名字 / 好几项）：标题一行、描述一行、一行一项（种类图标 + 简称），多了折成「还有 N 项」。
+ *   各段高度写死，和 layout.ts 里的估算一致（标题 38、描述 18、每项 22、「还有」20、上下留白共 10）。
+ * 左边的点接写入（步骤 → 资源），右边的点拖出去是读取（资源 → 步骤）。
  */
-.fileCard {
+.resCard {
   position: relative;
   display: flex;
   align-items: stretch;
-  width: 180px;
+  width: 200px;
   min-height: 48px;
   border: 1px solid var(--wl-file-border);
   border-radius: 7px 0 7px 7px;
@@ -866,7 +866,7 @@
 }
 
 /* 折角：右上角切掉一块（画布色），露出纸背，左下一道细阴影。 */
-.fileCard::before {
+.resCard::before {
   position: absolute;
   top: -1px;
   right: -1px;
@@ -878,7 +878,7 @@
   content: "";
 }
 
-.fileCard::after {
+.resCard::after {
   position: absolute;
   inset: -1px;
   border: 2px solid var(--wl-accent);
@@ -890,24 +890,45 @@
   transition: opacity 160ms linear;
 }
 
-.fileCard:hover {
+.resCard:hover {
   transform: translateY(-1px);
 }
 
-.fileCard.cardSelected::after {
+.resCard.cardSelected::after {
   opacity: 1;
 }
 
-.fileCard[data-focused="true"] {
+.resCard[data-focused="true"] {
   border-color: var(--wl-file);
 }
 
-:global(.react-flow__node.dragging) .fileCard {
+:global(.react-flow__node.dragging) .resCard {
   cursor: grabbing;
   transform: scale(1.02);
 }
 
-/* 类型签：左侧整条，浅底 + 扩展名（没有扩展名就是一个文件图标）。 */
+/* 每种内容一个颜色（只用在小图标上）：文件 = 文件色、文件夹 = 橄榄、网址 = 青、Skill = 粉、自定义 = 石板灰。 */
+:is(.fileTab, .resItem)[data-kind="file"] {
+  --wl-kind: var(--wl-file);
+}
+
+:is(.fileTab, .resItem)[data-kind="folder"] {
+  --wl-kind: var(--wl-c-olive);
+}
+
+:is(.fileTab, .resItem)[data-kind="url"] {
+  --wl-kind: var(--wl-c-teal);
+}
+
+:is(.fileTab, .resItem)[data-kind="skill"] {
+  --wl-kind: var(--wl-c-pink);
+}
+
+:is(.fileTab, .resItem)[data-kind="text"] {
+  --wl-kind: var(--wl-c-slate);
+}
+
+/* 类型签：左侧整条，浅底 + 扩展名（没有扩展名就是种类图标）。 */
 .fileTab {
   display: grid;
   flex: none;
@@ -916,7 +937,7 @@
   border-right: 1px solid var(--wl-file-border);
   border-radius: 6px 0 0 6px;
   background: var(--wl-file-tab);
-  color: var(--wl-file);
+  color: var(--wl-kind, var(--wl-file));
   font-family: var(--wl-mono);
   font-size: 10px;
   font-weight: 700;
@@ -929,7 +950,7 @@
   letter-spacing: 0;
 }
 
-.fileCard > .cardFlag {
+.resCard > .cardFlag {
   align-self: center;
   margin-right: 16px;
 }
@@ -962,13 +983,157 @@
   white-space: nowrap;
 }
 
-.fileRuleEmpty {
+.resEmptyTitle {
+  color: var(--wl-text-3);
+  font-family: inherit;
+  font-weight: 500;
+}
+
+/* ── 资源卡展开的清单 ── */
+
+.resBody {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.resHead {
+  display: flex;
+  flex: none;
+  gap: 7px;
+  align-items: center;
+  height: 38px;
+  padding: 0 18px 0 10px;
+  border-bottom: 1px solid var(--wl-file-border);
+}
+
+.resHeadIcon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--wl-file-tab);
+  color: var(--wl-file);
+}
+
+.resName {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text);
+  font-size: var(--wl-fs-meta);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resCount {
+  flex: none;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+.resDesc {
+  flex: none;
+  height: 18px;
+  margin-top: 4px;
+  padding: 0 12px;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resItems {
+  display: flex;
+  flex-direction: column;
+  padding: 5px 0;
+}
+
+.resDesc + .resItems {
+  padding-top: 1px;
+}
+
+.resItem {
+  display: flex;
+  flex: none;
+  gap: 7px;
+  align-items: center;
+  height: 22px;
+  padding: 0 12px;
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-micro);
+}
+
+.resItemIcon {
+  display: inline-flex;
+  flex: none;
+  color: var(--wl-kind, var(--wl-text-3));
+}
+
+.resItemText {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resItemText[data-mono="true"] {
   font-family: var(--wl-mono);
 }
 
+.resItemEmpty {
+  color: var(--wl-text-3);
+}
+
+.resItemMade {
+  display: inline-flex;
+  flex: none;
+  color: var(--wl-ok);
+}
+
+.resMore {
+  flex: none;
+  height: 20px;
+  padding: 0 12px 0 31px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  line-height: 20px;
+}
+
+/* 一条线都没连：交给整个工作流。右上角折角旁边一个小圆标。 */
+.resShared {
+  position: absolute;
+  top: -9px;
+  right: 24px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--wl-canvas);
+  border-radius: 50%;
+  background: var(--wl-file);
+  color: var(--wl-panel);
+}
+
+.resBody ~ .cardFlag {
+  position: absolute;
+  top: 12px;
+  right: 18px;
+  margin: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .fileCard,
-  .fileCard::after {
+  .resCard,
+  .resCard::after {
     animation: none;
     transition: none;
   }

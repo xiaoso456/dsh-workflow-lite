@@ -11,7 +11,7 @@ import {
   starterGraph,
 } from '../../src/client/model/library.ts'
 import { guessAppearance } from '../../src/shared/appearance.ts'
-import { isFile, isStep, makeEdgeId, outputSpecs } from '../../src/shared/model.ts'
+import { isInput, isResource, isStep, makeEdgeId, outputSpecs } from '../../src/shared/model.ts'
 import { checkLabel, checkName, checkText } from '../../src/shared/naming.ts'
 import { INPUT_KINDS, type WorkflowDocument } from '../../src/shared/types.ts'
 import { validateDocument } from '../../src/shared/validate.ts'
@@ -22,7 +22,7 @@ describe('拖放载荷', () => {
   it('编码后能原样解回来', () => {
     for (const source of [
       { kind: 'blank' },
-      { kind: 'file' },
+      { kind: 'resource' },
       { kind: 'input' },
       { kind: 'preset', id: 'scan' },
       { kind: 'template', name: 'my-check' },
@@ -109,10 +109,10 @@ describe('词典', () => {
 })
 
 describe('示例流程的文件与交接', () => {
-  it('每个写文件的内置步骤挂一张文件卡；审查报告被修复在原文件上更新、汇总读它；整张图过保存校验', () => {
-    const { nodes, edges } = starterGraph(t)
-    const files = nodes.filter(isFile)
-    expect(files.map((node) => node.data.path)).toEqual([
+  it('每个写文件的内置步骤挂一张资源卡；审查报告被修复在原文件上更新、汇总读它；整张图过保存校验', () => {
+    const { nodes, edges, settings } = starterGraph(t)
+    const files = nodes.filter(isResource).filter((node) => node.data.label === undefined)
+    expect(files.map((node) => node.data.items[0]?.value)).toEqual([
       'scan-notes.md',
       'plan.md',
       'changes.md',
@@ -120,9 +120,9 @@ describe('示例流程的文件与交接', () => {
       'fix-notes.md',
     ])
     expect(nodes.filter(isStep).every((node) => node.data.output === undefined)).toBe(true)
-    const update = edges.find((edge) => edge.source === 'fix' && edge.target === 'file-review.md')
+    const update = edges.find((edge) => edge.source === 'fix' && edge.target === 'res-review')
     expect(update?.update).toBe(true)
-    expect(edges.some((edge) => edge.source === 'file-review.md' && edge.target === 'report')).toBe(
+    expect(edges.some((edge) => edge.source === 'res-review' && edge.target === 'report')).toBe(
       true,
     )
     const fix = edges.find((edge) => edge.source === 'review' && edge.target === 'fix')
@@ -143,10 +143,36 @@ describe('示例流程的文件与交接', () => {
         },
       })),
       viewport: { x: 0, y: 0, zoom: 1 },
+      settings,
     }
     const report = validateDocument(document, { workflowName: 'starter', maxNodes: 200 })
     expect(report.save).toEqual([])
     expect(report.warning).toEqual([])
+    expect(report.compile).toEqual([])
     expect(en['starter.fixNote']).not.toBe('')
+  })
+
+  it('把各种用法都摆出来：两种用户输入、多项资料、交给整个工作流的自定义约定、记录运行状态', () => {
+    const { nodes, edges, settings } = starterGraph(t)
+    expect(settings).toEqual({ runState: true })
+    const linked = (id: string): string[] =>
+      edges.filter((edge) => edge.source === id).map((edge) => edge.target)
+    const inputs = nodes.filter(isInput)
+    expect(inputs.map((node) => [node.id, node.data.kind])).toEqual([
+      ['ask-goal', 'textarea'],
+      ['ask-strict', 'choice'],
+    ])
+    expect(linked('ask-goal')).toEqual(['scan', 'plan'])
+    expect(linked('ask-strict')).toEqual(['review'])
+    const context = nodes.find((node) => node.id === 'res-context')
+    expect(
+      context !== undefined && isResource(context) && context.data.items.map((item) => item.kind),
+    ).toEqual(['folder', 'file', 'url'])
+    expect(linked('res-context')).toEqual(['scan', 'implement'])
+    const rules = nodes.find((node) => node.id === 'res-rules')
+    expect(rules !== undefined && isResource(rules) && rules.data.items[0]?.kind).toBe('text')
+    expect(edges.some((edge) => edge.source === 'res-rules' || edge.target === 'res-rules')).toBe(
+      false,
+    )
   })
 })

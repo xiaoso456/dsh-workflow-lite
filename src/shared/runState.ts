@@ -9,9 +9,9 @@
  * @module @xiaoso/dsh-workflow-lite/shared/runState
  */
 
-import { flowEdges } from './files.ts'
 import { edgeWhen } from './graph.ts'
 import { isStep } from './model.ts'
+import { flowEdges } from './resources.ts'
 import {
   EXECUTION_MODES,
   type ExecutionMode,
@@ -609,8 +609,10 @@ export interface InstanceView {
   issues: RunStateIssue[]
   /** 状态文件的修改时间（epoch 毫秒）；文件不在时为 0。 */
   mtime: number
-  /** 快照里每个文件节点对应的文件在不在（文件节点 id → 是否存在）。 */
-  files: Record<string, boolean>
+  /**
+   * 快照里每个资源的文件与文件夹在不在（资源 id → 按项的顺序：在 / 不在；网址、Skill、自定义是 `null`）。
+   */
+  files: Record<string, (boolean | null)[]>
   /** 用户执行前对输入节点的回答（已补上默认值；输入 id → 回答）。 */
   answers: Record<string, InputAnswer>
 }

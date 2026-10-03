@@ -18,19 +18,26 @@
  */
 
 import { createHash } from 'node:crypto'
-import { fileGraph, resolveHandoff, stepFiles } from './files.ts'
 import { byId, cycleHasNoExit, edgeWhen, type GraphAnalysis } from './graph.ts'
 import { describeInput, effectiveAnswer, inputReaders, orderedInputs } from './inputs.ts'
 import { PLAN_SECTIONS, VERDICT_PREFIX } from './limits.ts'
 import { displayName, idKey, isStep, writeDocument } from './model.ts'
 import { isVerdictWhen } from './naming.ts'
-import { isAbsoluteRoot, normalizeRoot, resolveOutputPath } from './outputPaths.ts'
+import { isAbsoluteRoot, normalizeRoot, resolveItemPath } from './outputPaths.ts'
+import {
+  isShared,
+  type ResourceInfo,
+  resolveHandoff,
+  resourceGraph,
+  stepResources,
+} from './resources.ts'
 import type {
   CycleGroup,
   ExecutionMode,
   PlanFacts,
   PlanId,
   PlanResult,
+  ResourceItem,
   StepNode,
   ValidationCode,
   ValidationProblem,
@@ -130,9 +137,9 @@ const MISSING_CWD_NOTE = '基目录未指定，请向调用方确认。'
 /** ④ 段：循环内产出会被覆盖。 */
 const LOOP_OVERWRITE_LINE = '循环里的产出会被反复覆盖，验收以**最终一轮**为准。'
 
-/** ④ 段：文件块的小标题。 */
-const FILES_HEADING =
-  '**文件**（派发节点时，把它要读、要写的文件路径连同要求交给执行者；标了「更新」的直接在原文件上改，不要另存副本）：'
+/** ④ 段：资源块的小标题。 */
+const RESOURCES_HEADING =
+  '**资源**（派发节点时，把它连着的资源连同说明交给执行者：文件、文件夹按给定路径读写，网址打开查看，Skill 先用 skill 工具加载再干活，自定义内容原样转交；标了「更新」的直接在原文件上改，不要另存副本）：'
 
 /** ④ 段：交接——缺省就交执行结果，这一句说清；例外与说明逐条列在后面。 */
 const HANDOFF_LINE =
@@ -233,12 +240,12 @@ interface RenderContext {
   inCycle: ReadonlySet<string>
   /** 产出根目录（规范化后）；没配 = 工作区根。 */
   root: string | undefined
-  /** 原图（文件读写按它统计）。 */
+  /** 原图（资源读写按它统计）。 */
   document: WorkflowDocument
 }
 
 function buildContext(facts: PlanFacts, analysis: GraphAnalysis): RenderContext {
-  // 只认步骤：连着文件的线两端有一头不在这里，自然不进前置、分支与循环。
+  // 只认步骤：连着资源的线两端有一头不在这里，自然不进前置、分支与循环。
   const steps = facts.document.nodes.filter(isStep)
   const keyToId = new Map<string, string>()
   for (const node of steps) {
@@ -283,19 +290,16 @@ function buildContext(facts: PlanFacts, analysis: GraphAnalysis): RenderContext 
   }
 }
 
-/** 一个步骤读、写的文件（按连线在文件里的顺序），路径已拼上产出根目录（`shared/outputPaths.ts` 是拼接的唯一出处）。 */
-function filesOf(ctx: RenderContext, id: string) {
-  const files = stepFiles(ctx.document, id)
-  // 既读又写的文件只记在写入列（在原文件上更新本来就要先读）。
-  const written = new Set(files.writes.map((item) => item.file.id))
+/** 一个步骤读、写的资源 id（按连线在文件里的顺序）。 */
+function resourcesOf(ctx: RenderContext, id: string) {
+  const linked = stepResources(ctx.document, id)
+  // 既读又写的资源只记在写入列（在原文件上更新本来就要先读）。
+  const written = new Set(linked.writes.map((item) => item.resource.id))
   return {
-    reads: files.reads
-      .filter((item) => !written.has(item.file.id))
-      .map((item) => resolveOutputPath(ctx.root, item.file.data.path)),
-    writes: files.writes.map((item) => ({
-      path: resolveOutputPath(ctx.root, item.file.data.path),
-      update: item.update,
-    })),
+    reads: linked.reads
+      .filter((item) => !written.has(item.resource.id))
+      .map((item) => item.resource.id),
+    writes: linked.writes.map((item) => ({ id: item.resource.id, update: item.update })),
   }
 }
 
@@ -421,7 +425,7 @@ function tableLines(facts: PlanFacts, ctx: RenderContext, inline: boolean): stri
     const cells = [
       displayName(id, node?.data.label),
       predecessorsCell(ctx, id),
-      ...fileCells(ctx, id),
+      ...resourceCells(ctx, id),
     ]
     if (!inline) cells.push(pathCell(facts, id))
     lines.push(`| ${cells.join(' | ')} |`)
@@ -454,14 +458,14 @@ function predecessorsCell(ctx: RenderContext, id: string): string {
   return items.length === 0 ? DASH : items.join('；')
 }
 
-/** 读取列与写入列：文件名原样写、不加反引号，多个用 `、` 隔开；在原文件上更新的标「（更新）」。 */
-function fileCells(ctx: RenderContext, id: string): [string, string] {
-  const { reads, writes } = filesOf(ctx, id)
+/** 读取列与写入列：资源 id 原样写、不加反引号，多个用 `、` 隔开；在原文件上更新的标「（更新）」。 */
+function resourceCells(ctx: RenderContext, id: string): [string, string] {
+  const { reads, writes } = resourcesOf(ctx, id)
   return [
     reads.length === 0 ? DASH : reads.join('、'),
     writes.length === 0
       ? DASH
-      : writes.map((file) => (file.update ? `${file.path}（更新）` : file.path)).join('、'),
+      : writes.map((item) => (item.update ? `${item.id}（更新）` : item.id)).join('、'),
   ]
 }
 
@@ -570,12 +574,12 @@ function requirementLines(ctx: RenderContext): string[] {
   })
 }
 
-/** ④ 交付契约：文件、交接、分支判定、循环覆盖、产出的家。 */
+/** ④ 交付契约：资源、交接、分支判定、循环覆盖、产出的家。 */
 function contractSection(facts: PlanFacts, ctx: RenderContext): string {
   const lines: string[] = [PLAN_SECTIONS.contract]
 
-  const files = fileLines(ctx)
-  if (files.length > 0) lines.push(FILES_HEADING, ...files)
+  const resources = resourceLines(ctx)
+  if (resources.length > 0) lines.push(RESOURCES_HEADING, ...resources)
   if (missingCwd(facts)) lines.push(MISSING_CWD_NOTE)
   if (ctx.analysis.nodeIds.length > 1) {
     const exceptions = handoffLines(ctx)
@@ -603,33 +607,72 @@ function contractSection(facts: PlanFacts, ctx: RenderContext): string {
 }
 
 /**
- * 文件：每个文件节点一行，按路径码位序。写清谁产出、谁在原文件上更新、谁读（各组内按 `id` 码位序），
- * 有生成规则就跟在后面。没连任何步骤的文件不写。
+ * 资源：每个资源一项，按 id 码位序。先写清谁产出、谁在原文件上更新、谁读（各组内按 `id` 码位序；
+ * 一条线都没连的交给所有步骤），再逐项列出里面的东西（文件与文件夹的路径已经拼好）。空资源不写。
+ * 描述是给人看的，不进计划。
  */
-function fileLines(ctx: RenderContext): string[] {
+function resourceLines(ctx: RenderContext): string[] {
+  const infos = [...resourceGraph(ctx.document).values()]
+    .filter((info) => info.resource.data.items.length > 0)
+    .sort((a, b) => byId(a.resource.id, b.resource.id))
+  const lines: string[] = []
+  for (const info of infos) {
+    const label = info.resource.data.label?.trim()
+    const name =
+      label === undefined || label === ''
+        ? code(info.resource.id)
+        : `${code(info.resource.id)}（${label}）`
+    lines.push(`- 资源 ${name}：${rolesOf(ctx, info)}。`)
+    const written = info.writers.length > 0
+    for (const item of info.resource.data.items) lines.push(...itemLines(ctx, item, written))
+  }
+  return lines
+}
+
+/** 谁产出、谁更新、谁读；一条线都没连就是交给所有步骤。 */
+function rolesOf(ctx: RenderContext, info: ResourceInfo): string {
+  if (isShared(info)) return '交给所有步骤'
   const steps = new Set(ctx.analysis.nodeIds)
-  const items = [...fileGraph(ctx.document).values()]
-    .filter((info) => info.writers.length > 0 || info.readers.length > 0)
-    .sort((a, b) => byId(a.file.data.path, b.file.data.path))
-  return items.map((info) => {
-    const roles: string[] = []
-    const group = (ids: readonly string[], verb: string): void => {
-      const known = ids.filter((id) => steps.has(id))
-      if (known.length > 0) roles.push(`${[...known].sort(byId).map(code).join('、')} ${verb}`)
+  const roles: string[] = []
+  const group = (ids: readonly string[], verb: string): void => {
+    const known = ids.filter((id) => steps.has(id))
+    if (known.length > 0) roles.push(`${[...known].sort(byId).map(code).join('、')} ${verb}`)
+  }
+  group(
+    info.writers.filter((writer) => !writer.update).map((writer) => writer.id),
+    '产出',
+  )
+  group(
+    info.writers.filter((writer) => writer.update).map((writer) => writer.id),
+    '在原文件上更新',
+  )
+  group(info.readers, '读取')
+  return roles.join('；')
+}
+
+/** 资源里的一项：种类 + 路径 / 网址 / skill 名，有说明就跟在后面；自定义内容逐行引用。 */
+function itemLines(ctx: RenderContext, item: ResourceItem, written: boolean): string[] {
+  const note = item.note?.replace(/\s+/gu, ' ').trim()
+  const tail = note === undefined || note === '' ? '' : `。说明：${note}`
+  const value = item.value.trim()
+  switch (item.kind) {
+    case 'file':
+      return [`  - 文件：${code(resolveItemPath(ctx.root, value, written))}${tail}`]
+    case 'folder':
+      return [`  - 文件夹：${code(resolveItemPath(ctx.root, value, written))}${tail}`]
+    case 'url':
+      return [`  - 网址：${value}${tail}`]
+    case 'skill':
+      return [`  - Skill：${code(value)}（先用 skill 工具加载）${tail}`]
+    default: {
+      const text = item.value.trim()
+      if (!text.includes('\n')) return [`  - 自定义：${text}`]
+      return [
+        '  - 自定义：',
+        ...text.split(/\r?\n/u).map((line) => (line === '' ? '    >' : `    > ${line}`)),
+      ]
     }
-    group(
-      info.writers.filter((writer) => !writer.update).map((writer) => writer.id),
-      '产出',
-    )
-    group(
-      info.writers.filter((writer) => writer.update).map((writer) => writer.id),
-      '在原文件上更新',
-    )
-    group(info.readers, '读取')
-    const rule = info.file.data.rule?.replace(/\s+/gu, ' ').trim()
-    const tail = rule === undefined || rule === '' ? '' : `要求：${rule}`
-    return `- ${code(resolveOutputPath(ctx.root, info.file.data.path))}：${roles.join('；')}。${tail}`
-  })
+  }
 }
 
 /**

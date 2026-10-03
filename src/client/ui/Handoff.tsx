@@ -8,10 +8,10 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
-import { resolveHandoff } from '../../shared/files.ts'
 import { MAX_TEXT_CODEPOINTS } from '../../shared/limits.ts'
 import { idKey } from '../../shared/model.ts'
 import { codepointLength } from '../../shared/naming.ts'
+import { resolveHandoff } from '../../shared/resources.ts'
 import type { WorkflowEdge } from '../../shared/types.ts'
 import type { T } from '../i18n.ts'
 import type { Edit } from '../model/editor.ts'

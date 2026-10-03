@@ -235,12 +235,47 @@ describe('compileWorkflow —— 端到端：图 → 计划 + 物化', () => {
 describe('compileWorkflow 与校验层的接线', () => {
   it('图的警告与提示会出现在 ⑥ 段（有警告时）', async () => {
     await seedGolden()
-    // 加一个孤立的文件节点，制造一条 stray_entry 提示。
-    expect((await repository.writeFile('code-review', { path: 'loose.md' })).ok).toBe(true)
+    // 两个步骤都整份写同一个资源，制造一条 resource_overwritten 警告。
+    expect(
+      (
+        await repository.writeResource('code-review', {
+          id: 'shared',
+          items: [{ kind: 'file', value: 'shared.md' }],
+        })
+      ).ok,
+    ).toBe(true)
+    const load = await repository.load('code-review')
+    const [first, second] = (load.document?.nodes ?? []).filter((node) => node.type === 'wfNode')
+    expect(
+      (
+        await repository.connect(
+          'code-review',
+          first?.id ?? '',
+          'shared',
+          undefined,
+          undefined,
+          false,
+        )
+      ).ok,
+    ).toBe(true)
+    expect(
+      (
+        await repository.connect(
+          'code-review',
+          second?.id ?? '',
+          'shared',
+          undefined,
+          undefined,
+          false,
+        )
+      ).ok,
+    ).toBe(true)
     const outcome = await compileWorkflow(repository, dataDir, 'code-review', {})
     expect(outcome.ok).toBe(true)
     if (!outcome.ok) return
-    expect(outcome.result.warnings.some((warning) => warning.code === 'stray_entry')).toBe(true)
+    expect(outcome.result.warnings.some((warning) => warning.code === 'resource_overwritten')).toBe(
+      true,
+    )
     expect(outcome.result.plan).toContain('## 图的注意事项')
   })
 

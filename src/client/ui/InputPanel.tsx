@@ -25,12 +25,12 @@ import type {
 import type { T } from '../i18n.ts'
 import { type Edit, findNode, type Selection } from '../model/editor.ts'
 import { INPUT_KIND_OPTIONS, inputKindLabel } from '../model/library.ts'
-import { stepName } from './Files.tsx'
 import hand from './handoff.module.css'
 import { Icon } from './Icon.tsx'
 import css from './input.module.css'
 import ins from './inspector.module.css'
 import { copyText, cx, Segmented } from './primitives.tsx'
+import { stepName } from './resourceUi.ts'
 import { lookOf, StepMark } from './StepMark.tsx'
 import ui from './ui.module.css'
 

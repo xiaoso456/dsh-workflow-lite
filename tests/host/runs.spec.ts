@@ -371,24 +371,22 @@ describe('保存用户的改动', () => {
 })
 
 describe('看产出文件', () => {
-  it('文件节点：小文本带正文、Markdown 认得出；还没生成标 missing；越出工作区的路径拒绝', async () => {
-    const made = record(await run({ action: 'write_file', workflow: 'cr', path: 'notes.md' }))
-    const fileId = String(record(made.node).id ?? made.id ?? 'file-notes.md')
-    await run({ action: 'connect', workflow: 'cr', source: 'scan', target: fileId })
+  it('资源里的文件：小文本带正文、Markdown 认得出；还没生成标 missing；越出工作区的路径拒绝', async () => {
+    await withNotes()
     const result = await compileWithRuns()
     const id = String(result.instance)
     const loaded = await view(id)
-    const fileNode = loaded.document.nodes.find((node) => node.type === 'wfFile')
-    if (fileNode === undefined) throw new Error('no file node')
+    const fileNode = loaded.document.nodes.find((node) => node.type === 'wfResource')
+    if (fileNode === undefined) throw new Error('no resource node')
 
-    const missing = await runs.file(id, { node: fileNode.id })
+    const missing = await runs.file(id, { node: fileNode.id, item: 0 })
     expect(missing.ok && missing.result.kind).toBe('missing')
 
     // 没配产出根目录：落在这个实例自己的 out 下。
     const out = join(workspace, '.workflow-lite', 'runs', id, 'out')
     await mkdir(out, { recursive: true })
     await writeFile(join(out, 'notes.md'), '# 标题\n\n正文')
-    const md = await runs.file(id, { node: fileNode.id })
+    const md = await runs.file(id, { node: fileNode.id, item: 0 })
     if (!md.ok) throw new Error(md.error.message)
     expect(md.result.kind).toBe('markdown')
     expect(md.result.text).toContain('# 标题')
@@ -405,17 +403,48 @@ describe('看产出文件', () => {
 
     expect((await runs.file(id, { path: '../outside.txt' })).ok).toBe(false)
     expect((await runs.file(id, { path: join(dataDir, 'instances.json') })).ok).toBe(false)
-    expect((await runs.file(id, { node: 'nope' })).ok).toBe(false)
+    expect((await runs.file(id, { node: 'nope', item: 0 })).ok).toBe(false)
+    expect((await runs.file(id, { node: fileNode.id, item: 5 })).ok).toBe(false)
+  })
+
+  it('只被读的资源：相对路径按工作区，绝对路径原样；文件夹按目录查；网址不算路径', async () => {
+    await run({
+      action: 'write_resource',
+      workflow: 'cr',
+      node: 'ref',
+      resource: {
+        items: [
+          { kind: 'file', value: 'docs/spec.md' },
+          { kind: 'folder', value: join(workspace, 'src').replace(/\\/gu, '/') },
+          { kind: 'url', value: 'https://x.dev' },
+        ],
+      },
+    })
+    await run({ action: 'connect', workflow: 'cr', source: 'ref', target: 'scan' })
+    await mkdir(join(workspace, 'docs'), { recursive: true })
+    await mkdir(join(workspace, 'src'), { recursive: true })
+    await writeFile(join(workspace, 'docs', 'spec.md'), '规格')
+    const result = await compileWithRuns()
+    expect(String(result.plan)).toContain('  - 文件：`docs/spec.md`')
+    const id = String(result.instance)
+    expect((await view(id)).files.ref).toEqual([true, true, null])
+    const spec = await runs.file(id, { node: 'ref', item: 0 })
+    expect(spec.ok && spec.result.text).toBe('规格')
+    expect((await runs.file(id, { node: 'ref', item: 2 })).ok).toBe(false)
   })
 })
 
-describe('产出根目录', () => {
-  async function withNotes(): Promise<void> {
-    const made = record(await run({ action: 'write_file', workflow: 'cr', path: 'notes.md' }))
-    const fileId = String(record(made.node).id ?? made.id ?? 'file-notes.md')
-    await run({ action: 'connect', workflow: 'cr', source: 'scan', target: fileId })
-  }
+async function withNotes(): Promise<void> {
+  await run({
+    action: 'write_resource',
+    workflow: 'cr',
+    node: 'notes',
+    resource: { items: [{ kind: 'file', value: 'notes.md' }] },
+  })
+  await run({ action: 'connect', workflow: 'cr', source: 'scan', target: 'notes' })
+}
 
+describe('产出根目录', () => {
   it('没配：快照定死成 .workflow-lite/runs/<实例>/out，计划、resume、文件存在与否都按它', async () => {
     await withNotes()
     const result = await compileWithRuns()
@@ -425,11 +454,10 @@ describe('产出根目录', () => {
     expect(String(result.plan)).not.toContain('{instance}')
     const loaded = await view(id)
     expect(loaded.document.settings?.outputRoot).toBe(root)
-    const fileId = String(loaded.document.nodes.find((node) => node.type === 'wfFile')?.id)
-    expect(loaded.files[fileId]).toBe(false)
+    expect(loaded.files.notes).toEqual([false])
     await mkdir(join(workspace, root), { recursive: true })
     await writeFile(join(workspace, root, 'notes.md'), 'x')
-    expect((await view(id)).files[fileId]).toBe(true)
+    expect((await view(id)).files.notes).toEqual([true])
     // 模型报告产出时只写了相对根目录的那段：工作区根下没有，就到根目录下找。
     const reported = await runs.file(id, { path: 'notes.md' })
     expect(reported.ok && reported.result.display).toBe(`${root}/notes.md`)
@@ -470,10 +498,7 @@ describe('产出根目录', () => {
     delete snapshot.settings.outputRoot
     await writeFile(graph, JSON.stringify(snapshot))
     await writeFile(join(workspace, 'notes.md'), '旧的')
-    const fileId = String(
-      snapshot.nodes.find((node: { type: string }) => node.type === 'wfFile').id,
-    )
-    const old = await runs.file(id, { node: fileId })
+    const old = await runs.file(id, { node: 'notes', item: 0 })
     expect(old.ok && old.result.display).toBe('notes.md')
     expect(old.ok && old.result.exists).toBe(true)
   })

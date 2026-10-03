@@ -276,23 +276,24 @@ describe('workflow_lite —— 正常路径', () => {
     void index
   })
 
-  it('output 建文件节点；read 索引里步骤带 reads / writes，另有 files 清单', async () => {
+  it('output 建资源节点；read 索引里步骤带 reads / writes，另有 resources 清单', async () => {
     await run({ action: 'create', workflow: 'wf' })
     await run({ action: 'write_node', workflow: 'wf', node: 'a', content: 'A', output: 'a.md' })
     await run({ action: 'write_node', workflow: 'wf', node: 'b', content: 'B' })
-    await run({ action: 'connect', workflow: 'wf', source: 'file-a.md', target: 'b' })
+    await run({ action: 'connect', workflow: 'wf', source: 'res-a', target: 'b' })
     const index = record(await run({ action: 'read', workflow: 'wf' }))
     expect(index.nodes).toEqual([
-      { id: 'a', predecessors: [], writes: [{ path: 'a.md' }] },
-      { id: 'b', predecessors: [], reads: ['a.md'] },
+      { id: 'a', predecessors: [], writes: [{ id: 'res-a' }] },
+      { id: 'b', predecessors: [], reads: ['res-a'] },
     ])
-    expect(index.files).toEqual([
-      { id: 'file-a.md', path: 'a.md', writers: [{ id: 'a' }], readers: ['b'] },
+    const item = { kind: 'file', value: 'a.md' }
+    expect(index.resources).toEqual([
+      { id: 'res-a', items: [item], writers: [{ id: 'a' }], readers: ['b'] },
     ])
-    // no_output：断开写入线，没人连的文件节点一并删掉——这里 b 还在读它，所以留着。
+    // no_output：断开写入线，没人连的资源一并删掉——这里 b 还在读它，所以留着。
     await run({ action: 'write_node', workflow: 'wf', node: 'a', no_output: true })
     const after = record(await run({ action: 'read', workflow: 'wf' }))
-    expect(after.files).toEqual([{ id: 'file-a.md', path: 'a.md', writers: [], readers: ['b'] }])
+    expect(after.resources).toEqual([{ id: 'res-a', items: [item], writers: [], readers: ['b'] }])
   })
 
   it('from_template 取模板的 data 本体（不复制 id 与 position）', async () => {
@@ -377,19 +378,19 @@ describe('workflow_lite —— 文件节点与交接', () => {
     await run({ action: 'write_node', workflow: 'h', node: 'fix', content: '修' })
     await run({ action: 'write_node', workflow: 'h', node: 'report', content: '汇' })
     await run({
-      action: 'write_file',
+      action: 'write_resource',
       workflow: 'h',
-      path: 'issues.md',
-      rule: '问题清单，修好打钩',
+      node: 'res-issues',
+      resource: { items: [{ kind: 'file', value: 'issues.md', note: '问题清单，修好打钩' }] },
     })
     await run({
       action: 'connect',
       workflow: 'h',
       source: 'fix',
-      target: 'file-issues.md',
+      target: 'res-issues',
       update: true,
     })
-    await run({ action: 'connect', workflow: 'h', source: 'file-issues.md', target: 'report' })
+    await run({ action: 'connect', workflow: 'h', source: 'res-issues', target: 'report' })
     const added = record(
       await run({
         action: 'connect',
@@ -412,7 +413,7 @@ describe('workflow_lite —— 文件节点与交接', () => {
     const plan = String(compiled.plan)
     // 没配产出根目录：默认落在实例自己的 out 下（这里没装实例服务，实例 id 处留着 {instance}）。
     expect(plan).toContain(
-      `- \`.workflow-lite/runs/{instance}/out/issues.md\`：\`review\` 产出；\`fix\` 在原文件上更新；\`report\` 读取。要求：问题清单，修好打钩`,
+      `- 资源 \`res-issues\`：\`review\` 产出；\`fix\` 在原文件上更新；\`report\` 读取。\n  - 文件：\`.workflow-lite/runs/{instance}/out/issues.md\`。说明：问题清单，修好打钩`,
     )
     expect(plan).toContain('- `review` → `fix`：说明：逐条修')
     expect(plan).toContain('- `fix` → `report`：只管先后，不交执行结果。')
@@ -433,16 +434,23 @@ describe('workflow_lite —— 文件节点与交接', () => {
     expect(flow?.data).toBeUndefined()
   })
 
-  it('连着文件的线不能带 when / 交接；文件不能连文件；write_file 路径不合法 → blocked', async () => {
+  it('连着资源的线不能带 when / 交接；资源不能连资源；write_resource 内容不合法 → invalid_args / blocked', async () => {
     await run({ action: 'create', workflow: 'h2' })
     await run({ action: 'write_node', workflow: 'h2', node: 'a', content: 'A', output: 'a.md' })
-    await run({ action: 'write_file', workflow: 'h2', path: 'b.md' })
+    const made = record(
+      await run({
+        action: 'write_resource',
+        workflow: 'h2',
+        resource: { label: '参考', items: [{ kind: 'url', value: 'https://x.dev' }] },
+      }),
+    )
+    expect(JSON.stringify(made.changed)).toContain('res-参考')
     expect(
       errorCode(
         await run({
           action: 'connect',
           workflow: 'h2',
-          source: 'file-a.md',
+          source: 'res-a',
           target: 'a',
           when: 'fail',
         }),
@@ -450,22 +458,61 @@ describe('workflow_lite —— 文件节点与交接', () => {
     ).toBe('invalid_args')
     expect(
       errorCode(
-        await run({ action: 'connect', workflow: 'h2', source: 'file-a.md', target: 'file-b.md' }),
+        await run({ action: 'connect', workflow: 'h2', source: 'res-a', target: 'res-参考' }),
       ),
     ).toBe('invalid_args')
-    expect(errorCode(await run({ action: 'write_file', workflow: 'h2', path: '/abs.md' }))).toBe(
-      'blocked',
-    )
-    expect(errorCode(await run({ action: 'write_file', workflow: 'h2' }))).toBe('invalid_args')
+    expect(
+      errorCode(
+        await run({
+          action: 'write_resource',
+          workflow: 'h2',
+          resource: { items: [{ kind: 'skill', value: 'Bad Name' }] },
+        }),
+      ),
+    ).toBe('blocked')
+    expect(
+      errorCode(
+        await run({
+          action: 'write_resource',
+          workflow: 'h2',
+          resource: { items: [{ kind: 'nope', value: 'x' }] },
+        }),
+      ),
+    ).toBe('invalid_args')
+    expect(errorCode(await run({ action: 'write_resource', workflow: 'h2' }))).toBe('invalid_args')
+    expect(
+      errorCode(await run({ action: 'write_resource', workflow: 'h2', node: 'a', resource: {} })),
+    ).toBe('blocked')
+    // 改名字与内容；read 索引里有资源（不含描述）。
+    await run({
+      action: 'write_resource',
+      workflow: 'h2',
+      node: 'res-参考',
+      resource: { description: '只给人看', items: [{ kind: 'folder', value: 'D:/docs' }] },
+    })
+    const index = record(await run({ action: 'read', workflow: 'h2' }))
+    const resources = (index.resources as JsonValue[]).map(record)
+    expect(resources.find((entry) => entry.id === 'res-参考')).toEqual({
+      id: 'res-参考',
+      label: '参考',
+      items: [{ kind: 'folder', value: 'D:/docs' }],
+      writers: [],
+      readers: [],
+    })
   })
 })
 
-describe('文件节点的校验', () => {
+describe('资源节点的校验', () => {
   const base = (extra: { nodes?: unknown[]; edges?: unknown[] }) => ({
     nodes: [
       { id: 'a', type: 'wfNode', position: { x: 0, y: 0 }, data: { prompt: 'A' } },
       { id: 'b', type: 'wfNode', position: { x: 0, y: 0 }, data: { prompt: 'B' } },
-      { id: 'f', type: 'wfFile', position: { x: 0, y: 0 }, data: { path: 'f.md' } },
+      {
+        id: 'f',
+        type: 'wfResource',
+        position: { x: 0, y: 0 },
+        data: { items: [{ kind: 'file', value: 'f.md' }] },
+      },
       ...(extra.nodes ?? []),
     ],
     edges: extra.edges ?? [],
@@ -482,40 +529,49 @@ describe('文件节点的校验', () => {
   const check = (document: unknown) =>
     validateDocument(document as never, { workflowName: 'g', maxNodes: 200 })
 
-  it('文件连文件、连着文件的线带条件：保存级 file_edge_invalid；路径不合法：保存级', () => {
-    const files = check(
+  it('资源连资源、连着资源的线带条件：保存级 resource_edge_invalid；绝对路径与 .. 都允许', () => {
+    const linked = check(
       base({
-        nodes: [{ id: 'g', type: 'wfFile', position: { x: 0, y: 0 }, data: { path: 'g.md' } }],
+        nodes: [
+          {
+            id: 'g',
+            type: 'wfResource',
+            position: { x: 0, y: 0 },
+            data: {
+              items: [
+                { kind: 'file', value: '../g.md' },
+                { kind: 'folder', value: '/abs' },
+              ],
+            },
+          },
+        ],
         edges: [line('f', 'g'), line('a', 'f', { when: 'fail' })],
       }),
     )
-    expect(files.save.filter((problem) => problem.code === 'file_edge_invalid')).toHaveLength(2)
-    const bad = check(
-      base({
-        nodes: [{ id: 'h', type: 'wfFile', position: { x: 0, y: 0 }, data: { path: '../h' } }],
-      }),
-    )
-    expect(bad.save.map((problem) => problem.code)).toContain('output_invalid')
+    expect(linked.save.map((problem) => problem.code)).toEqual([
+      'resource_edge_invalid',
+      'resource_edge_invalid',
+    ])
   })
 
-  it('两个步骤都整份写同一份文件：警告 file_overwritten；改成更新就没有', () => {
+  it('两个步骤都整份写同一个资源：警告 resource_overwritten；改成更新就没有', () => {
     const both = check(base({ edges: [line('a', 'b'), line('a', 'f'), line('b', 'f')] }))
-    expect(both.warning.map((problem) => problem.code)).toContain('file_overwritten')
+    expect(both.warning.map((problem) => problem.code)).toContain('resource_overwritten')
     const updated = check(
       base({ edges: [line('a', 'b'), line('a', 'f'), line('b', 'f', { update: true })] }),
     )
-    expect(updated.warning.map((problem) => problem.code)).not.toContain('file_overwritten')
+    expect(updated.warning.map((problem) => problem.code)).not.toContain('resource_overwritten')
   })
 
-  it('提示：没人写的文件 file_unwritten；读者不在写者下游 file_order；孤立文件 stray_entry', () => {
-    const unwritten = check(base({ edges: [line('f', 'a')] }))
-    expect(unwritten.hint.map((problem) => problem.code)).toContain('file_unwritten')
+  it('提示：读者不在写者下游 resource_order；只读、没连的资源都不提示', () => {
     const order = check(base({ edges: [line('a', 'f'), line('f', 'b')] }))
-    expect(order.hint.find((problem) => problem.code === 'file_order')?.node).toBe('b')
+    expect(order.hint.find((problem) => problem.code === 'resource_order')?.node).toBe('b')
     const fine = check(base({ edges: [line('a', 'b'), line('a', 'f'), line('f', 'b')] }))
-    expect(fine.hint.map((problem) => problem.code)).not.toContain('file_order')
+    expect(fine.hint.map((problem) => problem.code)).not.toContain('resource_order')
+    const readOnly = check(base({ edges: [line('a', 'b'), line('f', 'a')] }))
+    expect(readOnly.hint).toEqual([])
     const lonely = check(base({ edges: [line('a', 'b')] }))
-    expect(lonely.hint.find((problem) => problem.code === 'stray_entry')?.node).toBe('f')
+    expect(lonely.hint.map((problem) => problem.node)).not.toContain('f')
   })
 })
 

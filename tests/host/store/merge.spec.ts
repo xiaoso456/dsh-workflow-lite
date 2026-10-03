@@ -253,16 +253,16 @@ describe('mergeDocuments —— 交接与写入方式算边的内容，文件节
     expect(merged.document.edges[0]?.data?.handoff).toBe(false)
   })
 
-  it('文件节点：一边改路径、一边没动 ⇒ 采纳改动；两边都改成不一样 ⇒ 冲突', () => {
+  it('资源节点：一边改内容、一边没动 ⇒ 采纳改动；两边都改成不一样 ⇒ 冲突', () => {
     const fileNode = (path: string): WorkflowNode => ({
       id: 'f',
-      type: 'wfFile',
+      type: 'wfResource',
       position: { x: 0, y: 0 },
-      data: { path },
+      data: { items: [{ kind: 'file', value: path }] },
     })
     const origin = doc([fileNode('a.md')])
     expect(mergeDocuments(origin, origin, doc([fileNode('b.md')])).document.nodes[0]?.data).toEqual(
-      { path: 'b.md' },
+      { items: [{ kind: 'file', value: 'b.md' }] },
     )
     const clash = mergeDocuments(origin, doc([fileNode('c.md')]), doc([fileNode('b.md')]))
     expect(clash.conflictIds).toEqual(['f'])

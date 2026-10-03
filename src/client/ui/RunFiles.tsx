@@ -1,23 +1,24 @@
 /**
- * dsh-workflow-lite — 实例视图里的文件：右栏的文件详情、步骤详情里的「产出 / 读取」。
+ * dsh-workflow-lite — 实例视图里的资源：右栏的资源详情、步骤详情里的「产出 / 读取」。
  *
- * - {@link RunFileDetail}：选中一份文件时右栏的内容——生成没有、多大、什么时候改的、内容预览，
- *   查看 / 用其他程序打开，谁写它、谁读它（带各自的运行状态，点一下跳过去）。
- * - {@link StepFileList}：步骤详情里它写哪些、读哪些文件；悬停在画布上高亮那份文件，点一下选中它。
+ * - {@link RunResourceDetail}：选中一张资源卡时右栏的内容——名字与描述、里面的每一项（文件与文件夹带
+ *   在不在，点文件看预览）、选中那个文件的预览与查看 / 用其他程序打开，谁写它、谁读它
+ *   （带各自的运行状态，点一下跳过去）。
+ * - {@link StepResourceList}：步骤详情里它写哪些、读哪些资源；悬停在画布上高亮那张卡，点一下选中它。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/RunFiles
  */
 
-import { useMemo } from 'react'
-import { fileGraph, stepFiles } from '../../shared/files.ts'
-import { isFile, isStep } from '../../shared/model.ts'
-import { outputKey, resolveOutputPath, rootOf } from '../../shared/outputPaths.ts'
+import { useMemo, useState } from 'react'
+import { isResource, isStep } from '../../shared/model.ts'
+import { outputKey, resolveItemPath, rootOf } from '../../shared/outputPaths.ts'
+import { resourceGraph, resourceTitle, stepResources } from '../../shared/resources.ts'
 import type { NodeStatus, RunState } from '../../shared/runState.ts'
-import type { FileNode, WorkflowDocument } from '../../shared/types.ts'
+import type { ResourceNode, WorkflowDocument } from '../../shared/types.ts'
 import type { Desktop } from '../app/desktop.ts'
 import { type FileTarget, useRunFile } from '../app/useRunFile.ts'
 import type { T } from '../i18n.ts'
-import { fileBaseName, fileDirName, formatBytes } from '../model/fileKind.ts'
+import { fileBaseName, formatBytes } from '../model/fileKind.ts'
 import { shortTime } from '../model/time.ts'
 import type { WorkflowLiteRpc } from '../rpc.ts'
 import { RUN_TEXT } from './Canvas.tsx'
@@ -26,6 +27,9 @@ import css from './files.module.css'
 import { Icon } from './Icon.tsx'
 import { OpenWith } from './OpenWith.tsx'
 import { cx } from './primitives.tsx'
+import { ResourceIcon, resourceSummary } from './Resources.tsx'
+import res from './resource.module.css'
+import { itemText, KIND_ICON, KIND_LABEL } from './resourceUi.ts'
 import run from './run.module.css'
 import { lookOf, StepMark } from './StepMark.tsx'
 import ui from './ui.module.css'
@@ -49,9 +53,15 @@ function stepLabel(doc: WorkflowDocument, id: string): string {
     : id
 }
 
-/** 文件节点在工作区里的路径（加上产出根目录；实例的快照里根目录已换上实例 id）。 */
-export function fileDisplayPath(doc: WorkflowDocument, node: FileNode): string {
-  return resolveOutputPath(rootOf(doc.settings), node.data.path)
+/**
+ * 资源里一个文件 / 文件夹在工作区里的路径（实例的快照里产出根目录已换上实例 id）：
+ * 有步骤写它时相对路径拼上产出根目录，只被读时相对工作区。
+ */
+export function itemDisplayPath(doc: WorkflowDocument, node: ResourceNode, index: number): string {
+  const item = node.data.items[index]
+  if (item === undefined) return ''
+  const written = (resourceGraph(doc).get(node.id)?.writers.length ?? 0) > 0
+  return resolveItemPath(rootOf(doc.settings), item.value, written)
 }
 
 function Made(props: { t: T; made: boolean }): React.JSX.Element {
@@ -77,17 +87,17 @@ function StatusChip(props: { t: T; status: NodeStatus | undefined }): React.JSX.
 }
 
 // ─────────────────────────────────────────────────────────────
-// 右栏：选中一份文件
+// 右栏：选中一张资源卡
 // ─────────────────────────────────────────────────────────────
 
-export function RunFileDetail(props: {
+export function RunResourceDetail(props: {
   t: T
   rpc: WorkflowLiteRpc
   instance: string
   snapshot: WorkflowDocument
-  file: FileNode
-  /** 快照里每个文件节点对应的文件在不在。 */
-  made: boolean
+  resource: ResourceNode
+  /** 每一项在不在（不是路径的项为 `null`）。 */
+  made: readonly (boolean | null)[]
   state: RunState | null
   /** 状态文件的修改时间：变了就重读预览（模型写完文件通常也会更新状态）。 */
   version: number
@@ -97,39 +107,13 @@ export function RunFileDetail(props: {
   onView(target: FileTarget, title: string): void
   onError(text: string): void
 }): React.JSX.Element {
-  const { t, snapshot, file } = props
-  const display = fileDisplayPath(snapshot, file)
-  const info = useMemo(() => fileGraph(snapshot).get(file.id), [snapshot, file.id])
-  const target = useMemo<FileTarget>(() => ({ node: file.id }), [file.id])
-  const loaded = useRunFile(props.rpc, props.instance, target, `${props.made}:${props.version}`)
-  const meta = loaded.file
-  // 刚读回来的文件信息比实例视图的轮询新：以它为准。
-  const made = meta?.exists ?? props.made
-  const view = (): void => props.onView(target, fileBaseName(display))
-
-  const lines = meta?.text?.split('\n') ?? []
-  const clipped = lines.length > PREVIEW_LINES
-  let preview: React.ReactNode = null
-  if (meta?.exists === true) {
-    if (meta.kind === 'markdown' || meta.kind === 'text') {
-      preview =
-        lines.join('').trim() === '' ? (
-          <p className={css.previewNote}>{props.t('file.empty')}</p>
-        ) : (
-          <pre className={css.previewText}>{lines.slice(0, PREVIEW_LINES).join('\n')}</pre>
-        )
-    } else if (meta.kind === 'tooLarge') {
-      preview = (
-        <p className={css.previewNote}>
-          {t('file.tooLarge')
-            .replace('{size}', formatBytes(meta.size))
-            .replace('{limit}', formatBytes(meta.limit))}
-        </p>
-      )
-    } else if (meta.kind === 'binary') {
-      preview = <p className={css.previewNote}>{t('file.binary')}</p>
-    }
-  }
+  const { t, snapshot, resource } = props
+  const info = useMemo(() => resourceGraph(snapshot).get(resource.id), [snapshot, resource.id])
+  const items = resource.data.items
+  // 预览哪个文件：缺省是第一个文件项。
+  const firstFile = items.findIndex((item) => item.kind === 'file' && item.value.trim() !== '')
+  const [active, setActive] = useState(firstFile)
+  const activeItem = active >= 0 ? items[active] : undefined
 
   const stepRow = (id: string, mode: 'produce' | 'update' | 'read'): React.JSX.Element => (
     <li key={`${mode}:${id}`}>
@@ -159,102 +143,100 @@ export function RunFileDetail(props: {
   return (
     <div
       className={css.detail}
-      data-testid="wl-run-file"
-      onPointerEnter={() => props.onFocusFile(file.id)}
+      data-testid="wl-run-resource"
+      onPointerEnter={() => props.onFocusFile(resource.id)}
       onPointerLeave={() => props.onFocusFile(null)}
     >
-      {/* 标题行：类型签、名字与路径，右边两个图标按钮（查看、用其他程序打开）；下面一行是状态与大小、时间。 */}
       <section className={css.head}>
         <div className={css.hero}>
-          <FileTag path={display} large />
+          <ResourceIcon resource={resource} size={16} />
           <div className={css.heroText}>
-            <span className={css.heroName}>{fileBaseName(display)}</span>
-            <span className={css.heroPath} title={display} data-testid="wl-run-file-path">
-              {display}
-            </span>
+            <span className={css.heroName}>{resourceTitle(resource)}</span>
+            {resource.data.description !== undefined && (
+              <span className={css.heroPath}>{resource.data.description}</span>
+            )}
           </div>
-          <div className={css.heroActions}>
-            <button
-              type="button"
-              className={cx(ui.btn, ui.icon, ui.small, ui.tip, ui.tipEnd)}
-              data-tip={t('file.view')}
-              aria-label={t('file.view')}
-              data-testid="wl-file-view"
-              onClick={view}
-            >
-              <Icon name="eye" size={15} />
-            </button>
-            <OpenWith
-              t={t}
-              desktop={props.desktop}
-              path={meta?.exists === true ? meta.path : null}
-              compact
-              onError={props.onError}
-            />
-          </div>
-        </div>
-        <div className={css.meta}>
-          <span className={css.state} data-made={made} data-testid="wl-run-file-state">
-            <Icon name={made ? 'check' : 'clock'} size={11} />
-            {made ? t('file.generated') : t('file.notGenerated')}
-          </span>
-          {meta?.exists === true && (
-            <>
-              <span className={css.metaItem}>{formatBytes(meta.size)}</span>
-              <span className={css.metaItem}>
-                {t('file.modifiedAt').replace('{time}', shortTime(meta.mtime))}
-              </span>
-            </>
-          )}
         </div>
       </section>
 
-      {preview !== null && (
-        <section className={run.section}>
-          <p className={run.sectionTitle}>
-            <span>{t('file.previewTitle')}</span>
-            {clipped && (
-              <button type="button" className={cx(ui.btn, ui.small)} onClick={view}>
-                {t('file.previewMore')}
-              </button>
-            )}
-          </p>
-          <div
-            className={css.preview}
-            data-clipped={clipped}
-            role="button"
-            tabIndex={0}
-            data-testid="wl-run-file-preview"
-            onClick={view}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault()
-                view()
-              }
-            }}
-          >
-            {preview}
-          </div>
-        </section>
-      )}
+      <section className={run.section} data-testid="wl-run-resource-items">
+        <p className={css.groupTitle}>
+          {t('res.items')}
+          <span className={css.groupCount}>{items.length}</span>
+        </p>
+        <ul className={css.list}>
+          {items.map((item, index) => {
+            const pathLike = item.kind === 'file' || item.kind === 'folder'
+            const made = props.made[index] ?? null
+            const display = pathLike ? itemDisplayPath(snapshot, resource, index) : ''
+            const content = (
+              <>
+                {item.kind === 'file' ? (
+                  <FileTag path={display} />
+                ) : (
+                  <span className={res.kindIcon} data-kind={item.kind}>
+                    <Icon name={KIND_ICON[item.kind]} size={13} />
+                  </span>
+                )}
+                <span className={css.rowText} title={pathLike ? display : item.value}>
+                  <span className={css.rowName}>{itemText(item) || '—'}</span>
+                  <span className={css.rowSub}>
+                    {pathLike ? display : (item.note ?? t(KIND_LABEL[item.kind]))}
+                  </span>
+                </span>
+                <span className={css.rowEnd}>{made !== null && <Made t={t} made={made} />}</span>
+              </>
+            )
+            return (
+              // biome-ignore lint/suspicious/noArrayIndexKey: 资源里的一项没有自己的身份
+              <li key={index}>
+                {item.kind === 'file' ? (
+                  <button
+                    type="button"
+                    className={css.row}
+                    data-on={index === active}
+                    data-testid="wl-run-resource-item"
+                    onClick={() => setActive(index)}
+                  >
+                    {content}
+                  </button>
+                ) : (
+                  <div className={css.row} data-testid="wl-run-resource-item">
+                    {content}
+                  </div>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      </section>
 
-      {file.data.rule !== undefined && file.data.rule !== '' && (
-        <section className={run.section}>
-          <p className={run.sectionTitle}>{t('file.rule')}</p>
-          <p className={css.previewNote} style={{ padding: 0 }}>
-            {file.data.rule}
-          </p>
-        </section>
+      {activeItem !== undefined && activeItem.kind === 'file' && (
+        <ItemPreview
+          key={active}
+          t={t}
+          rpc={props.rpc}
+          instance={props.instance}
+          node={resource.id}
+          index={active}
+          display={itemDisplayPath(snapshot, resource, active)}
+          made={props.made[active] === true}
+          version={props.version}
+          desktop={props.desktop}
+          note={activeItem.note}
+          onView={props.onView}
+          onError={props.onError}
+        />
       )}
 
       <section className={run.section}>
         <p className={css.groupTitle}>
-          {t('file.writers')}
+          {t('res.writers')}
           <span className={css.groupCount}>{info?.writers.length ?? 0}</span>
         </p>
         {(info?.writers.length ?? 0) === 0 ? (
           <p className={css.previewNote} style={{ padding: 0 }}>
-            {t('file.noWriters')}
+            {t('res.noWritersRun')}
           </p>
         ) : (
           <ul className={css.list}>
@@ -267,12 +249,14 @@ export function RunFileDetail(props: {
 
       <section className={run.section}>
         <p className={css.groupTitle}>
-          {t('file.readers')}
+          {t('res.readers')}
           <span className={css.groupCount}>{info?.readers.length ?? 0}</span>
         </p>
         {(info?.readers.length ?? 0) === 0 ? (
           <p className={css.previewNote} style={{ padding: 0 }}>
-            {t('file.noReaders')}
+            {info !== undefined && info.writers.length === 0
+              ? t('res.sharedHint')
+              : t('res.noReadersRun')}
           </p>
         ) : (
           <ul className={css.list}>{info?.readers.map((reader) => stepRow(reader, 'read'))}</ul>
@@ -282,54 +266,183 @@ export function RunFileDetail(props: {
   )
 }
 
+/** 一个文件项的预览：在不在、多大、什么时候改的、前几行，查看 / 用其他程序打开。 */
+function ItemPreview(props: {
+  t: T
+  rpc: WorkflowLiteRpc
+  instance: string
+  node: string
+  index: number
+  display: string
+  made: boolean
+  version: number
+  desktop: Desktop | undefined
+  note: string | undefined
+  onView(target: FileTarget, title: string): void
+  onError(text: string): void
+}): React.JSX.Element {
+  const { t, display } = props
+  const target = useMemo<FileTarget>(
+    () => ({ node: props.node, item: props.index }),
+    [props.node, props.index],
+  )
+  const loaded = useRunFile(props.rpc, props.instance, target, `${props.made}:${props.version}`)
+  const meta = loaded.file
+  // 刚读回来的文件信息比实例视图的轮询新：以它为准。
+  const made = meta?.exists ?? props.made
+  const view = (): void => props.onView(target, fileBaseName(display))
+
+  const lines = meta?.text?.split('\n') ?? []
+  const clipped = lines.length > PREVIEW_LINES
+  let preview: React.ReactNode = null
+  if (meta?.exists === true) {
+    if (meta.kind === 'markdown' || meta.kind === 'text') {
+      preview =
+        lines.join('').trim() === '' ? (
+          <p className={css.previewNote}>{t('file.empty')}</p>
+        ) : (
+          <pre className={css.previewText}>{lines.slice(0, PREVIEW_LINES).join('\n')}</pre>
+        )
+    } else if (meta.kind === 'tooLarge') {
+      preview = (
+        <p className={css.previewNote}>
+          {t('file.tooLarge')
+            .replace('{size}', formatBytes(meta.size))
+            .replace('{limit}', formatBytes(meta.limit))}
+        </p>
+      )
+    } else if (meta.kind === 'binary') {
+      preview = <p className={css.previewNote}>{t('file.binary')}</p>
+    }
+  }
+
+  return (
+    <section className={run.section} data-testid="wl-run-file">
+      <div className={css.hero}>
+        <FileTag path={display} large />
+        <div className={css.heroText}>
+          <span className={css.heroName}>{fileBaseName(display)}</span>
+          <span className={css.heroPath} title={display} data-testid="wl-run-file-path">
+            {display}
+          </span>
+        </div>
+        <div className={css.heroActions}>
+          <button
+            type="button"
+            className={cx(ui.btn, ui.icon, ui.small, ui.tip, ui.tipEnd)}
+            data-tip={t('file.view')}
+            aria-label={t('file.view')}
+            data-testid="wl-file-view"
+            onClick={view}
+          >
+            <Icon name="eye" size={15} />
+          </button>
+          <OpenWith
+            t={t}
+            desktop={props.desktop}
+            path={meta?.exists === true ? meta.path : null}
+            compact
+            onError={props.onError}
+          />
+        </div>
+      </div>
+      <div className={css.meta}>
+        <span className={css.state} data-made={made} data-testid="wl-run-file-state">
+          <Icon name={made ? 'check' : 'clock'} size={11} />
+          {made ? t('file.generated') : t('file.notGenerated')}
+        </span>
+        {meta?.exists === true && (
+          <>
+            <span className={css.metaItem}>{formatBytes(meta.size)}</span>
+            <span className={css.metaItem}>
+              {t('file.modifiedAt').replace('{time}', shortTime(meta.mtime))}
+            </span>
+          </>
+        )}
+      </div>
+      {props.note !== undefined && props.note !== '' && (
+        <p className={css.previewNote} style={{ padding: 0 }}>
+          {props.note}
+        </p>
+      )}
+      {preview !== null && (
+        <div
+          className={css.preview}
+          data-clipped={clipped}
+          role="button"
+          tabIndex={0}
+          data-testid="wl-run-file-preview"
+          onClick={view}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault()
+              view()
+            }
+          }}
+        >
+          {preview}
+        </div>
+      )}
+      {clipped && (
+        <button type="button" className={cx(ui.btn, ui.small)} onClick={view}>
+          {t('file.previewMore')}
+        </button>
+      )}
+    </section>
+  )
+}
+
 // ─────────────────────────────────────────────────────────────
 // 步骤详情：它写哪些、读哪些
 // ─────────────────────────────────────────────────────────────
 
-export function StepFileList(props: {
+export function StepResourceList(props: {
   t: T
   snapshot: WorkflowDocument
   step: string
   /** 模型在状态文件里报告的产出（可能有图里没画出来的）。 */
   reported: readonly string[]
-  made: Readonly<Record<string, boolean>>
-  onSelectFile(id: string): void
+  made: Readonly<Record<string, readonly (boolean | null)[]>>
+  onSelectResource(id: string): void
   onFocusFile(id: string | null): void
   onViewPath(path: string): void
 }): React.JSX.Element {
   const { t, snapshot } = props
-  const files = useMemo(() => stepFiles(snapshot, props.step), [snapshot, props.step])
+  const linked = useMemo(() => stepResources(snapshot, props.step), [snapshot, props.step])
   // 模型报告产出时可能写完整路径，也可能只写相对产出根目录的那段：两种都算图里有的。
   const known = new Set(
     snapshot.nodes
-      .filter(isFile)
-      .flatMap((node) => [fileDisplayPath(snapshot, node), node.data.path])
+      .filter(isResource)
+      .flatMap((node) =>
+        node.data.items.flatMap((item, index) =>
+          item.kind === 'file' || item.kind === 'folder'
+            ? [itemDisplayPath(snapshot, node, index), item.value]
+            : [],
+        ),
+      )
       .map((path) => outputKey(path).toLowerCase()),
   )
   const extra = props.reported.filter((path) => !known.has(outputKey(path).toLowerCase()))
 
-  const fileRow = (file: FileNode, mode: 'produce' | 'update' | 'read'): React.JSX.Element => {
-    const display = fileDisplayPath(snapshot, file)
+  const row = (resource: ResourceNode, mode: 'produce' | 'update' | 'read'): React.JSX.Element => {
+    const made = (props.made[resource.id] ?? []).filter((value) => value !== null)
     return (
-      <li key={`${mode}:${file.id}`}>
+      <li key={`${mode}:${resource.id}`}>
         <button
           type="button"
           className={css.row}
           data-testid="wl-run-step-file"
-          data-id={file.id}
-          onClick={() => props.onSelectFile(file.id)}
-          onPointerEnter={() => props.onFocusFile(file.id)}
+          data-id={resource.id}
+          onClick={() => props.onSelectResource(resource.id)}
+          onPointerEnter={() => props.onFocusFile(resource.id)}
           onPointerLeave={() => props.onFocusFile(null)}
-          onFocus={() => props.onFocusFile(file.id)}
+          onFocus={() => props.onFocusFile(resource.id)}
           onBlur={() => props.onFocusFile(null)}
         >
-          <FileTag path={display} />
-          {/* 行里只写产出根目录下的那段（根目录对每份文件都一样，完整路径在文件面板里）。 */}
-          <span className={css.rowText} title={display}>
-            <span className={css.rowName}>{fileBaseName(file.data.path)}</span>
-            {fileDirName(file.data.path) !== '' && (
-              <span className={css.rowSub}>{fileDirName(file.data.path)}</span>
-            )}
+          <ResourceIcon resource={resource} />
+          <span className={css.rowText}>
+            <span className={css.rowName}>{resourceTitle(resource)}</span>
+            <span className={css.rowSub}>{resourceSummary(t, resource)}</span>
           </span>
           <span className={css.rowEnd}>
             {mode === 'update' && (
@@ -337,7 +450,9 @@ export function StepFileList(props: {
                 {t('file.update')}
               </span>
             )}
-            <Made t={t} made={props.made[file.id] === true} />
+            {mode !== 'read' && made.length > 0 && (
+              <Made t={t} made={made.every((value) => value === true)} />
+            )}
             <Icon name="chevronRight" size={13} />
           </span>
         </button>
@@ -345,7 +460,7 @@ export function StepFileList(props: {
     )
   }
 
-  if (files.writes.length === 0 && files.reads.length === 0 && extra.length === 0) {
+  if (linked.writes.length === 0 && linked.reads.length === 0 && extra.length === 0) {
     return (
       <p className={css.previewNote} style={{ padding: 0 }}>
         {t('run.noFiles')}
@@ -354,14 +469,14 @@ export function StepFileList(props: {
   }
   return (
     <>
-      {(files.writes.length > 0 || extra.length > 0) && (
+      {(linked.writes.length > 0 || extra.length > 0) && (
         <section className={run.section} data-testid="wl-run-step-outputs">
           <p className={css.groupTitle}>
             {t('run.outputs')}
-            <span className={css.groupCount}>{files.writes.length + extra.length}</span>
+            <span className={css.groupCount}>{linked.writes.length + extra.length}</span>
           </p>
           <ul className={css.list}>
-            {files.writes.map((write) => fileRow(write.file, write.update ? 'update' : 'produce'))}
+            {linked.writes.map((write) => row(write.resource, write.update ? 'update' : 'produce'))}
             {extra.map((path) => (
               <li key={`extra:${path}`}>
                 <button
@@ -384,13 +499,13 @@ export function StepFileList(props: {
           </ul>
         </section>
       )}
-      {files.reads.length > 0 && (
+      {linked.reads.length > 0 && (
         <section className={run.section} data-testid="wl-run-step-inputs">
           <p className={css.groupTitle}>
             {t('run.inputs')}
-            <span className={css.groupCount}>{files.reads.length}</span>
+            <span className={css.groupCount}>{linked.reads.length}</span>
           </p>
-          <ul className={css.list}>{files.reads.map((read) => fileRow(read.file, 'read'))}</ul>
+          <ul className={css.list}>{linked.reads.map((read) => row(read.resource, 'read'))}</ul>
         </section>
       )}
     </>

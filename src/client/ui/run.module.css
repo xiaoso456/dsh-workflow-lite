@@ -198,6 +198,11 @@
   font: inherit;
   font-size: var(--wl-fs-meta);
   cursor: pointer;
+  transition: transform 120ms var(--wl-ease);
+}
+
+.choice:active {
+  transform: scale(0.96);
 }
 
 .choice:hover {
@@ -654,4 +659,10 @@
 .inputPicked svg {
   flex: none;
   color: var(--wl-accent-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .choice {
+    transition: none;
+  }
 }

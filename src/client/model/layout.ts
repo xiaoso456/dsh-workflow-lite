@@ -4,10 +4,10 @@
  * 整图重排交给 ELK（`elkjs` 的 layered 算法）：分层、同层排序（减少交叉）、算坐标都是它做的。
  * 我们只把自己的版式语法喂给它：
  * - **列 = 执行批次**：用 ELK 的 interactive 分层，按批次给出横坐标，版面本身就在讲执行次序；
- * - **文件挂在写它的步骤下面**：一个步骤和它写的文件在 ELK 眼里是一整块（步骤卡 + 下面竖着一串
- *   文件卡），块的高度随文件数变，ELK 按真实高度排，谁也压不到谁；文件卡往右缩进，写线从步骤的
- *   写点竖着落下来、分叉进每张文件卡的左边（见 route.ts），不会穿过任何卡片；
- * - 没人写、只被读的文件（输入）单独成块，放在第一个读它的步骤的前一列；
+ * - **资源挂在写它的步骤下面**：一个步骤和它写的资源在 ELK 眼里是一整块（步骤卡 + 下面竖着一串
+ *   资源卡），块的高度随资源卡的高度变，ELK 按真实高度排，谁也压不到谁；资源卡往右缩进，写线从步骤的
+ *   写点竖着落下来、分叉进每张资源卡的左边（见 route.ts），不会穿过任何卡片；
+ * - 没人写、只被读的资源单独成块，放在第一个读它的步骤的前一列；
  * - 流程线的进出口固定在步骤卡（不是整块）的半高处，ELK 才会把一条链摆成一条直线。
  * - 列距整齐划一；只有相邻两列之间的线上挂着条件牌子 / 交接标记时，把那一处拉开到放得下牌子。
  *
@@ -19,42 +19,78 @@
  */
 
 import type { ElkExtendedEdge, ElkNode } from 'elkjs/lib/elk-api.js'
-import { edgeKind, fileGraph, nodeIndex, resolveHandoff } from '../../shared/files.ts'
 import type { GraphAnalysis } from '../../shared/graph.ts'
 import { byId, edgeWhen } from '../../shared/graph.ts'
 import { inputReaders } from '../../shared/inputs.ts'
-import { idKey, isFile, isInput } from '../../shared/model.ts'
-import type { Point, WorkflowDocument, WorkflowEdge, WorkflowNode } from '../../shared/types.ts'
+import { idKey, isInput, isResource } from '../../shared/model.ts'
+import { edgeKind, nodeIndex, resolveHandoff, resourceGraph } from '../../shared/resources.ts'
+import type {
+  Point,
+  ResourceData,
+  WorkflowDocument,
+  WorkflowEdge,
+  WorkflowNode,
+} from '../../shared/types.ts'
 
 /** 步骤卡的宽度（CSS 里写死同一个数）与估算高度。 */
 export const NODE_W = 216
 export const NODE_H = 96
 
-/** 文件卡的宽度（CSS 里写死同一个数）与估算高度。 */
-export const FILE_W = 180
-export const FILE_H = 56
+/** 资源卡的宽度（CSS 里写死同一个数）与紧凑时的高度（只有一项、没起名字：一行，像一张文件卡）。 */
+export const RES_W = 200
+export const RES_H = 56
 
-/** 输入卡的宽度（CSS 里写死同一个数）与估算高度：和文件卡一样大，一样挂在读它的步骤旁边。 */
+/** 资源卡展开时的各段高度（CSS 里写死同样的数）：标题、描述、每一项、"还有 N 项"、上下留白。 */
+const RES_HEAD = 38
+const RES_DESC = 18
+const RES_ROW = 22
+const RES_MORE = 20
+const RES_PAD = 10
+/** 资源卡上最多列几项，再多折成"还有 N 项"。 */
+export const RES_SHOWN = 4
+
+/** 资源卡是不是紧凑的一行：没名字、没描述、最多一项。 */
+export function isCompactResource(data: ResourceData): boolean {
+  return (
+    (data.label ?? '').trim() === '' &&
+    (data.description ?? '').trim() === '' &&
+    data.items.length <= 1
+  )
+}
+
+/** 资源卡的估算高度（画布量出来之前按它排）。 */
+export function resourceHeight(data: ResourceData): number {
+  if (isCompactResource(data)) return RES_H
+  const rows = Math.max(1, Math.min(data.items.length, RES_SHOWN))
+  return (
+    RES_HEAD +
+    ((data.description ?? '').trim() === '' ? 0 : RES_DESC) +
+    rows * RES_ROW +
+    (data.items.length > RES_SHOWN ? RES_MORE : 0) +
+    RES_PAD
+  )
+}
+
+/** 输入卡的宽度（CSS 里写死同一个数）与估算高度：挂在读它的步骤旁边。 */
 export const INPUT_W = 180
 export const INPUT_H = 56
 
 /** 一张卡的标称尺寸（还没量出来时按它算）。 */
 export function cardSize(node: WorkflowNode): { w: number; h: number } {
   if (isInput(node)) return { w: INPUT_W, h: INPUT_H }
-  return isFile(node) ? { w: FILE_W, h: FILE_H } : { w: NODE_W, h: NODE_H }
+  return isResource(node) ? { w: RES_W, h: resourceHeight(node.data) } : { w: NODE_W, h: NODE_H }
 }
 
 /**
- * 文件卡相对写它的步骤：往右缩进 `FILE_DX`（左边要让出树干和拐弯），第一张离步骤底边
- * `FILE_DY`，往下每张隔 `FILE_GAP`。
+ * 资源卡相对写它的步骤：往右缩进 `RES_DX`（左边要让出树干和拐弯），第一张离步骤底边
+ * `RES_DY`，往下每张隔 `RES_GAP`。
  */
-export const FILE_DX = 84
-const FILE_DY = 22
-const FILE_GAP = 14
-const FILE_ROW = FILE_H + FILE_GAP
+export const RES_DX = 84
+const RES_DY = 22
+const RES_GAP = 14
 
-/** 一块（步骤 + 它的文件）的宽度：块与块等宽，列才对得齐。 */
-const BLOCK_W = FILE_DX + FILE_W
+/** 一块（步骤 + 它的资源）的宽度：块与块等宽，列才对得齐。 */
+const BLOCK_W = RES_DX + RES_W
 /** 列与列之间留的空（块的右沿到下一列左沿）、同一列里块与块的上下间距。 */
 const LAYER_GAP = 64
 const BLOCK_GAP = 36
@@ -90,10 +126,15 @@ function freeBox(occupied: readonly Box[], want: Box, step: number): Point {
 }
 
 /**
- * 一个文件卡该放哪：挂在写它的步骤（没人写就是读它的步骤）下面、往右缩进，被占了就往下找。
+ * 一个资源卡该放哪：挂在写它的步骤（没人写就是读它的步骤）下面、往右缩进，被占了就往下找。
  * @param anchor - 写它 / 读它的步骤的坐标；没有就放在版面左下。
  */
-export function fileSpot(doc: WorkflowDocument, anchor: Point | undefined, skip?: string): Point {
+export function resourceSpot(
+  doc: WorkflowDocument,
+  anchor: Point | undefined,
+  skip?: string,
+  height = RES_H,
+): Point {
   const occupied = doc.nodes
     .filter((node) => node.id !== skip && !isUnplaced(node.position))
     .map((node) => boxOf(node))
@@ -107,8 +148,8 @@ export function fileSpot(doc: WorkflowDocument, anchor: Point | undefined, skip?
         })
   return freeBox(
     occupied,
-    { x: base.x + FILE_DX, y: base.y + NODE_H + FILE_DY, w: FILE_W, h: FILE_H },
-    FILE_ROW,
+    { x: base.x + RES_DX, y: base.y + NODE_H + RES_DY, w: RES_W, h: height },
+    RES_H + RES_GAP,
   )
 }
 
@@ -130,17 +171,17 @@ export function inputSpot(doc: WorkflowDocument, reader: Point | undefined, skip
   return freeBox(
     occupied,
     { x: base.x - INPUT_W - LAYER_GAP, y: base.y, w: INPUT_W, h: INPUT_H },
-    INPUT_H + FILE_GAP,
+    INPUT_H + RES_GAP,
   )
 }
 
-/** 文件卡的锚点：第一个写它的步骤，没有就第一个读它的步骤。 */
+/** 资源卡的锚点：第一个写它的步骤，没有就第一个读它的步骤。 */
 function anchorOf(
   doc: WorkflowDocument,
-  fileId: string,
+  resourceId: string,
   position: (id: string) => Point | undefined,
 ): Point | undefined {
-  const info = fileGraph(doc).get(fileId)
+  const info = resourceGraph(doc).get(resourceId)
   if (info === undefined) return undefined
   for (const id of [...info.writers.map((writer) => writer.id), ...info.readers]) {
     const at = position(id)
@@ -224,28 +265,28 @@ export async function tidy(
   analysis.batches.forEach((batch, batchIndex) => {
     for (const id of batch.nodes) column.set(idKey(id), batchIndex)
   })
-  const steps = doc.nodes.filter((node) => !isFile(node) && !isInput(node))
+  const steps = doc.nodes.filter((node) => !isResource(node) && !isInput(node))
   // 批次之外的步骤（理论上没有）：排在最后一列之后。
   for (const node of steps) {
     if (!column.has(idKey(node.id))) column.set(idKey(node.id), analysis.batches.length)
   }
   const columnOf = (id: string): number => column.get(idKey(id)) ?? 0
 
-  // ── 文件归谁：最早那一列写它的步骤；没人写就是输入文件，单独成块 ──
-  const files = fileGraph(doc)
+  // ── 资源归谁：最早那一列写它的步骤；没人写就单独成块 ──
+  const resources = resourceGraph(doc)
   const owned = new Map<string, WorkflowNode[]>()
   const inputs: { node: WorkflowNode; column: number }[] = []
   const loose: WorkflowNode[] = []
   for (const node of doc.nodes) {
-    // 输入节点和没人写的文件一样：单独成块，放在第一个用到它的步骤的前一列。
+    // 输入节点和没人写的资源一样：单独成块，放在第一个用到它的步骤的前一列。
     if (isInput(node)) {
       const readers = inputReaders(doc, node.id)
       if (readers.length === 0) loose.push(node)
       else inputs.push({ node, column: Math.min(...readers.map(columnOf)) - 1 })
       continue
     }
-    if (!isFile(node)) continue
-    const info = files.get(node.id)
+    if (!isResource(node)) continue
+    const info = resources.get(node.id)
     const writers = info?.writers.map((writer) => writer.id) ?? []
     if (writers.length > 0) {
       const owner = [...writers].sort((a, b) => columnOf(a) - columnOf(b))[0] as string
@@ -270,8 +311,14 @@ export async function tidy(
   )) {
     const height = heightOf(node)
     stepHeight.set(node.id, height)
-    const count = owned.get(idKey(node.id))?.length ?? 0
-    const blockH = height + (count === 0 ? 0 : FILE_DY + count * FILE_H + (count - 1) * FILE_GAP)
+    const hung = owned.get(idKey(node.id)) ?? []
+    const blockH =
+      height +
+      (hung.length === 0
+        ? 0
+        : RES_DY +
+          hung.reduce((sum, card) => sum + heightOf(card), 0) +
+          (hung.length - 1) * RES_GAP)
     children.push({
       id: node.id,
       x: columnOf(node.id) * COL_STEP,
@@ -341,7 +388,7 @@ export async function tidy(
     } else if (kind === 'read' || kind === 'ask') {
       const reader = stepId(idKey(edge.target))
       if (reader === undefined) continue
-      // 读线也拉一把：读的文件挂在谁下面，就把谁和读它的步骤摆近一点（只算往右的）。
+      // 读线也拉一把：读的资源挂在谁下面，就把谁和读它的步骤摆近一点（只算往右的）。
       const owner = ownerOf.get(idKey(edge.source))
       const from = owner === undefined ? stepId(idKey(edge.source)) : stepId(owner)
       if (from === undefined) continue
@@ -380,19 +427,20 @@ export async function tidy(
     if (node === undefined) continue
     const x = columnX(blockColumn(block.id))
     const y = (block.y ?? 0) - minY + ORIGIN.y
-    if (isFile(node) || isInput(node)) {
-      put(node, x + FILE_DX, y)
+    if (isResource(node) || isInput(node)) {
+      put(node, x + RES_DX, y)
       continue
     }
     put(node, x, y)
-    const top = y + (stepHeight.get(node.id) ?? NODE_H) + FILE_DY
-    owned.get(idKey(node.id))?.forEach((file, row) => {
-      put(file, x + FILE_DX, top + row * FILE_ROW)
-    })
+    let top = y + (stepHeight.get(node.id) ?? NODE_H) + RES_DY
+    for (const card of owned.get(idKey(node.id)) ?? []) {
+      put(card, x + RES_DX, top)
+      top += heightOf(card) + RES_GAP
+    }
   }
-  // 谁都不连的文件：在版面下方排成一行。
+  // 谁都不连的资源与输入：在版面下方排成一行。
   loose.forEach((node, slot) => {
-    placed[node.id] = { x: ORIGIN.x + slot * (FILE_W + 24), y: bottom + 48 }
+    placed[node.id] = { x: ORIGIN.x + slot * (RES_W + 24), y: bottom + 48 }
   })
   return placed
 }
@@ -472,9 +520,9 @@ export async function placeMissing(
     position.set(node.id, spot)
     placed[node.id] = spot
   }
-  // 文件卡（模型用工具加的、老图迁移出来的）：挂到写它的步骤下面。
+  // 资源卡（模型用工具加的）：挂到写它的步骤下面。
   for (const node of missing) {
-    if (placed[node.id] !== undefined || !isFile(node)) continue
+    if (placed[node.id] !== undefined || !isResource(node)) continue
     const anchor = anchorOf(doc, node.id, (id) => position.get(id))
     const current: WorkflowDocument = {
       ...doc,
@@ -483,7 +531,7 @@ export async function placeMissing(
         return at === undefined ? { ...item, position: { x: 0, y: 0 } } : { ...item, position: at }
       }),
     }
-    const spot = fileSpot(current, anchor, node.id)
+    const spot = resourceSpot(current, anchor, node.id, cardSize(node).h)
     position.set(node.id, spot)
     placed[node.id] = spot
   }

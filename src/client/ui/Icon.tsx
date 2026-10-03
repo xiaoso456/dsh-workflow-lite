@@ -33,7 +33,8 @@ const BASE_PATHS = {
   file: 'M7 3h7l4 4v14H7zM14 3v4h4',
   loop: 'M17 3l3 3-3 3M20 6H8a4 4 0 00-4 4v1M7 21l-3-3 3-3M4 18h12a4 4 0 004-4v-1',
   keyboard: 'M3 7h18v10H3zM7 11h.5M11 11h.5M15 11h.5M8 14h8',
-  library: 'M4 5h7v6H4zM13 5h7v6h-7zM4 13h7v6H4zM16.5 13v6M13.5 16h6',
+  // 步骤库：左边一栏的面板（开关左侧的步骤库）
+  library: 'M6 4.5h12a2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2v-11a2 2 0 012-2zM9.5 4.5v15',
   download: 'M12 4v11M7 11l5 5 5-5M5 20h14',
   bookmark: 'M7 4h10v16l-5-4-5 4z',
   reload: 'M20 12a8 8 0 11-2.4-5.7M20 4v5h-5',
@@ -67,7 +68,11 @@ const BASE_PATHS = {
   stop: 'M7 7h10v10H7z',
   skip: 'M5 6l8 6-8 6zM17 6v12',
   hourglass: 'M7 3h10M7 21h10M8 3c0 5 8 5 8 9s-8 4-8 9M16 3c0 5-8 5-8 9s8 4 8 9',
-  hub: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
+  // 工作流中心：两个步骤块由一条折线连起来
+  hub: 'M5 3h4a2 2 0 012 2v4a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2zM7 11v4a2 2 0 002 2h4M15 13h4a2 2 0 012 2v4a2 2 0 01-2 2h-4a2 2 0 01-2-2v-4a2 2 0 012-2z',
+  // 交给整个工作流：一个点向两边发散
+  shared:
+    'M12 13.6a1.6 1.6 0 100-3.2 1.6 1.6 0 000 3.2zM8.3 8.3a5.2 5.2 0 000 7.4M15.7 8.3a5.2 5.2 0 010 7.4M5.4 5.4a9.3 9.3 0 000 13.2M18.6 5.4a9.3 9.3 0 010 13.2',
   runs: 'M4 6h3M4 12h3M4 18h3M10 6h10M10 12h10M10 18h10',
   storage:
     'M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3zM4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3',
@@ -76,6 +81,8 @@ const BASE_PATHS = {
   external: 'M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5',
   folderOpen: 'M3 7V5h6l2 2h8v3M3 7v12h15l3-9H6.5L3 19',
   circle: 'M12 20a8 8 0 100-16 8 8 0 000 16z',
+  // 资源里的自定义：一张写了几行字的便签
+  note: 'M5 4h10l4 4v12H5zM15 4v4h4M8.5 12h7M8.5 15.5h7M8.5 8.5h3',
 } as const
 
 const PATHS: Record<keyof typeof BASE_PATHS | StepIcon, string> = {

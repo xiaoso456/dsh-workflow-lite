@@ -30,6 +30,7 @@ import {
   WORKFLOW_LITE_ENDPOINTS,
   type WorkflowLiteEndpoint,
 } from '../shared/wire.ts'
+import { listHostDir, listSkills, readSkill, type SkillViewer } from './hostFs.ts'
 import { compileWorkflow } from './plan.ts'
 import type { RunService } from './runs/service.ts'
 import { storageAction } from './runs/storage.ts'
@@ -43,6 +44,8 @@ export interface RpcDeps {
   limits: () => { maxNodes: number; saveDebounceMs: number }
   /** 工作流实例（`run/*`）。 */
   runs: RunService
+  /** 看 DSH 的 skill（选 Skill、预览 SKILL.md 用）；没给就当没装 skill 服务。 */
+  skills?: SkillViewer
 }
 
 type RpcResult<T> = ConnectionRpcResult<T>
@@ -421,9 +424,50 @@ async function dispatch(
       const id = requireString(input, 'id')
       const node = optionalString(input, 'node')
       const path = optionalString(input, 'path')
+      const item = typeof input.item === 'number' && Number.isInteger(input.item) ? input.item : 0
       if (node === undefined && path === undefined)
         throw new Error('run/file requires node or path')
-      const outcome = await deps.runs.file(id, node !== undefined ? { node } : { path: path ?? '' })
+      const outcome = await deps.runs.file(
+        id,
+        node !== undefined ? { node, item } : { path: path ?? '' },
+      )
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok(outcome.result)
+    }
+
+    case 'host/list': {
+      const input = asRecord(payload)
+      const path = optionalString(input, 'path')
+      const cwd = optionalString(input, 'cwd')
+      const outcome = await listHostDir({
+        ...(path === undefined ? {} : { path }),
+        ...(cwd === undefined ? {} : { cwd }),
+      })
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok(outcome.result)
+    }
+
+    case 'host/skills': {
+      const input = asRecord(payload)
+      const cwd = optionalString(input, 'cwd')
+      const session = optionalString(input, 'session')
+      return ok(
+        await listSkills(deps.skills, {
+          ...(cwd === undefined ? {} : { cwd }),
+          ...(session === undefined ? {} : { session }),
+        }),
+      )
+    }
+
+    case 'host/skill': {
+      const input = asRecord(payload)
+      const cwd = optionalString(input, 'cwd')
+      const session = optionalString(input, 'session')
+      const outcome = await readSkill(deps.skills, {
+        name: requireString(input, 'name'),
+        ...(cwd === undefined ? {} : { cwd }),
+        ...(session === undefined ? {} : { session }),
+      })
       if (!outcome.ok) return failFrom(outcome.error)
       return ok(outcome.result)
     }

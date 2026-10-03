@@ -8,10 +8,17 @@
  */
 
 import { presetAppearance } from '../../shared/appearance.ts'
-import type { Handoff, InputData, InputKind, NodeData, WorkflowNode } from '../../shared/types.ts'
-import { FILE_TYPE, NODE_TYPE } from '../../shared/types.ts'
+import type {
+  Handoff,
+  InputData,
+  InputKind,
+  NodeData,
+  WorkflowNode,
+  WorkflowSettings,
+} from '../../shared/types.ts'
+import { INPUT_TYPE, NODE_TYPE, RESOURCE_TYPE } from '../../shared/types.ts'
 import type { LocaleKey, T } from '../i18n.ts'
-import { COL_STEP } from './layout.ts'
+import { COL_STEP, NODE_W } from './layout.ts'
 
 export interface StepPreset {
   /** 建议的节点 id（撞名由 `uniqueNodeId` 加序号）。 */
@@ -134,10 +141,16 @@ export function presetData(preset: StepPreset, t: T): NodeData {
 
 /**
  * 示例流程：侦察 → 拆解 → 实现 → 审查，通过去汇总，未通过去修复再回到审查。
- * 一次把顺序、分支、循环、文件（含几步共用的审查报告）都摆出来，比任何说明文字都快：
- * 每一步的产出是挂在它右下方的文件卡；审查报告由修复在原文件上打钩，汇总读它的最终版。
+ * 一次把能用的东西都摆出来，比任何说明文字都快：
+ * - 顺序、条件分支（通过 / 未通过）、循环（修完回到审查），线上附交接说明；
+ * - 用户输入：执行前问「这次要做什么」（多行文字、必填，交给侦察与拆解）和「审查要多严格」（单选，交给审查）；
+ * - 资源：每一步的产出挂在它右下方；审查报告由修复在原文件上打钩、汇总读它的最终版；
+ *   「项目资料」一张卡放文件夹、文件、网址三项，侦察和实现都读它；
+ *   「团队约定」是一段自定义提示词，一条线都不连 = 交给每一步；
+ * - 设置：打开「记录运行状态」，执行后能在实例里看进度。
  */
 export function starterGraph(t: T): {
+  settings: WorkflowSettings
   nodes: WorkflowNode[]
   edges: {
     source: string
@@ -148,33 +161,95 @@ export function starterGraph(t: T): {
   }[]
 } {
   const x = (column: number): number => 80 + column * COL_STEP
+  // 第 0 列放执行前要问的、几步都要看的；步骤从第 1 列排起。
   const at: Record<string, [number, number]> = {
-    scan: [x(0), 120],
-    plan: [x(1), 120],
-    implement: [x(2), 120],
-    review: [x(3), 120],
-    report: [x(4), 120],
-    // 修复放在汇总下面、文件那一排再往下：未通过的线往下走，修完的回线回到审查。
-    fix: [x(4), 520],
+    scan: [x(1), 120],
+    plan: [x(2), 120],
+    implement: [x(3), 120],
+    review: [x(4), 120],
+    report: [x(5), 120],
+    // 修复放在汇总下面、资源那一排再往下：未通过的线往下走，修完的回线回到审查。
+    fix: [x(5), 520],
   }
-  const nodes: WorkflowNode[] = []
+  const nodes: WorkflowNode[] = [
+    {
+      id: 'ask-goal',
+      type: INPUT_TYPE,
+      position: { x: x(0) + 18, y: 140 },
+      data: {
+        question: t('starter.askGoal'),
+        kind: 'textarea',
+        placeholder: t('starter.askGoalPlaceholder'),
+        hint: t('starter.askGoalHint'),
+        required: true,
+      },
+    },
+    {
+      // 审查前头、步骤那一排上方：回答只交给审查。
+      id: 'ask-strict',
+      type: INPUT_TYPE,
+      position: { x: x(3) + NODE_W / 2, y: -40 },
+      data: {
+        question: t('starter.askStrict'),
+        kind: 'choice',
+        options: [
+          t('starter.strict.loose'),
+          t('starter.strict.normal'),
+          t('starter.strict.strict'),
+        ],
+        default: t('starter.strict.normal'),
+        hint: t('starter.askStrictHint'),
+      },
+    },
+    {
+      id: 'res-context',
+      type: RESOURCE_TYPE,
+      position: { x: x(0), y: 260 },
+      data: {
+        label: t('starter.contextLabel'),
+        description: t('starter.contextDesc'),
+        items: [
+          { kind: 'folder', value: 'src/', note: t('starter.contextSrc') },
+          { kind: 'file', value: 'README.md', note: t('starter.contextReadme') },
+          {
+            kind: 'url',
+            value: 'https://www.conventionalcommits.org/zh-hans/v1.0.0/',
+            note: t('starter.contextUrl'),
+          },
+        ],
+      },
+    },
+    {
+      id: 'res-rules',
+      type: RESOURCE_TYPE,
+      position: { x: x(0), y: 440 },
+      data: {
+        label: t('starter.rulesLabel'),
+        description: t('starter.rulesDesc'),
+        items: [{ kind: 'text', value: t('starter.rulesText') }],
+      },
+    },
+  ]
   const edges: ReturnType<typeof starterGraph>['edges'] = []
   for (const preset of PRESETS) {
     const [px, py] = at[preset.id] ?? [0, 0]
     const { output: _template, ...data } = presetData(preset, t)
     nodes.push({ id: preset.id, type: NODE_TYPE, position: { x: px, y: py }, data })
     if (typeof preset.output !== 'string') continue
-    const fileId = `file-${preset.output}`
+    const resourceId = `res-${preset.output.replace(/\.[^.]+$/u, '')}`
     nodes.push({
-      id: fileId,
-      type: FILE_TYPE,
+      id: resourceId,
+      type: RESOURCE_TYPE,
       position: { x: px + 40, y: py + 132 },
       data: {
-        path: preset.output,
-        ...(preset.ruleKey === undefined ? {} : { rule: t(preset.ruleKey) }),
+        items: [
+          preset.ruleKey === undefined
+            ? { kind: 'file', value: preset.output }
+            : { kind: 'file', value: preset.output, note: t(preset.ruleKey) },
+        ],
       },
     })
-    edges.push({ source: preset.id, target: fileId })
+    edges.push({ source: preset.id, target: resourceId })
   }
   edges.push(
     { source: 'scan', target: 'plan' },
@@ -184,14 +259,20 @@ export function starterGraph(t: T): {
     { source: 'review', target: 'fix', when: 'fail', handoff: { note: t('starter.fixNote') } },
     { source: 'fix', target: 'review', handoff: { note: t('starter.recheckNote') } },
     // 读：每一步读上一步的产出；审查报告被修复就地更新，汇总读它的最终版。
-    { source: 'file-scan-notes.md', target: 'plan' },
-    { source: 'file-plan.md', target: 'implement' },
-    { source: 'file-changes.md', target: 'review' },
-    { source: 'fix', target: 'file-review.md', update: true },
-    { source: 'file-review.md', target: 'report' },
-    { source: 'file-fix-notes.md', target: 'review' },
+    { source: 'res-scan-notes', target: 'plan' },
+    { source: 'res-plan', target: 'implement' },
+    { source: 'res-changes', target: 'review' },
+    { source: 'fix', target: 'res-review', update: true },
+    { source: 'res-review', target: 'report' },
+    { source: 'res-fix-notes', target: 'review' },
+    // 项目资料：侦察和实现都读；两个问题的回答分别交给要用它的步骤。
+    { source: 'res-context', target: 'scan' },
+    { source: 'res-context', target: 'implement' },
+    { source: 'ask-goal', target: 'scan' },
+    { source: 'ask-goal', target: 'plan' },
+    { source: 'ask-strict', target: 'review' },
   )
-  return { nodes, edges }
+  return { settings: { runState: true }, nodes, edges }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -204,8 +285,11 @@ export const DND_MIME = 'application/x-workflow-lite-step'
 /** 从库里拿出来的东西：空白步骤、内置步骤，或磁盘上的节点模板。 */
 export type StepSource =
   | { kind: 'blank' }
-  /** 一张文件卡（不是步骤，但同样从库里拖、从菜单里加）。 */
-  | { kind: 'file' }
+  /**
+   * 一张资源卡（不是步骤，但同样从库里拖、从菜单里加）。从步骤的写点 / 「＋」加的是这一步的产出文件；
+   * 别处加的是一张空的资源卡。
+   */
+  | { kind: 'resource' }
   /** 一个输入节点（执行前问用户的问题）。 */
   | { kind: 'input' }
   | { kind: 'preset'; id: string }
@@ -239,8 +323,8 @@ export function decodeStepSource(raw: string | null | undefined): StepSource | n
   switch (fields.get('kind')) {
     case 'blank':
       return { kind: 'blank' }
-    case 'file':
-      return { kind: 'file' }
+    case 'resource':
+      return { kind: 'resource' }
     case 'input':
       return { kind: 'input' }
     case 'preset': {

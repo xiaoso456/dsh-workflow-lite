@@ -376,18 +376,65 @@
   line-height: 1.6;
 }
 
-/* 整份写出 / 在原文件上更新：两格的小开关。 */
+/*
+ * 整份写出 / 在原文件上更新：两格的小开关。
+ * 两格等宽；底下一块滑块用 transform 滑过去，滑块的两层底色（产出 / 更新）用 opacity 交叉淡入。
+ */
 .accessSeg {
-  display: inline-flex;
+  position: relative;
+  display: inline-grid;
   flex: none;
+  grid-template-columns: 1fr 1fr;
   padding: 2px;
   border-radius: 7px;
   background: var(--wl-fill);
 }
 
+.accessThumb {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  width: calc(50% - 2px);
+  border-radius: 5px;
+  background: var(--wl-panel);
+  transition: transform 220ms cubic-bezier(0.3, 0.7, 0.2, 1);
+}
+
+.accessThumb::before,
+.accessThumb::after {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  content: "";
+  transition: opacity 220ms linear;
+}
+
+.accessThumb::before {
+  background: color-mix(in srgb, var(--wl-io-produce) 16%, var(--wl-panel));
+}
+
+.accessThumb::after {
+  background: color-mix(in srgb, var(--wl-io-update) 16%, var(--wl-panel));
+  opacity: 0;
+}
+
+.accessSeg[data-update="true"] .accessThumb {
+  transform: translateX(100%);
+}
+
+.accessSeg[data-update="true"] .accessThumb::before {
+  opacity: 0;
+}
+
+.accessSeg[data-update="true"] .accessThumb::after {
+  opacity: 1;
+}
+
 .accessSeg button {
+  position: relative;
   height: 22px;
-  padding: 0 8px;
+  padding: 0 9px;
   border: 0;
   border-radius: 5px;
   background: transparent;
@@ -402,24 +449,12 @@
   color: var(--wl-text);
 }
 
-.accessSeg button[aria-checked="true"] {
-  background: var(--wl-panel);
-  box-shadow: var(--wl-shadow-thumb);
-  color: var(--wl-text);
+.accessSeg button[aria-checked="true"][data-access="produce"] {
+  color: var(--wl-io-produce);
 }
 
-.accessSeg button[data-access="produce"] {
-  --wl-chip: var(--wl-io-produce);
-}
-
-.accessSeg button[data-access="update"] {
-  --wl-chip: var(--wl-io-update);
-}
-
-.accessSeg button[aria-checked="true"][data-access] {
-  background: color-mix(in srgb, var(--wl-chip) 14%, var(--wl-panel));
-  box-shadow: none;
-  color: var(--wl-chip);
+.accessSeg button[aria-checked="true"][data-access="update"] {
+  color: var(--wl-io-update);
 }
 
 .accessSeg button:focus-visible {
@@ -562,7 +597,10 @@
 @media (prefers-reduced-motion: reduce) {
   .mark,
   .card,
-  .fileRowRemove {
+  .fileRowRemove,
+  .accessThumb,
+  .accessThumb::before,
+  .accessThumb::after {
     animation: none;
     transition: none;
   }

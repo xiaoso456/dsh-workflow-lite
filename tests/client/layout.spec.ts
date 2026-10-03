@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
   COL_STEP,
-  FILE_DX,
-  FILE_H,
-  FILE_W,
   freeSpot,
   NODE_H,
   NODE_W,
   nextTo,
   placeMissing,
+  RES_DX,
+  RES_H,
+  RES_W,
   tidy,
 } from '../../src/client/model/layout.ts'
 import { routeFileLink, STEP_SPOTS, spotOf, writePoints } from '../../src/client/model/route.ts'
@@ -46,7 +46,12 @@ function withFiles(
 ): WorkflowDocument {
   const doc = graph(ids, links)
   for (const [file, writer, ...readers] of files) {
-    doc.nodes.push({ id: file, type: 'wfFile', position: { x: 0, y: 0 }, data: { path: file } })
+    doc.nodes.push({
+      id: file,
+      type: 'wfResource',
+      position: { x: 0, y: 0 },
+      data: { items: [{ kind: 'file', value: file }] },
+    })
     const edge = (source: string, target: string) => ({
       id: `${source}->${target}`,
       source,
@@ -71,8 +76,8 @@ interface Box {
 function boxes(doc: WorkflowDocument, placed: Record<string, Point>): Box[] {
   return doc.nodes.map((node: WorkflowNode) => {
     const at = placed[node.id] as Point
-    const file = node.type === 'wfFile'
-    return { id: node.id, x: at.x, y: at.y, w: file ? FILE_W : NODE_W, h: file ? FILE_H : NODE_H }
+    const file = node.type === 'wfResource'
+    return { id: node.id, x: at.x, y: at.y, w: file ? RES_W : NODE_W, h: file ? RES_H : NODE_H }
   })
 }
 
@@ -140,16 +145,16 @@ describe('tidy', () => {
     const code = placed.code as Point
     const files = ['scan', 'notes', 'extra'].map((id) => placed[id] as Point)
     for (const [row, file] of files.entries()) {
-      expect(file.x).toBe(code.x + FILE_DX)
+      expect(file.x).toBe(code.x + RES_DX)
       expect(file.y).toBeGreaterThan(code.y + NODE_H)
-      if (row > 0) expect(file.y).toBeGreaterThan((files[row - 1] as Point).y + FILE_H)
+      if (row > 0) expect(file.y).toBeGreaterThan((files[row - 1] as Point).y + RES_H)
     }
     // 同一列下一个步骤在这串文件下面，不是夹在步骤和它的文件之间。
     expect(Math.min(placed.scout?.y ?? 0, placed.scout2?.y ?? 0)).toBeGreaterThan(
-      (files[2] as Point).y + FILE_H,
+      (files[2] as Point).y + RES_H,
     )
     for (const edge of doc.edges) {
-      const file = all.find((box) => box.id === edge.target && box.w === FILE_W)
+      const file = all.find((box) => box.id === edge.target && box.w === RES_W)
       const step = all.find((box) => box.id === edge.source)
       if (file === undefined || step === undefined) continue
       const route = routeFileLink('write', step, file)
@@ -191,8 +196,8 @@ describe('tidy', () => {
   it('没人写、只被读的文件放在读它的步骤前一列', async () => {
     const doc = withFiles(['a', 'b'], [['a', 'b']], [['input', null, 'a']])
     const placed = await tidy(doc, analyzeGraph(doc))
-    expect(placed.a?.x).toBe((placed.input?.x ?? 0) - FILE_DX + COL_STEP)
-    expect((placed.input?.x ?? 0) + FILE_W).toBeLessThan(placed.a?.x ?? 0)
+    expect(placed.a?.x).toBe((placed.input?.x ?? 0) - RES_DX + COL_STEP)
+    expect((placed.input?.x ?? 0) + RES_W).toBeLessThan(placed.a?.x ?? 0)
   })
 
   it('相邻两列之间的线上挂着长条件时，只把那一处拉开到放得下牌子', async () => {

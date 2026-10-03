@@ -1,0 +1,660 @@
+/**
+ * dsh-workflow-lite — 资源：属性面板里的内容清单、「添加内容」菜单、编辑一项的模态框、Skill 清单。
+ *
+ * 每种内容一个颜色（只用在小图标上，不和线色抢）：文件 = 文件色、文件夹 = 橄榄、网址 = 青、
+ * Skill = 粉、自定义 = 石板灰。画布上的资源卡用同一套（见 canvas.module.css）。
+ */
+
+:is(.resIcon, .kindIcon, .rowIcon, .addIcon, .sheetKind)[data-kind="file"] {
+  --wl-kind: var(--wl-file);
+}
+
+:is(.resIcon, .kindIcon, .rowIcon, .addIcon, .sheetKind)[data-kind="folder"] {
+  --wl-kind: var(--wl-c-olive);
+}
+
+:is(.resIcon, .kindIcon, .rowIcon, .addIcon, .sheetKind)[data-kind="url"] {
+  --wl-kind: var(--wl-c-teal);
+}
+
+:is(.resIcon, .kindIcon, .rowIcon, .addIcon, .sheetKind)[data-kind="skill"] {
+  --wl-kind: var(--wl-c-pink);
+}
+
+:is(.resIcon, .kindIcon, .rowIcon, .addIcon, .sheetKind)[data-kind="text"] {
+  --wl-kind: var(--wl-c-slate);
+}
+
+:is(.resIcon, .kindIcon, .rowIcon, .addIcon, .sheetKind)[data-kind="many"] {
+  --wl-kind: var(--wl-file);
+}
+
+/* 资源的小图标（清单里的一行、关联菜单）。 */
+.resIcon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--wl-kind) 13%, transparent);
+  color: var(--wl-kind);
+}
+
+.headIcon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--wl-file-soft);
+  color: var(--wl-file);
+}
+
+/* 一种内容的小图标（实例视图的清单也用它）。 */
+.kindIcon,
+.rowIcon,
+.addIcon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--wl-kind) 13%, transparent);
+  color: var(--wl-kind);
+}
+
+/* ── 内容清单：一项一行，点开在模态框里改 ─────────────────── */
+
+.items {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.itemsEmpty {
+  margin: 0;
+  padding: 12px 10px;
+  border: 1px dashed var(--wl-line-strong);
+  border-radius: 10px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.55;
+  text-align: center;
+}
+
+/* 一组行包在一张卡里，行间一条细线：比一行一张卡清爽。 */
+.list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--wl-line);
+  border-radius: 10px;
+  background: var(--wl-panel);
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+  padding-right: 6px;
+}
+
+.row + .row {
+  border-top: 1px solid var(--wl-line);
+}
+
+.row:hover {
+  background: var(--wl-hover);
+}
+
+/* 图标占两行高，右边是名字与位置；有说明的在后面挂个小签。这一块就是按钮。 */
+.rowMain {
+  display: grid;
+  flex: 1 1 auto;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  gap: 1px 9px;
+  align-items: center;
+  min-width: 0;
+  min-height: 46px;
+  padding: 6px 4px 6px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--wl-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rowMain:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: -2px;
+}
+
+.rowIcon {
+  grid-row: span 2;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+}
+
+.rowName {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--wl-fs-meta);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowWhere {
+  grid-column: 2;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowWhere[data-mono="true"] {
+  font-family: var(--wl-mono);
+}
+
+/* 「说明」小签：灰底小字，和种类图标不像，不会被当成又一个文件。 */
+.rowNote {
+  grid-row: 1 / span 2;
+  grid-column: 3;
+  padding: 0 6px;
+  border-radius: 5px;
+  background: var(--wl-fill);
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.row[data-blank="true"] .rowName {
+  color: var(--wl-danger);
+  font-weight: 500;
+}
+
+.row[data-duplicate="true"] .rowWhere {
+  color: var(--wl-warn);
+}
+
+/* 「移除」在行尾自己占一格：平时隐着，悬停这一行或键盘聚焦时显出来。 */
+.rowRemove {
+  flex: none;
+  opacity: 0;
+  transition: opacity 120ms linear;
+}
+
+.row:hover .rowRemove,
+.row:focus-within .rowRemove {
+  opacity: 1;
+}
+
+/* ── 添加内容 ─────────────────────────────────────────────── */
+
+.addButton {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 34px;
+  border: 1px dashed var(--wl-line-strong);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--wl-accent-text);
+  font: inherit;
+  font-size: var(--wl-fs-meta);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.addButton:hover:not(:disabled),
+.addButton[aria-expanded="true"] {
+  border-color: var(--wl-accent);
+  background: var(--wl-accent-soft);
+}
+
+.addButton:disabled {
+  color: var(--wl-text-3);
+  cursor: default;
+}
+
+.addButton:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+.addMenu {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 240px;
+  padding: 4px;
+}
+
+.addItem {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--wl-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.addItem:hover,
+.addItem:focus-visible {
+  outline: none;
+  background: var(--wl-hover);
+}
+
+.addIcon {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+}
+
+.addText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.addName {
+  font-size: var(--wl-fs-meta);
+  font-weight: 600;
+}
+
+.addHint {
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.addManual {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 4px;
+  padding: 8px 10px 6px;
+  border: 0;
+  border-top: 1px solid var(--wl-line);
+  background: transparent;
+  color: var(--wl-text-3);
+  font: inherit;
+  font-size: var(--wl-fs-micro);
+  text-align: left;
+  cursor: pointer;
+}
+
+.addManual:hover,
+.addManual:focus-visible {
+  outline: none;
+  color: var(--wl-text);
+}
+
+/* ── 编辑一项（模态框）────────────────────────────────────── */
+
+.itemSheet {
+  width: min(560px, 100%);
+}
+
+.sheetKind[data-kind] {
+  background: color-mix(in srgb, var(--wl-kind) 14%, transparent);
+  color: var(--wl-kind);
+}
+
+.valueRow {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.value {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.valueAction {
+  flex: none;
+}
+
+.valueAction[aria-disabled="true"] {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.textArea {
+  min-height: 240px;
+  font-size: var(--wl-fs-body);
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.noteArea {
+  min-height: 96px;
+  font-size: var(--wl-fs-body);
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.skillKnown {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  margin: 0;
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.55;
+}
+
+.skillKnown > svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--wl-ok);
+}
+
+.skillKnownPeek {
+  display: inline-flex;
+  flex: none;
+  gap: 4px;
+  align-items: center;
+  margin-left: auto;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--wl-accent-text);
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.skillKnownPeek:hover {
+  text-decoration: underline;
+}
+
+.skillKnownPeek:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+.sharedNote {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: var(--wl-fill);
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.55;
+}
+
+.sharedNote svg {
+  flex: none;
+  margin-top: 1px;
+  color: var(--wl-text-3);
+}
+
+/* ── Skill 清单 ───────────────────────────────────────────── */
+
+.skillHeadIcon {
+  background: color-mix(in srgb, var(--wl-c-pink) 14%, transparent);
+  color: var(--wl-c-pink);
+}
+
+/* 行与行之间留 2px：相邻两行都选中时是两块，不糊成一片。 */
+.skillList {
+  gap: 2px;
+  margin-top: 0;
+  margin-bottom: 0;
+  list-style: none;
+}
+
+/* 一行两块并排：左边勾选区（选上 / 取消），右边「来源 + 眼睛」（看 SKILL.md）。 */
+.skillRow {
+  display: flex;
+  flex: none;
+  align-items: stretch;
+  min-height: 48px;
+  border-radius: 8px;
+  color: var(--wl-text);
+}
+
+.skillRow:hover {
+  background: var(--wl-hover);
+}
+
+.skillRow[data-on="true"] {
+  background: var(--wl-accent-soft);
+}
+
+.skillPick {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+  padding: 6px 6px 6px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.skillPick:disabled {
+  cursor: default;
+}
+
+.skillRow[data-added="true"] .skillPick > * {
+  opacity: 0.6;
+}
+
+.skillPick:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: -2px;
+}
+
+.skillCheck {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--wl-line-strong);
+  border-radius: 4px;
+  background: var(--wl-panel);
+  color: var(--wl-accent-on);
+}
+
+.skillCheck svg {
+  opacity: 0;
+  transform: scale(0.6);
+  transition:
+    opacity 120ms linear,
+    transform 160ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+
+.skillCheck[data-on="true"] {
+  border-color: var(--wl-accent);
+  background: var(--wl-accent);
+}
+
+.skillCheck[data-on="true"] svg {
+  opacity: 1;
+  transform: none;
+}
+
+/* 右边：来源（纯文字）+ 一个小眼睛按钮；只有按钮自己在悬停时有底色。 */
+.skillSide {
+  display: flex;
+  flex: none;
+  gap: 4px;
+  align-items: center;
+  padding: 0 8px 0 4px;
+}
+
+.skillPeek {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--wl-text-3);
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 120ms linear;
+}
+
+.skillRow:hover .skillPeek,
+.skillPeek:focus-visible {
+  opacity: 1;
+}
+
+.skillPeek:hover {
+  background: var(--wl-fill);
+  color: var(--wl-accent-text);
+}
+
+.skillPeek:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+.skillText {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.skillName {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-meta);
+  font-weight: 600;
+}
+
+.skillTag {
+  padding: 0 5px;
+  border-radius: 5px;
+  background: var(--wl-fill);
+  color: var(--wl-text-3);
+  font-family: var(--wl-sans, inherit);
+  font-size: var(--wl-fs-micro);
+  font-weight: 500;
+  line-height: 16px;
+}
+
+.skillDesc {
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skillSource {
+  flex: none;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  white-space: nowrap;
+}
+
+.skillManual {
+  display: flex;
+  flex: none;
+  justify-content: center;
+  padding: 0 0 12px;
+}
+
+/* ── SKILL.md 预览 ────────────────────────────────────────── */
+
+.skillViewer[role="dialog"] {
+  width: min(860px, calc(100% - 48px));
+}
+
+.skillLead {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 780px;
+  margin: 18px auto 0;
+  padding: 0 28px;
+}
+
+.skillLeadDesc,
+.skillLeadWhen {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--wl-c-pink) 8%, transparent);
+  color: var(--wl-text);
+  font-size: var(--wl-fs-meta);
+  line-height: 1.6;
+}
+
+.skillLeadWhen {
+  background: var(--wl-fill);
+  color: var(--wl-text-2);
+}
+
+.skillLeadWhen span {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+}
+
+.skillViewerFoot {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 14px;
+  border-top: 1px solid var(--wl-line);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rowRemove,
+  .skillPeek {
+    transition: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skillCheck svg {
+    transition: none;
+  }
+}

@@ -10,12 +10,14 @@
 
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { ReactFlowProvider, useReactFlow } from '@xyflow/react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { pickTemplateAppearance } from '../../shared/appearance.ts'
 import { orderedInputs } from '../../shared/inputs.ts'
-import { isFile, isInput, SETTINGS_CONFLICT_ID } from '../../shared/model.ts'
+import { isInput, isResource, SETTINGS_CONFLICT_ID } from '../../shared/model.ts'
+import { outputResource } from '../../shared/resources.ts'
 import type { InputAnswer, NodeData, Point, WorkflowDocument } from '../../shared/types.ts'
 import type { Desktop } from '../app/desktop.ts'
+import { createHostAccess } from '../app/host.ts'
 import { type SessionBridge, useSessionRows } from '../app/sessions.ts'
 import { useRuns } from '../app/useRuns.ts'
 import { useWorkflow, type Workflow } from '../app/useWorkflow.ts'
@@ -35,7 +37,6 @@ import {
 import { errorMessage, type WorkflowLiteRpc } from '../rpc.ts'
 import { type AddRequest, Canvas } from './Canvas.tsx'
 import { ZoomDock } from './Dock.tsx'
-import { freeFilePath } from './Files.tsx'
 import { HubDialog } from './HubDialog.tsx'
 import { Icon } from './Icon.tsx'
 import { InputsDialog } from './InputsDialog.tsx'
@@ -45,6 +46,7 @@ import { PlanDialog } from './PlanDialog.tsx'
 import { cx, ModalHostProvider } from './primitives.tsx'
 import { QuickAdd } from './QuickAdd.tsx'
 import { RunView } from './RunView.tsx'
+import { freeFilePath } from './resourceUi.ts'
 import { SettingsDialog } from './SettingsDialog.tsx'
 import { StepPanel } from './StepPanel.tsx'
 import css from './shell.module.css'
@@ -185,6 +187,16 @@ function Shell(props: {
             : null
   /** 本会话的工作区（新建会话建在这里；预览计划也按它写工作区路径）。 */
   const sessionCwd = sessionRows.find((row) => row.id === props.session)?.cwd
+  /** 给资源选文件、文件夹、Skill 时看主机（相对路径按本会话的工作区）。 */
+  const host = useMemo(
+    () =>
+      createHostAccess(props.rpc, {
+        cwd: sessionCwd,
+        session: props.session,
+        desktop: props.desktop,
+      }),
+    [props.rpc, sessionCwd, props.session, props.desktop],
+  )
   const canCreate = props.sessions?.canCreate() === true && props.session !== undefined
   /**
    * 执行：先把没存的改动存下去（实例拿磁盘上的那份做快照），要新建会话就先建好，建实例，
@@ -451,18 +463,24 @@ function Shell(props: {
     async (source: StepSource, position: Point, from?: string): Promise<void> => {
       let id: string
       let data: NodeData
-      if (source.kind === 'file') {
-        // 文件卡：从步骤的「＋」加的就是这一步写的文件；别处加的是一张独立的文件卡。加完选中它，好改路径。
+      if (source.kind === 'resource') {
+        // 资源卡：从步骤的「＋」加的就是这一步写的产出文件；别处加的是一张空的资源卡。
+        // 加完选中它，好接着添加内容、改路径。
         const doc = state.doc
         if (doc === null) return
         const writer = from === undefined ? undefined : findNode(doc, from)
-        const step = writer !== undefined && !isFile(writer) ? writer : undefined
-        wf.edit({
-          type: 'addFile',
-          path: freeFilePath(doc, step === undefined ? t('file.default') : `${step.id}.md`),
-          ...(step === undefined ? { position } : { writer: step.id }),
-          select: true,
-        })
+        const step =
+          writer !== undefined && !isResource(writer) && !isInput(writer) ? writer : undefined
+        wf.edit(
+          step === undefined
+            ? { type: 'addResource', data: { items: [] }, position, select: true }
+            : {
+                type: 'addResource',
+                data: outputResource({ path: freeFilePath(doc, `${step.id}.md`) }),
+                writer: step.id,
+                select: true,
+              },
+        )
         return
       }
       if (source.kind === 'input') {
@@ -471,7 +489,7 @@ function Shell(props: {
         if (doc === null) return
         const reader = from === undefined ? undefined : findNode(doc, from)
         const step =
-          reader !== undefined && !isFile(reader) && !isInput(reader) ? reader : undefined
+          reader !== undefined && !isResource(reader) && !isInput(reader) ? reader : undefined
         wf.edit({
           type: 'addInput',
           id: INPUT_ID,
@@ -515,7 +533,16 @@ function Shell(props: {
   const duplicate = useCallback(
     (id: string): void => {
       const node = state.doc === null ? undefined : findNode(state.doc, id)
-      if (node === undefined || isFile(node)) return
+      if (node === undefined) return
+      if (isResource(node)) {
+        wf.edit({
+          type: 'addResource',
+          data: node.data,
+          position: { x: node.position.x + 32, y: node.position.y + 32 },
+          select: true,
+        })
+        return
+      }
       if (isInput(node)) {
         wf.edit({
           type: 'addInput',
@@ -556,7 +583,7 @@ function Shell(props: {
     [wf],
   )
 
-  /** 正在悬停的文件（画布、面板、交接卡片里都能悬停）：画布据此高亮用到它的步骤。 */
+  /** 正在悬停的资源（画布、面板、交接卡片里都能悬停）：画布据此高亮用到它的步骤。 */
   const [focusFile, setFocusFile] = useState<string | null>(null)
   const onFocusFile = useCallback((id: string | null): void => setFocusFile(id), [])
   // 换了选中，面板整块换掉：悬停着的那一行等不到 pointerleave，高亮跟着收掉。
@@ -819,6 +846,7 @@ function Shell(props: {
                     }}
                     onSaveTemplate={wf.saveTemplate}
                     onFocusFile={onFocusFile}
+                    host={host}
                   />
                 </div>
               )}
@@ -995,22 +1023,28 @@ function Shell(props: {
   )
 }
 
-/** 就地添加菜单从哪儿来：步骤的「＋」、文件卡拖出来的线，或空白处。 */
+/** 就地添加菜单从哪儿来：步骤的「＋」、资源卡拖出来的线，或空白处。 */
 function quickOrigin(
   doc: WorkflowDocument | null,
   from: string | undefined,
-): 'step' | 'file' | 'input' | 'none' {
+): 'step' | 'resource' | 'input' | 'none' {
   if (doc === null || from === undefined) return 'none'
   const node = findNode(doc, from)
   if (node === undefined) return 'none'
   if (isInput(node)) return 'input'
-  return isFile(node) ? 'file' : 'step'
+  return isResource(node) ? 'resource' : 'step'
 }
 
-/** 设置对话框里拼接预览用的示例：图里第一个产出文件，没有就用 `plan.md`。 */
+/** 设置对话框里拼接预览用的示例：图里第一个相对路径的文件，没有就用 `plan.md`。 */
 function sampleOutput(doc: WorkflowDocument): string {
-  const file = doc.nodes.find(isFile)
-  return file === undefined ? 'plan.md' : file.data.path
+  for (const node of doc.nodes) {
+    if (!isResource(node)) continue
+    const item = node.data.items.find(
+      (candidate) => candidate.kind === 'file' && !/^([A-Za-z]:)?[\\/]/u.test(candidate.value),
+    )
+    if (item !== undefined && item.value.trim() !== '') return item.value.trim()
+  }
+  return 'plan.md'
 }
 
 // ─────────────────────────────────────────────────────────────

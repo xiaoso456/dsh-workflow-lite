@@ -66,6 +66,10 @@
 
 .mark svg {
   opacity: 0;
+  transform: scale(0.6);
+  transition:
+    opacity 120ms linear,
+    transform 160ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
 }
 
 .mark:hover:not(:disabled) {
@@ -79,6 +83,7 @@
 
 .mark[aria-checked="true"] svg {
   opacity: 1;
+  transform: none;
 }
 
 .mark:disabled {
@@ -144,7 +149,17 @@
   height: 18px;
   border-radius: 999px;
   background: var(--wl-fill-strong);
-  transition: background-color 140ms linear;
+}
+
+/* 打开时的蓝底是叠上去的一层，用 opacity 淡入（不动背景色，只动合成层）。 */
+.switch::before {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--wl-accent);
+  content: "";
+  opacity: 0;
+  transition: opacity 140ms linear;
 }
 
 .knob {
@@ -159,8 +174,8 @@
   transition: transform 160ms var(--wl-ease);
 }
 
-.required[aria-checked="true"] .switch {
-  background: var(--wl-accent);
+.required[aria-checked="true"] .switch::before {
+  opacity: 1;
 }
 
 .required[aria-checked="true"] .knob {
@@ -232,7 +247,7 @@
 @media (prefers-reduced-motion: reduce) {
   .mark,
   .remove,
-  .switch,
+  .switch::before,
   .knob {
     transition: none;
   }
@@ -242,4 +257,10 @@
 .private .sub > input,
 .private .sub > textarea {
   background: var(--wl-panel);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mark svg {
+    transition: none;
+  }
 }

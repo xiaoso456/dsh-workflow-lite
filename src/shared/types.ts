@@ -15,8 +15,11 @@
 /** 步骤节点的类型标记。读到未知 `type` 按步骤渲染并报**警告**。 */
 export const NODE_TYPE = 'wfNode'
 
-/** 文件节点的类型标记：一份产出 / 输入文件，步骤写它（步骤 → 文件）、读它（文件 → 步骤）。 */
-export const FILE_TYPE = 'wfFile'
+/**
+ * 资源节点的类型标记：一组给步骤用的东西（文件、文件夹、网址、Skill、自定义）。
+ * 步骤写它（步骤 → 资源，写的是其中的文件与文件夹）、读它（资源 → 步骤）。
+ */
+export const RESOURCE_TYPE = 'wfResource'
 
 /** 输入节点的类型标记：执行前问用户的一个问题，连到用得着回答的步骤上（输入 → 步骤）。 */
 export const INPUT_TYPE = 'wfInput'
@@ -66,8 +69,8 @@ export interface Point {
   y: number
 }
 
-/** 图里的节点：步骤、文件，或输入。 */
-export type WorkflowNode = StepNode | FileNode | InputNode
+/** 图里的节点：步骤、资源，或输入。 */
+export type WorkflowNode = StepNode | ResourceNode | InputNode
 
 export interface StepNode {
   /** 身份，**创建后不可改**；同时是载荷文件名 ⇒ 受文件名约束。图内**大小写不敏感唯一**。 */
@@ -79,21 +82,44 @@ export interface StepNode {
 }
 
 /**
- * 文件节点：一份独立的文件，和执行结果不同，它不依赖某一次运行——几个步骤可以先后写它、读它。
+ * 资源节点：一组独立于某一次运行的东西，几个步骤可以先后写它、读它。一个资源里可以放好几项。
  * `id` 与步骤共用一个命名空间（图内大小写不敏感唯一），但不产生载荷文件。
+ * 一条线都没连的资源交给整个工作流（每个步骤都能用）。
  */
-export interface FileNode {
+export interface ResourceNode {
   id: string
-  type: typeof FILE_TYPE
+  type: typeof RESOURCE_TYPE
   position: Point
-  data: FileData
+  data: ResourceData
 }
 
-export interface FileData {
-  /** 文件路径：相对产出根目录（没配根目录就是相对工作区），禁止绝对路径与 `..`。 */
-  path: string
-  /** 这份文件该怎么写：格式、必须包含什么、给谁看。进计划。 */
-  rule?: string
+/**
+ * 资源里一项的种类：
+ * - `file` 文件、`folder` 文件夹：`value` 是路径。绝对路径原样用；相对路径在有步骤写这个资源时
+ *   放在产出根目录下，只被读时相对工作区（见 `shared/outputPaths.ts` 的 `resolveItemPath`）；
+ * - `url` 网址；`skill` DSH 能识别的 skill 名；`text` 自定义（一段原样交给执行者的提示词）。
+ */
+export const RESOURCE_KINDS = ['file', 'folder', 'url', 'skill', 'text'] as const
+export type ResourceKind = (typeof RESOURCE_KINDS)[number]
+
+/** 步骤能写的种类（其余的只能读）。 */
+export const WRITABLE_KINDS: readonly ResourceKind[] = ['file', 'folder']
+
+export interface ResourceItem {
+  kind: ResourceKind
+  /** 路径 / 网址 / skill 名 / 自定义的正文。空 = 编译级。 */
+  value: string
+  /** 这一项怎么用（写文件时是生成要求）。进计划；`text` 不用它。 */
+  note?: string
+}
+
+export interface ResourceData {
+  /** 名字：卡片标题，也是计划里称呼它的方式。缺省回落成内容摘要。**不得含换行或 `|`**。 */
+  label?: string
+  /** 一句话描述（给人看：卡片上显示）。**不进计划**。 */
+  description?: string
+  /** 内容，按添加顺序。 */
+  items: ResourceItem[]
 }
 
 /**
@@ -144,8 +170,8 @@ export interface NodeData {
   /** 提示词正文，逐字交给执行者。**缺失或为空串 = 编译级**（允许落盘、阻塞编译）。 */
   prompt?: string
   /**
-   * 产出契约——**只在步骤模板里用**（模板放到画布上时展开成文件节点）；
-   * 图里的产出是文件节点，老图里步骤上的 `output` 读入时自动迁成文件节点。
+   * 产出契约——**只在步骤模板里用**（模板放到画布上时展开成资源节点，每个产出一个文件项）；
+   * 图里的产出是资源节点。
    * - 字符串 = 一个产出文件；数组 = 一个或多个，每个可带生成规则；`false` = 不产出文件。
    */
   output?: string | false | OutputSpec[]
@@ -179,11 +205,11 @@ export interface EdgeData {
    * - 缺省 = 交：把上游回复里的结论与要点交给下游；
    * - 对象 = 交，并附一段交接说明（下游拿到之后怎么用）；
    * - `false` = 只管先后，什么都不交。
-   * 文件不走这里——文件是独立的节点，谁写谁读看连到它的线。
+   * 资源不走这里——资源是独立的节点，谁写谁读看连到它的线。
    */
   handoff?: Handoff | false
   /**
-   * 写入方式（只用在步骤 → 文件的线上）：缺省 = 产出（整份写出 / 覆盖）；
+   * 写入方式（只用在步骤 → 资源的线上）：缺省 = 产出（整份写出 / 覆盖）；
    * `true` = 在原文件上更新（先读再改，比如修完在问题清单里打钩）。
    */
   update?: true
@@ -282,7 +308,8 @@ export type ValidationCode =
   | 'workflow_dir_collision'
   | 'settings_invalid'
   | 'handoff_invalid'
-  | 'file_edge_invalid'
+  | 'resource_edge_invalid'
+  | 'resource_invalid'
   | 'input_invalid'
   // 编译级
   | 'prompt_empty'
@@ -291,12 +318,15 @@ export type ValidationCode =
   | 'input_question_empty'
   | 'input_options_empty'
   | 'input_missing'
+  | 'resource_empty'
+  | 'resource_item_empty'
+  | 'resource_unwritable'
   // 警告
   | 'loop_without_exit'
   | 'mixed_conditional_edges'
   | 'duplicate_edge'
   | 'shared_output'
-  | 'file_overwritten'
+  | 'resource_overwritten'
   | 'input_default_invalid'
   | 'unknown_node_type'
   | 'unknown_fields_dropped'
@@ -304,8 +334,7 @@ export type ValidationCode =
   | 'branch_not_exhaustive'
   | 'freeform_when'
   | 'multi_back_edges'
-  | 'file_unwritten'
-  | 'file_order'
+  | 'resource_order'
   | 'stray_entry'
   | 'position_filled'
   | 'legacy_structure'
@@ -341,7 +370,7 @@ export const ACTIONS = [
   'delete_workflow',
   'save_as_template',
   'configure',
-  'write_file',
+  'write_resource',
   'runs',
   'resume',
   'state',
@@ -417,10 +446,10 @@ export interface NodeIndexEntry {
   label?: string
   /** 前置步骤（含回边）的 `id`，按 `id` 码位序。 */
   predecessors: string[]
-  /** 它读的文件（路径）。 */
+  /** 它读的资源（资源 id）。 */
   reads?: string[]
-  /** 它写的文件（路径；`update` = 在原文件上更新）。 */
-  writes?: { path: string; update?: true }[]
+  /** 它写的资源（资源 id；`update` = 在原文件上更新）。 */
+  writes?: { id: string; update?: true }[]
   /** 交给它的用户输入（输入节点 id）。 */
   inputs?: string[]
 }
@@ -437,14 +466,14 @@ export interface InputIndexEntry {
   readers: string[]
 }
 
-/** 索引里的一个文件节点。 */
-export interface FileIndexEntry {
+/** 索引里的一个资源节点（不含描述——那是给人看的）。 */
+export interface ResourceIndexEntry {
   id: string
-  path: string
-  rule?: string
+  label?: string
+  items: ResourceItem[]
   /** 写它的步骤 id（`update` = 在原文件上更新）。 */
   writers: { id: string; update?: true }[]
-  /** 读它的步骤 id。 */
+  /** 读它的步骤 id；写读都没有 = 交给整个工作流。 */
   readers: string[]
 }
 
@@ -454,8 +483,8 @@ export interface ReadIndexResult {
   /** 工作流设置（有才给）。 */
   settings?: WorkflowSettings
   nodes: NodeIndexEntry[]
-  /** 文件节点（有才给）。 */
-  files?: FileIndexEntry[]
+  /** 资源节点（有才给）。 */
+  resources?: ResourceIndexEntry[]
   /** 输入节点（有才给），按画布上从上到下的顺序。 */
   inputs?: InputIndexEntry[]
   warnings: ToolWarning[]
@@ -498,7 +527,7 @@ export type ToolSuccess =
   | { action: 'delete_workflow'; result: WriteResult }
   | { action: 'save_as_template'; result: WriteResult }
   | { action: 'configure'; result: WriteResult }
-  | { action: 'write_file'; result: WriteResult }
+  | { action: 'write_resource'; result: WriteResult }
   | { action: 'runs'; result: unknown }
   | { action: 'resume'; result: unknown }
 

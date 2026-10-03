@@ -462,17 +462,17 @@ describe('writeNode / setLabel / deleteNode', () => {
     const node = graph?.nodes[0]
     expect(node?.id).toBe('rev')
     expect(node?.position).toEqual({ x: 0, y: 0 })
-    // 模板里的产出展开成文件节点 + 写入线，步骤自己的 data 里不留 output。
+    // 模板里的产出展开成资源节点（一个文件项）+ 写入线，步骤自己的 data 里不留 output。
     expect(node?.data).toEqual({ label: '审查', prompt: 'R', icon: 'idea', color: 'blue' })
     expect(graph?.nodes[1]).toMatchObject({
-      id: 'file-r.md',
-      type: 'wfFile',
-      data: { path: 'r.md' },
+      id: 'res-r',
+      type: 'wfResource',
+      data: { items: [{ kind: 'file', value: 'r.md' }] },
     })
-    expect(graph?.edges.map((edge) => edge.id)).toEqual(['rev->file-r.md'])
+    expect(graph?.edges.map((edge) => edge.id)).toEqual(['rev->res-r'])
   })
 
-  it('outputs 建好文件节点并连上；再写一遍只留清单里的；no_output 断开并删掉没人连的文件节点', async () => {
+  it('outputs 建好资源节点并连上；再写一遍只留清单里的；no_output 断开并删掉没人连的资源', async () => {
     expectOk(await repo.create('w'))
     expectOk(
       await repo.writeNode('w', {
@@ -482,32 +482,58 @@ describe('writeNode / setLabel / deleteNode', () => {
       }),
     )
     let graph = await readGraph('w')
-    expect(graph?.nodes.map((node) => node.id)).toEqual(['a', 'file-x.md', 'file-y.md'])
-    expect(graph?.nodes[1]?.data).toEqual({ path: 'x.md', rule: 'r' })
+    expect(graph?.nodes.map((node) => node.id)).toEqual(['a', 'res-x', 'res-y'])
+    expect(graph?.nodes[1]?.data).toEqual({ items: [{ kind: 'file', value: 'x.md', note: 'r' }] })
     expectOk(await repo.writeNode('w', { id: 'b', content: 'Q', output: 'x.md' }))
     graph = await readGraph('w')
     // 别人已经在写 x.md：接着写默认是在原文件上更新。
-    expect(graph?.edges.find((edge) => edge.id === 'b->file-x.md')?.data).toEqual({ update: true })
+    expect(graph?.edges.find((edge) => edge.id === 'b->res-x')?.data).toEqual({ update: true })
     expectOk(await repo.writeNode('w', { id: 'a', noOutput: true }))
     graph = await readGraph('w')
-    expect(graph?.nodes.map((node) => node.id)).toEqual(['a', 'file-x.md', 'b'])
-    expect(graph?.edges.map((edge) => edge.id)).toEqual(['b->file-x.md'])
+    expect(graph?.nodes.map((node) => node.id)).toEqual(['a', 'res-x', 'b'])
+    expect(graph?.edges.map((edge) => edge.id)).toEqual(['b->res-x'])
   })
 
-  it('writeFile 新建 / 改路径与规则；connect 连读写线，update 只用在步骤 → 文件', async () => {
+  it('writeResource 新建 / 改名字与内容；setLabel 也能改资源名；connect 连读写线，update 只用在步骤 → 资源', async () => {
     expectOk(await repo.create('w'))
     expectOk(await repo.writeNode('w', { id: 'a', content: 'P' }))
-    expectOk(await repo.writeFile('w', { path: 'notes.md', rule: '要点' }))
-    expectOk(await repo.writeFile('w', { id: 'file-notes.md', path: 'docs/notes.md', rule: '' }))
-    expectOk(await repo.connect('w', 'a', 'file-notes.md', undefined, undefined, true))
-    const graph = await readGraph('w')
-    expect(graph?.nodes[1]?.data).toEqual({ path: 'docs/notes.md' })
-    expect(graph?.edges[0]?.data).toEqual({ update: true })
-    expect(expectError(await repo.connect('w', 'file-notes.md', 'a', 'fail')).code).toBe(
-      'invalid_args',
+    const made = expectOk(
+      await repo.writeResource('w', {
+        label: '笔记',
+        items: [{ kind: 'file', value: 'notes.md', note: '要点' }],
+      }),
     )
-    expect(expectError(await repo.writeFile('w', { id: 'a', rule: 'x' })).code).toBe('blocked')
-    expect(expectError(await repo.writeFile('w', { path: '../x.md' })).code).toBe('blocked')
+    expect(made.changed).toEqual([{ kind: 'node', op: 'add', id: 'res-笔记' }])
+    expectOk(
+      await repo.writeResource('w', {
+        id: 'res-笔记',
+        label: '',
+        items: [
+          { kind: 'file', value: 'docs/notes.md' },
+          { kind: 'skill', value: 'pdf' },
+        ],
+      }),
+    )
+    expectOk(await repo.setLabel('w', 'res-笔记', '资料'))
+    expectOk(await repo.connect('w', 'a', 'res-笔记', undefined, undefined, true))
+    const graph = await readGraph('w')
+    expect(graph?.nodes[1]?.data).toEqual({
+      label: '资料',
+      items: [
+        { kind: 'file', value: 'docs/notes.md' },
+        { kind: 'skill', value: 'pdf' },
+      ],
+    })
+    expect(graph?.edges[0]?.data).toEqual({ update: true })
+    expect(expectError(await repo.connect('w', 'res-笔记', 'a', 'fail')).code).toBe('invalid_args')
+    expect(expectError(await repo.writeResource('w', { id: 'a', label: 'x' })).code).toBe('blocked')
+    expect(
+      expectError(await repo.writeResource('w', { items: [{ kind: 'skill', value: 'No Way' }] }))
+        .code,
+    ).toBe('blocked')
+    expect(expectError(await repo.writeNode('w', { id: 'res-笔记', content: 'x' })).code).toBe(
+      'blocked',
+    )
   })
 
   it('图不存在 ⇒ not_found；节点 id 非法 ⇒ blocked；模板不存在 ⇒ not_found', async () => {

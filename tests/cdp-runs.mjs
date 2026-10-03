@@ -57,7 +57,12 @@ const DOC = {
     node('review', '审查'),
     node('fix', '修复'),
     node('report', '汇总'),
-    { id: 'file-notes.md', type: 'wfFile', position: { x: 0, y: 0 }, data: { path: 'notes.md' } },
+    {
+      id: 'file-notes.md',
+      type: 'wfResource',
+      position: { x: 0, y: 0 },
+      data: { items: [{ kind: 'file', value: 'notes.md' }] },
+    },
   ],
   edges: [
     edge('scan', 'review'),

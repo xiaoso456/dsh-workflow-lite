@@ -13,7 +13,6 @@
  * @module @xiaoso/dsh-workflow-lite/shared/validate
  */
 
-import { edgeKind, fileGraph, flowEdges, nodeIndex } from './files.ts'
 import {
   analyzeGraph,
   byId,
@@ -23,19 +22,37 @@ import {
   type GraphAnalysis,
 } from './graph.ts'
 import { inputKind, isChoiceKind, normalizeAnswer } from './inputs.ts'
-import { MAX_OPTIONS, WELL_KNOWN_WHEN } from './limits.ts'
-import { idKey, isFile, isInput, isStep, outputSpecs } from './model.ts'
+import {
+  CONTROL_CHARS,
+  MAX_OPTIONS,
+  MAX_RESOURCE_ITEMS,
+  MAX_RESOURCE_TEXT_CODEPOINTS,
+  MAX_VALUE_CODEPOINTS,
+  WELL_KNOWN_WHEN,
+} from './limits.ts'
+import { idKey, isInput, isResource, isStep, outputSpecs } from './model.ts'
 import {
   checkLabel,
   checkName,
   checkOutput,
   checkText,
   checkWhen,
+  codepointLength,
   isVerdictWhen,
 } from './naming.ts'
 import { checkOutputRoot, outputKey } from './outputPaths.ts'
+import {
+  edgeKind,
+  flowEdges,
+  isWritable,
+  nodeIndex,
+  resourceGraph,
+  resourceTitle,
+} from './resources.ts'
 import type {
   InputData,
+  ResourceData,
+  ResourceItem,
   ValidationCode,
   ValidationLevel,
   ValidationProblem,
@@ -161,13 +178,13 @@ export function validateDocument(
       }
       continue
     }
-    if (isFile(node)) {
-      const problem =
-        checkOutput(node.data.path) ??
-        (node.data.rule === undefined ? null : checkText(node.data.rule, '生成规则'))
+    if (isResource(node)) {
+      const problem = resourceProblem(node.data)
       if (problem !== null) {
         save.push(
-          mk('save', problem.code, `文件 ${node.id} 不合法：${problem.message}`, { node: node.id }),
+          mk('save', 'resource_invalid', `资源 ${node.id} 不合法：${problem.message}`, {
+            node: node.id,
+          }),
         )
       }
       continue
@@ -229,18 +246,20 @@ export function validateDocument(
     ) {
       save.push(mk('save', 'handoff_invalid', `边 ${edge.id} 的交接说明太长`, { edge: edge.id }))
     }
-    // 线的种类由两端决定：条件与交接只属于步骤间的线，写入方式只属于步骤 → 文件。
+    // 线的种类由两端决定：条件与交接只属于步骤间的线，写入方式只属于步骤 → 资源。
     const kind = edgeKind(nodes, edge)
     const misplaced =
       kind === 'invalid'
         ? invalidReason(nodes.get(idKey(edge.source)), nodes.get(idKey(edge.target)))
         : kind !== 'flow' && (edge.data?.when !== undefined || handoff !== undefined)
-          ? '连着文件或输入的线不能带条件或交接'
+          ? '连着资源或输入的线不能带条件或交接'
           : kind !== 'write' && edge.data?.update === true
-            ? '只有「步骤 → 文件」的线才有写入方式'
+            ? '只有「步骤 → 资源」的线才有写入方式'
             : null
     if (misplaced !== null) {
-      save.push(mk('save', 'file_edge_invalid', `边 ${edge.id}：${misplaced}`, { edge: edge.id }))
+      save.push(
+        mk('save', 'resource_edge_invalid', `边 ${edge.id}：${misplaced}`, { edge: edge.id }),
+      )
     }
   }
   for (const [id, count] of seenEdgeIds) {
@@ -300,6 +319,37 @@ export function validateDocument(
     }
   }
 
+  const resources = resourceGraph(document)
+  for (const info of resources.values()) {
+    const { resource } = info
+    if (resource.data.items.length === 0) {
+      compile.push(
+        mk('compile', 'resource_empty', `资源 ${resource.id} 还是空的——添加文件、网址等内容`, {
+          node: resource.id,
+        }),
+      )
+      continue
+    }
+    const blank = resource.data.items.findIndex((item) => item.value.trim() === '')
+    if (blank >= 0) {
+      compile.push(
+        mk('compile', 'resource_item_empty', `资源 ${resource.id} 的第 ${blank + 1} 项还没填`, {
+          node: resource.id,
+        }),
+      )
+    }
+    if (info.writers.length > 0 && !resource.data.items.some(isWritable)) {
+      compile.push(
+        mk(
+          'compile',
+          'resource_unwritable',
+          `${info.writers.map((writer) => writer.id).join(' / ')} 写资源 ${resource.id}，但它里面没有文件或文件夹——网址、Skill、自定义只能读`,
+          { node: resource.id },
+        ),
+      )
+    }
+  }
+
   // ── 警告 ────────────────────────────────────────────────────
   for (const node of document.nodes) {
     if (!isInput(node) || node.data.default === undefined) continue
@@ -354,12 +404,16 @@ export function validateDocument(
       ),
     )
   }
-  // 两个文件节点指向同一个路径：它们其实是同一份文件，应该合成一个。
+  // 两个被写的资源里放着同一个路径：它们其实是同一份东西，应该放进一个资源。
   const pathOwners = new Map<string, string[]>()
-  for (const node of document.nodes) {
-    if (!isFile(node)) continue
-    const key = outputKey(node.data.path)
-    pathOwners.set(key, [...(pathOwners.get(key) ?? []), node.id])
+  for (const info of resources.values()) {
+    if (info.writers.length === 0) continue
+    const keys = new Set(
+      info.resource.data.items
+        .filter((item) => isWritable(item) && item.value.trim() !== '')
+        .map((item) => outputKey(item.value)),
+    )
+    for (const key of keys) pathOwners.set(key, [...(pathOwners.get(key) ?? []), info.resource.id])
   }
   for (const [path, owners] of pathOwners) {
     if (owners.length < 2) continue
@@ -367,22 +421,21 @@ export function validateDocument(
       mk(
         'warning',
         'shared_output',
-        `文件 ${[...owners].sort(byId).join(' / ')} 指向同一个路径 ${path}——它们是同一份文件，合成一个文件节点再让各步骤连过来`,
+        `资源 ${[...owners].sort(byId).join(' / ')} 都写 ${path}——它们是同一份东西，放进一个资源再让各步骤连过来`,
         { node: owners[0] },
       ),
     )
   }
-  const files = fileGraph(document)
-  for (const info of files.values()) {
+  for (const info of resources.values()) {
     // 不止一个步骤整份写它：后写的会把先写的覆盖掉。
     const producers = info.writers.filter((writer) => !writer.update).map((writer) => writer.id)
     if (producers.length > 1) {
       warning.push(
         mk(
           'warning',
-          'file_overwritten',
-          `${[...producers].sort(byId).join(' / ')} 都整份写入 ${info.file.data.path}——后写的会覆盖先写的；要接着写请把后面的改成「更新」`,
-          { node: info.file.id },
+          'resource_overwritten',
+          `${[...producers].sort(byId).join(' / ')} 都整份写入资源 ${resourceTitle(info.resource)}——后写的会覆盖先写的；要接着写请把后面的改成「更新」`,
+          { node: info.resource.id },
         ),
       )
     }
@@ -401,23 +454,10 @@ export function validateDocument(
       )
     }
   }
-  for (const info of files.values()) {
-    const { file } = info
-    if (info.writers.length === 0 && info.readers.length === 0) {
-      hint.push(
-        mk('hint', 'stray_entry', `文件 ${file.data.path} 没有连任何步骤`, { node: file.id }),
-      )
-      continue
-    }
-    if (info.writers.length === 0) {
-      hint.push(
-        mk('hint', 'file_unwritten', `没有步骤写入 ${file.data.path}——如果它是现成的文件可以忽略`, {
-          node: file.id,
-        }),
-      )
-      continue
-    }
-    // 读它的步骤不在任何一个写它的步骤下游：执行到它时，这份文件可能还没写出来。
+  for (const info of resources.values()) {
+    if (info.writers.length === 0) continue
+    const title = resourceTitle(info.resource)
+    // 读它的步骤不在任何一个写它的步骤下游：执行到它时，这份东西可能还没写出来。
     for (const reader of info.readers) {
       if (info.writers.some((writer) => writer.id === reader)) continue
       const reached = info.writers.some((writer) => reaches(analysis, writer.id, reader))
@@ -425,8 +465,8 @@ export function validateDocument(
       hint.push(
         mk(
           'hint',
-          'file_order',
-          `${reader} 读取 ${file.data.path}，但写它的步骤不在 ${reader} 的上游——执行到 ${reader} 时它可能还没写出来`,
+          'resource_order',
+          `${reader} 读取资源 ${title}，但写它的步骤不在 ${reader} 的上游——执行到 ${reader} 时它可能还没写出来`,
           { node: reader },
         ),
       )
@@ -516,11 +556,56 @@ function inputProblem(data: InputData): { message: string } | null {
   return null
 }
 
+/** skill 名的写法（DSH 的 kebab-case 约定）。 */
+const SKILL_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u
+
+/** 资源里一项的写法与长度（保存级）。属性面板的编辑框也拿它当场提示。 */
+export function itemProblem(item: ResourceItem): { message: string } | null {
+  if (item.kind === 'text') {
+    return codepointLength(item.value) > MAX_RESOURCE_TEXT_CODEPOINTS
+      ? { message: `自定义内容不能超过 ${MAX_RESOURCE_TEXT_CODEPOINTS} 个字` }
+      : null
+  }
+  const value = item.value.trim()
+  if (CONTROL_CHARS.test(value)) return { message: '不能包含换行或控制字符' }
+  if (codepointLength(value) > MAX_VALUE_CODEPOINTS) {
+    return { message: `不能超过 ${MAX_VALUE_CODEPOINTS} 个字` }
+  }
+  if (item.kind === 'skill' && value !== '' && !SKILL_NAME.test(value)) {
+    return { message: `skill 名 ${value} 不合法（小写字母、数字与 -）` }
+  }
+  if ((item.kind === 'file' || item.kind === 'folder') && /^~([\\/]|$)/u.test(value)) {
+    return { message: '不支持 ~（不会被展开），请写完整路径' }
+  }
+  if (item.note !== undefined) return checkText(item.note, '说明')
+  return null
+}
+
+/** 资源节点的字段规则（保存级）：名字、描述、每一项的写法与长度、项数。 */
+export function resourceProblem(data: ResourceData): { message: string } | null {
+  if (data.label !== undefined) {
+    const problem = checkLabel(data.label)
+    if (problem !== null) return { message: `名字：${problem.message}` }
+  }
+  if (data.description !== undefined) {
+    const problem = checkText(data.description, '描述')
+    if (problem !== null) return problem
+  }
+  if (data.items.length > MAX_RESOURCE_ITEMS) {
+    return { message: `一个资源最多放 ${MAX_RESOURCE_ITEMS} 项` }
+  }
+  for (const [index, item] of data.items.entries()) {
+    const problem = itemProblem(item)
+    if (problem !== null) return { message: `第 ${index + 1} 项：${problem.message}` }
+  }
+  return null
+}
+
 /** 两端都在、但种类不成立的线错在哪。 */
 function invalidReason(source: WorkflowNode | undefined, target: WorkflowNode | undefined): string {
   if (target !== undefined && isInput(target)) return '不能连进输入节点——输入只往外连到步骤'
   if (source !== undefined && isInput(source)) return '输入节点只能连到步骤'
-  return '文件不能直接连到文件'
+  return '资源不能直接连到资源'
 }
 
 /** 从步骤 `from` 沿步骤间的线（含回边）能不能走到 `to`。 */

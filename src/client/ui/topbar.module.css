@@ -336,7 +336,6 @@
   align-items: center;
   height: 32px;
   border-radius: var(--wl-r-control);
-  transition: background-color 120ms ease;
 }
 
 .run:hover,

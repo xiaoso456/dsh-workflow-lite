@@ -8,8 +8,8 @@ import { useCallback, useEffect, useState } from 'react'
 import type { RunFileResponse } from '../../shared/wire.ts'
 import { errorMessage, type WorkflowLiteRpc } from '../rpc.ts'
 
-/** 要看哪份：快照里的文件节点，或实例工作区里的相对路径。 */
-export type FileTarget = { node: string } | { path: string }
+/** 要看哪份：快照里某个资源的第几项，或实例工作区里的相对路径。 */
+export type FileTarget = { node: string; item: number } | { path: string }
 
 export interface RunFile {
   file: RunFileResponse | null
@@ -31,7 +31,8 @@ export function useRunFile(
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [tick, setTick] = useState(0)
-  const key = target === null ? '' : 'node' in target ? `n:${target.node}` : `p:${target.path}`
+  const key =
+    target === null ? '' : 'node' in target ? `n:${target.node}#${target.item}` : `p:${target.path}`
 
   // `key` 就是 target 的身份；`version` / `tick` 只是重读的信号。
   useEffect(() => {

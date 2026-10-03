@@ -56,11 +56,21 @@ export function isAbsoluteRoot(root: string): boolean {
 
 /**
  * 一个产出文件最终写到哪：`根目录 + 产出路径`，规范化。没配根目录就是规范化后的产出路径本身
- * （相对工作区）。产出路径自己永远是相对路径（保存时就拦掉了绝对路径与 `..`）。
+ * （相对工作区）。产出路径本身是绝对路径时原样用（规范化），不拼根目录。
  */
 export function resolveOutputPath(root: string | undefined, path: string): string {
+  const value = path.trim()
+  if (isAbsoluteRoot(value) || /^[A-Za-z]:[/]/u.test(value)) return normalize(value)
   const base = normalizeRoot(root)
-  return base === undefined ? normalize(path.trim()) : join(base, path.trim())
+  return base === undefined ? normalize(value) : join(base, value)
+}
+
+/**
+ * 资源里一个文件 / 文件夹实际在哪：绝对路径原样用；相对路径在有步骤写这个资源时放在产出根目录下
+ * （它是这次执行的产出），只被读时相对工作区（它是现成的东西）。
+ */
+export function resolveItemPath(root: string | undefined, path: string, written: boolean): string {
+  return resolveOutputPath(written ? root : undefined, path)
 }
 
 /**

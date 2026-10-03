@@ -48,6 +48,15 @@ export const MAX_ROOT_CODEPOINTS = 1024
 /** `label` 长度上限（码点）——只防病态输入，不参与任何判定。 */
 export const MAX_LABEL_CODEPOINTS = 200
 
+/** 一个资源最多放几项。 */
+export const MAX_RESOURCE_ITEMS = 50
+
+/** 资源里一条路径 / 网址的长度上限（码点）。 */
+export const MAX_VALUE_CODEPOINTS = 2048
+
+/** 资源里一段自定义提示词的长度上限（码点）——它本身就是一段提示词，给得宽一些。 */
+export const MAX_RESOURCE_TEXT_CODEPOINTS = 20000
+
 /** 一个选择题最多几个选项（再多就不是执行前顺手点一下的事了）。 */
 export const MAX_OPTIONS = 30
 

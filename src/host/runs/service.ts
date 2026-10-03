@@ -13,8 +13,8 @@ import { dirname, isAbsolute, join } from 'node:path'
 import { Document, isSeq, parseDocument } from 'yaml'
 import { planIdOf } from '../../shared/compile.ts'
 import { checkAnswers, sameAnswers } from '../../shared/inputs.ts'
-import { isFile, isStep, readDocument, writeDocument } from '../../shared/model.ts'
-import { bindRoot, resolveOutputPath, rootOf, WORKSPACE_ROOT } from '../../shared/outputPaths.ts'
+import { isResource, isStep, readDocument, writeDocument } from '../../shared/model.ts'
+import { bindRoot, rootOf, WORKSPACE_ROOT } from '../../shared/outputPaths.ts'
 import {
   type EditValue,
   editablePath,
@@ -54,7 +54,7 @@ import {
   writeFileAtomic,
 } from '../store/atomic.ts'
 import type { Outcome } from '../store/repository.ts'
-import { type RunFileTarget, readRunFile, resolveRunFile } from './files.ts'
+import { itemLocation, type RunFileTarget, readRunFile, resolveRunFile } from './files.ts'
 import {
   answersFile,
   ensureWorkspaceIgnore,
@@ -699,18 +699,25 @@ export class RunService {
     const document = await this.snapshot(record)
     if (document === null) return fail('not_found', `实例 ${id} 的图快照不见了`)
     const read = await this.readState(record, document)
-    const files: Record<string, boolean> = {}
-    const root = document.settings?.outputRoot
+    const files: Record<string, (boolean | null)[]> = {}
     await Promise.all(
-      document.nodes.filter(isFile).map(async (node) => {
-        const relative = resolveOutputPath(root, node.data.path)
-        const full =
-          isAbsolute(relative) || record.cwd === undefined ? relative : join(record.cwd, relative)
-        try {
-          files[node.id] = (await stat(full)).isFile()
-        } catch {
-          files[node.id] = false
-        }
+      document.nodes.filter(isResource).map(async (node) => {
+        files[node.id] = await Promise.all(
+          node.data.items.map(async (item, index) => {
+            const location = itemLocation(document, node.id, index)
+            if (location === null) return null
+            const full =
+              isAbsolute(location) || record.cwd === undefined
+                ? location
+                : join(record.cwd, location)
+            try {
+              const info = await stat(full)
+              return item.kind === 'folder' ? info.isDirectory() : info.isFile()
+            } catch {
+              return false
+            }
+          }),
+        )
       }),
     )
     return {

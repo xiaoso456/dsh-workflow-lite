@@ -43,21 +43,25 @@ import {
   useState,
 } from 'react'
 import type { Appearance } from '../../shared/appearance.ts'
-import {
-  edgeKind,
-  type FileRole,
-  fileGraph,
-  nodeIndex,
-  resolveHandoff,
-  roleOf,
-} from '../../shared/files.ts'
 import type { GraphAnalysis } from '../../shared/graph.ts'
 import { inputKind } from '../../shared/inputs.ts'
-import { idKey, isFile, isInput } from '../../shared/model.ts'
+import { idKey, isInput, isResource } from '../../shared/model.ts'
+import {
+  edgeKind,
+  isShared,
+  nodeIndex,
+  outputResource,
+  type ResourceRole,
+  resolveHandoff,
+  resourceGraph,
+  resourceTitle,
+  roleOf,
+} from '../../shared/resources.ts'
 import type { NodeStatus } from '../../shared/runState.ts'
 import type {
   InputKind,
   Point,
+  ResourceKind,
   ValidationProblem,
   WorkflowDocument,
   WorkflowNode,
@@ -73,7 +77,16 @@ import {
   previewLink,
 } from '../model/connect.ts'
 import { type Edit, type Selection, whenOf } from '../model/editor.ts'
-import { cardSize, FILE_H, FILE_W, NODE_H, NODE_W, nextTo } from '../model/layout.ts'
+import {
+  cardSize,
+  isCompactResource,
+  NODE_H,
+  NODE_W,
+  nextTo,
+  RES_H,
+  RES_SHOWN,
+  RES_W,
+} from '../model/layout.ts'
 import { DND_MIME, decodeStepSource, type StepSource } from '../model/library.ts'
 import {
   bezierBlocked,
@@ -97,13 +110,13 @@ import {
   writePoints,
 } from '../model/route.ts'
 import css from './canvas.module.css'
-import { baseName, freeFilePath } from './Files.tsx'
 import { FlowStreaks } from './FlowStreaks.tsx'
 import type { FocusFile } from './Handoff.tsx'
 import hand from './handoff.module.css'
 import { Icon, type IconName } from './Icon.tsx'
 import { ACCESS_COLOR, type Access, WHEN_COLOR, type WhenKind, whenKind } from './lines.ts'
 import { cx, useFloat } from './primitives.tsx'
+import { freeFilePath, itemText, KIND_ICON, KIND_LABEL } from './resourceUi.ts'
 import { lookOf, StepMark } from './StepMark.tsx'
 import ui from './ui.module.css'
 
@@ -111,7 +124,7 @@ import ui from './ui.module.css'
 export interface AddRequest {
   client: Point
   flow: Point
-  /** 顺手从这个节点连过来（步骤 = 接一步；文件 = 新步骤读它）。 */
+  /** 顺手从这个节点连过来（步骤 = 接一步；资源 = 新步骤读它）。 */
   from?: string
 }
 
@@ -130,7 +143,7 @@ export interface CanvasProps {
   onRequestAdd(request: AddRequest): void
   onDropSource(source: StepSource, flow: Point): void
   onStarter(): void
-  /** 正在悬停的文件卡 id：用到它的步骤标出角色，其余的淡下去。 */
+  /** 正在悬停的资源卡 id：用到它的步骤标出角色，其余的淡下去。 */
   focusFile: string | null
   onFocusFile: FocusFile
   /**
@@ -146,8 +159,8 @@ export interface RunDecor {
   nodes: Readonly<Record<string, { status: NodeStatus; round: number; edited: boolean }>>
   /** 走过的线。 */
   taken: ReadonlySet<string>
-  /** 文件节点对应的文件在不在。 */
-  files: Readonly<Record<string, boolean>>
+  /** 资源里每个文件、文件夹在不在（资源 id → 按项；不是路径的项为 `null`）。 */
+  files: Readonly<Record<string, readonly (boolean | null)[]>>
   /** 点卡片上的状态小标：在它旁边弹出改状态的菜单。 */
   onStatus(id: string, anchor: Element): void
 }
@@ -174,8 +187,8 @@ interface StepData extends Record<string, unknown> {
   noPromptText: string
   addText: string
   fileText: string
-  /** 悬停某个文件时，这个步骤与它的关系；`dim` = 与它无关，淡下去。 */
-  role: FileRole | null
+  /** 悬停某个资源时，这个步骤与它的关系；`dim` = 与它无关，淡下去。 */
+  role: ResourceRole | null
   roleText: string
   dim: boolean
   onAdd: (id: string, anchor: Element) => void
@@ -184,13 +197,32 @@ interface StepData extends Record<string, unknown> {
   onRunStatus: (id: string, anchor: Element) => void
 }
 
-interface FileCardData extends Record<string, unknown> {
-  name: string
-  /** 挂着线的连接点（备用的那几个点只有挂上线才显示）。 */
-  used: readonly string[]
-  path: string
-  rule: string
-  noRuleText: string
+/** 资源卡上的一项（展开时一行一项）。 */
+interface CardItem {
+  kind: ResourceKind
+  text: string
+  /** 实例视图：这个文件 / 文件夹在不在（模板编辑、不是路径时为 `null`）。 */
+  made: boolean | null
+}
+
+interface ResourceCardData extends Record<string, unknown> {
+  /** 紧凑的一行（没名字、没描述、最多一项），像一张文件卡；否则是带标题的清单。 */
+  compact: boolean
+  title: string
+  /** 紧凑时的第二行：说明，没有就是完整的路径 / 网址 / 种类。 */
+  sub: string
+  description: string
+  items: CardItem[]
+  /** 列不下的还有几项。 */
+  more: number
+  moreText: string
+  countText: string
+  emptyText: string
+  /** 紧凑时左边的签：文件印扩展名，其余放种类图标；空资源是一叠。 */
+  tab: { kind: ResourceKind | 'many'; ext: string }
+  /** 一条线都没连：交给整个工作流。 */
+  shared: boolean
+  sharedText: string
   tone: Tone
   note: string
   /** 正在被悬停（或它的上下游正在被看）。 */
@@ -198,8 +230,6 @@ interface FileCardData extends Record<string, unknown> {
   dim: boolean
   readText: string
   onFocusFile: FocusFile
-  /** 实例视图：这份文件已经生成了没有（模板编辑时为 `null`）。 */
-  generated: boolean | null
   generatedText: string
 }
 
@@ -224,6 +254,8 @@ interface LinkData extends Record<string, unknown> {
 
 interface FileLinkData extends Record<string, unknown> {
   kind: 'write' | 'read'
+  /** 资源卡的高度（写线绕行时要避开它）。 */
+  cardH: number
   access: Access
   /** 线、箭头、光带的颜色（一个 `var(--wl-io-…)`）。 */
   color: string
@@ -243,19 +275,19 @@ interface InputCardData extends Record<string, unknown> {
   note: string
   emptyText: string
   connectText: string
-  /** 悬停某个文件时它跟着淡下去（它不是文件的读写方）。 */
+  /** 悬停某个资源时它跟着淡下去（它不是资源的读写方）。 */
   dim: boolean
 }
 
 type StepFlowNode = Node<StepData, 'wfNode'>
-type FileFlowNode = Node<FileCardData, 'wfFile'>
+type ResourceFlowNode = Node<ResourceCardData, 'wfResource'>
 type InputFlowNode = Node<InputCardData, 'wfInput'>
-type FlowNode = StepFlowNode | FileFlowNode | InputFlowNode
+type FlowNode = StepFlowNode | ResourceFlowNode | InputFlowNode
 type LinkEdge = Edge<LinkData, 'wfEdge'>
 type FileEdge = Edge<FileLinkData, 'wfFileLink'>
 type FlowEdge = LinkEdge | FileEdge
 
-const ROLE_TEXT: Record<FileRole, LocaleKey> = {
+const ROLE_TEXT: Record<ResourceRole, LocaleKey> = {
   producer: 'role.producer',
   updater: 'role.updater',
   reader: 'role.reader',
@@ -280,7 +312,7 @@ const INPUT_ICON = {
 
 /** React Flow 节点类型 → 拖线起点的卡种。 */
 function cardKindOf(type: string | undefined): CardKind {
-  return type === 'wfFile' ? 'file' : type === 'wfInput' ? 'input' : 'step'
+  return type === 'wfResource' ? 'resource' : type === 'wfInput' ? 'input' : 'step'
 }
 
 /** 运行状态的图标与文案。 */
@@ -463,11 +495,12 @@ function writePath(
   sourcePosition: Position,
   targetX: number,
   targetY: number,
+  cardH: number = RES_H,
 ): [string, number, number] {
   const points = writePoints(
     { x: sourceX, y: sourceY, side: sourcePosition === Position.Top ? 'top' : 'bottom' },
     { x: targetX, y: targetY },
-    FILE_H,
+    cardH,
   )
   const path = roundedPath(points)
   if (points.length === 3) return [path, sourceX, (sourceY + targetY) / 2]
@@ -740,13 +773,9 @@ function HandoffMark(props: {
 const LABEL_FULL_AT = 12
 
 // ─────────────────────────────────────────────────────────────
-// 文件卡与读写线
+// 资源卡与读写线
 // ─────────────────────────────────────────────────────────────
 
-/**
- * 文件卡：一份独立的文件。左边的点接「步骤 → 文件」（写），右边的点拖出去连到步骤（读）。
- * 悬停时画布高亮所有写它、读它的步骤。
- */
 /** 文件名的扩展名，大写、最多 4 个字（`review.md` → `MD`）；没有就是空串。 */
 function extensionOf(name: string): string {
   const dot = name.lastIndexOf('.')
@@ -757,26 +786,44 @@ function extensionOf(name: string): string {
     .slice(0, 4)
 }
 
-/** 文件卡左侧的类型签：印扩展名，没有扩展名就放一个文件图标。 */
-function FileTab(props: { name: string }): React.JSX.Element {
-  const ext = extensionOf(props.name)
+/** 紧凑资源卡左侧的类型签：文件印扩展名，其余放种类图标（空资源是一叠）。 */
+function ResourceTab(props: { kind: ResourceKind | 'many'; ext: string }): React.JSX.Element {
   return (
-    <span className={css.fileTab} data-long={ext.length > 3} aria-hidden="true">
-      {ext === '' ? <Icon name="file" size={14} /> : ext}
+    <span
+      className={css.fileTab}
+      data-kind={props.kind}
+      data-long={props.ext.length > 3}
+      aria-hidden="true"
+    >
+      {props.ext !== '' ? (
+        props.ext
+      ) : (
+        <Icon name={props.kind === 'many' ? 'layers' : KIND_ICON[props.kind]} size={14} />
+      )}
     </span>
   )
 }
 
-const FileCard = memo(function FileCard(props: NodeProps<FileFlowNode>): React.JSX.Element {
+/**
+ * 资源卡：一组给步骤用的东西。左边的点接「步骤 → 资源」（写），右边的点拖出去连到步骤（读）。
+ * 只放了一项、没起名字时是紧凑的一行（像一张贴了类型签的文件卡）；否则是一张小清单：
+ * 标题（名字）、描述、一行一项（最多列 {@link RES_SHOWN} 项）。
+ * 悬停时画布高亮所有写它、读它的步骤；一条线都没连时右上角标「全局」——它交给整个工作流。
+ */
+const ResourceCard = memo(function ResourceCard(
+  props: NodeProps<ResourceFlowNode>,
+): React.JSX.Element {
   const { data, id, selected } = props
+  const madeAll = data.compact && data.items[0]?.made === true
   return (
     <div
-      className={cx(css.fileCard, selected && css.cardSelected)}
+      className={cx(css.resCard, selected && css.cardSelected)}
+      data-compact={data.compact}
       data-focused={data.focused}
       data-dim={data.dim}
       data-tone={data.tone}
-      data-testid="wl-file"
-      title={data.note === '' ? data.path : `${data.path}\n${data.note}`}
+      data-testid="wl-resource"
+      title={data.note === '' ? undefined : data.note}
       onPointerEnter={() => data.onFocusFile(id)}
       onPointerLeave={() => data.onFocusFile(null)}
     >
@@ -785,22 +832,80 @@ const FileCard = memo(function FileCard(props: NodeProps<FileFlowNode>): React.J
         id="in"
         type="target"
         position={Position.Left}
-        className={cx(css.handle, css.handleIn, css.hFileIn)}
+        className={cx(css.handle, css.handleIn, css.hResIn)}
       />
-      <FileTab name={data.name} />
-      <span className={css.fileText}>
-        <span className={css.fileName}>{data.name}</span>
-        <span className={cx(css.fileRule, data.rule === '' && css.fileRuleEmpty)}>
-          {data.rule === '' ? data.path : data.rule}
+      {data.compact ? (
+        <>
+          <ResourceTab kind={data.tab.kind} ext={data.tab.ext} />
+          <span className={css.fileText}>
+            <span className={cx(css.fileName, data.items.length === 0 && css.resEmptyTitle)}>
+              {data.title}
+            </span>
+            <span className={css.fileRule}>{data.sub}</span>
+          </span>
+        </>
+      ) : (
+        <span className={css.resBody}>
+          <span className={css.resHead}>
+            <span className={css.resHeadIcon}>
+              <Icon name="layers" size={13} />
+            </span>
+            <span className={css.resName}>{data.title}</span>
+            <span className={css.resCount}>{data.countText}</span>
+            {data.tone !== 'ok' && (
+              <span className={css.cardFlag} data-tone={data.tone}>
+                <Icon name="alert" size={12} />
+              </span>
+            )}
+          </span>
+          {data.description !== '' && <span className={css.resDesc}>{data.description}</span>}
+          <span className={css.resItems}>
+            {data.items.length === 0 ? (
+              <span className={cx(css.resItem, css.resItemEmpty)}>{data.emptyText}</span>
+            ) : (
+              data.items.map((item, index) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: 资源里的一项没有自己的身份
+                <span key={index} className={css.resItem} data-kind={item.kind}>
+                  <span className={css.resItemIcon}>
+                    <Icon name={KIND_ICON[item.kind]} size={12} />
+                  </span>
+                  <span
+                    className={css.resItemText}
+                    data-mono={
+                      item.kind === 'file' || item.kind === 'folder' || item.kind === 'skill'
+                    }
+                  >
+                    {item.text}
+                  </span>
+                  {item.made === true && (
+                    <span className={css.resItemMade} title={data.generatedText}>
+                      <Icon name="check" size={11} />
+                    </span>
+                  )}
+                </span>
+              ))
+            )}
+            {data.more > 0 && <span className={css.resMore}>{data.moreText}</span>}
+          </span>
         </span>
-      </span>
-      {data.tone !== 'ok' && (
+      )}
+      {data.shared && (
+        <span
+          className={css.resShared}
+          title={data.sharedText}
+          data-testid="wl-resource-shared-tag"
+        >
+          <Icon name="shared" size={11} />
+        </span>
+      )}
+      {/* 有标题行的卡把警示放在标题行里（项数后面），紧凑的一行卡放在行尾。 */}
+      {data.compact && data.tone !== 'ok' && (
         <span className={css.cardFlag} data-tone={data.tone}>
           <Icon name="alert" size={12} />
         </span>
       )}
-      {data.generated === true && (
-        <span className={css.fileMade} title={data.generatedText} data-testid="wl-file-made">
+      {madeAll && (
+        <span className={css.fileMade} title={data.generatedText} data-testid="wl-resource-made">
           <Icon name="check" size={12} />
         </span>
       )}
@@ -875,14 +980,14 @@ function rectOf(node: InternalNode | undefined, width: number, height: number): 
 }
 
 /**
- * 读写线：「左右走流程，上下走文件」——两头都落在真实的连接点上；挂哪个点由画布按两张卡
+ * 读写线：「左右走流程，上下走资源」——两头都落在真实的连接点上；挂哪个点由画布按两张卡
  * 当下的位置挑（见 `route.ts`），拖动卡片时线会跟着换到合适的点。
  * 三种各有颜色与线型：产出 = 金色实线，在原文件上更新 = 洋红实线、两头箭头，读取 = 青色虚线。
  * 与选中的东西相连时描粗、加光晕、光带按数据方向流动，中点挂一个小牌子写明是哪种。
  */
 const FileLine = memo(function FileLine(props: EdgeProps<FileEdge>): React.JSX.Element {
   const { id, data, markerEnd, markerStart } = props
-  // 写线走直角（文件挂在步骤下面，几条写线共用一根树干再分叉）；读线是贝塞尔曲线。
+  // 写线走直角（资源挂在步骤下面，几条写线共用一根树干再分叉）；读线是贝塞尔曲线。
   const points = data?.points ?? null
   const [path, labelX, labelY] =
     points !== null
@@ -894,6 +999,7 @@ const FileLine = memo(function FileLine(props: EdgeProps<FileEdge>): React.JSX.E
             props.sourcePosition,
             props.targetX,
             props.targetY,
+            data.cardH,
           )
         : getBezierPath(props)
   const active = data?.active === true
@@ -982,7 +1088,7 @@ function dragColor(kind: DragKind | null): string {
 
 function nodeName(node: WorkflowNode): string {
   if (isInput(node)) return node.data.question
-  if (isFile(node)) return baseName(node.data.path)
+  if (isResource(node)) return resourceTitle(node)
   return node.data.label === undefined || node.data.label === '' ? node.id : node.data.label
 }
 
@@ -1022,7 +1128,7 @@ function ConnectionLine(props: ConnectionLineComponentProps<FlowNode>): React.JS
           linkOf(props.fromNode.id, props.fromHandle, props.toNode.id, props.toHandle?.id),
         )
       : null
-  // 落到文件读写的目标上时，按松手后那条线真正的走法画（和 FileLine 同一套端点），所见即所得。
+  // 落到资源读写的目标上时，按松手后那条线真正的走法画（和 FileLine 同一套端点），所见即所得。
   let ends: {
     from: { x: number; y: number; side: Side }
     to: { x: number; y: number; side: Side }
@@ -1031,7 +1137,7 @@ function ConnectionLine(props: ConnectionLineComponentProps<FlowNode>): React.JS
     const fileNode = props.fromNode.type === 'wfNode' ? props.toNode : props.fromNode
     const stepNode = fileNode === props.fromNode ? props.toNode : props.fromNode
     const step = rectOf(stepNode, NODE_W, NODE_H)
-    const file = rectOf(fileNode, FILE_W, FILE_H)
+    const file = rectOf(fileNode, RES_W, RES_H)
     if (step !== null && file !== null) {
       const reading = preview.kind === 'read' || preview.kind === 'ask'
       ends = fileLinkEnds(reading ? 'read' : 'write', step, file)
@@ -1117,7 +1223,7 @@ function ConnectionLine(props: ConnectionLineComponentProps<FlowNode>): React.JS
 }
 
 /** `nodeTypes` / `edgeTypes` 必须是稳定引用，否则 React Flow 每次渲染都重建全部节点。 */
-const NODE_TYPES = { wfNode: StepCard, wfFile: FileCard, wfInput: InputCard }
+const NODE_TYPES = { wfNode: StepCard, wfResource: ResourceCard, wfInput: InputCard }
 const EDGE_TYPES = { wfEdge: LinkLine, wfFileLink: FileLine }
 
 // ─────────────────────────────────────────────────────────────
@@ -1206,9 +1312,9 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
     [],
   )
 
-  /** 每份文件谁写、谁读（悬停文件卡时据此标角色）。 */
+  /** 每个资源谁写、谁读（悬停资源卡时据此标角色）。 */
   const files = useMemo(
-    () => fileGraph({ nodes: doc.nodes, edges: doc.edges, viewport: doc.viewport }),
+    () => resourceGraph({ nodes: doc.nodes, edges: doc.edges, viewport: doc.viewport }),
     [doc.nodes, doc.edges],
   )
 
@@ -1254,7 +1360,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
         : null
     return { kind, color: preview === null ? dragColor(kind) : PREVIEW_COLOR[preview.kind] }
   }, [dragKey, doc])
-  // 拖线时不做悬停文件的聚光：拖过文件卡不该把别的卡都淡下去。
+  // 拖线时不做悬停资源的聚光：拖过资源卡不该把别的卡都淡下去。
   const focusFile = drag === null ? hoveredFile : null
   const focused = focusFile === null ? undefined : files.get(focusFile)
 
@@ -1271,7 +1377,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
       noPromptText: t('node.noPrompt'),
       addText: t('node.add'),
       fileText: t('node.fileHandle'),
-      readText: t('file.connectHint'),
+      readText: t('res.connectHint'),
       askText: t('input.connectHint'),
       emptyQuestion: t('input.questionEmpty'),
       required: t('input.required'),
@@ -1282,7 +1388,18 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
         multi: t('input.kind.multi'),
       },
       optionsCount: t('input.optionsCount'),
-      noRuleText: t('file.noRule'),
+      resEmpty: t('res.cardEmpty'),
+      resEmptySub: t('res.cardEmptySub'),
+      resShared: t('res.sharedTip'),
+      resCount: t('res.itemCount'),
+      resMore: t('res.moreItems'),
+      kinds: {
+        file: t(KIND_LABEL.file),
+        folder: t(KIND_LABEL.folder),
+        url: t(KIND_LABEL.url),
+        skill: t(KIND_LABEL.skill),
+        text: t(KIND_LABEL.text),
+      },
       pass: t('edge.pass'),
       fail: t('edge.fail'),
       generated: t('run.fileMade'),
@@ -1345,7 +1462,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
         continue
       }
       if (kind !== 'write' && kind !== 'read' && kind !== 'ask') continue
-      // 输入 → 步骤的走法和读文件一样（输入卡在这里就是一张"被读"的卡）。
+      // 输入 → 步骤的走法和读资源一样（输入卡在这里就是一张"被读"的卡）。
       const way = kind === 'write' ? 'write' : 'read'
       const stepId = way === 'write' ? edge.source : edge.target
       const fileId = way === 'write' ? edge.target : edge.source
@@ -1436,33 +1553,67 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
             dim,
           },
         })
-      } else if (isFile(node)) {
+      } else if (isResource(node)) {
         const isFocus = focusFile !== null && idKey(focusFile) === idKey(node.id)
         const tone: Tone = reported?.tone ?? 'ok'
         const note = reported?.note ?? ''
         const dim = focusFile !== null && !isFocus
-        const generated = run === undefined ? null : (run.files[node.id] ?? false)
-        signature = `${selected}|${tone}|${note}|${isFocus}|${dim}|${texts.readText}|${used.join(',')}|${generated}`
+        const made = run?.files[node.id]
+        const info = files.get(node.id)
+        const shared = info !== undefined && isShared(info)
+        const compact = isCompactResource(node.data)
+        const all = node.data.items
+        const first = all[0]
+        const items: CardItem[] = all.slice(0, compact ? 1 : RES_SHOWN).map((item, index) => ({
+          kind: item.kind,
+          text: itemText(item) || '—',
+          made: made === undefined ? null : (made[index] ?? null),
+        }))
+        const firstNote = first?.note?.replace(/\s+/gu, ' ').trim() ?? ''
+        const title =
+          compact && first === undefined
+            ? texts.resEmpty
+            : compact && first !== undefined
+              ? itemText(first) || texts.kinds[first.kind]
+              : resourceTitle(node)
+        const sub =
+          first === undefined
+            ? texts.resEmptySub
+            : firstNote !== ''
+              ? firstNote
+              : first.kind === 'file' || first.kind === 'folder' || first.kind === 'url'
+                ? first.value.trim()
+                : texts.kinds[first.kind]
+        const ext = first?.kind === 'file' ? extensionOf(itemText(first)) : ''
+        const description = (node.data.description ?? '').replace(/\s+/gu, ' ').trim()
+        const data: ResourceCardData = {
+          compact,
+          title,
+          sub,
+          description,
+          items,
+          more: Math.max(0, all.length - RES_SHOWN),
+          moreText: texts.resMore.replace('{n}', String(Math.max(0, all.length - RES_SHOWN))),
+          countText: texts.resCount.replace('{n}', String(all.length)),
+          emptyText: texts.resEmpty,
+          tab: { kind: first?.kind ?? 'many', ext },
+          shared,
+          sharedText: texts.resShared,
+          tone,
+          note,
+          focused: isFocus,
+          dim,
+          readText: texts.readText,
+          onFocusFile,
+          generatedText: texts.generated,
+        }
+        signature = JSON.stringify([selected, used, { ...data, onFocusFile: null }])
         build = () => ({
           id: node.id,
-          type: 'wfFile',
+          type: 'wfResource',
           position: moving ?? node.position,
           selected,
-          data: {
-            name: baseName(node.data.path),
-            used,
-            path: node.data.path,
-            rule: (node.data.rule ?? '').replace(/\s+/gu, ' ').trim(),
-            noRuleText: texts.noRuleText,
-            tone,
-            note,
-            focused: isFocus,
-            dim,
-            readText: texts.readText,
-            onFocusFile,
-            generated,
-            generatedText: texts.generated,
-          },
+          data,
         })
       } else {
         const prompt = node.data.prompt
@@ -1550,11 +1701,12 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
     const index = nodeIndex(doc)
     const nameOf = (id: string): string => {
       const node = index.get(idKey(id))
-      if (node === undefined || isFile(node)) return id
+      if (node === undefined) return id
+      if (isResource(node)) return resourceTitle(node)
       if (isInput(node)) return node.data.question
       return node.data.label === undefined || node.data.label === '' ? id : node.data.label
     }
-    // 聚光：悬停的文件卡优先，其次是选中的节点。和它相连的线"活"起来（光带流动、标明种类），
+    // 聚光：悬停的资源卡优先，其次是选中的节点。和它相连的线"活"起来（光带流动、标明种类），
     // 其余的线淡下去，一眼看清它从哪儿拿、往哪儿交。
     const spotlight =
       focusFile !== null
@@ -1606,6 +1758,10 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
             : {}),
           data: {
             kind: kind === 'write' ? 'write' : 'read',
+            cardH: (() => {
+              const card = index.get(idKey(kind === 'write' ? edge.target : edge.source))
+              return card === undefined ? RES_H : cardSize(card).h
+            })(),
             access,
             color,
             active,
@@ -1826,14 +1982,14 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
           connectionLineComponent={ConnectionLine}
           proOptions={{ hideAttribution: true }}
           onNodesChange={onNodesChange}
-          // 两头的连接点分工要对得上（见 model/connect.ts）：不连自己、文件不连文件、
-          // 步骤右边只连步骤、步骤底边只连文件、文件只连步骤。
+          // 两头的连接点分工要对得上（见 model/connect.ts）：不连自己、资源不连资源、
+          // 步骤右边只连步骤、步骤底边只连资源、资源只连步骤。
           isValidConnection={(connection) => linkAllowed(docRef.current, connection)}
           onConnect={(connection) => {
             onEdit({ type: 'connect', source: connection.source, target: connection.target })
           }}
           onConnectEnd={(event, state) => {
-            // 线拖到空白处松手：就地加一个步骤并连上；从步骤底边拖出来的是新建一个产出文件。
+            // 线拖到空白处松手：就地加一个步骤并连上；从步骤底边拖出来的是新建一个放着产出文件的资源。
             if (state.isValid === true || state.fromNode === null) return
             if (state.fromHandle?.type !== 'source') return
             const point = 'changedTouches' in event ? event.changedTouches[0] : event
@@ -1845,10 +2001,12 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
             const at = flow.screenToFlowPosition(client)
             if (state.fromHandle.id === 'file' || state.fromHandle.id === 'fileUp') {
               onEdit({
-                type: 'addFile',
-                path: freeFilePath(docRef.current, `${state.fromNode.id}.md`),
-                // 松手处就是新文件卡左边的入口：线落在哪，卡就从哪接上。
-                position: { x: at.x, y: at.y - FILE_H / 2 },
+                type: 'addResource',
+                data: outputResource({
+                  path: freeFilePath(docRef.current, `${state.fromNode.id}.md`),
+                }),
+                // 松手处就是新资源卡左边的入口：线落在哪，卡就从哪接上。
+                position: { x: at.x, y: at.y - RES_H / 2 },
                 writer: state.fromNode.id,
                 select: true,
               })

@@ -13,8 +13,8 @@ import {
   validateRunState,
 } from '../../src/shared/runState.ts'
 import {
-  FILE_TYPE,
   NODE_TYPE,
+  RESOURCE_TYPE,
   type WorkflowDocument,
   type WorkflowEdge,
 } from '../../src/shared/types.ts'
@@ -39,9 +39,9 @@ const DOC: WorkflowDocument = {
     { id: 'report', type: NODE_TYPE, position: { x: 0, y: 0 }, data: { prompt: 'd' } },
     {
       id: 'file-review.md',
-      type: FILE_TYPE,
+      type: RESOURCE_TYPE,
       position: { x: 0, y: 0 },
-      data: { path: 'review.md' },
+      data: { items: [{ kind: 'file', value: 'review.md' }] },
     },
   ],
   edges: [

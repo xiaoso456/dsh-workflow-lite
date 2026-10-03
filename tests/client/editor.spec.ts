@@ -6,10 +6,10 @@ import {
   isDirty,
   reduce,
 } from '../../src/client/model/editor.ts'
-import { isFile, isStep } from '../../src/shared/model.ts'
+import { isResource, isStep } from '../../src/shared/model.ts'
 import type {
-  FileNode,
   NodeData,
+  ResourceNode,
   StepNode,
   WorkflowDocument,
   WorkflowNode,
@@ -19,8 +19,13 @@ function node(id: string, data: NodeData = { prompt: `do ${id}` }, x = 100, y = 
   return { id, type: 'wfNode', position: { x, y }, data }
 }
 
-function file(id: string, path: string, x = 300, y = 300): FileNode {
-  return { id, type: 'wfFile', position: { x, y }, data: { path } }
+function file(id: string, path: string, x = 300, y = 300): ResourceNode {
+  return {
+    id,
+    type: 'wfResource',
+    position: { x, y },
+    data: { items: [{ kind: 'file', value: path }] },
+  }
 }
 
 /** 步骤的 `data`（文件节点给 `undefined`）。 */
@@ -115,6 +120,22 @@ describe('加步骤', () => {
     expect(state.doc?.nodes.map((n) => n.id)).toEqual(['plan', 'scan', 'plan-2'])
     expect(state.doc?.edges.map((e) => e.id)).toEqual(['scan->plan-2#pass'])
     expect(state.past).toHaveLength(1)
+  })
+
+  it('带设置的一小片图：设置并进已有的（同一条撤销步），不给就不动', () => {
+    const start = loaded(doc({ settings: { mode: 'serial' } }))
+    const state = run(start, {
+      type: 'addGraph',
+      settings: { runState: true },
+      nodes: [node('scan')],
+      edges: [],
+    })
+    expect(state.doc?.settings).toEqual({ mode: 'serial', runState: true })
+    expect(state.past).toHaveLength(1)
+    const undone = run(state, { type: 'undo' })
+    expect(undone.doc?.settings).toEqual({ mode: 'serial' })
+    const plain = run(start, { type: 'addGraph', nodes: [node('scan')], edges: [] })
+    expect(plain.doc?.settings).toEqual({ mode: 'serial' })
   })
 })
 
@@ -328,8 +349,8 @@ describe('交接（步骤 → 步骤）', () => {
   })
 })
 
-describe('文件节点', () => {
-  it('加步骤时模板里的产出展开成挂在它右下方的新文件节点；路径被占了就加序号', () => {
+describe('资源节点', () => {
+  it('加步骤时模板里的产出展开成挂在它右下方的新资源；路径被占了就加序号', () => {
     const start = loaded(doc({ nodes: [file('file-r', 'review.md')] }))
     const state = reduce(start, {
       type: 'addNode',
@@ -337,10 +358,10 @@ describe('文件节点', () => {
       data: { prompt: 'p', output: [{ path: 'review.md', rule: 'r' }, { path: 'notes.md' }] },
       position: { x: 100, y: 100 },
     })
-    const added = state.doc?.nodes.filter(isFile).slice(1) ?? []
+    const added = state.doc?.nodes.filter(isResource).slice(1) ?? []
     expect(added.map((item) => item.data)).toEqual([
-      { path: 'review-2.md', rule: 'r' },
-      { path: 'notes.md' },
+      { items: [{ kind: 'file', value: 'review-2.md', note: 'r' }] },
+      { items: [{ kind: 'file', value: 'notes.md' }] },
     ])
     expect(added.every((item) => item.position.x > 100 && item.position.y > 100)).toBe(true)
     expect(stepData(state.doc?.nodes.find((item) => item.id === 'review'))?.output).toBeUndefined()
@@ -348,18 +369,23 @@ describe('文件节点', () => {
     expect(state.past).toHaveLength(1)
   })
 
-  it('addFile：给了 writer 就连写入线、给了 reader 就连读取线；select 决定选中谁', () => {
+  it('addResource：给了 writer 就连写入线、给了 reader 就连读取线；select 决定选中谁', () => {
     const start = loaded(doc({ nodes: [node('a'), node('b')] }))
-    const state = reduce(start, { type: 'addFile', path: 'x.md', writer: 'a', reader: 'b' })
-    const created = state.doc?.nodes.find(isFile)
-    expect(created?.id).toBe('file-x.md')
-    expect(state.doc?.edges.map((item) => item.id)).toEqual(['a->file-x.md', 'file-x.md->b'])
+    const state = reduce(start, {
+      type: 'addResource',
+      data: { items: [{ kind: 'file', value: 'x.md' }] },
+      writer: 'a',
+      reader: 'b',
+    })
+    const created = state.doc?.nodes.find(isResource)
+    expect(created?.id).toBe('res-x')
+    expect(state.doc?.edges.map((item) => item.id)).toEqual(['a->res-x', 'res-x->b'])
     expect(state.selection).toBeNull()
-    const selected = reduce(start, { type: 'addFile', path: 'y.md', select: true })
-    expect(selected.selection).toEqual({ kind: 'node', id: 'file-y.md' })
+    const selected = reduce(start, { type: 'addResource', data: { items: [] }, select: true })
+    expect(selected.selection).toEqual({ kind: 'node', id: 'res-resource' })
   })
 
-  it('连线：文件已经有人写，再接上来的写入默认是更新；文件不能连文件；连着文件的线不带条件', () => {
+  it('连线：资源已经有人写，再接上来的写入默认是更新；资源不能连资源；连着资源的线不带条件', () => {
     const start = loaded(
       doc({
         nodes: [node('a'), node('b'), file('f', 'f.md'), file('g', 'g.md')],
@@ -373,7 +399,7 @@ describe('文件节点', () => {
     expect(fresh.doc?.edges[1]?.data).toBeUndefined()
   })
 
-  it('setUpdate 切写入方式；patchFile 改路径与规则（空白规则 = 清掉），连续打字并成一条', () => {
+  it('setUpdate 切写入方式；patchResource 改名字与内容（原样存、不当场规范化），连续打字并成一条', () => {
     const start = loaded(doc({ nodes: [node('a'), file('f', 'f.md')], edges: [edge('a', 'f')] }))
     const updated = reduce(start, { type: 'setUpdate', id: 'a->f', update: true })
     expect(updated.doc?.edges[0]?.data).toEqual({ update: true })
@@ -383,18 +409,25 @@ describe('文件节点', () => {
 
     const typed = run(
       start,
-      { type: 'patchFile', id: 'f', patch: { rule: '问' }, merge: 'f:rule' },
-      { type: 'patchFile', id: 'f', patch: { rule: '问题清单' }, merge: 'f:rule' },
+      { type: 'patchResource', id: 'f', patch: { label: '问' }, merge: 'f:label' },
+      { type: 'patchResource', id: 'f', patch: { label: '问题 ' }, merge: 'f:label' },
     )
-    expect(typed.doc?.nodes[1]?.data).toEqual({ path: 'f.md', rule: '问题清单' })
+    expect(typed.doc?.nodes[1]?.data).toEqual({
+      items: [{ kind: 'file', value: 'f.md' }],
+      label: '问题 ',
+    })
     expect(typed.past).toHaveLength(1)
-    const cleared = reduce(typed, { type: 'patchFile', id: 'f', patch: { rule: ' ' } })
-    expect(cleared.doc?.nodes[1]?.data).toEqual({ path: 'f.md' })
-    // 不是文件节点：patchFile 不动它。
-    expect(reduce(start, { type: 'patchFile', id: 'a', patch: { path: 'x' } })).toBe(start)
+    const items = reduce(typed, {
+      type: 'patchResource',
+      id: 'f',
+      patch: { label: undefined, items: [{ kind: 'url', value: '' }] },
+    })
+    expect(items.doc?.nodes[1]?.data).toEqual({ items: [{ kind: 'url', value: '' }] })
+    // 不是资源节点：patchResource 不动它。
+    expect(reduce(start, { type: 'patchResource', id: 'a', patch: { label: 'x' } })).toBe(start)
   })
 
-  it('删文件节点连带删掉连着它的线', () => {
+  it('删资源节点连带删掉连着它的线', () => {
     const start = loaded(
       doc({
         nodes: [node('a'), node('b'), file('f', 'f.md')],

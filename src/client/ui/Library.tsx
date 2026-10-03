@@ -93,7 +93,7 @@ function Item(props: {
   )
 }
 
-/** 只能拖、点了只提示「拖过去」的条目（用户输入）。 */
+/** 只能拖、点了只提示「拖过去」的条目（资源、用户输入）。 */
 function DragOnly(props: {
   source: StepSource
   mark: React.ReactNode
@@ -220,29 +220,20 @@ export function Library(props: {
           </span>
         </button>
 
-        {/* 文件卡：和空白步骤一样只能拖。拖到画布上是一张独立的文件卡，再连到步骤上。 */}
-        <button
-          type="button"
-          className={css.item}
-          draggable
-          data-testid="wl-lib-file"
-          onDragStart={(event) => {
-            event.dataTransfer.setData(DND_MIME, encodeStepSource({ kind: 'file' }))
-            event.dataTransfer.effectAllowed = 'copy'
-          }}
+        {/* 资源卡：和空白步骤一样只能拖。拖到画布上是一张空的资源卡，在右侧添加文件、文件夹、网址、
+            Skill 或自定义，再连到步骤上（一条线都不连 = 交给整个工作流）。 */}
+        <DragOnly
+          source={{ kind: 'resource' }}
+          mark={
+            <span className={cx(ui.kind, css.fileKind)}>
+              <Icon name="layers" size={15} />
+            </span>
+          }
+          title={t('lib.resource')}
+          desc={t('lib.resourceDesc')}
+          testId="wl-lib-resource"
           onClick={() => setHinting((value) => value + 1)}
-        >
-          <span className={cx(ui.kind, css.fileKind)}>
-            <Icon name="file" size={15} />
-          </span>
-          <span className={css.itemText}>
-            <span className={css.itemTitle}>{t('lib.file')}</span>
-            <span className={css.itemDesc}>{t('lib.fileDesc')}</span>
-          </span>
-          <span className={css.grip} aria-hidden="true">
-            ⋮⋮
-          </span>
-        </button>
+        />
 
         {/* 用户输入：执行前问用户的一个问题。和文件卡一样只能拖；交互方式（一句话、多行、单选、多选）在属性面板里切换。 */}
         <DragOnly

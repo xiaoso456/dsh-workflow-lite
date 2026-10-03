@@ -14,13 +14,10 @@
 
 import { isStepColor, isStepIcon } from './appearance.ts'
 import { COORD_DECIMALS } from './limits.ts'
-import { normalizeRoot, outputKey, WORKSPACE_ROOT } from './outputPaths.ts'
+import { normalizeRoot, WORKSPACE_ROOT } from './outputPaths.ts'
 import {
   type EdgeData,
   EXECUTION_MODES,
-  FILE_TYPE,
-  type FileData,
-  type FileNode,
   type Handoff,
   INPUT_KINDS,
   INPUT_TYPE,
@@ -30,6 +27,11 @@ import {
   NODE_TYPE,
   type NodeData,
   type OutputSpec,
+  RESOURCE_KINDS,
+  RESOURCE_TYPE,
+  type ResourceData,
+  type ResourceItem,
+  type ResourceNode,
   type StepNode,
   type ValidationProblem,
   type Viewport,
@@ -51,6 +53,9 @@ const INPUT_KEYS = [
   'hint',
   'required',
 ] as const
+/** 资源节点的 data 键序与一项的键序。 */
+const RESOURCE_KEYS = ['label', 'description', 'items'] as const
+const ITEM_KEYS = ['kind', 'value', 'note'] as const
 /** edge 的 data 键序。 */
 const EDGE_DATA_KEYS = ['when', 'label', 'handoff', 'update'] as const
 
@@ -288,27 +293,69 @@ function readEdgeData(raw: unknown): EdgeData | undefined {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 文件节点
+// 资源节点与输入节点
 // ─────────────────────────────────────────────────────────────
 
 export function isStep(node: WorkflowNode): node is StepNode {
-  return node.type !== FILE_TYPE && node.type !== INPUT_TYPE
+  return node.type !== RESOURCE_TYPE && node.type !== INPUT_TYPE
 }
 
 export function isInput(node: WorkflowNode): node is InputNode {
   return node.type === INPUT_TYPE
 }
 
-export function isFile(node: WorkflowNode): node is FileNode {
-  return node.type === FILE_TYPE
+export function isResource(node: WorkflowNode): node is ResourceNode {
+  return node.type === RESOURCE_TYPE
 }
 
-/** 文件节点 `data` 的已知键；没有字符串 `path` 时给空串（校验层报保存级）。 */
-export function readFileData(raw: unknown): FileData {
-  if (!isPlainObject(raw)) return { path: '' }
-  const data: FileData = { path: typeof raw.path === 'string' ? raw.path : '' }
-  if (typeof raw.rule === 'string' && raw.rule.trim() !== '') data.rule = raw.rule
+/**
+ * 资源节点 `data` 的已知键：名字与描述空白就当没写；内容里认不出的项（不是对象、种类不认识、
+ * 没有字符串 `value`）直接略过；自定义不带 `note`。
+ */
+export function readResourceData(raw: unknown): ResourceData {
+  if (!isPlainObject(raw)) return { items: [] }
+  const data: ResourceData = { items: [] }
+  if (typeof raw.label === 'string' && raw.label !== '') data.label = raw.label
+  const description = filled(raw.description)
+  if (description !== undefined) data.description = description
+  if (Array.isArray(raw.items)) {
+    for (const entry of raw.items) {
+      if (!isPlainObject(entry) || typeof entry.value !== 'string') continue
+      const kind = RESOURCE_KINDS.find((candidate) => candidate === entry.kind)
+      if (kind === undefined) continue
+      const item: ResourceItem = { kind, value: entry.value }
+      const note = kind === 'text' ? undefined : filled(entry.note)
+      if (note !== undefined) item.note = note
+      data.items.push(item)
+    }
+  }
   return data
+}
+
+/** 资源节点 `data` 的规范写法（读入的规范化 + 固定键序），写盘与比较都用它。 */
+export function canonicalResource(data: ResourceData): ResourceData {
+  const normalized = readResourceData(data)
+  const out: Record<string, unknown> = {}
+  for (const key of RESOURCE_KEYS) {
+    if (key === 'items') {
+      out.items = normalized.items.map((item) => {
+        const ordered: Record<string, unknown> = {}
+        for (const itemKey of ITEM_KEYS) {
+          if (item[itemKey] !== undefined) ordered[itemKey] = item[itemKey]
+        }
+        return ordered
+      })
+      continue
+    }
+    const value = normalized[key]
+    if (value !== undefined) out[key] = value
+  }
+  return out as unknown as ResourceData
+}
+
+/** 深拷一份资源节点的 `data`（内容数组与每一项都不和原件共用）。 */
+export function cloneResourceData(data: ResourceData): ResourceData {
+  return { ...data, items: data.items.map((item) => ({ ...item })) }
 }
 
 /** 一段文字：去掉首尾空白后为空就当没写。 */
@@ -390,83 +437,64 @@ export function sameNodeContent(a: WorkflowNode, b: WorkflowNode): boolean {
       JSON.stringify(canonicalInput(a.data)) === JSON.stringify(canonicalInput(b.data))
     )
   }
-  if (isFile(a) || isFile(b)) {
+  if (isResource(a) || isResource(b)) {
     return (
-      isFile(a) &&
-      isFile(b) &&
-      a.data.path === b.data.path &&
-      (a.data.rule ?? '') === (b.data.rule ?? '')
+      isResource(a) &&
+      isResource(b) &&
+      JSON.stringify(canonicalResource(a.data)) === JSON.stringify(canonicalResource(b.data))
     )
   }
   return sameNodeData(a.data, b.data)
 }
 
+/** 一项内容的简称：文件与文件夹取最后一段，网址取主机名，skill 取名字，自定义取 `custom`。 */
+export function itemShortName(item: ResourceItem): string {
+  const value = item.value.trim()
+  if (item.kind === 'file' || item.kind === 'folder') {
+    return (
+      value
+        .split(/[\\/]/u)
+        .filter((part) => part !== '' && part !== '.')
+        .pop() ?? value
+    )
+  }
+  if (item.kind === 'url') {
+    const host = /^[a-z][a-z0-9+.-]*:\/\/([^/?#]+)/iu.exec(value)?.[1]
+    return host ?? value
+  }
+  if (item.kind === 'skill') return value
+  return 'custom'
+}
+
+/** 起 id 用的简称：文件去掉扩展名（`spec.md` → `spec`），自定义叫 `custom`，其余同 {@link itemShortName}。 */
+function idStem(item: ResourceItem): string {
+  if (item.kind === 'text') return 'custom'
+  const name = itemShortName(item)
+  if (item.kind !== 'file') return name
+  const dot = name.lastIndexOf('.')
+  return dot > 0 ? name.slice(0, dot) : name.replace(/^\.+/u, '')
+}
+
 /**
- * 从文件路径起一个文件节点 id：取文件名、换掉文件名里不许出现的字符，前面加 `file-`；
+ * 给资源起一个节点 id：按名字（没有就按第一项的简称，文件不带扩展名）换掉文件名里不许出现的字符，前面加 `res-`；
  * 撞名（大小写不敏感）就加 `-2`、`-3`…
  */
-export function fileIdFor(path: string, taken: (id: string) => boolean): string {
-  const name =
-    path
-      .split(/[\\/]/u)
-      .filter((part) => part !== '' && part !== '.')
-      .pop() ?? 'file'
+export function resourceIdFor(data: ResourceData, taken: (id: string) => boolean): string {
+  const first = data.items[0]
+  const name = data.label?.trim() || (first === undefined ? '' : idStem(first)) || 'resource'
   // 文件名里不许出现的字符（Windows 非法字符、空白、控制字符）换成 `-`。
   const safe = [...name]
     .map((ch) => (/[<>:"/\\|?*\s]/u.test(ch) || (ch.codePointAt(0) ?? 0) < 32 ? '-' : ch))
     .join('')
     .replace(/-+/gu, '-')
+    .replace(/^-|-$/gu, '')
     .replace(/\.+$/u, '')
-  const base = `file-${safe}`.slice(0, 60)
+  const base = `res-${safe === '' ? 'resource' : safe}`.slice(0, 60)
   if (!taken(base)) return base
   for (let n = 2; ; n += 1) {
     const candidate = `${base}-${n}`
     if (!taken(candidate)) return candidate
   }
-}
-
-/**
- * 老图迁移：步骤上的 `output` 展开成文件节点 + 「步骤 → 文件」的写入线（同一路径共用一个文件节点）。
- * 新文件节点的坐标是 `(0,0)`（"还没摆过"），由画布的布局补位。
- * @returns 迁移过的步骤 id（没有就是空数组）。
- */
-export function migrateOutputs(nodes: WorkflowNode[], edges: WorkflowEdge[]): string[] {
-  const migrated: string[] = []
-  const taken = new Set(nodes.map((node) => idKey(node.id)))
-  const byPath = new Map<string, FileNode>()
-  for (const node of nodes) {
-    if (isFile(node)) byPath.set(outputKey(node.data.path), node)
-  }
-  const edgeIds = new Set(edges.map((edge) => edge.id))
-  for (const node of [...nodes]) {
-    if (!isStep(node) || node.data.output === undefined) continue
-    for (const spec of outputSpecs(node.data.output)) {
-      let file = byPath.get(outputKey(spec.path))
-      if (file === undefined) {
-        const id = fileIdFor(spec.path, (candidate) => taken.has(idKey(candidate)))
-        taken.add(idKey(id))
-        file = {
-          id,
-          type: FILE_TYPE,
-          position: { x: 0, y: 0 },
-          data:
-            spec.rule === undefined ? { path: spec.path } : { path: spec.path, rule: spec.rule },
-        }
-        nodes.push(file)
-        byPath.set(outputKey(spec.path), file)
-      } else if (file.data.rule === undefined && spec.rule !== undefined) {
-        file.data = { ...file.data, rule: spec.rule }
-      }
-      const id = makeEdgeId(node.id, file.id)
-      if (edgeIds.has(id)) continue
-      edgeIds.add(id)
-      edges.push({ id, source: node.id, target: file.id, sourceHandle: null, targetHandle: null })
-    }
-    const { output: _old, ...rest } = node.data
-    node.data = rest
-    migrated.push(node.id)
-  }
-  return migrated
 }
 
 /**
@@ -517,12 +545,12 @@ export function normalizeDocument(input: unknown): ParseOutcome {
         }),
       )
     }
-    if (raw.type === FILE_TYPE) {
+    if (raw.type === RESOURCE_TYPE) {
       nodes.push({
         id: raw.id,
-        type: FILE_TYPE,
+        type: RESOURCE_TYPE,
         position: position ?? { x: 0, y: 0 },
-        data: readFileData(raw.data),
+        data: readResourceData(raw.data),
       })
       continue
     }
@@ -592,17 +620,6 @@ export function normalizeDocument(input: unknown): ParseOutcome {
     )
   }
 
-  const migrated = migrateOutputs(nodes, edges)
-  if (migrated.length > 0) {
-    problems.push(
-      problem(
-        'hint',
-        'legacy_structure',
-        `步骤 ${migrated.join(' / ')} 上的产出已转成文件节点（保存时写成新结构）`,
-      ),
-    )
-  }
-
   const settings = readSettings(input.settings)
   return {
     document: {
@@ -645,17 +662,8 @@ function pickNode(node: WorkflowNode): Record<string, unknown> {
   if (isInput(node)) {
     return { id: node.id, type: INPUT_TYPE, position, data: canonicalInput(node.data) }
   }
-  if (isFile(node)) {
-    const rule = node.data.rule
-    return {
-      id: node.id,
-      type: FILE_TYPE,
-      position,
-      data: {
-        path: node.data.path,
-        ...(rule === undefined || rule.trim() === '' ? {} : { rule }),
-      },
-    }
+  if (isResource(node)) {
+    return { id: node.id, type: RESOURCE_TYPE, position, data: canonicalResource(node.data) }
   }
   const data: Record<string, unknown> = {}
   for (const key of DATA_KEYS) {
@@ -722,8 +730,8 @@ export function cloneDocument(document: WorkflowDocument): WorkflowDocument {
       if (isInput(node)) {
         return { ...node, position: { ...node.position }, data: cloneInputData(node.data) }
       }
-      return isFile(node)
-        ? { ...node, position: { ...node.position }, data: { ...node.data } }
+      return isResource(node)
+        ? { ...node, position: { ...node.position }, data: cloneResourceData(node.data) }
         : { ...node, position: { ...node.position }, data: cloneNodeData(node.data) }
     }),
     edges: document.edges.map((edge) => ({

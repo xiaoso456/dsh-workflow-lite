@@ -22,7 +22,6 @@
 import { stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { pickAppearance } from '../../shared/appearance.ts'
-import { fileByPath, newFileNode, setStepOutputs, splitOutputs } from '../../shared/files.ts'
 import { analyzeGraph } from '../../shared/graph.ts'
 import {
   canonicalHandoff,
@@ -30,14 +29,15 @@ import {
   cloneDocument,
   findNode,
   idKey,
-  isFile,
   isInput,
+  isResource,
   isStep,
   makeEdgeId,
   normalizeCoord,
   readDocument,
   readInputData,
   readNodeData,
+  readResourceData,
   readSettings,
   sameEdgeData,
   sameHandoff,
@@ -55,11 +55,11 @@ import {
   sameName,
 } from '../../shared/naming.ts'
 import { checkOutputRoot } from '../../shared/outputPaths.ts'
+import { newResourceNode, setStepOutputs, splitOutputs } from '../../shared/resources.ts'
 import {
   type ChangedEntry,
   type ErrorCode,
   type ExecutionMode,
-  type FileNode,
   type Handoff,
   INPUT_TYPE,
   type InputData,
@@ -69,6 +69,10 @@ import {
   type NodeData,
   type OutputSpec,
   type Point,
+  RESOURCE_TYPE,
+  type ResourceData,
+  type ResourceItem,
+  type ResourceNode,
   type StepNode,
   type TemplateEntry,
   type ToolError,
@@ -82,7 +86,7 @@ import {
   type WriteResult,
 } from '../../shared/types.ts'
 // 只借类型：仓储不运行时依赖校验层，装配时把 `validateDocument` 注入进来即可。
-import type { ValidationReport } from '../../shared/validate.ts'
+import { resourceProblem, type ValidationReport } from '../../shared/validate.ts'
 import {
   ensureDir,
   hashOf,
@@ -200,8 +204,8 @@ export interface NodeUpsert {
   /** 显示名；空串 = 清除（回落渲染 `id`）。 */
   label?: string
   /**
-   * 它写的文件（一个路径）；`false` / `null` = 不写任何文件。产出是文件节点：
-   * 路径已有文件节点就连上，没有就新建（见 `shared/files.ts` 的 `setStepOutputs`）。
+   * 它写的文件（一个路径）；`false` / `null` = 不写任何文件。产出放在资源节点里：
+   * 路径已有资源就连上，没有就新建（见 `shared/resources.ts` 的 `setStepOutputs`）。
    */
   output?: string | false | null
   /** 一个或多个写入的文件（可带生成规则）；给了它就整份替换（`noOutput` 仍然优先）。 */
@@ -232,13 +236,16 @@ export interface InputUpsert {
   position?: Point
 }
 
-/** `write_file`：新建或修改一个文件节点。 */
-export interface FileUpsert {
-  /** 文件节点 id；缺省时按路径找，找不到就从文件名起一个。 */
+/** `write_resource`：新建或修改一个资源节点。给了的字段才改；`items` 给了就整份替换。 */
+export interface ResourceUpsert {
+  /** 资源节点 id；缺省 = 新建，按名字或第一项起一个。 */
   id?: string
-  path?: string
-  /** 生成规则；空串 = 清除。 */
-  rule?: string
+  /** 名字；空串 = 清除。 */
+  label?: string
+  /** 描述；空串 = 清除。 */
+  description?: string
+  items?: ResourceItem[]
+  position?: Point
 }
 
 export interface Repository {
@@ -274,7 +281,7 @@ export interface Repository {
   /** 删除一个节点模板文件。不存在报 `not_found`。 */
   deleteNodeTemplate(name: string): Promise<Outcome<WriteResult>>
   writeNode(workflow: string, upsert: NodeUpsert): Promise<Outcome<WriteResult>>
-  writeFile(workflow: string, upsert: FileUpsert): Promise<Outcome<WriteResult>>
+  writeResource(workflow: string, upsert: ResourceUpsert): Promise<Outcome<WriteResult>>
   writeInput(workflow: string, upsert: InputUpsert): Promise<Outcome<WriteResult>>
   setLabel(workflow: string, node: string, label: string): Promise<Outcome<WriteResult>>
   /** 改工作流设置（产出根目录、执行方式）；给了的字段才改。 */
@@ -1043,8 +1050,8 @@ class FileRepository implements Repository {
       }
 
       const found = findNode(document, rawId)
-      if (found !== undefined && isFile(found)) {
-        return fail('blocked', `${rawId} 是文件节点，改它请用 write_file`, { id: rawId })
+      if (found !== undefined && isResource(found)) {
+        return fail('blocked', `${rawId} 是资源节点，改它请用 write_resource`, { id: rawId })
       }
       if (found !== undefined && isInput(found)) {
         return fail('blocked', `${rawId} 是输入节点，改它请带上 input`, { id: rawId })
@@ -1178,61 +1185,58 @@ class FileRepository implements Repository {
     })
   }
 
-  async writeFile(workflow: string, upsert: FileUpsert): Promise<Outcome<WriteResult>> {
+  async writeResource(workflow: string, upsert: ResourceUpsert): Promise<Outcome<WriteResult>> {
     return this.mutate(workflow, async (document) => {
-      if (upsert.path !== undefined) {
-        const issue = checkOutput(upsert.path)
-        if (issue !== null)
-          return fail('blocked', `path 不合法：${issue.message}`, { code: issue.code })
+      const found = upsert.id === undefined ? undefined : findNode(document, upsert.id)
+      if (found !== undefined && !isResource(found)) {
+        return fail('blocked', `${found.id} 不是资源节点`, { id: found.id })
       }
-      if (upsert.rule !== undefined) {
-        const issue = checkText(upsert.rule, '生成规则')
-        if (issue !== null) return fail('blocked', issue.message, { code: issue.code })
-      }
-      let target =
-        upsert.id !== undefined
-          ? findNode(document, upsert.id)
-          : upsert.path === undefined
-            ? undefined
-            : fileByPath(document, upsert.path)
-      if (target !== undefined && !isFile(target)) {
-        return fail('blocked', `${target.id} 是步骤，不是文件节点`, { id: target.id })
-      }
-      const rule =
-        upsert.rule === undefined ? undefined : upsert.rule.trim() === '' ? null : upsert.rule
-      if (target === undefined) {
-        if (upsert.path === undefined) {
-          return fail('invalid_args', 'write_file 新建文件节点需要 path', { id: upsert.id ?? null })
+      if (found === undefined && upsert.id !== undefined) {
+        const idIssue = checkName(normalizeName(upsert.id))
+        if (idIssue !== null) {
+          return fail('blocked', `节点 id 不合法：${idIssue.message}`, { code: idIssue.code })
         }
-        if (upsert.id !== undefined) {
-          const idIssue = checkName(upsert.id)
-          if (idIssue !== null) {
-            return fail('blocked', `节点 id 不合法：${idIssue.message}`, { code: idIssue.code })
-          }
-        }
-        const fresh = newFileNode(document, { path: upsert.path, ...(rule ? { rule } : {}) })
-        target = upsert.id === undefined ? fresh : { ...fresh, id: upsert.id }
-        document.nodes = [...document.nodes, target]
+      }
+      const base: Record<string, unknown> =
+        found === undefined ? { items: [] } : { ...found.data, items: found.data.items }
+      if (upsert.label !== undefined) {
+        if (upsert.label === '') delete base.label
+        else base.label = upsert.label
+      }
+      if (upsert.description !== undefined) {
+        if (upsert.description.trim() === '') delete base.description
+        else base.description = upsert.description
+      }
+      if (upsert.items !== undefined) base.items = upsert.items
+      const data: ResourceData = readResourceData(base)
+      const problem = resourceProblem(data)
+      if (problem !== null) return fail('blocked', problem.message, { code: 'resource_invalid' })
+      if (found === undefined) {
+        const fresh = newResourceNode(document, data, upsert.position)
+        const node: ResourceNode =
+          upsert.id === undefined ? fresh : { ...fresh, id: normalizeName(upsert.id) }
+        document.nodes = [...document.nodes, node]
         return {
           ok: true,
           document,
-          changed: [{ kind: 'node', op: 'add', id: target.id }],
+          changed: [{ kind: 'node', op: 'add', id: node.id }],
           warnings: [],
         }
       }
-      const file = target
-      const data: FileNode['data'] = { ...file.data }
-      if (upsert.path !== undefined) data.path = upsert.path
-      if (rule === null) delete data.rule
-      else if (rule !== undefined) data.rule = rule
-      if (data.path === file.data.path && data.rule === file.data.rule) {
+      const next: ResourceNode = {
+        id: found.id,
+        type: RESOURCE_TYPE,
+        position: upsert.position ?? found.position,
+        data,
+      }
+      if (sameNodeContent(found, next) && upsert.position === undefined) {
         return { ok: true, document, changed: [], warnings: [] }
       }
-      document.nodes = document.nodes.map((node) => (node === file ? { ...file, data } : node))
+      document.nodes = document.nodes.map((node) => (node === found ? next : node))
       return {
         ok: true,
         document,
-        changed: [{ kind: 'node', op: 'update', id: file.id }],
+        changed: [{ kind: 'node', op: 'update', id: found.id }],
         warnings: [],
       }
     })
@@ -1246,15 +1250,6 @@ class FileRepository implements Repository {
         return fail(
           'invalid_args',
           `${target.id} 是输入节点，没有显示名（改问题请用 input.question）`,
-          {
-            node,
-          },
-        )
-      }
-      if (isFile(target)) {
-        return fail(
-          'invalid_args',
-          `${target.id} 是文件节点，没有显示名（改路径请用 write_file）`,
           {
             node,
           },
@@ -1358,9 +1353,9 @@ class FileRepository implements Repository {
       if (from === undefined) return fail('not_found', `源节点 ${source} 不存在`, { node: source })
       const to = findNode(document, target)
       if (to === undefined) return fail('not_found', `目标节点 ${target} 不存在`, { node: target })
-      // 线的种类由两端决定：步骤 → 步骤是先后；步骤 → 文件是写；文件 → 步骤是读。
-      if (isFile(from) && isFile(to)) {
-        return fail('invalid_args', '文件不能直接连到文件', { source, target })
+      // 线的种类由两端决定：步骤 → 步骤是先后；步骤 → 资源是写；资源 → 步骤是读。
+      if (isResource(from) && isResource(to)) {
+        return fail('invalid_args', '资源不能直接连到资源', { source, target })
       }
       if (isInput(to)) {
         return fail('invalid_args', '不能连进输入节点——输入只往外连到步骤', { source, target })
@@ -1368,12 +1363,12 @@ class FileRepository implements Repository {
       if (isInput(from) && !isStep(to)) {
         return fail('invalid_args', '输入节点只能连到步骤', { source, target })
       }
-      const touchesFile = isFile(from) || isFile(to) || isInput(from)
-      if (touchesFile && (when !== undefined || (handoff !== undefined && handoff !== null))) {
-        return fail('invalid_args', '连着文件或输入的线不能带 when 或 handoff', { source, target })
+      const touchesResource = isResource(from) || isResource(to) || isInput(from)
+      if (touchesResource && (when !== undefined || (handoff !== undefined && handoff !== null))) {
+        return fail('invalid_args', '连着资源或输入的线不能带 when 或 handoff', { source, target })
       }
-      if (update !== undefined && !(isStep(from) && isFile(to))) {
-        return fail('invalid_args', 'update 只用在「步骤 → 文件」的线上', { source, target })
+      if (update !== undefined && !(isStep(from) && isResource(to))) {
+        return fail('invalid_args', 'update 只用在「步骤 → 资源」的线上', { source, target })
       }
 
       let whenValue: string | undefined
@@ -1426,13 +1421,13 @@ class FileRepository implements Repository {
       }
 
       const id = makeEdgeId(from.id, to.id, whenValue)
-      // 这份文件已经有别的步骤在写：没说写入方式时，接着写默认是"在原文件上更新"。
+      // 这个资源已经有别的步骤在写：没说写入方式时，接着写默认是"在原文件上更新"。
       const writtenBefore =
-        isFile(to) && document.edges.some((edge) => idKey(edge.target) === idKey(to.id))
+        isResource(to) && document.edges.some((edge) => idKey(edge.target) === idKey(to.id))
       const data = {
         ...(whenValue === undefined ? {} : { when: whenValue }),
         ...(nextHandoff === undefined ? {} : { handoff: nextHandoff }),
-        ...((update ?? writtenBefore) && isFile(to) ? { update: true as const } : {}),
+        ...((update ?? writtenBefore) && isResource(to) ? { update: true as const } : {}),
       }
       const edge: WorkflowEdge = {
         id,

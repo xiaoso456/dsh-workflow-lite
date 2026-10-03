@@ -5,7 +5,7 @@ import {
   findNode,
   idKey,
   incomingEdges,
-  isFile,
+  isResource,
   isStep,
   makeEdgeId,
   normalizeCoord,
@@ -119,50 +119,32 @@ describe('normalizeDocument', () => {
     }
   })
 
-  it('老图迁移：步骤上的 output 展开成文件节点 + 写入线，同一路径共用一个；false 与认不出的值丢掉', () => {
+  it('资源节点：读名字、描述与内容，认不出的项丢掉；旧的文件节点（wfFile）当未知类型', () => {
     const out = normalizeDocument({
       nodes: [
-        { id: 'a', type: 'wfNode', position: { x: 0, y: 0 }, data: { output: 'x.md' } },
-        { id: 'b', type: 'wfNode', position: { x: 0, y: 0 }, data: { output: false } },
         {
-          id: 'c',
-          type: 'wfNode',
-          position: { x: 0, y: 0 },
-          data: { output: [{ path: './x.md', rule: 'r' }, { path: 'y.md' }] },
+          id: 'r',
+          type: 'wfResource',
+          position: { x: 1, y: 2 },
+          data: {
+            label: '资料',
+            items: [
+              { kind: 'folder', value: 'src' },
+              { kind: 'x', value: 'y' },
+            ],
+          },
         },
-        { id: 'd', type: 'wfNode', position: { x: 0, y: 0 }, data: { output: 42 } },
+        { id: 'g', type: 'wfResource', position: { x: 1, y: 2 }, data: {} },
+        { id: 'old', type: 'wfFile', position: { x: 1, y: 2 }, data: { path: 'a.md' } },
       ],
       edges: [],
       viewport: {},
     })
-    const document = out.document
-    expect(document).not.toBeNull()
-    if (document === null) return
-    expect(document.nodes.filter(isStep).every((node) => node.data.output === undefined)).toBe(true)
-    const files = document.nodes.filter(isFile)
-    expect(files.map((node) => [node.id, node.data])).toEqual([
-      ['file-x.md', { path: 'x.md', rule: 'r' }],
-      ['file-y.md', { path: 'y.md' }],
+    expect(out.document?.nodes.filter(isResource).map((node) => node.data)).toEqual([
+      { label: '资料', items: [{ kind: 'folder', value: 'src' }] },
+      { items: [] },
     ])
-    expect(files.every((node) => node.position.x === 0 && node.position.y === 0)).toBe(true)
-    expect(document.edges.map((edge) => edge.id)).toEqual([
-      'a->file-x.md',
-      'c->file-x.md',
-      'c->file-y.md',
-    ])
-    expect(out.problems.some((problem) => problem.code === 'legacy_structure')).toBe(true)
-  })
-
-  it('文件节点：读 path / rule，空白规则不留；没有 path 给空串（由校验层报保存级）', () => {
-    const out = normalizeDocument({
-      nodes: [
-        { id: 'f', type: 'wfFile', position: { x: 1, y: 2 }, data: { path: 'a.md', rule: ' ' } },
-        { id: 'g', type: 'wfFile', position: { x: 1, y: 2 }, data: {} },
-      ],
-      edges: [],
-      viewport: {},
-    })
-    expect(out.document?.nodes.map((node) => node.data)).toEqual([{ path: 'a.md' }, { path: '' }])
+    expect(out.problems.some((problem) => problem.code === 'unknown_node_type')).toBe(true)
   })
 
   it('边 data 全空时整键省略', () => {
@@ -295,9 +277,12 @@ describe('writeDocument（canonical writer）', () => {
         },
         {
           id: 'file-findings',
-          type: 'wfFile',
+          type: 'wfResource',
           position: { x: 400, y: 260 },
-          data: { path: 'auth-findings.md', rule: '问题清单' },
+          data: {
+            label: '问题清单',
+            items: [{ kind: 'file', value: 'auth-findings.md', note: '问题清单' }],
+          },
         },
       ],
       edges: [

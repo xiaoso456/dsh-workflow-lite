@@ -10,7 +10,6 @@ import {
   presetAppearance,
 } from '../../src/shared/appearance.ts'
 import { buildFullText, buildPlan } from '../../src/shared/compile.ts'
-import { edgeKind, nodeIndex } from '../../src/shared/files.ts'
 import { analyzeGraph } from '../../src/shared/graph.ts'
 import {
   checkAnswers,
@@ -29,6 +28,7 @@ import {
   sameNodeContent,
   writeDocument,
 } from '../../src/shared/model.ts'
+import { edgeKind, nodeIndex } from '../../src/shared/resources.ts'
 import {
   INPUT_TYPE,
   type InputData,
@@ -160,7 +160,12 @@ describe('读入与写出', () => {
       [
         step('a'),
         input('q', { question: '问' }),
-        { id: 'f', type: 'wfFile', position: { x: 0, y: 0 }, data: { path: 'f.md' } },
+        {
+          id: 'f',
+          type: 'wfResource',
+          position: { x: 0, y: 0 },
+          data: { items: [{ kind: 'file', value: 'f.md' }] },
+        },
       ],
       [edge('q', 'a'), edge('a', 'q'), edge('q', 'f')],
     )
@@ -217,7 +222,7 @@ describe('校验', () => {
       'input_question_empty',
     ])
     expect(report.warning.map((problem) => problem.code)).toContain('input_default_invalid')
-    expect(report.save.map((problem) => problem.code)).toContain('file_edge_invalid')
+    expect(report.save.map((problem) => problem.code)).toContain('resource_edge_invalid')
   })
 
   it('连进输入节点是保存级', () => {

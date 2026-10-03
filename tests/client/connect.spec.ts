@@ -4,14 +4,19 @@
 
 import { describe, expect, it } from 'vitest'
 import { dragKindOf, linkAllowed, previewLink } from '../../src/client/model/connect.ts'
-import type { FileNode, StepNode, WorkflowDocument } from '../../src/shared/types.ts'
+import type { ResourceNode, StepNode, WorkflowDocument } from '../../src/shared/types.ts'
 
 function step(id: string): StepNode {
   return { id, type: 'wfNode', position: { x: 0, y: 0 }, data: { prompt: id } }
 }
 
-function file(id: string, path: string): FileNode {
-  return { id, type: 'wfFile', position: { x: 0, y: 0 }, data: { path } }
+function file(id: string, path: string): ResourceNode {
+  return {
+    id,
+    type: 'wfResource',
+    position: { x: 0, y: 0 },
+    data: { items: [{ kind: 'file', value: path }] },
+  }
 }
 
 const doc: WorkflowDocument = {
@@ -27,9 +32,9 @@ describe('起点的种类', () => {
     expect(dragKindOf('step', 'out')).toBe('flow')
     expect(dragKindOf('step', 'file')).toBe('write')
     expect(dragKindOf('step', 'in')).toBe('back')
-    expect(dragKindOf('file', 'out')).toBe('read')
-    expect(dragKindOf('file', 'in')).toBe('writeBack')
-    expect(dragKindOf('file', 'file')).toBeNull()
+    expect(dragKindOf('resource', 'out')).toBe('read')
+    expect(dragKindOf('resource', 'in')).toBe('writeBack')
+    expect(dragKindOf('resource', 'file')).toBeNull()
     expect(dragKindOf('step', 'fileUp')).toBe('write')
     expect(dragKindOf('step', 'readTop')).toBe('readBack')
     expect(dragKindOf('input', 'out')).toBe('ask')

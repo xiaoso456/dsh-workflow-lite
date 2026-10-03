@@ -24,10 +24,12 @@ import {
   WORKFLOW_LITE_ROW_ID,
   type WorkflowLiteSettings,
 } from './host/config.ts'
+import type { SkillLister } from './host/hostFs.ts'
 import { registerWorkflowLiteRpc } from './host/rpc.ts'
 import { createNotify } from './host/runs/notice.ts'
 import { RunService } from './host/runs/service.ts'
 import { registerRunStateSkill } from './host/runs/skill.ts'
+import { createSkillViewer } from './host/skillView.ts'
 import { createRepository, type Repository, reportProblems } from './host/store/repository.ts'
 import { registerWorkflowLiteTool } from './host/tool/tool.ts'
 import type { WorkflowDocument } from './shared/types.ts'
@@ -78,7 +80,16 @@ export async function apply(ctx: Context, config: WorkflowLiteSettings): Promise
   })
 
   // 按需 skill：运行状态的字段与 `state` 动作的用法。`skills` 服务不在时跳过，计划里的那段照写。
+  // 顺手记下 skill 服务：画布上给资源选 Skill 时列出会话里的 agent 能用的那些（见 host/skillView）。
+  let skills: SkillLister | undefined
   ctx.inject(['skills'], (skillsCtx) => {
+    skills = skillsCtx.skills
+    skillsCtx.effect(
+      () => () => {
+        skills = undefined
+      },
+      'workflow-lite: skill catalog',
+    )
     if (!config.installSkill.get()) return
     skillsCtx.effect(
       () => registerRunStateSkill(skillsCtx),
@@ -109,6 +120,7 @@ export async function apply(ctx: Context, config: WorkflowLiteSettings): Promise
         saveDebounceMs: config.saveDebounceMs.get(),
       }),
       runs,
+      skills: createSkillViewer(ctx, () => skills),
     })
   })
 }
