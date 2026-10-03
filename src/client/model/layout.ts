@@ -7,7 +7,9 @@
  * - **资源挂在写它的步骤下面**：一个步骤和它写的资源在 ELK 眼里是一整块（步骤卡 + 下面竖着一串
  *   资源卡），块的高度随资源卡的高度变，ELK 按真实高度排，谁也压不到谁；资源卡往右缩进，写线从步骤的
  *   写点竖着落下来、分叉进每张资源卡的左边（见 route.ts），不会穿过任何卡片；
- * - 没人写、只被读的资源单独成块，放在第一个读它的步骤的前一列；
+ * - 没人写、只被读的资源单独成块，放在第一个读它的步骤的前一列；只被后面的步骤在原文件上更新、
+ *   却被前面的步骤读的（共享的状态文档、台账）也一样——它本来就在，是输入；
+ * - 读线只拉相邻一列的（或者读它的步骤没别的线拉着）：跨好几列的读线不参与排版，免得把主线挤歪；
  * - 流程线的进出口固定在步骤卡（不是整块）的半高处，ELK 才会把一条链摆成一条直线。
  * - 列距整齐划一；只有相邻两列之间的线上挂着条件牌子 / 交接标记时，把那一处拉开到放得下牌子。
  *
@@ -287,20 +289,38 @@ export async function tidy(
     }
     if (!isResource(node)) continue
     const info = resources.get(node.id)
-    const writers = info?.writers.map((writer) => writer.id) ?? []
-    if (writers.length > 0) {
-      const owner = [...writers].sort((a, b) => columnOf(a) - columnOf(b))[0] as string
+    const readers = info?.readers ?? []
+    const firstRead = readers.length === 0 ? Infinity : Math.min(...readers.map(columnOf))
+    const writers = info?.writers ?? []
+    const producers = writers.filter((writer) => !writer.update)
+    // 只在原文件上更新、又被更早的步骤读的（共享的状态文档、台账）：它本来就在，算输入；
+    // 挂到后面更新它的步骤下面，前面读它的线就全得往回绕。
+    const updatedLater =
+      producers.length === 0 &&
+      writers.length > 0 &&
+      firstRead < Math.min(...writers.map((writer) => columnOf(writer.id)))
+    if (writers.length > 0 && !updatedLater) {
+      const owner = [...(producers.length > 0 ? producers : writers)].sort(
+        (a, b) => columnOf(a.id) - columnOf(b.id),
+      )[0]?.id as string
       const list = owned.get(idKey(owner)) ?? []
       list.push(node)
       owned.set(idKey(owner), list)
       continue
     }
-    const readers = info?.readers ?? []
     if (readers.length === 0) {
       loose.push(node)
       continue
     }
-    inputs.push({ node, column: Math.min(...readers.map(columnOf)) - 1 })
+    inputs.push({ node, column: firstRead - 1 })
+  }
+  // 挂在同一个步骤下面的：它产出的在上，它只是更新的在下。
+  for (const [owner, list] of owned) {
+    const updates = (card: WorkflowNode): number =>
+      resources.get(card.id)?.writers.some((writer) => idKey(writer.id) === owner && !writer.update)
+        ? 0
+        : 1
+    list.sort((a, b) => updates(a) - updates(b))
   }
 
   // ── 喂给 ELK 的图 ──
@@ -354,10 +374,13 @@ export async function tidy(
 
   const edges: ElkExtendedEdge[] = []
   const linked = new Set<string>()
+  /** 已经有线拉着的块（线的终点）。 */
+  const pulled = new Set<string>()
   const link = (source: string, target: string): void => {
     const key = `${idKey(source)}\u0000${idKey(target)}`
     if (linked.has(key)) return
     linked.add(key)
+    pulled.add(idKey(target))
     edges.push({
       id: `e${edges.length}`,
       sources: [`${source}\u0000out`],
@@ -371,6 +394,8 @@ export async function tidy(
     for (const file of list) ownerOf.set(idKey(file.id), owner)
   }
   const stepId = (key: string): string | undefined => index.get(key)?.id
+  const inputColumn = new Map(inputs.map((input) => [idKey(input.node.id), input.column]))
+  const reads: { from: string; reader: string; span: number }[] = []
   for (const edge of doc.edges) {
     const kind = edgeKind(index, edge)
     if (kind === 'flow') {
@@ -388,13 +413,26 @@ export async function tidy(
     } else if (kind === 'read' || kind === 'ask') {
       const reader = stepId(idKey(edge.target))
       if (reader === undefined) continue
-      // 读线也拉一把：读的资源挂在谁下面，就把谁和读它的步骤摆近一点（只算往右的）。
       const owner = ownerOf.get(idKey(edge.source))
       const from = owner === undefined ? stepId(idKey(edge.source)) : stepId(owner)
       if (from === undefined) continue
-      const fromColumn = owner === undefined ? columnOf(reader) - 1 : columnOf(from)
-      if (fromColumn < columnOf(reader)) link(from, reader)
+      const fromColumn =
+        owner === undefined
+          ? (inputColumn.get(idKey(edge.source)) ?? columnOf(reader) - 1)
+          : columnOf(from)
+      if (fromColumn < columnOf(reader)) {
+        reads.push({ from, reader, span: columnOf(reader) - fromColumn })
+      }
     }
+  }
+  /*
+   * 读线也拉一把：读的资源在谁那块里，就把那块和读它的步骤摆近一点（只算往右的）。
+   * 但只拉相邻一列的，或者读它的步骤除此之外没有别的线拉着：跨好几列的读线在 ELK 眼里是一串占位的
+   * 虚节点，会把中间几列的块挤开，主线就被挤得高低不平（这条线画布照样画，只是不参与排版）。
+   */
+  for (const read of [...reads].sort((a, b) => a.span - b.span)) {
+    if (read.span > 1 && pulled.has(idKey(read.reader))) continue
+    link(read.from, read.reader)
   }
 
   const laid = await (await elk()).layout({
@@ -407,7 +445,6 @@ export async function tidy(
   // ── 从块的位置还原每张卡的位置 ──
   // 横坐标按列直接给（ELK 会为线留出不等的列距，我们要的是整齐的列，只为牌子让位）；纵坐标用 ELK 的。
   const blocks = laid.children ?? []
-  const inputColumn = new Map(inputs.map((input) => [idKey(input.node.id), input.column]))
   const blockColumn = (id: string): number => inputColumn.get(idKey(id)) ?? columnOf(id)
   const firstColumn = Math.min(...blocks.map((block) => blockColumn(block.id)))
   const columnX = (target: number): number => {

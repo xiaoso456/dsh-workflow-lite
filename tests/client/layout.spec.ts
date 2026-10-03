@@ -200,6 +200,52 @@ describe('tidy', () => {
     expect((placed.input?.x ?? 0) + RES_W).toBeLessThan(placed.a?.x ?? 0)
   })
 
+  it('只被后面的步骤更新、却被前面的步骤读的（共享台账）：算输入，放在第一个读它的步骤前一列', async () => {
+    const doc = withFiles(
+      ['a', 'b', 'c'],
+      [
+        ['a', 'b'],
+        ['b', 'c'],
+      ],
+      [['ledger', null, 'a']],
+    )
+    doc.edges.push({
+      id: 'c->ledger',
+      source: 'c',
+      target: 'ledger',
+      sourceHandle: null,
+      targetHandle: null,
+      data: { update: true },
+    })
+    const placed = await tidy(doc, analyzeGraph(doc))
+    expect((placed.ledger?.x ?? 0) + RES_W).toBeLessThan(placed.a?.x ?? 0)
+    // 后面整份产出它的另算：照旧挂在产出它的步骤下面。
+    const made = withFiles(['a', 'b'], [['a', 'b']], [['out', 'b', 'a']])
+    const laid = await tidy(made, analyzeGraph(made))
+    expect(laid.out?.x).toBe((laid.b?.x ?? 0) + RES_DX)
+  })
+
+  it('跨好几列的读线不把主线挤歪：一条链仍摆在同一条水平线上', async () => {
+    // 输入被第一步和最后一步读；中间几列的块不该被这条长读线的占位挤开。
+    const doc = withFiles(
+      ['a', 'b', 'c', 'd', 'e'],
+      [
+        ['a', 'b'],
+        ['b', 'c'],
+        ['c', 'd'],
+        ['d', 'e'],
+      ],
+      [
+        ['shared', null, 'a', 'c', 'e'],
+        ['notes', null, 'a', 'd'],
+        ['a.md', 'a', 'e'],
+        ['b.md', 'b', 'e'],
+      ],
+    )
+    const placed = await tidy(doc, analyzeGraph(doc))
+    for (const id of ['b', 'c', 'd', 'e']) expect(placed[id]?.y, id).toBe(placed.a?.y)
+  })
+
   it('相邻两列之间的线上挂着长条件时，只把那一处拉开到放得下牌子', async () => {
     const doc = graph(
       ['a', 'b', 'c'],
