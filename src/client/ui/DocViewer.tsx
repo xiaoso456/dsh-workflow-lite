@@ -23,6 +23,8 @@ export type DocBody =
   | { kind: 'loading' }
   | { kind: 'state'; icon: IconName; text: string }
   | { kind: 'text'; text: string; markdown: boolean }
+  /** 调用方自己画的正文（文件夹里有什么、网址的说明）。 */
+  | { kind: 'node'; node: React.ReactNode }
 
 type View = 'rendered' | 'source'
 
@@ -37,6 +39,8 @@ export function DocViewer(props: {
   body: DocBody
   /** 「复制路径」复制什么；`null` 时按钮禁用。 */
   copyPath: string | null
+  /** 复制按钮的说明（缺省「复制路径」：网址、自定义文字复制的不是路径）。 */
+  copyLabel?: string
   /** 「用其他程序打开」打开什么；`null`（文件还不在、没有文件）时不出现。 */
   openPath: string | null
   desktop: Desktop | undefined
@@ -70,6 +74,7 @@ export function DocViewer(props: {
       </div>
     )
   } else if (body.kind === 'state') content = state(body.icon, body.text)
+  else if (body.kind === 'node') content = body.node
   else if (body.text === '') content = state('file', t('file.empty'))
   else if (markdown && view === 'rendered') {
     content = <Markdown text={body.text} className={css.viewerDoc} />
@@ -104,8 +109,8 @@ export function DocViewer(props: {
         <button
           type="button"
           className={cx(ui.btn, ui.icon, ui.small, ui.tip, ui.tipEnd)}
-          data-tip={copied ? t('common.copied') : t('file.copyPath')}
-          aria-label={t('file.copyPath')}
+          data-tip={copied ? t('common.copied') : (props.copyLabel ?? t('file.copyPath'))}
+          aria-label={props.copyLabel ?? t('file.copyPath')}
           disabled={props.copyPath === null}
           onClick={() => {
             if (props.copyPath === null) return

@@ -431,6 +431,10 @@ describe('看产出文件', () => {
     const spec = await runs.file(id, { node: 'ref', item: 0 })
     expect(spec.ok && spec.result.text).toBe('规格')
     expect((await runs.file(id, { node: 'ref', item: 2 })).ok).toBe(false)
+    // 文件夹项：给绝对路径与修改时间（右栏据此打开、列内容），不读内容。
+    const folder = await runs.file(id, { node: 'ref', item: 1 })
+    expect(folder.ok && folder.result.kind).toBe('folder')
+    expect(folder.ok && folder.result.exists).toBe(true)
   })
 })
 

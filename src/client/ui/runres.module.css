@@ -1,0 +1,291 @@
+/**
+ * dsh-workflow-lite — 实例视图右栏的资源：描述、内容清单（每项一行 + 行尾的查看 / 打开）、用到它的步骤，
+ * 以及点开一项后各种内容的详情（文件夹里有什么、网址、自定义文字）。
+ *
+ * 清单的样子和属性面板里的内容清单一致（一组行包在一张卡里、行间细线、图标占两行高）。
+ */
+
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.desc {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-meta);
+  line-height: 1.6;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ── 内容清单 ─────────────────────────────────────────────── */
+
+.row {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+  padding-right: 6px;
+}
+
+.row + .row {
+  border-top: 1px solid var(--wl-line);
+}
+
+.row:hover {
+  background: var(--wl-hover);
+}
+
+/* 图标占两行高，右边是名字与一行状态；这一块就是「看详情」的按钮。 */
+.main {
+  display: grid;
+  flex: 1 1 auto;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 1px 9px;
+  align-items: center;
+  min-width: 0;
+  min-height: 46px;
+  padding: 6px 4px 6px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--wl-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.main:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: -2px;
+}
+
+.icon {
+  grid-row: span 2;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+}
+
+.name {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--wl-fs-meta);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 名字下面一行：状态点 + 大小 · 时间，或网址的路径、Skill 的说明。 */
+.meta {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.45;
+  white-space: nowrap;
+}
+
+.meta[data-mono="true"] {
+  font-family: var(--wl-mono);
+}
+
+.metaText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.metaPart + .metaPart::before {
+  margin-right: 6px;
+  content: "·";
+}
+
+/* 在不在：生成了 / 在是绿点，没生成 / 不在是空心圈。 */
+.dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border: 1.5px solid currentcolor;
+  border-radius: 50%;
+}
+
+.state {
+  display: inline-flex;
+  flex: none;
+  gap: 5px;
+  align-items: center;
+}
+
+.state[data-on="true"] {
+  color: var(--wl-ok);
+}
+
+.state[data-on="true"] .dot {
+  background: currentcolor;
+}
+
+/* 行尾的查看 / 打开：平时淡一些，悬停这一行或键盘聚焦时完全显出来。 */
+.actions {
+  display: flex;
+  flex: none;
+  gap: 1px;
+  align-items: center;
+  opacity: 0.55;
+  transition: opacity 120ms linear;
+}
+
+.row:hover .actions,
+.row:focus-within .actions {
+  opacity: 1;
+}
+
+/* ── 用到它的步骤 ─────────────────────────────────────────── */
+
+.step {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  width: 100%;
+  min-height: 38px;
+  padding: 5px 10px 5px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--wl-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.step:hover {
+  background: var(--wl-hover);
+}
+
+.step:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: -2px;
+}
+
+.stepName {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--wl-fs-meta);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hint {
+  margin: 0;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.55;
+}
+
+/* ── 详情框 ───────────────────────────────────────────────── */
+
+/* 文件夹、网址、自定义文字的详情框比看文件的小：内容不多，不占满屏。 */
+.small[role="dialog"] {
+  height: auto;
+  max-height: min(640px, calc(100% - 48px));
+  width: min(600px, calc(100% - 48px));
+}
+
+.pane {
+  padding: 16px 18px 20px;
+}
+
+/* 正文前的「说明」：这一项怎么用（产出文件就是它的生成要求）。看文件时和正文一样居中。 */
+.lead {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  box-sizing: border-box;
+  width: min(724px, calc(100% - 56px));
+  margin: 18px auto 0;
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: var(--wl-fill);
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-meta);
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.pane .lead {
+  width: auto;
+  margin: 0 0 14px;
+}
+
+.leadLabel {
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+}
+
+/* 文件夹里有什么：一行一个，目录在前。 */
+.entries {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.entry {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 4px;
+  border-radius: 6px;
+  color: var(--wl-text);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+}
+
+.entry:hover {
+  background: var(--wl-hover);
+}
+
+.entry[data-dir="true"] {
+  color: var(--wl-text);
+  font-weight: 600;
+}
+
+.entryIcon {
+  display: inline-flex;
+  flex: none;
+  color: var(--wl-text-3);
+}
+
+.entry[data-dir="true"] .entryIcon {
+  color: var(--wl-c-olive);
+}
+
+.link {
+  color: var(--wl-accent);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-meta);
+  word-break: break-all;
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 18px 16px;
+  border-top: 1px solid var(--wl-line);
+}

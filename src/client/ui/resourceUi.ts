@@ -38,12 +38,17 @@ export const KIND_LABEL: Record<ResourceKind, LocaleKey> = {
   text: 'res.kind.text',
 }
 
-/** 卡片上一项的写法：文件与文件夹取最后一段，网址去掉协议，自定义取第一行。 */
+/**
+ * 卡片上一项的写法：文件与文件夹取最后一段，网址去掉协议，自定义取第一行
+ * （自定义文字常是 Markdown：去掉行首的标题 `#`、列表 `-`、引用 `>` 记号）。
+ */
 export function itemText(item: ResourceItem): string {
   const value = item.value.trim()
   if (value === '') return ''
   if (item.kind === 'url') return value.replace(/^[a-z][a-z0-9+.-]*:\/\//iu, '').replace(/\/$/u, '')
-  if (item.kind === 'text') return value.split(/\r?\n/u)[0]?.trim() ?? ''
+  if (item.kind === 'text') {
+    return (value.split(/\r?\n/u)[0] ?? '').replace(/^\s*(?:#{1,6}|[-*+>])\s+/u, '').trim()
+  }
   return itemShortName(item)
 }
 

@@ -12,6 +12,7 @@ import { useReactFlow } from '@xyflow/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { analyzeGraph } from '../../shared/graph.ts'
 import { isInput, isResource, isStep } from '../../shared/model.ts'
+import { resourceTitle } from '../../shared/resources.ts'
 import {
   graphFacts,
   type InstanceSummary,
@@ -32,6 +33,7 @@ import type {
   WorkflowEntry,
 } from '../../shared/types.ts'
 import type { Desktop } from '../app/desktop.ts'
+import { createHostAccess, type HostAccess } from '../app/host.ts'
 import type { FileTarget } from '../app/useRunFile.ts'
 import { type Run, type Runs, useRun } from '../app/useRuns.ts'
 import type { LocaleKey, T } from '../i18n.ts'
@@ -47,8 +49,9 @@ import { FileViewer } from './FileViewer.tsx'
 import { Icon, type IconName } from './Icon.tsx'
 import css from './inspector.module.css'
 import { copyText, cx, Popover } from './primitives.tsx'
-import { RunResourceDetail, StepResourceList } from './RunFiles.tsx'
+import { StepResourceList } from './RunFiles.tsx'
 import { RunInputDetail } from './RunInput.tsx'
+import { RunResourceDetail } from './RunResource.tsx'
 import run from './run.module.css'
 import shell from './shell.module.css'
 import top from './topbar.module.css'
@@ -190,7 +193,17 @@ export function RunView(props: RunViewProps): React.JSX.Element {
   /** 悬停着的文件（画布上的文件卡、右栏的文件行）：画布高亮它和它的上下游。 */
   const [focusFile, setFocusFile] = useState<string | null>(null)
   /** 查看框里打开着的文件。 */
-  const [viewer, setViewer] = useState<{ target: FileTarget; title: string } | null>(null)
+  const [viewer, setViewer] = useState<{
+    target: FileTarget
+    title: string
+    note?: string | undefined
+  } | null>(null)
+  /** 看实例工作区里的文件夹、Skill（相对路径按实例的工作区，Skill 按实例所属的会话）。 */
+  const cwd = current.view?.summary.cwd
+  const host = useMemo(
+    () => createHostAccess(props.rpc, { cwd, session: props.session, desktop: props.desktop }),
+    [props.rpc, cwd, props.session, props.desktop],
+  )
 
   const edited = useMemo(() => editedNodes(current.draft), [current.draft])
   const showPanel = panelOpen && !narrow
@@ -359,12 +372,13 @@ export function RunView(props: RunViewProps): React.JSX.Element {
             selectedFile={selectedFile ?? null}
             selectedInput={selectedInput ?? null}
             desktop={props.desktop}
+            host={host}
             onSelect={(nodeId) =>
               setSelection(nodeId === null ? null : { kind: 'node', id: nodeId })
             }
             onRerun={rerunFrom}
             onFocusFile={setFocusFile}
-            onView={(target, title) => setViewer({ target, title })}
+            onView={(target, title, note) => setViewer({ target, title, note })}
             onClose={closePanel}
           />
         </div>
@@ -402,6 +416,7 @@ export function RunView(props: RunViewProps): React.JSX.Element {
           instance={id}
           target={viewer.target}
           title={viewer.title}
+          note={viewer.note}
           desktop={props.desktop}
           onClose={() => setViewer(null)}
         />
@@ -813,10 +828,11 @@ function RunPanel(props: {
   selectedFile: ResourceNode | null
   selectedInput: InputNode | null
   desktop: Desktop | undefined
+  host: HostAccess
   onSelect(id: string | null): void
   onRerun(id: string): void
   onFocusFile(id: string | null): void
-  onView(target: FileTarget, title: string): void
+  onView(target: FileTarget, title: string, note?: string): void
   onClose(): void
 }): React.JSX.Element {
   const { t, current, snapshot, selected, selectedFile, selectedInput } = props
@@ -836,7 +852,7 @@ function RunPanel(props: {
     selectedInput !== null
       ? t('input.title')
       : selectedFile !== null
-        ? t('res.title')
+        ? resourceTitle(selectedFile)
         : selected === null
           ? t('run.overview')
           : labelOf(selected)
@@ -860,6 +876,7 @@ function RunPanel(props: {
         t={t}
         rpc={props.rpc}
         instance={props.instance}
+        host={props.host}
         snapshot={snapshot}
         resource={selectedFile}
         made={made[selectedFile.id] ?? []}

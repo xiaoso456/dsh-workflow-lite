@@ -15,6 +15,17 @@ import { shortTime } from '../model/time.ts'
 import type { WorkflowLiteRpc } from '../rpc.ts'
 import { type DocBody, DocViewer } from './DocViewer.tsx'
 import { FileTag } from './FileTag.tsx'
+import css from './runres.module.css'
+
+/** 正文前的「说明」一块（文件、文件夹、网址、自定义文字的详情框共用）。 */
+export function NoteLead(props: { t: T; text: string }): React.JSX.Element {
+  return (
+    <p className={css.lead} data-testid="wl-item-note">
+      <span className={css.leadLabel}>{props.t('res.note')}</span>
+      {props.text}
+    </p>
+  )
+}
 
 export function FileViewer(props: {
   t: T
@@ -24,16 +35,21 @@ export function FileViewer(props: {
   /** 文件还没读回来时标题先用它。 */
   title: string
   desktop: Desktop | undefined
+  /** 这一项的说明（产出文件就是它的生成要求）：放在正文前。 */
+  note?: string | undefined
   onClose(): void
 }): React.JSX.Element {
   const { t } = props
   const { file, error, loading } = useRunFile(props.rpc, props.instance, props.target)
   const name = file === null ? props.title : fileBaseName(file.display)
+  const note = props.note?.trim() ?? ''
 
   let body: DocBody
   if (error !== null) body = { kind: 'state', icon: 'alert', text: error }
   else if (file === null || loading) body = { kind: 'loading' }
   else if (file.kind === 'missing') body = { kind: 'state', icon: 'clock', text: t('file.missing') }
+  else if (file.kind === 'folder')
+    body = { kind: 'state', icon: 'folder', text: t('res.kind.folder') }
   else if (file.kind === 'binary') body = { kind: 'state', icon: 'file', text: t('file.binary') }
   else if (file.kind === 'tooLarge') {
     body = {
@@ -62,6 +78,7 @@ export function FileViewer(props: {
       openPath={file?.exists === true ? file.path : null}
       desktop={props.desktop}
       testId="wl-file-viewer"
+      {...(note === '' ? {} : { lead: <NoteLead t={t} text={note} /> })}
       onClose={props.onClose}
     />
   )

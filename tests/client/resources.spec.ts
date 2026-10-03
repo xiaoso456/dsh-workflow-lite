@@ -76,6 +76,8 @@ describe('一项的写法与查重', () => {
     expect(itemText({ kind: 'folder', value: 'src/lib/' })).toBe('lib')
     expect(itemText({ kind: 'url', value: 'https://example.com/a/' })).toBe('example.com/a')
     expect(itemText({ kind: 'text', value: '\n第一行\n第二行' })).toBe('第一行')
+    expect(itemText({ kind: 'text', value: '## 规矩\n- 先读' })).toBe('规矩')
+    expect(itemText({ kind: 'text', value: '- 先读再改' })).toBe('先读再改')
     expect(itemText({ kind: 'skill', value: ' pdf ' })).toBe('pdf')
   })
 

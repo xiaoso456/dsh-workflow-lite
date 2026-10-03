@@ -105,7 +105,7 @@ export function resolveRunFile(
   return { ok: true, result: { full, display } }
 }
 
-/** 读一份文件给画布：小文本带正文，其余只有元信息。 */
+/** 读一份文件给画布：小文本带正文，其余（含文件夹）只有元信息。 */
 export async function readRunFile(full: string, display: string): Promise<RunFileResponse> {
   const base = {
     path: full,
@@ -118,6 +118,9 @@ export async function readRunFile(full: string, display: string): Promise<RunFil
   } catch {
     return { ...base, exists: false, size: 0, mtime: 0, kind: 'missing' }
   }
+  // 资源里的文件夹项：给它的绝对路径与修改时间（右栏用来打开、列里面有什么），不读内容。
+  if (info.isDirectory())
+    return { ...base, exists: true, size: 0, mtime: info.mtimeMs, kind: 'folder' }
   if (!info.isFile()) return { ...base, exists: false, size: 0, mtime: 0, kind: 'missing' }
   const meta = { ...base, exists: true, size: info.size, mtime: info.mtimeMs }
   const handle = await open(full, 'r')

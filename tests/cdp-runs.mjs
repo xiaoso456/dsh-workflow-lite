@@ -61,7 +61,21 @@ const DOC = {
       id: 'file-notes.md',
       type: 'wfResource',
       position: { x: 0, y: 0 },
-      data: { items: [{ kind: 'file', value: 'notes.md' }] },
+      data: { items: [{ kind: 'file', value: 'notes.md', note: '列出现状与风险' }] },
+    },
+    {
+      id: 'refs',
+      type: 'wfResource',
+      position: { x: 0, y: 0 },
+      data: {
+        label: '参考',
+        description: '侦察时要看的东西',
+        items: [
+          { kind: 'folder', value: 'src' },
+          { kind: 'url', value: 'https://example.com/docs/guide' },
+          { kind: 'text', value: '# 规矩\n\n- 先读再改' },
+        ],
+      },
     },
   ],
   edges: [
@@ -70,6 +84,7 @@ const DOC = {
     edge('review', 'fix', 'fail'),
     edge('fix', 'review'),
     edge('scan', 'file-notes.md'),
+    edge('refs', 'scan'),
   ],
   viewport: { x: 0, y: 0, zoom: 1 },
   settings: { runState: true },
@@ -556,11 +571,22 @@ try {
   await screenshot(session, 'runs-09-untracked.png')
   pass('不记运行状态的实例：只读的图 + 右栏说明，没有状态小标、不报错')
 
-  // 15) 产出文件：步骤详情列出它写的文件；点进去是文件面板（生成没有、预览、谁写谁读）；查看框渲染 Markdown。
+  // 15) 资源：步骤详情列出它写的文件；点进去右栏只放缩略（生成没有 · 大小 · 时间、用到它的步骤），
+  // 查看在详情框里：文件读正文（带生成要求），文件夹列内容，网址、自定义文字显示全文。
   // 没配产出根目录：产出落在这个实例自己的 .workflow-lite/runs/<实例>/out 下。
   const out = join(WORKSPACE, '.workflow-lite', 'runs', instance, 'out')
   await mkdir(out, { recursive: true })
   await writeFile(join(out, 'notes.md'), '# 侦察笔记\n\n- 第一条\n- 第二条\n')
+  await mkdir(join(WORKSPACE, 'src', 'lib'), { recursive: true })
+  await writeFile(join(WORKSPACE, 'src', 'main.ts'), 'export {}\n')
+  const panelText = (selector) =>
+    session.evaluate(
+      `document.querySelector('[data-testid="wl-run-panel"] ${selector}')?.textContent ?? ''`,
+    )
+  const pressEscape = (testId) =>
+    session.evaluate(
+      `document.querySelector('[data-testid="${testId}"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`,
+    )
   await session.evaluate(
     `document.querySelector('.react-flow__node[data-id="scan"]').dispatchEvent(new MouseEvent('click', { bubbles: true }))`,
   )
@@ -571,38 +597,100 @@ try {
   await session.evaluate(
     `document.querySelector('[data-testid="wl-run-step-file"][data-id="file-notes.md"]').click()`,
   )
-  await waitFor(session, `document.querySelector('[data-testid="wl-run-file-preview"]') !== null`)
+  await waitFor(session, `document.querySelector('[data-testid="wl-run-resource"]') !== null`)
+  check((await panelText('header')).includes('notes.md'), '右栏标题应是资源的名字')
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-run-item-state"]')?.textContent.includes('已生成')`,
+  )
   check(
-    (
-      await session.evaluate(
-        `document.querySelector('[data-testid="wl-run-file-state"]').textContent`,
-      )
-    ).includes('已生成'),
-    '文件面板应标「已生成」',
+    /\d+ B/u.test(await panelText('[data-testid="wl-run-resource-item"]')),
+    '文件那一行应带大小',
   )
   check(
     await session.evaluate(
       `document.querySelector('[data-testid="wl-run-file-step"][data-id="scan"]') !== null`,
     ),
-    '文件面板应列出写它的步骤 scan',
+    '右栏应列出用到它的步骤 scan',
   )
   check(
-    (await session.evaluate(
-      `document.querySelector('[data-testid="wl-run-file-path"]').textContent`,
-    )) === `.workflow-lite/runs/${instance}/out/notes.md`,
-    '文件面板的路径应是实例自己的 out 目录',
+    await session.evaluate(
+      `document.querySelector('[data-testid="wl-run-file-preview"]') === null`,
+    ),
+    '右栏不再内嵌文件正文',
   )
-  await session.evaluate(`document.querySelector('[data-testid="wl-file-view"]').click()`)
+  await screenshot(session, 'runs-10-resource.png')
+  await session.evaluate(`document.querySelector('[data-testid="wl-run-item-view"]').click()`)
   await waitFor(
     session,
     `document.querySelector('[data-testid="wl-file-viewer"] h1')?.textContent === '侦察笔记'`,
   )
-  await screenshot(session, 'runs-10-viewer.png')
-  await session.evaluate(
-    `document.querySelector('[data-testid="wl-file-viewer"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`,
+  check(
+    (await session.evaluate(
+      `document.querySelector('[data-testid="wl-file-viewer"] code').textContent`,
+    )) === `.workflow-lite/runs/${instance}/out/notes.md`,
+    '查看框的路径应是实例自己的 out 目录',
   )
+  check(
+    (
+      await session.evaluate(
+        `document.querySelector('[data-testid="wl-item-note"]')?.textContent ?? ''`,
+      )
+    ).includes('列出现状与风险'),
+    '查看框正文前应有这一项的说明',
+  )
+  await screenshot(session, 'runs-11-viewer.png')
+  await pressEscape('wl-file-viewer')
   await waitFor(session, `document.querySelector('[data-testid="wl-file-viewer"]') === null`)
-  pass('产出文件：步骤详情 → 文件面板（已生成、预览、谁写它）→ 查看框渲染 Markdown')
+  pass('产出文件：右栏一行缩略（已生成 · 大小 · 时间）+ 用到它的步骤；查看框读正文、带说明')
+
+  // 别的种类：文件夹列内容、网址、自定义文字。
+  await session.evaluate(
+    `document.querySelector('.react-flow__node[data-id="refs"]').dispatchEvent(new MouseEvent('click', { bubbles: true }))`,
+  )
+  await waitFor(
+    session,
+    `document.querySelectorAll('[data-testid="wl-run-resource-item"]').length === 3`,
+  )
+  check((await panelText('header')).includes('参考'), '右栏标题应是资源的名字')
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-run-resource-item"][data-kind="folder"] [data-testid="wl-run-item-state"]')?.dataset.on === 'true'`,
+  )
+  await screenshot(session, 'runs-12-kinds.png')
+  const openKind = (kind) =>
+    session.evaluate(
+      `document.querySelector('[data-testid="wl-run-resource-item"][data-kind="${kind}"] button').click()`,
+    )
+  await openKind('folder')
+  await waitFor(
+    session,
+    `document.querySelectorAll('[data-testid="wl-folder-entries"] li').length === 2`,
+  )
+  check(
+    (await session.evaluate(
+      `[...document.querySelectorAll('[data-testid="wl-folder-entries"] li')].map((li) => li.textContent).join(',')`,
+    )) === 'lib,main.ts',
+    '文件夹详情应列出里面的东西（目录在前）',
+  )
+  await screenshot(session, 'runs-13-folder.png')
+  await pressEscape('wl-folder-viewer')
+  await waitFor(session, `document.querySelector('[data-testid="wl-folder-viewer"]') === null`)
+  await openKind('url')
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-url-open"]')?.getAttribute('href') === 'https://example.com/docs/guide'`,
+  )
+  await pressEscape('wl-url-viewer')
+  await waitFor(session, `document.querySelector('[data-testid="wl-url-viewer"]') === null`)
+  await openKind('text')
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-text-viewer"] h1')?.textContent === '规矩'`,
+  )
+  await pressEscape('wl-text-viewer')
+  await waitFor(session, `document.querySelector('[data-testid="wl-text-viewer"]') === null`)
+  pass('其他种类：文件夹详情列出里面的东西、网址能在浏览器中打开、自定义文字排版显示')
 
   console.log('\n✅ 工作流实例验收全部通过')
 } catch (error) {
