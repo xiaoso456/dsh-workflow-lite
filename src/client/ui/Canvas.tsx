@@ -64,6 +64,7 @@ import type {
   ResourceKind,
   ValidationProblem,
   WorkflowDocument,
+  WorkflowEdge,
   WorkflowNode,
 } from '../../shared/types.ts'
 import type { LocaleKey, T } from '../i18n.ts'
@@ -88,6 +89,7 @@ import {
   RES_W,
 } from '../model/layout.ts'
 import { DND_MIME, decodeStepSource, type StepSource } from '../model/library.ts'
+import { type Chip, nudge, placeChips, type Track } from '../model/nudge.ts'
 import {
   bezierBlocked,
   FILE_SPOTS,
@@ -248,8 +250,18 @@ interface LinkData extends Record<string, unknown> {
   color: string
   /** 横着走的走廊 y（画布按卡片位置挑的）：往回走的线，或往右走却会压到卡片的线；其余是 `null`。 */
   lane: number | null
+  /** 走廊线两条竖段被分道挪开的距离（和别的颜色的线叠在一起时，见 model/nudge.ts）。 */
+  shift: LaneShift | null
+  /** 走廊线上牌子中心的 x（和并排的线错开过，见 model/nudge.ts 的 `placeChips`）。 */
+  labelX: number | null
   t: T
   onPick: (id: string) => void
+}
+
+/** 走廊线右边那条竖段（出口伸出去之后）、左边那条竖段（进入口之前）各挪了多少。 */
+interface LaneShift {
+  out: number
+  in: number
 }
 
 interface FileLinkData extends Record<string, unknown> {
@@ -548,6 +560,23 @@ function routedPath(
   return [roundedPath(fixed), mid[0], mid[1]]
 }
 
+/**
+ * 走廊线上挂的东西（条件牌子、交接标记）大约多宽，错开牌子时用；什么都不挂是 `null`。
+ * 「通过 / 未通过」画出来是翻译过的短词，按三个字算；牌子文字最宽 120px（见 `.linkLabel`）。
+ */
+function chipWidth(edge: WorkflowEdge, back: boolean): number | null {
+  const when = whenOf(edge)
+  const handoff = resolveHandoff(edge.data?.handoff)
+  const mark = !handoff.result || handoff.note !== undefined ? 34 : 0
+  if (when === undefined && !back) return mark === 0 ? null : mark
+  let text = 0
+  if (when === 'pass' || when === 'fail') text = 33
+  else if (when !== undefined) {
+    for (const char of when) text += (char.codePointAt(0) ?? 0) >= 0x2e80 ? 11 : 6.5
+  }
+  return Math.max(mark, 18 + Math.min(120, text) + (back ? 14 : 0))
+}
+
 /** 往回走的线从哪儿开始找走廊：两张卡上下错开时从两行中间找，挨在同一行时从两张卡下方找。 */
 function laneStart(sy: number, ty: number): number {
   return Math.abs(ty - sy) > NODE_H + 40 ? (sy + ty) / 2 : Math.max(sy, ty) + NODE_H / 2 + 18
@@ -565,9 +594,10 @@ function detour(
   tx: number,
   ty: number,
   lane: number,
+  shift: LaneShift | null = null,
 ): [string, number, number] {
-  const right = sx + LOOP_REACH
-  const left = tx - ROUTE_PAD
+  const right = sx + LOOP_REACH + (shift?.out ?? 0)
+  const left = tx - ROUTE_PAD + (shift?.in ?? 0)
   const path = roundedPath([
     [sx, sy],
     [right, sy],
@@ -591,9 +621,10 @@ function bypass(
   tx: number,
   ty: number,
   lane: number,
+  shift: LaneShift | null = null,
 ): [string, number, number] {
-  const right = sx + LOOP_REACH
-  const left = tx - ROUTE_PAD
+  const right = sx + LOOP_REACH + (shift?.out ?? 0)
+  const left = tx - ROUTE_PAD + (shift?.in ?? 0)
   const points: [number, number][] = [
     [sx, sy],
     [right, sy],
@@ -620,11 +651,13 @@ const LinkLine = memo(function LinkLine(props: EdgeProps<LinkEdge>): React.JSX.E
   // 往回走的线（循环、或终点在起点左边）用圆角折线绕开卡片；贝塞尔在这种时候会拧成一个结。
   const backwards = targetX < sourceX + 8
   const lane = data?.lane ?? null
-  const [path, labelX, labelY] = backwards
-    ? detour(sourceX, sourceY, targetX, targetY, lane ?? laneStart(sourceY, targetY))
+  const shift = data?.shift ?? null
+  const [path, pathLabelX, labelY] = backwards
+    ? detour(sourceX, sourceY, targetX, targetY, lane ?? laneStart(sourceY, targetY), shift)
     : lane === null
       ? flowPath(sourceX, sourceY, targetX, targetY)
-      : bypass(sourceX, sourceY, targetX, targetY, lane)
+      : bypass(sourceX, sourceY, targetX, targetY, lane, shift)
+  const labelX = backwards || lane !== null ? (data?.labelX ?? pathLabelX) : pathLabelX
   const text = data?.text ?? ''
   const showWhen = text !== '' || data?.back === true
   const handoff = data?.handoff ?? null
@@ -1452,6 +1485,13 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
       if (!list.includes(handle)) list.push(handle)
       used.set(idKey(nodeId), list)
     }
+    /** 直角走的线（走廊线、绕行折线、写线的树干）：挑完路之后统一分道，不同颜色的不叠在一条道上。 */
+    const tracks: Track[] = []
+    /** 走廊线按卡片算出来的出口 / 入口位置（分道之后据此换算竖段挪了多少）。 */
+    const corridors = new Map<
+      string,
+      { right: number; left: number; back: boolean; chip: number | null }
+    >()
     for (const edge of doc.edges) {
       const kind = edgeKind(index, edge)
       if (kind === 'flow') {
@@ -1462,15 +1502,38 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
         const sx = from.x + from.w
         const sy = from.y + from.h / 2
         const ty = to.y + to.h / 2
+        let lane: number | undefined
         if (to.x >= sx + 8) {
           // 往右走：贝塞尔压到中间的卡片（跨列时常见）才改走直角，挑离终点那一行最近的走廊。
           const others = boxes.filter((box) => box !== from && box !== to)
           if (flowBlocked(others, sx, sy, to.x, ty)) {
-            lanes.set(edge.id, nearestLane(others, sx + LOOP_REACH, to.x - ROUTE_PAD, ty))
+            lane = nearestLane(others, sx + LOOP_REACH, to.x - ROUTE_PAD, ty)
           }
-          continue
+        } else {
+          lane = freeLane(boxes, to.x - ROUTE_PAD, sx + LOOP_REACH, laneStart(sy, ty))
         }
-        lanes.set(edge.id, freeLane(boxes, to.x - ROUTE_PAD, sx + LOOP_REACH, laneStart(sy, ty)))
+        if (lane === undefined) continue
+        lanes.set(edge.id, lane)
+        const right = sx + LOOP_REACH
+        const left = to.x - ROUTE_PAD
+        corridors.set(edge.id, {
+          right,
+          left,
+          back: to.x < sx + 8,
+          chip: chipWidth(edge, to.x < sx + 8),
+        })
+        tracks.push({
+          id: edge.id,
+          group: `when:${whenKind(whenOf(edge))}`,
+          points: [
+            [sx, sy],
+            [right, sy],
+            [right, lane],
+            [left, lane],
+            [left, ty],
+            [to.x, ty],
+          ],
+        })
         continue
       }
       if (kind !== 'write' && kind !== 'read' && kind !== 'ask') continue
@@ -1512,6 +1575,18 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
           bends.set(edge.id, best.route.points)
         }
       }
+      const drawn = bends.get(edge.id) ?? (blocked ? null : simple)
+      if (drawn !== null) {
+        const access =
+          kind === 'ask'
+            ? 'ask'
+            : kind === 'read'
+              ? 'read'
+              : edge.data?.update === true
+                ? 'update'
+                : 'produce'
+        tracks.push({ id: edge.id, group: `access:${access}`, points: drawn })
+      }
       handles.set(
         edge.id,
         way === 'write'
@@ -1521,7 +1596,37 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
       mark(stepId, stepHandle)
       mark(fileId, route.file)
     }
-    return { handles, used, lanes, bends }
+    const shifts = new Map<string, LaneShift>()
+    for (const [id, points] of nudge(tracks, boxes)) {
+      const corridor = corridors.get(id)
+      if (corridor === undefined) {
+        bends.set(id, points)
+        continue
+      }
+      const [, outer, lane, inner] = points as [number, number][]
+      if (outer === undefined || lane === undefined || inner === undefined) continue
+      lanes.set(id, lane[1])
+      shifts.set(id, { out: outer[0] - corridor.right, in: inner[0] - corridor.left })
+    }
+    // 并排走同一段走廊的线，牌子沿走廊错开，不一块压住一块。
+    const chips: Chip[] = []
+    for (const [id, corridor] of corridors) {
+      const lane = lanes.get(id)
+      if (lane === undefined || corridor.chip === null) continue
+      const shift = shifts.get(id)
+      const right = corridor.right + (shift?.out ?? 0)
+      const left = corridor.left + (shift?.in ?? 0)
+      chips.push({
+        id,
+        y: lane,
+        from: left,
+        to: right,
+        prefer: corridor.back ? left + (right - left) * 0.3 : (left + right) / 2,
+        width: corridor.chip,
+      })
+    }
+    const labels = placeChips(chips)
+    return { handles, used, lanes, bends, shifts, labels }
   }, [doc, dragging, sized])
 
   const nodes = useMemo<FlowNode[]>(() => {
@@ -1833,6 +1938,8 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
           active,
           color,
           lane: routes.lanes.get(edge.id) ?? null,
+          shift: routes.shifts.get(edge.id) ?? null,
+          labelX: routes.labels.get(edge.id) ?? null,
           t,
           onPick,
         },
