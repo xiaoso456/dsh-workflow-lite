@@ -233,9 +233,6 @@ export const EDGE_KEYS = ['id', 'source', 'target', 'sourceHandle', 'targetHandl
 // 模板
 // ─────────────────────────────────────────────────────────────
 
-/** `templates/workflows/<模板名>.json` —— 与一张图**同构**。 */
-export type WorkflowTemplate = WorkflowDocument
-
 /** `templates/nodes/<模板名>.json` —— **一个节点的 `data` 本体**（不带 `id` / `position`）。 */
 export type NodeTemplate = NodeData
 
@@ -435,7 +432,6 @@ export interface WorkflowEntry {
 export interface ListResult {
   workflows: WorkflowEntry[]
   templates: {
-    workflows: TemplateEntry[]
     nodes: TemplateEntry[]
   }
   warnings: ToolWarning[]

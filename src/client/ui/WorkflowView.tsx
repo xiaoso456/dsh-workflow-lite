@@ -1065,7 +1065,6 @@ function Welcome(props: { t: T; wf: Workflow }): React.JSX.Element {
   const recent = [...(wf.catalog?.workflows ?? [])]
     .sort((a, b) => b.updatedAt - a.updatedAt)
     .slice(0, 5)
-  const templates = wf.catalog?.templates.workflows.filter((entry) => entry.invalid !== true) ?? []
   return (
     <div className={css.stage}>
       <div className={cx(ui.panel, css.welcome, ui.rise)} data-testid="wl-welcome">
@@ -1093,7 +1092,7 @@ function Welcome(props: { t: T; wf: Workflow }): React.JSX.Element {
           <Icon name="plus" size={15} />
           {t('wf.new')}
         </button>
-        {(recent.length > 0 || templates.length > 0) && (
+        {recent.length > 0 && (
           <div className={css.welcomeList}>
             {recent.map((entry) => (
               <button
@@ -1107,18 +1106,6 @@ function Welcome(props: { t: T; wf: Workflow }): React.JSX.Element {
                 <span className={ui.menuMeta}>
                   {entry.nodeCount} {t('wf.steps')}
                 </span>
-              </button>
-            ))}
-            {templates.length > 0 && <p className={ui.menuTitle}>{t('wf.fromTemplate')}</p>}
-            {templates.map((entry) => (
-              <button
-                key={entry.name}
-                type="button"
-                className={ui.menuItem}
-                onClick={() => void wf.create(entry.name)}
-              >
-                <Icon name="bookmark" size={15} />
-                <span className={ui.menuLabel}>{entry.name}</span>
               </button>
             ))}
           </div>

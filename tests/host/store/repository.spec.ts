@@ -121,25 +121,6 @@ describe('create', () => {
     expect(loaded.hash).toBe(await hashOf(text ?? ''))
   })
 
-  it('从图模板单文件复制：position 带过去、viewport 重置', async () => {
-    await mkdir(templatesDir(root, 'workflows'), { recursive: true })
-    await writeFile(
-      templateFile(root, 'workflows', 'feature-dev'),
-      writeDocument(
-        d([n('scan', { prompt: 'S' }, { x: 320, y: 180 })], [], { x: 5, y: 6, zoom: 2 }),
-      ),
-    )
-
-    expectOk(await repo.create('copy', { from: 'feature-dev' }))
-    const loaded = await repo.load('copy')
-    expect(loaded.document?.viewport).toEqual({ x: 0, y: 0, zoom: 1 })
-    expect(loaded.document?.nodes[0]).toMatchObject({
-      id: 'scan',
-      position: { x: 320, y: 180 },
-      data: { prompt: 'S' },
-    })
-  })
-
   it('撞名加序号并在 warnings 里说明占了位的是谁', async () => {
     expectOk(await repo.create('a'))
     const again = expectOk(await repo.create('a'))
@@ -152,14 +133,6 @@ describe('create', () => {
     const created = expectOk(await repo.create('a'))
     expect(created.changed[0]?.id).toBe('a-2')
     expect(created.warnings.some((w) => w.message.includes('同名目录'))).toBe(true)
-  })
-
-  it('from 不存在 ⇒ not_found；from 是空图模板 ⇒ blocked', async () => {
-    expect(expectError(await repo.create('x', { from: 'nope' })).code).toBe('not_found')
-
-    await mkdir(templatesDir(root, 'workflows'), { recursive: true })
-    await writeFile(templateFile(root, 'workflows', 'empty'), writeDocument(d([])))
-    expect(expectError(await repo.create('y', { from: 'empty' })).code).toBe('blocked')
   })
 
   it('非法图名 ⇒ blocked（不落盘）', async () => {
@@ -450,9 +423,9 @@ describe('writeNode / setLabel / deleteNode', () => {
 
   it('from_template 取 data 本体，不复制模板的 id 与 position；缺坐标报提示', async () => {
     expectOk(await repo.create('w'))
-    await mkdir(templatesDir(root, 'nodes'), { recursive: true })
+    await mkdir(templatesDir(root), { recursive: true })
     await writeFile(
-      templateFile(root, 'nodes', 'reviewer'),
+      templateFile(root, 'reviewer'),
       `${JSON.stringify({ label: '审查', prompt: 'R', output: 'r.md' }, null, 2)}\n`,
     )
 
@@ -624,35 +597,6 @@ describe('connect / disconnect', () => {
 
 // ── 模板与列举 ────────────────────────────────────────────────
 
-describe('saveAsTemplate', () => {
-  it('viewport 重置、position 带过去；撞名加序号', async () => {
-    await seedGraph(
-      'graph',
-      d([n('a', { prompt: 'A' }, { x: 7, y: 8 })], [], { x: 9, y: 9, zoom: 3 }),
-    )
-
-    const saved = expectOk(await repo.saveAsTemplate('graph'))
-    expect(saved.changed[0]?.id).toBe('graph')
-    const templateText = await readFileText(templateFile(root, 'workflows', 'graph'))
-    const template = templateText === null ? null : readDocument(templateText).document
-    expect(template?.viewport).toEqual({ x: 0, y: 0, zoom: 1 })
-    expect(template?.nodes[0]?.position).toEqual({ x: 7, y: 8 })
-
-    const again = expectOk(await repo.saveAsTemplate('graph'))
-    expect(again.changed[0]?.id).toBe('graph-2')
-    expect((await repo.list()).templates.workflows.map((entry) => entry.name)).toEqual([
-      'graph',
-      'graph-2',
-    ])
-  })
-
-  it('图不存在 ⇒ not_found；空图（编译级）⇒ blocked', async () => {
-    expect(expectError(await repo.saveAsTemplate('nope')).code).toBe('not_found')
-    expectOk(await repo.create('empty'))
-    expect(expectError(await repo.saveAsTemplate('empty')).code).toBe('blocked')
-  })
-})
-
 describe('createNodeTemplate', () => {
   it('文件顶层就是 data 本体（不套壳），并且当场出现在 list 里、读得回来', async () => {
     const written = expectOk(
@@ -660,14 +604,14 @@ describe('createNodeTemplate', () => {
     )
     expect(written.changed[0]?.id).toBe('my-check')
 
-    const raw = await readFileText(templateFile(root, 'nodes', 'my-check'))
+    const raw = await readFileText(templateFile(root, 'my-check'))
     expect(raw).not.toBeNull()
     // 顶层直接是三个字段：套一层 `{data: …}` 的话 `readTemplate('nodes')` 会读成空模板。
     expect(Object.keys(JSON.parse(raw ?? '{}')).sort()).toEqual(['label', 'prompt'])
     expect(raw?.endsWith('\n')).toBe(true)
 
     expect((await repo.list()).templates.nodes.map((entry) => entry.name)).toEqual(['my-check'])
-    expect(expectOk(await repo.readTemplate('nodes', 'my-check'))).toEqual({
+    expect(expectOk(await repo.readTemplate('my-check'))).toEqual({
       label: '我的检查',
       prompt: '检查一遍。',
     })
@@ -676,14 +620,13 @@ describe('createNodeTemplate', () => {
   it('output 三态：字符串写出来、缺省不写这个键', async () => {
     expectOk(await repo.createNodeTemplate('with-out', { prompt: 'P', output: 'x.md' }))
     expectOk(await repo.createNodeTemplate('no-out', { prompt: 'P' }))
-    expect(
-      JSON.parse((await readFileText(templateFile(root, 'nodes', 'with-out'))) ?? '{}'),
-    ).toEqual({ prompt: 'P', output: 'x.md' })
-    expect(JSON.parse((await readFileText(templateFile(root, 'nodes', 'no-out'))) ?? '{}')).toEqual(
-      {
-        prompt: 'P',
-      },
-    )
+    expect(JSON.parse((await readFileText(templateFile(root, 'with-out'))) ?? '{}')).toEqual({
+      prompt: 'P',
+      output: 'x.md',
+    })
+    expect(JSON.parse((await readFileText(templateFile(root, 'no-out'))) ?? '{}')).toEqual({
+      prompt: 'P',
+    })
   })
 
   it('撞名 ⇒ conflict，**不覆盖也不加序号**，原文件一字未动', async () => {
@@ -694,11 +637,11 @@ describe('createNodeTemplate', () => {
 
     // 没有 `twin-2`，也没有把 `twin` 改写成新的。
     expect((await repo.list()).templates.nodes.map((entry) => entry.name)).toEqual(['twin'])
-    expect(expectOk(await repo.readTemplate('nodes', 'twin'))).toEqual({ prompt: '原来的' })
+    expect(expectOk(await repo.readTemplate('twin'))).toEqual({ prompt: '原来的' })
   })
 
   it('被同名目录占位也算冲突（同名目录算被占用）', async () => {
-    await mkdir(join(templatesDir(root, 'nodes'), 'dirish'), { recursive: true })
+    await mkdir(join(templatesDir(root), 'dirish'), { recursive: true })
     expect(expectError(await repo.createNodeTemplate('dirish', { prompt: 'P' })).code).toBe(
       'conflict',
     )
@@ -715,7 +658,7 @@ describe('createNodeTemplate', () => {
 describe('节点模板的编辑：draft / save / delete', () => {
   it('半成品（提示词空着）拿去用会被挡，但能打开来编辑', async () => {
     expectOk(await repo.createNodeTemplate('draft', { label: '草稿', prompt: '' }))
-    expect(expectError(await repo.readTemplate('nodes', 'draft')).code).toBe('blocked')
+    expect(expectError(await repo.readTemplate('draft')).code).toBe('blocked')
     expect(expectOk(await repo.readNodeTemplateDraft('draft'))).toEqual({
       label: '草稿',
       prompt: '',
@@ -726,7 +669,7 @@ describe('节点模板的编辑：draft / save / delete', () => {
   it('覆盖保存只改已存在的；不存在 ⇒ not_found，不会顺手新建', async () => {
     expectOk(await repo.createNodeTemplate('edit-me', { prompt: '旧' }))
     expectOk(await repo.saveNodeTemplate('edit-me', { prompt: '新', output: false }))
-    expect(expectOk(await repo.readTemplate('nodes', 'edit-me'))).toEqual({
+    expect(expectOk(await repo.readTemplate('edit-me'))).toEqual({
       prompt: '新',
       output: false,
     })
@@ -741,14 +684,14 @@ describe('节点模板的编辑：draft / save / delete', () => {
     expectOk(await repo.createNodeTemplate('taken', { prompt: 'B' }))
     const clash = expectError(await repo.saveNodeTemplate('taken', { prompt: 'A2' }, 'old-name'))
     expect(clash.code).toBe('conflict')
-    expect(expectOk(await repo.readTemplate('nodes', 'taken'))).toEqual({ prompt: 'B' })
+    expect(expectOk(await repo.readTemplate('taken'))).toEqual({ prompt: 'B' })
 
     expectOk(await repo.saveNodeTemplate('new-name', { prompt: 'A2' }, 'old-name'))
     expect((await repo.list()).templates.nodes.map((entry) => entry.name).sort()).toEqual([
       'new-name',
       'taken',
     ])
-    expect(expectOk(await repo.readTemplate('nodes', 'new-name'))).toEqual({ prompt: 'A2' })
+    expect(expectOk(await repo.readTemplate('new-name'))).toEqual({ prompt: 'A2' })
   })
 
   it('描述与多个产出（带规则）原样存下、读回', async () => {
@@ -759,7 +702,7 @@ describe('节点模板的编辑：draft / save / delete', () => {
       output: [{ path: 'a.md', rule: '列出问题' }, { path: 'b.json' }],
     }
     expectOk(await repo.createNodeTemplate('rich', data))
-    const raw = JSON.parse((await readFileText(templateFile(root, 'nodes', 'rich'))) ?? '{}')
+    const raw = JSON.parse((await readFileText(templateFile(root, 'rich'))) ?? '{}')
     expect(Object.keys(raw)).toEqual(['label', 'description', 'prompt', 'output'])
     expect(expectOk(await repo.readNodeTemplateDraft('rich'))).toEqual(data)
   })
@@ -767,7 +710,7 @@ describe('节点模板的编辑：draft / save / delete', () => {
   it('只改大小写的改名不会把文件弄丢', async () => {
     expectOk(await repo.createNodeTemplate('case', { prompt: 'A' }))
     expectOk(await repo.saveNodeTemplate('Case', { prompt: 'A' }, 'case'))
-    expect(expectOk(await repo.readTemplate('nodes', 'Case'))).toEqual({ prompt: 'A' })
+    expect(expectOk(await repo.readTemplate('Case'))).toEqual({ prompt: 'A' })
   })
 
   it('删除：删掉就不在列表里；再删一次 ⇒ not_found', async () => {
@@ -787,9 +730,9 @@ describe('list', () => {
     await writeFile(join(workflowsDir(root), 'notes.txt'), 'hi')
     await mkdir(join(workflowsDir(root), 'legacy-dir'), { recursive: true })
     await mkdir(join(root, 'nodes'), { recursive: true })
-    await mkdir(templatesDir(root, 'nodes'), { recursive: true })
-    await writeFile(templateFile(root, 'nodes', 'ok'), '{"prompt":"R"}\n')
-    await writeFile(templateFile(root, 'nodes', 'bad'), '{}\n')
+    await mkdir(templatesDir(root), { recursive: true })
+    await writeFile(templateFile(root, 'ok'), '{"prompt":"R"}\n')
+    await writeFile(templateFile(root, 'bad'), '{}\n')
 
     const listed = await repo.list()
     expect(listed.workflows.map((entry) => entry.name).sort()).toEqual(['broken', 'good'])
@@ -806,7 +749,6 @@ describe('list', () => {
     expect(listed.templates.nodes.map((entry) => entry.name)).toEqual(['bad', 'ok'])
     expect(listed.templates.nodes.find((entry) => entry.name === 'bad')?.invalid).toBe(true)
     expect(listed.templates.nodes.find((entry) => entry.name === 'ok')?.invalid).toBeUndefined()
-    expect(listed.templates.workflows).toEqual([])
 
     const codes = listed.warnings.map((warning) => warning.code)
     expect(codes).toContain('legacy_structure')
@@ -818,7 +760,7 @@ describe('list', () => {
     const listed = await repo.list()
     expect(listed).toEqual({
       workflows: [],
-      templates: { workflows: [], nodes: [] },
+      templates: { nodes: [] },
       warnings: [],
     })
   })

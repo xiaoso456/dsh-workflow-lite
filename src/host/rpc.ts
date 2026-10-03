@@ -243,8 +243,7 @@ async function dispatch(
     case 'graph/create': {
       const input = asRecord(payload)
       const name = requireString(input, 'name')
-      const from = optionalString(input, 'from')
-      const outcome = await deps.repository.create(name, from === undefined ? {} : { from })
+      const outcome = await deps.repository.create(name)
       if (!outcome.ok) return failFrom(outcome.error)
       // 撞名加序号时，实际生成的名字在 changed 里。
       const created = outcome.result.changed[0]?.id ?? name
@@ -276,15 +275,9 @@ async function dispatch(
     case 'graph/nodeTemplate': {
       const input = asRecord(payload)
       const name = requireString(input, 'name')
-      const outcome = await deps.repository.readTemplate('nodes', name)
+      const outcome = await deps.repository.readTemplate(name)
       if (!outcome.ok) return failFrom(outcome.error)
-      // `readTemplate('nodes')` 给的就是 `data` 本体；这里按形状把
-      // 「一张图」那一支排掉——`WorkflowDocument` 必带 `nodes`，`NodeData` 不带。
-      const data = outcome.result
-      if ('nodes' in data) {
-        return fail('internal', `模板 ${name} 不是节点模板（读出来的是整张图）`)
-      }
-      return ok({ name, data })
+      return ok({ name, data: outcome.result })
     }
 
     case 'graph/nodeTemplateCreate': {

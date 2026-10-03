@@ -25,9 +25,6 @@ import type { PlanId } from '../../shared/types.ts'
 /** 图文件 / 模板文件的后缀。判据不区分大小写。 */
 export const JSON_SUFFIX = '.json'
 
-/** 模板的两类子目录。 */
-export type TemplateKind = 'workflows' | 'nodes'
-
 /** 一个路径当前的占用形态。 */
 export type PathKind = 'file' | 'dir' | 'missing'
 
@@ -63,14 +60,9 @@ export function workflowsDir(dataDir: string): string {
   return join(dataDir, WORKFLOWS_DIR)
 }
 
-/** `<dataDir>/templates/`。 */
-export function templatesRoot(dataDir: string): string {
-  return join(dataDir, TEMPLATES_DIR)
-}
-
-/** `<dataDir>/templates/<kind>/`。 */
-export function templatesDir(dataDir: string, kind: TemplateKind): string {
-  return join(templatesRoot(dataDir), kind)
+/** `<dataDir>/templates/nodes/`：节点模板（画布步骤库的「我的步骤」）。 */
+export function templatesDir(dataDir: string): string {
+  return join(dataDir, TEMPLATES_DIR, 'nodes')
 }
 
 /** `<dataDir>/workflows/<名>.json`。 */
@@ -78,9 +70,9 @@ export function workflowFile(dataDir: string, name: string): string {
   return join(workflowsDir(dataDir), `${name}${JSON_SUFFIX}`)
 }
 
-/** `<dataDir>/templates/<kind>/<名>.json`。 */
-export function templateFile(dataDir: string, kind: TemplateKind, name: string): string {
-  return join(templatesDir(dataDir, kind), `${name}${JSON_SUFFIX}`)
+/** `<dataDir>/templates/nodes/<名>.json`。 */
+export function templateFile(dataDir: string, name: string): string {
+  return join(templatesDir(dataDir), `${name}${JSON_SUFFIX}`)
 }
 
 /** `<dataDir>/.dispatch/` —— 派生根，**启动时不创建**，编译时才建。 */
@@ -108,9 +100,9 @@ export function payloadFile(
   return join(payloadDir(dataDir, workflow, planId), `${nodeId}.md`)
 }
 
-/** 首次启动按需创建的那三个目录（**不含** `.dispatch/`）。 */
+/** 首次启动按需创建的那两个目录（**不含** `.dispatch/`）。 */
 export function layoutDirs(dataDir: string): string[] {
-  return [workflowsDir(dataDir), templatesDir(dataDir, 'workflows'), templatesDir(dataDir, 'nodes')]
+  return [workflowsDir(dataDir), templatesDir(dataDir)]
 }
 
 /**
@@ -191,9 +183,9 @@ export async function workflowNamesOnDisk(dataDir: string): Promise<string[]> {
   return (await scanWorkflowDir(dataDir)).names
 }
 
-/** `templates/<kind>/` 下的模板名。 */
-export async function scanTemplateDir(dataDir: string, kind: TemplateKind): Promise<DirScan> {
-  return scanJsonDir(templatesDir(dataDir, kind))
+/** `templates/nodes/` 下的节点模板名。 */
+export async function scanTemplateDir(dataDir: string): Promise<DirScan> {
+  return scanJsonDir(templatesDir(dataDir))
 }
 
 /** 一个路径是文件、目录，还是不存在。 */
@@ -212,13 +204,9 @@ export async function workflowOccupant(dataDir: string, name: string): Promise<N
   return nameOccupant(workflowsDir(dataDir), name)
 }
 
-/** 一个模板名在 `templates/<kind>/` 下的占位情况——同样把同名目录算进来。 */
-export async function templateOccupant(
-  dataDir: string,
-  kind: TemplateKind,
-  name: string,
-): Promise<NameOccupant> {
-  return nameOccupant(templatesDir(dataDir, kind), name)
+/** 一个节点模板名在 `templates/nodes/` 下的占位情况——同样把同名目录算进来。 */
+export async function templateOccupant(dataDir: string, name: string): Promise<NameOccupant> {
+  return nameOccupant(templatesDir(dataDir), name)
 }
 
 async function nameOccupant(dir: string, name: string): Promise<NameOccupant> {

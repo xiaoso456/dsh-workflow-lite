@@ -35,10 +35,7 @@ describe('路径构造', () => {
     expect(relative(root, workflowFile(root, 'code-review'))).toBe(
       join('workflows', 'code-review.json'),
     )
-    expect(relative(root, templateFile(root, 'workflows', 'feature-dev'))).toBe(
-      join('templates', 'workflows', 'feature-dev.json'),
-    )
-    expect(relative(root, templateFile(root, 'nodes', 'reviewer'))).toBe(
+    expect(relative(root, templateFile(root, 'reviewer'))).toBe(
       join('templates', 'nodes', 'reviewer.json'),
     )
     expect(relative(root, dispatchDir(root, 'code-review'))).toBe(join('.dispatch', 'code-review'))
@@ -89,14 +86,13 @@ describe('扫描判据（什么算一个图文件）', () => {
     expect(await workflowNamesOnDisk(join(root, 'nowhere'))).toEqual([])
   })
 
-  it('模板目录同样只认 .json（两类子目录分开扫）', async () => {
+  it('节点模板目录同样只认 .json', async () => {
     await mkdir(join(root, 'templates', 'nodes'), { recursive: true })
     await writeFile(join(root, 'templates', 'nodes', 'reviewer.json'), '{}')
     await writeFile(join(root, 'templates', 'nodes', 'README.md'), '#')
-    const scan = await scanTemplateDir(root, 'nodes')
+    const scan = await scanTemplateDir(root)
     expect(scan.names).toEqual(['reviewer'])
     expect(scan.ignored).toEqual(['README.md'])
-    expect((await scanTemplateDir(root, 'workflows')).names).toEqual([])
   })
 })
 
@@ -117,11 +113,10 @@ describe('占位判定：同名目录也算被占用', () => {
     expect(await workflowOccupant(root, 'c')).toBe('both')
   })
 
-  it('templateOccupant 同理，且两类模板互不干扰', async () => {
-    await mkdir(join(root, 'templates', 'workflows'), { recursive: true })
-    await mkdir(join(root, 'templates', 'workflows', 'feature-dev'))
-    expect(await templateOccupant(root, 'workflows', 'feature-dev')).toBe('dir')
-    expect(await templateOccupant(root, 'nodes', 'feature-dev')).toBeNull()
+  it('templateOccupant 同理', async () => {
+    await mkdir(join(root, 'templates', 'nodes', 'reviewer'), { recursive: true })
+    expect(await templateOccupant(root, 'reviewer')).toBe('dir')
+    expect(await templateOccupant(root, 'other')).toBeNull()
   })
 })
 

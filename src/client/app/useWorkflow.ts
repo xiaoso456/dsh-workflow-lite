@@ -62,7 +62,7 @@ export interface Workflow {
   /** 一次连续输入结束：断开撤销合并。 */
   seal(): void
   open(name: string): Promise<void>
-  create(from?: string): Promise<void>
+  create(): Promise<void>
   rename(to: string): Promise<boolean>
   remove(name: string): Promise<void>
   reload(): void
@@ -333,22 +333,16 @@ export function useWorkflow(rpc: WorkflowLiteRpc, t: T): Workflow {
     [rpc, apply, flush, fail, refreshCatalog],
   )
 
-  const create = useCallback(
-    async (from?: string): Promise<void> => {
-      try {
-        const created = await rpc.call('graph/create', {
-          name: from ?? tRef.current('wf.defaultName'),
-          ...(from === undefined ? {} : { from }),
-        })
-        await refreshCatalog()
-        await open(created.name)
-        setFresh(created.name)
-      } catch (error) {
-        fail(error)
-      }
-    },
-    [rpc, refreshCatalog, open, fail],
-  )
+  const create = useCallback(async (): Promise<void> => {
+    try {
+      const created = await rpc.call('graph/create', { name: tRef.current('wf.defaultName') })
+      await refreshCatalog()
+      await open(created.name)
+      setFresh(created.name)
+    } catch (error) {
+      fail(error)
+    }
+  }, [rpc, refreshCatalog, open, fail])
 
   const rename = useCallback(
     async (raw: string): Promise<boolean> => {

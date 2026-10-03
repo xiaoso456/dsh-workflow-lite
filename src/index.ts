@@ -66,7 +66,7 @@ export async function apply(ctx: Context, config: WorkflowLiteSettings): Promise
     )
   const repository: Repository = createRepository({ dataDir: config.dataDir.get(), validate })
 
-  // 首次启动按需建 `workflows/` 与 `templates/{workflows,nodes}`；**不建 `.dispatch/`**
+  // 首次启动按需建 `workflows/` 与 `templates/nodes/`；**不建 `.dispatch/`**
   // （那是派生物，编译时才出现）。目录不可用只是警告——工具会把它翻成 `invalid_args`。
   const layout = await repository.ensureLayout()
   if (!layout.ok) {

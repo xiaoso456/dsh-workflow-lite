@@ -229,23 +229,13 @@ describe('workflow_lite —— 正常路径', () => {
     expect(JSON.stringify(nodes)).toContain('reviewer')
   })
 
-  it('save_as_template 不给 node → 存成图模板', async () => {
+  it('save_as_template 不给 node → invalid_args（整图模板已去掉）', async () => {
     await run({ action: 'create', workflow: 'wf' })
     await run({ action: 'write_node', workflow: 'wf', node: 'a', content: 'A' })
     const saved = record(await run({ action: 'save_as_template', workflow: 'wf', to: 'starter' }))
-    expect(errorCode(saved)).toBeUndefined()
+    expect(errorCode(saved)).toBe('invalid_args')
     const list = record(await run({ action: 'list' }))
-    expect(JSON.stringify(record(list.templates as JsonValue).workflows)).toContain('starter')
-  })
-
-  it('create from 模板 → 新建的图带上模板的节点', async () => {
-    await run({ action: 'create', workflow: 'base' })
-    await run({ action: 'write_node', workflow: 'base', node: 'a', content: 'A' })
-    await run({ action: 'save_as_template', workflow: 'base', to: 'starter' })
-    const created = record(await run({ action: 'create', workflow: 'copy', from: 'starter' }))
-    expect(errorCode(created)).toBeUndefined()
-    const index = record(await run({ action: 'read', workflow: 'copy' }))
-    expect((index.nodes as JsonValue[]).length).toBe(1)
+    expect(Object.keys(record(list.templates as JsonValue))).toEqual(['nodes'])
   })
 
   it('rename_workflow → delete_workflow 闭环', async () => {

@@ -234,7 +234,6 @@ function Switcher(props: TopBarProps): React.JSX.Element {
   }
 
   const workflows = catalog?.workflows ?? []
-  const templates = catalog?.templates.workflows ?? []
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase()
     const sorted = [...workflows].sort((a, b) => b.updatedAt - a.updatedAt)
@@ -442,27 +441,6 @@ function Switcher(props: TopBarProps): React.JSX.Element {
         <Icon name="plus" size={15} />
         <span className={ui.menuLabel}>{t('wf.new')}</span>
       </button>
-      {templates.length > 0 && (
-        <>
-          <p className={ui.menuTitle}>{t('wf.fromTemplate')}</p>
-          {templates.map((entry) => (
-            <button
-              key={entry.name}
-              type="button"
-              className={ui.menuItem}
-              disabled={entry.invalid === true}
-              title={entry.reason}
-              onClick={() => {
-                close()
-                void wf.create(entry.name)
-              }}
-            >
-              <Icon name="bookmark" size={15} />
-              <span className={ui.menuLabel}>{entry.name}</span>
-            </button>
-          ))}
-        </>
-      )}
     </Popover>
   )
 }

@@ -82,7 +82,6 @@ import {
   type WorkflowEdge,
   type WorkflowEntry,
   type WorkflowNode,
-  type WorkflowTemplate,
   type WriteResult,
 } from '../../shared/types.ts'
 // 只借类型：仓储不运行时依赖校验层，装配时把 `validateDocument` 注入进来即可。
@@ -107,7 +106,6 @@ import {
   pathKind,
   scanTemplateDir,
   scanWorkflowDir,
-  type TemplateKind,
   templateFile,
   templateOccupant,
   tempName,
@@ -170,29 +168,11 @@ export type DocumentValidator = (
   workflow: string,
 ) => ValidationProblem[]
 
-/** 模板预检器（可注入）。缺省只做结构判据 + "零节点的图模板算编译级"。 */
-export type TemplateValidator = (
-  kind: TemplateKind,
-  value: WorkflowDocument | NodeData,
-) => ValidationProblem[]
-
 export interface RepositoryOptions {
   /** 数据根目录（Config 的 `dataDir`，默认 `~/.dsh/workflow-lite`）。 */
   dataDir: string
   /** 见 {@link DocumentValidator}。 */
   validate?: DocumentValidator
-  /** 见 {@link TemplateValidator}。 */
-  validateTemplate?: TemplateValidator
-}
-
-export interface CreateOptions {
-  /** 从 `templates/workflows/<from>.json` 单文件复制；`viewport` 重置、`position` 带过去。 */
-  from?: string
-}
-
-export interface SaveAsTemplateOptions {
-  /** 模板名；缺省 = 原图名。撞名自动加序号。 */
-  to?: string
 }
 
 /** `write_node` 的语义入参——`undefined` 一律表示"不改这一项"。 */
@@ -250,17 +230,16 @@ export interface ResourceUpsert {
 
 export interface Repository {
   readonly dataDir: string
-  /** 首次启动按需创建 `workflows/` 与 `templates/{workflows,nodes}`（**不建 `.dispatch/`**）。 */
+  /** 首次启动按需创建 `workflows/` 与 `templates/nodes/`（**不建 `.dispatch/`**）。 */
   ensureLayout(): Promise<Outcome<{ created: string[] }>>
   load(workflow: string): Promise<LoadResult>
   save(workflow: string, next: WorkflowDocument, options: SaveOptions): Promise<Outcome<SaveResult>>
   list(): Promise<ListResult>
-  create(workflow: string, options?: CreateOptions): Promise<Outcome<WriteResult>>
+  create(workflow: string): Promise<Outcome<WriteResult>>
   rename(workflow: string, to: string): Promise<Outcome<WriteResult>>
   remove(workflow: string): Promise<Outcome<WriteResult>>
-  saveAsTemplate(workflow: string, options?: SaveAsTemplateOptions): Promise<Outcome<WriteResult>>
-  /** 读一个模板：`kind='workflows'` 给整图文档，`kind='nodes'` 给 `data` 本体。 */
-  readTemplate(kind: TemplateKind, name: string): Promise<Outcome<WorkflowTemplate | NodeData>>
+  /** 读一个节点模板的 `data` 本体（拿去用：半成品一律挡掉）。 */
+  readTemplate(name: string): Promise<Outcome<NodeData>>
   /**
    * 新建一个节点模板文件（`templates/nodes/<名>.json`）。
    *
@@ -399,25 +378,6 @@ function emptyDocument(): WorkflowDocument {
   return { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } }
 }
 
-/**
- * 编译级里与存储强相关的那一条：**图内没有节点**。
- * 它同时决定「零节点的图模板算 invalid、拒绝作为 `from`」与「空图拒绝存为模板」。
- * 其余编译级规则（`prompt` 为空、超 `maxNodes`）归校验层，仓储不内联。
- */
-function noNodesProblem(): ValidationProblem {
-  return { level: 'compile', code: 'no_nodes', message: '图内没有节点' }
-}
-
-/** 补一条 `no_nodes`（注入的校验层已经报过就不重复报）。 */
-function appendNoNodes(
-  problems: ValidationProblem[],
-  document: WorkflowDocument,
-): ValidationProblem[] {
-  if (document.nodes.length > 0) return problems
-  if (problems.some((problem) => problem.code === 'no_nodes')) return problems
-  return [...problems, noNodesProblem()]
-}
-
 function setLabelValue(data: NodeData, label: string | undefined): void {
   if (label === undefined) delete data.label
   else data.label = label
@@ -487,7 +447,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /** 名字空间：图目录与两个模板子目录**不能混**（`workflows` 这个词在两处都出现）。 */
-type NameSpace = 'graphs' | 'templates/workflows' | 'templates/nodes'
+type NameSpace = 'graphs' | 'templates/nodes'
 
 type MutationOutcome =
   | { ok: true; document: WorkflowDocument; changed: ChangedEntry[]; warnings: ToolWarning[] }
@@ -510,7 +470,6 @@ class FileRepository implements Repository {
   readonly dataDir: string
 
   private readonly validator: DocumentValidator | null
-  private readonly templateValidator: TemplateValidator | null
 
   /**
    * 基线快照：`"<图名>\0<整图哈希>" → document`，只记 `load()` / 上一次写落盘的那个版本。
@@ -528,7 +487,6 @@ class FileRepository implements Repository {
   constructor(options: RepositoryOptions) {
     this.dataDir = options.dataDir
     this.validator = options.validate ?? null
-    this.templateValidator = options.validateTemplate ?? null
   }
 
   // ── 锁 ──────────────────────────────────────────────────────
@@ -774,10 +732,9 @@ class FileRepository implements Repository {
   async list(): Promise<ListResult> {
     const warnings: ToolWarning[] = []
 
-    const [scan, templateWorkflows, templateNodes, legacy] = await Promise.all([
+    const [scan, templateNodes, legacy] = await Promise.all([
       scanWorkflowDir(this.dataDir),
-      scanTemplateDir(this.dataDir, 'workflows'),
-      scanTemplateDir(this.dataDir, 'nodes'),
+      scanTemplateDir(this.dataDir),
       this.detectLegacy(),
     ])
 
@@ -789,7 +746,6 @@ class FileRepository implements Repository {
       })
     }
     this.reportIgnored(scan, 'workflows/', warnings)
-    this.reportIgnored(templateWorkflows, 'templates/workflows/', warnings)
     this.reportIgnored(templateNodes, 'templates/nodes/', warnings)
 
     const workflows: WorkflowEntry[] = []
@@ -800,8 +756,7 @@ class FileRepository implements Repository {
     return {
       workflows,
       templates: {
-        workflows: await this.describeTemplates('workflows', templateWorkflows.names),
-        nodes: await this.describeTemplates('nodes', templateNodes.names),
+        nodes: await this.describeTemplates(templateNodes.names),
       },
       warnings,
     }
@@ -809,7 +764,7 @@ class FileRepository implements Repository {
 
   // ── 写：图级 ────────────────────────────────────────────────
 
-  async create(workflow: string, options: CreateOptions = {}): Promise<Outcome<WriteResult>> {
+  async create(workflow: string): Promise<Outcome<WriteResult>> {
     return this.withLock(async () => {
       const resolved = this.resolveName(workflow)
       if (!resolved.ok) return resolved
@@ -817,16 +772,7 @@ class FileRepository implements Repository {
       const ready = await this.ensureLayout()
       if (!ready.ok) return ready
 
-      let document: WorkflowDocument
-      if (options.from === undefined) {
-        document = emptyDocument()
-      } else {
-        const template = await this.readWorkflowTemplate(options.from)
-        if (!template.ok) return template
-        document = cloneDocument(template.result)
-        // 模板定义的是"节点怎么摆"，但"你上次看到哪"不该继承。
-        document.viewport = { x: 0, y: 0, zoom: 1 }
-      }
+      const document = emptyDocument()
 
       const warnings: ToolWarning[] = []
       const picked = await this.pickFreeName(requested, 'graphs', warnings)
@@ -847,7 +793,7 @@ class FileRepository implements Repository {
             kind: 'workflow',
             op: 'add',
             id: name,
-            detail: { requested, renamed: name !== requested, from: options.from ?? null },
+            detail: { requested, renamed: name !== requested },
           },
         ],
         warnings,
@@ -944,74 +890,6 @@ class FileRepository implements Repository {
       return ok({
         changed: [{ kind: 'workflow', op: 'delete', id: name, detail: { dispatchRemoved: true } }],
         warnings: [],
-      })
-    })
-  }
-
-  async saveAsTemplate(
-    workflow: string,
-    options: SaveAsTemplateOptions = {},
-  ): Promise<Outcome<WriteResult>> {
-    return this.withLock(async () => {
-      const resolved = this.resolveName(workflow)
-      if (!resolved.ok) return resolved
-      const name = resolved.result
-      const ready = await this.ensureLayout()
-      if (!ready.ok) return ready
-
-      const file = workflowFile(this.dataDir, name)
-      const text = await readFileText(file)
-      if (text === null) return fail('not_found', `图 ${name} 不存在`, { workflow: name })
-      const parsed = readDocument(text)
-      if (parsed.document === null) {
-        return fail('blocked', `图 ${name} 有保存级问题，拒绝存为模板`, {
-          problems: onlyLevel(parsed.problems, 'save'),
-        })
-      }
-      const errors = appendNoNodes(
-        [
-          ...onlyLevel(parsed.problems, 'save'),
-          ...this.validate(parsed.document, name).filter(
-            (problem) => problem.level === 'save' || problem.level === 'compile',
-          ),
-        ],
-        parsed.document,
-      )
-      if (errors.length > 0) {
-        return fail('blocked', `图 ${name} 有错误级问题，拒绝存为模板`, { problems: errors })
-      }
-
-      const requestedResolved = this.resolveName(options.to ?? name)
-      if (!requestedResolved.ok) return requestedResolved
-      const requested = requestedResolved.result
-      const warnings: ToolWarning[] = []
-      const picked = await this.pickFreeName(requested, 'templates/workflows', warnings)
-      if (!picked.ok) return picked
-      const templateName = picked.result
-
-      const copy = cloneDocument(parsed.document)
-      copy.viewport = { x: 0, y: 0, zoom: 1 }
-      const target = templateFile(this.dataDir, 'workflows', templateName)
-      try {
-        await writeFileAtomic(target, writeDocument(copy))
-      } catch (error) {
-        return mapWriteFailure(error, target)
-      }
-      return ok({
-        changed: [
-          {
-            kind: 'workflow',
-            op: 'add',
-            id: templateName,
-            detail: {
-              template: 'workflows',
-              requested,
-              from: name,
-              renamed: templateName !== requested,
-            },
-          },
-        ],
-        warnings,
       })
     })
   }
@@ -1496,27 +1374,12 @@ class FileRepository implements Repository {
 
   // ── 模板 ────────────────────────────────────────────────────
 
-  async readTemplate(
-    kind: TemplateKind,
-    name: string,
-  ): Promise<Outcome<WorkflowTemplate | NodeData>> {
-    return kind === 'workflows' ? this.readWorkflowTemplate(name) : this.readNodeTemplate(name)
-  }
-
-  private async readWorkflowTemplate(name: string): Promise<Outcome<WorkflowTemplate>> {
-    const loaded = await this.loadTemplateText('workflows', name)
-    if (!loaded.ok) return loaded
-    const parsed = readDocument(loaded.result.text)
-    if (parsed.document === null) {
-      return fail('blocked', `模板 ${name} 不是一张可读的图`, {
-        problems: onlyLevel(parsed.problems, 'save'),
-      })
-    }
-    return ok(parsed.document)
+  async readTemplate(name: string): Promise<Outcome<NodeData>> {
+    return this.readNodeTemplate(name)
   }
 
   private async readNodeTemplate(name: string): Promise<Outcome<NodeData>> {
-    const loaded = await this.loadTemplateText('nodes', name)
+    const loaded = await this.loadTemplateText(name)
     if (!loaded.ok) return loaded
     const parsed = parseNodeData(loaded.result.text)
     if (hasLevel(parsed.problems, 'save')) {
@@ -1535,7 +1398,7 @@ class FileRepository implements Repository {
       const ready = await this.ensureLayout()
       if (!ready.ok) return ready
 
-      const target = templateFile(this.dataDir, 'nodes', templateName)
+      const target = templateFile(this.dataDir, templateName)
       /*
        * 撞名 = **冲突**，不是"改名后接着写"。
        *
@@ -1543,7 +1406,7 @@ class FileRepository implements Repository {
        * 是帮忙；这条路上名字是人在对话框里指名输的，静默改名会让人对着列表找不到刚建的那个，
        * 而覆盖别人的模板更不可接受。
        */
-      const occupant = await templateOccupant(this.dataDir, 'nodes', templateName)
+      const occupant = await templateOccupant(this.dataDir, templateName)
       if (occupant !== null) {
         return fail(
           'conflict',
@@ -1577,7 +1440,7 @@ class FileRepository implements Repository {
   async readNodeTemplateDraft(name: string): Promise<Outcome<NodeData>> {
     const resolved = this.resolveName(name)
     if (!resolved.ok) return resolved
-    const text = await readFileText(templateFile(this.dataDir, 'nodes', resolved.result))
+    const text = await readFileText(templateFile(this.dataDir, resolved.result))
     if (text === null) {
       return fail('not_found', `节点模板 ${resolved.result} 不存在`, {
         template: resolved.result,
@@ -1611,7 +1474,7 @@ class FileRepository implements Repository {
       const ready = await this.ensureLayout()
       if (!ready.ok) return ready
 
-      const oldFile = templateFile(this.dataDir, 'nodes', previous)
+      const oldFile = templateFile(this.dataDir, previous)
       if ((await readFileText(oldFile)) === null) {
         return fail('not_found', `节点模板 ${previous} 不存在`, {
           template: previous,
@@ -1621,7 +1484,7 @@ class FileRepository implements Repository {
       // 改名：新名字必须空着（大小写不同的同一个名字算自己，Windows 上它们本来就是同一个文件）。
       const renaming = previous !== templateName
       if (renaming && !sameName(previous, templateName)) {
-        const occupant = await templateOccupant(this.dataDir, 'nodes', templateName)
+        const occupant = await templateOccupant(this.dataDir, templateName)
         if (occupant !== null) {
           return fail(
             'conflict',
@@ -1630,7 +1493,7 @@ class FileRepository implements Repository {
           )
         }
       }
-      const target = templateFile(this.dataDir, 'nodes', templateName)
+      const target = templateFile(this.dataDir, templateName)
       try {
         if (renaming && sameName(previous, templateName)) {
           // 只改大小写：新旧在不区分大小写的盘上是同一个文件，先写再删会把刚写的删掉。
@@ -1662,7 +1525,7 @@ class FileRepository implements Repository {
     return this.withLock(async () => {
       const resolved = this.resolveName(name)
       if (!resolved.ok) return resolved
-      const target = templateFile(this.dataDir, 'nodes', resolved.result)
+      const target = templateFile(this.dataDir, resolved.result)
       if ((await readFileText(target)) === null) {
         return fail('not_found', `节点模板 ${resolved.result} 不存在`, {
           template: resolved.result,
@@ -1685,53 +1548,32 @@ class FileRepository implements Repository {
 
   /** 读出模板文本并做预检：坏的（保存级 / 编译级）一律 `blocked`，绝不复制半成品。 */
   private async loadTemplateText(
-    kind: TemplateKind,
     name: string,
   ): Promise<Outcome<{ text: string; problems: ValidationProblem[] }>> {
     const resolved = this.resolveName(name)
     if (!resolved.ok) return resolved
-    const text = await readFileText(templateFile(this.dataDir, kind, resolved.result))
+    const text = await readFileText(templateFile(this.dataDir, resolved.result))
     if (text === null) {
-      return fail('not_found', `模板 ${kind}/${resolved.result} 不存在`, {
+      return fail('not_found', `节点模板 ${resolved.result} 不存在`, {
         template: resolved.result,
-        kind,
       })
     }
-    const problems = this.templateProblems(kind, resolved.result, text)
+    const problems = this.templateProblems(text)
     const errors = problems.filter(
       (problem) => problem.level === 'save' || problem.level === 'compile',
     )
     if (errors.length > 0) {
-      return fail(
-        'blocked',
-        `模板 ${kind}/${resolved.result} 不可用：${describeProblems(errors)}`,
-        {
-          template: resolved.result,
-          kind,
-          problems: errors,
-        },
-      )
+      return fail('blocked', `节点模板 ${resolved.result} 不可用：${describeProblems(errors)}`, {
+        template: resolved.result,
+        problems: errors,
+      })
     }
     return ok({ text, problems })
   }
 
-  /** 模板预检：结构 + 注入的 `validateTemplate` + "零节点图模板算编译级"。 */
-  private templateProblems(kind: TemplateKind, name: string, text: string): ValidationProblem[] {
-    if (kind === 'nodes') {
-      const parsed = parseNodeData(text)
-      const injected = this.templateValidator?.('nodes', parsed.data) ?? []
-      return [...parsed.problems, ...injected]
-    }
-    const parsed = readDocument(text)
-    const problems = [...parsed.problems]
-    if (parsed.document !== null) {
-      const injected =
-        this.templateValidator?.('workflows', parsed.document) ??
-        this.validate(parsed.document, name)
-      problems.push(...injected)
-      return appendNoNodes(problems, parsed.document)
-    }
-    return problems
+  /** 节点模板预检：只看结构。 */
+  private templateProblems(text: string): ValidationProblem[] {
+    return parseNodeData(text).problems
   }
 
   // ── 内部 ────────────────────────────────────────────────────
@@ -1802,11 +1644,7 @@ class FileRepository implements Repository {
 
   private async occupantOf(space: NameSpace, name: string): Promise<NameOccupant> {
     if (space === 'graphs') return workflowOccupant(this.dataDir, name)
-    return templateOccupant(
-      this.dataDir,
-      space === 'templates/workflows' ? 'workflows' : 'nodes',
-      name,
-    )
+    return templateOccupant(this.dataDir, name)
   }
 
   /** 新建类操作：撞名（**含同名目录**）自动加序号并说明是哪一样占了位。 */
@@ -1914,28 +1752,25 @@ class FileRepository implements Repository {
     return { name, nodeCount: parsed.document.nodes.length, updatedAt }
   }
 
-  private async describeTemplates(
-    kind: TemplateKind,
-    names: readonly string[],
-  ): Promise<TemplateEntry[]> {
+  private async describeTemplates(names: readonly string[]): Promise<TemplateEntry[]> {
     const entries: TemplateEntry[] = []
     for (const name of names) {
-      const text = await readFileText(templateFile(this.dataDir, kind, name))
+      const text = await readFileText(templateFile(this.dataDir, name))
       if (text === null) {
         entries.push({ name, invalid: true, reason: '文件在扫描后消失' })
         continue
       }
-      const errors = this.templateProblems(kind, name, text).filter(
+      const errors = this.templateProblems(text).filter(
         (problem) => problem.level === 'save' || problem.level === 'compile',
       )
-      // 节点模板顺带给出它的描述：步骤库的条目上要显示"这一步做什么"。
-      const data = kind === 'nodes' ? parseNodeData(text).data : undefined
-      const description = data?.description
+      // 顺带给出它的描述：步骤库的条目上要显示"这一步做什么"。
+      const data = parseNodeData(text).data
+      const description = data.description
       const described = {
         ...(description === undefined || description === '' ? {} : { description }),
         // 我的步骤自己选的图标与颜色：步骤库的条目照着画。
-        ...(data?.icon === undefined ? {} : { icon: data.icon }),
-        ...(data?.color === undefined ? {} : { color: data.color }),
+        ...(data.icon === undefined ? {} : { icon: data.icon }),
+        ...(data.color === undefined ? {} : { color: data.color }),
       }
       if (errors.length > 0) {
         entries.push({ name, invalid: true, reason: describeProblems(errors), ...described })
@@ -2032,7 +1867,7 @@ function parseNodeData(text: string): { data: NodeData; problems: ValidationProb
   return { data, problems }
 }
 
-/** 建一个仓储。`validate` / `validateTemplate` 由 host 在装配时接上 `shared/validate.ts`。 */
+/** 建一个仓储。`validate` 由 host 在装配时接上 `shared/validate.ts`。 */
 export function createRepository(options: RepositoryOptions): Repository {
   return new FileRepository(options)
 }

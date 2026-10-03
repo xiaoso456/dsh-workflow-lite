@@ -155,8 +155,6 @@ export interface GraphSaveResponse {
 /** `graph/create` */
 export interface GraphCreateRequest {
   name: string
-  /** 从 `templates/workflows/<from>.json` 单文件复制。 */
-  from?: string
 }
 export interface GraphCreateResponse {
   /** 实际生成的名字（撞名会加序号）。 */
@@ -182,13 +180,9 @@ export interface GraphDeleteResponse {
   warnings: WireWarning[]
 }
 
-/** `graph/templates` —— 模板库。 */
-export interface GraphTemplatesRequest {
-  /** 预留。 */
-  kind?: 'workflows' | 'nodes'
-}
+/** `graph/templates` —— 节点模板库（「我的步骤」）。 */
+export type GraphTemplatesRequest = Record<string, never>
 export interface GraphTemplatesResponse {
-  workflows: TemplateEntry[]
   nodes: TemplateEntry[]
 }
 

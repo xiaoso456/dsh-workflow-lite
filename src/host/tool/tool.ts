@@ -74,11 +74,11 @@ export interface ToolDeps {
 const DESCRIPTION = [
   '管理轻量工作流的图文件：一张图 = 一个 JSON（React Flow 原生 nodes/edges/viewport），',
   '每个节点的提示词内联在 node.data.prompt 里。用 action 选动作：',
-  'list 列出图与模板 / read 读图（不给 node 只回索引、绝不含正文；给 node 才回那一个节点的正文）/ ',
+  'list 列出图与节点模板 / read 读图（不给 node 只回索引、绝不含正文；给 node 才回那一个节点的正文）/ ',
   'compile 编译成派发计划：建一个工作流实例，各步骤的任务描述写进工作区的 .workflow-lite/runs/<实例>/tasks/（模型据此自己组织执行；full=true 是给人看的整卷版，不建实例）/ ',
-  'create 新建图（可从工作流模板）/ write_node 新建或覆盖一个节点 / set_label 改显示名（id 不可改）/ ',
+  'create 新建一张空图 / write_node 新建或覆盖一个节点 / set_label 改显示名（id 不可改）/ ',
   'delete_node 删节点（连带删边）/ connect、disconnect 增删边 / rename_workflow、delete_workflow 改名删图 / ',
-  'save_as_template 存成模板（给了 node 就存成节点模板）/ ',
+  'save_as_template 把一个步骤存成节点模板（画布步骤库的「我的步骤」）/ ',
   'configure 改工作流设置（output_root 产出根目录、mode 执行方式、run_state 记录运行状态）/ write_resource 新建或修改资源节点 / ',
   'runs 列工作流实例 / resume 拿一个实例的计划接着跑 / state 看或改实例的运行状态（开了 run_state 的图按计划末尾「运行状态」段用它记进度，不要直接编辑状态文件；插件补时间、轮次、流水并校验）。',
   '用户在画布上点「执行」时会发来一句带实例 id 的话：用 resume 拿那个实例的计划，照着执行。',
@@ -335,7 +335,7 @@ async function saveNodeAsTemplate(
   const dataDir = deps.dataDir()
   let name = base
   for (let n = 1; n <= MAX_SEQUENTIAL; n += 1) {
-    const occupant = await templateOccupant(dataDir, 'nodes', name)
+    const occupant = await templateOccupant(dataDir, name)
     if (occupant === null) break
     if (n === MAX_SEQUENTIAL) {
       return { ok: false, error: { code: 'invalid_args', message: `模板名 ${base} 太挤了` } }
@@ -345,7 +345,7 @@ async function saveNodeAsTemplate(
   // 节点模板 = 节点的 `data` 本体（**不带 id / position**）+ 它写的文件（作为产出清单）。
   const outputs = outputsOf(load.document, node.id)
   const data = outputs.length === 0 ? node.data : { ...node.data, output: canonicalOutput(outputs) }
-  await writeFileAtomic(templateFile(dataDir, 'nodes', name), `${JSON.stringify(data, null, 2)}\n`)
+  await writeFileAtomic(templateFile(dataDir, name), `${JSON.stringify(data, null, 2)}\n`)
   return {
     ok: true,
     result: [
@@ -372,7 +372,6 @@ export interface WorkflowLiteArgs {
   description?: string
   no_output?: boolean
   from_template?: string
-  from?: string
   to?: string
   source?: string
   target?: string
@@ -685,10 +684,7 @@ export function createWorkflowLiteHandler(
       case 'create': {
         const name = requireWorkflow(args.workflow)
         if (name === null) return missingWorkflow()
-        const outcome = await repository.create(
-          name,
-          args.from === undefined ? {} : { from: args.from },
-        )
+        const outcome = await repository.create(name)
         if (!outcome.ok) return errorValue(outcome)
         return finish({ ...outcome.result, workflow: name })
       }
@@ -812,17 +808,17 @@ export function createWorkflowLiteHandler(
       case 'save_as_template': {
         const name = requireWorkflow(args.workflow)
         if (name === null) return missingWorkflow()
-        if (args.node !== undefined && args.node !== '') {
-          const outcome = await saveNodeAsTemplate(deps, repository, name, args.node, args.to)
-          if (!outcome.ok) return errorValue(outcome)
-          return finish({ changed: outcome.result, warnings: [] })
+        if (args.node === undefined || args.node === '') {
+          return errorValue({
+            error: {
+              code: 'invalid_args',
+              message: 'save_as_template 需要 node（要存成节点模板的步骤 id）',
+            },
+          })
         }
-        const outcome = await repository.saveAsTemplate(
-          name,
-          args.to === undefined ? {} : { to: args.to },
-        )
+        const outcome = await saveNodeAsTemplate(deps, repository, name, args.node, args.to)
         if (!outcome.ok) return errorValue(outcome)
-        return finish(outcome.result)
+        return finish({ changed: outcome.result, warnings: [] })
       }
 
       case 'configure': {
@@ -931,11 +927,10 @@ export const PARAMETERS = {
     description:
       'write_node：从 templates/nodes/<名>.json 取 data 本体（不复制它的 id 与 position）。',
   },
-  from: {
+  to: {
     type: 'string',
-    description: 'create：从 templates/workflows/<名>.json 单文件复制。',
+    description: 'rename_workflow：新图名 / save_as_template：节点模板名（缺省 = 步骤 id）。',
   },
-  to: { type: 'string', description: 'rename_workflow / save_as_template：目标名。' },
   source: { type: 'string', description: 'connect / disconnect：源节点 id。' },
   target: { type: 'string', description: 'connect / disconnect：目标节点 id。' },
   when: {
