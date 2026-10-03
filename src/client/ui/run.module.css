@@ -402,6 +402,29 @@
   font-size: var(--wl-fs-micro);
 }
 
+/* 步骤状态下面的一排操作（设为下一步、重跑）。 */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.actions [data-active="true"],
+.actions [data-active="true"]:hover {
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+}
+
+/* 执行位置里「指定」的勾选列表：步骤多时在框里滚。 */
+.pinList {
+  width: 260px;
+  max-height: 360px;
+  overflow-y: auto;
+  color: var(--wl-text);
+  font-size: var(--wl-fs-body);
+  font-weight: 400;
+}
+
 /* ── 草稿栏 ────────────────────────────────────────────────── */
 
 .draftSeat {

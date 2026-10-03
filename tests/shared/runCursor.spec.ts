@@ -3,6 +3,13 @@
  */
 
 import { describe, expect, it } from 'vitest'
+import {
+  applyDraft,
+  setField,
+  setNodeStatus,
+  togglePin,
+  withDraftLog,
+} from '../../src/client/model/runDraft.ts'
 import { runCursor } from '../../src/shared/runCursor.ts'
 import {
   graphFacts,
@@ -79,26 +86,31 @@ function play(document: WorkflowDocument, calls: Move[][]): RunState {
   })
   calls.forEach((call, minute) => {
     const at = `2026-10-02T14:${String(minute + 1).padStart(2, '0')}:00+08:00`
-    for (const [id, status, verdict] of call) {
-      const node = state.nodes[id] ?? { status: 'pending' }
-      const next: Record<string, unknown> = { ...node }
-      for (const [key, value] of Object.entries(statusFields(node, status, at))) {
-        if (value === null) delete next[key]
-        else next[key] = value
-      }
-      if (verdict !== undefined) next.verdict = verdict
-      state.nodes[id] = next as unknown as RunState['nodes'][string]
-      const round = state.nodes[id]?.round
-      state.log.push({
-        at,
-        node: id,
-        event: EVENT[status],
-        ...(round === undefined ? {} : { round }),
-        ...(status === 'done' && verdict !== undefined ? { verdict } : {}),
-      })
-    }
+    move(state, at, call)
   })
   return state
+}
+
+/** 一次 `state` 调用（模型做的）。 */
+function move(state: RunState, at: string, call: Move[]): void {
+  for (const [id, status, verdict] of call) {
+    const node = state.nodes[id] ?? { status: 'pending' }
+    const next: Record<string, unknown> = { ...node }
+    for (const [key, value] of Object.entries(statusFields(node, status, at))) {
+      if (value === null) delete next[key]
+      else next[key] = value
+    }
+    if (verdict !== undefined) next.verdict = verdict
+    state.nodes[id] = next as unknown as RunState['nodes'][string]
+    const round = state.nodes[id]?.round
+    state.log.push({
+      at,
+      node: id,
+      event: EVENT[status],
+      ...(round === undefined ? {} : { round }),
+      ...(status === 'done' && verdict !== undefined ? { verdict } : {}),
+    })
+  }
 }
 
 const nexts = (state: RunState, document = LOOP) =>
@@ -228,5 +240,71 @@ describe('runCursor', () => {
     state.nodes.scan = { status: 'done', round: 1, finishedAt: '2026-10-02T14:01:00+08:00' }
     expect(lasts(state)).toEqual([['scan', 1, 'done']])
     expect(nexts(state)).toEqual([['review', 1, 'flow', 'scan']])
+  })
+
+  it('草稿：用户改了状态，位置在存之前就跟着变', () => {
+    const base = play(LOOP, [[['scan', 'done']], [['review', 'done', 'fail']], [['fix', 'done']]])
+    expect(nexts(base)).toEqual([['review', 2, 'flow', 'fix']])
+    const draft = setField([], base, ['nodes', 'review', 'verdict'], 'pass')
+    const shown = withDraftLog(applyDraft(base, draft), draft)
+    expect(lasts(shown)).toEqual([['review', 1, 'done']])
+    expect(nexts(shown)).toEqual([['report', 1, 'flow', 'review']])
+    // 不补流水：fix 的交接还算没接上，审查和 report 会一起冒出来。
+    expect(nexts(applyDraft(base, draft))).toHaveLength(2)
+
+    // 改回待执行：从这一步重做。
+    const reset = setNodeStatus([], base, 'review', 'pending', '2026-10-02T14:10:00+08:00')
+    expect(nexts(withDraftLog(applyDraft(base, reset), reset))).toEqual([
+      ['review', 2, 'reset', undefined],
+    ])
+    // 没改动：原样返回。
+    expect(withDraftLog(base, [])).toBe(base)
+  })
+
+  describe('用户指定下一步', () => {
+    const looped = () =>
+      play(LOOP, [[['scan', 'done']], [['review', 'done', 'fail']], [['fix', 'done']]])
+    /** 存下指定（同 run/save：写 next，记一条 next 流水）。 */
+    const pin = (state: RunState, ids: string[]): RunState => {
+      const draft = setField([], state, ['next'], ids)
+      return withDraftLog(applyDraft(state, draft), draft)
+    }
+
+    it('指定了：接下来就是指定的那几步', () => {
+      const state = pin(looped(), ['report'])
+      expect(nexts(state)).toEqual([['report', 1, 'pinned', undefined]])
+      expect(lasts(state)).toEqual([['fix', 1, 'done']])
+    })
+
+    it('做完指定的步骤，不会再绕回指定之前没接上的交接', () => {
+      const state = pin(looped(), ['report'])
+      delete state.next // 模型开始做它时插件划掉
+      move(state, '2026-10-02T14:20:00+08:00', [['report', 'running']])
+      expect(nexts(state)).toEqual([])
+      move(state, '2026-10-02T14:21:00+08:00', [['report', 'done']])
+      expect(lasts(state)).toEqual([['report', 1, 'done']])
+      expect(nexts(state)).toEqual([])
+    })
+
+    it('指定后又取消、模型还没动：回到按流转推', () => {
+      const state = pin(looped(), ['report'])
+      delete state.next
+      state.log.push({ at: '2026-10-02T14:20:00+08:00', event: 'edit', by: 'user' })
+      expect(nexts(state)).toEqual([['review', 2, 'flow', 'fix']])
+    })
+
+    it('指定的步骤在跑：不再列进下一步', () => {
+      const state = pin(looped(), ['report', 'review'])
+      move(state, '2026-10-02T14:20:00+08:00', [['review', 'running']])
+      expect(nexts(state)).toEqual([['report', 1, 'pinned', undefined]])
+    })
+
+    it('取消指定的草稿不记 next 流水', () => {
+      const base = pin(looped(), ['report'])
+      const draft = setField([], base, ['next'], togglePin(['report'], 'report'))
+      expect(withDraftLog(applyDraft(base, draft), draft).log).toHaveLength(base.log.length)
+      expect(togglePin([], 'a')).toEqual(['a'])
+      expect(togglePin(['a', 'b'], 'a')).toEqual(['b'])
+    })
   })
 })

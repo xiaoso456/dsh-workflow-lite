@@ -235,6 +235,11 @@ function describeValue(value: EditValue): string {
 /** 一个字段的改动，写成「status 从 done 改成 pending（要重新执行这一步）」这样的半句。 */
 function describeField(edit: StateEdit): string {
   const field = edit.path[edit.path.length - 1] ?? ''
+  if (edit.path.length === 1 && field === 'next') {
+    return Array.isArray(edit.to) && edit.to.length > 0
+      ? `指定下一步：${edit.to.join('、')}（先做这几步，不按流转推）`
+      : '取消了指定的下一步（回到按流转推）'
+  }
   const change =
     edit.to === null
       ? `删掉了 ${field}（原来是 ${describeValue(edit.from)}）`
@@ -306,9 +311,11 @@ export function cursorHint(cursor: RunCursor, status: RunStatus): string {
           ? '入口'
           : step.reason === 'reset'
             ? '被改回 pending，重做'
-            : step.loop === true
-              ? `循环中由 ${step.from} 回到这里`
-              : `接 ${step.from}`
+            : step.reason === 'pinned'
+              ? '用户指定'
+              : step.loop === true
+                ? `循环中由 ${step.from} 回到这里`
+                : `接 ${step.from}`
       return `${step.node}（第 ${step.round} 轮，${why}）`
     })
     parts.push(`接下来：${items.join('、')}`)
@@ -1108,6 +1115,13 @@ export class RunService {
           else node[key] = value
         }
         applied.push(`步骤 ${id}：${before} → ${change.status}`)
+        // 用户指定的下一步：开始做了（或跳过、改了状态）就划掉，划完删掉这个字段。
+        if (change.status !== 'pending' && Array.isArray(draft.next) && draft.next.includes(id)) {
+          const rest = (draft.next as unknown[]).filter((item) => item !== id)
+          if (rest.length > 0) draft.next = rest
+          else delete draft.next
+          applied.push(`用户指定的下一步 ${id} 已接上，划掉`)
+        }
       }
       for (const key of ['summary', 'verdict', 'error', 'by'] as const) {
         const value = change[key]
@@ -1210,14 +1224,31 @@ export class RunService {
     const lines = describeEdits(edits)
     // 每个对象一条流水：改了哪个步骤就记在哪个步骤名下（推「运行到哪了」要靠它），整体的排在最后，
     // 用户的说明跟在最后一条上。
-    const groups = groupEdits(edits).sort((a, b) => Number(a.node === '') - Number(b.node === ''))
-    const entries = groups.map(({ node, text }, index) => {
+    // 指定下一步单记一条 `next`，排在最后：它之前做完的步骤，交接都算了结（见 shared/runCursor.ts）。
+    // 取消指定只是一条普通的改动。
+    const pin = edits.find(
+      (edit) =>
+        edit.path.length === 1 &&
+        edit.path[0] === 'next' &&
+        Array.isArray(edit.to) &&
+        edit.to.length > 0,
+    )
+    const groups = groupEdits(edits.filter((edit) => edit !== pin)).sort(
+      (a, b) => Number(a.node === '') - Number(b.node === ''),
+    )
+    const items: { node: string; event: LogEvent; text: string }[] = [
+      ...groups.map(({ node, text }) => ({ node, event: 'edit' as const, text })),
+      ...(pin === undefined
+        ? []
+        : [{ node: '', event: 'next' as const, text: describeField(pin) }]),
+    ]
+    const entries = items.map(({ node, event, text }, index) => {
       const round = node === '' ? undefined : doc.getIn(['nodes', node, 'round'])
-      const tail = index === groups.length - 1 && note !== undefined && note !== ''
+      const tail = index === items.length - 1 && note !== undefined && note !== ''
       return {
         at: now,
         ...(node === '' ? {} : { node }),
-        event: 'edit',
+        event,
         ...(typeof round === 'number' ? { round } : {}),
         detail: tail ? `${text}。说明：${note}` : text,
         by: 'user',
@@ -1238,6 +1269,8 @@ export class RunService {
     if (check.state === null) {
       return fail('blocked', '改完的状态不合法，没有保存', { issues: check.issues })
     }
+    const position =
+      document === null ? '' : cursorHint(runCursor(document, check.state), check.state.status)
     try {
       await writeFileAtomic(statePath, doc.toString({ lineWidth: 0 }))
     } catch (error) {
@@ -1255,8 +1288,9 @@ export class RunService {
       '',
       ...lines,
       ...(note === undefined || note.trim() === '' ? [] : ['', `用户的说明：${note.trim()}`]),
+      ...(position === '' ? [] : ['', `执行位置：${position}`]),
       '',
-      '请先重新读取状态文件，按最新状态调整接下来的执行：改回 pending 的步骤要重新执行，skipped 的不再执行，顶层是 waiting 就停下来问用户、cancelled 就结束。之后照常维护状态文件（改之前先重新读）。',
+      '请先重新读取状态文件，按最新状态调整接下来的执行：用户指定了下一步就先做它，改回 pending 的步骤要重新执行，skipped 的不再执行，顶层是 waiting 就停下来问用户、cancelled 就结束。之后照常维护状态文件（改之前先重新读）。',
     ].join('\n')
     const owner = record.session ?? session
     let notified = false

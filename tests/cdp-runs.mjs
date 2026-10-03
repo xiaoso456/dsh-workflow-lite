@@ -347,6 +347,44 @@ try {
     `下一步一行应写明第 2 轮、由修复循环回来：${nextText}`,
   )
   await screenshot(session, 'runs-02d-position.png')
+
+  // 2e) 指定下一步：执行位置里「指定」勾一步 → 草稿里下一步换成它（用户指定）；「恢复自动」撤掉。
+  await session.evaluate(`document.querySelector('[data-testid="wl-run-pin-open"]').click()`)
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-run-pin"][data-id="report"]') !== null`,
+  )
+  await session.evaluate(
+    `document.querySelector('[data-testid="wl-run-pin"][data-id="report"]').click()`,
+  )
+  await waitFor(session, `${markOf('report')} === 'next' && ${markOf('review')} === null`)
+  check(
+    (await session.evaluate(posRows)) === 'last:fix,next:report',
+    `指定后执行位置应是「最后执行 fix、下一步 report」：${await session.evaluate(posRows)}`,
+  )
+  check(
+    (
+      await session.evaluate(
+        `document.querySelector('[data-testid="wl-run-pos-row"][data-kind="next"]').textContent`,
+      )
+    ).includes('用户指定'),
+    '指定的下一步应写明「用户指定」',
+  )
+  check(
+    (await session.evaluate(`document.querySelector('[data-testid="wl-run-draft"]') !== null`)) &&
+      parse(await readFile(statePath, 'utf8')).next === undefined,
+    '指定进草稿、不落盘',
+  )
+  await screenshot(session, 'runs-02e-pin.png')
+  await session.evaluate(`document.querySelector('[data-testid="wl-run-pin-clear"]').click()`)
+  await waitFor(
+    session,
+    `${markOf('review')} === 'next' && document.querySelector('[data-testid="wl-run-draft"]') === null`,
+  )
+  pass(
+    '执行位置「指定」：勾 report → 下一步换成它（用户指定），进草稿；恢复自动 → 回到审查第 2 轮、草稿清空',
+  )
+
   await writeFile(statePath, beforeLoop)
   await waitFor(session, `${chipOf('review')} === 'running' && ${markOf('scan')} === 'last'`, {
     timeoutMs: 6000,

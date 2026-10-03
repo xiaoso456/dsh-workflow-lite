@@ -177,6 +177,33 @@ export function editedNodes(draft: readonly StateEdit[]): Set<string> {
   return set
 }
 
+/**
+ * 草稿存下去时流水会多出来的那几条（每个改过的步骤一条，指定下一步再一条，顺序同 `run/save`），叠在 `state` 后面。
+ * 只给推「最后执行 / 下一步」用：位置看流水先后，不补这几条，草稿里的改动在位置上看不出来。
+ */
+export function withDraftLog(state: RunState, draft: readonly StateEdit[]): RunState {
+  const nodes = [...editedNodes(draft)]
+  const pin = draft.some(
+    (edit) => samePath(edit.path, ['next']) && Array.isArray(edit.to) && edit.to.length > 0,
+  )
+  if (nodes.length === 0 && !pin) return state
+  const at = `draft:${state.updatedAt}`
+  return {
+    ...state,
+    log: [
+      ...state.log,
+      ...nodes.map((node) => ({ at, node, event: 'edit' as const, by: 'user' as const })),
+      ...(pin ? [{ at, event: 'next' as const, by: 'user' as const }] : []),
+    ],
+  }
+}
+
+/** 用户指定的下一步里加上 / 去掉一步（去光了就删掉这个字段）。 */
+export function togglePin(pinned: readonly string[], id: string): string[] | null {
+  const next = pinned.includes(id) ? pinned.filter((item) => item !== id) : [...pinned, id]
+  return next.length === 0 ? null : next
+}
+
 /** 从某个步骤往下（沿步骤之间的线，含回边）能走到的步骤，含它自己。 */
 export function downstreamOf(
   edges: readonly { source: string; target: string }[],

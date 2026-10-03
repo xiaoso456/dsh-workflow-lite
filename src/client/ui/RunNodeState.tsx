@@ -13,7 +13,7 @@ import {
 } from '../../shared/runState.ts'
 import type { Run } from '../app/useRuns.ts'
 import type { LocaleKey, T } from '../i18n.ts'
-import { samePath } from '../model/runDraft.ts'
+import { samePath, togglePin } from '../model/runDraft.ts'
 import { shortTime } from '../model/time.ts'
 import { RUN_TEXT } from './Canvas.tsx'
 import { Icon, type IconName } from './Icon.tsx'
@@ -68,6 +68,8 @@ export function StepStatus(props: {
   onRerun(): void
 }): React.JSX.Element {
   const { t, current, id, node } = props
+  const pins = current.shown?.next ?? []
+  const pinned = pins.includes(id)
   const path = (field: string): string[] => ['nodes', id, field]
   const round = node.round ?? 0
   return (
@@ -109,12 +111,26 @@ export function StepStatus(props: {
             </button>
           ))}
         </div>
-        {node.status !== 'pending' && (
-          <button type="button" className={cx(ui.btn, ui.small, ui.soft)} onClick={props.onRerun}>
-            <Icon name="reload" size={13} />
-            {t('run.rerun')}
+        <div className={run.actions}>
+          <button
+            type="button"
+            className={cx(ui.btn, ui.small, ui.soft)}
+            aria-pressed={pinned}
+            data-active={pinned}
+            data-testid="wl-run-step-pin"
+            title={t('run.pinHint')}
+            onClick={() => current.setField(['next'], togglePin(pins, id))}
+          >
+            <Icon name="flag" size={13} />
+            {t(pinned ? 'run.unpin' : 'run.pin')}
           </button>
-        )}
+          {node.status !== 'pending' && (
+            <button type="button" className={cx(ui.btn, ui.small, ui.soft)} onClick={props.onRerun}>
+              <Icon name="reload" size={13} />
+              {t('run.rerun')}
+            </button>
+          )}
+        </div>
       </section>
 
       <section className={run.section}>

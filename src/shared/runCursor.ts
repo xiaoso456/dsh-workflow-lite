@@ -9,6 +9,10 @@
  * - 都接上了（下游在跑，或走到了头）时，最后执行 = 最近做完的那一步（同一次调用写下的几步一起算）。
  *
  * 另外两种「接下来」：从没开始过的入口步骤，和被改回 `pending` 的步骤（它前面的都完成了才轮到）。
+ *
+ * 用户也可以**指定**下一步（状态里的 `next`，流水里记一条 `next` 事件）：
+ * - 指定还在时，「接下来」就是指定的这几步；
+ * - 指定那一刻之前做完的步骤，交接都算已经了结——模型做完指定的步骤后，不会再绕回指定之前没接上的下游。
  * 画布上的「最后执行 / 下一步」标记与工具回给模型的进度都用它。
  *
  * @module @xiaoso/dsh-workflow-lite/shared/runCursor
@@ -35,8 +39,11 @@ export interface NextStep {
   node: string
   /** 做的话是第几轮。 */
   round: number
-  /** `flow` = 上游交过来；`start` = 入口步骤还没开始；`reset` = 被改回 pending，要重做。 */
-  reason: 'flow' | 'start' | 'reset'
+  /**
+   * `flow` = 上游交过来；`start` = 入口步骤还没开始；`reset` = 被改回 pending，要重做；
+   * `pinned` = 用户指定。
+   */
+  reason: 'flow' | 'start' | 'reset' | 'pinned'
   /** 谁交过来的（`flow` 才有）。 */
   from?: string
   /** 沿回边过来：循环回到这一步。 */
@@ -74,6 +81,22 @@ export function runCursor(
     if (entry.node !== undefined && known.has(entry.node)) seen.set(entry.node, index)
   })
   const touched = (id: string): number => seen.get(id) ?? -1
+  const pinned = (state.next ?? []).filter(
+    (id, index, list) => known.has(id) && list.indexOf(id) === index,
+  )
+  /**
+   * 生效过的最后一次指定：在它之前做完的步骤，交接都算了结。
+   * 生效 = 指定还在，或者指定之后（下一次指定之前）模型做过事；指定了又被用户取消、模型还没动的，不算。
+   */
+  const pins = state.log.flatMap((entry, index) => (entry.event === 'next' ? [index] : []))
+  const acted = (from: number, to: number): boolean =>
+    state.log.slice(from + 1, to).some((entry) => entry.node !== undefined && entry.by !== 'user')
+  let cutoff = -1
+  for (let index = pins.length - 1; index >= 0 && cutoff < 0; index -= 1) {
+    const at = pins[index] as number
+    const until = pins[index + 1] ?? state.log.length
+    if (acted(at, until) || (index === pins.length - 1 && pinned.length > 0)) cutoff = at
+  }
   /** `target` 在 `source` 做完之后有没有动静（开始、做完、被跳过、被改…）。 */
   const movedAfter = (target: string, source: string): boolean => {
     const a = touched(target)
@@ -114,11 +137,13 @@ export function runCursor(
       frontier.push(id)
       continue
     }
+    if (touched(id) >= 0 && touched(id) < cutoff) continue
     const open = (outgoing.get(id) ?? []).filter((edge) => {
       const when = edgeWhen(edge)
       return (when === undefined || when === node.verdict) && !movedAfter(edge.target, id)
     })
     if (open.length > 0) frontier.push(id)
+    if (pinned.length > 0) continue
     for (const edge of open) {
       const target = edge.target
       const loop = analysis.backEdges.has(edge.id)
@@ -137,7 +162,11 @@ export function runCursor(
     }
   }
 
-  for (const id of steps) {
+  for (const id of pinned) {
+    if (!busy(id)) add({ node: id, round: roundAfter(id), reason: 'pinned' })
+  }
+
+  for (const id of pinned.length > 0 ? [] : steps) {
     const node = nodeOf(id)
     if ((node?.status ?? 'pending') !== 'pending') continue
     const history = touched(id) >= 0 || (node?.round ?? 0) >= 1

@@ -44,7 +44,13 @@ import type { LocaleKey, T } from '../i18n.ts'
 import type { Selection } from '../model/editor.ts'
 import { fileBaseName } from '../model/fileKind.ts'
 import { placeMissing } from '../model/layout.ts'
-import { changeCount, downstreamOf, editedNodes } from '../model/runDraft.ts'
+import {
+  changeCount,
+  downstreamOf,
+  editedNodes,
+  togglePin,
+  withDraftLog,
+} from '../model/runDraft.ts'
 import { shortTime } from '../model/time.ts'
 import type { WorkflowLiteRpc } from '../rpc.ts'
 import { Canvas, RUN_TEXT, type RunDecor, type RunMark, type RunNodeDecor } from './Canvas.tsx'
@@ -211,13 +217,14 @@ export function RunView(props: RunViewProps): React.JSX.Element {
   }, [onPanel])
   const insetRight = insets.right
 
-  /** 执行位置：最后执行的、接下来要做的步骤（画布上的小标、右栏总览共用）。 */
+  /** 执行位置：最后执行的、接下来要做的步骤（画布上的小标、右栏总览共用；草稿改动当作已存）。 */
+  const draft = current.draft
   const cursor = useMemo(
     () =>
       snapshot === null || analysis === null || shown === null
         ? null
-        : runCursor(snapshot, shown, analysis),
-    [snapshot, analysis, shown],
+        : runCursor(snapshot, withDraftLog(shown, draft), analysis),
+    [snapshot, analysis, shown, draft],
   )
 
   const decor = useMemo<RunDecor | undefined>(() => {
@@ -426,6 +433,11 @@ export function RunView(props: RunViewProps): React.JSX.Element {
           }}
           onRerun={() => {
             rerunFrom(menu.id)
+            setMenu(null)
+          }}
+          pinned={shown?.next?.includes(menu.id) === true}
+          onPin={() => {
+            current.setField(['next'], togglePin(shown?.next ?? [], menu.id))
             setMenu(null)
           }}
           onClose={() => setMenu(null)}
@@ -747,6 +759,9 @@ function StatusMenu(props: {
   onStatus(status: NodeStatus): void
   onVerdict(verdict: string): void
   onRerun(): void
+  /** 这一步在不在用户指定的下一步里。 */
+  pinned: boolean
+  onPin(): void
   onClose(): void
 }): React.JSX.Element {
   const { t } = props
@@ -809,20 +824,29 @@ function StatusMenu(props: {
               <span className={ui.menuLabel}>{t(RUN_TEXT[status])}</span>
             </button>
           ))}
+          <div className={ui.menuSep} />
+          <button
+            type="button"
+            role="menuitemcheckbox"
+            aria-checked={props.pinned}
+            className={ui.menuItem}
+            data-testid="wl-run-menu-pin"
+            onClick={props.onPin}
+          >
+            <Icon name="flag" size={14} />
+            <span className={ui.menuLabel}>{t(props.pinned ? 'run.unpin' : 'run.pin')}</span>
+          </button>
           {props.node.status !== 'pending' && (
-            <>
-              <div className={ui.menuSep} />
-              <button
-                type="button"
-                role="menuitem"
-                className={ui.menuItem}
-                data-testid="wl-run-rerun"
-                onClick={props.onRerun}
-              >
-                <Icon name="reload" size={14} />
-                <span className={ui.menuLabel}>{t('run.rerun')}</span>
-              </button>
-            </>
+            <button
+              type="button"
+              role="menuitem"
+              className={ui.menuItem}
+              data-testid="wl-run-rerun"
+              onClick={props.onRerun}
+            >
+              <Icon name="reload" size={14} />
+              <span className={ui.menuLabel}>{t('run.rerun')}</span>
+            </button>
           )}
         </>
       )}
@@ -1111,6 +1135,8 @@ function Overview(props: {
           snapshot={props.snapshot}
           state={state}
           cursor={props.cursor}
+          pinEdited={isEdited(current.draft, ['next'])}
+          onPin={(ids) => current.setField(['next'], ids)}
           onSelect={props.onSelect}
         />
       )}
@@ -1197,6 +1223,7 @@ const EVENT_TEXT: Record<RunLogEntry['event'], LocaleKey> = {
   resume: 'run.event.resume',
   transfer: 'run.event.transfer',
   edit: 'run.event.edit',
+  next: 'run.event.next',
   note: 'run.event.note',
 }
 
@@ -1280,10 +1307,11 @@ function Banners(props: { t: T; current: Run }): React.JSX.Element | null {
 
 function describe(t: T, edit: StateEdit): React.ReactNode {
   const where = edit.path.length === 1 ? t('run.overall') : edit.path[1]
-  const field = edit.path[edit.path.length - 1] ?? ''
+  const key = edit.path[edit.path.length - 1] ?? ''
+  const field = edit.path.length === 1 && key === 'next' ? t('run.nextUp') : key
   const show = (value: StateEdit['to']): string => {
     if (value === null) return t('run.empty')
-    if (field === 'status' && typeof value === 'string') {
+    if (key === 'status' && typeof value === 'string') {
       const key =
         edit.path.length === 1 ? RUN_STATUS_TEXT[value as RunStatus] : RUN_TEXT[value as NodeStatus]
       return key === undefined ? value : t(key)

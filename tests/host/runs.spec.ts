@@ -736,6 +736,40 @@ describe('归属与恢复', () => {
     expect(String(progress.hint)).toContain('接下来：review（第 2 轮，循环中由 fix 回到这里）')
   })
 
+  it('用户指定下一步：存下记 next 流水、通知带执行位置；模型开始做它就划掉，做完不绕回去', async () => {
+    const result = await compileWithRuns('s1')
+    const instance = String(result.instance)
+    const statePath = String(result.statePath)
+    const step = (nodes: unknown[]) =>
+      run({ action: 'state', instance, nodes } as never, exec('s1'))
+    await step([{ id: 'scan', status: 'done' }])
+    await step([{ id: 'review', status: 'done', verdict: 'fail' }])
+    await step([{ id: 'fix', status: 'done' }])
+
+    const saved = await runs.save(
+      instance,
+      's1',
+      [{ path: ['next'], from: null, to: ['report'] }],
+      undefined,
+    )
+    expect(saved.ok).toBe(true)
+    const state = parse(await readFile(statePath, 'utf8'))
+    expect(state.next).toEqual(['report'])
+    expect(state.log.at(-1)).toMatchObject({ event: 'next', by: 'user' })
+    expect(notified.at(-1)?.text).toContain('- 整体：指定下一步：report')
+    expect(notified.at(-1)?.text).toContain('接下来：report（第 1 轮，用户指定）')
+
+    const pinned = record(await run({ action: 'state', instance }, exec('s1')))
+    expect(pinned.next).toEqual([{ node: 'report', round: 1, reason: 'pinned' }])
+
+    const started = record(await step([{ id: 'report', status: 'running' }]))
+    expect(started.applied).toContain('用户指定的下一步 report 已接上，划掉')
+    expect(parse(await readFile(statePath, 'utf8')).next).toBeUndefined()
+    const finished = record(await step([{ id: 'report', status: 'done' }]))
+    expect(finished.next).toEqual([])
+    expect(finished.last).toMatchObject([{ node: 'report', status: 'done' }])
+  })
+
   it('没有当前实例时 resume 报 not_found；runs 列本会话的', async () => {
     expect(record(record(await run({ action: 'resume' }, exec('s9'))).error).code).toBe('not_found')
     await compileWithRuns('s1')

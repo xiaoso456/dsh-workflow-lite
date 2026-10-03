@@ -113,7 +113,7 @@ summary、verdict、error、by 写空串 = 清掉；outputs 给空列表 = 清�
 
 1. 调用 \`workflow_lite\` 的 \`resume\`（不给 instance 就是本会话当前的实例）：它重建计划、给出进度摘要 \`progress\`：
    - \`last\`：最后执行的步骤（做完了、下游还没接上的；带轮次、判定）；
-   - \`next\`：接下来该做的步骤，每项 \`{ node, round, reason, from, loop }\`——\`reason\` 是 \`interrupted\`（停在 running，被打断）/ \`flow\`（上游交过来；\`loop\` 表示循环回到这一步）/ \`start\`（入口还没开始）/ \`reset\`（被改回 pending）；
+   - \`next\`：接下来该做的步骤，每项 \`{ node, round, reason, from, loop }\`——\`reason\` 是 \`interrupted\`（停在 running，被打断）/ \`flow\`（上游交过来；\`loop\` 表示循环回到这一步）/ \`start\`（入口还没开始）/ \`reset\`（被改回 pending）/ \`pinned\`（用户指定）；
    - \`hint\`：上面两项的一句话说明。
 2. **照 \`next\` 接着做**，不要按清单顺序找第一个没完成的步骤：循环里每步都做过一轮、都是 done，那样会跳出环。\`next\` 是插件按图、各步骤的判定和流水的先后推出来的。
 3. 被打断的步骤重做这一轮（状态已经是 running，不用再改）；循环回到的步骤照常改成 running，插件算新的一轮。
@@ -122,7 +122,7 @@ summary、verdict、error、by 写空串 = 清掉；outputs 给空列表 = 清�
 
 ## 用户改了状态
 
-用户在画布上改完点「保存并通知模型」，你会收到一条通知，列出改了哪些字段，可能带用户的说明。按最新状态调整：改回 pending 的步骤要重新执行；skipped 的不再执行；整体 waiting 就停下来问用户；cancelled 就结束并汇报。拿不准当前状态时，不带改动调用一次 state 看看。
+用户在画布上改完点「保存并通知模型」，你会收到一条通知，列出改了哪些字段和改完后的执行位置，可能带用户的说明。用户可以**指定下一步**（状态里的 \`next\`，\`next\` 返回里 reason 是 \`pinned\`）：先做指定的步骤，你把它改成 running 时插件自动取消指定；指定之前没接上的交接不用再补。其余按最新状态调整：改回 pending 的步骤要重新执行；skipped 的不再执行；整体 waiting 就停下来问用户；cancelled 就结束并汇报。拿不准当前状态时，不带改动调用一次 state 看看。
 
 ## 不要做的事
 

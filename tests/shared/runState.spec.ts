@@ -93,10 +93,14 @@ describe('initialRunState', () => {
     )
   })
 
-  it('isoNow 带时区偏移、能过校验', () => {
-    const now = isoNow(new Date(2026, 9, 2, 9, 5, 7))
-    expect(now).toMatch(/^2026-10-02T09:05:07[+-]\d{2}:\d{2}$/u)
+  it('isoNow 带时区偏移、精确到毫秒、能过校验', () => {
+    const now = isoNow(new Date(2026, 9, 2, 9, 5, 7, 12))
+    expect(now).toMatch(/^2026-10-02T09:05:07\.012[+-]\d{2}:\d{2}$/u)
     expect(paths({ ...initial(), updatedAt: now })).toEqual([])
+    // 同一秒里的两次调用必须分得开：「同一次调用写下的几步」靠 at 相同来认（见 runCursor）。
+    expect(isoNow(new Date(2026, 9, 2, 9, 5, 7, 12))).not.toBe(
+      isoNow(new Date(2026, 9, 2, 9, 5, 7, 13)),
+    )
   })
 })
 

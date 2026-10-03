@@ -50,6 +50,7 @@ export const LOG_EVENTS = [
   'resume',
   'transfer',
   'edit',
+  'next',
   'note',
 ] as const
 export type LogEvent = (typeof LOG_EVENTS)[number]
@@ -96,6 +97,11 @@ export interface RunState {
   status: RunStatus
   updatedAt: string
   note?: string
+  /**
+   * 用户指定的下一步（步骤 id）：有它时「接下来」就是这几步，不再按流转推。
+   * 只有用户在画布上改；模型开始做其中一步时插件把它划掉，划完删掉这个字段。
+   */
+  next?: string[]
   /** 每个步骤一项（文件节点不在这里），键是步骤 id。 */
   nodes: Record<string, NodeRunState>
   log: RunLogEntry[]
@@ -104,7 +110,16 @@ export interface RunState {
 /** 身份字段：插件写，模型不改。 */
 export const IDENTITY_KEYS = ['version', 'instance', 'workflow', 'plan', 'graph', 'mode'] as const
 
-const TOP_KEYS = [...IDENTITY_KEYS, 'goal', 'status', 'updatedAt', 'note', 'nodes', 'log'] as const
+const TOP_KEYS = [
+  ...IDENTITY_KEYS,
+  'goal',
+  'status',
+  'updatedAt',
+  'note',
+  'next',
+  'nodes',
+  'log',
+] as const
 const NODE_KEYS = [
   'status',
   'round',
@@ -233,6 +248,19 @@ export function validateRunState(
   if (status === undefined) issue('status', `缺失或不认识；${choices(RUN_STATUSES)}`)
   checkTime(value.updatedAt, 'updatedAt', true, issue)
   if (value.note !== undefined && typeof value.note !== 'string') issue('note', '必须是文字')
+  let next: string[] | undefined
+  if (value.next !== undefined) {
+    const ids = Array.isArray(value.next) ? value.next.map(scalarText) : undefined
+    if (ids === undefined || ids.some((item) => item === undefined || item === '')) {
+      issue('next', '必须是步骤 id 的列表（这是用户指定的下一步，不要改它）')
+    } else {
+      next = ids as string[]
+      for (const item of next) {
+        if (facts !== undefined && !facts.steps.includes(item))
+          issue('next', `图里没有步骤 ${item}`)
+      }
+    }
+  }
 
   const nodes: Record<string, NodeRunState> = {}
   if (!isRecord(value.nodes)) {
@@ -295,6 +323,7 @@ export function validateRunState(
       status,
       updatedAt: value.updatedAt as string,
       ...(typeof value.note === 'string' ? { note: value.note } : {}),
+      ...(next === undefined || next.length === 0 ? {} : { next }),
       nodes,
       log,
     },
@@ -474,7 +503,12 @@ export function initialRunState(input: InitialRunInput): RunState {
   }
 }
 
-/** 本地时间的 ISO 8601（带时区偏移，不用 `Z`：人读状态文件时一眼就是本地钟点）。 */
+/**
+ * 本地时间的 ISO 8601（带时区偏移，不用 `Z`：人读状态文件时一眼就是本地钟点），**精确到毫秒**。
+ *
+ * 为什么要毫秒：「同一次调用写下的几步一起算」是靠流水里 `at` 相同认出来的，只精确到秒会把落到
+ * 同一秒里的**两次**调用认成一次（连着改两下、模型连着写两次状态都会这样）。见 `shared/runCursor.ts`。
+ */
 export function isoNow(date: Date = new Date()): string {
   const pad = (n: number, width = 2): string => String(Math.abs(n)).padStart(width, '0')
   const offset = -date.getTimezoneOffset()
@@ -482,6 +516,7 @@ export function isoNow(date: Date = new Date()): string {
   return (
     `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
     `T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}` +
+    `.${pad(date.getMilliseconds(), 3)}` +
     `${sign}${pad(Math.trunc(offset / 60))}:${pad(offset % 60)}`
   )
 }
@@ -621,7 +656,7 @@ export interface InstanceView {
 export type EditValue = string | number | string[] | null
 
 export interface StateEdit {
-  /** 字段路径：`['status']`、`['note']`、`['nodes', '<步骤 id>', '<字段>']`。 */
+  /** 字段路径：`['status']`、`['note']`、`['next']`、`['nodes', '<步骤 id>', '<字段>']`。 */
   path: string[]
   /** 改之前的值（缺省 / 没有 = `null`）：插件写之前核对文件里还是它，对不上就是冲突。 */
   from: EditValue
@@ -629,7 +664,7 @@ export interface StateEdit {
 }
 
 /** 用户能改的字段。 */
-export const EDITABLE_TOP = ['status', 'note'] as const
+export const EDITABLE_TOP = ['status', 'note', 'next'] as const
 export const EDITABLE_NODE = [
   'status',
   'round',
