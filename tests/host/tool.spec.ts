@@ -563,6 +563,15 @@ describe('资源节点的校验', () => {
     expect(updated.warning.map((problem) => problem.code)).not.toContain('resource_overwritten')
   })
 
+  it('提示：写出来没人读 resource_unread；写它的步骤是终点（成品）就不提示', () => {
+    const unread = check(base({ edges: [line('a', 'b'), line('a', 'f')] }))
+    expect(unread.hint.find((problem) => problem.code === 'resource_unread')?.node).toBe('f')
+    const read = check(base({ edges: [line('a', 'b'), line('a', 'f'), line('f', 'b')] }))
+    expect(read.hint.map((problem) => problem.code)).not.toContain('resource_unread')
+    const final = check(base({ edges: [line('a', 'b'), line('b', 'f')] }))
+    expect(final.hint.map((problem) => problem.code)).not.toContain('resource_unread')
+  })
+
   it('提示：读者不在写者下游 resource_order；只读、没连的资源都不提示', () => {
     const order = check(base({ edges: [line('a', 'f'), line('f', 'b')] }))
     expect(order.hint.find((problem) => problem.code === 'resource_order')?.node).toBe('b')

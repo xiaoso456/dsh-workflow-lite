@@ -18,6 +18,7 @@ import type {} from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-client-connection'
 // 只借类型：`ctx.tools` 的 Context 合并。
 import type {} from '@deepseek-ai/dsh-tools'
+import { registerAuthoringSkill } from './host/authoringSkill.ts'
 import {
   CONFIG_KEYS,
   Config,
@@ -79,7 +80,8 @@ export async function apply(ctx: Context, config: WorkflowLiteSettings): Promise
     notify: createNotify(ctx),
   })
 
-  // 按需 skill：运行状态的字段与 `state` 动作的用法。`skills` 服务不在时跳过，计划里的那段照写。
+  // 按需 skill：怎么设计一张图（workflow-authoring），运行状态的字段与 `state` 动作的用法（workflow-run-state）。
+  // `skills` 服务不在时跳过，计划里的那段照写。
   // 顺手记下 skill 服务：画布上给资源选 Skill 时列出会话里的 agent 能用的那些（见 host/skillView）。
   let skills: SkillLister | undefined
   ctx.inject(['skills'], (skillsCtx) => {
@@ -91,6 +93,10 @@ export async function apply(ctx: Context, config: WorkflowLiteSettings): Promise
       'workflow-lite: skill catalog',
     )
     if (!config.installSkill.get()) return
+    skillsCtx.effect(
+      () => registerAuthoringSkill(skillsCtx),
+      'workflow-lite: workflow-authoring skill',
+    )
     skillsCtx.effect(
       () => registerRunStateSkill(skillsCtx),
       'workflow-lite: workflow-run-state skill',

@@ -335,6 +335,7 @@ export type ValidationCode =
   | 'freeform_when'
   | 'multi_back_edges'
   | 'resource_order'
+  | 'resource_unread'
   | 'stray_entry'
   | 'position_filled'
   | 'legacy_structure'

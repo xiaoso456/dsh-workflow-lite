@@ -88,6 +88,7 @@ const DESCRIPTION = [
   '输入节点是执行前问用户的问题：write_node 带 input 新建或修改，connect 输入 → 步骤 = 把回答交给它。',
   '图里有输入节点时，compile 带 answers 给出用户的回答（没给的用默认值）；必填的没回答会回 problems，先问用户再编译。',
   '节点定位一律用 id。',
+  '新建或修改图之前先读 skill workflow-authoring（步骤怎么拆、产物怎么传、资源说明怎么写、建完怎么自检）。',
 ].join('')
 
 /** 参数与返回值里的 `{ error }` 形状（工具返回它，不抛）。 */
@@ -910,7 +911,10 @@ export const PARAMETERS = {
       additionalProperties: false,
       properties: {
         path: { type: 'string', required: true, description: '相对工作区根的产出路径。' },
-        rule: { type: 'string', description: '这份产出该怎么写：格式、必须包含什么。' },
+        rule: {
+          type: 'string',
+          description: '这份产出该怎么写：结构、必须包含什么、长度上限（进资源说明）。',
+        },
       },
     },
   },
@@ -984,7 +988,8 @@ export const PARAMETERS = {
             },
             note: {
               type: 'string',
-              description: '这一项怎么用（写文件时是生成要求）；text 不用。',
+              description:
+                '这一项怎么用。写入的文件写成规格：结构、长度上限；更新的再写明哪些部分就地改写、记录表每次加一行的格式。text 不用。',
             },
           },
         },

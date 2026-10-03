@@ -187,6 +187,8 @@ const GOLDEN_LINES: readonly string[] = [
   '  - 文件：`review-report.md`',
   '- 资源 `file-scan.json`：`scan` 产出；`auth-review` 读取。',
   '  - 文件：`scan.json`',
+  '**产出**的文件每次执行整份重写：只写这一次的结果，不保留上一次的内容，不写「比上次改了什么」这类说明。',
+  '**更新**的文件先读再改，沿用它现有的结构：描述现状的部分就地改写成最新的，不在前面追加新段落；逐次的记录只加一行（短语、数字、证据路径），细节留在这一次的产出里，记录里只引用路径；同一件事只写一处。',
   '**交接**：轮到一个节点时，把它直接上游这一次的执行结果（回复里的结论与要点）交给它。',
   '分支判定：`auth-review` 回复的最后一行必须是 `VERDICT: fail` 或 `VERDICT: pass`，不得省略。',
   '循环里的产出会被反复覆盖，验收以**最终一轮**为准。',
@@ -535,6 +537,24 @@ describe('④ 段：交付契约', () => {
         '  - 文件：`scan.md`。说明：列出可疑点',
       ].join('\n'),
     )
+  })
+
+  it('怎么写文件：有人整份写出才说「产出」那句，有人更新才说「更新」那句；只读的资源都不说', () => {
+    const produced = planFor(doc([n('a', 'A', { output: 'a.md' }), n('b', 'B')], [edge('a', 'b')]))
+    expect(produced).toContain('**产出**的文件每次执行整份重写')
+    expect(produced).not.toContain('**更新**的文件先读再改')
+
+    const shared = doc([n('a', 'A')], [])
+    shared.nodes.push({
+      id: 'ref',
+      type: 'wfResource',
+      position: { x: 0, y: 0 },
+      data: { items: [{ kind: 'file', value: 'ref.md' }] },
+    })
+    const readOnly = planFor(shared)
+    expect(readOnly).toContain('**资源**')
+    expect(readOnly).not.toContain('**产出**的文件')
+    expect(readOnly).not.toContain('**更新**的文件')
   })
 
   it('空资源不写；一个资源都没有就没有资源块', () => {

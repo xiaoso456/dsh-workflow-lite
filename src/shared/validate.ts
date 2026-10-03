@@ -473,6 +473,23 @@ export function validateDocument(
     }
   }
 
+  for (const info of resources.values()) {
+    // 写出来却没有步骤读：下游只拿到交接里的执行结果。写它的步骤里有终点（没有下游）的，算交给用户的成品，不提示。
+    if (info.writers.length === 0 || info.readers.length > 0) continue
+    const terminal = info.writers.some(
+      (writer) => (analysis.successors.get(writer.id) ?? []).length === 0,
+    )
+    if (terminal) continue
+    hint.push(
+      mk(
+        'hint',
+        'resource_unread',
+        `${info.writers.map((writer) => writer.id).join(' / ')} 写资源 ${resourceTitle(info.resource)}，但没有步骤读它——下游只拿到交接里的执行结果；要用它就从资源连线到需要它的步骤`,
+        { node: info.resource.id },
+      ),
+    )
+  }
+
   const multiStep = steps.length > 1
   for (const node of steps) {
     const incoming = flow.filter((edge) => idKey(edge.target) === idKey(node.id))

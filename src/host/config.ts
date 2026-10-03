@@ -33,7 +33,7 @@ export interface WorkflowLiteSettings {
   maxResultBytes: Volatile<number>
   /** 画布 ↔ host 的同源路由前缀。插件不自开端口。 */
   routePrefix: Volatile<string>
-  /** 是否随插件注册按需 skill `workflow-authoring`。 */
+  /** 是否随插件注册按需 skill `workflow-authoring`（设计图）与 `workflow-run-state`（运行状态）。 */
   installSkill: Volatile<boolean>
 }
 

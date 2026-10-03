@@ -142,6 +142,12 @@ const LOOP_OVERWRITE_LINE = '循环里的产出会被反复覆盖，验收以**�
 const RESOURCES_HEADING =
   '**资源**（派发节点时，把它连着的资源连同说明交给执行者：文件、文件夹按给定路径读写，网址打开查看，Skill 先用 skill 工具加载再干活，自定义内容原样转交；标了「更新」的直接在原文件上改，不要另存副本）：'
 
+/** ④ 段资源块之后：怎么写文件（有步骤整份写出 / 在原文件上更新时各一句），防止循环几轮后文件越写越长。 */
+const PRODUCE_LINE =
+  '**产出**的文件每次执行整份重写：只写这一次的结果，不保留上一次的内容，不写「比上次改了什么」这类说明。'
+const UPDATE_LINE =
+  '**更新**的文件先读再改，沿用它现有的结构：描述现状的部分就地改写成最新的，不在前面追加新段落；逐次的记录只加一行（短语、数字、证据路径），细节留在这一次的产出里，记录里只引用路径；同一件事只写一处。'
+
 /** ④ 段：交接——缺省就交执行结果，这一句说清；例外与说明逐条列在后面。 */
 const HANDOFF_LINE =
   '**交接**：轮到一个节点时，把它直接上游这一次的执行结果（回复里的结论与要点）交给它。'
@@ -580,7 +586,7 @@ function contractSection(facts: PlanFacts, ctx: RenderContext): string {
   const lines: string[] = [PLAN_SECTIONS.contract]
 
   const resources = resourceLines(ctx)
-  if (resources.length > 0) lines.push(RESOURCES_HEADING, ...resources)
+  if (resources.length > 0) lines.push(RESOURCES_HEADING, ...resources, ...writeRuleLines(ctx))
   if (missingCwd(facts)) lines.push(MISSING_CWD_NOTE)
   if (ctx.analysis.nodeIds.length > 1) {
     const exceptions = handoffLines(ctx)
@@ -628,6 +634,18 @@ function resourceLines(ctx: RenderContext): string[] {
     for (const item of info.resource.data.items) lines.push(...itemLines(ctx, item, written))
   }
   return lines
+}
+
+/** 怎么写文件：有步骤整份写出资源就给 {@link PRODUCE_LINE}，有步骤在原文件上更新就给 {@link UPDATE_LINE}。 */
+function writeRuleLines(ctx: RenderContext): string[] {
+  const steps = new Set(ctx.analysis.nodeIds)
+  const writers = [...resourceGraph(ctx.document).values()]
+    .filter((info) => info.resource.data.items.length > 0)
+    .flatMap((info) => info.writers.filter((writer) => steps.has(writer.id)))
+  return [
+    ...(writers.some((writer) => !writer.update) ? [PRODUCE_LINE] : []),
+    ...(writers.some((writer) => writer.update) ? [UPDATE_LINE] : []),
+  ]
 }
 
 /** 谁产出、谁更新、谁读；一条线都没连就是交给所有步骤。 */
