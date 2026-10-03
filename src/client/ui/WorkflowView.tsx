@@ -299,6 +299,12 @@ function Shell(props: {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [quick, setQuick] = useState<(AddRequest & { at: Point }) | null>(null)
   const [keysOpen, setKeysOpen] = useState(false)
+  /** 实例视图的右栏开着没有：一进实例先摊开概览，点画布空白处收起。 */
+  const [runPanel, setRunPanel] = useState(true)
+  // 换了实例就重新摊开概览。
+  useEffect(() => {
+    setRunPanel(true)
+  }, [runId])
   /** 刚加进来的空白步骤：属性面板出来时把光标放进提示词。 */
   const [focusPrompt, setFocusPrompt] = useState(false)
 
@@ -687,8 +693,9 @@ function Shell(props: {
   const doc = state.doc
   // 右侧面板（属性 / 步骤详情）开着没有：左下角的图例按剩下的宽度决定摊开还是收成按钮。
   const panelOpen =
-    runId !== null ||
-    (state.phase === 'ready' &&
+    (runId !== null && runPanel && !narrow) ||
+    (runId === null &&
+      state.phase === 'ready' &&
       (focus !== null || (doc !== null && analysis !== null && state.selection !== null)))
   const hub = hubOpen && (
     <HubDialog
@@ -726,6 +733,8 @@ function Shell(props: {
               workflows={wf.catalog?.workflows ?? []}
               narrow={narrow}
               inspectorW={inspectorW}
+              panelOpen={runPanel}
+              onPanel={setRunPanel}
               onOpenRun={openRun}
               onOpenTemplate={openTemplate}
               onOpenHub={() => setHubOpen(true)}

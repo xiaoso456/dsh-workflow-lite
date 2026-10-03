@@ -17,7 +17,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parse, stringify } from 'yaml'
 import { RunService } from '../src/host/runs/service.ts'
-import { bootToCanvas, screenshot } from './lib/canvas-harness.mjs'
+import { bootToCanvas, centerOf, mouseClick, screenshot } from './lib/canvas-harness.mjs'
 import { openPage, waitFor } from './lib/cdp-session.mjs'
 import { rpc } from './lib/web-session.mjs'
 
@@ -87,6 +87,21 @@ async function modelEdit(change) {
   await writeFile(statePath, stringify(state, { lineWidth: 0 }))
 }
 
+/** 画布上一处空白（点下去落在画布底板上，不在卡片、线和浮层上）。 */
+async function blankPoint(session) {
+  const point = await session.evaluate(`(() => {
+    const pane = document.querySelector('.react-flow__pane').getBoundingClientRect()
+    for (let y = pane.top + 120; y < pane.bottom - 80; y += 24) {
+      for (let x = pane.left + 24; x < pane.right - 24; x += 24) {
+        const hit = document.elementFromPoint(x, y)
+        if (hit?.classList.contains('react-flow__pane')) return { x, y }
+      }
+    }
+    return null
+  })()`)
+  check(point !== null, '画布上找不到空白处')
+  return point
+}
 const chipOf = (id) =>
   `(document.querySelector('.react-flow__node[data-id="${id}"] [data-testid="wl-run-chip"]')?.dataset.status ?? null)`
 
@@ -131,7 +146,36 @@ try {
     ),
     '实例视图里图不能改',
   )
-  pass('工作流中心 → 查看实例：画布只读、四张步骤卡挂上状态小标、右栏常驻')
+  pass('工作流中心 → 查看实例：画布只读、四张步骤卡挂上状态小标、右栏摊开概览')
+
+  // 1b) 右栏和模板一样能收：点卡片看它、点空白处收起、顶栏开关再打开、右上角 ✕ 收起。
+  const panelShown = `document.querySelector('[data-testid="wl-run-panel"]') !== null`
+  await mouseClick(session, await centerOf(session, '.react-flow__node[data-id="scan"]'))
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-run-panel"] [data-testid="wl-run-node-status"]') !== null`,
+  )
+  await mouseClick(session, await blankPoint(session))
+  await waitFor(session, `!(${panelShown})`)
+  check(
+    (await session.evaluate(
+      `document.querySelector('[data-testid="wl-run-panel-toggle"]').getAttribute('aria-pressed')`,
+    )) === 'false',
+    '右栏收起后顶栏开关应是关着的',
+  )
+  await session.evaluate(`document.querySelector('[data-testid="wl-run-panel-toggle"]').click()`)
+  await waitFor(session, panelShown)
+  check(
+    await session.evaluate(
+      `document.querySelector('[data-testid="wl-run-timeline"], [data-testid="wl-run-overall"]') !== null`,
+    ),
+    '顶栏开关打开的是概览',
+  )
+  await session.evaluate(`document.querySelector('[data-testid="wl-run-panel-close"]').click()`)
+  await waitFor(session, `!(${panelShown})`)
+  await session.evaluate(`document.querySelector('[data-testid="wl-run-panel-toggle"]').click()`)
+  await waitFor(session, panelShown)
+  pass('右栏：点卡片看详情、点空白处收起、顶栏开关打开概览、✕ 收起')
 
   // 2) 模型改状态文件：画布 2 秒左右跟上；走过的线亮起来。
   await modelEdit((state) => {

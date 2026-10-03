@@ -63,6 +63,9 @@ export interface RunViewProps {
   workflows: readonly WorkflowEntry[]
   narrow: boolean
   inspectorW: number
+  /** 右栏开着没有（点画布空白处收起，顶栏的开关再打开）。 */
+  panelOpen: boolean
+  onPanel(open: boolean): void
   onOpenRun(id: string): void
   onOpenTemplate(name: string): void
   onOpenHub(): void
@@ -143,7 +146,7 @@ function useSnapshot(id: string, document: WorkflowDocument | undefined): Workfl
 }
 
 export function RunView(props: RunViewProps): React.JSX.Element {
-  const { t, id, narrow, inspectorW } = props
+  const { t, id, narrow, inspectorW, panelOpen, onPanel } = props
   const current = useRun(props.rpc, id, props.session, t, () => void props.runs.refresh())
   const raw = useSnapshot(id, current.view?.document)
   // 快照里没摆过位置的节点（模型用工具建的图、还没在画布上打开过）：照模板那边的规矩补位，不写回。
@@ -190,7 +193,13 @@ export function RunView(props: RunViewProps): React.JSX.Element {
   const [viewer, setViewer] = useState<{ target: FileTarget; title: string } | null>(null)
 
   const edited = useMemo(() => editedNodes(current.draft), [current.draft])
-  const insets = { left: 0, right: narrow ? 0 : inspectorW + GAP }
+  const showPanel = panelOpen && !narrow
+  const insets = { left: 0, right: showPanel ? inspectorW + GAP : 0 }
+  /** 收起右栏：和模板里一样，连选中一起放掉。 */
+  const closePanel = useCallback((): void => {
+    setSelection(null)
+    onPanel(false)
+  }, [onPanel])
   const insetRight = insets.right
 
   const decor = useMemo<RunDecor | undefined>(() => {
@@ -274,7 +283,7 @@ export function RunView(props: RunViewProps): React.JSX.Element {
     const key = event.key.toLowerCase()
     if (key === 'escape') {
       if (menu !== null) setMenu(null)
-      else setSelection(null)
+      else closePanel()
     } else if (key === 'f' && !event.ctrlKey && !event.metaKey && !event.altKey) {
       event.preventDefault()
       fitAll()
@@ -310,8 +319,10 @@ export function RunView(props: RunViewProps): React.JSX.Element {
             insets={insets}
             onEdit={() => {}}
             onSelect={(next) => {
+              // 点中东西：右栏打开看它；点空白处：右栏收起（和模板一样）。
               setSelection(next)
               setMenu(null)
+              onPanel(next !== null)
             }}
             onRequestAdd={() => {}}
             onDropSource={() => {}}
@@ -324,10 +335,18 @@ export function RunView(props: RunViewProps): React.JSX.Element {
       </div>
 
       <div className={shell.top}>
-        <RunTopBar {...props} summary={summary} state={shown} />
+        <RunTopBar
+          {...props}
+          summary={summary}
+          state={shown}
+          onTogglePanel={() => {
+            if (panelOpen) closePanel()
+            else onPanel(true)
+          }}
+        />
       </div>
 
-      {!narrow && snapshot !== null && (
+      {showPanel && snapshot !== null && (
         <div className={shell.inspector}>
           <RunPanel
             t={t}
@@ -346,6 +365,7 @@ export function RunView(props: RunViewProps): React.JSX.Element {
             onRerun={rerunFrom}
             onFocusFile={setFocusFile}
             onView={(target, title) => setViewer({ target, title })}
+            onClose={closePanel}
           />
         </div>
       )}
@@ -408,7 +428,11 @@ export function RunView(props: RunViewProps): React.JSX.Element {
 // ─────────────────────────────────────────────────────────────
 
 function RunTopBar(
-  props: RunViewProps & { summary: InstanceSummary | undefined; state: RunState | null },
+  props: RunViewProps & {
+    summary: InstanceSummary | undefined
+    state: RunState | null
+    onTogglePanel(): void
+  },
 ): React.JSX.Element {
   const { t, summary, state } = props
   const [copied, setCopied] = useState(false)
@@ -493,6 +517,23 @@ function RunTopBar(
               <Icon name={copied ? 'check' : 'copy'} size={14} />
               {copied ? t('common.copied') : t('run.copyPath')}
             </button>
+          )}
+          {!props.narrow && (
+            <>
+              <span className={ui.divider} />
+              <button
+                type="button"
+                className={cx(ui.btn, ui.icon, ui.tip, ui.tipEnd)}
+                data-tip={t('run.panelToggle')}
+                aria-label={t('run.panelToggle')}
+                aria-pressed={props.panelOpen}
+                data-on={props.panelOpen}
+                data-testid="wl-run-panel-toggle"
+                onClick={props.onTogglePanel}
+              >
+                <Icon name="panel" size={17} />
+              </button>
+            </>
           )}
         </div>
       )}
@@ -776,6 +817,7 @@ function RunPanel(props: {
   onRerun(id: string): void
   onFocusFile(id: string | null): void
   onView(target: FileTarget, title: string): void
+  onClose(): void
 }): React.JSX.Element {
   const { t, current, snapshot, selected, selectedFile, selectedInput } = props
   const state = current.shown
@@ -902,6 +944,16 @@ function RunPanel(props: {
           </button>
         )}
         <span className={css.headTitle}>{title}</span>
+        <button
+          type="button"
+          className={cx(ui.btn, ui.icon, ui.small)}
+          aria-label={t('common.close')}
+          title={t('common.close')}
+          data-testid="wl-run-panel-close"
+          onClick={props.onClose}
+        >
+          <Icon name="x" size={15} />
+        </button>
       </header>
       <div className={cx(css.body, overview && run.bodyOverview)}>{body}</div>
     </aside>
