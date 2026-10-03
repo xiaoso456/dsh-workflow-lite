@@ -227,13 +227,13 @@ describe('连线', () => {
 })
 
 describe('不进撤销栈的改动', () => {
-  it('视口与自动补位照样要落盘，但不进历史', () => {
+  it('自动补位照样要落盘，但不进历史', () => {
     const start = loaded(doc({ nodes: [node('a', {}, 0, 0)] }))
-    const state = run(
-      start,
-      { type: 'setViewport', viewport: { x: 5, y: 5, zoom: 0.8 } },
-      { type: 'moveNodes', positions: { a: { x: 80, y: 80 } }, silent: true },
-    )
+    const state = run(start, {
+      type: 'moveNodes',
+      positions: { a: { x: 80, y: 80 } },
+      silent: true,
+    })
     expect(isDirty(state)).toBe(true)
     expect(state.past).toEqual([])
   })

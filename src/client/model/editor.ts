@@ -45,7 +45,6 @@ import {
   type ResourceData,
   type StepNode,
   type ValidationProblem,
-  type Viewport,
   type WorkflowDocument,
   type WorkflowEdge,
   type WorkflowNode,
@@ -174,7 +173,6 @@ export type Edit =
   /** 改写入方式（步骤 → 资源）：整份写出 / 在原文件上更新。 */
   | { type: 'setUpdate'; id: string; update: boolean }
   /** 视口是视图状态：照样落盘，但不进撤销栈。 */
-  | { type: 'setViewport'; viewport: Viewport }
   /** 换掉整份工作流设置（设置对话框「完成」时一次交出来 = 一条撤销步）。 */
   | { type: 'setSettings'; settings: WorkflowSettings | undefined }
 
@@ -608,13 +606,6 @@ function applyEdit(doc: WorkflowDocument, selection: Selection, edit: Edit): App
       }
     }
 
-    case 'setViewport': {
-      const current = doc.viewport
-      const { x, y, zoom } = edit.viewport
-      if (current.x === x && current.y === y && current.zoom === zoom) return null
-      return { doc: { ...doc, viewport: { x, y, zoom } }, selection }
-    }
-
     case 'setSettings': {
       // 走一遍和写盘同一份的规范化：根目录标准化、缺省值不留。
       const settings = readSettings(edit.settings)
@@ -641,7 +632,6 @@ function isEdit(action: Action): action is Edit {
     case 'removeEdge':
     case 'setWhen':
     case 'setHandoff':
-    case 'setViewport':
     case 'setSettings':
       return true
     default:
@@ -660,8 +650,8 @@ function historyAfter(
   before: WorkflowDocument,
   edit: Edit,
 ): Pick<EditorState, 'past' | 'future' | 'mergeKey'> {
-  // 不进历史的两种：视口、程序自动补位。它们也不打断正在进行的合并链。
-  if (edit.type === 'setViewport' || (edit.type === 'moveNodes' && edit.silent === true)) {
+  // 不进历史：程序自动补位。它也不打断正在进行的合并链。
+  if (edit.type === 'moveNodes' && edit.silent === true) {
     return { past: state.past, future: state.future, mergeKey: state.mergeKey }
   }
   const key =

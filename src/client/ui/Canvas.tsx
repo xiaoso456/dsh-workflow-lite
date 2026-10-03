@@ -67,6 +67,7 @@ import type {
   WorkflowEdge,
   WorkflowNode,
 } from '../../shared/types.ts'
+import { recallViewport, rememberViewport } from '../app/viewport.ts'
 import type { LocaleKey, T } from '../i18n.ts'
 import {
   type CardKind,
@@ -136,6 +137,8 @@ export interface CanvasProps {
   analysis: GraphAnalysis
   /** 换了一份基线（打开 / 重新加载）就变：据此重新定视口。 */
   loadKey: string
+  /** 图名：给了就把人动过的视口记在浏览器里（见 `app/viewport.ts`），下次打开接着看；不写进图文件。 */
+  viewKey?: string
   selection: Selection
   problems: readonly ValidationProblem[]
   /** 自动看全图时四周要让开的浮层宽度。 */
@@ -2019,8 +2022,10 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
   // ── 视口：换基线时恢复上次的视角；是默认视角（新图）就看全图 ──
   const insets = useRef(props.insets)
   insets.current = props.insets
+  const viewKey = props.viewKey
   useEffect(() => {
-    const saved = docRef.current.viewport
+    const saved =
+      (viewKey === undefined ? null : recallViewport(viewKey)) ?? docRef.current.viewport
     const untouched = saved.x === 0 && saved.y === 0 && saved.zoom === 1
     if (!untouched) {
       void flow.setViewport(saved)
@@ -2046,7 +2051,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
       cancelAnimationFrame(first)
       cancelAnimationFrame(second)
     }
-  }, [props.loadKey, flow])
+  }, [props.loadKey, viewKey, flow])
 
   // ── 从步骤库拖进来 ──────────────────────────────────────────
 
@@ -2189,8 +2194,9 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
             focusCanvas()
           }}
           onMoveEnd={(event, viewport) => {
-            // 只记人动的视口；程序触发的移动（看全图、定位）事件参数是 null。实例的快照不写回。
-            if (event !== null && !readOnly) onEdit({ type: 'setViewport', viewport })
+            // 只记人动的视口；程序触发的移动（看全图、定位）事件参数是 null。
+            // 视口只记在浏览器里：浏览不改图，不会变成「待保存」。
+            if (event !== null && viewKey !== undefined) rememberViewport(viewKey, viewport)
           }}
         >
           <Background variant={BackgroundVariant.Dots} gap={20} size={1.6} color="var(--wl-dot)" />

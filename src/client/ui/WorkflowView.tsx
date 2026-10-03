@@ -751,6 +751,7 @@ function Shell(props: {
                   doc={doc}
                   analysis={analysis}
                   loadKey={`${state.name ?? ''}#${state.loadSeq}`}
+                  {...(state.name === null ? {} : { viewKey: state.name })}
                   selection={state.selection}
                   problems={state.problems}
                   insets={insets}
