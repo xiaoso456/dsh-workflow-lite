@@ -10,6 +10,7 @@
 
 import { useReactFlow } from '@xyflow/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { GraphAnalysis } from '../../shared/graph.ts'
 import { analyzeGraph } from '../../shared/graph.ts'
 import { isInput, isResource, isStep } from '../../shared/model.ts'
 import { resourceTitle } from '../../shared/resources.ts'
@@ -29,7 +30,9 @@ import {
 import type {
   InputNode,
   ResourceNode,
+  StepNode,
   WorkflowDocument,
+  WorkflowEdge,
   WorkflowEntry,
 } from '../../shared/types.ts'
 import type { Desktop } from '../app/desktop.ts'
@@ -40,19 +43,24 @@ import type { LocaleKey, T } from '../i18n.ts'
 import type { Selection } from '../model/editor.ts'
 import { fileBaseName } from '../model/fileKind.ts'
 import { placeMissing } from '../model/layout.ts'
-import { changeCount, downstreamOf, editedNodes, samePath } from '../model/runDraft.ts'
+import { changeCount, downstreamOf, editedNodes } from '../model/runDraft.ts'
 import { shortTime } from '../model/time.ts'
 import type { WorkflowLiteRpc } from '../rpc.ts'
 import { Canvas, RUN_TEXT, type RunDecor } from './Canvas.tsx'
 import { ZoomDock } from './Dock.tsx'
 import { FileViewer } from './FileViewer.tsx'
-import { Icon, type IconName } from './Icon.tsx'
+import hand from './handoff.module.css'
+import { Icon } from './Icon.tsx'
 import css from './inspector.module.css'
 import { copyText, cx, Popover } from './primitives.tsx'
-import { StepResourceList } from './RunFiles.tsx'
+import { ResourceIcon } from './Resources.tsx'
+import { edgeHead, RunEdgeDetail } from './RunEdge.tsx'
 import { RunInputDetail } from './RunInput.tsx'
+import { EditedDot, isEdited, NODE_ICON, nodeHint } from './RunNodeState.tsx'
 import { RunResourceDetail } from './RunResource.tsx'
+import { RunStepDetail } from './RunStep.tsx'
 import run from './run.module.css'
+import { lookOf, StepMark } from './StepMark.tsx'
 import shell from './shell.module.css'
 import top from './topbar.module.css'
 import ui from './ui.module.css'
@@ -87,20 +95,6 @@ export const RUN_STATUS_TEXT: Record<RunStatus, LocaleKey> = {
   done: 'run.overall.done',
   failed: 'run.overall.failed',
   cancelled: 'run.overall.cancelled',
-}
-
-/** 步骤状态的一句话说明（悬停提示）。 */
-function nodeHint(status: NodeStatus): LocaleKey {
-  return status === 'skipped' ? 'run.hint.skipped' : (`run.nodeHint.${status}` as LocaleKey)
-}
-
-const NODE_ICON: Record<NodeStatus, IconName> = {
-  pending: 'clock',
-  running: 'play',
-  waiting: 'hourglass',
-  done: 'check',
-  failed: 'alert',
-  skipped: 'skip',
 }
 
 export { shortTime }
@@ -304,7 +298,14 @@ export function RunView(props: RunViewProps): React.JSX.Element {
   }
 
   const summary = current.view?.summary
-  const selectedNode = selection?.kind === 'node' && steps.has(selection.id) ? selection.id : null
+  const selectedStep =
+    selection?.kind === 'node'
+      ? snapshot?.nodes.find((node): node is StepNode => node.id === selection.id && isStep(node))
+      : undefined
+  const selectedEdge =
+    selection?.kind === 'edge'
+      ? snapshot?.edges.find((edge) => edge.id === selection.id)
+      : undefined
   const selectedFile =
     selection?.kind === 'node'
       ? snapshot?.nodes.find(
@@ -359,7 +360,7 @@ export function RunView(props: RunViewProps): React.JSX.Element {
         />
       </div>
 
-      {showPanel && snapshot !== null && (
+      {showPanel && snapshot !== null && analysis !== null && (
         <div className={shell.inspector}>
           <RunPanel
             t={t}
@@ -367,15 +368,19 @@ export function RunView(props: RunViewProps): React.JSX.Element {
             instance={id}
             current={current}
             snapshot={snapshot}
+            analysis={analysis}
+            taken={shown === null ? null : (decor?.taken ?? null)}
             verdicts={facts?.verdicts ?? {}}
-            selected={selectedNode}
+            selected={selectedStep ?? null}
             selectedFile={selectedFile ?? null}
             selectedInput={selectedInput ?? null}
+            selectedEdge={selectedEdge ?? null}
             desktop={props.desktop}
             host={host}
             onSelect={(nodeId) =>
               setSelection(nodeId === null ? null : { kind: 'node', id: nodeId })
             }
+            onSelectEdge={(edgeId) => setSelection({ kind: 'edge', id: edgeId })}
             onRerun={rerunFrom}
             onFocusFile={setFocusFile}
             onView={(target, title, note) => setViewer({ target, title, note })}
@@ -809,36 +814,34 @@ function StatusMenu(props: {
 // 右栏
 // ─────────────────────────────────────────────────────────────
 
-function isEdited(draft: readonly StateEdit[], path: readonly string[]): boolean {
-  return draft.some((edit) => samePath(edit.path, path))
-}
-
-function EditedDot(props: { on: boolean }): React.JSX.Element | null {
-  return props.on ? <span className={run.edited} aria-hidden="true" /> : null
-}
-
 function RunPanel(props: {
   t: T
   rpc: WorkflowLiteRpc
   instance: string
   current: Run
   snapshot: WorkflowDocument
+  analysis: GraphAnalysis
+  /** 这次走过的线；不记进度（或状态读不出来）时为 `null`。 */
+  taken: ReadonlySet<string> | null
   verdicts: Readonly<Record<string, string[]>>
-  selected: string | null
+  selected: StepNode | null
   selectedFile: ResourceNode | null
   selectedInput: InputNode | null
+  selectedEdge: WorkflowEdge | null
   desktop: Desktop | undefined
   host: HostAccess
   onSelect(id: string | null): void
+  onSelectEdge(id: string): void
   onRerun(id: string): void
   onFocusFile(id: string | null): void
   onView(target: FileTarget, title: string, note?: string): void
   onClose(): void
 }): React.JSX.Element {
-  const { t, current, snapshot, selected, selectedFile, selectedInput } = props
+  const { t, current, snapshot, selected, selectedFile, selectedInput, selectedEdge } = props
   const state = current.shown
   const summary = current.view?.summary
   const made = current.view?.files ?? {}
+  const answers = current.view?.answers
   const labelOf = (id: string): string => {
     const node = snapshot.nodes.find((candidate) => candidate.id === id)
     return node !== undefined &&
@@ -848,28 +851,52 @@ function RunPanel(props: {
       ? node.data.label
       : id
   }
-  const title =
-    selectedInput !== null
-      ? t('input.title')
-      : selectedFile !== null
-        ? resourceTitle(selectedFile)
-        : selected === null
-          ? t('run.overview')
-          : labelOf(selected)
-  const overview =
-    selectedFile === null && selectedInput === null && selected === null && state !== null
+  const viewPath = (path: string): void => props.onView({ path }, fileBaseName(path))
+  const edgeLook = selectedEdge === null ? null : edgeHead(snapshot, props.analysis, selectedEdge)
+
+  let title: string
+  let icon: React.ReactNode = null
   let body: React.ReactNode
-  if (selectedInput !== null) {
+  if (selectedEdge !== null && edgeLook !== null) {
+    title = t(edgeLook.title)
+    icon = (
+      <span className={css.edgeIcon}>
+        <Icon name={edgeLook.icon} size={15} />
+      </span>
+    )
+    body = (
+      <RunEdgeDetail
+        t={t}
+        snapshot={snapshot}
+        analysis={props.analysis}
+        edge={selectedEdge}
+        state={state}
+        taken={props.taken}
+        answers={answers}
+        desktop={props.desktop}
+        onSelectNode={props.onSelect}
+      />
+    )
+  } else if (selectedInput !== null) {
+    title = t('input.title')
+    icon = (
+      <span className={hand.askIcon}>
+        <Icon name="ask" size={14} />
+      </span>
+    )
     body = (
       <RunInputDetail
         t={t}
         snapshot={snapshot}
         input={selectedInput}
-        answer={current.view?.answers?.[selectedInput.id]}
+        answer={answers?.[selectedInput.id]}
+        state={state}
         onSelectStep={props.onSelect}
       />
     )
   } else if (selectedFile !== null) {
+    title = resourceTitle(selectedFile)
+    icon = <ResourceIcon resource={selectedFile} size={14} />
     body = (
       <RunResourceDetail
         key={selectedFile.id}
@@ -889,59 +916,53 @@ function RunPanel(props: {
         onError={(text) => current.flash('error', text)}
       />
     )
-  } else if (state === null && selected !== null) {
-    // 没有状态（不记进度，或状态文件读不出来）：步骤只能看它读写哪些资源。
+  } else if (selected !== null) {
+    title = labelOf(selected.id)
+    icon = <StepMark look={lookOf(selected.id, selected.data)} size={15} />
     body = (
-      <StepResourceList
-        t={t}
-        snapshot={snapshot}
-        step={selected}
-        reported={[]}
-        made={made}
-        onSelectResource={props.onSelect}
-        onFocusFile={props.onFocusFile}
-        onViewPath={(path) => props.onView({ path }, fileBaseName(path))}
-      />
-    )
-  } else if (state === null && summary !== undefined && summary.statePath === undefined) {
-    body = <Untracked t={t} summary={summary} snapshot={snapshot} />
-  } else if (state === null) {
-    body = <p className={css.help}>{current.view === null ? t('run.loading') : t('run.noState')}</p>
-  } else if (selected === null) {
-    body = (
-      <Overview
+      <RunStepDetail
+        key={selected.id}
         t={t}
         current={current}
+        snapshot={snapshot}
+        analysis={props.analysis}
+        step={selected}
         state={state}
-        summary={summary}
-        labelOf={labelOf}
-        onSelect={props.onSelect}
+        taken={props.taken}
+        verdicts={props.verdicts[selected.id]}
+        answers={answers}
+        made={made}
+        desktop={props.desktop}
+        onRerun={() => props.onRerun(selected.id)}
+        onSelectNode={props.onSelect}
+        onSelectEdge={props.onSelectEdge}
+        onFocusFile={props.onFocusFile}
+        onViewPath={viewPath}
       />
     )
   } else {
-    body = (
-      <NodeDetail
-        t={t}
-        current={current}
-        id={selected}
-        node={state.nodes[selected]}
-        verdicts={props.verdicts[selected]}
-        onRerun={() => props.onRerun(selected)}
-        files={
-          <StepResourceList
-            t={t}
-            snapshot={snapshot}
-            step={selected}
-            reported={state.nodes[selected]?.outputs ?? []}
-            made={made}
-            onSelectResource={props.onSelect}
-            onFocusFile={props.onFocusFile}
-            onViewPath={(path) => props.onView({ path }, fileBaseName(path))}
-          />
-        }
-      />
-    )
+    title = t('run.overview')
+    if (state === null && summary !== undefined && summary.statePath === undefined) {
+      body = <Untracked t={t} summary={summary} snapshot={snapshot} />
+    } else if (state === null) {
+      body = (
+        <p className={css.help}>{current.view === null ? t('run.loading') : t('run.noState')}</p>
+      )
+    } else {
+      body = (
+        <Overview
+          t={t}
+          current={current}
+          state={state}
+          summary={summary}
+          labelOf={labelOf}
+          onSelect={props.onSelect}
+        />
+      )
+    }
   }
+  const picked = (selected ?? selectedFile ?? selectedInput ?? selectedEdge) !== null
+  const overview = !picked && state !== null
   return (
     <aside
       className={cx(ui.panel, css.panel)}
@@ -949,7 +970,7 @@ function RunPanel(props: {
       aria-label={t('run.panel')}
     >
       <header className={css.head}>
-        {(selected !== null || selectedFile !== null || selectedInput !== null) && (
+        {picked && (
           <button
             type="button"
             className={cx(ui.btn, ui.icon, ui.small)}
@@ -960,7 +981,10 @@ function RunPanel(props: {
             <Icon name="chevronLeft" size={15} />
           </button>
         )}
-        <span className={css.headTitle}>{title}</span>
+        {icon}
+        <span className={css.headTitle} title={title}>
+          {title}
+        </span>
         <button
           type="button"
           className={cx(ui.btn, ui.icon, ui.small)}
@@ -1166,198 +1190,6 @@ function TimelineItem(props: {
         {entry.detail !== undefined && ` — ${entry.detail}`}
       </span>
     </li>
-  )
-}
-
-function NodeDetail(props: {
-  t: T
-  current: Run
-  id: string
-  node: RunState['nodes'][string] | undefined
-  verdicts: readonly string[] | undefined
-  onRerun(): void
-  /** 「产出 / 读取」那一块（文件列表由 `RunFiles` 画）。 */
-  files: React.ReactNode
-}): React.JSX.Element {
-  const { t, current, id, node } = props
-  if (node === undefined) return <p className={css.help}>{t('run.noNode')}</p>
-  const path = (field: string): string[] => ['nodes', id, field]
-  const round = node.round ?? 0
-  return (
-    <>
-      <section className={run.section}>
-        <p className={run.sectionTitle}>
-          <span>
-            {t('run.nodeStatus')}
-            <EditedDot on={isEdited(current.draft, path('status'))} />
-          </span>
-        </p>
-        <div className={run.choices} role="radiogroup" aria-label={t('run.nodeStatus')}>
-          {NODE_STATUSES.map((status) => (
-            <button
-              key={status}
-              type="button"
-              role="radio"
-              aria-checked={node.status === status}
-              className={run.choice}
-              data-run-status={status}
-              data-testid="wl-run-node-status"
-              data-value={status}
-              title={t(nodeHint(status))}
-              onClick={() => {
-                if (
-                  status === 'done' &&
-                  props.verdicts !== undefined &&
-                  node.verdict === undefined
-                ) {
-                  current.setStatus(id, status)
-                  current.setField(path('verdict'), props.verdicts[0] ?? null)
-                  return
-                }
-                current.setStatus(id, status)
-              }}
-            >
-              <Icon name={NODE_ICON[status]} size={12} />
-              {t(RUN_TEXT[status])}
-            </button>
-          ))}
-        </div>
-        {node.status !== 'pending' && (
-          <button type="button" className={cx(ui.btn, ui.small, ui.soft)} onClick={props.onRerun}>
-            <Icon name="reload" size={13} />
-            {t('run.rerun')}
-          </button>
-        )}
-      </section>
-
-      <section className={run.section}>
-        <p className={run.sectionTitle}>
-          <span>
-            {t('run.roundLabel')}
-            <EditedDot on={isEdited(current.draft, path('round'))} />
-          </span>
-          <span className={run.stepper}>
-            <button
-              type="button"
-              className={cx(ui.btn, ui.icon, ui.small)}
-              aria-label={t('run.roundDown')}
-              disabled={round <= 1}
-              onClick={() => current.setField(path('round'), round - 1)}
-            >
-              <Icon name="minus" size={13} />
-            </button>
-            <span className={run.stepperValue}>{round === 0 ? '—' : round}</span>
-            <button
-              type="button"
-              className={cx(ui.btn, ui.icon, ui.small)}
-              aria-label={t('run.roundUp')}
-              onClick={() => current.setField(path('round'), round + 1)}
-            >
-              <Icon name="plus" size={13} />
-            </button>
-          </span>
-        </p>
-      </section>
-
-      {props.verdicts !== undefined && (
-        <section className={run.section}>
-          <p className={run.sectionTitle}>
-            <span>
-              {t('run.verdict')}
-              <EditedDot on={isEdited(current.draft, path('verdict'))} />
-            </span>
-          </p>
-          <div className={run.choices} role="radiogroup" aria-label={t('run.verdict')}>
-            {props.verdicts.map((verdict) => (
-              <button
-                key={verdict}
-                type="button"
-                role="radio"
-                aria-checked={node.verdict === verdict}
-                className={run.choice}
-                data-run-status={node.verdict === verdict ? 'running' : 'pending'}
-                onClick={() =>
-                  current.setField(path('verdict'), node.verdict === verdict ? null : verdict)
-                }
-              >
-                {verdict}
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
-
-      <section className={run.section}>
-        <p className={run.sectionTitle}>
-          <span>
-            {t('run.summary')}
-            <EditedDot on={isEdited(current.draft, path('summary'))} />
-          </span>
-        </p>
-        <textarea
-          className={cx(ui.textarea, run.autoArea)}
-          rows={3}
-          value={node.summary ?? ''}
-          placeholder={t('run.summaryPlaceholder')}
-          data-testid="wl-run-summary"
-          onChange={(event) =>
-            current.setField(
-              path('summary'),
-              event.currentTarget.value === '' ? null : event.currentTarget.value,
-            )
-          }
-        />
-      </section>
-
-      {(node.status === 'failed' || node.error !== undefined) && (
-        <section className={run.section}>
-          <p className={run.sectionTitle}>
-            <span>
-              {t('run.error')}
-              <EditedDot on={isEdited(current.draft, path('error'))} />
-            </span>
-          </p>
-          <textarea
-            className={ui.textarea}
-            rows={2}
-            value={node.error ?? ''}
-            onChange={(event) =>
-              current.setField(
-                path('error'),
-                event.currentTarget.value === '' ? null : event.currentTarget.value,
-              )
-            }
-          />
-        </section>
-      )}
-
-      {props.files}
-
-      {(node.by !== undefined || node.startedAt !== undefined || node.finishedAt !== undefined) && (
-        <section className={run.section}>
-          <dl className={run.facts}>
-            {node.by !== undefined && (
-              <>
-                <dt>{t('run.by')}</dt>
-                <dd>{node.by}</dd>
-              </>
-            )}
-            {node.startedAt !== undefined && (
-              <>
-                <dt>{t('run.startedAt')}</dt>
-                <dd>{shortTime(node.startedAt)}</dd>
-              </>
-            )}
-            {node.finishedAt !== undefined && (
-              <>
-                <dt>{t('run.finishedAt')}</dt>
-                <dd>{shortTime(node.finishedAt)}</dd>
-              </>
-            )}
-          </dl>
-        </section>
-      )}
-    </>
   )
 }
 

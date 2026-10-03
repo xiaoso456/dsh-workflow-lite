@@ -79,7 +79,7 @@ const DOC = {
     },
   ],
   edges: [
-    edge('scan', 'review'),
+    { ...edge('scan', 'review'), data: { handoff: { note: '重点看鉴权和缓存两块' } } },
     edge('review', 'report', 'pass'),
     edge('review', 'fix', 'fail'),
     edge('fix', 'review'),
@@ -200,7 +200,8 @@ try {
       round: 1,
       startedAt: '2026-10-02T10:00:00+08:00',
       finishedAt: '2026-10-02T10:05:00+08:00',
-      summary: '摸清了',
+      summary:
+        '摸清了：鉴权在 auth/ 下，token 刷新逻辑有两处重复；缓存层没有过期策略，命中率无监控；接口层有 3 个未覆盖测试的分支，其中支付回调最危险，需要优先补测试再改动；日志里 warn 级别噪音很多，建议先降噪再排查。',
     }
     state.nodes.review = { status: 'running', round: 1, startedAt: '2026-10-02T10:06:00+08:00' }
     state.log = [
@@ -234,6 +235,66 @@ try {
   )
   await screenshot(session, 'runs-02-live.png')
   pass(`外部改状态文件 → 画布 ${lag}ms 内跟上，走过的线亮、没走过的淡，进度与时间线对`)
+
+  // 2b) 步骤与连线的详情（和模板一样能顺着上下游跳）：步骤列提示词、连接（箭头绿 = 这次走过）；
+  // 点连接看那条线：走过没有、条件、交接、上游这次的摘要；点线的一端回到那一步。
+  const inPanel = (selector) => `document.querySelector('[data-testid="wl-run-panel"] ${selector}')`
+  await session.evaluate(
+    `document.querySelector('.react-flow__edge[data-id="scan->review"] path').dispatchEvent(new MouseEvent('click', { bubbles: true }))`,
+  )
+  await waitFor(session, `${inPanel('[data-testid="wl-run-edge"]')} !== null`)
+  check(
+    (await session.evaluate(`${inPanel('[data-testid="wl-run-edge-taken"]')}.dataset.on`)) ===
+      'true',
+    '画布上点 scan→review：右栏应显示已流转',
+  )
+  check(
+    (
+      await session.evaluate(`${inPanel('[data-testid="wl-run-edge-summary"]')}?.textContent ?? ''`)
+    ).includes('摸清了'),
+    '连线详情应带上游这次的摘要',
+  )
+  await screenshot(session, 'runs-02b-edge.png')
+  await session.evaluate(`${inPanel('[data-testid="wl-run-edge-end"][data-id="review"]')}.click()`)
+  await waitFor(session, `${inPanel('[data-testid="wl-run-links"]')} !== null`)
+  check(
+    (await session.evaluate(`${inPanel('[data-testid="wl-run-prompt"]')}.textContent`)).includes(
+      '做 review',
+    ),
+    '步骤详情应露出提示词',
+  )
+  const linkTaken = (edgeId) =>
+    session.evaluate(
+      `${inPanel(`[data-testid="wl-run-link"][data-id="${edgeId}"]`)}?.dataset.taken ?? null`,
+    )
+  check((await linkTaken('scan->review')) === 'true', '上游 scan→review 这次走过了')
+  check((await linkTaken('fix->review')) === 'false', '上游 fix→review 这次还没走')
+  check((await linkTaken('review->report#pass')) === 'false', '下游 review→report 还没走')
+  await screenshot(session, 'runs-02c-step.png')
+  await session.evaluate(`${inPanel('[data-testid="wl-run-prompt-view"]')}.click()`)
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-run-prompt-viewer"]')?.textContent.includes('做 review')`,
+  )
+  await session.evaluate(
+    `document.querySelector('[data-testid="wl-run-prompt-viewer"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`,
+  )
+  await waitFor(session, `document.querySelector('[data-testid="wl-run-prompt-viewer"]') === null`)
+  await session.evaluate(
+    `${inPanel('[data-testid="wl-run-link"][data-id="review->report#pass"]')}.click()`,
+  )
+  await waitFor(session, `${inPanel('[data-testid="wl-run-edge-taken"]')}?.dataset.on === 'false'`)
+  check(
+    (await session.evaluate(`${inPanel('')}.textContent`)).includes('尚未给出判定'),
+    '条件线没走：应说明上游还没给判定',
+  )
+  await session.evaluate(`document.querySelector('[data-testid="wl-run-panel-close"]').click()`)
+  await waitFor(session, `!(${panelShown})`)
+  await session.evaluate(`document.querySelector('[data-testid="wl-run-panel-toggle"]').click()`)
+  await waitFor(session, panelShown)
+  pass(
+    '步骤详情列提示词与上下游（绿箭头 = 走过）；点连接看线：走过没有、条件、上游摘要；点端点回到步骤',
+  )
 
   // 3) 写坏 → 提示条、保留上一次合法的样子；修好 → 提示条消失。
   const good = await readFile(statePath, 'utf8')

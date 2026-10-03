@@ -111,9 +111,12 @@ export function StepResourceList(props: {
 
   if (linked.writes.length === 0 && linked.reads.length === 0 && extra.length === 0) {
     return (
-      <p className={css.previewNote} style={{ padding: 0 }}>
-        {t('run.noFiles')}
-      </p>
+      <section className={run.section}>
+        <p className={css.groupTitle}>{t('res.title')}</p>
+        <p className={css.previewNote} style={{ padding: 0 }}>
+          {t('run.noFiles')}
+        </p>
+      </section>
     )
   }
   return (

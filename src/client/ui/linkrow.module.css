@@ -1,0 +1,85 @@
+/**
+ * dsh-workflow-lite — 连接清单的一行（模板属性面板、实例右栏共用）。
+ *
+ * 不包边框：一行就是一块悬停才显底色的按钮，和「用户输入」「回答交给」那些步骤清单一个样子。
+ */
+
+.row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 3px 8px;
+  align-items: center;
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--wl-r-control);
+  background: transparent;
+  color: var(--wl-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.row:hover {
+  background: var(--wl-hover);
+}
+
+.row:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: -2px;
+}
+
+.lead {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.name {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+  font-size: var(--wl-fs-meta);
+  font-weight: 500;
+}
+
+.nameText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.end {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+/* 交了什么：和名字左对齐。 */
+.sub {
+  display: flex;
+  grid-column: 2 / -1;
+  min-width: 0;
+}
+
+/* 方向箭头：上游那组朝左；实例里经过的线是绿的，没经过的淡下去（和画布上一样）。 */
+.dir {
+  display: inline-flex;
+  flex: none;
+  color: var(--wl-text-3);
+}
+
+.dir[data-in="true"] {
+  transform: scaleX(-1);
+}
+
+.dir[data-taken="true"] {
+  color: var(--wl-ok);
+}
+
+.dir[data-taken="false"] {
+  opacity: 0.5;
+}

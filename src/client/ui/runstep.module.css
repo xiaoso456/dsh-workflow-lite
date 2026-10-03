@@ -1,0 +1,139 @@
+/**
+ * dsh-workflow-lite — 实例视图右栏的步骤与连线：只露几行的长文字卡（提示词、上游摘要、交接说明），
+ * 选中连线时的两端与一张「状态 / 条件 / 交接」小表。
+ *
+ * 清单的一行在 `linkrow.module.css`（模板属性面板也用它）。
+ */
+
+.titleRow {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-height: 26px;
+}
+
+.titleRow > :last-child {
+  margin-left: auto;
+}
+
+/* 长文字只露几行（行数由调用方给）；整块就是「看全文」的按钮。 */
+.card {
+  display: -webkit-box;
+  width: 100%;
+  margin: 0;
+  padding: 9px 12px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 10px;
+  background: var(--wl-fill);
+  color: var(--wl-text-2);
+  font: inherit;
+  font-size: var(--wl-fs-meta);
+  line-height: 1.6;
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: break-word;
+  cursor: pointer;
+  -webkit-box-orient: vertical;
+}
+
+.card:hover {
+  color: var(--wl-text);
+}
+
+.card:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+/* ── 连线 ─────────────────────────────────────────────────── */
+
+/* 两端的卡片里，名字后面跟一个状态点。 */
+.endDot {
+  display: inline-flex;
+  flex: none;
+  margin-left: auto;
+}
+
+/* 状态 / 条件 / 交接：左边短标签，右边值，值下面可以跟一行灰字。 */
+.facts {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px 18px;
+  margin: 0;
+  padding: 0 2px;
+}
+
+.facts dt {
+  padding-top: 2px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+}
+
+.facts dd {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+  min-width: 0;
+  margin: 0;
+}
+
+.value {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--wl-text);
+  font-size: var(--wl-fs-meta);
+  font-weight: 500;
+}
+
+.hint {
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.5;
+}
+
+.code {
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: var(--wl-fill);
+  color: var(--wl-text-2);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+}
+
+/* 经过没有：实心绿点 / 空心圈。 */
+.taken {
+  color: var(--wl-text-3);
+}
+
+.taken[data-on="true"] {
+  color: var(--wl-ok);
+}
+
+.takenDot {
+  width: 7px;
+  height: 7px;
+  border: 1.5px solid currentcolor;
+  border-radius: 50%;
+}
+
+.taken[data-on="true"] .takenDot {
+  background: currentcolor;
+}
+
+.resultIcon {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: var(--wl-fill);
+  color: var(--wl-text-3);
+}
+
+.resultIcon[data-result="true"] {
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+}

@@ -151,42 +151,6 @@
   opacity: 1;
 }
 
-/* ── 用到它的步骤 ─────────────────────────────────────────── */
-
-.step {
-  display: flex;
-  gap: 9px;
-  align-items: center;
-  width: 100%;
-  min-height: 38px;
-  padding: 5px 10px 5px 8px;
-  border: 0;
-  background: transparent;
-  color: var(--wl-text);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.step:hover {
-  background: var(--wl-hover);
-}
-
-.step:focus-visible {
-  outline: 2px solid var(--wl-accent);
-  outline-offset: -2px;
-}
-
-.stepName {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  font-size: var(--wl-fs-meta);
-  font-weight: 500;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .hint {
   margin: 0;
   color: var(--wl-text-3);

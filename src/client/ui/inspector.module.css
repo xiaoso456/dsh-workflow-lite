@@ -19,8 +19,12 @@
 
 .headTitle {
   flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
   font-size: var(--wl-fs-title);
   font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .titleInput {
@@ -240,6 +244,10 @@
 }
 
 /* 和画布上那条线同色。 */
+.whenChip[data-when="always"] {
+  --wl-chip: var(--wl-flow-always);
+}
+
 .whenChip[data-when="pass"] {
   --wl-chip: var(--wl-flow-pass);
 }

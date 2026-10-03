@@ -28,11 +28,12 @@ import type { HostAccess } from '../app/host.ts'
 import type { T } from '../i18n.ts'
 import { type Edit, findNode, type Selection, whenOf } from '../model/editor.ts'
 import { AppearancePicker } from './AppearancePicker.tsx'
-import { type FocusFile, HandoffChip, HandoffField } from './Handoff.tsx'
+import { type FocusFile, HandoffField } from './Handoff.tsx'
 import hand from './handoff.module.css'
 import { Icon } from './Icon.tsx'
 import { InputPanel, StepInputsField } from './InputPanel.tsx'
 import css from './inspector.module.css'
+import { LinkRow } from './LinkRow.tsx'
 import { WHEN_COLOR, type WhenKind, whenKind } from './lines.ts'
 import { copyText, cx, Segmented } from './primitives.tsx'
 import { ResourcePanel } from './ResourcePanel.tsx'
@@ -259,9 +260,10 @@ function NodePanel(props: InspectorProps & { node: StepNode }): React.JSX.Elemen
                       t={t}
                       edge={edge}
                       direction="in"
-                      other={titleOf(findNode(doc, edge.source), edge.source)}
+                      other={findNode(doc, edge.source)}
+                      otherId={edge.source}
                       back={analysis.backEdges.has(edge.id)}
-                      handoff={<HandoffChip t={t} edge={edge} />}
+                      testId="wl-link-row"
                       onPick={() => onSelect({ kind: 'edge', id: edge.id })}
                     />
                   ))}
@@ -276,9 +278,10 @@ function NodePanel(props: InspectorProps & { node: StepNode }): React.JSX.Elemen
                       t={t}
                       edge={edge}
                       direction="out"
-                      other={titleOf(findNode(doc, edge.target), edge.target)}
+                      other={findNode(doc, edge.target)}
+                      otherId={edge.target}
                       back={analysis.backEdges.has(edge.id)}
-                      handoff={<HandoffChip t={t} edge={edge} />}
+                      testId="wl-link-row"
                       onPick={() => onSelect({ kind: 'edge', id: edge.id })}
                     />
                   ))}
@@ -401,12 +404,8 @@ export function DescriptionField(props: {
   )
 }
 
-/**
- * 连接清单的一行：对面的步骤、条件，下面一行是这条线交接了什么（悬停文件 = 画布高亮）。
- * 整行点下去选中这条线。
- */
 /** 连线两端的小图标：步骤用它的图标，资源用资源图标。 */
-function EndIcon(props: { node: WorkflowNode | undefined; id: string }): React.JSX.Element {
+export function EndIcon(props: { node: WorkflowNode | undefined; id: string }): React.JSX.Element {
   if (props.node !== undefined && isInput(props.node)) {
     return (
       <span className={hand.askIcon}>
@@ -419,36 +418,6 @@ function EndIcon(props: { node: WorkflowNode | undefined; id: string }): React.J
   }
   const step = props.node !== undefined && !isResource(props.node) ? props.node : undefined
   return <StepMark look={lookOf(props.id, step?.data)} size={14} />
-}
-
-function LinkRow(props: {
-  t: T
-  edge: WorkflowEdge
-  direction: 'in' | 'out'
-  other: string
-  back: boolean
-  handoff: React.ReactNode
-  onPick: () => void
-}): React.JSX.Element {
-  const { t, edge } = props
-  const when = whenOf(edge)
-  return (
-    <button type="button" className={css.link} data-testid="wl-link-row" onClick={props.onPick}>
-      <span className={css.linkTop}>
-        <span className={css.linkDir} data-dir={props.direction}>
-          <Icon name="arrowRight" size={12} />
-        </span>
-        <span className={css.linkName}>{props.other}</span>
-        {props.back && <Icon name="loop" size={12} />}
-        {when !== undefined && (
-          <span className={css.whenChip} data-when={whenKind(when)} title={when}>
-            {when === 'pass' ? t('edge.pass') : when === 'fail' ? t('edge.fail') : when}
-          </span>
-        )}
-      </span>
-      <span className={css.linkHandoff}>{props.handoff}</span>
-    </button>
-  )
 }
 
 // ─────────────────────────────────────────────────────────────

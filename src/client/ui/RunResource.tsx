@@ -16,7 +16,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { isStep } from '../../shared/model.ts'
 import { resourceGraph } from '../../shared/resources.ts'
-import type { NodeStatus, RunState } from '../../shared/runState.ts'
+import type { RunState } from '../../shared/runState.ts'
 import type { ResourceItem, ResourceNode, WorkflowDocument } from '../../shared/types.ts'
 import type { Desktop } from '../app/desktop.ts'
 import type { HostAccess } from '../app/host.ts'
@@ -25,16 +25,17 @@ import type { T } from '../i18n.ts'
 import { fileBaseName, formatBytes } from '../model/fileKind.ts'
 import { shortTime } from '../model/time.ts'
 import type { WorkflowLiteRpc } from '../rpc.ts'
-import { RUN_TEXT } from './Canvas.tsx'
 import files from './files.module.css'
 import { Icon } from './Icon.tsx'
+import ins from './inspector.module.css'
+import row from './linkrow.module.css'
 import { OpenWith } from './OpenWith.tsx'
 import { cx } from './primitives.tsx'
 import { itemDisplayPath } from './RunFiles.tsx'
 import { FolderDialog, TextDialog, UrlDialog } from './RunItemDialog.tsx'
+import { StatusChip } from './RunNodeState.tsx'
 import res from './resource.module.css'
 import { itemName, KIND_ICON, KIND_LABEL } from './resourceUi.ts'
-import run from './run.module.css'
 import css from './runres.module.css'
 import { SkillPreview } from './SkillPreview.tsx'
 import { lookOf, StepMark } from './StepMark.tsx'
@@ -135,26 +136,31 @@ export function RunResourceDetail(props: {
         {steps.length === 0 ? (
           <p className={css.hint}>{t('res.sharedRun')}</p>
         ) : (
-          <ul className={res.list}>
+          <div className={ins.links}>
             {steps.map((step) => (
-              <li key={`${step.mode}:${step.id}`}>
-                <button
-                  type="button"
-                  className={css.step}
-                  data-testid="wl-run-file-step"
-                  data-id={step.id}
-                  onClick={() => props.onSelectStep(step.id)}
-                >
+              <button
+                key={`${step.mode}:${step.id}`}
+                type="button"
+                className={row.row}
+                data-testid="wl-run-file-step"
+                data-id={step.id}
+                onClick={() => props.onSelectStep(step.id)}
+              >
+                <span className={row.lead}>
                   <StepMark look={stepLook(snapshot, step.id)} size={13} />
-                  <span className={css.stepName}>{stepLabel(snapshot, step.id)}</span>
+                </span>
+                <span className={row.name}>
+                  <span className={row.nameText}>{stepLabel(snapshot, step.id)}</span>
+                </span>
+                <span className={row.end}>
                   <span className={files.mode} data-mode={step.mode}>
                     {t(`file.${step.mode}`)}
                   </span>
                   <StatusChip t={t} status={props.state?.nodes[step.id]?.status} />
-                </button>
-              </li>
+                </span>
+              </button>
             ))}
-          </ul>
+          </div>
         )}
       </section>
 
@@ -321,16 +327,6 @@ function SkillLine(props: { t: T; host: HostAccess; name: string }): React.JSX.E
     }
   }, [props.host, props.name])
   return <span className={css.metaText}>{description ?? props.t(KIND_LABEL.skill)}</span>
-}
-
-function StatusChip(props: { t: T; status: NodeStatus | undefined }): React.JSX.Element | null {
-  if (props.status === undefined) return null
-  return (
-    <span className={run.status} data-run-status={props.status}>
-      <span className={run.dot} />
-      {props.t(RUN_TEXT[props.status])}
-    </span>
-  )
 }
 
 function stepLook(doc: WorkflowDocument, id: string) {
