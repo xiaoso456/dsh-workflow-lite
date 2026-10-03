@@ -164,8 +164,50 @@ describe('analyzeGraph —— 形态与环的边界', () => {
     expect(cycle === undefined ? false : cycleHasNoExit(cycle)).toBe(true)
   })
 
-  it('没有环外入边时入口取 id 最小者', () => {
+  it('没有环外入边、也看不出谁是起点时，入口取 id 最小者', () => {
     const analysis = analyzeGraph(doc([node('b'), node('a')], [edge('a', 'b'), edge('b', 'a')]))
+    expect(analysis.cycles[0]?.entry).toBe('a')
+  })
+
+  it('整张图就是一个环：起点挑第一轮就跑得起来、被条件线跳回来的那个，而不是 id 最小的', () => {
+    // 侦察 → 设计 → 裁决；裁决 pass → 上线，fail → 回侦察；上线 → 回侦察。
+    // 「challenge」的 id 最小，但它读裁决产出的 judge.md（第一轮还不存在），不能当起点。
+    const steps = ['recon', 'design', 'judge', 'challenge'].map(node)
+    const judgeMd = {
+      id: 'res-judge',
+      type: 'wfResource' as const,
+      position: { x: 0, y: 0 },
+      data: { items: [{ kind: 'file' as const, value: 'judge.md' }] },
+    }
+    const analysis = analyzeGraph(
+      doc(
+        [...steps, judgeMd],
+        [
+          edge('recon', 'design'),
+          edge('design', 'judge'),
+          edge('judge', 'challenge', 'pass'),
+          edge('judge', 'recon', 'fail'),
+          edge('challenge', 'recon', 'fail'),
+          edge('judge', 'res-judge'),
+          edge('res-judge', 'challenge'),
+        ],
+      ),
+    )
+    expect(analysis.cycles[0]?.entry).toBe('recon')
+    expect(analysis.batches.map((batch) => batch.nodes)).toEqual([
+      ['recon'],
+      ['design'],
+      ['judge'],
+      ['challenge'],
+    ])
+    expect([...analysis.backEdges].sort()).toEqual(['challenge->recon#fail', 'judge->recon#fail'])
+  })
+
+  it('读不读产出分不出来时，挑环里只被条件线指向的那个', () => {
+    // a → B 无条件，B → a 带条件：a 是被跳回来的起点（按码位序 `B` 的 id 更小）。
+    const analysis = analyzeGraph(
+      doc([node('a'), node('B')], [edge('a', 'B'), edge('B', 'a', 'fail')]),
+    )
     expect(analysis.cycles[0]?.entry).toBe('a')
   })
 

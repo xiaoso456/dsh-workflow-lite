@@ -4,7 +4,8 @@
  * 允许成环之后，编译器最要紧的四件事都在这里一次算清：
  * - **环 = 强连通分量**（SCC）。一个 SCC 就是一个循环体。
  * - **回边**＝在 SCC 内做一次 DFS，**指向当前 DFS 栈上祖先**的那条边（自环也算）。
- *   起点取该 SCC 的**入口节点**——被环外入边指向的那个；没有环外入边时取 `id` 最小者。
+ *   起点取该 SCC 的**入口节点**——被环外入边指向的那个；没有环外入边时按语义挑最像起点的
+ *   （第一轮就跑得起来、是被条件线跳回来的），并列再取 `id` 最小者（见 `loopStart`）。
  *   一个 SCC **至少**有一条回边；简单环恰好一条，多环交叠的 SCC 可以有多条。
  * - **回边不计入汇合与批次推导**（它不是"要等它"，而是"再触发一次"）。前向边照常计入前置。
  * - **执行批次**＝在"去掉回边之后的 DAG"上做最长路径分层。
@@ -16,6 +17,7 @@
  */
 
 import { idKey, isStep } from './model.ts'
+import { resourceGraph } from './resources.ts'
 import type {
   CycleGroup,
   EdgeShape,
@@ -123,6 +125,7 @@ export function analyzeGraph(document: WorkflowDocument): GraphAnalysis {
   const sccs = stronglyConnected(nodeIds, liveEdges, outMap)
   const backEdges = new Set<string>()
   const cycles: CycleGroup[] = []
+  const produced = producersRead(document, nodeIds)
 
   for (const members of sccs) {
     const set = new Set(members)
@@ -130,11 +133,11 @@ export function analyzeGraph(document: WorkflowDocument): GraphAnalysis {
       members.length === 1 && (outMap.get(members[0] ?? '') ?? []).some((e) => set.has(e.target))
     if (members.length === 1 && !isSelfLoop) continue
 
-    // SCC 的入口：被环外入边指向的节点；没有则取 id 最小者。
+    // SCC 的入口：被环外入边指向的节点；没有则挑最像起点的那个（见 loopStart）。
     const entry =
       members.find((id) =>
         (inMap.get(id) ?? []).some((edge) => !set.has(resolveKey(nodeIds, edge.source))),
-      ) ?? members[0]
+      ) ?? loopStart(members, set, inMap, nodeIds, produced)
     if (entry === undefined) continue
 
     const back = findBackEdges(entry, set, outMap)
@@ -184,6 +187,55 @@ export function analyzeGraph(document: WorkflowDocument): GraphAnalysis {
 function resolveKey(nodeIds: readonly string[], raw: string): string {
   const key = idKey(raw)
   return nodeIds.find((id) => idKey(id) === key) ?? raw
+}
+
+/** 每个步骤读的资源是哪些步骤整份产出的（在原文件上更新的不算：那份东西本来就在）。 */
+function producersRead(
+  document: WorkflowDocument,
+  nodeIds: readonly string[],
+): Map<string, Set<string>> {
+  const result = new Map<string, Set<string>>()
+  for (const info of resourceGraph(document).values()) {
+    const producers = info.writers
+      .filter((writer) => !writer.update)
+      .map((writer) => resolveKey(nodeIds, writer.id))
+    if (producers.length === 0) continue
+    for (const reader of info.readers) {
+      const key = resolveKey(nodeIds, reader)
+      const set = result.get(key) ?? new Set<string>()
+      for (const producer of producers) set.add(producer)
+      result.set(key, set)
+    }
+  }
+  return result
+}
+
+/**
+ * 整个循环体没有环外入边（整张图就是一个环）时，挑哪个当起点。按 `id` 取会让版面和计划都从
+ * 环的半中间开始（比如从「上线」开始而不是从「侦察」开始），所以按语义挑：
+ * 1. **第一轮就跑得起来**：它读的资源没有一份要等环里别的步骤先产出（否则第一轮时还不存在）；
+ * 2. **是被跳回来的**：环里指向它的线全都带条件（「未通过 → 回到这里」），而不是顺着走下来的；
+ * 两条都满足的优先，其次满足第一条的，再次满足第二条的；仍然并列就取 `id` 最小者。
+ */
+function loopStart(
+  members: readonly string[],
+  set: ReadonlySet<string>,
+  inMap: Map<string, WorkflowEdge[]>,
+  nodeIds: readonly string[],
+  produced: Map<string, Set<string>>,
+): string | undefined {
+  const ready = (id: string): boolean =>
+    ![...(produced.get(id) ?? [])].some((producer) => producer !== id && set.has(producer))
+  const jumpedTo = (id: string): boolean =>
+    (inMap.get(id) ?? [])
+      .filter((edge) => set.has(resolveKey(nodeIds, edge.source)))
+      .every((edge) => edgeWhen(edge) !== undefined)
+  return (
+    members.find((id) => ready(id) && jumpedTo(id)) ??
+    members.find(ready) ??
+    members.find(jumpedTo) ??
+    members[0]
+  )
 }
 
 /**

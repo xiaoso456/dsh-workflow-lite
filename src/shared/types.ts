@@ -552,7 +552,7 @@ export interface CycleGroup {
   nodes: string[]
   /** 该 SCC 内的回边 id（SCC 内 DFS 指向栈上祖先的边；自环也算）。 */
   backEdges: string[]
-  /** 被环外入边指向的入口节点；没有环外入边时取 `id` 最小者。 */
+  /** 被环外入边指向的入口节点；没有环外入边时按语义挑最像起点的（见 `graph.ts` 的 `loopStart`）。 */
   entry: string
   /** 环上指向环外的条件边 id ⇒ 有出口；空 ⇒ 循环体没有出口（警告）。 */
   exits: string[]
