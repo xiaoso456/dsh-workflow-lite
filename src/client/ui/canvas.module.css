@@ -822,7 +822,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .roleTag {
+  .roleTag,
+  .markTag {
     animation: none;
   }
 
@@ -1370,6 +1371,51 @@
 
 .card[data-run="waiting"] {
   border-color: var(--wl-warn);
+}
+
+/* 执行位置：右上角一个小标（最后执行 = 实心深色、下一步 = 虚线框），卡片外再描一圈。
+   悬停文件时让位给角色标。 */
+.markTag {
+  position: absolute;
+  top: -10px;
+  right: 10px;
+  z-index: 2;
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px 0 6px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: roleIn 160ms var(--wl-ease) backwards;
+}
+
+.markTag[data-mark="last"] {
+  background: var(--wl-text);
+  box-shadow: var(--wl-shadow-thumb);
+  color: var(--wl-panel);
+}
+
+.markTag[data-mark="next"] {
+  border-style: dashed;
+  border-color: var(--wl-text-3);
+  background: var(--wl-panel);
+  color: var(--wl-text-2);
+}
+
+.card[data-mark="last"] {
+  outline: 2px solid color-mix(in srgb, var(--wl-text) 30%, transparent);
+  outline-offset: 3px;
+}
+
+.card[data-mark="next"] {
+  outline: 1.5px dashed color-mix(in srgb, var(--wl-text-3) 80%, transparent);
+  outline-offset: 3px;
 }
 
 /* 文件已经生成：左上角一个绿色对勾。 */

@@ -157,8 +157,11 @@ export interface CanvasProps {
 
 /** 实例视图给画布的装饰。 */
 export interface RunDecor {
-  /** 每个步骤此刻的状态（已经叠上草稿）。 */
-  nodes: Readonly<Record<string, { status: NodeStatus; round: number; edited: boolean }>>
+  /**
+   * 每个步骤此刻的状态（已经叠上草稿）；`mark` = 执行位置：最后执行的、接下来要做的
+   * （见 `shared/runCursor.ts`）。
+   */
+  nodes: Readonly<Record<string, RunNodeDecor>>
   /** 走过的线。 */
   taken: ReadonlySet<string>
   /** 资源里每个文件、文件夹在不在（资源 id → 按项；不是路径的项为 `null`）。 */
@@ -166,6 +169,17 @@ export interface RunDecor {
   /** 点卡片上的状态小标：在它旁边弹出改状态的菜单。 */
   onStatus(id: string, anchor: Element): void
 }
+
+export interface RunNodeDecor {
+  status: NodeStatus
+  round: number
+  edited: boolean
+  mark?: RunMark | undefined
+}
+
+export type RunMark = 'last' | 'next'
+
+const MARK_TEXT: Record<RunMark, LocaleKey> = { last: 'run.lastRun', next: 'run.nextUp' }
 
 type Tone = 'ok' | 'warn' | 'error'
 
@@ -176,6 +190,8 @@ interface StepRun {
   edited: boolean
   label: string
   roundText: string
+  mark?: RunMark | undefined
+  markText: string
 }
 
 interface StepData extends Record<string, unknown> {
@@ -371,6 +387,7 @@ const StepCard = memo(function StepCard(props: NodeProps<StepFlowNode>): React.J
       data-dim={data.dim}
       data-role={data.role ?? undefined}
       data-run={data.run?.status}
+      data-mark={data.run?.mark}
       data-testid="wl-step"
       title={data.note === '' ? undefined : data.note}
     >
@@ -391,6 +408,12 @@ const StepCard = memo(function StepCard(props: NodeProps<StepFlowNode>): React.J
           <span>{data.run.label}</span>
           {data.run.round > 1 && <span className={css.runRound}>{data.run.roundText}</span>}
         </button>
+      )}
+      {data.role === null && data.run?.mark !== undefined && (
+        <span className={css.markTag} data-mark={data.run.mark} data-testid="wl-run-mark">
+          <Icon name={data.run.mark === 'last' ? 'pin' : 'arrowRight'} size={11} />
+          {data.run.markText}
+        </span>
       )}
       {data.role !== null && (
         <span className={css.roleTag} data-role={data.role} data-testid="wl-step-role">
@@ -1747,8 +1770,9 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
                 ...state,
                 label: t(RUN_TEXT[state.status]),
                 roundText: t('run.round').replace('{n}', String(state.round)),
+                markText: state.mark === undefined ? '' : t(MARK_TEXT[state.mark]),
               }
-        signature = `${selected}|${tone}|${note}|${texts.addText}|${texts.fileText}|${role}|${dim}|${used.join(',')}|${stepRun === null ? '' : `${stepRun.status}/${stepRun.round}/${stepRun.edited}/${stepRun.label}`}`
+        signature = `${selected}|${tone}|${note}|${texts.addText}|${texts.fileText}|${role}|${dim}|${used.join(',')}|${stepRun === null ? '' : `${stepRun.status}/${stepRun.round}/${stepRun.edited}/${stepRun.label}/${stepRun.mark}`}`
         build = () => ({
           id: node.id,
           type: 'wfNode',

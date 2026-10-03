@@ -14,6 +14,7 @@ import type { GraphAnalysis } from '../../shared/graph.ts'
 import { analyzeGraph } from '../../shared/graph.ts'
 import { isInput, isResource, isStep } from '../../shared/model.ts'
 import { resourceTitle } from '../../shared/resources.ts'
+import { type RunCursor, runCursor } from '../../shared/runCursor.ts'
 import {
   graphFacts,
   type InstanceSummary,
@@ -46,7 +47,7 @@ import { placeMissing } from '../model/layout.ts'
 import { changeCount, downstreamOf, editedNodes } from '../model/runDraft.ts'
 import { shortTime } from '../model/time.ts'
 import type { WorkflowLiteRpc } from '../rpc.ts'
-import { Canvas, RUN_TEXT, type RunDecor } from './Canvas.tsx'
+import { Canvas, RUN_TEXT, type RunDecor, type RunMark, type RunNodeDecor } from './Canvas.tsx'
 import { ZoomDock } from './Dock.tsx'
 import { FileViewer } from './FileViewer.tsx'
 import hand from './handoff.module.css'
@@ -57,6 +58,7 @@ import { ResourceIcon } from './Resources.tsx'
 import { edgeHead, RunEdgeDetail } from './RunEdge.tsx'
 import { RunInputDetail } from './RunInput.tsx'
 import { EditedDot, isEdited, NODE_ICON, nodeHint } from './RunNodeState.tsx'
+import { RunPosition } from './RunPosition.tsx'
 import { RunResourceDetail } from './RunResource.tsx'
 import { RunStepDetail } from './RunStep.tsx'
 import run from './run.module.css'
@@ -209,6 +211,15 @@ export function RunView(props: RunViewProps): React.JSX.Element {
   }, [onPanel])
   const insetRight = insets.right
 
+  /** 执行位置：最后执行的、接下来要做的步骤（画布上的小标、右栏总览共用）。 */
+  const cursor = useMemo(
+    () =>
+      snapshot === null || analysis === null || shown === null
+        ? null
+        : runCursor(snapshot, shown, analysis),
+    [snapshot, analysis, shown],
+  )
+
   const decor = useMemo<RunDecor | undefined>(() => {
     if (snapshot === null) return undefined
     const onStatus = (nodeId: string, anchor: Element): void => {
@@ -233,9 +244,17 @@ export function RunView(props: RunViewProps): React.JSX.Element {
         onStatus,
       }
     }
-    const nodes: Record<string, { status: NodeStatus; round: number; edited: boolean }> = {}
+    const marks = new Map<string, RunMark>()
+    for (const step of cursor?.next ?? []) marks.set(step.node, 'next')
+    for (const step of cursor?.last ?? []) marks.set(step.node, 'last')
+    const nodes: Record<string, RunNodeDecor> = {}
     for (const [nodeId, node] of Object.entries(shown.nodes)) {
-      nodes[nodeId] = { status: node.status, round: node.round ?? 0, edited: edited.has(nodeId) }
+      nodes[nodeId] = {
+        status: node.status,
+        round: node.round ?? 0,
+        edited: edited.has(nodeId),
+        mark: marks.get(nodeId),
+      }
     }
     return {
       nodes,
@@ -243,7 +262,7 @@ export function RunView(props: RunViewProps): React.JSX.Element {
       files: current.view?.files ?? {},
       onStatus,
     }
-  }, [snapshot, shown, edited, current.view?.files, insetRight])
+  }, [snapshot, shown, cursor, edited, current.view?.files, insetRight])
 
   const fitAll = useCallback((): void => {
     void flow.fitView({
@@ -370,6 +389,7 @@ export function RunView(props: RunViewProps): React.JSX.Element {
             snapshot={snapshot}
             analysis={analysis}
             taken={shown === null ? null : (decor?.taken ?? null)}
+            cursor={cursor}
             verdicts={facts?.verdicts ?? {}}
             selected={selectedStep ?? null}
             selectedFile={selectedFile ?? null}
@@ -823,6 +843,8 @@ function RunPanel(props: {
   analysis: GraphAnalysis
   /** 这次走过的线；不记进度（或状态读不出来）时为 `null`。 */
   taken: ReadonlySet<string> | null
+  /** 执行位置；不记进度（或状态读不出来）时为 `null`。 */
+  cursor: RunCursor | null
   verdicts: Readonly<Record<string, string[]>>
   selected: StepNode | null
   selectedFile: ResourceNode | null
@@ -953,7 +975,9 @@ function RunPanel(props: {
         <Overview
           t={t}
           current={current}
+          snapshot={snapshot}
           state={state}
+          cursor={props.cursor}
           summary={summary}
           labelOf={labelOf}
           onSelect={props.onSelect}
@@ -1030,7 +1054,9 @@ function Untracked(props: {
 function Overview(props: {
   t: T
   current: Run
+  snapshot: WorkflowDocument
   state: RunState
+  cursor: RunCursor | null
   summary: InstanceSummary | undefined
   labelOf(id: string): string
   onSelect(id: string | null): void
@@ -1078,6 +1104,16 @@ function Overview(props: {
           ))}
         </div>
       </section>
+
+      {props.cursor !== null && (
+        <RunPosition
+          t={t}
+          snapshot={props.snapshot}
+          state={state}
+          cursor={props.cursor}
+          onSelect={props.onSelect}
+        />
+      )}
 
       <section className={run.section}>
         <p className={run.sectionTitle}>

@@ -16,6 +16,12 @@ import { checkAnswers, sameAnswers } from '../../shared/inputs.ts'
 import { isResource, isStep, readDocument, writeDocument } from '../../shared/model.ts'
 import { bindRoot, rootOf, WORKSPACE_ROOT } from '../../shared/outputPaths.ts'
 import {
+  type CursorStep,
+  type NextStep,
+  type RunCursor,
+  runCursor,
+} from '../../shared/runCursor.ts'
+import {
   type EditValue,
   editablePath,
   graphFacts,
@@ -114,6 +120,10 @@ export interface StateReport {
     failed?: string[]
   }
   nodes: Record<string, NodeRunState>
+  /** 最后执行的步骤（做完了、下游还没接上的；都接上了就是最近做完的那步）。 */
+  last: CursorStep[]
+  /** 接下来该做的步骤（按图、判定和流水推出来的）。 */
+  next: NextStep[]
   /** 最近几条流水。 */
   recentLog: RunLogEntry[]
   /** 这次改了什么（只看时没有）。 */
@@ -245,23 +255,74 @@ function describeField(edit: StateEdit): string {
   return `${change}${intent}`
 }
 
-/**
- * 改动按对象归成几行写给模型：整体一行、每个步骤一行；同一行里状态在前，连带改的字段跟在后面。
- * 返回的行数就是"改了几处"（用户改一个步骤的状态，连带改了轮次、时间，算一处）。
- */
-export function describeEdits(edits: readonly StateEdit[]): string[] {
+/** 改动按对象归组：`node` 为空串是整体。同一组里状态在前，连带改的字段跟在后面。 */
+function groupEdits(edits: readonly StateEdit[]): { node: string; text: string }[] {
   const groups = new Map<string, StateEdit[]>()
   for (const edit of edits) {
     const key = edit.path.length === 1 ? '' : (edit.path[1] ?? '')
     groups.set(key, [...(groups.get(key) ?? []), edit])
   }
-  return [...groups].map(([key, group]) => {
+  return [...groups].map(([node, group]) => {
     const ordered = [
       ...group.filter((edit) => edit.path[edit.path.length - 1] === 'status'),
       ...group.filter((edit) => edit.path[edit.path.length - 1] !== 'status'),
     ]
-    return `- ${key === '' ? '整体' : `步骤 ${key}`}：${ordered.map(describeField).join('；')}`
+    return { node, text: ordered.map(describeField).join('；') }
   })
+}
+
+/**
+ * 改动按对象归成几行写给模型：整体一行、每个步骤一行。
+ * 返回的行数就是"改了几处"（用户改一个步骤的状态，连带改了轮次、时间，算一处）。
+ */
+export function describeEdits(edits: readonly StateEdit[]): string[] {
+  return groupEdits(edits).map(
+    ({ node, text }) => `- ${node === '' ? '整体' : `步骤 ${node}`}：${text}`,
+  )
+}
+
+/** 运行到哪了，写给模型的一句话（`resume` 用）。 */
+export function cursorHint(cursor: RunCursor, status: RunStatus): string {
+  const label = (id: string, round: number | undefined): string =>
+    round !== undefined && round > 1 ? `${id}（第 ${round} 轮）` : id
+  const parts: string[] = []
+  if (cursor.running.length > 0) {
+    parts.push(`被打断：${cursor.running.join('、')}，重做这一轮`)
+  }
+  if (cursor.last.length > 0) {
+    const items = cursor.last.map((step) => {
+      const tail = [
+        step.status,
+        ...(step.verdict === undefined ? [] : [`判定 ${step.verdict}`]),
+      ].join('，')
+      return `${label(step.node, step.round)}[${tail}]`
+    })
+    parts.push(`最后执行：${items.join('、')}`)
+  }
+  if (cursor.next.length > 0) {
+    const items = cursor.next.map((step) => {
+      const why =
+        step.reason === 'start'
+          ? '入口'
+          : step.reason === 'reset'
+            ? '被改回 pending，重做'
+            : step.loop === true
+              ? `循环中由 ${step.from} 回到这里`
+              : `接 ${step.from}`
+      return `${step.node}（第 ${step.round} 轮，${why}）`
+    })
+    parts.push(`接下来：${items.join('、')}`)
+  } else if (cursor.running.length === 0 && cursor.waiting.length === 0) {
+    parts.push(
+      cursor.last.some((step) => step.status === 'failed')
+        ? '没有能接着做的步骤：失败的步骤要重做（改回 running）或整体叫停'
+        : status === 'done'
+          ? '已经全部走完'
+          : '没有要接着做的步骤：核对产出后把整体改成 done 并汇报',
+    )
+  }
+  if (cursor.waiting.length > 0) parts.push(`在等用户：${cursor.waiting.join('、')}`)
+  return `${parts.join('；')}。`
 }
 
 /**
@@ -279,19 +340,31 @@ export function startPrompt(record: InstanceRecord): string {
   ].join('\n')
 }
 
-/** 进度摘要（`resume` / `compile` 回给模型）。 */
+/**
+ * 进度摘要（`resume` / `compile` 回给模型）：最后执行到哪、接下来做哪几步——按图、判定和流水推出来
+ * （见 `shared/runCursor.ts`），不按清单顺序找"第一个没完成的"（循环里那样会跳出环）。
+ * 被打断的（停在 running 的）排在 `next` 最前面：重做这一轮。
+ */
 function progressReport(
   record: InstanceRecord,
   read: { state: RunState | null; text: string | null; issues: RunStateIssue[] },
+  document: WorkflowDocument,
 ): Record<string, unknown> {
   if (record.statePath === undefined) return { tracked: false }
   if (read.state === null) {
     return { stateProblem: read.text === null ? 'missing' : 'invalid', issues: read.issues }
   }
   const p = progressOf(read.state)
-  const next = Object.entries(read.state.nodes).find(
-    ([, node]) => node.status !== 'done' && node.status !== 'skipped',
-  )?.[0]
+  const cursor = runCursor(document, read.state)
+  const nodes = read.state.nodes
+  const next = [
+    ...cursor.running.map((node) => ({
+      node,
+      round: nodes[node]?.round ?? 1,
+      reason: 'interrupted',
+    })),
+    ...cursor.next,
+  ]
   return {
     status: read.state.status,
     done: p.done,
@@ -299,7 +372,9 @@ function progressReport(
     ...(p.running.length > 0 ? { interrupted: p.running } : {}),
     ...(p.waiting.length > 0 ? { waiting: p.waiting } : {}),
     ...(p.failed.length > 0 ? { failed: p.failed } : {}),
-    ...(next === undefined ? {} : { next }),
+    last: cursor.last,
+    next,
+    hint: cursorHint(cursor, read.state.status),
   }
 }
 
@@ -844,7 +919,11 @@ export class RunService {
     }
     return {
       ok: true,
-      result: { ...compiled.result, instance: record.id, progress: progressReport(record, read) },
+      result: {
+        ...compiled.result,
+        instance: record.id,
+        progress: progressReport(record, read, document),
+      },
     }
   }
 
@@ -964,6 +1043,7 @@ export class RunService {
       }
       const state = check.state
       const p = progressOf(state)
+      const cursor = runCursor(document, state)
       return {
         ok: true as const,
         result: {
@@ -980,6 +1060,8 @@ export class RunService {
             ...(p.failed.length > 0 ? { failed: p.failed } : {}),
           },
           nodes: state.nodes,
+          last: cursor.last,
+          next: cursor.next,
           recentLog: state.log.slice(-5),
           ...(changing ? { applied } : {}),
           ...(created ? { created: true as const } : {}),
@@ -1126,23 +1208,27 @@ export class RunService {
     }
     doc.setIn(['updatedAt'], now)
     const lines = describeEdits(edits)
-    const entry: Record<string, string> = {
-      at: now,
-      event: 'edit',
-      by: 'user',
-      detail: [
-        lines.map((line) => line.slice(2)).join('；'),
-        note === undefined || note === '' ? '' : `说明：${note}`,
-      ]
-        .filter((part) => part !== '')
-        .join('。'),
-    }
+    // 每个对象一条流水：改了哪个步骤就记在哪个步骤名下（推「运行到哪了」要靠它），整体的排在最后，
+    // 用户的说明跟在最后一条上。
+    const groups = groupEdits(edits).sort((a, b) => Number(a.node === '') - Number(b.node === ''))
+    const entries = groups.map(({ node, text }, index) => {
+      const round = node === '' ? undefined : doc.getIn(['nodes', node, 'round'])
+      const tail = index === groups.length - 1 && note !== undefined && note !== ''
+      return {
+        at: now,
+        ...(node === '' ? {} : { node }),
+        event: 'edit',
+        ...(typeof round === 'number' ? { round } : {}),
+        detail: tail ? `${text}。说明：${note}` : text,
+        by: 'user',
+      }
+    })
     const log = doc.getIn(['log'], true)
     if (isSeq(log)) {
       log.flow = false
-      log.add(doc.createNode(entry))
+      for (const entry of entries) log.add(doc.createNode(entry))
     } else {
-      doc.setIn(['log'], [entry])
+      doc.setIn(['log'], entries)
     }
     const check = validateRunState(
       doc.toJS(),

@@ -300,8 +300,17 @@ describe('保存用户的改动', () => {
     expect(state.status).toBe('waiting')
     expect(state.note).toBe('先别修')
     expect(state.nodes.scan).toEqual({ status: 'pending', round: 1 })
+    // 每个对象一条：步骤的记在步骤名下（推「运行到哪了」用），整体的在最后、带着说明。
+    expect(state.log.at(-2)).toMatchObject({
+      node: 'scan',
+      event: 'edit',
+      round: 1,
+      by: 'user',
+      detail: expect.stringContaining('status 从 done 改成 pending'),
+    })
     const last = state.log[state.log.length - 1]
     expect(last).toMatchObject({ event: 'edit', by: 'user' })
+    expect(last.node).toBeUndefined()
     expect(last.detail).toContain('方案要先确认')
     expect(notified).toHaveLength(1)
     expect(notified[0]?.session).toBe('s1')
@@ -692,9 +701,39 @@ describe('归属与恢复', () => {
       done: 0,
       total: 4,
       interrupted: ['scan'],
-      next: 'scan',
+      next: [{ node: 'scan', round: 1, reason: 'interrupted' }],
     })
+    expect(String(record(resumed.progress).hint)).toContain('被打断：scan')
     expect(parse(await readFile(statePath, 'utf8')).log.at(-1)).toMatchObject({ event: 'resume' })
+  })
+
+  it('循环里停下再 resume：next 是回到审查的第 2 轮，不是环外的 report；state 每次都回 last / next', async () => {
+    const result = await compileWithRuns('s1')
+    const instance = String(result.instance)
+    const step = (nodes: unknown[]) =>
+      run({ action: 'state', instance, nodes } as never, exec('s1'))
+    await step([{ id: 'scan', status: 'running' }])
+    await step([
+      { id: 'scan', status: 'done', summary: '摸清了' },
+      { id: 'review', status: 'running' },
+    ])
+    await step([
+      { id: 'review', status: 'done', verdict: 'fail', summary: '有 2 处问题' },
+      { id: 'fix', status: 'running' },
+    ])
+    const report = record(await step([{ id: 'fix', status: 'done', summary: '修好了' }]))
+    expect(report.last).toMatchObject([{ node: 'fix', round: 1, status: 'done' }])
+    expect(report.next).toEqual([
+      { node: 'review', round: 2, reason: 'flow', from: 'fix', loop: true },
+    ])
+
+    const resumed = record(await run({ action: 'resume' }, exec('s1')))
+    const progress = record(resumed.progress)
+    expect(progress.next).toEqual([
+      { node: 'review', round: 2, reason: 'flow', from: 'fix', loop: true },
+    ])
+    expect(String(progress.hint)).toContain('最后执行：fix[done]')
+    expect(String(progress.hint)).toContain('接下来：review（第 2 轮，循环中由 fix 回到这里）')
   })
 
   it('没有当前实例时 resume 报 not_found；runs 列本会话的', async () => {

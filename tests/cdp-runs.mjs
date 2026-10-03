@@ -296,6 +296,63 @@ try {
     '步骤详情列提示词与上下游（绿箭头 = 走过）；点连接看线：走过没有、条件、上游摘要；点端点回到步骤',
   )
 
+  // 2d) 执行位置：画布卡片上的「最后执行 / 下一步」小标与概览里的「执行位置」。
+  const markOf = (id) =>
+    `(document.querySelector('.react-flow__node[data-id="${id}"] [data-testid="wl-run-mark"]')?.dataset.mark ?? null)`
+  const posRows = `[...document.querySelectorAll('[data-testid="wl-run-pos-row"]')].map((row) => row.dataset.kind + ':' + row.dataset.id).join(',')`
+  await waitFor(session, `${markOf('scan')} === 'last'`)
+  check(
+    (await session.evaluate(markOf('review'))) === null,
+    '在跑的 review 不挂位置小标（它有呼吸光环）',
+  )
+  check(
+    (await session.evaluate(posRows)) === 'running:review,last:scan',
+    `执行位置应是「执行中 review、最后执行 scan」：${await session.evaluate(posRows)}`,
+  )
+  const beforeLoop = await readFile(statePath, 'utf8')
+  await modelEdit((state) => {
+    state.nodes.review = {
+      status: 'done',
+      round: 1,
+      verdict: 'fail',
+      startedAt: '2026-10-02T10:06:00+08:00',
+      finishedAt: '2026-10-02T10:10:00+08:00',
+      summary: '有 2 处问题',
+    }
+    state.nodes.fix = {
+      status: 'done',
+      round: 1,
+      startedAt: '2026-10-02T10:11:00+08:00',
+      finishedAt: '2026-10-02T10:15:00+08:00',
+    }
+    state.log.push(
+      { at: '2026-10-02T10:10:00+08:00', node: 'review', event: 'done', round: 1, verdict: 'fail' },
+      { at: '2026-10-02T10:11:00+08:00', node: 'fix', event: 'start', round: 1 },
+      { at: '2026-10-02T10:15:00+08:00', node: 'fix', event: 'done', round: 1 },
+    )
+  })
+  await waitFor(session, `${markOf('fix')} === 'last' && ${markOf('review')} === 'next'`, {
+    timeoutMs: 6000,
+  })
+  check((await session.evaluate(markOf('report'))) === null, '环外的 report 不是下一步')
+  check(
+    (await session.evaluate(posRows)) === 'last:fix,next:review',
+    `执行位置应是「最后执行 fix、下一步 review」：${await session.evaluate(posRows)}`,
+  )
+  const nextText = await session.evaluate(
+    `document.querySelector('[data-testid="wl-run-pos-row"][data-kind="next"]').textContent`,
+  )
+  check(
+    nextText.includes('第 2 轮') && nextText.includes('由 修复 循环回来'),
+    `下一步一行应写明第 2 轮、由修复循环回来：${nextText}`,
+  )
+  await screenshot(session, 'runs-02d-position.png')
+  await writeFile(statePath, beforeLoop)
+  await waitFor(session, `${chipOf('review')} === 'running' && ${markOf('scan')} === 'last'`, {
+    timeoutMs: 6000,
+  })
+  pass('执行位置：卡片挂「最后执行 / 下一步」，循环里修完指回审查第 2 轮而不是环外；概览列出同一份')
+
   // 3) 写坏 → 提示条、保留上一次合法的样子；修好 → 提示条消失。
   const good = await readFile(statePath, 'utf8')
   await writeFile(statePath, good.replace('status: running\n', 'status: complete\n'))

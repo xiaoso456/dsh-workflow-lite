@@ -111,8 +111,14 @@ summary、verdict、error、by 写空串 = 清掉；outputs 给空列表 = 清�
 
 ## 中断后接着跑
 
-1. 调用 \`workflow_lite\` 的 \`resume\`（不给 instance 就是本会话当前的实例）：它重建计划、给出进度摘要（下一个没完成的步骤、被打断的步骤）。
-2. 从第一个没完成（不是 done / skipped）的步骤接着做；停在 running 的步骤视为被打断，重做这一轮（再调一次 state 把它改成 running，插件会算新的一轮）。
+1. 调用 \`workflow_lite\` 的 \`resume\`（不给 instance 就是本会话当前的实例）：它重建计划、给出进度摘要 \`progress\`：
+   - \`last\`：最后执行的步骤（做完了、下游还没接上的；带轮次、判定）；
+   - \`next\`：接下来该做的步骤，每项 \`{ node, round, reason, from, loop }\`——\`reason\` 是 \`interrupted\`（停在 running，被打断）/ \`flow\`（上游交过来；\`loop\` 表示循环回到这一步）/ \`start\`（入口还没开始）/ \`reset\`（被改回 pending）；
+   - \`hint\`：上面两项的一句话说明。
+2. **照 \`next\` 接着做**，不要按清单顺序找第一个没完成的步骤：循环里每步都做过一轮、都是 done，那样会跳出环。\`next\` 是插件按图、各步骤的判定和流水的先后推出来的。
+3. 被打断的步骤重做这一轮（状态已经是 running，不用再改）；循环回到的步骤照常改成 running，插件算新的一轮。
+
+平时每次调用 \`state\` 也会回 \`last\` 和 \`next\`：你打算做的和 \`next\` 对不上时（比如判定是 fail，\`next\` 却不是修复那一步），先停下核对状态再继续。
 
 ## 用户改了状态
 

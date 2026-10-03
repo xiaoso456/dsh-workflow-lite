@@ -102,7 +102,8 @@ export function runStateLines(section: RunStateSection): string[] {
     '- **由你来记。** 子代理、队员不调用它——派发时告诉他们做完把结论、判定和产出路径报给你。',
     '- **什么时候记**：开始执行时整体 `status: running`；派发一个步骤之前把它改成 `running`；它做完改成 `done`（带 `summary`、实际写出的 `outputs`（照计划里给的路径写），有条件出边的带 `verdict`）或 `failed`（带 `error`）；分支没走到的改成 `skipped`；要等用户回答时改成 `waiting` 并在 `note` 写等什么；全部走完整体 `status: done`。同一批次并行派出的几个步骤可以一次改。',
     `- 例：\`{"action":"state","instance":"${id}","nodes":[{"id":"scan","status":"done","summary":"找到 3 处问题"}]}\``,
-    `- **中断后继续**：调用 \`resume\`（instance=${id}）拿回计划和进度，从第一个没完成的步骤接着做；停在 \`running\` 的步骤视为被打断，重做这一轮。`,
+    `- **核对位置**：\`state\` 每次都回 \`last\`（最后执行的步骤）和 \`next\`（接下来该做的步骤，带第几轮）——插件按图、判定和流水推出来，循环回到哪一步、第几轮都算好了。你要做的和 \`next\` 对不上时，先停下核对。`,
+    `- **中断后继续**：调用 \`resume\`（instance=${id}）拿回计划和进度，**照进度里的 \`next\` 接着做**（\`hint\` 是一句话的说明），不要按清单顺序找第一个没完成的步骤——循环里每步都做过、都是 \`done\`，那样会跳出环。停在 \`running\` 的步骤视为被打断，重做这一轮。`,
     '- **用户改了状态**：会收到一条「用户修改了运行状态」的通知，列出改了什么。照最新的状态调整：改回 `pending` 的步骤要重新执行，`skipped` 的不再执行，整体是 `waiting` 就停下来问用户、`cancelled` 就结束。',
     '- 字段的完整含义与更多例子在 skill `workflow-run-state` 里，拿不准时去读。',
   ]
