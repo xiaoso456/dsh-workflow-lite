@@ -321,6 +321,33 @@ function simplify(points: readonly Point2[]): Point2[] | null {
   return kept
 }
 
+/** `simplify(points)` 会剩几个点（原路折返 = `-1`），不建数组。 */
+function keptCount(points: readonly Point2[]): number {
+  let count = 0
+  let previous: Point2 | undefined
+  let a: Point2 | undefined
+  let b: Point2 | undefined
+  for (const point of points) {
+    if (previous !== undefined && previous[0] === point[0] && previous[1] === point[1]) continue
+    previous = point
+    if (a !== undefined && b !== undefined) {
+      const dx1 = Math.sign(b[0] - a[0])
+      const dy1 = Math.sign(b[1] - a[1])
+      const dx2 = Math.sign(point[0] - b[0])
+      const dy2 = Math.sign(point[1] - b[1])
+      if (dx1 === -dx2 && dy1 === -dy2) return -1
+      if (dx1 === dx2 && dy1 === dy2) {
+        b = point
+        continue
+      }
+    }
+    a = b
+    b = point
+    count += 1
+  }
+  return count
+}
+
 function pathLength(points: readonly Point2[]): number {
   let length = 0
   for (let index = 1; index < points.length; index += 1) {
@@ -358,8 +385,6 @@ export function orthoRoute(
 ): OrthoRoute | null {
   const [sdx, sdy] = DIRECTION[start.side]
   const [edx, edy] = DIRECTION[end.side]
-  const s: Point2 = [start.x, start.y]
-  const e: Point2 = [end.x, end.y]
   const s1: Point2 = [start.x + sdx * STUB, start.y + sdy * STUB]
   const e1: Point2 = [end.x + edx * STUB, end.y + edy * STUB]
   // 候选的竖道 / 横道：两头伸出去的点，加上附近每张卡片四边外侧。
@@ -371,6 +396,49 @@ export function orthoRoute(
       box.y < Math.max(s1[1], e1[1]) + reach &&
       box.y + box.h > Math.min(s1[1], e1[1]) - reach,
   )
+  // 结果只取决于两头和附近这几张卡：拖一张卡时，离它远的线每帧都是同样的输入，直接用上次的答案。
+  const key = routeKey(start, end, near, startBox, endBox)
+  const known = ROUTES.get(key)
+  if (known !== undefined) return known
+  const found = routeAmong(start, end, near, startBox, endBox)
+  if (ROUTES.size >= ROUTE_CACHE) ROUTES.clear()
+  ROUTES.set(key, found)
+  return found
+}
+
+/** 走过的绕行：输入（两头 + 附近的卡片）→ 答案。满了整个清掉重来。 */
+const ROUTES = new Map<string, OrthoRoute | null>()
+const ROUTE_CACHE = 1500
+
+function routeKey(
+  start: Anchor,
+  end: Anchor,
+  near: readonly Rect[],
+  startBox: Rect,
+  endBox: Rect,
+): string {
+  const rect = (box: Rect): string => `${box.x},${box.y},${box.w},${box.h}`
+  // 附近的卡片里哪张是两头自己的卡按身份认（见 routeAmong 的 `others`），这里一并记下。
+  let key = `${start.x},${start.y},${start.side}>${end.x},${end.y},${end.side}|${rect(startBox)}|${rect(endBox)}`
+  for (const box of near) {
+    key += `|${box === startBox ? 's' : box === endBox ? 'e' : ''}${rect(box)}`
+  }
+  return key
+}
+
+function routeAmong(
+  start: Anchor,
+  end: Anchor,
+  near: readonly Rect[],
+  startBox: Rect,
+  endBox: Rect,
+): OrthoRoute | null {
+  const [sdx, sdy] = DIRECTION[start.side]
+  const [edx, edy] = DIRECTION[end.side]
+  const s: Point2 = [start.x, start.y]
+  const e: Point2 = [end.x, end.y]
+  const s1: Point2 = [start.x + sdx * STUB, start.y + sdy * STUB]
+  const e1: Point2 = [end.x + edx * STUB, end.y + edy * STUB]
   const xs = new Set<number>([s1[0], e1[0]])
   const ys = new Set<number>([s1[1], e1[1]])
   for (const box of near) {
@@ -381,54 +449,6 @@ export function orthoRoute(
       ys.add(box.y - hug)
       ys.add(box.y + box.h + hug)
     }
-  }
-  // 先试拐弯少的（一条竖道或一条横道），再试竖道 + 横道各一条的；后者只看比已找到的更便宜的。
-  const simple: Point2[][] = [[[e1[0], s1[1]]], [[s1[0], e1[1]]]]
-  for (const x of xs)
-    simple.push([
-      [x, s1[1]],
-      [x, e1[1]],
-    ])
-  for (const y of ys)
-    simple.push([
-      [s1[0], y],
-      [e1[0], y],
-    ])
-  const complex: Point2[][] = []
-  for (const x of xs) {
-    for (const y of ys) {
-      complex.push([
-        [x, s1[1]],
-        [x, y],
-        [e1[0], y],
-      ])
-      complex.push([
-        [s1[0], y],
-        [x, y],
-        [x, e1[1]],
-      ])
-    }
-  }
-  /**
-   * 按代价从低到高找第一条走得通的：先按"不算拐弯的长度"排（它是代价的下界），
-   * 下界已经不比找到的更便宜就停——大部分候选根本不用展开检查。
-   */
-  const search = (middles: readonly Point2[][], under: number): OrthoRoute | null => {
-    const bounded = middles
-      .map((middle) => ({ middle, length: pathLength([s, s1, ...middle, e1, e]) }))
-      .sort((a, b) => a.length - b.length)
-    let best: OrthoRoute | null = null
-    let limit = under
-    for (const item of bounded) {
-      if (item.length >= limit) break
-      const points = simplify([s, s1, ...item.middle, e1, e])
-      if (points === null) continue
-      const total = cost(points)
-      if (total >= limit || !clear(points)) continue
-      best = { points, cost: total }
-      limit = total
-    }
-    return best
   }
   const others = near.filter((box) => box !== startBox && box !== endBox)
   const clear = (points: readonly Point2[]): boolean => {
@@ -442,8 +462,133 @@ export function orthoRoute(
     }
     return true
   }
-  const first = search(simple, Number.POSITIVE_INFINITY)
-  return search(complex, first?.cost ?? Number.POSITIVE_INFINITY) ?? first
+  /**
+   * 按代价从低到高找第一条走得通的：先按"不算拐弯的长度"从短到长取（它是代价的下界），
+   * 下界已经不比找到的更便宜就停——大部分候选根本不用展开检查。
+   * 候选只按编号给出长度与折点：拖卡片时每帧都要走一遍，几千个候选不能逐个建数组再整体排序，
+   * 改用堆按需取最短的（长度相同按编号，和稳定排序的次序一致）。
+   */
+  const search = (
+    count: number,
+    lengthOf: (index: number) => number,
+    middleOf: (index: number) => Point2[],
+    under: number,
+  ): OrthoRoute | null => {
+    const lengths = new Float64Array(count)
+    for (let index = 0; index < count; index += 1) lengths[index] = lengthOf(index)
+    const queue = ascending(lengths)
+    let best: OrthoRoute | null = null
+    let limit = under
+    for (let index = queue.next(); index !== -1; index = queue.next()) {
+      const length = lengths[index] as number
+      if (length >= limit) break
+      const raw = [s, s1, ...middleOf(index), e1, e]
+      // 先不建数组地数一数化简后剩几个点，估出代价；明显不比找到的便宜就不必化简、检查。
+      // （估算和真算只差浮点误差，留一点余量，结果和逐条真算完全一样。）
+      const kept = keptCount(raw)
+      if (kept < 0 || length + BEND_COST * Math.max(0, kept - 2) >= limit + 1e-3) continue
+      const points = simplify(raw)
+      if (points === null) continue
+      const total = cost(points)
+      if (total >= limit || !clear(points)) continue
+      best = { points, cost: total }
+      limit = total
+    }
+    return best
+  }
+  // 先试拐弯少的（一条竖道或一条横道），再试竖道 + 横道各一条的；后者只看比已找到的更便宜的。
+  const simple: Point2[][] = [[[e1[0], s1[1]]], [[s1[0], e1[1]]]]
+  for (const x of xs)
+    simple.push([
+      [x, s1[1]],
+      [x, e1[1]],
+    ])
+  for (const y of ys)
+    simple.push([
+      [s1[0], y],
+      [e1[0], y],
+    ])
+  const first = search(
+    simple.length,
+    (index) => pathLength([s, s1, ...(simple[index] as Point2[]), e1, e]),
+    (index) => simple[index] as Point2[],
+    Number.POSITIVE_INFINITY,
+  )
+  // 竖道 + 横道：编号 = (竖道 × 横道数 + 横道) × 2 + 走法（先竖后横 / 先横后竖）。
+  const xList = [...xs]
+  const yList = [...ys]
+  const span = (a: Point2, b: Point2): number => Math.abs(b[0] - a[0]) + Math.abs(b[1] - a[1])
+  const head = span(s, s1)
+  const middleOf = (index: number): Point2[] => {
+    const pair = index >> 1
+    const x = xList[Math.floor(pair / yList.length)] as number
+    const y = yList[pair % yList.length] as number
+    return index % 2 === 0
+      ? [
+          [x, s1[1]],
+          [x, y],
+          [e1[0], y],
+        ]
+      : [
+          [s1[0], y],
+          [x, y],
+          [x, e1[1]],
+        ]
+  }
+  const complexLength = (index: number): number => {
+    // 与 pathLength 同样逐段累加（同样的加法次序，长度相同的候选排出来的先后也就一样）。
+    const [a, b, c] = middleOf(index) as [Point2, Point2, Point2]
+    return head + span(s1, a) + span(a, b) + span(b, c) + span(c, e1) + span(e1, e)
+  }
+  return (
+    search(
+      xList.length * yList.length * 2,
+      complexLength,
+      middleOf,
+      first?.cost ?? Number.POSITIVE_INFINITY,
+    ) ?? first
+  )
+}
+
+/**
+ * 按 `(长度, 编号)` 从小到大逐个吐出编号的最小堆；取完返回 `-1`。
+ * 只建堆（线性）、按需取：前面几个就找到答案时，不必把几千个候选全部排好。
+ */
+function ascending(keys: Float64Array): { next(): number } {
+  const heap = new Uint32Array(keys.length)
+  for (let index = 0; index < heap.length; index += 1) heap[index] = index
+  let size = heap.length
+  const less = (a: number, b: number): boolean => {
+    const ka = keys[a] as number
+    const kb = keys[b] as number
+    return ka < kb || (ka === kb && a < b)
+  }
+  const down = (from: number): void => {
+    let at = from
+    for (;;) {
+      const left = 2 * at + 1
+      if (left >= size) return
+      const right = left + 1
+      let child = left
+      if (right < size && less(heap[right] as number, heap[left] as number)) child = right
+      if (!less(heap[child] as number, heap[at] as number)) return
+      const swap = heap[at] as number
+      heap[at] = heap[child] as number
+      heap[child] = swap
+      at = child
+    }
+  }
+  for (let index = (size >> 1) - 1; index >= 0; index -= 1) down(index)
+  return {
+    next(): number {
+      if (size === 0) return -1
+      const top = heap[0] as number
+      size -= 1
+      heap[0] = heap[size] as number
+      down(0)
+      return top
+    },
+  }
 }
 
 /** 一串直角折点压没压到哪张卡片（不算 `skip` 里的）。 */

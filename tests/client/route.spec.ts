@@ -188,6 +188,25 @@ describe('绕开卡片的直角走线', () => {
     expect(second[0]).toBeGreaterThan(start.x)
   })
 
+  it('拖动远处的卡片：附近的卡没变，直接交回上次的答案；挪到附近才重新找', () => {
+    const start = spotOf(fix, STEP_SPOTS.file)
+    const end = spotOf(reviewMd, FILE_SPOTS.in)
+    const before = orthoRoute(
+      start,
+      end,
+      [...boxes, { x: 2000, y: 0, w: 216, h: 80 }],
+      fix,
+      reviewMd,
+    )
+    const far = orthoRoute(start, end, [...boxes, { x: 2400, y: 40, w: 216, h: 80 }], fix, reviewMd)
+    expect(far).toBe(before)
+    // 挪到线要走的那条缝里：换一条路（或走不通），但绝不是原来那个对象。
+    const blocker: Rect = { x: 250, y: 230, w: 60, h: 120 }
+    const near = orthoRoute(start, end, [...boxes, blocker], fix, reviewMd)
+    expect(near).not.toBe(before)
+    expect(clearOf(near?.points.slice(1, -1) ?? [], [])).toBe(true)
+  })
+
   it('读线的贝塞尔压到卡片才算挡路', () => {
     const from = spotOf(fixNotes, FILE_SPOTS.out)
     expect(bezierBlocked(from, spotOf(review, STEP_SPOTS.readTop), boxes, [fixNotes, review])).toBe(

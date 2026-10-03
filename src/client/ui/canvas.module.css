@@ -565,6 +565,12 @@
   opacity: 0;
 }
 
+/* 线正在跟着卡片动：光带先藏起来（很快），停下来按新的线铺好再淡回来。 */
+.streaks[data-moving="true"] {
+  opacity: 0;
+  transition-duration: 100ms;
+}
+
 @keyframes streaksIn {
   from {
     opacity: 0;
@@ -587,16 +593,6 @@
 /* 光带的头：带一点同色的光晕。 */
 .streakDot[data-testid] > span {
   box-shadow: 0 0 6px 1px color-mix(in srgb, var(--wl-streak) 60%, transparent);
-}
-
-/* 量线长用的隐形路径。 */
-.probe {
-  position: absolute;
-  width: 0;
-  height: 0;
-  overflow: hidden;
-  visibility: hidden;
-  pointer-events: none;
 }
 
 /* 条件牌子和它那条线同色（`--wl-chip` 由线给）；选中时填满。 */

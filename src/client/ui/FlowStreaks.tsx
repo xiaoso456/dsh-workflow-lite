@@ -6,9 +6,10 @@
  * 时各自淡入淡出：光带是从端点里"长出来"、再"没进"另一头的。颜色永远跟所在的线一致。
  *
  * 只动 `transform` 与 `opacity`，交给合成线程跑，不占主线程、不触发重绘：
- * - 用一条不可见的 SVG 路径量出整条线，按长度等距取点，算出每点的位移与透明度；
+ * - 按路径字符串直接算出整条线的长度、等距取点（`model/pathSample.ts`，不碰 DOM），算出每点的位移与透明度；
  * - 每个点外层的 HTML 元素用 Web Animations 按这些点做 `translate` 关键帧（里层只管大小和颜色）；
- * - 线变了（拖动卡片）只换关键帧，动画进度不重来；
+ * - 线变了只换关键帧，动画进度不重来；线在连续变（拖卡片时每帧都变）就先把整组淡出、不跟着换，
+ *   停下来 {@link SETTLE_MS} 后按最终的线换一次再淡入——每帧给几十个点换关键帧是拖动卡顿的大头；
  * - 线"活"起来时整组淡入，不再活时整组淡出后才卸载——不会突然出现、突然消失。
  *
  * 系统设了「减少动态效果」就什么都不画。
@@ -17,7 +18,8 @@
  */
 
 import { EdgeLabelRenderer } from '@xyflow/react'
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { type MeasuredPath, measurePath } from '../model/pathSample.ts'
 import css from './canvas.module.css'
 
 /** 一条线上最多几道光带；短线只放一道。 */
@@ -35,6 +37,8 @@ const MAX_MS = 5000
 const FADE = 22
 /** 整组淡出用多久（与 CSS 里 `.streaks` 的过渡一致），之后才卸载。 */
 const LEAVE_MS = 320
+/** 线两次变化隔得比这短就算"正在动"；停下来这么久才按最终的线重新铺点。 */
+const SETTLE_MS = 140
 
 function reducedMotion(): boolean {
   return globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
@@ -49,20 +53,15 @@ function dotStyle(index: number): React.CSSProperties {
 }
 
 /** 沿路径等距取点，带上两头的淡入淡出。 */
-function sample(path: SVGPathElement, length: number): Keyframe[] {
+function sample(path: MeasuredPath): Keyframe[] {
+  const { length } = path
   const count = Math.max(16, Math.min(72, Math.round(length / 8)))
   const fade = Math.min(FADE, length / 3)
-  const frames: Keyframe[] = []
-  for (let index = 0; index < count; index += 1) {
-    const at = (length * index) / (count - 1)
-    const point = path.getPointAtLength(at)
-    frames.push({
-      offset: index / (count - 1),
-      transform: `translate(${point.x}px, ${point.y}px)`,
-      opacity: Math.max(0, Math.min(1, at / fade, (length - at) / fade)),
-    })
-  }
-  return frames
+  return path.sample(count).map((point, index) => ({
+    offset: index / (count - 1),
+    transform: `translate(${point.x}px, ${point.y}px)`,
+    opacity: Math.max(0, Math.min(1, point.at / fade, (length - point.at) / fade)),
+  }))
 }
 
 export function FlowStreaks(props: {
@@ -87,19 +86,23 @@ export function FlowStreaks(props: {
 }
 
 function Trail(props: { path: string; color: string; leaving: boolean }): React.JSX.Element {
-  const probe = useRef<SVGPathElement>(null)
   const dots = useRef<(HTMLSpanElement | null)[]>([])
   const running = useRef<(Animation | null)[]>([])
+  const latest = useRef(props.path)
+  latest.current = props.path
+  /** 上一次线变的时刻；正在动时等它停下来的定时器。 */
+  const changed = useRef(Number.NEGATIVE_INFINITY)
+  const settle = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [moving, setMoving] = useState(false)
 
-  useLayoutEffect(() => {
-    const path = probe.current
+  const lay = useCallback((d: string): void => {
+    const path = measurePath(d)
     if (path === null) return
-    const length = path.getTotalLength()
-    if (!(length > 0)) return
+    const { length } = path
     const streaks = Math.max(1, Math.min(MAX_STREAKS, Math.round(length / SPACING)))
     const duration = Math.min(MAX_MS, Math.max(MIN_MS, (length / SPEED) * 1000))
     const lag = (TRAIL_GAP / SPEED) * 1000
-    const frames = sample(path, length)
+    const frames = sample(path)
     for (let streak = 0; streak < MAX_STREAKS; streak += 1) {
       for (let index = 0; index < TRAIL; index += 1) {
         const slot = streak * TRAIL + index
@@ -126,10 +129,34 @@ function Trail(props: { path: string; color: string; leaving: boolean }): React.
         })
       }
     }
-  }, [props.path])
+  }, [])
+
+  useLayoutEffect(() => {
+    const now = performance.now()
+    const rapid = settle.current !== null || now - changed.current < SETTLE_MS
+    changed.current = now
+    if (!rapid) {
+      lay(props.path)
+      return
+    }
+    // 线在连续变：先淡出、暂停（藏着的点不必再占合成层），停下来再按最终的线铺一次。
+    if (settle.current === null) {
+      setMoving(true)
+      for (const animation of running.current) animation?.pause()
+    } else {
+      clearTimeout(settle.current)
+    }
+    settle.current = setTimeout(() => {
+      settle.current = null
+      lay(latest.current)
+      for (const animation of running.current) animation?.play()
+      setMoving(false)
+    }, SETTLE_MS)
+  }, [props.path, lay])
 
   useLayoutEffect(
     () => () => {
+      if (settle.current !== null) clearTimeout(settle.current)
       for (const animation of running.current) animation?.cancel()
       running.current = []
     },
@@ -141,11 +168,9 @@ function Trail(props: { path: string; color: string; leaving: boolean }): React.
       <div
         className={css.streaks}
         data-leaving={props.leaving}
+        data-moving={moving}
         style={{ '--wl-streak': props.color } as React.CSSProperties}
       >
-        <svg className={css.probe} aria-hidden="true">
-          <path ref={probe} d={props.path} />
-        </svg>
         {Array.from({ length: MAX_STREAKS * TRAIL }, (_, slot) => (
           <span
             // biome-ignore lint/suspicious/noArrayIndexKey: 点是固定的槽位，下标就是身份

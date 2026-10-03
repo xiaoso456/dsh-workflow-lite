@@ -1242,6 +1242,17 @@ interface CacheEntry {
   flow: FlowNode
 }
 
+/** 连线对象的缓存：内容没变就交回同一个对象，React Flow 不重画这条线。 */
+interface EdgeCacheEntry {
+  signature: string
+  flow: FlowEdge
+}
+
+/** 连线对象的指纹：除了回调与翻译函数（它们换了就整份缓存作废，见 `edges`）。 */
+function edgeSignature(edge: FlowEdge): string {
+  return JSON.stringify(edge, (key, value) => (key === 't' || key === 'onPick' ? undefined : value))
+}
+
 export function Canvas(props: CanvasProps): React.JSX.Element {
   const {
     t,
@@ -1270,6 +1281,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
   /** React Flow 量出来的卡片尺寸：带回给它，重建节点对象时就不用重新量。 */
   const measured = useRef(new Map<string, { width: number; height: number }>())
   const cache = useRef(new Map<string, CacheEntry>())
+  const edgeCache = useRef({ t, onPick: null as unknown, map: new Map<string, EdgeCacheEntry>() })
   const docRef = useRef(doc)
   docRef.current = doc
 
@@ -1714,6 +1726,19 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
         : selection?.kind === 'node'
           ? idKey(selection.id)
           : null
+    // 拖卡片时这里每帧都重算：内容没变的线交回上一帧的同一个对象，只有真的动了的线才重画。
+    if (edgeCache.current.t !== t || edgeCache.current.onPick !== onPick) {
+      edgeCache.current = { t, onPick, map: new Map() }
+    }
+    const previous = edgeCache.current.map
+    const next = new Map<string, EdgeCacheEntry>()
+    const reuse = (built: FlowEdge): FlowEdge => {
+      const signature = edgeSignature(built)
+      const cached = previous.get(built.id)
+      const kept = cached !== undefined && cached.signature === signature ? cached.flow : built
+      next.set(built.id, { signature, flow: kept })
+      return kept
+    }
     const list = doc.edges.map((edge): FlowEdge => {
       const selected = edge.id === selectedId
       const kind = edgeKind(index, edge)
@@ -1735,7 +1760,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
                 : 'produce'
         const color = ACCESS_COLOR[access]
         const arrow = { type: MarkerType.ArrowClosed, width: 14, height: 14, color }
-        return {
+        return reuse({
           id: edge.id,
           type: 'wfFileLink',
           source: edge.source,
@@ -1768,7 +1793,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
             chipText: texts[access],
             points: routes.bends.get(edge.id) ?? null,
           },
-        }
+        })
       }
       const when = whenOf(edge)
       const mode = whenKind(when)
@@ -1776,7 +1801,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
       const handoff = resolveHandoff(edge.data?.handoff)
       // 线色只看条件：选中 / 悬停时描粗、加光晕，不换色——一条线从头到尾就是那一个颜色。
       const color = WHEN_COLOR[mode]
-      return {
+      return reuse({
         id: edge.id,
         type: 'wfEdge',
         source: edge.source,
@@ -1811,8 +1836,9 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
           t,
           onPick,
         },
-      }
+      })
     })
+    edgeCache.current.map = next
     // 活着的线画在最上面，不被淡下去的线压住。
     return [
       ...list.filter((edge) => edge.data?.active !== true),
