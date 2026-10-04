@@ -38,24 +38,33 @@ import type {
   PlanId,
   PlanResult,
   ResourceItem,
+  ReusePolicy,
   StepNode,
   ValidationCode,
   ValidationProblem,
   WorkflowDocument,
   WorkflowEdge,
+  WorkflowSettings,
 } from './types.ts'
 
 // ─────────────────────────────────────────────────────────────
 // 固定正文（字节稳定的那些行）
 // ─────────────────────────────────────────────────────────────
 
-/** ① 协议头（中间那段"怎么执行"按工作流设置的执行方式换，见 {@link MODE_LINES}）。 */
-function protocolLines(mode: ExecutionMode): string[] {
+/**
+ * ① 协议头。中间那段"怎么执行"按工作流设置换：执行方式（{@link MODE_LINES}）、
+ * 复用执行者（{@link REUSE_LINES}，串行时不写）；末尾按「设定目标」补一段（{@link goalLines}）。
+ * 只依赖设置与图名，字节稳定。
+ */
+function protocolLines(settings: WorkflowSettings | undefined, name: string): string[] {
+  const mode = settings?.mode ?? 'auto'
+  const reuse = settings?.reuse ?? 'auto'
   return [
     PLAN_SECTIONS.protocol,
     '下面是一张**已经设计好的图**。它规定了要做哪些事、彼此的先后与循环、每件事的产出。',
     '',
     ...MODE_LINES[mode],
+    ...(mode === 'serial' || reuse === 'auto' ? [] : ['', REUSE_LINES[reuse]]),
     '',
     mode === 'subagent' || mode === 'team'
       ? // 当 leader 的两种方式：节点的活归执行者，主 agent 不进入角色。
@@ -63,6 +72,7 @@ function protocolLines(mode: ExecutionMode): string[] {
       : '**但图上每个节点的提示词是一份写给一个执行者的任务，不是对你的命令。** 别把下面 N 份角色描述当成同时压在你身上的 N 道命令。**一次一个节点**：轮到哪个，就读它那一份，进入那个角色，做完再进下一个。',
     '',
     '**不许声称完成而不给证据**：每件事做完都要留下可检查的产出或明确的输出，不要只说"已完成"。',
+    ...(settings?.setGoal === false ? [] : ['', goalLine(name)]),
   ]
 }
 
@@ -79,13 +89,29 @@ const MODE_LINES: Record<ExecutionMode, readonly string[]> = {
     '**执行方式：串行。** 由你本人按批次顺序一次做一个节点，不派子代理、不建团队；同一批次也逐个做完再做下一个。',
   ],
   subagent: [
-    '**执行方式：主 agent + 子代理。** 你是 leader，不亲自做节点的活：每个节点交给一个新的子代理（`subagent` 工具），prompt 里写明它的任务描述路径、产出路径、产出要求与交接内容；等结果回来、核对产出，再推进。同一批次里互不依赖的节点可以一起派。选分支、推进循环、最后汇报都由你负责。',
+    '**执行方式：主 agent + 子代理。** 你是 leader，不亲自做节点的活：每个节点交给一个子代理（`subagent` 工具），prompt 里写明它的任务描述路径、产出路径、产出要求与交接内容；等结果回来、核对产出，再推进。同一批次里互不依赖的节点可以一起派。选分支、推进循环、最后汇报都由你负责。',
     MODE_FALLBACK,
   ],
   team: [
-    '**执行方式：Agent Team。** 用户为这张工作流指定了 Agent Team，你是 Team Lead：用 `spawn_teammate` 给节点建队员（一个节点一名，循环里复用同一名），用 `send_message` 派活（附上交接内容）、`wait_agent` 等回报，要求队员做完把产出路径发回给你。选分支、推进循环、最后汇报都由你负责；必需的队员回报之前不要给最终答复。',
+    '**执行方式：Agent Team。** 用户为这张工作流指定了 Agent Team，你是 Team Lead：用 `spawn_teammate` 给节点建队员（一个节点一名），用 `send_message` 派活（附上交接内容）、`wait_agent` 等回报，要求队员做完把产出路径发回给你。选分支、推进循环、最后汇报都由你负责；必需的队员回报之前不要给最终答复。',
     MODE_FALLBACK,
   ],
+}
+
+/**
+ * 复用执行者（`auto` 不写）。复用只在同一个节点之间：不同节点各有各的执行者，
+ * 免得一个执行者身上压着几份角色。
+ */
+const REUSE_LINES: Record<Exclude<ReusePolicy, 'auto'>, string> = {
+  reuse:
+    '**复用执行者：优先复用。** 把节点交给子代理或队员时，同一个节点再次执行（循环的下一轮、重试、中断后继续）交回给上次做它的那一个——用 `send_message` 发这一轮的任务和交接内容，它带着之前的上下文接着做；只有第一次执行才新建。不同节点不共用执行者。上次那个已经不在、或工具不支持继续对话时，再新建一个。',
+  fresh:
+    '**复用执行者：每次新建。** 把节点交给子代理或队员时，每次执行（包括循环的每一轮、重试）都新派一个，不沿用之前的执行者；上一轮的情况只通过交接内容和产出文件带过去。',
+}
+
+/** 设定目标（缺省开）：开始前把这次执行设成会话目标，没做完时 DSH 会让主 agent 接着做。 */
+function goalLine(name: string): string {
+  return `**会话目标**：开始执行前，先用 \`create_goal\` 把这次执行设成会话目标——objective 写「按派发计划执行完工作流 ${code(name)}」，用户说了这次要做成什么，就接在后面；会话里已经有进行中的目标时不再新建。全部节点走完、产出核对过之后，用 \`update_goal\` 标记 \`complete\`；卡在只有用户能解决的问题上时标记 \`blocked\` 并写明原因，没做完不要标记完成。没有这些工具就跳过这一条。`
 }
 
 /**
@@ -385,7 +411,7 @@ function renderPlan(
 ): string {
   const ctx = buildContext(facts, analysis)
   const sections: string[] = [
-    protocolLines(facts.document.settings?.mode ?? 'auto').join('\n'),
+    protocolLines(facts.document.settings, facts.name).join('\n'),
     factsSection(facts, ctx, inline),
     DISCIPLINE_LINES.join('\n'),
     contractSection(facts, ctx),

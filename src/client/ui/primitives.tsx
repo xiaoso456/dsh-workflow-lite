@@ -100,13 +100,21 @@ export function Segmented<V extends string>(props: {
   /** `color`：选项前的小色点（比如条件的四种线色），和画布上对应的东西同色。 */
   options: readonly { value: V; label: string; color?: string }[]
   onChange: (value: V) => void
+  disabled?: boolean
+  /** 每格的 `data-testid` 是 `${testId}-${value}`。 */
+  testId?: string
 }): React.JSX.Element {
   const index = Math.max(
     0,
     props.options.findIndex((option) => option.value === props.value),
   )
   return (
-    <div className={ui.seg} role="radiogroup" aria-label={props.label}>
+    <div
+      className={ui.seg}
+      role="radiogroup"
+      aria-label={props.label}
+      aria-disabled={props.disabled === true ? true : undefined}
+    >
       <span
         className={ui.segThumb}
         style={{
@@ -121,6 +129,8 @@ export function Segmented<V extends string>(props: {
           role="radio"
           aria-checked={option.value === props.value}
           className={ui.segItem}
+          disabled={props.disabled}
+          data-testid={props.testId === undefined ? undefined : `${props.testId}-${option.value}`}
           onClick={() => props.onChange(option.value)}
         >
           {option.color !== undefined && (

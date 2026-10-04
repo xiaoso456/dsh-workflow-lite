@@ -73,6 +73,7 @@ import {
   type ResourceData,
   type ResourceItem,
   type ResourceNode,
+  type ReusePolicy,
   type StepNode,
   type TemplateEntry,
   type ToolError,
@@ -228,6 +229,15 @@ export interface ResourceUpsert {
   position?: Point
 }
 
+/** 改工作流设置时给的字段（没给的不动）。 */
+export interface SettingsPatch {
+  outputRoot?: string
+  mode?: ExecutionMode
+  reuse?: ReusePolicy
+  setGoal?: boolean
+  runState?: boolean
+}
+
 export interface Repository {
   readonly dataDir: string
   /** 首次启动按需创建 `workflows/` 与 `templates/nodes/`（**不建 `.dispatch/`**）。 */
@@ -263,11 +273,8 @@ export interface Repository {
   writeResource(workflow: string, upsert: ResourceUpsert): Promise<Outcome<WriteResult>>
   writeInput(workflow: string, upsert: InputUpsert): Promise<Outcome<WriteResult>>
   setLabel(workflow: string, node: string, label: string): Promise<Outcome<WriteResult>>
-  /** 改工作流设置（产出根目录、执行方式）；给了的字段才改。 */
-  configure(
-    workflow: string,
-    patch: { outputRoot?: string; mode?: ExecutionMode; runState?: boolean },
-  ): Promise<Outcome<WriteResult>>
+  /** 改工作流设置（产出根目录、执行方式、复用执行者、设定目标、记录运行状态）；给了的字段才改。 */
+  configure(workflow: string, patch: SettingsPatch): Promise<Outcome<WriteResult>>
   deleteNode(workflow: string, node: string): Promise<Outcome<WriteResult>>
   connect(
     workflow: string,
@@ -1153,12 +1160,9 @@ class FileRepository implements Repository {
 
   /**
    * 改工作流设置。给了的字段才改：`outputRoot` 空串 = 清除（回到默认的
-   * `.workflow-lite/runs/{instance}/out`）、`.` = 工作区根，`mode: 'auto'` = 清除。
+   * `.workflow-lite/runs/{instance}/out`）、`.` = 工作区根，`mode` / `reuse` 给 `'auto'` = 清除。
    */
-  async configure(
-    workflow: string,
-    patch: { outputRoot?: string; mode?: ExecutionMode; runState?: boolean },
-  ): Promise<Outcome<WriteResult>> {
+  async configure(workflow: string, patch: SettingsPatch): Promise<Outcome<WriteResult>> {
     return this.mutate(workflow, async (document) => {
       if (patch.outputRoot !== undefined) {
         const issue = checkOutputRoot(patch.outputRoot)
@@ -1170,6 +1174,8 @@ class FileRepository implements Repository {
       const next = readSettings({
         outputRoot: patch.outputRoot ?? before?.outputRoot,
         mode: patch.mode ?? before?.mode,
+        reuse: patch.reuse ?? before?.reuse,
+        setGoal: patch.setGoal ?? before?.setGoal,
         runState: patch.runState ?? before?.runState,
       })
       if (sameSettings(before, next)) return { ok: true, document, changed: [], warnings: [] }

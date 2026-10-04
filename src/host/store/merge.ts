@@ -14,7 +14,13 @@
  * @module @xiaoso/dsh-workflow-lite/host/store/merge
  */
 
-import { idKey, SETTINGS_CONFLICT_ID, sameEdgeData, sameNodeContent } from '../../shared/model.ts'
+import {
+  idKey,
+  readSettings,
+  SETTINGS_CONFLICT_ID,
+  sameEdgeData,
+  sameNodeContent,
+} from '../../shared/model.ts'
 import type {
   Point,
   WorkflowDocument,
@@ -68,13 +74,13 @@ function mergeSettings(
     }
     return local === origin ? other : local
   }
-  const outputRoot = pick('outputRoot')
-  const mode = pick('mode')
-  if (outputRoot === undefined && mode === undefined) return undefined
-  return {
-    ...(outputRoot === undefined ? {} : { outputRoot }),
-    ...(mode === undefined ? {} : { mode }),
-  }
+  return readSettings({
+    outputRoot: pick('outputRoot'),
+    mode: pick('mode'),
+    reuse: pick('reuse'),
+    setGoal: pick('setGoal'),
+    runState: pick('runState'),
+  })
 }
 
 // ─────────────────────────────────────────────────────────────

@@ -440,4 +440,17 @@ describe('工作流设置', () => {
     expect(copy.settings).toEqual(original.settings)
     expect(copy.settings).not.toBe(original.settings)
   })
+
+  it('复用执行者与设定目标：只存非缺省值（reuse 非 auto、setGoal 只存 false），按固定键序写出', () => {
+    const read = (settings: unknown) =>
+      normalizeDocument({ nodes: [], edges: [], settings }).document?.settings
+    expect(read({ reuse: 'auto', setGoal: true })).toBeUndefined()
+    expect(read({ reuse: 'later', setGoal: 'no' })).toBeUndefined()
+    expect(read({ reuse: 'fresh', setGoal: false })).toEqual({ reuse: 'fresh', setGoal: false })
+    const text = writeDocument(
+      doc({ settings: { runState: true, setGoal: false, reuse: 'reuse', mode: 'team' } }),
+    )
+    const keys = ['"mode"', '"reuse"', '"setGoal"', '"runState"'].map((key) => text.indexOf(key))
+    expect(keys.every((at, i) => at > 0 && (i === 0 || at > (keys[i - 1] ?? 0)))).toBe(true)
+  })
 })

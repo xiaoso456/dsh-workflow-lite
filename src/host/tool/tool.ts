@@ -35,6 +35,7 @@ import type {
   ReadNodeResult,
   ResourceIndexEntry,
   ResourceItem,
+  ReusePolicy,
   StepNode,
   ToolWarning,
   ValidationProblem,
@@ -46,6 +47,7 @@ import {
   EXECUTION_MODES,
   INPUT_KINDS,
   RESOURCE_KINDS,
+  REUSE_POLICIES,
   TOOL_NAME,
 } from '../../shared/types.ts'
 import { compileWorkflow } from '../plan.ts'
@@ -79,7 +81,7 @@ const DESCRIPTION = [
   'create 新建一张空图 / write_node 新建或覆盖一个节点 / set_label 改显示名（id 不可改）/ ',
   'delete_node 删节点（连带删边）/ connect、disconnect 增删边 / rename_workflow、delete_workflow 改名删图 / ',
   'save_as_template 把一个步骤存成节点模板（画布步骤库的「我的步骤」）/ ',
-  'configure 改工作流设置（output_root 产出根目录、mode 执行方式、run_state 记录运行状态）/ write_resource 新建或修改资源节点 / ',
+  'configure 改工作流设置（output_root 产出根目录、mode 执行方式、reuse 复用执行者、set_goal 设定目标、run_state 记录运行状态）/ write_resource 新建或修改资源节点 / ',
   'runs 列工作流实例 / resume 拿一个实例的计划接着跑 / state 看或改实例的运行状态（开了 run_state 的图按计划末尾「运行状态」段用它记进度，不要直接编辑状态文件；插件补时间、轮次、流水并校验）。',
   '用户在画布上点「执行」时会发来一句带实例 id 的话：用 resume 拿那个实例的计划，照着执行。',
   '资源是独立的节点，一个资源里可以放好几项（file 文件、folder 文件夹、url 网址、skill、text 自定义）：',
@@ -380,6 +382,8 @@ export interface WorkflowLiteArgs {
   full?: boolean
   output_root?: string
   mode?: ExecutionMode
+  reuse?: ReusePolicy
+  set_goal?: boolean
   handoff?: 'result' | 'none'
   handoff_note?: string
   update?: boolean
@@ -827,18 +831,22 @@ export function createWorkflowLiteHandler(
         if (
           args.output_root === undefined &&
           args.mode === undefined &&
+          args.reuse === undefined &&
+          args.set_goal === undefined &&
           args.run_state === undefined
         ) {
           return errorValue({
             error: {
               code: 'invalid_args',
-              message: 'configure 需要 output_root、mode 或 run_state',
+              message: 'configure 需要 output_root、mode、reuse、set_goal 或 run_state',
             },
           })
         }
         const outcome = await repository.configure(name, {
           ...(args.output_root === undefined ? {} : { outputRoot: args.output_root }),
           ...(args.mode === undefined ? {} : { mode: args.mode }),
+          ...(args.reuse === undefined ? {} : { reuse: args.reuse }),
+          ...(args.set_goal === undefined ? {} : { setGoal: args.set_goal }),
           ...(args.run_state === undefined ? {} : { runState: args.run_state }),
         })
         if (!outcome.ok) return errorValue(outcome)
@@ -1087,6 +1095,17 @@ export const PARAMETERS = {
     enum: [...EXECUTION_MODES],
     description:
       'configure：执行方式。auto 由主 agent 决定 / serial 本人串行 / subagent 主 agent 派子代理 / team 主 agent 当 Agent Team 的 Lead。',
+  },
+  reuse: {
+    type: 'string',
+    enum: [...REUSE_POLICIES],
+    description:
+      'configure：复用执行者——同一个步骤再次执行（循环下一轮、重试、中断后继续）交给谁。auto 由主 agent 决定 / reuse 交回上次做它的子代理或队员，带着之前的上下文 / fresh 每次新派，上下文干净。serial 时不起作用。',
+  },
+  set_goal: {
+    type: 'boolean',
+    description:
+      'configure：设定目标（缺省开）。开着时计划让主 agent 开始前用 create_goal 把这次执行设成会话目标，做完标记完成；长流程不会做一半就停。',
   },
 } as const
 

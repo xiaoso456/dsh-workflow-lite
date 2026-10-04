@@ -153,6 +153,8 @@ const GOLDEN_LINES: readonly string[] = [
   '',
   '**不许声称完成而不给证据**：每件事做完都要留下可检查的产出或明确的输出，不要只说"已完成"。',
   '',
+  '**会话目标**：开始执行前，先用 `create_goal` 把这次执行设成会话目标——objective 写「按派发计划执行完工作流 `code-review`」，用户说了这次要做成什么，就接在后面；会话里已经有进行中的目标时不再新建。全部节点走完、产出核对过之后，用 `update_goal` 标记 `complete`；卡在只有用户能解决的问题上时标记 `blocked` 并写明原因，没做完不要标记完成。没有这些工具就跳过这一条。',
+  '',
   '## 图的事实',
   '**图名**：`code-review`。',
   '| `label（id）` | 前置 | 读取 | 写入 | 任务描述路径 |',
@@ -926,6 +928,56 @@ describe('工作流设置：执行方式', () => {
 
   it('设置参与内容寻址：换执行方式就换 planId', () => {
     expect(planIdOf(base)).not.toBe(planIdOf({ ...base, settings: { mode: 'team' } }))
+  })
+})
+
+describe('工作流设置：复用执行者', () => {
+  const base = doc([n('a', 'x'), n('b', 'y')], [edge('a', 'b')])
+
+  it('缺省（自动）不写复用这一条', () => {
+    expect(planFor({ ...base, settings: { mode: 'subagent' } })).not.toContain('复用执行者')
+  })
+
+  it('优先复用：同一节点再次执行交回上次那个，用 send_message 接着做；不同节点不共用', () => {
+    const plan = planFor({ ...base, settings: { mode: 'subagent', reuse: 'reuse' } })
+    expect(plan).toContain('**复用执行者：优先复用。**')
+    expect(plan).toContain('`send_message`')
+    expect(plan).toContain('不同节点不共用执行者')
+  })
+
+  it('每次新建：循环每一轮都新派', () => {
+    const plan = planFor({ ...base, settings: { mode: 'team', reuse: 'fresh' } })
+    expect(plan).toContain('**复用执行者：每次新建。**')
+    expect(plan).not.toContain('优先复用')
+  })
+
+  it('自动执行方式也写（主 agent 可能派子代理）；串行没有执行者，不写', () => {
+    expect(planFor({ ...base, settings: { reuse: 'reuse' } })).toContain('优先复用')
+    expect(planFor({ ...base, settings: { mode: 'serial', reuse: 'reuse' } })).not.toContain(
+      '复用执行者',
+    )
+  })
+
+  it('换复用方式就换 planId', () => {
+    expect(planIdOf({ ...base, settings: { reuse: 'fresh' } })).not.toBe(planIdOf(base))
+  })
+})
+
+describe('工作流设置：设定目标', () => {
+  const base = doc([n('a', 'x')], [])
+
+  it('缺省开：① 段末尾让主 agent 先 create_goal、做完 update_goal 标记完成', () => {
+    const plan = planFor(base)
+    expect(plan).toContain('`create_goal`')
+    expect(plan).toContain('`update_goal` 标记 `complete`')
+    // 跟着 ① 段走，在 ② 段之前。
+    expect(plan.indexOf('**会话目标**')).toBeLessThan(plan.indexOf('## 图的事实'))
+  })
+
+  it('关掉就不写', () => {
+    const plan = planFor({ ...base, settings: { setGoal: false } })
+    expect(plan).not.toContain('create_goal')
+    expect(plan).not.toContain('**会话目标**')
   })
 })
 

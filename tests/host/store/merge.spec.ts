@@ -229,6 +229,22 @@ describe('mergeDocuments —— 工作流设置按字段合并', () => {
     expect(merged.conflictIds).toEqual(['settings'])
   })
 
+  it('复用执行者、设定目标、记录运行状态也按字段合并（以前只合根目录与执行方式）', () => {
+    const mine = { ...base, settings: { outputRoot: 'out', reuse: 'fresh' as const } }
+    const theirs = {
+      ...base,
+      settings: { outputRoot: 'out', setGoal: false as const, runState: true as const },
+    }
+    const merged = mergeDocuments(base, mine, theirs)
+    expect(merged.document.settings).toEqual({
+      outputRoot: 'out',
+      reuse: 'fresh',
+      setGoal: false,
+      runState: true,
+    })
+    expect(merged.conflictIds).toEqual([])
+  })
+
   it('对方清掉了设置、本地没动：采纳清除', () => {
     const merged = mergeDocuments(base, base, doc([node('a')]))
     expect(merged.document.settings).toBeUndefined()

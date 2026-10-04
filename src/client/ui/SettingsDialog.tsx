@@ -1,46 +1,28 @@
 /**
- * dsh-workflow-lite — 「工作流设置」对话框：整张工作流的全局配置。
+ * dsh-workflow-lite — 「工作流设置」对话框：整张工作流的全局配置，都会编译进派发计划。
  *
- * 三项：
- * - **产出根目录**：每个步骤的产出文件编译时都拼在它下面。边打字边预览拼出来的样子，
- *   拼接与标准化走 `shared/outputPaths.ts`（和编译器同一份），这里看到的就是计划里写的。
- *   没配时输入框里就是默认值（`.workflow-lite/runs/{instance}/out`）；保存成默认值 = 不写这个键。
- * - **执行方式**：自动 / 串行 / 主 agent + 子代理 / Agent 团队。后两种主 agent 当 leader。
- * - **记录运行状态**：打开后每次编译建一个工作流实例和它的状态文件，画布能切到实例看进度、改状态。
+ * 三块（画在 `SettingsFields.tsx`），一项一行，不堆说明——细节收在各自的「?」里：
+ * - **执行方式**：自动 / 串行 / 主 agent + 子代理 / Agent 团队（四张卡），下面一行**复用执行者**：
+ *   同一步骤再次执行时交回上次的子代理或队员、每次新建，或不规定；串行时用不上。
+ * - **执行时**：**设定目标**（缺省开，开始前用 `create_goal` 设成会话目标）与**记录运行状态**两个开关。
+ * - **产出根目录**：每个步骤的产出文件编译时都拼在它下面；说明里的拼接示例跟着输入实时变，
+ *   拼接与标准化走 `shared/outputPaths.ts`（和编译器同一份）。保存成默认值 = 不写这个键。
  *
  * 「完成」时一次交出去（一次改动 = 一条撤销步）。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/SettingsDialog
  */
 
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { readSettings } from '../../shared/model.ts'
-import {
-  checkOutputRoot,
-  DEFAULT_OUTPUT_ROOT,
-  isAbsoluteRoot,
-  normalizeRoot,
-  resolveOutputPath,
-  rootOf,
-} from '../../shared/outputPaths.ts'
-import { EXECUTION_MODES, type ExecutionMode, type WorkflowSettings } from '../../shared/types.ts'
-import type { LocaleKey, T } from '../i18n.ts'
-import { Icon, type IconName } from './Icon.tsx'
-import css from './inspector.module.css'
+import { rootOf } from '../../shared/outputPaths.ts'
+import type { ExecutionMode, ReusePolicy, WorkflowSettings } from '../../shared/types.ts'
+import type { T } from '../i18n.ts'
+import { Icon } from './Icon.tsx'
 import overlay from './overlay.module.css'
-import { cx, HelpTip, Modal } from './primitives.tsx'
+import { cx, Modal } from './primitives.tsx'
+import { DuringGroup, ModeGroup, RootGroup, rootStatus } from './SettingsFields.tsx'
 import ui from './ui.module.css'
-
-const MODE_TEXT: Record<ExecutionMode, { icon: IconName; title: LocaleKey; desc: LocaleKey }> = {
-  auto: { icon: 'modeAuto', title: 'settings.mode.auto', desc: 'settings.mode.autoDesc' },
-  serial: { icon: 'modeSerial', title: 'settings.mode.serial', desc: 'settings.mode.serialDesc' },
-  subagent: {
-    icon: 'modeSubagent',
-    title: 'settings.mode.subagent',
-    desc: 'settings.mode.subagentDesc',
-  },
-  team: { icon: 'modeTeam', title: 'settings.mode.team', desc: 'settings.mode.teamDesc' },
-}
 
 export function SettingsDialog(props: {
   t: T
@@ -52,28 +34,39 @@ export function SettingsDialog(props: {
   onClose(): void
 }): React.JSX.Element {
   const { t } = props
-  const initialRoot = rootOf(props.settings)
-  const [root, setRoot] = useState(initialRoot)
-  const [mode, setMode] = useState<ExecutionMode>(props.settings?.mode ?? 'auto')
-  const [runState, setRunState] = useState(props.settings?.runState === true)
+  const initial: {
+    root: string
+    mode: ExecutionMode
+    reuse: ReusePolicy
+    setGoal: boolean
+    runState: boolean
+  } = {
+    root: rootOf(props.settings),
+    mode: props.settings?.mode ?? 'auto',
+    reuse: props.settings?.reuse ?? 'auto',
+    setGoal: props.settings?.setGoal !== false,
+    runState: props.settings?.runState === true,
+  }
+  const [root, setRoot] = useState(initial.root)
+  const [mode, setMode] = useState<ExecutionMode>(initial.mode)
+  const [reuse, setReuse] = useState<ReusePolicy>(initial.reuse)
+  const [setGoal, setSetGoal] = useState(initial.setGoal)
+  const [runState, setRunState] = useState(initial.runState)
   const rootRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => {
-    rootRef.current?.focus()
-  }, [])
-
-  const problem = checkOutputRoot(root)
-  const normalized = problem === null ? normalizeRoot(root) : undefined
-  /** 等于默认值（或留空）：保存时不写，跟着默认值走。 */
-  const isDefault = root.trim() === '' || normalized === DEFAULT_OUTPUT_ROOT
+  const { problem, isDefault } = rootStatus(root)
   const dirty =
-    root !== initialRoot ||
-    mode !== (props.settings?.mode ?? 'auto') ||
-    runState !== (props.settings?.runState === true)
+    root !== initial.root ||
+    mode !== initial.mode ||
+    reuse !== initial.reuse ||
+    setGoal !== initial.setGoal ||
+    runState !== initial.runState
 
   const submit = (): void => {
     if (problem !== null) return
-    props.onSave(readSettings({ outputRoot: isDefault ? '' : root, mode, runState }))
+    props.onSave(
+      readSettings({ outputRoot: isDefault ? '' : root, mode, reuse, setGoal, runState }),
+    )
   }
 
   return (
@@ -122,150 +115,21 @@ export function SettingsDialog(props: {
         </header>
 
         <div className={overlay.sheetBody}>
-          <section className={css.field}>
-            <div className={css.label}>
-              <span className={css.labelMain}>
-                {t('settings.root')}
-                <HelpTip label={t('settings.root')} testId="wl-settings-root-help">
-                  <p className={ui.hintTitle}>{t('settings.root')}</p>
-                  <ul className={ui.hintList}>
-                    <li>{t('settings.rootTipJoin')}</li>
-                    <li>{t('settings.rootTipKinds')}</li>
-                    <li>{t('settings.rootTipNormalize')}</li>
-                    <li>{t('settings.rootTipEmpty')}</li>
-                    <li>{t('settings.rootTipToken')}</li>
-                  </ul>
-                  {/* 示例跟着输入框实时变：拼接与标准化和编译器是同一份。 */}
-                  <p className={ui.hintExample} data-testid="wl-settings-preview">
-                    <span>{t('settings.preview')}</span>
-                    <code>{props.sample}</code>
-                    <span aria-hidden="true">→</span>
-                    <code>
-                      {resolveOutputPath(
-                        isDefault ? DEFAULT_OUTPUT_ROOT : normalized,
-                        props.sample,
-                      )}
-                    </code>
-                  </p>
-                </HelpTip>
-              </span>
-              {problem === null && (
-                <span
-                  className={css.rootKind}
-                  data-absolute={normalized !== undefined && isAbsoluteRoot(normalized)}
-                  data-testid="wl-settings-root-kind"
-                >
-                  {isDefault
-                    ? t('settings.rootDefault')
-                    : normalized === undefined
-                      ? t('settings.rootWorkspace')
-                      : isAbsoluteRoot(normalized)
-                        ? t('settings.rootAbsolute')
-                        : t('settings.rootRelative')}
-                </span>
-              )}
-              {!isDefault && (
-                <button
-                  type="button"
-                  className={cx(ui.btn, ui.small, css.rootReset)}
-                  data-testid="wl-settings-root-reset"
-                  onClick={() => {
-                    setRoot(DEFAULT_OUTPUT_ROOT)
-                    rootRef.current?.focus()
-                  }}
-                >
-                  {t('settings.rootReset')}
-                </button>
-              )}
-            </div>
-            <input
-              ref={rootRef}
-              className={cx(ui.input, ui.mono)}
-              value={root}
-              placeholder={t('settings.rootPlaceholder')}
-              aria-label={t('settings.root')}
-              aria-invalid={problem !== null}
-              data-testid="wl-settings-root"
-              spellCheck={false}
-              autoComplete="off"
-              onChange={(event) => setRoot(event.currentTarget.value)}
-            />
-            {problem !== null && <p className={css.error}>{problem.message}</p>}
-          </section>
-
-          <section className={css.field}>
-            <div className={css.label}>
-              <span className={css.labelMain}>
-                {t('settings.mode')}
-                <HelpTip label={t('settings.mode')} testId="wl-settings-mode-help">
-                  <p className={ui.hintTitle}>{t('settings.mode')}</p>
-                  <ul className={ui.hintList}>
-                    <li>{t('settings.modeTipPlan')}</li>
-                    <li>{t('settings.leaderNote')}</li>
-                    <li>{t('settings.modeTipTools')}</li>
-                  </ul>
-                </HelpTip>
-              </span>
-            </div>
-            <div className={css.modes} role="radiogroup" aria-label={t('settings.mode')}>
-              {EXECUTION_MODES.map((value) => {
-                const text = MODE_TEXT[value]
-                return (
-                  <button
-                    key={value}
-                    type="button"
-                    role="radio"
-                    aria-checked={mode === value}
-                    className={css.mode}
-                    data-testid={`wl-settings-mode-${value}`}
-                    onClick={() => setMode(value)}
-                  >
-                    <span className={css.modeIcon}>
-                      <Icon name={text.icon} size={16} />
-                    </span>
-                    <span className={css.modeTitle}>{t(text.title)}</span>
-                    <span className={css.modeDesc}>{t(text.desc)}</span>
-                    <span className={css.modeCheck} aria-hidden="true">
-                      <Icon name="check" size={12} />
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-          </section>
-
-          <section className={css.field}>
-            <div className={css.label}>
-              <span className={css.labelMain}>
-                {t('settings.runState')}
-                <HelpTip label={t('settings.runState')} testId="wl-settings-run-help">
-                  <p className={ui.hintTitle}>{t('settings.runState')}</p>
-                  <ul className={ui.hintList}>
-                    <li>{t('settings.runStateTipInstance')}</li>
-                    <li>{t('settings.runStateTipWriter')}</li>
-                    <li>{t('settings.runStateTipView')}</li>
-                  </ul>
-                </HelpTip>
-              </span>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={runState}
-              className={css.mode}
-              data-testid="wl-settings-run-state"
-              onClick={() => setRunState(!runState)}
-            >
-              <span className={css.modeIcon}>
-                <Icon name="runs" size={16} />
-              </span>
-              <span className={css.modeTitle}>{t('settings.runStateOn')}</span>
-              <span className={css.modeDesc}>{t('settings.runStateDesc')}</span>
-              <span className={css.modeCheck} aria-hidden="true">
-                <Icon name="check" size={12} />
-              </span>
-            </button>
-          </section>
+          <ModeGroup t={t} mode={mode} reuse={reuse} onMode={setMode} onReuse={setReuse} />
+          <DuringGroup
+            t={t}
+            setGoal={setGoal}
+            runState={runState}
+            onSetGoal={setSetGoal}
+            onRunState={setRunState}
+          />
+          <RootGroup
+            t={t}
+            root={root}
+            sample={props.sample}
+            inputRef={rootRef}
+            onChange={setRoot}
+          />
         </div>
 
         <footer className={overlay.sheetFoot}>

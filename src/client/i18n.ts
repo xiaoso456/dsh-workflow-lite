@@ -107,6 +107,27 @@ export const zh = {
   'settings.modeTipTools':
     '子代理与 Agent 团队依赖 DSH 的对应工具；工具不可用时，计划会让主 agent 说明后改成自己逐个执行。',
   'settings.conflict': '工作流设置',
+  'settings.reuse': '复用执行者',
+  'settings.reuse.auto': '自动',
+  'settings.reuse.autoDesc': '由主 agent 决定沿不沿用之前的子代理或队员。',
+  'settings.reuse.reuse': '复用',
+  'settings.reuse.reuseDesc': '同一步骤再次执行时交回上次那个，接着之前的上下文。',
+  'settings.reuse.fresh': '新建',
+  'settings.reuse.freshDesc': '每次都派新的，上下文干净，只靠交接和产出传递。',
+  'settings.reuseSerial': '串行由主 agent 本人做，用不上。',
+  'settings.reuseTipWhen': '「再次执行」指循环的下一轮、失败后重试、中断后继续。',
+  'settings.reuseTipScope': '只在同一个步骤之间复用；不同步骤各有各的执行者。',
+  'settings.reuseTipPick':
+    '复用省得重读材料，还记得上一轮试过什么；新建不受上一轮影响，适合独立审查。',
+  'settings.reuseTipTools':
+    '复用靠 send_message 继续对话；工具不支持时，计划会让主 agent 改成新建。',
+  'settings.goal': '设定目标',
+  'settings.goalDesc': '开始前设为会话目标，没做完会接着做。',
+  'settings.goalTipPlan':
+    '写进派发计划的开头：主 agent 开始前用 create_goal 把这次执行设成会话目标，全部做完后标记完成。',
+  'settings.goalTipWhy': '有目标时，主 agent 没做完就停下，DSH 会让它接着做，长流程不会停在一半。',
+  'settings.goalTipSkip': '会话里已有进行中的目标时不再新建；没有目标工具就跳过。',
+  'settings.during': '执行时',
 
   // ── 检查 ────────────────────────────────────────────────────
   'issues.title': '检查',
@@ -314,8 +335,7 @@ export const zh = {
   'role.reader': '读取',
   'settings.runState': '运行状态',
   'settings.runStateOn': '记录运行状态',
-  'settings.runStateDesc':
-    '每次编译建一个工作流实例和它的状态文件，执行时由主 agent 更新；画布能切到实例看进度、改状态。',
+  'settings.runStateDesc': '每次执行建一个实例，画布上能看进度、改状态。',
   'settings.runStateTipInstance':
     '打开后，模型每编译一次这张图，就建一个工作流实例：拍一份图的快照，在会话工作区的 .workflow-lite/runs/ 下建好一份 YAML 状态文件。',
   'settings.runStateTipWriter':
@@ -953,6 +973,32 @@ export const en: Record<LocaleKey, string> = {
   'settings.modeTipTools':
     'Subagents and Agent teams rely on the matching DSH tools; if they are missing, the plan has the main agent say so and run the steps itself.',
   'settings.conflict': 'workflow settings',
+  'settings.reuse': 'Reuse workers',
+  'settings.reuse.auto': 'Auto',
+  'settings.reuse.autoDesc':
+    'The main agent decides whether to keep earlier subagents or teammates.',
+  'settings.reuse.reuse': 'Reuse',
+  'settings.reuse.reuseDesc':
+    'A step that runs again goes back to the same worker, context intact.',
+  'settings.reuse.fresh': 'Fresh',
+  'settings.reuse.freshDesc': 'Every run gets a new worker; only handoffs and outputs carry over.',
+  'settings.reuseSerial': 'Serial runs everything in the main agent; not used.',
+  'settings.reuseTipWhen':
+    '"Runs again" means the next loop round, a retry, or resuming after a break.',
+  'settings.reuseTipScope': 'Reuse stays within one step; different steps never share a worker.',
+  'settings.reuseTipPick':
+    'Reuse skips re-reading and remembers the last attempt; fresh is unbiased, good for independent review.',
+  'settings.reuseTipTools':
+    'Reuse continues the chat via send_message; if the tools cannot, the plan has the main agent start a new one.',
+  'settings.goal': 'Set a goal',
+  'settings.goalDesc': 'Make the run a session goal so it keeps going until done.',
+  'settings.goalTipPlan':
+    'Written at the top of the plan: the main agent calls create_goal before starting and marks it complete when everything is done.',
+  'settings.goalTipWhy':
+    'With a goal, DSH nudges the main agent to continue if it stops early, so long workflows do not halt halfway.',
+  'settings.goalTipSkip':
+    'No new goal if one is already active in the session; skipped when the goal tools are missing.',
+  'settings.during': 'While running',
 
   'issues.title': 'Checks',
   'issues.none': 'No problems',
@@ -1170,8 +1216,7 @@ export const en: Record<LocaleKey, string> = {
   'role.reader': 'Reads',
   'settings.runState': 'Run state',
   'settings.runStateOn': 'Record run state',
-  'settings.runStateDesc':
-    'Each compile creates a workflow instance with a state file the main agent updates; switch the canvas to the instance to follow or edit progress.',
+  'settings.runStateDesc': 'Each run gets an instance; follow or edit progress on the canvas.',
   'settings.runStateTipInstance':
     'Each time the model compiles this workflow, an instance is created: a snapshot of the graph plus a YAML state file under .workflow-lite/runs/ in the session workspace.',
   'settings.runStateTipWriter':

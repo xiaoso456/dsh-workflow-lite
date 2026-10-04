@@ -214,6 +214,15 @@
   outline-offset: -2px;
 }
 
+.seg[aria-disabled="true"] {
+  opacity: 0.5;
+}
+
+.segItem:disabled {
+  color: var(--wl-text-3);
+  cursor: default;
+}
+
 /* 选项前的小色点：没选中时淡一些，选中时是实色。 */
 .segDot {
   display: inline-block;

@@ -43,6 +43,16 @@ export interface WorkflowDocument {
 export const EXECUTION_MODES = ['auto', 'serial', 'subagent', 'team'] as const
 export type ExecutionMode = (typeof EXECUTION_MODES)[number]
 
+/**
+ * 复用执行者：同一个步骤再次执行时（循环的下一轮、重试、中断后继续）交给谁。
+ * - `auto` 不规定（缺省）；
+ * - `reuse` 交回上次做它的那个子代理或队员，接着之前的上下文；
+ * - `fresh` 每次都派新的，上下文干净。
+ * 串行时没有执行者，这一项不进计划。
+ */
+export const REUSE_POLICIES = ['auto', 'reuse', 'fresh'] as const
+export type ReusePolicy = (typeof REUSE_POLICIES)[number]
+
 export interface WorkflowSettings {
   /**
    * 产出根目录：相对路径（相对工作区）或绝对路径，存规范化后的写法（`shared/outputPaths.ts`）。
@@ -51,6 +61,13 @@ export interface WorkflowSettings {
   outputRoot?: string
   /** 执行方式；缺省 = `auto`（`auto` 不写盘）。 */
   mode?: Exclude<ExecutionMode, 'auto'>
+  /** 复用执行者；缺省 = `auto`（`auto` 不写盘）。 */
+  reuse?: Exclude<ReusePolicy, 'auto'>
+  /**
+   * 设定目标：计划开头让主 agent 先用 `create_goal` 把这次执行设成会话目标，做完标记完成。
+   * 缺省 = 开（开时不写盘，只存关掉的 `false`）。
+   */
+  setGoal?: false
   /**
    * 记录运行状态：打开后每次编译建一个工作流实例，带一份由主 agent 维护的 YAML 状态文件
    * 缺省 = 关（关时不写盘）。

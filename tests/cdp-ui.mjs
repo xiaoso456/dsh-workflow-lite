@@ -485,8 +485,47 @@ async function run(session) {
   await session.evaluate(clickTestId('wl-settings-open'))
   await waitFor(session, exists('wl-settings'))
   await setReactInput(session, '[data-testid="wl-settings-root"]', 'artifacts//run/')
+  check(
+    await session.evaluate(
+      `document.querySelector('[data-testid="wl-settings-goal"]').getAttribute('aria-checked') === 'true'`,
+    ),
+    '设定目标缺省应是开',
+  )
+  // 串行没有子代理、队员：复用执行者那一行不能点。
+  await session.evaluate(clickTestId('wl-settings-mode-serial'))
+  await sleep(50)
+  check(
+    await session.evaluate(
+      `document.querySelector('[data-testid="wl-settings-reuse-reuse"]').disabled === true`,
+    ),
+    '串行时复用执行者应不可选',
+  )
   await session.evaluate(clickTestId('wl-settings-mode-subagent'))
+  await sleep(50)
+  await session.evaluate(clickTestId('wl-settings-reuse-reuse'))
+  // 开关整行都能点：点说明文字也拨动开关。
+  await mouseClick(
+    session,
+    await centerOf(
+      session,
+      '[data-testid="wl-settings"] label:has([data-testid="wl-settings-goal"]) > span:nth-child(2) > span:last-child',
+    ),
+  )
   await sleep(350)
+  check(
+    await session.evaluate(
+      `document.querySelector('[data-testid="wl-settings-goal"]').getAttribute('aria-checked') === 'false'`,
+    ),
+    '点开关那一行应拨动开关',
+  )
+  check(
+    (
+      await session.evaluate(
+        `document.querySelector('[data-testid="wl-settings-reuse-desc"]').textContent`,
+      )
+    ).includes('上次'),
+    '复用执行者的说明应跟着选项换',
+  )
   // 打开就不该有滚动条：内容放得下。
   check(
     await session.evaluate(`(() => {
@@ -541,7 +580,11 @@ async function run(session) {
   await waitFor(session, `document.querySelector('[data-testid="wl-settings"]') === null`)
   await onDisk(
     NAME,
-    (doc) => doc.settings?.outputRoot === 'artifacts/run' && doc.settings?.mode === 'subagent',
+    (doc) =>
+      doc.settings?.outputRoot === 'artifacts/run' &&
+      doc.settings?.mode === 'subagent' &&
+      doc.settings?.reuse === 'reuse' &&
+      doc.settings?.setGoal === false,
     '工作流设置',
   )
   check(

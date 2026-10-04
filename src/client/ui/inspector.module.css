@@ -633,31 +633,6 @@
   font-size: var(--wl-fs-body);
 }
 
-/* ── 工作流设置 ───────────────────────────────────────────── */
-
-.rootKind {
-  margin-left: auto;
-  padding: 1px 7px;
-  border-radius: 999px;
-  background: var(--wl-fill);
-  color: var(--wl-text-3);
-  font-size: var(--wl-fs-micro);
-  font-weight: 500;
-}
-
-.rootKind[data-absolute="true"] {
-  background: var(--wl-accent-soft);
-  color: var(--wl-accent-text);
-}
-
-.rootReset {
-  height: 22px;
-  margin: -4px -6px -4px 0;
-  padding: 0 6px;
-  color: var(--wl-accent-text);
-  font-size: var(--wl-fs-micro);
-}
-
 /* 拼接预览：示例产出 → 最终路径。 */
 .rootPreview {
   display: flex;
@@ -684,107 +659,6 @@
 .rootPreviewResult {
   color: var(--wl-text);
   font-weight: 600;
-}
-
-.modes {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-
-@container (max-width: 520px) {
-  .modes {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-/* 一种执行方式 = 一张可选的卡：图标、名字、一句话。选中时描边变色、右上角出一个勾。 */
-.mode {
-  position: relative;
-  display: grid;
-  grid-template-columns: 30px minmax(0, 1fr);
-  gap: 2px 10px;
-  align-items: center;
-  padding: 10px 28px 10px 10px;
-  border: 1px solid var(--wl-line);
-  border-radius: 10px;
-  background: var(--wl-panel);
-  color: var(--wl-text);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.mode:hover {
-  border-color: var(--wl-line-strong);
-  background: var(--wl-hover);
-}
-
-.mode:focus-visible {
-  outline: 2px solid var(--wl-accent);
-  outline-offset: 1px;
-}
-
-.mode[aria-checked="true"] {
-  border-color: var(--wl-accent);
-  background: var(--wl-accent-soft);
-}
-
-.modeIcon {
-  display: grid;
-  grid-row: span 2;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  background: var(--wl-fill);
-  color: var(--wl-text-2);
-}
-
-.mode[aria-checked="true"] .modeIcon {
-  background: var(--wl-accent);
-  color: var(--wl-accent-on);
-}
-
-.modeTitle {
-  font-size: var(--wl-fs-body);
-  font-weight: 600;
-}
-
-.modeDesc {
-  grid-column: 2;
-  color: var(--wl-text-3);
-  font-size: var(--wl-fs-micro);
-  line-height: 1.5;
-}
-
-.modeCheck {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  display: grid;
-  place-items: center;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: var(--wl-accent);
-  color: var(--wl-accent-on);
-  opacity: 0;
-  transform: scale(0.6);
-  transition:
-    opacity 120ms linear,
-    transform 160ms var(--wl-ease);
-}
-
-.mode[aria-checked="true"] .modeCheck {
-  opacity: 1;
-  transform: scale(1);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .modeCheck {
-    transition: none;
-  }
 }
 
 /* 字段名 + 跟在后面的「?」。 */

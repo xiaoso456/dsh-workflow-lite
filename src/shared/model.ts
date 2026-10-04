@@ -29,6 +29,7 @@ import {
   type OutputSpec,
   RESOURCE_KINDS,
   RESOURCE_TYPE,
+  REUSE_POLICIES,
   type ResourceData,
   type ResourceItem,
   type ResourceNode,
@@ -209,7 +210,7 @@ export function cloneNodeData(data: NodeData): NodeData {
 }
 
 /**
- * 从原始对象里挑出工作流设置的已知键。根目录存规范化后的写法；认不出的执行方式当缺省（`auto`）。
+ * 从原始对象里挑出工作流设置的已知键。根目录存规范化后的写法；认不出的执行方式、复用方式当缺省（`auto`）。
  * 全是缺省值时返回 `undefined`（文件里不写这个键）。
  */
 export function readSettings(raw: unknown): WorkflowSettings | undefined {
@@ -221,6 +222,9 @@ export function readSettings(raw: unknown): WorkflowSettings | undefined {
   }
   const mode = EXECUTION_MODES.find((candidate) => candidate === raw.mode)
   if (mode !== undefined && mode !== 'auto') settings.mode = mode
+  const reuse = REUSE_POLICIES.find((candidate) => candidate === raw.reuse)
+  if (reuse !== undefined && reuse !== 'auto') settings.reuse = reuse
+  if (raw.setGoal === false) settings.setGoal = false
   if (raw.runState === true) settings.runState = true
   return Object.keys(settings).length > 0 ? settings : undefined
 }
@@ -236,6 +240,8 @@ export function sameSettings(
   return (
     a?.outputRoot === b?.outputRoot &&
     (a?.mode ?? 'auto') === (b?.mode ?? 'auto') &&
+    (a?.reuse ?? 'auto') === (b?.reuse ?? 'auto') &&
+    a?.setGoal === b?.setGoal &&
     a?.runState === b?.runState
   )
 }
@@ -716,6 +722,8 @@ export function writeDocument(document: WorkflowDocument): string {
           settings: {
             ...(settings.outputRoot === undefined ? {} : { outputRoot: settings.outputRoot }),
             ...(settings.mode === undefined ? {} : { mode: settings.mode }),
+            ...(settings.reuse === undefined ? {} : { reuse: settings.reuse }),
+            ...(settings.setGoal === undefined ? {} : { setGoal: settings.setGoal }),
             ...(settings.runState === undefined ? {} : { runState: settings.runState }),
           },
         }),

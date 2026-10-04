@@ -853,7 +853,8 @@ try {
   check(!planText.includes('未指定'), '预览里的工作区路径应是本会话的')
   check(planText.includes('{instance}'), '预览里实例 id 处应留着 {instance}')
   check(planText.includes('state'), '开了运行状态的预览应带「运行状态」段（用 state 动作记）')
-  check(!planText.includes('目标：'), '没给目标就不写目标那一行')
+  check(!/^目标：/m.test(planText), '没给目标就不写目标那一行')
+  check(planText.includes('create_goal'), '设定目标缺省开：预览应让主 agent 先 create_goal')
   await session.evaluate(
     `document.querySelector('[data-testid="wl-plan"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`,
   )

@@ -325,8 +325,27 @@ describe('workflow_lite —— configure（工作流设置）', () => {
     expect(String(compiled.plan)).toContain('out/run/a.md')
     expect(String(compiled.plan)).toContain('`subagent`')
 
-    // 空串清根目录、auto 清执行方式：设置整键消失。
-    await run({ action: 'configure', workflow: 'cfg', output_root: '', mode: 'auto' })
+    // 复用执行者、关掉设定目标：进设置，也进计划。
+    await run({ action: 'configure', workflow: 'cfg', reuse: 'reuse', set_goal: false })
+    expect(record(await run({ action: 'read', workflow: 'cfg' })).settings).toEqual({
+      outputRoot: 'out/run',
+      mode: 'subagent',
+      reuse: 'reuse',
+      setGoal: false,
+    })
+    const tuned = String(record(await run({ action: 'compile', workflow: 'cfg' }, EXEC)).plan)
+    expect(tuned).toContain('**复用执行者：优先复用。**')
+    expect(tuned).not.toContain('create_goal')
+
+    // 空串清根目录、auto 清执行方式与复用、打开设定目标（缺省）：设置整键消失。
+    await run({
+      action: 'configure',
+      workflow: 'cfg',
+      output_root: '',
+      mode: 'auto',
+      reuse: 'auto',
+      set_goal: true,
+    })
     expect(record(await run({ action: 'read', workflow: 'cfg' })).settings).toBeUndefined()
   })
 
