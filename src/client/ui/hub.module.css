@@ -1,0 +1,610 @@
+/**
+ * dsh-workflow-lite — 工作流中心：标题栏（两页的切换在这里）、运行实例页、存储页。
+ *
+ * 一组东西收进一个圆角框、行间一条细线，和「工作流设置」对话框同一种样子。
+ * 框不裁内容（不写 overflow: hidden），圆角由第一行、最后一行自己画——免得裁掉行里的浮层。
+ */
+
+/* ── 外框与标题栏 ─────────────────────────────────────────── */
+
+.dialog[role="dialog"] {
+  width: min(860px, 100%);
+  max-width: none;
+  height: min(620px, 100%);
+}
+
+.head {
+  display: flex;
+  flex: none;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 12px 12px 16px;
+  border-bottom: 1px solid var(--wl-line);
+}
+
+.tabs {
+  flex: none;
+  width: 184px;
+}
+
+/* ── 运行实例：工具行 ─────────────────────────────────────── */
+
+.toolbar {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  align-items: center;
+  padding: 12px 16px 6px;
+}
+
+.search {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+  height: 32px;
+  padding: 0 3px 0 10px;
+  border: 1px solid transparent;
+  border-radius: var(--wl-r-control);
+  background: var(--wl-fill);
+  color: var(--wl-text-3);
+}
+
+.search:hover {
+  background: var(--wl-fill-strong);
+}
+
+.search:focus-within {
+  border-color: var(--wl-accent);
+  background: var(--wl-panel);
+}
+
+.searchInput {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--wl-text);
+  font: inherit;
+  outline: none;
+}
+
+.searchInput::placeholder {
+  color: var(--wl-text-3);
+  opacity: 0.8;
+}
+
+/* 工作区下拉的触发器：和搜索框同一种底色，左边文件夹、右边箭头。 */
+button.wsButton {
+  width: 200px;
+  padding: 0 8px 0 10px;
+  background: var(--wl-fill);
+  color: var(--wl-text);
+}
+
+button.wsButton:hover,
+button.wsButton[aria-expanded="true"] {
+  background: var(--wl-fill-strong);
+}
+
+.wsButton > svg {
+  flex: none;
+  color: var(--wl-text-3);
+}
+
+.wsLabel {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+}
+
+.scope {
+  flex: none;
+  width: 132px;
+}
+
+/* ── 运行实例：列表 ───────────────────────────────────────── */
+
+.scroll {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 18px;
+  min-height: 0;
+  padding: 10px 16px 18px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.group {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.groupHead {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  padding: 0 2px;
+  font-size: var(--wl-fs-meta);
+}
+
+.groupHead > svg {
+  flex: none;
+  color: var(--wl-text-3);
+}
+
+.groupName {
+  flex: none;
+  max-width: 40%;
+  overflow: hidden;
+  color: var(--wl-text);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.groupPath {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 小标签：「本工作区」「当前」用强调色，「本会话」用中性色。 */
+.tag {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tag[data-tone="plain"] {
+  background: var(--wl-fill-strong);
+  color: var(--wl-text-2);
+}
+
+.box {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--wl-line);
+  border-radius: 10px;
+  background: var(--wl-panel);
+}
+
+.box > :first-child {
+  border-top-left-radius: 9px;
+  border-top-right-radius: 9px;
+}
+
+.box > :last-child {
+  border-bottom-right-radius: 9px;
+  border-bottom-left-radius: 9px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 88px auto auto;
+  gap: 8px 16px;
+  align-items: center;
+  min-height: 58px;
+  padding: 9px 8px 9px 14px;
+}
+
+.row + .row {
+  border-top: 1px solid var(--wl-line);
+}
+
+.row:hover {
+  background: var(--wl-hover);
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.titleLine {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+}
+
+.name {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meta {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+.metaItem {
+  display: inline-flex;
+  flex: none;
+  gap: 4px;
+  align-items: center;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.metaItem > svg {
+  flex: none;
+}
+
+/* 会话标题与目标可能很长：会话最多占一半，目标吃掉剩下的，都用省略号收尾。 */
+.session {
+  flex: 0 1 auto;
+  max-width: 50%;
+}
+
+.goal {
+  flex: 1 1 0;
+}
+
+.session > span:not(.tag),
+.goal > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sessionName {
+  color: var(--wl-text-2);
+}
+
+.time {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 进度：一行数字 + 一根细条，颜色跟着总状态（--wl-run 见 run.module.css）。 */
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.progressText {
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-micro);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.progressBar {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--wl-fill-strong);
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--wl-run);
+  transform-origin: left center;
+}
+
+.actions {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+}
+
+/* 次要的图标按钮：平时淡着，悬停时才换成各自的颜色（删除是红）。 */
+.quiet:not(:hover) {
+  color: var(--wl-text-3);
+}
+
+.confirm {
+  display: flex;
+  flex-wrap: wrap;
+  grid-column: 1 / -1;
+  gap: 8px;
+  align-items: center;
+  padding: 7px 8px 7px 12px;
+  border-radius: 8px;
+  background: var(--wl-danger-soft);
+  font-size: var(--wl-fs-meta);
+}
+
+.confirm label {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--wl-text-2);
+  cursor: pointer;
+}
+
+/* ── 空状态 ────────────────────────────────────────────────── */
+
+.empty {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px 56px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+  text-align: center;
+}
+
+.emptyIcon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 6px;
+  border-radius: 12px;
+  background: var(--wl-fill);
+  color: var(--wl-text-2);
+}
+
+.emptyTitle {
+  margin: 0;
+  color: var(--wl-text);
+  font-size: var(--wl-fs-body);
+  font-weight: 600;
+}
+
+.emptyText {
+  max-width: 380px;
+  margin: 0 0 6px;
+  line-height: 1.6;
+}
+
+/* ── 存储页 ────────────────────────────────────────────────── */
+
+.page {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 20px;
+  min-height: 0;
+  padding: 16px 16px 20px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.section {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sectionTitle {
+  margin: 0;
+  padding: 0 2px;
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-meta);
+  font-weight: 600;
+}
+
+.item {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  gap: 0 12px;
+  align-items: center;
+  min-height: 60px;
+  padding: 10px 10px 10px 12px;
+}
+
+.item + .item {
+  border-top: 1px solid var(--wl-line);
+}
+
+.itemIcon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--wl-fill);
+  color: var(--wl-text-2);
+}
+
+.itemIcon[data-tone="accent"] {
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+}
+
+.itemIcon[data-tone="warn"] {
+  background: var(--wl-warn-soft);
+  color: var(--wl-warn);
+}
+
+.itemText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.itemTitle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  align-items: baseline;
+  font-weight: 600;
+}
+
+.itemValue {
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-meta);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.itemDesc {
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.5;
+}
+
+.path {
+  color: var(--wl-text);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-meta);
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.itemEnd {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.notice {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--wl-ok-soft);
+  color: var(--wl-ok);
+  font-size: var(--wl-fs-meta);
+  font-weight: 500;
+}
+
+.notice[data-tone="error"] {
+  background: var(--wl-danger-soft);
+  color: var(--wl-danger);
+}
+
+.loading {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--wl-line-strong);
+  border-top-color: var(--wl-accent);
+  border-radius: 50%;
+  animation: spin 700ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── 工作区下拉 ───────────────────────────────────────────── */
+
+.wsMenu {
+  width: 340px;
+}
+
+.wsList {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: 320px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+button.wsItem {
+  min-height: 44px;
+  padding-block: 5px;
+}
+
+.wsItem > svg {
+  flex: none;
+  color: var(--wl-text-3);
+}
+
+.wsItem[data-active="true"] > svg {
+  color: inherit;
+}
+
+.wsText {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.wsName {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+  font-weight: 500;
+}
+
+.wsName > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wsPath {
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.count {
+  flex: none;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+@container (max-width: 680px) {
+  .row {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+
+  .progress {
+    display: none;
+  }
+
+  button.wsButton {
+    width: 150px;
+  }
+}

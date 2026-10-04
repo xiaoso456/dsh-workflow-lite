@@ -623,6 +623,8 @@ function Shell(props: {
       t={t}
       rpc={props.rpc}
       session={props.session}
+      sessionRows={sessionRows}
+      sessionsReady={props.sessions?.available() === true}
       runs={runs}
       onOpenRun={openRun}
       onClose={() => setHubOpen(false)}

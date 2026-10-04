@@ -1,5 +1,5 @@
 /**
- * dsh-workflow-lite — 工作流实例视图：顶栏、右栏、改状态的小菜单、草稿栏、工作流中心。
+ * dsh-workflow-lite — 工作流实例视图：顶栏、右栏、改状态的小菜单、草稿栏（工作流中心见 hub.module.css）。
  */
 
 /* ── 状态色：每种状态一个 --wl-run，小标、圆点、进度条共用 ───────── */
@@ -103,7 +103,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* ── 实例列表（下拉与工作流中心共用的一行）──────────────────── */
+/* ── 实例列表（顶栏下拉里的一行）──────────────────── */
 
 .row {
   display: grid;
@@ -510,127 +510,6 @@
 .conflictActions {
   display: flex;
   gap: 6px;
-}
-
-/* ── 工作流中心 ────────────────────────────────────────────── */
-
-.hub {
-  display: grid;
-  grid-template-columns: 168px minmax(0, 1fr);
-  width: min(880px, calc(100vw - 48px));
-  height: min(560px, calc(100vh - 96px));
-  padding: 0;
-  overflow: hidden;
-}
-
-.hubNav {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 14px 8px;
-  border-right: 1px solid var(--wl-line);
-  background: var(--wl-fill);
-}
-
-.hubTitle {
-  margin: 0 8px 10px;
-  font-size: var(--wl-fs-title);
-  font-weight: 600;
-}
-
-.hubBody {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
-}
-
-.hubHead {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  padding: 12px 12px 8px 16px;
-}
-
-.hubHeadTitle {
-  flex: 1 1 auto;
-  font-weight: 600;
-}
-
-.hubList {
-  flex: 1 1 auto;
-  min-height: 0;
-  padding: 0 8px 12px;
-  overflow-y: auto;
-}
-
-.hubRow {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  gap: 10px;
-  align-items: center;
-  padding: 8px;
-  border-radius: 8px;
-}
-
-.hubRow:hover {
-  background: var(--wl-hover);
-}
-
-.hubActions {
-  display: flex;
-  gap: 4px;
-  opacity: 0.55;
-  transition: opacity 120ms ease;
-}
-
-.hubRow:hover .hubActions,
-.hubRow:focus-within .hubActions {
-  opacity: 1;
-}
-
-.hubEmpty {
-  margin: 40px auto;
-  color: var(--wl-text-3);
-  font-size: var(--wl-fs-meta);
-  text-align: center;
-}
-
-.hubConfirm {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-  grid-column: 1 / -1;
-  padding: 8px;
-  border-radius: 8px;
-  background: var(--wl-danger-soft);
-  font-size: var(--wl-fs-meta);
-}
-
-.hubConfirm label {
-  display: inline-flex;
-  gap: 6px;
-  align-items: center;
-}
-
-.stats {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 12px 16px;
-  align-items: center;
-  margin: 0;
-  padding: 4px 16px 16px;
-  font-size: var(--wl-fs-meta);
-}
-
-.stats dt {
-  color: var(--wl-text-3);
-}
-
-.stats dd {
-  margin: 0;
-  overflow-wrap: anywhere;
 }
 
 /* ── 选中输入节点：用户这次的回答 ─────────────────────────── */

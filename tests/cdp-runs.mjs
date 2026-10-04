@@ -144,7 +144,91 @@ try {
     session,
     `document.querySelector('[data-testid="wl-hub-row"][data-id="${instance}"]') !== null`,
   )
+  await sleep(300)
   await screenshot(session, 'runs-01-hub.png')
+
+  // 1a) 工作流中心：按工作区分组、会话一栏、搜索、选工作区；存储页统计一次就不再闪。
+  const rowSel = `[data-testid="wl-hub-row"][data-id="${instance}"]`
+  const hubFacts = await session.evaluate(`(() => {
+    const row = document.querySelector('${rowSel}')
+    const group = row.closest('[data-testid="wl-hub-group"]')
+    return { group: group.textContent, row: row.textContent }
+  })()`)
+  check(hubFacts.group.includes(WORKSPACE), `实例应归在它的工作区那一组：${hubFacts.group}`)
+  check(
+    hubFacts.row.includes('会话已不在') || hubFacts.row.includes('其他会话'),
+    `假会话应标成「会话已不在」：${hubFacts.row}`,
+  )
+  check(hubFacts.row.includes(NAME) && hubFacts.row.includes('验收'), '行里应有工作流名和目标')
+  const typeSearch = async (text) => {
+    await session.evaluate(`(() => {
+      const input = document.querySelector('[data-testid="wl-hub-search"]')
+      const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set
+      set.call(input, ${JSON.stringify(text)})
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })()`)
+  }
+  await typeSearch('zz-no-such-thing')
+  await waitFor(session, `document.querySelectorAll('[data-testid="wl-hub-row"]').length === 0`)
+  check(
+    await session.evaluate(
+      `document.querySelector('[data-testid="wl-hub-list"]').textContent.includes('没有符合条件的实例')`,
+    ),
+    '搜不到时应说没有符合条件的实例',
+  )
+  await typeSearch(`${NAME} 验收`)
+  await waitFor(session, `document.querySelector('${rowSel}') !== null`)
+  await typeSearch('')
+  await session.evaluate(`document.querySelector('[data-testid="wl-hub-workspace"]').click()`)
+  await waitFor(session, `document.querySelector('[data-testid="wl-hub-workspace-item"]') !== null`)
+  await sleep(250)
+  await screenshot(session, 'runs-01b-hub-workspace.png')
+  await session.evaluate(`(() => {
+    const items = [...document.querySelectorAll('[data-testid="wl-hub-workspace-item"]')]
+    items.find((item) => item.dataset.path === ${JSON.stringify(WORKSPACE)}).click()
+  })()`)
+  await waitFor(session, `document.querySelectorAll('[data-testid="wl-hub-group"]').length === 1`)
+  check(
+    await session.evaluate(`(() => {
+      const rows = [...document.querySelectorAll('[data-testid="wl-hub-row"]')]
+      return rows.length >= 1 && rows.some((row) => row.dataset.id === '${instance}')
+    })()`),
+    '选了工作区只剩那一组，实例还在',
+  )
+  check(
+    (await session.evaluate(
+      `document.querySelector('[data-testid="wl-hub-workspace"]').textContent`,
+    )) === WORKSPACE.split(/[\\/]/).at(-1),
+    '工作区按钮应显示目录名',
+  )
+  await session.evaluate(`document.querySelector('[data-testid="wl-hub-storage"]').click()`)
+  await waitFor(session, `document.querySelector('[data-testid="wl-hub-stats"]') !== null`)
+  const flips = await session.evaluate(`new Promise((resolve) => {
+    const button = () => document.querySelector('[data-testid="wl-hub-clear-finished"]')
+    let last = button()?.disabled
+    let changes = 0
+    const timer = setInterval(() => {
+      const now = button()?.disabled
+      if (now !== last) changes += 1
+      last = now
+    }, 20)
+    setTimeout(() => { clearInterval(timer); resolve(changes) }, 1500)
+  })`)
+  check(flips === 0, `存储页的按钮不该来回闪（1.5 秒里变了 ${flips} 次）`)
+  const storageText = await session.evaluate(
+    `document.querySelector('[data-testid="wl-hub-stats"]').textContent`,
+  )
+  check(
+    storageText.includes('数据目录') &&
+      storageText.includes('我的步骤') &&
+      !storageText.includes('派发缓存'),
+    `存储页应列数据目录、各样东西，不再有「派发缓存」：${storageText}`,
+  )
+  await screenshot(session, 'runs-01c-hub-storage.png')
+  await session.evaluate(`document.querySelector('[data-testid="wl-hub-runs"]').click()`)
+  await waitFor(session, `document.querySelector('${rowSel} [data-testid="wl-hub-view"]') !== null`)
+  pass('工作流中心：按工作区分组、会话一栏、搜索与选工作区；存储页不闪、没有「派发缓存」')
+
   await session.evaluate(
     `document.querySelector('[data-testid="wl-hub-row"][data-id="${instance}"] [data-testid="wl-hub-view"]').click()`,
   )

@@ -1,8 +1,12 @@
 /**
  * dsh-workflow-lite — 「工作流中心 · 存储」：数据目录的统计与清理。
  *
- * 两样能清的东西：派发缓存（`.dispatch/`，编译时物化的载荷，随时可删，代价是在途计划失效）、
- * 已结束的实例记录（完成 / 已取消；只删索引条目与快照，工作区里的状态文件不动）。
+ * 统计数据目录里的几样东西：工作流、我的步骤、实例记录（`runs/` 下的图快照与回答）、
+ * 旧版本遗留的任务描述（`.dispatch/`：早先编译时写在这里，现在任务描述放在各实例目录的 `tasks/` 里，
+ * 不再有人写它、也不再有人读它）。
+ *
+ * 两样能清的东西：旧版遗留文件（随时可删）、已结束的实例记录（完成 / 已取消；只删索引条目与快照，
+ * 工作区里的状态文件不动）。
  *
  * @module @xiaoso/dsh-workflow-lite/host/runs/storage
  */
@@ -12,8 +16,9 @@ import { readdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { StorageStats } from '../../shared/wire.ts'
 import { removeTree } from '../store/atomic.ts'
-import { dispatchRoot } from '../store/paths.ts'
+import { dispatchRoot, templatesDir, workflowsDir } from '../store/paths.ts'
 import type { RunService } from './service.ts'
+import { RUNS_DIR } from './store.ts'
 
 export type StorageAction = 'stats' | 'clearDispatch' | 'clearFinished'
 
@@ -61,11 +66,21 @@ export async function storageAction(
     cleared = finished.length
   }
   const all = await runs.list(undefined, true)
-  const dispatch = await treeSize(dispatchRoot(dataDir))
+  const [workflows, templates, snapshots, dispatch] = await Promise.all([
+    treeSize(workflowsDir(dataDir)),
+    treeSize(templatesDir(dataDir)),
+    treeSize(join(dataDir, RUNS_DIR)),
+    treeSize(dispatchRoot(dataDir)),
+  ])
   return {
     dataDir,
+    workflows: workflows.files,
+    workflowBytes: workflows.bytes,
+    templates: templates.files,
+    templateBytes: templates.bytes,
     instances: all.length,
     finished: all.filter((item) => item.status === 'done' || item.status === 'cancelled').length,
+    instanceBytes: snapshots.bytes,
     dispatchFiles: dispatch.files,
     dispatchBytes: dispatch.bytes,
     ...(cleared === undefined ? {} : { cleared }),

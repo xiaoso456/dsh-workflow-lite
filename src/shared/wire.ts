@@ -487,9 +487,18 @@ export interface RunStorageRequest {
 }
 export interface StorageStats {
   dataDir: string
+  /** `workflows/` 下的文件数与字节数。 */
+  workflows: number
+  workflowBytes: number
+  /** 我的步骤（`templates/nodes/`）。 */
+  templates: number
+  templateBytes: number
   instances: number
   /** 已结束（完成 / 已取消）的实例数。 */
   finished: number
+  /** 实例在数据目录里的占用（`runs/` 下的图快照与回答；工作区里的实例目录不算）。 */
+  instanceBytes: number
+  /** 旧版本遗留的任务描述（`.dispatch/`），现在已不再读写。 */
   dispatchFiles: number
   dispatchBytes: number
   /** 这次清理删掉了几项（只在清理动作里有）。 */
