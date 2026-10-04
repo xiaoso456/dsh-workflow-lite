@@ -1,9 +1,10 @@
 /**
  * dsh-workflow-lite — 工作流实例视图。
  *
- * 和模板是同一张图、同一套画布：图是编译那一刻的快照，不能改；每张步骤卡挂上运行状态，
- * 走过的线亮、没走过的淡。状态能改，而且要顺手——卡片上的状态小标一点就改，右栏就地改字段；
- * 改动先攒成草稿，确认后一次写进状态文件，并以后台通知的形式告诉模型。
+ * 和模板是同一张图、同一套画布：每张步骤卡挂上运行状态，走过的线亮、没走过的淡。
+ * 状态和图都能改，而且要顺手——卡片上的状态小标一点就改状态，右栏就地改字段；图和模板里一样拖、连、加、删，
+ * 右栏切到「编辑」就是模板的属性面板。改动先攒成草稿（「已改 x 处」），确认后一次写进实例
+ * （图的快照、状态文件），并以后台通知的形式告诉模型。执行过的步骤不能从图里删（改成「跳过」）。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/RunView
  */
@@ -12,38 +13,38 @@ import { useReactFlow } from '@xyflow/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { GraphAnalysis } from '../../shared/graph.ts'
 import { analyzeGraph } from '../../shared/graph.ts'
-import { isInput, isResource, isStep } from '../../shared/model.ts'
-import { resourceTitle } from '../../shared/resources.ts'
+import { idKey, isInput, isResource, isStep } from '../../shared/model.ts'
 import { type RunCursor, runCursor } from '../../shared/runCursor.ts'
 import {
   graphFacts,
-  type InstanceSummary,
-  NODE_STATUSES,
   type NodeStatus,
-  progressOf,
-  RUN_STATUSES,
-  type RunLogEntry,
   type RunState,
-  type RunStatus,
-  type StateEdit,
   takenEdges,
+  validateRunState,
 } from '../../shared/runState.ts'
+import { applySync, syncOps } from '../../shared/runSync.ts'
 import type {
   InputNode,
+  NodeData,
+  Point,
   ResourceNode,
   StepNode,
+  TemplateEntry,
   WorkflowDocument,
   WorkflowEdge,
   WorkflowEntry,
 } from '../../shared/types.ts'
+import { addFromSource, addOrigin, duplicateEdit } from '../app/addStep.ts'
 import type { Desktop } from '../app/desktop.ts'
 import { createHostAccess, type HostAccess } from '../app/host.ts'
 import type { FileTarget } from '../app/useRunFile.ts'
+import { useRunGraph } from '../app/useRunGraph.ts'
 import { type Run, type Runs, useRun } from '../app/useRuns.ts'
-import type { LocaleKey, T } from '../i18n.ts'
-import type { Selection } from '../model/editor.ts'
+import type { T } from '../i18n.ts'
+import type { Edit } from '../model/editor.ts'
 import { fileBaseName } from '../model/fileKind.ts'
-import { placeMissing } from '../model/layout.ts'
+import { placeMissing, tidy } from '../model/layout.ts'
+import type { StepSource } from '../model/library.ts'
 import {
   changeCount,
   downstreamOf,
@@ -51,26 +52,35 @@ import {
   togglePin,
   withDraftLog,
 } from '../model/runDraft.ts'
-import { shortTime } from '../model/time.ts'
+import { lockedSteps } from '../model/runGraph.ts'
 import type { WorkflowLiteRpc } from '../rpc.ts'
-import { Canvas, RUN_TEXT, type RunDecor, type RunMark, type RunNodeDecor } from './Canvas.tsx'
+import {
+  type AddRequest,
+  Canvas,
+  type RunDecor,
+  type RunMark,
+  type RunNodeDecor,
+} from './Canvas.tsx'
 import { ZoomDock } from './Dock.tsx'
 import { FileViewer } from './FileViewer.tsx'
-import hand from './handoff.module.css'
 import { Icon } from './Icon.tsx'
+import { Inspector } from './Inspector.tsx'
 import css from './inspector.module.css'
-import { copyText, cx, Popover } from './primitives.tsx'
-import { ResourceIcon } from './Resources.tsx'
-import { edgeHead, RunEdgeDetail } from './RunEdge.tsx'
+import { EdgeHead, InputHead, OverviewHead, ResourceHead, StepHead } from './NodeHeads.tsx'
+import { cx } from './primitives.tsx'
+import { QuickAdd } from './QuickAdd.tsx'
+import { DraftBar, type DraftLine, graphLine } from './RunDraftBar.tsx'
+import { RunEdgeDetail } from './RunEdge.tsx'
 import { RunInputDetail } from './RunInput.tsx'
-import { EditedDot, isEdited, NODE_ICON, nodeHint } from './RunNodeState.tsx'
-import { RunPosition } from './RunPosition.tsx'
+import { type PanelMode, RunModeSwitch } from './RunModeSwitch.tsx'
+import { RunNav } from './RunNav.tsx'
+import { Overview, Untracked } from './RunOverview.tsx'
 import { RunResourceDetail } from './RunResource.tsx'
+import { StatusMenu } from './RunStatusMenu.tsx'
 import { RunStepDetail } from './RunStep.tsx'
+import { RunTopBar } from './RunTopBar.tsx'
 import run from './run.module.css'
-import { lookOf, StepMark } from './StepMark.tsx'
 import shell from './shell.module.css'
-import top from './topbar.module.css'
 import ui from './ui.module.css'
 
 export interface RunViewProps {
@@ -80,6 +90,12 @@ export interface RunViewProps {
   id: string
   runs: Runs
   workflows: readonly WorkflowEntry[]
+  /** 「我的步骤」（就地添加菜单里列出来）。 */
+  templates: readonly TemplateEntry[]
+  /** 读一个「我的步骤」的内容；读不到回 `null`。 */
+  loadTemplate(name: string): Promise<NodeData | null>
+  /** 把一个步骤存成「我的步骤」。 */
+  onSaveTemplate(name: string, data: NodeData): Promise<boolean>
   narrow: boolean
   inspectorW: number
   /** 右栏开着没有（点画布空白处收起，顶栏的开关再打开）。 */
@@ -96,101 +112,95 @@ const GAP = 12
 /** 改状态小菜单的宽度（与 run.module.css 的 `.menu` 一致）。 */
 const MENU_W = 220
 
-export const RUN_STATUS_TEXT: Record<RunStatus, LocaleKey> = {
-  pending: 'run.overall.pending',
-  running: 'run.overall.running',
-  waiting: 'run.overall.waiting',
-  done: 'run.overall.done',
-  failed: 'run.overall.failed',
-  cancelled: 'run.overall.cancelled',
-}
+const TYPING = new Set(['INPUT', 'TEXTAREA', 'SELECT'])
 
-export { shortTime }
-
-/** 实例的状态小标。 */
-export function RunStatusBadge(props: {
-  t: T
-  status: RunStatus | undefined
-  problem?: 'missing' | 'invalid' | undefined
-  /** 这个实例不记运行状态（没有状态文件）。 */
-  untracked?: boolean
-}): React.JSX.Element {
-  const { t } = props
-  if (props.untracked === true) {
-    return (
-      <span className={run.status} data-run-status="untracked" data-testid="wl-run-status">
-        <span className={run.dot} />
-        {t('run.untracked')}
-      </span>
-    )
+/**
+ * 实例的快照：只在换实例、或图存了新的一版（planId 变了）时换，轮询不让画布重建。
+ * 视口归零：实例视图打开时总是看全图（模板里存的视角不一定合适）。
+ */
+function useSnapshot(
+  id: string,
+  document: WorkflowDocument | undefined,
+  planId: string | undefined,
+): { planId: string; doc: WorkflowDocument } | null {
+  const ref = useRef<{ id: string; planId: string; doc: WorkflowDocument } | null>(null)
+  if (
+    document !== undefined &&
+    planId !== undefined &&
+    (ref.current === null || ref.current.id !== id || ref.current.planId !== planId)
+  ) {
+    ref.current = { id, planId, doc: { ...document, viewport: { x: 0, y: 0, zoom: 1 } } }
   }
-  if (props.problem !== undefined || props.status === undefined) {
-    return (
-      <span className={run.status} data-run-status="failed">
-        <Icon name="alert" size={11} />
-        {t(props.problem === 'missing' ? 'run.stateMissing' : 'run.stateInvalid')}
-      </span>
-    )
-  }
-  return (
-    <span className={run.status} data-run-status={props.status} data-testid="wl-run-status">
-      <span className={run.dot} />
-      {t(RUN_STATUS_TEXT[props.status])}
-    </span>
-  )
-}
-
-/** 快照在一个实例里不会变：只在换实例或第一次读回来时换，轮询不让画布重建。 */
-function useSnapshot(id: string, document: WorkflowDocument | undefined): WorkflowDocument | null {
-  const ref = useRef<{ id: string; doc: WorkflowDocument } | null>(null)
-  if (document !== undefined && (ref.current === null || ref.current.id !== id)) {
-    // 视口归零：实例视图打开时总是看全图（模板里存的视角不一定合适）。
-    ref.current = { id, doc: { ...document, viewport: { x: 0, y: 0, zoom: 1 } } }
-  }
-  return ref.current?.id === id ? ref.current.doc : null
+  return ref.current?.id === id ? ref.current : null
 }
 
 export function RunView(props: RunViewProps): React.JSX.Element {
   const { t, id, narrow, inspectorW, panelOpen, onPanel } = props
   const current = useRun(props.rpc, id, props.session, t, () => void props.runs.refresh())
-  const raw = useSnapshot(id, current.view?.document)
-  // 快照里没摆过位置的节点（模型用工具建的图、还没在画布上打开过）：照模板那边的规矩补位，不写回。
-  const [placed, setPlaced] = useState<{ id: string; doc: WorkflowDocument } | null>(null)
+  const summary = current.view?.summary
+  const raw = useSnapshot(id, current.view?.document, summary?.planId)
+  // 快照里没摆过位置的节点（模型用工具建的图、还没在画布上打开过）：照模板那边的规矩补位。
+  const [placed, setPlaced] = useState<{
+    key: string
+    planId: string
+    doc: WorkflowDocument
+  } | null>(null)
   useEffect(() => {
     if (raw === null) return
     let live = true
-    void placeMissing(raw, analyzeGraph(raw)).then((positions) => {
+    void placeMissing(raw.doc, analyzeGraph(raw.doc)).then((positions) => {
       if (!live) return
       const moved = Object.keys(positions).length > 0
       setPlaced({
-        id,
+        key: `${id}:${raw.planId}`,
+        planId: raw.planId,
         doc: moved
           ? {
-              ...raw,
-              nodes: raw.nodes.map((node) => {
+              ...raw.doc,
+              nodes: raw.doc.nodes.map((node) => {
                 const at = positions[node.id]
                 return at === undefined ? node : { ...node, position: at }
               }),
             }
-          : raw,
+          : raw.doc,
       })
     })
     return () => {
       live = false
     }
   }, [raw, id])
-  const snapshot = placed?.id === id ? placed.doc : null
-  const analysis = useMemo(() => (snapshot === null ? null : analyzeGraph(snapshot)), [snapshot])
-  const facts = useMemo(() => (snapshot === null ? null : graphFacts(snapshot)), [snapshot])
-  const shown = current.shown
+  const source = placed !== null && placed.key === `${id}:${raw?.planId}` ? placed : null
+  const graph = useRunGraph(id, source, summary?.workflow)
+  const doc = graph.doc
+  const selection = graph.selection
+  const analysis = useMemo(() => (doc === null ? null : analyzeGraph(doc)), [doc])
+  const facts = useMemo(() => (doc === null ? null : graphFacts(doc)), [doc])
+  /** 叠上草稿、再和改过的图对齐之后的状态：新步骤是待执行，删掉的步骤不在了。 */
+  const shown = useMemo(
+    () =>
+      current.shown === null || facts === null
+        ? current.shown
+        : applySync(current.shown, syncOps(current.shown, facts)),
+    [current.shown, facts],
+  )
+  /** 文件里的状态里还没有的步骤（图里刚加的）：保存之后才开始记它。 */
+  const fresh = useCallback(
+    (nodeId: string): boolean =>
+      current.shown !== null && current.shown.nodes[nodeId] === undefined,
+    [current.shown],
+  )
   const flow = useReactFlow()
-  const [selection, setSelection] = useState<Selection>(null)
+  const [mode, setMode] = useState<PanelMode>('run')
+  const [focusPrompt, setFocusPrompt] = useState(false)
   const [menu, setMenu] = useState<{
     id: string
     x: number
     y: number
     step: 'status' | 'verdict'
   } | null>(null)
+  const [quick, setQuick] = useState<
+    (AddRequest & { at: Point; bounds: { width: number; height: number } }) | null
+  >(null)
   const [keysOpen, setKeysOpen] = useState(false)
   /** 悬停着的文件（画布上的文件卡、右栏的文件行）：画布高亮它和它的上下游。 */
   const [focusFile, setFocusFile] = useState<string | null>(null)
@@ -200,36 +210,48 @@ export function RunView(props: RunViewProps): React.JSX.Element {
     title: string
     note?: string | undefined
   } | null>(null)
+  const canvasRef = useRef<HTMLDivElement>(null)
   /** 看实例工作区里的文件夹、Skill（相对路径按实例的工作区，Skill 按实例所属的会话）。 */
-  const cwd = current.view?.summary.cwd
+  const cwd = summary?.cwd
   const host = useMemo(
     () => createHostAccess(props.rpc, { cwd, session: props.session, desktop: props.desktop }),
     [props.rpc, cwd, props.session, props.desktop],
   )
 
-  const edited = useMemo(() => editedNodes(current.draft), [current.draft])
+  const edited = useMemo(() => {
+    const set = editedNodes(current.draft)
+    for (const change of graph.changes) {
+      if (change.object === 'step' && change.kind !== 'removed') set.add(change.id)
+    }
+    return set
+  }, [current.draft, graph.changes])
   const showPanel = panelOpen && !narrow
   const insets = { left: 0, right: showPanel ? inspectorW + GAP : 0 }
+  const select = graph.select
   /** 收起右栏：和模板里一样，连选中一起放掉。 */
   const closePanel = useCallback((): void => {
-    setSelection(null)
+    select(null)
     onPanel(false)
-  }, [onPanel])
+  }, [onPanel, select])
   const insetRight = insets.right
 
   /** 执行位置：最后执行的、接下来要做的步骤（画布上的小标、右栏总览共用；草稿改动当作已存）。 */
   const draft = current.draft
   const cursor = useMemo(
     () =>
-      snapshot === null || analysis === null || shown === null
+      doc === null || analysis === null || shown === null
         ? null
-        : runCursor(snapshot, withDraftLog(shown, draft), analysis),
-    [snapshot, analysis, shown, draft],
+        : runCursor(doc, withDraftLog(shown, draft), analysis),
+    [doc, analysis, shown, draft],
   )
 
   const decor = useMemo<RunDecor | undefined>(() => {
-    if (snapshot === null) return undefined
+    if (doc === null) return undefined
     const onStatus = (nodeId: string, anchor: Element): void => {
+      if (fresh(nodeId)) {
+        current.flash('ok', t('run.freshStep'))
+        return
+      }
       const root = anchor.closest('[data-testid="wl-root"]')
       if (root === null) return
       const box = root.getBoundingClientRect()
@@ -246,7 +268,7 @@ export function RunView(props: RunViewProps): React.JSX.Element {
     if (shown === null) {
       return {
         nodes: {},
-        taken: new Set(snapshot.edges.map((edge) => edge.id)),
+        taken: new Set(doc.edges.map((edge) => edge.id)),
         files: {},
         onStatus,
       }
@@ -265,11 +287,11 @@ export function RunView(props: RunViewProps): React.JSX.Element {
     }
     return {
       nodes,
-      taken: takenEdges(snapshot, shown),
+      taken: takenEdges(doc, shown),
       files: current.view?.files ?? {},
       onStatus,
     }
-  }, [snapshot, shown, cursor, edited, current.view?.files, insetRight])
+  }, [doc, shown, cursor, edited, current.view?.files, insetRight, fresh, current.flash, t])
 
   const fitAll = useCallback((): void => {
     void flow.fitView({
@@ -285,16 +307,95 @@ export function RunView(props: RunViewProps): React.JSX.Element {
   }, [flow, insets.right])
 
   const steps = useMemo(
-    () => new Set((snapshot?.nodes ?? []).filter(isStep).map((node) => node.id)),
-    [snapshot],
+    () => new Set((doc?.nodes ?? []).filter(isStep).map((node) => node.id)),
+    [doc],
   )
   const rerunFrom = useCallback(
     (nodeId: string): void => {
-      if (snapshot === null) return
-      current.rerun(downstreamOf(snapshot.edges, steps, nodeId))
+      if (doc === null) return
+      current.rerun(downstreamOf(doc.edges, steps, nodeId))
     },
-    [snapshot, steps, current],
+    [doc, steps, current],
   )
+
+  // ── 改图 ───────────────────────────────────────────────────
+
+  const locked = useMemo(
+    () => lockedSteps(current.view?.state ?? current.lastGood),
+    [current.view?.state, current.lastGood],
+  )
+  const focusCanvas = useCallback((): void => {
+    canvasRef.current?.querySelector<HTMLElement>('[data-testid="wl-canvas"]')?.focus()
+  }, [])
+  /** 所有改图的动作都走这里：执行过的步骤不让删；加了东西、连了线就把右栏切到「编辑」。 */
+  const edit = useCallback(
+    (next: Edit): void => {
+      if (next.type === 'removeNode' && locked(next.id)) {
+        current.flash('error', t('run.lockedStep'))
+        return
+      }
+      graph.edit(next)
+      if (
+        next.type === 'addNode' ||
+        next.type === 'addResource' ||
+        next.type === 'addInput' ||
+        next.type === 'connect'
+      ) {
+        setMode('edit')
+        onPanel(true)
+      }
+    },
+    [locked, current.flash, t, graph.edit, onPanel],
+  )
+  const addStep = useCallback(
+    async (from: StepSource, position: Point, after?: string): Promise<void> => {
+      setFocusPrompt(from.kind === 'blank')
+      await addFromSource({ t, doc, edit, loadTemplate: props.loadTemplate }, from, position, after)
+    },
+    [t, doc, edit, props.loadTemplate],
+  )
+  const requestAdd = useCallback((request: AddRequest): void => {
+    const root = canvasRef.current?.closest('[data-testid="wl-root"]')
+    if (root === null || root === undefined) return
+    const rect = root.getBoundingClientRect()
+    setQuick({
+      ...request,
+      at: { x: request.client.x - rect.left, y: request.client.y - rect.top },
+      bounds: { width: rect.width, height: rect.height },
+    })
+  }, [])
+  const duplicate = useCallback(
+    (nodeId: string): void => {
+      const next = duplicateEdit(doc, nodeId)
+      if (next !== null) edit(next)
+    },
+    [doc, edit],
+  )
+  const removeSelection = useCallback((): void => {
+    if (selection === null) return
+    edit(
+      selection.kind === 'node'
+        ? { type: 'removeNode', id: selection.id }
+        : { type: 'removeEdge', id: selection.id },
+    )
+    focusCanvas()
+  }, [selection, edit, focusCanvas])
+  const relayout = useCallback((): void => {
+    if (doc === null || analysis === null || doc.nodes.length === 0) return
+    const sizeOf = (nodeId: string): { width: number; height: number } | undefined => {
+      const measured = flow.getInternalNode(nodeId)?.measured
+      return measured?.width === undefined || measured.height === undefined
+        ? undefined
+        : { width: measured.width, height: measured.height }
+    }
+    const ids = doc.nodes.map((node) => node.id).join('\n')
+    void tidy(doc, analysis, sizeOf).then((positions) => {
+      // 排版是异步的：这期间加了 / 删了节点就作废。
+      if (graph.doc === null || graph.doc.nodes.map((node) => node.id).join('\n') !== ids) return
+      edit({ type: 'moveNodes', positions })
+      requestAnimationFrame(() => requestAnimationFrame(fitAll))
+    })
+  }, [doc, analysis, flow, graph.doc, edit, fitAll])
 
   const pickStatus = (nodeId: string, status: NodeStatus): void => {
     const verdicts = facts?.verdicts[nodeId]
@@ -310,62 +411,136 @@ export function RunView(props: RunViewProps): React.JSX.Element {
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void => {
     const target = event.target
-    if (target instanceof HTMLElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) {
+    if (target instanceof HTMLElement && (TYPING.has(target.tagName) || target.isContentEditable)) {
       return
     }
     const key = event.key.toLowerCase()
+    const mod = event.ctrlKey || event.metaKey
     if (key === 'escape') {
       if (menu !== null) setMenu(null)
+      else if (quick !== null) setQuick(null)
       else closePanel()
-    } else if (key === 'f' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      return
+    }
+    if (mod && (key === 'z' || key === 'y')) {
+      event.preventDefault()
+      if (key === 'y' || event.shiftKey) graph.redo()
+      else graph.undo()
+      return
+    }
+    if (mod && key === 'd') {
+      event.preventDefault()
+      if (selection?.kind === 'node') duplicate(selection.id)
+      return
+    }
+    if (mod || event.altKey) return
+    if (key === 'delete' || key === 'backspace') {
+      if (selection === null) return
+      event.preventDefault()
+      removeSelection()
+    } else if (key === 'f') {
       event.preventDefault()
       fitAll()
+    } else if (key === 'l') {
+      event.preventDefault()
+      relayout()
     }
   }
 
-  const summary = current.view?.summary
+  // ── 草稿 ───────────────────────────────────────────────────
+
+  const graphLines = useMemo<DraftLine[]>(
+    () =>
+      graph.base === null || doc === null
+        ? []
+        : graph.changes.map((change) => ({
+            key: `${change.object}:${change.kind}:${change.id}`,
+            text: graphLine(t, change, graph.base as WorkflowDocument, doc),
+            onUndo: () => graph.revert(change),
+          })),
+    [graph.base, graph.changes, graph.revert, doc, t],
+  )
+  const count = changeCount(current.draft) + graph.changes.length
+  const blocked = useMemo((): string | null => {
+    const problem = graph.problems[0]
+    if (problem !== undefined) return t('run.graphProblem').replace('{p}', problem.message)
+    if (graph.changes.length === 0 || shown === null || facts === null) return null
+    const issue = validateRunState(shown, facts).issues[0]
+    return issue === undefined
+      ? null
+      : t('run.stateMismatch').replace('{p}', `${issue.path} ${issue.message}`)
+  }, [graph.problems, graph.changes.length, shown, facts, t])
+  const save = (): void => {
+    const changed = graph.changes.length > 0 && graph.doc !== null && graph.basePlan !== null
+    void current
+      .save(
+        changed && graph.doc !== null && graph.basePlan !== null
+          ? { base: graph.basePlan, document: graph.doc }
+          : undefined,
+      )
+      .then((result) => {
+        if (result?.planId !== undefined) graph.commit(result.planId)
+      })
+  }
+
   const selectedStep =
     selection?.kind === 'node'
-      ? snapshot?.nodes.find((node): node is StepNode => node.id === selection.id && isStep(node))
+      ? doc?.nodes.find((node): node is StepNode => node.id === selection.id && isStep(node))
       : undefined
   const selectedEdge =
-    selection?.kind === 'edge'
-      ? snapshot?.edges.find((edge) => edge.id === selection.id)
-      : undefined
+    selection?.kind === 'edge' ? doc?.edges.find((edge) => edge.id === selection.id) : undefined
   const selectedFile =
     selection?.kind === 'node'
-      ? snapshot?.nodes.find(
+      ? doc?.nodes.find(
           (node): node is ResourceNode => node.id === selection.id && isResource(node),
         )
       : undefined
   const selectedInput =
     selection?.kind === 'node'
-      ? snapshot?.nodes.find((node): node is InputNode => node.id === selection.id && isInput(node))
+      ? doc?.nodes.find((node): node is InputNode => node.id === selection.id && isInput(node))
       : undefined
   const menuNode = menu === null ? undefined : shown?.nodes[menu.id]
+  const nav =
+    doc === null || analysis === null ? null : (
+      <RunNav
+        t={t}
+        doc={doc}
+        analysis={analysis}
+        state={shown}
+        selection={selection}
+        idle={!showPanel}
+        onPick={(next) => {
+          setFocusPrompt(false)
+          select(next)
+          onPanel(true)
+        }}
+      />
+    )
+  const tabs = <RunModeSwitch t={t} mode={mode} onChange={setMode} />
 
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: 只在这一层收视图内冒上来的按键
     <div onKeyDown={onKeyDown} style={{ display: 'contents' }}>
-      <div className={shell.canvas}>
-        {snapshot !== null && analysis !== null && (
+      <div className={shell.canvas} ref={canvasRef}>
+        {doc !== null && analysis !== null && (
           <Canvas
             t={t}
-            doc={snapshot}
+            doc={doc}
             analysis={analysis}
             loadKey={`run:${id}`}
             selection={selection}
-            problems={[]}
+            problems={graph.problems}
             insets={insets}
-            onEdit={() => {}}
+            onEdit={edit}
             onSelect={(next) => {
               // 点中东西：右栏打开看它；点空白处：右栏收起（和模板一样）。
-              setSelection(next)
+              setFocusPrompt(false)
+              select(next)
               setMenu(null)
               onPanel(next !== null)
             }}
-            onRequestAdd={() => {}}
-            onDropSource={() => {}}
+            onRequestAdd={requestAdd}
+            onDropSource={(from, at) => void addStep(from, at)}
             onStarter={() => {}}
             focusFile={focusFile}
             onFocusFile={setFocusFile}
@@ -379,6 +554,7 @@ export function RunView(props: RunViewProps): React.JSX.Element {
           {...props}
           summary={summary}
           state={shown}
+          nav={nav}
           onTogglePanel={() => {
             if (panelOpen) closePanel()
             else onPanel(true)
@@ -386,35 +562,76 @@ export function RunView(props: RunViewProps): React.JSX.Element {
         />
       </div>
 
-      {showPanel && snapshot !== null && analysis !== null && (
-        <div className={shell.inspector}>
-          <RunPanel
-            t={t}
-            rpc={props.rpc}
-            instance={id}
-            current={current}
-            snapshot={snapshot}
-            analysis={analysis}
-            taken={shown === null ? null : (decor?.taken ?? null)}
-            cursor={cursor}
-            verdicts={facts?.verdicts ?? {}}
-            selected={selectedStep ?? null}
-            selectedFile={selectedFile ?? null}
-            selectedInput={selectedInput ?? null}
-            selectedEdge={selectedEdge ?? null}
-            desktop={props.desktop}
-            host={host}
-            onSelect={(nodeId) =>
-              setSelection(nodeId === null ? null : { kind: 'node', id: nodeId })
-            }
-            onSelectEdge={(edgeId) => setSelection({ kind: 'edge', id: edgeId })}
-            onRerun={rerunFrom}
-            onFocusFile={setFocusFile}
-            onView={(target, title, note) => setViewer({ target, title, note })}
-            onClose={closePanel}
-          />
-        </div>
-      )}
+      {showPanel &&
+        doc !== null &&
+        analysis !== null &&
+        (mode === 'edit' && selection !== null ? (
+          <div className={shell.inspector}>
+            <Inspector
+              t={t}
+              doc={doc}
+              analysis={analysis}
+              selection={selection}
+              focusPrompt={focusPrompt && selection.kind === 'node'}
+              onEdit={edit}
+              onSelect={(next) => {
+                setFocusPrompt(false)
+                // 右上角 ✕：和「运行」那边一样收起右栏。
+                if (next === null) closePanel()
+                else select(next)
+              }}
+              onSeal={graph.seal}
+              onDuplicate={duplicate}
+              onRemoveNode={(nodeId) => {
+                edit({ type: 'removeNode', id: nodeId })
+                focusCanvas()
+              }}
+              onSaveTemplate={props.onSaveTemplate}
+              onFocusFile={setFocusFile}
+              host={host}
+              tabs={tabs}
+            />
+          </div>
+        ) : (
+          <div className={shell.inspector}>
+            <RunPanel
+              t={t}
+              rpc={props.rpc}
+              instance={id}
+              current={current}
+              doc={doc}
+              analysis={analysis}
+              state={shown}
+              fresh={fresh}
+              taken={shown === null ? null : (decor?.taken ?? null)}
+              cursor={cursor}
+              verdicts={facts?.verdicts ?? {}}
+              selected={selectedStep ?? null}
+              selectedFile={selectedFile ?? null}
+              selectedInput={selectedInput ?? null}
+              selectedEdge={selectedEdge ?? null}
+              tabs={tabs}
+              desktop={props.desktop}
+              host={host}
+              onEditPrompt={(nodeId, prompt) =>
+                edit({
+                  type: 'patchNode',
+                  id: nodeId,
+                  patch: { prompt },
+                  merge: `${idKey(nodeId)}:prompt`,
+                })
+              }
+              onEdit={edit}
+              onSeal={graph.seal}
+              onSelect={(nodeId) => select(nodeId === null ? null : { kind: 'node', id: nodeId })}
+              onSelectEdge={(edgeId) => select({ kind: 'edge', id: edgeId })}
+              onRerun={rerunFrom}
+              onFocusFile={setFocusFile}
+              onView={(target, title, note) => setViewer({ target, title, note })}
+              onClose={closePanel}
+            />
+          </div>
+        ))}
 
       <ZoomDock t={t} keysOpen={keysOpen} setKeysOpen={setKeysOpen} onFit={fitAll} />
 
@@ -444,6 +661,22 @@ export function RunView(props: RunViewProps): React.JSX.Element {
         />
       )}
 
+      {quick !== null && (
+        <QuickAdd
+          t={t}
+          at={quick.at}
+          bounds={quick.bounds}
+          templates={props.templates}
+          origin={addOrigin(doc, quick.from)}
+          onClose={() => setQuick(null)}
+          onPick={(from) => {
+            const request = quick
+            setQuick(null)
+            void addStep(from, request.flow, request.from)
+          }}
+        />
+      )}
+
       <Banners t={t} current={current} />
 
       {viewer !== null && (
@@ -459,8 +692,20 @@ export function RunView(props: RunViewProps): React.JSX.Element {
         />
       )}
 
-      {(current.draft.length > 0 || current.conflicts.length > 0) && (
-        <DraftBar t={t} current={current} />
+      {(count > 0 || current.conflicts.length > 0) && (
+        <DraftBar
+          t={t}
+          current={current}
+          graph={graphLines}
+          count={count}
+          blocked={blocked}
+          panel={showPanel}
+          onSave={save}
+          onDiscard={() => {
+            current.discard()
+            graph.discard()
+          }}
+        />
       )}
 
       {current.toast !== null && (
@@ -476,385 +721,6 @@ export function RunView(props: RunViewProps): React.JSX.Element {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 顶栏
-// ─────────────────────────────────────────────────────────────
-
-function RunTopBar(
-  props: RunViewProps & {
-    summary: InstanceSummary | undefined
-    state: RunState | null
-    onTogglePanel(): void
-  },
-): React.JSX.Element {
-  const { t, summary, state } = props
-  const [copied, setCopied] = useState(false)
-  const progress = state === null ? null : progressOf(state)
-  return (
-    <div className={top.bar}>
-      <div className={cx(ui.panel, top.pill)}>
-        <button
-          type="button"
-          className={cx(ui.btn, ui.icon, ui.tip, ui.tipStart)}
-          data-tip={t('hub.title')}
-          aria-label={t('hub.title')}
-          data-testid="wl-hub-open"
-          onClick={props.onOpenHub}
-        >
-          <Icon name="hub" size={16} />
-        </button>
-        <span className={ui.divider} />
-        <RunSwitcher
-          t={t}
-          runs={props.runs}
-          activeId={props.id}
-          workflows={props.workflows}
-          onOpenRun={props.onOpenRun}
-          onOpenTemplate={props.onOpenTemplate}
-          onOpenHub={props.onOpenHub}
-          trigger={(open) => (
-            <span className={run.switch} data-open={open}>
-              <span className={run.switchKind}>{t('run.kind')}</span>
-              <span className={run.switchName}>{summary?.workflow ?? '…'}</span>
-              <span className={run.switchTime}>{shortTime(summary?.createdAt)}</span>
-              <Icon name="chevronDown" size={14} />
-            </span>
-          )}
-        />
-        {summary !== undefined && (
-          <>
-            <RunStatusBadge
-              t={t}
-              status={state?.status}
-              problem={state === null ? summary.stateProblem : undefined}
-              untracked={summary.statePath === undefined}
-            />
-            {progress !== null && (
-              <span className={run.progress} data-testid="wl-run-progress">
-                {progress.done}/{progress.total}
-              </span>
-            )}
-          </>
-        )}
-      </div>
-      <span className={ui.grow} />
-      {summary !== undefined && (
-        <div className={cx(ui.panel, top.pill, top.tools)}>
-          <button
-            type="button"
-            className={cx(ui.btn, ui.small)}
-            disabled={!props.workflows.some((entry) => entry.name === summary.workflow)}
-            title={
-              props.workflows.some((entry) => entry.name === summary.workflow)
-                ? undefined
-                : t('run.templateGone')
-            }
-            data-testid="wl-run-open-template"
-            onClick={() => props.onOpenTemplate(summary.workflow)}
-          >
-            <Icon name="pencil" size={14} />
-            {t('run.openTemplate')}
-          </button>
-          {summary.statePath !== undefined && (
-            <button
-              type="button"
-              className={cx(ui.btn, ui.small, ui.tip, ui.tipEnd)}
-              data-tip={summary.statePath}
-              onClick={() =>
-                void copyText(summary.statePath ?? '').then((ok) => {
-                  setCopied(ok)
-                  window.setTimeout(() => setCopied(false), 1400)
-                })
-              }
-            >
-              <Icon name={copied ? 'check' : 'copy'} size={14} />
-              {copied ? t('common.copied') : t('run.copyPath')}
-            </button>
-          )}
-          {!props.narrow && (
-            <>
-              <span className={ui.divider} />
-              <button
-                type="button"
-                className={cx(ui.btn, ui.icon, ui.tip, ui.tipEnd)}
-                data-tip={t('run.panelToggle')}
-                aria-label={t('run.panelToggle')}
-                aria-pressed={props.panelOpen}
-                data-on={props.panelOpen}
-                data-testid="wl-run-panel-toggle"
-                onClick={props.onTogglePanel}
-              >
-                <Icon name="panel" size={17} />
-              </button>
-            </>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
-/**
- * 实例与工作流的下拉：本会话的实例（当前的那个带实心点）、工作流（打开模板）、全部实例与管理。
- * 模板编辑的顶栏也用它的实例那一段（见 {@link RunMenuSection}）。
- */
-function RunSwitcher(props: {
-  t: T
-  runs: Runs
-  activeId: string | null
-  workflows: readonly WorkflowEntry[]
-  onOpenRun(id: string): void
-  onOpenTemplate(name: string): void
-  onOpenHub(): void
-  trigger(open: boolean): React.ReactNode
-}): React.JSX.Element {
-  const { t } = props
-  const [open, setOpen] = useState(false)
-  return (
-    <Popover
-      open={open}
-      onClose={() => setOpen(false)}
-      label={t('run.pick')}
-      className={top.menu}
-      trigger={
-        <button
-          type="button"
-          className={cx(top.switch, run.switchButton)}
-          aria-expanded={open}
-          data-testid="wl-run-switcher"
-          onClick={() => {
-            setOpen(!open)
-            if (!open) void props.runs.refresh()
-          }}
-        >
-          {props.trigger(open)}
-        </button>
-      }
-    >
-      <RunMenuSection
-        t={t}
-        runs={props.runs}
-        activeId={props.activeId}
-        onOpenRun={(id) => {
-          setOpen(false)
-          props.onOpenRun(id)
-        }}
-      />
-      {props.runs.list.length > 0 && <div className={ui.menuSep} />}
-      <p className={ui.menuTitle}>{t('run.workflows')}</p>
-      <div className={top.list}>
-        {props.workflows.map((entry) => (
-          <button
-            key={entry.name}
-            type="button"
-            className={ui.menuItem}
-            onClick={() => {
-              setOpen(false)
-              props.onOpenTemplate(entry.name)
-            }}
-          >
-            <Icon name="folder" size={15} />
-            <span className={ui.menuLabel}>{entry.name}</span>
-          </button>
-        ))}
-      </div>
-      <div className={ui.menuSep} />
-      <button
-        type="button"
-        className={ui.menuItem}
-        onClick={() => {
-          setOpen(false)
-          props.onOpenHub()
-        }}
-      >
-        <Icon name="hub" size={15} />
-        <span className={ui.menuLabel}>{t('run.manage')}</span>
-      </button>
-    </Popover>
-  )
-}
-
-/** 下拉里「本会话的实例」那一段。没有实例就什么都不画。 */
-export function RunMenuSection(props: {
-  t: T
-  runs: Runs
-  activeId: string | null
-  onOpenRun(id: string): void
-}): React.JSX.Element | null {
-  const { t, runs } = props
-  if (runs.list.length === 0) return null
-  return (
-    <>
-      <p className={ui.menuTitle}>{t('run.thisSession')}</p>
-      <div className={top.list} data-testid="wl-run-list">
-        {runs.list.map((item) => (
-          <div key={item.id} className={run.row}>
-            <button
-              type="button"
-              className={cx(ui.menuItem, run.item)}
-              data-active={item.id === props.activeId}
-              data-testid="wl-run-item"
-              data-id={item.id}
-              style={{ gridColumn: '1 / 3' }}
-              onClick={() => props.onOpenRun(item.id)}
-            >
-              <span
-                data-run-status={
-                  item.statePath === undefined ? 'untracked' : (item.status ?? 'failed')
-                }
-              >
-                <span
-                  className={run.dot}
-                  style={{ opacity: item.id === runs.current ? 1 : 0.45 }}
-                />
-              </span>
-              <span className={run.rowMain}>
-                <span className={run.rowTitle}>{item.workflow}</span>
-                <span className={run.rowMeta}>
-                  {shortTime(item.createdAt)}
-                  {item.total !== undefined && ` · ${item.done}/${item.total}`}
-                  {item.status !== undefined && ` · ${t(RUN_STATUS_TEXT[item.status])}`}
-                  {item.statePath === undefined && ` · ${t('run.untracked')}`}
-                </span>
-              </span>
-            </button>
-            {item.id === runs.current ? (
-              <span
-                className={run.current}
-                role="img"
-                title={t('run.current')}
-                aria-label={t('run.current')}
-                data-testid="wl-run-current"
-              >
-                <Icon name="pin" size={14} />
-              </span>
-            ) : (
-              <button
-                type="button"
-                className={cx(ui.btn, ui.icon, ui.small, ui.tip, ui.tipEnd, run.bind)}
-                data-tip={t('run.setCurrent')}
-                aria-label={t('run.setCurrent')}
-                data-testid="wl-run-bind"
-                onClick={() => void runs.bind(item.id)}
-              >
-                <Icon name="pin" size={14} />
-              </button>
-            )}
-          </div>
-        ))}
-      </div>
-    </>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────
-// 改状态的小菜单
-// ─────────────────────────────────────────────────────────────
-
-function StatusMenu(props: {
-  t: T
-  at: { x: number; y: number }
-  node: { status: NodeStatus; verdict?: string }
-  step: 'status' | 'verdict'
-  verdicts: readonly string[]
-  onStatus(status: NodeStatus): void
-  onVerdict(verdict: string): void
-  onRerun(): void
-  /** 这一步在不在用户指定的下一步里。 */
-  pinned: boolean
-  onPin(): void
-  onClose(): void
-}): React.JSX.Element {
-  const { t } = props
-  const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    const onDown = (event: PointerEvent): void => {
-      if (ref.current !== null && !ref.current.contains(event.target as Node)) props.onClose()
-    }
-    window.addEventListener('pointerdown', onDown, true)
-    return () => window.removeEventListener('pointerdown', onDown, true)
-  }, [props.onClose])
-  useEffect(() => {
-    ref.current?.querySelector<HTMLElement>('button')?.focus()
-  }, [props.step])
-  return (
-    <div
-      ref={ref}
-      className={cx(ui.panel, run.menu)}
-      style={{ left: props.at.x, top: props.at.y }}
-      role="menu"
-      data-testid="wl-run-menu"
-    >
-      {props.step === 'verdict' ? (
-        <>
-          <p className={run.menuHint}>{t('run.pickVerdict')}</p>
-          {props.verdicts.map((verdict) => (
-            <button
-              key={verdict}
-              type="button"
-              role="menuitem"
-              className={ui.menuItem}
-              data-testid="wl-run-verdict"
-              onClick={() => props.onVerdict(verdict)}
-            >
-              <Icon name="check" size={14} />
-              <span className={ui.menuLabel}>{verdict}</span>
-            </button>
-          ))}
-        </>
-      ) : (
-        <>
-          {NODE_STATUSES.map((status) => (
-            <button
-              key={status}
-              type="button"
-              role="menuitemradio"
-              aria-checked={props.node.status === status}
-              className={ui.menuItem}
-              data-active={props.node.status === status}
-              data-status={status}
-              title={t(nodeHint(status))}
-              onClick={() => props.onStatus(status)}
-            >
-              <span
-                data-run-status={status}
-                style={{ display: 'inline-flex', color: 'var(--wl-run)' }}
-              >
-                <Icon name={NODE_ICON[status]} size={14} />
-              </span>
-              <span className={ui.menuLabel}>{t(RUN_TEXT[status])}</span>
-            </button>
-          ))}
-          <div className={ui.menuSep} />
-          <button
-            type="button"
-            role="menuitemcheckbox"
-            aria-checked={props.pinned}
-            className={ui.menuItem}
-            data-testid="wl-run-menu-pin"
-            onClick={props.onPin}
-          >
-            <Icon name="flag" size={14} />
-            <span className={ui.menuLabel}>{t(props.pinned ? 'run.unpin' : 'run.pin')}</span>
-          </button>
-          {props.node.status !== 'pending' && (
-            <button
-              type="button"
-              role="menuitem"
-              className={ui.menuItem}
-              data-testid="wl-run-rerun"
-              onClick={props.onRerun}
-            >
-              <Icon name="reload" size={14} />
-              <span className={ui.menuLabel}>{t('run.rerun')}</span>
-            </button>
-          )}
-        </>
-      )}
-    </div>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────
 // 右栏
 // ─────────────────────────────────────────────────────────────
 
@@ -863,8 +729,12 @@ function RunPanel(props: {
   rpc: WorkflowLiteRpc
   instance: string
   current: Run
-  snapshot: WorkflowDocument
+  doc: WorkflowDocument
   analysis: GraphAnalysis
+  /** 叠上草稿、和改过的图对齐之后的状态；不记进度（或读不出来）时为 `null`。 */
+  state: RunState | null
+  /** 图里刚加、状态里还没有的步骤。 */
+  fresh(id: string): boolean
   /** 这次走过的线；不记进度（或状态读不出来）时为 `null`。 */
   taken: ReadonlySet<string> | null
   /** 执行位置；不记进度（或状态读不出来）时为 `null`。 */
@@ -874,8 +744,15 @@ function RunPanel(props: {
   selectedFile: ResourceNode | null
   selectedInput: InputNode | null
   selectedEdge: WorkflowEdge | null
+  /** 选中东西时标题栏里关闭按钮左边的「运行 / 编辑」切换。 */
+  tabs: React.ReactNode
   desktop: Desktop | undefined
   host: HostAccess
+  /** 改步骤的提示词（改的是这次执行的图，进草稿）。 */
+  onEditPrompt(id: string, prompt: string): void
+  /** 改图（标题栏里改名字、换外观；和「编辑」那边同一个标题栏）。 */
+  onEdit(edit: Edit): void
+  onSeal(): void
   onSelect(id: string | null): void
   onSelectEdge(id: string): void
   onRerun(id: string): void
@@ -883,13 +760,12 @@ function RunPanel(props: {
   onView(target: FileTarget, title: string, note?: string): void
   onClose(): void
 }): React.JSX.Element {
-  const { t, current, snapshot, selected, selectedFile, selectedInput, selectedEdge } = props
-  const state = current.shown
+  const { t, current, doc, state, selected, selectedFile, selectedInput, selectedEdge } = props
   const summary = current.view?.summary
   const made = current.view?.files ?? {}
   const answers = current.view?.answers
   const labelOf = (id: string): string => {
-    const node = snapshot.nodes.find((candidate) => candidate.id === id)
+    const node = doc.nodes.find((candidate) => idKey(candidate.id) === idKey(id))
     return node !== undefined &&
       isStep(node) &&
       node.data.label !== undefined &&
@@ -898,22 +774,22 @@ function RunPanel(props: {
       : id
   }
   const viewPath = (path: string): void => props.onView({ path }, fileBaseName(path))
-  const edgeLook = selectedEdge === null ? null : edgeHead(snapshot, props.analysis, selectedEdge)
+  // 标题栏和「编辑」那边是同一个（同样能改名字、换外观），两边切换时不动。
+  const headProps = {
+    t,
+    extra: props.tabs,
+    onClose: props.onClose,
+    closeTestId: 'wl-run-panel-close',
+  }
 
-  let title: string
-  let icon: React.ReactNode = null
+  let head: React.ReactNode
   let body: React.ReactNode
-  if (selectedEdge !== null && edgeLook !== null) {
-    title = t(edgeLook.title)
-    icon = (
-      <span className={css.edgeIcon}>
-        <Icon name={edgeLook.icon} size={15} />
-      </span>
-    )
+  if (selectedEdge !== null) {
+    head = <EdgeHead {...headProps} doc={doc} analysis={props.analysis} edge={selectedEdge} />
     body = (
       <RunEdgeDetail
         t={t}
-        snapshot={snapshot}
+        snapshot={doc}
         analysis={props.analysis}
         edge={selectedEdge}
         state={state}
@@ -924,16 +800,11 @@ function RunPanel(props: {
       />
     )
   } else if (selectedInput !== null) {
-    title = t('input.title')
-    icon = (
-      <span className={hand.askIcon}>
-        <Icon name="ask" size={14} />
-      </span>
-    )
+    head = <InputHead {...headProps} node={selectedInput} />
     body = (
       <RunInputDetail
         t={t}
-        snapshot={snapshot}
+        snapshot={doc}
         input={selectedInput}
         answer={answers?.[selectedInput.id]}
         state={state}
@@ -941,8 +812,14 @@ function RunPanel(props: {
       />
     )
   } else if (selectedFile !== null) {
-    title = resourceTitle(selectedFile)
-    icon = <ResourceIcon resource={selectedFile} size={14} />
+    head = (
+      <ResourceHead
+        {...headProps}
+        node={selectedFile}
+        onEdit={props.onEdit}
+        onSeal={props.onSeal}
+      />
+    )
     body = (
       <RunResourceDetail
         key={selectedFile.id}
@@ -950,7 +827,7 @@ function RunPanel(props: {
         rpc={props.rpc}
         instance={props.instance}
         host={props.host}
-        snapshot={snapshot}
+        snapshot={doc}
         resource={selectedFile}
         made={made[selectedFile.id] ?? []}
         state={state}
@@ -963,17 +840,17 @@ function RunPanel(props: {
       />
     )
   } else if (selected !== null) {
-    title = labelOf(selected.id)
-    icon = <StepMark look={lookOf(selected.id, selected.data)} size={15} />
+    head = <StepHead {...headProps} node={selected} onEdit={props.onEdit} onSeal={props.onSeal} />
     body = (
       <RunStepDetail
         key={selected.id}
         t={t}
         current={current}
-        snapshot={snapshot}
+        snapshot={doc}
         analysis={props.analysis}
         step={selected}
         state={state}
+        fresh={props.fresh(selected.id)}
         taken={props.taken}
         verdicts={props.verdicts[selected.id]}
         answers={answers}
@@ -984,12 +861,15 @@ function RunPanel(props: {
         onSelectEdge={props.onSelectEdge}
         onFocusFile={props.onFocusFile}
         onViewPath={viewPath}
+        onEditPrompt={(prompt) => props.onEditPrompt(selected.id, prompt)}
+        onSeal={props.onSeal}
       />
     )
   } else {
-    title = t('run.overview')
+    // 概览没有「编辑」：不给切换。
+    head = <OverviewHead {...headProps} extra={undefined} />
     if (state === null && summary !== undefined && summary.statePath === undefined) {
-      body = <Untracked t={t} summary={summary} snapshot={snapshot} />
+      body = <Untracked t={t} summary={summary} snapshot={doc} />
     } else if (state === null) {
       body = (
         <p className={css.help}>{current.view === null ? t('run.loading') : t('run.noState')}</p>
@@ -999,7 +879,7 @@ function RunPanel(props: {
         <Overview
           t={t}
           current={current}
-          snapshot={snapshot}
+          snapshot={doc}
           state={state}
           cursor={props.cursor}
           summary={summary}
@@ -1017,247 +897,14 @@ function RunPanel(props: {
       data-testid="wl-run-panel"
       aria-label={t('run.panel')}
     >
-      <header className={css.head}>
-        {picked && (
-          <button
-            type="button"
-            className={cx(ui.btn, ui.icon, ui.small)}
-            aria-label={t('run.backToOverview')}
-            title={t('run.backToOverview')}
-            onClick={() => props.onSelect(null)}
-          >
-            <Icon name="chevronLeft" size={15} />
-          </button>
-        )}
-        {icon}
-        <span className={css.headTitle} title={title}>
-          {title}
-        </span>
-        <button
-          type="button"
-          className={cx(ui.btn, ui.icon, ui.small)}
-          aria-label={t('common.close')}
-          title={t('common.close')}
-          data-testid="wl-run-panel-close"
-          onClick={props.onClose}
-        >
-          <Icon name="x" size={15} />
-        </button>
-      </header>
+      {head}
       <div className={cx(css.body, overview && run.bodyOverview)}>{body}</div>
     </aside>
   )
 }
 
-/** 不记运行状态的实例：右栏只讲清楚为什么看不到进度，再列几样基本信息。 */
-function Untracked(props: {
-  t: T
-  summary: InstanceSummary
-  snapshot: WorkflowDocument
-}): React.JSX.Element {
-  const { t, summary } = props
-  return (
-    <>
-      <p className={css.help} data-testid="wl-run-untracked">
-        {t('run.untrackedBanner')}
-      </p>
-      <section className={run.section}>
-        <dl className={run.facts}>
-          <dt>{t('run.mode')}</dt>
-          <dd>{t(`settings.mode.${summary.mode}` as LocaleKey)}</dd>
-          <dt>{t('run.started')}</dt>
-          <dd>{shortTime(summary.createdAt)}</dd>
-          <dt>{t('run.steps')}</dt>
-          <dd>{props.snapshot.nodes.filter(isStep).length}</dd>
-        </dl>
-      </section>
-    </>
-  )
-}
-
-function Overview(props: {
-  t: T
-  current: Run
-  snapshot: WorkflowDocument
-  state: RunState
-  cursor: RunCursor | null
-  summary: InstanceSummary | undefined
-  labelOf(id: string): string
-  onSelect(id: string | null): void
-}): React.JSX.Element {
-  const { t, current, state, summary } = props
-  const progress = progressOf(state)
-  const log = [...state.log].reverse()
-  return (
-    <>
-      <section className={run.section}>
-        <p className={run.sectionTitle}>
-          <span>
-            {t('run.overall')}
-            <EditedDot on={isEdited(current.draft, ['status'])} />
-          </span>
-          <span className={run.progress}>
-            {progress.done}/{progress.total}
-          </span>
-        </p>
-        <div className={run.bar} aria-hidden="true">
-          <div
-            className={run.barFill}
-            style={{
-              transform: `scaleX(${progress.total === 0 ? 0 : progress.done / progress.total})`,
-            }}
-          />
-        </div>
-        <div className={run.choices} role="radiogroup" aria-label={t('run.overall')}>
-          {RUN_STATUSES.map((status) => (
-            <button
-              key={status}
-              type="button"
-              role="radio"
-              aria-checked={state.status === status}
-              className={run.choice}
-              data-run-status={status}
-              data-testid="wl-run-overall"
-              data-value={status}
-              title={t(`run.hint.${status}` as LocaleKey)}
-              onClick={() => current.setField(['status'], status)}
-            >
-              <span className={run.dot} />
-              {t(RUN_STATUS_TEXT[status])}
-            </button>
-          ))}
-        </div>
-      </section>
-
-      {props.cursor !== null && (
-        <RunPosition
-          t={t}
-          snapshot={props.snapshot}
-          state={state}
-          cursor={props.cursor}
-          pinEdited={isEdited(current.draft, ['next'])}
-          onPin={(ids) => current.setField(['next'], ids)}
-          onSelect={props.onSelect}
-        />
-      )}
-
-      <section className={run.section}>
-        <p className={run.sectionTitle}>
-          <span>
-            {t('run.note')}
-            <EditedDot on={isEdited(current.draft, ['note'])} />
-          </span>
-        </p>
-        <textarea
-          className={cx(ui.textarea, run.autoArea)}
-          rows={2}
-          value={state.note ?? ''}
-          placeholder={t('run.notePlaceholder')}
-          data-testid="wl-run-note"
-          onChange={(event) =>
-            current.setField(
-              ['note'],
-              event.currentTarget.value === '' ? null : event.currentTarget.value,
-            )
-          }
-        />
-      </section>
-
-      <section className={run.section}>
-        <dl className={run.facts}>
-          {summary?.goal !== undefined && (
-            <>
-              <dt>{t('run.goal')}</dt>
-              <dd>{summary.goal}</dd>
-            </>
-          )}
-          <dt>{t('run.mode')}</dt>
-          <dd>{t(`settings.mode.${state.mode}` as LocaleKey)}</dd>
-          <dt>{t('run.started')}</dt>
-          <dd>{shortTime(summary?.createdAt)}</dd>
-          <dt>{t('run.updated')}</dt>
-          <dd>{shortTime(state.updatedAt)}</dd>
-          {summary?.statePath !== undefined && (
-            <>
-              <dt>{t('run.stateFile')}</dt>
-              <dd className={run.path}>
-                <code>{summary.statePath}</code>
-              </dd>
-            </>
-          )}
-        </dl>
-      </section>
-
-      <section className={cx(run.section, run.timelineSection)}>
-        <p className={run.sectionTitle}>
-          <span>{t('run.timeline')}</span>
-          {log.length > 0 && <span className={run.progress}>{log.length}</span>}
-        </p>
-        {log.length === 0 ? (
-          <p className={css.help}>{t('run.noEvents')}</p>
-        ) : (
-          <ul className={cx(run.timeline, run.timelineScroll)} data-testid="wl-run-timeline">
-            {log.map((entry, index) => (
-              <TimelineItem
-                // biome-ignore lint/suspicious/noArrayIndexKey: 流水只追加，倒序后的下标就是稳定身份
-                key={`${entry.at}-${index}`}
-                t={t}
-                entry={entry}
-                labelOf={props.labelOf}
-                onSelect={props.onSelect}
-              />
-            ))}
-          </ul>
-        )}
-      </section>
-    </>
-  )
-}
-
-const EVENT_TEXT: Record<RunLogEntry['event'], LocaleKey> = {
-  start: 'run.event.start',
-  done: 'run.event.done',
-  failed: 'run.event.failed',
-  waiting: 'run.event.waiting',
-  skipped: 'run.event.skipped',
-  resume: 'run.event.resume',
-  transfer: 'run.event.transfer',
-  edit: 'run.event.edit',
-  next: 'run.event.next',
-  note: 'run.event.note',
-}
-
-function TimelineItem(props: {
-  t: T
-  entry: RunLogEntry
-  labelOf(id: string): string
-  onSelect(id: string | null): void
-}): React.JSX.Element {
-  const { t, entry } = props
-  const time = new Date(entry.at)
-  const clock = Number.isNaN(time.getTime())
-    ? entry.at
-    : `${String(time.getHours()).padStart(2, '0')}:${String(time.getMinutes()).padStart(2, '0')}`
-  return (
-    // biome-ignore lint/a11y/useKeyWithClickEvents: 时间线行的键盘入口是右栏里的状态控件；点一下只是顺手定位
-    <li className={run.event} onClick={() => props.onSelect(entry.node ?? null)}>
-      <span className={run.eventTime}>{clock}</span>
-      <span className={run.eventText}>
-        {entry.by === 'user' && <span className={run.eventUser}>{t('run.byUser')} </span>}
-        {entry.node !== undefined && <b>{props.labelOf(entry.node)} </b>}
-        {t(EVENT_TEXT[entry.event])}
-        {entry.round !== undefined &&
-          entry.round > 1 &&
-          ` · ${t('run.round').replace('{n}', String(entry.round))}`}
-        {entry.verdict !== undefined && ` · ${entry.verdict}`}
-        {entry.detail !== undefined && ` — ${entry.detail}`}
-      </span>
-    </li>
-  )
-}
-
 // ─────────────────────────────────────────────────────────────
-// 提示条与草稿栏
+// 提示条
 // ─────────────────────────────────────────────────────────────
 
 function Banners(props: { t: T; current: Run }): React.JSX.Element | null {
@@ -1300,154 +947,6 @@ function Banners(props: { t: T; current: Run }): React.JSX.Element | null {
           {text}
           {detail !== null && <span className={shell.bannerIds}> · {detail}</span>}
         </span>
-      </div>
-    </div>
-  )
-}
-
-function describe(t: T, edit: StateEdit): React.ReactNode {
-  const where = edit.path.length === 1 ? t('run.overall') : edit.path[1]
-  const key = edit.path[edit.path.length - 1] ?? ''
-  const field = edit.path.length === 1 && key === 'next' ? t('run.nextUp') : key
-  const show = (value: StateEdit['to']): string => {
-    if (value === null) return t('run.empty')
-    if (key === 'status' && typeof value === 'string') {
-      const key =
-        edit.path.length === 1 ? RUN_STATUS_TEXT[value as RunStatus] : RUN_TEXT[value as NodeStatus]
-      return key === undefined ? value : t(key)
-    }
-    const text = Array.isArray(value) ? value.join('、') : String(value)
-    return text.length > 24 ? `${text.slice(0, 24)}…` : text
-  }
-  return (
-    <>
-      <b>{where}</b> · {field}：<s>{show(edit.from)}</s> → {show(edit.to)}
-    </>
-  )
-}
-
-function DraftBar(props: { t: T; current: Run }): React.JSX.Element {
-  const { t, current } = props
-  const [open, setOpen] = useState(false)
-  const [confirm, setConfirm] = useState(false)
-  return (
-    <div className={run.draftSeat}>
-      <div className={cx(ui.panel, run.draft, ui.rise)} data-testid="wl-run-draft">
-        <Popover
-          open={open}
-          onClose={() => setOpen(false)}
-          up
-          label={t('run.changes')}
-          className={run.draftList}
-          trigger={
-            <button
-              type="button"
-              className={cx(ui.btn, ui.small)}
-              aria-expanded={open}
-              data-testid="wl-run-draft-toggle"
-              onClick={() => setOpen(!open)}
-            >
-              <span className={run.draftCount}>
-                <span className={run.edited} style={{ margin: 0 }} />
-                {t('run.changed').replace('{n}', String(changeCount(current.draft)))}
-              </span>
-              <Icon name="chevronDown" size={13} />
-            </button>
-          }
-        >
-          {current.conflicts.map((conflict) => (
-            <div
-              key={conflict.path.join('.')}
-              className={run.conflict}
-              data-testid="wl-run-conflict"
-            >
-              <span>
-                {t('run.conflict')} <b>{conflict.path.join('.')}</b>
-              </span>
-              <span>
-                {t('run.conflictMine')}：{String(conflict.to ?? t('run.empty'))} ·{' '}
-                {t('run.conflictDisk')}：{String(conflict.disk ?? t('run.empty'))}
-              </span>
-              <span className={run.conflictActions}>
-                <button
-                  type="button"
-                  className={cx(ui.btn, ui.small, ui.primary)}
-                  onClick={() => current.resolve(conflict, 'mine')}
-                >
-                  {t('run.keepMine')}
-                </button>
-                <button
-                  type="button"
-                  className={cx(ui.btn, ui.small)}
-                  onClick={() => current.resolve(conflict, 'theirs')}
-                >
-                  {t('run.useDisk')}
-                </button>
-              </span>
-            </div>
-          ))}
-          {current.draft.map((edit) => (
-            <div key={edit.path.join('.')} className={run.change}>
-              <span className={run.changeText}>{describe(t, edit)}</span>
-              <button
-                type="button"
-                className={cx(ui.btn, ui.icon, ui.small)}
-                aria-label={t('run.undoChange')}
-                onClick={() => current.undoEdit(edit.path)}
-              >
-                <Icon name="undo" size={13} />
-              </button>
-            </div>
-          ))}
-        </Popover>
-        <input
-          className={cx(ui.input, run.draftNote)}
-          value={current.note}
-          placeholder={t('run.notePrompt')}
-          aria-label={t('run.notePrompt')}
-          data-testid="wl-run-draft-note"
-          onChange={(event) => current.setNote(event.currentTarget.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') void current.save()
-          }}
-        />
-        {confirm ? (
-          <>
-            <span className={run.draftCount}>{t('run.discardConfirm')}</span>
-            <button
-              type="button"
-              className={cx(ui.btn, ui.small)}
-              onClick={() => setConfirm(false)}
-            >
-              {t('common.cancel')}
-            </button>
-            <button
-              type="button"
-              className={cx(ui.btn, ui.small, ui.dangerSolid)}
-              onClick={() => {
-                setConfirm(false)
-                current.discard()
-              }}
-            >
-              {t('run.discard')}
-            </button>
-          </>
-        ) : (
-          <button type="button" className={cx(ui.btn, ui.small)} onClick={() => setConfirm(true)}>
-            {t('run.discard')}
-          </button>
-        )}
-        <button
-          type="button"
-          className={cx(ui.btn, ui.small, ui.primary)}
-          disabled={current.saving || current.draft.length === 0 || current.conflicts.length > 0}
-          title={current.conflicts.length > 0 ? t('run.resolveFirst') : undefined}
-          data-testid="wl-run-save"
-          onClick={() => void current.save()}
-        >
-          <Icon name="check" size={13} />
-          {t('run.save')}
-        </button>
       </div>
     </div>
   )

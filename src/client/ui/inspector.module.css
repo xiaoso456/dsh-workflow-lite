@@ -56,17 +56,38 @@
   outline: none;
 }
 
-.idChip {
+/* 名字与它下面一行 ID。 */
+.headMain {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+/* 能改的名字（输入框）和只看的名字一样高：换面板时标题栏不跳。 */
+.headMain .titleInput {
+  flex: none;
+  height: 28px;
+}
+
+.headMain .headTitle {
+  flex: none;
+  line-height: 28px;
+}
+
+.idLine {
   display: inline-flex;
   flex: none;
-  gap: 6px;
+  gap: 5px;
   align-items: center;
   align-self: flex-start;
-  height: 22px;
-  margin: 0 0 4px 50px;
+  max-width: 100%;
+  height: 18px;
+  margin-left: -6px;
   padding: 0 6px;
   border: 0;
-  border-radius: 6px;
+  border-radius: 5px;
   background: transparent;
   color: var(--wl-text-3);
   font: inherit;
@@ -74,18 +95,32 @@
   cursor: pointer;
 }
 
-.idChip:hover {
+.idLine code {
+  overflow: hidden;
+  font-family: var(--wl-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.idLine svg {
+  flex: none;
+  opacity: 0;
+  transition: opacity 120ms linear;
+}
+
+.idLine:hover {
   background: var(--wl-hover);
   color: var(--wl-text-2);
 }
 
-.idChip span {
-  font-weight: 600;
-  letter-spacing: 0.04em;
+.idLine:hover svg,
+.idLine:focus-visible svg {
+  opacity: 1;
 }
 
-.idChip code {
-  font-family: var(--wl-mono);
+.idKey {
+  font-weight: 600;
+  letter-spacing: 0.04em;
 }
 
 .body {
@@ -105,11 +140,6 @@
   gap: 8px;
 }
 
-/* 提示词是这一栏的主角：它吃掉剩余高度。 */
-.fieldGrow {
-  flex: 1 0 auto;
-}
-
 .label {
   display: flex;
   gap: 8px;
@@ -125,12 +155,6 @@
   font-size: var(--wl-fs-micro);
   font-weight: 400;
   font-variant-numeric: tabular-nums;
-}
-
-.prompt {
-  flex: 1 0 auto;
-  min-height: 200px;
-  font-size: var(--wl-fs-body);
 }
 
 .help {

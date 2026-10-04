@@ -14,8 +14,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { pickTemplateAppearance } from '../../shared/appearance.ts'
 import { orderedInputs } from '../../shared/inputs.ts'
 import { isInput, isResource, SETTINGS_CONFLICT_ID } from '../../shared/model.ts'
-import { outputResource } from '../../shared/resources.ts'
 import type { InputAnswer, NodeData, Point, WorkflowDocument } from '../../shared/types.ts'
+import { addFromSource, addOrigin, duplicateEdit } from '../app/addStep.ts'
 import type { Desktop } from '../app/desktop.ts'
 import { createHostAccess } from '../app/host.ts'
 import { type SessionBridge, useSessionRows } from '../app/sessions.ts'
@@ -24,16 +24,7 @@ import { useWorkflow, type Workflow } from '../app/useWorkflow.ts'
 import type { LocaleKey, NS, T } from '../i18n.ts'
 import { findNode, type Selection } from '../model/editor.ts'
 import { freeSpot, NODE_H, NODE_W, tidy } from '../model/layout.ts'
-import {
-  BLANK_ID,
-  INPUT_ID,
-  inputData,
-  type LibraryFocus,
-  PRESETS,
-  presetData,
-  type StepSource,
-  starterGraph,
-} from '../model/library.ts'
+import { type LibraryFocus, type StepSource, starterGraph } from '../model/library.ts'
 import { errorMessage, type WorkflowLiteRpc } from '../rpc.ts'
 import { type AddRequest, Canvas } from './Canvas.tsx'
 import { ZoomDock } from './Dock.tsx'
@@ -46,7 +37,6 @@ import { PlanDialog } from './PlanDialog.tsx'
 import { cx, ModalHostProvider } from './primitives.tsx'
 import { QuickAdd } from './QuickAdd.tsx'
 import { RunView } from './RunView.tsx'
-import { freeFilePath } from './resourceUi.ts'
 import { SettingsDialog } from './SettingsDialog.tsx'
 import { StepPanel } from './StepPanel.tsx'
 import css from './shell.module.css'
@@ -467,61 +457,16 @@ function Shell(props: {
 
   const addStep = useCallback(
     async (source: StepSource, position: Point, from?: string): Promise<void> => {
-      let id: string
-      let data: NodeData
-      if (source.kind === 'resource') {
-        // 资源卡：从步骤的「＋」加的就是这一步写的产出文件；别处加的是一张空的资源卡。
-        // 加完选中它，好接着添加内容、改路径。
-        const doc = state.doc
-        if (doc === null) return
-        const writer = from === undefined ? undefined : findNode(doc, from)
-        const step =
-          writer !== undefined && !isResource(writer) && !isInput(writer) ? writer : undefined
-        wf.edit(
-          step === undefined
-            ? { type: 'addResource', data: { items: [] }, position, select: true }
-            : {
-                type: 'addResource',
-                data: outputResource({ path: freeFilePath(doc, `${step.id}.md`) }),
-                writer: step.id,
-                select: true,
-              },
-        )
-        return
-      }
-      if (source.kind === 'input') {
-        // 输入卡：从步骤的「＋」加的就是这一步要的输入（放在它左边、连上）；别处加的落在原地。加完选中它，好写问题。
-        const doc = state.doc
-        if (doc === null) return
-        const reader = from === undefined ? undefined : findNode(doc, from)
-        const step =
-          reader !== undefined && !isResource(reader) && !isInput(reader) ? reader : undefined
-        wf.edit({
-          type: 'addInput',
-          id: INPUT_ID,
-          data: inputData(t),
-          ...(step === undefined ? { position } : { reader: step.id }),
-        })
-        return
-      }
-      if (source.kind === 'blank') {
-        id = BLANK_ID
-        data = { prompt: '' }
-      } else if (source.kind === 'preset') {
-        const preset = PRESETS.find((candidate) => candidate.id === source.id)
-        if (preset === undefined) return
-        id = preset.id
-        data = presetData(preset, t)
-      } else {
-        const loaded = await wf.loadTemplate(source.name)
-        if (loaded === null) return
-        id = source.name
-        data = loaded
-      }
+      const step = source.kind !== 'resource' && source.kind !== 'input'
       // 新步骤会接管选中；之后任何一次换选中都会把这个标记清掉。
-      setFocusPrompt(source.kind === 'blank')
-      wf.edit({ type: 'addNode', id, data, position, ...(from === undefined ? {} : { from }) })
-      if (source.kind !== 'blank') focusCanvas()
+      if (step) setFocusPrompt(source.kind === 'blank')
+      await addFromSource(
+        { t, doc: state.doc, edit: wf.edit, loadTemplate: wf.loadTemplate },
+        source,
+        position,
+        from,
+      )
+      if (step && source.kind !== 'blank') focusCanvas()
     },
     [t, wf, focusCanvas, state.doc],
   )
@@ -538,32 +483,8 @@ function Shell(props: {
 
   const duplicate = useCallback(
     (id: string): void => {
-      const node = state.doc === null ? undefined : findNode(state.doc, id)
-      if (node === undefined) return
-      if (isResource(node)) {
-        wf.edit({
-          type: 'addResource',
-          data: node.data,
-          position: { x: node.position.x + 32, y: node.position.y + 32 },
-          select: true,
-        })
-        return
-      }
-      if (isInput(node)) {
-        wf.edit({
-          type: 'addInput',
-          id: node.id,
-          data: node.data,
-          position: { x: node.position.x + 32, y: node.position.y + 32 },
-        })
-        return
-      }
-      wf.edit({
-        type: 'addNode',
-        id: node.id,
-        data: { ...node.data },
-        position: { x: node.position.x + 32, y: node.position.y + 32 },
-      })
+      const edit = duplicateEdit(state.doc, id)
+      if (edit !== null) wf.edit(edit)
     },
     [state.doc, wf],
   )
@@ -731,6 +652,9 @@ function Shell(props: {
               id={runId}
               runs={runs}
               workflows={wf.catalog?.workflows ?? []}
+              templates={wf.catalog?.templates.nodes ?? []}
+              loadTemplate={wf.loadTemplate}
+              onSaveTemplate={wf.saveTemplate}
               narrow={narrow}
               inspectorW={inspectorW}
               panelOpen={runPanel}
@@ -951,7 +875,7 @@ function Shell(props: {
                 at={quick.at}
                 bounds={size}
                 templates={wf.catalog?.templates.nodes ?? []}
-                origin={quickOrigin(doc, quick.from)}
+                origin={addOrigin(doc, quick.from)}
                 onClose={() => setQuick(null)}
                 onPick={(source) => {
                   const request = quick
@@ -1031,18 +955,6 @@ function Shell(props: {
       </ModalHostProvider>
     </div>
   )
-}
-
-/** 就地添加菜单从哪儿来：步骤的「＋」、资源卡拖出来的线，或空白处。 */
-function quickOrigin(
-  doc: WorkflowDocument | null,
-  from: string | undefined,
-): 'step' | 'resource' | 'input' | 'none' {
-  if (doc === null || from === undefined) return 'none'
-  const node = findNode(doc, from)
-  if (node === undefined) return 'none'
-  if (isInput(node)) return 'input'
-  return isResource(node) ? 'resource' : 'step'
 }
 
 /** 设置对话框里拼接预览用的示例：图里第一个相对路径的文件，没有就用 `plan.md`。 */

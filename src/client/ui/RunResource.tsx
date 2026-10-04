@@ -4,7 +4,8 @@
  * 右栏只放缩略信息，细节都在点开之后的详情框里：
  * - 描述（最多三行）；
  * - **内容**：每项一行——图标、名字，下面一行是它此刻的样子（文件：生成没有 · 大小 · 修改时间；
- *   文件夹：在不在 · 修改时间；网址：路径；Skill：一句话说明；自定义：字数）。行尾是「查看」和
+ *   文件夹：在不在 · 修改时间；网址：路径；Skill：一句话说明；自定义：字数）；有说明的挂一个「说明」小签
+ *   （和模板里一样，全文在悬停提示与查看框里）。行尾是「查看」和
  *   「打开」（文件 / 文件夹交给系统程序，网址在浏览器里开）；点这一行也是查看。
  *   查看按种类不同：文件读正文（{@link FileViewer}），文件夹列里面有什么，网址、自定义文字显示全文，
  *   Skill 读 SKILL.md；每种都把这一项的说明放在正文前。
@@ -221,7 +222,9 @@ function ItemRow(props: {
   const meta = useRunFile(props.rpc, props.instance, target, `${props.made}:${props.version}`).file
   const exists = meta?.exists ?? props.made === true
   const name = itemName(item) || t('res.itemBlank')
-  const title = item.note?.trim() ? `${item.value.trim()}\n${item.note.trim()}` : item.value.trim()
+  // 这一项的说明（写文件时就是生成要求）：行尾挂「说明」小签，全文在悬停提示与查看框里。
+  const note = item.kind === 'text' ? '' : (item.note?.trim() ?? '')
+  const title = note === '' ? item.value.trim() : `${item.value.trim()}\n${note}`
 
   let line: React.ReactNode
   if (pathLike) {
@@ -272,6 +275,11 @@ function ItemRow(props: {
         <span className={css.meta} data-mono={item.kind === 'url'}>
           {line}
         </span>
+        {note !== '' && (
+          <span className={css.noteTag} data-testid="wl-run-item-note">
+            {t('res.note')}
+          </span>
+        )}
       </button>
       <span className={css.actions}>
         <button

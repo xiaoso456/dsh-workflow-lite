@@ -274,6 +274,20 @@
   tab-size: 2;
 }
 
+/* 「编辑」：整块文字的输入框，撑满正文区。 */
+.viewerEdit {
+  display: block;
+  box-sizing: border-box;
+  width: calc(100% - 40px);
+  height: calc(100% - 32px);
+  min-height: 320px;
+  margin: 16px 20px;
+  padding: 14px 16px;
+  font-size: var(--wl-fs-body);
+  line-height: 1.7;
+  resize: none;
+}
+
 .viewerState {
   display: flex;
   flex-direction: column;

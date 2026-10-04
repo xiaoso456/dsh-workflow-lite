@@ -1,5 +1,6 @@
 /**
- * dsh-workflow-lite — 实例视图右栏的步骤与连线：只露几行的长文字卡（提示词、上游摘要、交接说明），
+ * dsh-workflow-lite — 右栏里只露几行的长文字卡（提示词、摘要、交接说明，实例与模板共用），
+ * 以及实例视图右栏的步骤与连线：
  * 选中连线时的两端与一张「状态 / 条件 / 交接」小表。
  *
  * 清单的一行在 `linkrow.module.css`（模板属性面板也用它）。
@@ -39,6 +40,19 @@
 
 .card:hover {
   color: var(--wl-text);
+}
+
+/* 能改、还空着：写着占位，点一下进「编辑」。 */
+.card[data-empty="true"] {
+  border: 1px dashed var(--wl-line-strong);
+  background: transparent;
+  color: var(--wl-text-3);
+}
+
+.titleActions {
+  display: inline-flex;
+  gap: 1px;
+  align-items: center;
 }
 
 .card:focus-visible {

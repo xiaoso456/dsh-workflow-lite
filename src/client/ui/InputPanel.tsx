@@ -12,7 +12,6 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/InputPanel
  */
 
-import { useState } from 'react'
 import { inputKind, inputReaders, isChoiceKind, stepInputs } from '../../shared/inputs.ts'
 import { idKey, isStep } from '../../shared/model.ts'
 import type {
@@ -24,12 +23,13 @@ import type {
 } from '../../shared/types.ts'
 import type { T } from '../i18n.ts'
 import { type Edit, findNode, type Selection } from '../model/editor.ts'
-import { INPUT_KIND_OPTIONS, inputKindLabel } from '../model/library.ts'
+import { INPUT_KIND_OPTIONS } from '../model/library.ts'
 import hand from './handoff.module.css'
 import { Icon } from './Icon.tsx'
 import css from './input.module.css'
 import ins from './inspector.module.css'
-import { copyText, cx, Segmented } from './primitives.tsx'
+import { InputHead } from './NodeHeads.tsx'
+import { cx, Segmented } from './primitives.tsx'
 import { stepName } from './resourceUi.ts'
 import { lookOf, StepMark } from './StepMark.tsx'
 import ui from './ui.module.css'
@@ -42,6 +42,8 @@ export interface InputPanelProps {
   onSelect(selection: Selection): void
   onSeal(): void
   onRemove(id: string): void
+  /** 标题栏里关闭按钮左边的切换（实例视图里「运行 / 编辑」）。 */
+  tabs?: React.ReactNode
 }
 
 /** 去掉换行：问题是一行字（要进计划里的一行）。 */
@@ -63,7 +65,6 @@ export function InputPanel(props: InputPanelProps): React.JSX.Element {
       ...(field === undefined ? {} : { merge: merge(field) }),
     })
   }
-  const [copied, setCopied] = useState(false)
   const readers = inputReaders(doc, node.id)
   const options = data.options ?? []
 
@@ -101,33 +102,7 @@ export function InputPanel(props: InputPanelProps): React.JSX.Element {
       data-testid="wl-inspector"
       aria-label={t('input.title')}
     >
-      <header className={ins.head}>
-        <span className={cx(hand.askIcon, css.headIcon)}>
-          <Icon name="ask" size={16} />
-        </span>
-        <span className={ins.headTitle}>{t('input.title')}</span>
-        <span className={ins.badge}>{t(inputKindLabel(kind))}</span>
-        <button
-          type="button"
-          className={cx(ui.btn, ui.icon, ui.small)}
-          aria-label={t('common.close')}
-          onClick={() => props.onSelect(null)}
-        >
-          <Icon name="x" size={15} />
-        </button>
-      </header>
-      <button
-        type="button"
-        className={cx(ins.idChip, ui.tip, ui.tipStart)}
-        data-tip={copied ? t('common.copied') : t('ins.copyId')}
-        onClick={() => {
-          void copyText(node.id).then((ok) => setCopied(ok))
-        }}
-      >
-        <span>ID</span>
-        <code>{node.id}</code>
-        <Icon name={copied ? 'check' : 'copy'} size={12} />
-      </button>
+      <InputHead t={t} node={node} extra={props.tabs} onClose={() => props.onSelect(null)} />
 
       <div className={ins.body}>
         <section className={ins.field}>

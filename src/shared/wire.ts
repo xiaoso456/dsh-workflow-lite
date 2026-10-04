@@ -408,11 +408,17 @@ export interface RunSaveRequest {
   edits: StateEdit[]
   /** 给模型的说明（可选）。 */
   note?: string
+  /** 改了图时：改之前那版的 planId 与改完的整张图（工作流设置不在实例里改，给了也不认）。 */
+  graph?: { base: string; document: WorkflowDocument }
 }
 export interface RunSaveResponse {
   /** 通知送到模型了没有；没送到时模型下次调用工具会收到。 */
   notified: boolean
   mtime: number
+  /** 改了图时：新图的 planId。 */
+  planId?: string
+  /** 只改了不进计划的东西（挪卡片、描述），没有通知模型。 */
+  quiet?: true
 }
 
 /** `run/delete`：删实例记录与快照；`withState` 为真时连状态文件一起删。 */

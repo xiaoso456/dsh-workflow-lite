@@ -151,10 +151,7 @@ export interface CanvasProps {
   /** 正在悬停的资源卡 id：用到它的步骤标出角色，其余的淡下去。 */
   focusFile: string | null
   onFocusFile: FocusFile
-  /**
-   * 工作流实例视图：图不能改（不能拖、连、删、加），每张步骤卡挂上运行状态，走过的线亮、没走过的淡。
-   * 缺省 = 模板编辑。
-   */
+  /** 工作流实例视图：每张步骤卡挂上运行状态，走过的线亮、没走过的淡。缺省 = 模板编辑。 */
   run?: RunDecor
 }
 
@@ -1326,7 +1323,6 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
     onDropSource,
     run,
   } = props
-  const readOnly = run !== undefined
   const flow = useReactFlow<FlowNode, FlowEdge>()
   const wrapRef = useRef<HTMLDivElement>(null)
   const ghostRef = useRef<HTMLDivElement>(null)
@@ -2103,17 +2099,15 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
       // tabIndex=-1：可被脚本/点击聚焦从而收到键盘事件，但不进 Tab 序。
       tabIndex={-1}
       data-testid="wl-canvas"
-      data-readonly={readOnly}
       data-dropping={dropping}
       data-drag={drag?.kind ?? undefined}
       style={drag === null ? undefined : ({ '--wl-drag': drag.color } as React.CSSProperties)}
       data-inset-right={props.insets.right}
-      onDragOver={readOnly ? undefined : onDragOver}
-      onDragLeave={readOnly ? undefined : onDragLeave}
-      onDrop={readOnly ? undefined : onDrop}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
       onDoubleClick={(event) => {
-        // 双击空白处加步骤；双击在卡片或连线上不算。实例视图里图不能改。
-        if (readOnly) return
+        // 双击空白处加步骤；双击在卡片或连线上不算。
         const target = event.target
         if (!(target instanceof Element) || !target.classList.contains('react-flow__pane')) return
         const client = { x: event.clientX, y: event.clientY }
@@ -2138,8 +2132,6 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
           zoomOnDoubleClick={false}
           elevateNodesOnSelect={false}
           nodeDragThreshold={2}
-          nodesDraggable={!readOnly}
-          nodesConnectable={!readOnly}
           connectionRadius={28}
           connectionLineComponent={ConnectionLine}
           proOptions={{ hideAttribution: true }}
@@ -2203,7 +2195,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
         </ReactFlow>
       </DragInfo.Provider>
 
-      {doc.nodes.length === 0 && !readOnly && (
+      {doc.nodes.length === 0 && (
         <div className={css.empty} data-testid="wl-empty">
           <div className={cx(ui.panel, css.emptyCard, ui.rise)}>
             <p className={css.emptyTitle}>{t('canvas.emptyTitle')}</p>

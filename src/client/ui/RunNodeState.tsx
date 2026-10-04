@@ -10,13 +10,16 @@ import {
   type NodeStatus,
   type RunState,
   type StateEdit,
+  SUMMARY_MAX,
 } from '../../shared/runState.ts'
+import type { Desktop } from '../app/desktop.ts'
 import type { Run } from '../app/useRuns.ts'
 import type { LocaleKey, T } from '../i18n.ts'
 import { samePath, togglePin } from '../model/runDraft.ts'
 import { shortTime } from '../model/time.ts'
 import { RUN_TEXT } from './Canvas.tsx'
 import { Icon, type IconName } from './Icon.tsx'
+import { PreviewCard } from './PreviewCard.tsx'
 import { cx } from './primitives.tsx'
 import run from './run.module.css'
 import ui from './ui.module.css'
@@ -66,8 +69,14 @@ export function StepStatus(props: {
   node: RunState['nodes'][string]
   verdicts: readonly string[] | undefined
   onRerun(): void
+  /** 摘要、失败原因的弹窗：标题与图标块。 */
+  name: string
+  badge: React.ReactNode
+  desktop: Desktop | undefined
 }): React.JSX.Element {
   const { t, current, id, node } = props
+  const summary = node.summary ?? ''
+  const error = node.error ?? ''
   const pins = current.shown?.next ?? []
   const pinned = pins.includes(id)
   const path = (field: string): string[] => ['nodes', id, field]
@@ -190,48 +199,53 @@ export function StepStatus(props: {
         </section>
       )}
 
-      <section className={run.section}>
-        <p className={run.sectionTitle}>
-          <span>
+      <PreviewCard
+        t={t}
+        label={
+          <>
             {t('run.summary')}
             <EditedDot on={isEdited(current.draft, path('summary'))} />
-          </span>
-        </p>
-        <textarea
-          className={cx(ui.textarea, run.autoArea)}
-          rows={3}
-          value={node.summary ?? ''}
-          placeholder={t('run.summaryPlaceholder')}
-          data-testid="wl-run-summary"
-          onChange={(event) =>
-            current.setField(
-              path('summary'),
-              event.currentTarget.value === '' ? null : event.currentTarget.value,
-            )
-          }
-        />
-      </section>
+          </>
+        }
+        text={summary}
+        name={props.name}
+        badge={props.badge}
+        meta={`${t('run.summary')} · ${[...summary].length} ${t('ins.chars')}`}
+        copyLabel={t('run.copySummary')}
+        desktop={props.desktop}
+        testId="wl-run-summary"
+        lines={3}
+        edit={{
+          placeholder: t('run.summaryPlaceholder'),
+          maxLength: SUMMARY_MAX,
+          testId: 'wl-run-summary-input',
+          onChange: (value) => current.setField(path('summary'), value === '' ? null : value),
+        }}
+      />
 
       {(node.status === 'failed' || node.error !== undefined) && (
-        <section className={run.section}>
-          <p className={run.sectionTitle}>
-            <span>
+        <PreviewCard
+          t={t}
+          label={
+            <>
               {t('run.error')}
               <EditedDot on={isEdited(current.draft, path('error'))} />
-            </span>
-          </p>
-          <textarea
-            className={ui.textarea}
-            rows={2}
-            value={node.error ?? ''}
-            onChange={(event) =>
-              current.setField(
-                path('error'),
-                event.currentTarget.value === '' ? null : event.currentTarget.value,
-              )
-            }
-          />
-        </section>
+            </>
+          }
+          text={error}
+          name={props.name}
+          badge={props.badge}
+          meta={`${t('run.error')} · ${[...error].length} ${t('ins.chars')}`}
+          copyLabel={t('run.copyError')}
+          desktop={props.desktop}
+          testId="wl-run-error"
+          lines={2}
+          edit={{
+            placeholder: t('run.errorPlaceholder'),
+            testId: 'wl-run-error-input',
+            onChange: (value) => current.setField(path('error'), value === '' ? null : value),
+          }}
+        />
       )}
     </>
   )

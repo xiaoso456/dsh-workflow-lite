@@ -32,7 +32,7 @@ import {
 } from '../shared/wire.ts'
 import { listHostDir, listSkills, readSkill, type SkillViewer } from './hostFs.ts'
 import { compileWorkflow } from './plan.ts'
-import type { RunService } from './runs/service.ts'
+import type { GraphEdit, RunService } from './runs/service.ts'
 import { storageAction } from './runs/storage.ts'
 import { type LoadResult, problemsToWarnings, type Repository } from './store/repository.ts'
 
@@ -366,7 +366,19 @@ async function dispatch(
       if (!Array.isArray(input.edits)) throw new Error('edits must be an array')
       const edits = input.edits.map(readEdit)
       const note = optionalString(input, 'note')
-      const outcome = await deps.runs.save(id, optionalString(input, 'session'), edits, note)
+      let graph: GraphEdit | undefined
+      if (input.graph !== undefined) {
+        const raw = asRecord(input.graph)
+        const parsed = normalizeDocument(raw.document)
+        if (parsed.document === null) {
+          return fail(
+            'invalid_args',
+            `提交的图形状不合法：${parsed.problems.map((problem) => problem.message).join('；')}`,
+          )
+        }
+        graph = { base: requireString(raw, 'base'), document: parsed.document }
+      }
+      const outcome = await deps.runs.save(id, optionalString(input, 'session'), edits, note, graph)
       if (!outcome.ok) return failFrom(outcome.error)
       return ok(outcome.result)
     }

@@ -23,6 +23,7 @@ import { Icon } from './Icon.tsx'
 import { DescriptionField } from './Inspector.tsx'
 import css from './inspector.module.css'
 import { OutputField, OutputList } from './Outputs.tsx'
+import { PreviewCard } from './PreviewCard.tsx'
 import { cx } from './primitives.tsx'
 import { StepMark } from './StepMark.tsx'
 import ui from './ui.module.css'
@@ -79,17 +80,18 @@ function PresetView(props: StepPanelProps & { id: string }): React.JSX.Element |
       <p className={css.subtitle}>{t(preset.descKey)}</p>
 
       <div className={css.body}>
-        <section className={cx(css.field, css.fieldGrow)}>
-          <div className={css.label}>
-            <span>{t('ins.prompt')}</span>
-            <span className={css.count}>
-              {[...prompt].length} {t('ins.chars')}
-            </span>
-          </div>
-          <div className={css.readonly} data-testid="wl-step-prompt">
-            {prompt}
-          </div>
-        </section>
+        <PreviewCard
+          t={t}
+          label={t('ins.prompt')}
+          text={prompt}
+          name={t(preset.labelKey)}
+          badge={<StepMark look={presetAppearance(preset.id)} size={15} />}
+          meta={`${t('ins.prompt')} · ${[...prompt].length} ${t('ins.chars')}`}
+          copyLabel={t('run.copyPrompt')}
+          desktop={undefined}
+          testId="wl-step-prompt"
+          lines={8}
+        />
         <section className={css.field}>
           <div className={css.label}>
             <span>{t('ins.output')}</span>
@@ -310,23 +312,28 @@ function MineEditor(
             patch({ description: description === '' ? undefined : description })
           }
         />
-        <section className={cx(css.field, css.fieldGrow)}>
-          <div className={css.label}>
-            <span>{t('ins.prompt')}</span>
-            <span className={css.count}>
-              {[...prompt].length} {t('ins.chars')}
-            </span>
-          </div>
-          <textarea
-            className={cx(ui.textarea, css.prompt)}
-            value={prompt}
-            placeholder={t('ins.promptPlaceholder')}
-            aria-label={t('ins.prompt')}
-            data-testid="wl-step-prompt"
-            spellCheck={false}
-            onChange={(event) => patch({ prompt: event.currentTarget.value })}
-          />
-        </section>
+        <PreviewCard
+          t={t}
+          label={t('ins.prompt')}
+          text={prompt}
+          name={draft.data.label ?? (normalized === '' ? t('ins.prompt') : normalized)}
+          badge={
+            <StepMark
+              look={appearanceOf(normalized === '' ? 'step' : normalized, draft.data)}
+              size={15}
+            />
+          }
+          meta={`${t('ins.prompt')} · ${[...prompt].length} ${t('ins.chars')}`}
+          copyLabel={t('run.copyPrompt')}
+          desktop={undefined}
+          testId="wl-step-prompt-card"
+          lines={8}
+          edit={{
+            placeholder: t('ins.promptPlaceholder'),
+            testId: 'wl-step-prompt',
+            onChange: (value) => patch({ prompt: value }),
+          }}
+        />
 
         <OutputField
           t={t}

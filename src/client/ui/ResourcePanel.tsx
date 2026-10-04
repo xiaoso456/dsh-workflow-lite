@@ -7,7 +7,6 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/ResourcePanel
  */
 
-import { useState } from 'react'
 import { idKey, isStep } from '../../shared/model.ts'
 import { normalizeRoot, rootOf } from '../../shared/outputPaths.ts'
 import { isShared, resourceGraph, resourceTitle } from '../../shared/resources.ts'
@@ -25,7 +24,8 @@ import css from './handoff.module.css'
 import { Icon } from './Icon.tsx'
 import { DescriptionField } from './Inspector.tsx'
 import ins from './inspector.module.css'
-import { copyText, cx } from './primitives.tsx'
+import { ResourceHead } from './NodeHeads.tsx'
+import { cx } from './primitives.tsx'
 import { ResourceItems } from './ResourceItems.tsx'
 import { ModeToggle } from './Resources.tsx'
 import res from './resource.module.css'
@@ -43,11 +43,12 @@ export function ResourcePanel(props: {
   onSeal(): void
   onFocusFile: FocusFile
   onRemove(id: string): void
+  /** 标题栏里关闭按钮左边的切换（实例视图里「运行 / 编辑」）。 */
+  tabs?: React.ReactNode
 }): React.JSX.Element {
   const { t, doc, node } = props
   const info = resourceGraph(doc).get(node.id)
   const merge = (field: string): string => `${idKey(node.id)}:${field}`
-  const [copied, setCopied] = useState(false)
   const written = (info?.writers.length ?? 0) > 0
 
   const patch = (next: Partial<ResourceNode['data']>, field?: string): void =>
@@ -100,44 +101,14 @@ export function ResourcePanel(props: {
       onPointerEnter={() => props.onFocusFile(node.id)}
       onPointerLeave={() => props.onFocusFile(null)}
     >
-      <header className={ins.head}>
-        <span className={res.headIcon}>
-          <Icon name="layers" size={16} />
-        </span>
-        <input
-          className={ins.titleInput}
-          value={node.data.label ?? ''}
-          placeholder={resourceTitle({ ...node, data: { ...node.data, label: '' } })}
-          aria-label={t('res.name')}
-          data-testid="wl-resource-label"
-          onChange={(event) => {
-            // 名字会进计划：换行与竖线直接不让打进来。
-            const value = event.currentTarget.value.replace(/[\r\n|]/gu, '')
-            patch({ label: value === '' ? undefined : value }, 'label')
-          }}
-          onBlur={props.onSeal}
-        />
-        <button
-          type="button"
-          className={cx(ui.btn, ui.icon, ui.small)}
-          aria-label={t('common.close')}
-          onClick={() => props.onSelect(null)}
-        >
-          <Icon name="x" size={15} />
-        </button>
-      </header>
-      <button
-        type="button"
-        className={cx(ins.idChip, ui.tip, ui.tipStart)}
-        data-tip={copied ? t('common.copied') : t('ins.copyId')}
-        onClick={() => {
-          void copyText(node.id).then((ok) => setCopied(ok))
-        }}
-      >
-        <span>ID</span>
-        <code>{node.id}</code>
-        <Icon name={copied ? 'check' : 'copy'} size={12} />
-      </button>
+      <ResourceHead
+        t={t}
+        node={node}
+        onEdit={props.onEdit}
+        onSeal={props.onSeal}
+        extra={props.tabs}
+        onClose={() => props.onSelect(null)}
+      />
 
       <div className={ins.body}>
         <DescriptionField

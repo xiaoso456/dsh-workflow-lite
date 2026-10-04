@@ -21,6 +21,7 @@ import {
   type WorkflowLiteArgs,
 } from '../../src/host/tool/tool.ts'
 import type { InstanceView, StateEdit } from '../../src/shared/runState.ts'
+import type { WorkflowDocument } from '../../src/shared/types.ts'
 import { validateDocument } from '../../src/shared/validate.ts'
 
 let dataDir: string
@@ -376,6 +377,172 @@ describe('保存用户的改动', () => {
     expect(String((next.userNotices as string[])[0])).toContain('用户叫停了这次执行')
     const after = record(await run({ action: 'list' }, exec('s1')))
     expect(after.userNotices).toBeUndefined()
+  })
+})
+
+describe('保存用户改的图', () => {
+  /** 记状态的实例，scan 已经做完一轮。 */
+  async function tracked(): Promise<{ id: string; statePath: string; loaded: InstanceView }> {
+    const result = await compileWithRuns()
+    const id = String(result.instance)
+    const statePath = String(result.statePath)
+    await runs.state(id, { id: 's1', cwd: workspace }, { nodes: { scan: { status: 'done' } } })
+    return { id, statePath, loaded: await view(id) }
+  }
+
+  function withStep(document: WorkflowDocument): WorkflowDocument {
+    return {
+      ...document,
+      nodes: [
+        ...document.nodes.map((node) =>
+          node.id === 'review' && node.type === 'wfNode'
+            ? { ...node, data: { ...node.data, prompt: '换个审法' } }
+            : node,
+        ),
+        { id: 'lint', type: 'wfNode', position: { x: 600, y: 300 }, data: { prompt: '跑 lint' } },
+      ],
+      edges: [
+        ...document.edges,
+        {
+          id: 'scan->lint',
+          source: 'scan',
+          target: 'lint',
+          sourceHandle: null,
+          targetHandle: null,
+        },
+      ],
+    }
+  }
+
+  it('改提示词、加步骤：快照与 planId 换新，状态补上新步骤、记一条流水，任务描述重写，通知模型去 resume', async () => {
+    const { id, statePath, loaded } = await tracked()
+    const outcome = await runs.save(
+      id,
+      's1',
+      [{ path: ['note'], from: null, to: '加一步 lint' }],
+      '顺手查下风格',
+      { base: loaded.summary.planId, document: withStep(loaded.document) },
+    )
+    if (!outcome.ok) throw new Error(outcome.error.message)
+    const planId = outcome.result.planId
+    expect(planId).toBeDefined()
+    expect(planId).not.toBe(loaded.summary.planId)
+    const after = await view(id)
+    expect(after.summary.planId).toBe(planId)
+    expect(after.document.nodes.map((node) => node.id)).toContain('lint')
+    // 工作流设置沿用原快照的（产出根目录还是这个实例的）。
+    expect(after.document.settings).toEqual(loaded.document.settings)
+    const state = parse(await readFile(statePath, 'utf8'))
+    expect(state.plan).toBe(planId)
+    expect(state.nodes.lint).toEqual({ status: 'pending' })
+    expect(state.nodes.scan.status).toBe('done')
+    expect(state.note).toBe('加一步 lint')
+    const graphEntry = state.log.find((entry: { detail?: string }) =>
+      entry.detail?.startsWith('改了图：'),
+    )
+    expect(graphEntry).toMatchObject({ event: 'edit', by: 'user' })
+    expect(graphEntry.detail).toContain('步骤 review：改了提示词')
+    expect(graphEntry.detail).toContain('新加步骤 lint')
+    const tasks = join(workspace, '.workflow-lite', 'runs', id, 'tasks')
+    expect(await readFile(join(tasks, 'review.md'), 'utf8')).toBe('换个审法')
+    expect(await readFile(join(tasks, 'lint.md'), 'utf8')).toBe('跑 lint')
+    expect(notified).toHaveLength(1)
+    expect(notified[0]?.summary).toBe('用户修改了 cr 的图与运行状态（3 处）')
+    expect(notified[0]?.text).toContain('图的改动：\n- 步骤 review：改了提示词\n- 新加步骤 lint')
+    expect(notified[0]?.text).toContain(`action=resume，instance=${id}`)
+    expect(notified[0]?.text).toContain('用户的说明：顺手查下风格')
+    // 新图照样能接着跑：resume 拿到的计划里有新步骤。
+    const resumed = await runs.resume(id, { id: 's1', cwd: workspace })
+    if (!resumed.ok) throw new Error(resumed.error.message)
+    expect(resumed.result.planId).toBe(planId)
+    expect(Object.keys(resumed.result.payloadPaths)).toContain('lint')
+  })
+
+  it('执行过的步骤不能删；没执行过的可以，状态跟着去掉', async () => {
+    const { id, statePath, loaded } = await tracked()
+    const without = (drop: string): WorkflowDocument => ({
+      ...loaded.document,
+      nodes: loaded.document.nodes.filter((node) => node.id !== drop),
+      edges: loaded.document.edges.filter((edge) => edge.source !== drop && edge.target !== drop),
+    })
+    const before = await readFile(statePath, 'utf8')
+    const locked = await runs.save(id, 's1', [], undefined, {
+      base: loaded.summary.planId,
+      document: without('scan'),
+    })
+    expect(!locked.ok && locked.error.code).toBe('invalid_args')
+    expect(await readFile(statePath, 'utf8')).toBe(before)
+    const removed = await runs.save(id, 's1', [], undefined, {
+      base: loaded.summary.planId,
+      document: without('report'),
+    })
+    if (!removed.ok) throw new Error(removed.error.message)
+    expect(Object.keys(parse(await readFile(statePath, 'utf8')).nodes)).toEqual([
+      'scan',
+      'review',
+      'fix',
+    ])
+  })
+
+  it('图在开始改之后被别处存过：冲突；有编译级问题：不写', async () => {
+    const { id, loaded } = await tracked()
+    const stale = await runs.save(id, 's1', [], undefined, {
+      base: 'deadbeef',
+      document: withStep(loaded.document),
+    })
+    expect(!stale.ok && stale.error.code).toBe('conflict')
+    const empty: WorkflowDocument = {
+      ...loaded.document,
+      nodes: loaded.document.nodes.map((node) =>
+        node.id === 'fix' && node.type === 'wfNode'
+          ? { ...node, data: { ...node.data, prompt: '' } }
+          : node,
+      ),
+    }
+    const broken = await runs.save(id, 's1', [], undefined, {
+      base: loaded.summary.planId,
+      document: empty,
+    })
+    expect(!broken.ok && broken.error.code).toBe('blocked')
+    expect((await view(id)).summary.planId).toBe(loaded.summary.planId)
+    expect(notified).toEqual([])
+  })
+
+  it('只挪了卡片：照样存，不打扰模型', async () => {
+    const { id, loaded } = await tracked()
+    const moved: WorkflowDocument = {
+      ...loaded.document,
+      nodes: loaded.document.nodes.map((node) =>
+        node.id === 'scan' ? { ...node, position: { x: 999, y: 999 } } : node,
+      ),
+    }
+    const outcome = await runs.save(id, 's1', [], undefined, {
+      base: loaded.summary.planId,
+      document: moved,
+    })
+    if (!outcome.ok) throw new Error(outcome.error.message)
+    expect(outcome.result.quiet).toBe(true)
+    expect(notified).toEqual([])
+    const after = await view(id)
+    expect(after.document.nodes.find((node) => node.id === 'scan')?.position).toEqual({
+      x: 999,
+      y: 999,
+    })
+    expect(after.state?.plan).toBe(outcome.result.planId)
+  })
+
+  it('不记运行状态的实例也能改图：通知里只有图的改动', async () => {
+    const result = record(await run({ action: 'compile', workflow: 'cr' }, exec('s1')))
+    const id = String(result.instance)
+    const loaded = await view(id)
+    const outcome = await runs.save(id, 's1', [], undefined, {
+      base: loaded.summary.planId,
+      document: withStep(loaded.document),
+    })
+    if (!outcome.ok) throw new Error(outcome.error.message)
+    expect(outcome.result.notified).toBe(true)
+    expect(notified[0]?.summary).toBe('用户修改了 cr 的图（2 处）')
+    expect(notified[0]?.text).not.toContain('维护状态')
   })
 })
 

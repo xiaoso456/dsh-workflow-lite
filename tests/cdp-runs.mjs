@@ -155,13 +155,7 @@ try {
     await session.evaluate(`document.querySelector('[data-testid="wl-run-panel"]') !== null`),
     '实例视图应常驻右栏',
   )
-  check(
-    await session.evaluate(
-      `document.querySelector('[data-testid="wl-canvas"]').dataset.readonly === 'true'`,
-    ),
-    '实例视图里图不能改',
-  )
-  pass('工作流中心 → 查看实例：画布只读、四张步骤卡挂上状态小标、右栏摊开概览')
+  pass('工作流中心 → 查看实例：四张步骤卡挂上状态小标、右栏摊开概览')
 
   // 1b) 右栏和模板一样能收：点卡片看它、点空白处收起、顶栏开关再打开、右上角 ✕ 收起。
   const panelShown = `document.querySelector('[data-testid="wl-run-panel"]') !== null`
@@ -188,9 +182,19 @@ try {
   )
   await session.evaluate(`document.querySelector('[data-testid="wl-run-panel-close"]').click()`)
   await waitFor(session, `!(${panelShown})`)
+  // 右栏收着：「在看什么」不是激活的样子（图标块不上色）。
+  check(
+    await session.evaluate(`(() => {
+      const nav = document.querySelector('[data-testid="wl-run-nav"]');
+      return nav.dataset.idle === 'true' && getComputedStyle(nav.firstElementChild).backgroundColor === 'rgba(0, 0, 0, 0)';
+    })()`),
+    '右栏收着时「在看什么」不该是激活态',
+  )
+  await sleep(300)
+  await screenshot(session, 'runs-01b-nav-idle.png')
   await session.evaluate(`document.querySelector('[data-testid="wl-run-panel-toggle"]').click()`)
   await waitFor(session, panelShown)
-  pass('右栏：点卡片看详情、点空白处收起、顶栏开关打开概览、✕ 收起')
+  pass('右栏：点卡片看详情、点空白处收起、顶栏开关打开概览、✕ 收起（收着时「在看什么」不激活）')
 
   // 2) 模型改状态文件：画布 2 秒左右跟上；走过的线亮起来。
   await modelEdit((state) => {
@@ -525,6 +529,173 @@ try {
   )
   pass('「重跑这一步」→ 它与下游做过的步骤改回待执行，保存落盘')
 
+  // 8b) 改图：右栏切到「编辑」改提示词 → 草稿栏多一处图的改动；执行过的步骤删不掉；
+  // 保存 → 快照、planId、状态里的 plan、任务描述都换新，通知（暂存）让模型去 resume。
+  const planBefore = JSON.parse(
+    await readFile(join(DATA_DIR, 'instances.json'), 'utf8'),
+  ).instances.find((item) => item.id === instance).planId
+  await session.evaluate(
+    `document.querySelector('.react-flow__node[data-id="review"]').dispatchEvent(new MouseEvent('click', { bubbles: true }))`,
+  )
+  await waitFor(session, `document.querySelector('[data-testid="wl-run-mode"]') !== null`)
+  // 「运行 / 编辑」是标题栏里关闭按钮左边的两个图标格；两边标题栏一模一样（切换时不动）。
+  const headShape = (panel) => `(() => {
+    const head = document.querySelector('[data-testid="${panel}"] header');
+    const box = (el) => { const r = el.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)].join(','); };
+    return [box(head), box(head.firstElementChild), box(head.querySelector('[data-testid="wl-run-mode"]')), head.querySelector('input')?.value, head.querySelector('[data-testid="wl-panel-id"]')?.textContent].join('|');
+  })()`
+  const runHead = await session.evaluate(headShape('wl-run-panel'))
+  await session.evaluate(
+    `document.querySelector('[data-testid="wl-run-mode"] [data-mode="edit"]').click()`,
+  )
+  await waitFor(session, `document.querySelector('[data-testid="wl-inspector"]') !== null`)
+  const editHead = await session.evaluate(headShape('wl-inspector'))
+  check(runHead === editHead, `运行 / 编辑两边的标题栏应一样：${runHead} vs ${editHead}`)
+  check(editHead.includes('review'), '标题栏名字下面一行 ID')
+  // 「在看什么」在顶栏最右、右栏开关的右边，不在右栏里；图标块和开关按下时的底色一样大。
+  check(
+    await session.evaluate(`(() => {
+      const nav = document.querySelector('[data-testid="wl-run-nav"]');
+      const toggle = document.querySelector('[data-testid="wl-run-panel-toggle"]');
+      if (nav === null || toggle === null || nav.closest('aside') !== null) return false;
+      const a = nav.getBoundingClientRect(), b = toggle.getBoundingClientRect();
+      const tile = nav.firstElementChild.getBoundingClientRect();
+      return nav.dataset.idle === 'false' && b.right <= a.left + 1 && a.left - b.right < 12 && Math.abs(a.top + a.height / 2 - (b.top + b.height / 2)) < 2 && tile.width === b.width && tile.height === b.height;
+    })()`),
+    '「在看什么」应在顶栏、紧挨着右栏开关的右边，图标块与开关一样大',
+  )
+  // 提示词只露一截，点笔在弹窗里改。
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-ins-prompt-card-edit"]') !== null`,
+  )
+  check(
+    await session.evaluate(`document.querySelector('[data-testid="wl-ins-prompt"]') === null`),
+    '右栏里不再直接放提示词的输入框',
+  )
+  await session.evaluate(
+    `document.querySelector('[data-testid="wl-ins-prompt-card-edit"]').click()`,
+  )
+  await waitFor(session, `document.querySelector('[data-testid="wl-ins-prompt"]') !== null`)
+  await session.evaluate(`(() => {
+    const area = document.querySelector('[data-testid="wl-ins-prompt"]');
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(area, '换个审法：先看鉴权');
+    area.dispatchEvent(new Event('input', { bubbles: true }));
+  })()`)
+  await sleep(400)
+  await screenshot(session, 'runs-07a-edit-prompt.png')
+  await session.evaluate(
+    `document.querySelector('[data-testid="wl-ins-prompt-card-viewer"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`,
+  )
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-ins-prompt-card-viewer"]') === null`,
+  )
+  check(
+    (
+      await session.evaluate(
+        `document.querySelector('[data-testid="wl-ins-prompt-card-card"]').textContent`,
+      )
+    ).includes('换个审法'),
+    '关上弹窗，右栏那一截应是改过的提示词',
+  )
+  await waitFor(session, `document.querySelector('[data-testid="wl-run-draft"]') !== null`)
+  check(
+    (
+      await session.evaluate(
+        `document.querySelector('[data-testid="wl-run-draft-toggle"]').textContent`,
+      )
+    ).includes('已改 1 处'),
+    '改了提示词 → 草稿栏「已改 1 处」',
+  )
+  await screenshot(session, 'runs-07b-edit-graph.png')
+  await session.evaluate(
+    `document.querySelector('.react-flow__node[data-id="scan"]').dispatchEvent(new MouseEvent('click', { bubbles: true }))`,
+  )
+  await waitFor(session, `document.querySelector('[data-testid="wl-delete-node"]') !== null`)
+  await session.evaluate(`document.querySelector('[data-testid="wl-delete-node"]').click()`)
+  check(
+    await session.evaluate(`document.querySelector('.react-flow__node[data-id="scan"]') !== null`),
+    '执行过的步骤 scan 不该被删掉',
+  )
+  check(
+    (await session.evaluate(`document.body.innerText`)).includes('执行过的步骤不能删'),
+    '删执行过的步骤应提示改成跳过',
+  )
+  await session.evaluate(`document.querySelector('[data-testid="wl-run-save"]').click()`)
+  await waitFor(session, `document.querySelector('[data-testid="wl-run-draft"]') === null`, {
+    timeoutMs: 8000,
+  })
+  const graphAfter = JSON.parse(
+    await readFile(join(DATA_DIR, 'runs', instance, 'graph.json'), 'utf8'),
+  )
+  check(
+    graphAfter.nodes.find((item) => item.id === 'review').data.prompt === '换个审法：先看鉴权',
+    '快照里 review 的提示词应换成新的',
+  )
+  const recordAfter = JSON.parse(
+    await readFile(join(DATA_DIR, 'instances.json'), 'utf8'),
+  ).instances.find((item) => item.id === instance)
+  check(recordAfter.planId !== planBefore, 'planId 应换新')
+  check(
+    parse(await readFile(statePath, 'utf8')).plan === recordAfter.planId,
+    '状态里的 plan 跟着换',
+  )
+  check(
+    (await readFile(
+      join(WORKSPACE, '.workflow-lite', 'runs', instance, 'tasks', 'review.md'),
+      'utf8',
+    )) === '换个审法：先看鉴权',
+    '任务描述应重写',
+  )
+  check(
+    recordAfter.pendingNotice?.includes('用户在画布上修改了图') &&
+      recordAfter.pendingNotice.includes('action=resume'),
+    '通知应说图改了、让模型 resume',
+  )
+  // 顶栏「在看什么」：按分类列出节点，搜「汇总」回车就切过去；概览是固定图标。
+  await session.evaluate(`document.querySelector('[data-testid="wl-run-nav"]').click()`)
+  await waitFor(session, `document.querySelector('[data-testid="wl-run-nav-search"]') !== null`)
+  check(
+    (await session.evaluate(
+      `document.querySelectorAll('[data-testid="wl-run-nav-item"]').length`,
+    )) >= 7,
+    '下拉应列出概览、四个步骤与资源',
+  )
+  await sleep(400)
+  await screenshot(session, 'runs-07c-nav.png')
+  await session.evaluate(`(() => {
+    const input = document.querySelector('[data-testid="wl-run-nav-search"]');
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, '汇总');
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  })()`)
+  await waitFor(
+    session,
+    `document.querySelectorAll('[data-testid="wl-run-nav-item"]').length === 1`,
+  )
+  await session.evaluate(
+    `document.querySelector('[data-testid="wl-run-nav-search"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))`,
+  )
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-panel-id"]')?.textContent.includes('report')`,
+  )
+  await session.evaluate(`document.querySelector('[data-testid="wl-run-nav"]').click()`)
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-run-nav-item"][data-id=""]') !== null`,
+  )
+  await session.evaluate(
+    `document.querySelector('[data-testid="wl-run-nav-item"][data-id=""]').click()`,
+  )
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-run-panel"] [data-testid="wl-panel-id"]') === null && document.querySelector('[data-testid="wl-run-panel"]')?.textContent.includes('概览')`,
+  )
+  pass(
+    '运行 / 编辑两边标题栏一样；右栏「编辑」在弹窗里改提示词 → 已改 1 处；顶栏「在看什么」按分类列节点、能搜；执行过的步骤删不掉；保存后快照、planId、任务描述换新，通知让模型 resume',
+  )
+
   // 9) 移到本会话：变成本会话的当前实例，流水记 transfer。
   const browserSession = await session.evaluate(
     `document.querySelector('[data-testid="wl-root"]').dataset.session`,
@@ -725,7 +896,7 @@ try {
     '不该报「状态文件不在了」',
   )
   await screenshot(session, 'runs-09-untracked.png')
-  pass('不记运行状态的实例：只读的图 + 右栏说明，没有状态小标、不报错')
+  pass('不记运行状态的实例：图 + 右栏说明，没有状态小标、不报错')
 
   // 15) 资源：步骤详情列出它写的文件；点进去右栏只放缩略（生成没有 · 大小 · 时间、用到它的步骤），
   // 查看在详情框里：文件读正文（带生成要求），文件夹列内容，网址、自定义文字显示全文。
@@ -739,6 +910,12 @@ try {
     session.evaluate(
       `document.querySelector('[data-testid="wl-run-panel"] ${selector}')?.textContent ?? ''`,
     )
+  // 标题栏里的名字是能改的输入框（和「编辑」那边同一个）：没起名字时显示的是占位。
+  const headName = () =>
+    session.evaluate(`(() => {
+      const input = document.querySelector('[data-testid="wl-run-panel"] header input');
+      return input === null ? '' : input.value || input.placeholder;
+    })()`)
   const pressEscape = (testId) =>
     session.evaluate(
       `document.querySelector('[data-testid="${testId}"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`,
@@ -754,7 +931,7 @@ try {
     `document.querySelector('[data-testid="wl-run-step-file"][data-id="file-notes.md"]').click()`,
   )
   await waitFor(session, `document.querySelector('[data-testid="wl-run-resource"]') !== null`)
-  check((await panelText('header')).includes('notes.md'), '右栏标题应是资源的名字')
+  check((await headName()).includes('notes.md'), '右栏标题应是资源的名字')
   await waitFor(
     session,
     `document.querySelector('[data-testid="wl-run-item-state"]')?.textContent.includes('已生成')`,
@@ -768,6 +945,15 @@ try {
       `document.querySelector('[data-testid="wl-run-file-step"][data-id="scan"]') !== null`,
     ),
     '右栏应列出用到它的步骤 scan',
+  )
+  check(
+    (await panelText('[data-testid="wl-run-item-note"]')) === '说明' &&
+      (
+        await session.evaluate(
+          `document.querySelector('[data-testid="wl-run-resource-item"] button').title`,
+        )
+      ).includes('列出现状与风险'),
+    '有说明的那一行挂「说明」小签，全文在悬停提示里',
   )
   check(
     await session.evaluate(
@@ -808,7 +994,7 @@ try {
     session,
     `document.querySelectorAll('[data-testid="wl-run-resource-item"]').length === 3`,
   )
-  check((await panelText('header')).includes('参考'), '右栏标题应是资源的名字')
+  check((await headName()).includes('参考'), '右栏标题应是资源的名字')
   await waitFor(
     session,
     `document.querySelector('[data-testid="wl-run-resource-item"][data-kind="folder"] [data-testid="wl-run-item-state"]')?.dataset.on === 'true'`,

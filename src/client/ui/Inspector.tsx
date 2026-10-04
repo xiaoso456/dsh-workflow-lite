@@ -27,7 +27,6 @@ import type {
 import type { HostAccess } from '../app/host.ts'
 import type { T } from '../i18n.ts'
 import { type Edit, findNode, type Selection, whenOf } from '../model/editor.ts'
-import { AppearancePicker } from './AppearancePicker.tsx'
 import { type FocusFile, HandoffField } from './Handoff.tsx'
 import hand from './handoff.module.css'
 import { Icon } from './Icon.tsx'
@@ -35,7 +34,9 @@ import { InputPanel, StepInputsField } from './InputPanel.tsx'
 import css from './inspector.module.css'
 import { LinkRow } from './LinkRow.tsx'
 import { WHEN_COLOR, type WhenKind, whenKind } from './lines.ts'
-import { copyText, cx, Segmented } from './primitives.tsx'
+import { EdgeHead, StepHead } from './NodeHeads.tsx'
+import { PreviewCard } from './PreviewCard.tsx'
+import { cx, Segmented } from './primitives.tsx'
 import { ResourcePanel } from './ResourcePanel.tsx'
 import { ResourceEdgeBody, ResourceIcon, StepResourcesField } from './Resources.tsx'
 import { stepName } from './resourceUi.ts'
@@ -59,6 +60,8 @@ export interface InspectorProps {
   onFocusFile: FocusFile
   /** 给资源选文件、文件夹、Skill 时看主机。 */
   host: HostAccess
+  /** 标题栏里关闭按钮左边的切换（实例视图里「运行 / 编辑」）；模板编辑不给。 */
+  tabs?: React.ReactNode
 }
 
 function titleOf(node: WorkflowNode | undefined, fallback: string): string {
@@ -84,6 +87,7 @@ export function Inspector(props: InspectorProps): React.JSX.Element | null {
           onSeal={props.onSeal}
           onFocusFile={props.onFocusFile}
           onRemove={props.onRemoveNode}
+          tabs={props.tabs}
         />
       )
     }
@@ -98,6 +102,7 @@ export function Inspector(props: InspectorProps): React.JSX.Element | null {
           onSelect={props.onSelect}
           onSeal={props.onSeal}
           onRemove={props.onRemoveNode}
+          tabs={props.tabs}
         />
       )
     }
@@ -117,17 +122,12 @@ export function Inspector(props: InspectorProps): React.JSX.Element | null {
 function NodePanel(props: InspectorProps & { node: StepNode }): React.JSX.Element {
   const { t, node, doc, analysis, onEdit, onSelect } = props
   const merge = (field: string): string => `${idKey(node.id)}:${field}`
-  const promptRef = useRef<HTMLTextAreaElement>(null)
-
-  const [copied, setCopied] = useState(false)
   const [templating, setTemplating] = useState(false)
   const [templateName, setTemplateName] = useState(node.id)
 
   useEffect(() => {
     setTemplating(false)
     setTemplateName(node.id)
-    setCopied(false)
-    if (props.focusPrompt) promptRef.current?.focus()
   }, [node.id])
 
   const prompt = node.data.prompt ?? ''
@@ -143,52 +143,14 @@ function NodePanel(props: InspectorProps & { node: StepNode }): React.JSX.Elemen
       data-testid="wl-inspector"
       aria-label={t('ins.name')}
     >
-      <header className={css.head}>
-        <AppearancePicker
-          t={t}
-          look={lookOf(node.id, node.data)}
-          custom={node.data.icon !== undefined || node.data.color !== undefined}
-          onChange={(patch) => onEdit({ type: 'patchNode', id: node.id, patch })}
-        />
-        <input
-          className={css.titleInput}
-          value={node.data.label ?? ''}
-          placeholder={node.id}
-          aria-label={t('ins.name')}
-          data-testid="wl-ins-label"
-          onChange={(event) => {
-            // 名称会进计划里的表格：换行与竖线直接不让打进来。
-            const value = event.currentTarget.value.replace(/[\r\n|]/gu, '')
-            onEdit({
-              type: 'patchNode',
-              id: node.id,
-              patch: { label: value === '' ? undefined : value },
-              merge: merge('label'),
-            })
-          }}
-          onBlur={props.onSeal}
-        />
-        <button
-          type="button"
-          className={cx(ui.btn, ui.icon, ui.small)}
-          aria-label={t('common.close')}
-          onClick={() => onSelect(null)}
-        >
-          <Icon name="x" size={15} />
-        </button>
-      </header>
-      <button
-        type="button"
-        className={cx(css.idChip, ui.tip, ui.tipStart)}
-        data-tip={copied ? t('common.copied') : t('ins.copyId')}
-        onClick={() => {
-          void copyText(node.id).then((ok) => setCopied(ok))
-        }}
-      >
-        <span>ID</span>
-        <code>{node.id}</code>
-        <Icon name={copied ? 'check' : 'copy'} size={12} />
-      </button>
+      <StepHead
+        t={t}
+        node={node}
+        onEdit={onEdit}
+        onSeal={props.onSeal}
+        extra={props.tabs}
+        onClose={() => onSelect(null)}
+      />
 
       <div className={css.body}>
         <DescriptionField
@@ -204,33 +166,32 @@ function NodePanel(props: InspectorProps & { node: StepNode }): React.JSX.Elemen
           }
           onBlur={props.onSeal}
         />
-        <section className={cx(css.field, css.fieldGrow)}>
-          <div className={css.label}>
-            <span>{t('ins.prompt')}</span>
-            <span className={css.count}>
-              {[...prompt].length} {t('ins.chars')}
-            </span>
-          </div>
-          <textarea
-            ref={promptRef}
-            className={cx(ui.textarea, css.prompt)}
-            value={prompt}
-            placeholder={t('ins.promptPlaceholder')}
-            aria-label={t('ins.prompt')}
-            data-testid="wl-ins-prompt"
-            spellCheck={false}
-            onChange={(event) =>
+        <PreviewCard
+          t={t}
+          label={t('ins.prompt')}
+          text={prompt}
+          name={titleOf(node, node.id)}
+          badge={<StepMark look={lookOf(node.id, node.data)} size={15} />}
+          meta={`${t('ins.prompt')} · ${[...prompt].length} ${t('ins.chars')}`}
+          copyLabel={t('run.copyPrompt')}
+          desktop={undefined}
+          testId="wl-ins-prompt-card"
+          lines={6}
+          help={t('ins.promptHint')}
+          autoEdit={props.focusPrompt}
+          edit={{
+            placeholder: t('ins.promptPlaceholder'),
+            testId: 'wl-ins-prompt',
+            onChange: (value) =>
               onEdit({
                 type: 'patchNode',
                 id: node.id,
-                patch: { prompt: event.currentTarget.value },
+                patch: { prompt: value },
                 merge: merge('prompt'),
-              })
-            }
-            onBlur={props.onSeal}
-          />
-          <p className={css.help}>{t('ins.promptHint')}</p>
-        </section>
+              }),
+            onSeal: props.onSeal,
+          }}
+        />
 
         <StepResourcesField
           t={t}
@@ -468,34 +429,14 @@ function EdgePanel(props: InspectorProps & { edge: WorkflowEdge }): React.JSX.El
       data-testid="wl-inspector"
       aria-label={t('edge.title')}
     >
-      <header className={css.head}>
-        <span className={css.edgeIcon}>
-          <Icon
-            name={
-              kind === 'flow' ? (back ? 'loop' : 'arrowRight') : kind === 'ask' ? 'ask' : 'layers'
-            }
-            size={16}
-          />
-        </span>
-        <span className={css.headTitle}>
-          {kind === 'write'
-            ? t('edge.write')
-            : kind === 'read'
-              ? t('edge.read')
-              : kind === 'ask'
-                ? t('edge.askTitle')
-                : t('edge.title')}
-        </span>
-        <button
-          type="button"
-          className={cx(ui.btn, ui.icon, ui.small)}
-          aria-label={t('common.close')}
-          onClick={() => onSelect(null)}
-        >
-          <Icon name="x" size={15} />
-        </button>
-      </header>
-
+      <EdgeHead
+        t={t}
+        doc={doc}
+        analysis={analysis}
+        edge={edge}
+        extra={props.tabs}
+        onClose={() => onSelect(null)}
+      />
       <div className={css.body}>
         <div className={css.ends}>
           <button

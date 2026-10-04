@@ -176,7 +176,9 @@ export function Modal(props: {
   }, [])
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void => {
-    event.stopPropagation()
+    // Ctrl / ⌘ + S 留给打开它的那块（「我的步骤」在弹窗里改提示词时照样能存）。
+    const save = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's'
+    if (!save) event.stopPropagation()
     if (event.key === 'Escape') {
       event.preventDefault()
       props.onDismiss()

@@ -86,6 +86,10 @@ const BASE_PATHS = {
   circle: 'M12 20a8 8 0 100-16 8 8 0 000 16z',
   // 资源里的自定义：一张写了几行字的便签
   note: 'M5 4h10l4 4v12H5zM15 4v4h4M8.5 12h7M8.5 15.5h7M8.5 8.5h3',
+  // 实例右栏的概览：大小不一的四块看板
+  overview: 'M4 4h7v9H4zM13 4h7v5h-7zM13 11h7v9h-7zM4 15h7v5H4z',
+  /** 运行状态：一段脉搏线。 */
+  activity: 'M3 12h4l3-7 4 14 3-7h4',
 } as const
 
 const PATHS: Record<keyof typeof BASE_PATHS | StepIcon, string> = {

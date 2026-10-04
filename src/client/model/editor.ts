@@ -175,6 +175,8 @@ export type Edit =
   /** 视口是视图状态：照样落盘，但不进撤销栈。 */
   /** 换掉整份工作流设置（设置对话框「完成」时一次交出来 = 一条撤销步）。 */
   | { type: 'setSettings'; settings: WorkflowSettings | undefined }
+  /** 整张换掉（实例视图撤回某一处改动时用）；选中的东西不在了就放掉。 */
+  | { type: 'replaceDoc'; doc: WorkflowDocument }
 
 export type Action =
   | Edit
@@ -606,6 +608,11 @@ function applyEdit(doc: WorkflowDocument, selection: Selection, edit: Edit): App
       }
     }
 
+    case 'replaceDoc':
+      return edit.doc === doc
+        ? null
+        : { doc: edit.doc, selection: keepSelection(edit.doc, selection) }
+
     case 'setSettings': {
       // 走一遍和写盘同一份的规范化：根目录标准化、缺省值不留。
       const settings = readSettings(edit.settings)
@@ -633,6 +640,7 @@ function isEdit(action: Action): action is Edit {
     case 'setWhen':
     case 'setHandoff':
     case 'setSettings':
+    case 'replaceDoc':
       return true
     default:
       return false

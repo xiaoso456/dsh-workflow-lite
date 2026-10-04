@@ -17,7 +17,7 @@ import { isDirty } from '../model/editor.ts'
 import { Icon } from './Icon.tsx'
 import { Launch, type LaunchProps } from './Launch.tsx'
 import { cx, Popover } from './primitives.tsx'
-import { RunMenuSection } from './RunView.tsx'
+import { RunMenuSection } from './RunTopBar.tsx'
 import css from './topbar.module.css'
 import ui from './ui.module.css'
 

@@ -283,6 +283,15 @@ try {
     })
     await waitFor(session, exists('wl-quick-add'))
     await session.evaluate(click('[data-testid="wl-quick-blank"]'))
+    // 空白步骤加完直接弹出提示词的编辑框：这里不写，Esc 关上。
+    await waitFor(session, exists('wl-ins-prompt'))
+    await session.evaluate(
+      `document.querySelector('[data-testid="wl-ins-prompt-card-viewer"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`,
+    )
+    await waitFor(
+      session,
+      `document.querySelector('[data-testid="wl-ins-prompt-card-viewer"]') === null`,
+    )
     await sleep(300)
   }
   doc = await onDisk(

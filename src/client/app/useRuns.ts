@@ -9,6 +9,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { isStep } from '../../shared/model.ts'
 import {
   type InstanceSummary,
   type InstanceView,
@@ -17,6 +18,8 @@ import {
   type RunState,
   type StateEdit,
 } from '../../shared/runState.ts'
+import type { WorkflowDocument } from '../../shared/types.ts'
+import type { RunSaveResponse } from '../../shared/wire.ts'
 import type { T } from '../i18n.ts'
 import {
   applyDraft,
@@ -29,7 +32,7 @@ import {
   setNodeStatus,
   valueAt,
 } from '../model/runDraft.ts'
-import { errorCode, errorMessage, type WorkflowLiteRpc } from '../rpc.ts'
+import { errorCode, errorMessage, type WorkflowLiteRpc, WorkflowLiteRpcError } from '../rpc.ts'
 
 /** 实例视图轮询的间隔。 */
 export const RUN_POLL_MS = 2000
@@ -150,7 +153,11 @@ export interface Run {
   undoEdit(path: readonly string[]): void
   resolve(conflict: DraftConflict, keep: 'mine' | 'theirs'): void
   discard(): void
-  save(): Promise<void>
+  /**
+   * 保存草稿并通知模型。改了图就把改完的整张图一起交上去（草稿里删掉了的步骤的状态改动不交）；
+   * 存好了回 host 的回执，没存成回 `null`。
+   */
+  save(graph?: { base: string; document: WorkflowDocument }): Promise<RunSaveResponse | null>
   reload(): Promise<void>
 }
 
@@ -330,37 +337,65 @@ export function useRun(
     setConflicts([])
   }, [])
 
-  const save = useCallback(async (): Promise<void> => {
-    if (draftRef.current.length === 0 || saving) return
-    setSaving(true)
-    const edits = draftRef.current
-    try {
-      const result = await rpc.call('run/save', {
-        id,
-        ...(session === undefined ? {} : { session }),
-        edits,
-        ...(note.trim() === '' ? {} : { note: note.trim() }),
-      })
-      saved.current = edits
-      setOverwritten([])
-      setDraft([])
-      setNote('')
-      setConflicts([])
-      flash('ok', result.notified ? t('run.savedNotified') : t('run.savedPending'))
-      await load(true)
-      onSaved?.()
-    } catch (caught) {
-      if (errorCode(caught) === 'conflict') {
-        // 有字段在开始改之后被模型改过：重新读一遍，冲突会在草稿上标出来。
+  const save = useCallback(
+    async (graph?: {
+      base: string
+      document: WorkflowDocument
+    }): Promise<RunSaveResponse | null> => {
+      if ((draftRef.current.length === 0 && graph === undefined) || saving) return null
+      setSaving(true)
+      const steps =
+        graph === undefined
+          ? null
+          : new Set(graph.document.nodes.filter(isStep).map((node) => node.id))
+      const edits =
+        steps === null
+          ? draftRef.current
+          : draftRef.current.filter(
+              (edit) => edit.path.length !== 3 || steps.has(edit.path[1] ?? ''),
+            )
+      try {
+        const result = await rpc.call('run/save', {
+          id,
+          ...(session === undefined ? {} : { session }),
+          edits,
+          ...(note.trim() === '' ? {} : { note: note.trim() }),
+          ...(graph === undefined ? {} : { graph }),
+        })
+        saved.current = edits
+        setOverwritten([])
+        setDraft([])
+        setNote('')
+        setConflicts([])
+        flash(
+          'ok',
+          result.quiet === true
+            ? t('run.savedQuiet')
+            : result.notified
+              ? t('run.savedNotified')
+              : t('run.savedPending'),
+        )
         await load(true)
-        flash('error', t('run.saveConflict'))
-      } else {
-        flash('error', errorMessage(caught))
+        onSaved?.()
+        return result
+      } catch (caught) {
+        if (
+          errorCode(caught) === 'conflict' &&
+          !(caught instanceof WorkflowLiteRpcError && caught.details.get('graph') === true)
+        ) {
+          // 有字段在开始改之后被模型改过：重新读一遍，冲突会在草稿上标出来。
+          await load(true)
+          flash('error', t('run.saveConflict'))
+        } else {
+          flash('error', errorMessage(caught))
+        }
+        return null
+      } finally {
+        setSaving(false)
       }
-    } finally {
-      setSaving(false)
-    }
-  }, [rpc, id, session, note, saving, flash, t, load, onSaved])
+    },
+    [rpc, id, session, note, saving, flash, t, load, onSaved],
+  )
 
   const shown = useMemo(() => (base === null ? null : applyDraft(base, draft)), [base, draft])
 

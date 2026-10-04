@@ -235,7 +235,7 @@ async function run(session) {
   check(planAt.x > scanAt.x, '「添加下一步」应落在右边')
   pass('点「＋」添加下一步 → 自动连线、落在右侧')
 
-  // 4) 双击空白处 → 空白步骤，光标直接进提示词；打字落盘。
+  // 4) 双击空白处 → 空白步骤，提示词弹窗直接进编辑、光标在里面；打字落盘。
   const blankAt = {
     x: Math.round(canvasBox.x + canvasBox.w * 0.45),
     y: Math.round(canvasBox.y + canvasBox.h * 0.78),
@@ -251,7 +251,21 @@ async function run(session) {
     (doc) => doc.nodes.find((node) => node.id === 'step')?.data.prompt === '检查所有测试是否通过。',
     'step 的提示词',
   )
-  pass('双击空白处加空白步骤 → 提示词自动聚焦、输入落盘')
+  // 提示词在弹窗里写：Esc 关上，右栏那一截是写好的内容。
+  await session.evaluate(
+    `document.querySelector('[data-testid="wl-ins-prompt-card-viewer"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`,
+  )
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-ins-prompt-card-viewer"]') === null`,
+  )
+  check(
+    (await session.evaluate(
+      `document.querySelector('[data-testid="wl-ins-prompt-card-card"]').textContent`,
+    )) === '检查所有测试是否通过。',
+    '关上弹窗后右栏应露出写好的提示词',
+  )
+  pass('双击空白处加空白步骤 → 提示词弹窗直接进编辑、输入落盘')
 
   // 5) 从 plan 的出口拖线到 step 的入口。
   await pointerDrag(
@@ -844,14 +858,17 @@ async function run(session) {
   // 10d) 在右侧改我的步骤，Ctrl+S 保存。
   await waitFor(
     session,
-    `(document.querySelector('textarea[data-testid="wl-step-prompt"]')?.value || '').includes('VERDICT')`,
+    `(document.querySelector('[data-testid="wl-step-prompt-card"]')?.textContent || '').includes('VERDICT')`,
   )
-  await setReactInput(session, 'textarea[data-testid="wl-step-prompt"]', '改过的提示词')
   await setReactInput(
     session,
     '[data-testid="wl-step-panel"] [data-testid="wl-description"]',
     '我自己的审查',
   )
+  // 提示词在弹窗里改；弹窗里按 Ctrl+S 一样能存。
+  await session.evaluate(clickTestId('wl-step-prompt-card-edit'))
+  await waitFor(session, exists('wl-step-prompt'))
+  await setReactInput(session, 'textarea[data-testid="wl-step-prompt"]', '改过的提示词')
   await session.evaluate(`document.querySelector('textarea[data-testid="wl-step-prompt"]').focus()`)
   await pressKey(session, 's', { modifiers: MOD.ctrl })
   const deadline = Date.now() + 6000
@@ -862,6 +879,11 @@ async function run(session) {
       throw new Error(`FAIL: Ctrl+S 没有把改动存下去：${draft.data.prompt}`)
     await sleep(200)
   }
+  await pressKey(session, 'Escape')
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-step-prompt-card-viewer"]') === null`,
+  )
   await waitFor(
     session,
     `(document.querySelector('[data-testid="wl-lib-template-${STEP}"]')?.textContent || '').includes('我自己的审查')`,
@@ -892,7 +914,14 @@ async function run(session) {
   await session.evaluate(clickTestId('wl-lib-new'))
   await waitFor(session, exists('wl-step-name'))
   await setReactInput(session, '[data-testid="wl-step-name"]', STEP_NEW)
+  await session.evaluate(clickTestId('wl-step-prompt-card-card'))
+  await waitFor(session, exists('wl-step-prompt'))
   await setReactInput(session, 'textarea[data-testid="wl-step-prompt"]', '全新的步骤')
+  await pressKey(session, 'Escape')
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-step-prompt-card-viewer"]') === null`,
+  )
   await session.evaluate(clickTestId('wl-step-save'))
   await waitFor(session, exists(`wl-lib-template-${STEP_NEW}`))
   check(

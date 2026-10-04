@@ -4,6 +4,7 @@
  * 标题行：图标、名字、一行元信息，右边「排版 / 源码」（Markdown 才有）、复制路径、
  * 用其他程序打开（含在文件管理器中显示）、关闭。正文：Markdown 默认排版，其余原样；
  * 读不了的只说明原因。调用方可以在正文前插一段（`lead`），在底部放操作条（`footer`）。
+ * 给了 `edit` 就多一个「编辑」：整块文字在这里改（提示词、摘要这类大段文字都在弹窗里改）。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/DocViewer
  */
@@ -18,6 +19,16 @@ import { OpenWith } from './OpenWith.tsx'
 import { copyText, cx, Modal, Segmented } from './primitives.tsx'
 import ui from './ui.module.css'
 
+/** 弹窗里能改的那段文字怎么交出去。 */
+export interface DocEdit {
+  onChange(text: string): void
+  placeholder?: string
+  maxLength?: number
+  testId?: string
+  /** 一打开就在「编辑」。 */
+  start?: boolean
+}
+
 /** 正文是什么：还在读、读不了（说明原因）、读到了一段文字。 */
 export type DocBody =
   | { kind: 'loading' }
@@ -26,7 +37,7 @@ export type DocBody =
   /** 调用方自己画的正文（文件夹里有什么、网址的说明）。 */
   | { kind: 'node'; node: React.ReactNode }
 
-type View = 'rendered' | 'source'
+type View = 'rendered' | 'source' | 'edit'
 
 export function DocViewer(props: {
   t: T
@@ -48,10 +59,12 @@ export function DocViewer(props: {
   lead?: React.ReactNode
   footer?: React.ReactNode
   className?: string
+  /** 能改：正文就是这段文字，「编辑」里改了直接交出去。 */
+  edit?: DocEdit
   onClose(): void
 }): React.JSX.Element {
-  const { t, body } = props
-  const [view, setView] = useState<View>('rendered')
+  const { t, body, edit } = props
+  const [view, setView] = useState<View>(edit?.start === true ? 'edit' : 'rendered')
   const [copied, setCopied] = useState(false)
   const [failure, setFailure] = useState<string | null>(null)
   const markdown = body.kind === 'text' && body.markdown
@@ -66,7 +79,22 @@ export function DocViewer(props: {
   )
 
   let content: React.ReactNode
-  if (body.kind === 'loading') {
+  if (view === 'edit' && edit !== undefined && body.kind === 'text') {
+    content = (
+      <textarea
+        className={cx(ui.textarea, css.viewerEdit)}
+        value={body.text}
+        placeholder={edit.placeholder}
+        aria-label={props.name}
+        maxLength={edit.maxLength}
+        spellCheck={false}
+        data-testid={edit.testId}
+        // biome-ignore lint/a11y/noAutofocus: 切到「编辑」就是要打字
+        autoFocus
+        onChange={(event) => edit.onChange(event.currentTarget.value)}
+      />
+    )
+  } else if (body.kind === 'loading') {
     content = (
       <div className={css.viewerState}>
         <span className={css.spinner} />
@@ -93,15 +121,20 @@ export function DocViewer(props: {
           <span className={css.viewerName}>{props.name}</span>
           <span className={css.viewerMeta}>{props.meta}</span>
         </div>
-        {markdown && (
+        {(markdown || edit !== undefined) && (
           <div className={css.viewerViews}>
             <Segmented<View>
               label={t('file.rendered')}
               value={view}
               onChange={setView}
               options={[
-                { value: 'rendered', label: t('file.rendered') },
-                { value: 'source', label: t('file.source') },
+                ...(markdown
+                  ? [
+                      { value: 'rendered' as const, label: t('file.rendered') },
+                      { value: 'source' as const, label: t('file.source') },
+                    ]
+                  : [{ value: 'rendered' as const, label: t('file.text') }]),
+                ...(edit === undefined ? [] : [{ value: 'edit' as const, label: t('file.edit') }]),
               ]}
             />
           </div>

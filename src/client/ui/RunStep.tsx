@@ -47,6 +47,8 @@ export function RunStepDetail(props: {
   analysis: GraphAnalysis
   step: StepNode
   state: RunState | null
+  /** 图里刚加、还没保存的步骤：没有运行状态可看。 */
+  fresh?: boolean
   /** 这次走过的线；不记进度时为 `null`。 */
   taken: ReadonlySet<string> | null
   verdicts: readonly string[] | undefined
@@ -58,6 +60,10 @@ export function RunStepDetail(props: {
   onSelectEdge(id: string): void
   onFocusFile(id: string | null): void
   onViewPath(path: string): void
+  /** 改这一步的提示词（改的是这次执行的图，进草稿）。 */
+  onEditPrompt(prompt: string): void
+  /** 一次编辑结束（弹窗关上）：断开撤销合并。 */
+  onSeal(): void
 }): React.JSX.Element {
   const { t, step, state } = props
   const node = state?.nodes[step.id]
@@ -69,7 +75,12 @@ export function RunStepDetail(props: {
           {description}
         </p>
       )}
-      {state !== null &&
+      {props.fresh === true ? (
+        <p className={ins.help} data-testid="wl-run-fresh">
+          {t('run.freshStep')}
+        </p>
+      ) : (
+        state !== null &&
         (node === undefined ? (
           <p className={ins.help}>{t('run.noNode')}</p>
         ) : (
@@ -80,9 +91,19 @@ export function RunStepDetail(props: {
             node={node}
             verdicts={props.verdicts}
             onRerun={props.onRerun}
+            name={stepName(step, step.id)}
+            badge={<StepMark look={lookOf(step.id, step.data)} size={15} />}
+            desktop={props.desktop}
           />
-        ))}
-      <PromptSection t={t} step={step} desktop={props.desktop} />
+        ))
+      )}
+      <PromptSection
+        t={t}
+        step={step}
+        desktop={props.desktop}
+        onChange={props.onEditPrompt}
+        onSeal={props.onSeal}
+      />
       <InputsSection
         t={t}
         snapshot={props.snapshot}
@@ -122,18 +143,12 @@ function PromptSection(props: {
   t: T
   step: StepNode
   desktop: Desktop | undefined
+  onChange(prompt: string): void
+  onSeal(): void
 }): React.JSX.Element {
   const { t, step } = props
-  const prompt = (step.data.prompt ?? '').trim()
+  const prompt = step.data.prompt ?? ''
   const description = step.data.description?.trim() ?? ''
-  if (prompt === '') {
-    return (
-      <section className={run.section}>
-        <p className={files.groupTitle}>{t('ins.prompt')}</p>
-        <p className={ins.help}>{t('run.noPrompt')}</p>
-      </section>
-    )
-  }
   return (
     <PreviewCard
       t={t}
@@ -146,6 +161,12 @@ function PromptSection(props: {
       copyLabel={t('run.copyPrompt')}
       desktop={props.desktop}
       testId="wl-run-prompt"
+      edit={{
+        placeholder: t('ins.promptPlaceholder'),
+        testId: 'wl-run-prompt-input',
+        onChange: props.onChange,
+        onSeal: props.onSeal,
+      }}
     />
   )
 }

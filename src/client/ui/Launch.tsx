@@ -12,9 +12,9 @@
 import { useMemo, useState } from 'react'
 import { pickable, type SessionRow } from '../app/sessions.ts'
 import type { LocaleKey, T } from '../i18n.ts'
+import { shortTime } from '../model/time.ts'
 import { Icon } from './Icon.tsx'
 import { cx, Popover } from './primitives.tsx'
-import { shortTime } from './RunView.tsx'
 import css from './topbar.module.css'
 import ui from './ui.module.css'
 

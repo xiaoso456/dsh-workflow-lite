@@ -18,11 +18,11 @@ import { type EdgeKind, edgeKind, nodeIndex, resolveHandoff } from '../../shared
 import type { RunState } from '../../shared/runState.ts'
 import type { InputAnswer, WorkflowDocument, WorkflowEdge } from '../../shared/types.ts'
 import type { Desktop } from '../app/desktop.ts'
-import type { LocaleKey, T } from '../i18n.ts'
+import type { T } from '../i18n.ts'
 import { findNode, whenOf } from '../model/editor.ts'
 import { RUN_TEXT } from './Canvas.tsx'
 import files from './files.module.css'
-import { Icon, type IconName } from './Icon.tsx'
+import { Icon } from './Icon.tsx'
 import { EndIcon } from './Inspector.tsx'
 import ins from './inspector.module.css'
 import { WhenChip } from './LinkRow.tsx'
@@ -32,19 +32,6 @@ import { AnswerView } from './RunInput.tsx'
 import { stepName } from './resourceUi.ts'
 import run from './run.module.css'
 import css from './runstep.module.css'
-
-/** 线的标题与图标（右栏标题行用）。 */
-export function edgeHead(
-  doc: WorkflowDocument,
-  analysis: GraphAnalysis,
-  edge: WorkflowEdge,
-): { icon: IconName; title: LocaleKey } {
-  const kind = edgeKind(nodeIndex(doc), edge)
-  if (kind === 'write') return { icon: 'layers', title: 'edge.write' }
-  if (kind === 'read') return { icon: 'layers', title: 'edge.read' }
-  if (kind === 'ask') return { icon: 'ask', title: 'edge.askTitle' }
-  return { icon: analysis.backEdges.has(edge.id) ? 'loop' : 'arrowRight', title: 'edge.title' }
-}
 
 export function RunEdgeDetail(props: {
   t: T
