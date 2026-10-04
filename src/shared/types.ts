@@ -501,6 +501,8 @@ export interface ReadIndexResult {
   resources?: ResourceIndexEntry[]
   /** 输入节点（有才给），按画布上从上到下的顺序。 */
   inputs?: InputIndexEntry[]
+  /** 阻塞编译的问题（有才给）。 */
+  problems?: ValidationProblem[]
   warnings: ToolWarning[]
 }
 

@@ -3,7 +3,7 @@
  *
  * 文件用 {@link FileViewer}（能读正文），Skill 用 {@link SkillPreview}（读 SKILL.md），都不在这里。
  * 三个框都是 {@link DocViewer} 的小号：标题行同样有复制、用其他程序打开（文件夹）、关闭，
- * 正文前同样是这一项的说明。
+ * 文件夹、网址的说明放在正文前（框小、说明就是主要内容）；自定义文字的说明收在「说明」开关里。
  * - 文件夹：里面有什么（目录在前，只列名字），可以复制路径、用其他程序打开或在文件管理器里显示；
  * - 网址：整条网址（点了在浏览器里开），底部一个「在浏览器中打开」；
  * - 自定义文字：整段排版显示，可以复制。
@@ -203,13 +203,13 @@ export function TextDialog(props: {
       name={itemName(item) || t(KIND_LABEL.text)}
       badge={<Badge kind="text" />}
       meta={t('res.textChars').replace('{n}', String([...text].length))}
-      body={{ kind: 'text', text, markdown: true }}
+      body={{ kind: 'text', text, format: 'markdown' }}
       copyPath={text === '' ? null : text}
       copyLabel={t('res.copyText')}
       openPath={null}
       desktop={props.desktop}
       testId="wl-text-viewer"
-      lead={lead(t, item)}
+      note={item.note ?? ''}
       onClose={props.onClose}
     />
   )

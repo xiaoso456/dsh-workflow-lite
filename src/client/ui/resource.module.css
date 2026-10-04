@@ -91,11 +91,21 @@
   flex-direction: column;
   margin: 0;
   padding: 0;
-  overflow: hidden;
   border: 1px solid var(--wl-line);
   border-radius: 10px;
   background: var(--wl-panel);
   list-style: none;
+}
+
+/* 卡片不裁内容：行尾按钮的提示、「用其他程序打开」的下拉要伸出卡片。圆角交给首尾两行（悬停底色不出角）。 */
+.list > :first-child {
+  border-top-left-radius: 9px;
+  border-top-right-radius: 9px;
+}
+
+.list > :last-child {
+  border-bottom-left-radius: 9px;
+  border-bottom-right-radius: 9px;
 }
 
 .row {

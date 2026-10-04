@@ -31,11 +31,11 @@ export function PreviewCard(props: {
   /** 小标题（可以带改过的小圆点）。 */
   label: React.ReactNode
   text: string
-  /** 弹窗：标题、左边的图标块、标题下面一行、正文前的一段。 */
+  /** 弹窗：标题、左边的图标块、标题下面一行、收在「说明」开关里的说明。 */
   name: string
   badge: React.ReactNode
   meta: string
-  lead?: React.ReactNode
+  note?: string
   copyLabel: string
   desktop: Desktop | undefined
   testId: string
@@ -108,13 +108,13 @@ export function PreviewCard(props: {
           name={props.name}
           badge={props.badge}
           meta={props.meta}
-          body={{ kind: 'text', text, markdown: true }}
+          body={{ kind: 'text', text, format: 'markdown' }}
           copyPath={text}
           copyLabel={props.copyLabel}
           openPath={null}
           desktop={props.desktop}
           testId={`${props.testId}-viewer`}
-          lead={props.lead}
+          {...(props.note === undefined ? {} : { note: props.note })}
           {...(edit === undefined ? {} : { edit: { ...edit, start: open === 'edit' } })}
           onClose={close}
         />

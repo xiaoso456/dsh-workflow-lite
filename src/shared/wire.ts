@@ -447,8 +447,15 @@ export interface RunStartResponse {
 /** `run/file` 整份带回正文的上限（字节）；再大只回元信息。 */
 export const RUN_FILE_TEXT_MAX = 256 * 1024
 
-/** 文件能怎么看：Markdown / 纯文本带正文；二进制、太大、不在、是个文件夹只有元信息。 */
-export type RunFileKind = 'markdown' | 'text' | 'binary' | 'tooLarge' | 'missing' | 'folder'
+/** 文件能怎么看：Markdown / HTML / 纯文本带正文；二进制、太大、不在、是个文件夹只有元信息。 */
+export type RunFileKind =
+  | 'markdown'
+  | 'html'
+  | 'text'
+  | 'binary'
+  | 'tooLarge'
+  | 'missing'
+  | 'folder'
 
 /**
  * `run/file`：看实例里的一份文件。`node` + `item` = 快照里某个资源的第几项（文件）；
@@ -469,7 +476,7 @@ export interface RunFileResponse {
   size: number
   mtime: number
   kind: RunFileKind
-  /** `markdown` / `text` 时才有。 */
+  /** `markdown` / `html` / `text` 时才有。 */
   text?: string
   limit: number
 }

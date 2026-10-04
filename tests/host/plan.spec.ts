@@ -63,7 +63,7 @@ async function seedGolden(): Promise<void> {
 }
 
 describe('compileWorkflow —— 端到端：图 → 计划 + 物化', () => {
-  it('对着实例编译：出计划，任务描述写进实例目录的 tasks/ 且与 prompt 逐字相同', async () => {
+  it('对着实例编译：出计划，任务描述写进实例目录的 tasks/（提示词原文 + 这一步的资源）', async () => {
     await seedGolden()
     const dir = join(dataDir, 'ws', '.workflow-lite', 'runs', '20261002-143012-a3f9')
     const outcome = await compileWorkflow(
@@ -103,7 +103,11 @@ describe('compileWorkflow —— 端到端：图 → 计划 + 物化', () => {
     expect(plan).toContain('`.workflow-lite/runs/20261002-143012-a3f9/out`')
 
     const written = await readFile(join(dir, 'tasks', 'auth-review.md'), 'utf8')
-    expect(written).toBe('你是审查者，只审认证相关代码。')
+    expect(written.startsWith('你是审查者，只审认证相关代码。\n\n---\n\n')).toBe(true)
+    // 末尾附上这一步读写的资源（路径按实例拼好）与判定行要求，执行者不必等编排者转述。
+    expect(written).toContain('**这一步的资源**')
+    expect(written).toContain('`.workflow-lite/runs/20261002-143012-a3f9/out/')
+    expect(written).toContain('**判定**：回复的最后一行写')
     // 工作区的 .workflow-lite 不进版本库。
     expect(await readFile(join(dataDir, 'ws', '.workflow-lite', '.gitignore'), 'utf8')).toBe('*\n')
 

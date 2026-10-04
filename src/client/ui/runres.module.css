@@ -161,8 +161,10 @@
   transition: opacity 120ms linear;
 }
 
+/* 下拉开着时也完全显出来：半透明会让这一块自成层叠上下文，下拉就被下面几行盖住。 */
 .row:hover .actions,
-.row:focus-within .actions {
+.row:focus-within .actions,
+.actions:has([aria-expanded="true"]) {
   opacity: 1;
 }
 

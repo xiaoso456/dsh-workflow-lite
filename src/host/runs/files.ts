@@ -22,6 +22,14 @@ import type { Outcome } from '../store/repository.ts'
 
 const SNIFF_BYTES = 8192
 const MARKDOWN = new Set(['.md', '.markdown', '.mdx'])
+const HTML = new Set(['.html', '.htm'])
+
+/** 文本文件按扩展名分：Markdown、HTML（画布上都能排版着看），其余原样。 */
+function textKind(full: string): RunFileKind {
+  const ext = extname(full).toLowerCase()
+  if (MARKDOWN.has(ext)) return 'markdown'
+  return HTML.has(ext) ? 'html' : 'text'
+}
 
 /** 要看哪份：快照里某个资源的第几项，或实例工作区里的相对路径。 */
 export type RunFileTarget = { node: string; item: number } | { path: string }
@@ -130,8 +138,7 @@ export async function readRunFile(full: string, display: string): Promise<RunFil
     if (sniff.includes(0)) return { ...meta, kind: 'binary' }
     if (info.size > RUN_FILE_TEXT_MAX) return { ...meta, kind: 'tooLarge' }
     const text = (await handle.readFile()).toString('utf8')
-    const kind: RunFileKind = MARKDOWN.has(extname(full).toLowerCase()) ? 'markdown' : 'text'
-    return { ...meta, kind, text }
+    return { ...meta, kind: textKind(full), text }
   } finally {
     await handle.close()
   }

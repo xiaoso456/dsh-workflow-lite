@@ -17,7 +17,7 @@
  */
 
 import { join } from 'node:path'
-import { buildFullText, buildPlan, planIdOf } from '../shared/compile.ts'
+import { buildFullText, buildPlan, buildTaskTexts, planIdOf } from '../shared/compile.ts'
 import { analyzeGraph } from '../shared/graph.ts'
 import { isStep } from '../shared/model.ts'
 import { bindRoot, INSTANCE_TOKEN, rootOf } from '../shared/outputPaths.ts'
@@ -170,13 +170,8 @@ export async function compileDocument(
   }
 
   if (instance !== undefined) {
-    // 写任务描述：编译唯一的 I/O。失败 ⇒ io_error。
-    const payloads = new Map<string, string>(
-      document.nodes
-        .filter(isStep)
-        .filter((node) => typeof node.data.prompt === 'string')
-        .map((node) => [node.id, node.data.prompt ?? '']),
-    )
+    // 写任务描述（提示词 + 这一步读写的资源，路径按实例拼好）：编译唯一的 I/O。失败 ⇒ io_error。
+    const payloads = buildTaskTexts(facts, analysis)
     try {
       await materialize(join(instance.dir, TASKS_DIR), payloads)
       if (cwd !== undefined) await ensureWorkspaceIgnore(cwd)

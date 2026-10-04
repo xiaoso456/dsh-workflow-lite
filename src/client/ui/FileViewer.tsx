@@ -1,7 +1,8 @@
 /**
  * dsh-workflow-lite — 产出文件的查看框。
  *
- * 能看的：小文本（原样）、Markdown（默认排版，可切源码）。大文件、二进制、还没生成的只说明原因，
+ * 能看的：小文本（原样）、Markdown（默认排版）、HTML（默认在沙箱里渲染），后两种可切源码。
+ * 大文件、二进制、还没生成的只说明原因，
  * 并留着「用其他程序打开」。框子本身是 {@link DocViewer}。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/FileViewer
@@ -17,7 +18,7 @@ import { type DocBody, DocViewer } from './DocViewer.tsx'
 import { FileTag } from './FileTag.tsx'
 import css from './runres.module.css'
 
-/** 正文前的「说明」一块（文件、文件夹、网址、自定义文字的详情框共用）。 */
+/** 正文前的「说明」一块（文件夹、网址这两种小详情框用；大的查看框收在「说明」开关里）。 */
 export function NoteLead(props: { t: T; text: string }): React.JSX.Element {
   return (
     <p className={css.lead} data-testid="wl-item-note">
@@ -35,7 +36,7 @@ export function FileViewer(props: {
   /** 文件还没读回来时标题先用它。 */
   title: string
   desktop: Desktop | undefined
-  /** 这一项的说明（产出文件就是它的生成要求）：放在正文前。 */
+  /** 这一项的说明（产出文件就是它的生成要求）：收在标题行的「说明」开关里。 */
   note?: string | undefined
   onClose(): void
 }): React.JSX.Element {
@@ -59,7 +60,10 @@ export function FileViewer(props: {
         .replace('{size}', formatBytes(file.size))
         .replace('{limit}', formatBytes(file.limit)),
     }
-  } else body = { kind: 'text', text: file.text ?? '', markdown: file.kind === 'markdown' }
+  } else {
+    const format = file.kind === 'markdown' || file.kind === 'html' ? file.kind : 'plain'
+    body = { kind: 'text', text: file.text ?? '', format }
+  }
 
   return (
     <DocViewer
@@ -78,7 +82,7 @@ export function FileViewer(props: {
       openPath={file?.exists === true ? file.path : null}
       desktop={props.desktop}
       testId="wl-file-viewer"
-      {...(note === '' ? {} : { lead: <NoteLead t={t} text={note} /> })}
+      note={note}
       onClose={props.onClose}
     />
   )

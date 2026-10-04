@@ -1,9 +1,11 @@
 /**
  * dsh-workflow-lite — 看一份文档的模态框（产出文件、SKILL.md 共用）。
  *
- * 标题行：图标、名字、一行元信息，右边「排版 / 源码」（Markdown 才有）、复制路径、
- * 用其他程序打开（含在文件管理器中显示）、关闭。正文：Markdown 默认排版，其余原样；
- * 读不了的只说明原因。调用方可以在正文前插一段（`lead`），在底部放操作条（`footer`）。
+ * 标题行：图标、名字、一行元信息，右边「排版 / 源码」（Markdown、HTML 才有）、复制路径、
+ * 用其他程序打开（含在文件管理器中显示）、关闭。正文：Markdown 默认排版，HTML 默认在沙箱框里渲染
+ * （能跑脚本，但是独立的源：碰不到画布、拿不到登录态），其余原样；读不了的只说明原因。
+ * 有说明（`note`）时标题行多一个「说明」开关，点开从右边滑出一栏，不占正文的地方。
+ * 调用方可以在正文前插一段（`lead`），在底部放操作条（`footer`）。
  * 给了 `edit` 就多一个「编辑」：整块文字在这里改（提示词、摘要这类大段文字都在弹窗里改）。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/DocViewer
@@ -12,9 +14,11 @@
 import { useState } from 'react'
 import type { Desktop } from '../app/desktop.ts'
 import type { T } from '../i18n.ts'
+import { withPreviewStyle } from '../model/htmlPreview.ts'
 import css from './files.module.css'
 import { Icon, type IconName } from './Icon.tsx'
 import { Markdown } from './Markdown.tsx'
+import { NoteDrawer, NoteToggle } from './NoteDrawer.tsx'
 import { OpenWith } from './OpenWith.tsx'
 import { copyText, cx, Modal, Segmented } from './primitives.tsx'
 import ui from './ui.module.css'
@@ -33,7 +37,7 @@ export interface DocEdit {
 export type DocBody =
   | { kind: 'loading' }
   | { kind: 'state'; icon: IconName; text: string }
-  | { kind: 'text'; text: string; markdown: boolean }
+  | { kind: 'text'; text: string; format: 'plain' | 'markdown' | 'html' }
   /** 调用方自己画的正文（文件夹里有什么、网址的说明）。 */
   | { kind: 'node'; node: React.ReactNode }
 
@@ -57,6 +61,8 @@ export function DocViewer(props: {
   desktop: Desktop | undefined
   testId: string
   lead?: React.ReactNode
+  /** 这一项的说明（产出文件的生成要求、步骤的描述）：收在标题行的「说明」开关里。 */
+  note?: string
   footer?: React.ReactNode
   className?: string
   /** 能改：正文就是这段文字，「编辑」里改了直接交出去。 */
@@ -67,7 +73,11 @@ export function DocViewer(props: {
   const [view, setView] = useState<View>(edit?.start === true ? 'edit' : 'rendered')
   const [copied, setCopied] = useState(false)
   const [failure, setFailure] = useState<string | null>(null)
-  const markdown = body.kind === 'text' && body.markdown
+  const [noteOpen, setNoteOpen] = useState(false)
+  const note = props.note?.trim() ?? ''
+  const format = body.kind === 'text' ? body.format : 'plain'
+  // 有排版视图的格式：可以在「排版 / 源码」之间切。
+  const formatted = format !== 'plain'
 
   const state = (icon: IconName, text: string): React.JSX.Element => (
     <div className={css.viewerState} data-testid="wl-viewer-state">
@@ -104,8 +114,20 @@ export function DocViewer(props: {
   } else if (body.kind === 'state') content = state(body.icon, body.text)
   else if (body.kind === 'node') content = body.node
   else if (body.text === '') content = state('file', t('file.empty'))
-  else if (markdown && view === 'rendered') {
+  else if (format === 'markdown' && view === 'rendered') {
     content = <Markdown text={body.text} className={css.viewerDoc} />
+  } else if (format === 'html' && view === 'rendered') {
+    content = (
+      <iframe
+        className={css.viewerFrame}
+        title={props.name}
+        srcDoc={withPreviewStyle(body.text)}
+        // 只给脚本：没有 allow-same-origin，页面是个独立的源，读不到画布的存储与登录态，也跳不走顶层。
+        sandbox="allow-scripts"
+        referrerPolicy="no-referrer"
+        data-testid="wl-viewer-frame"
+      />
+    )
   } else content = <pre className={css.viewerSource}>{body.text}</pre>
 
   return (
@@ -121,16 +143,22 @@ export function DocViewer(props: {
           <span className={css.viewerName}>{props.name}</span>
           <span className={css.viewerMeta}>{props.meta}</span>
         </div>
-        {(markdown || edit !== undefined) && (
+        {note !== '' && (
+          <NoteToggle t={t} open={noteOpen} onToggle={() => setNoteOpen((open) => !open)} />
+        )}
+        {(formatted || edit !== undefined) && (
           <div className={css.viewerViews}>
             <Segmented<View>
               label={t('file.rendered')}
               value={view}
               onChange={setView}
               options={[
-                ...(markdown
+                ...(formatted
                   ? [
-                      { value: 'rendered' as const, label: t('file.rendered') },
+                      {
+                        value: 'rendered' as const,
+                        label: t(format === 'html' ? 'file.page' : 'file.rendered'),
+                      },
                       { value: 'source' as const, label: t('file.source') },
                     ]
                   : [{ value: 'rendered' as const, label: t('file.text') }]),
@@ -167,9 +195,14 @@ export function DocViewer(props: {
         </button>
       </header>
       {failure !== null && <p className={css.previewNote}>{failure}</p>}
-      <div className={cx(css.viewerBody, ui.fade)} key={view} data-testid="wl-viewer-body">
-        {props.lead}
-        {content}
+      <div className={css.viewerMain}>
+        <div className={cx(css.viewerBody, ui.fade)} key={view} data-testid="wl-viewer-body">
+          {props.lead}
+          {content}
+        </div>
+        {noteOpen && note !== '' && (
+          <NoteDrawer t={t} text={note} onClose={() => setNoteOpen(false)} />
+        )}
       </div>
       {props.footer}
     </Modal>

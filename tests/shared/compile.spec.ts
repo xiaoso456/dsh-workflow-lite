@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildFullText,
   buildPlan,
+  buildTaskTexts,
   type PlanOptions,
   planIdOf,
   runStateLines,
@@ -22,6 +23,7 @@ import {
   type NodeData,
   type PlanFacts,
   RESOURCE_TYPE,
+  type ResourceItem,
   type ValidationProblem,
   type WorkflowDocument,
   type WorkflowEdge,
@@ -182,15 +184,15 @@ const GOLDEN_LINES: readonly string[] = [
   '- 循环体每转一圈，重新读一次任务描述——每轮是一份独立任务。',
   '',
   '## 交付契约',
-  '**资源**（派发节点时，把它连着的资源连同说明交给执行者：文件、文件夹按给定路径读写，网址打开查看，Skill 先用 skill 工具加载再干活，自定义内容原样转交；标了「更新」的直接在原文件上改，不要另存副本）：',
+  '**资源**（每个步骤读写的资源连同路径、说明已经附在它的任务描述末尾，执行者读任务描述就能拿到，不要另行转述。文件、文件夹按给定路径读写，网址打开查看，Skill 先用 skill 工具加载再干活，自定义内容原样转交；标了「更新」的直接在原文件上改，不要另存副本）：',
   '- 资源 `file-auth-findings.md`：`auth-review` 产出；`fix-auth` 在原文件上更新；`report` 读取。',
   '  - 文件：`auth-findings.md`',
   '- 资源 `file-review-report.md`：`report` 产出。',
   '  - 文件：`review-report.md`',
   '- 资源 `file-scan.json`：`scan` 产出；`auth-review` 读取。',
   '  - 文件：`scan.json`',
-  '**产出**的文件每次执行整份重写：只写这一次的结果，不保留上一次的内容，不写「比上次改了什么」这类说明。',
-  '**更新**的文件先读再改，沿用它现有的结构：描述现状的部分就地改写成最新的，不在前面追加新段落；逐次的记录只加一行（短语、数字、证据路径），细节留在这一次的产出里，记录里只引用路径；同一件事只写一处。',
+  '**产出**是这一次的结果：这次做了什么、证据、结论都写在这里。每次执行整份重写，不保留上一次的内容，不写「比上次改了什么」。',
+  '**更新**的文件是长期维护的现状和记录，不是写这一次报告的地方：先读，再在原文件上改。按资源说明规定的结构写；文件里已有的写法和说明不一致时以说明为准，顺手整理，不要照着旧写法继续写。描述现状的部分就地改成最新的，不在开头或末尾追加「本次结果」段落；记录每次只加一行，格式照说明（说明没写就照已有的行），每格只放短语、数字或路径；这次的过程和细节写在本次产出或回复里，这里只引用路径。同一件事只写一处。',
   '**交接**：轮到一个节点时，把它直接上游这一次的执行结果（回复里的结论与要点）交给它。',
   '分支判定：`auth-review` 回复的最后一行必须是 `VERDICT: fail` 或 `VERDICT: pass`，不得省略。',
   '循环里的产出会被反复覆盖，验收以**最终一轮**为准。',
@@ -532,7 +534,7 @@ describe('④ 段：交付契约', () => {
 
     expect(plan).toContain(
       [
-        '**资源**（派发节点时，把它连着的资源连同说明交给执行者：文件、文件夹按给定路径读写，网址打开查看，Skill 先用 skill 工具加载再干活，自定义内容原样转交；标了「更新」的直接在原文件上改，不要另存副本）：',
+        '**资源**（每个步骤读写的资源连同路径、说明已经附在它的任务描述末尾，执行者读任务描述就能拿到，不要另行转述。文件、文件夹按给定路径读写，网址打开查看，Skill 先用 skill 工具加载再干活，自定义内容原样转交；标了「更新」的直接在原文件上改，不要另存副本）：',
         '- 资源 `file-issues.md`：`review` 产出；`fix` 在原文件上更新；`verify` 读取。',
         '  - 文件：`issues.md`',
         '- 资源 `file-scan.md`：`scan` 产出；`review` 读取。',
@@ -543,8 +545,8 @@ describe('④ 段：交付契约', () => {
 
   it('怎么写文件：有人整份写出才说「产出」那句，有人更新才说「更新」那句；只读的资源都不说', () => {
     const produced = planFor(doc([n('a', 'A', { output: 'a.md' }), n('b', 'B')], [edge('a', 'b')]))
-    expect(produced).toContain('**产出**的文件每次执行整份重写')
-    expect(produced).not.toContain('**更新**的文件先读再改')
+    expect(produced).toContain('**产出**是这一次的结果')
+    expect(produced).not.toContain('**更新**的文件是长期维护的')
 
     const shared = doc([n('a', 'A')], [])
     shared.nodes.push({
@@ -555,8 +557,8 @@ describe('④ 段：交付契约', () => {
     })
     const readOnly = planFor(shared)
     expect(readOnly).toContain('**资源**')
-    expect(readOnly).not.toContain('**产出**的文件')
-    expect(readOnly).not.toContain('**更新**的文件')
+    expect(readOnly).not.toContain('**产出**是这一次的结果')
+    expect(readOnly).not.toContain('**更新**的文件是长期维护的')
   })
 
   it('空资源不写；一个资源都没有就没有资源块', () => {
@@ -990,5 +992,107 @@ describe('执行方式：leader 形态不让主 agent 进入角色', () => {
       expect(plan).not.toContain('进入那个角色')
     }
     expect(planFor({ ...base, settings: { mode: 'serial' } })).toContain('进入那个角色')
+  })
+})
+
+// ─────────────────────────────────────────────────────────────
+// 任务描述：提示词 + 这一步的资源
+// ─────────────────────────────────────────────────────────────
+
+describe('任务描述：提示词原文，末尾附上这一步读写的资源', () => {
+  function tasksFor(document: WorkflowDocument): Map<string, string> {
+    return buildTaskTexts(factsOf(document), analyzeGraph(document))
+  }
+
+  function resource(id: string, items: ResourceItem[], label?: string): WorkflowNode {
+    return {
+      id,
+      type: RESOURCE_TYPE,
+      position: { x: 0, y: 0 },
+      data: { ...(label === undefined ? {} : { label }), items },
+    }
+  }
+
+  it('没连资源、没有全局资源、不用写判定行：就是提示词原文', () => {
+    const tasks = tasksFor(doc([n('a', '做 A\n'), n('b', '做 B')], [edge('a', 'b')]))
+    expect(tasks.get('a')).toBe('做 A\n')
+    expect(tasks.get('b')).toBe('做 B')
+  })
+
+  it('产出、更新、读取、全局各一块，路径拼好、说明原样；只给这一步用得上的写文件规矩', () => {
+    const document = doc(
+      [n('judge', '验收这一轮。\n'), n('report', '写报告')],
+      [
+        edge('judge', 'report'),
+        edge('judge', 'out'),
+        { ...edge('judge', 'ledger'), data: { update: true } },
+        edge('spec', 'judge'),
+      ],
+    )
+    document.nodes.push(
+      resource('out', [{ kind: 'file', value: 'judge.md', note: '≤ 80 行' }]),
+      resource('ledger', [{ kind: 'file', value: 'docs/LEDGER.md', note: '每轮一行' }], '台账'),
+      resource('spec', [{ kind: 'url', value: 'https://example.com/spec' }]),
+      resource('rules', [{ kind: 'text', value: '禁止 sleep\n只用落盘文件交接' }], '纪律'),
+    )
+    document.settings = { outputRoot: 'runs/7/out' }
+
+    expect(tasksFor(document).get('judge')).toBe(
+      [
+        '验收这一轮。',
+        '',
+        '---',
+        '',
+        '**这一步的资源**（路径已拼好，原样使用；说明就是写这份文件的规格）：',
+        '- 产出 `out`：',
+        '  - 文件：`runs/7/out/judge.md`。说明：≤ 80 行',
+        '- 更新 `ledger`（台账）：',
+        '  - 文件：`runs/7/out/docs/LEDGER.md`。说明：每轮一行',
+        '- 读取 `spec`：',
+        '  - 网址：https://example.com/spec',
+        '- 全局 `rules`（纪律）：',
+        '  - 自定义：',
+        '    > 禁止 sleep',
+        '    > 只用落盘文件交接',
+        '**产出**是这一次的结果：这次做了什么、证据、结论都写在这里。每次执行整份重写，不保留上一次的内容，不写「比上次改了什么」。',
+        '**更新**的文件是长期维护的现状和记录，不是写这一次报告的地方：先读，再在原文件上改。按资源说明规定的结构写；文件里已有的写法和说明不一致时以说明为准，顺手整理，不要照着旧写法继续写。描述现状的部分就地改成最新的，不在开头或末尾追加「本次结果」段落；记录每次只加一行，格式照说明（说明没写就照已有的行），每格只放短语、数字或路径；这次的过程和细节写在本次产出或回复里，这里只引用路径。同一件事只写一处。',
+        '',
+      ].join('\n'),
+    )
+    // 只读、只拿全局资源的步骤：有资源块，没有写文件的规矩。
+    const report = tasksFor(document).get('report') ?? ''
+    expect(report).toContain('- 全局 `rules`（纪律）：')
+    expect(report).not.toContain('**产出**是这一次的结果')
+    expect(report).not.toContain('**更新**的文件是长期维护的')
+  })
+
+  it('判定步骤：末尾写明回复最后一行的判定词', () => {
+    const tasks = tasksFor(goldenDocument())
+    expect(tasks.get('auth-review')).toContain(
+      '**判定**：回复的最后一行写 `VERDICT: fail` 或 `VERDICT: pass`。',
+    )
+    expect(tasks.get('scan')).not.toContain('**判定**')
+  })
+
+  it('多行的资源说明在任务描述里逐行引用（计划里仍压成一行）', () => {
+    const note = '§0 现状：就地改写\n§1 记录：每轮一行\n| R1 | pass | out/judge.md |'
+    const document = doc(
+      [n('judge', '验收')],
+      [{ ...edge('judge', 'ledger'), data: { update: true } }],
+    )
+    document.nodes.push(resource('ledger', [{ kind: 'file', value: 'LEDGER.md', note }]))
+
+    expect(tasksFor(document).get('judge')).toContain(
+      [
+        '- 更新 `ledger`：',
+        '  - 文件：`LEDGER.md`。说明：',
+        '    > §0 现状：就地改写',
+        '    > §1 记录：每轮一行',
+        '    > | R1 | pass | out/judge.md |',
+      ].join('\n'),
+    )
+    expect(planFor(document)).toContain(
+      '  - 文件：`LEDGER.md`。说明：§0 现状：就地改写 §1 记录：每轮一行 | R1 | pass | out/judge.md |',
+    )
   })
 })

@@ -642,11 +642,13 @@ try {
     '状态里的 plan 跟着换',
   )
   check(
-    (await readFile(
-      join(WORKSPACE, '.workflow-lite', 'runs', instance, 'tasks', 'review.md'),
-      'utf8',
-    )) === '换个审法：先看鉴权',
-    '任务描述应重写',
+    (
+      await readFile(
+        join(WORKSPACE, '.workflow-lite', 'runs', instance, 'tasks', 'review.md'),
+        'utf8',
+      )
+    ).startsWith('换个审法：先看鉴权\n\n---\n'),
+    '任务描述应重写（提示词在前，后面附判定行要求）',
   )
   check(
     recordAfter.pendingNotice?.includes('用户在画布上修改了图') &&
@@ -865,9 +867,30 @@ try {
 
   // 14) 不记运行状态的实例（没开开关时从画布执行建出来的）：只显示图，右栏说明为什么没有进度。
   const plain = await rpc('graph/load', { name: NAME })
+  // 多一个 HTML 看板（report 产出），第 15 步看它能不能在查看框里渲染。
+  const board = {
+    id: 'board',
+    type: 'wfResource',
+    position: { x: 0, y: 0 },
+    data: {
+      label: '看板',
+      items: [
+        {
+          kind: 'file',
+          value: 'board.html',
+          note: '单文件 HTML 看板（**只有判定步骤写**）\n· 顶部汇总卡\n· 每轮一行',
+        },
+      ],
+    },
+  }
   const untracked = await runs.start({
     workflow: NAME,
-    document: { ...plain.document, settings: {} },
+    document: {
+      ...plain.document,
+      nodes: [...plain.document.nodes, board],
+      edges: [...plain.document.edges, edge('report', 'board')],
+      settings: {},
+    },
     problems: [],
     session: { id: FAKE_SESSION, cwd: WORKSPACE },
   })
@@ -974,18 +997,149 @@ try {
     )) === `.workflow-lite/runs/${instance}/out/notes.md`,
     '查看框的路径应是实例自己的 out 目录',
   )
+  // 说明收在标题行的「说明」开关里：缺省收着、不占正文；点开从右边滑出，Esc 先收起它。
   check(
-    (
-      await session.evaluate(
-        `document.querySelector('[data-testid="wl-item-note"]')?.textContent ?? ''`,
-      )
-    ).includes('列出现状与风险'),
-    '查看框正文前应有这一项的说明',
+    await session.evaluate(
+      `document.querySelector('[data-testid="wl-viewer-note-toggle"]') !== null && document.querySelector('[data-testid="wl-viewer-note"]') === null`,
+    ),
+    '查看框应有「说明」开关，缺省收着',
   )
+  check(
+    await session.evaluate(
+      `document.querySelector('[data-testid="wl-viewer-body"] [data-testid="wl-item-note"]') === null`,
+    ),
+    '正文上面不再固定放说明',
+  )
+  await session.evaluate(`document.querySelector('[data-testid="wl-viewer-note-toggle"]').click()`)
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-viewer-note"]')?.textContent.includes('列出现状与风险')`,
+  )
+  await new Promise((resolve) => setTimeout(resolve, 300))
   await screenshot(session, 'runs-11-viewer.png')
+  await pressEscape('wl-viewer-note')
+  await waitFor(session, `document.querySelector('[data-testid="wl-viewer-note"]') === null`)
+  check(
+    await session.evaluate(`document.querySelector('[data-testid="wl-file-viewer"]') !== null`),
+    'Esc 先收起说明，查看框还在',
+  )
   await pressEscape('wl-file-viewer')
   await waitFor(session, `document.querySelector('[data-testid="wl-file-viewer"]') === null`)
-  pass('产出文件：右栏一行缩略（已生成 · 大小 · 时间）+ 用到它的步骤；查看框读正文、带说明')
+  pass(
+    '产出文件：右栏一行缩略（已生成 · 大小 · 时间）+ 用到它的步骤；查看框读正文，说明收在开关里、拉出来盖在右边',
+  )
+
+  // HTML 产出：查看框默认在沙箱框里渲染页面（脚本能跑，但碰不到画布），可切到源码。
+  // 暗底、够长：要出滚动条，滑块该是浅色（跟页面的底色走，不跟画布主题）。
+  const boardRows = Array.from({ length: 60 }, (_, index) => `<tr><td>R${index + 1}</td></tr>`)
+  await writeFile(
+    join(out, 'board.html'),
+    `<!doctype html><html><body style="background:#0f1115;color:#e6e9ef"><h1>看板</h1><table>${boardRows.join('')}</table>
+<script>
+let sameOrigin = true
+try { void parent.document.title } catch { sameOrigin = false }
+window.addEventListener('load', () => {
+  const root = getComputedStyle(document.documentElement)
+  const thumb = root.getPropertyValue('--wl-preview-thumb').trim()
+  const track = root.getPropertyValue('--wl-preview-track').trim()
+  parent.postMessage({ board: document.querySelectorAll('tr').length, sameOrigin, thumb, track }, '*')
+})
+</script></body></html>\n`,
+  )
+  await session.evaluate(`(() => {
+    window.__board = null
+    window.addEventListener('message', (event) => {
+      if (event.data && typeof event.data === 'object' && 'board' in event.data) window.__board = event.data
+    })
+  })()`)
+  await session.evaluate(
+    `document.querySelector('.react-flow__node[data-id="report"]').dispatchEvent(new MouseEvent('click', { bubbles: true }))`,
+  )
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-run-step-file"][data-id="board"]') !== null`,
+  )
+  await session.evaluate(
+    `document.querySelector('[data-testid="wl-run-step-file"][data-id="board"]').click()`,
+  )
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-run-panel"] header input')?.value === '看板'`,
+  )
+  // 内容清单的卡片不裁内容：行尾按钮的提示、「用其他程序打开」的下拉要能伸出去。
+  check(
+    await session.evaluate(
+      `getComputedStyle(document.querySelector('[data-testid="wl-run-resource-items"] ul')).overflow === 'visible'`,
+    ),
+    '内容清单的卡片不该裁掉伸出去的提示和下拉',
+  )
+  await session.evaluate(`document.querySelector('[data-testid="wl-run-item-view"]').click()`)
+  await waitFor(session, `document.querySelector('[data-testid="wl-viewer-frame"]') !== null`)
+  await waitFor(session, `window.__board !== null`)
+  const boardMessage = await session.evaluate(`window.__board`)
+  check(boardMessage.board === 60, `页面里的脚本应跑起来并数到 60 行，实际 ${boardMessage.board}`)
+  check(
+    boardMessage.thumb === 'rgba(255,255,255,.28)',
+    `暗底页面的滚动条滑块应是浅色，实际 ${boardMessage.thumb}`,
+  )
+  check(
+    boardMessage.track === 'rgb(15, 17, 21)',
+    `整页滚动条的轨道应是页面底色，实际 ${boardMessage.track}`,
+  )
+  check(boardMessage.sameOrigin === false, '页面应在独立的源里，碰不到画布')
+  check(
+    await session.evaluate(
+      `document.querySelector('[data-testid="wl-viewer-frame"]').getAttribute('sandbox') === 'allow-scripts'`,
+    ),
+    '沙箱只开 allow-scripts',
+  )
+  check(
+    await session.evaluate(
+      `document.querySelector('[data-testid="wl-viewer-frame"]').srcdoc.startsWith('<!doctype html><html><style data-wl-preview>')`,
+    ),
+    '页面里补了细滚动条的样式，插在 doctype 之后',
+  )
+  check(
+    await session.evaluate(`(() => {
+      const body = document.querySelector('[data-testid="wl-viewer-body"]')
+      return body.scrollHeight <= body.clientHeight + 1
+    })()`),
+    '页面外面不该再多一层滚动条',
+  )
+  await session.evaluate(`document.querySelector('[data-testid="wl-viewer-note-toggle"]').click()`)
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-viewer-note"]')?.textContent.includes('每轮一行')`,
+  )
+  check(
+    await session.evaluate(
+      `document.querySelector('[data-testid="wl-viewer-note"] strong')?.textContent === '只有判定步骤写'`,
+    ),
+    '说明按 Markdown 排版（粗体不露星号）',
+  )
+  const viewButtons = () =>
+    `[...document.querySelectorAll('[data-testid="wl-file-viewer"] header button')]`
+  check(
+    await session.evaluate(`${viewButtons()}.some((button) => button.textContent === '页面')`),
+    'HTML 的排版视图叫「页面」',
+  )
+  await new Promise((resolve) => setTimeout(resolve, 300))
+  await screenshot(session, 'runs-11b-html.png')
+  await session.evaluate(`document.querySelector('[data-testid="wl-viewer-note-toggle"]').click()`)
+  await waitFor(session, `document.querySelector('[data-testid="wl-viewer-note"]') === null`)
+  await screenshot(session, 'runs-11c-html-scroll.png')
+  await session.evaluate(`${viewButtons()}.find((button) => button.textContent === '源码').click()`)
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-viewer-body"] pre')?.textContent.includes('<table>')`,
+  )
+  check(
+    await session.evaluate(`document.querySelector('[data-testid="wl-viewer-frame"]') === null`),
+    '切到源码后不再渲染页面',
+  )
+  await pressEscape('wl-file-viewer')
+  await waitFor(session, `document.querySelector('[data-testid="wl-file-viewer"]') === null`)
+  pass('HTML 产出：查看框在沙箱里渲染页面（脚本能跑、不同源），可切到源码')
 
   // 别的种类：文件夹列内容、网址、自定义文字。
   await session.evaluate(

@@ -63,7 +63,7 @@ export function SkillPreview(props: {
       ? { kind: 'state', icon: 'alert', text: error }
       : skill === null
         ? { kind: 'loading' }
-        : { kind: 'text', text: skill.content, markdown: true }
+        : { kind: 'text', text: skill.content, format: 'markdown' }
   const source = skill === null ? null : skillSource(skill.source, t)
   const action = props.action
 

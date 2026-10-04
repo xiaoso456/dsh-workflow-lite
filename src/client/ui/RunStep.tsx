@@ -23,7 +23,6 @@ import type { Desktop } from '../app/desktop.ts'
 import type { Run } from '../app/useRuns.ts'
 import type { T } from '../i18n.ts'
 import { findNode } from '../model/editor.ts'
-import { NoteLead } from './FileViewer.tsx'
 import files from './files.module.css'
 import hand from './handoff.module.css'
 import { Icon } from './Icon.tsx'
@@ -157,7 +156,7 @@ function PromptSection(props: {
       name={stepName(step, step.id)}
       badge={<StepMark look={lookOf(step.id, step.data)} size={15} />}
       meta={`${t('ins.prompt')} · ${[...prompt].length} ${t('ins.chars')}`}
-      lead={description === '' ? null : <NoteLead t={t} text={description} />}
+      note={description}
       copyLabel={t('run.copyPrompt')}
       desktop={props.desktop}
       testId="wl-run-prompt"

@@ -76,8 +76,9 @@ export interface ToolDeps {
 const DESCRIPTION = [
   '管理轻量工作流的图文件：一张图 = 一个 JSON（React Flow 原生 nodes/edges/viewport），',
   '每个节点的提示词内联在 node.data.prompt 里。用 action 选动作：',
-  'list 列出图与节点模板 / read 读图（不给 node 只回索引、绝不含正文；给 node 才回那一个节点的正文）/ ',
-  'compile 编译成派发计划：建一个工作流实例，各步骤的任务描述写进工作区的 .workflow-lite/runs/<实例>/tasks/（模型据此自己组织执行；full=true 是给人看的整卷版，不建实例）/ ',
+  'list 列出图与节点模板 / read 读图（不给 node 只回索引与 problems / warnings、绝不含正文；给 node 才回那一个节点的正文）/ ',
+  'compile 编译成派发计划：建一个工作流实例，各步骤的任务描述写进工作区的 .workflow-lite/runs/<实例>/tasks/，只在真要执行时用（模型据此自己组织执行）；full=true 是整卷预览，不建实例、不写文件。',
+  '检查图有没有问题用 read 和 compile full=true，不要用不带 full 的 compile——每调一次就多一个实例 / ',
   'create 新建一张空图 / write_node 新建或覆盖一个节点 / set_label 改显示名（id 不可改）/ ',
   'delete_node 删节点（连带删边）/ connect、disconnect 增删边 / rename_workflow、delete_workflow 改名删图 / ',
   'save_as_template 把一个步骤存成节点模板（画布步骤库的「我的步骤」）/ ',
@@ -564,7 +565,7 @@ export function createWorkflowLiteHandler(
             },
           })
         }
-        const { warnings } = splitProblems(load.problems)
+        const { warnings, compile } = splitProblems(load.problems)
         const nodeId = args.node
         if (nodeId === undefined || nodeId === '') {
           const result: ReadIndexResult = {
@@ -578,6 +579,8 @@ export function createWorkflowLiteHandler(
               ? { resources: resourceEntries(load.document) }
               : {}),
             ...(load.document.nodes.some(isInput) ? { inputs: inputEntries(load.document) } : {}),
+            // 索引就是自检的入口：阻塞编译的问题也在这里给，不必为了看问题去编译（编译会建实例）。
+            ...(compile.length === 0 ? {} : { problems: compile }),
             warnings,
           }
           return finish(result)
@@ -1003,7 +1006,10 @@ export const PARAMETERS = {
     type: 'string',
     description: 'compile：本次目标（用户说了要做成什么时写，进计划的「本次执行」段）。',
   },
-  full: { type: 'boolean', description: 'compile：true = 整卷版（内联正文，给人读）。' },
+  full: {
+    type: 'boolean',
+    description: 'compile：true = 整卷预览（内联正文，不建实例、不写文件）；建图后自检用它。',
+  },
   output_root: {
     type: 'string',
     description:

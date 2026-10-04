@@ -8,6 +8,8 @@
  * - **派发版** {@link buildPlan}：② 段的「任务描述路径」给出绝对路径，**正文一个字都不进计划**。
  * - **整卷版** {@link buildFullText}：同一份段结构，把路径引用换成**逐节点内联正文**。
  *
+ * 派发版里路径指向的那些文件由 {@link buildTaskTexts} 给出正文：提示词原文，末尾附上这一步读写的资源。
+ *
  * 段序**稳定在前、易变在后**：①②③④⑥ 只依赖图 JSON 与路径映射，⑤ 每次都变。
  *
  * 全篇的序一律是 `id` 的**码位序**（{@link byId}）：清单表行序、批次内序、前置列、补注序。
@@ -38,6 +40,7 @@ import type {
   PlanId,
   PlanResult,
   ResourceItem,
+  ResourceNode,
   ReusePolicy,
   StepNode,
   ValidationCode,
@@ -166,13 +169,21 @@ const LOOP_OVERWRITE_LINE = '循环里的产出会被反复覆盖，验收以**�
 
 /** ④ 段：资源块的小标题。 */
 const RESOURCES_HEADING =
-  '**资源**（派发节点时，把它连着的资源连同说明交给执行者：文件、文件夹按给定路径读写，网址打开查看，Skill 先用 skill 工具加载再干活，自定义内容原样转交；标了「更新」的直接在原文件上改，不要另存副本）：'
+  '**资源**（每个步骤读写的资源连同路径、说明已经附在它的任务描述末尾，执行者读任务描述就能拿到，不要另行转述。文件、文件夹按给定路径读写，网址打开查看，Skill 先用 skill 工具加载再干活，自定义内容原样转交；标了「更新」的直接在原文件上改，不要另存副本）：'
 
-/** ④ 段资源块之后：怎么写文件（有步骤整份写出 / 在原文件上更新时各一句），防止循环几轮后文件越写越长。 */
+/**
+ * 怎么写文件（有步骤整份写出 / 在原文件上更新时各一句；计划 ④ 段与任务描述末尾共用）。
+ * 两句要把「这一次的结果」和「长期维护的文件」分开：执行者最常犯的错是把这一次的过程写进更新的文件，
+ * 或者照着文件里已有的乱写法继续写，几轮之后文件上百 KB、每轮格式都不一样。
+ */
 const PRODUCE_LINE =
-  '**产出**的文件每次执行整份重写：只写这一次的结果，不保留上一次的内容，不写「比上次改了什么」这类说明。'
+  '**产出**是这一次的结果：这次做了什么、证据、结论都写在这里。每次执行整份重写，不保留上一次的内容，不写「比上次改了什么」。'
 const UPDATE_LINE =
-  '**更新**的文件先读再改，沿用它现有的结构：描述现状的部分就地改写成最新的，不在前面追加新段落；逐次的记录只加一行（短语、数字、证据路径），细节留在这一次的产出里，记录里只引用路径；同一件事只写一处。'
+  '**更新**的文件是长期维护的现状和记录，不是写这一次报告的地方：先读，再在原文件上改。按资源说明规定的结构写；文件里已有的写法和说明不一致时以说明为准，顺手整理，不要照着旧写法继续写。描述现状的部分就地改成最新的，不在开头或末尾追加「本次结果」段落；记录每次只加一行，格式照说明（说明没写就照已有的行），每格只放短语、数字或路径；这次的过程和细节写在本次产出或回复里，这里只引用路径。同一件事只写一处。'
+
+/** 任务描述末尾那一段的小标题。 */
+const TASK_RESOURCES_HEADING =
+  '**这一步的资源**（路径已拼好，原样使用；说明就是写这份文件的规格）：'
 
 /** ④ 段：交接——缺省就交执行结果，这一句说清；例外与说明逐条列在后面。 */
 const HANDOFF_LINE =
@@ -244,6 +255,26 @@ export function buildFullText(
 ): string {
   if (compileProblemsOf(facts, options).length > 0) return ''
   return renderPlan(facts, analysis, options, true)
+}
+
+/**
+ * 各步骤的任务描述（`id` → 正文）：提示词原文，末尾附上这一步读写的资源（路径已拼好、说明原样）、
+ * 写文件的规矩和判定行要求。执行者只读这一份就知道写哪、怎么写，不靠编排者转述——
+ * 转述几轮之后，同一份文件每轮的写法都不一样。没什么可附的步骤就是提示词原文。
+ */
+export function buildTaskTexts(facts: PlanFacts, analysis: GraphAnalysis): Map<string, string> {
+  const ctx = buildContext(facts, analysis)
+  const texts = new Map<string, string>()
+  for (const id of analysis.nodeIds) {
+    const prompt = ctx.nodes.get(id)?.data.prompt
+    if (typeof prompt !== 'string') continue
+    const appendix = taskAppendixLines(ctx, id)
+    texts.set(
+      id,
+      appendix.length === 0 ? prompt : `${prompt.trimEnd()}\n\n---\n\n${appendix.join('\n')}\n`,
+    )
+  }
+  return texts
 }
 
 /**
@@ -650,16 +681,19 @@ function resourceLines(ctx: RenderContext): string[] {
     .sort((a, b) => byId(a.resource.id, b.resource.id))
   const lines: string[] = []
   for (const info of infos) {
-    const label = info.resource.data.label?.trim()
-    const name =
-      label === undefined || label === ''
-        ? code(info.resource.id)
-        : `${code(info.resource.id)}（${label}）`
-    lines.push(`- 资源 ${name}：${rolesOf(ctx, info)}。`)
+    lines.push(`- 资源 ${resourceName(info.resource)}：${rolesOf(ctx, info)}。`)
     const written = info.writers.length > 0
     for (const item of info.resource.data.items) lines.push(...itemLines(ctx, item, written))
   }
   return lines
+}
+
+/** 资源在计划里的称呼：`id`，有名字就跟在括号里。 */
+function resourceName(resource: ResourceNode): string {
+  const label = resource.data.label?.trim()
+  return label === undefined || label === ''
+    ? code(resource.id)
+    : `${code(resource.id)}（${label}）`
 }
 
 /** 怎么写文件：有步骤整份写出资源就给 {@link PRODUCE_LINE}，有步骤在原文件上更新就给 {@link UPDATE_LINE}。 */
@@ -672,6 +706,42 @@ function writeRuleLines(ctx: RenderContext): string[] {
     ...(writers.some((writer) => !writer.update) ? [PRODUCE_LINE] : []),
     ...(writers.some((writer) => writer.update) ? [UPDATE_LINE] : []),
   ]
+}
+
+/**
+ * 任务描述末尾附的那一段：这一步产出、更新、读取的资源（按连线顺序），再是全局资源（按 `id` 码位序），
+ * 然后是这一步用得上的写文件规矩，最后是判定行要求。什么都没有就是空。
+ */
+function taskAppendixLines(ctx: RenderContext, id: string): string[] {
+  const graph = resourceGraph(ctx.document)
+  const linked = stepResources(ctx.document, id)
+  const written = new Set(linked.writes.map((item) => item.resource.id))
+  const blocks: string[] = []
+  const block = (role: string, resource: ResourceNode): void => {
+    if (resource.data.items.length === 0) return
+    const hasWriter = (graph.get(resource.id)?.writers.length ?? 0) > 0
+    blocks.push(`- ${role} ${resourceName(resource)}：`)
+    for (const item of resource.data.items) blocks.push(...itemLines(ctx, item, hasWriter, true))
+  }
+  for (const item of linked.writes) block(item.update ? '更新' : '产出', item.resource)
+  for (const item of linked.reads) {
+    if (!written.has(item.resource.id)) block('读取', item.resource)
+  }
+  const shared = [...graph.values()]
+    .filter(isShared)
+    .sort((a, b) => byId(a.resource.id, b.resource.id))
+  for (const info of shared) block('全局', info.resource)
+
+  const lines: string[] = []
+  if (blocks.length > 0) {
+    lines.push(TASK_RESOURCES_HEADING, ...blocks)
+    const writes = linked.writes.filter((item) => item.resource.data.items.length > 0)
+    if (writes.some((item) => !item.update)) lines.push(PRODUCE_LINE)
+    if (writes.some((item) => item.update)) lines.push(UPDATE_LINE)
+  }
+  const values = verdictValues(ctx, id)
+  if (values.length > 0) lines.push(`**判定**：回复的最后一行写 ${values.join(' 或 ')}。`)
+  return lines
 }
 
 /** 谁产出、谁更新、谁读；一条线都没连就是交给所有步骤。 */
@@ -695,27 +765,40 @@ function rolesOf(ctx: RenderContext, info: ResourceInfo): string {
   return roles.join('；')
 }
 
-/** 资源里的一项：种类 + 路径 / 网址 / skill 名，有说明就跟在后面；自定义内容逐行引用。 */
-function itemLines(ctx: RenderContext, item: ResourceItem, written: boolean): string[] {
-  const note = item.note?.replace(/\s+/gu, ' ').trim()
-  const tail = note === undefined || note === '' ? '' : `。说明：${note}`
+/** 多行文字逐行引用（`indent` + `> `），空行只留 `>`。 */
+function quoteLines(text: string, indent: string): string[] {
+  return text.split(/\r?\n/u).map((line) => (line === '' ? `${indent}>` : `${indent}> ${line}`))
+}
+
+/**
+ * 资源里的一项：种类 + 路径 / 网址 / skill 名，有说明就跟在后面；自定义内容逐行引用。
+ * 计划里说明压成一行；任务描述里（`keepBreaks`）多行的说明逐行引用——分区、样例行这种结构
+ * 压成一行就看不清了。
+ */
+function itemLines(
+  ctx: RenderContext,
+  item: ResourceItem,
+  written: boolean,
+  keepBreaks = false,
+): string[] {
+  const raw = item.note?.trim() ?? ''
+  const multiline = keepBreaks && raw.includes('\n')
+  const tail = raw === '' ? '' : multiline ? '。说明：' : `。说明：${raw.replace(/\s+/gu, ' ')}`
+  const quoted = multiline ? quoteLines(raw, '    ') : []
   const value = item.value.trim()
   switch (item.kind) {
     case 'file':
-      return [`  - 文件：${code(resolveItemPath(ctx.root, value, written))}${tail}`]
+      return [`  - 文件：${code(resolveItemPath(ctx.root, value, written))}${tail}`, ...quoted]
     case 'folder':
-      return [`  - 文件夹：${code(resolveItemPath(ctx.root, value, written))}${tail}`]
+      return [`  - 文件夹：${code(resolveItemPath(ctx.root, value, written))}${tail}`, ...quoted]
     case 'url':
-      return [`  - 网址：${value}${tail}`]
+      return [`  - 网址：${value}${tail}`, ...quoted]
     case 'skill':
-      return [`  - Skill：${code(value)}（先用 skill 工具加载）${tail}`]
+      return [`  - Skill：${code(value)}（先用 skill 工具加载）${tail}`, ...quoted]
     default: {
       const text = item.value.trim()
       if (!text.includes('\n')) return [`  - 自定义：${text}`]
-      return [
-        '  - 自定义：',
-        ...text.split(/\r?\n/u).map((line) => (line === '' ? '    >' : `    > ${line}`)),
-      ]
+      return ['  - 自定义：', ...quoteLines(text, '    ')]
     }
   }
 }

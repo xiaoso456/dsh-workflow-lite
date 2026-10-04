@@ -444,7 +444,7 @@ describe('保存用户改的图', () => {
     expect(graphEntry.detail).toContain('步骤 review：改了提示词')
     expect(graphEntry.detail).toContain('新加步骤 lint')
     const tasks = join(workspace, '.workflow-lite', 'runs', id, 'tasks')
-    expect(await readFile(join(tasks, 'review.md'), 'utf8')).toBe('换个审法')
+    expect(await readFile(join(tasks, 'review.md'), 'utf8')).toMatch(/^换个审法\n\n---\n/)
     expect(await readFile(join(tasks, 'lint.md'), 'utf8')).toBe('跑 lint')
     expect(notified).toHaveLength(1)
     expect(notified[0]?.summary).toBe('用户修改了 cr 的图与运行状态（3 处）')
@@ -547,7 +547,7 @@ describe('保存用户改的图', () => {
 })
 
 describe('看产出文件', () => {
-  it('资源里的文件：小文本带正文、Markdown 认得出；还没生成标 missing；越出工作区的路径拒绝', async () => {
+  it('资源里的文件：小文本带正文、Markdown 与 HTML 认得出；还没生成标 missing；越出工作区的路径拒绝', async () => {
     await withNotes()
     const result = await compileWithRuns()
     const id = String(result.instance)
@@ -567,6 +567,14 @@ describe('看产出文件', () => {
     expect(md.result.kind).toBe('markdown')
     expect(md.result.text).toContain('# 标题')
     expect(md.result.display).toBe(`.workflow-lite/runs/${id}/out/notes.md`)
+
+    await writeFile(join(workspace, 'board.html'), '<!doctype html><h1>看板</h1>')
+    const html = await runs.file(id, { path: 'board.html' })
+    expect(html.ok && html.result.kind).toBe('html')
+    expect(html.ok && html.result.text).toContain('<h1>看板</h1>')
+    await writeFile(join(workspace, 'old.HTM'), '<p>x</p>')
+    const htm = await runs.file(id, { path: 'old.HTM' })
+    expect(htm.ok && htm.result.kind).toBe('html')
 
     await writeFile(join(workspace, 'big.txt'), 'x'.repeat(300 * 1024))
     const big = await runs.file(id, { path: 'big.txt' })

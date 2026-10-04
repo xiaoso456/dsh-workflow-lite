@@ -194,6 +194,17 @@ describe('workflow_lite —— 正常路径', () => {
     expect((result.problems as JsonValue[]).length).toBeGreaterThan(0)
   })
 
+  it('read 索引带上阻塞编译的 problems：自检不必编译（编译会建实例）；没问题就不给', async () => {
+    await run({ action: 'create', workflow: 'wf' })
+    await run({ action: 'write_node', workflow: 'wf', node: 'a', content: '' })
+    const broken = record(await run({ action: 'read', workflow: 'wf' }))
+    const codes = (broken.problems as Record<string, JsonValue>[]).map((item) => item.code)
+    expect(codes).toContain('prompt_empty')
+
+    await run({ action: 'write_node', workflow: 'wf', node: 'a', content: '做 A' })
+    expect(record(await run({ action: 'read', workflow: 'wf' })).problems).toBeUndefined()
+  })
+
   it('delete_node 连带删边（否则会留下保存级的悬空 edge）', async () => {
     await run({ action: 'create', workflow: 'wf' })
     await run({ action: 'write_node', workflow: 'wf', node: 'a', content: 'A' })
