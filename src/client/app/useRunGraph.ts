@@ -4,6 +4,9 @@
  * 图的改动和状态的改动攒在同一条草稿栏里（「已改 x 处」），用户点「保存并通知模型」才一起交给 host。
  * 改到一半切走再回来接着改：改过的图按实例存在浏览器里，基线（planId）对不上就作废。
  *
+ * 检查和模板用同一套规则（`shared/validate.ts` 的四级）：顶栏的检查结果列全部，画布按它标卡片；
+ * 挡保存的只有保存级、编译级，而且只在改过图时才挡（没改过就是建实例时那张，不该拦着改状态）。
+ *
  * @module @xiaoso/dsh-workflow-lite/client/app/useRunGraph
  */
 
@@ -13,6 +16,7 @@ import type { ValidationProblem, WorkflowDocument } from '../../shared/types.ts'
 import { validateDocument } from '../../shared/validate.ts'
 import { type Edit, initialState, reduce, type Selection } from '../model/editor.ts'
 import { revertChange } from '../model/runGraph.ts'
+import type { SideHistory } from '../model/runHistory.ts'
 
 export interface RunGraph {
   /** 改到现在的图；基线还没到时是 `null`。 */
@@ -24,13 +28,19 @@ export interface RunGraph {
   selection: Selection
   /** 比基线改了什么（一处一项，按 `shared/graphDiff.ts` 数）。 */
   changes: GraphChange[]
-  /** 改完的图保存不了的问题（保存级、编译级）：画布上标红，保存按钮按住。 */
+  /** 改完的图保存不了的问题（保存级、编译级；没改过图时为空）：保存按钮按住。 */
   problems: ValidationProblem[]
+  /** 这张图的全部检查结果（四级，和模板同一套规则）：顶栏的检查结果、画布上的标记。 */
+  report: ValidationProblem[]
+  /** 图的撤销栈。 */
+  history: SideHistory
   edit(edit: Edit): void
   select(selection: Selection): void
   seal(): void
   undo(): void
   redo(): void
+  /** 丢掉重做栈（状态那边有了新的一步）。 */
+  dropRedo(): void
   /** 单独撤回清单里的一处。 */
   revert(change: GraphChange): void
   /** 放弃图的全部改动。 */
@@ -115,14 +125,28 @@ export function useRunGraph(
     () => (current === null || doc === null ? [] : graphChanges(current.doc, doc)),
     [current, doc],
   )
-  const problems = useMemo(() => {
-    if (doc === null || changes.length === 0) return []
-    const report = validateDocument(doc, {
-      workflowName: workflow ?? 'workflow',
-      maxNodes: NO_LIMIT,
-    })
-    return [...report.save, ...report.compile]
-  }, [doc, changes.length, workflow])
+  const checked = useMemo(
+    () =>
+      doc === null
+        ? null
+        : validateDocument(doc, { workflowName: workflow ?? 'workflow', maxNodes: NO_LIMIT }),
+    [doc, workflow],
+  )
+  const report = useMemo(
+    () =>
+      checked === null
+        ? []
+        : [...checked.save, ...checked.compile, ...checked.warning, ...checked.hint],
+    [checked],
+  )
+  const problems = useMemo(
+    () => (checked === null || changes.length === 0 ? [] : [...checked.save, ...checked.compile]),
+    [checked, changes.length],
+  )
+  const history = useMemo<SideHistory>(
+    () => ({ past: state.past.length, future: state.future.length, seq: state.historySeq }),
+    [state.past.length, state.future.length, state.historySeq],
+  )
 
   const edit = useCallback((next: Edit): void => dispatch(next), [])
   const select = useCallback(
@@ -132,6 +156,7 @@ export function useRunGraph(
   const seal = useCallback((): void => dispatch({ type: 'seal' }), [])
   const undo = useCallback((): void => dispatch({ type: 'undo' }), [])
   const redo = useCallback((): void => dispatch({ type: 'redo' }), [])
+  const dropRedo = useCallback((): void => dispatch({ type: 'dropFuture' }), [])
   const revert = useCallback(
     (change: GraphChange): void => {
       if (current === null || doc === null) return
@@ -160,11 +185,14 @@ export function useRunGraph(
     selection: current === null ? null : state.selection,
     changes,
     problems,
+    report,
+    history,
     edit,
     select,
     seal,
     undo,
     redo,
+    dropRedo,
     revert,
     discard,
     commit,

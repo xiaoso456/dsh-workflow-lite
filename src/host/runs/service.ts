@@ -42,6 +42,7 @@ import {
   type RunStateIssue,
   type RunStatus,
   type StateEdit,
+  SUMMARY_ISSUES_MAX,
   statusFields,
   validateRunState,
 } from '../../shared/runState.ts'
@@ -731,7 +732,8 @@ export class RunService {
     index: InstanceIndex,
     session: string | undefined,
   ): Promise<InstanceSummary> {
-    const read = await this.readState(record)
+    // 对照快照校验，和打开实例时的结论一致（不给图就查不了 verdict 该不该写）。
+    const read = await this.readState(record, await this.snapshot(record))
     const base: InstanceSummary = {
       id: record.id,
       workflow: record.workflow,
@@ -746,7 +748,13 @@ export class RunService {
     }
     if (record.statePath === undefined) return base
     if (read.text === null) return { ...base, stateProblem: 'missing' }
-    if (read.state === null) return { ...base, stateProblem: 'invalid' }
+    if (read.state === null) {
+      return {
+        ...base,
+        stateProblem: 'invalid',
+        stateIssues: read.issues.slice(0, SUMMARY_ISSUES_MAX),
+      }
+    }
     const progress = progressOf(read.state)
     return {
       ...base,

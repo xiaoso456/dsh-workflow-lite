@@ -149,6 +149,18 @@ describe('validateRunState', () => {
     expect(paths(state)).toEqual(['nodes.review.verdict'])
   })
 
+  it('不给图：不知道哪些步骤有条件出边，verdict 只查是不是文字，不当成「不用写」', () => {
+    const state = initial()
+    state.nodes.review = { status: 'done', round: 1, finishedAt: T, verdict: 'fail' }
+    expect(validateRunState(state).issues).toEqual([])
+    expect(validateRunState(state).state?.nodes.review?.verdict).toBe('fail')
+    const bad = initial() as unknown as { nodes: Record<string, unknown> }
+    bad.nodes.review = { status: 'done', round: 1, finishedAt: T, verdict: ['x'] }
+    expect(validateRunState(bad).issues.map((issue) => issue.path)).toEqual([
+      'nodes.review.verdict',
+    ])
+  })
+
   it('步骤缺了、多了、只差大小写', () => {
     const state = initial()
     const { review, ...rest } = state.nodes

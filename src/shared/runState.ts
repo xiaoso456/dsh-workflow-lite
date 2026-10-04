@@ -267,7 +267,9 @@ export function validateRunState(
     issue('nodes', '缺失，或不是映射（每个步骤 id 一项）')
   } else {
     for (const [id, raw] of Object.entries(value.nodes)) {
-      const node = checkNode(raw, `nodes.${id}`, facts?.verdicts[id], issues)
+      // 没给图（不知道哪些步骤有条件出边）：verdict 只查是不是文字，不查该不该写、写得对不对。
+      const verdicts = facts === undefined ? null : facts.verdicts[id]
+      const node = checkNode(raw, `nodes.${id}`, verdicts, issues)
       if (node !== null) nodes[id] = node
     }
     if (facts !== undefined) {
@@ -352,7 +354,8 @@ function reporter(issues: RunStateIssue[]): Report {
 function checkNode(
   raw: unknown,
   path: string,
-  verdicts: readonly string[] | undefined,
+  /** 它出边的条件；`undefined` = 没有条件出边；`null` = 不知道（没给图）。 */
+  verdicts: readonly string[] | undefined | null,
   issues: RunStateIssue[],
 ): NodeRunState | null {
   const issue = reporter(issues)
@@ -390,13 +393,13 @@ function checkNode(
   }
   const verdict = raw.verdict === undefined ? undefined : scalarText(raw.verdict)
   if (raw.verdict !== undefined && verdict === undefined) issue(`${path}.verdict`, '必须是文字')
-  if (verdict !== undefined) {
+  if (verdicts !== null && verdict !== undefined) {
     if (verdicts === undefined) {
       issue(`${path}.verdict`, '这个步骤没有条件出边，不用写 verdict')
     } else if (!verdicts.includes(verdict)) {
       issue(`${path}.verdict`, `不在它出边的条件里；${choices(verdicts)}`)
     }
-  } else if (status === 'done' && verdicts !== undefined) {
+  } else if (verdicts !== null && verdicts !== undefined && status === 'done') {
     issue(`${path}.verdict`, `这个步骤有条件出边，done 时要写 verdict；${choices(verdicts)}`)
   }
   if (raw.outputs !== undefined) {
@@ -633,7 +636,12 @@ export interface InstanceSummary {
   updatedAt?: string
   /** 状态文件读不出来：不见了，或格式不对。 */
   stateProblem?: 'missing' | 'invalid'
+  /** 格式不对时具体哪里不对（最多 {@link SUMMARY_ISSUES_MAX} 条，列表里给人看原因）。 */
+  stateIssues?: RunStateIssue[]
 }
+
+/** 实例列表里每个实例最多带几条状态文件的问题。 */
+export const SUMMARY_ISSUES_MAX = 5
 
 /** 画布读一个实例：快照 + 解析后的状态 + 校验结论。 */
 export interface InstanceView {

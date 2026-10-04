@@ -1,6 +1,6 @@
 /**
- * dsh-workflow-lite — 实例视图的顶栏：实例与工作流的下拉、总状态与进度、打开模板、复制状态文件路径、
- * 「在看什么」与右栏开关。
+ * dsh-workflow-lite — 实例视图的顶栏：实例与工作流的下拉、总状态与进度；撤销重做、整理、检查结果
+ * （和模板编辑的顶栏同一组）；打开模板、复制状态文件路径、「在看什么」与右栏开关。
  * 状态小标与下拉里「本会话的实例」那一段，工作流中心与模板编辑的顶栏也用。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/RunTopBar
@@ -13,11 +13,13 @@ import {
   type RunState,
   type RunStatus,
 } from '../../shared/runState.ts'
-import type { WorkflowEntry } from '../../shared/types.ts'
+import type { ValidationProblem, WorkflowEntry } from '../../shared/types.ts'
+import type { RunHistory } from '../app/useRunHistory.ts'
 import type { Runs } from '../app/useRuns.ts'
 import type { LocaleKey, T } from '../i18n.ts'
 import { shortTime } from '../model/time.ts'
 import { Icon } from './Icon.tsx'
+import { Issues } from './Issues.tsx'
 import { copyText, cx, Popover } from './primitives.tsx'
 import type { RunViewProps } from './RunView.tsx'
 import run from './run.module.css'
@@ -77,6 +79,12 @@ export function RunTopBar(
     /** 右栏开关右边「在看什么」的切换（顶栏最右）。 */
     nav: React.ReactNode
     onTogglePanel(): void
+    /** 图和状态排成一条的撤销 / 重做。 */
+    history: RunHistory
+    /** 这张图的检查结果（和模板同一套规则）；图还没读回来是 `null`。 */
+    problems: readonly ValidationProblem[] | null
+    onTidy(): void
+    onLocate(nodeId: string): void
   },
 ): React.JSX.Element {
   const { t, summary, state } = props
@@ -130,6 +138,50 @@ export function RunTopBar(
         )}
       </div>
       <span className={ui.grow} />
+      {summary !== undefined && props.problems !== null && (
+        <div className={cx(ui.panel, top.pill, top.tools)} data-testid="wl-run-tools">
+          <button
+            type="button"
+            className={cx(ui.btn, ui.icon, ui.tip)}
+            data-tip={`${t('tool.undo')}  Ctrl+Z`}
+            aria-label={t('tool.undo')}
+            data-testid="wl-undo"
+            disabled={!props.history.canUndo}
+            onClick={props.history.undo}
+          >
+            <Icon name="undo" size={16} />
+          </button>
+          <button
+            type="button"
+            className={cx(ui.btn, ui.icon, ui.tip)}
+            data-tip={`${t('tool.redo')}  Ctrl+Shift+Z`}
+            aria-label={t('tool.redo')}
+            data-testid="wl-redo"
+            disabled={!props.history.canRedo}
+            onClick={props.history.redo}
+          >
+            <Icon name="redo" size={16} />
+          </button>
+          <span className={ui.divider} />
+          <button
+            type="button"
+            className={cx(ui.btn, ui.icon, ui.tip)}
+            data-tip={`${t('tool.tidy')}  L`}
+            aria-label={t('tool.tidy')}
+            data-testid="wl-tidy"
+            onClick={props.onTidy}
+          >
+            <Icon name="tidy" size={16} />
+          </button>
+          <span className={ui.divider} />
+          <Issues
+            t={t}
+            problems={props.problems}
+            noneBody="issues.noneBodyRun"
+            onLocate={props.onLocate}
+          />
+        </div>
+      )}
       {summary !== undefined && (
         <div className={cx(ui.panel, top.pill, top.tools)}>
           <button

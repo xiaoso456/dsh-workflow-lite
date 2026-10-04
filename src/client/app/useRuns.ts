@@ -32,6 +32,7 @@ import {
   setNodeStatus,
   valueAt,
 } from '../model/runDraft.ts'
+import type { SideHistory } from '../model/runHistory.ts'
 import { errorCode, errorMessage, type WorkflowLiteRpc, WorkflowLiteRpcError } from '../rpc.ts'
 
 /** 实例视图轮询的间隔。 */
@@ -152,6 +153,12 @@ export interface Run {
   rerun(ids: readonly string[]): void
   undoEdit(path: readonly string[]): void
   resolve(conflict: DraftConflict, keep: 'mine' | 'theirs'): void
+  /** 状态草稿的撤销栈（图的在 useRunGraph；两边由 useRunHistory 排成一条）。 */
+  draftHistory: SideHistory
+  undoDraft(): void
+  redoDraft(): void
+  /** 丢掉重做栈（图那边有了新的一步）。 */
+  dropDraftRedo(): void
   discard(): void
   /**
    * 保存草稿并通知模型。改了图就把改完的整张图一起交上去（草稿里删掉了的步骤的状态改动不交）；
@@ -159,6 +166,15 @@ export interface Run {
    */
   save(graph?: { base: string; document: WorkflowDocument }): Promise<RunSaveResponse | null>
   reload(): Promise<void>
+}
+
+/** 状态草稿撤销栈的上限（和图的撤销栈一样）。 */
+const DRAFT_HISTORY_LIMIT = 60
+
+interface DraftStacks {
+  past: StateEdit[][]
+  future: StateEdit[][]
+  seq: number
 }
 
 function draftKey(id: string): string {
@@ -210,6 +226,43 @@ export function useRun(
   const saved = useRef<StateEdit[]>([])
   const draftRef = useRef(draft)
   draftRef.current = draft
+  const [stacks, setStacks] = useState<DraftStacks>({ past: [], future: [], seq: 0 })
+  const stacksRef = useRef(stacks)
+  stacksRef.current = stacks
+
+  /** 换掉草稿，撤销栈另说（refs 先改，同一次事件里接着改也看得到）。 */
+  const putDraft = useCallback((next: StateEdit[]): void => {
+    draftRef.current = next
+    setDraft(next)
+  }, [])
+  const putStacks = useCallback((next: DraftStacks): void => {
+    stacksRef.current = next
+    setStacks(next)
+  }, [])
+  /** 草稿不是用户改的（换实例、模型那边已经一样了、存完、放弃）：撤销栈清空。 */
+  const resetDraft = useCallback(
+    (next: StateEdit[]): void => {
+      putDraft(next)
+      putStacks({ past: [], future: [], seq: stacksRef.current.seq })
+    },
+    [putDraft, putStacks],
+  )
+  /** 用户改了草稿：改之前的那份进撤销栈。没改出变化就不算一步。 */
+  const change = useCallback(
+    (update: (current: StateEdit[]) => StateEdit[]): void => {
+      const before = draftRef.current
+      const next = update(before)
+      if (JSON.stringify(next) === JSON.stringify(before)) return
+      const old = stacksRef.current
+      putStacks({
+        past: [...old.past, before].slice(-DRAFT_HISTORY_LIMIT),
+        future: [],
+        seq: old.seq + 1,
+      })
+      putDraft(next)
+    },
+    [putDraft, putStacks],
+  )
 
   useEffect(() => {
     writeDraft(id, draft, note)
@@ -241,7 +294,7 @@ export function useRun(
         if (state === null) return
         setLastGood(state)
         const rebased = rebase(draftRef.current, state)
-        if (rebased.draft.length !== draftRef.current.length) setDraft(rebased.draft)
+        if (rebased.draft.length !== draftRef.current.length) resetDraft(rebased.draft)
         setConflicts(rebased.conflicts)
         if (saved.current.length > 0) {
           const reverted = saved.current.filter((edit) =>
@@ -253,7 +306,7 @@ export function useRun(
         setError(errorMessage(caught))
       }
     },
-    [rpc, id, session],
+    [rpc, id, session, resetDraft],
   )
 
   // 换了实例：清掉上一份的显示，读新的。
@@ -264,10 +317,10 @@ export function useRun(
     setLastGood(null)
     setOverwritten([])
     const stored = readDraft(id)
-    setDraft(stored.edits)
+    resetDraft(stored.edits)
     setNote(stored.note)
     void load(true)
-  }, [id, load])
+  }, [id, load, resetDraft])
 
   // 轮询：只在页面可见时问。状态文件没变时只回"没变"；每隔几轮整份重读一次——
   // 产出文件生成没有不会改状态文件的修改时间（尤其是不记进度的实例），靠它跟上。
@@ -286,56 +339,87 @@ export function useRun(
   const setField = useCallback(
     (path: string[], to: StateEdit['to']): void => {
       if (base === null) return
-      setDraft((current) => setDraftField(current, base, path, to))
+      change((current) => setDraftField(current, base, path, to))
     },
-    [base],
+    [base, change],
   )
 
   const setStatus = useCallback(
     (nodeId: string, status: NodeStatus): void => {
       if (base === null) return
-      setDraft((current) => setNodeStatus(current, base, nodeId, status, isoNow()))
+      change((current) => setNodeStatus(current, base, nodeId, status, isoNow()))
     },
-    [base],
+    [base, change],
   )
 
   const setStatuses = useCallback(
     (ids: readonly string[], status: NodeStatus): void => {
       if (base === null) return
       const now = isoNow()
-      setDraft((current) =>
+      change((current) =>
         ids.reduce((next, nodeId) => setNodeStatus(next, base, nodeId, status, now), current),
       )
     },
-    [base],
+    [base, change],
   )
 
   const rerun = useCallback(
     (ids: readonly string[]): void => {
       if (base === null) return
-      setDraft((current) => rerunDraft(current, base, ids, isoNow()))
+      change((current) => rerunDraft(current, base, ids, isoNow()))
     },
-    [base],
+    [base, change],
   )
 
-  const undoEdit = useCallback((path: readonly string[]): void => {
-    setDraft((current) =>
-      current.filter(
-        (edit) => edit.path.length !== path.length || edit.path.some((key, i) => key !== path[i]),
-      ),
-    )
-  }, [])
+  const undoEdit = useCallback(
+    (path: readonly string[]): void => {
+      change((current) =>
+        current.filter(
+          (edit) => edit.path.length !== path.length || edit.path.some((key, i) => key !== path[i]),
+        ),
+      )
+    },
+    [change],
+  )
 
-  const resolve = useCallback((conflict: DraftConflict, keep: 'mine' | 'theirs'): void => {
-    setDraft((current) => resolveDraft(current, conflict, keep))
-    setConflicts((current) => current.filter((item) => item !== conflict))
-  }, [])
+  const resolve = useCallback(
+    (conflict: DraftConflict, keep: 'mine' | 'theirs'): void => {
+      change((current) => resolveDraft(current, conflict, keep))
+      setConflicts((current) => current.filter((item) => item !== conflict))
+    },
+    [change],
+  )
+
+  const undoDraft = useCallback((): void => {
+    const old = stacksRef.current
+    const previous = old.past.at(-1)
+    if (previous === undefined) return
+    putStacks({
+      past: old.past.slice(0, -1),
+      future: [draftRef.current, ...old.future],
+      seq: old.seq,
+    })
+    putDraft(previous)
+  }, [putDraft, putStacks])
+
+  const redoDraft = useCallback((): void => {
+    const old = stacksRef.current
+    const next = old.future[0]
+    if (next === undefined) return
+    putStacks({ past: [...old.past, draftRef.current], future: old.future.slice(1), seq: old.seq })
+    putDraft(next)
+  }, [putDraft, putStacks])
+
+  const dropDraftRedo = useCallback((): void => {
+    const old = stacksRef.current
+    if (old.future.length > 0) putStacks({ ...old, future: [] })
+  }, [putStacks])
 
   const discard = useCallback((): void => {
-    setDraft([])
+    resetDraft([])
     setNote('')
     setConflicts([])
-  }, [])
+  }, [resetDraft])
 
   const save = useCallback(
     async (graph?: {
@@ -364,7 +448,7 @@ export function useRun(
         })
         saved.current = edits
         setOverwritten([])
-        setDraft([])
+        resetDraft([])
         setNote('')
         setConflicts([])
         flash(
@@ -394,10 +478,14 @@ export function useRun(
         setSaving(false)
       }
     },
-    [rpc, id, session, note, saving, flash, t, load, onSaved],
+    [rpc, id, session, note, saving, flash, t, load, onSaved, resetDraft],
   )
 
   const shown = useMemo(() => (base === null ? null : applyDraft(base, draft)), [base, draft])
+  const draftHistory = useMemo<SideHistory>(
+    () => ({ past: stacks.past.length, future: stacks.future.length, seq: stacks.seq }),
+    [stacks],
+  )
 
   return {
     view,
@@ -418,6 +506,10 @@ export function useRun(
     rerun,
     undoEdit,
     resolve,
+    draftHistory,
+    undoDraft,
+    redoDraft,
+    dropDraftRedo,
     discard,
     save,
     reload: () => load(true),

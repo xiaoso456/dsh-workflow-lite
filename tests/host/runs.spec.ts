@@ -778,6 +778,23 @@ describe('模型用 state 记进度', () => {
     expect(typeof state.nodes.review.finishedAt).toBe('string')
     expect(state.log.at(-2)).toMatchObject({ node: 'review', event: 'done', verdict: 'fail' })
     expect(state.log.at(-1)).toMatchObject({ node: 'fix', event: 'start', round: 1 })
+
+    // 写了 verdict 的状态在列表里也是合法的（列表对照快照校验，和打开实例时一致）；
+    // 转到别的会话照样记 transfer（追加流水时不因为不知道图就当它不合法）。
+    expect((await runs.list(undefined, true))[0]?.stateProblem).toBeUndefined()
+    const moved = await runs.bind(id, 's2')
+    expect(moved.ok).toBe(true)
+    const after = parse(await readFile(String(compiled.statePath), 'utf8'))
+    expect(after.log.at(-1)).toMatchObject({ event: 'transfer' })
+  })
+
+  it('状态文件写错：列表里带上哪几处不对（最多几条），给人看原因', async () => {
+    const compiled = await compileWithRuns()
+    const text = await readFile(String(compiled.statePath), 'utf8')
+    await writeFile(String(compiled.statePath), text.replace(/^status: pending$/mu, 'status: nope'))
+    const [item] = await runs.list(undefined, true)
+    expect(item?.stateProblem).toBe('invalid')
+    expect(item?.stateIssues?.map((issue) => issue.path)).toEqual(['status'])
   })
 
   it('步骤 id 不对、状态值不认识：说清楚哪里不对', async () => {

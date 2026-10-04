@@ -177,6 +177,33 @@ describe('改步骤内容', () => {
     )
     expect(sealed.past).toHaveLength(2)
     expect(stepData(run(sealed, { type: 'undo' }, { type: 'undo' }).doc?.nodes[0])?.prompt).toBe('')
+    // 每压一条新的撤销步 +1：合并进上一步、撤销、重做都不算
+    expect(typed.historySeq - start.historySeq).toBe(1)
+    expect(sealed.historySeq - start.historySeq).toBe(2)
+    expect(run(sealed, { type: 'undo' }, { type: 'redo' }).historySeq).toBe(sealed.historySeq)
+  })
+
+  it('dropFuture 丢掉重做栈，文档不动；换基线时 historySeq 不归零', () => {
+    const start = loaded(doc({ nodes: [node('a')] }))
+    const undone = run(
+      start,
+      { type: 'addNode', id: 'b', data: { prompt: 'do b' }, position: { x: 0, y: 0 } },
+      { type: 'undo' },
+    )
+    expect(undone.future).toHaveLength(1)
+    const dropped = reduce(undone, { type: 'dropFuture' })
+    expect(dropped.future).toEqual([])
+    expect(dropped.doc).toBe(undone.doc)
+    expect(reduce(dropped, { type: 'dropFuture' })).toBe(dropped)
+    const reloaded = reduce(undone, {
+      type: 'loaded',
+      name: 'x',
+      doc: doc(),
+      baseHash: 'h',
+      problems: [],
+    })
+    expect(reloaded.past).toEqual([])
+    expect(reloaded.historySeq).toBe(undone.historySeq)
   })
 
   it('值为 undefined 的键表示清掉；没有实际变化就原样返回', () => {

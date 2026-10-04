@@ -1,6 +1,7 @@
 /**
  * dsh-workflow-lite — 工作流中心里的一个实例：工作流名、会话标题、建立时间、目标；进度、总状态；
  * 查看、移到本会话、删除（删除在行下面展开确认，问要不要连状态文件一起删）。
+ * 状态文件读不出来时，小标能点：行下面展开原因（找不到的路径，或哪几处写得不对）。
  *
  * 行里不放浮层：列表自己滚动，浮层会被裁掉。图标按钮的说明用原生 `title`。
  *
@@ -32,6 +33,7 @@ export function HubRunRow(props: {
 }): React.JSX.Element {
   const { t, item } = props
   const [withState, setWithState] = useState(false)
+  const [why, setWhy] = useState(false)
   const status = item.statePath === undefined ? 'untracked' : (item.status ?? 'pending')
   const ratio =
     item.total !== undefined && item.total > 0 ? (item.done ?? 0) / item.total : undefined
@@ -83,12 +85,21 @@ export function HubRunRow(props: {
           </>
         )}
       </div>
-      <RunStatusBadge
-        t={t}
-        status={item.status}
-        problem={item.stateProblem}
-        untracked={item.statePath === undefined}
-      />
+      {item.stateProblem === undefined ? (
+        <RunStatusBadge t={t} status={item.status} untracked={item.statePath === undefined} />
+      ) : (
+        <button
+          type="button"
+          className={hub.why}
+          aria-expanded={why}
+          title={t('hub.why')}
+          data-testid="wl-hub-why"
+          onClick={() => setWhy((open) => !open)}
+        >
+          <RunStatusBadge t={t} status={undefined} problem={item.stateProblem} />
+          <Icon name={why ? 'chevronUp' : 'chevronDown'} size={12} />
+        </button>
+      )}
       <div className={hub.actions}>
         <button
           type="button"
@@ -125,6 +136,29 @@ export function HubRunRow(props: {
           <Icon name="trash" size={14} />
         </button>
       </div>
+      {why && item.stateProblem !== undefined && (
+        <div className={cx(hub.reason, ui.rise)} data-testid="wl-hub-reason">
+          {item.stateProblem === 'missing' ? (
+            <>
+              <span>{t('hub.missingAt')}</span>
+              <code className={hub.reasonPath}>{item.statePath}</code>
+            </>
+          ) : (
+            <>
+              <span>{t('hub.invalidHead')}</span>
+              <ul className={hub.reasonList}>
+                {(item.stateIssues ?? []).map((issue) => (
+                  <li key={`${issue.path}:${issue.message}`}>
+                    {issue.path !== '' && <code>{issue.path}</code>}
+                    {issue.message}
+                  </li>
+                ))}
+              </ul>
+              <span className={hub.reasonMore}>{t('hub.invalidMore')}</span>
+            </>
+          )}
+        </div>
+      )}
       {props.confirming && (
         <div className={cx(hub.confirm, ui.rise)}>
           <span>{t('hub.deleteConfirm')}</span>

@@ -79,6 +79,11 @@ export interface EditorState {
   future: WorkflowDocument[]
   /** 当前历史条目的合并键；相同键的连续改动并成一条撤销步。 */
   mergeKey: string | null
+  /**
+   * 每压一条新的撤销步 +1（撤销、重做、合并进上一步都不算），换基线也不归零。
+   * 撤销栈到了上限时长度不再变，靠它才看得出"又多了一步"（实例视图把图和状态的撤销排成一条时用）。
+   */
+  historySeq: number
   /** 每载入一份新基线 +1：画布据此重新定视口（保存不算，免得每存一次都跳一下）。 */
   loadSeq: number
 }
@@ -102,6 +107,7 @@ export const initialState: EditorState = {
   past: [],
   future: [],
   mergeKey: null,
+  historySeq: 0,
   loadSeq: 0,
 }
 
@@ -200,6 +206,8 @@ export type Action =
   | { type: 'select'; selection: Selection }
   | { type: 'undo' }
   | { type: 'redo' }
+  /** 丢掉重做栈（实例视图里别处有了新的一步：撤销排成一条，新的一步之后都不能重做）。 */
+  | { type: 'dropFuture' }
   /** 一次交互结束（输入失焦）：断开历史合并。 */
   | { type: 'seal' }
   | { type: 'saveStarted'; rev: number }
@@ -657,10 +665,11 @@ function historyAfter(
   state: EditorState,
   before: WorkflowDocument,
   edit: Edit,
-): Pick<EditorState, 'past' | 'future' | 'mergeKey'> {
+): Pick<EditorState, 'past' | 'future' | 'mergeKey' | 'historySeq'> {
+  const seq = state.historySeq
   // 不进历史：程序自动补位。它也不打断正在进行的合并链。
   if (edit.type === 'moveNodes' && edit.silent === true) {
-    return { past: state.past, future: state.future, mergeKey: state.mergeKey }
+    return { past: state.past, future: state.future, mergeKey: state.mergeKey, historySeq: seq }
   }
   const key =
     edit.type === 'patchNode' ||
@@ -672,9 +681,9 @@ function historyAfter(
       : null
   // 同一个合并键：栈顶已经是这次交互开始之前的快照，不再压。
   if (key !== null && key === state.mergeKey) {
-    return { past: state.past, future: [], mergeKey: key }
+    return { past: state.past, future: [], mergeKey: key, historySeq: seq }
   }
-  return { past: pushPast(state.past, before), future: [], mergeKey: key }
+  return { past: pushPast(state.past, before), future: [], mergeKey: key, historySeq: seq + 1 }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -697,7 +706,13 @@ export function reduce(state: EditorState, action: Action): EditorState {
 
   switch (action.type) {
     case 'loading':
-      return { ...initialState, phase: 'loading', name: action.name, loadSeq: state.loadSeq }
+      return {
+        ...initialState,
+        phase: 'loading',
+        name: action.name,
+        loadSeq: state.loadSeq,
+        historySeq: state.historySeq,
+      }
 
     case 'loaded':
       // 新基线：计数与历史都从头开始（旧历史属于上一份文档）。
@@ -709,6 +724,7 @@ export function reduce(state: EditorState, action: Action): EditorState {
         baseHash: action.baseHash,
         problems: action.problems,
         loadSeq: state.loadSeq + 1,
+        historySeq: state.historySeq,
       }
 
     case 'broken':
@@ -719,10 +735,11 @@ export function reduce(state: EditorState, action: Action): EditorState {
         problems: action.problems,
         broken: { message: action.message, raw: action.raw },
         loadSeq: state.loadSeq,
+        historySeq: state.historySeq,
       }
 
     case 'closed':
-      return { ...initialState, loadSeq: state.loadSeq }
+      return { ...initialState, loadSeq: state.loadSeq, historySeq: state.historySeq }
 
     case 'renamed':
       return state.name === null ? state : { ...state, name: action.name }
@@ -734,6 +751,9 @@ export function reduce(state: EditorState, action: Action): EditorState {
         selection?.kind === state.selection?.kind && selection?.id === state.selection?.id
       return same ? state : { ...state, selection }
     }
+
+    case 'dropFuture':
+      return state.future.length === 0 ? state : { ...state, future: [] }
 
     case 'seal':
       return state.mergeKey === null ? state : { ...state, mergeKey: null }

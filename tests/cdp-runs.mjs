@@ -493,6 +493,29 @@ try {
   )
   check((await session.evaluate(chipOf('review'))) === 'running', '写坏时画布保留上一次合法的状态')
   await screenshot(session, 'runs-03-invalid.png')
+  // 工作流中心里同一个实例标「状态文件有误」，点小标展开原因。
+  await session.evaluate(`document.querySelector('[data-testid="wl-hub-open"]').click()`)
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-hub-row"][data-id="${instance}"] [data-testid="wl-hub-why"]') !== null`,
+  )
+  await session.evaluate(
+    `document.querySelector('[data-testid="wl-hub-row"][data-id="${instance}"] [data-testid="wl-hub-why"]').click()`,
+  )
+  await waitFor(session, `document.querySelector('[data-testid="wl-hub-reason"]') !== null`)
+  const reason = await session.evaluate(
+    `document.querySelector('[data-testid="wl-hub-reason"]').textContent`,
+  )
+  check(
+    reason.includes('status') && reason.includes('不认识'),
+    `原因应指出 status 写错了：${reason}`,
+  )
+  await sleep(250)
+  await screenshot(session, 'runs-03b-hub-why.png')
+  await session.evaluate(
+    `document.querySelector('[data-testid="wl-hub"] button[aria-label="关闭"]').click()`,
+  )
+  await waitFor(session, `document.querySelector('[data-testid="wl-hub"]') === null`)
   await writeFile(statePath, good)
   await waitFor(session, `document.querySelector('[data-testid="wl-run-banner"]') === null`, {
     timeoutMs: 6000,
@@ -523,6 +546,102 @@ try {
   )
   check(parse(await readFile(statePath, 'utf8')).nodes.fix.status === 'pending', '草稿不该落盘')
   pass('卡片小标一点改成跳过、右栏把整体改成等你 → 草稿栏「已改 2 处」，文件没动')
+
+  // 4b) 顶栏和模板一样：撤销重做（图和状态排成一条）、整理、检查结果。
+  const draftCount = () =>
+    session.evaluate(
+      `document.querySelector('[data-testid="wl-run-draft-toggle"]')?.textContent ?? ''`,
+    )
+  const clickTool = (id) =>
+    session.evaluate(
+      `document.querySelector('[data-testid="wl-run-tools"] [data-testid="${id}"]').click()`,
+    )
+  check(
+    await session.evaluate(
+      `document.querySelector('[data-testid="wl-run-tools"] [data-testid="wl-issues"]') !== null`,
+    ),
+    '实例顶栏应有检查结果',
+  )
+  await clickTool('wl-undo')
+  await waitFor(session, `(${chipOf('fix')}) === 'skipped'`)
+  check((await draftCount()).includes('1'), `撤销一步应剩 1 处：${await draftCount()}`)
+  await clickTool('wl-redo')
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-run-draft-toggle"]')?.textContent.includes('2')`,
+  )
+  const before = await session.evaluate(
+    `(() => { const n = document.querySelector('.react-flow__node[data-id="report"]'); return n.style.transform })()`,
+  )
+  // 拖一下 report 卡片：图的改动，第 3 处。
+  const grip = await centerOf(session, '.react-flow__node[data-id="report"]')
+  const drag = async (type, x, y, buttons) =>
+    session.send('Input.dispatchMouseEvent', { type, x, y, button: 'left', buttons, clickCount: 1 })
+  await drag('mousePressed', grip.x, grip.y, 1)
+  for (let i = 1; i <= 6; i += 1) {
+    await drag('mouseMoved', grip.x + i * 25, grip.y + i * 12, 1)
+    await sleep(40)
+  }
+  await sleep(150)
+  await drag('mouseReleased', grip.x + 150, grip.y + 72, 0)
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-run-draft-toggle"]')?.textContent.includes('3')`,
+  )
+  // 拖完浏览器会吞掉紧跟着的那一下点击（d3-drag 的 noclick）：真人移到按钮上早就过去了，这里等一下。
+  await sleep(300)
+  await clickTool('wl-undo')
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-run-draft-toggle"]')?.textContent.includes('2')`,
+  )
+  await waitFor(
+    session,
+    `document.querySelector('.react-flow__node[data-id="report"]').style.transform === ${JSON.stringify(before)}`,
+  )
+  check((await session.evaluate(chipOf('fix'))) === 'skipped', '撤销挪卡片不该动状态的改动')
+  // 整理：点了不报错；排出了不一样的位置就再撤回来，草稿回到 2 处。
+  await clickTool('wl-tidy')
+  await sleep(900)
+  if ((await draftCount()).includes('3')) {
+    await clickTool('wl-undo')
+    await waitFor(
+      session,
+      `document.querySelector('[data-testid="wl-run-draft-toggle"]')?.textContent.includes('2')`,
+    )
+  }
+  check(
+    await session.evaluate(
+      `!document.querySelector('[data-testid="wl-run-tools"] [data-testid="wl-redo"]').disabled`,
+    ),
+    '撤销后应能重做',
+  )
+  // 加一步状态改动：重做就作废了（新的一步之后不能重做）。拖卡片时选中了它，先回到概览。
+  await session.evaluate(`document.querySelector('[data-testid="wl-run-panel-close"]')?.click()`)
+  await session.evaluate(`document.querySelector('[data-testid="wl-run-panel-toggle"]').click()`)
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-run-overall"][data-value="running"]') !== null`,
+  )
+  await session.evaluate(
+    `document.querySelector('[data-testid="wl-run-overall"][data-value="running"]').click()`,
+  )
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-run-tools"] [data-testid="wl-redo"]').disabled`,
+  )
+  await clickTool('wl-undo')
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-run-overall"][data-value="waiting"]')?.getAttribute('aria-checked') === 'true'`,
+  )
+  await clickTool('wl-issues')
+  await waitFor(session, `document.querySelector('[role="dialog"][aria-label="检查"]') !== null`)
+  await screenshot(session, 'runs-04b-tools.png')
+  await clickTool('wl-issues')
+  pass(
+    '实例顶栏：撤销 / 重做把状态和图排成一条，整理能撤回，新的一步之后不能重做；检查结果和模板同一套',
+  )
 
   // 5) 审查完成时要判定：菜单先问判定。
   await session.evaluate(

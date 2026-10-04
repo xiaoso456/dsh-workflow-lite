@@ -324,6 +324,70 @@ button.wsButton[aria-expanded="true"] {
   color: var(--wl-text-3);
 }
 
+/* 读不出来的状态小标：能点，旁边一个小箭头。 */
+.why {
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
+  padding: 0 2px 0 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--wl-danger);
+  font: inherit;
+  cursor: pointer;
+}
+
+.why:hover {
+  background: var(--wl-danger-soft);
+}
+
+.why:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+/* 原因：路径或问题清单，等宽字写字段路径。 */
+.reason {
+  display: flex;
+  flex-direction: column;
+  grid-column: 1 / -1;
+  gap: 4px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--wl-danger-soft);
+  color: var(--wl-text);
+  font-size: var(--wl-fs-meta);
+  line-height: 1.55;
+  user-select: text;
+}
+
+.reasonPath,
+.reasonList code {
+  color: var(--wl-danger);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+  overflow-wrap: anywhere;
+}
+
+.reasonList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--wl-text-2);
+}
+
+.reasonList code {
+  margin-right: 6px;
+}
+
+.reasonMore {
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
 .confirm {
   display: flex;
   flex-wrap: wrap;

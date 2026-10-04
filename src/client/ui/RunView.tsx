@@ -6,6 +6,9 @@
  * 右栏切到「编辑」就是模板的属性面板。改动先攒成草稿（「已改 x 处」），确认后一次写进实例
  * （图的快照、状态文件），并以后台通知的形式告诉模型。执行过的步骤不能从图里删（改成「跳过」）。
  *
+ * 顶栏和模板一样有撤销重做、整理、检查结果：撤销把图的改动和状态的改动排成一条（`useRunHistory`），
+ * 检查和模板是同一套规则。
+ *
  * @module @xiaoso/dsh-workflow-lite/client/ui/RunView
  */
 
@@ -39,11 +42,12 @@ import type { Desktop } from '../app/desktop.ts'
 import { createHostAccess, type HostAccess } from '../app/host.ts'
 import type { FileTarget } from '../app/useRunFile.ts'
 import { useRunGraph } from '../app/useRunGraph.ts'
+import { useRunHistory } from '../app/useRunHistory.ts'
 import { type Run, type Runs, useRun } from '../app/useRuns.ts'
 import type { T } from '../i18n.ts'
-import type { Edit } from '../model/editor.ts'
+import { type Edit, findNode } from '../model/editor.ts'
 import { fileBaseName } from '../model/fileKind.ts'
-import { placeMissing, tidy } from '../model/layout.ts'
+import { NODE_H, NODE_W, placeMissing, tidy } from '../model/layout.ts'
 import type { StepSource } from '../model/library.ts'
 import {
   changeCount,
@@ -171,6 +175,15 @@ export function RunView(props: RunViewProps): React.JSX.Element {
   }, [raw, id])
   const source = placed !== null && placed.key === `${id}:${raw?.planId}` ? placed : null
   const graph = useRunGraph(id, source, summary?.workflow)
+  const history = useRunHistory({
+    graph: { history: graph.history, undo: graph.undo, redo: graph.redo, dropRedo: graph.dropRedo },
+    state: {
+      history: current.draftHistory,
+      undo: current.undoDraft,
+      redo: current.redoDraft,
+      dropRedo: current.dropDraftRedo,
+    },
+  })
   const doc = graph.doc
   const selection = graph.selection
   const analysis = useMemo(() => (doc === null ? null : analyzeGraph(doc)), [doc])
@@ -397,6 +410,26 @@ export function RunView(props: RunViewProps): React.JSX.Element {
     })
   }, [doc, analysis, flow, graph.doc, edit, fitAll])
 
+  /** 检查结果里点一条：选中那个节点、打开右栏，把它挪到右栏左边那块的正中间。 */
+  const locate = useCallback(
+    (nodeId: string): void => {
+      if (doc === null) return
+      const node = findNode(doc, nodeId)
+      if (node === undefined) return
+      setFocusPrompt(false)
+      select({ kind: 'node', id: node.id })
+      onPanel(true)
+      const right = narrow ? 0 : inspectorW + GAP
+      const zoom = Math.max(flow.getZoom(), 0.9)
+      void flow.setCenter(
+        node.position.x + NODE_W / 2 + right / 2 / zoom,
+        node.position.y + NODE_H / 2,
+        { zoom, duration: 360 },
+      )
+    },
+    [doc, select, onPanel, narrow, inspectorW, flow],
+  )
+
   const pickStatus = (nodeId: string, status: NodeStatus): void => {
     const verdicts = facts?.verdicts[nodeId]
     const node = shown?.nodes[nodeId]
@@ -424,8 +457,8 @@ export function RunView(props: RunViewProps): React.JSX.Element {
     }
     if (mod && (key === 'z' || key === 'y')) {
       event.preventDefault()
-      if (key === 'y' || event.shiftKey) graph.redo()
-      else graph.undo()
+      if (key === 'y' || event.shiftKey) history.redo()
+      else history.undo()
       return
     }
     if (mod && key === 'd') {
@@ -529,7 +562,7 @@ export function RunView(props: RunViewProps): React.JSX.Element {
             analysis={analysis}
             loadKey={`run:${id}`}
             selection={selection}
-            problems={graph.problems}
+            problems={graph.report}
             insets={insets}
             onEdit={edit}
             onSelect={(next) => {
@@ -559,6 +592,10 @@ export function RunView(props: RunViewProps): React.JSX.Element {
             if (panelOpen) closePanel()
             else onPanel(true)
           }}
+          history={history}
+          problems={doc === null ? null : graph.report}
+          onTidy={relayout}
+          onLocate={locate}
         />
       </div>
 
