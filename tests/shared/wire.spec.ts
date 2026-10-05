@@ -99,7 +99,7 @@ describe('RPC 目标', () => {
   it('端点两两不同，且数量就是契约里的那几条', () => {
     const names = WORKFLOW_LITE_ENDPOINTS.map((endpoint) => endpointName(endpoint))
     expect(new Set(names).size).toBe(names.length)
-    // 十二条图与模板、一条计划、八条工作流实例，加三条看主机（host/list · host/skills · host/skill）。
-    expect(names).toHaveLength(24)
+    // 十二条图与模板、六条版本、一条计划、八条工作流实例，加三条看主机（host/list · host/skills · host/skill）。
+    expect(names).toHaveLength(30)
   })
 })

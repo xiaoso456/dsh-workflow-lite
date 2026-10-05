@@ -1,9 +1,10 @@
 /**
  * dsh-workflow-lite — 工作流中心：放所有**跨工作流、跨会话**的东西。
  *
- * 标题栏和「工作流设置」同一种样子，两页的切换放在标题栏里：
+ * 标题栏和「工作流设置」同一种样子，几页的切换放在标题栏里：
  * - **运行实例**（`HubRuns.tsx`）：所有会话的实例，按工作区分组，能搜、能按工作区 / 本会话筛；
  *   查看、移到本会话、删除记录（状态文件另外问要不要一起删）；
+ * - **工作流**（`HubWorkflows.tsx`）：全部工作流，每一行能就地改名、删除；选一张看它的版本——存、切换、改说明、删除，不用先打开它；
  * - **存储**（`HubStorage.tsx`）：数据目录、各样东西的占用，清理已结束的实例与旧版本遗留文件。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/HubDialog
@@ -16,13 +17,14 @@ import type { T } from '../i18n.ts'
 import type { WorkflowLiteRpc } from '../rpc.ts'
 import { HubRuns } from './HubRuns.tsx'
 import { HubStorage } from './HubStorage.tsx'
+import { HubWorkflows } from './HubWorkflows.tsx'
 import hub from './hub.module.css'
 import { Icon } from './Icon.tsx'
 import overlay from './overlay.module.css'
 import { cx, Modal, Segmented } from './primitives.tsx'
 import ui from './ui.module.css'
 
-type HubPage = 'runs' | 'storage'
+type HubPage = 'runs' | 'workflows' | 'storage'
 
 export function HubDialog(props: {
   t: T
@@ -34,6 +36,16 @@ export function HubDialog(props: {
   sessionsReady: boolean
   runs: Runs
   onOpenRun(id: string): void
+  /** 「工作流」页要的：编辑页正开着哪张、怎么把它的改动写下去 / 重新加载、怎么打开别的一张。 */
+  workflows: {
+    current: string | null
+    flush(): Promise<boolean>
+    onReload(): void
+    onOpen(name: string): void
+    rename(from: string, to: string): Promise<boolean>
+    remove(name: string): Promise<boolean>
+    onChanged(): void
+  }
   onClose(): void
 }): React.JSX.Element {
   const { t, runs } = props
@@ -56,6 +68,7 @@ export function HubDialog(props: {
             testId="wl-hub"
             options={[
               { value: 'runs', label: t('hub.runs') },
+              { value: 'workflows', label: t('hub.wfPage') },
               { value: 'storage', label: t('hub.storage') },
             ]}
           />
@@ -78,6 +91,16 @@ export function HubDialog(props: {
           runs={runs}
           onOpenRun={(id) => {
             props.onOpenRun(id)
+            props.onClose()
+          }}
+        />
+      ) : page === 'workflows' ? (
+        <HubWorkflows
+          t={t}
+          rpc={props.rpc}
+          {...props.workflows}
+          onOpen={(name) => {
+            props.workflows.onOpen(name)
             props.onClose()
           }}
         />

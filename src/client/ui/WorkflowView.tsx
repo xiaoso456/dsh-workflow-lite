@@ -43,6 +43,7 @@ import css from './shell.module.css'
 import { TipLayer } from './TipLayer.tsx'
 import { TopBar } from './TopBar.tsx'
 import ui from './ui.module.css'
+import { VersionsDialog } from './VersionsDialog.tsx'
 
 /** 客户端入口注入的业务面。 */
 export interface WorkflowViewInjected {
@@ -130,6 +131,7 @@ function Shell(props: {
   /** 正在看的工作流实例；`null` = 模板编辑。 */
   const [runId, setRunId] = useState<string | null>(null)
   const [hubOpen, setHubOpen] = useState(false)
+  const [versionsOpen, setVersionsOpen] = useState(false)
   /** 本会话刚出现的新实例（模型编译了一次）：模板编辑时顶部提示一下。 */
   const [freshRun, setFreshRun] = useState<string | null>(null)
   const seenCurrent = useRef<string | undefined | null>(null)
@@ -628,6 +630,15 @@ function Shell(props: {
       sessionsReady={props.sessions?.available() === true}
       runs={runs}
       onOpenRun={openRun}
+      workflows={{
+        current: state.name,
+        flush: wf.flush,
+        onReload: wf.reload,
+        onOpen: openTemplate,
+        rename: wf.rename,
+        remove: wf.remove,
+        onChanged: () => void wf.refreshCatalog(),
+      }}
       onClose={() => setHubOpen(false)}
     />
   )
@@ -717,6 +728,7 @@ function Shell(props: {
                   onRun: launch,
                 }}
                 onSettings={() => setSettingsOpen(true)}
+                onVersions={() => setVersionsOpen(true)}
                 runs={runs}
                 onOpenRun={openRun}
                 onOpenHub={() => setHubOpen(true)}
@@ -899,6 +911,18 @@ function Shell(props: {
                   wf.edit({ type: 'setSettings', settings })
                 }}
                 onClose={() => setSettingsOpen(false)}
+              />
+            )}
+
+            {versionsOpen && state.name !== null && (
+              <VersionsDialog
+                t={t}
+                rpc={props.rpc}
+                name={state.name}
+                flush={wf.flush}
+                onRestored={wf.reload}
+                onChanged={() => void wf.refreshCatalog()}
+                onClose={() => setVersionsOpen(false)}
               />
             )}
 

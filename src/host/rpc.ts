@@ -147,6 +147,15 @@ function requireString(input: Record<string, unknown>, field: string): string {
   return value
 }
 
+/** 版本号：正整数。 */
+function requireVersion(input: Record<string, unknown>): number {
+  const value = input.n
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) {
+    throw new Error('n must be a positive integer')
+  }
+  return value
+}
+
 function optionalString(input: Record<string, unknown>, field: string): string | undefined {
   const value = input[field]
   return typeof value === 'string' && value !== '' ? value : undefined
@@ -265,6 +274,63 @@ async function dispatch(
       const outcome = await deps.repository.remove(name)
       if (!outcome.ok) return failFrom(outcome.error)
       return ok({ warnings: outcome.result.warnings })
+    }
+
+    case 'graph/versions': {
+      const input = asRecord(payload)
+      const outcome = await deps.repository.listVersions(requireString(input, 'name'))
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok({ versions: outcome.result })
+    }
+
+    case 'graph/versionSave': {
+      const input = asRecord(payload)
+      const note = typeof input.note === 'string' ? input.note : ''
+      const outcome = await deps.repository.saveVersion(requireString(input, 'name'), note)
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok({ version: outcome.result })
+    }
+
+    case 'graph/versionLoad': {
+      const input = asRecord(payload)
+      const outcome = await deps.repository.readVersion(
+        requireString(input, 'name'),
+        requireVersion(input),
+      )
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok({ version: outcome.result.entry, document: outcome.result.document })
+    }
+
+    case 'graph/versionRestore': {
+      const input = asRecord(payload)
+      const outcome = await deps.repository.restoreVersion(
+        requireString(input, 'name'),
+        requireVersion(input),
+      )
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok(outcome.result)
+    }
+
+    case 'graph/versionNote': {
+      const input = asRecord(payload)
+      const note = typeof input.note === 'string' ? input.note : ''
+      const outcome = await deps.repository.noteVersion(
+        requireString(input, 'name'),
+        requireVersion(input),
+        note,
+      )
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok({ version: outcome.result })
+    }
+
+    case 'graph/versionDelete': {
+      const input = asRecord(payload)
+      const outcome = await deps.repository.deleteVersion(
+        requireString(input, 'name'),
+        requireVersion(input),
+      )
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok(outcome.result)
     }
 
     case 'graph/templates': {

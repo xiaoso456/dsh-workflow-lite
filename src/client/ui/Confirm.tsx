@@ -38,6 +38,8 @@ export interface ConfirmOptions {
   /** 确认按钮的 `data-testid`；整张卡是 `${testId}-pop`。 */
   testId?: string
   disabled?: boolean
+  /** 确认按钮是红的（删除、放弃）；`false` = 主色（切换这类收得回来的）。缺省红。 */
+  danger?: boolean
   onConfirm(): void
 }
 
@@ -108,8 +110,11 @@ export function useConfirm<A extends HTMLElement>(): {
             }}
           >
             <div className={ui.confirmHead}>
-              <span className={ui.confirmIcon}>
-                <Icon name="alert" size={14} />
+              <span
+                className={ui.confirmIcon}
+                data-tone={options.danger === false ? 'accent' : undefined}
+              >
+                <Icon name={options.danger === false ? 'info' : 'alert'} size={14} />
               </span>
               <span className={ui.confirmTitle}>{options.title}</span>
             </div>
@@ -126,7 +131,11 @@ export function useConfirm<A extends HTMLElement>(): {
               </button>
               <button
                 type="button"
-                className={cx(ui.btn, ui.small, ui.dangerSolid)}
+                className={cx(
+                  ui.btn,
+                  ui.small,
+                  options.danger === false ? ui.primary : ui.dangerSolid,
+                )}
                 disabled={options.disabled}
                 data-testid={options.testId}
                 onClick={() => {

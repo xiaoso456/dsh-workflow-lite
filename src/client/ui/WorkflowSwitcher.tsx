@@ -18,7 +18,7 @@ import { Popover } from './primitives.tsx'
 import { RunMenuSection } from './RunTopBar.tsx'
 import css from './topbar.module.css'
 import ui from './ui.module.css'
-import { WorkflowRow } from './WorkflowRow.tsx'
+import { deleteDesc, WorkflowRow } from './WorkflowRow.tsx'
 
 export interface WorkflowSwitcherProps {
   t: T
@@ -62,6 +62,7 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
       ? sorted
       : sorted.filter((entry) => entry.name.toLowerCase().includes(needle))
   }, [workflows, query])
+  const doomedEntry = workflows.find((entry) => entry.name === doomed)
 
   if (renaming && state.name !== null) {
     return (
@@ -176,14 +177,14 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
           />
         ))}
       </div>
-      {doomed !== null &&
+      {doomedEntry !== undefined &&
         remove.render({
           t,
-          title: t('wf.deleteTitle').replace('{name}', doomed),
-          desc: t('wf.deleteConfirm'),
+          title: t('wf.deleteTitle').replace('{name}', doomedEntry.name),
+          desc: deleteDesc(t, doomedEntry, doomedEntry.name === state.name),
           confirmText: t('common.delete'),
           testId: 'wl-delete-confirm',
-          onConfirm: () => void wf.remove(doomed),
+          onConfirm: () => void wf.remove(doomedEntry.name),
         })}
 
       <div className={ui.menuSep} />

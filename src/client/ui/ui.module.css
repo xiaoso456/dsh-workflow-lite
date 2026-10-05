@@ -469,6 +469,11 @@
   color: var(--wl-danger);
 }
 
+.confirmIcon[data-tone="accent"] {
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+}
+
 .confirmTitle {
   padding-top: 1px;
   color: var(--wl-text);

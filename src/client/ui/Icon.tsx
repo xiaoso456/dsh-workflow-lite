@@ -89,6 +89,9 @@ const BASE_PATHS = {
   note: 'M5 4h10l4 4v12H5zM15 4v4h4M8.5 12h7M8.5 15.5h7M8.5 8.5h3',
   // 实例右栏的概览：大小不一的四块看板
   overview: 'M4 4h7v9H4zM13 4h7v5h-7zM13 11h7v9h-7zM4 15h7v5H4z',
+  // 版本：表盘加一道往回转的箭头；切换到某一版：只有往回转的箭头。
+  history: 'M4 12a8 8 0 102.3-5.7L4 8.5M4 4v4.5h4.5M12 8v4l2.8 1.8',
+  restore: 'M4 12a8 8 0 102.3-5.7L4 8.5M4 4v4.5h4.5',
   /** 运行状态：一段脉搏线。 */
   activity: 'M3 12h4l3-7 4 14 3-7h4',
 } as const

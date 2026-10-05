@@ -19,6 +19,7 @@ import type {
   TemplateEntry,
   ToolWarning,
   ValidationProblem,
+  VersionEntry,
   Viewport,
   WorkflowDocument,
   WorkflowNode,
@@ -47,6 +48,12 @@ export const WORKFLOW_LITE_ENDPOINTS = [
   'graph/create',
   'graph/rename',
   'graph/delete',
+  'graph/versions',
+  'graph/versionSave',
+  'graph/versionLoad',
+  'graph/versionRestore',
+  'graph/versionNote',
+  'graph/versionDelete',
   'graph/templates',
   'graph/nodeTemplate',
   'graph/nodeTemplateCreate',
@@ -180,6 +187,62 @@ export interface GraphDeleteResponse {
   warnings: WireWarning[]
 }
 
+// ── 工作流版本 ─────────────────────
+
+/** `graph/versions` —— 一个工作流存下的版本，新的在前。 */
+export interface GraphVersionsRequest {
+  name: string
+}
+export interface GraphVersionsResponse {
+  versions: VersionEntry[]
+}
+
+/** `graph/versionSave` —— 把磁盘上现在的样子存成新版本。内容和已有版本一样时报 `invalid_args`（`detail.same`）。 */
+export interface GraphVersionSaveRequest {
+  name: string
+  note?: string
+}
+export interface GraphVersionSaveResponse {
+  version: VersionEntry
+}
+
+/** `graph/versionLoad` —— 读一个版本的整张图（切换前看会变什么）。 */
+export interface GraphVersionLoadRequest {
+  name: string
+  n: number
+}
+export interface GraphVersionLoadResponse {
+  version: VersionEntry
+  document: WorkflowDocument
+}
+
+/** `graph/versionRestore` —— 切到某个版本；现在的内容没存成版本时先自动存一份（`saved`）。 */
+export interface GraphVersionRestoreRequest {
+  name: string
+  n: number
+}
+export interface GraphVersionRestoreResponse {
+  /** 写回后的整图哈希。 */
+  hash: string
+  saved: VersionEntry | null
+}
+
+/** `graph/versionNote` —— 改版本说明。 */
+export interface GraphVersionNoteRequest {
+  name: string
+  n: number
+  note: string
+}
+export interface GraphVersionNoteResponse {
+  version: VersionEntry
+}
+
+/** `graph/versionDelete` */
+export interface GraphVersionDeleteRequest {
+  name: string
+  n: number
+}
+
 /** `graph/templates` —— 节点模板库（「我的步骤」）。 */
 export type GraphTemplatesRequest = Record<string, never>
 export interface GraphTemplatesResponse {
@@ -280,6 +343,12 @@ export interface WorkflowLiteRpcMap {
   'graph/create': { args: GraphCreateRequest; result: GraphCreateResponse }
   'graph/rename': { args: GraphRenameRequest; result: GraphRenameResponse }
   'graph/delete': { args: GraphDeleteRequest; result: GraphDeleteResponse }
+  'graph/versions': { args: GraphVersionsRequest; result: GraphVersionsResponse }
+  'graph/versionSave': { args: GraphVersionSaveRequest; result: GraphVersionSaveResponse }
+  'graph/versionLoad': { args: GraphVersionLoadRequest; result: GraphVersionLoadResponse }
+  'graph/versionRestore': { args: GraphVersionRestoreRequest; result: GraphVersionRestoreResponse }
+  'graph/versionNote': { args: GraphVersionNoteRequest; result: GraphVersionNoteResponse }
+  'graph/versionDelete': { args: GraphVersionDeleteRequest; result: { removed: true } }
   'graph/templates': { args: GraphTemplatesRequest; result: GraphTemplatesResponse }
   'graph/nodeTemplate': { args: GraphNodeTemplateRequest; result: GraphNodeTemplateResponse }
   'graph/nodeTemplateCreate': {
@@ -495,6 +564,9 @@ export interface StorageStats {
   /** 我的步骤（`templates/nodes/`）。 */
   templates: number
   templateBytes: number
+  /** 工作流版本（`versions/`）。 */
+  versions: number
+  versionBytes: number
   instances: number
   /** 已结束（完成 / 已取消）的实例数。 */
   finished: number

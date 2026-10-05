@@ -85,6 +85,14 @@ export function WorkflowRow(props: WorkflowRowProps): React.JSX.Element {
   )
 }
 
+/** 删除确认卡上补的那句：正开着的要说编辑页会空出来，有版本的要说版本一起没。 */
+export function deleteDesc(t: T, entry: WorkflowEntry, open: boolean): string {
+  const versions = entry.versions ?? 0
+  const tail =
+    versions > 0 ? t('wf.deleteVersions').replace('{n}', String(versions)) : t('wf.deleteConfirm')
+  return open ? `${t('wf.deleteOpen')}${tail}` : tail
+}
+
 function RenameRow(props: WorkflowRowProps): React.JSX.Element {
   const { t, entry } = props
   const ref = useRef<HTMLInputElement>(null)

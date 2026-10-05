@@ -23,6 +23,7 @@ import { stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { pickAppearance } from '../../shared/appearance.ts'
 import { analyzeGraph } from '../../shared/graph.ts'
+import { CONTROL_CHARS, MAX_VERSION_NOTE_CODEPOINTS, MAX_VERSIONS } from '../../shared/limits.ts'
 import {
   canonicalHandoff,
   canonicalOutput,
@@ -79,6 +80,7 @@ import {
   type ToolError,
   type ToolWarning,
   type ValidationProblem,
+  type VersionEntry,
   type WorkflowDocument,
   type WorkflowEdge,
   type WorkflowEntry,
@@ -110,9 +112,19 @@ import {
   templateFile,
   templateOccupant,
   tempName,
+  versionFile,
+  versionsDir,
   workflowFile,
   workflowOccupant,
 } from './paths.ts'
+import {
+  contentKey,
+  countVersions,
+  parseVersion,
+  readVersions,
+  type StoredVersion,
+  versionText,
+} from './versions.ts'
 
 /** 合并-重试的上限：合并期间磁盘还在变就再读一次，超过这个次数即认输报 `conflict`。 */
 export const MAX_MERGE_ATTEMPTS = 5
@@ -248,6 +260,26 @@ export interface Repository {
   create(workflow: string): Promise<Outcome<WriteResult>>
   rename(workflow: string, to: string): Promise<Outcome<WriteResult>>
   remove(workflow: string): Promise<Outcome<WriteResult>>
+  /** 列一个工作流存下的版本（新的在前），标出哪个和磁盘上现在的内容一样。 */
+  listVersions(workflow: string): Promise<Outcome<VersionEntry[]>>
+  /** 把磁盘上现在的样子存成新版本。和已有的某个版本内容一样就不存（`invalid_args`，`detail.same`）。 */
+  saveVersion(workflow: string, note: string): Promise<Outcome<VersionEntry>>
+  /** 读一个版本的整张图（切换前看看会变什么）。 */
+  readVersion(
+    workflow: string,
+    n: number,
+  ): Promise<Outcome<{ entry: VersionEntry; document: WorkflowDocument }>>
+  /**
+   * 切到某个版本：现在的内容还没存成版本时先自动存一份（`saved`），再把那个版本写回工作流。
+   * 回新的整图哈希。
+   */
+  restoreVersion(
+    workflow: string,
+    n: number,
+  ): Promise<Outcome<{ hash: string; saved: VersionEntry | null }>>
+  /** 改版本说明。 */
+  noteVersion(workflow: string, n: number, note: string): Promise<Outcome<VersionEntry>>
+  deleteVersion(workflow: string, n: number): Promise<Outcome<{ removed: true }>>
   /** 读一个节点模板的 `data` 本体（拿去用：半成品一律挡掉）。 */
   readTemplate(name: string): Promise<Outcome<NodeData>>
   /**
@@ -757,7 +789,9 @@ class FileRepository implements Repository {
 
     const workflows: WorkflowEntry[] = []
     for (const name of scan.names) {
-      workflows.push(await this.describeWorkflow(name, scan))
+      const entry = await this.describeWorkflow(name, scan)
+      const versions = await countVersions(this.dataDir, name)
+      workflows.push(versions > 0 ? { ...entry, versions } : entry)
     }
 
     return {
@@ -863,6 +897,25 @@ class FileRepository implements Repository {
       } catch (error) {
         return mapWriteFailure(error, dispatchDir(this.dataDir, from))
       }
+      // 版本跟着工作流走。新名字下要是有没人认领的旧版本目录（工作流早被删了），先清掉。
+      const fromVersions = versionsDir(this.dataDir, from)
+      const toVersions = versionsDir(this.dataDir, target)
+      try {
+        if ((await pathKind(fromVersions)) === 'dir') {
+          if (sameName(from, target)) {
+            const temp = tempName(fromVersions)
+            await renamePath(fromVersions, temp)
+            await renamePath(temp, toVersions)
+          } else {
+            await removeTree(toVersions)
+            await renamePath(fromVersions, toVersions)
+          }
+        } else if (!sameName(from, target)) {
+          await removeTree(toVersions)
+        }
+      } catch (error) {
+        return mapWriteFailure(error, toVersions)
+      }
       this.dropBaselines(from)
       return ok({
         changed: [
@@ -890,6 +943,7 @@ class FileRepository implements Repository {
       try {
         await unlinkFile(file)
         await removeTree(dispatchDir(this.dataDir, name))
+        await removeTree(versionsDir(this.dataDir, name))
       } catch (error) {
         return mapWriteFailure(error, file)
       }
@@ -899,6 +953,203 @@ class FileRepository implements Repository {
         warnings: [],
       })
     })
+  }
+
+  // ── 版本 ────────────────────────────────────────────────────
+
+  async listVersions(workflow: string): Promise<Outcome<VersionEntry[]>> {
+    const current = await this.currentContent(workflow)
+    if (!current.ok) return current
+    const { name, key } = current.result
+    const versions = await readVersions(this.dataDir, name)
+    return ok(versions.map((version) => versionEntry(version, key)))
+  }
+
+  async saveVersion(workflow: string, note: string): Promise<Outcome<VersionEntry>> {
+    return this.withLock(async () => {
+      const checked = checkVersionNote(note)
+      if (!checked.ok) return checked
+      const current = await this.currentContent(workflow)
+      if (!current.ok) return current
+      const { name, key, document } = current.result
+      if (document === null || key === null) {
+        return fail('blocked', `图 ${name} 有保存级问题，不能存成版本`, { workflow: name })
+      }
+      const versions = await readVersions(this.dataDir, name)
+      const same = versions.find((version) => sameContent(version, key))
+      if (same !== undefined) {
+        return fail('invalid_args', `现在的内容和 v${same.n} 一样，不用再存`, {
+          workflow: name,
+          same: same.n,
+        })
+      }
+      return this.writeVersion(name, versions, { note: checked.result, document, key })
+    })
+  }
+
+  async readVersion(
+    workflow: string,
+    n: number,
+  ): Promise<Outcome<{ entry: VersionEntry; document: WorkflowDocument }>> {
+    const current = await this.currentContent(workflow)
+    if (!current.ok) return current
+    const { name, key } = current.result
+    const version = await this.findVersion(name, n)
+    if (!version.ok) return version
+    const document = version.result.document
+    if (document === null) {
+      return fail('blocked', `版本 v${n} 的文件坏了，读不出来`, { workflow: name, n })
+    }
+    return ok({ entry: versionEntry(version.result, key), document })
+  }
+
+  async restoreVersion(
+    workflow: string,
+    n: number,
+  ): Promise<Outcome<{ hash: string; saved: VersionEntry | null }>> {
+    return this.withLock(async () => {
+      const current = await this.currentContent(workflow)
+      if (!current.ok) return current
+      const { name, key, document } = current.result
+      const target = await this.findVersion(name, n)
+      if (!target.ok) return target
+      const restored = target.result.document
+      if (restored === null) {
+        return fail('blocked', `版本 v${n} 的文件坏了，不能切换`, { workflow: name, n })
+      }
+      const problems = this.validate(restored, name).filter((problem) => problem.level === 'save')
+      if (problems.length > 0) {
+        return fail('blocked', `版本 v${n} 有保存级问题，不能切换：${describeProblems(problems)}`, {
+          workflow: name,
+          n,
+          problems,
+        })
+      }
+
+      // 现在的内容哪个版本都不是：先存一份，切回来不丢。磁盘上的那份坏了就不存（存了也切不回去）。
+      let saved: VersionEntry | null = null
+      const versions = await readVersions(this.dataDir, name)
+      if (
+        document !== null &&
+        key !== null &&
+        !versions.some((version) => sameContent(version, key))
+      ) {
+        const written = await this.writeVersion(name, versions, {
+          note: '',
+          document,
+          key,
+          autoBefore: n,
+        })
+        if (!written.ok) return written
+        // 写回之后现在的内容就是 v<n> 了，自动存的这份不再是「当前」。
+        saved = { ...written.result, current: false }
+      }
+
+      const file = workflowFile(this.dataDir, name)
+      const text = writeDocument(restored)
+      try {
+        await writeFileAtomic(file, text)
+      } catch (error) {
+        return mapWriteFailure(error, file)
+      }
+      const hash = await hashOf(text)
+      this.rememberBaseline(name, hash, restored)
+      return ok({ hash, saved })
+    })
+  }
+
+  async noteVersion(workflow: string, n: number, note: string): Promise<Outcome<VersionEntry>> {
+    return this.withLock(async () => {
+      const checked = checkVersionNote(note)
+      if (!checked.ok) return checked
+      const current = await this.currentContent(workflow)
+      if (!current.ok) return current
+      const { name, key } = current.result
+      const version = await this.findVersion(name, n)
+      if (!version.ok) return version
+      const document = version.result.document
+      if (document === null) {
+        return fail('blocked', `版本 v${n} 的文件坏了，改不了说明`, { workflow: name, n })
+      }
+      const next = { ...version.result, note: checked.result, document }
+      const file = versionFile(this.dataDir, name, n)
+      try {
+        await writeFileAtomic(file, versionText(next))
+      } catch (error) {
+        return mapWriteFailure(error, file)
+      }
+      return ok(versionEntry(next, key))
+    })
+  }
+
+  async deleteVersion(workflow: string, n: number): Promise<Outcome<{ removed: true }>> {
+    return this.withLock(async () => {
+      const resolved = this.resolveName(workflow)
+      if (!resolved.ok) return resolved
+      const file = versionFile(this.dataDir, resolved.result, n)
+      if ((await pathKind(file)) !== 'file') {
+        return fail('not_found', `版本 v${n} 不存在`, { workflow: resolved.result, n })
+      }
+      try {
+        await unlinkFile(file)
+      } catch (error) {
+        return mapWriteFailure(error, file)
+      }
+      return ok({ removed: true as const })
+    })
+  }
+
+  /** 磁盘上现在那份：图名、内容键（比版本用）与文档；坏了的图 `document` / `key` 是 `null`。 */
+  private async currentContent(
+    workflow: string,
+  ): Promise<Outcome<{ name: string; key: string | null; document: WorkflowDocument | null }>> {
+    const resolved = this.resolveName(workflow)
+    if (!resolved.ok) return resolved
+    const name = resolved.result
+    const text = await readFileText(workflowFile(this.dataDir, name))
+    if (text === null) return fail('not_found', `图 ${name} 不存在`, { workflow: name })
+    const parsed = readDocument(text)
+    const broken =
+      parsed.document === null ||
+      hasLevel([...parsed.problems, ...this.validate(parsed.document, name)], 'save')
+    if (broken || parsed.document === null) return ok({ name, key: null, document: null })
+    return ok({ name, key: contentKey(parsed.document), document: parsed.document })
+  }
+
+  private async findVersion(name: string, n: number): Promise<Outcome<StoredVersion>> {
+    if (!Number.isInteger(n) || n < 1) return fail('invalid_args', `版本号不对：${n}`, { n })
+    const text = await readFileText(versionFile(this.dataDir, name, n))
+    if (text === null) return fail('not_found', `版本 v${n} 不存在`, { workflow: name, n })
+    return ok(parseVersion(text, n))
+  }
+
+  /** 写一个新版本（序号接着现有最大的往上数）。**必须在 `withLock` 内调用**。 */
+  private async writeVersion(
+    name: string,
+    existing: readonly StoredVersion[],
+    content: { note: string; document: WorkflowDocument; key: string; autoBefore?: number },
+  ): Promise<Outcome<VersionEntry>> {
+    if (existing.length >= MAX_VERSIONS) {
+      return fail('invalid_args', `一个工作流最多存 ${MAX_VERSIONS} 个版本，先删掉一些旧的`, {
+        workflow: name,
+      })
+    }
+    const n = existing.reduce((max, version) => Math.max(max, version.n), 0) + 1
+    const version: StoredVersion & { document: WorkflowDocument } = {
+      n,
+      createdAt: Date.now(),
+      note: content.note,
+      ...(content.autoBefore === undefined ? {} : { autoBefore: content.autoBefore }),
+      document: content.document,
+    }
+    const file = versionFile(this.dataDir, name, n)
+    try {
+      await ensureDir(versionsDir(this.dataDir, name))
+      await writeFileAtomic(file, versionText(version))
+    } catch (error) {
+      return mapWriteFailure(error, file)
+    }
+    return ok(versionEntry(version, content.key))
   }
 
   // ── 写：节点与边 ────────────────────────────────────────────
@@ -1871,6 +2122,33 @@ function parseNodeData(text: string): { data: NodeData; problems: ValidationProb
     })
   }
   return { data, problems }
+}
+
+/** 版本的线形状：`current` = 和磁盘上现在的内容一样（`key` 是现在那份的内容键）。 */
+function versionEntry(version: StoredVersion, key: string | null): VersionEntry {
+  return {
+    n: version.n,
+    createdAt: version.createdAt,
+    note: version.note,
+    ...(version.autoBefore === undefined ? {} : { autoBefore: version.autoBefore }),
+    nodeCount: version.document?.nodes.length ?? 0,
+    current: sameContent(version, key),
+    ...(version.document === null ? { invalid: true as const } : {}),
+  }
+}
+
+function sameContent(version: StoredVersion, key: string | null): boolean {
+  return key !== null && version.document !== null && contentKey(version.document) === key
+}
+
+/** 版本说明：去掉首尾空白，换行压成空格；只防病态输入。 */
+function checkVersionNote(note: string): Outcome<string> {
+  const text = note.replace(/\s*[\r\n]+\s*/g, ' ').trim()
+  if ([...text].length > MAX_VERSION_NOTE_CODEPOINTS) {
+    return fail('invalid_args', `版本说明太长了（最多 ${MAX_VERSION_NOTE_CODEPOINTS} 字）`)
+  }
+  if (CONTROL_CHARS.test(text)) return fail('invalid_args', '版本说明里有控制字符')
+  return ok(text)
 }
 
 /** 建一个仓储。`validate` 由 host 在装配时接上 `shared/validate.ts`。 */

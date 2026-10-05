@@ -14,6 +14,7 @@
 import type { Dirent } from 'node:fs'
 import { readdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
+import { VERSIONS_DIR } from '../../shared/limits.ts'
 import type { StorageStats } from '../../shared/wire.ts'
 import { removeTree } from '../store/atomic.ts'
 import { dispatchRoot, templatesDir, workflowsDir } from '../store/paths.ts'
@@ -66,9 +67,10 @@ export async function storageAction(
     cleared = finished.length
   }
   const all = await runs.list(undefined, true)
-  const [workflows, templates, snapshots, dispatch] = await Promise.all([
+  const [workflows, templates, versions, snapshots, dispatch] = await Promise.all([
     treeSize(workflowsDir(dataDir)),
     treeSize(templatesDir(dataDir)),
+    treeSize(join(dataDir, VERSIONS_DIR)),
     treeSize(join(dataDir, RUNS_DIR)),
     treeSize(dispatchRoot(dataDir)),
   ])
@@ -78,6 +80,8 @@ export async function storageAction(
     workflowBytes: workflows.bytes,
     templates: templates.files,
     templateBytes: templates.bytes,
+    versions: versions.files,
+    versionBytes: versions.bytes,
     instances: all.length,
     finished: all.filter((item) => item.status === 'done' || item.status === 'cancelled').length,
     instanceBytes: snapshots.bytes,

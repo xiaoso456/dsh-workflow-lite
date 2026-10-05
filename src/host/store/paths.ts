@@ -19,7 +19,13 @@ import { readdir, stat } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 
 import { compareByCodepoint } from '../../shared/graph.ts'
-import { DISPATCH_DIR, TEMPLATES_DIR, TMP_PREFIX, WORKFLOWS_DIR } from '../../shared/limits.ts'
+import {
+  DISPATCH_DIR,
+  TEMPLATES_DIR,
+  TMP_PREFIX,
+  VERSIONS_DIR,
+  WORKFLOWS_DIR,
+} from '../../shared/limits.ts'
 import type { PlanId } from '../../shared/types.ts'
 
 /** 图文件 / 模板文件的后缀。判据不区分大小写。 */
@@ -73,6 +79,16 @@ export function workflowFile(dataDir: string, name: string): string {
 /** `<dataDir>/templates/nodes/<名>.json`。 */
 export function templateFile(dataDir: string, name: string): string {
   return join(templatesDir(dataDir), `${name}${JSON_SUFFIX}`)
+}
+
+/** `<dataDir>/versions/<图名>/`：这个工作流存下的版本（`<序号>.json`）。 */
+export function versionsDir(dataDir: string, name: string): string {
+  return join(dataDir, VERSIONS_DIR, name)
+}
+
+/** `<dataDir>/versions/<图名>/<序号>.json`。 */
+export function versionFile(dataDir: string, name: string, n: number): string {
+  return join(versionsDir(dataDir, name), `${n}${JSON_SUFFIX}`)
 }
 
 /** `<dataDir>/.dispatch/` —— 派生根，**启动时不创建**，编译时才建。 */

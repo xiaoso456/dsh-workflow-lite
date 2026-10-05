@@ -65,7 +65,8 @@ export interface Workflow {
   create(): Promise<void>
   /** 改名：`from` 可以是任意一张（不必先打开）；改的是正开着的这张时顶栏跟着换名字。 */
   rename(from: string, to: string): Promise<boolean>
-  remove(name: string): Promise<void>
+  /** 回 `false` = 没删成（已经提示过了）。 */
+  remove(name: string): Promise<boolean>
   reload(): void
   retrySave(): void
   keepMine(): void
@@ -375,7 +376,7 @@ export function useWorkflow(rpc: WorkflowLiteRpc, t: T): Workflow {
   )
 
   const remove = useCallback(
-    async (name: string): Promise<void> => {
+    async (name: string): Promise<boolean> => {
       const current = stateRef.current.name === name
       try {
         if (current) {
@@ -390,8 +391,10 @@ export function useWorkflow(rpc: WorkflowLiteRpc, t: T): Workflow {
           writeLast(null)
         }
         await refreshCatalog()
+        return true
       } catch (error) {
         fail(error)
+        return false
       }
     },
     [rpc, apply, refreshCatalog, fail],

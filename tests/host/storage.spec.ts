@@ -30,6 +30,8 @@ describe('storageAction', () => {
       workflowBytes: 0,
       templates: 0,
       templateBytes: 0,
+      versions: 0,
+      versionBytes: 0,
       instances: 0,
       finished: 0,
       instanceBytes: 0,
@@ -38,12 +40,14 @@ describe('storageAction', () => {
     })
   })
 
-  it('数工作流、我的步骤、实例快照、旧版遗留文件；清理旧版遗留文件后它们归零', async () => {
+  it('数工作流、我的步骤、版本、实例快照、旧版遗留文件；清理旧版遗留文件后它们归零', async () => {
     await mkdir(join(dataDir, 'workflows'), { recursive: true })
     await writeFile(join(dataDir, 'workflows', 'a.json'), '{}')
     await writeFile(join(dataDir, 'workflows', 'b.json'), '{"x":1}')
     await mkdir(join(dataDir, 'templates', 'nodes'), { recursive: true })
     await writeFile(join(dataDir, 'templates', 'nodes', 't.json'), '12345')
+    await mkdir(join(dataDir, 'versions', 'a'), { recursive: true })
+    await writeFile(join(dataDir, 'versions', 'a', '1.json'), '1234')
     await mkdir(join(dataDir, 'runs', 'r1'), { recursive: true })
     await writeFile(join(dataDir, 'runs', 'r1', 'graph.json'), '1234567890')
     await mkdir(join(dataDir, '.dispatch', 'wf', 'plan'), { recursive: true })
@@ -56,6 +60,8 @@ describe('storageAction', () => {
       workflowBytes: 9,
       templates: 1,
       templateBytes: 5,
+      versions: 1,
+      versionBytes: 4,
       instanceBytes: 10,
       dispatchFiles: 2,
       dispatchBytes: 5,

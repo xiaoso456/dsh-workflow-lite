@@ -444,6 +444,25 @@ export interface WorkflowEntry {
   updatedAt: number
   invalid?: true
   reason?: string
+  /** 存下的版本数（有才给）。 */
+  versions?: number
+}
+
+/** 工作流的一个版本（`versions/<图名>/<序号>.json`）。 */
+export interface VersionEntry {
+  /** 序号：v1、v2……新存的接着现有最大的往上数。 */
+  n: number
+  /** 存下的时间（毫秒时间戳）。 */
+  createdAt: number
+  /** 说明；没写是空串。 */
+  note: string
+  /** 切换到别的版本之前自动存的那份：切到的是哪个版本。 */
+  autoBefore?: number
+  nodeCount: number
+  /** 内容和磁盘上现在的工作流一样。 */
+  current: boolean
+  /** 文件坏了读不出来（只能删）。 */
+  invalid?: true
 }
 
 export interface ListResult {

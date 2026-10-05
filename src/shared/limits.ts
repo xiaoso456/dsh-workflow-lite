@@ -19,6 +19,15 @@ export const WORKFLOWS_DIR = 'workflows'
 /** 模板目录名。 */
 export const TEMPLATES_DIR = 'templates'
 
+/** 工作流版本目录名：`versions/<图名>/<序号>.json`（不在 `workflows/` 下——那里的子目录算旧结构）。 */
+export const VERSIONS_DIR = 'versions'
+
+/** 一个工作流最多留几个版本（到了就先删掉旧的再存）。 */
+export const MAX_VERSIONS = 100
+
+/** 版本说明的长度上限（码点）。 */
+export const MAX_VERSION_NOTE_CODEPOINTS = 500
+
 /** 自动布局 / 归一化后的坐标小数位。 */
 export const COORD_DECIMALS = 2
 

@@ -1,0 +1,391 @@
+/**
+ * dsh-workflow-lite — 工作流版本：存的那一栏、状态行、版本列表（一行一个版本，点开看会变什么）。
+ *
+ * 行上的「切换 / 编辑说明 / 删除」和工作流下拉的行一个做法：平时透明，悬停、键盘移进来、
+ * 确认卡开着时淡入（只动透明度）。按钮的位置一直留着，说明文字不会钻到按钮底下。
+ */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+
+/* 编辑页的版本对话框：比普通的编辑框宽一点、高度固定（列表在里面滚）。 */
+.dialog[role="dialog"] {
+  width: min(600px, 100%);
+  height: min(600px, 100%);
+}
+
+.saveBar {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  align-items: center;
+}
+
+.saveInput {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.status {
+  display: flex;
+  flex: none;
+  gap: 12px;
+  align-items: center;
+  min-height: 20px;
+  padding: 0 2px;
+  font-size: var(--wl-fs-micro);
+}
+
+.state {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--wl-text-3);
+}
+
+.stateDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--wl-warn);
+}
+
+.state[data-saved="true"] .stateDot {
+  background: var(--wl-ok);
+}
+
+.notice {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  margin-left: auto;
+  color: var(--wl-ok);
+  font-weight: 500;
+}
+
+.notice[data-tone="error"] {
+  color: var(--wl-danger);
+}
+
+/* ── 列表 ─────────────────────────────────────────────────── */
+
+.list {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--wl-line);
+  border-radius: 10px;
+  background: var(--wl-panel);
+}
+
+.row {
+  position: relative;
+}
+
+.row + .row {
+  border-top: 1px solid var(--wl-line);
+}
+
+.main {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  min-height: 54px;
+  /* 右边一直给三个按钮留着位置。 */
+  padding: 8px 108px 8px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--wl-text);
+  font: inherit;
+  text-align: left;
+}
+
+button.main {
+  cursor: pointer;
+}
+
+.row:hover .main,
+.row[data-open="true"] .main {
+  background: var(--wl-hover);
+}
+
+.main:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: -2px;
+}
+
+.chevron {
+  display: grid;
+  flex: none;
+  order: -1;
+  place-items: center;
+  color: var(--wl-text-3);
+  transform: rotate(-90deg);
+  transition: transform 160ms var(--wl-ease);
+}
+
+.main[aria-expanded="true"] .chevron {
+  transform: rotate(0deg);
+}
+
+.badge {
+  display: grid;
+  flex: none;
+  place-items: center;
+  min-width: 34px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: var(--wl-fill);
+  color: var(--wl-text-2);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+}
+
+.badge[data-current="true"] {
+  background: var(--wl-ok-soft);
+  color: var(--wl-ok);
+}
+
+.text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.note {
+  overflow: hidden;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note[data-empty="true"] {
+  color: var(--wl-text-3);
+  font-weight: 400;
+}
+
+.noteInput {
+  width: 100%;
+  height: 24px;
+  margin: -2px 0;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--wl-panel);
+  box-shadow: inset 0 0 0 1px var(--wl-accent);
+  color: var(--wl-text);
+  font: inherit;
+  font-weight: 500;
+  outline: none;
+}
+
+.meta {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  white-space: nowrap;
+}
+
+.time {
+  font-variant-numeric: tabular-nums;
+}
+
+.currentTag {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--wl-ok-soft);
+  color: var(--wl-ok);
+  font-weight: 600;
+}
+
+/* ── 行上的按钮 ───────────────────────────────────────────── */
+
+.actions {
+  position: absolute;
+  top: 14px;
+  right: 10px;
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms linear;
+}
+
+.row:hover .actions,
+.row:focus-within .actions,
+.row[data-busy="true"] .actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.action {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--wl-text-3);
+  cursor: pointer;
+  transition: transform 120ms var(--wl-ease);
+}
+
+.action:hover,
+.action[aria-expanded="true"] {
+  background: var(--wl-fill-strong);
+  color: var(--wl-text);
+}
+
+.action[data-danger="true"]:hover,
+.action[data-danger="true"][aria-expanded="true"] {
+  background: var(--wl-danger-soft);
+  color: var(--wl-danger);
+}
+
+.action:active {
+  transform: scale(0.92);
+}
+
+.action:disabled {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.action:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: -1px;
+}
+
+/* ── 展开：切到这一版会变什么 ─────────────────────────────── */
+
+.diff {
+  padding: 2px 16px 12px 78px;
+  background: var(--wl-hover);
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+  line-height: 1.55;
+  animation: diffIn 160ms var(--wl-ease) both;
+}
+
+@keyframes diffIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+.diffTitle {
+  margin: 0 0 4px;
+  font-size: var(--wl-fs-micro);
+}
+
+.diffList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  color: var(--wl-text-2);
+  list-style: none;
+}
+
+.diffLine {
+  position: relative;
+  padding-left: 14px;
+}
+
+.diffLine::before {
+  position: absolute;
+  top: 0.62em;
+  left: 2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--wl-accent);
+  content: "";
+}
+
+.diffLine[data-kind="added"]::before {
+  background: var(--wl-ok);
+}
+
+.diffLine[data-kind="removed"]::before {
+  background: var(--wl-danger);
+}
+
+.diffLine b {
+  color: var(--wl-text);
+  font-weight: 600;
+}
+
+.diffMore {
+  margin: 4px 0 0 14px;
+}
+
+/* ── 空状态 ───────────────────────────────────────────────── */
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+  padding: 36px 24px 40px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+  text-align: center;
+}
+
+.emptyIcon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin-bottom: 6px;
+  border-radius: 12px;
+  background: var(--wl-fill);
+  color: var(--wl-text-2);
+}
+
+.emptyTitle {
+  margin: 0;
+  color: var(--wl-text);
+  font-weight: 600;
+}
+
+.emptyText {
+  max-width: 340px;
+  margin: 0;
+  line-height: 1.6;
+}
+
+@media (hover: none) {
+  .actions {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chevron,
+  .actions,
+  .action,
+  .diff {
+    transition: none;
+    animation: none;
+  }
+}

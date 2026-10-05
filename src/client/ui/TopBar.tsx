@@ -31,6 +31,8 @@ export interface TopBarProps {
   /** 「执行」那一半要的东西。 */
   launch: Pick<LaunchProps, 'blocked' | 'starting' | 'session' | 'rows' | 'canCreate' | 'onRun'>
   onSettings(): void
+  /** 打开这张工作流的版本。 */
+  onVersions(): void
   /** 本会话的工作流实例（下拉里「本会话的实例」那一段）。 */
   runs: Runs
   onOpenRun(id: string): void
@@ -150,6 +152,16 @@ export function TopBar(props: TopBarProps): React.JSX.Element {
             onClick={props.onTidy}
           >
             <Icon name="tidy" size={16} />
+          </button>
+          <button
+            type="button"
+            className={cx(ui.btn, ui.icon)}
+            data-tip={t('ver.title')}
+            aria-label={t('ver.title')}
+            data-testid="wl-versions-open"
+            onClick={props.onVersions}
+          >
+            <Icon name="history" size={16} />
           </button>
           <button
             type="button"

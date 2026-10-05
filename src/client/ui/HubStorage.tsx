@@ -125,6 +125,12 @@ export function HubStorage(props: {
             value={`${count(stats.templates)} · ${formatBytes(stats.templateBytes)}`}
           />
           <Item
+            icon="history"
+            title={t('hub.versions')}
+            value={`${count(stats.versions)} · ${formatBytes(stats.versionBytes)}`}
+            desc={t('hub.versionsDesc')}
+          />
+          <Item
             icon="runs"
             title={t('hub.instances')}
             value={[
