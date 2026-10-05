@@ -50,6 +50,10 @@ export function useDismiss(
 /**
  * 触发器 + 浮层。浮层不走 portal：留在视图根的子树里，设计令牌照常继承。
  * `Esc` 在这里消化掉（不再冒到视图根去取消画布上的选中）。
+ *
+ * `hold`：浮层里正有一件事没做完（行内改名、挂在某一行上的确认卡）——点外面先只结束那件事，
+ * 浮层留着，再点一下才收。浮层本身可聚焦（不进 Tab 序）：里面的按钮跟着一行被删掉时焦点有处可去，
+ * Esc 照样能收起。
  */
 export function Popover(props: {
   open: boolean
@@ -60,9 +64,10 @@ export function Popover(props: {
   up?: boolean
   className?: string
   label: string
+  hold?: boolean
 }): React.JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
-  useDismiss(props.open, ref, props.onClose)
+  useDismiss(props.open && props.hold !== true, ref, props.onClose)
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: 只在这一层消化浮层内冒上来的 Esc
     <div
@@ -85,6 +90,7 @@ export function Popover(props: {
           )}
           role="dialog"
           aria-label={props.label}
+          tabIndex={-1}
         >
           {props.children}
         </div>

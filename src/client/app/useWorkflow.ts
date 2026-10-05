@@ -63,7 +63,8 @@ export interface Workflow {
   seal(): void
   open(name: string): Promise<void>
   create(): Promise<void>
-  rename(to: string): Promise<boolean>
+  /** 改名：`from` 可以是任意一张（不必先打开）；改的是正开着的这张时顶栏跟着换名字。 */
+  rename(from: string, to: string): Promise<boolean>
   remove(name: string): Promise<void>
   reload(): void
   retrySave(): void
@@ -345,20 +346,24 @@ export function useWorkflow(rpc: WorkflowLiteRpc, t: T): Workflow {
   }, [rpc, refreshCatalog, open, fail])
 
   const rename = useCallback(
-    async (raw: string): Promise<boolean> => {
-      const from = stateRef.current.name
+    async (from: string, raw: string): Promise<boolean> => {
       const to = normalizeName(raw.trim())
-      if (from === null || to === '' || to === from) return true
+      if (to === '' || to === from) return true
       const problem = checkName(to)
       if (problem !== null) {
         notify(problem.message, 'error')
         return false
       }
+      const current = stateRef.current.name === from
       try {
-        await flush()
+        // 正开着的这张：先把排着的保存写下去，别改完名又按旧名写回一份。
+        if (current) await flush()
         await rpc.call('graph/rename', { name: from, to })
-        apply({ type: 'renamed', name: to })
-        writeLast(to)
+        // 等待期间可能已经切到别的图了：以改名回来时为准。
+        if (stateRef.current.name === from) {
+          apply({ type: 'renamed', name: to })
+          writeLast(to)
+        }
         await refreshCatalog()
         return true
       } catch (error) {

@@ -96,7 +96,7 @@ export async function selectGraph(session, name, { timeoutMs = 25_000 } = {}) {
   await waitFor(session, `document.querySelector('[data-testid="wl-switcher"]') !== null`, {
     timeoutMs,
   })
-  const optionSel = `[role="option"][data-value=${JSON.stringify(name)}]`
+  const optionSel = `[data-testid="wl-wf-item"][data-value=${JSON.stringify(name)}]`
   const already = await session.evaluate(
     `(document.querySelector('[data-testid="wl-switcher"]')?.textContent || '').trim() === ${JSON.stringify(name)}`,
   )

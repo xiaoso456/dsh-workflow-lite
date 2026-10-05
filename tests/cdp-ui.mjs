@@ -1089,28 +1089,91 @@ async function run(session) {
   )
   pass('双击名字改名 → 磁盘上跟着改')
 
-  // 12) 删除：下拉里点删除 → 确认 → 回到欢迎页。
+  // 12) 下拉里每一行都能直接改名、删除，不用先切过去。
+  const OTHER = `${NAME}-other`
+  await rpc('graph/create', { name: OTHER })
   await session.evaluate(clickTestId('wl-switcher'))
-  await waitFor(session, exists('wl-delete'))
-  await session.evaluate(clickTestId('wl-delete'))
-  // 菜单收起，确认卡挂在名字按钮下面。
+  await waitFor(session, exists(`wl-wf-rename-${OTHER}`))
+  // 平时只显示步骤数，悬停这一行时「改名 / 删除」浮出来、占同一个位置。
+  const rowSel = `[data-testid="wl-wf-item"][data-value=${JSON.stringify(OTHER)}]`
+  const rowBox = await session.evaluate(`(() => {
+    const r = document.querySelector(${JSON.stringify(rowSel)}).getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  })()`)
+  await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: rowBox.x, y: rowBox.y })
+  await sleep(200)
+  check(
+    await session.evaluate(
+      `getComputedStyle(document.querySelector('[data-testid="wl-wf-delete-${OTHER}"]').parentElement).opacity === '1'`,
+    ),
+    '悬停一行时改名 / 删除按钮应浮出',
+  )
+  await screenshot(session, 'ui-25a-row-actions.png')
+  const nameBefore = await session.evaluate(
+    `document.querySelector('[data-testid="wl-switcher"]').textContent.trim()`,
+  )
+  await session.evaluate(clickTestId(`wl-wf-rename-${OTHER}`))
+  await waitFor(session, exists('wl-wf-rename-input'))
+  const OTHER2 = `${OTHER}2`
+  await session.evaluate(
+    `(() => { const el = document.querySelector('[data-testid="wl-wf-rename-input"]'); el.value = ${JSON.stringify(OTHER2)}; el.focus(); })()`,
+  )
+  await pressKey(session, 'Enter', { code: 'Enter', text: '\r' })
+  await waitFor(session, exists(`wl-wf-rename-${OTHER2}`))
+  check(
+    (await rpc('graph/list', {})).workflows.some((entry) => entry.name === OTHER2),
+    '行内改名应落盘',
+  )
+  check(
+    (await session.evaluate(
+      `document.querySelector('[data-testid="wl-switcher"]').textContent.trim()`,
+    )) === nameBefore,
+    '改别的工作流的名字，当前打开的不该变',
+  )
+  check(
+    await session.evaluate(`document.querySelector('[data-testid="wl-wf-item"]') !== null`),
+    '改完名下拉应还开着',
+  )
+  pass('下拉里直接给别的工作流改名，不用切过去')
+
+  // 删别的那张：确认卡挂在那一行的删除按钮旁，下拉不收，当前打开的不受影响。
+  await session.evaluate(clickTestId(`wl-wf-delete-${OTHER2}`))
   await waitFor(session, exists('wl-delete-confirm-pop'))
+  await sleep(250)
   check(
     await session.evaluate(`(() => {
       const pop = document.querySelector('[data-testid="wl-delete-confirm-pop"]').getBoundingClientRect();
-      const anchor = document.querySelector('[data-testid="wl-switcher"]').getBoundingClientRect();
+      const anchor = document.querySelector('[data-testid="wl-wf-delete-${OTHER2}"]').getBoundingClientRect();
       return pop.top >= anchor.bottom && Math.abs(pop.left - (anchor.left - 8)) < 2;
     })()`),
-    '删除工作流的确认卡应挂在名字按钮下面',
+    '删除确认卡应挂在那一行的删除按钮下面',
   )
-  await sleep(200)
   await screenshot(session, 'ui-25b-delete-confirm.png')
+  await session.evaluate(clickTestId('wl-delete-confirm'))
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-wf-delete-${OTHER2}"]') === null`,
+  )
+  check(
+    !(await rpc('graph/list', {})).workflows.some((entry) => entry.name === OTHER2),
+    '删除后目录里不该还有它',
+  )
+  check(
+    (await session.evaluate(
+      `document.querySelector('[data-testid="wl-switcher"]').textContent.trim()`,
+    )) === nameBefore && (await session.evaluate(exists('wl-wf-item'))),
+    '删别的工作流：当前打开的不变、下拉还开着',
+  )
+  pass('下拉里直接删除别的工作流')
+
+  // 再删正开着的这张 → 回到欢迎页。
+  await session.evaluate(clickTestId(`wl-wf-delete-${RENAMED}`))
   await waitFor(session, exists('wl-delete-confirm'))
   await session.evaluate(clickTestId('wl-delete-confirm'))
   await waitFor(session, exists('wl-welcome'))
   const after = await rpc('graph/list', {})
   check(!after.workflows.some((entry) => entry.name === RENAMED), '删除后目录里不该还有它')
-  pass('删除工作流 → 回到欢迎页')
+  pass('删除正开着的工作流 → 回到欢迎页')
 
   check(session.errors.length === 0, `页面不该有报错：${JSON.stringify(session.errors)}`)
   console.log('\n✅ 工作流视图验收全部通过')
@@ -1124,7 +1187,9 @@ try {
   console.error(`\n❌ 第 ${step + 1} 步失败：${error.message}`)
   process.exitCode = 1
 } finally {
-  for (const name of [NAME, RENAMED]) await rpc('graph/delete', { name }).catch(() => {})
+  for (const name of [NAME, RENAMED, `${NAME}-other`, `${NAME}-other2`]) {
+    await rpc('graph/delete', { name }).catch(() => {})
+  }
   for (const name of [STEP, STEP_NEW]) {
     await rpc('graph/nodeTemplateDelete', { name }).catch(() => {})
   }

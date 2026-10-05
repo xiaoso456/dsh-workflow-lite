@@ -182,6 +182,123 @@
   font-size: var(--wl-fs-meta);
 }
 
+/*
+ * 列表的一行：「改名 / 删除」浮在右端，和步骤数占同一个位置。
+ * 平时步骤数在、按钮透明；悬停、键盘移进来、确认卡开着时两者对换（只动透明度，名字不挪）。
+ */
+.row {
+  position: relative;
+  flex: none;
+}
+
+.rowMeta {
+  min-width: 58px;
+  text-align: right;
+  transition: opacity 120ms linear;
+}
+
+.rowActions {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%);
+  transition: opacity 120ms linear;
+}
+
+.row:hover .rowActions,
+.row:focus-within .rowActions,
+.row[data-busy="true"] .rowActions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* 指针移到右端的按钮上，整行还是亮着的。 */
+.row:hover .rowMain:not([data-active="true"]) {
+  background: var(--wl-hover);
+}
+
+.row:hover .rowMeta,
+.row:focus-within .rowMeta,
+.row[data-busy="true"] .rowMeta {
+  opacity: 0;
+}
+
+.rowAction {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--wl-text-3);
+  cursor: pointer;
+  transition: transform 120ms var(--wl-ease);
+}
+
+.rowAction:hover,
+.rowAction[aria-expanded="true"] {
+  background: var(--wl-hover);
+  color: var(--wl-text);
+}
+
+.rowAction[data-danger="true"]:hover,
+.rowAction[data-danger="true"][aria-expanded="true"] {
+  background: var(--wl-danger-soft);
+  color: var(--wl-danger);
+}
+
+.rowAction:active {
+  transform: scale(0.92);
+}
+
+.rowAction:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: -1px;
+}
+
+/* 改名：原行换成输入框，高度、图标位置都不变。 */
+.rowEditing {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  align-items: center;
+  height: 34px;
+  padding: 0 8px;
+  border-radius: var(--wl-r-control);
+  background: var(--wl-panel);
+  box-shadow: inset 0 0 0 1px var(--wl-accent);
+  color: var(--wl-text-3);
+}
+
+.rowInput {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--wl-text);
+  font: inherit;
+  outline: none;
+}
+
+@media (hover: none) {
+  .rowActions {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .rowMeta {
+    opacity: 0;
+  }
+}
+
 /* ── 右侧工具 ─────────────────────────────────────────────── */
 
 .tools {
@@ -465,7 +582,10 @@
 
 @media (prefers-reduced-motion: reduce) {
   .switch svg,
-  .run .runMore svg {
+  .run .runMore svg,
+  .rowMeta,
+  .rowActions,
+  .rowAction {
     transition: none;
   }
 

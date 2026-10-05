@@ -2,25 +2,23 @@
  * dsh-workflow-lite — 顶栏：左边是"我在哪张工作流、存好了没有"，右边是撤销重做、整理、
  * 工作流设置、检查结果，以及「预览 / 执行」组。
  *
- * 低频的文件操作（新建、改名、删除、重新加载）都收在工作流名字的下拉里，
+ * 低频的文件操作（新建、改名、删除、重新加载）都收在工作流名字的下拉里（{@link WorkflowSwitcher}），
  * 顶栏上常驻的只有高频动作。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/TopBar
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Runs } from '../app/useRuns.ts'
 import type { Workflow } from '../app/useWorkflow.ts'
 import type { LocaleKey, T } from '../i18n.ts'
 import { isDirty } from '../model/editor.ts'
-import { useConfirm } from './Confirm.tsx'
 import { Icon } from './Icon.tsx'
 import { Issues } from './Issues.tsx'
 import { Launch, type LaunchProps } from './Launch.tsx'
-import { cx, Popover } from './primitives.tsx'
-import { RunMenuSection } from './RunTopBar.tsx'
+import { cx } from './primitives.tsx'
 import css from './topbar.module.css'
 import ui from './ui.module.css'
+import { WorkflowSwitcher } from './WorkflowSwitcher.tsx'
 
 export interface TopBarProps {
   t: T
@@ -96,7 +94,7 @@ export function TopBar(props: TopBarProps): React.JSX.Element {
             <span className={ui.divider} />
           </>
         )}
-        <Switcher {...props} />
+        <WorkflowSwitcher t={t} wf={wf} runs={props.runs} onOpenRun={props.onOpenRun} />
         {state.name !== null && state.phase !== 'broken' && (
           <button
             type="button"
@@ -189,240 +187,5 @@ export function TopBar(props: TopBarProps): React.JSX.Element {
         />
       )}
     </div>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────
-// 工作流切换
-// ─────────────────────────────────────────────────────────────
-
-function Switcher(props: TopBarProps): React.JSX.Element {
-  const { t, wf } = props
-  const { state, catalog } = wf
-  const [open, setOpen] = useState(false)
-  const [query, setQuery] = useState('')
-  const [renaming, setRenaming] = useState(false)
-  /** 删除工作流的确认：菜单先收起，确认卡挂在名字按钮上（菜单里原地换按钮会让下面几项跟着挪）。 */
-  const remove = useConfirm<HTMLButtonElement>()
-  const renameRef = useRef<HTMLInputElement>(null)
-
-  // 刚建好的工作流：直接进入改名，名字全选，敲字即覆盖。
-  useEffect(() => {
-    if (wf.fresh === null || wf.fresh !== state.name) return
-    wf.clearFresh()
-    setRenaming(true)
-  }, [wf.fresh, state.name, wf.clearFresh])
-
-  const renameCancelled = useRef(false)
-  useEffect(() => {
-    if (!renaming) return
-    renameCancelled.current = false
-    renameRef.current?.select()
-  }, [renaming])
-
-  const close = (): void => {
-    setOpen(false)
-    setQuery('')
-  }
-
-  const workflows = catalog?.workflows ?? []
-  const filtered = useMemo(() => {
-    const needle = query.trim().toLowerCase()
-    const sorted = [...workflows].sort((a, b) => b.updatedAt - a.updatedAt)
-    return needle === ''
-      ? sorted
-      : sorted.filter((entry) => entry.name.toLowerCase().includes(needle))
-  }, [workflows, query])
-
-  if (renaming && state.name !== null) {
-    const commit = (value: string): void => {
-      // Esc 之后输入框被卸掉时可能还会补一个 blur：那一下不算提交。
-      if (renameCancelled.current) return
-      void wf.rename(value).then((ok) => {
-        if (ok) setRenaming(false)
-        else renameRef.current?.focus()
-      })
-    }
-    return (
-      <input
-        ref={renameRef}
-        className={css.rename}
-        defaultValue={state.name}
-        aria-label={t('wf.rename')}
-        data-tip={t('wf.renameHint')}
-        data-testid="wl-rename"
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') commit(event.currentTarget.value)
-          if (event.key === 'Escape') {
-            event.stopPropagation()
-            renameCancelled.current = true
-            setRenaming(false)
-          }
-        }}
-        onBlur={(event) => commit(event.currentTarget.value)}
-      />
-    )
-  }
-
-  return (
-    <>
-      <Popover
-        open={open}
-        onClose={close}
-        label={t('wf.pick')}
-        className={css.menu}
-        trigger={
-          <button
-            ref={remove.anchorRef}
-            type="button"
-            className={css.switch}
-            aria-expanded={open}
-            aria-haspopup="dialog"
-            data-testid="wl-switcher"
-            onClick={() => {
-              if (open) {
-                close()
-                return
-              }
-              setOpen(true)
-              void wf.refreshCatalog()
-              void props.runs.refresh()
-            }}
-            onDoubleClick={() => {
-              if (state.name === null) return
-              close()
-              setRenaming(true)
-            }}
-          >
-            <span className={css.name}>{state.name ?? t('wf.pick')}</span>
-            <Icon name="chevronDown" size={14} />
-          </button>
-        }
-      >
-        <RunMenuSection
-          t={t}
-          runs={props.runs}
-          activeId={null}
-          onOpenRun={(id) => {
-            close()
-            props.onOpenRun(id)
-          }}
-        />
-        {props.runs.list.length > 0 && (
-          <>
-            <div className={ui.menuSep} />
-            <p className={ui.menuTitle}>{t('run.workflows')}</p>
-          </>
-        )}
-        {workflows.length > 6 && (
-          <div className={css.search}>
-            <Icon name="search" size={14} />
-            <input
-              className={css.searchInput}
-              value={query}
-              placeholder={t('wf.search')}
-              aria-label={t('wf.search')}
-              data-testid="wl-search"
-              // biome-ignore lint/a11y/noAutofocus: 打开下拉就是为了找一张
-              autoFocus
-              onChange={(event) => setQuery(event.currentTarget.value)}
-            />
-          </div>
-        )}
-        <div className={css.list} role="listbox" aria-label={t('wf.pick')}>
-          {filtered.length === 0 && workflows.length > 0 && (
-            <p className={css.emptyLine}>{t('wf.none')}</p>
-          )}
-          {filtered.map((entry) => (
-            <button
-              key={entry.name}
-              type="button"
-              role="option"
-              aria-selected={entry.name === state.name}
-              className={ui.menuItem}
-              data-active={entry.name === state.name}
-              data-value={entry.name}
-              onClick={() => {
-                close()
-                if (entry.name !== state.name) void wf.open(entry.name)
-              }}
-            >
-              <Icon name={entry.invalid === true ? 'alert' : 'folder'} size={15} />
-              <span className={ui.menuLabel}>{entry.name}</span>
-              <span className={ui.menuMeta}>
-                {entry.invalid === true ? t('wf.broken') : `${entry.nodeCount} ${t('wf.steps')}`}
-              </span>
-            </button>
-          ))}
-        </div>
-
-        {state.name !== null && (
-          <>
-            <div className={ui.menuSep} />
-            <button
-              type="button"
-              className={ui.menuItem}
-              disabled={state.phase === 'broken'}
-              onClick={() => {
-                close()
-                setRenaming(true)
-              }}
-            >
-              <Icon name="pencil" size={15} />
-              <span className={ui.menuLabel}>{t('wf.rename')}</span>
-            </button>
-            <button
-              type="button"
-              className={ui.menuItem}
-              onClick={() => {
-                close()
-                wf.reload()
-              }}
-            >
-              <Icon name="reload" size={15} />
-              <span className={ui.menuLabel}>{t('wf.reload')}</span>
-            </button>
-            <button
-              type="button"
-              className={ui.menuItem}
-              data-danger="true"
-              data-testid="wl-delete"
-              onClick={() => {
-                close()
-                remove.show()
-              }}
-            >
-              <Icon name="trash" size={15} />
-              <span className={ui.menuLabel}>{t('wf.delete')}</span>
-            </button>
-          </>
-        )}
-
-        <div className={ui.menuSep} />
-        <button
-          type="button"
-          className={ui.menuItem}
-          data-testid="wl-new"
-          onClick={() => {
-            close()
-            void wf.create()
-          }}
-        >
-          <Icon name="plus" size={15} />
-          <span className={ui.menuLabel}>{t('wf.new')}</span>
-        </button>
-      </Popover>
-      {state.name !== null &&
-        remove.render({
-          t,
-          title: t('wf.deleteTitle').replace('{name}', state.name),
-          desc: t('wf.deleteConfirm'),
-          confirmText: t('common.delete'),
-          testId: 'wl-delete-confirm',
-          onConfirm: () => {
-            if (state.name !== null) void wf.remove(state.name)
-          },
-        })}
-    </>
   )
 }

@@ -270,6 +270,11 @@
   animation: pop 160ms var(--wl-ease) both;
 }
 
+/* 焦点只是暂放在浮层上（里面的按钮被删掉之后），不画框。 */
+.popover:focus {
+  outline: none;
+}
+
 .popoverEnd {
   right: 0;
   left: auto;
