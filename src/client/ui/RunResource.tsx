@@ -96,7 +96,7 @@ export function RunResourceDetail(props: {
       onPointerLeave={() => props.onFocusFile(null)}
     >
       {description !== '' && (
-        <p className={css.desc} title={description}>
+        <p className={css.desc} data-tip={description}>
           {description}
         </p>
       )}
@@ -267,7 +267,7 @@ function ItemRow(props: {
 
   return (
     <li className={css.row} data-kind={item.kind} data-testid="wl-run-resource-item">
-      <button type="button" className={css.main} title={title} onClick={props.onView}>
+      <button type="button" className={css.main} data-tip={title} onClick={props.onView}>
         <span className={cx(res.kindIcon, css.icon)} data-kind={item.kind}>
           <Icon name={KIND_ICON[item.kind]} size={14} />
         </span>
@@ -284,7 +284,7 @@ function ItemRow(props: {
       <span className={css.actions}>
         <button
           type="button"
-          className={cx(ui.btn, ui.icon, ui.small, ui.tip, ui.tipEnd)}
+          className={cx(ui.btn, ui.icon, ui.small)}
           data-tip={item.kind === 'file' ? t('file.view') : t('res.detail')}
           aria-label={item.kind === 'file' ? t('file.view') : t('res.detail')}
           data-testid="wl-run-item-view"
@@ -303,7 +303,7 @@ function ItemRow(props: {
         )}
         {item.kind === 'url' && item.value.trim() !== '' && (
           <a
-            className={cx(ui.btn, ui.icon, ui.small, ui.tip, ui.tipEnd)}
+            className={cx(ui.btn, ui.icon, ui.small)}
             href={item.value.trim()}
             target="_blank"
             rel="noopener noreferrer"

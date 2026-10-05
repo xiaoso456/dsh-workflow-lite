@@ -74,7 +74,7 @@ export function RunEdgeDetail(props: {
         <EndIcon node={node} id={id} />
         <span className={ins.endName}>{stepName(node, id)}</span>
         {status !== undefined && (
-          <span className={css.endDot} data-run-status={status} title={t(RUN_TEXT[status])}>
+          <span className={css.endDot} data-run-status={status} data-tip={t(RUN_TEXT[status])}>
             <span className={run.dot} />
           </span>
         )}

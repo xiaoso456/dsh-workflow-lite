@@ -117,7 +117,7 @@ export function RunNav(props: {
       trigger={
         <button
           type="button"
-          className={cx(run.nav, ui.tip, ui.tipEnd)}
+          className={run.nav}
           data-tip={t('run.navTip')}
           aria-label={`${t('run.navTip')}：${what}`}
           aria-expanded={open}
@@ -184,7 +184,7 @@ export function RunNav(props: {
                   data-active={active}
                   data-testid="wl-run-nav-item"
                   data-id={node.id}
-                  title={name === node.id ? node.id : `${name}\n${node.id}`}
+                  data-tip={name === node.id ? node.id : `${name}\n${node.id}`}
                   onClick={() => pick({ kind: 'node', id: node.id })}
                 >
                   {nodeIcon(node, 14)}

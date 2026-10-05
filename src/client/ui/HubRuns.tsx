@@ -200,7 +200,7 @@ function GroupHead(props: { t: T; workspace: HubWorkspace }): React.JSX.Element 
       </span>
       {workspace.here && <span className={hub.tag}>{t('hub.here')}</span>}
       {workspace.path !== undefined && (
-        <span className={hub.groupPath} title={workspace.path}>
+        <span className={hub.groupPath} data-tip={workspace.path}>
           {workspace.path}
         </span>
       )}

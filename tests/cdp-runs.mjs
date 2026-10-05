@@ -17,7 +17,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parse, stringify } from 'yaml'
 import { RunService } from '../src/host/runs/service.ts'
-import { bootToCanvas, centerOf, mouseClick, screenshot } from './lib/canvas-harness.mjs'
+import { bootToCanvas, centerOf, mouseClick, mouseMove, screenshot } from './lib/canvas-harness.mjs'
 import { openPage, waitFor } from './lib/cdp-session.mjs'
 import { rpc } from './lib/web-session.mjs'
 
@@ -910,9 +910,29 @@ try {
     session,
     `document.querySelector('[data-testid="wl-hub-row"][data-id="${instance}"] [data-testid="wl-hub-move"]') !== null`,
   )
-  await session.evaluate(
-    `document.querySelector('[data-testid="wl-hub-row"][data-id="${instance}"] [data-testid="wl-hub-move"]').click()`,
+  // 列表里的按钮也走共用提示：不被滚动区裁掉，长说明折行、整个在视图里。
+  const moveButton = `document.querySelector('[data-testid="wl-hub-row"][data-id="${instance}"] [data-testid="wl-hub-move"]')`
+  await mouseMove(
+    session,
+    await centerOf(
+      session,
+      `[data-testid="wl-hub-row"][data-id="${instance}"] [data-testid="wl-hub-move"]`,
+    ),
   )
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-tip"]')?.textContent === ${moveButton}.dataset.tip`,
+  )
+  check(
+    await session.evaluate(`(() => {
+      const tip = document.querySelector('[data-testid="wl-tip"]').getBoundingClientRect();
+      const root = document.querySelector('[data-testid="wl-root"]').getBoundingClientRect();
+      return tip.width <= 320 && tip.left >= root.left && tip.right <= root.right && tip.bottom <= root.bottom;
+    })()`),
+    '「移到本会话」的提示应折行、整个落在视图里',
+  )
+  await screenshot(session, 'runs-09-hub-tip.png')
+  await session.evaluate(`${moveButton}.click()`)
   await waitFor(
     session,
     `document.querySelector('[data-testid="wl-hub-row"][data-id="${instance}"] [data-testid="wl-hub-move"]') === null`,
@@ -1177,7 +1197,7 @@ try {
     (await panelText('[data-testid="wl-run-item-note"]')) === '说明' &&
       (
         await session.evaluate(
-          `document.querySelector('[data-testid="wl-run-resource-item"] button').title`,
+          `document.querySelector('[data-testid="wl-run-resource-item"] button').dataset.tip`,
         )
       ).includes('列出现状与风险'),
     '有说明的那一行挂「说明」小签，全文在悬停提示里',

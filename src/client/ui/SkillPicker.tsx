@@ -252,7 +252,7 @@ function SkillRow(props: {
         // 多选时是勾选框；单选时就是个普通按钮（点了就选定）。
         {...(props.single ? {} : { role: 'checkbox', 'aria-checked': checked })}
         disabled={props.added}
-        title={entry.description}
+        data-tip={entry.description}
         onClick={props.onChoose}
       >
         {!props.single && (
@@ -269,12 +269,12 @@ function SkillRow(props: {
         </span>
       </button>
       <span className={skill.skillSide}>
-        <span className={skill.skillSource} title={source.full}>
+        <span className={skill.skillSource} data-tip={source.full}>
           {source.short}
         </span>
         <button
           type="button"
-          className={cx(skill.skillPeek, ui.tip, ui.tipEnd)}
+          className={skill.skillPeek}
           data-tip={t('skill.preview')}
           aria-label={`${t('skill.preview')}：${entry.name}`}
           data-testid="wl-skill-preview-open"

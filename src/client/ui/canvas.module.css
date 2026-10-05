@@ -692,50 +692,12 @@
   }
 }
 
-/* ── 长条件：截断 + 悬停全文 ──────────────────────────────── */
+/* ── 长条件：截断（全文走 data-tip 悬停提示）──────────────── */
 
 .linkText {
   max-width: 120px;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.linkTip {
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 50%;
-  z-index: 10;
-  width: max-content;
-  max-width: 280px;
-  padding: 7px 10px;
-  border-radius: 8px;
-  background: var(--wl-tip);
-  color: var(--wl-tip-on);
-  font-size: var(--wl-fs-meta);
-  font-weight: 500;
-  line-height: 1.55;
-  text-align: left;
-  white-space: normal;
-  word-break: break-word;
-  opacity: 0;
-  pointer-events: none;
-  transform: translate(-50%, 4px);
-  transition:
-    opacity 120ms linear,
-    transform 140ms var(--wl-ease);
-}
-
-.linkLabel:hover .linkTip,
-.linkLabel:focus-visible .linkTip {
-  opacity: 1;
-  transform: translate(-50%, 0);
-  transition-delay: 200ms;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .linkTip {
-    transition: none;
-  }
 }
 
 /* ── 连线标签：条件在上、交接标记在下 ─────────────────────── */

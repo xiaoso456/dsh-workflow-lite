@@ -77,7 +77,7 @@ export function StatusMenu(props: {
               className={ui.menuItem}
               data-active={props.node.status === status}
               data-status={status}
-              title={t(nodeHint(status))}
+              data-tip={t(nodeHint(status))}
               onClick={() => props.onStatus(status)}
             >
               <span

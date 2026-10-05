@@ -7,9 +7,7 @@
 
 import type { LocaleKey, T } from '../i18n.ts'
 import { Icon, type IconName } from './Icon.tsx'
-import { cx } from './primitives.tsx'
 import run from './run.module.css'
-import ui from './ui.module.css'
 
 /** 右栏选中东西时看什么：这次运行的样子，还是改它（模板的属性面板）。 */
 export type PanelMode = 'run' | 'edit'
@@ -46,7 +44,7 @@ export function RunModeSwitch(props: {
           aria-label={t(option.label)}
           data-tip={t(option.label)}
           data-mode={option.value}
-          className={cx(run.modeItem, ui.tip, ui.tipEnd)}
+          className={run.modeItem}
           onClick={() => props.onChange(option.value)}
         >
           <Icon name={option.icon} size={14} />

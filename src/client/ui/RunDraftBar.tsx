@@ -268,7 +268,7 @@ export function DraftBar(props: {
             current.conflicts.length > 0 ||
             props.blocked !== null
           }
-          title={
+          data-tip={
             current.conflicts.length > 0 ? t('run.resolveFirst') : (props.blocked ?? undefined)
           }
           data-testid="wl-run-save"

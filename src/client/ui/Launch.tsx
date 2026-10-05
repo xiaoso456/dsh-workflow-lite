@@ -67,7 +67,7 @@ export function Launch(props: LaunchProps): React.JSX.Element {
     <div className={cx(ui.panel, css.pill)} data-testid="wl-launch">
       <button
         type="button"
-        className={cx(ui.btn, ui.icon, ui.tip)}
+        className={cx(ui.btn, ui.icon)}
         data-tip={t('tool.preview')}
         aria-label={t('tool.preview')}
         data-testid="wl-preview"
@@ -87,7 +87,7 @@ export function Launch(props: LaunchProps): React.JSX.Element {
           <div className={css.run} data-disabled={runDisabled} data-open={open}>
             <button
               type="button"
-              className={cx(ui.tip, css.runMain)}
+              className={css.runMain}
               data-tip={runTip}
               aria-label={runTip}
               data-testid="wl-run-start"
@@ -105,7 +105,7 @@ export function Launch(props: LaunchProps): React.JSX.Element {
             </button>
             <button
               type="button"
-              className={cx(ui.tip, ui.tipEnd, css.runMore)}
+              className={css.runMore}
               data-tip={t('launch.pick')}
               aria-label={t('launch.pick')}
               aria-expanded={open}

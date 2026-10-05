@@ -43,13 +43,13 @@ export function HubRunRow(props: {
         <div className={hub.titleLine}>
           <span className={hub.name}>{item.workflow}</span>
           {item.current && (
-            <span className={hub.tag} title={t('run.current')}>
+            <span className={hub.tag} data-tip={t('run.current')}>
               {t('hub.current')}
             </span>
           )}
         </div>
         <div className={hub.meta}>
-          <span className={cx(hub.metaItem, hub.session)} title={props.session.text}>
+          <span className={cx(hub.metaItem, hub.session)} data-tip={props.session.text}>
             <Icon name="chat" size={12} />
             <span className={hub.sessionName}>{props.session.text}</span>
             {props.session.mine && (
@@ -63,7 +63,7 @@ export function HubRunRow(props: {
             {shortTime(item.createdAt)}
           </span>
           {item.goal !== undefined && item.goal !== '' && (
-            <span className={cx(hub.metaItem, hub.goal)} title={item.goal}>
+            <span className={cx(hub.metaItem, hub.goal)} data-tip={item.goal}>
               <Icon name="flag" size={12} />
               <span>{item.goal}</span>
             </span>
@@ -92,7 +92,7 @@ export function HubRunRow(props: {
           type="button"
           className={hub.why}
           aria-expanded={why}
-          title={t('hub.why')}
+          data-tip={t('hub.why')}
           data-testid="wl-hub-why"
           onClick={() => setWhy((open) => !open)}
         >
@@ -114,7 +114,7 @@ export function HubRunRow(props: {
             type="button"
             className={cx(ui.btn, ui.icon, ui.small, hub.quiet)}
             aria-label={t('hub.move')}
-            title={`${t('hub.move')}：${t('hub.moveHint')}`}
+            data-tip={`${t('hub.move')}\n${t('hub.moveHint')}`}
             data-testid="wl-hub-move"
             onClick={props.onMove}
           >
@@ -125,7 +125,7 @@ export function HubRunRow(props: {
           type="button"
           className={cx(ui.btn, ui.icon, ui.small, ui.danger, hub.quiet)}
           aria-label={t('common.delete')}
-          title={t('common.delete')}
+          data-tip={t('common.delete')}
           aria-expanded={props.confirming}
           data-testid="wl-hub-delete"
           onClick={() => {

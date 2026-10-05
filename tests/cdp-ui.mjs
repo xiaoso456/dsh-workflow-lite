@@ -324,19 +324,82 @@ async function run(session) {
     '合法的长条件不该报错',
   )
   await waitFor(session, `${strokeOf(`scan->plan#${CONDITION}`)} === ${legendStroke('custom')}`)
+  const conditionLabel = `[...document.querySelectorAll('.react-flow__edgelabel-renderer button[data-when]')].find((el) => el.dataset.tip === ${JSON.stringify(CONDITION)})`
   check(
-    await session.evaluate(
-      `[...document.querySelectorAll('.react-flow__edgelabel-renderer [role="tooltip"]')].some((el) => el.textContent === ${JSON.stringify(CONDITION)})`,
-    ),
+    await session.evaluate(`${conditionLabel} !== undefined`),
     '线上的长条件应带一份全文悬停提示',
   )
   await mouseMove(
     session,
-    await centerOf(session, '.react-flow__edgelabel-renderer button[data-when]'),
+    await session.evaluate(`(() => {
+    const r = ${conditionLabel}.getBoundingClientRect();
+    return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+  })()`),
   )
-  await sleep(500)
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-tip"]')?.textContent === ${JSON.stringify(CONDITION)}`,
+  )
+  const tipBox = await session.evaluate(`(() => {
+    const tip = document.querySelector('[data-testid="wl-tip"]').getBoundingClientRect();
+    const root = document.querySelector('[data-testid="wl-root"]').getBoundingClientRect();
+    return { w: tip.width, h: tip.height, inside: tip.left >= root.left && tip.right <= root.right && tip.top >= root.top && tip.bottom <= root.bottom };
+  })()`)
+  check(
+    tipBox.w <= 320 && tipBox.h > 24,
+    `长条件的提示应折行、不超过 320 宽：${JSON.stringify(tipBox)}`,
+  )
+  check(tipBox.inside, '提示应整个落在视图里')
+  await sleep(200)
   await screenshot(session, 'ui-02b-condition.png')
-  pass('自定义条件写一整句话 → 落盘，线上截断、悬停看全文')
+  pass('自定义条件写一整句话 → 落盘，线上截断、悬停看全文（共用提示浮层，折行）')
+
+  // 7b') 悬停提示：顶栏最左边的按钮提示夹在视图里；扫到相邻按钮立刻换；按下就收。
+  const tipText = `document.querySelector('[data-testid="wl-tip"]')?.textContent ?? null`
+  await mouseMove(session, { x: 5, y: 5 })
+  await waitFor(session, `${tipText} === null`)
+  const hubButton = await session.evaluate(`(() => {
+    const el = document.querySelector('[data-testid="wl-hub-open"]');
+    const r = el.getBoundingClientRect();
+    return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), tip: el.dataset.tip };
+  })()`)
+  await mouseMove(session, hubButton)
+  await waitFor(session, `${tipText} === ${JSON.stringify(hubButton.tip)}`)
+  check(
+    await session.evaluate(`(() => {
+      const tip = document.querySelector('[data-testid="wl-tip"]').getBoundingClientRect();
+      const root = document.querySelector('[data-testid="wl-root"]').getBoundingClientRect();
+      return tip.left >= root.left + 8 && tip.top > ${hubButton.y};
+    })()`),
+    '贴左边的按钮：提示在下方、左边不出视图',
+  )
+  const undoAt = await centerOf(session, '[data-testid="wl-undo"]')
+  await mouseMove(session, undoAt)
+  await sleep(60)
+  check(
+    (await session.evaluate(tipText))?.startsWith('撤销') === true,
+    `刚看过一个提示，扫到相邻按钮应立刻换：${await session.evaluate(tipText)}`,
+  )
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mousePressed',
+    x: undoAt.x,
+    y: undoAt.y,
+    button: 'left',
+    clickCount: 1,
+  })
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseReleased',
+    x: undoAt.x,
+    y: undoAt.y,
+    button: 'left',
+    clickCount: 1,
+  })
+  await sleep(500)
+  check((await session.evaluate(tipText)) === null, '按下按钮后提示收起，指针不离开不再弹')
+  // 刚才那下点了撤销：重做回来，后面的步骤接着用这条条件。
+  await pressShortcut(session, 'z', ['ctrl', 'shift'])
+  await onDisk(NAME, (doc) => edgeIds(doc).includes(`scan->plan#${CONDITION}`), '重做回自定义条件')
+  pass('悬停提示：夹在视图里、相邻按钮立刻换、按下就收')
 
   // 7c) 资源卡：内置步骤插进来时带着它的产出资源卡；步骤面板里「新建产出文件」再加一张，连上写入线。
   check(

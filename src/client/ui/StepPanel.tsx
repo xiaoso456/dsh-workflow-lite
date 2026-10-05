@@ -406,7 +406,7 @@ function MineEditor(
             {original !== null && (
               <button
                 type="button"
-                className={cx(ui.btn, ui.icon, ui.small, ui.danger, ui.tip, ui.tipEnd, ui.tipUp)}
+                className={cx(ui.btn, ui.icon, ui.small, ui.danger)}
                 data-tip={t('step.delete')}
                 aria-label={t('step.delete')}
                 data-testid="wl-step-delete"

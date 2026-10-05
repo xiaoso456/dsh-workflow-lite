@@ -169,7 +169,7 @@ export function DocViewer(props: {
         )}
         <button
           type="button"
-          className={cx(ui.btn, ui.icon, ui.small, ui.tip, ui.tipEnd)}
+          className={cx(ui.btn, ui.icon, ui.small)}
           data-tip={copied ? t('common.copied') : (props.copyLabel ?? t('file.copyPath'))}
           aria-label={props.copyLabel ?? t('file.copyPath')}
           disabled={props.copyPath === null}

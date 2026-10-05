@@ -319,7 +319,7 @@ function NodePanel(props: InspectorProps & { node: StepNode }): React.JSX.Elemen
             <span className={ui.grow} />
             <button
               type="button"
-              className={cx(ui.btn, ui.icon, ui.small, ui.danger, ui.tip, ui.tipEnd, ui.tipUp)}
+              className={cx(ui.btn, ui.icon, ui.small, ui.danger)}
               data-tip={t('node.delete')}
               aria-label={t('node.delete')}
               data-testid="wl-delete-node"

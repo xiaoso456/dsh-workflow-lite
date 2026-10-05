@@ -34,7 +34,7 @@ export function WhenChip(props: {
     ) : null
   }
   return (
-    <span className={ins.whenChip} data-when={whenKind(when)} title={when}>
+    <span className={ins.whenChip} data-when={whenKind(when)} data-tip={when}>
       {when === 'pass' ? t('edge.pass') : when === 'fail' ? t('edge.fail') : when}
     </span>
   )
@@ -64,7 +64,7 @@ export function LinkRow(props: {
       data-testid={props.testId}
       data-id={edge.id}
       data-taken={props.taken}
-      title={props.takenLabel}
+      data-tip={props.takenLabel}
       onClick={props.onPick}
     >
       <span className={css.lead}>

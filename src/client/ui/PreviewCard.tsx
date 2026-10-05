@@ -70,7 +70,7 @@ export function PreviewCard(props: {
           {edit !== undefined && (
             <button
               type="button"
-              className={cx(ui.btn, ui.icon, ui.small, ui.tip, ui.tipEnd)}
+              className={cx(ui.btn, ui.icon, ui.small)}
               data-tip={t('file.edit')}
               aria-label={t('file.edit')}
               data-testid={`${props.testId}-edit`}
@@ -81,7 +81,7 @@ export function PreviewCard(props: {
           )}
           <button
             type="button"
-            className={cx(ui.btn, ui.icon, ui.small, ui.tip, ui.tipEnd)}
+            className={cx(ui.btn, ui.icon, ui.small)}
             data-tip={t('run.viewAll')}
             aria-label={t('run.viewAll')}
             data-testid={`${props.testId}-view`}

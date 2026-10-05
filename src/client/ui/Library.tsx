@@ -184,7 +184,7 @@ export function Library(props: {
         </span>
         <button
           type="button"
-          className={cx(ui.btn, ui.icon, ui.small, ui.tip, ui.tipEnd)}
+          className={cx(ui.btn, ui.icon, ui.small)}
           data-tip={t('lib.collapse')}
           aria-label={t('lib.collapse')}
           onClick={props.onClose}
@@ -280,7 +280,7 @@ export function Library(props: {
           action={
             <button
               type="button"
-              className={cx(ui.btn, ui.icon, ui.small, ui.tip, ui.tipEnd)}
+              className={cx(ui.btn, ui.icon, ui.small)}
               data-tip={t('lib.newCustom')}
               aria-label={t('lib.newCustom')}
               data-testid="wl-lib-new"

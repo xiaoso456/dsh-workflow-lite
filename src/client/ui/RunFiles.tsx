@@ -34,7 +34,7 @@ function Made(props: { t: T; made: boolean }): React.JSX.Element {
     <span
       className={css.made}
       data-made={props.made}
-      title={props.made ? props.t('file.generated') : props.t('file.notGenerated')}
+      data-tip={props.made ? props.t('file.generated') : props.t('file.notGenerated')}
     >
       <Icon name={props.made ? 'check' : 'circle'} size={props.made ? 14 : 11} />
     </span>
@@ -134,7 +134,7 @@ export function StepResourceList(props: {
                 <button
                   type="button"
                   className={css.row}
-                  title={t('run.outputsReported')}
+                  data-tip={t('run.outputsReported')}
                   onClick={() => props.onViewPath(path)}
                 >
                   <FileTag path={path} />

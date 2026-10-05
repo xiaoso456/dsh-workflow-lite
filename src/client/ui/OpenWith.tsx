@@ -130,9 +130,7 @@ export function OpenWith(props: OpenWithProps): React.JSX.Element | null {
         <button
           type="button"
           className={
-            props.compact === true
-              ? cx(ui.btn, ui.icon, ui.small, ui.tip, ui.tipEnd)
-              : cx(ui.btn, ui.small, ui.soft)
+            props.compact === true ? cx(ui.btn, ui.icon, ui.small) : cx(ui.btn, ui.small, ui.soft)
           }
           aria-label={t('file.openWith')}
           data-tip={props.compact === true ? t('file.openWith') : undefined}

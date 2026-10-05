@@ -39,7 +39,7 @@ export function PanelHead(props: {
         type="button"
         className={cx(ui.btn, ui.icon, ui.small)}
         aria-label={t('common.close')}
-        title={t('common.close')}
+        data-tip={t('common.close')}
         data-testid={props.closeTestId}
         onClick={props.onClose}
       >
@@ -58,7 +58,7 @@ function IdLine(props: { t: T; id: string }): React.JSX.Element {
   return (
     <button
       type="button"
-      className={cx(css.idLine, ui.tip, ui.tipStart)}
+      className={css.idLine}
       data-tip={copied ? t('common.copied') : t('ins.copyId')}
       aria-label={t('ins.copyId')}
       data-testid="wl-panel-id"

@@ -48,7 +48,7 @@ export function HubWorkspacePicker(props: {
           aria-label={`${t('hub.pickWorkspace')}：${label}`}
           aria-expanded={open}
           aria-haspopup="dialog"
-          title={current?.path}
+          data-tip={current?.path}
           data-testid="wl-hub-workspace"
           onClick={() => setOpen((value) => !value)}
         >

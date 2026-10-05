@@ -377,6 +377,7 @@
 }
 
 .runMore {
+  position: relative;
   justify-content: center;
   width: 26px;
   padding: 0 4px 0 2px;

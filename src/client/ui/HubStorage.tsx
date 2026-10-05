@@ -163,7 +163,7 @@ export function HubStorage(props: {
                 type="button"
                 className={cx(ui.btn, ui.small, ui.soft)}
                 disabled={busy !== null || stats.finished === 0}
-                title={t('hub.clearFinishedHint')}
+                data-tip={t('hub.clearFinishedHint')}
                 data-testid="wl-hub-clear-finished"
                 onClick={() => setConfirmFinished(true)}
               >

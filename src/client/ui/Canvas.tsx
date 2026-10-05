@@ -389,7 +389,7 @@ const StepCard = memo(function StepCard(props: NodeProps<StepFlowNode>): React.J
       data-run={data.run?.status}
       data-mark={data.run?.mark}
       data-testid="wl-step"
-      title={data.note === '' ? undefined : data.note}
+      data-tip={data.note === '' ? undefined : data.note}
     >
       {data.run !== null && (
         <button
@@ -445,7 +445,7 @@ const StepCard = memo(function StepCard(props: NodeProps<StepFlowNode>): React.J
         type="source"
         position={Position.Right}
         className={cx(css.handle, css.handleOut, css.handleSource)}
-        title={data.addText}
+        data-tip={data.addText}
         onClick={(event) => data.onAdd(id, event.currentTarget)}
       />
       {/* 底边偏左的方点（文件树的树干）：拖到文件卡上 = 写它；拖到空白处 = 就地新建一个产出文件。
@@ -457,7 +457,7 @@ const StepCard = memo(function StepCard(props: NodeProps<StepFlowNode>): React.J
         className={cx(css.handle, css.handleOut, css.handleFile, css.spotted)}
         style={spotVar(STEP_SPOTS.file)}
         data-used={data.used.includes('file')}
-        title={data.fileText}
+        data-tip={data.fileText}
       />
       <Handle
         id="fileUp"
@@ -722,16 +722,12 @@ const LinkLine = memo(function LinkLine(props: EdgeProps<LinkEdge>): React.JSX.E
                 className={css.linkLabel}
                 data-when={data.when}
                 data-selected={props.selected === true}
+                // 长条件在线上只露一截，悬停时弹出全文。
+                data-tip={text.length > LABEL_FULL_AT ? text : undefined}
                 onClick={() => data.onPick(id)}
               >
                 {data.back && <Icon name="loop" size={11} />}
                 {text !== '' && <span className={css.linkText}>{text}</span>}
-                {/* 长条件在线上只露一截，悬停时弹出全文。 */}
-                {text.length > LABEL_FULL_AT && (
-                  <span className={css.linkTip} role="tooltip">
-                    {text}
-                  </span>
-                )}
               </button>
             )}
             {handoff !== null && (
@@ -879,7 +875,7 @@ const ResourceCard = memo(function ResourceCard(
       data-dim={data.dim}
       data-tone={data.tone}
       data-testid="wl-resource"
-      title={data.note === '' ? undefined : data.note}
+      data-tip={data.note === '' ? undefined : data.note}
       onPointerEnter={() => data.onFocusFile(id)}
       onPointerLeave={() => data.onFocusFile(null)}
     >
@@ -934,7 +930,7 @@ const ResourceCard = memo(function ResourceCard(
                     {item.text}
                   </span>
                   {item.made === true && (
-                    <span className={css.resItemMade} title={data.generatedText}>
+                    <span className={css.resItemMade} data-tip={data.generatedText}>
                       <Icon name="check" size={11} />
                     </span>
                   )}
@@ -948,7 +944,7 @@ const ResourceCard = memo(function ResourceCard(
       {data.shared && (
         <span
           className={css.resShared}
-          title={data.sharedText}
+          data-tip={data.sharedText}
           data-testid="wl-resource-shared-tag"
         >
           <Icon name="shared" size={11} />
@@ -961,7 +957,7 @@ const ResourceCard = memo(function ResourceCard(
         </span>
       )}
       {madeAll && (
-        <span className={css.fileMade} title={data.generatedText} data-testid="wl-resource-made">
+        <span className={css.fileMade} data-tip={data.generatedText} data-testid="wl-resource-made">
           <Icon name="check" size={12} />
         </span>
       )}
@@ -970,7 +966,7 @@ const ResourceCard = memo(function ResourceCard(
         type="source"
         position={Position.Right}
         className={cx(css.handle, css.handleOut, css.handleRead)}
-        title={data.readText}
+        data-tip={data.readText}
       />
     </div>
   )
@@ -989,7 +985,7 @@ const InputCard = memo(function InputCard(props: NodeProps<InputFlowNode>): Reac
       data-tone={data.tone}
       data-dim={data.dim}
       data-testid="wl-input"
-      title={data.note === '' ? undefined : data.note}
+      data-tip={data.note === '' ? undefined : data.note}
     >
       <span className={css.inputTab} aria-hidden="true">
         <Icon name={INPUT_ICON[data.kind]} size={14} />
@@ -1010,7 +1006,7 @@ const InputCard = memo(function InputCard(props: NodeProps<InputFlowNode>): Reac
         type="source"
         position={Position.Right}
         className={cx(css.handle, css.handleOut, css.handleRead, css.handleAsk)}
-        title={data.connectText}
+        data-tip={data.connectText}
       />
     </div>
   )

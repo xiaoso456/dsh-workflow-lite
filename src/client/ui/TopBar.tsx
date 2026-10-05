@@ -69,7 +69,7 @@ export function TopBar(props: TopBarProps): React.JSX.Element {
       <div className={cx(ui.panel, css.pill)}>
         <button
           type="button"
-          className={cx(ui.btn, ui.icon, ui.tip, ui.tipStart)}
+          className={cx(ui.btn, ui.icon)}
           data-tip={t('hub.title')}
           aria-label={t('hub.title')}
           data-testid="wl-hub-open"
@@ -82,7 +82,7 @@ export function TopBar(props: TopBarProps): React.JSX.Element {
           <>
             <button
               type="button"
-              className={cx(ui.btn, ui.icon, ui.tip)}
+              className={cx(ui.btn, ui.icon)}
               data-tip={t('tool.library')}
               aria-label={t('tool.library')}
               aria-pressed={props.libraryOpen}
@@ -104,7 +104,7 @@ export function TopBar(props: TopBarProps): React.JSX.Element {
             data-testid="wl-status"
             aria-live="polite"
             disabled={tone !== 'error'}
-            title={state.saveError ?? undefined}
+            data-tip={state.saveError ?? undefined}
             onClick={wf.retrySave}
           >
             <span className={css.dot} />
@@ -120,7 +120,7 @@ export function TopBar(props: TopBarProps): React.JSX.Element {
         <div className={cx(ui.panel, css.pill, css.tools)}>
           <button
             type="button"
-            className={cx(ui.btn, ui.icon, ui.tip)}
+            className={cx(ui.btn, ui.icon)}
             data-tip={`${t('tool.undo')}  Ctrl+Z`}
             aria-label={t('tool.undo')}
             data-testid="wl-undo"
@@ -131,7 +131,7 @@ export function TopBar(props: TopBarProps): React.JSX.Element {
           </button>
           <button
             type="button"
-            className={cx(ui.btn, ui.icon, ui.tip)}
+            className={cx(ui.btn, ui.icon)}
             data-tip={`${t('tool.redo')}  Ctrl+Shift+Z`}
             aria-label={t('tool.redo')}
             data-testid="wl-redo"
@@ -143,7 +143,7 @@ export function TopBar(props: TopBarProps): React.JSX.Element {
           <span className={ui.divider} />
           <button
             type="button"
-            className={cx(ui.btn, ui.icon, ui.tip)}
+            className={cx(ui.btn, ui.icon)}
             data-tip={`${t('tool.tidy')}  L`}
             aria-label={t('tool.tidy')}
             data-testid="wl-tidy"
@@ -154,7 +154,7 @@ export function TopBar(props: TopBarProps): React.JSX.Element {
           </button>
           <button
             type="button"
-            className={cx(ui.btn, ui.icon, ui.tip, css.settings)}
+            className={cx(ui.btn, ui.icon, css.settings)}
             data-tip={t('tool.settings')}
             aria-label={t('tool.settings')}
             data-testid="wl-settings-open"
@@ -248,7 +248,7 @@ function Switcher(props: TopBarProps): React.JSX.Element {
         className={css.rename}
         defaultValue={state.name}
         aria-label={t('wf.rename')}
-        title={t('wf.renameHint')}
+        data-tip={t('wf.renameHint')}
         data-testid="wl-rename"
         onKeyDown={(event) => {
           if (event.key === 'Enter') commit(event.currentTarget.value)

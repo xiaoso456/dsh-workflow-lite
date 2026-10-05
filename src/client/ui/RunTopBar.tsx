@@ -95,7 +95,7 @@ export function RunTopBar(
       <div className={cx(ui.panel, top.pill)}>
         <button
           type="button"
-          className={cx(ui.btn, ui.icon, ui.tip, ui.tipStart)}
+          className={cx(ui.btn, ui.icon)}
           data-tip={t('hub.title')}
           aria-label={t('hub.title')}
           data-testid="wl-hub-open"
@@ -142,7 +142,7 @@ export function RunTopBar(
         <div className={cx(ui.panel, top.pill, top.tools)} data-testid="wl-run-tools">
           <button
             type="button"
-            className={cx(ui.btn, ui.icon, ui.tip)}
+            className={cx(ui.btn, ui.icon)}
             data-tip={`${t('tool.undo')}  Ctrl+Z`}
             aria-label={t('tool.undo')}
             data-testid="wl-undo"
@@ -153,7 +153,7 @@ export function RunTopBar(
           </button>
           <button
             type="button"
-            className={cx(ui.btn, ui.icon, ui.tip)}
+            className={cx(ui.btn, ui.icon)}
             data-tip={`${t('tool.redo')}  Ctrl+Shift+Z`}
             aria-label={t('tool.redo')}
             data-testid="wl-redo"
@@ -165,7 +165,7 @@ export function RunTopBar(
           <span className={ui.divider} />
           <button
             type="button"
-            className={cx(ui.btn, ui.icon, ui.tip)}
+            className={cx(ui.btn, ui.icon)}
             data-tip={`${t('tool.tidy')}  L`}
             aria-label={t('tool.tidy')}
             data-testid="wl-tidy"
@@ -188,7 +188,7 @@ export function RunTopBar(
             type="button"
             className={cx(ui.btn, ui.small)}
             disabled={!props.workflows.some((entry) => entry.name === summary.workflow)}
-            title={
+            data-tip={
               props.workflows.some((entry) => entry.name === summary.workflow)
                 ? undefined
                 : t('run.templateGone')
@@ -202,7 +202,7 @@ export function RunTopBar(
           {summary.statePath !== undefined && (
             <button
               type="button"
-              className={cx(ui.btn, ui.small, ui.tip, ui.tipEnd)}
+              className={cx(ui.btn, ui.small)}
               data-tip={summary.statePath}
               onClick={() =>
                 void copyText(summary.statePath ?? '').then((ok) => {
@@ -220,7 +220,7 @@ export function RunTopBar(
               <span className={ui.divider} />
               <button
                 type="button"
-                className={cx(ui.btn, ui.icon, ui.tip, ui.tipEnd)}
+                className={cx(ui.btn, ui.icon)}
                 data-tip={t('run.panelToggle')}
                 aria-label={t('run.panelToggle')}
                 aria-pressed={props.panelOpen}
@@ -367,7 +367,7 @@ export function RunMenuSection(props: {
               <span
                 className={run.current}
                 role="img"
-                title={t('run.current')}
+                data-tip={t('run.current')}
                 aria-label={t('run.current')}
                 data-testid="wl-run-current"
               >
@@ -376,7 +376,7 @@ export function RunMenuSection(props: {
             ) : (
               <button
                 type="button"
-                className={cx(ui.btn, ui.icon, ui.small, ui.tip, ui.tipEnd, run.bind)}
+                className={cx(ui.btn, ui.icon, ui.small, run.bind)}
                 data-tip={t('run.setCurrent')}
                 aria-label={t('run.setCurrent')}
                 data-testid="wl-run-bind"

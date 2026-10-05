@@ -70,7 +70,7 @@ export function RunStepDetail(props: {
   return (
     <>
       {description !== '' && (
-        <p className={desc.desc} title={description}>
+        <p className={desc.desc} data-tip={description}>
           {description}
         </p>
       )}

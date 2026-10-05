@@ -101,7 +101,7 @@ export function StepStatus(props: {
               data-run-status={status}
               data-testid="wl-run-node-status"
               data-value={status}
-              title={t(nodeHint(status))}
+              data-tip={t(nodeHint(status))}
               onClick={() => {
                 if (
                   status === 'done' &&
@@ -127,7 +127,7 @@ export function StepStatus(props: {
             aria-pressed={pinned}
             data-active={pinned}
             data-testid="wl-run-step-pin"
-            title={t('run.pinHint')}
+            data-tip={t('run.pinHint')}
             onClick={() => current.setField(['next'], togglePin(pins, id))}
           >
             <Icon name="flag" size={13} />

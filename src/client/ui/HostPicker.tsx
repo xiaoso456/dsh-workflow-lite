@@ -202,7 +202,7 @@ export function HostPicker(props: {
           )}
           <button
             type="button"
-            className={cx(ui.btn, ui.icon, ui.small, ui.tip, ui.tipEnd)}
+            className={cx(ui.btn, ui.icon, ui.small)}
             data-tip={t('pick.typePath')}
             aria-label={t('pick.typePath')}
             aria-pressed={typing}
@@ -224,7 +224,7 @@ export function HostPicker(props: {
                 type="button"
                 className={css.place}
                 data-on={place.path === listing.path}
-                title={place.path}
+                data-tip={place.path}
                 onClick={() => go(place.path)}
               >
                 <Icon
@@ -281,7 +281,7 @@ export function HostPicker(props: {
               type="button"
               className={cx(css.row, css.upRow)}
               data-testid="wl-picker-up"
-              title={`${t('pick.up')}（${t('pick.upKeys')}）`}
+              data-tip={`${t('pick.up')}（${t('pick.upKeys')}）`}
               onClick={up}
             >
               <span className={cx(css.entryIcon, css.upIcon)}>

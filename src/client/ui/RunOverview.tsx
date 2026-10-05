@@ -96,7 +96,7 @@ export function Overview(props: {
               data-run-status={status}
               data-testid="wl-run-overall"
               data-value={status}
-              title={t(`run.hint.${status}` as LocaleKey)}
+              data-tip={t(`run.hint.${status}` as LocaleKey)}
               onClick={() => current.setField(['status'], status)}
             >
               <span className={run.dot} />

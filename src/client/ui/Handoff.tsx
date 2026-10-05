@@ -38,7 +38,7 @@ export function HandoffChip(props: { t: T; edge: WorkflowEdge }): React.JSX.Elem
         <span className={css.chipText}>{t('hand.resultShort')}</span>
       </span>
       {handoff.note !== undefined && (
-        <span className={css.chip} title={handoff.note}>
+        <span className={css.chip} data-tip={handoff.note}>
           <Icon name="pencil" size={11} />
           <span className={css.chipText}>{handoff.note}</span>
         </span>

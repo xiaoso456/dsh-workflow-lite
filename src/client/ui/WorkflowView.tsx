@@ -40,6 +40,7 @@ import { RunView } from './RunView.tsx'
 import { SettingsDialog } from './SettingsDialog.tsx'
 import { StepPanel } from './StepPanel.tsx'
 import css from './shell.module.css'
+import { TipLayer } from './TipLayer.tsx'
 import { TopBar } from './TopBar.tsx'
 import ui from './ui.module.css'
 
@@ -955,6 +956,7 @@ function Shell(props: {
           </>
         )}
       </ModalHostProvider>
+      <TipLayer root={modalHost} />
     </div>
   )
 }

@@ -42,7 +42,7 @@ export function ZoomDock(props: {
     <div className={cx(ui.panel, css.dock)}>
       <button
         type="button"
-        className={cx(ui.btn, ui.icon, ui.small, ui.tip, ui.tipUp, ui.tipStart)}
+        className={cx(ui.btn, ui.icon, ui.small)}
         data-tip={t('tool.zoomOut')}
         aria-label={t('tool.zoomOut')}
         onClick={() => void flow.zoomOut({ duration: 200 })}
@@ -52,7 +52,7 @@ export function ZoomDock(props: {
       <span className={css.zoom}>{Math.round(zoom * 100)}%</span>
       <button
         type="button"
-        className={cx(ui.btn, ui.icon, ui.small, ui.tip, ui.tipUp)}
+        className={cx(ui.btn, ui.icon, ui.small)}
         data-tip={t('tool.zoomIn')}
         aria-label={t('tool.zoomIn')}
         onClick={() => void flow.zoomIn({ duration: 200 })}
@@ -61,7 +61,7 @@ export function ZoomDock(props: {
       </button>
       <button
         type="button"
-        className={cx(ui.btn, ui.icon, ui.small, ui.tip, ui.tipUp)}
+        className={cx(ui.btn, ui.icon, ui.small)}
         data-tip={`${t('tool.fit')}  F`}
         aria-label={t('tool.fit')}
         data-testid="wl-fit"
@@ -79,7 +79,7 @@ export function ZoomDock(props: {
         trigger={
           <button
             type="button"
-            className={cx(ui.btn, ui.icon, ui.small, ui.tip, ui.tipUp)}
+            className={cx(ui.btn, ui.icon, ui.small)}
             data-tip={t('tool.keys')}
             aria-label={t('tool.keys')}
             aria-expanded={props.keysOpen}
@@ -203,33 +203,20 @@ function LineLegend(props: { t: T }): React.JSX.Element {
     <ul className={css.legend} aria-label={t('legend.title')} data-testid="wl-legend">
       {LEGEND.map((group) => [
         ...group.map((item) => (
-          <li
-            key={item.key}
-            className={cx(css.legendItem, ui.tip, ui.tipUp)}
-            data-line={item.key}
-            data-tip={t(item.tip)}
-          >
+          <li key={item.key} className={css.legendItem} data-line={item.key} data-tip={t(item.tip)}>
             <LineSample line={item.key} />
             <span>{t(item.label)}</span>
           </li>
         )),
         <li key={`${group[0]?.key}-sep`} className={css.legendSep} aria-hidden="true" />,
       ])}
-      <li
-        className={cx(css.legendItem, ui.tip, ui.tipUp)}
-        data-port="in"
-        data-tip={t('legend.inTip')}
-      >
+      <li className={css.legendItem} data-port="in" data-tip={t('legend.inTip')}>
         <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
           <circle cx="5" cy="5" r="3.6" />
         </svg>
         <span>{t('legend.in')}</span>
       </li>
-      <li
-        className={cx(css.legendItem, ui.tip, ui.tipUp, ui.tipEnd)}
-        data-port="out"
-        data-tip={t('legend.outTip')}
-      >
+      <li className={css.legendItem} data-port="out" data-tip={t('legend.outTip')}>
         <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
           <circle cx="5" cy="5" r="3.6" />
         </svg>

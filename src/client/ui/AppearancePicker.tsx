@@ -47,7 +47,7 @@ export function AppearancePicker(props: {
       trigger={
         <button
           type="button"
-          className={cx(css.trigger, ui.tip, ui.tipStart)}
+          className={css.trigger}
           data-tip={t('look.change')}
           aria-label={t('look.change')}
           aria-expanded={open}
@@ -82,7 +82,7 @@ export function AppearancePicker(props: {
             type="button"
             role="radio"
             aria-checked={look.color === color}
-            className={cx(css.swatch, ui.tip)}
+            className={css.swatch}
             data-color={color}
             data-tip={t(`look.c.${color}` as LocaleKey)}
             aria-label={t(`look.c.${color}` as LocaleKey)}

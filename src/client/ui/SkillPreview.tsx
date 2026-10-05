@@ -80,7 +80,7 @@ export function SkillPreview(props: {
         source === null ? (
           ' '
         ) : (
-          <span title={source.full}>
+          <span data-tip={source.full}>
             {source.short}
             {' · '}
             {skill?.path === undefined ? t('skill.virtual') : <code>{skill.path}</code>}

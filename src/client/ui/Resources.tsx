@@ -114,7 +114,7 @@ export function StepResourcesField(props: {
           type="button"
           className={cx(ui.btn, ui.icon, ui.small, css.fileRowRemove)}
           aria-label={t('res.unlink')}
-          title={t('res.unlink')}
+          data-tip={t('res.unlink')}
           onClick={() => props.onEdit({ type: 'removeEdge', id: edge.id })}
         >
           <Icon name="x" size={13} />

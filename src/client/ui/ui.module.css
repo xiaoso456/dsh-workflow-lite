@@ -379,17 +379,13 @@
   background: var(--wl-line);
 }
 
-/* ── 悬停提示（纯 CSS）────────────────────────────────────── */
+/* ── 悬停提示（共用浮层，见 TipLayer.tsx）──────────────────── */
 
-.tip {
-  position: relative;
-}
-
-.tip::after {
+.tipLayer {
   position: absolute;
-  top: calc(100% + 8px);
-  left: 50%;
-  z-index: 40;
+  z-index: 50;
+  width: max-content;
+  max-width: min(320px, calc(100% - 16px));
   padding: 4px 8px;
   border-radius: 6px;
   background: var(--wl-tip);
@@ -397,48 +393,28 @@
   font-size: var(--wl-fs-micro);
   font-weight: 500;
   line-height: 1.5;
-  white-space: nowrap;
-  content: attr(data-tip);
-  opacity: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   pointer-events: none;
-  transform: translate(-50%, -3px);
-  transition:
-    opacity 120ms linear,
-    transform 120ms var(--wl-ease);
+  animation: tipIn 120ms var(--wl-ease);
 }
 
-.tip:hover::after,
-.tip:focus-visible::after {
-  opacity: 1;
-  transform: translate(-50%, 0);
-  transition-delay: 380ms;
+.tipLayer[data-up="true"] {
+  animation-name: tipInUp;
 }
 
-/* 靠右对齐：贴着右边缘的按钮用，免得提示伸出视图外被裁掉。 */
-.tipEnd::after {
-  right: 0;
-  left: auto;
-  transform: translate(0, -3px);
+@keyframes tipIn {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
 }
 
-.tipEnd:hover::after,
-.tipEnd:focus-visible::after {
-  transform: translate(0, 0);
-}
-
-.tipStart::after {
-  left: 0;
-  transform: translate(0, -3px);
-}
-
-.tipStart:hover::after,
-.tipStart:focus-visible::after {
-  transform: translate(0, 0);
-}
-
-.tipUp::after {
-  top: auto;
-  bottom: calc(100% + 8px);
+@keyframes tipInUp {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
 }
 
 /* ── 杂项 ─────────────────────────────────────────────────── */
@@ -522,14 +498,14 @@
 
 @media (prefers-reduced-motion: reduce) {
   .btn,
-  .segThumb,
-  .tip::after {
+  .segThumb {
     transition: none;
   }
 
   .popover,
   .rise,
-  .fade {
+  .fade,
+  .tipLayer {
     animation: none;
   }
 }

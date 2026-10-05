@@ -236,7 +236,7 @@ function ItemRow(props: {
       <button
         type="button"
         className={css.rowMain}
-        title={item.value.trim() === '' ? undefined : item.value.trim()}
+        data-tip={item.value.trim() === '' ? undefined : item.value.trim()}
         onClick={props.onOpen}
       >
         <span className={css.rowIcon} data-kind={item.kind}>
@@ -251,7 +251,7 @@ function ItemRow(props: {
               : where.text}
         </span>
         {note !== '' && (
-          <span className={css.rowNote} title={note}>
+          <span className={css.rowNote} data-tip={note}>
             {t('res.note')}
           </span>
         )}
@@ -260,7 +260,7 @@ function ItemRow(props: {
         type="button"
         className={cx(ui.btn, ui.icon, ui.small, ui.danger, css.rowRemove)}
         aria-label={t('res.removeItem')}
-        title={t('res.removeItem')}
+        data-tip={t('res.removeItem')}
         data-testid="wl-resource-item-remove"
         onClick={props.onRemove}
       >

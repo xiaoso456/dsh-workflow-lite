@@ -381,7 +381,7 @@ export function InputPanel(props: InputPanelProps): React.JSX.Element {
         <span className={ui.grow} />
         <button
           type="button"
-          className={cx(ui.btn, ui.icon, ui.small, ui.danger, ui.tip, ui.tipEnd, ui.tipUp)}
+          className={cx(ui.btn, ui.icon, ui.small, ui.danger)}
           data-tip={t('input.delete')}
           aria-label={t('input.delete')}
           data-testid="wl-delete-node"
