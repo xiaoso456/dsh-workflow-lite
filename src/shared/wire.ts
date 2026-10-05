@@ -408,6 +408,8 @@ export interface RunSaveRequest {
   edits: StateEdit[]
   /** 给模型的说明（可选）。 */
   note?: string
+  /** `false` = 只保存、不通知模型（也不暂存通知）；缺省通知。 */
+  notify?: boolean
   /** 改了图时：改之前那版的 planId 与改完的整张图（工作流设置不在实例里改，给了也不认）。 */
   graph?: { base: string; document: WorkflowDocument }
 }
@@ -417,7 +419,7 @@ export interface RunSaveResponse {
   mtime: number
   /** 改了图时：新图的 planId。 */
   planId?: string
-  /** 只改了不进计划的东西（挪卡片、描述），没有通知模型。 */
+  /** 没有通知模型：只改了不进计划的东西（挪卡片、描述），或者用户选了不通知。 */
   quiet?: true
 }
 

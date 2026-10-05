@@ -182,22 +182,6 @@
   font-size: var(--wl-fs-meta);
 }
 
-.confirm {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  padding: 4px 4px 4px 8px;
-  border-radius: var(--wl-r-control);
-  background: var(--wl-danger-soft);
-}
-
-.confirmText {
-  flex: 1 1 auto;
-  color: var(--wl-danger);
-  font-size: var(--wl-fs-meta);
-  font-weight: 500;
-}
-
 /* ── 右侧工具 ─────────────────────────────────────────────── */
 
 .tools {

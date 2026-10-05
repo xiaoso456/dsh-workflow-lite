@@ -19,6 +19,7 @@ import type { Workflow } from '../app/useWorkflow.ts'
 import type { T } from '../i18n.ts'
 import { type LibraryFocus, PRESETS, presetData, type StepSource } from '../model/library.ts'
 import { AppearancePicker } from './AppearancePicker.tsx'
+import { useConfirm } from './Confirm.tsx'
 import { Icon } from './Icon.tsx'
 import { DescriptionField } from './Inspector.tsx'
 import css from './inspector.module.css'
@@ -152,7 +153,7 @@ function MineEditor(
   )
   const [saved, setSaved] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
-  const [confirmDelete, setConfirmDelete] = useState(false)
+  const remove = useConfirm<HTMLButtonElement>()
   const nameRef = useRef<HTMLInputElement>(null)
 
   // 已存在的：从磁盘读一份（提示词空着的半成品也读得出来）。
@@ -345,78 +346,66 @@ function MineEditor(
       </div>
 
       <footer className={css.foot}>
-        {confirmDelete && original !== null ? (
-          <div className={cx(css.confirm, ui.rise)}>
-            <span className={css.confirmText}>{t('step.deleteConfirm')}</span>
-            <button
-              type="button"
-              className={cx(ui.btn, ui.small)}
-              onClick={() => setConfirmDelete(false)}
-            >
-              {t('common.cancel')}
-            </button>
-            <button
-              type="button"
-              className={cx(ui.btn, ui.small, ui.dangerSolid)}
-              data-testid="wl-step-delete-confirm"
-              onClick={() => {
-                // 删掉之后不要再走"离开时顺手保存"。
-                leaving.current = { ...leaving.current, dirty: false }
-                setSaved(snapshot(draft))
-                void wf.deleteTemplate(original).then((ok) => {
-                  if (ok) props.onFocus(null)
-                })
-              }}
-            >
-              {t('common.delete')}
-            </button>
-          </div>
-        ) : (
-          <>
-            <button
-              type="button"
-              className={cx(ui.btn, ui.small, ui.primary)}
-              disabled={!canSave}
-              data-testid="wl-step-save"
-              onClick={() => void save()}
-            >
-              <Icon name="check" size={14} />
-              {saving ? t('step.saving') : t('step.save')}
-            </button>
-            {original !== null && (
-              <button
-                type="button"
-                className={cx(ui.btn, ui.small, ui.soft)}
-                data-testid="wl-step-add"
-                onClick={() => {
-                  // 先把改动存下去，拖到画布上的才是现在看到的这一版。
-                  void (dirty ? save() : Promise.resolve(true)).then((ok) => {
-                    if (ok) props.onAddToCanvas({ kind: 'template', name: normalized })
-                  })
-                }}
-              >
-                <Icon name="plus" size={14} />
-                {t('step.addToCanvas')}
-              </button>
-            )}
-            <span className={css.saveState} data-dirty={dirty}>
-              {dirty ? t('step.unsaved') : ''}
-            </span>
-            <span className={ui.grow} />
-            {original !== null && (
-              <button
-                type="button"
-                className={cx(ui.btn, ui.icon, ui.small, ui.danger)}
-                data-tip={t('step.delete')}
-                aria-label={t('step.delete')}
-                data-testid="wl-step-delete"
-                onClick={() => setConfirmDelete(true)}
-              >
-                <Icon name="trash" size={15} />
-              </button>
-            )}
-          </>
+        <button
+          type="button"
+          className={cx(ui.btn, ui.small, ui.primary)}
+          disabled={!canSave}
+          data-testid="wl-step-save"
+          onClick={() => void save()}
+        >
+          <Icon name="check" size={14} />
+          {saving ? t('step.saving') : t('step.save')}
+        </button>
+        {original !== null && (
+          <button
+            type="button"
+            className={cx(ui.btn, ui.small, ui.soft)}
+            data-testid="wl-step-add"
+            onClick={() => {
+              // 先把改动存下去，拖到画布上的才是现在看到的这一版。
+              void (dirty ? save() : Promise.resolve(true)).then((ok) => {
+                if (ok) props.onAddToCanvas({ kind: 'template', name: normalized })
+              })
+            }}
+          >
+            <Icon name="plus" size={14} />
+            {t('step.addToCanvas')}
+          </button>
         )}
+        <span className={css.saveState} data-dirty={dirty}>
+          {dirty ? t('step.unsaved') : ''}
+        </span>
+        <span className={ui.grow} />
+        {original !== null && (
+          <button
+            ref={remove.anchorRef}
+            type="button"
+            className={cx(ui.btn, ui.icon, ui.small, ui.danger)}
+            data-tip={remove.open ? undefined : t('step.delete')}
+            aria-label={t('step.delete')}
+            aria-expanded={remove.open}
+            data-testid="wl-step-delete"
+            onClick={remove.toggle}
+          >
+            <Icon name="trash" size={15} />
+          </button>
+        )}
+        {original !== null &&
+          remove.render({
+            t,
+            title: t('step.deleteTitle').replace('{name}', original),
+            desc: t('step.deleteConfirm'),
+            confirmText: t('common.delete'),
+            testId: 'wl-step-delete-confirm',
+            onConfirm: () => {
+              // 删掉之后不要再走"离开时顺手保存"。
+              leaving.current = { ...leaving.current, dirty: false }
+              setSaved(snapshot(draft))
+              void wf.deleteTemplate(original).then((ok) => {
+                if (ok) props.onFocus(null)
+              })
+            },
+          })}
       </footer>
     </aside>
   )

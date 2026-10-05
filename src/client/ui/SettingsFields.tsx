@@ -208,11 +208,11 @@ function SwitchRow(props: {
         role="switch"
         aria-checked={props.checked}
         aria-label={props.title}
-        className={s.switch}
+        className={ui.switch}
         data-testid={props.testId}
         onClick={() => props.onChange(!props.checked)}
       >
-        <span className={s.knob} />
+        <span className={ui.knob} />
       </button>
     </label>
   )

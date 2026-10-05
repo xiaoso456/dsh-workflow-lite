@@ -388,26 +388,6 @@ button.wsButton[aria-expanded="true"] {
   font-size: var(--wl-fs-micro);
 }
 
-.confirm {
-  display: flex;
-  flex-wrap: wrap;
-  grid-column: 1 / -1;
-  gap: 8px;
-  align-items: center;
-  padding: 7px 8px 7px 12px;
-  border-radius: 8px;
-  background: var(--wl-danger-soft);
-  font-size: var(--wl-fs-meta);
-}
-
-.confirm label {
-  display: inline-flex;
-  gap: 6px;
-  align-items: center;
-  color: var(--wl-text-2);
-  cursor: pointer;
-}
-
 /* ── 空状态 ────────────────────────────────────────────────── */
 
 .empty {

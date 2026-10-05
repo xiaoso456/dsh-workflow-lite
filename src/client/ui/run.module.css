@@ -469,6 +469,17 @@
   font-size: var(--wl-fs-meta);
 }
 
+.notify {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  padding: 0 2px 0 4px;
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-meta);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
 .draftList {
   width: 380px;
   max-height: 320px;

@@ -426,23 +426,6 @@
   color: var(--wl-text-3);
 }
 
-.confirm {
-  display: flex;
-  flex: 1 1 auto;
-  gap: 6px;
-  align-items: center;
-  padding: 4px 4px 4px 10px;
-  border-radius: var(--wl-r-control);
-  background: var(--wl-danger-soft);
-}
-
-.confirmText {
-  flex: 1 1 auto;
-  color: var(--wl-danger);
-  font-size: var(--wl-fs-meta);
-  font-weight: 500;
-}
-
 .saveState {
   color: var(--wl-warn);
   font-size: var(--wl-fs-micro);

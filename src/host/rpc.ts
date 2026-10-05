@@ -378,7 +378,19 @@ async function dispatch(
         }
         graph = { base: requireString(raw, 'base'), document: parsed.document }
       }
-      const outcome = await deps.runs.save(id, optionalString(input, 'session'), edits, note, graph)
+      if (input.notify !== undefined && typeof input.notify !== 'boolean') {
+        throw new Error('notify must be a boolean')
+      }
+      const outcome = await deps.runs.save(
+        id,
+        optionalString(input, 'session'),
+        edits,
+        note,
+        graph,
+        {
+          notify: input.notify !== false,
+        },
+      )
       if (!outcome.ok) return failFrom(outcome.error)
       return ok(outcome.result)
     }

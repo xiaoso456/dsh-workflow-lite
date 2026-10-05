@@ -160,7 +160,7 @@ export interface SaveResult {
   mtime: number
   /** 改了图时：新图的 planId。 */
   planId?: string
-  /** 只改了不进计划的东西（挪卡片、描述）：没什么要告诉模型的。 */
+  /** 没有通知模型：只改了不进计划的东西（挪卡片、描述），或者用户选了不通知。 */
   quiet?: true
 }
 
@@ -1189,7 +1189,8 @@ export class RunService {
 
   /**
    * 保存用户在画布上攒的改动：逐条核对"改前"还是文件里的值（对不上整次拒绝、回冲突清单），
-   * 只改这几处、追加一条 `edit` 流水、更新 `updatedAt`，校验通过才原子写；然后通知模型。
+   * 只改这几处、追加一条 `edit` 流水、更新 `updatedAt`，校验通过才原子写；然后通知模型
+   * （`notify: false` 时不通知、也不暂存通知：模型下次读状态文件或 `resume` 时自己看到）。
    */
   async save(
     id: string,
@@ -1197,15 +1198,17 @@ export class RunService {
     edits: readonly StateEdit[],
     note: string | undefined,
     graph?: GraphEdit,
+    options: { notify?: boolean } = {},
   ): Promise<Outcome<SaveResult>> {
+    const notify = options.notify !== false
     return this.serial(id, async () => {
       if (!isInstanceId(id)) return fail<SaveResult>('invalid_args', `实例 id 不合法：${id}`)
       const index = await this.store.read()
       const record = index.instances.find((candidate) => candidate.id === id)
       if (record === undefined) return fail<SaveResult>('not_found', `实例 ${id} 不存在`)
       return graph === undefined
-        ? this.saveNow(record, session, edits, note)
-        : this.saveGraph(record, session, edits, note, graph)
+        ? this.saveNow(record, session, edits, note, notify)
+        : this.saveGraph(record, session, edits, note, graph, notify)
     })
   }
 
@@ -1214,6 +1217,7 @@ export class RunService {
     session: string | undefined,
     edits: readonly StateEdit[],
     note: string | undefined,
+    notify: boolean,
   ): Promise<Outcome<SaveResult>> {
     const id = record.id
     if (edits.length === 0) return fail('invalid_args', '没有要保存的改动')
@@ -1253,6 +1257,7 @@ export class RunService {
       )
     }
     const mtime = (await stat(statePath)).mtimeMs
+    if (!notify) return { ok: true, result: { notified: false, mtime, quiet: true } }
     const notified = await this.tell(record, session, {
       where: statePath,
       edits,
@@ -1354,6 +1359,7 @@ export class RunService {
     edits: readonly StateEdit[],
     note: string | undefined,
     graph: GraphEdit,
+    notify: boolean,
   ): Promise<Outcome<SaveResult>> {
     const bad = edits.find((edit) => !editablePath(edit.path))
     if (bad !== undefined)
@@ -1477,7 +1483,7 @@ export class RunService {
     // 任务描述换成新图的；写不进去也不要紧，模型 resume 时会再写一遍。
     await this.planOf(updated, next, record.cwd).catch(() => undefined)
     const mtime = record.statePath === undefined ? 0 : (await stat(record.statePath)).mtimeMs
-    const quiet = graphLines.length === 0 && edits.length === 0
+    const quiet = !notify || (graphLines.length === 0 && edits.length === 0)
     const notified = quiet
       ? false
       : await this.tell(updated, session, {

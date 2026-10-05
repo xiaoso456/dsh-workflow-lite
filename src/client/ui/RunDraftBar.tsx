@@ -1,13 +1,14 @@
 /**
- * dsh-workflow-lite — 实例视图底部的草稿栏：「已改 x 处 · 改动清单 · 给模型的说明 · 放弃 · 保存并通知模型」。
+ * dsh-workflow-lite — 实例视图底部的草稿栏：「已改 x 处 · 改动清单 · 给模型的说明 · 通知模型（开关）· 放弃 · 保存」。
  *
  * 图的改动与状态的改动攒在一起：清单里图的在前（一处一行），状态的在后（一个字段一行），每行都能单独撤回；
  * 冲突（模型同时改了同一个字段）排在最前面，让用户选。保存不了的时候按钮按住，悬停说明原因。
+ * 「通知模型」默认开着；关掉就只保存。「放弃」要二次确认，确认卡浮在按钮旁边，栏里的东西不挪位。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/RunDraftBar
  */
 
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import type { GraphChange } from '../../shared/graphDiff.ts'
 import { idKey, isInput, isResource } from '../../shared/model.ts'
 import { resourceTitle } from '../../shared/resources.ts'
@@ -16,6 +17,7 @@ import type { WorkflowDocument } from '../../shared/types.ts'
 import type { Run } from '../app/useRuns.ts'
 import type { LocaleKey, T } from '../i18n.ts'
 import { RUN_TEXT } from './Canvas.tsx'
+import { useConfirm } from './Confirm.tsx'
 import { Icon } from './Icon.tsx'
 import { cx, Popover } from './primitives.tsx'
 import { RUN_STATUS_TEXT } from './RunTopBar.tsx'
@@ -138,7 +140,8 @@ export function DraftBar(props: {
 }): React.JSX.Element {
   const { t, current } = props
   const [open, setOpen] = useState(false)
-  const [confirm, setConfirm] = useState(false)
+  const discard = useConfirm<HTMLButtonElement>()
+  const notifyId = useId()
   return (
     <div className={run.draftSeat} data-panel={props.panel}>
       <div className={cx(ui.panel, run.draft, ui.rise)} data-testid="wl-run-draft">
@@ -233,32 +236,39 @@ export function DraftBar(props: {
             if (event.key === 'Enter' && props.blocked === null) props.onSave()
           }}
         />
-        {confirm ? (
-          <>
-            <span className={run.draftCount}>{t('run.discardConfirm')}</span>
-            <button
-              type="button"
-              className={cx(ui.btn, ui.small)}
-              onClick={() => setConfirm(false)}
-            >
-              {t('common.cancel')}
-            </button>
-            <button
-              type="button"
-              className={cx(ui.btn, ui.small, ui.dangerSolid)}
-              onClick={() => {
-                setConfirm(false)
-                props.onDiscard()
-              }}
-            >
-              {t('run.discard')}
-            </button>
-          </>
-        ) : (
-          <button type="button" className={cx(ui.btn, ui.small)} onClick={() => setConfirm(true)}>
-            {t('run.discard')}
+        <label className={run.notify} htmlFor={notifyId} data-tip={t('run.notifyTip')}>
+          <button
+            id={notifyId}
+            type="button"
+            role="switch"
+            aria-checked={current.notify}
+            className={ui.switch}
+            data-testid="wl-run-notify"
+            onClick={() => current.setNotify(!current.notify)}
+          >
+            <span className={ui.knob} />
           </button>
-        )}
+          {t('run.notify')}
+        </label>
+        <span className={ui.divider} />
+        <button
+          ref={discard.anchorRef}
+          type="button"
+          className={cx(ui.btn, ui.small)}
+          aria-expanded={discard.open}
+          data-testid="wl-run-discard"
+          onClick={discard.toggle}
+        >
+          {t('run.discard')}
+        </button>
+        {discard.render({
+          t,
+          title: t('run.discardConfirm'),
+          desc: t('run.discardDesc'),
+          confirmText: t('run.discard'),
+          testId: 'wl-run-discard-confirm',
+          onConfirm: props.onDiscard,
+        })}
         <button
           type="button"
           className={cx(ui.btn, ui.small, ui.primary)}

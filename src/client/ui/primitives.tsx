@@ -249,12 +249,16 @@ export type FloatState = 'off' | 'hover' | 'pinned'
  * - 鼠标可以从触发器移进浮层：离开触发器后稍等一下再收，进了浮层就不收；浮层接住指针，
  *   里面的文字能选中复制，点击不会穿透到后面。
  * - 在触发器与浮层之外按下指针、滚动、滚轮缩放画布都收起；Esc 只收浮层。
- * - 先按"触发器正下方、左边对齐"放，量出高度后下面放不下就翻到上方，左右夹在视图里。
+ * - 先按"触发器正下方、左边对齐"放（`align: 'end'` 右边对齐；`'auto'` 触发器在视图右半边就右对齐），
+ *   量出高度后下面放不下就翻到上方，左右夹在视图里。
  */
 export function useFloat<A extends HTMLElement>(options: {
   openMs: number
   closeMs: number
   width: number
+  align?: 'start' | 'end' | 'auto'
+  /** 与触发器的间距，缺省 6。 */
+  gap?: number
 }): {
   state: FloatState
   setState: (next: FloatState | ((current: FloatState) => FloatState)) => void
@@ -270,6 +274,8 @@ export function useFloat<A extends HTMLElement>(options: {
     className: string
     testId?: string | undefined
     label?: string
+    /** 默认 `tooltip`；二次确认这类要操作的浮层用 `alertdialog`。 */
+    role?: 'tooltip' | 'alertdialog'
     children: React.ReactNode
   }) => React.ReactNode
 } {
@@ -279,7 +285,7 @@ export function useFloat<A extends HTMLElement>(options: {
   const [state, setState] = useState<FloatState>('off')
   const [place, setPlace] = useState<{ left: number; top: number; up: boolean } | null>(null)
   const timer = useRef(0)
-  const { openMs, closeMs, width } = options
+  const { openMs, closeMs, width, align = 'start', gap = FLOAT_GAP } = options
 
   const cancel = (): void => window.clearTimeout(timer.current)
   const later = (next: 'off' | 'hover', ms: number): void => {
@@ -299,11 +305,14 @@ export function useFloat<A extends HTMLElement>(options: {
     const box = anchor.getBoundingClientRect()
     const area = root.getBoundingClientRect()
     const height = panelRef.current?.offsetHeight ?? 0
-    const left = Math.max(8, Math.min(box.left - area.left - 8, area.width - width - 8))
-    const below = box.bottom - area.top + FLOAT_GAP
-    const up = below + height > area.height - 8 && box.top - area.top - FLOAT_GAP - height > 8
-    setPlace({ left, top: up ? box.top - area.top - FLOAT_GAP - height : below, up })
-  }, [state, host, width])
+    const end =
+      align === 'end' || (align === 'auto' && box.left + box.width / 2 - area.left > area.width / 2)
+    const wanted = end ? box.right - area.left - width : box.left - area.left - 8
+    const left = Math.max(8, Math.min(wanted, area.width - width - 8))
+    const below = box.bottom - area.top + gap
+    const up = below + height > area.height - 8 && box.top - area.top - gap - height > 8
+    setPlace({ left, top: up ? box.top - area.top - gap - height : below, up })
+  }, [state, host, width, align, gap])
 
   useEffect(() => {
     if (state === 'off') return
@@ -345,10 +354,12 @@ export function useFloat<A extends HTMLElement>(options: {
   const render: ReturnType<typeof useFloat>['render'] = (props) => {
     if (state === 'off') return null
     const panel = (
+      // biome-ignore lint/a11y/noStaticElementInteractions: role 由调用方给（tooltip / alertdialog），静态分析看不出
+      // biome-ignore lint/a11y/useAriaPropsSupportedByRole: 同上，两种 role 都支持 aria-label
       <div
         ref={panelRef}
         className={props.className}
-        role="tooltip"
+        role={props.role ?? 'tooltip'}
         aria-label={props.label}
         // 可聚焦（不进 Tab 序）：在浮层里点一下选文字时，焦点移进来而不是丢掉。
         tabIndex={-1}

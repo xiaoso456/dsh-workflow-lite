@@ -3,7 +3,7 @@
  * 旧版本遗留文件）就地清。
  *
  * - 打开时统计一次，之后只在清理时重算——不跟着外面的重绘重拉（外面重绘很频繁，跟着拉会让按钮一直闪）。
- * - 清理已结束的实例要再点一次确认；旧版本遗留文件没人用，点一下就删，删完这一行就不显示了。
+ * - 清理已结束的实例要再确认一次（确认卡浮在按钮旁边）；旧版本遗留文件没人用，点一下就删，删完这一行就不显示了。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/HubStorage
  */
@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { StorageStats } from '../../shared/wire.ts'
 import type { T } from '../i18n.ts'
 import { errorMessage, type WorkflowLiteRpc } from '../rpc.ts'
+import { useConfirm } from './Confirm.tsx'
 import hub from './hub.module.css'
 import { Icon, type IconName } from './Icon.tsx'
 import { copyText, cx } from './primitives.tsx'
@@ -35,7 +36,7 @@ export function HubStorage(props: {
   const [stats, setStats] = useState<StorageStats | null>(null)
   const [busy, setBusy] = useState<Action | null>(null)
   const [notice, setNotice] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null)
-  const [confirmFinished, setConfirmFinished] = useState(false)
+  const clearFinished = useConfirm<HTMLButtonElement>()
   const [copied, setCopied] = useState(false)
 
   const outer = useRef(props)
@@ -136,40 +137,27 @@ export function HubStorage(props: {
             desc={t('hub.instancesDesc')}
             testId="wl-hub-instances"
           >
-            {confirmFinished && stats.finished > 0 ? (
-              <>
-                <button
-                  type="button"
-                  className={cx(ui.btn, ui.small)}
-                  onClick={() => setConfirmFinished(false)}
-                >
-                  {t('common.cancel')}
-                </button>
-                <button
-                  type="button"
-                  className={cx(ui.btn, ui.small, ui.dangerSolid)}
-                  disabled={busy !== null}
-                  data-testid="wl-hub-clear-finished-confirm"
-                  onClick={() => {
-                    setConfirmFinished(false)
-                    void act('clearFinished')
-                  }}
-                >
-                  {t('hub.clearFinishedConfirm').replace('{n}', String(stats.finished))}
-                </button>
-              </>
-            ) : (
-              <button
-                type="button"
-                className={cx(ui.btn, ui.small, ui.soft)}
-                disabled={busy !== null || stats.finished === 0}
-                data-tip={t('hub.clearFinishedHint')}
-                data-testid="wl-hub-clear-finished"
-                onClick={() => setConfirmFinished(true)}
-              >
-                {t('hub.clearFinished')}
-              </button>
-            )}
+            <button
+              ref={clearFinished.anchorRef}
+              type="button"
+              className={cx(ui.btn, ui.small, ui.soft)}
+              disabled={busy !== null || stats.finished === 0}
+              aria-expanded={clearFinished.open}
+              data-tip={clearFinished.open ? undefined : t('hub.clearFinishedHint')}
+              data-testid="wl-hub-clear-finished"
+              onClick={clearFinished.toggle}
+            >
+              {t('hub.clearFinished')}
+            </button>
+            {clearFinished.render({
+              t,
+              title: t('hub.clearFinishedTitle').replace('{n}', String(stats.finished)),
+              desc: t('hub.clearFinishedHint'),
+              confirmText: t('hub.clearFinishedConfirm').replace('{n}', String(stats.finished)),
+              testId: 'wl-hub-clear-finished-confirm',
+              disabled: busy !== null,
+              onConfirm: () => void act('clearFinished'),
+            })}
           </Item>
           {stats.dispatchFiles > 0 && (
             <Item

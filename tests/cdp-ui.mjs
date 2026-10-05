@@ -1007,6 +1007,13 @@ async function run(session) {
   await waitFor(session, exists('wl-step-delete'))
   await session.evaluate(clickTestId('wl-step-delete'))
   await waitFor(session, exists('wl-step-delete-confirm'))
+  // 确认卡浮在删除按钮旁边，「保存」等按钮原地不动。
+  check(
+    await session.evaluate(exists('wl-step-save')),
+    '点删除后底栏的「保存」应还在原处（确认卡是浮层，不替换底栏）',
+  )
+  await sleep(200)
+  await screenshot(session, 'ui-19b-step-delete-confirm.png')
   await session.evaluate(clickTestId('wl-step-delete-confirm'))
   await waitFor(
     session,
@@ -1073,6 +1080,18 @@ async function run(session) {
   await session.evaluate(clickTestId('wl-switcher'))
   await waitFor(session, exists('wl-delete'))
   await session.evaluate(clickTestId('wl-delete'))
+  // 菜单收起，确认卡挂在名字按钮下面。
+  await waitFor(session, exists('wl-delete-confirm-pop'))
+  check(
+    await session.evaluate(`(() => {
+      const pop = document.querySelector('[data-testid="wl-delete-confirm-pop"]').getBoundingClientRect();
+      const anchor = document.querySelector('[data-testid="wl-switcher"]').getBoundingClientRect();
+      return pop.top >= anchor.bottom && Math.abs(pop.left - (anchor.left - 8)) < 2;
+    })()`),
+    '删除工作流的确认卡应挂在名字按钮下面',
+  )
+  await sleep(200)
+  await screenshot(session, 'ui-25b-delete-confirm.png')
   await waitFor(session, exists('wl-delete-confirm'))
   await session.evaluate(clickTestId('wl-delete-confirm'))
   await waitFor(session, exists('wl-welcome'))

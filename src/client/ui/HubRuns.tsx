@@ -35,7 +35,6 @@ export function HubRuns(props: {
   const [query, setQuery] = useState('')
   const [workspace, setWorkspace] = useState('all')
   const [scope, setScope] = useState<'mine' | 'all'>('all')
-  const [confirm, setConfirm] = useState<string | null>(null)
 
   // `runs` 每次重绘都是新对象：放进 ref，免得 load 跟着变、effect 跟着重跑。
   const runsRef = useRef(props.runs)
@@ -170,13 +169,9 @@ export function HubRuns(props: {
                     item={item}
                     session={sessionLabel(item.session)}
                     canMove={session !== undefined && item.session !== session}
-                    confirming={confirm === item.id}
                     onView={() => props.onOpenRun(item.id)}
                     onMove={() => void runsRef.current.bind(item.id).then(() => load())}
-                    onAskDelete={() => setConfirm(item.id)}
-                    onCancelDelete={() => setConfirm(null)}
                     onDelete={(withState) => {
-                      setConfirm(null)
                       void runsRef.current.remove(item.id, withState).then(() => load())
                     }}
                   />

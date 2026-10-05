@@ -326,6 +326,25 @@ describe('保存用户的改动', () => {
     expect(notified[0]?.text).toContain('用户的说明：方案要先确认')
   })
 
+  it('只改状态、选了不通知：照样写文件与流水，不通知', async () => {
+    const { id, statePath } = await started()
+    const outcome = await runs.save(
+      id,
+      's1',
+      [{ path: ['note'], from: null, to: '先别修' }],
+      undefined,
+      undefined,
+      { notify: false },
+    )
+    if (!outcome.ok) throw new Error(outcome.error.message)
+    expect(outcome.result).toMatchObject({ notified: false, quiet: true })
+    const state = parse(await readFile(statePath, 'utf8'))
+    expect(state.note).toBe('先别修')
+    expect(state.log.at(-1)).toMatchObject({ event: 'edit', by: 'user' })
+    expect(notified).toEqual([])
+    expect(await runs.takeNotices('s1')).toEqual([])
+  })
+
   it('模型在用户开始改之后改了同一个字段：整次拒绝、回冲突清单、文件不动', async () => {
     const { id, statePath } = await started()
     const before = await readFile(statePath, 'utf8')
@@ -456,6 +475,28 @@ describe('保存用户改的图', () => {
     if (!resumed.ok) throw new Error(resumed.error.message)
     expect(resumed.result.planId).toBe(planId)
     expect(Object.keys(resumed.result.payloadPaths)).toContain('lint')
+  })
+
+  it('选了不通知：图和状态照样存、记流水，但不发给模型、也不暂存通知', async () => {
+    const { id, statePath, loaded } = await tracked()
+    const outcome = await runs.save(
+      id,
+      's1',
+      [{ path: ['note'], from: null, to: '先存着' }],
+      undefined,
+      { base: loaded.summary.planId, document: withStep(loaded.document) },
+      { notify: false },
+    )
+    if (!outcome.ok) throw new Error(outcome.error.message)
+    expect(outcome.result).toMatchObject({ notified: false, quiet: true })
+    const state = parse(await readFile(statePath, 'utf8'))
+    expect(state.nodes.lint).toEqual({ status: 'pending' })
+    expect(state.note).toBe('先存着')
+    expect(
+      state.log.some((entry: { detail?: string }) => entry.detail?.startsWith('改了图：')),
+    ).toBe(true)
+    expect(notified).toEqual([])
+    expect(await runs.takeNotices('s1')).toEqual([])
   })
 
   it('执行过的步骤不能删；没执行过的可以，状态跟着去掉', async () => {

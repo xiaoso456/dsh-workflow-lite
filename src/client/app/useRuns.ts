@@ -141,6 +141,9 @@ export interface Run {
   overwritten: string[][]
   note: string
   setNote(note: string): void
+  /** 保存时通知模型没有（默认通知；关掉就只保存）。 */
+  notify: boolean
+  setNotify(notify: boolean): void
   saving: boolean
   error: string | null
   toast: RunToast | null
@@ -216,6 +219,7 @@ export function useRun(
   const [lastGood, setLastGood] = useState<RunState | null>(null)
   const [draft, setDraft] = useState<StateEdit[]>(() => readDraft(id).edits)
   const [note, setNote] = useState(() => readDraft(id).note)
+  const [notify, setNotify] = useState(true)
   const [conflicts, setConflicts] = useState<DraftConflict[]>([])
   const [overwritten, setOverwritten] = useState<string[][]>([])
   const [saving, setSaving] = useState(false)
@@ -319,6 +323,7 @@ export function useRun(
     const stored = readDraft(id)
     resetDraft(stored.edits)
     setNote(stored.note)
+    setNotify(true)
     void load(true)
   }, [id, load, resetDraft])
 
@@ -445,6 +450,7 @@ export function useRun(
           edits,
           ...(note.trim() === '' ? {} : { note: note.trim() }),
           ...(graph === undefined ? {} : { graph }),
+          ...(notify ? {} : { notify: false }),
         })
         saved.current = edits
         setOverwritten([])
@@ -453,11 +459,13 @@ export function useRun(
         setConflicts([])
         flash(
           'ok',
-          result.quiet === true
-            ? t('run.savedQuiet')
-            : result.notified
-              ? t('run.savedNotified')
-              : t('run.savedPending'),
+          !notify
+            ? t('run.savedSilent')
+            : result.quiet === true
+              ? t('run.savedQuiet')
+              : result.notified
+                ? t('run.savedNotified')
+                : t('run.savedPending'),
         )
         await load(true)
         onSaved?.()
@@ -478,7 +486,7 @@ export function useRun(
         setSaving(false)
       }
     },
-    [rpc, id, session, note, saving, flash, t, load, onSaved, resetDraft],
+    [rpc, id, session, note, notify, saving, flash, t, load, onSaved, resetDraft],
   )
 
   const shown = useMemo(() => (base === null ? null : applyDraft(base, draft)), [base, draft])
@@ -496,6 +504,8 @@ export function useRun(
     overwritten,
     note,
     setNote,
+    notify,
+    setNotify,
     saving,
     error,
     toast,

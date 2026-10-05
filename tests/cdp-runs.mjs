@@ -721,6 +721,66 @@ try {
   check((await session.evaluate(chipOf('review'))) === 'pending', '重跑后 review 应回到待执行')
   check((await session.evaluate(chipOf('fix'))) === 'pending', '下游 fix 也应回到待执行')
   check((await session.evaluate(chipOf('scan'))) === 'done', '上游 scan 不动')
+
+  // 「放弃」的二次确认浮在按钮旁边：栏里的按钮一个都不挪；取消后草稿还在。
+  const barLayout = `[...document.querySelectorAll('[data-testid="wl-run-draft"] button, [data-testid="wl-run-draft"] input')].map((el) => { const r = el.getBoundingClientRect(); return Math.round(r.left) + ',' + Math.round(r.top) + ',' + Math.round(r.width) }).join(' ')`
+  // 草稿栏刚冒出来，等它的入场动画走完再量。
+  await sleep(300)
+  const layoutBefore = await session.evaluate(barLayout)
+  await mouseClick(session, await centerOf(session, '[data-testid="wl-run-discard"]'))
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-run-discard-confirm-pop"]') !== null`,
+  )
+  // 等入场动画（transform）走完再量位置。
+  await sleep(250)
+  const layoutAfter = await session.evaluate(barLayout)
+  check(
+    layoutAfter === layoutBefore,
+    `点「放弃」后草稿栏里的东西不该挪位：${layoutBefore} → ${layoutAfter}`,
+  )
+  check(
+    await session.evaluate(`(() => {
+      const pop = document.querySelector('[data-testid="wl-run-discard-confirm-pop"]').getBoundingClientRect();
+      const bar = document.querySelector('[data-testid="wl-run-draft"]').getBoundingClientRect();
+      return pop.bottom <= bar.top;
+    })()`),
+    '草稿栏在底部：确认卡应浮在它上面',
+  )
+  check(
+    (await session.evaluate(`document.activeElement?.dataset.confirm`)) === 'cancel',
+    '确认卡打开时焦点应落在「取消」上',
+  )
+  await screenshot(session, 'runs-07b-discard-confirm.png')
+  await session.evaluate(
+    `document.querySelector('[data-testid="wl-run-discard-confirm-pop"] [data-confirm="cancel"]').click()`,
+  )
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-run-discard-confirm-pop"]') === null && document.querySelector('[data-testid="wl-run-draft"]') !== null`,
+  )
+
+  // 关掉「通知模型」再保存：照样落盘，不发也不暂存通知。
+  const noticeBefore = JSON.parse(
+    await readFile(join(DATA_DIR, 'instances.json'), 'utf8'),
+  ).instances.find((item) => item.id === instance).pendingNotice
+  check(
+    (await session.evaluate(
+      `document.querySelector('[data-testid="wl-run-notify"]').getAttribute('aria-checked')`,
+    )) === 'true',
+    '「通知模型」默认开着',
+  )
+  check(
+    (await session.evaluate(
+      `document.querySelector('[data-testid="wl-run-save"]').textContent`,
+    )) === '保存',
+    '保存按钮就叫「保存」',
+  )
+  await session.evaluate(`document.querySelector('[data-testid="wl-run-notify"]').click()`)
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-run-notify"]').getAttribute('aria-checked') === 'false'`,
+  )
   await session.evaluate(`document.querySelector('[data-testid="wl-run-save"]').click()`)
   await waitFor(session, `document.querySelector('[data-testid="wl-run-draft"]') === null`, {
     timeoutMs: 8000,
@@ -730,7 +790,19 @@ try {
     rerun.nodes.review.status === 'pending' && rerun.nodes.review.verdict === undefined,
     'review 改回待执行并清掉判定',
   )
-  pass('「重跑这一步」→ 它与下游做过的步骤改回待执行，保存落盘')
+  check(
+    JSON.parse(await readFile(join(DATA_DIR, 'instances.json'), 'utf8')).instances.find(
+      (item) => item.id === instance,
+    ).pendingNotice === noticeBefore,
+    '不通知：索引里暂存的通知不该多出这次',
+  )
+  check(
+    (await session.evaluate(`document.body.innerText`)).includes('没有通知模型'),
+    '提示应说明这次没有通知模型',
+  )
+  pass(
+    '「重跑这一步」→ 它与下游做过的步骤改回待执行；「放弃」确认卡浮在上方、栏不挪位；关掉「通知模型」保存 → 落盘不通知',
+  )
 
   // 8b) 改图：右栏切到「编辑」改提示词 → 草稿栏多一处图的改动；执行过的步骤删不掉；
   // 保存 → 快照、planId、状态里的 plan、任务描述都换新，通知（暂存）让模型去 resume。
@@ -825,6 +897,14 @@ try {
     (await session.evaluate(`document.body.innerText`)).includes('执行过的步骤不能删'),
     '删执行过的步骤应提示改成跳过',
   )
+  // 上一步关掉的「通知模型」在这个实例里一直关着：这次打开再存。
+  check(
+    (await session.evaluate(
+      `document.querySelector('[data-testid="wl-run-notify"]').getAttribute('aria-checked')`,
+    )) === 'false',
+    '同一个实例里「通知模型」的开关应保持上次的选择',
+  )
+  await session.evaluate(`document.querySelector('[data-testid="wl-run-notify"]').click()`)
   await session.evaluate(`document.querySelector('[data-testid="wl-run-save"]').click()`)
   await waitFor(session, `document.querySelector('[data-testid="wl-run-draft"]') === null`, {
     timeoutMs: 8000,
@@ -950,12 +1030,32 @@ try {
   pass('工作流中心「移到本会话」→ 只属于本会话、成为当前实例、流水记 transfer')
 
   // 10) 删除：记录、快照、状态文件都没了。
-  await session.evaluate(
-    `document.querySelector('[data-testid="wl-hub-row"][data-id="${instance}"] [data-testid="wl-hub-delete"]').click()`,
+  // 确认卡浮在删除按钮旁边：列表里的行不挪位。
+  const rowsLayout = `[...document.querySelectorAll('[data-testid="wl-hub-row"]')].map((el) => { const r = el.getBoundingClientRect(); return Math.round(r.top) + ':' + Math.round(r.height) }).join(' ')`
+  const rowsBefore = await session.evaluate(rowsLayout)
+  await mouseClick(
+    session,
+    await centerOf(
+      session,
+      `[data-testid="wl-hub-row"][data-id="${instance}"] [data-testid="wl-hub-delete"]`,
+    ),
   )
-  await session.evaluate(
-    `(() => { const box = document.querySelector('[data-testid="wl-hub-row"][data-id="${instance}"] input[type="checkbox"]'); box.click(); })()`,
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-hub-delete-confirm-pop"]') !== null`,
   )
+  await sleep(250)
+  check((await session.evaluate(rowsLayout)) === rowsBefore, '点删除后列表里的行不该挪位')
+  check(
+    await session.evaluate(`(() => {
+      const pop = document.querySelector('[data-testid="wl-hub-delete-confirm-pop"]').getBoundingClientRect();
+      const button = document.querySelector('[data-testid="wl-hub-row"][data-id="${instance}"] [data-testid="wl-hub-delete"]').getBoundingClientRect();
+      return Math.abs(pop.right - button.right) < 2;
+    })()`),
+    '删除按钮在右边：确认卡应和它右边对齐',
+  )
+  await session.evaluate(`document.querySelector('[data-testid="wl-hub-delete-state"]').click()`)
+  await screenshot(session, 'runs-10-hub-delete-confirm.png')
   await session.evaluate(`document.querySelector('[data-testid="wl-hub-delete-confirm"]').click()`)
   await waitFor(
     session,
