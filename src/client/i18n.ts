@@ -159,10 +159,6 @@ export const zh = {
   'preset.scan.prompt':
     '先把现状摸清楚：读相关代码/文档，把事实与假设分开列出来。\n不要修改任何文件。',
   'preset.scan.rule': '一份现状说明：关键文件路径、现状行为、可疑点；事实与假设分开写。',
-  'preset.plan.label': '拆解',
-  'preset.plan.desc': '列出有序的任务清单',
-  'preset.plan.prompt': '基于上游产出（若有）拆解本次要做的事。\n不要开始实现。',
-  'preset.plan.rule': '有序的任务清单：每条写清改哪个文件、验收标准是什么。',
   'preset.implement.label': '实现',
   'preset.implement.desc': '按计划动手改',
   'preset.implement.prompt': '按上游的计划实现。\n改完自己跑一遍验证命令并把结果贴出来。',
@@ -180,7 +176,7 @@ export const zh = {
     '按 review.md 的问题清单逐条修复：修好的条目在原文件里打钩 [x]，修不了的在条目下写明原因；改法与验证结果写进 fix-notes.md。',
   'starter.recheckNote': '重新审查时对照 review.md 里的勾选与 fix-notes.md，逐条确认真的修好了。',
   'starter.askGoal': '这次要做什么？',
-  'starter.askGoalHint': '一两句话说清目标和范围，侦察和拆解都照着它来。',
+  'starter.askGoalHint': '一两句话说清目标和范围，侦察和实现都照着它来。',
   'starter.askGoalPlaceholder': '比如：给导出功能加上 CSV 格式',
   'starter.askStrict': '审查要多严格？',
   'starter.askStrictHint': '严格 = 小问题也记成未通过。',
@@ -1068,12 +1064,6 @@ export const en: Record<LocaleKey, string> = {
     'Establish the current state first: read the relevant code and docs, and list facts separately from assumptions.\nDo not modify any file.',
   'preset.scan.rule':
     'A state-of-play note: key file paths, current behaviour, suspicious spots; facts kept apart from assumptions.',
-  'preset.plan.label': 'Break down',
-  'preset.plan.desc': 'Produce an ordered task list',
-  'preset.plan.prompt':
-    'Break the work down, building on the upstream output if there is one.\nDo not start implementing.',
-  'preset.plan.rule':
-    'An ordered task list; each task names the file to change and its acceptance criterion.',
   'preset.implement.label': 'Implement',
   'preset.implement.desc': 'Make the changes per the plan',
   'preset.implement.prompt':
@@ -1097,7 +1087,8 @@ export const en: Record<LocaleKey, string> = {
   'starter.recheckNote':
     'When re-reviewing, check the ticks in review.md against fix-notes.md and confirm each fix for real.',
   'starter.askGoal': 'What should this run do?',
-  'starter.askGoalHint': 'One or two sentences on goal and scope; scouting and planning follow it.',
+  'starter.askGoalHint':
+    'One or two sentences on goal and scope; scouting and implementing follow it.',
   'starter.askGoalPlaceholder': 'e.g. add CSV to the export feature',
   'starter.askStrict': 'How strict should the review be?',
   'starter.askStrictHint': 'Strict = even small issues fail the review.',

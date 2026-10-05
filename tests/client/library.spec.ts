@@ -114,7 +114,6 @@ describe('示例流程的文件与交接', () => {
     const files = nodes.filter(isResource).filter((node) => node.data.label === undefined)
     expect(files.map((node) => node.data.items[0]?.value)).toEqual([
       'scan-notes.md',
-      'plan.md',
       'changes.md',
       'review.md',
       'fix-notes.md',
@@ -162,7 +161,7 @@ describe('示例流程的文件与交接', () => {
       ['ask-goal', 'textarea'],
       ['ask-strict', 'choice'],
     ])
-    expect(linked('ask-goal')).toEqual(['scan', 'plan'])
+    expect(linked('ask-goal')).toEqual(['scan', 'implement'])
     expect(linked('ask-strict')).toEqual(['review'])
     const context = nodes.find((node) => node.id === 'res-context')
     expect(

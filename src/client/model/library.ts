@@ -43,14 +43,6 @@ export const PRESETS: readonly StepPreset[] = [
     output: 'scan-notes.md',
   },
   {
-    id: 'plan',
-    labelKey: 'preset.plan.label',
-    descKey: 'preset.plan.desc',
-    promptKey: 'preset.plan.prompt',
-    ruleKey: 'preset.plan.rule',
-    output: 'plan.md',
-  },
-  {
     id: 'implement',
     labelKey: 'preset.implement.label',
     descKey: 'preset.implement.desc',
@@ -140,10 +132,10 @@ export function presetData(preset: StepPreset, t: T): NodeData {
 }
 
 /**
- * 示例流程：侦察 → 拆解 → 实现 → 审查，通过去汇总，未通过去修复再回到审查。
+ * 示例流程：侦察 → 实现 → 审查，通过去汇总，未通过去修复再回到审查。
  * 一次把能用的东西都摆出来，比任何说明文字都快：
  * - 顺序、条件分支（通过 / 未通过）、循环（修完回到审查），线上附交接说明；
- * - 用户输入：执行前问「这次要做什么」（多行文字、必填，交给侦察与拆解）和「审查要多严格」（单选，交给审查）；
+ * - 用户输入：执行前问「这次要做什么」（多行文字、必填，交给侦察与实现）和「审查要多严格」（单选，交给审查）；
  * - 资源：每一步的产出挂在它右下方；审查报告由修复在原文件上打钩、汇总读它的最终版；
  *   「项目资料」一张卡放文件夹、文件、网址三项，侦察和实现都读它；
  *   「团队约定」是一段自定义提示词，一条线都不连 = 交给每一步；
@@ -164,12 +156,11 @@ export function starterGraph(t: T): {
   // 第 0 列放执行前要问的、几步都要看的；步骤从第 1 列排起。
   const at: Record<string, [number, number]> = {
     scan: [x(1), 120],
-    plan: [x(2), 120],
-    implement: [x(3), 120],
-    review: [x(4), 120],
-    report: [x(5), 120],
+    implement: [x(2), 120],
+    review: [x(3), 120],
+    report: [x(4), 120],
     // 修复放在汇总下面、资源那一排再往下：未通过的线往下走，修完的回线回到审查。
-    fix: [x(5), 520],
+    fix: [x(4), 520],
   }
   const nodes: WorkflowNode[] = [
     {
@@ -188,7 +179,7 @@ export function starterGraph(t: T): {
       // 审查前头、步骤那一排上方：回答只交给审查。
       id: 'ask-strict',
       type: INPUT_TYPE,
-      position: { x: x(3) + NODE_W / 2, y: -40 },
+      position: { x: x(2) + NODE_W / 2, y: -40 },
       data: {
         question: t('starter.askStrict'),
         kind: 'choice',
@@ -252,15 +243,13 @@ export function starterGraph(t: T): {
     edges.push({ source: preset.id, target: resourceId })
   }
   edges.push(
-    { source: 'scan', target: 'plan' },
-    { source: 'plan', target: 'implement' },
+    { source: 'scan', target: 'implement' },
     { source: 'implement', target: 'review' },
     { source: 'review', target: 'report', when: 'pass' },
     { source: 'review', target: 'fix', when: 'fail', handoff: { note: t('starter.fixNote') } },
     { source: 'fix', target: 'review', handoff: { note: t('starter.recheckNote') } },
     // 读：每一步读上一步的产出；审查报告被修复就地更新，汇总读它的最终版。
-    { source: 'res-scan-notes', target: 'plan' },
-    { source: 'res-plan', target: 'implement' },
+    { source: 'res-scan-notes', target: 'implement' },
     { source: 'res-changes', target: 'review' },
     { source: 'fix', target: 'res-review', update: true },
     { source: 'res-review', target: 'report' },
@@ -269,7 +258,7 @@ export function starterGraph(t: T): {
     { source: 'res-context', target: 'scan' },
     { source: 'res-context', target: 'implement' },
     { source: 'ask-goal', target: 'scan' },
-    { source: 'ask-goal', target: 'plan' },
+    { source: 'ask-goal', target: 'implement' },
     { source: 'ask-strict', target: 'review' },
   )
   return { settings: { runState: true }, nodes, edges }

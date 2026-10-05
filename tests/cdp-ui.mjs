@@ -32,9 +32,9 @@ const RENAMED = `${NAME}-renamed`
 const STEP = `${NAME}-step`
 const CONDITION = '测试全部通过，并且没有新增 lint 警告，同时改动说明里写清楚了验证方法'
 const RULE = '按优先级列出风险，每条写清影响范围与应对办法'
-const PLAN_RULE = '有序的任务清单：每条写清改哪个文件、验收标准是什么。'
+const IMPL_RULE = '改动说明：改了哪些文件、为什么这么改、如何验证，附上验证命令的输出。'
 const STEP_NEW = `${NAME}-new`
-const NOTE = '按 plan.md 逐条执行，做完的条目在原文件里打钩'
+const NOTE = '按 changes.md 逐条执行，做完的条目在原文件里打钩'
 const FILE_RULE = '风险清单，每条一行「- [ ] 风险：应对」，处理完打钩'
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -223,15 +223,21 @@ async function run(session) {
   )
   pass('拖入「侦察」→ 画布出现（带着产出资源卡）、属性面板打开、已落盘')
 
-  // 3) 点 scan 右侧的「＋」→ 就地菜单 → 选「拆解」：接在后面并连上。
+  // 3) 点 scan 右侧的「＋」→ 就地菜单 → 选「实现」：接在后面并连上。
   await mouseClick(session, await handleCenter(session, 'scan', 'source'))
   await waitFor(session, exists('wl-quick-add'))
-  await session.evaluate(clickTestId('wl-quick-plan'))
-  await waitFor(session, `document.querySelector('.react-flow__node[data-id="plan"]') !== null`)
-  const afterPlus = await onDisk(NAME, (doc) => edgeIds(doc).length === 1, '连线 scan->plan')
-  check(edgeIds(afterPlus).join() === 'scan->plan', `应连上 scan->plan：${edgeIds(afterPlus)}`)
+  await session.evaluate(clickTestId('wl-quick-implement'))
+  await waitFor(
+    session,
+    `document.querySelector('.react-flow__node[data-id="implement"]') !== null`,
+  )
+  const afterPlus = await onDisk(NAME, (doc) => edgeIds(doc).length === 1, '连线 scan->implement')
+  check(
+    edgeIds(afterPlus).join() === 'scan->implement',
+    `应连上 scan->implement：${edgeIds(afterPlus)}`,
+  )
   const scanAt = afterPlus.nodes.find((node) => node.id === 'scan').position
-  const planAt = afterPlus.nodes.find((node) => node.id === 'plan').position
+  const planAt = afterPlus.nodes.find((node) => node.id === 'implement').position
   check(planAt.x > scanAt.x, '「添加下一步」应落在右边')
   pass('点「＋」添加下一步 → 自动连线、落在右侧')
 
@@ -267,23 +273,23 @@ async function run(session) {
   )
   pass('双击空白处加空白步骤 → 提示词弹窗直接进编辑、输入落盘')
 
-  // 5) 从 plan 的出口拖线到 step 的入口。
+  // 5) 从 implement 的出口拖线到 step 的入口。
   await pointerDrag(
     session,
-    await handleCenter(session, 'plan', 'source'),
+    await handleCenter(session, 'implement', 'source'),
     await handleCenter(session, 'step', 'target'),
   )
-  await onDisk(NAME, (doc) => edgeIds(doc).includes('plan->step'), '连线 plan->step')
-  pass('拖线连接 plan → step')
+  await onDisk(NAME, (doc) => edgeIds(doc).includes('implement->step'), '连线 implement->step')
+  pass('拖线连接 implement → step')
 
   // 6) 点中连线 → 属性面板改成「未通过」→ 边 id 跟着变。
-  await mouseClick(session, await edgeMidpoint(session, 'scan->plan'))
+  await mouseClick(session, await edgeMidpoint(session, 'scan->implement'))
   await waitFor(session, `document.querySelector('[data-testid="wl-delete-edge"]') !== null`)
   await session.evaluate(`(() => {
     const radio = [...document.querySelectorAll('[data-testid="wl-inspector"] [role="radio"]')][2];
     radio.click();
   })()`)
-  await onDisk(NAME, (doc) => edgeIds(doc).includes('scan->plan#fail'), '连线条件 fail')
+  await onDisk(NAME, (doc) => edgeIds(doc).includes('scan->implement#fail'), '连线条件 fail')
   check(
     await session.evaluate(`document.querySelector('[data-testid="wl-delete-edge"]') !== null`),
     '改条件后连线面板应仍然开着（选中跟着新 id 走）',
@@ -293,37 +299,40 @@ async function run(session) {
     `getComputedStyle(document.querySelector('.react-flow__edge[data-id="${id}"] path.react-flow__edge-path')).stroke`
   const legendStroke = (line) =>
     `getComputedStyle(document.querySelector('[data-testid="wl-legend"] [data-line="${line}"] line')).stroke`
-  await waitFor(session, `${strokeOf('scan->plan#fail')} === ${legendStroke('fail')}`)
+  await waitFor(session, `${strokeOf('scan->implement#fail')} === ${legendStroke('fail')}`)
   check(
-    await session.evaluate(`${strokeOf('plan->step')} === ${legendStroke('always')}`),
+    await session.evaluate(`${strokeOf('implement->step')} === ${legendStroke('always')}`),
     '没有条件的线应是「总是」的颜色',
   )
   await screenshot(session, 'ui-02-edge.png')
-  pass('选中连线并改为「未通过」→ 落盘为 scan->plan#fail')
+  pass('选中连线并改为「未通过」→ 落盘为 scan->implement#fail')
 
   // 7) Delete 删连线 → Ctrl+Z 撤回。
   await pressKey(session, 'Delete')
-  await onDisk(NAME, (doc) => !edgeIds(doc).includes('scan->plan#fail'), '删掉连线')
+  await onDisk(NAME, (doc) => !edgeIds(doc).includes('scan->implement#fail'), '删掉连线')
   await pressShortcut(session, 'z')
-  await onDisk(NAME, (doc) => edgeIds(doc).includes('scan->plan#fail'), '撤销后连线回来')
+  await onDisk(NAME, (doc) => edgeIds(doc).includes('scan->implement#fail'), '撤销后连线回来')
   pass('Delete 删连线、Ctrl+Z 撤回')
 
   // 7b) 自定义条件：一整句自然语言，可以很长；线上截断显示，悬停看全文。
-  await mouseClick(session, await edgeMidpoint(session, 'scan->plan#fail'))
+  await mouseClick(session, await edgeMidpoint(session, 'scan->implement#fail'))
   await waitFor(session, exists('wl-delete-edge'))
   await session.evaluate(
     `[...document.querySelectorAll('[data-testid="wl-inspector"] [role="radio"]')][3].click()`,
   )
   await waitFor(session, exists('wl-edge-custom'))
   await setReactInput(session, '[data-testid="wl-edge-custom"]', CONDITION)
-  await onDisk(NAME, (doc) => edgeIds(doc).includes(`scan->plan#${CONDITION}`), '自定义条件')
+  await onDisk(NAME, (doc) => edgeIds(doc).includes(`scan->implement#${CONDITION}`), '自定义条件')
   check(
     !(await session.evaluate(
       `document.querySelector('[data-testid="wl-inspector"] p')?.textContent?.includes('只能用文字') === true`,
     )),
     '合法的长条件不该报错',
   )
-  await waitFor(session, `${strokeOf(`scan->plan#${CONDITION}`)} === ${legendStroke('custom')}`)
+  await waitFor(
+    session,
+    `${strokeOf(`scan->implement#${CONDITION}`)} === ${legendStroke('custom')}`,
+  )
   const conditionLabel = `[...document.querySelectorAll('.react-flow__edgelabel-renderer button[data-when]')].find((el) => el.dataset.tip === ${JSON.stringify(CONDITION)})`
   check(
     await session.evaluate(`${conditionLabel} !== undefined`),
@@ -398,35 +407,39 @@ async function run(session) {
   check((await session.evaluate(tipText)) === null, '按下按钮后提示收起，指针不离开不再弹')
   // 刚才那下点了撤销：重做回来，后面的步骤接着用这条条件。
   await pressShortcut(session, 'z', ['ctrl', 'shift'])
-  await onDisk(NAME, (doc) => edgeIds(doc).includes(`scan->plan#${CONDITION}`), '重做回自定义条件')
+  await onDisk(
+    NAME,
+    (doc) => edgeIds(doc).includes(`scan->implement#${CONDITION}`),
+    '重做回自定义条件',
+  )
   pass('悬停提示：夹在视图里、相邻按钮立刻换、按下就收')
 
   // 7c) 资源卡：内置步骤插进来时带着它的产出资源卡；步骤面板里「新建产出文件」再加一张，连上写入线。
   check(
     await session.evaluate(
-      `document.querySelector('.react-flow__node[data-id="res-plan"] [data-testid="wl-resource"]') !== null`,
+      `document.querySelector('.react-flow__node[data-id="res-changes"] [data-testid="wl-resource"]') !== null`,
     ),
-    '内置「拆解」插进来时应带着它的产出资源卡',
+    '内置「实现」插进来时应带着它的产出资源卡',
   )
-  await mouseClick(session, await centerOf(session, '.react-flow__node[data-id="plan"]'))
+  await mouseClick(session, await centerOf(session, '.react-flow__node[data-id="implement"]'))
   await waitFor(session, exists('wl-resource-new'))
   const writesOf = `[...document.querySelectorAll('[data-testid="wl-step-resources"] [data-testid="wl-step-resource"]')].filter((el) => el.querySelector('[data-access="produce"]'))`
   check(
     (await session.evaluate(`${writesOf}.map((el) => el.textContent).join('|')`)).includes(
-      'plan.md',
+      'changes.md',
     ),
-    '步骤面板的「资源」里应列出它写的 plan.md',
+    '步骤面板的「资源」里应列出它写的 changes.md',
   )
-  // 内置步骤的生成要求跟着进了资源：写在 plan.md 这一项的说明里。
-  await onDisk(NAME, (doc) => noteOf(doc, 'plan.md') === PLAN_RULE, 'plan.md 的生成要求')
+  // 内置步骤的生成要求跟着进了资源：写在 changes.md 这一项的说明里。
+  await onDisk(NAME, (doc) => noteOf(doc, 'changes.md') === IMPL_RULE, 'changes.md 的生成要求')
   await session.evaluate(clickTestId('wl-resource-new'))
   await waitFor(session, exists('wl-output-dialog'))
   check(
     (await session.evaluate(`document.querySelector('[data-testid="wl-output-path"]').value`)) ===
-      'plan-2.md',
+      'implement.md',
     '新建产出文件应预填一个没被占用的文件名',
   )
-  await setReactInput(session, '[data-testid="wl-output-path"]', 'plan-risks.md')
+  await setReactInput(session, '[data-testid="wl-output-path"]', 'impl-risks.md')
   await setReactInput(session, '[data-testid="wl-output-rule"]', RULE)
   await sleep(350)
   await screenshot(session, 'ui-02c-dialog.png')
@@ -435,14 +448,14 @@ async function run(session) {
   const withFile = await onDisk(
     NAME,
     (doc) =>
-      noteOf(doc, 'plan-risks.md') === RULE &&
+      noteOf(doc, 'impl-risks.md') === RULE &&
       doc.edges.some(
-        (edge) => edge.source === 'plan' && edge.target === fileOf(doc, 'plan-risks.md').id,
+        (edge) => edge.source === 'implement' && edge.target === fileOf(doc, 'impl-risks.md').id,
       ),
-    '新资源卡与 plan 的写入线',
+    '新资源卡与 implement 的写入线',
   )
   check((await session.evaluate(`${writesOf}.length`)) === 2, '步骤面板里应列出两份写入的资源')
-  const risksId = fileOf(withFile, 'plan-risks.md').id
+  const risksId = fileOf(withFile, 'impl-risks.md').id
   await sleep(400)
   await screenshot(session, 'ui-02c-files.png')
   pass('资源卡：内置步骤带着产出卡；「新建产出文件」→ 新卡 + 写入线落盘')
@@ -456,7 +469,7 @@ async function run(session) {
   await mouseMove(session, await centerOf(session, risksCard))
   await waitFor(
     session,
-    `document.querySelector('.react-flow__node[data-id="plan"] [data-testid="wl-step"]')?.getAttribute('data-role') === 'producer'`,
+    `document.querySelector('.react-flow__node[data-id="implement"] [data-testid="wl-step"]')?.getAttribute('data-role') === 'producer'`,
   )
   check(
     (await session.evaluate(
@@ -470,7 +483,7 @@ async function run(session) {
   await openFirstItem(session)
   await setReactInput(session, '[data-testid="wl-resource-note"]', FILE_RULE)
   await saveItem(session)
-  await onDisk(NAME, (doc) => noteOf(doc, 'plan-risks.md') === FILE_RULE, '资源里文件的说明')
+  await onDisk(NAME, (doc) => noteOf(doc, 'impl-risks.md') === FILE_RULE, '资源里文件的说明')
   // 从资源卡右边的点拖到 step 左边 = step 读它。
   await pointerDrag(
     session,
@@ -657,7 +670,7 @@ async function run(session) {
     '改过设置后顶栏按钮应挂上小点',
   )
   // 资源里的文件：编辑框里预览拼好的最终路径（有步骤写它 = 放在产出根目录下）。
-  await mouseClick(session, await centerOf(session, '.react-flow__node[data-id="res-plan"]'))
+  await mouseClick(session, await centerOf(session, '.react-flow__node[data-id="res-changes"]'))
   await openFirstItem(session)
   await waitFor(session, exists('wl-resource-located'))
   check(
@@ -665,7 +678,7 @@ async function run(session) {
       await session.evaluate(
         `document.querySelector('[data-testid="wl-resource-located"]').textContent`,
       )
-    ).includes('artifacts/run/plan.md'),
+    ).includes('artifacts/run/changes.md'),
     '资源里的文件应预览拼好的最终路径',
   )
   await pressKey(session, 'Escape')
@@ -676,12 +689,12 @@ async function run(session) {
   pass('工作流设置：根目录标准化落盘、执行方式落盘，资源里的文件预览最终路径')
 
   // 7f) 交接：步骤之间的线缺省交执行结果（不画标记）；附说明后出现标记、悬停看说明；关掉 = 只管先后。
-  const mark = '[data-testid="wl-handoff-mark"][data-edge="plan->step"]'
+  const mark = '[data-testid="wl-handoff-mark"][data-edge="implement->step"]'
   check(
     !(await session.evaluate(`document.querySelector('${mark}') !== null`)),
     '缺省的交接不画标记',
   )
-  await mouseClick(session, await edgeMidpoint(session, 'plan->step'))
+  await mouseClick(session, await edgeMidpoint(session, 'implement->step'))
   await waitFor(session, exists('wl-handoff'))
   check(
     await session.evaluate(`document.querySelector('[data-testid="wl-handoff-result"]').checked`),
@@ -690,7 +703,7 @@ async function run(session) {
   await setReactInput(session, '[data-testid="wl-handoff-note"]', NOTE)
   await onDisk(
     NAME,
-    (doc) => doc.edges.find((edge) => edge.id === 'plan->step')?.data?.handoff?.note === NOTE,
+    (doc) => doc.edges.find((edge) => edge.id === 'implement->step')?.data?.handoff?.note === NOTE,
     '交接说明',
   )
   await waitFor(session, `document.querySelector('${mark}') !== null`)
@@ -714,35 +727,35 @@ async function run(session) {
   await session.evaluate(clickTestId('wl-handoff-result'))
   await onDisk(
     NAME,
-    (doc) => doc.edges.find((edge) => edge.id === 'plan->step')?.data?.handoff === false,
+    (doc) => doc.edges.find((edge) => edge.id === 'implement->step')?.data?.handoff === false,
     '只管先后',
   )
   await waitFor(session, `document.querySelector('${mark}')?.getAttribute('data-none') === 'true'`)
   await session.evaluate(clickTestId('wl-handoff-result'))
   await onDisk(
     NAME,
-    (doc) => doc.edges.find((edge) => edge.id === 'plan->step')?.data?.handoff?.note === NOTE,
+    (doc) => doc.edges.find((edge) => edge.id === 'implement->step')?.data?.handoff?.note === NOTE,
     '再打开时说明还在',
   )
-  // 从 step 底边拖到 plan.md 那张资源卡上任意位置：plan 已经在写它，接着写默认是「在原文件上更新」。
-  // 拖的过程中只露出能连的点（资源卡左边的入口），松手前指针旁就预告「更新 step → plan.md」。
+  // 从 step 底边拖到 changes.md 那张资源卡上任意位置：implement 已经在写它，接着写默认是「在原文件上更新」。
+  // 拖的过程中只露出能连的点（资源卡左边的入口），松手前指针旁就预告「更新 step → changes.md」。
   const writeFrom = await centerOf(
     session,
     '.react-flow__node[data-id="step"] .react-flow__handle.source[data-handleid="file"]',
   )
-  const writeTo = await centerOf(session, '.react-flow__node[data-id="res-plan"]')
+  const writeTo = await centerOf(session, '.react-flow__node[data-id="res-changes"]')
   await pointerDrag(session, writeFrom, writeTo, 10, { release: false })
   await waitFor(
     session,
-    `document.querySelector('[data-testid="wl-link-preview"][data-kind="update"]')?.textContent.includes('plan.md')`,
+    `document.querySelector('[data-testid="wl-link-preview"][data-kind="update"]')?.textContent.includes('changes.md')`,
   )
   check(
     await session.evaluate(`(() => {
       const opacity = (sel) => getComputedStyle(document.querySelector(sel)).opacity;
-      return opacity('.react-flow__node[data-id="plan"] .react-flow__handle[data-handleid="in"]') === '0'
-        && opacity('.react-flow__node[data-id="plan"] .react-flow__handle[data-handleid="out"]') === '0'
-        && opacity('.react-flow__node[data-id="res-plan"] .react-flow__handle[data-handleid="in"]') === '1'
-        && opacity('.react-flow__node[data-id="res-plan"] .react-flow__handle[data-handleid="out"]') === '0';
+      return opacity('.react-flow__node[data-id="implement"] .react-flow__handle[data-handleid="in"]') === '0'
+        && opacity('.react-flow__node[data-id="implement"] .react-flow__handle[data-handleid="out"]') === '0'
+        && opacity('.react-flow__node[data-id="res-changes"] .react-flow__handle[data-handleid="in"]') === '1'
+        && opacity('.react-flow__node[data-id="res-changes"] .react-flow__handle[data-handleid="out"]') === '0';
     })()`),
     '拖写入线时只应露出资源卡左边的入口',
   )
@@ -757,8 +770,8 @@ async function run(session) {
   })
   await onDisk(
     NAME,
-    (doc) => doc.edges.find((edge) => edge.id === 'step->res-plan')?.data?.update === true,
-    'step 在原文件上更新 plan.md',
+    (doc) => doc.edges.find((edge) => edge.id === 'step->res-changes')?.data?.update === true,
+    'step 在原文件上更新 changes.md',
   )
   // 改资源里文件的路径：读写线连着的是卡片，不用改任何引用。
   await mouseClick(session, await centerOf(session, risksCard))
@@ -862,10 +875,10 @@ async function run(session) {
   check(modelPlan.includes('你是 leader'), '执行方式应进计划')
   // 排版视图里反引号已经渲染成代码样式，textContent 里没有它们。
   check(
-    modelPlan.includes('资源 res-plan：plan 产出；step 在原文件上更新。'),
+    modelPlan.includes('资源 res-changes：implement 产出；step 在原文件上更新。'),
     '资源块应写清谁产出、谁在原文件上更新',
   )
-  check(modelPlan.includes('资源 res-plan-risks：plan 产出；step 读取。'), '读取应进资源块')
+  check(modelPlan.includes('资源 res-impl-risks：implement 产出；step 读取。'), '读取应进资源块')
   check(
     modelPlan.includes(`文件：artifacts/run/risks.md。说明：${FILE_RULE}`),
     '资源里的文件应带着拼好的路径与说明',
