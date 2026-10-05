@@ -838,7 +838,11 @@ function extensionOf(name: string): string {
     .slice(0, 4)
 }
 
-/** 紧凑资源卡左侧的类型签：文件印扩展名，其余放种类图标（空资源是一叠）。 */
+/**
+ * 紧凑资源卡左侧的类型签：上面是资源卡统一的「一叠」记号（和清单卡标题里的同一个），
+ * 一眼看出这是资源、不是步骤或旧的文件卡；下面一行小字是这一项是什么——文件印扩展名，其余放种类图标。
+ * 空资源只有那一叠。
+ */
 function ResourceTab(props: { kind: ResourceKind | 'many'; ext: string }): React.JSX.Element {
   return (
     <span
@@ -847,10 +851,13 @@ function ResourceTab(props: { kind: ResourceKind | 'many'; ext: string }): React
       data-long={props.ext.length > 3}
       aria-hidden="true"
     >
-      {props.ext !== '' ? (
-        props.ext
-      ) : (
-        <Icon name={props.kind === 'many' ? 'layers' : KIND_ICON[props.kind]} size={14} />
+      <span className={css.fileTabMark}>
+        <Icon name="layers" size={props.kind === 'many' ? 14 : 12} />
+      </span>
+      {props.kind !== 'many' && (
+        <span className={css.fileTabKind}>
+          {props.ext !== '' ? props.ext : <Icon name={KIND_ICON[props.kind]} size={11} />}
+        </span>
       )}
     </span>
   )

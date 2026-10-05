@@ -803,7 +803,7 @@
 /*
  * 资源卡要和步骤卡一眼分开——步骤是"会做事的卡片"，资源是"一张贴了类型签的纸"：
  * - 右上角一个折角，圆角更小（步骤 12px，资源 7px）；平铺，没有投影，描边清楚；
- * - 紧凑的一行（只有一项、没起名字）：左边一条类型签，印着扩展名（MD / JSON……）或种类图标；
+ * - 紧凑的一行（只有一项、没起名字）：左边一条类型签，上面是资源的「一叠」记号，下面印扩展名（MD / JSON……）或种类图标；
  * - 展开的清单（起了名字 / 好几项）：标题一行、描述一行、一行一项（种类图标 + 简称），多了折成「还有 N 项」。
  *   各段高度写死，和 layout.ts 里的估算一致（标题 38、描述 18、每项 22、「还有」20、上下留白共 10）。
  * 左边的点接写入（步骤 → 资源），右边的点拖出去是读取（资源 → 步骤）。
@@ -887,26 +887,44 @@
   --wl-kind: var(--wl-c-slate);
 }
 
-/* 类型签：左侧整条，浅底 + 扩展名（没有扩展名就是种类图标）。 */
+/*
+ * 类型签：左侧整条浅底。上面是资源的「一叠」记号（资源色，和清单卡标题里的一样），
+ * 下面一行小字是这一项的种类——扩展名（MD / JSON……）或种类图标，用种类色。
+ */
 .fileTab {
-  display: grid;
+  display: flex;
   flex: none;
-  place-items: center;
+  flex-direction: column;
+  gap: 3px;
+  align-items: center;
+  justify-content: center;
   width: 34px;
   border-right: 1px solid var(--wl-file-border);
   border-radius: 6px 0 0 6px;
   background: var(--wl-file-tab);
   color: var(--wl-kind, var(--wl-file));
   font-family: var(--wl-mono);
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
+  line-height: 1;
   letter-spacing: 0.02em;
 }
 
 .fileTab[data-long="true"] {
-  padding-left: 4px;
-  font-size: 8.5px;
+  font-size: 7.5px;
   letter-spacing: 0;
+}
+
+.fileTabMark {
+  display: grid;
+  color: var(--wl-file);
+  opacity: 0.85;
+}
+
+.fileTabKind {
+  display: grid;
+  place-items: center;
+  min-height: 11px;
 }
 
 .resCard > .cardFlag {
