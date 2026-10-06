@@ -515,10 +515,13 @@ async function run(session) {
       return chips.includes('produce') && chips.includes('read');
     })()`,
   )
+  // 光带等卡片、线的过渡走完才挂上（见 FlowStreaks 的 ENTER_DELAY_MS）：等它出现。
   check(
-    await session.evaluate(
+    (await waitFor(
+      session,
       `[...document.querySelectorAll('[data-testid="wl-flow-streak"]')].some((el) => el.getAnimations().some((a) => a.playState === 'running'))`,
-    ),
+      { timeoutMs: 3000 },
+    ).catch(() => false)) === true,
     '选中资源卡时，连着它的线上应有流动的光带',
   )
   // 光带的颜色必须是画布上某条线的描边色（不能红线上跑蓝光）。

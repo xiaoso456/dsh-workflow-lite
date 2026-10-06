@@ -113,7 +113,7 @@ import {
   writePoints,
 } from '../model/route.ts'
 import css from './canvas.module.css'
-import { FlowStreaks } from './FlowStreaks.tsx'
+import { FlowStreaks, type StreakMode, StreaksMode } from './FlowStreaks.tsx'
 import type { FocusFile } from './Handoff.tsx'
 import hand from './handoff.module.css'
 import { Icon, type IconName } from './Icon.tsx'
@@ -1336,6 +1336,11 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
   const [dragging, setDragging] = useState<Record<string, Point>>({})
   const draggingRef = useRef(dragging)
   draggingRef.current = dragging
+  /** 视口正在动（平移、缩放、看全图）。 */
+  const [panning, setPanning] = useState(false)
+  /** 拖卡片时光带先藏着、松手再铺；视口在动时停在原地（见 FlowStreaks）。 */
+  const streakMode: StreakMode =
+    Object.keys(dragging).length > 0 ? 'hold' : panning ? 'pause' : 'run'
   /** React Flow 量出来的卡片尺寸：带回给它，重建节点对象时就不用重新量。 */
   const measured = useRef(new Map<string, { width: number; height: number }>())
   const cache = useRef(new Map<string, CacheEntry>())
@@ -2119,83 +2124,92 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
       }}
     >
       <DragInfo.Provider value={dragInfo}>
-        <ReactFlow<FlowNode, FlowEdge>
-          nodes={nodes}
-          edges={edges}
-          nodeTypes={NODE_TYPES}
-          edgeTypes={EDGE_TYPES}
-          minZoom={MIN_ZOOM}
-          maxZoom={MAX_ZOOM}
-          // 选中、删除、键盘都由我们自己的状态机管，关掉内置的那几套免得两边各说各话。
-          deleteKeyCode={null}
-          selectionKeyCode={null}
-          multiSelectionKeyCode={null}
-          disableKeyboardA11y
-          connectOnClick={false}
-          zoomOnDoubleClick={false}
-          elevateNodesOnSelect={false}
-          nodeDragThreshold={2}
-          connectionRadius={28}
-          connectionLineComponent={ConnectionLine}
-          proOptions={{ hideAttribution: true }}
-          onNodesChange={onNodesChange}
-          // 两头的连接点分工要对得上（见 model/connect.ts）：不连自己、资源不连资源、
-          // 步骤右边只连步骤、步骤底边只连资源、资源只连步骤。
-          isValidConnection={(connection) => linkAllowed(docRef.current, connection)}
-          onConnect={(connection) => {
-            onEdit({ type: 'connect', source: connection.source, target: connection.target })
-          }}
-          onConnectEnd={(event, state) => {
-            // 线拖到空白处松手：就地加一个步骤并连上；从步骤底边拖出来的是新建一个放着产出文件的资源。
-            if (state.isValid === true || state.fromNode === null) return
-            if (state.fromHandle?.type !== 'source') return
-            const point = 'changedTouches' in event ? event.changedTouches[0] : event
-            if (point === undefined) return
-            const target = event.target
-            if (!(target instanceof Element) || !target.classList.contains('react-flow__pane'))
-              return
-            const client = { x: point.clientX, y: point.clientY }
-            const at = flow.screenToFlowPosition(client)
-            if (state.fromHandle.id === 'file' || state.fromHandle.id === 'fileUp') {
-              onEdit({
-                type: 'addResource',
-                data: outputResource({
-                  path: freeFilePath(docRef.current, `${state.fromNode.id}.md`),
-                }),
-                // 松手处就是新资源卡左边的入口：线落在哪，卡就从哪接上。
-                position: { x: at.x, y: at.y - RES_H / 2 },
-                writer: state.fromNode.id,
-                select: true,
+        <StreaksMode.Provider value={streakMode}>
+          <ReactFlow<FlowNode, FlowEdge>
+            nodes={nodes}
+            edges={edges}
+            nodeTypes={NODE_TYPES}
+            edgeTypes={EDGE_TYPES}
+            minZoom={MIN_ZOOM}
+            maxZoom={MAX_ZOOM}
+            // 选中、删除、键盘都由我们自己的状态机管，关掉内置的那几套免得两边各说各话。
+            deleteKeyCode={null}
+            selectionKeyCode={null}
+            multiSelectionKeyCode={null}
+            disableKeyboardA11y
+            connectOnClick={false}
+            zoomOnDoubleClick={false}
+            elevateNodesOnSelect={false}
+            nodeDragThreshold={2}
+            connectionRadius={28}
+            connectionLineComponent={ConnectionLine}
+            proOptions={{ hideAttribution: true }}
+            onNodesChange={onNodesChange}
+            // 两头的连接点分工要对得上（见 model/connect.ts）：不连自己、资源不连资源、
+            // 步骤右边只连步骤、步骤底边只连资源、资源只连步骤。
+            isValidConnection={(connection) => linkAllowed(docRef.current, connection)}
+            onConnect={(connection) => {
+              onEdit({ type: 'connect', source: connection.source, target: connection.target })
+            }}
+            onConnectEnd={(event, state) => {
+              // 线拖到空白处松手：就地加一个步骤并连上；从步骤底边拖出来的是新建一个放着产出文件的资源。
+              if (state.isValid === true || state.fromNode === null) return
+              if (state.fromHandle?.type !== 'source') return
+              const point = 'changedTouches' in event ? event.changedTouches[0] : event
+              if (point === undefined) return
+              const target = event.target
+              if (!(target instanceof Element) || !target.classList.contains('react-flow__pane'))
+                return
+              const client = { x: point.clientX, y: point.clientY }
+              const at = flow.screenToFlowPosition(client)
+              if (state.fromHandle.id === 'file' || state.fromHandle.id === 'fileUp') {
+                onEdit({
+                  type: 'addResource',
+                  data: outputResource({
+                    path: freeFilePath(docRef.current, `${state.fromNode.id}.md`),
+                  }),
+                  // 松手处就是新资源卡左边的入口：线落在哪，卡就从哪接上。
+                  position: { x: at.x, y: at.y - RES_H / 2 },
+                  writer: state.fromNode.id,
+                  select: true,
+                })
+                return
+              }
+              onRequestAdd({
+                client,
+                flow: { x: at.x, y: at.y - NODE_H / 2 },
+                from: state.fromNode.id,
               })
-              return
-            }
-            onRequestAdd({
-              client,
-              flow: { x: at.x, y: at.y - NODE_H / 2 },
-              from: state.fromNode.id,
-            })
-          }}
-          onNodeClick={(_event, node) => onSelect({ kind: 'node', id: node.id })}
-          onNodeDragStart={(_event, node) => onSelect({ kind: 'node', id: node.id })}
-          onEdgeMouseEnter={(_event, edge) => setHoverEdge(edge.id)}
-          onEdgeMouseLeave={() => setHoverEdge(null)}
-          onEdgeClick={(_event, edge) => {
-            onSelect({ kind: 'edge', id: edge.id })
-            // 连线是 SVG，点它之后焦点会掉到 body：收回画布，Delete / Esc 才有人接。
-            focusCanvas()
-          }}
-          onPaneClick={() => {
-            onSelect(null)
-            focusCanvas()
-          }}
-          onMoveEnd={(event, viewport) => {
-            // 只记人动的视口；程序触发的移动（看全图、定位）事件参数是 null。
-            // 视口只记在浏览器里：浏览不改图，不会变成「待保存」。
-            if (event !== null && viewKey !== undefined) rememberViewport(viewKey, viewport)
-          }}
-        >
-          <Background variant={BackgroundVariant.Dots} gap={20} size={1.6} color="var(--wl-dot)" />
-        </ReactFlow>
+            }}
+            onNodeClick={(_event, node) => onSelect({ kind: 'node', id: node.id })}
+            onNodeDragStart={(_event, node) => onSelect({ kind: 'node', id: node.id })}
+            onEdgeMouseEnter={(_event, edge) => setHoverEdge(edge.id)}
+            onEdgeMouseLeave={() => setHoverEdge(null)}
+            onEdgeClick={(_event, edge) => {
+              onSelect({ kind: 'edge', id: edge.id })
+              // 连线是 SVG，点它之后焦点会掉到 body：收回画布，Delete / Esc 才有人接。
+              focusCanvas()
+            }}
+            onPaneClick={() => {
+              onSelect(null)
+              focusCanvas()
+            }}
+            onMoveStart={() => setPanning(true)}
+            onMoveEnd={(event, viewport) => {
+              setPanning(false)
+              // 只记人动的视口；程序触发的移动（看全图、定位）事件参数是 null。
+              // 视口只记在浏览器里：浏览不改图，不会变成「待保存」。
+              if (event !== null && viewKey !== undefined) rememberViewport(viewKey, viewport)
+            }}
+          >
+            <Background
+              variant={BackgroundVariant.Dots}
+              gap={20}
+              size={1.6}
+              color="var(--wl-dot)"
+            />
+          </ReactFlow>
+        </StreaksMode.Provider>
       </DragInfo.Provider>
 
       {doc.nodes.length === 0 && (
