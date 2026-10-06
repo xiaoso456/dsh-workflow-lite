@@ -16,6 +16,8 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-client-connection'
+// 只借类型：`ctx.settings` 的 Context 合并（服务本身是可选的）。
+import type {} from '@deepseek-ai/dsh-settings'
 // 只借类型：`ctx.tools` 的 Context 合并。
 import type {} from '@deepseek-ai/dsh-tools'
 import { registerAuthoringSkill } from './host/authoringSkill.ts'
@@ -26,6 +28,7 @@ import {
   type WorkflowLiteSettings,
 } from './host/config.ts'
 import type { SkillLister } from './host/hostFs.ts'
+import type { SettingsPort } from './host/pluginConfig.ts'
 import { registerWorkflowLiteRpc } from './host/rpc.ts'
 import { createNotify } from './host/runs/notice.ts'
 import { RunService } from './host/runs/service.ts'
@@ -64,7 +67,11 @@ export async function apply(ctx: Context, config: WorkflowLiteSettings): Promise
         maxNodes: config.maxNodes.get(),
       }),
     )
-  const repository: Repository = createRepository({ dataDir: config.dataDir.get(), validate })
+  // 数据根在装配时定住：仓储、实例、工具、画布都用这同一个，改了设置要重启才换（设置页会这么说）。
+  // 要是各处各读活值，改到一半就会出现「图在旧目录、实例在新目录」。
+  const dataDirAtStart = config.dataDir.get()
+  const dataDir = (): string => dataDirAtStart
+  const repository: Repository = createRepository({ dataDir: dataDirAtStart, validate })
 
   // 首次启动按需建 `workflows/` 与 `templates/nodes/`；**不建 `.dispatch/`**
   // （那是派生物，编译时才出现）。目录不可用只是警告——工具会把它翻成 `invalid_args`。
@@ -75,7 +82,7 @@ export async function apply(ctx: Context, config: WorkflowLiteSettings): Promise
 
   // 工作流实例：建实例、出计划、读写运行状态、把用户的改动通知给模型。
   const runs = new RunService({
-    dataDir: () => config.dataDir.get(),
+    dataDir,
     validate,
     notify: createNotify(ctx),
   })
@@ -109,24 +116,49 @@ export async function apply(ctx: Context, config: WorkflowLiteSettings): Promise
     () =>
       registerWorkflowLiteTool(ctx, {
         repository,
-        dataDir: () => config.dataDir.get(),
+        dataDir,
         maxResultBytes: () => config.maxResultBytes.get(),
         runs,
       }),
     'workflow-lite: workflow_lite tool',
   )
 
+  // DSH 的设置服务（可选）：工作流中心「设置」页经它读写本插件那一行配置。
+  // 这个插件有自己的设置页，所以告诉它别再按 schema 自动生成一页。
+  let settings: SettingsPort | undefined
+  ctx.inject(['settings'], (settingsCtx) => {
+    settings = settingsCtx.settings
+    settingsCtx.effect(
+      () => () => {
+        settings = undefined
+      },
+      'workflow-lite: settings forms',
+    )
+    settingsCtx.effect(
+      () => settingsCtx.settings.configure({ auto: false }, ctx.fiber),
+      'workflow-lite: own settings page',
+    )
+  })
+  const liveConfig = () => ({
+    dataDir: config.dataDir.get(),
+    maxNodes: config.maxNodes.get(),
+    saveDebounceMs: config.saveDebounceMs.get(),
+    maxResultBytes: config.maxResultBytes.get(),
+    installSkill: config.installSkill.get(),
+  })
+
   // 画布 RPC：只在 connection 可用时挂。
   ctx.inject(['connection'], (connectionCtx) => {
     registerWorkflowLiteRpc(connectionCtx, {
       repository,
-      dataDir: () => config.dataDir.get(),
+      dataDir,
       limits: () => ({
         maxNodes: config.maxNodes.get(),
         saveDebounceMs: config.saveDebounceMs.get(),
       }),
       runs,
       skills: createSkillViewer(ctx, () => skills),
+      config: { port: () => settings, live: liveConfig },
     })
   })
 }

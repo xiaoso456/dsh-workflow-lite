@@ -5,7 +5,8 @@
  * - **运行实例**（`HubRuns.tsx`）：所有会话的实例，按工作区分组，能搜、能按工作区 / 本会话筛；
  *   查看、移到本会话、删除记录（状态文件另外问要不要一起删）；
  * - **工作流**（`HubWorkflows.tsx`）：全部工作流，每一行能就地改名、删除；选一张看它的版本——存、切换、改说明、删除，不用先打开它；
- * - **存储**（`HubStorage.tsx`）：数据目录、各样东西的占用，清理已结束的实例与旧版本遗留文件。
+ * - **存储**（`HubStorage.tsx`）：数据目录、各样东西的占用，清理已结束的实例与旧版本遗留文件；
+ * - **设置**（`HubSettings.tsx`）：插件自己的几项设置（数据目录、步骤上限、自动保存等待……）。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/HubDialog
  */
@@ -16,6 +17,7 @@ import type { Runs } from '../app/useRuns.ts'
 import type { T } from '../i18n.ts'
 import type { WorkflowLiteRpc } from '../rpc.ts'
 import { HubRuns } from './HubRuns.tsx'
+import { HubSettings } from './HubSettings.tsx'
 import { HubStorage } from './HubStorage.tsx'
 import { HubWorkflows } from './HubWorkflows.tsx'
 import hub from './hub.module.css'
@@ -24,7 +26,7 @@ import overlay from './overlay.module.css'
 import { cx, Modal, Segmented } from './primitives.tsx'
 import ui from './ui.module.css'
 
-type HubPage = 'runs' | 'workflows' | 'storage'
+type HubPage = 'runs' | 'workflows' | 'storage' | 'settings'
 
 export function HubDialog(props: {
   t: T
@@ -70,6 +72,7 @@ export function HubDialog(props: {
               { value: 'runs', label: t('hub.runs') },
               { value: 'workflows', label: t('hub.wfPage') },
               { value: 'storage', label: t('hub.storage') },
+              { value: 'settings', label: t('hub.settings') },
             ]}
           />
         </div>
@@ -104,8 +107,10 @@ export function HubDialog(props: {
             props.onClose()
           }}
         />
-      ) : (
+      ) : page === 'storage' ? (
         <HubStorage t={t} rpc={props.rpc} onChanged={runs.refresh} />
+      ) : (
+        <HubSettings t={t} rpc={props.rpc} onSaved={props.workflows.onChanged} />
       )}
     </Modal>
   )

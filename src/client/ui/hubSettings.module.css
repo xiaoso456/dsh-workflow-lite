@@ -1,0 +1,120 @@
+/**
+ * dsh-workflow-lite — 工作流中心「设置」页（`HubSettings.tsx`）。
+ *
+ * 行的样子借存储页的（hub.module.css 的 box / item），这里只补控件那一截：
+ * 数字框 + 单位、整行宽的路径框、「恢复默认」小按钮、「重启后生效」小标签、底下的保存条。
+ */
+
+.wrap {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.banner {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--wl-fill);
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-meta);
+}
+
+/* 宽控件的行：图标对齐第一行文字，不和整块居中。 */
+.item[data-wide="true"] {
+  align-items: start;
+}
+
+.wideControl {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.path {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.number {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.numberInput {
+  width: 92px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.unit {
+  min-width: 28px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+}
+
+.restart {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--wl-warn-soft);
+  color: var(--wl-warn);
+  font-size: var(--wl-fs-micro);
+  font-weight: 500;
+}
+
+.reset {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--wl-text-3);
+  cursor: pointer;
+  transition: transform 120ms var(--wl-ease);
+}
+
+.reset:hover {
+  background: var(--wl-hover);
+  color: var(--wl-text);
+}
+
+.reset:active {
+  transform: scale(0.92);
+}
+
+.reset:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: -1px;
+}
+
+.error {
+  color: var(--wl-danger);
+  font-size: var(--wl-fs-micro);
+}
+
+/* 保存条：有没保存的改动时才出现，贴在页面底下（不盖住最后一行）。 */
+.bar {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 16px;
+  border-top: 1px solid var(--wl-line);
+  background: var(--wl-panel);
+}
+
+.barText {
+  flex: 1 1 auto;
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-meta);
+}

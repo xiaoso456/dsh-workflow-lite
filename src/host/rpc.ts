@@ -32,6 +32,12 @@ import {
 } from '../shared/wire.ts'
 import { listHostDir, listSkills, readSkill, type SkillViewer } from './hostFs.ts'
 import { compileWorkflow } from './plan.ts'
+import {
+  type LiveValues,
+  readPluginConfig,
+  type SettingsPort,
+  writePluginConfig,
+} from './pluginConfig.ts'
 import type { GraphEdit, RunService } from './runs/service.ts'
 import { storageAction } from './runs/storage.ts'
 import { type LoadResult, problemsToWarnings, type Repository } from './store/repository.ts'
@@ -46,6 +52,8 @@ export interface RpcDeps {
   runs: RunService
   /** 看 DSH 的 skill（选 Skill、预览 SKILL.md 用）；没给就当没装 skill 服务。 */
   skills?: SkillViewer
+  /** 「设置」页：DSH 的设置服务（不在时回 `undefined`，页面只读）与活配置的现值。 */
+  config: { port: () => SettingsPort | undefined; live: LiveValues }
 }
 
 type RpcResult<T> = ConnectionRpcResult<T>
@@ -550,6 +558,29 @@ async function dispatch(
         name: requireString(input, 'name'),
         ...(cwd === undefined ? {} : { cwd }),
         ...(session === undefined ? {} : { session }),
+      })
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok(outcome.result)
+    }
+
+    case 'config/get':
+      return ok(readPluginConfig(deps.config.port(), deps.config.live))
+
+    case 'config/set': {
+      const input = asRecord(payload)
+      const revision = input.revision
+      if (typeof revision !== 'number' || !Number.isInteger(revision) || revision < 0) {
+        throw new Error('revision must be a non-negative integer')
+      }
+      const set = input.set === undefined ? {} : asRecord(input.set)
+      const reset = input.reset ?? []
+      if (!Array.isArray(reset) || !reset.every((key) => typeof key === 'string')) {
+        throw new Error('reset must be a list of keys')
+      }
+      const outcome = await writePluginConfig(deps.config.port(), deps.config.live, {
+        revision,
+        set,
+        reset,
       })
       if (!outcome.ok) return failFrom(outcome.error)
       return ok(outcome.result)

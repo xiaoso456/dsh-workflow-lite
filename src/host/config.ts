@@ -44,7 +44,7 @@ export interface WorkflowLiteSettings {
 export const Config = z.object({
   dataDir: z.string().default(dshHomePath('workflow-lite')).volatile(),
   saveDebounceMs: z.number().min(0).default(400).volatile(),
-  maxNodes: z.number().min(1).default(200).volatile(),
+  maxNodes: z.number().min(1).default(400).volatile(),
   maxResultBytes: z.number().min(1024).default(262_144).volatile(),
   routePrefix: z.string().pattern(/^\//u).default('/workflow-lite').volatile(),
   installSkill: z.boolean().default(true).volatile(),
