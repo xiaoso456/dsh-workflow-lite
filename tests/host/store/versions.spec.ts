@@ -117,7 +117,8 @@ describe('存版本', () => {
     expect(expectError(await repo.saveVersion('nope', '')).code).toBe('not_found')
   })
 
-  it(`最多 ${MAX_VERSIONS} 个`, async () => {
+  // 这条要写满 MAX_VERSIONS 个版本文件再剪枝：整套并行跑时默认 5s 不够（隔离跑约 0.3s）。
+  it(`最多 ${MAX_VERSIONS} 个`, { timeout: 20_000 }, async () => {
     await seed('w', doc([step('a')]))
     await mkdir(versionsDir(root, 'w'), { recursive: true })
     for (let n = 1; n <= MAX_VERSIONS; n += 1) {
