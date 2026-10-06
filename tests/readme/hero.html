@@ -1,0 +1,326 @@
+<!doctype html>
+<!--
+  README 封面图的排版。?lang=zh / ?lang=en 切换文案与素材（tests/runs/hero/<lang>/，由 tests/readme-shots.mjs 拍），
+  tests/readme-hero.mjs 按 2 倍像素把这一页截成 assets/hero.<lang>.png。文案都在页尾的 TEXT 里。
+
+  清晰度：素材已经按封面里的大小拍好（2 倍像素），这里一律按「原图宽 ÷ 2」摆，一个像素对一个像素，不缩放。
+  页宽 1040：GitHub 上 README 的图大约显示 880 宽，缩得少，字才看得清。工作流的图铺满 .frame 的内宽 974
+  （= 1040 − 左右各 32 的页边 − 边框），改页宽或页边要同步改 readme-shots.mjs 里的 GRAPH_WIDTH。
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>dsh-workflow-lite</title>
+<style>
+  :root {
+    --bg: #0a0e15;
+    --line: rgb(140 170 220 / 14%);
+    --text: #e8eef8;
+    --text-2: #aab7ca;
+    --text-3: #707e93;
+    --accent: #4d94ff;
+    --accent-soft: rgb(77 148 255 / 14%);
+    --green: #3ecf8e;
+    --amber: #f5b544;
+    --mono: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    width: 1040px;
+    padding: 40px 32px 34px;
+    background:
+      radial-gradient(760px 380px at 10% -6%, rgb(77 148 255 / 20%), transparent 70%),
+      radial-gradient(620px 360px at 100% 52%, rgb(63 208 224 / 8%), transparent 70%),
+      radial-gradient(rgb(140 170 220 / 8%) 1px, transparent 1px) 0 0 / 22px 22px,
+      var(--bg);
+    color: var(--text);
+    font-family: "Microsoft YaHei UI", "PingFang SC", "Noto Sans SC", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  img { display: block; }
+
+  /* ── 标题 ── */
+  header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px; }
+  .brand { display: flex; gap: 14px; align-items: center; }
+  .logo {
+    display: grid; place-items: center; width: 48px; height: 48px; border-radius: 14px;
+    background: linear-gradient(135deg, #4d94ff, #2f6fe0); box-shadow: 0 8px 24px rgb(77 148 255 / 35%);
+  }
+  h1 { margin: 0; font-size: 30px; font-weight: 700; letter-spacing: -0.01em; }
+  .tagline { margin: 3px 0 0; color: var(--text-2); font-size: 16px; }
+  .tagline b { color: var(--text); font-weight: 600; }
+  .pill {
+    flex: none; padding: 7px 14px; border: 1px solid var(--line); border-radius: 999px;
+    background: rgb(18 25 37 / 70%); color: var(--text-2); font-size: 13px;
+  }
+  .pill i { color: var(--accent); font-style: normal; }
+
+  /* ── 每段的标题行 ── */
+  .label { display: flex; gap: 10px; align-items: center; margin: 0 0 12px 2px; }
+  .num {
+    flex: none; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 8px;
+    background: var(--accent-soft); color: var(--accent); font-size: 14px; font-weight: 700;
+  }
+  .label h2 { flex: none; margin: 0; font-size: 19px; font-weight: 650; }
+  .label span { color: var(--text-3); font-size: 14px; }
+
+  /* ── 窗口框 ── */
+  .frame {
+    overflow: hidden; border: 1px solid var(--line); border-radius: 14px;
+    background: #0d121b; box-shadow: 0 22px 54px rgb(0 0 0 / 45%), inset 0 1px 0 rgb(255 255 255 / 4%);
+  }
+  .bar {
+    display: flex; gap: 7px; align-items: center; height: 36px; padding: 0 14px;
+    border-bottom: 1px solid var(--line); background: rgb(23 32 49 / 70%);
+    color: var(--text-3); font-size: 13px;
+  }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: #2a3446; }
+  .bar .title { margin-left: 10px; color: var(--text-2); }
+  .bar .title b { color: var(--text); font-weight: 600; }
+  .chip { margin-left: auto; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .chip.ok { background: rgb(62 207 142 / 14%); color: var(--green); }
+  .chip.run { background: var(--accent-soft); color: var(--accent); }
+
+  /* 第三段的下半截：左列右栏里裁出的两小块，右边查看框里的看板。 */
+  .detail {
+    display: grid; grid-template-columns: auto 1fr; gap: 20px; padding: 20px;
+    border-top: 1px solid var(--line); background: rgb(18 25 37 / 55%);
+  }
+  .detail .side { display: flex; flex-direction: column; gap: 14px; }
+  .shot { border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 10px 26px rgb(0 0 0 / 35%); }
+  .detail .board { border: 0; border-radius: 12px; justify-self: end; }
+
+  /* 段与段之间的连接：一根竖线 + 中间的动词。 */
+  .link { display: flex; gap: 12px; align-items: center; height: 52px; padding-left: 40px; }
+  .link .stem { flex: none; width: 2px; height: 100%; background: linear-gradient(var(--accent), rgb(77 148 255 / 15%)); }
+  .link .verb {
+    flex: none; padding: 4px 12px; border: 1px solid rgb(77 148 255 / 40%); border-radius: 999px;
+    background: rgb(77 148 255 / 10%); color: var(--accent); font-size: 13px; font-weight: 600;
+  }
+  .link .note { color: var(--text-3); font-size: 13.5px; }
+
+  /* ── 第二段：计划 + 软工作流 ── */
+  .middle { display: grid; grid-template-columns: 1.22fr 1fr; gap: 20px; }
+  .plan { padding: 18px 22px 20px; font-size: 14px; line-height: 1.75; color: var(--text-2); }
+  .plan h3 { margin: 12px 0 4px; color: var(--text); font-size: 14.5px; font-weight: 650; }
+  .plan h3:first-child { margin-top: 0; }
+  .plan h3::before { content: "## "; color: var(--text-3); font-family: var(--mono); }
+  .plan p { margin: 0; }
+  .plan ul { margin: 0; padding-left: 18px; }
+  .plan code {
+    padding: 1px 6px; border-radius: 5px; background: rgb(140 170 220 / 10%);
+    color: var(--text); font-family: var(--mono); font-size: 13px;
+  }
+  .plan .hl { color: var(--amber); }
+  .plan .muted { color: var(--text-3); }
+
+  .soft {
+    display: flex; flex-direction: column; justify-content: center; gap: 18px; padding: 24px 24px;
+    border: 1px solid rgb(77 148 255 / 28%); border-radius: 14px;
+    background: linear-gradient(160deg, rgb(77 148 255 / 13%), rgb(18 25 37 / 85%) 55%);
+  }
+  .soft h3 { margin: 0; font-size: 20px; font-weight: 700; }
+  .soft h3 em { color: var(--accent); font-style: normal; }
+  .soft .row { display: flex; gap: 12px; align-items: flex-start; }
+  .soft .ic {
+    flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 9px;
+    background: rgb(77 148 255 / 14%); color: var(--accent);
+  }
+  .soft .ic svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .soft .row b { display: block; margin-bottom: 2px; font-size: 15px; font-weight: 600; }
+  .soft .row span { color: var(--text-2); font-size: 13.5px; line-height: 1.6; }
+
+  /* ── 底部特性：四列两行 ── */
+  footer { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 28px; }
+  footer .f {
+    display: flex; gap: 9px; align-items: center; padding: 10px 14px;
+    border: 1px solid var(--line); border-radius: 11px; background: rgb(18 25 37 / 75%);
+    color: var(--text-2); font-size: 14px; white-space: nowrap;
+  }
+  footer .f i { flex: none; width: 8px; height: 8px; border-radius: 50%; }
+</style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <div class="logo">
+        <svg aria-hidden="true" width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="4" width="7" height="6" rx="1.5" /><rect x="14" y="14" width="7" height="6" rx="1.5" />
+          <path d="M10 7h4a3 3 0 0 1 3 3v4" />
+        </svg>
+      </div>
+      <div>
+        <h1>dsh-workflow-lite</h1>
+        <p class="tagline" data-k="tagline"></p>
+      </div>
+    </div>
+    <div class="pill" data-k="pill"></div>
+  </header>
+
+  <section>
+    <div class="label"><span class="num">1</span><h2 data-k="s1">设计流程</h2><span data-k="s1d"></span></div>
+    <div class="frame">
+      <div class="bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i>
+        <span class="title" data-k="s1bar"></span><span class="chip ok" data-k="ok"></span>
+      </div>
+      <img data-img="canvas" alt="" />
+    </div>
+  </section>
+
+  <div class="link"><i class="stem"></i><span class="verb" data-k="compile"></span><span class="note" data-k="compileNote"></span></div>
+
+  <section class="middle">
+    <div>
+      <div class="label"><span class="num">2</span><h2 data-k="s2">生成计划提示词</h2><span data-k="s2d"></span></div>
+      <div class="frame">
+        <div class="bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span class="title" data-k="s2bar"></span></div>
+        <div class="plan" data-k="plan"></div>
+      </div>
+    </div>
+    <div class="soft">
+      <h3 data-k="softTitle">软工作流</h3>
+      <div class="row"><span class="ic"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 4h9l3 3v13H6z"/><path d="M9 11h6M9 15h4"/></svg></span><div data-k="soft1"></div></div>
+      <div class="row"><span class="ic"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.2"/><path d="M5.5 19a6.5 6.5 0 0 1 13 0"/></svg></span><div data-k="soft2"></div></div>
+      <div class="row"><span class="ic"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M8 4c-2 0-3 1-3 3v2c0 1.5-1 3-2 3 1 0 2 1.5 2 3v2c0 2 1 3 3 3M16 4c2 0 3 1 3 3v2c0 1.5 1 3 2 3-1 0-2 1.5-2 3v2c0 2-1 3-3 3"/></svg></span><div data-k="soft3"></div></div>
+      <div class="row"><span class="ic"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4h4"/></svg></span><div data-k="soft4"></div></div>
+    </div>
+  </section>
+
+  <div class="link"><i class="stem"></i><span class="verb" data-k="run"></span><span class="note" data-k="runNote"></span></div>
+
+  <section>
+    <div class="label"><span class="num">3</span><h2 data-k="s3">跟踪执行进度</h2><span data-k="s3d"></span></div>
+    <div class="frame">
+      <div class="bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i>
+        <span class="title" data-k="s3bar"></span><span class="chip run" data-k="s3chip"></span>
+      </div>
+      <img data-img="run-graph" alt="" />
+      <div class="detail">
+        <div class="side">
+          <img class="shot" data-img="run-position" alt="" />
+          <img class="shot" data-img="run-timeline" alt="" />
+        </div>
+        <img class="shot board" data-img="run-dashboard" alt="" />
+      </div>
+    </div>
+  </section>
+
+  <footer data-k="features"></footer>
+
+  <script>
+    const code = (t) => `<code>${t}</code>`
+    const TEXT = {
+      zh: {
+        tagline: '<b>软工作流</b>：画布上设计流程，编译成计划提示词，由模型按计划执行',
+        pill: 'DeepSeek Harness 插件 · <i>无需执行引擎</i>',
+        s1: '设计流程',
+        s1d: '步骤、分支与循环、读写资源、执行前提问',
+        s1bar: '工作流 · <b>代码审查循环</b>',
+        ok: '✓ 没有问题',
+        compile: '编译',
+        compileNote: '工作流编译为一份计划提示词，各步骤的提示词原样交给执行者',
+        s2: '生成计划提示词',
+        s2d: '节选',
+        s2bar: '计划 · <b>代码审查循环</b>',
+        plan: `<h3>图的事实</h3>
+          <p>执行批次：${code('implement')} → ${code('review')} → ${code('fix')} / ${code('report')}</p>
+          <p><span class="hl">循环</span>：重复执行 ${code('review')} → ${code('fix')} → ${code('review')}，直到 ${code('review')} 给出 ${code('VERDICT: pass')}，然后走 ${code('report')} 离开循环</p>
+          <h3>分发纪律</h3>
+          <ul><li>派发一个节点 = 让执行者先读它那份任务描述，再干活</li><li>原样转交，不要转述</li></ul>
+          <h3>运行状态</h3>
+          <p>用 ${code('workflow_lite')} 的 ${code('state')} 动作记进度 <span class="muted">· 画布实时显示</span></p>`,
+        softTitle: '<em>软</em>工作流',
+        soft1: '<b>计划即说明</b><span>插件把流程写清楚，调度、重试与检查交给模型。</span>',
+        soft2: '<b>执行方式由模型决定</b><span>直接完成、派发子代理或组建团队，按计划来定。</span>',
+        soft3: '<b>一个工作流一个 JSON</b><span>提示词随图保存，便于比对、分享，模型也能直接改。</span>',
+        soft4: '<b>支持中断续跑</b><span>进度记在实例里，中断后从下一步接着做。</span>',
+        run: '执行',
+        runNote: '模型执行时记录进度，画布同步显示；在画布上修改的状态会通知模型',
+        s3: '跟踪执行进度',
+        s3d: '各步骤状态、当前轮次、分支走向；HTML 看板随时查看每轮产出',
+        s3bar: '实例 · <b>给 auth/ 加上 token 刷新的重试</b>',
+        s3chip: '● 执行中 · 第 2 轮',
+        features: [
+          '分支与循环',
+          '文件 / 网址 / Skill 资源',
+          '执行前提问',
+          '运行状态',
+          'HTML 看板预览',
+          '版本管理',
+          '模型协作编辑',
+          '浅色 / 深色 · 中 / 英',
+        ],
+      },
+      en: {
+        tagline: '<b>Soft workflows</b>: draw the flow, get a plan prompt, the model runs it',
+        pill: 'DeepSeek Harness plugin · <i>no execution engine</i>',
+        s1: 'Design the flow',
+        s1d: 'Steps, branches and loops, resources, questions to ask first',
+        s1bar: 'Workflow · <b>code-review-loop</b>',
+        ok: '✓ No problems',
+        compile: 'Compile',
+        compileNote: 'The workflow becomes one plan prompt; each step’s prompt reaches its executor word for word',
+        s2: 'Get a plan prompt',
+        s2d: 'Excerpt, translated',
+        s2bar: 'Plan · <b>code-review-loop</b>',
+        plan: `<h3>Graph facts</h3>
+          <p>Batches: ${code('implement')} → ${code('review')} → ${code('fix')} / ${code('report')}</p>
+          <p><span class="hl">Loop</span>: repeat ${code('review')} → ${code('fix')} → ${code('review')} until ${code('review')} answers ${code('VERDICT: pass')}, then leave through ${code('report')}</p>
+          <h3>Dispatch rules</h3>
+          <ul><li>Dispatching a step means the executor reads its task file first, then works</li><li>Hand the task over word for word</li></ul>
+          <h3>Run state</h3>
+          <p>Record progress with the ${code('state')} action of ${code('workflow_lite')} <span class="muted">· shown live on the canvas</span></p>`,
+        softTitle: '<em>Soft</em> workflow',
+        soft1: '<b>The plan is guidance</b><span>The plugin spells out the flow; the model handles scheduling, retries and checks.</span>',
+        soft2: '<b>The model chooses how to run</b><span>Work directly, dispatch subagents or form a team, as the plan and tools allow.</span>',
+        soft3: '<b>One workflow, one JSON file</b><span>Prompts live inside the graph, easy to diff and share; the model can edit it too.</span>',
+        soft4: '<b>Resume after interruption</b><span>Progress is kept per run; work continues from the next step, rounds worked out.</span>',
+        run: 'Run',
+        runNote: 'The model records progress and the canvas follows; state you change on the canvas is reported back',
+        s3: 'Track progress',
+        s3d: 'Step status, current round, branch taken; an HTML dashboard for each round’s output',
+        s3bar: 'Run · <b>Add retry to auth/ token refresh</b>',
+        s3chip: '● Running · round 2',
+        features: [
+          'Branches & loops',
+          'Files / URLs / Skills',
+          'Pre-run questions',
+          'Run state',
+          'HTML dashboards',
+          'Versions',
+          'Model co-editing',
+          'Light / dark · 中 / EN',
+        ],
+      },
+    }
+    const DOTS = ['#4d94ff', '#3fd0e0', '#f5b544', '#3ecf8e', '#ff7a66', '#7aa2ff', '#a9b6c9', '#6f7d92']
+    const lang = new URLSearchParams(location.search).get('lang') === 'en' ? 'en' : 'zh'
+    const text = TEXT[lang]
+    document.documentElement.lang = lang === 'en' ? 'en' : 'zh-CN'
+    for (const el of document.querySelectorAll('[data-k]')) {
+      const value = text[el.dataset.k]
+      if (!Array.isArray(value)) el.innerHTML = value
+      else
+        el.innerHTML = value
+          .map((label, i) => `<span class="f"><i style="background:${DOTS[i]}"></i>${label}</span>`)
+          .join('')
+    }
+    // 素材按 2 倍像素拍好了封面里的大小：一律按原图宽的一半摆，一个像素对一个像素。
+    const SHOT_SCALE = 2
+    const loads = [...document.querySelectorAll('[data-img]')].map(
+      (img) =>
+        new Promise((resolve) => {
+          img.addEventListener('load', () => {
+            img.style.width = `${img.naturalWidth / SHOT_SCALE}px`
+            resolve()
+          })
+          img.src = `../runs/hero/${lang}/${img.dataset.img}.png`
+        }),
+    )
+    Promise.all(loads).then(() => {
+      window.__heroReady = true
+    })
+  </script>
+</body>
+</html>

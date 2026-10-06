@@ -5,6 +5,14 @@
   "type": "module",
   "license": "MIT",
   "author": "xiaoso",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xiaoso456/dsh-workflow-lite.git"
+  },
+  "homepage": "https://github.com/xiaoso456/dsh-workflow-lite#readme",
+  "bugs": {
+    "url": "https://github.com/xiaoso456/dsh-workflow-lite/issues"
+  },
   "sideEffects": [
     "lib/client.js"
   ],
@@ -57,11 +65,11 @@
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.4",
-    "@deepseek-ai/dsh-agent": "^0.2.0-rc.1",
-    "@deepseek-ai/dsh-home-paths": "^0.2.0-rc.1",
-    "@deepseek-ai/dsh-llm": "^0.2.0-rc.1",
-    "@deepseek-ai/dsh-settings": "^0.2.0-rc.1",
-    "@deepseek-ai/dsh-tools": "^0.2.0-rc.1"
+    "@deepseek-ai/dsh-agent": ">=0.2.0-0 <0.2.1-0",
+    "@deepseek-ai/dsh-home-paths": ">=0.2.0-0 <0.2.1-0",
+    "@deepseek-ai/dsh-llm": ">=0.2.0-0 <0.2.1-0",
+    "@deepseek-ai/dsh-settings": ">=0.2.0-0 <0.2.1-0",
+    "@deepseek-ai/dsh-tools": ">=0.2.0-0 <0.2.1-0"
   },
   "dependencies": {
     "@deepseek-ai/schemastery": "^3.18.4",
@@ -72,7 +80,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.8",
-    "@deepseek-ai/cordis": "^4.0.4",
+    "@deepseek-ai/cordis": "4.0.4",
     "@deepseek-ai/dsh-agent": "0.2.0-rc.1",
     "@deepseek-ai/dsh-client-connection": "0.2.0-rc.1",
     "@deepseek-ai/dsh-client-locale": "0.2.0-rc.1",
@@ -116,6 +124,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "lint": "biome check .",
-    "format": "biome check --write ."
+    "format": "biome check --write .",
+    "hero": "node --experimental-strip-types tests/readme-shots.mjs && node tests/readme-hero.mjs",
+    "hero:render": "node tests/readme-hero.mjs"
   }
 }

@@ -57,9 +57,9 @@ export const clickTestIdExpr = (testId) =>
    })()`
 
 /** 进入第一个带相对时间的会话（`conversation.view` 只在会话页上有槽位）。 */
-export async function enterSession(session, { timeoutMs = 30_000 } = {}) {
-  const opened = await session.evaluate(clickAriaExpr('搜索会话'))
-  if (opened !== true) throw new Error('进不去会话列表：找不到 aria-label=搜索会话 的按钮')
+export async function enterSession(session, { timeoutMs = 30_000, searchLabel = '搜索会话' } = {}) {
+  const opened = await session.evaluate(clickAriaExpr(searchLabel))
+  if (opened !== true) throw new Error(`进不去会话列表：找不到 aria-label=${searchLabel} 的按钮`)
   const deadline = Date.now() + timeoutMs
   for (;;) {
     const row = await session.evaluate(clickSessionRowExpr)
@@ -355,7 +355,11 @@ export async function screenshot(session, name) {
  * **不依赖"自动打开上次那张图"**：A16 的自动打开是产品行为，验收要能独立于它成立，
  * 所以每次都用图选择器显式选图。
  */
-export async function bootToCanvas(session, graphName, { width = 1440, height = 900 } = {}) {
+export async function bootToCanvas(
+  session,
+  graphName,
+  { width = 1440, height = 900, lang = 'zh' } = {},
+) {
   await session.send('Emulation.setDeviceMetricsOverride', {
     width,
     height,
@@ -365,8 +369,9 @@ export async function bootToCanvas(session, graphName, { width = 1440, height = 
   await session.navigate(authenticatedUrl())
   const probe = await waitFor(session, 'globalThis.__WORKFLOW_LITE__ ?? ""', { timeoutMs: 30_000 })
   if (probe !== 'workflow-lite') throw new Error(`e2e 探针应为 workflow-lite，实得 ${JSON.stringify(probe)}`)
-  const row = await enterSession(session)
-  await openCanvasTab(session)
+  // `lang`：DSH 界面是哪种语言（英文界面下按钮、标签页的文字不同）。
+  const row = await enterSession(session, lang === 'en' ? { searchLabel: 'Search sessions' } : {})
+  await openCanvasTab(session, lang === 'en' ? { label: 'Workflow' } : {})
   const rendered = await selectGraph(session, graphName)
   return { row, rendered }
 }

@@ -1,0 +1,80 @@
+# AGENTS.md
+
+给在本仓库里干活的代理（和人）看的说明。
+
+## 常用命令
+
+| 命令 | 作用 |
+|---|---|
+| `pnpm install` | 安装依赖 |
+| `pnpm run build` | 构建 `lib/`（改了前端或主机代码后，测试实例要重启才看得到） |
+| `pnpm run typecheck` | 类型检查 |
+| `pnpm run lint` | 代码检查（biome） |
+| `pnpm test` | 单元测试（vitest） |
+| `pnpm run hero` | 重做 README 封面图（中英两张，见下文） |
+
+## DSH 版本
+
+- 兼容范围按三段版本号走：`peerDependencies` 里所有 `@deepseek-ai/dsh-*` 都写 `>=0.2.0-0 <0.2.1-0`，即 0.2.0 的各个预览版和正式版都能装，0.2.1 起不认。DSH 检查 peer 时带 `includePrerelease`，写 `^` 会放进整个 0.2.x，所以不用 `^`。
+- 编译用的 `devDependencies`（`@deepseek-ai/dsh-*`、`@deepseek-ai/cordis`）写死精确版本，加上 `pnpm-lock.yaml`，防止依赖漂移。
+- README 两版都有 `DeepSeek Harness 0.2.0-x` 徽标和一句适配说明。
+- 换支持的版本线时，三处一起改：peer 范围、精确的 dev 版本、README 徽标与说明；`tests/package.spec.ts` 会检查它们是否一致。
+
+## 浏览器验收（CDP）
+
+`tests/cdp-*.mjs` 在真浏览器里走一遍功能，结论以磁盘 / RPC 为准。需要：
+
+1. 一个装了本插件的 DSH 网页实例（默认 `http://127.0.0.1:3190`），从它打印的 URL 里取 `?token=`；
+2. 一个带 DevTools 端口的 Chrome：`node tests/lib/cdp-chrome-launch.mjs 9222`。
+
+```bash
+DSH_WEB_TOKEN=<token> DSH_WEB_URL=http://127.0.0.1:3190 node --experimental-strip-types tests/cdp-ui.mjs
+```
+
+| 脚本 | 覆盖 |
+|---|---|
+| `cdp-ui.mjs` | 画布编辑、资源、工作流切换 / 改名 / 删除 |
+| `cdp-runs.mjs` | 实例与运行状态 |
+| `cdp-inputs.mjs` | 执行前提问 |
+| `cdp-versions.mjs` | 版本、工作流中心「工作流」页 |
+| `cdp-config.mjs` | 工作流中心「设置」页 |
+
+## README 封面图
+
+README 有中英两版：`README.md`（中文，默认）与 `README.en.md`（英文），开头互相链接。各用一张封面图：`assets/hero.zh.png`、`assets/hero.en.png`（2 倍像素），由同一页 HTML 按语言排版后截图得到，图里的界面都是真实截图（英文版用英文界面和英文示例）。
+
+| 文件 | 作用 |
+|---|---|
+| `tests/readme-shots.mjs` | 按语言切换浏览器语言，在测试实例里建示例工作流和一个实例，按封面里的大小拍素材到 `tests/runs/hero/<lang>/`（`canvas.png` 编辑页、`run-graph.png` 点亮的图、`run-position.png` / `run-timeline.png` 右栏两小块、`run-dashboard.png` 查看框里打开的 HTML 看板、`plan.txt` 编译出的计划），拍完自动清理；`node … tests/readme-shots.mjs en` 只拍一种 |
+| `tests/readme/hero.html` | 封面排版：标题、三段流程（设计流程 → 生成计划提示词 → 跟踪执行进度）、软工作流说明、功能标签；`?lang=zh` / `?lang=en` 切换，文案都在页尾的 `TEXT` 里 |
+| `tests/readme-hero.mjs` | 在 Chrome 里另开一个标签页按 1040 宽渲染 `hero.html`，截成 `assets/hero.<lang>.png`；`node tests/readme-hero.mjs en` 只出一种 |
+
+重做步骤：
+
+```bash
+# 界面有变化：重拍素材并出图（需要上面「浏览器验收」的两样前置）
+DSH_WEB_TOKEN=<token> DSH_WEB_URL=http://127.0.0.1:3190 pnpm run hero
+
+# 只改了 hero.html 的文案或排版：直接出图（素材已在 tests/runs/hero/）
+pnpm run hero:render
+```
+
+改封面时注意：
+
+- 计划节选是从 `tests/runs/hero/zh/plan.txt` 里摘的原文（计划只有中文，英文版是对应的译文，图里标了 translated），编译器的措辞变了要同步改；
+- 两种语言的文案改一处就要改另一处；
+- 文案用平实的陈述句，不用「不是……而是……」这类对比句式，也不用过于口语的说法；
+- 清晰：素材拍的时候就按封面里的大小换算像素比，`hero.html` 一律按「原图宽 ÷ 2」摆，一个像素对一个像素，不在封面里缩放（缩放就糊）；右栏这类窄面板单独裁出来，别整块界面缩小塞进封面；
+- 字要大：封面 1040 宽，GitHub 上大约显示成 880 宽；示例工作流只留四步，图越窄字越大。改页宽、页边要同步改 `readme-shots.mjs` 的 `GRAPH_WIDTH`；
+- 层次：工作流的图是主角；右栏小块和看板按图相对原大的比例拍（不小于 `MIN_SCALE` 0.85），字号和图上的字接近，别比图还抢眼；
+- 不留空：第三段下半截左列两小块叠起来，右边看板的高度按左列算好再拍，两边齐平；
+- 出图后打开 `assets/hero.zh.png`、`assets/hero.en.png` 看一眼，确认没有错位、截断，也没有拍进本机路径或私人工作区名。
+
+## 写 README 的约定
+
+- 面向使用者：只写装什么、怎么用、有什么功能；内部实现（数据目录结构、工具 action、RPC）不写。
+- 章节顺序：一句话原理 + 「实验阶段」提示 + 徽章 + 封面图，然后是 安装 → 使用 → 功能 → 工作原理 → License；不放「参与贡献」。
+- 安装分「网页版」（`dsh plugin --profile web add …` + `dsh web`）与「桌面端」（侧边栏「插件」→「添加插件」→「安装第三方插件」）；使用分「让模型创建」（给一句示例话）、「手动编辑」、「跟踪进度」。
+- 中英两版内容保持一致，改一版就同步另一版；按钮、页面名用界面上的原词（英文版对照 `src/client/i18n.ts` 的 `en`）。
+- 功能用表格列出；图片用相对路径（`./assets/...`），本地、GitHub、npm 都能显示。
+- 插件设置在工作流中心的「设置」页里改，README 不列配置项。
