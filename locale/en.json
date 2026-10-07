@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Workflow Lite",
-    "description": "Connect steps into a graph on a canvas, compile it into a dispatch plan the model executes; each workflow is one JSON with its prompts inline."
+    "description": "Connect steps into a graph on a canvas, compile it into a dispatch plan the model executes."
   }
 }

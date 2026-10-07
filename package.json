@@ -31,6 +31,7 @@
   "packageManager": "pnpm@11.21.0",
   "main": "lib/index.mjs",
   "types": "lib/types/index.d.ts",
+  "icon": "./assets/icon.webp",
   "exports": {
     ".": {
       "types": "./lib/types/index.d.ts",
@@ -49,7 +50,8 @@
     "lib/client.js",
     "cordis.patch.yml",
     "lib/types/**/*.d.ts",
-    "locale/*.json"
+    "locale/*.json",
+    "assets/icon.webp"
   ],
   "dsh": {
     "client": {

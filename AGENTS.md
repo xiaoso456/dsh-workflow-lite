@@ -15,10 +15,10 @@
 
 ## DSH 版本
 
-- 兼容范围按三段版本号走：`peerDependencies` 里所有 `@deepseek-ai/dsh-*` 都写 `>=0.2.0-0 <0.2.1-0`，即 0.2.0 的各个预览版和正式版都能装，0.2.1 起不认。DSH 检查 peer 时带 `includePrerelease`，写 `^` 会放进整个 0.2.x，所以不用 `^`。
-- 编译用的 `devDependencies`（`@deepseek-ai/dsh-*`、`@deepseek-ai/cordis`）写死精确版本，加上 `pnpm-lock.yaml`，防止依赖漂移。
-- README 两版都有 `DeepSeek Harness 0.2.0-x` 徽标和一句适配说明。
-- 换支持的版本线时，三处一起改：peer 范围、精确的 dev 版本、README 徽标与说明；`tests/package.spec.ts` 会检查它们是否一致。
+- 兼容范围写成一条三段版本号的区间（预览版也要能装），放在每个 `@deepseek-ai/dsh-*` 的 `peerDependencies` 里；DSH 检查 peer 时带 `includePrerelease`，所以不能用 `^`。
+- 编译用的 `devDependencies`（`@deepseek-ai/dsh-*`、`@deepseek-ai/cordis`）写死精确版本，配合 `pnpm-lock.yaml` 防依赖漂移。
+- README 两版各带一个同区间的 DSH 徽标和一句适配说明。
+- 换支持的版本线时四处一起改：peer 区间、dev 精确版本、两版 README 的徽标与说明；`tests/package.spec.ts` 检查它们一致。
 
 ## 配色主题
 
@@ -46,6 +46,16 @@ DSH_WEB_TOKEN=<token> DSH_WEB_URL=http://127.0.0.1:3190 node --experimental-stri
 | `cdp-inputs.mjs` | 执行前提问 |
 | `cdp-versions.mjs` | 版本、工作流中心「工作流」页 |
 | `cdp-config.mjs` | 工作流中心「设置」页（含外观：配色主题） |
+
+## 插件图标与词标
+
+- `assets/icon.webp`：448×448、圆角半径 104、8 倍超采样，WebP 无损 219.7 KiB；`package.json` 顶层 `icon` 和 README 两版开头的 `<img>` 都指向它。
+- 宿主只收**清单目录下的相对路径**的图标，格式 SVG / PNG / JPEG / WebP，上限 256 KiB；越界界面静默回退默认图。`tests/package.spec.ts` 的「插件图标」四块盯着：路径合法且在包内、不超过 256 KiB、本体与扩展名对得上、`files` 收得下。
+- `assets/icon-source.png`（最初的源图）、`assets/icon-art.png`（重绘成赛璐璐平涂，1024 见方）只留在仓库里做参照，不随包发布。
+- 图标重做：把 `icon-art.png` 整幅 LANCZOS 缩到 448（不裁），套半径 104 的圆角遮罩，存 WebP 无损（`lossless=True, quality=100, method=6`）。
+- `assets/wordmark.png`：「dsh workflow lite」艺术字，Jua 400 Regular 逐词纯色，1147×130——蓝 `#3e7ce4`（项目色）、绿 `#60ba7e`（人物眼睛）、金 `#cd9e70`（金发压深）。README 里按 `width="360"` 摆，图标 140。
+- 词标重做：Pillow 把三个词按 4 倍尺寸画到同一基线上，整幅 LANCZOS 缩到 1/4，裁到墨迹外留 6% 边距；字体不进仓库，用时从 Google Fonts 取 `ofl/jua/Jua-Regular.ttf`。
+- README 两版开头都是「图标 + 词标」居中的一段 HTML，没有 H1；改文案两版同步。
 
 ## README 封面图
 
@@ -77,12 +87,3 @@ pnpm run hero:render
 - 层次：工作流的图是主角；右栏小块和看板按图相对原大的比例拍（不小于 `MIN_SCALE` 0.85），字号和图上的字接近，别比图还抢眼；
 - 不留空：第三段下半截左列两小块叠起来，右边看板的高度按左列算好再拍，两边齐平；
 - 出图后打开 `assets/hero.zh.png`、`assets/hero.en.png` 看一眼，确认没有错位、截断，也没有拍进本机路径或私人工作区名。
-
-## 写 README 的约定
-
-- 面向使用者：只写装什么、怎么用、有什么功能；内部实现（数据目录结构、工具 action、RPC）不写。
-- 章节顺序：一句话原理 + 「实验阶段」提示 + 徽章 + 封面图，然后是 安装 → 使用 → 功能 → 工作原理 → License；不放「参与贡献」。
-- 安装分「网页版」（`dsh plugin --profile web add …` + `dsh web`）与「桌面端」（侧边栏「插件」→「添加插件」→「安装第三方插件」）；使用分「让模型创建」（给一句示例话）、「手动编辑」、「跟踪进度」。
-- 中英两版内容保持一致，改一版就同步另一版；按钮、页面名用界面上的原词（英文版对照 `src/client/i18n.ts` 的 `en`）。
-- 功能用表格列出；图片用相对路径（`./assets/...`），本地、GitHub、npm 都能显示。
-- 插件设置在工作流中心的「设置」页里改，README 不列配置项。

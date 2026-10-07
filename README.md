@@ -1,4 +1,7 @@
-# dsh-workflow-lite
+<div align="center">
+  <img width="140" src="./assets/icon.webp" alt="dsh-workflow-lite 图标"><br>
+  <img width="360" src="./assets/wordmark.png" alt="dsh-workflow-lite">
+</div>
 
 简体中文 | [English](./README.en.md)
 
