@@ -15,7 +15,7 @@
  */
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { BASE, rpc } from './lib/web-session.mjs'
+import { baseUrl, rpc } from './lib/web-session.mjs'
 
 const NAME = `e2e-${Date.now().toString(36)}`
 
@@ -58,7 +58,7 @@ function demoDocument() {
 }
 
 const run = async () => {
-  console.log(`# 画布通道端到端验收 @ ${BASE}`)
+  console.log(`# 画布通道端到端验收 @ ${baseUrl()}`)
   const dataDir = process.env.DSH_WORKFLOW_DATA_DIR
 
   // 1) 列图：至少能看到已有图（可能非空）；并且带回画布要用的两个活配置值。

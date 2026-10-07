@@ -1,7 +1,11 @@
 /**
  * 拍 README 封面图的素材（中文、英文各一套），封面由 `tests/readme-hero.mjs` 排版出图。
  *
- * 每种语言：把浏览器语言设成那种语言（DSH 与插件界面跟着变），在测试实例里建示例工作流「代码审查循环」，
+ * **自备环境**：自己起一个假模型、一个截图专用 profile 和一个随机端口的实例，备好夹具会话，
+ * 拍完拆掉。不依赖"已经有一台 dsh web 在 3190 上跑着"，也不发真实模型请求——封面拍的是
+ * 准备好的数据，不是当时机器上的状态。
+ *
+ * 每种语言：把浏览器语言设成那种语言（DSH 与插件界面跟着变），在实例里建示例工作流「代码审查循环」，
  * 拍到 `tests/runs/hero/<lang>/`：编辑页的图（canvas.png）、编译出的计划（plan.txt）、
  * 一个实例按状态点亮的图（run-graph.png）、右栏的两小块（run-position.png 执行位置、run-timeline.png 时间线）
  * 与查看框里打开的 HTML 看板（run-dashboard.png）。拍完删掉示例工作流和实例，把浏览器语言、侧栏、步骤库都放回去。
@@ -10,8 +14,8 @@
  * 工作流的图按「封面里图的宽度 ÷ 图在页面上的宽度 × 2」拍，正好铺满；右栏小块和看板按图相对原大的比例拍
  * （不小于 MIN_SCALE），字号和图上的字对得上。
  *
- * 前置同 `tests/cdp-runs.mjs`（`WL_DATA_DIR` 缺省 tests/runs/review-data）。
- * usage: DSH_WEB_TOKEN=<token> DSH_WEB_URL=http://127.0.0.1:3190 node --experimental-strip-types tests/readme-shots.mjs [zh|en]
+ * 前置只有一样：一个带 DevTools 端口的 Chrome（`node tests/lib/cdp-chrome-launch.mjs 9222`）。
+ * usage: node --experimental-strip-types tests/readme-shots.mjs [zh|en]
  */
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -21,10 +25,24 @@ import { RunService } from '../src/host/runs/service.ts'
 import { bootToCanvas } from './lib/canvas-harness.mjs'
 import { openPage, waitFor } from './lib/cdp-session.mjs'
 import { rpc } from './lib/web-session.mjs'
+import { installShotsCookie, SHOTS_SESSION_TITLE, startShotsEnv } from './support/shots-env.mjs'
 
 const HERE = fileURLToPath(new URL('.', import.meta.url))
-const DATA_DIR = process.env.WL_DATA_DIR ?? join(HERE, 'runs', 'review-data')
-const WORKSPACE = join(HERE, 'runs', 'readme-ws')
+const DATA_DIR = join(HERE, 'runs', 'review-data')
+/** 夹具会话的标题（`enterSession` 按它搜会话，不靠"列表里显示几分钟前"）。 */
+const SESSION_TITLE = SHOTS_SESSION_TITLE
+/** 夹具会话的工作区；`startShotsEnv` 可能认领到别处（见 `prepareShotsFixture`），以它返回的为准。 */
+let WORKSPACE = join(HERE, 'runs', 'readme-ws')
+/** 那个目录是不是**上一次**留下的（认领来的）。是的话收尾时不许删它。 */
+let ADOPTED_WORKSPACE = false
+/**
+ * 截图专用的 DSH 家目录：profile、会话库、工作区库、投影缓存全在它底下。
+ *
+ * 会话与工作区是**全局**的（按 `DSH_HOME` 算，不按 profile 隔离），所以必须另外给一个家，
+ * 否则那条"封面夹具"会永久留在用户自己的侧栏里。每次跑前清空、跑完删掉——
+ * 从零开始跑出来的东西才叫幂等，夹具会话每跑一次都是新的，假模型也每次都能被证明答过话。
+ */
+const SHOTS_HOME = join(HERE, 'runs', 'shots-home')
 const LANGS = process.argv[2] === undefined ? ['zh', 'en'] : [process.argv[2]]
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 /** 封面出图的像素比（同 `tests/readme-hero.mjs`）。 */
@@ -364,7 +382,13 @@ async function shoot(session, lang) {
     const disk = await rpc('graph/load', { name: copy.name })
     await rpc('graph/save', { name: copy.name, document: documentFor(copy), baseHash: disk.hash })
 
-    await bootToCanvas(session, copy.name, { width: 1500, height: 820, lang })
+    await bootToCanvas(session, copy.name, {
+      width: 1500,
+      height: 820,
+      lang,
+      // 夹具自己 rename 出来的固定标题：按它搜会话进去，不靠"列表里显示几分钟前"
+      sessionTitle: SESSION_TITLE,
+    })
     await session.evaluate(clickAria(copy.aria.collapseSidebar))
     await sleep(600)
     await session.evaluate(clickAria(copy.aria.collapseLibrary))
@@ -487,13 +511,34 @@ async function shoot(session, lang) {
     if (instance !== null)
       await rpc('run/delete', { id: instance, withState: true }).catch(() => {})
     await rpc('graph/delete', { name: copy.name }).catch(() => {})
-    await rm(WORKSPACE, { recursive: true, force: true })
+    // 只在**这一次**建出来的目录上删。夹具会认领上一次留下的工作区（会话跟着它的 cwd 走），
+    // 那条路径可能来自很早以前、甚至仓库搬过家之前——对别人的目录动 rm -rf 是另一回事。
+    // 删失败也不该把 finally 剩下的收尾带下去，所以吞掉。
+    if (!ADOPTED_WORKSPACE) await rm(WORKSPACE, { recursive: true, force: true }).catch(() => {})
   }
 }
 
-const session = await openPage()
+// 一开始就拦：写错一个字母（`pnpm run hero fr`）不该等到深处才以
+// "Cannot read properties of undefined" 的面目炸出来，那时候语言覆盖已经打上了。
+for (const lang of LANGS) {
+  if (!Object.hasOwn(COPY, lang)) {
+    throw new Error(`不认识的语言 ${lang}；只能给 ${Object.keys(COPY).join(' / ')}`)
+  }
+}
+// 这个临时的家要**从零**开始：上一次的夹具会话、工作区、投影缓存一条都不留。
+await rm(SHOTS_HOME, { recursive: true, force: true })
+const env = await startShotsEnv({ dataDir: DATA_DIR, workspaceDir: WORKSPACE, home: SHOTS_HOME })
+WORKSPACE = env.workspaceDir
+ADOPTED_WORKSPACE = env.adoptedWorkspace
+// `openPage()` 放在 try 里面：Chrome 没开、没有 page target 是常事，那一下要是抛在外面，
+// 实例和假模型就留在后台了。
+let session
 try {
+  session = await openPage()
+  await installShotsCookie(session, env.base, env.cookie)
   for (const lang of LANGS) await shoot(session, lang)
 } finally {
-  session.close()
+  session?.close()
+  await env.stop()
+  await rm(SHOTS_HOME, { recursive: true, force: true }).catch(() => {})
 }

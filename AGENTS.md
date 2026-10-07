@@ -36,8 +36,10 @@
 2. 一个带 DevTools 端口的 Chrome：`node tests/lib/cdp-chrome-launch.mjs 9222`。
 
 ```bash
-DSH_WEB_TOKEN=<token> DSH_WEB_URL=http://127.0.0.1:3190 node --experimental-strip-types tests/cdp-ui.mjs
+DSH_WEB_TOKEN=<token> DSH_BASE=http://127.0.0.1:3190 node --experimental-strip-types tests/cdp-ui.mjs
 ```
+
+`DSH_BASE` 是基址（`tests/lib/web-session.mjs` 每次现读环境变量，不固化成模块常量——截图管线是 import 之后才起实例、才知道端口）；`DSH_AUTH_COOKIE` 可以跳过 token 换 cookie 那一步。
 
 | 脚本 | 覆盖 |
 |---|---|
@@ -63,19 +65,30 @@ README 有中英两版：`README.md`（中文，默认）与 `README.en.md`（�
 
 | 文件 | 作用 |
 |---|---|
-| `tests/readme-shots.mjs` | 按语言切换浏览器语言，在测试实例里建示例工作流和一个实例，按封面里的大小拍素材到 `tests/runs/hero/<lang>/`（`canvas.png` 编辑页、`run-graph.png` 点亮的图、`run-position.png` / `run-timeline.png` 右栏两小块、`run-dashboard.png` 查看框里打开的 HTML 看板、`plan.txt` 编译出的计划），拍完自动清理；`node … tests/readme-shots.mjs en` 只拍一种 |
+| `tests/support/shots-env.mjs` | 封面管线的**自备环境**：起一个假模型（`tests/support/mock-llm.mjs`）、生成截图专用 profile `workflow-lite-shots`、在**随机端口**起实例、换好 cookie，再备出那条固定标题的夹具会话；`startShotsEnv()` 一把起完，拆的时候等实例真的关掉 |
+| `tests/readme-shots.mjs` | 自己把上面那套环境起起来，按语言切换浏览器语言，建示例工作流和一个实例，按封面里的大小拍素材到 `tests/runs/hero/<lang>/`（`canvas.png` 编辑页、`run-graph.png` 点亮的图、`run-position.png` / `run-timeline.png` 右栏两小块、`run-dashboard.png` 查看框里打开的 HTML 看板、`plan.txt` 编译出的计划），拍完自动清理并拆掉实例；`node … tests/readme-shots.mjs en` 只拍一种 |
 | `tests/readme/hero.html` | 封面排版：标题、三段流程（设计流程 → 生成计划提示词 → 跟踪执行进度）、软工作流说明、功能标签；`?lang=zh` / `?lang=en` 切换，文案都在页尾的 `TEXT` 里 |
 | `tests/readme-hero.mjs` | 在 Chrome 里另开一个标签页按 1040 宽渲染 `hero.html`，截成 `assets/hero.<lang>.png`；`node tests/readme-hero.mjs en` 只出一种 |
 
 重做步骤：
 
 ```bash
-# 界面有变化：重拍素材并出图（需要上面「浏览器验收」的两样前置）
-DSH_WEB_TOKEN=<token> DSH_WEB_URL=http://127.0.0.1:3190 pnpm run hero
+# 界面有变化：重拍素材并出图。前置是一台装了 dsh 的机器 + 一个带 DevTools 端口的 Chrome
+# （`node tests/lib/cdp-chrome-launch.mjs 9222`），不用先起 dsh web、不用给 token
+pnpm run hero
 
 # 只改了 hero.html 的文案或排版：直接出图（素材已在 tests/runs/hero/）
 pnpm run hero:render
 ```
+
+封面管线的前提：
+
+- **自己一个家**：整跑用 `tests/runs/shots-home` 当 `DSH_HOME`，profile、会话库、工作区库、投影缓存全在它底下，跑前清空、跑完删掉。这几样在 DSH 里按 `DSH_HOME` 算、**不按 profile 隔离**——共用用户自己的家的话，那条"封面夹具"会永久留在他侧栏里。
+- **不依赖真实环境数据**：封面拍的是脚本自己准备的那份数据（假模型 + 生成 profile + 随机端口 + 夹具会话）；不发真实模型请求，也不受"当时 3190 上跑着什么"影响。
+- **夹具是"认领"出来的**：会话按固定 id 复用，而会话跟着它的 cwd 走（换个目录再建会被 host 回 `session/conflict`，host 又没有删会话的接口）。所以 `prepareShotsFixture` 找到就用它自己的 cwd 当工作区，并把 `adoptedWorkspace` 交出来——**收尾时不许删认领来的目录**。
+- **进会话靠搜索，不靠分组展开**：工作区分组的展开状态记在浏览器里（`dsh.workspace.view.v5` 的 `groupExpansion`），按 origin 存——换个端口就是新分组状态，于是所有分组都是折叠的，会话行压根不在 DOM 里。`enterSession` 因此走会话搜索框。
+- **关实例要等它真的关掉**：随手 `spawn('taskkill')` 就走人，调用方一退出 taskkill 没机会跑，实例留在后台占着会话写句柄，下一跑撞 `session/writer-held`。所以 `stop()` 等 `close`，等不到**就抛**（不许报成功）。
+- **"没发真实模型请求"有判据**：夹具发 prompt 的那一轮，必须等到**假模型真的收到请求**才算数。别拿 `blank` 变 false 当完成信号——它只说明消息记下了，模型调用还在后面，拿它当信号会抢跑报假红。
 
 改封面时注意：
 

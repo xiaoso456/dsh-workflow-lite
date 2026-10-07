@@ -5,7 +5,7 @@
  * 在工作流中心给另一张没打开的工作流存版本 → 在那里给它改名（版本跟着走）→ 给正开着的那张改名 →
  * 删掉正开着的那张（编辑页空出来）→ 从那里打开另一张。
  *
- * usage: DSH_WEB_TOKEN=<token> DSH_WEB_URL=http://127.0.0.1:3190 node --experimental-strip-types tests/cdp-versions.mjs
+ * usage: DSH_WEB_TOKEN=<token> DSH_BASE=http://127.0.0.1:3190 node --experimental-strip-types tests/cdp-versions.mjs
  */
 
 import {

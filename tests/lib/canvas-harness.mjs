@@ -37,15 +37,75 @@ const clickSessionRowExpr = `(() => {
    return text;
  })()`
 
-/** 点标题**恰好等于**某段文字的按钮（包含匹配会先命中会话列表里的别的按钮）。 */
-export const clickTextExactExpr = (text) =>
+/**
+ * 点搜索结果里标题**恰好等于**某段文字的那一行。
+ *
+ * 两条讲究：
+ * - **只在标题那一块里比**。整行是「标题 + 工作区名 + 命中摘要」，行内 `span` 好几个；
+ *   拿整行做包含匹配（甚至拿行内任意 span 做相等匹配）都可能命中别条会话的工作区名或摘要。
+ * - **归档行不点**。DSH 的行点击走 `guardedOpen`，归档行只弹个提示、不导航；而搜索恰恰是
+ *   归档行冒头的地方。点了也白点，后面还会拿上一轮残留的会话当成功——所以这里直接报出来。
+ * @returns `{ status: 'clicked', title }` / `{ status: 'archived' }` / `null`（还没有）
+ */
+const clickSearchResultExpr = (title) =>
   `(() => {
-     const hit = [...document.querySelectorAll('button')]
-       .find((el) => (el.textContent || '').trim() === ${JSON.stringify(text)});
-     if (!hit) return false;
+     const titled = [...document.querySelectorAll('[role="treeitem"]')].filter((el) => {
+       const heading = el.firstElementChild;
+       if (heading === null) return false;
+       return [...heading.querySelectorAll('span')].some(
+         (s) => (s.textContent || '').trim() === ${JSON.stringify(title)});
+     });
+     if (titled.length === 0) return null;
+     const hit = titled.find((el) => !el.hasAttribute('aria-description'));
+     if (hit === undefined) return { status: 'archived' };
      hit.click();
-     return true;
+     return { status: 'clicked', title: ${JSON.stringify(title)} };
    })()`
+
+/**
+ * 进入一个会话（`conversation.view` 只在会话页上有槽位）。
+ *
+ * 两种判据。给了 `sessionTitle` 走**会话搜索**：工作区分组的展开状态记在浏览器里
+ * （`dsh.workspace.view.v5` 的 `groupExpansion`），而它按 origin 存——换个端口就是新 origin，
+ * 于是所有分组都是折叠的，会话行压根不在 DOM 里，点不到。搜索结果不受展开状态影响。
+ * 没给标题就退回按相对时间找第一条（刚建出来的会话显示「刚刚」，匹配不上，只在复用老会话时可靠）。
+ *
+ * 找不到一律**抛**，不返回 `null`：这个函数返回空值意味着后面必然卡在别的地方，
+ * 那种"这里静默、那里报错"的失败最难查。
+ * @param {object} session - CDP 会话
+ * @param {{ timeoutMs?: number, searchLabel?: string, searchPlaceholder?: string, sessionTitle?: string }} [options]
+ * @returns {Promise<string>} 点中的那一行的文字
+ */
+export async function enterSession(
+  session,
+  { timeoutMs = 30_000, searchLabel = '搜索会话', searchPlaceholder = '搜索会话名称', sessionTitle } = {},
+) {
+  const opened = await session.evaluate(clickAriaExpr(searchLabel))
+  if (opened !== true) throw new Error(`进不去会话列表：找不到 aria-label=${searchLabel} 的按钮`)
+  const deadline = Date.now() + timeoutMs
+
+  if (sessionTitle !== undefined) {
+    const typed = await session.evaluate(
+      setReactInputExpr(`input[placeholder="${searchPlaceholder}"]`, sessionTitle),
+    )
+    if (typed !== sessionTitle) throw new Error(`会话搜索框赋值失败：${JSON.stringify(typed)}`)
+    for (;;) {
+      const row = await session.evaluate(clickSearchResultExpr(sessionTitle))
+      if (row !== null) return row
+      if (Date.now() > deadline) {
+        throw new Error(`会话搜索结果里没有标题为 ${JSON.stringify(sessionTitle)} 的行`)
+      }
+      await new Promise((resolve) => setTimeout(resolve, 500))
+    }
+  }
+
+  for (;;) {
+    const row = await session.evaluate(clickSessionRowExpr)
+    if (row !== null) return row
+    if (Date.now() > deadline) throw new Error('会话列表里没有带相对时间的会话行')
+    await new Promise((resolve) => setTimeout(resolve, 500))
+  }
+}
 
 /** 点一个 `data-testid` 命中的元素（`HTMLElement.click()`，不是真指针）。 */
 export const clickTestIdExpr = (testId) =>
@@ -56,18 +116,15 @@ export const clickTestIdExpr = (testId) =>
      return true;
    })()`
 
-/** 进入第一个带相对时间的会话（`conversation.view` 只在会话页上有槽位）。 */
-export async function enterSession(session, { timeoutMs = 30_000, searchLabel = '搜索会话' } = {}) {
-  const opened = await session.evaluate(clickAriaExpr(searchLabel))
-  if (opened !== true) throw new Error(`进不去会话列表：找不到 aria-label=${searchLabel} 的按钮`)
-  const deadline = Date.now() + timeoutMs
-  for (;;) {
-    const row = await session.evaluate(clickSessionRowExpr)
-    if (row !== null) return row
-    if (Date.now() > deadline) return null
-    await new Promise((resolve) => setTimeout(resolve, 500))
-  }
-}
+/** 点标题**恰好等于**某段文字的按钮（包含匹配会先命中会话列表里的别的按钮）。 */
+export const clickTextExactExpr = (text) =>
+  `(() => {
+     const hit = [...document.querySelectorAll('button')]
+       .find((el) => (el.textContent || '').trim() === ${JSON.stringify(text)});
+     if (!hit) return false;
+     hit.click();
+     return true;
+   })()`
 
 /** 点开会话页上的「工作流」tab（`role=tab` 里文字恰好等于它的那个）。 */
 export async function openCanvasTab(session, { label = '工作流' } = {}) {
@@ -358,7 +415,7 @@ export async function screenshot(session, name) {
 export async function bootToCanvas(
   session,
   graphName,
-  { width = 1440, height = 900, lang = 'zh' } = {},
+  { width = 1440, height = 900, lang = 'zh', sessionTitle } = {},
 ) {
   await session.send('Emulation.setDeviceMetricsOverride', {
     width,
@@ -370,7 +427,10 @@ export async function bootToCanvas(
   const probe = await waitFor(session, 'globalThis.__WORKFLOW_LITE__ ?? ""', { timeoutMs: 30_000 })
   if (probe !== 'workflow-lite') throw new Error(`e2e 探针应为 workflow-lite，实得 ${JSON.stringify(probe)}`)
   // `lang`：DSH 界面是哪种语言（英文界面下按钮、标签页的文字不同）。
-  const row = await enterSession(session, lang === 'en' ? { searchLabel: 'Search sessions' } : {})
+  const row = await enterSession(session, {
+    ...(lang === 'en' ? { searchLabel: 'Search sessions', searchPlaceholder: 'Search session names' } : {}),
+    ...(sessionTitle === undefined ? {} : { sessionTitle }),
+  })
   await openCanvasTab(session, lang === 'en' ? { label: 'Workflow' } : {})
   const rendered = await selectGraph(session, graphName)
   return { row, rendered }

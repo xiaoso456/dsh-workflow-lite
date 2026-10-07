@@ -7,8 +7,15 @@
  * `DSH_WEB_TOKEN` = `dsh web` 打印的 URL 里 `?token=` 的值；`DSH_BASE` 覆盖默认基址。
  */
 
-/** 测试实例基址。 */
-export const BASE = process.env.DSH_BASE ?? 'http://127.0.0.1:3190'
+/**
+ * 测试实例基址；`DSH_BASE` 覆盖默认值。
+ *
+ * 每次现读环境变量，不固化成模块常量：截图管线是在 `import` 之后才起实例、才知道端口的。
+ * @returns {string} 基址。
+ */
+export function baseUrl() {
+  return process.env.DSH_BASE ?? 'http://127.0.0.1:3190'
+}
 
 /** 画布 RPC 的通道名。 */
 const CHANNEL = 'workflow-lite'
@@ -40,7 +47,7 @@ function launchCookie() {
  * @param {string} base - 实例基址。
  * @returns {Promise<string>} `name=value` 形式的 cookie 对。
  */
-export async function authCookie(base = BASE) {
+export async function authCookie(base = baseUrl()) {
   const preset = launchCookie()
   if (preset !== undefined) return preset
   const response = await fetch(`${base}/?token=${encodeURIComponent(launchToken())}`, {
@@ -60,7 +67,7 @@ export async function authCookie(base = BASE) {
  * @param base - 实例基址。
  * @returns 页面 URL。
  */
-export function authenticatedUrl(base = BASE) {
+export function authenticatedUrl(base = baseUrl()) {
   if (launchCookie() !== undefined) return `${base}/`
   return `${base}/?token=${encodeURIComponent(launchToken())}`
 }
@@ -72,7 +79,7 @@ export function authenticatedUrl(base = BASE) {
  * @param {string} base - 实例基址。
  * @returns {Promise<unknown>} 端点的成功值。
  */
-export async function rpc(method, payload, base = BASE) {
+export async function rpc(method, payload, base = baseUrl()) {
   const cookie = await authCookie(base)
   const wireMethod = `${CHANNEL}/${method}`
   const response = await fetch(`${base}/api/${wireMethod}`, {

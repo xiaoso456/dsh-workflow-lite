@@ -3,7 +3,7 @@
  *
  * 只动「单张工作流最多步骤」，收尾时把它恢复成默认（数据目录等别的项一概不碰——测试实例的 profile 自己改过数据目录）。
  *
- * usage: DSH_WEB_TOKEN=<token> DSH_WEB_URL=http://127.0.0.1:3190 node --experimental-strip-types tests/cdp-config.mjs
+ * usage: DSH_WEB_TOKEN=<token> DSH_BASE=http://127.0.0.1:3190 node --experimental-strip-types tests/cdp-config.mjs
  */
 
 import { bootToCanvas, screenshot, setReactInput } from './lib/canvas-harness.mjs'
