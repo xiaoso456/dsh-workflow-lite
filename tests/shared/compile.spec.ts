@@ -202,9 +202,9 @@ const GOLDEN_LINES: readonly string[] = [
 ]
 
 /** 样张省略掉的那个前缀：`…` 处真的是这份宿主路径。 */
-const GOLDEN_PREFIX = String.raw`C:\Users\xiaoso456\.dsh`
+const GOLDEN_PREFIX = String.raw`C:\Users\me\.dsh`
 /** 样张 ② 段表里那四条路径的真前缀。 */
-const GOLDEN_PAYLOAD_ROOT = String.raw`C:\Users\xiaoso456\.dsh\workflow-lite\.dispatch\code-review\3f9a1c2e`
+const GOLDEN_PAYLOAD_ROOT = String.raw`C:\Users\me\.dsh\workflow-lite\.dispatch\code-review\3f9a1c2e`
 const GOLDEN_GOAL = '把 code-review 这张图跑完'
 const GOLDEN_CWD = String.raw`D:\work\ws`
 
