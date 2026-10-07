@@ -833,7 +833,7 @@
   height: 16px;
   border-bottom-left-radius: 3px;
   background: linear-gradient(225deg, var(--wl-canvas) 50%, var(--wl-file-back) 50%);
-  box-shadow: -1px 1px 1.5px light-dark(rgb(30 50 80 / 16%), rgb(0 0 0 / 40%));
+  box-shadow: -1px 1px 1.5px light-dark(rgb(52 40 24 / 16%), rgb(0 0 0 / 40%));
   content: "";
 }
 
