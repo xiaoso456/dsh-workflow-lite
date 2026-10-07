@@ -4,96 +4,125 @@
  * 版式是**画布优先**：画布铺满整个视图，其余一切（顶栏、步骤库、属性面板、缩放）都是
  * 浮在画布上的圆角面板。没选中东西时右边什么都没有——界面上只留当下用得着的。
  *
- * 配色自带一套，用 `light-dark()` 跟随宿主设在 `<html>` 上的 `color-scheme`；
+ * 配色自带，亮色、暗色各四套主题（model/themes.ts），工作流中心「设置」页里挑；
+ * 用 `light-dark()` 跟随宿主设在 `<html>` 上的 `color-scheme` 在亮、暗两套之间切。
  * 层级靠"面越高越亮 + 细描边 + 柔和阴影"给出。
  *
- * 亮色档是"暖石纸面"：画布是一档压暗的暖灰（不是近白），卡片与面板是米白（不用纯白），文字是暖调的墨色，
- * 描边、阴影都带一点暖棕而不是冷蓝。大面积的亮度和冷白都压下去，长时间看不刺眼；
- * 彩色只留给强调色和线色。
- *
- * 色彩分工：界面本身是中性的石板灰 + 一支湛蓝强调色（按钮、选中、焦点）；画布上的颜色
+ * 色彩分工：界面本身是中性的面色 + 一支蓝色强调色（按钮、选中、焦点）；画布上的颜色
  * 只用来说"线是哪一种"——流程线按条件（总是蓝、通过绿、未通过红、自定义紫），读写线按读写（产出金、更新洋红、读取青）。
  */
 
 .root {
-  /* 面：亮色档是暖灰画布 + 米白卡面（不用纯白）；暗色档是带一点冷调的石板灰，不是纯黑。 */
-  --wl-canvas: light-dark(#edebe6, #0e1116);
-  --wl-dot: light-dark(rgb(64 54 40 / 19%), rgb(226 234 248 / 13%));
-  --wl-panel: light-dark(#f6f5f1, #181c23);
-  --wl-fill: light-dark(#efede8, #222730);
-  --wl-fill-strong: light-dark(#e5e2db, #2a303b);
-  --wl-hover: light-dark(rgb(64 54 40 / 6%), rgb(226 234 248 / 7%));
-  --wl-line: light-dark(rgb(64 54 40 / 11%), rgb(226 234 248 / 9%));
-  --wl-line-strong: light-dark(rgb(64 54 40 / 19%), rgb(226 234 248 / 16%));
-  --wl-scrim: light-dark(rgb(38 33 26 / 30%), rgb(0 0 0 / 55%));
+  /*
+   * 色值不写在这里：视图根节点按选中的主题内联写出 `--wl-l-*`（亮色档）与 `--wl-d-*`（暗色档）
+   * 两组基础色（model/themes.ts），这里用 `light-dark()` 跟着 `color-scheme` 挑一组。
+   * 淡底（选中、标签、提示的底）按基础色调出来：亮色档淡一些，暗色档浓一些才看得见。
+   */
+
+  /* 面。 */
+  --wl-canvas: light-dark(var(--wl-l-canvas), var(--wl-d-canvas));
+  --wl-dot: light-dark(
+    rgb(var(--wl-l-ink) / var(--wl-l-dot-alpha)),
+    rgb(var(--wl-d-ink) / var(--wl-d-dot-alpha))
+  );
+  --wl-panel: light-dark(var(--wl-l-panel), var(--wl-d-panel));
+  --wl-fill: light-dark(var(--wl-l-fill), var(--wl-d-fill));
+  --wl-fill-strong: light-dark(var(--wl-l-fill-strong), var(--wl-d-fill-strong));
+  --wl-hover: light-dark(
+    rgb(var(--wl-l-ink) / var(--wl-l-hover-alpha)),
+    rgb(var(--wl-d-ink) / var(--wl-d-hover-alpha))
+  );
+  --wl-line: light-dark(
+    rgb(var(--wl-l-ink) / var(--wl-l-line-alpha)),
+    rgb(var(--wl-d-ink) / var(--wl-d-line-alpha))
+  );
+  --wl-line-strong: light-dark(
+    rgb(var(--wl-l-ink) / var(--wl-l-line-strong-alpha)),
+    rgb(var(--wl-d-ink) / var(--wl-d-line-strong-alpha))
+  );
+  --wl-scrim: light-dark(var(--wl-l-scrim), var(--wl-d-scrim));
 
   /* 文字三级。第三级也要过 AA（4.5:1），它承载说明与计数。 */
-  --wl-text: light-dark(#25221d, #e9edf3);
-  --wl-text-2: light-dark(#55514a, #b6bdc9);
-  --wl-text-3: light-dark(#6b665d, #9098a6);
+  --wl-text: light-dark(var(--wl-l-text), var(--wl-d-text));
+  --wl-text-2: light-dark(var(--wl-l-text2), var(--wl-d-text2));
+  --wl-text-3: light-dark(var(--wl-l-text3), var(--wl-d-text3));
 
-  /* 强调色：一支湛蓝。暗色档提亮、略降饱和，在暗底上不刺眼也不发灰。 */
-  --wl-accent: light-dark(#2f63c9, #4d94ff);
-  --wl-accent-strong: light-dark(#2853ad, #6eaaff);
-  --wl-accent-on: light-dark(#fbfaf7, #05132b);
-  --wl-accent-text: light-dark(#2858b5, #86b8ff);
-  --wl-accent-soft: light-dark(rgb(47 99 201 / 11%), rgb(77 148 255 / 17%));
+  /* 强调色：按钮、选中、焦点。每套主题一支，带着那套主题的性格（林间是绿、暖夜是橙，别的是各自的蓝）。 */
+  --wl-accent: light-dark(var(--wl-l-accent), var(--wl-d-accent));
+  --wl-accent-strong: light-dark(var(--wl-l-accent-strong), var(--wl-d-accent-strong));
+  --wl-accent-on: light-dark(var(--wl-l-accent-on), var(--wl-d-accent-on));
+  --wl-accent-text: light-dark(var(--wl-l-accent-text), var(--wl-d-accent-text));
+  --wl-accent-soft: light-dark(
+    color-mix(in srgb, var(--wl-l-accent) 11%, transparent),
+    color-mix(in srgb, var(--wl-d-accent) 17%, transparent)
+  );
 
   /* 语义色：只在表达状态时用。 */
-  --wl-danger: light-dark(#bb372d, #ff7a70);
-  --wl-danger-soft: light-dark(rgb(187 55 45 / 10%), rgb(255 122 112 / 15%));
-  --wl-warn: light-dark(#8f560a, #f0b955);
-  --wl-warn-soft: light-dark(rgb(143 86 10 / 11%), rgb(240 185 85 / 15%));
-  --wl-ok: light-dark(#157350, #56d08e);
-  --wl-ok-soft: light-dark(rgb(21 115 80 / 11%), rgb(86 208 142 / 15%));
+  --wl-danger: light-dark(var(--wl-l-danger), var(--wl-d-danger));
+  --wl-danger-soft: light-dark(
+    color-mix(in srgb, var(--wl-l-danger) 10%, transparent),
+    color-mix(in srgb, var(--wl-d-danger) 15%, transparent)
+  );
+  --wl-warn: light-dark(var(--wl-l-warn), var(--wl-d-warn));
+  --wl-warn-soft: light-dark(
+    color-mix(in srgb, var(--wl-l-warn) 11%, transparent),
+    color-mix(in srgb, var(--wl-d-warn) 15%, transparent)
+  );
+  --wl-ok: light-dark(var(--wl-l-ok), var(--wl-d-ok));
+  --wl-ok-soft: light-dark(
+    color-mix(in srgb, var(--wl-l-ok) 11%, transparent),
+    color-mix(in srgb, var(--wl-d-ok) 15%, transparent)
+  );
 
   /*
    * 线色：七种彩色的线各一色，谁也不和谁重样；第八种交回答（输入 → 步骤）是中性的墨色 `--wl-io-ask`。
    * - 流程线（步骤 → 步骤）按条件分：总是 = 蓝（主干）、通过 = 绿、未通过 = 红、自定义条件 = 紫。
    * - 读写线（步骤 ↔ 文件）按读写分：产出 = 金（新的产物）、更新 = 洋红（在原文件上改）、读取 = 青。
-   * 两套主题各自按 OKLab 算过两两色差（正常视觉 ΔE 都 ≥ 13，同一组里的更大）；
+   * 每套主题都按 OKLab 算过两两色差（ΔE ≥ 8，默认两套 ≥ 13），也直接当文字色用，在面板上都过 4.5:1；
    * 色弱时红绿、蓝紫难分，所以每种线还有第二重记号：条件牌子、读取是虚线、更新两头有箭头。
-   * 这几个色也直接当文字色用（线上的牌子、面板里的标签），亮色档在米白面板上都过 4.5:1。
    */
-  --wl-flow-always: light-dark(#1d55c2, #4f99f9);
-  --wl-flow-pass: light-dark(#18792a, #5cdc78);
-  --wl-flow-fail: light-dark(#c42f20, #ff7865);
-  --wl-flow-custom: light-dark(#8848c4, #d3adff);
-  --wl-io-produce: light-dark(#8b5e00, #f7cc4b);
-  --wl-io-update: light-dark(#a8227f, #ed62c1);
-  --wl-io-read: light-dark(#00778a, #50d9ef);
+  --wl-flow-always: light-dark(var(--wl-l-always), var(--wl-d-always));
+  --wl-flow-pass: light-dark(var(--wl-l-pass), var(--wl-d-pass));
+  --wl-flow-fail: light-dark(var(--wl-l-fail), var(--wl-d-fail));
+  --wl-flow-custom: light-dark(var(--wl-l-custom), var(--wl-d-custom));
+  --wl-io-produce: light-dark(var(--wl-l-produce), var(--wl-d-produce));
+  --wl-io-update: light-dark(var(--wl-l-update), var(--wl-d-update));
+  --wl-io-read: light-dark(var(--wl-l-read), var(--wl-d-read));
 
   /*
-   * 文件卡：纸面接近面板色（干净），靠左侧的类型签、折角和平铺的描边和步骤卡分开；
-   * 类型签与折角背面用一档很淡的石板蓝。它连着的线才有鲜明的颜色。
+   * 资源卡：纸面接近面板色（干净），靠左侧的类型签、折角和平铺的描边和步骤卡分开；
+   * 类型签与折角背面用一档很淡的石板色。它连着的线才有鲜明的颜色。
    */
-  --wl-file: light-dark(#536178, #a7b4c8);
-  --wl-file-soft: light-dark(rgb(83 97 120 / 10%), rgb(167 180 200 / 13%));
-  --wl-file-surface: light-dark(#f3f2ee, #1b2029);
-  --wl-file-border: light-dark(#d5d0c6, #353f4f);
-  --wl-file-tab: light-dark(#ebe8e1, #232a35);
-  --wl-file-back: light-dark(#dedad1, #2d3644);
+  --wl-file: light-dark(var(--wl-l-file), var(--wl-d-file));
+  --wl-file-soft: light-dark(
+    color-mix(in srgb, var(--wl-l-file) 10%, transparent),
+    color-mix(in srgb, var(--wl-d-file) 13%, transparent)
+  );
+  --wl-file-surface: light-dark(var(--wl-l-file-surface), var(--wl-d-file-surface));
+  --wl-file-border: light-dark(var(--wl-l-file-border), var(--wl-d-file-border));
+  --wl-file-tab: light-dark(var(--wl-l-file-tab), var(--wl-d-file-tab));
+  --wl-file-back: light-dark(var(--wl-l-file-back), var(--wl-d-file-back));
 
-  /*
-   * 步骤卡的色板（shared/appearance.ts 的 STEP_COLORS）：图标块用这一个色的深浅两档。
-   * 亮色档在米白卡面上都过 4.5:1（图标块里的图标就是这个色）。
-   */
-  --wl-c-blue: light-dark(#2a65cf, #74aaff);
-  --wl-c-green: light-dark(#127a51, #56d08e);
-  --wl-c-amber: light-dark(#9a5b00, #f0b955);
-  --wl-c-coral: light-dark(#b8432a, #ff8e70);
-  --wl-c-teal: light-dark(#0c7480, #55d2dd);
-  --wl-c-pink: light-dark(#c2367a, #f58cbd);
-  --wl-c-olive: light-dark(#59730f, #b4d65a);
-  --wl-c-violet: light-dark(#6b5bd2, #a99cf5);
-  --wl-c-slate: light-dark(#5c6475, #a3aab8);
+  /* 步骤卡的色板（shared/appearance.ts 的 STEP_COLORS）：图标块用这一个色的深浅两档。 */
+  --wl-c-blue: light-dark(var(--wl-l-c-blue), var(--wl-d-c-blue));
+  --wl-c-green: light-dark(var(--wl-l-c-green), var(--wl-d-c-green));
+  --wl-c-amber: light-dark(var(--wl-l-c-amber), var(--wl-d-c-amber));
+  --wl-c-coral: light-dark(var(--wl-l-c-coral), var(--wl-d-c-coral));
+  --wl-c-teal: light-dark(var(--wl-l-c-teal), var(--wl-d-c-teal));
+  --wl-c-pink: light-dark(var(--wl-l-c-pink), var(--wl-d-c-pink));
+  --wl-c-olive: light-dark(var(--wl-l-c-olive), var(--wl-d-c-olive));
+  --wl-c-violet: light-dark(var(--wl-l-c-violet), var(--wl-d-c-violet));
+  --wl-c-slate: light-dark(var(--wl-l-c-slate), var(--wl-d-c-slate));
 
   /* 输入节点：用户的话，用一档中性的墨色（和七种线色都不撞，见 lines.ts）。 */
-  --wl-io-ask: light-dark(#3d4452, #dfe3ea);
-  --wl-ask-soft: light-dark(rgb(61 68 82 / 10%), rgb(223 227 234 / 12%));
+  --wl-io-ask: light-dark(var(--wl-l-ask), var(--wl-d-ask));
+  --wl-ask-soft: light-dark(
+    color-mix(in srgb, var(--wl-l-ask) 10%, transparent),
+    color-mix(in srgb, var(--wl-d-ask) 12%, transparent)
+  );
 
-  --wl-tip: light-dark(#2a2722, #eceef3);
-  --wl-tip-on: light-dark(#f5f3ee, #15171e);
+  --wl-tip: light-dark(var(--wl-l-tip), var(--wl-d-tip));
+  --wl-tip-on: light-dark(var(--wl-l-tip-on), var(--wl-d-tip-on));
 
   /* 字号三档 + 标题一档；圆角三档。 */
   --wl-fs-title: 15px;
@@ -106,13 +135,14 @@
   --wl-r-panel: 14px;
 
   /* `light-dark()` 只接受颜色，所以阴影的几何写在外面、只有颜色分明暗。 */
-  --wl-shadow-thumb: 0 1px 2px light-dark(rgb(52 40 24 / 14%), rgb(0 0 0 / 50%));
+  --wl-shadow-thumb: 0 1px 2px
+    light-dark(rgb(var(--wl-l-shade) / 14%), rgb(var(--wl-d-shade) / 50%));
   --wl-shadow-1:
-    0 1px 2px light-dark(rgb(52 40 24 / 6%), rgb(0 0 0 / 30%)),
-    0 6px 20px light-dark(rgb(52 40 24 / 8%), rgb(0 0 0 / 32%));
+    0 1px 2px light-dark(rgb(var(--wl-l-shade) / 6%), rgb(var(--wl-d-shade) / 30%)),
+    0 6px 20px light-dark(rgb(var(--wl-l-shade) / 8%), rgb(var(--wl-d-shade) / 32%));
   --wl-shadow-2:
-    0 2px 6px light-dark(rgb(52 40 24 / 8%), rgb(0 0 0 / 36%)),
-    0 16px 40px light-dark(rgb(52 40 24 / 14%), rgb(0 0 0 / 50%));
+    0 2px 6px light-dark(rgb(var(--wl-l-shade) / 8%), rgb(var(--wl-d-shade) / 36%)),
+    0 16px 40px light-dark(rgb(var(--wl-l-shade) / 14%), rgb(var(--wl-d-shade) / 50%));
 
   /* 动效：只动 transform / opacity，缓出。 */
   --wl-ease: cubic-bezier(0.2, 0.8, 0.2, 1);

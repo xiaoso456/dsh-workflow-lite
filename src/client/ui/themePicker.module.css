@@ -1,0 +1,229 @@
+/**
+ * dsh-workflow-lite — 「设置」页的外观（`ThemePicker.tsx`）：亮、暗两行，每行四张主题小卡。
+ *
+ * 小卡里的颜色全是那套主题自己的（内联样式），外框、文字、选中环用当前界面的颜色。
+ */
+
+.box {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 12px 12px 14px;
+  border: 1px solid var(--wl-line);
+  border-radius: 10px;
+  background: var(--wl-panel);
+}
+
+.lead {
+  margin: 0;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.5;
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rowHead {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--wl-text);
+  font-size: var(--wl-fs-meta);
+  font-weight: 600;
+}
+
+.rowHead > svg {
+  color: var(--wl-text-3);
+}
+
+.inUse {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+  font-size: var(--wl-fs-micro);
+  font-weight: 500;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.swatch {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--wl-text-2);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.preview {
+  position: relative;
+  display: block;
+  height: 64px;
+  overflow: hidden;
+  border-radius: 9px;
+  box-shadow: 0 0 0 1px var(--wl-line-strong);
+  transition: transform 140ms var(--wl-ease);
+}
+
+.swatch:hover .preview {
+  transform: translateY(-1px);
+}
+
+.swatch:active .preview {
+  transform: scale(0.98);
+}
+
+/* 选中：外面一圈强调色（画在阴影上，不挤占尺寸）。 */
+.swatch[aria-checked="true"] .preview {
+  box-shadow:
+    0 0 0 2px var(--wl-accent),
+    0 0 0 5px var(--wl-accent-soft);
+}
+
+.swatch:focus-visible {
+  outline: none;
+}
+
+.swatch:focus-visible .preview {
+  box-shadow:
+    0 0 0 2px var(--wl-accent),
+    0 0 0 5px var(--wl-accent-soft);
+}
+
+/* 缩略图：左边一条侧栏，右边两张卡连一条线，下面一张资源卡被读。 */
+.side {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 22%;
+  padding: 7px 5px;
+  border: 1px solid;
+  border-radius: 5px;
+}
+
+.side > i,
+.card > i,
+.file > i {
+  display: block;
+  height: 3px;
+  border-radius: 2px;
+  opacity: 0.55;
+}
+
+.side > i:nth-child(2) {
+  width: 70%;
+}
+
+.card {
+  position: absolute;
+  top: 12px;
+  left: 33%;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  width: 24%;
+  height: 16px;
+  padding: 0 4px;
+  border: 1px solid;
+  border-radius: 4px;
+}
+
+.card[data-second] {
+  left: 70%;
+  border-width: 1.5px;
+}
+
+.card > b {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+}
+
+.card > i {
+  flex: 1 1 auto;
+  opacity: 0.7;
+}
+
+.link {
+  position: absolute;
+  top: 20px;
+  left: 57%;
+  width: 13%;
+  height: 1.5px;
+}
+
+.read {
+  position: absolute;
+  top: 28px;
+  left: 80%;
+  width: 0;
+  height: 14px;
+  border-left: 1.5px dashed;
+}
+
+.file {
+  position: absolute;
+  top: 42px;
+  left: 64%;
+  width: 28%;
+  height: 13px;
+  padding: 4px 5px;
+  border: 1px solid;
+  border-radius: 3px;
+}
+
+.name {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 0 2px;
+  font-size: var(--wl-fs-meta);
+}
+
+.swatch[aria-checked="true"] .name {
+  color: var(--wl-text);
+  font-weight: 600;
+}
+
+.name > svg {
+  margin-left: auto;
+  color: var(--wl-accent-text);
+}
+
+.default {
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-weight: 400;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .preview {
+    transition: none;
+  }
+}
+
+/* 视图很窄时一行放两张。 */
+@container (width < 640px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

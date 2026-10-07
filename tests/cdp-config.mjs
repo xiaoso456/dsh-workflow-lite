@@ -115,6 +115,52 @@ async function run(session) {
   )
   pass('放弃：草稿回到已保存的值')
 
+  // 6) 外观：亮色、暗色各四套，点一下马上换（不进保存条），记在浏览器里，重新打开还在。
+  const option = (id) => `[data-testid="wl-theme-option"][data-theme="${id}"]`
+  const rootVar = (name) =>
+    `getComputedStyle(document.querySelector('[data-testid="wl-root"]')).getPropertyValue('${name}').trim()`
+  check(
+    (await session.evaluate(
+      `document.querySelectorAll('[data-testid="wl-theme-option"]').length`,
+    )) === 8,
+    '外观里应有八套主题',
+  )
+  check(
+    await session.evaluate(
+      `document.querySelector('${option('paper')}').getAttribute('aria-checked') === 'true' && document.querySelector('${option('slate')}').getAttribute('aria-checked') === 'true'`,
+    ),
+    '默认应是米色 + 石板',
+  )
+  await session.evaluate(`document.querySelector('${option('mist')}').click()`)
+  await session.evaluate(`document.querySelector('${option('umber')}').click()`)
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-root"]').dataset.lightTheme === 'mist' && document.querySelector('[data-testid="wl-root"]').dataset.darkTheme === 'umber'`,
+  )
+  check((await session.evaluate(rootVar('--wl-l-canvas'))) === '#eff2f6', '亮色变量应换成雾蓝')
+  check((await session.evaluate(rootVar('--wl-d-canvas'))) === '#171310', '暗色变量应换成暖夜')
+  check(await session.evaluate(gone('wl-cfg-bar')), '换主题不该出保存条')
+  check(
+    (await session.evaluate(`localStorage.getItem('workflow-lite.theme')`)) ===
+      JSON.stringify({ light: 'mist', dark: 'umber' }),
+    '选择应记在浏览器里',
+  )
+  await bootToCanvas(session, NAME)
+  check(
+    (await session.evaluate(
+      `document.querySelector('[data-testid="wl-root"]').dataset.lightTheme`,
+    )) === 'mist',
+    '重新打开后还是雾蓝',
+  )
+  await session.evaluate(clickTestId('wl-hub-open'))
+  await waitFor(session, exists('wl-hub-settings'))
+  await session.evaluate(clickTestId('wl-hub-settings'))
+  await waitFor(session, exists('wl-theme'))
+  await session.evaluate(`document.querySelector('${option('paper')}').click()`)
+  await session.evaluate(`document.querySelector('${option('slate')}').click()`)
+  await waitFor(session, `localStorage.getItem('workflow-lite.theme') === null`)
+  pass('外观：换主题马上生效、记在浏览器里，换回默认不留记录')
+
   check(session.errors.length === 0, `页面不该有报错：${JSON.stringify(session.errors)}`)
   console.log('\n✅ 插件设置验收全部通过')
 }

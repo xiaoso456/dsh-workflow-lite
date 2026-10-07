@@ -79,6 +79,7 @@
 }
 
 .card:hover {
+  border-color: var(--wl-line-strong);
   transform: translateY(-1px);
 }
 
@@ -833,7 +834,7 @@
   height: 16px;
   border-bottom-left-radius: 3px;
   background: linear-gradient(225deg, var(--wl-canvas) 50%, var(--wl-file-back) 50%);
-  box-shadow: -1px 1px 1.5px light-dark(rgb(52 40 24 / 16%), rgb(0 0 0 / 40%));
+  box-shadow: -1px 1px 1.5px light-dark(rgb(var(--wl-l-shade) / 16%), rgb(var(--wl-d-shade) / 40%));
   content: "";
 }
 
@@ -850,6 +851,7 @@
 }
 
 .resCard:hover {
+  border-color: var(--wl-line-strong);
   transform: translateY(-1px);
 }
 
@@ -1152,6 +1154,7 @@
 }
 
 .inputCard:hover {
+  border-color: var(--wl-line-strong);
   transform: translateY(-1px);
 }
 

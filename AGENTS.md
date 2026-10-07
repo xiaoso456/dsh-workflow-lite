@@ -20,6 +20,14 @@
 - README 两版都有 `DeepSeek Harness 0.2.0-x` 徽标和一句适配说明。
 - 换支持的版本线时，三处一起改：peer 范围、精确的 dev 版本、README 徽标与说明；`tests/package.spec.ts` 会检查它们是否一致。
 
+## 配色主题
+
+- 亮色、暗色各四套（米色、晴白、雾蓝、林间 / 石板、墨黑、深海、暖夜），色值全在 `src/client/model/themes.ts`；默认米色 + 石板。
+- 视图根节点把选中的两套写成 `--wl-l-*`、`--wl-d-*` 两组内联变量，`shell.module.css` 用 `light-dark()` 跟着宿主的 `color-scheme` 拼成 `--wl-*`；CSS 里不再写死色值。
+- 选择记在浏览器（`workflow-lite.theme`），在工作流中心「设置」页的「外观」里换，点了就生效，不走插件设置的保存。
+- 一套主题是一整套颜色：线色（光带、图例、线上牌子跟着它）、强调色、步骤图标色、状态色一起换；非默认的几套照着成熟配色方案配（雾蓝 Nord、林间 Everforest、墨黑 Geist、深海 Tokyo Night、暖夜 Gruvbox），主干线用强调色。
+- 改色或加主题要过 `tests/client/themes.spec.ts`：文字、语义色、线色、步骤色在面板上过 4.5:1，线色在画布上过 3:1，七种线两两 OKLab ΔE ≥ 8（默认两套 ≥ 13）。
+
 ## 浏览器验收（CDP）
 
 `tests/cdp-*.mjs` 在真浏览器里走一遍功能，结论以磁盘 / RPC 为准。需要：
@@ -37,7 +45,7 @@ DSH_WEB_TOKEN=<token> DSH_WEB_URL=http://127.0.0.1:3190 node --experimental-stri
 | `cdp-runs.mjs` | 实例与运行状态 |
 | `cdp-inputs.mjs` | 执行前提问 |
 | `cdp-versions.mjs` | 版本、工作流中心「工作流」页 |
-| `cdp-config.mjs` | 工作流中心「设置」页 |
+| `cdp-config.mjs` | 工作流中心「设置」页（含外观：配色主题） |
 
 ## README 封面图
 

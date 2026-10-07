@@ -66,7 +66,7 @@ Turn on **Record run state** in **Workflow settings**. Every run then leaves a r
 | Page preview | HTML files among the resources open as pages; make one a dashboard updated every round to follow a loop's output |
 | Versions | Save versions with notes, compare differences, switch back at any time |
 | Workflow hub | One place for run records across sessions, all workflows and their versions, and plugin settings |
-| Interface | Light / dark themes, English / 中文 |
+| Interface | Four light and four dark color themes that follow DSH light or dark mode; English / 中文 |
 
 ## How it works
 

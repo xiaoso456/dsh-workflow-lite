@@ -1,5 +1,6 @@
 /**
- * dsh-workflow-lite — 工作流中心「设置」页：插件自己的几项设置，分「存储 / 画布 / 模型」三组。
+ * dsh-workflow-lite — 工作流中心「设置」页：最上面是外观（配色主题，点了就换），
+ * 下面是插件自己的几项设置，分「存储 / 画布 / 模型」三组。
  *
  * - 改在草稿上，底下浮出一条「有 N 处改动还没保存 · 放弃 · 保存」，点保存才写；
  *   数据目录这种改错了很麻烦的东西，不能一敲字就生效。
@@ -19,6 +20,7 @@ import hub from './hub.module.css'
 import css from './hubSettings.module.css'
 import { Icon, type IconName } from './Icon.tsx'
 import { cx } from './primitives.tsx'
+import { ThemePicker } from './ThemePicker.tsx'
 import ui from './ui.module.css'
 
 const DESC: Record<PluginConfigKey, LocaleKey> = {
@@ -50,6 +52,7 @@ export function HubSettings(props: {
   if (view === null || draft === null) {
     return (
       <div className={hub.page}>
+        <ThemePicker t={t} />
         {state.loadError !== null ? (
           <div className={hub.notice} data-tone="error" role="status">
             <Icon name="alert" size={14} />
@@ -76,6 +79,7 @@ export function HubSettings(props: {
             {t(view.available ? 'cfg.readonly' : 'cfg.unavailable')}
           </div>
         )}
+        <ThemePicker t={t} />
         {state.notice !== null && (
           <div className={cx(hub.notice, ui.rise)} data-tone={state.notice.tone} role="status">
             <Icon name={state.notice.tone === 'ok' ? 'check' : 'alert'} size={14} />

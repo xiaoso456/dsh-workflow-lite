@@ -19,12 +19,14 @@ import { addFromSource, addOrigin, duplicateEdit } from '../app/addStep.ts'
 import type { Desktop } from '../app/desktop.ts'
 import { createHostAccess } from '../app/host.ts'
 import { type SessionBridge, useSessionRows } from '../app/sessions.ts'
+import { useThemeChoice } from '../app/theme.ts'
 import { useRuns } from '../app/useRuns.ts'
 import { useWorkflow, type Workflow } from '../app/useWorkflow.ts'
 import type { LocaleKey, NS, T } from '../i18n.ts'
 import { findNode, type Selection } from '../model/editor.ts'
 import { freeSpot, NODE_H, NODE_W, tidy } from '../model/layout.ts'
 import { type LibraryFocus, type StepSource, starterGraph } from '../model/library.ts'
+import { themeStyle } from '../model/themes.ts'
 import { errorMessage, type WorkflowLiteRpc } from '../rpc.ts'
 import { type AddRequest, Canvas } from './Canvas.tsx'
 import { ZoomDock } from './Dock.tsx'
@@ -276,6 +278,12 @@ function Shell(props: {
   docRef.current = state.doc
   const flow = useReactFlow()
   const rootRef = useRef<HTMLDivElement>(null)
+  /** 配色主题（工作流中心「设置」里挑）：亮、暗各一套，写成根节点上的两组变量。 */
+  const theme = useThemeChoice()
+  const themeVars = useMemo(
+    () => themeStyle(theme.light, theme.dark) as React.CSSProperties,
+    [theme.light, theme.dark],
+  )
   /** 模态框挂载点（就是视图根）：要等根节点挂上才有，所以放 state。 */
   const [modalHost, setModalHost] = useState<HTMLElement | null>(null)
   const [size, setSize] = useState({ width: 1200, height: 800 })
@@ -646,6 +654,9 @@ function Shell(props: {
     <div
       ref={rootRef}
       className={css.root}
+      style={themeVars}
+      data-light-theme={theme.light}
+      data-dark-theme={theme.dark}
       data-testid="wl-root"
       data-workflow-lite-view=""
       data-library={libraryOpen && runId === null ? 'open' : 'closed'}
