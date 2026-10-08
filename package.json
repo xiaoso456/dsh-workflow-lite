@@ -25,6 +25,7 @@
     "deepseek-harness",
     "dsh",
     "dsh-plugin",
+    "dsh-plugins",
     "workflow",
     "react-flow",
     "soft-orchestration"
