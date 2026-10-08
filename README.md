@@ -3,16 +3,24 @@
   <img width="360" src="./assets/wordmark.png" alt="dsh-workflow-lite">
 </div>
 
+<div align="center">
+
 简体中文 | [English](./README.en.md)
 
-[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的软工作流插件：在画布上设计流程，编译成计划提示词，由模型按计划执行。
+</div>
 
-> **实验阶段**：功能和数据格式仍在调整，后续任何版本都可能包含不兼容的改动。
+<div align="center">
 
 [![npm version](https://img.shields.io/npm/v/@xiaoso/dsh-workflow-lite.svg)](https://www.npmjs.com/package/@xiaoso/dsh-workflow-lite)
 [![license](https://img.shields.io/npm/l/@xiaoso/dsh-workflow-lite.svg)](./LICENSE)
 [![node](https://img.shields.io/node/v/@xiaoso/dsh-workflow-lite.svg)](https://nodejs.org)
 [![DeepSeek Harness 0.2.0-x](https://img.shields.io/badge/DeepSeek%20Harness-0.2.0--x-4d6bfe.svg)](https://github.com/deepseek-ai/deepseek-harness)
+
+</div>
+
+[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的软工作流插件：在画布上设计流程，编译成计划提示词，由模型按计划执行。
+
+> **实验阶段**：功能和数据格式仍在调整，后续任何版本都可能包含不兼容的改动。
 
 ![dsh-workflow-lite：画布 → 计划提示词 → 模型执行](./assets/hero.zh.png)
 

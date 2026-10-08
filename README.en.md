@@ -3,16 +3,24 @@
   <img width="360" src="./assets/wordmark.png" alt="dsh-workflow-lite">
 </div>
 
+<div align="center">
+
 [简体中文](./README.md) | English
 
-A soft-workflow plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness): design a flow on a canvas, compile it into a plan prompt, and let the model carry it out.
+</div>
 
-> **Experimental**: features and data formats are still changing, and any release may include breaking changes.
+<div align="center">
 
 [![npm version](https://img.shields.io/npm/v/@xiaoso/dsh-workflow-lite.svg)](https://www.npmjs.com/package/@xiaoso/dsh-workflow-lite)
 [![license](https://img.shields.io/npm/l/@xiaoso/dsh-workflow-lite.svg)](./LICENSE)
 [![node](https://img.shields.io/node/v/@xiaoso/dsh-workflow-lite.svg)](https://nodejs.org)
 [![DeepSeek Harness 0.2.0-x](https://img.shields.io/badge/DeepSeek%20Harness-0.2.0--x-4d6bfe.svg)](https://github.com/deepseek-ai/deepseek-harness)
+
+</div>
+
+A soft-workflow plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness): design a flow on a canvas, compile it into a plan prompt, and let the model carry it out.
+
+> **Experimental**: features and data formats are still changing, and any release may include breaking changes.
 
 ![dsh-workflow-lite: canvas → plan prompt → model execution](./assets/hero.en.png)
 
