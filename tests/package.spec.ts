@@ -1,5 +1,6 @@
-import { readFileSync, realpathSync, statSync } from 'node:fs'
-import { extname } from 'node:path'
+import { spawnSync } from 'node:child_process'
+import { existsSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs'
+import { dirname, extname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
@@ -94,4 +95,161 @@ describe('插件图标', () => {
   it('随包发布：files 里能覆盖到它', () => {
     expect(coveredByFiles(relPath, manifest.files ?? [])).toBe(true)
   })
+
+  // 两张图同一份底稿、只差裁没裁，最容易被"顺手统一"成一张。分工是刻意的：
+  // 插件图标要脸大（缩略图里认得出人），README 头图要完整（别把构图裁掉）。
+  it('README 引完整那张，插件图标引裁过的那张', () => {
+    for (const file of ['README.md', 'README.en.md']) {
+      const html = read(file)
+      expect(html, `${file} 该引整幅不裁的完整版`).toContain('src="./assets/icon-full.webp"')
+      expect(html, `${file} 引了插件图标：那张裁过，README 要完整的`).not.toContain(
+        'src="./assets/icon.webp"',
+      )
+    }
+  })
 })
+
+/**
+ * 打包守卫：**清单广告出去的每一条路径，发布物里都必须真的存在**。
+ *
+ * 先例是隔壁 `dsh-bash-plus` 踩过的那个坑（v0.1.7-beta.0）：`build` 先跑 `tsc` 生成
+ * `lib/types`，紧接着 `tsdown` 把自己的 outDir 整个清掉——声明文件在打包前就没了，
+ * 而 `types` / `exports[*].types` 还指着 `lib/types/**`，用户装上就报
+ * `TS7016: Could not find a declaration file`。这类错不会让构建失败，只会让包坏掉。
+ *
+ * 需要构建产物，所以没构建过时（干净 checkout）整块跳过，而不是判红。
+ */
+describe.skipIf(!existsSync(fileURLToPath(new URL('../lib/index.mjs', import.meta.url))))(
+  '打包守卫',
+  () => {
+    const manifest = JSON.parse(read('package.json')) as {
+      types?: string
+      files?: string[]
+      exports?: Record<string, string | { types?: string; default?: string }>
+    }
+    const onDisk = (rel: string) =>
+      fileURLToPath(new URL(`../${rel.replace(/^\.\//u, '')}`, import.meta.url))
+
+    /** 清单广告出去的所有 `.d.ts` 入口。 */
+    const advertisedDeclarations = (): string[] => {
+      const declared: Array<string | undefined> = [manifest.types]
+      for (const target of Object.values(manifest.exports ?? {})) {
+        if (typeof target === 'object' && target !== null) declared.push(target.types)
+        else declared.push(target)
+      }
+      return declared
+        .filter((entry): entry is string => typeof entry === 'string' && entry.endsWith('.d.ts'))
+        .map((entry) => entry.replace(/^\.\//u, ''))
+    }
+
+    /** 一份 `.d.ts` 里写着的相对 import 说明符。 */
+    const relativeSpecifiers = (file: string): string[] =>
+      [...readFileSync(file, 'utf8').matchAll(/(?:from|import)\s*["'](\.[^"']+)["']/gu)].map(
+        (match) => match[1] as string,
+      )
+
+    /** `lib/types/a/b.d.ts` + `./c.ts` → `lib/types/a/c.d.ts`；非 `.ts` 的说明符不管。 */
+    const declarationTarget = (from: string, specifier: string): string | null =>
+      specifier.endsWith('.ts')
+        ? resolve(dirname(from), `${specifier.slice(0, -'.ts'.length)}.d.ts`)
+        : null
+
+    it('广告了根与客户端的声明入口', () => {
+      const advertised = advertisedDeclarations()
+      expect(advertised).toContain('lib/types/index.d.ts')
+      expect(advertised).toContain('lib/types/client/index.d.ts')
+    })
+
+    it.each(advertisedDeclarations())('发布物里有 %s，而且不是空文件', (file) => {
+      const path = onDisk(file)
+      expect(existsSync(path), `${file} 被 package.json 广告了，却没有产出`).toBe(true)
+      expect(statSync(path).size).toBeGreaterThan(0)
+    })
+
+    it('声明之间的相对引用都指得到实处', () => {
+      const pending = advertisedDeclarations().map(onDisk)
+      const visited = new Set<string>()
+      const dangling: string[] = []
+      while (pending.length > 0) {
+        const current = pending.pop() as string
+        if (visited.has(current)) continue
+        visited.add(current)
+        for (const specifier of relativeSpecifiers(current)) {
+          const target = declarationTarget(current, specifier)
+          if (target === null) continue
+          if (existsSync(target)) pending.push(target)
+          else dangling.push(`${relative(PACKAGE_ROOT, current)} → ${specifier}`)
+        }
+      }
+      expect(dangling).toEqual([])
+      // 走查真的跟进去了，而不是停在入口。拿"去重后的入口数"当基准，不钉死具体是哪个深模块——
+      // 钉死会变成一改就红的装饰。
+      const entries = new Set(advertisedDeclarations().map(onDisk))
+      expect(visited.size, '相对引用没被跟进去，这条检查就是空过的').toBeGreaterThan(entries.size)
+    })
+
+    it('exports 里指到具体文件的每一处都真存在', () => {
+      const concrete = Object.entries(manifest.exports ?? {}).filter(([key]) => !key.includes('*'))
+      expect(concrete.length).toBeGreaterThan(0)
+      for (const [key, target] of concrete) {
+        const file = typeof target === 'string' ? target : target.default
+        expect(file, `${key} 没有 default`).toBeTruthy()
+        expect(existsSync(onDisk(file as string)), `${key} → ${String(file)} 不存在`).toBe(true)
+      }
+    })
+
+    it('README 里引用的本地图都在 files 里，npm 上不会裂图', () => {
+      const referenced = new Set<string>()
+      for (const file of ['README.md', 'README.en.md']) {
+        for (const match of read(file).matchAll(/src="\.\/([^"]+)"/gu))
+          referenced.add(match[1] as string)
+      }
+      expect(referenced.size, '两版 README 至少各引用一张图').toBeGreaterThan(0)
+      for (const rel of referenced) {
+        expect(
+          coveredByFiles(rel, manifest.files ?? []),
+          `${rel} 被 README 引用却不在 files 里`,
+        ).toBe(true)
+      }
+    })
+  },
+)
+
+/**
+ * 第三方声明不许过期。
+ *
+ * `lib/client.js` 是**内联**打包的：第三方代码的字节进了我们的发布物，就得逐条声明。
+ * 声明本身由 `scripts/notices.mjs` 生成（`pnpm run build` 会重写它），这里只管它跟产物对不对得上——
+ * 规则不在这儿重抄一遍，直接跑生成器自己的 `--check`：内联清单变了、产物里冒出了没处交代的
+ * 版权行（依赖的预打包产物里又 vendored 了一支代码），都归它报。
+ * 需要构建产物，没构建过就跳过。
+ */
+describe.skipIf(!existsSync(fileURLToPath(new URL('../lib/client.js.map', import.meta.url))))(
+  '第三方声明',
+  () => {
+    it('与构建产物对得上（跑生成器的 --check）', () => {
+      const root = fileURLToPath(new URL('../', import.meta.url))
+      const run = (args: string[]) =>
+        spawnSync(process.execPath, [join(root, 'scripts/notices.mjs'), ...args], {
+          cwd: root,
+          encoding: 'utf8',
+        })
+
+      // 先确认它真的会读产物：把声明临时改脏，--check 必须非零退出
+      const before = read('THIRD_PARTY_NOTICES.md')
+      writeFileSync(
+        fileURLToPath(new URL('../THIRD_PARTY_NOTICES.md', import.meta.url)),
+        `${before}\n<!-- 探针：故意改脏 -->\n`,
+      )
+      try {
+        const dirty = run(['--check'])
+        expect(dirty.status, '声明被改脏了 --check 却过了，这条检查是空过的').not.toBe(0)
+      } finally {
+        writeFileSync(fileURLToPath(new URL('../THIRD_PARTY_NOTICES.md', import.meta.url)), before)
+      }
+
+      const clean = run(['--check'])
+      expect(clean.status, `--check 没过：${clean.stderr || clean.stdout}`).toBe(0)
+    })
+  },
+)

@@ -5,6 +5,10 @@
   "type": "module",
   "license": "MIT",
   "author": "xiaoso",
+  "publishConfig": {
+    "access": "public",
+    "tag": "latest"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/xiaoso456/dsh-workflow-lite.git"
@@ -51,9 +55,13 @@
     "cordis.patch.yml",
     "lib/types/**/*.d.ts",
     "locale/*.json",
-    "assets/icon.webp"
+    "assets/icon.webp",
+    "assets/icon-full.webp",
+    "assets/wordmark.png",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "dsh": {
+    "manifestVersion": 1,
     "client": {
       "platform": "web",
       "inject": [
@@ -120,8 +128,10 @@
     "vitest": "^2.1.8"
   },
   "scripts": {
-    "build": "tsdown",
+    "build": "tsdown && node scripts/notices.mjs",
     "build:types": "node -e \"require('node:fs').rmSync('lib/types',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
+    "notices": "node scripts/notices.mjs",
+    "notices:check": "node scripts/notices.mjs --check",
     "prepare": "pnpm run build:types && pnpm run build",
     "prepublishOnly": "pnpm run typecheck && pnpm run lint && pnpm test",
     "watch": "tsdown --watch",

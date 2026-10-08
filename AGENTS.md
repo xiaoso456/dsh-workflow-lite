@@ -13,6 +13,38 @@
 | `pnpm test` | 单元测试（vitest） |
 | `pnpm run hero` | 重做 README 封面图（中英两张，见下文） |
 
+## 发布与推送
+
+```sh
+# 1. 先构建再验证：打包守卫要读 lib/，没构建过它整块跳过（那就等于没查）
+pnpm run build && pnpm run typecheck && pnpm run lint && pnpm test
+
+# 2. CHANGELOG.md：把 Unreleased 那节落成 ## [<ver>] - <日期>，随本版一起提交；不更新不得发版
+
+# 3. 版本自增（会同时提交并打 tag；只想改版本号就加 --no-git-tag-version）
+pnpm version patch        # 或 minor / major
+
+# 4. 提交 + 打标签（上一步已经做了就跳过）
+git commit -am "release: workflow-lite v<ver>"
+git tag workflow-lite-v<ver>
+
+# 5. 推 git + 发 npm
+git push && git push --tags
+npm publish                # publishConfig 已声明 access: public
+
+# 6. GitHub Release（手动，没有 workflow；notes 用 CHANGELOG 本节内容）
+gh release create workflow-lite-v<ver> --title "v<ver>" --notes-file <notes 文件>
+```
+
+发版相关的几条：
+
+- `.npmrc` 把 `@xiaoso` 作用域指到 npmjs 官方源；镜像站发布不了。
+- `publishConfig.access: public`：scoped 包不加这条，`npm publish` 默认按 restricted 发。
+- 插件版本与 dsh 版本**不锁步**：peer 是一条 `0.2.0-0 ~ <0.2.1-0` 区间，插件自己按 SemVer 走；只有换支持版本线时才动 `peerDependencies`。
+- peer 对不上运行版本时宿主**静默跳过**该 bundle（只记进 `skippedBundles`）：症状是工具突然消失、补丁层不生效，而不是启动失败。排查看 `<profile>/cordis.yml` 里有没有自己的行。
+- `THIRD_PARTY_NOTICES.md` 由 `scripts/notices.mjs` 生成，别手改。改过依赖跑一次 `pnpm run build`，它变了就一起提交；`pnpm run notices:check` 与 `tests/package.spec.ts` 盯着它有没有过期。
+
+
 ## DSH 版本
 
 - 兼容范围写成一条三段版本号的区间（预览版也要能装），放在每个 `@deepseek-ai/dsh-*` 的 `peerDependencies` 里；DSH 检查 peer 时带 `includePrerelease`，所以不能用 `^`。
@@ -51,10 +83,12 @@ DSH_WEB_TOKEN=<token> DSH_BASE=http://127.0.0.1:3190 node --experimental-strip-t
 
 ## 插件图标与词标
 
-- `assets/icon.webp`：448×448、圆角半径 104、8 倍超采样，WebP 无损 219.7 KiB；`package.json` 顶层 `icon` 和 README 两版开头的 `<img>` 都指向它。
-- 宿主只收**清单目录下的相对路径**的图标，格式 SVG / PNG / JPEG / WebP，上限 256 KiB；越界界面静默回退默认图。`tests/package.spec.ts` 的「插件图标」四块盯着：路径合法且在包内、不超过 256 KiB、本体与扩展名对得上、`files` 收得下。
-- `assets/icon-source.png`（最初的源图）、`assets/icon-art.png`（重绘成赛璐璐平涂，1024 见方）只留在仓库里做参照，不随包发布。
-- 图标重做：把 `icon-art.png` 整幅 LANCZOS 缩到 448（不裁），套半径 104 的圆角遮罩，存 WebP 无损（`lossless=True, quality=100, method=6`）。
+- 两张 448 见方的图分工不同，**别互相替换**（`tests/package.spec.ts` 钉着这个分工）：
+  - `assets/icon.webp` = **插件图标**，`package.json` 顶层 `icon` 指它。**先裁到主体再缩**：脸占画面四成、头加头发占八成，标志物（黑猫发卡）完整，下缘留一点衣领和花束当锚点；裁框 950 见方、左上角 `(115, 0)`。整幅缩进去脸只剩三成，缩略图上认不出人——取景参照隔壁 tool-plus 的头像。
+  - `assets/icon-full.webp` = **README 头图**，两版开头的 `<img width="140">` 指它。整幅不裁，保留完整构图。
+- 两张都：LANCZOS 缩到 448、圆角半径 104、8 倍超采样（`rounded_rectangle` 画在 448×8 上再缩）、WebP 无损（`lossless=True, quality=100, method=6`），都在 `files` 里。
+- 宿主只收**清单目录下的相对路径**的图标，格式 SVG / PNG / JPEG / WebP，上限 256 KiB；越界界面静默回退默认图。`tests/package.spec.ts` 的「插件图标」盯着：路径合法且在包内、不超过 256 KiB、本体与扩展名对得上、`files` 收得下。
+- `assets/icon-source.png`（最初的源图）、`assets/icon-art.png`（重绘成赛璐璐平涂，1254 见方）只留在仓库里做参照，不随包发布。
 - `assets/wordmark.png`：「dsh workflow lite」艺术字，Jua 400 Regular 逐词纯色，1147×130——蓝 `#3e7ce4`（项目色）、绿 `#60ba7e`（人物眼睛）、金 `#cd9e70`（金发压深）。README 里按 `width="360"` 摆，图标 140。
 - 词标重做：Pillow 把三个词按 4 倍尺寸画到同一基线上，整幅 LANCZOS 缩到 1/4，裁到墨迹外留 6% 边距；字体不进仓库，用时从 Google Fonts 取 `ofl/jua/Jua-Regular.ttf`。
 - README 两版开头都是「图标 + 词标」居中的一段 HTML，没有 H1；改文案两版同步。
