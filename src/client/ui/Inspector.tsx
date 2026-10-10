@@ -34,6 +34,7 @@ import { InputPanel, StepInputsField } from './InputPanel.tsx'
 import css from './inspector.module.css'
 import { LinkRow } from './LinkRow.tsx'
 import { WHEN_COLOR, type WhenKind, whenKind } from './lines.ts'
+import { useSwap } from './motion.tsx'
 import { EdgeHead, StepHead } from './NodeHeads.tsx'
 import { PreviewCard } from './PreviewCard.tsx'
 import { cx, Segmented } from './primitives.tsx'
@@ -132,6 +133,8 @@ function NodePanel(props: InspectorProps & { node: StepNode }): React.JSX.Elemen
 
   const prompt = node.data.prompt ?? ''
   const key = idKey(node.id)
+  // 换选中的东西：旧内容滑出、新内容按画布上的左右滑进来（面板按选中项挂键，见 useSwap）。
+  const swap = useSwap<HTMLElement>(key, node.position.x)
   // 连接清单只列步骤之间的线；连着资源的线在上面的「资源」里。
   const flow = flowEdges(doc)
   const incoming = flow.filter((edge) => idKey(edge.target) === key)
@@ -139,6 +142,7 @@ function NodePanel(props: InspectorProps & { node: StepNode }): React.JSX.Elemen
 
   return (
     <aside
+      ref={swap}
       className={cx(ui.panel, css.panel)}
       data-testid="wl-inspector"
       aria-label={t('ins.name')}
@@ -385,8 +389,26 @@ export function EndIcon(props: { node: WorkflowNode | undefined; id: string }): 
 // 连线
 // ─────────────────────────────────────────────────────────────
 
+/**
+ * 右栏换到一条连线时的 {@link useSwap} 参数：按两端认（和面板的键一样，改判据不算换了一条），
+ * 横坐标取两端中点。实例视图的右栏也用它，两边写法一致，「运行 / 编辑」来回切时不滑。
+ */
+export function edgeSwap(
+  doc: InspectorProps['doc'],
+  edge: WorkflowEdge,
+): { key: string; at: number } {
+  const ends = [findNode(doc, edge.source), findNode(doc, edge.target)].filter(
+    (node) => node !== undefined,
+  )
+  const at =
+    ends.length === 0 ? 0 : ends.reduce((sum, node) => sum + node.position.x, 0) / ends.length
+  return { key: `${idKey(edge.source)}->${idKey(edge.target)}`, at }
+}
+
 function EdgePanel(props: InspectorProps & { edge: WorkflowEdge }): React.JSX.Element {
   const { t, edge, doc, analysis, onEdit, onSelect } = props
+  const spot = edgeSwap(doc, edge)
+  const swapEdge = useSwap<HTMLElement>(spot.key, spot.at)
   const when = whenOf(edge)
   const [mode, setMode] = useState<WhenKind>(whenKind(when))
   const [draft, setDraft] = useState(mode === 'custom' ? (when ?? '') : '')
@@ -425,6 +447,7 @@ function EdgePanel(props: InspectorProps & { edge: WorkflowEdge }): React.JSX.El
   const verdict = mode === 'custom' ? condition : mode
   return (
     <aside
+      ref={swapEdge}
       className={cx(ui.panel, css.panel)}
       data-testid="wl-inspector"
       aria-label={t('edge.title')}

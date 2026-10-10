@@ -28,6 +28,7 @@ import hand from './handoff.module.css'
 import { Icon } from './Icon.tsx'
 import css from './input.module.css'
 import ins from './inspector.module.css'
+import { useSwap } from './motion.tsx'
 import { InputHead } from './NodeHeads.tsx'
 import { cx, Segmented } from './primitives.tsx'
 import { stepName } from './resourceUi.ts'
@@ -53,6 +54,7 @@ function oneLine(value: string): string {
 
 export function InputPanel(props: InputPanelProps): React.JSX.Element {
   const { t, node, doc, onEdit } = props
+  const swap = useSwap<HTMLElement>(idKey(node.id), node.position.x)
   const data = node.data
   const kind = inputKind(data)
   const choice = isChoiceKind(kind)
@@ -98,6 +100,7 @@ export function InputPanel(props: InputPanelProps): React.JSX.Element {
 
   return (
     <aside
+      ref={swap}
       className={cx(ui.panel, ins.panel)}
       data-testid="wl-inspector"
       aria-label={t('input.title')}

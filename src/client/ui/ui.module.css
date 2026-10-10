@@ -294,6 +294,70 @@
   }
 }
 
+/* 下拉收起：在原处淡出、略缩（Popover 收起后多挂 FLOAT_EXIT_MS），这段时间不接指针。 */
+.popover[data-leaving="true"] {
+  animation: popOut 120ms ease-in both;
+  pointer-events: none;
+}
+
+@keyframes popOut {
+  to {
+    opacity: 0;
+    transform: translateY(-3px) scale(0.98);
+  }
+}
+
+/*
+ * 列表依次浮出：挂上 `.stagger` 的容器，直接子项挂上时一个接一个出来（前十项错开，后面的和第十项一起）。
+ * 只在挂上时放一次；筛选后新冒出来的项也会放。
+ */
+.stagger > * {
+  animation: staggerIn 200ms var(--wl-ease) backwards;
+}
+
+.stagger > :nth-child(2) {
+  animation-delay: 16ms;
+}
+
+.stagger > :nth-child(3) {
+  animation-delay: 32ms;
+}
+
+.stagger > :nth-child(4) {
+  animation-delay: 48ms;
+}
+
+.stagger > :nth-child(5) {
+  animation-delay: 64ms;
+}
+
+.stagger > :nth-child(6) {
+  animation-delay: 80ms;
+}
+
+.stagger > :nth-child(7) {
+  animation-delay: 96ms;
+}
+
+.stagger > :nth-child(8) {
+  animation-delay: 112ms;
+}
+
+.stagger > :nth-child(9) {
+  animation-delay: 128ms;
+}
+
+.stagger > :nth-child(n + 10) {
+  animation-delay: 144ms;
+}
+
+@keyframes staggerIn {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}
+
 @keyframes rise {
   from {
     opacity: 0;
@@ -351,6 +415,7 @@
 /* ── 菜单 ─────────────────────────────────────────────────── */
 
 .menuItem {
+  position: relative;
   display: flex;
   gap: 8px;
   align-items: center;
@@ -364,10 +429,28 @@
   font: inherit;
   text-align: left;
   cursor: pointer;
+  isolation: isolate;
 }
 
-.menuItem:hover {
+/* 悬停底色画在 ::before 上、渐显（选中项的底色照旧直接画在 background 上）。 */
+.menuItem::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
   background: var(--wl-hover);
+  content: "";
+  opacity: 0;
+  transition: opacity 120ms linear;
+  pointer-events: none;
+}
+
+.menuItem:hover::before {
+  opacity: 1;
+}
+
+.menuItem[data-active="true"]::before {
+  display: none;
 }
 
 .menuItem:disabled {
@@ -384,7 +467,7 @@
   color: var(--wl-danger);
 }
 
-.menuItem[data-danger="true"]:hover {
+.menuItem[data-danger="true"]::before {
   background: var(--wl-danger-soft);
 }
 
@@ -685,8 +768,17 @@
   .popover,
   .rise,
   .fade,
-  .tipLayer {
+  .tipLayer,
+  .stagger > * {
     animation: none;
+  }
+
+  .popover[data-leaving="true"] {
+    visibility: hidden;
+  }
+
+  .menuItem::before {
+    transition: none;
   }
 }
 

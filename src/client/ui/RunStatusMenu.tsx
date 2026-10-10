@@ -44,7 +44,7 @@ export function StatusMenu(props: {
   return (
     <div
       ref={ref}
-      className={cx(ui.panel, run.menu)}
+      className={cx(ui.panel, run.menu, ui.stagger)}
       style={{ left: props.at.x, top: props.at.y }}
       role="menu"
       data-testid="wl-run-menu"

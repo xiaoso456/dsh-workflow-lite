@@ -68,8 +68,9 @@ import {
 import { ZoomDock } from './Dock.tsx'
 import { FileViewer } from './FileViewer.tsx'
 import { Icon } from './Icon.tsx'
-import { Inspector } from './Inspector.tsx'
+import { edgeSwap, Inspector } from './Inspector.tsx'
 import css from './inspector.module.css'
+import { useSwap } from './motion.tsx'
 import { EdgeHead, InputHead, OverviewHead, ResourceHead, StepHead } from './NodeHeads.tsx'
 import { cx } from './primitives.tsx'
 import { QuickAdd } from './QuickAdd.tsx'
@@ -798,6 +799,16 @@ function RunPanel(props: {
   onClose(): void
 }): React.JSX.Element {
   const { t, current, doc, state, selected, selectedFile, selectedInput, selectedEdge } = props
+  // 换了看的东西（步骤、资源、输入、连线、总览）：栏框不动，内容按画布上的左右滑过去；
+  // 键和编辑那边的面板同一种写法，「运行 / 编辑」来回切不滑。总览算在最左边。
+  const node = selected ?? selectedFile ?? selectedInput
+  const spot =
+    node !== null
+      ? { key: idKey(node.id), at: node.position.x }
+      : selectedEdge !== null
+        ? edgeSwap(doc, selectedEdge)
+        : { key: '', at: Number.NEGATIVE_INFINITY }
+  const swap = useSwap<HTMLElement>(spot.key, spot.at)
   const summary = current.view?.summary
   const made = current.view?.files ?? {}
   const answers = current.view?.answers
@@ -930,6 +941,7 @@ function RunPanel(props: {
   const overview = !picked && state !== null
   return (
     <aside
+      ref={swap}
       className={cx(ui.panel, css.panel)}
       data-testid="wl-run-panel"
       aria-label={t('run.panel')}

@@ -14,7 +14,7 @@ import type { Workflow } from '../app/useWorkflow.ts'
 import type { T } from '../i18n.ts'
 import { useConfirm } from './Confirm.tsx'
 import { Icon } from './Icon.tsx'
-import { Popover } from './primitives.tsx'
+import { cx, Popover } from './primitives.tsx'
 import { RunMenuSection } from './RunTopBar.tsx'
 import css from './topbar.module.css'
 import ui from './ui.module.css'
@@ -139,7 +139,7 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
           />
         </div>
       )}
-      <div className={css.list}>
+      <div className={cx(css.list, ui.stagger)}>
         {filtered.length === 0 && workflows.length > 0 && (
           <p className={css.emptyLine}>{t('wf.none')}</p>
         )}

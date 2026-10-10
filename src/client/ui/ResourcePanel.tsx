@@ -24,6 +24,7 @@ import css from './handoff.module.css'
 import { Icon } from './Icon.tsx'
 import { DescriptionField } from './Inspector.tsx'
 import ins from './inspector.module.css'
+import { useSwap } from './motion.tsx'
 import { ResourceHead } from './NodeHeads.tsx'
 import { cx } from './primitives.tsx'
 import { ResourceItems } from './ResourceItems.tsx'
@@ -47,6 +48,7 @@ export function ResourcePanel(props: {
   tabs?: React.ReactNode
 }): React.JSX.Element {
   const { t, doc, node } = props
+  const swap = useSwap<HTMLElement>(idKey(node.id), node.position.x)
   const info = resourceGraph(doc).get(node.id)
   const merge = (field: string): string => `${idKey(node.id)}:${field}`
   const written = (info?.writers.length ?? 0) > 0
@@ -95,6 +97,7 @@ export function ResourcePanel(props: {
 
   return (
     <aside
+      ref={swap}
       className={cx(ui.panel, ins.panel)}
       data-testid="wl-inspector"
       aria-label={t('res.title')}

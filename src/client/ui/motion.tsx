@@ -10,7 +10,7 @@
  */
 
 import { type RefObject, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { cx } from './primitives.tsx'
+import { cx, type Ghost, ghostClone } from './primitives.tsx'
 import ui from './ui.module.css'
 
 interface Place {
@@ -164,6 +164,156 @@ export function useResizeFlip(): (list: HTMLElement | null) => void {
       children.disconnect()
     }
   }, [])
+}
+
+/**
+ * 换内容是一次快速交接：旧内容（影子）往外让一点、很快淡掉，新内容同时从另一侧淡入、滑到位。
+ * 旧的走得比新的快，两层叠在一起的只有开头一小段，而且那时旧的已经很淡——不糊；
+ * 新内容一开始就在走，不会先空一下再冒出来——不闪。不用 blur（糊、也费 GPU），只动 transform / opacity。
+ */
+const SWAP_IN_MS = 320
+const SWAP_OUT_MS = 160
+const SWAP_SHIFT = 16
+/** 「平滑减速」：一开始就走得快，尾巴轻轻落定。 */
+const EASE_OUT = 'cubic-bezier(0.22, 1, 0.36, 1)'
+
+/** 内容此刻的样子（上一次还没换完时是半路上的样子），影子从这里接着走。 */
+interface Pose {
+  x: number
+  opacity: number
+}
+
+/** 换内容之前面板里是什么：哪一项、它在画布上的横坐标、此刻的样子。 */
+interface Snapshot {
+  key: string
+  at: number
+  ghost: Ghost
+  pose: Pose
+}
+
+/** 刚卸掉的那块面板：紧接着又挂上一块（同一帧里），就是"换内容"，不是"新打开"。 */
+let gone: { panel: HTMLElement; snap: Snapshot; time: number } | null = null
+/** 新内容正在进来的动画：又换了一次从它此刻的样子接着走。 */
+const entering = new WeakMap<Element, Animation>()
+
+function snapshot(panel: HTMLElement, key: string, at: number): Snapshot {
+  const first = panel.firstElementChild
+  const running = first === null ? undefined : entering.get(first)
+  let pose: Pose = { x: 0, opacity: 1 }
+  if (first !== null && running?.playState === 'running') {
+    const style = getComputedStyle(first)
+    pose = { x: new DOMMatrixReadOnly(style.transform).m41, opacity: Number(style.opacity) }
+  }
+  return { key, at, ghost: ghostClone(panel), pose }
+}
+
+/**
+ * 旧内容（影子）往外让、快速淡出，新内容从目标那一侧淡入，两层同时起步。
+ * 方向：新内容在画布上更靠右，就从右边进来、旧的往左让。
+ * 影子放完自己删；连点几下时前几个影子各自淡完，不中途拿掉（拿掉会跳一下）。
+ */
+function swapIn(panel: HTMLElement, snap: Snapshot, at: number): void {
+  const parent = panel.parentNode
+  if (parent === null || REDUCED?.matches === true) return
+  const dir = at >= snap.at ? 1 : -1
+  const ghost = snap.ghost.node
+  // 影子只留内容：栏框、底色、阴影由新面板画，影子叠在它上面。
+  Object.assign(ghost.style, {
+    position: 'absolute',
+    inset: '0',
+    margin: '0',
+    background: 'transparent',
+    borderColor: 'transparent',
+    boxShadow: 'none',
+  })
+  snap.ghost.place(parent)
+  const { pose } = snap
+  let out: Animation | null = null
+  for (const child of ghost.children) {
+    out = child.animate(
+      [
+        { transform: `translateX(${pose.x}px)`, opacity: pose.opacity },
+        { transform: `translateX(${pose.x - dir * SWAP_SHIFT}px)`, opacity: 0 },
+      ],
+      { duration: SWAP_OUT_MS, easing: EASE_OUT, fill: 'forwards' },
+    )
+  }
+  for (const child of panel.children) {
+    entering.get(child)?.cancel()
+    entering.set(
+      child,
+      child.animate(
+        [
+          { transform: `translateX(${dir * SWAP_SHIFT}px)`, opacity: 0 },
+          { transform: 'none', opacity: 1 },
+        ],
+        { duration: SWAP_IN_MS, easing: EASE_OUT },
+      ),
+    )
+  }
+  const drop = (): void => ghost.remove()
+  if (out === null) drop()
+  else out.finished.then(drop, drop)
+}
+
+/**
+ * 右栏换了内容（选中了另一个节点 / 连线 / 回到总览）：栏框不动，旧内容让开淡出、新内容淡入（见 {@link swapIn}），
+ * 方向按两者在画布上的左右（`at` 是横坐标）：选了右边的，新内容从右边进来。
+ *
+ * 两种情况都接得住：
+ * - 面板按选中项挂键、每换一个就重新挂一块（编辑页的几种面板）：旧面板卸掉时拍下它的样子，
+ *   同一帧里挂上的新面板拿它当影子；
+ * - 面板一直挂着、只是内容换了（实例视图的右栏）：`key` 变了的那次渲染里 DOM 还是旧的，在那里拍。
+ *
+ * `key` 两边要用同一种写法：实例视图里「运行 / 编辑」来回切，选中的还是同一项，不滑（标题栏要原地不动）。
+ * 只放 Web Animation（transform / opacity），不重新挂载，焦点、输入都留着。
+ */
+export function useSwap<E extends HTMLElement>(key: string, at: number): RefObject<E> {
+  const ref = useRef<E>(null)
+  /** 屏幕上现在是哪一项。 */
+  const shown = useRef({ key, at })
+  const pending = useRef<Snapshot | null>(null)
+  // 渲染阶段 DOM 还没换：拍旧内容只能在这里（提交之后就已经是新的了）。
+  const live = ref.current
+  if (
+    live !== null &&
+    key !== shown.current.key &&
+    pending.current === null &&
+    REDUCED?.matches !== true
+  ) {
+    pending.current = snapshot(live, shown.current.key, shown.current.at)
+  }
+  useLayoutEffect(() => {
+    const panel = ref.current
+    if (panel === null) return
+    const recent = gone
+    gone = null
+    if (
+      recent !== null &&
+      recent.panel !== panel &&
+      recent.snap.key !== shown.current.key &&
+      performance.now() - recent.time < 50
+    ) {
+      swapIn(panel, recent.snap, shown.current.at)
+    }
+    return () => {
+      if (REDUCED?.matches === true) return
+      gone = {
+        panel,
+        snap: snapshot(panel, shown.current.key, shown.current.at),
+        time: performance.now(),
+      }
+    }
+  }, [])
+  useLayoutEffect(() => {
+    const snap = pending.current
+    pending.current = null
+    const was = shown.current
+    shown.current = { key, at }
+    const panel = ref.current
+    if (snap !== null && panel !== null && was.key !== key) swapIn(panel, snap, at)
+  }, [key, at])
+  return ref as RefObject<E>
 }
 
 /**

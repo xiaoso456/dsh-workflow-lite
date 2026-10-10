@@ -68,6 +68,21 @@ export function Popover(props: {
 }): React.JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
   useDismiss(props.open && props.hold !== true, ref, props.onClose)
+  // 收起后再挂一会儿放退场动画（同 useFloat：在渲染时就判断，不先卸掉再挂一个新的）。
+  const [mounted, setMounted] = useState(false)
+  const [round, setRound] = useState(0)
+  const [wasOpen, setWasOpen] = useState(props.open)
+  if (wasOpen !== props.open) {
+    setWasOpen(props.open)
+    if (props.open) setRound((n) => n + 1)
+  }
+  if (props.open && !mounted) setMounted(true)
+  const leaving = !props.open && mounted
+  useEffect(() => {
+    if (!leaving) return
+    const id = window.setTimeout(() => setMounted(false), FLOAT_EXIT_MS)
+    return () => window.clearTimeout(id)
+  }, [leaving])
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: 只在这一层消化浮层内冒上来的 Esc
     <div
@@ -80,8 +95,9 @@ export function Popover(props: {
       }}
     >
       {props.trigger}
-      {props.open && (
+      {(props.open || leaving) && (
         <div
+          key={round}
           className={cx(
             ui.popover,
             props.align === 'end' && ui.popoverEnd,
@@ -90,6 +106,8 @@ export function Popover(props: {
           )}
           role="dialog"
           aria-label={props.label}
+          aria-hidden={leaving ? true : undefined}
+          data-leaving={leaving ? true : undefined}
           tabIndex={-1}
         >
           {props.children}
@@ -181,6 +199,15 @@ export function Modal(props: {
   const host = useContext(ModalHost)
   const ref = useRef<HTMLDivElement>(null)
   const downOnScrim = useRef(false)
+  const scrimRef = useRef<HTMLDivElement>(null)
+  // 关掉时留一个"影子"淡出（见 ghostOut）：调用方直接卸掉模态框，不用等动画。
+  useLayoutEffect(() => {
+    const scrim = scrimRef.current
+    const parent = scrim?.parentNode ?? null
+    return () => {
+      if (scrim !== null) ghostOut(scrim, parent)
+    }
+  }, [])
 
   useEffect(() => {
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
@@ -216,6 +243,7 @@ export function Modal(props: {
 
   const tree = (
     <div
+      ref={scrimRef}
       className={cx(overlay.scrim, ui.fade)}
       onPointerDown={(event) => {
         downOnScrim.current = event.target === event.currentTarget
@@ -240,6 +268,89 @@ export function Modal(props: {
     </div>
   )
   return host === null ? tree : createPortal(tree, host)
+}
+
+/** 模态框关掉时淡出的时长。 */
+const MODAL_EXIT_MS = 160
+const REDUCED_MOTION = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)') ?? null
+
+/** 一块界面此刻样子的复制品（纯 DOM，不归 React 管），放退场动画用。 */
+export interface Ghost {
+  node: HTMLElement
+  /** 挂到 `parent` 里，再把复制时记下的滚动位置、输入框里的字抄回去。 */
+  place(parent: Node): void
+}
+
+/**
+ * 复制一块界面当影子：
+ *
+ * - 影子不接指针、不进无障碍树，也不带 `data-testid` / `id` / `role`：后面的界面马上能点，查找也找不到它；
+ * - 影子里的入场动画、过渡都关掉（写在行内），不然复制出来的元素会把入场重放一遍；
+ * - 滚动位置、输入框里的字在复制时记下、挂上后照抄，放动画时不跳；
+ *   iframe 不复制（挂上就会重新加载页面），换成同样大小的空块。
+ */
+export function ghostClone(node: HTMLElement): Ghost {
+  const clone = node.cloneNode(true) as HTMLElement
+  const from = [node, ...node.querySelectorAll<HTMLElement>('*')]
+  const to = [clone, ...clone.querySelectorAll<HTMLElement>('*')]
+  const scrolls = from.map((source) => [source.scrollTop, source.scrollLeft] as const)
+  const values = from.map((source) =>
+    source instanceof HTMLInputElement || source instanceof HTMLTextAreaElement
+      ? source.value
+      : null,
+  )
+  const frames = [...node.querySelectorAll('iframe')]
+  clone.querySelectorAll('iframe').forEach((frame, index) => {
+    const blank = document.createElement('div')
+    const source = frames[index]
+    blank.style.cssText = `width:${source?.offsetWidth ?? 0}px;height:${source?.offsetHeight ?? 0}px`
+    frame.replaceWith(blank)
+  })
+  for (const element of to) {
+    for (const name of ['data-testid', 'id', 'role', 'aria-modal', 'tabindex']) {
+      element.removeAttribute(name)
+    }
+    // 写在行内：压得过各处带属性选择器的入场 / 退场规则。
+    element.style.animation = 'none'
+    element.style.transition = 'none'
+  }
+  clone.style.pointerEvents = 'none'
+  clone.setAttribute('aria-hidden', 'true')
+  clone.setAttribute('inert', '')
+  return {
+    node: clone,
+    place(parent) {
+      parent.appendChild(clone)
+      to.forEach((target, index) => {
+        const [top, left] = scrolls[index] ?? [0, 0]
+        if (top !== 0) target.scrollTop = top
+        if (left !== 0) target.scrollLeft = left
+        const value = values[index]
+        if (
+          value != null &&
+          (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement)
+        ) {
+          target.value = value
+        }
+      })
+    },
+  }
+}
+
+/** 模态框关掉后的退场：把它此刻的样子复制一份放回原处，遮罩淡出、卡片略往下沉，放完就删。 */
+function ghostOut(node: HTMLElement, parent: Node | null): void {
+  if (parent === null || REDUCED_MOTION?.matches === true) return
+  const ghost = ghostClone(node)
+  ghost.place(parent)
+  const clone = ghost.node
+  const timing = { duration: MODAL_EXIT_MS, easing: 'ease-in', fill: 'forwards' } as const
+  const fade = clone.animate([{ opacity: 1 }, { opacity: 0 }], timing)
+  clone.firstElementChild?.animate(
+    [{ transform: 'none' }, { transform: 'translateY(8px) scale(0.98)' }],
+    timing,
+  )
+  const drop = (): void => clone.remove()
+  fade.finished.then(drop, drop)
 }
 
 /** 浮层与触发器之间的间距。 */

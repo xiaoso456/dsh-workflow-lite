@@ -216,9 +216,9 @@
   pointer-events: auto;
 }
 
-/* 指针移到右端的按钮上，整行还是亮着的。 */
-.row:hover .rowMain:not([data-active="true"]) {
-  background: var(--wl-hover);
+/* 指针移到右端的按钮上，整行还是亮着的（悬停底色是 ui.menuItem 的 ::before，渐显）。 */
+.row:hover .rowMain:not([data-active="true"])::before {
+  opacity: 1;
 }
 
 .row:hover .rowMeta,

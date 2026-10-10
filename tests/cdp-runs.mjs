@@ -911,6 +911,11 @@ try {
     `document.querySelector('.react-flow__node[data-id="review"]').dispatchEvent(new MouseEvent('click', { bubbles: true }))`,
   )
   await waitFor(session, `document.querySelector('[data-testid="wl-run-mode"]') !== null`)
+  // 换了选中项，右栏内容会滑过来：等它停稳再量。
+  await waitFor(
+    session,
+    `[...document.querySelector('[data-testid="wl-run-panel"]').children].every((child) => child.getAnimations().length === 0)`,
+  )
   // 「运行 / 编辑」是标题栏里关闭按钮左边的两个图标格；两边标题栏一模一样（切换时不动）。
   const headShape = (panel) => `(() => {
     const head = document.querySelector('[data-testid="${panel}"] header');
