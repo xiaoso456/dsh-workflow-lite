@@ -29,13 +29,19 @@ const GAP = 8
 /** 指针离开带提示的元素后，提示再留多久：这段时间里指向下一个就滑过去。 */
 const LINGER_MS = 90
 
+interface Place {
+  seq: number
+  left: number
+  top: number
+  up: boolean
+  glide: boolean
+}
+
 interface Shown {
   /** 每换一个元素加一：入场动画只在换元素时放。 */
   seq: number
   target: HTMLElement
   text: string
-  /** 从上一个元素滑过来的（不是新弹出来的）。 */
-  glide: boolean
 }
 
 /** 指针 / 焦点所在处最近的、带非空提示的元素。 */
@@ -49,7 +55,12 @@ function tipOf(node: EventTarget | null, root: HTMLElement): HTMLElement | null 
 export function TipLayer(props: { root: HTMLElement | null }): React.ReactNode {
   const { root } = props
   const [shown, setShown] = useState<Shown | null>(null)
-  const [place, setPlace] = useState<{ left: number; top: number; up: boolean } | null>(null)
+  /**
+   * 量好的位置。`seq` 记是给哪一次弹出量的：新弹出的提示拿不到上一个的位置。
+   * `glide`：这一次弹出之前已经摆好过（是从上一个元素移过来的），换位置时滑过去；
+   * 刚弹出那一下不滑——不然会从左上角（还没量时的 0, 0）滑进来。
+   */
+  const [place, setPlace] = useState<Place | null>(null)
   const tipRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -83,7 +94,7 @@ export function TipLayer(props: { root: HTMLElement | null }): React.ReactNode {
     function show(target: HTMLElement): void {
       visible = true
       seq += 1
-      setShown({ seq, target, text: target.dataset.tip ?? '', glide: false })
+      setShown({ seq, target, text: target.dataset.tip ?? '' })
       watch.observe(host, {
         subtree: true,
         childList: true,
@@ -98,7 +109,7 @@ export function TipLayer(props: { root: HTMLElement | null }): React.ReactNode {
         current = target
         // 亮着：指向别的就滑过去；指向空处稍等再收。
         if (target === null) timer = window.setTimeout(hide, LINGER_MS)
-        else setShown({ seq, target, text: target.dataset.tip ?? '', glide: true })
+        else setShown({ seq, target, text: target.dataset.tip ?? '' })
         return
       }
       const warm = performance.now() - hiddenAt < WARM_MS
@@ -181,23 +192,32 @@ export function TipLayer(props: { root: HTMLElement | null }): React.ReactNode {
     const below = box.bottom - area.top + GAP
     const above = box.top - area.top - GAP - height
     const up = below + height > area.height - GAP && above >= GAP
-    setPlace({ left, top: up ? above : below, up })
+    const seq = shown.seq
+    setPlace((was) => ({ seq, left, top: up ? above : below, up, glide: was?.seq === seq }))
   }, [shown, root])
 
   if (shown === null || root === null) return null
+  // 只有给这一次量过的位置才算数：新弹出时（换了 seq）先藏着量，量好直接出现在原地；
+  // 不然会带着上一个提示的位置（或者还没量时的左上角）滑过来。
+  const placed = place !== null && place.seq === shown.seq ? place : null
   return createPortal(
     <div
       key={shown.seq}
       ref={tipRef}
       className={ui.tipSeat}
-      data-glide={shown.glide}
+      data-glide={placed?.glide === true}
       style={{
-        transform: `translate(${place?.left ?? 0}px, ${place?.top ?? 0}px)`,
+        transform: `translate(${placed?.left ?? 0}px, ${placed?.top ?? 0}px)`,
         // 第一帧还没量好位置：先藏着量尺寸，摆好了再出现。
-        visibility: place === null ? 'hidden' : 'visible',
+        visibility: placed === null ? 'hidden' : 'visible',
       }}
     >
-      <div className={ui.tipLayer} role="tooltip" data-up={place?.up === true} data-testid="wl-tip">
+      <div
+        className={ui.tipLayer}
+        role="tooltip"
+        data-up={placed?.up === true}
+        data-testid="wl-tip"
+      >
         {shown.text}
       </div>
     </div>,

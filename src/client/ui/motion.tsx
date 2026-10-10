@@ -371,17 +371,18 @@ export function ExitSeat(props: {
   )
 }
 
+/** 右栏收起：和步骤库收起（shell.module.css 的 `.library` 收起过渡）同样的距离、时长，方向相反。 */
 const CLOSE_MS = 200
-const CLOSE_SHIFT = 16
+const CLOSE_FADE_MS = 160
+const CLOSE_SHIFT = 24
 
 /**
  * 右栏关掉（取消选中、点 ✕、收起）：栏框连同内容的影子往右退一点、淡出——和打开时从右边滑进来是一对。
  * 栏框本身已经被 React 摘掉了：照它的样子浅复制一个空框（同样的类、同样的位置）放回原处，影子内容装进去。
  * 页面本身也被卸掉了（换到别的标签页）就不放。
  */
-function closeOut(frame: HTMLElement, snap: Snapshot): void {
-  const host = frame.parentNode
-  if (host === null || !host.isConnected || frame.isConnected) return
+function closeOut(frame: HTMLElement, host: Node, snap: Snapshot): void {
+  if (!host.isConnected || frame.isConnected) return
   const shell = frame.cloneNode(false) as HTMLElement
   shell.removeAttribute('data-testid')
   shell.removeAttribute('id')
@@ -390,13 +391,18 @@ function closeOut(frame: HTMLElement, snap: Snapshot): void {
   shell.setAttribute('inert', '')
   host.appendChild(shell)
   snap.ghost.place(shell)
-  const out = shell.animate(
-    [
-      { opacity: snap.pose.opacity, transform: 'none' },
-      { opacity: 0, transform: `translateX(${CLOSE_SHIFT}px)` },
-    ],
-    { duration: CLOSE_MS, easing: EASE_OUT, fill: 'forwards' },
-  )
+  // 和步骤库收起同一套：位移 200ms 缓出，透明度 160ms 匀速，先淡完再滑完。
+  shell.animate([{ transform: 'none' }, { transform: `translateX(${CLOSE_SHIFT}px)` }], {
+    duration: CLOSE_MS,
+    easing: EASE,
+    fill: 'forwards',
+  })
+  const out = shell.animate([{ opacity: snap.pose.opacity }, { opacity: 0 }], {
+    duration: CLOSE_FADE_MS,
+    easing: 'linear',
+    fill: 'forwards',
+  })
+  // 透明度先放完，那时已经看不见了，直接拿掉。
   const drop = (): void => shell.remove()
   out.finished.then(drop, drop)
 }
@@ -445,6 +451,8 @@ export function useSwap<E extends HTMLElement>(key: string, at: number): RefObje
       if (REDUCED?.matches === true) return
       // 这时栏框（面板的父元素）还在页面上：React 先跑子树的清理、最后才摘 DOM。
       const frame = panel.parentElement
+      // 栏框的父元素也要现在记下：微任务里栏框已经被摘掉，`parentNode` 是 null 了。
+      const host = frame?.parentNode ?? null
       const entry = {
         panel,
         snap: snapshot(panel, shown.current.key, shown.current.at),
@@ -455,7 +463,7 @@ export function useSwap<E extends HTMLElement>(key: string, at: number): RefObje
       queueMicrotask(() => {
         if (gone !== entry) return
         gone = null
-        if (frame !== null) closeOut(frame, entry.snap)
+        if (frame !== null && host !== null) closeOut(frame, host, entry.snap)
       })
     }
   }, [])

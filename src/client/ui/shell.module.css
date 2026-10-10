@@ -287,13 +287,21 @@
   bottom: var(--wl-gap);
   z-index: 5;
   width: var(--wl-inspector-w);
-  animation: slideIn 240ms var(--wl-ease) both;
+  /* 和步骤库展开同一套（方向相反）：位移 240ms 缓出、透明度 180ms 匀速。收起见 motion.tsx 的 closeOut。 */
+  animation:
+    slideIn 240ms var(--wl-ease) both,
+    panelFade 180ms linear both;
 }
 
 @keyframes slideIn {
   from {
+    transform: translateX(24px);
+  }
+}
+
+@keyframes panelFade {
+  from {
     opacity: 0;
-    transform: translateX(20px);
   }
 }
 
