@@ -17,7 +17,14 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parse, stringify } from 'yaml'
 import { RunService } from '../src/host/runs/service.ts'
-import { bootToCanvas, centerOf, mouseClick, mouseMove, screenshot } from './lib/canvas-harness.mjs'
+import {
+  bootToCanvas,
+  centerOf,
+  mouseClick,
+  mouseMove,
+  revealHubRow,
+  screenshot,
+} from './lib/canvas-harness.mjs'
 import { openPage, waitFor } from './lib/cdp-session.mjs'
 import { rpc } from './lib/web-session.mjs'
 
@@ -140,9 +147,31 @@ try {
   // 1) 工作流中心 → 运行实例 → 查看。
   await bootToCanvas(session, NAME)
   await session.evaluate(`document.querySelector('[data-testid="wl-hub-open"]').click()`)
-  await waitFor(
-    session,
-    `document.querySelector('[data-testid="wl-hub-row"][data-id="${instance}"]') !== null`,
+  // 临时工作区不是本会话的工作区：有别的组时它默认折着、行不在 DOM 里，组头上带着计数。
+  const groupOf = `[...document.querySelectorAll('[data-testid="wl-hub-group"]')].find((group) => group.dataset.path === ${JSON.stringify(WORKSPACE)})`
+  await waitFor(session, `(${groupOf}) != null`)
+  const fold = await session.evaluate(`(() => {
+    const group = ${groupOf};
+    return {
+      groups: document.querySelectorAll('[data-testid="wl-hub-group"]').length,
+      expanded: group.querySelector('[data-testid="wl-hub-group-toggle"]').getAttribute('aria-expanded'),
+      rows: group.querySelectorAll('[data-testid="wl-hub-row"]').length,
+    };
+  })()`)
+  check(
+    fold.groups === 1 ? fold.expanded === 'true' : fold.expanded === 'false' && fold.rows === 0,
+    `非本工作区的组默认应折着（只有一组时展开）：${JSON.stringify(fold)}`,
+  )
+  await revealHubRow(session, instance, WORKSPACE)
+  // 所有行共用一套列：状态小标宽窄不一、有没有「移到本会话」，进度条、「查看」、删除都上下对齐。
+  const columns = await session.evaluate(`(() => {
+    const rows = [...document.querySelectorAll('[data-testid="wl-hub-row"]')];
+    const lefts = (selector) => new Set(rows.map((row) => Math.round(row.querySelector(selector)?.getBoundingClientRect().left ?? -1)));
+    return { rows: rows.length, bars: lefts('[data-testid="wl-hub-progress"]').size, views: lefts('[data-testid="wl-hub-view"]').size, deletes: lefts('[data-testid="wl-hub-delete"]').size };
+  })()`)
+  check(
+    columns.bars === 1 && columns.views === 1 && columns.deletes === 1,
+    `各行的进度一栏、「查看」和删除应上下对齐：${JSON.stringify(columns)}`,
   )
   await sleep(300)
   await screenshot(session, 'runs-01-hub.png')
@@ -495,6 +524,7 @@ try {
   await screenshot(session, 'runs-03-invalid.png')
   // 工作流中心里同一个实例标「状态文件有误」，点小标展开原因。
   await session.evaluate(`document.querySelector('[data-testid="wl-hub-open"]').click()`)
+  await revealHubRow(session, instance, WORKSPACE)
   await waitFor(
     session,
     `document.querySelector('[data-testid="wl-hub-row"][data-id="${instance}"] [data-testid="wl-hub-why"]') !== null`,
@@ -986,6 +1016,7 @@ try {
     `document.querySelector('[data-testid="wl-root"]').dataset.session`,
   )
   await session.evaluate(`document.querySelector('[data-testid="wl-hub-open"]').click()`)
+  await revealHubRow(session, instance, WORKSPACE)
   await waitFor(
     session,
     `document.querySelector('[data-testid="wl-hub-row"][data-id="${instance}"] [data-testid="wl-hub-move"]') !== null`,
@@ -1220,10 +1251,7 @@ try {
   check(untracked.ok && untracked.result.instance.statePath === undefined, '应建出不记状态的实例')
   instance = untracked.result.instance.id
   await session.evaluate(`document.querySelector('[data-testid="wl-hub-open"]').click()`)
-  await waitFor(
-    session,
-    `document.querySelector('[data-testid="wl-hub-row"][data-id="${instance}"] [data-testid="wl-hub-view"]') !== null`,
-  )
+  await revealHubRow(session, instance, WORKSPACE)
   await session.evaluate(
     `document.querySelector('[data-testid="wl-hub-row"][data-id="${instance}"] [data-testid="wl-hub-view"]').click()`,
   )

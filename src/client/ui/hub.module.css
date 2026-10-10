@@ -121,25 +121,64 @@ button.wsButton[aria-expanded="true"] {
   scrollbar-width: thin;
 }
 
-.group {
-  display: flex;
+/*
+ * 所有组、所有行共用这一套列：组、框、行一层层 subgrid 下去。状态小标、按钮组按整页最宽的那个定宽，
+ * 进度条和按钮上下对齐，不随「完成 / 执行中」的字数、有没有「移到本会话」挪位。
+ */
+.runGrid {
+  display: grid;
   flex: none;
-  flex-direction: column;
-  gap: 6px;
+  grid-template-columns: minmax(0, 1fr) 88px max-content max-content;
+  gap: 18px 16px;
 }
 
+.group {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  row-gap: 6px;
+}
+
+/* 组头整条是开合按钮。 */
 .groupHead {
   display: flex;
+  grid-column: 1 / -1;
   gap: 8px;
   align-items: center;
   min-width: 0;
-  padding: 0 2px;
+  padding: 3px 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
   font-size: var(--wl-fs-meta);
+  text-align: left;
+  cursor: pointer;
 }
 
-.groupHead > svg {
+.groupHead:hover {
+  background: var(--wl-hover);
+}
+
+.groupHead:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+.groupHead > svg,
+.chevron {
   flex: none;
   color: var(--wl-text-3);
+}
+
+.chevron {
+  display: inline-flex;
+  transition: transform 120ms ease;
+}
+
+.groupHead[aria-expanded="true"] .chevron {
+  transform: rotate(90deg);
 }
 
 .groupName {
@@ -201,10 +240,18 @@ button.wsButton[aria-expanded="true"] {
   border-bottom-left-radius: 9px;
 }
 
+.runBox {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  row-gap: 0;
+}
+
 .row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 88px auto auto;
-  gap: 8px 16px;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  row-gap: 8px;
   align-items: center;
   min-height: 58px;
   padding: 9px 8px 9px 14px;
@@ -313,10 +360,29 @@ button.wsButton[aria-expanded="true"] {
   transform-origin: left center;
 }
 
+/* 状态一格：小标靠左，不被列宽拉长。 */
+.state {
+  display: flex;
+  align-items: center;
+}
+
+/* 「查看」在前，图标按钮成一组在后：组内挨着，和「查看」之间稍宽一点。 */
 .actions {
   display: flex;
   gap: 2px;
   align-items: center;
+  justify-content: flex-end;
+}
+
+.actions > :first-child {
+  margin-right: 4px;
+}
+
+/* 这一行没有「移到本会话」时的空位：和小号图标按钮一样大。 */
+.iconSlot {
+  flex: none;
+  width: 26px;
+  height: 26px;
 }
 
 /* 次要的图标按钮：平时淡着，悬停时才换成各自的颜色（删除是红）。 */

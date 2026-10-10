@@ -90,6 +90,18 @@ export function matchesQuery(
   return words.every((word) => haystack.includes(word))
 }
 
+/**
+ * 一组没人动过时展开没有：筛选时全展开（搜到的要看得见）；平时只展开本会话所在的工作区，
+ * 只有一组时也展开（折起来就什么都看不见了）。
+ */
+export function groupOpenByDefault(
+  workspace: HubWorkspace,
+  groupCount: number,
+  filtered: boolean,
+): boolean {
+  return filtered || workspace.here || groupCount === 1
+}
+
 export interface HubFilter {
   /** `'all'` = 全部工作区；否则是 {@link workspaceKey}。 */
   workspace: string

@@ -22,7 +22,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parse, stringify } from 'yaml'
 import { RunService } from '../src/host/runs/service.ts'
-import { bootToCanvas } from './lib/canvas-harness.mjs'
+import { bootToCanvas, revealHubRow } from './lib/canvas-harness.mjs'
 import { openPage, waitFor } from './lib/cdp-session.mjs'
 import { rpc } from './lib/web-session.mjs'
 import { installShotsCookie, SHOTS_SESSION_TITLE, startShotsEnv } from './support/shots-env.mjs'
@@ -433,6 +433,7 @@ async function shoot(session, lang) {
 
     const view = `[data-testid="wl-hub-row"][data-id="${instance}"] [data-testid="wl-hub-view"]`
     await session.evaluate(clickTestId('wl-hub-open'))
+    await revealHubRow(session, instance, WORKSPACE)
     await waitFor(session, `document.querySelector('${view}') !== null`)
     await session.evaluate(`document.querySelector('${view}').click()`)
     await waitFor(

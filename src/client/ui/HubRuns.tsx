@@ -4,6 +4,10 @@
  * 打开时拉一次全部会话的实例；移动、删除之后再拉一次。不跟着外面的重绘重拉——会话列表一有动静
  * （别的会话在输出）外面就会重绘，跟着重拉会让列表一直闪。
  *
+ * 分组能折叠：没人动过时只展开本工作区（见 `groupOpenByDefault`）；手动展开 / 折叠记在浏览器里。
+ * 筛选时搜到的组全展开，这时的开合只管这一次筛选，不记。
+ * 所有行共用一套列（subgrid），状态小标宽窄不一、有没有「移到本会话」，进度条和按钮都对得齐。
+ *
  * @module @xiaoso/dsh-workflow-lite/client/ui/HubRuns
  */
 
@@ -12,14 +16,43 @@ import type { InstanceSummary } from '../../shared/runState.ts'
 import type { SessionRow } from '../app/sessions.ts'
 import type { Runs } from '../app/useRuns.ts'
 import type { T } from '../i18n.ts'
-import { groupRuns, type HubWorkspace, workspacesOf } from '../model/hubRuns.ts'
+import { groupOpenByDefault, groupRuns, type HubWorkspace, workspacesOf } from '../model/hubRuns.ts'
 import { errorMessage } from '../rpc.ts'
 import { HubRunRow } from './HubRunRow.tsx'
 import { HubWorkspacePicker } from './HubWorkspacePicker.tsx'
 import hub from './hub.module.css'
 import { Icon } from './Icon.tsx'
 import { cx, Segmented } from './primitives.tsx'
+import run from './run.module.css'
 import ui from './ui.module.css'
+
+/** 手动开合过的组：工作区键 → 展开没有。 */
+type Expanded = Record<string, boolean>
+
+const EXPANDED_KEY = 'workflow-lite.hub.expanded'
+
+function readExpanded(): Expanded {
+  try {
+    const parsed: unknown = JSON.parse(window.localStorage.getItem(EXPANDED_KEY) ?? '{}')
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return {}
+    return Object.fromEntries(
+      Object.entries(parsed).filter(
+        (entry): entry is [string, boolean] => typeof entry[1] === 'boolean',
+      ),
+    )
+  } catch {
+    // 读不懂或读不了：按默认开合。开合是便利不是事实，不该为它让列表打不开。
+    return {}
+  }
+}
+
+function writeExpanded(expanded: Expanded): void {
+  try {
+    window.localStorage.setItem(EXPANDED_KEY, JSON.stringify(expanded))
+  } catch {
+    // 偏好持久化是尽力而为。
+  }
+}
 
 export function HubRuns(props: {
   t: T
@@ -78,6 +111,39 @@ export function HubRuns(props: {
     [items, picked, scope, query, session, hereCwd, titleOf],
   )
   const filtered = query.trim() !== '' || picked !== 'all' || scope === 'mine'
+
+  const [saved, setSaved] = useState(readExpanded)
+  useEffect(() => writeExpanded(saved), [saved])
+  // 筛选时的开合只跟着这一次筛选：条件一变就回到全展开。
+  const filterKey = JSON.stringify([query.trim(), picked, scope])
+  const [searchOpen, setSearchOpen] = useState<{ filter: string; open: Expanded }>({
+    filter: '',
+    open: {},
+  })
+  const choices = filtered ? (searchOpen.filter === filterKey ? searchOpen.open : {}) : saved
+  const isOpen = (workspace: HubWorkspace): boolean =>
+    choices[workspace.key] ?? groupOpenByDefault(workspace, groups.length, filtered)
+  // 用函数式更新：连着点几个组时，每一下都在上一下的结果上改。
+  const toggle = (workspace: HubWorkspace): void => {
+    const fallback = groupOpenByDefault(workspace, groups.length, filtered)
+    const flip = (open: Expanded): Expanded => ({
+      ...open,
+      [workspace.key]: !(open[workspace.key] ?? fallback),
+    })
+    if (filtered) {
+      setSearchOpen((prev) => ({
+        filter: filterKey,
+        open: flip(prev.filter === filterKey ? prev.open : {}),
+      }))
+      return
+    }
+    setSaved(flip)
+  }
+
+  const canMove = (item: InstanceSummary): boolean =>
+    session !== undefined && item.session !== session
+  // 展开着的行里有能移的，才给「移到本会话」留位置。
+  const moveSlot = groups.some((group) => isOpen(group.workspace) && group.items.some(canMove))
 
   const sessionLabel = (id: string | undefined): { text: string; mine: boolean } => {
     if (id === undefined) return { text: t('hub.noSession'), mine: false }
@@ -158,37 +224,76 @@ export function HubRuns(props: {
             )}
           </Empty>
         ) : (
-          groups.map((group) => (
-            <section key={group.workspace.key} className={hub.group} data-testid="wl-hub-group">
-              <GroupHead t={t} workspace={group.workspace} />
-              <div className={hub.box}>
-                {group.items.map((item) => (
-                  <HubRunRow
-                    key={item.id}
+          <div className={hub.runGrid}>
+            {groups.map((group) => {
+              const open = isOpen(group.workspace)
+              return (
+                <section
+                  key={group.workspace.key}
+                  className={hub.group}
+                  data-testid="wl-hub-group"
+                  data-path={group.workspace.path}
+                >
+                  <GroupHead
                     t={t}
-                    item={item}
-                    session={sessionLabel(item.session)}
-                    canMove={session !== undefined && item.session !== session}
-                    onView={() => props.onOpenRun(item.id)}
-                    onMove={() => void runsRef.current.bind(item.id).then(() => load())}
-                    onDelete={(withState) => {
-                      void runsRef.current.remove(item.id, withState).then(() => load())
-                    }}
+                    workspace={group.workspace}
+                    items={group.items}
+                    open={open}
+                    onToggle={() => toggle(group.workspace)}
                   />
-                ))}
-              </div>
-            </section>
-          ))
+                  {open && (
+                    <div className={cx(hub.box, hub.runBox)}>
+                      {group.items.map((item) => (
+                        <HubRunRow
+                          key={item.id}
+                          t={t}
+                          item={item}
+                          session={sessionLabel(item.session)}
+                          canMove={canMove(item)}
+                          moveSlot={moveSlot}
+                          onView={() => props.onOpenRun(item.id)}
+                          onMove={() => void runsRef.current.bind(item.id).then(() => load())}
+                          onDelete={(withState) => {
+                            void runsRef.current.remove(item.id, withState).then(() => load())
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </section>
+              )
+            })}
+          </div>
         )}
       </div>
     </>
   )
 }
 
-function GroupHead(props: { t: T; workspace: HubWorkspace }): React.JSX.Element {
+/** 组头：整条能点，开合这一组；折起来时数一下还在跑的，免得进行中的实例藏在里面看不见。 */
+function GroupHead(props: {
+  t: T
+  workspace: HubWorkspace
+  items: readonly InstanceSummary[]
+  open: boolean
+  onToggle(): void
+}): React.JSX.Element {
   const { t, workspace } = props
+  const active = props.open
+    ? 0
+    : props.items.filter((item) => item.status === 'running' || item.status === 'waiting').length
   return (
-    <div className={hub.groupHead}>
+    <button
+      type="button"
+      className={hub.groupHead}
+      aria-expanded={props.open}
+      aria-label={`${props.open ? t('hub.collapse') : t('hub.expand')} ${workspace.path ?? t('hub.noWorkspace')}`}
+      data-testid="wl-hub-group-toggle"
+      onClick={props.onToggle}
+    >
+      <span className={hub.chevron}>
+        <Icon name="chevronRight" size={13} />
+      </span>
       <Icon name="folder" size={14} />
       <span className={hub.groupName}>
         {workspace.path === undefined ? t('hub.noWorkspace') : workspace.name}
@@ -200,8 +305,14 @@ function GroupHead(props: { t: T; workspace: HubWorkspace }): React.JSX.Element 
         </span>
       )}
       <span className={ui.grow} />
+      {active > 0 && (
+        <span className={run.status} data-run-status="running">
+          <span className={run.dot} />
+          {t('hub.active').replace('{n}', String(active))}
+        </span>
+      )}
       <span className={hub.count}>{t('hub.count').replace('{n}', String(workspace.count))}</span>
-    </div>
+    </button>
   )
 }
 

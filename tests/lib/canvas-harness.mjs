@@ -395,6 +395,25 @@ export async function pressShortcut(session, key, mods = ['ctrl']) {
   await pressKey(session, key, { modifiers, text: undefined })
 }
 
+/* ── 工作流中心 ───────────────────────────────────────────── */
+
+/**
+ * 「运行实例」页里让某个实例的行露出来：它所在的工作区组折着就点开（不是本工作区的组默认折着），
+ * 已经展开就不动。调用前工作流中心要开着、停在「运行实例」页。
+ */
+export async function revealHubRow(session, instanceId, workspacePath) {
+  const head = `[...document.querySelectorAll('[data-testid="wl-hub-group"]')].find((group) => group.dataset.path === ${JSON.stringify(workspacePath)})?.querySelector('[data-testid="wl-hub-group-toggle"]')`
+  await waitFor(session, `(${head}) != null`)
+  await session.evaluate(`(() => {
+    const head = ${head};
+    if (head.getAttribute('aria-expanded') === 'false') head.click();
+  })()`)
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-hub-row"][data-id="${instanceId}"]') !== null`,
+  )
+}
+
 /* ── 截图 ─────────────────────────────────────────────────── */
 
 /** 截图落到 `tests/runs/<name>`（`runs/` 被 vitest 排除）。 */

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  groupOpenByDefault,
   groupRuns,
   matchesQuery,
   workspaceKey,
@@ -114,5 +115,20 @@ describe('筛选 + 分组', () => {
 
   it('什么都没剩：没有组', () => {
     expect(groupRuns(items, { ...base, workspace: 'all', mine: false, query: 'zzz' })).toEqual([])
+  })
+})
+
+describe('分组默认展开', () => {
+  const here = { key: 'd:/x', path: 'D:\\x', name: 'x', count: 2, here: true }
+  const other = { ...here, key: 'd:/y', path: 'D:\\y', name: 'y', here: false }
+
+  it('平时只展开本工作区，别的工作区折起来', () => {
+    expect(groupOpenByDefault(here, 3, false)).toBe(true)
+    expect(groupOpenByDefault(other, 3, false)).toBe(false)
+  })
+
+  it('只有一组、或在筛选时，都展开', () => {
+    expect(groupOpenByDefault(other, 1, false)).toBe(true)
+    expect(groupOpenByDefault(other, 3, true)).toBe(true)
   })
 })
