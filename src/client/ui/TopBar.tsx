@@ -15,6 +15,7 @@ import { isDirty } from '../model/editor.ts'
 import { Icon } from './Icon.tsx'
 import { Issues } from './Issues.tsx'
 import { Launch, type LaunchProps } from './Launch.tsx'
+import { SwapText } from './motion.tsx'
 import { cx } from './primitives.tsx'
 import css from './topbar.module.css'
 import ui from './ui.module.css'
@@ -109,7 +110,7 @@ export function TopBar(props: TopBarProps): React.JSX.Element {
             onClick={wf.retrySave}
           >
             <span className={css.dot} />
-            <span>{t(STATUS_TEXT[tone])}</span>
+            <SwapText text={t(STATUS_TEXT[tone])} />
             {tone === 'error' && <span className={css.retry}>· {t('common.retry')}</span>}
           </button>
         )}

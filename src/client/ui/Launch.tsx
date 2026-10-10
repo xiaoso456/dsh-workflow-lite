@@ -14,6 +14,7 @@ import { pickable, type SessionRow } from '../app/sessions.ts'
 import type { LocaleKey, T } from '../i18n.ts'
 import { shortTime } from '../model/time.ts'
 import { Icon } from './Icon.tsx'
+import { SwapIcon } from './motion.tsx'
 import { cx, Popover } from './primitives.tsx'
 import css from './topbar.module.css'
 import ui from './ui.module.css'
@@ -100,7 +101,7 @@ export function Launch(props: LaunchProps): React.JSX.Element {
                 else if (props.session !== undefined) run(props.session)
               }}
             >
-              <Icon name={props.starting ? 'reload' : 'play'} size={13} />
+              <SwapIcon name={props.starting ? 'reload' : 'play'} size={13} />
               <span className={css.runText}>{t('launch.run')}</span>
             </button>
             <button

@@ -20,6 +20,7 @@ import type { LocaleKey, T } from '../i18n.ts'
 import { shortTime } from '../model/time.ts'
 import { Icon } from './Icon.tsx'
 import { Issues } from './Issues.tsx'
+import { SwapIcon, SwapText } from './motion.tsx'
 import { copyText, cx, Popover } from './primitives.tsx'
 import type { RunViewProps } from './RunView.tsx'
 import run from './run.module.css'
@@ -63,7 +64,7 @@ export function RunStatusBadge(props: {
   return (
     <span className={run.status} data-run-status={props.status} data-testid="wl-run-status">
       <span className={run.dot} />
-      {t(RUN_STATUS_TEXT[props.status])}
+      <SwapText text={t(RUN_STATUS_TEXT[props.status])} />
     </span>
   )
 }
@@ -131,7 +132,7 @@ export function RunTopBar(
             />
             {progress !== null && (
               <span className={run.progress} data-testid="wl-run-progress">
-                {progress.done}/{progress.total}
+                <SwapText pop text={`${progress.done}/${progress.total}`} />
               </span>
             )}
           </>
@@ -211,8 +212,11 @@ export function RunTopBar(
                 })
               }
             >
-              <Icon name={copied ? 'check' : 'copy'} size={14} />
-              {copied ? t('common.copied') : t('run.copyPath')}
+              <SwapIcon name={copied ? 'check' : 'copy'} size={14} />
+              <SwapText
+                text={copied ? t('common.copied') : t('run.copyPath')}
+                reserve={[t('common.copied'), t('run.copyPath')]}
+              />
             </button>
           )}
           {!props.narrow && (

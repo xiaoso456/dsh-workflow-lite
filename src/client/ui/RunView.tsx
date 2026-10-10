@@ -70,7 +70,7 @@ import { FileViewer } from './FileViewer.tsx'
 import { Icon } from './Icon.tsx'
 import { edgeSwap, Inspector } from './Inspector.tsx'
 import css from './inspector.module.css'
-import { useSwap } from './motion.tsx'
+import { ExitSeat, useSwap } from './motion.tsx'
 import { EdgeHead, InputHead, OverviewHead, ResourceHead, StepHead } from './NodeHeads.tsx'
 import { cx } from './primitives.tsx'
 import { QuickAdd } from './QuickAdd.tsx'
@@ -747,12 +747,12 @@ export function RunView(props: RunViewProps): React.JSX.Element {
       )}
 
       {current.toast !== null && (
-        <div className={shell.toastSeat} key={current.toast.id}>
+        <ExitSeat className={shell.toastSeat} exit="down" key={current.toast.id}>
           <div className={cx(shell.toast, ui.rise)} data-tone={current.toast.tone} role="status">
             <Icon name={current.toast.tone === 'error' ? 'alert' : 'check'} size={14} />
             <span>{current.toast.text}</span>
           </div>
-        </div>
+        </ExitSeat>
       )}
     </div>
   )
@@ -985,7 +985,7 @@ function Banners(props: { t: T; current: Run }): React.JSX.Element | null {
   }
   if (text === null) return null
   return (
-    <div className={shell.bannerSeat}>
+    <ExitSeat className={shell.bannerSeat} exit="up">
       <div
         className={cx(ui.panel, shell.banner, tone === 'danger' && shell.bannerDanger, ui.rise)}
         role={tone === 'danger' ? 'alert' : 'status'}
@@ -997,6 +997,6 @@ function Banners(props: { t: T; current: Run }): React.JSX.Element | null {
           {detail !== null && <span className={shell.bannerIds}> · {detail}</span>}
         </span>
       </div>
-    </div>
+    </ExitSeat>
   )
 }

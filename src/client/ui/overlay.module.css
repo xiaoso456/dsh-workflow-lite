@@ -22,13 +22,14 @@
   overflow: hidden;
   box-shadow: var(--wl-shadow-2);
   outline: none;
-  animation: dialogIn 240ms var(--wl-ease) backwards;
+  animation: dialogIn 250ms var(--wl-ease-out) backwards;
 }
 
+/* 从中心放大浮起：对话框是"盖在页面上面"的一层，不挂在哪个按钮上。收起见 primitives 的 ghostOut。 */
 @keyframes dialogIn {
   from {
     opacity: 0;
-    transform: translateY(12px) scale(0.98);
+    transform: scale(0.96);
   }
 }
 
@@ -224,7 +225,7 @@
   overflow: hidden;
   box-shadow: var(--wl-shadow-2);
   outline: none;
-  animation: dialogIn 220ms var(--wl-ease) backwards;
+  animation: dialogIn 250ms var(--wl-ease-out) backwards;
 }
 
 /* 工作流设置：四张执行方式卡片要并排放得下，内容也不该一打开就滚动——给宽一点、高一点。 */

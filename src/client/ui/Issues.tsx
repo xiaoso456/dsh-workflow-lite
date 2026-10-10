@@ -9,6 +9,7 @@ import { useMemo, useState } from 'react'
 import type { ValidationLevel, ValidationProblem } from '../../shared/types.ts'
 import type { LocaleKey, T } from '../i18n.ts'
 import { Icon } from './Icon.tsx'
+import { SwapIcon, SwapText } from './motion.tsx'
 import { cx, Popover } from './primitives.tsx'
 import css from './topbar.module.css'
 import ui from './ui.module.css'
@@ -56,8 +57,8 @@ export function Issues(props: {
           aria-expanded={open}
           onClick={() => setOpen((value) => !value)}
         >
-          <Icon name={tone === 'ok' ? 'check' : 'alert'} size={15} />
-          <span>{counted === 0 ? t('issues.none') : `${counted} ${t('issues.unit')}`}</span>
+          <SwapIcon name={tone === 'ok' ? 'check' : 'alert'} size={15} />
+          <SwapText text={counted === 0 ? t('issues.none') : `${counted} ${t('issues.unit')}`} />
         </button>
       }
     >

@@ -15,6 +15,7 @@ import { errorMessage, type WorkflowLiteRpc } from '../rpc.ts'
 import { useConfirm } from './Confirm.tsx'
 import hub from './hub.module.css'
 import { Icon, type IconName } from './Icon.tsx'
+import { SwapIcon, SwapText } from './motion.tsx'
 import { copyText, cx } from './primitives.tsx'
 import ui from './ui.module.css'
 
@@ -104,8 +105,11 @@ export function HubStorage(props: {
               className={cx(ui.btn, ui.small, ui.soft)}
               onClick={() => void copyText(stats.dataDir).then((ok) => setCopied(ok))}
             >
-              <Icon name={copied ? 'check' : 'copy'} size={14} />
-              {copied ? t('common.copied') : t('hub.copyPath')}
+              <SwapIcon name={copied ? 'check' : 'copy'} size={14} />
+              <SwapText
+                text={copied ? t('common.copied') : t('hub.copyPath')}
+                reserve={[t('common.copied'), t('hub.copyPath')]}
+              />
             </button>
           </div>
         </div>

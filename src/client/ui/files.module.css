@@ -318,8 +318,59 @@
   scrollbar-width: thin;
 }
 
+/* 读取中：几行灰条（宽度写在行内）轻轻呼吸。读得快的话还没出来就已经换成内容了。 */
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 24px 28px;
+  animation: skeletonIn 200ms ease-out 150ms backwards;
+}
+
+.skeleton > span {
+  display: block;
+  height: 11px;
+  border-radius: 6px;
+  background: var(--wl-fill-strong);
+  animation: skeletonPulse 1s ease-in-out infinite alternate;
+}
+
+.skeleton > span:first-child {
+  height: 18px;
+  margin-bottom: 8px;
+}
+
+@keyframes skeletonIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes skeletonPulse {
+  to {
+    opacity: 0.5;
+  }
+}
+
+/* 内容（换视图、读完）：淡入、略往上浮。 */
+.viewerReveal {
+  animation: viewerReveal 300ms ease-in-out backwards;
+}
+
+@keyframes viewerReveal {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .noteDrawer {
+  .noteDrawer,
+  .skeleton,
+  .skeleton > span,
+  .viewerReveal {
     animation: none;
   }
 }

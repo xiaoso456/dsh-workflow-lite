@@ -10,6 +10,8 @@
  *   窄栏里的短字配长提示（比如工作区名配完整路径）写 `data-tip-align="start"`：和元素左边对齐、往右展开，不越出栏外。
  * - 按下指针、滚动、滚轮、Esc 都收起；按过的那个元素在指针离开前不再弹，点完按钮不挡视线。
  * - `data-tip` 变了（比如「复制路径」→「已复制」）跟着换字；元素没了就收起。
+ * - 亮着时指向相邻的元素（扫一排工具按钮）：提示滑到新位置、换字，不先收再弹；
+ *   中途划过按钮之间的空隙，稍等一下再收，接得上下一个。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/TipLayer
  */
@@ -24,12 +26,16 @@ const OPEN_MS = 380
 const WARM_MS = 400
 /** 浮层与元素、视图边缘的间距。 */
 const GAP = 8
+/** 指针离开带提示的元素后，提示再留多久：这段时间里指向下一个就滑过去。 */
+const LINGER_MS = 90
 
 interface Shown {
   /** 每换一个元素加一：入场动画只在换元素时放。 */
   seq: number
   target: HTMLElement
   text: string
+  /** 从上一个元素滑过来的（不是新弹出来的）。 */
+  glide: boolean
 }
 
 /** 指针 / 焦点所在处最近的、带非空提示的元素。 */
@@ -77,7 +83,7 @@ export function TipLayer(props: { root: HTMLElement | null }): React.ReactNode {
     function show(target: HTMLElement): void {
       visible = true
       seq += 1
-      setShown({ seq, target, text: target.dataset.tip ?? '' })
+      setShown({ seq, target, text: target.dataset.tip ?? '', glide: false })
       watch.observe(host, {
         subtree: true,
         childList: true,
@@ -87,7 +93,15 @@ export function TipLayer(props: { root: HTMLElement | null }): React.ReactNode {
     }
     function aim(target: HTMLElement | null): void {
       if (target === current) return
-      const warm = visible || performance.now() - hiddenAt < WARM_MS
+      window.clearTimeout(timer)
+      if (visible) {
+        current = target
+        // 亮着：指向别的就滑过去；指向空处稍等再收。
+        if (target === null) timer = window.setTimeout(hide, LINGER_MS)
+        else setShown({ seq, target, text: target.dataset.tip ?? '', glide: true })
+        return
+      }
+      const warm = performance.now() - hiddenAt < WARM_MS
       hide()
       if (target === null) return
       current = target
@@ -175,18 +189,17 @@ export function TipLayer(props: { root: HTMLElement | null }): React.ReactNode {
     <div
       key={shown.seq}
       ref={tipRef}
-      className={ui.tipLayer}
-      role="tooltip"
-      data-up={place?.up === true}
-      data-testid="wl-tip"
+      className={ui.tipSeat}
+      data-glide={shown.glide}
       style={{
-        left: place?.left ?? 0,
-        top: place?.top ?? 0,
+        transform: `translate(${place?.left ?? 0}px, ${place?.top ?? 0}px)`,
         // 第一帧还没量好位置：先藏着量尺寸，摆好了再出现。
         visibility: place === null ? 'hidden' : 'visible',
       }}
     >
-      {shown.text}
+      <div className={ui.tipLayer} role="tooltip" data-up={place?.up === true} data-testid="wl-tip">
+        {shown.text}
+      </div>
     </div>,
     root,
   )

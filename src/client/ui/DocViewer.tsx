@@ -18,10 +18,14 @@ import { withPreviewStyle } from '../model/htmlPreview.ts'
 import css from './files.module.css'
 import { Icon, type IconName } from './Icon.tsx'
 import { Markdown } from './Markdown.tsx'
+import { SwapIcon } from './motion.tsx'
 import { NoteDrawer, NoteToggle } from './NoteDrawer.tsx'
 import { OpenWith } from './OpenWith.tsx'
 import { copyText, cx, Modal, Segmented } from './primitives.tsx'
 import ui from './ui.module.css'
+
+/** 读取中的骨架：标题一行、正文几行，宽窄错开像一段字。 */
+const SKELETON = ['42%', '92%', '86%', '95%', '64%', '0', '88%', '78%', '52%']
 
 /** 弹窗里能改的那段文字怎么交出去。 */
 export interface DocEdit {
@@ -105,10 +109,13 @@ export function DocViewer(props: {
       />
     )
   } else if (body.kind === 'loading') {
+    // 骨架：几行灰条轻轻呼吸，读得快的（多半是本地文件）稍等才出来，不闪一下。
     content = (
-      <div className={css.viewerState}>
-        <span className={css.spinner} />
-        {t('file.loading')}
+      <div className={css.skeleton} role="status" aria-label={t('file.loading')}>
+        {SKELETON.map((width, index) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: 固定的几行占位，不增不减
+          <span key={index} style={{ width }} />
+        ))}
       </div>
     )
   } else if (body.kind === 'state') content = state(body.icon, body.text)
@@ -182,7 +189,7 @@ export function DocViewer(props: {
             })
           }}
         >
-          <Icon name={copied ? 'check' : 'copy'} size={14} />
+          <SwapIcon name={copied ? 'check' : 'copy'} size={14} />
         </button>
         <OpenWith t={t} desktop={props.desktop} path={props.openPath} onError={setFailure} />
         <button
@@ -196,7 +203,12 @@ export function DocViewer(props: {
       </header>
       {failure !== null && <p className={css.previewNote}>{failure}</p>}
       <div className={css.viewerMain}>
-        <div className={cx(css.viewerBody, ui.fade)} key={view} data-testid="wl-viewer-body">
+        <div
+          className={cx(css.viewerBody, body.kind === 'loading' ? undefined : css.viewerReveal)}
+          // 读完了换一块：内容淡入浮起，不和骨架硬切。
+          key={`${view}:${body.kind === 'loading'}`}
+          data-testid="wl-viewer-body"
+        >
           {props.lead}
           {content}
         </div>

@@ -15,6 +15,7 @@ import { useConfirm } from './Confirm.tsx'
 import { HubRunStatus } from './HubRunStatus.tsx'
 import hub from './hub.module.css'
 import { Icon } from './Icon.tsx'
+import { SwapText } from './motion.tsx'
 import { cx } from './primitives.tsx'
 import { RunStatusBadge } from './RunTopBar.tsx'
 import ui from './ui.module.css'
@@ -93,7 +94,7 @@ export function HubRunRow(props: {
         {ratio !== undefined && (
           <>
             <span className={hub.progressText}>
-              {item.done}/{item.total}
+              <SwapText pop text={`${item.done}/${item.total}`} />
             </span>
             <span className={hub.progressBar}>
               <span

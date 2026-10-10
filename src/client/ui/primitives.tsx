@@ -271,7 +271,7 @@ export function Modal(props: {
 }
 
 /** 模态框关掉时淡出的时长。 */
-const MODAL_EXIT_MS = 160
+const MODAL_EXIT_MS = 150
 const REDUCED_MOTION = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)') ?? null
 
 /** 一块界面此刻样子的复制品（纯 DOM，不归 React 管），放退场动画用。 */
@@ -337,18 +337,19 @@ export function ghostClone(node: HTMLElement): Ghost {
   }
 }
 
-/** 模态框关掉后的退场：把它此刻的样子复制一份放回原处，遮罩淡出、卡片略往下沉，放完就删。 */
+/** 模态框关掉后的退场：把它此刻的样子复制一份放回原处，遮罩淡出、卡片缩回中心，放完就删。 */
 function ghostOut(node: HTMLElement, parent: Node | null): void {
   if (parent === null || REDUCED_MOTION?.matches === true) return
   const ghost = ghostClone(node)
   ghost.place(parent)
   const clone = ghost.node
-  const timing = { duration: MODAL_EXIT_MS, easing: 'ease-in', fill: 'forwards' } as const
+  const timing = {
+    duration: MODAL_EXIT_MS,
+    easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+    fill: 'forwards',
+  } as const
   const fade = clone.animate([{ opacity: 1 }, { opacity: 0 }], timing)
-  clone.firstElementChild?.animate(
-    [{ transform: 'none' }, { transform: 'translateY(8px) scale(0.98)' }],
-    timing,
-  )
+  clone.firstElementChild?.animate([{ transform: 'none' }, { transform: 'scale(0.96)' }], timing)
   const drop = (): void => clone.remove()
   fade.finished.then(drop, drop)
 }

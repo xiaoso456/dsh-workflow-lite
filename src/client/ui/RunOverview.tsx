@@ -19,6 +19,7 @@ import type { Run } from '../app/useRuns.ts'
 import type { LocaleKey, T } from '../i18n.ts'
 import { shortTime } from '../model/time.ts'
 import css from './inspector.module.css'
+import { SwapText } from './motion.tsx'
 import { cx } from './primitives.tsx'
 import { EditedDot, isEdited } from './RunNodeState.tsx'
 import { RunPosition } from './RunPosition.tsx'
@@ -74,7 +75,7 @@ export function Overview(props: {
             <EditedDot on={isEdited(current.draft, ['status'])} />
           </span>
           <span className={run.progress}>
-            {progress.done}/{progress.total}
+            <SwapText pop text={`${progress.done}/${progress.total}`} />
           </span>
         </p>
         <div className={run.bar} aria-hidden="true">

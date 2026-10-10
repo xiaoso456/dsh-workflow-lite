@@ -14,6 +14,7 @@ import type { T } from '../i18n.ts'
 import { errorMessage } from '../rpc.ts'
 import { Icon } from './Icon.tsx'
 import { Markdown } from './Markdown.tsx'
+import { SwapIcon, SwapText } from './motion.tsx'
 import css from './overlay.module.css'
 import { copyText, cx, Segmented } from './primitives.tsx'
 import ui from './ui.module.css'
@@ -135,8 +136,11 @@ export function PlanDialog(props: {
               })
             }}
           >
-            <Icon name={copied ? 'check' : 'copy'} size={14} />
-            {copied ? t('common.copied') : t('common.copy')}
+            <SwapIcon name={copied ? 'check' : 'copy'} size={14} />
+            <SwapText
+              text={copied ? t('common.copied') : t('common.copy')}
+              reserve={[t('common.copied'), t('common.copy')]}
+            />
           </button>
           <button
             type="button"

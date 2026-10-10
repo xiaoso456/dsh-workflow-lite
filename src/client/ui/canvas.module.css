@@ -1279,6 +1279,71 @@
   --wl-run: var(--wl-warn);
 }
 
+/*
+ * 状态变了小标弹一下（从 0.85 放大、略回弹；不动透明度——里面的图标、文字自己在交叉淡入，外面再暗一下就成了闪）。
+ * 每种状态一个动画名：
+ * 状态一换动画名就换，浏览器才会从头再放一次（同名的动画改属性不会重放）。图标、文字的换法见 SwapIcon / SwapText。
+ */
+.runChip[data-status="pending"] {
+  animation: chipPopA 320ms cubic-bezier(0.34, 1.36, 0.64, 1) backwards;
+}
+
+.runChip[data-status="running"] {
+  animation: chipPopB 320ms cubic-bezier(0.34, 1.36, 0.64, 1) backwards;
+}
+
+.runChip[data-status="done"] {
+  animation: chipPopC 320ms cubic-bezier(0.34, 1.36, 0.64, 1) backwards;
+}
+
+.runChip[data-status="failed"] {
+  animation: chipPopD 320ms cubic-bezier(0.34, 1.36, 0.64, 1) backwards;
+}
+
+.runChip[data-status="waiting"] {
+  animation: chipPopE 320ms cubic-bezier(0.34, 1.36, 0.64, 1) backwards;
+}
+
+.runChip[data-status="skipped"] {
+  animation: chipPopF 320ms cubic-bezier(0.34, 1.36, 0.64, 1) backwards;
+}
+
+@keyframes chipPopA {
+  from {
+    transform: scale(0.85);
+  }
+}
+
+@keyframes chipPopB {
+  from {
+    transform: scale(0.85);
+  }
+}
+
+@keyframes chipPopC {
+  from {
+    transform: scale(0.85);
+  }
+}
+
+@keyframes chipPopD {
+  from {
+    transform: scale(0.85);
+  }
+}
+
+@keyframes chipPopE {
+  from {
+    transform: scale(0.85);
+  }
+}
+
+@keyframes chipPopF {
+  from {
+    transform: scale(0.85);
+  }
+}
+
 /* 改了还没保存：右上角一个小圆点。 */
 .runChip[data-edited="true"]::after {
   position: absolute;
@@ -1408,9 +1473,26 @@
   color: var(--wl-panel);
 }
 
+/* 文件刚生成：对勾从小弹出来、带一点转（只在挂上时放一次）。 */
+.fileMade {
+  animation: madeIn 480ms cubic-bezier(0.34, 1.36, 0.64, 1) backwards;
+}
+
+@keyframes madeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.4) rotate(-45deg);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .card[data-run="running"]::before {
     opacity: 0.35;
+    animation: none;
+  }
+
+  .runChip[data-status],
+  .fileMade {
     animation: none;
   }
 }

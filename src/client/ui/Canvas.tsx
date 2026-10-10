@@ -118,6 +118,7 @@ import type { FocusFile } from './Handoff.tsx'
 import hand from './handoff.module.css'
 import { Icon, type IconName } from './Icon.tsx'
 import { ACCESS_COLOR, type Access, WHEN_COLOR, type WhenKind, whenKind } from './lines.ts'
+import { SwapIcon, SwapText } from './motion.tsx'
 import { cx, useFloat } from './primitives.tsx'
 import { freeFilePath, itemText, KIND_ICON, KIND_LABEL } from './resourceUi.ts'
 import { lookOf, StepMark } from './StepMark.tsx'
@@ -404,8 +405,8 @@ const StepCard = memo(function StepCard(props: NodeProps<StepFlowNode>): React.J
             data.onRunStatus(id, event.currentTarget)
           }}
         >
-          <Icon name={RUN_ICON[data.run.status]} size={11} />
-          <span>{data.run.label}</span>
+          <SwapIcon name={RUN_ICON[data.run.status]} size={11} />
+          <SwapText text={data.run.label} />
           {data.run.round > 1 && <span className={css.runRound}>{data.run.roundText}</span>}
         </button>
       )}

@@ -35,6 +35,7 @@ import { Icon } from './Icon.tsx'
 import { InputsDialog } from './InputsDialog.tsx'
 import { Inspector } from './Inspector.tsx'
 import { Library } from './Library.tsx'
+import { ExitSeat } from './motion.tsx'
 import { PlanDialog } from './PlanDialog.tsx'
 import { cx, ModalHostProvider } from './primitives.tsx'
 import { QuickAdd } from './QuickAdd.tsx'
@@ -822,7 +823,7 @@ function Shell(props: {
             )}
 
             {wf.conflict !== null && (
-              <div className={css.bannerSeat}>
+              <ExitSeat className={css.bannerSeat} exit="up">
                 <div className={cx(ui.panel, css.banner, css.bannerDanger, ui.rise)} role="alert">
                   <Icon name="alert" size={15} />
                   <span className={css.bannerText}>
@@ -851,10 +852,10 @@ function Shell(props: {
                     {t('banner.useDisk')}
                   </button>
                 </div>
-              </div>
+              </ExitSeat>
             )}
             {wf.conflict === null && !wf.external && freshRun !== null && (
-              <div className={css.bannerSeat}>
+              <ExitSeat className={css.bannerSeat} exit="up">
                 <div
                   className={cx(ui.panel, css.banner, ui.rise)}
                   role="status"
@@ -878,10 +879,10 @@ function Shell(props: {
                     <Icon name="x" size={14} />
                   </button>
                 </div>
-              </div>
+              </ExitSeat>
             )}
             {wf.conflict === null && wf.external && (
-              <div className={css.bannerSeat}>
+              <ExitSeat className={css.bannerSeat} exit="up">
                 <div className={cx(ui.panel, css.banner, ui.rise)} role="status">
                   <Icon name="info" size={15} />
                   <span className={css.bannerText}>{t('banner.external')}</span>
@@ -893,7 +894,7 @@ function Shell(props: {
                     {t('banner.reload')}
                   </button>
                 </div>
-              </div>
+              </ExitSeat>
             )}
 
             {quick !== null && (
@@ -978,7 +979,7 @@ function Shell(props: {
             {hub}
 
             {wf.toast !== null && (
-              <div className={css.toastSeat} key={wf.toast.id}>
+              <ExitSeat className={css.toastSeat} exit="down" key={wf.toast.id}>
                 <div className={cx(css.toast, ui.rise)} data-tone={wf.toast.tone} role="status">
                   {wf.toast.tone === 'error' ? (
                     <Icon name="alert" size={14} />
@@ -987,7 +988,7 @@ function Shell(props: {
                   )}
                   <span>{wf.toast.text}</span>
                 </div>
-              </div>
+              </ExitSeat>
             )}
           </>
         )}

@@ -146,6 +146,8 @@
 
   /* 动效：只动 transform / opacity，缓出。 */
   --wl-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  /* 平滑减速（transitions.dev 的开合、换页共用）：起步更快、尾巴更长，大块的开合用它。 */
+  --wl-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 
   --wl-gap: 12px;
   --wl-top: 60px;
@@ -178,6 +180,38 @@
 .root *::before,
 .root *::after {
   box-sizing: border-box;
+}
+
+/*
+ * 输入框一变成「不合法」（`aria-invalid="true"`）就左右轻抖两下，红框是现成的样式；
+ * 只在变成不合法的那一下放，一直不合法不会一直抖。
+ */
+.root input[aria-invalid="true"],
+.root textarea[aria-invalid="true"] {
+  animation: invalidShake 300ms var(--wl-ease-out);
+}
+
+@keyframes invalidShake {
+  0%,
+  100% {
+    transform: none;
+  }
+
+  20% {
+    transform: translateX(-6px);
+  }
+
+  45% {
+    transform: translateX(5px);
+  }
+
+  70% {
+    transform: translateX(-3px);
+  }
+
+  88% {
+    transform: translateX(1px);
+  }
 }
 
 /*
@@ -747,7 +781,9 @@
     transition: none;
   }
 
-  .inspector {
+  .inspector,
+  .root input[aria-invalid="true"],
+  .root textarea[aria-invalid="true"] {
     animation: none;
   }
 }

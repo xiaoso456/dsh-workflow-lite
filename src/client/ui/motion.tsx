@@ -10,6 +10,7 @@
  */
 
 import { type RefObject, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Icon, type IconName } from './Icon.tsx'
 import { cx, type Ghost, ghostClone } from './primitives.tsx'
 import ui from './ui.module.css'
 
@@ -256,6 +257,150 @@ function swapIn(panel: HTMLElement, snap: Snapshot, at: number): void {
   else out.finished.then(drop, drop)
 }
 
+/** 换字、换图标时旧的留多久（和 ui.module.css 的 swapOut / iconOut 一致）。 */
+const SWAP_TEXT_MS = 160
+const SWAP_ICON_MS = 240
+
+/** 记住上一个值：变了的那次渲染里把旧值、换了几次一起记下，过一会儿把旧值清掉。 */
+function useLast<V>(value: V, ms: number): { was: V | null; n: number } {
+  const [state, setState] = useState<{ value: V; was: V | null; n: number }>({
+    value,
+    was: null,
+    n: 0,
+  })
+  if (value !== state.value) setState({ value, was: state.value, n: state.n + 1 })
+  const { was, n } = state
+  useEffect(() => {
+    if (was === null) return
+    const id = setTimeout(() => setState((s) => (s.n === n ? { ...s, was: null } : s)), ms)
+    return () => clearTimeout(id)
+  }, [was, n, ms])
+  return { was, n }
+}
+
+/**
+ * 原地换一段字（「保存中… → 已保存」「没有问题 → 3 个问题」、数字）：旧字往上让开淡掉，新字从下面浮上来。
+ * 旧字画在 `::after` 里（`content: attr(data-was)`），不进 DOM 文本——读 `innerText` 的地方只看到新字。
+ * `pop`：数字用，新数字带一点回弹。
+ * `reserve`：会换到的所有字。给了就按最长的那段占宽，换字时外面的按钮不变宽变窄（点一下就换字的按钮要给）。
+ */
+export function SwapText(props: {
+  text: string
+  pop?: boolean
+  reserve?: readonly string[]
+}): React.JSX.Element {
+  const { was, n } = useLast(props.text, SWAP_TEXT_MS)
+  return (
+    <span
+      // 每换一次重新挂：两段动画都从头放。
+      key={n}
+      className={ui.swapText}
+      data-was={was ?? undefined}
+      data-fresh={n > 0 || undefined}
+      data-pop={props.pop === true || undefined}
+    >
+      {props.reserve?.map((text) => (
+        <span key={text} className={ui.swapSizer} data-text={text} aria-hidden="true" />
+      ))}
+      <span className={ui.swapNow}>{props.text}</span>
+    </span>
+  )
+}
+
+/** 原地换图标（复制 → ✓、对 ↔ 警告、太阳 ↔ 月亮）：两枚叠在同一格，新的从小放大淡入，旧的缩小淡出。 */
+export function SwapIcon(props: { name: IconName; size?: number }): React.JSX.Element {
+  const { was, n } = useLast(props.name, SWAP_ICON_MS)
+  return (
+    <span className={ui.swapIcon}>
+      {was !== null && (
+        <span key={`out-${n}`} className={ui.iconOut}>
+          <Icon name={was} size={props.size} />
+        </span>
+      )}
+      <span key={`in-${n}`} className={n > 0 ? ui.iconIn : undefined}>
+        <Icon name={props.name} size={props.size} />
+      </span>
+    </span>
+  )
+}
+
+/** 轻提示 / 提示条退场：往哪边走、走多久。 */
+const EXITS = {
+  /** 底部轻提示：往下沉、略缩。 */
+  down: { frames: 'translateY(8px) scale(0.97)', ms: 220 },
+  /** 顶部提示条：往上收。 */
+  up: { frames: 'translateY(-8px) scale(0.98)', ms: 200 },
+} as const
+
+/**
+ * 卸掉时留个影子放退场的一块（轻提示、提示条）：调用方照常按条件挂、按 key 换，不用等动画。
+ * 动的是里面那一层——外面这层常带着居中用的 `translateX(-50%)`，两个 transform 不打架。
+ * 换了一条（key 变了）时旧的影子往外走、新的照常浮进来，两条错开。
+ */
+export function ExitSeat(props: {
+  className: string
+  exit: keyof typeof EXITS
+  children: React.ReactNode
+}): React.JSX.Element {
+  const ref = useRef<HTMLDivElement>(null)
+  const { exit } = props
+  useLayoutEffect(() => {
+    const node = ref.current
+    const parent = node?.parentNode ?? null
+    return () => {
+      if (node === null || parent === null || REDUCED?.matches === true) return
+      const ghost = ghostClone(node)
+      ghost.place(parent)
+      const target = ghost.node.firstElementChild ?? ghost.node
+      const { frames, ms } = EXITS[exit]
+      const out = target.animate(
+        [
+          { opacity: 1, transform: 'none' },
+          { opacity: 0, transform: frames },
+        ],
+        { duration: ms, easing: EASE_OUT, fill: 'forwards' },
+      )
+      const drop = (): void => ghost.node.remove()
+      out.finished.then(drop, drop)
+    }
+  }, [exit])
+  return (
+    <div ref={ref} className={props.className}>
+      {props.children}
+    </div>
+  )
+}
+
+const CLOSE_MS = 200
+const CLOSE_SHIFT = 16
+
+/**
+ * 右栏关掉（取消选中、点 ✕、收起）：栏框连同内容的影子往右退一点、淡出——和打开时从右边滑进来是一对。
+ * 栏框本身已经被 React 摘掉了：照它的样子浅复制一个空框（同样的类、同样的位置）放回原处，影子内容装进去。
+ * 页面本身也被卸掉了（换到别的标签页）就不放。
+ */
+function closeOut(frame: HTMLElement, snap: Snapshot): void {
+  const host = frame.parentNode
+  if (host === null || !host.isConnected || frame.isConnected) return
+  const shell = frame.cloneNode(false) as HTMLElement
+  shell.removeAttribute('data-testid')
+  shell.removeAttribute('id')
+  Object.assign(shell.style, { animation: 'none', transition: 'none', pointerEvents: 'none' })
+  shell.setAttribute('aria-hidden', 'true')
+  shell.setAttribute('inert', '')
+  host.appendChild(shell)
+  snap.ghost.place(shell)
+  const out = shell.animate(
+    [
+      { opacity: snap.pose.opacity, transform: 'none' },
+      { opacity: 0, transform: `translateX(${CLOSE_SHIFT}px)` },
+    ],
+    { duration: CLOSE_MS, easing: EASE_OUT, fill: 'forwards' },
+  )
+  const drop = (): void => shell.remove()
+  out.finished.then(drop, drop)
+}
+
 /**
  * 右栏换了内容（选中了另一个节点 / 连线 / 回到总览）：栏框不动，旧内容让开淡出、新内容淡入（见 {@link swapIn}），
  * 方向按两者在画布上的左右（`at` 是横坐标）：选了右边的，新内容从右边进来。
@@ -298,11 +443,20 @@ export function useSwap<E extends HTMLElement>(key: string, at: number): RefObje
     }
     return () => {
       if (REDUCED?.matches === true) return
-      gone = {
+      // 这时栏框（面板的父元素）还在页面上：React 先跑子树的清理、最后才摘 DOM。
+      const frame = panel.parentElement
+      const entry = {
         panel,
         snap: snapshot(panel, shown.current.key, shown.current.at),
         time: performance.now(),
       }
+      gone = entry
+      // 同一次提交里没有新面板来接（新面板的 layout effect 在微任务之前就跑完了）：是关掉右栏。
+      queueMicrotask(() => {
+        if (gone !== entry) return
+        gone = null
+        if (frame !== null) closeOut(frame, entry.snap)
+      })
     }
   }, [])
   useLayoutEffect(() => {

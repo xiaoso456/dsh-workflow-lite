@@ -11,6 +11,7 @@ import { useEffect, useState } from 'react'
 import type { T } from '../i18n.ts'
 import { Icon } from './Icon.tsx'
 import css from './inspector.module.css'
+import { SwapIcon } from './motion.tsx'
 import { copyText, cx } from './primitives.tsx'
 import ui from './ui.module.css'
 
@@ -68,7 +69,7 @@ function IdLine(props: { t: T; id: string }): React.JSX.Element {
     >
       <span className={css.idKey}>ID</span>
       <code>{id}</code>
-      <Icon name={copied ? 'check' : 'copy'} size={11} />
+      <SwapIcon name={copied ? 'check' : 'copy'} size={11} />
     </button>
   )
 }
