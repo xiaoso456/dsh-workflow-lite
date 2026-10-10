@@ -3,7 +3,7 @@
  *
  * 标题栏和「工作流设置」同一种样子，几页的切换放在标题栏里：
  * - **运行实例**（`HubRuns.tsx`）：所有会话的实例，按工作区分组，能搜、能按工作区 / 本会话筛；
- *   查看、移到本会话、删除记录（状态文件另外问要不要一起删）；
+ *   左边工作区、右边它的实例；查看、改整体状态、移到本会话、删除记录（状态文件另外问要不要一起删）；
  * - **工作流**（`HubWorkflows.tsx`）：全部工作流，每一行能就地改名、删除；选一张看它的版本——存、切换、改说明、删除，不用先打开它；
  * - **存储**（`HubStorage.tsx`）：数据目录、各样东西的占用，清理已结束的实例与旧版本遗留文件；
  * - **设置**（`HubSettings.tsx`）：插件自己的几项设置（数据目录、步骤上限、自动保存等待……）。
@@ -38,6 +38,8 @@ export function HubDialog(props: {
   sessionsReady: boolean
   runs: Runs
   onOpenRun(id: string): void
+  /** 一句结果提示（改完实例状态之后）。 */
+  onNotice(text: string, tone?: 'info' | 'error'): void
   /** 「工作流」页要的：编辑页正开着哪张、怎么把它的改动写下去 / 重新加载、怎么打开别的一张。 */
   workflows: {
     current: string | null
@@ -92,6 +94,7 @@ export function HubDialog(props: {
           sessionRows={props.sessionRows}
           sessionsReady={props.sessionsReady}
           runs={runs}
+          onNotice={props.onNotice}
           onOpenRun={(id) => {
             props.onOpenRun(id)
             props.onClose()

@@ -280,8 +280,8 @@ export function useFloat<A extends HTMLElement>(options: {
     className: string
     testId?: string | undefined
     label?: string
-    /** 默认 `tooltip`；二次确认这类要操作的浮层用 `alertdialog`。 */
-    role?: 'tooltip' | 'alertdialog'
+    /** 默认 `tooltip`；二次确认这类要操作的浮层用 `alertdialog`，挑一项的用 `menu`。 */
+    role?: 'tooltip' | 'alertdialog' | 'menu'
     children: React.ReactNode
   }) => React.ReactNode
 } {
@@ -360,8 +360,8 @@ export function useFloat<A extends HTMLElement>(options: {
   const render: ReturnType<typeof useFloat>['render'] = (props) => {
     if (state === 'off') return null
     const panel = (
-      // biome-ignore lint/a11y/noStaticElementInteractions: role 由调用方给（tooltip / alertdialog），静态分析看不出
-      // biome-ignore lint/a11y/useAriaPropsSupportedByRole: 同上，两种 role 都支持 aria-label
+      // biome-ignore lint/a11y/noStaticElementInteractions: role 由调用方给（tooltip / alertdialog / menu），静态分析看不出
+      // biome-ignore lint/a11y/useAriaPropsSupportedByRole: 同上，几种 role 都支持 aria-label
       <div
         ref={panelRef}
         className={props.className}

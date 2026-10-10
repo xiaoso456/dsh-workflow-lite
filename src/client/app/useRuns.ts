@@ -16,6 +16,7 @@ import {
   isoNow,
   type NodeStatus,
   type RunState,
+  type RunStatus,
   type StateEdit,
 } from '../../shared/runState.ts'
 import type { WorkflowDocument } from '../../shared/types.ts'
@@ -53,6 +54,16 @@ export interface Runs {
   remove(id: string, withState: boolean): Promise<boolean>
   /** 列全部会话的实例（工作流中心用）。 */
   all(): Promise<InstanceSummary[]>
+  /**
+   * 直接改一个实例的整体状态（工作流中心用，不经草稿）。`from` 是列表上看到的状态：
+   * 文件里已经不是它了就是冲突，抛错（`errorCode` = `conflict`）。
+   */
+  setStatus(
+    id: string,
+    from: RunStatus | undefined,
+    to: RunStatus,
+    options: { notify: boolean; note?: string },
+  ): Promise<RunSaveResponse>
 }
 
 export function useRuns(rpc: WorkflowLiteRpc, session: string | undefined): Runs {
@@ -115,7 +126,28 @@ export function useRuns(rpc: WorkflowLiteRpc, session: string | undefined): Runs
     return result.instances
   }, [rpc, session])
 
-  return { list, current, loaded, refresh, bind, remove, all }
+  const setStatus = useCallback(
+    async (
+      id: string,
+      from: RunStatus | undefined,
+      to: RunStatus,
+      options: { notify: boolean; note?: string },
+    ): Promise<RunSaveResponse> => {
+      const note = options.note?.trim() ?? ''
+      const result = await rpc.call('run/save', {
+        id,
+        ...(session === undefined ? {} : { session }),
+        edits: [{ path: ['status'], from: from ?? null, to }],
+        ...(note === '' ? {} : { note }),
+        ...(options.notify ? {} : { notify: false }),
+      })
+      await refresh()
+      return result
+    },
+    [rpc, session, refresh],
+  )
+
+  return { list, current, loaded, refresh, bind, remove, all, setStatus }
 }
 
 // ─────────────────────────────────────────────────────────────

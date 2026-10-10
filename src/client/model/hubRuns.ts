@@ -1,5 +1,5 @@
 /**
- * dsh-workflow-lite — 工作流中心「运行实例」页的筛选与分组：按工作区分组、按工作区 / 会话 / 关键字筛。
+ * dsh-workflow-lite — 工作流中心「运行实例」页的筛选与分组：按关键字筛，按工作区分组，挑出右边显示哪一组。
  *
  * 工作区就是实例建立时会话的 `cwd`；路径的大小写、分隔符、末尾斜杠不同也算同一个（Windows）。
  * 没记下工作区的实例归在一组（键是空串）。
@@ -90,43 +90,44 @@ export function matchesQuery(
   return words.every((word) => haystack.includes(word))
 }
 
-/**
- * 一组没人动过时展开没有：筛选时全展开（搜到的要看得见）；平时只展开本会话所在的工作区，
- * 只有一组时也展开（折起来就什么都看不见了）。
- */
-export function groupOpenByDefault(
-  workspace: HubWorkspace,
-  groupCount: number,
-  filtered: boolean,
-): boolean {
-  return filtered || workspace.here || groupCount === 1
+/** 一个工作区和它的实例。 */
+export interface HubGroup {
+  workspace: HubWorkspace
+  /** 组内保持原顺序：新的在前。 */
+  items: InstanceSummary[]
+  /** 还在进行的：执行中 + 等待用户。 */
+  active: number
 }
 
-export interface HubFilter {
-  /** `'all'` = 全部工作区；否则是 {@link workspaceKey}。 */
-  workspace: string
-  /** 只看本会话的。 */
-  mine: boolean
-  query: string
-}
-
-/** 按筛选条件挑出实例，再按工作区分组（组的顺序同 {@link workspacesOf}，组内保持原顺序：新的在前）。 */
+/** 按关键字挑出实例，再按工作区分组（组的顺序同 {@link workspacesOf}：本工作区在最前）。 */
 export function groupRuns(
   items: readonly InstanceSummary[],
-  options: HubFilter & {
-    session: string | undefined
+  options: {
+    query: string
     hereCwd: string | undefined
     titleOf: (session: string | undefined) => string | undefined
   },
-): { workspace: HubWorkspace; items: InstanceSummary[] }[] {
-  const shown = items.filter(
-    (item) =>
-      (options.workspace === 'all' || workspaceKey(item.cwd) === options.workspace) &&
-      (!options.mine || (options.session !== undefined && item.session === options.session)) &&
-      matchesQuery(item, options.titleOf(item.session), options.query),
+): HubGroup[] {
+  const shown = items.filter((item) =>
+    matchesQuery(item, options.titleOf(item.session), options.query),
   )
-  return workspacesOf(shown, options.hereCwd).map((workspace) => ({
-    workspace,
-    items: shown.filter((item) => workspaceKey(item.cwd) === workspace.key),
-  }))
+  return workspacesOf(shown, options.hereCwd).map((workspace) => {
+    const mine = shown.filter((item) => workspaceKey(item.cwd) === workspace.key)
+    return {
+      workspace,
+      items: mine,
+      active: mine.filter((item) => item.status === 'running' || item.status === 'waiting').length,
+    }
+  })
+}
+
+/**
+ * 右边显示哪个工作区：点过的那个还在列表里就是它（搜索把它筛掉了就不算）；
+ * 否则排在最前的——有本工作区就是本工作区，没有就是最近建过实例的。
+ */
+export function pickGroup(
+  groups: readonly HubGroup[],
+  picked: string | null,
+): HubGroup | undefined {
+  return groups.find((group) => group.workspace.key === picked) ?? groups[0]
 }

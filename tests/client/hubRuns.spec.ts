@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
-  groupOpenByDefault,
   groupRuns,
   matchesQuery,
+  pickGroup,
   workspaceKey,
   workspaceName,
   workspacesOf,
@@ -78,57 +78,52 @@ describe('搜索', () => {
   })
 })
 
-describe('筛选 + 分组', () => {
-  const mine = run({ workflow: 'a', session: 's1', cwd: 'D:\\x' })
-  const other = run({ workflow: 'b', session: 's2', cwd: 'D:\\y' })
-  const otherSameDir = run({ workflow: 'c', session: 's2', cwd: 'D:\\x' })
+describe('搜索 + 分组', () => {
+  const mine = run({ workflow: 'a', session: 's1', cwd: 'D:\\x', status: 'done', goal: '只在 x' })
+  const other = run({ workflow: 'b', session: 's2', cwd: 'D:\\y', status: 'waiting' })
+  const otherSameDir = run({ workflow: 'c', session: 's2', cwd: 'D:\\x', status: 'running' })
   const items = [otherSameDir, other, mine]
   const base = {
-    session: 's1',
     hereCwd: 'D:\\x',
     titleOf: (id: string | undefined) => (id === 's2' ? '别的会话' : undefined),
   }
 
-  it('全部工作区：按工作区分组，组内保持原顺序', () => {
-    const groups = groupRuns(items, { ...base, workspace: 'all', mine: false, query: '' })
+  it('按工作区分组，本工作区在最前，组内保持原顺序；数出执行中和等待用户的', () => {
+    const groups = groupRuns(items, { ...base, query: '' })
     expect(
-      groups.map((group) => [group.workspace.name, group.items.map((i) => i.workflow)]),
+      groups.map((group) => [
+        group.workspace.name,
+        group.items.map((i) => i.workflow),
+        group.active,
+      ]),
     ).toEqual([
-      ['x', ['c', 'a']],
-      ['y', ['b']],
+      ['x', ['c', 'a'], 1],
+      ['y', ['b'], 1],
     ])
   })
 
-  it('选一个工作区、只看本会话、按会话标题搜，条件叠加', () => {
-    const inY = groupRuns(items, {
-      ...base,
-      workspace: workspaceKey('D:\\y'),
-      mine: false,
-      query: '',
-    })
-    expect(inY.flatMap((group) => group.items.map((i) => i.workflow))).toEqual(['b'])
-    const onlyMine = groupRuns(items, { ...base, workspace: 'all', mine: true, query: '' })
-    expect(onlyMine.flatMap((group) => group.items.map((i) => i.workflow))).toEqual(['a'])
-    const byTitle = groupRuns(items, { ...base, workspace: 'all', mine: false, query: '别的' })
-    expect(byTitle.flatMap((group) => group.items.map((i) => i.workflow))).toEqual(['c', 'b'])
+  it('搜索跨工作区：只留有命中的组，组里只留命中的实例，计数跟着变', () => {
+    const byTitle = groupRuns(items, { ...base, query: '别的' })
+    expect(
+      byTitle.map((group) => [
+        group.workspace.name,
+        group.workspace.count,
+        group.items.map((i) => i.workflow),
+      ]),
+    ).toEqual([
+      ['x', 1, ['c']],
+      ['y', 1, ['b']],
+    ])
+    expect(groupRuns(items, { ...base, query: 'zzz' })).toEqual([])
   })
 
-  it('什么都没剩：没有组', () => {
-    expect(groupRuns(items, { ...base, workspace: 'all', mine: false, query: 'zzz' })).toEqual([])
-  })
-})
-
-describe('分组默认展开', () => {
-  const here = { key: 'd:/x', path: 'D:\\x', name: 'x', count: 2, here: true }
-  const other = { ...here, key: 'd:/y', path: 'D:\\y', name: 'y', here: false }
-
-  it('平时只展开本工作区，别的工作区折起来', () => {
-    expect(groupOpenByDefault(here, 3, false)).toBe(true)
-    expect(groupOpenByDefault(other, 3, false)).toBe(false)
-  })
-
-  it('只有一组、或在筛选时，都展开', () => {
-    expect(groupOpenByDefault(other, 1, false)).toBe(true)
-    expect(groupOpenByDefault(other, 3, true)).toBe(true)
+  it('右边显示哪组：点过的还在就是它，否则排在最前的（本工作区）', () => {
+    const groups = groupRuns(items, { ...base, query: '' })
+    expect(pickGroup(groups, workspaceKey('D:\\y'))?.workspace.name).toBe('y')
+    expect(pickGroup(groups, null)?.workspace.name).toBe('x')
+    // 搜索把点过的那组筛掉了：回到最前的一组。
+    const onlyX = groupRuns(items, { ...base, query: '只在 x' })
+    expect(pickGroup(onlyX, workspaceKey('D:\\y'))?.workspace.name).toBe('x')
+    expect(pickGroup([], null)).toBeUndefined()
   })
 })

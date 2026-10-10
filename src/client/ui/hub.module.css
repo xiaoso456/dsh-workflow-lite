@@ -8,7 +8,7 @@
 /* ── 外框与标题栏 ─────────────────────────────────────────── */
 
 .dialog[role="dialog"] {
-  width: min(860px, 100%);
+  width: min(920px, 100%);
   max-width: none;
   height: min(620px, 100%);
 }
@@ -27,23 +27,23 @@
   width: 340px;
 }
 
-/* ── 运行实例：工具行 ─────────────────────────────────────── */
+/* ── 运行实例：左栏工作区（和「工作流」页同一套 wf* 样式），右栏实例 ──── */
 
-.toolbar {
+.side {
   display: flex;
-  flex: none;
-  gap: 8px;
-  align-items: center;
-  padding: 12px 16px 6px;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--wl-line);
 }
 
 .search {
   display: flex;
-  flex: 1 1 auto;
+  flex: none;
   gap: 6px;
   align-items: center;
   min-width: 0;
   height: 32px;
+  margin: 10px 8px 4px;
   padding: 0 3px 0 10px;
   border: 1px solid transparent;
   border-radius: var(--wl-r-control);
@@ -77,127 +77,51 @@
   opacity: 0.8;
 }
 
-/* 工作区下拉的触发器：和搜索框同一种底色，左边文件夹、右边箭头。 */
-button.wsButton {
-  width: 200px;
-  padding: 0 8px 0 10px;
-  background: var(--wl-fill);
-  color: var(--wl-text);
-}
-
-button.wsButton:hover,
-button.wsButton[aria-expanded="true"] {
-  background: var(--wl-fill-strong);
-}
-
-.wsButton > svg {
-  flex: none;
-  color: var(--wl-text-3);
-}
-
-.wsLabel {
+/* 搜索框下面的列表：边线由外面那一栏画。 */
+.sideList {
   flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-align: left;
-  text-overflow: ellipsis;
-}
-
-.scope {
-  flex: none;
-  width: 132px;
-}
-
-/* ── 运行实例：列表 ───────────────────────────────────────── */
-
-.scroll {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  gap: 18px;
-  min-height: 0;
-  padding: 10px 16px 18px;
-  overflow-y: auto;
-  scrollbar-width: thin;
+  padding-top: 4px;
+  border-right: 0;
 }
 
 /*
- * 所有组、所有行共用这一套列：组、框、行一层层 subgrid 下去。状态小标、按钮组按整页最宽的那个定宽，
- * 进度条和按钮上下对齐，不随「完成 / 执行中」的字数、有没有「移到本会话」挪位。
+ * 工作区一项悬停时亮一层（「工作流」页的项外面包着一行，悬停写在那一行上；这里没有那一层，自己写）。
+ * 选中的那项保持选中色。
  */
-.runGrid {
-  display: grid;
-  flex: none;
-  grid-template-columns: minmax(0, 1fr) 88px max-content max-content;
-  gap: 18px 16px;
-}
-
-.group {
-  display: grid;
-  grid-column: 1 / -1;
-  grid-template-columns: subgrid;
-  row-gap: 6px;
-}
-
-/* 组头整条是开合按钮。 */
-.groupHead {
-  display: flex;
-  grid-column: 1 / -1;
-  gap: 8px;
-  align-items: center;
-  min-width: 0;
-  padding: 3px 4px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  font-size: var(--wl-fs-meta);
-  text-align: left;
-  cursor: pointer;
-}
-
-.groupHead:hover {
+.sideList .wfItem:hover:not([aria-current="true"]) {
   background: var(--wl-hover);
 }
 
-.groupHead:focus-visible {
-  outline: 2px solid var(--wl-accent);
-  outline-offset: 1px;
-}
-
-.groupHead > svg,
-.chevron {
-  flex: none;
+.sideEmpty {
+  margin: 0;
+  padding: 12px 10px;
   color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
 }
 
-.chevron {
-  display: inline-flex;
-  transition: transform 120ms ease;
-}
-
-.groupHead[aria-expanded="true"] .chevron {
-  transform: rotate(90deg);
-}
-
-.groupName {
-  flex: none;
-  max-width: 40%;
-  overflow: hidden;
-  color: var(--wl-text);
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.groupPath {
-  flex: 0 1 auto;
+/* 名字和「本工作区」小标一行：名字太长先省略，小标不挤掉。 */
+.wsName {
+  display: flex;
+  gap: 6px;
+  align-items: center;
   min-width: 0;
+}
+
+.wsActive {
+  color: var(--wl-accent-text);
+  font-weight: 600;
+}
+
+.wsTitle {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+.wsPath {
   overflow: hidden;
-  color: var(--wl-text-3);
   font-family: var(--wl-mono);
-  font-size: var(--wl-fs-micro);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -240,11 +164,15 @@ button.wsButton[aria-expanded="true"] {
   border-bottom-left-radius: 9px;
 }
 
+/*
+ * 实例框：所有行共用这一套列（行用 subgrid 接上），状态小标、按钮组按最宽的那个定宽，
+ * 进度条和按钮上下对齐，不随「完成 / 执行中」的字数、有没有「移到本会话」挪位。
+ */
 .runBox {
   display: grid;
-  grid-column: 1 / -1;
-  grid-template-columns: subgrid;
-  row-gap: 0;
+  flex: none;
+  grid-template-columns: minmax(0, 1fr) 80px max-content max-content;
+  column-gap: 14px;
 }
 
 .row {
@@ -347,13 +275,17 @@ button.wsButton[aria-expanded="true"] {
 }
 
 .progressBar {
+  display: block;
   height: 4px;
   overflow: hidden;
   border-radius: 999px;
   background: var(--wl-fill-strong);
 }
 
+/* 填满整条再按比例 scaleX 缩：是 span，不写 display: block 宽度就是 0，怎么缩都是空的。 */
 .progressFill {
+  display: block;
+  width: 100%;
   height: 100%;
   border-radius: inherit;
   background: var(--wl-run);
@@ -364,6 +296,101 @@ button.wsButton[aria-expanded="true"] {
 .state {
   display: flex;
   align-items: center;
+}
+
+/* 能改的状态小标：小标本身是按钮，右边一个小箭头；悬停、菜单开着时底下垫一层。 */
+.statusButton {
+  display: inline-flex;
+  flex: 1;
+  gap: 2px;
+  align-items: center;
+  /* 撑满这一列、箭头靠右：小标长短不一（「完成」比「执行中」短），各行的箭头还在一条竖线上。 */
+  justify-content: space-between;
+  padding: 0 4px 0 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--wl-text-3);
+  font: inherit;
+  cursor: pointer;
+}
+
+.statusButton:hover,
+.statusButton[aria-expanded="true"] {
+  background: var(--wl-fill-strong);
+  color: var(--wl-text-2);
+}
+
+.statusButton:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+.statusCaret {
+  display: inline-grid;
+  transition: transform 120ms var(--wl-ease);
+}
+
+.statusButton[aria-expanded="true"] .statusCaret {
+  transform: rotate(180deg);
+}
+
+/* 状态菜单：和确认卡同一种浮层，内边距收窄，一项两行（名字 + 说明）。 */
+.statusMenu {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px;
+}
+
+button.statusItem {
+  min-height: 42px;
+  padding: 5px 8px;
+}
+
+.statusText {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.statusName {
+  color: var(--wl-text);
+  font-weight: 600;
+}
+
+.statusHint {
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.4;
+}
+
+.statusCheck {
+  display: inline-grid;
+  flex: none;
+  color: var(--wl-accent-text);
+}
+
+.statusItem[aria-checked="true"] {
+  background: var(--wl-accent-soft);
+}
+
+/* 确认卡里：通知模型开关，打开时下面多一栏说明；都和标题的字对齐。 */
+.statusOptions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.statusOptions > label {
+  align-self: flex-start;
+}
+
+input.statusNote {
+  width: calc(100% - 30px);
+  height: 30px;
+  margin-left: 30px;
 }
 
 /* 「查看」在前，图标按钮成一组在后：组内挨着，和「查看」之间稍宽一点。 */
@@ -639,83 +666,13 @@ button.wsButton[aria-expanded="true"] {
   }
 }
 
-/* ── 工作区下拉 ───────────────────────────────────────────── */
-
-.wsMenu {
-  width: 340px;
-}
-
-.wsList {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  max-height: 320px;
-  overflow-y: auto;
-  scrollbar-width: thin;
-}
-
-button.wsItem {
-  min-height: 44px;
-  padding-block: 5px;
-}
-
-.wsItem > svg {
-  flex: none;
-  color: var(--wl-text-3);
-}
-
-.wsItem[data-active="true"] > svg {
-  color: inherit;
-}
-
-.wsText {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.wsName {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  min-width: 0;
-  font-weight: 500;
-}
-
-.wsName > span:first-child {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.wsPath {
-  overflow: hidden;
-  color: var(--wl-text-3);
-  font-family: var(--wl-mono);
-  font-size: var(--wl-fs-micro);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.count {
-  flex: none;
-  color: var(--wl-text-3);
-  font-size: var(--wl-fs-micro);
-  font-variant-numeric: tabular-nums;
-}
-
 @container (max-width: 680px) {
-  .row {
-    grid-template-columns: minmax(0, 1fr) auto auto;
+  .runBox {
+    grid-template-columns: minmax(0, 1fr) max-content max-content;
   }
 
   .progress {
     display: none;
-  }
-
-  button.wsButton {
-    width: 150px;
   }
 }
 

@@ -638,6 +638,7 @@ function Shell(props: {
       sessionsReady={props.sessions?.available() === true}
       runs={runs}
       onOpenRun={openRun}
+      onNotice={wf.notify}
       workflows={{
         current: state.name,
         flush: wf.flush,

@@ -7,6 +7,7 @@
  * - 浮层挂在视图根上：不被滚动区、对话框裁掉；画布缩放时字号也不跟着变。
  * - 悬停一会儿或键盘聚焦才出来；刚收起一个又指向下一个时立刻出来，扫一排按钮不用每个都等。
  * - 默认在元素正下方居中，下面放不下翻到上方，左右夹在视图里；长文字折行，`\n` 换行。
+ *   窄栏里的短字配长提示（比如工作区名配完整路径）写 `data-tip-align="start"`：和元素左边对齐、往右展开，不越出栏外。
  * - 按下指针、滚动、滚轮、Esc 都收起；按过的那个元素在指针离开前不再弹，点完按钮不挡视线。
  * - `data-tip` 变了（比如「复制路径」→「已复制」）跟着换字；元素没了就收起。
  *
@@ -158,8 +159,11 @@ export function TipLayer(props: { root: HTMLElement | null }): React.ReactNode {
     const area = root.getBoundingClientRect()
     const width = tip.offsetWidth
     const height = tip.offsetHeight
-    const center = box.left + box.width / 2 - area.left
-    const left = Math.max(GAP, Math.min(center - width / 2, area.width - width - GAP))
+    const start =
+      shown.target.dataset.tipAlign === 'start'
+        ? box.left - area.left
+        : box.left + box.width / 2 - area.left - width / 2
+    const left = Math.max(GAP, Math.min(start, area.width - width - GAP))
     const below = box.bottom - area.top + GAP
     const above = box.top - area.top - GAP - height
     const up = below + height > area.height - GAP && above >= GAP

@@ -397,17 +397,19 @@ export async function pressShortcut(session, key, mods = ['ctrl']) {
 
 /* ── 工作流中心 ───────────────────────────────────────────── */
 
+/** 「运行实例」页左栏里某个工作区那一项（表达式；找不到是 undefined）。 */
+export const hubWorkspaceExpr = (workspacePath) =>
+  `[...document.querySelectorAll('[data-testid="wl-hub-ws"]')].find((item) => item.dataset.path === ${JSON.stringify(workspacePath)})`
+
 /**
- * 「运行实例」页里让某个实例的行露出来：它所在的工作区组折着就点开（不是本工作区的组默认折着），
- * 已经展开就不动。调用前工作流中心要开着、停在「运行实例」页。
+ * 「运行实例」页里让某个实例的行露出来：右栏只列选中的那个工作区，在左栏点它。
+ * 调用前工作流中心要开着、停在「运行实例」页。
  */
 export async function revealHubRow(session, instanceId, workspacePath) {
-  const head = `[...document.querySelectorAll('[data-testid="wl-hub-group"]')].find((group) => group.dataset.path === ${JSON.stringify(workspacePath)})?.querySelector('[data-testid="wl-hub-group-toggle"]')`
-  await waitFor(session, `(${head}) != null`)
-  await session.evaluate(`(() => {
-    const head = ${head};
-    if (head.getAttribute('aria-expanded') === 'false') head.click();
-  })()`)
+  const item = hubWorkspaceExpr(workspacePath)
+  await waitFor(session, `(${item}) != null`)
+  // 已经选中也点一下：点过就钉住，不怕会话列表晚到、默认选中换到别的工作区。
+  await session.evaluate(`(${item}).click()`)
   await waitFor(
     session,
     `document.querySelector('[data-testid="wl-hub-row"][data-id="${instanceId}"]') !== null`,

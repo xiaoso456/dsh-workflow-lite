@@ -1,16 +1,18 @@
 /**
  * dsh-workflow-lite — 工作流中心里的一个实例：工作流名、会话标题、建立时间、目标；进度、总状态；
  * 查看、移到本会话、删除（文字按钮在前、图标按钮成组在后；确认卡浮在删除按钮旁边，问要不要连状态文件一起删；行不挪位）。
+ * 整体状态的小标能点：挑一个新状态、二次确认后直接改（{@link HubRunStatus}）。
  * 状态文件读不出来时，小标能点：行下面展开原因（找不到的路径，或哪几处写得不对）。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/HubRunRow
  */
 
 import { useState } from 'react'
-import type { InstanceSummary } from '../../shared/runState.ts'
+import type { InstanceSummary, RunStatus } from '../../shared/runState.ts'
 import type { T } from '../i18n.ts'
 import { shortTime } from '../model/time.ts'
 import { useConfirm } from './Confirm.tsx'
+import { HubRunStatus } from './HubRunStatus.tsx'
 import hub from './hub.module.css'
 import { Icon } from './Icon.tsx'
 import { cx } from './primitives.tsx'
@@ -28,6 +30,8 @@ export function HubRunRow(props: {
   onView(): void
   onMove(): void
   onDelete(withState: boolean): void
+  /** 改整体状态（已经过二次确认）。 */
+  onSetStatus(to: RunStatus, options: { notify: boolean; note: string }): void
 }): React.JSX.Element {
   const { t, item } = props
   const [withState, setWithState] = useState(false)
@@ -84,23 +88,29 @@ export function HubRunRow(props: {
           </>
         )}
       </div>
-      <div className={hub.state}>
-        {item.stateProblem === undefined ? (
-          <RunStatusBadge t={t} status={item.status} untracked={item.statePath === undefined} />
-        ) : (
-          <button
-            type="button"
-            className={hub.why}
-            aria-expanded={why}
-            data-tip={t('hub.why')}
-            data-testid="wl-hub-why"
-            onClick={() => setWhy((open) => !open)}
-          >
-            <RunStatusBadge t={t} status={undefined} problem={item.stateProblem} />
-            <Icon name={why ? 'chevronUp' : 'chevronDown'} size={12} />
-          </button>
-        )}
-      </div>
+      {item.stateProblem === undefined &&
+      item.statePath !== undefined &&
+      item.status !== undefined ? (
+        <HubRunStatus t={t} status={item.status} onChange={props.onSetStatus} />
+      ) : (
+        <div className={hub.state}>
+          {item.stateProblem === undefined ? (
+            <RunStatusBadge t={t} status={item.status} untracked={item.statePath === undefined} />
+          ) : (
+            <button
+              type="button"
+              className={hub.why}
+              aria-expanded={why}
+              data-tip={t('hub.why')}
+              data-testid="wl-hub-why"
+              onClick={() => setWhy((open) => !open)}
+            >
+              <RunStatusBadge t={t} status={undefined} problem={item.stateProblem} />
+              <Icon name={why ? 'chevronUp' : 'chevronDown'} size={12} />
+            </button>
+          )}
+        </div>
+      )}
       {/*
         文字按钮在前、图标按钮成一组在后。「移到本会话」不是每行都有：没有它的行留一个空位，
         删除还在原位（整页都没有能移的行时不留）。
