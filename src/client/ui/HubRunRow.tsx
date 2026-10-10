@@ -7,7 +7,7 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/HubRunRow
  */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { InstanceSummary, RunStatus } from '../../shared/runState.ts'
 import type { T } from '../i18n.ts'
 import { shortTime } from '../model/time.ts'
@@ -19,8 +19,13 @@ import { cx } from './primitives.tsx'
 import { RunStatusBadge } from './RunTopBar.tsx'
 import ui from './ui.module.css'
 
+/** 删除时这一行淡出的时长（和 hub.module.css 的 rowOut 一致）。 */
+const LEAVE_MS = 180
+
 export function HubRunRow(props: {
   t: T
+  /** 第几行：挂上时按这个错开着浮出来。 */
+  order: number
   item: InstanceSummary
   /** 会话怎么称呼（标题；找不到时是"会话已不在"之类）、是不是本会话。 */
   session: { text: string; mine: boolean }
@@ -36,12 +41,23 @@ export function HubRunRow(props: {
   const { t, item } = props
   const [withState, setWithState] = useState(false)
   const [why, setWhy] = useState(false)
+  /** 确认删除后先淡出，再真去删（下面的行随后滑上来）；没删成、列表重拉回来时复原。 */
+  const [leaving, setLeaving] = useState(false)
+  // 列表重拉换了新的 item 对象：这一行该复原了（没删成时淡出去的回来）。
+  useEffect(() => setLeaving(false), [item])
   const remove = useConfirm<HTMLButtonElement>()
   const status = item.statePath === undefined ? 'untracked' : (item.status ?? 'pending')
   const ratio =
     item.total !== undefined && item.total > 0 ? (item.done ?? 0) / item.total : undefined
   return (
-    <div className={hub.row} data-testid="wl-hub-row" data-id={item.id}>
+    <div
+      className={hub.row}
+      style={{ '--i': props.order } as React.CSSProperties}
+      data-flip={item.id}
+      data-leaving={leaving}
+      data-testid="wl-hub-row"
+      data-id={item.id}
+    >
       <div className={hub.main}>
         <div className={hub.titleLine}>
           <span className={hub.name}>{item.workflow}</span>
@@ -158,7 +174,12 @@ export function HubRunRow(props: {
           title: t('hub.deleteConfirm'),
           confirmText: t('common.delete'),
           testId: 'wl-hub-delete-confirm',
-          onConfirm: () => props.onDelete(withState),
+          onConfirm: () => {
+            setLeaving(true)
+            // 按时长等而不是等 animationend：「减少动态效果」下没有动画，也得删。
+            const remember = withState
+            window.setTimeout(() => props.onDelete(remember), LEAVE_MS)
+          },
           children: item.statePath !== undefined && (
             <label>
               <input

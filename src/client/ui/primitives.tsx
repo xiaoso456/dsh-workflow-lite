@@ -244,6 +244,8 @@ export function Modal(props: {
 
 /** 浮层与触发器之间的间距。 */
 const FLOAT_GAP = 6
+/** 浮层退场动画的时长（和 ui.module.css 的 floatOut 一致）。 */
+export const FLOAT_EXIT_MS = 120
 
 export type FloatState = 'off' | 'hover' | 'pinned'
 
@@ -265,6 +267,11 @@ export function useFloat<A extends HTMLElement>(options: {
   align?: 'start' | 'end' | 'auto'
   /** 与触发器的间距，缺省 6。 */
   gap?: number
+  /**
+   * 收起时留多久放退场动画（浮层带 `data-leaving="true"`、不接指针、不带 testId，样式自己写淡出）。
+   * 缺省 0：立刻拿掉。
+   */
+  exitMs?: number
 }): {
   state: FloatState
   setState: (next: FloatState | ((current: FloatState) => FloatState)) => void
@@ -291,7 +298,23 @@ export function useFloat<A extends HTMLElement>(options: {
   const [state, setState] = useState<FloatState>('off')
   const [place, setPlace] = useState<{ left: number; top: number; up: boolean } | null>(null)
   const timer = useRef(0)
-  const { openMs, closeMs, width, align = 'start', gap = FLOAT_GAP } = options
+  const { openMs, closeMs, width, align = 'start', gap = FLOAT_GAP, exitMs = 0 } = options
+  /**
+   * 浮层还挂着吗：打开时挂上；收起后再挂 `exitMs` 放退场动画。
+   * 「上一次的 state」在渲染时就比（不等 effect）：收起的那一次渲染里浮层就带着 `data-leaving` 留在原处，
+   * 不会先卸掉、下一刻再挂一个新的——新挂的浮层里各项的入场动画会重放一遍，收起时就闪一下。
+   * 每打开一次换一个键：收到一半又打开时，浮层重新入场。
+   */
+  const [mounted, setMounted] = useState(false)
+  const [round, setRound] = useState(0)
+  const [prevState, setPrevState] = useState<FloatState>(state)
+  if (prevState !== state) {
+    setPrevState(state)
+    if (prevState === 'off') setRound((n) => n + 1)
+  }
+  if (state !== 'off' && !mounted) setMounted(true)
+  if (state === 'off' && mounted && exitMs === 0) setMounted(false)
+  const leaving = state === 'off' && mounted
 
   const cancel = (): void => window.clearTimeout(timer.current)
   const later = (next: 'off' | 'hover', ms: number): void => {
@@ -300,9 +323,19 @@ export function useFloat<A extends HTMLElement>(options: {
   }
   useEffect(() => () => window.clearTimeout(timer.current), [])
 
+  useEffect(() => {
+    if (!leaving) return
+    const id = window.setTimeout(() => {
+      setMounted(false)
+      setPlace(null)
+    }, exitMs)
+    return () => window.clearTimeout(id)
+  }, [leaving, exitMs])
+
   useLayoutEffect(() => {
     if (state === 'off') {
-      setPlace(null)
+      // 放退场动画的那一会儿还停在原处。
+      if (exitMs === 0) setPlace(null)
       return
     }
     const anchor = anchorRef.current
@@ -358,19 +391,22 @@ export function useFloat<A extends HTMLElement>(options: {
   }
 
   const render: ReturnType<typeof useFloat>['render'] = (props) => {
-    if (state === 'off') return null
+    const gone = state === 'off'
+    if (gone && !leaving) return null
     const panel = (
-      // biome-ignore lint/a11y/noStaticElementInteractions: role 由调用方给（tooltip / alertdialog / menu），静态分析看不出
-      // biome-ignore lint/a11y/useAriaPropsSupportedByRole: 同上，几种 role 都支持 aria-label
+      // biome-ignore lint/a11y/useAriaPropsSupportedByRole: role 由调用方给（tooltip / alertdialog / menu），几种都支持 aria-label
       <div
-        ref={panelRef}
+        key={round}
+        ref={gone ? undefined : panelRef}
         className={props.className}
         role={props.role ?? 'tooltip'}
         aria-label={props.label}
+        aria-hidden={gone ? true : undefined}
         // 可聚焦（不进 Tab 序）：在浮层里点一下选文字时，焦点移进来而不是丢掉。
         tabIndex={-1}
         data-up={place?.up === true}
-        data-testid={props.testId}
+        data-leaving={gone ? true : undefined}
+        data-testid={gone ? undefined : props.testId}
         style={{
           left: place?.left ?? 0,
           top: place?.top ?? 0,
@@ -411,6 +447,7 @@ export function HelpTip(props: {
     openMs: HINT_OPEN_MS,
     closeMs: HINT_CLOSE_MS,
     width: HINT_W,
+    exitMs: FLOAT_EXIT_MS,
   })
   const { state, setState } = float
   return (

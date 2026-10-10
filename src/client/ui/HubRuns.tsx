@@ -23,6 +23,7 @@ import { errorCode, errorMessage } from '../rpc.ts'
 import { HubRunRow } from './HubRunRow.tsx'
 import hub from './hub.module.css'
 import { Icon } from './Icon.tsx'
+import { ListThumb, useFlip } from './motion.tsx'
 import { cx } from './primitives.tsx'
 import ui from './ui.module.css'
 
@@ -81,6 +82,12 @@ export function HubRuns(props: {
     await load()
   }
 
+  /** 移动、删除：做完重拉一次——成没成都拉（没成时淡出去的那行跟着回来）。 */
+  const act = async (work: Promise<boolean>): Promise<void> => {
+    await work
+    await load()
+  }
+
   const titles = useMemo(
     () => new Map(sessionRows.map((row) => [row.id, row.title])),
     [sessionRows],
@@ -103,6 +110,11 @@ export function HubRuns(props: {
   useEffect(() => {
     if (picked === null && props.sessionsReady && selectedKey !== undefined) setPicked(selectedKey)
   }, [picked, props.sessionsReady, selectedKey])
+
+  // 左栏：选中底块滑到选中项，筛选后留下的项滑到新位置、新冒出来的淡入。
+  const sideRef = useRef<HTMLElement>(null)
+  const sideLayout = `${selectedKey}|${groups.map((group) => group.workspace.key).join('\n')}`
+  useFlip(sideRef, sideLayout, { enter: true })
 
   const sessionLabel = (id: string | undefined): { text: string; mine: boolean } => {
     if (id === undefined) return { text: t('hub.noSession'), mine: false }
@@ -141,7 +153,7 @@ export function HubRuns(props: {
           {query !== '' && (
             <button
               type="button"
-              className={cx(ui.btn, ui.icon, ui.small)}
+              className={cx(ui.btn, ui.icon, ui.small, ui.fade)}
               aria-label={t('hub.clearSearch')}
               onClick={() => setQuery('')}
             >
@@ -149,9 +161,14 @@ export function HubRuns(props: {
             </button>
           )}
         </label>
-        <nav className={cx(hub.wfList, hub.sideList)} aria-label={t('hub.workspaces')}>
+        <nav
+          ref={sideRef}
+          className={cx(hub.wfList, hub.sideList)}
+          aria-label={t('hub.workspaces')}
+        >
+          <ListThumb layout={sideLayout} />
           {groups.length === 0 ? (
-            <p className={hub.sideEmpty}>{t('hub.noMatch')}</p>
+            <p className={cx(hub.sideEmpty, ui.fade)}>{t('hub.noMatch')}</p>
           ) : (
             groups.map((group) => (
               <WorkspaceItem
@@ -177,15 +194,15 @@ export function HubRuns(props: {
         </Empty>
       ) : (
         <WorkspaceRuns
+          // 换了工作区就换一整块：标题、各行重新入场；同一个工作区刷新时不重放。
+          key={selected.workspace.key}
           t={t}
           group={selected}
           session={session}
           sessionLabel={sessionLabel}
           onView={props.onOpenRun}
-          onMove={(id) => void runsRef.current.bind(id).then(() => load())}
-          onDelete={(id, withState) =>
-            void runsRef.current.remove(id, withState).then(() => load())
-          }
+          onMove={(id) => void act(runsRef.current.bind(id))}
+          onDelete={(id, withState) => void act(runsRef.current.remove(id, withState))}
           onSetStatus={(item, to, options) => void setStatus(item, to, options)}
         />
       )}
@@ -207,6 +224,8 @@ function WorkspaceItem(props: {
       type="button"
       aria-current={props.selected ? 'true' : undefined}
       className={hub.wfItem}
+      data-flip={workspace.key}
+      data-selected={props.selected}
       data-testid="wl-hub-ws"
       data-path={workspace.path}
       onClick={props.onPick}
@@ -264,8 +283,15 @@ function WorkspaceRuns(props: {
     session !== undefined && item.session !== session
   // 有能移的行，才给「移到本会话」留位置。
   const moveSlot = group.items.some(canMove)
+  // 删掉、移走一行之后，下面的行滑上来。
+  const boxRef = useRef<HTMLDivElement>(null)
+  useFlip(boxRef, group.items.map((item) => item.id).join('\n'))
   return (
-    <div className={hub.wfDetail} data-testid="wl-hub-runs-of" data-path={workspace.path}>
+    <div
+      className={cx(hub.wfDetail, hub.paneIn)}
+      data-testid="wl-hub-runs-of"
+      data-path={workspace.path}
+    >
       <div className={hub.wfHead}>
         <div className={hub.wfHeadText}>
           <p className={cx(hub.wfTitle, hub.wsTitle)}>
@@ -281,11 +307,12 @@ function WorkspaceRuns(props: {
           )}
         </div>
       </div>
-      <div className={cx(hub.box, hub.runBox)} data-testid="wl-hub-list">
-        {group.items.map((item) => (
+      <div ref={boxRef} className={cx(hub.box, hub.runBox)} data-testid="wl-hub-list">
+        {group.items.map((item, order) => (
           <HubRunRow
             key={item.id}
             t={t}
+            order={order}
             item={item}
             session={props.sessionLabel(item.session)}
             canMove={canMove(item)}

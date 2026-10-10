@@ -102,7 +102,8 @@ export function HubWorkflows(props: {
           return ok
         }}
       />
-      <div className={hub.wfDetail}>
+      {/* 换了一张就换一整块：标题、版本列表重新入场。 */}
+      <div key={selected.name} className={cx(hub.wfDetail, hub.paneIn)}>
         <div className={hub.wfHead}>
           <div className={hub.wfHeadText}>
             <p className={hub.wfTitle}>{selected.name}</p>

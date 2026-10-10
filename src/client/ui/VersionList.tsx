@@ -13,6 +13,7 @@ import { useVersions } from '../app/useVersions.ts'
 import type { T } from '../i18n.ts'
 import type { WorkflowLiteRpc } from '../rpc.ts'
 import { Icon } from './Icon.tsx'
+import { useResizeFlip } from './motion.tsx'
 import { cx } from './primitives.tsx'
 import ui from './ui.module.css'
 import { VersionRow } from './VersionRow.tsx'
@@ -32,6 +33,8 @@ export function VersionList(props: {
   const { list, notice } = versions
   const current = list?.find((entry) => entry.current) ?? null
   const blocked = list === null || versions.busy || current !== null
+  // 某一行展开、收起，存了新版、删了一版：下面的行滑到新位置，不是一下跳过去。
+  const listRef = useResizeFlip()
 
   const save = (): void => {
     if (blocked) return
@@ -99,7 +102,7 @@ export function VersionList(props: {
         </div>
       )}
       {list !== null && list.length > 0 && (
-        <div className={v.list}>
+        <div ref={listRef} className={v.list}>
           {list.map((entry) => (
             <VersionRow
               key={entry.n}

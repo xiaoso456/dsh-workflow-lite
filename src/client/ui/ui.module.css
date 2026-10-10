@@ -311,6 +311,39 @@
   animation: rise 220ms var(--wl-ease) both;
 }
 
+/*
+ * 列表的选中底块（`motion.tsx` 的 ListThumb）：换选中时靠 transform 滑过去；
+ * 第一次摆好之前不带过渡。项要 `position: relative` 才盖在它上面。
+ */
+.listThumb {
+  position: absolute;
+  top: 0;
+  border-radius: var(--wl-r-control);
+  background: var(--wl-accent-soft);
+  pointer-events: none;
+}
+
+.listThumb[data-live="true"] {
+  transition:
+    transform 260ms var(--wl-ease),
+    opacity 160ms linear;
+}
+
+/* 浮层收起：先淡出、稍微缩一点再拿掉（useFloat 的 exitMs），这段时间不接指针。 */
+@keyframes floatOut {
+  to {
+    opacity: 0;
+    transform: translateY(-3px) scale(0.98);
+  }
+}
+
+@keyframes floatOutUp {
+  to {
+    opacity: 0;
+    transform: translateY(3px) scale(0.98);
+  }
+}
+
 .fade {
   animation: fade 160ms linear both;
 }
@@ -440,6 +473,17 @@
   white-space: normal;
   outline: none;
   animation: hintIn 140ms var(--wl-ease) both;
+}
+
+.confirmPop[data-leaving="true"],
+.hintPanel[data-leaving="true"] {
+  animation: floatOut 120ms ease-in both;
+  pointer-events: none;
+}
+
+.confirmPop[data-leaving="true"][data-up="true"],
+.hintPanel[data-leaving="true"][data-up="true"] {
+  animation-name: floatOutUp;
 }
 
 .confirmPop[data-up="true"] {
@@ -756,5 +800,14 @@
   .hintPanel,
   .confirmPop {
     animation: none;
+  }
+
+  .confirmPop[data-leaving="true"],
+  .hintPanel[data-leaving="true"] {
+    visibility: hidden;
+  }
+
+  .listThumb[data-live="true"] {
+    transition: none;
   }
 }

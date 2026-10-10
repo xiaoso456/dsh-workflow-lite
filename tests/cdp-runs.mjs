@@ -233,7 +233,20 @@ try {
     columns.bars === 1 && columns.views === 1 && columns.deletes === 1,
     `各行的进度一栏、「查看」和删除应上下对齐：${JSON.stringify(columns)}`,
   )
-  await sleep(300)
+  // 动效：选中底块滑到选中的工作区、和它严丝合缝；动完之后工作流中心里没有还在跑（或停在半路）的动画。
+  await sleep(900)
+  const motion = await session.evaluate(`(() => {
+    const thumb = document.querySelector('[data-testid="wl-list-thumb"]').getBoundingClientRect();
+    const item = document.querySelector('[data-testid="wl-hub-ws"][aria-current="true"]').getBoundingClientRect();
+    return {
+      offset: [thumb.top - item.top, thumb.left - item.left, thumb.width - item.width, thumb.height - item.height].map(Math.round),
+      running: document.querySelector('[data-testid="wl-hub"]').getAnimations({ subtree: true }).length,
+    };
+  })()`)
+  check(
+    motion.offset.every((value) => value === 0) && motion.running === 0,
+    `选中底块应贴着选中项、动完不留动画：${JSON.stringify(motion)}`,
+  )
   await screenshot(session, 'runs-01-hub.png')
 
   // 1a) 工作流中心：右栏标题是工作区、会话一栏、跨工作区搜索；存储页统计一次就不再闪。

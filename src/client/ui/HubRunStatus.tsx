@@ -9,16 +9,18 @@
  *
  * 不记运行状态的实例、状态文件读不出来的实例不能在这里改（小标照旧，不是按钮）。
  *
+ * 动效（都只动 transform / opacity）：菜单从小标那一角展开、各项依次浮出，收起时淡出；状态真的变了小标弹一下。
+ *
  * @module @xiaoso/dsh-workflow-lite/client/ui/HubRunStatus
  */
 
-import { useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { RUN_STATUSES, type RunStatus } from '../../shared/runState.ts'
 import type { LocaleKey, T } from '../i18n.ts'
 import { useConfirm } from './Confirm.tsx'
 import hub from './hub.module.css'
 import { Icon } from './Icon.tsx'
-import { cx, useFloat } from './primitives.tsx'
+import { cx, FLOAT_EXIT_MS, useFloat } from './primitives.tsx'
 import { RUN_STATUS_TEXT, RunStatusBadge } from './RunTopBar.tsx'
 import run from './run.module.css'
 import ui from './ui.module.css'
@@ -31,7 +33,13 @@ export function HubRunStatus(props: {
   onChange(to: RunStatus, options: { notify: boolean; note: string }): void
 }): React.JSX.Element {
   const { t, status } = props
-  const menu = useFloat<HTMLButtonElement>({ openMs: 0, closeMs: 0, width: MENU_W, align: 'auto' })
+  const menu = useFloat<HTMLButtonElement>({
+    openMs: 0,
+    closeMs: 0,
+    width: MENU_W,
+    align: 'auto',
+    exitMs: FLOAT_EXIT_MS,
+  })
   const confirm = useConfirm<HTMLSpanElement>()
   const [target, setTarget] = useState<RunStatus | null>(null)
   const [notify, setNotify] = useState(false)
@@ -39,6 +47,14 @@ export function HubRunStatus(props: {
   const notifyId = useId()
   const items = useRef<(HTMLButtonElement | null)[]>([])
   const open = menu.state !== 'off'
+  // 状态真的变了（改成功、或模型那边改了）小标弹一下；刚挂上时不弹。
+  const [changes, setChanges] = useState(0)
+  const shown = useRef(status)
+  useEffect(() => {
+    if (shown.current === status) return
+    shown.current = status
+    setChanges((n) => n + 1)
+  }, [status])
 
   const pick = (to: RunStatus): void => {
     menu.setState('off')
@@ -70,7 +86,9 @@ export function HubRunStatus(props: {
         }}
         onKeyDown={menu.onKeyDown}
       >
-        <RunStatusBadge t={t} status={status} />
+        <span key={changes} className={changes > 0 ? hub.statusPop : undefined}>
+          <RunStatusBadge t={t} status={status} />
+        </span>
         <span className={hub.statusCaret}>
           <Icon name="chevronDown" size={12} />
         </span>
@@ -93,6 +111,7 @@ export function HubRunStatus(props: {
             data-run-status={value}
             data-value={value}
             data-testid="wl-hub-status-item"
+            style={{ '--i': index } as React.CSSProperties}
             onClick={() => pick(value)}
             onKeyDown={(event) => {
               const step = event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0

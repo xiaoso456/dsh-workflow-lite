@@ -85,6 +85,8 @@
 
 .row {
   position: relative;
+  /* 不透明：展开时下面的行从原位滑下去，像帘子一样盖着、再露出刚展开的变化。 */
+  background: var(--wl-panel);
 }
 
 .row + .row {
@@ -92,6 +94,7 @@
 }
 
 .main {
+  position: relative;
   display: flex;
   gap: 10px;
   align-items: center;
@@ -104,15 +107,28 @@
   color: var(--wl-text);
   font: inherit;
   text-align: left;
+  isolation: isolate;
 }
 
 button.main {
   cursor: pointer;
 }
 
-.row:hover .main,
-.row[data-open="true"] .main {
+/* 悬停、展开时的底色画在 ::before 上、渐显（不在 background 上瞬切）。 */
+.main::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
   background: var(--wl-hover);
+  content: "";
+  opacity: 0;
+  transition: opacity 140ms linear;
+  pointer-events: none;
+}
+
+.row:hover .main::before,
+.row[data-open="true"] .main::before {
+  opacity: 1;
 }
 
 .main:focus-visible {
@@ -127,7 +143,7 @@ button.main {
   place-items: center;
   color: var(--wl-text-3);
   transform: rotate(-90deg);
-  transition: transform 160ms var(--wl-ease);
+  transition: transform 220ms var(--wl-ease);
 }
 
 .main[aria-expanded="true"] .chevron {
@@ -271,7 +287,12 @@ button.main {
   outline-offset: -1px;
 }
 
-/* ── 展开：切到这一版会变什么 ─────────────────────────────── */
+/*
+ * ── 展开：切到这一版会变什么 ───────────────────────────────
+ * 底色那一块不动（下面的行像帘子一样滑下去把它露出来），只动里面的字：标题淡出来、各条变化依次浮出。
+ * 底色块本身不能淡入、不能位移：它和标题行的悬停底色都是半透明的一层，叠在一起或半透明时
+ * 会在两块交界处多出一条更亮的带子（暗色下尤其明显）。
+ */
 
 .diff {
   padding: 2px 16px 12px 78px;
@@ -279,14 +300,22 @@ button.main {
   color: var(--wl-text-3);
   font-size: var(--wl-fs-meta);
   line-height: 1.55;
-  animation: diffIn 160ms var(--wl-ease) both;
+}
+
+.diff > :not(.diffList) {
+  animation: diffIn 220ms var(--wl-ease) backwards;
 }
 
 @keyframes diffIn {
   from {
     opacity: 0;
-    transform: translateY(-4px);
+    transform: translateY(-6px);
   }
+}
+
+/* 「正在比较」：比得慢才出现（VersionRow 的 SLOW_MS），和标题一样淡进来。 */
+.diffLoading {
+  display: block;
 }
 
 .diffTitle {
@@ -307,6 +336,15 @@ button.main {
 .diffLine {
   position: relative;
   padding-left: 14px;
+  animation: lineIn 240ms var(--wl-ease) backwards;
+  animation-delay: calc(min(var(--i, 0), 12) * 24ms + 60ms);
+}
+
+@keyframes lineIn {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
 }
 
 .diffLine::before {
@@ -384,7 +422,9 @@ button.main {
   .chevron,
   .actions,
   .action,
-  .diff {
+  .main::before,
+  .diff > *,
+  .diffLine {
     transition: none;
     animation: none;
   }

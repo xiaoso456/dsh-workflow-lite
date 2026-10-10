@@ -41,7 +41,12 @@ export function HubWorkflowRow(props: HubWorkflowRowProps): React.JSX.Element {
   const name = entry.name
   if (props.editing) return <RenameRow {...props} />
   return (
-    <div className={hub.wfRow} data-busy={props.busy}>
+    <div
+      className={hub.wfRow}
+      data-busy={props.busy}
+      data-flip={name}
+      data-selected={props.selected}
+    >
       <button
         type="button"
         aria-current={props.selected ? 'true' : undefined}
@@ -113,7 +118,8 @@ function RenameRow(props: HubWorkflowRowProps): React.JSX.Element {
   }
 
   return (
-    <div className={hub.wfEditing}>
+    // 键和原来那一行一样：换成输入框行不算新项，不放入场动画（选中底块在改名时淡掉，输入框行自己有底色）。
+    <div className={hub.wfEditing} data-flip={entry.name}>
       <span className={hub.wfIcon}>
         <Icon name={entry.invalid === true ? 'alert' : 'folder'} size={15} />
       </span>

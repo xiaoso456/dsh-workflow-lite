@@ -1,7 +1,8 @@
 /**
  * dsh-workflow-lite — 版本列表的一行：「v3 · 说明 · 时间 · 步骤数 · 当前」。
  *
- * - 点这一行展开「切到这一版会有哪些变化」（和磁盘上现在的内容比）；
+ * - 点这一行展开「切到这一版会有哪些变化」（和磁盘上现在的内容比）：箭头转过来、变化一条条浮出，
+ *   下面的行滑下去让位（`VersionList` 的 useResizeFlip）；收起时下面的行滑回来；
  * - 「切换 / 编辑说明 / 删除」平时藏着，悬停或键盘移进来时浮在右端（和 `WorkflowRow` 一个做法）；
  * - 切换、删除都要再确认一次，确认卡浮在按钮旁边；编辑说明就在这一行原地换成输入框。
  *
@@ -20,6 +21,8 @@ import v from './versions.module.css'
 
 /** 展开后最多列几处变化，再多只说个数。 */
 const MAX_LINES = 12
+/** 比了这么久还没比完，才显示「正在比较」。 */
+const SLOW_MS = 180
 
 export function VersionRow(props: {
   t: T
@@ -165,16 +168,26 @@ export function VersionRow(props: {
 }
 
 /** 展开的那一块：切到这一版会有哪些变化。列表每次重读（存了、切了）都重新比一次。 */
-function DiffView(props: { t: T; entry: VersionEntry; versions: Versions }): React.JSX.Element {
+function DiffView(props: {
+  t: T
+  entry: VersionEntry
+  versions: Versions
+}): React.JSX.Element | null {
   const { t, entry, versions } = props
   const [diff, setDiff] = useState<VersionDiff | null | 'loading'>('loading')
+  /** 比了一会儿还没比完：这时才放「正在比较」。 */
+  const [slow, setSlow] = useState(false)
   const { list, diff: load } = versions
 
-  // list 变了（存了、切了）就重新比一次。
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSlow(true), SLOW_MS)
+    return () => window.clearTimeout(timer)
+  }, [])
+
+  // list 变了（存了、切了）就重新比一次；比完之前还显示上一次的结果，块的高度不先缩回去再撑开。
   useEffect(() => {
     if (entry.invalid === true) return
     let alive = true
-    setDiff('loading')
     void load(entry.n).then((result) => {
       if (alive) setDiff(result)
     })
@@ -184,7 +197,15 @@ function DiffView(props: { t: T; entry: VersionEntry; versions: Versions }): Rea
   }, [entry.n, entry.invalid, list])
 
   if (entry.invalid === true) return <div className={v.diff}>{t('ver.invalid')}</div>
-  if (diff === 'loading') return <div className={v.diff}>{t('ver.diffLoading')}</div>
+  // 一般很快就比完：这之前整块先不占位置，比完一次撑开到位，不先撑出一行「正在比较」再撑一次。
+  if (diff === 'loading') {
+    if (!slow) return null
+    return (
+      <div className={v.diff}>
+        <span className={v.diffLoading}>{t('ver.diffLoading')}</span>
+      </div>
+    )
+  }
   if (diff === null) return <div className={v.diff} />
   const total = diff.changes.length + (diff.settings ? 1 : 0)
   if (total === 0) {
@@ -199,17 +220,22 @@ function DiffView(props: { t: T; entry: VersionEntry; versions: Versions }): Rea
     <div className={v.diff} data-testid={`wl-ver-${entry.n}-diff`}>
       <p className={v.diffTitle}>{t('ver.diffTitle')}</p>
       <ul className={v.diffList}>
-        {shown.map((change) => (
+        {shown.map((change, index) => (
           <li
             key={`${change.object}:${change.kind}:${change.id}`}
             className={v.diffLine}
+            style={{ '--i': index } as React.CSSProperties}
             data-kind={change.kind}
           >
             {graphLine(t, change, diff.base, diff.next)}
           </li>
         ))}
         {diff.settings && (
-          <li className={v.diffLine} data-kind="changed">
+          <li
+            className={v.diffLine}
+            style={{ '--i': shown.length } as React.CSSProperties}
+            data-kind="changed"
+          >
             {t('ver.diffSettings')}
           </li>
         )}

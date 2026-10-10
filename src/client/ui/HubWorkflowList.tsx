@@ -7,12 +7,13 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/HubWorkflowList
  */
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { WorkflowEntry } from '../../shared/types.ts'
 import type { T } from '../i18n.ts'
 import { useConfirm } from './Confirm.tsx'
 import { HubWorkflowRow } from './HubWorkflowRow.tsx'
 import hub from './hub.module.css'
+import { ListThumb, useFlip } from './motion.tsx'
 import { deleteDesc } from './WorkflowRow.tsx'
 
 export function HubWorkflowList(props: {
@@ -33,9 +34,14 @@ export function HubWorkflowList(props: {
   const [doomed, setDoomed] = useState<string | null>(null)
   const confirm = useConfirm<HTMLButtonElement>()
   const doomedEntry = workflows.find((entry) => entry.name === doomed)
+  // 选中底块滑到选中那张；改名、删除之后留下的行滑到新位置，新冒出来的淡入。
+  const listRef = useRef<HTMLElement>(null)
+  const layout = `${props.selected}|${editing ?? ''}|${workflows.map((entry) => entry.name).join('\n')}`
+  useFlip(listRef, layout, { enter: true })
 
   return (
-    <nav className={hub.wfList} aria-label={t('hub.wfPage')}>
+    <nav ref={listRef} className={hub.wfList} aria-label={t('hub.wfPage')}>
+      <ListThumb layout={layout} />
       {workflows.map((entry) => (
         <HubWorkflowRow
           key={entry.name}

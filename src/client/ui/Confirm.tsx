@@ -18,7 +18,7 @@
 import { useEffect } from 'react'
 import type { T } from '../i18n.ts'
 import { Icon } from './Icon.tsx'
-import { cx, useFloat } from './primitives.tsx'
+import { cx, FLOAT_EXIT_MS, useFloat } from './primitives.tsx'
 import ui from './ui.module.css'
 
 const CONFIRM_W = 288
@@ -57,6 +57,7 @@ export function useConfirm<A extends HTMLElement>(): {
     width: CONFIRM_W,
     align: 'auto',
     gap: CONFIRM_GAP,
+    exitMs: FLOAT_EXIT_MS,
   })
   const { state, setState, panelRef, anchorRef } = float
   const open = state !== 'off'
