@@ -1205,97 +1205,104 @@ const GLIDE_HOLD_MS = 260
  * 药丸里放一块 `data-glide-surface`（绝对定位铺满、左边为原点的底面：边框、底色、阴影都画在它上面），
  * 以及要跟着挪的 `data-glide` 小件（被挤到新位置的图标、状态按钮）：
  * 宽度一变，底面从旧宽度 `scaleX` 过渡到新宽度，小件从旧位置 `translateX` 滑到新位置；
- * 变宽立刻展开，变窄先停 {@link GLIDE_HOLD_MS} 再收。上一段还没放完就变了，从看上去的地方接着走。
+ * 变宽立刻展开，变窄先停 `hold`（默认 {@link GLIDE_HOLD_MS}）毫秒再收；宽度是被布局挤变的、
+ * 没有"等视线落稳"的需要时传 0（缩放条：右面板一开图例就收成按钮）。上一段还没放完就变了，从看上去的地方接着走。
  * 返回回调 ref，挂到药丸上。
  */
-export function useGlide(): (pill: HTMLElement | null) => void {
+export function useGlide(hold: number = GLIDE_HOLD_MS): (pill: HTMLElement | null) => void {
   const stop = useRef<(() => void) | null>(null)
   useEffect(() => () => stop.current?.(), [])
-  return useCallback((pill: HTMLElement | null) => {
-    stop.current?.()
-    stop.current = null
-    if (pill === null || typeof ResizeObserver === 'undefined') return
-    let width = pill.offsetWidth
-    /** 各小件上次落定的位置（相对药丸左边）。 */
-    let spots = new Map<HTMLElement, number>()
-    const running = new Map<HTMLElement, Animation>()
-    const surface = (): HTMLElement | null => pill.querySelector('[data-glide-surface]')
-    const items = (): HTMLElement[] => [...pill.querySelectorAll<HTMLElement>('[data-glide]')]
-    const leftOf = (el: HTMLElement, origin: number): number =>
-      el.getBoundingClientRect().left - origin
-    const remember = (): void => {
-      const origin = pill.getBoundingClientRect().left
-      spots = new Map(items().map((el) => [el, leftOf(el, origin)]))
-    }
-    remember()
+  return useCallback(
+    (pill: HTMLElement | null) => {
+      stop.current?.()
+      stop.current = null
+      if (pill === null || typeof ResizeObserver === 'undefined') return
+      let width = pill.offsetWidth
+      /** 各小件上次落定的位置（相对药丸左边）。 */
+      let spots = new Map<HTMLElement, number>()
+      const running = new Map<HTMLElement, Animation>()
+      const surface = (): HTMLElement | null => pill.querySelector('[data-glide-surface]')
+      const items = (): HTMLElement[] => [...pill.querySelectorAll<HTMLElement>('[data-glide]')]
+      const leftOf = (el: HTMLElement, origin: number): number =>
+        el.getBoundingClientRect().left - origin
+      const remember = (): void => {
+        const origin = pill.getBoundingClientRect().left
+        spots = new Map(items().map((el) => [el, leftOf(el, origin)]))
+      }
+      remember()
 
-    const sizes = new ResizeObserver(() => {
-      const next = pill.offsetWidth
-      if (next === width) return
-      const was = width
-      width = next
-      const base = surface()
-      if (REDUCED?.matches === true || base === null) {
-        remember()
-        return
-      }
-      const origin = pill.getBoundingClientRect().left
-      // 先读旧动画此刻的位移 / 缩放，再清掉它。起点是「旧布局 + 此刻的位移」：
-      // 布局已经是新的了，直接量元素现在的位置会把新布局也算进去（宽度会被放大）。
-      const shift = (el: HTMLElement): number =>
-        running.has(el) ? new DOMMatrixReadOnly(getComputedStyle(el).transform).m41 : 0
-      const seen = new Map<HTMLElement, number>()
-      for (const el of items()) {
-        const before = spots.get(el)
-        if (before !== undefined) seen.set(el, before + shift(el))
-      }
-      const seenWidth = running.has(base)
-        ? new DOMMatrixReadOnly(getComputedStyle(base).transform).a * was
-        : was
-      for (const anim of running.values()) anim.cancel()
-      running.clear()
-
-      const shrink = seenWidth > next
-      const timing = {
-        duration: shrink ? GLIDE_SHRINK_MS : GLIDE_GROW_MS,
-        delay: shrink ? GLIDE_HOLD_MS : 0,
-        easing: EASE,
-        fill: 'backwards' as const,
-      }
-      if (Math.abs(seenWidth / next - 1) > 0.002) {
-        running.set(
-          base,
-          base.animate(
-            [{ transform: `scaleX(${seenWidth / next})` }, { transform: 'none' }],
-            timing,
-          ),
-        )
-      }
-      const fresh = new Map<HTMLElement, number>()
-      for (const el of items()) {
-        const now = leftOf(el, origin)
-        fresh.set(el, now)
-        const from = seen.get(el) ?? spots.get(el)
-        if (from === undefined || Math.abs(from - now) < 0.5) continue
-        running.set(
-          el,
-          el.animate([{ transform: `translateX(${from - now}px)` }, { transform: 'none' }], timing),
-        )
-      }
-      spots = fresh
-      for (const [el, anim] of running) {
-        const forget = (): void => {
-          if (running.get(el) === anim) running.delete(el)
+      const sizes = new ResizeObserver(() => {
+        const next = pill.offsetWidth
+        if (next === width) return
+        const was = width
+        width = next
+        const base = surface()
+        if (REDUCED?.matches === true || base === null) {
+          remember()
+          return
         }
-        anim.finished.then(forget, forget)
+        const origin = pill.getBoundingClientRect().left
+        // 先读旧动画此刻的位移 / 缩放，再清掉它。起点是「旧布局 + 此刻的位移」：
+        // 布局已经是新的了，直接量元素现在的位置会把新布局也算进去（宽度会被放大）。
+        const shift = (el: HTMLElement): number =>
+          running.has(el) ? new DOMMatrixReadOnly(getComputedStyle(el).transform).m41 : 0
+        const seen = new Map<HTMLElement, number>()
+        for (const el of items()) {
+          const before = spots.get(el)
+          if (before !== undefined) seen.set(el, before + shift(el))
+        }
+        const seenWidth = running.has(base)
+          ? new DOMMatrixReadOnly(getComputedStyle(base).transform).a * was
+          : was
+        for (const anim of running.values()) anim.cancel()
+        running.clear()
+
+        const shrink = seenWidth > next
+        const timing = {
+          duration: shrink ? GLIDE_SHRINK_MS : GLIDE_GROW_MS,
+          delay: shrink ? hold : 0,
+          easing: EASE,
+          fill: 'backwards' as const,
+        }
+        if (Math.abs(seenWidth / next - 1) > 0.002) {
+          running.set(
+            base,
+            base.animate(
+              [{ transform: `scaleX(${seenWidth / next})` }, { transform: 'none' }],
+              timing,
+            ),
+          )
+        }
+        const fresh = new Map<HTMLElement, number>()
+        for (const el of items()) {
+          const now = leftOf(el, origin)
+          fresh.set(el, now)
+          const from = seen.get(el) ?? spots.get(el)
+          if (from === undefined || Math.abs(from - now) < 0.5) continue
+          running.set(
+            el,
+            el.animate(
+              [{ transform: `translateX(${from - now}px)` }, { transform: 'none' }],
+              timing,
+            ),
+          )
+        }
+        spots = fresh
+        for (const [el, anim] of running) {
+          const forget = (): void => {
+            if (running.get(el) === anim) running.delete(el)
+          }
+          anim.finished.then(forget, forget)
+        }
+      })
+      sizes.observe(pill)
+      stop.current = () => {
+        sizes.disconnect()
+        for (const anim of running.values()) anim.cancel()
       }
-    })
-    sizes.observe(pill)
-    stop.current = () => {
-      sizes.disconnect()
-      for (const anim of running.values()) anim.cancel()
-    }
-  }, [])
+    },
+    [hold],
+  )
 }
 
 /**

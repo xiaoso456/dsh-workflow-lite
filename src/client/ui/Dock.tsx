@@ -9,6 +9,7 @@ import { useReactFlow, useViewport } from '@xyflow/react'
 import { useState } from 'react'
 import type { LocaleKey, T } from '../i18n.ts'
 import { Icon } from './Icon.tsx'
+import { useGlide } from './motion.tsx'
 import { cx, Popover } from './primitives.tsx'
 import css from './shell.module.css'
 import ui from './ui.module.css'
@@ -38,8 +39,11 @@ export function ZoomDock(props: {
   const flow = useReactFlow()
   const { zoom } = useViewport()
   const [legendOpen, setLegendOpen] = useState(false)
+  // 两侧面板一开，整排图例收成「图例」按钮、缩放条变短：底面 scaleX 收过去，不是一下子跳。
+  const glide = useGlide(0)
   return (
-    <div className={cx(ui.panel, css.dock)}>
+    <div ref={glide} className={css.dock}>
+      <span className={css.dockSurface} data-glide-surface="" aria-hidden="true" />
       <button
         type="button"
         className={cx(ui.btn, ui.icon, ui.small)}
@@ -108,34 +112,36 @@ export function ZoomDock(props: {
         ))}
       </Popover>
       <span className={ui.divider} />
-      <LineLegend t={t} />
-      {/* 放不下整排图例时（左右两边的面板都开着、窗口又窄）收成一个按钮，点开看同一份图例。 */}
-      <span className={css.legendCompact}>
-        <Popover
-          open={legendOpen}
-          onClose={() => setLegendOpen(false)}
-          up
-          label={t('legend.title')}
-          className={css.legendPop}
-          trigger={
-            <button
-              type="button"
-              className={cx(ui.btn, ui.small, css.legendToggle)}
-              aria-expanded={legendOpen}
-              data-testid="wl-legend-toggle"
-              onClick={() => setLegendOpen(!legendOpen)}
-            >
-              <svg width="14" height="12" viewBox="0 0 14 12" aria-hidden="true">
-                <line x1="1" y1="2" x2="13" y2="2" data-line="always" />
-                <line x1="1" y1="6" x2="13" y2="6" data-line="produce" />
-                <line x1="1" y1="10" x2="13" y2="10" data-line="read" />
-              </svg>
-              {t('legend.short')}
-            </button>
-          }
-        >
-          <LegendSheet t={t} />
-        </Popover>
+      <span className={css.legendSlot}>
+        <LineLegend t={t} />
+        {/* 放不下整排图例时（左右两边的面板都开着、窗口又窄）收成一个按钮，点开看同一份图例。 */}
+        <span className={css.legendCompact}>
+          <Popover
+            open={legendOpen}
+            onClose={() => setLegendOpen(false)}
+            up
+            label={t('legend.title')}
+            className={css.legendPop}
+            trigger={
+              <button
+                type="button"
+                className={cx(ui.btn, ui.small, css.legendToggle)}
+                aria-expanded={legendOpen}
+                data-testid="wl-legend-toggle"
+                onClick={() => setLegendOpen(!legendOpen)}
+              >
+                <svg width="14" height="12" viewBox="0 0 14 12" aria-hidden="true">
+                  <line x1="1" y1="2" x2="13" y2="2" data-line="always" />
+                  <line x1="1" y1="6" x2="13" y2="6" data-line="produce" />
+                  <line x1="1" y1="10" x2="13" y2="10" data-line="read" />
+                </svg>
+                {t('legend.short')}
+              </button>
+            }
+          >
+            <LegendSheet t={t} />
+          </Popover>
+        </span>
       </span>
     </div>
   )

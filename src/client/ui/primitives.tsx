@@ -373,7 +373,7 @@ export function useFloat<A extends HTMLElement>(options: {
     testId?: string | undefined
     label?: string
     /** 默认 `tooltip`；二次确认这类要操作的浮层用 `alertdialog`，挑一项的用 `menu`。 */
-    role?: 'tooltip' | 'alertdialog' | 'menu'
+    role?: 'tooltip' | 'alertdialog' | 'dialog' | 'menu'
     children: React.ReactNode
   }) => React.ReactNode
 } {

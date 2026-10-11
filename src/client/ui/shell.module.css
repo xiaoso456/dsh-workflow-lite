@@ -336,10 +336,34 @@
   display: flex;
   gap: 2px;
   align-items: center;
-  padding: 3px;
+  /* 边框画在底面上（见 .dockSurface），内边距补上那 1px。 */
+  padding: 4px;
+  isolation: isolate;
   /* 步骤库开着时让到它右边：位置靠 transform 挪。 */
   transform: translateX(calc(var(--wl-library-w) + var(--wl-gap)));
   transition: transform 240ms var(--wl-ease);
+}
+
+/*
+ * 底面（边框、底色、阴影）单独一层：宽度一变（整排图例 ↔ 「图例」按钮）由 useGlide 用 scaleX 收放，
+ * 只动 transform。进场的那一边（图例 / 按钮）淡入，退场的那一边随布局直接让位。
+ */
+.dockSurface {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border: 1px solid var(--wl-line);
+  border-radius: var(--wl-r-panel);
+  background: var(--wl-panel);
+  box-shadow: var(--wl-shadow-1);
+  pointer-events: none;
+  transform-origin: 0 50%;
+}
+
+@keyframes dockFade {
+  from {
+    opacity: 0;
+  }
 }
 
 .root[data-library="closed"] .dock {
@@ -389,6 +413,14 @@
   margin: 0;
   padding: 0 4px 0 0;
   list-style: none;
+  transition: opacity 200ms linear;
+}
+
+/* 图例和「图例」按钮共用一个座位：收起时整排图例不摘掉，叠在座位上原处淡出，缩放条的底面同时收短。 */
+.legendSlot {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
 }
 
 .legendItem {
@@ -493,6 +525,7 @@
 /* 放不下整排图例时的收起形态：一个「图例」按钮（三道彩线 + 字），点开是一张图例单。 */
 .legendCompact {
   display: none;
+  animation: dockFade 200ms linear both;
 }
 
 .legendToggle {
@@ -737,7 +770,17 @@
  */
 @container (max-width: 910px) {
   .legend {
-    display: none;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: max-content;
+    visibility: hidden;
+    opacity: 0;
+    transition:
+      opacity 140ms linear,
+      visibility 0s 140ms;
+    pointer-events: none;
   }
 
   .legendCompact {
@@ -747,7 +790,17 @@
 
 @container (max-width: 1150px) {
   .root[data-library="open"] .legend {
-    display: none;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: max-content;
+    visibility: hidden;
+    opacity: 0;
+    transition:
+      opacity 140ms linear,
+      visibility 0s 140ms;
+    pointer-events: none;
   }
 
   .root[data-library="open"] .legendCompact {
@@ -757,7 +810,17 @@
 
 @container (max-width: 1290px) {
   .root[data-panel="open"] .legend {
-    display: none;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: max-content;
+    visibility: hidden;
+    opacity: 0;
+    transition:
+      opacity 140ms linear,
+      visibility 0s 140ms;
+    pointer-events: none;
   }
 
   .root[data-panel="open"] .legendCompact {
@@ -767,7 +830,17 @@
 
 @container (max-width: 1530px) {
   .root[data-library="open"][data-panel="open"] .legend {
-    display: none;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: max-content;
+    visibility: hidden;
+    opacity: 0;
+    transition:
+      opacity 140ms linear,
+      visibility 0s 140ms;
+    pointer-events: none;
   }
 
   .root[data-library="open"][data-panel="open"] .legendCompact {
@@ -805,6 +878,8 @@
   }
 
   .inspector,
+  .legend,
+  .legendCompact,
   .root input[aria-invalid="true"],
   .root textarea[aria-invalid="true"] {
     animation: none;

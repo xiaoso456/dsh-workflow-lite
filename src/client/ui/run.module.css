@@ -125,6 +125,11 @@
   padding-block: 7px;
 }
 
+/* 选中的实例底下是滑块（ListThumb），悬停的亮层不叠上去。 */
+.item[aria-current="true"]::before {
+  display: none;
+}
+
 .rowMain {
   display: flex;
   flex-direction: column;

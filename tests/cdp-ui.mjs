@@ -666,12 +666,6 @@ async function run(session) {
       doc.settings?.setGoal === false,
     '工作流设置',
   )
-  check(
-    await session.evaluate(
-      `document.querySelector('[data-testid="wl-settings-open"]').getAttribute('data-configured') === 'true'`,
-    ),
-    '改过设置后顶栏按钮应挂上小点',
-  )
   // 资源里的文件：编辑框里预览拼好的最终路径（有步骤写它 = 放在产出根目录下）。
   await mouseClick(session, await centerOf(session, '.react-flow__node[data-id="res-changes"]'))
   await openFirstItem(session)
@@ -723,6 +717,34 @@ async function run(session) {
   )
   await sleep(300)
   await screenshot(session, 'ui-02h-handoff-card.png')
+  // 卡片上「编辑交接」：说明就地变成输入框（钉住卡片），边打边落盘；Esc 收起。点卡片不会把线选中、右栏也不变。
+  await mouseClick(session, await centerOf(session, '[data-testid="wl-handoff-card-edit"]'))
+  await waitFor(session, exists('wl-handoff-card-note'))
+  check(
+    (await session.evaluate(`document.activeElement?.getAttribute('data-testid')`)) ===
+      'wl-handoff-card-note',
+    '进入编辑后焦点应在卡片里的输入框',
+  )
+  await session.send('Input.insertText', { text: '追加' })
+  await onDisk(
+    NAME,
+    (doc) =>
+      doc.edges.find((edge) => edge.id === 'implement->step')?.data?.handoff?.note ===
+      `${NOTE}追加`,
+    '卡片里就地改的交接说明',
+  )
+  // 全选后改回原来的说明。
+  await session.evaluate(`document.activeElement.select()`)
+  await session.send('Input.insertText', { text: NOTE })
+  await onDisk(
+    NAME,
+    (doc) => doc.edges.find((edge) => edge.id === 'implement->step')?.data?.handoff?.note === NOTE,
+    '删回原来的说明',
+  )
+  await pressKey(session, 'Escape')
+  await waitFor(session, `document.querySelector('[data-testid="wl-handoff-card"]') === null`)
+  check(await session.evaluate(exists('wl-handoff')), '在卡片里编辑不该把右栏收掉')
+  pass('线上交接卡片：就地编辑、边打边存、Esc 收起')
   await mouseMove(session, {
     x: Math.round(canvasBox.x + 40),
     y: Math.round(canvasBox.y + canvasBox.h - 40),
@@ -1206,6 +1228,24 @@ async function run(session) {
     session,
     `document.querySelector('[data-testid="wl-switcher"]').textContent.trim() === ${JSON.stringify(RENAMED)}`,
   )
+  // 选中行底下是滑块、贴着选中的那一行；点「从磁盘重新加载」下拉也不收，图标与字换一下作反馈。
+  await sleep(500)
+  const thumbGap = await session.evaluate(`(() => {
+    const row = document.querySelector('[data-testid="wl-wf-item"][aria-current="true"]').parentElement.getBoundingClientRect();
+    const thumb = document.querySelector('[data-testid="wl-list-thumb"]').getBoundingClientRect();
+    return [thumb.top - row.top, thumb.height - row.height].map(Math.round);
+  })()`)
+  check(
+    thumbGap.every((value) => Math.abs(value) <= 1),
+    `滑块应贴着选中行：${thumbGap}`,
+  )
+  await mouseClick(session, await centerOf(session, '[data-testid="wl-reload"]'))
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-reload"]')?.innerText.includes('已重新加载')`,
+  )
+  check(await session.evaluate(exists('wl-wf-item')), '点重新加载后下拉应先留着')
+  pass('下拉：选中滑块贴行，重新加载不收面板、有反馈')
   await mouseMove(session, { x: 700, y: 520 })
   await waitFor(session, `document.querySelector('[data-testid="wl-wf-item"]') === null`)
   await rpc('graph/delete', { name: THIRD }).catch(() => {})

@@ -103,7 +103,10 @@ async function run(session) {
   await writeGraph(OTHER, [stepNode('b', '别的', 0)])
   await bootToCanvas(session, NAME)
 
-  // 1) 打开版本对话框：还没有版本，说现在的内容没存过。
+  const pendingDot = `document.querySelector('[data-testid="wl-versions-open"]').dataset.pending`
+
+  // 1) 打开版本对话框：还没有版本，说现在的内容没存过；版本图标挂着黄点。
+  await waitFor(session, `${pendingDot.trim()} === 'true'`)
   await session.evaluate(clickTestId('wl-versions-open'))
   await waitFor(session, exists('wl-versions-dialog'))
   await waitFor(session, exists('wl-ver-state'))
@@ -124,12 +127,17 @@ async function run(session) {
   check((await session.evaluate(textOf('wl-ver-state'))).includes('v1'), '状态应说就是 v1')
   pass('存为版本 v1（带说明），内容没变时不能再存')
 
-  // 3) 关掉对话框，图在别处被改了（多一步 c）→ 画布自动同步。
+  // 2a) 关掉对话框后黄点退下；图改了（多一步）、存盘之后又亮起来。
   await pressKey(session, 'Escape')
   await waitFor(session, gone('wl-versions-dialog'))
+  await waitFor(session, `${pendingDot.trim()} === 'false'`)
+  pass('存成版本后，版本图标的黄点退下')
+
+  // 3) 图在别处被改了（多一步 c）→ 画布自动同步，黄点又亮起来。
   await writeGraph(NAME, [stepNode('a', '第一步', 0), stepNode('c', '新加的', 320)])
   await session.evaluate(`window.dispatchEvent(new Event('focus'))`)
   await waitFor(session, `document.querySelector('.react-flow__node[data-id="c"]') !== null`)
+  await waitFor(session, `${pendingDot.trim()} === 'true'`)
 
   // 4) 再打开：现在的内容没存过；展开 v1，看到「切到这一版会删掉 c」。
   await session.evaluate(clickTestId('wl-versions-open'))

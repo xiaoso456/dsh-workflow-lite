@@ -40,12 +40,11 @@ export function WorkflowRow(props: WorkflowRowProps): React.JSX.Element {
   const name = entry.name
   if (props.editing) return <RenameRow {...props} />
   return (
-    <div className={css.row} data-busy={props.busy}>
+    <div className={css.row} data-busy={props.busy} data-selected={props.active}>
       <button
         type="button"
         className={cx(ui.menuItem, css.rowMain)}
         aria-current={props.active ? 'true' : undefined}
-        data-active={props.active}
         data-testid="wl-wf-item"
         data-value={name}
         onClick={props.onOpen}
@@ -114,7 +113,7 @@ function RenameRow(props: WorkflowRowProps): React.JSX.Element {
   }
 
   return (
-    <div className={css.rowEditing}>
+    <div className={css.rowEditing} data-selected={props.active}>
       <Icon name={entry.invalid === true ? 'alert' : 'folder'} size={15} />
       <input
         ref={ref}

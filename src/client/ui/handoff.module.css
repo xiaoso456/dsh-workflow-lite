@@ -572,12 +572,80 @@ label.resultRow::after {
   white-space: nowrap;
 }
 
+/* 说明本身也是个按钮：点一下就进入编辑。 */
+.cardNote {
+  display: block;
+  width: calc(100% - 4px);
+  border-top: 0;
+  border-right: 0;
+  border-bottom: 0;
+  font: inherit;
+  font-size: var(--wl-fs-micro);
+  text-align: left;
+  cursor: text;
+}
+
+.cardNote:hover {
+  background: var(--wl-hover);
+}
+
+.cardInput {
+  display: block;
+  width: calc(100% - 4px);
+  margin: 0 2px;
+  resize: vertical;
+  font-size: var(--wl-fs-micro);
+  line-height: 1.6;
+}
+
 .cardFoot {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
   margin: 6px 4px 0;
   padding-top: 6px;
   border-top: 1px solid var(--wl-line);
   color: var(--wl-text-3);
   font-size: var(--wl-fs-micro);
+}
+
+.cardHint {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cardAction {
+  display: inline-flex;
+  flex: none;
+  gap: 4px;
+  align-items: center;
+  padding: 3px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+  font: inherit;
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cardAction:hover {
+  background: var(--wl-hover);
+}
+
+.cardAction:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+.cardActionQuiet {
+  background: transparent;
+  color: var(--wl-text-3);
+  font-weight: 500;
 }
 
 @media (prefers-reduced-motion: reduce) {

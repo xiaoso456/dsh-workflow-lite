@@ -36,6 +36,8 @@ export interface TopSlots {
 export const NO_SLOTS: TopSlots = { trigger: null, left: null, right: null }
 
 export interface TopBarProps {
+  /** 现在的内容还没存成版本（磁盘上的和任何一版都不一样，或还有没写下去的改动）：版本图标挂黄点。 */
+  versionsPending: boolean
   /** 正在看的实例；`null` = 模板编辑。顶栏同一个、不卸载，只换里面的内容。 */
   runId: string | null
   /** 实例视图的三个位置的回调 ref。 */
@@ -58,6 +60,8 @@ export interface TopBarProps {
   onOpenHub(): void
   onOpenWorkflow(name: string): void
   onNewWorkflow(): void
+  /** 实例视图里「从磁盘重新加载」。 */
+  onReloadRun(): void
 }
 
 type SaveTone = 'loading' | 'saving' | 'error' | 'dirty' | 'saved'
@@ -137,6 +141,7 @@ export function TopBar(props: TopBarProps): React.JSX.Element {
           onOpenRun={props.onOpenRun}
           onOpenWorkflow={props.onOpenWorkflow}
           onNewWorkflow={props.onNewWorkflow}
+          onReloadRun={props.onReloadRun}
           {...(props.runId === null
             ? {}
             : {
@@ -215,8 +220,12 @@ export function TopBar(props: TopBarProps): React.JSX.Element {
             </button>
             <button
               type="button"
-              className={cx(ui.btn, ui.icon)}
-              data-tip={t('ver.title')}
+              className={cx(ui.btn, ui.icon, css.versions)}
+              data-tip={
+                props.versionsPending ? `${t('ver.title')} · ${t('ver.pending')}` : t('ver.title')
+              }
+              // 现在的内容还没存成版本时右上角挂一个黄点。
+              data-pending={props.versionsPending}
               aria-label={t('ver.title')}
               data-testid="wl-versions-open"
               onClick={props.onVersions}
@@ -225,12 +234,10 @@ export function TopBar(props: TopBarProps): React.JSX.Element {
             </button>
             <button
               type="button"
-              className={cx(ui.btn, ui.icon, css.settings)}
+              className={cx(ui.btn, ui.icon)}
               data-tip={t('tool.settings')}
               aria-label={t('tool.settings')}
               data-testid="wl-settings-open"
-              // 改过设置（不是全缺省）时右上角挂一个小点：一眼看出这张图有自己的配置。
-              data-configured={view.doc?.settings !== undefined}
               onClick={props.onSettings}
             >
               <Icon name="sliders" size={16} />

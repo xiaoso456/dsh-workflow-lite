@@ -14,7 +14,7 @@ import type { Workflow } from '../app/useWorkflow.ts'
 import type { T } from '../i18n.ts'
 import { useConfirm } from './Confirm.tsx'
 import { Icon } from './Icon.tsx'
-import { SwapText } from './motion.tsx'
+import { ListThumb, SwapIcon, SwapText } from './motion.tsx'
 import { cx, Popover } from './primitives.tsx'
 import { RunMenuSection } from './RunTopBar.tsx'
 import run from './run.module.css'
@@ -32,6 +32,8 @@ export interface WorkflowSwitcherProps {
   onOpenWorkflow(name: string): void
   /** 新建一张工作流（并进入编辑）。 */
   onNewWorkflow(): void
+  /** 实例视图里「从磁盘重新加载」：重读这个实例（模板编辑里重读正开着的这张，用 `wf.reload`）。 */
+  onReloadRun(): void
   /** 在实例视图里用：正在看的实例，与触发器里的内容；不给 = 模板编辑（触发器是工作流名字）。 */
   run?: { id: string; trigger(open: boolean): React.ReactNode }
 }
@@ -53,6 +55,10 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
   const remove = useConfirm<HTMLButtonElement>()
   /** 用鼠标点开了一张：下拉先不收，让人看到「已切过去」，鼠标移出去再收。 */
   const [lingering, setLingering] = useState(false)
+  /** 刚点过「从磁盘重新加载」：图标换成对勾、字换成「已重新加载」，一会儿换回来（同实例顶栏的「复制路径」）。 */
+  const [reloaded, setReloaded] = useState(false)
+  const reloadedTimer = useRef(0)
+  useEffect(() => () => window.clearTimeout(reloadedTimer.current), [])
 
   // 刚建好的工作流：直接进入改名，名字全选，敲字即覆盖。
   useEffect(() => {
@@ -87,17 +93,6 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
   }, [workflows, query])
   const doomedEntry = workflows.find((entry) => entry.name === doomed)
 
-  if (renaming && !inRun && state.name !== null) {
-    return (
-      <NameInput
-        t={t}
-        name={state.name}
-        onCommit={(value) => wf.rename(state.name ?? '', value)}
-        onDone={() => setRenaming(false)}
-      />
-    )
-  }
-
   return (
     <Popover
       open={open}
@@ -109,40 +104,49 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
       label={t('wf.pick')}
       className={css.menu}
       trigger={
-        <button
-          type="button"
-          className={cx(css.switch, inRun && run.switchButton)}
-          aria-expanded={open}
-          aria-haspopup="dialog"
-          data-testid={inRun ? 'wl-run-switcher' : 'wl-switcher'}
-          onClick={() => {
-            if (open) {
+        renaming && !inRun && state.name !== null ? (
+          <NameInput
+            t={t}
+            name={state.name}
+            onCommit={(value) => wf.rename(state.name ?? '', value)}
+            onDone={() => setRenaming(false)}
+          />
+        ) : (
+          <button
+            type="button"
+            className={cx(css.switch, inRun && run.switchButton)}
+            aria-expanded={open}
+            aria-haspopup="dialog"
+            data-testid={inRun ? 'wl-run-switcher' : 'wl-switcher'}
+            onClick={() => {
+              if (open) {
+                close()
+                return
+              }
+              setOpen(true)
+              void wf.refreshCatalog()
+              void props.runs.refresh()
+            }}
+            onDoubleClick={() => {
+              if (inRun || state.name === null) return
               close()
-              return
-            }
-            setOpen(true)
-            void wf.refreshCatalog()
-            void props.runs.refresh()
-          }}
-          onDoubleClick={() => {
-            if (inRun || state.name === null) return
-            close()
-            setRenaming(true)
-          }}
-        >
-          {props.run !== undefined ? (
-            props.run.trigger(open)
-          ) : (
-            <>
-              <span className={css.name}>
-                <SwapText text={state.name ?? t('wf.pick')} />
-              </span>
-              <span className={css.chev} data-glide="">
-                <Icon name="chevronDown" size={14} />
-              </span>
-            </>
-          )}
-        </button>
+              setRenaming(true)
+            }}
+          >
+            {props.run !== undefined ? (
+              props.run.trigger(open)
+            ) : (
+              <>
+                <span className={css.name}>
+                  <SwapText text={state.name ?? t('wf.pick')} />
+                </span>
+                <span className={css.chev} data-glide="">
+                  <Icon name="chevronDown" size={14} />
+                </span>
+              </>
+            )}
+          </button>
+        )
       }
     >
       <RunMenuSection
@@ -176,6 +180,7 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
         </div>
       )}
       <div className={cx(css.list, ui.stagger)}>
+        <ListThumb layout={`${current ?? ''}|${filtered.map((entry) => entry.name).join('\n')}`} />
         {filtered.length === 0 && workflows.length > 0 && (
           <p className={css.emptyLine}>{t('wf.none')}</p>
         )}
@@ -224,26 +229,35 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
         })}
 
       <div className={ui.menuSep} />
-      {!inRun && state.name !== null && (
+      {(inRun || state.name !== null) && (
         <button
           type="button"
           className={ui.menuItem}
           data-testid="wl-reload"
-          onClick={() => {
-            close()
-            wf.reload()
+          onClick={(event) => {
+            choose(event)
+            if (inRun) props.onReloadRun()
+            else wf.reload()
+            setReloaded(true)
+            window.clearTimeout(reloadedTimer.current)
+            reloadedTimer.current = window.setTimeout(() => setReloaded(false), 1400)
           }}
         >
-          <Icon name="reload" size={15} />
-          <span className={ui.menuLabel}>{t('wf.reload')}</span>
+          <SwapIcon name={reloaded ? 'check' : 'reload'} size={15} />
+          <span className={ui.menuLabel}>
+            <SwapText
+              text={reloaded ? t('wf.reloaded') : t('wf.reload')}
+              reserve={[t('wf.reloaded'), t('wf.reload')]}
+            />
+          </span>
         </button>
       )}
       <button
         type="button"
         className={ui.menuItem}
         data-testid="wl-new"
-        onClick={() => {
-          close()
+        onClick={(event) => {
+          choose(event)
           props.onNewWorkflow()
         }}
       >

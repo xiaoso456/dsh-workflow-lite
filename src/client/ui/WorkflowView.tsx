@@ -23,7 +23,7 @@ import { useThemeChoice } from '../app/theme.ts'
 import { useRuns } from '../app/useRuns.ts'
 import { useWorkflow, type Workflow } from '../app/useWorkflow.ts'
 import type { LocaleKey, NS, T } from '../i18n.ts'
-import { findNode, type Selection } from '../model/editor.ts'
+import { findNode, isDirty, type Selection } from '../model/editor.ts'
 import { freeSpot, NODE_H, NODE_W, tidy } from '../model/layout.ts'
 import { type LibraryFocus, type StepSource, starterGraph } from '../model/library.ts'
 import { themeStyle } from '../model/themes.ts'
@@ -158,6 +158,23 @@ function Shell(props: {
   const [runId, setRunId] = useState<string | null>(null)
   const [hubOpen, setHubOpen] = useState(false)
   const [versionsOpen, setVersionsOpen] = useState(false)
+  /** 磁盘上现在的内容和某一版一样吗；`null` = 不知道（没打开图、还在读）。存盘后、版本对话框开关后重新问一次。 */
+  const [matchesVersion, setMatchesVersion] = useState<boolean | null>(null)
+  const versionsName = state.phase === 'ready' ? state.name : null
+  useEffect(() => {
+    if (versionsName === null) {
+      setMatchesVersion(null)
+      return
+    }
+    let live = true
+    props.rpc.call('graph/versions', { name: versionsName }).then(
+      (result) => live && setMatchesVersion(result.versions.some((entry) => entry.current)),
+      () => live && setMatchesVersion(null),
+    )
+    return () => {
+      live = false
+    }
+  }, [props.rpc, versionsName, state.baseHash, versionsOpen])
   /** 本会话刚出现的新实例（模型编译了一次）：模板编辑时顶部提示一下。 */
   const [freshRun, setFreshRun] = useState<string | null>(null)
   const seenCurrent = useRef<string | undefined | null>(null)
@@ -191,6 +208,8 @@ function Shell(props: {
     },
     [state.name, wf],
   )
+  /** 实例视图把「重新读这个实例」挂在这里（顶栏的下拉里「从磁盘重新加载」要用）。 */
+  const reloadRun = useRef<(() => void) | null>(null)
   // 共用顶栏留给实例视图填的三个位置。
   const [slots, setSlots] = useState<TopSlots>(NO_SLOTS)
   const slotRefs = useMemo(
@@ -736,6 +755,7 @@ function Shell(props: {
               onOpenRun={openRun}
               onOpenTemplate={openTemplate}
               slots={slots}
+              reloadRef={reloadRun}
               onOpenHub={() => setHubOpen(true)}
               {...(props.desktop === undefined ? {} : { desktop: props.desktop })}
             />
@@ -755,6 +775,7 @@ function Shell(props: {
                   problems={state.problems}
                   insets={insets}
                   onEdit={wf.edit}
+                  onSeal={wf.seal}
                   onSelect={select}
                   onRequestAdd={requestAdd}
                   onDropSource={(source, at) => void addStep(source, at)}
@@ -1019,6 +1040,7 @@ function Shell(props: {
             t={t}
             runId={runId}
             slotRefs={slotRefs}
+            versionsPending={matchesVersion !== null && (!matchesVersion || isDirty(state))}
             wf={wf}
             libraryOpen={libraryOpen}
             onToggleLibrary={toggleLibrary}
@@ -1040,6 +1062,7 @@ function Shell(props: {
             onOpenHub={() => setHubOpen(true)}
             onOpenWorkflow={openTemplate}
             onNewWorkflow={newWorkflow}
+            onReloadRun={() => reloadRun.current?.()}
           />
         </div>
       </ModalHostProvider>

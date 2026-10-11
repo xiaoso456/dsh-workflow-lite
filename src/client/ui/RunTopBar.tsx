@@ -21,7 +21,7 @@ import type { LocaleKey, T } from '../i18n.ts'
 import { shortTime } from '../model/time.ts'
 import { Icon } from './Icon.tsx'
 import { Issues } from './Issues.tsx'
-import { FadeMark, SwapIcon, SwapText } from './motion.tsx'
+import { FadeMark, ListThumb, SwapIcon, SwapText } from './motion.tsx'
 import { copyText, cx } from './primitives.tsx'
 import type { RunViewProps } from './RunView.tsx'
 import run from './run.module.css'
@@ -265,12 +265,15 @@ export function RunMenuSection(props: {
     <>
       <p className={ui.menuTitle}>{t('run.thisSession')}</p>
       <div className={top.list} data-testid="wl-run-list">
+        <ListThumb
+          layout={`${props.activeId ?? ''}|${runs.list.map((item) => item.id).join('\n')}`}
+        />
         {runs.list.map((item) => (
-          <div key={item.id} className={run.row}>
+          <div key={item.id} className={run.row} data-selected={item.id === props.activeId}>
             <button
               type="button"
               className={cx(ui.menuItem, run.item)}
-              data-active={item.id === props.activeId}
+              aria-current={item.id === props.activeId ? 'true' : undefined}
               data-testid="wl-run-item"
               data-id={item.id}
               style={{ gridColumn: '1 / 3' }}

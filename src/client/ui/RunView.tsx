@@ -113,6 +113,8 @@ export interface RunViewProps {
   onOpenHub(): void
   /** 共用顶栏（`TopBar`）留给实例视图填的位置。 */
   slots: TopSlots
+  /** 把「重新读这个实例」交给顶栏下拉里的「从磁盘重新加载」。 */
+  reloadRef: React.MutableRefObject<(() => void) | null>
   /** 用系统程序打开产出文件；宿主没有桌面能力时不给。 */
   desktop?: Desktop
 }
@@ -149,6 +151,13 @@ export function RunView(props: RunViewProps): React.JSX.Element {
   useViewGhost(canvasRef)
   const current = useRun(props.rpc, id, props.session, t, () => void props.runs.refresh())
   const summary = current.view?.summary
+  const reloadNow = current.reload
+  useEffect(() => {
+    props.reloadRef.current = () => void reloadNow()
+    return () => {
+      props.reloadRef.current = null
+    }
+  }, [props.reloadRef, reloadNow])
   const raw = useSnapshot(id, current.view?.document, summary?.planId)
   // 快照里没摆过位置的节点（模型用工具建的图、还没在画布上打开过）：照模板那边的规矩补位。
   const [placed, setPlaced] = useState<{
@@ -575,6 +584,7 @@ export function RunView(props: RunViewProps): React.JSX.Element {
             problems={graph.report}
             insets={insets}
             onEdit={edit}
+            onSeal={graph.seal}
             onSelect={(next) => {
               // 点中东西：右栏打开看它；点空白处：右栏收起（和模板一样）。
               setFocusPrompt(false)

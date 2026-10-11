@@ -37,7 +37,9 @@ export const zh = {
   'wf.deleteOpen': '编辑页正开着它，删掉后编辑页会空出来。',
   'wf.deleteTitle': '删除工作流「{name}」？',
   'wf.reload': '从磁盘重新加载',
+  'wf.reloaded': '已重新加载',
   'ver.title': '版本',
+  'ver.pending': '现在的内容还没存成版本',
   'ver.notePlaceholder': '这一版改了什么（可选）',
   'ver.save': '存为版本',
   'ver.sameAs': '现在的内容就是 v{n}',
@@ -347,7 +349,10 @@ export const zh = {
   'hand.notePlaceholder':
     '例如：按 review.md 逐条修复；修好的在对应条目前打钩 [x]，修不了的写明原因。',
   'hand.noteHint': '写进派发计划，下游拿到执行结果时一起看到。',
-  'hand.editHint': '点击编辑交接',
+  'hand.edit': '编辑交接',
+  'hand.editDone': '完成',
+  'hand.editHint': 'Esc 或点空白处完成',
+  'hand.openPanel': '在右栏打开',
   'hand.tipWhat':
     '执行结果是上游这一次运行的回复（结论与要点），沿步骤之间的线交给下游；缺省就交。',
   'hand.tipFiles':
@@ -1026,7 +1031,9 @@ export const en: Record<LocaleKey, string> = {
   'wf.deleteOpen': 'It is open in the editor, which will be left empty. ',
   'wf.deleteTitle': 'Delete workflow "{name}"?',
   'wf.reload': 'Reload from disk',
+  'wf.reloaded': 'Reloaded',
   'ver.title': 'Versions',
+  'ver.pending': 'The current content is not saved as a version yet',
   'ver.notePlaceholder': 'What changed in this version (optional)',
   'ver.save': 'Save version',
   'ver.sameAs': 'Current content is v{n}',
@@ -1352,7 +1359,10 @@ export const en: Record<LocaleKey, string> = {
   'hand.notePlaceholder':
     'e.g. Fix review.md item by item; tick [x] each fixed item and explain the ones you could not fix.',
   'hand.noteHint': 'Goes into the dispatch plan; the downstream step sees it with the result.',
-  'hand.editHint': 'Click to edit the handoff',
+  'hand.edit': 'Edit handoff',
+  'hand.editDone': 'Done',
+  'hand.editHint': 'Esc or click away to finish',
+  'hand.openPanel': 'Open in side panel',
   'hand.tipWhat':
     "The result is the upstream step's reply for this run (conclusions and key points), passed along step-to-step lines; it is passed by default.",
   'hand.tipFiles':

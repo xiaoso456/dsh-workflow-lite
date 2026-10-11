@@ -212,6 +212,7 @@
 }
 
 .list {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 1px;
@@ -262,7 +263,12 @@
 }
 
 /* 指针移到右端的按钮上，整行还是亮着的（悬停底色是 ui.menuItem 的 ::before，渐显）。 */
-.row:hover .rowMain:not([data-active="true"])::before {
+/* 选中的那一行底下是滑块（ListThumb），悬停的亮层不叠上去（叠上去会发白）。 */
+.rowMain[aria-current="true"]::before {
+  display: none;
+}
+
+.row:hover .rowMain:not([aria-current="true"])::before {
   opacity: 1;
 }
 
@@ -640,19 +646,19 @@
   }
 }
 
-/* 工作流设置：改过设置时右上角一个小点。 */
-.settings {
+/* 版本：现在的内容还没存成版本时，按钮右上角一个黄点（淡入淡出、略缩放，只动 transform / opacity）。 */
+.versions {
   position: relative;
 }
 
-.settings::before {
+.versions::before {
   position: absolute;
   top: 6px;
   right: 6px;
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--wl-accent);
+  background: var(--wl-warn);
   content: "";
   opacity: 0;
   transform: scale(0.4);
@@ -661,13 +667,13 @@
     transform 180ms var(--wl-ease);
 }
 
-.settings[data-configured="true"]::before {
+.versions[data-pending="true"]::before {
   opacity: 1;
   transform: scale(1);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .settings::before {
+  .versions::before {
     transition: none;
   }
 }
