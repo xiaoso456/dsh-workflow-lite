@@ -17,6 +17,7 @@ import {
   presetData,
   type StepSource,
 } from '../model/library.ts'
+import { copyTitle, takenLabels } from '../model/nodeName.ts'
 import { freeFilePath } from '../ui/resourceUi.ts'
 
 export interface AddContext {
@@ -101,12 +102,27 @@ export function addOrigin(
   return isResource(node) ? 'resource' : 'step'
 }
 
-/** 复制一个节点的改动（落在原处右下方一点）；节点不在就是 `null`。 */
-export function duplicateEdit(doc: WorkflowDocument | null, id: string): Edit | null {
+/**
+ * 复制一个节点的改动（落在原处右下方一点）；节点不在就是 `null`。
+ * 给了 `suffix`（「副本」），写了名字的步骤与资源在名字后面接上它，免得两张卡一模一样分不出谁是新的。
+ * 输入节点的名字是发给模型的问题，原样复制。
+ */
+export function duplicateEdit(
+  doc: WorkflowDocument | null,
+  id: string,
+  suffix?: string,
+): Edit | null {
   const node = doc === null ? undefined : findNode(doc, id)
-  if (node === undefined) return null
+  if (doc === null || node === undefined) return null
   const position = { x: node.position.x + 32, y: node.position.y + 32 }
-  if (isResource(node)) return { type: 'addResource', data: node.data, position, select: true }
+  const renamed = <D extends { label?: string }>(data: D): D => {
+    const label = data.label?.trim()
+    if (suffix === undefined || label === undefined || label === '') return data
+    return { ...data, label: copyTitle(label, suffix, takenLabels(doc)) }
+  }
+  if (isResource(node)) {
+    return { type: 'addResource', data: renamed(node.data), position, select: true }
+  }
   if (isInput(node)) return { type: 'addInput', id: node.id, data: node.data, position }
-  return { type: 'addNode', id: node.id, data: { ...node.data }, position }
+  return { type: 'addNode', id: node.id, data: renamed({ ...node.data }), position }
 }

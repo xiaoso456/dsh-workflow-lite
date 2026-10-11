@@ -40,6 +40,8 @@ import type {
 import { addFromSource, addOrigin, duplicateEdit } from '../app/addStep.ts'
 import type { Desktop } from '../app/desktop.ts'
 import { createHostAccess, type HostAccess } from '../app/host.ts'
+import { revealNode } from '../app/reveal.ts'
+import { useArrival } from '../app/useArrival.ts'
 import type { FileTarget } from '../app/useRunFile.ts'
 import { useRunGraph } from '../app/useRunGraph.ts'
 import { useRunHistory } from '../app/useRunHistory.ts'
@@ -49,6 +51,7 @@ import { type Edit, findNode } from '../model/editor.ts'
 import { fileBaseName } from '../model/fileKind.ts'
 import { NODE_H, NODE_W, placeMissing, tidy } from '../model/layout.ts'
 import type { StepSource } from '../model/library.ts'
+import { nodeTitle } from '../model/nodeName.ts'
 import {
   changeCount,
   downstreamOf,
@@ -70,7 +73,7 @@ import { FileViewer } from './FileViewer.tsx'
 import { Icon } from './Icon.tsx'
 import { edgeSwap, Inspector } from './Inspector.tsx'
 import css from './inspector.module.css'
-import { ExitSeat, useSwap, useViewGhost } from './motion.tsx'
+import { ExitSeat, SWITCH_HOLD_MS, useSwap, useSwapHold, useViewGhost } from './motion.tsx'
 import { EdgeHead, InputHead, OverviewHead, ResourceHead, StepHead } from './NodeHeads.tsx'
 import { cx } from './primitives.tsx'
 import { QuickAdd } from './QuickAdd.tsx'
@@ -203,6 +206,13 @@ export function RunView(props: RunViewProps): React.JSX.Element {
   const doc = graph.doc
   const selection = graph.selection
   const analysis = useMemo(() => (doc === null ? null : analyzeGraph(doc)), [doc])
+  // 切换实例：新的这份还没读回来时，旧图压暗留着（点不了），到了再换——不卸载重建，画布不闪。
+  const swap = useSwapHold(
+    doc !== null && analysis !== null ? { key: `run:${id}`, doc, analysis } : null,
+    doc === null && current.error === null,
+    SWITCH_HOLD_MS,
+  )
+  const held = swap.view
   const facts = useMemo(() => (doc === null ? null : graphFacts(doc)), [doc])
   /** 叠上草稿、再和改过的图对齐之后的状态：新步骤是待执行，删掉的步骤不在了。 */
   const shown = useMemo(
@@ -392,22 +402,47 @@ export function RunView(props: RunViewProps): React.JSX.Element {
       bounds: { width: rect.width, height: rect.height },
     })
   }, [])
+  /** 复制之后右栏盖住了新节点，就把画布挪一点（右栏随加东西自动打开）。 */
+  const armArrival = useArrival(selection?.kind === 'node' ? selection.id : null, (nodeId) =>
+    revealNode({
+      flow,
+      root: canvasRef.current?.closest('[data-testid="wl-root"]') ?? null,
+      id: nodeId,
+      narrow,
+      panelW: inspectorW,
+      leftInset: 0,
+      gap: GAP,
+    }),
+  )
   const duplicate = useCallback(
     (nodeId: string): void => {
-      const next = duplicateEdit(doc, nodeId)
-      if (next !== null) edit(next)
+      const original = doc === null ? undefined : findNode(doc, nodeId)
+      const next = duplicateEdit(doc, nodeId, t('node.copySuffix'))
+      if (original === undefined || next === null) return
+      armArrival()
+      edit(next)
+      current.flash('ok', t('node.copied').replace('{name}', nodeTitle(original)))
     },
-    [doc, edit],
+    [doc, edit, t, armArrival, current.flash],
+  )
+  /** 删一个节点：删完点名告诉一声，并提示能撤销。执行过的步骤不让删，那边自己会报错，这里不再覆盖它。 */
+  const removeNode = useCallback(
+    (nodeId: string): void => {
+      const node = doc === null ? undefined : findNode(doc, nodeId)
+      const blocked = locked(nodeId)
+      edit({ type: 'removeNode', id: nodeId })
+      if (node !== undefined && !blocked) {
+        current.flash('ok', t('node.removed').replace('{name}', nodeTitle(node)))
+      }
+    },
+    [doc, edit, locked, t, current.flash],
   )
   const removeSelection = useCallback((): void => {
     if (selection === null) return
-    edit(
-      selection.kind === 'node'
-        ? { type: 'removeNode', id: selection.id }
-        : { type: 'removeEdge', id: selection.id },
-    )
+    if (selection.kind === 'node') removeNode(selection.id)
+    else edit({ type: 'removeEdge', id: selection.id })
     focusCanvas()
-  }, [selection, edit, focusCanvas])
+  }, [selection, edit, removeNode, focusCanvas])
   const relayout = useCallback((): void => {
     if (doc === null || analysis === null || doc.nodes.length === 0) return
     const sizeOf = (nodeId: string): { width: number; height: number } | undefined => {
@@ -572,16 +607,18 @@ export function RunView(props: RunViewProps): React.JSX.Element {
       <div
         className={shell.canvas}
         ref={canvasRef}
-        data-hidden={doc === null || analysis === null || undefined}
+        data-hidden={held === null || undefined}
+        data-dim={swap.dim || undefined}
+        {...(swap.dim ? { inert: '' } : {})}
       >
-        {doc !== null && analysis !== null && (
+        {held !== null && (
           <Canvas
             t={t}
-            doc={doc}
-            analysis={analysis}
-            loadKey={`run:${id}`}
-            selection={selection}
-            problems={graph.report}
+            doc={held.doc}
+            analysis={held.analysis}
+            loadKey={held.key}
+            selection={swap.dim ? null : selection}
+            problems={swap.dim ? [] : graph.report}
             insets={insets}
             onEdit={edit}
             onSeal={graph.seal}
@@ -597,7 +634,7 @@ export function RunView(props: RunViewProps): React.JSX.Element {
             onStarter={() => {}}
             focusFile={focusFile}
             onFocusFile={setFocusFile}
-            {...(decor === undefined ? {} : { run: decor })}
+            {...(decor === undefined || swap.dim ? {} : { run: decor })}
           />
         )}
       </div>
@@ -640,7 +677,7 @@ export function RunView(props: RunViewProps): React.JSX.Element {
               onSeal={graph.seal}
               onDuplicate={duplicate}
               onRemoveNode={(nodeId) => {
-                edit({ type: 'removeNode', id: nodeId })
+                removeNode(nodeId)
                 focusCanvas()
               }}
               onSaveTemplate={props.onSaveTemplate}

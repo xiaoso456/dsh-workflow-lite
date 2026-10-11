@@ -1188,6 +1188,9 @@ function vanish(node: Element, parent: Node, before: Node | null): void {
 // 切换工作流：旧图多留一会、顶栏左边的药丸展开收缩
 // ─────────────────────────────────────────────────────────────
 
+/** 切换时旧图至少压暗多久再换新的（和 shell.module.css 里压暗的过渡一致）。 */
+export const SWITCH_HOLD_MS = 170
+
 /**
  * 换一份内容（切换工作流）时，新的还没到、或到得太快，旧的先多留一会儿：
  * `live` 是当前该显示的东西（`key` 变了 = 换了一份）；`loading` 是正在换。

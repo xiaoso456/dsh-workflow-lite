@@ -371,7 +371,9 @@ export function useRun(
     return () => window.clearInterval(timer)
   }, [load])
 
-  const base = view?.state ?? lastGood
+  // 换实例的那一帧，上一个实例的视图还在 state 里（清理在渲染之后的 effect 里）：不认它，免得把别人的图与状态当成这个实例的。
+  const mine = view !== null && view.summary.id === id ? view : null
+  const base = mine === null ? null : (mine.state ?? lastGood)
 
   const setField = useCallback(
     (path: string[], to: StateEdit['to']): void => {
@@ -528,8 +530,8 @@ export function useRun(
   )
 
   return {
-    view,
-    lastGood,
+    view: mine,
+    lastGood: mine === null ? null : lastGood,
     shown,
     draft,
     conflicts,

@@ -247,6 +247,9 @@ export const zh = {
   'node.add': '添加下一步',
   'node.duplicate': '复制',
   'node.delete': '删除步骤',
+  'node.copySuffix': '副本',
+  'node.copied': '已复制「{name}」，已选中新的副本',
+  'node.removed': '已删除「{name}」，Ctrl+Z 可撤销',
   'node.saveTemplate': '存为我的步骤',
 
   // ── 属性面板：步骤 ──────────────────────────────────────────
@@ -1256,6 +1259,9 @@ export const en: Record<LocaleKey, string> = {
   'node.add': 'Add next step',
   'node.duplicate': 'Duplicate',
   'node.delete': 'Delete step',
+  'node.copySuffix': 'copy',
+  'node.copied': 'Duplicated “{name}” and selected the copy',
+  'node.removed': 'Deleted “{name}” · Ctrl+Z to undo',
   'node.saveTemplate': 'Save to my steps',
 
   'ins.name': 'Name',

@@ -18,6 +18,7 @@ import type { InputAnswer, NodeData, Point, WorkflowDocument } from '../../share
 import { addFromSource, addOrigin, duplicateEdit } from '../app/addStep.ts'
 import type { Desktop } from '../app/desktop.ts'
 import { createHostAccess } from '../app/host.ts'
+import { revealNode } from '../app/reveal.ts'
 import { type SessionBridge, useSessionRows } from '../app/sessions.ts'
 import { useThemeChoice } from '../app/theme.ts'
 import { useRuns } from '../app/useRuns.ts'
@@ -26,6 +27,7 @@ import type { LocaleKey, NS, T } from '../i18n.ts'
 import { findNode, isDirty, type Selection } from '../model/editor.ts'
 import { freeSpot, NODE_H, NODE_W, tidy } from '../model/layout.ts'
 import { type LibraryFocus, type StepSource, starterGraph } from '../model/library.ts'
+import { nodeTitle } from '../model/nodeName.ts'
 import { themeStyle } from '../model/themes.ts'
 import { errorMessage, type WorkflowLiteRpc } from '../rpc.ts'
 import { type AddRequest, Canvas } from './Canvas.tsx'
@@ -35,7 +37,7 @@ import { Icon } from './Icon.tsx'
 import { InputsDialog } from './InputsDialog.tsx'
 import { Inspector } from './Inspector.tsx'
 import { Library } from './Library.tsx'
-import { ExitSeat, useSwapHold, useViewGhost } from './motion.tsx'
+import { ExitSeat, SWITCH_HOLD_MS, useSwapHold, useViewGhost } from './motion.tsx'
 import { PlanDialog } from './PlanDialog.tsx'
 import { cx, ModalHostProvider } from './primitives.tsx'
 import { QuickAdd } from './QuickAdd.tsx'
@@ -138,8 +140,6 @@ export function WorkflowView(props: WorkflowViewProps): React.JSX.Element {
 
 /** 实例列表多久刷新一次（模型在会话里编译出新实例时，tab 里能看到提示）。 */
 const RUNS_REFRESH_MS = 8000
-/** 切换工作流时旧图至少压暗多久再换新的（和 shell.module.css 里压暗的过渡一致）。 */
-const SWITCH_HOLD_MS = 170
 
 function Shell(props: {
   rpc: WorkflowLiteRpc
@@ -472,34 +472,17 @@ function Shell(props: {
       revealed.current = null
       return
     }
-    const frame = requestAnimationFrame(() => {
-      const root = rootRef.current
-      const element = root?.querySelector(
-        `.react-flow__node[data-id="${CSS.escape(selectedNode)}"]`,
-      )
-      if (root === null || root === undefined || element === null || element === undefined) return
-      const box = root.getBoundingClientRect()
-      const card = element.getBoundingClientRect()
-      const viewport = flow.getViewport()
-      let dx = 0
-      let dy = 0
-      if (narrow) {
-        // 窄视图的属性面板是底部抽屉：往上挪。
-        const sheetTop = box.bottom - Math.min(box.height * 0.62, 460) - GAP
-        const overflow = card.bottom - sheetTop
-        const room = card.top - (box.top + 64)
-        if (overflow > 0 && room > 0) dy = Math.min(overflow + GAP, room)
-      } else {
-        const overflow = card.right - (box.right - inspectorW - GAP * 2)
-        const room = card.left - (box.left + insetsRef.current.left + GAP)
-        if (overflow > 0 && room > 0) dx = Math.min(overflow + GAP, room)
-      }
-      if (dx === 0 && dy === 0) return
-      void flow.setViewport(
-        { ...viewport, x: viewport.x - dx, y: viewport.y - dy },
-        { duration: 280 },
-      )
-    })
+    const frame = requestAnimationFrame(() =>
+      revealNode({
+        flow,
+        root: rootRef.current,
+        id: selectedNode,
+        narrow,
+        panelW: inspectorW,
+        leftInset: insetsRef.current.left,
+        gap: GAP,
+      }),
+    )
     return () => cancelAnimationFrame(frame)
   }, [selectedNode, narrow, flow, inspectorW])
 
@@ -553,23 +536,33 @@ function Shell(props: {
 
   const duplicate = useCallback(
     (id: string): void => {
-      const edit = duplicateEdit(state.doc, id)
-      if (edit !== null) wf.edit(edit)
+      const original = state.doc === null ? undefined : findNode(state.doc, id)
+      const edit = duplicateEdit(state.doc, id, t('node.copySuffix'))
+      if (original === undefined || edit === null) return
+      wf.edit(edit)
+      wf.notify(t('node.copied').replace('{name}', nodeTitle(original)))
     },
-    [state.doc, wf],
+    [state.doc, wf, t],
+  )
+
+  /** 删一个节点：删完点名告诉一声，并提示能撤销（画布上它会原地淡出）。 */
+  const removeNode = useCallback(
+    (id: string): void => {
+      const node = state.doc === null ? undefined : findNode(state.doc, id)
+      wf.edit({ type: 'removeNode', id })
+      if (node !== undefined) wf.notify(t('node.removed').replace('{name}', nodeTitle(node)))
+    },
+    [state.doc, wf, t],
   )
 
   const removeSelection = useCallback((): void => {
     const selection = state.selection
     if (selection === null) return
-    wf.edit(
-      selection.kind === 'node'
-        ? { type: 'removeNode', id: selection.id }
-        : { type: 'removeEdge', id: selection.id },
-    )
+    if (selection.kind === 'node') removeNode(selection.id)
+    else wf.edit({ type: 'removeEdge', id: selection.id })
     // 删掉的东西带走了焦点：收回画布，紧接着的 Ctrl+Z 才有人接。
     focusCanvas()
-  }, [state.selection, wf, focusCanvas])
+  }, [state.selection, wf, focusCanvas, removeNode])
 
   const select = useCallback(
     (selection: Selection): void => {
@@ -828,7 +821,7 @@ function Shell(props: {
                     onSeal={wf.seal}
                     onDuplicate={duplicate}
                     onRemoveNode={(id) => {
-                      wf.edit({ type: 'removeNode', id })
+                      removeNode(id)
                       focusCanvas()
                     }}
                     onSaveTemplate={wf.saveTemplate}
