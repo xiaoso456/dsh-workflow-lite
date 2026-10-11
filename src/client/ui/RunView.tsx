@@ -606,6 +606,7 @@ export function RunView(props: RunViewProps): React.JSX.Element {
         {...props}
         summary={summary}
         state={shown}
+        onSetStatus={(to) => current.setField(['status'], to)}
         nav={nav}
         onTogglePanel={() => {
           if (panelOpen) closePanel()

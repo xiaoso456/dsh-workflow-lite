@@ -16,12 +16,13 @@ import {
 } from '../../shared/runState.ts'
 import type { ValidationProblem } from '../../shared/types.ts'
 import type { RunHistory } from '../app/useRunHistory.ts'
-import type { Runs } from '../app/useRuns.ts'
 import type { LocaleKey, T } from '../i18n.ts'
 import { shortTime } from '../model/time.ts'
+import { Highlight } from './Highlight.tsx'
+import { HubRunStatus } from './HubRunStatus.tsx'
 import { Icon } from './Icon.tsx'
 import { Issues } from './Issues.tsx'
-import { FadeMark, ListThumb, SwapIcon, SwapText } from './motion.tsx'
+import { FadeMark, SwapIcon, SwapText } from './motion.tsx'
 import { copyText, cx } from './primitives.tsx'
 import type { RunViewProps } from './RunView.tsx'
 import run from './run.module.css'
@@ -94,6 +95,8 @@ export function RunTopBar(
   props: RunViewProps & {
     summary: InstanceSummary | undefined
     state: RunState | null
+    /** 顶栏上改整体状态：挑好就调用，和右栏「整体」那一排同一条路（改进草稿，底部草稿栏给反馈）。 */
+    onSetStatus(to: RunStatus): void
     /** 右栏开关右边「在看什么」的切换（顶栏最右）。 */
     nav: React.ReactNode
     onTogglePanel(): void
@@ -127,12 +130,21 @@ export function RunTopBar(
         summary !== undefined &&
         createPortal(
           <>
-            <RunStatusBadge
-              t={t}
-              status={state?.status}
-              problem={state === null ? summary.stateProblem : undefined}
-              untracked={summary.statePath === undefined}
-            />
+            {state !== null && summary.statePath !== undefined ? (
+              <HubRunStatus
+                t={t}
+                status={state.status}
+                confirm={false}
+                onChange={(to) => props.onSetStatus(to)}
+              />
+            ) : (
+              <RunStatusBadge
+                t={t}
+                status={state?.status}
+                problem={state === null ? summary.stateProblem : undefined}
+                untracked={summary.statePath === undefined}
+              />
+            )}
             {progress !== null && (
               <span className={run.progress} data-testid="wl-run-progress">
                 <SwapText pop text={`${progress.done}/${progress.total}`} />
@@ -252,78 +264,84 @@ export function RunTopBar(
   )
 }
 
-/** 下拉里「本会话的实例」那一段。没有实例就什么都不画。 */
-export function RunMenuSection(props: {
+/**
+ * 实例在下拉里的右端小字：创建时间、进度、状态（没有状态文件的写「未跟踪」）。
+ * 同名的实例很常见，时间是认它们的主要依据，所以放在行里，不放悬停提示。
+ */
+function runMeta(t: T, item: InstanceSummary): string {
+  return [
+    shortTime(item.createdAt),
+    item.total !== undefined ? `${item.done}/${item.total}` : '',
+    item.status !== undefined ? t(RUN_STATUS_TEXT[item.status]) : '',
+    item.statePath === undefined ? t('run.untracked') : '',
+  ]
+    .filter((part) => part !== '')
+    .join(' · ')
+}
+
+/** 搜索实例时可以搜的几段字：工作流名、状态、进度、创建时间。 */
+export function runSearchTexts(t: T, item: InstanceSummary): readonly string[] {
+  return [item.workflow, runMeta(t, item)]
+}
+
+/**
+ * 下拉里的一行实例：和工作流那一行同一个骨架（图标位放状态点、名字、右端小字；
+ * 悬停时右端小字换成「设为当前」，同一个位置淡入淡出）。本会话的当前实例名字后面常驻一枚图钉。
+ * 直接是列表的子项（选中底块、滑动、依次浮出都要求这样）。
+ */
+export function RunMenuRow(props: {
   t: T
-  runs: Runs
-  activeId: string | null
-  onOpenRun(id: string, event: React.MouseEvent): void
-}): React.JSX.Element | null {
-  const { t, runs } = props
-  if (runs.list.length === 0) return null
+  item: InstanceSummary
+  /** 正在看的实例（选中）。 */
+  active: boolean
+  /** 本会话的当前实例。 */
+  current: boolean
+  /** 搜索词（已归一）。 */
+  needle: string
+  onOpen(event: React.MouseEvent): void
+  onBind(): void
+}): React.JSX.Element {
+  const { t, item } = props
   return (
-    <>
-      <p className={ui.menuTitle}>{t('run.thisSession')}</p>
-      <div className={top.list} data-testid="wl-run-list">
-        <ListThumb
-          layout={`${props.activeId ?? ''}|${runs.list.map((item) => item.id).join('\n')}`}
-        />
-        {runs.list.map((item) => (
-          <div key={item.id} className={run.row} data-selected={item.id === props.activeId}>
-            <button
-              type="button"
-              className={cx(ui.menuItem, run.item)}
-              aria-current={item.id === props.activeId ? 'true' : undefined}
-              data-testid="wl-run-item"
-              data-id={item.id}
-              style={{ gridColumn: '1 / 3' }}
-              onClick={(event) => props.onOpenRun(item.id, event)}
-            >
-              <span
-                data-run-status={
-                  item.statePath === undefined ? 'untracked' : (item.status ?? 'failed')
-                }
-              >
-                <span
-                  className={run.dot}
-                  style={{ opacity: item.id === runs.current ? 1 : 0.45 }}
-                />
-              </span>
-              <span className={run.rowMain}>
-                <span className={run.rowTitle}>{item.workflow}</span>
-                <span className={run.rowMeta}>
-                  {shortTime(item.createdAt)}
-                  {item.total !== undefined && ` · ${item.done}/${item.total}`}
-                  {item.status !== undefined && ` · ${t(RUN_STATUS_TEXT[item.status])}`}
-                  {item.statePath === undefined && ` · ${t('run.untracked')}`}
-                </span>
-              </span>
-            </button>
-            {item.id === runs.current ? (
-              <span
-                className={run.current}
-                role="img"
-                data-tip={t('run.current')}
-                aria-label={t('run.current')}
-                data-testid="wl-run-current"
-              >
-                <Icon name="pin" size={14} />
-              </span>
-            ) : (
-              <button
-                type="button"
-                className={cx(ui.btn, ui.icon, ui.small, run.bind)}
-                data-tip={t('run.setCurrent')}
-                aria-label={t('run.setCurrent')}
-                data-testid="wl-run-bind"
-                onClick={() => void runs.bind(item.id)}
-              >
-                <Icon name="pin" size={14} />
-              </button>
-            )}
-          </div>
-        ))}
-      </div>
-    </>
+    <div className={top.row} data-selected={props.active}>
+      <button
+        type="button"
+        className={cx(ui.menuItem, top.rowMain)}
+        aria-current={props.active ? 'true' : undefined}
+        data-testid="wl-run-item"
+        data-id={item.id}
+        onClick={props.onOpen}
+      >
+        <span
+          className={run.rowDot}
+          data-run-status={item.statePath === undefined ? 'untracked' : (item.status ?? 'failed')}
+        >
+          <span className={run.dot} style={{ opacity: props.current ? 1 : 0.45 }} />
+        </span>
+        <span className={run.rowName}>
+          <Highlight text={item.workflow} needle={props.needle} />
+        </span>
+        {props.current && (
+          <span className={run.currentTag} data-tip={t('run.current')} data-testid="wl-run-current">
+            {t('hub.current')}
+          </span>
+        )}
+        <span className={cx(ui.menuMeta, top.rowMeta, run.rowMeta)}>{runMeta(t, item)}</span>
+      </button>
+      {!props.current && (
+        <span className={top.rowActions}>
+          <button
+            type="button"
+            className={top.rowAction}
+            data-tip={t('run.setCurrent')}
+            aria-label={t('run.setCurrent')}
+            data-testid="wl-run-bind"
+            onClick={props.onBind}
+          >
+            <Icon name="pin" size={14} />
+          </button>
+        </span>
+      )}
+    </div>
   )
 }

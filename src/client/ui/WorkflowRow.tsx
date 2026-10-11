@@ -12,6 +12,7 @@
 import { useEffect, useRef } from 'react'
 import type { WorkflowEntry } from '../../shared/types.ts'
 import type { T } from '../i18n.ts'
+import { Highlight } from './Highlight.tsx'
 import { Icon } from './Icon.tsx'
 import { cx } from './primitives.tsx'
 import css from './topbar.module.css'
@@ -23,6 +24,8 @@ export interface WorkflowRowProps {
   /** 正开着的这张。 */
   active: boolean
   editing: boolean
+  /** 搜索词（已归一）：名字里命中的字加粗；空 = 不标。 */
+  needle?: string
   /** 这一行的确认卡开着：按钮保持显示。 */
   busy: boolean
   /** 删除按钮的 ref：确认卡挂在它上面（只有确认卡指着这一行时才给）。 */
@@ -50,7 +53,9 @@ export function WorkflowRow(props: WorkflowRowProps): React.JSX.Element {
         onClick={props.onOpen}
       >
         <Icon name={entry.invalid === true ? 'alert' : 'folder'} size={15} />
-        <span className={ui.menuLabel}>{name}</span>
+        <span className={ui.menuLabel}>
+          <Highlight text={name} needle={props.needle ?? ''} />
+        </span>
         <span className={cx(ui.menuMeta, css.rowMeta)}>
           {entry.invalid === true ? t('wf.broken') : `${entry.nodeCount} ${t('wf.steps')}`}
         </span>

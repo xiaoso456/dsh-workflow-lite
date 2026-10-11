@@ -113,63 +113,43 @@
 
 /* ── 实例列表（顶栏下拉里的一行）──────────────────── */
 
-.row {
+/*
+ * 骨架和工作流那一行是同一个（topbar.module.css 的 .row / .rowMain / .rowActions）：
+ * 状态点占图标的位置（同宽，和下面工作流的文件夹图标上下对齐），名字，右端小字。
+ */
+.rowDot {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 8px;
-  align-items: center;
+  flex: none;
+  place-items: center;
+  width: 15px;
 }
 
-/* 两行的实例项：上下留点空，标题别贴着高亮块的上沿。 */
-.item {
-  padding-block: 7px;
-}
-
-/* 选中的实例底下是滑块（ListThumb），悬停的亮层不叠上去。 */
-.item[aria-current="true"]::before {
-  display: none;
-}
-
-.rowMain {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
+/* 名字不撑满：「当前」小标紧跟在名字后面，右端小字靠 margin-left: auto 推到最右。 */
+.rowName {
+  flex: 0 1 auto;
   min-width: 0;
-}
-
-.rowTitle {
   overflow: hidden;
-  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .rowMeta {
-  overflow: hidden;
-  color: var(--wl-text-3);
-  font-size: var(--wl-fs-micro);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  margin-left: auto;
 }
 
-.current {
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
+/* 本会话的当前实例：和工作流中心里的「当前」同一个小标；底色比选中块深一档，选中时也看得清。 */
+.currentTag {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--wl-accent) 22%, transparent);
   color: var(--wl-accent-text);
-}
-
-/* 「设为当前」：平时淡着，悬停到这一行才亮。 */
-.bind {
-  color: var(--wl-text-3);
-  opacity: 0;
-  transition: opacity 120ms ease;
-}
-
-.row:hover .bind,
-.bind:focus-visible {
-  opacity: 1;
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 /* ── 右栏 ──────────────────────────────────────────────────── */

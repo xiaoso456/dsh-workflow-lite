@@ -8,6 +8,7 @@
  * - 只改整体状态，不动各步骤；文件里的状态已经不是列表上看到的那个，保存会被拒（冲突），由调用方提示并刷新。
  *
  * 不记运行状态的实例、状态文件读不出来的实例不能在这里改（小标照旧，不是按钮）。
+ * 实例视图顶栏也用它（`confirm={false}`）：挑好就改进草稿，不弹确认卡。
  *
  * 动效（都只动 transform / opacity）：菜单从小标那一角展开、各项依次浮出，收起时淡出；状态真的变了小标弹一下。
  *
@@ -30,6 +31,11 @@ const MENU_W = 248
 export function HubRunStatus(props: {
   t: T
   status: RunStatus
+  /**
+   * 默认挑好后二次确认才调用（工作流中心：直接存盘）。`false` = 挑好就调用、不弹确认卡
+   * （实例视图顶栏：只是改进草稿，由底部草稿栏确认保存）。
+   */
+  confirm?: boolean
   onChange(to: RunStatus, options: { notify: boolean; note: string }): void
 }): React.JSX.Element {
   const { t, status } = props
@@ -59,6 +65,10 @@ export function HubRunStatus(props: {
   const pick = (to: RunStatus): void => {
     menu.setState('off')
     if (to === status) return
+    if (props.confirm === false) {
+      props.onChange(to, { notify: false, note: '' })
+      return
+    }
     setTarget(to)
     setNotify(false)
     setNote('')

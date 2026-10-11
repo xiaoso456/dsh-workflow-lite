@@ -12,11 +12,19 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Runs } from '../app/useRuns.ts'
 import type { Workflow } from '../app/useWorkflow.ts'
 import type { T } from '../i18n.ts'
+import {
+  currentFirst,
+  filterRuns,
+  filterWorkflows,
+  normalizeNeedle,
+  RUNS_SHOWN,
+  visibleRuns,
+} from '../model/switcherSearch.ts'
 import { useConfirm } from './Confirm.tsx'
 import { Icon } from './Icon.tsx'
-import { ListThumb, SwapIcon, SwapText } from './motion.tsx'
+import { ListThumb, SwapIcon, SwapText, useResizeFlip } from './motion.tsx'
 import { cx, Popover } from './primitives.tsx'
-import { RunMenuSection } from './RunTopBar.tsx'
+import { RunMenuRow, runSearchTexts } from './RunTopBar.tsx'
 import run from './run.module.css'
 import css from './topbar.module.css'
 import ui from './ui.module.css'
@@ -46,6 +54,8 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
   const current = inRun ? null : state.name
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
+  /** 实例那一组展开到全部（默认只露最近几个）。 */
+  const [runsExpanded, setRunsExpanded] = useState(false)
   /** 顶栏上的名字正在改（只改正开着的这张）。 */
   const [renaming, setRenaming] = useState(false)
   /** 下拉里正在改名的那一行。 */
@@ -70,6 +80,7 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
   const close = (): void => {
     setOpen(false)
     setQuery('')
+    setRunsExpanded(false)
     setEditing(null)
     setLingering(false)
   }
@@ -84,13 +95,39 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
   }
 
   const workflows = catalog?.workflows ?? []
-  const filtered = useMemo(() => {
-    const needle = query.trim().toLowerCase()
-    const sorted = [...workflows].sort((a, b) => b.updatedAt - a.updatedAt)
-    return needle === ''
-      ? sorted
-      : sorted.filter((entry) => entry.name.toLowerCase().includes(needle))
-  }, [workflows, query])
+  const needle = normalizeNeedle(query)
+  const searching = needle !== ''
+  const filtered = useMemo(
+    () =>
+      filterWorkflows(
+        [...workflows].sort((a, b) => b.updatedAt - a.updatedAt),
+        needle,
+      ),
+    [workflows, needle],
+  )
+  const matchedRuns = useMemo(
+    () =>
+      filterRuns(currentFirst(props.runs.list, props.runs.current), needle, (item) =>
+        runSearchTexts(t, item),
+      ),
+    [props.runs.list, props.runs.current, needle, t],
+  )
+  const activeRun = props.run?.id ?? null
+  const { shown: shownRuns, hidden: hiddenRuns } = visibleRuns(matchedRuns, {
+    expanded: runsExpanded || searching,
+    active: activeRun,
+  })
+  /** 实例多到要折叠；搜索时全部摊开，不折。 */
+  const foldable = !searching && matchedRuns.length > RUNS_SHOWN + 1
+  /** 本会话有实例：两组各带一个标题；一个实例都没有就只有工作流，不加标题。 */
+  const grouped = props.runs.list.length > 0
+  const flip = useResizeFlip()
+  const thumbLayout = [
+    current ?? '',
+    activeRun ?? '',
+    shownRuns.map((item) => item.id).join(','),
+    filtered.map((entry) => entry.name).join(','),
+  ].join('|')
   const doomedEntry = workflows.find((entry) => entry.name === doomed)
 
   return (
@@ -149,74 +186,96 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
         )
       }
     >
-      <RunMenuSection
-        t={t}
-        runs={props.runs}
-        activeId={props.run?.id ?? null}
-        onOpenRun={(id, event) => {
-          choose(event)
-          props.onOpenRun(id)
-        }}
-      />
-      {props.runs.list.length > 0 && (
-        <>
-          <div className={ui.menuSep} />
-          <p className={ui.menuTitle}>{t('run.workflows')}</p>
-        </>
-      )}
-      {workflows.length > 6 && (
-        <div className={css.search}>
-          <Icon name="search" size={14} />
-          <input
-            className={css.searchInput}
-            value={query}
-            placeholder={t('wf.search')}
-            aria-label={t('wf.search')}
-            data-testid="wl-search"
-            // biome-ignore lint/a11y/noAutofocus: 打开下拉就是为了找一张
-            autoFocus
-            onChange={(event) => setQuery(event.currentTarget.value)}
-          />
+      <div className={css.search}>
+        <Icon name="search" size={14} />
+        <input
+          className={css.searchInput}
+          value={query}
+          placeholder={t('wf.search')}
+          aria-label={t('wf.search')}
+          data-testid="wl-search"
+          // biome-ignore lint/a11y/noAutofocus: 打开下拉就是为了找一张
+          autoFocus
+          onChange={(event) => setQuery(event.currentTarget.value)}
+        />
+      </div>
+      {/* 实例与工作流共用一个滚动区：直接子项是平铺的（选中底块、滑动、依次浮出都按直接子项算）。 */}
+      <div className={css.scroll}>
+        <div ref={flip} className={cx(css.listBody, ui.stagger)} data-testid="wl-switch-list">
+          <ListThumb layout={thumbLayout} carry="switcher" />
+          {grouped && shownRuns.length > 0 && (
+            <p className={cx(ui.menuTitle, css.groupTitle)} data-testid="wl-run-head">
+              {t('run.thisSession')}
+              <span className={css.groupCount}>{matchedRuns.length}</span>
+            </p>
+          )}
+          {shownRuns.map((item) => (
+            <RunMenuRow
+              key={item.id}
+              t={t}
+              item={item}
+              active={item.id === activeRun}
+              current={item.id === props.runs.current}
+              needle={needle}
+              onOpen={(event) => {
+                choose(event)
+                props.onOpenRun(item.id)
+              }}
+              onBind={() => void props.runs.bind(item.id)}
+            />
+          ))}
+          {foldable && (
+            <RunsMore
+              t={t}
+              hidden={hiddenRuns}
+              expanded={runsExpanded}
+              onToggle={() => setRunsExpanded(!runsExpanded)}
+            />
+          )}
+          {grouped && filtered.length > 0 && (
+            <p className={cx(ui.menuTitle, css.groupTitle)} data-testid="wl-wf-head">
+              {t('run.workflows')}
+              <span className={css.groupCount}>{filtered.length}</span>
+            </p>
+          )}
+          {filtered.length === 0 && shownRuns.length === 0 && (workflows.length > 0 || grouped) && (
+            <p className={css.emptyLine}>{t('wf.none')}</p>
+          )}
+          {filtered.map((entry) => (
+            <WorkflowRow
+              key={entry.name}
+              t={t}
+              entry={entry}
+              active={entry.name === current}
+              editing={editing === entry.name}
+              needle={needle}
+              busy={remove.open && doomed === entry.name}
+              deleteRef={doomed === entry.name ? remove.anchorRef : undefined}
+              onOpen={(event) => {
+                choose(event)
+                if (entry.name !== current) props.onOpenWorkflow(entry.name)
+              }}
+              onEdit={() => {
+                if (remove.open) remove.hide()
+                setEditing(entry.name)
+              }}
+              onRename={async (value) => {
+                const ok = await wf.rename(entry.name, value)
+                if (ok) setEditing(null)
+                return ok
+              }}
+              onCancelEdit={() => setEditing(null)}
+              onDelete={() => {
+                if (remove.open && doomed === entry.name) {
+                  remove.hide()
+                  return
+                }
+                setDoomed(entry.name)
+                remove.show()
+              }}
+            />
+          ))}
         </div>
-      )}
-      <div className={cx(css.list, ui.stagger)}>
-        <ListThumb layout={`${current ?? ''}|${filtered.map((entry) => entry.name).join('\n')}`} />
-        {filtered.length === 0 && workflows.length > 0 && (
-          <p className={css.emptyLine}>{t('wf.none')}</p>
-        )}
-        {filtered.map((entry) => (
-          <WorkflowRow
-            key={entry.name}
-            t={t}
-            entry={entry}
-            active={entry.name === current}
-            editing={editing === entry.name}
-            busy={remove.open && doomed === entry.name}
-            deleteRef={doomed === entry.name ? remove.anchorRef : undefined}
-            onOpen={(event) => {
-              choose(event)
-              if (entry.name !== current) props.onOpenWorkflow(entry.name)
-            }}
-            onEdit={() => {
-              if (remove.open) remove.hide()
-              setEditing(entry.name)
-            }}
-            onRename={async (value) => {
-              const ok = await wf.rename(entry.name, value)
-              if (ok) setEditing(null)
-              return ok
-            }}
-            onCancelEdit={() => setEditing(null)}
-            onDelete={() => {
-              if (remove.open && doomed === entry.name) {
-                remove.hide()
-                return
-              }
-              setDoomed(entry.name)
-              remove.show()
-            }}
-          />
-        ))}
       </div>
       {doomedEntry !== undefined &&
         remove.render({
@@ -265,6 +324,32 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
         <span className={ui.menuLabel}>{t('wf.new')}</span>
       </button>
     </Popover>
+  )
+}
+
+/** 实例那一组的尾巴：折叠时「显示全部 N 个」，展开后「收起」；箭头转个向（只动 transform）。 */
+function RunsMore(props: {
+  t: T
+  hidden: number
+  expanded: boolean
+  onToggle(): void
+}): React.JSX.Element {
+  const { t } = props
+  return (
+    <button
+      type="button"
+      className={cx(ui.menuItem, css.more)}
+      aria-expanded={props.expanded}
+      data-testid="wl-run-more"
+      onClick={props.onToggle}
+    >
+      <span className={css.moreText}>
+        {props.expanded ? t('run.showLess') : t('run.showAll').replace('{n}', String(props.hidden))}
+      </span>
+      <span className={css.moreChev} data-open={props.expanded}>
+        <Icon name="chevronDown" size={13} />
+      </span>
+    </button>
   )
 }
 

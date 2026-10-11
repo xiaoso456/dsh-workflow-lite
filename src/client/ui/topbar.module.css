@@ -185,7 +185,7 @@
 /* ── 工作流下拉 ───────────────────────────────────────────── */
 
 .menu {
-  width: 300px;
+  width: 380px;
 }
 
 .search {
@@ -211,14 +211,61 @@
   outline: none;
 }
 
-.list {
+/*
+ * 实例 + 工作流共用的滚动区：外层管滚动，里层（.listBody）剪掉自己框外的东西。
+ * 筛选时各行从旧位置滑过来、选中块还停在旧位置，这些短暂地越出框外的部分
+ * 不剪的话会把外层撑出一闪而过的滚动条。
+ */
+.scroll {
+  max-height: 340px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.listBody {
   position: relative;
   display: flex;
   flex-direction: column;
   gap: 1px;
-  max-height: 280px;
-  overflow-y: auto;
-  scrollbar-width: thin;
+  overflow: clip;
+}
+
+/* 分组标题（实例 / 工作流）：右端是这一组的条数。 */
+.groupTitle {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.groupTitle:not(:first-of-type) {
+  margin-top: 4px;
+}
+
+.groupCount {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+/* 实例这一组的尾巴：「显示全部 N 个」/「收起」，小一号、居中，不抢实例行。 */
+.more {
+  flex: none;
+  gap: 4px;
+  justify-content: center;
+  min-height: 28px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+.moreChev {
+  display: inline-grid;
+  place-items: center;
+  transition: transform 200ms var(--wl-ease);
+}
+
+.moreChev[data-open="true"] {
+  transform: rotate(180deg);
 }
 
 .emptyLine {
@@ -637,7 +684,8 @@
   .run .runMore svg,
   .rowMeta,
   .rowActions,
-  .rowAction {
+  .rowAction,
+  .moreChev {
     transition: none;
   }
 

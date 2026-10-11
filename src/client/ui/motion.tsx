@@ -218,7 +218,12 @@ export function useResizeFlip(
       const measure = (): Map<HTMLElement, Slot> => {
         const slots = new Map<HTMLElement, Slot>()
         for (const child of list.children) {
-          if (!(child instanceof HTMLElement) || leaving.has(child)) continue
+          if (
+            !(child instanceof HTMLElement) ||
+            leaving.has(child) ||
+            child.hasAttribute('data-no-flip')
+          )
+            continue
           slots.set(child, {
             top: topIn(list, child),
             left: child.offsetLeft,
@@ -242,7 +247,9 @@ export function useResizeFlip(
       }
       const sizes = new ResizeObserver(settle)
       const watch = (): void => {
-        for (const child of list.children) if (!leaving.has(child)) sizes.observe(child)
+        for (const child of list.children) {
+          if (!leaving.has(child) && !child.hasAttribute('data-no-flip')) sizes.observe(child)
+        }
       }
       sizes.observe(list)
       watch()
@@ -463,17 +470,24 @@ export function SwapText(props: {
   )
 }
 
-/** 原地换图标（复制 → ✓、对 ↔ 警告、太阳 ↔ 月亮）：两枚叠在同一格，新的从小放大淡入，旧的缩小淡出。 */
+/**
+ * 原地换图标（复制 → ✓、对 ↔ 警告、太阳 ↔ 月亮）：两枚叠在同一格，新的从小放大淡入，旧的缩小淡出。
+ * ✓ 一律用「成功」的绿色（复制路径、从磁盘重新加载等「已完成」的反馈都走这里），退场的那枚也一样。
+ */
 export function SwapIcon(props: { name: IconName; size?: number }): React.JSX.Element {
   const { was, n } = useLast(props.name, SWAP_ICON_MS)
   return (
     <span className={ui.swapIcon}>
       {was !== null && (
-        <span key={`out-${n}`} className={ui.iconOut}>
+        <span key={`out-${n}`} className={ui.iconOut} data-ok={was === 'check' || undefined}>
           <Icon name={was} size={props.size} />
         </span>
       )}
-      <span key={`in-${n}`} className={n > 0 ? ui.iconIn : undefined}>
+      <span
+        key={`in-${n}`}
+        className={n > 0 ? ui.iconIn : undefined}
+        data-ok={props.name === 'check' || undefined}
+      >
         <Icon name={props.name} size={props.size} />
       </span>
     </span>
@@ -685,10 +699,19 @@ export function useSwap<E extends HTMLElement>(key: string, at: number, view = 0
  * `layout` 同 {@link useFlip}：选中项、列表内容变了才重新量。
  *
  * 列表是自己的父元素（不收外面的 ref）：外面那个 ref 在子组件的 layout effect 跑的时候还没挂上。
+ *
+ * `carry`：列表会整个卸掉又挂上（下拉每次打开都是新的一份）时，给个名字，
+ * 新挂上的这块从上次停的地方滑到现在选中的那一项（没变就原地淡入），不是凭空出现在新位置。
  */
-export function ListThumb(props: { layout: string; className?: string }): React.JSX.Element {
+export function ListThumb(props: {
+  layout: string
+  className?: string
+  carry?: string
+}): React.JSX.Element {
   const ref = useRef<HTMLSpanElement>(null)
   const [place, setPlace] = useState<Place | null>(null)
+  /** 第一次摆在上次停的地方、下一帧再滑去的终点。 */
+  const glideTo = useRef<Place | null>(null)
   /** 第一次摆好之前不带过渡：打开时不从顶上滑下来。 */
   const [live, setLive] = useState(false)
   /** 列表本身变宽变窄（窗口缩放、出了滚动条）：项的宽度跟着变，重新量。 */
@@ -705,23 +728,39 @@ export function ListThumb(props: { layout: string; className?: string }): React.
     const item = ref.current?.parentElement?.querySelector<HTMLElement>(
       ':scope > [data-selected="true"]',
     )
+    if (item == null) {
+      setPlace((was) => (was === null ? null : { ...was, hidden: true }))
+      return
+    }
+    const next: Place = {
+      top: item.offsetTop,
+      left: item.offsetLeft,
+      width: item.offsetWidth,
+      height: item.offsetHeight,
+      hidden: false,
+    }
+    const from = props.carry === undefined ? undefined : thumbCarry.get(props.carry)
+    if (props.carry !== undefined) thumbCarry.set(props.carry, next)
     setPlace((was) => {
-      if (item == null) return was === null ? null : { ...was, hidden: true }
-      const next = {
-        top: item.offsetTop,
-        left: item.offsetLeft,
-        width: item.offsetWidth,
-        height: item.offsetHeight,
-        hidden: false,
+      if (was === null) {
+        if (from === undefined || from.top === next.top || REDUCED?.matches === true) return next
+        glideTo.current = next
+        return { ...next, top: from.top }
       }
-      return was !== null && Object.entries(next).every(([k, v]) => was[k as keyof Place] === v)
-        ? was
-        : next
+      glideTo.current = null
+      return Object.entries(next).every(([k, v]) => was[k as keyof Place] === v) ? was : next
     })
-  }, [props.layout, resized])
+  }, [props.layout, resized, props.carry])
   useLayoutEffect(() => {
     if (place === null || live) return
-    const frame = requestAnimationFrame(() => setLive(true))
+    const frame = requestAnimationFrame(() => {
+      setLive(true)
+      // 同一次渲染里开过渡、挪到终点：从上次停的地方滑过去。
+      if (glideTo.current !== null) {
+        setPlace(glideTo.current)
+        glideTo.current = null
+      }
+    })
     return () => cancelAnimationFrame(frame)
   }, [place, live])
   return (
@@ -730,6 +769,9 @@ export function ListThumb(props: { layout: string; className?: string }): React.
       aria-hidden="true"
       className={cx(ui.listThumb, props.className)}
       data-live={live}
+      data-hidden={place === null || place.hidden}
+      // 自己管位置（行内 transform），不参与列表的滑动：藏起来（display: none）时 offsetTop 会变，会被当成"挪了"。
+      data-no-flip=""
       data-testid="wl-list-thumb"
       style={{
         left: place?.left ?? 0,
@@ -741,6 +783,9 @@ export function ListThumb(props: { layout: string; className?: string }): React.
     />
   )
 }
+
+/** 各列表的选中底块上次停在哪儿（见 {@link ListThumb} 的 `carry`）。 */
+const thumbCarry = new Map<string, Place>()
 
 /** 选中块的位置、尺寸（相对单选组的内边距框）。 */
 interface Box {

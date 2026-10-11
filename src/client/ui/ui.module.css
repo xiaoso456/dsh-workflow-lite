@@ -388,6 +388,25 @@
     opacity 160ms linear;
 }
 
+/* 没有选中项（被筛掉了）：它那一行已经没了，块跟着立刻摘掉（停在旧位置的块会把滚动区撑出滚动条）。 */
+.listThumb[data-hidden="true"] {
+  display: none;
+}
+
+/*
+ * 选中底块（ListThumb）是列表的第一个子项，也会吃到上面这条：它的 transform 是行内样式摆的位置，
+ * 动画一盖，底块会先停在列表顶上、动画放完再「啪」地跳到选中项。它只淡入，不位移。
+ */
+.stagger > .listThumb {
+  animation: thumbIn 200ms linear backwards;
+}
+
+@keyframes thumbIn {
+  from {
+    opacity: 0;
+  }
+}
+
 /*
  * 单选组的选中块（`motion.tsx` 的 PickThumb）：滑动由 Web Animations 放（transform），
  * 这里只管显隐、换色时各层的交叉淡入淡出。圆角、底色、描边由调用方的类给。
@@ -682,6 +701,10 @@
   grid-area: 1 / 1;
 }
 
+.swapIcon > [data-ok] {
+  color: var(--wl-ok);
+}
+
 .iconIn {
   animation: iconIn 240ms ease-in-out backwards;
 }
@@ -797,6 +820,13 @@
   font-size: var(--wl-fs-micro);
   font-weight: 600;
   letter-spacing: 0.04em;
+}
+
+/* 搜索命中的字（Highlight）：加粗、强调色，不加底色。 */
+.hit {
+  background: transparent;
+  color: var(--wl-accent-text);
+  font-weight: 700;
 }
 
 .menuSep {
@@ -1092,7 +1122,8 @@
   .fade,
   .ringIn,
   .tipLayer,
-  .stagger > * {
+  .stagger > *,
+  .stagger > .listThumb {
     animation: none;
   }
 
