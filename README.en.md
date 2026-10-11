@@ -18,7 +18,7 @@
 
 </div>
 
-A soft-workflow plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness): design a flow on a canvas, compile it into a plan prompt, and let the model carry it out.
+A soft-workflow plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), built on prompt orchestration: design a flow on a canvas, compile it into a plan prompt, and let the model carry it out. Edges can carry **any condition**, and flows can be sequential, parallel, joined, conditionally branched, looped or rolled back, with no extra execution engine required.
 
 > **Experimental**: features and data formats are still changing, and any release may include breaking changes.
 

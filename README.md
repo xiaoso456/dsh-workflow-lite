@@ -18,7 +18,7 @@
 
 </div>
 
-[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的软工作流插件：在画布上设计流程，编译成计划提示词，由模型按计划执行。
+[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的软工作流插件，基于提示词编排：在画布上设计流程，编译成计划提示词，由模型按计划执行。连线可带**任意条件**，支持顺序、并行、汇合、条件分支、循环、回退等流程结构，无需额外的执行引擎。
 
 > **实验阶段**：功能和数据格式仍在调整，后续任何版本都可能包含不兼容的改动。
 
