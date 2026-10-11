@@ -234,6 +234,12 @@
   transition: opacity 320ms var(--wl-ease-out);
 }
 
+/* 内容还没到（刚切到实例视图、第一次加载）：先透明，到了淡入。 */
+.canvas[data-hidden] {
+  opacity: 0;
+  pointer-events: none;
+}
+
 /* 切换工作流：旧图压暗留着（点不了），新图到了再亮回来——不卸载重建，画布不闪。 */
 .canvas[data-dim] {
   opacity: 0.4;

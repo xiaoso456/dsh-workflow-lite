@@ -11,7 +11,7 @@
 
 import { type RefObject, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Icon, type IconName } from './Icon.tsx'
-import { cx, type Ghost, ghostClone } from './primitives.tsx'
+import { cx, type Ghost, ghostClone, ghostFade } from './primitives.tsx'
 import ui from './ui.module.css'
 
 interface Place {
@@ -1240,12 +1240,18 @@ export function useGlide(): (pill: HTMLElement | null) => void {
         return
       }
       const origin = pill.getBoundingClientRect().left
-      // 先读「此刻看上去」的位置，再清掉旧动画读布局位置。
+      // 先读旧动画此刻的位移 / 缩放，再清掉它。起点是「旧布局 + 此刻的位移」：
+      // 布局已经是新的了，直接量元素现在的位置会把新布局也算进去（宽度会被放大）。
+      const shift = (el: HTMLElement): number =>
+        running.has(el) ? new DOMMatrixReadOnly(getComputedStyle(el).transform).m41 : 0
       const seen = new Map<HTMLElement, number>()
-      for (const el of [base, ...items()]) {
-        if (running.has(el)) seen.set(el, leftOf(el, origin))
+      for (const el of items()) {
+        const before = spots.get(el)
+        if (before !== undefined) seen.set(el, before + shift(el))
       }
-      const seenWidth = running.has(base) ? base.getBoundingClientRect().width : was
+      const seenWidth = running.has(base)
+        ? new DOMMatrixReadOnly(getComputedStyle(base).transform).a * was
+        : was
       for (const anim of running.values()) anim.cancel()
       running.clear()
 
@@ -1290,4 +1296,18 @@ export function useGlide(): (pill: HTMLElement | null) => void {
       for (const anim of running.values()) anim.cancel()
     }
   }, [])
+}
+
+/**
+ * 画布这一整块要被卸掉时（模板编辑 ↔ 实例视图）：留一个影子在原处淡出，新画布同时淡入，两边交叉过去。
+ * 影子放进视图根（`data-workflow-lite-view`），不放在父节点里——实例视图的外壳跟着一起卸掉，放里面就看不到了。
+ */
+export function useViewGhost(ref: RefObject<HTMLElement | null>): void {
+  useLayoutEffect(() => {
+    const el = ref.current
+    const root = el?.closest('[data-workflow-lite-view]') ?? null
+    return () => {
+      if (el !== null) ghostFade(el, root)
+    }
+  }, [ref])
 }

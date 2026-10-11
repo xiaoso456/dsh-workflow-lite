@@ -7,13 +7,14 @@
  */
 
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   type InstanceSummary,
   progressOf,
   type RunState,
   type RunStatus,
 } from '../../shared/runState.ts'
-import type { ValidationProblem, WorkflowEntry } from '../../shared/types.ts'
+import type { ValidationProblem } from '../../shared/types.ts'
 import type { RunHistory } from '../app/useRunHistory.ts'
 import type { Runs } from '../app/useRuns.ts'
 import type { LocaleKey, T } from '../i18n.ts'
@@ -21,9 +22,10 @@ import { shortTime } from '../model/time.ts'
 import { Icon } from './Icon.tsx'
 import { Issues } from './Issues.tsx'
 import { FadeMark, SwapIcon, SwapText } from './motion.tsx'
-import { copyText, cx, Popover } from './primitives.tsx'
+import { copyText, cx } from './primitives.tsx'
 import type { RunViewProps } from './RunView.tsx'
 import run from './run.module.css'
+import type { TopSlots } from './TopBar.tsx'
 import top from './topbar.module.css'
 import ui from './ui.module.css'
 
@@ -47,7 +49,12 @@ export function RunStatusBadge(props: {
   const { t } = props
   if (props.untracked === true) {
     return (
-      <span className={run.status} data-run-status="untracked" data-testid="wl-run-status">
+      <span
+        className={run.status}
+        data-glide=""
+        data-run-status="untracked"
+        data-testid="wl-run-status"
+      >
         <span className={run.dot} />
         {t('run.untracked')}
       </span>
@@ -55,14 +62,19 @@ export function RunStatusBadge(props: {
   }
   if (props.problem !== undefined || props.status === undefined) {
     return (
-      <span className={run.status} data-run-status="failed">
+      <span className={run.status} data-glide="" data-run-status="failed">
         <Icon name="alert" size={11} />
         {t(props.problem === 'missing' ? 'run.stateMissing' : 'run.stateInvalid')}
       </span>
     )
   }
   return (
-    <span className={run.status} data-run-status={props.status} data-testid="wl-run-status">
+    <span
+      className={run.status}
+      data-glide=""
+      data-run-status={props.status}
+      data-testid="wl-run-status"
+    >
       <span className={run.dot} />
       <SwapText text={t(RUN_STATUS_TEXT[props.status])} />
     </span>
@@ -73,6 +85,11 @@ export function RunStatusBadge(props: {
 // 顶栏
 // ─────────────────────────────────────────────────────────────
 
+/**
+ * 实例视图顶栏里和模板编辑不同的那几块：不自己画顶栏，而是填进 `TopBar`（模板编辑与实例视图共用、不卸载）
+ * 留出来的三个位置——下拉触发器里的内容、左边药丸里的状态与进度、右边的两组按钮。
+ * 顶栏不换，名字下拉才能跨着两个视图保持打开。
+ */
 export function RunTopBar(
   props: RunViewProps & {
     summary: InstanceSummary | undefined
@@ -86,43 +103,29 @@ export function RunTopBar(
     problems: readonly ValidationProblem[] | null
     onTidy(): void
     onLocate(nodeId: string): void
+    slots: TopSlots
   },
 ): React.JSX.Element {
-  const { t, summary, state } = props
+  const { t, summary, state, slots } = props
   const [copied, setCopied] = useState(false)
   const progress = state === null ? null : progressOf(state)
   return (
-    <div className={top.bar}>
-      <div className={cx(ui.panel, top.pill)}>
-        <button
-          type="button"
-          className={cx(ui.btn, ui.icon)}
-          data-tip={t('hub.title')}
-          aria-label={t('hub.title')}
-          data-testid="wl-hub-open"
-          onClick={props.onOpenHub}
-        >
-          <Icon name="hub" size={16} />
-        </button>
-        <span className={ui.divider} />
-        <RunSwitcher
-          t={t}
-          runs={props.runs}
-          activeId={props.id}
-          workflows={props.workflows}
-          onOpenRun={props.onOpenRun}
-          onOpenTemplate={props.onOpenTemplate}
-          onOpenHub={props.onOpenHub}
-          trigger={(open) => (
-            <span className={run.switch} data-open={open}>
-              <span className={run.switchKind}>{t('run.kind')}</span>
-              <span className={run.switchName}>{summary?.workflow ?? '…'}</span>
-              <span className={run.switchTime}>{shortTime(summary?.createdAt)}</span>
+    <>
+      {slots.trigger !== null &&
+        createPortal(
+          <>
+            <span className={run.switchKind}>{t('run.kind')}</span>
+            <span className={run.switchName}>{summary?.workflow ?? '…'}</span>
+            <span className={run.switchTime}>{shortTime(summary?.createdAt)}</span>
+            <span className={top.chev} data-glide="">
               <Icon name="chevronDown" size={14} />
             </span>
-          )}
-        />
-        {summary !== undefined && (
+          </>,
+          slots.trigger,
+        )}
+      {slots.left !== null &&
+        summary !== undefined &&
+        createPortal(
           <>
             <RunStatusBadge
               t={t}
@@ -135,193 +138,117 @@ export function RunTopBar(
                 <SwapText pop text={`${progress.done}/${progress.total}`} />
               </span>
             )}
-          </>
+          </>,
+          slots.left,
         )}
-      </div>
-      <span className={ui.grow} />
-      {summary !== undefined && props.problems !== null && (
-        <div className={cx(ui.panel, top.pill, top.tools)} data-testid="wl-run-tools">
-          <button
-            type="button"
-            className={cx(ui.btn, ui.icon)}
-            data-tip={`${t('tool.undo')}  Ctrl+Z`}
-            aria-label={t('tool.undo')}
-            data-testid="wl-undo"
-            disabled={!props.history.canUndo}
-            onClick={props.history.undo}
-          >
-            <Icon name="undo" size={16} />
-          </button>
-          <button
-            type="button"
-            className={cx(ui.btn, ui.icon)}
-            data-tip={`${t('tool.redo')}  Ctrl+Shift+Z`}
-            aria-label={t('tool.redo')}
-            data-testid="wl-redo"
-            disabled={!props.history.canRedo}
-            onClick={props.history.redo}
-          >
-            <Icon name="redo" size={16} />
-          </button>
-          <span className={ui.divider} />
-          <button
-            type="button"
-            className={cx(ui.btn, ui.icon)}
-            data-tip={`${t('tool.tidy')}  L`}
-            aria-label={t('tool.tidy')}
-            data-testid="wl-tidy"
-            onClick={props.onTidy}
-          >
-            <Icon name="tidy" size={16} />
-          </button>
-          <span className={ui.divider} />
-          <Issues
-            t={t}
-            problems={props.problems}
-            noneBody="issues.noneBodyRun"
-            onLocate={props.onLocate}
-          />
-        </div>
-      )}
-      {summary !== undefined && (
-        <div className={cx(ui.panel, top.pill, top.tools)}>
-          <button
-            type="button"
-            className={cx(ui.btn, ui.small)}
-            disabled={!props.workflows.some((entry) => entry.name === summary.workflow)}
-            data-tip={
-              props.workflows.some((entry) => entry.name === summary.workflow)
-                ? undefined
-                : t('run.templateGone')
-            }
-            data-testid="wl-run-open-template"
-            onClick={() => props.onOpenTemplate(summary.workflow)}
-          >
-            <Icon name="pencil" size={14} />
-            {t('run.openTemplate')}
-          </button>
-          {summary.statePath !== undefined && (
-            <button
-              type="button"
-              className={cx(ui.btn, ui.small)}
-              data-tip={summary.statePath}
-              onClick={() =>
-                void copyText(summary.statePath ?? '').then((ok) => {
-                  setCopied(ok)
-                  window.setTimeout(() => setCopied(false), 1400)
-                })
-              }
-            >
-              <SwapIcon name={copied ? 'check' : 'copy'} size={14} />
-              <SwapText
-                text={copied ? t('common.copied') : t('run.copyPath')}
-                reserve={[t('common.copied'), t('run.copyPath')]}
-              />
-            </button>
-          )}
-          {!props.narrow && (
-            <>
-              <span className={ui.divider} />
+      {slots.right !== null &&
+        summary !== undefined &&
+        createPortal(
+          <>
+            {props.problems !== null && (
+              <div className={cx(ui.panel, top.pill, top.tools)} data-testid="wl-run-tools">
+                <button
+                  type="button"
+                  className={cx(ui.btn, ui.icon)}
+                  data-tip={`${t('tool.undo')}  Ctrl+Z`}
+                  aria-label={t('tool.undo')}
+                  data-testid="wl-undo"
+                  disabled={!props.history.canUndo}
+                  onClick={props.history.undo}
+                >
+                  <Icon name="undo" size={16} />
+                </button>
+                <button
+                  type="button"
+                  className={cx(ui.btn, ui.icon)}
+                  data-tip={`${t('tool.redo')}  Ctrl+Shift+Z`}
+                  aria-label={t('tool.redo')}
+                  data-testid="wl-redo"
+                  disabled={!props.history.canRedo}
+                  onClick={props.history.redo}
+                >
+                  <Icon name="redo" size={16} />
+                </button>
+                <span className={ui.divider} />
+                <button
+                  type="button"
+                  className={cx(ui.btn, ui.icon)}
+                  data-tip={`${t('tool.tidy')}  L`}
+                  aria-label={t('tool.tidy')}
+                  data-testid="wl-tidy"
+                  onClick={props.onTidy}
+                >
+                  <Icon name="tidy" size={16} />
+                </button>
+                <span className={ui.divider} />
+                <Issues
+                  t={t}
+                  problems={props.problems}
+                  noneBody="issues.noneBodyRun"
+                  onLocate={props.onLocate}
+                />
+              </div>
+            )}
+            <div className={cx(ui.panel, top.pill, top.tools)}>
               <button
                 type="button"
-                className={cx(ui.btn, ui.icon, ui.fillOn)}
-                data-tip={t('run.panelToggle')}
-                aria-label={t('run.panelToggle')}
-                aria-pressed={props.panelOpen}
-                data-on={props.panelOpen}
-                data-testid="wl-run-panel-toggle"
-                onClick={props.onTogglePanel}
+                className={cx(ui.btn, ui.small)}
+                disabled={!props.workflows.some((entry) => entry.name === summary.workflow)}
+                data-tip={
+                  props.workflows.some((entry) => entry.name === summary.workflow)
+                    ? undefined
+                    : t('run.templateGone')
+                }
+                data-testid="wl-run-open-template"
+                onClick={() => props.onOpenTemplate(summary.workflow)}
               >
-                <FadeMark on={props.panelOpen}>
-                  <Icon name="panel" size={17} />
-                </FadeMark>
+                <Icon name="pencil" size={14} />
+                {t('run.openTemplate')}
               </button>
-              {props.nav}
-            </>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
-/**
- * 实例与工作流的下拉：本会话的实例（当前的那个带实心点）、工作流（打开模板）、全部实例与管理。
- * 模板编辑的顶栏也用它的实例那一段（见 {@link RunMenuSection}）。
- */
-function RunSwitcher(props: {
-  t: T
-  runs: Runs
-  activeId: string | null
-  workflows: readonly WorkflowEntry[]
-  onOpenRun(id: string): void
-  onOpenTemplate(name: string): void
-  onOpenHub(): void
-  trigger(open: boolean): React.ReactNode
-}): React.JSX.Element {
-  const { t } = props
-  const [open, setOpen] = useState(false)
-  return (
-    <Popover
-      open={open}
-      onClose={() => setOpen(false)}
-      label={t('run.pick')}
-      className={top.menu}
-      trigger={
-        <button
-          type="button"
-          className={cx(top.switch, run.switchButton)}
-          aria-expanded={open}
-          data-testid="wl-run-switcher"
-          onClick={() => {
-            setOpen(!open)
-            if (!open) void props.runs.refresh()
-          }}
-        >
-          {props.trigger(open)}
-        </button>
-      }
-    >
-      <RunMenuSection
-        t={t}
-        runs={props.runs}
-        activeId={props.activeId}
-        onOpenRun={(id) => {
-          setOpen(false)
-          props.onOpenRun(id)
-        }}
-      />
-      {props.runs.list.length > 0 && <div className={ui.menuSep} />}
-      <p className={ui.menuTitle}>{t('run.workflows')}</p>
-      <div className={top.list}>
-        {props.workflows.map((entry) => (
-          <button
-            key={entry.name}
-            type="button"
-            className={ui.menuItem}
-            onClick={() => {
-              setOpen(false)
-              props.onOpenTemplate(entry.name)
-            }}
-          >
-            <Icon name="folder" size={15} />
-            <span className={ui.menuLabel}>{entry.name}</span>
-          </button>
-        ))}
-      </div>
-      <div className={ui.menuSep} />
-      <button
-        type="button"
-        className={ui.menuItem}
-        onClick={() => {
-          setOpen(false)
-          props.onOpenHub()
-        }}
-      >
-        <Icon name="hub" size={15} />
-        <span className={ui.menuLabel}>{t('run.manage')}</span>
-      </button>
-    </Popover>
+              {summary.statePath !== undefined && (
+                <button
+                  type="button"
+                  className={cx(ui.btn, ui.small)}
+                  data-tip={summary.statePath}
+                  onClick={() =>
+                    void copyText(summary.statePath ?? '').then((ok) => {
+                      setCopied(ok)
+                      window.setTimeout(() => setCopied(false), 1400)
+                    })
+                  }
+                >
+                  <SwapIcon name={copied ? 'check' : 'copy'} size={14} />
+                  <SwapText
+                    text={copied ? t('common.copied') : t('run.copyPath')}
+                    reserve={[t('common.copied'), t('run.copyPath')]}
+                  />
+                </button>
+              )}
+              {!props.narrow && (
+                <>
+                  <span className={ui.divider} />
+                  <button
+                    type="button"
+                    className={cx(ui.btn, ui.icon, ui.fillOn)}
+                    data-tip={t('run.panelToggle')}
+                    aria-label={t('run.panelToggle')}
+                    aria-pressed={props.panelOpen}
+                    data-on={props.panelOpen}
+                    data-testid="wl-run-panel-toggle"
+                    onClick={props.onTogglePanel}
+                  >
+                    <FadeMark on={props.panelOpen}>
+                      <Icon name="panel" size={17} />
+                    </FadeMark>
+                  </button>
+                  {props.nav}
+                </>
+              )}
+            </div>
+          </>,
+          slots.right,
+        )}
+    </>
   )
 }
 
@@ -330,7 +257,7 @@ export function RunMenuSection(props: {
   t: T
   runs: Runs
   activeId: string | null
-  onOpenRun(id: string): void
+  onOpenRun(id: string, event: React.MouseEvent): void
 }): React.JSX.Element | null {
   const { t, runs } = props
   if (runs.list.length === 0) return null
@@ -347,7 +274,7 @@ export function RunMenuSection(props: {
               data-testid="wl-run-item"
               data-id={item.id}
               style={{ gridColumn: '1 / 3' }}
-              onClick={() => props.onOpenRun(item.id)}
+              onClick={(event) => props.onOpenRun(item.id, event)}
             >
               <span
                 data-run-status={

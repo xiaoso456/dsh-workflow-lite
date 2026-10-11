@@ -18,11 +18,28 @@ import { Issues } from './Issues.tsx'
 import { Launch, type LaunchProps } from './Launch.tsx'
 import { FadeMark, SwapText, useGlide } from './motion.tsx'
 import { cx } from './primitives.tsx'
+import run from './run.module.css'
 import css from './topbar.module.css'
 import ui from './ui.module.css'
 import { WorkflowSwitcher } from './WorkflowSwitcher.tsx'
 
+/** 实例视图往共用顶栏里填东西的三个位置（元素挂上才有值；见 `RunTopBar`）。 */
+export interface TopSlots {
+  /** 名字下拉触发器里的内容。 */
+  trigger: HTMLElement | null
+  /** 左边药丸里、名字后面：状态小标与进度。 */
+  left: HTMLElement | null
+  /** 右边的按钮组。 */
+  right: HTMLElement | null
+}
+
+export const NO_SLOTS: TopSlots = { trigger: null, left: null, right: null }
+
 export interface TopBarProps {
+  /** 正在看的实例；`null` = 模板编辑。顶栏同一个、不卸载，只换里面的内容。 */
+  runId: string | null
+  /** 实例视图的三个位置的回调 ref。 */
+  slotRefs: { [K in keyof TopSlots]: (el: HTMLElement | null) => void }
   t: T
   wf: Workflow
   libraryOpen: boolean
@@ -39,6 +56,8 @@ export interface TopBarProps {
   runs: Runs
   onOpenRun(id: string): void
   onOpenHub(): void
+  onOpenWorkflow(name: string): void
+  onNewWorkflow(): void
 }
 
 type SaveTone = 'loading' | 'saving' | 'error' | 'dirty' | 'saved'
@@ -60,6 +79,7 @@ export function TopBar(props: TopBarProps): React.JSX.Element {
   const last = useRef(state)
   if (!loading) last.current = state
   const ready = state.phase === 'ready' || (loading && last.current.phase === 'ready')
+  const inRun = props.runId !== null
   const view = loading ? last.current : state
   const glide = useGlide()
 
@@ -88,28 +108,48 @@ export function TopBar(props: TopBarProps): React.JSX.Element {
         >
           <Icon name="hub" size={16} />
         </button>
-        {!ready && <span className={ui.divider} />}
-        {ready && (
+        {!(ready || inRun) && <span className={ui.divider} />}
+        {(ready || inRun) && (
           <>
             <button
               type="button"
               className={cx(ui.btn, ui.icon, ui.fillOn)}
               data-tip={t('tool.library')}
               aria-label={t('tool.library')}
-              aria-pressed={props.libraryOpen}
+              aria-pressed={props.libraryOpen && !inRun}
               data-testid="wl-toggle-library"
-              data-on={props.libraryOpen}
+              data-on={props.libraryOpen && !inRun}
+              // 实例视图里没有步骤库：按钮留在原位、点不了，名字下拉的位置才不会跟着挪。
+              disabled={inRun}
               onClick={props.onToggleLibrary}
             >
-              <FadeMark on={props.libraryOpen}>
+              <FadeMark on={props.libraryOpen && !inRun}>
                 <Icon name="library" size={17} />
               </FadeMark>
             </button>
             <span className={ui.divider} />
           </>
         )}
-        <WorkflowSwitcher t={t} wf={wf} runs={props.runs} onOpenRun={props.onOpenRun} />
-        {state.name !== null && state.phase !== 'broken' && (
+        <WorkflowSwitcher
+          t={t}
+          wf={wf}
+          runs={props.runs}
+          onOpenRun={props.onOpenRun}
+          onOpenWorkflow={props.onOpenWorkflow}
+          onNewWorkflow={props.onNewWorkflow}
+          {...(props.runId === null
+            ? {}
+            : {
+                run: {
+                  id: props.runId,
+                  trigger: (open: boolean) => (
+                    <span ref={props.slotRefs.trigger} className={run.switch} data-open={open} />
+                  ),
+                },
+              })}
+        />
+        {inRun && <span ref={props.slotRefs.left} style={{ display: 'contents' }} />}
+        {!inRun && state.name !== null && state.phase !== 'broken' && (
           <button
             type="button"
             data-glide=""
@@ -130,7 +170,9 @@ export function TopBar(props: TopBarProps): React.JSX.Element {
 
       <span className={ui.grow} />
 
-      {ready && (
+      {inRun && <span ref={props.slotRefs.right} style={{ display: 'contents' }} />}
+
+      {ready && !inRun && (
         <div
           className={css.right}
           data-busy={loading || undefined}

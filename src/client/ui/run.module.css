@@ -73,6 +73,14 @@
   font-weight: 600;
 }
 
+/*
+ * 内容是从实例视图 portal 进来的：React 的点击只沿它自己的组件树冒泡，到不了外面的下拉按钮。
+ * 内容不接指针，点击落在这个容器上（它属于按钮），按钮才收得到。
+ */
+.switch > * {
+  pointer-events: none;
+}
+
 .switchKind {
   flex: none;
   padding: 1px 6px;

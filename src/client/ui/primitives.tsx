@@ -309,6 +309,24 @@ function ghostOut(node: HTMLElement, parent: Node | null): void {
   fade.finished.then(drop, drop)
 }
 
+/**
+ * 整块视图（画布）被换掉时的退场：把它此刻的样子复制一份放进视图根、盖在新视图下面的面板之上，
+ * 淡出后删掉——旧画布和新画布交叉淡过去，不是一下换掉。
+ */
+export function ghostFade(node: HTMLElement, parent: Node | null, ms = 240): void {
+  if (parent === null || REDUCED_MOTION?.matches === true) return
+  const ghost = ghostClone(node)
+  ghost.node.style.zIndex = '1'
+  ghost.place(parent)
+  const fade = ghost.node.animate([{ opacity: 1 }, { opacity: 0 }], {
+    duration: ms,
+    easing: 'linear',
+    fill: 'forwards',
+  })
+  const drop = (): void => ghost.node.remove()
+  fade.finished.then(drop, drop)
+}
+
 /** 浮层与触发器之间的间距。 */
 const FLOAT_GAP = 6
 /** 浮层退场动画的时长（和 ui.module.css 的 floatOut 一致）。 */

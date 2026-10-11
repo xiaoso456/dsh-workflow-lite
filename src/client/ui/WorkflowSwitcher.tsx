@@ -17,6 +17,7 @@ import { Icon } from './Icon.tsx'
 import { SwapText } from './motion.tsx'
 import { cx, Popover } from './primitives.tsx'
 import { RunMenuSection } from './RunTopBar.tsx'
+import run from './run.module.css'
 import css from './topbar.module.css'
 import ui from './ui.module.css'
 import { deleteDesc, WorkflowRow } from './WorkflowRow.tsx'
@@ -27,11 +28,20 @@ export interface WorkflowSwitcherProps {
   /** 本会话的工作流实例（下拉里「本会话的实例」那一段）。 */
   runs: Runs
   onOpenRun(id: string): void
+  /** 打开一张工作流：模板编辑里切图，实例视图里先回到模板编辑再切。 */
+  onOpenWorkflow(name: string): void
+  /** 新建一张工作流（并进入编辑）。 */
+  onNewWorkflow(): void
+  /** 在实例视图里用：正在看的实例，与触发器里的内容；不给 = 模板编辑（触发器是工作流名字）。 */
+  run?: { id: string; trigger(open: boolean): React.ReactNode }
 }
 
 export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Element {
   const { t, wf } = props
   const { state, catalog } = wf
+  const inRun = props.run !== undefined
+  /** 正开着的这张模板；在实例视图里没有「正开着的」。 */
+  const current = inRun ? null : state.name
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   /** 顶栏上的名字正在改（只改正开着的这张）。 */
@@ -46,16 +56,25 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
 
   // 刚建好的工作流：直接进入改名，名字全选，敲字即覆盖。
   useEffect(() => {
-    if (wf.fresh === null || wf.fresh !== state.name) return
+    if (inRun || wf.fresh === null || wf.fresh !== state.name) return
     wf.clearFresh()
     setRenaming(true)
-  }, [wf.fresh, state.name, wf.clearFresh])
+  }, [inRun, wf.fresh, state.name, wf.clearFresh])
 
   const close = (): void => {
     setOpen(false)
     setQuery('')
     setEditing(null)
     setLingering(false)
+  }
+
+  /**
+   * 点中一行：用鼠标点的，下拉先留着，让人看到已经切过去，鼠标移出再收；键盘、触屏立刻收起。
+   * 模板编辑和实例视图共用同一个顶栏，切过去下拉也还在。
+   */
+  const choose = (event: React.MouseEvent): void => {
+    if ((event.nativeEvent as PointerEvent).pointerType === 'mouse') setLingering(true)
+    else close()
   }
 
   const workflows = catalog?.workflows ?? []
@@ -68,7 +87,7 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
   }, [workflows, query])
   const doomedEntry = workflows.find((entry) => entry.name === doomed)
 
-  if (renaming && state.name !== null) {
+  if (renaming && !inRun && state.name !== null) {
     return (
       <NameInput
         t={t}
@@ -92,10 +111,10 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
       trigger={
         <button
           type="button"
-          className={css.switch}
+          className={cx(css.switch, inRun && run.switchButton)}
           aria-expanded={open}
           aria-haspopup="dialog"
-          data-testid="wl-switcher"
+          data-testid={inRun ? 'wl-run-switcher' : 'wl-switcher'}
           onClick={() => {
             if (open) {
               close()
@@ -106,26 +125,32 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
             void props.runs.refresh()
           }}
           onDoubleClick={() => {
-            if (state.name === null) return
+            if (inRun || state.name === null) return
             close()
             setRenaming(true)
           }}
         >
-          <span className={css.name}>
-            <SwapText text={state.name ?? t('wf.pick')} />
-          </span>
-          <span className={css.chev} data-glide="">
-            <Icon name="chevronDown" size={14} />
-          </span>
+          {props.run !== undefined ? (
+            props.run.trigger(open)
+          ) : (
+            <>
+              <span className={css.name}>
+                <SwapText text={state.name ?? t('wf.pick')} />
+              </span>
+              <span className={css.chev} data-glide="">
+                <Icon name="chevronDown" size={14} />
+              </span>
+            </>
+          )}
         </button>
       }
     >
       <RunMenuSection
         t={t}
         runs={props.runs}
-        activeId={null}
-        onOpenRun={(id) => {
-          close()
+        activeId={props.run?.id ?? null}
+        onOpenRun={(id, event) => {
+          choose(event)
           props.onOpenRun(id)
         }}
       />
@@ -159,15 +184,13 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
             key={entry.name}
             t={t}
             entry={entry}
-            active={entry.name === state.name}
+            active={entry.name === current}
             editing={editing === entry.name}
             busy={remove.open && doomed === entry.name}
             deleteRef={doomed === entry.name ? remove.anchorRef : undefined}
             onOpen={(event) => {
-              const mouse = (event.nativeEvent as PointerEvent).pointerType === 'mouse'
-              if (mouse) setLingering(true)
-              else close()
-              if (entry.name !== state.name) void wf.open(entry.name)
+              choose(event)
+              if (entry.name !== current) props.onOpenWorkflow(entry.name)
             }}
             onEdit={() => {
               if (remove.open) remove.hide()
@@ -194,14 +217,14 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
         remove.render({
           t,
           title: t('wf.deleteTitle').replace('{name}', doomedEntry.name),
-          desc: deleteDesc(t, doomedEntry, doomedEntry.name === state.name),
+          desc: deleteDesc(t, doomedEntry, doomedEntry.name === current),
           confirmText: t('common.delete'),
           testId: 'wl-delete-confirm',
           onConfirm: () => void wf.remove(doomedEntry.name),
         })}
 
       <div className={ui.menuSep} />
-      {state.name !== null && (
+      {!inRun && state.name !== null && (
         <button
           type="button"
           className={ui.menuItem}
@@ -221,7 +244,7 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
         data-testid="wl-new"
         onClick={() => {
           close()
-          void wf.create()
+          props.onNewWorkflow()
         }}
       >
         <Icon name="plus" size={15} />

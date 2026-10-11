@@ -35,7 +35,7 @@ import { Icon } from './Icon.tsx'
 import { InputsDialog } from './InputsDialog.tsx'
 import { Inspector } from './Inspector.tsx'
 import { Library } from './Library.tsx'
-import { ExitSeat, useSwapHold } from './motion.tsx'
+import { ExitSeat, useSwapHold, useViewGhost } from './motion.tsx'
 import { PlanDialog } from './PlanDialog.tsx'
 import { cx, ModalHostProvider } from './primitives.tsx'
 import { QuickAdd } from './QuickAdd.tsx'
@@ -44,7 +44,7 @@ import { SettingsDialog } from './SettingsDialog.tsx'
 import { StepPanel } from './StepPanel.tsx'
 import css from './shell.module.css'
 import { TipLayer } from './TipLayer.tsx'
-import { TopBar } from './TopBar.tsx'
+import { NO_SLOTS, TopBar, type TopSlots } from './TopBar.tsx'
 import ui from './ui.module.css'
 import { VersionsDialog } from './VersionsDialog.tsx'
 
@@ -98,6 +98,27 @@ function writeLibraryPref(open: boolean): void {
   } catch {
     // 偏好持久化是尽力而为。
   }
+}
+
+/** 模板编辑的画布层：卸掉时（切到实例视图）留影子淡出；切工作流时压暗、点不了；内容没来先透明。 */
+function CanvasLayer(props: {
+  hidden: boolean
+  dim: boolean
+  children: React.ReactNode
+}): React.JSX.Element {
+  const ref = useRef<HTMLDivElement>(null)
+  useViewGhost(ref)
+  return (
+    <div
+      ref={ref}
+      className={css.canvas}
+      data-hidden={props.hidden || undefined}
+      data-dim={props.dim || undefined}
+      {...(props.dim ? { inert: '' } : {})}
+    >
+      {props.children}
+    </div>
+  )
 }
 
 export function WorkflowView(props: WorkflowViewProps): React.JSX.Element {
@@ -170,6 +191,22 @@ function Shell(props: {
     },
     [state.name, wf],
   )
+  // 共用顶栏留给实例视图填的三个位置。
+  const [slots, setSlots] = useState<TopSlots>(NO_SLOTS)
+  const slotRefs = useMemo(
+    () => ({
+      trigger: (el: HTMLElement | null) =>
+        setSlots((s) => (s.trigger === el ? s : { ...s, trigger: el })),
+      left: (el: HTMLElement | null) => setSlots((s) => (s.left === el ? s : { ...s, left: el })),
+      right: (el: HTMLElement | null) =>
+        setSlots((s) => (s.right === el ? s : { ...s, right: el })),
+    }),
+    [],
+  )
+  const newWorkflow = useCallback((): void => {
+    setRunId(null)
+    void wf.create()
+  }, [wf])
   // ── 执行 ────────────────────────────────────────────────────
   const sessionRows = useSessionRows(props.sessions)
   const [starting, setStarting] = useState(false)
@@ -698,6 +735,7 @@ function Shell(props: {
               onPanel={setRunPanel}
               onOpenRun={openRun}
               onOpenTemplate={openTemplate}
+              slots={slots}
               onOpenHub={() => setHubOpen(true)}
               {...(props.desktop === undefined ? {} : { desktop: props.desktop })}
             />
@@ -705,11 +743,7 @@ function Shell(props: {
           </>
         ) : (
           <>
-            <div
-              className={css.canvas}
-              data-dim={canvasHold.dim || undefined}
-              {...(canvasHold.dim ? { inert: '' } : {})}
-            >
+            <CanvasLayer hidden={state.phase === 'loading' && shown === null} dim={canvasHold.dim}>
               {shown !== null && (
                 <Canvas
                   t={t}
@@ -732,54 +766,10 @@ function Shell(props: {
                   onFocusFile={onFocusFile}
                 />
               )}
-            </div>
+            </CanvasLayer>
 
             {state.phase === 'idle' && wf.catalog !== null && <Welcome t={t} wf={wf} />}
             {state.phase === 'broken' && <Broken t={t} wf={wf} />}
-
-            <div className={css.top}>
-              <TopBar
-                t={t}
-                wf={wf}
-                libraryOpen={libraryOpen}
-                onToggleLibrary={toggleLibrary}
-                onTidy={relayout}
-                onLocate={locate}
-                onPreview={() => setPlanOpen(true)}
-                launch={{
-                  blocked: launchBlocked,
-                  starting,
-                  session: props.session,
-                  rows: sessionRows,
-                  canCreate,
-                  onRun: launch,
-                }}
-                onSettings={() => setSettingsOpen(true)}
-                onVersions={() => setVersionsOpen(true)}
-                runs={runs}
-                onOpenRun={openRun}
-                onOpenHub={() => setHubOpen(true)}
-              />
-            </div>
-
-            {live && (
-              <div className={css.library} aria-hidden={!libraryOpen}>
-                <Library
-                  t={t}
-                  templates={wf.catalog?.templates.nodes ?? []}
-                  focus={focus}
-                  onFocus={focusLibrary}
-                  onNewStep={() =>
-                    focusLibrary({
-                      kind: 'new',
-                      seed: { prompt: '', ...freshTemplateLook() },
-                      name: freeStepName('my-step'),
-                    })
-                  }
-                  onClose={toggleLibrary}
-                />
-              </div>
-            )}
 
             {live && focus !== null && (
               <div className={css.inspector}>
@@ -1006,6 +996,52 @@ function Shell(props: {
             )}
           </>
         )}
+        {live && (
+          <div className={css.library} aria-hidden={!libraryOpen}>
+            <Library
+              t={t}
+              templates={wf.catalog?.templates.nodes ?? []}
+              focus={focus}
+              onFocus={focusLibrary}
+              onNewStep={() =>
+                focusLibrary({
+                  kind: 'new',
+                  seed: { prompt: '', ...freshTemplateLook() },
+                  name: freeStepName('my-step'),
+                })
+              }
+              onClose={toggleLibrary}
+            />
+          </div>
+        )}
+        <div className={css.top}>
+          <TopBar
+            t={t}
+            runId={runId}
+            slotRefs={slotRefs}
+            wf={wf}
+            libraryOpen={libraryOpen}
+            onToggleLibrary={toggleLibrary}
+            onTidy={relayout}
+            onLocate={locate}
+            onPreview={() => setPlanOpen(true)}
+            launch={{
+              blocked: launchBlocked,
+              starting,
+              session: props.session,
+              rows: sessionRows,
+              canCreate,
+              onRun: launch,
+            }}
+            onSettings={() => setSettingsOpen(true)}
+            onVersions={() => setVersionsOpen(true)}
+            runs={runs}
+            onOpenRun={openRun}
+            onOpenHub={() => setHubOpen(true)}
+            onOpenWorkflow={openTemplate}
+            onNewWorkflow={newWorkflow}
+          />
+        </div>
       </ModalHostProvider>
       <TipLayer root={modalHost} />
     </div>

@@ -70,7 +70,7 @@ import { FileViewer } from './FileViewer.tsx'
 import { Icon } from './Icon.tsx'
 import { edgeSwap, Inspector } from './Inspector.tsx'
 import css from './inspector.module.css'
-import { ExitSeat, useSwap } from './motion.tsx'
+import { ExitSeat, useSwap, useViewGhost } from './motion.tsx'
 import { EdgeHead, InputHead, OverviewHead, ResourceHead, StepHead } from './NodeHeads.tsx'
 import { cx } from './primitives.tsx'
 import { QuickAdd } from './QuickAdd.tsx'
@@ -86,6 +86,7 @@ import { RunStepDetail } from './RunStep.tsx'
 import { RunTopBar } from './RunTopBar.tsx'
 import run from './run.module.css'
 import shell from './shell.module.css'
+import type { TopSlots } from './TopBar.tsx'
 import ui from './ui.module.css'
 
 export interface RunViewProps {
@@ -108,7 +109,10 @@ export interface RunViewProps {
   onPanel(open: boolean): void
   onOpenRun(id: string): void
   onOpenTemplate(name: string): void
+  /** 工作流（下拉里改名、删除、新建用）。 */
   onOpenHub(): void
+  /** 共用顶栏（`TopBar`）留给实例视图填的位置。 */
+  slots: TopSlots
   /** 用系统程序打开产出文件；宿主没有桌面能力时不给。 */
   desktop?: Desktop
 }
@@ -141,6 +145,8 @@ function useSnapshot(
 
 export function RunView(props: RunViewProps): React.JSX.Element {
   const { t, id, narrow, inspectorW, panelOpen, onPanel } = props
+  const canvasRef = useRef<HTMLDivElement>(null)
+  useViewGhost(canvasRef)
   const current = useRun(props.rpc, id, props.session, t, () => void props.runs.refresh())
   const summary = current.view?.summary
   const raw = useSnapshot(id, current.view?.document, summary?.planId)
@@ -224,7 +230,6 @@ export function RunView(props: RunViewProps): React.JSX.Element {
     title: string
     note?: string | undefined
   } | null>(null)
-  const canvasRef = useRef<HTMLDivElement>(null)
   /** 看实例工作区里的文件夹、Skill（相对路径按实例的工作区，Skill 按实例所属的会话）。 */
   const cwd = summary?.cwd
   const host = useMemo(
@@ -555,7 +560,11 @@ export function RunView(props: RunViewProps): React.JSX.Element {
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: 只在这一层收视图内冒上来的按键
     <div onKeyDown={onKeyDown} style={{ display: 'contents' }}>
-      <div className={shell.canvas} ref={canvasRef}>
+      <div
+        className={shell.canvas}
+        ref={canvasRef}
+        data-hidden={doc === null || analysis === null || undefined}
+      >
         {doc !== null && analysis !== null && (
           <Canvas
             t={t}
@@ -583,22 +592,21 @@ export function RunView(props: RunViewProps): React.JSX.Element {
         )}
       </div>
 
-      <div className={shell.top}>
-        <RunTopBar
-          {...props}
-          summary={summary}
-          state={shown}
-          nav={nav}
-          onTogglePanel={() => {
-            if (panelOpen) closePanel()
-            else onPanel(true)
-          }}
-          history={history}
-          problems={doc === null ? null : graph.report}
-          onTidy={relayout}
-          onLocate={locate}
-        />
-      </div>
+      <RunTopBar
+        {...props}
+        summary={summary}
+        state={shown}
+        nav={nav}
+        onTogglePanel={() => {
+          if (panelOpen) closePanel()
+          else onPanel(true)
+        }}
+        history={history}
+        problems={doc === null ? null : graph.report}
+        onTidy={relayout}
+        onLocate={locate}
+        slots={props.slots}
+      />
 
       {showPanel &&
         doc !== null &&
