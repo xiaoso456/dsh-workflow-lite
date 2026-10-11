@@ -7,7 +7,7 @@
 
 /* ── 外框与标题栏 ─────────────────────────────────────────── */
 
-.dialog[role="dialog"] {
+div.dialog {
   width: min(920px, 100%);
   max-width: none;
   height: min(620px, 100%);
@@ -511,8 +511,8 @@ button.statusItem {
   }
 }
 
-.statusItem[aria-checked="true"] {
-  background: var(--wl-accent-soft);
+.statusItem[aria-checked="true"]::after {
+  opacity: 1;
 }
 
 /* 确认卡里：通知模型开关，打开时下面多一栏说明；都和标题的字对齐。 */

@@ -226,17 +226,18 @@
   border-color: color-mix(in srgb, var(--wl-run) 60%, transparent);
 }
 
+/* 字和小图标的颜色是 FadeText / FadeMark 的两层交叉淡：没选中灰、悬停深、选中状态色。 */
+.choice {
+  --wl-off: var(--wl-text-2);
+  --wl-on: var(--wl-run);
+}
+
 .choice:hover {
-  color: var(--wl-text);
+  --wl-off: var(--wl-text);
 }
 
 .choice[aria-checked="true"]::before {
   opacity: 0;
-}
-
-/* 选中时只有小图标换成状态色（它同时会弹一下）；字的颜色见 `.choiceText`。 */
-.choice[aria-checked="true"] {
-  color: var(--wl-run);
 }
 
 .choice:focus-visible {
@@ -252,49 +253,6 @@
 .choiceTone {
   border: 1px solid color-mix(in srgb, var(--wl-run) 55%, transparent);
   background: color-mix(in srgb, var(--wl-run) 14%, var(--wl-panel));
-}
-
-.choiceMark {
-  display: inline-flex;
-}
-
-/*
- * 字：本身透明（只占宽度、给读屏和测试读），上面叠两层同样的字——灰的和状态色的，
- * 选中时交叉淡过去（只动 opacity）。
- */
-.choiceText {
-  position: relative;
-  color: transparent;
-  white-space: nowrap;
-}
-
-.choiceText::before,
-.choiceText::after {
-  content: attr(data-text);
-  position: absolute;
-  inset: 0;
-  transition: opacity 200ms linear;
-}
-
-.choiceText::before {
-  color: var(--wl-text-2);
-}
-
-.choice:hover .choiceText::before {
-  color: var(--wl-text);
-}
-
-.choiceText::after {
-  color: var(--wl-run);
-  opacity: 0;
-}
-
-.choice[aria-checked="true"] .choiceText::before {
-  opacity: 0;
-}
-
-.choice[aria-checked="true"] .choiceText::after {
-  opacity: 1;
 }
 
 /* 改了还没保存的字段：标题旁一个小圆点。 */
@@ -484,10 +442,9 @@
   gap: 6px;
 }
 
-.actions [data-active="true"],
-.actions [data-active="true"]:hover {
-  background: var(--wl-accent-soft);
-  color: var(--wl-accent-text);
+/* 「钉住」这类开关：底色 ui.fillOn 渐显、字和图标 FadeText / FadeMark 交叉淡。 */
+.actions button {
+  --wl-off: var(--wl-text);
 }
 
 /* 执行位置里「指定」的勾选列表：步骤多时在框里滚。 */
@@ -661,9 +618,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .choice,
-  .choice::before,
-  .choiceText::before,
-  .choiceText::after {
+  .choice::before {
     transition: none;
   }
 }
@@ -757,17 +712,11 @@
   background: var(--wl-fill);
 }
 
+/* 滑块的位置、大小由 PickThumb 按选中格量出来，这里只管样子。 */
 .modeThumb {
-  position: absolute;
-  top: 2px;
-  bottom: 2px;
-  left: 2px;
-  width: 26px;
   border-radius: 6px;
   background: var(--wl-panel);
   box-shadow: var(--wl-shadow-thumb);
-  transition: transform 200ms var(--wl-ease);
-  pointer-events: none;
 }
 
 .modeItem {
@@ -788,17 +737,7 @@
   color: var(--wl-text);
 }
 
-.modeItem[aria-checked="true"] {
-  color: var(--wl-accent-text);
-}
-
 .modeItem:focus-visible {
   outline: 2px solid var(--wl-accent);
   outline-offset: -2px;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .modeThumb {
-    transition: none;
-  }
 }

@@ -105,7 +105,7 @@ export function HandoffField(props: {
           </HelpTip>
         </span>
       </div>
-      <label className={css.resultRow} data-checked={on}>
+      <label className={cx(css.resultRow, ui.fillOn)} data-on={on}>
         <input
           type="checkbox"
           className={css.check}

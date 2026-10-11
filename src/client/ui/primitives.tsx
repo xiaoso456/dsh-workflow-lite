@@ -1,5 +1,5 @@
 /**
- * dsh-workflow-lite — 小件：类名拼接、点外面关闭、分段选择、浮层。
+ * dsh-workflow-lite — 小件：类名拼接、点外面关闭、浮层（分段选择在 Segmented.tsx）。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/primitives
  */
@@ -65,6 +65,8 @@ export function Popover(props: {
   className?: string
   label: string
   hold?: boolean
+  /** 鼠标从触发器和浮层上整个移开（离开两者合起来的范围）。 */
+  onLeave?: () => void
 }): React.JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
   useDismiss(props.open && props.hold !== true, ref, props.onClose)
@@ -88,6 +90,9 @@ export function Popover(props: {
     <div
       className={ui.anchor}
       ref={ref}
+      onPointerLeave={(event) => {
+        if (props.open && event.pointerType === 'mouse') props.onLeave?.()
+      }}
       onKeyDown={(event) => {
         if (event.key !== 'Escape' || !props.open) return
         event.stopPropagation()
@@ -113,56 +118,6 @@ export function Popover(props: {
           {props.children}
         </div>
       )}
-    </div>
-  )
-}
-
-/** 分段选择（单选）。选中格下面那块滑块靠 `transform` 滑过去。 */
-export function Segmented<V extends string>(props: {
-  label: string
-  value: V
-  /** `color`：选项前的小色点（比如条件的四种线色），和画布上对应的东西同色。 */
-  options: readonly { value: V; label: string; color?: string }[]
-  onChange: (value: V) => void
-  disabled?: boolean
-  /** 每格的 `data-testid` 是 `${testId}-${value}`。 */
-  testId?: string
-}): React.JSX.Element {
-  const index = Math.max(
-    0,
-    props.options.findIndex((option) => option.value === props.value),
-  )
-  return (
-    <div
-      className={ui.seg}
-      role="radiogroup"
-      aria-label={props.label}
-      aria-disabled={props.disabled === true ? true : undefined}
-    >
-      <span
-        className={ui.segThumb}
-        style={{
-          width: `calc((100% - 4px) / ${props.options.length})`,
-          transform: `translateX(${index * 100}%)`,
-        }}
-      />
-      {props.options.map((option) => (
-        <button
-          key={option.value}
-          type="button"
-          role="radio"
-          aria-checked={option.value === props.value}
-          className={ui.segItem}
-          disabled={props.disabled}
-          data-testid={props.testId === undefined ? undefined : `${props.testId}-${option.value}`}
-          onClick={() => props.onChange(option.value)}
-        >
-          {option.color !== undefined && (
-            <span className={ui.segDot} style={{ background: option.color }} />
-          )}
-          {option.label}
-        </button>
-      ))}
     </div>
   )
 }

@@ -34,13 +34,14 @@ import { InputPanel, StepInputsField } from './InputPanel.tsx'
 import css from './inspector.module.css'
 import { LinkRow } from './LinkRow.tsx'
 import { WHEN_COLOR, type WhenKind, whenKind } from './lines.ts'
-import { useResizeFlip, useSwap } from './motion.tsx'
+import { EDIT_VIEW, useResizeFlip, useSwap } from './motion.tsx'
 import { EdgeHead, StepHead } from './NodeHeads.tsx'
 import { PreviewCard } from './PreviewCard.tsx'
-import { cx, Segmented } from './primitives.tsx'
+import { cx } from './primitives.tsx'
 import { ResourcePanel } from './ResourcePanel.tsx'
 import { ResourceEdgeBody, ResourceIcon, StepResourcesField } from './Resources.tsx'
 import { stepName } from './resourceUi.ts'
+import { Segmented } from './Segmented.tsx'
 import { lookOf, StepMark } from './StepMark.tsx'
 import ui from './ui.module.css'
 
@@ -134,7 +135,7 @@ function NodePanel(props: InspectorProps & { node: StepNode }): React.JSX.Elemen
   const prompt = node.data.prompt ?? ''
   const key = idKey(node.id)
   // 换选中的东西：旧内容滑出、新内容按画布上的左右滑进来（面板按选中项挂键，见 useSwap）。
-  const swap = useSwap<HTMLElement>(key, node.position.x)
+  const swap = useSwap<HTMLElement>(key, node.position.x, EDIT_VIEW)
   // 画布上连了 / 断了一条线：清单里那一行浮出 / 淡出，其余的滑到新位置。
   const incomingRef = useResizeFlip({ exit: true, enter: true })
   const outgoingRef = useResizeFlip({ exit: true, enter: true })
@@ -411,7 +412,7 @@ export function edgeSwap(
 function EdgePanel(props: InspectorProps & { edge: WorkflowEdge }): React.JSX.Element {
   const { t, edge, doc, analysis, onEdit, onSelect } = props
   const spot = edgeSwap(doc, edge)
-  const swapEdge = useSwap<HTMLElement>(spot.key, spot.at)
+  const swapEdge = useSwap<HTMLElement>(spot.key, spot.at, EDIT_VIEW)
   const when = whenOf(edge)
   const [mode, setMode] = useState<WhenKind>(whenKind(when))
   const [draft, setDraft] = useState(mode === 'custom' ? (when ?? '') : '')

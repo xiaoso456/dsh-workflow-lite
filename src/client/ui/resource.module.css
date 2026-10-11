@@ -457,10 +457,6 @@
   background: var(--wl-hover);
 }
 
-.skillRow[data-on="true"] {
-  background: var(--wl-accent-soft);
-}
-
 .skillPick {
   display: flex;
   flex: 1 1 auto;
@@ -508,11 +504,6 @@
   transition:
     opacity 120ms linear,
     transform 160ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
-}
-
-.skillCheck[data-on="true"] {
-  border-color: var(--wl-accent);
-  background: var(--wl-accent);
 }
 
 .skillCheck[data-on="true"] svg {
@@ -611,7 +602,7 @@
 
 /* ── SKILL.md 预览 ────────────────────────────────────────── */
 
-.skillViewer[role="dialog"] {
+div.skillViewer {
   width: min(860px, calc(100% - 48px));
 }
 

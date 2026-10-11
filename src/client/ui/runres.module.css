@@ -143,14 +143,6 @@
   align-items: center;
 }
 
-.state[data-on="true"] {
-  color: var(--wl-ok);
-}
-
-.state[data-on="true"] .dot {
-  background: currentcolor;
-}
-
 /* 行尾的查看 / 打开：平时淡一些，悬停这一行或键盘聚焦时完全显出来。 */
 .actions {
   display: flex;
@@ -178,7 +170,7 @@
 /* ── 详情框 ───────────────────────────────────────────────── */
 
 /* 文件夹、网址、自定义文字的详情框比看文件的小：内容不多，不占满屏。 */
-.small[role="dialog"] {
+div.small {
   height: auto;
   max-height: min(640px, calc(100% - 48px));
   width: min(600px, calc(100% - 48px));

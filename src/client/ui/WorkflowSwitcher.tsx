@@ -14,6 +14,7 @@ import type { Workflow } from '../app/useWorkflow.ts'
 import type { T } from '../i18n.ts'
 import { useConfirm } from './Confirm.tsx'
 import { Icon } from './Icon.tsx'
+import { SwapText } from './motion.tsx'
 import { cx, Popover } from './primitives.tsx'
 import { RunMenuSection } from './RunTopBar.tsx'
 import css from './topbar.module.css'
@@ -40,6 +41,8 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
   /** 删除确认卡指着哪一行；卡片挂在那一行的删除按钮上，下拉不收。 */
   const [doomed, setDoomed] = useState<string | null>(null)
   const remove = useConfirm<HTMLButtonElement>()
+  /** 用鼠标点开了一张：下拉先不收，让人看到「已切过去」，鼠标移出去再收。 */
+  const [lingering, setLingering] = useState(false)
 
   // 刚建好的工作流：直接进入改名，名字全选，敲字即覆盖。
   useEffect(() => {
@@ -52,6 +55,7 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
     setOpen(false)
     setQuery('')
     setEditing(null)
+    setLingering(false)
   }
 
   const workflows = catalog?.workflows ?? []
@@ -80,6 +84,9 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
       open={open}
       onClose={close}
       hold={editing !== null || remove.open}
+      onLeave={() => {
+        if (lingering && editing === null && !remove.open) close()
+      }}
       label={t('wf.pick')}
       className={css.menu}
       trigger={
@@ -104,8 +111,12 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
             setRenaming(true)
           }}
         >
-          <span className={css.name}>{state.name ?? t('wf.pick')}</span>
-          <Icon name="chevronDown" size={14} />
+          <span className={css.name}>
+            <SwapText text={state.name ?? t('wf.pick')} />
+          </span>
+          <span className={css.chev} data-glide="">
+            <Icon name="chevronDown" size={14} />
+          </span>
         </button>
       }
     >
@@ -152,8 +163,10 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
             editing={editing === entry.name}
             busy={remove.open && doomed === entry.name}
             deleteRef={doomed === entry.name ? remove.anchorRef : undefined}
-            onOpen={() => {
-              close()
+            onOpen={(event) => {
+              const mouse = (event.nativeEvent as PointerEvent).pointerType === 'mouse'
+              if (mouse) setLingering(true)
+              else close()
               if (entry.name !== state.name) void wf.open(entry.name)
             }}
             onEdit={() => {

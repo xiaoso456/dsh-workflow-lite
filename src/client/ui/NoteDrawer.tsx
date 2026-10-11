@@ -12,7 +12,7 @@ import type { T } from '../i18n.ts'
 import css from './files.module.css'
 import { Icon } from './Icon.tsx'
 import { Markdown } from './Markdown.tsx'
-import { useExit } from './motion.tsx'
+import { FadeMark, FadeText, useExit } from './motion.tsx'
 import { cx } from './primitives.tsx'
 import ui from './ui.module.css'
 
@@ -21,14 +21,16 @@ export function NoteToggle(props: { t: T; open: boolean; onToggle(): void }): Re
   return (
     <button
       type="button"
-      className={cx(ui.btn, ui.small, ui.soft, css.noteToggle)}
+      className={cx(ui.btn, ui.small, ui.soft, ui.fillOn, css.noteToggle)}
       aria-expanded={props.open}
       data-on={props.open}
       data-testid="wl-viewer-note-toggle"
       onClick={props.onToggle}
     >
-      <Icon name="note" size={14} />
-      {props.t('res.note')}
+      <FadeMark on={props.open}>
+        <Icon name="note" size={14} />
+      </FadeMark>
+      <FadeText text={props.t('res.note')} on={props.open} />
     </button>
   )
 }

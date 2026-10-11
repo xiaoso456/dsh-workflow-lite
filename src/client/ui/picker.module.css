@@ -100,6 +100,7 @@
 }
 
 .places {
+  position: relative;
   display: flex;
   flex: none;
   flex-wrap: wrap;
@@ -108,12 +109,13 @@
 }
 
 .place {
+  position: relative;
   display: inline-flex;
   gap: 5px;
   align-items: center;
   height: 24px;
   padding: 0 9px;
-  border: 1px solid var(--wl-line);
+  border: 1px solid transparent;
   border-radius: 999px;
   background: transparent;
   color: var(--wl-text-2);
@@ -122,19 +124,52 @@
   cursor: pointer;
 }
 
-.place:hover {
-  background: var(--wl-hover);
+/* 平时的描边画在伪元素上，选中时淡掉（让给滑过来的选中块）。 */
+.place::before {
+  position: absolute;
+  inset: -1px;
+  border: 1px solid var(--wl-line);
+  border-radius: inherit;
+  content: "";
+  pointer-events: none;
+  transition: opacity 160ms linear;
 }
 
-.place[data-on="true"] {
-  border-color: var(--wl-accent);
-  background: var(--wl-accent-soft);
-  color: var(--wl-accent-text);
+.place:hover {
+  background: var(--wl-hover);
+  color: var(--wl-text);
+}
+
+.place[aria-current="true"]::before {
+  opacity: 0;
 }
 
 .place:focus-visible {
   outline: 2px solid var(--wl-accent);
   outline-offset: 1px;
+}
+
+/* 选中块：位置、大小由 PickThumb 量，这里只管样子。 */
+.placeThumb {
+  border: 1px solid var(--wl-accent);
+  border-radius: 999px;
+  background: var(--wl-accent-soft);
+}
+
+/* 字、图标的颜色是 FadeText / FadeMark 的两层交叉淡：没选中灰、悬停深、选中蓝。 */
+.place {
+  --wl-off: var(--wl-text-2);
+  --wl-on: var(--wl-accent-text);
+}
+
+.place:hover {
+  --wl-off: var(--wl-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .place::before {
+    transition: none;
+  }
 }
 
 /* ── 筛选 ─────────────────────────────────────────────────── */
@@ -187,9 +222,16 @@
   cursor: pointer;
 }
 
-.hiddenToggle[aria-pressed="true"] {
-  border-color: var(--wl-accent);
-  color: var(--wl-accent-text);
+/* 开着时：强调色描边（::after 渐显，ui.fillOn）、字色是 FadeText 的两层交叉淡。 */
+.hiddenToggle {
+  --wl-fill-on: transparent;
+  --wl-off: var(--wl-text-3);
+  --wl-on: var(--wl-accent-text);
+}
+
+button.hiddenToggle::after {
+  inset: -1px;
+  border: 1px solid var(--wl-accent);
 }
 
 /* ── 列表 ─────────────────────────────────────────────────── */
@@ -225,10 +267,6 @@
 
 .row:hover {
   background: var(--wl-hover);
-}
-
-.row[data-on="true"] {
-  background: var(--wl-accent-soft);
 }
 
 .entry {
@@ -350,11 +388,6 @@
   transition:
     opacity 120ms linear,
     transform 160ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
-}
-
-.check[aria-checked="true"] {
-  border-color: var(--wl-accent);
-  background: var(--wl-accent);
 }
 
 .check[aria-checked="true"] svg {

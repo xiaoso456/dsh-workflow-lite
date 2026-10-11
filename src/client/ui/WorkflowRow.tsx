@@ -27,7 +27,7 @@ export interface WorkflowRowProps {
   busy: boolean
   /** 删除按钮的 ref：确认卡挂在它上面（只有确认卡指着这一行时才给）。 */
   deleteRef: React.RefObject<HTMLButtonElement> | undefined
-  onOpen(): void
+  onOpen(event: React.MouseEvent): void
   onEdit(): void
   /** 提交新名字；回 `false` = 名字不行，留在输入框里。 */
   onRename(value: string): Promise<boolean>

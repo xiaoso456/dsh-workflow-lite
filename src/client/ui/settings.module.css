@@ -97,6 +97,7 @@
   border-radius: 8px;
   background: var(--wl-fill);
   color: var(--wl-text-2);
+  --wl-on: var(--wl-accent-on);
 }
 
 .modeIcon::before {
@@ -109,27 +110,12 @@
   transition: opacity 200ms linear;
 }
 
-.modeGlyph,
-.modeGlyphOn {
+.modeIcon > * {
   position: relative;
-  display: grid;
-  grid-area: 1 / 1;
-  place-items: center;
-  transition: opacity 200ms linear;
 }
 
-.modeGlyphOn {
-  color: var(--wl-accent-on);
-  opacity: 0;
-}
-
-.mode[aria-checked="true"] .modeIcon::before,
-.mode[aria-checked="true"] .modeGlyphOn {
+.mode[aria-checked="true"] .modeIcon::before {
   opacity: 1;
-}
-
-.mode[aria-checked="true"] .modeGlyph {
-  opacity: 0;
 }
 
 .modeTitle {
@@ -274,8 +260,6 @@ label.row:hover {
   .mode,
   .mode::before,
   .modeIcon::before,
-  .modeGlyph,
-  .modeGlyphOn,
   .modeCheck,
   .switch::before,
   .knob {

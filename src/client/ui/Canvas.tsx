@@ -118,7 +118,7 @@ import type { FocusFile } from './Handoff.tsx'
 import hand from './handoff.module.css'
 import { Icon, type IconName } from './Icon.tsx'
 import { ACCESS_COLOR, type Access, WHEN_COLOR, type WhenKind, whenKind } from './lines.ts'
-import { SwapIcon, SwapText, useCanvasExits } from './motion.tsx'
+import { FadeRing, SwapIcon, SwapText, useCanvasExits, useLast } from './motion.tsx'
 import { cx, useFloat } from './primitives.tsx'
 import { freeFilePath, itemText, KIND_ICON, KIND_LABEL } from './resourceUi.ts'
 import { lookOf, StepMark } from './StepMark.tsx'
@@ -331,6 +331,9 @@ const ACCESS_TEXT: Record<Access, LocaleKey> = {
 
 const ACCESS_ICON = { produce: 'pencil', update: 'reload', read: 'eye', ask: 'ask' } as const
 
+const ROLES = ['producer', 'updater', 'reader'] as const satisfies readonly ResourceRole[]
+const ACCESSES = ['produce', 'update', 'read', 'ask'] as const satisfies readonly Access[]
+
 /** 输入卡左侧签上的图标：按交互方式。 */
 const INPUT_ICON = {
   text: 'inputText',
@@ -379,6 +382,13 @@ function spotVar(spot: Spot): React.CSSProperties {
   return { '--wl-at': spot.at } as React.CSSProperties
 }
 
+/** 卡片描边是哪一层：运行中 / 失败 / 等待优先，其次是悬停资源时的读写角色。 */
+function ringOf(data: StepData): string | undefined {
+  const status = data.run?.status
+  if (status === 'running' || status === 'failed' || status === 'waiting') return status
+  return data.role ?? undefined
+}
+
 const StepCard = memo(function StepCard(props: NodeProps<StepFlowNode>): React.JSX.Element {
   const { data, id, selected } = props
   return (
@@ -416,9 +426,20 @@ const StepCard = memo(function StepCard(props: NodeProps<StepFlowNode>): React.J
           {data.run.markText}
         </span>
       )}
+      {/* 卡片的描边（运行态 / 角色）和执行位置的外圈：换状态时旧的淡出、新的淡入，不是颜色瞬切。 */}
+      <FadeRing ring={ringOf(data)} className={css.cardRing} />
+      <FadeRing ring={data.run?.mark} className={css.markRing} />
       {data.role !== null && (
         <span className={css.roleTag} data-role={data.role} data-testid="wl-step-role">
-          {data.roleText}
+          {ROLES.map((role) => (
+            <span
+              key={role}
+              className={css.roleTone}
+              data-role={role}
+              data-on={role === data.role}
+            />
+          ))}
+          <SwapText text={data.roleText} />
         </span>
       )}
       <Handle
@@ -1046,6 +1067,9 @@ function rectOf(node: InternalNode | undefined, width: number, height: number): 
  * 三种各有颜色与线型：产出 = 金色实线，在原文件上更新 = 洋红实线、两头箭头，读取 = 青色虚线。
  * 与选中的东西相连时描粗、加光晕、光带按数据方向流动，中点挂一个小牌子写明是哪种。
  */
+/** 旧线色留多久（同 canvas.module.css 的 lineFade）。 */
+const LINE_FADE_MS = 240
+
 const FileLine = memo(function FileLine(props: EdgeProps<FileEdge>): React.JSX.Element {
   const { id, data, markerEnd, markerStart } = props
   // 写线走直角（资源挂在步骤下面，几条写线共用一根树干再分叉）；读线是贝塞尔曲线。
@@ -1065,18 +1089,31 @@ const FileLine = memo(function FileLine(props: EdgeProps<FileEdge>): React.JSX.E
         : getBezierPath(props)
   const active = data?.active === true
   const color = data?.color ?? ACCESS_COLOR.produce
+  // 换了写法（产出 ↔ 更新）线色跟着变：旧颜色的一份叠在上面淡出，不是颜色瞬切。
+  const faded = useLast(color, LINE_FADE_MS)
   return (
     <>
       {/* 光晕常驻、平时透明：活起来时淡入，不活了淡出，不会一闪而现。 */}
       <path d={path} className={css.halo} data-active={active} style={{ stroke: color }} />
       <BaseEdge
+        // 换色那一下重新挂：新颜色（连箭头）的一份淡入，和叠在上面淡出的旧颜色交叉。
+        key={faded.n}
         id={id}
         path={path}
         interactionWidth={20}
         style={{ stroke: color }}
+        {...(faded.n > 0 ? { className: css.lineIn } : {})}
         {...(markerEnd ? { markerEnd } : {})}
         {...(markerStart ? { markerStart } : {})}
       />
+      {faded.was !== null && (
+        <path
+          key={faded.n}
+          d={path}
+          className={cx('react-flow__edge-path', css.lineFade)}
+          style={{ stroke: faded.was }}
+        />
+      )}
       <FlowStreaks path={path} color={color} active={active} />
       {data !== undefined && (
         <EdgeLabelRenderer>
@@ -1091,8 +1128,17 @@ const FileLine = memo(function FileLine(props: EdgeProps<FileEdge>): React.JSX.E
             data-testid="wl-io-chip"
             style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
           >
-            <Icon name={ACCESS_ICON[data.access]} size={11} />
-            {data.chipText}
+            {/* 底色、描边按写法上色：几层叠着，换写法时交叉淡过去；图标、字原地换。 */}
+            {ACCESSES.map((access) => (
+              <span
+                key={access}
+                className={css.ioTone}
+                data-access={access}
+                data-on={access === data.access}
+              />
+            ))}
+            <SwapIcon name={ACCESS_ICON[data.access]} size={11} />
+            <SwapText text={data.chipText} />
           </span>
         </EdgeLabelRenderer>
       )}

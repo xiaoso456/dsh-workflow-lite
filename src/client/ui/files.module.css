@@ -197,7 +197,7 @@
 
 /* ── 查看框 ────────────────────────────────────────────────── */
 
-.viewer[role="dialog"] {
+div.viewer {
   display: flex;
   flex-direction: column;
   width: min(920px, calc(100% - 48px));
@@ -265,10 +265,9 @@
   scrollbar-width: thin;
 }
 
-/* 标题行的「说明」开关：拉出来时换成强调色。 */
-.noteToggle[data-on="true"] {
-  background: var(--wl-accent-soft);
-  color: var(--wl-accent-text);
+/* 标题行的「说明」开关：拉出来时换成强调色（底色 ui.fillOn 渐显、字和图标 FadeText / FadeMark 交叉淡）。 */
+.noteToggle {
+  --wl-off: var(--wl-text);
 }
 
 .noteDrawer {

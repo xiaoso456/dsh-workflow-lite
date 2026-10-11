@@ -20,7 +20,7 @@ import type { LocaleKey, T } from '../i18n.ts'
 import { shortTime } from '../model/time.ts'
 import { Icon } from './Icon.tsx'
 import { Issues } from './Issues.tsx'
-import { SwapIcon, SwapText } from './motion.tsx'
+import { FadeMark, SwapIcon, SwapText } from './motion.tsx'
 import { copyText, cx, Popover } from './primitives.tsx'
 import type { RunViewProps } from './RunView.tsx'
 import run from './run.module.css'
@@ -224,7 +224,7 @@ export function RunTopBar(
               <span className={ui.divider} />
               <button
                 type="button"
-                className={cx(ui.btn, ui.icon)}
+                className={cx(ui.btn, ui.icon, ui.fillOn)}
                 data-tip={t('run.panelToggle')}
                 aria-label={t('run.panelToggle')}
                 aria-pressed={props.panelOpen}
@@ -232,7 +232,9 @@ export function RunTopBar(
                 data-testid="wl-run-panel-toggle"
                 onClick={props.onTogglePanel}
               >
-                <Icon name="panel" size={17} />
+                <FadeMark on={props.panelOpen}>
+                  <Icon name="panel" size={17} />
+                </FadeMark>
               </button>
               {props.nav}
             </>

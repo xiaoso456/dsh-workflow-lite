@@ -240,7 +240,7 @@ function SkillRow(props: {
   const checked = props.on || props.added
   return (
     <li
-      className={skill.skillRow}
+      className={cx(skill.skillRow, ui.fillOn)}
       data-on={props.on}
       data-added={props.added}
       data-testid="wl-skill-row"
@@ -256,7 +256,7 @@ function SkillRow(props: {
         onClick={props.onChoose}
       >
         {!props.single && (
-          <span className={skill.skillCheck} aria-hidden="true" data-on={checked}>
+          <span className={cx(skill.skillCheck, ui.tick)} aria-hidden="true" data-on={checked}>
             <Icon name="check" size={10} />
           </span>
         )}

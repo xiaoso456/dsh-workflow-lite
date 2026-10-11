@@ -320,28 +320,33 @@ interface Pose {
   opacity: number
 }
 
-/** 换内容之前面板里是什么：哪一项、它在画布上的横坐标、此刻的样子。 */
+/** 换内容之前面板里是什么：哪一项、它在画布上的横坐标、看的哪一面、此刻的样子。 */
 interface Snapshot {
   key: string
   at: number
+  view: number
   ghost: Ghost
   pose: Pose
 }
+
+/** 标题栏：同一项换看的面（运行 ↔ 编辑）时它不动，只换下面的内容。 */
+const isHead = (child: Element): boolean => child.tagName === 'HEADER'
 
 /** 刚卸掉的那块面板：紧接着又挂上一块（同一帧里），就是"换内容"，不是"新打开"。 */
 let gone: { panel: HTMLElement; snap: Snapshot; time: number } | null = null
 /** 新内容正在进来的动画：又换了一次从它此刻的样子接着走。 */
 const entering = new WeakMap<Element, Animation>()
 
-function snapshot(panel: HTMLElement, key: string, at: number): Snapshot {
-  const first = panel.firstElementChild
+function snapshot(panel: HTMLElement, key: string, at: number, view: number): Snapshot {
+  // 看内容那一块（标题栏在只换面时不动，没有动画可读）。
+  const first = [...panel.children].find((child) => !isHead(child)) ?? panel.firstElementChild
   const running = first === null ? undefined : entering.get(first)
   let pose: Pose = { x: 0, opacity: 1 }
   if (first !== null && running?.playState === 'running') {
     const style = getComputedStyle(first)
     pose = { x: new DOMMatrixReadOnly(style.transform).m41, opacity: Number(style.opacity) }
   }
-  return { key, at, ghost: ghostClone(panel), pose }
+  return { key, at, view, ghost: ghostClone(panel), pose }
 }
 
 /**
@@ -349,11 +354,19 @@ function snapshot(panel: HTMLElement, key: string, at: number): Snapshot {
  * 方向：新内容在画布上更靠右，就从右边进来、旧的往左让。
  * 影子放完自己删；连点几下时前几个影子各自淡完，不中途拿掉（拿掉会跳一下）。
  */
-function swapIn(panel: HTMLElement, snap: Snapshot, at: number): void {
+function swapIn(
+  panel: HTMLElement,
+  snap: Snapshot,
+  at: number,
+  view: number,
+  sameItem: boolean,
+): void {
   const parent = panel.parentNode
   if (parent === null || REDUCED?.matches === true) return
-  swappedAt = performance.now()
-  const dir = at >= snap.at ? 1 : -1
+  // `sameItem`：还是同一项、只是换看的面（运行 ↔ 编辑）：标题栏原地不动，只换下面的内容；
+  // 方向按两个面的先后（往右边那个面切，新内容从右边进来）。
+  if (!sameItem) swappedAt = performance.now()
+  const dir = (sameItem ? view >= snap.view : at >= snap.at) ? 1 : -1
   const ghost = snap.ghost.node
   // 影子只留内容：栏框、底色、阴影由新面板画，影子叠在它上面。
   Object.assign(ghost.style, {
@@ -368,6 +381,11 @@ function swapIn(panel: HTMLElement, snap: Snapshot, at: number): void {
   const { pose } = snap
   let out: Animation | null = null
   for (const child of ghost.children) {
+    if (sameItem && isHead(child)) {
+      // 新面板自己的标题栏就在底下，影子里这份藏起来。
+      if (child instanceof HTMLElement) child.style.visibility = 'hidden'
+      continue
+    }
     out = child.animate(
       [
         { transform: `translateX(${pose.x}px)`, opacity: pose.opacity },
@@ -377,6 +395,7 @@ function swapIn(panel: HTMLElement, snap: Snapshot, at: number): void {
     )
   }
   for (const child of panel.children) {
+    if (sameItem && isHead(child)) continue
     entering.get(child)?.cancel()
     entering.set(
       child,
@@ -399,7 +418,7 @@ const SWAP_TEXT_MS = 160
 const SWAP_ICON_MS = 240
 
 /** 记住上一个值：变了的那次渲染里把旧值、换了几次一起记下，过一会儿把旧值清掉。 */
-function useLast<V>(value: V, ms: number): { was: V | null; n: number } {
+export function useLast<V>(value: V, ms: number): { was: V | null; n: number } {
   const [state, setState] = useState<{ value: V; was: V | null; n: number }>({
     value,
     was: null,
@@ -574,6 +593,9 @@ function closeOut(frame: HTMLElement, host: Node, snap: Snapshot): void {
   out.finished.then(drop, drop)
 }
 
+/** 同一项的「编辑」面（属性面板那几块传它）；实例右栏的「运行」面用 {@link useSwap} 默认的 0。 */
+export const EDIT_VIEW = 1
+
 /**
  * 右栏换了内容（选中了另一个节点 / 连线 / 回到总览）：栏框不动，旧内容让开淡出、新内容淡入（见 {@link swapIn}），
  * 方向按两者在画布上的左右（`at` 是横坐标）：选了右边的，新内容从右边进来。
@@ -583,25 +605,27 @@ function closeOut(frame: HTMLElement, host: Node, snap: Snapshot): void {
  *   同一帧里挂上的新面板拿它当影子；
  * - 面板一直挂着、只是内容换了（实例视图的右栏）：`key` 变了的那次渲染里 DOM 还是旧的，在那里拍。
  *
- * `key` 两边要用同一种写法：实例视图里「运行 / 编辑」来回切，选中的还是同一项，不滑（标题栏要原地不动）。
+ * `key` 两边要用同一种写法。`view` 是同一项的第几个面（实例视图里「运行」0、「编辑」1）：
+ * 来回切时标题栏原地不动，只有下面的内容按先后方向换（见 {@link swapIn}）。
  * 只放 Web Animation（transform / opacity），不重新挂载，焦点、输入都留着。
  */
-export function useSwap<E extends HTMLElement>(key: string, at: number): RefObject<E> {
+export function useSwap<E extends HTMLElement>(key: string, at: number, view = 0): RefObject<E> {
   const ref = useRef<E>(null)
-  /** 屏幕上现在是哪一项。 */
-  const shown = useRef({ key, at })
+  /** 屏幕上现在是哪一项、哪一面。 */
+  const shown = useRef({ key, at, view })
   const pending = useRef<Snapshot | null>(null)
   // 渲染阶段 DOM 还没换：拍旧内容只能在这里（提交之后就已经是新的了）。
   const live = ref.current
   if (
     live !== null &&
-    key !== shown.current.key &&
+    (key !== shown.current.key || view !== shown.current.view) &&
     pending.current === null &&
     REDUCED?.matches !== true
   ) {
-    pending.current = snapshot(live, shown.current.key, shown.current.at)
+    pending.current = snapshot(live, shown.current.key, shown.current.at, shown.current.view)
     // 里面的子组件（选中块、列表）先于这里的 layout effect 跑：在这儿就记下"正在换内容"。
-    swappedAt = performance.now()
+    // 只换面时里面的东西没换（选中块该滑还是滑）。
+    if (key !== shown.current.key) swappedAt = performance.now()
   }
   useLayoutEffect(() => {
     const panel = ref.current
@@ -611,10 +635,16 @@ export function useSwap<E extends HTMLElement>(key: string, at: number): RefObje
     if (
       recent !== null &&
       recent.panel !== panel &&
-      recent.snap.key !== shown.current.key &&
+      (recent.snap.key !== shown.current.key || recent.snap.view !== shown.current.view) &&
       performance.now() - recent.time < 50
     ) {
-      swapIn(panel, recent.snap, shown.current.at)
+      swapIn(
+        panel,
+        recent.snap,
+        shown.current.at,
+        shown.current.view,
+        recent.snap.key === shown.current.key,
+      )
     }
     return () => {
       if (REDUCED?.matches === true) return
@@ -624,7 +654,7 @@ export function useSwap<E extends HTMLElement>(key: string, at: number): RefObje
       const host = frame?.parentNode ?? null
       const entry = {
         panel,
-        snap: snapshot(panel, shown.current.key, shown.current.at),
+        snap: snapshot(panel, shown.current.key, shown.current.at, shown.current.view),
         time: performance.now(),
       }
       gone = entry
@@ -640,10 +670,12 @@ export function useSwap<E extends HTMLElement>(key: string, at: number): RefObje
     const snap = pending.current
     pending.current = null
     const was = shown.current
-    shown.current = { key, at }
+    shown.current = { key, at, view }
     const panel = ref.current
-    if (snap !== null && panel !== null && was.key !== key) swapIn(panel, snap, at)
-  }, [key, at])
+    if (snap !== null && panel !== null && (was.key !== key || was.view !== view)) {
+      swapIn(panel, snap, at, view, was.key === key)
+    }
+  }, [key, at, view])
   return ref as RefObject<E>
 }
 
@@ -744,15 +776,22 @@ const PICK_MS = 320
 /** 新选中那项里的小图标弹一下：稍微冲过头再落定。 */
 const POP_EASE = 'cubic-bezier(0.34, 1.56, 0.64, 1)'
 
-/** 选中项里带 `data-pick-pop` 的小图标从小弹到原大。 */
+/** 选中项里带 `data-pick-pop` 的小图标从小弹到原大（属性值是起始大小，空 = 0.55；文字用 0.9 左右）。 */
 function popIn(item: HTMLElement): void {
-  for (const mark of item.querySelectorAll('[data-pick-pop]')) {
-    mark.animate([{ transform: 'scale(0.55)' }, { transform: 'none' }], {
+  for (const mark of item.querySelectorAll<HTMLElement>('[data-pick-pop]')) {
+    const from = Number(mark.dataset.pickPop) || 0.55
+    mark.animate([{ transform: `scale(${from})` }, { transform: 'none' }], {
       duration: 380,
       easing: POP_EASE,
     })
   }
 }
+
+/**
+ * 选中块跨"重新挂载"接着滑：整个单选组随面板一起卸掉又挂上时（实例右栏的「运行 / 编辑」切换：
+ * 两个面各带一份标题栏），卸掉前记下块停在哪、选的是什么，新挂上的那份从那里滑过去。
+ */
+const carried = new Map<string, { box: Box; layout: string; time: number }>()
 
 /**
  * 单选组的选中块：放在组里（组要 `position: relative`），垫在 `aria-checked="true"` 的那一项下面；
@@ -771,7 +810,14 @@ export function PickThumb(props: {
   /** 选中值、各项变了才重新量：调用方把它们拼成一串。 */
   layout: string
   part?: string
+  /**
+   * 哪一项是选中的：相对单选组的选择器，默认 `:scope > [aria-checked="true"]`。
+   * 选中的不是直接子元素时写后代选择器（`[data-active="true"]`）；别用 `data-on`，块自己带着它。
+   */
+  item?: string
   className?: string
+  /** 单选组会跟着面板一起卸掉重挂时给个名字（两份用同一个），块跨重挂接着滑，见 {@link carried}。 */
+  carry?: string
   tone?: {
     list: readonly string[]
     on: string | null | undefined
@@ -793,15 +839,40 @@ export function PickThumb(props: {
     observer.observe(group)
     return () => observer.disconnect()
   }, [])
-  const { layout, part } = props
+  const { layout, part, carry, item: match = ':scope > [aria-checked="true"]' } = props
+  // 卸掉时记下块停在哪（半路上的话是此刻的位置）。
+  useLayoutEffect(() => {
+    const thumb = ref.current
+    return () => {
+      if (carry === undefined || thumb == null || at.current === null || seen.current === null) {
+        return
+      }
+      let box = at.current
+      if (running.current?.playState === 'running') {
+        const m = new DOMMatrixReadOnly(getComputedStyle(thumb).transform)
+        box = { x: box.x + m.e, y: box.y + m.f, w: box.w * m.a, h: box.h * m.d }
+      }
+      carried.set(carry, { box, layout: seen.current, time: performance.now() })
+    }
+  }, [carry])
   // layout / part / resized 变了才量。
   useLayoutEffect(() => {
     const thumb = ref.current
     const group = thumb?.parentElement
     if (thumb == null || group == null) return
+    if (seen.current === null && carry !== undefined) {
+      // 刚挂上：同一帧里卸掉的那份留了话，就从它停的地方接着滑。
+      const last = carried.get(carry)
+      carried.delete(carry)
+      if (last !== undefined && performance.now() - last.time < 50) {
+        at.current = last.box
+        seen.current = last.layout
+        thumb.dataset.on = 'true'
+      }
+    }
     const changed = seen.current !== null && seen.current !== layout
     seen.current = layout
-    const item = group.querySelector<HTMLElement>(':scope > [aria-checked="true"]')
+    const item = group.querySelector<HTMLElement>(match)
     const target =
       item === null ? null : part === undefined ? item : item.querySelector<HTMLElement>(part)
     if (target === null) {
@@ -812,6 +883,18 @@ export function PickThumb(props: {
     const shown = thumb.dataset.on === 'true'
     let from = at.current
     const was = running.current
+    // 只是被叫来重新量（比如刚挂上时 ResizeObserver 的第一次回调）、位置没变：别打断正在滑的这一下。
+    if (
+      !changed &&
+      was !== null &&
+      from !== null &&
+      Math.abs(from.x - next.x) < 0.5 &&
+      Math.abs(from.y - next.y) < 0.5 &&
+      Math.abs(from.w - next.w) < 0.5 &&
+      Math.abs(from.h - next.h) < 0.5
+    ) {
+      return
+    }
     if (was !== null && was.playState === 'running' && from !== null) {
       // 半路上：读动画此刻的值（不是起点）。
       const m = new DOMMatrixReadOnly(getComputedStyle(thumb).transform)
@@ -857,7 +940,7 @@ export function PickThumb(props: {
       { duration: PICK_MS, easing: EASE_OUT },
     )
     if (item !== null) popIn(item)
-  }, [layout, part, resized])
+  }, [layout, part, match, resized, carry])
   const { tone } = props
   return (
     <span ref={ref} aria-hidden="true" className={cx(ui.pickThumb, props.className)}>
@@ -870,6 +953,110 @@ export function PickThumb(props: {
         />
       ))}
     </span>
+  )
+}
+
+/**
+ * 随选中态变色的字：本身透明（只占宽度、给读屏和测试读），上面叠两层同样的字——灰的和强调色的，
+ * `on` 变了交叉淡过去（只动 opacity，不是颜色瞬切）。
+ * 颜色由外面的自定义属性给：`--wl-off`（没选中，默认 text-2）、`--wl-on`（选中，默认 text）。
+ * `pop`：选中时字弹一下（要在 PickThumb 所在的组里，见 `popIn`）。
+ */
+export function FadeText(props: {
+  text: string
+  on: boolean
+  pop?: boolean
+  className?: string
+}): React.JSX.Element {
+  return (
+    <span
+      className={cx(ui.fadeText, props.className)}
+      data-text={props.text}
+      data-on={props.on}
+      data-pick-pop={props.pop === true ? '0.9' : undefined}
+    >
+      {props.text}
+    </span>
+  )
+}
+
+/**
+ * 随选中态变色的图标 / 小标记：灰、强调色两枚叠在同一格，`on` 变了交叉淡过去；强调色那枚同时弹一下。
+ * 颜色同 {@link FadeText}：没选中时继承外面的字色，选中时 `--wl-on`（默认 accent-text）。
+ */
+export function FadeMark(props: {
+  on: boolean
+  children: React.ReactNode
+  className?: string
+}): React.JSX.Element {
+  return (
+    <span className={cx(ui.fadeMark, props.className)} data-on={props.on}>
+      <span className={ui.fadeMarkOff}>{props.children}</span>
+      <span className={ui.fadeMarkOn} data-pick-pop="">
+        {props.children}
+      </span>
+    </span>
+  )
+}
+
+/**
+ * 「是 / 否」的小状态（经过没有、生成没有）：圆点 + 一段字，是时点实心变绿，否时空心灰圈，
+ * 点和字都是两层交叉淡（FadeMark / FadeText），不是颜色瞬切。`dot` 是点本身的类（大小、描边）。
+ */
+export function DotState(props: {
+  on: boolean
+  text: string
+  dot: string
+  className?: string
+  testId?: string
+}): React.JSX.Element {
+  return (
+    <span
+      className={cx(ui.dotState, props.className)}
+      data-on={props.on}
+      data-testid={props.testId}
+    >
+      <FadeMark on={props.on}>
+        <span className={props.dot} />
+      </FadeMark>
+      <FadeText text={props.text} on={props.on} />
+    </span>
+  )
+}
+
+/** 描边层换色时旧的留多久（同 ui.module.css 的 ringOut）。 */
+const RING_MS = 220
+
+/**
+ * 随状态换色的描边（卡片的运行态边框、角色边框、执行位置的外圈）：一个状态一层，
+ * 换状态时旧的一层淡出、新的一层淡入（只动 opacity），不是 `border-color` 瞬切。
+ * 层本身的样子由调用方的 `className` + `[data-ring="状态名"]` 给；`ring` 为空 = 没有描边（旧的淡出）。
+ * 父元素要 `position: relative`；平时不占 DOM（没有状态就没有层）。
+ */
+export function FadeRing(props: {
+  ring: string | undefined
+  className: string
+}): React.JSX.Element {
+  const { was, n } = useLast(props.ring ?? null, RING_MS)
+  return (
+    <>
+      {was !== null && (
+        <span
+          key={`out-${n}`}
+          className={cx(props.className, ui.ringOut)}
+          data-ring={was}
+          aria-hidden="true"
+        />
+      )}
+      {props.ring !== undefined && (
+        <span
+          key={`in-${props.ring}`}
+          className={cx(props.className, ui.ringIn)}
+          data-ring={props.ring}
+          aria-hidden="true"
+        />
+      )}
+    </>
   )
 }
 
@@ -950,4 +1137,157 @@ function vanish(node: Element, parent: Node, before: Node | null): void {
       : fadeAway(card, { opacity: 1, transform: 'none' }, 'scale(0.92)', VANISH_MS)
   const drop = (): void => ghost.node.remove()
   out.finished.then(drop, drop)
+}
+
+// ─────────────────────────────────────────────────────────────
+// 切换工作流：旧图多留一会、顶栏左边的药丸展开收缩
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * 换一份内容（切换工作流）时，新的还没到、或到得太快，旧的先多留一会儿：
+ * `live` 是当前该显示的东西（`key` 变了 = 换了一份）；`loading` 是正在换。
+ * 返回 `view`（这一刻真正该画的）与 `dim`（旧的在等新的，外面把它压暗、别让人点）。
+ * 新的到了但离开始换还不到 `ms`，就再等到够 `ms`：先压暗、再换内容、再亮回来，是一次完整的呼吸，不是一闪。
+ * 同一份内容里的编辑（`key` 不变）原样透传，不等。
+ */
+export function useSwapHold<V extends { key: string }>(
+  live: V | null,
+  loading: boolean,
+  ms: number,
+): { view: V | null; dim: boolean } {
+  const shown = useRef<V | null>(null)
+  /** 开始换的时刻；null = 这一轮没经过「正在换」（直接换，不等）。 */
+  const began = useRef<number | null>(null)
+  const [released, setReleased] = useState<string | null>(null)
+  if (loading && began.current === null) began.current = performance.now()
+
+  const held = shown.current
+  let view: V | null
+  let dim = false
+  if (live === null) {
+    view = loading ? held : null
+    dim = loading && view !== null
+  } else if (
+    held === null ||
+    held.key === live.key ||
+    released === live.key ||
+    began.current === null ||
+    REDUCED?.matches === true
+  ) {
+    view = live
+  } else {
+    view = held
+    dim = true
+  }
+  shown.current = view
+
+  const waiting = dim && live !== null ? live.key : null
+  useEffect(() => {
+    if (waiting === null) return
+    const left = Math.max(0, ms - (performance.now() - (began.current ?? 0)))
+    const id = setTimeout(() => setReleased(waiting), left)
+    return () => clearTimeout(id)
+  }, [waiting, ms])
+  // 新的已经画上去了：这一轮结束。
+  useEffect(() => {
+    if (!loading && live !== null && view === live) began.current = null
+  })
+  return { view, dim }
+}
+
+/** 药丸变宽 / 变窄的时长；变窄前先等一会（名字换了、状态字换了，别马上缩，等视线落稳再收）。 */
+const GLIDE_GROW_MS = 280
+const GLIDE_SHRINK_MS = 340
+const GLIDE_HOLD_MS = 260
+
+/**
+ * 宽度随内容变的药丸（顶栏左边：名字、状态字一换，宽度就变）：不让宽度跳，只靠 transform 展开收缩。
+ * 药丸里放一块 `data-glide-surface`（绝对定位铺满、左边为原点的底面：边框、底色、阴影都画在它上面），
+ * 以及要跟着挪的 `data-glide` 小件（被挤到新位置的图标、状态按钮）：
+ * 宽度一变，底面从旧宽度 `scaleX` 过渡到新宽度，小件从旧位置 `translateX` 滑到新位置；
+ * 变宽立刻展开，变窄先停 {@link GLIDE_HOLD_MS} 再收。上一段还没放完就变了，从看上去的地方接着走。
+ * 返回回调 ref，挂到药丸上。
+ */
+export function useGlide(): (pill: HTMLElement | null) => void {
+  const stop = useRef<(() => void) | null>(null)
+  useEffect(() => () => stop.current?.(), [])
+  return useCallback((pill: HTMLElement | null) => {
+    stop.current?.()
+    stop.current = null
+    if (pill === null || typeof ResizeObserver === 'undefined') return
+    let width = pill.offsetWidth
+    /** 各小件上次落定的位置（相对药丸左边）。 */
+    let spots = new Map<HTMLElement, number>()
+    const running = new Map<HTMLElement, Animation>()
+    const surface = (): HTMLElement | null => pill.querySelector('[data-glide-surface]')
+    const items = (): HTMLElement[] => [...pill.querySelectorAll<HTMLElement>('[data-glide]')]
+    const leftOf = (el: HTMLElement, origin: number): number =>
+      el.getBoundingClientRect().left - origin
+    const remember = (): void => {
+      const origin = pill.getBoundingClientRect().left
+      spots = new Map(items().map((el) => [el, leftOf(el, origin)]))
+    }
+    remember()
+
+    const sizes = new ResizeObserver(() => {
+      const next = pill.offsetWidth
+      if (next === width) return
+      const was = width
+      width = next
+      const base = surface()
+      if (REDUCED?.matches === true || base === null) {
+        remember()
+        return
+      }
+      const origin = pill.getBoundingClientRect().left
+      // 先读「此刻看上去」的位置，再清掉旧动画读布局位置。
+      const seen = new Map<HTMLElement, number>()
+      for (const el of [base, ...items()]) {
+        if (running.has(el)) seen.set(el, leftOf(el, origin))
+      }
+      const seenWidth = running.has(base) ? base.getBoundingClientRect().width : was
+      for (const anim of running.values()) anim.cancel()
+      running.clear()
+
+      const shrink = seenWidth > next
+      const timing = {
+        duration: shrink ? GLIDE_SHRINK_MS : GLIDE_GROW_MS,
+        delay: shrink ? GLIDE_HOLD_MS : 0,
+        easing: EASE,
+        fill: 'backwards' as const,
+      }
+      if (Math.abs(seenWidth / next - 1) > 0.002) {
+        running.set(
+          base,
+          base.animate(
+            [{ transform: `scaleX(${seenWidth / next})` }, { transform: 'none' }],
+            timing,
+          ),
+        )
+      }
+      const fresh = new Map<HTMLElement, number>()
+      for (const el of items()) {
+        const now = leftOf(el, origin)
+        fresh.set(el, now)
+        const from = seen.get(el) ?? spots.get(el)
+        if (from === undefined || Math.abs(from - now) < 0.5) continue
+        running.set(
+          el,
+          el.animate([{ transform: `translateX(${from - now}px)` }, { transform: 'none' }], timing),
+        )
+      }
+      spots = fresh
+      for (const [el, anim] of running) {
+        const forget = (): void => {
+          if (running.get(el) === anim) running.delete(el)
+        }
+        anim.finished.then(forget, forget)
+      }
+    })
+    sizes.observe(pill)
+    stop.current = () => {
+      sizes.disconnect()
+      for (const anim of running.values()) anim.cancel()
+    }
+  }, [])
 }

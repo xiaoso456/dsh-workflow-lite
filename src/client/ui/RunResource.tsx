@@ -30,6 +30,7 @@ import files from './files.module.css'
 import { Icon } from './Icon.tsx'
 import ins from './inspector.module.css'
 import row from './linkrow.module.css'
+import { DotState } from './motion.tsx'
 import { OpenWith } from './OpenWith.tsx'
 import { cx } from './primitives.tsx'
 import { itemDisplayPath } from './RunFiles.tsx'
@@ -234,14 +235,13 @@ function ItemRow(props: {
         : t(exists ? 'file.present' : 'file.absent')
     line = (
       <>
-        <span
+        <DotState
           className={cx(css.state, css.metaPart)}
-          data-on={exists}
-          data-testid="wl-run-item-state"
-        >
-          <span className={css.dot} />
-          {label}
-        </span>
+          on={exists}
+          dot={css.dot}
+          text={label}
+          testId="wl-run-item-state"
+        />
         {exists && meta !== null && item.kind === 'file' && (
           <span className={css.metaPart}>{formatBytes(meta.size)}</span>
         )}

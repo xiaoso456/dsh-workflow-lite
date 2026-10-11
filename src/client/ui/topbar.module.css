@@ -16,9 +16,43 @@
   border-radius: 12px;
 }
 
-.pill [data-on="true"] {
-  background: var(--wl-accent-soft);
-  color: var(--wl-accent-text);
+/*
+ * 左边这颗药丸宽度跟着名字、状态字走：底面（边框、底色、阴影）单独画在 `.surface` 上，
+ * 宽度一变由 useGlide 用 scaleX 展开收缩，里面的小件用 translateX 滑过去（只动 transform）。
+ * 药丸自己不带边框（边框画在底面上），内边距补上那 1px，里面的尺寸和别的药丸一样。
+ */
+.glide {
+  position: relative;
+  padding: 5px;
+  border: 0;
+  isolation: isolate;
+}
+
+.surface {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border: 1px solid var(--wl-line);
+  border-radius: 12px;
+  background: var(--wl-panel);
+  box-shadow: var(--wl-shadow-1);
+  pointer-events: none;
+  transform-origin: 0 50%;
+}
+
+/* 右边两组：切换工作流时先留着上一张的样子，压暗、点不了，加载完再亮回来。 */
+.right {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  align-items: flex-start;
+  transition: opacity 280ms var(--wl-ease-out);
+}
+
+.right[data-busy] {
+  opacity: 0.45;
+  transition-duration: 160ms;
+  pointer-events: none;
 }
 
 .switch {
@@ -56,11 +90,22 @@
   transform: rotate(180deg);
 }
 
+.chev {
+  display: inline-flex;
+  flex: none;
+}
+
 .name {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* 名字是 SwapText（换字时旧的上浮淡出、新的浮上来）：长名字仍旧在这一格里截断成省略号。 */
+.name > span {
+  max-width: 100%;
+  vertical-align: bottom;
 }
 
 .rename {
@@ -581,6 +626,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .right,
   .switch svg,
   .run .runMore svg,
   .rowMeta,

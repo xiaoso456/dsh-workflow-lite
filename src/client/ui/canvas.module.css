@@ -517,9 +517,8 @@
   align-items: center;
   height: 20px;
   padding: 0 7px 0 6px;
-  border: 1px solid color-mix(in srgb, var(--wl-chip) 38%, transparent);
+  border: 1px solid transparent;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--wl-chip) 11%, var(--wl-panel));
   box-shadow: var(--wl-shadow-thumb);
   color: var(--wl-chip);
   font-size: var(--wl-fs-micro);
@@ -545,6 +544,44 @@
 
 .ioChip[data-access="read"] {
   --wl-chip: var(--wl-io-read);
+}
+
+.ioChip[data-access="ask"] {
+  --wl-chip: var(--wl-io-ask);
+}
+
+/*
+ * 小牌子的底色、描边：每种写法一层叠在字底下，换写法（产出 ↔ 更新）时交叉淡过去（只动 opacity）。
+ * 字的颜色跟着牌子的 data-access，字、图标自己在原地换（SwapText / SwapIcon）。
+ */
+.ioTone {
+  position: absolute;
+  inset: -1px;
+  border: 1px solid color-mix(in srgb, var(--wl-chip) 38%, transparent);
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--wl-chip) 11%, var(--wl-panel));
+  opacity: 0;
+  transition: opacity 220ms linear;
+}
+
+.ioTone[data-on="true"] {
+  opacity: 1;
+}
+
+.ioTone[data-access="produce"] {
+  --wl-chip: var(--wl-io-produce);
+}
+
+.ioTone[data-access="update"] {
+  --wl-chip: var(--wl-io-update);
+}
+
+.ioTone[data-access="read"] {
+  --wl-chip: var(--wl-io-read);
+}
+
+.ioTone[data-access="ask"] {
+  --wl-chip: var(--wl-io-ask);
 }
 
 /*
@@ -730,8 +767,7 @@
   height: 20px;
   padding: 0 8px;
   border-radius: 999px;
-  background: var(--wl-fill-strong);
-  color: var(--wl-text);
+  color: var(--wl-panel);
   font-size: var(--wl-fs-micro);
   font-weight: 600;
   line-height: 20px;
@@ -740,32 +776,106 @@
   animation: roleIn 160ms var(--wl-ease) backwards;
 }
 
-/* 角色标与它那条读写线同色：产出金、更新洋红、读取青。 */
-.roleTag[data-role="producer"] {
-  background: var(--wl-io-produce);
-  color: var(--wl-panel);
+/*
+ * 角色标与它那条读写线同色：产出金、更新洋红、读取青。
+ * 底色三层叠着，换角色时交叉淡过去，字原地换（SwapText）。
+ */
+.roleTone {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--wl-role);
+  opacity: 0;
+  transition: opacity 220ms linear;
 }
 
-.roleTag[data-role="updater"] {
-  background: var(--wl-io-update);
-  color: var(--wl-panel);
+.roleTone[data-on="true"] {
+  opacity: 1;
 }
 
-.roleTag[data-role="reader"] {
-  background: var(--wl-io-read);
-  color: var(--wl-panel);
+.roleTone[data-role="producer"] {
+  --wl-role: var(--wl-io-produce);
 }
 
-.card[data-role="producer"] {
-  border-color: var(--wl-io-produce);
+.roleTone[data-role="updater"] {
+  --wl-role: var(--wl-io-update);
 }
 
-.card[data-role="updater"] {
-  border-color: var(--wl-io-update);
+.roleTone[data-role="reader"] {
+  --wl-role: var(--wl-io-read);
 }
 
-.card[data-role="reader"] {
-  border-color: var(--wl-io-read);
+/*
+ * 卡片的描边层（FadeRing）：运行态 / 角色的边框、执行位置的外圈各一层，换状态时交叉淡。
+ * 层的颜色、粗细、位置按 `data-ring`；卡片自己的边框保持平时的灰。
+ */
+.cardRing {
+  position: absolute;
+  inset: -1px;
+  border: 1px solid var(--wl-ring);
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.cardRing[data-ring="producer"] {
+  --wl-ring: var(--wl-io-produce);
+}
+
+.cardRing[data-ring="updater"] {
+  --wl-ring: var(--wl-io-update);
+}
+
+.cardRing[data-ring="reader"] {
+  --wl-ring: var(--wl-io-read);
+}
+
+.cardRing[data-ring="running"] {
+  --wl-ring: var(--wl-accent);
+}
+
+.cardRing[data-ring="failed"] {
+  --wl-ring: var(--wl-danger);
+}
+
+.cardRing[data-ring="waiting"] {
+  --wl-ring: var(--wl-warn);
+}
+
+/* 执行位置：最后执行 = 实线外圈、下一步 = 虚线外圈（原来的 outline，位置、粗细照旧）。 */
+.markRing {
+  position: absolute;
+  inset: -6px;
+  border: 2px solid color-mix(in srgb, var(--wl-text) 30%, transparent);
+  border-radius: calc(var(--wl-r-card) + 5px);
+  pointer-events: none;
+}
+
+.markRing[data-ring="next"] {
+  inset: -5.5px;
+  border: 1.5px dashed color-mix(in srgb, var(--wl-text-3) 80%, transparent);
+  border-radius: calc(var(--wl-r-card) + 4.5px);
+}
+
+/* 换了写法的线：新颜色的一份淡入，旧颜色的一份叠在上面淡出。 */
+.lineIn {
+  animation: lineIn 240ms linear backwards;
+}
+
+@keyframes lineIn {
+  from {
+    opacity: 0;
+  }
+}
+
+.lineFade {
+  pointer-events: none;
+  animation: lineFade 240ms linear forwards;
+}
+
+@keyframes lineFade {
+  to {
+    opacity: 0;
+  }
 }
 
 @keyframes roleIn {
@@ -787,6 +897,19 @@
 @media (prefers-reduced-motion: reduce) {
   .roleTag,
   .markTag {
+    animation: none;
+  }
+
+  .roleTone,
+  .ioTone {
+    transition: none;
+  }
+
+  .lineFade {
+    display: none;
+  }
+
+  .lineIn {
     animation: none;
   }
 
@@ -1375,10 +1498,6 @@
   text-decoration: line-through;
 }
 
-.card[data-run="running"] {
-  border-color: var(--wl-accent);
-}
-
 /* 正在执行：外圈一道呼吸的光环（只动 opacity 与 transform）。 */
 .card[data-run="running"]::before {
   position: absolute;
@@ -1402,14 +1521,6 @@
     opacity: 0.5;
     transform: scale(1);
   }
-}
-
-.card[data-run="failed"] {
-  border-color: var(--wl-danger);
-}
-
-.card[data-run="waiting"] {
-  border-color: var(--wl-warn);
 }
 
 /* 执行位置：右上角一个小标（最后执行 = 实心深色、下一步 = 虚线框），卡片外再描一圈。
@@ -1445,16 +1556,6 @@
   border-color: var(--wl-text-3);
   background: var(--wl-panel);
   color: var(--wl-text-2);
-}
-
-.card[data-mark="last"] {
-  outline: 2px solid color-mix(in srgb, var(--wl-text) 30%, transparent);
-  outline-offset: 3px;
-}
-
-.card[data-mark="next"] {
-  outline: 1.5px dashed color-mix(in srgb, var(--wl-text-3) 80%, transparent);
-  outline-offset: 3px;
 }
 
 /* 文件已经生成：左上角一个绿色对勾。 */

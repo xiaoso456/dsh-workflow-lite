@@ -231,6 +231,14 @@
 .canvas {
   position: absolute;
   inset: 0;
+  transition: opacity 320ms var(--wl-ease-out);
+}
+
+/* 切换工作流：旧图压暗留着（点不了），新图到了再亮回来——不卸载重建，画布不闪。 */
+.canvas[data-dim] {
+  opacity: 0.4;
+  transition-duration: 160ms;
+  pointer-events: none;
 }
 
 /* ── 顶栏 ─────────────────────────────────────────────────── */
@@ -784,6 +792,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .canvas,
   .library,
   .dock {
     transition: none;

@@ -29,11 +29,12 @@ import type { FocusFile } from './Handoff.tsx'
 import css from './handoff.module.css'
 import { Icon } from './Icon.tsx'
 import ins from './inspector.module.css'
-import { useResizeFlip } from './motion.tsx'
+import { FadeText, PickThumb, useResizeFlip } from './motion.tsx'
 import { OutputEditor } from './Outputs.tsx'
-import { cx, Popover, Segmented } from './primitives.tsx'
+import { cx, Popover } from './primitives.tsx'
 import res from './resource.module.css'
 import { freeFilePath, itemText, KIND_ICON, stepName } from './resourceUi.ts'
+import { Segmented } from './Segmented.tsx'
 import ui from './ui.module.css'
 
 /** 资源的小图标：只有一项时用那一项的种类图标，否则是一叠。 */
@@ -296,8 +297,17 @@ export function ModeToggle(props: {
       aria-label={t('res.writers')}
       data-update={props.update}
     >
-      {/* 滑块：位置走 transform，颜色是两层叠着的底色交叉淡入（只动合成层）。 */}
-      <span className={css.accessThumb} aria-hidden="true" />
+      {/* 滑块：滑过去，颜色是两层叠着的底色交叉淡入，字色也交叉淡（同实例里的状态按钮，见 PickThumb）。 */}
+      <PickThumb
+        layout={String(props.update)}
+        className={css.accessThumb}
+        tone={{
+          list: ['produce', 'update'],
+          on: props.update ? 'update' : 'produce',
+          attr: 'data-access',
+          className: css.accessTone,
+        }}
+      />
       <button
         type="button"
         role="radio"
@@ -305,7 +315,7 @@ export function ModeToggle(props: {
         data-access="produce"
         onClick={() => props.onChange(false)}
       >
-        {t('file.produce')}
+        <FadeText text={t('file.produce')} on={!props.update} pop />
       </button>
       <button
         type="button"
@@ -315,7 +325,7 @@ export function ModeToggle(props: {
         data-testid="wl-resource-mode-update"
         onClick={() => props.onChange(true)}
       >
-        {t('file.update')}
+        <FadeText text={t('file.update')} on={props.update} pop />
       </button>
     </div>
   )

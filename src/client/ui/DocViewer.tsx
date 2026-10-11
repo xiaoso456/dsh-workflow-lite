@@ -21,7 +21,8 @@ import { Markdown } from './Markdown.tsx'
 import { SwapIcon } from './motion.tsx'
 import { NoteDrawer, NoteToggle } from './NoteDrawer.tsx'
 import { OpenWith } from './OpenWith.tsx'
-import { copyText, cx, Modal, Segmented } from './primitives.tsx'
+import { copyText, cx, Modal } from './primitives.tsx'
+import { Segmented } from './Segmented.tsx'
 import ui from './ui.module.css'
 
 /** 读取中的骨架：标题一行、正文几行，宽窄错开像一段字。 */

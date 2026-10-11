@@ -35,7 +35,7 @@ import { Icon } from './Icon.tsx'
 import { InputsDialog } from './InputsDialog.tsx'
 import { Inspector } from './Inspector.tsx'
 import { Library } from './Library.tsx'
-import { ExitSeat } from './motion.tsx'
+import { ExitSeat, useSwapHold } from './motion.tsx'
 import { PlanDialog } from './PlanDialog.tsx'
 import { cx, ModalHostProvider } from './primitives.tsx'
 import { QuickAdd } from './QuickAdd.tsx'
@@ -117,6 +117,8 @@ export function WorkflowView(props: WorkflowViewProps): React.JSX.Element {
 
 /** 实例列表多久刷新一次（模型在会话里编译出新实例时，tab 里能看到提示）。 */
 const RUNS_REFRESH_MS = 8000
+/** 切换工作流时旧图至少压暗多久再换新的（和 shell.module.css 里压暗的过渡一致）。 */
+const SWITCH_HOLD_MS = 170
 
 function Shell(props: {
   rpc: WorkflowLiteRpc
@@ -624,11 +626,19 @@ function Shell(props: {
   }
 
   const doc = state.doc
+  // 切换工作流：加载这一小段旧图留着（压暗），新图到了再换，画布不卸载重建。
+  const live = state.phase === 'ready' || state.phase === 'loading'
+  const canvasLive =
+    state.phase === 'ready' && doc !== null && analysis !== null
+      ? { key: `${state.name ?? ''}#${state.loadSeq}`, name: state.name, doc, analysis }
+      : null
+  const canvasHold = useSwapHold(canvasLive, state.phase === 'loading', SWITCH_HOLD_MS)
+  const shown = canvasHold.view
   // 右侧面板（属性 / 步骤详情）开着没有：左下角的图例按剩下的宽度决定摊开还是收成按钮。
   const panelOpen =
     (runId !== null && runPanel && !narrow) ||
     (runId === null &&
-      state.phase === 'ready' &&
+      live &&
       (focus !== null || (doc !== null && analysis !== null && state.selection !== null)))
   const hub = hubOpen && (
     <HubDialog
@@ -695,14 +705,18 @@ function Shell(props: {
           </>
         ) : (
           <>
-            <div className={css.canvas}>
-              {state.phase === 'ready' && doc !== null && analysis !== null && (
+            <div
+              className={css.canvas}
+              data-dim={canvasHold.dim || undefined}
+              {...(canvasHold.dim ? { inert: '' } : {})}
+            >
+              {shown !== null && (
                 <Canvas
                   t={t}
-                  doc={doc}
-                  analysis={analysis}
-                  loadKey={`${state.name ?? ''}#${state.loadSeq}`}
-                  {...(state.name === null ? {} : { viewKey: state.name })}
+                  doc={shown.doc}
+                  analysis={shown.analysis}
+                  loadKey={shown.key}
+                  {...(shown.name === null ? {} : { viewKey: shown.name })}
                   selection={state.selection}
                   problems={state.problems}
                   insets={insets}
@@ -748,7 +762,7 @@ function Shell(props: {
               />
             </div>
 
-            {state.phase === 'ready' && (
+            {live && (
               <div className={css.library} aria-hidden={!libraryOpen}>
                 <Library
                   t={t}
@@ -767,7 +781,7 @@ function Shell(props: {
               </div>
             )}
 
-            {state.phase === 'ready' && focus !== null && (
+            {live && focus !== null && (
               <div className={css.inspector}>
                 <StepPanel
                   t={t}
@@ -813,7 +827,7 @@ function Shell(props: {
                 </div>
               )}
 
-            {state.phase === 'ready' && (
+            {live && (
               <ZoomDock
                 t={t}
                 keysOpen={keysOpen}

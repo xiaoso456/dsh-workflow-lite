@@ -22,8 +22,9 @@ import {
 import type { LocaleKey, T } from '../i18n.ts'
 import { Icon, type IconName } from './Icon.tsx'
 import css from './inspector.module.css'
-import { PickThumb } from './motion.tsx'
-import { cx, HelpTip, Segmented } from './primitives.tsx'
+import { FadeMark, PickThumb } from './motion.tsx'
+import { cx, HelpTip } from './primitives.tsx'
+import { Segmented } from './Segmented.tsx'
 import s from './settings.module.css'
 import ui from './ui.module.css'
 
@@ -118,12 +119,9 @@ export function ModeGroup(props: {
               onClick={() => props.onMode(value)}
             >
               <span className={s.modeIcon}>
-                <span className={s.modeGlyph}>
+                <FadeMark on={props.mode === value}>
                   <Icon name={text.icon} size={16} />
-                </span>
-                <span className={s.modeGlyphOn} data-pick-pop="">
-                  <Icon name={text.icon} size={16} />
-                </span>
+                </FadeMark>
               </span>
               <span className={s.modeTitle}>{t(text.title)}</span>
               <span className={s.modeDesc}>{t(text.desc)}</span>

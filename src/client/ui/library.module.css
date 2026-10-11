@@ -231,11 +231,6 @@
   transform: rotate(-90deg);
 }
 
-.sectionHead [data-on="true"] {
-  background: var(--wl-accent-soft);
-  color: var(--wl-accent-text);
-}
-
 .group {
   display: flex;
   flex-direction: column;
@@ -250,12 +245,10 @@
   }
 }
 
-.item[data-active="true"] {
-  background: var(--wl-accent-soft);
-}
-
-.item[data-active="true"] .itemTitle {
-  color: var(--wl-accent-text);
+/* 标题的颜色是 FadeText 的两层交叉淡：没选中常规、选中蓝；底色是 ui.fillOn 的渐显。 */
+.item {
+  --wl-off: var(--wl-text);
+  --wl-on: var(--wl-accent-text);
 }
 
 .item[data-broken="true"] {

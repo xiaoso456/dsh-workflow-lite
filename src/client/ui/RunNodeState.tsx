@@ -19,7 +19,7 @@ import { samePath, togglePin } from '../model/runDraft.ts'
 import { shortTime } from '../model/time.ts'
 import { RUN_TEXT } from './Canvas.tsx'
 import { Icon, type IconName } from './Icon.tsx'
-import { PickThumb } from './motion.tsx'
+import { FadeMark, FadeText, PickThumb } from './motion.tsx'
 import { PreviewCard } from './PreviewCard.tsx'
 import { cx } from './primitives.tsx'
 import run from './run.module.css'
@@ -76,7 +76,7 @@ export interface ChoiceOption<V extends string> {
 
 /**
  * 一排可换行的状态按钮（单选）：选中块从旧的一个滑到新的一个，颜色跟着状态色交叉淡过去
- * （见 motion.tsx 的 PickThumb）；字的颜色也是两层交叉淡（见 run.module.css 的 `.choiceText`），
+ * （见 motion.tsx 的 PickThumb）；字和小图标的颜色是两层交叉淡（FadeText / FadeMark），
  * 字重不变，换选中时这一排不会被挤动。
  */
 export function Choices<V extends string>(props: {
@@ -114,13 +114,9 @@ export function Choices<V extends string>(props: {
           onClick={() => props.onPick(option.value)}
         >
           {option.mark !== undefined && (
-            <span className={run.choiceMark} data-pick-pop="">
-              {option.mark}
-            </span>
+            <FadeMark on={option.value === props.value}>{option.mark}</FadeMark>
           )}
-          <span className={run.choiceText} data-text={option.text}>
-            {option.text}
-          </span>
+          <FadeText text={option.text} on={option.value === props.value} />
         </button>
       ))}
     </div>
@@ -179,15 +175,17 @@ export function StepStatus(props: {
         <div className={run.actions}>
           <button
             type="button"
-            className={cx(ui.btn, ui.small, ui.soft)}
+            className={cx(ui.btn, ui.small, ui.soft, ui.fillOn)}
             aria-pressed={pinned}
-            data-active={pinned}
+            data-on={pinned}
             data-testid="wl-run-step-pin"
             data-tip={t('run.pinHint')}
             onClick={() => current.setField(['next'], togglePin(pins, id))}
           >
-            <Icon name="flag" size={13} />
-            {t(pinned ? 'run.unpin' : 'run.pin')}
+            <FadeMark on={pinned}>
+              <Icon name="flag" size={13} />
+            </FadeMark>
+            <FadeText text={t(pinned ? 'run.unpin' : 'run.pin')} on={pinned} />
           </button>
           {node.status !== 'pending' && (
             <button type="button" className={cx(ui.btn, ui.small, ui.soft)} onClick={props.onRerun}>

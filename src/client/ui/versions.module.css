@@ -13,7 +13,7 @@
 }
 
 /* 编辑页的版本对话框：比普通的编辑框宽一点、高度固定（列表在里面滚）。 */
-.dialog[role="dialog"] {
+div.dialog {
   width: min(600px, 100%);
   height: min(600px, 100%);
 }

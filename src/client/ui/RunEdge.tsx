@@ -26,8 +26,8 @@ import { Icon } from './Icon.tsx'
 import { EndIcon } from './Inspector.tsx'
 import ins from './inspector.module.css'
 import { WhenChip } from './LinkRow.tsx'
+import { DotState } from './motion.tsx'
 import { PreviewCard } from './PreviewCard.tsx'
-import { cx } from './primitives.tsx'
 import { AnswerView } from './RunInput.tsx'
 import { stepName } from './resourceUi.ts'
 import run from './run.module.css'
@@ -101,14 +101,13 @@ export function RunEdgeDetail(props: {
           <>
             <dt>{t('run.edgeStatus')}</dt>
             <dd>
-              <span
-                className={cx(css.value, css.taken)}
-                data-on={taken}
-                data-testid="wl-run-edge-taken"
-              >
-                <span className={css.takenDot} />
-                {t(taken ? 'run.edgeTaken' : 'run.edgeNotTaken')}
-              </span>
+              <DotState
+                className={css.value}
+                on={taken}
+                dot={css.takenDot}
+                text={t(taken ? 'run.edgeTaken' : 'run.edgeNotTaken')}
+                testId="wl-run-edge-taken"
+              />
               <span className={css.hint}>{takenWhy(t, snapshot, edge, kind, state)}</span>
             </dd>
           </>

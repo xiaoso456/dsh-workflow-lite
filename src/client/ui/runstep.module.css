@@ -117,24 +117,12 @@
   font-size: var(--wl-fs-micro);
 }
 
-/* 经过没有：实心绿点 / 空心圈。 */
-.taken {
-  color: var(--wl-text-3);
-}
-
-.taken[data-on="true"] {
-  color: var(--wl-ok);
-}
-
+/* 经过没有：实心绿点 / 空心圈（颜色、渐变见 ui.module.css 的 dotState）。 */
 .takenDot {
   width: 7px;
   height: 7px;
   border: 1.5px solid currentcolor;
   border-radius: 50%;
-}
-
-.taken[data-on="true"] .takenDot {
-  background: currentcolor;
 }
 
 .resultIcon {

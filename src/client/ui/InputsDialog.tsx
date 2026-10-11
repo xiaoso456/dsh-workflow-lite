@@ -215,7 +215,8 @@ function Question(props: {
                 key={option}
                 type="button"
                 aria-pressed={on}
-                className={css.choice}
+                className={cx(css.choice, ui.fillOn)}
+                data-on={on}
                 data-shape={kind === 'multi' ? 'box' : 'dot'}
                 data-testid="wl-ask-option"
                 onClick={() => {
@@ -230,7 +231,7 @@ function Question(props: {
                   }
                 }}
               >
-                <span className={css.mark} aria-hidden="true">
+                <span className={cx(css.mark, ui.tick)} data-on={on} aria-hidden="true">
                   <Icon name="check" size={10} />
                 </span>
                 <span className={css.choiceText}>{option}</span>

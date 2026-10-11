@@ -1169,6 +1169,50 @@ async function run(session) {
   )
   pass('下拉里直接删除别的工作流')
 
+  // 12a) 用鼠标点下拉里的一张：切过去后下拉先留着，鼠标移出才收；切换时画布不卸载重建。
+  const THIRD = `${NAME}-third`
+  await rpc('graph/create', { name: THIRD })
+  const clickRow = async (name) => {
+    // 目录是打开下拉时才刷新的：开着就先收，再开一次。
+    if (await session.evaluate(exists('wl-wf-item'))) {
+      await mouseClick(session, await centerOf(session, '[data-testid="wl-switcher"]'))
+      await waitFor(session, `document.querySelector('[data-testid="wl-wf-item"]') === null`)
+    }
+    await mouseClick(session, await centerOf(session, '[data-testid="wl-switcher"]'))
+    await waitFor(session, exists(`wl-wf-rename-${name}`))
+    await sleep(300)
+    await mouseClick(
+      session,
+      await centerOf(session, `[data-testid="wl-wf-item"][data-value=${JSON.stringify(name)}]`),
+    )
+  }
+  await session.evaluate(`document.querySelector('.react-flow').dataset.probe = 'same'`)
+  await clickRow(THIRD)
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-switcher"]').textContent.trim() === ${JSON.stringify(THIRD)}`,
+  )
+  await sleep(600)
+  check(await session.evaluate(exists('wl-wf-item')), '鼠标点选切换后，下拉应先留着')
+  check(
+    await session.evaluate(`document.querySelector('.react-flow')?.dataset.probe === 'same'`),
+    '切换工作流时画布不该卸载重建',
+  )
+  await mouseMove(session, { x: 700, y: 520 })
+  await waitFor(session, `document.querySelector('[data-testid="wl-wf-item"]') === null`)
+  pass('鼠标点选切换：下拉留着，移出才收；画布不重建')
+  await clickRow(RENAMED)
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-switcher"]').textContent.trim() === ${JSON.stringify(RENAMED)}`,
+  )
+  await mouseMove(session, { x: 700, y: 520 })
+  await waitFor(session, `document.querySelector('[data-testid="wl-wf-item"]') === null`)
+  await rpc('graph/delete', { name: THIRD }).catch(() => {})
+  // 下面接着在下拉里删正开着的这张：把下拉再打开。
+  await session.evaluate(clickTestId('wl-switcher'))
+  await waitFor(session, exists(`wl-wf-delete-${RENAMED}`))
+
   // 再删正开着的这张 → 回到欢迎页。
   await session.evaluate(clickTestId(`wl-wf-delete-${RENAMED}`))
   await waitFor(session, exists('wl-delete-confirm'))
@@ -1190,7 +1234,7 @@ try {
   console.error(`\n❌ 第 ${step + 1} 步失败：${error.message}`)
   process.exitCode = 1
 } finally {
-  for (const name of [NAME, RENAMED, `${NAME}-other`, `${NAME}-other2`]) {
+  for (const name of [NAME, RENAMED, `${NAME}-other`, `${NAME}-other2`, `${NAME}-third`]) {
     await rpc('graph/delete', { name }).catch(() => {})
   }
   for (const name of [STEP, STEP_NEW]) {

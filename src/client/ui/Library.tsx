@@ -24,7 +24,7 @@ import {
 } from '../model/library.ts'
 import { Icon } from './Icon.tsx'
 import css from './library.module.css'
-import { useResizeFlip } from './motion.tsx'
+import { FadeMark, FadeText, useResizeFlip } from './motion.tsx'
 import { cx } from './primitives.tsx'
 import { StepMark } from './StepMark.tsx'
 import ui from './ui.module.css'
@@ -70,11 +70,11 @@ function Item(props: {
   return (
     <button
       type="button"
-      className={css.item}
+      className={cx(css.item, ui.fillOn)}
       draggable={props.draggable !== false}
       data-broken={props.draggable === false}
       data-testid={props.testId}
-      data-active={props.active}
+      data-on={props.active}
       aria-pressed={props.active}
       onDragStart={(event) => {
         event.dataTransfer.setData(DND_MIME, encodeStepSource(props.source))
@@ -84,7 +84,7 @@ function Item(props: {
     >
       {props.mark}
       <span className={css.itemText}>
-        <span className={css.itemTitle}>{props.title}</span>
+        <FadeText className={css.itemTitle} text={props.title} on={props.active} />
         <span className={css.itemDesc}>{props.desc}</span>
       </span>
       <span className={css.grip} aria-hidden="true">
@@ -283,14 +283,16 @@ export function Library(props: {
           action={
             <button
               type="button"
-              className={cx(ui.btn, ui.icon, ui.small)}
+              className={cx(ui.btn, ui.icon, ui.small, ui.fillOn)}
               data-tip={t('lib.newCustom')}
               aria-label={t('lib.newCustom')}
               data-testid="wl-lib-new"
               data-on={focus?.kind === 'new'}
               onClick={props.onNewStep}
             >
-              <Icon name="plus" size={15} />
+              <FadeMark on={focus?.kind === 'new'}>
+                <Icon name="plus" size={15} />
+              </FadeMark>
             </button>
           }
         />

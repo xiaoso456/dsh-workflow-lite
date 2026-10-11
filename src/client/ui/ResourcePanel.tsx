@@ -24,7 +24,7 @@ import css from './handoff.module.css'
 import { Icon } from './Icon.tsx'
 import { DescriptionField } from './Inspector.tsx'
 import ins from './inspector.module.css'
-import { useResizeFlip, useSwap } from './motion.tsx'
+import { EDIT_VIEW, useResizeFlip, useSwap } from './motion.tsx'
 import { ResourceHead } from './NodeHeads.tsx'
 import { cx } from './primitives.tsx'
 import { ResourceItems } from './ResourceItems.tsx'
@@ -48,7 +48,7 @@ export function ResourcePanel(props: {
   tabs?: React.ReactNode
 }): React.JSX.Element {
   const { t, doc, node } = props
-  const swap = useSwap<HTMLElement>(idKey(node.id), node.position.x)
+  const swap = useSwap<HTMLElement>(idKey(node.id), node.position.x, EDIT_VIEW)
   // 断开一个步骤：那一行淡出，其余的滑上来；最后一行断了，整组淡出、换成「还没有」。
   const writersField = useResizeFlip({ exit: true, enter: true })
   const writersRef = useResizeFlip({ exit: true, enter: true })

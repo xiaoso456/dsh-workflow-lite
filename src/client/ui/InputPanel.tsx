@@ -28,10 +28,11 @@ import hand from './handoff.module.css'
 import { Icon } from './Icon.tsx'
 import css from './input.module.css'
 import ins from './inspector.module.css'
-import { useResizeFlip, useRowKeys, useSwap } from './motion.tsx'
+import { EDIT_VIEW, useResizeFlip, useRowKeys, useSwap } from './motion.tsx'
 import { InputHead } from './NodeHeads.tsx'
-import { cx, Segmented } from './primitives.tsx'
+import { cx } from './primitives.tsx'
 import { stepName } from './resourceUi.ts'
+import { Segmented } from './Segmented.tsx'
 import { lookOf, StepMark } from './StepMark.tsx'
 import ui from './ui.module.css'
 
@@ -54,7 +55,7 @@ function oneLine(value: string): string {
 
 export function InputPanel(props: InputPanelProps): React.JSX.Element {
   const { t, node, doc, onEdit } = props
-  const swap = useSwap<HTMLElement>(idKey(node.id), node.position.x)
+  const swap = useSwap<HTMLElement>(idKey(node.id), node.position.x, EDIT_VIEW)
   const data = node.data
   const kind = inputKind(data)
   const choice = isChoiceKind(kind)
@@ -164,7 +165,7 @@ export function InputPanel(props: InputPanelProps): React.JSX.Element {
                       type="button"
                       role="checkbox"
                       aria-checked={isDefault}
-                      className={css.mark}
+                      className={cx(css.mark, ui.tick)}
                       data-shape={kind === 'multi' ? 'box' : 'dot'}
                       aria-label={t('input.default')}
                       disabled={trimmed === ''}

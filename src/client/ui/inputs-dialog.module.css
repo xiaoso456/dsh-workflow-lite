@@ -115,9 +115,10 @@
   outline-offset: 1px;
 }
 
-.choice[aria-pressed="true"] {
-  border-color: var(--wl-accent);
-  background: var(--wl-accent-soft);
+/* 选中：强调色描边 + 浅底，是 ui.fillOn 那层 ::after 渐显。 */
+button.choice::after {
+  inset: -1px;
+  border: 1px solid var(--wl-accent);
 }
 
 .mark {
@@ -144,12 +145,7 @@
     transform 160ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
 }
 
-.choice[aria-pressed="true"] .mark {
-  border-color: var(--wl-accent);
-  background: var(--wl-accent);
-}
-
-.choice[aria-pressed="true"] .mark svg {
+.mark[data-on="true"] svg {
   opacity: 1;
   transform: none;
 }

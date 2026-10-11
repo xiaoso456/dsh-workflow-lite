@@ -23,6 +23,7 @@ import type { T } from '../i18n.ts'
 import { crumbs } from '../model/hostPath.ts'
 import { errorMessage } from '../rpc.ts'
 import { Icon } from './Icon.tsx'
+import { FadeMark, FadeText, PickThumb } from './motion.tsx'
 import overlay from './overlay.module.css'
 import css from './picker.module.css'
 import { cx, Modal } from './primitives.tsx'
@@ -218,32 +219,41 @@ export function HostPicker(props: {
 
         {(listing?.places.length ?? 0) > 0 && (
           <div className={css.places}>
-            {listing?.places.map((place) => (
-              <button
-                key={`${place.label}:${place.path}`}
-                type="button"
-                className={css.place}
-                data-on={place.path === listing.path}
-                data-tip={place.path}
-                onClick={() => go(place.path)}
-              >
-                <Icon
-                  name={
-                    place.label === 'workspace'
-                      ? 'folderOpen'
-                      : place.label === 'home'
-                        ? 'pin'
-                        : 'storage'
-                  }
-                  size={12}
-                />
-                {place.label === 'workspace'
+            {/* 当前所在的那个：选中块滑过去，图标、字的颜色交叉淡过去（同单选组，见 PickThumb）。 */}
+            <PickThumb
+              layout={`${listing?.path ?? ''}|${listing?.places.map((place) => place.path).join(',') ?? ''}`}
+              item=':scope > [aria-current="true"]'
+              className={css.placeThumb}
+            />
+            {listing?.places.map((place) => {
+              const text =
+                place.label === 'workspace'
                   ? t('pick.workspace')
                   : place.label === 'home'
                     ? t('pick.home')
-                    : place.label}
-              </button>
-            ))}
+                    : place.label
+              const icon =
+                place.label === 'workspace'
+                  ? 'folderOpen'
+                  : place.label === 'home'
+                    ? 'pin'
+                    : 'storage'
+              return (
+                <button
+                  key={`${place.label}:${place.path}`}
+                  type="button"
+                  className={css.place}
+                  aria-current={place.path === listing.path ? 'true' : undefined}
+                  data-tip={place.path}
+                  onClick={() => go(place.path)}
+                >
+                  <FadeMark on={place.path === listing.path}>
+                    <Icon name={icon} size={12} />
+                  </FadeMark>
+                  <FadeText text={text} on={place.path === listing.path} />
+                </button>
+              )
+            })}
           </div>
         )}
 
@@ -267,11 +277,12 @@ export function HostPicker(props: {
           </span>
           <button
             type="button"
-            className={css.hiddenToggle}
+            className={cx(css.hiddenToggle, ui.fillOn)}
             aria-pressed={hidden}
+            data-on={hidden}
             onClick={() => setHidden((value) => !value)}
           >
-            {t('pick.hidden')}
+            <FadeText text={t('pick.hidden')} on={hidden} />
           </button>
         </div>
 
@@ -369,7 +380,7 @@ function PickRow(props: {
 }): React.JSX.Element {
   return (
     <div
-      className={css.row}
+      className={cx(css.row, ui.fillOn)}
       data-dir={props.dir}
       data-on={props.on}
       data-testid="wl-picker-row"
@@ -394,7 +405,7 @@ function PickRow(props: {
       {props.selectable && (
         <button
           type="button"
-          className={css.check}
+          className={cx(css.check, ui.tick)}
           role="checkbox"
           aria-checked={props.on}
           aria-label={props.name}

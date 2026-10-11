@@ -171,17 +171,11 @@
   background: var(--wl-fill);
 }
 
-/* 滑块：宽度 = 一格，位置靠 transform 挪（合成器动画）。 */
+/* 滑块的位置、大小由 PickThumb 按选中格量，这里只管样子。 */
 .segThumb {
-  position: absolute;
-  top: 2px;
-  bottom: 2px;
-  left: 2px;
   border-radius: 6px;
   background: var(--wl-panel);
   box-shadow: var(--wl-shadow-thumb);
-  transition: transform 200ms var(--wl-ease);
-  pointer-events: none;
 }
 
 .segItem {
@@ -201,12 +195,13 @@
   cursor: pointer;
 }
 
-.segItem:hover {
-  color: var(--wl-text);
+/* 字色是 FadeText 的两层交叉淡：没选中灰，选中和悬停深。 */
+.segItem {
+  --wl-off: var(--wl-text-3);
 }
 
-.segItem[aria-checked="true"] {
-  color: var(--wl-text);
+.segItem:hover {
+  --wl-off: var(--wl-text);
 }
 
 .segItem:focus-visible {
@@ -430,6 +425,155 @@
   transition: opacity 220ms linear;
 }
 
+/*
+ * 随选中态变色的字、图标（`motion.tsx` 的 FadeText / FadeMark）：灰、强调色两层交叉淡，不是颜色瞬切。
+ * 颜色靠自定义属性：`--wl-off` 没选中（默认 text-2）、`--wl-on` 选中（字默认 text、图标默认 accent-text）；
+ * 悬停变深就在外面的 `:hover` 里改 `--wl-off`。
+ */
+.fadeText {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  color: transparent;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: top;
+}
+
+.fadeText::before,
+.fadeText::after {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  content: attr(data-text);
+  text-overflow: ellipsis;
+  transition: opacity 200ms linear;
+}
+
+.fadeText::before {
+  color: var(--wl-off, var(--wl-text-2));
+}
+
+.fadeText::after {
+  color: var(--wl-on, var(--wl-text));
+  opacity: 0;
+}
+
+.fadeText[data-on="true"]::before {
+  opacity: 0;
+}
+
+.fadeText[data-on="true"]::after {
+  opacity: 1;
+}
+
+.fadeMark {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+}
+
+.fadeMarkOff,
+.fadeMarkOn {
+  display: inline-flex;
+  grid-area: 1 / 1;
+  transition: opacity 200ms linear;
+}
+
+.fadeMarkOn {
+  color: var(--wl-on, var(--wl-accent-text));
+  opacity: 0;
+}
+
+.fadeMark[data-on="true"] .fadeMarkOff {
+  opacity: 0;
+}
+
+.fadeMark[data-on="true"] .fadeMarkOn {
+  opacity: 1;
+}
+
+/*
+ * 单个"开 / 关"的底色：画在 ::after 上、渐显（`data-on="true"` 时亮）；元素要自己没占用 ::after。
+ * 底色用 `--wl-fill-on`（默认 accent-soft）。
+ */
+.fillOn {
+  position: relative;
+  isolation: isolate;
+}
+
+.fillOn::after {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--wl-fill-on, var(--wl-accent-soft));
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms linear;
+}
+
+.fillOn[data-on="true"]::after {
+  opacity: 1;
+}
+
+/*
+ * 勾选框 / 单选圈（带 ✓ 的小标记）：选中时实心的底色是一层 ::before、渐显渐隐，边框被它盖住；
+ * ✓ 自己各处的样式里弹出来。`aria-checked="true"` 或 `data-on="true"` 时亮。
+ * 元素本身画灰边、面板色底；边框宽 `--wl-tick-border`（默认 1.5px）。
+ */
+.tick {
+  position: relative;
+  isolation: isolate;
+}
+
+.tick::before {
+  position: absolute;
+  inset: calc(var(--wl-tick-border, 1.5px) * -1);
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--wl-accent);
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms linear;
+}
+
+.tick[aria-checked="true"]::before,
+.tick[data-on="true"]::before {
+  opacity: 1;
+}
+
+/* 描边层（motion.tsx 的 FadeRing）：新状态的一层淡入、旧状态的一层淡出。 */
+.ringIn {
+  animation: ringIn 220ms linear backwards;
+}
+
+.ringOut {
+  pointer-events: none;
+  animation: ringOut 220ms linear forwards;
+}
+
+@keyframes ringIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes ringOut {
+  to {
+    opacity: 0;
+  }
+}
+
+/* 菜单、列表里的选中块（PickThumb）：只管样子，位置、大小由它量。 */
+.menuThumb {
+  border-radius: var(--wl-r-control);
+  background: var(--wl-accent-soft);
+}
+
 /* 浮层收起：先淡出、稍微缩一点再拿掉（useFloat 的 exitMs），这段时间不接指针。 */
 @keyframes floatOut {
   to {
@@ -527,6 +671,7 @@
 
 /* 原地换图标（SwapIcon）：两枚叠在同一格，新的从 1/4 大放大淡入，旧的缩回去淡出。 */
 .swapIcon {
+  position: relative;
   display: inline-grid;
   flex: none;
   place-items: center;
@@ -606,9 +751,21 @@
   pointer-events: none;
 }
 
-.menuItem[data-active="true"] {
+/* 选中的底色画在 ::after 上、渐显渐隐（换选中时旧的淡出、新的淡入），不是 background 瞬切。 */
+.menuItem::after {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
   background: var(--wl-accent-soft);
-  color: var(--wl-accent-text);
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms linear;
+}
+
+.menuItem[data-active="true"]::after {
+  opacity: 1;
 }
 
 .menuItem[data-danger="true"] {
@@ -933,9 +1090,14 @@
   .popover,
   .rise,
   .fade,
+  .ringIn,
   .tipLayer,
   .stagger > * {
     animation: none;
+  }
+
+  .ringOut {
+    display: none;
   }
 
   .popover[data-leaving="true"] {
@@ -956,6 +1118,20 @@
   .iconOut {
     display: none;
   }
+}
+
+/* 「是 / 否」的小状态（motion.tsx 的 DotState）：是 = 绿点实心 + 绿字，否 = 空心灰圈 + 灰字。 */
+.dotState {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  color: var(--wl-text-3);
+  --wl-off: var(--wl-text-3);
+  --wl-on: var(--wl-ok);
+}
+
+.dotState .fadeMarkOn > * {
+  background: currentcolor;
 }
 
 /* ── 「?」说明 ────────────────────────────────────────────── */
@@ -1075,6 +1251,13 @@
     visibility: hidden;
   }
 
+  .menuItem::after,
+  .fadeText::before,
+  .fadeText::after,
+  .fadeMarkOff,
+  .fadeMarkOn,
+  .fillOn::after,
+  .tick::before,
   .listThumb[data-live="true"],
   .pickThumb[data-live="true"],
   .pickThumb[data-live="true"] .pickTone {
