@@ -22,6 +22,7 @@ import {
 import type { LocaleKey, T } from '../i18n.ts'
 import { Icon, type IconName } from './Icon.tsx'
 import css from './inspector.module.css'
+import { PickThumb } from './motion.tsx'
 import { cx, HelpTip, Segmented } from './primitives.tsx'
 import s from './settings.module.css'
 import ui from './ui.module.css'
@@ -103,6 +104,7 @@ export function ModeGroup(props: {
         }
       />
       <div className={s.modes} role="radiogroup" aria-label={t('settings.mode')}>
+        <PickThumb layout={props.mode} className={s.modeThumb} />
         {EXECUTION_MODES.map((value) => {
           const text = MODE_TEXT[value]
           return (
@@ -116,7 +118,12 @@ export function ModeGroup(props: {
               onClick={() => props.onMode(value)}
             >
               <span className={s.modeIcon}>
-                <Icon name={text.icon} size={16} />
+                <span className={s.modeGlyph}>
+                  <Icon name={text.icon} size={16} />
+                </span>
+                <span className={s.modeGlyphOn} data-pick-pop="">
+                  <Icon name={text.icon} size={16} />
+                </span>
               </span>
               <span className={s.modeTitle}>{t(text.title)}</span>
               <span className={s.modeDesc}>{t(text.desc)}</span>

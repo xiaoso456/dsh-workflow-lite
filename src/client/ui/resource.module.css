@@ -87,6 +87,7 @@
 
 /* 一组行包在一张卡里，行间一条细线：比一行一张卡清爽。 */
 .list {
+  position: relative;
   display: flex;
   flex-direction: column;
   margin: 0;

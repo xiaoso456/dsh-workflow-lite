@@ -118,53 +118,189 @@ export function useFlip(
   }, [layout])
 }
 
+/** 一项在列表里占的地方（相对列表的内边距框）：删掉后影子照这个摆回去。 */
+interface Slot {
+  top: number
+  left: number
+  width: number
+  height: number
+}
+
+/** 删掉的项留下的影子：列表再量各项时跳过它们。 */
+const leaving = new WeakSet<Element>()
+
+const LEAVE_MS = 180
+
+/**
+ * 退场：位移、缩放缓出，透明度匀速——透明度也缓出的话一开始就掉光，看着像一下没了。
+ * 返回透明度那段（放完就看不见了，拿它当删影子的时机）。
+ */
+function fadeAway(
+  target: Element,
+  from: { opacity: number; transform: string },
+  to: string,
+  ms: number,
+): Animation {
+  target.animate([{ transform: from.transform }, { transform: to }], {
+    duration: ms,
+    easing: EASE_OUT,
+    fill: 'forwards',
+  })
+  return target.animate([{ opacity: from.opacity }, { opacity: 0 }], {
+    duration: ms,
+    easing: 'linear',
+    fill: 'forwards',
+  })
+}
+
+/**
+ * 删掉的一项：照它被删前的样子复制一份，按原来的位置绝对定位放回列表，原地淡出、略缩，放完就删。
+ * 列表要是定位元素（`position: relative`），不然摆不回原处，就不放。
+ */
+function leaveAt(list: HTMLElement, node: HTMLElement, slot: Slot): void {
+  if (getComputedStyle(list).position === 'static') return
+  const ghost = ghostClone(node)
+  ghost.node.removeAttribute('data-flip')
+  ghost.node.removeAttribute('data-selected')
+  Object.assign(ghost.node.style, {
+    position: 'absolute',
+    top: `${slot.top}px`,
+    left: `${slot.left}px`,
+    width: `${slot.width}px`,
+    height: `${slot.height}px`,
+    margin: '0',
+    boxSizing: 'border-box',
+  })
+  leaving.add(ghost.node)
+  ghost.place(list)
+  const out = fadeAway(ghost.node, { opacity: 1, transform: 'none' }, 'scale(0.97)', LEAVE_MS)
+  const drop = (): void => ghost.node.remove()
+  out.finished.then(drop, drop)
+}
+
+/** 新加的一项：从左边一点淡入（和 {@link useFlip} 的入场一样）。 */
+function enterIn(child: Element): void {
+  child.animate(
+    [
+      { opacity: 0, transform: 'translateX(-6px)' },
+      { opacity: 1, transform: 'none' },
+    ],
+    { duration: ENTER_MS, easing: EASE, fill: 'backwards' },
+  )
+}
+
+/** 右栏刚换了内容（{@link swapIn}）：这时列表里的整批增删是换内容，不是有人删了一项，不放增删动画。 */
+let swappedAt = Number.NEGATIVE_INFINITY
+
 /**
  * 列表里有一项变高变矮（展开、收起、内容换了）或增删了项：它后面的项从旧位置滑到新位置。
  * 和 {@link useFlip} 一样只动 transform，不同的是不用给 `layout`——ResizeObserver 看着每一项，
- * 尺寸一变（布局之后、绘制之前）就比一遍各项的 `offsetTop`。
+ * 尺寸一变（布局之后、绘制之前）就比一遍各项的 `offsetTop`；项按元素本身认（React 按 key 留着同一个元素）。
+ *
+ * - `exit`：删掉的项留个影子原地淡出（见 {@link leaveAt}），列表要 `position: relative`；
+ * - `enter`：新加的项从左边淡入（项自己带入场动画的不用开）。
  *
  * 返回一个回调 ref，挂到列表上（列表可以晚挂上、可以换）。项要有不透明的底色：
  * 往下滑的项像帘子一样盖着、再露出上面刚展开的内容。
  */
-export function useResizeFlip(): (list: HTMLElement | null) => void {
+export function useResizeFlip(
+  options: { exit?: boolean; enter?: boolean } = {},
+): (list: HTMLElement | null) => void {
   const stop = useRef<(() => void) | null>(null)
+  const exit = options.exit === true
+  const enter = options.enter === true
   useEffect(() => () => stop.current?.(), [])
-  return useCallback((list: HTMLElement | null) => {
-    stop.current?.()
-    stop.current = null
-    if (list === null || typeof ResizeObserver === 'undefined') return
-    const measure = (): Map<HTMLElement, number> => {
-      const tops = new Map<HTMLElement, number>()
-      for (const child of list.children) {
-        if (child instanceof HTMLElement) tops.set(child, topIn(list, child))
-      }
-      return tops
-    }
-    let tops = measure()
-    const settle = (): void => {
-      const next = measure()
-      if (REDUCED?.matches !== true) {
-        for (const [child, top] of next) {
-          const was = tops.get(child)
-          if (was === undefined || was === top) continue
-          slide(child, was - top)
+  return useCallback(
+    (list: HTMLElement | null) => {
+      stop.current?.()
+      stop.current = null
+      if (list === null || typeof ResizeObserver === 'undefined') return
+      const measure = (): Map<HTMLElement, Slot> => {
+        const slots = new Map<HTMLElement, Slot>()
+        for (const child of list.children) {
+          if (!(child instanceof HTMLElement) || leaving.has(child)) continue
+          slots.set(child, {
+            top: topIn(list, child),
+            left: child.offsetLeft,
+            width: child.offsetWidth,
+            height: child.offsetHeight,
+          })
         }
+        return slots
       }
-      tops = next
-    }
-    const sizes = new ResizeObserver(settle)
-    const watch = (): void => {
-      for (const child of list.children) sizes.observe(child)
-    }
-    sizes.observe(list)
-    watch()
-    const children = new MutationObserver(watch)
-    children.observe(list, { childList: true })
-    stop.current = () => {
-      sizes.disconnect()
-      children.disconnect()
-    }
-  }, [])
+      let slots = measure()
+      const settle = (): void => {
+        const next = measure()
+        if (REDUCED?.matches !== true) {
+          for (const [child, slot] of next) {
+            const was = slots.get(child)
+            if (was === undefined || was.top === slot.top) continue
+            slide(child, was.top - slot.top)
+          }
+        }
+        slots = next
+      }
+      const sizes = new ResizeObserver(settle)
+      const watch = (): void => {
+        for (const child of list.children) if (!leaving.has(child)) sizes.observe(child)
+      }
+      sizes.observe(list)
+      watch()
+      const children = new MutationObserver((records) => {
+        const still = REDUCED?.matches === true || performance.now() - swappedAt < 80
+        if (!still && (exit || enter)) {
+          for (const record of records) {
+            if (exit) {
+              for (const node of record.removedNodes) {
+                // 挪了位置（删了又插回来）的不算删。
+                if (!(node instanceof HTMLElement) || node.isConnected || leaving.has(node))
+                  continue
+                const slot = slots.get(node)
+                if (slot !== undefined) leaveAt(list, node, slot)
+              }
+            }
+            if (enter) {
+              for (const node of record.addedNodes) {
+                if (node instanceof HTMLElement && !leaving.has(node) && !slots.has(node)) {
+                  enterIn(node)
+                }
+              }
+            }
+          }
+        }
+        watch()
+        // 删掉一项时其余项的尺寸没变、列表也可能是定高的：ResizeObserver 不一定叫，这里补一次。
+        settle()
+      })
+      children.observe(list, { childList: true })
+      stop.current = () => {
+        sizes.disconnect()
+        children.disconnect()
+      }
+    },
+    [exit, enter],
+  )
+}
+
+/**
+ * 按位置认的列表（项没有自己的 id，可以重名、可以为空）配一串稳定的键：
+ * 删中间一项前先 `drop(index)`，删掉的就是那一行的元素（不是最后一行），其余行滑上去。
+ * 项数从外面变了（撤销、加了一项）只在末尾补齐 / 截掉。
+ */
+export function useRowKeys(count: number): { keys: readonly string[]; drop(index: number): void } {
+  const state = useRef({ keys: [] as string[], next: 0 })
+  const own = state.current
+  while (own.keys.length < count) {
+    own.keys.push(`row${own.next}`)
+    own.next += 1
+  }
+  if (own.keys.length > count) own.keys.length = count
+  return {
+    keys: own.keys,
+    drop: (index) => {
+      own.keys.splice(index, 1)
+    },
+  }
 }
 
 /**
@@ -216,6 +352,7 @@ function snapshot(panel: HTMLElement, key: string, at: number): Snapshot {
 function swapIn(panel: HTMLElement, snap: Snapshot, at: number): void {
   const parent = panel.parentNode
   if (parent === null || REDUCED?.matches === true) return
+  swappedAt = performance.now()
   const dir = at >= snap.at ? 1 : -1
   const ghost = snap.ghost.node
   // 影子只留内容：栏框、底色、阴影由新面板画，影子叠在它上面。
@@ -324,13 +461,64 @@ export function SwapIcon(props: { name: IconName; size?: number }): React.JSX.El
   )
 }
 
-/** 轻提示 / 提示条退场：往哪边走、走多久。 */
+/** 退场：往哪边走、走多久（都是入场的反方向）。 */
 const EXITS = {
-  /** 底部轻提示：往下沉、略缩。 */
+  /** 底部轻提示、草稿栏：往下沉、略缩。 */
   down: { frames: 'translateY(8px) scale(0.97)', ms: 220 },
   /** 顶部提示条：往上收。 */
   up: { frames: 'translateY(-8px) scale(0.98)', ms: 200 },
+  /** 就地弹出的菜单：原地缩回、淡出（缩向 CSS 里的 transform-origin）。 */
+  shrink: { frames: 'scale(0.95)', ms: 140 },
+  /** 从右边拉出来的抽屉：退回右边。 */
+  right: { frames: 'translateX(16px)', ms: 180 },
 } as const
+
+type Exit = keyof typeof EXITS
+
+/**
+ * 卸掉时留个影子放退场：照它此刻的样子复制一份放回原处（定位方式由它自己的类决定），动完就删。
+ * `inner`：动里面那一层——外面那层带着定位用的 transform（居中的 `translateX(-50%)`）时用，两个 transform 不打架。
+ * 不动里面那层时，从它此刻的 transform、透明度接着走（入场还没放完就关也不跳）。
+ */
+function leave(node: HTMLElement, parent: Node, exit: Exit, inner: boolean): void {
+  if (REDUCED?.matches === true || !parent.isConnected) return
+  const live = inner ? (node.firstElementChild ?? node) : node
+  const style = getComputedStyle(live)
+  const base = style.transform === 'none' ? '' : `${style.transform} `
+  const opacity = Number(style.opacity)
+  const ghost = ghostClone(node)
+  ghost.place(parent)
+  const target = inner ? (ghost.node.firstElementChild ?? ghost.node) : ghost.node
+  const { frames, ms } = EXITS[exit]
+  const out = fadeAway(
+    target,
+    { opacity, transform: base === '' ? 'none' : base },
+    `${base}${frames}`,
+    ms,
+  )
+  const drop = (): void => ghost.node.remove()
+  out.finished.then(drop, drop)
+}
+
+/**
+ * 给按条件挂的一块加退场（就地菜单、抽屉、草稿栏）：返回的 ref 挂到它的根上，卸掉时留影子放 `exit`。
+ * 调用方照常按条件挂，不用等动画。
+ */
+export function useExit<E extends HTMLElement>(
+  exit: Exit,
+  options: { inner?: boolean } = {},
+): RefObject<E> {
+  const ref = useRef<E>(null)
+  const inner = options.inner === true
+  useLayoutEffect(() => {
+    const node = ref.current
+    const parent = node?.parentNode ?? null
+    return () => {
+      if (node !== null && parent !== null) leave(node, parent, exit, inner)
+    }
+  }, [exit, inner])
+  return ref as RefObject<E>
+}
 
 /**
  * 卸掉时留个影子放退场的一块（轻提示、提示条）：调用方照常按条件挂、按 key 换，不用等动画。
@@ -339,31 +527,10 @@ const EXITS = {
  */
 export function ExitSeat(props: {
   className: string
-  exit: keyof typeof EXITS
+  exit: Exit
   children: React.ReactNode
 }): React.JSX.Element {
-  const ref = useRef<HTMLDivElement>(null)
-  const { exit } = props
-  useLayoutEffect(() => {
-    const node = ref.current
-    const parent = node?.parentNode ?? null
-    return () => {
-      if (node === null || parent === null || REDUCED?.matches === true) return
-      const ghost = ghostClone(node)
-      ghost.place(parent)
-      const target = ghost.node.firstElementChild ?? ghost.node
-      const { frames, ms } = EXITS[exit]
-      const out = target.animate(
-        [
-          { opacity: 1, transform: 'none' },
-          { opacity: 0, transform: frames },
-        ],
-        { duration: ms, easing: EASE_OUT, fill: 'forwards' },
-      )
-      const drop = (): void => ghost.node.remove()
-      out.finished.then(drop, drop)
-    }
-  }, [exit])
+  const ref = useExit<HTMLDivElement>(props.exit, { inner: true })
   return (
     <div ref={ref} className={props.className}>
       {props.children}
@@ -433,6 +600,8 @@ export function useSwap<E extends HTMLElement>(key: string, at: number): RefObje
     REDUCED?.matches !== true
   ) {
     pending.current = snapshot(live, shown.current.key, shown.current.at)
+    // 里面的子组件（选中块、列表）先于这里的 layout effect 跑：在这儿就记下"正在换内容"。
+    swappedAt = performance.now()
   }
   useLayoutEffect(() => {
     const panel = ref.current
@@ -539,4 +708,246 @@ export function ListThumb(props: { layout: string; className?: string }): React.
       }}
     />
   )
+}
+
+/** 选中块的位置、尺寸（相对单选组的内边距框）。 */
+interface Box {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+/**
+ * 元素在 `group` 里的位置：沿 offsetParent 一路加到 group（group 要是定位元素）。
+ * 不用 getBoundingClientRect：对话框正在缩放入场时量出来的是缩过的值。
+ */
+function boxIn(group: HTMLElement, element: HTMLElement): Box {
+  let x = 0
+  let y = 0
+  let at: HTMLElement | null = element
+  while (at !== null && at !== group) {
+    x += at.offsetLeft
+    y += at.offsetTop
+    const parent: HTMLElement | null =
+      at.offsetParent instanceof HTMLElement ? at.offsetParent : null
+    if (parent !== null && parent !== group) {
+      x += parent.clientLeft
+      y += parent.clientTop
+    }
+    at = parent
+  }
+  return { x, y, w: element.offsetWidth, h: element.offsetHeight }
+}
+
+const PICK_MS = 320
+/** 新选中那项里的小图标弹一下：稍微冲过头再落定。 */
+const POP_EASE = 'cubic-bezier(0.34, 1.56, 0.64, 1)'
+
+/** 选中项里带 `data-pick-pop` 的小图标从小弹到原大。 */
+function popIn(item: HTMLElement): void {
+  for (const mark of item.querySelectorAll('[data-pick-pop]')) {
+    mark.animate([{ transform: 'scale(0.55)' }, { transform: 'none' }], {
+      duration: 380,
+      easing: POP_EASE,
+    })
+  }
+}
+
+/**
+ * 单选组的选中块：放在组里（组要 `position: relative`），垫在 `aria-checked="true"` 的那一项下面；
+ * 换选中时从旧的一项滑到新的一项（横竖都行，宽窄不同时一边滑一边变宽变窄），不是这块灭、那块亮。
+ *
+ * 只动 transform：块先摆到新位置（改一次 left / top / 宽高），再从"看上去还在旧位置"的
+ * `translate + scale` 放回原样（FLIP）。半路上又换了，从它此刻的样子接着滑。
+ *
+ * - `part`：垫在选中项里面的某一块下面（主题卡只框缩略图），给选择器；
+ * - `tone`：块有几种颜色（状态色）时每种叠一层，换色时交叉淡过去（只动 opacity），不是颜色瞬切；
+ *   `attr` 是层上用来挑颜色的属性名，`className` 画每一层的样子。
+ *
+ * 没有选中项时原地淡掉；再选中时在新位置淡入、略放大。新选中项里带 `data-pick-pop` 的图标弹一下。
+ */
+export function PickThumb(props: {
+  /** 选中值、各项变了才重新量：调用方把它们拼成一串。 */
+  layout: string
+  part?: string
+  className?: string
+  tone?: {
+    list: readonly string[]
+    on: string | null | undefined
+    attr: string
+    className?: string
+  }
+}): React.JSX.Element {
+  const ref = useRef<HTMLSpanElement>(null)
+  /** 上一次摆到哪儿。 */
+  const at = useRef<Box | null>(null)
+  const running = useRef<Animation | null>(null)
+  /** 上一次的 `layout`：只有它变了才放动画（组变宽变窄只重新摆）。 */
+  const seen = useRef<string | null>(null)
+  const [resized, setResized] = useState(0)
+  useLayoutEffect(() => {
+    const group = ref.current?.parentElement
+    if (group == null || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(() => setResized((n) => n + 1))
+    observer.observe(group)
+    return () => observer.disconnect()
+  }, [])
+  const { layout, part } = props
+  // layout / part / resized 变了才量。
+  useLayoutEffect(() => {
+    const thumb = ref.current
+    const group = thumb?.parentElement
+    if (thumb == null || group == null) return
+    const changed = seen.current !== null && seen.current !== layout
+    seen.current = layout
+    const item = group.querySelector<HTMLElement>(':scope > [aria-checked="true"]')
+    const target =
+      item === null ? null : part === undefined ? item : item.querySelector<HTMLElement>(part)
+    if (target === null) {
+      thumb.dataset.on = 'false'
+      return
+    }
+    const next = boxIn(group, target)
+    const shown = thumb.dataset.on === 'true'
+    let from = at.current
+    const was = running.current
+    if (was !== null && was.playState === 'running' && from !== null) {
+      // 半路上：读动画此刻的值（不是起点）。
+      const m = new DOMMatrixReadOnly(getComputedStyle(thumb).transform)
+      from = { x: from.x + m.e, y: from.y + m.f, w: from.w * m.a, h: from.h * m.d }
+    }
+    was?.cancel()
+    running.current = null
+    Object.assign(thumb.style, {
+      left: `${next.x}px`,
+      top: `${next.y}px`,
+      width: `${next.w}px`,
+      height: `${next.h}px`,
+    })
+    at.current = next
+    thumb.dataset.on = 'true'
+    if (thumb.dataset.live !== 'true') {
+      // 第一次摆好之前不带过渡：打开时不从无到有淡一下。
+      requestAnimationFrame(() => {
+        thumb.dataset.live = 'true'
+      })
+    }
+    // 右栏整块换了内容（换了一个步骤）：选中项跟着内容一起换过来，不单独滑。
+    if (!changed || REDUCED?.matches === true || performance.now() - swappedAt < 80) return
+    if (!shown || from === null) {
+      // 从没选中到选中：在新位置略放大、淡入（淡入是 CSS 的 opacity 过渡）。
+      running.current = thumb.animate(
+        [
+          { transform: `translate(${next.w * 0.04}px, ${next.h * 0.04}px) scale(0.92)` },
+          { transform: 'none' },
+        ],
+        { duration: PICK_MS, easing: EASE_OUT },
+      )
+      if (item !== null) popIn(item)
+      return
+    }
+    const dx = from.x - next.x
+    const dy = from.y - next.y
+    const sx = from.w / next.w
+    const sy = from.h / next.h
+    if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5 && Math.abs(sx - 1) < 0.01) return
+    running.current = thumb.animate(
+      [{ transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})` }, { transform: 'none' }],
+      { duration: PICK_MS, easing: EASE_OUT },
+    )
+    if (item !== null) popIn(item)
+  }, [layout, part, resized])
+  const { tone } = props
+  return (
+    <span ref={ref} aria-hidden="true" className={cx(ui.pickThumb, props.className)}>
+      {tone?.list.map((name) => (
+        <span
+          key={name}
+          className={cx(ui.pickTone, tone.className)}
+          data-on={name === tone.on}
+          {...{ [tone.attr]: name }}
+        />
+      ))}
+    </span>
+  )
+}
+
+const VANISH_MS = 200
+
+/**
+ * 画布上删掉的步骤、资源、连线：留个影子原地退场（步骤卡缩小淡出，连线和线上的小牌子淡出），不是一下没了。
+ *
+ * 只在"同一份文档里少了几个 id"时放（`loadKey` 没变）：换工作流、换实例时整张图换掉，不放。
+ * React Flow 删 DOM 的时机由它自己定（可能晚一次提交），所以这里先记下哪些 id 没了，
+ * 再用 MutationObserver 等那些元素真的被摘掉，照它们最后的样子复制影子放回原处。
+ *
+ * 认元素：节点外壳、连线 `<g>` 上的 `data-id`（React Flow 加的），线上小牌子写 `data-vanish`。
+ */
+export function useCanvasExits(
+  root: RefObject<HTMLElement | null>,
+  loadKey: string,
+  ids: readonly string[],
+): void {
+  const last = useRef<{ loadKey: string; ids: Set<string> } | null>(null)
+  const armed = useRef<{ ids: Set<string>; until: number } | null>(null)
+  useLayoutEffect(() => {
+    const now = new Set(ids)
+    const was = last.current
+    last.current = { loadKey, ids: now }
+    if (was === null || was.loadKey !== loadKey) return
+    const gone = [...was.ids].filter((id) => !now.has(id))
+    if (gone.length > 0) armed.current = { ids: new Set(gone), until: performance.now() + 500 }
+  }, [loadKey, ids])
+  useEffect(() => {
+    const host = root.current
+    if (host === null) return
+    const watch = new MutationObserver((records) => {
+      const arm = armed.current
+      if (arm === null) return
+      if (performance.now() > arm.until) {
+        armed.current = null
+        return
+      }
+      if (REDUCED?.matches === true) return
+      for (const record of records) {
+        for (const node of record.removedNodes) {
+          if (!(node instanceof Element) || node.isConnected || leaving.has(node)) continue
+          const id =
+            node.getAttribute('data-id') ??
+            node.getAttribute('data-vanish') ??
+            node.querySelector(':scope > [data-id]')?.getAttribute('data-id') ??
+            null
+          if (id === null || !arm.ids.has(id)) continue
+          vanish(node, record.target, record.nextSibling)
+        }
+      }
+    })
+    watch.observe(host, { childList: true, subtree: true })
+    return () => watch.disconnect()
+  }, [root])
+}
+
+/** 照摘掉的元素复制一份放回原处（还在原来的兄弟之间），放退场，放完删。 */
+function vanish(node: Element, parent: Node, before: Node | null): void {
+  const ghost = ghostClone(node as HTMLElement)
+  ghost.node.removeAttribute('data-id')
+  ghost.node.removeAttribute('data-vanish')
+  leaving.add(ghost.node)
+  ghost.place(parent)
+  if (before !== null && before.parentNode === parent) parent.insertBefore(ghost.node, before)
+  // 节点外壳带着定位用的 translate：缩放放在里面那张卡上。
+  const card = node.classList.contains('react-flow__node')
+    ? (ghost.node.firstElementChild ?? ghost.node)
+    : null
+  const out =
+    card === null
+      ? ghost.node.animate([{ opacity: 1 }, { opacity: 0 }], {
+          duration: VANISH_MS,
+          easing: 'linear',
+          fill: 'forwards',
+        })
+      : fadeAway(card, { opacity: 1, transform: 'none' }, 'scale(0.92)', VANISH_MS)
+  const drop = (): void => ghost.node.remove()
+  out.finished.then(drop, drop)
 }

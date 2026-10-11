@@ -20,6 +20,7 @@ import type { HostAccess } from '../app/host.ts'
 import type { LocaleKey, T } from '../i18n.ts'
 import { HostPicker, type PickMode } from './HostPicker.tsx'
 import { Icon } from './Icon.tsx'
+import { useResizeFlip, useRowKeys } from './motion.tsx'
 import { cx, Popover } from './primitives.tsx'
 import { ResourceItemDialog } from './ResourceItemDialog.tsx'
 import css from './resource.module.css'
@@ -60,6 +61,13 @@ export function ResourceItems(props: {
   const [skills, setSkills] = useState(false)
   const [editing, setEditing] = useState<Editing | null>(null)
   const full = items.length >= MAX_RESOURCE_ITEMS
+  // 删一项：那一行原地淡出，下面的行滑上来（新加的行自己带浮出动画）。
+  const rows = useRowKeys(items.length)
+  const listRef = useResizeFlip({ exit: true })
+  const remove = (index: number): void => {
+    rows.drop(index)
+    props.onChange(items.filter((_item, at) => at !== index))
+  }
 
   const add = (fresh: ResourceItem[]): void => {
     const next = addItems(items, fresh, MAX_RESOURCE_ITEMS)
@@ -81,12 +89,11 @@ export function ResourceItems(props: {
       {items.length === 0 ? (
         <p className={css.itemsEmpty}>{t('res.itemsEmpty')}</p>
       ) : (
-        <ul className={css.list} data-testid="wl-resource-list">
+        <ul ref={listRef} className={css.list} data-testid="wl-resource-list">
           {items.map((item, index) => (
             <ItemRow
-              // 内容没有 id：按位置认。
-              // biome-ignore lint/suspicious/noArrayIndexKey: 资源里的一项没有自己的身份
-              key={index}
+              // 内容没有 id：按位置配的稳定键（删中间一项时删的是那一行）。
+              key={rows.keys[index]}
               t={t}
               item={item}
               duplicate={
@@ -96,7 +103,7 @@ export function ResourceItems(props: {
               written={props.written}
               root={props.root}
               onOpen={() => setEditing({ index })}
-              onRemove={() => props.onChange(items.filter((_item, at) => at !== index))}
+              onRemove={() => remove(index)}
             />
           ))}
         </ul>
@@ -197,7 +204,7 @@ export function ResourceItems(props: {
               ? undefined
               : () => {
                   setEditing(null)
-                  props.onChange(items.filter((_item, at) => at !== editingIndex))
+                  remove(editingIndex)
                 }
           }
           onClose={() => setEditing(null)}

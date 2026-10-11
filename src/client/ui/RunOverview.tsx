@@ -21,7 +21,7 @@ import { shortTime } from '../model/time.ts'
 import css from './inspector.module.css'
 import { SwapText } from './motion.tsx'
 import { cx } from './primitives.tsx'
-import { EditedDot, isEdited } from './RunNodeState.tsx'
+import { Choices, EditedDot, isEdited } from './RunNodeState.tsx'
 import { RunPosition } from './RunPosition.tsx'
 import { RUN_STATUS_TEXT } from './RunTopBar.tsx'
 import run from './run.module.css'
@@ -86,25 +86,19 @@ export function Overview(props: {
             }}
           />
         </div>
-        <div className={run.choices} role="radiogroup" aria-label={t('run.overall')}>
-          {RUN_STATUSES.map((status) => (
-            <button
-              key={status}
-              type="button"
-              role="radio"
-              aria-checked={state.status === status}
-              className={run.choice}
-              data-run-status={status}
-              data-testid="wl-run-overall"
-              data-value={status}
-              data-tip={t(`run.hint.${status}` as LocaleKey)}
-              onClick={() => current.setField(['status'], status)}
-            >
-              <span className={run.dot} />
-              {t(RUN_STATUS_TEXT[status])}
-            </button>
-          ))}
-        </div>
+        <Choices
+          label={t('run.overall')}
+          value={state.status}
+          options={RUN_STATUSES.map((status) => ({
+            value: status,
+            text: t(RUN_STATUS_TEXT[status]),
+            status,
+            mark: <span className={run.dot} />,
+            tip: t(`run.hint.${status}` as LocaleKey),
+            testId: 'wl-run-overall',
+          }))}
+          onPick={(status) => current.setField(['status'], status)}
+        />
       </section>
 
       {props.cursor !== null && (

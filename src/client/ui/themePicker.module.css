@@ -50,6 +50,7 @@
 }
 
 .grid {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
@@ -87,8 +88,13 @@
   transform: scale(0.98);
 }
 
-/* 选中：外面一圈强调色（画在阴影上，不挤占尺寸）。 */
-.swatch[aria-checked="true"] .preview {
+/*
+ * 选中：外面一圈强调色（画在阴影上，不挤占尺寸）。环是一块滑过去的选中块（motion.tsx 的 PickThumb），
+ * 只框缩略图；盖在缩略图上面（缩略图里是别的主题的颜色，垫在下面会被它挡住），不接指针。
+ */
+.ring {
+  z-index: 1;
+  border-radius: 9px;
   box-shadow:
     0 0 0 2px var(--wl-accent),
     0 0 0 5px var(--wl-accent-soft);
@@ -102,6 +108,12 @@
   box-shadow:
     0 0 0 2px var(--wl-accent),
     0 0 0 5px var(--wl-accent-soft);
+}
+
+/* 选中项不再上浮、按下不缩：外面那圈环（`.ring`）不跟着动，免得错开。 */
+.swatch[aria-checked="true"]:hover .preview,
+.swatch[aria-checked="true"]:active .preview {
+  transform: none;
 }
 
 /* 缩略图：左边一条侧栏，右边两张卡连一条线，下面一张资源卡被读。 */
@@ -201,10 +213,10 @@
 
 .swatch[aria-checked="true"] .name {
   color: var(--wl-text);
-  font-weight: 600;
 }
 
-.name > svg {
+.check {
+  display: inline-flex;
   margin-left: auto;
   color: var(--wl-accent-text);
 }

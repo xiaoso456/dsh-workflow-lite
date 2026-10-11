@@ -19,6 +19,7 @@ import type { LocaleKey, T } from '../i18n.ts'
 import { RUN_TEXT } from './Canvas.tsx'
 import { useConfirm } from './Confirm.tsx'
 import { Icon } from './Icon.tsx'
+import { useExit } from './motion.tsx'
 import { cx, Popover } from './primitives.tsx'
 import { RUN_STATUS_TEXT } from './RunTopBar.tsx'
 import run from './run.module.css'
@@ -142,8 +143,10 @@ export function DraftBar(props: {
   const [open, setOpen] = useState(false)
   const discard = useConfirm<HTMLButtonElement>()
   const notifyId = useId()
+  // 保存、放弃之后往下沉、淡出（和浮上来时反过来）；动的是里面那层，外面那层带着居中的 translateX。
+  const seat = useExit<HTMLDivElement>('down', { inner: true })
   return (
-    <div className={run.draftSeat} data-panel={props.panel}>
+    <div ref={seat} className={run.draftSeat} data-panel={props.panel}>
       <div className={cx(ui.panel, run.draft, ui.rise)} data-testid="wl-run-draft">
         <Popover
           open={open}

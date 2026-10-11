@@ -24,7 +24,7 @@ import css from './handoff.module.css'
 import { Icon } from './Icon.tsx'
 import { DescriptionField } from './Inspector.tsx'
 import ins from './inspector.module.css'
-import { useSwap } from './motion.tsx'
+import { useResizeFlip, useSwap } from './motion.tsx'
 import { ResourceHead } from './NodeHeads.tsx'
 import { cx } from './primitives.tsx'
 import { ResourceItems } from './ResourceItems.tsx'
@@ -49,6 +49,11 @@ export function ResourcePanel(props: {
 }): React.JSX.Element {
   const { t, doc, node } = props
   const swap = useSwap<HTMLElement>(idKey(node.id), node.position.x)
+  // 断开一个步骤：那一行淡出，其余的滑上来；最后一行断了，整组淡出、换成「还没有」。
+  const writersField = useResizeFlip({ exit: true, enter: true })
+  const writersRef = useResizeFlip({ exit: true, enter: true })
+  const readersField = useResizeFlip({ exit: true, enter: true })
+  const readersRef = useResizeFlip({ exit: true, enter: true })
   const info = resourceGraph(doc).get(node.id)
   const merge = (field: string): string => `${idKey(node.id)}:${field}`
   const written = (info?.writers.length ?? 0) > 0
@@ -155,14 +160,14 @@ export function ResourcePanel(props: {
           </section>
         ) : (
           <>
-            <section className={ins.field} data-testid="wl-resource-writers">
+            <section ref={writersField} className={ins.field} data-testid="wl-resource-writers">
               <div className={ins.label}>
                 <span>{t('res.writers')}</span>
               </div>
               {(info?.writers ?? []).length === 0 ? (
                 <p className={ins.help}>{t('res.noWriters')}</p>
               ) : (
-                <div className={css.fileGroup}>
+                <div ref={writersRef} className={css.fileGroup}>
                   {(info?.writers ?? []).map((writer) => {
                     const edge = edgeOf(writer.id, node.id)
                     if (edge === undefined) return null
@@ -183,14 +188,14 @@ export function ResourcePanel(props: {
               )}
             </section>
 
-            <section className={ins.field} data-testid="wl-resource-readers">
+            <section ref={readersField} className={ins.field} data-testid="wl-resource-readers">
               <div className={ins.label}>
                 <span>{t('res.readers')}</span>
               </div>
               {(info?.readers ?? []).length === 0 ? (
                 <p className={ins.help}>{t('res.noReaders')}</p>
               ) : (
-                <div className={css.fileGroup}>
+                <div ref={readersRef} className={css.fileGroup}>
                   {(info?.readers ?? []).map((reader) => {
                     const edge = edgeOf(node.id, reader)
                     return edge === undefined

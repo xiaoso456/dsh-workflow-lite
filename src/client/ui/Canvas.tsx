@@ -118,7 +118,7 @@ import type { FocusFile } from './Handoff.tsx'
 import hand from './handoff.module.css'
 import { Icon, type IconName } from './Icon.tsx'
 import { ACCESS_COLOR, type Access, WHEN_COLOR, type WhenKind, whenKind } from './lines.ts'
-import { SwapIcon, SwapText } from './motion.tsx'
+import { SwapIcon, SwapText, useCanvasExits } from './motion.tsx'
 import { cx, useFloat } from './primitives.tsx'
 import { freeFilePath, itemText, KIND_ICON, KIND_LABEL } from './resourceUi.ts'
 import { lookOf, StepMark } from './StepMark.tsx'
@@ -710,6 +710,7 @@ const LinkLine = memo(function LinkLine(props: EdgeProps<LinkEdge>): React.JSX.E
               两块都和线同色。 */}
           <div
             className={cx(css.linkLabels, 'nodrag', 'nopan')}
+            data-vanish={id}
             style={
               {
                 transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
@@ -1083,6 +1084,7 @@ const FileLine = memo(function FileLine(props: EdgeProps<FileEdge>): React.JSX.E
               常驻、平时透明，和光晕一样淡入淡出。 */}
           <span
             className={css.ioChip}
+            data-vanish={id}
             data-access={data.access}
             data-active={active}
             aria-hidden={!active}
@@ -1984,6 +1986,13 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
       ...list.filter((edge) => edge.data?.active === true),
     ]
   }, [doc, analysis, selection, texts, onPick, focusFile, hoverEdge, routes, t, run])
+
+  // 删掉的步骤、资源、连线原地退场（同一份文档里少了的才放，换图不放）。
+  const flowIds = useMemo(
+    () => [...nodes.map((node) => node.id), ...edges.map((edge) => edge.id)],
+    [nodes, edges],
+  )
+  useCanvasExits(wrapRef, props.loadKey, flowIds)
 
   const onNodesChange = useCallback(
     (changes: NodeChange<FlowNode>[]): void => {

@@ -29,6 +29,7 @@ import type { FocusFile } from './Handoff.tsx'
 import css from './handoff.module.css'
 import { Icon } from './Icon.tsx'
 import ins from './inspector.module.css'
+import { useResizeFlip } from './motion.tsx'
 import { OutputEditor } from './Outputs.tsx'
 import { cx, Popover, Segmented } from './primitives.tsx'
 import res from './resource.module.css'
@@ -75,6 +76,11 @@ export function StepResourcesField(props: {
   const shared = sharedResources(doc)
   const [creating, setCreating] = useState(false)
   const [linking, setLinking] = useState(false)
+  // 连上 / 断开一个资源：那一行浮出 / 淡出，其余的滑到新位置；整组没了（或第一次有）也一样。
+  const fieldRef = useResizeFlip({ exit: true, enter: true })
+  const writesRef = useResizeFlip({ exit: true, enter: true })
+  const readsRef = useResizeFlip({ exit: true, enter: true })
+  const sharedRef = useResizeFlip({ exit: true, enter: true })
   const linked = new Set([
     ...linkedNow.writes.map((item) => item.resource.id),
     ...linkedNow.reads.map((item) => item.resource.id),
@@ -132,13 +138,13 @@ export function StepResourcesField(props: {
   const nothing =
     linkedNow.writes.length === 0 && linkedNow.reads.length === 0 && shared.length === 0
   return (
-    <section className={ins.field} data-testid="wl-step-resources">
+    <section ref={fieldRef} className={ins.field} data-testid="wl-step-resources">
       <div className={ins.label}>
         <span>{t('res.title')}</span>
       </div>
       {nothing && <p className={ins.help}>{t('res.none')}</p>}
       {linkedNow.writes.length > 0 && (
-        <div className={css.fileGroup}>
+        <div ref={writesRef} className={css.fileGroup}>
           <p className={css.subLabel}>{t('res.writes')}</p>
           {linkedNow.writes.map(({ resource, update, edge }) =>
             row(
@@ -154,7 +160,7 @@ export function StepResourcesField(props: {
         </div>
       )}
       {linkedNow.reads.length > 0 && (
-        <div className={css.fileGroup}>
+        <div ref={readsRef} className={css.fileGroup}>
           <p className={css.subLabel}>{t('res.reads')}</p>
           {linkedNow.reads.map(({ resource, edge }) => {
             const from = writersOf(graph.get(resource.id))
@@ -171,7 +177,7 @@ export function StepResourcesField(props: {
         </div>
       )}
       {shared.length > 0 && (
-        <div className={css.fileGroup}>
+        <div ref={sharedRef} className={css.fileGroup}>
           <p className={css.subLabel}>{t('res.shared')}</p>
           {shared.map((resource) =>
             row(

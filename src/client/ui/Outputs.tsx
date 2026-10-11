@@ -20,6 +20,7 @@ import type { NodeData, OutputSpec } from '../../shared/types.ts'
 import type { T } from '../i18n.ts'
 import { Icon } from './Icon.tsx'
 import css from './inspector.module.css'
+import { useResizeFlip } from './motion.tsx'
 import overlay from './overlay.module.css'
 import { cx, Modal, Segmented } from './primitives.tsx'
 import ui from './ui.module.css'
@@ -66,6 +67,8 @@ export function OutputField(props: {
   /** 切去「不声明」再切回来，清单还在。 */
   const remembered = useRef<OutputSpec[]>(specs)
   if (specs.length > 0) remembered.current = specs
+  // 删一项：原地淡出，下面的滑上来（新加的项自己带浮出动画）。
+  const listRef = useResizeFlip({ exit: true })
 
   const request = props.request ?? null
   useEffect(() => {
@@ -115,7 +118,7 @@ export function OutputField(props: {
         ]}
       />
       {mode === 'file' && (
-        <div className={css.outList} data-testid="wl-outputs">
+        <div ref={listRef} className={css.outList} data-testid="wl-outputs">
           {specs.map((spec, index) => (
             <div key={spec.path} className={cx(css.outItem, ui.rise)}>
               <OutputRow t={t} spec={spec} editable onOpen={() => setEditing(index)} />

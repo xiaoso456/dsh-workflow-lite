@@ -9,12 +9,13 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/QuickAdd
  */
 
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useLayoutEffect, useState } from 'react'
 import { appearanceOf, presetAppearance } from '../../shared/appearance.ts'
 import type { TemplateEntry } from '../../shared/types.ts'
 import type { T } from '../i18n.ts'
 import { PRESETS, type StepSource } from '../model/library.ts'
 import { Icon } from './Icon.tsx'
+import { useExit } from './motion.tsx'
 import css from './overlay.module.css'
 import { cx, useDismiss } from './primitives.tsx'
 import { StepMark } from './StepMark.tsx'
@@ -36,7 +37,8 @@ export function QuickAdd(props: {
   onClose(): void
 }): React.JSX.Element {
   const { t } = props
-  const ref = useRef<HTMLDivElement>(null)
+  // 关掉（选了一项、Esc、点别处）时原地缩回、淡出。
+  const ref = useExit<HTMLDivElement>('shrink')
   useDismiss(true, ref, props.onClose)
   // 先按估算高度摆，挂上之后量一次真实高度再往回收（模板多少不定）。
   const [height, setHeight] = useState(MENU_H)

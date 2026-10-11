@@ -19,6 +19,7 @@ import { samePath, togglePin } from '../model/runDraft.ts'
 import { shortTime } from '../model/time.ts'
 import { RUN_TEXT } from './Canvas.tsx'
 import { Icon, type IconName } from './Icon.tsx'
+import { PickThumb } from './motion.tsx'
 import { PreviewCard } from './PreviewCard.tsx'
 import { cx } from './primitives.tsx'
 import run from './run.module.css'
@@ -61,6 +62,71 @@ export function StatusChip(props: {
   )
 }
 
+/** 一排状态按钮里的一个。 */
+export interface ChoiceOption<V extends string> {
+  value: V
+  text: string
+  /** 用哪种状态色（`data-run-status`）。 */
+  status: string
+  /** 字前面的小图标 / 圆点：选中时弹一下。 */
+  mark?: React.ReactNode
+  tip?: string
+  testId?: string
+}
+
+/**
+ * 一排可换行的状态按钮（单选）：选中块从旧的一个滑到新的一个，颜色跟着状态色交叉淡过去
+ * （见 motion.tsx 的 PickThumb）；字的颜色也是两层交叉淡（见 run.module.css 的 `.choiceText`），
+ * 字重不变，换选中时这一排不会被挤动。
+ */
+export function Choices<V extends string>(props: {
+  label: string
+  value: V | null | undefined
+  options: readonly ChoiceOption<V>[]
+  onPick(value: V): void
+}): React.JSX.Element {
+  const { options } = props
+  const picked = options.find((option) => option.value === props.value)
+  const tones = [...new Set(options.map((option) => option.status))]
+  return (
+    <div className={run.choices} role="radiogroup" aria-label={props.label}>
+      <PickThumb
+        layout={`${props.value ?? ''}|${options.map((option) => option.value).join(',')}`}
+        className={run.choiceThumb}
+        tone={{
+          list: tones,
+          on: picked?.status,
+          attr: 'data-run-status',
+          className: run.choiceTone,
+        }}
+      />
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          role="radio"
+          aria-checked={option.value === props.value}
+          className={run.choice}
+          data-run-status={option.status}
+          data-testid={option.testId}
+          data-value={option.testId === undefined ? undefined : option.value}
+          data-tip={option.tip}
+          onClick={() => props.onPick(option.value)}
+        >
+          {option.mark !== undefined && (
+            <span className={run.choiceMark} data-pick-pop="">
+              {option.mark}
+            </span>
+          )}
+          <span className={run.choiceText} data-text={option.text}>
+            {option.text}
+          </span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
 /** 状态、轮次、判定、摘要、失败原因。 */
 export function StepStatus(props: {
   t: T
@@ -90,36 +156,26 @@ export function StepStatus(props: {
             <EditedDot on={isEdited(current.draft, path('status'))} />
           </span>
         </p>
-        <div className={run.choices} role="radiogroup" aria-label={t('run.nodeStatus')}>
-          {NODE_STATUSES.map((status) => (
-            <button
-              key={status}
-              type="button"
-              role="radio"
-              aria-checked={node.status === status}
-              className={run.choice}
-              data-run-status={status}
-              data-testid="wl-run-node-status"
-              data-value={status}
-              data-tip={t(nodeHint(status))}
-              onClick={() => {
-                if (
-                  status === 'done' &&
-                  props.verdicts !== undefined &&
-                  node.verdict === undefined
-                ) {
-                  current.setStatus(id, status)
-                  current.setField(path('verdict'), props.verdicts[0] ?? null)
-                  return
-                }
-                current.setStatus(id, status)
-              }}
-            >
-              <Icon name={NODE_ICON[status]} size={12} />
-              {t(RUN_TEXT[status])}
-            </button>
-          ))}
-        </div>
+        <Choices<NodeStatus>
+          label={t('run.nodeStatus')}
+          value={node.status}
+          options={NODE_STATUSES.map((status) => ({
+            value: status,
+            text: t(RUN_TEXT[status]),
+            status,
+            mark: <Icon name={NODE_ICON[status]} size={12} />,
+            tip: t(nodeHint(status)),
+            testId: 'wl-run-node-status',
+          }))}
+          onPick={(status) => {
+            if (status === 'done' && props.verdicts !== undefined && node.verdict === undefined) {
+              current.setStatus(id, status)
+              current.setField(path('verdict'), props.verdicts[0] ?? null)
+              return
+            }
+            current.setStatus(id, status)
+          }}
+        />
         <div className={run.actions}>
           <button
             type="button"
@@ -179,23 +235,19 @@ export function StepStatus(props: {
               <EditedDot on={isEdited(current.draft, path('verdict'))} />
             </span>
           </p>
-          <div className={run.choices} role="radiogroup" aria-label={t('run.verdict')}>
-            {props.verdicts.map((verdict) => (
-              <button
-                key={verdict}
-                type="button"
-                role="radio"
-                aria-checked={node.verdict === verdict}
-                className={run.choice}
-                data-run-status={node.verdict === verdict ? 'running' : 'pending'}
-                onClick={() =>
-                  current.setField(path('verdict'), node.verdict === verdict ? null : verdict)
-                }
-              >
-                {verdict}
-              </button>
-            ))}
-          </div>
+          <Choices
+            label={t('run.verdict')}
+            value={node.verdict}
+            options={props.verdicts.map((verdict) => ({
+              value: verdict,
+              text: verdict,
+              // 判定不分好坏：选中的用强调色，没选的灰。
+              status: node.verdict === verdict ? 'running' : 'pending',
+            }))}
+            onPick={(verdict) =>
+              current.setField(path('verdict'), node.verdict === verdict ? null : verdict)
+            }
+          />
         </section>
       )}
 

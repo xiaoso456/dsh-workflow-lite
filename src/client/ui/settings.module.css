@@ -10,6 +10,7 @@
 /* ── 执行方式：四张卡，两两一行 ───────────────────────────── */
 
 .modes {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
@@ -21,7 +22,11 @@
   }
 }
 
-/* 一种执行方式 = 一张可选的卡：图标、名字、一句话。选中时描边变色、右上角出一个勾。 */
+/*
+ * 一种执行方式 = 一张可选的卡：图标、名字、一句话。
+ * 选中的强调色底和描边是一块在四张卡之间滑动的选中框（`.modeThumb`，motion.tsx 的 PickThumb）；
+ * 卡自己只画平时的描边（伪元素，选中时淡掉），图标块的强调色也是淡入的一层。右上角出一个勾。
+ */
 .mode {
   position: relative;
   display: grid;
@@ -29,18 +34,36 @@
   gap: 1px 10px;
   align-items: center;
   padding: 9px 28px 9px 9px;
-  border: 1px solid var(--wl-line);
+  border: 1px solid transparent;
   border-radius: 10px;
-  background: var(--wl-panel);
+  background: transparent;
   color: var(--wl-text);
   font: inherit;
   text-align: left;
   cursor: pointer;
+  transition: transform 120ms var(--wl-ease);
+}
+
+.mode::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border: 1px solid var(--wl-line);
+  border-radius: inherit;
+  pointer-events: none;
+  transition: opacity 160ms linear;
 }
 
 .mode:hover {
-  border-color: var(--wl-line-strong);
   background: var(--wl-hover);
+}
+
+.mode:hover::before {
+  border-color: var(--wl-line-strong);
+}
+
+.mode:active {
+  transform: scale(0.985);
 }
 
 .mode:focus-visible {
@@ -48,12 +71,24 @@
   outline-offset: 1px;
 }
 
-.mode[aria-checked="true"] {
-  border-color: var(--wl-accent);
+.mode[aria-checked="true"]::before {
+  opacity: 0;
+}
+
+/* 选中的卡上不再叠悬停底色：选中框的浅蓝底就是它的底。 */
+.mode[aria-checked="true"]:hover {
+  background: transparent;
+}
+
+.modeThumb {
+  border: 1px solid var(--wl-accent);
+  border-radius: 10px;
   background: var(--wl-accent-soft);
 }
 
+/* 图标块：灰底上叠一层强调色（选中时淡入），图标也是灰、白两枚叠着交叉淡。 */
 .modeIcon {
+  position: relative;
   display: grid;
   grid-row: span 2;
   place-items: center;
@@ -64,9 +99,37 @@
   color: var(--wl-text-2);
 }
 
-.mode[aria-checked="true"] .modeIcon {
+.modeIcon::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
   background: var(--wl-accent);
+  opacity: 0;
+  transition: opacity 200ms linear;
+}
+
+.modeGlyph,
+.modeGlyphOn {
+  position: relative;
+  display: grid;
+  grid-area: 1 / 1;
+  place-items: center;
+  transition: opacity 200ms linear;
+}
+
+.modeGlyphOn {
   color: var(--wl-accent-on);
+  opacity: 0;
+}
+
+.mode[aria-checked="true"] .modeIcon::before,
+.mode[aria-checked="true"] .modeGlyphOn {
+  opacity: 1;
+}
+
+.mode[aria-checked="true"] .modeGlyph {
+  opacity: 0;
 }
 
 .modeTitle {
@@ -96,7 +159,7 @@
   transform: scale(0.6);
   transition:
     opacity 120ms linear,
-    transform 160ms var(--wl-ease);
+    transform 280ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .mode[aria-checked="true"] .modeCheck {
@@ -208,6 +271,11 @@ label.row:hover {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .mode,
+  .mode::before,
+  .modeIcon::before,
+  .modeGlyph,
+  .modeGlyphOn,
   .modeCheck,
   .switch::before,
   .knob {

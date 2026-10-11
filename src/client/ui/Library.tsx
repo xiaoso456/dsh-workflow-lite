@@ -24,6 +24,7 @@ import {
 } from '../model/library.ts'
 import { Icon } from './Icon.tsx'
 import css from './library.module.css'
+import { useResizeFlip } from './motion.tsx'
 import { cx } from './primitives.tsx'
 import { StepMark } from './StepMark.tsx'
 import ui from './ui.module.css'
@@ -173,6 +174,8 @@ export function Library(props: {
     })
   }
   const open = (section: Section): boolean => !collapsed.includes(section)
+  // 分组收起：组里的项原地淡出，下面的分组滑上来；展开时下面的滑下去、组里的项浮出来。
+  const scrollRef = useResizeFlip({ exit: true })
 
   return (
     <section className={cx(ui.panel, css.library)} aria-label={t('lib.title')}>
@@ -193,7 +196,7 @@ export function Library(props: {
         </button>
       </header>
 
-      <div className={css.scroll}>
+      <div ref={scrollRef} className={css.scroll}>
         {/* 空白步骤没有什么可看的：点它只提示"拖过去"。 */}
         <button
           type="button"

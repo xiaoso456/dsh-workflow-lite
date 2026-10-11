@@ -178,48 +178,123 @@
   font-weight: 600;
 }
 
-/* 状态按钮组：一排可换行的小按钮，选中的那个填色。 */
+/*
+ * 状态按钮组（RunNodeState.tsx 的 Choices）：一排可换行的小按钮。
+ * 选中的底色、描边是一块滑过去的选中块（`.choiceThumb`），按钮自己只画平时的描边，选中时把它淡掉。
+ */
 .choices {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
 
 .choice {
+  position: relative;
   display: inline-flex;
   gap: 5px;
   align-items: center;
   height: 26px;
   padding: 0 10px 0 8px;
-  border: 1px solid var(--wl-line-strong);
+  border: 1px solid transparent;
   border-radius: 999px;
-  background: var(--wl-panel);
+  background: transparent;
   color: var(--wl-text-2);
   font: inherit;
   font-size: var(--wl-fs-meta);
+  font-weight: 500;
   cursor: pointer;
   transition: transform 120ms var(--wl-ease);
+}
+
+/* 平时的描边：画在伪元素上，选中时淡掉（让给滑过来的选中块），取消选中时淡回来。 */
+.choice::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border: 1px solid var(--wl-line-strong);
+  border-radius: inherit;
+  pointer-events: none;
+  transition: opacity 160ms linear;
 }
 
 .choice:active {
   transform: scale(0.96);
 }
 
-.choice:hover {
+.choice:hover::before {
   border-color: color-mix(in srgb, var(--wl-run) 60%, transparent);
+}
+
+.choice:hover {
   color: var(--wl-text);
 }
 
+.choice[aria-checked="true"]::before {
+  opacity: 0;
+}
+
+/* 选中时只有小图标换成状态色（它同时会弹一下）；字的颜色见 `.choiceText`。 */
 .choice[aria-checked="true"] {
-  border-color: color-mix(in srgb, var(--wl-run) 55%, transparent);
-  background: color-mix(in srgb, var(--wl-run) 14%, var(--wl-panel));
   color: var(--wl-run);
-  font-weight: 600;
 }
 
 .choice:focus-visible {
   outline: 2px solid var(--wl-accent);
   outline-offset: 1px;
+}
+
+.choiceThumb {
+  border-radius: 999px;
+}
+
+/* 选中块的一层：每种状态一层，`--wl-run` 跟着层上的 data-run-status。 */
+.choiceTone {
+  border: 1px solid color-mix(in srgb, var(--wl-run) 55%, transparent);
+  background: color-mix(in srgb, var(--wl-run) 14%, var(--wl-panel));
+}
+
+.choiceMark {
+  display: inline-flex;
+}
+
+/*
+ * 字：本身透明（只占宽度、给读屏和测试读），上面叠两层同样的字——灰的和状态色的，
+ * 选中时交叉淡过去（只动 opacity）。
+ */
+.choiceText {
+  position: relative;
+  color: transparent;
+  white-space: nowrap;
+}
+
+.choiceText::before,
+.choiceText::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  transition: opacity 200ms linear;
+}
+
+.choiceText::before {
+  color: var(--wl-text-2);
+}
+
+.choice:hover .choiceText::before {
+  color: var(--wl-text);
+}
+
+.choiceText::after {
+  color: var(--wl-run);
+  opacity: 0;
+}
+
+.choice[aria-checked="true"] .choiceText::before {
+  opacity: 0;
+}
+
+.choice[aria-checked="true"] .choiceText::after {
+  opacity: 1;
 }
 
 /* 改了还没保存的字段：标题旁一个小圆点。 */
@@ -585,7 +660,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .choice {
+  .choice,
+  .choice::before,
+  .choiceText::before,
+  .choiceText::after {
     transition: none;
   }
 }

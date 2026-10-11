@@ -28,7 +28,7 @@ import hand from './handoff.module.css'
 import { Icon } from './Icon.tsx'
 import css from './input.module.css'
 import ins from './inspector.module.css'
-import { useSwap } from './motion.tsx'
+import { useResizeFlip, useRowKeys, useSwap } from './motion.tsx'
 import { InputHead } from './NodeHeads.tsx'
 import { cx, Segmented } from './primitives.tsx'
 import { stepName } from './resourceUi.ts'
@@ -69,6 +69,9 @@ export function InputPanel(props: InputPanelProps): React.JSX.Element {
   }
   const readers = inputReaders(doc, node.id)
   const options = data.options ?? []
+  // 选项按位置认：配一串稳定的键，删中间一项时那一行淡出、下面的滑上来；新加的从左边淡入。
+  const rows = useRowKeys(options.length)
+  const optionsRef = useResizeFlip({ exit: true, enter: true })
 
   const setKind = (next: InputKind): void => {
     if (next === kind) return
@@ -148,15 +151,15 @@ export function InputPanel(props: InputPanelProps): React.JSX.Element {
               <span>{t('input.options')}</span>
               <span className={ins.count}>{t('input.defaultTip')}</span>
             </div>
-            <ul className={css.options}>
+            <ul ref={optionsRef} className={css.options}>
               {options.map((option, index) => {
                 const trimmed = option.trim()
                 const duplicate =
                   trimmed !== '' && options.findIndex((other) => other.trim() === trimmed) !== index
                 const isDefault = trimmed !== '' && defaults.includes(trimmed)
                 return (
-                  // biome-ignore lint/suspicious/noArrayIndexKey: 选项可以重名、可以为空，只能按位置认
-                  <li key={index} className={css.option} data-duplicate={duplicate}>
+                  // 选项可以重名、可以为空，只能按位置认（键见 useRowKeys）
+                  <li key={rows.keys[index]} className={css.option} data-duplicate={duplicate}>
                     <button
                       type="button"
                       role="checkbox"
@@ -207,6 +210,7 @@ export function InputPanel(props: InputPanelProps): React.JSX.Element {
                       aria-label={t('input.removeOption')}
                       data-testid="wl-input-option-remove"
                       onClick={() => {
+                        rows.drop(index)
                         const next = options.filter((_, at) => at !== index)
                         patch({
                           options: next,

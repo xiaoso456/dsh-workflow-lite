@@ -197,6 +197,7 @@
 /* ── 文件清单（选中步骤 / 选中文件卡）─────────────────────── */
 
 .fileGroup {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 4px;

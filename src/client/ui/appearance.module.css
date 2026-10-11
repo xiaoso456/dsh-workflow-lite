@@ -72,12 +72,14 @@
 }
 
 .colors {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(9, 1fr);
   gap: 4px;
 }
 
 .swatch {
+  position: relative;
   display: grid;
   place-items: center;
   aspect-ratio: 1;
@@ -113,57 +115,77 @@
 }
 
 .swatch[data-color="blue"],
-.icons[data-color="blue"] {
+.icons[data-color="blue"],
+.ringTone[data-color="blue"],
+.iconTone[data-color="blue"] {
   --wl-swatch: var(--wl-c-blue);
 }
 
 .swatch[data-color="green"],
-.icons[data-color="green"] {
+.icons[data-color="green"],
+.ringTone[data-color="green"],
+.iconTone[data-color="green"] {
   --wl-swatch: var(--wl-c-green);
 }
 
 .swatch[data-color="amber"],
-.icons[data-color="amber"] {
+.icons[data-color="amber"],
+.ringTone[data-color="amber"],
+.iconTone[data-color="amber"] {
   --wl-swatch: var(--wl-c-amber);
 }
 
 .swatch[data-color="coral"],
-.icons[data-color="coral"] {
+.icons[data-color="coral"],
+.ringTone[data-color="coral"],
+.iconTone[data-color="coral"] {
   --wl-swatch: var(--wl-c-coral);
 }
 
 .swatch[data-color="teal"],
-.icons[data-color="teal"] {
+.icons[data-color="teal"],
+.ringTone[data-color="teal"],
+.iconTone[data-color="teal"] {
   --wl-swatch: var(--wl-c-teal);
 }
 
 .swatch[data-color="pink"],
-.icons[data-color="pink"] {
+.icons[data-color="pink"],
+.ringTone[data-color="pink"],
+.iconTone[data-color="pink"] {
   --wl-swatch: var(--wl-c-pink);
 }
 
 .swatch[data-color="olive"],
-.icons[data-color="olive"] {
+.icons[data-color="olive"],
+.ringTone[data-color="olive"],
+.iconTone[data-color="olive"] {
   --wl-swatch: var(--wl-c-olive);
 }
 
 .swatch[data-color="violet"],
-.icons[data-color="violet"] {
+.icons[data-color="violet"],
+.ringTone[data-color="violet"],
+.iconTone[data-color="violet"] {
   --wl-swatch: var(--wl-c-violet);
 }
 
 .swatch[data-color="slate"],
-.icons[data-color="slate"] {
+.icons[data-color="slate"],
+.ringTone[data-color="slate"],
+.iconTone[data-color="slate"] {
   --wl-swatch: var(--wl-c-slate);
 }
 
 .icons {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(8, 1fr);
   gap: 2px;
 }
 
 .icon {
+  position: relative;
   display: grid;
   place-items: center;
   aspect-ratio: 1;
@@ -179,10 +201,40 @@
   background: var(--wl-hover);
 }
 
-/* 选中的图标：当前颜色的浅底 + 当前颜色的笔画，和卡片上的图标块一个样子。 */
+/*
+ * 选中的图标：当前颜色的浅底 + 当前颜色的笔画，和卡片上的图标块一个样子。
+ * 浅底是滑过去的选中块（`.iconThumb`，motion.tsx 的 PickThumb），每种颜色一层，换颜色时交叉淡过去。
+ */
 .icon[aria-checked="true"] {
-  background: color-mix(in srgb, var(--wl-swatch) 16%, transparent);
   color: var(--wl-swatch);
+}
+
+.icon[aria-checked="true"]:hover {
+  background: transparent;
+}
+
+.iconThumb {
+  border-radius: 7px;
+}
+
+.iconTone {
+  background: color-mix(in srgb, var(--wl-swatch) 16%, transparent);
+}
+
+.glyph {
+  display: grid;
+  place-items: center;
+}
+
+/* 选中颜色外面的一圈环：滑到新选的颜色，环色交叉淡过去（只动 transform / opacity）。 */
+.ring {
+  border-radius: 50%;
+}
+
+.ringTone {
+  box-shadow:
+    0 0 0 2px var(--wl-panel),
+    0 0 0 3.5px var(--wl-swatch);
 }
 
 .icon:focus-visible {

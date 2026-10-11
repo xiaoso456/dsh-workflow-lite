@@ -18,6 +18,7 @@ import {
 import type { LocaleKey, T } from '../i18n.ts'
 import css from './appearance.module.css'
 import { Icon } from './Icon.tsx'
+import { PickThumb } from './motion.tsx'
 import { cx, Popover } from './primitives.tsx'
 import { StepMark } from './StepMark.tsx'
 import ui from './ui.module.css'
@@ -76,6 +77,12 @@ export function AppearancePicker(props: {
       </div>
       <p className={css.group}>{t('look.color')}</p>
       <div className={css.colors} role="radiogroup" aria-label={t('look.color')}>
+        {/* 选中的一圈环：滑到新选的颜色，环的颜色跟着交叉淡过去。 */}
+        <PickThumb
+          layout={look.color}
+          className={css.ring}
+          tone={{ list: STEP_COLORS, on: look.color, attr: 'data-color', className: css.ringTone }}
+        />
         {STEP_COLORS.map((color) => (
           <button
             key={color}
@@ -100,6 +107,12 @@ export function AppearancePicker(props: {
         aria-label={t('look.icon')}
         data-color={look.color}
       >
+        {/* 选中图标的浅色底：滑到新选的图标；换颜色时底色交叉淡过去。 */}
+        <PickThumb
+          layout={look.icon}
+          className={css.iconThumb}
+          tone={{ list: STEP_COLORS, on: look.color, attr: 'data-color', className: css.iconTone }}
+        />
         {STEP_ICONS.map((icon) => (
           <button
             key={icon}
@@ -111,7 +124,9 @@ export function AppearancePicker(props: {
             data-testid={`wl-look-icon-${icon}`}
             onClick={() => props.onChange({ icon })}
           >
-            <Icon name={icon} size={16} />
+            <span className={css.glyph} data-pick-pop="">
+              <Icon name={icon} size={16} />
+            </span>
           </button>
         ))}
       </div>

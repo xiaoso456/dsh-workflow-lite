@@ -34,7 +34,7 @@ import { InputPanel, StepInputsField } from './InputPanel.tsx'
 import css from './inspector.module.css'
 import { LinkRow } from './LinkRow.tsx'
 import { WHEN_COLOR, type WhenKind, whenKind } from './lines.ts'
-import { useSwap } from './motion.tsx'
+import { useResizeFlip, useSwap } from './motion.tsx'
 import { EdgeHead, StepHead } from './NodeHeads.tsx'
 import { PreviewCard } from './PreviewCard.tsx'
 import { cx, Segmented } from './primitives.tsx'
@@ -135,6 +135,9 @@ function NodePanel(props: InspectorProps & { node: StepNode }): React.JSX.Elemen
   const key = idKey(node.id)
   // 换选中的东西：旧内容滑出、新内容按画布上的左右滑进来（面板按选中项挂键，见 useSwap）。
   const swap = useSwap<HTMLElement>(key, node.position.x)
+  // 画布上连了 / 断了一条线：清单里那一行浮出 / 淡出，其余的滑到新位置。
+  const incomingRef = useResizeFlip({ exit: true, enter: true })
+  const outgoingRef = useResizeFlip({ exit: true, enter: true })
   // 连接清单只列步骤之间的线；连着资源的线在上面的「资源」里。
   const flow = flowEdges(doc)
   const incoming = flow.filter((edge) => idKey(edge.target) === key)
@@ -217,7 +220,7 @@ function NodePanel(props: InspectorProps & { node: StepNode }): React.JSX.Elemen
           ) : (
             <>
               {incoming.length > 0 && (
-                <div className={css.links}>
+                <div ref={incomingRef} className={css.links}>
                   <p className={css.linkGroup}>{t('ins.from')}</p>
                   {incoming.map((edge) => (
                     <LinkRow
@@ -235,7 +238,7 @@ function NodePanel(props: InspectorProps & { node: StepNode }): React.JSX.Elemen
                 </div>
               )}
               {outgoing.length > 0 && (
-                <div className={css.links}>
+                <div ref={outgoingRef} className={css.links}>
                   <p className={css.linkGroup}>{t('ins.to')}</p>
                   {outgoing.map((edge) => (
                     <LinkRow

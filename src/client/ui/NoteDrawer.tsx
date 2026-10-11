@@ -7,11 +7,12 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/NoteDrawer
  */
 
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 import type { T } from '../i18n.ts'
 import css from './files.module.css'
 import { Icon } from './Icon.tsx'
 import { Markdown } from './Markdown.tsx'
+import { useExit } from './motion.tsx'
 import { cx } from './primitives.tsx'
 import ui from './ui.module.css'
 
@@ -35,7 +36,8 @@ export function NoteToggle(props: { t: T; open: boolean; onToggle(): void }): Re
 /** 滑出来的那一栏；Esc 先收起它，再按一次才关查看框。 */
 export function NoteDrawer(props: { t: T; text: string; onClose(): void }): React.JSX.Element {
   const { t } = props
-  const ref = useRef<HTMLElement>(null)
+  // 收起时退回右边、淡出（和拉出来时反过来）。
+  const ref = useExit<HTMLElement>('right')
   // 拉出来就把焦点放在这一栏上（不亮焦点框），Esc 才会先到这里。
   useEffect(() => {
     ref.current?.focus({ preventScroll: true })

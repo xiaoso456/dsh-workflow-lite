@@ -21,6 +21,7 @@ import {
 } from '../model/themes.ts'
 import hub from './hub.module.css'
 import { Icon } from './Icon.tsx'
+import { PickThumb } from './motion.tsx'
 import css from './themePicker.module.css'
 
 const NAME: Record<ThemeId, LocaleKey> = {
@@ -96,6 +97,7 @@ function Row(props: {
         {props.inUse && <span className={css.inUse}>{t('theme.inUse')}</span>}
       </span>
       <div className={css.grid} role="radiogroup" aria-label={label}>
+        <PickThumb layout={props.picked} part={`.${css.preview}`} className={css.ring} />
         {props.ids.map((id) => (
           <Swatch
             key={id}
@@ -159,7 +161,11 @@ function Swatch(props: {
       <span className={css.name}>
         {t(NAME[id])}
         {props.isDefault && <span className={css.default}>{t('theme.default')}</span>}
-        {props.picked && <Icon name="check" size={13} />}
+        {props.picked && (
+          <span className={css.check} data-pick-pop="">
+            <Icon name="check" size={13} />
+          </span>
+        )}
       </span>
     </button>
   )

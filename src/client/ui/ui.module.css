@@ -393,6 +393,43 @@
     opacity 160ms linear;
 }
 
+/*
+ * 单选组的选中块（`motion.tsx` 的 PickThumb）：滑动由 Web Animations 放（transform），
+ * 这里只管显隐、换色时各层的交叉淡入淡出。圆角、底色、描边由调用方的类给。
+ * 组要 `position: relative`，项要 `position: relative` 才盖在它上面。
+ */
+.pickThumb {
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0;
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+
+.pickThumb[data-on="true"] {
+  opacity: 1;
+}
+
+.pickThumb[data-live="true"] {
+  transition: opacity 160ms linear;
+}
+
+.pickTone {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0;
+}
+
+.pickTone[data-on="true"] {
+  opacity: 1;
+}
+
+.pickThumb[data-live="true"] .pickTone {
+  transition: opacity 220ms linear;
+}
+
 /* 浮层收起：先淡出、稍微缩一点再拿掉（useFloat 的 exitMs），这段时间不接指针。 */
 @keyframes floatOut {
   to {
@@ -1038,7 +1075,9 @@
     visibility: hidden;
   }
 
-  .listThumb[data-live="true"] {
+  .listThumb[data-live="true"],
+  .pickThumb[data-live="true"],
+  .pickThumb[data-live="true"] .pickTone {
     transition: none;
   }
 }
