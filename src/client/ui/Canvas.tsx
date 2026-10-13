@@ -1658,6 +1658,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
         multi: t('input.kind.multi'),
       },
       optionsCount: t('input.optionsCount'),
+      otherTag: t('input.otherTag'),
       resEmpty: t('res.cardEmpty'),
       resEmptySub: t('res.cardEmptySub'),
       resShared: t('res.sharedTip'),
@@ -1877,6 +1878,9 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
             ? [texts.optionsCount.replace('{n}', String(options.length))]
             : []),
           ...(node.data.required === true ? [texts.required] : []),
+          ...(node.data.other === true && (kind === 'choice' || kind === 'multi')
+            ? [texts.otherTag]
+            : []),
         ].join(' · ')
         signature = `${selected}|${tone}|${note}|${dim}|${texts.askText}|${meta}`
         build = () => ({

@@ -173,6 +173,8 @@ export interface InputData {
   hint?: string
   /** 必填：没有回答（也没有默认值）时不能执行。 */
   required?: true
+  /** 允许自己填写（单选 / 多选用）：用户可以不选选项，改填自己的答案；这样的回答不在选项里，计划里会注明是用户自填。 */
+  other?: true
 }
 
 export interface NodeData {
@@ -495,6 +497,7 @@ export interface InputIndexEntry {
   options?: string[]
   default?: InputAnswer
   required?: true
+  other?: true
   /** 回答交给哪些步骤；空 = 交给整个工作流。 */
   readers: string[]
 }

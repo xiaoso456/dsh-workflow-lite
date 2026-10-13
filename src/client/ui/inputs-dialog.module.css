@@ -121,6 +121,40 @@ button.choice::after {
   border: 1px solid var(--wl-accent);
 }
 
+/* 「其他」一行：左边是圈 / 方框加字（按钮），右边是自己填的输入框。选中描边同上。 */
+.choice.otherRow::after {
+  inset: -1px;
+  border: 1px solid var(--wl-accent);
+}
+
+.otherRow {
+  cursor: default;
+}
+
+.otherToggle {
+  display: flex;
+  flex: none;
+  gap: 10px;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.otherToggle:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 2px;
+}
+
+.otherInput {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 26px;
+}
+
 .mark {
   display: grid;
   flex: none;

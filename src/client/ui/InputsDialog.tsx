@@ -163,8 +163,26 @@ function Question(props: {
   const data = canonicalInput(input.data)
   const kind = inputKind(data)
   const labelId = `wl-ask-q-${props.index}`
-  const picked = Array.isArray(props.value) ? props.value : []
+  const options = data.options ?? []
+  const allowOther = data.other === true && (kind === 'choice' || kind === 'multi')
+  const answered = Array.isArray(props.value) ? props.value : []
+  // 选中的预设选项；不在选项里的那段是用户自填的（「其他」）。
+  const picked = answered.filter((value) => options.includes(value))
   const text = typeof props.value === 'string' ? props.value : ''
+  const [otherText, setOtherText] = useState(() => answered.find((v) => !options.includes(v)) ?? '')
+  const [otherOn, setOtherOn] = useState(() => otherText !== '')
+  const otherRef = useRef<HTMLInputElement>(null)
+  /** 回答 = 选中的预设选项 + （「其他」开着且填了字时）自填的一段。 */
+  const emit = (chosen: string[], on: boolean, custom: string): void => {
+    props.onChange(on && custom.trim() !== '' ? [...chosen, custom] : chosen)
+  }
+  const toggleOther = (): void => {
+    const on = !otherOn
+    setOtherOn(on)
+    // 单选：「其他」和预设选项互斥。
+    emit(kind === 'multi' ? picked : [], on, otherText)
+    if (on) window.requestAnimationFrame(() => otherRef.current?.focus())
+  }
   const defaults = [data.default ?? []].flat()
   return (
     <section
@@ -224,10 +242,11 @@ function Question(props: {
                     const next = on
                       ? picked.filter((value) => value !== option)
                       : [...picked, option]
-                    props.onChange(next)
+                    emit(next, otherOn, otherText)
                   } else {
-                    // 单选再点一下已选的那项 = 取消（可不填的问题能回到没选）。
-                    props.onChange(on ? [] : [option])
+                    // 单选再点一下已选的那项 = 取消（可不填的问题能回到没选）；选了预设选项就不再选「其他」。
+                    setOtherOn(false)
+                    emit(on ? [] : [option], false, otherText)
                   }
                 }}
               >
@@ -241,6 +260,42 @@ function Question(props: {
               </button>
             )
           })}
+          {allowOther && (
+            <div
+              className={cx(css.choice, css.otherRow, ui.fillOn)}
+              data-on={otherOn}
+              data-shape={kind === 'multi' ? 'box' : 'dot'}
+              data-testid="wl-ask-other"
+            >
+              <button
+                type="button"
+                className={css.otherToggle}
+                aria-pressed={otherOn}
+                data-testid="wl-ask-other-toggle"
+                onClick={toggleOther}
+              >
+                <span className={cx(css.mark, ui.tick)} data-on={otherOn} aria-hidden="true">
+                  <Icon name="check" size={10} />
+                </span>
+                <span className={css.choiceText}>{t('ask.other')}</span>
+              </button>
+              <input
+                ref={otherRef}
+                className={cx(ui.input, css.otherInput)}
+                value={otherText}
+                placeholder={t('ask.otherPlaceholder')}
+                aria-label={t('ask.other')}
+                data-testid="wl-ask-other-text"
+                onChange={(event) => {
+                  const value = event.currentTarget.value
+                  setOtherText(value)
+                  setOtherOn(true)
+                  // 开始打字就算选了「其他」；单选时放掉预设选项。
+                  emit(kind === 'multi' ? picked : [], true, value)
+                }}
+              />
+            </div>
+          )}
         </div>
       )}
     </section>

@@ -12,7 +12,9 @@ import {
 import { buildFullText, buildPlan } from '../../src/shared/compile.ts'
 import { analyzeGraph } from '../../src/shared/graph.ts'
 import {
+  allowsOther,
   checkAnswers,
+  customAnswers,
   effectiveAnswer,
   inputReaders,
   orderedInputs,
@@ -202,6 +204,76 @@ describe('谁拿到回答', () => {
   it('默认值不在选项里时当没有默认值', () => {
     const node = input('c', { question: 'q', kind: 'choice', options: ['A'], default: 'Z' })
     expect(effectiveAnswer(node as never, {})).toBeUndefined()
+  })
+})
+
+describe('允许自己填写', () => {
+  const single: InputData = {
+    question: '用哪种方案？',
+    kind: 'choice',
+    options: ['A', 'B'],
+    other: true,
+  }
+  const multi: InputData = {
+    question: '覆盖哪些端？',
+    kind: 'multi',
+    options: ['Web', 'iOS'],
+    other: true,
+  }
+
+  it('只对选择题有效：读入时文字题丢掉它，写出时留在选择题上', () => {
+    expect(
+      readInputData({ question: 'q', kind: 'choice', options: ['A'], other: true }).other,
+    ).toBe(true)
+    expect(readInputData({ question: 'q', other: true }).other).toBeUndefined()
+    expect(readInputData({ question: 'q', kind: 'choice', options: ['A'] }).other).toBeUndefined()
+    expect(allowsOther(single)).toBe(true)
+    expect(allowsOther({ question: 'q', other: true })).toBe(false)
+  })
+
+  it('开了：不在选项里的回答保留，多选排在选中的选项之后；没开：照旧挡掉', () => {
+    const one = input('p', single)
+    const many = input('m', multi)
+    const closed = input('c', { ...single, other: undefined })
+    expect(checkAnswers(doc([one]), { p: '方案 C' }).answers).toEqual({ p: '方案 C' })
+    expect(checkAnswers(doc([one]), { p: 'B' }).answers).toEqual({ p: 'B' })
+    expect(checkAnswers(doc([many]), { m: ['其他端', 'iOS'] }).answers).toEqual({
+      m: ['iOS', '其他端'],
+    })
+    const refused = checkAnswers(doc([closed]), { c: '方案 C' })
+    expect(refused.errors).toHaveLength(1)
+    expect(refused.errors[0]).toContain('没有开「允许自己填写」')
+  })
+
+  it('必填的选择题，只填了自己的内容也算回答；空白的不算', () => {
+    const required = input('p', { ...single, required: true })
+    expect(checkAnswers(doc([required]), { p: '方案 C' }).missing).toEqual([])
+    expect(checkAnswers(doc([required]), { p: '   ' }).missing).toHaveLength(1)
+  })
+
+  it('自填的部分单独认得出来', () => {
+    expect(customAnswers(single, 'B')).toEqual([])
+    expect(customAnswers(single, '方案 C')).toEqual(['方案 C'])
+    expect(customAnswers(multi, ['Web', '其他端'])).toEqual(['其他端'])
+    expect(customAnswers({ ...single, other: undefined }, '方案 C')).toEqual([])
+  })
+
+  it('计划里注明哪些是用户自填的，预设选项不注明', () => {
+    const document = doc(
+      [step('scan'), input('p', single, 80, 40), input('m', multi, 80, 160)],
+      [edge('p', 'scan'), edge('m', 'scan')],
+    )
+    const { plan } = buildPlan(
+      facts(document, { answers: { p: '方案 C', m: ['Web', '鸿蒙'] } }),
+      analyzeGraph(document),
+    )
+    expect(plan).toContain('答：（用户自填）方案 C')
+    expect(plan).toContain('答：Web、（用户自填）鸿蒙')
+    const picked = buildPlan(
+      facts(document, { answers: { p: 'A', m: ['Web'] } }),
+      analyzeGraph(document),
+    )
+    expect(picked.plan).not.toContain('用户自填')
   })
 })
 

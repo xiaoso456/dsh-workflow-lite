@@ -237,6 +237,12 @@ export function InputPanel(props: InputPanelProps): React.JSX.Element {
                 option.trim() !== '' &&
                 options.findIndex((other) => other.trim() === option.trim()) !== index,
             ) && <p className={ins.error}>{t('input.optionDup')}</p>}
+            {data.other === true && (
+              <p className={css.otherGhost} data-testid="wl-input-other-ghost">
+                <span className={css.otherMark} data-shape={kind === 'multi' ? 'box' : 'dot'} />
+                {t('input.otherGhost')}
+              </p>
+            )}
             <button
               type="button"
               className={cx(ui.btn, ui.small, ui.soft, css.add)}
@@ -291,22 +297,43 @@ export function InputPanel(props: InputPanelProps): React.JSX.Element {
           </section>
         )}
 
-        <button
-          type="button"
-          role="switch"
-          aria-checked={data.required === true}
-          className={css.required}
-          data-testid="wl-input-required"
-          onClick={() => patch({ required: data.required === true ? undefined : true })}
-        >
-          <span className={css.switch} aria-hidden="true">
-            <span className={css.knob} />
-          </span>
-          <span className={css.requiredText}>
-            <span className={css.requiredTitle}>{t('input.required')}</span>
-            <span className={css.requiredDesc}>{t('input.requiredDesc')}</span>
-          </span>
-        </button>
+        <div className={css.switches}>
+          {choice && (
+            <button
+              type="button"
+              role="switch"
+              aria-checked={data.other === true}
+              className={css.required}
+              data-testid="wl-input-other"
+              onClick={() => patch({ other: data.other === true ? undefined : true })}
+            >
+              <span className={css.switch} aria-hidden="true">
+                <span className={css.knob} />
+              </span>
+              <span className={css.requiredText}>
+                <span className={css.requiredTitle}>{t('input.other')}</span>
+                <span className={css.requiredDesc}>{t('input.otherDesc')}</span>
+              </span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            role="switch"
+            aria-checked={data.required === true}
+            className={css.required}
+            data-testid="wl-input-required"
+            onClick={() => patch({ required: data.required === true ? undefined : true })}
+          >
+            <span className={css.switch} aria-hidden="true">
+              <span className={css.knob} />
+            </span>
+            <span className={css.requiredText}>
+              <span className={css.requiredTitle}>{t('input.required')}</span>
+              <span className={css.requiredDesc}>{t('input.requiredDesc')}</span>
+            </span>
+          </button>
+        </div>
 
         <section className={cx(ins.field, css.private)}>
           <p className={css.privateNote}>

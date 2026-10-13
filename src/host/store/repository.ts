@@ -226,6 +226,7 @@ export interface InputUpsert {
   placeholder?: string
   hint?: string
   required?: boolean
+  other?: boolean
   position?: Point
 }
 
@@ -1297,6 +1298,7 @@ class FileRepository implements Repository {
       if (upsert.options !== undefined) base.options = upsert.options
       if (upsert.default !== undefined) base.default = upsert.default
       if (upsert.required !== undefined) base.required = upsert.required
+      if (upsert.other !== undefined) base.other = upsert.other
       const data = readInputData(base)
       if (typeof data.question === 'string' && /[\r\n]/u.test(data.question)) {
         return fail('blocked', '问题不得包含换行（要多说几句请写在 hint 里）', { id: rawId })

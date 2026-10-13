@@ -74,9 +74,16 @@ function nodeFields(before: WorkflowNode, after: WorkflowNode): string[] {
   if (isInput(before) && isInput(after)) {
     const a = canonicalInput(before.data) as unknown as Record<string, unknown>
     const b = canonicalInput(after.data) as unknown as Record<string, unknown>
-    return ['question', 'kind', 'options', 'default', 'placeholder', 'hint', 'required'].filter(
-      (key) => !same(a[key], b[key]),
-    )
+    return [
+      'question',
+      'kind',
+      'options',
+      'default',
+      'placeholder',
+      'hint',
+      'required',
+      'other',
+    ].filter((key) => !same(a[key], b[key]))
   }
   if (isResource(before) || isInput(before) || isResource(after) || isInput(after)) return []
   const a = before.data
@@ -191,6 +198,7 @@ const FIELD_TEXT: Record<string, string> = {
   placeholder: '占位',
   hint: '说明',
   required: '必填',
+  other: '允许自己填写',
   when: '条件',
   handoff: '交接',
   update: '写入方式',

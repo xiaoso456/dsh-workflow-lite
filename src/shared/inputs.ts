@@ -56,8 +56,24 @@ export function stepInputs(document: WorkflowDocument, stepId: string): InputNod
   return orderedInputs(document).filter((input) => used.has(idKey(input.id)))
 }
 
+/** 这道选择题允许用户自己填写（`other`）。文字题没有这个说法。 */
+export function allowsOther(data: InputData): boolean {
+  return data.other === true && isChoiceKind(inputKind(data))
+}
+
+/**
+ * 回答里用户自填的那部分：不在选项里的文字。没开「允许自己填写」时恒为空
+ * （那样的回答在 `normalizeAnswer` 里已经被挡掉了）。
+ */
+export function customAnswers(data: InputData, answer: InputAnswer | undefined): string[] {
+  if (answer === undefined || !allowsOther(data)) return []
+  const options = data.options ?? []
+  return [answer].flat().filter((value) => !options.includes(value))
+}
+
 /**
  * 一份回答按题型取形（见 `readAnswer`）。单选 / 多选只留选项里有的那些；文字题原样。
+ * 允许自己填写（`other`）的选择题，不在选项里的文字也留着：多选里排在选中的选项之后，单选就是那段文字。
  * @returns 没有有效回答时 `undefined`。
  */
 export function normalizeAnswer(data: InputData, raw: unknown): InputAnswer | undefined {
@@ -65,11 +81,15 @@ export function normalizeAnswer(data: InputData, raw: unknown): InputAnswer | un
   const answer = readAnswer(kind, raw)
   if (answer === undefined || !isChoiceKind(kind)) return answer
   const options = data.options ?? []
+  const other = allowsOther(data)
   if (Array.isArray(answer)) {
-    const picked = options.filter((option) => answer.includes(option))
+    const picked = [
+      ...options.filter((option) => answer.includes(option)),
+      ...(other ? answer.filter((value) => !options.includes(value)) : []),
+    ]
     return picked.length > 0 ? picked : undefined
   }
-  return options.includes(answer) ? answer : undefined
+  return options.includes(answer) || other ? answer : undefined
 }
 
 /** 实际用的回答：用户给的；没给就用默认值（默认值同样按题型取形）。 */
@@ -121,7 +141,7 @@ export function checkAnswers(document: WorkflowDocument, raw: unknown): AnswerCh
       const normalized = normalizeAnswer(input.data, answer)
       if (normalized === undefined) {
         errors.push(
-          `输入 ${input.id}（${input.data.question}）的回答不在选项里：${[answer].flat().join('、')}（可选：${(input.data.options ?? []).join(' / ')}）`,
+          `输入 ${input.id}（${input.data.question}）的回答不在选项里：${[answer].flat().join('、')}（可选：${(input.data.options ?? []).join(' / ')}；这道题没有开「允许自己填写」）`,
         )
         continue
       }
@@ -157,6 +177,7 @@ export function describeInput(data: InputData): string {
   if (kind === 'choice') parts.push(`单选：${(data.options ?? []).join(' / ')}`)
   else if (kind === 'multi') parts.push(`多选：${(data.options ?? []).join(' / ')}`)
   else parts.push(kind === 'textarea' ? '多行文字' : '一句话')
+  if (allowsOther(data)) parts.push('可自己填写')
   if (data.default !== undefined) parts.push(`默认 ${[data.default].flat().join('、')}`)
   parts.push(data.required === true ? '必填' : '可不填')
   return parts.join('，')

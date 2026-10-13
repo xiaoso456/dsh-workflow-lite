@@ -182,6 +182,7 @@ function inputEntries(document: WorkflowDocument): InputIndexEntry[] {
     ...(data.options === undefined ? {} : { options: data.options }),
     ...(data.default === undefined ? {} : { default: data.default }),
     ...(data.required === true ? { required: true as const } : {}),
+    ...(data.other === true ? { other: true as const } : {}),
     readers: inputReaders(document, id),
   }))
 }
@@ -234,6 +235,7 @@ function inputUpsertOf(id: string, input: InputArgs): InputUpsert | string {
   if (input.default !== undefined) upsert.default = input.default
   if (input.defaults !== undefined) upsert.default = input.defaults
   if (input.required !== undefined) upsert.required = input.required === true
+  if (input.other !== undefined) upsert.other = input.other === true
   return upsert
 }
 
@@ -417,6 +419,7 @@ export interface InputArgs {
   placeholder?: string
   hint?: string
   required?: boolean
+  other?: boolean
 }
 
 /** compile 的 answers 里的一项。 */
@@ -1080,6 +1083,11 @@ export const PARAMETERS = {
       placeholder: { type: 'string', description: '输入框里的灰字；空串 = 清除。' },
       hint: { type: 'string', description: '填写时显示的说明；空串 = 清除。' },
       required: { type: 'boolean', description: '必填。' },
+      other: {
+        type: 'boolean',
+        description:
+          '允许用户自己填写（choice / multi）：可以不选选项，改填自己的答案；计划里会注明是用户自填。',
+      },
     },
   },
   answers: {

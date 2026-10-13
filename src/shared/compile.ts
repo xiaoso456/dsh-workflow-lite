@@ -21,7 +21,13 @@
 
 import { createHash } from 'node:crypto'
 import { byId, cycleHasNoExit, edgeWhen, type GraphAnalysis } from './graph.ts'
-import { describeInput, effectiveAnswer, inputReaders, orderedInputs } from './inputs.ts'
+import {
+  customAnswers,
+  describeInput,
+  effectiveAnswer,
+  inputReaders,
+  orderedInputs,
+} from './inputs.ts'
 import { PLAN_SECTIONS, VERDICT_PREFIX } from './limits.ts'
 import { displayName, idKey, isStep, writeDocument } from './model.ts'
 import { isVerdictWhen } from './naming.ts'
@@ -36,6 +42,8 @@ import {
 import type {
   CycleGroup,
   ExecutionMode,
+  InputAnswer,
+  InputData,
   PlanFacts,
   PlanId,
   PlanResult,
@@ -867,6 +875,17 @@ const ANSWER_LATER = '（执行时由用户填写）'
 /** 可不填的问题用户没填。 */
 const ANSWER_EMPTY = '（用户没有填写）'
 
+/** 回答写成一段字；用户自填的部分前面注明，免得被当成图里预设的选项。 */
+function answerText(data: InputData, answer: InputAnswer): string {
+  const custom = new Set(customAnswers(data, answer))
+  if (custom.size === 0) return Array.isArray(answer) ? answer.join('、') : answer.trim()
+  const mark = (value: string): string => (custom.has(value) ? `${CUSTOM_MARK}${value}` : value)
+  return Array.isArray(answer) ? answer.map(mark).join('、') : mark(answer.trim())
+}
+
+/** 用户没从选项里挑、自己填的内容前面的标注。 */
+const CUSTOM_MARK = '（用户自填）'
+
 /**
  * 用户输入：每个问题一项，按画布上的阅读顺序。问题原样写、后面注明交给谁；回答多行时逐行引用。
  * 占位与说明是给填写的人看的，不进计划。
@@ -882,7 +901,7 @@ function inputLines(facts: PlanFacts): string[] {
       lines.push(`  答：${facts.answers === undefined ? ANSWER_LATER : ANSWER_EMPTY}`)
       continue
     }
-    const text = Array.isArray(answer) ? answer.join('、') : answer.trim()
+    const text = answerText(input.data, answer)
     if (!text.includes('\n')) {
       lines.push(`  答：${text}`)
       continue

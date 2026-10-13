@@ -53,6 +53,7 @@ const INPUT_KEYS = [
   'placeholder',
   'hint',
   'required',
+  'other',
 ] as const
 /** 资源节点的 data 键序与一项的键序。 */
 const RESOURCE_KEYS = ['label', 'description', 'items'] as const
@@ -397,6 +398,7 @@ export function readInputData(raw: unknown): InputData {
   const hint = filled(raw.hint)
   if (hint !== undefined) data.hint = hint
   if (raw.required === true) data.required = true
+  if (choice && raw.other === true) data.other = true
   return data
 }
 

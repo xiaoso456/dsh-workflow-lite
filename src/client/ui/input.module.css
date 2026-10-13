@@ -112,7 +112,36 @@
   align-self: flex-start;
 }
 
+/* 开了「允许自己填写」：选项列表末尾一行灰色的「其他」，对应执行前填写里的那一行。 */
+.otherGhost {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin: 0;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+}
+
+.otherMark {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border: 1.5px dashed var(--wl-line-strong);
+  border-radius: 50%;
+}
+
+.otherMark[data-shape="box"] {
+  border-radius: 5px;
+}
+
 /* ── 必填开关 ─────────────────────────────────────────────── */
+
+/* 几个开关归成一组：组内贴近，和上下的区块之间仍是面板的大间距。 */
+.switches {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
 
 .required {
   display: flex;
