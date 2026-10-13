@@ -47,6 +47,15 @@ const LANGS = process.argv[2] === undefined ? ['zh', 'en'] : [process.argv[2]]
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 /** 封面出图的像素比（同 `tests/readme-hero.mjs`）。 */
 const SCALE = 2
+/**
+ * 是否另拍一套**整屏界面**（`SHOTS_FULL=1`）。
+ *
+ * 封面要的是"图上所有卡片和连线"那一块（`graphBox` 裁出来的），所以 canvas.png 是个宽扁的条。
+ * 介绍视频要的是**整个界面**——侧栏、步骤库、画布、右栏都在，所以这个开关把整屏图（1920×1080）
+ * 写进主名 `canvas.png` / `run-graph.png`，裁出来那条改叫 `canvas-graph.png` / `run-graph-crop.png`；
+ * 小块与看板另用 `clip.scale` 把出图像素补到 1920 以上。默认关，不改原行为。
+ */
+const FULL = process.env.SHOTS_FULL === '1'
 /** 封面里工作流的图有多宽（CSS 像素，`hero.html` 里 `.frame` 的内宽）。 */
 const GRAPH_WIDTH = 974
 /** 第三段下半截：两列间距、外边距——左列放右栏小块，右边的看板按剩下的宽度拍。 */
@@ -291,11 +300,11 @@ td{padding:9px 8px;border-bottom:1px solid #1b2330;vertical-align:top}
 `
 }
 
-/** 截一块区域（按当前的设备像素比）。 */
-async function capture(session, box, file) {
+/** 截一块区域（按当前的设备像素比）。`density` 再乘一层出图像素（`clip.scale` 是重新光栅化，不是放大位图）。 */
+async function capture(session, box, file, density = 1) {
   const { data } = await session.send('Page.captureScreenshot', {
     format: 'png',
-    clip: { ...box, scale: 1 },
+    clip: { ...box, scale: density },
   })
   await writeFile(file, Buffer.from(data, 'base64'))
 }
@@ -389,6 +398,21 @@ async function shoot(session, lang) {
       // 夹具自己 rename 出来的固定标题：按它搜会话进去，不靠"列表里显示几分钟前"
       sessionTitle: SESSION_TITLE,
     })
+    // 整屏那套要**侧栏和步骤库都在**：趁还没收起，先排好版按 1920×1080 拍一张。
+    // `FULL` 时 canvas.png 就是这张整屏图（视频要的是"画布编辑页"整屏，不是裁出来的窄条）；
+    // 裁出来那张改叫 canvas-graph.png，仓库里照样留一份。
+    if (FULL) {
+      await session.evaluate(clickAria(copy.aria.expandSidebar))
+      await session.evaluate(clickTestId('wl-tidy'))
+      await sleep(1500)
+      await metrics(1920, 1080)
+      await sleep(600)
+      await session.evaluate(clickTestId('wl-fit'))
+      await sleep(1200)
+      await capture(session, { x: 0, y: 0, width: 1920, height: 1080 }, join(out, 'canvas.png'))
+      await metrics(1500, 820)
+      await sleep(400)
+    }
     await session.evaluate(clickAria(copy.aria.collapseSidebar))
     await sleep(600)
     await session.evaluate(clickAria(copy.aria.collapseLibrary))
@@ -399,7 +423,11 @@ async function shoot(session, lang) {
     await sleep(500)
     await session.evaluate(clickTestId('wl-fit'))
     await sleep(1000)
-    const graphScale = await shootGraph(1500, 820, join(out, 'canvas.png'))
+    const graphScale = await shootGraph(
+      1500,
+      820,
+      join(out, FULL ? 'canvas-graph.png' : 'canvas.png'),
+    )
     // 小块按图的比例拍，但不小于 MIN_SCALE：再小就看不清了。
     const shotScale = Math.min(1, Math.max(MIN_SCALE, graphScale))
     console.log(
@@ -411,6 +439,48 @@ async function shoot(session, lang) {
       cwd: '~/projects/shop',
     })
     await writeFile(join(out, 'plan.txt'), plan.plan)
+
+    // 计划对话框整块（标题行 + 正文）：介绍视频要的是"编译出来的计划"长什么样。
+    if (FULL) {
+      // 对话框宽度封顶 900 CSS px（`overlay.module.css` 的 `.dialog`），2 倍只有 1800 宽。
+      // 视频要 1920 以上，所以这里把像素比提到 2.2（**只改密度、不改排版**），拍到 1980 宽。
+      await metrics(1920, 1080, 2.2)
+      await sleep(500)
+      await session.evaluate(clickTestId('wl-preview'))
+      await waitFor(session, `document.querySelector('[data-testid="wl-plan"]') !== null`)
+      await waitFor(session, `document.querySelector('[data-testid="wl-plan-text"]') !== null`, {
+        timeoutMs: 30_000,
+      })
+      await sleep(1200)
+      await capture(
+        session,
+        await session.evaluate(`(() => {
+          const r = document.querySelector('[data-testid="wl-plan"]').getBoundingClientRect()
+          return { x: r.left, y: r.top, width: r.width, height: r.height }
+        })()`),
+        join(out, 'plan.png'),
+      )
+      // 「给人看」那一版：提示词内联，通读用。拍一张给视频当备选（模型版里有一列很长的本机绝对路径）。
+      await session.evaluate(`(() => {
+        const tab = [...document.querySelectorAll('button')].find((b) => b.textContent?.trim() === ${JSON.stringify(lang === 'zh' ? '给人看' : 'For people')})
+        tab?.click()
+      })()`)
+      await sleep(1500)
+      await capture(
+        session,
+        await session.evaluate(`(() => {
+          const r = document.querySelector('[data-testid="wl-plan"]').getBoundingClientRect()
+          return { x: r.left, y: r.top, width: r.width, height: r.height }
+        })()`),
+        join(out, 'plan-human.png'),
+      )
+      await session.evaluate(
+        `document.querySelector('[data-testid="wl-plan"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`,
+      )
+      await sleep(500)
+      await metrics(1500, 820)
+      await sleep(400)
+    }
 
     // 实例：状态写好后从工作流中心打开它。
     await mkdir(WORKSPACE, { recursive: true })
@@ -457,8 +527,13 @@ async function shoot(session, lang) {
     const timeline = await session.evaluate(timelineBox)
     await metrics(1500, 1400, SCALE * shotScale)
     await sleep(600)
-    await capture(session, position, join(out, 'run-position.png'))
-    await capture(session, timeline, join(out, 'run-timeline.png'))
+    // 小块本来按 0.85 的比例拍，只有 600 出头宽。视频要 1920 以上，再乘一层 `clip.scale`
+    // 把出图像素补够——`clip.scale` 是重新光栅化，字不会糊（见 tests/readme-shots.mjs 的 capture）。
+    const panelDensity = FULL
+      ? Math.max(1, Math.ceil(1920 / (position.width * SCALE * shotScale)))
+      : 1
+    await capture(session, position, join(out, 'run-position.png'), panelDensity)
+    await capture(session, timeline, join(out, 'run-timeline.png'), panelDensity)
     await metrics(1500, 1400)
     await sleep(400)
     // 收起右栏：整张图按状态点亮的样子。
@@ -466,7 +541,25 @@ async function shoot(session, lang) {
     await sleep(500)
     await session.evaluate(clickTestId('wl-fit'))
     await sleep(1200)
-    await shootGraph(1500, 1400, join(out, 'run-graph.png'))
+    await shootGraph(1500, 1400, join(out, FULL ? 'run-graph-crop.png' : 'run-graph.png'))
+    // 整屏的实例视图：右栏（执行位置 + 时间线）和画布一起进画面。
+    // `FULL` 时 run-graph.png 就是这张整屏图（视频要的是实例视图整屏）。
+    if (FULL) {
+      await metrics(1920, 1080)
+      await sleep(600)
+      // 上面收过右栏（为了拍"整张图点亮"的窄条），整屏这张要把它放回来。
+      if (
+        (await session.evaluate(
+          `document.querySelector('[data-testid="wl-run-timeline"]') !== null`,
+        )) === false
+      ) {
+        await session.evaluate(clickTestId('wl-run-panel-toggle'))
+      }
+      await sleep(600)
+      await session.evaluate(clickTestId('wl-fit'))
+      await sleep(1200)
+      await capture(session, { x: 0, y: 0, width: 1920, height: 1080 }, join(out, 'run-graph.png'))
+    }
 
     // 看板：点开资源卡，在查看框里看页面。查看框随视口变：宽度对上封面里看板那一列，高度对上左列两小块叠起来。
     await session.evaluate(
@@ -494,7 +587,12 @@ async function shoot(session, lang) {
     }
     await metrics(viewport.width, viewport.height, SCALE * shotScale)
     await sleep(1200)
-    await capture(session, await session.evaluate(viewerBox), join(out, 'run-dashboard.png'))
+    // 看板列本来跟着封面那一列走（1200 出头宽）。视频要 1920 以上，同样用 `clip.scale` 补密度。
+    const boardBox = await session.evaluate(viewerBox)
+    const boardDensity = FULL
+      ? Math.max(1, Math.ceil(1920 / (boardBox.width * SCALE * shotScale)))
+      : 1
+    await capture(session, boardBox, join(out, 'run-dashboard.png'), boardDensity)
     await session.evaluate(
       `document.querySelector('[data-testid="wl-file-viewer"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`,
     )
