@@ -1,6 +1,6 @@
 {
   "name": "@xiaoso/dsh-workflow-lite",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Lightweight agent workflow for DeepSeek Harness: one workflow = one JSON (React Flow native) with prompts inline, compiled into a dispatch plan the model executes itself. No execution engine; optional per-workflow run state kept by the model in a YAML file.",
   "type": "module",
   "license": "MIT",
