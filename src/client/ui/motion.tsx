@@ -441,15 +441,24 @@ export function useLast<V>(value: V, ms: number): { was: V | null; n: number } {
   return { was, n }
 }
 
+/** 数字这一次是变大还是变小（`SwapText` 的 `dir` 要用）。变了的那次渲染里就定下来，之后保持到下一次变化。 */
+export function useTrend(value: number): 'up' | 'down' {
+  const [state, setState] = useState<{ value: number; dir: 'up' | 'down' }>({ value, dir: 'up' })
+  if (value !== state.value) setState({ value, dir: value < state.value ? 'down' : 'up' })
+  return state.dir
+}
+
 /**
  * 原地换一段字（「保存中… → 已保存」「没有问题 → 3 个问题」、数字）：旧字往上让开淡掉，新字从下面浮上来。
  * 旧字画在 `::after` 里（`content: attr(data-was)`），不进 DOM 文本——读 `innerText` 的地方只看到新字。
  * `pop`：数字用，新数字带一点回弹。
+ * `dir`：`down` = 反方向——新字从上面落下来、旧字往下沉（数字减小时用，配 {@link useTrend}）；缺省 = 往上走。
  * `reserve`：会换到的所有字。给了就按最长的那段占宽，换字时外面的按钮不变宽变窄（点一下就换字的按钮要给）。
  */
 export function SwapText(props: {
   text: string
   pop?: boolean
+  dir?: 'up' | 'down'
   reserve?: readonly string[]
 }): React.JSX.Element {
   const { was, n } = useLast(props.text, SWAP_TEXT_MS)
@@ -461,6 +470,7 @@ export function SwapText(props: {
       data-was={was ?? undefined}
       data-fresh={n > 0 || undefined}
       data-pop={props.pop === true || undefined}
+      data-dir={props.dir === 'down' ? 'down' : undefined}
     >
       {props.reserve?.map((text) => (
         <span key={text} className={ui.swapSizer} data-text={text} aria-hidden="true" />

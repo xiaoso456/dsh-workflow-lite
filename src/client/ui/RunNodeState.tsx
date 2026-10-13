@@ -19,7 +19,7 @@ import { samePath, togglePin } from '../model/runDraft.ts'
 import { shortTime } from '../model/time.ts'
 import { RUN_TEXT } from './Canvas.tsx'
 import { Icon, type IconName } from './Icon.tsx'
-import { FadeMark, FadeText, PickThumb } from './motion.tsx'
+import { FadeMark, FadeText, PickThumb, SwapText, useTrend } from './motion.tsx'
 import { PreviewCard } from './PreviewCard.tsx'
 import { cx } from './primitives.tsx'
 import run from './run.module.css'
@@ -143,6 +143,7 @@ export function StepStatus(props: {
   const pinned = pins.includes(id)
   const path = (field: string): string[] => ['nodes', id, field]
   const round = node.round ?? 0
+  const trend = useTrend(round)
   return (
     <>
       <section className={run.section}>
@@ -212,7 +213,9 @@ export function StepStatus(props: {
             >
               <Icon name="minus" size={13} />
             </button>
-            <span className={run.stepperValue}>{round === 0 ? '—' : round}</span>
+            <span className={run.stepperValue}>
+              <SwapText pop dir={trend} text={round === 0 ? '—' : String(round)} />
+            </span>
             <button
               type="button"
               className={cx(ui.btn, ui.icon, ui.small)}

@@ -667,10 +667,44 @@
   animation: numberIn 420ms cubic-bezier(0.34, 1.45, 0.64, 1) backwards;
 }
 
+/* 反方向（数字变小）：新的从上面落下来，旧的往下沉。只换动画名，时长、缓动沿用上面的。 */
+.swapText[data-dir="down"][data-fresh="true"] > .swapNow {
+  animation-name: swapInDown;
+}
+
+.swapText[data-dir="down"][data-was]::after {
+  animation-name: swapOutDown;
+}
+
+.swapText[data-pop="true"][data-fresh="true"][data-dir="down"] > .swapNow {
+  animation-name: numberInDown;
+}
+
 @keyframes swapIn {
   from {
     opacity: 0;
     transform: translateY(4px);
+  }
+}
+
+@keyframes swapInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes swapOutDown {
+  to {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@keyframes numberInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
   }
 }
 
@@ -1141,6 +1175,8 @@
 
   .swapText[data-fresh] > .swapNow,
   .swapText[data-pop][data-fresh] > .swapNow,
+  .swapText[data-dir][data-fresh] > .swapNow,
+  .swapText[data-pop][data-dir][data-fresh] > .swapNow,
   .iconIn {
     animation: none;
   }
