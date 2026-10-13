@@ -975,7 +975,8 @@ export const PARAMETERS = {
       description: { type: 'string', description: '一句话描述（给人看，不进计划）；空串 = 清除。' },
       items: {
         type: 'array',
-        description: '全部内容（整份替换），按顺序。',
+        description:
+          '全部内容（整份替换），按顺序。同类、读写关系相同的资料放进同一个资源的多项里，不要一项建一个资源。',
         items: {
           type: 'object',
           additionalProperties: false,
