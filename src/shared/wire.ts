@@ -522,7 +522,10 @@ export interface RunStartResponse {
 }
 
 /** `run/file` 整份带回正文的上限（字节）；再大只回元信息。 */
-export const RUN_FILE_TEXT_MAX = 256 * 1024
+export const RUN_FILE_TEXT_MAX = 1024 * 1024
+
+/** HTML 的上限单独放宽：报告、看板这类产出常有几 MB。 */
+export const RUN_FILE_HTML_MAX = 8 * 1024 * 1024
 
 /** 文件能怎么看：Markdown / HTML / 纯文本带正文；二进制、太大、不在、是个文件夹只有元信息。 */
 export type RunFileKind =

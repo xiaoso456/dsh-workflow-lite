@@ -4,8 +4,8 @@
  * 只读、只认这个实例名下的文件：要么是快照里某个资源的文件项，要么是落在实例工作区里的相对路径
  * （模型在状态文件 `outputs` 里写的那些）。随手传进来的工作区外路径一律拒绝——这条路由不是通用的读文件口子。
  *
- * 读多少：小文本整份回去（`RUN_FILE_TEXT_MAX`），大了只回元信息让前端说"太大了"；
- * 前 8 KB 里有 NUL 字节就当二进制。
+ * 读多少：小文本整份回去（`RUN_FILE_TEXT_MAX`，HTML 另按 `RUN_FILE_HTML_MAX` 放宽），大了只回元信息
+ * 让前端说"太大了"；前 8 KB 里有 NUL 字节就当二进制。
  *
  * @module @xiaoso/dsh-workflow-lite/host/runs/files
  */
@@ -18,6 +18,7 @@ import { resourceGraph } from '../../shared/resources.ts'
 import type { InstanceRecord } from '../../shared/runState.ts'
 import type { WorkflowDocument } from '../../shared/types.ts'
 import {
+  RUN_FILE_HTML_MAX,
   RUN_FILE_TEXT_MAX,
   RUN_IMAGE_MAX,
   type RunFileKind,
@@ -190,15 +191,17 @@ export async function readRunFile(full: string, display: string): Promise<RunFil
   if (info.isDirectory())
     return { ...base, exists: true, size: 0, mtime: info.mtimeMs, kind: 'folder' }
   if (!info.isFile()) return { ...base, exists: false, size: 0, mtime: 0, kind: 'missing' }
-  const meta = { ...base, exists: true, size: info.size, mtime: info.mtimeMs }
+  const kind = textKind(full)
+  const limit = kind === 'html' ? RUN_FILE_HTML_MAX : RUN_FILE_TEXT_MAX
+  const meta = { ...base, exists: true, size: info.size, mtime: info.mtimeMs, limit }
   const handle = await open(full, 'r')
   try {
     const sniff = Buffer.alloc(Math.min(SNIFF_BYTES, info.size))
     await handle.read(sniff, 0, sniff.length, 0)
     if (sniff.includes(0)) return { ...meta, kind: 'binary' }
-    if (info.size > RUN_FILE_TEXT_MAX) return { ...meta, kind: 'tooLarge' }
+    if (info.size > limit) return { ...meta, kind: 'tooLarge' }
     const text = (await handle.readFile()).toString('utf8')
-    return { ...meta, kind: textKind(full), text }
+    return { ...meta, kind, text }
   } finally {
     await handle.close()
   }
