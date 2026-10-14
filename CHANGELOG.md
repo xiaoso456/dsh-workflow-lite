@@ -5,7 +5,9 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
-## [Unreleased]
+## [0.3.0] - 2026-10-14
+
+这一版把 Markdown 排版换成 markdown-it，产出文件里的本地图片能显示、点开能放大看。**升级不需要做任何事**——已有的工作流、版本、实例状态文件照旧能读；计划与任务描述里个别行的空行位置有变化（见下），措辞没有变。
 
 ### Added
 
