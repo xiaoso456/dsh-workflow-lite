@@ -22,7 +22,7 @@ pnpm run build && pnpm run typecheck && pnpm run lint && pnpm test
 # 2. CHANGELOG.md：把 Unreleased 那节落成 ## [<ver>] - <日期>，随本版一起提交；不更新不得发版
 
 # 3. 版本自增（会同时提交并打 tag；只想改版本号就加 --no-git-tag-version）
-pnpm version patch        # 或 minor / major
+pnpm version minor        # 按下面的判据选 patch / minor / major
 
 # 4. 提交 + 打标签（上一步已经做了就跳过）
 git commit -am "release: workflow-lite v<ver>"
@@ -38,6 +38,8 @@ gh release create workflow-lite-v<ver> --title "v<ver>" --notes-file <notes 文�
 
 发版相关的几条：
 
+- **版本号按严格 SemVer 判，不看改动大小**：新增功能（Added）→ `minor`；修 bug、只改措辞与内部实现（Fixed / 纯重构）→ `patch`；不兼容变更（删或改工具 action 与参数、数据格式、RPC 目标，或让旧版读不了新写的文件）→ `major`。判据落在**公共 API**上：工具接口、工作流 JSON / state.yaml 的数据格式、RPC 目标、peer 区间。**只改客户端呈现（排版、动效、配色、文案）不算公共 API 变更**，按它实际做了什么归类——新增了能力就是 minor，不是 patch。
+- 不兼容变更要**在 CHANGELOG 里明说**：哪一侧不兼容（新版读旧版 / 旧版读新版）、会丢什么、别的部分是否不受影响。
 - `.npmrc` 把 `@xiaoso` 作用域指到 npmjs 官方源；镜像站发布不了。
 - `publishConfig.access: public`：scoped 包不加这条，`npm publish` 默认按 restricted 发。
 - 插件版本与 dsh 版本**不锁步**：peer 是一条 `0.2.0-0 ~ <0.2.1-0` 区间，插件自己按 SemVer 走；只有换支持版本线时才动 `peerDependencies`。
