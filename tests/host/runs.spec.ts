@@ -617,10 +617,16 @@ describe('看产出文件', () => {
     const htm = await runs.file(id, { path: 'old.HTM' })
     expect(htm.ok && htm.result.kind).toBe('html')
 
-    await writeFile(join(workspace, 'big.txt'), 'x'.repeat(300 * 1024))
+    await writeFile(join(workspace, 'big.txt'), 'x'.repeat(2 * 1024 * 1024))
     const big = await runs.file(id, { path: 'big.txt' })
     expect(big.ok && big.result.kind).toBe('tooLarge')
     expect(big.ok && big.result.text).toBeUndefined()
+
+    // HTML 单独放宽：1.5 MB 的报告照旧带正文回来（普通文本在 1 MB 就拦下了）。
+    await writeFile(join(workspace, 'big.html'), `<h1>x</h1>${'y'.repeat(1_500_000)}`)
+    const bigHtml = await runs.file(id, { path: 'big.html' })
+    expect(bigHtml.ok && bigHtml.result.kind).toBe('html')
+    expect(bigHtml.ok && (bigHtml.result.text?.length ?? 0)).toBeGreaterThan(1_000_000)
 
     await writeFile(join(workspace, 'bin.dat'), Buffer.from([1, 0, 2]))
     const bin = await runs.file(id, { path: 'bin.dat' })
