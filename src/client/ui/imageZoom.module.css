@@ -56,10 +56,30 @@
   color: var(--wl-text);
 }
 
-/* 当前是"适应"或"1:1"：和强调色同色，一眼看出在哪一档。 */
+/*
+ * 当前是"适应"或"1:1"：字换成强调色；底色不由按钮自己画，交给下面的选中块（PickThumb）滑过来。
+ * 这条要排在 :hover 后面，悬停在选中的那一项上也不盖住滑块。
+ */
 .tool[aria-pressed="true"]:not(:disabled) {
-  background: var(--wl-accent-soft);
+  background: transparent;
   color: var(--wl-accent-text);
+}
+
+/* 适应 / 1:1 是一对互斥的选项：选中块在它们底下滑，按钮要盖在它上面才看得见。 */
+.pick {
+  position: relative;
+  display: flex;
+  gap: 2px;
+  align-items: center;
+}
+
+.pick > .tool {
+  position: relative;
+}
+
+.pickThumb {
+  border-radius: 6px;
+  background: var(--wl-accent-soft);
 }
 
 .tool:active:not(:disabled) {

@@ -21,11 +21,13 @@ import {
   relayout,
   type Size,
   wheelFactor,
+  ZOOM_MAX,
   ZOOM_STEP,
   zoomView,
 } from '../model/imageView.ts'
 import { Icon } from './Icon.tsx'
 import css from './imageZoom.module.css'
+import { PickThumb, SwapText, useTrend } from './motion.tsx'
 import overlay from './overlay.module.css'
 import { cx, Modal } from './primitives.tsx'
 import { Segmented } from './Segmented.tsx'
@@ -63,6 +65,8 @@ const NUDGE_BIG = 48
 const PIXEL_SCALE = 3
 /** 缩放比例离 1 这么近，就算"原大"。 */
 const ACTUAL_EPS = 1e-3
+/** 读数占宽按最宽的一档定死（SwapText 的 reserve）：换字时工具栏不抖，旧字也不会被裁掉。 */
+const READOUT_WIDEST = `${Math.round(ZOOM_MAX * 100)}%`
 
 /** 指针在舞台上的位置，换成以舞台中心为原点的坐标（缩放以它为锚）。 */
 function anchorOf(clientX: number, clientY: number, rect: DOMRect): Point {
@@ -305,6 +309,9 @@ export function ImageZoom(props: {
   const ready = natural !== null && frame.w > 0
   const pannable = natural !== null && isPannable(view, frame, natural)
   const actualOn = !fitting && Math.abs(view.scale - 1) < ACTUAL_EPS
+  const percent = Math.round(view.scale * 100)
+  // 数字是变大还是变小：读数往上滚还是往下滚（和步骤「轮次」的加减一样）。
+  const trend = useTrend(percent)
 
   return (
     <Modal
@@ -340,7 +347,11 @@ export function ImageZoom(props: {
               aria-label={t('image.zoomLevel')}
               data-testid="wl-image-zoom-readout"
             >
-              {natural === null ? '–' : `${Math.round(view.scale * 100)}%`}
+              {natural === null ? (
+                '–'
+              ) : (
+                <SwapText text={`${percent}%`} dir={trend} reserve={[READOUT_WIDEST]} />
+              )}
             </output>
             <button
               type="button"
@@ -354,29 +365,36 @@ export function ImageZoom(props: {
               <Icon name="zoomIn" size={16} />
             </button>
             <span className={css.sep} aria-hidden="true" />
-            <button
-              type="button"
-              className={css.tool}
-              aria-label={t('image.fit')}
-              aria-pressed={fitting}
-              data-tip={t('image.fit')}
-              data-testid="wl-image-zoom-fit"
-              disabled={natural === null}
-              onClick={fitWindow}
-            >
-              <Icon name="fit" size={16} />
-            </button>
-            <button
-              type="button"
-              className={cx(css.tool, css.actual)}
-              aria-pressed={actualOn}
-              data-tip={t('image.actual')}
-              data-testid="wl-image-zoom-actual"
-              disabled={natural === null}
-              onClick={actual}
-            >
-              1:1
-            </button>
+            <div className={css.pick}>
+              <PickThumb
+                layout={`${natural === null}|${fitting}|${actualOn}`}
+                item='[aria-pressed="true"]:not(:disabled)'
+                className={css.pickThumb}
+              />
+              <button
+                type="button"
+                className={css.tool}
+                aria-label={t('image.fit')}
+                aria-pressed={fitting}
+                data-tip={t('image.fit')}
+                data-testid="wl-image-zoom-fit"
+                disabled={natural === null}
+                onClick={fitWindow}
+              >
+                <Icon name="fit" size={16} />
+              </button>
+              <button
+                type="button"
+                className={cx(css.tool, css.actual)}
+                aria-pressed={actualOn}
+                data-tip={t('image.actual')}
+                data-testid="wl-image-zoom-actual"
+                disabled={natural === null}
+                onClick={actual}
+              >
+                1:1
+              </button>
+            </div>
             <span className={css.sep} aria-hidden="true" />
             <button
               type="button"
