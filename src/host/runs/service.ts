@@ -53,7 +53,7 @@ import type {
   ValidationProblem,
   WorkflowDocument,
 } from '../../shared/types.ts'
-import type { RunFileResponse } from '../../shared/wire.ts'
+import type { RunFileResponse, RunImageResponse } from '../../shared/wire.ts'
 import { type CompileBundle, compileDocument } from '../plan.ts'
 import {
   ensureDir,
@@ -63,7 +63,14 @@ import {
   writeFileAtomic,
 } from '../store/atomic.ts'
 import type { Outcome } from '../store/repository.ts'
-import { itemLocation, type RunFileTarget, readRunFile, resolveRunFile } from './files.ts'
+import {
+  itemLocation,
+  type RunFileTarget,
+  readRunFile,
+  readRunImage,
+  resolveImageRef,
+  resolveRunFile,
+} from './files.ts'
 import {
   answersFile,
   ensureWorkspaceIgnore,
@@ -838,6 +845,33 @@ export class RunService {
 
   /** 看实例里的一份产出文件（文件面板与查看框）。 */
   async file(id: string, target: RunFileTarget): Promise<Outcome<RunFileResponse>> {
+    const located = await this.locateFile(id, target)
+    return located.ok ? { ok: true, result: located.result.file } : located
+  }
+
+  /** 实例里一份 Markdown 引用的本地图片（按文档所在目录解析，见 {@link resolveImageRef}）。 */
+  async image(id: string, target: RunFileTarget, src: string): Promise<Outcome<RunImageResponse>> {
+    const located = await this.locateFile(id, target)
+    if (!located.ok) return located
+    const { record, file } = located.result
+    if (!file.exists) return fail('not_found', `文档不存在：${file.display}`)
+    const resolved = resolveImageRef(record.cwd, file.path, src)
+    if (!resolved.ok) return resolved
+    try {
+      return await readRunImage(resolved.result.full, resolved.result.mime)
+    } catch (error) {
+      return fail(
+        'io_error',
+        `读图片失败：${error instanceof Error ? error.message : String(error)}`,
+      )
+    }
+  }
+
+  /** 找到并读出实例里的一份文件（连同实例记录，算图片路径要用它的工作区）。 */
+  private async locateFile(
+    id: string,
+    target: RunFileTarget,
+  ): Promise<Outcome<{ record: InstanceRecord; file: RunFileResponse }>> {
     if (!isInstanceId(id)) return fail('invalid_args', `实例 id 不合法：${id}`)
     const record = (await this.store.read()).instances.find((candidate) => candidate.id === id)
     if (record === undefined) return fail('not_found', `实例 ${id} 不存在`)
@@ -852,10 +886,10 @@ export class RunService {
         const alt = resolveRunFile(record, document, target, true)
         if (alt.ok && alt.result.full !== resolved.result.full) {
           const second = await readRunFile(alt.result.full, alt.result.display)
-          if (second.exists) return { ok: true, result: second }
+          if (second.exists) return { ok: true, result: { record, file: second } }
         }
       }
-      return { ok: true, result: found }
+      return { ok: true, result: { record, file: found } }
     } catch (error) {
       return fail(
         'io_error',

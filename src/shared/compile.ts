@@ -476,7 +476,8 @@ function factsSection(facts: PlanFacts, ctx: RenderContext, inline: boolean): st
   for (const [index, batch] of ctx.analysis.batches.entries()) {
     lines.push(`- 批次 ${index + 1}：${batch.nodes.map(code).join('、')}`)
   }
-  lines.push(BATCH_FOOTNOTE)
+  // 列表后面的普通行要空一行：Markdown 里紧跟着写会被当成最后一项的续行。
+  lines.push('', BATCH_FOOTNOTE)
 
   const structural: string[] = [...branchLines(ctx), ...cycleLines(ctx), ...requirementLines(ctx)]
   if (structural.length > 0) lines.push('', ...structural)
@@ -651,14 +652,13 @@ function contractSection(facts: PlanFacts, ctx: RenderContext): string {
   const lines: string[] = [PLAN_SECTIONS.contract]
 
   const resources = resourceLines(ctx)
-  if (resources.length > 0) lines.push(RESOURCES_HEADING, ...resources, ...writeRuleLines(ctx))
+  // 两张列表后面都空一行（后面总还有交付的那句尾巴）：紧跟着的普通行会被当成最后一项的续行。
+  if (resources.length > 0) lines.push(RESOURCES_HEADING, ...resources, '', ...writeRuleLines(ctx))
   if (missingCwd(facts)) lines.push(MISSING_CWD_NOTE)
   if (ctx.analysis.nodeIds.length > 1) {
     const exceptions = handoffLines(ctx)
-    lines.push(
-      exceptions.length === 0 ? HANDOFF_LINE : `${HANDOFF_LINE}${HANDOFF_EXCEPTIONS}`,
-      ...exceptions,
-    )
+    if (exceptions.length === 0) lines.push(HANDOFF_LINE)
+    else lines.push(`${HANDOFF_LINE}${HANDOFF_EXCEPTIONS}`, ...exceptions, '')
   }
 
   for (const id of verdictNodeIds(ctx)) {
@@ -740,16 +740,15 @@ function taskAppendixLines(ctx: RenderContext, id: string): string[] {
     .sort((a, b) => byId(a.resource.id, b.resource.id))
   for (const info of shared) block('全局', info.resource)
 
-  const lines: string[] = []
-  if (blocks.length > 0) {
-    lines.push(TASK_RESOURCES_HEADING, ...blocks)
-    const writes = linked.writes.filter((item) => item.resource.data.items.length > 0)
-    if (writes.some((item) => !item.update)) lines.push(PRODUCE_LINE)
-    if (writes.some((item) => item.update)) lines.push(UPDATE_LINE)
-  }
+  const tail: string[] = []
+  const writes = linked.writes.filter((item) => item.resource.data.items.length > 0)
+  if (writes.some((item) => !item.update)) tail.push(PRODUCE_LINE)
+  if (writes.some((item) => item.update)) tail.push(UPDATE_LINE)
   const values = verdictValues(ctx, id)
-  if (values.length > 0) lines.push(`**判定**：回复的最后一行写 ${values.join(' 或 ')}。`)
-  return lines
+  if (values.length > 0) tail.push(`**判定**：回复的最后一行写 ${values.join(' 或 ')}。`)
+  if (blocks.length === 0) return tail
+  // 资源列表后面还有话就空一行：紧跟着的普通行会被当成最后一项（或它的引用块）的续行。
+  return [TASK_RESOURCES_HEADING, ...blocks, ...(tail.length === 0 ? [] : ['', ...tail])]
 }
 
 /** 谁产出、谁更新、谁读；一条线都没连就是交给所有步骤。 */

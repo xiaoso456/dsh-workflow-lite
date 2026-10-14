@@ -17,7 +17,7 @@ import type { T } from '../i18n.ts'
 import { withPreviewStyle } from '../model/htmlPreview.ts'
 import css from './files.module.css'
 import { Icon, type IconName } from './Icon.tsx'
-import { Markdown } from './Markdown.tsx'
+import { type ImageSource, Markdown } from './Markdown.tsx'
 import { SwapIcon } from './motion.tsx'
 import { NoteDrawer, NoteToggle } from './NoteDrawer.tsx'
 import { OpenWith } from './OpenWith.tsx'
@@ -72,6 +72,8 @@ export function DocViewer(props: {
   className?: string
   /** 能改：正文就是这段文字，「编辑」里改了直接交出去。 */
   edit?: DocEdit
+  /** Markdown 里相对路径的图片怎么读（文件查看框按文档所在目录读）；不给就只显示替代文字。 */
+  image?: ImageSource
   onClose(): void
 }): React.JSX.Element {
   const { t, body, edit } = props
@@ -123,7 +125,7 @@ export function DocViewer(props: {
   else if (body.kind === 'node') content = body.node
   else if (body.text === '') content = state('file', t('file.empty'))
   else if (format === 'markdown' && view === 'rendered') {
-    content = <Markdown text={body.text} className={css.viewerDoc} />
+    content = <Markdown t={t} text={body.text} className={css.viewerDoc} image={props.image} />
   } else if (format === 'html' && view === 'rendered') {
     content = (
       <iframe

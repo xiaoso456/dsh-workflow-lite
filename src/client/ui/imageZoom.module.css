@@ -1,0 +1,204 @@
+/**
+ * dsh-workflow-lite — 放大看图（ImageZoom）。模态框的骨架（标题行、底栏、圆角、阴影）用 overlay.module.css 的 sheet 系列，
+ * 这里只管工具、画布和图本身。颜色全走主题变量；图的移动只动 transform 与 opacity。
+ */
+
+.root {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  outline: none;
+}
+
+/* 文件名太长就截断，不撑开右边的工具。 */
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 工具组：一条浅底的小药丸，里面一排方块按钮。 */
+.tools {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  align-items: center;
+  padding: 2px;
+  border-radius: var(--wl-r-control);
+  background: var(--wl-fill);
+}
+
+.sep {
+  flex: none;
+  width: 1px;
+  height: 16px;
+  margin: 0 3px;
+  background: var(--wl-line-strong);
+}
+
+.tool {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--wl-text-2);
+  cursor: pointer;
+}
+
+.tool:hover:not(:disabled) {
+  background: var(--wl-hover);
+  color: var(--wl-text);
+}
+
+/* 当前是"适应"或"1:1"：和强调色同色，一眼看出在哪一档。 */
+.tool[aria-pressed="true"]:not(:disabled) {
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+}
+
+.tool:active:not(:disabled) {
+  transform: scale(0.92);
+}
+
+.tool:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+.tool:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+
+.actual {
+  width: auto;
+  padding: 0 8px;
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+.readout {
+  min-width: 52px;
+  color: var(--wl-text-2);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-meta);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* 画布：点阵底，图在中间。能拖时显示抓手，拖着的时候换成握紧。 */
+.stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  background-color: var(--wl-canvas);
+  background-image: radial-gradient(var(--wl-dot) 1px, transparent 1px);
+  background-size: 16px 16px;
+  cursor: default;
+  touch-action: none;
+  user-select: none;
+}
+
+.stage[data-pannable] {
+  cursor: grab;
+}
+
+.stage[data-dragging] {
+  cursor: grabbing;
+}
+
+/* 棋盘格底：看透明的图（透明 PNG、图标）的边缘用。 */
+.checker {
+  background-color: var(--wl-panel);
+  background-image: conic-gradient(
+    var(--wl-fill-strong) 25%,
+    transparent 0 50%,
+    var(--wl-fill-strong) 0 75%,
+    transparent 0
+  );
+  background-size: 16px 16px;
+}
+
+/* 图：中心定位，缩放、旋转、平移都由组件写进 transform；读到之前不显示。 */
+.image {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: block;
+  border-radius: 4px;
+  box-shadow:
+    0 0 0 1px var(--wl-line),
+    var(--wl-shadow-2);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 180ms ease-out,
+    transform 260ms var(--wl-ease-out);
+  -webkit-user-drag: none;
+}
+
+.image[data-ready] {
+  opacity: 1;
+}
+
+/* 滚轮、拖动、第一次排版跟手，不过渡；按钮与键盘的变化才走过渡（组件按 data-instant 切换）。 */
+.image[data-instant] {
+  transition: opacity 180ms ease-out;
+}
+
+/* 拖着的时候图单独成层：平移只动合成，不重画图和阴影。 */
+.stage[data-dragging] .image {
+  will-change: transform;
+}
+
+/* 放大到一定倍数，像素边界直接显出来（截图里的字、小图标）。 */
+.pixel {
+  image-rendering: pixelated;
+}
+
+.spinner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px;
+  border: 2px solid var(--wl-line-strong);
+  border-top-color: var(--wl-accent);
+  border-radius: 50%;
+  animation: spin 900ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.failed {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-body);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 2400ms;
+  }
+
+  .image {
+    transition: opacity 180ms ease-out;
+  }
+}

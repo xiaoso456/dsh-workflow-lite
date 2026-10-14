@@ -234,6 +234,12 @@
   min-height: min(440px, 100%);
 }
 
+/* 放大看图：画布要占满模态框，高度给到 780，窄屏时跟着视口走。 */
+.sheetZoom {
+  width: min(1080px, 100%);
+  height: min(780px, 100%);
+}
+
 .sheetForm {
   display: flex;
   flex: 1 1 auto;

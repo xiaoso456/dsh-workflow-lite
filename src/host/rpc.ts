@@ -526,6 +526,24 @@ async function dispatch(
       return ok(outcome.result)
     }
 
+    case 'run/image': {
+      const input = asRecord(payload)
+      const id = requireString(input, 'id')
+      const src = requireString(input, 'src')
+      const node = optionalString(input, 'node')
+      const path = optionalString(input, 'path')
+      const item = typeof input.item === 'number' && Number.isInteger(input.item) ? input.item : 0
+      if (node === undefined && path === undefined)
+        throw new Error('run/image requires node or path')
+      const outcome = await deps.runs.image(
+        id,
+        node !== undefined ? { node, item } : { path: path ?? '' },
+        src,
+      )
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok(outcome.result)
+    }
+
     case 'host/list': {
       const input = asRecord(payload)
       const path = optionalString(input, 'path')

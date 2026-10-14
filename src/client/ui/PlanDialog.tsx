@@ -199,7 +199,7 @@ export function PlanDialog(props: {
           ) : (
             <div className={cx(css.planScroll, ui.fade)} data-testid="wl-plan-text" key={view}>
               {view === 'rendered' ? (
-                <Markdown text={result.plan} className={css.planDoc} />
+                <Markdown t={t} text={result.plan} className={css.planDoc} />
               ) : (
                 <pre className={css.plan}>{result.plan}</pre>
               )}

@@ -10,14 +10,20 @@
  * @module @xiaoso/dsh-workflow-lite/host/runs/files
  */
 
-import { open, stat } from 'node:fs/promises'
-import { extname, isAbsolute, join, relative, resolve } from 'node:path'
+import { open, readFile, stat } from 'node:fs/promises'
+import { dirname, extname, isAbsolute, join, relative, resolve } from 'node:path'
 import { isResource } from '../../shared/model.ts'
 import { resolveItemPath, resolveOutputPath } from '../../shared/outputPaths.ts'
 import { resourceGraph } from '../../shared/resources.ts'
 import type { InstanceRecord } from '../../shared/runState.ts'
 import type { WorkflowDocument } from '../../shared/types.ts'
-import { RUN_FILE_TEXT_MAX, type RunFileKind, type RunFileResponse } from '../../shared/wire.ts'
+import {
+  RUN_FILE_TEXT_MAX,
+  RUN_IMAGE_MAX,
+  type RunFileKind,
+  type RunFileResponse,
+  type RunImageResponse,
+} from '../../shared/wire.ts'
 import type { Outcome } from '../store/repository.ts'
 
 const SNIFF_BYTES = 8192
@@ -111,6 +117,60 @@ export function resolveRunFile(
     return { ok: false, error: { code: 'invalid_args', message: '只能看实例工作区里的文件' } }
   }
   return { ok: true, result: { full, display } }
+}
+
+/** 能当图片看的扩展名。 */
+const IMAGE_MIME: Readonly<Record<string, string>> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.avif': 'image/avif',
+  '.svg': 'image/svg+xml',
+}
+
+/**
+ * Markdown 里引用的图片在哪：`src` 按文档所在目录解析（去掉 `?…` / `#…`）。
+ * 只认相对路径与图片扩展名；结果要在工作区里，或在文档自己的目录下（产出根目录可能是工作区外的绝对路径）。
+ */
+export function resolveImageRef(
+  cwd: string | undefined,
+  docFull: string,
+  src: string,
+): Outcome<{ full: string; mime: string }> {
+  const bare = src.trim().replace(/[?#].*$/u, '')
+  const refused = (message: string): Outcome<never> => ({
+    ok: false,
+    error: { code: 'invalid_args', message },
+  })
+  if (bare === '' || isAbsolute(bare) || /^[a-z][a-z0-9+.-]*:/iu.test(bare)) {
+    return refused(`只能看文档旁边的相对路径图片：${src}`)
+  }
+  const mime = IMAGE_MIME[extname(bare).toLowerCase()]
+  if (mime === undefined) return refused(`不是图片：${src}`)
+  const docDir = dirname(docFull)
+  const full = resolve(docDir, bare)
+  const allowed = inside(resolve(docDir), full) || (cwd !== undefined && inside(resolve(cwd), full))
+  if (!allowed) return refused(`图片不在实例工作区里：${src}`)
+  return { ok: true, result: { full, mime } }
+}
+
+/** 读一张图（上限 {@link RUN_IMAGE_MAX}）。 */
+export async function readRunImage(full: string, mime: string): Promise<Outcome<RunImageResponse>> {
+  let info: Awaited<ReturnType<typeof stat>>
+  try {
+    info = await stat(full)
+  } catch {
+    return { ok: false, error: { code: 'not_found', message: `图片不存在：${full}` } }
+  }
+  if (!info.isFile()) {
+    return { ok: false, error: { code: 'not_found', message: `图片不存在：${full}` } }
+  }
+  if (info.size > RUN_IMAGE_MAX) {
+    return { ok: false, error: { code: 'invalid_args', message: `图片太大：${full}` } }
+  }
+  return { ok: true, result: { mime, data: (await readFile(full)).toString('base64') } }
 }
 
 /** 读一份文件给画布：小文本带正文，其余（含文件夹）只有元信息。 */

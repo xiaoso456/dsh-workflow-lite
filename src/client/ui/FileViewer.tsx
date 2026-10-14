@@ -1,7 +1,8 @@
 /**
  * dsh-workflow-lite — 产出文件的查看框。
  *
- * 能看的：小文本（原样）、Markdown（默认排版）、HTML（默认在沙箱里渲染），后两种可切源码。
+ * 能看的：小文本（原样）、Markdown（默认排版，相对路径的图片按文档所在目录读）、HTML（默认在沙箱里渲染），
+ * 后两种可切源码。
  * 大文件、二进制、还没生成的只说明原因，
  * 并留着「用其他程序打开」。框子本身是 {@link DocViewer}。
  *
@@ -9,7 +10,7 @@
  */
 
 import type { Desktop } from '../app/desktop.ts'
-import { type FileTarget, useRunFile } from '../app/useRunFile.ts'
+import { type FileTarget, useRunFile, useRunImages } from '../app/useRunFile.ts'
 import type { T } from '../i18n.ts'
 import { fileBaseName, formatBytes } from '../model/fileKind.ts'
 import { shortTime } from '../model/time.ts'
@@ -42,6 +43,7 @@ export function FileViewer(props: {
 }): React.JSX.Element {
   const { t } = props
   const { file, error, loading } = useRunFile(props.rpc, props.instance, props.target)
+  const image = useRunImages(props.rpc, props.instance, props.target)
   const name = file === null ? props.title : fileBaseName(file.display)
   const note = props.note?.trim() ?? ''
 
@@ -83,6 +85,7 @@ export function FileViewer(props: {
       desktop={props.desktop}
       testId="wl-file-viewer"
       note={note}
+      image={image}
       onClose={props.onClose}
     />
   )

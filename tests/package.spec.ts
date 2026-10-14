@@ -216,6 +216,27 @@ describe.skipIf(!existsSync(fileURLToPath(new URL('../lib/index.mjs', import.met
 )
 
 /**
+ * 浏览器侧产物只 `require` 平台模块。
+ *
+ * 模块加载器只认冻结的平台 externals（React 与 `@deepseek-ai/*`）；tsdown 默认把 `dependencies`
+ * 外部化，新加的运行时依赖忘了写进 `alwaysBundle`，构建照样成功，到了浏览器里才在 require() 上报错。
+ * 需要构建产物，没构建过就跳过。
+ */
+describe.skipIf(!existsSync(fileURLToPath(new URL('../lib/client.js', import.meta.url))))(
+  '浏览器侧产物',
+  () => {
+    it('只留下平台模块的 require，第三方依赖都打进来了', () => {
+      const required = [...read('lib/client.js').matchAll(/\brequire\("([^"]+)"\)/gu)].map(
+        (match) => match[1] ?? '',
+      )
+      expect(required.length, '一个 require 都没找到，这条检查是空过的').toBeGreaterThan(0)
+      const platform = /^(react(\/jsx-runtime)?|react-dom(\/client)?|@deepseek-ai\/.+)$/u
+      expect(required.filter((name) => !platform.test(name))).toEqual([])
+    })
+  },
+)
+
+/**
  * 第三方声明不许过期。
  *
  * `lib/client.js` 是**内联**打包的：第三方代码的字节进了我们的发布物，就得逐条声明。

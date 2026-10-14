@@ -15,14 +15,17 @@
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { crc32, deflateSync } from 'node:zlib'
 import { parse, stringify } from 'yaml'
 import { RunService } from '../src/host/runs/service.ts'
 import {
   bootToCanvas,
   centerOf,
+  clickTestIdExpr,
   hubWorkspaceExpr,
   mouseClick,
   mouseMove,
+  pressKey,
   revealHubRow,
   screenshot,
   setReactInput,
@@ -44,6 +47,37 @@ function check(condition, message) {
 function pass(message) {
   step += 1
   console.log(`  ${String(step).padStart(2)} ${message}`)
+}
+
+/** 拼一张两色棋盘的 PNG（zlib 自己编码，不引图像库）：小图放大看用。 */
+function checkerPng(width, height, cell) {
+  const stride = width * 3 + 1
+  const raw = Buffer.alloc(stride * height)
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const dark = (Math.floor(x / cell) + Math.floor(y / cell)) % 2 === 0
+      raw.set(dark ? [0x3e, 0x7c, 0xe4] : [0xcd, 0x9e, 0x70], y * stride + 1 + x * 3)
+    }
+  }
+  const head = Buffer.alloc(13)
+  head.writeUInt32BE(width, 0)
+  head.writeUInt32BE(height, 4)
+  head[8] = 8 // 位深
+  head[9] = 2 // 真彩色 RGB
+  const chunk = (type, data) => {
+    const body = Buffer.concat([Buffer.from(type, 'ascii'), data])
+    const frame = Buffer.alloc(12 + data.length)
+    frame.writeUInt32BE(data.length, 0)
+    body.copy(frame, 4)
+    frame.writeUInt32BE(crc32(body), 8 + data.length)
+    return frame
+  }
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', head),
+    chunk('IDAT', deflateSync(raw)),
+    chunk('IEND', Buffer.alloc(0)),
+  ])
 }
 
 const node = (id, label) => ({
@@ -1428,7 +1462,21 @@ try {
   // 没配产出根目录：产出落在这个实例自己的 .workflow-lite/runs/<实例>/out 下。
   const out = join(WORKSPACE, '.workflow-lite', 'runs', instance, 'out')
   await mkdir(out, { recursive: true })
-  await writeFile(join(out, 'notes.md'), '# 侦察笔记\n\n- 第一条\n- 第二条\n')
+  // 正文里引用旁边 media/ 下的图（表格里也有）：查看框按文档所在目录读回来；不存在的只留替代文字。
+  await mkdir(join(out, 'media'), { recursive: true })
+  // 拿词标当素材：1147×130，够宽，放大看时"适应窗口"与"1:1"看得出差别。
+  await writeFile(
+    join(out, 'media', 'shot.png'),
+    await readFile(join(HERE, '..', 'assets', 'wordmark.png')),
+  )
+  await writeFile(
+    join(out, 'notes.md'),
+    '# 侦察笔记\n\n- 第一条\n- 第二条\n\n| 前 | 后 |\n|---|---|\n| ![前](media/shot.png) | ![后](media/gone.png) |\n\n小图（比框小得多）：![小](media/small.png)\n\n大图（测拖动）：![大](media/big.png)\n',
+  )
+  // 小图：120×72 的两色棋盘。适应窗口时放大到两倍为止，不铺满框。
+  await writeFile(join(out, 'media', 'small.png'), checkerPng(120, 72, 12))
+  // 2400×1600 的大图：1:1 拖动跟手的检查用它（图越大，拖动时的开销越大）。
+  await writeFile(join(out, 'media', 'big.png'), checkerPng(2400, 1600, 64))
   await mkdir(join(WORKSPACE, 'src', 'lib'), { recursive: true })
   await writeFile(join(WORKSPACE, 'src', 'main.ts'), 'export {}\n')
   const panelText = (selector) =>
@@ -1497,6 +1545,329 @@ try {
       `document.querySelector('[data-testid="wl-file-viewer"] code').textContent`,
     )) === `.workflow-lite/runs/${instance}/out/notes.md`,
     '查看框的路径应是实例自己的 out 目录',
+  )
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-file-viewer"] img[alt="前"]')?.naturalWidth === 1147 &&
+      'wlMissing' in (document.querySelector('[data-testid="wl-file-viewer"] img[alt="后"]')?.dataset ?? {})`,
+  )
+  check(
+    await session.evaluate(`(() => {
+      const shot = document.querySelector('[data-testid="wl-file-viewer"] img[alt="前"]');
+      const gone = document.querySelector('[data-testid="wl-file-viewer"] img[alt="后"]');
+      return shot.src.startsWith('data:image/png;base64,') && gone !== null && 'wlMissing' in gone.dataset;
+    })()`),
+    '正文里相对路径的图按文档所在目录读回来；不存在的标成读不到',
+  )
+  // 图不让拖（宿主会当成拖文件进对话、弹整页提示）；点一下在模态框里放大看，Esc 只关放大框。
+  check(
+    await session.evaluate(
+      `document.querySelector('[data-testid="wl-file-viewer"] img[alt="前"]').draggable === false`,
+    ),
+    '正文里的图不能拖',
+  )
+  await session.evaluate(
+    `document.querySelector('[data-testid="wl-file-viewer"] img[alt="前"]').click()`,
+  )
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-image-zoom-img"]')?.dataset.ready === 'true'`,
+  )
+  // 比例数字、图的外框、舞台中心：后面的步骤都读这几个。
+  const READOUT = `Number(document.querySelector('[data-testid="wl-image-zoom-readout"]').textContent.replace('%', ''))`
+  const IMG = `document.querySelector('[data-testid="wl-image-zoom-img"]').getBoundingClientRect()`
+  const zoomState = `(() => {
+    const stage = document.querySelector('[data-testid="wl-image-zoom-stage"]').getBoundingClientRect();
+    const box = document.querySelector('[data-testid="wl-image-zoom-img"]').getBoundingClientRect();
+    return {
+      width: box.width,
+      left: box.left,
+      inside: box.left >= stage.left && box.right <= stage.right && box.top >= stage.top && box.bottom <= stage.bottom,
+      readout: document.querySelector('[data-testid="wl-image-zoom-readout"]').textContent,
+      fit: document.querySelector('[data-testid="wl-image-zoom-fit"]').getAttribute('aria-pressed'),
+    };
+  })()`
+  const center = await session.evaluate(`(() => {
+    const r = document.querySelector('[data-testid="wl-image-zoom-stage"]').getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  })()`)
+  // 拖、双击、滚轮都发真的指针事件（CDP），和手上的鼠标一样。
+  const dragLeft = async (dx) => {
+    await session.send('Input.dispatchMouseEvent', {
+      type: 'mousePressed',
+      x: center.x,
+      y: center.y,
+      button: 'left',
+      buttons: 1,
+      clickCount: 1,
+    })
+    await session.send('Input.dispatchMouseEvent', {
+      type: 'mouseMoved',
+      x: center.x + dx,
+      y: center.y,
+      button: 'left',
+      buttons: 1,
+    })
+    await session.send('Input.dispatchMouseEvent', {
+      type: 'mouseReleased',
+      x: center.x + dx,
+      y: center.y,
+      button: 'left',
+      buttons: 0,
+      clickCount: 1,
+    })
+  }
+  const doubleClick = async () => {
+    for (const clickCount of [1, 2]) {
+      await session.send('Input.dispatchMouseEvent', {
+        type: 'mousePressed',
+        x: center.x,
+        y: center.y,
+        button: 'left',
+        buttons: 1,
+        clickCount,
+      })
+      await session.send('Input.dispatchMouseEvent', {
+        type: 'mouseReleased',
+        x: center.x,
+        y: center.y,
+        button: 'left',
+        buttons: 0,
+        clickCount,
+      })
+    }
+  }
+
+  // 缺省适应窗口：整张装在框里，「适应」按钮亮着；缩放、旋转的按钮在 ✕ 的左边。
+  const fit = await session.evaluate(zoomState)
+  const fitPercent = Number(fit.readout.replace('%', ''))
+  check(
+    fit.inside && fit.width < 1147 && fit.fit === 'true',
+    `适应窗口：整张装在框里，「适应」按钮亮着 ${JSON.stringify(fit)}`,
+  )
+  check(
+    await session.evaluate(`(() => {
+      const tools = document.querySelector('[data-testid="wl-image-zoom"] header [role="group"]').getBoundingClientRect();
+      const close = document.querySelector('[data-testid="wl-image-zoom"] header > button:last-of-type').getBoundingClientRect();
+      return tools.right <= close.left;
+    })()`),
+    '缩放、旋转的按钮在 ✕ 的左边',
+  )
+  // 入场动画（250ms）放完再拍，不然拍到半透明的框。
+  await new Promise((resolve) => setTimeout(resolve, 400))
+  await screenshot(session, 'runs-11a-image-zoom.png')
+  // 同一个框换到暗色再拍一张：宿主把 color-scheme 写在 <html> 上，这里临时改，拍完还原。
+  await session.evaluate(`document.documentElement.style.colorScheme = 'dark'`)
+  await new Promise((resolve) => setTimeout(resolve, 300))
+  await screenshot(session, 'runs-11a-image-zoom-dark.png')
+  await session.evaluate(`document.documentElement.style.colorScheme = ''`)
+
+  // 按钮放大一档；滚轮往上放大、往下缩小。
+  await session.evaluate(clickTestIdExpr('wl-image-zoom-in'))
+  await waitFor(session, `${READOUT} > ${fitPercent}`)
+  const zoomedIn = await session.evaluate(READOUT)
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseWheel',
+    x: center.x,
+    y: center.y,
+    deltaX: 0,
+    deltaY: -120,
+  })
+  await waitFor(session, `${READOUT} > ${zoomedIn}`)
+  const wheeled = await session.evaluate(READOUT)
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseWheel',
+    x: center.x,
+    y: center.y,
+    deltaX: 0,
+    deltaY: 240,
+  })
+  await waitFor(session, `${READOUT} < ${wheeled}`)
+
+  // 1:1：原大 1147 宽，比框宽，能拖；往左拖，图跟着往左走；← 键再往右挪一点。
+  await session.evaluate(clickTestIdExpr('wl-image-zoom-actual'))
+  await waitFor(session, `${IMG}.width === 1147`)
+  check((await session.evaluate(READOUT)) === 100, '1:1 时比例是 100%')
+  const actual = await session.evaluate(zoomState)
+  await dragLeft(-40)
+  const dragged = await session.evaluate(zoomState)
+  check(
+    dragged.left < actual.left - 1,
+    `拖动平移：往左拖，图跟着往左 ${actual.left} → ${dragged.left}`,
+  )
+  check(
+    await session.evaluate(
+      `document.querySelector('[data-testid="wl-image-zoom-stage"]').hasAttribute('data-dragging') === false`,
+    ),
+    '松手后不再是拖动状态',
+  )
+  await pressKey(session, 'ArrowRight')
+  await waitFor(session, `${IMG}.left > ${dragged.left}`)
+
+  // 双击：原大时切回适应窗口。
+  await doubleClick()
+  await waitFor(session, `${READOUT} === ${fitPercent}`)
+
+  // 键盘：1 原大、0 适应、r / R 顺逆时针转、+ / - 缩放。
+  await pressKey(session, '1')
+  await waitFor(session, `${READOUT} === 100`)
+  await pressKey(session, '0')
+  await waitFor(session, `${READOUT} === ${fitPercent}`)
+  await pressKey(session, 'r')
+  await waitFor(session, `${IMG}.height > ${IMG}.width`)
+  await pressKey(session, 'R')
+  await waitFor(session, `${IMG}.width > ${IMG}.height`)
+  await pressKey(session, '-')
+  await waitFor(session, `${READOUT} < ${fitPercent}`)
+  await pressKey(session, '+')
+  await waitFor(session, `${READOUT} === ${fitPercent}`)
+
+  // 工具栏的旋转按钮：转过去是竖的（拍一张看），再转回来。
+  await session.evaluate(clickTestIdExpr('wl-image-zoom-rotate-right'))
+  await waitFor(session, `${IMG}.height > ${IMG}.width`)
+  await new Promise((resolve) => setTimeout(resolve, 300))
+  await screenshot(session, 'runs-11b-image-zoom-rotated.png')
+  await session.evaluate(clickTestIdExpr('wl-image-zoom-rotate-left'))
+  await waitFor(session, `${IMG}.width > ${IMG}.height`)
+
+  // 背景：棋盘格（看透明图的边）与跟随主题来回切。
+  await session.evaluate(clickTestIdExpr('wl-image-zoom-bg-checker'))
+  check(
+    await session.evaluate(
+      `getComputedStyle(document.querySelector('[data-testid="wl-image-zoom-stage"]')).backgroundImage.includes('conic-gradient')`,
+    ),
+    '背景可换成棋盘格',
+  )
+  await session.evaluate(clickTestIdExpr('wl-image-zoom-bg-theme'))
+
+  await pressEscape('wl-image-zoom')
+  await waitFor(session, `document.querySelector('[data-testid="wl-image-zoom"]') === null`)
+  pass('放大看图：适应窗口、按钮与滚轮缩放、拖动、双击、键盘、旋转、棋盘格背景')
+
+  // 小图：适应窗口放大到两倍为止，不铺满整个框。
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-file-viewer"] img[alt="小"]')?.naturalWidth === 120`,
+  )
+  await session.evaluate(
+    `document.querySelector('[data-testid="wl-file-viewer"] img[alt="小"]').click()`,
+  )
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-image-zoom-img"]')?.dataset.ready === 'true'`,
+  )
+  check((await session.evaluate(READOUT)) === 200, '小图适应窗口放大到 200% 为止')
+  await new Promise((resolve) => setTimeout(resolve, 400))
+  await screenshot(session, 'runs-11c-image-zoom-small.png')
+  await pressEscape('wl-image-zoom')
+  await waitFor(session, `document.querySelector('[data-testid="wl-image-zoom"]') === null`)
+  pass('小图适应窗口放大到两倍为止')
+
+  // 大图 1:1 往左拖 40 步（每步 8px、间隔 16ms）：每一帧量图心与指针的偏差（拖动要跟手，偏差不超过 1px），另记帧间隔和主线程耗时。
+  {
+    await session.evaluate(
+      `document.querySelector('[data-testid="wl-file-viewer"] img[alt="大"]').click()`,
+    )
+    await waitFor(
+      session,
+      `document.querySelector('[data-testid="wl-image-zoom-img"]')?.dataset.ready === 'true'`,
+    )
+    await session.evaluate(clickTestIdExpr('wl-image-zoom-actual'))
+    await waitFor(session, `${IMG}.width === 2400`)
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    const probeAt = await session.evaluate(`(() => {
+    const r = document.querySelector('[data-testid="wl-image-zoom-stage"]').getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  })()`)
+    await session.evaluate(`(() => {
+    window.__frames = [];
+    window.__on = true;
+    window.__lags = [];
+    window.__ptr = null;
+    window.__p0 = null;
+    window.__c0 = null;
+    const centerX = () => {
+      const r = document.querySelector('[data-testid="wl-image-zoom-img"]').getBoundingClientRect();
+      return r.left + r.width / 2;
+    };
+    window.addEventListener('pointerdown', (e) => {
+      window.__p0 = e.clientX;
+      window.__c0 = centerX();
+    }, true);
+    window.addEventListener('pointermove', (e) => {
+      window.__ptr = e.clientX;
+    }, true);
+    window.addEventListener('pointerup', () => {
+      window.__p0 = null;
+    }, true);
+    const tick = (t) => {
+      if (!window.__on) return;
+      window.__frames.push(t);
+      if (window.__ptr !== null && window.__p0 !== null) {
+        window.__lags.push(window.__ptr - window.__p0 - (centerX() - window.__c0));
+      }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  })()`)
+    await session.send('Performance.enable')
+    const metric = (snap, name) => snap.metrics.find((m) => m.name === name)?.value ?? 0
+    const before = await session.send('Performance.getMetrics')
+    await session.send('Input.dispatchMouseEvent', {
+      type: 'mousePressed',
+      x: probeAt.x,
+      y: probeAt.y,
+      button: 'left',
+      buttons: 1,
+      clickCount: 1,
+    })
+    for (let i = 1; i <= 40; i += 1) {
+      await session.send('Input.dispatchMouseEvent', {
+        type: 'mouseMoved',
+        x: probeAt.x - i * 8,
+        y: probeAt.y,
+        button: 'left',
+        buttons: 1,
+      })
+      await sleep(16)
+    }
+    await session.send('Input.dispatchMouseEvent', {
+      type: 'mouseReleased',
+      x: probeAt.x - 320,
+      y: probeAt.y,
+      button: 'left',
+      buttons: 0,
+      clickCount: 1,
+    })
+    const after = await session.send('Performance.getMetrics')
+    const frames = await session.evaluate(`(() => {
+    window.__on = false;
+    const f = window.__frames;
+    const gaps = f.slice(1).map((t, i) => t - f[i]);
+    const lags = window.__lags;
+    const mean = lags.reduce((a, b) => a + b, 0) / Math.max(1, lags.length);
+    return {
+      frames: f.length,
+      avgGapMs: Math.round(((f.at(-1) - f[0]) / gaps.length) * 10) / 10,
+      gapsOver33: gaps.filter((g) => g > 33).length,
+      lag: { n: lags.length, mean: Math.round(mean * 10) / 10, min: Math.min(...lags), max: Math.max(...lags) },
+    };
+  })()`)
+    const cost = (name) => Math.round((metric(after, name) - metric(before, name)) * 1000)
+    console.log(
+      `  [drag] 大图拖动 40 步 ${JSON.stringify(frames)} 主线程(ms) ${JSON.stringify({ script: cost('ScriptDuration'), style: cost('RecalcStyleDuration'), layout: cost('LayoutDuration'), task: cost('TaskDuration') })}`,
+    )
+    check(
+      frames.lag.n >= 30 && frames.lag.min >= -1 && frames.lag.max <= 1,
+      `大图拖动时图跟着指针走（每帧偏差 ${frames.lag.min} ~ ${frames.lag.max} px）`,
+    )
+    pass('大图 1:1 拖动跟手：每帧图心与指针偏差不超过 1px')
+  }
+  await pressEscape('wl-image-zoom')
+  await waitFor(session, `document.querySelector('[data-testid="wl-image-zoom"]') === null`)
+  check(
+    await session.evaluate(`document.querySelector('[data-testid="wl-file-viewer"]') !== null`),
+    'Esc 只关放大框，查看框还在',
   )
   // 说明收在标题行的「说明」开关里：缺省收着、不占正文；点开从右边滑出，Esc 先收起它。
   check(

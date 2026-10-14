@@ -70,7 +70,7 @@ export function NoteDrawer(props: { t: T; text: string; onClose(): void }): Reac
           <Icon name="x" size={14} />
         </button>
       </div>
-      <Markdown text={props.text} className={css.noteDrawerBody} />
+      <Markdown t={t} text={props.text} className={css.noteDrawerBody} />
     </aside>
   )
 }

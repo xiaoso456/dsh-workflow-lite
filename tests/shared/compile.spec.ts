@@ -134,13 +134,15 @@ function sectionHeadings(text: string): string[] {
 /**
  * 样张逐行（取自设计定稿的黄金样例，去掉引用块的 `> ` 前缀）。
  *
- * 与样张的**两处刻意偏离**：
+ * 与样张的**三处刻意偏离**：
  * 1. 样张里那一行「（表里实际写出的是编译时算出的**完整绝对路径**，这里为可读性截了前缀；
  *    `planId` 用示例值 `3f9a1c2e` 代替。**首列是节点在计划里的规范标识**…）」是**样张自述**，
  *    不是编译产物（它自己在说"这里为可读性截了前缀"）——编译器不产出这种句子，故不设期望。
  *    去掉它之后，表与批次块之间只留**一个**空行。
  * 2. 样张末行是 ⑤ 段的占位符 `<动态尾：…>`，由本实现按「目标：/工作区路径：」
  *    两个字面字段渲染（见 `dynamicSection`），故期望值在 `## 本次执行` 之后接这两行。
+ * 3. 列表后面紧跟的普通行（批次附注、「**产出**是……」）前面多一个空行：按 CommonMark，
+ *    紧跟着写的那行是最后一项的续行，排版时会并进列表里。
  *
  * 样张里的路径前缀被省略成 `…`，期望值用 `GOLDEN_PREFIX` 把它还原成
  * 编译时真的会算出的前缀——`…\workflow-lite\…` 之后**每一个字符**都与样张相同。
@@ -170,6 +172,7 @@ const GOLDEN_LINES: readonly string[] = [
   '- 批次 1：`scan`',
   '- 批次 2：`auth-review`',
   '- 批次 3：`fix-auth`、`report`',
+  '',
   '（同一批次不代表同时执行——互斥分支只会走一条。）',
   '',
   '**状态分支**：`auth-review` 是分支点——`when=fail` 走 `fix-auth`，`when=pass` 走 `report`，两条互斥。',
@@ -191,6 +194,7 @@ const GOLDEN_LINES: readonly string[] = [
   '  - 文件：`review-report.md`',
   '- 资源 `file-scan.json`：`scan` 产出；`auth-review` 读取。',
   '  - 文件：`scan.json`',
+  '',
   '**产出**是这一次的结果：这次做了什么、证据、结论都写在这里。每次执行整份重写，不保留上一次的内容，不写「比上次改了什么」。',
   '**更新**的文件是长期维护的现状和记录，不是写这一次报告的地方：先读，再在原文件上改。按资源说明规定的结构写；文件里已有的写法和说明不一致时以说明为准，顺手整理，不要照着旧写法继续写。描述现状的部分就地改成最新的，不在开头或末尾追加「本次结果」段落；记录每次只加一行，格式照说明（说明没写就照已有的行），每格只放短语、数字或路径；这次的过程和细节写在本次产出或回复里，这里只引用路径。同一件事只写一处。',
   '**交接**：轮到一个节点时，把它直接上游这一次的执行结果（回复里的结论与要点）交给它。',
@@ -259,6 +263,23 @@ describe('黄金用例：设计定稿样张', () => {
     const result = buildPlan(facts, analysis)
     expect(result.problems).toEqual([])
     expect(result.plan).toBe(expected)
+  })
+
+  it('列表后面紧跟的普通行都隔着空行——不然按 Markdown 会并进最后一项', () => {
+    const fix = edge('auth-review', 'fix-auth', 'fail')
+    fix.data = { when: 'fail', handoff: { note: '逐条修复' } }
+    const withExceptions = goldenDocument()
+    withExceptions.edges = withExceptions.edges.map((item) => (item.id === fix.id ? fix : item))
+    expect(planFor(withExceptions)).toContain('例外与交接说明')
+    for (const document of [goldenDocument(), withExceptions]) {
+      const lines = planFor(document).split('\n')
+      const glued = lines.filter((line, index) => {
+        const previous = lines[index - 1] ?? ''
+        // 前一行是列表项（或它缩进的子项、引用），这一行却顶格、也不是新的一项。
+        return line !== '' && !/^(\s|- )/u.test(line) && /^(\s+\S|- )/u.test(previous)
+      })
+      expect(glued).toEqual([])
+    }
   })
 
   it('样张那张图的分析结论与 ② 段一致（批次 / 回边 / 出口）', () => {
@@ -1054,6 +1075,7 @@ describe('任务描述：提示词原文，末尾附上这一步读写的资源'
         '  - 自定义：',
         '    > 禁止 sleep',
         '    > 只用落盘文件交接',
+        '',
         '**产出**是这一次的结果：这次做了什么、证据、结论都写在这里。每次执行整份重写，不保留上一次的内容，不写「比上次改了什么」。',
         '**更新**的文件是长期维护的现状和记录，不是写这一次报告的地方：先读，再在原文件上改。按资源说明规定的结构写；文件里已有的写法和说明不一致时以说明为准，顺手整理，不要照着旧写法继续写。描述现状的部分就地改成最新的，不在开头或末尾追加「本次结果」段落；记录每次只加一行，格式照说明（说明没写就照已有的行），每格只放短语、数字或路径；这次的过程和细节写在本次产出或回复里，这里只引用路径。同一件事只写一处。',
         '',

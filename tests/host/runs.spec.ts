@@ -661,6 +661,33 @@ describe('看产出文件', () => {
     expect(folder.ok && folder.result.kind).toBe('folder')
     expect(folder.ok && folder.result.exists).toBe(true)
   })
+
+  it('Markdown 里的图片：按文档所在目录读回 base64；工作区外、非图片、带协议的都拒绝', async () => {
+    const result = await compileWithRuns()
+    const id = String(result.instance)
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 1, 2])
+    await mkdir(join(workspace, 'reports', 'media'), { recursive: true })
+    await mkdir(join(workspace, 'shared'), { recursive: true })
+    await writeFile(join(workspace, 'reports', 'fix.md'), '![a](media/a.png)')
+    await writeFile(join(workspace, 'reports', 'media', '修复 前.png'), png)
+    await writeFile(join(workspace, 'shared', 'b.webp'), png)
+    await writeFile(join(workspace, 'reports', 'notes.txt'), 'x')
+    const doc = { path: 'reports/fix.md' }
+
+    const near = await runs.image(id, doc, 'media/修复 前.png')
+    if (!near.ok) throw new Error(near.error.message)
+    expect(near.result).toEqual({ mime: 'image/png', data: png.toString('base64') })
+    // 往上一级、带查询串：还在工作区里就行。
+    const up = await runs.image(id, doc, '../shared/b.webp?v=2')
+    expect(up.ok && up.result.mime).toBe('image/webp')
+
+    expect((await runs.image(id, doc, 'media/nope.png')).ok).toBe(false)
+    expect((await runs.image(id, doc, 'notes.txt')).ok).toBe(false)
+    expect((await runs.image(id, doc, '../../outside.png')).ok).toBe(false)
+    expect((await runs.image(id, doc, join(workspace, 'shared', 'b.webp'))).ok).toBe(false)
+    expect((await runs.image(id, doc, 'file:///etc/x.png')).ok).toBe(false)
+    expect((await runs.image(id, { path: 'reports/gone.md' }, 'media/a.png')).ok).toBe(false)
+  })
 })
 
 async function withNotes(): Promise<void> {

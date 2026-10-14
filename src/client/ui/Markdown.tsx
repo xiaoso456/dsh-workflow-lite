@@ -1,308 +1,158 @@
 /**
- * dsh-workflow-lite — 一个小而安全的 Markdown 渲染器（计划预览用）。
+ * dsh-workflow-lite — Markdown 排版（计划预览、文档查看、说明栏共用），交给 markdown-it 渲染。
  *
- * 为什么不引库：模块加载器只认冻结的平台 externals，引进来的库要整个打进 bundle；而计划
- * 只用到 Markdown 的一小块（标题、段落、粗体、行内代码、表格、列表、引用、代码块、分隔线）。
- *
- * **只产出 React 元素，从不拼 HTML 字符串**：提示词是用户写的任意文本，走 `innerHTML`
- * 就是一个注入口。链接只认 http(s)。
- *
- * 换行按"一行就是一行"处理（GitHub 评论区那种），而不是 CommonMark 的"单个换行算空格"——
- * 提示词与计划都是按行写的，把它们挤成一段反而难读。
+ * 规则是 CommonMark + GFM 表格 / 删除线，另外几处按我们的内容调过：
+ * - **不收原始 HTML**（`html: false`）：提示词、文件都是任意文本，里面的标签一律当文字，
+ *   这样渲染结果才能直接放进 `innerHTML`。别为了"支持 HTML"把它打开——那就是一个注入口。
+ * - **链接只认 http(s)**，新窗口打开、不带来源；相对路径的链接只留文字（点了会把宿主页面带走）。
+ * - **相对路径的图片**按文档所在目录找：调用方给了 `image`（文件查看框按实例去读）就换成读回来的图，
+ *   没给（计划、说明这类没有"所在目录"的文字）就只显示替代文字。读到了的图不让拖（宿主会当成拖文件进对话），
+ *   点一下（或聚焦后回车）在模态框里放大看（{@link ImageZoom}）。
+ * - **一行就是一行**（`breaks: true`，GitHub 评论区那种）：提示词与计划都是按行写的。
+ * - **只认带协议的网址**：关掉 linkify 的模糊匹配，`review.md` 这种文件名（`.md` 也是顶级域名）不变成链接。
+ * - **中日韩友好的强调**（`markdown-it-cjk-friendly`）：`**结论。**后面` 这种挨着中文标点的
+ *   粗体，按 CommonMark 原规则认不出来。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/Markdown
  */
 
-import type { ReactNode } from 'react'
+import MarkdownIt from 'markdown-it'
+import cjkFriendly from 'markdown-it-cjk-friendly'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { T } from '../i18n.ts'
+import { ImageZoom } from './ImageZoom.tsx'
 import css from './markdown.module.css'
 
-// ─────────────────────────────────────────────────────────────
-// 行内
-// ─────────────────────────────────────────────────────────────
+const WEB = /^https?:\/\//iu
+/** 带协议（`javascript:`、`file:`、`C:` 盘符……）的地址。 */
+const SCHEME = /^[a-z][a-z0-9+.-]*:/iu
 
-const INLINE: readonly { kind: 'code' | 'strong' | 'em' | 'link'; pattern: RegExp }[] = [
-  { kind: 'code', pattern: /`([^`]+)`/ },
-  { kind: 'strong', pattern: /\*\*(.+?)\*\*/ },
-  { kind: 'link', pattern: /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/ },
-  // 斜体只认星号：下划线在文件名里太常见（fix_notes.md），按下划线认会把它们拆碎。
-  { kind: 'em', pattern: /\*([^*\s](?:[^*]*[^*\s])?)\*/ },
-]
+const md = MarkdownIt({ html: false, breaks: true, linkify: true }).use(cjkFriendly)
+md.linkify.set({ fuzzyLink: false, fuzzyEmail: false })
+// 放行 http(s) 与相对路径（图片要用）；相对路径的链接在下面 `link_open` 里摘掉地址。
+md.validateLink = (url) => WEB.test(url) || !SCHEME.test(url.trim())
 
-/** 把一行文字渲染成行内元素（代码里的东西原样保留，不再往里解析）。 */
-export function renderInline(text: string, key = 'i'): ReactNode[] {
-  const out: ReactNode[] = []
-  let rest = text
-  let index = 0
-  while (rest !== '') {
-    let best: { kind: string; match: RegExpExecArray } | null = null
-    for (const { kind, pattern } of INLINE) {
-      const match = pattern.exec(rest)
-      if (match !== null && (best === null || match.index < best.match.index)) {
-        best = { kind, match }
-      }
-    }
-    if (best === null) {
-      out.push(rest)
-      break
-    }
-    const { kind, match } = best
-    if (match.index > 0) out.push(rest.slice(0, match.index))
-    const id = `${key}.${index}`
-    const inner = match[1] ?? ''
-    if (kind === 'code') out.push(<code key={id}>{inner}</code>)
-    if (kind === 'strong') out.push(<strong key={id}>{renderInline(inner, id)}</strong>)
-    if (kind === 'em') out.push(<em key={id}>{renderInline(inner, id)}</em>)
-    if (kind === 'link') {
-      out.push(
-        <a key={id} href={match[2]} target="_blank" rel="noopener noreferrer">
-          {renderInline(inner, id)}
-        </a>,
-      )
-    }
-    rest = rest.slice(match.index + match[0].length)
-    index += 1
+md.renderer.rules.link_open = (tokens, index, options, _env, self) => {
+  const token = tokens[index]
+  if (token !== undefined && WEB.test(String(token.attrGet('href') ?? ''))) {
+    token.attrSet('target', '_blank')
+    token.attrSet('rel', 'noopener noreferrer')
+  } else if (token !== undefined) {
+    token.attrs = (token.attrs ?? []).filter(([name]) => name !== 'href')
   }
-  return out
+  return self.renderToken(tokens, index, options)
 }
 
-/** 多行文字：行内渲染，行与行之间换行。 */
-function lines(text: readonly string[], key: string): ReactNode[] {
-  return text.flatMap((line, index) => {
-    const nodes = renderInline(line, `${key}.${index}`)
-    if (index === 0) return nodes
-    // biome-ignore lint/suspicious/noArrayIndexKey: 换行符只有位置可言，文本不变它就不变
-    return [<br key={`${key}.br${index}`} />, ...nodes]
-  })
-}
-
-// ─────────────────────────────────────────────────────────────
-// 块
-// ─────────────────────────────────────────────────────────────
-
-const FENCE = /^\s*(```|~~~)/
-const HEADING = /^(#{1,6})\s+(.*?)\s*#*\s*$/
-const RULE = /^\s*([-*_])(\s*\1){2,}\s*$/
-const QUOTE = /^\s*>\s?/
-const LIST_ITEM = /^(\s*)([-*+]|\d{1,9}[.)])\s+(.*)$/
-const TABLE_RULE = /^\s*\|?\s*:?-{1,}:?\s*(\|\s*:?-{1,}:?\s*)*\|?\s*$/
-
-function isTableStart(all: readonly string[], at: number): boolean {
-  const head = all[at]
-  const rule = all[at + 1]
-  return (
-    head !== undefined &&
-    rule !== undefined &&
-    head.includes('|') &&
-    TABLE_RULE.test(rule) &&
-    rule.includes('-')
-  )
-}
-
-function startsBlock(all: readonly string[], at: number): boolean {
-  const line = all[at] ?? ''
-  return (
-    FENCE.test(line) ||
-    HEADING.test(line) ||
-    RULE.test(line) ||
-    QUOTE.test(line) ||
-    LIST_ITEM.test(line) ||
-    isTableStart(all, at)
-  )
-}
-
-function cells(row: string): string[] {
-  let trimmed = row.trim()
-  if (trimmed.startsWith('|')) trimmed = trimmed.slice(1)
-  if (trimmed.endsWith('|') && !trimmed.endsWith('\\|')) trimmed = trimmed.slice(0, -1)
-  return trimmed.split(/(?<!\\)\|/u).map((cell) => cell.trim().replaceAll('\\|', '|'))
-}
-
-type Align = 'left' | 'center' | 'right' | undefined
-
-function alignments(rule: string): Align[] {
-  return cells(rule).map((cell) => {
-    const left = cell.startsWith(':')
-    const right = cell.endsWith(':')
-    if (left && right) return 'center'
-    if (right) return 'right'
-    if (left) return 'left'
-    return undefined
-  })
-}
-
-function indentOf(line: string): number {
-  return (/^\s*/u.exec(line)?.[0] ?? '').replaceAll('\t', '    ').length
-}
-
-/** 把若干行解析成块级元素。 */
-function blocks(all: readonly string[], key: string): ReactNode[] {
-  const out: ReactNode[] = []
-  let at = 0
-  while (at < all.length) {
-    const line = all[at] ?? ''
-    const id = `${key}.${at}`
-
-    if (line.trim() === '') {
-      at += 1
-      continue
-    }
-
-    const fence = FENCE.exec(line)
-    if (fence !== null) {
-      const marker = fence[1] ?? '```'
-      const body: string[] = []
-      at += 1
-      while (at < all.length && !(all[at] ?? '').trim().startsWith(marker)) {
-        body.push(all[at] ?? '')
-        at += 1
-      }
-      at += 1
-      out.push(
-        <pre key={id} className={css.code}>
-          <code>{body.join('\n')}</code>
-        </pre>,
-      )
-      continue
-    }
-
-    const heading = HEADING.exec(line)
-    if (heading !== null) {
-      const level = Math.min(6, (heading[1] ?? '#').length)
-      const Tag = `h${level}` as 'h1'
-      out.push(<Tag key={id}>{renderInline(heading[2] ?? '', id)}</Tag>)
-      at += 1
-      continue
-    }
-
-    if (RULE.test(line)) {
-      out.push(<hr key={id} />)
-      at += 1
-      continue
-    }
-
-    if (isTableStart(all, at)) {
-      const head = cells(line)
-      const align = alignments(all[at + 1] ?? '')
-      const rows: string[][] = []
-      at += 2
-      while (at < all.length && (all[at] ?? '').includes('|') && (all[at] ?? '').trim() !== '') {
-        rows.push(cells(all[at] ?? ''))
-        at += 1
-      }
-      out.push(
-        <div key={id} className={css.tableWrap}>
-          <table>
-            <thead>
-              <tr>
-                {head.map((cell, column) => (
-                  // biome-ignore lint/suspicious/noArrayIndexKey: 表格列只有位置，没有身份
-                  <th key={column} style={{ textAlign: align[column] }}>
-                    {renderInline(cell, `${id}.h${column}`)}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row, rowIndex) => (
-                // biome-ignore lint/suspicious/noArrayIndexKey: 同上，行也只有位置
-                <tr key={rowIndex}>
-                  {head.map((_, column) => (
-                    // biome-ignore lint/suspicious/noArrayIndexKey: 同上
-                    <td key={column} style={{ textAlign: align[column] }}>
-                      {renderInline(row[column] ?? '', `${id}.${rowIndex}.${column}`)}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>,
-      )
-      continue
-    }
-
-    if (QUOTE.test(line)) {
-      const body: string[] = []
-      while (at < all.length && QUOTE.test(all[at] ?? '')) {
-        body.push((all[at] ?? '').replace(QUOTE, ''))
-        at += 1
-      }
-      out.push(<blockquote key={id}>{blocks(body, id)}</blockquote>)
-      continue
-    }
-
-    const item = LIST_ITEM.exec(line)
-    if (item !== null) {
-      const base = indentOf(line)
-      const ordered = /\d/u.test(item[2] ?? '')
-      const items: string[][] = []
-      // 收这一张列表：同一缩进的条目开新项，更深的缩进（子列表、续行）归到当前项里。
-      while (at < all.length) {
-        const current = all[at] ?? ''
-        if (current.trim() === '') {
-          const next = all[at + 1] ?? ''
-          if (indentOf(next) > base && next.trim() !== '') {
-            items.at(-1)?.push('')
-            at += 1
-            continue
-          }
-          break
-        }
-        const match = LIST_ITEM.exec(current)
-        if (match !== null && indentOf(current) === base) {
-          items.push([match[3] ?? ''])
-        } else if (indentOf(current) > base) {
-          items.at(-1)?.push(current.slice(Math.min(indentOf(current), base + 2)))
-        } else {
-          break
-        }
-        at += 1
-      }
-      const Tag = ordered ? 'ol' : 'ul'
-      const start = ordered ? Number.parseInt(item[2] ?? '1', 10) : undefined
-      out.push(
-        <Tag key={id} {...(ordered && start !== 1 ? { start } : {})}>
-          {items.map((body, index) => {
-            const itemKey = `${id}.li${index}`
-            const [first = '', ...more] = body
-            const nested = more.some((_, index) => startsBlock(more, index))
-            return (
-              <li key={itemKey}>
-                {nested ? (
-                  <>
-                    {renderInline(first, itemKey)}
-                    {blocks(more, itemKey)}
-                  </>
-                ) : (
-                  lines(body, itemKey)
-                )}
-              </li>
-            )
-          })}
-        </Tag>,
-      )
-      continue
-    }
-
-    // 段落：直到空行或别的块开头。
-    const body: string[] = []
-    while (
-      at < all.length &&
-      (all[at] ?? '').trim() !== '' &&
-      (body.length === 0 || !startsBlock(all, at))
-    ) {
-      body.push(all[at] ?? '')
-      at += 1
-    }
-    out.push(<p key={id}>{lines(body, id)}</p>)
+const renderImage = md.renderer.rules.image
+md.renderer.rules.image = (tokens, index, options, env, self) => {
+  const token = tokens[index]
+  const src = String(token?.attrGet('src') ?? '')
+  // 图不让拖：拖起来会被宿主当成"拖文件进对话"，弹出整页的添加提示。点开放大看在 `Markdown` 里接。
+  token?.attrSet('draggable', 'false')
+  if (token !== undefined && WEB.test(src)) token.attrSet('tabindex', '0')
+  if (token !== undefined && !WEB.test(src)) {
+    // 本地图片先不给地址：挂上之后由 `Markdown` 按文档所在目录去读，读不到就留着替代文字。
+    token.attrs = (token.attrs ?? []).filter(([name]) => name !== 'src')
+    token.attrSet('data-wl-src', src)
   }
-  return out
+  return renderImage === undefined
+    ? self.renderToken(tokens, index, options)
+    : renderImage(tokens, index, options, env, self)
 }
 
-export function Markdown(props: { text: string; className?: string }): React.JSX.Element {
+// 表格包一层：窄的时候横向滚动，圆角边框画在外层上。
+md.renderer.rules.table_open = () => `<div class="${css.tableWrap}"><table>\n`
+md.renderer.rules.table_close = () => '</table></div>\n'
+
+/** 把文档里写的相对路径读成能放进 `<img src>` 的地址（data URL）。 */
+export type ImageSource = (src: string) => Promise<string>
+
+/** markdown-it 把地址做过百分号编码（中文文件名、空格）；交出去之前还原成文件名。 */
+function decodeSrc(src: string): string {
+  try {
+    return decodeURI(src)
+  } catch {
+    return src
+  }
+}
+
+/** 事件落在一张读到了的图上就交出它（还在读、读不到的不算）。 */
+function shownImage(target: EventTarget): HTMLImageElement | null {
+  if (!(target instanceof HTMLImageElement)) return null
+  return target.getAttribute('src') === null ? null : target
+}
+
+export function Markdown(props: {
+  t: T
+  text: string
+  className?: string
+  /** 相对路径的图片怎么读；不给就只显示替代文字。 */
+  image?: ImageSource | undefined
+}): React.JSX.Element {
+  const html = useMemo(() => md.render(props.text), [props.text])
+  const root = useRef<HTMLDivElement>(null)
+  const [zoom, setZoom] = useState<{ src: string; alt: string; path: string } | null>(null)
+  const { image } = props
+
+  // `html` 一变，innerHTML 整块换掉：图片要重新挂地址。
+  useEffect(() => {
+    const images = root.current?.querySelectorAll<HTMLImageElement>('img[data-wl-src]') ?? []
+    let alive = true
+    for (const element of images) {
+      const missing = (): void => {
+        if (alive) element.dataset.wlMissing = ''
+      }
+      if (image === undefined) {
+        missing()
+        continue
+      }
+      image(decodeSrc(element.dataset.wlSrc ?? '')).then((url) => {
+        if (!alive) return
+        element.src = url
+        element.tabIndex = 0
+      }, missing)
+    }
+    return () => {
+      alive = false
+    }
+  }, [html, image])
+
+  const open = (event: React.SyntheticEvent): void => {
+    const shown = shownImage(event.target)
+    if (shown === null) return
+    // 图包在链接里时也是放大看，不跟着链接走。
+    event.preventDefault()
+    // 路径给标题下面那一行看：本地图是文档里写的相对路径（还原成文件名），网上的图就是网址。
+    const local = shown.dataset.wlSrc
+    setZoom({
+      src: shown.src,
+      alt: shown.alt,
+      path: local === undefined ? shown.src : decodeSrc(local),
+    })
+  }
+
   return (
-    <div className={[css.md, props.className].filter(Boolean).join(' ')}>
-      {blocks(props.text.replace(/\r\n?/gu, '\n').split('\n'), 'md')}
-    </div>
+    <>
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: 只是把图上的点击、回车接过来（图本身可聚焦） */}
+      <div
+        ref={root}
+        className={[css.md, props.className].filter(Boolean).join(' ')}
+        onClick={open}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') open(event)
+        }}
+        // biome-ignore lint/security/noDangerouslySetInnerHtml: markdown-it 关了原始 HTML、链接只放 http(s)，产出里没有用户写的标签
+        dangerouslySetInnerHTML={{ __html: html }}
+      />
+      {zoom !== null && (
+        <ImageZoom
+          t={props.t}
+          src={zoom.src}
+          alt={zoom.alt}
+          path={zoom.path}
+          onClose={() => setZoom(null)}
+        />
+      )}
+    </>
   )
 }

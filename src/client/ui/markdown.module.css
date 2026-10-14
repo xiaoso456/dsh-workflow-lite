@@ -1,5 +1,6 @@
 /**
- * dsh-workflow-lite — Markdown 排版（计划预览）。
+ * dsh-workflow-lite — Markdown 排版（计划预览、文档查看、说明栏）。元素是 markdown-it 产出的，
+ * 这里只按标签写样式；类名只有表格外面那层 `.tableWrap`。
  */
 
 .md {
@@ -51,8 +52,14 @@
 .md ol,
 .md blockquote,
 .md .tableWrap,
-.md .code {
+.md pre {
   margin: 0 0 0.9em;
+}
+
+.md > :last-child,
+.md li > :last-child,
+.md blockquote > :last-child {
+  margin-bottom: 0;
 }
 
 .md ul,
@@ -60,8 +67,15 @@
   padding-left: 1.4em;
 }
 
-.md li + li {
+.md li + li,
+.md li > ul,
+.md li > ol {
   margin-top: 0.25em;
+}
+
+/* 松散列表（条目之间空了行）里每项包着 <p>：段落之间留一点，不按正文段距撑开。 */
+.md li > p {
+  margin-bottom: 0.4em;
 }
 
 .md li::marker {
@@ -99,7 +113,36 @@
   color: var(--wl-text-2);
 }
 
-.md .code {
+.md img {
+  max-width: 100%;
+  border-radius: 4px;
+  /* 拖起来会被宿主当成"拖文件进对话"，弹出整页的添加提示。 */
+  -webkit-user-drag: none;
+}
+
+/* 读到了的图：点开放大看。 */
+.md img[src] {
+  cursor: zoom-in;
+}
+
+.md img[src]:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 2px;
+}
+
+/* 读不到的本地图片：浏览器只画替代文字，压暗一点，和正文分开。 */
+.md img[data-wl-missing] {
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+}
+
+/* 相对路径的链接没有地址，只留文字。 */
+.md a:not([href]) {
+  color: inherit;
+  text-decoration: none;
+}
+
+.md pre {
   padding: 12px 14px;
   overflow-x: auto;
   border-radius: var(--wl-r-control);
@@ -107,7 +150,7 @@
   line-height: 1.6;
 }
 
-.md .code code {
+.md pre code {
   padding: 0;
   background: transparent;
   font-size: var(--wl-fs-meta);
@@ -148,4 +191,12 @@
 
 .md .tableWrap code {
   word-break: break-all;
+}
+
+/* 表格里的图（修复前 / 修复后那种对照）当缩略图摆：自动列宽下 max-width: 100% 拦不住，按原大会把表撑出去；
+   点开再看大图。 */
+.md .tableWrap img {
+  max-width: 320px;
+  max-height: 240px;
+  vertical-align: top;
 }

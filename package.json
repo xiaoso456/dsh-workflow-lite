@@ -88,6 +88,8 @@
     "@deepseek-ai/schemastery": "^3.18.4",
     "@xyflow/react": "^12.3.5",
     "elkjs": "^0.9.3",
+    "markdown-it": "^15.0.2",
+    "markdown-it-cjk-friendly": "^3.0.0",
     "pathe": "^2.0.3",
     "yaml": "^2.9.1"
   },

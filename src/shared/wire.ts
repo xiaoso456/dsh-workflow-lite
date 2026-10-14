@@ -69,6 +69,7 @@ export const WORKFLOW_LITE_ENDPOINTS = [
   'run/storage',
   'run/start',
   'run/file',
+  'run/image',
   'host/list',
   'host/skills',
   'host/skill',
@@ -378,6 +379,7 @@ export interface WorkflowLiteRpcMap {
   'run/storage': { args: RunStorageRequest; result: StorageStats }
   'run/start': { args: RunStartRequest; result: RunStartResponse }
   'run/file': { args: RunFileRequest; result: RunFileResponse }
+  'run/image': { args: RunImageRequest; result: RunImageResponse }
   'host/list': { args: HostListRequest; result: HostListResponse }
   'host/skills': { args: HostSkillsRequest; result: HostSkillsResponse }
   'host/skill': { args: HostSkillRequest; result: HostSkillResponse }
@@ -554,6 +556,23 @@ export interface RunFileResponse {
   /** `markdown` / `html` / `text` 时才有。 */
   text?: string
   limit: number
+}
+
+/** `run/image` 一张图的上限（字节）。 */
+export const RUN_IMAGE_MAX = 8 * 1024 * 1024
+
+/**
+ * `run/image`：实例里一份 Markdown 引用的本地图片。文档用 `run/file` 的同一套定位（`node` + `item`
+ * 或 `path`），`src` 是文档里写的相对路径，按文档所在目录解析。只认图片扩展名；解析出来的位置
+ * 必须在实例工作区里，或在文档自己的目录下（产出根目录是工作区外的绝对路径时）。
+ */
+export interface RunImageRequest extends RunFileRequest {
+  src: string
+}
+export interface RunImageResponse {
+  mime: string
+  /** 图片字节的 base64。 */
+  data: string
 }
 
 /** `run/storage`：存储统计与清理。 */
