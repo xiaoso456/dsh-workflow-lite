@@ -678,6 +678,7 @@ input.statusNote {
   min-height: 0;
   padding: 16px 16px 20px;
   overflow-y: auto;
+  scrollbar-gutter: stable;
   scrollbar-width: thin;
 }
 
@@ -1071,6 +1072,7 @@ input.statusNote {
   min-height: 0;
   padding: 14px 16px 18px;
   overflow-y: auto;
+  scrollbar-gutter: stable;
   scrollbar-width: thin;
 }
 

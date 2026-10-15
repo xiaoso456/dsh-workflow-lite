@@ -335,6 +335,7 @@
   margin: 0 -6px;
   padding: 0 6px 4px;
   overflow-y: auto;
+  scrollbar-gutter: stable;
   scrollbar-width: thin;
 }
 

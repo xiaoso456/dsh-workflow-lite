@@ -131,6 +131,7 @@
   min-height: 0;
   padding: 10px 14px 16px;
   overflow-y: auto;
+  scrollbar-gutter: stable;
   scrollbar-width: thin;
 }
 
