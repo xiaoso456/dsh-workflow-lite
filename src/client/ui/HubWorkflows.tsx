@@ -40,6 +40,8 @@ export function HubWorkflows(props: {
   /** 看 skill 时站在哪个会话、哪个工作区（导入导出盘点 skill 用）。 */
   scope: PackScope
   flush(): Promise<boolean>
+  /** 一进来就是导出 `current` 那张（画布顶栏的「导出」），不是版本。 */
+  startExport?: boolean
   /** 正开着的那张切了版本：编辑页按磁盘重新加载。 */
   onReload(): void
   onOpen(name: string): void
@@ -53,7 +55,7 @@ export function HubWorkflows(props: {
   const [workflows, setWorkflows] = useState<WorkflowEntry[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [picked, setPicked] = useState<string | null>(current)
-  const [pane, setPane] = useState<Pane>('versions')
+  const [pane, setPane] = useState<Pane>(props.startExport === true ? 'export' : 'versions')
   /** 拖到页面上的包（交给导入页）。 */
   const [dropped, setDropped] = useState<File | null>(null)
   /** 导入导出做完的那句结果。 */
@@ -147,6 +149,8 @@ export function HubWorkflows(props: {
 
   const selected = workflows.find((entry) => entry.name === picked) ?? workflows[0]
   if (selected === undefined) return <div />
+  // 画布上正开着的还没落盘（没在列表里）：不拿别的一张顶替去导出，停在版本。
+  const shown = pane === 'export' && selected.name !== picked ? 'versions' : pane
   const editing = selected.name === current
   return (
     <div className={cx(hub.wfPage, dragging && css.dropping)} data-wl-file-drop="">
@@ -195,9 +199,9 @@ export function HubWorkflows(props: {
           }}
         />
       </div>
-      {pane === 'import' ? (
+      {shown === 'import' ? (
         importPane
-      ) : pane === 'export' ? (
+      ) : shown === 'export' ? (
         <HubExport
           key={selected.name}
           t={t}

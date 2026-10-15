@@ -157,6 +157,8 @@ function Shell(props: {
   /** 正在看的工作流实例；`null` = 模板编辑。 */
   const [runId, setRunId] = useState<string | null>(null)
   const [hubOpen, setHubOpen] = useState(false)
+  /** 从画布顶栏的「导出」进来：工作流中心直接停在「工作流」页、右栏是导出。 */
+  const [hubExport, setHubExport] = useState(false)
   const [versionsOpen, setVersionsOpen] = useState(false)
   /** 磁盘上现在的内容和某一版一样吗；`null` = 不知道（没打开图、还在读）。存盘后、版本对话框开关后重新问一次。 */
   const [matchesVersion, setMatchesVersion] = useState<boolean | null>(null)
@@ -712,6 +714,7 @@ function Shell(props: {
         remove: wf.remove,
         onChanged: () => void wf.refreshCatalog(),
       }}
+      exportCurrent={hubExport}
       onClose={() => setHubOpen(false)}
     />
   )
@@ -753,7 +756,10 @@ function Shell(props: {
               onOpenTemplate={openTemplate}
               slots={slots}
               reloadRef={reloadRun}
-              onOpenHub={() => setHubOpen(true)}
+              onOpenHub={() => {
+                setHubExport(false)
+                setHubOpen(true)
+              }}
               {...(props.desktop === undefined ? {} : { desktop: props.desktop })}
             />
             {hub}
@@ -1056,7 +1062,14 @@ function Shell(props: {
             onVersions={() => setVersionsOpen(true)}
             runs={runs}
             onOpenRun={openRun}
-            onOpenHub={() => setHubOpen(true)}
+            onOpenHub={() => {
+              setHubExport(false)
+              setHubOpen(true)
+            }}
+            onExport={() => {
+              setHubExport(true)
+              setHubOpen(true)
+            }}
             onOpenWorkflow={openTemplate}
             onNewWorkflow={newWorkflow}
             onReloadRun={() => reloadRun.current?.()}

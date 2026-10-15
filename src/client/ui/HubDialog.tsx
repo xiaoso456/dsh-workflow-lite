@@ -57,10 +57,12 @@ export function HubDialog(props: {
     remove(name: string): Promise<boolean>
     onChanged(): void
   }
+  /** 从画布顶栏的「导出」打开：停在「工作流」页，右栏直接是正在编辑那张的导出。 */
+  exportCurrent?: boolean
   onClose(): void
 }): React.JSX.Element {
   const { t, runs } = props
-  const [page, setPage] = useState<HubPage>('runs')
+  const [page, setPage] = useState<HubPage>(props.exportCurrent === true ? 'workflows' : 'runs')
   /** 新的一页从哪一侧进来：点了右边的页就从右边进；刚打开时不滑。 */
   const [from, setFrom] = useState<'left' | 'right' | undefined>(undefined)
   const turn = (next: HubPage): void => {
@@ -121,6 +123,7 @@ export function HubDialog(props: {
             t={t}
             rpc={props.rpc}
             {...props.workflows}
+            startExport={props.exportCurrent === true}
             onOpen={(name) => {
               props.workflows.onOpen(name)
               props.onClose()

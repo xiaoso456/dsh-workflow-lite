@@ -445,6 +445,7 @@ export const zh = {
   // ── 导入导出（工作流中心「工作流」页）────────────────────────
   'pack.export': '导出',
   'pack.exportTip': '把这个工作流存下的版本打成一个包，带到别的机器上导入',
+  'pack.exportOpen': '导出工作流',
   'pack.exportTitle': '导出「{name}」',
   'pack.back': '返回版本',
   'pack.stepVersions': '选版本',
@@ -1585,6 +1586,7 @@ export const en: Record<LocaleKey, string> = {
   'pack.export': 'Export',
   'pack.exportTip':
     'Pack the saved versions of this workflow so you can import them on another machine',
+  'pack.exportOpen': 'Export workflow',
   'pack.exportTitle': 'Export “{name}”',
   'pack.back': 'Back to versions',
   'pack.stepVersions': 'Versions',

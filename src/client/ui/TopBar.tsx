@@ -54,6 +54,8 @@ export interface TopBarProps {
   onSettings(): void
   /** 打开这张工作流的版本。 */
   onVersions(): void
+  /** 去工作流中心导出这张工作流。 */
+  onExport(): void
   /** 本会话的工作流实例（下拉里「本会话的实例」那一段）。 */
   runs: Runs
   onOpenRun(id: string): void
@@ -231,6 +233,17 @@ export function TopBar(props: TopBarProps): React.JSX.Element {
               onClick={props.onVersions}
             >
               <Icon name="history" size={16} />
+            </button>
+            <button
+              type="button"
+              className={cx(ui.btn, ui.icon)}
+              data-tip={t('pack.exportOpen')}
+              aria-label={t('pack.exportOpen')}
+              data-testid="wl-export-open"
+              disabled={view.doc === null}
+              onClick={props.onExport}
+            >
+              <Icon name="download" size={16} />
             </button>
             <button
               type="button"
