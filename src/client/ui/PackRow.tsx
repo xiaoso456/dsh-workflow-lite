@@ -13,7 +13,8 @@ import css from './pack.module.css'
 import { cx } from './primitives.tsx'
 
 export function PackRow(props: {
-  icon: IconName
+  /** 不给 = 紧凑的一行（导出清单：分类标题已经有图标，行里不再重复）。 */
+  icon?: IconName
   tone?: 'accent' | 'warn' | 'ok'
   title: React.ReactNode
   /** 名字是路径（等宽字）。 */
@@ -29,6 +30,10 @@ export function PackRow(props: {
   disabled?: boolean
   /** 没勾上：字淡一点。 */
   dim?: boolean
+  /** 悬停提示（完整路径之类放这里，行里只留一句）。 */
+  tip?: string
+  /** 紧凑行里不能勾的那一格：状态图标，原因放它的悬停提示里。 */
+  lead?: { icon: IconName; tone?: 'warn' | 'produce' | 'update'; tip: string }
   children?: React.ReactNode
   testId?: string
 }): React.JSX.Element {
@@ -36,19 +41,33 @@ export function PackRow(props: {
   const meta = (props.meta ?? []).filter(
     (part) => part !== null && part !== undefined && part !== false && part !== '',
   )
+  const compact = props.icon === undefined
+  const checkbox = checkable && (
+    <Checkbox
+      checked={props.checked === true}
+      disabled={props.disabled}
+      onChange={(event) => props.onCheck?.(event.currentTarget.checked)}
+    />
+  )
   const body = (
     <>
-      {checkable && (
-        <Checkbox
-          checked={props.checked === true}
-          disabled={props.disabled}
-          onChange={(event) => props.onCheck?.(event.currentTarget.checked)}
-        />
+      {compact ? (
+        <span
+          className={css.rowLead}
+          data-tone={checkable ? undefined : props.lead?.tone}
+          data-tip={checkable ? undefined : props.lead?.tip}
+        >
+          {checkable ? checkbox : <Icon name={props.lead?.icon ?? 'info'} size={15} />}
+        </span>
+      ) : (
+        checkable && checkbox
       )}
-      <span className={css.rowIcon} data-tone={props.tone}>
-        <Icon name={props.icon} size={15} />
-      </span>
-      <span className={css.rowText}>
+      {props.icon !== undefined && (
+        <span className={css.rowIcon} data-tone={props.tone}>
+          <Icon name={props.icon} size={15} />
+        </span>
+      )}
+      <span className={css.rowText} data-tip={props.tip}>
         <span className={css.rowTitle}>
           <span className={cx(css.rowName, props.mono === true && css.mono)}>{props.title}</span>
           {props.badge}
@@ -62,7 +81,13 @@ export function PackRow(props: {
           </span>
         )}
       </span>
-      {props.end !== undefined ? <span className={css.rowEnd}>{props.end}</span> : <span />}
+      {props.end !== undefined ? (
+        <span className={css.rowEnd} data-tone={props.metaTone}>
+          {props.end}
+        </span>
+      ) : (
+        <span />
+      )}
       {props.children !== undefined && <div className={css.rowWide}>{props.children}</div>}
     </>
   )
@@ -72,6 +97,7 @@ export function PackRow(props: {
       <label
         className={css.row}
         data-check="true"
+        data-compact={compact}
         data-dim={props.dim === true}
         data-testid={props.testId}
       >
@@ -80,7 +106,12 @@ export function PackRow(props: {
     )
   }
   return (
-    <div className={css.row} data-dim={props.dim === true} data-testid={props.testId}>
+    <div
+      className={css.row}
+      data-compact={compact}
+      data-dim={props.dim === true}
+      data-testid={props.testId}
+    >
       {body}
     </div>
   )

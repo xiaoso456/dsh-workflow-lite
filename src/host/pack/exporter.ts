@@ -141,6 +141,8 @@ async function scanState(deps: PackDeps, request: PackScanRequest): Promise<Outc
       const written = info.writers.length > 0
       for (const item of info.resource.data.items) {
         if (item.value.trim() === '') continue
+        // 网址、自定义文本写在图里，本来就跟着走，不是外部资源。
+        if (item.kind === 'url' || item.kind === 'text') continue
         const key = itemKey(item.kind, item.value)
         const seen = items.get(key)
         if (seen !== undefined) {
@@ -153,10 +155,6 @@ async function scanState(deps: PackDeps, request: PackScanRequest): Promise<Outc
           continue
         }
         const base = { key, kind: item.kind, value: item.value.trim(), versions: [entry.n] }
-        if (item.kind === 'url' || item.kind === 'text') {
-          items.set(key, { ...base, state: 'inline' })
-          continue
-        }
         if (item.kind === 'skill') {
           const found = skills.get(base.value)
           if (found === undefined) {

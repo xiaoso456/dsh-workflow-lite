@@ -178,23 +178,195 @@
   cursor: pointer;
 }
 
+/* 这类的打包开关关着：勾选框灰掉，整行也不像能点。 */
+.row[data-check="true"]:has(input:disabled) {
+  cursor: default;
+}
+
 .row + .row {
   border-top: 1px solid var(--wl-line);
 }
 
+/*
+ * 紧凑的一行（导出清单）：没有框、没有分隔线；最左一格 24px，和上面分类标题的图标上下对齐，
+ * 里面是勾选框，不能勾的放一个状态图标占位，名字因此都从同一条竖线起。
+ */
+.row[data-compact="true"] {
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  gap: 0 8px;
+  min-height: 34px;
+  padding: 4px 8px 4px 0;
+  border-top: 0;
+  border-radius: 8px;
+}
+
+.row[data-compact="true"][data-check="true"]:not(:has(input:disabled)):hover {
+  background: var(--wl-fill);
+}
+
+.rowLead {
+  display: grid;
+  place-items: center;
+  color: var(--wl-text-3);
+}
+
+.rowLead[data-tone="warn"] {
+  color: var(--wl-warn);
+}
+
+/* 产出 / 更新：用画布上读写线的颜色。 */
+.rowLead[data-tone="produce"] {
+  color: var(--wl-io-produce);
+}
+
+.rowLead[data-tone="update"] {
+  color: var(--wl-io-update);
+}
+
+/* 分类下面的清单：缩进到分类图标那一列。 */
+.catBody {
+  display: flex;
+  flex-direction: column;
+  padding: 2px 0 6px 22px;
+}
+
+/* 展开：各行依次从左边浮出来（和版本列表展开的变化一样），下面的分类同时滑下去。 */
+.catBody > .row {
+  animation: catRowIn 240ms var(--wl-ease) backwards;
+  animation-delay: 60ms;
+}
+
+.catBody > .row:nth-child(2) {
+  animation-delay: 84ms;
+}
+
+.catBody > .row:nth-child(3) {
+  animation-delay: 108ms;
+}
+
+.catBody > .row:nth-child(4) {
+  animation-delay: 132ms;
+}
+
+.catBody > .row:nth-child(5) {
+  animation-delay: 156ms;
+}
+
+.catBody > .row:nth-child(n + 6) {
+  animation-delay: 180ms;
+}
+
+@keyframes catRowIn {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+}
+
+/*
+ * 导出 / 导入页：标题、步骤、说明固定在上面，中间一块（.scroll）自己滚，底部的按钮条固定在下面；
+ * 滚动条只在中间那块的右边，位置一直留着——展开、收起让内容忽高忽矮，滚动条一出一没，
+ * 内容宽度跟着变，每行就会重新换行、抖一下。
+ */
+div.page {
+  padding-bottom: 0;
+  overflow: hidden;
+}
+
+.scroll {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  margin: 0 -16px -14px;
+  padding: 0 16px 14px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+/* 几个分类排成一列：展开、收起时下面的分类滑到新位置（useResizeFlip），所以每个分类要有不透明的底。 */
+.cats {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cats > .section {
+  position: relative;
+  background: var(--wl-panel);
+}
+
 /* ── 导出清单的分类标题：[图标] 名称 统计 …… [开关] ─────────────── */
 
-/* 有开关时整行是 <label>，点哪都拨开关。 */
+/* 左边一个按钮（点它展开 / 收起），右端是打包开关；两者互不相干。 */
 .catHead {
   display: flex;
   gap: 8px;
   align-items: center;
-  min-height: 28px;
-  padding: 0 2px;
+  min-height: 32px;
 }
 
-.catHead[data-switch="true"] {
+.catToggle {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex: 1 1 auto;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  margin: 0 0 0 -6px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
   cursor: pointer;
+}
+
+/* 悬停底色是一层 ::before 渐显（只动 opacity）。 */
+.catToggle::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--wl-fill);
+  content: "";
+  opacity: 0;
+  transition: opacity 120ms linear;
+}
+
+.catToggle:hover:not(:disabled)::before {
+  opacity: 1;
+}
+
+.catToggle:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 0;
+}
+
+.catToggle:disabled {
+  cursor: default;
+}
+
+.catChevron {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 14px;
+  color: var(--wl-text-3);
+  transition: transform 180ms var(--wl-ease-out);
+}
+
+.catChevron[data-open="true"] {
+  transform: rotate(90deg);
+}
+
+.catToggle:disabled .catChevron {
+  opacity: 0.35;
 }
 
 .catIcon {
@@ -219,6 +391,10 @@
   font-size: var(--wl-fs-body);
   font-weight: 600;
   white-space: nowrap;
+}
+
+.catToggle:disabled .catTitle {
+  color: var(--wl-text-3);
 }
 
 .catStats {
@@ -313,6 +489,12 @@
   color: var(--wl-warn);
 }
 
+/* 路径：文件名在前、所在目录淡一档跟在后面，太长从目录尾巴截。 */
+.dir {
+  color: var(--wl-text-3);
+  font-weight: 400;
+}
+
 .rowEnd {
   display: flex;
   gap: 6px;
@@ -321,6 +503,10 @@
   font-size: var(--wl-fs-micro);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+.rowEnd[data-tone="warn"] {
+  color: var(--wl-warn);
 }
 
 /* skill 的处理方式：放在行下面一整条（三个选项放右端会把名字挤没）。 */
@@ -460,14 +646,11 @@
 /* ── 贴底的操作栏 ─────────────────────────────────────────── */
 
 .foot {
-  position: sticky;
-  bottom: -18px;
-  z-index: 1;
   display: flex;
   flex: none;
   gap: 10px;
   align-items: center;
-  margin: auto -16px -18px;
+  margin: 0 -16px;
   padding: 12px 16px;
   border-top: 1px solid var(--wl-line);
   background: var(--wl-panel);
@@ -522,7 +705,13 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .drop {
+  .drop,
+  .catToggle::before,
+  .catChevron {
     transition: none;
+  }
+
+  .catBody > .row {
+    animation: none;
   }
 }

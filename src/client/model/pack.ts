@@ -54,7 +54,7 @@ export function exportGroups(scan: PackScanResponse): ExportGroups {
 }
 
 /** 导出清单按资源种类分类展示（呈现顺序）。 */
-export const PACK_CATEGORIES: readonly ResourceKind[] = ['skill', 'file', 'folder', 'url', 'text']
+export const PACK_CATEGORIES: readonly ResourceKind[] = ['skill', 'file', 'folder']
 
 /** 能打包的几类，每类一个总开关：关着的那类整个不打包。 */
 export type PackSwitch = 'skill' | 'file' | 'folder'
@@ -65,17 +65,9 @@ export function isSwitchable(kind: ResourceKind): kind is PackSwitch {
 }
 
 /** 不能勾的项按这个顺序排：打包不了的在前，原样保留的在后。 */
-const OTHER_ORDER: readonly PackScanItem['state'][] = [
-  'missing',
-  'tooLarge',
-  'builtin',
-  'relative',
-  'output',
-  'assets',
-  'inline',
-]
+const OTHER_ORDER: readonly PackScanItem['state'][] = ['missing', 'tooLarge', 'builtin', 'relative']
 
-/** 一类里的项：能勾的、其余的（只说明原因）。 */
+/** 一类里的项：能勾的、其余的（只说明原因）。产出、资料目录里的不算外部资源，不列。 */
 export function categoryItems(
   scan: PackScanResponse,
   kind: ResourceKind,
@@ -84,7 +76,7 @@ export function categoryItems(
   return {
     packable: of.filter((item) => item.state === 'pack'),
     others: of
-      .filter((item) => item.state !== 'pack')
+      .filter((item) => OTHER_ORDER.includes(item.state))
       .sort((a, b) => OTHER_ORDER.indexOf(a.state) - OTHER_ORDER.indexOf(b.state)),
   }
 }

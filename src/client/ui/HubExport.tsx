@@ -9,9 +9,9 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/HubExport
  */
 
-import { Fragment, useEffect, useId, useState } from 'react'
+import { type ComponentProps, useEffect, useState } from 'react'
 import type { PackScanItem, PackScanResponse } from '../../shared/pack.ts'
-import type { VersionEntry } from '../../shared/types.ts'
+import type { ResourceKind, VersionEntry } from '../../shared/types.ts'
 import { downloadPack, saveFile } from '../app/packTransfer.ts'
 import type { LocaleKey, T } from '../i18n.ts'
 import { formatBytes } from '../model/fileKind.ts'
@@ -30,6 +30,7 @@ import { shortTime } from '../model/time.ts'
 import { errorMessage, type WorkflowLiteRpc } from '../rpc.ts'
 import hub from './hub.module.css'
 import { Icon, type IconName } from './Icon.tsx'
+import { useResizeFlip } from './motion.tsx'
 import { Callout, PackRow, PackSection, PackSteps } from './PackRow.tsx'
 import css from './pack.module.css'
 import { cx } from './primitives.tsx'
@@ -137,7 +138,7 @@ export function HubExport(props: {
   const multi = picked.size > 1
 
   return (
-    <div className={cx(hub.wfDetail, hub.paneIn)} data-testid="wl-pack-export">
+    <div className={cx(hub.wfDetail, hub.paneIn, css.page)} data-testid="wl-pack-export">
       <div className={hub.wfHead}>
         <div className={hub.wfHeadText}>
           <p className={hub.wfTitle}>{t('pack.exportTitle').replace('{name}', name)}</p>
@@ -178,59 +179,63 @@ export function HubExport(props: {
           </div>
         ) : (
           <>
-            {unsaved && (
-              <Callout tone="warn" testId="wl-pack-unsaved">
-                {t('pack.unsaved')}
-              </Callout>
-            )}
-            <PackSection
-              title={t('pack.stepVersions')}
-              note={t('pack.picked').replace('{n}', String(picked.size))}
-              action={{
-                label: picked.size === usable.length ? t('pack.selectNone') : t('pack.selectAll'),
-                onClick: () =>
-                  setPicked(
-                    picked.size === usable.length
-                      ? new Set()
-                      : new Set(usable.map((entry) => entry.n)),
-                  ),
-              }}
-            >
-              {usable.map((entry) => (
-                <PackRow
-                  key={entry.n}
-                  icon="bookmark"
-                  tone={entry.current ? 'accent' : undefined}
-                  title={
-                    <>
-                      v{entry.n}
-                      <span className={hub.wfSub}>
-                        {' '}
-                        {entry.note !== ''
-                          ? entry.note
-                          : entry.autoBefore !== undefined
-                            ? t('ver.autoNote').replace('{n}', String(entry.autoBefore))
-                            : t('ver.noNote')}
-                      </span>
-                    </>
-                  }
-                  badge={entry.current ? <span className={hub.tag}>{t('ver.current')}</span> : null}
-                  meta={[
-                    shortTime(entry.createdAt),
-                    t('ver.steps').replace('{n}', String(entry.nodeCount)),
-                  ]}
-                  checked={picked.has(entry.n)}
-                  dim={!picked.has(entry.n)}
-                  testId={`wl-pack-ver-${entry.n}`}
-                  onCheck={(on) => {
-                    const next = new Set(picked)
-                    if (on) next.add(entry.n)
-                    else next.delete(entry.n)
-                    setPicked(next)
-                  }}
-                />
-              ))}
-            </PackSection>
+            <div className={css.scroll}>
+              {unsaved && (
+                <Callout tone="warn" testId="wl-pack-unsaved">
+                  {t('pack.unsaved')}
+                </Callout>
+              )}
+              <PackSection
+                title={t('pack.stepVersions')}
+                note={t('pack.picked').replace('{n}', String(picked.size))}
+                action={{
+                  label: picked.size === usable.length ? t('pack.selectNone') : t('pack.selectAll'),
+                  onClick: () =>
+                    setPicked(
+                      picked.size === usable.length
+                        ? new Set()
+                        : new Set(usable.map((entry) => entry.n)),
+                    ),
+                }}
+              >
+                {usable.map((entry) => (
+                  <PackRow
+                    key={entry.n}
+                    icon="bookmark"
+                    tone={entry.current ? 'accent' : undefined}
+                    title={
+                      <>
+                        v{entry.n}
+                        <span className={hub.wfSub}>
+                          {' '}
+                          {entry.note !== ''
+                            ? entry.note
+                            : entry.autoBefore !== undefined
+                              ? t('ver.autoNote').replace('{n}', String(entry.autoBefore))
+                              : t('ver.noNote')}
+                        </span>
+                      </>
+                    }
+                    badge={
+                      entry.current ? <span className={hub.tag}>{t('ver.current')}</span> : null
+                    }
+                    meta={[
+                      shortTime(entry.createdAt),
+                      t('ver.steps').replace('{n}', String(entry.nodeCount)),
+                    ]}
+                    checked={picked.has(entry.n)}
+                    dim={!picked.has(entry.n)}
+                    testId={`wl-pack-ver-${entry.n}`}
+                    onCheck={(on) => {
+                      const next = new Set(picked)
+                      if (on) next.add(entry.n)
+                      else next.delete(entry.n)
+                      setPicked(next)
+                    }}
+                  />
+                ))}
+              </PackSection>
+            </div>
             <div className={css.foot}>
               <div className={css.footInfo}>
                 {picked.size === 0
@@ -289,7 +294,7 @@ function sizeOf(t: T, item: PackScanItem): string | null {
     : `${t('pack.files').replace('{n}', String(files))} · ${formatBytes(item.bytes)}`
 }
 
-/** 第二步：资源清单。按资源种类分类，能打包的几类在分类标题右端各有一个开关，开着才列出逐项的勾选。 */
+/** 第二步：资源清单。按资源种类分类，每类可以展开收起；能打包的几类在标题右端各有一个打包开关。 */
 function Resources(props: {
   t: T
   scan: PackScanResponse
@@ -302,21 +307,41 @@ function Resources(props: {
   onExport(): void
 }): React.JSX.Element {
   const { t, scan, packed, switches, multi } = props
+  // 展开、收起：下面的分类滑到新位置，像版本列表那样。
+  const listRef = useResizeFlip()
   const effective = effectivePack(scan, packed, switches)
   const total = packedBytes(scan, effective)
   const over = total > scan.limit
   const left = leftAbsolute(scan, effective)
+  /** 展开着的分类：缺省有东西的都展开；和开关无关。 */
+  const [expanded, setExpanded] = useState<ReadonlySet<ResourceKind>>(
+    () =>
+      new Set([
+        ...PACK_CATEGORIES.filter(
+          (kind) =>
+            categoryItems(scan, kind).packable.length + categoryItems(scan, kind).others.length > 0,
+        ),
+      ]),
+  )
+  const expand = (key: ResourceKind, open: boolean): void => {
+    const next = new Set(expanded)
+    if (open) next.add(key)
+    else next.delete(key)
+    setExpanded(next)
+  }
   const used = (item: PackScanItem): string | null =>
     multi ? t('pack.inVersions').replace('{list}', versionList(item)) : null
 
-  const packRow = (item: PackScanItem): React.JSX.Element => {
-    const on = packed.has(item.key)
+  /** 能打包的一项：一行，勾选框 + 名字 + 来源小标，右端是体积；路径、包内位置放悬停提示。 */
+  const packRow = (item: PackScanItem, enabled: boolean): React.JSX.Element => {
+    const on = enabled && packed.has(item.key)
+    const skipped =
+      item.skipped !== undefined ? t('pack.skipped').replace('{n}', String(item.skipped)) : null
+    const where = item.kind === 'skill' ? `skills/${item.value}/` : (item.as ?? '')
     return (
       <PackRow
         key={item.key}
-        icon={KIND_ICON[item.kind]}
-        tone={on ? 'accent' : undefined}
-        title={item.value}
+        title={item.kind === 'skill' ? item.value : pathTitle(item.value)}
         mono={item.kind !== 'skill'}
         badge={
           item.source !== undefined ? (
@@ -325,104 +350,89 @@ function Resources(props: {
             </span>
           ) : null
         }
-        meta={[
-          item.kind === 'skill' ? <code key="location">{item.location}</code> : null,
-          sizeOf(t, item),
-          item.skipped !== undefined
-            ? t('pack.skipped').replace('{n}', String(item.skipped))
-            : null,
-          on ? (
-            item.kind === 'skill' ? (
-              t('pack.skillAs').replace('{name}', item.value)
-            ) : (
-              <Fragment key="as">
-                {t('pack.as')} <code>{item.as}</code>
-              </Fragment>
-            )
-          ) : (
-            t('pack.groupKept')
-          ),
-          used(item),
-        ]}
-        checked={on}
+        meta={[skipped, used(item)]}
+        end={sizeOf(t, item)}
+        tip={[item.kind === 'skill' ? item.location : item.value, on ? `→ ${where}` : null]
+          .filter((part) => part !== null && part !== '')
+          .join('  ')}
+        checked={packed.has(item.key)}
+        disabled={!enabled}
         dim={!on}
         testId="wl-pack-item"
         onCheck={(next) => props.onToggle(item.key, next)}
       />
     )
   }
-  /** 不能勾的：只说明原因（找不到、太大、内置、相对路径、产出、已在资料目录、原样保留）。 */
+  /** 不能勾的：一行，最左一格是状态图标（原因在它的悬停提示里），后面只有名字。 */
   const infoRow = (item: PackScanItem): React.JSX.Element => {
     const blocked = item.state === 'missing' || item.state === 'tooLarge'
+    const reason = t(`pack.state.${item.state}` as LocaleKey)
+    const lead: ComponentProps<typeof PackRow>['lead'] = blocked
+      ? { icon: 'alert', tone: 'warn', tip: reason }
+      : { icon: 'info', tip: reason }
     return (
       <PackRow
         key={item.key}
-        icon={KIND_ICON[item.kind]}
-        tone={blocked ? 'warn' : undefined}
-        title={item.kind === 'text' ? textPreview(item.value) : item.value}
+        title={item.kind === 'text' ? textPreview(item.value) : pathTitle(item.value)}
         mono={item.kind === 'file' || item.kind === 'folder'}
-        metaTone={blocked ? 'warn' : undefined}
-        meta={[
-          t(`pack.state.${item.state}` as LocaleKey),
-          blocked ? sizeOf(t, item) : null,
-          used(item),
-        ]}
+        meta={[used(item)]}
+        lead={lead}
+        tip={item.value}
       />
     )
   }
 
   return (
     <>
-      {scan.items.length === 0 && scan.assets === null && <Callout>{t('pack.nothing')}</Callout>}
-      {PACK_CATEGORIES.map((kind) => {
-        const { packable, others } = categoryItems(scan, kind)
-        const roots = kind === 'folder' ? scan.roots : []
-        const count = packable.length + others.length + roots.length
-        if (count === 0) return null
-        const switchable = isSwitchable(kind) && packable.length > 0
-        const on = !switchable || switches[kind as PackSwitch]
-        const picked = packable.filter((item) => packed.has(item.key)).length
-        return (
-          <Category
-            key={kind}
-            icon={KIND_ICON[kind]}
-            title={t(KIND_LABEL[kind])}
-            stats={
-              !switchable
-                ? t('pack.catCount').replace('{n}', String(count))
-                : on
-                  ? t('pack.catPicked').replace('{n}', String(count)).replace('{m}', String(picked))
-                  : t('pack.catNone').replace('{n}', String(count))
-            }
-            on={on}
-            onSwitch={switchable ? (next) => props.onSwitch(kind as PackSwitch, next) : undefined}
-            testId={`wl-pack-cat-${kind}`}
-          >
-            {packable.map(packRow)}
-            {others.map(infoRow)}
-            {roots.map((root) => (
-              <PackRow key={root} icon="folder" title={root} mono meta={[t('pack.root')]} />
-            ))}
-          </Category>
-        )
-      })}
-      {scan.assets !== null && (
-        <Category
-          icon="folderOpen"
-          title={t('pack.groupAssets')}
-          stats={`${t('pack.files').replace('{n}', String(scan.assets.files))} · ${formatBytes(scan.assets.bytes)}`}
-          on
-          testId="wl-pack-cat-assets"
-        >
-          <PackRow
-            icon="folderOpen"
-            tone="accent"
-            title={scan.assets.location}
-            mono
-            meta={[t('pack.groupAssetsHint')]}
-          />
-        </Category>
-      )}
+      <p className={css.sectionHint}>{t('pack.resourcesHint')}</p>
+      {PACK_CATEGORIES.every(
+        (kind) =>
+          categoryItems(scan, kind).packable.length + categoryItems(scan, kind).others.length === 0,
+      ) && <Callout>{t('pack.nothing')}</Callout>}
+      <div className={css.scroll}>
+        <div ref={listRef} className={css.cats}>
+          {PACK_CATEGORIES.map((kind) => {
+            const { packable, others } = categoryItems(scan, kind)
+            const count = packable.length + others.length
+            const on = isSwitchable(kind) && switches[kind]
+            const picked = packable.filter((item) => packed.has(item.key)).length
+            return (
+              <Category
+                key={kind}
+                icon={KIND_ICON[kind]}
+                title={t(KIND_LABEL[kind])}
+                stats={
+                  count === 0
+                    ? t('pack.catEmpty')
+                    : packable.length === 0
+                      ? t('pack.catCount').replace('{n}', String(count))
+                      : on
+                        ? t('pack.catPicked')
+                            .replace('{n}', String(count))
+                            .replace('{m}', String(picked))
+                        : t('pack.catNone').replace('{n}', String(count))
+                }
+                empty={count === 0}
+                expanded={expanded.has(kind)}
+                onExpand={(open) => expand(kind, open)}
+                {...(isSwitchable(kind)
+                  ? {
+                      switch: {
+                        on: on && packable.length > 0,
+                        disabled: packable.length === 0,
+                        onChange: (next: boolean) => props.onSwitch(kind, next),
+                      },
+                    }
+                  : {})}
+                testId={`wl-pack-cat-${kind}`}
+              >
+                {packable.map((item) => packRow(item, on))}
+                {others.map(infoRow)}
+              </Category>
+            )
+          })}
+        </div>
+      </div>
       <div className={css.foot}>
         <div className={css.footInfo} data-tone={over ? 'error' : left > 0 ? 'warn' : undefined}>
           <span data-testid="wl-pack-total">
@@ -453,6 +463,17 @@ function Resources(props: {
   )
 }
 
+/** 路径当标题：文件名在前，所在目录淡一档跟在后面；不是路径（网址、skill 名）原样返回。 */
+function pathTitle(value: string): React.ReactNode {
+  const cut = Math.max(value.lastIndexOf('/'), value.lastIndexOf('\\'))
+  if (cut <= 0 || cut === value.length - 1 || /^[a-z][a-z0-9+.-]*:\/\//i.test(value)) return value
+  return (
+    <>
+      {value.slice(cut + 1)} <span className={css.dir}>{value.slice(0, cut)}</span>
+    </>
+  )
+}
+
 /** 自定义文本当标题：第一行，太长截断。 */
 function textPreview(value: string): string {
   const line = value.split('\n', 1)[0] ?? ''
@@ -460,52 +481,60 @@ function textPreview(value: string): string {
 }
 
 /**
- * 一类资源：标题行是「[图标] 名称 统计 …… [开关]」，开关和分类名在同一行；
- * 开着（或这类不需要开关）才在下面的圆角框里列出各项。
+ * 一类资源。标题行左边是一个按钮「[›] [图标] 名称 统计」，点它展开 / 收起下面的清单；
+ * 右端是这类的打包开关（只有 Skill、文件、文件夹有），开关只管打不打包，不管展开。
+ * 这类一项都没有时也照样摆出来，写「无」，不能展开。
  */
 function Category(props: {
   icon: IconName
   title: string
   stats: string
-  on: boolean
-  /** 不给 = 这类没有可选的，不放开关。 */
-  onSwitch?: (on: boolean) => void
+  empty: boolean
+  expanded: boolean
+  onExpand(open: boolean): void
+  /** 不给 = 这类没有可打包的说法（网址、自定义、资料目录），不放开关。 */
+  switch?: { on: boolean; disabled: boolean; onChange(on: boolean): void }
   children: React.ReactNode
   testId: string
 }): React.JSX.Element {
-  const id = useId()
-  const switchable = props.onSwitch !== undefined
-  const head = (
-    <>
-      <span className={css.catIcon} data-on={props.on}>
-        <Icon name={props.icon} size={14} />
-      </span>
-      <span className={css.catTitle}>{props.title}</span>
-      <span className={css.catStats}>{props.stats}</span>
-    </>
-  )
+  const open = props.expanded && !props.empty
+  const lit = props.switch === undefined ? !props.empty : props.switch.on
   return (
     <section className={css.section} data-testid={props.testId}>
-      {switchable ? (
-        <label className={css.catHead} htmlFor={id} data-switch="true">
-          {head}
+      <div className={css.catHead}>
+        <button
+          type="button"
+          className={css.catToggle}
+          aria-expanded={open}
+          disabled={props.empty}
+          data-testid={`${props.testId}-toggle`}
+          onClick={() => props.onExpand(!props.expanded)}
+        >
+          <span className={css.catChevron} data-open={open}>
+            <Icon name="chevronRight" size={14} />
+          </span>
+          <span className={css.catIcon} data-on={lit}>
+            <Icon name={props.icon} size={14} />
+          </span>
+          <span className={css.catTitle}>{props.title}</span>
+          <span className={css.catStats}>{props.stats}</span>
+        </button>
+        {props.switch !== undefined && (
           <button
-            id={id}
             type="button"
             role="switch"
-            aria-checked={props.on}
+            aria-checked={props.switch.on}
             aria-label={props.title}
             className={cx(ui.switch, css.catSwitch)}
+            disabled={props.switch.disabled}
             data-testid={`${props.testId}-switch`}
-            onClick={() => props.onSwitch?.(!props.on)}
+            onClick={() => props.switch?.onChange(!props.switch.on)}
           >
             <span className={ui.knob} />
           </button>
-        </label>
-      ) : (
-        <div className={css.catHead}>{head}</div>
-      )}
-      {props.on && <div className={cx(hub.box, ui.rise)}>{props.children}</div>}
+        )}
+      </div>
+      {open && <div className={css.catBody}>{props.children}</div>}
     </section>
   )
 }

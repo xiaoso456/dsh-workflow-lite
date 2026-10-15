@@ -192,7 +192,8 @@ describe('导出盘点', () => {
     expect(by('web')?.state).toBe('builtin')
     expect(by('{assets}/notes.md')?.state).toBe('assets')
     expect(scan.assets).toMatchObject({ files: 1 })
-    expect(scan.items.filter((item) => item.state === 'inline')).toHaveLength(2)
+    // 网址、自定义文本不是外部资源，不进清单
+    expect(scan.items.some((item) => item.kind === 'url')).toBe(false)
   })
 
   it('资料目录里已有同名的：打包进去的换个名字', async () => {

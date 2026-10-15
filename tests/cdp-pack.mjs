@@ -133,14 +133,40 @@ async function run(session) {
   await screenshot(session, 'pack-01-versions.png')
   pass('导出：选版本（缺省带现在这一版）')
 
-  // 2) 第二步：资源清单里有那个文件，缺省勾上，写明包里写成 {assets}/spec.md。
+  // 2) 第二步：外部资源清单只有 Skill / 文件 / 文件夹三类，文件和 skill 缺省勾上；
+  //    分类行点一下展开 / 收起，开关另管打不打包，互不牵连。
   await session.evaluate(clickTestId('wl-pack-next'))
-  await waitFor(session, exists('wl-pack-group-pack'))
-  const group = await session.evaluate(textOf('wl-pack-group-pack'))
-  check(group.includes(SPEC) && group.includes('{assets}/spec.md'), `清单应列出文件：${group}`)
-  if (skill !== undefined) check(group.includes(skill), `清单应列出 skill ${skill}`)
+  await waitFor(session, exists('wl-pack-cat-file'))
+  for (const gone_ of ['url', 'text', 'assets'])
+    check(await session.evaluate(gone(`wl-pack-cat-${gone_}`)), `清单里不该有「${gone_}」一类`)
+  const fileCat = await session.evaluate(textOf('wl-pack-cat-file'))
+  check(fileCat.includes('spec.md'), `文件一类应列出 spec.md：${fileCat}`)
+  if (skill !== undefined) {
+    const skillCat = await session.evaluate(textOf('wl-pack-cat-skill'))
+    check(skillCat.includes(skill), `Skill 一类应列出 ${skill}：${skillCat}`)
+  }
+  const attr = (id, name) =>
+    `document.querySelector('[data-testid="${id}"]')?.getAttribute(${JSON.stringify(name)})`
+  check(
+    (await session.evaluate(attr('wl-pack-cat-file-switch', 'aria-checked'))) === 'true',
+    '文件开关缺省开',
+  )
+  check(
+    (await session.evaluate(attr('wl-pack-cat-file-toggle', 'aria-expanded'))) === 'true',
+    '有内容的分类缺省展开',
+  )
+  await session.evaluate(clickTestId('wl-pack-cat-file-toggle'))
+  await waitFor(session, `${attr('wl-pack-cat-file-toggle', 'aria-expanded')} === 'false'`)
+  check(
+    (await session.evaluate(attr('wl-pack-cat-file-switch', 'aria-checked'))) === 'true',
+    '收起不该动开关',
+  )
+  await session.evaluate(clickTestId('wl-pack-cat-file-toggle'))
+  await waitFor(session, `${attr('wl-pack-cat-file-toggle', 'aria-expanded')} === 'true'`)
   await screenshot(session, 'pack-02-resources.png')
-  pass(`导出：资源清单（文件${skill === undefined ? '' : ` + skill ${skill}`}）`)
+  pass(
+    `导出：外部资源清单（文件${skill === undefined ? '' : ` + skill ${skill}`}，分类展开收起、开关独立）`,
+  )
 
   // 3) 导出：下载下来，回到版本页带一句结果。
   await session.evaluate(clickTestId('wl-pack-do-export'))

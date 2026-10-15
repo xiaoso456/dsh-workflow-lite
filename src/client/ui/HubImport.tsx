@@ -114,7 +114,7 @@ export function HubImport(props: {
   }
 
   return (
-    <div className={cx(hub.wfDetail, hub.paneIn)} data-testid="wl-pack-import">
+    <div className={cx(hub.wfDetail, hub.paneIn, css.page)} data-testid="wl-pack-import">
       <div className={hub.wfHead}>
         <div className={hub.wfHeadText}>
           <p className={hub.wfTitle}>{t('pack.importTitle')}</p>
@@ -271,296 +271,302 @@ function Preview(props: {
 
   return (
     <>
-      <PackSection
-        title={t('pack.versionsIn')}
-        note={t('pack.meta')
-          .replace('{format}', String(preview.format))
-          .replace('{plugin}', preview.plugin || '?')
-          .replace('{time}', shortTime(preview.exportedAt))}
-      >
-        {[...preview.versions].reverse().map((version) => (
-          <PackRow
-            key={version.n}
-            icon="bookmark"
-            tone={version.n === preview.current ? 'accent' : undefined}
-            title={
-              <>
-                v{version.n}
-                <span className={hub.wfSub}>
-                  {' '}
-                  {version.note === '' ? t('ver.noNote') : version.note}
-                </span>
-              </>
-            }
-            badge={
-              version.n === preview.current ? (
-                <span className={hub.tag} data-tip={t('pack.contentIs')}>
-                  {t('ver.current')}
-                </span>
-              ) : null
-            }
-            meta={[
-              shortTime(version.createdAt),
-              t('ver.steps').replace('{n}', String(version.nodeCount)),
-            ]}
-          />
-        ))}
-      </PackSection>
-
-      <PackSection title={t('pack.sectionName')} testId="wl-pack-target">
-        {preview.exists && (
-          <div className={css.field}>
-            <span>{t('pack.exists').replace('{name}', preview.name)}</span>
-            <div className={css.choice}>
-              <Segmented<ImportChoice['mode']>
-                label={t('pack.sectionName')}
-                value={choice.mode}
-                testId="wl-pack-mode"
-                options={[
-                  { value: 'new', label: t('pack.asNew') },
-                  { value: 'merge', label: t('pack.merge') },
-                ]}
-                onChange={(mode) => setChoice({ ...choice, mode })}
-              />
-            </div>
-          </div>
-        )}
-        {choice.mode === 'new' ? (
-          <div className={css.field}>
-            <label className={css.fieldRow}>
-              <span className={hub.wfSub}>{t('pack.nameLabel')}</span>
-              <input
-                className={ui.input}
-                value={choice.name}
-                maxLength={64}
-                aria-invalid={nameProblem !== null}
-                data-testid="wl-pack-name"
-                onChange={(event) => setChoice({ ...choice, name: event.currentTarget.value })}
-              />
-            </label>
-            {nameProblem !== null && <span className={css.fieldError}>{nameProblem}</span>}
-          </div>
-        ) : (
-          <div className={css.field}>
-            <span className={hub.wfSub}>
-              {t('pack.mergeHint').replace('{n}', String(preview.current))}
-            </span>
-            {preview.unsaved && (
-              <Callout tone="warn" testId="wl-pack-merge-unsaved">
-                {t('pack.mergeUnsaved').replace('{name}', preview.name)}
-              </Callout>
-            )}
-            {preview.clashes.length > 0 && (
-              <div className={css.fieldRow}>
-                <span className={hub.wfSub}>
-                  {t('pack.clashes').replace('{n}', String(preview.clashes.length))}
-                </span>
-                <div className={css.choice}>
-                  <Segmented<ImportChoice['assets']>
-                    label={t('pack.clashes').replace('{n}', String(preview.clashes.length))}
-                    value={choice.assets}
-                    options={[
-                      { value: 'local', label: t('pack.keepLocal') },
-                      { value: 'package', label: t('pack.usePackage') },
-                    ]}
-                    onChange={(assets) => setChoice({ ...choice, assets })}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </PackSection>
-
-      {preview.assets.length > 0 && (
+      <div className={css.scroll}>
         <PackSection
-          title={t('pack.sectionAssets')}
-          note={
-            <>
-              {`${t('pack.to')} `}
-              <code className={css.path}>{assetsDir}</code>
-            </>
-          }
-          testId="wl-pack-assets"
+          title={t('pack.versionsIn')}
+          note={t('pack.meta')
+            .replace('{format}', String(preview.format))
+            .replace('{plugin}', preview.plugin || '?')
+            .replace('{time}', shortTime(preview.exportedAt))}
         >
-          {shownAssets.map((file) => (
+          {[...preview.versions].reverse().map((version) => (
             <PackRow
-              key={file.path}
-              icon="file"
-              title={file.path}
-              mono
-              end={formatBytes(file.bytes)}
-              {...(choice.mode === 'merge' && preview.clashes.includes(file.path)
-                ? {
-                    metaTone: 'warn' as const,
-                    meta: [choice.assets === 'local' ? t('pack.keepLocal') : t('pack.usePackage')],
-                    dim: choice.assets === 'local',
-                  }
-                : {})}
+              key={version.n}
+              icon="bookmark"
+              tone={version.n === preview.current ? 'accent' : undefined}
+              title={
+                <>
+                  v{version.n}
+                  <span className={hub.wfSub}>
+                    {' '}
+                    {version.note === '' ? t('ver.noNote') : version.note}
+                  </span>
+                </>
+              }
+              badge={
+                version.n === preview.current ? (
+                  <span className={hub.tag} data-tip={t('pack.contentIs')}>
+                    {t('ver.current')}
+                  </span>
+                ) : null
+              }
+              meta={[
+                shortTime(version.createdAt),
+                t('ver.steps').replace('{n}', String(version.nodeCount)),
+              ]}
             />
           ))}
-          {preview.assets.length > ASSET_PREVIEW && (
-            <div className={css.row}>
-              <span />
-              <button
-                type="button"
-                className={css.sectionLink}
-                onClick={() => setAllAssets(!allAssets)}
-              >
-                {allAssets
-                  ? t('pack.hideFiles')
-                  : t('pack.more').replace('{n}', String(preview.assets.length - ASSET_PREVIEW))}
-              </button>
-              <span />
+        </PackSection>
+
+        <PackSection title={t('pack.sectionName')} testId="wl-pack-target">
+          {preview.exists && (
+            <div className={css.field}>
+              <span>{t('pack.exists').replace('{name}', preview.name)}</span>
+              <div className={css.choice}>
+                <Segmented<ImportChoice['mode']>
+                  label={t('pack.sectionName')}
+                  value={choice.mode}
+                  testId="wl-pack-mode"
+                  options={[
+                    { value: 'new', label: t('pack.asNew') },
+                    { value: 'merge', label: t('pack.merge') },
+                  ]}
+                  onChange={(mode) => setChoice({ ...choice, mode })}
+                />
+              </div>
+            </div>
+          )}
+          {choice.mode === 'new' ? (
+            <div className={css.field}>
+              <label className={css.fieldRow}>
+                <span className={hub.wfSub}>{t('pack.nameLabel')}</span>
+                <input
+                  className={ui.input}
+                  value={choice.name}
+                  maxLength={64}
+                  aria-invalid={nameProblem !== null}
+                  data-testid="wl-pack-name"
+                  onChange={(event) => setChoice({ ...choice, name: event.currentTarget.value })}
+                />
+              </label>
+              {nameProblem !== null && <span className={css.fieldError}>{nameProblem}</span>}
+            </div>
+          ) : (
+            <div className={css.field}>
+              <span className={hub.wfSub}>
+                {t('pack.mergeHint').replace('{n}', String(preview.current))}
+              </span>
+              {preview.unsaved && (
+                <Callout tone="warn" testId="wl-pack-merge-unsaved">
+                  {t('pack.mergeUnsaved').replace('{name}', preview.name)}
+                </Callout>
+              )}
+              {preview.clashes.length > 0 && (
+                <div className={css.fieldRow}>
+                  <span className={hub.wfSub}>
+                    {t('pack.clashes').replace('{n}', String(preview.clashes.length))}
+                  </span>
+                  <div className={css.choice}>
+                    <Segmented<ImportChoice['assets']>
+                      label={t('pack.clashes').replace('{n}', String(preview.clashes.length))}
+                      value={choice.assets}
+                      options={[
+                        { value: 'local', label: t('pack.keepLocal') },
+                        { value: 'package', label: t('pack.usePackage') },
+                      ]}
+                      onChange={(assets) => setChoice({ ...choice, assets })}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </PackSection>
-      )}
 
-      {preview.skills.length > 0 && (
-        <PackSection
-          title={t('pack.sectionSkills')}
-          note={
-            <>
-              {`${t('pack.to')} `}
-              <code className={css.path}>{preview.skillsRoot}/</code>
-            </>
-          }
-          testId="wl-pack-skills"
-        >
-          {preview.skills.map((skill) => {
-            const action = actionOf(choice, skill)
-            const choices = skillChoices(skill)
-            const destination = skillDestination(preview, skill, action)
-            const open = openSkill === skill.name
-            return (
+        {preview.assets.length > 0 && (
+          <PackSection
+            title={t('pack.sectionAssets')}
+            note={
+              <>
+                {`${t('pack.to')} `}
+                <code className={css.path}>{assetsDir}</code>
+              </>
+            }
+            testId="wl-pack-assets"
+          >
+            {shownAssets.map((file) => (
               <PackRow
-                key={skill.name}
-                icon={KIND_ICON.skill}
-                tone={
-                  skill.state === 'different' ? 'warn' : action === 'skip' ? undefined : 'accent'
-                }
-                title={skill.name}
-                badge={
-                  <span className={hub.tag} data-tone={skill.state === 'new' ? undefined : 'plain'}>
-                    {t(SKILL_STATE[skill.state])}
-                  </span>
-                }
-                meta={[
-                  skill.source,
-                  `${t('pack.files').replace('{n}', String(skill.files.length))} · ${formatBytes(skill.bytes)}`,
-                  skill.existing !== undefined ? (
-                    <Fragment key="existing">
-                      {`${t('pack.skill.existing')} `}
-                      <code>{skill.existing}</code>
-                    </Fragment>
-                  ) : null,
-                ]}
-                end={
-                  <button
-                    type="button"
-                    className={css.sectionLink}
-                    onClick={() => setOpenSkill(open ? null : skill.name)}
-                  >
-                    {open ? t('pack.hideFiles') : t('pack.showFiles')}
-                  </button>
-                }
-                testId={`wl-pack-skill-${skill.name}`}
-              >
-                {choices.length > 1 && (
-                  <div className={css.choice}>
-                    <Segmented<PackSkillAction>
-                      label={skill.name}
-                      value={action}
-                      testId={`wl-pack-skill-${skill.name}`}
-                      options={choices.map((value) => ({
-                        value,
-                        label: t(actionLabel(value, skill.state === 'new')),
-                      }))}
-                      onChange={(next) =>
-                        setChoice({ ...choice, skills: { ...choice.skills, [skill.name]: next } })
-                      }
-                    />
-                  </div>
-                )}
-                <span
-                  className={css.rowMeta}
-                  data-tone={action === 'overwrite' ? 'warn' : undefined}
+                key={file.path}
+                icon="file"
+                title={file.path}
+                mono
+                end={formatBytes(file.bytes)}
+                {...(choice.mode === 'merge' && preview.clashes.includes(file.path)
+                  ? {
+                      metaTone: 'warn' as const,
+                      meta: [
+                        choice.assets === 'local' ? t('pack.keepLocal') : t('pack.usePackage'),
+                      ],
+                      dim: choice.assets === 'local',
+                    }
+                  : {})}
+              />
+            ))}
+            {preview.assets.length > ASSET_PREVIEW && (
+              <div className={css.row}>
+                <span />
+                <button
+                  type="button"
+                  className={css.sectionLink}
+                  onClick={() => setAllAssets(!allAssets)}
                 >
-                  {destination !== null ? (
-                    <span>
-                      {action === 'rename'
-                        ? t('pack.skill.renameAs').replace('{name}', skill.rename)
-                        : `${t('pack.to')} `}
-                      {action !== 'rename' && <code>{destination}/</code>}
+                  {allAssets
+                    ? t('pack.hideFiles')
+                    : t('pack.more').replace('{n}', String(preview.assets.length - ASSET_PREVIEW))}
+                </button>
+                <span />
+              </div>
+            )}
+          </PackSection>
+        )}
+
+        {preview.skills.length > 0 && (
+          <PackSection
+            title={t('pack.sectionSkills')}
+            note={
+              <>
+                {`${t('pack.to')} `}
+                <code className={css.path}>{preview.skillsRoot}/</code>
+              </>
+            }
+            testId="wl-pack-skills"
+          >
+            {preview.skills.map((skill) => {
+              const action = actionOf(choice, skill)
+              const choices = skillChoices(skill)
+              const destination = skillDestination(preview, skill, action)
+              const open = openSkill === skill.name
+              return (
+                <PackRow
+                  key={skill.name}
+                  icon={KIND_ICON.skill}
+                  tone={
+                    skill.state === 'different' ? 'warn' : action === 'skip' ? undefined : 'accent'
+                  }
+                  title={skill.name}
+                  badge={
+                    <span
+                      className={hub.tag}
+                      data-tone={skill.state === 'new' ? undefined : 'plain'}
+                    >
+                      {t(SKILL_STATE[skill.state])}
+                    </span>
+                  }
+                  meta={[
+                    skill.source,
+                    `${t('pack.files').replace('{n}', String(skill.files.length))} · ${formatBytes(skill.bytes)}`,
+                    skill.existing !== undefined ? (
+                      <Fragment key="existing">
+                        {`${t('pack.skill.existing')} `}
+                        <code>{skill.existing}</code>
+                      </Fragment>
+                    ) : null,
+                  ]}
+                  end={
+                    <button
+                      type="button"
+                      className={css.sectionLink}
+                      onClick={() => setOpenSkill(open ? null : skill.name)}
+                    >
+                      {open ? t('pack.hideFiles') : t('pack.showFiles')}
+                    </button>
+                  }
+                  testId={`wl-pack-skill-${skill.name}`}
+                >
+                  {choices.length > 1 && (
+                    <div className={css.choice}>
+                      <Segmented<PackSkillAction>
+                        label={skill.name}
+                        value={action}
+                        testId={`wl-pack-skill-${skill.name}`}
+                        options={choices.map((value) => ({
+                          value,
+                          label: t(actionLabel(value, skill.state === 'new')),
+                        }))}
+                        onChange={(next) =>
+                          setChoice({ ...choice, skills: { ...choice.skills, [skill.name]: next } })
+                        }
+                      />
+                    </div>
+                  )}
+                  <span
+                    className={css.rowMeta}
+                    data-tone={action === 'overwrite' ? 'warn' : undefined}
+                  >
+                    {destination !== null ? (
+                      <span>
+                        {action === 'rename'
+                          ? t('pack.skill.renameAs').replace('{name}', skill.rename)
+                          : `${t('pack.to')} `}
+                        {action !== 'rename' && <code>{destination}/</code>}
+                      </span>
+                    ) : (
+                      <span>
+                        {skill.state === 'new'
+                          ? t('pack.skill.notInstalled')
+                          : t('pack.skill.skipped')}
+                      </span>
+                    )}
+                  </span>
+                  {open && (
+                    <ul className={css.files}>
+                      {skill.files.map((file) => (
+                        <li key={file.path}>
+                          <span>{file.path}</span>
+                          <span>{formatBytes(file.bytes)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </PackRow>
+              )
+            })}
+          </PackSection>
+        )}
+
+        {preview.external.length > 0 && (
+          <PackSection title={t('pack.sectionExternal')} testId="wl-pack-external">
+            {preview.external.map((entry) => (
+              <PackRow
+                key={`${entry.kind}\n${entry.value}`}
+                icon={entry.kind === 'root' ? 'folder' : KIND_ICON[entry.kind]}
+                tone={entry.found === false ? 'warn' : undefined}
+                title={entry.value}
+                mono={entry.kind !== 'skill'}
+                meta={[t(`pack.why.${entry.why}` as LocaleKey)]}
+                end={
+                  entry.found === null ? (
+                    <span className={hub.tag} data-tone="plain">
+                      {t('pack.relative')}
+                    </span>
+                  ) : entry.found ? (
+                    <span className={hub.tag}>
+                      <Icon name="check" size={11} />
+                      {t('pack.found')}
                     </span>
                   ) : (
-                    <span>
-                      {skill.state === 'new'
-                        ? t('pack.skill.notInstalled')
-                        : t('pack.skill.skipped')}
+                    <span className={hub.tag} data-tone="plain">
+                      {t('pack.notFound')}
                     </span>
-                  )}
-                </span>
-                {open && (
-                  <ul className={css.files}>
-                    {skill.files.map((file) => (
-                      <li key={file.path}>
-                        <span>{file.path}</span>
-                        <span>{formatBytes(file.bytes)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </PackRow>
-            )
-          })}
-        </PackSection>
-      )}
+                  )
+                }
+              />
+            ))}
+          </PackSection>
+        )}
 
-      {preview.external.length > 0 && (
-        <PackSection title={t('pack.sectionExternal')} testId="wl-pack-external">
-          {preview.external.map((entry) => (
-            <PackRow
-              key={`${entry.kind}\n${entry.value}`}
-              icon={entry.kind === 'root' ? 'folder' : KIND_ICON[entry.kind]}
-              tone={entry.found === false ? 'warn' : undefined}
-              title={entry.value}
-              mono={entry.kind !== 'skill'}
-              meta={[t(`pack.why.${entry.why}` as LocaleKey)]}
-              end={
-                entry.found === null ? (
-                  <span className={hub.tag} data-tone="plain">
-                    {t('pack.relative')}
-                  </span>
-                ) : entry.found ? (
-                  <span className={hub.tag}>
-                    <Icon name="check" size={11} />
-                    {t('pack.found')}
-                  </span>
-                ) : (
-                  <span className={hub.tag} data-tone="plain">
-                    {t('pack.notFound')}
-                  </span>
-                )
-              }
+        {needsTrust && (
+          <label className={css.trust}>
+            <Checkbox
+              className={css.trustCheck}
+              checked={trusted}
+              data-testid="wl-pack-trust"
+              onChange={(event) => setTrusted(event.currentTarget.checked)}
             />
-          ))}
-        </PackSection>
-      )}
-
-      {needsTrust && (
-        <label className={css.trust}>
-          <Checkbox
-            className={css.trustCheck}
-            checked={trusted}
-            data-testid="wl-pack-trust"
-            onChange={(event) => setTrusted(event.currentTarget.checked)}
-          />
-          <span>{t('pack.trust').replace('{dir}', preview.skillsRoot)}</span>
-        </label>
-      )}
-
+            <span>{t('pack.trust').replace('{dir}', preview.skillsRoot)}</span>
+          </label>
+        )}
+      </div>
       <div className={css.foot}>
         <div className={css.footInfo}>
           {t('pack.confirmDesc')

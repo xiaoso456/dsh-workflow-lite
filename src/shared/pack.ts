@@ -267,8 +267,6 @@ export type PackItemState =
   | 'output'
   /** 已经在资料目录里（`{assets}/…`）：随资料目录一起打包。 */
   | 'assets'
-  /** 网址、自定义文本：写在图里，原样保留。 */
-  | 'inline'
 
 export interface PackScanItem {
   /** 选中时回传的键。 */
