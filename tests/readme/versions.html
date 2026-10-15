@@ -1,0 +1,109 @@
+<!doctype html>
+<!--
+  README「版本线」图的排版。数据（tests/readme/versions.json + CHANGELOG 里的日期 + package.json 的版本号）
+  由 tests/readme-versions.mjs 算好，调用 window.render(data) 画进来；它再按 2 倍像素截成
+  assets/versions.<lang>.png。直接用浏览器打开本页只有空白——没有数据。
+
+  版本线按「第几个版本」等距摆，不按日期定间距：这条线讲的是版本，不是时间。
+  配色、字体、背景和封面（hero.html）一致；页宽 1040，GitHub 上约显示成 880 宽。
+  背景透明，只有卡片本身是圆角深色，浅色 / 深色的 GitHub 页面上都能放。
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>versions</title>
+<style>
+  :root {
+    --bg: #0a0e15;
+    --line: rgb(140 170 220 / 14%);
+    --text: #e8eef8;
+    --text-2: #aab7ca;
+    --text-3: #707e93;
+    --accent: #4d94ff;
+    --accent-dim: #2f5fae;
+    --accent-soft: rgb(77 148 255 / 16%);
+    --amber: #f5b544;
+    --mono: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: transparent; }
+  body { width: 1040px; }
+  .card {
+    padding: 30px 40px 30px;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    background:
+      radial-gradient(520px 200px at 78% -10%, rgb(77 148 255 / 16%), transparent 70%),
+      radial-gradient(rgb(140 170 220 / 7%) 1px, transparent 1px) 0 0 / 22px 22px,
+      var(--bg);
+    color: var(--text);
+    font-family: "Microsoft YaHei UI", "PingFang SC", "Noto Sans SC", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ol { display: grid; grid-template-columns: repeat(var(--n), 1fr); gap: 0 18px; margin: 0; padding: 0; list-style: none; }
+  .stop { min-width: 0; }
+
+  /* 轨道：圆点 + 通向下一站的线。线从点出发，铺满这一栏，接到下一栏的点。 */
+  .rail { display: flex; align-items: center; height: 16px; margin-bottom: 14px; }
+  .dot {
+    flex: none; width: 12px; height: 12px; border-radius: 50%;
+    background: var(--accent-dim); box-shadow: 0 0 0 4px rgb(77 148 255 / 10%);
+  }
+  .seg { flex: 1 1 auto; height: 2px; margin: 0 6px 0 8px; border-radius: 1px; background: var(--accent-dim); }
+  .stop:last-child .seg { display: none; }
+
+  /* 最新发布的那一版：亮点 + 外圈光；它后面通向「还没发」的线是虚线。 */
+  .stop[data-state="current"] .dot {
+    background: var(--accent);
+    box-shadow: 0 0 0 4px var(--accent-soft), 0 0 18px rgb(77 148 255 / 70%);
+  }
+  .stop[data-state="current"] .seg {
+    background: repeating-linear-gradient(90deg, rgb(245 181 68 / 70%) 0 7px, transparent 7px 13px);
+  }
+
+  /* 还没发的：空心点。 */
+  .stop[data-state="next"] .dot { background: var(--bg); box-shadow: inset 0 0 0 2px var(--amber); }
+
+  /* 每站一个版本号；改过几个版本的写成 起~止。 */
+  .head { display: flex; gap: 8px; align-items: center; height: 22px; margin-bottom: 6px; }
+  .ver { font-family: var(--mono); font-size: 14px; font-weight: 700; color: var(--text-3); }
+  .stop[data-state="current"] .ver { color: var(--accent); }
+  .stop[data-state="next"] .ver { color: var(--amber); }
+  .chip {
+    padding: 1px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent);
+    font-size: 11.5px; font-weight: 650; white-space: nowrap;
+  }
+  .stop[data-state="next"] .chip { background: rgb(245 181 68 / 14%); color: var(--amber); }
+
+  h3 { margin: 0 0 6px; font-size: 17px; font-weight: 650; color: var(--text-2); }
+  .stop[data-state="current"] h3, .stop[data-state="next"] h3 { color: var(--text); }
+  p { margin: 0; color: var(--text-3); font-size: 13px; line-height: 1.65; }
+  .stop[data-state="current"] p, .stop[data-state="next"] p { color: var(--text-2); }
+</style>
+</head>
+<body>
+  <div class="card"><ol id="line"></ol></div>
+  <script>
+    const esc = (t) => String(t).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c])
+    // data: { lang, labels: { current, next }, stops: [{ label, state, title, lines }] }
+    window.render = (data) => {
+      document.documentElement.lang = data.lang === 'en' ? 'en' : 'zh-CN'
+      const line = document.getElementById('line')
+      line.style.setProperty('--n', String(data.stops.length))
+      line.innerHTML = data.stops
+        .map((stop) => {
+          const chip = stop.state === 'current' ? data.labels.current : stop.state === 'next' ? data.labels.next : ''
+          return `<li class="stop" data-state="${stop.state}">
+            <div class="rail"><i class="dot"></i><i class="seg"></i></div>
+            <div class="head"><b class="ver">${esc(stop.label)}</b>${chip ? `<span class="chip">${esc(chip)}</span>` : ''}</div>
+            <h3>${esc(stop.title)}</h3>
+            <p>${stop.lines.map(esc).join('<br>')}</p>
+          </li>`
+        })
+        .join('')
+      window.__ready = true
+    }
+  </script>
+</body>
+</html>

@@ -96,6 +96,15 @@ DSH_WEB_TOKEN=<token> DSH_BASE=http://127.0.0.1:3190 node --experimental-strip-t
 - 词标重做：Pillow 把三个词按 4 倍尺寸画到同一基线上，整幅 LANCZOS 缩到 1/4，裁到墨迹外留 6% 边距；字体不进仓库，用时从 Google Fonts 取 `ofl/jua/Jua-Regular.ttf`。
 - README 两版开头都是「图标 + 词标」居中的一段 HTML，没有 H1；改文案两版同步。
 
+## README 版本线
+
+README 里、封面图下面的「版本线」是一张图（`assets/versions.{zh,en}.png`），挑重要变化，一条一站，不逐版本列。
+
+- 内容在 `tests/readme/versions.json`：每站写落在哪个版本（要显示成别的就写 `label`，改过几个版本的写 `to`）、标题、两行短话（中英各一份）；还没发的写 `"next"`。排版在 `tests/readme/versions.html`。
+- 出图：`pnpm run timeline`（要一个带 DevTools 端口的 Chrome：`node tests/lib/cdp-chrome-launch.mjs 9222`，不用起 dsh）。脚本对照 `CHANGELOG.md`，json 里的版本不存在、或有新的小版本没写进 json 就报错。
+- 发版时：把 `"next"` 改成这个版本号（有新的重要变化就加一站），重跑，新图一起提交。
+- 标题 ≤ 7 个汉字 / 18 个英文字符，短话每行 ≤ 9 个汉字 / 22 个英文字符，站数 6 站左右；出图后看一眼两张图。
+
 ## README 封面图
 
 README 有中英两版：`README.md`（中文，默认）与 `README.en.md`（英文），开头互相链接。各用一张封面图：`assets/hero.zh.png`、`assets/hero.en.png`（2 倍像素），由同一页 HTML 按语言排版后截图得到，图里的界面都是真实截图（英文版用英文界面和英文示例）。

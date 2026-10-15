@@ -24,6 +24,8 @@
 
 ![dsh-workflow-lite：画布 → 计划提示词 → 模型执行](./assets/hero.zh.png)
 
+[![版本线，详见更新记录](./assets/versions.zh.png)](./CHANGELOG.md)
+
 ## 安装
 
 适配 DeepSeek Harness 0.2.0，包括它的各个预览版（如 0.2.0-rc.2）。

@@ -1,0 +1,61 @@
+{
+  "_说明": "README「版本线」图的内容：挑重要的变化，一条一站，按先后排；每站写它落在哪个版本（version，要和 CHANGELOG 里的版本号一致）、一个标题、两行短话（lines）。图上缺省显示 v<version>；要显示成别的（比如 v0.2.x）就写 label；改过好几个版本的写 to，显示成 v起~v止。还没发的 version 写 \"next\"（CHANGELOG 的 Unreleased 有内容才会画出来）。发版后把 \"next\" 改成真正的版本号，再加新的 next。标题不超过 7 个汉字 / 18 个英文字符，每行不超过 9 个汉字 / 22 个英文字符，不然会折行。",
+  "stops": [
+    {
+      "version": "0.1.0",
+      "zh": {
+        "title": "画布编排",
+        "lines": ["步骤与条件连线", "分支、循环"]
+      },
+      "en": {
+        "title": "Canvas flows",
+        "lines": ["Conditional edges,", "branches and loops"]
+      }
+    },
+    {
+      "version": "0.1.0",
+      "zh": {
+        "title": "计划与版本",
+        "lines": ["计划提示词、进度", "版本保存与对比"]
+      },
+      "en": {
+        "title": "Plan & versions",
+        "lines": ["Plan prompt, progress", "Save and diff versions"]
+      }
+    },
+    {
+      "version": "0.2.0",
+      "zh": {
+        "title": "工作流中心",
+        "lines": ["实例与工作流两栏", "全站过渡动效"]
+      },
+      "en": {
+        "title": "Workflow hub",
+        "lines": ["Two-pane runs and", "workflows, motion"]
+      },
+      "label": "v0.2.x"
+    },
+    {
+      "version": "0.3.0",
+      "zh": {
+        "title": "图片预览",
+        "lines": ["本地图片能显示", "点开放大"]
+      },
+      "en": {
+        "title": "Image preview",
+        "lines": ["Local images render,", "click to zoom"]
+      }
+    },
+    {
+      "version": "next",
+      "zh": {
+        "title": "导入导出",
+        "lines": ["打成 .wflite.zip", "导入前先看清单"]
+      },
+      "en": {
+        "title": "Import / export",
+        "lines": ["Pack as .wflite.zip,", "review before import"]
+      }
+    }
+  ]
+}

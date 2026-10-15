@@ -144,6 +144,7 @@
     "lint": "biome check .",
     "format": "biome check --write .",
     "hero": "node --experimental-strip-types tests/readme-shots.mjs && node tests/readme-hero.mjs",
-    "hero:render": "node tests/readme-hero.mjs"
+    "hero:render": "node tests/readme-hero.mjs",
+    "timeline": "node tests/readme-versions.mjs"
   }
 }
