@@ -15,46 +15,46 @@
     {
       "version": "0.1.0",
       "zh": {
-        "title": "计划与版本",
-        "lines": ["计划提示词、进度", "版本保存与对比"]
+        "title": "流程与版本",
+        "lines": ["计划、进度", "版本控制"]
       },
       "en": {
-        "title": "Plan & versions",
-        "lines": ["Plan prompt, progress", "Save and diff versions"]
+        "title": "Flows & versions",
+        "lines": ["Plans and progress", "Version control"]
       }
     },
     {
       "version": "0.2.0",
       "zh": {
-        "title": "工作流中心",
-        "lines": ["实例与工作流两栏", "全站过渡动效"]
+        "title": "交互",
+        "lines": ["全站动效", "工作流管理"]
       },
       "en": {
-        "title": "Workflow hub",
-        "lines": ["Two-pane runs and", "workflows, motion"]
+        "title": "Interaction",
+        "lines": ["Site-wide motion", "Workflow management"]
       },
       "label": "v0.2.x"
     },
     {
       "version": "0.3.0",
       "zh": {
-        "title": "图片预览",
-        "lines": ["本地图片能显示", "点开放大"]
+        "title": "预览增强",
+        "lines": ["markdown渲染", "图片预览"]
       },
       "en": {
-        "title": "Image preview",
-        "lines": ["Local images render,", "click to zoom"]
+        "title": "Better previews",
+        "lines": ["Markdown rendering", "Image preview"]
       }
     },
     {
       "version": "0.4.0",
       "zh": {
-        "title": "导入导出",
-        "lines": ["工作流导出成包", "导入前确认清单"]
+        "title": "分享",
+        "lines": ["导入", "导出"]
       },
       "en": {
-        "title": "Import / export",
-        "lines": ["Pack the whole flow", "Review before import"]
+        "title": "Sharing",
+        "lines": ["Import", "Export"]
       }
     }
   ]
