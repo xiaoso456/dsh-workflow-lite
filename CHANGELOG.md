@@ -5,7 +5,7 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
-## [Unreleased]
+## [0.4.0] - 2026-10-15
 
 这一版加了工作流的导入导出。已有的工作流、版本、实例状态文件照旧能读，不导入包就不会写出新东西。
 

@@ -47,7 +47,7 @@
       }
     },
     {
-      "version": "next",
+      "version": "0.4.0",
       "zh": {
         "title": "导入导出",
         "lines": ["打成 .wflite.zip", "导入前先看清单"]
