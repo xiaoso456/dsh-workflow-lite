@@ -22,6 +22,7 @@ import { HubImport } from './HubImport.tsx'
 import { HubWorkflowList } from './HubWorkflowList.tsx'
 import hub from './hub.module.css'
 import { Icon } from './Icon.tsx'
+import { useResizeFlip } from './motion.tsx'
 import { Callout } from './PackRow.tsx'
 import css from './pack.module.css'
 import { cx } from './primitives.tsx'
@@ -82,6 +83,8 @@ export function HubWorkflows(props: {
 
   // 把包拖到这一页上：直接进导入（宿主那层「拖动到此处即可添加」不弹，见 useFileDrop）。
   const dragging = useFileDrop(openImport)
+  // 顶上的结果条收掉：条在原地淡出，下面的版本列表滑上来；新出现的从左边浮入。
+  const detailRef = useResizeFlip({ exit: true, enter: true })
 
   if (workflows === null) {
     return (
@@ -216,7 +219,7 @@ export function HubWorkflows(props: {
         />
       ) : (
         /* 换了一张就换一整块：标题、版本列表重新入场。 */
-        <div key={selected.name} className={cx(hub.wfDetail, hub.paneIn)}>
+        <div key={selected.name} ref={detailRef} className={cx(hub.wfDetail, hub.paneIn)}>
           <div className={hub.wfHead}>
             <div className={hub.wfHeadText}>
               <p className={hub.wfTitle}>{selected.name}</p>
@@ -254,7 +257,12 @@ export function HubWorkflows(props: {
             )}
           </div>
           {notice !== null && (
-            <Callout tone="ok" testId="wl-pack-notice">
+            <Callout
+              tone="ok"
+              testId="wl-pack-notice"
+              closeLabel={t('common.close')}
+              onClose={() => setNotice(null)}
+            >
               {notice}
             </Callout>
           )}

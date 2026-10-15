@@ -182,6 +182,42 @@
   margin-top: 2px;
 }
 
+.calloutText {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* 右上角的 ✕：跟着提醒的颜色走，平时淡一点，悬停时垫一层底。 */
+.calloutClose {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin: 0 -6px 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  opacity: 0.7;
+  cursor: pointer;
+  transition:
+    opacity 120ms linear,
+    background-color 120ms linear;
+}
+
+.calloutClose:hover {
+  background: color-mix(in srgb, currentColor 14%, transparent);
+  opacity: 1;
+}
+
+.calloutClose:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 1px;
+  opacity: 1;
+}
+
 .callout[data-tone="warn"] {
   background: var(--wl-warn-soft);
   color: var(--wl-warn);

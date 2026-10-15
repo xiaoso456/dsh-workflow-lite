@@ -213,6 +213,15 @@ async function run(session) {
   check((await session.evaluate(textOf('wl-pack-notice'))).includes('.wflite.zip'), '应说导出了')
   pass('导出：浏览器下载到 .wflite.zip')
 
+  // 结果条右边的 ✕：点了不是一下消失，条在原地淡出（影子没有 testid，带 aria-hidden），放完才没。
+  const ghosts = `[...document.querySelectorAll('[aria-hidden="true"][inert]')].filter((el) => el.textContent.includes('.wflite.zip')).length`
+  await session.evaluate(clickTestId('wl-pack-notice-close'))
+  await sleep(50)
+  check((await session.evaluate(gone('wl-pack-notice'))) === true, '点 ✕ 后真的那条应该已经收掉')
+  check((await session.evaluate(ghosts)) === 1, '点 ✕ 后应留一份影子淡出，不是一下消失')
+  await waitFor(session, `${ghosts} === 0`, { timeoutMs: 3000 })
+  pass('结果条：✕ 收掉时淡出，放完才没')
+
   // 4) 导入同一个包：名字撞了，缺省另存为新名字；资料放到哪写清楚；skill 内容一样跳过。
   await session.evaluate(clickTestId('wl-hub-wf-import'))
   await waitFor(session, exists('wl-pack-pick'))

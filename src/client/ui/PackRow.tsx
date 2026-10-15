@@ -184,6 +184,9 @@ export function Callout(props: {
   icon?: IconName
   children: React.ReactNode
   testId?: string
+  /** 给了就在右边放一个 ✕，点一下收掉这条（`closeLabel` 是它的名字与悬浮提示）。 */
+  onClose?: () => void
+  closeLabel?: string
 }): React.JSX.Element {
   return (
     <div className={css.callout} data-tone={props.tone} role="status" data-testid={props.testId}>
@@ -191,7 +194,19 @@ export function Callout(props: {
         name={props.icon ?? (props.tone === 'ok' ? 'check' : props.tone ? 'alert' : 'info')}
         size={14}
       />
-      <span>{props.children}</span>
+      <span className={css.calloutText}>{props.children}</span>
+      {props.onClose !== undefined && (
+        <button
+          type="button"
+          className={css.calloutClose}
+          data-testid={props.testId === undefined ? undefined : `${props.testId}-close`}
+          aria-label={props.closeLabel}
+          data-tip={props.closeLabel}
+          onClick={props.onClose}
+        >
+          <Icon name="x" size={12} />
+        </button>
+      )}
     </div>
   )
 }

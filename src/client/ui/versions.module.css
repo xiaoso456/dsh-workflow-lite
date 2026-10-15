@@ -10,6 +10,8 @@
   flex-direction: column;
   gap: 10px;
   min-height: 0;
+  /* 上面的提示条收掉时列表往上滑，不透明才能把淡出的影子盖住（见 useResizeFlip）。 */
+  background: var(--wl-panel);
 }
 
 /* 编辑页的版本对话框：比普通的编辑框宽一点、高度固定（列表在里面滚）。 */
