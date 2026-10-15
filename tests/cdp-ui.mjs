@@ -1208,6 +1208,25 @@ async function run(session) {
       await centerOf(session, `[data-testid="wl-wf-item"][data-value=${JSON.stringify(name)}]`),
     )
   }
+  /**
+   * 把指针移到**一定在下拉面板外面**的一点，让面板收到 pointerleave。
+   * 别写死坐标：面板高度随图的数量走（图多时是一列长滚动区 + 搜索框），
+   * 写死的那点会被长列表盖住，于是下拉不收、这一步假红。
+   */
+  const moveOutOfMenu = async () => {
+    const point = await session.evaluate(`(() => {
+      const item = document.querySelector('[data-testid="wl-wf-item"]');
+      if (item === null) return { x: 5, y: 5 };
+      const panel = item.closest('[role]') || item.parentElement;
+      const box = panel.getBoundingClientRect();
+      return {
+        x: Math.max(4, Math.round(box.left - 60)),
+        y: Math.round(Math.min(box.bottom + 40, innerHeight - 20)),
+      };
+    })()`)
+    await mouseMove(session, point)
+  }
+
   await session.evaluate(`document.querySelector('.react-flow').dataset.probe = 'same'`)
   await clickRow(THIRD)
   await waitFor(
@@ -1220,7 +1239,7 @@ async function run(session) {
     await session.evaluate(`document.querySelector('.react-flow')?.dataset.probe === 'same'`),
     '切换工作流时画布不该卸载重建',
   )
-  await mouseMove(session, { x: 700, y: 520 })
+  await moveOutOfMenu()
   await waitFor(session, `document.querySelector('[data-testid="wl-wf-item"]') === null`)
   pass('鼠标点选切换：下拉留着，移出才收；画布不重建')
   await clickRow(RENAMED)
@@ -1246,7 +1265,7 @@ async function run(session) {
   )
   check(await session.evaluate(exists('wl-wf-item')), '点重新加载后下拉应先留着')
   pass('下拉：选中滑块贴行，重新加载不收面板、有反馈')
-  await mouseMove(session, { x: 700, y: 520 })
+  await moveOutOfMenu()
   await waitFor(session, `document.querySelector('[data-testid="wl-wf-item"]') === null`)
   await rpc('graph/delete', { name: THIRD }).catch(() => {})
   // 下面接着在下拉里删正开着的这张：把下拉再打开。
