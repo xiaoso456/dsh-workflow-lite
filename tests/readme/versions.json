@@ -50,11 +50,11 @@
       "version": "0.4.0",
       "zh": {
         "title": "导入导出",
-        "lines": ["打成 .wflite.zip", "导入前先看清单"]
+        "lines": ["工作流导出成包", "导入前确认清单"]
       },
       "en": {
         "title": "Import / export",
-        "lines": ["Pack as .wflite.zip,", "review before import"]
+        "lines": ["Pack the whole flow", "Review before import"]
       }
     }
   ]
