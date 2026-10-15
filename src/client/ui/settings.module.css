@@ -243,9 +243,7 @@ label.row:hover {
 @media (prefers-reduced-motion: reduce) {
   .mode,
   .mode::before,
-  .modeIcon::before,
-  .switch::before,
-  .knob {
+  .modeIcon::before {
     transition: none;
   }
 }

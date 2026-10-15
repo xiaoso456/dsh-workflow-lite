@@ -53,6 +53,8 @@ export function HubImport(props: {
   scope: PackScope
   /** 拖到页面上的那个文件：一进来就开始传。 */
   file: File | null
+  /** 有文件正拖在这一页上（高亮拖放区）。 */
+  over: boolean
   /** 已有的工作流名（小写，判断新名字撞没撞）。 */
   taken: ReadonlySet<string>
   /** 编辑页正开着的那张（并入它之前先把改动写下去）。 */
@@ -65,7 +67,6 @@ export function HubImport(props: {
   const { t, rpc } = props
   const [phase, setPhase] = useState<Phase>({ kind: 'pick' })
   const [error, setError] = useState<string | null>(null)
-  const [over, setOver] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   /** 传上去还没导入的暂存：离开这一页时让主机删掉。 */
   const pending = useRef<string | null>(null)
@@ -142,25 +143,7 @@ export function HubImport(props: {
           {phase.text}
         </div>
       ) : phase.kind === 'pick' ? (
-        // biome-ignore lint/a11y/noStaticElementInteractions: 拖放区；键盘走里面的「选择文件」按钮
-        <div
-          className={css.drop}
-          data-over={over}
-          onDragOver={(event) => {
-            if (!event.dataTransfer.types.includes('Files')) return
-            event.preventDefault()
-            event.stopPropagation()
-            setOver(true)
-          }}
-          onDragLeave={() => setOver(false)}
-          onDrop={(event) => {
-            event.preventDefault()
-            event.stopPropagation()
-            setOver(false)
-            const file = event.dataTransfer.files[0]
-            if (file !== undefined) void start(file)
-          }}
-        >
+        <div className={css.drop} data-over={props.over}>
           <span className={css.dropIcon}>
             <Icon name="upload" size={20} />
           </span>

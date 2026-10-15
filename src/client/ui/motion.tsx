@@ -1067,6 +1067,18 @@ export function CheckMark(): React.JSX.Element {
 }
 
 /**
+ * 纯展示的开关（点击由外面的按钮管，比如整行都是开关）：样子和 `ui.switch` 按钮一样，
+ * `on` 决定滑块在哪一头；全局只有这一份，见 ui.module.css 的 `.switch` / `.knob`。
+ */
+export function SwitchTrack(props: { on: boolean }): React.JSX.Element {
+  return (
+    <span className={ui.switch} data-on={props.on} aria-hidden="true">
+      <span className={ui.knob} />
+    </span>
+  )
+}
+
+/**
  * 勾选框：原生 `<input type="checkbox">` 透明地叠在方框上（键盘、`<label>` 点击、`checked` 都照旧），
  * 看得见的是方框——先填底色，✓ 再画出来（{@link CheckMark}）。除 `type` 外的属性都给 input。
  */

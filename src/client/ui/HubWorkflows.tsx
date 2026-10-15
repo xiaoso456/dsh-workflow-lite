@@ -26,6 +26,7 @@ import { Callout } from './PackRow.tsx'
 import css from './pack.module.css'
 import { cx } from './primitives.tsx'
 import ui from './ui.module.css'
+import { useFileDrop } from './useFileDrop.ts'
 import { VersionList } from './VersionList.tsx'
 
 /** 右栏现在是什么：版本（缺省）、导出选中那张、导入。 */
@@ -55,7 +56,6 @@ export function HubWorkflows(props: {
   const [pane, setPane] = useState<Pane>('versions')
   /** 拖到页面上的包（交给导入页）。 */
   const [dropped, setDropped] = useState<File | null>(null)
-  const [dragging, setDragging] = useState(false)
   /** 导入导出做完的那句结果。 */
   const [notice, setNotice] = useState<string | null>(null)
 
@@ -78,23 +78,8 @@ export function HubWorkflows(props: {
     setPane('import')
   }
 
-  // 把包拖到这一页上：直接进导入。
-  const dropProps = {
-    onDragOver: (event: React.DragEvent) => {
-      if (!event.dataTransfer.types.includes('Files')) return
-      event.preventDefault()
-      setDragging(true)
-    },
-    onDragLeave: (event: React.DragEvent) => {
-      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false)
-    },
-    onDrop: (event: React.DragEvent) => {
-      event.preventDefault()
-      setDragging(false)
-      const file = event.dataTransfer.files[0]
-      if (file !== undefined) openImport(file)
-    },
-  }
+  // 把包拖到这一页上：直接进导入（宿主那层「拖动到此处即可添加」不弹，见 useFileDrop）。
+  const dragging = useFileDrop(openImport)
 
   if (workflows === null) {
     return (
@@ -111,6 +96,7 @@ export function HubWorkflows(props: {
       rpc={rpc}
       scope={props.scope}
       file={dropped}
+      over={dragging}
       taken={new Set(workflows.map((entry) => entry.name.toLowerCase()))}
       current={current}
       flush={props.flush}
@@ -133,14 +119,14 @@ export function HubWorkflows(props: {
   if (workflows.length === 0) {
     if (pane === 'import') {
       return (
-        <div className={cx(hub.wfPage, dragging && css.dropping)} {...dropProps}>
+        <div className={cx(hub.wfPage, dragging && css.dropping)} data-wl-file-drop="">
           <div className={hub.side} />
           {importPane}
         </div>
       )
     }
     return (
-      <div className={cx(hub.empty, dragging && css.dropping)} {...dropProps}>
+      <div className={cx(hub.empty, dragging && css.dropping)} data-wl-file-drop="">
         <span className={hub.emptyIcon}>
           <Icon name="folder" size={20} />
         </span>
@@ -163,7 +149,7 @@ export function HubWorkflows(props: {
   if (selected === undefined) return <div />
   const editing = selected.name === current
   return (
-    <div className={cx(hub.wfPage, dragging && css.dropping)} {...dropProps}>
+    <div className={cx(hub.wfPage, dragging && css.dropping)} data-wl-file-drop="">
       <div className={hub.side}>
         <div className={css.tools}>
           <button

@@ -28,7 +28,7 @@ import hand from './handoff.module.css'
 import { Icon } from './Icon.tsx'
 import css from './input.module.css'
 import ins from './inspector.module.css'
-import { CheckMark, EDIT_VIEW, useResizeFlip, useRowKeys, useSwap } from './motion.tsx'
+import { CheckMark, EDIT_VIEW, SwitchTrack, useResizeFlip, useRowKeys, useSwap } from './motion.tsx'
 import { InputHead } from './NodeHeads.tsx'
 import { cx } from './primitives.tsx'
 import { stepName } from './resourceUi.ts'
@@ -306,9 +306,7 @@ export function InputPanel(props: InputPanelProps): React.JSX.Element {
               data-testid="wl-input-other"
               onClick={() => patch({ other: data.other === true ? undefined : true })}
             >
-              <span className={css.switch} aria-hidden="true">
-                <span className={css.knob} />
-              </span>
+              <SwitchTrack on={data.other === true} />
               <span className={css.requiredText}>
                 <span className={css.requiredTitle}>{t('input.other')}</span>
                 <span className={css.requiredDesc}>{t('input.otherDesc')}</span>
@@ -324,9 +322,7 @@ export function InputPanel(props: InputPanelProps): React.JSX.Element {
             data-testid="wl-input-required"
             onClick={() => patch({ required: data.required === true ? undefined : true })}
           >
-            <span className={css.switch} aria-hidden="true">
-              <span className={css.knob} />
-            </span>
+            <SwitchTrack on={data.required === true} />
             <span className={css.requiredText}>
               <span className={css.requiredTitle}>{t('input.required')}</span>
               <span className={css.requiredDesc}>{t('input.requiredDesc')}</span>

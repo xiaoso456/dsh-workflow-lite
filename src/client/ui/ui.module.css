@@ -1134,6 +1134,11 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
   outline-offset: 2px;
 }
 
+.switch:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
 .knob {
   position: absolute;
   top: 2px;
@@ -1146,11 +1151,13 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
   transition: transform 160ms var(--wl-ease);
 }
 
-.switch[aria-checked="true"]::before {
+.switch[aria-checked="true"]::before,
+.switch[data-on="true"]::before {
   opacity: 1;
 }
 
-.switch[aria-checked="true"] .knob {
+.switch[aria-checked="true"] .knob,
+.switch[data-on="true"] .knob {
   transform: translateX(12px);
 }
 

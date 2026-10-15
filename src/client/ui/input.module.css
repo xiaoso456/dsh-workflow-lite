@@ -116,46 +116,6 @@
   outline-offset: 1px;
 }
 
-.switch {
-  position: relative;
-  flex: none;
-  width: 30px;
-  height: 18px;
-  border-radius: 999px;
-  background: var(--wl-fill-strong);
-}
-
-/* 打开时的蓝底是叠上去的一层，用 opacity 淡入（不动背景色，只动合成层）。 */
-.switch::before {
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: var(--wl-accent);
-  content: "";
-  opacity: 0;
-  transition: opacity 140ms linear;
-}
-
-.knob {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: var(--wl-panel);
-  box-shadow: var(--wl-shadow-thumb);
-  transition: transform 160ms var(--wl-ease);
-}
-
-.required[aria-checked="true"] .switch::before {
-  opacity: 1;
-}
-
-.required[aria-checked="true"] .knob {
-  transform: translateX(12px);
-}
-
 .requiredText {
   display: flex;
   flex-direction: column;
@@ -219,9 +179,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .remove,
-  .switch::before,
-  .knob {
+  .remove {
     transition: none;
   }
 }

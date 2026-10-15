@@ -120,6 +120,43 @@ async function run(session) {
   await waitFor(session, exists('wl-hub-wf-export'))
   pass('工作流页：标题栏有「导出」，左栏有「导入」')
 
+  // 把包拖到这一页上：宿主那层「拖动到此处即可添加」不出现，放下直接进导入。
+  // 区域外的拖动照旧弹遮罩（对照），放下后遮罩收掉，宿主不会卡在拖动状态。
+  const overlay = `!!document.body.querySelector(':scope > div[role=status]')`
+  const fireDrag = (target, type) =>
+    session.evaluate(`(() => {
+      const el = ${target}
+      const data = new DataTransfer()
+      data.items.add(new File(['x'], 'a.wflite.zip'))
+      el.dispatchEvent(new DragEvent(${JSON.stringify(type)}, { bubbles: true, cancelable: true, dataTransfer: data }))
+    })()`)
+  const inside = `document.querySelector('[data-wl-file-drop]')`
+  const outside = `document.querySelector('[data-testid="wl-hub-open"]') ?? document.body`
+  await fireDrag(outside, 'dragenter')
+  await sleep(150)
+  check(await session.evaluate(overlay), '区域外拖进文件，宿主应弹遮罩（对照）')
+  await fireDrag(outside, 'dragleave')
+  await sleep(150)
+  check(!(await session.evaluate(overlay)), '拖出去遮罩应收掉')
+  await fireDrag(inside, 'dragenter')
+  await sleep(150)
+  check(!(await session.evaluate(overlay)), '拖在导入区域里，宿主的遮罩不该出现')
+  await fireDrag(outside, 'dragenter')
+  await fireDrag(inside, 'drop')
+  await waitFor(session, exists('wl-pack-import'))
+  check(!(await session.evaluate(overlay)), '放在区域里之后遮罩应收掉')
+  // 假包会被拒（传上去在检查时），等它不忙了再退出。
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-pack-back"]')?.disabled === false`,
+    {
+      timeoutMs: 30_000,
+    },
+  )
+  await session.evaluate(clickTestId('wl-pack-back'))
+  await waitFor(session, exists('wl-hub-wf-export'))
+  pass('拖到页面上：宿主遮罩不出现、放下进导入、遮罩不卡住')
+
   // 1) 导出第一步：v1 缺省勾上（和现在一样），没有「没存成版本」的提醒。
   await session.evaluate(clickTestId('wl-hub-wf-export'))
   await waitFor(session, exists('wl-pack-ver-1'))
