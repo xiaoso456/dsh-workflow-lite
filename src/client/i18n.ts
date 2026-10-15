@@ -92,7 +92,6 @@ export const zh = {
   'launch.run': '执行',
   'launch.runHere': '在本会话执行',
   'launch.runNew': '新建会话执行',
-  'launch.where': '在哪里执行',
   'launch.newSession': '新建会话',
   'launch.default': '默认',
   'launch.pick': '选一个会话执行',
@@ -100,8 +99,6 @@ export const zh = {
   'launch.none': '本工作区没有别的会话',
   'launch.here': '本会话',
   'launch.running': '运行中',
-  'launch.hint':
-    '会用这张图现在的样子建一个实例，往选中的会话（或在本工作区新建的会话）发一句话，模型拿到计划后开始执行，并跳到那个会话。',
   'launch.noBridge': '这里连不上会话，执行不了',
   'launch.noSession': '先打开一个会话再执行',
   'launch.conflict': '先处理顶部的冲突再执行',
@@ -1210,7 +1207,6 @@ export const en: Record<LocaleKey, string> = {
   'launch.run': 'Run',
   'launch.runHere': 'Run in this session',
   'launch.runNew': 'Run in a new session',
-  'launch.where': 'Where to run',
   'launch.newSession': 'New session',
   'launch.default': 'Default',
   'launch.pick': 'Run in another session',
@@ -1218,8 +1214,6 @@ export const en: Record<LocaleKey, string> = {
   'launch.none': 'No other sessions in this workspace',
   'launch.here': 'This session',
   'launch.running': 'Running',
-  'launch.hint':
-    'Creates an instance from the graph as it is now and sends one message to the chosen session (or a new one in this workspace); the model fetches the plan and starts, and you are taken to that session.',
   'launch.noBridge': 'Sessions are not reachable from here',
   'launch.noSession': 'Open a session first',
   'launch.conflict': 'Resolve the conflict at the top first',

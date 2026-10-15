@@ -124,7 +124,6 @@ export function Launch(props: LaunchProps): React.JSX.Element {
           </div>
         }
       >
-        <p className={ui.menuTitle}>{t('launch.where')}</p>
         {props.canCreate && (
           <>
             <button
@@ -178,7 +177,6 @@ export function Launch(props: LaunchProps): React.JSX.Element {
             </button>
           ))}
         </div>
-        <p className={css.pickerHint}>{t('launch.hint')}</p>
       </Popover>
     </div>
   )

@@ -200,6 +200,18 @@
   color: var(--wl-text-3);
 }
 
+/* 「在哪里执行」的会话列表：限高、在里面滚（会话多了不能把浮层撑出屏幕）；留着滚动条的位置，筛选时宽度不跳。 */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: max(120px, min(340px, calc(100dvh - 300px)));
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
 .searchInput {
   flex: 1 1 auto;
   min-width: 0;
@@ -649,15 +661,6 @@
 .sessionDot[data-running="true"] {
   background: var(--wl-ok);
   opacity: 1;
-}
-
-.pickerHint {
-  margin: 4px 0 0;
-  padding: 8px 8px 2px;
-  border-top: 1px solid var(--wl-line);
-  color: var(--wl-text-3);
-  font-size: var(--wl-fs-micro);
-  line-height: 1.5;
 }
 
 @container (max-width: 760px) {
