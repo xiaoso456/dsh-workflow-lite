@@ -82,6 +82,7 @@ DSH_WEB_TOKEN=<token> DSH_BASE=http://127.0.0.1:3190 node --experimental-strip-t
 | `cdp-inputs.mjs` | 执行前提问 |
 | `cdp-versions.mjs` | 版本、工作流中心「工作流」页 |
 | `cdp-config.mjs` | 工作流中心「设置」页（含外观：配色主题） |
+| `cdp-pack.mjs` | 工作流中心「工作流」页的导出、导入（另存为新名字、并入已有的） |
 
 ## 插件图标与词标
 

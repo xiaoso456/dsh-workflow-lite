@@ -100,6 +100,7 @@ import {
 } from './atomic.ts'
 import { mergeDocuments } from './merge.ts'
 import {
+  assetsDir,
   type DirScan,
   describeOccupant,
   dispatchDir,
@@ -281,6 +282,14 @@ export interface Repository {
   /** 改版本说明。 */
   noteVersion(workflow: string, n: number, note: string): Promise<Outcome<VersionEntry>>
   deleteVersion(workflow: string, n: number): Promise<Outcome<{ removed: true }>>
+  /**
+   * 导入一个工作流包里的版本（见 `host/pack/importer.ts`）：
+   * - `new`：建一张新工作流，版本保留包里的编号；名字被占了报 `conflict`；
+   * - `merge`：并入已有的那张，和已有版本内容一样的不再存（`duplicates`），其余接着最大编号往上数；
+   *   **不自动存**本机现在的内容（前端事先提醒过）。
+   * 两种都把 `current` 写成工作流现在的内容。检查都过了才调 `prepare`（解压资料、装 skill），它失败就整个停下。
+   */
+  importWorkflow(request: ImportRequest): Promise<Outcome<ImportResult>>
   /** 读一个节点模板的 `data` 本体（拿去用：半成品一律挡掉）。 */
   readTemplate(name: string): Promise<Outcome<NodeData>>
   /**
@@ -323,6 +332,33 @@ export interface Repository {
     target: string,
     when?: string,
   ): Promise<Outcome<WriteResult>>
+}
+
+/** 导入的一个版本。 */
+export interface ImportVersion {
+  n: number
+  createdAt: number
+  note: string
+  document: WorkflowDocument
+}
+
+export interface ImportRequest {
+  mode: 'new' | 'merge'
+  name: string
+  /** 按编号从小到大。 */
+  versions: ImportVersion[]
+  /** 导入后工作流的内容。 */
+  current: WorkflowDocument
+  /** 检查都过了、写版本与工作流之前做的事；拿到的是归一后的图名。 */
+  prepare?: (name: string) => Promise<Outcome<void>>
+}
+
+export interface ImportResult {
+  name: string
+  /** 写下的版本号，和 `request.versions` 一一对应（重复的那几个不在里面）。 */
+  versions: number[]
+  /** 和已有版本内容一样、没再存的（包里的编号）。 */
+  duplicates: number[]
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -917,6 +953,25 @@ class FileRepository implements Repository {
       } catch (error) {
         return mapWriteFailure(error, toVersions)
       }
+      // 资料目录同样跟着走（规矩和版本一样）。
+      const fromAssets = assetsDir(this.dataDir, from)
+      const toAssets = assetsDir(this.dataDir, target)
+      try {
+        if ((await pathKind(fromAssets)) === 'dir') {
+          if (sameName(from, target)) {
+            const temp = tempName(fromAssets)
+            await renamePath(fromAssets, temp)
+            await renamePath(temp, toAssets)
+          } else {
+            await removeTree(toAssets)
+            await renamePath(fromAssets, toAssets)
+          }
+        } else if (!sameName(from, target)) {
+          await removeTree(toAssets)
+        }
+      } catch (error) {
+        return mapWriteFailure(error, toAssets)
+      }
       this.dropBaselines(from)
       return ok({
         changed: [
@@ -945,6 +1000,7 @@ class FileRepository implements Repository {
         await unlinkFile(file)
         await removeTree(dispatchDir(this.dataDir, name))
         await removeTree(versionsDir(this.dataDir, name))
+        await removeTree(assetsDir(this.dataDir, name))
       } catch (error) {
         return mapWriteFailure(error, file)
       }
@@ -1097,6 +1153,111 @@ class FileRepository implements Repository {
         return mapWriteFailure(error, file)
       }
       return ok({ removed: true as const })
+    })
+  }
+
+  async importWorkflow(request: ImportRequest): Promise<Outcome<ImportResult>> {
+    return this.withLock(async () => {
+      const resolved = this.resolveName(request.name)
+      if (!resolved.ok) return resolved
+      const name = resolved.result
+      const ready = await this.ensureLayout()
+      if (!ready.ok) return ready
+
+      for (const [label, document] of [
+        ...request.versions.map((version) => [`v${version.n}`, version.document] as const),
+        ['当前内容', request.current] as const,
+      ]) {
+        const problems = [
+          ...readDocument(writeDocument(document)).problems,
+          ...this.validate(document, name),
+        ].filter((problem) => problem.level === 'save')
+        if (problems.length > 0) {
+          return fail('blocked', `包里的 ${label} 有保存级问题：${describeProblems(problems)}`, {
+            problems,
+          })
+        }
+      }
+
+      const occupant = await workflowOccupant(this.dataDir, name)
+      const existing: StoredVersion[] = []
+      if (request.mode === 'new') {
+        if (occupant !== null) {
+          return fail('conflict', `工作流 ${name} 已经在了，换个名字`, {
+            workflow: name,
+            occupant,
+          })
+        }
+      } else {
+        if (occupant !== 'file') return fail('not_found', `图 ${name} 不存在`, { workflow: name })
+        existing.push(...(await readVersions(this.dataDir, name)))
+      }
+
+      // 排好每个版本落到哪个编号。
+      const keys = new Set(
+        existing.flatMap((version) =>
+          version.document === null ? [] : [contentKey(version.document)],
+        ),
+      )
+      let next = existing.reduce((max, version) => Math.max(max, version.n), 0)
+      const planned: { n: number; version: ImportVersion }[] = []
+      const duplicates: number[] = []
+      for (const version of request.versions) {
+        const key = contentKey(version.document)
+        if (request.mode === 'merge') {
+          if (keys.has(key)) {
+            duplicates.push(version.n)
+            continue
+          }
+          next += 1
+          planned.push({ n: next, version })
+        } else {
+          planned.push({ n: version.n, version })
+        }
+        keys.add(key)
+      }
+      if (existing.length + planned.length > MAX_VERSIONS) {
+        return fail(
+          'invalid_args',
+          `一个工作流最多存 ${MAX_VERSIONS} 个版本，导入后会有 ${existing.length + planned.length} 个，先删掉一些旧的`,
+          { workflow: name },
+        )
+      }
+
+      if (request.prepare !== undefined) {
+        const prepared = await request.prepare(name)
+        if (!prepared.ok) return prepared
+      }
+
+      const dir = versionsDir(this.dataDir, name)
+      try {
+        // 新建时那个名字下可能留着没人认领的旧版本（工作流早被删了）：清掉，免得混进来。
+        if (request.mode === 'new') await removeTree(dir)
+        if (planned.length > 0) await ensureDir(dir)
+        for (const { n, version } of planned) {
+          await writeFileAtomic(
+            versionFile(this.dataDir, name, n),
+            versionText({
+              n,
+              createdAt: version.createdAt,
+              note: version.note,
+              document: version.document,
+            }),
+          )
+        }
+      } catch (error) {
+        return mapWriteFailure(error, dir)
+      }
+
+      const file = workflowFile(this.dataDir, name)
+      const text = writeDocument(request.current)
+      try {
+        await writeFileAtomic(file, text)
+      } catch (error) {
+        return mapWriteFailure(error, file)
+      }
+      this.rememberBaseline(name, await hashOf(text), request.current)
+      return ok({ name, versions: planned.map((entry) => entry.n), duplicates })
     })
   }
 

@@ -23,7 +23,7 @@ import type { T } from '../i18n.ts'
 import { crumbs } from '../model/hostPath.ts'
 import { errorMessage } from '../rpc.ts'
 import { Icon } from './Icon.tsx'
-import { FadeMark, FadeText, PickThumb } from './motion.tsx'
+import { CheckMark, FadeMark, FadeText, PickThumb } from './motion.tsx'
 import overlay from './overlay.module.css'
 import css from './picker.module.css'
 import { cx, Modal } from './primitives.tsx'
@@ -412,7 +412,7 @@ function PickRow(props: {
           data-testid="wl-picker-check"
           onClick={props.onToggle}
         >
-          <Icon name="check" size={10} />
+          <CheckMark />
         </button>
       )}
     </div>

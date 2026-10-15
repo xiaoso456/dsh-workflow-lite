@@ -15,7 +15,7 @@ import { useConfirm } from './Confirm.tsx'
 import { HubRunStatus } from './HubRunStatus.tsx'
 import hub from './hub.module.css'
 import { Icon } from './Icon.tsx'
-import { SwapText } from './motion.tsx'
+import { Checkbox, SwapText } from './motion.tsx'
 import { cx } from './primitives.tsx'
 import { RunStatusBadge } from './RunTopBar.tsx'
 import ui from './ui.module.css'
@@ -183,8 +183,7 @@ export function HubRunRow(props: {
           },
           children: item.statePath !== undefined && (
             <label>
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={withState}
                 data-testid="wl-hub-delete-state"
                 onChange={(event) => setWithState(event.currentTarget.checked)}

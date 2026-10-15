@@ -1,0 +1,243 @@
+/**
+ * 导入导出的真浏览器验收：工作流中心「工作流」页，结论以磁盘 / RPC 为准。
+ *
+ * 建一张读一个绝对路径文件（再加一个本机已装的 skill，有的话）的工作流、存一版 →
+ * 导出：选版本 → 资源清单（文件缺省勾上）→ 下载 zip →
+ * 导入同一个包：名字撞了，另存为新名字（预览里写明资料放到哪、skill 内容一样跳过）→ 确认卡 → 落盘、图里改成 {assets}/… →
+ * 再导入一次，选并入：版本全都重复，不再存。
+ *
+ * 不往 `~/.agents/skills` 写东西：只引用本机已经装着的 skill（导回来是「内容一样，跳过」）。
+ *
+ * usage: DSH_WEB_TOKEN=<token> DSH_BASE=http://127.0.0.1:3190 node --experimental-strip-types tests/cdp-pack.mjs
+ */
+
+import { mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
+import { bootToCanvas, screenshot, setReactInput } from './lib/canvas-harness.mjs'
+import { openPage, waitFor } from './lib/cdp-session.mjs'
+import { rpc } from './lib/web-session.mjs'
+
+const NAME = `pack-${Date.now().toString(36)}`
+const COPY = `${NAME}-copy`
+const DOWNLOADS = resolve('tests/runs/pack-downloads')
+const EXT = join(tmpdir(), `${NAME}-ext`)
+const SPEC = join(EXT, 'spec.md').replace(/\\/gu, '/')
+const sleep = (ms) => new Promise((resolveWait) => setTimeout(resolveWait, ms))
+
+let step = 0
+function check(condition, message) {
+  if (!condition) throw new Error(`FAIL: ${message}`)
+}
+function pass(message) {
+  step += 1
+  console.log(`  ${String(step).padStart(2)} ${message}`)
+}
+
+const exists = (testId) => `document.querySelector('[data-testid="${testId}"]') !== null`
+const gone = (testId) => `document.querySelector('[data-testid="${testId}"]') === null`
+const clickTestId = (testId) =>
+  `(() => { const el = document.querySelector('[data-testid="${testId}"]'); if (!el) return false; el.click(); return true })()`
+const textOf = (testId) =>
+  `(document.querySelector('[data-testid="${testId}"]')?.textContent || '')`
+const hubRow = (name) => `[data-testid="wl-hub-wf"][data-value=${JSON.stringify(name)}]`
+
+/** 本机已经装在 ~/.agents/skills 里、模型能用的一个 skill（没有就不带 skill）。 */
+async function installedSkill() {
+  const { skills } = await rpc('host/skills', {})
+  return skills.find((skill) => skill.path?.includes('/.agents/skills/'))?.name
+}
+
+async function waitDownload(timeoutMs = 20_000) {
+  const started = Date.now()
+  while (Date.now() - started < timeoutMs) {
+    const names = await readdir(DOWNLOADS).catch(() => [])
+    const done = names.find((name) => name.endsWith('.wflite.zip'))
+    if (done !== undefined) return join(DOWNLOADS, done)
+    await sleep(250)
+  }
+  throw new Error('FAIL: 等不到下载的包')
+}
+
+/** 给导入页的文件框塞一个文件（等同用户选了它）。 */
+async function chooseFile(session, path) {
+  const { root } = await session.send('DOM.getDocument', { depth: 0 })
+  const { nodeId } = await session.send('DOM.querySelector', {
+    nodeId: root.nodeId,
+    selector: '[data-testid="wl-pack-file"]',
+  })
+  check(nodeId !== 0, '应有文件选择框')
+  await session.send('DOM.setFileInputFiles', { nodeId, files: [path] })
+}
+
+async function confirmImport(session) {
+  await waitFor(session, `!document.querySelector('[data-testid="wl-pack-do-import"]').disabled`)
+  await session.evaluate(clickTestId('wl-pack-do-import'))
+  await waitFor(session, exists('wl-pack-confirm-pop'))
+  await sleep(400)
+  await screenshot(session, 'pack-05-confirm.png')
+  await session.evaluate(clickTestId('wl-pack-confirm'))
+  await waitFor(session, exists('wl-pack-notice'), { timeoutMs: 30_000 })
+}
+
+async function run(session) {
+  console.log(`# 导入导出验收：${NAME}`)
+  await mkdir(EXT, { recursive: true })
+  await writeFile(join(EXT, 'spec.md'), '# 需求\n')
+  await rm(DOWNLOADS, { recursive: true, force: true })
+  await mkdir(DOWNLOADS, { recursive: true })
+  const skill = await installedSkill()
+
+  await rpc('graph/create', { name: NAME })
+  const loaded = await rpc('graph/load', { name: NAME })
+  const items = [{ kind: 'file', value: SPEC }]
+  if (skill !== undefined) items.push({ kind: 'skill', value: skill })
+  await rpc('graph/save', {
+    name: NAME,
+    baseHash: loaded.hash,
+    document: {
+      nodes: [
+        { id: 'docs', type: 'wfResource', position: { x: 0, y: 0 }, data: { items } },
+        { id: 'a', type: 'wfNode', position: { x: 480, y: 0 }, data: { prompt: '读需求' } },
+      ],
+      edges: [
+        { id: 'docs->a', source: 'docs', target: 'a', sourceHandle: null, targetHandle: null },
+      ],
+      viewport: { x: 0, y: 0, zoom: 1 },
+    },
+  })
+
+  // 画布打开时会把叠在一起的卡片挪开（会改图），所以等它安顿好了再存版本。
+  await bootToCanvas(session, NAME)
+  await sleep(1500)
+  await rpc('graph/versionSave', { name: NAME, note: '第一版' })
+  await session.send('Page.setDownloadBehavior', { behavior: 'allow', downloadPath: DOWNLOADS })
+  await session.evaluate(clickTestId('wl-hub-open'))
+  await waitFor(session, exists('wl-hub-workflows'))
+  await session.evaluate(clickTestId('wl-hub-workflows'))
+  await waitFor(session, `document.querySelector(${JSON.stringify(hubRow(NAME))}) !== null`)
+  await session.evaluate(`document.querySelector(${JSON.stringify(hubRow(NAME))}).click()`)
+  await waitFor(session, exists('wl-hub-wf-export'))
+  pass('工作流页：标题栏有「导出」，左栏有「导入」')
+
+  // 1) 导出第一步：v1 缺省勾上（和现在一样），没有「没存成版本」的提醒。
+  await session.evaluate(clickTestId('wl-hub-wf-export'))
+  await waitFor(session, exists('wl-pack-ver-1'))
+  check(
+    await session.evaluate(
+      `document.querySelector('[data-testid="wl-pack-ver-1"] input').checked === true`,
+    ),
+    'v1 应缺省勾上',
+  )
+  check(await session.evaluate(gone('wl-pack-unsaved')), '现在的内容就是 v1，不该提醒没存')
+  await screenshot(session, 'pack-01-versions.png')
+  pass('导出：选版本（缺省带现在这一版）')
+
+  // 2) 第二步：资源清单里有那个文件，缺省勾上，写明包里写成 {assets}/spec.md。
+  await session.evaluate(clickTestId('wl-pack-next'))
+  await waitFor(session, exists('wl-pack-group-pack'))
+  const group = await session.evaluate(textOf('wl-pack-group-pack'))
+  check(group.includes(SPEC) && group.includes('{assets}/spec.md'), `清单应列出文件：${group}`)
+  if (skill !== undefined) check(group.includes(skill), `清单应列出 skill ${skill}`)
+  await screenshot(session, 'pack-02-resources.png')
+  pass(`导出：资源清单（文件${skill === undefined ? '' : ` + skill ${skill}`}）`)
+
+  // 3) 导出：下载下来，回到版本页带一句结果。
+  await session.evaluate(clickTestId('wl-pack-do-export'))
+  await waitFor(session, exists('wl-pack-notice'), { timeoutMs: 30_000 })
+  const zip = await waitDownload()
+  check((await stat(zip)).size > 0, '下载的包不该是空的')
+  check((await session.evaluate(textOf('wl-pack-notice'))).includes('.wflite.zip'), '应说导出了')
+  pass('导出：浏览器下载到 .wflite.zip')
+
+  // 4) 导入同一个包：名字撞了，缺省另存为新名字；资料放到哪写清楚；skill 内容一样跳过。
+  await session.evaluate(clickTestId('wl-hub-wf-import'))
+  await waitFor(session, exists('wl-pack-pick'))
+  await sleep(400) // 等换页的淡入走完
+  await screenshot(session, 'pack-03-drop.png')
+  await chooseFile(session, zip)
+  await waitFor(session, exists('wl-pack-target'), { timeoutMs: 30_000 })
+  check(await session.evaluate(exists('wl-pack-mode-new')), '名字撞了应能选另存或并入')
+  await setReactInput(session, '[data-testid="wl-pack-name"]', COPY)
+  const assets = await session.evaluate(textOf('wl-pack-assets'))
+  check(
+    assets.includes(`/assets/${COPY}/`) && assets.includes('spec.md'),
+    `应写明放到哪：${assets}`,
+  )
+  if (skill !== undefined) {
+    const skills = await session.evaluate(textOf('wl-pack-skills'))
+    check(skills.includes('内容一样'), `本机已装的 skill 应是内容一样：${skills}`)
+    check(await session.evaluate(gone('wl-pack-trust')), '不装 skill 就不用勾确认')
+  }
+  await screenshot(session, 'pack-04-preview.png')
+  pass('导入：预览（另存为新名字、资料目标路径、skill 状态）')
+
+  await confirmImport(session)
+  const copied = await rpc('graph/load', { name: COPY })
+  const text = JSON.stringify(copied.document)
+  check(
+    text.includes('{assets}/spec.md') && !text.includes(SPEC),
+    '导入的图应改写成 {assets}/spec.md',
+  )
+  const copiedVersions = (await rpc('graph/versions', { name: COPY })).versions
+  check(
+    copiedVersions.length === 1 && copiedVersions[0].n === 1 && copiedVersions[0].note === '第一版',
+    '版本号与说明应保留',
+  )
+  check(
+    await session.evaluate(
+      `document.querySelector('[aria-current="true"][data-testid="wl-hub-wf"]')?.dataset.value === ${JSON.stringify(COPY)}`,
+    ),
+    '导入后应选中新的那张',
+  )
+  const plan = await rpc('plan/build', { name: COPY })
+  check(plan.plan.includes(`/assets/${COPY}/spec.md`), '计划里应是资料目录下的绝对路径')
+  await screenshot(session, 'pack-06-done.png')
+  pass('导入：落盘，版本号保留，图里是 {assets}/…，计划里是绝对路径')
+
+  // 5) 并入原来那张（编辑页正开着它）：包里的 v1 路径改成了 {assets}/…，和本机 v1 不一样，存成 v2；
+  //    编辑页按磁盘重新加载，不拿旧图覆盖回去。
+  async function mergeBack() {
+    await session.evaluate(clickTestId('wl-hub-wf-import'))
+    await waitFor(session, exists('wl-pack-pick'))
+    await chooseFile(session, zip)
+    await waitFor(session, exists('wl-pack-mode-merge'), { timeoutMs: 30_000 })
+    await session.evaluate(clickTestId('wl-pack-mode-merge'))
+    await waitFor(session, gone('wl-pack-name'))
+    await confirmImport(session)
+    return session.evaluate(textOf('wl-pack-notice'))
+  }
+  check((await mergeBack()).includes('新增 1 个版本'), '并入改过路径的版本应新增一版')
+  await sleep(1500)
+  const merged = await rpc('graph/versions', { name: NAME })
+  check(
+    merged.versions.length === 2 &&
+      merged.versions.find((entry) => entry.n === 2)?.current === true,
+    '应多出 v2 且现在就是它',
+  )
+  const reloaded = JSON.stringify((await rpc('graph/load', { name: NAME })).document)
+  check(reloaded.includes('{assets}/spec.md'), '编辑页不该拿旧图盖回去')
+  pass('导入：并入正开着的那张，新增 v2，编辑页重新加载')
+
+  // 6) 同一个包再并一次：和 v2 一样，不再存。
+  check((await mergeBack()).includes('没再存'), '并入同样的版本应说没再存')
+  check((await rpc('graph/versions', { name: NAME })).versions.length === 2, '不该多出版本')
+  pass('导入：重复的版本不再存')
+
+  check(session.errors.length === 0, `页面不该有报错：${JSON.stringify(session.errors)}`)
+  console.log('\n✅ 导入导出验收全部通过')
+}
+
+const session = await openPage()
+try {
+  await run(session)
+} catch (error) {
+  await screenshot(session, 'pack-failure.png').catch(() => {})
+  console.error(`\n❌ 第 ${step + 1} 步失败：${error.message}`)
+  process.exitCode = 1
+} finally {
+  for (const name of [NAME, COPY]) await rpc('graph/delete', { name }).catch(() => {})
+  await rm(EXT, { recursive: true, force: true })
+  await rm(DOWNLOADS, { recursive: true, force: true })
+  session.close()
+}

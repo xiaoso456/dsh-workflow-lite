@@ -55,11 +55,48 @@ export function isAbsoluteRoot(root: string): boolean {
 }
 
 /**
+ * 资源里的路径以它开头 = 放在这个工作流自己的资料目录里（`<dataDir>/assets/<图名>/`）。
+ * 图里存的是记号，换台机器、改个名字都不用改图；编译、看文件时才换成绝对路径（{@link bindAssetsPath}）。
+ */
+export const ASSETS_TOKEN = '{assets}'
+
+/** 这个路径是不是写在资料目录里（`{assets}` 本身，或 `{assets}/…`）。 */
+export function isAssetsPath(path: string): boolean {
+  const value = path.trim()
+  return (
+    value === ASSETS_TOKEN ||
+    value.startsWith(`${ASSETS_TOKEN}/`) ||
+    value.startsWith(`${ASSETS_TOKEN}\\`)
+  )
+}
+
+/** 资料目录里的路径去掉记号之后的那一截（`{assets}/a/b.md` → `a/b.md`；`{assets}` → 空串）。 */
+export function assetsRelative(path: string): string {
+  return normalize(
+    path
+      .trim()
+      .slice(ASSETS_TOKEN.length)
+      .replace(/^[/\\]+/u, ''),
+  ).replace(/^\.$/u, '')
+}
+
+/** 把 `{assets}/…` 换成资料目录下的绝对路径；别的路径原样返回。 */
+export function bindAssetsPath(path: string, assetsDir: string): string {
+  if (!isAssetsPath(path)) return path
+  const rest = assetsRelative(path)
+  return rest === '' ? normalize(assetsDir) : join(normalize(assetsDir), rest)
+}
+
+/**
  * 一个产出文件最终写到哪：`根目录 + 产出路径`，规范化。没配根目录就是规范化后的产出路径本身
- * （相对工作区）。产出路径本身是绝对路径时原样用（规范化），不拼根目录。
+ * （相对工作区）。产出路径本身是绝对路径时原样用（规范化），不拼根目录；`{assets}/…` 也不拼。
  */
 export function resolveOutputPath(root: string | undefined, path: string): string {
   const value = path.trim()
+  if (isAssetsPath(value)) {
+    const rest = assetsRelative(value)
+    return rest === '' ? ASSETS_TOKEN : `${ASSETS_TOKEN}/${rest}`
+  }
   if (isAbsoluteRoot(value) || /^[A-Za-z]:[/]/u.test(value)) return normalize(value)
   const base = normalizeRoot(root)
   return base === undefined ? normalize(value) : join(base, value)

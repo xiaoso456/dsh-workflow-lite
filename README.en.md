@@ -76,6 +76,7 @@ Turn on **Record run state** in **Workflow settings**. Every run then leaves a r
 | Run state | Progress appears on the canvas as it happens; read each step's summary, adjust its state, and the model is notified |
 | Page preview | HTML files among the resources open as pages; make one a dashboard updated every round to follow a loop's output |
 | Versions | Save versions with notes, compare differences, switch back at any time |
+| Import / export | Pack a workflow and the versions you pick into one `.wflite.zip`, optionally with the files and Skills it uses; before importing, see where each item will go |
 | Workflow hub | One place for run records across sessions, all workflows and their versions, and plugin settings |
 | Interface | Four light and four dark color themes that follow DSH light or dark mode; English / 中文 |
 

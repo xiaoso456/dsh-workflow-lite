@@ -45,6 +45,7 @@ const BASE_PATHS = {
   // 详情面板：右边一栏（实例视图开关右栏）
   panel: 'M6 4.5h12a2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2v-11a2 2 0 012-2zM14.5 4.5v15',
   download: 'M12 4v11M7 11l5 5 5-5M5 20h14',
+  upload: 'M12 16V5M7 9l5-5 5 5M5 20h14',
   bookmark: 'M7 4h10v16l-5-4-5 4z',
   reload: 'M20 12a8 8 0 11-2.4-5.7M20 4v5h-5',
   arrowRight: 'M5 12h14M13 6l6 6-6 6',

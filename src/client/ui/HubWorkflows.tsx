@@ -5,6 +5,9 @@
  * 不用先在编辑页打开它；要编辑就点「打开」。
  * 正在编辑的那张：动手前先把编辑页的改动写下去，切换之后编辑页按磁盘重新加载。
  *
+ * 导入导出也在这一页：右栏换成导出（{@link HubExport}，标题栏「导出」）或导入（{@link HubImport}，
+ * 左栏顶上「导入」，也可以直接把包拖到这一页上）。做完回到版本，顶上一句结果。
+ *
  * @module @xiaoso/dsh-workflow-lite/client/ui/HubWorkflows
  */
 
@@ -14,18 +17,27 @@ import type { WorkflowEntry } from '../../shared/types.ts'
 import type { T } from '../i18n.ts'
 import { shortTime } from '../model/time.ts'
 import { errorMessage, type WorkflowLiteRpc } from '../rpc.ts'
+import { HubExport, type PackScope } from './HubExport.tsx'
+import { HubImport } from './HubImport.tsx'
 import { HubWorkflowList } from './HubWorkflowList.tsx'
 import hub from './hub.module.css'
 import { Icon } from './Icon.tsx'
+import { Callout } from './PackRow.tsx'
+import css from './pack.module.css'
 import { cx } from './primitives.tsx'
 import ui from './ui.module.css'
 import { VersionList } from './VersionList.tsx'
+
+/** 右栏现在是什么：版本（缺省）、导出选中那张、导入。 */
+type Pane = 'versions' | 'export' | 'import'
 
 export function HubWorkflows(props: {
   t: T
   rpc: WorkflowLiteRpc
   /** 编辑页正开着的那张。 */
   current: string | null
+  /** 看 skill 时站在哪个会话、哪个工作区（导入导出盘点 skill 用）。 */
+  scope: PackScope
   flush(): Promise<boolean>
   /** 正开着的那张切了版本：编辑页按磁盘重新加载。 */
   onReload(): void
@@ -40,6 +52,12 @@ export function HubWorkflows(props: {
   const [workflows, setWorkflows] = useState<WorkflowEntry[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [picked, setPicked] = useState<string | null>(current)
+  const [pane, setPane] = useState<Pane>('versions')
+  /** 拖到页面上的包（交给导入页）。 */
+  const [dropped, setDropped] = useState<File | null>(null)
+  const [dragging, setDragging] = useState(false)
+  /** 导入导出做完的那句结果。 */
+  const [notice, setNotice] = useState<string | null>(null)
 
   const load = useCallback(async (): Promise<void> => {
     try {
@@ -54,6 +72,30 @@ export function HubWorkflows(props: {
     void load()
   }, [load])
 
+  const openImport = (file: File | null): void => {
+    setNotice(null)
+    setDropped(file)
+    setPane('import')
+  }
+
+  // 把包拖到这一页上：直接进导入。
+  const dropProps = {
+    onDragOver: (event: React.DragEvent) => {
+      if (!event.dataTransfer.types.includes('Files')) return
+      event.preventDefault()
+      setDragging(true)
+    },
+    onDragLeave: (event: React.DragEvent) => {
+      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false)
+    },
+    onDrop: (event: React.DragEvent) => {
+      event.preventDefault()
+      setDragging(false)
+      const file = event.dataTransfer.files[0]
+      if (file !== undefined) openImport(file)
+    },
+  }
+
   if (workflows === null) {
     return (
       <div className={hub.loading}>
@@ -62,13 +104,57 @@ export function HubWorkflows(props: {
       </div>
     )
   }
+
+  const importPane = (
+    <HubImport
+      t={t}
+      rpc={rpc}
+      scope={props.scope}
+      file={dropped}
+      taken={new Set(workflows.map((entry) => entry.name.toLowerCase()))}
+      current={current}
+      flush={props.flush}
+      onBack={() => {
+        setDropped(null)
+        setPane('versions')
+      }}
+      onDone={(name, text, reload) => {
+        setDropped(null)
+        setPane('versions')
+        setPicked(name)
+        setNotice(text)
+        if (reload) props.onReload()
+        void load()
+        props.onChanged()
+      }}
+    />
+  )
+
   if (workflows.length === 0) {
+    if (pane === 'import') {
+      return (
+        <div className={cx(hub.wfPage, dragging && css.dropping)} {...dropProps}>
+          <div className={hub.side} />
+          {importPane}
+        </div>
+      )
+    }
     return (
-      <div className={hub.empty}>
+      <div className={cx(hub.empty, dragging && css.dropping)} {...dropProps}>
         <span className={hub.emptyIcon}>
           <Icon name="folder" size={20} />
         </span>
         <p className={hub.emptyTitle}>{error ?? t('hub.wfEmpty')}</p>
+        <button
+          type="button"
+          className={cx(ui.btn, ui.small, ui.soft)}
+          data-tip={t('pack.importTip')}
+          data-testid="wl-hub-wf-import"
+          onClick={() => openImport(null)}
+        >
+          <Icon name="upload" size={14} />
+          {t('pack.import')}
+        </button>
       </div>
     )
   }
@@ -77,72 +163,128 @@ export function HubWorkflows(props: {
   if (selected === undefined) return <div />
   const editing = selected.name === current
   return (
-    <div className={hub.wfPage}>
-      <HubWorkflowList
-        t={t}
-        workflows={workflows}
-        selected={selected.name}
-        current={current}
-        onPick={setPicked}
-        rename={async (from, to) => {
-          const ok = await props.rename(from, to)
-          if (!ok) return false
-          // 主机按同一套规矩收拾名字：选中的跟着换成新名字。
-          if (from === selected.name) setPicked(normalizeName(to.trim()) || from)
-          await load()
-          return true
-        }}
-        remove={async (name) => {
-          // 删的是正看着的那张：选中挪到它下面一张（最后一张就挪到上面）。
-          const index = workflows.findIndex((entry) => entry.name === name)
-          const next = workflows[index + 1] ?? workflows[index - 1]
-          const ok = await props.remove(name)
-          if (ok && name === selected.name) setPicked(next?.name ?? null)
-          await load()
-          return ok
-        }}
-      />
-      {/* 换了一张就换一整块：标题、版本列表重新入场。 */}
-      <div key={selected.name} className={cx(hub.wfDetail, hub.paneIn)}>
-        <div className={hub.wfHead}>
-          <div className={hub.wfHeadText}>
-            <p className={hub.wfTitle}>{selected.name}</p>
-            <p className={hub.wfSub}>
-              {t('ver.steps').replace('{n}', String(selected.nodeCount))} ·{' '}
-              {shortTime(selected.updatedAt)}
-            </p>
-          </div>
-          {editing ? (
-            <span className={hub.tag}>{t('hub.wfEditing')}</span>
-          ) : (
-            <button
-              type="button"
-              className={cx(ui.btn, ui.small, ui.soft)}
-              data-tip={t('hub.wfOpenTip')}
-              data-testid="wl-hub-wf-open"
-              onClick={() => props.onOpen(selected.name)}
-            >
-              <Icon name="external" size={14} />
-              {t('hub.wfOpen')}
-            </button>
-          )}
+    <div className={cx(hub.wfPage, dragging && css.dropping)} {...dropProps}>
+      <div className={hub.side}>
+        <div className={css.tools}>
+          <button
+            type="button"
+            className={cx(ui.btn, ui.small, ui.soft)}
+            aria-pressed={pane === 'import'}
+            data-tip={t('pack.importTip')}
+            data-testid="wl-hub-wf-import"
+            onClick={() => openImport(null)}
+          >
+            <Icon name="upload" size={14} />
+            {t('pack.import')}
+          </button>
         </div>
-        <VersionList
+        <HubWorkflowList
+          t={t}
+          className={hub.sideList}
+          workflows={workflows}
+          selected={selected.name}
+          current={current}
+          onPick={(name) => {
+            setPicked(name)
+            setNotice(null)
+            setDropped(null)
+            setPane('versions')
+          }}
+          rename={async (from, to) => {
+            const ok = await props.rename(from, to)
+            if (!ok) return false
+            // 主机按同一套规矩收拾名字：选中的跟着换成新名字。
+            if (from === selected.name) setPicked(normalizeName(to.trim()) || from)
+            await load()
+            return true
+          }}
+          remove={async (name) => {
+            // 删的是正看着的那张：选中挪到它下面一张（最后一张就挪到上面）。
+            const index = workflows.findIndex((entry) => entry.name === name)
+            const next = workflows[index + 1] ?? workflows[index - 1]
+            const ok = await props.remove(name)
+            if (ok && name === selected.name) setPicked(next?.name ?? null)
+            await load()
+            return ok
+          }}
+        />
+      </div>
+      {pane === 'import' ? (
+        importPane
+      ) : pane === 'export' ? (
+        <HubExport
           key={selected.name}
           t={t}
           rpc={rpc}
           name={selected.name}
-          {...(editing ? { before: props.flush } : {})}
-          onRestored={() => {
-            if (editing) props.onReload()
-            void load()
-          }}
-          onChanged={() => {
-            void load()
-            props.onChanged()
+          scope={props.scope}
+          onBack={() => setPane('versions')}
+          onDone={(text) => {
+            setNotice(text)
+            setPane('versions')
           }}
         />
-      </div>
+      ) : (
+        /* 换了一张就换一整块：标题、版本列表重新入场。 */
+        <div key={selected.name} className={cx(hub.wfDetail, hub.paneIn)}>
+          <div className={hub.wfHead}>
+            <div className={hub.wfHeadText}>
+              <p className={hub.wfTitle}>{selected.name}</p>
+              <p className={hub.wfSub}>
+                {t('ver.steps').replace('{n}', String(selected.nodeCount))} ·{' '}
+                {shortTime(selected.updatedAt)}
+              </p>
+            </div>
+            <button
+              type="button"
+              className={cx(ui.btn, ui.small)}
+              data-tip={t('pack.exportTip')}
+              data-testid="wl-hub-wf-export"
+              onClick={() => {
+                setNotice(null)
+                setPane('export')
+              }}
+            >
+              <Icon name="download" size={14} />
+              {t('pack.export')}
+            </button>
+            {editing ? (
+              <span className={hub.tag}>{t('hub.wfEditing')}</span>
+            ) : (
+              <button
+                type="button"
+                className={cx(ui.btn, ui.small, ui.soft)}
+                data-tip={t('hub.wfOpenTip')}
+                data-testid="wl-hub-wf-open"
+                onClick={() => props.onOpen(selected.name)}
+              >
+                <Icon name="external" size={14} />
+                {t('hub.wfOpen')}
+              </button>
+            )}
+          </div>
+          {notice !== null && (
+            <Callout tone="ok" testId="wl-pack-notice">
+              {notice}
+            </Callout>
+          )}
+          <VersionList
+            key={selected.name}
+            t={t}
+            rpc={rpc}
+            name={selected.name}
+            {...(editing ? { before: props.flush } : {})}
+            onRestored={() => {
+              if (editing) props.onReload()
+              void load()
+            }}
+            onChanged={() => {
+              void load()
+              props.onChanged()
+            }}
+          />
+        </div>
+      )}
     </div>
   )
 }

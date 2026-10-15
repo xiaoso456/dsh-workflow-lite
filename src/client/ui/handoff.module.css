@@ -185,12 +185,7 @@ label.resultRow::after {
 }
 
 .check {
-  flex: none;
-  width: 15px;
-  height: 15px;
   margin: 0 2px;
-  accent-color: var(--wl-accent);
-  cursor: pointer;
 }
 
 .note {

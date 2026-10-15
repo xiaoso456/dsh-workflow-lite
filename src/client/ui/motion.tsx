@@ -1055,6 +1055,43 @@ export function FadeMark(props: {
 }
 
 /**
+ * 勾选标记里的 ✓：选中时顺着笔画一笔画出来，取消时收回（refs/transitions.dev「Checkbox check」）。
+ * 放在 `ui.tick` 元素里当**直接子元素**，跟着它的 `aria-checked` / `data-on` 走；字色就是勾的颜色。
+ */
+export function CheckMark(props: { size?: number }): React.JSX.Element {
+  const size = props.size ?? 10
+  return (
+    <svg
+      className={ui.checkDraw}
+      width={size}
+      height={size}
+      viewBox="0 0 10.1668 10.1668"
+      aria-hidden="true"
+    >
+      <path d="M1 5.521L3.917 9.167L9.167 1" />
+    </svg>
+  )
+}
+
+/**
+ * 勾选框：原生 `<input type="checkbox">` 透明地叠在方框上（键盘、`<label>` 点击、`checked` 都照旧），
+ * 看得见的是方框——先填底色，✓ 再画出来（{@link CheckMark}）。除 `type` 外的属性都给 input。
+ */
+export function Checkbox(
+  props: Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type'>,
+): React.JSX.Element {
+  const { className, ...rest } = props
+  return (
+    <span className={cx(ui.checkbox, className)}>
+      <input type="checkbox" className={ui.checkInput} {...rest} />
+      <span className={cx(ui.checkBox, ui.tick)} aria-hidden="true">
+        <CheckMark />
+      </span>
+    </span>
+  )
+}
+
+/**
  * 「是 / 否」的小状态（经过没有、生成没有）：圆点 + 一段字，是时点实心变绿，否时空心灰圈，
  * 点和字都是两层交叉淡（FadeMark / FadeText），不是颜色瞬切。`dot` 是点本身的类（大小、描边）。
  */

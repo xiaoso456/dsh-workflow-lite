@@ -5,6 +5,7 @@
  * - **运行实例**（`HubRuns.tsx`）：所有会话的实例，左边工作区（能搜）、右边它的实例；
  *   查看、改整体状态、移到本会话、删除记录（状态文件另外问要不要一起删）；
  * - **工作流**（`HubWorkflows.tsx`）：全部工作流，每一行能就地改名、删除；选一张看它的版本——存、切换、改说明、删除，不用先打开它；
+ *   导入、导出工作流包也在这一页；
  * - **存储**（`HubStorage.tsx`）：数据目录、各样东西的占用，清理已结束的实例与旧版本遗留文件；
  * - **设置**（`HubSettings.tsx`）：插件自己的几项设置（数据目录、步骤上限、自动保存等待……）。
  *
@@ -47,6 +48,8 @@ export function HubDialog(props: {
   /** 「工作流」页要的：编辑页正开着哪张、怎么把它的改动写下去 / 重新加载、怎么打开别的一张。 */
   workflows: {
     current: string | null
+    /** 导入导出盘点 skill 时站在哪个会话、哪个工作区。 */
+    scope: { cwd?: string; session?: string }
     flush(): Promise<boolean>
     onReload(): void
     onOpen(name: string): void

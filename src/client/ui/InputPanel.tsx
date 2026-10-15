@@ -28,7 +28,7 @@ import hand from './handoff.module.css'
 import { Icon } from './Icon.tsx'
 import css from './input.module.css'
 import ins from './inspector.module.css'
-import { EDIT_VIEW, useResizeFlip, useRowKeys, useSwap } from './motion.tsx'
+import { CheckMark, EDIT_VIEW, useResizeFlip, useRowKeys, useSwap } from './motion.tsx'
 import { InputHead } from './NodeHeads.tsx'
 import { cx } from './primitives.tsx'
 import { stepName } from './resourceUi.ts'
@@ -172,7 +172,7 @@ export function InputPanel(props: InputPanelProps): React.JSX.Element {
                       data-testid="wl-input-default-mark"
                       onClick={() => toggleDefault(trimmed)}
                     >
-                      <Icon name="check" size={10} />
+                      <CheckMark />
                     </button>
                     <input
                       className={cx(ui.input, css.optionInput)}

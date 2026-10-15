@@ -21,6 +21,7 @@ import { buildFullText, buildPlan, buildTaskTexts, planIdOf } from '../shared/co
 import { analyzeGraph } from '../shared/graph.ts'
 import { isStep } from '../shared/model.ts'
 import { bindRoot, INSTANCE_TOKEN, rootOf } from '../shared/outputPaths.ts'
+import { bindAssets } from '../shared/resources.ts'
 import type {
   InputAnswer,
   PlanId,
@@ -31,6 +32,7 @@ import type {
 } from '../shared/types.ts'
 import { ensureWorkspaceIgnore, instanceDir, TASKS_DIR } from './runs/store.ts'
 import { materialize } from './store/materialize.ts'
+import { assetsDir } from './store/paths.ts'
 import { type Outcome, problemsToWarnings, type Repository } from './store/repository.ts'
 
 /** 计划对着的实例。 */
@@ -121,8 +123,9 @@ export async function compileDocument(
   // 产出根目录：没配用默认值（`.workflow-lite/runs/{instance}/out`），有实例就换上实例 id。
   const root =
     instance === undefined ? rootOf(document.settings) : bindRoot(rootOf(document.settings), id)
+  // 资料目录里的文件（`{assets}/…`）换成绝对路径：执行者拿到的是这台机器上实际的位置。
   const planned: WorkflowDocument = {
-    ...document,
+    ...bindAssets(document, assetsDir(dataDir, name)),
     settings: { ...document.settings, outputRoot: root },
   }
   const payloadPaths = new Map<string, string>(

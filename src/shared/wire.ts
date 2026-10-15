@@ -8,6 +8,20 @@
  * @module @xiaoso/dsh-workflow-lite/shared/wire
  */
 
+import type {
+  PackApplyRequest,
+  PackApplyResponse,
+  PackExportRequest,
+  PackExportResponse,
+  PackImportPreview,
+  PackReadRequest,
+  PackReadResponse,
+  PackScanRequest,
+  PackScanResponse,
+  PackTokenRequest,
+  PackUploadRequest,
+  PackUploadResponse,
+} from './pack.ts'
 import type { InstanceSummary, InstanceView, StateEdit } from './runState.ts'
 import type {
   CompileResult,
@@ -75,6 +89,13 @@ export const WORKFLOW_LITE_ENDPOINTS = [
   'host/skill',
   'config/get',
   'config/set',
+  'pack/scan',
+  'pack/export',
+  'pack/read',
+  'pack/upload',
+  'pack/inspect',
+  'pack/apply',
+  'pack/discard',
 ] as const
 
 export type WorkflowLiteEndpoint = (typeof WORKFLOW_LITE_ENDPOINTS)[number]
@@ -385,6 +406,13 @@ export interface WorkflowLiteRpcMap {
   'host/skill': { args: HostSkillRequest; result: HostSkillResponse }
   'config/get': { args: Record<string, never>; result: PluginConfigView }
   'config/set': { args: PluginConfigWrite; result: PluginConfigView }
+  'pack/scan': { args: PackScanRequest; result: PackScanResponse }
+  'pack/export': { args: PackExportRequest; result: PackExportResponse }
+  'pack/read': { args: PackReadRequest; result: PackReadResponse }
+  'pack/upload': { args: PackUploadRequest; result: PackUploadResponse }
+  'pack/inspect': { args: PackTokenRequest; result: PackImportPreview }
+  'pack/apply': { args: PackApplyRequest; result: PackApplyResponse }
+  'pack/discard': { args: PackTokenRequest; result: { removed: true } }
 }
 
 // ── 主机上的东西（资源节点选文件、文件夹、skill 用）─────────

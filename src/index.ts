@@ -13,6 +13,8 @@
  * @module @xiaoso/dsh-workflow-lite
  */
 
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-client-connection'
@@ -36,6 +38,7 @@ import { registerRunStateSkill } from './host/runs/skill.ts'
 import { createSkillViewer } from './host/skillView.ts'
 import { createRepository, type Repository, reportProblems } from './host/store/repository.ts'
 import { registerWorkflowLiteTool } from './host/tool/tool.ts'
+import { pluginVersion } from './host/version.ts'
 import type { WorkflowDocument } from './shared/types.ts'
 import { validateDocument } from './shared/validate.ts'
 
@@ -159,6 +162,8 @@ export async function apply(ctx: Context, config: WorkflowLiteSettings): Promise
       runs,
       skills: createSkillViewer(ctx, () => skills),
       config: { port: () => settings, live: liveConfig },
+      // 导入的 skill 装进各家 agent 通用的那个目录（DSH 也从这里发现 skill）。
+      pack: { skillsRoot: join(homedir(), '.agents', 'skills'), plugin: pluginVersion() },
     })
   })
 }

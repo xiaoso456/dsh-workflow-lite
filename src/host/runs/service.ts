@@ -16,6 +16,7 @@ import { affectsPlan, describeGraphChange, graphChanges } from '../../shared/gra
 import { checkAnswers, sameAnswers } from '../../shared/inputs.ts'
 import { isResource, isStep, readDocument, writeDocument } from '../../shared/model.ts'
 import { bindRoot, rootOf, WORKSPACE_ROOT } from '../../shared/outputPaths.ts'
+import { bindAssets } from '../../shared/resources.ts'
 import {
   type CursorStep,
   type NextStep,
@@ -62,6 +63,7 @@ import {
   unlinkFile,
   writeFileAtomic,
 } from '../store/atomic.ts'
+import { assetsDir } from '../store/paths.ts'
 import type { Outcome } from '../store/repository.ts'
 import {
   itemLocation,
@@ -695,6 +697,11 @@ export class RunService {
     return { ...document, settings: { ...document.settings, outputRoot: WORKSPACE_ROOT } }
   }
 
+  /** 找文件用的快照：资料目录里的文件（`{assets}/…`）换成绝对路径（快照本身不改）。 */
+  private withAssets(record: InstanceRecord, document: WorkflowDocument): WorkflowDocument {
+    return bindAssets(document, assetsDir(this.deps.dataDir(), record.workflow))
+  }
+
   /** 读并校验状态文件。`document` 给了就对照快照。 */
   private async readState(
     record: InstanceRecord,
@@ -808,12 +815,13 @@ export class RunService {
     const document = await this.snapshot(record)
     if (document === null) return fail('not_found', `实例 ${id} 的图快照不见了`)
     const read = await this.readState(record, document)
+    const located = this.withAssets(record, document)
     const files: Record<string, (boolean | null)[]> = {}
     await Promise.all(
       document.nodes.filter(isResource).map(async (node) => {
         files[node.id] = await Promise.all(
           node.data.items.map(async (item, index) => {
-            const location = itemLocation(document, node.id, index)
+            const location = itemLocation(located, node.id, index)
             if (location === null) return null
             const full =
               isAbsolute(location) || record.cwd === undefined
@@ -875,8 +883,9 @@ export class RunService {
     if (!isInstanceId(id)) return fail('invalid_args', `实例 id 不合法：${id}`)
     const record = (await this.store.read()).instances.find((candidate) => candidate.id === id)
     if (record === undefined) return fail('not_found', `实例 ${id} 不存在`)
-    const document = await this.snapshot(record)
-    if (document === null) return fail('not_found', `实例 ${id} 的图快照不见了`)
+    const snapshot = await this.snapshot(record)
+    if (snapshot === null) return fail('not_found', `实例 ${id} 的图快照不见了`)
+    const document = this.withAssets(record, snapshot)
     const resolved = resolveRunFile(record, document, target)
     if (!resolved.ok) return resolved
     try {

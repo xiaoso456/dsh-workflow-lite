@@ -14,10 +14,13 @@ import { useConfirm } from './Confirm.tsx'
 import { HubWorkflowRow } from './HubWorkflowRow.tsx'
 import hub from './hub.module.css'
 import { ListThumb, useFlip } from './motion.tsx'
+import { cx } from './primitives.tsx'
 import { deleteDesc } from './WorkflowRow.tsx'
 
 export function HubWorkflowList(props: {
   t: T
+  /** 外面那一栏另有边线时换掉列表自己的样子（见 hub.sideList）。 */
+  className?: string
   workflows: readonly WorkflowEntry[]
   selected: string
   /** 编辑页正开着的那张。 */
@@ -40,7 +43,7 @@ export function HubWorkflowList(props: {
   useFlip(listRef, layout, { enter: true })
 
   return (
-    <nav ref={listRef} className={hub.wfList} aria-label={t('hub.wfPage')}>
+    <nav ref={listRef} className={cx(hub.wfList, props.className)} aria-label={t('hub.wfPage')}>
       <ListThumb layout={layout} />
       {workflows.map((entry) => (
         <HubWorkflowRow

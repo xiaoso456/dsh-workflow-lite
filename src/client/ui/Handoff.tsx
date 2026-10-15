@@ -18,6 +18,7 @@ import type { Edit } from '../model/editor.ts'
 import css from './handoff.module.css'
 import { Icon } from './Icon.tsx'
 import ins from './inspector.module.css'
+import { Checkbox } from './motion.tsx'
 import { cx, HelpTip } from './primitives.tsx'
 import ui from './ui.module.css'
 
@@ -106,8 +107,7 @@ export function HandoffField(props: {
         </span>
       </div>
       <label className={cx(css.resultRow, ui.fillOn)} data-on={on}>
-        <input
-          type="checkbox"
+        <Checkbox
           className={css.check}
           checked={on}
           data-testid="wl-handoff-result"

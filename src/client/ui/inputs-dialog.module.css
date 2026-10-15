@@ -171,19 +171,6 @@ button.choice::after {
   border-radius: 4px;
 }
 
-.mark svg {
-  opacity: 0;
-  transform: scale(0.6);
-  transition:
-    opacity 120ms linear,
-    transform 160ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
-}
-
-.mark[data-on="true"] svg {
-  opacity: 1;
-  transform: none;
-}
-
 .choiceText {
   flex: 1 1 auto;
   min-width: 0;
@@ -213,12 +200,6 @@ button.choice::after {
 
 @media (prefers-reduced-motion: reduce) {
   .choice {
-    transition: none;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .mark svg {
     transition: none;
   }
 }

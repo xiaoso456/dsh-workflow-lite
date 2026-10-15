@@ -22,6 +22,15 @@ export const TEMPLATES_DIR = 'templates'
 /** 工作流版本目录名：`versions/<图名>/<序号>.json`（不在 `workflows/` 下——那里的子目录算旧结构）。 */
 export const VERSIONS_DIR = 'versions'
 
+/**
+ * 工作流资料目录：`assets/<图名>/`。图里写 `{assets}/…` 的文件就放在这里，导出时整个目录打进包、
+ * 导入时解压回来；改名、删除工作流时跟着走。
+ */
+export const ASSETS_DIR = 'assets'
+
+/** 导入导出的暂存区（以 `.` 开头，一切扫描天然忽略）：`.pack/<token>/`。 */
+export const PACK_DIR = '.pack'
+
 /** 一个工作流最多留几个版本（到了就先删掉旧的再存）。 */
 export const MAX_VERSIONS = 100
 

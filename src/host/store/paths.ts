@@ -20,7 +20,9 @@ import { dirname, join } from 'node:path'
 
 import { compareByCodepoint } from '../../shared/graph.ts'
 import {
+  ASSETS_DIR,
   DISPATCH_DIR,
+  PACK_DIR,
   TEMPLATES_DIR,
   TMP_PREFIX,
   VERSIONS_DIR,
@@ -89,6 +91,21 @@ export function versionsDir(dataDir: string, name: string): string {
 /** `<dataDir>/versions/<图名>/<序号>.json`。 */
 export function versionFile(dataDir: string, name: string, n: number): string {
   return join(versionsDir(dataDir, name), `${n}${JSON_SUFFIX}`)
+}
+
+/** `<dataDir>/assets/<图名>/`：工作流资料目录（图里的 `{assets}/…`）。 */
+export function assetsDir(dataDir: string, name: string): string {
+  return join(dataDir, ASSETS_DIR, name)
+}
+
+/** `<dataDir>/assets/`：资料目录的根。 */
+export function assetsRoot(dataDir: string): string {
+  return join(dataDir, ASSETS_DIR)
+}
+
+/** `<dataDir>/.pack/`：导入导出的暂存区。 */
+export function packRoot(dataDir: string): string {
+  return join(dataDir, PACK_DIR)
 }
 
 /** `<dataDir>/.dispatch/` —— 派生根，**启动时不创建**，编译时才建。 */

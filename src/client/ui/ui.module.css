@@ -539,8 +539,10 @@
 }
 
 /*
- * 勾选框 / 单选圈（带 ✓ 的小标记）：选中时实心的底色是一层 ::before、渐显渐隐，边框被它盖住；
- * ✓ 自己各处的样式里弹出来。`aria-checked="true"` 或 `data-on="true"` 时亮。
+ * 勾选框 / 单选圈（带 ✓ 的小标记），照 refs/transitions.dev 的「Checkbox check」：
+ * 先填底色（一层 ::before 渐显，边框被它盖住），✓ 再顺着笔画一笔画出来（motion.tsx 的 CheckMark）；
+ * 取消时 ✓ 快速收回、底色淡掉。画到一半取消，从当前位置倒回去。
+ * `aria-checked="true"`、`data-on="true"`，或紧跟在勾上的原生勾选框后面（Checkbox）时亮。
  * 元素本身画灰边、面板色底；边框宽 `--wl-tick-border`（默认 1.5px）。
  */
 .tick {
@@ -557,12 +559,95 @@
   content: "";
   opacity: 0;
   pointer-events: none;
-  transition: opacity 140ms linear;
+  transition: opacity 150ms var(--wl-ease-out);
 }
 
 .tick[aria-checked="true"]::before,
-.tick[data-on="true"]::before {
+.tick[data-on="true"]::before,
+.checkInput:checked + .tick::before {
   opacity: 1;
+}
+
+/*
+ * ✓ 的笔画：虚线只有一段、长度盖过整条路径（路径长 14.4，取 16），挪 dashoffset 就是画出来 / 收回去。
+ * 这是「只动 transform / opacity」的唯一例外：10px 的一笔，重绘的代价可以不计。
+ */
+.checkDraw {
+  display: block;
+  flex: none;
+  overflow: visible;
+}
+
+.checkDraw path {
+  fill: none;
+  stroke: currentColor;
+  stroke-dasharray: 16;
+  stroke-dashoffset: 16;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+  transition: stroke-dashoffset 150ms var(--wl-ease-out);
+}
+
+[aria-checked="true"] > .checkDraw path,
+[data-on="true"] > .checkDraw path,
+.checkInput:checked + * > .checkDraw path {
+  stroke-dashoffset: 0;
+  transition-duration: 350ms;
+}
+
+/*
+ * 原生勾选框（motion.tsx 的 Checkbox）：真的 <input> 透明地叠在上面（键盘、label 点击、表单语义都照旧），
+ * 看得见的是后面那个方框。
+ */
+.checkbox {
+  position: relative;
+  display: inline-grid;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+}
+
+.checkInput {
+  position: absolute;
+  inset: -3px;
+  z-index: 1;
+  width: auto;
+  height: auto;
+  margin: 0;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.checkInput:disabled {
+  cursor: default;
+}
+
+.checkBox {
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  border: 1.5px solid var(--wl-line-strong);
+  border-radius: 5px;
+  background: var(--wl-panel);
+  color: var(--wl-accent-on);
+  pointer-events: none;
+}
+
+.checkInput:focus-visible + .checkBox {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 2px;
+}
+
+.checkInput:disabled + .checkBox {
+  opacity: 0.4;
+}
+
+/* 悬停在框上，或悬停在包着它的整行 <label> 上：边框先变强调色。 */
+.checkInput:hover:not(:disabled) + .checkBox,
+label:hover > .checkbox > .checkInput:not(:disabled) + .checkBox {
+  border-color: var(--wl-accent);
 }
 
 /* 描边层（motion.tsx 的 FadeRing）：新状态的一层淡入、旧状态的一层淡出。 */
@@ -1325,6 +1410,7 @@
   .fadeMarkOn,
   .fillOn::after,
   .tick::before,
+  .checkDraw path,
   .listThumb[data-live="true"],
   .pickThumb[data-live="true"],
   .pickThumb[data-live="true"] .pickTone {

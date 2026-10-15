@@ -701,6 +701,10 @@ function Shell(props: {
       onNotice={wf.notify}
       workflows={{
         current: state.name,
+        scope: {
+          ...(sessionCwd === undefined ? {} : { cwd: sessionCwd }),
+          ...(props.session === undefined ? {} : { session: props.session }),
+        },
         flush: wf.flush,
         onReload: wf.reload,
         onOpen: openTemplate,

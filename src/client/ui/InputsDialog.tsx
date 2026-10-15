@@ -16,6 +16,7 @@ import type { T } from '../i18n.ts'
 import hand from './handoff.module.css'
 import { Icon } from './Icon.tsx'
 import css from './inputs-dialog.module.css'
+import { CheckMark } from './motion.tsx'
 import overlay from './overlay.module.css'
 import { cx, Modal } from './primitives.tsx'
 import ui from './ui.module.css'
@@ -251,7 +252,7 @@ function Question(props: {
                 }}
               >
                 <span className={cx(css.mark, ui.tick)} data-on={on} aria-hidden="true">
-                  <Icon name="check" size={10} />
+                  <CheckMark />
                 </span>
                 <span className={css.choiceText}>{option}</span>
                 {defaults.includes(option) && (
@@ -275,7 +276,7 @@ function Question(props: {
                 onClick={toggleOther}
               >
                 <span className={cx(css.mark, ui.tick)} data-on={otherOn} aria-hidden="true">
-                  <Icon name="check" size={10} />
+                  <CheckMark />
                 </span>
                 <span className={css.choiceText}>{t('ask.other')}</span>
               </button>

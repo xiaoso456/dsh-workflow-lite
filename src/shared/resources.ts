@@ -24,7 +24,7 @@ import {
   outputSpecs,
   resourceIdFor,
 } from './model.ts'
-import { outputKey } from './outputPaths.ts'
+import { bindAssetsPath, isAssetsPath, outputKey } from './outputPaths.ts'
 import {
   type Handoff,
   type OutputSpec,
@@ -320,6 +320,31 @@ export function setStepOutputs(
     document.nodes = document.nodes.filter((node) => !orphans.has(idKey(node.id)))
   }
   return created
+}
+
+/**
+ * 把资源里的 `{assets}/…` 换成资料目录下的绝对路径（编译计划、看实例里的文件时用；存盘的图不换）。
+ * 没有这种路径时原样返回同一个对象。
+ */
+export function bindAssets(document: WorkflowDocument, assetsDir: string): WorkflowDocument {
+  let changed = false
+  const nodes = document.nodes.map((node) => {
+    if (!isResource(node)) return node
+    if (!node.data.items.some((item) => isPathItem(item) && isAssetsPath(item.value))) return node
+    changed = true
+    const items = node.data.items.map((item) =>
+      isPathItem(item) && isAssetsPath(item.value)
+        ? { ...item, value: bindAssetsPath(item.value, assetsDir) }
+        : item,
+    )
+    return { ...node, data: { ...node.data, items } }
+  })
+  return changed ? { ...document, nodes } : document
+}
+
+/** 文件、文件夹（值是一条路径的那两种）。 */
+export function isPathItem(item: ResourceItem): boolean {
+  return item.kind === 'file' || item.kind === 'folder'
 }
 
 /** 把模板里的产出清单（`data.output`）挑出来，剩下的是步骤自己的 `data`。 */

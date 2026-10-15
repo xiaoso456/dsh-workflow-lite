@@ -354,7 +354,7 @@ button.hiddenToggle::after {
   white-space: nowrap;
 }
 
-/* 圆形勾选：16px 细圈，选上是蓝底白勾；勾用 opacity + scale 出来（只动合成层）。 */
+/* 圆形勾选：16px 细圈，选上是蓝底、白勾一笔画出来（ui.tick + CheckMark）。 */
 .check {
   display: grid;
   flex: none;
@@ -380,19 +380,6 @@ button.hiddenToggle::after {
 
 .check:hover {
   border-color: var(--wl-accent);
-}
-
-.check svg {
-  opacity: 0;
-  transform: scale(0.6);
-  transition:
-    opacity 120ms linear,
-    transform 160ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
-}
-
-.check[aria-checked="true"] svg {
-  opacity: 1;
-  transform: none;
 }
 
 .check:focus-visible {
@@ -421,8 +408,7 @@ button.hiddenToggle::after {
 @media (prefers-reduced-motion: reduce) {
   .list,
   .enter,
-  .check,
-  .check svg {
+  .check {
     transition: none;
   }
 }

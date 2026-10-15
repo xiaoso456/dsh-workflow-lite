@@ -16,6 +16,7 @@ import type { HostAccess } from '../app/host.ts'
 import type { T } from '../i18n.ts'
 import { errorMessage } from '../rpc.ts'
 import { Icon } from './Icon.tsx'
+import { CheckMark } from './motion.tsx'
 import overlay from './overlay.module.css'
 import css from './picker.module.css'
 import { cx, Modal } from './primitives.tsx'
@@ -257,7 +258,7 @@ function SkillRow(props: {
       >
         {!props.single && (
           <span className={cx(skill.skillCheck, ui.tick)} aria-hidden="true" data-on={checked}>
-            <Icon name="check" size={10} />
+            <CheckMark />
           </span>
         )}
         <span className={skill.skillText}>

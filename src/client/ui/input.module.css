@@ -65,21 +65,8 @@
   border-radius: 5px;
 }
 
-.mark svg {
-  opacity: 0;
-  transform: scale(0.6);
-  transition:
-    opacity 120ms linear,
-    transform 160ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
-}
-
 .mark:hover:not(:disabled) {
   border-color: var(--wl-accent);
-}
-
-.mark[aria-checked="true"] svg {
-  opacity: 1;
-  transform: none;
 }
 
 .mark:disabled {
@@ -282,10 +269,4 @@
 .private .sub > input,
 .private .sub > textarea {
   background: var(--wl-panel);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .mark svg {
-    transition: none;
-  }
 }

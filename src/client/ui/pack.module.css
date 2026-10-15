@@ -1,0 +1,528 @@
+/**
+ * dsh-workflow-lite — 工作流中心「工作流」页右栏的导出、导入。
+ *
+ * 和版本列表同一块地方：标题栏下面是步骤指示，再下面一节一节的清单（圆角框 + 行间细线，同 hub 的 .box），
+ * 底下一条贴底的操作栏。动效只动 transform / opacity。
+ */
+
+/* ── 左栏顶上的「导入」 ─────────────────────────────────────── */
+
+.tools {
+  display: flex;
+  flex: none;
+  padding: 10px 8px 2px;
+}
+
+.tools > button {
+  flex: 1 1 auto;
+  justify-content: center;
+}
+
+/* 拖着包移到页面上：整页描一圈主色。 */
+.dropping {
+  outline: 2px dashed var(--wl-accent);
+  outline-offset: -6px;
+  border-radius: 10px;
+}
+
+/* ── 步骤指示 ─────────────────────────────────────────────── */
+
+.steps {
+  display: flex;
+  flex: none;
+  gap: 6px;
+  align-items: center;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+.step {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.stepNum {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--wl-fill-strong);
+  color: var(--wl-text-2);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.step[data-on="true"] {
+  color: var(--wl-text);
+  font-weight: 600;
+}
+
+.step[data-on="true"] .stepNum {
+  background: var(--wl-accent);
+  color: var(--wl-panel);
+}
+
+.stepGap {
+  width: 18px;
+  height: 1px;
+  background: var(--wl-line-strong);
+}
+
+/* ── 提醒条 ───────────────────────────────────────────────── */
+
+.callout {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--wl-fill);
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-meta);
+  line-height: 1.55;
+}
+
+.callout > svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+.callout[data-tone="warn"] {
+  background: var(--wl-warn-soft);
+  color: var(--wl-warn);
+}
+
+.callout[data-tone="error"] {
+  background: var(--wl-danger-soft);
+  color: var(--wl-danger);
+}
+
+.callout[data-tone="ok"] {
+  background: var(--wl-ok-soft);
+  color: var(--wl-ok);
+}
+
+/* ── 一节 ─────────────────────────────────────────────────── */
+
+.section {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sectionHead {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 0 2px;
+}
+
+/* 标题不让：后面的说明（长路径）挤的时候是说明省略，不是标题折行。 */
+.sectionTitle {
+  flex: none;
+  margin: 0;
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-meta);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.sectionNote {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sectionHint {
+  margin: -2px 2px 0;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.55;
+}
+
+.sectionLink {
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--wl-accent-text);
+  font: inherit;
+  font-size: var(--wl-fs-micro);
+  cursor: pointer;
+}
+
+.sectionLink:hover {
+  text-decoration: underline;
+}
+
+/* ── 一行：[勾选] 图标 文字 [右端] ──────────────────────────── */
+
+.row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  gap: 0 10px;
+  align-items: center;
+  min-height: 48px;
+  padding: 8px 12px 8px 10px;
+}
+
+.row[data-check="true"] {
+  grid-template-columns: 18px 28px minmax(0, 1fr) auto;
+  cursor: pointer;
+}
+
+.row + .row {
+  border-top: 1px solid var(--wl-line);
+}
+
+/* ── 导出清单的分类标题：[图标] 名称 统计 …… [开关] ─────────────── */
+
+/* 有开关时整行是 <label>，点哪都拨开关。 */
+.catHead {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 2px;
+}
+
+.catHead[data-switch="true"] {
+  cursor: pointer;
+}
+
+.catIcon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  background: var(--wl-fill);
+  color: var(--wl-text-3);
+}
+
+.catIcon[data-on="true"] {
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+}
+
+.catTitle {
+  flex: none;
+  color: var(--wl-text);
+  font-size: var(--wl-fs-body);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.catStats {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.catSwitch {
+  flex: none;
+  margin-left: auto;
+}
+
+.rowIcon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--wl-fill);
+  color: var(--wl-text-2);
+}
+
+.rowIcon[data-tone="accent"] {
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+}
+
+.rowIcon[data-tone="warn"] {
+  background: var(--wl-warn-soft);
+  color: var(--wl-warn);
+}
+
+.rowIcon[data-tone="ok"] {
+  background: var(--wl-ok-soft);
+  color: var(--wl-ok);
+}
+
+.rowText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.row[data-dim="true"] .rowText {
+  opacity: 0.6;
+}
+
+.rowTitle {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  font-weight: 600;
+}
+
+.rowName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mono {
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-meta);
+  font-weight: 500;
+}
+
+.rowMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.5;
+}
+
+.rowMeta code,
+.path {
+  font-family: var(--wl-mono);
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.rowMeta[data-tone="warn"] {
+  color: var(--wl-warn);
+}
+
+.rowEnd {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* skill 的处理方式：放在行下面一整条（三个选项放右端会把名字挤没）。 */
+.rowWide {
+  grid-column: 2 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.row[data-check="true"] .rowWide {
+  grid-column: 3 / -1;
+}
+
+.choice {
+  max-width: 360px;
+}
+
+.files {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 2px 0 0;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--wl-fill);
+  color: var(--wl-text-2);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+  list-style: none;
+}
+
+.files li {
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.files li > span:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.files li > span:last-child {
+  flex: none;
+  color: var(--wl-text-3);
+}
+
+/* ── 名字与方式 ───────────────────────────────────────────── */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+}
+
+.field + .field {
+  border-top: 1px solid var(--wl-line);
+}
+
+.fieldRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.fieldRow > span {
+  flex: none;
+  white-space: nowrap;
+}
+
+.fieldRow > input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.fieldError {
+  color: var(--wl-danger);
+  font-size: var(--wl-fs-micro);
+}
+
+/* ── 选文件 ───────────────────────────────────────────────── */
+
+.drop {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  min-height: 240px;
+  padding: 28px 24px;
+  border: 1.5px dashed var(--wl-line-strong);
+  border-radius: 12px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+  text-align: center;
+  transition: transform 160ms var(--wl-ease);
+}
+
+.drop[data-over="true"] {
+  border-color: var(--wl-accent);
+  background: var(--wl-accent-soft);
+  transform: scale(1.01);
+}
+
+.dropIcon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 4px;
+  border-radius: 12px;
+  background: var(--wl-fill);
+  color: var(--wl-text-2);
+}
+
+.dropTitle {
+  margin: 0;
+  color: var(--wl-text);
+  font-size: var(--wl-fs-body);
+  font-weight: 600;
+}
+
+.dropText {
+  max-width: 380px;
+  margin: 0 0 6px;
+  line-height: 1.6;
+}
+
+.hidden {
+  display: none;
+}
+
+/* ── 贴底的操作栏 ─────────────────────────────────────────── */
+
+.foot {
+  position: sticky;
+  bottom: -18px;
+  z-index: 1;
+  display: flex;
+  flex: none;
+  gap: 10px;
+  align-items: center;
+  margin: auto -16px -18px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--wl-line);
+  background: var(--wl-panel);
+}
+
+.footInfo {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+.footInfo[data-tone="warn"] {
+  color: var(--wl-warn);
+}
+
+.footInfo[data-tone="error"] {
+  color: var(--wl-danger);
+}
+
+.trust {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--wl-warn-soft);
+  color: var(--wl-text);
+  font-size: var(--wl-fs-meta);
+  line-height: 1.55;
+  cursor: pointer;
+}
+
+.trustCheck {
+  margin-top: 2px;
+}
+
+.busy {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drop {
+    transition: none;
+  }
+}

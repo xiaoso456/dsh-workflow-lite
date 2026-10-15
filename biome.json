@@ -47,7 +47,11 @@
         "noConfusingVoidType": "off"
       },
       "a11y": {
-        "useSemanticElements": "off"
+        "useSemanticElements": "off",
+        "noLabelWithoutControl": {
+          "level": "error",
+          "options": { "inputComponents": ["Checkbox"] }
+        }
       }
     }
   }

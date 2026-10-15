@@ -21,6 +21,7 @@ import {
   RpcId,
 } from '@deepseek-ai/dsh-client-connection'
 import { normalizeDocument, readNodeData as readDataFields } from '../shared/model.ts'
+import type { PackSkillAction } from '../shared/pack.ts'
 import type { StateEdit } from '../shared/runState.ts'
 import type { NodeData } from '../shared/types.ts'
 import {
@@ -31,6 +32,9 @@ import {
   type WorkflowLiteEndpoint,
 } from '../shared/wire.ts'
 import { listHostDir, listSkills, readSkill, type SkillViewer } from './hostFs.ts'
+import { exportPack, type PackDeps, scanPack } from './pack/exporter.ts'
+import { applyPack, inspectPack } from './pack/importer.ts'
+import { appendChunk, discard, readChunk } from './pack/staging.ts'
 import { compileWorkflow } from './plan.ts'
 import {
   type LiveValues,
@@ -54,6 +58,8 @@ export interface RpcDeps {
   skills?: SkillViewer
   /** 「设置」页：DSH 的设置服务（不在时回 `undefined`，页面只读）与活配置的现值。 */
   config: { port: () => SettingsPort | undefined; live: LiveValues }
+  /** 导入导出：skill 装到哪（`~/.agents/skills`）、插件版本（写进清单）。 */
+  pack: { skillsRoot: string; plugin: string }
 }
 
 type RpcResult<T> = ConnectionRpcResult<T>
@@ -199,6 +205,38 @@ function readEditValue(value: unknown): StateEdit['to'] {
   if (Array.isArray(value) && value.every((item) => typeof item === 'string'))
     return value as string[]
   throw new Error('edit value must be a string, number, string[] or null')
+}
+
+/** 一列正整数（版本号）。 */
+function requireNumbers(input: Record<string, unknown>, field: string): number[] {
+  const value = input[field]
+  if (
+    !Array.isArray(value) ||
+    !value.every((item) => typeof item === 'number' && Number.isInteger(item) && item > 0)
+  ) {
+    throw new Error(`${field} must be a list of positive integers`)
+  }
+  return value as number[]
+}
+
+/** 看 skill 时站在哪个会话、哪个工作区。 */
+function readScope(input: Record<string, unknown>): { cwd?: string; session?: string } {
+  const cwd = optionalString(input, 'cwd')
+  const session = optionalString(input, 'session')
+  return {
+    ...(cwd === undefined ? {} : { cwd }),
+    ...(session === undefined ? {} : { session }),
+  }
+}
+
+function packDeps(deps: RpcDeps): PackDeps {
+  return {
+    dataDir: deps.dataDir(),
+    repository: deps.repository,
+    ...(deps.skills === undefined ? {} : { skills: deps.skills }),
+    skillsRoot: deps.pack.skillsRoot,
+    plugin: deps.pack.plugin,
+  }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -602,6 +640,105 @@ async function dispatch(
       })
       if (!outcome.ok) return failFrom(outcome.error)
       return ok(outcome.result)
+    }
+
+    case 'pack/scan': {
+      const input = asRecord(payload)
+      const outcome = await scanPack(packDeps(deps), {
+        name: requireString(input, 'name'),
+        versions: requireNumbers(input, 'versions'),
+        ...readScope(input),
+      })
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok(outcome.result)
+    }
+
+    case 'pack/export': {
+      const input = asRecord(payload)
+      const pack = input.pack ?? []
+      if (!Array.isArray(pack) || !pack.every((key) => typeof key === 'string')) {
+        throw new Error('pack must be a list of keys')
+      }
+      const outcome = await exportPack(packDeps(deps), {
+        name: requireString(input, 'name'),
+        versions: requireNumbers(input, 'versions'),
+        pack: pack as string[],
+        ...readScope(input),
+      })
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok(outcome.result)
+    }
+
+    case 'pack/read': {
+      const input = asRecord(payload)
+      const offset = typeof input.offset === 'number' ? input.offset : 0
+      const outcome = await readChunk(deps.dataDir(), requireString(input, 'token'), offset)
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok(outcome.result)
+    }
+
+    case 'pack/upload': {
+      const input = asRecord(payload)
+      const offset = typeof input.offset === 'number' ? input.offset : -1
+      const data = typeof input.data === 'string' ? input.data : ''
+      const outcome = await appendChunk(
+        deps.dataDir(),
+        optionalString(input, 'token'),
+        offset,
+        data,
+      )
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok(outcome.result)
+    }
+
+    case 'pack/inspect': {
+      const input = asRecord(payload)
+      const outcome = await inspectPack(packDeps(deps), {
+        token: requireString(input, 'token'),
+        ...readScope(input),
+      })
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok(outcome.result)
+    }
+
+    case 'pack/apply': {
+      const input = asRecord(payload)
+      const mode = input.mode
+      if (mode !== 'new' && mode !== 'merge') throw new Error('mode must be new or merge')
+      const assets = input.assets
+      if (assets !== undefined && assets !== 'package' && assets !== 'local') {
+        throw new Error('assets must be package or local')
+      }
+      const skills: Record<string, PackSkillAction> = {}
+      if (input.skills !== undefined) {
+        for (const [name, action] of Object.entries(asRecord(input.skills))) {
+          if (
+            action !== 'install' &&
+            action !== 'skip' &&
+            action !== 'overwrite' &&
+            action !== 'rename'
+          ) {
+            throw new Error(`unknown skill action for ${name}`)
+          }
+          skills[name] = action
+        }
+      }
+      const outcome = await applyPack(packDeps(deps), {
+        token: requireString(input, 'token'),
+        mode,
+        name: requireString(input, 'name'),
+        ...(assets === undefined ? {} : { assets }),
+        skills,
+        ...readScope(input),
+      })
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok(outcome.result)
+    }
+
+    case 'pack/discard': {
+      const input = asRecord(payload)
+      await discard(deps.dataDir(), requireString(input, 'token'))
+      return ok({ removed: true })
     }
 
     default: {
