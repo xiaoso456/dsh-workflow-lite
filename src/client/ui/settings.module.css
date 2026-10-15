@@ -130,27 +130,11 @@
   line-height: 1.5;
 }
 
+/* 选中标记：全局统一的圆形勾选（ui.module.css 的 .check），这里只摆在卡片右上角。 */
 .modeCheck {
   position: absolute;
   top: 8px;
   right: 8px;
-  display: grid;
-  place-items: center;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: var(--wl-accent);
-  color: var(--wl-accent-on);
-  opacity: 0;
-  transform: scale(0.6);
-  transition:
-    opacity 120ms linear,
-    transform 280ms cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.mode[aria-checked="true"] .modeCheck {
-  opacity: 1;
-  transform: scale(1);
 }
 
 /* ── 一行一项：图标、名字 +「?」、一句话、右边的控件 ─────── */
@@ -260,7 +244,6 @@ label.row:hover {
   .mode,
   .mode::before,
   .modeIcon::before,
-  .modeCheck,
   .switch::before,
   .knob {
     transition: none;

@@ -486,18 +486,6 @@
   outline-offset: -2px;
 }
 
-.skillCheck {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 16px;
-  height: 16px;
-  border: 1.5px solid var(--wl-line-strong);
-  border-radius: 4px;
-  background: var(--wl-panel);
-  color: var(--wl-accent-on);
-}
-
 /* 右边：来源（纯文字）+ 一个小眼睛按钮；只有按钮自己在悬停时有底色。 */
 .skillSide {
   display: flex;

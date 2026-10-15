@@ -155,22 +155,6 @@ button.choice::after {
   height: 26px;
 }
 
-.mark {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 16px;
-  height: 16px;
-  border: 1.5px solid var(--wl-line-strong);
-  border-radius: 50%;
-  background: var(--wl-panel);
-  color: var(--wl-accent-on);
-}
-
-.choice[data-shape="box"] .mark {
-  border-radius: 4px;
-}
-
 .choiceText {
   flex: 1 1 auto;
   min-width: 0;

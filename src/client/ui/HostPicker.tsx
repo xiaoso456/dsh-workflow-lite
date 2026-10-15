@@ -405,7 +405,7 @@ function PickRow(props: {
       {props.selectable && (
         <button
           type="button"
-          className={cx(css.check, ui.tick)}
+          className={cx(ui.check, css.check)}
           role="checkbox"
           aria-checked={props.on}
           aria-label={props.name}

@@ -22,7 +22,7 @@ import {
 import type { LocaleKey, T } from '../i18n.ts'
 import { Icon, type IconName } from './Icon.tsx'
 import css from './inspector.module.css'
-import { FadeMark, PickThumb } from './motion.tsx'
+import { CheckBox, FadeMark, PickThumb } from './motion.tsx'
 import { cx, HelpTip } from './primitives.tsx'
 import { Segmented } from './Segmented.tsx'
 import s from './settings.module.css'
@@ -125,9 +125,7 @@ export function ModeGroup(props: {
               </span>
               <span className={s.modeTitle}>{t(text.title)}</span>
               <span className={s.modeDesc}>{t(text.desc)}</span>
-              <span className={s.modeCheck} aria-hidden="true">
-                <Icon name="check" size={12} />
-              </span>
+              <CheckBox className={s.modeCheck} on={props.mode === value} />
             </button>
           )
         })}

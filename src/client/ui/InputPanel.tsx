@@ -165,8 +165,7 @@ export function InputPanel(props: InputPanelProps): React.JSX.Element {
                       type="button"
                       role="checkbox"
                       aria-checked={isDefault}
-                      className={cx(css.mark, ui.tick)}
-                      data-shape={kind === 'multi' ? 'box' : 'dot'}
+                      className={ui.check}
                       aria-label={t('input.default')}
                       disabled={trimmed === ''}
                       data-testid="wl-input-default-mark"
@@ -239,7 +238,7 @@ export function InputPanel(props: InputPanelProps): React.JSX.Element {
             ) && <p className={ins.error}>{t('input.optionDup')}</p>}
             {data.other === true && (
               <p className={css.otherGhost} data-testid="wl-input-other-ghost">
-                <span className={css.otherMark} data-shape={kind === 'multi' ? 'box' : 'dot'} />
+                <span className={css.otherMark} />
                 {t('input.otherGhost')}
               </p>
             )}

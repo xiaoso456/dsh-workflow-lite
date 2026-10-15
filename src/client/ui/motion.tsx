@@ -1055,20 +1055,13 @@ export function FadeMark(props: {
 }
 
 /**
- * 勾选标记里的 ✓：选中时顺着笔画一笔画出来，取消时收回（refs/transitions.dev「Checkbox check」）。
- * 放在 `ui.tick` 元素里当**直接子元素**，跟着它的 `aria-checked` / `data-on` 走；字色就是勾的颜色。
+ * 勾选标记里的描边：先是一圈灰色圆环，选中时圆环收成 ✓（Uiverse 那种「描边变形」，路径和数字见 ui.module.css 的 `.checkDraw`）。
+ * 放在 `ui.check` 元素里当**直接子元素**，跟着它的 `aria-checked` / `data-on` 走；字色就是 ✓ 的颜色。
  */
-export function CheckMark(props: { size?: number }): React.JSX.Element {
-  const size = props.size ?? 10
+export function CheckMark(): React.JSX.Element {
   return (
-    <svg
-      className={ui.checkDraw}
-      width={size}
-      height={size}
-      viewBox="0 0 10.1668 10.1668"
-      aria-hidden="true"
-    >
-      <path d="M1 5.521L3.917 9.167L9.167 1" />
+    <svg className={ui.checkDraw} width="16" height="16" viewBox="0 0 64 64" aria-hidden="true">
+      <path d="M3 32C3 10.16 10.16 3 32 3C53.84 3 61 10.16 61 32C61 53.84 53.84 61 32 61C10.16 61 3 53.84 3 32L18 33L28 43L47 22" />
     </svg>
   )
 }
@@ -1084,9 +1077,19 @@ export function Checkbox(
   return (
     <span className={cx(ui.checkbox, className)}>
       <input type="checkbox" className={ui.checkInput} {...rest} />
-      <span className={cx(ui.checkBox, ui.tick)} aria-hidden="true">
-        <CheckMark />
-      </span>
+      <CheckBox />
+    </span>
+  )
+}
+
+/**
+ * 纯展示的勾选方框（点击由外面的按钮 / 整行管）：`on` 决定画不画勾。
+ * 样子全局一份，见 ui.module.css 的 `.check`。
+ */
+export function CheckBox(props: { on?: boolean; className?: string }): React.JSX.Element {
+  return (
+    <span className={cx(ui.check, props.className)} data-on={props.on} aria-hidden="true">
+      <CheckMark />
     </span>
   )
 }

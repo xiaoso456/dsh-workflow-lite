@@ -16,7 +16,7 @@ import type { T } from '../i18n.ts'
 import hand from './handoff.module.css'
 import { Icon } from './Icon.tsx'
 import css from './inputs-dialog.module.css'
-import { CheckMark } from './motion.tsx'
+import { CheckBox } from './motion.tsx'
 import overlay from './overlay.module.css'
 import { cx, Modal } from './primitives.tsx'
 import ui from './ui.module.css'
@@ -236,7 +236,6 @@ function Question(props: {
                 aria-pressed={on}
                 className={cx(css.choice, ui.fillOn)}
                 data-on={on}
-                data-shape={kind === 'multi' ? 'box' : 'dot'}
                 data-testid="wl-ask-option"
                 onClick={() => {
                   if (kind === 'multi') {
@@ -251,9 +250,7 @@ function Question(props: {
                   }
                 }}
               >
-                <span className={cx(css.mark, ui.tick)} data-on={on} aria-hidden="true">
-                  <CheckMark />
-                </span>
+                <CheckBox on={on} />
                 <span className={css.choiceText}>{option}</span>
                 {defaults.includes(option) && (
                   <span className={css.defaultTag}>{t('ask.defaultTag')}</span>
@@ -265,7 +262,6 @@ function Question(props: {
             <div
               className={cx(css.choice, css.otherRow, ui.fillOn)}
               data-on={otherOn}
-              data-shape={kind === 'multi' ? 'box' : 'dot'}
               data-testid="wl-ask-other"
             >
               <button
@@ -275,9 +271,7 @@ function Question(props: {
                 data-testid="wl-ask-other-toggle"
                 onClick={toggleOther}
               >
-                <span className={cx(css.mark, ui.tick)} data-on={otherOn} aria-hidden="true">
-                  <CheckMark />
-                </span>
+                <CheckBox on={otherOn} />
                 <span className={css.choiceText}>{t('ask.other')}</span>
               </button>
               <input

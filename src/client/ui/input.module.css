@@ -45,40 +45,6 @@
   height: 30px;
 }
 
-/* 选项左边的圈（单选）/ 方框（多选）：点它设成默认，选中时实心带勾。 */
-.mark {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 18px;
-  height: 18px;
-  padding: 0;
-  border: 1.5px solid var(--wl-line-strong);
-  border-radius: 50%;
-  background: var(--wl-panel);
-  color: var(--wl-accent-on);
-  cursor: pointer;
-  transition: transform 120ms var(--wl-ease);
-}
-
-.mark[data-shape="box"] {
-  border-radius: 5px;
-}
-
-.mark:hover:not(:disabled) {
-  border-color: var(--wl-accent);
-}
-
-.mark:disabled {
-  cursor: default;
-  opacity: 0.4;
-}
-
-.mark:focus-visible {
-  outline: 2px solid var(--wl-accent);
-  outline-offset: 2px;
-}
-
 .remove {
   flex: none;
   color: var(--wl-text-3);
@@ -111,14 +77,10 @@
 
 .otherMark {
   flex: none;
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   border: 1.5px dashed var(--wl-line-strong);
   border-radius: 50%;
-}
-
-.otherMark[data-shape="box"] {
-  border-radius: 5px;
 }
 
 /* ── 必填开关 ─────────────────────────────────────────────── */
@@ -257,7 +219,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .mark,
   .remove,
   .switch::before,
   .knob {
