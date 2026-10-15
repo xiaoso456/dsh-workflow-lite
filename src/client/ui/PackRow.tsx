@@ -150,10 +150,28 @@ export function PackSteps(props: { steps: readonly string[]; at: number }): Reac
   return (
     <div className={css.steps}>
       {props.steps.map((label, index) => (
-        <span key={label} className={css.step} data-on={index === props.at}>
+        <span
+          key={label}
+          className={css.step}
+          data-on={index === props.at}
+          data-reached={index <= props.at}
+          aria-current={index === props.at ? 'step' : undefined}
+        >
           {index > 0 && <span className={css.stepGap} />}
-          <span className={css.stepNum}>{index + 1}</span>
-          {label}
+          {/* 暗、亮各一份叠着，换的是透明度（见 pack.module.css 的步骤切换）。 */}
+          <span className={css.stepNum}>
+            <span className={css.stepFill} />
+            <span className={css.numDim} aria-hidden="true">
+              {index + 1}
+            </span>
+            <span className={css.numLit}>{index + 1}</span>
+          </span>
+          <span className={css.stepLabel}>
+            <span className={css.labelDim} aria-hidden="true">
+              {label}
+            </span>
+            <span className={css.labelLit}>{label}</span>
+          </span>
         </span>
       ))}
     </div>

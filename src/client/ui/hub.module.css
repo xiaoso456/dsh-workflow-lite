@@ -77,11 +77,10 @@ div.dialog {
   opacity: 0.8;
 }
 
-/* 搜索框下面的列表：边线由外面那一栏画。 */
+/* 搜索框下面的列表：边线由外面那一栏（.side）画，列表自己不画，免得出两道。 */
 .sideList {
   flex: 1 1 auto;
   padding-top: 4px;
-  border-right: 0;
 }
 
 /*
@@ -846,7 +845,6 @@ input.statusNote {
   min-height: 0;
   padding: 10px 8px;
   overflow-y: auto;
-  border-right: 1px solid var(--wl-line);
   scrollbar-width: thin;
 }
 
