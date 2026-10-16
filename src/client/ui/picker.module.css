@@ -27,6 +27,7 @@
 }
 
 .crumbs {
+  position: relative;
   display: flex;
   flex: 1 1 auto;
   align-items: center;
@@ -34,6 +35,19 @@
   height: 30px;
   overflow-x: auto;
   scrollbar-width: none;
+}
+
+/*
+ * 一级路径 = 分隔箭头 + 名字，是面包屑里增减的单位（useTrail 认直接子项）。
+ * 展开 / 收回靠「后面的一级从前面的一级背后滑出 / 滑回」，所以单元有不透明底色（和路径栏一个样子，
+ * 平时看不出来）、前面的 z-index 更高（JSX 里按顺序给）。
+ */
+.crumbUnit {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  background: linear-gradient(var(--wl-fill), var(--wl-fill)), var(--wl-panel);
 }
 
 .crumbs::-webkit-scrollbar {
@@ -236,16 +250,36 @@ button.hiddenToggle::after {
 
 /* ── 列表 ─────────────────────────────────────────────────── */
 
-.list {
+/* 列表外面这层只管定位和裁切：换目录时旧内容的影子在里面往外走（useStage），不能越出列表框。 */
+.listWrap {
+  position: relative;
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
   min-height: 0;
   margin: 0 10px;
+  overflow: hidden;
+}
+
+.list {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
   padding: 2px 0 8px;
+  overflow-x: hidden; /* 换目录时新内容从旁边横着进来，不能撑出横向滚动条 */
   overflow-y: auto;
+  scrollbar-gutter: stable;
   scrollbar-width: thin;
   transition: opacity 120ms linear;
+}
+
+/* 目录里的行都挂在这一层：整层换目录时横着换，行增减时各行滑动、淡入淡出（useResizeFlip 认直接子项，影子需要它定位）。 */
+.listBody {
+  position: relative;
+  display: flex;
+  flex: none;
+  flex-direction: column;
 }
 
 .list[data-loading="true"] {
@@ -263,6 +297,11 @@ button.hiddenToggle::after {
   height: 28px;
   padding-right: 6px;
   border-radius: 6px;
+}
+
+/* 行滑动、淡入淡出时要能盖住底下的东西，不叠出重影（useResizeFlip）：行底色不透明，悬停时再换成悬停色。 */
+.listBody > .row {
+  background: var(--wl-panel);
 }
 
 .row:hover {

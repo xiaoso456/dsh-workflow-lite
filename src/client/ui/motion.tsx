@@ -9,7 +9,15 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/motion
  */
 
-import { type RefObject, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import {
+  type RefObject,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { Icon, type IconName } from './Icon.tsx'
 import { cx, type Ghost, ghostClone, ghostFade } from './primitives.tsx'
 import ui from './ui.module.css'
@@ -52,13 +60,17 @@ function slide(child: HTMLElement, offset: number): void {
     running.cancel()
   }
   if (Math.abs(from) < 0.5) return
-  sliding.set(
-    child,
-    child.animate([{ transform: `translateY(${from}px)` }, { transform: 'none' }], {
-      duration: FLIP_MS,
-      easing: EASE,
-    }),
-  )
+  const anim = child.animate([{ transform: `translateY(${from}px)` }, { transform: 'none' }], {
+    duration: FLIP_MS,
+    easing: EASE,
+  })
+  sliding.set(child, anim)
+  // 滑动的项盖在新出现 / 正在淡出的项上面（项有不透明底色时像帘子一样把它们盖住再露出来）：
+  // 放完（或被下一次滑动接手）再还原。
+  child.style.zIndex = '1'
+  anim.addEventListener('finish', () => {
+    if (sliding.get(child) === anim) child.style.removeProperty('z-index')
+  })
 }
 
 const ENTER_MS = 240
@@ -118,6 +130,29 @@ export function useFlip(
   }, [layout])
 }
 
+/** 最近的滚动 / 裁切祖先（或视口）在视口坐标里的上下边，各放宽 32px。 */
+function clipBand(list: HTMLElement): [number, number] {
+  let el: HTMLElement | null = list
+  while (el !== null && el !== document.documentElement) {
+    if (getComputedStyle(el).overflowY !== 'visible') {
+      const box = el.getBoundingClientRect()
+      return [box.top - 32, box.bottom + 32]
+    }
+    el = el.parentElement
+  }
+  return [-32, window.innerHeight + 32]
+}
+
+/** 列表自己就是滚动的那一层（项的位置要减去它滚走的部分才是视口里的位置）。 */
+function isScroller(list: HTMLElement): boolean {
+  return list.scrollHeight > list.clientHeight && getComputedStyle(list).overflowY !== 'visible'
+}
+
+/** 视口坐标里 `top` 起、`height` 高的一块，和 `band` 有交集吗。 */
+function seen(band: [number, number], top: number, height: number): boolean {
+  return top + height >= band[0] && top <= band[1]
+}
+
 /** 一项在列表里占的地方（相对列表的内边距框）：删掉后影子照这个摆回去。 */
 interface Slot {
   top: number
@@ -170,6 +205,8 @@ function leaveAt(list: HTMLElement, node: HTMLElement, slot: Slot): void {
     height: `${slot.height}px`,
     margin: '0',
     boxSizing: 'border-box',
+    // 压在滑动的项（z-index 1）下面：它们滑过时盖住淡出中的影子，不叠出重影。
+    zIndex: '0',
   })
   leaving.add(ghost.node)
   ghost.place(list)
@@ -191,6 +228,11 @@ function enterIn(child: Element): void {
 
 /** 右栏刚换了内容（{@link swapIn}）：这时列表里的整批增删是换内容，不是有人删了一项，不放增删动画。 */
 let swappedAt = Number.NEGATIVE_INFINITY
+
+/** 整个列表马上要换成另一份（进了另一个目录）：接下来那一次整批增删是换内容，不逐项放退场入场。 */
+export function markSwap(): void {
+  swappedAt = performance.now()
+}
 
 /**
  * 列表里有一项变高变矮（展开、收起、内容换了）或增删了项：它后面的项从旧位置滑到新位置。
@@ -237,10 +279,16 @@ export function useResizeFlip(
       const settle = (): void => {
         const next = measure()
         if (REDUCED?.matches !== true) {
+          // 只给看得见的项放动画：目录里成百上千行时，屏幕外的项滑不滑看不出来，不白费。
+          const band = clipBand(list)
           for (const [child, slot] of next) {
             const was = slots.get(child)
             if (was === undefined || was.top === slot.top) continue
-            slide(child, was.top - slot.top)
+            const now = child.getBoundingClientRect()
+            const offset = was.top - slot.top
+            if (seen(band, now.top, now.height) || seen(band, now.top + offset, now.height)) {
+              slide(child, offset)
+            }
           }
         }
         slots = next
@@ -256,6 +304,8 @@ export function useResizeFlip(
       const children = new MutationObserver((records) => {
         const still = REDUCED?.matches === true || performance.now() - swappedAt < 80
         if (!still && (exit || enter)) {
+          const band = clipBand(list)
+          const origin = list.getBoundingClientRect().top - (isScroller(list) ? list.scrollTop : 0)
           for (const record of records) {
             if (exit) {
               for (const node of record.removedNodes) {
@@ -263,13 +313,16 @@ export function useResizeFlip(
                 if (!(node instanceof HTMLElement) || node.isConnected || leaving.has(node))
                   continue
                 const slot = slots.get(node)
-                if (slot !== undefined) leaveAt(list, node, slot)
+                if (slot !== undefined && seen(band, origin + slot.top, slot.height)) {
+                  leaveAt(list, node, slot)
+                }
               }
             }
             if (enter) {
               for (const node of record.addedNodes) {
                 if (node instanceof HTMLElement && !leaving.has(node) && !slots.has(node)) {
-                  enterIn(node)
+                  const box = node.getBoundingClientRect()
+                  if (seen(band, box.top, box.height)) enterIn(node)
                 }
               }
             }
@@ -287,6 +340,176 @@ export function useResizeFlip(
     },
     [exit, enter],
   )
+}
+
+const TRAIL_IN_MS = 260
+const TRAIL_OUT_MS = 200
+
+/**
+ * 路径栏那样沿一条线、从右端增减的一排（面包屑）：长出一级时新的一级从前一级背后「展开」出来，
+ * 缩短时去掉的几级往前一级背后「收」进去——像抽屉拉出、推回，不是淡入淡出。
+ *
+ * 直接子项是一级一个单元。靠遮挡做出展开感，所以单元要**不透明底色**、`position: relative`，
+ * 且越靠前的 `z-index` 越高（前一级盖在后一级上，影子垫在最底下）；整排要 `position: relative`、
+ * 自己裁切（`overflow` 不是 visible）。只放 transform 动画，单元本身一次到位（布局不动，不占主线程）。
+ * 返回一个回调 ref 挂到这一排上。
+ */
+export function useTrail(): (row: HTMLElement | null) => void {
+  const stop = useRef<(() => void) | null>(null)
+  useEffect(() => () => stop.current?.(), [])
+  return useCallback((row: HTMLElement | null) => {
+    stop.current?.()
+    stop.current = null
+    if (row === null || typeof MutationObserver === 'undefined') return
+    const measure = (): Map<HTMLElement, Slot> => {
+      const slots = new Map<HTMLElement, Slot>()
+      for (const child of row.children) {
+        if (!(child instanceof HTMLElement) || leaving.has(child)) continue
+        slots.set(child, {
+          top: child.offsetTop,
+          left: child.offsetLeft,
+          width: child.offsetWidth,
+          height: child.offsetHeight,
+        })
+      }
+      return slots
+    }
+    let slots = measure()
+    const watcher = new MutationObserver((records) => {
+      const gone: HTMLElement[] = []
+      const fresh: HTMLElement[] = []
+      for (const record of records) {
+        for (const node of record.removedNodes) {
+          if (node instanceof HTMLElement && !node.isConnected && slots.has(node)) gone.push(node)
+        }
+        for (const node of record.addedNodes) {
+          if (node instanceof HTMLElement && !leaving.has(node) && !slots.has(node)) {
+            fresh.push(node)
+          }
+        }
+      }
+      // 第一次装进来（路径栏刚挂上、原来是空的）不放展开。
+      if (REDUCED?.matches !== true && slots.size > 0) {
+        // 去掉的：留下的那一级（第一个被去掉的单元左边）就是收拢的地方，每个影子往左缩进它背后。
+        const gate = Math.min(...gone.map((node) => slots.get(node)?.left ?? 0))
+        for (const node of gone) {
+          const slot = slots.get(node)
+          if (slot === undefined) continue
+          const ghost = ghostClone(node)
+          ghost.node.removeAttribute('data-trail')
+          Object.assign(ghost.node.style, {
+            position: 'absolute',
+            top: `${slot.top}px`,
+            left: `${slot.left}px`,
+            width: `${slot.width}px`,
+            height: `${slot.height}px`,
+            margin: '0',
+            boxSizing: 'border-box',
+            zIndex: '0',
+          })
+          leaving.add(ghost.node)
+          ghost.place(row)
+          const shift = slot.left - gate + slot.width
+          const out = ghost.node.animate(
+            [{ transform: 'none' }, { transform: `translateX(${-shift}px)` }],
+            { duration: TRAIL_OUT_MS, easing: EASE_OUT, fill: 'forwards' },
+          )
+          const drop = (): void => ghost.node.remove()
+          out.finished.then(drop, drop)
+        }
+        // 新长出的：从前一级背后（第一个新单元左边）向右展开，各自的右缘先对齐那条线。
+        if (fresh.length > 0) {
+          const origin = Math.min(...fresh.map((node) => node.offsetLeft))
+          for (const node of fresh) {
+            const shift = node.offsetLeft - origin + node.offsetWidth
+            node.animate([{ transform: `translateX(${-shift}px)` }, { transform: 'none' }], {
+              duration: TRAIL_IN_MS,
+              easing: EASE_OUT,
+            })
+          }
+        }
+      }
+      slots = measure()
+    })
+    watcher.observe(row, { childList: true })
+    stop.current = () => watcher.disconnect()
+  }, [])
+}
+
+/** 整块内容换成另一块（{@link useStage}）：横向挪多远、旧的退多久、新的进多久。 */
+const STAGE_SHIFT = 16
+const STAGE_OUT_MS = 150
+const STAGE_IN_MS = 240
+
+/** 往里走（进了下一级）、往回走（回了上一级）、平级跳转（只淡）。 */
+export type StageDir = -1 | 0 | 1
+
+/**
+ * 一整块内容换成另一块（文件选择框里进下一级、回上一级）：
+ * 往里走时旧的往左退、淡出，新的从右边进来；往回走反过来；平级跳转只淡入淡出、竖向挪一点。
+ *
+ * 用法：`wrap` 挂在内容外面那层（要 `position: relative; overflow: hidden`），`body` 挂在内容本身；
+ * 数据到了、换进新内容的那一刻先 `leave(dir)`（给旧内容留个影子往外走），内容换上之后 `enter(dir)`
+ * （新内容从该来的一侧进来）。只放 Web Animation 的 transform / opacity。
+ */
+export function useStage(): {
+  wrap: RefObject<HTMLDivElement>
+  body: { current: HTMLElement | null }
+  leave(dir: StageDir): void
+  enter(dir: StageDir): void
+} {
+  const wrap = useRef<HTMLDivElement>(null)
+  const body = useRef<HTMLElement | null>(null)
+  const leave = useCallback((dir: StageDir): void => {
+    const frame = wrap.current
+    const node = body.current
+    if (frame === null || node === null || REDUCED?.matches === true) return
+    const box = node.getBoundingClientRect()
+    const host = frame.getBoundingClientRect()
+    if (box.height === 0) return
+    const ghost = ghostClone(node)
+    Object.assign(ghost.node.style, {
+      position: 'absolute',
+      top: `${box.top - host.top}px`,
+      left: `${box.left - host.left}px`,
+      width: `${box.width}px`,
+      height: `${box.height}px`,
+      margin: '0',
+      // 数据还没到时旧内容是压暗着的（载入中）：影子从那个亮度开始淡。
+      opacity: getComputedStyle(frame.firstElementChild ?? frame).opacity,
+    })
+    ghost.place(frame)
+    const from = Number(ghost.node.style.opacity) || 1
+    ghost.node.animate(
+      [
+        { transform: 'none' },
+        { transform: dir === 0 ? 'translateY(-4px)' : `translateX(${-dir * STAGE_SHIFT}px)` },
+      ],
+      { duration: STAGE_IN_MS, easing: EASE_OUT, fill: 'forwards' },
+    )
+    const out = ghost.node.animate([{ opacity: from }, { opacity: 0 }], {
+      duration: STAGE_OUT_MS,
+      easing: 'linear',
+      fill: 'forwards',
+    })
+    const drop = (): void => ghost.node.remove()
+    out.finished.then(drop, drop)
+  }, [])
+  const enter = useCallback((dir: StageDir): void => {
+    const node = body.current
+    if (node === null || REDUCED?.matches === true) return
+    node.animate(
+      [
+        {
+          opacity: 0,
+          transform: dir === 0 ? 'translateY(4px)' : `translateX(${dir * STAGE_SHIFT}px)`,
+        },
+        { opacity: 1, transform: 'none' },
+      ],
+      { duration: STAGE_IN_MS, easing: EASE_OUT, delay: dir === 0 ? 0 : 40, fill: 'backwards' },
+    )
+  }, [])
+  return useMemo(() => ({ wrap, body, leave, enter }), [leave, enter])
 }
 
 /**

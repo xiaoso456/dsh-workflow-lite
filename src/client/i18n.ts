@@ -1002,7 +1002,8 @@ export const zh = {
   'pick.fileTitle': '选择文件',
   'pick.folderTitle': '选择文件夹',
   'pick.fileSub': '点文件选上，可以一次选好几个；双击一个文件直接添加',
-  'pick.folderSub': '点右边的圆圈选上文件夹，点文件夹进去；也可以进到里面点「选当前文件夹」',
+  'pick.folderSub':
+    '点文件夹进去，点右边的圆圈可以一次选好几个；什么都不勾，右下角就是「选当前文件夹」',
   'pick.up': '上一级',
   'pick.address': '路径',
   'pick.typePath': '直接输入路径',
@@ -2159,7 +2160,7 @@ export const en: Record<LocaleKey, string> = {
   'pick.fileSub':
     'Click files to select them, several at once; double-click a file to add it right away',
   'pick.folderSub':
-    'Click the circle to select a folder, click the folder to open it; or go inside and choose “This folder”',
+    'Click a folder to open it, click its circle to select several at once; with nothing ticked, the button at the bottom right picks “This folder”',
   'pick.up': 'Up',
   'pick.address': 'Path',
   'pick.typePath': 'Type a path',
