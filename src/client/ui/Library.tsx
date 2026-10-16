@@ -24,7 +24,7 @@ import {
 } from '../model/library.ts'
 import { Icon } from './Icon.tsx'
 import css from './library.module.css'
-import { FadeMark, FadeText, useResizeFlip } from './motion.tsx'
+import { FadeMark, FadeText, Presence, useResizeFlip } from './motion.tsx'
 import { cx } from './primitives.tsx'
 import { StepMark } from './StepMark.tsx'
 import ui from './ui.module.css'
@@ -258,7 +258,7 @@ export function Library(props: {
           testId="wl-lib-section-builtin"
           onToggle={() => toggle('builtin')}
         />
-        {open('builtin') && (
+        <Presence show={open('builtin')}>
           <div className={css.group}>
             {PRESETS.map((preset) => (
               <Item
@@ -273,7 +273,7 @@ export function Library(props: {
               />
             ))}
           </div>
-        )}
+        </Presence>
 
         <SectionHead
           label={t('lib.custom')}
@@ -296,7 +296,7 @@ export function Library(props: {
             </button>
           }
         />
-        {open('custom') && (
+        <Presence show={open('custom')}>
           <div className={css.group}>
             {props.templates.length === 0 ? (
               <p className={css.emptyNote}>{t('lib.customEmpty')}</p>
@@ -328,7 +328,7 @@ export function Library(props: {
               ))
             )}
           </div>
-        )}
+        </Presence>
       </div>
     </section>
   )

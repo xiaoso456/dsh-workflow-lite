@@ -41,7 +41,9 @@
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition: transform 120ms var(--wl-ease);
+  transition:
+    transform 120ms var(--wl-ease),
+    background-color 120ms linear;
 }
 
 .mode::before {
@@ -76,6 +78,10 @@
 }
 
 /* 选中的卡上不再叠悬停底色：选中框的浅蓝底就是它的底。 */
+.mode[aria-checked="true"] {
+  transition: background-color 120ms linear;
+}
+
 .mode[aria-checked="true"]:hover {
   background: transparent;
 }
@@ -165,6 +171,7 @@
 /* 开关那种行整行都能点（`<label>` 把点击转给右边的开关）。 */
 label.row {
   cursor: pointer;
+  transition: background-color 120ms linear;
 }
 
 label.row:hover {

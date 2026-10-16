@@ -70,6 +70,9 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: pointer;
+  transition:
+    background-color 120ms linear,
+    color 120ms linear;
 }
 
 .crumb:hover {
@@ -136,6 +139,9 @@
   font: inherit;
   font-size: var(--wl-fs-micro);
   cursor: pointer;
+  transition:
+    background-color 120ms linear,
+    color 120ms linear;
 }
 
 /* 平时的描边画在伪元素上，选中时淡掉（让给滑过来的选中块）。 */
@@ -297,6 +303,7 @@ button.hiddenToggle::after {
   height: 28px;
   padding-right: 6px;
   border-radius: 6px;
+  transition: background-color 120ms linear;
 }
 
 /* 行滑动、淡入淡出时要能盖住底下的东西，不叠出重影（useResizeFlip）：行底色不透明，悬停时再换成悬停色。 */

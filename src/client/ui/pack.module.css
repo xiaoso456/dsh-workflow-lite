@@ -328,6 +328,10 @@
   border-radius: 8px;
 }
 
+.row[data-compact="true"][data-check="true"]:not(:has(input:disabled)) {
+  transition: background-color 120ms linear;
+}
+
 .row[data-compact="true"][data-check="true"]:not(:has(input:disabled)):hover {
   background: var(--wl-fill);
 }

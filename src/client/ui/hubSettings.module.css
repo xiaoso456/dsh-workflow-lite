@@ -80,7 +80,10 @@
   background: transparent;
   color: var(--wl-text-3);
   cursor: pointer;
-  transition: transform 120ms var(--wl-ease);
+  transition:
+    transform 120ms var(--wl-ease),
+    background-color 120ms linear,
+    color 120ms linear;
 }
 
 .reset:hover {

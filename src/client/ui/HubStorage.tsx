@@ -15,8 +15,9 @@ import { errorMessage, type WorkflowLiteRpc } from '../rpc.ts'
 import { useConfirm } from './Confirm.tsx'
 import hub from './hub.module.css'
 import { Icon, type IconName } from './Icon.tsx'
-import { SwapIcon, SwapText } from './motion.tsx'
+import { Presence, SwapIcon, SwapText } from './motion.tsx'
 import { copyText, cx } from './primitives.tsx'
+import { Skeleton } from './Skeleton.tsx'
 import ui from './ui.module.css'
 
 type Action = 'stats' | 'clearDispatch' | 'clearFinished'
@@ -75,10 +76,7 @@ export function HubStorage(props: {
         {notice !== null ? (
           <Notice notice={notice} />
         ) : (
-          <div className={hub.loading}>
-            <span className={hub.spinner} />
-            {t('hub.loading')}
-          </div>
+          <Skeleton label={t('hub.loading')} shape="form" />
         )}
       </div>
     )
@@ -87,7 +85,7 @@ export function HubStorage(props: {
   const count = (n: number): string => t('hub.count').replace('{n}', String(n))
   return (
     <div className={hub.page} data-testid="wl-hub-stats">
-      {notice !== null && <Notice notice={notice} />}
+      <Presence show={notice !== null}>{notice !== null && <Notice notice={notice} />}</Presence>
 
       <section className={hub.section}>
         <h3 className={hub.sectionTitle}>{t('hub.dataDir')}</h3>

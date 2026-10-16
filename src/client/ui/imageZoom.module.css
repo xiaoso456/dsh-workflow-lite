@@ -51,6 +51,12 @@
   cursor: pointer;
 }
 
+.tool:not(:disabled) {
+  transition:
+    background-color 120ms linear,
+    color 120ms linear;
+}
+
 .tool:hover:not(:disabled) {
   background: var(--wl-hover);
   color: var(--wl-text);

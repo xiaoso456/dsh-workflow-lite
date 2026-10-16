@@ -26,6 +26,7 @@ import { useResizeFlip } from './motion.tsx'
 import { Callout } from './PackRow.tsx'
 import css from './pack.module.css'
 import { cx } from './primitives.tsx'
+import { Skeleton } from './Skeleton.tsx'
 import ui from './ui.module.css'
 import { useFileDrop } from './useFileDrop.ts'
 import { VersionList } from './VersionList.tsx'
@@ -87,12 +88,7 @@ export function HubWorkflows(props: {
   const detailRef = useResizeFlip({ exit: true, enter: true })
 
   if (workflows === null) {
-    return (
-      <div className={hub.loading}>
-        <span className={hub.spinner} />
-        {t('hub.loading')}
-      </div>
-    )
+    return <Skeleton label={t('hub.loading')} />
   }
 
   const importPane = (

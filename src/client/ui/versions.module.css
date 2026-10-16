@@ -260,13 +260,22 @@ button.main {
   background: transparent;
   color: var(--wl-text-3);
   cursor: pointer;
-  transition: transform 120ms var(--wl-ease);
+  transition:
+    transform 120ms var(--wl-ease),
+    background-color 120ms linear,
+    color 120ms linear;
 }
 
 .action:hover,
 .action[aria-expanded="true"] {
   background: var(--wl-fill-strong);
   color: var(--wl-text);
+}
+
+.action[data-danger="true"] {
+  transition:
+    background-color 120ms linear,
+    color 120ms linear;
 }
 
 .action[data-danger="true"]:hover,

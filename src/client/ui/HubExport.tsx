@@ -30,7 +30,7 @@ import { shortTime } from '../model/time.ts'
 import { errorMessage, type WorkflowLiteRpc } from '../rpc.ts'
 import hub from './hub.module.css'
 import { Icon, type IconName } from './Icon.tsx'
-import { useResizeFlip } from './motion.tsx'
+import { Presence, useResizeFlip } from './motion.tsx'
 import { Callout, PackRow, PackSection, PackSteps } from './PackRow.tsx'
 import css from './pack.module.css'
 import { cx } from './primitives.tsx'
@@ -156,7 +156,9 @@ export function HubExport(props: {
         </button>
       </div>
       <PackSteps steps={[t('pack.stepVersions'), t('pack.stepResources')]} at={step} />
-      {error !== null && <Callout tone="error">{error}</Callout>}
+      <Presence show={error !== null}>
+        {error !== null && <Callout tone="error">{error}</Callout>}
+      </Presence>
 
       {busy !== null ? (
         <div className={css.busy} data-testid="wl-pack-busy">
@@ -534,7 +536,9 @@ function Category(props: {
           </button>
         )}
       </div>
-      {open && <div className={css.catBody}>{props.children}</div>}
+      <Presence show={open}>
+        <div className={css.catBody}>{props.children}</div>
+      </Presence>
     </section>
   )
 }

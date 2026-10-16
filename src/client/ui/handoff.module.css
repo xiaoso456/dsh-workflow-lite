@@ -168,6 +168,7 @@
   border-radius: 10px;
   background: var(--wl-panel);
   cursor: pointer;
+  transition: background-color 120ms linear;
 }
 
 .resultRow:hover {
@@ -212,6 +213,9 @@ label.resultRow::after {
   border: 1px solid var(--wl-line);
   border-radius: 10px;
   background: var(--wl-panel);
+  transition:
+    background-color 120ms linear,
+    border-color 120ms linear;
 }
 
 .fileRow:hover {
@@ -295,6 +299,9 @@ label.resultRow::after {
   font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
+  transition:
+    background-color 120ms linear,
+    border-color 120ms linear;
 }
 
 .outAddLike:hover {
@@ -322,6 +329,7 @@ label.resultRow::after {
   align-items: center;
   padding: 4px;
   border-radius: 8px;
+  transition: background-color 120ms linear;
 }
 
 .linkItem:hover {
@@ -344,6 +352,9 @@ label.resultRow::after {
   font-size: var(--wl-fs-micro);
   font-weight: 600;
   cursor: pointer;
+  transition:
+    border-color 120ms linear,
+    color 120ms linear;
 }
 
 .linkAction:hover {
@@ -464,7 +475,9 @@ label.resultRow::after {
   white-space: nowrap;
   cursor: pointer;
   pointer-events: all;
-  transition: transform 140ms var(--wl-ease);
+  transition:
+    transform 140ms var(--wl-ease),
+    border-color 120ms linear;
 }
 
 .mark:hover,
@@ -578,6 +591,7 @@ label.resultRow::after {
   font-size: var(--wl-fs-micro);
   text-align: left;
   cursor: text;
+  transition: background-color 120ms linear;
 }
 
 .cardNote:hover {
@@ -626,6 +640,7 @@ label.resultRow::after {
   font-size: var(--wl-fs-micro);
   font-weight: 600;
   cursor: pointer;
+  transition: background-color 120ms linear;
 }
 
 .cardAction:hover {

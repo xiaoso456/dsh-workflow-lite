@@ -62,7 +62,8 @@
   animation: cardIn 380ms var(--wl-spring) backwards;
   transition:
     transform 340ms var(--wl-spring),
-    opacity 160ms linear;
+    opacity 160ms linear,
+    border-color 120ms linear;
 }
 
 /* 拖起来时的「悬浮」阴影：画在伪元素上，渐显只动它的 opacity（外阴影不会盖到卡片里面）。 */
@@ -962,7 +963,8 @@
   animation: cardIn 380ms var(--wl-spring) backwards;
   transition:
     transform 340ms var(--wl-spring),
-    opacity 160ms linear;
+    opacity 160ms linear,
+    border-color 120ms linear;
 }
 
 /* 折角：右上角切掉一块（画布色），露出纸背，左下一道细阴影。 */
@@ -1278,7 +1280,8 @@
   animation: cardIn 380ms var(--wl-spring) backwards;
   transition:
     transform 340ms var(--wl-spring),
-    opacity 160ms linear;
+    opacity 160ms linear,
+    border-color 120ms linear;
 }
 
 .inputCard::after {

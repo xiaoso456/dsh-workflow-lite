@@ -10,6 +10,7 @@
  */
 
 import {
+  type ReactNode,
   type RefObject,
   useCallback,
   useEffect,
@@ -1658,4 +1659,60 @@ export function useViewGhost(ref: RefObject<HTMLElement | null>): void {
       if (el !== null) ghostFade(el, root)
     }
   }, [ref])
+}
+
+/** 折叠区展开 / 收起的时长（和 ui.module.css 的 presenceIn / presenceOut 一致）。 */
+const PRESENCE_MS = 260
+
+/**
+ * 可以出现、也可以消失的一块（折叠区、行内的提示条 / 错误条）：
+ * - 出现：高度从 0 长开、同时淡入，下面的内容被顺势推下去；
+ * - 消失：高度收回 0、同时淡出，下面的内容顺势滑上来，再把它卸掉——不是「啪」地一下没了、下面的跳上来。
+ * 第一次挂上时就是开着的不放动画（刷新页面不该看到所有折叠区重新展开一遍）。
+ *
+ * `show` 为假时，内容保留最后一次的样子放完退场动画，所以调用方照常写 `{cond && <X value={v} />}` 也行：
+ * 把条件放进 `show`，把内容放进 children（`show` 为假时 children 可以是假值）。
+ * 高度走 `grid-template-rows: 0fr ↔ 1fr`（布局属性，是「只动 transform / opacity」的例外）：折叠区不知道自己多高，
+ * 这是不量高度就能从 0 长到内容那么高的办法；只在这 260ms 里动，内容区同时 `overflow: hidden`，平时不裁（阴影、焦点环照常画出来）。
+ */
+export function Presence(props: {
+  show: boolean
+  children: ReactNode
+  className?: string
+}): React.JSX.Element | null {
+  const { show } = props
+  const [mounted, setMounted] = useState(show)
+  const [phase, setPhase] = useState<'idle' | 'in' | 'out'>('idle')
+  const last = useRef<ReactNode>(props.children)
+  if (show) last.current = props.children
+  if (REDUCED?.matches === true) {
+    if (show !== mounted) setMounted(show)
+  } else {
+    if (show && !mounted) {
+      setMounted(true)
+      setPhase('in')
+    } else if (show && phase === 'out') {
+      setPhase('in')
+    } else if (!show && mounted && phase !== 'out') {
+      setPhase('out')
+    }
+  }
+  useEffect(() => {
+    if (phase === 'idle') return
+    const id = window.setTimeout(() => {
+      if (phase === 'out') setMounted(false)
+      setPhase('idle')
+    }, PRESENCE_MS)
+    return () => window.clearTimeout(id)
+  }, [phase])
+  if (!mounted) return null
+  return (
+    <div
+      className={cx(ui.presence, props.className)}
+      data-phase={phase === 'idle' ? undefined : phase}
+      aria-hidden={phase === 'out' ? true : undefined}
+    >
+      <div className={ui.presenceInner}>{show ? props.children : last.current}</div>
+    </div>
+  )
 }

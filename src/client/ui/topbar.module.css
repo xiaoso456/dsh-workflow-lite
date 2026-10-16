@@ -69,6 +69,7 @@
   font: inherit;
   font-weight: 600;
   cursor: pointer;
+  transition: background-color 120ms linear;
 }
 
 .switch:hover {
@@ -348,13 +349,22 @@
   background: transparent;
   color: var(--wl-text-3);
   cursor: pointer;
-  transition: transform 120ms var(--wl-ease);
+  transition:
+    transform 120ms var(--wl-ease),
+    background-color 120ms linear,
+    color 120ms linear;
 }
 
 .rowAction:hover,
 .rowAction[aria-expanded="true"] {
   background: var(--wl-hover);
   color: var(--wl-text);
+}
+
+.rowAction[data-danger="true"] {
+  transition:
+    background-color 120ms linear,
+    color 120ms linear;
 }
 
 .rowAction[data-danger="true"]:hover,
@@ -461,6 +471,7 @@
   font-size: var(--wl-fs-meta);
   text-align: left;
   cursor: pointer;
+  transition: background-color 120ms linear;
 }
 
 .issue:hover {
@@ -469,6 +480,7 @@
 
 .issue:disabled {
   cursor: default;
+  transition: background-color 120ms linear;
 }
 
 .issue:disabled:hover {
@@ -547,6 +559,7 @@
   align-items: center;
   height: 32px;
   border-radius: var(--wl-r-control);
+  transition: background-color 120ms linear;
 }
 
 .run:hover,

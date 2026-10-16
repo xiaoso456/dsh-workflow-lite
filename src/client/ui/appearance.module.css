@@ -195,6 +195,7 @@
   background: transparent;
   color: var(--wl-text-2);
   cursor: pointer;
+  transition: background-color 120ms linear;
 }
 
 .icon:hover {
@@ -207,6 +208,7 @@
  */
 .icon[aria-checked="true"] {
   color: var(--wl-swatch);
+  transition: background-color 120ms linear;
 }
 
 .icon[aria-checked="true"]:hover {

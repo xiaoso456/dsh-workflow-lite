@@ -34,7 +34,9 @@
   transition:
     scale 160ms var(--wl-ease-sheet),
     outline-color 180ms linear,
-    outline-offset 220ms var(--wl-ease);
+    outline-offset 220ms var(--wl-ease),
+    color 120ms linear,
+    opacity 160ms linear;
 }
 
 /* 零权重：别的模块要把按钮摆成 absolute 时不受影响。 */
@@ -85,6 +87,13 @@
   transition-timing-function: linear, var(--wl-ease), var(--wl-ease-sheet);
 }
 
+.input,
+.textarea {
+  transition-property: outline-color, outline-offset, scale, background-color, border-color;
+  transition-duration: 180ms, 220ms, 160ms, 120ms, 120ms;
+  transition-timing-function: linear, var(--wl-ease), var(--wl-ease-sheet), linear, linear;
+}
+
 /*
  * 按下回弹：用单独的 `scale` 属性（不是 transform）——和各处已有的 transform 叠加而不冲掉，
  * 大小按控件分档：小的圈、开关缩得多，成行的菜单项只缩一点。通用的按钮见 shell.module.css 的 `:where(.root) :where(button …)`。
@@ -130,6 +139,7 @@
 .primary {
   background: var(--wl-accent);
   color: var(--wl-accent-on);
+  transition: color 120ms linear;
 }
 
 .primary {
@@ -151,6 +161,7 @@
 
 .danger {
   color: var(--wl-danger);
+  transition: color 120ms linear;
 }
 
 .danger {
@@ -164,6 +175,7 @@
 .dangerSolid {
   background: var(--wl-danger);
   color: var(--wl-accent-on);
+  transition: color 120ms linear;
 }
 
 .dangerSolid {
@@ -1096,6 +1108,29 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
   animation-name: tipInUp;
 }
 
+/* 收起：原地淡出、往进来的反方向让一点（TipLayer 留的影子，不接指针）。 */
+.tipLayer[data-leaving="true"] {
+  animation: tipOut 110ms ease-in forwards;
+}
+
+@keyframes tipOut {
+  to {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}
+
+.tipLayer[data-leaving="true"][data-up="true"] {
+  animation-name: tipOutUp;
+}
+
+@keyframes tipOutUp {
+  to {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+}
+
 @keyframes tipIn {
   from {
     opacity: 0;
@@ -1340,6 +1375,107 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
   }
 }
 
+/* ── 出现 / 消失的一块（motion.tsx 的 Presence）──────────────── */
+
+.presence {
+  display: grid;
+  grid-template-rows: 1fr;
+}
+
+.presenceInner {
+  min-height: 0;
+}
+
+/* 只在放动画的这段时间裁内容（长到一半时不露出还没到位的部分）；平时不裁，阴影、焦点环照常画。 */
+.presence[data-phase] > .presenceInner {
+  overflow: hidden;
+}
+
+.presence[data-phase="in"] {
+  animation: presenceIn 260ms var(--wl-ease) backwards;
+}
+
+.presence[data-phase="out"] {
+  animation: presenceOut 260ms var(--wl-ease) forwards;
+  pointer-events: none;
+}
+
+@keyframes presenceIn {
+  from {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+}
+
+@keyframes presenceOut {
+  to {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+}
+
+/* ── 读取中的占位（Skeleton.tsx）──────────────────────────────── */
+
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  padding: 16px;
+  animation: skelIn 220ms ease-out 150ms backwards;
+}
+
+.skelRow {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  animation: skelPulse 1.1s ease-in-out infinite alternate;
+}
+
+.skelDot {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--wl-fill-strong);
+}
+
+.skelLines {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.skelBar {
+  display: block;
+  height: 10px;
+  border-radius: 5px;
+  background: var(--wl-fill-strong);
+}
+
+.skeleton[data-shape="form"] .skelBar:first-child {
+  height: 12px;
+}
+
+.skeleton[data-shape="form"] .skelBar:last-child {
+  height: 30px;
+  border-radius: var(--wl-r-control);
+}
+
+@keyframes skelIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes skelPulse {
+  from {
+    opacity: 0.45;
+  }
+}
+
 /* ── 杂项 ─────────────────────────────────────────────────── */
 
 .kbd {
@@ -1442,6 +1578,9 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
   }
 
   .swapIcon > [data-ok].iconIn,
+  .presence,
+  .skeleton,
+  .skelRow,
   .popover,
   .rise,
   .fade,
@@ -1452,7 +1591,8 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
     animation: none;
   }
 
-  .ringOut {
+  .ringOut,
+  .tipLayer[data-leaving="true"] {
     display: none;
   }
 
@@ -1511,6 +1651,9 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
   background: transparent;
   color: var(--wl-text-3);
   cursor: help;
+  transition:
+    background-color 120ms linear,
+    color 120ms linear;
 }
 
 .hintButton:hover,

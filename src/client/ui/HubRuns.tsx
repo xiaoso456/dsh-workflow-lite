@@ -25,6 +25,7 @@ import hub from './hub.module.css'
 import { Icon } from './Icon.tsx'
 import { ListThumb, useFlip } from './motion.tsx'
 import { cx } from './primitives.tsx'
+import { Skeleton } from './Skeleton.tsx'
 import ui from './ui.module.css'
 
 export function HubRuns(props: {
@@ -126,12 +127,7 @@ export function HubRuns(props: {
 
   if (error !== null) return <Empty icon="alert" title={error} />
   if (items === null) {
-    return (
-      <div className={hub.loading}>
-        <span className={hub.spinner} />
-        {t('hub.loading')}
-      </div>
-    )
+    return <Skeleton label={t('hub.loading')} />
   }
   if (items.length === 0) {
     return <Empty icon="runs" title={t('hub.noRunsTitle')} text={t('hub.noRuns')} />

@@ -35,6 +35,7 @@
   gap: 2px;
   align-items: center;
   padding-right: 6px;
+  transition: background-color 120ms linear;
 }
 
 .row + .row {
@@ -227,6 +228,7 @@ div.small {
   color: var(--wl-text);
   font-family: var(--wl-mono);
   font-size: var(--wl-fs-micro);
+  transition: background-color 120ms linear;
 }
 
 .entry:hover {

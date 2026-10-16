@@ -31,7 +31,7 @@ import { useConfirm } from './Confirm.tsx'
 import type { PackScope } from './HubExport.tsx'
 import hub from './hub.module.css'
 import { Icon } from './Icon.tsx'
-import { Checkbox } from './motion.tsx'
+import { Checkbox, Presence } from './motion.tsx'
 import { Callout, PackRow, PackSection } from './PackRow.tsx'
 import css from './pack.module.css'
 import { cx } from './primitives.tsx'
@@ -132,11 +132,13 @@ export function HubImport(props: {
           {t('pack.back')}
         </button>
       </div>
-      {error !== null && (
-        <Callout tone="error" testId="wl-pack-error">
-          {error}
-        </Callout>
-      )}
+      <Presence show={error !== null}>
+        {error !== null && (
+          <Callout tone="error" testId="wl-pack-error">
+            {error}
+          </Callout>
+        )}
+      </Presence>
       {phase.kind === 'busy' ? (
         <div className={css.busy} data-testid="wl-pack-busy">
           <span className={hub.spinner} />
@@ -491,7 +493,7 @@ function Preview(props: {
                       </span>
                     )}
                   </span>
-                  {open && (
+                  <Presence show={open}>
                     <ul className={css.files}>
                       {skill.files.map((file) => (
                         <li key={file.path}>
@@ -500,7 +502,7 @@ function Preview(props: {
                         </li>
                       ))}
                     </ul>
-                  )}
+                  </Presence>
                 </PackRow>
               )
             })}

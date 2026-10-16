@@ -49,6 +49,7 @@ div.dialog {
   border-radius: var(--wl-r-control);
   background: var(--wl-fill);
   color: var(--wl-text-3);
+  transition: background-color 120ms linear;
 }
 
 .search:hover {
@@ -366,7 +367,9 @@ div.dialog {
   font: inherit;
   cursor: pointer;
   isolation: isolate;
-  transition: transform 120ms var(--wl-ease);
+  transition:
+    transform 120ms var(--wl-ease),
+    color 120ms linear;
 }
 
 .statusButton::before {
@@ -576,6 +579,7 @@ input.statusNote {
   color: var(--wl-danger);
   font: inherit;
   cursor: pointer;
+  transition: background-color 120ms linear;
 }
 
 .why:hover {
@@ -988,13 +992,22 @@ input.statusNote {
   background: transparent;
   color: var(--wl-text-3);
   cursor: pointer;
-  transition: transform 120ms var(--wl-ease);
+  transition:
+    transform 120ms var(--wl-ease),
+    background-color 120ms linear,
+    color 120ms linear;
 }
 
 .wfAction:hover,
 .wfAction[aria-expanded="true"] {
   background: var(--wl-panel);
   color: var(--wl-text);
+}
+
+.wfAction[data-danger="true"] {
+  transition:
+    background-color 120ms linear,
+    color 120ms linear;
 }
 
 .wfAction[data-danger="true"]:hover,

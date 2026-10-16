@@ -114,6 +114,7 @@
   gap: 2px;
   align-items: center;
   padding-right: 6px;
+  transition: background-color 120ms linear;
 }
 
 .row + .row {
@@ -231,6 +232,12 @@
   cursor: pointer;
 }
 
+.addButton:not(:disabled) {
+  transition:
+    background-color 120ms linear,
+    border-color 120ms linear;
+}
+
 .addButton:hover:not(:disabled),
 .addButton[aria-expanded="true"] {
   border-color: var(--wl-accent);
@@ -268,6 +275,7 @@
   font: inherit;
   text-align: left;
   cursor: pointer;
+  transition: background-color 120ms linear;
 }
 
 .addItem:hover,
@@ -315,6 +323,7 @@
   font-size: var(--wl-fs-micro);
   text-align: left;
   cursor: pointer;
+  transition: color 120ms linear;
 }
 
 .addManual:hover,
@@ -451,6 +460,7 @@
   min-height: 48px;
   border-radius: 8px;
   color: var(--wl-text);
+  transition: background-color 120ms linear;
 }
 
 .skillRow:hover {
@@ -507,7 +517,10 @@
   color: var(--wl-text-3);
   cursor: pointer;
   opacity: 0.55;
-  transition: opacity 120ms linear;
+  transition:
+    opacity 120ms linear,
+    background-color 120ms linear,
+    color 120ms linear;
 }
 
 .skillRow:hover .skillPeek,

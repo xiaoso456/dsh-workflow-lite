@@ -36,6 +36,7 @@
   word-break: break-word;
   cursor: pointer;
   -webkit-box-orient: vertical;
+  transition: color 120ms linear;
 }
 
 .card:hover {

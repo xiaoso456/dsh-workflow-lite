@@ -193,6 +193,7 @@
   font-size: var(--wl-fs-meta);
   text-align: left;
   cursor: pointer;
+  transition: background-color 120ms linear;
 }
 
 .blockedItem:hover {

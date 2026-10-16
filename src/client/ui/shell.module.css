@@ -314,7 +314,9 @@
   [role="switch"],
   [role="tab"],
   [role="menuitem"],
-  [role="option"]
+  [role="option"],
+  summary,
+  label:has(> input)
 ) {
   transition: scale 160ms var(--wl-ease-sheet);
 }
@@ -328,7 +330,9 @@
     [role="switch"],
     [role="tab"],
     [role="menuitem"],
-    [role="option"]
+    [role="option"],
+    summary,
+    label:has(> input:not(:disabled))
   ):not(:disabled, [aria-disabled="true"]):active {
   scale: 0.98;
 }
@@ -340,6 +344,38 @@
 
   :where(.root) :where(button, [role]):active {
     scale: none;
+  }
+}
+
+/*
+ * 焦点环（通用）：键盘聚焦时描边从外面 6px 收到位、颜色同时淡入。零权重——自己带 `animation` 的元素
+ * （列表里依次浮出的行等）不受影响，免得失焦时它们的入场动画被重放；控件类里另有按偏移分档的过渡（见 ui.module.css）。
+ * 描边的颜色、偏移不是 transform / opacity，同 `.checkDraw` 一样是这套动效规矩的例外。
+ */
+@keyframes focusRing {
+  from {
+    outline-color: transparent;
+    outline-offset: 6px;
+  }
+}
+
+:where(.root) :where(:focus-visible) {
+  animation: focusRing 220ms var(--wl-ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(.root) :where(:focus-visible) {
+    animation: none;
+  }
+
+  /* 兜底：各处没单独关掉的过渡一律瞬时完成（不改 transitionend 的触发）。 */
+  .root *,
+  .root *::before,
+  .root *::after {
+    /* biome-ignore lint/complexity/noImportantStyles: 兜底要压过各处自己写的过渡 */
+    transition-duration: 0.01ms !important;
+    /* biome-ignore lint/complexity/noImportantStyles: 同上 */
+    transition-delay: 0s !important;
   }
 }
 
@@ -572,6 +608,7 @@
   font-weight: 500;
   white-space: nowrap;
   cursor: default;
+  transition: background-color 120ms linear;
 }
 
 .legendItem:hover {

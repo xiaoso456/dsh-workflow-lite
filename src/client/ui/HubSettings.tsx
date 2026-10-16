@@ -19,7 +19,9 @@ import type { WorkflowLiteRpc } from '../rpc.ts'
 import hub from './hub.module.css'
 import css from './hubSettings.module.css'
 import { Icon, type IconName } from './Icon.tsx'
+import { Presence } from './motion.tsx'
 import { cx } from './primitives.tsx'
+import { Skeleton } from './Skeleton.tsx'
 import { ThemePicker } from './ThemePicker.tsx'
 import ui from './ui.module.css'
 
@@ -59,10 +61,7 @@ export function HubSettings(props: {
             {state.loadError}
           </div>
         ) : (
-          <div className={hub.loading}>
-            <span className={hub.spinner} />
-            {t('hub.loading')}
-          </div>
+          <Skeleton label={t('hub.loading')} shape="form" />
         )}
       </div>
     )
@@ -80,12 +79,14 @@ export function HubSettings(props: {
           </div>
         )}
         <ThemePicker t={t} />
-        {state.notice !== null && (
-          <div className={cx(hub.notice, ui.rise)} data-tone={state.notice.tone} role="status">
-            <Icon name={state.notice.tone === 'ok' ? 'check' : 'alert'} size={14} />
-            {state.notice.text}
-          </div>
-        )}
+        <Presence show={state.notice !== null}>
+          {state.notice !== null && (
+            <div className={hub.notice} data-tone={state.notice.tone} role="status">
+              <Icon name={state.notice.tone === 'ok' ? 'check' : 'alert'} size={14} />
+              {state.notice.text}
+            </div>
+          )}
+        </Presence>
 
         <Group title={t('cfg.groupStorage')}>
           <Row {...field} name="dataDir" wide>

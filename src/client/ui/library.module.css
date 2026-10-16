@@ -76,7 +76,9 @@
   font: inherit;
   text-align: left;
   cursor: grab;
-  transition: transform 140ms var(--wl-ease);
+  transition:
+    transform 140ms var(--wl-ease),
+    background-color 120ms linear;
 }
 
 .item:hover {
@@ -211,6 +213,9 @@
   letter-spacing: 0.04em;
   text-align: left;
   cursor: pointer;
+  transition:
+    background-color 120ms linear,
+    color 120ms linear;
 }
 
 .sectionToggle:hover {
@@ -235,14 +240,6 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  animation: groupIn 200ms var(--wl-ease) backwards;
-}
-
-@keyframes groupIn {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
 }
 
 /* 标题的颜色是 FadeText 的两层交叉淡：没选中常规、选中蓝；底色是 ui.fillOn 的渐显。 */

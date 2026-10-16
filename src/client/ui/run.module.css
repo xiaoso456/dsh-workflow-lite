@@ -363,6 +363,7 @@
   border-radius: 6px;
   font-size: var(--wl-fs-micro);
   cursor: pointer;
+  transition: background-color 120ms linear;
 }
 
 .event:hover {
@@ -632,6 +633,9 @@
   background: transparent;
   color: var(--wl-text-3);
   cursor: pointer;
+  transition:
+    background-color 120ms linear,
+    color 120ms linear;
 }
 
 /* 图标块和旁边右栏开关按下时的底色一样大（32px、同一个圆角），两块并排对齐。 */
@@ -725,6 +729,7 @@
   background: transparent;
   color: var(--wl-text-3);
   cursor: pointer;
+  transition: color 120ms linear;
 }
 
 .modeItem:hover {

@@ -40,6 +40,7 @@
   font: inherit;
   font-size: var(--wl-fs-title);
   font-weight: 600;
+  transition: background-color 120ms linear;
 }
 
 .titleInput::placeholder {
@@ -93,6 +94,9 @@
   font: inherit;
   font-size: var(--wl-fs-micro);
   cursor: pointer;
+  transition:
+    background-color 120ms linear,
+    color 120ms linear;
 }
 
 .idLine code {
@@ -206,6 +210,7 @@
   font: inherit;
   text-align: left;
   cursor: pointer;
+  transition: background-color 120ms linear;
 }
 
 .link:hover {
@@ -337,6 +342,7 @@
   font: inherit;
   text-align: left;
   cursor: pointer;
+  transition: background-color 120ms linear;
 }
 
 .end:hover {
@@ -463,6 +469,9 @@
   font: inherit;
   text-align: left;
   cursor: pointer;
+  transition:
+    background-color 120ms linear,
+    border-color 120ms linear;
 }
 
 .outMain:hover {
@@ -577,6 +586,9 @@
   font-size: var(--wl-fs-meta);
   font-weight: 500;
   cursor: pointer;
+  transition:
+    background-color 120ms linear,
+    border-color 120ms linear;
 }
 
 .outAdd:hover {

@@ -37,6 +37,17 @@ interface Place {
   glide: boolean
 }
 
+/** 收起时留下的影子：最后一次显示的字和位置。 */
+interface Leaving {
+  text: string
+  left: number
+  top: number
+  up: boolean
+}
+
+/** 提示淡出的时长（和 ui.module.css 的 tipOut 一致）。 */
+const LEAVE_MS = 110
+
 interface Shown {
   /** 每换一个元素加一：入场动画只在换元素时放。 */
   seq: number
@@ -196,10 +207,43 @@ export function TipLayer(props: { root: HTMLElement | null }): React.ReactNode {
     setPlace((was) => ({ seq, left, top: up ? above : below, up, glide: was?.seq === seq }))
   }, [shown, root])
 
-  if (shown === null || root === null) return null
+  // 收起：留一个不接指针、没有 testid 的影子原地淡出（和出来时对称），弹出新的提示就立刻收掉影子。
+  const resting = useRef<Leaving | null>(null)
+  const [leaving, setLeaving] = useState<Leaving | null>(null)
+  const gone = shown === null
+  useEffect(() => {
+    if (!gone) {
+      setLeaving(null)
+      return
+    }
+    if (resting.current === null) return
+    setLeaving(resting.current)
+    resting.current = null
+    const id = window.setTimeout(() => setLeaving(null), LEAVE_MS)
+    return () => window.clearTimeout(id)
+  }, [gone])
+
+  if (shown === null || root === null) {
+    if (leaving === null || root === null) return null
+    return createPortal(
+      <div
+        className={ui.tipSeat}
+        aria-hidden="true"
+        style={{ transform: `translate(${leaving.left}px, ${leaving.top}px)` }}
+      >
+        <div className={ui.tipLayer} data-up={leaving.up} data-leaving="true">
+          {leaving.text}
+        </div>
+      </div>,
+      root,
+    )
+  }
   // 只有给这一次量过的位置才算数：新弹出时（换了 seq）先藏着量，量好直接出现在原地；
   // 不然会带着上一个提示的位置（或者还没量时的左上角）滑过来。
   const placed = place !== null && place.seq === shown.seq ? place : null
+  if (placed !== null) {
+    resting.current = { text: shown.text, left: placed.left, top: placed.top, up: placed.up }
+  }
   return createPortal(
     <div
       key={shown.seq}

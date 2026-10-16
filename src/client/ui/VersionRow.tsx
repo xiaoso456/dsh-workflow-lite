@@ -16,6 +16,7 @@ import type { T } from '../i18n.ts'
 import { shortTime } from '../model/time.ts'
 import { useConfirm } from './Confirm.tsx'
 import { Icon } from './Icon.tsx'
+import { Presence } from './motion.tsx'
 import { graphLine } from './RunDraftBar.tsx'
 import v from './versions.module.css'
 
@@ -162,7 +163,9 @@ export function VersionRow(props: {
         disabled: versions.busy,
         onConfirm: () => void versions.remove(entry.n),
       })}
-      {open && !editing && <DiffView t={t} entry={entry} versions={versions} />}
+      <Presence show={open && !editing}>
+        <DiffView t={t} entry={entry} versions={versions} />
+      </Presence>
     </div>
   )
 }

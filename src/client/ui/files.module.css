@@ -72,6 +72,7 @@
   font: inherit;
   text-align: left;
   cursor: pointer;
+  transition: background-color 120ms linear;
 }
 
 .row:hover {
