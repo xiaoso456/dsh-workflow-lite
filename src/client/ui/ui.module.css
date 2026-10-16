@@ -29,12 +29,10 @@
   user-select: none;
   isolation: isolate;
   outline: 2px solid transparent;
-  outline-offset: calc(var(--ring, 1px) + 4px);
+  outline-offset: var(--ring, 1px);
   /* 按下回弹用 iOS 的 sheet 曲线；焦点环的淡入见下面「焦点环」。 */
   transition:
     scale 160ms var(--wl-ease-sheet),
-    outline-color 180ms linear,
-    outline-offset 220ms var(--wl-ease),
     color 120ms linear,
     opacity 160ms linear;
 }
@@ -70,9 +68,9 @@
 }
 
 /*
- * 焦点环：键盘聚焦时从外面 4px 收到位、颜色同时淡入（macOS / Fluent 的做法）。
- * 平时就带一圈透明的描边，聚焦时只换颜色和偏移——描边的颜色、偏移不是 transform / opacity，
- * 是这套动效规矩的例外（同 `.checkDraw`）：一圈 2px 的描边，重绘代价可以不计。
+ * 焦点环：键盘聚焦时描边从外面收到位、颜色同时淡入（动画是 shell.module.css 的通用 `focusRing`）；
+ * 失焦时直接收掉，不放反向动画（淡出时描边会往外飘，不好看）。
+ * 这里只负责让控件平时带一圈透明描边、聚焦时换成强调色，偏移按控件分档。
  * `--ring` 是聚焦后的偏移，默认 1px；描边画在元素里面的（分段选项）写负值。
  */
 .input,
@@ -81,17 +79,17 @@
 .segItem,
 .switch {
   outline: 2px solid transparent;
-  outline-offset: calc(var(--ring, 1px) + 4px);
-  transition-property: outline-color, outline-offset, scale;
-  transition-duration: 180ms, 220ms, 160ms;
-  transition-timing-function: linear, var(--wl-ease), var(--wl-ease-sheet);
+  outline-offset: var(--ring, 1px);
+  transition-property: scale;
+  transition-duration: 160ms;
+  transition-timing-function: var(--wl-ease-sheet);
 }
 
 .input,
 .textarea {
-  transition-property: outline-color, outline-offset, scale, background-color, border-color;
-  transition-duration: 180ms, 220ms, 160ms, 120ms, 120ms;
-  transition-timing-function: linear, var(--wl-ease), var(--wl-ease-sheet), linear, linear;
+  transition-property: scale, background-color, border-color;
+  transition-duration: 160ms, 120ms, 120ms;
+  transition-timing-function: var(--wl-ease-sheet), linear, linear;
 }
 
 /*
@@ -677,10 +675,10 @@
   background: transparent;
   color: var(--wl-accent);
   outline: 2px solid transparent;
-  outline-offset: calc(var(--ring, 1px) + 4px);
-  transition-property: outline-color, outline-offset, scale;
-  transition-duration: 180ms, 220ms, 160ms;
-  transition-timing-function: linear, var(--wl-ease), var(--wl-ease-sheet);
+  outline-offset: var(--ring, 1px);
+  transition-property: scale;
+  transition-duration: 160ms;
+  transition-timing-function: var(--wl-ease-sheet);
 }
 
 button.check {
