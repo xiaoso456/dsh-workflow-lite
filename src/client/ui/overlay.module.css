@@ -30,19 +30,19 @@
   box-shadow: var(--wl-shadow-2);
   outline: none;
   animation:
-    dialogIn 420ms var(--wl-spring) backwards,
+    dialogIn 520ms var(--wl-spring) backwards,
     dialogFade 200ms linear backwards;
 }
 
 /*
- * 弹簧放大浮起：从 0.92 大、低 10px 的地方弹到位，略过冲再收住（--wl-spring）。
+ * 弹簧放大浮起：从 0.8 大、低 32px 的地方弹到位，略过冲再收住（--wl-spring）。
  * 缩放的原点由 Modal 在打开前量好、写成行内 `transform-origin`（从触发它的按钮、点的位置长出来）；
  * 没量到就是卡片中心。淡入单独一条（弹簧的过冲会被 opacity 截在 1，放在一起会让淡入看着过早收住）。
  * 收起见 primitives 的 ghostOut。
  */
 @keyframes dialogIn {
   from {
-    transform: translateY(10px) scale(0.92);
+    transform: translateY(32px) scale(0.8);
   }
 }
 
@@ -218,13 +218,13 @@
   padding: 6px;
   box-shadow: var(--wl-shadow-2);
   transform-origin: top left;
-  animation: quickIn 300ms var(--wl-spring) backwards;
+  animation: quickIn 380ms var(--wl-spring) backwards;
 }
 
 @keyframes quickIn {
   from {
     opacity: 0;
-    transform: scale(0.92);
+    transform: scale(0.82);
   }
 }
 
@@ -245,7 +245,7 @@
   box-shadow: var(--wl-shadow-2);
   outline: none;
   animation:
-    dialogIn 420ms var(--wl-spring) backwards,
+    dialogIn 520ms var(--wl-spring) backwards,
     dialogFade 200ms linear backwards;
 }
 

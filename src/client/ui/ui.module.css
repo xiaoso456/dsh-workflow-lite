@@ -331,7 +331,7 @@
   background: var(--wl-panel);
   box-shadow: var(--wl-shadow-2);
   transform-origin: top left;
-  animation: pop 300ms var(--wl-spring) both;
+  animation: pop 380ms var(--wl-spring) both;
 }
 
 /* 焦点只是暂放在浮层上（里面的按钮被删掉之后），不画框。 */
@@ -354,7 +354,7 @@
 @keyframes pop {
   from {
     opacity: 0;
-    transform: translateY(-8px) scale(0.94);
+    transform: translateY(-14px) scale(0.86);
   }
 }
 
@@ -1127,7 +1127,7 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
   text-align: left;
   white-space: normal;
   outline: none;
-  animation: hintIn 280ms var(--wl-spring) both;
+  animation: hintIn 360ms var(--wl-spring) both;
 }
 
 .confirmPop[data-leaving="true"],
@@ -1540,7 +1540,7 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
   cursor: auto;
   outline: none;
   user-select: text;
-  animation: hintIn 280ms var(--wl-spring) both;
+  animation: hintIn 360ms var(--wl-spring) both;
 }
 
 .hintPanel[data-up="true"] {
@@ -1550,14 +1550,14 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
 @keyframes hintIn {
   from {
     opacity: 0;
-    transform: translateY(-8px) scale(0.95);
+    transform: translateY(-14px) scale(0.88);
   }
 }
 
 @keyframes hintInUp {
   from {
     opacity: 0;
-    transform: translateY(8px) scale(0.95);
+    transform: translateY(14px) scale(0.88);
   }
 }
 

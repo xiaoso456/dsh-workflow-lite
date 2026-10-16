@@ -219,66 +219,119 @@ export function Modal(props: {
 }
 
 /** 模态框关掉时淡出的时长。 */
-const MODAL_EXIT_MS = 200
+const MODAL_EXIT_MS = 320
 const REDUCED_MOTION = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)') ?? null
 
-/** 最近一次按下指针的位置：弹窗「从点的地方长出来」用。 */
-let lastPress: { x: number; y: number; at: number } | null = null
+/** 触发弹窗的那个控件的位置和大小（视口坐标）。 */
+interface Source {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+/** 最近一次按下指针：落在哪个控件上（记下当时的矩形——点完菜单会收起，之后就量不到了）。 */
+let lastPress: { box: Source; at: number } | null = null
 if (typeof document !== 'undefined') {
   document.addEventListener(
     'pointerdown',
     (event) => {
-      lastPress = { x: event.clientX, y: event.clientY, at: performance.now() }
+      const target = event.target instanceof Element ? event.target : null
+      const control =
+        target?.closest('button, a, [role="button"], [role="menuitem"], [role="option"]') ?? null
+      const rect = control?.getBoundingClientRect()
+      lastPress =
+        rect !== undefined && rect.width > 0 && rect.height > 0
+          ? {
+              box: { x: rect.left, y: rect.top, w: rect.width, h: rect.height },
+              at: performance.now(),
+            }
+          : {
+              box: { x: event.clientX - 16, y: event.clientY - 16, w: 32, h: 32 },
+              at: performance.now(),
+            }
     },
     true,
   )
 }
 
 /**
- * 弹窗从哪儿长出来：刚按下指针（1.5 秒内）就取那个点；不是点开的（键盘、程序打开）就取当前焦点所在元素的中心；
- * 都没有（焦点在 body 上）返回 `null`，弹窗从自己中心放大。
+ * 弹窗从哪个控件长出来：刚按下指针（1.5 秒内）取按下的那个控件；不是点开的（键盘打开）取当前焦点所在的元素；
+ * 都没有（焦点在 body 上、过了很久才弹出来）返回 `null`，弹窗从自己的中心浮起。
  */
-function openPoint(): { x: number; y: number } | null {
-  if (lastPress !== null && performance.now() - lastPress.at < 1500) return lastPress
+function openSource(): Source | null {
+  if (lastPress !== null && performance.now() - lastPress.at < 1500) return lastPress.box
   const focused = document.activeElement
   if (focused instanceof HTMLElement && focused !== document.body) {
-    const box = focused.getBoundingClientRect()
-    if (box.width > 0 && box.height > 0) {
-      return { x: box.left + box.width / 2, y: box.top + box.height / 2 }
+    const rect = focused.getBoundingClientRect()
+    if (rect.width > 0 && rect.height > 0) {
+      return { x: rect.left, y: rect.top, w: rect.width, h: rect.height }
     }
   }
   return null
 }
 
+/** 弹窗缩进触发控件时的样子：中心对中心，缩到刚好装进控件里（缩放不小于 0.08、不大于 0.5）。 */
+function foldedTransform(source: Source, dialog: HTMLElement, scrim: HTMLElement): string {
+  const frame = scrim.getBoundingClientRect()
+  // offsetLeft / offsetTop / offsetWidth 不受正在放的变换影响（getBoundingClientRect 受）。
+  const centerX = frame.left + dialog.offsetLeft + dialog.offsetWidth / 2
+  const centerY = frame.top + dialog.offsetTop + dialog.offsetHeight / 2
+  const scale = Math.min(
+    0.5,
+    Math.max(0.08, Math.min(source.w / dialog.offsetWidth, source.h / dialog.offsetHeight)),
+  )
+  const dx = source.x + source.w / 2 - centerX
+  const dy = source.y + source.h / 2 - centerY
+  return `translate(${dx}px, ${dy}px) scale(${scale})`
+}
+
+/** 入场的弹簧：读视图根的 `--wl-spring` 令牌（老内核上是贝塞尔）。 */
+function springOf(element: Element): string {
+  return (
+    getComputedStyle(element).getPropertyValue('--wl-spring').trim() ||
+    'cubic-bezier(0.34, 1.3, 0.64, 1)'
+  )
+}
+
 /**
- * 弹窗的进出场（模态框、计划对话框共用）：
- * - 打开前把缩放原点摆到触发处——弹窗从点的那个地方长出来（见 openPoint）；
- * - 关掉时留一个"影子"淡出、缩回去（见 ghostOut）：调用方直接卸掉弹窗，不用等动画。
+ * 弹窗的进出场（模态框、计划对话框共用）——「从点的那个控件里长出来、缩回那个控件里」（iOS 打开 App、macOS 最小化的路数）：
+ * - 打开：量出触发控件的位置，弹窗先缩成控件那么小、叠在控件上，再用弹簧放大到位（淡入只在前三成，先看到一小块从控件里冒出来）；
+ * - 关掉：留一个"影子"，缩回同一个控件的位置、淡出（见 ghostOut）；调用方直接卸掉弹窗，不用等动画；
+ * - 找不到触发控件（过了很久才弹出来、不是点开的）：用样式里的 `dialogIn`，从中心浮起。
  */
 export function useSheetMotion(
   scrimRef: RefObject<HTMLElement | null>,
   dialogRef: RefObject<HTMLElement | null>,
 ): void {
+  const folded = useRef<string | null>(null)
   useLayoutEffect(() => {
     const scrim = scrimRef.current
     const parent = scrim?.parentNode ?? null
     return () => {
-      if (scrim !== null) ghostOut(scrim, parent)
+      if (scrim !== null) ghostOut(scrim, parent, folded.current)
     }
   }, [scrimRef])
 
   useLayoutEffect(() => {
     const dialog = dialogRef.current
     const scrim = scrimRef.current
-    const point = openPoint()
-    if (dialog === null || scrim === null || point === null) return
-    const box = scrim.getBoundingClientRect()
-    // offsetLeft / offsetTop 不受正在放的缩放影响（getBoundingClientRect 受）。
-    const x = point.x - box.left - dialog.offsetLeft
-    const y = point.y - box.top - dialog.offsetTop
-    const limit = (value: number, size: number): number =>
-      Math.min(Math.max(value, -size * 0.5), size * 1.5)
-    dialog.style.transformOrigin = `${limit(x, dialog.offsetWidth)}px ${limit(y, dialog.offsetHeight)}px`
+    const source = openSource()
+    if (dialog === null || scrim === null || source === null || REDUCED_MOTION?.matches === true) {
+      return
+    }
+    const from = foldedTransform(source, dialog, scrim)
+    folded.current = from
+    // 样式里那条 dialogIn 让位：这一条是按触发控件量出来的。
+    dialog.style.animation = 'none'
+    dialog.animate(
+      [
+        { transform: from, opacity: 0 },
+        { opacity: 1, offset: 0.3 },
+        { transform: 'none', opacity: 1 },
+      ],
+      { duration: 560, easing: springOf(dialog), fill: 'backwards' },
+    )
   }, [scrimRef, dialogRef])
 }
 
@@ -345,8 +398,8 @@ export function ghostClone(node: HTMLElement): Ghost {
   }
 }
 
-/** 模态框关掉后的退场：把它此刻的样子复制一份放回原处，遮罩淡出、卡片缩回中心，放完就删。 */
-function ghostOut(node: HTMLElement, parent: Node | null): void {
+/** 模态框关掉后的退场：把它此刻的样子复制一份放回原处，遮罩淡出、卡片缩回触发它的控件（`folded` 是缩进去的变换），放完就删。 */
+function ghostOut(node: HTMLElement, parent: Node | null, folded: string | null): void {
   if (parent === null || REDUCED_MOTION?.matches === true) return
   const ghost = ghostClone(node)
   ghost.place(parent)
@@ -356,14 +409,21 @@ function ghostOut(node: HTMLElement, parent: Node | null): void {
     easing: 'cubic-bezier(0.32, 0.72, 0, 1)',
     fill: 'forwards',
   } as const
-  // 遮罩淡出；卡片往进来的那个点缩回去、略下沉（原点是入场时写在行内的 transform-origin，复制时带过来了）。
+  // 遮罩淡出。
   const fade = clone.animate([{ opacity: 1 }, { opacity: 0 }], { ...timing, easing: 'ease-out' })
+  // 有触发控件：缩回它的位置（先缩，后半段才淡出，看得清往哪儿收）；没有：原地略缩、下沉、淡出。
   clone.firstElementChild?.animate(
-    [
-      { transform: 'none', opacity: 1 },
-      { transform: 'translateY(6px) scale(0.94)', opacity: 0 },
-    ],
-    timing,
+    folded === null
+      ? [
+          { transform: 'none', opacity: 1 },
+          { transform: 'translateY(16px) scale(0.86)', opacity: 0 },
+        ]
+      : [
+          { transform: 'none', opacity: 1 },
+          { opacity: 1, offset: 0.6 },
+          { transform: folded, opacity: 0 },
+        ],
+    { ...timing, easing: folded === null ? timing.easing : 'cubic-bezier(0.4, 0, 0.2, 1)' },
   )
   const drop = (): void => clone.remove()
   fade.finished.then(drop, drop)

@@ -437,7 +437,7 @@ div.statusMenu {
   gap: 1px;
   padding: 6px;
   transform-origin: top right;
-  animation: menuIn 300ms var(--wl-spring) both;
+  animation: menuIn 380ms var(--wl-spring) both;
 }
 
 div.statusMenu[data-up="true"] {
@@ -453,7 +453,7 @@ div.statusMenu[data-leaving="true"][data-up="true"] {
 @keyframes menuIn {
   from {
     opacity: 0;
-    transform: translateY(-6px) scale(0.92);
+    transform: translateY(-12px) scale(0.84);
   }
 }
 
