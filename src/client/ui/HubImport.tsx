@@ -254,7 +254,7 @@ function Preview(props: {
 
   return (
     <>
-      <div className={css.scroll}>
+      <div className={cx(css.scroll, ui.scrollFade)}>
         <PackSection
           title={t('pack.versionsIn')}
           note={t('pack.meta')

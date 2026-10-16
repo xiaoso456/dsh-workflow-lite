@@ -513,7 +513,7 @@ label.resultRow::after {
   cursor: auto;
   outline: none;
   user-select: text;
-  animation: cardIn 150ms var(--wl-ease) both;
+  animation: cardIn 260ms var(--wl-spring) both;
 }
 
 .card[data-up="true"] {
@@ -523,14 +523,14 @@ label.resultRow::after {
 @keyframes cardIn {
   from {
     opacity: 0;
-    transform: translateY(-4px);
+    transform: translateY(-8px) scale(0.95);
   }
 }
 
 @keyframes cardInUp {
   from {
     opacity: 0;
-    transform: translateY(4px);
+    transform: translateY(8px) scale(0.95);
   }
 }
 

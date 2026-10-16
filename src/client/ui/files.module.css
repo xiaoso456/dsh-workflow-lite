@@ -283,13 +283,13 @@ div.viewer {
   background: var(--wl-panel);
   box-shadow: var(--wl-shadow-2);
   outline: none;
-  animation: drawerIn 180ms var(--wl-ease) both;
+  animation: drawerIn 320ms var(--wl-spring) both;
 }
 
 @keyframes drawerIn {
   from {
     opacity: 0;
-    transform: translateX(16px);
+    transform: translateX(28px);
   }
 }
 

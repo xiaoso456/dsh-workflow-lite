@@ -12,6 +12,13 @@
   place-items: center;
   padding: 24px;
   background: var(--wl-scrim);
+  animation: scrimIn 260ms linear backwards;
+}
+
+@keyframes scrimIn {
+  from {
+    opacity: 0;
+  }
 }
 
 .dialog {
@@ -22,14 +29,26 @@
   overflow: hidden;
   box-shadow: var(--wl-shadow-2);
   outline: none;
-  animation: dialogIn 250ms var(--wl-ease-out) backwards;
+  animation:
+    dialogIn 420ms var(--wl-spring) backwards,
+    dialogFade 200ms linear backwards;
 }
 
-/* 从中心放大浮起：对话框是"盖在页面上面"的一层，不挂在哪个按钮上。收起见 primitives 的 ghostOut。 */
+/*
+ * 弹簧放大浮起：从 0.92 大、低 10px 的地方弹到位，略过冲再收住（--wl-spring）。
+ * 缩放的原点由 Modal 在打开前量好、写成行内 `transform-origin`（从触发它的按钮、点的位置长出来）；
+ * 没量到就是卡片中心。淡入单独一条（弹簧的过冲会被 opacity 截在 1，放在一起会让淡入看着过早收住）。
+ * 收起见 primitives 的 ghostOut。
+ */
 @keyframes dialogIn {
   from {
+    transform: translateY(10px) scale(0.92);
+  }
+}
+
+@keyframes dialogFade {
+  from {
     opacity: 0;
-    transform: scale(0.96);
   }
 }
 
@@ -199,13 +218,13 @@
   padding: 6px;
   box-shadow: var(--wl-shadow-2);
   transform-origin: top left;
-  animation: quickIn 170ms var(--wl-ease) backwards;
+  animation: quickIn 300ms var(--wl-spring) backwards;
 }
 
 @keyframes quickIn {
   from {
     opacity: 0;
-    transform: scale(0.95);
+    transform: scale(0.92);
   }
 }
 
@@ -225,7 +244,9 @@
   overflow: hidden;
   box-shadow: var(--wl-shadow-2);
   outline: none;
-  animation: dialogIn 250ms var(--wl-ease-out) backwards;
+  animation:
+    dialogIn 420ms var(--wl-spring) backwards,
+    dialogFade 200ms linear backwards;
 }
 
 /* 工作流设置：四张执行方式卡片要并排放得下，内容也不该一打开就滚动——给宽一点、高一点。 */

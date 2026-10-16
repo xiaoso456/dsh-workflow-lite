@@ -354,7 +354,7 @@ export function HostPicker(props: {
 
         <div className={css.listWrap} ref={stage.wrap}>
           <div
-            className={css.list}
+            className={cx(css.list, ui.scrollFade)}
             ref={listRef}
             data-testid="wl-picker-list"
             data-loading={loading}

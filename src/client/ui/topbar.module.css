@@ -702,7 +702,7 @@
   position: relative;
 }
 
-.versions::before {
+.versions::after {
   position: absolute;
   top: 6px;
   right: 6px;
@@ -718,13 +718,13 @@
     transform 180ms var(--wl-ease);
 }
 
-.versions[data-pending="true"]::before {
+.versions[data-pending="true"]::after {
   opacity: 1;
   transform: scale(1);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .versions::before {
+  .versions::after {
     transition: none;
   }
 }

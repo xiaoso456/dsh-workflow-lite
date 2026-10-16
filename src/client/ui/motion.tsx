@@ -1051,6 +1051,13 @@ function boxIn(group: HTMLElement, element: HTMLElement): Box {
 }
 
 const PICK_MS = 320
+/** 选中滑块换格的时长（弹簧要留出收住的时间）。 */
+const SLIDE_MS = 420
+
+/** 视图根上的 `--wl-spring` 令牌（`linear()` 采样的弹簧，或老内核上的贝塞尔），读不到退回缓出。 */
+function springOf(element: Element): string {
+  return getComputedStyle(element).getPropertyValue('--wl-spring').trim() || EASE_OUT
+}
 /** 新选中那项里的小图标弹一下：稍微冲过头再落定。 */
 const POP_EASE = 'cubic-bezier(0.34, 1.56, 0.64, 1)'
 
@@ -1213,9 +1220,10 @@ export function PickThumb(props: {
     const sx = from.w / next.w
     const sy = from.h / next.h
     if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5 && Math.abs(sx - 1) < 0.01) return
+    // 滑块换格：弹簧（--wl-spring，读自视图根的令牌，老内核上是贝塞尔），到位略过冲再收住。
     running.current = thumb.animate(
       [{ transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})` }, { transform: 'none' }],
-      { duration: PICK_MS, easing: EASE_OUT },
+      { duration: SLIDE_MS, easing: springOf(thumb) },
     )
     if (item !== null) popIn(item)
   }, [layout, part, match, resized, carry])

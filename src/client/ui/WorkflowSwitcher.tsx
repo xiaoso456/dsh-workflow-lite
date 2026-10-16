@@ -200,7 +200,7 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
         />
       </div>
       {/* 实例与工作流共用一个滚动区：直接子项是平铺的（选中底块、滑动、依次浮出都按直接子项算）。 */}
-      <div className={css.scroll}>
+      <div className={cx(css.scroll, ui.scrollFade)}>
         <div ref={flip} className={cx(css.listBody, ui.stagger)} data-testid="wl-switch-list">
           <ListThumb layout={thumbLayout} carry="switcher" />
           {grouped && shownRuns.length > 0 && (

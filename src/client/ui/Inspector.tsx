@@ -160,7 +160,7 @@ function NodePanel(props: InspectorProps & { node: StepNode }): React.JSX.Elemen
         onClose={() => onSelect(null)}
       />
 
-      <div className={css.body}>
+      <div className={cx(css.body, ui.scrollFade)}>
         <DescriptionField
           t={t}
           value={node.data.description ?? ''}
@@ -464,7 +464,7 @@ function EdgePanel(props: InspectorProps & { edge: WorkflowEdge }): React.JSX.El
         extra={props.tabs}
         onClose={() => onSelect(null)}
       />
-      <div className={css.body}>
+      <div className={cx(css.body, ui.scrollFade)}>
         <div className={css.ends}>
           <button
             type="button"

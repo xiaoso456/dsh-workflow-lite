@@ -16,7 +16,7 @@ import { Icon } from './Icon.tsx'
 import { Markdown } from './Markdown.tsx'
 import { SwapIcon, SwapText } from './motion.tsx'
 import css from './overlay.module.css'
-import { copyText, cx } from './primitives.tsx'
+import { copyText, cx, useSheetMotion } from './primitives.tsx'
 import { Segmented } from './Segmented.tsx'
 import ui from './ui.module.css'
 
@@ -58,6 +58,9 @@ export function PlanDialog(props: {
     }
   }, [version])
 
+  const scrimRef = useRef<HTMLDivElement>(null)
+  useSheetMotion(scrimRef, dialogRef)
+
   useEffect(() => {
     dialogRef.current?.focus()
   }, [])
@@ -79,7 +82,8 @@ export function PlanDialog(props: {
     // biome-ignore lint/a11y/noStaticElementInteractions: 点遮罩关闭；键盘走对话框自己的 Esc
     // biome-ignore lint/a11y/useKeyWithClickEvents: 同上
     <div
-      className={cx(css.scrim, ui.fade)}
+      ref={scrimRef}
+      className={css.scrim}
       onClick={(event) => {
         if (event.target === event.currentTarget) props.onClose()
       }}

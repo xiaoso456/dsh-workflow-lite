@@ -27,24 +27,82 @@
   white-space: nowrap;
   cursor: pointer;
   user-select: none;
-  transition: transform 120ms var(--wl-ease);
+  isolation: isolate;
+  outline: 2px solid transparent;
+  outline-offset: calc(var(--ring, 1px) + 4px);
+  /* 按下回弹用 iOS 的 sheet 曲线；焦点环的淡入见下面「焦点环」。 */
+  transition:
+    scale 160ms var(--wl-ease-sheet),
+    outline-color 180ms linear,
+    outline-offset 220ms var(--wl-ease);
+}
+
+/* 零权重：别的模块要把按钮摆成 absolute 时不受影响。 */
+:where(.btn) {
+  position: relative;
+}
+
+/* 悬停底色画在 ::before 上、渐显（颜色瞬切的话悬停是「啪」地亮起）；各变体用 --btn-hover 换色。 */
+.btn::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--btn-hover, var(--wl-hover));
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms linear;
+}
+
+.btn:hover::before {
+  opacity: 1;
 }
 
 .btn:hover {
-  background: var(--wl-hover);
   color: var(--wl-text);
 }
 
 .btn:active {
-  transform: scale(0.96);
+  scale: 0.95;
+}
+
+/*
+ * 焦点环：键盘聚焦时从外面 4px 收到位、颜色同时淡入（macOS / Fluent 的做法）。
+ * 平时就带一圈透明的描边，聚焦时只换颜色和偏移——描边的颜色、偏移不是 transform / opacity，
+ * 是这套动效规矩的例外（同 `.checkDraw`）：一圈 2px 的描边，重绘代价可以不计。
+ * `--ring` 是聚焦后的偏移，默认 1px；描边画在元素里面的（分段选项）写负值。
+ */
+.input,
+.textarea,
+.menuItem,
+.segItem,
+.switch {
+  outline: 2px solid transparent;
+  outline-offset: calc(var(--ring, 1px) + 4px);
+  transition-property: outline-color, outline-offset, scale;
+  transition-duration: 180ms, 220ms, 160ms;
+  transition-timing-function: linear, var(--wl-ease), var(--wl-ease-sheet);
+}
+
+/*
+ * 按下回弹：用单独的 `scale` 属性（不是 transform）——和各处已有的 transform 叠加而不冲掉，
+ * 大小按控件分档：小的圈、开关缩得多，成行的菜单项只缩一点。通用的按钮见 shell.module.css 的 `:where(.root) :where(button …)`。
+ */
+.segItem:active {
+  scale: 0.95;
+}
+
+.menuItem:active {
+  scale: 0.985;
 }
 
 .btn:focus-visible,
 .input:focus-visible,
 .textarea:focus-visible,
 .menuItem:focus-visible {
-  outline: 2px solid var(--wl-accent);
-  outline-offset: 1px;
+  outline-color: var(--wl-accent);
+  outline-offset: var(--ring, 1px);
 }
 
 .btn:disabled {
@@ -74,8 +132,11 @@
   color: var(--wl-accent-on);
 }
 
+.primary {
+  --btn-hover: var(--wl-accent-strong);
+}
+
 .primary:hover {
-  background: var(--wl-accent-strong);
   color: var(--wl-accent-on);
 }
 
@@ -84,16 +145,19 @@
   color: var(--wl-text);
 }
 
-.soft:hover {
-  background: var(--wl-fill-strong);
+.soft {
+  --btn-hover: var(--wl-fill-strong);
 }
 
 .danger {
   color: var(--wl-danger);
 }
 
+.danger {
+  --btn-hover: var(--wl-danger-soft);
+}
+
 .danger:hover {
-  background: var(--wl-danger-soft);
   color: var(--wl-danger);
 }
 
@@ -102,8 +166,11 @@
   color: var(--wl-accent-on);
 }
 
+.dangerSolid {
+  --btn-hover: transparent;
+}
+
 .dangerSolid:hover {
-  background: var(--wl-danger);
   color: var(--wl-accent-on);
 }
 
@@ -205,8 +272,10 @@
 }
 
 .segItem:focus-visible {
-  outline: 2px solid var(--wl-accent);
-  outline-offset: -2px;
+  --ring: -2px;
+
+  outline-color: var(--wl-accent);
+  outline-offset: var(--ring);
 }
 
 .seg[aria-disabled="true"] {
@@ -262,7 +331,7 @@
   background: var(--wl-panel);
   box-shadow: var(--wl-shadow-2);
   transform-origin: top left;
-  animation: pop 160ms var(--wl-ease) both;
+  animation: pop 300ms var(--wl-spring) both;
 }
 
 /* 焦点只是暂放在浮层上（里面的按钮被删掉之后），不画框。 */
@@ -285,7 +354,7 @@
 @keyframes pop {
   from {
     opacity: 0;
-    transform: translateY(-4px) scale(0.97);
+    transform: translateY(-8px) scale(0.94);
   }
 }
 
@@ -384,7 +453,7 @@
 
 .listThumb[data-live="true"] {
   transition:
-    transform 260ms var(--wl-ease),
+    transform 400ms var(--wl-spring),
     opacity 160ms linear;
 }
 
@@ -595,6 +664,11 @@
   border-radius: 50%;
   background: transparent;
   color: var(--wl-accent);
+  outline: 2px solid transparent;
+  outline-offset: calc(var(--ring, 1px) + 4px);
+  transition-property: outline-color, outline-offset, scale;
+  transition-duration: 180ms, 220ms, 160ms;
+  transition-timing-function: linear, var(--wl-ease), var(--wl-ease-sheet);
 }
 
 button.check {
@@ -610,8 +684,10 @@ button.check {
 }
 
 .check:focus-visible {
-  outline: 2px solid var(--wl-accent);
-  outline-offset: 2px;
+  --ring: 2px;
+
+  outline-color: var(--wl-accent);
+  outline-offset: var(--ring);
 }
 
 button.check:disabled {
@@ -623,8 +699,16 @@ button.check:disabled {
 }
 
 .checkInput:focus-visible + .check {
-  outline: 2px solid var(--wl-accent);
-  outline-offset: 2px;
+  --ring: 2px;
+
+  outline-color: var(--wl-accent);
+  outline-offset: var(--ring);
+}
+
+/* 按下缩得多一点：圈只有 16px。 */
+button.check:active,
+.checkInput:active + .check {
+  scale: 0.84;
 }
 
 /* 悬停在圈上，或悬停在包着它的整行 <label> 上：圆环先变强调色。 */
@@ -849,6 +933,18 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
   }
 }
 
+/* 完成的小勾（data-ok）用弹簧弹进来，过冲约 20%——「已复制」「已保存」的那一下。 */
+.swapIcon > [data-ok].iconIn {
+  animation: iconPop 460ms var(--wl-spring-bouncy) backwards;
+}
+
+@keyframes iconPop {
+  from {
+    opacity: 0;
+    transform: scale(0.25);
+  }
+}
+
 @keyframes iconOut {
   to {
     opacity: 0;
@@ -1031,7 +1127,7 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
   text-align: left;
   white-space: normal;
   outline: none;
-  animation: hintIn 140ms var(--wl-ease) both;
+  animation: hintIn 280ms var(--wl-spring) both;
 }
 
 .confirmPop[data-leaving="true"],
@@ -1130,8 +1226,10 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
 }
 
 .switch:focus-visible {
-  outline: 2px solid var(--wl-accent);
-  outline-offset: 2px;
+  --ring: 2px;
+
+  outline-color: var(--wl-accent);
+  outline-offset: var(--ring);
 }
 
 .switch:disabled {
@@ -1148,7 +1246,9 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
   border-radius: 50%;
   background: var(--wl-panel);
   box-shadow: var(--wl-shadow-thumb);
-  transition: transform 160ms var(--wl-ease);
+  transform-origin: left center;
+  /* 旋钮用弹簧滑过去，到位略过冲；按住时拉长（iOS 的开关）。 */
+  transition: transform 360ms var(--wl-spring);
 }
 
 .switch[aria-checked="true"]::before,
@@ -1159,6 +1259,85 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
 .switch[aria-checked="true"] .knob,
 .switch[data-on="true"] .knob {
   transform: translateX(12px);
+  transform-origin: right center;
+}
+
+.switch:not(:disabled):active .knob {
+  transform: scaleX(1.28);
+}
+
+.switch[aria-checked="true"]:not(:disabled):active .knob,
+.switch[data-on="true"]:not(:disabled):active .knob {
+  transform: translateX(12px) scaleX(1.28);
+}
+
+/*
+ * 滚动区的上下边缘渐隐（macOS / GNOME 的做法）：往下滚了，顶上一条渐隐、告诉你上面还有；还没到底，底下一条渐隐。
+ * 用滚动驱动动画（animation-timeline: scroll）把两个注册过的长度变量从 0 推到 24px，再喂给 mask——
+ * 不用 JS 监听滚动；不能滚的容器时间线不起作用，变量保持 0，一点渐隐也没有。
+ * 不认滚动驱动动画的内核上就是没有渐隐。
+ */
+@property --wl-fade-top {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --wl-fade-bottom {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+.scrollFade {
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--wl-fade-top),
+    #000 calc(100% - var(--wl-fade-bottom)),
+    transparent 100%
+  );
+}
+
+@supports (animation-timeline: scroll()) {
+  .scrollFade {
+    animation:
+      fadeTop linear both,
+      fadeBottom linear both;
+  }
+}
+
+/*
+ * 时间线和范围单独写、条件也换一句：压缩器会把同一个选择器里的 animation-* 合并回 `animation` 简写，
+ * 简写里夹着 `scroll()` 当前的内核不认，整条声明会被丢掉。
+ */
+@supports (animation-range-start: 0) {
+  .scrollFade {
+    animation-timeline: scroll(self), scroll(self);
+    animation-range:
+      0 24px,
+      calc(100% - 24px) 100%;
+  }
+}
+
+@keyframes fadeTop {
+  from {
+    --wl-fade-top: 0px;
+  }
+
+  to {
+    --wl-fade-top: 24px;
+  }
+}
+
+@keyframes fadeBottom {
+  from {
+    --wl-fade-bottom: 24px;
+  }
+
+  to {
+    --wl-fade-bottom: 0px;
+  }
 }
 
 /* ── 杂项 ─────────────────────────────────────────────────── */
@@ -1242,16 +1421,27 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
 
 @media (prefers-reduced-motion: reduce) {
   .btn,
+  .btn::before,
+  .input,
+  .textarea,
+  .segItem,
+  .switch,
+  .check,
   .segThumb,
   .switch::before,
   .knob {
     transition: none;
   }
 
+  .scrollFade {
+    animation: none;
+  }
+
   .tipSeat[data-glide="true"] {
     transition: none;
   }
 
+  .swapIcon > [data-ok].iconIn,
   .popover,
   .rise,
   .fade,
@@ -1350,7 +1540,7 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
   cursor: auto;
   outline: none;
   user-select: text;
-  animation: hintIn 140ms var(--wl-ease) both;
+  animation: hintIn 280ms var(--wl-spring) both;
 }
 
 .hintPanel[data-up="true"] {
@@ -1360,14 +1550,14 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
 @keyframes hintIn {
   from {
     opacity: 0;
-    transform: translateY(-4px);
+    transform: translateY(-8px) scale(0.95);
   }
 }
 
 @keyframes hintInUp {
   from {
     opacity: 0;
-    transform: translateY(4px);
+    transform: translateY(8px) scale(0.95);
   }
 }
 

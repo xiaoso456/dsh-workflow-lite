@@ -179,7 +179,7 @@ export function HubExport(props: {
           </div>
         ) : (
           <>
-            <div className={css.scroll}>
+            <div className={cx(css.scroll, ui.scrollFade)}>
               {unsaved && (
                 <Callout tone="warn" testId="wl-pack-unsaved">
                   {t('pack.unsaved')}
@@ -389,7 +389,7 @@ function Resources(props: {
         (kind) =>
           categoryItems(scan, kind).packable.length + categoryItems(scan, kind).others.length === 0,
       ) && <Callout>{t('pack.nothing')}</Callout>}
-      <div className={css.scroll}>
+      <div className={cx(css.scroll, ui.scrollFade)}>
         <div ref={listRef} className={css.cats}>
           {PACK_CATEGORIES.map((kind) => {
             const { packable, others } = categoryItems(scan, kind)

@@ -80,7 +80,7 @@ function PresetView(props: StepPanelProps & { id: string }): React.JSX.Element |
       </header>
       <p className={css.subtitle}>{t(preset.descKey)}</p>
 
-      <div className={css.body}>
+      <div className={cx(css.body, ui.scrollFade)}>
         <PreviewCard
           t={t}
           label={t('ins.prompt')}
@@ -280,7 +280,7 @@ function MineEditor(
         </button>
       </header>
 
-      <div className={css.body}>
+      <div className={cx(css.body, ui.scrollFade)}>
         <section className={css.field}>
           <div className={css.label}>
             <span>{t('step.id')}</span>

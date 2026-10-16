@@ -155,14 +155,7 @@ export function Modal(props: {
   const ref = useRef<HTMLDivElement>(null)
   const downOnScrim = useRef(false)
   const scrimRef = useRef<HTMLDivElement>(null)
-  // 关掉时留一个"影子"淡出（见 ghostOut）：调用方直接卸掉模态框，不用等动画。
-  useLayoutEffect(() => {
-    const scrim = scrimRef.current
-    const parent = scrim?.parentNode ?? null
-    return () => {
-      if (scrim !== null) ghostOut(scrim, parent)
-    }
-  }, [])
+  useSheetMotion(scrimRef, ref)
 
   useEffect(() => {
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
@@ -199,7 +192,7 @@ export function Modal(props: {
   const tree = (
     <div
       ref={scrimRef}
-      className={cx(overlay.scrim, ui.fade)}
+      className={overlay.scrim}
       onPointerDown={(event) => {
         downOnScrim.current = event.target === event.currentTarget
       }}
@@ -226,8 +219,68 @@ export function Modal(props: {
 }
 
 /** 模态框关掉时淡出的时长。 */
-const MODAL_EXIT_MS = 150
+const MODAL_EXIT_MS = 200
 const REDUCED_MOTION = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)') ?? null
+
+/** 最近一次按下指针的位置：弹窗「从点的地方长出来」用。 */
+let lastPress: { x: number; y: number; at: number } | null = null
+if (typeof document !== 'undefined') {
+  document.addEventListener(
+    'pointerdown',
+    (event) => {
+      lastPress = { x: event.clientX, y: event.clientY, at: performance.now() }
+    },
+    true,
+  )
+}
+
+/**
+ * 弹窗从哪儿长出来：刚按下指针（1.5 秒内）就取那个点；不是点开的（键盘、程序打开）就取当前焦点所在元素的中心；
+ * 都没有（焦点在 body 上）返回 `null`，弹窗从自己中心放大。
+ */
+function openPoint(): { x: number; y: number } | null {
+  if (lastPress !== null && performance.now() - lastPress.at < 1500) return lastPress
+  const focused = document.activeElement
+  if (focused instanceof HTMLElement && focused !== document.body) {
+    const box = focused.getBoundingClientRect()
+    if (box.width > 0 && box.height > 0) {
+      return { x: box.left + box.width / 2, y: box.top + box.height / 2 }
+    }
+  }
+  return null
+}
+
+/**
+ * 弹窗的进出场（模态框、计划对话框共用）：
+ * - 打开前把缩放原点摆到触发处——弹窗从点的那个地方长出来（见 openPoint）；
+ * - 关掉时留一个"影子"淡出、缩回去（见 ghostOut）：调用方直接卸掉弹窗，不用等动画。
+ */
+export function useSheetMotion(
+  scrimRef: RefObject<HTMLElement | null>,
+  dialogRef: RefObject<HTMLElement | null>,
+): void {
+  useLayoutEffect(() => {
+    const scrim = scrimRef.current
+    const parent = scrim?.parentNode ?? null
+    return () => {
+      if (scrim !== null) ghostOut(scrim, parent)
+    }
+  }, [scrimRef])
+
+  useLayoutEffect(() => {
+    const dialog = dialogRef.current
+    const scrim = scrimRef.current
+    const point = openPoint()
+    if (dialog === null || scrim === null || point === null) return
+    const box = scrim.getBoundingClientRect()
+    // offsetLeft / offsetTop 不受正在放的缩放影响（getBoundingClientRect 受）。
+    const x = point.x - box.left - dialog.offsetLeft
+    const y = point.y - box.top - dialog.offsetTop
+    const limit = (value: number, size: number): number =>
+      Math.min(Math.max(value, -size * 0.5), size * 1.5)
+    dialog.style.transformOrigin = `${limit(x, dialog.offsetWidth)}px ${limit(y, dialog.offsetHeight)}px`
+  }, [scrimRef, dialogRef])
+}
 
 /** 一块界面此刻样子的复制品（纯 DOM，不归 React 管），放退场动画用。 */
 export interface Ghost {
@@ -300,11 +353,18 @@ function ghostOut(node: HTMLElement, parent: Node | null): void {
   const clone = ghost.node
   const timing = {
     duration: MODAL_EXIT_MS,
-    easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+    easing: 'cubic-bezier(0.32, 0.72, 0, 1)',
     fill: 'forwards',
   } as const
-  const fade = clone.animate([{ opacity: 1 }, { opacity: 0 }], timing)
-  clone.firstElementChild?.animate([{ transform: 'none' }, { transform: 'scale(0.96)' }], timing)
+  // 遮罩淡出；卡片往进来的那个点缩回去、略下沉（原点是入场时写在行内的 transform-origin，复制时带过来了）。
+  const fade = clone.animate([{ opacity: 1 }, { opacity: 0 }], { ...timing, easing: 'ease-out' })
+  clone.firstElementChild?.animate(
+    [
+      { transform: 'none', opacity: 1 },
+      { transform: 'translateY(6px) scale(0.94)', opacity: 0 },
+    ],
+    timing,
+  )
   const drop = (): void => clone.remove()
   fade.finished.then(drop, drop)
 }

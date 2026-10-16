@@ -196,7 +196,7 @@ export function Library(props: {
         </button>
       </header>
 
-      <div ref={scrollRef} className={css.scroll}>
+      <div ref={scrollRef} className={cx(css.scroll, ui.scrollFade)}>
         {/* 空白步骤没有什么可看的：点它只提示"拖过去"。 */}
         <button
           type="button"

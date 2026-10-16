@@ -59,10 +59,26 @@
   box-shadow: var(--wl-shadow-1);
   cursor: grab;
   /* 只填充"开始之前"：动画走完就交还给普通样式，悬停的 transform 过渡才生效。 */
-  animation: cardIn 260ms var(--wl-ease) backwards;
+  animation: cardIn 380ms var(--wl-spring) backwards;
   transition:
-    transform 180ms var(--wl-ease),
+    transform 340ms var(--wl-spring),
     opacity 160ms linear;
+}
+
+/* 拖起来时的「悬浮」阴影：画在伪元素上，渐显只动它的 opacity（外阴影不会盖到卡片里面）。 */
+.card::before {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: var(--wl-shadow-2);
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms linear;
+}
+
+:global(.react-flow__node.dragging) .card::before {
+  opacity: 1;
 }
 
 /* 选中环画在伪元素上，渐显只动它的 opacity。 */
@@ -89,7 +105,7 @@
 
 :global(.react-flow__node.dragging) .card {
   cursor: grabbing;
-  transform: scale(1.02);
+  transform: scale(1.03);
 }
 
 .wrap :global(.react-flow__node:focus-visible) .card {
@@ -100,7 +116,7 @@
 @keyframes cardIn {
   from {
     opacity: 0;
-    transform: scale(0.94);
+    transform: scale(0.9);
   }
 }
 
@@ -721,6 +737,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .card,
+  .card::before,
   .card::after,
   .handle::after,
   .handleSource::before,
@@ -942,9 +959,9 @@
   border-radius: 7px 0 7px 7px;
   background: var(--wl-file-surface);
   cursor: grab;
-  animation: cardIn 260ms var(--wl-ease) backwards;
+  animation: cardIn 380ms var(--wl-spring) backwards;
   transition:
-    transform 180ms var(--wl-ease),
+    transform 340ms var(--wl-spring),
     opacity 160ms linear;
 }
 
@@ -988,7 +1005,7 @@
 
 :global(.react-flow__node.dragging) .resCard {
   cursor: grabbing;
-  transform: scale(1.02);
+  transform: scale(1.03);
 }
 
 /* 每种内容一个颜色（只用在小图标上）：文件 = 文件色、文件夹 = 橄榄、网址 = 青、Skill = 粉、自定义 = 石板灰。 */
@@ -1258,9 +1275,9 @@
   border-radius: 10px;
   background: var(--wl-file-surface);
   cursor: grab;
-  animation: cardIn 260ms var(--wl-ease) backwards;
+  animation: cardIn 380ms var(--wl-spring) backwards;
   transition:
-    transform 180ms var(--wl-ease),
+    transform 340ms var(--wl-spring),
     opacity 160ms linear;
 }
 
@@ -1291,7 +1308,7 @@
 
 :global(.react-flow__node.dragging) .inputCard {
   cursor: grabbing;
-  transform: scale(1.02);
+  transform: scale(1.03);
 }
 
 .inputTab {
