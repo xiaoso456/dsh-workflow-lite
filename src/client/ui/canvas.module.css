@@ -676,33 +676,6 @@
   color: var(--wl-panel);
 }
 
-/* ── 拖放占位 ─────────────────────────────────────────────── */
-
-.ghost {
-  position: absolute;
-  top: 0;
-  left: 0;
-  z-index: 5;
-  display: grid;
-  place-items: center;
-  width: 216px;
-  height: 84px;
-  border: 2px dashed var(--wl-accent);
-  border-radius: var(--wl-r-card);
-  background: var(--wl-accent-soft);
-  color: var(--wl-accent-text);
-  font-size: var(--wl-fs-meta);
-  font-weight: 600;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 120ms linear;
-  will-change: transform;
-}
-
-.wrap[data-dropping="true"] .ghost {
-  opacity: 1;
-}
-
 /* ── 空态 ─────────────────────────────────────────────────── */
 
 .empty {
@@ -741,8 +714,7 @@
   .card::before,
   .card::after,
   .handle::after,
-  .handleSource::before,
-  .ghost {
+  .handleSource::before {
     animation: none;
     transition: none;
   }

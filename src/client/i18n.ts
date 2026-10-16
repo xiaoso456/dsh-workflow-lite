@@ -235,7 +235,6 @@ export const zh = {
   'canvas.emptyTitle': '从第一个步骤开始',
   'canvas.emptyBody': '把左侧的步骤拖进来，或者双击空白处。',
   'canvas.starter': '插入示例流程',
-  'canvas.drop': '松手放在这里',
   'quick.title': '添加步骤',
 
   // ── 步骤卡 ──────────────────────────────────────────────────
@@ -1367,7 +1366,6 @@ export const en: Record<LocaleKey, string> = {
   'canvas.emptyTitle': 'Start with a first step',
   'canvas.emptyBody': 'Drag a step in from the left, or double-click the empty canvas.',
   'canvas.starter': 'Insert an example flow',
-  'canvas.drop': 'Drop it here',
   'quick.title': 'Add a step',
 
   'node.noPrompt': 'No prompt yet',

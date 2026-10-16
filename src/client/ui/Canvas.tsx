@@ -1503,8 +1503,6 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
   } = props
   const flow = useReactFlow<FlowNode, FlowEdge>()
   const wrapRef = useRef<HTMLDivElement>(null)
-  const ghostRef = useRef<HTMLDivElement>(null)
-  const [dropping, setDropping] = useState(false)
   /** 卡片尺寸量出来 / 变了就加一：线的走法要按真实尺寸重算。 */
   const [sized, setSized] = useState(0)
   /** 拖动中的临时坐标（松手才写进文档）。 */
@@ -2277,27 +2275,10 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
     // 不 preventDefault 的话浏览器不认这里是放置区，`drop` 永远不会来。
     event.preventDefault()
     event.dataTransfer.dropEffect = 'copy'
-    // 指针坐标不进 state（每秒几十次）：直接改占位卡的 transform。
-    const ghost = ghostRef.current
-    if (ghost !== null) {
-      const rect = event.currentTarget.getBoundingClientRect()
-      ghost.style.transform = `translate3d(${event.clientX - rect.left}px, ${
-        event.clientY - rect.top
-      }px, 0) translate(-50%, -50%)`
-    }
-    setDropping(true)
-  }, [])
-
-  const onDragLeave = useCallback((event: React.DragEvent<HTMLDivElement>): void => {
-    // 在子元素之间移动也会冒 dragleave：只有真的离开容器才收起占位卡。
-    const related = event.relatedTarget
-    if (related instanceof globalThis.Node && event.currentTarget.contains(related)) return
-    setDropping(false)
   }, [])
 
   const onDrop = useCallback(
     (event: React.DragEvent<HTMLDivElement>): void => {
-      setDropping(false)
       // 解不出自家载荷（外部拖进来的文件、链接）一律安静地忽略。
       const source = decodeStepSource(event.dataTransfer.getData(DND_MIME))
       if (source === null) return
@@ -2357,12 +2338,10 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
       // tabIndex=-1：可被脚本/点击聚焦从而收到键盘事件，但不进 Tab 序。
       tabIndex={-1}
       data-testid="wl-canvas"
-      data-dropping={dropping}
       data-drag={drag?.kind ?? undefined}
       style={drag === null ? undefined : ({ '--wl-drag': drag.color } as React.CSSProperties)}
       data-inset-right={props.insets.right}
       onDragOver={onDragOver}
-      onDragLeave={onDragLeave}
       onDrop={onDrop}
       onDoubleClick={(event) => {
         // 双击空白处加步骤；双击在卡片或连线上不算。
@@ -2480,11 +2459,6 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
           </div>
         </div>
       )}
-
-      {/* 占位卡常驻 DOM：dragover 里要直接改它的 transform，不能等渲染出来才挂载。 */}
-      <div className={css.ghost} ref={ghostRef} data-testid="wl-ghost" aria-hidden="true">
-        <span>{t('canvas.drop')}</span>
-      </div>
     </div>
   )
 }
