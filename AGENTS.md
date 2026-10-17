@@ -56,7 +56,8 @@ gh release create workflow-lite-v<ver> --title "v<ver>" --notes-file <notes 文�
 
 ## 配色主题
 
-- 亮色、暗色各四套（米色、晴白、雾蓝、林间 / 石板、墨黑、深海、暖夜），色值全在 `src/client/model/themes.ts`；默认米色 + 石板。
+- 亮色、暗色各四套（晴白、瑞士、雾蓝、林间 / 石板、墨黑、深海、暖夜），色值全在 `src/client/model/themes.ts`；默认晴白 + 石板，瑞士排第二。
+- 「瑞士」除了颜色还带一套「形」：亮色档选了它、此刻又是亮色时，视图根写 `data-look="swiss"`（`themeLook()`），`shell.module.css` 在这个开关下把 `--wl-round`（所有圆角的乘数，各 CSS 里写 `calc(Npx * var(--wl-round, 1))`；圆点的 50% 不乘）归零、去掉阴影、换 Helvetica 系字体；分组小标题的大写加粗写在各模块里的 `:global([data-look="swiss"]) .x`。新写圆角用 `calc(Npx * var(--wl-round, 1))`，别写死 px，否则瑞士下会漏圆角。瑞士下的其余做法同样写在各模块末尾的 `:global([data-look="swiss"]) .x` 里：成组列表只留上下线、输入框只留底线、分段反白、分组标题压黑线；淡底（`--wl-*-soft`）在 `shell.module.css` 的瑞士块里调淡。新加成组的盒子或卡片时顺手补一条。
 - 视图根节点把选中的两套写成 `--wl-l-*`、`--wl-d-*` 两组内联变量，`shell.module.css` 用 `light-dark()` 跟着宿主的 `color-scheme` 拼成 `--wl-*`；CSS 里不再写死色值。
 - 选择记在浏览器（`workflow-lite.theme`），在工作流中心「设置」页的「外观」里换，点了就生效，不走插件设置的保存。
 - 一套主题是一整套颜色：线色（光带、图例、线上牌子跟着它）、强调色、步骤图标色、状态色一起换；非默认的几套照着成熟配色方案配（雾蓝 Nord、林间 Everforest、墨黑 Geist、深海 Tokyo Night、暖夜 Gruvbox），主干线用强调色。

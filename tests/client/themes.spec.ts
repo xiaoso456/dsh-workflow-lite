@@ -12,6 +12,7 @@ import {
   THEMES,
   type ThemeId,
   type ThemeTokens,
+  themeLook,
   themeStyle,
 } from '../../src/client/model/themes.ts'
 
@@ -88,7 +89,7 @@ describe('配色主题：每套都看得清', () => {
 
   /*
    * 线还有第二重记号（线上的牌子、读取是虚线、更新两头有箭头），所以底线是 8；
-   * 默认的米色、石板都在 13 以上，照着参考色板配的主题（Nord、Everforest 这类低饱和色板）会低一些。
+   * 默认的晴白、石板都在 13 以上，照着参考色板配的主题（Nord、Everforest 这类低饱和色板）会低一些。
    */
   it.each(ALL)('%s：七种线两两分得开（OKLab ΔE ≥ 8）', (id) => {
     const p = THEMES[id]
@@ -120,7 +121,7 @@ describe('主题写成 CSS 变量', () => {
       .map((file) => readFileSync(new URL(`../../src/client/ui/${file}`, import.meta.url), 'utf8'))
       .join('\n')
     const used = new Set([...css.matchAll(/var\((--wl-[ld]-[a-z0-9-]+)\)/gu)].map((m) => m[1]))
-    const style = themeStyle('paper', 'slate')
+    const style = themeStyle('white', 'slate')
     expect(used.size).toBeGreaterThan(40)
     for (const name of used) expect(style[name as string], name).toBeDefined()
   })
@@ -141,15 +142,15 @@ describe('选了哪套主题记在浏览器里', () => {
   })
   afterEach(() => vi.unstubAllGlobals())
 
-  it('没记过就是米色 + 石板', () => {
-    expect(readThemeChoice()).toEqual({ light: 'paper', dark: 'slate' })
+  it('没记过就是晴白 + 石板', () => {
+    expect(readThemeChoice()).toEqual({ light: 'white', dark: 'slate' })
   })
 
   it('只换一半，另一半不动；都换回默认就不留记录', () => {
     setThemeChoice({ dark: 'umber' })
-    expect(getThemeChoice()).toEqual({ light: 'paper', dark: 'umber' })
+    expect(getThemeChoice()).toEqual({ light: 'white', dark: 'umber' })
     resetThemeCache()
-    expect(readThemeChoice()).toEqual({ light: 'paper', dark: 'umber' })
+    expect(readThemeChoice()).toEqual({ light: 'white', dark: 'umber' })
     setThemeChoice({ dark: 'slate' })
     expect(store.size).toBe(0)
   })
@@ -158,6 +159,25 @@ describe('选了哪套主题记在浏览器里', () => {
     store.set('workflow-lite.theme', JSON.stringify({ light: 'mist', dark: 'neon' }))
     expect(readThemeChoice()).toEqual({ light: 'mist', dark: 'slate' })
     store.set('workflow-lite.theme', 'not json')
-    expect(readThemeChoice()).toEqual({ light: 'paper', dark: 'slate' })
+    expect(readThemeChoice()).toEqual({ light: 'white', dark: 'slate' })
+  })
+
+  it('挑了瑞士就记下来，不会被当成默认', () => {
+    setThemeChoice({ light: 'swiss' })
+    resetThemeCache()
+    expect(readThemeChoice()).toEqual({ light: 'swiss', dark: 'slate' })
+  })
+
+  it('旧版记下的米色（paper）已不存在，亮色那一半回到默认', () => {
+    store.set('workflow-lite.theme', JSON.stringify({ light: 'paper', dark: 'ocean' }))
+    expect(readThemeChoice()).toEqual({ light: 'white', dark: 'ocean' })
+  })
+})
+
+describe('主题带的「形」', () => {
+  it('只有亮色档选了瑞士、此刻又是亮色时才有', () => {
+    expect(themeLook('light', 'swiss')).toBe('swiss')
+    expect(themeLook('dark', 'swiss')).toBeUndefined()
+    expect(themeLook('light', 'white')).toBeUndefined()
   })
 })

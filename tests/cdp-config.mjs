@@ -127,9 +127,9 @@ async function run(session) {
   )
   check(
     await session.evaluate(
-      `document.querySelector('${option('paper')}').getAttribute('aria-checked') === 'true' && document.querySelector('${option('slate')}').getAttribute('aria-checked') === 'true'`,
+      `document.querySelector('${option('white')}').getAttribute('aria-checked') === 'true' && document.querySelector('${option('slate')}').getAttribute('aria-checked') === 'true'`,
     ),
-    '默认应是米色 + 石板',
+    '默认应是晴白 + 石板',
   )
   await session.evaluate(`document.querySelector('${option('mist')}').click()`)
   await session.evaluate(`document.querySelector('${option('umber')}').click()`)
@@ -156,7 +156,7 @@ async function run(session) {
   await waitFor(session, exists('wl-hub-settings'))
   await session.evaluate(clickTestId('wl-hub-settings'))
   await waitFor(session, exists('wl-theme'))
-  await session.evaluate(`document.querySelector('${option('paper')}').click()`)
+  await session.evaluate(`document.querySelector('${option('white')}').click()`)
   await session.evaluate(`document.querySelector('${option('slate')}').click()`)
   await waitFor(session, `localStorage.getItem('workflow-lite.theme') === null`)
   pass('外观：换主题马上生效、记在浏览器里，换回默认不留记录')
