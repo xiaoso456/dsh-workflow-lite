@@ -133,6 +133,14 @@ button.main {
   opacity: 1;
 }
 
+/*
+ * 通用的按下回弹（0.98 倍）在这里不要：这一行通栏，缩的时候底色会先从左右两边收进去，
+ * 而展开后下面那块说明不缩，两块对不齐。按下的反馈有悬停底色顶着。
+ */
+.main:active {
+  scale: none;
+}
+
 .main:focus-visible {
   outline: 2px solid var(--wl-accent);
   outline-offset: -2px;

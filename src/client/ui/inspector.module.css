@@ -27,34 +27,78 @@
   white-space: nowrap;
 }
 
-.titleInput {
+/*
+ * 名字输入框：外面包一层 `.titleField`，底线画在它的伪元素上，只动 transform / opacity。
+ * 悬停浮出一道淡线；聚焦时强调色的线从左边伸出来、失焦时缩回左边（原点始终在左，进出同一个方向，
+ * 像一根线伸缩，不是划过去）。线的两头对齐字的左右边（里外各留 6px 的内边距），和下面一行 ID 的字左对齐。
+ */
+.titleField {
+  position: relative;
+  display: block;
   flex: 1 1 auto;
   min-width: 0;
-  height: 32px;
   margin-left: -6px;
+}
+
+.titleField::before,
+.titleField::after {
+  position: absolute;
+  right: 6px;
+  bottom: 0;
+  left: 6px;
+  height: 1px;
+  background: var(--wl-line-strong);
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms linear;
+}
+
+.titleField:hover::before {
+  opacity: 1;
+}
+
+.titleField::after {
+  height: 2px;
+  background: var(--wl-accent);
+  opacity: 1;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 260ms var(--wl-ease-out);
+}
+
+.titleField:focus-within::after {
+  transform: scaleX(1);
+}
+
+.titleInput {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  height: 32px;
   padding: 0 6px;
-  border: 1px solid transparent;
-  border-radius: var(--wl-r-control);
+  border: 0;
   background: transparent;
   color: var(--wl-text);
   font: inherit;
   font-size: var(--wl-fs-title);
   font-weight: 600;
-  transition: background-color 120ms linear;
+  text-overflow: ellipsis;
 }
 
 .titleInput::placeholder {
   color: var(--wl-text-3);
 }
 
-.titleInput:hover {
-  background: var(--wl-fill);
+.titleInput:focus {
+  outline: none;
 }
 
-.titleInput:focus {
-  border-color: var(--wl-accent);
-  background: var(--wl-panel);
-  outline: none;
+@media (prefers-reduced-motion: reduce) {
+  .titleField::before,
+  .titleField::after {
+    transition: none;
+  }
 }
 
 /* 名字与它下面一行 ID。 */
@@ -67,8 +111,11 @@
 }
 
 /* 能改的名字（输入框）和只看的名字一样高：换面板时标题栏不跳。 */
-.headMain .titleInput {
+.headMain .titleField {
   flex: none;
+}
+
+.headMain .titleInput {
   height: 28px;
 }
 

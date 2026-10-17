@@ -257,18 +257,26 @@ function MineEditor(
           custom={draft.data.icon !== undefined || draft.data.color !== undefined}
           onChange={(next) => patch(next)}
         />
-        <input
-          className={css.titleInput}
-          value={draft.data.label ?? ''}
-          placeholder={normalized === '' ? t('step.labelPlaceholder') : normalized}
-          aria-label={t('ins.name')}
-          data-testid="wl-step-label"
-          onChange={(event) => {
-            // 名称会进计划里的表格：换行与竖线直接不让打进来。
-            const value = event.currentTarget.value.replace(/[\r\n|]/gu, '')
-            patch({ label: value === '' ? undefined : value })
-          }}
-        />
+        <span className={css.titleField}>
+          <input
+            className={css.titleInput}
+            value={draft.data.label ?? ''}
+            placeholder={normalized === '' ? t('step.labelPlaceholder') : normalized}
+            aria-label={t('ins.name')}
+            data-testid="wl-step-label"
+            onChange={(event) => {
+              // 名称会进计划里的表格：换行与竖线直接不让打进来。
+              const value = event.currentTarget.value.replace(/[\r\n|]/gu, '')
+              patch({ label: value === '' ? undefined : value })
+            }}
+            onKeyDown={(event) => {
+              // 回车 = 保存（同 Ctrl+S）；输入法选词时的回车不算。
+              if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
+              event.preventDefault()
+              if (canSave) void save()
+            }}
+          />
+        </span>
         <span className={css.badge}>{original === null ? t('step.newTitle') : t('step.mine')}</span>
         <button
           type="button"
