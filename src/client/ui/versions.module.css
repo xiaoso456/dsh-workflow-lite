@@ -156,7 +156,8 @@ button.main {
   transition: transform 220ms var(--wl-ease);
 }
 
-.main[aria-expanded="true"] .chevron {
+.main[aria-expanded="true"] .chevron,
+.chevron[data-open="true"] {
   transform: rotate(0deg);
 }
 
@@ -200,19 +201,15 @@ button.main {
   font-weight: 400;
 }
 
+/* 改说明：底线的样子在 ui.module.css 的 `.lineField`；上下各收进一点，占的高度和原来那行字一样，整行不变高；字对齐原来说明的字。 */
+.noteField {
+  width: calc(100% + 6px);
+  margin: -2px 0 -2px -6px;
+}
+
 .noteInput {
-  width: 100%;
   height: 24px;
-  margin: -2px 0;
-  padding: 0 6px;
-  border: 0;
-  border-radius: calc(6px * var(--wl-round, 1));
-  background: var(--wl-panel);
-  box-shadow: inset 0 0 0 1px var(--wl-accent);
-  color: var(--wl-text);
-  font: inherit;
   font-weight: 500;
-  outline: none;
 }
 
 .meta {

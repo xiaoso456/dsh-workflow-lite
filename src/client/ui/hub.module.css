@@ -1040,19 +1040,15 @@ input.statusNote {
   background: var(--wl-hover);
 }
 
+/* 改名：底线的样子在 ui.module.css 的 `.lineField`；字对齐原来那行名字（外面 -6px、里面 6px 内边距），上下各收进一点，整行不变高。 */
+.wfField {
+  width: calc(100% + 6px);
+  margin: -1.25px 0 -1.25px -6px;
+}
+
 .wfInput {
-  width: calc(100% + 10px);
   height: 22px;
-  /* 上下各收进一点：占的高度和原来那行名字一样，整行不变高。 */
-  margin: -1.25px -5px;
-  padding: 0 4px;
-  border: 1px solid var(--wl-accent);
-  border-radius: calc(5px * var(--wl-round, 1));
-  background: var(--wl-panel);
-  color: var(--wl-text);
-  font: inherit;
   font-weight: 600;
-  outline: none;
 }
 
 .wfInput::selection {

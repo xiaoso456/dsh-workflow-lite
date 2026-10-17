@@ -31,6 +31,7 @@ import { cx } from './primitives.tsx'
 import res from './resource.module.css'
 import run from './run.module.css'
 import { lookOf } from './StepMark.tsx'
+import { TitleField } from './TitleField.tsx'
 
 interface HeadProps {
   t: T
@@ -44,13 +45,6 @@ interface HeadProps {
 function cleanName(value: string): string | undefined {
   const clean = value.replace(/[\r\n|]/gu, '')
   return clean === '' ? undefined : clean
-}
-
-/** 回车 = 确认：改动本来就是边打边生效的，回车只是收起焦点，顺手把这一串改动封成一步撤销。输入法选词时的回车不算。 */
-function blurOnEnter(event: React.KeyboardEvent<HTMLInputElement>): void {
-  if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
-  event.preventDefault()
-  event.currentTarget.blur()
 }
 
 export function StepHead(
@@ -69,25 +63,22 @@ export function StepHead(
         />
       }
       title={
-        <span className={css.titleField}>
-          <input
-            className={css.titleInput}
-            value={node.data.label ?? ''}
-            placeholder={node.id}
-            aria-label={t('ins.name')}
-            data-testid="wl-ins-label"
-            onChange={(event) =>
-              onEdit({
-                type: 'patchNode',
-                id: node.id,
-                patch: { label: cleanName(event.currentTarget.value) },
-                merge: `${idKey(node.id)}:label`,
-              })
-            }
-            onKeyDown={blurOnEnter}
-            onBlur={props.onSeal}
-          />
-        </span>
+        <TitleField
+          t={t}
+          value={node.data.label ?? ''}
+          placeholder={node.id}
+          ariaLabel={t('ins.name')}
+          testId="wl-ins-label"
+          onType={(value) =>
+            onEdit({
+              type: 'patchNode',
+              id: node.id,
+              patch: { label: cleanName(value) },
+              merge: `${idKey(node.id)}:label`,
+            })
+          }
+          onBlur={props.onSeal}
+        />
       }
       id={node.id}
       extra={props.extra}
@@ -110,25 +101,22 @@ export function ResourceHead(
         </span>
       }
       title={
-        <span className={css.titleField}>
-          <input
-            className={css.titleInput}
-            value={node.data.label ?? ''}
-            placeholder={resourceTitle({ ...node, data: { ...node.data, label: '' } })}
-            aria-label={t('res.name')}
-            data-testid="wl-resource-label"
-            onChange={(event) =>
-              props.onEdit({
-                type: 'patchResource',
-                id: node.id,
-                patch: { label: cleanName(event.currentTarget.value) },
-                merge: `${idKey(node.id)}:label`,
-              })
-            }
-            onKeyDown={blurOnEnter}
-            onBlur={props.onSeal}
-          />
-        </span>
+        <TitleField
+          t={t}
+          value={node.data.label ?? ''}
+          placeholder={resourceTitle({ ...node, data: { ...node.data, label: '' } })}
+          ariaLabel={t('res.name')}
+          testId="wl-resource-label"
+          onType={(value) =>
+            props.onEdit({
+              type: 'patchResource',
+              id: node.id,
+              patch: { label: cleanName(value) },
+              merge: `${idKey(node.id)}:label`,
+            })
+          }
+          onBlur={props.onSeal}
+        />
       }
       id={node.id}
       extra={props.extra}

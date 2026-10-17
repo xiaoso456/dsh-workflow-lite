@@ -1734,3 +1734,61 @@ export function Presence(props: {
     </div>
   )
 }
+
+/** CSS 时间（`240ms` 或压缩后的 `.24s`）转毫秒；读不出来用 `fallback`。 */
+function cssMs(value: string, fallback: number): number {
+  const number = Number.parseFloat(value)
+  if (Number.isNaN(number)) return fallback
+  return value.trim().endsWith('ms') ? number : number * 1000
+}
+
+/**
+ * 底线输入框（`ui.module.css` 的 `.lineField`）被卸掉时，线缩回左边：改名这类输入框一提交就整块换回文字，
+ * 框里的线没机会走完 CSS 的收回。这里在卸掉的那一刻（DOM 还在）读一下线此刻伸出多长，
+ * 在视图根里放一根一样的线（影子），从那个长度缩回左边再删掉；字已经换回去了，线是唯一留着的东西。
+ * 线本来就没伸出来（缩到 0）、开了「减少动态效果」、找不到视图根时什么也不放。
+ * 返回要挂到 `.lineField` 外层的 ref。
+ */
+export function useLineExit(): RefObject<HTMLSpanElement> {
+  const ref = useRef<HTMLSpanElement>(null)
+  useLayoutEffect(() => {
+    const field = ref.current
+    return () => {
+      if (field === null || REDUCED?.matches === true || !field.isConnected) return
+      const root = field.closest<HTMLElement>('[data-workflow-lite-view]')
+      if (root === null) return
+      const bar = getComputedStyle(field, '::after')
+      const scale = new DOMMatrixReadOnly(bar.transform).a
+      if (!(scale > 0.02)) return
+      const at = field.getBoundingClientRect()
+      const base = root.getBoundingClientRect()
+      const height = Number.parseFloat(bar.height)
+      const gap = Number.parseFloat(bar.bottom)
+      const ghost = document.createElement('div')
+      ghost.setAttribute('aria-hidden', 'true')
+      Object.assign(ghost.style, {
+        position: 'absolute',
+        zIndex: '9999',
+        left: `${at.left - base.left + Number.parseFloat(bar.left)}px`,
+        top: `${at.bottom - base.top + gap * -1 - height}px`,
+        width: `${Math.max(0, at.width - Number.parseFloat(bar.left) - Number.parseFloat(bar.right))}px`,
+        height: `${height}px`,
+        borderRadius: bar.borderRadius,
+        background: bar.backgroundColor,
+        pointerEvents: 'none',
+        transformOrigin: 'left center',
+      })
+      root.appendChild(ghost)
+      const out = ghost.animate([{ transform: `scaleX(${scale})` }, { transform: 'scaleX(0)' }], {
+        // 时长、缓动读 `.lineField` 上的同一份变量，和线伸出、缩回的 CSS 不会走样。
+        duration: cssMs(getComputedStyle(field).getPropertyValue('--line-ms'), 240),
+        easing: getComputedStyle(field).getPropertyValue('--wl-ease-out') || 'ease-out',
+        fill: 'forwards',
+      })
+      const drop = (): void => ghost.remove()
+      out.addEventListener('finish', drop)
+      out.addEventListener('cancel', drop)
+    }
+  }, [])
+  return ref
+}

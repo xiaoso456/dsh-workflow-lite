@@ -17,6 +17,7 @@ export const zh = {
 
   // ── 通用 ────────────────────────────────────────────────────
   'common.cancel': '取消',
+  'common.confirm': '确认',
   'common.close': '关闭',
   'common.copy': '复制',
   'common.copied': '已复制',
@@ -56,7 +57,6 @@ export const zh = {
   'ver.restoreAuto': '现在的内容还没存成版本，切换前会自动存一份。',
   'ver.restoreConfirm': '切换',
   'ver.editNote': '编辑说明',
-  'ver.noteHint': '回车保存，Esc 取消',
   'ver.delete': '删除',
   'ver.deleteTitle': '删除 v{n}？',
   'ver.saved': '已存为 v{n}',
@@ -1135,6 +1135,7 @@ export const en: Record<LocaleKey, string> = {
   'tab.label': 'Workflow',
 
   'common.cancel': 'Cancel',
+  'common.confirm': 'Confirm',
   'common.close': 'Close',
   'common.copy': 'Copy',
   'common.copied': 'Copied',
@@ -1173,7 +1174,6 @@ export const en: Record<LocaleKey, string> = {
   'ver.restoreAuto': 'Current content is not saved yet; it will be saved automatically first.',
   'ver.restoreConfirm': 'Switch',
   'ver.editNote': 'Edit description',
-  'ver.noteHint': 'Enter to save, Esc to cancel',
   'ver.delete': 'Delete',
   'ver.deleteTitle': 'Delete v{n}?',
   'ver.saved': 'Saved as v{n}',

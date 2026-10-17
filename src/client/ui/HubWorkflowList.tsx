@@ -10,6 +10,7 @@
 import { useRef, useState } from 'react'
 import type { WorkflowEntry } from '../../shared/types.ts'
 import type { T } from '../i18n.ts'
+import { claimRowKey, forgetRowKey, rowKey } from '../model/rowKeys.ts'
 import { useConfirm } from './Confirm.tsx'
 import { HubWorkflowRow } from './HubWorkflowRow.tsx'
 import hub from './hub.module.css'
@@ -36,6 +37,9 @@ export function HubWorkflowList(props: {
   /** 删除确认卡指着哪一行。 */
   const [doomed, setDoomed] = useState<string | null>(null)
   const confirm = useConfirm<HTMLButtonElement>()
+  /** 改过名的行沿用旧键（见 rowKeys.ts）：改完名字不闪、行顺着新排位滑过去。 */
+  const rowKeys = useRef(new Map<string, string>())
+  const names = workflows.map((entry) => entry.name)
   const doomedEntry = workflows.find((entry) => entry.name === doomed)
   // 选中底块滑到选中那张；改名、删除之后留下的行滑到新位置，新冒出来的淡入。
   const listRef = useRef<HTMLElement>(null)
@@ -45,9 +49,10 @@ export function HubWorkflowList(props: {
   return (
     <nav ref={listRef} className={cx(hub.wfList, props.className)} aria-label={t('hub.wfPage')}>
       <ListThumb layout={layout} />
-      {workflows.map((entry) => (
+      {workflows.map((entry, index) => (
         <HubWorkflowRow
-          key={entry.name}
+          key={rowKey(rowKeys.current, names, index)}
+          flipKey={rowKey(rowKeys.current, names, index)}
           t={t}
           entry={entry}
           selected={entry.name === props.selected}
@@ -61,7 +66,9 @@ export function HubWorkflowList(props: {
             setEditing(entry.name)
           }}
           onRename={async (value) => {
+            const claimed = claimRowKey(rowKeys.current, names, entry.name, value)
             const ok = await props.rename(entry.name, value)
+            if (!ok && claimed) forgetRowKey(rowKeys.current, value)
             if (ok) setEditing(null)
             return ok
           }}

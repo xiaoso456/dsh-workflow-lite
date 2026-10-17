@@ -12,6 +12,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Runs } from '../app/useRuns.ts'
 import type { Workflow } from '../app/useWorkflow.ts'
 import type { T } from '../i18n.ts'
+import { claimRowKey, forgetRowKey, rowKey } from '../model/rowKeys.ts'
 import {
   currentFirst,
   filterRuns,
@@ -21,8 +22,9 @@ import {
   visibleRuns,
 } from '../model/switcherSearch.ts'
 import { useConfirm } from './Confirm.tsx'
+import { EditActions } from './EditActions.tsx'
 import { Icon } from './Icon.tsx'
-import { ListThumb, SwapIcon, SwapText, useResizeFlip } from './motion.tsx'
+import { ListThumb, SwapIcon, SwapText, useLineExit, useResizeFlip } from './motion.tsx'
 import { cx, Popover } from './primitives.tsx'
 import { RunMenuRow, runSearchTexts } from './RunTopBar.tsx'
 import run from './run.module.css'
@@ -60,6 +62,11 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
   const [renaming, setRenaming] = useState(false)
   /** 下拉里正在改名的那一行。 */
   const [editing, setEditing] = useState<string | null>(null)
+  /**
+   * 改过名的行沿用旧名字当 React 的键（新名字 → 旧键）：行是同一个元素，改完原地换回文字、顺着新排位滑过去，
+   * 不会被当成新挂上的一项重放「依次浮出」（那是名字一闪的来源）。
+   */
+  const rowKeys = useRef(new Map<string, string>())
   /** 删除确认卡指着哪一行；卡片挂在那一行的删除按钮上，下拉不收。 */
   const [doomed, setDoomed] = useState<string | null>(null)
   const remove = useConfirm<HTMLButtonElement>()
@@ -241,9 +248,13 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
           {filtered.length === 0 && shownRuns.length === 0 && (workflows.length > 0 || grouped) && (
             <p className={css.emptyLine}>{t('wf.none')}</p>
           )}
-          {filtered.map((entry) => (
+          {filtered.map((entry, index) => (
             <WorkflowRow
-              key={entry.name}
+              key={rowKey(
+                rowKeys.current,
+                filtered.map((row) => row.name),
+                index,
+              )}
               t={t}
               entry={entry}
               active={entry.name === current}
@@ -260,7 +271,15 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
                 setEditing(entry.name)
               }}
               onRename={async (value) => {
+                // 先记下再等：目录一更新这一行就要拿新名字渲染，那时键已经得是旧的。
+                const claimed = claimRowKey(
+                  rowKeys.current,
+                  workflows.map((w) => w.name),
+                  entry.name,
+                  value,
+                )
                 const ok = await wf.rename(entry.name, value)
+                if (!ok && claimed) forgetRowKey(rowKeys.current, value)
                 if (ok) setEditing(null)
                 return ok
               }}
@@ -361,6 +380,7 @@ function NameInput(props: {
   onDone(): void
 }): React.JSX.Element {
   const ref = useRef<HTMLInputElement>(null)
+  const lineRef = useLineExit()
   /** Esc 之后输入框被卸掉时可能还会补一个 blur：那一下不算提交。 */
   const cancelled = useRef(false)
 
@@ -376,23 +396,36 @@ function NameInput(props: {
     })
   }
 
+  const cancel = (): void => {
+    cancelled.current = true
+    props.onDone()
+  }
+
   return (
-    <input
-      ref={ref}
-      className={css.rename}
-      defaultValue={props.name}
-      aria-label={props.t('wf.rename')}
-      data-tip={props.t('wf.renameHint')}
-      data-testid="wl-rename"
-      onKeyDown={(event) => {
-        if (event.key === 'Enter') commit(event.currentTarget.value)
-        if (event.key === 'Escape') {
-          event.stopPropagation()
-          cancelled.current = true
-          props.onDone()
-        }
-      }}
-      onBlur={(event) => commit(event.currentTarget.value)}
-    />
+    <span className={cx(ui.editRow, css.renameField)}>
+      <span ref={lineRef} className={ui.lineField}>
+        <input
+          ref={ref}
+          className={cx(ui.lineInput, css.rename)}
+          defaultValue={props.name}
+          aria-label={props.t('wf.rename')}
+          data-testid="wl-rename"
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && !event.nativeEvent.isComposing)
+              commit(event.currentTarget.value)
+            if (event.key === 'Escape') {
+              event.stopPropagation()
+              cancel()
+            }
+          }}
+          onBlur={(event) => commit(event.currentTarget.value)}
+        />
+      </span>
+      <EditActions
+        t={props.t}
+        onConfirm={() => commit(ref.current?.value ?? '')}
+        onCancel={cancel}
+      />
+    </span>
   )
 }

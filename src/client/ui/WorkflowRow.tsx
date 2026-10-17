@@ -12,8 +12,10 @@
 import { useEffect, useRef } from 'react'
 import type { WorkflowEntry } from '../../shared/types.ts'
 import type { T } from '../i18n.ts'
+import { EditActions } from './EditActions.tsx'
 import { Highlight } from './Highlight.tsx'
 import { Icon } from './Icon.tsx'
+import { useLineExit } from './motion.tsx'
 import { cx } from './primitives.tsx'
 import css from './topbar.module.css'
 import ui from './ui.module.css'
@@ -41,50 +43,60 @@ export interface WorkflowRowProps {
 export function WorkflowRow(props: WorkflowRowProps): React.JSX.Element {
   const { t, entry } = props
   const name = entry.name
-  if (props.editing) return <RenameRow {...props} />
+  // 根节点在「看」和「改名」之间是同一个元素：列表的「依次浮出」只认新挂上的子项，换成输入框不能算新项（不然名字先淡掉再浮出，像闪了一下）。
   return (
-    <div className={css.row} data-busy={props.busy} data-selected={props.active}>
-      <button
-        type="button"
-        className={cx(ui.menuItem, css.rowMain)}
-        aria-current={props.active ? 'true' : undefined}
-        data-testid="wl-wf-item"
-        data-value={name}
-        onClick={props.onOpen}
-      >
-        <Icon name={entry.invalid === true ? 'alert' : 'folder'} size={15} />
-        <span className={ui.menuLabel}>
-          <Highlight text={name} needle={props.needle ?? ''} />
-        </span>
-        <span className={cx(ui.menuMeta, css.rowMeta)}>
-          {entry.invalid === true ? t('wf.broken') : `${entry.nodeCount} ${t('wf.steps')}`}
-        </span>
-      </button>
-      <span className={css.rowActions}>
-        <button
-          type="button"
-          className={css.rowAction}
-          data-tip={t('wf.rename')}
-          aria-label={`${t('wf.rename')} ${name}`}
-          data-testid={`wl-wf-rename-${name}`}
-          onClick={props.onEdit}
-        >
-          <Icon name="pencil" size={14} />
-        </button>
-        <button
-          ref={props.deleteRef}
-          type="button"
-          className={css.rowAction}
-          data-danger="true"
-          data-tip={t('common.delete')}
-          aria-label={`${t('common.delete')} ${name}`}
-          aria-expanded={props.busy}
-          data-testid={`wl-wf-delete-${name}`}
-          onClick={props.onDelete}
-        >
-          <Icon name="trash" size={14} />
-        </button>
-      </span>
+    <div
+      className={props.editing ? css.rowEditing : css.row}
+      data-busy={props.editing ? undefined : props.busy}
+      data-selected={props.active}
+    >
+      {props.editing ? (
+        <RenameFields {...props} />
+      ) : (
+        <>
+          <button
+            type="button"
+            className={cx(ui.menuItem, css.rowMain)}
+            aria-current={props.active ? 'true' : undefined}
+            data-testid="wl-wf-item"
+            data-value={name}
+            onClick={props.onOpen}
+          >
+            <Icon name={entry.invalid === true ? 'alert' : 'folder'} size={15} />
+            <span className={ui.menuLabel}>
+              <Highlight text={name} needle={props.needle ?? ''} />
+            </span>
+            <span className={cx(ui.menuMeta, css.rowMeta)}>
+              {entry.invalid === true ? t('wf.broken') : `${entry.nodeCount} ${t('wf.steps')}`}
+            </span>
+          </button>
+          <span className={css.rowActions}>
+            <button
+              type="button"
+              className={css.rowAction}
+              data-tip={t('wf.rename')}
+              aria-label={`${t('wf.rename')} ${name}`}
+              data-testid={`wl-wf-rename-${name}`}
+              onClick={props.onEdit}
+            >
+              <Icon name="pencil" size={14} />
+            </button>
+            <button
+              ref={props.deleteRef}
+              type="button"
+              className={css.rowAction}
+              data-danger="true"
+              data-tip={t('common.delete')}
+              aria-label={`${t('common.delete')} ${name}`}
+              aria-expanded={props.busy}
+              data-testid={`wl-wf-delete-${name}`}
+              onClick={props.onDelete}
+            >
+              <Icon name="trash" size={14} />
+            </button>
+          </span>
+        </>
+      )}
     </div>
   )
 }
@@ -97,9 +109,10 @@ export function deleteDesc(t: T, entry: WorkflowEntry, open: boolean): string {
   return open ? `${t('wf.deleteOpen')}${tail}` : tail
 }
 
-function RenameRow(props: WorkflowRowProps): React.JSX.Element {
+function RenameFields(props: WorkflowRowProps): React.JSX.Element {
   const { t, entry } = props
   const ref = useRef<HTMLInputElement>(null)
+  const lineRef = useLineExit()
   /** Esc 之后输入框被卸掉时可能还会补一个 blur：那一下不算提交。 */
   const settled = useRef(false)
 
@@ -117,27 +130,36 @@ function RenameRow(props: WorkflowRowProps): React.JSX.Element {
     })
   }
 
+  const cancel = (): void => {
+    settled.current = true
+    props.onCancelEdit()
+  }
+
   return (
-    <div className={css.rowEditing} data-selected={props.active}>
+    <>
       <Icon name={entry.invalid === true ? 'alert' : 'folder'} size={15} />
-      <input
-        ref={ref}
-        className={css.rowInput}
-        defaultValue={entry.name}
-        aria-label={t('wf.rename')}
-        data-tip={t('wf.renameHint')}
-        data-testid="wl-wf-rename-input"
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') commit(event.currentTarget.value)
-          if (event.key === 'Escape') {
-            // 只退出改名，下拉留着。
-            event.stopPropagation()
-            settled.current = true
-            props.onCancelEdit()
-          }
-        }}
-        onBlur={(event) => commit(event.currentTarget.value)}
-      />
-    </div>
+      <span className={cx(ui.editRow, css.rowField)}>
+        <span ref={lineRef} className={ui.lineField}>
+          <input
+            ref={ref}
+            className={cx(ui.lineInput, css.rowInput)}
+            defaultValue={entry.name}
+            aria-label={t('wf.rename')}
+            data-testid="wl-wf-rename-input"
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && !event.nativeEvent.isComposing)
+                commit(event.currentTarget.value)
+              if (event.key === 'Escape') {
+                // 只退出改名，下拉留着。
+                event.stopPropagation()
+                cancel()
+              }
+            }}
+            onBlur={(event) => commit(event.currentTarget.value)}
+          />
+        </span>
+        <EditActions t={t} onConfirm={() => commit(ref.current?.value ?? '')} onCancel={cancel} />
+      </span>
+    </>
   )
 }

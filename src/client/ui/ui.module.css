@@ -1815,3 +1815,185 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
 :global([data-look="swiss"]) .hintPanel {
   border-color: var(--wl-line-strong);
 }
+
+/* ── 底线输入框 ───────────────────────────────────────────── */
+
+/*
+ * 原地改名、改标题的输入框：不画整圈框，外面包一层 `.lineField`，底线画在它的伪元素上，只动 transform / opacity。
+ * 悬停浮出一道淡线；聚焦（或刚挂上就带着焦点）时强调色的线从左边伸出来，失焦时缩回左边（原点始终在左，
+ * 进出同一个方向，像一根线伸缩）。线的两头对齐字的左右边——里面的输入框左右各留 6px 内边距，
+ * 外面用负的左外边距把字对齐到旁边的文字。
+ */
+.lineField {
+  /* 线伸出、缩回的时长：进入（动画）、离开（过渡）、卸掉时的影子（motion.tsx 的 useLineExit 读这个值）共用一份。 */
+  --line-ms: 240ms;
+
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+
+.lineField::before,
+.lineField::after {
+  position: absolute;
+  right: 6px;
+  bottom: -2px;
+  left: 6px;
+  height: 1px;
+  border-radius: calc(1px * var(--wl-round, 1));
+  background: var(--wl-line-strong);
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms linear;
+}
+
+.lineField:hover::before {
+  opacity: 1;
+}
+
+.lineField::after {
+  height: 1.5px;
+  background: var(--wl-accent);
+  opacity: 1;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform var(--line-ms) var(--wl-ease-out);
+}
+
+/* 动画（不是过渡）：输入框是挂上来就带着焦点的，第一帧已经在聚焦态，过渡不会放。 */
+.lineField:focus-within::after {
+  transform: scaleX(1);
+  animation: lineIn var(--line-ms) var(--wl-ease-out) backwards;
+}
+
+@keyframes lineIn {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+/* 原地改名的行（右栏标题那种实时生效的除外，它平时只有一条名字）：线一直在（很淡），悬停加深，聚焦时强调色从左边盖上去——一眼看出这是个正在编辑的框。 */
+.editRow:not([data-live]) > .lineField::before {
+  background: var(--wl-line);
+  opacity: 1;
+}
+
+.editRow:not([data-live]) > .lineField:hover::before {
+  background: var(--wl-line-strong);
+}
+
+.lineInput {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 0 6px;
+  border: 0;
+  background: transparent;
+  color: var(--wl-text);
+  font: inherit;
+  text-overflow: ellipsis;
+}
+
+.lineInput::placeholder {
+  color: var(--wl-text-3);
+}
+
+.lineInput:focus,
+.lineInput:focus-visible {
+  outline: none;
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lineField::before,
+  .lineField::after {
+    animation: none;
+    transition: none;
+  }
+}
+
+/*
+ * 原地改名的一行：底线输入框 + 末尾的「确认」「取消」两个小按钮（EditActions.tsx）。
+ * 线只画在输入框那一段，按钮在线的末尾；按钮占的是输入框右边的地方，字的位置不动。
+ */
+.editRow {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+}
+
+.editRow > .lineField {
+  flex: 1 1 auto;
+}
+
+.editActions {
+  display: inline-flex;
+  flex: none;
+  gap: 2px;
+}
+
+/* 确认是实心的强调色小方块，取消是淡的；两个都是 24px 的点击区，悬停时才有底。 */
+.editAction {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: calc(6px * var(--wl-round, 1));
+  background: transparent;
+  color: var(--wl-text-3);
+  cursor: pointer;
+  transition:
+    background-color 120ms linear,
+    color 120ms linear;
+}
+
+.editAction:hover {
+  background: var(--wl-hover);
+  color: var(--wl-text);
+}
+
+.editAction[data-tone="confirm"] {
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+}
+
+.editAction[data-tone="confirm"]:hover {
+  background: var(--wl-accent);
+  color: var(--wl-accent-on);
+}
+
+/*
+ * 实时生效的名字框（右栏标题）：两个按钮只在聚焦时淡入，浮在线的末端（绝对定位，不占位）——
+ * 线的长度、字的位置聚焦前后一点不变；聚焦时输入框右边多留一截，长名字不会压到按钮底下。
+ */
+.editRow[data-live] {
+  position: relative;
+}
+
+.editRow[data-live] .editActions {
+  position: absolute;
+  top: 50%;
+  right: 2px;
+  display: none;
+  transform: translateY(-50%);
+}
+
+.editRow[data-live]:focus-within .editActions {
+  display: inline-flex;
+  animation: actionsIn var(--line-ms, 240ms) var(--wl-ease-out) backwards;
+}
+
+.editRow[data-live]:focus-within .lineInput {
+  padding-right: 58px;
+}
+
+@keyframes actionsIn {
+  from {
+    opacity: 0;
+  }
+}

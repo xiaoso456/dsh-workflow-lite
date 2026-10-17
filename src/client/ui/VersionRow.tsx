@@ -15,9 +15,12 @@ import type { VersionDiff, Versions } from '../app/useVersions.ts'
 import type { T } from '../i18n.ts'
 import { shortTime } from '../model/time.ts'
 import { useConfirm } from './Confirm.tsx'
+import { EditActions } from './EditActions.tsx'
 import { Icon } from './Icon.tsx'
-import { Presence } from './motion.tsx'
+import { Presence, useLineExit } from './motion.tsx'
+import { cx } from './primitives.tsx'
 import { graphLine } from './RunDraftBar.tsx'
+import ui from './ui.module.css'
 import v from './versions.module.css'
 
 /** 展开后最多列几处变化，再多只说个数。 */
@@ -84,7 +87,13 @@ export function VersionRow(props: {
   return (
     <div className={v.row} data-open={open} data-busy={busy} data-testid={testId}>
       {editing ? (
-        <div className={v.main}>{head}</div>
+        <div className={v.main}>
+          {head}
+          {/* 占住展开箭头的位置：进出编辑态时版本号、说明都不动。 */}
+          <span className={v.chevron} data-open={open} aria-hidden="true">
+            <Icon name="chevronDown" size={14} />
+          </span>
+        </div>
       ) : (
         <button
           type="button"
@@ -258,6 +267,7 @@ function NoteInput(props: {
   onCancel(): void
 }): React.JSX.Element {
   const ref = useRef<HTMLInputElement>(null)
+  const lineRef = useLineExit()
   const settled = useRef(false)
   useEffect(() => {
     ref.current?.select()
@@ -271,25 +281,38 @@ function NoteInput(props: {
       ref.current?.focus()
     })
   }
+  const cancel = (): void => {
+    settled.current = true
+    props.onCancel()
+  }
+
   return (
-    <input
-      ref={ref}
-      className={v.noteInput}
-      defaultValue={props.value}
-      maxLength={500}
-      placeholder={props.t('ver.notePlaceholder')}
-      aria-label={props.t('ver.editNote')}
-      data-tip={props.t('ver.noteHint')}
-      data-testid="wl-ver-note-input"
-      onKeyDown={(event) => {
-        if (event.key === 'Enter') commit(event.currentTarget.value)
-        if (event.key === 'Escape') {
-          event.stopPropagation()
-          settled.current = true
-          props.onCancel()
-        }
-      }}
-      onBlur={(event) => commit(event.currentTarget.value)}
-    />
+    <span className={cx(ui.editRow, v.noteField)}>
+      <span ref={lineRef} className={ui.lineField}>
+        <input
+          ref={ref}
+          className={cx(ui.lineInput, v.noteInput)}
+          defaultValue={props.value}
+          maxLength={500}
+          placeholder={props.t('ver.notePlaceholder')}
+          aria-label={props.t('ver.editNote')}
+          data-testid="wl-ver-note-input"
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && !event.nativeEvent.isComposing)
+              commit(event.currentTarget.value)
+            if (event.key === 'Escape') {
+              event.stopPropagation()
+              cancel()
+            }
+          }}
+          onBlur={(event) => commit(event.currentTarget.value)}
+        />
+      </span>
+      <EditActions
+        t={props.t}
+        onConfirm={() => commit(ref.current?.value ?? '')}
+        onCancel={cancel}
+      />
+    </span>
   )
 }

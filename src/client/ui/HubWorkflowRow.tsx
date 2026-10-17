@@ -13,12 +13,18 @@
 import { useEffect, useRef } from 'react'
 import type { WorkflowEntry } from '../../shared/types.ts'
 import type { T } from '../i18n.ts'
+import { EditActions } from './EditActions.tsx'
 import hub from './hub.module.css'
 import { Icon } from './Icon.tsx'
+import { useLineExit } from './motion.tsx'
+import { cx } from './primitives.tsx'
+import ui from './ui.module.css'
 
 export interface HubWorkflowRowProps {
   t: T
   entry: WorkflowEntry
+  /** 列表动画认的键（改过名的行沿用旧键，见 model/rowKeys.ts）。 */
+  flipKey: string
   /** 右边正显示这张。 */
   selected: boolean
   /** 编辑页正开着这张。 */
@@ -44,7 +50,7 @@ export function HubWorkflowRow(props: HubWorkflowRowProps): React.JSX.Element {
     <div
       className={hub.wfRow}
       data-busy={props.busy}
-      data-flip={name}
+      data-flip={props.flipKey}
       data-selected={props.selected}
     >
       <button
@@ -100,6 +106,7 @@ export function HubWorkflowRow(props: HubWorkflowRowProps): React.JSX.Element {
 function RenameRow(props: HubWorkflowRowProps): React.JSX.Element {
   const { t, entry } = props
   const ref = useRef<HTMLInputElement>(null)
+  const lineRef = useLineExit()
   /** Esc 之后输入框被卸掉时可能还会补一个 blur：那一下不算提交。 */
   const settled = useRef(false)
 
@@ -117,30 +124,40 @@ function RenameRow(props: HubWorkflowRowProps): React.JSX.Element {
     })
   }
 
+  const cancel = (): void => {
+    settled.current = true
+    props.onCancelEdit()
+  }
+
   return (
     // 键和原来那一行一样：换成输入框行不算新项，不放入场动画（选中底块在改名时淡掉，输入框行自己有底色）。
-    <div className={hub.wfEditing} data-flip={entry.name}>
+    <div className={hub.wfEditing} data-flip={props.flipKey}>
       <span className={hub.wfIcon}>
         <Icon name={entry.invalid === true ? 'alert' : 'folder'} size={15} />
       </span>
       <span className={hub.wfText}>
-        <input
-          ref={ref}
-          className={hub.wfInput}
-          defaultValue={entry.name}
-          aria-label={t('wf.rename')}
-          data-testid="wl-hub-wf-rename-input"
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') commit(event.currentTarget.value)
-            if (event.key === 'Escape') {
-              // 只退出改名，对话框留着。
-              event.stopPropagation()
-              settled.current = true
-              props.onCancelEdit()
-            }
-          }}
-          onBlur={(event) => commit(event.currentTarget.value)}
-        />
+        <span className={cx(ui.editRow, hub.wfField)}>
+          <span ref={lineRef} className={ui.lineField}>
+            <input
+              ref={ref}
+              className={cx(ui.lineInput, hub.wfInput)}
+              defaultValue={entry.name}
+              aria-label={t('wf.rename')}
+              data-testid="wl-hub-wf-rename-input"
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !event.nativeEvent.isComposing)
+                  commit(event.currentTarget.value)
+                if (event.key === 'Escape') {
+                  // 只退出改名，对话框留着。
+                  event.stopPropagation()
+                  cancel()
+                }
+              }}
+              onBlur={(event) => commit(event.currentTarget.value)}
+            />
+          </span>
+          <EditActions t={t} onConfirm={() => commit(ref.current?.value ?? '')} onCancel={cancel} />
+        </span>
         <span className={hub.wfMeta}>{t('wf.renameHint')}</span>
       </span>
     </div>
