@@ -56,6 +56,17 @@
         "title": "Sharing",
         "lines": ["Import", "Export"]
       }
+    },
+    {
+      "version": "0.5.0",
+      "zh": {
+        "title": "动效与主题",
+        "lines": ["弹簧动效", "瑞士主题"]
+      },
+      "en": {
+        "title": "Motion & themes",
+        "lines": ["Spring motion", "Swiss theme"]
+      }
     }
   ]
 }
