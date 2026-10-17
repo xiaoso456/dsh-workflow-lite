@@ -418,8 +418,72 @@ export async function revealHubRow(session, instanceId, workspacePath) {
 
 /* ── 截图 ─────────────────────────────────────────────────── */
 
-/** 截图落到 `tests/runs/<name>`（`runs/` 被 vitest 排除）。 */
+/**
+ * 等页面上的动画走完再截图。
+ *
+ * 右栏（`.inspector`）、步骤库这类浮层进场时是 `translateX + opacity` 的动画（`shell.module.css`
+ * 的 `slideIn` / `panelFade`，460ms/180ms）。选中项刚变、面板刚打开就截图，会拍到半透明、
+ * 还在滑的那一帧——画面上看像「面板发灰、右边被裁」，其实是拍早了。
+ *
+ * **只等「会自己放完」的那几条**，下面几种一律跳过：
+ * - 已经不在跑的（`playState !== 'running'`）——放完了就不等；
+ * - 无限循环的（`iterations === Infinity`，呼吸的光环、转圈的图标）——永远停不下来；
+ * - **滚动驱动的**（`animation-timeline: scroll` 的 `ScrollTimeline` / `ViewTimeline`，
+ *   见 `ui.module.css` 的 `.scrollFade`）：`playState` 恒为 `running`、`currentTime` 是 `null`，
+ *   它跟着滚动走、没有「放完」这一说。不跳过的话每次截图都会等满超时；
+ * - 没有结束时间的（`effect` 缺失或 `endTime` 不是有限数，如 CSS 变量驱动的 `Animation`）。
+ *
+ * 超时**不再静默**：等满 `timeoutMs` 仍有动画在跑就 `console.warn` 打出它们的名字再照拍——
+ * 那说明页面上出现了一条比 `timeoutMs` 还长的进场动画，截图可能是半截的，跑验收的人要看得见。
+ *
+ * @param session - CDP 页面会话。
+ * @param options - `timeoutMs` 最多等多久；`quiet` 为真时超时不打警告（默认打）。
+ */
+export async function settleAnimations(session, { timeoutMs = 1_500, quiet = false } = {}) {
+  const deadline = Date.now() + timeoutMs
+  for (;;) {
+    let pending = []
+    try {
+      pending = await session.evaluate(`(() => {
+        const scrollTimeline = typeof ScrollTimeline === 'undefined' ? null : ScrollTimeline;
+        return document.getAnimations()
+          .filter((item) => {
+            if (item.playState !== 'running') return false;
+            const timing = item.effect?.getComputedTiming?.() ?? {};
+            if (timing.iterations === Infinity) return false;
+            const timeline = item.timeline ?? null;
+            // 滚动驱动：跟着滚动走，没有「放完」这一帧。
+            if (scrollTimeline !== null && timeline instanceof scrollTimeline) return false;
+            if (timeline !== null && typeof timeline.currentTime !== 'number') return false;
+            // 没有结束时间的（缺失 effect、无限时长）同样等不到头。
+            if (typeof timing.endTime !== 'number' || !Number.isFinite(timing.endTime)) return false;
+            return true;
+          })
+          .map((item) => item.animationName ?? item.constructor?.name ?? 'animation');
+      })()`)
+    } catch (error) {
+      // 查不出来（页面不在、求值报错）不当成「没有动画」：同样要说一声再照拍。
+      if (!quiet) {
+        console.warn(`[settleAnimations] 查不到动画状态，照拍：${error.message}`)
+      }
+      return
+    }
+    if (pending.length === 0) return
+    if (Date.now() >= deadline) {
+      if (!quiet) {
+        console.warn(
+          `[settleAnimations] ${timeoutMs}ms 后仍有动画在跑，照拍（截图可能是半截的）：${pending.join(', ')}`,
+        )
+      }
+      return
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50))
+  }
+}
+
+/** 截图落到 `tests/runs/<name>`（`runs/` 被 vitest 排除）。截前先等动画停（见 {@link settleAnimations}）。 */
 export async function screenshot(session, name) {
+  await settleAnimations(session)
   const shot = await session.send('Page.captureScreenshot', { format: 'png' })
   const target = new URL(`../runs/${name}`, import.meta.url)
   await mkdir(new URL('../runs/', import.meta.url), { recursive: true })

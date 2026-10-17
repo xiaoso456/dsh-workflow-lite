@@ -2,7 +2,7 @@
  * 画布通道的端到端验收（**走真实的 `/api/workflow-lite/*` 路由**，不直接调函数）。
  *
  * 覆盖：列图（含 `limits`）→ 新建 → 读 → 整图保存（写前哈希比对 + 字段级合并）→
- * 重新读回 → 编译派发计划（并核对载荷真的落进 `.dispatch/`）→ 整卷版 →
+ * 重新读回 → 编译派发计划（载荷路径指向实例目录的 `tasks/`，预览不写盘）→ 整卷版 →
  * 节点模板（列表 + `data` 本体）→ 改名 → 删除。
  *
  * **清理放在 `finally`**：中途断言失败也要把备图删掉，否则失败一次就在用户的数据目录里
@@ -13,7 +13,7 @@
  *
  * usage: DSH_WEB_TOKEN=<token> node tests/e2e-canvas.mjs
  */
-import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { baseUrl, rpc } from './lib/web-session.mjs'
 
@@ -55,6 +55,20 @@ function demoDocument() {
     ],
     viewport: { x: 0, y: 0, zoom: 1 },
   }
+}
+
+/** 数据目录整棵树的路径集合（目录也进集合）——「预览前后一个字节都没多」的判据就是它。 */
+async function treeOf(root) {
+  const seen = new Set()
+  const walk = async (dir) => {
+    for (const entry of await readdir(dir, { withFileTypes: true }).catch(() => [])) {
+      const path = join(dir, entry.name)
+      seen.add(path)
+      if (entry.isDirectory()) await walk(path)
+    }
+  }
+  await walk(root)
+  return seen
 }
 
 const run = async () => {
@@ -111,29 +125,50 @@ const run = async () => {
   )
   console.log('  5 读回 ok（4 节点 / 4 边 / 边 id 构造式 / handle 为 null）')
 
-  // 6) 编译：出计划、正文不内联、路径指向 .dispatch。
+  // 6) 编译：出计划、正文不内联、载荷路径指向实例目录的 tasks/（预览不写盘，实例 id 先留记号）。
+  //    预览前后的目录树各拍一张快照，第 7 步拿它当「没写盘」的判据。
+  const beforePreview = dataDir === undefined ? null : await treeOf(dataDir)
   const plan = await rpc('plan/build', { name: NAME, goal: '跑通端到端验收' })
   check(typeof plan.plan === 'string' && plan.plan.length > 0, '编译应出计划')
   check(plan.problems.length === 0, `编译不该有编译级问题：${JSON.stringify(plan.problems)}`)
   check(!plan.plan.includes('你是审查者'), '派发版里不该出现提示词正文')
-  check(plan.plan.includes('.dispatch'), '计划里应有载荷路径引用')
+  check(!plan.plan.includes('.dispatch'), '计划里不该再有旧载荷目录 .dispatch')
+  check(
+    /runs[\\/]\{instance\}[\\/]tasks[\\/]auth-review\.md/u.test(plan.plan),
+    `计划里应有实例目录里的任务描述路径：${plan.plan.slice(0, 400)}`,
+  )
   check(plan.plan.includes('## 交付契约'), '计划应有五段结构')
   check(/^[0-9a-f]{8}$/.test(plan.planId), `planId 应是 8 位十六进制：${plan.planId}`)
   console.log(`  6 编译 ok（planId ${plan.planId}，${plan.plan.length} 字符）`)
 
-  // 7) 物化：磁盘上真有载荷，且与 prompt 逐字相同（只在能拿到 dataDir 时查）。
+  // 7) 预览不落盘：载荷路径回给调用方，但实例还没建，一个字节都不该写（只在能拿到 dataDir 时查）。
   if (dataDir !== undefined) {
     const dir = join(dataDir, 'workflows')
     const files = await readdir(dir)
     check(files.includes(`${NAME}.json`), `图 JSON 应在 ${dir}`)
-    const payload = await readFile(
-      join(dataDir, '.dispatch', NAME, plan.planId, 'auth-review.md'),
-      'utf8',
+    check(
+      Object.values(plan.payloadPaths).every(
+        (path) =>
+          path.includes('{instance}') && /\{instance\}[\\/]tasks[\\/][^\\/]+\.md$/u.test(path),
+      ),
+      `载荷路径应是实例目录里的 tasks/：${JSON.stringify(plan.payloadPaths)}`,
     )
-    check(payload === '你是审查者，只审认证相关代码。', '载荷必须与 data.prompt 字节相同')
-    console.log(`  7 物化 ok（${payload.length} 字节，与 prompt 逐字相同）`)
+    // 真查「没写盘」：预览前后把数据目录整棵树的路径集合比一遍，多出一个文件就是写了。
+    // （`.dispatch` 那条只看旧目录里有没有本图名，目录本来就不存在，查不出别的写盘。）
+    const afterPreview = await treeOf(dataDir)
+    const added = [...afterPreview].filter((path) => !beforePreview.has(path))
+    check(added.length === 0, `预览不该往数据目录写任何东西，实增：${added.slice(0, 5).join(', ')}`)
+    // 再单独点一次：预览用的实例目录名是字面量 `{instance}`，它一旦出现就是物化了。
+    check(
+      !(await readdir(join(dataDir, 'runs')).catch(() => [])).includes('{instance}'),
+      `预览不该建出字面量 {instance} 的实例目录：${join(dataDir, 'runs')}`,
+    )
+    // 只查这张图自己的旧目录：数据目录里可能还留着别人的 .dispatch（0.3.0 之前的派生物）。
+    const dispatch = await readdir(join(dataDir, '.dispatch')).catch(() => [])
+    check(!dispatch.includes(NAME), `预览不该写 .dispatch/${NAME}：${dataDir}`)
+    console.log('  7 预览 ok（tasks/ 路径带 {instance}，前后目录树一致，没写盘）')
   } else {
-    console.log('  7 物化 跳过（未设 DSH_WORKFLOW_DATA_DIR）')
+    console.log('  7 预览 跳过（未设 DSH_WORKFLOW_DATA_DIR）')
   }
 
   // 8) 整卷版：内联正文。
@@ -195,11 +230,9 @@ const main = async () => {
       await rpc('graph/delete', { name }).catch(() => {})
     }
     /*
-     * 图删了，**它物化出来的 `.dispatch/<图名>/` 还在**。
-     *
-     * 那里面是编译时写下的载荷（`.dispatch/<图名>/<planId>/<节点id>.md`）——设计上说它是
-     * 派生物、随时可删，但"删了图却留下派生物目录"会在这个目录里越堆越多，
-     * 而清理成本只有一行。只删我们自己的那个图名，别人的一律不碰。
+     * 载荷目录的清理不再需要：`.dispatch/` 是 0.3.0 之前的落盘位置，插件早就不写它了
+     * （任务描述现在写进实例目录的 `tasks/`，实例归执行会话所有，脚本不该去动别人的目录）。
+     * 这里只留一个兜底：万一旧版本还在这台机器上留了本图名的 .dispatch，顺手清掉。
      *
      * 只有给了 `DSH_WORKFLOW_DATA_DIR` 才知道该往哪删（没给就跳过——那说明这次跑的是
      * 别人的实例，我们连目录在哪都不该假设）。

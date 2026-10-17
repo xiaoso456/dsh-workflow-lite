@@ -1934,6 +1934,15 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
   gap: 2px;
 }
 
+/*
+ * 行内（非实时生效）的那几种：24px 的点击区上下各收进 2px，行高只由里边那条底线输入框决定。
+ * 不收的话 flex 行取最高的那项——工作流中心改名的行从 49px 撑到 51px、版本说明行也被撑高 2px，
+ * 与 hub.module.css `.wfField` 写的「整行不变高」不符。点击区本身仍是 24px，只是不占布局高度。
+ */
+.editRow:not([data-live]) .editActions {
+  margin-block: -2px;
+}
+
 /* 确认是实心的强调色小方块，取消是淡的；两个都是 24px 的点击区，悬停时才有底。 */
 .editAction {
   display: grid;

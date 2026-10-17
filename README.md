@@ -14,7 +14,7 @@
 [![npm version](https://img.shields.io/npm/v/@xiaoso/dsh-workflow-lite.svg)](https://www.npmjs.com/package/@xiaoso/dsh-workflow-lite)
 [![license](https://img.shields.io/npm/l/@xiaoso/dsh-workflow-lite.svg)](./LICENSE)
 [![node](https://img.shields.io/node/v/@xiaoso/dsh-workflow-lite.svg)](https://nodejs.org)
-[![DeepSeek Harness 0.2.0-x](https://img.shields.io/badge/DeepSeek%20Harness-0.2.0--x-4d6bfe.svg)](https://github.com/deepseek-ai/deepseek-harness)
+[![DeepSeek Harness 0.2.x](https://img.shields.io/badge/DeepSeek%20Harness-0.2.x-4d6bfe.svg)](https://github.com/deepseek-ai/deepseek-harness)
 
 </div>
 
@@ -28,7 +28,7 @@
 
 ## 安装
 
-适配 DeepSeek Harness 0.2.0，包括它的各个预览版（如 0.2.0-rc.2）。
+适配 DeepSeek Harness 0.2.0 与 0.2.1，包括它们的各个预览版（如 0.2.1-rc.2）。
 
 ### 网页版
 

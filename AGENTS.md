@@ -42,7 +42,7 @@ gh release create workflow-lite-v<ver> --title "v<ver>" --notes-file <notes 文�
 - 不兼容变更要**在 CHANGELOG 里明说**：哪一侧不兼容（新版读旧版 / 旧版读新版）、会丢什么、别的部分是否不受影响。
 - `.npmrc` 把 `@xiaoso` 作用域指到 npmjs 官方源；镜像站发布不了。
 - `publishConfig.access: public`：scoped 包不加这条，`npm publish` 默认按 restricted 发。
-- 插件版本与 dsh 版本**不锁步**：peer 是一条 `0.2.0-0 ~ <0.2.1-0` 区间，插件自己按 SemVer 走；只有换支持版本线时才动 `peerDependencies`。
+- 插件版本与 dsh 版本**不锁步**：peer 是一条 `>=0.2.0-0 <0.2.1-0 || >=0.2.1-0 <0.3.0-0` 的区间（`engines.dsh` 与 peer 同串），插件自己按 SemVer 走；只有换支持版本线时才动它。
 - peer 对不上运行版本时宿主**静默跳过**该 bundle（只记进 `skippedBundles`）：症状是工具突然消失、补丁层不生效，而不是启动失败。排查看 `<profile>/cordis.yml` 里有没有自己的行。
 - `THIRD_PARTY_NOTICES.md` 由 `scripts/notices.mjs` 生成，别手改。改过依赖跑一次 `pnpm run build`，它变了就一起提交；`pnpm run notices:check` 与 `tests/package.spec.ts` 盯着它有没有过期。
 
