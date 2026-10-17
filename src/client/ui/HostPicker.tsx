@@ -32,6 +32,7 @@ import {
   FadeText,
   markSwap,
   PickThumb,
+  Presence,
   type StageDir,
   useResizeFlip,
   useStage,
@@ -375,7 +376,9 @@ export function HostPicker(props: {
                   <span className={css.rowMeta}>{parent}</span>
                 </button>
               )}
-              {error !== null && <p className={css.error}>{error}</p>}
+              <Presence show={error !== null}>
+                {error !== null && <p className={css.error}>{error}</p>}
+              </Presence>
               {error === null && listing !== null && entries.length === 0 && (
                 <p className={css.empty}>
                   {filter.trim() === '' ? t('pick.emptyDir') : t('pick.noMatch')}

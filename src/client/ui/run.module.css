@@ -6,6 +6,8 @@
 
 [data-run-status] {
   --wl-run: var(--wl-text-3);
+  /* 实心的圆点、进度条用的色：默认就是状态色，黄、绿两档换成亮一点的（见 shell 的 --wl-warn-dot）。 */
+  --wl-run-fill: var(--wl-run);
 }
 
 [data-run-status="running"] {
@@ -14,6 +16,7 @@
 
 [data-run-status="done"] {
   --wl-run: var(--wl-ok);
+  --wl-run-fill: var(--wl-ok-dot);
 }
 
 [data-run-status="failed"] {
@@ -22,6 +25,8 @@
 
 [data-run-status="waiting"] {
   --wl-run: var(--wl-warn);
+  /* 实心的圆点、进度条用亮一档的黄（--wl-warn 为文字压得很深）。 */
+  --wl-run-fill: var(--wl-warn-dot);
 }
 
 [data-run-status="cancelled"],
@@ -52,7 +57,7 @@
   height: 7px;
   flex: none;
   border-radius: 50%;
-  background: var(--wl-run);
+  background: var(--wl-run-fill, var(--wl-run));
 }
 
 /* ── 顶栏 ──────────────────────────────────────────────────── */
@@ -302,7 +307,7 @@
 .barFill {
   height: 100%;
   border-radius: inherit;
-  background: var(--wl-ok);
+  background: var(--wl-ok-dot);
   transform-origin: left center;
   transition: transform 320ms var(--wl-ease);
 }
@@ -615,6 +620,10 @@
   .choice,
   .choice::before {
     transition: none;
+  }
+
+  .menu {
+    animation: none;
   }
 }
 

@@ -218,7 +218,9 @@ function Row(props: FieldProps & { wide?: boolean; children: React.ReactNode }):
             {reset}
           </span>
         )}
-        {error !== undefined && <span className={css.error}>{error}</span>}
+        <Presence show={error !== undefined}>
+          {error !== undefined && <span className={css.error}>{error}</span>}
+        </Presence>
       </div>
       {props.wide !== true && (
         <div className={hub.itemEnd}>

@@ -331,7 +331,7 @@ div.dialog {
   width: 100%;
   height: 100%;
   border-radius: inherit;
-  background: var(--wl-run);
+  background: var(--wl-run-fill, var(--wl-run));
   transform-origin: left center;
   transition: transform 420ms var(--wl-ease);
   animation: barIn 620ms var(--wl-ease) backwards;
@@ -937,7 +937,7 @@ input.statusNote {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--wl-ok);
+  background: var(--wl-ok-dot);
   transition: opacity 120ms linear;
 }
 

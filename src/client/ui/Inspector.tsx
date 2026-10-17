@@ -34,7 +34,7 @@ import { InputPanel, StepInputsField } from './InputPanel.tsx'
 import css from './inspector.module.css'
 import { LinkRow } from './LinkRow.tsx'
 import { WHEN_COLOR, type WhenKind, whenKind } from './lines.ts'
-import { EDIT_VIEW, useResizeFlip, useSwap } from './motion.tsx'
+import { EDIT_VIEW, Presence, useResizeFlip, useSwap } from './motion.tsx'
 import { EdgeHead, StepHead } from './NodeHeads.tsx'
 import { PreviewCard } from './PreviewCard.tsx'
 import { cx } from './primitives.tsx'
@@ -368,7 +368,9 @@ export function DescriptionField(props: {
         onChange={(event) => props.onChange(event.currentTarget.value.replace(/[\r\n]+/gu, ' '))}
         onBlur={props.onBlur}
       />
-      {problem !== null && <p className={css.error}>{problem.message}</p>}
+      <Presence show={problem !== null}>
+        {problem !== null && <p className={css.error}>{problem.message}</p>}
+      </Presence>
     </section>
   )
 }
@@ -529,7 +531,9 @@ function EdgePanel(props: InspectorProps & { edge: WorkflowEdge }): React.JSX.El
                     }}
                     onBlur={props.onSeal}
                   />
-                  {customError !== null && <p className={css.error}>{customError.message}</p>}
+                  <Presence show={customError !== null}>
+                    {customError !== null && <p className={css.error}>{customError.message}</p>}
+                  </Presence>
                 </>
               )}
               {mode === 'always' ? (

@@ -279,7 +279,9 @@ export function useResizeFlip(
       let slots = measure()
       const settle = (): void => {
         const next = measure()
-        if (REDUCED?.matches !== true) {
+        // 列表里有 Presence 正在长 / 收（它每一帧都在改布局，后面的项本来就是跟着走的）：不再补位移，
+        // 两边叠起来，后面的项会被甩到别的项上面。
+        if (REDUCED?.matches !== true && list.querySelector('[data-moving]') === null) {
           // 只给看得见的项放动画：目录里成百上千行时，屏幕外的项滑不滑看不出来，不白费。
           const band = clipBand(list)
           for (const [child, slot] of next) {
@@ -1661,19 +1663,20 @@ export function useViewGhost(ref: RefObject<HTMLElement | null>): void {
   }, [ref])
 }
 
-/** 折叠区展开 / 收起的时长（和 ui.module.css 的 presenceIn / presenceOut 一致）。 */
+/** 折叠区展开 / 收起的时长（和 ui.module.css 的 `.presence` 过渡一致；也是 transitionend 没来时的兜底）。 */
 const PRESENCE_MS = 260
 
 /**
  * 可以出现、也可以消失的一块（折叠区、行内的提示条 / 错误条）：
  * - 出现：高度从 0 长开、同时淡入，下面的内容被顺势推下去；
  * - 消失：高度收回 0、同时淡出，下面的内容顺势滑上来，再把它卸掉——不是「啪」地一下没了、下面的跳上来。
+ * 走的是 CSS 过渡，不是关键帧：收到一半又要展开，从当前高度接着往回长，不是从 0 重来（iOS / macOS 的动画随时能反向）。
  * 第一次挂上时就是开着的不放动画（刷新页面不该看到所有折叠区重新展开一遍）。
  *
  * `show` 为假时，内容保留最后一次的样子放完退场动画，所以调用方照常写 `{cond && <X value={v} />}` 也行：
  * 把条件放进 `show`，把内容放进 children（`show` 为假时 children 可以是假值）。
  * 高度走 `grid-template-rows: 0fr ↔ 1fr`（布局属性，是「只动 transform / opacity」的例外）：折叠区不知道自己多高，
- * 这是不量高度就能从 0 长到内容那么高的办法；只在这 260ms 里动，内容区同时 `overflow: hidden`，平时不裁（阴影、焦点环照常画出来）。
+ * 这是不量高度就能从 0 长到内容那么高的办法；只在动的这段时间里动，内容区同时 `overflow: hidden`，平时不裁（阴影、焦点环照常画出来）。
  */
 export function Presence(props: {
   show: boolean
@@ -1681,36 +1684,51 @@ export function Presence(props: {
   className?: string
 }): React.JSX.Element | null {
   const { show } = props
+  const still = REDUCED?.matches === true
+  const ref = useRef<HTMLDivElement>(null)
   const [mounted, setMounted] = useState(show)
-  const [phase, setPhase] = useState<'idle' | 'in' | 'out'>('idle')
+  const [open, setOpen] = useState(show)
+  const [moving, setMoving] = useState(false)
   const last = useRef<ReactNode>(props.children)
   if (show) last.current = props.children
-  if (REDUCED?.matches === true) {
+  if (still) {
     if (show !== mounted) setMounted(show)
-  } else {
-    if (show && !mounted) {
-      setMounted(true)
-      setPhase('in')
-    } else if (show && phase === 'out') {
-      setPhase('in')
-    } else if (!show && mounted && phase !== 'out') {
-      setPhase('out')
-    }
+    if (show !== open) setOpen(show)
+  } else if (show && !mounted) {
+    setMounted(true)
   }
+  useLayoutEffect(() => {
+    if (still || !mounted || show === open) return
+    // 新挂上的先以「关着」的样子渲染一帧，量一下版面把这个起点定住，再翻成开着，过渡才有地方起步。
+    void ref.current?.offsetHeight
+    setOpen(show)
+    setMoving(true)
+  }, [still, mounted, show, open])
   useEffect(() => {
-    if (phase === 'idle') return
-    const id = window.setTimeout(() => {
-      if (phase === 'out') setMounted(false)
-      setPhase('idle')
-    }, PRESENCE_MS)
+    if (!moving) return
+    const id = window.setTimeout(() => settle(), PRESENCE_MS + 80)
     return () => window.clearTimeout(id)
-  }, [phase])
+    // open 翻面（收到一半又展开）时重新计时
+  }, [moving, open])
+  const showRef = useRef(show)
+  showRef.current = show
+  function settle(): void {
+    setMoving(false)
+    if (!showRef.current) setMounted(false)
+  }
   if (!mounted) return null
   return (
     <div
+      ref={ref}
       className={cx(ui.presence, props.className)}
-      data-phase={phase === 'idle' ? undefined : phase}
-      aria-hidden={phase === 'out' ? true : undefined}
+      data-open={open}
+      data-moving={moving ? true : undefined}
+      aria-hidden={show ? undefined : true}
+      onTransitionEnd={(event) => {
+        if (event.target === event.currentTarget && event.propertyName === 'grid-template-rows') {
+          settle()
+        }
+      }}
     >
       <div className={ui.presenceInner}>{show ? props.children : last.current}</div>
     </div>

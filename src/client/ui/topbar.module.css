@@ -159,11 +159,11 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--wl-ok);
+  background: var(--wl-ok-dot);
 }
 
 .status[data-tone="dirty"] .dot {
-  background: var(--wl-warn);
+  background: var(--wl-warn-dot);
 }
 
 .status[data-tone="error"] .dot {
@@ -672,7 +672,7 @@
 }
 
 .sessionDot[data-running="true"] {
-  background: var(--wl-ok);
+  background: var(--wl-ok-dot);
   opacity: 1;
 }
 
@@ -722,7 +722,7 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--wl-warn);
+  background: var(--wl-warn-dot);
   content: "";
   opacity: 0;
   transform: scale(0.4);

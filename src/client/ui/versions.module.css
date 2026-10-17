@@ -53,11 +53,11 @@ div.dialog {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--wl-warn);
+  background: var(--wl-warn-dot);
 }
 
 .state[data-saved="true"] .stateDot {
-  background: var(--wl-ok);
+  background: var(--wl-ok-dot);
 }
 
 .notice {
@@ -370,7 +370,7 @@ button.main {
 }
 
 .diffLine[data-kind="added"]::before {
-  background: var(--wl-ok);
+  background: var(--wl-ok-dot);
 }
 
 .diffLine[data-kind="removed"]::before {

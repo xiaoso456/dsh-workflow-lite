@@ -398,9 +398,16 @@ export function ghostClone(node: HTMLElement): Ghost {
   }
 }
 
-/** 模态框关掉后的退场：把它此刻的样子复制一份放回原处，遮罩淡出、卡片缩回触发它的控件（`folded` 是缩进去的变换），放完就删。 */
+/**
+ * 模态框关掉后的退场：把它此刻的样子复制一份放回原处，遮罩淡出、卡片缩回触发它的控件（`folded` 是缩进去的变换），放完就删。
+ * 起点取关掉那一刻的实际变换和透明度（弹出到一半就关，影子从那半截接着收，不是先跳到满尺寸再缩）。
+ */
 function ghostOut(node: HTMLElement, parent: Node | null, folded: string | null): void {
   if (parent === null || REDUCED_MOTION?.matches === true) return
+  const liveCard = node.firstElementChild
+  const scrimOpacity = getComputedStyle(node).opacity
+  const card = liveCard === null ? null : getComputedStyle(liveCard)
+  const cardFrom = { transform: card?.transform ?? 'none', opacity: card?.opacity ?? '1' }
   const ghost = ghostClone(node)
   ghost.place(parent)
   const clone = ghost.node
@@ -410,19 +417,15 @@ function ghostOut(node: HTMLElement, parent: Node | null, folded: string | null)
     fill: 'forwards',
   } as const
   // 遮罩淡出。
-  const fade = clone.animate([{ opacity: 1 }, { opacity: 0 }], { ...timing, easing: 'ease-out' })
+  const fade = clone.animate([{ opacity: scrimOpacity }, { opacity: 0 }], {
+    ...timing,
+    easing: 'ease-out',
+  })
   // 有触发控件：缩回它的位置（先缩，后半段才淡出，看得清往哪儿收）；没有：原地略缩、下沉、淡出。
   clone.firstElementChild?.animate(
     folded === null
-      ? [
-          { transform: 'none', opacity: 1 },
-          { transform: 'translateY(16px) scale(0.86)', opacity: 0 },
-        ]
-      : [
-          { transform: 'none', opacity: 1 },
-          { opacity: 1, offset: 0.6 },
-          { transform: folded, opacity: 0 },
-        ],
+      ? [cardFrom, { transform: 'translateY(16px) scale(0.86)', opacity: 0 }]
+      : [cardFrom, { opacity: 1, offset: 0.6 }, { transform: folded, opacity: 0 }],
     { ...timing, easing: folded === null ? timing.easing : 'cubic-bezier(0.4, 0, 0.2, 1)' },
   )
   const drop = (): void => clone.remove()

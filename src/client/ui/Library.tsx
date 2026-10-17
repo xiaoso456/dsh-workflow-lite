@@ -24,7 +24,7 @@ import {
 } from '../model/library.ts'
 import { Icon } from './Icon.tsx'
 import css from './library.module.css'
-import { FadeMark, FadeText, Presence, useResizeFlip } from './motion.tsx'
+import { FadeMark, FadeText, Presence } from './motion.tsx'
 import { cx } from './primitives.tsx'
 import { StepMark } from './StepMark.tsx'
 import ui from './ui.module.css'
@@ -174,8 +174,8 @@ export function Library(props: {
     })
   }
   const open = (section: Section): boolean => !collapsed.includes(section)
-  // 分组收起：组里的项原地淡出，下面的分组滑上来；展开时下面的滑下去、组里的项浮出来。
-  const scrollRef = useResizeFlip({ exit: true })
+  // 分组收起 / 展开的动效在 `Presence` 里（高度连续地变，下面的分组跟着走）；这里不再叠 `useResizeFlip`——
+  // 它按「各项上一次的位置」补位移，和每一帧都在变的布局叠在一起，分组标题会被甩到别的分组上面。
 
   return (
     <section className={cx(ui.panel, css.library)} aria-label={t('lib.title')}>
@@ -196,7 +196,7 @@ export function Library(props: {
         </button>
       </header>
 
-      <div ref={scrollRef} className={cx(css.scroll, ui.scrollFade)}>
+      <div className={cx(css.scroll, ui.scrollFade)}>
         {/* 空白步骤没有什么可看的：点它只提示"拖过去"。 */}
         <button
           type="button"

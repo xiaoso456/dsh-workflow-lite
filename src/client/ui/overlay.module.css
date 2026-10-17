@@ -344,6 +344,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .scrim,
   .dialog,
   .quick,
   .sheet {

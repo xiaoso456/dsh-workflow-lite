@@ -1584,6 +1584,7 @@
     animation: none;
   }
 
+  .preview,
   .runChip[data-status],
   .fileMade {
     animation: none;

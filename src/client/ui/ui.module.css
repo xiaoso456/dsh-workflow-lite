@@ -1377,39 +1377,28 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
 
 .presence {
   display: grid;
+  flex-shrink: 0; /* 放在高度受限的 flex 列里（步骤库）时不被压扁：压扁了内容会溢出去盖住下一节 */
+  grid-template-rows: 0fr;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    grid-template-rows 260ms var(--wl-ease),
+    opacity 260ms var(--wl-ease);
+}
+
+.presence[data-open="true"] {
   grid-template-rows: 1fr;
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .presenceInner {
   min-height: 0;
 }
 
-/* 只在放动画的这段时间裁内容（长到一半时不露出还没到位的部分）；平时不裁，阴影、焦点环照常画。 */
-.presence[data-phase] > .presenceInner {
+/* 只在动的这段时间裁内容（长到一半时不露出还没到位的部分）；平时不裁，阴影、焦点环照常画。 */
+.presence[data-moving] > .presenceInner {
   overflow: hidden;
-}
-
-.presence[data-phase="in"] {
-  animation: presenceIn 260ms var(--wl-ease) backwards;
-}
-
-.presence[data-phase="out"] {
-  animation: presenceOut 260ms var(--wl-ease) forwards;
-  pointer-events: none;
-}
-
-@keyframes presenceIn {
-  from {
-    grid-template-rows: 0fr;
-    opacity: 0;
-  }
-}
-
-@keyframes presenceOut {
-  to {
-    grid-template-rows: 0fr;
-    opacity: 0;
-  }
 }
 
 /* ── 读取中的占位（Skeleton.tsx）──────────────────────────────── */
@@ -1571,12 +1560,15 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
     animation: none;
   }
 
+  .presence {
+    transition: none;
+  }
+
   .tipSeat[data-glide="true"] {
     transition: none;
   }
 
   .swapIcon > [data-ok].iconIn,
-  .presence,
   .skeleton,
   .skelRow,
   .popover,

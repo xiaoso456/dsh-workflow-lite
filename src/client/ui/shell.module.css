@@ -64,6 +64,12 @@
     color-mix(in srgb, var(--wl-d-danger) 15%, transparent)
   );
   --wl-warn: light-dark(var(--wl-l-warn), var(--wl-d-warn));
+  /*
+   * 实心小圆点 / 进度条用的黄、绿：亮色档的 --wl-warn、--wl-ok 是为文字对比度压深的（黄压成了棕），
+   * 做成实心点发黑发闷。这里把亮度提到 0.74 / 0.68，色相照主题的来、彩度略加；暗色档本来就亮，原样用。
+   */
+  --wl-warn-dot: light-dark(#e09400, var(--wl-d-warn));
+  --wl-ok-dot: light-dark(#27a06a, var(--wl-d-ok));
   --wl-warn-soft: light-dark(
     color-mix(in srgb, var(--wl-l-warn) 11%, transparent),
     color-mix(in srgb, var(--wl-d-warn) 15%, transparent)
@@ -259,6 +265,22 @@
   line-height: 1.5;
   outline: none;
   -webkit-font-smoothing: antialiased;
+
+  /* 浏览器原生的东西跟着主题的强调色：勾选框、范围条、输入光标，不用系统默认的那种蓝。 */
+  accent-color: var(--wl-accent);
+  caret-color: var(--wl-accent);
+}
+
+@supports (color: oklch(from red l c h)) {
+  .root {
+    --wl-warn-dot: light-dark(oklch(from var(--wl-l-warn) 0.74 calc(c * 1.3) h), var(--wl-d-warn));
+    --wl-ok-dot: light-dark(oklch(from var(--wl-l-ok) 0.68 calc(c * 1.3) h), var(--wl-d-ok));
+  }
+}
+
+/* 选中的文字：系统整块深蓝太扎眼，换成半透明的强调色，字还是原来的颜色。 */
+.root ::selection {
+  background: color-mix(in srgb, var(--wl-accent) 32%, transparent);
 }
 
 .root *,
