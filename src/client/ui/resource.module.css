@@ -594,37 +594,129 @@ div.skillViewer {
   width: min(860px, calc(100% - 48px));
 }
 
-.skillLead {
+/* 元数据：不铺底，三个字段上下排开当正文前的几行字，底下一道细线和正文隔开；每块一个色点，按排位循环换色（粉、蓝、琥珀、绿、紫、青、珊瑚、橄榄）。 */
+.skillMeta {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  max-width: 780px;
-  margin: 18px auto 0;
-  padding: 0 28px;
+  gap: 14px;
+  width: min(724px, calc(100% - 56px));
+  margin: 20px auto 6px;
+  padding: 0 0 18px;
+  border-bottom: 1px solid var(--wl-line);
 }
 
-.skillLeadDesc,
-.skillLeadWhen {
+.skillMetaHead {
   margin: 0;
-  padding: 10px 12px;
-  border-radius: calc(9px * var(--wl-round, 1));
-  background: color-mix(in srgb, var(--wl-c-pink) 8%, transparent);
-  color: var(--wl-text);
-  font-size: var(--wl-fs-meta);
-  line-height: 1.6;
-}
-
-.skillLeadWhen {
-  background: var(--wl-fill);
-  color: var(--wl-text-2);
-}
-
-.skillLeadWhen span {
-  display: block;
-  margin-bottom: 2px;
   color: var(--wl-text-3);
   font-size: var(--wl-fs-micro);
+  letter-spacing: 0.02em;
+}
+
+.skillMetaHead span {
+  margin-right: 8px;
+  color: var(--wl-text-2);
   font-weight: 600;
+}
+
+.skillMetaList {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 0;
+}
+
+.skillMetaField {
+  --field: var(--wl-c-pink);
+
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.skillMetaField[data-tone="1"] {
+  --field: var(--wl-accent);
+}
+
+.skillMetaField[data-tone="2"] {
+  --field: var(--wl-c-amber);
+}
+
+.skillMetaField[data-tone="3"] {
+  --field: var(--wl-c-green);
+}
+
+.skillMetaField[data-tone="4"] {
+  --field: var(--wl-c-violet);
+}
+
+.skillMetaField[data-tone="5"] {
+  --field: var(--wl-c-teal);
+}
+
+.skillMetaField[data-tone="6"] {
+  --field: var(--wl-c-coral);
+}
+
+.skillMetaField[data-tone="7"] {
+  --field: var(--wl-c-olive);
+}
+
+.skillMetaField dt {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  font-size: var(--wl-fs-micro);
+  line-height: 1;
+}
+
+.skillMetaField dt i {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--field);
+}
+
+.skillMetaField dt code {
+  color: var(--wl-text-2);
+  font-family: var(--wl-mono);
+  font-weight: 600;
+}
+
+.skillMetaField dt span {
+  color: var(--wl-text-3);
+}
+
+.skillMetaField dd {
+  min-width: 0;
+  margin: 0;
+  padding-left: 13px;
+  color: var(--wl-text);
+  font-size: calc(var(--wl-fs-body) + 0.5px);
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+/* 名字是个标识符：等宽加粗。 */
+.skillMetaField[data-field="name"] dd {
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-body);
+  font-weight: 600;
+}
+
+/* 名字以外的值：左边一根字段色的细竖线，当成引出的一句话。 */
+.skillMetaField:not([data-field="name"]) dd {
+  margin-left: 2px;
+  padding-left: 14px;
+  border-left: 2px solid color-mix(in srgb, var(--field) 55%, transparent);
+}
+
+.skillMetaField dd a {
+  color: var(--wl-accent-text);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--wl-accent-text) 40%, transparent);
+  text-underline-offset: 2px;
 }
 
 .skillViewerFoot {

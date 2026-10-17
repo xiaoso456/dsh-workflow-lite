@@ -111,6 +111,8 @@ interface SkillSummaryLike {
   /** SKILL.md 的绝对路径；插件运行时注册的 skill 没有。 */
   path?: string
   whenToUse?: string
+  /** SKILL.md 头部解析出的键值（`get` 才有）。 */
+  metadata?: Readonly<Record<string, unknown>>
   invocation: { modelInvocable: boolean }
 }
 
@@ -211,6 +213,9 @@ export async function readSkill(
         source: skill.source,
         ...(skill.path === undefined ? {} : { path: slash(skill.path) }),
         ...(skill.whenToUse === undefined ? {} : { whenToUse: skill.whenToUse }),
+        ...(skill.metadata === undefined || Object.keys(skill.metadata).length === 0
+          ? {}
+          : { metadata: { ...skill.metadata } }),
         content: skill.content,
       },
     }

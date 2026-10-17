@@ -473,6 +473,8 @@ export interface HostSkillRequest {
 export interface HostSkillResponse extends HostSkillEntry {
   /** 什么时候该用它（SKILL.md 头部的 `when_to_use`）。 */
   whenToUse?: string
+  /** SKILL.md 头部里解析出的其余键值（原样，值可能是字符串、数字、列表、对象）；头部没有别的键就不带。 */
+  metadata?: Record<string, unknown>
   /** 正文（Markdown，已去掉头部元数据）。 */
   content: string
 }

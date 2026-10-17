@@ -128,6 +128,28 @@ describe('listSkills / readSkill', () => {
     expect(released()).toBe(1)
   })
 
+  it('读全文时头部的其余键值原样带上；空的 metadata 不带', async () => {
+    const meta = { author: 'me', version: 2, tags: ['a', 'b'] }
+    const viewerOf =
+      (metadata: Record<string, unknown> | undefined): SkillViewer =>
+      async () => ({
+        skills: {
+          list: async () => [],
+          get: async () => ({
+            ...skill('pdf'),
+            ...(metadata === undefined ? {} : { metadata }),
+            content: '# PDF',
+          }),
+        },
+      })
+    const withMeta = await readSkill(viewerOf(meta), { name: 'pdf' })
+    expect(withMeta.ok && withMeta.result.metadata).toEqual(meta)
+    for (const empty of [{}, undefined]) {
+      const bare = await readSkill(viewerOf(empty), { name: 'pdf' })
+      expect(bare.ok && 'metadata' in bare.result).toBe(false)
+    }
+  })
+
   it('没装 skill 服务就说不可用', async () => {
     expect(await listSkills(undefined, { cwd: '/w' })).toEqual({ available: false, skills: [] })
     expect(await listSkills(async () => undefined, {})).toEqual({ available: false, skills: [] })
