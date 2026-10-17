@@ -9,7 +9,7 @@
 .headIcon {
   width: 32px;
   height: 32px;
-  border-radius: 9px;
+  border-radius: calc(9px * var(--wl-round, 1));
 }
 
 .body {
@@ -37,7 +37,7 @@
   place-items: center;
   width: 20px;
   height: 20px;
-  border-radius: 50%;
+  border-radius: var(--wl-circle, 50%);
   background: var(--wl-ask-soft);
   color: var(--wl-io-ask);
   font-size: var(--wl-fs-micro);
@@ -58,7 +58,7 @@
 .required {
   flex: none;
   padding: 0 6px;
-  border-radius: 5px;
+  border-radius: calc(5px * var(--wl-round, 1));
   background: var(--wl-danger-soft);
   color: var(--wl-danger);
   font-size: var(--wl-fs-micro);
@@ -187,4 +187,10 @@ button.choice::after {
   .choice {
     transition: none;
   }
+}
+
+/* 瑞士：成块的卡片行只留底线。 */
+:global([data-look="swiss"]) .question {
+  border-width: 0 0 1px;
+  border-color: var(--wl-line-strong);
 }

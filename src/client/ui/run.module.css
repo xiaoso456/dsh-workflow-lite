@@ -43,7 +43,7 @@
   align-items: center;
   height: 20px;
   padding: 0 8px 0 6px;
-  border-radius: 999px;
+  border-radius: calc(999px * var(--wl-round, 1));
   background: color-mix(in srgb, var(--wl-run) 13%, var(--wl-panel));
   color: var(--wl-run);
   font-size: var(--wl-fs-micro);
@@ -89,7 +89,7 @@
 .switchKind {
   flex: none;
   padding: 1px 6px;
-  border-radius: 5px;
+  border-radius: calc(5px * var(--wl-round, 1));
   background: var(--wl-accent-soft);
   color: var(--wl-accent-text);
   font-size: var(--wl-fs-micro);
@@ -149,7 +149,7 @@
   align-items: center;
   height: 18px;
   padding: 0 6px;
-  border-radius: 999px;
+  border-radius: calc(999px * var(--wl-round, 1));
   background: color-mix(in srgb, var(--wl-accent) 22%, transparent);
   color: var(--wl-accent-text);
   font-size: var(--wl-fs-micro);
@@ -195,7 +195,7 @@
   height: 26px;
   padding: 0 10px 0 8px;
   border: 1px solid transparent;
-  border-radius: 999px;
+  border-radius: calc(999px * var(--wl-round, 1));
   background: transparent;
   color: var(--wl-text-2);
   font: inherit;
@@ -244,7 +244,7 @@
 }
 
 .choiceThumb {
-  border-radius: 999px;
+  border-radius: calc(999px * var(--wl-round, 1));
 }
 
 /* 选中块的一层：每种状态一层，`--wl-run` 跟着层上的 data-run-status。 */
@@ -300,7 +300,7 @@
 .bar {
   height: 6px;
   overflow: hidden;
-  border-radius: 999px;
+  border-radius: calc(999px * var(--wl-round, 1));
   background: var(--wl-fill);
 }
 
@@ -365,7 +365,7 @@
   grid-template-columns: 44px minmax(0, 1fr);
   gap: 8px;
   padding: 6px 4px;
-  border-radius: 6px;
+  border-radius: calc(6px * var(--wl-round, 1));
   font-size: var(--wl-fs-micro);
   cursor: pointer;
   transition: background-color 120ms linear;
@@ -545,7 +545,7 @@
   flex-direction: column;
   gap: 6px;
   padding: 8px;
-  border-radius: 8px;
+  border-radius: calc(8px * var(--wl-round, 1));
   background: var(--wl-warn-soft);
   font-size: var(--wl-fs-meta);
 }
@@ -677,7 +677,7 @@
   place-items: center;
   width: 28px;
   height: 28px;
-  border-radius: 8px;
+  border-radius: calc(8px * var(--wl-round, 1));
   background: var(--wl-accent-soft);
   color: var(--wl-accent-text);
 }
@@ -715,13 +715,13 @@
   grid-auto-columns: 26px;
   grid-auto-flow: column;
   padding: 2px;
-  border-radius: 8px;
+  border-radius: calc(8px * var(--wl-round, 1));
   background: var(--wl-fill);
 }
 
 /* 滑块的位置、大小由 PickThumb 按选中格量出来，这里只管样子。 */
 .modeThumb {
-  border-radius: 6px;
+  border-radius: calc(6px * var(--wl-round, 1));
   background: var(--wl-panel);
   box-shadow: var(--wl-shadow-thumb);
 }
@@ -734,7 +734,7 @@
   height: 24px;
   padding: 0;
   border: 0;
-  border-radius: 6px;
+  border-radius: calc(6px * var(--wl-round, 1));
   background: transparent;
   color: var(--wl-text-3);
   cursor: pointer;
@@ -748,4 +748,24 @@
 .modeItem:focus-visible {
   outline: 2px solid var(--wl-accent);
   outline-offset: -2px;
+}
+
+/* 瑞士：分组小标题改成加粗、加宽字距的大写小字（见 shell.module.css 的 data-look）。 */
+:global([data-look="swiss"]) .sectionTitle {
+  color: var(--wl-text);
+  font-size: var(--wl-fs-micro);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* 瑞士：分组标题上面压一道黑线。 */
+:global([data-look="swiss"]) .sectionTitle {
+  padding-top: 8px;
+  border-top: 2px solid var(--wl-text);
+}
+
+:global([data-look="swiss"]) .sectionTitle {
+  font-size: var(--wl-fs-body);
+  letter-spacing: 0.02em;
 }

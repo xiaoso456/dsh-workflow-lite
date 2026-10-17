@@ -133,7 +133,7 @@ div.dialog {
   align-items: center;
   height: 18px;
   padding: 0 6px;
-  border-radius: 999px;
+  border-radius: calc(999px * var(--wl-round, 1));
   background: var(--wl-accent-soft);
   color: var(--wl-accent-text);
   font-size: var(--wl-fs-micro);
@@ -150,18 +150,18 @@ div.dialog {
   display: flex;
   flex-direction: column;
   border: 1px solid var(--wl-line);
-  border-radius: 10px;
+  border-radius: calc(10px * var(--wl-round, 1));
   background: var(--wl-panel);
 }
 
 .box > :first-child {
-  border-top-left-radius: 9px;
-  border-top-right-radius: 9px;
+  border-top-left-radius: calc(9px * var(--wl-round, 1));
+  border-top-right-radius: calc(9px * var(--wl-round, 1));
 }
 
 .box > :last-child {
-  border-bottom-right-radius: 9px;
-  border-bottom-left-radius: 9px;
+  border-bottom-right-radius: calc(9px * var(--wl-round, 1));
+  border-bottom-left-radius: calc(9px * var(--wl-round, 1));
 }
 
 /*
@@ -318,7 +318,7 @@ div.dialog {
   display: block;
   height: 4px;
   overflow: hidden;
-  border-radius: 999px;
+  border-radius: calc(999px * var(--wl-round, 1));
   background: var(--wl-fill-strong);
 }
 
@@ -361,7 +361,7 @@ div.dialog {
   justify-content: space-between;
   padding: 0 4px 0 0;
   border: 0;
-  border-radius: 999px;
+  border-radius: calc(999px * var(--wl-round, 1));
   background: transparent;
   color: var(--wl-text-3);
   font: inherit;
@@ -574,7 +574,7 @@ input.statusNote {
   align-items: center;
   padding: 0 2px 0 0;
   border: 0;
-  border-radius: 999px;
+  border-radius: calc(999px * var(--wl-round, 1));
   background: transparent;
   color: var(--wl-danger);
   font: inherit;
@@ -598,7 +598,7 @@ input.statusNote {
   grid-column: 1 / -1;
   gap: 4px;
   padding: 8px 12px;
-  border-radius: 8px;
+  border-radius: calc(8px * var(--wl-round, 1));
   background: var(--wl-danger-soft);
   color: var(--wl-text);
   font-size: var(--wl-fs-meta);
@@ -653,7 +653,7 @@ input.statusNote {
   width: 44px;
   height: 44px;
   margin-bottom: 6px;
-  border-radius: 12px;
+  border-radius: calc(12px * var(--wl-round, 1));
   background: var(--wl-fill);
   color: var(--wl-text-2);
 }
@@ -718,7 +718,7 @@ input.statusNote {
   place-items: center;
   width: 32px;
   height: 32px;
-  border-radius: 9px;
+  border-radius: calc(9px * var(--wl-round, 1));
   background: var(--wl-fill);
   color: var(--wl-text-2);
 }
@@ -781,7 +781,7 @@ input.statusNote {
   gap: 8px;
   align-items: center;
   padding: 8px 12px;
-  border-radius: 8px;
+  border-radius: calc(8px * var(--wl-round, 1));
   background: var(--wl-ok-soft);
   color: var(--wl-ok);
   font-size: var(--wl-fs-meta);
@@ -988,7 +988,7 @@ input.statusNote {
   height: 26px;
   padding: 0;
   border: 0;
-  border-radius: 6px;
+  border-radius: calc(6px * var(--wl-round, 1));
   background: transparent;
   color: var(--wl-text-3);
   cursor: pointer;
@@ -1047,7 +1047,7 @@ input.statusNote {
   margin: -1.25px -5px;
   padding: 0 4px;
   border: 1px solid var(--wl-accent);
-  border-radius: 5px;
+  border-radius: calc(5px * var(--wl-round, 1));
   background: var(--wl-panel);
   color: var(--wl-text);
   font: inherit;
@@ -1207,4 +1207,32 @@ input.statusNote {
   .wfPage {
     grid-template-columns: 180px minmax(0, 1fr);
   }
+}
+
+/* 瑞士：分组小标题改成加粗、加宽字距的大写小字（见 shell.module.css 的 data-look）。 */
+:global([data-look="swiss"]) .sectionTitle {
+  color: var(--wl-text);
+  font-size: var(--wl-fs-micro);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* 瑞士：成组的列表不再是一只圆角盒子，改成上下两道线（上面一道黑线），行与行之间照旧是细线。 */
+:global([data-look="swiss"]) .box {
+  border-width: 1px 0;
+  border-top-color: var(--wl-text);
+  border-bottom-color: var(--wl-line-strong);
+  background: transparent;
+}
+
+/* 瑞士：分组标题上面压一道黑线。 */
+:global([data-look="swiss"]) .sectionTitle {
+  padding-top: 8px;
+  border-top: 2px solid var(--wl-text);
+}
+
+:global([data-look="swiss"]) .sectionTitle {
+  font-size: var(--wl-fs-body);
+  letter-spacing: 0.02em;
 }

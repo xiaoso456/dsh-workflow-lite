@@ -25,7 +25,7 @@ import { PickThumb } from './motion.tsx'
 import css from './themePicker.module.css'
 
 const NAME: Record<ThemeId, LocaleKey> = {
-  paper: 'theme.paper',
+  swiss: 'theme.swiss',
   white: 'theme.white',
   mist: 'theme.mist',
   sage: 'theme.sage',
@@ -36,7 +36,7 @@ const NAME: Record<ThemeId, LocaleKey> = {
 }
 
 const DESC: Record<ThemeId, LocaleKey> = {
-  paper: 'theme.paperDesc',
+  swiss: 'theme.swissDesc',
   white: 'theme.whiteDesc',
   mist: 'theme.mistDesc',
   sage: 'theme.sageDesc',

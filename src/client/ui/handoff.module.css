@@ -33,7 +33,7 @@
   place-items: center;
   width: 26px;
   height: 26px;
-  border-radius: 7px;
+  border-radius: calc(7px * var(--wl-round, 1));
   background: var(--wl-fill);
   color: var(--wl-text-3);
 }
@@ -78,7 +78,8 @@
   margin: 0 2px;
   padding: 7px 10px;
   border-left: 3px solid var(--wl-accent);
-  border-radius: 4px 8px 8px 4px;
+  border-radius: calc(4px * var(--wl-round, 1)) calc(8px * var(--wl-round, 1))
+    calc(8px * var(--wl-round, 1)) calc(4px * var(--wl-round, 1));
   background: var(--wl-fill);
   color: var(--wl-text-2);
   font-size: var(--wl-fs-micro);
@@ -91,7 +92,7 @@
 .access {
   flex: none;
   padding: 1px 7px;
-  border-radius: 999px;
+  border-radius: calc(999px * var(--wl-round, 1));
   background: var(--wl-fill);
   color: var(--wl-text-3);
   font-size: var(--wl-fs-micro);
@@ -133,7 +134,7 @@
   max-width: 100%;
   height: 20px;
   padding: 0 6px;
-  border-radius: 6px;
+  border-radius: calc(6px * var(--wl-round, 1));
   background: var(--wl-fill);
   color: var(--wl-text-2);
   font-size: var(--wl-fs-micro);
@@ -165,7 +166,7 @@
   align-items: center;
   padding: 7px 10px 7px 8px;
   border: 1px solid var(--wl-line);
-  border-radius: 10px;
+  border-radius: calc(10px * var(--wl-round, 1));
   background: var(--wl-panel);
   cursor: pointer;
   transition: background-color 120ms linear;
@@ -211,7 +212,7 @@ label.resultRow::after {
   align-items: center;
   padding-right: 4px;
   border: 1px solid var(--wl-line);
-  border-radius: 10px;
+  border-radius: calc(10px * var(--wl-round, 1));
   background: var(--wl-panel);
   transition:
     background-color 120ms linear,
@@ -231,7 +232,7 @@ label.resultRow::after {
   min-width: 0;
   padding: 6px 4px 6px 7px;
   border: 0;
-  border-radius: 9px;
+  border-radius: calc(9px * var(--wl-round, 1));
   background: transparent;
   color: inherit;
   font: inherit;
@@ -261,7 +262,7 @@ label.resultRow::after {
   place-items: center;
   width: 26px;
   height: 26px;
-  border-radius: 7px;
+  border-radius: calc(7px * var(--wl-round, 1));
   background: var(--wl-file-soft);
   color: var(--wl-file);
 }
@@ -273,7 +274,7 @@ label.resultRow::after {
   place-items: center;
   width: 26px;
   height: 26px;
-  border-radius: 7px;
+  border-radius: calc(7px * var(--wl-round, 1));
   background: var(--wl-ask-soft);
   color: var(--wl-io-ask);
 }
@@ -291,7 +292,7 @@ label.resultRow::after {
   justify-content: center;
   height: 32px;
   border: 1px dashed var(--wl-line-strong);
-  border-radius: 10px;
+  border-radius: calc(10px * var(--wl-round, 1));
   background: transparent;
   color: var(--wl-accent-text);
   font: inherit;
@@ -328,7 +329,7 @@ label.resultRow::after {
   gap: 6px;
   align-items: center;
   padding: 4px;
-  border-radius: 8px;
+  border-radius: calc(8px * var(--wl-round, 1));
   transition: background-color 120ms linear;
 }
 
@@ -345,7 +346,7 @@ label.resultRow::after {
   height: 24px;
   padding: 0 8px;
   border: 1px solid var(--wl-line);
-  border-radius: 6px;
+  border-radius: calc(6px * var(--wl-round, 1));
   background: var(--wl-panel);
   color: var(--wl-text-2);
   font: inherit;
@@ -369,7 +370,7 @@ label.resultRow::after {
   place-items: center;
   width: 28px;
   height: 28px;
-  border-radius: 8px;
+  border-radius: calc(8px * var(--wl-round, 1));
   background: var(--wl-file-soft);
   color: var(--wl-file);
 }
@@ -399,12 +400,12 @@ label.resultRow::after {
   flex: none;
   grid-template-columns: 1fr 1fr;
   padding: 2px;
-  border-radius: 7px;
+  border-radius: calc(7px * var(--wl-round, 1));
   background: var(--wl-fill);
 }
 
 .accessThumb {
-  border-radius: 5px;
+  border-radius: calc(5px * var(--wl-round, 1));
   background: var(--wl-panel);
   box-shadow: var(--wl-shadow-thumb);
 }
@@ -430,7 +431,7 @@ label.resultRow::after {
   height: 22px;
   padding: 0 9px;
   border: 0;
-  border-radius: 5px;
+  border-radius: calc(5px * var(--wl-round, 1));
   background: transparent;
   color: transparent;
   font: inherit;
@@ -464,7 +465,7 @@ label.resultRow::after {
   height: 20px;
   padding: 0 6px;
   border: 1px solid color-mix(in srgb, var(--wl-chip) 45%, transparent);
-  border-radius: 999px;
+  border-radius: calc(999px * var(--wl-round, 1));
   background: var(--wl-panel);
   /* 线上的东西和线同色：`--wl-chip` 是它所在那条线的颜色。 */
   color: var(--wl-chip);
@@ -517,7 +518,7 @@ label.resultRow::after {
   max-width: calc(100% - 16px);
   padding: 8px;
   border: 1px solid var(--wl-line);
-  border-radius: 12px;
+  border-radius: calc(12px * var(--wl-round, 1));
   background: var(--wl-panel);
   box-shadow: var(--wl-shadow-2);
   color: var(--wl-text);
@@ -633,7 +634,7 @@ label.resultRow::after {
   align-items: center;
   padding: 3px 8px;
   border: 0;
-  border-radius: 6px;
+  border-radius: calc(6px * var(--wl-round, 1));
   background: var(--wl-accent-soft);
   color: var(--wl-accent-text);
   font: inherit;
@@ -665,4 +666,16 @@ label.resultRow::after {
     animation: none;
     transition: none;
   }
+}
+
+/* 瑞士：成块的卡片行只留底线。 */
+:global([data-look="swiss"]) .resultRow {
+  border-width: 0 0 1px;
+  border-color: var(--wl-line-strong);
+}
+
+/* 瑞士：成块的卡片行只留底线。 */
+:global([data-look="swiss"]) .fileRow {
+  border-width: 0 0 1px;
+  border-color: var(--wl-line-strong);
 }

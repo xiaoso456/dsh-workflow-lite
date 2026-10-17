@@ -81,7 +81,7 @@ div.dialog {
   flex-direction: column;
   overflow: hidden;
   border: 1px solid var(--wl-line);
-  border-radius: 10px;
+  border-radius: calc(10px * var(--wl-round, 1));
   background: var(--wl-panel);
 }
 
@@ -159,7 +159,7 @@ button.main {
   min-width: 34px;
   height: 22px;
   padding: 0 6px;
-  border-radius: 6px;
+  border-radius: calc(6px * var(--wl-round, 1));
   background: var(--wl-fill);
   color: var(--wl-text-2);
   font-family: var(--wl-mono);
@@ -198,7 +198,7 @@ button.main {
   margin: -2px 0;
   padding: 0 6px;
   border: 0;
-  border-radius: 6px;
+  border-radius: calc(6px * var(--wl-round, 1));
   background: var(--wl-panel);
   box-shadow: inset 0 0 0 1px var(--wl-accent);
   color: var(--wl-text);
@@ -223,7 +223,7 @@ button.main {
 
 .currentTag {
   padding: 0 6px;
-  border-radius: 999px;
+  border-radius: calc(999px * var(--wl-round, 1));
   background: var(--wl-ok-soft);
   color: var(--wl-ok);
   font-weight: 600;
@@ -256,7 +256,7 @@ button.main {
   height: 26px;
   padding: 0;
   border: 0;
-  border-radius: 6px;
+  border-radius: calc(6px * var(--wl-round, 1));
   background: transparent;
   color: var(--wl-text-3);
   cursor: pointer;
@@ -405,7 +405,7 @@ button.main {
   width: 40px;
   height: 40px;
   margin-bottom: 6px;
-  border-radius: 12px;
+  border-radius: calc(12px * var(--wl-round, 1));
   background: var(--wl-fill);
   color: var(--wl-text-2);
 }
@@ -439,4 +439,12 @@ button.main {
     transition: none;
     animation: none;
   }
+}
+
+/* 瑞士：成组的列表不再是一只圆角盒子，改成上下两道线（上面一道黑线），行与行之间照旧是细线。 */
+:global([data-look="swiss"]) .list {
+  border-width: 1px 0;
+  border-top-color: var(--wl-text);
+  border-bottom-color: var(--wl-line-strong);
+  background: transparent;
 }

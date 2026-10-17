@@ -22,7 +22,7 @@
 .dropping {
   outline: 2px dashed var(--wl-accent);
   outline-offset: -6px;
-  border-radius: 10px;
+  border-radius: calc(10px * var(--wl-round, 1));
 }
 
 /* ── 步骤指示 ─────────────────────────────────────────────── */
@@ -58,7 +58,7 @@
   place-items: center;
   width: 18px;
   height: 18px;
-  border-radius: 50%;
+  border-radius: var(--wl-circle, 50%);
   background: var(--wl-fill-strong);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
@@ -67,7 +67,7 @@
 .stepFill {
   position: absolute;
   inset: 0;
-  border-radius: 50%;
+  border-radius: var(--wl-circle, 50%);
   background: var(--wl-accent);
   opacity: 0;
   transform: scale(0.6);
@@ -170,7 +170,7 @@
   gap: 8px;
   align-items: flex-start;
   padding: 8px 12px;
-  border-radius: 8px;
+  border-radius: calc(8px * var(--wl-round, 1));
   background: var(--wl-fill);
   color: var(--wl-text-2);
   font-size: var(--wl-fs-meta);
@@ -197,7 +197,7 @@
   margin: 0 -6px 0 0;
   padding: 0;
   border: 0;
-  border-radius: 6px;
+  border-radius: calc(6px * var(--wl-round, 1));
   background: transparent;
   color: inherit;
   opacity: 0.7;
@@ -325,7 +325,7 @@
   min-height: 34px;
   padding: 4px 8px 4px 0;
   border-top: 0;
-  border-radius: 8px;
+  border-radius: calc(8px * var(--wl-round, 1));
 }
 
 .row[data-compact="true"][data-check="true"]:not(:has(input:disabled)) {
@@ -451,7 +451,7 @@ div.page {
   margin: 0 0 0 -6px;
   padding: 4px 6px;
   border: 0;
-  border-radius: 8px;
+  border-radius: calc(8px * var(--wl-round, 1));
   background: none;
   color: inherit;
   font: inherit;
@@ -507,7 +507,7 @@ div.page {
   place-items: center;
   width: 24px;
   height: 24px;
-  border-radius: 7px;
+  border-radius: calc(7px * var(--wl-round, 1));
   background: var(--wl-fill);
   color: var(--wl-text-3);
 }
@@ -549,7 +549,7 @@ div.page {
   place-items: center;
   width: 28px;
   height: 28px;
-  border-radius: 8px;
+  border-radius: calc(8px * var(--wl-round, 1));
   background: var(--wl-fill);
   color: var(--wl-text-2);
 }
@@ -664,7 +664,7 @@ div.page {
   gap: 2px;
   margin: 2px 0 0;
   padding: 6px 8px;
-  border-radius: 6px;
+  border-radius: calc(6px * var(--wl-round, 1));
   background: var(--wl-fill);
   color: var(--wl-text-2);
   font-family: var(--wl-mono);
@@ -734,7 +734,7 @@ div.page {
   min-height: 240px;
   padding: 28px 24px;
   border: 1.5px dashed var(--wl-line-strong);
-  border-radius: 12px;
+  border-radius: calc(12px * var(--wl-round, 1));
   color: var(--wl-text-3);
   font-size: var(--wl-fs-meta);
   text-align: center;
@@ -753,7 +753,7 @@ div.page {
   width: 44px;
   height: 44px;
   margin-bottom: 4px;
-  border-radius: 12px;
+  border-radius: calc(12px * var(--wl-round, 1));
   background: var(--wl-fill);
   color: var(--wl-text-2);
 }
@@ -812,7 +812,7 @@ div.page {
   gap: 8px;
   align-items: flex-start;
   padding: 10px 12px;
-  border-radius: 8px;
+  border-radius: calc(8px * var(--wl-round, 1));
   background: var(--wl-warn-soft);
   color: var(--wl-text);
   font-size: var(--wl-fs-meta);
@@ -846,4 +846,24 @@ div.page {
   .catBody > .row {
     animation: none;
   }
+}
+
+/* 瑞士：分组小标题改成加粗、加宽字距的大写小字（见 shell.module.css 的 data-look）。 */
+:global([data-look="swiss"]) .sectionTitle {
+  color: var(--wl-text);
+  font-size: var(--wl-fs-micro);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* 瑞士：分组标题上面压一道黑线。 */
+:global([data-look="swiss"]) .sectionTitle {
+  padding-top: 8px;
+  border-top: 2px solid var(--wl-text);
+}
+
+:global([data-look="swiss"]) .sectionTitle {
+  font-size: var(--wl-fs-body);
+  letter-spacing: 0.02em;
 }

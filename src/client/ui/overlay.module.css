@@ -72,7 +72,7 @@
 
 .planId {
   padding: 1px 6px;
-  border-radius: 6px;
+  border-radius: calc(6px * var(--wl-round, 1));
   background: var(--wl-fill);
   color: var(--wl-text-3);
   font-family: var(--wl-mono);
@@ -104,7 +104,7 @@
   margin: 0 12px 12px;
   overflow: hidden;
   border: 1px solid var(--wl-line);
-  border-radius: 10px;
+  border-radius: calc(10px * var(--wl-round, 1));
   background: var(--wl-panel);
 }
 
@@ -232,7 +232,7 @@
 .quickKind {
   width: 22px;
   height: 22px;
-  border-radius: 6px;
+  border-radius: calc(6px * var(--wl-round, 1));
 }
 
 /* ── 模态框（编辑一项内容）────────────────────────────────── */
@@ -283,7 +283,7 @@
   place-items: center;
   width: 32px;
   height: 32px;
-  border-radius: 9px;
+  border-radius: calc(9px * var(--wl-round, 1));
   background: var(--wl-accent-soft);
   color: var(--wl-accent-text);
 }
@@ -362,4 +362,16 @@
 .quickFile {
   background: var(--wl-file-soft);
   color: var(--wl-file);
+}
+
+/* 瑞士：标题加粗、字距收紧。 */
+:global([data-look="swiss"]) .dialogTitle {
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+
+/* 瑞士：标题加粗、字距收紧。 */
+:global([data-look="swiss"]) .sheetTitle {
+  font-weight: 700;
+  letter-spacing: -0.015em;
 }

@@ -136,9 +136,10 @@
   --wl-fs-meta: 12px;
   --wl-fs-micro: 11px;
   --wl-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  --wl-r-control: 8px;
-  --wl-r-card: 12px;
-  --wl-r-panel: 14px;
+  --wl-round: 1;
+  --wl-r-control: calc(8px * var(--wl-round));
+  --wl-r-card: calc(12px * var(--wl-round));
+  --wl-r-panel: calc(14px * var(--wl-round));
 
   /* `light-dark()` 只接受颜色，所以阴影的几何写在外面、只有颜色分明暗。 */
   --wl-shadow-thumb: 0 1px 2px
@@ -276,6 +277,38 @@
     --wl-warn-dot: light-dark(oklch(from var(--wl-l-warn) 0.74 calc(c * 1.3) h), var(--wl-d-warn));
     --wl-ok-dot: light-dark(oklch(from var(--wl-l-ok) 0.68 calc(c * 1.3) h), var(--wl-d-ok));
   }
+}
+
+/*
+ * 瑞士（国际主义风格）的「形」：亮色档选了瑞士主题时，视图根写 `data-look="swiss"`（见 model/themes.ts 的 themeLook）。
+ * 颜色之外换四样：
+ * - 直角：所有圆角都乘 `--wl-round`，这里归零；圆点、开关、胶囊（50% / 999px）不乘，仍是圆的。
+ * - 无阴影：层级靠面色和一道细线（面板自己的 1px 描边），不再叠第二圈。
+ * - 字体：Helvetica 系（没有就 Arial、Liberation Sans），中文回落到宿主字体；字距略收。
+ * - 小标题：别处的 `[data-look="swiss"]` 规则把分组标题改成加粗、加宽字距的大写小字。
+ */
+.root[data-look="swiss"] {
+  --wl-round: 0;
+  /* 画布上的卡片用深一档的细线，是整张图里最该看清的东西。 */
+  --wl-card-line: var(--wl-line-strong);
+  --wl-circle: 0;
+  --wl-shadow-thumb: 0 0 0 1px var(--wl-line);
+  --wl-shadow-1: none;
+  --wl-shadow-2: none;
+  --wl-swiss-sans:
+    "Helvetica Neue", Helvetica, Arial, "Nimbus Sans", "Liberation Sans",
+    var(--dsw-font-family, sans-serif);
+
+  /* 淡底（选中、标签、提示）只留一层很淡的底，让字色和细线说话，不铺大片粉彩。 */
+  --wl-accent-soft: color-mix(in srgb, var(--wl-l-accent) 7%, transparent);
+  --wl-danger-soft: color-mix(in srgb, var(--wl-l-danger) 6%, transparent);
+  --wl-warn-soft: color-mix(in srgb, var(--wl-l-warn) 7%, transparent);
+  --wl-ok-soft: color-mix(in srgb, var(--wl-l-ok) 7%, transparent);
+  --wl-file-soft: color-mix(in srgb, var(--wl-l-file) 6%, transparent);
+  --wl-ask-soft: color-mix(in srgb, var(--wl-l-ask) 6%, transparent);
+
+  font-family: var(--wl-swiss-sans);
+  letter-spacing: -0.005em;
 }
 
 /* 选中的文字：系统整块深蓝太扎眼，换成半透明的强调色，字还是原来的颜色。 */
@@ -624,7 +657,7 @@
   align-items: center;
   height: 26px;
   padding: 0 6px;
-  border-radius: 6px;
+  border-radius: calc(6px * var(--wl-round, 1));
   color: var(--wl-text-2);
   font-size: var(--wl-fs-micro);
   font-weight: 500;
@@ -830,7 +863,7 @@
   gap: 8px;
   align-items: center;
   padding: 8px 14px;
-  border-radius: 999px;
+  border-radius: calc(999px * var(--wl-round, 1));
   background: var(--wl-tip);
   color: var(--wl-tip-on);
   font-size: var(--wl-fs-meta);
@@ -918,7 +951,7 @@
   justify-content: center;
   width: 32px;
   height: 32px;
-  border-radius: 10px;
+  border-radius: calc(10px * var(--wl-round, 1));
   background: var(--wl-danger-soft);
   color: var(--wl-danger);
 }

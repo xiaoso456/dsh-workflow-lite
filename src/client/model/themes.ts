@@ -7,7 +7,7 @@
  * 浅色的「淡」档（选中底、标签底）由基础色按固定比例调出来，这里不重复写。
  *
  * 主题不只是换底色：线色（也是光带、图例、线上牌子的颜色）、强调色、步骤图标色、状态色都是一整套。
- * 除了两套默认和晴白，每套照着一份成熟的配色方案来配：雾蓝 = Nord、林间 = Everforest、墨黑 = Geist 式高对比、
+ * 除了两套默认，每套照着一份成熟的配色方案来配：雾蓝 = Nord、林间 = Everforest、墨黑 = Geist 式高对比、
  * 深海 = Tokyo Night、暖夜 = Gruvbox；保留它们的色相和饱和，只按面板把亮度调到读得清。
  * 主干线（「总是」）就用强调色，选中框、按钮、主干线、上面跑的光带是同一个颜色，整套主题一个基调。
  *
@@ -19,13 +19,13 @@
 
 export type ThemeMode = 'light' | 'dark'
 
-export const LIGHT_THEME_IDS = ['paper', 'white', 'mist', 'sage'] as const
+export const LIGHT_THEME_IDS = ['white', 'swiss', 'mist', 'sage'] as const
 export const DARK_THEME_IDS = ['slate', 'ink', 'ocean', 'umber'] as const
 export type LightThemeId = (typeof LIGHT_THEME_IDS)[number]
 export type DarkThemeId = (typeof DARK_THEME_IDS)[number]
 export type ThemeId = LightThemeId | DarkThemeId
 
-export const DEFAULT_LIGHT: LightThemeId = 'paper'
+export const DEFAULT_LIGHT: LightThemeId = 'white'
 export const DEFAULT_DARK: DarkThemeId = 'slate'
 
 export interface ThemeTokens {
@@ -83,7 +83,7 @@ export interface ThemeTokens {
   tipOn: string
 }
 
-/** 米色的线色与步骤色（别的亮色主题按自己的底色另调，见各自的注释）。 */
+/** 晴白、瑞士共用的线色与步骤色（别的亮色主题按自己的底色另调，见各自的注释）。 */
 const LIGHT_LINES = {
   always: '#1d55c2',
   pass: '#18792a',
@@ -122,41 +122,44 @@ const SLATE_LINES = {
 } as const
 
 export const THEMES: Record<ThemeId, ThemeTokens> = {
-  /** 米色：暖灰画布、米白卡面，墨色文字，描边和阴影带一点暖棕。默认的亮色。 */
-  paper: {
-    canvas: '#edebe6',
-    panel: '#f6f5f1',
-    fill: '#efede8',
-    fillStrong: '#e5e2db',
-    ink: '64 54 40',
-    dotAlpha: 19,
+  /**
+   * 瑞士：国际主义风格。中性灰画布、纯白卡面，纯黑文字，描边是清楚的细线，一支蓝色强调色；
+   * 形上也跟着换（直角、没有阴影、Helvetica 系字体、加重的标题），见 shell.module.css 的 `data-look="swiss"`。
+   */
+  swiss: {
+    canvas: '#f1f1f1',
+    panel: '#ffffff',
+    fill: '#f5f5f5',
+    fillStrong: '#e5e5e5',
+    ink: '0 0 0',
+    dotAlpha: 22,
     hoverAlpha: 6,
-    lineAlpha: 11,
-    lineStrongAlpha: 19,
-    shade: '52 40 24',
-    scrim: 'rgb(38 33 26 / 30%)',
-    text: '#25221d',
-    text2: '#55514a',
-    text3: '#6b665d',
-    accent: '#2f63c9',
-    accentStrong: '#2853ad',
-    accentOn: '#fbfaf7',
-    accentText: '#2858b5',
-    danger: '#bb372d',
-    warn: '#8f560a',
-    ok: '#157350',
+    lineAlpha: 12,
+    lineStrongAlpha: 24,
+    shade: '0 0 0',
+    scrim: 'rgb(0 0 0 / 32%)',
+    text: '#000000',
+    text2: '#383838',
+    text3: '#585858',
+    accent: '#1750d0',
+    accentStrong: '#1041ac',
+    accentOn: '#ffffff',
+    accentText: '#1448c4',
+    danger: '#d0001b',
+    warn: '#8a5200',
+    ok: '#0b7a45',
     ...LIGHT_LINES,
-    file: '#536178',
-    fileSurface: '#f3f2ee',
-    fileBorder: '#d5d0c6',
-    fileTab: '#ebe8e1',
-    fileBack: '#dedad1',
-    cSlate: '#5c6475',
-    ask: '#3d4452',
-    tip: '#2a2722',
-    tipOn: '#f5f3ee',
+    file: '#484848',
+    fileSurface: '#fafafa',
+    fileBorder: '#c6c6c6',
+    fileTab: '#ebebeb',
+    fileBack: '#dadada',
+    cSlate: '#575b66',
+    ask: '#222222',
+    tip: '#000000',
+    tipOn: '#ffffff',
   },
-  /** 晴白：最早那套，冷调的浅灰画布配纯白卡面，对比最清楚。 */
+  /** 晴白：最早那套，冷调的浅灰画布配纯白卡面，对比最清楚。默认的亮色。 */
   white: {
     canvas: '#f2f4f7',
     panel: '#ffffff',
@@ -530,4 +533,14 @@ export function themeVars(mode: ThemeMode, id: ThemeId): Record<string, string> 
 /** 视图根节点的内联样式：亮、暗各一套。 */
 export function themeStyle(light: LightThemeId, dark: DarkThemeId): Record<string, string> {
   return { ...themeVars('light', light), ...themeVars('dark', dark) }
+}
+
+/**
+ * 主题除了颜色还带不带一套「形」：目前只有瑞士，亮色档选了它、此刻又是亮色时，
+ * 视图根节点写 `data-look="swiss"`，shell.module.css 在这个开关下换直角、去阴影、换字体。
+ */
+export type ThemeLook = 'swiss'
+
+export function themeLook(mode: ThemeMode, light: LightThemeId): ThemeLook | undefined {
+  return mode === 'light' && light === 'swiss' ? 'swiss' : undefined
 }

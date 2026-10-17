@@ -31,7 +31,7 @@
   min-width: 30px;
   height: 20px;
   padding: 0 5px;
-  border-radius: 5px;
+  border-radius: calc(5px * var(--wl-round, 1));
   background: color-mix(in srgb, var(--wl-fk) 13%, var(--wl-panel));
   color: var(--wl-fk);
   font-family: var(--wl-mono);
@@ -43,7 +43,7 @@
 .tagLarge {
   min-width: 38px;
   height: 26px;
-  border-radius: 7px;
+  border-radius: calc(7px * var(--wl-round, 1));
   font-size: 11px;
 }
 
@@ -66,7 +66,7 @@
   min-height: 40px;
   padding: 5px 8px;
   border: 0;
-  border-radius: 8px;
+  border-radius: calc(8px * var(--wl-round, 1));
   background: transparent;
   color: var(--wl-text);
   font: inherit;
@@ -117,7 +117,7 @@
 
 .mode {
   padding: 1px 6px;
-  border-radius: 999px;
+  border-radius: calc(999px * var(--wl-round, 1));
   font-size: var(--wl-fs-micro);
   font-weight: 600;
 }
@@ -332,7 +332,7 @@ div.viewer {
 .skeleton > span {
   display: block;
   height: 11px;
-  border-radius: 6px;
+  border-radius: calc(6px * var(--wl-round, 1));
   background: var(--wl-fill-strong);
   animation: skeletonPulse 1s ease-in-out infinite alternate;
 }
@@ -436,7 +436,7 @@ div.viewer {
   place-items: center;
   width: 44px;
   height: 44px;
-  border-radius: 12px;
+  border-radius: calc(12px * var(--wl-round, 1));
   background: var(--wl-fill);
   color: var(--wl-text-2);
 }

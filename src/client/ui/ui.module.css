@@ -250,7 +250,7 @@
 
 /* 滑块的位置、大小由 PickThumb 按选中格量，这里只管样子。 */
 .segThumb {
-  border-radius: 6px;
+  border-radius: calc(6px * var(--wl-round, 1));
   background: var(--wl-panel);
   box-shadow: var(--wl-shadow-thumb);
 }
@@ -261,7 +261,7 @@
   padding: 0 6px;
   overflow: hidden;
   border: 0;
-  border-radius: 6px;
+  border-radius: calc(6px * var(--wl-round, 1));
   background: transparent;
   color: var(--wl-text-3);
   font: inherit;
@@ -671,7 +671,7 @@
   height: 16px;
   padding: 0;
   border: 0;
-  border-radius: 50%;
+  border-radius: var(--wl-circle, 50%);
   background: transparent;
   color: var(--wl-accent);
   outline: 2px solid transparent;
@@ -1091,7 +1091,7 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
 
 .tipLayer {
   padding: 4px 8px;
-  border-radius: 6px;
+  border-radius: calc(6px * var(--wl-round, 1));
   background: var(--wl-tip);
   color: var(--wl-tip-on);
   font-size: var(--wl-fs-micro);
@@ -1151,7 +1151,7 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
   max-width: calc(100% - 16px);
   padding: 12px;
   border: 1px solid var(--wl-line);
-  border-radius: 10px;
+  border-radius: calc(10px * var(--wl-round, 1));
   background: var(--wl-panel);
   box-shadow: var(--wl-shadow-2);
   color: var(--wl-text-2);
@@ -1196,7 +1196,7 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
   place-items: center;
   width: 22px;
   height: 22px;
-  border-radius: 6px;
+  border-radius: calc(6px * var(--wl-round, 1));
   background: var(--wl-danger-soft);
   color: var(--wl-danger);
 }
@@ -1243,7 +1243,7 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
   height: 18px;
   padding: 0;
   border: 0;
-  border-radius: 999px;
+  border-radius: calc(999px * var(--wl-round, 1));
   background: var(--wl-fill-strong);
   cursor: pointer;
 }
@@ -1276,7 +1276,7 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
   left: 2px;
   width: 14px;
   height: 14px;
-  border-radius: 50%;
+  border-radius: calc(7px * var(--wl-round, 1));
   background: var(--wl-panel);
   box-shadow: var(--wl-shadow-thumb);
   transform-origin: left center;
@@ -1423,7 +1423,7 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
   flex: none;
   width: 28px;
   height: 28px;
-  border-radius: 8px;
+  border-radius: calc(8px * var(--wl-round, 1));
   background: var(--wl-fill-strong);
 }
 
@@ -1438,7 +1438,7 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
 .skelBar {
   display: block;
   height: 10px;
-  border-radius: 5px;
+  border-radius: calc(5px * var(--wl-round, 1));
   background: var(--wl-fill-strong);
 }
 
@@ -1471,7 +1471,7 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
   height: 20px;
   padding: 0 6px;
   border: 1px solid var(--wl-line-strong);
-  border-radius: 5px;
+  border-radius: calc(5px * var(--wl-round, 1));
   background: var(--wl-fill);
   color: var(--wl-text-2);
   font-family: var(--wl-mono);
@@ -1499,7 +1499,7 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
   justify-content: center;
   width: 28px;
   height: 28px;
-  border-radius: 8px;
+  border-radius: calc(8px * var(--wl-round, 1));
   --wl-kind: var(--wl-c-slate);
 
   background: color-mix(in srgb, var(--wl-kind) 14%, transparent);
@@ -1661,7 +1661,7 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
   max-width: calc(100% - 16px);
   padding: 10px 12px;
   border: 1px solid var(--wl-line);
-  border-radius: 10px;
+  border-radius: calc(10px * var(--wl-round, 1));
   background: var(--wl-panel);
   box-shadow: var(--wl-shadow-2);
   color: var(--wl-text-2);
@@ -1721,7 +1721,7 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
   align-items: center;
   margin: 8px 0 0;
   padding: 6px 8px;
-  border-radius: 6px;
+  border-radius: calc(6px * var(--wl-round, 1));
   background: var(--wl-fill);
 }
 
@@ -1754,4 +1754,64 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
   .pickThumb[data-live="true"] .pickTone {
     transition: none;
   }
+}
+
+/* 瑞士：分组小标题改成加粗、加宽字距的大写小字（见 shell.module.css 的 data-look）。 */
+:global([data-look="swiss"]) .menuTitle {
+  color: var(--wl-text);
+  font-size: var(--wl-fs-micro);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/*
+ * 瑞士：分段选择是「反白」的——整条一道细框，选中的那格是黑底白字；输入框只留一道底线。
+ * 开关、勾选圈这类小控件在 shell.module.css 里已经因圆角归零变成方的。
+ */
+:global([data-look="swiss"]) .seg {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--wl-line-strong);
+}
+
+:global([data-look="swiss"]) .segThumb {
+  background: var(--wl-text);
+  box-shadow: none;
+}
+
+:global([data-look="swiss"]) .segItem {
+  --wl-on: var(--wl-panel);
+}
+
+:global([data-look="swiss"]) .input,
+:global([data-look="swiss"]) .textarea {
+  border-bottom-color: var(--wl-text);
+  background: transparent;
+}
+
+:global([data-look="swiss"]) .input:hover,
+:global([data-look="swiss"]) .textarea:hover {
+  background: var(--wl-hover);
+}
+
+:global([data-look="swiss"]) .input:focus,
+:global([data-look="swiss"]) .textarea:focus {
+  border-color: var(--wl-line-strong);
+  border-bottom-color: var(--wl-accent);
+  background: var(--wl-panel);
+}
+
+:global([data-look="swiss"]) .soft {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--wl-text);
+}
+
+:global([data-look="swiss"]) .soft {
+  --btn-hover: var(--wl-hover);
+}
+
+:global([data-look="swiss"]) .popover,
+:global([data-look="swiss"]) .confirmPop,
+:global([data-look="swiss"]) .hintPanel {
+  border-color: var(--wl-line-strong);
 }

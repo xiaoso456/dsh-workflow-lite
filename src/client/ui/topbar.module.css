@@ -13,7 +13,7 @@
   align-items: center;
   height: 42px;
   padding: 4px;
-  border-radius: 12px;
+  border-radius: calc(12px * var(--wl-round, 1));
 }
 
 /*
@@ -33,7 +33,7 @@
   inset: 0;
   z-index: -1;
   border: 1px solid var(--wl-line);
-  border-radius: 12px;
+  border-radius: calc(12px * var(--wl-round, 1));
   background: var(--wl-panel);
   box-shadow: var(--wl-shadow-1);
   pointer-events: none;
@@ -133,7 +133,7 @@
   margin-right: 4px;
   padding: 0 8px;
   border: 0;
-  border-radius: 999px;
+  border-radius: calc(999px * var(--wl-round, 1));
   background: transparent;
   color: var(--wl-text-3);
   font: inherit;
@@ -345,7 +345,7 @@
   height: 26px;
   padding: 0;
   border: 0;
-  border-radius: 6px;
+  border-radius: calc(6px * var(--wl-round, 1));
   background: transparent;
   color: var(--wl-text-3);
   cursor: pointer;
@@ -491,7 +491,7 @@
   flex: none;
   min-width: 44px;
   padding: 1px 6px;
-  border-radius: 6px;
+  border-radius: calc(6px * var(--wl-round, 1));
   background: var(--wl-fill);
   color: var(--wl-text-2);
   font-size: var(--wl-fs-micro);

@@ -25,7 +25,7 @@
   padding: 9px 12px;
   overflow: hidden;
   border: 0;
-  border-radius: 10px;
+  border-radius: calc(10px * var(--wl-round, 1));
   background: var(--wl-fill);
   color: var(--wl-text-2);
   font: inherit;
@@ -111,7 +111,7 @@
 
 .code {
   padding: 1px 6px;
-  border-radius: 5px;
+  border-radius: calc(5px * var(--wl-round, 1));
   background: var(--wl-fill);
   color: var(--wl-text-2);
   font-family: var(--wl-mono);
@@ -131,7 +131,7 @@
   place-items: center;
   width: 20px;
   height: 20px;
-  border-radius: 6px;
+  border-radius: calc(6px * var(--wl-round, 1));
   background: var(--wl-fill);
   color: var(--wl-text-3);
 }

@@ -35,7 +35,7 @@
   align-items: center;
   padding: 9px 28px 9px 9px;
   border: 1px solid transparent;
-  border-radius: 10px;
+  border-radius: calc(10px * var(--wl-round, 1));
   background: transparent;
   color: var(--wl-text);
   font: inherit;
@@ -88,7 +88,7 @@
 
 .modeThumb {
   border: 1px solid var(--wl-accent);
-  border-radius: 10px;
+  border-radius: calc(10px * var(--wl-round, 1));
   background: var(--wl-accent-soft);
 }
 
@@ -100,7 +100,7 @@
   place-items: center;
   width: 28px;
   height: 28px;
-  border-radius: 8px;
+  border-radius: calc(8px * var(--wl-round, 1));
   background: var(--wl-fill);
   color: var(--wl-text-2);
   --wl-on: var(--wl-accent-on);
@@ -151,7 +151,7 @@
   flex-direction: column;
   overflow: hidden;
   border: 1px solid var(--wl-line);
-  border-radius: 10px;
+  border-radius: calc(10px * var(--wl-round, 1));
 }
 
 .row {
@@ -183,7 +183,7 @@ label.row:hover {
   place-items: center;
   width: 28px;
   height: 28px;
-  border-radius: 8px;
+  border-radius: calc(8px * var(--wl-round, 1));
   background: var(--wl-fill);
   color: var(--wl-text-2);
 }
@@ -227,7 +227,7 @@ label.row:hover {
 .rootKind {
   margin-left: auto;
   padding: 1px 7px;
-  border-radius: 999px;
+  border-radius: calc(999px * var(--wl-round, 1));
   background: var(--wl-fill);
   color: var(--wl-text-3);
   font-size: var(--wl-fs-micro);
@@ -253,4 +253,12 @@ label.row:hover {
   .modeIcon::before {
     transition: none;
   }
+}
+
+/* 瑞士：成组的列表不再是一只圆角盒子，改成上下两道线（上面一道黑线），行与行之间照旧是细线。 */
+:global([data-look="swiss"]) .rows {
+  border-width: 1px 0;
+  border-top-color: var(--wl-text);
+  border-bottom-color: var(--wl-line-strong);
+  background: transparent;
 }

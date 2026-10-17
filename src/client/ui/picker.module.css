@@ -61,7 +61,7 @@
   padding: 0 6px;
   overflow: hidden;
   border: 0;
-  border-radius: 5px;
+  border-radius: calc(5px * var(--wl-round, 1));
   background: transparent;
   color: var(--wl-text-2);
   font: inherit;
@@ -133,7 +133,7 @@
   height: 24px;
   padding: 0 9px;
   border: 1px solid transparent;
-  border-radius: 999px;
+  border-radius: calc(999px * var(--wl-round, 1));
   background: transparent;
   color: var(--wl-text-2);
   font: inherit;
@@ -172,7 +172,7 @@
 /* 选中块：位置、大小由 PickThumb 量，这里只管样子。 */
 .placeThumb {
   border: 1px solid var(--wl-accent);
-  border-radius: 999px;
+  border-radius: calc(999px * var(--wl-round, 1));
   background: var(--wl-accent-soft);
 }
 
@@ -302,7 +302,7 @@ button.hiddenToggle::after {
   align-items: center;
   height: 28px;
   padding-right: 6px;
-  border-radius: 6px;
+  border-radius: calc(6px * var(--wl-round, 1));
   transition: background-color 120ms linear;
 }
 
@@ -324,7 +324,7 @@ button.hiddenToggle::after {
   height: 100%;
   padding: 0 4px 0 8px;
   border: 0;
-  border-radius: 6px;
+  border-radius: calc(6px * var(--wl-round, 1));
   background: transparent;
   color: var(--wl-text);
   font: inherit;

@@ -20,7 +20,7 @@ import type { Desktop } from '../app/desktop.ts'
 import { createHostAccess } from '../app/host.ts'
 import { revealNode } from '../app/reveal.ts'
 import { type SessionBridge, useSessionRows } from '../app/sessions.ts'
-import { useThemeChoice } from '../app/theme.ts'
+import { useColorScheme, useThemeChoice } from '../app/theme.ts'
 import { useRuns } from '../app/useRuns.ts'
 import { useWorkflow, type Workflow } from '../app/useWorkflow.ts'
 import type { LocaleKey, NS, T } from '../i18n.ts'
@@ -28,7 +28,7 @@ import { findNode, isDirty, type Selection } from '../model/editor.ts'
 import { freeSpot, NODE_H, NODE_W, tidy } from '../model/layout.ts'
 import { type LibraryFocus, type StepSource, starterGraph } from '../model/library.ts'
 import { nodeTitle } from '../model/nodeName.ts'
-import { themeStyle } from '../model/themes.ts'
+import { themeLook, themeStyle } from '../model/themes.ts'
 import { errorMessage, type WorkflowLiteRpc } from '../rpc.ts'
 import { type AddRequest, Canvas } from './Canvas.tsx'
 import { ZoomDock } from './Dock.tsx'
@@ -345,6 +345,8 @@ function Shell(props: {
     () => themeStyle(theme.light, theme.dark) as React.CSSProperties,
     [theme.light, theme.dark],
   )
+  /** 瑞士这类连「形」（直角、无阴影、字体）也带着的主题，要知道此刻是亮还是暗。 */
+  const look = themeLook(useColorScheme(), theme.light)
   /** 模态框挂载点（就是视图根）：要等根节点挂上才有，所以放 state。 */
   const [modalHost, setModalHost] = useState<HTMLElement | null>(null)
   const [size, setSize] = useState({ width: 1200, height: 800 })
@@ -725,6 +727,7 @@ function Shell(props: {
       style={themeVars}
       data-light-theme={theme.light}
       data-dark-theme={theme.dark}
+      data-look={look}
       data-testid="wl-root"
       data-workflow-lite-view=""
       data-library={libraryOpen && runId === null ? 'open' : 'closed'}

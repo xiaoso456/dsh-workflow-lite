@@ -88,7 +88,7 @@
   margin-left: -6px;
   padding: 0 6px;
   border: 0;
-  border-radius: 5px;
+  border-radius: calc(5px * var(--wl-round, 1));
   background: transparent;
   color: var(--wl-text-3);
   font: inherit;
@@ -268,7 +268,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   padding: 1px 7px;
-  border-radius: 999px;
+  border-radius: calc(999px * var(--wl-round, 1));
   background: color-mix(in srgb, var(--wl-chip) 12%, var(--wl-panel));
   color: var(--wl-chip);
   font-size: var(--wl-fs-micro);
@@ -317,7 +317,7 @@
   justify-content: center;
   width: 28px;
   height: 28px;
-  border-radius: 8px;
+  border-radius: calc(8px * var(--wl-round, 1));
   background: var(--wl-accent-soft);
   color: var(--wl-accent-text);
 }
@@ -336,7 +336,7 @@
   min-width: 0;
   padding: 8px;
   border: 1px solid var(--wl-line);
-  border-radius: 10px;
+  border-radius: calc(10px * var(--wl-round, 1));
   background: var(--wl-panel);
   color: var(--wl-text);
   font: inherit;
@@ -372,7 +372,7 @@
 .verdictCode {
   align-self: flex-start;
   padding: 4px 8px;
-  border-radius: 6px;
+  border-radius: calc(6px * var(--wl-round, 1));
   background: var(--wl-fill);
   color: var(--wl-text);
   font-family: var(--wl-mono);
@@ -384,7 +384,7 @@
 .badge {
   flex: none;
   padding: 1px 8px;
-  border-radius: 999px;
+  border-radius: calc(999px * var(--wl-round, 1));
   background: var(--wl-fill);
   color: var(--wl-text-3);
   font-size: var(--wl-fs-micro);
@@ -404,7 +404,8 @@
   min-height: 160px;
   padding: 10px 12px;
   border-left: 3px solid var(--wl-line-strong);
-  border-radius: 4px var(--wl-r-control) var(--wl-r-control) 4px;
+  border-radius: calc(4px * var(--wl-round, 1)) var(--wl-r-control) var(--wl-r-control)
+    calc(4px * var(--wl-round, 1));
   background: var(--wl-fill);
   color: var(--wl-text-2);
   font-size: var(--wl-fs-body);
@@ -421,7 +422,7 @@
   align-self: flex-start;
   height: 26px;
   padding: 0 10px;
-  border-radius: 7px;
+  border-radius: calc(7px * var(--wl-round, 1));
   background: var(--wl-fill);
   color: var(--wl-text-2);
   font-family: var(--wl-mono);
@@ -463,7 +464,7 @@
   width: 100%;
   padding: 8px 10px 8px 8px;
   border: 1px solid var(--wl-line);
-  border-radius: 10px;
+  border-radius: calc(10px * var(--wl-round, 1));
   background: var(--wl-panel);
   color: var(--wl-text);
   font: inherit;
@@ -490,7 +491,7 @@
   place-items: center;
   width: 30px;
   height: 30px;
-  border-radius: 8px;
+  border-radius: calc(8px * var(--wl-round, 1));
   background: var(--wl-accent-soft);
   color: var(--wl-accent-text);
 }
@@ -579,7 +580,7 @@
   justify-content: center;
   height: 34px;
   border: 1px dashed var(--wl-line-strong);
-  border-radius: 10px;
+  border-radius: calc(10px * var(--wl-round, 1));
   background: transparent;
   color: var(--wl-accent-text);
   font: inherit;
@@ -665,4 +666,34 @@
   display: inline-flex;
   gap: 4px;
   align-items: center;
+}
+
+/* 瑞士：分组小标题改成加粗、加宽字距的大写小字（见 shell.module.css 的 data-look）。 */
+:global([data-look="swiss"]) .label {
+  color: var(--wl-text);
+  font-size: var(--wl-fs-micro);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* 瑞士：分组小标题改成加粗、加宽字距的大写小字（见 shell.module.css 的 data-look）。 */
+:global([data-look="swiss"]) .idKey {
+  color: var(--wl-text);
+  font-size: var(--wl-fs-micro);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* 瑞士：成块的卡片行只留底线。 */
+:global([data-look="swiss"]) .end {
+  border-width: 0 0 1px;
+  border-color: var(--wl-line-strong);
+}
+
+/* 瑞士：成块的卡片行只留底线。 */
+:global([data-look="swiss"]) .outMain {
+  border-width: 0 0 1px;
+  border-color: var(--wl-line-strong);
 }

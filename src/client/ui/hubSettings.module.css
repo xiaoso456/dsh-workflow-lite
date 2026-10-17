@@ -18,7 +18,7 @@
   gap: 8px;
   align-items: center;
   padding: 8px 12px;
-  border-radius: 8px;
+  border-radius: calc(8px * var(--wl-round, 1));
   background: var(--wl-fill);
   color: var(--wl-text-2);
   font-size: var(--wl-fs-meta);
@@ -61,7 +61,7 @@
 
 .restart {
   padding: 1px 6px;
-  border-radius: 999px;
+  border-radius: calc(999px * var(--wl-round, 1));
   background: var(--wl-warn-soft);
   color: var(--wl-warn);
   font-size: var(--wl-fs-micro);
@@ -76,7 +76,7 @@
   height: 28px;
   padding: 0;
   border: 0;
-  border-radius: 7px;
+  border-radius: calc(7px * var(--wl-round, 1));
   background: transparent;
   color: var(--wl-text-3);
   cursor: pointer;

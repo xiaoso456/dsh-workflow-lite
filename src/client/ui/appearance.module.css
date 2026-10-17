@@ -8,7 +8,7 @@
   flex: none;
   padding: 0;
   border: 0;
-  border-radius: 8px;
+  border-radius: calc(8px * var(--wl-round, 1));
   background: transparent;
   cursor: pointer;
 }
@@ -28,7 +28,7 @@
   width: 15px;
   height: 15px;
   border: 1px solid var(--wl-line-strong);
-  border-radius: 50%;
+  border-radius: var(--wl-circle, 50%);
   background: var(--wl-panel);
   color: var(--wl-text-3);
   opacity: 0.7;
@@ -85,7 +85,7 @@
   aspect-ratio: 1;
   padding: 0;
   border: 0;
-  border-radius: 50%;
+  border-radius: var(--wl-circle, 50%);
   background: var(--wl-swatch);
   color: var(--wl-panel);
   cursor: pointer;
@@ -191,7 +191,7 @@
   aspect-ratio: 1;
   padding: 0;
   border: 0;
-  border-radius: 7px;
+  border-radius: calc(7px * var(--wl-round, 1));
   background: transparent;
   color: var(--wl-text-2);
   cursor: pointer;
@@ -216,7 +216,7 @@
 }
 
 .iconThumb {
-  border-radius: 7px;
+  border-radius: calc(7px * var(--wl-round, 1));
 }
 
 .iconTone {
@@ -230,7 +230,7 @@
 
 /* 选中颜色外面的一圈环：滑到新选的颜色，环色交叉淡过去（只动 transform / opacity）。 */
 .ring {
-  border-radius: 50%;
+  border-radius: var(--wl-circle, 50%);
 }
 
 .ringTone {

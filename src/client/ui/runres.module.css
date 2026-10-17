@@ -73,7 +73,7 @@
   grid-row: span 2;
   width: 28px;
   height: 28px;
-  border-radius: 8px;
+  border-radius: calc(8px * var(--wl-round, 1));
 }
 
 .name {
@@ -110,7 +110,7 @@
   grid-row: 1 / span 2;
   grid-column: 3;
   padding: 0 6px;
-  border-radius: 5px;
+  border-radius: calc(5px * var(--wl-round, 1));
   background: var(--wl-fill);
   color: var(--wl-text-3);
   font-size: var(--wl-fs-micro);
@@ -190,7 +190,7 @@ div.small {
   width: min(724px, calc(100% - 56px));
   margin: 18px auto 0;
   padding: 9px 12px;
-  border-radius: 8px;
+  border-radius: calc(8px * var(--wl-round, 1));
   background: var(--wl-fill);
   color: var(--wl-text-2);
   font-size: var(--wl-fs-meta);
@@ -224,7 +224,7 @@ div.small {
   align-items: center;
   min-height: 30px;
   padding: 0 4px;
-  border-radius: 6px;
+  border-radius: calc(6px * var(--wl-round, 1));
   color: var(--wl-text);
   font-family: var(--wl-mono);
   font-size: var(--wl-fs-micro);

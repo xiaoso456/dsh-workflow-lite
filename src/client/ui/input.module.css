@@ -5,7 +5,7 @@
 .headIcon {
   width: 28px;
   height: 28px;
-  border-radius: 8px;
+  border-radius: calc(8px * var(--wl-round, 1));
 }
 
 .question {
@@ -136,7 +136,7 @@
 .requiredChip {
   flex: none;
   padding: 0 6px;
-  border-radius: 5px;
+  border-radius: calc(5px * var(--wl-round, 1));
   background: var(--wl-fill);
   color: var(--wl-text-3);
   font-size: var(--wl-fs-micro);
@@ -189,4 +189,10 @@
 .private .sub > input,
 .private .sub > textarea {
   background: var(--wl-panel);
+}
+
+/* 瑞士：成块的卡片行只留底线。 */
+:global([data-look="swiss"]) .required {
+  border-width: 0 0 1px;
+  border-color: var(--wl-line-strong);
 }
