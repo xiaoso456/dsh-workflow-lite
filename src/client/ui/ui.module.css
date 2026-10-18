@@ -936,6 +936,29 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
   animation: iconOut 240ms ease-in-out forwards;
 }
 
+.nodeIn {
+  animation: nodeIn 240ms ease-in-out backwards;
+}
+
+.nodeOut {
+  pointer-events: none;
+  animation: nodeOut 240ms ease-in-out forwards;
+}
+
+@keyframes nodeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.88);
+  }
+}
+
+@keyframes nodeOut {
+  to {
+    opacity: 0;
+    transform: scale(0.88);
+  }
+}
+
 @keyframes iconIn {
   from {
     opacity: 0;
@@ -1598,12 +1621,14 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
   .swapText[data-pop][data-fresh] > .swapNow,
   .swapText[data-dir][data-fresh] > .swapNow,
   .swapText[data-pop][data-dir][data-fresh] > .swapNow,
-  .iconIn {
+  .iconIn,
+  .nodeIn {
     animation: none;
   }
 
   .swapText[data-was]::after,
-  .iconOut {
+  .iconOut,
+  .nodeOut {
     display: none;
   }
 }

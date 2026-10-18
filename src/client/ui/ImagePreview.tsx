@@ -7,6 +7,7 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/ImagePreview
  */
 
+import { useEffect, useState } from 'react'
 import { type FileTarget, useRunImage } from '../app/useRunFile.ts'
 import type { T } from '../i18n.ts'
 import type { WorkflowLiteRpc } from '../rpc.ts'
@@ -23,7 +24,13 @@ export function ImagePreview(props: {
   name: string
 }): React.JSX.Element {
   const { t, name } = props
-  const { url, error } = useRunImage(props.rpc, props.instance, props.target)
+  const { url: loaded, error } = useRunImage(props.rpc, props.instance, props.target)
+  // 换另一张图读回来之前，画布（工具条、读数）和上一张图原样留着，读回来再换：不整块卸掉重挂。
+  const [held, setHeld] = useState<string | null>(null)
+  useEffect(() => {
+    if (loaded !== null) setHeld(loaded)
+  }, [loaded])
+  const url = loaded ?? held
   if (error !== null) {
     return (
       <DocContent

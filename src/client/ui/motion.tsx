@@ -750,6 +750,29 @@ export function SwapIcon(props: { name: IconName; size?: number }): React.JSX.El
   )
 }
 
+/**
+ * 原地换一小块东西（文件的类型签这种有底色、有字的小件）：两份叠在同一格，新的从略小淡入，旧的略缩淡出。
+ * `id` 变了才换（同一个 `id` 不动），`render` 按 `id` 画出那一块。
+ */
+export function SwapNode(props: {
+  id: string
+  render(id: string): React.ReactNode
+}): React.JSX.Element {
+  const { was, n } = useLast(props.id, SWAP_ICON_MS)
+  return (
+    <span className={ui.swapIcon}>
+      {was !== null && (
+        <span key={`out-${n}`} className={ui.nodeOut}>
+          {props.render(was)}
+        </span>
+      )}
+      <span key={`in-${n}`} className={n > 0 ? ui.nodeIn : undefined}>
+        {props.render(props.id)}
+      </span>
+    </span>
+  )
+}
+
 /** 退场：往哪边走、走多久（都是入场的反方向）。 */
 const EXITS = {
   /** 底部轻提示、草稿栏：往下沉、略缩。 */

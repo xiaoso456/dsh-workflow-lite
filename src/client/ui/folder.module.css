@@ -285,6 +285,11 @@ div.dialog[role="dialog"] {
   white-space: nowrap;
 }
 
+.paneName > *,
+.paneMeta > * {
+  max-width: 100%;
+}
+
 .paneMeta {
   overflow: hidden;
   color: var(--wl-text-3);
@@ -294,9 +299,24 @@ div.dialog[role="dialog"] {
   white-space: nowrap;
 }
 
+/* 「预览 / 源码」：位置一直占着。能切时淡入、略放大归位；不能切时淡出、略缩着让开（visibility 等淡完再收，不再被点到、被 Tab 到）。 */
 .paneViews {
   flex: none;
   width: 132px;
+  transition:
+    opacity 200ms linear,
+    transform 240ms var(--wl-ease-out, ease-out);
+}
+
+.paneViews[data-on="false"] {
+  opacity: 0;
+  transform: translateX(8px) scale(0.96);
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 140ms linear,
+    transform 180ms var(--wl-ease-out, ease-out),
+    visibility 0s 180ms;
 }
 
 .paneFailure {
@@ -390,6 +410,11 @@ div.dialog[role="dialog"] {
   .skeleton,
   .skeleton > span {
     animation: none;
+  }
+
+  .paneViews,
+  .paneViews[data-on="false"] {
+    transition: none;
   }
 
   .thumb,

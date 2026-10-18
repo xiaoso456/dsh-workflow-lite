@@ -139,6 +139,20 @@
   text-align: center;
 }
 
+/* 读数里的数字：靠右对齐，旧数字也从右边算起，换位数（99 → 100）时「%」不动。 */
+.readoutNum {
+  display: inline-block;
+}
+
+.readoutNum > span {
+  justify-items: end;
+}
+
+.readoutNum > span::after {
+  right: 0;
+  left: auto;
+}
+
 /* 画布：点阵底，图在中间。能拖时显示抓手，拖着的时候换成握紧。 */
 .stage {
   position: relative;

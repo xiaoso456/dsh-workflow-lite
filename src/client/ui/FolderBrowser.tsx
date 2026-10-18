@@ -24,7 +24,7 @@ import {
   useRunImages,
 } from '../app/useRunFile.ts'
 import type { T } from '../i18n.ts'
-import { fileBaseName, formatBytes } from '../model/fileKind.ts'
+import { extensionOf, fileBaseName, fileKindOf, formatBytes } from '../model/fileKind.ts'
 import {
   crumbsOf,
   filterEntries,
@@ -42,7 +42,7 @@ import { fileBody } from './FileViewer.tsx'
 import files from './files.module.css'
 import css from './folder.module.css'
 import { Icon } from './Icon.tsx'
-import { type StageDir, useStage, useTrail } from './motion.tsx'
+import { type StageDir, SwapNode, SwapText, useStage, useTrail } from './motion.tsx'
 import { OpenWith } from './OpenWith.tsx'
 import picker from './picker.module.css'
 import { cx } from './primitives.tsx'
@@ -468,7 +468,13 @@ interface Shown {
   target: Extract<FileTarget, { node: string }>
   file: RunFileResponse | null
   error: string | null
+  /** 从一张图换到另一张图：画布留着、只换图，不整块交接（见 FilePane）。 */
+  calm: boolean
 }
+
+/** 读回来的是不是一张图。 */
+const isImageFile = (file: RunFileResponse | null): boolean =>
+  file !== null && file.kind !== 'missing' && fileKindOf(file.display) === 'image'
 
 /**
  * 右边：一份文件的预览（标题行 + 正文）。
@@ -502,13 +508,16 @@ function FilePane(props: {
   // 新文件读回来了：旧正文留个影子（要趁它还在页面上），再换上新的。
   useEffect(() => {
     if (settled !== want || (file === null && error === null) || shown?.key === want) return
-    if (shown !== null) stage.leave(0)
-    setShown({ key: want, target, file, error })
+    // 图换图：画布（工具条、读数）留着，图自己换，不把整块正文淡出再淡入。
+    const calm = isImageFile(shown?.file ?? null) && isImageFile(file)
+    if (shown !== null && !calm) stage.leave(0)
+    setShown({ key: want, target, file, error, calm })
     setView('rendered')
     setFailure(null)
   }, [settled, want, file, error, shown, target, stage])
   useLayoutEffect(() => {
     if (shown === null) return
+    if (shown.calm) return
     stage.body.current?.scrollTo({ top: 0 })
     stage.enter(0)
   }, [shown?.key, view, stage])
@@ -543,31 +552,40 @@ function FilePane(props: {
         >
           <Icon name="chevronLeft" size={15} />
         </button>
-        <FileTag path={name} large />
+        {/* 类型签、文件名、大小行都不跳：换了就原地换（签换色换字、字上浮），同类型的签不动。 */}
+        <SwapNode
+          id={extensionOf(name)}
+          render={(ext) => <FileTag path={ext === '' ? name : `x.${ext}`} large />}
+        />
         <div className={css.paneTitle}>
-          <span className={css.paneName}>{name}</span>
+          <span className={css.paneName}>
+            <SwapText text={name} />
+          </span>
           <span className={css.paneMeta}>
-            {info?.exists === true
-              ? `${formatBytes(info.size)} · ${t('file.modified')} ${shortTime(info.mtime)}`
-              : ' '}
+            <SwapText
+              text={
+                info?.exists === true
+                  ? `${formatBytes(info.size)} · ${t('file.modified')} ${shortTime(info.mtime)}`
+                  : ' '
+              }
+            />
           </span>
         </div>
-        {switchable && (
-          <div className={css.paneViews}>
-            <Segmented<View>
-              label={t('file.rendered')}
-              value={view}
-              onChange={(next) => {
-                stage.leave(0)
-                setView(next)
-              }}
-              options={[
-                { value: 'rendered', label: t('file.rendered') },
-                { value: 'source', label: t('file.source') },
-              ]}
-            />
-          </div>
-        )}
+        {/* 位置一直占着：能切（Markdown / HTML）时淡入归位，不能切时淡出让开，标题宽度不随文件类型变。 */}
+        <div className={css.paneViews} data-on={switchable}>
+          <Segmented<View>
+            label={t('file.rendered')}
+            value={view}
+            onChange={(next) => {
+              stage.leave(0)
+              setView(next)
+            }}
+            options={[
+              { value: 'rendered', label: t('file.rendered') },
+              { value: 'source', label: t('file.source') },
+            ]}
+          />
+        </div>
         <CopyButton t={t} text={info?.path ?? null} />
         <OpenWith
           t={t}

@@ -8,7 +8,7 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/ImageZoom
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { T } from '../i18n.ts'
 import {
   clampView,
@@ -29,7 +29,7 @@ import { Icon } from './Icon.tsx'
 import css from './imageZoom.module.css'
 import { PickThumb, SwapText, useTrend } from './motion.tsx'
 import overlay from './overlay.module.css'
-import { cx, Modal } from './primitives.tsx'
+import { cx, ghostClone, Modal } from './primitives.tsx'
 import { Segmented } from './Segmented.tsx'
 import ui from './ui.module.css'
 
@@ -65,8 +65,11 @@ const NUDGE_BIG = 48
 const PIXEL_SCALE = 3
 /** 缩放比例离 1 这么近，就算"原大"。 */
 const ACTUAL_EPS = 1e-3
-/** 读数占宽按最宽的一档定死（SwapText 的 reserve）：换字时工具栏不抖，旧字也不会被裁掉。 */
-const READOUT_WIDEST = `${Math.round(ZOOM_MAX * 100)}%`
+/** 读数里数字占宽按最宽的一档定死（SwapText 的 reserve）：换字时工具栏不抖，旧字也不会被裁掉；「%」在数字外面、位置不动。 */
+/** 系统要求少动效：换图时不留影子、不淡入。 */
+const calm = (): boolean => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
+
+const READOUT_WIDEST = `${Math.round(ZOOM_MAX * 100)}`
 
 /** 指针在舞台上的位置，换成以舞台中心为原点的坐标（缩放以它为锚）。 */
 function anchorOf(clientX: number, clientY: number, rect: DOMRect): Point {
@@ -112,6 +115,12 @@ function ImageCanvas(props: {
   const image = useRef<HTMLImageElement>(null)
   /** 正在拖：指针编号与上一个位置。 */
   const drag = useRef<{ id: number; x: number; y: number } | null>(null)
+  /** 换图时已经预加载、按新图的尺寸摆好了：紧接着那一次 `onLoad` 不再重算。 */
+  const swapped = useRef(false)
+  /** 新图摆上的那一帧要淡入。 */
+  const fadeIn = useRef(false)
+  /** 换图后，等 React 换上新图的那次提交里把变换写到图上。 */
+  const swapPaint = useRef(false)
 
   /**
    * 把视图写到图上。直接改 DOM、不等 React：拖动、滚轮每动一下都当场跟上，不落后半拍。
@@ -185,6 +194,11 @@ function ImageCanvas(props: {
   }
 
   const onLoad = (event: React.SyntheticEvent<HTMLImageElement>): void => {
+    // 换图时已经预加载好、按新图的尺寸摆过了（见下面换图的 effect）：这一次不再算。
+    if (swapped.current) {
+      swapped.current = false
+      return
+    }
     const img = event.currentTarget
     const cur = live.current
     if (img.naturalWidth === 0 || img.naturalHeight === 0) {
@@ -276,6 +290,73 @@ function ImageCanvas(props: {
     event.preventDefault()
   }
 
+  // 换了一张图（查看框里画布留着、只换图）：先在后台把新图读好、解码好，再一次换：
+  // 旧图原样留着不动（不重置成原大——那会一闪一个占满舞台的大图），读好的那一帧旧图留个影子淡出，
+  // 新图按「适应」摆好、同时淡入；读数和尺寸跟着从旧值滚到新值。
+  const [shownSrc, setShownSrc] = useState(props.src)
+  useEffect(() => {
+    if (props.src === shownSrc) return
+    let alive = true
+    const pre = new Image()
+    pre.src = props.src
+    const land = (): void => {
+      if (!alive) return
+      const cur = live.current
+      if (pre.naturalWidth === 0 || pre.naturalHeight === 0) {
+        setShownSrc(props.src)
+        commit({ ...cur, failed: true }, false)
+        return
+      }
+      const natural = { w: pre.naturalWidth, h: pre.naturalHeight }
+      const old = image.current
+      const box = stage.current
+      if (old !== null && box !== null && cur.natural !== null && !calm()) {
+        const ghost = ghostClone(old)
+        Object.assign(ghost.node.style, { transition: 'none', opacity: '1' })
+        ghost.place(box)
+        const out = ghost.node.animate([{ opacity: 1 }, { opacity: 0 }], {
+          duration: 110,
+          easing: 'linear',
+          fill: 'forwards',
+        })
+        const drop = (): void => ghost.node.remove()
+        out.finished.then(drop, drop)
+        fadeIn.current = true
+      }
+      swapped.current = true
+      swapPaint.current = true
+      // 只记账、不碰 DOM：图上的变换要等 React 把 src 换成新图的同一次提交里再写（下面的 layout effect）。
+      // 现在就写的话，下一帧可能是「旧图套上新图的变换」，一个大白块闪过去。
+      live.current = {
+        ...cur,
+        natural,
+        view: fitView(cur.frame, natural, 0),
+        fitting: true,
+        failed: false,
+      }
+      setViewer(live.current)
+      setShownSrc(props.src)
+    }
+    pre.decode().then(land, land)
+    return () => {
+      alive = false
+    }
+  }, [props.src, shownSrc, commit])
+  // 新图摆上的那一帧（src 和尺寸都已换成新的）：写上「适应」的变换；淡入稍后一点进来，旧图的影子已经淡下去。
+  useLayoutEffect(() => {
+    if (!swapPaint.current) return
+    swapPaint.current = false
+    paint(live.current.view, false)
+    if (!fadeIn.current) return
+    fadeIn.current = false
+    image.current?.animate([{ opacity: 0 }, { opacity: 1 }], {
+      duration: 200,
+      delay: 50,
+      easing: 'linear',
+      fill: 'backwards',
+    })
+  }, [shownSrc])
+
   // 焦点落到框上，键盘（+ − 0 1 R、方向键）才有用。
   useEffect(() => {
     if (!inline) root.current?.focus({ preventScroll: true })
@@ -319,6 +400,8 @@ function ImageCanvas(props: {
   const pannable = natural !== null && isPannable(view, frame, natural)
   const actualOn = !fitting && Math.abs(view.scale - 1) < ACTUAL_EPS
   const percent = Math.round(view.scale * 100)
+  // 读数、尺寸：换一张图读回来之前沿用上一张的（不闪成「–」再冒出来），读回来后从旧值滚到新值。
+  const shownPercent = ready ? percent : null
   // 数字是变大还是变小：读数往上滚还是往下滚（和步骤「轮次」的加减一样）。
   const trend = useTrend(percent)
 
@@ -341,7 +424,17 @@ function ImageCanvas(props: {
         data-testid="wl-image-zoom-readout"
       >
         {/* 舞台还没量出尺寸时「适应」算出来的是个没意义的小数（2%）：先写「–」，别让读数从它滚到最终值。 */}
-        {ready ? <SwapText text={`${percent}%`} dir={trend} reserve={[READOUT_WIDEST]} /> : '–'}
+        {shownPercent === null ? (
+          '–'
+        ) : (
+          <>
+            {/* 只有数字滚；数字靠右对齐、占宽定死，后面的「%」始终在同一个地方。 */}
+            <span className={css.readoutNum}>
+              <SwapText text={String(shownPercent)} dir={trend} reserve={[READOUT_WIDEST]} />
+            </span>
+            %
+          </>
+        )}
       </output>
       <button
         type="button"
@@ -444,7 +537,7 @@ function ImageCanvas(props: {
         <img
           ref={image}
           className={cx(css.image, view.scale >= PIXEL_SCALE && css.pixel)}
-          src={props.src}
+          src={shownSrc}
           alt={props.alt}
           draggable={false}
           data-testid="wl-image-zoom-img"
@@ -466,7 +559,9 @@ function ImageCanvas(props: {
       {inline ? (
         <header className={css.inlineBar}>
           {tools}
-          <span className={css.inlineSize}>{size}</span>
+          <span className={css.inlineSize}>
+            <SwapText text={size} />
+          </span>
           {backdropPick}
         </header>
       ) : (
