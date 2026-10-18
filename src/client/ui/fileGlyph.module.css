@@ -1,0 +1,45 @@
+/**
+ * dsh-workflow-lite — 文件类型图标（FileGlyph）的颜色：一类一个色，取自步骤卡的色板。
+ */
+
+.glyph {
+  display: inline-flex;
+  flex: none;
+  color: var(--wl-text-3);
+}
+
+.glyph[data-tone="blue"] {
+  color: var(--wl-c-blue);
+}
+
+.glyph[data-tone="green"] {
+  color: var(--wl-c-green);
+}
+
+.glyph[data-tone="amber"] {
+  color: var(--wl-c-amber);
+}
+
+.glyph[data-tone="coral"] {
+  color: var(--wl-c-coral);
+}
+
+.glyph[data-tone="teal"] {
+  color: var(--wl-c-teal);
+}
+
+.glyph[data-tone="pink"] {
+  color: var(--wl-c-pink);
+}
+
+.glyph[data-tone="olive"] {
+  color: var(--wl-c-olive);
+}
+
+.glyph[data-tone="violet"] {
+  color: var(--wl-c-violet);
+}
+
+.glyph[data-tone="slate"] {
+  color: var(--wl-c-slate);
+}

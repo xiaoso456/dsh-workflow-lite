@@ -26,6 +26,7 @@ import type { T } from '../i18n.ts'
 import { crumbs } from '../model/hostPath.ts'
 import { errorMessage } from '../rpc.ts'
 import { FilterBar, PathBar, UpRow } from './DirParts.tsx'
+import { FileGlyph } from './FileGlyph.tsx'
 import { Icon } from './Icon.tsx'
 import {
   CheckMark,
@@ -427,9 +428,13 @@ function PickRow(props: {
         onClick={props.onOpen}
         onDoubleClick={props.onAdd}
       >
-        <span className={css.entryIcon} data-dir={props.dir}>
-          <Icon name={props.dir ? 'folder' : 'file'} size={15} />
-        </span>
+        {props.dir ? (
+          <span className={css.entryIcon} data-dir="true">
+            <Icon name="folder" size={15} />
+          </span>
+        ) : (
+          <FileGlyph path={props.name} />
+        )}
         <span className={css.entryName}>{props.name}</span>
         {props.dir && (
           <span className={css.enter}>

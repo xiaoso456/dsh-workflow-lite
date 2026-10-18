@@ -22,7 +22,7 @@ div.dialog[role="dialog"] {
 
 .browser {
   display: grid;
-  grid-template-columns: minmax(280px, 330px) minmax(0, 1fr);
+  grid-template-columns: minmax(240px, 260px) minmax(0, 1fr);
   height: 100%;
   min-height: 0;
 }
@@ -51,6 +51,26 @@ div.dialog[role="dialog"] {
   color: var(--wl-text-3);
   font-size: var(--wl-fs-micro);
   font-variant-numeric: tabular-nums;
+  animation: fbFade 180ms ease-out backwards;
+}
+
+/* 计数：数字滚，按最大那个数占宽、靠右对齐（位数变了「/ 总数」不动）；数字后面的字（/ 19、项）自己换。 */
+.countNum {
+  display: inline-block;
+}
+
+.countNum > span {
+  justify-items: end;
+}
+
+.countNum > span::after {
+  right: 0;
+  left: auto;
+}
+
+.countTail {
+  display: inline-block;
+  margin-left: 0.3em;
 }
 
 /* 列表外面这层只管定位和裁切：换层时旧列表的影子在里面往外退、新列表横着进来（useStage），不能越出列表框。 */
@@ -409,6 +429,10 @@ div.dialog[role="dialog"] {
 @media (prefers-reduced-motion: reduce) {
   .skeleton,
   .skeleton > span {
+    animation: none;
+  }
+
+  .count {
     animation: none;
   }
 

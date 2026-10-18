@@ -37,12 +37,13 @@ import { shortTime } from '../model/time.ts'
 import type { WorkflowLiteRpc } from '../rpc.ts'
 import { FilterBar, PathBar, UpRow } from './DirParts.tsx'
 import { CopyButton, type DocBody, DocContent, docFormat } from './DocViewer.tsx'
+import { FileGlyph } from './FileGlyph.tsx'
 import { FileTag } from './FileTag.tsx'
 import { fileBody } from './FileViewer.tsx'
 import files from './files.module.css'
 import css from './folder.module.css'
 import { Icon } from './Icon.tsx'
-import { type StageDir, SwapNode, SwapText, useStage, useTrail } from './motion.tsx'
+import { type StageDir, SwapNode, SwapText, useStage, useTrail, useTrend } from './motion.tsx'
 import { OpenWith } from './OpenWith.tsx'
 import picker from './picker.module.css'
 import { cx } from './primitives.tsx'
@@ -56,6 +57,21 @@ const ROW = 28
 const SKELETON_ROWS = ['58%', '72%', '44%', '66%', '52%', '78%']
 
 type View = 'rendered' | 'source'
+
+/**
+ * 名字被截断（出了省略号）才挂悬停提示，写完整的名字：指针一进这一行就量一下，没截断就不挂。
+ * 悬停提示（TipLayer）在冒泡阶段读 `data-tip`，这里走捕获阶段，赶在它前面把属性写好。
+ */
+function tipWhenCut(row: HTMLElement, name: string): void {
+  const label = row.querySelector<HTMLElement>('[data-label]')
+  if (label !== null && label.scrollWidth > label.clientWidth) {
+    row.dataset.tip = name
+    row.dataset.tipAlign = 'start'
+  } else {
+    delete row.dataset.tip
+    delete row.dataset.tipAlign
+  }
+}
 
 /** 不列 `.` 开头的项（搜索词本身以 `.` 开头、或打开了「隐藏项」时照列）。 */
 function withoutHidden(
@@ -253,11 +269,14 @@ export function FolderBrowser(props: {
 
   const crumbs = crumbsOf(props.rootName, sub)
   const filtering = query.trim() !== ''
-  const count = filtering
-    ? t('folder.countOf')
-        .replace('{n}', String(visible.length))
-        .replace('{total}', String(listed.length))
-    : t('folder.count').replace('{n}', String(listed.length))
+  // 命中数变多往上滚、变少往下滚（和放大读数一个做法）。
+  const countTrend = useTrend(visible.length)
+  // 「{n} / {total}」「{n} 项」：数字单独滚，数字后面的字（/ 总数、项）另算，总数不变时不跟着动。
+  const countTail = (
+    filtering ? t('folder.countOf').replace('{total}', String(listed.length)) : t('folder.count')
+  )
+    .replace('{n}', '')
+    .trim()
   const tally = t('folder.tally')
     .replace('{dirs}', String(dirs))
     .replace('{files}', String(listed.length - dirs))
@@ -329,12 +348,17 @@ export function FolderBrowser(props: {
               data-cursor={position === at}
               data-testid="wl-folder-entry"
               data-name={entry.name}
+              onPointerOverCapture={(event) => tipWhenCut(event.currentTarget, entry.name)}
               onClick={() => open(entry)}
             >
-              <span className={picker.entryIcon} data-dir={entry.dir}>
-                <Icon name={entry.dir ? 'folder' : 'file'} size={15} />
-              </span>
-              <span className={css.name}>
+              {entry.dir ? (
+                <span className={picker.entryIcon} data-dir="true">
+                  <Icon name="folder" size={15} />
+                </span>
+              ) : (
+                <FileGlyph path={entry.name} />
+              )}
+              <span className={css.name} data-label="">
                 {splitByRanges(entry.name, ranges).map((part, partIndex) =>
                   part.hit ? (
                     // biome-ignore lint/suspicious/noArrayIndexKey: 名字切出来的几块，只在这一行里按次序排
@@ -404,7 +428,18 @@ export function FolderBrowser(props: {
             style={{ '--wl-sheet-inset': '12px' } as React.CSSProperties}
             trailing={
               dir?.exists === true && listed.length > 0 ? (
-                <span className={css.count}>{count}</span>
+                <span className={css.count}>
+                  <span className={css.countNum}>
+                    <SwapText
+                      text={String(filtering ? visible.length : listed.length)}
+                      dir={countTrend}
+                      reserve={[String(listed.length)]}
+                    />
+                  </span>
+                  <span className={css.countTail}>
+                    <SwapText text={countTail} />
+                  </span>
+                </span>
               ) : undefined
             }
           />

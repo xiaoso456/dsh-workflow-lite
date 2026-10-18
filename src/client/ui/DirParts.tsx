@@ -13,7 +13,7 @@
  */
 
 import { Icon } from './Icon.tsx'
-import { FadeText } from './motion.tsx'
+import { FadeMark, FadeText } from './motion.tsx'
 import css from './picker.module.css'
 import { cx } from './primitives.tsx'
 import ui from './ui.module.css'
@@ -106,7 +106,10 @@ export function FilterBar(props: {
       data-plain={props.plain === true ? 'true' : undefined}
     >
       <span className={css.filterBox}>
-        <Icon name="search" size={13} />
+        {/* 有搜索词时放大镜淡成强调色，告诉你列表正被筛着。 */}
+        <FadeMark on={props.value.trim() !== ''} className={css.filterIcon}>
+          <Icon name="search" size={13} />
+        </FadeMark>
         <input
           ref={props.inputRef}
           className={css.filter}

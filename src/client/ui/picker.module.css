@@ -222,6 +222,7 @@
 .filterBox {
   display: flex;
   flex: 1 1 auto;
+  min-width: 0; /* 输入框的固有宽度不能撑住它：窄的容器里搜索框要能收，不把右边的开关挤出去 */
   gap: 6px;
   align-items: center;
   height: 28px;
@@ -233,6 +234,13 @@
 
 .filterBox:focus-within {
   border-color: var(--wl-accent);
+}
+
+/* 放大镜：没筛时灰，有搜索词时 FadeMark 交叉淡成强调色。 */
+.filterIcon {
+  --wl-off: var(--wl-text-3);
+  --wl-on: var(--wl-accent-text);
+  flex: none;
 }
 
 .filter {

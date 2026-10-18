@@ -11,6 +11,17 @@ import type { StepIcon } from '../../shared/appearance.ts'
 import { STEP_ICON_PATHS } from './stepIcons.ts'
 
 const BASE_PATHS = {
+  // 文件类型（见 FileGlyph）
+  code: 'M8 8l-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14',
+  braces:
+    'M9 4C7 4 6.5 5 6.5 7v2c0 1.2-.5 2-2 3 1.5 1 2 1.8 2 3v2c0 2 .5 3 2.5 3M15 4c2 0 2.5 1 2.5 3v2c0 1.2.5 2 2 3-1.5 1-2 1.8-2 3v2c0 2-.5 3-2.5 3',
+  table: 'M4 5h16v14H4zM4 10h16M4 15h16M10 5v14',
+  slides: 'M4 5h16v11H4zM12 16v4M8 20h8',
+  audio:
+    'M9 18V6l10-2v12M9 18a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0zM19 16a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z',
+  video: 'M4 6h16v12H4zM10 9.5v5l4.5-2.5z',
+  font: 'M5 7V5h14v2M12 5v14M9 19h6',
+  cube: 'M12 3l8 4.5v9L12 21l-8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9',
   chevronDown: 'M6 9l6 6 6-6',
   chevronUp: 'M6 15l6-6 6 6',
   chevronLeft: 'M15 6l-6 6 6 6',
