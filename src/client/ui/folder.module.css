@@ -2,7 +2,7 @@
  * dsh-workflow-lite — 文件夹浏览（实例里点开文件夹资源）：左边列表、右边预览。
  *
  * 左右两栏顶上各有一条 46px 的标题行（搜索框 / 文件名），分隔线在同一高度。
- * 动的只有 transform / opacity：换层时列表朝进入的方向滑入，选中块（.thumb）跟着光标上下滑。
+ * 动的只有 transform / opacity：换层的横向交接在 motion.tsx（useStage / useTrail），选中块（.thumb）跟着光标上下滑。
  * 容器窄到放不下两栏（框被缩得很窄）时一次只看一栏，预览标题行多出一个「回到列表」。
  */
 
@@ -15,6 +15,8 @@ div.dialog[role="dialog"] {
 /* 容器：窄了就改成单栏（容器查询只能改它里面的东西，所以栅格在里面一层）。 */
 .frame {
   height: 100%;
+  /* 里面的淡入、滑动动画带 transform，会把外层查看框（overflow: auto）的可滚动范围撑出几 px，一闪冒出滚动条：在这里裁住。 */
+  overflow: hidden;
   container-type: inline-size;
 }
 
@@ -25,7 +27,7 @@ div.dialog[role="dialog"] {
   min-height: 0;
 }
 
-/* ── 左：搜索、面包屑、列表 ───────────────────────────────── */
+/* ── 左：路径栏、筛选、列表（路径栏、筛选框、上一级是 DirParts，样式在 picker.module.css） ───────────────────────────────── */
 
 .side {
   display: flex;
@@ -35,43 +37,13 @@ div.dialog[role="dialog"] {
   border-right: 1px solid var(--wl-line);
 }
 
-.tools {
+.top {
   display: flex;
   box-sizing: border-box;
   flex: none;
   align-items: center;
   height: 46px;
   padding: 0 12px;
-  border-bottom: 1px solid var(--wl-line);
-}
-
-.search {
-  display: flex;
-  flex: 1 1 auto;
-  gap: 6px;
-  align-items: center;
-  min-width: 0;
-  height: 28px;
-  padding: 0 9px;
-  border: 1px solid var(--wl-line);
-  border-radius: var(--wl-r-control);
-  color: var(--wl-text-3);
-  transition: border-color 120ms linear;
-}
-
-.search:focus-within {
-  border-color: var(--wl-accent);
-}
-
-.searchInput {
-  flex: 1 1 auto;
-  min-width: 0;
-  border: 0;
-  background: transparent;
-  color: var(--wl-text);
-  font: inherit;
-  font-size: var(--wl-fs-meta);
-  outline: none;
 }
 
 .count {
@@ -81,89 +53,17 @@ div.dialog[role="dialog"] {
   font-variant-numeric: tabular-nums;
 }
 
-/* 面包屑：根 › 子目录 › …；点哪一层退回哪一层，最后一层是当前所在。 */
-.crumbs {
+/* 列表外面这层只管定位和裁切：换层时旧列表的影子在里面往外退、新列表横着进来（useStage），不能越出列表框。 */
+.listWrap {
+  position: relative;
   display: flex;
-  flex: none;
-  gap: 2px;
-  align-items: center;
-  min-height: 34px;
-  padding: 0 12px 0 8px;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
   overflow: hidden;
 }
 
-.crumbBack {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: 0;
-  border-radius: calc(6px * var(--wl-round, 1));
-  background: transparent;
-  color: var(--wl-text-2);
-  cursor: pointer;
-  transition: background-color 120ms linear;
-}
-
-.crumbBack:hover:not(:disabled) {
-  background: var(--wl-hover);
-  color: var(--wl-text);
-}
-
-.crumbBack:disabled {
-  color: var(--wl-text-3);
-  cursor: default;
-}
-
-.crumbBack:focus-visible,
-.crumb:focus-visible {
-  outline: 2px solid var(--wl-accent);
-  outline-offset: 1px;
-}
-
-.crumbItem {
-  display: inline-flex;
-  flex: 0 1 auto;
-  gap: 2px;
-  align-items: center;
-  min-width: 0;
-  color: var(--wl-text-3);
-}
-
-.crumb,
-.crumbHere {
-  max-width: 130px;
-  padding: 2px 5px;
-  overflow: hidden;
-  border: 0;
-  border-radius: calc(5px * var(--wl-round, 1));
-  background: transparent;
-  color: var(--wl-text-2);
-  font: inherit;
-  font-size: var(--wl-fs-meta);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.crumb {
-  cursor: pointer;
-  transition: background-color 120ms linear;
-}
-
-.crumb:hover {
-  background: var(--wl-hover);
-  color: var(--wl-text);
-}
-
-.crumbHere[data-last="true"] {
-  max-width: 170px;
-  color: var(--wl-text);
-  font-weight: 600;
-}
-
-/* 列表：一行 36px，行高同时写进 --fb-row 给选中块用。 */
+/* 列表：一行 28px（和选择文件的对话框一样），行高同时写进 --fb-row 给选中块用。 */
 .list {
   flex: 1 1 auto;
   min-height: 0;
@@ -172,32 +72,21 @@ div.dialog[role="dialog"] {
   overflow-y: auto;
   outline: none;
   scrollbar-width: thin;
+  transition: opacity 120ms linear;
+}
+
+/*
+ * 换层读回来之前，还显示着上一层：不让点；读得慢（超过 0.3 秒）才淡下去示意在等。
+ * 本地读几十毫秒就回来，立刻压暗会「暗一下又亮回来」，看着就是闪。
+ */
+.list[data-stale="true"] {
+  opacity: 0.55;
+  pointer-events: none;
+  transition-delay: 300ms;
 }
 
 .rows {
   position: relative;
-  animation: rowsIn 240ms var(--wl-ease-out, ease-out) backwards;
-}
-
-.rows[data-heading="1"] {
-  --fb-dx: 14px;
-}
-
-.rows[data-heading="-1"] {
-  --fb-dx: -14px;
-}
-
-@keyframes rowsIn {
-  from {
-    opacity: 0;
-    transform: translateX(var(--fb-dx, 14px));
-  }
-}
-
-/* 换层读回来之前，还显示着上一层：淡一点、不让点。 */
-.rows[data-stale="true"] {
-  opacity: 0.55;
-  pointer-events: none;
 }
 
 /* 选中块垫在行下面：只动 transform（按第几行摆），有光标时才显出来。 */
@@ -227,7 +116,7 @@ div.dialog[role="dialog"] {
   gap: 8px;
   align-items: center;
   height: var(--fb-row);
-  padding: 0 8px 0 4px;
+  padding: 0 8px;
   border-radius: var(--wl-r-control);
   color: var(--wl-text);
   cursor: pointer;
@@ -246,23 +135,6 @@ div.dialog[role="dialog"] {
   background: transparent;
 }
 
-.glyph {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 38px;
-}
-
-.dirGlyph {
-  display: inline-grid;
-  place-items: center;
-  min-width: 30px;
-  height: 20px;
-  border-radius: calc(5px * var(--wl-round, 1));
-  background: color-mix(in srgb, var(--wl-c-olive) 16%, var(--wl-panel));
-  color: var(--wl-c-olive);
-}
-
 .name {
   flex: 1 1 auto;
   min-width: 0;
@@ -270,10 +142,6 @@ div.dialog[role="dialog"] {
   font-size: var(--wl-fs-meta);
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.row[data-dir="true"] .name {
-  font-weight: 600;
 }
 
 .hit {
@@ -287,7 +155,7 @@ div.dialog[role="dialog"] {
   flex: none;
   align-items: center;
   justify-content: flex-end;
-  min-width: 50px;
+  min-width: 44px;
   color: var(--wl-text-3);
   font-size: var(--wl-fs-micro);
   font-variant-numeric: tabular-nums;
@@ -363,9 +231,8 @@ div.dialog[role="dialog"] {
 .keys {
   flex: none;
   margin: 0;
-  padding: 7px 12px 9px;
+  padding: 7px 14px 10px;
   overflow: hidden;
-  border-top: 1px solid var(--wl-line);
   color: var(--wl-text-3);
   font-size: var(--wl-fs-micro);
   text-overflow: ellipsis;
@@ -440,11 +307,28 @@ div.dialog[role="dialog"] {
   font-size: var(--wl-fs-micro);
 }
 
+/* 正文外面这层只管定位和裁切：换文件、换视图时旧正文的影子在里面退（useStage），不能越出预览区。 */
+.paneStage {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .paneBody {
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
   scrollbar-width: thin;
+  transition: opacity 120ms linear;
+}
+
+/* 新文件还没读回来，旧的原样摆着；读得慢（超过 0.3 秒）才淡下去示意在等，免得快读时暗一下又亮回来。 */
+.pane[data-waiting="true"] .paneBody {
+  opacity: 0.55;
+  transition-delay: 300ms;
 }
 
 .empty {
@@ -503,7 +387,6 @@ div.dialog[role="dialog"] {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .rows,
   .skeleton,
   .skeleton > span {
     animation: none;
@@ -516,11 +399,6 @@ div.dialog[role="dialog"] {
 }
 
 /* ── 瑞士 ─────────────────────────────────────────────────── */
-
-:global([data-look="swiss"]) .search {
-  border-width: 0 0 1px;
-  border-radius: 0;
-}
 
 :global([data-look="swiss"]) .thumb {
   background: var(--wl-fill);

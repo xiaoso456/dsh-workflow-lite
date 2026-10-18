@@ -25,6 +25,7 @@ import type { HostAccess } from '../app/host.ts'
 import type { T } from '../i18n.ts'
 import { crumbs } from '../model/hostPath.ts'
 import { errorMessage } from '../rpc.ts'
+import { FilterBar, PathBar, UpRow } from './DirParts.tsx'
 import { Icon } from './Icon.tsx'
 import {
   CheckMark,
@@ -214,75 +215,61 @@ export function HostPicker(props: {
           </button>
         </header>
 
-        <div className={css.bar}>
-          {typing ? (
-            <form
-              className={css.addressForm}
-              onSubmit={(event) => {
-                event.preventDefault()
-                if (address.trim() !== '') go(address.trim())
+        <PathBar
+          label={t('pick.address')}
+          navRef={crumbsRef}
+          crumbs={crumbs(listing?.path ?? '').map((crumb) => ({
+            key: crumb.path,
+            label: crumb.label,
+            onGo: () => go(crumb.path),
+          }))}
+          editor={
+            typing ? (
+              <form
+                className={css.addressForm}
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  if (address.trim() !== '') go(address.trim())
+                }}
+              >
+                <input
+                  className={cx(ui.input, ui.mono, css.address)}
+                  value={address}
+                  aria-label={t('pick.address')}
+                  data-testid="wl-picker-address"
+                  spellCheck={false}
+                  autoComplete="off"
+                  // biome-ignore lint/a11y/noAutofocus: 点了「输入路径」就是要敲
+                  autoFocus
+                  onFocus={(event) => event.currentTarget.select()}
+                  onKeyDown={(event) => {
+                    if (event.key !== 'Escape') return
+                    event.stopPropagation()
+                    setTyping(false)
+                    setAddress(listing?.path ?? '')
+                  }}
+                  onChange={(event) => setAddress(event.currentTarget.value)}
+                />
+              </form>
+            ) : undefined
+          }
+          action={
+            <button
+              type="button"
+              className={cx(ui.btn, ui.icon, ui.small)}
+              data-tip={t('pick.typePath')}
+              aria-label={t('pick.typePath')}
+              aria-pressed={typing}
+              data-testid="wl-picker-type"
+              onClick={() => {
+                setAddress(listing?.path ?? '')
+                setTyping((value) => !value)
               }}
             >
-              <input
-                className={cx(ui.input, ui.mono, css.address)}
-                value={address}
-                aria-label={t('pick.address')}
-                data-testid="wl-picker-address"
-                spellCheck={false}
-                autoComplete="off"
-                // biome-ignore lint/a11y/noAutofocus: 点了「输入路径」就是要敲
-                autoFocus
-                onFocus={(event) => event.currentTarget.select()}
-                onKeyDown={(event) => {
-                  if (event.key !== 'Escape') return
-                  event.stopPropagation()
-                  setTyping(false)
-                  setAddress(listing?.path ?? '')
-                }}
-                onChange={(event) => setAddress(event.currentTarget.value)}
-              />
-            </form>
-          ) : (
-            <nav className={css.crumbs} ref={crumbsRef} aria-label={t('pick.address')}>
-              {/* 一级一个单元（分隔箭头 + 名字）：长出一级就从前一级背后展开，缩短就收回前一级背后（见 useTrail）；前面的盖在后面的上面。 */}
-              {crumbs(listing?.path ?? '').map((crumb, index, all) => (
-                <span
-                  key={crumb.path}
-                  className={css.crumbUnit}
-                  style={{ zIndex: all.length - index + 1 }}
-                >
-                  {index > 0 && (
-                    <span className={css.crumbSep} aria-hidden="true">
-                      <Icon name="chevronRight" size={12} />
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    className={css.crumb}
-                    aria-current={index === all.length - 1 ? 'location' : undefined}
-                    onClick={() => go(crumb.path)}
-                  >
-                    {crumb.label}
-                  </button>
-                </span>
-              ))}
-            </nav>
-          )}
-          <button
-            type="button"
-            className={cx(ui.btn, ui.icon, ui.small)}
-            data-tip={t('pick.typePath')}
-            aria-label={t('pick.typePath')}
-            aria-pressed={typing}
-            data-testid="wl-picker-type"
-            onClick={() => {
-              setAddress(listing?.path ?? '')
-              setTyping((value) => !value)
-            }}
-          >
-            <Icon name="pencil" size={13} />
-          </button>
-        </div>
+              <Icon name="pencil" size={13} />
+            </button>
+          }
+        />
 
         {(listing?.places.length ?? 0) > 0 && (
           <div className={css.places}>
@@ -324,34 +311,21 @@ export function HostPicker(props: {
           </div>
         )}
 
-        <div className={css.tools}>
-          <span className={css.filterBox}>
-            <Icon name="search" size={13} />
-            <input
-              className={css.filter}
-              value={filter}
-              placeholder={t('pick.filter')}
-              aria-label={t('pick.filter')}
-              data-testid="wl-picker-filter"
-              onKeyDown={(event) => {
-                if (event.key === 'Backspace' && filter === '' && parent !== null) {
-                  event.preventDefault()
-                  up()
-                }
-              }}
-              onChange={(event) => setFilter(event.currentTarget.value)}
-            />
-          </span>
-          <button
-            type="button"
-            className={cx(css.hiddenToggle, ui.fillOn)}
-            aria-pressed={hidden}
-            data-on={hidden}
-            onClick={() => setHidden((value) => !value)}
-          >
-            <FadeText text={t('pick.hidden')} on={hidden} />
-          </button>
-        </div>
+        <FilterBar
+          value={filter}
+          placeholder={t('pick.filter')}
+          onChange={setFilter}
+          hiddenLabel={t('pick.hidden')}
+          hidden={hidden}
+          onHidden={() => setHidden((value) => !value)}
+          testId="wl-picker-filter"
+          onKeyDown={(event) => {
+            if (event.key === 'Backspace' && filter === '' && parent !== null) {
+              event.preventDefault()
+              up()
+            }
+          }}
+        />
 
         <div className={css.listWrap} ref={stage.wrap}>
           <div
@@ -362,19 +336,13 @@ export function HostPicker(props: {
           >
             <div className={css.listBody} ref={rowsRef}>
               {parent !== null && (
-                <button
-                  type="button"
-                  className={cx(css.row, css.upRow)}
-                  data-testid="wl-picker-up"
-                  data-tip={`${t('pick.up')}（${t('pick.upKeys')}）`}
+                <UpRow
+                  label={t('pick.up')}
+                  meta={parent}
+                  tip={`${t('pick.up')}（${t('pick.upKeys')}）`}
+                  testId="wl-picker-up"
                   onClick={up}
-                >
-                  <span className={cx(css.entryIcon, css.upIcon)}>
-                    <Icon name="arrowRight" size={14} />
-                  </span>
-                  <span className={css.upName}>{t('pick.up')}</span>
-                  <span className={css.rowMeta}>{parent}</span>
-                </button>
+                />
               )}
               <Presence show={error !== null}>
                 {error !== null && <p className={css.error}>{error}</p>}

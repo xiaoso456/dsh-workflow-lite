@@ -455,7 +455,14 @@ export type StageDir = -1 | 0 | 1
  * 数据到了、换进新内容的那一刻先 `leave(dir)`（给旧内容留个影子往外走），内容换上之后 `enter(dir)`
  * （新内容从该来的一侧进来）。只放 Web Animation 的 transform / opacity。
  */
-export function useStage(): {
+export function useStage(
+  options: {
+    /** 旧内容淡出用多久（默认 150ms）。 */
+    outMs?: number
+    /** 新内容等多久再进来（默认 40ms；平级跳转不等）。行密、字多的列表把它设得接近 `outMs`，两层文字就不会叠在一起。 */
+    delayMs?: number
+  } = {},
+): {
   wrap: RefObject<HTMLDivElement>
   body: { current: HTMLElement | null }
   leave(dir: StageDir): void
@@ -463,55 +470,68 @@ export function useStage(): {
 } {
   const wrap = useRef<HTMLDivElement>(null)
   const body = useRef<HTMLElement | null>(null)
-  const leave = useCallback((dir: StageDir): void => {
-    const frame = wrap.current
-    const node = body.current
-    if (frame === null || node === null || REDUCED?.matches === true) return
-    const box = node.getBoundingClientRect()
-    const host = frame.getBoundingClientRect()
-    if (box.height === 0) return
-    const ghost = ghostClone(node)
-    Object.assign(ghost.node.style, {
-      position: 'absolute',
-      top: `${box.top - host.top}px`,
-      left: `${box.left - host.left}px`,
-      width: `${box.width}px`,
-      height: `${box.height}px`,
-      margin: '0',
-      // 数据还没到时旧内容是压暗着的（载入中）：影子从那个亮度开始淡。
-      opacity: getComputedStyle(frame.firstElementChild ?? frame).opacity,
-    })
-    ghost.place(frame)
-    const from = Number(ghost.node.style.opacity) || 1
-    ghost.node.animate(
-      [
-        { transform: 'none' },
-        { transform: dir === 0 ? 'translateY(-4px)' : `translateX(${-dir * STAGE_SHIFT}px)` },
-      ],
-      { duration: STAGE_IN_MS, easing: EASE_OUT, fill: 'forwards' },
-    )
-    const out = ghost.node.animate([{ opacity: from }, { opacity: 0 }], {
-      duration: STAGE_OUT_MS,
-      easing: 'linear',
-      fill: 'forwards',
-    })
-    const drop = (): void => ghost.node.remove()
-    out.finished.then(drop, drop)
-  }, [])
-  const enter = useCallback((dir: StageDir): void => {
-    const node = body.current
-    if (node === null || REDUCED?.matches === true) return
-    node.animate(
-      [
+  const outMs = options.outMs ?? STAGE_OUT_MS
+  const delayMs = options.delayMs ?? 40
+  const leave = useCallback(
+    (dir: StageDir): void => {
+      const frame = wrap.current
+      const node = body.current
+      if (frame === null || node === null || REDUCED?.matches === true) return
+      const box = node.getBoundingClientRect()
+      const host = frame.getBoundingClientRect()
+      if (box.height === 0) return
+      const ghost = ghostClone(node)
+      Object.assign(ghost.node.style, {
+        position: 'absolute',
+        top: `${box.top - host.top}px`,
+        left: `${box.left - host.left}px`,
+        width: `${box.width}px`,
+        height: `${box.height}px`,
+        margin: '0',
+        // 数据还没到时旧内容是压暗着的（载入中）：影子从那个亮度开始淡。
+        opacity: getComputedStyle(frame.firstElementChild ?? frame).opacity,
+      })
+      ghost.place(frame)
+      const from = Number(ghost.node.style.opacity) || 1
+      ghost.node.animate(
+        [
+          { transform: 'none' },
+          { transform: dir === 0 ? 'translateY(-4px)' : `translateX(${-dir * STAGE_SHIFT}px)` },
+        ],
+        { duration: STAGE_IN_MS, easing: EASE_OUT, fill: 'forwards' },
+      )
+      const out = ghost.node.animate([{ opacity: from }, { opacity: 0 }], {
+        duration: outMs,
+        easing: 'linear',
+        fill: 'forwards',
+      })
+      const drop = (): void => ghost.node.remove()
+      out.finished.then(drop, drop)
+    },
+    [outMs],
+  )
+  const enter = useCallback(
+    (dir: StageDir): void => {
+      const node = body.current
+      if (node === null || REDUCED?.matches === true) return
+      node.animate(
+        [
+          {
+            opacity: 0,
+            transform: dir === 0 ? 'translateY(4px)' : `translateX(${dir * STAGE_SHIFT}px)`,
+          },
+          { opacity: 1, transform: 'none' },
+        ],
         {
-          opacity: 0,
-          transform: dir === 0 ? 'translateY(4px)' : `translateX(${dir * STAGE_SHIFT}px)`,
+          duration: STAGE_IN_MS,
+          easing: EASE_OUT,
+          delay: dir === 0 ? 0 : delayMs,
+          fill: 'backwards',
         },
-        { opacity: 1, transform: 'none' },
-      ],
-      { duration: STAGE_IN_MS, easing: EASE_OUT, delay: dir === 0 ? 0 : 40, fill: 'backwards' },
-    )
-  }, [])
+      )
+    },
+    [delayMs],
+  )
   return useMemo(() => ({ wrap, body, leave, enter }), [leave, enter])
 }
 

@@ -85,15 +85,24 @@ function transformOf(view: ImageView): string {
   return `translate(calc(-50% + ${view.x}px), calc(-50% + ${view.y}px)) scale(${view.scale}) rotate(${view.rot}deg)`
 }
 
-export function ImageZoom(props: {
+/**
+ * 放大看图的整块内容：工具、画布、底栏。模态框（{@link ImageZoom}）和查看框里直接摆的那一份（`inline`）用的是同一块。
+ *
+ * - `modal`：自己带标题行（文件名、路径、✕）和底栏（快捷键提示、背景），打开就拿焦点，Esc 由外面的模态框管；
+ * - `inline`：摆在预览区里，上面一条工具（比例、适应、旋转，右边是背景），没有标题行和底栏。
+ *   不抢焦点（文件夹浏览里焦点要留在列表上，方向键换下一张）；点一下画布才拿焦点，之后 + − 0 1 R、方向键才归画布。
+ */
+function ImageCanvas(props: {
   t: T
   src: string
   alt: string
+  variant: 'modal' | 'inline'
   /** 文档里写的路径，标题下面那一行看；网上的图就是网址。 */
   path?: string
-  onClose(): void
+  onClose?: () => void
 }): React.JSX.Element {
   const { t } = props
+  const inline = props.variant === 'inline'
   const [viewer, setViewer] = useState<Viewer>(START)
   const [dragging, setDragging] = useState(false)
   const [backdrop, setBackdrop] = useState<Backdrop>('theme')
@@ -269,8 +278,8 @@ export function ImageZoom(props: {
 
   // 焦点落到框上，键盘（+ − 0 1 R、方向键）才有用。
   useEffect(() => {
-    root.current?.focus({ preventScroll: true })
-  }, [])
+    if (!inline) root.current?.focus({ preventScroll: true })
+  }, [inline])
 
   // 滚轮要自己接：React 的 onWheel 是被动监听，里面 preventDefault 不生效，页面会跟着滚。
   useEffect(() => {
@@ -313,15 +322,154 @@ export function ImageZoom(props: {
   // 数字是变大还是变小：读数往上滚还是往下滚（和步骤「轮次」的加减一样）。
   const trend = useTrend(percent)
 
-  return (
-    <Modal
-      label={name}
-      onDismiss={props.onClose}
-      className={overlay.sheetZoom}
-      testId="wl-image-zoom"
+  const tools = (
+    <div className={css.tools} role="group" aria-label={t('image.tools')}>
+      <button
+        type="button"
+        className={css.tool}
+        aria-label={t('image.zoomOut')}
+        data-tip={t('image.zoomOut')}
+        data-testid="wl-image-zoom-out"
+        disabled={natural === null}
+        onClick={() => zoomAt(1 / ZOOM_STEP, ORIGIN, true)}
+      >
+        <Icon name="zoomOut" size={16} />
+      </button>
+      <output
+        className={css.readout}
+        aria-label={t('image.zoomLevel')}
+        data-testid="wl-image-zoom-readout"
+      >
+        {/* 舞台还没量出尺寸时「适应」算出来的是个没意义的小数（2%）：先写「–」，别让读数从它滚到最终值。 */}
+        {ready ? <SwapText text={`${percent}%`} dir={trend} reserve={[READOUT_WIDEST]} /> : '–'}
+      </output>
+      <button
+        type="button"
+        className={css.tool}
+        aria-label={t('image.zoomIn')}
+        data-tip={t('image.zoomIn')}
+        data-testid="wl-image-zoom-in"
+        disabled={natural === null}
+        onClick={() => zoomAt(ZOOM_STEP, ORIGIN, true)}
+      >
+        <Icon name="zoomIn" size={16} />
+      </button>
+      <span className={css.sep} aria-hidden="true" />
+      <div className={css.pick}>
+        <PickThumb
+          layout={`${natural === null}|${fitting}|${actualOn}`}
+          item='[aria-pressed="true"]:not(:disabled)'
+          className={css.pickThumb}
+        />
+        <button
+          type="button"
+          className={css.tool}
+          aria-label={t('image.fit')}
+          aria-pressed={fitting}
+          data-tip={t('image.fit')}
+          data-testid="wl-image-zoom-fit"
+          disabled={natural === null}
+          onClick={fitWindow}
+        >
+          <Icon name="fit" size={16} />
+        </button>
+        <button
+          type="button"
+          className={cx(css.tool, css.actual)}
+          aria-pressed={actualOn}
+          data-tip={t('image.actual')}
+          data-testid="wl-image-zoom-actual"
+          disabled={natural === null}
+          onClick={actual}
+        >
+          1:1
+        </button>
+      </div>
+      <span className={css.sep} aria-hidden="true" />
+      <button
+        type="button"
+        className={css.tool}
+        aria-label={t('image.rotateLeft')}
+        data-tip={t('image.rotateLeft')}
+        data-testid="wl-image-zoom-rotate-left"
+        disabled={natural === null}
+        onClick={() => turn(-90)}
+      >
+        <Icon name="rotateLeft" size={16} />
+      </button>
+      <button
+        type="button"
+        className={css.tool}
+        aria-label={t('image.rotateRight')}
+        data-tip={t('image.rotateRight')}
+        data-testid="wl-image-zoom-rotate-right"
+        disabled={natural === null}
+        onClick={() => turn(90)}
+      >
+        <Icon name="rotateRight" size={16} />
+      </button>
+    </div>
+  )
+  const backdropPick = (
+    <Segmented
+      label={t('image.background')}
+      value={backdrop}
+      options={[
+        { value: 'theme', label: t('image.bgTheme') },
+        { value: 'checker', label: t('image.bgChecker') },
+      ]}
+      onChange={setBackdrop}
+      testId="wl-image-zoom-bg"
+    />
+  )
+  const stageNode = (
+    // biome-ignore lint/a11y/noStaticElementInteractions: 画布接指针（拖动、双击、滚轮），键盘操作走上面的工具栏与快捷键
+    <div
+      ref={stage}
+      className={cx(css.stage, backdrop === 'checker' && css.checker)}
+      data-testid="wl-image-zoom-stage"
+      data-pannable={pannable || undefined}
+      data-dragging={dragging || undefined}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+      onDoubleClick={onDoubleClick}
     >
-      {/* biome-ignore lint/a11y/noStaticElementInteractions: 键盘快捷键挂在框上（焦点落在这里），不是给这块静态区域用的 */}
-      <div ref={root} className={css.root} tabIndex={-1} onKeyDown={onKeyDown}>
+      {failed ? (
+        <p className={css.failed} role="alert">
+          {t('image.failed')}
+        </p>
+      ) : (
+        <img
+          ref={image}
+          className={cx(css.image, view.scale >= PIXEL_SCALE && css.pixel)}
+          src={props.src}
+          alt={props.alt}
+          draggable={false}
+          data-testid="wl-image-zoom-img"
+          data-ready={ready || undefined}
+          style={natural === null ? undefined : { width: natural.w, height: natural.h }}
+          onLoad={onLoad}
+          onError={onError}
+        />
+      )}
+      {!ready && !failed && (
+        <span className={css.spinner} role="status" aria-label={t('file.loading')} />
+      )}
+    </div>
+  )
+
+  return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: 键盘快捷键挂在框上（焦点落在这里），不是给这块静态区域用的
+    <div ref={root} className={css.root} tabIndex={-1} onKeyDown={onKeyDown}>
+      {inline ? (
+        <header className={css.inlineBar}>
+          {tools}
+          <span className={css.inlineSize}>{size}</span>
+          {backdropPick}
+        </header>
+      ) : (
         <header className={overlay.sheetHead}>
           <span className={overlay.sheetIcon}>
             <Icon name="image" size={16} />
@@ -330,95 +478,7 @@ export function ImageZoom(props: {
             <p className={cx(overlay.sheetTitle, css.name)}>{name}</p>
             {sub !== '' && <p className={overlay.sheetSub}>{sub}</p>}
           </div>
-          <div className={css.tools} role="group" aria-label={t('image.tools')}>
-            <button
-              type="button"
-              className={css.tool}
-              aria-label={t('image.zoomOut')}
-              data-tip={t('image.zoomOut')}
-              data-testid="wl-image-zoom-out"
-              disabled={natural === null}
-              onClick={() => zoomAt(1 / ZOOM_STEP, ORIGIN, true)}
-            >
-              <Icon name="zoomOut" size={16} />
-            </button>
-            <output
-              className={css.readout}
-              aria-label={t('image.zoomLevel')}
-              data-testid="wl-image-zoom-readout"
-            >
-              {natural === null ? (
-                '–'
-              ) : (
-                <SwapText text={`${percent}%`} dir={trend} reserve={[READOUT_WIDEST]} />
-              )}
-            </output>
-            <button
-              type="button"
-              className={css.tool}
-              aria-label={t('image.zoomIn')}
-              data-tip={t('image.zoomIn')}
-              data-testid="wl-image-zoom-in"
-              disabled={natural === null}
-              onClick={() => zoomAt(ZOOM_STEP, ORIGIN, true)}
-            >
-              <Icon name="zoomIn" size={16} />
-            </button>
-            <span className={css.sep} aria-hidden="true" />
-            <div className={css.pick}>
-              <PickThumb
-                layout={`${natural === null}|${fitting}|${actualOn}`}
-                item='[aria-pressed="true"]:not(:disabled)'
-                className={css.pickThumb}
-              />
-              <button
-                type="button"
-                className={css.tool}
-                aria-label={t('image.fit')}
-                aria-pressed={fitting}
-                data-tip={t('image.fit')}
-                data-testid="wl-image-zoom-fit"
-                disabled={natural === null}
-                onClick={fitWindow}
-              >
-                <Icon name="fit" size={16} />
-              </button>
-              <button
-                type="button"
-                className={cx(css.tool, css.actual)}
-                aria-pressed={actualOn}
-                data-tip={t('image.actual')}
-                data-testid="wl-image-zoom-actual"
-                disabled={natural === null}
-                onClick={actual}
-              >
-                1:1
-              </button>
-            </div>
-            <span className={css.sep} aria-hidden="true" />
-            <button
-              type="button"
-              className={css.tool}
-              aria-label={t('image.rotateLeft')}
-              data-tip={t('image.rotateLeft')}
-              data-testid="wl-image-zoom-rotate-left"
-              disabled={natural === null}
-              onClick={() => turn(-90)}
-            >
-              <Icon name="rotateLeft" size={16} />
-            </button>
-            <button
-              type="button"
-              className={css.tool}
-              aria-label={t('image.rotateRight')}
-              data-tip={t('image.rotateRight')}
-              data-testid="wl-image-zoom-rotate-right"
-              disabled={natural === null}
-              onClick={() => turn(90)}
-            >
-              <Icon name="rotateRight" size={16} />
-            </button>
-          </div>
+          {tools}
           <button
             type="button"
             className={cx(ui.btn, ui.icon, ui.small)}
@@ -429,58 +489,44 @@ export function ImageZoom(props: {
             <Icon name="x" size={15} />
           </button>
         </header>
+      )}
 
-        {/* biome-ignore lint/a11y/noStaticElementInteractions: 画布接指针（拖动、双击、滚轮），键盘操作走上面的工具栏与快捷键 */}
-        <div
-          ref={stage}
-          className={cx(css.stage, backdrop === 'checker' && css.checker)}
-          data-testid="wl-image-zoom-stage"
-          data-pannable={pannable || undefined}
-          data-dragging={dragging || undefined}
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerCancel={onPointerUp}
-          onDoubleClick={onDoubleClick}
-        >
-          {failed ? (
-            <p className={css.failed} role="alert">
-              {t('image.failed')}
-            </p>
-          ) : (
-            <img
-              ref={image}
-              className={cx(css.image, view.scale >= PIXEL_SCALE && css.pixel)}
-              src={props.src}
-              alt={props.alt}
-              draggable={false}
-              data-testid="wl-image-zoom-img"
-              data-ready={ready || undefined}
-              style={natural === null ? undefined : { width: natural.w, height: natural.h }}
-              onLoad={onLoad}
-              onError={onError}
-            />
-          )}
-          {!ready && !failed && (
-            <span className={css.spinner} role="status" aria-label={t('file.loading')} />
-          )}
-        </div>
+      {stageNode}
 
+      {!inline && (
         <footer className={overlay.sheetFoot}>
           <span className={overlay.sheetKeys}>{t('image.hint')}</span>
           <span className={ui.grow} />
-          <Segmented
-            label={t('image.background')}
-            value={backdrop}
-            options={[
-              { value: 'theme', label: t('image.bgTheme') },
-              { value: 'checker', label: t('image.bgChecker') },
-            ]}
-            onChange={setBackdrop}
-            testId="wl-image-zoom-bg"
-          />
+          {backdropPick}
         </footer>
-      </div>
+      )}
+    </div>
+  )
+}
+
+/** 点开 Markdown 里的一张图：模态框里放大看。 */
+export function ImageZoom(props: {
+  t: T
+  src: string
+  alt: string
+  /** 文档里写的路径，标题下面那一行看；网上的图就是网址。 */
+  path?: string
+  onClose(): void
+}): React.JSX.Element {
+  const name = props.alt.trim() === '' ? props.t('image.untitled') : props.alt.trim()
+  return (
+    <Modal
+      label={name}
+      onDismiss={props.onClose}
+      className={overlay.sheetZoom}
+      testId="wl-image-zoom"
+    >
+      <ImageCanvas {...props} variant="modal" />
     </Modal>
   )
+}
+
+/** 查看框、文件夹浏览里直接摆着的图：工具条在上面，画布铺满下面，不再点一下才弹框。 */
+export function ImageInline(props: { t: T; src: string; alt: string }): React.JSX.Element {
+  return <ImageCanvas {...props} variant="inline" />
 }

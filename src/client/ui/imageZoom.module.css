@@ -11,6 +11,26 @@
   outline: none;
 }
 
+/* 摆在预览区里（ImageInline）：上面一条工具，左边是工具组，右边是背景；图的大小写在中间。 */
+.inlineBar {
+  display: flex;
+  flex: none;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 14px;
+}
+
+.inlineSize {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* 文件名太长就截断，不撑开右边的工具。 */
 .name {
   overflow: hidden;

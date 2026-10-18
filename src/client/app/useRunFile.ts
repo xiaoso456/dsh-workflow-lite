@@ -17,6 +17,8 @@ export interface RunFile {
   file: RunFileResponse | null
   error: string | null
   loading: boolean
+  /** 最近读完（成功或失败）的是哪个目标（{@link fileTargetKey}）：和现在要看的对得上，`file` / `error` 才是它的。 */
+  settled: string
   reload(): void
 }
 
@@ -33,7 +35,8 @@ export function useRunFile(
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [tick, setTick] = useState(0)
-  const key = targetKey(target)
+  const [settled, setSettled] = useState('')
+  const key = fileTargetKey(target)
 
   // `key` 就是 target 的身份；`version` / `tick` 只是重读的信号。
   useEffect(() => {
@@ -47,10 +50,14 @@ export function useRunFile(
     rpc
       .call('run/file', { id: instance, ...target })
       .then((value) => {
-        if (alive) setFile(value)
+        if (!alive) return
+        setFile(value)
+        setSettled(key)
       })
       .catch((reason: unknown) => {
-        if (alive) setError(errorMessage(reason))
+        if (!alive) return
+        setError(errorMessage(reason))
+        setSettled(key)
       })
       .finally(() => {
         if (alive) setLoading(false)
@@ -66,10 +73,11 @@ export function useRunFile(
   }, [instance, key])
 
   const reload = useCallback(() => setTick((n) => n + 1), [])
-  return { file, error, loading, reload }
+  return { file, error, loading, settled, reload }
 }
 
-function targetKey(target: FileTarget | null): string {
+/** 一个读取目标的身份串（`useRunFile` 的 `settled` 就是它）。 */
+export function fileTargetKey(target: FileTarget | null): string {
   if (target === null) return ''
   return 'node' in target
     ? `n:${target.node}#${target.item}/${target.sub ?? ''}`
@@ -143,7 +151,7 @@ export function useRunImage(
     error: null,
     key: '',
   })
-  const key = targetKey(target)
+  const key = fileTargetKey(target)
   useEffect(() => {
     if (target === null) return
     const hit = cache.current.get(key)
@@ -184,7 +192,7 @@ export function useRunImages(
   instance: string,
   target: FileTarget,
 ): (src: string) => Promise<string> {
-  const key = targetKey(target)
+  const key = fileTargetKey(target)
   // `key` 就是 target 的身份：target 对象每次渲染都可能是新的，不拿它当依赖。
   return useMemo(() => {
     const cache = new Map<string, Promise<string>>()

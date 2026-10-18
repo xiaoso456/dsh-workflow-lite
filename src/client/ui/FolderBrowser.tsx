@@ -7,15 +7,22 @@
  * 图片整张显示、点一下放大，其余文本原样；标题行有复制路径、用其他程序打开。
  *
  * 看的都是文件夹资源里面的东西：每次请求带着「资源 + 往下的相对路径」，由主机把关，走不出这个文件夹。
- * 动的只有 transform / opacity：换层时列表朝进入的方向滑入，选中块跟着光标上下滑。
+ * 动的只有 transform / opacity：换层和文件选择框一个做法——新一层读回来后，旧列表留个影子往外退、新列表从另一侧进来
+ * （{@link useStage}），面包屑长出一级从前一级背后展开、缩短时收回去（{@link useTrail}）；选中块跟着光标上下滑。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/FolderBrowser
  */
 
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
-import type { RunDirEntry } from '../../shared/wire.ts'
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import type { RunDirEntry, RunDirResponse, RunFileResponse } from '../../shared/wire.ts'
 import type { Desktop } from '../app/desktop.ts'
-import { type FileTarget, useRunDir, useRunFile, useRunImages } from '../app/useRunFile.ts'
+import {
+  type FileTarget,
+  fileTargetKey,
+  useRunDir,
+  useRunFile,
+  useRunImages,
+} from '../app/useRunFile.ts'
 import type { T } from '../i18n.ts'
 import { fileBaseName, formatBytes } from '../model/fileKind.ts'
 import {
@@ -28,24 +35,38 @@ import {
 } from '../model/folderBrowse.ts'
 import { shortTime } from '../model/time.ts'
 import type { WorkflowLiteRpc } from '../rpc.ts'
-import { CopyButton, DocContent, docFormat } from './DocViewer.tsx'
+import { FilterBar, PathBar, UpRow } from './DirParts.tsx'
+import { CopyButton, type DocBody, DocContent, docFormat } from './DocViewer.tsx'
 import { FileTag } from './FileTag.tsx'
 import { fileBody } from './FileViewer.tsx'
 import files from './files.module.css'
 import css from './folder.module.css'
 import { Icon } from './Icon.tsx'
+import { type StageDir, useStage, useTrail } from './motion.tsx'
 import { OpenWith } from './OpenWith.tsx'
+import picker from './picker.module.css'
 import { cx } from './primitives.tsx'
 import { Segmented } from './Segmented.tsx'
 import ui from './ui.module.css'
 
 /** 列表每行的高度（px）。CSS 里读的是同一个值（`--fb-row`）：选中块按「第几行 × 行高」摆。 */
-const ROW = 36
+const ROW = 28
 
 /** 骨架行宽窄错开，像一串文件名。 */
 const SKELETON_ROWS = ['58%', '72%', '44%', '66%', '52%', '78%']
 
 type View = 'rendered' | 'source'
+
+/** 不列 `.` 开头的项（搜索词本身以 `.` 开头、或打开了「隐藏项」时照列）。 */
+function withoutHidden(
+  entries: readonly RunDirEntry[],
+  showHidden: boolean,
+  query: string,
+): readonly RunDirEntry[] {
+  return showHidden || query.trim().startsWith('.')
+    ? entries
+    : entries.filter((entry) => !entry.name.startsWith('.'))
+}
 
 export function FolderBrowser(props: {
   t: T
@@ -61,50 +82,87 @@ export function FolderBrowser(props: {
   const [sub, setSub] = useState('')
   const [query, setQuery] = useState('')
   const [cursor, setCursor] = useState<string | null>(null)
+  /** 要不要列出 `.` 开头的项（和选择框一样，默认不列）。 */
+  const [showHidden, setShowHidden] = useState(false)
   /** 窄屏时一次只看一栏：列表还是预览。 */
   const [pane, setPane] = useState<'list' | 'preview'>('list')
-  /** 换层的方向：进去 1、退出来 -1（决定列表从哪边滑进来）。 */
-  const [heading, setHeading] = useState<1 | -1>(1)
-  const { dir, error } = useRunDir(rpc, instance, node, index, sub)
+  const { dir: arrived, error } = useRunDir(rpc, instance, node, index, sub)
+  /** 列表上摆着的那一层：新一层读回来之前它还是上一层，读回来后先让旧的退场，再换上新的（见下面的 effect）。 */
+  const [dir, setDir] = useState<RunDirResponse | null>(null)
+  /** 换层的方向：进去 1、退出来 -1（决定旧的往哪边退、新的从哪边进）。 */
+  const heading = useRef<StageDir>(0)
+  /** 换层后光标落在哪一项（退回上一层时落在刚离开的那个目录上）；新一层换上时才用。 */
+  const landing = useRef<string | null>(null)
+  const stage = useStage({ outMs: 90, delayMs: 80 })
+  const crumbsFlip = useTrail()
   const uid = useId()
   const listRef = useRef<HTMLDivElement>(null)
-  const rowsRef = useRef<HTMLDivElement>(null)
+  const rowsRef = useCallback(
+    (node: HTMLDivElement | null): void => {
+      stage.body.current = node
+    },
+    [stage.body],
+  )
   const searchRef = useRef<HTMLInputElement>(null)
 
   /** 列表是不是已经换成了 `sub` 这一层（读回来之前还是上一层的，那时不让点）。 */
   const fresh = dir !== null && dir.sub === sub
   const entries = useMemo(() => dir?.entries ?? [], [dir])
-  const visible = useMemo(() => filterEntries(entries, query), [entries, query])
+  const listed = useMemo(
+    () => withoutHidden(entries, showHidden, query),
+    [entries, showHidden, query],
+  )
+  const visible = useMemo(() => filterEntries(listed, query), [listed, query])
   const names = useMemo(() => visible.map((item) => item.entry.name), [visible])
   const at = cursor === null ? -1 : names.indexOf(cursor)
   const current = at < 0 ? null : (visible[at]?.entry ?? null)
-  const dirs = useMemo(() => entries.filter((entry) => entry.dir).length, [entries])
+  const dirs = useMemo(() => listed.filter((entry) => entry.dir).length, [listed])
+  /** 列表上摆着的是哪一层（读回来之前还是上一层，「上一级」行、它右边写的名字都跟着它走，不跟目标层）。 */
+  const shownSub = dir === null ? sub : dir.sub
+  /** 列表第一行是「上一级」（不在根上时）：光标行、选中块都往下让一行。 */
+  const lead = shownSub === '' ? 0 : 1
 
   // 打开就把焦点放在列表上：方向键、回车立刻能用，打字会转去搜索框。
   useEffect(() => {
     listRef.current?.focus({ preventScroll: true })
   }, [])
 
-  // 光标走出可视区时把它带回来。
+  // 新一层读回来了：旧的那一层留个影子往外退（要趁它还在页面上），再换上新的，新的从该来的一侧进来。
+  useEffect(() => {
+    if (arrived === null || arrived.sub !== sub || arrived === dir) return
+    if (dir !== null && dir.sub !== arrived.sub) stage.leave(heading.current)
+    // 搜索词、光标跟着新的一层一起换：读回来之前旧列表原样压暗在那儿，不跟着跳。
+    if (dir === null || dir.sub !== arrived.sub) {
+      setQuery('')
+      setCursor(landing.current)
+    }
+    setDir(arrived)
+  }, [arrived, dir, sub, stage])
+  useLayoutEffect(() => {
+    if (dir === null) return
+    listRef.current?.scrollTo({ top: 0 })
+    stage.enter(heading.current)
+  }, [dir?.sub, stage])
+
+  // 光标走出可视区时把它带回来（换层后先回到顶，再带光标；所以也跟着 dir 走）。
   useEffect(() => {
     const list = listRef.current
-    const rows = rowsRef.current
+    const rows = stage.body.current
     if (list === null || rows === null || at < 0) return
-    const top = rows.offsetTop + at * ROW
+    const top = rows.offsetTop + (at + lead) * ROW
     const bottom = top + ROW
     if (top - 4 < list.scrollTop) list.scrollTop = Math.max(0, top - 4)
     else if (bottom + 4 > list.scrollTop + list.clientHeight) {
       list.scrollTop = bottom + 4 - list.clientHeight
     }
-  }, [at])
+  }, [at, lead, dir, stage.body])
 
   /** 去 `next` 那一层；`land` 是到了以后光标落在哪一项（退回上一层时落在刚离开的那个目录上）。 */
   const go = (next: string, move: 1 | -1, land: string | null = null): void => {
     if (next === sub) return
-    setHeading(move)
+    heading.current = move
+    landing.current = land
     setSub(next)
-    setQuery('')
-    setCursor(land)
     setPane('list')
   }
   const up = (): void => {
@@ -122,7 +180,11 @@ export function FolderBrowser(props: {
   const search = (value: string): void => {
     setQuery(value)
     // 筛出来的第一项当光标：打完字回车就是它。
-    setCursor(value.trim() === '' ? cursor : (filterEntries(entries, value)[0]?.entry.name ?? null))
+    setCursor(
+      value.trim() === ''
+        ? cursor
+        : (filterEntries(withoutHidden(entries, showHidden, value), value)[0]?.entry.name ?? null),
+    )
   }
   const move = (to: 'next' | 'prev' | 'first' | 'last'): void => {
     const next = stepCursor(names, current?.name ?? null, to)
@@ -194,14 +256,17 @@ export function FolderBrowser(props: {
   const count = filtering
     ? t('folder.countOf')
         .replace('{n}', String(visible.length))
-        .replace('{total}', String(entries.length))
-    : t('folder.count').replace('{n}', String(entries.length))
+        .replace('{total}', String(listed.length))
+    : t('folder.count').replace('{n}', String(listed.length))
   const tally = t('folder.tally')
     .replace('{dirs}', String(dirs))
-    .replace('{files}', String(entries.length - dirs))
+    .replace('{files}', String(listed.length - dirs))
+  /** 「上一级」右边写的：上一级是哪儿。 */
+  const parent = parentSub(shownSub)
+  const parentLabel = parent === '' ? props.rootName : `${props.rootName}/${parent}`
 
   let rows: React.ReactNode
-  if (error !== null && dir === null) {
+  if (error !== null && !fresh) {
     rows = (
       <p className={css.note}>
         <Icon name="alert" size={14} />
@@ -217,33 +282,40 @@ export function FolderBrowser(props: {
       </div>
     )
   } else if (!dir.exists) rows = <p className={css.note}>{t('res.folderMissing')}</p>
-  else if (entries.length === 0) rows = <p className={css.note}>{t('res.folderEmpty')}</p>
-  else if (visible.length === 0) {
-    rows = (
-      <p className={css.note} data-testid="wl-folder-nomatch">
-        {t('folder.noMatch').replace('{q}', query.trim())}
-        <button type="button" className={css.link} onClick={() => search('')}>
-          {t('folder.clear')}
-        </button>
-      </p>
-    )
-  } else {
+  else {
     rows = (
       <>
         <div
           ref={rowsRef}
-          key={dir.sub}
           className={css.rows}
-          data-stale={!fresh}
-          data-heading={heading}
-          style={{ height: visible.length * ROW }}
+          style={visible.length === 0 ? undefined : { minHeight: (visible.length + lead) * ROW }}
         >
           <span
+            key={dir.sub}
             className={css.thumb}
             data-on={at >= 0}
-            style={{ transform: `translateY(${Math.max(at, 0) * ROW}px)` }}
+            style={{ transform: `translateY(${(Math.max(at, 0) + lead) * ROW}px)` }}
             aria-hidden="true"
           />
+          {lead > 0 && (
+            <UpRow
+              label={t('pick.up')}
+              meta={parentLabel}
+              tip={`${t('pick.up')}（${t('folder.upKeys')}）`}
+              tabIndex={-1}
+              testId="wl-folder-up"
+              onClick={up}
+            />
+          )}
+          {listed.length === 0 && <p className={css.note}>{t('res.folderEmpty')}</p>}
+          {listed.length > 0 && visible.length === 0 && (
+            <p className={css.note} data-testid="wl-folder-nomatch">
+              {t('folder.noMatch').replace('{q}', query.trim())}
+              <button type="button" className={css.link} onClick={() => search('')}>
+                {t('folder.clear')}
+              </button>
+            </p>
+          )}
           {visible.map(({ entry, ranges }, position) => (
             // biome-ignore lint/a11y/useKeyWithClickEvents: 键盘在列表（listbox）上统一处理：方向键、回车
             <div
@@ -259,14 +331,8 @@ export function FolderBrowser(props: {
               data-name={entry.name}
               onClick={() => open(entry)}
             >
-              <span className={css.glyph}>
-                {entry.dir ? (
-                  <span className={css.dirGlyph}>
-                    <Icon name="folder" size={13} />
-                  </span>
-                ) : (
-                  <FileTag path={entry.name} />
-                )}
+              <span className={picker.entryIcon} data-dir={entry.dir}>
+                <Icon name={entry.dir ? 'folder' : 'file'} size={15} />
               </span>
               <span className={css.name}>
                 {splitByRanges(entry.name, ranges).map((part, partIndex) =>
@@ -294,83 +360,74 @@ export function FolderBrowser(props: {
     )
   }
 
-  const previewPath = current !== null && !current.dir ? joinSub(sub, current.name) : null
+  // 光标在文件上就看它（路径按列表上摆着的那一层拼，不按目标层：读回来之前光标还指着旧层的文件）。
+  // 光标到了目录上、或换层清空了光标，右边不动，继续看最近看的那份：换层不会把整块预览卸掉再空一下。
+  const live = current !== null && !current.dir ? joinSub(shownSub, current.name) : null
+  const [sticky, setSticky] = useState<string | null>(null)
+  useEffect(() => {
+    if (live !== null) setSticky(live)
+  }, [live])
+  const previewPath = live ?? sticky
 
   return (
     <div className={css.frame}>
       <div className={css.browser} data-pane={pane} data-testid="wl-folder-browser">
         <section className={css.side}>
-          <div className={css.tools}>
-            <span className={css.search}>
-              <Icon name="search" size={13} />
-              <input
-                ref={searchRef}
-                className={css.searchInput}
-                value={query}
-                placeholder={t('folder.search')}
-                aria-label={t('folder.search')}
-                spellCheck={false}
-                data-testid="wl-folder-search"
-                onKeyDown={onKeyDown}
-                onChange={(event) => search(event.currentTarget.value)}
-              />
-              {dir?.exists === true && entries.length > 0 && (
-                <span className={css.count}>{count}</span>
-              )}
-            </span>
+          {/* 顶上一条和右边标题行等高：路径栏（一级一个单元，见 PathBar）。 */}
+          <div className={css.top}>
+            <PathBar
+              label={t('folder.list')}
+              navRef={crumbsFlip}
+              plain
+              style={{ flex: '1 1 auto', margin: 0 }}
+              testId="wl-folder-crumbs"
+              crumbs={crumbs.map((crumb, position) => ({
+                key: crumb.sub ?? '…',
+                label: crumb.label,
+                ...(crumb.sub === null
+                  ? {}
+                  : { onGo: () => go(crumb.sub ?? '', position === crumbs.length - 1 ? 1 : -1) }),
+              }))}
+            />
           </div>
-
-          <nav className={css.crumbs} aria-label={t('folder.list')} data-testid="wl-folder-crumbs">
-            <button
-              type="button"
-              className={css.crumbBack}
-              data-tip={t('folder.up')}
-              aria-label={t('folder.up')}
-              disabled={sub === ''}
-              data-testid="wl-folder-up"
-              onClick={up}
-            >
-              <Icon name={sub === '' ? 'folder' : 'chevronLeft'} size={14} />
-            </button>
-            {crumbs.map((crumb, position) => {
-              const last = position === crumbs.length - 1
-              return (
-                <span key={crumb.sub ?? '…'} className={css.crumbItem}>
-                  {position > 0 && <Icon name="chevronRight" size={10} />}
-                  {crumb.sub === null || last ? (
-                    <span
-                      className={css.crumbHere}
-                      data-last={last}
-                      aria-current={last ? 'page' : undefined}
-                    >
-                      {crumb.label}
-                    </span>
-                  ) : (
-                    <button
-                      type="button"
-                      className={css.crumb}
-                      onClick={() => go(crumb.sub ?? '', -1, null)}
-                    >
-                      {crumb.label}
-                    </button>
-                  )}
-                </span>
-              )
-            })}
-          </nav>
-
-          <div
-            ref={listRef}
-            className={css.list}
-            role="listbox"
-            tabIndex={0}
-            aria-label={t('folder.list')}
-            aria-activedescendant={at >= 0 ? `${uid}-${at}` : undefined}
+          <FilterBar
+            inputRef={searchRef}
+            value={query}
+            placeholder={t('folder.search')}
+            onChange={search}
+            hiddenLabel={t('pick.hidden')}
+            hidden={showHidden}
+            onHidden={() => setShowHidden((value) => !value)}
             onKeyDown={onKeyDown}
+            plain
+            testId="wl-folder-search"
+            style={{ '--wl-sheet-inset': '12px' } as React.CSSProperties}
+            trailing={
+              dir?.exists === true && listed.length > 0 ? (
+                <span className={css.count}>{count}</span>
+              ) : undefined
+            }
+          />
+
+          {/* 外面这层只管定位和裁切：换层时旧列表的影子在里面往外退（useStage），不能越出列表框。 */}
+          <div
+            className={css.listWrap}
+            ref={stage.wrap}
             style={{ '--fb-row': `${ROW}px` } as React.CSSProperties}
-            data-testid="wl-folder-entries"
           >
-            {rows}
+            <div
+              ref={listRef}
+              className={css.list}
+              role="listbox"
+              tabIndex={0}
+              aria-label={t('folder.list')}
+              aria-activedescendant={at >= 0 ? `${uid}-${at}` : undefined}
+              onKeyDown={onKeyDown}
+              data-stale={!fresh}
+              data-testid="wl-folder-entries"
+            >
+              {rows}
+            </div>
           </div>
           <p className={css.keys}>{t('folder.keys')}</p>
         </section>
@@ -391,7 +448,6 @@ export function FolderBrowser(props: {
             </div>
           ) : (
             <FilePane
-              key={previewPath}
               t={t}
               rpc={rpc}
               instance={instance}
@@ -406,7 +462,21 @@ export function FolderBrowser(props: {
   )
 }
 
-/** 右边：一份文件的预览（标题行 + 正文）。换文件就整块重挂，视图回到「预览」。 */
+/** 右边摆着的那一份：哪个目标、读回来的结果（文件或错误）。 */
+interface Shown {
+  key: string
+  target: Extract<FileTarget, { node: string }>
+  file: RunFileResponse | null
+  error: string | null
+}
+
+/**
+ * 右边：一份文件的预览（标题行 + 正文）。
+ *
+ * 换文件时这块不重挂：新文件读回来之前，旧的原样摆着（读得慢才淡下去示意在等）；读回来的那一刻，
+ * 标题行换字，正文和左边的列表一个做法——旧正文留个影子很快淡掉，新正文随后进来（{@link useStage}）。
+ * 切「预览 / 源码」也走同一套。
+ */
 function FilePane(props: {
   t: T
   rpc: WorkflowLiteRpc
@@ -416,16 +486,53 @@ function FilePane(props: {
   onBack(): void
 }): React.JSX.Element {
   const { t, rpc, instance, target } = props
-  const { file, error, loading } = useRunFile(rpc, instance, target)
-  const image = useRunImages(rpc, instance, target)
+  const want = fileTargetKey(target)
+  const { file, error, settled } = useRunFile(rpc, instance, target)
+  const [shown, setShown] = useState<Shown | null>(null)
   const [view, setView] = useState<View>('rendered')
   const [failure, setFailure] = useState<string | null>(null)
-  const name = fileBaseName(target.sub ?? '')
-  const body = fileBody({ t, rpc, instance, target, file, error, loading })
+  const stage = useStage({ outMs: 90, delayMs: 70 })
+  const bodyRef = useCallback(
+    (node: HTMLDivElement | null): void => {
+      stage.body.current = node
+    },
+    [stage.body],
+  )
+
+  // 新文件读回来了：旧正文留个影子（要趁它还在页面上），再换上新的。
+  useEffect(() => {
+    if (settled !== want || (file === null && error === null) || shown?.key === want) return
+    if (shown !== null) stage.leave(0)
+    setShown({ key: want, target, file, error })
+    setView('rendered')
+    setFailure(null)
+  }, [settled, want, file, error, shown, target, stage])
+  useLayoutEffect(() => {
+    if (shown === null) return
+    stage.body.current?.scrollTo({ top: 0 })
+    stage.enter(0)
+  }, [shown?.key, view, stage])
+
+  const showing = shown?.target ?? target
+  const name = fileBaseName(showing.sub ?? '')
+  const body: DocBody =
+    shown === null
+      ? { kind: 'loading' }
+      : fileBody({
+          t,
+          rpc,
+          instance,
+          target: shown.target,
+          file: shown.file,
+          error: shown.error,
+          loading: false,
+        })
+  const image = useRunImages(rpc, instance, showing)
   const switchable = docFormat(body) !== 'plain'
+  const info = shown?.file ?? null
 
   return (
-    <div className={css.pane}>
+    <div className={css.pane} data-waiting={shown !== null && shown.key !== want}>
       <header className={css.paneHead}>
         <button
           type="button"
@@ -440,8 +547,8 @@ function FilePane(props: {
         <div className={css.paneTitle}>
           <span className={css.paneName}>{name}</span>
           <span className={css.paneMeta}>
-            {file?.exists === true
-              ? `${formatBytes(file.size)} · ${t('file.modified')} ${shortTime(file.mtime)}`
+            {info?.exists === true
+              ? `${formatBytes(info.size)} · ${t('file.modified')} ${shortTime(info.mtime)}`
               : ' '}
           </span>
         </div>
@@ -450,7 +557,10 @@ function FilePane(props: {
             <Segmented<View>
               label={t('file.rendered')}
               value={view}
-              onChange={setView}
+              onChange={(next) => {
+                stage.leave(0)
+                setView(next)
+              }}
               options={[
                 { value: 'rendered', label: t('file.rendered') },
                 { value: 'source', label: t('file.source') },
@@ -458,22 +568,21 @@ function FilePane(props: {
             />
           </div>
         )}
-        <CopyButton t={t} text={file?.path ?? null} />
+        <CopyButton t={t} text={info?.path ?? null} />
         <OpenWith
           t={t}
           desktop={props.desktop}
-          path={file?.exists === true ? file.path : null}
+          path={info?.exists === true ? info.path : null}
           compact
           onError={setFailure}
         />
       </header>
       {failure !== null && <p className={css.paneFailure}>{failure}</p>}
-      <div
-        className={cx(css.paneBody, body.kind === 'loading' ? undefined : files.viewerReveal)}
-        key={`${view}:${body.kind === 'loading'}`}
-        data-testid="wl-folder-file"
-      >
-        <DocContent t={t} body={body} view={view} name={name} image={image} />
+      {/* 外面这层只管定位和裁切：旧正文的影子在里面退（useStage），不能越出预览区。 */}
+      <div className={css.paneStage} ref={stage.wrap}>
+        <div className={css.paneBody} ref={bodyRef} data-testid="wl-folder-file">
+          <DocContent t={t} body={body} view={view} name={name} image={image} />
+        </div>
       </div>
     </div>
   )

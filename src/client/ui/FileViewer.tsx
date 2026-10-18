@@ -59,7 +59,6 @@ export function fileBody(props: {
           instance={props.instance}
           target={props.target}
           name={fileBaseName(file.display)}
-          path={file.display}
         />
       ),
     }

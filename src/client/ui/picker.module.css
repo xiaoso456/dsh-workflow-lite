@@ -95,6 +95,18 @@
   outline-offset: -2px;
 }
 
+/* 只是个字（折起来的「…」）：不能点。 */
+.crumb[data-static="true"] {
+  display: inline-flex;
+  align-items: center;
+  cursor: default;
+}
+
+.crumb[data-static="true"]:hover {
+  background: transparent;
+  color: var(--wl-text-2);
+}
+
 .crumbSep {
   display: inline-flex;
   flex: none;
@@ -442,4 +454,52 @@ button.hiddenToggle::after {
   .check {
     transition: none;
   }
+}
+
+/* ── 不画框的变体（文件夹浏览）：路径直接写在面板上，搜索框是淡底、开关不描边，整块没有线 ── */
+
+.bar[data-plain="true"] {
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+}
+
+.bar[data-plain="true"] .crumbUnit {
+  background: var(--wl-panel);
+}
+
+.bar[data-plain="true"] .crumb {
+  height: 26px;
+  padding: 0 7px;
+  font-family: inherit;
+  font-size: var(--wl-fs-body, 13px);
+  color: var(--wl-text-3);
+}
+
+.bar[data-plain="true"] .crumb:hover {
+  color: var(--wl-text);
+}
+
+.bar[data-plain="true"] .crumb[aria-current="location"] {
+  color: var(--wl-text);
+}
+
+.tools[data-plain="true"] {
+  padding: 0 var(--wl-sheet-inset, 16px) 10px;
+}
+
+.tools[data-plain="true"] .filterBox {
+  height: 30px;
+  border-color: transparent;
+  background: var(--wl-fill);
+}
+
+.tools[data-plain="true"] .filterBox:focus-within {
+  border-color: var(--wl-accent);
+}
+
+.tools[data-plain="true"] .hiddenToggle {
+  height: 30px;
+  border-color: transparent;
+  background: var(--wl-fill);
 }
