@@ -104,6 +104,16 @@ const SKILL_SOURCES: Record<string, { short: LocaleKey; full: LocaleKey }> = {
   custom: { short: 'skill.src.custom', full: 'skill.from.custom' },
 }
 
+/**
+ * SKILL.md 头部的键值里，值得给人看的那些：DSH 自己会往解析结果里附加管理用的键
+ * （技能管理器的 `dshSkillsManager` 之类，不在文件里），以 `dsh` 开头的一律不当成文件内容展示。
+ */
+export function fileMetadata(
+  metadata: Readonly<Record<string, unknown>> | undefined,
+): [string, unknown][] {
+  return Object.entries(metadata ?? {}).filter(([key]) => !/^dsh/iu.test(key))
+}
+
 /** 筛选 skill：名字或说明里有这几个字（不分大小写）。 */
 export function filterSkills(
   skills: readonly HostSkillEntry[],

@@ -898,7 +898,7 @@ async function run(session) {
   check(modelPlan.includes('artifacts/run/risks.md'), '文件应进计划，路径拼上产出根目录')
   check(modelPlan.includes(FILE_RULE), '文件的说明应进计划')
   check(modelPlan.includes('你是 leader'), '执行方式应进计划')
-  // 排版视图里反引号已经渲染成代码样式，textContent 里没有它们。
+  // 预览视图里反引号已经渲染成代码样式，textContent 里没有它们。
   check(
     modelPlan.includes('资源 res-changes：implement 产出；step 在原文件上更新。'),
     '资源块应写清谁产出、谁在原文件上更新',
@@ -916,10 +916,10 @@ async function run(session) {
     session,
     `(document.querySelector('[data-testid="wl-plan-text"]')?.textContent || '').includes('检查所有测试是否通过。')`,
   )
-  // 默认按 Markdown 排版：计划里的事实表渲染成真正的表格；切到源码就是原文。
+  // 默认是「预览」（按 Markdown 渲染）：计划里的事实表渲染成真正的表格；切到源码就是原文。
   check(
     await session.evaluate(`document.querySelector('[data-testid="wl-plan-text"] table') !== null`),
-    '排版视图里应有渲染出来的表格',
+    '预览视图里应有渲染出来的表格',
   )
   await screenshot(session, 'ui-04-plan.png')
   await session.evaluate(
@@ -931,7 +931,7 @@ async function run(session) {
   )
   await pressKey(session, 'Escape')
   await waitFor(session, `document.querySelector('[data-testid="wl-plan"]') === null`)
-  pass('预览计划：两个版本都对，默认排版、可切源码，Esc 关闭')
+  pass('预览计划：两个版本都对，默认预览、可切源码，Esc 关闭')
 
   // 10a) 步骤库：两节都能收起展开。
   await session.evaluate(clickTestId('wl-lib-section-builtin'))

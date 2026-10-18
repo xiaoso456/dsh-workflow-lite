@@ -14,6 +14,7 @@ import {
 } from '../../src/client/model/layout.ts'
 import {
   addItems,
+  fileMetadata,
   filterSkills,
   freeFilePath,
   itemLocation,
@@ -120,6 +121,21 @@ describe('面板清单里的一行', () => {
     expect(itemLocation({ kind: 'skill', value: 'pdf' }, undefined, false).text).toBe('')
     expect(itemLocation({ kind: 'text', value: 'x' }, undefined, false).text).toBe('')
     expect(itemLocation(file('  '), undefined, false).text).toBe('')
+  })
+
+  it('SKILL.md 头部的键值：DSH 自己附加的（dsh 开头）不当成文件内容展示', () => {
+    expect(fileMetadata(undefined)).toEqual([])
+    expect(
+      fileMetadata({
+        author: 'me',
+        dshSkillsManager: { root: 'agents' },
+        DSH_internal: 1,
+        version: 2,
+      }),
+    ).toEqual([
+      ['author', 'me'],
+      ['version', 2],
+    ])
   })
 
   it('Skill 的来源：认识的给短签和全称，不认识的原样；筛选看名字和说明、不分大小写', () => {

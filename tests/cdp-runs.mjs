@@ -1992,8 +1992,8 @@ window.addEventListener('load', () => {
   const viewButtons = () =>
     `[...document.querySelectorAll('[data-testid="wl-file-viewer"] header button')]`
   check(
-    await session.evaluate(`${viewButtons()}.some((button) => button.textContent === '页面')`),
-    'HTML 的排版视图叫「页面」',
+    await session.evaluate(`${viewButtons()}.some((button) => button.textContent === '预览')`),
+    'HTML 的渲染视图和 Markdown 一样叫「预览」',
   )
   await new Promise((resolve) => setTimeout(resolve, 300))
   await screenshot(session, 'runs-11b-html.png')

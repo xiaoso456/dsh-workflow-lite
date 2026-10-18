@@ -392,7 +392,7 @@ div.viewer {
   color-scheme: light;
 }
 
-/* 源码和排版同一个版心（780 宽居中），两边切换时左边缘不跳。 */
+/* 源码和预览同一个版心（780 宽居中），两边切换时左边缘不跳。 */
 .viewerSource {
   max-width: 780px;
   margin: 0 auto;

@@ -18,7 +18,7 @@ import { Icon, type IconName } from './Icon.tsx'
 import overlay from './overlay.module.css'
 import { cx } from './primitives.tsx'
 import css from './resource.module.css'
-import { skillSource } from './resourceUi.ts'
+import { fileMetadata, skillSource } from './resourceUi.ts'
 import ui from './ui.module.css'
 
 /** 底部的那个按钮（不给就没有底部）。 */
@@ -72,7 +72,7 @@ function SkillMeta(props: { t: T; skill: HostSkillResponse }): React.JSX.Element
   if (skill.whenToUse !== undefined && skill.whenToUse.trim() !== '') {
     fields.push({ key: 'whenToUse', label: t('skill.whenToUse'), value: skill.whenToUse })
   }
-  for (const [key, value] of Object.entries(skill.metadata ?? {})) {
+  for (const [key, value] of fileMetadata(skill.metadata)) {
     const text = metaText(value)
     if (value !== null && value !== undefined && text.trim() !== '')
       fields.push({ key, value: text })

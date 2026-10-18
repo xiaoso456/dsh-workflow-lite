@@ -1,7 +1,7 @@
 /**
  * dsh-workflow-lite — 看一份文档的模态框（产出文件、SKILL.md 共用）。
  *
- * 标题行：图标、名字、一行元信息，右边「排版 / 源码」（Markdown、HTML 才有）、复制路径、
+ * 标题行：图标、名字、一行元信息，右边「预览 / 源码」（Markdown、HTML 才有）、复制路径、
  * 用其他程序打开（含在文件管理器中显示）、关闭。正文：Markdown 默认排版，HTML 默认在沙箱框里渲染
  * （能跑脚本，但是独立的源：碰不到画布、拿不到登录态），其余原样；读不了的只说明原因。
  * 有说明（`note`）时标题行多一个「说明」开关，点开从右边滑出一栏，不占正文的地方。
@@ -83,7 +83,7 @@ export function DocViewer(props: {
   const [noteOpen, setNoteOpen] = useState(false)
   const note = props.note?.trim() ?? ''
   const format = body.kind === 'text' ? body.format : 'plain'
-  // 有排版视图的格式：可以在「排版 / 源码」之间切。
+  // 有排版视图的格式：可以在「预览 / 源码」之间切。
   const formatted = format !== 'plain'
 
   const state = (icon: IconName, text: string): React.JSX.Element => (
@@ -165,10 +165,7 @@ export function DocViewer(props: {
               options={[
                 ...(formatted
                   ? [
-                      {
-                        value: 'rendered' as const,
-                        label: t(format === 'html' ? 'file.page' : 'file.rendered'),
-                      },
+                      { value: 'rendered' as const, label: t('file.rendered') },
                       { value: 'source' as const, label: t('file.source') },
                     ]
                   : [{ value: 'rendered' as const, label: t('file.text') }]),
