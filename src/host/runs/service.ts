@@ -54,7 +54,7 @@ import type {
   ValidationProblem,
   WorkflowDocument,
 } from '../../shared/types.ts'
-import type { RunFileResponse, RunImageResponse } from '../../shared/wire.ts'
+import type { RunDirResponse, RunFileResponse, RunImageResponse } from '../../shared/wire.ts'
 import { type CompileBundle, compileDocument } from '../plan.ts'
 import {
   ensureDir,
@@ -66,12 +66,16 @@ import {
 import { assetsDir } from '../store/paths.ts'
 import type { Outcome } from '../store/repository.ts'
 import {
+  cleanSub,
   itemLocation,
   type RunFileTarget,
+  readRunDir,
   readRunFile,
   readRunImage,
+  realInside,
   resolveImageRef,
   resolveRunFile,
+  resolveSelfImage,
 } from './files.ts'
 import {
   answersFile,
@@ -857,13 +861,17 @@ export class RunService {
     return located.ok ? { ok: true, result: located.result.file } : located
   }
 
-  /** 实例里一份 Markdown 引用的本地图片（按文档所在目录解析，见 {@link resolveImageRef}）。 */
-  async image(id: string, target: RunFileTarget, src: string): Promise<Outcome<RunImageResponse>> {
+  /**
+   * 实例里的一张本地图片：`src` 是 Markdown 里写的相对路径，按文档所在目录解析（见 {@link resolveImageRef}）；
+   * 不给 `src` 就是目标文件自己（文件夹里点开一张图）。
+   */
+  async image(id: string, target: RunFileTarget, src?: string): Promise<Outcome<RunImageResponse>> {
     const located = await this.locateFile(id, target)
     if (!located.ok) return located
     const { record, file } = located.result
     if (!file.exists) return fail('not_found', `文档不存在：${file.display}`)
-    const resolved = resolveImageRef(record.cwd, file.path, src)
+    const resolved =
+      src === undefined ? resolveSelfImage(file.path) : resolveImageRef(record.cwd, file.path, src)
     if (!resolved.ok) return resolved
     try {
       return await readRunImage(resolved.result.full, resolved.result.mime)
@@ -875,11 +883,36 @@ export class RunService {
     }
   }
 
-  /** 找到并读出实例里的一份文件（连同实例记录，算图片路径要用它的工作区）。 */
-  private async locateFile(
+  /** 看资源里一个文件夹（或它下面的子文件夹）里有什么：只列这一层，名字、是不是目录、大小、修改时间。 */
+  async dir(
+    id: string,
+    target: { node: string; item: number; sub?: string },
+  ): Promise<Outcome<RunDirResponse>> {
+    const resolved = await this.resolveTarget(id, target)
+    if (!resolved.ok) return resolved
+    const { full, display } = resolved.result.found
+    try {
+      return { ok: true, result: await readRunDir(full, display, resolved.result.sub) }
+    } catch (error) {
+      return fail(
+        'io_error',
+        `读文件夹失败：${error instanceof Error ? error.message : String(error)}`,
+      )
+    }
+  }
+
+  /** 把目标解析到实例里的一个位置（实例、快照、路径一并查过）。 */
+  private async resolveTarget(
     id: string,
     target: RunFileTarget,
-  ): Promise<Outcome<{ record: InstanceRecord; file: RunFileResponse }>> {
+  ): Promise<
+    Outcome<{
+      record: InstanceRecord
+      document: WorkflowDocument
+      found: { full: string; display: string; root?: string }
+      sub: string
+    }>
+  > {
     if (!isInstanceId(id)) return fail('invalid_args', `实例 id 不合法：${id}`)
     const record = (await this.store.read()).instances.find((candidate) => candidate.id === id)
     if (record === undefined) return fail('not_found', `实例 ${id} 不存在`)
@@ -888,12 +921,33 @@ export class RunService {
     const document = this.withAssets(record, snapshot)
     const resolved = resolveRunFile(record, document, target)
     if (!resolved.ok) return resolved
+    if (
+      resolved.result.root !== undefined &&
+      !(await realInside(resolved.result.root, resolved.result.full))
+    ) {
+      return fail('invalid_args', '只能看文件夹里面的东西')
+    }
+    const sub = 'node' in target ? cleanSub(target.sub) : null
+    return {
+      ok: true,
+      result: { record, document, found: resolved.result, sub: sub?.ok === true ? sub.result : '' },
+    }
+  }
+
+  /** 找到并读出实例里的一份文件（连同实例记录，算图片路径要用它的工作区）。 */
+  private async locateFile(
+    id: string,
+    target: RunFileTarget,
+  ): Promise<Outcome<{ record: InstanceRecord; file: RunFileResponse }>> {
+    const located = await this.resolveTarget(id, target)
+    if (!located.ok) return located
+    const { record, document, found: resolved } = located.result
     try {
-      const found = await readRunFile(resolved.result.full, resolved.result.display)
+      const found = await readRunFile(resolved.full, resolved.display)
       // 模型报告的产出可能是相对产出根目录写的：工作区里没有时再到根目录下找。
       if (!found.exists && 'path' in target) {
         const alt = resolveRunFile(record, document, target, true)
-        if (alt.ok && alt.result.full !== resolved.result.full) {
+        if (alt.ok && alt.result.full !== resolved.full) {
           const second = await readRunFile(alt.result.full, alt.result.display)
           if (second.exists) return { ok: true, result: { record, file: second } }
         }

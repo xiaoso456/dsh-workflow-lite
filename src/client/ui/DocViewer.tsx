@@ -48,6 +48,98 @@ export type DocBody =
 
 type View = 'rendered' | 'source' | 'edit'
 
+/** 复制按钮：点一下复制 `text`，图标换成对勾停一会儿。`text` 为 `null` 时禁用。 */
+export function CopyButton(props: {
+  t: T
+  text: string | null
+  /** 悬停提示与无障碍名（缺省「复制路径」）。 */
+  label?: string | undefined
+}): React.JSX.Element {
+  const { t, text } = props
+  const [copied, setCopied] = useState(false)
+  const label = props.label ?? t('file.copyPath')
+  return (
+    <button
+      type="button"
+      className={cx(ui.btn, ui.icon, ui.small)}
+      data-tip={copied ? t('common.copied') : label}
+      aria-label={label}
+      disabled={text === null}
+      onClick={() => {
+        if (text === null) return
+        void copyText(text).then((ok) => {
+          if (!ok) return
+          setCopied(true)
+          window.setTimeout(() => setCopied(false), 1400)
+        })
+      }}
+    >
+      <SwapIcon name={copied ? 'check' : 'copy'} size={14} />
+    </button>
+  )
+}
+
+/** 正文是哪种格式：Markdown、HTML 有「预览 / 源码」两个视图，其余原样。 */
+export function docFormat(body: DocBody): 'plain' | 'markdown' | 'html' {
+  return body.kind === 'text' ? body.format : 'plain'
+}
+
+/**
+ * 正文区里的那块内容：读取中的骨架、读不了的原因、预览 / 源码。
+ * 查看框（{@link DocViewer}）和文件夹浏览（右边预览一份文件）共用。
+ */
+export function DocContent(props: {
+  t: T
+  body: DocBody
+  /** 有两个视图的格式（Markdown、HTML）按它显示；别的格式不看它。 */
+  view: 'rendered' | 'source'
+  /** iframe 的标题。 */
+  name: string
+  image?: ImageSource | undefined
+}): React.JSX.Element {
+  const { t, body, view } = props
+  const format = docFormat(body)
+  const state = (icon: IconName, text: string): React.JSX.Element => (
+    <div className={css.viewerState} data-testid="wl-viewer-state">
+      <span className={css.viewerStateIcon}>
+        <Icon name={icon} size={20} />
+      </span>
+      <span>{text}</span>
+    </div>
+  )
+  if (body.kind === 'loading') {
+    // 骨架：几行灰条轻轻呼吸，读得快的（多半是本地文件）稍等才出来，不闪一下。
+    return (
+      <div className={css.skeleton} role="status" aria-label={t('file.loading')}>
+        {SKELETON.map((width, index) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: 固定的几行占位，不增不减
+          <span key={index} style={{ width }} />
+        ))}
+      </div>
+    )
+  }
+  if (body.kind === 'state') return state(body.icon, body.text)
+  if (body.kind === 'node') return <>{body.node}</>
+  if (body.text === '') return state('file', t('file.empty'))
+  if (format === 'markdown' && view === 'rendered') {
+    return <Markdown t={t} text={body.text} className={css.viewerDoc} image={props.image} />
+  }
+  if (format === 'html' && view === 'rendered') {
+    return (
+      <iframe
+        className={css.viewerFrame}
+        title={props.name}
+        srcDoc={withPreviewStyle(body.text)}
+        // 只给脚本：没有 allow-same-origin，页面是个独立的源，读不到画布的存储与登录态，也跳不走顶层。
+        sandbox="allow-scripts"
+        referrerPolicy="no-referrer"
+        data-testid="wl-viewer-frame"
+      />
+    )
+  }
+  return <pre className={css.viewerSource}>{body.text}</pre>
+}
+
 export function DocViewer(props: {
   t: T
   /** 标题（也是对话框的无障碍名）。 */
@@ -78,26 +170,15 @@ export function DocViewer(props: {
 }): React.JSX.Element {
   const { t, body, edit } = props
   const [view, setView] = useState<View>(edit?.start === true ? 'edit' : 'rendered')
-  const [copied, setCopied] = useState(false)
   const [failure, setFailure] = useState<string | null>(null)
   const [noteOpen, setNoteOpen] = useState(false)
   const note = props.note?.trim() ?? ''
-  const format = body.kind === 'text' ? body.format : 'plain'
-  // 有排版视图的格式：可以在「预览 / 源码」之间切。
+  const format = docFormat(body)
+  // 有预览视图的格式：可以在「预览 / 源码」之间切。
   const formatted = format !== 'plain'
 
-  const state = (icon: IconName, text: string): React.JSX.Element => (
-    <div className={css.viewerState} data-testid="wl-viewer-state">
-      <span className={css.viewerStateIcon}>
-        <Icon name={icon} size={20} />
-      </span>
-      <span>{text}</span>
-    </div>
-  )
-
-  let content: React.ReactNode
-  if (view === 'edit' && edit !== undefined && body.kind === 'text') {
-    content = (
+  const content: React.ReactNode =
+    view === 'edit' && edit !== undefined && body.kind === 'text' ? (
       <textarea
         className={cx(ui.textarea, css.viewerEdit)}
         value={body.text}
@@ -110,35 +191,15 @@ export function DocViewer(props: {
         autoFocus
         onChange={(event) => edit.onChange(event.currentTarget.value)}
       />
-    )
-  } else if (body.kind === 'loading') {
-    // 骨架：几行灰条轻轻呼吸，读得快的（多半是本地文件）稍等才出来，不闪一下。
-    content = (
-      <div className={css.skeleton} role="status" aria-label={t('file.loading')}>
-        {SKELETON.map((width, index) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: 固定的几行占位，不增不减
-          <span key={index} style={{ width }} />
-        ))}
-      </div>
-    )
-  } else if (body.kind === 'state') content = state(body.icon, body.text)
-  else if (body.kind === 'node') content = body.node
-  else if (body.text === '') content = state('file', t('file.empty'))
-  else if (format === 'markdown' && view === 'rendered') {
-    content = <Markdown t={t} text={body.text} className={css.viewerDoc} image={props.image} />
-  } else if (format === 'html' && view === 'rendered') {
-    content = (
-      <iframe
-        className={css.viewerFrame}
-        title={props.name}
-        srcDoc={withPreviewStyle(body.text)}
-        // 只给脚本：没有 allow-same-origin，页面是个独立的源，读不到画布的存储与登录态，也跳不走顶层。
-        sandbox="allow-scripts"
-        referrerPolicy="no-referrer"
-        data-testid="wl-viewer-frame"
+    ) : (
+      <DocContent
+        t={t}
+        body={body}
+        view={view === 'source' ? 'source' : 'rendered'}
+        name={props.name}
+        image={props.image}
       />
     )
-  } else content = <pre className={css.viewerSource}>{body.text}</pre>
 
   return (
     <Modal
@@ -174,23 +235,7 @@ export function DocViewer(props: {
             />
           </div>
         )}
-        <button
-          type="button"
-          className={cx(ui.btn, ui.icon, ui.small)}
-          data-tip={copied ? t('common.copied') : (props.copyLabel ?? t('file.copyPath'))}
-          aria-label={props.copyLabel ?? t('file.copyPath')}
-          disabled={props.copyPath === null}
-          onClick={() => {
-            if (props.copyPath === null) return
-            void copyText(props.copyPath).then((ok) => {
-              if (!ok) return
-              setCopied(true)
-              window.setTimeout(() => setCopied(false), 1400)
-            })
-          }}
-        >
-          <SwapIcon name={copied ? 'check' : 'copy'} size={14} />
-        </button>
+        <CopyButton t={t} text={props.copyPath} label={props.copyLabel} />
         <OpenWith t={t} desktop={props.desktop} path={props.openPath} onError={setFailure} />
         <button
           type="button"

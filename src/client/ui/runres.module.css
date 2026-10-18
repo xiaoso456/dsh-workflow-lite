@@ -1,6 +1,6 @@
 /**
  * dsh-workflow-lite — 实例视图右栏的资源：描述、内容清单（每项一行 + 行尾的查看 / 打开）、用到它的步骤，
- * 以及点开一项后各种内容的详情（文件夹里有什么、网址、自定义文字）。
+ * 以及点开一项后各种内容的详情（网址、自定义文字；文件夹见 folder.module.css）。
  *
  * 清单的样子和属性面板里的内容清单一致（一组行包在一张卡里、行间细线、图标占两行高）。
  */
@@ -170,7 +170,7 @@
 
 /* ── 详情框 ───────────────────────────────────────────────── */
 
-/* 文件夹、网址、自定义文字的详情框比看文件的小：内容不多，不占满屏。 */
+/* 网址、自定义文字的详情框比看文件的小：内容不多，不占满屏。 */
 div.small {
   height: auto;
   max-height: min(640px, calc(100% - 48px));
@@ -207,47 +207,6 @@ div.small {
   color: var(--wl-text-3);
   font-size: var(--wl-fs-micro);
   font-weight: 600;
-}
-
-/* 文件夹里有什么：一行一个，目录在前。 */
-.entries {
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.entry {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  min-height: 30px;
-  padding: 0 4px;
-  border-radius: calc(6px * var(--wl-round, 1));
-  color: var(--wl-text);
-  font-family: var(--wl-mono);
-  font-size: var(--wl-fs-micro);
-  transition: background-color 120ms linear;
-}
-
-.entry:hover {
-  background: var(--wl-hover);
-}
-
-.entry[data-dir="true"] {
-  color: var(--wl-text);
-  font-weight: 600;
-}
-
-.entryIcon {
-  display: inline-flex;
-  flex: none;
-  color: var(--wl-text-3);
-}
-
-.entry[data-dir="true"] .entryIcon {
-  color: var(--wl-c-olive);
 }
 
 .link {

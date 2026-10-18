@@ -84,6 +84,7 @@ export const WORKFLOW_LITE_ENDPOINTS = [
   'run/start',
   'run/file',
   'run/image',
+  'run/dir',
   'host/list',
   'host/skills',
   'host/skill',
@@ -401,6 +402,7 @@ export interface WorkflowLiteRpcMap {
   'run/start': { args: RunStartRequest; result: RunStartResponse }
   'run/file': { args: RunFileRequest; result: RunFileResponse }
   'run/image': { args: RunImageRequest; result: RunImageResponse }
+  'run/dir': { args: RunDirRequest; result: RunDirResponse }
   'host/list': { args: HostListRequest; result: HostListResponse }
   'host/skills': { args: HostSkillsRequest; result: HostSkillsResponse }
   'host/skill': { args: HostSkillRequest; result: HostSkillResponse }
@@ -576,6 +578,11 @@ export interface RunFileRequest {
   node?: string
   item?: number
   path?: string
+  /**
+   * `node` + `item` 指向文件夹时，看文件夹里的哪一份：相对那个文件夹的路径（`/` 分隔，只能往下走，
+   * 不许 `..`、不许落到文件夹外面——软链指出去的也不行）。
+   */
+  sub?: string
 }
 export interface RunFileResponse {
   /** 绝对路径（交给系统程序打开用）。 */
@@ -600,12 +607,48 @@ export const RUN_IMAGE_MAX = 8 * 1024 * 1024
  * 必须在实例工作区里，或在文档自己的目录下（产出根目录是工作区外的绝对路径时）。
  */
 export interface RunImageRequest extends RunFileRequest {
-  src: string
+  /** 不给就是目标文件自己（它得是张图）：文件夹里点开一张图用的。 */
+  src?: string
 }
 export interface RunImageResponse {
   mime: string
   /** 图片字节的 base64。 */
   data: string
+}
+
+/** `run/dir` 一次最多列多少项。 */
+export const RUN_DIR_MAX = 3000
+
+/**
+ * `run/dir`：看资源里一个文件夹（及它下面的子文件夹）里有什么。`node` + `item` 定位文件夹项，
+ * `sub` 是往下走的相对路径（缺省 = 文件夹本身），规矩同 {@link RunFileRequest.sub}。
+ */
+export interface RunDirRequest {
+  id: string
+  node: string
+  item?: number
+  sub?: string
+}
+export interface RunDirEntry {
+  name: string
+  dir: boolean
+  /** 字节数；文件夹是 0。 */
+  size: number
+  mtime: number
+}
+export interface RunDirResponse {
+  /** 这一层的绝对路径。 */
+  path: string
+  /** 给人看的路径。 */
+  display: string
+  /** 整理过的 `sub`（`/` 分隔、没有首尾斜杠；根是空串）。 */
+  sub: string
+  /** 目录在不在（不在时 `entries` 为空）。 */
+  exists: boolean
+  /** 目录在前、各自按名字排（数字按大小）；`.` 开头的也列。 */
+  entries: RunDirEntry[]
+  /** 条目太多只列了一部分。 */
+  truncated: boolean
 }
 
 /** `run/storage`：存储统计与清理。 */

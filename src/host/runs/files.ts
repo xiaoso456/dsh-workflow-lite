@@ -10,7 +10,7 @@
  * @module @xiaoso/dsh-workflow-lite/host/runs/files
  */
 
-import { open, readFile, stat } from 'node:fs/promises'
+import { open, readdir, readFile, realpath, stat } from 'node:fs/promises'
 import { dirname, extname, isAbsolute, join, relative, resolve } from 'node:path'
 import { isResource } from '../../shared/model.ts'
 import { resolveItemPath, resolveOutputPath } from '../../shared/outputPaths.ts'
@@ -18,9 +18,12 @@ import { resourceGraph } from '../../shared/resources.ts'
 import type { InstanceRecord } from '../../shared/runState.ts'
 import type { WorkflowDocument } from '../../shared/types.ts'
 import {
+  RUN_DIR_MAX,
   RUN_FILE_HTML_MAX,
   RUN_FILE_TEXT_MAX,
   RUN_IMAGE_MAX,
+  type RunDirEntry,
+  type RunDirResponse,
   type RunFileKind,
   type RunFileResponse,
   type RunImageResponse,
@@ -38,8 +41,38 @@ function textKind(full: string): RunFileKind {
   return HTML.has(ext) ? 'html' : 'text'
 }
 
-/** 要看哪份：快照里某个资源的第几项，或实例工作区里的相对路径。 */
-export type RunFileTarget = { node: string; item: number } | { path: string }
+/**
+ * 要看哪份：快照里某个资源的第几项（文件夹项可以再带 `sub`：往下走的相对路径），
+ * 或实例工作区里的相对路径。
+ */
+export type RunFileTarget = { node: string; item: number; sub?: string } | { path: string }
+
+/**
+ * 整理文件夹里的相对路径：`/`、`\` 都当分隔符，空段和 `.` 去掉；`..`、盘符、绝对路径、空字符一律拒绝
+ * （只许往下走）。回 `/` 分隔、没有首尾斜杠的串，根是空串。
+ */
+export function cleanSub(sub: string | undefined): Outcome<string> {
+  const parts = (sub ?? '').split(/[\\/]+/u).filter((part) => part !== '' && part !== '.')
+  const bad = parts.find((part) => part === '..' || part.includes(':') || part.includes('\u0000'))
+  if (bad !== undefined) {
+    return { ok: false, error: { code: 'invalid_args', message: '只能看文件夹里面的东西' } }
+  }
+  return { ok: true, result: parts.join('/') }
+}
+
+/**
+ * `full` 真实位置（软链也算）还在 `root` 里面吗？`full` 还不存在时看不出，放行（读它自会说不存在）。
+ * 文件夹里放一个指向外面的软链，不该成为读任意文件的口子。
+ */
+export async function realInside(root: string, full: string): Promise<boolean> {
+  try {
+    const base = await realpath(root)
+    const real = await realpath(full)
+    return real === base || inside(base, real)
+  } catch {
+    return true
+  }
+}
 
 /**
  * 快照里一个资源的第几项实际在哪（还没拼工作区）；不是文件 / 文件夹就是 `null`。
@@ -73,6 +106,32 @@ export function resolveRunFile(
   document: WorkflowDocument,
   target: RunFileTarget,
   underRoot = false,
+): Outcome<{ full: string; display: string; root?: string }> {
+  const base = resolveBase(record, document, target, underRoot)
+  if (!base.ok || !('node' in target) || target.sub === undefined) return base
+  // 文件夹里的一份：在文件夹项的位置上往下走，不许走出去。
+  const sub = cleanSub(target.sub)
+  if (!sub.ok) return sub
+  if (sub.result === '') return base
+  const full = resolve(base.result.full, ...sub.result.split('/'))
+  if (!inside(resolve(base.result.full), full)) {
+    return { ok: false, error: { code: 'invalid_args', message: '只能看文件夹里面的东西' } }
+  }
+  return {
+    ok: true,
+    result: {
+      full,
+      display: `${base.result.display.replace(/[\\/]+$/u, '')}/${sub.result}`,
+      root: base.result.full,
+    },
+  }
+}
+
+function resolveBase(
+  record: InstanceRecord,
+  document: WorkflowDocument,
+  target: RunFileTarget,
+  underRoot: boolean,
 ): Outcome<{ full: string; display: string }> {
   const cwd = record.cwd
   let display: string
@@ -157,6 +216,15 @@ export function resolveImageRef(
   return { ok: true, result: { full, mime } }
 }
 
+/** 文件自己当图看：按扩展名认类型（和 {@link resolveImageRef} 同一张表），不是图片就拒绝。 */
+export function resolveSelfImage(full: string): Outcome<{ full: string; mime: string }> {
+  const mime = IMAGE_MIME[extname(full).toLowerCase()]
+  if (mime === undefined) {
+    return { ok: false, error: { code: 'invalid_args', message: `不是图片：${full}` } }
+  }
+  return { ok: true, result: { full, mime } }
+}
+
 /** 读一张图（上限 {@link RUN_IMAGE_MAX}）。 */
 export async function readRunImage(full: string, mime: string): Promise<Outcome<RunImageResponse>> {
   let info: Awaited<ReturnType<typeof stat>>
@@ -205,4 +273,35 @@ export async function readRunFile(full: string, display: string): Promise<RunFil
   } finally {
     await handle.close()
   }
+}
+
+/** 列一层目录：目录在前、各自按名字排（数字按大小）；读不了的条目（断了的软链）跳过。 */
+export async function readRunDir(
+  full: string,
+  display: string,
+  sub: string,
+): Promise<RunDirResponse> {
+  const base = { path: full, display, sub }
+  let names: string[]
+  try {
+    names = await readdir(full)
+  } catch {
+    return { ...base, exists: false, entries: [], truncated: false }
+  }
+  const entries: RunDirEntry[] = []
+  await Promise.all(
+    names.slice(0, RUN_DIR_MAX).map(async (name) => {
+      try {
+        const info = await stat(join(full, name))
+        const dir = info.isDirectory()
+        entries.push({ name, dir, size: dir ? 0 : info.size, mtime: info.mtimeMs })
+      } catch {
+        // 断了的软链、刚被删掉的：不列。
+      }
+    }),
+  )
+  entries.sort((a, b) =>
+    a.dir === b.dir ? a.name.localeCompare(b.name, undefined, { numeric: true }) : a.dir ? -1 : 1,
+  )
+  return { ...base, exists: true, entries, truncated: names.length > RUN_DIR_MAX }
 }

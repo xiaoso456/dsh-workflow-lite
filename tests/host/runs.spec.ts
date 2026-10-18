@@ -2,7 +2,7 @@
  * 工作流实例（运行状态）：编译建实例、读、保存用户改动（含冲突）、归属转移、恢复、暂存通知。
  */
 
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
@@ -666,6 +666,66 @@ describe('看产出文件', () => {
     const folder = await runs.file(id, { node: 'ref', item: 1 })
     expect(folder.ok && folder.result.kind).toBe('folder')
     expect(folder.ok && folder.result.exists).toBe(true)
+  })
+
+  it('文件夹资源：run/dir 逐层列，sub 只许往下走；里面的文件、图片能读，软链出不去', async () => {
+    await run({
+      action: 'write_resource',
+      workflow: 'cr',
+      node: 'ref',
+      resource: {
+        items: [{ kind: 'folder', value: join(workspace, 'shots').replace(/\\/gu, '/') }],
+      },
+    })
+    await run({ action: 'connect', workflow: 'cr', source: 'ref', target: 'scan' })
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 1, 2])
+    await mkdir(join(workspace, 'shots', 'deep'), { recursive: true })
+    await mkdir(join(workspace, 'secret'), { recursive: true })
+    await writeFile(join(workspace, 'shots', 'a b.png'), png)
+    await writeFile(join(workspace, 'shots', 'deep', 'note.md'), '# 注')
+    await writeFile(join(workspace, 'secret', 'key.txt'), '外面的')
+    await symlink(join(workspace, 'secret'), join(workspace, 'shots', 'link'), 'junction')
+    const id = String((await compileWithRuns()).instance)
+
+    const top = await runs.dir(id, { node: 'ref', item: 0 })
+    if (!top.ok) throw new Error(top.error.message)
+    expect(top.result.sub).toBe('')
+    expect(top.result.exists).toBe(true)
+    // 目录在前、各自按名字排；文件带大小。
+    expect(top.result.entries.map((entry) => [entry.name, entry.dir])).toEqual([
+      ['deep', true],
+      ['link', true],
+      ['a b.png', false],
+    ])
+    expect(top.result.entries.find((entry) => entry.name === 'a b.png')?.size).toBe(png.length)
+
+    // 往下一层：首尾的斜杠、反斜杠都认；显示的路径跟着变长。
+    const deep = await runs.dir(id, { node: 'ref', item: 0, sub: '\\deep/' })
+    expect(deep.ok && deep.result.sub).toBe('deep')
+    expect(deep.ok && deep.result.entries.map((entry) => entry.name)).toEqual(['note.md'])
+    expect(deep.ok && deep.result.display.endsWith('/deep')).toBe(true)
+    // 不存在的子目录：exists 为 false，不报错。
+    const none = await runs.dir(id, { node: 'ref', item: 0, sub: 'nope' })
+    expect(none.ok && none.result.exists).toBe(false)
+
+    // 里面的文件：用 sub 读正文、当图片读（不给 src）。
+    const note = await runs.file(id, { node: 'ref', item: 0, sub: 'deep/note.md' })
+    expect(note.ok && note.result.kind).toBe('markdown')
+    expect(note.ok && note.result.text).toBe('# 注')
+    const shot = await runs.image(id, { node: 'ref', item: 0, sub: 'a b.png' })
+    if (!shot.ok) throw new Error(shot.error.message)
+    expect(shot.result).toEqual({ mime: 'image/png', data: png.toString('base64') })
+    expect((await runs.image(id, { node: 'ref', item: 0, sub: 'deep/note.md' })).ok).toBe(false)
+
+    // 走不出去：往上（正反斜杠都算）、盘符、指到外面的软链。开头的斜杠只是被去掉，仍是文件夹里的路径。
+    for (const sub of ['..', 'deep/../..', '../outside.txt', 'C:/x', 'deep\\..\\..']) {
+      expect((await runs.dir(id, { node: 'ref', item: 0, sub })).ok).toBe(false)
+      expect((await runs.file(id, { node: 'ref', item: 0, sub })).ok).toBe(false)
+    }
+    expect((await runs.dir(id, { node: 'ref', item: 0, sub: 'link' })).ok).toBe(false)
+    expect((await runs.file(id, { node: 'ref', item: 0, sub: 'link/key.txt' })).ok).toBe(false)
+    // 不是文件夹项 / 不存在的资源：拒绝。
+    expect((await runs.dir(id, { node: 'nope', item: 0 })).ok).toBe(false)
   })
 
   it('Markdown 里的图片：按文档所在目录读回 base64；工作区外、非图片、带协议的都拒绝', async () => {

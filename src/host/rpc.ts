@@ -42,6 +42,7 @@ import {
   type SettingsPort,
   writePluginConfig,
 } from './pluginConfig.ts'
+import type { RunFileTarget } from './runs/files.ts'
 import type { GraphEdit, RunService } from './runs/service.ts'
 import { storageAction } from './runs/storage.ts'
 import { type LoadResult, problemsToWarnings, type Repository } from './store/repository.ts'
@@ -173,6 +174,17 @@ function requireVersion(input: Record<string, unknown>): number {
 function optionalString(input: Record<string, unknown>, field: string): string | undefined {
   const value = input[field]
   return typeof value === 'string' && value !== '' ? value : undefined
+}
+
+/** `run/file`、`run/image` 的目标：资源的第几项（文件夹项可带 `sub`），或工作区里的相对路径。 */
+function runFileTarget(input: Record<string, unknown>, route: string): RunFileTarget {
+  const node = optionalString(input, 'node')
+  const path = optionalString(input, 'path')
+  if (node === undefined && path === undefined) throw new Error(`${route} requires node or path`)
+  if (node === undefined) return { path: path ?? '' }
+  const sub = optionalString(input, 'sub')
+  const item = typeof input.item === 'number' && Number.isInteger(input.item) ? input.item : 0
+  return { node, item, ...(sub === undefined ? {} : { sub }) }
 }
 
 /**
@@ -551,15 +563,8 @@ async function dispatch(
     case 'run/file': {
       const input = asRecord(payload)
       const id = requireString(input, 'id')
-      const node = optionalString(input, 'node')
-      const path = optionalString(input, 'path')
-      const item = typeof input.item === 'number' && Number.isInteger(input.item) ? input.item : 0
-      if (node === undefined && path === undefined)
-        throw new Error('run/file requires node or path')
-      const outcome = await deps.runs.file(
-        id,
-        node !== undefined ? { node, item } : { path: path ?? '' },
-      )
+      const target = runFileTarget(input, 'run/file')
+      const outcome = await deps.runs.file(id, target)
       if (!outcome.ok) return failFrom(outcome.error)
       return ok(outcome.result)
     }
@@ -567,17 +572,20 @@ async function dispatch(
     case 'run/image': {
       const input = asRecord(payload)
       const id = requireString(input, 'id')
-      const src = requireString(input, 'src')
-      const node = optionalString(input, 'node')
-      const path = optionalString(input, 'path')
+      const src = optionalString(input, 'src')
+      const target = runFileTarget(input, 'run/image')
+      const outcome = await deps.runs.image(id, target, src)
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok(outcome.result)
+    }
+
+    case 'run/dir': {
+      const input = asRecord(payload)
+      const id = requireString(input, 'id')
+      const node = requireString(input, 'node')
+      const sub = optionalString(input, 'sub')
       const item = typeof input.item === 'number' && Number.isInteger(input.item) ? input.item : 0
-      if (node === undefined && path === undefined)
-        throw new Error('run/image requires node or path')
-      const outcome = await deps.runs.image(
-        id,
-        node !== undefined ? { node, item } : { path: path ?? '' },
-        src,
-      )
+      const outcome = await deps.runs.dir(id, { node, item, ...(sub === undefined ? {} : { sub }) })
       if (!outcome.ok) return failFrom(outcome.error)
       return ok(outcome.result)
     }

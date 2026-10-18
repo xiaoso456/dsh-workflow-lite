@@ -3,26 +3,26 @@
  *
  * 文件用 {@link FileViewer}（能读正文），Skill 用 {@link SkillPreview}（读 SKILL.md），都不在这里。
  * 三个框都是 {@link DocViewer} 的小号：标题行同样有复制、用其他程序打开（文件夹）、关闭，
- * 文件夹、网址的说明放在正文前（框小、说明就是主要内容）；自定义文字的说明收在「说明」开关里。
- * - 文件夹：里面有什么（目录在前，只列名字），可以复制路径、用其他程序打开或在文件管理器里显示；
+ * 网址的说明放在正文前（框小、说明就是主要内容）；文件夹、自定义文字的说明收在「说明」开关里。
+ * - 文件夹：左边浏览（搜索、进子目录），右边预览选中的文件，可以复制路径、用其他程序打开或在文件管理器里显示；
  * - 网址：整条网址（点了在浏览器里开），底部一个「在浏览器中打开」；
  * - 自定义文字：整段排版显示，可以复制。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/RunItemDialog
  */
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import type { ResourceItem } from '../../shared/types.ts'
-import type { HostListResponse } from '../../shared/wire.ts'
 import type { Desktop } from '../app/desktop.ts'
-import type { HostAccess } from '../app/host.ts'
 import { type FileTarget, useRunFile } from '../app/useRunFile.ts'
 import type { T } from '../i18n.ts'
 import { fileBaseName } from '../model/fileKind.ts'
 import { shortTime } from '../model/time.ts'
-import { errorMessage, type WorkflowLiteRpc } from '../rpc.ts'
-import { DocViewer } from './DocViewer.tsx'
+import type { WorkflowLiteRpc } from '../rpc.ts'
+import { type DocBody, DocViewer } from './DocViewer.tsx'
 import { NoteLead } from './FileViewer.tsx'
+import { FolderBrowser } from './FolderBrowser.tsx'
+import folderCss from './folder.module.css'
 import { Icon } from './Icon.tsx'
 import { cx } from './primitives.tsx'
 import res from './resource.module.css'
@@ -43,12 +43,14 @@ function lead(t: T, item: ResourceItem): React.ReactNode {
   return note === '' ? null : <NoteLead t={t} text={note} />
 }
 
-/** 文件夹：里面有什么。 */
+/**
+ * 文件夹：左边浏览（搜索、进子目录、面包屑），右边预览选中的文件，见 {@link FolderBrowser}。
+ * 这一项的说明（要求写在这里的东西）收在标题行的「说明」开关里，不占正文。
+ */
 export function FolderDialog(props: {
   t: T
   rpc: WorkflowLiteRpc
   instance: string
-  host: HostAccess
   node: string
   index: number
   item: ResourceItem
@@ -61,56 +63,35 @@ export function FolderDialog(props: {
     [props.node, props.index],
   )
   const { file, error } = useRunFile(props.rpc, props.instance, target)
-  const [listing, setListing] = useState<HostListResponse | null>(null)
-  const [failure, setFailure] = useState<string | null>(null)
   const folder = file?.kind === 'folder' ? file.path : null
+  const display = file?.display ?? props.item.value
+  const name = fileBaseName(display) || itemName(props.item)
 
-  useEffect(() => {
-    if (folder === null) return
-    let alive = true
-    props.host
-      .list(folder)
-      .then((value) => {
-        if (alive) setListing(value)
-      })
-      .catch((reason: unknown) => {
-        if (alive) setFailure(errorMessage(reason))
-      })
-    return () => {
-      alive = false
-    }
-  }, [folder, props.host])
-
-  let body: React.ReactNode
-  const problem = error ?? failure
-  if (problem !== null) body = <p className={css.hint}>{problem}</p>
-  else if (file === null || (folder !== null && listing === null)) {
-    body = <p className={css.hint}>{t('file.loading')}</p>
-  } else if (folder === null) body = <p className={css.hint}>{t('res.folderMissing')}</p>
-  else if (listing?.entries.length === 0) body = <p className={css.hint}>{t('res.folderEmpty')}</p>
+  let body: DocBody
+  if (error !== null) body = { kind: 'state', icon: 'alert', text: error }
+  else if (file === null) body = { kind: 'loading' }
+  else if (folder === null) body = { kind: 'state', icon: 'folder', text: t('res.folderMissing') }
   else {
-    body = (
-      <>
-        <ul className={css.entries} data-testid="wl-folder-entries">
-          {listing?.entries.map((entry) => (
-            <li key={entry.name} className={css.entry} data-dir={entry.dir}>
-              <span className={css.entryIcon}>
-                <Icon name={entry.dir ? 'folder' : 'file'} size={13} />
-              </span>
-              {entry.name}
-            </li>
-          ))}
-        </ul>
-        {listing?.truncated === true && <p className={css.hint}>{t('res.folderMore')}</p>}
-      </>
-    )
+    body = {
+      kind: 'node',
+      node: (
+        <FolderBrowser
+          t={t}
+          rpc={props.rpc}
+          instance={props.instance}
+          node={props.node}
+          index={props.index}
+          rootName={name}
+          desktop={props.desktop}
+        />
+      ),
+    }
   }
 
-  const display = file?.display ?? props.item.value
   return (
     <DocViewer
       t={t}
-      name={fileBaseName(display) || itemName(props.item)}
+      name={name}
       badge={<Badge kind="folder" />}
       meta={
         <>
@@ -118,20 +99,13 @@ export function FolderDialog(props: {
           {folder !== null && file !== null && ` · ${t('file.modified')} ${shortTime(file.mtime)}`}
         </>
       }
-      body={{
-        kind: 'node',
-        node: (
-          <div className={css.pane}>
-            {lead(t, props.item)}
-            {body}
-          </div>
-        ),
-      }}
+      body={body}
       copyPath={file?.path ?? null}
       openPath={folder}
       desktop={props.desktop}
       testId="wl-folder-viewer"
-      className={css.small}
+      note={props.item.note ?? ''}
+      className={folderCss.dialog}
       onClose={props.onClose}
     />
   )

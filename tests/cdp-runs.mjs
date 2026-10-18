@@ -2034,13 +2034,30 @@ window.addEventListener('load', () => {
   await openKind('folder')
   await waitFor(
     session,
-    `document.querySelectorAll('[data-testid="wl-folder-entries"] li').length === 2`,
+    `document.querySelectorAll('[data-testid="wl-folder-entry"]').length === 2`,
   )
   check(
     (await session.evaluate(
-      `[...document.querySelectorAll('[data-testid="wl-folder-entries"] li')].map((li) => li.textContent).join(',')`,
+      `[...document.querySelectorAll('[data-testid="wl-folder-entry"]')].map((row) => row.dataset.name).join(',')`,
     )) === 'lib,main.ts',
     '文件夹详情应列出里面的东西（目录在前）',
+  )
+  // 点文件在右边预览，点目录进去（面包屑跟着变），再用返回退出来。
+  await session.evaluate(
+    `document.querySelector('[data-testid="wl-folder-entry"][data-name="main.ts"]').click()`,
+  )
+  await waitFor(session, `document.querySelector('[data-testid="wl-folder-file"]') !== null`)
+  await session.evaluate(
+    `document.querySelector('[data-testid="wl-folder-entry"][data-name="lib"]').click()`,
+  )
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-folder-crumbs"]')?.textContent.endsWith('lib')`,
+  )
+  await session.evaluate(`document.querySelector('[data-testid="wl-folder-up"]').click()`)
+  await waitFor(
+    session,
+    `document.querySelectorAll('[data-testid="wl-folder-entry"]').length === 2`,
   )
   await screenshot(session, 'runs-13-folder.png')
   await pressEscape('wl-folder-viewer')

@@ -171,7 +171,6 @@ export function RunResourceDetail(props: {
           t={t}
           rpc={props.rpc}
           instance={props.instance}
-          host={props.host}
           node={resource.id}
           index={open}
           item={openItem}

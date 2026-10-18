@@ -27,6 +27,7 @@ const KINDS: Record<string, FileKind> = {
   gif: 'image',
   svg: 'image',
   webp: 'image',
+  avif: 'image',
 }
 
 const CODE = new Set([
