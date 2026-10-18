@@ -96,6 +96,9 @@ const SKILL_SOURCES: Record<string, { short: LocaleKey; full: LocaleKey }> = {
   'project-agents': { short: 'skill.src.project', full: 'skill.from.projectAgents' },
   'user-dsh': { short: 'skill.src.user', full: 'skill.from.userDsh' },
   'user-agents': { short: 'skill.src.user', full: 'skill.from.userAgents' },
+  // 较新的 DSH 把用户目录里的这两处记成 agent-*（路径照旧是 ~/.dsh/skills、~/.agents/skills）。
+  'agent-dsh': { short: 'skill.src.user', full: 'skill.from.userDsh' },
+  'agent-agents': { short: 'skill.src.user', full: 'skill.from.userAgents' },
   runtime: { short: 'skill.src.runtime', full: 'skill.from.runtime' },
   bundled: { short: 'skill.src.bundled', full: 'skill.from.bundled' },
   custom: { short: 'skill.src.custom', full: 'skill.from.custom' },

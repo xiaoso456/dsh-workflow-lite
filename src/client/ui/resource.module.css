@@ -349,9 +349,61 @@
   align-items: center;
 }
 
+.valueField {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .value {
   flex: 1 1 auto;
   min-width: 0;
+}
+
+/* 认得的 skill：小眼睛浮在输入框右端（不占位，输入框宽度不变），点开看 SKILL.md。 */
+.value[data-peek] {
+  padding-right: 36px;
+}
+
+.valuePeek {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: calc(6px * var(--wl-round, 1));
+  background: transparent;
+  color: var(--wl-text-3);
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+
+.valuePeek:hover {
+  background: var(--wl-fill-strong);
+  color: var(--wl-accent-text);
+}
+
+.valuePeek:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+/* 标签行：左边是字段名，右边是这一项的小按钮（从清单选、浏览、打开）；按钮和输入框不挤在一行，高度各按各的规格。 */
+.valueHead {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.valueLabel {
+  flex: 1 1 auto;
 }
 
 .valueAction {
@@ -375,47 +427,6 @@
   font-size: var(--wl-fs-body);
   line-height: 1.6;
   resize: vertical;
-}
-
-.skillKnown {
-  display: flex;
-  gap: 6px;
-  align-items: flex-start;
-  margin: 0;
-  color: var(--wl-text-2);
-  font-size: var(--wl-fs-micro);
-  line-height: 1.55;
-}
-
-.skillKnown > svg {
-  flex: none;
-  margin-top: 2px;
-  color: var(--wl-ok);
-}
-
-.skillKnownPeek {
-  display: inline-flex;
-  flex: none;
-  gap: 4px;
-  align-items: center;
-  margin-left: auto;
-  padding: 0 2px;
-  border: 0;
-  border-radius: calc(4px * var(--wl-round, 1));
-  background: transparent;
-  color: var(--wl-accent-text);
-  font: inherit;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.skillKnownPeek:hover {
-  text-decoration: underline;
-}
-
-.skillKnownPeek:focus-visible {
-  outline: 2px solid var(--wl-accent);
-  outline-offset: 1px;
 }
 
 .sharedNote {
@@ -444,11 +455,16 @@
   color: var(--wl-c-pink);
 }
 
-/* 行与行之间留 2px：相邻两行都选中时是两块，不糊成一片。 */
-.skillList {
+/*
+ * 行与行之间留 2px：相邻两行都选中时是两块，不糊成一片。
+ * 悬停、选中的底色是一块缩进的圆角：左边离弹窗边 16px，右边离滚动条 6px（滚动条自己占 10px，
+ * 所以两边的底色边缘都落在离弹窗边 17px 处）；名字、勾选框、小眼睛在底色里各留 8px。
+ */
+ul.skillList {
   gap: 2px;
   margin-top: 0;
   margin-bottom: 0;
+  padding: 4px 6px 8px 16px;
   list-style: none;
 }
 
@@ -457,8 +473,8 @@
   display: flex;
   flex: none;
   align-items: stretch;
-  min-height: 48px;
-  border-radius: calc(8px * var(--wl-round, 1));
+  min-height: 52px;
+  border-radius: var(--wl-r-control);
   color: var(--wl-text);
   transition: background-color 120ms linear;
 }
@@ -473,9 +489,9 @@
   gap: 10px;
   align-items: center;
   min-width: 0;
-  padding: 6px 6px 6px 10px;
+  padding: 6px 6px 6px 8px;
   border: 0;
-  border-radius: calc(8px * var(--wl-round, 1));
+  border-radius: var(--wl-r-control);
   background: transparent;
   color: inherit;
   font: inherit;
@@ -502,7 +518,7 @@
   flex: none;
   gap: 4px;
   align-items: center;
-  padding: 0 8px 0 4px;
+  padding: 0 2px 0 4px;
 }
 
 .skillPeek {
@@ -565,19 +581,34 @@
   line-height: 16px;
 }
 
+/* 说明留两行（一行常常刚读到一半就被截掉）；完整的在右边的小眼睛里。 */
 .skillDesc {
+  display: -webkit-box;
   overflow: hidden;
   color: var(--wl-text-3);
   font-size: var(--wl-fs-micro);
-  line-height: 1.45;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.5;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
+/* 筛选命中的字：强调色，不加底色。 */
+.skillMark {
+  background: transparent;
+  color: var(--wl-accent-text);
+  font-weight: 700;
+}
+
+/* 来源小签定宽、靠右：每行的眼睛排成一列，说明的右边界也齐。 */
 .skillSource {
   flex: none;
+  width: 52px;
+  overflow: hidden;
   color: var(--wl-text-3);
   font-size: var(--wl-fs-micro);
+  text-align: right;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 

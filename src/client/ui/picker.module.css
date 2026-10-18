@@ -7,6 +7,11 @@
   height: min(560px, 100%);
 }
 
+/* 「选择 Skill」：内容边放宽到 24px（标题、搜索框、计数、✕ 都在这条边上），左右不贴着弹窗边和滚动条。 */
+.skillSheet {
+  --wl-sheet-inset: 24px;
+}
+
 .headIcon {
   background: var(--wl-file-tab);
   color: var(--wl-file);
@@ -199,7 +204,7 @@
   flex: none;
   gap: 8px;
   align-items: center;
-  padding: 10px 16px 6px;
+  padding: 10px var(--wl-sheet-inset, 16px) 6px;
 }
 
 .filterBox {

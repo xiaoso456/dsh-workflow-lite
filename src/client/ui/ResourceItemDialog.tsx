@@ -191,14 +191,51 @@ export function ResourceItemDialog(props: {
 
           <div className={overlay.sheetBody}>
             <section className={ins.field}>
-              <label className={ins.label} htmlFor="wl-resource-value">
-                <span>{t(VALUE_LABEL[kind])}</span>
-                {kind === 'text' && (
-                  <span className={ins.count}>
-                    {codepointLength(value)} / {MAX_RESOURCE_TEXT_CODEPOINTS}
-                  </span>
+              <div className={css.valueHead}>
+                <label className={cx(ins.label, css.valueLabel)} htmlFor="wl-resource-value">
+                  <span>{t(VALUE_LABEL[kind])}</span>
+                  {kind === 'text' && (
+                    <span className={ins.count}>
+                      {codepointLength(value)} / {MAX_RESOURCE_TEXT_CODEPOINTS}
+                    </span>
+                  )}
+                </label>
+                {pathLike && (
+                  <button
+                    type="button"
+                    className={cx(ui.btn, ui.small, ui.soft, css.valueAction)}
+                    data-testid="wl-resource-browse"
+                    onClick={() => setBrowsing(true)}
+                  >
+                    <Icon name="folderOpen" size={13} />
+                    {t('res.browse')}
+                  </button>
                 )}
-              </label>
+                {kind === 'skill' && (
+                  <button
+                    type="button"
+                    className={cx(ui.btn, ui.small, ui.soft, css.valueAction)}
+                    data-testid="wl-resource-choose-skill"
+                    onClick={() => setChoosing(true)}
+                  >
+                    <Icon name="sparkle" size={13} />
+                    {t('res.chooseSkill')}
+                  </button>
+                )}
+                {kind === 'url' && (
+                  <a
+                    className={cx(ui.btn, ui.small, ui.soft, css.valueAction)}
+                    href={openable ? trimmed : undefined}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    aria-disabled={!openable}
+                    data-testid="wl-resource-open-url"
+                  >
+                    <Icon name="external" size={13} />
+                    {t('res.openUrl')}
+                  </a>
+                )}
+              </div>
               {kind === 'text' ? (
                 <textarea
                   id="wl-resource-value"
@@ -212,54 +249,34 @@ export function ResourceItemDialog(props: {
                 />
               ) : (
                 <div className={css.valueRow}>
-                  <input
-                    id="wl-resource-value"
-                    ref={valueRef}
-                    className={cx(ui.input, css.value, kind !== 'url' && ui.mono)}
-                    value={value}
-                    type={kind === 'url' ? 'url' : 'text'}
-                    placeholder={t(PLACEHOLDER[kind])}
-                    aria-invalid={valueError !== null}
-                    spellCheck={false}
-                    autoComplete="off"
-                    data-testid="wl-resource-value"
-                    onChange={(event) => setValue(oneLine(kind, event.currentTarget.value))}
-                  />
-                  {pathLike && (
-                    <button
-                      type="button"
-                      className={cx(ui.btn, ui.small, ui.soft, css.valueAction)}
-                      data-testid="wl-resource-browse"
-                      onClick={() => setBrowsing(true)}
-                    >
-                      <Icon name="folderOpen" size={13} />
-                      {t('res.browse')}
-                    </button>
-                  )}
-                  {kind === 'skill' && (
-                    <button
-                      type="button"
-                      className={cx(ui.btn, ui.small, ui.soft, css.valueAction)}
-                      data-testid="wl-resource-choose-skill"
-                      onClick={() => setChoosing(true)}
-                    >
-                      <Icon name="sparkle" size={13} />
-                      {t('res.chooseSkill')}
-                    </button>
-                  )}
-                  {kind === 'url' && (
-                    <a
-                      className={cx(ui.btn, ui.small, ui.soft, css.valueAction)}
-                      href={openable ? trimmed : undefined}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                      aria-disabled={!openable}
-                      data-testid="wl-resource-open-url"
-                    >
-                      <Icon name="external" size={13} />
-                      {t('res.openUrl')}
-                    </a>
-                  )}
+                  <span className={css.valueField}>
+                    <input
+                      id="wl-resource-value"
+                      ref={valueRef}
+                      className={cx(ui.input, css.value, kind !== 'url' && ui.mono)}
+                      value={value}
+                      type={kind === 'url' ? 'url' : 'text'}
+                      placeholder={t(PLACEHOLDER[kind])}
+                      aria-invalid={valueError !== null}
+                      spellCheck={false}
+                      autoComplete="off"
+                      data-peek={known === undefined ? undefined : ''}
+                      data-testid="wl-resource-value"
+                      onChange={(event) => setValue(oneLine(kind, event.currentTarget.value))}
+                    />
+                    {known !== undefined && (
+                      <button
+                        type="button"
+                        className={css.valuePeek}
+                        data-tip={t('skill.preview')}
+                        aria-label={t('skill.preview')}
+                        data-testid="wl-resource-skill-preview"
+                        onClick={() => setPreviewing(known.name)}
+                      >
+                        <Icon name="eye" size={14} />
+                      </button>
+                    )}
+                  </span>
                 </div>
               )}
               {valueError !== null && !blank ? (
@@ -271,23 +288,9 @@ export function ResourceItemDialog(props: {
                   </span>
                   <code className={ins.rootPreviewResult}>{located}</code>
                 </div>
-              ) : known !== undefined ? (
-                <div className={css.skillKnown} data-testid="wl-resource-skill-known">
-                  <Icon name="check" size={12} />
-                  <span>{known.description === '' ? t('res.skillKnown') : known.description}</span>
-                  <button
-                    type="button"
-                    className={css.skillKnownPeek}
-                    data-testid="wl-resource-skill-preview"
-                    onClick={() => setPreviewing(known.name)}
-                  >
-                    <Icon name="eye" size={12} />
-                    {t('skill.preview')}
-                  </button>
-                </div>
               ) : (
                 <p className={ins.help}>
-                  {kind === 'skill' && catalog?.available === true && !blank
+                  {kind === 'skill' && catalog?.available === true && !blank && known === undefined
                     ? t('res.skillUnknown')
                     : t(
                         pathLike

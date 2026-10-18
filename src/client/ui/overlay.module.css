@@ -274,7 +274,8 @@
   flex: none;
   gap: 10px;
   align-items: center;
-  padding: 14px 12px 6px 16px;
+  /* 内容边 `--wl-sheet-inset`（缺省 16px）；右边再减 5.5：✕ 的图形（15px，在 28px 的按钮里）右缘正好落在内容边上。 */
+  padding: 14px calc(var(--wl-sheet-inset, 16px) - 5.5px) 6px var(--wl-sheet-inset, 16px);
 }
 
 .sheetIcon {
@@ -327,7 +328,7 @@
   flex: none;
   gap: 6px;
   align-items: center;
-  padding: 10px 12px;
+  padding: 10px var(--wl-sheet-inset, 16px);
   border-top: 1px solid var(--wl-line);
 }
 

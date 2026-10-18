@@ -82,7 +82,7 @@ export function SkillPicker(props: {
     <Modal
       label={t('skill.title')}
       testId="wl-skill-picker"
-      className={css.sheet}
+      className={cx(css.sheet, css.skillSheet)}
       onDismiss={props.onClose}
     >
       <div className={overlay.sheetForm}>
@@ -119,7 +119,13 @@ export function SkillPicker(props: {
             />
           </span>
           {all.length > 0 && (
-            <span className={css.count}>{t('skill.count').replace('{n}', String(all.length))}</span>
+            <span className={css.count}>
+              {filter.trim() === ''
+                ? t('skill.count').replace('{n}', String(all.length))
+                : t('skill.countOf')
+                    .replace('{n}', String(shown.length))
+                    .replace('{total}', String(all.length))}
+            </span>
           )}
         </div>
 
@@ -153,6 +159,7 @@ export function SkillPicker(props: {
               key={entry.name}
               t={t}
               entry={entry}
+              needle={filter.trim()}
               added={props.existing.includes(entry.name)}
               on={picked.includes(entry.name)}
               single={props.single === true}
@@ -223,6 +230,20 @@ export function SkillPicker(props: {
   )
 }
 
+/** 把文字里匹配筛选词的地方（不分大小写）标出来；没有筛选词就原样。 */
+function Highlight(props: { text: string; needle: string }): React.JSX.Element {
+  const { text, needle } = props
+  const at = needle === '' ? -1 : text.toLowerCase().indexOf(needle.toLowerCase())
+  if (at < 0) return <>{text}</>
+  return (
+    <>
+      {text.slice(0, at)}
+      <mark className={skill.skillMark}>{text.slice(at, at + needle.length)}</mark>
+      {text.slice(at + needle.length)}
+    </>
+  )
+}
+
 /**
  * 一行：勾选区（勾选框 + 名字 + 说明）是一个按钮；右边是来源（纯文字）和一个小眼睛按钮，点开看 SKILL.md。
  * 两个按钮并排、互不嵌套。
@@ -230,6 +251,8 @@ export function SkillPicker(props: {
 function SkillRow(props: {
   t: T
   entry: HostSkillEntry
+  /** 筛选框里的字（高亮匹配处）。 */
+  needle: string
   added: boolean
   on: boolean
   single: boolean
@@ -253,16 +276,19 @@ function SkillRow(props: {
         // 多选时是勾选框；单选时就是个普通按钮（点了就选定）。
         {...(props.single ? {} : { role: 'checkbox', 'aria-checked': checked })}
         disabled={props.added}
-        data-tip={entry.description}
         onClick={props.onChoose}
       >
         {!props.single && <CheckBox on={checked} />}
         <span className={skill.skillText}>
           <span className={skill.skillName}>
-            {entry.name}
+            <span>
+              <Highlight text={entry.name} needle={props.needle} />
+            </span>
             {props.added && <span className={skill.skillTag}>{t('skill.added')}</span>}
           </span>
-          <span className={skill.skillDesc}>{entry.description}</span>
+          <span className={skill.skillDesc}>
+            <Highlight text={entry.description} needle={props.needle} />
+          </span>
         </span>
       </button>
       <span className={skill.skillSide}>
