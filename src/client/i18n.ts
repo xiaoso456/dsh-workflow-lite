@@ -735,6 +735,9 @@ export const zh = {
   'file.appsLoading': '正在查找能打开它的程序…',
   'file.appsNone': '没找到能打开它的程序',
   'file.openFailed': '没能打开这份文件',
+  'file.brokenImages': '有 {n} 张图片没能显示',
+  'file.brokenImagesTip':
+    '有 {n} 张图片没能显示\n预览页面在隔离的框里运行，读不到本机文件，所以本地路径、相对路径的图片加载不出来。\n想看完整效果，点「用其他程序打开」，在浏览器里打开。',
   'file.generated': '已生成',
   'file.notGenerated': '还没生成',
   'file.modified': '修改时间',
@@ -1902,6 +1905,9 @@ export const en: Record<LocaleKey, string> = {
   'file.appsLoading': 'Looking for applications…',
   'file.appsNone': 'No application can open it',
   'file.openFailed': 'Could not open the file',
+  'file.brokenImages': '{n} image(s) could not be displayed',
+  'file.brokenImagesTip':
+    '{n} image(s) could not be displayed\nThe preview runs in an isolated frame and cannot read local files, so images with local or relative paths do not load.\nFor the full page, use “Open with…” to open it in a browser.',
   'file.generated': 'Generated',
   'file.notGenerated': 'Not generated yet',
   'file.modified': 'Modified',

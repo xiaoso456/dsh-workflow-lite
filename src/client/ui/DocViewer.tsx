@@ -11,10 +11,10 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/DocViewer
  */
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Desktop } from '../app/desktop.ts'
 import type { T } from '../i18n.ts'
-import { withPreviewStyle } from '../model/htmlPreview.ts'
+import { brokenImagesOf, withPreviewStyle } from '../model/htmlPreview.ts'
 import css from './files.module.css'
 import { Icon, type IconName } from './Icon.tsx'
 import { type ImageSource, Markdown } from './Markdown.tsx'
@@ -84,6 +84,60 @@ export function docFormat(body: DocBody): 'plain' | 'markdown' | 'html' {
   return body.kind === 'text' ? body.format : 'plain'
 }
 
+/** 沙箱框里渲染一份 HTML，并收框里报来的「加载失败的图片数」。 */
+function HtmlFrame(props: {
+  name: string
+  text: string
+  onBroken: ((count: number) => void) | undefined
+}): React.JSX.Element {
+  const frame = useRef<HTMLIFrameElement>(null)
+  const report = useRef(props.onBroken)
+  report.current = props.onBroken
+  const { text } = props
+  // 依赖 text：换了页面内容就是一个新的框，旧的失败数作废（清理时回 0）。
+  useEffect(() => {
+    const onMessage = (event: MessageEvent): void => {
+      // 只认自己这个框发的（页面是独立的源，origin 是 null，认不了 origin，认窗口）。
+      if (event.source === null || event.source !== frame.current?.contentWindow) return
+      const count = brokenImagesOf(event.data)
+      if (count !== null) report.current?.(count)
+    }
+    window.addEventListener('message', onMessage)
+    return () => {
+      window.removeEventListener('message', onMessage)
+      report.current?.(0)
+    }
+  }, [text])
+  return (
+    <iframe
+      ref={frame}
+      className={css.viewerFrame}
+      title={props.name}
+      srcDoc={withPreviewStyle(text)}
+      // 只给脚本：没有 allow-same-origin，页面是个独立的源，读不到画布的存储与登录态，也跳不走顶层。
+      sandbox="allow-scripts"
+      referrerPolicy="no-referrer"
+      data-testid="wl-viewer-frame"
+    />
+  )
+}
+
+/** 标题行里的小警告：预览里有图片没加载出来时淡入，悬停说明原因和办法。 */
+export function BrokenImagesHint(props: { t: T; count: number }): React.JSX.Element | null {
+  if (props.count === 0) return null
+  return (
+    <span
+      className={css.brokenHint}
+      role="img"
+      aria-label={props.t('file.brokenImages').replace('{n}', String(props.count))}
+      data-tip={props.t('file.brokenImagesTip').replace('{n}', String(props.count))}
+      data-testid="wl-broken-images"
+    >
+      <Icon name="alert" size={15} />
+    </span>
+  )
+}
+
 /**
  * 正文区里的那块内容：读取中的骨架、读不了的原因、预览 / 源码。
  * 查看框（{@link DocViewer}）和文件夹浏览（右边预览一份文件）共用。
@@ -96,6 +150,8 @@ export function DocContent(props: {
   /** iframe 的标题。 */
   name: string
   image?: ImageSource | undefined
+  /** HTML 预览里加载失败的图片数变了（换了视图、换了文件回 0）。 */
+  onBroken?: ((count: number) => void) | undefined
 }): React.JSX.Element {
   const { t, body, view } = props
   const format = docFormat(body)
@@ -125,17 +181,7 @@ export function DocContent(props: {
     return <Markdown t={t} text={body.text} className={css.viewerDoc} image={props.image} />
   }
   if (format === 'html' && view === 'rendered') {
-    return (
-      <iframe
-        className={css.viewerFrame}
-        title={props.name}
-        srcDoc={withPreviewStyle(body.text)}
-        // 只给脚本：没有 allow-same-origin，页面是个独立的源，读不到画布的存储与登录态，也跳不走顶层。
-        sandbox="allow-scripts"
-        referrerPolicy="no-referrer"
-        data-testid="wl-viewer-frame"
-      />
-    )
+    return <HtmlFrame name={props.name} text={body.text} onBroken={props.onBroken} />
   }
   return <pre className={css.viewerSource}>{body.text}</pre>
 }
@@ -172,6 +218,7 @@ export function DocViewer(props: {
   const [view, setView] = useState<View>(edit?.start === true ? 'edit' : 'rendered')
   const [failure, setFailure] = useState<string | null>(null)
   const [noteOpen, setNoteOpen] = useState(false)
+  const [broken, setBroken] = useState(0)
   const note = props.note?.trim() ?? ''
   const format = docFormat(body)
   // 有预览视图的格式：可以在「预览 / 源码」之间切。
@@ -198,6 +245,7 @@ export function DocViewer(props: {
         view={view === 'source' ? 'source' : 'rendered'}
         name={props.name}
         image={props.image}
+        onBroken={setBroken}
       />
     )
 
@@ -217,6 +265,7 @@ export function DocViewer(props: {
         {note !== '' && (
           <NoteToggle t={t} open={noteOpen} onToggle={() => setNoteOpen((open) => !open)} />
         )}
+        <BrokenImagesHint t={t} count={broken} />
         {(formatted || edit !== undefined) && (
           <div className={css.viewerViews}>
             <Segmented<View>

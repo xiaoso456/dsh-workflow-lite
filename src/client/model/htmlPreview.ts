@@ -32,8 +32,28 @@ const STYLE = `<style data-wl-preview>:where(*){scrollbar-width:thin;scrollbar-c
  */
 const SCRIPT = `<script data-wl-preview>(()=>{const fit=()=>{const seen=[document.body,document.documentElement].map((el)=>el&&getComputedStyle(el).backgroundColor).find((value)=>value&&!/^(transparent|rgba\\(0, 0, 0, 0\\))$/.test(value));const rgb=seen?seen.match(/[\\d.]+/g).map(Number):[255,255,255];const dark=(0.2126*rgb[0]+0.7152*rgb[1]+0.0722*rgb[2])/255<0.5;const root=document.documentElement.style;root.setProperty('--wl-preview-thumb',dark?'${THUMB.onDark}':'${THUMB.onLight}');root.setProperty('--wl-preview-track',seen??'#fff')};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',fit);else fit()})()</script>`
 
+/** 框里的页面告诉外面「有几张图没加载出来」时发的消息类型。 */
+export const BROKEN_IMAGES = 'wl-preview:broken-images'
+
+/**
+ * 数加载失败的 `<img>`，变了就告诉外面。框是独立的源（没有 allow-same-origin），外面看不进去，只能让里面报。
+ * 和上面的脚本一起插在 `<head>` 最前，赶在图片开始加载之前挂上捕获阶段的 error / load（它们不冒泡）；页面 load 完再扫一遍，
+ * 把挂上之前就已经失败的补进来。只报个数，不带地址：消息来自不受信的页面，外面只认一个整数。
+ */
+const REPORT = `<script data-wl-preview>(()=>{const bad=new Set();let sent=0;const send=()=>{if(bad.size!==sent){sent=bad.size;parent.postMessage({type:'${BROKEN_IMAGES}',count:bad.size},'*')}};addEventListener('error',(e)=>{if(e.target instanceof HTMLImageElement){bad.add(e.target);send()}},true);addEventListener('load',(e)=>{if(e.target instanceof HTMLImageElement&&bad.delete(e.target))send()},true);addEventListener('load',()=>{document.querySelectorAll('img').forEach((img)=>{if(img.complete&&img.currentSrc!==''&&img.naturalWidth===0)bad.add(img)});send()})})()</script>`
+
 /** 补进页面的那一段。 */
-export const PREVIEW_STYLE = `${STYLE}${SCRIPT}`
+export const PREVIEW_STYLE = `${STYLE}${SCRIPT}${REPORT}`
+
+/** 认框里发来的消息：是「加载失败的图片数」就返回个数，别的（别人的消息、形状不对）返回 `null`。 */
+export function brokenImagesOf(data: unknown): number | null {
+  if (typeof data !== 'object' || data === null) return null
+  const { type, count } = data as { type?: unknown; count?: unknown }
+  if (type !== BROKEN_IMAGES) return null
+  return typeof count === 'number' && Number.isInteger(count) && count >= 0
+    ? Math.min(count, 9999)
+    : null
+}
 
 const ANCHORS: readonly RegExp[] = [
   /<head(?:\s[^>]*)?>/iu,

@@ -36,7 +36,7 @@ import {
 import { shortTime } from '../model/time.ts'
 import type { WorkflowLiteRpc } from '../rpc.ts'
 import { FilterBar, PathBar, UpRow } from './DirParts.tsx'
-import { CopyButton, type DocBody, DocContent, docFormat } from './DocViewer.tsx'
+import { BrokenImagesHint, CopyButton, type DocBody, DocContent, docFormat } from './DocViewer.tsx'
 import { FileGlyph } from './FileGlyph.tsx'
 import { FileTag } from './FileTag.tsx'
 import { fileBody } from './FileViewer.tsx'
@@ -572,6 +572,7 @@ function FilePane(props: {
           loading: false,
         })
   const image = useRunImages(rpc, instance, showing)
+  const [broken, setBroken] = useState(0)
   const switchable = docFormat(body) !== 'plain'
   const info = shown?.file ?? null
 
@@ -607,6 +608,7 @@ function FilePane(props: {
           </span>
         </div>
         {/* 位置一直占着：能切（Markdown / HTML）时淡入归位，不能切时淡出让开，标题宽度不随文件类型变。 */}
+        <BrokenImagesHint t={t} count={broken} />
         <div className={css.paneViews} data-on={switchable}>
           <Segmented<View>
             label={t('file.rendered')}
@@ -634,7 +636,14 @@ function FilePane(props: {
       {/* 外面这层只管定位和裁切：旧正文的影子在里面退（useStage），不能越出预览区。 */}
       <div className={css.paneStage} ref={stage.wrap}>
         <div className={css.paneBody} ref={bodyRef} data-testid="wl-folder-file">
-          <DocContent t={t} body={body} view={view} name={name} image={image} />
+          <DocContent
+            t={t}
+            body={body}
+            view={view}
+            name={name}
+            image={image}
+            onBroken={setBroken}
+          />
         </div>
       </div>
     </div>

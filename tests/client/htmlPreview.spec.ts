@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { PREVIEW_STYLE, THUMB, withPreviewStyle } from '../../src/client/model/htmlPreview.ts'
+import {
+  BROKEN_IMAGES,
+  brokenImagesOf,
+  PREVIEW_STYLE,
+  THUMB,
+  withPreviewStyle,
+} from '../../src/client/model/htmlPreview.ts'
 
 describe('withPreviewStyle —— HTML 预览补细滚动条', () => {
   it('有 <head> 就插在它后面', () => {
@@ -67,5 +73,30 @@ describe('滑块颜色跟页面的底色走', () => {
   it('浅底 → 深色滑块；什么背景都没写（框里是白底）→ 深色滑块、白轨道', () => {
     expect(colorsFor({ body: 'rgb(250, 250, 250)' }).thumb).toBe(THUMB.onLight)
     expect(colorsFor({})).toEqual({ thumb: THUMB.onLight, track: '#fff' })
+  })
+})
+
+describe('加载失败的图片：框里报个数，外面只认整数', () => {
+  it('补进页面的脚本带着消息类型', () => {
+    expect(PREVIEW_STYLE).toContain(`type:'${BROKEN_IMAGES}'`)
+  })
+
+  it('认合规的消息；别人的消息、形状不对、负数、小数、非数都不认；超大的数封顶', () => {
+    expect(brokenImagesOf({ type: BROKEN_IMAGES, count: 3 })).toBe(3)
+    expect(brokenImagesOf({ type: BROKEN_IMAGES, count: 0 })).toBe(0)
+    expect(brokenImagesOf({ type: BROKEN_IMAGES, count: 1e9 })).toBe(9999)
+    for (const bad of [
+      null,
+      'x',
+      42,
+      {},
+      { type: 'other', count: 1 },
+      { type: BROKEN_IMAGES },
+      { type: BROKEN_IMAGES, count: -1 },
+      { type: BROKEN_IMAGES, count: 1.5 },
+      { type: BROKEN_IMAGES, count: '2' },
+    ]) {
+      expect(brokenImagesOf(bad)).toBeNull()
+    }
   })
 })

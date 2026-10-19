@@ -245,6 +245,32 @@ div.viewer {
   font-family: var(--wl-mono);
 }
 
+/* 预览里有图没加载出来：标题行里一个小警告，悬停看原因。淡入、略放大归位。 */
+.brokenHint {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--wl-r-control);
+  color: var(--wl-warn);
+  cursor: help;
+  animation: brokenIn 200ms var(--wl-ease-out, ease-out) backwards;
+}
+
+@keyframes brokenIn {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brokenHint {
+    animation: none;
+  }
+}
+
 .viewerViews {
   width: 132px;
   flex: none;
