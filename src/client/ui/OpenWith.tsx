@@ -51,19 +51,31 @@ export function OpenWith(props: OpenWithProps): React.JSX.Element | null {
     }
   }, [desktop])
 
-  // 菜单打开时才问系统（每个文件的关联程序不一样，也可能刚装了新的）。
+  // 菜单打开时问系统；同类文件查过的先直接摆出来，后台再核对一遍（可能刚装了新的程序），换了才更新。
   useEffect(() => {
     if (!open || desktop === undefined || path === null) return
-    const abort = new AbortController()
-    setApps({ state: 'loading' })
-    void desktop.applications(path, abort.signal).then((value) => {
-      if (abort.signal.aborted) return
-      setApps(value === null ? { state: 'failed' } : { state: 'ready', apps: value })
+    let alive = true
+    const known = desktop.cached(path)
+    setApps(known === undefined ? { state: 'loading' } : { state: 'ready', apps: known })
+    void desktop.applications(path, new AbortController().signal).then((value) => {
+      if (!alive) return
+      if (value === null) {
+        if (known === undefined) setApps({ state: 'failed' })
+        return
+      }
+      setApps({ state: 'ready', apps: value })
     })
-    return () => abort.abort()
+    return () => {
+      alive = false
+    }
   }, [open, desktop, path])
 
   if (!hasDesktop || desktop === undefined || path === null) return null
+
+  // 手移到按钮上就先查，点开时多半已经有了。
+  const warm = (): void => {
+    if (path !== null) desktop?.warm(path)
+  }
 
   const launch = (how: { reveal: true } | { application?: string }): void => {
     setOpen(false)
@@ -137,6 +149,8 @@ export function OpenWith(props: OpenWithProps): React.JSX.Element | null {
           aria-expanded={open}
           aria-haspopup="menu"
           data-testid="wl-open-with"
+          onPointerEnter={warm}
+          onFocus={warm}
           onClick={() => setOpen(!open)}
         >
           <Icon name="external" size={14} />

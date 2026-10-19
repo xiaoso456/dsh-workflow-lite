@@ -36,10 +36,24 @@ export interface SessionRemote {
 export interface Desktop {
   /** 宿主能不能把文件交给系统程序（一页只问一次）。 */
   available(): Promise<boolean>
-  /** 这份文件能用哪些程序打开；查不到回 `null`。 */
+  /** 这份文件能用哪些程序打开；查不到回 `null`。查到的按扩展名记下，下次同类文件直接用。 */
   applications(path: string, signal: AbortSignal): Promise<readonly DesktopApp[] | null>
+  /** 已经查过的同类文件的程序表（没有就 `undefined`）：菜单一打开就能先摆出来。 */
+  cached(path: string): readonly DesktopApp[] | undefined
+  /** 提前查一次（鼠标移到按钮上时）；已经记下或正在查就什么也不做。 */
+  warm(path: string): void
   /** 用默认程序 / 指定程序打开，或在文件管理器里显示。成功回 `true`。 */
   open(path: string, how: { reveal: true } | { application?: string }): Promise<boolean>
+}
+
+/**
+ * 程序表按扩展名记：系统里「哪些程序能打开 .png」与是哪个 .png 无关，而每次去问都要走一趟宿主、
+ * 再让系统枚举注册表 / 取图标，慢。没有扩展名的文件（Makefile、目录）按完整路径记。
+ */
+function kindKey(path: string): string {
+  const name = path.slice(Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\')) + 1)
+  const dot = name.lastIndexOf('.')
+  return dot > 0 ? name.slice(dot).toLowerCase() : `path:${path}`
 }
 
 export function createDesktop(): Desktop & {
@@ -48,14 +62,28 @@ export function createDesktop(): Desktop & {
 } {
   let remote: SessionRemote | null = null
   let probe: Promise<boolean> | null = null
+  let known = new Map<string, readonly DesktopApp[]>()
+  let pending = new Map<string, Promise<readonly DesktopApp[] | null>>()
+  const reset = (): void => {
+    probe = null
+    known = new Map()
+    pending = new Map()
+  }
   return {
     attach(next) {
       remote = next
-      probe = null
+      reset()
     },
     detach() {
       remote = null
-      probe = null
+      reset()
+    },
+    cached(path) {
+      return known.get(kindKey(path))
+    },
+    warm(path) {
+      if (known.has(kindKey(path))) return
+      void this.applications(path, new AbortController().signal)
     },
     available() {
       const current = remote
@@ -66,14 +94,28 @@ export function createDesktop(): Desktop & {
       )
       return probe
     },
-    async applications(path, signal) {
-      if (remote === null) return null
-      try {
-        const result = await remote.workspacePathApplications({ path }, signal)
-        return result.ok ? result.value : null
-      } catch {
-        return null
+    applications(path) {
+      const current = remote
+      if (current === null) return Promise.resolve(null)
+      const key = kindKey(path)
+      // 同类文件正在查就并进去，不重复问；查询本身不跟着某一个调用方取消（别人还要用它的结果）。
+      let task = pending.get(key)
+      if (task === undefined) {
+        const table = pending
+        task = current.workspacePathApplications({ path }).then(
+          (result) => {
+            if (!result.ok) return null
+            if (remote === current) known.set(key, result.value)
+            return result.value
+          },
+          () => null,
+        )
+        table.set(key, task)
+        void task.finally(() => {
+          if (table.get(key) === task) table.delete(key)
+        })
       }
+      return task
     },
     async open(path, how) {
       if (remote === null) return false
