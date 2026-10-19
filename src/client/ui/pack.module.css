@@ -722,6 +722,45 @@ div.page {
   font-size: var(--wl-fs-micro);
 }
 
+.fieldWarn {
+  color: var(--wl-warn);
+  font-size: var(--wl-fs-micro);
+  overflow-wrap: anywhere;
+}
+
+.fieldHint {
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+.fieldArea {
+  resize: vertical;
+}
+
+.fieldRow > .grow {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 提醒里逐条列的东西（编译级问题）：一条一行。 */
+.line {
+  display: block;
+  margin-top: 2px;
+}
+
+/* ── 导出成什么 ───────────────────────────────────────────── */
+
+.kindRow {
+  display: flex;
+  flex: none;
+  gap: 10px;
+  align-items: center;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
 /* ── 选文件 ───────────────────────────────────────────────── */
 
 .drop {

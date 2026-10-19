@@ -79,6 +79,7 @@ Turn on **Record run state** in **Workflow settings**. Every run then leaves a r
 | Page preview | HTML files among the resources open as pages; make one a dashboard updated every round to follow a loop's output |
 | Versions | Save versions with notes, compare differences, switch back at any time |
 | Import / export | Pack a workflow and the versions you pick into one `.wflite.zip`, optionally with the files and Skills it uses; before importing, see where each item will go |
+| Export as a Skill | Compile one version into a skill (SKILL.md, a task description per step, plus the files and Skills you pack) that works without the plugin; download a zip or install it straight into `~/.agents/skills` |
 | Workflow hub | One place for run records across sessions, all workflows and their versions, and plugin settings |
 | Interface | Four light and four dark color themes that follow DSH light or dark mode; English / 中文 |
 

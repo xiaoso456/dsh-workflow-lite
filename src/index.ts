@@ -163,7 +163,11 @@ export async function apply(ctx: Context, config: WorkflowLiteSettings): Promise
       skills: createSkillViewer(ctx, () => skills),
       config: { port: () => settings, live: liveConfig },
       // 导入的 skill 装进各家 agent 通用的那个目录（DSH 也从这里发现 skill）。
-      pack: { skillsRoot: join(homedir(), '.agents', 'skills'), plugin: pluginVersion() },
+      pack: {
+        skillsRoot: join(homedir(), '.agents', 'skills'),
+        plugin: pluginVersion(),
+        validate,
+      },
     })
   })
 }

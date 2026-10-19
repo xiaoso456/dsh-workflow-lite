@@ -77,6 +77,16 @@ function SkillMeta(props: { t: T; skill: HostSkillResponse }): React.JSX.Element
     if (value !== null && value !== undefined && text.trim() !== '')
       fields.push({ key, value: text })
   }
+  return <SkillMetaList t={t} fields={fields} />
+}
+
+/** 元数据那一块：给好的几项（值是空的不显示），导出成 skill 时预览 SKILL.md 也用它。 */
+export function SkillMetaList(props: {
+  t: T
+  fields: readonly { key: string; label?: string; value: string }[]
+}): React.JSX.Element {
+  const { t } = props
+  const fields = props.fields.filter((field) => field.value.trim() !== '')
   return (
     <section className={css.skillMeta} data-testid="wl-skill-meta">
       <p className={css.skillMetaHead}>

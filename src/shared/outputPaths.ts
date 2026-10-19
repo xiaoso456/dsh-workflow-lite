@@ -14,6 +14,7 @@
 import { isAbsolute, join, normalize } from 'pathe'
 import { CONTROL_CHARS, MAX_ROOT_CODEPOINTS } from './limits.ts'
 import { codepointLength, type NameProblem } from './naming.ts'
+import { SKILL_TOKEN } from './skillPack.ts'
 
 /**
  * 根目录的规范写法：去首尾空白、`pathe.normalize`、去掉尾斜杠（`/`、`C:/`、`//srv/share` 这类根本身除外）。
@@ -97,6 +98,8 @@ export function resolveOutputPath(root: string | undefined, path: string): strin
     const rest = assetsRelative(value)
     return rest === '' ? ASSETS_TOKEN : `${ASSETS_TOKEN}/${rest}`
   }
+  // 导出成 skill 时包里的东西（`{skill}/…`）：在 skill 目录里，不拼根目录。
+  if (value.startsWith(`${SKILL_TOKEN}/`)) return normalize(value)
   if (isAbsoluteRoot(value) || /^[A-Za-z]:[/]/u.test(value)) return normalize(value)
   const base = normalizeRoot(root)
   return base === undefined ? normalize(value) : join(base, value)

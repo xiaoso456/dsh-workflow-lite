@@ -6,11 +6,15 @@
  * 各有一个开关，开着才列出逐项的勾选（能打包的缺省勾上）和其余各项不打包的原因；资料目录总是整个带上。
  * 点「导出」主机打好 zip，前端一块块取回来交给浏览器下载。
  *
+ * 顶上可以换成「导出成 Skill」（见 `shared/skillPack.ts`）：版本只能选一个，资源清单照旧勾，
+ * 多一步「Skill 信息」（{@link HubSkillInfo}）填 SKILL.md 头部，再下载 zip 或直接装到本机。
+ *
  * @module @xiaoso/dsh-workflow-lite/client/ui/HubExport
  */
 
 import { type ComponentProps, useEffect, useState } from 'react'
 import type { PackScanItem, PackScanResponse } from '../../shared/pack.ts'
+import { SKILL_PATHS, suggestSkillName } from '../../shared/skillPack.ts'
 import type { ResourceKind, VersionEntry } from '../../shared/types.ts'
 import { downloadPack, saveFile } from '../app/packTransfer.ts'
 import type { LocaleKey, T } from '../i18n.ts'
@@ -28,6 +32,7 @@ import {
 } from '../model/pack.ts'
 import { shortTime } from '../model/time.ts'
 import { errorMessage, type WorkflowLiteRpc } from '../rpc.ts'
+import { HubSkillInfo, type SkillDraft } from './HubSkillInfo.tsx'
 import hub from './hub.module.css'
 import { Icon, type IconName } from './Icon.tsx'
 import { Presence, useResizeFlip } from './motion.tsx'
@@ -35,7 +40,11 @@ import { Callout, PackRow, PackSection, PackSteps } from './PackRow.tsx'
 import css from './pack.module.css'
 import { cx } from './primitives.tsx'
 import { KIND_ICON, KIND_LABEL } from './resourceUi.ts'
+import { Segmented } from './Segmented.tsx'
 import ui from './ui.module.css'
+
+/** 导出成什么：工作流包（`.wflite.zip`，导回 workflow-lite）或 skill（不装插件也能用）。 */
+type ExportKind = 'pack' | 'skill'
 
 export interface PackScope {
   cwd?: string
@@ -52,7 +61,12 @@ export function HubExport(props: {
   onDone(text: string): void
 }): React.JSX.Element {
   const { t, rpc, name } = props
-  const [step, setStep] = useState<0 | 1>(0)
+  const [kind, setKind] = useState<ExportKind>('pack')
+  const [step, setStep] = useState<0 | 1 | 2>(0)
+  const [draft, setDraft] = useState<SkillDraft>(() => ({
+    meta: { name: suggestSkillName(name), description: '', whenToUse: '' },
+    touched: false,
+  }))
   const [list, setList] = useState<VersionEntry[] | null>(null)
   const [picked, setPicked] = useState<ReadonlySet<number>>(new Set())
   const [scan, setScan] = useState<PackScanResponse | null>(null)
@@ -136,13 +150,23 @@ export function HubExport(props: {
   const usable = (list ?? []).filter((entry) => entry.invalid !== true)
   const unsaved = list !== null && list.length > 0 && !list.some((entry) => entry.current)
   const multi = picked.size > 1
+  const skill = kind === 'skill'
+
+  /** 换导出的种类：回到第一步；skill 只带一个版本，选了几个就留编号最大的那个。 */
+  const switchKind = (next: ExportKind): void => {
+    if (next === kind) return
+    setKind(next)
+    setStep(0)
+    setError(null)
+    if (next === 'skill' && picked.size > 1) setPicked(new Set([Math.max(...picked)]))
+  }
 
   return (
     <div className={cx(hub.wfDetail, hub.paneIn, css.page)} data-testid="wl-pack-export">
       <div className={hub.wfHead}>
         <div className={hub.wfHeadText}>
           <p className={hub.wfTitle}>{t('pack.exportTitle').replace('{name}', name)}</p>
-          <p className={hub.wfSub}>{t('pack.versionsHint')}</p>
+          <p className={hub.wfSub}>{t(skill ? 'skillExport.versionsHint' : 'pack.versionsHint')}</p>
         </div>
         <button
           type="button"
@@ -155,7 +179,28 @@ export function HubExport(props: {
           {t('pack.back')}
         </button>
       </div>
-      <PackSteps steps={[t('pack.stepVersions'), t('pack.stepResources')]} at={step} />
+      <div className={css.kindRow}>
+        <Segmented<ExportKind>
+          label={t('pack.kindLabel')}
+          value={kind}
+          disabled={busy !== null}
+          testId="wl-pack-kind"
+          options={[
+            { value: 'pack', label: t('pack.kind.pack') },
+            { value: 'skill', label: t('pack.kind.skill') },
+          ]}
+          onChange={switchKind}
+        />
+        <span>{t(skill ? 'pack.kind.skillHint' : 'pack.kind.packHint')}</span>
+      </div>
+      <PackSteps
+        steps={
+          skill
+            ? [t('pack.stepVersion'), t('pack.stepResources'), t('skillExport.step')]
+            : [t('pack.stepVersions'), t('pack.stepResources')]
+        }
+        at={step}
+      />
       <Presence show={error !== null}>
         {error !== null && <Callout tone="error">{error}</Callout>}
       </Presence>
@@ -188,17 +233,24 @@ export function HubExport(props: {
                 </Callout>
               )}
               <PackSection
-                title={t('pack.stepVersions')}
-                note={t('pack.picked').replace('{n}', String(picked.size))}
-                action={{
-                  label: picked.size === usable.length ? t('pack.selectNone') : t('pack.selectAll'),
-                  onClick: () =>
-                    setPicked(
-                      picked.size === usable.length
-                        ? new Set()
-                        : new Set(usable.map((entry) => entry.n)),
-                    ),
-                }}
+                title={skill ? t('pack.stepVersion') : t('pack.stepVersions')}
+                note={skill ? undefined : t('pack.picked').replace('{n}', String(picked.size))}
+                {...(skill
+                  ? {}
+                  : {
+                      action: {
+                        label:
+                          picked.size === usable.length
+                            ? t('pack.selectNone')
+                            : t('pack.selectAll'),
+                        onClick: () =>
+                          setPicked(
+                            picked.size === usable.length
+                              ? new Set()
+                              : new Set(usable.map((entry) => entry.n)),
+                          ),
+                      },
+                    })}
               >
                 {usable.map((entry) => (
                   <PackRow
@@ -229,6 +281,11 @@ export function HubExport(props: {
                     dim={!picked.has(entry.n)}
                     testId={`wl-pack-ver-${entry.n}`}
                     onCheck={(on) => {
+                      // skill：单选，点哪个就是哪个（不能一个都不选）。
+                      if (skill) {
+                        setPicked(new Set([entry.n]))
+                        return
+                      }
                       const next = new Set(picked)
                       if (on) next.add(entry.n)
                       else next.delete(entry.n)
@@ -241,8 +298,10 @@ export function HubExport(props: {
             <div className={css.foot}>
               <div className={css.footInfo}>
                 {picked.size === 0
-                  ? t('pack.pickOne')
-                  : t('pack.picked').replace('{n}', String(picked.size))}
+                  ? t(skill ? 'skillExport.pickOne' : 'pack.pickOne')
+                  : skill
+                    ? `v${[...picked][0]}`
+                    : t('pack.picked').replace('{n}', String(picked.size))}
               </div>
               <button
                 type="button"
@@ -257,6 +316,21 @@ export function HubExport(props: {
             </div>
           </>
         )
+      ) : step === 2 && skill && scan !== null ? (
+        <HubSkillInfo
+          t={t}
+          rpc={rpc}
+          name={name}
+          version={[...picked][0] ?? 0}
+          pack={[...effectivePack(scan, packed, switches)]}
+          scope={props.scope}
+          draft={draft}
+          onDraft={setDraft}
+          onBusy={setBusy}
+          onError={setError}
+          onPrev={() => setStep(1)}
+          onDone={props.onDone}
+        />
       ) : scan === null ? (
         <div className={css.busy}>
           <span className={hub.spinner} />
@@ -269,6 +343,7 @@ export function HubExport(props: {
           packed={packed}
           switches={switches}
           multi={multi}
+          skill={skill}
           onSwitch={(kind, on) => setSwitches({ ...switches, [kind]: on })}
           onToggle={(key, on) => {
             const next = new Set(packed)
@@ -277,7 +352,7 @@ export function HubExport(props: {
             setPacked(next)
           }}
           onPrev={() => setStep(0)}
-          onExport={() => void doExport()}
+          onExport={() => (skill ? setStep(2) : void doExport())}
         />
       )}
     </div>
@@ -303,12 +378,14 @@ function Resources(props: {
   packed: ReadonlySet<string>
   switches: PackSwitches
   multi: boolean
+  /** 导出成 skill：打包的放在 skill 里的位置不同，底下的按钮是「下一步」。 */
+  skill: boolean
   onToggle(key: string, on: boolean): void
   onSwitch(kind: PackSwitch, on: boolean): void
   onPrev(): void
   onExport(): void
 }): React.JSX.Element {
-  const { t, scan, packed, switches, multi } = props
+  const { t, scan, packed, switches, multi, skill } = props
   // 展开、收起：下面的分类滑到新位置，像版本列表那样。
   const listRef = useResizeFlip()
   const effective = effectivePack(scan, packed, switches)
@@ -339,7 +416,12 @@ function Resources(props: {
     const on = enabled && packed.has(item.key)
     const skipped =
       item.skipped !== undefined ? t('pack.skipped').replace('{n}', String(item.skipped)) : null
-    const where = item.kind === 'skill' ? `skills/${item.value}/` : (item.as ?? '')
+    const where =
+      item.kind === 'skill'
+        ? `skills/${item.value}/`
+        : skill && item.as !== undefined
+          ? SKILL_PATHS.asset(item.as.slice('{assets}/'.length))
+          : (item.as ?? '')
     return (
       <PackRow
         key={item.key}
@@ -386,7 +468,9 @@ function Resources(props: {
 
   return (
     <>
-      <p className={css.sectionHint}>{t('pack.resourcesHint')}</p>
+      <p className={css.sectionHint}>
+        {t(skill ? 'skillExport.resourcesHint' : 'pack.resourcesHint')}
+      </p>
       {PACK_CATEGORIES.every(
         (kind) =>
           categoryItems(scan, kind).packable.length + categoryItems(scan, kind).others.length === 0,
@@ -457,8 +541,17 @@ function Resources(props: {
           data-testid="wl-pack-do-export"
           onClick={props.onExport}
         >
-          <Icon name="download" size={14} />
-          {t('pack.doExport')}
+          {skill ? (
+            <>
+              {t('pack.next')}
+              <Icon name="chevronRight" size={14} />
+            </>
+          ) : (
+            <>
+              <Icon name="download" size={14} />
+              {t('pack.doExport')}
+            </>
+          )}
         </button>
       </div>
     </>

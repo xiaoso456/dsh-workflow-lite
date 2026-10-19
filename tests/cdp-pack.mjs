@@ -5,15 +5,19 @@
  * 导出：选版本 → 资源清单（文件缺省勾上）→ 下载 zip →
  * 导入同一个包：名字撞了，另存为新名字（预览里写明资料放到哪、skill 内容一样跳过）→ 确认卡 → 落盘、图里改成 {assets}/… →
  * 再导入一次，选并入：版本全都重复，不再存。
+ * 另外导出成 skill：换到「Skill」→ 单选版本 → 资源 → Skill 信息（名字、预填的描述、SKILL.md 预览）→
+ * 下载 zip（看包里的布局）→ 装到本机 → 再装一次要先确认覆盖。
  *
- * 不往 `~/.agents/skills` 写东西：只引用本机已经装着的 skill（导回来是「内容一样，跳过」）。
+ * 导入不往 `~/.agents/skills` 写东西：只引用本机已经装着的 skill（导回来是「内容一样，跳过」）。
+ * 导出成 skill 的「装到本机」会写：用一个一次性的名字（`wl-cdp-…`），验完删掉。
  *
  * usage: DSH_WEB_TOKEN=<token> DSH_BASE=http://127.0.0.1:3190 node --experimental-strip-types tests/cdp-pack.mjs
  */
 
-import { mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
+import { strFromU8, unzipSync } from 'fflate'
 import { bootToCanvas, screenshot, setReactInput } from './lib/canvas-harness.mjs'
 import { openPage, waitFor } from './lib/cdp-session.mjs'
 import { rpc } from './lib/web-session.mjs'
@@ -23,6 +27,9 @@ const COPY = `${NAME}-copy`
 const DOWNLOADS = resolve('tests/runs/pack-downloads')
 const EXT = join(tmpdir(), `${NAME}-ext`)
 const SPEC = join(EXT, 'spec.md').replace(/\\/gu, '/')
+/** 导出成 skill 用的名字（装到本机的那份验完删掉）。 */
+const SKILL = `wl-cdp-${Date.now().toString(36)}`
+let installedAt = null
 const sleep = (ms) => new Promise((resolveWait) => setTimeout(resolveWait, ms))
 
 let step = 0
@@ -48,11 +55,11 @@ async function installedSkill() {
   return skills.find((skill) => skill.path?.includes('/.agents/skills/'))?.name
 }
 
-async function waitDownload(timeoutMs = 20_000) {
+async function waitDownload(timeoutMs = 20_000, suffix = '.wflite.zip') {
   const started = Date.now()
   while (Date.now() - started < timeoutMs) {
     const names = await readdir(DOWNLOADS).catch(() => [])
-    const done = names.find((name) => name.endsWith('.wflite.zip'))
+    const done = names.find((name) => name.endsWith(suffix))
     if (done !== undefined) return join(DOWNLOADS, done)
     await sleep(250)
   }
@@ -108,7 +115,8 @@ async function run(session) {
   })
 
   // 画布打开时会把叠在一起的卡片挪开（会改图），所以等它安顿好了再存版本。
-  await bootToCanvas(session, NAME)
+  // `DSH_SESSION_TITLE`：一次性实例里按标题找会话（新建的会话行显示「刚刚」，按相对时间找不到）。
+  await bootToCanvas(session, NAME, { sessionTitle: process.env.DSH_SESSION_TITLE })
   await sleep(1500)
   await rpc('graph/versionSave', { name: NAME, note: '第一版' })
   await session.send('Page.setDownloadBehavior', { behavior: 'allow', downloadPath: DOWNLOADS })
@@ -222,6 +230,112 @@ async function run(session) {
   await waitFor(session, `${ghosts} === 0`, { timeoutMs: 3000 })
   pass('结果条：✕ 收掉时淡出，放完才没')
 
+  // 3b) 导出成 skill：换到「Skill」，版本变单选，资源清单之后多一步「Skill 信息」。
+  await session.evaluate(clickTestId('wl-hub-wf-export'))
+  await waitFor(session, exists('wl-pack-kind-skill'))
+  await session.evaluate(clickTestId('wl-pack-kind-skill'))
+  await waitFor(session, exists('wl-pack-ver-1'))
+  check(
+    await session.evaluate(
+      `document.querySelector('[data-testid="wl-pack-ver-1"] input').checked === true`,
+    ),
+    'skill：v1 应缺省选上',
+  )
+  await session.evaluate(clickTestId('wl-pack-next'))
+  await waitFor(session, exists('wl-pack-cat-file'))
+  check(
+    (await session.evaluate(textOf('wl-pack-do-export'))).includes('下一步'),
+    'skill：资源清单底下应是「下一步」',
+  )
+  await session.evaluate(clickTestId('wl-pack-do-export'))
+  await waitFor(session, exists('wl-skill-name'), { timeoutMs: 30_000 })
+  const value = (testId) =>
+    session.evaluate(`document.querySelector('[data-testid="${testId}"]').value`)
+  check(
+    (await value('wl-skill-name')) === NAME,
+    `名字应按工作流名预填：${await value('wl-skill-name')}`,
+  )
+  check((await value('wl-skill-desc')).includes(NAME), '描述应预填')
+  await setReactInput(session, '[data-testid="wl-skill-name"]', 'Bad_Name')
+  await waitFor(session, `document.querySelector('[data-testid="wl-skill-download"]').disabled`)
+  await setReactInput(session, '[data-testid="wl-skill-name"]', SKILL)
+  await waitFor(session, `!document.querySelector('[data-testid="wl-skill-download"]').disabled`)
+  await sleep(400)
+  await screenshot(session, 'pack-07-skill-info.png')
+  pass('导出成 skill：单选版本 → 资源 → Skill 信息（名字、描述预填，名字不合规矩不让导）')
+
+  await session.evaluate(clickTestId('wl-skill-preview'))
+  await waitFor(session, exists('wl-skill-doc'))
+  await waitFor(session, `${textOf('wl-skill-doc')}.includes('路径约定')`)
+  check(
+    (await session.evaluate(textOf('wl-skill-doc'))).includes(SKILL),
+    'SKILL.md 预览应带上填的名字',
+  )
+  await sleep(400)
+  await screenshot(session, 'pack-08-skill-doc.png')
+  await session.evaluate(
+    `document.querySelector('[data-testid="wl-skill-doc"] button[aria-label="关闭"]').click()`,
+  )
+  await waitFor(session, gone('wl-skill-doc'))
+  pass('导出成 skill：预览 SKILL.md')
+
+  await session.evaluate(clickTestId('wl-skill-download'))
+  await waitFor(session, exists('wl-pack-notice'), { timeoutMs: 30_000 })
+  const skillZip = await waitDownload(20_000, `${SKILL}.zip`)
+  const entries = unzipSync(new Uint8Array(await readFile(skillZip)))
+  const paths = Object.keys(entries).sort()
+  for (const want of ['SKILL.md', 'steps/a.md', 'assets/spec.md']) {
+    check(paths.includes(`${SKILL}/${want}`), `包里应有 ${want}：${paths.join(', ')}`)
+  }
+  const doc = strFromU8(entries[`${SKILL}/SKILL.md`])
+  check(doc.startsWith(`---\nname: ${SKILL}\n`), 'SKILL.md 头部应是填的名字')
+  check(doc.includes('`{skill}/steps/a.md`') && !doc.includes(SPEC), '包里的路径应写成 {skill}/…')
+  pass('导出成 skill：下载 zip（SKILL.md + steps + assets，路径都在包里）')
+
+  // 装到本机，再装一次要先确认覆盖。
+  const installOnce = async (overwrite) => {
+    await session.evaluate(clickTestId('wl-pack-notice-close'))
+    await session.evaluate(clickTestId('wl-hub-wf-export'))
+    await waitFor(session, exists('wl-pack-kind-skill'))
+    await session.evaluate(clickTestId('wl-pack-kind-skill'))
+    await waitFor(session, exists('wl-pack-next'))
+    await session.evaluate(clickTestId('wl-pack-next'))
+    await waitFor(session, exists('wl-pack-do-export'))
+    await session.evaluate(clickTestId('wl-pack-do-export'))
+    await waitFor(session, exists('wl-skill-name'), { timeoutMs: 30_000 })
+    await setReactInput(session, '[data-testid="wl-skill-name"]', SKILL)
+    if (overwrite) await waitFor(session, exists('wl-skill-name-taken'))
+    await waitFor(session, `!document.querySelector('[data-testid="wl-skill-install"]').disabled`)
+    await session.evaluate(clickTestId('wl-skill-install'))
+    if (overwrite) {
+      await waitFor(session, exists('wl-skill-overwrite-pop'))
+      await sleep(300)
+      await screenshot(session, 'pack-09-skill-overwrite.png')
+      await session.evaluate(clickTestId('wl-skill-overwrite'))
+    }
+    await waitFor(session, exists('wl-pack-notice'), { timeoutMs: 30_000 })
+    const notice = await session.evaluate(textOf('wl-pack-notice'))
+    const at = /已装到 (.+)$/u.exec(notice)?.[1]
+    check(at !== undefined, `应说装到了哪：${notice}`)
+    return at
+  }
+  installedAt = await installOnce(false)
+  check(
+    (await readFile(join(installedAt, 'SKILL.md'), 'utf8')).includes(`name: ${SKILL}`),
+    '装到本机的 SKILL.md 应在',
+  )
+  await writeFile(join(installedAt, 'stale.md'), '旧的')
+  check((await installOnce(true)) === installedAt, '覆盖应装在同一处')
+  check(
+    await stat(join(installedAt, 'stale.md')).then(
+      () => false,
+      () => true,
+    ),
+    '覆盖后旧文件应没了',
+  )
+  await session.evaluate(clickTestId('wl-pack-notice-close'))
+  pass('导出成 skill：装到本机；同名的先确认覆盖')
+
   // 4) 导入同一个包：名字撞了，缺省另存为新名字；资料放到哪写清楚；skill 内容一样跳过。
   await session.evaluate(clickTestId('wl-hub-wf-import'))
   await waitFor(session, exists('wl-pack-pick'))
@@ -311,5 +425,6 @@ try {
   for (const name of [NAME, COPY]) await rpc('graph/delete', { name }).catch(() => {})
   await rm(EXT, { recursive: true, force: true })
   await rm(DOWNLOADS, { recursive: true, force: true })
+  if (installedAt !== null) await rm(installedAt, { recursive: true, force: true })
   session.close()
 }

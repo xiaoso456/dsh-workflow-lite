@@ -109,13 +109,29 @@ export const WELL_KNOWN_WHEN = ['pass', 'fail'] as const
 /** `VERDICT` 约定的固定形态：`VERDICT: <值>`（顶格、大写、半角冒号 + 一个空格）。 */
 export const VERDICT_PREFIX = 'VERDICT: '
 
-/** 派发计划的段标记（字节稳定的前缀契约）。 */
+/** 派发计划的段标题，按出现顺序（没有内容的段不出现）。 */
 export const PLAN_SECTIONS = {
-  protocol: '## 你拿到的是什么',
-  facts: '## 图的事实',
-  discipline: '## 分发纪律',
-  contract: '## 交付契约',
-  dynamic: '## 本次执行',
-  notes: '## 图的注意事项',
+  overview: '## 概览',
+  run: '## 本次执行',
+  /** 动手前要做的事：设目标、（skill）问用户、查依赖、记进度。 */
+  before: '## 开始之前',
+  execution: '## 怎么执行',
+  /** 路径、产出写到哪、资源怎么用、「产出 / 更新」的定义。 */
+  conventions: '## 约定',
+  flow: '## 流程',
+  resources: '## 资源',
+  notes: '## 注意事项',
   runState: '## 运行状态',
+  /** 只在整卷版里有：逐步骤内联的提示词原文。 */
+  bodies: '## 步骤正文',
+} as const
+
+/** 任务描述末尾各段的标题（提示词原文之后）。 */
+export const TASK_SECTIONS = {
+  /** 连到这一步（或没连、交给所有步骤）的输入节点：问题与回答。 */
+  inputs: '## 用户输入',
+  /** 交给所有步骤的资源。 */
+  global: '## 通用约定',
+  resources: '## 这一步的资源',
+  reply: '## 回复',
 } as const

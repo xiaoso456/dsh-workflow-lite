@@ -84,30 +84,35 @@ describe('compileWorkflow —— 端到端：图 → 计划 + 物化', () => {
     expect(planId).toMatch(/^[0-9a-f]{8}$/)
     expect(plan).not.toBe('')
 
-    // 派发计划：五段齐全、正文一个字都不在里面、路径引用指向实例目录里的任务描述。
+    // 派发计划：各段齐全、正文一个字都不在里面、路径引用指向实例目录里的任务描述。
     for (const marker of [
-      '## 你拿到的是什么',
-      '## 图的事实',
-      '## 分发纪律',
-      '## 交付契约',
+      '## 概览',
       '## 本次执行',
+      '## 开始之前',
+      '## 怎么执行',
+      '## 约定',
+      '## 流程',
+      '## 资源',
     ]) {
       expect(plan).toContain(marker)
     }
     expect(plan).not.toContain('你是审查者')
     expect(plan).not.toContain('{instance}')
-    expect(plan).toContain('工作流实例：`20261002-143012-a3f9`')
+    expect(plan).toContain('- **工作流实例**：`20261002-143012-a3f9`')
     expect(payloadPaths['auth-review']).toBe(join(dir, 'tasks', 'auth-review.md'))
     expect(plan).toContain(payloadPaths['auth-review'] ?? '')
     // 没配产出根目录：默认落在实例自己的 out 下。
     expect(plan).toContain('`.workflow-lite/runs/20261002-143012-a3f9/out`')
 
     const written = await readFile(join(dir, 'tasks', 'auth-review.md'), 'utf8')
-    expect(written.startsWith('你是审查者，只审认证相关代码。\n\n---\n\n')).toBe(true)
+    // 开头是步骤名与它在图里的位置，接着是提示词原文。
+    expect(written).toMatch(
+      /^# \S*auth-review\S*\n\n工作流 `code-review` 里的一个步骤。[^\n]+\n\n你是审查者，只审认证相关代码。\n\n---\n\n/u,
+    )
     // 末尾附上这一步读写的资源（路径按实例拼好）与判定行要求，执行者不必等编排者转述。
-    expect(written).toContain('**这一步的资源**')
+    expect(written).toContain('\n## 这一步的资源\n')
     expect(written).toContain('`.workflow-lite/runs/20261002-143012-a3f9/out/')
-    expect(written).toContain('**判定**：回复的最后一行写')
+    expect(written).toContain('\n## 回复\n回复的最后一行写')
     // 工作区的 .workflow-lite 不进版本库。
     expect(await readFile(join(dataDir, 'ws', '.workflow-lite', '.gitignore'), 'utf8')).toBe('*\n')
 
@@ -131,7 +136,7 @@ describe('compileWorkflow —— 端到端：图 → 计划 + 物化', () => {
     expect(payloadPaths.scan).toBe(
       join(dataDir, 'ws', '.workflow-lite', 'runs', '{instance}', 'tasks', 'scan.md'),
     )
-    expect(plan).toContain('工作流实例：`{instance}`')
+    expect(plan).toContain('- **工作流实例**：`{instance}`')
     expect(plan).toContain('## 运行状态')
     expect(plan).toContain('"instance":"{instance}"')
     const { access } = await import('node:fs/promises')
@@ -214,13 +219,13 @@ describe('compileWorkflow —— 端到端：图 → 计划 + 物化', () => {
     expect(outcome.error.detail).toBeDefined()
   })
 
-  it('cwd 缺省时 ⑤ 渲染「未指定」、goal 缺省时不写目标；给了就照写', async () => {
+  it('cwd 缺省时「本次执行」写「未指定」、goal 缺省时不写目标；给了就照写', async () => {
     await seedGolden()
     const bare = await compileWorkflow(repository, dataDir, 'code-review', {})
     expect(bare.ok).toBe(true)
     if (!bare.ok) return
-    expect(bare.result.plan).not.toContain('目标：')
-    expect(bare.result.plan).toContain('工作区路径：未指定')
+    expect(bare.result.plan).not.toContain('**目标**')
+    expect(bare.result.plan).toContain('- **工作区**：未指定')
 
     const given = await compileWorkflow(
       repository,
@@ -231,13 +236,13 @@ describe('compileWorkflow —— 端到端：图 → 计划 + 物化', () => {
     )
     expect(given.ok).toBe(true)
     if (!given.ok) return
-    expect(given.result.plan).toContain('目标：跑完它')
-    expect(given.result.plan).toContain('工作区路径：D:\\work\\repo')
+    expect(given.result.plan).toContain('- **目标**：跑完它')
+    expect(given.result.plan).toContain('- **工作区**：`D:\\work\\repo`')
   })
 })
 
 describe('compileWorkflow 与校验层的接线', () => {
-  it('图的警告与提示会出现在 ⑥ 段（有警告时）', async () => {
+  it('图的警告会出现在「注意事项」里', async () => {
     await seedGolden()
     // 两个步骤都整份写同一个资源，制造一条 resource_overwritten 警告。
     expect(
@@ -280,7 +285,7 @@ describe('compileWorkflow 与校验层的接线', () => {
     expect(outcome.result.warnings.some((warning) => warning.code === 'resource_overwritten')).toBe(
       true,
     )
-    expect(outcome.result.plan).toContain('## 图的注意事项')
+    expect(outcome.result.plan).toContain('## 注意事项')
   })
 
   it('回边不计入批次但计入前置（黄金图的 auth-review 在批次 2）', async () => {

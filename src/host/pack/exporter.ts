@@ -46,7 +46,7 @@ import {
 import type { HostSkillEntry } from '../../shared/wire.ts'
 import { listSkills, type SkillViewer } from '../hostFs.ts'
 import { assetsDir } from '../store/paths.ts'
-import type { Outcome, Repository } from '../store/repository.ts'
+import type { DocumentValidator, Outcome, Repository } from '../store/repository.ts'
 import { versionText } from '../store/versions.ts'
 import { newStage, writeOut } from './staging.ts'
 import { readTree, type Tree, walkTree } from './tree.ts'
@@ -59,6 +59,8 @@ export interface PackDeps {
   skillsRoot: string
   /** 插件版本（写进清单）。 */
   plugin: string
+  /** 文档级校验（导出成 skill 时看有没有编译级问题）；没给就不查。 */
+  validate?: DocumentValidator
   now?: () => number
 }
 
@@ -78,7 +80,7 @@ interface PickedVersion {
 }
 
 /** 盘点时顺手留下的东西（导出时直接用，不再看一遍磁盘）。 */
-interface ScanState {
+export interface ScanState {
   response: PackScanResponse
   versions: PickedVersion[]
   trees: Map<string, Tree>
@@ -125,7 +127,10 @@ function scopeOf(request: { cwd?: string; session?: string }): { cwd?: string; s
   }
 }
 
-async function scanState(deps: PackDeps, request: PackScanRequest): Promise<Outcome<ScanState>> {
+export async function scanState(
+  deps: PackDeps,
+  request: PackScanRequest,
+): Promise<Outcome<ScanState>> {
   const picked = await pickVersions(deps.repository, request.name, request.versions)
   if (!picked.ok) return picked
   const versions = picked.result

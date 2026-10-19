@@ -137,7 +137,10 @@ const run = async () => {
     /runs[\\/]\{instance\}[\\/]tasks[\\/]auth-review\.md/u.test(plan.plan),
     `计划里应有实例目录里的任务描述路径：${plan.plan.slice(0, 400)}`,
   )
-  check(plan.plan.includes('## 交付契约'), '计划应有五段结构')
+  check(
+    plan.plan.includes('## 流程') && plan.plan.includes('## 怎么执行'),
+    '计划应有「怎么执行」「流程」等段',
+  )
   check(/^[0-9a-f]{8}$/.test(plan.planId), `planId 应是 8 位十六进制：${plan.planId}`)
   console.log(`  6 编译 ok（planId ${plan.planId}，${plan.plan.length} 字符）`)
 

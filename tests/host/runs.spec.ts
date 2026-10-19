@@ -115,13 +115,13 @@ describe('编译建实例', () => {
     const result = record(await run({ action: 'compile', workflow: 'cr' }, exec('s1')))
     const id = String(result.instance)
     expect(String(result.plan)).not.toContain('## 运行状态')
-    expect(String(result.plan)).toContain(`工作流实例：\`${id}\``)
+    expect(String(result.plan)).toContain(`- **工作流实例**：\`${id}\``)
     expect(record(result.progress).tracked).toBe(false)
     const list = await runs.list('s1', false)
     expect(list.map((item) => [item.id, item.statePath])).toEqual([[id, undefined]])
     const task = join(workspace, '.workflow-lite', 'runs', id, 'tasks', 'scan.md')
     expect(record(result.payloadPaths).scan).toBe(task)
-    expect(await readFile(task, 'utf8')).toBe('做 scan')
+    expect(await readFile(task, 'utf8')).toMatch(/\n\n做 scan\n$/u)
   })
 
   it('开了：建快照与初始状态，计划带运行状态段（用 state 动作记），本会话当前实例就是它', async () => {
@@ -132,7 +132,7 @@ describe('编译建实例', () => {
     expect(String(result.plan)).toContain('## 运行状态')
     expect(String(result.plan)).toContain(`"instance":"${id}"`)
     expect(String(result.plan)).not.toContain(statePath)
-    expect(String(result.plan)).toContain('目标：审一遍')
+    expect(String(result.plan)).toContain('- **目标**：审一遍')
     const text = await readFile(statePath, 'utf8')
     expect(text.startsWith('# workflow-lite 运行状态')).toBe(true)
     const state = parse(text)
@@ -463,8 +463,10 @@ describe('保存用户改的图', () => {
     expect(graphEntry.detail).toContain('步骤 review：改了提示词')
     expect(graphEntry.detail).toContain('新加步骤 lint')
     const tasks = join(workspace, '.workflow-lite', 'runs', id, 'tasks')
-    expect(await readFile(join(tasks, 'review.md'), 'utf8')).toMatch(/^换个审法\n\n---\n/)
-    expect(await readFile(join(tasks, 'lint.md'), 'utf8')).toBe('跑 lint')
+    expect(await readFile(join(tasks, 'review.md'), 'utf8')).toMatch(/\n\n换个审法\n\n---\n/u)
+    expect(await readFile(join(tasks, 'lint.md'), 'utf8')).toMatch(
+      /^# lint\n\n工作流 `cr` 里的一个步骤。[^\n]+\n\n跑 lint\n$/u,
+    )
     expect(notified).toHaveLength(1)
     expect(notified[0]?.summary).toBe('用户修改了 cr 的图与运行状态（3 处）')
     expect(notified[0]?.text).toContain('图的改动：\n- 步骤 review：改了提示词\n- 新加步骤 lint')
@@ -656,7 +658,7 @@ describe('看产出文件', () => {
     await mkdir(join(workspace, 'src'), { recursive: true })
     await writeFile(join(workspace, 'docs', 'spec.md'), '规格')
     const result = await compileWithRuns()
-    expect(String(result.plan)).toContain('  - 文件：`docs/spec.md`')
+    expect(String(result.plan)).toContain('- `ref`：文件 `docs/spec.md`；')
     const id = String(result.instance)
     expect((await view(id)).files.ref).toEqual([true, true, null])
     const spec = await runs.file(id, { node: 'ref', item: 0 })
@@ -1158,8 +1160,10 @@ describe('用户输入', () => {
     const saved = JSON.parse(await readFile(join(dataDir, 'runs', id, 'inputs.json'), 'utf8'))
     expect(saved).toEqual({ focus: '并发与锁', depth: '粗看' })
     const resumed = record(await run({ action: 'resume', instance: id }, exec('s1')))
-    expect(String(resumed.plan)).toContain('- 问：重点看哪里？（交给 `review`）\n  答：并发与锁')
-    expect(String(resumed.plan)).toContain('- 问：审多细？（交给所有步骤）\n  答：粗看')
+    expect(String(resumed.plan)).toContain(
+      '  - 问：重点看哪里？（交给 `review`）\n    答：并发与锁',
+    )
+    expect(String(resumed.plan)).toContain('  - 问：审多细？（交给所有步骤）\n    答：粗看')
     expect((await view(id)).answers).toEqual({ focus: '并发与锁', depth: '粗看' })
   })
 

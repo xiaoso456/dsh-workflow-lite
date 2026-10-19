@@ -343,7 +343,7 @@ export function validateDocument(
         mk(
           'compile',
           'resource_unwritable',
-          `${info.writers.map((writer) => writer.id).join(' / ')} 写资源 ${resource.id}，但它里面没有文件或文件夹——网址、Skill、自定义只能读`,
+          `${info.writers.map((writer) => writer.id).join(' / ')} 写资源「${resource.id}」，但它里面没有文件或文件夹——网址、Skill、自定义只能读`,
           { node: resource.id },
         ),
       )
@@ -484,7 +484,7 @@ export function validateDocument(
       mk(
         'hint',
         'resource_unread',
-        `${info.writers.map((writer) => writer.id).join(' / ')} 写资源 ${resourceTitle(info.resource)}，但没有步骤读它——下游只拿到交接里的执行结果；要用它就从资源连线到需要它的步骤`,
+        `${info.writers.map((writer) => writer.id).join(' / ')} 写资源「${resourceTitle(info.resource)}」，但没有步骤读它——下游只拿到交接里的执行结果；要用它就从资源连线到需要它的步骤`,
         { node: info.resource.id },
       ),
     )

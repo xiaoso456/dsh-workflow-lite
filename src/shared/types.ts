@@ -273,9 +273,9 @@ export interface PayloadPath {
 export interface PlanFacts {
   name: string
   document: WorkflowDocument
-  /** 本次目标；缺省时 ⑤ 段不写这一行。 */
+  /** 本次目标；缺省时「本次执行」不写这一项。 */
   goal?: string
-  /** 工作区路径（＝ ⑤ 段的 cwd）；取不到时 ⑤ 渲染「工作区路径：未指定」。 */
+  /** 工作区路径；取不到时「本次执行」写「工作区：未指定」，「开始之前」让模型先确认。 */
   cwd?: string
   /** 工作流实例 id（预览时是 `{instance}`）；不给就不写。 */
   instance?: string

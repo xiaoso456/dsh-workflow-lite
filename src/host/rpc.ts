@@ -23,6 +23,7 @@ import {
 import { normalizeDocument, readNodeData as readDataFields } from '../shared/model.ts'
 import type { PackSkillAction } from '../shared/pack.ts'
 import type { StateEdit } from '../shared/runState.ts'
+import type { SkillBuildRequest } from '../shared/skillPack.ts'
 import type { NodeData } from '../shared/types.ts'
 import {
   endpointName,
@@ -34,6 +35,7 @@ import {
 import { listHostDir, listSkills, readSkill, type SkillViewer } from './hostFs.ts'
 import { exportPack, type PackDeps, scanPack } from './pack/exporter.ts'
 import { applyPack, inspectPack } from './pack/importer.ts'
+import { exportSkill, previewSkill } from './pack/skillExporter.ts'
 import { appendChunk, discard, readChunk } from './pack/staging.ts'
 import { compileWorkflow } from './plan.ts'
 import {
@@ -45,7 +47,12 @@ import {
 import type { RunFileTarget } from './runs/files.ts'
 import type { GraphEdit, RunService } from './runs/service.ts'
 import { storageAction } from './runs/storage.ts'
-import { type LoadResult, problemsToWarnings, type Repository } from './store/repository.ts'
+import {
+  type DocumentValidator,
+  type LoadResult,
+  problemsToWarnings,
+  type Repository,
+} from './store/repository.ts'
 
 /** 路由需要的活依赖。 */
 export interface RpcDeps {
@@ -59,8 +66,8 @@ export interface RpcDeps {
   skills?: SkillViewer
   /** 「设置」页：DSH 的设置服务（不在时回 `undefined`，页面只读）与活配置的现值。 */
   config: { port: () => SettingsPort | undefined; live: LiveValues }
-  /** 导入导出：skill 装到哪（`~/.agents/skills`）、插件版本（写进清单）。 */
-  pack: { skillsRoot: string; plugin: string }
+  /** 导入导出：skill 装到哪（`~/.agents/skills`）、插件版本（写进清单）、文档级校验（导出成 skill 时用）。 */
+  pack: { skillsRoot: string; plugin: string; validate?: DocumentValidator }
 }
 
 type RpcResult<T> = ConnectionRpcResult<T>
@@ -231,6 +238,24 @@ function requireNumbers(input: Record<string, unknown>, field: string): number[]
   return value as number[]
 }
 
+/** `pack/skill*` 共用的那几项：哪张图、哪一版、打包哪些。 */
+function readSkillBuild(input: Record<string, unknown>): SkillBuildRequest {
+  const pack = input.pack ?? []
+  if (!Array.isArray(pack) || !pack.every((key) => typeof key === 'string')) {
+    throw new Error('pack must be a list of keys')
+  }
+  const version = input.version
+  if (typeof version !== 'number' || !Number.isInteger(version) || version < 1) {
+    throw new Error('version must be a positive integer')
+  }
+  return {
+    name: requireString(input, 'name'),
+    version,
+    pack: pack as string[],
+    ...readScope(input),
+  }
+}
+
 /** 看 skill 时站在哪个会话、哪个工作区。 */
 function readScope(input: Record<string, unknown>): { cwd?: string; session?: string } {
   const cwd = optionalString(input, 'cwd')
@@ -248,6 +273,7 @@ function packDeps(deps: RpcDeps): PackDeps {
     ...(deps.skills === undefined ? {} : { skills: deps.skills }),
     skillsRoot: deps.pack.skillsRoot,
     plugin: deps.pack.plugin,
+    ...(deps.pack.validate === undefined ? {} : { validate: deps.pack.validate }),
   }
 }
 
@@ -747,6 +773,32 @@ async function dispatch(
       const input = asRecord(payload)
       await discard(deps.dataDir(), requireString(input, 'token'))
       return ok({ removed: true })
+    }
+
+    case 'pack/skillPreview': {
+      const outcome = await previewSkill(packDeps(deps), readSkillBuild(asRecord(payload)))
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok(outcome.result)
+    }
+
+    case 'pack/skillExport': {
+      const input = asRecord(payload)
+      const target = input.target
+      if (target !== 'zip' && target !== 'install') throw new Error('target must be zip or install')
+      const meta = asRecord(input.meta)
+      const whenToUse = optionalString(meta, 'whenToUse')
+      const outcome = await exportSkill(packDeps(deps), {
+        ...readSkillBuild(input),
+        meta: {
+          name: requireString(meta, 'name'),
+          description: requireString(meta, 'description'),
+          ...(whenToUse === undefined ? {} : { whenToUse }),
+        },
+        target,
+        ...(input.replace === true ? { replace: true } : {}),
+      })
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok(outcome.result)
     }
 
     default: {

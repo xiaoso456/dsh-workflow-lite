@@ -24,6 +24,12 @@ import type {
 } from './pack.ts'
 import type { InstanceSummary, InstanceView, StateEdit } from './runState.ts'
 import type {
+  SkillBuildRequest,
+  SkillExportRequest,
+  SkillExportResponse,
+  SkillPreviewResponse,
+} from './skillPack.ts'
+import type {
   CompileResult,
   InputAnswer,
   ListResult,
@@ -97,6 +103,8 @@ export const WORKFLOW_LITE_ENDPOINTS = [
   'pack/inspect',
   'pack/apply',
   'pack/discard',
+  'pack/skillPreview',
+  'pack/skillExport',
 ] as const
 
 export type WorkflowLiteEndpoint = (typeof WORKFLOW_LITE_ENDPOINTS)[number]
@@ -415,6 +423,8 @@ export interface WorkflowLiteRpcMap {
   'pack/inspect': { args: PackTokenRequest; result: PackImportPreview }
   'pack/apply': { args: PackApplyRequest; result: PackApplyResponse }
   'pack/discard': { args: PackTokenRequest; result: { removed: true } }
+  'pack/skillPreview': { args: SkillBuildRequest; result: SkillPreviewResponse }
+  'pack/skillExport': { args: SkillExportRequest; result: SkillExportResponse }
 }
 
 // ── 主机上的东西（资源节点选文件、文件夹、skill 用）─────────
@@ -543,7 +553,7 @@ export interface RunDeleteRequest {
 export interface RunStartRequest {
   workflow: string
   session: string
-  /** 那个会话的工作区（状态文件建在这里、计划的 ⑤ 段也用它）。 */
+  /** 那个会话的工作区（状态文件建在这里、计划的「本次执行」也用它）。 */
   cwd?: string
   /** 用户在「执行」前对输入节点的回答（输入 id → 回答）；没回答的用默认值。 */
   answers?: Record<string, InputAnswer>

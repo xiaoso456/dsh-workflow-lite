@@ -13,7 +13,9 @@ import type {
   PackSkillAction,
   PackSkillPreview,
 } from '../../shared/pack.ts'
+import type { SkillExisting, SkillPreviewResponse } from '../../shared/skillPack.ts'
 import type { ResourceKind, VersionEntry } from '../../shared/types.ts'
+import type { T } from '../i18n.ts'
 
 /** 导出默认带哪些版本：和现在一样的那版；没有就最新的那版。 */
 export function defaultVersions(list: readonly VersionEntry[]): number[] {
@@ -222,4 +224,23 @@ export function fromBase64(data: string): Uint8Array {
   const bytes = new Uint8Array(binary.length)
   for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index)
   return bytes
+}
+
+/** 导出成 skill 时预填的描述：工作流名 + 步骤（按执行批次），步骤太多就只列前几个。 */
+export function descriptionDraft(t: T, workflow: string, steps: readonly string[]): string {
+  const shown = steps.length > DRAFT_STEPS ? [...steps.slice(0, DRAFT_STEPS), '…'] : steps
+  return t('skillExport.descDraft')
+    .replace('{name}', workflow)
+    .replace('{n}', String(steps.length))
+    .replace('{steps}', shown.join(' → '))
+}
+
+const DRAFT_STEPS = 6
+
+/** 本机已有的同名 skill（没有就是 `undefined`）。 */
+export function existingSkill(
+  preview: Pick<SkillPreviewResponse, 'existing'>,
+  name: string,
+): SkillExisting | undefined {
+  return name === '' ? undefined : preview.existing.find((item) => item.name === name)
 }

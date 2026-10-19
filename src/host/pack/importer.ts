@@ -394,7 +394,7 @@ async function writeTree(
 }
 
 /** 一个 skill 落到 `target`：先写进旁边的临时目录，再换上去（覆盖时旧的先挪开、换好再删）。 */
-async function installSkill(
+export async function installSkill(
   root: string,
   target: string,
   files: readonly { path: string; data: Uint8Array }[],

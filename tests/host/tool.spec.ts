@@ -178,9 +178,9 @@ describe('workflow_lite —— 正常路径', () => {
     expect(Array.isArray(result.problems)).toBe(true)
     expect(result.problems).toEqual([])
     expect(typeof result.plan).toBe('string')
-    expect(String(result.plan)).toContain('## 交付契约')
-    expect(String(result.plan)).toContain('目标：跑完它')
-    expect(String(result.plan)).toContain('工作区路径：D:\\repo')
+    expect(String(result.plan)).toContain('## 流程')
+    expect(String(result.plan)).toContain('- **目标**：跑完它')
+    expect(String(result.plan)).toContain('- **工作区**：`D:\\repo`')
     expect(String(result.planId)).toMatch(/^[0-9a-f]{8}$/)
   })
 
@@ -345,7 +345,7 @@ describe('workflow_lite —— configure（工作流设置）', () => {
       setGoal: false,
     })
     const tuned = String(record(await run({ action: 'compile', workflow: 'cfg' }, EXEC)).plan)
-    expect(tuned).toContain('**复用执行者：优先复用。**')
+    expect(tuned).toContain('- **复用执行者**：优先复用。')
     expect(tuned).not.toContain('create_goal')
 
     // 空串清根目录、auto 清执行方式与复用、打开设定目标（缺省）：设置整键消失。
@@ -432,9 +432,10 @@ describe('workflow_lite —— 文件节点与交接', () => {
     const compiled = record(await run({ action: 'compile', workflow: 'h' }, EXEC))
     const plan = String(compiled.plan)
     // 没配产出根目录：默认落在实例自己的 out 下（这里没装实例服务，实例 id 处留着 {instance}）。
-    expect(plan).toContain(
-      `- 资源 \`res-issues\`：\`review\` 产出；\`fix\` 在原文件上更新；\`report\` 读取。\n  - 文件：\`.workflow-lite/runs/{instance}/out/issues.md\`。说明：问题清单，修好打钩`,
-    )
+    expect(plan).toContain('- `res-issues`：文件 `.workflow-lite/runs/{instance}/out/issues.md`\n')
+    expect(plan).toContain('| fix | review | — | res-issues（更新） |')
+    // 文件的说明不进计划，附在写它的步骤的任务描述里。
+    expect(plan).not.toContain('问题清单，修好打钩')
     expect(plan).toContain('- `review` → `fix`：说明：逐条修')
     expect(plan).toContain('- `fix` → `report`：只管先后，不交执行结果。')
 
@@ -681,8 +682,8 @@ describe('workflow_lite —— 输入节点', () => {
         EXEC,
       ),
     )
-    expect(answered.plan).toContain('- 问：扫哪个目录？（交给 `scan`）\n  答：src/')
-    expect(answered.plan).toContain('- 问：用什么语言？（交给所有步骤）\n  答：中文')
+    expect(answered.plan).toContain('  - 问：扫哪个目录？（交给 `scan`）\n    答：src/')
+    expect(answered.plan).toContain('  - 问：用什么语言？（交给所有步骤）\n    答：中文')
     expect(answered.plan).not.toContain('只写一个')
 
     const preview = record(await run({ action: 'compile', workflow: 'g' }, EXEC))

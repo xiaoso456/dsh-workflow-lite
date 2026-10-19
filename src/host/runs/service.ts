@@ -96,7 +96,7 @@ export type Notify = (session: string, text: string, summary: string) => Promise
 
 export interface RunServiceDeps {
   dataDir: () => string
-  /** 校验一张图（计划的 ⑥ 段「图的注意事项」要它）；不给就当没有警告。 */
+  /** 校验一张图（计划的「注意事项」要它）；不给就当没有警告。 */
   validate?: (document: WorkflowDocument, workflow: string) => ValidationProblem[]
   notify?: Notify
 }

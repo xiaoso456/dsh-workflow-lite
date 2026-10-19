@@ -2,7 +2,7 @@
  * dsh-workflow-lite — 编译编排。
  *
  * 纯函数编译器（`shared/compile.ts`）不认识磁盘；这一层负责**把它需要的东西凑齐**：
- * 图（从仓储读，或实例的快照）、任务描述的路径、以及该图的校验结论（进 ⑥ 段）。
+ * 图（从仓储读，或实例的快照）、任务描述的路径、以及该图的校验结论（警告进「注意事项」）。
  *
  * 计划永远对着一个**工作流实例**出：
  * - 给了实例（`options.instance`）：任务描述写进实例目录的 `tasks/`，产出根目录里的 `{instance}`
@@ -105,7 +105,7 @@ export async function compileWorkflow(
 
 /**
  * 编译一份已经读进来的图（工作流实例的快照走这里：它不在 `workflows/` 里）。
- * @param problems - 该图的校验结论（进 ⑥ 段与 `warnings`）。
+ * @param problems - 该图的校验结论（警告进「注意事项」，也进 `warnings`）。
  */
 export async function compileDocument(
   dataDir: string,

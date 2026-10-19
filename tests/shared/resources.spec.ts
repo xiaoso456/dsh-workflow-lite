@@ -253,7 +253,7 @@ describe('校验', () => {
 })
 
 describe('编译进计划', () => {
-  it('表里写资源 id；资源一段逐项列出，路径按读写拼好；描述不进计划；没连的交给所有步骤', () => {
+  it('表里写资源 id；资源一段逐项列出，路径按读写拼好；描述、说明不进计划；没连的交给所有步骤', () => {
     const document = doc(
       [
         step('scan'),
@@ -284,17 +284,14 @@ describe('编译进计划', () => {
     expect(problems).toEqual([])
     expect(plan).toContain('| plan | scan | notes | — |')
     expect(plan).toContain('| scan | — | req | notes |')
+    expect(plan).toContain('- `notes`：文件 `out/notes.md`\n')
     expect(plan).toContain(
-      '- 资源 `notes`：`scan` 产出；`plan` 读取。\n  - 文件：`out/notes.md`。说明：列出发现',
+      '- `req`（需求资料）：文件 `/abs/spec.md`；文件夹 `src/`；网址 https://example.com/api；Skill `pdf`\n',
     )
-    expect(plan).toContain('- 资源 `req`（需求资料）：`scan` 读取。')
-    expect(plan).toContain('  - 文件：`/abs/spec.md`。说明：先看第 3 节')
-    expect(plan).toContain('  - 文件夹：`src/`')
-    expect(plan).toContain('  - 网址：https://example.com/api')
-    expect(plan).toContain('  - Skill：`pdf`（先用 skill 工具加载）。说明：读附件用')
-    expect(plan).toContain(
-      '- 资源 `rules`：交给所有步骤。\n  - 自定义：\n    > 用中文回答\n    > 不要改测试',
-    )
+    // 各项的说明、自定义内容附在步骤的任务描述里，计划里不再抄一遍。
+    for (const note of ['列出发现', '先看第 3 节', '读附件用']) expect(plan).not.toContain(note)
+    expect(plan).toContain('- `rules`（交给所有步骤）：自定义内容（附在任务描述里）')
+    expect(plan).not.toContain('用中文回答')
     expect(plan).not.toContain('只给人看')
   })
 })

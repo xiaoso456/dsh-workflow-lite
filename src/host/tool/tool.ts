@@ -915,7 +915,7 @@ export const PARAMETERS = {
   outputs: {
     type: 'array',
     description:
-      'write_node：一个或多个产出，每个可带生成规则（规则进派发计划的交付契约）。给了它就整份替换 output。',
+      'write_node：一个或多个产出，每个可带生成规则（规则附在写它的步骤的任务描述里）。给了它就整份替换 output。',
     items: {
       type: 'object',
       additionalProperties: false,
