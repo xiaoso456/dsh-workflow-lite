@@ -297,6 +297,25 @@ describe('校验', () => {
     expect(report.save.map((problem) => problem.code)).toContain('resource_edge_invalid')
   })
 
+  it('选择题的选项还是编辑器填的占位（选项 1、Option 2）：警告；正经选项不报', () => {
+    const document = doc(
+      [
+        step('a'),
+        input('seeded', {
+          question: '哪个缺陷？',
+          kind: 'choice',
+          options: ['选项 1', 'Option 2'],
+        }),
+        input('real', { question: '语言？', kind: 'choice', options: ['中文', '选项卡 3'] }),
+      ],
+      [],
+    )
+    const report = validateDocument(document, { workflowName: 'w', maxNodes: 50 })
+    const found = report.warning.filter((problem) => problem.code === 'input_options_placeholder')
+    expect(found.map((problem) => problem.node)).toEqual(['seeded'])
+    expect(found[0]?.message).toContain('选项 1、Option 2')
+  })
+
   it('连进输入节点是保存级', () => {
     const document = doc([step('a'), input('q', { question: '问' })], [edge('a', 'q')])
     const report = validateDocument(document, { workflowName: 'w', maxNodes: 50 })
@@ -322,7 +341,7 @@ describe('编译进计划', () => {
     expect(section).toContain('**用户输入**')
     expect(section).toContain('  - 问：要扫描哪个目录？（交给 `scan`）\n    答：src/')
     // 没回答的单选用默认值。
-    expect(section).toContain('  - 问：报告用什么语言？（交给 `fix`、`scan`）\n    答：中文')
+    expect(section).toContain('  - 问：报告用什么语言？（交给 `scan`、`fix`）\n    答：中文')
     // 多行回答逐行引用；没连步骤的交给所有步骤。
     expect(section).toContain(
       '  - 问：还有什么要交代的？（交给所有步骤）\n    答：\n    > 第一行\n    >\n    > 第三行',
@@ -395,11 +414,12 @@ describe('编译进计划', () => {
     expect(plan).toContain('已经写进列出步骤的任务描述，不必另行转交')
   })
 
-  it('回答还不知道（导出的 skill、没给回答）：任务描述写明由编排者转交，计划照旧要求转交', () => {
+  it('回答还不知道（导出的 skill、没给回答）：任务描述写明由编排者转交、带上题型，计划照旧要求转交', () => {
     const document = sample()
     const tasks = buildTaskTexts(facts(document), analyzeGraph(document))
+    // 提示词常按选项分情况写：执行者得知道可能收到哪几种回答。
     expect(tasks.get('scan')).toContain(
-      '- 问：要扫描哪个目录？\n  答：开始前问过用户，回答由编排者随任务转交给你。',
+      '- 问：要扫描哪个目录？（一句话，必填）\n  答：开始前问过用户，回答由编排者随任务转交给你。',
     )
     const { plan } = buildPlan(facts(document), analyzeGraph(document))
     expect(plan).toContain('把问题和回答原样交给执行者')

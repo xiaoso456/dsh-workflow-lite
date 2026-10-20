@@ -168,9 +168,9 @@ const GOLDEN_LINES: readonly string[] = [
   '| 步骤 | 前置 | 读取 | 写入 | 任务描述 |',
   '|---|---|---|---|---|',
   '| 扫描（scan） | — | — | file-scan.json | `…\\workflow-lite\\.dispatch\\code-review\\3f9a1c2e\\scan.md` |',
-  '| 认证审查（auth-review） | scan；fix-auth（循环中返回） | file-scan.json | file-auth-findings.md | `…\\workflow-lite\\.dispatch\\code-review\\3f9a1c2e\\auth-review.md` |',
-  '| 修复（fix-auth） | auth-review（when=fail） | — | file-auth-findings.md（更新） | `…\\workflow-lite\\.dispatch\\code-review\\3f9a1c2e\\fix-auth.md` |',
-  '| 报告（report） | auth-review（when=pass） | file-auth-findings.md | file-review-report.md | `…\\workflow-lite\\.dispatch\\code-review\\3f9a1c2e\\report.md` |',
+  '| 认证审查（auth-review） | scan；fix-auth（循环回来时） | file-scan.json | file-auth-findings.md | `…\\workflow-lite\\.dispatch\\code-review\\3f9a1c2e\\auth-review.md` |',
+  '| 修复（fix-auth） | auth-review（`VERDICT: fail` 时） | — | file-auth-findings.md（更新） | `…\\workflow-lite\\.dispatch\\code-review\\3f9a1c2e\\fix-auth.md` |',
+  '| 报告（report） | auth-review（`VERDICT: pass` 时） | file-auth-findings.md | file-review-report.md | `…\\workflow-lite\\.dispatch\\code-review\\3f9a1c2e\\report.md` |',
   '',
   '**执行批次**（按前置分层、忽略回边；同一批次不代表同时执行——互斥分支只会走一条）：',
   '1. `scan`',
@@ -345,6 +345,11 @@ describe('流程：节点清单表', () => {
     expect(tableRow(plan, 'c')).toContain('| b | — | file-x.md（更新） |')
   })
 
+  it('执行批次的括注只说图里有的：没有循环不提回边，没有分支不提互斥分支', () => {
+    const plan = planFor(doc([n('a', 'A'), n('b', 'B')], [edge('a', 'b')]))
+    expect(plan).toContain('**执行批次**（按前置分层；同一批次不代表同时执行）：\n')
+  })
+
   it('前置列：环外入边在前（按源 id 码位序）、回边在后并加注', () => {
     // SCC = {a, d}（a→d、d→a 的回边是 d→a）；b、c 是环外入边。
     const document = doc(
@@ -353,16 +358,16 @@ describe('流程：节点清单表', () => {
     )
     const plan = planFor(document)
 
-    expect(tableRow(plan, 'a')).toContain('| b；c；d（循环中返回） |')
+    expect(tableRow(plan, 'a')).toContain('| b；c；d（循环回来时） |')
     expect(tableRow(plan, 'd')).toContain('| a |')
   })
 
-  it('前置列：同时是条件边与回边时写作 `源（when=…，循环中返回）`', () => {
+  it('前置列：同时是条件边与回边时写作 `源（`VERDICT: …` 时，循环回来时）`', () => {
     const document = doc([n('a', 'A'), n('b', 'B')], [edge('a', 'b', 'go'), edge('b', 'a', 'back')])
     const plan = planFor(document)
 
-    expect(tableRow(plan, 'a')).toContain('| b（when=back，循环中返回） |')
-    expect(tableRow(plan, 'b')).toContain('| a（when=go） |')
+    expect(tableRow(plan, 'a')).toContain('| b（`VERDICT: back` 时，循环回来时） |')
+    expect(tableRow(plan, 'b')).toContain('| a（`VERDICT: go` 时） |')
   })
 
   it('路径映射缺失时给 —（不编路径）', () => {
@@ -605,12 +610,13 @@ describe('资源、约定与本次执行', () => {
     const flow = plan.slice(plan.indexOf('## 流程'))
     expect(flow).toContain(
       [
+        // 和「流程」表同序（按下游的执行顺序：fix、verify、ship），条件的写法同任务描述的位置行
         '**交接**（下面这几条线另有安排，其余的线只交执行结果）：',
-        '- `review` → `fix`（当 `fail` 成立时，循环回来时）：交执行结果，并附上交接说明：',
+        '- `review` → `fix`（`VERDICT: fail` 时，循环回来时）：交执行结果，并附上交接说明：',
         '  > 逐条修复，',
         '  > 修好的打钩',
-        '- `verify` → `ship`：交执行结果，并附上交接说明：只看结论',
         '- `fix` → `verify`：只管先后，不交执行结果。',
+        '- `verify` → `ship`：交执行结果，并附上交接说明：只看结论',
       ].join('\n'),
     )
   })
@@ -1123,6 +1129,133 @@ describe('任务描述：标题与位置、提示词原文，后面按段附上�
     expect(report).toContain('### `rules`（纪律）')
     expect(report).not.toContain('- **产出**：')
     expect(report).not.toContain('- **更新**：')
+  })
+
+  it('读的资源只由循环里排在后面的步骤写：注明第一轮可能还不存在；上游写过的不注', () => {
+    // collect → draft → judge，judge 不过就回 draft；verify 由 judge 写、draft 读，commits 由 collect 写、两边都读。
+    const document = doc(
+      [n('collect', '采集'), n('draft', '写草稿'), n('judge', '验收'), n('html', '出页面')],
+      [
+        edge('collect', 'draft'),
+        edge('draft', 'judge'),
+        edge('judge', 'draft', 'fail'),
+        edge('judge', 'html', 'pass'),
+        edge('judge', 'verify'),
+        edge('verify', 'draft'),
+        edge('verify', 'html'),
+        edge('collect', 'commits'),
+        edge('commits', 'draft'),
+      ],
+    )
+    document.nodes.push(
+      resource('verify', [{ kind: 'file', value: 'verify.md' }]),
+      resource('commits', [{ kind: 'file', value: 'commits.md' }]),
+    )
+    const tasks = tasksFor(document)
+    const note =
+      '写它的 `judge` 在循环里排在这一步之后：第一轮读到这里时它可能还不存在，不存在就跳过；从第二轮起读到的是上一轮写的。'
+
+    expect(tasks.get('draft')).toContain(`### 读取 \`verify\`\n\n${note}\n\n文件：`)
+    expect(tasks.get('draft')?.split(note)).toHaveLength(2)
+    // html 在循环外、judge 之后：读到时已经写过了。
+    expect(tasks.get('html')).toContain('### 读取 `verify`')
+    expect(tasks.get('html')).not.toContain('第一轮')
+  })
+
+  it('读的资源由某条分支上的步骤写、走别的分支能绕过它：注明可能不存在；必经的上游写的不注', () => {
+    // run 通过直接去 report；不通过先 fix 再去 report。fix.md 只有走 fix 那条才有，run.md 两条都有。
+    const document = doc(
+      [n('run', '跑'), n('fix', '修'), n('report', '报告')],
+      [
+        edge('run', 'report', 'pass'),
+        edge('run', 'fix', 'fail'),
+        edge('fix', 'report'),
+        edge('fix', 'fixed'),
+        edge('run', 'ran'),
+        edge('fixed', 'report'),
+        edge('ran', 'report'),
+      ],
+    )
+    document.nodes.push(
+      resource('fixed', [{ kind: 'file', value: 'fix.md' }]),
+      resource('ran', [{ kind: 'file', value: 'run.md' }]),
+    )
+    const report = tasksFor(document).get('report') ?? ''
+    const note =
+      '写它的 `fix` 只在部分分支上执行，走别的分支到这一步时它可能不存在：不存在就跳过，照实说明没有这份。'
+
+    expect(report).toContain(`### 读取 \`fixed\`\n\n${note}\n\n文件：`)
+    expect(report).toContain('### 读取 `ran`\n\n文件：')
+  })
+
+  it('产出是文件夹：补一条「不要清空整个文件夹」；只产出文件的不补', () => {
+    const document = doc(
+      [n('fetch', '抓档案'), n('write', '写报告')],
+      [edge('fetch', 'write'), edge('fetch', 'archive'), edge('write', 'report')],
+    )
+    document.nodes.push(
+      resource('archive', [{ kind: 'folder', value: 'D:/repo/docs/issue' }]),
+      resource('report', [{ kind: 'file', value: 'report.md' }]),
+    )
+    const rule = '**产出到文件夹**：整份重写的是这一步往里写的那些文件'
+    const tasks = tasksFor(document)
+
+    expect(tasks.get('fetch')).toContain(`- ${rule}`)
+    expect(tasks.get('write')).not.toContain(rule)
+    expect(planFor(document)).toContain(`- ${rule}`)
+
+    // 产出根目录里面的文件夹是这个工作流自己的产出区（说明里常要求每轮整目录重写）：不补
+    const inside = doc([n('shoot', '截图')], [edge('shoot', 'shots')])
+    inside.nodes.push(resource('shots', [{ kind: 'folder', value: 'screenshots/' }]))
+    inside.settings = { outputRoot: 'runs/7/out' }
+    expect(tasksFor(inside).get('shoot')).not.toContain(rule)
+    expect(planFor(inside)).not.toContain(rule)
+  })
+
+  it('更新的是文件夹：补一条「按说明新增或修改文件、别的不动」；只更新文件的不补', () => {
+    const document = doc(
+      [n('publish', '落库'), n('log', '记账')],
+      [
+        edge('publish', 'log'),
+        { ...edge('publish', 'notes'), data: { update: true } },
+        { ...edge('log', 'ledger'), data: { update: true } },
+      ],
+    )
+    document.nodes.push(
+      resource('notes', [{ kind: 'folder', value: 'D:/repo/docs/release-notes' }]),
+      resource('ledger', [{ kind: 'file', value: 'LEDGER.md' }]),
+    )
+    const rule = '**更新文件夹**：「更新」说的是文件；更新的是文件夹时'
+    const tasks = tasksFor(document)
+
+    expect(tasks.get('publish')).toContain(`- ${rule}`)
+    expect(tasks.get('log')).toContain('- **更新**：')
+    expect(tasks.get('log')).not.toContain(rule)
+    expect(planFor(document)).toContain(`- ${rule}`)
+  })
+
+  it('资源 id 照名字起的：不再括注名字；名字里带「（更新）」的，表里不再标一遍', () => {
+    const document = doc(
+      [n('publish', '落库')],
+      [
+        { ...edge('publish', 'res-落库目录（更新）'), data: { update: true } },
+        edge('res-历史-notes', 'publish'),
+      ],
+    )
+    document.nodes.push(
+      resource(
+        'res-落库目录（更新）',
+        [{ kind: 'folder', value: 'docs/notes' }],
+        '落库目录（更新）',
+      ),
+      resource('res-历史-notes', [{ kind: 'folder', value: 'docs/notes' }], '历史 notes'),
+    )
+    const plan = planFor(document)
+    const task = tasksFor(document).get('publish') ?? ''
+
+    expect(tableRow(plan, 'publish')).toContain('| res-历史-notes | res-落库目录（更新） |')
+    expect(task).toContain('### 更新 `res-落库目录（更新）`\n')
+    expect(task).toContain('### 读取 `res-历史-notes`\n')
   })
 
   it('判定步骤：最后一段写明回复最后一行的判定词', () => {

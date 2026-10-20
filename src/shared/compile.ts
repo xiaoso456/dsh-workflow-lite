@@ -36,7 +36,7 @@ import {
   orderedInputs,
 } from './inputs.ts'
 import { PLAN_SECTIONS, TASK_SECTIONS, VERDICT_PREFIX } from './limits.ts'
-import { displayName, idKey, isStep, writeDocument } from './model.ts'
+import { displayName, idKey, isStep, resourceIdFor, writeDocument } from './model.ts'
 import { isVerdictWhen } from './naming.ts'
 import { INSTANCE_TOKEN, isAbsoluteRoot, normalizeRoot, resolveItemPath } from './outputPaths.ts'
 import {
@@ -99,12 +99,27 @@ const SKILL_RESOURCE_RULE = `**资源**：文件、文件夹按给定路径读�
  */
 const PRODUCE_RULE =
   '**产出**：这一次的结果——这次做了什么、证据、结论都写在这里。每次执行整份重写，不保留上一次的内容，不写「比上次改了什么」。'
+/**
+ * 产出是文件夹时补一句：「整份重写」说的是这一步写的文件。文件夹常是长期在用的目录（别的仓库里的档案、脚本），
+ * 执行者照字面把整个文件夹清掉重写，就把不归它管的东西一起删了。
+ */
+const PRODUCE_FOLDER_RULE =
+  '**产出到文件夹**：整份重写的是这一步往里写的那些文件；文件夹里原有的、不是这一步写的东西不动，不要清空整个文件夹。'
+/**
+ * 更新的是文件夹时补一句：「更新」那条讲的是文件（先读、在原文件上改、不另存副本），落到文件夹上就成了
+ * 「不许新增文件」，和「每次新增一份 <版本号>.md」这类说明打架。
+ */
+const UPDATE_FOLDER_RULE =
+  '**更新文件夹**：「更新」说的是文件；更新的是文件夹时，按资源说明在里面新增或修改文件，说明没提到的已有文件不动，不要清空、搬动或整理整个文件夹。'
 const UPDATE_RULE =
   '**更新**：长期维护的现状和记录，不是写这一次报告的地方。先读，再在原文件上改，不要另存副本。按资源说明规定的结构写；文件里已有的写法和说明不一致时以说明为准，顺手整理，不要照着旧写法继续写。描述现状的部分就地改成最新的，不在开头或末尾追加「本次结果」段落；记录每次只加一行，格式照说明（说明没写就照已有的行），每格只放短语、数字或路径；这次的过程和细节写在本次产出或回复里，这里只引用路径。同一件事只写一处。'
 
-/** 「流程」的小标题。 */
-const BATCH_HEADING =
-  '**执行批次**（按前置分层、忽略回边；同一批次不代表同时执行——互斥分支只会走一条）：'
+/** 「流程」的小标题。执行批次的括注只说图里有的：没有循环不提回边，没有分支不提互斥分支。 */
+function batchHeading(loops: boolean, branches: boolean): string {
+  const layer = loops ? '按前置分层、忽略回边' : '按前置分层'
+  const tail = branches ? '同一批次不代表同时执行——互斥分支只会走一条' : '同一批次不代表同时执行'
+  return `**执行批次**（${layer}；${tail}）：`
+}
 const BRANCH_HEADING = '**分支**：'
 const HANDOFF_HEADING = '**交接**（下面这几条线另有安排，其余的线只交执行结果）：'
 const LOOP_HEADING =
@@ -177,7 +192,7 @@ export interface SkillPlan {
   bundled: ReadonlySet<string>
   /** 不在包里、要在本机装好的 skill。 */
   needs: readonly string[]
-  /** 按绝对路径引用、没打进包的文件和文件夹。 */
+  /** 按绝对路径引用、没打进包的文件和文件夹（含写到绝对路径的产出）。 */
   absolute: readonly string[]
 }
 
@@ -419,11 +434,26 @@ function renderPlan(
     sections.push([PLAN_SECTIONS.notes, ...notes.map((note) => `- ${note.message}`)].join('\n'))
   }
   if (options?.runState !== undefined) {
-    const run = { instance: options.runState.instance, workflow: facts.name, steps: stepOrder(ctx) }
+    const run = {
+      instance: options.runState.instance,
+      workflow: facts.name,
+      steps: stepOrder(ctx),
+      solo: isSolo(ctx),
+    }
     sections.push(ctx.dialect.runState(run).join('\n'))
   }
   if (inline) sections.push(bodySection(ctx))
   return `${sections.filter((section) => section !== '').join('\n\n')}\n`
+}
+
+/** 一个问题交给谁：没连步骤就是所有步骤，连了的按执行顺序列。 */
+function readersText(ctx: RenderContext, inputId: string): string {
+  const readers = new Set(inputReaders(ctx.document, inputId))
+  if (readers.size === 0) return '交给所有步骤'
+  return `交给 ${stepOrder(ctx)
+    .filter((id) => readers.has(id))
+    .map(code)
+    .join('、')}`
 }
 
 /** 步骤的阅读顺序：按批次（同批次按 `id` 码位序），批次里没有的接在后面。 */
@@ -443,7 +473,7 @@ function overviewSection(facts: PlanFacts, ctx: RenderContext, inline: boolean):
     : '每个步骤的任务描述是单独的一份（「流程」表的最后一列），轮到哪个步骤再读哪一份。'
   return [
     PLAN_SECTIONS.overview,
-    `下面是一张**已经设计好的工作流图** ${code(facts.name)}（${shape}）。它规定了要做哪些事、彼此的先后与循环、每件事的产出。${where}`,
+    `下面是一张**已经设计好的工作流图** ${code(facts.name)}（${shape}）。它规定了要做哪些事、${cycles === 0 ? '彼此的先后' : '彼此的先后与循环'}、每件事的产出。${where}`,
   ].join('\n')
 }
 
@@ -463,7 +493,7 @@ function runSection(facts: PlanFacts, ctx: RenderContext, inline: boolean): stri
   if (facts.goal !== undefined && facts.goal.trim() !== '') lines.push(`- **目标**：${facts.goal}`)
   lines.push(`- **工作区**：${missingCwd(facts) ? '未指定' : code(facts.cwd ?? '')}`)
   if (facts.instance !== undefined) lines.push(`- **工作流实例**：${code(facts.instance)}`)
-  const inputs = inputLines(facts, '  ')
+  const inputs = inputLines(facts, ctx, '  ')
   // 派发版、回答已知：任务描述里已经写着回答，编排者不用再转交（整卷版没有任务描述）。
   const inTasks = !inline && facts.answers !== undefined
   if (inputs.length > 0) lines.push(inTasks ? INPUTS_ITEM_IN_TASKS : INPUTS_ITEM, ...inputs)
@@ -482,8 +512,7 @@ function beforeSection(facts: PlanFacts, ctx: RenderContext, options?: PlanOptio
       steps.push([
         SKILL_ASK_STEP,
         ...inputs.flatMap((input) => {
-          const readers = inputReaders(facts.document, input.id)
-          const to = readers.length === 0 ? '交给所有步骤' : `交给 ${readers.map(code).join('、')}`
+          const to = readersText(ctx, input.id)
           return [
             `   - ${input.data.question.trim()}（${describeInput(input.data)}；${to}）`,
             ...askNotes(input.data),
@@ -497,7 +526,7 @@ function beforeSection(facts: PlanFacts, ctx: RenderContext, options?: PlanOptio
     }
     if (absolute.length > 0) {
       steps.push([
-        `确认这些文件和文件夹在本机（按绝对路径引用，没有打进包里）：${[...absolute].sort(byId).map(code).join('、')}。找不到时先问用户放在哪。`,
+        `确认这些文件和文件夹在本机（按绝对路径引用，没有打进包里；要新写出来的，确认它的上一级文件夹在）：${[...absolute].sort(byId).map(code).join('、')}。找不到时先问用户放在哪。`,
       ])
     }
   }
@@ -572,6 +601,11 @@ function conventionsSection(ctx: RenderContext, options?: PlanOptions): string {
   return lines.join('\n')
 }
 
+/** 执行方式是串行：你本人逐个做，不派子代理、不建团队。 */
+function isSolo(ctx: RenderContext): boolean {
+  return ctx.document.settings?.mode === 'serial'
+}
+
 /**
  * skill 口径的路径约定。`{skill}` 一定有（任务描述在包里）；`{instance}` 只在真用到时才说——
  * 没配产出根目录时默认值里就有它，记运行状态时状态文件的路径里也有它；插件建实例时换成实例 id，
@@ -585,8 +619,12 @@ function skillPathItems(ctx: RenderContext, runState: boolean): string[] {
       info.resource.data.items.some((item) => item.value.includes(INSTANCE_TOKEN)),
     )
   const resumed = runState ? '；接着上次没走完的那次执行时，沿用那次的编号' : ''
+  // 串行时你本人逐个做，不派给别人，也就不用交代换绝对路径。
+  const handOut = isSolo(ctx)
+    ? ''
+    : `派给子代理或队员时，先把 ${code(SKILL_TOKEN)} 换成绝对路径再交出去——他们看不到这个目录。`
   return [
-    `- **${code(SKILL_TOKEN)}**：这个 skill 的目录（SKILL.md 所在的那一层，加载 skill 时给出的路径）。各步骤的任务描述、附带的资料和 skill 都写成 ${code(`${SKILL_TOKEN}/…`)}。派给子代理或队员时，先把 ${code(SKILL_TOKEN)} 换成绝对路径再交出去——他们看不到这个目录。`,
+    `- **${code(SKILL_TOKEN)}**：这个 skill 的目录（SKILL.md 所在的那一层，加载 skill 时给出的路径）。各步骤的任务描述、附带的资料和 skill 都写成 ${code(`${SKILL_TOKEN}/…`)}。${handOut}`,
     ...(usesInstance
       ? [
           `- **${code(INSTANCE_TOKEN)}**：这次执行的编号。开始执行时取当前时间（${code('YYYYMMDD-HHmmss')}），路径里的 ${code(INSTANCE_TOKEN)} 都换成它，整次执行用同一个${resumed}。`,
@@ -596,16 +634,50 @@ function skillPathItems(ctx: RenderContext, runState: boolean): string[] {
   ]
 }
 
-/** 怎么写文件：有步骤整份写出资源就给「产出」那条，有步骤在原文件上更新就给「更新」那条。 */
+/** 怎么写文件：有步骤整份写出资源就给「产出」那条（写进文件夹的再补一条），有步骤在原文件上更新就给「更新」那条。 */
 function writeRules(ctx: RenderContext): string[] {
   const steps = new Set(ctx.analysis.nodeIds)
-  const writers = nonEmptyResources(ctx).flatMap((info) =>
-    info.writers.filter((writer) => steps.has(writer.id)),
+  const writes = nonEmptyResources(ctx).flatMap((info) =>
+    info.writers
+      .filter((writer) => steps.has(writer.id))
+      .map((writer) => ({ update: writer.update, resource: info.resource })),
+  )
+  return rulesFor(ctx, writes)
+}
+
+/**
+ * 一组写入用到的规矩：产出、产出到文件夹、更新、更新文件夹，按这个顺序，有才给。
+ * 「产出到文件夹」只给落在产出根目录外面的文件夹（绝对路径，或者根目录就是工作区）：根目录里面是这个工作流
+ * 自己的产出区，说明里常要求「每轮整目录重写」，这条反倒和它打架。
+ */
+function rulesFor(
+  ctx: RenderContext,
+  writes: ReadonlyArray<{ update: boolean; resource: ResourceNode }>,
+): string[] {
+  const produced = writes.filter((item) => !item.update)
+  const folder = produced.some((item) =>
+    item.resource.data.items.some(
+      (entry) => entry.kind === 'folder' && outsideRoot(ctx, entry.value.trim()),
+    ),
+  )
+  const updated = writes.filter((item) => item.update)
+  const updatedFolder = updated.some((item) =>
+    item.resource.data.items.some((entry) => entry.kind === 'folder'),
   )
   return [
-    ...(writers.some((writer) => !writer.update) ? [PRODUCE_RULE] : []),
-    ...(writers.some((writer) => writer.update) ? [UPDATE_RULE] : []),
+    ...(produced.length > 0 ? [PRODUCE_RULE] : []),
+    ...(folder ? [PRODUCE_FOLDER_RULE] : []),
+    ...(updated.length > 0 ? [UPDATE_RULE] : []),
+    ...(updatedFolder ? [UPDATE_FOLDER_RULE] : []),
   ]
+}
+
+/** 写出去的一个路径落不落在产出根目录外面（根目录就是工作区时，一律算外面）。 */
+function outsideRoot(ctx: RenderContext, value: string): boolean {
+  const root = ctx.root
+  if (root === undefined) return true
+  const path = resolveItemPath(root, value, true)
+  return path !== root && !path.startsWith(`${root}/`)
 }
 
 /** 有内容的资源，按 id 码位序（空资源不写）。 */
@@ -617,13 +689,18 @@ function nonEmptyResources(ctx: RenderContext): ResourceInfo[] {
 
 /** 流程：清单表（按执行顺序）、执行批次、分支、循环、交接（另有安排的线）。 */
 function flowSection(facts: PlanFacts, ctx: RenderContext, inline: boolean): string {
-  const lines = [PLAN_SECTIONS.flow, ...tableLines(facts, ctx, inline), '', BATCH_HEADING]
+  const branches = branchLines(ctx)
+  const loops = cycleLines(ctx)
+  const lines = [
+    PLAN_SECTIONS.flow,
+    ...tableLines(facts, ctx, inline),
+    '',
+    batchHeading(loops.length > 0, branches.length > 0),
+  ]
   for (const [index, batch] of ctx.analysis.batches.entries()) {
     lines.push(`${index + 1}. ${batch.nodes.map(code).join('、')}`)
   }
-  const branches = branchLines(ctx)
   if (branches.length > 0) lines.push('', BRANCH_HEADING, ...branches)
-  const loops = cycleLines(ctx)
   if (loops.length > 0) lines.push('', LOOP_HEADING, ...loops)
   const handoffs = handoffLines(ctx)
   if (handoffs.length > 0) lines.push('', HANDOFF_HEADING, ...handoffs)
@@ -649,21 +726,16 @@ function tableLines(facts: PlanFacts, ctx: RenderContext, inline: boolean): stri
   return lines
 }
 
-/** 前置列：无入边写 `—`；多条用 `；` 分隔，环外入边在前、回边在后（各按源 `id` 码位序）。 */
+/**
+ * 前置列：无入边写 `—`；多条用 `；` 分隔，环外入边在前、回边在后（各按源 `id` 码位序）。
+ * 条件与回边的写法和「交接」、任务描述的位置行一样（见 {@link edgeGuard}）。
+ */
 function predecessorsCell(ctx: RenderContext, id: string): string {
   const items: string[] = []
   for (const edge of incomingInOrder(ctx, id)) {
     const source = sourceIdOf(ctx, edge)
     if (source === undefined) continue
-    const when = whenOf(edge)
-    const isBack = ctx.analysis.backEdges.has(edge.id)
-    // 表格单元格里放不下一段话：自然语言条件只标"满足条件时"，原文写在表下的分支里。
-    const guard =
-      when === undefined ? undefined : isVerdictWhen(when) ? `when=${when}` : '满足条件时'
-    if (guard !== undefined && isBack) items.push(`${source}（${guard}，循环中返回）`)
-    else if (guard !== undefined) items.push(`${source}（${guard}）`)
-    else if (isBack) items.push(`${source}（循环中返回）`)
-    else items.push(source)
+    items.push(`${source}${edgeGuard(ctx, edge, '循环回来时', true)}`)
   }
   return items.length === 0 ? DASH : items.join('；')
 }
@@ -686,7 +758,12 @@ function resourceCells(ctx: RenderContext, id: string): [string, string] {
     reads.length === 0 ? DASH : reads.join('、'),
     writes.length === 0
       ? DASH
-      : writes.map((item) => (item.update ? `${item.id}（更新）` : item.id)).join('、'),
+      : writes
+          // id 照名字起、名字里本来就带「（更新）」的，不再标一遍。
+          .map((item) =>
+            item.update && !item.id.endsWith('（更新）') ? `${item.id}（更新）` : item.id,
+          )
+          .join('、'),
   ]
 }
 
@@ -810,7 +887,10 @@ function resourcesSection(ctx: RenderContext, inline: boolean): string {
 /** 资源在计划里的称呼：`id`，有名字就跟在括号里。 */
 function resourceName(resource: ResourceNode): string {
   const label = resource.data.label?.trim()
-  return label === undefined || label === ''
+  // id 就是照名字起的（`res-` + 名字）：再括一遍名字只是重复。
+  const derived =
+    label !== undefined && resourceIdFor({ label, items: [] }, () => false) === resource.id
+  return label === undefined || label === '' || derived
     ? code(resource.id)
     : `${code(resource.id)}（${label}）`
 }
@@ -920,24 +1000,19 @@ function specialHandoffs(ctx: RenderContext): { note: boolean; orderOnly: boolea
 
 /**
  * 「流程」的「交接」：附了交接说明的线（执行结果和说明一起交）、只管先后的线，一条线一项。
- * 按**下游** `id` 码位序、同一下游按上游排。
+ * 和「流程」表一样按**下游**的执行顺序排（{@link stepOrder}），同一下游的几条和前置列同序（环外的在前、回边在后）；
+ * 条件的写法同任务描述的位置行（{@link edgeGuard}）。
  */
 function handoffLines(ctx: RenderContext): string[] {
   const lines: string[] = []
-  for (const id of ctx.analysis.nodeIds) {
-    for (const edge of sortIncoming(ctx, ctx.inEdges.get(id) ?? [])) {
+  for (const id of stepOrder(ctx)) {
+    for (const edge of incomingInOrder(ctx, id)) {
       const source = sourceIdOf(ctx, edge)
       if (source === undefined) continue
       const handoff = resolveHandoff(edge.data?.handoff)
       if (handoff.result && handoff.note === undefined) continue
 
-      const when = whenOf(edge)
-      const guards: string[] = []
-      if (when !== undefined) {
-        guards.push(isVerdictWhen(when) ? `当 ${code(when)} 成立时` : `当${condition(when)}成立时`)
-      }
-      if (ctx.analysis.backEdges.has(edge.id)) guards.push('循环回来时')
-      const guard = guards.length === 0 ? '' : `（${guards.join('，')}）`
+      const guard = edgeGuard(ctx, edge, '循环回来时')
       const note = (handoff.note ?? '').trim()
       const multiline = handoff.result && note.includes('\n')
       const body = !handoff.result
@@ -985,11 +1060,10 @@ const CUSTOM_MARK = '（用户自填）'
  * 用户输入：每个问题一项（`indent` 是列表的缩进），按画布上的阅读顺序。问题原样写、后面注明交给谁；
  * 回答多行时逐行引用。占位与说明是给填写的人看的，不进计划。
  */
-function inputLines(facts: PlanFacts, indent: string): string[] {
+function inputLines(facts: PlanFacts, ctx: RenderContext, indent: string): string[] {
   const lines: string[] = []
   for (const input of orderedInputs(facts.document)) {
-    const readers = inputReaders(facts.document, input.id)
-    const to = readers.length === 0 ? '交给所有步骤' : `交给 ${readers.map(code).join('、')}`
+    const to = readersText(ctx, input.id)
     lines.push(
       `${indent}- 问：${input.data.question.trim()}（${to}）`,
       ...answerLines(facts, input, facts.answers === undefined ? ANSWER_LATER : undefined, indent),
@@ -1017,15 +1091,19 @@ function answerLines(
 
 /**
  * 任务描述里的「用户输入」：连到这一步的问题，加上没连线、交给所有步骤的。回答已知（插件里建实例时）
- * 就直接写上；还不知道（导出的 skill、没给回答的编译）写明由编排者转交。
+ * 就直接写上；还不知道（导出的 skill、没给回答的编译）写明由编排者转交，问题后面带上题型、选项与默认值——
+ * 提示词常按选项分情况写（「回答是 A 就……」），执行者得知道可能收到哪几种回答。
  */
 function taskInputLines(facts: PlanFacts, id: string): string[] {
   const lines: string[] = []
   for (const input of orderedInputs(facts.document)) {
     const readers = inputReaders(facts.document, input.id)
     if (readers.length > 0 && !readers.includes(id)) continue
+    const question = input.data.question.trim()
     lines.push(
-      `- 问：${input.data.question.trim()}`,
+      facts.answers === undefined
+        ? `- 问：${question}（${describeInput(input.data)}）`
+        : `- 问：${question}`,
       ...answerLines(facts, input, facts.answers === undefined ? ANSWER_RELAYED : undefined, ''),
     )
   }
@@ -1064,29 +1142,98 @@ function taskText(facts: PlanFacts, ctx: RenderContext, id: string, prompt: stri
   return `${parts.join('\n\n')}\n`
 }
 
+/**
+ * 一条线走的条件，接在线的一端后面：`（\`VERDICT: pass\` 时，循环回来时）`；没有条件、不是回边就是空串。
+ * 任务描述的位置行、计划的「流程」表与「交接」共用，同一条线几处写法一样。`back` 是回边那一截怎么说；
+ * `brief` 时自然语言条件只写「满足条件时」（表格单元格里放不下一段话，原文在表下的分支里）。
+ */
+function edgeGuard(ctx: RenderContext, edge: WorkflowEdge, back: string, brief = false): string {
+  const when = whenOf(edge)
+  const parts: string[] = []
+  if (when !== undefined) {
+    parts.push(
+      isVerdictWhen(when)
+        ? `${code(`${VERDICT_PREFIX}${when}`)} 时`
+        : brief
+          ? '满足条件时'
+          : `${condition(when)}时`,
+    )
+  }
+  if (ctx.analysis.backEdges.has(edge.id)) parts.push(back)
+  return parts.length === 0 ? '' : `（${parts.join('，')}）`
+}
+
 /** 这一步在图里的位置：属于哪张图、前置是谁、之后去哪（带条件的注明条件）。 */
 function positionLine(facts: PlanFacts, ctx: RenderContext, id: string): string {
-  const guard = (edge: WorkflowEdge, back: string): string => {
-    const when = whenOf(edge)
-    const parts: string[] = []
-    if (when !== undefined) {
-      parts.push(
-        isVerdictWhen(when) ? `${code(`${VERDICT_PREFIX}${when}`)} 时` : `${condition(when)}时`,
-      )
-    }
-    if (ctx.analysis.backEdges.has(edge.id)) parts.push(back)
-    return parts.length === 0 ? '' : `（${parts.join('，')}）`
-  }
   const before = incomingInOrder(ctx, id).flatMap((edge) => {
     const source = sourceIdOf(ctx, edge)
-    return source === undefined ? [] : [`${code(source)}${guard(edge, '循环回来时')}`]
+    return source === undefined ? [] : [`${code(source)}${edgeGuard(ctx, edge, '循环回来时')}`]
   })
   const after = sortOutgoing(ctx, [...(ctx.outEdges.get(id) ?? [])]).flatMap((edge) => {
     const target = targetIdOf(ctx, edge)
-    return target === undefined ? [] : [`${code(target)}${guard(edge, '回到循环开头')}`]
+    return target === undefined ? [] : [`${code(target)}${edgeGuard(ctx, edge, '回到循环开头')}`]
   })
   const list = (items: string[]): string => (items.length === 0 ? '无' : items.join('、'))
   return `工作流 ${code(facts.name)} 里的一个步骤。前置：${list(before)}。之后：${list(after)}。`
+}
+
+/**
+ * 读到一个资源时它可能还不存在，就在资源小标题下说一句（返回那句话；能保证在就是 `undefined`）。两种情形：
+ * - **循环**：写它的步骤都和这一步在同一个环里、排在后面（只有绕回边才到得了这一步）——第一轮还没写过；
+ * - **分支**：写它的步骤在上游，但从起点走别的分支能绕开它们到这一步（比如通过判定直接去报告、没经过修复）。
+ * 写它的步骤一个都不在上游、也不在同一个环里的，是图本身的问题，交给校验的 `resource_order` 提示。
+ */
+function missingNote(
+  ctx: RenderContext,
+  writers: readonly string[],
+  reader: string,
+): string | undefined {
+  if (writers.length === 0) return undefined
+  const keys = new Set(writers.map(idKey))
+  // 不走回边，从读的这一步往回找它的上游。
+  const upstream = new Set<string>()
+  const queue = [reader]
+  while (queue.length > 0) {
+    for (const edge of ctx.inEdges.get(queue.shift() as string) ?? []) {
+      if (ctx.analysis.backEdges.has(edge.id)) continue
+      const source = sourceIdOf(ctx, edge)
+      if (source === undefined || upstream.has(idKey(source))) continue
+      upstream.add(idKey(source))
+      queue.push(source)
+    }
+  }
+  const before = stepOrder(ctx).filter((id) => keys.has(idKey(id)) && upstream.has(idKey(id)))
+  if (before.length === 0) {
+    const cycle = ctx.analysis.cycles.find((group) => group.nodes.includes(reader))
+    const later = (cycle?.nodes ?? []).filter((node) => keys.has(idKey(node))).sort(byId)
+    if (later.length === 0) return undefined
+    return `写它的 ${later.map(code).join('、')} 在循环里排在这一步之后：第一轮读到这里时它可能还不存在，不存在就跳过；从第二轮起读到的是上一轮写的。`
+  }
+  return bypasses(ctx, keys, reader)
+    ? `写它的 ${before.map(code).join('、')} 只在部分分支上执行，走别的分支到这一步时它可能不存在：不存在就跳过，照实说明没有这份。`
+    : undefined
+}
+
+/** 不走回边、不经过 `skip` 里的步骤，能不能从起点（没有前置的步骤）走到 `target`。 */
+function bypasses(ctx: RenderContext, skip: ReadonlySet<string>, target: string): boolean {
+  const forward = (edge: WorkflowEdge): boolean => !ctx.analysis.backEdges.has(edge.id)
+  const starts = ctx.analysis.nodeIds.filter(
+    (id) => !skip.has(idKey(id)) && !(ctx.inEdges.get(id) ?? []).some(forward),
+  )
+  const seen = new Set(starts.map(idKey))
+  const queue = [...starts]
+  while (queue.length > 0) {
+    const current = queue.shift() as string
+    if (idKey(current) === idKey(target)) return true
+    for (const edge of ctx.outEdges.get(current) ?? []) {
+      if (!forward(edge)) continue
+      const next = targetIdOf(ctx, edge)
+      if (next === undefined || skip.has(idKey(next)) || seen.has(idKey(next))) continue
+      seen.add(idKey(next))
+      queue.push(next)
+    }
+  }
+  return false
 }
 
 /** 任务描述末尾的几段：用户输入、通用约定、这一步的资源、回复要求；什么都没有就是空。 */
@@ -1129,20 +1276,15 @@ function taskAppendix(facts: PlanFacts, ctx: RenderContext, id: string): string[
   ].filter((block) => block.resource.data.items.length > 0)
   if (blocks.length > 0) {
     const writes = linked.writes.filter((item) => item.resource.data.items.length > 0)
-    const rules = [
-      ...(writes.some((item) => !item.update) ? [PRODUCE_RULE] : []),
-      ...(writes.some((item) => item.update) ? [UPDATE_RULE] : []),
-    ]
+    const rules = rulesFor(ctx, writes)
     const lines = [TASK_SECTIONS.resources, TASK_RESOURCES_INTRO]
     if (rules.length > 0) lines.push('', ...rules.map((rule) => `- ${rule}`))
     for (const { role, resource } of blocks) {
-      const hasWriter = (graph.get(resource.id)?.writers.length ?? 0) > 0
-      lines.push(
-        '',
-        `### ${role} ${resourceName(resource)}`,
-        '',
-        ...itemBlock(ctx, resource, hasWriter),
-      )
+      const writers = graph.get(resource.id)?.writers.map((writer) => writer.id) ?? []
+      lines.push('', `### ${role} ${resourceName(resource)}`, '')
+      const missing = role === '读取' ? missingNote(ctx, writers, id) : undefined
+      if (missing !== undefined) lines.push(missing, '')
+      lines.push(...itemBlock(ctx, resource, writers.length > 0))
     }
     sections.push(lines.join('\n'))
   }

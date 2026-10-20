@@ -250,6 +250,25 @@ describe('校验', () => {
     expect(report.warning.map((problem) => problem.code)).toContain('resource_overwritten')
     expect(report.hint.map((problem) => problem.code)).toContain('resource_order')
   })
+
+  it('种类是文件、路径却以 / 结尾：警告像是文件夹（文件夹项、普通文件不报）', () => {
+    const document = doc(
+      [
+        step('a'),
+        resource('r', [
+          { kind: 'file', value: 'e2e/tests/' },
+          { kind: 'folder', value: 'e2e/support/' },
+          { kind: 'file', value: 'notes.md' },
+        ]),
+      ],
+      [edge('r', 'a')],
+    )
+    const report = validateDocument(document, { workflowName: 'g', maxNodes: 50 })
+    const found = report.warning.filter((problem) => problem.code === 'file_looks_folder')
+    expect(found.map((problem) => problem.message)).toEqual([
+      '资源 tests 的文件项 e2e/tests/ 以 / 结尾，像是一个文件夹——是文件夹就把种类改成「文件夹」，计划里才会按目录交代',
+    ])
+  })
 })
 
 describe('编译进计划', () => {

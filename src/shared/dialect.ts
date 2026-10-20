@@ -28,6 +28,13 @@ export interface RunStateFacts {
   workflow: string
   /** 步骤 id，按执行顺序。 */
   steps: readonly string[]
+  /** 串行：你本人逐个做、不派给别人，就不提子代理、队员。 */
+  solo?: boolean
+}
+
+/** 谁来记状态：派给别人做时，交代他们把结论报回来、由你写。 */
+function recorderLine(lead: string, tail: string, solo: boolean | undefined): string {
+  return solo === true ? `- **${lead}**` : `- **${lead}** ${tail}`
 }
 
 export interface Dialect {
@@ -65,14 +72,18 @@ const DSH_MODE_FALLBACK = '这些工具不可用时，先告诉用户，再改�
  * 「运行状态」段（DSH）：用 `state` 动作记进度、谁记、什么时候记、怎么接着跑。
  * 字段全表与例子在 skill `workflow-run-state`，这里只放执行时离不开的规矩。
  */
-export function dshRunStateLines(facts: Pick<RunStateFacts, 'instance'>): string[] {
+export function dshRunStateLines(facts: Pick<RunStateFacts, 'instance' | 'solo'>): string[] {
   const id = facts.instance
   return [
     PLAN_SECTIONS.runState,
     `这次执行要记进度：实例 ${code(id)} 的状态插件已经按初始状态建好，用户在画布上实时看着它。`,
     '',
     `- **用 \`workflow_lite\` 的 \`state\` 动作记，不要直接编辑状态文件。** 插件替你补时间、轮次和流水，改动当场校验，不合法会被拒绝并说明原因；不带改动调用就是查看当前状态。`,
-    '- **由你来记。** 子代理、队员不调用它——派发时告诉他们做完把结论、判定和产出路径报给你。',
+    recorderLine(
+      '由你来记。',
+      '子代理、队员不调用它——派发时告诉他们做完把结论、判定和产出路径报给你。',
+      facts.solo,
+    ),
     '- **什么时候记**：开始执行时整体 `status: running`；派发一个步骤之前把它改成 `running`；它做完改成 `done`（带 `summary`、实际写出的 `outputs`（照计划里给的路径写），有条件出边的带 `verdict`）或 `failed`（带 `error`）；分支没走到的改成 `skipped`；要等用户回答时改成 `waiting` 并在 `note` 写等什么；全部走完整体 `status: done`。同一批次并行派出的几个步骤可以一次改。',
     `- 例：\`{"action":"state","instance":"${id}","nodes":[{"id":"scan","status":"done","summary":"找到 3 处问题"}]}\``,
     `- **核对位置**：\`state\` 每次都回 \`last\`（最后执行的步骤）和 \`next\`（接下来该做的步骤，带第几轮）——插件按图、判定和流水推出来，循环回到哪一步、第几轮都算好了；用户指定了下一步时（reason 是 \`pinned\`）先做指定的。你要做的和 \`next\` 对不上时，先停下核对。`,
@@ -143,7 +154,11 @@ export function portableRunStateLines(facts: RunStateFacts): string[] {
     PLAN_SECTIONS.runState,
     `这次执行要把进度记在一份状态文件里：${code(file)}（相对工作区，${code(INSTANCE_TOKEN)} 换成这次的编号）。中断之后靠它接着做，用户也靠它看进度。`,
     '',
-    `- **由你来记，直接编辑这份文件。** 子代理、队员不碰它——派发时告诉他们做完把结论、判定和产出路径报给你，你来写。`,
+    recorderLine(
+      '由你来记，直接编辑这份文件。',
+      '子代理、队员不碰它——派发时告诉他们做完把结论、判定和产出路径报给你，你来写。',
+      facts.solo,
+    ),
     `- **开始时**：先看 ${code(PORTABLE_RUNS_DIR)} 下有没有这个工作流没走完的状态文件（${code(`workflow: ${facts.workflow}`)}，${code('status')} 是 ${code('running')} 或 ${code('waiting')}）。有就问用户是接着那一次跑，还是重新开始；接着跑就沿用那个编号和那份文件。没有就按下面的内容新建：`,
     '',
     ...initial,

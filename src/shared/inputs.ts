@@ -178,7 +178,8 @@ export function describeInput(data: InputData): string {
   else if (kind === 'multi') parts.push(`多选：${(data.options ?? []).join(' / ')}`)
   else parts.push(kind === 'textarea' ? '多行文字' : '一句话')
   if (allowsOther(data)) parts.push('可自己填写')
-  if (data.default !== undefined) parts.push(`默认 ${[data.default].flat().join('、')}`)
+  // 默认值加「」：值本身常是一句话（「先盘点再让我选」），不括起来就和前后的说明连成一片。
+  if (data.default !== undefined) parts.push(`默认「${[data.default].flat().join('、')}」`)
   parts.push(data.required === true ? '必填' : '可不填')
   return parts.join('，')
 }

@@ -343,7 +343,9 @@ export type ValidationCode =
   | 'duplicate_edge'
   | 'shared_output'
   | 'resource_overwritten'
+  | 'file_looks_folder'
   | 'input_default_invalid'
+  | 'input_options_placeholder'
   | 'unknown_node_type'
   | 'unknown_fields_dropped'
   // 提示

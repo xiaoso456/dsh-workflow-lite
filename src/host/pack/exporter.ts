@@ -92,7 +92,7 @@ function itemKey(kind: string, value: string): string {
   return kind === 'skill' ? `skill\n${value.trim()}` : `${kind}\n${normalize(value.trim())}`
 }
 
-function isAbsolutePath(value: string): boolean {
+export function isAbsolutePath(value: string): boolean {
   return isAbsoluteRoot(normalize(value.trim()))
 }
 

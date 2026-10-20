@@ -35,7 +35,7 @@ import {
 import type { ErrorCode, ValidationProblem, WorkflowDocument } from '../../shared/types.ts'
 import { pathKind } from '../store/paths.ts'
 import type { Outcome } from '../store/repository.ts'
-import { type PackDeps, rewriteForPack, scanState } from './exporter.ts'
+import { isAbsolutePath, type PackDeps, rewriteForPack, scanState } from './exporter.ts'
 import { installSkill } from './importer.ts'
 import { stageSkill } from './skillBrowse.ts'
 import { newStage, writeOut } from './staging.ts'
@@ -142,9 +142,15 @@ async function buildSkill(
     }
     if (item.kind !== 'file' && item.kind !== 'folder') continue
     if (!chosen) {
-      // 相对路径换台机器照样按工作区找；产出、资料目录里的不是外部资源。
-      if (item.state === 'pack' || item.state === 'missing' || item.state === 'tooLarge') {
-        absolute.push(item.value)
+      // 相对路径换台机器照样按工作区找，资料目录里的随包走；产出写在产出根目录下，
+      // 写到绝对路径的（比如在别的仓库里就地更新）却和读的一样，换台机器不一定有。
+      const external =
+        item.state === 'output'
+          ? isAbsolutePath(item.value)
+          : item.state === 'pack' || item.state === 'missing' || item.state === 'tooLarge'
+      if (external) {
+        // 和计划里资源的路径同一种写法（`/` 分隔），同一个文件夹别在两处写成两样。
+        absolute.push(slash(item.value))
       }
       continue
     }

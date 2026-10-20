@@ -169,6 +169,27 @@ describe('通用口径的运行状态：模型自己建、自己改工作区里�
   })
 })
 
+describe('串行：你本人逐个做，不提派给子代理、队员', () => {
+  const handOut = ['子代理、队员不', '派给子代理或队员时']
+
+  it('通用口径：运行状态、`{skill}` 约定里没有派发的交代；派子代理时照旧有', () => {
+    const [serial = ''] = portable('serial', 'auto')
+    for (const text of handOut) expect(serial).not.toContain(text)
+    expect(serial).toContain('- **由你来记，直接编辑这份文件。**\n')
+    const [delegated = ''] = portable('subagent', 'auto')
+    for (const text of handOut) expect(delegated).toContain(text)
+  })
+
+  it('DSH 口径：运行状态同样只说由你来记', () => {
+    const document = sample('serial', 'auto')
+    const { plan } = buildPlan(factsOf(document), analyzeGraph(document), {
+      runState: { instance: '20261002-143012-a3f9' },
+    })
+    expect(plan).toContain('- **由你来记。**\n')
+    expect(plan).not.toContain('子代理、队员不调用它')
+  })
+})
+
 describe('DSH 口径不变：插件里照旧点名工具', () => {
   it('计划里用 state 动作、create_goal、subagent 工具', () => {
     const document = sample('subagent', 'reuse')

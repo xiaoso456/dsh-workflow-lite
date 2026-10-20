@@ -367,6 +367,22 @@ export function validateDocument(
       )
     }
   }
+  // 编辑器换成选择题、加一个选项时先填「选项 1」「选项 2」占位：没改过就原样进了计划，用户被问时只看到几个编号。
+  for (const node of document.nodes) {
+    if (!isInput(node) || !isChoiceKind(inputKind(node.data))) continue
+    const seeded = (node.data.options ?? []).filter((option) =>
+      /^(?:选项|option)\s*\d+$/iu.test(option.trim()),
+    )
+    if (seeded.length === 0) continue
+    warning.push(
+      mk(
+        'warning',
+        'input_options_placeholder',
+        `输入 ${node.id} 的选项（${seeded.join('、')}）还是编辑器填的占位——换成真正的选项；要用户自己写回答，就把题型改成文字`,
+        { node: node.id },
+      ),
+    )
+  }
   for (const cycle of analysis.cycles) {
     if (cycleHasNoExit(cycle)) {
       warning.push(
@@ -435,6 +451,19 @@ export function validateDocument(
           'warning',
           'resource_overwritten',
           `${[...producers].sort(byId).join(' / ')} 都整份写入资源 ${resourceTitle(info.resource)}——后写的会覆盖先写的；要接着写请把后面的改成「更新」`,
+          { node: info.resource.id },
+        ),
+      )
+    }
+    // 种类是「文件」、路径却以 / 结尾：计划里会写成「文件：…/」，执行者拿不准它是文件还是目录。
+    for (const item of info.resource.data.items) {
+      const value = item.value.trim()
+      if (item.kind !== 'file' || !/[\\/]$/u.test(value)) continue
+      warning.push(
+        mk(
+          'warning',
+          'file_looks_folder',
+          `资源 ${resourceTitle(info.resource)} 的文件项 ${value} 以 / 结尾，像是一个文件夹——是文件夹就把种类改成「文件夹」，计划里才会按目录交代`,
           { node: info.resource.id },
         ),
       )

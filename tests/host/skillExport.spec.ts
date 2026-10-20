@@ -167,6 +167,36 @@ async function download(dataDir: string, token: string): Promise<Map<string, str
 const meta = { name: 'review-report', description: '读资料写报告', whenToUse: '要写报告时' }
 
 describe('导出成 skill', () => {
+  it('写到绝对路径的产出也要在本机确认；写在产出根目录下的不用', async () => {
+    const ledger = slash(join(root, 'repo', 'docs', 'LEDGER.md'))
+    const { deps } = await fixture((items) => {
+      const document = graph(items)
+      return {
+        ...document,
+        nodes: document.nodes.map((node) =>
+          node.id === 'out'
+            ? {
+                ...node,
+                data: {
+                  items: [
+                    { kind: 'file', value: 'report.md' },
+                    { kind: 'file', value: ledger },
+                  ],
+                },
+              }
+            : node,
+        ),
+      } as WorkflowDocument
+    })
+    const preview = expectOk(
+      await previewSkill(deps, { name: 'review', version: 1, pack: await picks(deps) }),
+    )
+    expect(preview.absolute).toContain(ledger)
+    expect(preview.absolute).not.toContain('report.md')
+    expect(preview.body).toContain(`\`${ledger}\``)
+    expect(preview.body).toContain('要新写出来的，确认它的上一级文件夹在')
+  })
+
   it('预览：正文是 skill 口径的计划，列出要提醒的事', async () => {
     const { deps } = await fixture()
     const preview = expectOk(
