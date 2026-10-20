@@ -156,6 +156,23 @@ button.choice::after {
   height: 26px;
 }
 
+/*
+ * 输入框就写在这一行里，不再自带一层框：行本身已经是框（选中时描强调色），框里再套框就成了双层。
+ * 聚焦时由整行描强调色示意；写到同一特异度以上，盖过 ui.input 的底色、聚焦描边和瑞士下的底线。
+ */
+.otherRow input.otherInput,
+.otherRow input.otherInput:hover,
+.otherRow input.otherInput:focus {
+  padding: 0 4px;
+  border-color: transparent;
+  background: transparent;
+  outline: none;
+}
+
+.otherRow:has(.otherInput:focus) {
+  border-color: var(--wl-accent);
+}
+
 .choiceText {
   flex: 1 1 auto;
   min-width: 0;

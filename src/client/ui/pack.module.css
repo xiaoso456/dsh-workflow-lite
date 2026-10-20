@@ -806,6 +806,8 @@ div.page {
   align-items: center;
   justify-content: center;
   min-height: 240px;
+  /* 页面去掉了底边距（留给贴底的操作栏），这一步没有操作栏：自己留出整栏的底边距（.wfDetail 的 18px），虚线框不贴到底。 */
+  margin-bottom: 18px;
   padding: 28px 24px;
   border: 1.5px dashed var(--wl-line-strong);
   border-radius: calc(12px * var(--wl-round, 1));
