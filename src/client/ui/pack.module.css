@@ -27,11 +27,17 @@
 
 /* ── 步骤指示 ─────────────────────────────────────────────── */
 
+/*
+ * 步数会变（导出成 Skill 多一步）：多出的一步从前一步背后展开、少了的收回去（useTrail）。
+ * 靠前一步盖住后一步做出来，所以每步有不透明的底、前面的 z-index 高（JSX 里给），整排自己裁切；
+ * 步与步之间的空也算进后一步（内边距），展开时不会从缝里露出半截字。
+ */
 .steps {
+  position: relative;
   display: flex;
   flex: none;
-  gap: 6px;
   align-items: center;
+  overflow: hidden;
   color: var(--wl-text-3);
   font-size: var(--wl-fs-micro);
 }
@@ -47,9 +53,16 @@
   --step-out: 140ms;
   --step-in: 200ms;
   --step-ease: var(--wl-ease-out, cubic-bezier(0.2, 0, 0, 1));
+  position: relative;
   display: inline-flex;
+  flex: none;
   gap: 6px;
   align-items: center;
+  background: var(--wl-panel);
+}
+
+.step + .step {
+  padding-left: 6px;
 }
 
 .stepNum {
@@ -293,6 +306,18 @@
 
 .sectionLink:hover {
   text-decoration: underline;
+}
+
+/* 旁注、链接这会儿用不上（导出成 Skill）：原地淡掉，位置留着，切回来时标题行不跳。 */
+.sectionNote,
+.sectionLink {
+  transition: opacity 160ms linear;
+}
+
+.sectionNote[data-quiet="true"],
+.sectionLink[data-quiet="true"] {
+  opacity: 0;
+  pointer-events: none;
 }
 
 /* ── 一行：[勾选] 图标 文字 [右端] ──────────────────────────── */
@@ -583,6 +608,7 @@ div.page {
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+  transition: opacity 160ms linear;
 }
 
 .row[data-dim="true"] .rowText {
@@ -873,6 +899,7 @@ div.page {
   margin-top: 2px;
 }
 
+/* 读取、打包中：读得快时不该闪一下转圈，稍等一会儿再淡出来。 */
 .busy {
   display: flex;
   flex: 1 1 auto;
@@ -883,13 +910,39 @@ div.page {
   color: var(--wl-text-3);
   font-size: var(--wl-fs-meta);
   font-variant-numeric: tabular-nums;
+  animation: busyIn 200ms linear 160ms backwards;
+}
+
+@keyframes busyIn {
+  from {
+    opacity: 0;
+  }
+}
+
+/*
+ * 按步骤换的那一块（Staged）：清单、底栏都往外伸到页边（滚动条贴边、底栏的线通栏），
+ * 这一块要裁住退场的影子，所以自己也伸到页边，里面再把页边距补回来。
+ */
+.flow {
+  margin: 0 -16px;
+}
+
+.flow > div {
+  padding: 0 16px;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .drop,
   .catToggle::before,
-  .catChevron {
+  .catChevron,
+  .sectionNote,
+  .sectionLink,
+  .rowText {
     transition: none;
+  }
+
+  .busy {
+    animation: none;
   }
 
   .catBody > .row {

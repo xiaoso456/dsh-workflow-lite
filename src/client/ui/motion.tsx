@@ -536,6 +536,72 @@ export function useStage(
 }
 
 /**
+ * 一块内容按步骤换（导出：选版本 → 资源清单 → Skill 信息；读完了换上结果）：`at` 变了，旧的留个影子往外退，
+ * 新的从该来的一侧进来（{@link useStage}）。`order` 是第几步：往后走新的从右边进，往回走从左边进，同一步里换只淡。
+ * 外层定位、裁切（影子摆在里面），里层是内容本身；两层都是纵向 flex、撑满父元素，间距沿用父元素的。
+ */
+export function Staged(props: {
+  at: string
+  order: number
+  className?: string
+  children: ReactNode
+}): React.JSX.Element {
+  const stage = useStage()
+  const shown = useRef({ at: props.at, order: props.order })
+  const heading = useRef<StageDir>(0)
+  const bodyRef = useCallback(
+    (node: HTMLDivElement | null): void => {
+      stage.body.current = node
+    },
+    [stage.body],
+  )
+  // 渲染阶段 DOM 还是旧的：影子只能在这里拍（同 useSwap）；提交之后就已经是新内容了。
+  if (props.at !== shown.current.at) {
+    heading.current = Math.sign(props.order - shown.current.order) as StageDir
+    stage.leave(heading.current)
+    shown.current = { at: props.at, order: props.order }
+  }
+  const mounted = useRef(false)
+  useLayoutEffect(() => {
+    // 第一次挂上不放：页面自己有入场。
+    if (mounted.current) stage.enter(heading.current)
+    mounted.current = true
+  }, [props.at, stage])
+  return (
+    <div className={cx(ui.stage, props.className)} ref={stage.wrap}>
+      <div className={ui.stageBody} ref={bodyRef}>
+        {props.children}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * 几段话轮流摆在同一处（导出页的说明：工作流包、Skill 各一句）：全叠在同一格里，高度按最高的那段占住，
+ * 换的时候旧的原地淡掉、新的从下面浮上来——换字不推动下面的东西。只有 `at` 那段读得到（其余 aria-hidden）。
+ */
+export function FadeStack(props: {
+  at: string
+  items: readonly { key: string; node: ReactNode }[]
+  className?: string
+}): React.JSX.Element {
+  return (
+    <span className={cx(ui.fadeStack, props.className)}>
+      {props.items.map((item) => (
+        <span
+          key={item.key}
+          className={ui.fadeLayer}
+          data-on={item.key === props.at}
+          aria-hidden={item.key === props.at ? undefined : true}
+        >
+          {item.node}
+        </span>
+      ))}
+    </span>
+  )
+}
+
+/**
  * 按位置认的列表（项没有自己的 id，可以重名、可以为空）配一串稳定的键：
  * 删中间一项前先 `drop(index)`，删掉的就是那一行的元素（不是最后一行），其余行滑上去。
  * 项数从外面变了（撤销、加了一项）只在末尾补齐 / 截掉。

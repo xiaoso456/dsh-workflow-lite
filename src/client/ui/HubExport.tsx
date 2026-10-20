@@ -35,7 +35,7 @@ import { errorMessage, type WorkflowLiteRpc } from '../rpc.ts'
 import { HubSkillInfo, type SkillDraft } from './HubSkillInfo.tsx'
 import hub from './hub.module.css'
 import { Icon, type IconName } from './Icon.tsx'
-import { Presence, useResizeFlip } from './motion.tsx'
+import { FadeStack, Presence, Staged, SwapText, useResizeFlip } from './motion.tsx'
 import { Callout, PackRow, PackSection, PackSteps } from './PackRow.tsx'
 import css from './pack.module.css'
 import { cx } from './primitives.tsx'
@@ -152,6 +152,18 @@ export function HubExport(props: {
   const multi = picked.size > 1
   const skill = kind === 'skill'
 
+  /** 下面那一块此刻是什么：换了就整块交接（往后一步从右边进、往回从左边进，读完了原地淡入）。 */
+  const phase =
+    busy !== null
+      ? 'busy'
+      : step === 0
+        ? list === null
+          ? 'loading'
+          : 'ready'
+        : step === 2 || scan !== null
+          ? 'ready'
+          : 'loading'
+
   /** 换导出的种类：回到第一步；skill 只带一个版本，选了几个就留编号最大的那个。 */
   const switchKind = (next: ExportKind): void => {
     if (next === kind) return
@@ -166,7 +178,16 @@ export function HubExport(props: {
       <div className={hub.wfHead}>
         <div className={hub.wfHeadText}>
           <p className={hub.wfTitle}>{t('pack.exportTitle').replace('{name}', name)}</p>
-          <p className={hub.wfSub}>{t(skill ? 'skillExport.versionsHint' : 'pack.versionsHint')}</p>
+          <p className={hub.wfSub}>
+            {/* 两句叠在一格里：换导出种类时原地换，标题栏不跟着变高变矮。 */}
+            <FadeStack
+              at={kind}
+              items={[
+                { key: 'pack', node: t('pack.versionsHint') },
+                { key: 'skill', node: t('skillExport.versionsHint') },
+              ]}
+            />
+          </p>
         </div>
         <button
           type="button"
@@ -191,7 +212,13 @@ export function HubExport(props: {
           ]}
           onChange={switchKind}
         />
-        <span>{t(skill ? 'pack.kind.skillHint' : 'pack.kind.packHint')}</span>
+        <FadeStack
+          at={kind}
+          items={[
+            { key: 'pack', node: t('pack.kind.packHint') },
+            { key: 'skill', node: t('pack.kind.skillHint') },
+          ]}
+        />
       </div>
       <PackSteps
         steps={
@@ -205,156 +232,158 @@ export function HubExport(props: {
         {error !== null && <Callout tone="error">{error}</Callout>}
       </Presence>
 
-      {busy !== null ? (
-        <div className={css.busy} data-testid="wl-pack-busy">
-          <span className={hub.spinner} />
-          {busy}
-        </div>
-      ) : step === 0 ? (
-        list === null ? (
+      <Staged at={`${step}:${phase}`} order={step} className={css.flow}>
+        {busy !== null ? (
+          <div className={css.busy} data-testid="wl-pack-busy">
+            <span className={hub.spinner} />
+            {busy}
+          </div>
+        ) : step === 0 ? (
+          list === null ? (
+            <div className={css.busy}>
+              <span className={hub.spinner} />
+              {t('hub.loading')}
+            </div>
+          ) : usable.length === 0 ? (
+            <div className={hub.empty}>
+              <span className={hub.emptyIcon}>
+                <Icon name="history" size={20} />
+              </span>
+              <p className={hub.emptyTitle}>{t('pack.noVersions')}</p>
+              <p className={hub.emptyText}>{t('pack.noVersionsText')}</p>
+            </div>
+          ) : (
+            <>
+              <div className={cx(css.scroll, ui.scrollFade)}>
+                {unsaved && (
+                  <Callout tone="warn" testId="wl-pack-unsaved">
+                    {t('pack.unsaved')}
+                  </Callout>
+                )}
+                {/* Skill 只带一个版本：「已选几个」「全选」淡掉但位置留着，来回切时标题行不跳。 */}
+                <PackSection
+                  title={skill ? t('pack.stepVersion') : t('pack.stepVersions')}
+                  note={t('pack.picked').replace('{n}', String(picked.size))}
+                  quiet={skill}
+                  action={{
+                    label:
+                      picked.size === usable.length ? t('pack.selectNone') : t('pack.selectAll'),
+                    onClick: () =>
+                      setPicked(
+                        picked.size === usable.length
+                          ? new Set()
+                          : new Set(usable.map((entry) => entry.n)),
+                      ),
+                  }}
+                >
+                  {usable.map((entry) => (
+                    <PackRow
+                      key={entry.n}
+                      icon="bookmark"
+                      tone={entry.current ? 'accent' : undefined}
+                      title={
+                        <>
+                          v{entry.n}
+                          <span className={hub.wfSub}>
+                            {' '}
+                            {entry.note !== ''
+                              ? entry.note
+                              : entry.autoBefore !== undefined
+                                ? t('ver.autoNote').replace('{n}', String(entry.autoBefore))
+                                : t('ver.noNote')}
+                          </span>
+                        </>
+                      }
+                      badge={
+                        entry.current ? <span className={hub.tag}>{t('ver.current')}</span> : null
+                      }
+                      meta={[
+                        shortTime(entry.createdAt),
+                        t('ver.steps').replace('{n}', String(entry.nodeCount)),
+                      ]}
+                      checked={picked.has(entry.n)}
+                      dim={!picked.has(entry.n)}
+                      testId={`wl-pack-ver-${entry.n}`}
+                      onCheck={(on) => {
+                        // skill：单选，点哪个就是哪个（不能一个都不选）。
+                        if (skill) {
+                          setPicked(new Set([entry.n]))
+                          return
+                        }
+                        const next = new Set(picked)
+                        if (on) next.add(entry.n)
+                        else next.delete(entry.n)
+                        setPicked(next)
+                      }}
+                    />
+                  ))}
+                </PackSection>
+              </div>
+              <div className={css.foot}>
+                <div className={css.footInfo}>
+                  <SwapText
+                    text={
+                      picked.size === 0
+                        ? t(skill ? 'skillExport.pickOne' : 'pack.pickOne')
+                        : skill
+                          ? `v${[...picked][0]}`
+                          : t('pack.picked').replace('{n}', String(picked.size))
+                    }
+                  />
+                </div>
+                <button
+                  type="button"
+                  className={cx(ui.btn, ui.small, ui.primary)}
+                  disabled={picked.size === 0}
+                  data-testid="wl-pack-next"
+                  onClick={toResources}
+                >
+                  {t('pack.next')}
+                  <Icon name="chevronRight" size={14} />
+                </button>
+              </div>
+            </>
+          )
+        ) : step === 2 && skill && scan !== null ? (
+          <HubSkillInfo
+            t={t}
+            rpc={rpc}
+            name={name}
+            version={[...picked][0] ?? 0}
+            pack={[...effectivePack(scan, packed, switches)]}
+            scope={props.scope}
+            draft={draft}
+            onDraft={setDraft}
+            onBusy={setBusy}
+            onError={setError}
+            onPrev={() => setStep(1)}
+            onDone={props.onDone}
+          />
+        ) : scan === null ? (
           <div className={css.busy}>
             <span className={hub.spinner} />
-            {t('hub.loading')}
-          </div>
-        ) : usable.length === 0 ? (
-          <div className={hub.empty}>
-            <span className={hub.emptyIcon}>
-              <Icon name="history" size={20} />
-            </span>
-            <p className={hub.emptyTitle}>{t('pack.noVersions')}</p>
-            <p className={hub.emptyText}>{t('pack.noVersionsText')}</p>
+            {t('pack.scanning')}
           </div>
         ) : (
-          <>
-            <div className={cx(css.scroll, ui.scrollFade)}>
-              {unsaved && (
-                <Callout tone="warn" testId="wl-pack-unsaved">
-                  {t('pack.unsaved')}
-                </Callout>
-              )}
-              <PackSection
-                title={skill ? t('pack.stepVersion') : t('pack.stepVersions')}
-                note={skill ? undefined : t('pack.picked').replace('{n}', String(picked.size))}
-                {...(skill
-                  ? {}
-                  : {
-                      action: {
-                        label:
-                          picked.size === usable.length
-                            ? t('pack.selectNone')
-                            : t('pack.selectAll'),
-                        onClick: () =>
-                          setPicked(
-                            picked.size === usable.length
-                              ? new Set()
-                              : new Set(usable.map((entry) => entry.n)),
-                          ),
-                      },
-                    })}
-              >
-                {usable.map((entry) => (
-                  <PackRow
-                    key={entry.n}
-                    icon="bookmark"
-                    tone={entry.current ? 'accent' : undefined}
-                    title={
-                      <>
-                        v{entry.n}
-                        <span className={hub.wfSub}>
-                          {' '}
-                          {entry.note !== ''
-                            ? entry.note
-                            : entry.autoBefore !== undefined
-                              ? t('ver.autoNote').replace('{n}', String(entry.autoBefore))
-                              : t('ver.noNote')}
-                        </span>
-                      </>
-                    }
-                    badge={
-                      entry.current ? <span className={hub.tag}>{t('ver.current')}</span> : null
-                    }
-                    meta={[
-                      shortTime(entry.createdAt),
-                      t('ver.steps').replace('{n}', String(entry.nodeCount)),
-                    ]}
-                    checked={picked.has(entry.n)}
-                    dim={!picked.has(entry.n)}
-                    testId={`wl-pack-ver-${entry.n}`}
-                    onCheck={(on) => {
-                      // skill：单选，点哪个就是哪个（不能一个都不选）。
-                      if (skill) {
-                        setPicked(new Set([entry.n]))
-                        return
-                      }
-                      const next = new Set(picked)
-                      if (on) next.add(entry.n)
-                      else next.delete(entry.n)
-                      setPicked(next)
-                    }}
-                  />
-                ))}
-              </PackSection>
-            </div>
-            <div className={css.foot}>
-              <div className={css.footInfo}>
-                {picked.size === 0
-                  ? t(skill ? 'skillExport.pickOne' : 'pack.pickOne')
-                  : skill
-                    ? `v${[...picked][0]}`
-                    : t('pack.picked').replace('{n}', String(picked.size))}
-              </div>
-              <button
-                type="button"
-                className={cx(ui.btn, ui.small, ui.primary)}
-                disabled={picked.size === 0}
-                data-testid="wl-pack-next"
-                onClick={toResources}
-              >
-                {t('pack.next')}
-                <Icon name="chevronRight" size={14} />
-              </button>
-            </div>
-          </>
-        )
-      ) : step === 2 && skill && scan !== null ? (
-        <HubSkillInfo
-          t={t}
-          rpc={rpc}
-          name={name}
-          version={[...picked][0] ?? 0}
-          pack={[...effectivePack(scan, packed, switches)]}
-          scope={props.scope}
-          draft={draft}
-          onDraft={setDraft}
-          onBusy={setBusy}
-          onError={setError}
-          onPrev={() => setStep(1)}
-          onDone={props.onDone}
-        />
-      ) : scan === null ? (
-        <div className={css.busy}>
-          <span className={hub.spinner} />
-          {t('pack.scanning')}
-        </div>
-      ) : (
-        <Resources
-          t={t}
-          scan={scan}
-          packed={packed}
-          switches={switches}
-          multi={multi}
-          skill={skill}
-          onSwitch={(kind, on) => setSwitches({ ...switches, [kind]: on })}
-          onToggle={(key, on) => {
-            const next = new Set(packed)
-            if (on) next.add(key)
-            else next.delete(key)
-            setPacked(next)
-          }}
-          onPrev={() => setStep(0)}
-          onExport={() => (skill ? setStep(2) : void doExport())}
-        />
-      )}
+          <Resources
+            t={t}
+            scan={scan}
+            packed={packed}
+            switches={switches}
+            multi={multi}
+            skill={skill}
+            onSwitch={(kind, on) => setSwitches({ ...switches, [kind]: on })}
+            onToggle={(key, on) => {
+              const next = new Set(packed)
+              if (on) next.add(key)
+              else next.delete(key)
+              setPacked(next)
+            }}
+            onPrev={() => setStep(0)}
+            onExport={() => (skill ? setStep(2) : void doExport())}
+          />
+        )}
+      </Staged>
     </div>
   )
 }

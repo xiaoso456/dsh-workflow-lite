@@ -31,6 +31,7 @@ import folder from './folder.module.css'
 import type { PackScope } from './HubExport.tsx'
 import hub from './hub.module.css'
 import { Icon } from './Icon.tsx'
+import { Staged } from './motion.tsx'
 import overlay from './overlay.module.css'
 import { Callout, PackRow, PackSection } from './PackRow.tsx'
 import css from './pack.module.css'
@@ -117,12 +118,15 @@ export function HubSkillInfo(props: {
     }
   }, [rpc, browse])
 
+  // 编好之前转圈；编好了整块原地淡入（和导出前两步之间的交接同一套，见 Staged）。
   if (preview === null) {
     return (
-      <div className={css.busy}>
-        <span className={hub.spinner} />
-        {t('skillExport.building')}
-      </div>
+      <Staged at="building" order={0} className={css.flow}>
+        <div className={css.busy}>
+          <span className={hub.spinner} />
+          {t('skillExport.building')}
+        </div>
+      </Staged>
     )
   }
 
@@ -209,150 +213,152 @@ export function HubSkillInfo(props: {
 
   return (
     <>
-      <div className={cx(css.scroll, ui.scrollFade)} data-testid="wl-skill-info">
-        {blocked ? (
-          <Callout tone="error" testId="wl-skill-blocked">
-            {t('skillExport.blocked')}
-            {preview.problems.map((item) => (
-              <span key={`${item.code}:${item.node ?? ''}:${item.message}`} className={css.line}>
-                {item.message}
-              </span>
-            ))}
-          </Callout>
-        ) : (
-          notes.map((note) => (
-            <Callout key={note.key} tone={note.tone} testId={`wl-skill-note-${note.key}`}>
-              {note.text}
+      <Staged at="ready" order={0} className={css.flow}>
+        <div className={cx(css.scroll, ui.scrollFade)} data-testid="wl-skill-info">
+          {blocked ? (
+            <Callout tone="error" testId="wl-skill-blocked">
+              {t('skillExport.blocked')}
+              {preview.problems.map((item) => (
+                <span key={`${item.code}:${item.node ?? ''}:${item.message}`} className={css.line}>
+                  {item.message}
+                </span>
+              ))}
             </Callout>
-          ))
-        )}
+          ) : (
+            notes.map((note) => (
+              <Callout key={note.key} tone={note.tone} testId={`wl-skill-note-${note.key}`}>
+                {note.text}
+              </Callout>
+            ))
+          )}
 
-        <PackSection title={t('skillExport.sectionMeta')} testId="wl-skill-meta-form">
-          <div className={css.field}>
-            <label className={css.fieldRow}>
-              <span className={hub.wfSub}>{t('skillExport.name')}</span>
-              <input
-                className={ui.input}
-                value={meta.name}
-                maxLength={SKILL_NAME_MAX}
-                spellCheck={false}
-                placeholder="my-workflow"
-                aria-invalid={nameError !== null}
-                data-testid="wl-skill-name"
-                onChange={(event) => set({ name: event.currentTarget.value.trim() })}
+          <PackSection title={t('skillExport.sectionMeta')} testId="wl-skill-meta-form">
+            <div className={css.field}>
+              <label className={css.fieldRow}>
+                <span className={hub.wfSub}>{t('skillExport.name')}</span>
+                <input
+                  className={ui.input}
+                  value={meta.name}
+                  maxLength={SKILL_NAME_MAX}
+                  spellCheck={false}
+                  placeholder="my-workflow"
+                  aria-invalid={nameError !== null}
+                  data-testid="wl-skill-name"
+                  onChange={(event) => set({ name: event.currentTarget.value.trim() })}
+                />
+              </label>
+              {nameError !== null ? (
+                <span className={css.fieldError}>{nameError}</span>
+              ) : existing !== undefined ? (
+                <span className={css.fieldWarn} data-testid="wl-skill-name-taken">
+                  {existing.path === undefined
+                    ? t('skillExport.nameTakenBuiltin').replace('{name}', meta.name)
+                    : t('skillExport.nameTaken')
+                        .replace('{name}', meta.name)
+                        .replace('{where}', existing.path)}
+                </span>
+              ) : (
+                <span className={css.fieldHint}>{t('skillExport.nameHint')}</span>
+              )}
+            </div>
+            <div className={css.field}>
+              <span className={hub.wfSub}>{t('skillExport.description')}</span>
+              <textarea
+                className={cx(ui.textarea, css.fieldArea)}
+                value={meta.description}
+                maxLength={SKILL_TEXT_MAX}
+                rows={3}
+                aria-invalid={descError !== null}
+                data-testid="wl-skill-desc"
+                onChange={(event) => set({ description: event.currentTarget.value }, true)}
               />
-            </label>
-            {nameError !== null ? (
-              <span className={css.fieldError}>{nameError}</span>
-            ) : existing !== undefined ? (
-              <span className={css.fieldWarn} data-testid="wl-skill-name-taken">
-                {existing.path === undefined
-                  ? t('skillExport.nameTakenBuiltin').replace('{name}', meta.name)
-                  : t('skillExport.nameTaken')
-                      .replace('{name}', meta.name)
-                      .replace('{where}', existing.path)}
-              </span>
-            ) : (
-              <span className={css.fieldHint}>{t('skillExport.nameHint')}</span>
-            )}
-          </div>
-          <div className={css.field}>
-            <span className={hub.wfSub}>{t('skillExport.description')}</span>
-            <textarea
-              className={cx(ui.textarea, css.fieldArea)}
-              value={meta.description}
-              maxLength={SKILL_TEXT_MAX}
-              rows={3}
-              aria-invalid={descError !== null}
-              data-testid="wl-skill-desc"
-              onChange={(event) => set({ description: event.currentTarget.value }, true)}
-            />
-            {descError !== null ? (
-              <span className={css.fieldError}>{descError}</span>
-            ) : (
-              <span className={css.fieldHint}>{t('skillExport.descHint')}</span>
-            )}
-          </div>
-          <div className={css.field}>
-            <span className={hub.wfSub}>{t('skillExport.whenToUse')}</span>
-            <textarea
-              className={cx(ui.textarea, css.fieldArea)}
-              value={meta.whenToUse ?? ''}
-              maxLength={SKILL_TEXT_MAX}
-              rows={2}
-              placeholder={t('skillExport.whenHint')}
-              data-testid="wl-skill-when"
-              onChange={(event) => set({ whenToUse: event.currentTarget.value })}
-            />
-            {whenError !== null && <span className={css.fieldError}>{whenError}</span>}
-          </div>
-        </PackSection>
-
-        {!blocked && (
-          <PackSection title={t('skillExport.sectionContent')} testId="wl-skill-content">
-            {/* 和前两步清单里的行同一个样子：图标块、名字、下面一行灰字，右端一个按钮。 */}
-            <PackRow
-              icon="sparkle"
-              tone="accent"
-              title={packName}
-              meta={[stat]}
-              end={
-                <button
-                  type="button"
-                  className={cx(ui.btn, ui.small)}
-                  disabled={preview.browse === undefined}
-                  data-testid="wl-skill-preview"
-                  onClick={() => setViewing(true)}
-                >
-                  <Icon name="eye" size={14} />
-                  {t('skillExport.preview')}
-                </button>
-              }
-            />
+              {descError !== null ? (
+                <span className={css.fieldError}>{descError}</span>
+              ) : (
+                <span className={css.fieldHint}>{t('skillExport.descHint')}</span>
+              )}
+            </div>
+            <div className={css.field}>
+              <span className={hub.wfSub}>{t('skillExport.whenToUse')}</span>
+              <textarea
+                className={cx(ui.textarea, css.fieldArea)}
+                value={meta.whenToUse ?? ''}
+                maxLength={SKILL_TEXT_MAX}
+                rows={2}
+                placeholder={t('skillExport.whenHint')}
+                data-testid="wl-skill-when"
+                onChange={(event) => set({ whenToUse: event.currentTarget.value })}
+              />
+              {whenError !== null && <span className={css.fieldError}>{whenError}</span>}
+            </div>
           </PackSection>
-        )}
-      </div>
-      <div className={css.foot}>
-        <div className={css.footInfo}>
-          {t('skillExport.installTip').replace('{root}', preview.skillsRoot)}
+
+          {!blocked && (
+            <PackSection title={t('skillExport.sectionContent')} testId="wl-skill-content">
+              {/* 和前两步清单里的行同一个样子：图标块、名字、下面一行灰字，右端一个按钮。 */}
+              <PackRow
+                icon="sparkle"
+                tone="accent"
+                title={packName}
+                meta={[stat]}
+                end={
+                  <button
+                    type="button"
+                    className={cx(ui.btn, ui.small)}
+                    disabled={preview.browse === undefined}
+                    data-testid="wl-skill-preview"
+                    onClick={() => setViewing(true)}
+                  >
+                    <Icon name="eye" size={14} />
+                    {t('skillExport.preview')}
+                  </button>
+                }
+              />
+            </PackSection>
+          )}
         </div>
-        <button type="button" className={cx(ui.btn, ui.small)} onClick={props.onPrev}>
-          <Icon name="chevronLeft" size={14} />
-          {t('pack.prev')}
-        </button>
-        <button
-          ref={confirm.anchorRef}
-          type="button"
-          className={cx(ui.btn, ui.small)}
-          disabled={!ready}
-          data-testid="wl-skill-install"
-          onClick={() => {
-            if (existing?.overwritable === true) confirm.toggle()
-            else void run('install')
-          }}
-        >
-          <Icon name="sparkle" size={14} />
-          {t('skillExport.install')}
-        </button>
-        {confirm.render({
-          t,
-          title: t('skillExport.overwriteTitle').replace('{name}', meta.name),
-          desc: t('skillExport.overwriteDesc').replace('{path}', existing?.path ?? ''),
-          confirmText: t('skillExport.overwrite'),
-          testId: 'wl-skill-overwrite',
-          onConfirm: () => void run('install', true),
-        })}
-        <button
-          type="button"
-          className={cx(ui.btn, ui.small, ui.primary)}
-          disabled={!ready}
-          data-testid="wl-skill-download"
-          onClick={() => void run('zip')}
-        >
-          <Icon name="download" size={14} />
-          {t('skillExport.download')}
-        </button>
-      </div>
+        <div className={css.foot}>
+          <div className={css.footInfo}>
+            {t('skillExport.installTip').replace('{root}', preview.skillsRoot)}
+          </div>
+          <button type="button" className={cx(ui.btn, ui.small)} onClick={props.onPrev}>
+            <Icon name="chevronLeft" size={14} />
+            {t('pack.prev')}
+          </button>
+          <button
+            ref={confirm.anchorRef}
+            type="button"
+            className={cx(ui.btn, ui.small)}
+            disabled={!ready}
+            data-testid="wl-skill-install"
+            onClick={() => {
+              if (existing?.overwritable === true) confirm.toggle()
+              else void run('install')
+            }}
+          >
+            <Icon name="sparkle" size={14} />
+            {t('skillExport.install')}
+          </button>
+          {confirm.render({
+            t,
+            title: t('skillExport.overwriteTitle').replace('{name}', meta.name),
+            desc: t('skillExport.overwriteDesc').replace('{path}', existing?.path ?? ''),
+            confirmText: t('skillExport.overwrite'),
+            testId: 'wl-skill-overwrite',
+            onConfirm: () => void run('install', true),
+          })}
+          <button
+            type="button"
+            className={cx(ui.btn, ui.small, ui.primary)}
+            disabled={!ready}
+            data-testid="wl-skill-download"
+            onClick={() => void run('zip')}
+          >
+            <Icon name="download" size={14} />
+            {t('skillExport.download')}
+          </button>
+        </div>
+      </Staged>
       {viewing && preview.browse !== undefined && (
         <DocViewer
           t={t}

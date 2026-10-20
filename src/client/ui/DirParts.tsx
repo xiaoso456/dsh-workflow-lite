@@ -25,6 +25,17 @@ export interface Crumb {
   onGo?: () => void
 }
 
+/**
+ * 路径栏里放不下、被截成省略号的那一级：指针一进来就量一下，截断了才在名字上挂悬停提示（写全名），没截断就摘掉。
+ * 悬停提示（TipLayer）在冒泡阶段读 `data-tip`，这里走捕获阶段，赶在它前面写好。
+ */
+function tipWhenCut(unit: HTMLElement, label: string): void {
+  const crumb = unit.querySelector<HTMLElement>(`.${css.crumb}`)
+  if (crumb === null) return
+  if (crumb.scrollWidth > crumb.clientWidth) crumb.dataset.tip = label
+  else delete crumb.dataset.tip
+}
+
 export function PathBar(props: {
   label: string
   crumbs: readonly Crumb[]
@@ -54,6 +65,10 @@ export function PathBar(props: {
               key={crumb.key}
               className={css.crumbUnit}
               style={{ zIndex: all.length - index + 1 }}
+              data-first={index === 0}
+              data-last={index === all.length - 1}
+              data-static={crumb.onGo === undefined || undefined}
+              onPointerOverCapture={(event) => tipWhenCut(event.currentTarget, crumb.label)}
             >
               {index > 0 && (
                 <span className={css.crumbSep} aria-hidden="true">

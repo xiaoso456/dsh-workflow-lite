@@ -8,7 +8,7 @@
 
 import hub from './hub.module.css'
 import { Icon, type IconName } from './Icon.tsx'
-import { Checkbox } from './motion.tsx'
+import { Checkbox, SwapText, useTrail } from './motion.tsx'
 import css from './pack.module.css'
 import { cx } from './primitives.tsx'
 
@@ -117,25 +117,45 @@ export function PackRow(props: {
   )
 }
 
-/** 一节：标题、旁注、可选的右端链接，下面一个圆角框。 */
+/**
+ * 一节：标题、旁注、可选的右端链接，下面一个圆角框。
+ * `quiet`：旁注和链接这会儿用不上（导出成 Skill 时的「已选几个」「全选」）——原地淡掉、不能点，但位置留着，
+ * 来回切时标题行不跳；标题换字也是原地换。
+ */
 export function PackSection(props: {
   title: string
   note?: React.ReactNode
   hint?: string
   action?: { label: string; onClick(): void }
+  quiet?: boolean
   children: React.ReactNode
   box?: boolean
   testId?: string
   className?: string
 }): React.JSX.Element {
+  const quiet = props.quiet === true
   return (
     <section className={cx(css.section, props.className)} data-testid={props.testId}>
       <div className={css.sectionHead}>
-        <p className={css.sectionTitle}>{props.title}</p>
-        {props.note !== undefined && <span className={css.sectionNote}>{props.note}</span>}
+        <p className={css.sectionTitle}>
+          <SwapText text={props.title} />
+        </p>
+        {props.note !== undefined && (
+          <span className={css.sectionNote} data-quiet={quiet} aria-hidden={quiet || undefined}>
+            {props.note}
+          </span>
+        )}
         {props.action !== undefined && (
-          <button type="button" className={css.sectionLink} onClick={props.action.onClick}>
-            {props.action.label}
+          <button
+            type="button"
+            className={css.sectionLink}
+            data-quiet={quiet}
+            disabled={quiet}
+            aria-hidden={quiet || undefined}
+            tabIndex={quiet ? -1 : undefined}
+            onClick={props.action.onClick}
+          >
+            <SwapText text={props.action.label} />
           </button>
         )}
       </div>
@@ -145,14 +165,21 @@ export function PackSection(props: {
   )
 }
 
-/** 步骤指示：1 选版本 — 2 资源清单。 */
+/**
+ * 步骤指示：1 选版本 — 2 资源清单（导出成 Skill 时多一步「Skill 信息」）。
+ * 步数变了和路径栏一个做法（{@link useTrail}）：多出的一步从前一步背后展开，少了的收回去；
+ * 所以按位置认（键是第几步），换了名字原地换字。
+ */
 export function PackSteps(props: { steps: readonly string[]; at: number }): React.JSX.Element {
+  const trail = useTrail()
   return (
-    <div className={css.steps}>
-      {props.steps.map((label, index) => (
+    <div className={css.steps} ref={trail}>
+      {props.steps.map((label, index, all) => (
         <span
-          key={label}
+          // biome-ignore lint/suspicious/noArrayIndexKey: 步骤按位置认，名字会换（工作流包 / Skill 的第一步）
+          key={index}
           className={css.step}
+          style={{ zIndex: all.length - index }}
           data-on={index === props.at}
           data-reached={index <= props.at}
           aria-current={index === props.at ? 'step' : undefined}
@@ -168,9 +195,11 @@ export function PackSteps(props: { steps: readonly string[]; at: number }): Reac
           </span>
           <span className={css.stepLabel}>
             <span className={css.labelDim} aria-hidden="true">
-              {label}
+              <SwapText text={label} />
             </span>
-            <span className={css.labelLit}>{label}</span>
+            <span className={css.labelLit}>
+              <SwapText text={label} />
+            </span>
           </span>
         </span>
       ))}

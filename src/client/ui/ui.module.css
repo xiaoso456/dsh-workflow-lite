@@ -1424,6 +1424,57 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
   overflow: hidden;
 }
 
+/* ── 按步骤换的一块（motion.tsx 的 Staged）────────────────────── */
+
+/* 外层：影子绝对定位摆在里面，退场时不越出这块。间距沿用父元素的（gap: inherit 一层层传下来）。 */
+.stage {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: inherit;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.stageBody {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: inherit;
+  min-height: 0;
+}
+
+/* ── 叠在同一格里轮流出现的几段话（motion.tsx 的 FadeStack）───────── */
+
+.fadeStack {
+  display: grid;
+}
+
+/* 退场：原地淡掉，淡完再悄悄挪回下方的起点、藏起来（不往下沉，免得和进来的那段反着走）。 */
+.fadeLayer {
+  grid-area: 1 / 1;
+  min-width: 0;
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(4px);
+  transition:
+    opacity 120ms linear,
+    transform 0s linear 120ms,
+    visibility 0s linear 120ms;
+}
+
+/* 进场：等旧的淡下去一点，再从下面浮上来。 */
+.fadeLayer[data-on="true"] {
+  visibility: visible;
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 180ms linear 60ms,
+    transform 260ms var(--wl-ease-out) 60ms,
+    visibility 0s;
+}
+
 /* ── 读取中的占位（Skeleton.tsx）──────────────────────────────── */
 
 .skeleton {
@@ -1772,6 +1823,8 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
   .fadeText::after,
   .fadeMarkOff,
   .fadeMarkOn,
+  .fadeLayer,
+  .fadeLayer[data-on="true"],
   .fillOn::after,
   .checkDraw path,
   .listThumb[data-live="true"],
