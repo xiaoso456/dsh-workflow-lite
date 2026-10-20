@@ -1085,6 +1085,24 @@ input.statusNote {
 }
 
 /*
+ * 右栏是「标题 + 一张清单」时（运行实例、版本）：整栏不滚，标题、提示条钉在上面，
+ * 只有清单框在框里滚（.scrollBox）。不再给整栏留滚动条的位置，清单框右边和标题栏的按钮齐。
+ */
+.wfDetail.pinned {
+  overflow: hidden;
+  scrollbar-gutter: auto;
+}
+
+/* 在框里滚的清单框：按内容高，放不下时缩到剩下的高度；滚到头不带着外面的弹窗一起滚。 */
+.scrollBox {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+/*
  * 右栏换了内容（左边换了选中）：标题先浮出来，下面的稍后跟上。
  * 实例框不整块动——里面的行自己依次浮出（.row）。
  */

@@ -215,7 +215,12 @@ export function HubWorkflows(props: {
         />
       ) : (
         /* 换了一张就换一整块：标题、版本列表重新入场。 */
-        <div key={selected.name} ref={detailRef} className={cx(hub.wfDetail, hub.paneIn)}>
+        /* 标题、存版本那一栏钉在上面，版本多了只在版本框里滚（见 VersionList）。 */
+        <div
+          key={selected.name}
+          ref={detailRef}
+          className={cx(hub.wfDetail, hub.pinned, hub.paneIn)}
+        >
           <div className={hub.wfHead}>
             <div className={hub.wfHeadText}>
               <p className={hub.wfTitle}>{selected.name}</p>

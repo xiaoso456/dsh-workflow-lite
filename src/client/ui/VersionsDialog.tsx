@@ -49,7 +49,7 @@ export function VersionsDialog(props: {
           <Icon name="x" size={15} />
         </button>
       </header>
-      <div className={overlay.sheetBody}>
+      <div className={cx(overlay.sheetBody, v.body)}>
         <VersionList
           t={t}
           rpc={props.rpc}

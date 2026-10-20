@@ -9,6 +9,7 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+  flex: 0 1 auto;
   min-height: 0;
   /* 上面的提示条收掉时列表往上滑，不透明才能把淡出的影子盖住（见 useResizeFlip）。 */
   background: var(--wl-panel);
@@ -18,6 +19,12 @@
 div.dialog {
   width: min(600px, 100%);
   height: min(600px, 100%);
+}
+
+/* 对话框正文整块不滚：存版本那一栏钉在上面，只有版本框在框里滚（.list）。 */
+div.body {
+  overflow: hidden;
+  scrollbar-gutter: auto;
 }
 
 .saveBar {
@@ -77,9 +84,13 @@ div.dialog {
 
 .list {
   display: flex;
-  flex: none;
+  flex: 0 1 auto;
   flex-direction: column;
-  overflow: hidden;
+  min-height: 0;
+  /* 版本多了在框里滚，上面存版本那一栏不动；滚到头不带着外面一起滚。 */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
   border: 1px solid var(--wl-line);
   border-radius: calc(10px * var(--wl-round, 1));
   background: var(--wl-panel);
@@ -87,6 +98,8 @@ div.dialog {
 
 .row {
   position: relative;
+  /* 框放不下时是框在里面滚，行本身不被压扁。 */
+  flex: none;
   /* 不透明：展开时下面的行从原位滑下去，像帘子一样盖着、再露出刚展开的变化。 */
   background: var(--wl-panel);
 }

@@ -284,7 +284,7 @@ function WorkspaceRuns(props: {
   useFlip(boxRef, group.items.map((item) => item.id).join('\n'))
   return (
     <div
-      className={cx(hub.wfDetail, hub.paneIn)}
+      className={cx(hub.wfDetail, hub.pinned, hub.paneIn)}
       data-testid="wl-hub-runs-of"
       data-path={workspace.path}
     >
@@ -303,7 +303,12 @@ function WorkspaceRuns(props: {
           )}
         </div>
       </div>
-      <div ref={boxRef} className={cx(hub.box, hub.runBox)} data-testid="wl-hub-list">
+      {/* 标题钉在上面，实例多了只在这个框里滚。 */}
+      <div
+        ref={boxRef}
+        className={cx(hub.box, hub.runBox, hub.scrollBox)}
+        data-testid="wl-hub-list"
+      >
         {group.items.map((item, order) => (
           <HubRunRow
             key={item.id}
