@@ -76,7 +76,7 @@ Turn on **Record run state** in **Workflow settings**. Every run then leaves a r
 | Pre-run questions | Collect the information a run needs from the user; answers are passed to the model with the plan |
 | Model co-editing | The model can create and edit workflows directly, and the canvas updates live |
 | Run state | Progress appears on the canvas as it happens; read each step's summary, adjust its state, and the model is notified |
-| Page preview | HTML files among the resources open as pages; make one a dashboard updated every round to follow a loop's output |
+| File preview | Open a run's resources in place: Markdown, HTML pages (make one a dashboard updated every round to follow a loop's output), images; browse folders in a two-pane view |
 | Versions | Save versions with notes, compare differences, switch back at any time |
 | Import / export | Pack a workflow and the versions you pick into one `.wflite.zip`, optionally with the files and Skills it uses; before importing, see where each item will go |
 | Export as a Skill (beta) | Compile one version into a skill (SKILL.md, a task description per step, plus the files and Skills you pack) that works without the plugin; download a zip or install it straight into `~/.agents/skills` |
