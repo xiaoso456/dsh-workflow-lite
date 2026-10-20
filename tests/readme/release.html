@@ -1,0 +1,166 @@
+<!doctype html>
+<!--
+  「版本更新卡片」的排版：插件是什么 + 这一版的亮点，给别人发更新时用（QQ 群、微信群这类聊天里）。
+  数据（tests/readme/release.json + CHANGELOG 里的日期 + 插件图标集的路径）由 tests/readme-release.mjs 算好，
+  调用 window.render(data) 画进来；它再按 2 倍像素截成 tests/runs/release/v<版本>.<lang>.png。
+  直接用浏览器打开本页只有空白——没有数据。
+
+  按手机上看来排：560 宽、竖着读，亮点两列两行。整张铺满深色、直角，不留透明边——
+  聊天软件会把透明处铺成白底或灰底，圆角外一圈就脏了。配色、字体和封面（hero.html）、版本线（versions.html）一致。
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>release</title>
+<style>
+  :root {
+    --bg: #0a0e15;
+    --panel: rgb(255 255 255 / 3%);
+    --line: rgb(140 170 220 / 14%);
+    --text: #e8eef8;
+    --text-2: #aab7ca;
+    --text-3: #707e93;
+    --accent: #4d94ff;
+    --amber: #f5b544;
+    --mono: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); }
+  body { width: 560px; }
+
+  .card {
+    padding: 22px 24px 0;
+    background:
+      radial-gradient(380px 180px at 92% -12%, rgb(77 148 255 / 22%), transparent 70%),
+      radial-gradient(280px 160px at -10% 108%, rgb(96 186 126 / 10%), transparent 70%),
+      radial-gradient(rgb(140 170 220 / 7%) 1px, transparent 1px) 0 0 / 18px 18px,
+      var(--bg);
+    color: var(--text);
+    font-family: "Microsoft YaHei UI", "PingFang SC", "Noto Sans SC", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  html[lang="en"] .card { font-family: "Segoe UI", "Inter", system-ui, sans-serif; }
+
+  /* ── 抬头：图标 + 词标 + 包名，右边版本号 ── */
+  header { display: flex; gap: 14px; align-items: center; }
+  .icon { width: 50px; height: 50px; flex: none; border-radius: 13px; box-shadow: 0 6px 18px rgb(0 0 0 / 45%), 0 0 0 1px var(--line); }
+  .brand { display: flex; flex: 1 1 auto; flex-direction: column; gap: 6px; min-width: 0; }
+  /* 纵向 flex 默认把子项横向拉满：词标要靠左、按原比例，不然字会被拉宽。 */
+  .wordmark { display: block; align-self: flex-start; height: 22px; width: auto; }
+  .pkg { display: flex; gap: 7px; align-items: center; color: var(--text-3); font-size: 11.5px; white-space: nowrap; }
+  .pkg code { color: var(--text-2); font-family: var(--mono); font-size: 11px; }
+  .pkg i { width: 3px; height: 3px; flex: none; border-radius: 50%; background: var(--text-3); }
+  .ver { display: flex; flex: none; flex-direction: column; gap: 4px; align-items: flex-end; }
+  .ver b {
+    padding: 3px 10px; border: 1px solid rgb(77 148 255 / 45%); border-radius: 999px;
+    background: rgb(77 148 255 / 14%); color: #8fbaff;
+    font-family: var(--mono); font-size: 15px; font-weight: 700;
+    box-shadow: 0 0 16px rgb(77 148 255 / 25%);
+  }
+  .ver span { color: var(--text-3); font-family: var(--mono); font-size: 10.5px; }
+
+  /* ── 插件是什么 ── */
+  .about { margin: 16px 0 20px; color: var(--text-2); font-size: 13px; line-height: 1.7; }
+  html[lang="en"] .about { font-size: 12.5px; line-height: 1.6; }
+
+  /* ── 本版更新 ── */
+  .sec { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
+  .label {
+    flex: none; padding: 1px 8px; border-radius: 999px;
+    background: rgb(245 181 68 / 14%); color: var(--amber); font-size: 11px; font-weight: 700; letter-spacing: 0.04em;
+  }
+  h2 { margin: 0; font-size: 14px; font-weight: 600; line-height: 1.4; }
+
+  /*
+   * 亮点：一个面板里两列网格，每条只有「小图标 + 标题」一行和一句短话一行，不分隔、不铺底，
+   * 颜色只落在图标上。说明控制在一行，四条正好两行排完。
+   */
+  .list {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 12px 18px;
+    padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel);
+  }
+  .item { --tone: var(--accent); min-width: 0; }
+  .item[data-tone="green"] { --tone: #5cc98a; }
+  .item[data-tone="gold"] { --tone: #e6b072; }
+  .item[data-tone="teal"] { --tone: #45c4d0; }
+  .item h3 { display: flex; gap: 7px; align-items: center; margin: 0 0 3px; font-size: 13.5px; font-weight: 700; white-space: nowrap; }
+  .glyph {
+    display: grid; flex: none; place-items: center; width: 20px; height: 20px;
+    border-radius: 6px; background: color-mix(in srgb, var(--tone) 18%, transparent); color: var(--tone);
+  }
+  .tag {
+    padding: 0 5px; border: 1px solid rgb(245 181 68 / 45%); border-radius: 999px;
+    color: var(--amber); font-size: 9.5px; font-weight: 600; line-height: 14px;
+  }
+  /* 和标题文字对齐（让过图标的宽 + 间距）。 */
+  .desc { margin: 0 0 0 27px; overflow: hidden; color: var(--text-2); font-size: 12px; line-height: 1.55; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* ── 底栏：装法 + 适配版本 + 仓库 ── */
+  footer {
+    display: flex; flex-direction: column; gap: 6px;
+    margin: 16px -24px 0; padding: 12px 24px 14px;
+    border-top: 1px solid var(--line); background: rgb(0 0 0 / 24%);
+  }
+  .cmd { display: flex; gap: 8px; align-items: center; white-space: nowrap; }
+  .cmd span { color: #5cc98a; font-size: 11px; font-weight: 700; }
+  .cmd code { color: var(--text); font-family: var(--mono); font-size: 11.5px; }
+  .meta { display: flex; gap: 7px; align-items: center; color: var(--text-3); font-size: 11px; white-space: nowrap; }
+  .meta i { width: 3px; height: 3px; border-radius: 50%; background: var(--text-3); }
+  .meta code { font-family: var(--mono); font-size: 10.5px; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <header>
+      <img class="icon" src="../../assets/icon.webp" alt="" />
+      <div class="brand">
+        <img class="wordmark" src="../../assets/wordmark.png" alt="dsh workflow lite" />
+        <div class="pkg"><code id="pkg"></code><i></i><span id="kicker"></span></div>
+      </div>
+      <div class="ver"><b id="ver"></b><span id="date"></span></div>
+    </header>
+
+    <p class="about" id="intro"></p>
+
+    <div class="sec">
+      <span class="label" id="updates"></span>
+      <h2 id="headline">headline</h2>
+    </div>
+    <div class="list" id="list"></div>
+
+    <footer>
+      <div class="cmd"><span id="install"></span><code id="cmd"></code></div>
+      <span class="meta"><span id="compat"></span><i></i><code id="repo"></code></span>
+    </footer>
+  </div>
+  <script>
+    const esc = (t) => String(t).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c])
+    const glyph = (d) =>
+      `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg>`
+    const text = (id, value) => { document.getElementById(id).textContent = value }
+    // data: { lang, pkg, version, date, cmd, repo, intro: { kicker, text, compat, updates, install }, headline, items: [{ path, tone, title, tag?, text }] }
+    window.render = (data) => {
+      document.documentElement.lang = data.lang === 'en' ? 'en' : 'zh-CN'
+      text('pkg', data.pkg)
+      text('kicker', data.intro.kicker)
+      text('ver', `v${data.version}`)
+      text('date', data.date)
+      text('intro', data.intro.text)
+      text('updates', data.intro.updates)
+      text('headline', data.headline)
+      text('install', data.intro.install)
+      text('cmd', data.cmd)
+      text('compat', data.intro.compat)
+      text('repo', data.repo)
+      document.getElementById('list').innerHTML = data.items
+        .map(
+          (item) => `<div class="item" data-tone="${esc(item.tone)}">
+            <h3><span class="glyph">${glyph(item.path)}</span>${esc(item.title)}${item.tag ? `<span class="tag">${esc(item.tag)}</span>` : ''}</h3>
+            <p class="desc">${esc(item.text)}</p>
+          </div>`,
+        )
+        .join('')
+    }
+  </script>
+</body>
+</html>
