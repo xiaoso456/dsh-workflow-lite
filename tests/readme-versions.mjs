@@ -8,6 +8,8 @@
  * 只需要一个带 DevTools 端口的 Chrome（`node tests/lib/cdp-chrome-launch.mjs 9222`），不用起 DSH。
  * 在 CDP 浏览器里另开一个标签页渲染，截完关掉。
  *
+ * 还没定版本的规划写 `"planned"`：排在最后，不核对 CHANGELOG，也不参与「现在是哪一版」。
+ *
  * 会报错的情况（图和文档对不上就不出图）：json 里写了 CHANGELOG 里没有的版本；
  * CHANGELOG 里有比 json 新的小版本（0.x.0 以上）没写进 json——提醒补上它的重要变化。
  *
@@ -27,8 +29,8 @@ const WIDTH = 1040
 const SCALE = 2
 
 const LABELS = {
-  zh: { current: '当前', next: '未发布' },
-  en: { current: 'Latest', next: 'Unreleased' },
+  zh: { current: '当前', next: '未发布', planned: '规划中' },
+  en: { current: 'Latest', next: 'Unreleased', planned: 'Planned' },
 }
 
 const compare = (a, b) => {
@@ -37,6 +39,9 @@ const compare = (a, b) => {
   for (let i = 0; i < 3; i += 1) if (x[i] !== y[i]) return (x[i] ?? 0) - (y[i] ?? 0)
   return 0
 }
+
+/** 不是发布过的版本号：还没发（next）、还没定版本（planned）。 */
+const UNNUMBERED = new Set(['next', 'planned'])
 
 /** CHANGELOG 里的各版：版本号 → 日期；再加 Unreleased 下面有没有写东西。 */
 function readChangelog(text) {
@@ -60,14 +65,14 @@ async function build(lang) {
 
   for (const stop of stops) {
     for (const version of [stop.version, stop.to]) {
-      if (version !== undefined && version !== 'next' && !dates.has(version)) {
+      if (version !== undefined && !UNNUMBERED.has(version) && !dates.has(version)) {
         throw new Error(`versions.json 里的 ${version} 在 CHANGELOG.md 里找不到`)
       }
     }
   }
   /** 一站排在哪个版本上：写了 to 的按 to（改到的最后一版）算。 */
   const at = (stop) => stop.to ?? stop.version
-  const listed = stops.filter((stop) => at(stop) !== 'next').map(at)
+  const listed = stops.filter((stop) => !UNNUMBERED.has(at(stop))).map(at)
   const newest = listed.sort(compare).at(-1) ?? '0.0.0'
   const missed = [...dates.keys()].filter(
     (version) => version.endsWith('.0') && compare(version, newest) > 0,
@@ -78,7 +83,7 @@ async function build(lang) {
 
   const shown = stops.filter((stop) => stop.version !== 'next' || hasUnreleased)
   // 最新发布的那一版（不晚于 package.json 版本的最后一个版本号；发了补丁版而没有单独一站时，亮它所属的那一版）。
-  const released = [...new Set(shown.filter((stop) => stop.version !== 'next').map(at))]
+  const released = [...new Set(shown.filter((stop) => !UNNUMBERED.has(stop.version)).map(at))]
   const current = released
     .filter((version) => compare(version, installed) <= 0)
     .sort(compare)
@@ -91,11 +96,18 @@ async function build(lang) {
         stop.label ??
         (stop.version === 'next'
           ? 'next'
-          : stop.to === undefined
-            ? `v${stop.version}`
-            : `v${stop.version}~v${stop.to}`),
-      state: stop.version === 'next' ? 'next' : at(stop) === current ? 'current' : 'past',
+          : stop.version === 'planned'
+            ? 'later'
+            : stop.to === undefined
+              ? `v${stop.version}`
+              : `v${stop.version}~v${stop.to}`),
+      state: UNNUMBERED.has(stop.version)
+        ? stop.version
+        : at(stop) === current
+          ? 'current'
+          : 'past',
       title: stop[lang].title,
+      tag: stop[lang].tag,
       lines: stop[lang].lines,
     })),
   }

@@ -109,10 +109,10 @@ DSH_WEB_TOKEN=<token> DSH_BASE=http://127.0.0.1:3190 node --experimental-strip-t
 
 README 里、封面图下面的「版本线」是一张图（`assets/versions.{zh,en}.png`），挑重要变化，一条一站，不逐版本列。
 
-- 内容在 `tests/readme/versions.json`：每站写落在哪个版本（要显示成别的就写 `label`，改过几个版本的写 `to`）、标题、两行短话（中英各一份）；还没发的写 `"next"`。排版在 `tests/readme/versions.html`。
+- 内容在 `tests/readme/versions.json`：每站写落在哪个版本（要显示成别的就写 `label`，改过几个版本的写 `to`）、标题、两行短话（中英各一份），标题旁要挂「实验性」这类小签写 `tag`（英文要短，`Beta`，长了会折到下一行）；还没发的写 `"next"`，还没定版本的规划写 `"planned"`（排在最后，显示成 `later`，不核对 CHANGELOG）。排版在 `tests/readme/versions.html`。
 - 出图：`pnpm run timeline`（要一个带 DevTools 端口的 Chrome：`node tests/lib/cdp-chrome-launch.mjs 9222`，不用起 dsh）。脚本对照 `CHANGELOG.md`，json 里的版本不存在、或有新的小版本没写进 json 就报错。
 - 发版时：把 `"next"` 改成这个版本号（有新的重要变化就加一站），重跑，新图一起提交。
-- 标题 ≤ 7 个汉字 / 18 个英文字符，短话每行 ≤ 9 个汉字 / 22 个英文字符，站数 6 站左右；出图后看一眼两张图。
+- 6 站时一栏约 150px：标题 ≤ 7 个汉字 / 15 个英文字符（带小签的再短些），短话每行 ≤ 9 个汉字 / 22 个英文字符；站数 6 站左右，多了就把早期几个版本合成一站（写 `to`）；出图后看一眼两张图。
 
 ## README 封面图
 

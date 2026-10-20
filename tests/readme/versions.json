@@ -1,49 +1,27 @@
 {
-  "_说明": "README「版本线」图的内容：挑重要的变化，一条一站，按先后排；每站写它落在哪个版本（version，要和 CHANGELOG 里的版本号一致）、一个标题、两行短话（lines）。图上缺省显示 v<version>；要显示成别的（比如 v0.2.x）就写 label；改过好几个版本的写 to，显示成 v起~v止。还没发的 version 写 \"next\"（CHANGELOG 的 Unreleased 有内容才会画出来）。发版后把 \"next\" 改成真正的版本号，再加新的 next。标题不超过 7 个汉字 / 18 个英文字符，每行不超过 9 个汉字 / 22 个英文字符，不然会折行。",
+  "_说明": "README「版本线」图的内容：挑重要的变化，一条一站，按先后排；每站写它落在哪个版本（version，要和 CHANGELOG 里的版本号一致）、一个标题、两行短话（lines）。图上缺省显示 v<version>；要显示成别的（比如 v0.2.x）就写 label；改过好几个版本的写 to，显示成 v起~v止。还没发的 version 写 \"next\"（CHANGELOG 的 Unreleased 有内容才会画出来）。发版后把 \"next\" 改成真正的版本号，再加新的 next。还没定版本的规划写 \"planned\"，排在最后。要在标题旁挂一个小签（比如「实验性」）就在语言里写 tag。标题不超过 7 个汉字 / 15 个英文字符（带 tag 的再短些），每行不超过 9 个汉字 / 22 个英文字符，不然会折行。",
   "stops": [
     {
       "version": "0.1.0",
       "zh": {
         "title": "画布编排",
-        "lines": ["步骤与条件连线", "分支、循环"]
+        "lines": ["分支、循环", "计划与版本"]
       },
       "en": {
         "title": "Canvas flows",
-        "lines": ["Conditional edges,", "branches and loops"]
-      }
-    },
-    {
-      "version": "0.1.0",
-      "zh": {
-        "title": "流程与版本",
-        "lines": ["计划、进度", "版本控制"]
-      },
-      "en": {
-        "title": "Flows & versions",
-        "lines": ["Plans and progress", "Version control"]
+        "lines": ["Branches and loops", "Plans and versions"]
       }
     },
     {
       "version": "0.2.0",
+      "to": "0.3.0",
       "zh": {
-        "title": "交互",
-        "lines": ["全站动效", "工作流管理"]
+        "title": "交互与预览",
+        "lines": ["全站动效", "Markdown、图片预览"]
       },
       "en": {
-        "title": "Interaction",
-        "lines": ["Site-wide motion", "Workflow management"]
-      },
-      "label": "v0.2.x"
-    },
-    {
-      "version": "0.3.0",
-      "zh": {
-        "title": "预览增强",
-        "lines": ["markdown渲染", "图片预览"]
-      },
-      "en": {
-        "title": "Better previews",
-        "lines": ["Markdown rendering", "Image preview"]
+        "title": "UX & previews",
+        "lines": ["Site-wide motion", "Markdown and images"]
       }
     },
     {
@@ -66,6 +44,30 @@
       "en": {
         "title": "Motion & themes",
         "lines": ["Spring motion", "Swiss theme"]
+      }
+    },
+    {
+      "version": "next",
+      "zh": {
+        "title": "导出 Skill",
+        "tag": "实验性",
+        "lines": ["工作流文档更清晰", "界面美化"]
+      },
+      "en": {
+        "title": "Skill export",
+        "tag": "Beta",
+        "lines": ["Clearer plans", "UI polish"]
+      }
+    },
+    {
+      "version": "planned",
+      "zh": {
+        "title": "工作流记忆",
+        "lines": ["记住历次执行经验", "加速执行"]
+      },
+      "en": {
+        "title": "Run memory",
+        "lines": ["Learns from past runs", "Faster runs"]
       }
     }
   ]

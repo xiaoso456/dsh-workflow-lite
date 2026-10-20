@@ -29,7 +29,7 @@
   html, body { margin: 0; background: transparent; }
   body { width: 1040px; }
   .card {
-    padding: 30px 40px 30px;
+    padding: 30px 32px 30px;
     border: 1px solid var(--line);
     border-radius: 18px;
     background:
@@ -41,7 +41,7 @@
     -webkit-font-smoothing: antialiased;
   }
 
-  ol { display: grid; grid-template-columns: repeat(var(--n), 1fr); gap: 0 18px; margin: 0; padding: 0; list-style: none; }
+  ol { display: grid; grid-template-columns: repeat(var(--n), 1fr); gap: 0 14px; margin: 0; padding: 0; list-style: none; }
   .stop { min-width: 0; }
 
   /* 轨道：圆点 + 通向下一站的线。线从点出发，铺满这一栏，接到下一栏的点。 */
@@ -62,8 +62,15 @@
     background: repeating-linear-gradient(90deg, rgb(245 181 68 / 70%) 0 7px, transparent 7px 13px);
   }
 
-  /* 还没发的：空心点。 */
+  /* 还没发的：空心点；它后面通向「还没定版本」的线淡成点线。 */
   .stop[data-state="next"] .dot { background: var(--bg); box-shadow: inset 0 0 0 2px var(--amber); }
+  .stop[data-state="next"] .seg {
+    height: 2px;
+    background: repeating-linear-gradient(90deg, rgb(140 170 220 / 32%) 0 2px, transparent 2px 7px);
+  }
+
+  /* 还没定版本的规划：灰色虚线圈，字比「未发布」再淡一档。 */
+  .stop[data-state="planned"] .dot { background: var(--bg); box-shadow: inset 0 0 0 2px rgb(140 170 220 / 40%); }
 
   /* 每站一个版本号；改过几个版本的写成 起~止。 */
   .head { display: flex; gap: 8px; align-items: center; height: 22px; margin-bottom: 6px; }
@@ -75,8 +82,15 @@
     font-size: 11.5px; font-weight: 650; white-space: nowrap;
   }
   .stop[data-state="next"] .chip { background: rgb(245 181 68 / 14%); color: var(--amber); }
+  .stop[data-state="planned"] .chip { background: rgb(140 170 220 / 10%); color: var(--text-2); }
 
-  h3 { margin: 0 0 6px; font-size: 17px; font-weight: 650; color: var(--text-2); }
+  h3 { margin: 0 0 6px; font-size: 16px; font-weight: 650; color: var(--text-2); }
+  /* 标题旁的小签（「实验性」）：描边、不铺底，比上面的版本小签淡一档，不抢标题。 */
+  .tag {
+    display: inline-block; margin-left: 8px; padding: 0 7px; border: 1px solid rgb(245 181 68 / 45%);
+    border-radius: 999px; color: var(--amber); font-size: 11px; font-weight: 600; line-height: 18px;
+    vertical-align: 2px; white-space: nowrap;
+  }
   .stop[data-state="current"] h3, .stop[data-state="next"] h3 { color: var(--text); }
   p { margin: 0; color: var(--text-3); font-size: 13px; line-height: 1.65; }
   .stop[data-state="current"] p, .stop[data-state="next"] p { color: var(--text-2); }
@@ -86,18 +100,18 @@
   <div class="card"><ol id="line"></ol></div>
   <script>
     const esc = (t) => String(t).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c])
-    // data: { lang, labels: { current, next }, stops: [{ label, state, title, lines }] }
+    // data: { lang, labels: { current, next, planned }, stops: [{ label, state, title, tag?, lines }] }
     window.render = (data) => {
       document.documentElement.lang = data.lang === 'en' ? 'en' : 'zh-CN'
       const line = document.getElementById('line')
       line.style.setProperty('--n', String(data.stops.length))
       line.innerHTML = data.stops
         .map((stop) => {
-          const chip = stop.state === 'current' ? data.labels.current : stop.state === 'next' ? data.labels.next : ''
+          const chip = data.labels[stop.state] ?? ''
           return `<li class="stop" data-state="${stop.state}">
             <div class="rail"><i class="dot"></i><i class="seg"></i></div>
             <div class="head"><b class="ver">${esc(stop.label)}</b>${chip ? `<span class="chip">${esc(chip)}</span>` : ''}</div>
-            <h3>${esc(stop.title)}</h3>
+            <h3>${esc(stop.title)}${stop.tag ? `<span class="tag">${esc(stop.tag)}</span>` : ''}</h3>
             <p>${stop.lines.map(esc).join('<br>')}</p>
           </li>`
         })
