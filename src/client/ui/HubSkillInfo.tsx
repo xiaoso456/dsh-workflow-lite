@@ -32,7 +32,7 @@ import type { PackScope } from './HubExport.tsx'
 import hub from './hub.module.css'
 import { Icon } from './Icon.tsx'
 import overlay from './overlay.module.css'
-import { Callout, PackSection } from './PackRow.tsx'
+import { Callout, PackRow, PackSection } from './PackRow.tsx'
 import css from './pack.module.css'
 import { cx } from './primitives.tsx'
 import resource from './resource.module.css'
@@ -290,15 +290,13 @@ export function HubSkillInfo(props: {
 
         {!blocked && (
           <PackSection title={t('skillExport.sectionContent')} testId="wl-skill-content">
-            <div className={css.field}>
-              <div className={css.fieldRow}>
-                <span className={css.grow}>
-                  <code>{packName}/</code>
-                  <span className={hub.wfSub}>
-                    {' · '}
-                    {stat}
-                  </span>
-                </span>
+            {/* 和前两步清单里的行同一个样子：图标块、名字、下面一行灰字，右端一个按钮。 */}
+            <PackRow
+              icon="sparkle"
+              tone="accent"
+              title={packName}
+              meta={[stat]}
+              end={
                 <button
                   type="button"
                   className={cx(ui.btn, ui.small)}
@@ -309,8 +307,8 @@ export function HubSkillInfo(props: {
                   <Icon name="eye" size={14} />
                   {t('skillExport.preview')}
                 </button>
-              </div>
-            </div>
+              }
+            />
           </PackSection>
         )}
       </div>

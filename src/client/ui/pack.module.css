@@ -275,6 +275,11 @@
   line-height: 1.55;
 }
 
+/* 页上的说明（不在哪一节里）：和步骤指示、底栏一样顶着页边，不像节里的说明那样跟标题缩进 2px。 */
+.pageHint {
+  margin-inline: 0;
+}
+
 .sectionLink {
   margin-left: auto;
   padding: 0;
@@ -318,12 +323,14 @@
 /*
  * 紧凑的一行（导出清单）：没有框、没有分隔线；最左一格 24px，和上面分类标题的图标上下对齐，
  * 里面是勾选框，不能勾的放一个状态图标占位，名字因此都从同一条竖线起。
+ * 右边往外伸 6px（伸进 .scroll 的内边距）：悬停底色留得出边，右端的大小又和分类的开关齐。
  */
 .row[data-compact="true"] {
   grid-template-columns: 24px minmax(0, 1fr) auto;
   gap: 0 8px;
   min-height: 34px;
-  padding: 4px 8px 4px 0;
+  margin-right: -6px;
+  padding: 4px 6px 4px 0;
   border-top: 0;
   border-radius: calc(8px * var(--wl-round, 1));
 }
@@ -401,6 +408,8 @@
  * 内容宽度跟着变，每行就会重新换行、抖一下。
  */
 div.page {
+  /* 中间 .scroll 那条细滚动条占的宽（Chromium 10px）：底栏右边多留这么多，按钮才和清单的右边齐。 */
+  --wl-scrollbar: 10px;
   padding-bottom: 0;
   overflow: hidden;
 }
@@ -822,7 +831,8 @@ div.page {
   gap: 10px;
   align-items: center;
   margin: 0 -16px;
-  padding: 12px 16px;
+  /* 右边让出上面清单滚动条那一条：按钮的右边和清单（分类开关、每行的大小）对齐。 */
+  padding: 12px calc(16px + var(--wl-scrollbar, 0px)) 12px 16px;
   border-top: 1px solid var(--wl-line);
   background: var(--wl-panel);
 }

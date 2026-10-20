@@ -468,7 +468,7 @@ function Resources(props: {
 
   return (
     <>
-      <p className={css.sectionHint}>
+      <p className={cx(css.sectionHint, css.pageHint)}>
         {t(skill ? 'skillExport.resourcesHint' : 'pack.resourcesHint')}
       </p>
       {PACK_CATEGORIES.every(
