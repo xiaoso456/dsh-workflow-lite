@@ -181,7 +181,8 @@ try {
   pass(`建实例 ${instance}（假会话、临时工作区）`)
 
   // 1) 工作流中心 → 运行实例 → 查看。
-  await bootToCanvas(session, NAME)
+  // `DSH_SESSION_TITLE`：一次性实例里按标题找会话（新建的会话行显示「刚刚」，按相对时间找不到）。
+  await bootToCanvas(session, NAME, { sessionTitle: process.env.DSH_SESSION_TITLE })
   await session.evaluate(`document.querySelector('[data-testid="wl-hub-open"]').click()`)
   // 两栏：左边工作区（排在最前的默认选中），右边选中那个工作区的实例。
   const wsItem = hubWorkspaceExpr(WORKSPACE)
@@ -1061,14 +1062,16 @@ try {
     parse(await readFile(statePath, 'utf8')).plan === recordAfter.planId,
     '状态里的 plan 跟着换',
   )
+  // 任务描述：步骤名标题、位置一行，然后是提示词原文；分隔线后面附「回复」（判定行要求）。
+  const reviewTask = await readFile(
+    join(WORKSPACE, '.workflow-lite', 'runs', instance, 'tasks', 'review.md'),
+    'utf8',
+  )
   check(
-    (
-      await readFile(
-        join(WORKSPACE, '.workflow-lite', 'runs', instance, 'tasks', 'review.md'),
-        'utf8',
-      )
-    ).startsWith('换个审法：先看鉴权\n\n---\n'),
-    '任务描述应重写（提示词在前，后面附判定行要求）',
+    reviewTask.startsWith('# ') &&
+      reviewTask.includes('\n\n换个审法：先看鉴权\n\n---\n') &&
+      reviewTask.includes('VERDICT'),
+    `任务描述应重写（标题、位置行之后是新提示词，后面附判定行要求）：${reviewTask.slice(0, 200)}`,
   )
   check(
     recordAfter.pendingNotice?.includes('用户在画布上修改了图') &&
@@ -2054,6 +2057,8 @@ window.addEventListener('load', () => {
     session,
     `document.querySelector('[data-testid="wl-folder-crumbs"]')?.textContent.endsWith('lib')`,
   )
+  // 面包屑一点就变；「上一级」那行要等这一层读回来、列表换上之后才有。
+  await waitFor(session, `document.querySelector('[data-testid="wl-folder-up"]') !== null`)
   await session.evaluate(`document.querySelector('[data-testid="wl-folder-up"]').click()`)
   await waitFor(
     session,

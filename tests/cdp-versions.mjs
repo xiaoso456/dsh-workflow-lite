@@ -101,7 +101,8 @@ async function run(session) {
   await rpc('graph/create', { name: OTHER })
   await writeGraph(NAME, [stepNode('a', '第一步', 0)])
   await writeGraph(OTHER, [stepNode('b', '别的', 0)])
-  await bootToCanvas(session, NAME)
+  // `DSH_SESSION_TITLE`：一次性实例里按标题找会话（新建的会话行显示「刚刚」，按相对时间找不到）。
+  await bootToCanvas(session, NAME, { sessionTitle: process.env.DSH_SESSION_TITLE })
 
   const pendingDot = `document.querySelector('[data-testid="wl-versions-open"]').dataset.pending`
 
