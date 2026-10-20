@@ -1,12 +1,14 @@
 /**
- * dsh-workflow-lite — 实例里点开一个文件夹资源：左边浏览、右边预览。
+ * dsh-workflow-lite — 左边浏览、右边预览：实例里点开一个文件夹资源，或导出成 skill 前看整个包。
+ * 从哪读由 {@link BrowseSource} 定，这里不管背后是哪条 RPC。
  *
  * 左边是这一层的内容（目录在前）：上面一个搜索框（只筛这一层的名字，命中的字标出来），下面是面包屑和列表；
  * 点目录进去、点文件在右边看它，面包屑和「返回」能退回任何一层。键盘也能用：↑ ↓ 选，→ / 回车进目录，
  * ← 退一层，直接打字就是搜索，Esc 先清掉搜索、再关框。右边按文件的样子预览：Markdown / HTML 可切源码，
  * 图片整张显示、点一下放大，其余文本原样；标题行有复制路径、用其他程序打开。
  *
- * 看的都是文件夹资源里面的东西：每次请求带着「资源 + 往下的相对路径」，由主机把关，走不出这个文件夹。
+ * 看的都是根下面的东西：每次请求带着「根 + 往下的相对路径」，由主机把关，走不出这个文件夹。
+ * Markdown 开头的 YAML 头部（SKILL.md 那种）预览时单独列成元数据，不当正文排版；源码里原样。
  * 动的只有 transform / opacity：换层和文件选择框一个做法——新一层读回来后，旧列表留个影子往外退、新列表从另一侧进来
  * （{@link useStage}），面包屑长出一级从前一级背后展开、缩短时收回去（{@link useTrail}）；选中块跟着光标上下滑。
  *
@@ -14,15 +16,16 @@
  */
 
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { RunDirEntry, RunDirResponse, RunFileResponse } from '../../shared/wire.ts'
+import type { RunDirEntry, RunDirResponse } from '../../shared/wire.ts'
 import type { Desktop } from '../app/desktop.ts'
 import {
-  type FileTarget,
-  fileTargetKey,
-  useRunDir,
-  useRunFile,
-  useRunImages,
-} from '../app/useRunFile.ts'
+  type BrowseFile,
+  type BrowseSource,
+  browseKey,
+  useBrowseDir,
+  useBrowseFile,
+  useBrowseImages,
+} from '../app/useBrowse.ts'
 import type { T } from '../i18n.ts'
 import { extensionOf, fileBaseName, fileKindOf, formatBytes } from '../model/fileKind.ts'
 import {
@@ -34,7 +37,6 @@ import {
   stepCursor,
 } from '../model/folderBrowse.ts'
 import { shortTime } from '../model/time.ts'
-import type { WorkflowLiteRpc } from '../rpc.ts'
 import { FilterBar, PathBar, UpRow } from './DirParts.tsx'
 import { BrokenImagesHint, CopyButton, type DocBody, DocContent, docFormat } from './DocViewer.tsx'
 import { FileGlyph } from './FileGlyph.tsx'
@@ -43,11 +45,13 @@ import { fileBody } from './FileViewer.tsx'
 import files from './files.module.css'
 import css from './folder.module.css'
 import { Icon } from './Icon.tsx'
+import { BrowseImagePreview } from './ImagePreview.tsx'
 import { type StageDir, SwapNode, SwapText, useStage, useTrail, useTrend } from './motion.tsx'
 import { OpenWith } from './OpenWith.tsx'
 import picker from './picker.module.css'
 import { cx } from './primitives.tsx'
 import { Segmented } from './Segmented.tsx'
+import { headFields, SkillMetaList } from './SkillPreview.tsx'
 import ui from './ui.module.css'
 
 /** 列表每行的高度（px）。CSS 里读的是同一个值（`--fb-row`）：选中块按「第几行 × 行高」摆。 */
@@ -86,15 +90,14 @@ function withoutHidden(
 
 export function FolderBrowser(props: {
   t: T
-  rpc: WorkflowLiteRpc
-  instance: string
-  node: string
-  index: number
+  source: BrowseSource
   /** 文件夹本身叫什么（面包屑的根）。 */
   rootName: string
+  /** 一打开先看根下的哪个文件（导出 skill 时先看 SKILL.md）。 */
+  initial?: string
   desktop: Desktop | undefined
 }): React.JSX.Element {
-  const { t, rpc, instance, node, index } = props
+  const { t, source } = props
   const [sub, setSub] = useState('')
   const [query, setQuery] = useState('')
   const [cursor, setCursor] = useState<string | null>(null)
@@ -102,13 +105,13 @@ export function FolderBrowser(props: {
   const [showHidden, setShowHidden] = useState(false)
   /** 窄屏时一次只看一栏：列表还是预览。 */
   const [pane, setPane] = useState<'list' | 'preview'>('list')
-  const { dir: arrived, error } = useRunDir(rpc, instance, node, index, sub)
+  const { dir: arrived, error } = useBrowseDir(source, sub)
   /** 列表上摆着的那一层：新一层读回来之前它还是上一层，读回来后先让旧的退场，再换上新的（见下面的 effect）。 */
   const [dir, setDir] = useState<RunDirResponse | null>(null)
   /** 换层的方向：进去 1、退出来 -1（决定旧的往哪边退、新的从哪边进）。 */
   const heading = useRef<StageDir>(0)
-  /** 换层后光标落在哪一项（退回上一层时落在刚离开的那个目录上）；新一层换上时才用。 */
-  const landing = useRef<string | null>(null)
+  /** 换层后光标落在哪一项（退回上一层时落在刚离开的那个目录上；刚打开时是 `initial`）；新一层换上时才用。 */
+  const landing = useRef<string | null>(props.initial ?? null)
   const stage = useStage({ outMs: 90, delayMs: 80 })
   const crumbsFlip = useTrail()
   const uid = useId()
@@ -484,9 +487,8 @@ export function FolderBrowser(props: {
           ) : (
             <FilePane
               t={t}
-              rpc={rpc}
-              instance={instance}
-              target={{ node, item: index, sub: previewPath }}
+              source={source}
+              sub={previewPath}
               desktop={props.desktop}
               onBack={() => setPane('list')}
             />
@@ -497,18 +499,18 @@ export function FolderBrowser(props: {
   )
 }
 
-/** 右边摆着的那一份：哪个目标、读回来的结果（文件或错误）。 */
+/** 右边摆着的那一份：哪一份、读回来的结果（文件或错误）。 */
 interface Shown {
   key: string
-  target: Extract<FileTarget, { node: string }>
-  file: RunFileResponse | null
+  sub: string
+  file: BrowseFile | null
   error: string | null
   /** 从一张图换到另一张图：画布留着、只换图，不整块交接（见 FilePane）。 */
   calm: boolean
 }
 
 /** 读回来的是不是一张图。 */
-const isImageFile = (file: RunFileResponse | null): boolean =>
+const isImageFile = (file: BrowseFile | null): boolean =>
   file !== null && file.kind !== 'missing' && fileKindOf(file.display) === 'image'
 
 /**
@@ -520,15 +522,14 @@ const isImageFile = (file: RunFileResponse | null): boolean =>
  */
 function FilePane(props: {
   t: T
-  rpc: WorkflowLiteRpc
-  instance: string
-  target: Extract<FileTarget, { node: string }>
+  source: BrowseSource
+  sub: string
   desktop: Desktop | undefined
   onBack(): void
 }): React.JSX.Element {
-  const { t, rpc, instance, target } = props
-  const want = fileTargetKey(target)
-  const { file, error, settled } = useRunFile(rpc, instance, target)
+  const { t, source, sub } = props
+  const want = browseKey(source, sub)
+  const { file, error, settled } = useBrowseFile(source, sub)
   const [shown, setShown] = useState<Shown | null>(null)
   const [view, setView] = useState<View>('rendered')
   const [failure, setFailure] = useState<string | null>(null)
@@ -546,10 +547,10 @@ function FilePane(props: {
     // 图换图：画布（工具条、读数）留着，图自己换，不把整块正文淡出再淡入。
     const calm = isImageFile(shown?.file ?? null) && isImageFile(file)
     if (shown !== null && !calm) stage.leave(0)
-    setShown({ key: want, target, file, error, calm })
+    setShown({ key: want, sub, file, error, calm })
     setView('rendered')
     setFailure(null)
-  }, [settled, want, file, error, shown, target, stage])
+  }, [settled, want, file, error, shown, sub, stage])
   useLayoutEffect(() => {
     if (shown === null) return
     if (shown.calm) return
@@ -557,24 +558,27 @@ function FilePane(props: {
     stage.enter(0)
   }, [shown?.key, view, stage])
 
-  const showing = shown?.target ?? target
-  const name = fileBaseName(showing.sub ?? '')
-  const body: DocBody =
+  const showing = shown?.sub ?? sub
+  const name = fileBaseName(showing)
+  const full: DocBody =
     shown === null
       ? { kind: 'loading' }
       : fileBody({
           t,
-          rpc,
-          instance,
-          target: shown.target,
           file: shown.file,
           error: shown.error,
           loading: false,
+          image: (alt) => <BrowseImagePreview t={t} source={source} sub={shown.sub} name={alt} />,
         })
-  const image = useRunImages(rpc, instance, showing)
+  const image = useBrowseImages(source, showing)
   const [broken, setBroken] = useState(0)
-  const switchable = docFormat(body) !== 'plain'
+  const switchable = docFormat(full) !== 'plain'
   const info = shown?.file ?? null
+  // 带 YAML 头部的 Markdown：预览时头部列成元数据、只排版正文；源码原样。
+  const head = view === 'rendered' && full.kind === 'text' ? info?.head : undefined
+  const body: DocBody =
+    head === undefined || full.kind !== 'text' ? full : { ...full, text: info?.content ?? '' }
+  const isSkillDoc = name === 'SKILL.md'
 
   return (
     <div className={css.pane} data-waiting={shown !== null && shown.key !== want}>
@@ -636,6 +640,13 @@ function FilePane(props: {
       {/* 外面这层只管定位和裁切：旧正文的影子在里面退（useStage），不能越出预览区。 */}
       <div className={css.paneStage} ref={stage.wrap}>
         <div className={css.paneBody} ref={bodyRef} data-testid="wl-folder-file">
+          {head !== undefined && (
+            <SkillMetaList
+              t={t}
+              fields={headFields(t, head)}
+              {...(isSkillDoc ? {} : { hint: t('file.headHint') })}
+            />
+          )}
           <DocContent
             t={t}
             body={body}

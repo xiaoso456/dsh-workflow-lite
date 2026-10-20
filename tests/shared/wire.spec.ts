@@ -100,7 +100,8 @@ describe('RPC 目标', () => {
     const names = WORKFLOW_LITE_ENDPOINTS.map((endpoint) => endpointName(endpoint))
     expect(new Set(names).size).toBe(names.length)
     // 十二条图与模板、六条版本、一条计划、十条工作流实例（含 run/image、run/dir），加三条看主机（host/list · host/skills · host/skill）、两条插件设置（config/get · config/set）、
-    // 七条导入导出（pack/scan · export · read · upload · inspect · apply · discard）、两条导出成 skill（skillPreview · skillExport）。
-    expect(names).toHaveLength(43)
+    // 七条导入导出（pack/scan · export · read · upload · inspect · apply · discard）、
+    // 五条导出成 skill（skillPreview · skillExport · skillDir · skillFile · skillImage）。
+    expect(names).toHaveLength(46)
   })
 })

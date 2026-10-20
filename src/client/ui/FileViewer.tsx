@@ -18,7 +18,7 @@ import { shortTime } from '../model/time.ts'
 import type { WorkflowLiteRpc } from '../rpc.ts'
 import { type DocBody, DocViewer } from './DocViewer.tsx'
 import { FileTag } from './FileTag.tsx'
-import { ImagePreview } from './ImagePreview.tsx'
+import { RunImagePreview } from './ImagePreview.tsx'
 import css from './runres.module.css'
 
 /** 正文前的「说明」一块（网址这种小详情框用；大的查看框收在「说明」开关里）。 */
@@ -32,17 +32,16 @@ export function NoteLead(props: { t: T; text: string }): React.JSX.Element {
 }
 
 /**
- * 读回来的文件怎么摆：读不了说原因、还没读到是骨架、是图片就交给 {@link ImagePreview}，其余按格式给正文。
+ * 读回来的文件怎么摆：读不了说原因、还没读到是骨架、是图片就交给 `image`（从哪读图由调用方定），其余按格式给正文。
  * 查看框和文件夹浏览（右边预览）共用。
  */
 export function fileBody(props: {
   t: T
-  rpc: WorkflowLiteRpc
-  instance: string
-  target: FileTarget
   file: RunFileResponse | null
   error: string | null
   loading: boolean
+  /** 是图片时摆什么（`name` 是文件名）。 */
+  image(name: string): React.ReactNode
 }): DocBody {
   const { t, file } = props
   if (props.error !== null) return { kind: 'state', icon: 'alert', text: props.error }
@@ -50,18 +49,7 @@ export function fileBody(props: {
   if (file.kind === 'missing') return { kind: 'state', icon: 'clock', text: t('file.missing') }
   if (file.kind === 'folder') return { kind: 'state', icon: 'folder', text: t('res.kind.folder') }
   if (fileKindOf(file.display) === 'image') {
-    return {
-      kind: 'node',
-      node: (
-        <ImagePreview
-          t={t}
-          rpc={props.rpc}
-          instance={props.instance}
-          target={props.target}
-          name={fileBaseName(file.display)}
-        />
-      ),
-    }
+    return { kind: 'node', node: props.image(fileBaseName(file.display)) }
   }
   if (file.kind === 'binary') return { kind: 'state', icon: 'file', text: t('file.binary') }
   if (file.kind === 'tooLarge') {
@@ -96,12 +84,18 @@ export function FileViewer(props: {
   const note = props.note?.trim() ?? ''
   const body = fileBody({
     t,
-    rpc: props.rpc,
-    instance: props.instance,
-    target: props.target,
     file,
     error,
     loading,
+    image: (alt) => (
+      <RunImagePreview
+        t={t}
+        rpc={props.rpc}
+        instance={props.instance}
+        target={props.target}
+        name={alt}
+      />
+    ),
   })
 
   return (

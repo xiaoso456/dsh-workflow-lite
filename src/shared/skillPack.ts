@@ -21,6 +21,7 @@
  */
 
 import type { ValidationProblem } from './types.ts'
+import type { RunFileResponse } from './wire.ts'
 
 /** 计划里 skill 目录的记号：加载 skill 时宿主给出的那个目录。 */
 export const SKILL_TOKEN = '{skill}'
@@ -160,6 +161,35 @@ export interface SkillPreviewResponse {
   skillsRoot: string
   /** 本机已有的 skill（名字撞了提示一句；装到本机时决定能不能覆盖）。 */
   existing: SkillExisting[]
+  /**
+   * 整个包在暂存区里摆了一份（`pack/skillDir` / `pack/skillFile` / `pack/skillImage` 按它看，
+   * 用完 `pack/discard`）。有编译级问题时没有。
+   */
+  browse?: string
+}
+
+/**
+ * `pack/skillDir`、`pack/skillFile`：看暂存的包里的一层、一份。`sub` 是相对包根的路径（`/` 分隔，只许往下走）。
+ * 给了 `meta` 就先按它重写包根的 SKILL.md（头部是前端现填的），再读。
+ */
+export interface SkillBrowseRequest {
+  token: string
+  sub?: string
+  meta?: SkillMeta
+}
+
+/** `pack/skillImage`：包里的一张图；`src` 是 Markdown 里引用的相对路径（按文档所在目录解析），不给就是 `sub` 自己。 */
+export interface SkillImageRequest extends SkillBrowseRequest {
+  src?: string
+}
+
+/**
+ * 包里的一份文件（同 `run/file`）。Markdown 开头有 YAML 头部（`---` … `---`）时，`head` 是解析出来的键值、
+ * `content` 是去掉头部的正文：预览时头部单独列出来，不当正文排版。
+ */
+export interface SkillFileResponse extends RunFileResponse {
+  head?: Record<string, unknown>
+  content?: string
 }
 
 export interface SkillExportRequest extends SkillBuildRequest {

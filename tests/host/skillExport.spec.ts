@@ -6,8 +6,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import type { SkillViewer } from '../../src/host/hostFs.ts'
 import { type PackDeps, scanPack } from '../../src/host/pack/exporter.ts'
+import { skillDir, skillFile, skillImage, splitHead } from '../../src/host/pack/skillBrowse.ts'
 import { exportSkill, previewSkill } from '../../src/host/pack/skillExporter.ts'
-import { readChunk } from '../../src/host/pack/staging.ts'
+import { discard, readChunk } from '../../src/host/pack/staging.ts'
 import { assetsDir } from '../../src/host/store/paths.ts'
 import { createRepository, type Outcome, type Repository } from '../../src/host/store/repository.ts'
 import { DSH_ONLY_TERMS } from '../../src/shared/dialect.ts'
@@ -254,6 +255,73 @@ describe('导出成 skill', () => {
     // 预览里认得出这个名字已经装过了
     const preview = expectOk(await previewSkill(deps, request))
     expect(preview.existing.find((item) => item.name === 'review-report')?.overwritable).toBe(true)
+  })
+
+  it('浏览整个包：预览时摆进暂存区，像文件夹一样列、读；SKILL.md 按填的头部现拼', async () => {
+    const { deps } = await fixture()
+    const preview = expectOk(
+      await previewSkill(deps, { name: 'review', version: 1, pack: await picks(deps) }),
+    )
+    const token = preview.browse as string
+    expect(token).toMatch(/^[a-f0-9]{24}$/u)
+
+    const root = expectOk(await skillDir(deps.dataDir, { token, meta }))
+    expect(root.display).toBe('review-report')
+    expect(root.entries.map((entry) => `${entry.name}${entry.dir ? '/' : ''}`)).toEqual([
+      'assets/',
+      'skills/',
+      'steps/',
+      'SKILL.md',
+    ])
+    const steps = expectOk(await skillDir(deps.dataDir, { token, sub: 'steps', meta }))
+    expect(steps.entries.map((entry) => entry.name)).toEqual(['write.md'])
+
+    // SKILL.md：源码是完整的一份（含头部）；头部另外解析好，正文去掉头部
+    const doc = expectOk(await skillFile(deps.dataDir, { token, sub: 'SKILL.md', meta }))
+    expect(doc.kind).toBe('markdown')
+    expect(doc.display).toBe('review-report/SKILL.md')
+    expect(doc.text?.startsWith('---\nname: review-report\n')).toBe(true)
+    expect(doc.head).toEqual({
+      name: 'review-report',
+      description: '读资料写报告',
+      whenToUse: '要写报告时',
+    })
+    expect(doc.content?.startsWith('# review-report\n')).toBe(true)
+    // 打包的 skill 里的 SKILL.md 同样拆出头部
+    const nested = expectOk(
+      await skillFile(deps.dataDir, { token, sub: 'skills/my-skill/SKILL.md' }),
+    )
+    expect(nested.head).toEqual({ name: 'my-skill', description: 'x' })
+    expect(nested.content).toBe('正文')
+    // 没有头部的就没有 head
+    const step = expectOk(await skillFile(deps.dataDir, { token, sub: 'steps/write.md' }))
+    expect(step.head).toBeUndefined()
+    expect(step.text).toContain('读资料，写报告')
+
+    // 走不出包；编号不对、清掉了都说清楚
+    const out = await skillFile(deps.dataDir, { token, sub: '../body.md' })
+    expect(out.ok === false && out.error.code).toBe('invalid_args')
+    const bad = await skillDir(deps.dataDir, { token: 'nope' })
+    expect(bad.ok === false && bad.error.code).toBe('not_found')
+    const image = await skillImage(deps.dataDir, {
+      token,
+      sub: 'steps/write.md',
+      src: '../../x.png',
+    })
+    expect(image.ok).toBe(false)
+    await discard(deps.dataDir, token)
+    const gone = await skillDir(deps.dataDir, { token })
+    expect(gone.ok === false && gone.error.code).toBe('not_found')
+  })
+
+  it('YAML 头部：只认开头的 `---` … `---`，解析不了、不是键值就当没有', () => {
+    expect(splitHead('---\nname: a\n---\n\n# 正文\n')).toEqual({
+      head: { name: 'a' },
+      content: '# 正文\n',
+    })
+    expect(splitHead('# 正文\n---\nname: a\n---\n')).toBeNull()
+    expect(splitHead('---\n- a\n---\n正文')).toBeNull()
+    expect(splitHead('---\nname: [\n---\n正文')).toBeNull()
   })
 
   it('名字不合规矩、有编译级问题：导不出来', async () => {

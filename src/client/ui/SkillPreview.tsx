@@ -80,10 +80,37 @@ function SkillMeta(props: { t: T; skill: HostSkillResponse }): React.JSX.Element
   return <SkillMetaList t={t} fields={fields} />
 }
 
+/**
+ * 一份 Markdown 的 YAML 头部（解析好的键值）排成元数据的几项：`name`、`description`、`whenToUse` 在前、
+ * 带中文名，其余按原顺序接在后面。浏览 skill 包时看 SKILL.md 用。
+ */
+export function headFields(
+  t: T,
+  head: Readonly<Record<string, unknown>>,
+): { key: string; label?: string; value: string }[] {
+  const known: [string, string][] = [
+    ['name', t('skill.fieldName')],
+    ['description', t('skill.fieldDesc')],
+    ['whenToUse', t('skill.whenToUse')],
+  ]
+  const fields: { key: string; label?: string; value: string }[] = []
+  for (const [key, label] of known) {
+    if (head[key] !== undefined && head[key] !== null)
+      fields.push({ key, label, value: metaText(head[key]) })
+  }
+  for (const [key, value] of Object.entries(head)) {
+    if (known.some(([name]) => name === key) || value === null || value === undefined) continue
+    fields.push({ key, value: metaText(value) })
+  }
+  return fields
+}
+
 /** 元数据那一块：给好的几项（值是空的不显示），导出成 skill 时预览 SKILL.md 也用它。 */
 export function SkillMetaList(props: {
   t: T
   fields: readonly { key: string; label?: string; value: string }[]
+  /** 标题旁的小字（缺省「SKILL.md 头部读到的字段」）。 */
+  hint?: string
 }): React.JSX.Element {
   const { t } = props
   const fields = props.fields.filter((field) => field.value.trim() !== '')
@@ -91,7 +118,7 @@ export function SkillMetaList(props: {
     <section className={css.skillMeta} data-testid="wl-skill-meta">
       <p className={css.skillMetaHead}>
         <span>{t('skill.meta')}</span>
-        {t('skill.metaHint')}
+        {props.hint ?? t('skill.metaHint')}
       </p>
       <dl className={css.skillMetaList}>
         {fields.map((field, index) => (

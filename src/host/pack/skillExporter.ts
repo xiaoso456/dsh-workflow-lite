@@ -37,6 +37,7 @@ import { pathKind } from '../store/paths.ts'
 import type { Outcome } from '../store/repository.ts'
 import { type PackDeps, rewriteForPack, scanState } from './exporter.ts'
 import { installSkill } from './importer.ts'
+import { stageSkill } from './skillBrowse.ts'
 import { newStage, writeOut } from './staging.ts'
 import { readTree } from './tree.ts'
 
@@ -219,13 +220,20 @@ async function buildSkill(
   }
 }
 
-/** 预览：SKILL.md 正文、要提醒的事、本机已有的 skill。 */
+/**
+ * 预览：SKILL.md 正文、要提醒的事、本机已有的 skill；能导出时整个包另摆进暂存区（`browse`），
+ * 前端像看文件夹一样看它（见 `skillBrowse.ts`）。
+ */
 export async function previewSkill(
   deps: PackDeps,
   request: SkillBuildRequest,
 ): Promise<Outcome<SkillPreviewResponse>> {
   const built = await buildSkill(deps, request)
-  return built.ok ? { ok: true, result: built.result.preview } : built
+  if (!built.ok) return built
+  const { preview, files } = built.result
+  if (preview.problems.length > 0) return { ok: true, result: preview }
+  const browse = await stageSkill(deps.dataDir, request.name, preview.body, files)
+  return { ok: true, result: { ...preview, browse } }
 }
 
 /** 导出：打成 zip（`<名>/…`）放进暂存区，或直接装进 `~/.agents/skills/<名>`。 */

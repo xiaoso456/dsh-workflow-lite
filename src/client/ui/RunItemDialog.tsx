@@ -14,6 +14,7 @@
 import { useMemo } from 'react'
 import type { ResourceItem } from '../../shared/types.ts'
 import type { Desktop } from '../app/desktop.ts'
+import { runFolderSource } from '../app/useBrowse.ts'
 import { type FileTarget, useRunFile } from '../app/useRunFile.ts'
 import type { T } from '../i18n.ts'
 import { fileBaseName } from '../model/fileKind.ts'
@@ -63,6 +64,10 @@ export function FolderDialog(props: {
     [props.node, props.index],
   )
   const { file, error } = useRunFile(props.rpc, props.instance, target)
+  const source = useMemo(
+    () => runFolderSource(props.rpc, props.instance, props.node, props.index),
+    [props.rpc, props.instance, props.node, props.index],
+  )
   const folder = file?.kind === 'folder' ? file.path : null
   const display = file?.display ?? props.item.value
   const name = fileBaseName(display) || itemName(props.item)
@@ -74,17 +79,7 @@ export function FolderDialog(props: {
   else {
     body = {
       kind: 'node',
-      node: (
-        <FolderBrowser
-          t={t}
-          rpc={props.rpc}
-          instance={props.instance}
-          node={props.node}
-          index={props.index}
-          rootName={name}
-          desktop={props.desktop}
-        />
-      ),
+      node: <FolderBrowser t={t} source={source} rootName={name} desktop={props.desktop} />,
     }
   }
 

@@ -24,9 +24,12 @@ import type {
 } from './pack.ts'
 import type { InstanceSummary, InstanceView, StateEdit } from './runState.ts'
 import type {
+  SkillBrowseRequest,
   SkillBuildRequest,
   SkillExportRequest,
   SkillExportResponse,
+  SkillFileResponse,
+  SkillImageRequest,
   SkillPreviewResponse,
 } from './skillPack.ts'
 import type {
@@ -105,6 +108,9 @@ export const WORKFLOW_LITE_ENDPOINTS = [
   'pack/discard',
   'pack/skillPreview',
   'pack/skillExport',
+  'pack/skillDir',
+  'pack/skillFile',
+  'pack/skillImage',
 ] as const
 
 export type WorkflowLiteEndpoint = (typeof WORKFLOW_LITE_ENDPOINTS)[number]
@@ -425,6 +431,9 @@ export interface WorkflowLiteRpcMap {
   'pack/discard': { args: PackTokenRequest; result: { removed: true } }
   'pack/skillPreview': { args: SkillBuildRequest; result: SkillPreviewResponse }
   'pack/skillExport': { args: SkillExportRequest; result: SkillExportResponse }
+  'pack/skillDir': { args: SkillBrowseRequest; result: RunDirResponse }
+  'pack/skillFile': { args: SkillBrowseRequest; result: SkillFileResponse }
+  'pack/skillImage': { args: SkillImageRequest; result: RunImageResponse }
 }
 
 // ── 主机上的东西（资源节点选文件、文件夹、skill 用）─────────

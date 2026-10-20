@@ -84,47 +84,13 @@ export function fileTargetKey(target: FileTarget | null): string {
     : `p:${target.path}`
 }
 
-/** 文件夹资源的一层：{@link useRunDir} 的结果。 */
+/** 文件夹的一层（`useBrowseDir` 的结果）。 */
 export interface RunDir {
   /** 最近一次读到的（换层时读回来之前还是上一层的，免得闪一下空）；还没读到过是 `null`。 */
   dir: RunDirResponse | null
   error: string | null
   /** 正在读 `sub` 这一层（`dir` 可能还是上一层的）。 */
   loading: boolean
-}
-
-/** 读文件夹资源（第 `item` 项）下 `sub` 这一层有什么。 */
-export function useRunDir(
-  rpc: WorkflowLiteRpc,
-  instance: string,
-  node: string,
-  item: number,
-  sub: string,
-): RunDir {
-  const [dir, setDir] = useState<RunDirResponse | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
-  useEffect(() => {
-    let alive = true
-    setLoading(true)
-    rpc
-      .call('run/dir', { id: instance, node, item, ...(sub === '' ? {} : { sub }) })
-      .then((value) => {
-        if (!alive) return
-        setDir(value)
-        setError(null)
-      })
-      .catch((reason: unknown) => {
-        if (alive) setError(errorMessage(reason))
-      })
-      .finally(() => {
-        if (alive) setLoading(false)
-      })
-    return () => {
-      alive = false
-    }
-  }, [rpc, instance, node, item, sub])
-  return { dir, error, loading }
 }
 
 /** 一张图读回来的样子：`url` 是 data URL。 */

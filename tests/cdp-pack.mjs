@@ -264,20 +264,47 @@ async function run(session) {
   await screenshot(session, 'pack-07-skill-info.png')
   pass('导出成 skill：单选版本 → 资源 → Skill 信息（名字、描述预填，名字不合规矩不让导）')
 
+  // 预览整个包：左边文件树、右边预览（同实例里看文件夹），一打开先看 SKILL.md。
   await session.evaluate(clickTestId('wl-skill-preview'))
   await waitFor(session, exists('wl-skill-doc'))
-  await waitFor(session, `${textOf('wl-skill-doc')}.includes('路径约定')`)
+  await waitFor(session, exists('wl-folder-browser'))
+  const entryNames = `[...document.querySelectorAll('[data-testid="wl-skill-doc"] [data-testid="wl-folder-entry"]')].map((el) => el.dataset.name)`
+  await waitFor(session, `${entryNames}.includes('SKILL.md')`)
+  const rootNames = await session.evaluate(entryNames)
+  for (const want of ['assets', 'steps', 'SKILL.md']) {
+    check(rootNames.includes(want), `包根应列出 ${want}：${rootNames.join(', ')}`)
+  }
+  await waitFor(session, `${textOf('wl-folder-file')}.includes('本次执行')`)
+  // 头部单独列成元数据（填的名字），不当正文排版
+  await waitFor(session, exists('wl-skill-meta'))
   check(
-    (await session.evaluate(textOf('wl-skill-doc'))).includes(SKILL),
-    'SKILL.md 预览应带上填的名字',
+    (await session.evaluate(textOf('wl-skill-meta'))).includes(SKILL),
+    'SKILL.md 的元数据应是填的名字',
+  )
+  check(
+    !(await session.evaluate(textOf('wl-folder-file'))).includes('name: '),
+    '预览里不该把头部当正文',
   )
   await sleep(400)
   await screenshot(session, 'pack-08-skill-doc.png')
+  // 进 steps/，点开一个步骤的任务描述
+  await session.evaluate(
+    `document.querySelector('[data-testid="wl-skill-doc"] [data-testid="wl-folder-entry"][data-name="steps"]').click()`,
+  )
+  await waitFor(session, `${entryNames}.includes('a.md')`)
+  await session.evaluate(
+    `document.querySelector('[data-testid="wl-skill-doc"] [data-testid="wl-folder-entry"][data-name="a.md"]').click()`,
+  )
+  await waitFor(session, `${textOf('wl-folder-file')}.includes('工作流')`)
+  // 旧正文的影子淡出要一会儿（useStage），等它走完再看
+  await waitFor(session, gone('wl-skill-meta'), { timeoutMs: 3000 })
+  await sleep(400)
+  await screenshot(session, 'pack-08b-skill-step.png')
   await session.evaluate(
     `document.querySelector('[data-testid="wl-skill-doc"] button[aria-label="关闭"]').click()`,
   )
   await waitFor(session, gone('wl-skill-doc'))
-  pass('导出成 skill：预览 SKILL.md')
+  pass('导出成 skill：预览整个包（文件树 + 预览，SKILL.md 头部列成元数据）')
 
   await session.evaluate(clickTestId('wl-skill-download'))
   await waitFor(session, exists('wl-pack-notice'), { timeoutMs: 30_000 })

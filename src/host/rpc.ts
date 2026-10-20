@@ -23,7 +23,7 @@ import {
 import { normalizeDocument, readNodeData as readDataFields } from '../shared/model.ts'
 import type { PackSkillAction } from '../shared/pack.ts'
 import type { StateEdit } from '../shared/runState.ts'
-import type { SkillBuildRequest } from '../shared/skillPack.ts'
+import type { SkillBrowseRequest, SkillBuildRequest, SkillMeta } from '../shared/skillPack.ts'
 import type { NodeData } from '../shared/types.ts'
 import {
   endpointName,
@@ -35,6 +35,7 @@ import {
 import { listHostDir, listSkills, readSkill, type SkillViewer } from './hostFs.ts'
 import { exportPack, type PackDeps, scanPack } from './pack/exporter.ts'
 import { applyPack, inspectPack } from './pack/importer.ts'
+import { skillDir, skillFile, skillImage } from './pack/skillBrowse.ts'
 import { exportSkill, previewSkill } from './pack/skillExporter.ts'
 import { appendChunk, discard, readChunk } from './pack/staging.ts'
 import { compileWorkflow } from './plan.ts'
@@ -253,6 +254,38 @@ function readSkillBuild(input: Record<string, unknown>): SkillBuildRequest {
     version,
     pack: pack as string[],
     ...readScope(input),
+  }
+}
+
+/** SKILL.md 的头部：名字、描述必填，使用时机可选。 */
+function readSkillMeta(meta: Record<string, unknown>): SkillMeta {
+  const whenToUse = optionalString(meta, 'whenToUse')
+  return {
+    name: requireString(meta, 'name'),
+    description: requireString(meta, 'description'),
+    ...(whenToUse === undefined ? {} : { whenToUse }),
+  }
+}
+
+/** `pack/skillDir` / `pack/skillFile` / `pack/skillImage`：暂存编号、包里的路径，可带头部。 */
+function readSkillBrowse(input: Record<string, unknown>): SkillBrowseRequest {
+  const sub = optionalString(input, 'sub')
+  return {
+    token: requireString(input, 'token'),
+    ...(sub === undefined ? {} : { sub }),
+    ...(input.meta === undefined ? {} : { meta: draftMeta(asRecord(input.meta)) }),
+  }
+}
+
+/** 浏览时的头部是还在填的草稿：空着也照样拼（导出时才按 {@link readSkillMeta} 要求填齐）。 */
+function draftMeta(meta: Record<string, unknown>): SkillMeta {
+  const text = (field: string): string =>
+    typeof meta[field] === 'string' ? (meta[field] as string) : ''
+  const whenToUse = text('whenToUse')
+  return {
+    name: text('name'),
+    description: text('description'),
+    ...(whenToUse === '' ? {} : { whenToUse }),
   }
 }
 
@@ -785,17 +818,34 @@ async function dispatch(
       const input = asRecord(payload)
       const target = input.target
       if (target !== 'zip' && target !== 'install') throw new Error('target must be zip or install')
-      const meta = asRecord(input.meta)
-      const whenToUse = optionalString(meta, 'whenToUse')
       const outcome = await exportSkill(packDeps(deps), {
         ...readSkillBuild(input),
-        meta: {
-          name: requireString(meta, 'name'),
-          description: requireString(meta, 'description'),
-          ...(whenToUse === undefined ? {} : { whenToUse }),
-        },
+        meta: readSkillMeta(asRecord(input.meta)),
         target,
         ...(input.replace === true ? { replace: true } : {}),
+      })
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok(outcome.result)
+    }
+
+    case 'pack/skillDir': {
+      const outcome = await skillDir(deps.dataDir(), readSkillBrowse(asRecord(payload)))
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok(outcome.result)
+    }
+
+    case 'pack/skillFile': {
+      const outcome = await skillFile(deps.dataDir(), readSkillBrowse(asRecord(payload)))
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok(outcome.result)
+    }
+
+    case 'pack/skillImage': {
+      const input = asRecord(payload)
+      const src = optionalString(input, 'src')
+      const outcome = await skillImage(deps.dataDir(), {
+        ...readSkillBrowse(input),
+        ...(src === undefined ? {} : { src }),
       })
       if (!outcome.ok) return failFrom(outcome.error)
       return ok(outcome.result)

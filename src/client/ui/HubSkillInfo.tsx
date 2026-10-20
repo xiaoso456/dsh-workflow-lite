@@ -1,6 +1,6 @@
 /**
  * dsh-workflow-lite — 导出成 skill 的第三步「Skill 信息」：SKILL.md 头部（名称、描述、使用时机）、
- * 要提醒的事、SKILL.md 预览，底下「装到本机」「下载 zip」。
+ * 要提醒的事、整个包的预览（左边文件树、右边预览，同实例里看文件夹），底下「装到本机」「下载 zip」。
  *
  * 进来先让主机按选好的版本和打包项编一遍（`pack/skillPreview`）：有编译级问题就只列问题、导不出来；
  * 正文和头部分开，头部按填的字现拼，改名字不用再编。同名 skill 已经在 `~/.agents/skills` 里时，
@@ -19,12 +19,15 @@ import {
   type SkillPreviewResponse,
 } from '../../shared/skillPack.ts'
 import { downloadPack, saveFile } from '../app/packTransfer.ts'
+import { skillPackSource } from '../app/useBrowse.ts'
 import type { LocaleKey, T } from '../i18n.ts'
 import { formatBytes } from '../model/fileKind.ts'
 import { descriptionDraft, existingSkill } from '../model/pack.ts'
 import { errorMessage, type WorkflowLiteRpc } from '../rpc.ts'
 import { useConfirm } from './Confirm.tsx'
 import { DocViewer } from './DocViewer.tsx'
+import { FolderBrowser } from './FolderBrowser.tsx'
+import folder from './folder.module.css'
 import type { PackScope } from './HubExport.tsx'
 import hub from './hub.module.css'
 import { Icon } from './Icon.tsx'
@@ -33,7 +36,6 @@ import { Callout, PackSection } from './PackRow.tsx'
 import css from './pack.module.css'
 import { cx } from './primitives.tsx'
 import resource from './resource.module.css'
-import { SkillMetaList } from './SkillPreview.tsx'
 import ui from './ui.module.css'
 
 /** 头部填的字（上一步、下一步来回切时留着）。 */
@@ -105,6 +107,15 @@ export function HubSkillInfo(props: {
       live = false
     }
   }, [rpc, name, version, packKey])
+
+  // 暂存的那份包：换了一份、离开这一步时清掉（没清掉的暂存区一天后自己清）。
+  const browse = preview?.browse
+  useEffect(() => {
+    if (browse === undefined) return
+    return () => {
+      void rpc.call('pack/discard', { token: browse }).catch(() => undefined)
+    }
+  }, [rpc, browse])
 
   if (preview === null) {
     return (
@@ -189,6 +200,12 @@ export function HubSkillInfo(props: {
   const descError = problemText(t, problem, 'description')
   const whenError = problemText(t, problem, 'whenToUse')
   const ready = !blocked && problem === null
+  /** 包（目录）叫什么：还没填名字时先用工作流名。 */
+  const packName = meta.name === '' ? name : meta.name
+  const stat = t('skillExport.contentStat')
+    .replace('{steps}', String(preview.steps.length))
+    .replace('{files}', String(preview.files + 1))
+    .replace('{size}', formatBytes(preview.bytes))
 
   return (
     <>
@@ -276,18 +293,16 @@ export function HubSkillInfo(props: {
             <div className={css.field}>
               <div className={css.fieldRow}>
                 <span className={css.grow}>
-                  <code>SKILL.md</code>
+                  <code>{packName}/</code>
                   <span className={hub.wfSub}>
                     {' · '}
-                    {t('skillExport.contentStat')
-                      .replace('{steps}', String(preview.steps.length))
-                      .replace('{files}', String(preview.files + 1))
-                      .replace('{size}', formatBytes(preview.bytes))}
+                    {stat}
                   </span>
                 </span>
                 <button
                   type="button"
                   className={cx(ui.btn, ui.small)}
+                  disabled={preview.browse === undefined}
                   data-testid="wl-skill-preview"
                   onClick={() => setViewing(true)}
                 >
@@ -340,32 +355,33 @@ export function HubSkillInfo(props: {
           {t('skillExport.download')}
         </button>
       </div>
-      {viewing && (
+      {viewing && preview.browse !== undefined && (
         <DocViewer
           t={t}
-          name="SKILL.md"
+          name={packName}
           badge={
             <span className={cx(overlay.sheetIcon, resource.skillHeadIcon)}>
               <Icon name="sparkle" size={16} />
             </span>
           }
-          meta={<code>{meta.name === '' ? '—' : `${meta.name}/SKILL.md`}</code>}
-          body={{ kind: 'text', text: preview.body, format: 'markdown' }}
+          meta={stat}
+          body={{
+            kind: 'node',
+            node: (
+              <FolderBrowser
+                t={t}
+                source={skillPackSource(rpc, preview.browse, meta)}
+                rootName={packName}
+                initial="SKILL.md"
+                desktop={undefined}
+              />
+            ),
+          }}
           copyPath={null}
           openPath={null}
           desktop={undefined}
           testId="wl-skill-doc"
-          className={resource.skillViewer}
-          lead={
-            <SkillMetaList
-              t={t}
-              fields={[
-                { key: 'name', label: t('skill.fieldName'), value: meta.name },
-                { key: 'description', label: t('skill.fieldDesc'), value: meta.description },
-                { key: 'whenToUse', label: t('skill.whenToUse'), value: meta.whenToUse ?? '' },
-              ]}
-            />
-          }
+          className={folder.dialog}
           onClose={() => setViewing(false)}
         />
       )}
