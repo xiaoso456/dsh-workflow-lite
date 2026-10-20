@@ -5,7 +5,7 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
-## [Unreleased]
+## [0.6.0] - 2026-10-20
 
 这一版的主角是「导出成 Skill」（实验性）：把工作流编译成一个独立的 skill，别人不装插件也能用。另外派发计划重新排版，实例里的文件夹改成左右两栏的浏览器。
 

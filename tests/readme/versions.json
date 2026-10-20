@@ -47,7 +47,7 @@
       }
     },
     {
-      "version": "next",
+      "version": "0.6.0",
       "zh": {
         "title": "导出 Skill",
         "tag": "实验性",
