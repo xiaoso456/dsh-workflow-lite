@@ -54,6 +54,14 @@ gh release create workflow-lite-v<ver> --title "v<ver>" --notes-file <notes 文�
 - README 两版各带一个同区间的 DSH 徽标和一句适配说明。
 - 换支持的版本线时四处一起改：peer 区间、dev 精确版本、两版 README 的徽标与说明；`tests/package.spec.ts` 检查它们一致。
 
+## 编译口径（DSH / 通用）
+
+同一张图编译成两种口径：插件里执行用 **DSH 口径**，导出成 skill 用**通用口径**（`PlanOptions.skill` 给了就是通用口径）。
+
+- 跟执行环境有关的话——执行方式、复用执行者、设定目标、怎么加载 skill、运行状态——只写在 `src/shared/dialect.ts`，每句两套：DSH 口径可以点名工具与插件动作（`subagent`、`spawn_teammate`、`create_goal`、`workflow_lite` 的 `state` / `resume`……）；通用口径不点名任何工具，只说要做成什么。`compile.ts` 只写和环境无关的部分（图、流程、资源、交接），不要在里面写工具名。
+- 运行状态：DSH 口径由插件建实例、模型经 `state` 动作改；通用口径由模型自己建、自己改工作区里的 `.workflow-lite/runs/{instance}/state.yaml`，计划里按图给出初始内容。
+- 加一条工作流设置或改一句措辞时两套一起写。`tests/shared/dialect.spec.ts` 把所有设置打开、用通用口径编译，扫计划和每份任务描述里有没有 `DSH_ONLY_TERMS`；新出现的工具名、插件说法要补进这张表。
+
 ## 配色主题
 
 - 亮色、暗色各四套（晴白、瑞士、雾蓝、林间 / 石板、墨黑、深海、暖夜），色值全在 `src/client/model/themes.ts`；默认晴白 + 石板，瑞士排第二。

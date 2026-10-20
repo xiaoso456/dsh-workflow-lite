@@ -162,7 +162,7 @@ export function HubSkillInfo(props: {
   }
 
   const notes: { key: string; tone: 'warn' | undefined; text: string }[] = []
-  if (preview.runState) notes.push({ key: 'run', tone: 'warn', text: t('skillExport.runState') })
+  if (preview.runState) notes.push({ key: 'run', tone: undefined, text: t('skillExport.runState') })
   if (preview.writtenAssets.length > 0) {
     notes.push({
       key: 'assets',

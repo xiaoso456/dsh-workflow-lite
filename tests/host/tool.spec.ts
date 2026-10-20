@@ -436,7 +436,7 @@ describe('workflow_lite —— 文件节点与交接', () => {
     expect(plan).toContain('| fix | review | — | res-issues（更新） |')
     // 文件的说明不进计划，附在写它的步骤的任务描述里。
     expect(plan).not.toContain('问题清单，修好打钩')
-    expect(plan).toContain('- `review` → `fix`：说明：逐条修')
+    expect(plan).toContain('- `review` → `fix`：交执行结果，并附上交接说明：逐条修')
     expect(plan).toContain('- `fix` → `report`：只管先后，不交执行结果。')
 
     // 已存在的边：handoff=result 回到缺省（交执行结果、不附说明）。

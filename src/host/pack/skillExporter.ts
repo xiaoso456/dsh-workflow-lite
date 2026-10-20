@@ -17,7 +17,7 @@ import { zipSync } from 'fflate'
 import { buildPlan, buildTaskTexts, type SkillPlan } from '../../shared/compile.ts'
 import { analyzeGraph } from '../../shared/graph.ts'
 import { isStep } from '../../shared/model.ts'
-import { assetsRelative, isAssetsPath, rootOf } from '../../shared/outputPaths.ts'
+import { assetsRelative, INSTANCE_TOKEN, isAssetsPath, rootOf } from '../../shared/outputPaths.ts'
 import { PACK_MAX_BYTES, PACK_MAX_FILES } from '../../shared/pack.ts'
 import { bindAssets, resourceGraph } from '../../shared/resources.ts'
 import {
@@ -173,7 +173,10 @@ async function buildSkill(
   )
   const facts = { name: request.name, document, payloadPaths }
   const skill: SkillPlan = { bundled, needs, absolute }
-  const plan = buildPlan(facts, analysis, { problems, skill })
+  // 开了「记录运行状态」：skill 里没有插件，改成模型自己维护状态文件（编号由执行者开始时取）。
+  const runState =
+    original.settings?.runState === true ? { runState: { instance: INSTANCE_TOKEN } } : {}
+  const plan = buildPlan(facts, analysis, { problems, skill, ...runState })
   if (plan.problems.length === 0) {
     const encoder = new TextEncoder()
     for (const [id, text] of buildTaskTexts(facts, analysis, { skill })) {

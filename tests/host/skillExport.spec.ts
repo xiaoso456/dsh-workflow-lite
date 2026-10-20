@@ -10,6 +10,7 @@ import { exportSkill, previewSkill } from '../../src/host/pack/skillExporter.ts'
 import { readChunk } from '../../src/host/pack/staging.ts'
 import { assetsDir } from '../../src/host/store/paths.ts'
 import { createRepository, type Outcome, type Repository } from '../../src/host/store/repository.ts'
+import { DSH_ONLY_TERMS } from '../../src/shared/dialect.ts'
 import {
   INPUT_TYPE,
   NODE_TYPE,
@@ -180,10 +181,11 @@ describe('导出成 skill', () => {
     // 打包的文件进了 assets/，资料目录也是
     expect(body).toContain('`{skill}/assets/spec.md`')
     expect(body).toContain('`{skill}/assets/notes.md`')
-    // 打包的 skill 读包里的，没打包的照旧用 skill 工具
+    // 打包的 skill 读包里的，没打包的由执行者自己加载（不点名工具）
     expect(body).toContain('Skill `my-skill`（在包里）')
     expect(body).toContain('读 `{skill}/skills/<名>/SKILL.md`')
-    expect(body).toContain('确认这些 skill 已在本机装好（不在包里，用 skill 工具加载）：`web`。')
+    expect(body).toContain('确认这些 skill 在本机能加载（不在包里）：`web`。')
+    for (const term of DSH_ONLY_TERMS) expect(body).not.toContain(term)
     // 产出根目录原样保留，`{instance}` 由执行者取编号
     expect(body).toContain('.workflow-lite/runs/{instance}/out/report.md')
     expect(body).toContain('- **`{instance}`**：这次执行的编号')

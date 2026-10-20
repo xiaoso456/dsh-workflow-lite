@@ -571,7 +571,8 @@ export const zh = {
   'skillExport.sectionContent': '内容',
   'skillExport.contentStat': '{steps} 个步骤 · {files} 个文件 · {size}',
   'skillExport.preview': '预览',
-  'skillExport.runState': '这张图开了「记录运行状态」，skill 里不带：没有插件就没有记进度的动作。',
+  'skillExport.runState':
+    '这张图开了「记录运行状态」：skill 里由模型自己维护工作区里的状态文件 .workflow-lite/runs/<编号>/state.yaml，中断后照它接着做；没有画布上的实时查看。',
   'skillExport.writtenAssets':
     '有步骤会改写资料目录里的 {list}：导出后它们在 skill 目录里，执行时会被改动。',
   'skillExport.roots': '产出根目录是绝对路径（{list}），换台机器不一定有。',
@@ -1784,7 +1785,7 @@ export const en: Record<LocaleKey, string> = {
   'skillExport.contentStat': '{steps} steps · {files} files · {size}',
   'skillExport.preview': 'Preview',
   'skillExport.runState':
-    'This workflow records run state; the skill does not: without the plugin there is no action to record progress.',
+    'This workflow records run state: in the skill, the model keeps a state file in the workspace (.workflow-lite/runs/<id>/state.yaml) and resumes from it after an interruption. There is no live view on the canvas.',
   'skillExport.writtenAssets':
     'Some steps rewrite {list} in the assets folder; after export they live in the skill folder and are changed when it runs.',
   'skillExport.roots':
