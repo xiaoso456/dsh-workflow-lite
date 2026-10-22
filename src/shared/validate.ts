@@ -41,7 +41,7 @@ import {
   isVerdictWhen,
 } from './naming.ts'
 import { checkOutputRoot, outputKey } from './outputPaths.ts'
-import { memoryOf } from './presets.ts'
+import { memoryItemsOk, memoryOf } from './presets.ts'
 import {
   edgeKind,
   flowEdges,
@@ -339,13 +339,17 @@ export function validateDocument(
         }),
       )
     }
-    const only = resource.data.items[0]
     if (memoryOf(resource.data) !== undefined) {
-      if (resource.data.items.length !== 1 || only?.kind !== 'file') {
+      if (!memoryItemsOk(resource.data.items)) {
         compile.push(
-          mk('compile', 'memory_invalid', `记忆 ${resource.id} 只能放一个文件`, {
-            node: resource.id,
-          }),
+          mk(
+            'compile',
+            'memory_invalid',
+            `记忆 ${resource.id} 只能放一个文件，后面最多再跟一个文件夹`,
+            {
+              node: resource.id,
+            },
+          ),
         )
       }
       continue

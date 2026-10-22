@@ -4,6 +4,9 @@
  * 一项一行，只放「一眼看清」的东西：种类图标、名字、位置（路径 / 网址 / 种类），有说明的在行尾挂个小标。
  * 要看、要改就点这一行，在模态框里编辑（{@link ResourceItemDialog}）；悬停时行尾浮出「移除」。
  *
+ * 预设（比如记忆）可以给一份 {@link ItemsRule}：内容固定（不能加、不能删），每一项有自己的名字和默认说明——
+ * 行尾的小标一直挂着（没改过的写「默认说明」），点开在同一个编辑框里改说明。
+ *
  * 添加：点「添加内容」弹出一个小菜单——
  * - 文件、文件夹：直接打开主机上的选择框，可以一次选好几个；
  * - Skill：打开会话里的 agent 能用的 skill 清单，可以一次勾好几个、点眼睛看 SKILL.md；
@@ -39,6 +42,27 @@ const ADD_MENU: readonly { choice: ResourceKind; hint: LocaleKey }[] = [
   { choice: 'text', hint: 'res.addHint.text' },
 ]
 
+/** 预设里一项的名字与默认说明（编辑框里用）。 */
+export interface ItemNote {
+  /** 编辑框的标题（「记忆文件」）。 */
+  title: string
+  /** 说明这一栏叫什么（「记忆文件说明」）。 */
+  label: string
+  /** 默认说明：这一项没写说明时用它；改回它或删空就回到默认。 */
+  fallback: string
+  /** 说明下面的提示。 */
+  hint: string
+  placeholder: string
+}
+
+/** 预设给内容清单的规矩；普通资源不给。 */
+export interface ItemsRule {
+  /** 内容固定：不能加、不能删，只能点开改。 */
+  fixed: boolean
+  /** 第几项的名字与默认说明；不给的那项按普通资源。 */
+  note(index: number): ItemNote | undefined
+}
+
 /** 正在模态框里改哪一项：已有的按位置认，新加的带上种类。 */
 type Editing = { index: number } | { kind: ResourceKind }
 
@@ -54,10 +78,11 @@ export function ResourceItems(props: {
   root: string | undefined
   /** 改内容：整份换掉。一次改动 = 一条撤销步。 */
   onChange(items: ResourceItem[]): void
-  /** 只有固定的一项（记忆）：不能加、不能删，只能点开改。 */
-  single?: boolean
+  /** 预设的规矩（内容固定、每项的默认说明）；普通资源不给。 */
+  rule?: ItemsRule | undefined
 }): React.JSX.Element {
   const { t, items } = props
+  const fixed = props.rule?.fixed === true
   const [menu, setMenu] = useState(false)
   const [picking, setPicking] = useState<PickMode | null>(null)
   const [skills, setSkills] = useState(false)
@@ -105,14 +130,14 @@ export function ResourceItems(props: {
               written={props.written}
               root={props.root}
               onOpen={() => setEditing({ index })}
-              onRemove={props.single === true ? undefined : () => remove(index)}
-              showNote={props.single !== true}
+              onRemove={fixed ? undefined : () => remove(index)}
+              note={props.rule?.note(index)}
             />
           ))}
         </ul>
       )}
 
-      {props.single !== true && (
+      {!fixed && (
         <Popover
           open={menu}
           onClose={() => setMenu(false)}
@@ -199,14 +224,14 @@ export function ResourceItems(props: {
           written={props.written}
           root={props.root}
           others={items.filter((_item, at) => at !== editingIndex)}
-          noteless={props.single === true}
+          note={editingIndex === null ? undefined : props.rule?.note(editingIndex)}
           onSave={(item) => {
             setEditing(null)
             if (editingIndex === null) add([item])
             else props.onChange(items.map((old, at) => (at === editingIndex ? item : old)))
           }}
           onRemove={
-            editingIndex === null || props.single === true
+            editingIndex === null || fixed
               ? undefined
               : () => {
                   setEditing(null)
@@ -221,7 +246,8 @@ export function ResourceItems(props: {
 }
 
 /**
- * 清单里的一行：图标、名字、位置，有说明的挂一个「说明」小签；这一块就是「打开它」的按钮。
+ * 清单里的一行：图标、名字、位置，有说明的挂一个「说明」小签（有默认说明的一直挂，没改过写「默认说明」）；
+ * 这一块就是「打开它」的按钮。
  * 「移除」在行尾自己占一格（悬停或聚焦时才显出来，红色），不压在任何东西上面。
  */
 function ItemRow(props: {
@@ -231,16 +257,19 @@ function ItemRow(props: {
   written: boolean
   root: string | undefined
   onOpen(): void
-  /** 不给 = 这一项不能删（记忆）。 */
+  /** 不给 = 这一项不能删（内容固定的预设）。 */
   onRemove: (() => void) | undefined
-  /** 挂「说明」小签（记忆不挂：它的说明是记忆提示词，在面板里单独一块）。 */
-  showNote: boolean
+  /** 预设给的默认说明；不给按普通资源（有说明才挂小签）。 */
+  note: ItemNote | undefined
 }): React.JSX.Element {
   const { t, item } = props
   const name = itemName(item)
   const blank = name === ''
   const where = itemLocation(item, props.root, props.written)
-  const note = props.showNote ? (item.note?.trim() ?? '') : ''
+  const own = item.note?.trim() ?? ''
+  const fallback = props.note?.fallback.trim()
+  const custom = own !== '' && own !== fallback
+  const note = custom ? own : (fallback ?? '')
   return (
     <li
       className={cx(css.row, ui.rise)}
@@ -267,8 +296,13 @@ function ItemRow(props: {
               : where.text}
         </span>
         {note !== '' && (
-          <span className={css.rowNote} data-tip={note}>
-            {t('res.note')}
+          <span
+            className={css.rowNote}
+            data-tip={note}
+            data-custom={props.note === undefined ? undefined : custom}
+            data-testid="wl-resource-item-note"
+          >
+            {t(custom || props.note === undefined ? 'res.note' : 'res.noteDefault')}
           </span>
         )}
       </button>

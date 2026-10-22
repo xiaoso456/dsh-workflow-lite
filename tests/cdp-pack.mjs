@@ -3,7 +3,7 @@
  *
  * 建一张读一个绝对路径文件（再加一个本机已装的 skill，有的话）的工作流、存一版 →
  * 导出：选版本 → 资源清单（文件缺省勾上）→ 下载 zip →
- * 导入同一个包：名字撞了，另存为新名字（预览里写明资料放到哪、skill 内容一样跳过）→ 确认卡 → 落盘、图里改成 {assets}/… →
+ * 导入同一个包：名字撞了，另存为新名字（预览里写明资料放到哪、skill 内容一样跳过）→ 确认卡 → 落盘、图里改成 {workflow}/… →
  * 再导入一次，选并入：版本全都重复，不再存。
  * 另外导出成 skill：换到「Skill」→ 单选版本 → 资源 → Skill 信息（名字、预填的描述、SKILL.md 预览）→
  * 下载 zip（看包里的布局）→ 装到本机 → 再装一次要先确认覆盖。
@@ -389,8 +389,8 @@ async function run(session) {
   const copied = await rpc('graph/load', { name: COPY })
   const text = JSON.stringify(copied.document)
   check(
-    text.includes('{assets}/spec.md') && !text.includes(SPEC),
-    '导入的图应改写成 {assets}/spec.md',
+    text.includes('{workflow}/spec.md') && !text.includes(SPEC),
+    '导入的图应改写成 {workflow}/spec.md',
   )
   const copiedVersions = (await rpc('graph/versions', { name: COPY })).versions
   check(
@@ -406,9 +406,9 @@ async function run(session) {
   const plan = await rpc('plan/build', { name: COPY })
   check(plan.plan.includes(`/assets/${COPY}/spec.md`), '计划里应是资料目录下的绝对路径')
   await screenshot(session, 'pack-06-done.png')
-  pass('导入：落盘，版本号保留，图里是 {assets}/…，计划里是绝对路径')
+  pass('导入：落盘，版本号保留，图里是 {workflow}/…，计划里是绝对路径')
 
-  // 5) 并入原来那张（编辑页正开着它）：包里的 v1 路径改成了 {assets}/…，和本机 v1 不一样，存成 v2；
+  // 5) 并入原来那张（编辑页正开着它）：包里的 v1 路径改成了 {workflow}/…，和本机 v1 不一样，存成 v2；
   //    编辑页按磁盘重新加载，不拿旧图覆盖回去。
   async function mergeBack() {
     await session.evaluate(clickTestId('wl-hub-wf-import'))
@@ -429,7 +429,7 @@ async function run(session) {
     '应多出 v2 且现在就是它',
   )
   const reloaded = JSON.stringify((await rpc('graph/load', { name: NAME })).document)
-  check(reloaded.includes('{assets}/spec.md'), '编辑页不该拿旧图盖回去')
+  check(reloaded.includes('{workflow}/spec.md'), '编辑页不该拿旧图盖回去')
   pass('导入：并入正开着的那张，新增 v2，编辑页重新加载')
 
   // 6) 同一个包再并一次：和 v2 一样，不再存。

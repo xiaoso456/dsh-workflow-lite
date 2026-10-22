@@ -15,6 +15,7 @@
 import { isStepColor, isStepIcon } from './appearance.ts'
 import { COORD_DECIMALS } from './limits.ts'
 import { normalizeRoot, WORKSPACE_ROOT } from './outputPaths.ts'
+import { upgradeWorkflowPath } from './pathVars.ts'
 import {
   DEFAULT_MEMORY_SCOPE,
   type EdgeData,
@@ -335,7 +336,10 @@ export function readResourceData(raw: unknown): ResourceData {
       if (!isPlainObject(entry) || typeof entry.value !== 'string') continue
       const kind = RESOURCE_KINDS.find((candidate) => candidate === entry.kind)
       if (kind === undefined) continue
-      const item: ResourceItem = { kind, value: entry.value }
+      // 文件、文件夹路径里旧的 `{assets}/…` 读进来就换成 `{workflow}/…`，存盘时写新的。
+      const value =
+        kind === 'file' || kind === 'folder' ? upgradeWorkflowPath(entry.value) : entry.value
+      const item: ResourceItem = { kind, value }
       const note = kind === 'text' ? undefined : filled(entry.note)
       if (note !== undefined) item.note = note
       data.items.push(item)

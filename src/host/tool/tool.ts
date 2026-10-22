@@ -22,6 +22,8 @@ import { analyzeGraph, compareByCodepoint } from '../../shared/graph.ts'
 import { inputKind, inputReaders, orderedInputs, stepInputs } from '../../shared/inputs.ts'
 import { canonicalOutput, idKey, isInput, isResource, isStep } from '../../shared/model.ts'
 import { checkName } from '../../shared/naming.ts'
+import { DEFAULT_OUTPUT_ROOT, WORKSPACE_ROOT } from '../../shared/outputPaths.ts'
+import { INSTANCE_VAR } from '../../shared/pathVars.ts'
 import { outputsOf, resourceGraph, stepResources } from '../../shared/resources.ts'
 import { NODE_STATUSES, RUN_STATUSES } from '../../shared/runState.ts'
 import type {
@@ -1016,8 +1018,7 @@ export const PARAMETERS = {
   },
   output_root: {
     type: 'string',
-    description:
-      'configure：产出根目录（相对工作区或绝对路径），编译时拼在每个产出文件前面；{instance} 换成实例 id。空串 = 清除（默认 .workflow-lite/runs/{instance}/out），. = 工作区根目录。',
+    description: `configure：产出根目录（相对工作区或绝对路径），编译时拼在每个产出文件前面；${INSTANCE_VAR} 换成实例 id。空串 = 清除（默认 ${DEFAULT_OUTPUT_ROOT}），${WORKSPACE_ROOT} = 工作区根目录。`,
   },
   run_state: {
     type: 'boolean',

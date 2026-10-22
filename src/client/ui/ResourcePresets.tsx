@@ -5,26 +5,29 @@
  * 上面选卡片的颜色，下面一格一种类型（悬停看名字和说明）。选了就换，内容不合换不了的置灰、悬停说原因。
  *
  * 规矩（打上、摘掉时内容和连线怎么变）在 `shared/presets.ts` 的 `PRESET_SPECS`；这里只管名字、图标、颜色和配置块。
- * 加新预设：在 {@link PRESET_UI} 加一行（名字、默认颜色、图标），配置块按需填 `head`（内容上面）/ `tail`（内容下面）。
+ * 加新预设：在 {@link PRESET_UI} 加一行（名字、默认颜色、图标），配置块按需填 `head`（内容上面）/ `tail`（内容下面），
+ * 内容清单有自己的规矩（固定几项、每项的默认说明）就填 `items`——清单和编辑框照普通资源的样子画，不另起一块。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/ResourcePresets
  */
 
 import { isStepColor, type StepColor } from '../../shared/appearance.ts'
 import {
+  defaultFolderPrompt,
   defaultMemoryPrompt,
+  memoryFolder,
   memoryOf,
   onDefaultPath,
   type PresetRefusal,
   presetRefusal,
   rescopeMemory,
+  setMemoryFolder,
 } from '../../shared/presets.ts'
 import {
   MEMORY_SCOPES,
   type MemoryScope,
   RESOURCE_PRESETS,
   type ResourceData,
-  type ResourceItem,
   type ResourceNode,
   type ResourcePresetKind,
 } from '../../shared/types.ts'
@@ -32,10 +35,10 @@ import type { LocaleKey, T } from '../i18n.ts'
 import type { Edit } from '../model/editor.ts'
 import { LookPicker } from './AppearancePicker.tsx'
 import { Icon, type IconName } from './Icon.tsx'
+import input from './input.module.css'
 import ins from './inspector.module.css'
-import { PreviewCard } from './PreviewCard.tsx'
-import { cx } from './primitives.tsx'
-import res from './resource.module.css'
+import { SwitchTrack } from './motion.tsx'
+import type { ItemNote, ItemsRule } from './ResourceItems.tsx'
 import { Segmented } from './Segmented.tsx'
 import ui from './ui.module.css'
 
@@ -68,6 +71,8 @@ interface PresetUi extends TypeUi {
   head?(props: PresetBlockProps): React.JSX.Element
   /** 内容下面的快捷配置。 */
   tail?(props: PresetBlockProps): React.JSX.Element
+  /** 内容清单的规矩（固定几项、每项的名字与默认说明）。 */
+  items?(props: PresetBlockProps): ItemsRule
 }
 
 const PLAIN_UI: TypeUi = {
@@ -83,16 +88,13 @@ export const PRESET_UI: Record<ResourcePresetKind, PresetUi> = {
     color: 'amber',
     desc: 'preset.memoryDesc',
     icon: 'memory',
-    head: MemoryScopeField,
-    tail: (props) => (
-      <MemoryPromptField
-        t={props.t}
-        node={props.node}
-        global={props.shared}
-        onPatch={(items) => props.patch({ items }, 'prompt')}
-        onSeal={props.onSeal}
-      />
+    head: (props) => (
+      <>
+        <MemoryScopeField {...props} />
+        <MemoryFolderField {...props} />
+      </>
     ),
+    items: (props) => ({ fixed: true, note: (index) => memoryNote(props, index) }),
   },
 }
 
@@ -184,6 +186,12 @@ export function ResourceTypePicker(props: {
   )
 }
 
+/** 当前预设给内容清单的规矩；普通资源（或预设没写）不给。 */
+export function presetItems(props: PresetBlockProps): ItemsRule | undefined {
+  const kind = props.node.data.preset?.kind
+  return kind === undefined ? undefined : PRESET_UI[kind].items?.(props)
+}
+
 /** 当前预设的配置块（`slot` 指内容的上面还是下面）；普通资源没有。 */
 export function PresetBlock(props: PresetBlockProps & { slot: 'head' | 'tail' }): React.ReactNode {
   const kind = props.node.data.preset?.kind
@@ -205,6 +213,35 @@ const SCOPE_TIP = {
 } as const satisfies Record<MemoryScope, LocaleKey>
 
 /** 范围：只换默认路径（路径改过就不动）。 */
+/**
+ * 工具文件夹：开了在记忆文件旁边带一个同名文件夹，放下次能直接复用的脚本、模板；
+ * 关掉只是从卡上拿掉，磁盘上的东西不动。默认提示词跟着多两条怎么放、怎么清。
+ */
+function MemoryFolderField(props: PresetBlockProps): React.JSX.Element {
+  const { t, node, workflow } = props
+  const on = memoryFolder(node.data) !== undefined
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-disabled={workflow === null ? true : undefined}
+      className={input.required}
+      data-testid="wl-memory-folder"
+      onClick={() => {
+        if (workflow === null) return
+        props.patch({ items: setMemoryFolder(node.data, !on, workflow, node.id).items })
+      }}
+    >
+      <SwitchTrack on={on} />
+      <span className={input.requiredText}>
+        <span className={input.requiredTitle}>{t('mem.folder')}</span>
+        <span className={input.requiredDesc}>{t('mem.folderDesc')}</span>
+      </span>
+    </button>
+  )
+}
+
 function MemoryScopeField(props: PresetBlockProps): React.JSX.Element {
   const { t, node, workflow } = props
   const memory = memoryOf(node.data)
@@ -233,85 +270,35 @@ function MemoryScopeField(props: PresetBlockProps): React.JSX.Element {
   )
 }
 
+/** 记忆的两项（记忆文件、工具文件夹）各自的名字与默认说明。 */
+const MEMORY_ITEMS = [
+  {
+    title: 'mem.file',
+    label: 'mem.prompt',
+    hint: { step: 'mem.hint', global: 'mem.globalHint' },
+    fallback: defaultMemoryPrompt,
+  },
+  {
+    title: 'mem.folder',
+    label: 'mem.folderPrompt',
+    hint: { step: 'mem.folderHint', global: 'mem.folderHint' },
+    fallback: defaultFolderPrompt,
+  },
+] as const
+
 /**
- * 记忆提示词：这份记忆怎么读、什么时候写、怎么写，存在文件项的说明里，空着就是默认的那份。
- * 改的时候原样存（删空了也不立刻跳回默认，免得字跳来跳去）；改完（关弹窗）删空了或改回默认的就清掉说明，
- * 之后默认措辞改进了它也跟着变。
+ * 记忆文件 / 工具文件夹的说明：怎么读、什么时候写、怎么写，存在那一项自己的说明里，空着就是默认的那份。
+ * 说明里的 `{记忆文件}` / `{工具文件夹}` 交出去时换成实际路径。
  */
-function MemoryPromptField(props: {
-  t: T
-  node: ResourceNode
-  global: boolean
-  onPatch(items: ResourceItem[]): void
-  onSeal(): void
-}): React.JSX.Element {
-  const { t, node } = props
-  const fallback = defaultMemoryPrompt(props.global)
-  const note = node.data.items[0]?.note
-  const text = note ?? fallback
-  const custom = note !== undefined && note.trim() !== '' && note.trim() !== fallback
-  const setNote = (value: string | undefined): void =>
-    props.onPatch(
-      node.data.items.map((item, index) => {
-        if (index !== 0) return item
-        const { note: _old, ...rest } = item
-        return value === undefined ? rest : { ...rest, note: value }
-      }),
-    )
-  const name = t(props.global ? 'mem.global' : 'mem.title')
-  return (
-    <PreviewCard
-      t={t}
-      label={
-        <>
-          {t('mem.prompt')}
-          <span className={res.promptTag} data-custom={custom} data-testid="wl-memory-prompt-tag">
-            {t(custom ? 'mem.promptCustom' : 'mem.promptDefault')}
-          </span>
-        </>
-      }
-      text={text}
-      name={name}
-      badge={
-        <span className={res.promptBadge}>
-          <Icon name="memory" size={15} />
-        </span>
-      }
-      meta={`${t('mem.prompt')} · ${[...text].length} ${t('ins.chars')}`}
-      copyLabel={t('mem.promptCopy')}
-      desktop={undefined}
-      testId="wl-memory-prompt"
-      lines={6}
-      help={t(props.global ? 'mem.globalHint' : 'mem.hint')}
-      actions={
-        custom ? (
-          <button
-            type="button"
-            className={cx(ui.btn, ui.icon, ui.small)}
-            data-tip={t('mem.promptReset')}
-            aria-label={t('mem.promptReset')}
-            data-testid="wl-memory-prompt-reset"
-            onClick={() => {
-              setNote(undefined)
-              props.onSeal()
-            }}
-          >
-            <Icon name="restore" size={14} />
-          </button>
-        ) : undefined
-      }
-      edit={{
-        placeholder: t('mem.promptPlaceholder'),
-        testId: 'wl-memory-prompt-input',
-        onChange: (value) => setNote(value),
-        onSeal: () => {
-          const current = node.data.items[0]?.note
-          if (current !== undefined && (current.trim() === '' || current.trim() === fallback)) {
-            setNote(undefined)
-          }
-          props.onSeal()
-        },
-      }}
-    />
-  )
+function memoryNote(props: PresetBlockProps, index: number): ItemNote | undefined {
+  const part = MEMORY_ITEMS[index]
+  if (part === undefined) return undefined
+  const { t, shared } = props
+  return {
+    title: t(part.title),
+    label: t(part.label),
+    fallback: part.fallback(shared),
+    hint: `${t(shared ? part.hint.global : part.hint.step)}${t('mem.tokens')}`,
+    placeholder: t('mem.promptPlaceholder'),
+  }
 }

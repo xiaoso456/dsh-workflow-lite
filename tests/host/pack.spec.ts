@@ -9,11 +9,11 @@ import { exportPack, type PackDeps, scanPack } from '../../src/host/pack/exporte
 import { applyPack, inspectPack, openPack, renameSkillDoc } from '../../src/host/pack/importer.ts'
 import { appendChunk, readChunk } from '../../src/host/pack/staging.ts'
 import { compileWorkflow } from '../../src/host/plan.ts'
-import { assetsDir, pathKind, workflowFile } from '../../src/host/store/paths.ts'
+import { assetsDir, pathKind, versionFile, workflowFile } from '../../src/host/store/paths.ts'
 import { createRepository, type Outcome, type Repository } from '../../src/host/store/repository.ts'
 import { pluginVersion } from '../../src/host/version.ts'
 import { readDocument } from '../../src/shared/model.ts'
-import { PACK_CHUNK_BYTES, PACK_FORMAT, PACK_KIND } from '../../src/shared/pack.ts'
+import { PACK_CHUNK_BYTES, PACK_FORMAT, PACK_KIND, PACK_PATHS } from '../../src/shared/pack.ts'
 import {
   NODE_TYPE,
   RESOURCE_TYPE,
@@ -172,7 +172,7 @@ async function sourceSide(): Promise<{ from: Side; ext: string; items: ResourceI
     { kind: 'file', value: 'README.md' },
     { kind: 'skill', value: 'my-skill' },
     { kind: 'skill', value: 'web' },
-    { kind: 'file', value: '{assets}/notes.md' },
+    { kind: 'file', value: '{workflow}/notes.md' },
     { kind: 'url', value: 'https://example.com' },
   ]
   await makeWorkflow(from.repository, 'review', [graph(items, '第一版'), graph(items, '第二版')])
@@ -184,13 +184,17 @@ describe('导出盘点', () => {
     const { from } = await sourceSide()
     const scan = expectOk(await scanPack(from.deps, { name: 'review', versions: [1, 2] }))
     const by = (value: string) => scan.items.find((item) => item.value.endsWith(value))
-    expect(by('spec.md')).toMatchObject({ state: 'pack', as: '{assets}/spec.md', versions: [1, 2] })
-    expect(by('docs')).toMatchObject({ state: 'pack', as: '{assets}/docs', files: 1, skipped: 1 })
+    expect(by('spec.md')).toMatchObject({
+      state: 'pack',
+      as: '{workflow}/spec.md',
+      versions: [1, 2],
+    })
+    expect(by('docs')).toMatchObject({ state: 'pack', as: '{workflow}/docs', files: 1, skipped: 1 })
     expect(by('README.md')?.state).toBe('relative')
     expect(by('report.md')?.state).toBe('output')
     expect(by('my-skill')).toMatchObject({ state: 'pack', files: 2, source: 'user' })
     expect(by('web')?.state).toBe('builtin')
-    expect(by('{assets}/notes.md')?.state).toBe('assets')
+    expect(by('{workflow}/notes.md')?.state).toBe('assets')
     expect(scan.assets).toMatchObject({ files: 1 })
     // 网址、自定义文本不是外部资源，不进清单
     expect(scan.items.some((item) => item.kind === 'url')).toBe(false)
@@ -201,7 +205,7 @@ describe('导出盘点', () => {
     await writeFile(join(assetsDir(from.dataDir, 'review'), 'spec.md'), '已有')
     const scan = expectOk(await scanPack(from.deps, { name: 'review', versions: [2] }))
     expect(scan.items.find((item) => item.value.endsWith('ext/spec.md'))?.as).toBe(
-      '{assets}/spec-2.md',
+      '{workflow}/spec-2.md',
     )
   })
 
@@ -222,7 +226,7 @@ describe('导出盘点', () => {
 })
 
 describe('导出 → 导入（新工作流）', () => {
-  it('来回一趟：版本号、资料、skill 都在，图里改成 {assets}，计划里是绝对路径', async () => {
+  it('来回一趟：版本号、资料、skill 都在，图里改成 {workflow}，计划里是绝对路径', async () => {
     const { from } = await sourceSide()
     const scan = expectOk(await scanPack(from.deps, { name: 'review', versions: [1, 2] }))
     const pack = scan.items.filter((item) => item.state === 'pack').map((item) => item.key)
@@ -236,7 +240,7 @@ describe('导出 → 导入（新工作流）', () => {
     const original = readDocument(
       (await readFile(workflowFile(from.dataDir, 'review'), 'utf8')) ?? '',
     )
-    expect(JSON.stringify(original.document)).not.toContain('{assets}/spec.md')
+    expect(JSON.stringify(original.document)).not.toContain('{workflow}/spec.md')
 
     const opened = expectOk(openPack(zip))
     expect(opened.manifest).toMatchObject({
@@ -287,8 +291,8 @@ describe('导出 → 导入（新工作流）', () => {
     ])
     const loaded = await to.repository.load('review')
     const values = JSON.stringify(loaded.document)
-    expect(values).toContain('{assets}/spec.md')
-    expect(values).toContain('{assets}/docs')
+    expect(values).toContain('{workflow}/spec.md')
+    expect(values).toContain('{workflow}/docs')
     expect(values).toContain('第二版')
     expect(await readFile(join(assetsDir(to.dataDir, 'review'), 'docs', 'a.md'), 'utf8')).toBe('A')
     expect(await pathKind(join(assetsDir(to.dataDir, 'review'), 'docs', '.git'))).toBe('missing')
@@ -296,7 +300,7 @@ describe('导出 → 导入（新工作流）', () => {
 
     const plan = expectOk(await compileWorkflow(to.repository, to.dataDir, 'review'))
     expect(plan.plan).toContain(slash(join(assetsDir(to.dataDir, 'review'), 'spec.md')))
-    expect(plan.plan).not.toContain('{assets}')
+    expect(plan.plan).not.toContain('{workflow}')
 
     // 用完暂存就删了。
     expect(expectError(await inspectPack(to.deps, { token })).code).toBe('not_found')
@@ -561,6 +565,111 @@ describe('renameSkillDoc', () => {
       '---\r\nname: b\r\ndescription: d\r\n---\r\nbody',
     )
     expect(renameSkillDoc('just text', 'b')).toBe('just text')
+  })
+})
+
+/** 把文件里的 `{workflow}/` 改回旧写法 `{assets}/`（模拟 0.4.0 – 0.6.0 留下的数据）。 */
+async function toLegacy(file: string): Promise<void> {
+  const text = await readFile(file, 'utf8')
+  expect(text).toContain('{workflow}/')
+  await writeFile(file, text.replaceAll('{workflow}/', '{assets}/'))
+}
+
+describe('旧写法 {assets}（0.4.0 – 0.6.0 的数据）', () => {
+  it('磁盘上的旧图：打开、编译、导出、导入都按工作流目录走，写出来的是 {workflow}', async () => {
+    const { from } = await sourceSide()
+    for (const file of [
+      workflowFile(from.dataDir, 'review'),
+      versionFile(from.dataDir, 'review', 1),
+      versionFile(from.dataDir, 'review', 2),
+    ]) {
+      await toLegacy(file)
+    }
+
+    const loaded = await from.repository.load('review')
+    expect(JSON.stringify(loaded.document)).toContain('{workflow}/notes.md')
+    expect(JSON.stringify(loaded.document)).not.toContain('{assets}')
+    const version = expectOk(await from.repository.readVersion('review', 1))
+    expect(JSON.stringify(version.document)).toContain('{workflow}/notes.md')
+
+    const plan = expectOk(await compileWorkflow(from.repository, from.dataDir, 'review'))
+    expect(plan.plan).toContain(slash(join(assetsDir(from.dataDir, 'review'), 'notes.md')))
+    expect(plan.plan).not.toContain('{assets}')
+
+    const scan = expectOk(await scanPack(from.deps, { name: 'review', versions: [1, 2] }))
+    expect(scan.items.find((item) => item.value.endsWith('notes.md'))).toMatchObject({
+      value: '{workflow}/notes.md',
+      state: 'assets',
+    })
+    const pack = scan.items.filter((item) => item.state === 'pack').map((item) => item.key)
+    const exported = expectOk(
+      await exportPack(from.deps, { name: 'review', versions: [1, 2], pack }),
+    )
+    const zip = await download(from.dataDir, exported.token)
+    const opened = expectOk(openPack(zip))
+    for (const n of [1, 2]) {
+      const text = new TextDecoder().decode(opened.entries.get(PACK_PATHS.version(n)))
+      expect(text).toContain('{workflow}/notes.md')
+      expect(text).toContain('{workflow}/spec.md')
+      expect(text).not.toContain('{assets}')
+    }
+
+    const to = await side('to', [{ name: 'web' }])
+    const token = await upload(to.dataDir, zip)
+    expectOk(await applyPack(to.deps, { token, mode: 'new', name: 'review' }))
+    expect(await readFile(join(assetsDir(to.dataDir, 'review'), 'notes.md'), 'utf8')).toBe('笔记')
+    const imported = await readFile(workflowFile(to.dataDir, 'review'), 'utf8')
+    expect(imported).toContain('{workflow}/notes.md')
+    expect(imported).not.toContain('{assets}')
+
+    // 旧图存一次，磁盘上就是新写法。
+    expectOk(
+      await from.repository.save('review', loaded.document as WorkflowDocument, {
+        baseHash: loaded.hash ?? null,
+      }),
+    )
+    const saved = await readFile(workflowFile(from.dataDir, 'review'), 'utf8')
+    expect(saved).toContain('{workflow}/notes.md')
+    expect(saved).not.toContain('{assets}')
+  })
+
+  it('0.6.0 导出的旧包：导入后图里是 {workflow}，计划里是绝对路径', async () => {
+    const { from } = await sourceSide()
+    const scan = expectOk(await scanPack(from.deps, { name: 'review', versions: [1, 2] }))
+    const pack = scan.items.filter((item) => item.state === 'pack').map((item) => item.key)
+    const exported = expectOk(
+      await exportPack(from.deps, { name: 'review', versions: [1, 2], pack }),
+    )
+    const opened = expectOk(openPack(await download(from.dataDir, exported.token)))
+    const legacy: Record<string, Uint8Array> = {}
+    for (const [path, data] of opened.entries) {
+      const text = path.startsWith('versions/') ? new TextDecoder().decode(data) : undefined
+      legacy[path] =
+        text === undefined ? data : strToU8(text.replaceAll('{workflow}/', '{assets}/'))
+    }
+    const old = zipSync(legacy)
+    expect(
+      new TextDecoder().decode(expectOk(openPack(old)).entries.get('versions/2.json')),
+    ).toContain('{assets}/spec.md')
+
+    const to = await side('to', [{ name: 'web' }])
+    const token = await upload(to.dataDir, old)
+    expectOk(await inspectPack(to.deps, { token }))
+    const applied = expectOk(await applyPack(to.deps, { token, mode: 'new', name: 'review' }))
+    expect(applied).toMatchObject({ versions: [1, 2], assets: 3 })
+
+    const loaded = JSON.stringify((await to.repository.load('review')).document)
+    expect(loaded).toContain('{workflow}/spec.md')
+    expect(loaded).toContain('{workflow}/notes.md')
+    expect(loaded).not.toContain('{assets}')
+    const v1 = await readFile(versionFile(to.dataDir, 'review', 1), 'utf8')
+    expect(v1).toContain('{workflow}/spec.md')
+    expect(v1).not.toContain('{assets}')
+
+    const plan = expectOk(await compileWorkflow(to.repository, to.dataDir, 'review'))
+    expect(plan.plan).toContain(slash(join(assetsDir(to.dataDir, 'review'), 'spec.md')))
+    expect(plan.plan).not.toContain('{assets}')
+    expect(plan.plan).not.toContain('{workflow}')
   })
 })
 

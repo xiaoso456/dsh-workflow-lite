@@ -17,7 +17,7 @@
  */
 
 import { PLAN_SECTIONS } from './limits.ts'
-import { INSTANCE_TOKEN } from './outputPaths.ts'
+import { INSTANCE_VAR } from './pathVars.ts'
 import type { ExecutionMode, ReusePolicy } from './types.ts'
 
 /** 「运行状态」段要的东西。 */
@@ -124,7 +124,7 @@ export const DSH_DIALECT: Dialect = {
 // ─────────────────────────────────────────────────────────────
 
 /** 通用口径的状态文件（相对工作区）：和默认的产出根目录 `.workflow-lite/runs/{instance}/out` 放在一起。 */
-export const PORTABLE_STATE_FILE = `.workflow-lite/runs/${INSTANCE_TOKEN}/state.yaml`
+export const PORTABLE_STATE_FILE = `.workflow-lite/runs/${INSTANCE_VAR}/state.yaml`
 
 /** 状态文件所在的那一层（找上次没走完的状态文件时看这里）。 */
 const PORTABLE_RUNS_DIR = '.workflow-lite/runs/'
@@ -141,7 +141,7 @@ export function portableRunStateLines(facts: RunStateFacts): string[] {
   const initial = [
     '```yaml',
     `workflow: ${facts.workflow}`,
-    `instance: "${INSTANCE_TOKEN}"`,
+    `instance: "${INSTANCE_VAR}"`,
     'status: pending',
     'updatedAt: ""',
     'note: ""',
@@ -152,7 +152,7 @@ export function portableRunStateLines(facts: RunStateFacts): string[] {
   ]
   return [
     PLAN_SECTIONS.runState,
-    `这次执行要把进度记在一份状态文件里：${code(file)}（相对工作区，${code(INSTANCE_TOKEN)} 换成这次的编号）。中断之后靠它接着做，用户也靠它看进度。`,
+    `这次执行要把进度记在一份状态文件里：${code(file)}（相对工作区，${code(INSTANCE_VAR)} 换成这次的编号）。中断之后靠它接着做，用户也靠它看进度。`,
     '',
     recorderLine(
       '由你来记，直接编辑这份文件。',

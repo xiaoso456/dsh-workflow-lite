@@ -14,6 +14,7 @@
 
 import { type ComponentProps, useEffect, useState } from 'react'
 import type { PackScanItem, PackScanResponse } from '../../shared/pack.ts'
+import { workflowRelative } from '../../shared/pathVars.ts'
 import { SKILL_PATHS, suggestSkillName } from '../../shared/skillPack.ts'
 import type { ResourceKind, VersionEntry } from '../../shared/types.ts'
 import { downloadPack, saveFile } from '../app/packTransfer.ts'
@@ -449,7 +450,7 @@ function Resources(props: {
       item.kind === 'skill'
         ? `skills/${item.value}/`
         : skill && item.as !== undefined
-          ? SKILL_PATHS.asset(item.as.slice('{assets}/'.length))
+          ? SKILL_PATHS.asset(workflowRelative(item.as))
           : (item.as ?? '')
     return (
       <PackRow

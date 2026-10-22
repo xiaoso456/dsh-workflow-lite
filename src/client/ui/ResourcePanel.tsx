@@ -29,7 +29,7 @@ import { EDIT_VIEW, useResizeFlip, useSwap } from './motion.tsx'
 import { ResourceHead } from './NodeHeads.tsx'
 import { cx } from './primitives.tsx'
 import { ResourceItems } from './ResourceItems.tsx'
-import { PresetBlock, ResourceTypePicker } from './ResourcePresets.tsx'
+import { PresetBlock, presetItems, ResourceTypePicker } from './ResourcePresets.tsx'
 import { ModeToggle } from './Resources.tsx'
 import res from './resource.module.css'
 import { stepName } from './resourceUi.ts'
@@ -143,7 +143,15 @@ export function ResourcePanel(props: {
 
         <section className={ins.field} data-testid="wl-resource-items">
           <div className={ins.label}>
-            <span>{t(memory === undefined ? 'res.items' : 'mem.file')}</span>
+            <span>
+              {t(
+                memory === undefined
+                  ? 'res.items'
+                  : node.data.items.length > 1
+                    ? 'mem.files'
+                    : 'mem.file',
+              )}
+            </span>
             {memory === undefined && node.data.items.length > 0 && (
               <span className={ins.count}>
                 {t('res.itemCount').replace('{n}', String(node.data.items.length))}
@@ -158,7 +166,7 @@ export function ResourcePanel(props: {
             written={written}
             root={normalizeRoot(rootOf(doc.settings))}
             onChange={(items: ResourceItem[]) => patch({ items })}
-            single={memory !== undefined}
+            rule={presetItems(presetProps)}
           />
           {memory !== undefined && <p className={ins.help}>{t('mem.fileHint')}</p>}
         </section>

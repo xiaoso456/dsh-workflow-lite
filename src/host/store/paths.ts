@@ -93,7 +93,7 @@ export function versionFile(dataDir: string, name: string, n: number): string {
   return join(versionsDir(dataDir, name), `${n}${JSON_SUFFIX}`)
 }
 
-/** `<dataDir>/assets/<图名>/`：工作流资料目录（图里的 `{assets}/…`）。 */
+/** `<dataDir>/assets/<图名>/`：工作流目录（图里的 `{workflow}/…`）。 */
 export function assetsDir(dataDir: string, name: string): string {
   return join(dataDir, ASSETS_DIR, name)
 }

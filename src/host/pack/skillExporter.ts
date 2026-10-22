@@ -17,9 +17,10 @@ import { zipSync } from 'fflate'
 import { buildPlan, buildTaskTexts, type SkillPlan } from '../../shared/compile.ts'
 import { analyzeGraph } from '../../shared/graph.ts'
 import { isStep } from '../../shared/model.ts'
-import { assetsRelative, INSTANCE_TOKEN, isAssetsPath, rootOf } from '../../shared/outputPaths.ts'
+import { rootOf } from '../../shared/outputPaths.ts'
 import { PACK_MAX_BYTES, PACK_MAX_FILES } from '../../shared/pack.ts'
-import { bindAssets, resourceGraph } from '../../shared/resources.ts'
+import { INSTANCE_VAR, isWorkflowPath, skillPath, workflowRelative } from '../../shared/pathVars.ts'
+import { bindWorkflowDir, resourceGraph } from '../../shared/resources.ts'
 import {
   checkSkillMeta,
   SKILL_ASSETS,
@@ -30,7 +31,6 @@ import {
   type SkillExportResponse,
   type SkillPreviewResponse,
   skillDoc,
-  skillPath,
 } from '../../shared/skillPack.ts'
 import type { ErrorCode, ValidationProblem, WorkflowDocument } from '../../shared/types.ts'
 import { pathKind } from '../store/paths.ts'
@@ -156,7 +156,7 @@ async function buildSkill(
     }
     const tree = trees.get(item.key)
     if (tree === undefined || item.as === undefined) continue
-    const name = item.as.slice('{assets}/'.length)
+    const name = workflowRelative(item.as)
     const read = await readTree(tree)
     for (const file of read.files) {
       const path = item.kind === 'file' ? name : `${name}/${file.path}`
@@ -165,10 +165,10 @@ async function buildSkill(
     renames.set(item.key, item.as)
   }
 
-  // 图：打包的换成 `{assets}/…`，资料目录再换成 `{skill}/assets/…`；产出根目录写实（没配就是默认值）。
+  // 图：打包的换成 `{workflow}/…`，工作流目录再换成 `{skill}/assets/…`；产出根目录写实（没配就是默认值）。
   const rewritten = rewriteForPack(original, renames)
   const document: WorkflowDocument = {
-    ...bindAssets(rewritten, SKILL_ASSETS),
+    ...bindWorkflowDir(rewritten, SKILL_ASSETS),
     settings: { ...rewritten.settings, outputRoot: rootOf(rewritten.settings) },
   }
   const problems: ValidationProblem[] = deps.validate?.(original, request.name) ?? []
@@ -182,7 +182,7 @@ async function buildSkill(
   const skill: SkillPlan = { bundled, needs, absolute }
   // 开了「记录运行状态」：skill 里没有插件，改成模型自己维护状态文件（编号由执行者开始时取）。
   const runState =
-    original.settings?.runState === true ? { runState: { instance: INSTANCE_TOKEN } } : {}
+    original.settings?.runState === true ? { runState: { instance: INSTANCE_VAR } } : {}
   const plan = buildPlan(facts, analysis, { problems, skill, ...runState })
   if (plan.problems.length === 0) {
     const encoder = new TextEncoder()
@@ -196,8 +196,8 @@ async function buildSkill(
   for (const info of resourceGraph(original).values()) {
     if (info.writers.length === 0) continue
     for (const item of info.resource.data.items) {
-      if ((item.kind === 'file' || item.kind === 'folder') && isAssetsPath(item.value)) {
-        writtenAssets.push(SKILL_PATHS.asset(assetsRelative(item.value)).replace(/\/$/u, ''))
+      if ((item.kind === 'file' || item.kind === 'folder') && isWorkflowPath(item.value)) {
+        writtenAssets.push(SKILL_PATHS.asset(workflowRelative(item.value)).replace(/\/$/u, ''))
       }
     }
   }

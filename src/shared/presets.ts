@@ -7,25 +7,27 @@
  * 打上时怎么补内容、改连线，内容不合时拒绝，摘掉时怎么还原。以后的预设加在那张表里。
  *
  * 记忆：
- * - 一个文件。有步骤写它（步骤 → 记忆）= 那一步自己的记忆；一条线都没连 = 全局记忆；
+ * - 一个记忆文件（经验条目），可以再带一个工具文件夹（下次能直接复用的脚本、模板）。
+ *   有步骤写它（步骤 → 记忆）= 那一步自己的记忆；一条线都没连 = 全局记忆；
  * - 相对路径一律相对工作区，不拼产出根目录（产出根目录默认每次执行一个，记忆要跨执行留下来）；
- * - 默认路径带着记忆卡的 id（同一个工作流里不会撞）：
- *   - 本工作区：`.workflow-lite/memory/<工作流>/<卡 id>.md`，只在这个工作区、这个工作流里用；
- *   - 本工作流：`{assets}/memory/<卡 id>.md`，放在工作流自己的资料目录里，换个工作区执行也是同一份，
- *     跟着工作流改名、导出。
+ * - 默认路径带着记忆卡的 id（同一个工作流里不会撞），工具文件夹和记忆文件同名、挨着放：
+ *   - 本工作区：`.workflow-lite/memory/<工作流>/<卡 id>.md`（+ `<卡 id>/`），只在这个工作区、这个工作流里用；
+ *   - 本工作流：`{workflow}/memory/<卡 id>.md`（+ `<卡 id>/`），放在工作流自己的目录里，
+ *     换个工作区执行也是同一份，跟着工作流改名、导出。
  *
  * 纯函数，不碰磁盘、不 import DSH 包。
  * @module @xiaoso/dsh-workflow-lite/shared/presets
  */
 
-import { MEMORY_MAX_ENTRIES } from './limits.ts'
+import { MEMORY_MAX_ENTRIES, MEMORY_MAX_TOOLS } from './limits.ts'
 import { idKey, isResource, isStep, makeEdgeId } from './model.ts'
-import { ASSETS_TOKEN } from './outputPaths.ts'
+import { isWorkflowPath, workflowPath, workflowRelative } from './pathVars.ts'
 import type {
   MemoryPreset,
   MemoryScope,
   Point,
   ResourceData,
+  ResourceItem,
   ResourceNode,
   ResourcePresetKind,
   WorkflowDocument,
@@ -37,8 +39,8 @@ import { DEFAULT_MEMORY_SCOPE, RESOURCE_TYPE } from './types.ts'
 /** 本工作区范围的记忆放在工作区的这个目录下（再分工作流）。 */
 export const MEMORY_DIR = '.workflow-lite/memory'
 
-/** 本工作流范围的记忆放在资料目录的这个子目录下。 */
-const ASSETS_MEMORY_DIR = `${ASSETS_TOKEN}/memory`
+/** 本工作流范围的记忆放在工作流目录的这个子目录下。 */
+const WORKFLOW_MEMORY_DIR = 'memory'
 
 /** 全局记忆的节点 id（撞名时加序号）。 */
 export const GLOBAL_MEMORY_ID = 'mem-global'
@@ -57,20 +59,71 @@ export function memoryIdFor(step: string): string {
   return `mem-${step}`
 }
 
-/** 默认路径：本工作区放在工作区里（分工作流），本工作流放在资料目录里。`id` 是记忆卡的 id。 */
+/** 默认路径：本工作区放在工作区里（分工作流），本工作流放在工作流目录里。`id` 是记忆卡的 id。 */
 export function memoryPath(scope: MemoryScope, workflow: string, id: string): string {
+  return `${memoryBase(scope, workflow, id)}.md`
+}
+
+/** 工具文件夹的默认路径：和记忆文件同名、挨着放。 */
+export function memoryFolderPath(scope: MemoryScope, workflow: string, id: string): string {
+  return memoryBase(scope, workflow, id)
+}
+
+function memoryBase(scope: MemoryScope, workflow: string, id: string): string {
   return scope === 'workflow'
-    ? `${ASSETS_MEMORY_DIR}/${id}.md`
-    : `${MEMORY_DIR}/${workflow}/${id}.md`
+    ? workflowPath(`${WORKFLOW_MEMORY_DIR}/${id}`)
+    : `${MEMORY_DIR}/${workflow}/${id}`
+}
+
+/** 记忆的工具文件夹（第二项，文件夹）；没带就是 `undefined`。 */
+export function memoryFolder(data: ResourceData): ResourceItem | undefined {
+  const second = data.items[1]
+  return second?.kind === 'folder' ? second : undefined
+}
+
+/** 记忆的内容合不合规矩：一个记忆文件，后面最多再跟一个工具文件夹。 */
+export function memoryItemsOk(items: readonly ResourceItem[]): boolean {
+  const [file, folder, ...rest] = items
+  return (
+    file?.kind === 'file' && rest.length === 0 && (folder === undefined || folder.kind === 'folder')
+  )
 }
 
 /**
- * 默认的记忆提示词：这一份记忆怎么读、什么时候写、怎么写。文件项的说明写了就用说明（用户改过的），
- * 空着就用它——默认的措辞以后改进了，没改过的记忆跟着变。
+ * 带上 / 去掉工具文件夹：带上时放在默认路径（按现在的范围）；去掉只是从卡上拿掉，磁盘上的东西不动。
+ * 不是记忆、没有变化时原样返回。
+ */
+export function setMemoryFolder(
+  data: ResourceData,
+  on: boolean,
+  workflow: string,
+  id: string,
+): ResourceData {
+  const memory = memoryOf(data)
+  const first = data.items[0]
+  if (memory === undefined || first === undefined) return data
+  const has = memoryFolder(data) !== undefined
+  if (on === has) return data
+  if (!on) return { ...data, items: [first] }
+  const folder: ResourceItem = {
+    kind: 'folder',
+    value: memoryFolderPath(memory.scope, workflow, id),
+  }
+  return { ...data, items: [first, folder] }
+}
+
+/**
+ * 记忆的两份说明：记忆文件一份（怎么读、什么时候写、条目怎么写），工具文件夹一份（放什么、怎么登记、怎么清）。
+ * 各存在自己那一项的说明里，用户能改；空着就用默认的——默认的措辞以后改进了，没改过的记忆跟着变。
+ * 说明里写 {@link MEMORY_FILE_TOKEN} / {@link MEMORY_FOLDER_TOKEN}，编译时换成实际路径（默认的也这样写）。
  *
  * 要防的是记忆越写越长、越写越具体：只在学到东西时写，写成换个任务也成立的规则，新的推翻旧的就改旧的
  * （Hermes 只在复杂成功 / 纠错 / 纠偏之后写、就地改优先；ExpeL 的增删改；AWM 把具体值抽象掉）。
+ * 工具文件夹同理：只留跑通过、参数化的，登记在记忆文件里，用不上就删（Voyager 的技能库：存可复用的程序，按用途检索）。
  */
+export const MEMORY_FILE_TOKEN = '{记忆文件}'
+export const MEMORY_FOLDER_TOKEN = '{工具文件夹}'
+
 const FORMAT_LINES = [
   '- 每条一行，写成「在什么情况下，怎么做（为什么）」，换一个任务也成立：去掉这一次特有的文件名、编号、数值，只对这一次成立的不写；不写过程、日志、本次结果、日期。',
   '- 写之前先找相近的条目：能合并就改那一条；被这次推翻的改掉或删掉；提到的文件、命令、接口已经不在了的删掉。',
@@ -78,25 +131,60 @@ const FORMAT_LINES = [
 ]
 
 export const STEP_MEMORY_PROMPT = [
-  '- 开始前先读（文件还不存在就是还没有记忆）；条目是提示不是命令，和眼前的情况冲突时以实际为准。',
-  '- 做完再看要不要改，只在这几种情况写：出过错又找到了对的做法；被用户纠正；发现了任务描述里没有、下次一定用得上的事实（命令、约定、坑）。顺利做完、没学到新东西，就不动它。',
+  `- 开始前先读 ${MEMORY_FILE_TOKEN}（还不存在就是还没有记忆）；条目是提示不是命令，和眼前的情况冲突时以实际为准。`,
+  '- 做完再看要不要改它，只在这几种情况写：出过错又找到了对的做法；被用户纠正；发现了任务描述里没有、下次一定用得上的事实（命令、约定、坑）。顺利做完、没学到新东西，就不动它。',
   ...FORMAT_LINES,
 ].join('\n')
 
 export const GLOBAL_MEMORY_PROMPT = [
-  '- 只收换个步骤也成立的经验：项目约定、环境事实、反复出现的坑；只和某一步有关的留给那一步自己的记忆。',
+  `- ${MEMORY_FILE_TOKEN} 只收换个步骤也成立的经验：项目约定、环境事实、反复出现的坑；只和某一步有关的留给那一步自己的记忆。`,
   ...FORMAT_LINES,
 ].join('\n')
 
-/** 默认的记忆提示词：全局记忆一份，步骤的记忆一份。 */
+const TOOL_LINES = [
+  '- 每放进一样，在记忆文件里记一条「什么时候用哪个、怎么调」；跑不通了、用不上了就删掉，连同那条记录。',
+  `- 只用一次的临时脚本不留；最多 ${MEMORY_MAX_TOOLS} 样，满了先删用不上的再放。`,
+]
+
+export const STEP_FOLDER_PROMPT = [
+  `- 开始前先看 ${MEMORY_FILE_TOKEN} 里登记的工具，能用现成的就不重写。`,
+  `- ${MEMORY_FOLDER_TOKEN} 放下次能直接拿来用的东西：脚本、模板、查询语句。只放这次跑通过的；写成参数化的（路径、名字从参数读，不写死这一次的值），开头注释写清用途和用法。`,
+  ...TOOL_LINES,
+].join('\n')
+
+export const GLOBAL_FOLDER_PROMPT = [
+  `- ${MEMORY_FOLDER_TOKEN} 放各步骤都能直接用的脚本、模板：只收跑通过、参数化的，开头注释写清用途和用法；用法登记在 ${MEMORY_FILE_TOKEN} 里。`,
+  ...TOOL_LINES,
+].join('\n')
+
+/** 记忆文件的默认说明：全局记忆一份，步骤的记忆一份。 */
 export function defaultMemoryPrompt(global: boolean): string {
   return global ? GLOBAL_MEMORY_PROMPT : STEP_MEMORY_PROMPT
 }
 
-/** 这份记忆实际用的提示词：文件项写了说明就是它，空着就是默认的。 */
+/** 工具文件夹的默认说明。 */
+export function defaultFolderPrompt(global: boolean): string {
+  return global ? GLOBAL_FOLDER_PROMPT : STEP_FOLDER_PROMPT
+}
+
+/** 记忆文件实际用的说明：写了就是它，空着就是默认的（占位还没换）。 */
 export function memoryPrompt(data: ResourceData, global: boolean): string {
   const note = data.items[0]?.note?.trim() ?? ''
   return note === '' ? defaultMemoryPrompt(global) : note
+}
+
+/** 工具文件夹实际用的说明；没带工具文件夹是 `undefined`。 */
+export function folderPrompt(data: ResourceData, global: boolean): string | undefined {
+  const folder = memoryFolder(data)
+  if (folder === undefined) return undefined
+  const note = folder.note?.trim() ?? ''
+  return note === '' ? defaultFolderPrompt(global) : note
+}
+
+/** 把说明里的占位换成实际路径（已经格式化好的，比如带反引号）；没有工具文件夹时那个占位原样留着。 */
+export function fillMemoryTokens(text: string, file: string, folder: string | undefined): string {
+  const filled = text.replaceAll(MEMORY_FILE_TOKEN, file)
+  return folder === undefined ? filled : filled.replaceAll(MEMORY_FOLDER_TOKEN, folder)
 }
 
 /**
@@ -110,21 +198,29 @@ export function memoryData(scope: MemoryScope, workflow: string, id: string): Re
   }
 }
 
-/** 两种范围的默认路径（{@link memoryPath}），捕获卡片 id。 */
-const WORKSPACE_PATH = /^\.workflow-lite\/memory\/[^/]+\/([^/]+)\.md$/u
-const WORKFLOW_PATH = /^\{assets\}\/memory\/([^/]+)\.md$/u
+/**
+ * 两种范围的默认路径（{@link memoryPath}、{@link memoryFolderPath}），捕获卡片 id；`.md` 是记忆文件，没有是工具文件夹。
+ * 本工作流那条对的是工作流目录里的相对部分（{@link workflowRelative}）。
+ */
+const WORKSPACE_PATH = /^\.workflow-lite\/memory\/[^/]+\/([^/]+?)(\.md)?$/u
+const WORKFLOW_PATH = /^memory\/([^/]+?)(\.md)?$/u
 
-/** 这个路径是不是这张记忆卡的默认路径（哪种范围、哪个工作流名都算）。 */
-function isDefaultPath(path: string, id: string): boolean {
-  const value = path.trim().replace(/\\/gu, '/').replace(/^\.\//u, '')
-  const found = WORKSPACE_PATH.exec(value) ?? WORKFLOW_PATH.exec(value)
-  return found !== null && idKey(found[1] as string) === idKey(id)
+/** 这一项是不是这张记忆卡的默认路径（哪种范围、哪个工作流名都算；文件要 `.md`，文件夹不带）。 */
+function isDefaultPath(item: ResourceItem, id: string): boolean {
+  const found = isWorkflowPath(item.value)
+    ? WORKFLOW_PATH.exec(workflowRelative(item.value).replace(/\/+$/u, ''))
+    : WORKSPACE_PATH.exec(
+        item.value.trim().replace(/\\/gu, '/').replace(/^\.\//u, '').replace(/\/+$/u, ''),
+      )
+  if (found === null || idKey(found[1] as string) !== idKey(id)) return false
+  return (found[2] !== undefined) === (item.kind === 'file')
 }
 
 /** 记忆文件还在默认路径上（没被改过）：换范围会跟着换。 */
 export function onDefaultPath(data: ResourceData, id: string): boolean {
-  const first = data.items[0]
-  return first?.kind === 'file' && isDefaultPath(first.value, id)
+  return data.items.every(
+    (item, index) => (index === 0 ? item.kind === 'file' : true) && isDefaultPath(item, id),
+  )
 }
 
 /**
@@ -139,11 +235,12 @@ export function rescopeMemory(
 ): ResourceData {
   const memory = memoryOf(data)
   if (memory === undefined) return data
-  const items = data.items.map((item, index) =>
-    index === 0 && item.kind === 'file' && isDefaultPath(item.value, id)
-      ? { ...item, value: memoryPath(scope, workflow, id) }
-      : item,
-  )
+  const items = data.items.map((item, index) => {
+    if (index > 1 || !isDefaultPath(item, id)) return item
+    const value =
+      item.kind === 'file' ? memoryPath(scope, workflow, id) : memoryFolderPath(scope, workflow, id)
+    return { ...item, value }
+  })
   return { ...data, items, preset: { ...memory, scope } }
 }
 
@@ -310,13 +407,12 @@ function withoutPreset(data: ResourceData): ResourceData {
  */
 export const PRESET_SPECS: Record<ResourcePresetKind, PresetSpec> = {
   memory: {
-    // 记忆是一个文件：空卡补上默认路径；原来就是一个文件就把它当记忆文件；别的内容拒绝。
+    // 记忆是一个文件（可再跟一个工具文件夹）：空卡补上默认路径；原来就是这个样子就照用；别的内容拒绝。
     attach(data, ctx) {
       if (data.items.length === 0) {
         return { ...data, ...memoryData(DEFAULT_MEMORY_SCOPE, ctx.workflow, ctx.id) }
       }
-      const [only, ...more] = data.items
-      if (only?.kind !== 'file' || more.length > 0) return { refused: 'memory_items' }
+      if (!memoryItemsOk(data.items)) return { refused: 'memory_items' }
       return { ...data, preset: { kind: 'memory', scope: DEFAULT_MEMORY_SCOPE } }
     },
     // 写记忆一律是在原文件上更新。

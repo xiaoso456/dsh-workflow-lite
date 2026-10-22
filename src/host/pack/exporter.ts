@@ -2,10 +2,10 @@
  * dsh-workflow-lite — 导出：盘点选中版本里的资源（{@link scanPack}），按用户勾的打成 zip（{@link exportPack}）。
  *
  * 只导出**存成了版本的**内容。资源分几种：
- * - 绝对路径的文件、文件夹（只被读的）：可以打包，打进 `assets/`，包里那几个版本的图改写成 `{assets}/…`
+ * - 绝对路径的文件、文件夹（只被读的）：可以打包，打进 `assets/`，包里那几个版本的图改写成 `{workflow}/…`
  *   （本机的工作流不动）；重名的依次加 `-2`、`-3`；
  * - 有目录的 skill：可以打包，整个目录进 `skills/<名>/`；内置或插件注册的没有目录，只能原样引用；
- * - 资料目录（`{assets}/…`）：总是整个打进去；
+ * - 工作流目录（`{workflow}/…`）：总是整个打进去；
  * - 相对路径、产出、网址、自定义文本：原样留在图里。
  *
  * @module @xiaoso/dsh-workflow-lite/host/pack/exporter
@@ -16,7 +16,7 @@ import { basename, dirname } from 'node:path'
 import { zipSync } from 'fflate'
 import { normalize } from 'pathe'
 import { isResource } from '../../shared/model.ts'
-import { isAbsoluteRoot, isAssetsPath, normalizeRoot } from '../../shared/outputPaths.ts'
+import { isAbsoluteRoot, normalizeRoot } from '../../shared/outputPaths.ts'
 import {
   freeName,
   isSkillName,
@@ -36,6 +36,7 @@ import {
   type PackScanResponse,
   type PackSkill,
 } from '../../shared/pack.ts'
+import { isWorkflowPath, workflowPath, workflowRelative } from '../../shared/pathVars.ts'
 import { resourceGraph } from '../../shared/resources.ts'
 import {
   type ErrorCode,
@@ -186,7 +187,7 @@ export async function scanState(
           }
           continue
         }
-        if (isAssetsPath(item.value)) {
+        if (isWorkflowPath(item.value)) {
           items.set(key, { ...base, state: 'assets' })
           continue
         }
@@ -238,7 +239,7 @@ export async function scanState(
       item.kind === 'file',
     )
     taken.add(name.toLowerCase())
-    item.as = `{assets}/${name}`
+    item.as = workflowPath(name)
   }
 
   const sorted = [...items.values()].map((item) => ({
@@ -279,7 +280,7 @@ export async function scanPack(
   return state.ok ? { ok: true, result: state.result.response } : state
 }
 
-/** 把包里那几个版本的图改写一下：打包的文件、文件夹换成 `{assets}/…`。 */
+/** 把包里那几个版本的图改写一下：打包的文件、文件夹换成 `{workflow}/…`。 */
 export function rewriteForPack(
   document: WorkflowDocument,
   renames: ReadonlyMap<string, string>,
@@ -368,7 +369,7 @@ export async function exportPack(
       continue
     }
     if (item.as === undefined) continue
-    const name = item.as.slice('{assets}/'.length)
+    const name = workflowRelative(item.as)
     // 单个文件：读出来的相对路径是它原来的文件名，换成资料目录里的名字。
     const read = await readTree(tree)
     for (const file of read.files) {

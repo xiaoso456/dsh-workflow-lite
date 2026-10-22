@@ -6,6 +6,8 @@
  * - 网址：一行网址，旁边能直接打开看一眼。
  * - Skill：skill 名 +「从清单选」；DSH 认得这个名字就把它的一句话说明带出来，还能点开看 SKILL.md。
  * - 自定义：一大块文字，就是一段原样交给执行者的提示词（它本身就是正文，没有说明）。
+ * 预设里的项（记忆文件、工具文件夹）带着自己的名字和默认说明（{@link ItemNote}）：说明框里先放着默认的那份，
+ * 标出「默认 / 已改」，改过的能恢复默认；删空或改回默认的，存的时候就不留说明（之后默认措辞改进了也跟着变）。
  * 「完成」时才一次交出去（一次改动 = 一条撤销步），交出去的永远是写法合法、不重复的一项。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/ResourceItemDialog
@@ -25,6 +27,7 @@ import { Icon } from './Icon.tsx'
 import ins from './inspector.module.css'
 import overlay from './overlay.module.css'
 import { cx, Modal } from './primitives.tsx'
+import type { ItemNote } from './ResourceItems.tsx'
 import css from './resource.module.css'
 import { KIND_ICON, KIND_LABEL, sameItem } from './resourceUi.ts'
 import { SkillPicker } from './SkillPicker.tsx'
@@ -78,13 +81,14 @@ export function ResourceItemDialog(props: {
   others: readonly ResourceItem[]
   onSave(item: ResourceItem): void
   onRemove?: (() => void) | undefined
-  /** 不露「说明」（记忆：说明是记忆提示词，在面板里改）；原来的说明照存。 */
-  noteless?: boolean
+  /** 预设里这一项的名字与默认说明；普通资源不给。 */
+  note?: ItemNote | undefined
   onClose(): void
 }): React.JSX.Element {
   const { t, kind, initial } = props
   const [value, setValue] = useState(initial?.value ?? '')
-  const [note, setNote] = useState(initial?.note ?? '')
+  const fallback = props.note?.fallback
+  const [note, setNote] = useState(initial?.note ?? fallback ?? '')
   const [browsing, setBrowsing] = useState(false)
   const [choosing, setChoosing] = useState(false)
   const [previewing, setPreviewing] = useState<string | null>(null)
@@ -115,8 +119,10 @@ export function ResourceItemDialog(props: {
     }
   }, [kind, props.host])
 
+  // 改回默认的说明不留：和没写一样。
+  const custom = note.trim() !== '' && note.trim() !== fallback?.trim()
   const draft: ResourceItem =
-    kind === 'text' || note.trim() === ''
+    kind === 'text' || !custom
       ? { kind, value: kind === 'text' ? value : value.trim() }
       : { kind, value: value.trim(), note: note.trim() }
   const blank = value.trim() === ''
@@ -124,7 +130,7 @@ export function ResourceItemDialog(props: {
   const problem = itemProblem(draft)?.message ?? null
   const valueError = duplicate ? t('res.duplicateHint') : problem
   const valid = !blank && valueError === null
-  const dirty = value !== (initial?.value ?? '') || note !== (initial?.note ?? '')
+  const dirty = value !== (initial?.value ?? '') || note !== (initial?.note ?? fallback ?? '')
 
   const trimmed = value.trim()
   const located =
@@ -141,7 +147,7 @@ export function ResourceItemDialog(props: {
     if (valid) props.onSave(draft)
   }
 
-  const title = t(KIND_LABEL[kind])
+  const title = props.note?.title ?? t(KIND_LABEL[kind])
   return (
     <>
       <Modal
@@ -309,31 +315,56 @@ export function ResourceItemDialog(props: {
               )}
             </section>
 
-            {kind !== 'text' && props.noteless !== true && (
+            {kind !== 'text' && (
               <section className={ins.field}>
-                <label className={ins.label} htmlFor="wl-resource-note">
-                  <span>
-                    {t('res.note')}
-                    <span className={ins.optional}>{t('out.optional')}</span>
-                  </span>
-                  <span className={ins.count}>
-                    {codepointLength(note)} / {MAX_TEXT_CODEPOINTS}
-                  </span>
-                </label>
+                <div className={css.valueHead}>
+                  <label className={cx(ins.label, css.valueLabel)} htmlFor="wl-resource-note">
+                    <span>
+                      {props.note?.label ?? t('res.note')}
+                      {props.note === undefined ? (
+                        <span className={ins.optional}>{t('out.optional')}</span>
+                      ) : (
+                        <span
+                          className={css.noteTag}
+                          data-custom={custom}
+                          data-testid="wl-resource-note-tag"
+                        >
+                          {t(custom ? 'res.noteTagCustom' : 'res.noteTagDefault')}
+                        </span>
+                      )}
+                    </span>
+                    <span className={ins.count}>
+                      {codepointLength(note)} / {MAX_TEXT_CODEPOINTS}
+                    </span>
+                  </label>
+                  {fallback !== undefined && custom && (
+                    <button
+                      type="button"
+                      className={cx(ui.btn, ui.small, ui.soft, css.valueAction)}
+                      data-testid="wl-resource-note-reset"
+                      onClick={() => setNote(fallback)}
+                    >
+                      <Icon name="restore" size={13} />
+                      {t('res.noteReset')}
+                    </button>
+                  )}
+                </div>
                 <textarea
                   id="wl-resource-note"
                   ref={noteRef}
-                  className={cx(ui.textarea, css.noteArea)}
+                  // 有默认说明的（记忆）一般有好几条，给大一点的框。
+                  className={cx(ui.textarea, fallback === undefined ? css.noteArea : css.textArea)}
                   value={note}
                   placeholder={
-                    pathLike && props.written
+                    props.note?.placeholder ??
+                    (pathLike && props.written
                       ? t('res.notePlaceholderWrite')
-                      : t('res.notePlaceholder')
+                      : t('res.notePlaceholder'))
                   }
                   data-testid="wl-resource-note"
                   onChange={(event) => setNote(event.currentTarget.value)}
                 />
-                <p className={ins.help}>{t('res.noteHint')}</p>
+                <p className={ins.help}>{props.note?.hint ?? t('res.noteHint')}</p>
               </section>
             )}
           </div>

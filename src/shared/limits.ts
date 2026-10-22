@@ -23,7 +23,7 @@ export const TEMPLATES_DIR = 'templates'
 export const VERSIONS_DIR = 'versions'
 
 /**
- * 工作流资料目录：`assets/<图名>/`。图里写 `{assets}/…` 的文件就放在这里，导出时整个目录打进包、
+ * 工作流资料目录：`assets/<图名>/`。图里写 `{workflow}/…` 的文件就放在这里，导出时整个目录打进包、
  * 导入时解压回来；改名、删除工作流时跟着走。
  */
 export const ASSETS_DIR = 'assets'
@@ -68,6 +68,9 @@ export const MAX_LABEL_CODEPOINTS = 200
 
 /** 一份记忆最多几条（写进计划的规矩里：满了先合并或删掉再加，免得越攒越长）。 */
 export const MEMORY_MAX_ENTRIES = 30
+
+/** 记忆的工具文件夹里最多留几样（脚本、模板……；满了先删用不上的再放）。 */
+export const MEMORY_MAX_TOOLS = 10
 
 /** 一个资源最多放几项。 */
 export const MAX_RESOURCE_ITEMS = 50

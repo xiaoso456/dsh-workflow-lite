@@ -9,7 +9,7 @@ import { type PackDeps, scanPack } from '../../src/host/pack/exporter.ts'
 import { skillDir, skillFile, skillImage, splitHead } from '../../src/host/pack/skillBrowse.ts'
 import { exportSkill, previewSkill } from '../../src/host/pack/skillExporter.ts'
 import { discard, readChunk } from '../../src/host/pack/staging.ts'
-import { assetsDir } from '../../src/host/store/paths.ts'
+import { assetsDir, versionFile, workflowFile } from '../../src/host/store/paths.ts'
 import { createRepository, type Outcome, type Repository } from '../../src/host/store/repository.ts'
 import { DSH_ONLY_TERMS } from '../../src/shared/dialect.ts'
 import {
@@ -119,7 +119,7 @@ async function fixture(document?: (items: ResourceItem[]) => WorkflowDocument): 
     { kind: 'file', value: 'README.md' },
     { kind: 'skill', value: 'my-skill' },
     { kind: 'skill', value: 'web' },
-    { kind: 'file', value: '{assets}/notes.md' },
+    { kind: 'file', value: '{workflow}/notes.md' },
   ]
   expectOk(await repository.create('review'))
   expectOk(await repository.save('review', (document ?? graph)(items), { baseHash: null }))
@@ -229,6 +229,31 @@ describe('导出成 skill', () => {
     expect(body).not.toContain('dataDir')
     expect(body).not.toContain('## 运行状态')
     expect(body).not.toContain('未指定')
+  })
+
+  it('旧写法 {assets} 的图（0.4.0 – 0.6.0 的数据）：照样进 assets/，计划里是 {skill}/assets/…', async () => {
+    const { deps } = await fixture()
+    for (const file of [
+      workflowFile(deps.dataDir, 'review'),
+      versionFile(deps.dataDir, 'review', 1),
+    ]) {
+      const text = await readFile(file, 'utf8')
+      expect(text).toContain('{workflow}/notes.md')
+      await writeFile(file, text.replaceAll('{workflow}/', '{assets}/'))
+    }
+    const request = { name: 'review', version: 1, pack: await picks(deps) }
+    const preview = expectOk(await previewSkill(deps, request))
+    expect(preview.body).toContain('`{skill}/assets/notes.md`')
+    expect(preview.body).not.toContain('{assets}')
+    expect(preview.body).not.toContain('{workflow}')
+    const out = expectOk(await exportSkill(deps, { ...request, meta, target: 'zip' }))
+    const files = await download(deps.dataDir, out.token as string)
+    expect(files.get('review-report/assets/notes.md')).toBe('笔记')
+    for (const [path, text] of files) {
+      if (!path.endsWith('.md') || path.includes('/assets/')) continue
+      expect(text, path).not.toContain('{assets}')
+      expect(text, path).not.toContain('{workflow}')
+    }
   })
 
   it('zip：<名>/SKILL.md + steps + assets + skills，路径都在包里', async () => {

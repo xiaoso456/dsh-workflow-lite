@@ -83,6 +83,17 @@ Turn on **Record run state** in **Workflow settings**. Every run then leaves a r
 | Workflow hub | One place for run records across sessions, all workflows and their versions, and plugin settings |
 | Interface | Four light and four dark color themes that follow DSH light or dark mode; English / 中文 |
 
+## Path variables
+
+Resource paths and the output root accept two variables, replaced with real locations at run time:
+
+| Variable | Where | Becomes |
+|---|---|---|
+| `{workflow}` | File and folder paths in resources, e.g. `{workflow}/memory/notes.md` | The workflow's own folder (by default `~/.dsh/workflow-lite/assets/<workflow name>/`). Every workspace reads and writes the same copy, and it moves with the workflow when you rename or export it |
+| `{instance}` | **Output root** in **Workflow settings**, e.g. the default `.workflow-lite/runs/{instance}/out` | The id of this run's instance, so each run keeps its outputs apart |
+
+Paths written as `{assets}/…` by earlier versions still work and become `{workflow}/…` when the workflow is opened.
+
 ## How it works
 
 1. **Design**: arrange steps on the canvas, write the prompt each executor receives, and describe the flow with branches and loops.

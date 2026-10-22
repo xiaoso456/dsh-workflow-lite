@@ -14,7 +14,14 @@
 import { isAbsolute, join, normalize } from 'pathe'
 import { CONTROL_CHARS, MAX_ROOT_CODEPOINTS } from './limits.ts'
 import { codepointLength, type NameProblem } from './naming.ts'
-import { SKILL_TOKEN } from './skillPack.ts'
+import {
+  bindInstance,
+  INSTANCE_VAR,
+  isSkillPath,
+  isWorkflowPath,
+  workflowPath,
+  workflowRelative,
+} from './pathVars.ts'
 
 /**
  * 根目录的规范写法：去首尾空白、`pathe.normalize`、去掉尾斜杠（`/`、`C:/`、`//srv/share` 这类根本身除外）。
@@ -31,11 +38,8 @@ export function normalizeRoot(raw: string | undefined): string | undefined {
   return value === '.' || value === '' ? undefined : value
 }
 
-/** 根目录里的这个记号建实例时换成实例 id（每次执行的产出各放各的）。 */
-export const INSTANCE_TOKEN = '{instance}'
-
 /** 没配产出根目录时用它：和状态文件放在一起，每个实例一个 `out`。 */
-export const DEFAULT_OUTPUT_ROOT = `.workflow-lite/runs/${INSTANCE_TOKEN}/out`
+export const DEFAULT_OUTPUT_ROOT = `.workflow-lite/runs/${INSTANCE_VAR}/out`
 
 /** 写 `.` = 明确要写在工作区根目录（和"没配"区分开：没配是 {@link DEFAULT_OUTPUT_ROOT}）。 */
 export const WORKSPACE_ROOT = '.'
@@ -45,9 +49,9 @@ export function rootOf(settings: { outputRoot?: string } | undefined): string {
   return settings?.outputRoot ?? DEFAULT_OUTPUT_ROOT
 }
 
-/** 把根目录里的 {@link INSTANCE_TOKEN} 换成 `instance`，再规范化；结果是工作区根时回 `.`。 */
+/** 把根目录里的 `{instance}` 换成 `instance`，再规范化；结果是工作区根时回 `.`。 */
 export function bindRoot(root: string, instance: string): string {
-  return normalizeRoot(root.split(INSTANCE_TOKEN).join(instance)) ?? WORKSPACE_ROOT
+  return normalizeRoot(bindInstance(root, instance)) ?? WORKSPACE_ROOT
 }
 
 /** 根目录是不是绝对路径（`/x`、`C:/x`、`//srv/share`；`C:` 这种盘符相对写法规范化后也算）。 */
@@ -56,50 +60,14 @@ export function isAbsoluteRoot(root: string): boolean {
 }
 
 /**
- * 资源里的路径以它开头 = 放在这个工作流自己的资料目录里（`<dataDir>/assets/<图名>/`）。
- * 图里存的是记号，换台机器、改个名字都不用改图；编译、看文件时才换成绝对路径（{@link bindAssetsPath}）。
- */
-export const ASSETS_TOKEN = '{assets}'
-
-/** 这个路径是不是写在资料目录里（`{assets}` 本身，或 `{assets}/…`）。 */
-export function isAssetsPath(path: string): boolean {
-  const value = path.trim()
-  return (
-    value === ASSETS_TOKEN ||
-    value.startsWith(`${ASSETS_TOKEN}/`) ||
-    value.startsWith(`${ASSETS_TOKEN}\\`)
-  )
-}
-
-/** 资料目录里的路径去掉记号之后的那一截（`{assets}/a/b.md` → `a/b.md`；`{assets}` → 空串）。 */
-export function assetsRelative(path: string): string {
-  return normalize(
-    path
-      .trim()
-      .slice(ASSETS_TOKEN.length)
-      .replace(/^[/\\]+/u, ''),
-  ).replace(/^\.$/u, '')
-}
-
-/** 把 `{assets}/…` 换成资料目录下的绝对路径；别的路径原样返回。 */
-export function bindAssetsPath(path: string, assetsDir: string): string {
-  if (!isAssetsPath(path)) return path
-  const rest = assetsRelative(path)
-  return rest === '' ? normalize(assetsDir) : join(normalize(assetsDir), rest)
-}
-
-/**
  * 一个产出文件最终写到哪：`根目录 + 产出路径`，规范化。没配根目录就是规范化后的产出路径本身
- * （相对工作区）。产出路径本身是绝对路径时原样用（规范化），不拼根目录；`{assets}/…` 也不拼。
+ * （相对工作区）。产出路径本身是绝对路径时原样用（规范化），不拼根目录；`{workflow}/…` 也不拼。
  */
 export function resolveOutputPath(root: string | undefined, path: string): string {
   const value = path.trim()
-  if (isAssetsPath(value)) {
-    const rest = assetsRelative(value)
-    return rest === '' ? ASSETS_TOKEN : `${ASSETS_TOKEN}/${rest}`
-  }
+  if (isWorkflowPath(value)) return workflowPath(workflowRelative(value))
   // 导出成 skill 时包里的东西（`{skill}/…`）：在 skill 目录里，不拼根目录。
-  if (value.startsWith(`${SKILL_TOKEN}/`)) return normalize(value)
+  if (isSkillPath(value)) return normalize(value)
   if (isAbsoluteRoot(value) || /^[A-Za-z]:[/]/u.test(value)) return normalize(value)
   const base = normalizeRoot(root)
   return base === undefined ? normalize(value) : join(base, value)

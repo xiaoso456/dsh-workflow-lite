@@ -7,7 +7,7 @@
  * <图名>/
  * ├─ manifest.json        包格式版本、导出时的插件版本、清单（见 {@link PackManifest}）
  * ├─ versions/<n>.json    选中的版本，和 `versions/<图名>/<n>.json` 同一个格式
- * ├─ assets/…             工作流资料目录（图里写成 `{assets}/…` 的文件），导入时解压到 `<dataDir>/assets/<图名>/`
+ * ├─ assets/…             工作流资料目录（图里写成 `{workflow}/…` 的文件），导入时解压到 `<dataDir>/assets/<图名>/`
  * └─ skills/<名>/…        打进来的 skill 整个目录，导入时装到 `~/.agents/skills/<名>/`
  * ```
  *
@@ -265,7 +265,7 @@ export type PackItemState =
   | 'relative'
   /** 步骤会写的产出：不用打包。 */
   | 'output'
-  /** 已经在资料目录里（`{assets}/…`）：随资料目录一起打包。 */
+  /** 已经在工作流目录里（`{workflow}/…`）：随资料目录一起打包。 */
   | 'assets'
 
 export interface PackScanItem {
@@ -283,7 +283,7 @@ export interface PackScanItem {
   skipped?: number
   /** skill 的来源层。 */
   source?: string
-  /** 打包之后图里的写法（`{assets}/…`）。 */
+  /** 打包之后图里的写法（`{workflow}/…`）。 */
   as?: string
   /** 出现在哪几个版本里。 */
   versions: number[]

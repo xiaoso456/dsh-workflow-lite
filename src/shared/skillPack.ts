@@ -12,7 +12,7 @@
  * └─ skills/<名>/…     打包的被引用 skill（整个目录，当文件读，不靠 skill 工具发现）
  * ```
  *
- * 包里的东西在计划里一律写成 `{skill}/…`（{@link SKILL_TOKEN}）：宿主加载 skill 时会让模型「相对路径按
+ * 包里的东西在计划里一律写成 `{skill}/…`（变量见 `pathVars.ts`）：宿主加载 skill 时会让模型「相对路径按
  * skill 目录解析」，而计划里的产出路径是相对工作区的，两种都写成相对路径就分不清了。
  *
  * 纯类型与纯函数，不碰磁盘、不 import DSH 包。
@@ -20,11 +20,9 @@
  * @module @xiaoso/dsh-workflow-lite/shared/skillPack
  */
 
+import { skillPath } from './pathVars.ts'
 import type { ValidationProblem } from './types.ts'
 import type { RunFileResponse } from './wire.ts'
-
-/** 计划里 skill 目录的记号：加载 skill 时宿主给出的那个目录。 */
-export const SKILL_TOKEN = '{skill}'
 
 /** 包里各块的位置（相对 skill 目录）。 */
 export const SKILL_PATHS = {
@@ -34,12 +32,7 @@ export const SKILL_PATHS = {
   skill: (name: string, path: string) => `skills/${name}/${path}`,
 } as const
 
-/** 计划里写的位置：`{skill}/…`。 */
-export function skillPath(relative: string): string {
-  return relative === '' ? SKILL_TOKEN : `${SKILL_TOKEN}/${relative}`
-}
-
-/** 资料目录在 skill 里的位置（`{assets}/…` 换成它）。 */
+/** 资料目录在 skill 里的位置（`{workflow}/…` 换成它）。 */
 export const SKILL_ASSETS = skillPath('assets')
 
 /** skill 名的上限（字数）。 */

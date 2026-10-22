@@ -24,7 +24,8 @@ import {
   outputSpecs,
   resourceIdFor,
 } from './model.ts'
-import { bindAssetsPath, isAssetsPath, outputKey } from './outputPaths.ts'
+import { outputKey } from './outputPaths.ts'
+import { bindWorkflowPath, isWorkflowPath } from './pathVars.ts'
 import { isMemory, memoryOf, writesUnderRoot } from './presets.ts'
 import {
   type Handoff,
@@ -336,19 +337,17 @@ export function setStepOutputs(
 }
 
 /**
- * 把资源里的 `{assets}/…` 换成资料目录下的绝对路径（编译计划、看实例里的文件时用；存盘的图不换）。
+ * 把资源里的 `{workflow}/…` 换成 `dir` 下的路径（编译计划、看实例里的文件、导出成 skill 时用；存盘的图不换）。
  * 没有这种路径时原样返回同一个对象。
  */
-export function bindAssets(document: WorkflowDocument, assetsDir: string): WorkflowDocument {
+export function bindWorkflowDir(document: WorkflowDocument, dir: string): WorkflowDocument {
+  const bound = (item: ResourceItem): boolean => isPathItem(item) && isWorkflowPath(item.value)
   let changed = false
   const nodes = document.nodes.map((node) => {
-    if (!isResource(node)) return node
-    if (!node.data.items.some((item) => isPathItem(item) && isAssetsPath(item.value))) return node
+    if (!isResource(node) || !node.data.items.some(bound)) return node
     changed = true
     const items = node.data.items.map((item) =>
-      isPathItem(item) && isAssetsPath(item.value)
-        ? { ...item, value: bindAssetsPath(item.value, assetsDir) }
-        : item,
+      bound(item) ? { ...item, value: bindWorkflowPath(item.value, dir) } : item,
     )
     return { ...node, data: { ...node.data, items } }
   })

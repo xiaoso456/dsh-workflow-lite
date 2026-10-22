@@ -1769,6 +1769,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
       generated: t('run.fileMade'),
       memTitle: t('mem.title'),
       memGlobal: t('mem.global'),
+      memFolder: t('mem.folderShort'),
       memOn: t('mem.on'),
       memOff: t('mem.off'),
       memScopes: {
@@ -2033,7 +2034,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
                 : resourceTitle(node)
         const sub =
           memory !== undefined
-            ? `${texts.memScopes[memory.scope]} · ${first?.value.trim() || '—'}`
+            ? `${texts.memScopes[memory.scope]}${all.length > 1 ? ` ${texts.memFolder}` : ''} · ${first?.value.trim() || '—'}`
             : first === undefined
               ? texts.resEmptySub
               : firstNote !== ''

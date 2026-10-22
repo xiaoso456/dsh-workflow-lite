@@ -16,7 +16,7 @@ import { affectsPlan, describeGraphChange, graphChanges } from '../../shared/gra
 import { checkAnswers, sameAnswers } from '../../shared/inputs.ts'
 import { isResource, isStep, readDocument, writeDocument } from '../../shared/model.ts'
 import { bindRoot, rootOf, WORKSPACE_ROOT } from '../../shared/outputPaths.ts'
-import { bindAssets } from '../../shared/resources.ts'
+import { bindWorkflowDir } from '../../shared/resources.ts'
 import {
   type CursorStep,
   type NextStep,
@@ -701,9 +701,9 @@ export class RunService {
     return { ...document, settings: { ...document.settings, outputRoot: WORKSPACE_ROOT } }
   }
 
-  /** 找文件用的快照：资料目录里的文件（`{assets}/…`）换成绝对路径（快照本身不改）。 */
+  /** 找文件用的快照：工作流目录里的文件（`{workflow}/…`）换成绝对路径（快照本身不改）。 */
   private withAssets(record: InstanceRecord, document: WorkflowDocument): WorkflowDocument {
-    return bindAssets(document, assetsDir(this.deps.dataDir(), record.workflow))
+    return bindWorkflowDir(document, assetsDir(this.deps.dataDir(), record.workflow))
   }
 
   /** 读并校验状态文件。`document` 给了就对照快照。 */

@@ -1,16 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { MAX_ROOT_CODEPOINTS } from '../../src/shared/limits.ts'
 import {
-  bindAssetsPath,
   checkOutputRoot,
   isAbsoluteRoot,
-  isAssetsPath,
   normalizeRoot,
-  resolveItemPath,
   resolveOutputPath,
 } from '../../src/shared/outputPaths.ts'
-import { bindAssets } from '../../src/shared/resources.ts'
-import { RESOURCE_TYPE, type WorkflowDocument } from '../../src/shared/types.ts'
 
 describe('normalizeRoot', () => {
   it('空串、空白、`.` 都是"工作区根"', () => {
@@ -78,56 +73,5 @@ describe('checkOutputRoot', () => {
     expect(checkOutputRoot('a\nb')?.message).toContain('控制字符')
     expect(checkOutputRoot('~/out')?.message).toContain('~')
     expect(checkOutputRoot('a'.repeat(MAX_ROOT_CODEPOINTS + 1))?.message).toContain('不能超过')
-  })
-})
-
-describe('{assets}：工作流资料目录', () => {
-  it('认得记号本身与它下面的路径', () => {
-    expect(isAssetsPath('{assets}')).toBe(true)
-    expect(isAssetsPath(' {assets}/a.md ')).toBe(true)
-    expect(isAssetsPath('{assets}\\a.md')).toBe(true)
-    expect(isAssetsPath('{assets}x/a.md')).toBe(false)
-    expect(isAssetsPath('docs/{assets}/a.md')).toBe(false)
-  })
-
-  it('不拼产出根目录，规范化之后记号留着', () => {
-    expect(resolveOutputPath('out', '{assets}/./a//b.md')).toBe('{assets}/a/b.md')
-    expect(resolveItemPath('out', '{assets}', true)).toBe('{assets}')
-  })
-
-  it('换成资料目录下的绝对路径；别的路径原样', () => {
-    expect(bindAssetsPath('{assets}/a/b.md', 'C:\\data\\assets\\w')).toBe('C:/data/assets/w/a/b.md')
-    expect(bindAssetsPath('{assets}', '/data/assets/w/')).toBe('/data/assets/w/')
-    expect(bindAssetsPath('docs/a.md', '/x')).toBe('docs/a.md')
-  })
-
-  it('整张图：只换文件、文件夹里的记号，没有就原样返回同一个对象', () => {
-    const document: WorkflowDocument = {
-      nodes: [
-        {
-          id: 'r',
-          type: RESOURCE_TYPE,
-          position: { x: 0, y: 0 },
-          data: {
-            items: [
-              { kind: 'file', value: '{assets}/a.md' },
-              { kind: 'text', value: '{assets}/a.md' },
-            ],
-          },
-        },
-      ],
-      edges: [],
-      viewport: { x: 0, y: 0, zoom: 1 },
-    }
-    const bound = bindAssets(document, '/data/assets/w')
-    expect(bound.nodes[0]?.data).toMatchObject({
-      items: [
-        { kind: 'file', value: '/data/assets/w/a.md' },
-        { kind: 'text', value: '{assets}/a.md' },
-      ],
-    })
-    expect(JSON.stringify(document)).toContain('{assets}/a.md')
-    const plain = { ...document, nodes: [] }
-    expect(bindAssets(plain, '/x')).toBe(plain)
   })
 })
