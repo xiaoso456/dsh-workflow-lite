@@ -202,6 +202,19 @@
   background: var(--wl-hover);
 }
 
+/* 选不了的（资源卡里内容不合的类型）：置灰，悬停只出原因。 */
+.icon[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
+.icon[aria-disabled="true"] .glyph {
+  opacity: 0.35;
+}
+
+.icon[aria-disabled="true"]:hover {
+  background: transparent;
+}
+
 /*
  * 选中的图标：当前颜色的浅底 + 当前颜色的笔画，和卡片上的图标块一个样子。
  * 浅底是滑过去的选中块（`.iconThumb`，motion.tsx 的 PickThumb），每种颜色一层，换颜色时交叉淡过去。

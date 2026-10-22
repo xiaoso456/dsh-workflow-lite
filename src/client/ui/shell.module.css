@@ -119,6 +119,8 @@
   --wl-c-olive: light-dark(var(--wl-l-c-olive), var(--wl-d-c-olive));
   --wl-c-violet: light-dark(var(--wl-l-c-violet), var(--wl-d-c-violet));
   --wl-c-slate: light-dark(var(--wl-l-c-slate), var(--wl-d-c-slate));
+  /* 记忆（步骤卡上的开关、记忆卡的签）：借色板里的琥珀，和七种线色都不撞。 */
+  --wl-memory: var(--wl-c-amber);
 
   /* 输入节点：用户的话，用一档中性的墨色（和七种线色都不撞，见 lines.ts）。 */
   --wl-io-ask: light-dark(var(--wl-l-ask), var(--wl-d-ask));

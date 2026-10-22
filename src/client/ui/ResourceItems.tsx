@@ -54,6 +54,8 @@ export function ResourceItems(props: {
   root: string | undefined
   /** 改内容：整份换掉。一次改动 = 一条撤销步。 */
   onChange(items: ResourceItem[]): void
+  /** 只有固定的一项（记忆）：不能加、不能删，只能点开改。 */
+  single?: boolean
 }): React.JSX.Element {
   const { t, items } = props
   const [menu, setMenu] = useState(false)
@@ -103,58 +105,61 @@ export function ResourceItems(props: {
               written={props.written}
               root={props.root}
               onOpen={() => setEditing({ index })}
-              onRemove={() => remove(index)}
+              onRemove={props.single === true ? undefined : () => remove(index)}
+              showNote={props.single !== true}
             />
           ))}
         </ul>
       )}
 
-      <Popover
-        open={menu}
-        onClose={() => setMenu(false)}
-        label={t('res.add')}
-        className={css.addMenu}
-        trigger={
-          <button
-            type="button"
-            className={css.addButton}
-            aria-expanded={menu}
-            disabled={full}
-            data-testid="wl-resource-add"
-            onClick={() => setMenu((open) => !open)}
-          >
-            <Icon name="plus" size={13} />
-            {full ? t('res.full').replace('{n}', String(MAX_RESOURCE_ITEMS)) : t('res.add')}
-          </button>
-        }
-      >
-        {ADD_MENU.map((entry) => (
-          <button
-            key={entry.choice}
-            type="button"
-            className={css.addItem}
-            data-testid={`wl-resource-add-${entry.choice}`}
-            onClick={() => choose(entry.choice)}
-          >
-            <span className={css.addIcon} data-kind={entry.choice}>
-              <Icon name={KIND_ICON[entry.choice]} size={14} />
-            </span>
-            <span className={css.addText}>
-              <span className={css.addName}>{t(KIND_LABEL[entry.choice])}</span>
-              <span className={css.addHint}>{t(entry.hint)}</span>
-            </span>
-          </button>
-        ))}
-        <button
-          type="button"
-          className={css.addManual}
-          data-testid="wl-resource-add-manual"
-          onClick={() => choose('manualFile')}
+      {props.single !== true && (
+        <Popover
+          open={menu}
+          onClose={() => setMenu(false)}
+          label={t('res.add')}
+          className={css.addMenu}
+          trigger={
+            <button
+              type="button"
+              className={css.addButton}
+              aria-expanded={menu}
+              disabled={full}
+              data-testid="wl-resource-add"
+              onClick={() => setMenu((open) => !open)}
+            >
+              <Icon name="plus" size={13} />
+              {full ? t('res.full').replace('{n}', String(MAX_RESOURCE_ITEMS)) : t('res.add')}
+            </button>
+          }
         >
-          <Icon name="pencil" size={12} />
-          {t('res.addManual')}
-        </button>
-      </Popover>
+          {ADD_MENU.map((entry) => (
+            <button
+              key={entry.choice}
+              type="button"
+              className={css.addItem}
+              data-testid={`wl-resource-add-${entry.choice}`}
+              onClick={() => choose(entry.choice)}
+            >
+              <span className={css.addIcon} data-kind={entry.choice}>
+                <Icon name={KIND_ICON[entry.choice]} size={14} />
+              </span>
+              <span className={css.addText}>
+                <span className={css.addName}>{t(KIND_LABEL[entry.choice])}</span>
+                <span className={css.addHint}>{t(entry.hint)}</span>
+              </span>
+            </button>
+          ))}
+          <button
+            type="button"
+            className={css.addManual}
+            data-testid="wl-resource-add-manual"
+            onClick={() => choose('manualFile')}
+          >
+            <Icon name="pencil" size={12} />
+            {t('res.addManual')}
+          </button>
+        </Popover>
+      )}
 
       {picking !== null && (
         <HostPicker
@@ -194,13 +199,14 @@ export function ResourceItems(props: {
           written={props.written}
           root={props.root}
           others={items.filter((_item, at) => at !== editingIndex)}
+          noteless={props.single === true}
           onSave={(item) => {
             setEditing(null)
             if (editingIndex === null) add([item])
             else props.onChange(items.map((old, at) => (at === editingIndex ? item : old)))
           }}
           onRemove={
-            editingIndex === null
+            editingIndex === null || props.single === true
               ? undefined
               : () => {
                   setEditing(null)
@@ -225,13 +231,16 @@ function ItemRow(props: {
   written: boolean
   root: string | undefined
   onOpen(): void
-  onRemove(): void
+  /** 不给 = 这一项不能删（记忆）。 */
+  onRemove: (() => void) | undefined
+  /** 挂「说明」小签（记忆不挂：它的说明是记忆提示词，在面板里单独一块）。 */
+  showNote: boolean
 }): React.JSX.Element {
   const { t, item } = props
   const name = itemName(item)
   const blank = name === ''
   const where = itemLocation(item, props.root, props.written)
-  const note = item.note?.trim() ?? ''
+  const note = props.showNote ? (item.note?.trim() ?? '') : ''
   return (
     <li
       className={cx(css.row, ui.rise)}
@@ -263,16 +272,18 @@ function ItemRow(props: {
           </span>
         )}
       </button>
-      <button
-        type="button"
-        className={cx(ui.btn, ui.icon, ui.small, ui.danger, css.rowRemove)}
-        aria-label={t('res.removeItem')}
-        data-tip={t('res.removeItem')}
-        data-testid="wl-resource-item-remove"
-        onClick={props.onRemove}
-      >
-        <Icon name="x" size={13} />
-      </button>
+      {props.onRemove !== undefined && (
+        <button
+          type="button"
+          className={cx(ui.btn, ui.icon, ui.small, ui.danger, css.rowRemove)}
+          aria-label={t('res.removeItem')}
+          data-tip={t('res.removeItem')}
+          data-testid="wl-resource-item-remove"
+          onClick={props.onRemove}
+        >
+          <Icon name="x" size={13} />
+        </button>
+      )}
     </li>
   )
 }

@@ -16,6 +16,7 @@ import { isStepColor, isStepIcon } from './appearance.ts'
 import { COORD_DECIMALS } from './limits.ts'
 import { normalizeRoot, WORKSPACE_ROOT } from './outputPaths.ts'
 import {
+  DEFAULT_MEMORY_SCOPE,
   type EdgeData,
   EXECUTION_MODES,
   type Handoff,
@@ -24,6 +25,7 @@ import {
   type InputAnswer,
   type InputData,
   type InputNode,
+  MEMORY_SCOPES,
   NODE_TYPE,
   type NodeData,
   type OutputSpec,
@@ -33,6 +35,7 @@ import {
   type ResourceData,
   type ResourceItem,
   type ResourceNode,
+  type ResourcePreset,
   type StepNode,
   type ValidationProblem,
   type Viewport,
@@ -56,7 +59,7 @@ const INPUT_KEYS = [
   'other',
 ] as const
 /** 资源节点的 data 键序与一项的键序。 */
-const RESOURCE_KEYS = ['label', 'description', 'items'] as const
+const RESOURCE_KEYS = ['label', 'description', 'color', 'items', 'preset'] as const
 const ITEM_KEYS = ['kind', 'value', 'note'] as const
 /** edge 的 data 键序。 */
 const EDGE_DATA_KEYS = ['when', 'label', 'handoff', 'update'] as const
@@ -325,6 +328,8 @@ export function readResourceData(raw: unknown): ResourceData {
   if (typeof raw.label === 'string' && raw.label !== '') data.label = raw.label
   const description = filled(raw.description)
   if (description !== undefined) data.description = description
+  // 颜色只认色板里的名字；不认识的当没写（回落按类型的颜色）。
+  if (isStepColor(raw.color)) data.color = raw.color
   if (Array.isArray(raw.items)) {
     for (const entry of raw.items) {
       if (!isPlainObject(entry) || typeof entry.value !== 'string') continue
@@ -336,7 +341,16 @@ export function readResourceData(raw: unknown): ResourceData {
       data.items.push(item)
     }
   }
+  const preset = readPreset(raw.preset)
+  if (preset !== undefined) data.preset = preset
   return data
+}
+
+/** 资源预设：认得的种类才留，范围认不出就按默认的。 */
+function readPreset(raw: unknown): ResourcePreset | undefined {
+  if (!isPlainObject(raw) || raw.kind !== 'memory') return undefined
+  const scope = MEMORY_SCOPES.find((candidate) => candidate === raw.scope) ?? DEFAULT_MEMORY_SCOPE
+  return { kind: 'memory', scope }
 }
 
 /** 资源节点 `data` 的规范写法（读入的规范化 + 固定键序），写盘与比较都用它。 */
@@ -344,6 +358,12 @@ export function canonicalResource(data: ResourceData): ResourceData {
   const normalized = readResourceData(data)
   const out: Record<string, unknown> = {}
   for (const key of RESOURCE_KEYS) {
+    if (key === 'preset') {
+      if (normalized.preset !== undefined) {
+        out.preset = { kind: normalized.preset.kind, scope: normalized.preset.scope }
+      }
+      continue
+    }
     if (key === 'items') {
       out.items = normalized.items.map((item) => {
         const ordered: Record<string, unknown> = {}
@@ -362,7 +382,9 @@ export function canonicalResource(data: ResourceData): ResourceData {
 
 /** 深拷一份资源节点的 `data`（内容数组与每一项都不和原件共用）。 */
 export function cloneResourceData(data: ResourceData): ResourceData {
-  return { ...data, items: data.items.map((item) => ({ ...item })) }
+  const copy = { ...data, items: data.items.map((item) => ({ ...item })) }
+  if (data.preset !== undefined) copy.preset = { ...data.preset }
+  return copy
 }
 
 /** 一段文字：去掉首尾空白后为空就当没写。 */

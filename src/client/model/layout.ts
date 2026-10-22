@@ -33,6 +33,7 @@ import type {
   WorkflowEdge,
   WorkflowNode,
 } from '../../shared/types.ts'
+import { STEP_SPOTS } from './route.ts'
 
 /** 步骤卡的宽度（CSS 里写死同一个数）与估算高度。 */
 export const NODE_W = 216
@@ -153,6 +154,41 @@ export function resourceSpot(
     { x: base.x + RES_DX, y: base.y + NODE_H + RES_DY, w: RES_W, h: height },
     RES_H + RES_GAP,
   )
+}
+
+/**
+ * 一个步骤的记忆卡该放哪：和产出一样挂在步骤下面、往右缩进（下面已经挂着产出就接在它们后面）。
+ * 只是往下找的时候要越过别的步骤卡，写线就得绕开它——这时改放到步骤上面（写线从上边的写点出去），
+ * 上面也不通才退回下面那个位置。
+ */
+export function memorySpot(doc: WorkflowDocument, step: WorkflowNode): Point {
+  const occupied = doc.nodes
+    .filter((node) => node.id !== step.id && !isUnplaced(node.position))
+    .map((node) => ({ node, box: boxOf(node) }))
+  const boxes = occupied.map((item) => item.box)
+  const others = occupied.filter((item) => !isResource(item.node) && !isInput(item.node))
+  const x = step.position.x + RES_DX
+  // 上边的写点比底边的靠右（见 route.ts 的 STEP_SPOTS），放上面要多缩进那么一截，写线才是一个直角。
+  const upX = x + Math.ceil((STEP_SPOTS.fileUp.at - STEP_SPOTS.file.at) * NODE_W)
+  // 写线走的那一竖条（步骤的写点 → 记忆卡左边）上有没有别的步骤。
+  const blocked = (from: number, to: number): boolean => {
+    const band = {
+      x: step.position.x,
+      y: Math.min(from, to),
+      w: upX - step.position.x + RES_W,
+      h: Math.abs(to - from),
+    }
+    return others.some((item) => hits(item.box, band))
+  }
+  const below = freeBox(
+    boxes,
+    { x, y: step.position.y + NODE_H + RES_DY, w: RES_W, h: RES_H },
+    RES_H + RES_GAP,
+  )
+  if (!blocked(step.position.y + NODE_H, below.y + RES_H)) return below
+  const above = { x: upX, y: step.position.y - RES_DY - RES_H, w: RES_W, h: RES_H }
+  while (boxes.some((box) => hits(box, above))) above.y -= RES_H + RES_GAP
+  return blocked(above.y, step.position.y) ? below : { x: above.x, y: above.y }
 }
 
 /**

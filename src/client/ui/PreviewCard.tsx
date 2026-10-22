@@ -43,6 +43,8 @@ export function PreviewCard(props: {
   lines?: number
   /** 卡片下面的一行说明。 */
   help?: React.ReactNode
+  /** 标题行里笔、眼睛左边再放的按钮（记忆提示词的「恢复默认」）。 */
+  actions?: React.ReactNode
   edit?: PreviewEdit
   /** 一出来就打开弹窗、进「编辑」（刚加的空白步骤写提示词）。 */
   autoEdit?: boolean
@@ -67,6 +69,7 @@ export function PreviewCard(props: {
           </span>
         </span>
         <span className={css.titleActions}>
+          {props.actions}
           {edit !== undefined && (
             <button
               type="button"

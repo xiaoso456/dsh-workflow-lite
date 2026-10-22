@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   COL_STEP,
   freeSpot,
+  memorySpot,
   NODE_H,
   NODE_W,
   nextTo,
@@ -341,5 +342,43 @@ describe('输入卡的位置', () => {
     const placed = await placeMissing(doc, analyzeGraph(doc))
     expect((placed.q as Point).x).toBeLessThan(600)
     expect((placed.q as Point).y).toBe(200)
+  })
+})
+
+describe('记忆卡的位置', () => {
+  const stepOf = (doc: WorkflowDocument, id: string): WorkflowNode =>
+    doc.nodes.find((node) => node.id === id) as WorkflowNode
+
+  it('下面空着：挂在步骤下面、往右缩进（和产出一样）', () => {
+    const doc = graph(['a', 'b'], [['a', 'b']], {
+      a: { x: 100, y: 100 },
+      b: { x: 100 + COL_STEP, y: 100 },
+    })
+    const spot = memorySpot(doc, stepOf(doc, 'a'))
+    expect(spot.x).toBe(100 + RES_DX)
+    expect(spot.y).toBeGreaterThan(100 + NODE_H)
+  })
+
+  it('下面压着别的步骤：改放到步骤上面，写线不用绕', () => {
+    const doc = graph(['a', 'b'], [['a', 'b']], {
+      a: { x: 100, y: 300 },
+      b: { x: 100, y: 300 + NODE_H + 30 },
+    })
+    const spot = memorySpot(doc, stepOf(doc, 'a'))
+    expect(spot.y + RES_H).toBeLessThan(300)
+    // 上边的写点比底边的靠右：写线还得是一个直角（竖着上去、横着进卡片左边），不绕路。
+    const from = spotOf({ x: 100, y: 300, w: NODE_W, h: NODE_H }, STEP_SPOTS.fileUp)
+    const points = writePoints(from, { x: spot.x, y: spot.y + RES_H / 2 }, RES_H)
+    expect(points).toHaveLength(3)
+  })
+
+  it('上下都压着别的步骤：退回下面能放下的地方', () => {
+    const doc = graph(['top', 'a', 'low'], [], {
+      top: { x: 100, y: 100 },
+      a: { x: 100, y: 100 + NODE_H + 40 },
+      low: { x: 100, y: 100 + (NODE_H + 40) * 2 },
+    })
+    const spot = memorySpot(doc, stepOf(doc, 'a'))
+    expect(spot.y).toBeGreaterThan(100 + (NODE_H + 40) * 2)
   })
 })

@@ -148,6 +148,65 @@
   color: var(--wl-danger);
 }
 
+/*
+ * 步骤卡标题行末的记忆开关：开着时一直亮着（记忆色），关着时悬停卡片才露出淡淡的一颗，
+ * 指上去变实。只动透明度与颜色。
+ */
+.memToggle {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin: -3px -4px -3px 0;
+  padding: 0;
+  border: 0;
+  border-radius: calc(6px * var(--wl-round, 1));
+  background: transparent;
+  color: var(--wl-text-3);
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 140ms linear,
+    color 140ms linear,
+    background-color 140ms linear;
+}
+
+.card:hover .memToggle,
+.memToggle:focus-visible {
+  opacity: 0.7;
+}
+
+.memToggle:hover {
+  background: var(--wl-hover);
+  color: var(--wl-memory);
+  opacity: 1;
+}
+
+.memToggle[data-on="true"] {
+  color: var(--wl-memory);
+  opacity: 1;
+}
+
+span.memToggle {
+  cursor: default;
+}
+
+/* 染了色的签（选了颜色、或是记忆）：卡片颜色的浅底，记号也用卡片颜色（压过 .fileTab 的底色与字色）。 */
+.fileTab[data-tinted="true"] {
+  background: color-mix(in oklab, var(--wl-tint) 12%, var(--wl-panel));
+  color: var(--wl-tint);
+}
+
+.fileTab[data-tinted="true"] .fileTabMark,
+.resHeadIcon[data-tinted="true"] {
+  color: var(--wl-tint);
+}
+
+.resHeadIcon[data-tinted="true"] {
+  background: color-mix(in oklab, var(--wl-tint) 14%, transparent);
+}
+
 .cardBody {
   display: -webkit-box;
   margin: 0;

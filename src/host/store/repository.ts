@@ -56,6 +56,7 @@ import {
   sameName,
 } from '../../shared/naming.ts'
 import { checkOutputRoot } from '../../shared/outputPaths.ts'
+import { dropOrphanMemories } from '../../shared/presets.ts'
 import { newResourceNode, setStepOutputs, splitOutputs } from '../../shared/resources.ts'
 import {
   type ChangedEntry,
@@ -1616,8 +1617,11 @@ class FileRepository implements Repository {
           idKey(edge.source) === idKey(target.id) || idKey(edge.target) === idKey(target.id),
       )
       const orphanIds = new Set(orphans.map((edge) => edge.id))
+      const before = { ...document }
       document.nodes = document.nodes.filter((current) => idKey(current.id) !== idKey(target.id))
       document.edges = document.edges.filter((edge) => !orphanIds.has(edge.id))
+      // 删步骤时它自己的记忆卡一起删掉，不然就悄悄成了全局记忆（记忆文件不动）。
+      document.nodes = dropOrphanMemories(before, document).nodes
       return {
         ok: true,
         document,

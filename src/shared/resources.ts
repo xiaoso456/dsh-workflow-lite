@@ -25,6 +25,7 @@ import {
   resourceIdFor,
 } from './model.ts'
 import { bindAssetsPath, isAssetsPath, outputKey } from './outputPaths.ts'
+import { isMemory, memoryOf, writesUnderRoot } from './presets.ts'
 import {
   type Handoff,
   type OutputSpec,
@@ -145,6 +146,15 @@ export function resourceGraph(document: WorkflowDocument): Map<string, ResourceI
   return graph
 }
 
+/**
+ * 这个资源里的相对路径要不要拼产出根目录：有步骤写它的普通资源要（它是这次执行的产出）；
+ * 只被读的不要（它是现成的东西）；记忆也不要（它跨执行留着，见 `shared/presets.ts`）。
+ */
+export function underOutputRoot(info: ResourceInfo | undefined): boolean {
+  if (info === undefined) return false
+  return writesUnderRoot(info.resource.data, info.writers.length > 0)
+}
+
 /** 一个步骤和它连着的资源（不含交给整个工作流的那些）。 */
 export interface StepResources {
   writes: { resource: ResourceNode; update: boolean; edge: WorkflowEdge }[]
@@ -191,12 +201,15 @@ export function roleOf(info: ResourceInfo | undefined, stepId: string): Resource
 
 /** 一个步骤写的资源里的文件，摊成产出清单（存成步骤模板时用）。 */
 export function outputsOf(document: WorkflowDocument, stepId: string): OutputSpec[] {
+  // 记忆不是产出：存成模板时不带它（放回画布时在步骤卡上一键再开）。
   return stepResources(document, stepId).writes.flatMap(({ resource }) =>
-    resource.data.items
-      .filter((item) => item.kind === 'file')
-      .map((item) =>
-        item.note === undefined ? { path: item.value } : { path: item.value, rule: item.note },
-      ),
+    memoryOf(resource.data) !== undefined
+      ? []
+      : resource.data.items
+          .filter((item) => item.kind === 'file')
+          .map((item) =>
+            item.note === undefined ? { path: item.value } : { path: item.value, rule: item.note },
+          ),
   )
 }
 
@@ -298,12 +311,12 @@ export function setStepOutputs(
     }
   }
   const nodes = nodeIndex(document)
-  const dropped = document.edges.filter(
-    (edge) =>
-      edgeKind(nodes, edge) === 'write' &&
-      idKey(edge.source) === idKey(step.id) &&
-      !wanted.has(idKey(edge.target)),
-  )
+  // 写记忆的线不归产出清单管。
+  const dropped = document.edges.filter((edge) => {
+    if (edgeKind(nodes, edge) !== 'write' || idKey(edge.source) !== idKey(step.id)) return false
+    const target = nodes.get(idKey(edge.target))
+    return !wanted.has(idKey(edge.target)) && (target === undefined || !isMemory(target))
+  })
   if (dropped.length > 0) {
     const gone = new Set(dropped.map((edge) => edge.id))
     document.edges = document.edges.filter((edge) => !gone.has(edge.id))

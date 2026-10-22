@@ -14,7 +14,7 @@ import { open, readdir, readFile, realpath, stat } from 'node:fs/promises'
 import { dirname, extname, isAbsolute, join, relative, resolve } from 'node:path'
 import { isResource } from '../../shared/model.ts'
 import { resolveItemPath, resolveOutputPath } from '../../shared/outputPaths.ts'
-import { resourceGraph } from '../../shared/resources.ts'
+import { resourceGraph, underOutputRoot } from '../../shared/resources.ts'
 import type { InstanceRecord } from '../../shared/runState.ts'
 import type { WorkflowDocument } from '../../shared/types.ts'
 import {
@@ -88,7 +88,7 @@ export function itemLocation(
   const entry = resource.data.items[item]
   if (entry === undefined || (entry.kind !== 'file' && entry.kind !== 'folder')) return null
   if (entry.value.trim() === '') return null
-  const written = (resourceGraph(document).get(resource.id)?.writers.length ?? 0) > 0
+  const written = underOutputRoot(resourceGraph(document).get(resource.id))
   return resolveItemPath(document.settings?.outputRoot, entry.value, written)
 }
 

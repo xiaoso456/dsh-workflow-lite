@@ -42,12 +42,13 @@ import {
   useRef,
   useState,
 } from 'react'
-import type { Appearance } from '../../shared/appearance.ts'
+import type { Appearance, StepColor } from '../../shared/appearance.ts'
 import type { GraphAnalysis } from '../../shared/graph.ts'
 import { inputKind } from '../../shared/inputs.ts'
 import { MAX_TEXT_CODEPOINTS } from '../../shared/limits.ts'
 import { idKey, isInput, isResource } from '../../shared/model.ts'
 import { codepointLength } from '../../shared/naming.ts'
+import { memoryOf } from '../../shared/presets.ts'
 import {
   edgeKind,
   isShared,
@@ -62,6 +63,7 @@ import {
 import type { NodeStatus } from '../../shared/runState.ts'
 import type {
   InputKind,
+  MemoryScope,
   Point,
   ResourceKind,
   ValidationProblem,
@@ -122,6 +124,7 @@ import { Icon, type IconName } from './Icon.tsx'
 import { ACCESS_COLOR, type Access, WHEN_COLOR, type WhenKind, whenKind } from './lines.ts'
 import { FadeRing, SwapIcon, SwapText, useCanvasExits, useLast } from './motion.tsx'
 import { cx, useFloat } from './primitives.tsx'
+import { resourceTint } from './ResourcePresets.tsx'
 import { freeFilePath, itemText, KIND_ICON, KIND_LABEL } from './resourceUi.ts'
 import { lookOf, StepMark } from './StepMark.tsx'
 import ui from './ui.module.css'
@@ -158,6 +161,8 @@ export interface CanvasProps {
   onFocusFile: FocusFile
   /** 工作流实例视图：每张步骤卡挂上运行状态，走过的线亮、没走过的淡。缺省 = 模板编辑。 */
   run?: RunDecor
+  /** 步骤卡上的记忆开关；不给就不显示开关（只标出开着记忆的步骤）。 */
+  onMemory?: (step: string) => void
 }
 
 /** 实例视图给画布的装饰。 */
@@ -215,6 +220,11 @@ interface StepData extends Record<string, unknown> {
   roleText: string
   dim: boolean
   onAdd: (id: string, anchor: Element) => void
+  /** 这一步开着记忆（写一张记忆卡）。 */
+  memory: boolean
+  memoryText: string
+  /** 一键开关记忆；实例视图里是 `null`（只显示开着的标记）。 */
+  onMemory: ((id: string) => void) | null
   /** 实例视图里的运行状态；模板编辑时为 `null`。 */
   run: StepRun | null
   onRunStatus: (id: string, anchor: Element) => void
@@ -243,6 +253,10 @@ interface ResourceCardData extends Record<string, unknown> {
   emptyText: string
   /** 紧凑时左边的签：文件印扩展名，其余放种类图标；空资源是一叠。 */
   tab: { kind: ResourceKind | 'many'; ext: string }
+  /** 记忆卡：这一步的记忆 / 全局记忆；普通资源是 `null`。 */
+  memory: 'step' | 'global' | null
+  /** 卡片的颜色；`null` = 资源卡本来的灰。 */
+  tint: StepColor | null
   /** 一条线都没连：交给整个工作流。 */
   shared: boolean
   sharedText: string
@@ -469,6 +483,30 @@ const StepCard = memo(function StepCard(props: NodeProps<StepFlowNode>): React.J
           <span className={css.cardFlag} data-tone={data.tone}>
             <Icon name="alert" size={13} />
           </span>
+        )}
+        {/* 记忆开关：开着时一直亮着，关着时悬停卡片才露出来。点一下开 / 关（关掉不删文件）。 */}
+        {data.onMemory !== null ? (
+          <button
+            type="button"
+            className={cx(css.memToggle, 'nodrag')}
+            data-on={data.memory}
+            data-tip={data.memoryText}
+            aria-label={data.memoryText}
+            aria-pressed={data.memory}
+            data-testid="wl-step-memory"
+            onClick={(event) => {
+              event.stopPropagation()
+              data.onMemory?.(id)
+            }}
+          >
+            <Icon name="memory" size={14} />
+          </button>
+        ) : (
+          data.memory && (
+            <span className={css.memToggle} data-on="true" aria-hidden="true">
+              <Icon name="memory" size={14} />
+            </span>
+          )
         )}
       </div>
       {data.excerpt === '' ? (
@@ -989,12 +1027,34 @@ function extensionOf(name: string): string {
  * 一眼看出这是资源、不是步骤或旧的文件卡；下面一行小字是这一项是什么——文件印扩展名，其余放种类图标。
  * 空资源只有那一叠。
  */
-function ResourceTab(props: { kind: ResourceKind | 'many'; ext: string }): React.JSX.Element {
+function ResourceTab(props: {
+  kind: ResourceKind | 'many'
+  ext: string
+  memory: boolean
+  /** 卡片的颜色（选了颜色、或是记忆这类预设）；`null` = 资源卡本来的灰。 */
+  tint: StepColor | null
+}): React.JSX.Element {
+  const tint = tintStyle(props.tint)
+  // 记忆卡的签：一颗脑，不印扩展名（记忆总是一个 Markdown 文件）。
+  if (props.memory) {
+    return (
+      <span
+        className={css.fileTab}
+        data-tinted={tint !== undefined}
+        style={tint}
+        aria-hidden="true"
+      >
+        <Icon name="memory" size={16} />
+      </span>
+    )
+  }
   return (
     <span
       className={css.fileTab}
       data-kind={props.kind}
       data-long={props.ext.length > 3}
+      data-tinted={tint !== undefined}
+      style={tint}
       aria-hidden="true"
     >
       <span className={css.fileTabMark}>
@@ -1007,6 +1067,13 @@ function ResourceTab(props: { kind: ResourceKind | 'many'; ext: string }): React
       )}
     </span>
   )
+}
+
+/** 卡片染色：色板里的颜色交给 CSS 变量 `--wl-tint`（色值在主题里）。 */
+function tintStyle(color: StepColor | null): React.CSSProperties | undefined {
+  return color === null
+    ? undefined
+    : ({ '--wl-tint': `var(--wl-c-${color})` } as React.CSSProperties)
 }
 
 /**
@@ -1024,6 +1091,7 @@ const ResourceCard = memo(function ResourceCard(
     <div
       className={cx(css.resCard, selected && css.cardSelected)}
       data-compact={data.compact}
+      data-memory={data.memory ?? undefined}
       data-focused={data.focused}
       data-dim={data.dim}
       data-tone={data.tone}
@@ -1041,7 +1109,12 @@ const ResourceCard = memo(function ResourceCard(
       />
       {data.compact ? (
         <>
-          <ResourceTab kind={data.tab.kind} ext={data.tab.ext} />
+          <ResourceTab
+            kind={data.tab.kind}
+            ext={data.tab.ext}
+            memory={data.memory !== null}
+            tint={data.tint}
+          />
           <span className={css.fileText}>
             <span className={cx(css.fileName, data.items.length === 0 && css.resEmptyTitle)}>
               {data.title}
@@ -1052,7 +1125,11 @@ const ResourceCard = memo(function ResourceCard(
       ) : (
         <span className={css.resBody}>
           <span className={css.resHead}>
-            <span className={css.resHeadIcon}>
+            <span
+              className={css.resHeadIcon}
+              data-tinted={data.tint !== null}
+              style={tintStyle(data.tint)}
+            >
               <Icon name="layers" size={13} />
             </span>
             <span className={css.resName}>{data.title}</span>
@@ -1094,7 +1171,7 @@ const ResourceCard = memo(function ResourceCard(
           </span>
         </span>
       )}
-      {data.shared && (
+      {data.shared && data.memory === null && (
         <span
           className={css.resShared}
           data-tip={data.sharedText}
@@ -1571,6 +1648,22 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
     [doc.nodes, doc.edges],
   )
 
+  /** 开着记忆的步骤（写着一张记忆卡的那些，规范大小写）。 */
+  const memorySteps = useMemo(() => {
+    const keys = new Set<string>()
+    for (const info of files.values()) {
+      if (memoryOf(info.resource.data) === undefined) continue
+      for (const writer of info.writers) keys.add(idKey(writer.id))
+    }
+    return keys
+  }, [files])
+
+  // 记忆开关同样走 ref（节点对象是缓存的）。
+  const memoryRef = useRef(props.onMemory)
+  memoryRef.current = props.onMemory
+  const memoryToggle = props.onMemory !== undefined
+  const onMemory = useCallback((id: string): void => memoryRef.current?.(id), [])
+
   /** 指针下的那条线：悬停时它也"活"起来，标明是哪种线。 */
   const [hoverEdge, setHoverEdge] = useState<string | null>(null)
 
@@ -1674,6 +1767,14 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
       pass: t('edge.pass'),
       fail: t('edge.fail'),
       generated: t('run.fileMade'),
+      memTitle: t('mem.title'),
+      memGlobal: t('mem.global'),
+      memOn: t('mem.on'),
+      memOff: t('mem.off'),
+      memScopes: {
+        workflow: t('mem.scope.workflow'),
+        workspace: t('mem.scope.workspace'),
+      } satisfies Record<MemoryScope, string>,
       produce: t(ACCESS_TEXT.produce),
       update: t(ACCESS_TEXT.update),
       read: t(ACCESS_TEXT.read),
@@ -1907,7 +2008,8 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
         const made = run?.files[node.id]
         const info = files.get(node.id)
         const shared = info !== undefined && isShared(info)
-        const compact = isCompactResource(node.data)
+        const memory = memoryOf(node.data)
+        const compact = memory !== undefined || isCompactResource(node.data)
         const all = node.data.items
         const first = all[0]
         const items: CardItem[] = all.slice(0, compact ? 1 : RES_SHOWN).map((item, index) => ({
@@ -1916,20 +2018,29 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
           made: made === undefined ? null : (made[index] ?? null),
         }))
         const firstNote = first?.note?.replace(/\s+/gu, ' ').trim() ?? ''
+        const label = node.data.label?.trim() ?? ''
         const title =
-          compact && first === undefined
-            ? texts.resEmpty
-            : compact && first !== undefined
-              ? itemText(first) || texts.kinds[first.kind]
-              : resourceTitle(node)
+          memory !== undefined
+            ? label !== ''
+              ? label
+              : shared
+                ? texts.memGlobal
+                : texts.memTitle
+            : compact && first === undefined
+              ? texts.resEmpty
+              : compact && first !== undefined
+                ? itemText(first) || texts.kinds[first.kind]
+                : resourceTitle(node)
         const sub =
-          first === undefined
-            ? texts.resEmptySub
-            : firstNote !== ''
-              ? firstNote
-              : first.kind === 'file' || first.kind === 'folder' || first.kind === 'url'
-                ? first.value.trim()
-                : texts.kinds[first.kind]
+          memory !== undefined
+            ? `${texts.memScopes[memory.scope]} · ${first?.value.trim() || '—'}`
+            : first === undefined
+              ? texts.resEmptySub
+              : firstNote !== ''
+                ? firstNote
+                : first.kind === 'file' || first.kind === 'folder' || first.kind === 'url'
+                  ? first.value.trim()
+                  : texts.kinds[first.kind]
         const ext = first?.kind === 'file' ? extensionOf(itemText(first)) : ''
         const description = (node.data.description ?? '').replace(/\s+/gu, ' ').trim()
         const data: ResourceCardData = {
@@ -1943,6 +2054,8 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
           countText: texts.resCount.replace('{n}', String(all.length)),
           emptyText: texts.resEmpty,
           tab: { kind: first?.kind ?? 'many', ext },
+          memory: memory === undefined ? null : shared ? 'global' : 'step',
+          tint: resourceTint(node.data),
           shared,
           sharedText: texts.resShared,
           tone,
@@ -1978,7 +2091,9 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
                 roundText: t('run.round').replace('{n}', String(state.round)),
                 markText: state.mark === undefined ? '' : t(MARK_TEXT[state.mark]),
               }
-        signature = `${selected}|${tone}|${note}|${texts.addText}|${texts.fileText}|${role}|${dim}|${used.join(',')}|${stepRun === null ? '' : `${stepRun.status}/${stepRun.round}/${stepRun.edited}/${stepRun.label}/${stepRun.mark}`}`
+        const memoryOn = memorySteps.has(idKey(node.id))
+        const memoryText = memoryOn ? texts.memOff : texts.memOn
+        signature = `${selected}|${tone}|${note}|${texts.addText}|${texts.fileText}|${role}|${dim}|${used.join(',')}|${memoryOn}|${memoryText}|${memoryToggle}|${stepRun === null ? '' : `${stepRun.status}/${stepRun.round}/${stepRun.edited}/${stepRun.label}/${stepRun.mark}`}`
         build = () => ({
           id: node.id,
           type: 'wfNode',
@@ -2003,6 +2118,9 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
             roleText: role === null ? '' : t(ROLE_TEXT[role]),
             dim,
             onAdd,
+            memory: memoryOn,
+            memoryText,
+            onMemory: memoryToggle ? onMemory : null,
             run: stepRun,
             onRunStatus,
           },
@@ -2041,6 +2159,9 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
     t,
     run,
     onRunStatus,
+    memorySteps,
+    memoryToggle,
+    onMemory,
   ])
 
   const edges = useMemo<FlowEdge[]>(() => {

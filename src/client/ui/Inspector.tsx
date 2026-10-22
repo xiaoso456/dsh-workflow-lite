@@ -64,6 +64,8 @@ export interface InspectorProps {
   host: HostAccess
   /** 标题栏里关闭按钮左边的切换（实例视图里「运行 / 编辑」）；模板编辑不给。 */
   tabs?: React.ReactNode
+  /** 工作流名（记忆换范围时用）；实例视图不给。 */
+  workflow?: string | null
 }
 
 function titleOf(node: WorkflowNode | undefined, fallback: string): string {
@@ -90,6 +92,7 @@ export function Inspector(props: InspectorProps): React.JSX.Element | null {
           onFocusFile={props.onFocusFile}
           onRemove={props.onRemoveNode}
           tabs={props.tabs}
+          workflow={props.workflow ?? null}
         />
       )
     }

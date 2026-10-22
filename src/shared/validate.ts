@@ -41,6 +41,7 @@ import {
   isVerdictWhen,
 } from './naming.ts'
 import { checkOutputRoot, outputKey } from './outputPaths.ts'
+import { memoryOf } from './presets.ts'
 import {
   edgeKind,
   flowEdges,
@@ -338,6 +339,17 @@ export function validateDocument(
         }),
       )
     }
+    const only = resource.data.items[0]
+    if (memoryOf(resource.data) !== undefined) {
+      if (resource.data.items.length !== 1 || only?.kind !== 'file') {
+        compile.push(
+          mk('compile', 'memory_invalid', `记忆 ${resource.id} 只能放一个文件`, {
+            node: resource.id,
+          }),
+        )
+      }
+      continue
+    }
     if (info.writers.length > 0 && !resource.data.items.some(isWritable)) {
       compile.push(
         mk(
@@ -445,7 +457,7 @@ export function validateDocument(
   for (const info of resources.values()) {
     // 不止一个步骤整份写它：后写的会把先写的覆盖掉。
     const producers = info.writers.filter((writer) => !writer.update).map((writer) => writer.id)
-    if (producers.length > 1) {
+    if (producers.length > 1 && memoryOf(info.resource.data) === undefined) {
       warning.push(
         mk(
           'warning',

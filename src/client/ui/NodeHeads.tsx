@@ -28,7 +28,7 @@ import input from './input.module.css'
 import css from './inspector.module.css'
 import { PanelHead } from './PanelHead.tsx'
 import { cx } from './primitives.tsx'
-import res from './resource.module.css'
+import { ResourceMark } from './ResourcePresets.tsx'
 import run from './run.module.css'
 import { lookOf } from './StepMark.tsx'
 import { TitleField } from './TitleField.tsx'
@@ -89,22 +89,28 @@ export function StepHead(
 }
 
 export function ResourceHead(
-  props: HeadProps & { node: ResourceNode; onEdit(edit: Edit): void; onSeal(): void },
+  props: HeadProps & {
+    node: ResourceNode
+    /** 记忆卡：没起名字时标题栏里显示的称呼（「记忆」/「全局记忆」）。 */
+    memory?: string
+    /** 标题左边的图标块（编辑面板里是类型选择）；缺省按类型画一个不能点的。 */
+    lead?: React.ReactNode
+    onEdit(edit: Edit): void
+    onSeal(): void
+  },
 ): React.JSX.Element {
   const { t, node } = props
   return (
     <PanelHead
       t={t}
-      lead={
-        <span className={res.headIcon}>
-          <Icon name="layers" size={16} />
-        </span>
-      }
+      lead={props.lead ?? <ResourceMark data={node.data} />}
       title={
         <TitleField
           t={t}
           value={node.data.label ?? ''}
-          placeholder={resourceTitle({ ...node, data: { ...node.data, label: '' } })}
+          placeholder={
+            props.memory ?? resourceTitle({ ...node, data: { ...node.data, label: '' } })
+          }
           ariaLabel={t('res.name')}
           testId="wl-resource-label"
           onType={(value) =>

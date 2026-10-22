@@ -448,6 +448,29 @@
   color: var(--wl-text-3);
 }
 
+/* 记忆怎么用的那句说明：和「交给整个工作流」同一个样子，图标用记忆色。 */
+/* 记忆提示词：小标题旁「默认 / 已改」，弹窗左上角的脑袋 */
+.promptTag {
+  padding: 0 6px;
+  border-radius: calc(5px * var(--wl-round, 1));
+  background: var(--wl-fill);
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-weight: 500;
+  line-height: 18px;
+}
+
+.promptTag[data-custom="true"] {
+  background: color-mix(in srgb, var(--wl-memory) 14%, transparent);
+  color: var(--wl-memory);
+}
+
+.promptBadge {
+  display: grid;
+  place-items: center;
+  color: var(--wl-memory);
+}
+
 /* ── Skill 清单 ───────────────────────────────────────────── */
 
 .skillHeadIcon {

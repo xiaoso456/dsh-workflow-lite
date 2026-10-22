@@ -542,3 +542,64 @@ describe('输入节点与步骤的样子', () => {
     expect(stepData(cleared.doc?.nodes[0])).toEqual({ prompt: 'p' })
   })
 })
+
+describe('记忆', () => {
+  const on = { scope: 'workspace', workflow: 'g' } as const
+
+  it('开记忆：加一张 mem-<步骤> 卡、连一条更新线，一条撤销步；再关掉连卡一起删', () => {
+    const opened = run(loaded(doc({ nodes: [node('a')] })), {
+      type: 'setStepMemory',
+      step: 'a',
+      on: true,
+      ...on,
+    })
+    expect(opened.doc?.nodes.map((item) => item.id)).toEqual(['a', 'mem-a'])
+    expect(opened.doc?.edges).toEqual([{ ...edge('a', 'mem-a'), data: { update: true } }])
+    expect(opened.past).toHaveLength(1)
+    const off = run(opened, { type: 'setStepMemory', step: 'a', on: false })
+    expect(off.doc?.nodes.map((item) => item.id)).toEqual(['a'])
+    expect(off.doc?.edges).toEqual([])
+    expect(run(off, { type: 'undo' }).doc?.nodes.map((item) => item.id)).toEqual(['a', 'mem-a'])
+  })
+
+  it('删步骤时它的记忆卡一起删；全局记忆留着', () => {
+    const state = run(
+      loaded(doc({ nodes: [node('a'), node('b')] })),
+      { type: 'setStepMemory', step: 'a', on: true, ...on },
+      { type: 'addGlobalMemory', ...on },
+      { type: 'removeNode', id: 'a' },
+    )
+    expect(state.doc?.nodes.map((item) => item.id)).toEqual(['b', 'mem-global'])
+  })
+
+  it('从步骤连到记忆卡：默认就是更新', () => {
+    const state = run(
+      loaded(doc({ nodes: [node('a'), node('b')] })),
+      { type: 'addGlobalMemory', ...on },
+      { type: 'connect', source: 'b', target: 'mem-global' },
+    )
+    expect(state.doc?.edges.find((item) => item.source === 'b')?.data).toEqual({ update: true })
+  })
+
+  it('换类型：普通资源换成记忆、写它的线改成更新，一条撤销步；换回来内容和线都留着', () => {
+    const state = run(loaded(doc({ nodes: [node('a')] })), {
+      type: 'addResource',
+      data: { items: [] },
+      writer: 'a',
+    })
+    const id = state.doc?.nodes[1]?.id ?? ''
+    const memory = run(state, { type: 'setPreset', id, preset: 'memory', workflow: 'g' })
+    const card = memory.doc?.nodes[1]
+    expect(card?.data).toEqual({
+      items: [{ kind: 'file', value: `.workflow-lite/memory/g/${id}.md` }],
+      preset: { kind: 'memory', scope: 'workspace' },
+    })
+    expect(memory.doc?.edges[0]?.data).toEqual({ update: true })
+    expect(memory.past).toHaveLength(state.past.length + 1)
+    const plain = run(memory, { type: 'setPreset', id, preset: null, workflow: 'g' })
+    expect(plain.doc?.nodes[1]?.data).toEqual({
+      items: [{ kind: 'file', value: `.workflow-lite/memory/g/${id}.md` }],
+    })
+    expect(plain.doc?.edges[0]?.data).toEqual({ update: true })
+  })
+})

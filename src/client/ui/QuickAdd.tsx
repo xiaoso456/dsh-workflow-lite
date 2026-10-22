@@ -33,6 +33,8 @@ export function QuickAdd(props: {
   templates: readonly TemplateEntry[]
   /** 从哪儿来：步骤的「＋」/ 资源卡、输入卡拖出来的线 / 空白处。 */
   origin: 'step' | 'resource' | 'input' | 'none'
+  /** 列出「记忆」：从步骤来是给它开记忆（已经开着就不列），从空白处来是全局记忆。实例视图里不给。 */
+  memory?: boolean
   onPick(source: StepSource): void
   onClose(): void
 }): React.JSX.Element {
@@ -91,8 +93,8 @@ export function QuickAdd(props: {
             <span className={cx(ui.kind, css.quickKind, css.quickFile)}>
               <Icon name="file" size={13} />
             </span>
-            <span className={ui.menuLabel}>{t('quick.output')}</span>
-            <span className={ui.menuMeta}>{t('quick.outputDesc')}</span>
+            <span className={cx(ui.menuLabel, css.quickLabel)}>{t('quick.output')}</span>
+            <span className={cx(ui.menuMeta, css.quickMeta)}>{t('quick.outputDesc')}</span>
           </button>
           <button
             type="button"
@@ -104,9 +106,24 @@ export function QuickAdd(props: {
             <span className={cx(ui.kind, css.quickKind, css.quickInput)}>
               <Icon name="ask" size={13} />
             </span>
-            <span className={ui.menuLabel}>{t('quick.input')}</span>
-            <span className={ui.menuMeta}>{t('quick.inputDesc')}</span>
+            <span className={cx(ui.menuLabel, css.quickLabel)}>{t('quick.input')}</span>
+            <span className={cx(ui.menuMeta, css.quickMeta)}>{t('quick.inputDesc')}</span>
           </button>
+          {props.memory === true && (
+            <button
+              type="button"
+              role="menuitem"
+              className={ui.menuItem}
+              data-testid="wl-quick-memory"
+              onClick={() => props.onPick({ kind: 'memory' })}
+            >
+              <span className={cx(ui.kind, css.quickKind, css.quickMemory)}>
+                <Icon name="memory" size={13} />
+              </span>
+              <span className={cx(ui.menuLabel, css.quickLabel)}>{t('quick.memory')}</span>
+              <span className={cx(ui.menuMeta, css.quickMeta)}>{t('quick.memoryDesc')}</span>
+            </button>
+          )}
           <div className={ui.menuSep} />
         </>
       )}
@@ -118,7 +135,7 @@ export function QuickAdd(props: {
         onClick={() => props.onPick({ kind: 'blank' })}
       >
         <StepMark look={presetAppearance('blank')} size={13} className={css.quickKind} />
-        <span className={ui.menuLabel}>{t('lib.blank')}</span>
+        <span className={cx(ui.menuLabel, css.quickLabel)}>{t('lib.blank')}</span>
       </button>
       {props.origin === 'none' && (
         <button
@@ -131,8 +148,8 @@ export function QuickAdd(props: {
           <span className={cx(ui.kind, css.quickKind, css.quickFile)}>
             <Icon name="layers" size={13} />
           </span>
-          <span className={ui.menuLabel}>{t('quick.resource')}</span>
-          <span className={ui.menuMeta}>{t('quick.resourceDesc')}</span>
+          <span className={cx(ui.menuLabel, css.quickLabel)}>{t('quick.resource')}</span>
+          <span className={cx(ui.menuMeta, css.quickMeta)}>{t('quick.resourceDesc')}</span>
         </button>
       )}
       {props.origin === 'none' && (
@@ -146,8 +163,23 @@ export function QuickAdd(props: {
           <span className={cx(ui.kind, css.quickKind, css.quickInput)}>
             <Icon name="ask" size={13} />
           </span>
-          <span className={ui.menuLabel}>{t('quick.looseInput')}</span>
-          <span className={ui.menuMeta}>{t('quick.looseInputDesc')}</span>
+          <span className={cx(ui.menuLabel, css.quickLabel)}>{t('quick.looseInput')}</span>
+          <span className={cx(ui.menuMeta, css.quickMeta)}>{t('quick.looseInputDesc')}</span>
+        </button>
+      )}
+      {props.origin === 'none' && props.memory === true && (
+        <button
+          type="button"
+          role="menuitem"
+          className={ui.menuItem}
+          data-testid="wl-quick-global-memory"
+          onClick={() => props.onPick({ kind: 'memory' })}
+        >
+          <span className={cx(ui.kind, css.quickKind, css.quickMemory)}>
+            <Icon name="memory" size={13} />
+          </span>
+          <span className={cx(ui.menuLabel, css.quickLabel)}>{t('quick.globalMemory')}</span>
+          <span className={cx(ui.menuMeta, css.quickMeta)}>{t('quick.globalMemoryDesc')}</span>
         </button>
       )}
       {PRESETS.map((preset) => (
@@ -160,8 +192,8 @@ export function QuickAdd(props: {
           onClick={() => props.onPick({ kind: 'preset', id: preset.id })}
         >
           <StepMark look={presetAppearance(preset.id)} size={13} className={css.quickKind} />
-          <span className={ui.menuLabel}>{t(preset.labelKey)}</span>
-          <span className={ui.menuMeta}>{t(preset.descKey)}</span>
+          <span className={cx(ui.menuLabel, css.quickLabel)}>{t(preset.labelKey)}</span>
+          <span className={cx(ui.menuMeta, css.quickMeta)}>{t(preset.descKey)}</span>
         </button>
       ))}
       {templates.length > 0 && <div className={ui.menuSep} />}
@@ -180,7 +212,7 @@ export function QuickAdd(props: {
           ) : (
             <StepMark look={appearanceOf(entry.name, entry)} size={13} className={css.quickKind} />
           )}
-          <span className={ui.menuLabel}>{entry.name}</span>
+          <span className={cx(ui.menuLabel, css.quickLabel)}>{entry.name}</span>
         </button>
       ))}
     </div>

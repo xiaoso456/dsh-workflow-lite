@@ -22,9 +22,11 @@
   display: -webkit-box;
   width: 100%;
   margin: 0;
-  padding: 9px 12px;
+  /* 底下的留白用透明边框而不是内边距：截断后剩下的行会画进内边距、露出半截，边框里不会。 */
+  padding: 9px 12px 0;
   overflow: hidden;
   border: 0;
+  border-bottom: 9px solid transparent;
   border-radius: calc(10px * var(--wl-round, 1));
   background: var(--wl-fill);
   color: var(--wl-text-2);
@@ -45,6 +47,7 @@
 
 /* 能改、还空着：写着占位，点一下进「编辑」。 */
 .card[data-empty="true"] {
+  padding-bottom: 9px;
   border: 1px dashed var(--wl-line-strong);
   background: transparent;
   color: var(--wl-text-3);

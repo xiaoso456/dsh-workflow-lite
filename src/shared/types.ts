@@ -114,6 +114,7 @@ export interface ResourceNode {
  * 资源里一项的种类：
  * - `file` 文件、`folder` 文件夹：`value` 是路径。绝对路径原样用；相对路径在有步骤写这个资源时
  *   放在产出根目录下，只被读时相对工作区（见 `shared/outputPaths.ts` 的 `resolveItemPath`）；
+ *   记忆（{@link MemoryPreset}）例外，一律相对工作区；
  * - `url` 网址；`skill` DSH 能识别的 skill 名；`text` 自定义（一段原样交给执行者的提示词）。
  */
 export const RESOURCE_KINDS = ['file', 'folder', 'url', 'skill', 'text'] as const
@@ -137,7 +138,37 @@ export interface ResourceData {
   description?: string
   /** 内容，按添加顺序。 */
   items: ResourceItem[]
+  /** 卡片的颜色（色板里的名字）；缺省按类型（普通资源 / 预设）的颜色。不进计划。 */
+  color?: string
+  /** 预设：带专门写法与一键入口的一类资源（见 `shared/presets.ts`）；缺省 = 普通资源。 */
+  preset?: ResourcePreset
 }
+
+/** 资源预设的种类（资源卡上的类型标记，见 `shared/presets.ts`）。以后的预设加在这里。 */
+export const RESOURCE_PRESETS = ['memory'] as const
+export type ResourcePresetKind = (typeof RESOURCE_PRESETS)[number]
+
+/**
+ * 记忆的范围，只决定默认路径（实际以路径为准）：
+ * - `workspace` 本工作区：放在工作区里、按工作流分开，只有这个工作区里的这个工作流用；
+ * - `workflow` 本工作流：放在工作流自己的资料目录里，在哪个工作区执行都是同一份，跟着工作流导出。
+ */
+export const MEMORY_SCOPES = ['workspace', 'workflow'] as const
+export type MemoryScope = (typeof MEMORY_SCOPES)[number]
+
+/** 新记忆、认不出的范围按它。 */
+export const DEFAULT_MEMORY_SCOPE: MemoryScope = 'workspace'
+
+/**
+ * 记忆：跨多次执行攒下来的经验，一个文件。连着步骤（步骤 → 记忆）= 这一步自己的记忆；
+ * 一条线都没连 = 全局记忆（每一步都读，由主 agent 收尾时统一整理）。相对路径一律相对工作区，不拼产出根目录。
+ */
+export interface MemoryPreset {
+  kind: 'memory'
+  scope: MemoryScope
+}
+
+export type ResourcePreset = MemoryPreset
 
 /**
  * 输入节点：执行前问用户的一个问题。用户点「执行」时先填好它们，编译时**问题与回答**进计划，
@@ -337,6 +368,7 @@ export type ValidationCode =
   | 'resource_empty'
   | 'resource_item_empty'
   | 'resource_unwritable'
+  | 'memory_invalid'
   // 警告
   | 'loop_without_exit'
   | 'mixed_conditional_edges'

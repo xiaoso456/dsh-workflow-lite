@@ -16,7 +16,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { isStep } from '../../shared/model.ts'
-import { resourceGraph } from '../../shared/resources.ts'
+import { resourceGraph, underOutputRoot } from '../../shared/resources.ts'
 import type { RunState } from '../../shared/runState.ts'
 import type { ResourceItem, ResourceNode, WorkflowDocument } from '../../shared/types.ts'
 import type { Desktop } from '../app/desktop.ts'
@@ -63,7 +63,7 @@ export function RunResourceDetail(props: {
 }): React.JSX.Element {
   const { t, snapshot, resource } = props
   const info = useMemo(() => resourceGraph(snapshot).get(resource.id), [snapshot, resource.id])
-  const written = (info?.writers.length ?? 0) > 0
+  const written = underOutputRoot(info)
   const items = resource.data.items
   /** 正在看哪一项（文件夹、网址、Skill、自定义；文件交给右栏外面的查看框）。 */
   const [open, setOpen] = useState<number | null>(null)

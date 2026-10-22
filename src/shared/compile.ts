@@ -39,12 +39,14 @@ import { PLAN_SECTIONS, TASK_SECTIONS, VERDICT_PREFIX } from './limits.ts'
 import { displayName, idKey, isStep, resourceIdFor, writeDocument } from './model.ts'
 import { isVerdictWhen } from './naming.ts'
 import { INSTANCE_TOKEN, isAbsoluteRoot, normalizeRoot, resolveItemPath } from './outputPaths.ts'
+import { isMemory, memoryOf, memoryPrompt } from './presets.ts'
 import {
   isShared,
   type ResourceInfo,
   resolveHandoff,
   resourceGraph,
   stepResources,
+  underOutputRoot,
 } from './resources.ts'
 import { SKILL_PATHS, SKILL_TOKEN, skillPath } from './skillPack.ts'
 import type {
@@ -113,6 +115,22 @@ const UPDATE_FOLDER_RULE =
   '**更新文件夹**：「更新」说的是文件；更新的是文件夹时，按资源说明在里面新增或修改文件，说明没提到的已有文件不动，不要清空、搬动或整理整个文件夹。'
 const UPDATE_RULE =
   '**更新**：长期维护的现状和记录，不是写这一次报告的地方。先读，再在原文件上改，不要另存副本。按资源说明规定的结构写；文件里已有的写法和说明不一致时以说明为准，顺手整理，不要照着旧写法继续写。描述现状的部分就地改成最新的，不在开头或末尾追加「本次结果」段落；记录每次只加一行，格式照说明（说明没写就照已有的行），每格只放短语、数字或路径；这次的过程和细节写在本次产出或回复里，这里只引用路径。同一件事只写一处。'
+
+/**
+ * 记忆（见 `shared/presets.ts`）：约定里只给定义，怎么读、什么时候写、怎么写是每份记忆自己的「记忆提示词」
+ * （用户能看能改）——步骤的附在它的任务描述里，全局记忆的在「资源」里（编排者整理它时照着写）。
+ */
+const MEMORY_RULE =
+  '**记忆**：跨多次执行攒下来的经验，不是这一次的记录。怎么读、什么时候写、怎么写，照它的「记忆提示词」：步骤自己的记忆附在它的任务描述里，全局记忆的在「资源」里。'
+const MEMORY_RULE_INLINE =
+  '**记忆**：跨多次执行攒下来的经验，不是这一次的记录。怎么读、什么时候写、怎么写，照「资源」里它的「记忆提示词」。'
+const GLOBAL_MEMORY_RULE =
+  '**全局记忆**：每个步骤开始前都读，只读不改，把换个步骤也成立的经验写在回复的「经验」里；整个工作流结束时（中途停下也一样）由你挑出来，照它的「记忆提示词」整理进去。'
+/** 记忆那一项的说明在计划里叫什么。 */
+const MEMORY_PROMPT_LABEL = '记忆提示词'
+/** 任务描述里全局记忆小标题下的那句：只读，经验写在回复里。 */
+const TASK_GLOBAL_MEMORY =
+  '只读：开始前读一遍，当提示用。这一步学到的、换个步骤也成立的经验，在回复里（判定行之前）列在「经验」下，每条一行，没有就不写；由编排者统一整理进去。'
 
 /** 「流程」的小标题。执行批次的括注只说图里有的：没有循环不提回边，没有分支不提互斥分支。 */
 function batchHeading(loops: boolean, branches: boolean): string {
@@ -424,7 +442,7 @@ function renderPlan(
     runSection(facts, ctx, inline),
     beforeSection(facts, ctx, options),
     executionSection(facts, ctx),
-    conventionsSection(ctx, options),
+    conventionsSection(ctx, inline, options),
     flowSection(facts, ctx, inline),
     resourcesSection(ctx, inline),
   ]
@@ -579,7 +597,7 @@ function executionSection(facts: PlanFacts, ctx: RenderContext): string {
 }
 
 /** 约定：路径（skill 口径另说 `{skill}` / `{instance}`）、产出写到哪、资源怎么用、产出与更新的定义。 */
-function conventionsSection(ctx: RenderContext, options?: PlanOptions): string {
+function conventionsSection(ctx: RenderContext, inline: boolean, options?: PlanOptions): string {
   const lines: string[] = [PLAN_SECTIONS.conventions]
   if (ctx.skill !== undefined) lines.push(...skillPathItems(ctx, options?.runState !== undefined))
   else lines.push('- **路径**：相对路径都相对工作区。')
@@ -597,7 +615,12 @@ function conventionsSection(ctx: RenderContext, options?: PlanOptions): string {
     const bundled = (ctx.skill?.bundled.size ?? 0) > 0
     lines.push(`- ${bundled ? SKILL_RESOURCE_RULE : ctx.dialect.resourceRule}`)
   }
-  for (const rule of writeRules(ctx)) lines.push(`- ${rule}`)
+  const rules = writeRules(ctx)
+  if (nonEmptyResources(ctx).some((info) => memoryOf(info.resource.data) !== undefined)) {
+    rules.push(inline ? MEMORY_RULE_INLINE : MEMORY_RULE)
+  }
+  if (globalMemoryInfos(ctx).length > 0) rules.push(GLOBAL_MEMORY_RULE)
+  for (const rule of rules) lines.push(`- ${rule}`)
   return lines.join('\n')
 }
 
@@ -652,8 +675,10 @@ function writeRules(ctx: RenderContext): string[] {
  */
 function rulesFor(
   ctx: RenderContext,
-  writes: ReadonlyArray<{ update: boolean; resource: ResourceNode }>,
+  all: ReadonlyArray<{ update: boolean; resource: ResourceNode }>,
 ): string[] {
+  // 记忆的规矩在它自己的记忆提示词里，不套产出、更新的规矩。
+  const writes = all.filter((item) => memoryOf(item.resource.data) === undefined)
   const produced = writes.filter((item) => !item.update)
   const folder = produced.some((item) =>
     item.resource.data.items.some(
@@ -670,6 +695,13 @@ function rulesFor(
     ...(updated.length > 0 ? [UPDATE_RULE] : []),
     ...(updatedFolder ? [UPDATE_FOLDER_RULE] : []),
   ]
+}
+
+/** 有内容的全局记忆（一条线都没连的记忆）。 */
+function globalMemoryInfos(ctx: RenderContext): ResourceInfo[] {
+  return nonEmptyResources(ctx).filter(
+    (info) => isShared(info) && memoryOf(info.resource.data) !== undefined,
+  )
 }
 
 /** 写出去的一个路径落不落在产出根目录外面（根目录就是工作区时，一律算外面）。 */
@@ -754,6 +786,10 @@ function incomingInOrder(ctx: RenderContext, id: string): WorkflowEdge[] {
 /** 读取列与写入列：资源 id 原样写、不加反引号，多个用 `、` 隔开；在原文件上更新的标「（更新）」。 */
 function resourceCells(ctx: RenderContext, id: string): [string, string] {
   const { reads, writes } = resourcesOf(ctx, id)
+  const memory = (resourceId: string): boolean => {
+    const node = ctx.document.nodes.find((candidate) => candidate.id === resourceId)
+    return node !== undefined && isMemory(node)
+  }
   return [
     reads.length === 0 ? DASH : reads.join('、'),
     writes.length === 0
@@ -761,7 +797,11 @@ function resourceCells(ctx: RenderContext, id: string): [string, string] {
       : writes
           // id 照名字起、名字里本来就带「（更新）」的，不再标一遍。
           .map((item) =>
-            item.update && !item.id.endsWith('（更新）') ? `${item.id}（更新）` : item.id,
+            memory(item.id)
+              ? `${item.id}（记忆）`
+              : item.update && !item.id.endsWith('（更新）')
+                ? `${item.id}（更新）`
+                : item.id,
           )
           .join('、'),
   ]
@@ -862,23 +902,32 @@ function resourcesSection(ctx: RenderContext, inline: boolean): string {
   const lines = [PLAN_SECTIONS.resources, inline ? FULL_RESOURCES_INTRO : RESOURCES_INTRO]
   for (const info of infos) {
     const name = resourceName(info.resource)
-    const shared = isShared(info) ? '（交给所有步骤）' : ''
-    const written = info.writers.length > 0
-    if (!inline) {
-      const items = info.resource.data.items.map((item) => briefItem(ctx, item, written))
-      lines.push(`- ${name}${shared}：${items.join('；')}`)
+    const shared = !isShared(info)
+      ? ''
+      : memoryOf(info.resource.data) !== undefined
+        ? '（全局记忆，交给所有步骤）'
+        : '（交给所有步骤）'
+    const written = underOutputRoot(info)
+    const memory = memoryOf(info.resource.data) !== undefined
+    const label = memory ? MEMORY_PROMPT_LABEL : NOTE_LABEL
+    const items = memory
+      ? withPrompt(info.resource, isShared(info)).data.items
+      : info.resource.data.items
+    if (!inline && !(memory && isShared(info))) {
+      const brief = items.map((item) => briefItem(ctx, item, written))
+      lines.push(`- ${name}${shared}：${brief.join('；')}`)
       continue
     }
-    const [only, ...more] = info.resource.data.items
+    const [only, ...more] = items
     if (only !== undefined && more.length === 0) {
       // 只有一项：接在资源名后面，不再套一层列表。
-      const [first = '', ...rest] = itemLines(ctx, only, written, true, '')
+      const [first = '', ...rest] = itemLines(ctx, only, written, true, '', label)
       lines.push(`- ${name}${shared}：${first.slice(2)}`, ...rest)
       continue
     }
     lines.push(`- ${name}${shared}：`)
-    for (const item of info.resource.data.items) {
-      lines.push(...itemLines(ctx, item, written, true, '  '))
+    for (const item of items) {
+      lines.push(...itemLines(ctx, item, written, true, '  ', label))
     }
   }
   return lines.join('\n')
@@ -953,6 +1002,7 @@ function itemLines(
   written: boolean,
   withNote: boolean,
   indent: string,
+  noteLabel = NOTE_LABEL,
 ): string[] {
   if (item.kind === 'text') {
     const text = item.value.trim()
@@ -962,26 +1012,49 @@ function itemLines(
   const head = `${indent}- ${itemHead(ctx, item, written)}`
   const note = withNote ? (item.note?.trim() ?? '') : ''
   if (note === '') return [head]
-  if (!note.includes('\n')) return [`${head}。说明：${note}`]
-  return [`${head}。说明：`, ...quoteLines(note, `${indent}  `)]
+  if (!note.includes('\n')) return [`${head}。${noteLabel}：${note}`]
+  return [`${head}。${noteLabel}：`, ...quoteLines(note, `${indent}  `)]
 }
 
 /**
  * 一个资源的内容，放在任务描述里它自己的小标题下面：只有一项时不套列表——种类与位置一行，
  * 多行的说明空一行后逐行引用；几项的逐项列出。自定义内容直接引用。
  */
-function itemBlock(ctx: RenderContext, resource: ResourceNode, written: boolean): string[] {
+function itemBlock(
+  ctx: RenderContext,
+  resource: ResourceNode,
+  written: boolean,
+  noteLabel = NOTE_LABEL,
+): string[] {
   const [first, ...others] = resource.data.items
   if (first === undefined) return []
   if (others.length > 0) {
-    return resource.data.items.flatMap((item) => itemLines(ctx, item, written, true, ''))
+    return resource.data.items.flatMap((item) => itemLines(ctx, item, written, true, '', noteLabel))
   }
   if (first.kind === 'text') return quoteLines(first.value.trim(), '')
   const head = itemHead(ctx, first, written)
   const note = first.note?.trim() ?? ''
   if (note === '') return [head]
-  if (!note.includes('\n')) return [`${head}。说明：${note}`]
-  return [`${head}。说明：`, '', ...quoteLines(note, '')]
+  if (!note.includes('\n')) return [`${head}。${noteLabel}：${note}`]
+  return [`${head}。${noteLabel}：`, '', ...quoteLines(note, '')]
+}
+
+/** 资源里一项的说明在计划里叫什么（记忆的叫 {@link MEMORY_PROMPT_LABEL}）。 */
+const NOTE_LABEL = '说明'
+
+/** 记忆那一项的说明换成它实际用的记忆提示词（没写就是默认的）。 */
+function withPrompt(resource: ResourceNode, global: boolean): ResourceNode {
+  const prompt = memoryPrompt(resource.data, global)
+  const items = resource.data.items.map((item, index) =>
+    index === 0 ? { ...item, note: prompt } : item,
+  )
+  return { ...resource, data: { ...resource.data, items } }
+}
+
+/** 去掉说明（任务描述里的全局记忆只给位置：怎么整理是编排者的事）。 */
+function withoutNotes(resource: ResourceNode): ResourceNode {
+  const items = resource.data.items.map(({ note: _note, ...item }) => item)
+  return { ...resource, data: { ...resource.data, items } }
 }
 
 /** 图里有没有附了交接说明的线、只管先后的线（步骤之间的线）。 */
@@ -1250,11 +1323,13 @@ function taskAppendix(facts: PlanFacts, ctx: RenderContext, id: string): string[
   if (shared.length > 0) {
     const lines = [TASK_SECTIONS.global, TASK_GLOBAL_INTRO]
     for (const info of shared) {
+      const memory = memoryOf(info.resource.data) !== undefined
       lines.push(
         '',
-        `### ${resourceName(info.resource)}`,
+        `### ${memory ? '全局记忆 ' : ''}${resourceName(info.resource)}`,
         '',
-        ...itemBlock(ctx, info.resource, false),
+        ...itemBlock(ctx, memory ? withoutNotes(info.resource) : info.resource, false),
+        ...(memory ? ['', TASK_GLOBAL_MEMORY] : []),
       )
     }
     sections.push(lines.join('\n'))
@@ -1263,13 +1338,16 @@ function taskAppendix(facts: PlanFacts, ctx: RenderContext, id: string): string[
   const linked = stepResources(ctx.document, id)
   const written = new Set(linked.writes.map((item) => item.resource.id))
   // 按产出 → 更新 → 读取分组，组内按连线顺序。
+  const memory = (item: { resource: ResourceNode }): boolean =>
+    memoryOf(item.resource.data) !== undefined
   const blocks = [
     ...linked.writes
-      .filter((item) => !item.update)
+      .filter((item) => !item.update && !memory(item))
       .map((item) => ({ role: '产出', resource: item.resource })),
     ...linked.writes
-      .filter((item) => item.update)
+      .filter((item) => item.update && !memory(item))
       .map((item) => ({ role: '更新', resource: item.resource })),
+    ...linked.writes.filter(memory).map((item) => ({ role: '记忆', resource: item.resource })),
     ...linked.reads
       .filter((item) => !written.has(item.resource.id))
       .map((item) => ({ role: '读取', resource: item.resource })),
@@ -1284,7 +1362,12 @@ function taskAppendix(facts: PlanFacts, ctx: RenderContext, id: string): string[
       lines.push('', `### ${role} ${resourceName(resource)}`, '')
       const missing = role === '读取' ? missingNote(ctx, writers, id) : undefined
       if (missing !== undefined) lines.push(missing, '')
-      lines.push(...itemBlock(ctx, resource, writers.length > 0))
+      const written = underOutputRoot(graph.get(resource.id))
+      lines.push(
+        ...(role === '记忆'
+          ? itemBlock(ctx, withPrompt(resource, false), written, MEMORY_PROMPT_LABEL)
+          : itemBlock(ctx, resource, written)),
+      )
     }
     sections.push(lines.join('\n'))
   }

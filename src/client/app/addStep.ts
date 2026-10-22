@@ -5,8 +5,14 @@
  */
 
 import { isInput, isResource } from '../../shared/model.ts'
+import { stepMemories } from '../../shared/presets.ts'
 import { outputResource } from '../../shared/resources.ts'
-import type { NodeData, Point, WorkflowDocument } from '../../shared/types.ts'
+import {
+  DEFAULT_MEMORY_SCOPE,
+  type NodeData,
+  type Point,
+  type WorkflowDocument,
+} from '../../shared/types.ts'
 import type { T } from '../i18n.ts'
 import { type Edit, findNode } from '../model/editor.ts'
 import {
@@ -26,6 +32,31 @@ export interface AddContext {
   edit(edit: Edit): void
   /** 读「我的步骤」里的一个节点模板；读不到回 `null`。 */
   loadTemplate(name: string): Promise<NodeData | null>
+  /** 工作流名：记忆的默认路径里要用它；没有（实例视图）就加不了记忆。 */
+  workflow?: string | null
+}
+
+/**
+ * 开 / 关一个步骤的记忆：开着就关（记忆文件不动），关着就开一张默认范围（本工作区）的记忆卡。
+ * 步骤不在、没有工作流名时是 `null`。
+ */
+export function memoryToggleEdit(
+  doc: WorkflowDocument | null,
+  workflow: string | null | undefined,
+  step: string,
+): Edit | null {
+  const node = doc === null ? undefined : findNode(doc, step)
+  if (doc === null || node === undefined || isResource(node) || isInput(node)) return null
+  if (stepMemories(doc, node.id).length > 0)
+    return { type: 'setStepMemory', step: node.id, on: false }
+  if (workflow === null || workflow === undefined) return null
+  return {
+    type: 'setStepMemory',
+    step: node.id,
+    on: true,
+    scope: DEFAULT_MEMORY_SCOPE,
+    workflow,
+  }
 }
 
 /**
@@ -55,6 +86,18 @@ export async function addFromSource(
             select: true,
           },
     )
+    return
+  }
+  if (source.kind === 'memory') {
+    // 从步骤的「＋」加 = 给这一步开记忆；别处加 = 一张全局记忆卡，落在原地、选中它。
+    if (doc === null || ctx.workflow === null || ctx.workflow === undefined) return
+    const owner = from === undefined ? undefined : findNode(doc, from)
+    if (owner !== undefined && !isResource(owner) && !isInput(owner)) {
+      const toggle = memoryToggleEdit(doc, ctx.workflow, owner.id)
+      if (toggle !== null && toggle.type === 'setStepMemory' && toggle.on) edit(toggle)
+      return
+    }
+    edit({ type: 'addGlobalMemory', scope: DEFAULT_MEMORY_SCOPE, workflow: ctx.workflow, position })
     return
   }
   if (source.kind === 'input') {

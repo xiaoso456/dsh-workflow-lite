@@ -281,6 +281,8 @@ export type StepSource =
   | { kind: 'resource' }
   /** 一个输入节点（执行前问用户的问题）。 */
   | { kind: 'input' }
+  /** 记忆：从步骤的「＋」加是这一步的记忆，别处加是全局记忆（见 `shared/presets.ts`）。 */
+  | { kind: 'memory' }
   | { kind: 'preset'; id: string }
   | { kind: 'template'; name: string }
 
@@ -316,6 +318,8 @@ export function decodeStepSource(raw: string | null | undefined): StepSource | n
       return { kind: 'resource' }
     case 'input':
       return { kind: 'input' }
+    case 'memory':
+      return { kind: 'memory' }
     case 'preset': {
       const id = text('id')
       return id === null ? null : { kind: 'preset', id }

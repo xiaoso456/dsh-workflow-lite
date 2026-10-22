@@ -66,6 +66,9 @@ export const MAX_ROOT_CODEPOINTS = 1024
 /** `label` 长度上限（码点）——只防病态输入，不参与任何判定。 */
 export const MAX_LABEL_CODEPOINTS = 200
 
+/** 一份记忆最多几条（写进计划的规矩里：满了先合并或删掉再加，免得越攒越长）。 */
+export const MEMORY_MAX_ENTRIES = 30
+
 /** 一个资源最多放几项。 */
 export const MAX_RESOURCE_ITEMS = 50
 

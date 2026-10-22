@@ -8,7 +8,12 @@
 import { useMemo } from 'react'
 import { isResource } from '../../shared/model.ts'
 import { outputKey, resolveItemPath, rootOf } from '../../shared/outputPaths.ts'
-import { resourceGraph, resourceTitle, stepResources } from '../../shared/resources.ts'
+import {
+  resourceGraph,
+  resourceTitle,
+  stepResources,
+  underOutputRoot,
+} from '../../shared/resources.ts'
 import type { ResourceNode, WorkflowDocument } from '../../shared/types.ts'
 import type { T } from '../i18n.ts'
 import { fileBaseName } from '../model/fileKind.ts'
@@ -25,7 +30,7 @@ import run from './run.module.css'
 export function itemDisplayPath(doc: WorkflowDocument, node: ResourceNode, index: number): string {
   const item = node.data.items[index]
   if (item === undefined) return ''
-  const written = (resourceGraph(doc).get(node.id)?.writers.length ?? 0) > 0
+  const written = underOutputRoot(resourceGraph(doc).get(node.id))
   return resolveItemPath(rootOf(doc.settings), item.value, written)
 }
 

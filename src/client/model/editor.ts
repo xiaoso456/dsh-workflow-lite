@@ -32,6 +32,14 @@ import {
   sameSettings,
 } from '../../shared/model.ts'
 import { outputKey } from '../../shared/outputPaths.ts'
+import {
+  addGlobalMemory,
+  addStepMemory,
+  dropOrphanMemories,
+  isMemory,
+  removeStepMemory,
+  setPreset,
+} from '../../shared/presets.ts'
 import { newResourceNode, setStepOutputs, splitOutputs } from '../../shared/resources.ts'
 import {
   type EdgeData,
@@ -39,10 +47,12 @@ import {
   INPUT_TYPE,
   type InputData,
   type InputNode,
+  type MemoryScope,
   NODE_TYPE,
   type NodeData,
   type Point,
   type ResourceData,
+  type ResourcePresetKind,
   type StepNode,
   type ValidationProblem,
   type WorkflowDocument,
@@ -50,7 +60,7 @@ import {
   type WorkflowNode,
   type WorkflowSettings,
 } from '../../shared/types.ts'
-import { inputSpot, resourceSpot } from './layout.ts'
+import { inputSpot, memorySpot, resourceSpot } from './layout.ts'
 
 /** 选中态：步骤、连线，或什么都不选。用一个联合表达，互斥是结构上保证的。 */
 export type Selection = { kind: 'node'; id: string } | { kind: 'edge'; id: string } | null
@@ -139,6 +149,16 @@ export type Edit =
    * 加完选中它（好接着写问题）。
    */
   | { type: 'addInput'; id: string; data: InputData; position?: Point; reader?: string }
+  /**
+   * 开、关一个步骤的记忆（见 `shared/presets.ts`）。开：按范围和工作流名起默认路径，卡挂在步骤下方，
+   * 连一条「更新」线；关：去掉写记忆的线，不剩线的记忆卡一并删掉（文件不动）。
+   */
+  | { type: 'setStepMemory'; step: string; on: true; scope: MemoryScope; workflow: string }
+  | { type: 'setStepMemory'; step: string; on: false }
+  /** 加一张全局记忆卡（不连线）；没给坐标就由布局补位。加完选中它。 */
+  | { type: 'addGlobalMemory'; scope: MemoryScope; workflow: string; position?: Point }
+  /** 换资源卡的类型标记（`null` = 普通资源）；打不上就不动（界面先用 `presetRefusal` 拦）。 */
+  | { type: 'setPreset'; id: string; preset: ResourcePresetKind | null; workflow: string }
   /** 改输入节点（值为 `undefined` 的键 = 清掉这一项）。`merge` 同 `patchNode`。 */
   | { type: 'patchInput'; id: string; patch: Partial<InputData>; merge?: string }
   /** 一次加进一小片图（示例流程）：算一条撤销步。`settings` 并进工作流设置（同一步）。 */
@@ -418,6 +438,34 @@ function applyEdit(doc: WorkflowDocument, selection: Selection, edit: Edit): App
       }
     }
 
+    case 'setStepMemory': {
+      if (!edit.on) {
+        const next = removeStepMemory(doc, edit.step)
+        return next === null ? null : { doc: next, selection: keepSelection(next, selection) }
+      }
+      const step = findNode(doc, edit.step)
+      if (step === undefined) return null
+      const added = addStepMemory(
+        doc,
+        step.id,
+        edit.scope,
+        edit.workflow,
+        at(memorySpot(doc, step)),
+      )
+      return added === null ? null : { doc: added.document, selection }
+    }
+
+    case 'addGlobalMemory': {
+      const position = at(edit.position ?? { x: 0, y: 0 })
+      const added = addGlobalMemory(doc, edit.scope, edit.workflow, position)
+      return { doc: added.document, selection: { kind: 'node', id: added.id } }
+    }
+
+    case 'setPreset': {
+      const next = setPreset(doc, edit.id, edit.preset, edit.workflow)
+      return next === null || 'refused' in next ? null : { doc: next, selection }
+    }
+
     case 'patchInput': {
       const node = findNode(doc, edit.id)
       if (node === undefined || !isInput(node)) return null
@@ -476,11 +524,12 @@ function applyEdit(doc: WorkflowDocument, selection: Selection, edit: Edit): App
       if (node === undefined) return null
       const key = idKey(node.id)
       // 连带删掉以它为端点的边——不然会留下悬空边（保存级问题）。
-      const next = {
+      // 删步骤时它自己的记忆卡一起删掉，不然就悄悄成了全局记忆（记忆文件不动）。
+      const next = dropOrphanMemories(doc, {
         ...doc,
         nodes: doc.nodes.filter((candidate) => candidate !== node),
         edges: doc.edges.filter((edge) => idKey(edge.source) !== key && idKey(edge.target) !== key),
-      }
+      })
       return { doc: next, selection: keepSelection(next, selection) }
     }
 
@@ -548,8 +597,9 @@ function applyEdit(doc: WorkflowDocument, selection: Selection, edit: Edit): App
       if (isInput(target) || (isInput(source) && !isStep(target))) return null
       const toResource = isResource(target)
       const plain = isResource(source) || isInput(source) || toResource
+      // 写记忆一律是在原文件上更新。
       const edge = newEdge(source.id, target.id, plain ? undefined : edit.when, {
-        update: toResource && alreadyWritten(doc, target.id, source.id),
+        update: toResource && (isMemory(target) || alreadyWritten(doc, edit.target, source.id)),
       })
       if (findEdge(doc, edge.id) !== undefined) return null
       return {
@@ -635,6 +685,9 @@ function isEdit(action: Action): action is Edit {
   switch (action.type) {
     case 'addNode':
     case 'addResource':
+    case 'setStepMemory':
+    case 'addGlobalMemory':
+    case 'setPreset':
     case 'patchResource':
     case 'addInput':
     case 'patchInput':

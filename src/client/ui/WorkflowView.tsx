@@ -14,8 +14,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { pickTemplateAppearance } from '../../shared/appearance.ts'
 import { orderedInputs } from '../../shared/inputs.ts'
 import { isInput, isResource, SETTINGS_CONFLICT_ID } from '../../shared/model.ts'
+import { stepMemories } from '../../shared/presets.ts'
 import type { InputAnswer, NodeData, Point, WorkflowDocument } from '../../shared/types.ts'
-import { addFromSource, addOrigin, duplicateEdit } from '../app/addStep.ts'
+import { addFromSource, addOrigin, duplicateEdit, memoryToggleEdit } from '../app/addStep.ts'
 import type { Desktop } from '../app/desktop.ts'
 import { createHostAccess } from '../app/host.ts'
 import { revealNode } from '../app/reveal.ts'
@@ -518,7 +519,7 @@ function Shell(props: {
       // 新步骤会接管选中；之后任何一次换选中都会把这个标记清掉。
       if (step) setFocusPrompt(source.kind === 'blank')
       await addFromSource(
-        { t, doc: state.doc, edit: wf.edit, loadTemplate: wf.loadTemplate },
+        { t, doc: state.doc, edit: wf.edit, loadTemplate: wf.loadTemplate, workflow: state.name },
         source,
         position,
         from,
@@ -547,6 +548,15 @@ function Shell(props: {
       wf.notify(t('node.copied').replace('{name}', nodeTitle(original)))
     },
     [state.doc, wf, t],
+  )
+
+  /** 步骤卡上的记忆开关。 */
+  const toggleMemory = useCallback(
+    (step: string): void => {
+      const edit = memoryToggleEdit(state.doc, state.name, step)
+      if (edit !== null) wf.edit(edit)
+    },
+    [state.doc, state.name, wf],
   )
 
   /** 删一个节点：删完点名告诉一声，并提示能撤销（画布上它会原地淡出）。 */
@@ -791,6 +801,7 @@ function Shell(props: {
                   }}
                   focusFile={focusFile}
                   onFocusFile={onFocusFile}
+                  onMemory={toggleMemory}
                 />
               )}
             </CanvasLayer>
@@ -840,6 +851,7 @@ function Shell(props: {
                     onSaveTemplate={wf.saveTemplate}
                     onFocusFile={onFocusFile}
                     host={host}
+                    workflow={state.name}
                   />
                 </div>
               )}
@@ -935,6 +947,12 @@ function Shell(props: {
                 bounds={size}
                 templates={wf.catalog?.templates.nodes ?? []}
                 origin={addOrigin(doc, quick.from)}
+                memory={
+                  state.name !== null &&
+                  (doc === null ||
+                    quick.from === undefined ||
+                    stepMemories(doc, quick.from).length === 0)
+                }
                 onClose={() => setQuick(null)}
                 onPick={(source) => {
                   const request = quick

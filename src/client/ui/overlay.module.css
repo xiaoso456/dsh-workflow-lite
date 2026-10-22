@@ -376,3 +376,27 @@
   font-weight: 700;
   letter-spacing: -0.015em;
 }
+
+/* 就地添加菜单里的「记忆」项：记忆色。 */
+.quickMemory {
+  background: color-mix(in oklab, var(--wl-memory) 14%, transparent);
+  color: var(--wl-memory);
+}
+
+/*
+ * 就地添加菜单里名字短、说明长：名字整个留着，说明放不下就截成省略号
+ * （通用菜单是反过来的——名字可能很长、右边是时间之类不能截的短字）。
+ */
+.quick .quickLabel {
+  flex: none;
+  max-width: 60%;
+}
+
+.quick .quickMeta {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

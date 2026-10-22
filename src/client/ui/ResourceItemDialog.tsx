@@ -78,6 +78,8 @@ export function ResourceItemDialog(props: {
   others: readonly ResourceItem[]
   onSave(item: ResourceItem): void
   onRemove?: (() => void) | undefined
+  /** 不露「说明」（记忆：说明是记忆提示词，在面板里改）；原来的说明照存。 */
+  noteless?: boolean
   onClose(): void
 }): React.JSX.Element {
   const { t, kind, initial } = props
@@ -307,7 +309,7 @@ export function ResourceItemDialog(props: {
               )}
             </section>
 
-            {kind !== 'text' && (
+            {kind !== 'text' && props.noteless !== true && (
               <section className={ins.field}>
                 <label className={ins.label} htmlFor="wl-resource-note">
                   <span>
