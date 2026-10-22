@@ -102,7 +102,7 @@ function inside(root: string, full: string): boolean {
  * @param underRoot - 相对路径按产出根目录解析（模型报告产出时可能是相对根目录写的）。
  */
 export function resolveRunFile(
-  record: InstanceRecord,
+  record: Pick<InstanceRecord, 'cwd'>,
   document: WorkflowDocument,
   target: RunFileTarget,
   underRoot = false,
@@ -128,7 +128,7 @@ export function resolveRunFile(
 }
 
 function resolveBase(
-  record: InstanceRecord,
+  record: Pick<InstanceRecord, 'cwd'>,
   document: WorkflowDocument,
   target: RunFileTarget,
   underRoot: boolean,

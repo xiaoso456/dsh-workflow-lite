@@ -13,15 +13,12 @@
 
 import { isStepColor, type StepColor } from '../../shared/appearance.ts'
 import {
-  defaultFolderPrompt,
   defaultMemoryPrompt,
-  memoryFolder,
   memoryOf,
   onDefaultPath,
   type PresetRefusal,
   presetRefusal,
   rescopeMemory,
-  setMemoryFolder,
 } from '../../shared/presets.ts'
 import {
   MEMORY_SCOPES,
@@ -35,9 +32,7 @@ import type { LocaleKey, T } from '../i18n.ts'
 import type { Edit } from '../model/editor.ts'
 import { LookPicker } from './AppearancePicker.tsx'
 import { Icon, type IconName } from './Icon.tsx'
-import input from './input.module.css'
 import ins from './inspector.module.css'
-import { SwitchTrack } from './motion.tsx'
 import type { ItemNote, ItemsRule } from './ResourceItems.tsx'
 import { Segmented } from './Segmented.tsx'
 import ui from './ui.module.css'
@@ -88,12 +83,7 @@ export const PRESET_UI: Record<ResourcePresetKind, PresetUi> = {
     color: 'amber',
     desc: 'preset.memoryDesc',
     icon: 'memory',
-    head: (props) => (
-      <>
-        <MemoryScopeField {...props} />
-        <MemoryFolderField {...props} />
-      </>
-    ),
+    head: (props) => <MemoryScopeField {...props} />,
     items: (props) => ({ fixed: true, note: (index) => memoryNote(props, index) }),
   },
 }
@@ -213,35 +203,6 @@ const SCOPE_TIP = {
 } as const satisfies Record<MemoryScope, LocaleKey>
 
 /** 范围：只换默认路径（路径改过就不动）。 */
-/**
- * 工具文件夹：开了在记忆文件旁边带一个同名文件夹，放下次能直接复用的脚本、模板；
- * 关掉只是从卡上拿掉，磁盘上的东西不动。默认提示词跟着多两条怎么放、怎么清。
- */
-function MemoryFolderField(props: PresetBlockProps): React.JSX.Element {
-  const { t, node, workflow } = props
-  const on = memoryFolder(node.data) !== undefined
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      aria-disabled={workflow === null ? true : undefined}
-      className={input.required}
-      data-testid="wl-memory-folder"
-      onClick={() => {
-        if (workflow === null) return
-        props.patch({ items: setMemoryFolder(node.data, !on, workflow, node.id).items })
-      }}
-    >
-      <SwitchTrack on={on} />
-      <span className={input.requiredText}>
-        <span className={input.requiredTitle}>{t('mem.folder')}</span>
-        <span className={input.requiredDesc}>{t('mem.folderDesc')}</span>
-      </span>
-    </button>
-  )
-}
-
 function MemoryScopeField(props: PresetBlockProps): React.JSX.Element {
   const { t, node, workflow } = props
   const memory = memoryOf(node.data)
@@ -270,35 +231,18 @@ function MemoryScopeField(props: PresetBlockProps): React.JSX.Element {
   )
 }
 
-/** 记忆的两项（记忆文件、工具文件夹）各自的名字与默认说明。 */
-const MEMORY_ITEMS = [
-  {
-    title: 'mem.file',
-    label: 'mem.prompt',
-    hint: { step: 'mem.hint', global: 'mem.globalHint' },
-    fallback: defaultMemoryPrompt,
-  },
-  {
-    title: 'mem.folder',
-    label: 'mem.folderPrompt',
-    hint: { step: 'mem.folderHint', global: 'mem.folderHint' },
-    fallback: defaultFolderPrompt,
-  },
-] as const
-
 /**
- * 记忆文件 / 工具文件夹的说明：怎么读、什么时候写、怎么写，存在那一项自己的说明里，空着就是默认的那份。
- * 说明里的 `{记忆文件}` / `{工具文件夹}` 交出去时换成实际路径。
+ * 记忆那一项（skill 目录）的名字与默认说明：怎么读、什么时候改、怎么写，存在那一项自己的说明里，
+ * 空着就是默认的那份。
  */
 function memoryNote(props: PresetBlockProps, index: number): ItemNote | undefined {
-  const part = MEMORY_ITEMS[index]
-  if (part === undefined) return undefined
+  if (index !== 0) return undefined
   const { t, shared } = props
   return {
-    title: t(part.title),
-    label: t(part.label),
-    fallback: part.fallback(shared),
-    hint: `${t(shared ? part.hint.global : part.hint.step)}${t('mem.tokens')}`,
+    title: t('mem.dir'),
+    label: t('mem.prompt'),
+    fallback: defaultMemoryPrompt(shared),
+    hint: t(shared ? 'mem.globalHint' : 'mem.hint'),
     placeholder: t('mem.promptPlaceholder'),
   }
 }

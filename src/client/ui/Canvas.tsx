@@ -1035,7 +1035,7 @@ function ResourceTab(props: {
   tint: StepColor | null
 }): React.JSX.Element {
   const tint = tintStyle(props.tint)
-  // 记忆卡的签：一颗脑，不印扩展名（记忆总是一个 Markdown 文件）。
+  // 记忆卡的签：一颗脑（记忆总是一个 skill 目录）。
   if (props.memory) {
     return (
       <span
@@ -1769,7 +1769,6 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
       generated: t('run.fileMade'),
       memTitle: t('mem.title'),
       memGlobal: t('mem.global'),
-      memFolder: t('mem.folderShort'),
       memOn: t('mem.on'),
       memOff: t('mem.off'),
       memScopes: {
@@ -2034,7 +2033,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
                 : resourceTitle(node)
         const sub =
           memory !== undefined
-            ? `${texts.memScopes[memory.scope]}${all.length > 1 ? ` ${texts.memFolder}` : ''} · ${first?.value.trim() || '—'}`
+            ? `${texts.memScopes[memory.scope]} · ${first?.value.trim() || '—'}`
             : first === undefined
               ? texts.resEmptySub
               : firstNote !== ''

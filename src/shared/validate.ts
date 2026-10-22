@@ -345,7 +345,7 @@ export function validateDocument(
           mk(
             'compile',
             'memory_invalid',
-            `记忆 ${resource.id} 只能放一个文件，后面最多再跟一个文件夹`,
+            `记忆 ${resource.id} 要是一个文件夹（skill 目录），不能放别的`,
             {
               node: resource.id,
             },

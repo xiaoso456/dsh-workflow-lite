@@ -44,9 +44,9 @@ const ADD_MENU: readonly { choice: ResourceKind; hint: LocaleKey }[] = [
 
 /** 预设里一项的名字与默认说明（编辑框里用）。 */
 export interface ItemNote {
-  /** 编辑框的标题（「记忆文件」）。 */
+  /** 编辑框的标题（「记忆目录」）。 */
   title: string
-  /** 说明这一栏叫什么（「记忆文件说明」）。 */
+  /** 说明这一栏叫什么（「记忆说明」）。 */
   label: string
   /** 默认说明：这一项没写说明时用它；改回它或删空就回到默认。 */
   fallback: string

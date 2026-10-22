@@ -1620,7 +1620,7 @@ class FileRepository implements Repository {
       const before = { ...document }
       document.nodes = document.nodes.filter((current) => idKey(current.id) !== idKey(target.id))
       document.edges = document.edges.filter((edge) => !orphanIds.has(edge.id))
-      // 删步骤时它自己的记忆卡一起删掉，不然就悄悄成了全局记忆（记忆文件不动）。
+      // 删步骤时它自己的记忆卡一起删掉，不然就悄悄成了全局记忆（记忆目录不动）。
       document.nodes = dropOrphanMemories(before, document).nodes
       return {
         ok: true,

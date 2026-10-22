@@ -11,15 +11,12 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/RunItemDialog
  */
 
-import { useMemo } from 'react'
 import type { ResourceItem } from '../../shared/types.ts'
 import type { Desktop } from '../app/desktop.ts'
-import { runFolderSource } from '../app/useBrowse.ts'
-import { type FileTarget, useRunFile } from '../app/useRunFile.ts'
+import { type BrowseSource, browseKey, useBrowseFile } from '../app/useBrowse.ts'
 import type { T } from '../i18n.ts'
 import { fileBaseName } from '../model/fileKind.ts'
 import { shortTime } from '../model/time.ts'
-import type { WorkflowLiteRpc } from '../rpc.ts'
 import { type DocBody, DocViewer } from './DocViewer.tsx'
 import { NoteLead } from './FileViewer.tsx'
 import { FolderBrowser } from './FolderBrowser.tsx'
@@ -47,27 +44,23 @@ function lead(t: T, item: ResourceItem): React.ReactNode {
 /**
  * 文件夹：左边浏览（搜索、进子目录、面包屑），右边预览选中的文件，见 {@link FolderBrowser}。
  * 这一项的说明（要求写在这里的东西）收在标题行的「说明」开关里，不占正文。
+ * 从哪读由 `source` 定：实例里的资源（`runFolderSource`），或编辑时的工作流（`graphItemSource`）。
  */
 export function FolderDialog(props: {
   t: T
-  rpc: WorkflowLiteRpc
-  instance: string
-  node: string
-  index: number
+  source: BrowseSource
   item: ResourceItem
   desktop: Desktop | undefined
+  /** 文件夹还不存在时的说法（缺省「文件夹不存在」）。 */
+  missing?: string
   onClose(): void
 }): React.JSX.Element {
-  const { t } = props
-  const target = useMemo<FileTarget>(
-    () => ({ node: props.node, item: props.index }),
-    [props.node, props.index],
-  )
-  const { file, error } = useRunFile(props.rpc, props.instance, target)
-  const source = useMemo(
-    () => runFolderSource(props.rpc, props.instance, props.node, props.index),
-    [props.rpc, props.instance, props.node, props.index],
-  )
+  const { t, source } = props
+  // 文件夹本身（`sub` 为空）：在不在、绝对路径、修改时间。
+  const root = useBrowseFile(source, '')
+  const settled = root.settled === browseKey(source, '')
+  const file = settled ? root.file : null
+  const error = settled ? root.error : null
   const folder = file?.kind === 'folder' ? file.path : null
   const display = file?.display ?? props.item.value
   const name = fileBaseName(display) || itemName(props.item)
@@ -75,8 +68,9 @@ export function FolderDialog(props: {
   let body: DocBody
   if (error !== null) body = { kind: 'state', icon: 'alert', text: error }
   else if (file === null) body = { kind: 'loading' }
-  else if (folder === null) body = { kind: 'state', icon: 'folder', text: t('res.folderMissing') }
-  else {
+  else if (folder === null) {
+    body = { kind: 'state', icon: 'folder', text: props.missing ?? t('res.folderMissing') }
+  } else {
     body = {
       kind: 'node',
       node: <FolderBrowser t={t} source={source} rootName={name} desktop={props.desktop} />,

@@ -48,6 +48,7 @@ import {
 import type { RunFileTarget } from './runs/files.ts'
 import type { GraphEdit, RunService } from './runs/service.ts'
 import { storageAction } from './runs/storage.ts'
+import { type GraphItemTarget, graphDir, graphFile, graphImage } from './store/graphFiles.ts'
 import {
   type DocumentValidator,
   type LoadResult,
@@ -645,6 +646,30 @@ async function dispatch(
       const sub = optionalString(input, 'sub')
       const item = typeof input.item === 'number' && Number.isInteger(input.item) ? input.item : 0
       const outcome = await deps.runs.dir(id, { node, item, ...(sub === undefined ? {} : { sub }) })
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok(outcome.result)
+    }
+
+    case 'graph/file':
+    case 'graph/image':
+    case 'graph/dir': {
+      const input = asRecord(payload)
+      const sub = optionalString(input, 'sub')
+      const cwd = optionalString(input, 'cwd')
+      const target: GraphItemTarget = {
+        name: requireString(input, 'name'),
+        node: requireString(input, 'node'),
+        item: typeof input.item === 'number' && Number.isInteger(input.item) ? input.item : 0,
+        ...(sub === undefined ? {} : { sub }),
+        ...(cwd === undefined ? {} : { cwd }),
+      }
+      const files = { repository: deps.repository, dataDir: deps.dataDir() }
+      const outcome =
+        endpoint === 'graph/file'
+          ? await graphFile(files, target)
+          : endpoint === 'graph/dir'
+            ? await graphDir(files, target)
+            : await graphImage(files, target, optionalString(input, 'src'))
       if (!outcome.ok) return failFrom(outcome.error)
       return ok(outcome.result)
     }

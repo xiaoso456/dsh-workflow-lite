@@ -37,7 +37,7 @@ export interface AddContext {
 }
 
 /**
- * 开 / 关一个步骤的记忆：开着就关（记忆文件不动），关着就开一张默认范围（本工作区）的记忆卡。
+ * 开 / 关一个步骤的记忆：开着就关（记忆目录不动），关着就开一张默认范围（本工作区）的记忆卡。
  * 步骤不在、没有工作流名时是 `null`。
  */
 export function memoryToggleEdit(

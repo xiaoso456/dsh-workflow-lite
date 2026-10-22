@@ -21,6 +21,7 @@ import type { RunState } from '../../shared/runState.ts'
 import type { ResourceItem, ResourceNode, WorkflowDocument } from '../../shared/types.ts'
 import type { Desktop } from '../app/desktop.ts'
 import type { HostAccess } from '../app/host.ts'
+import { runFolderSource } from '../app/useBrowse.ts'
 import { type FileTarget, useRunFile } from '../app/useRunFile.ts'
 import type { T } from '../i18n.ts'
 import { fileBaseName, formatBytes } from '../model/fileKind.ts'
@@ -169,10 +170,7 @@ export function RunResourceDetail(props: {
       {openItem !== undefined && open !== null && openItem.kind === 'folder' && (
         <FolderDialog
           t={t}
-          rpc={props.rpc}
-          instance={props.instance}
-          node={resource.id}
-          index={open}
+          source={runFolderSource(props.rpc, props.instance, resource.id, open)}
           item={openItem}
           desktop={props.desktop}
           onClose={() => setOpen(null)}

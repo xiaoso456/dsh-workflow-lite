@@ -7,8 +7,10 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/ResourcePanel
  */
 
+import { useState } from 'react'
 import { idKey, isStep } from '../../shared/model.ts'
-import { normalizeRoot, rootOf } from '../../shared/outputPaths.ts'
+import { isAbsoluteRoot, normalizeRoot, rootOf } from '../../shared/outputPaths.ts'
+import { isWorkflowPath } from '../../shared/pathVars.ts'
 import { memoryOf } from '../../shared/presets.ts'
 import { isShared, resourceGraph, resourceTitle, underOutputRoot } from '../../shared/resources.ts'
 import type {
@@ -31,6 +33,7 @@ import { cx } from './primitives.tsx'
 import { ResourceItems } from './ResourceItems.tsx'
 import { PresetBlock, presetItems, ResourceTypePicker } from './ResourcePresets.tsx'
 import { ModeToggle } from './Resources.tsx'
+import { FolderDialog } from './RunItemDialog.tsx'
 import res from './resource.module.css'
 import { stepName } from './resourceUi.ts'
 import { lookOf, StepMark } from './StepMark.tsx'
@@ -74,6 +77,22 @@ export function ResourcePanel(props: {
     })
 
   const presetProps = { t, node, shared, workflow, patch, onSeal: props.onSeal }
+
+  // 记忆：看里面现在攒了什么（存好的工作流里的路径；本工作区的按当前对话的工作区找）。
+  const [viewing, setViewing] = useState(false)
+  const dir = memory === undefined ? undefined : node.data.items[0]
+  const view =
+    workflow === null || dir === undefined || dir.kind !== 'folder' || dir.value.trim() === ''
+      ? null
+      : {
+          item: dir,
+          blocked:
+            props.host.cwd === undefined &&
+            !isWorkflowPath(dir.value) &&
+            !isAbsoluteRoot(dir.value.trim().replace(/\\/gu, '/'))
+              ? t('mem.viewNoWorkspace')
+              : null,
+        }
 
   const stepRow = (id: string, extra: React.ReactNode, edge: WorkflowEdge): React.JSX.Element => {
     const step = findNode(doc, id)
@@ -142,20 +161,29 @@ export function ResourcePanel(props: {
         <PresetBlock {...presetProps} slot="head" />
 
         <section className={ins.field} data-testid="wl-resource-items">
-          <div className={ins.label}>
-            <span>
-              {t(
-                memory === undefined
-                  ? 'res.items'
-                  : node.data.items.length > 1
-                    ? 'mem.files'
-                    : 'mem.file',
+          <div className={res.valueHead}>
+            <div className={cx(ins.label, res.valueLabel)}>
+              <span>{t(memory === undefined ? 'res.items' : 'mem.dir')}</span>
+              {memory === undefined && node.data.items.length > 0 && (
+                <span className={ins.count}>
+                  {t('res.itemCount').replace('{n}', String(node.data.items.length))}
+                </span>
               )}
-            </span>
-            {memory === undefined && node.data.items.length > 0 && (
-              <span className={ins.count}>
-                {t('res.itemCount').replace('{n}', String(node.data.items.length))}
-              </span>
+            </div>
+            {view !== null && (
+              <button
+                type="button"
+                className={cx(ui.btn, ui.small, ui.soft, res.valueAction)}
+                data-testid="wl-memory-view"
+                aria-disabled={view.blocked === null ? undefined : true}
+                {...(view.blocked === null ? {} : { 'data-tip': view.blocked })}
+                onClick={() => {
+                  if (view.blocked === null) setViewing(true)
+                }}
+              >
+                <Icon name="eye" size={13} />
+                {t('mem.view')}
+              </button>
             )}
           </div>
           <ResourceItems
@@ -168,7 +196,7 @@ export function ResourcePanel(props: {
             onChange={(items: ResourceItem[]) => patch({ items })}
             rule={presetItems(presetProps)}
           />
-          {memory !== undefined && <p className={ins.help}>{t('mem.fileHint')}</p>}
+          {memory !== undefined && <p className={ins.help}>{t('mem.dirHint')}</p>}
         </section>
 
         <PresetBlock {...presetProps} slot="tail" />
@@ -247,6 +275,17 @@ export function ResourcePanel(props: {
         )}
         <p className={ins.help}>{t('res.connectHint')}</p>
       </div>
+
+      {viewing && view !== null && workflow !== null && (
+        <FolderDialog
+          t={t}
+          source={props.host.folder(workflow, node.id, 0)}
+          item={view.item}
+          desktop={props.host.desktop}
+          missing={t('mem.viewEmpty')}
+          onClose={() => setViewing(false)}
+        />
+      )}
 
       <footer className={ins.foot}>
         <span className={ui.grow} />

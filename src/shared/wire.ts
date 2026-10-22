@@ -94,6 +94,9 @@ export const WORKFLOW_LITE_ENDPOINTS = [
   'run/file',
   'run/image',
   'run/dir',
+  'graph/file',
+  'graph/image',
+  'graph/dir',
   'host/list',
   'host/skills',
   'host/skill',
@@ -417,6 +420,9 @@ export interface WorkflowLiteRpcMap {
   'run/file': { args: RunFileRequest; result: RunFileResponse }
   'run/image': { args: RunImageRequest; result: RunImageResponse }
   'run/dir': { args: RunDirRequest; result: RunDirResponse }
+  'graph/file': { args: GraphItemRequest; result: RunFileResponse }
+  'graph/image': { args: GraphImageRequest; result: RunImageResponse }
+  'graph/dir': { args: GraphItemRequest; result: RunDirResponse }
   'host/list': { args: HostListRequest; result: HostListResponse }
   'host/skills': { args: HostSkillsRequest; result: HostSkillsResponse }
   'host/skill': { args: HostSkillRequest; result: HostSkillResponse }
@@ -647,6 +653,23 @@ export interface RunDirRequest {
   node: string
   item?: number
   sub?: string
+}
+
+/**
+ * 编辑工作流时看资源里的一项（`graph/file`、`graph/dir`、`graph/image`）：按存好的工作流 `name` 找到
+ * 资源 `node` 的第 `item` 项，`{workflow}` 指工作流目录，相对路径按 `cwd`（当前对话的工作区）解析。
+ * `sub` 的规矩同 {@link RunFileRequest.sub}。
+ */
+export interface GraphItemRequest {
+  name: string
+  node: string
+  item?: number
+  sub?: string
+  cwd?: string
+}
+export interface GraphImageRequest extends GraphItemRequest {
+  /** 同 {@link RunImageRequest.src}。 */
+  src?: string
 }
 export interface RunDirEntry {
   name: string

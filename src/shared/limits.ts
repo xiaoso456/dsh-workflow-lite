@@ -66,11 +66,8 @@ export const MAX_ROOT_CODEPOINTS = 1024
 /** `label` 长度上限（码点）——只防病态输入，不参与任何判定。 */
 export const MAX_LABEL_CODEPOINTS = 200
 
-/** 一份记忆最多几条（写进计划的规矩里：满了先合并或删掉再加，免得越攒越长）。 */
-export const MEMORY_MAX_ENTRIES = 30
-
-/** 记忆的工具文件夹里最多留几样（脚本、模板……；满了先删用不上的再放）。 */
-export const MEMORY_MAX_TOOLS = 10
+/** 记忆（一份 skill）目录里写做法的那份文件。 */
+export const MEMORY_SKILL_FILE = 'SKILL.md'
 
 /** 一个资源最多放几项。 */
 export const MAX_RESOURCE_ITEMS = 50

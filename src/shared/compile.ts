@@ -35,19 +35,12 @@ import {
   inputReaders,
   orderedInputs,
 } from './inputs.ts'
-import { PLAN_SECTIONS, TASK_SECTIONS, VERDICT_PREFIX } from './limits.ts'
+import { MEMORY_SKILL_FILE, PLAN_SECTIONS, TASK_SECTIONS, VERDICT_PREFIX } from './limits.ts'
 import { displayName, idKey, isStep, resourceIdFor, writeDocument } from './model.ts'
 import { isVerdictWhen } from './naming.ts'
 import { isAbsoluteRoot, normalizeRoot, resolveItemPath } from './outputPaths.ts'
 import { hasInstanceVar, INSTANCE_VAR, SKILL_VAR, skillPath } from './pathVars.ts'
-import {
-  fillMemoryTokens,
-  folderPrompt,
-  isMemory,
-  memoryFolder,
-  memoryOf,
-  memoryPrompt,
-} from './presets.ts'
+import { isMemory, memoryOf, memoryPrompt } from './presets.ts'
 import {
   isShared,
   type ResourceInfo,
@@ -125,21 +118,14 @@ const UPDATE_RULE =
   '**更新**：长期维护的现状和记录，不是写这一次报告的地方。先读，再在原文件上改，不要另存副本。按资源说明规定的结构写；文件里已有的写法和说明不一致时以说明为准，顺手整理，不要照着旧写法继续写。描述现状的部分就地改成最新的，不在开头或末尾追加「本次结果」段落；记录每次只加一行，格式照说明（说明没写就照已有的行），每格只放短语、数字或路径；这次的过程和细节写在本次产出或回复里，这里只引用路径。同一件事只写一处。'
 
 /**
- * 记忆（见 `shared/presets.ts`）：约定里只给定义，怎么读、什么时候写、怎么写是记忆文件、工具文件夹各自的说明
+ * 记忆（见 `shared/presets.ts`）：约定里只给定义，怎么读、什么时候改、怎么写是它自己的说明
  * （用户能看能改）——步骤的附在它的任务描述里，全局记忆的在「资源」里（编排者整理它时照着写）。
  */
-const MEMORY_RULE =
-  '**记忆**：跨多次执行攒下来的经验，不是这一次的记录：一个记忆文件，可能再带一个工具文件夹（下次能直接复用的脚本、模板）。怎么读、什么时候写、怎么写，照它们各自的说明：步骤自己的记忆附在它的任务描述里，全局记忆的在「资源」里。'
-const MEMORY_RULE_INLINE =
-  '**记忆**：跨多次执行攒下来的经验，不是这一次的记录：一个记忆文件，可能再带一个工具文件夹（下次能直接复用的脚本、模板）。怎么读、什么时候写、怎么写，照「资源」里它们各自的说明。'
-const GLOBAL_MEMORY_RULE =
-  '**全局记忆**：每个步骤开始前都读，只读不改，把换个步骤也成立的经验写在回复的「经验」里；整个工作流结束时（中途停下也一样）由你挑出来，照记忆文件、工具文件夹各自的说明整理进去。'
+const MEMORY_RULE = `**记忆**：跨多次执行沉淀下来的做法，不是这一次的记录：一个文件夹就是一份 skill，${MEMORY_SKILL_FILE} 写怎么做，scripts/、templates/、references/ 放配套的东西。怎么读、什么时候改、怎么写，照它的说明：步骤自己的记忆附在它的任务描述里，全局记忆的在「资源」里。`
+const MEMORY_RULE_INLINE = `**记忆**：跨多次执行沉淀下来的做法，不是这一次的记录：一个文件夹就是一份 skill，${MEMORY_SKILL_FILE} 写怎么做，scripts/、templates/、references/ 放配套的东西。怎么读、什么时候改、怎么写，照「资源」里它的说明。`
+const GLOBAL_MEMORY_RULE = `**全局记忆**：每个步骤开始前都读它的 ${MEMORY_SKILL_FILE}，只读不改，把换个步骤也成立的经验写在回复的「经验」里；整个工作流结束时（中途停下也一样）由你挑出来，照它的说明改进去。`
 /** 任务描述里全局记忆小标题下的那句：只读，经验写在回复里。 */
-const TASK_GLOBAL_MEMORY =
-  '只读：开始前读一遍，当提示用。这一步学到的、换个步骤也成立的经验，在回复里（判定行之前）列在「经验」下，每条一行，没有就不写；由编排者统一整理进去。'
-/** 全局记忆带着工具文件夹时，任务描述里接在上一句后面。 */
-const TASK_GLOBAL_TOOLS =
-  '工具文件夹里的脚本、模板可以直接用；这一步写出了别的步骤也用得上、跑通过的脚本，在「经验」里写明它现在在哪、做什么，由编排者挑着收进去。'
+const TASK_GLOBAL_MEMORY = `只读：开始前读它的 ${MEMORY_SKILL_FILE}，照着做，里面的脚本、模板直接用。这一步学到的、换个步骤也成立的经验，在回复里（判定行之前）列在「经验」下，每条一行，没有就不写；写出了别的步骤也用得上、跑通过的脚本，写明它现在在哪、做什么。由编排者统一整理进去。`
 
 /** 「流程」的小标题。执行批次的括注只说图里有的：没有循环不提回边，没有分支不提互斥分支。 */
 function batchHeading(loops: boolean, branches: boolean): string {
@@ -1055,31 +1041,20 @@ function itemBlock(ctx: RenderContext, resource: ResourceNode, written: boolean)
   return [`${head}。说明：`, '', ...quoteLines(note, '')]
 }
 
-/** 记忆文件、工具文件夹的位置（记忆一律相对工作区，不拼产出根目录）。 */
-function memoryPaths(
-  ctx: RenderContext,
-  resource: ResourceNode,
-): { file: string; folder?: string } {
-  const file = resource.data.items[0]
-  const folder = memoryFolder(resource.data)
-  const at = (value: string): string => code(resolveItemPath(ctx.root, value.trim(), false))
-  return {
-    file: at(file?.value ?? ''),
-    ...(folder === undefined ? {} : { folder: at(folder.value) }),
-  }
+/** 记忆目录（skill 目录）的位置（记忆一律相对工作区，不拼产出根目录），去掉尾斜杠。 */
+function memoryDir(ctx: RenderContext, resource: ResourceNode): string {
+  const value = resource.data.items[0]?.value.trim() ?? ''
+  return resolveItemPath(ctx.root, value, false).replace(/\/+$/u, '')
 }
 
 /** 总览里的记忆：只写位置。 */
 function memoryBrief(ctx: RenderContext, resource: ResourceNode): string {
-  const paths = memoryPaths(ctx, resource)
-  return paths.folder === undefined
-    ? `记忆文件 ${paths.file}`
-    : `记忆文件 ${paths.file}；工具文件夹 ${paths.folder}`
+  return `记忆目录 ${code(memoryDir(ctx, resource))}`
 }
 
 /**
- * 记忆的两项：记忆文件、工具文件夹，各自的说明跟在自己的路径下面（没改过的用默认的），
- * 说明里的 `{记忆文件}` / `{工具文件夹}` 换成实际路径。`withNotes` 为假时只给位置（任务描述里的全局记忆）。
+ * 记忆：目录的位置，说明跟在下面（没改过的用默认的）。
+ * `withNotes` 为假时只给位置（任务描述里的全局记忆）。
  */
 function memoryLines(
   ctx: RenderContext,
@@ -1088,24 +1063,12 @@ function memoryLines(
   withNotes: boolean,
   indent: string,
 ): string[] {
-  const paths = memoryPaths(ctx, resource)
-  const fill = (text: string): string => fillMemoryTokens(text, paths.file, paths.folder)
-  const lines = withNoteLines(
-    `${indent}- 记忆文件：${paths.file}`,
-    withNotes ? fill(memoryPrompt(resource.data, global)) : '',
+  const dir = memoryDir(ctx, resource)
+  return withNoteLines(
+    `${indent}- 记忆目录：${code(dir)}`,
+    withNotes ? memoryPrompt(resource.data, global) : '',
     indent,
   )
-  const tools = folderPrompt(resource.data, global)
-  if (paths.folder !== undefined && tools !== undefined) {
-    lines.push(
-      ...withNoteLines(
-        `${indent}- 工具文件夹：${paths.folder}`,
-        withNotes ? fill(tools) : '',
-        indent,
-      ),
-    )
-  }
-  return lines
 }
 
 /** 图里有没有附了交接说明的线、只管先后的线（步骤之间的线）。 */
@@ -1382,14 +1345,7 @@ function taskAppendix(facts: PlanFacts, ctx: RenderContext, id: string): string[
         ...(memory
           ? memoryLines(ctx, info.resource, true, false, '')
           : itemBlock(ctx, info.resource, false)),
-        ...(memory
-          ? [
-              '',
-              memoryFolder(info.resource.data) === undefined
-                ? TASK_GLOBAL_MEMORY
-                : `${TASK_GLOBAL_MEMORY}${TASK_GLOBAL_TOOLS}`,
-            ]
-          : []),
+        ...(memory ? ['', TASK_GLOBAL_MEMORY] : []),
       )
     }
     sections.push(lines.join('\n'))

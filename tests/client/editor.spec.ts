@@ -591,14 +591,14 @@ describe('记忆', () => {
     const memory = run(state, { type: 'setPreset', id, preset: 'memory', workflow: 'g' })
     const card = memory.doc?.nodes[1]
     expect(card?.data).toEqual({
-      items: [{ kind: 'file', value: `.workflow-lite/memory/g/${id}.md` }],
+      items: [{ kind: 'folder', value: `.workflow-lite/memory/g/${id}` }],
       preset: { kind: 'memory', scope: 'workspace' },
     })
     expect(memory.doc?.edges[0]?.data).toEqual({ update: true })
     expect(memory.past).toHaveLength(state.past.length + 1)
     const plain = run(memory, { type: 'setPreset', id, preset: null, workflow: 'g' })
     expect(plain.doc?.nodes[1]?.data).toEqual({
-      items: [{ kind: 'file', value: `.workflow-lite/memory/g/${id}.md` }],
+      items: [{ kind: 'folder', value: `.workflow-lite/memory/g/${id}` }],
     })
     expect(plain.doc?.edges[0]?.data).toEqual({ update: true })
   })

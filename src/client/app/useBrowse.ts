@@ -42,6 +42,33 @@ export function runFolderSource(
   }
 }
 
+/**
+ * 编辑时工作流里一个文件夹资源（存好的工作流 `name` 里 `node` 的第 `item` 项）：
+ * `{workflow}` 指工作流目录，相对路径按 `cwd`（当前对话的工作区）。
+ */
+export function graphItemSource(
+  rpc: WorkflowLiteRpc,
+  name: string,
+  node: string,
+  item: number,
+  cwd: string | undefined,
+): BrowseSource {
+  const at = (sub: string) => ({
+    name,
+    node,
+    item,
+    ...(sub === '' ? {} : { sub }),
+    ...(cwd === undefined ? {} : { cwd }),
+  })
+  return {
+    key: `graph:${name}:${node}#${item}:${cwd ?? ''}`,
+    dir: (sub) => rpc.call('graph/dir', at(sub)),
+    file: (sub) => rpc.call('graph/file', at(sub)),
+    image: (sub, src) =>
+      rpc.call('graph/image', { ...at(sub), ...(src === undefined ? {} : { src }) }),
+  }
+}
+
 /** 导出成 skill 前暂存的包（`pack/skillPreview` 回的 `browse`）；SKILL.md 的头部按 `meta` 现拼。 */
 export function skillPackSource(
   rpc: WorkflowLiteRpc,

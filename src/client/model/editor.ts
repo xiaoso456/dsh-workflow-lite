@@ -524,7 +524,7 @@ function applyEdit(doc: WorkflowDocument, selection: Selection, edit: Edit): App
       if (node === undefined) return null
       const key = idKey(node.id)
       // 连带删掉以它为端点的边——不然会留下悬空边（保存级问题）。
-      // 删步骤时它自己的记忆卡一起删掉，不然就悄悄成了全局记忆（记忆文件不动）。
+      // 删步骤时它自己的记忆卡一起删掉，不然就悄悄成了全局记忆（记忆目录不动）。
       const next = dropOrphanMemories(doc, {
         ...doc,
         nodes: doc.nodes.filter((candidate) => candidate !== node),
