@@ -96,13 +96,22 @@ function Empty(props: { t: T; text: string; hint?: string }): React.JSX.Element 
 }
 
 /** 第二行：类型 · 几个工作流在用 · 大小。 */
-function memoryMeta(t: T, entry: MemoryEntry): string {
-  if (entry.invalid === true) return t('hub.memInvalid')
-  const used =
-    entry.usedBy.length === 0
-      ? t('mem.unused')
-      : t('mem.usedBy').replace('{n}', String(entry.usedBy.length))
-  return `${memoryTypeText(t, entry.type)} · ${used} · ${formatBytes(entry.bytes)}`
+/** 列表行的第二行：类型小标签 + 用量（大小在右边详情的统计卡里，列表里不放）。 */
+function MemoryMeta(props: { t: T; entry: MemoryEntry }): React.JSX.Element {
+  const { t, entry } = props
+  if (entry.invalid === true) return <span className={mem.listMeta}>{t('hub.memInvalid')}</span>
+  return (
+    <span className={mem.listMeta}>
+      <span className={mem.listTag} data-tip={memoryTypeText(t, entry.type)}>
+        {t(entry.type === 'workflow' ? 'mem.tag.workflow' : 'mem.tag.step')}
+      </span>
+      <span className={mem.listUsed} data-unused={entry.usedBy.length === 0}>
+        {entry.usedBy.length === 0
+          ? t('mem.unused')
+          : t('mem.usedBy').replace('{n}', String(entry.usedBy.length))}
+      </span>
+    </span>
+  )
 }
 
 function MemoryList(props: {
@@ -140,6 +149,11 @@ function MemoryList(props: {
               className={hub.wfItem}
               data-testid="wl-hub-mem"
               data-value={entry.id}
+              {...(memoryTitle(entry) === entry.id
+                ? {}
+                : {
+                    'data-tip': [memoryTitle(entry), entry.id].join('\n'),
+                  })}
               onClick={() => props.onPick(entry.id)}
             >
               <span className={hub.wfIcon}>
@@ -147,7 +161,7 @@ function MemoryList(props: {
               </span>
               <span className={hub.wfText}>
                 <span className={hub.wfName}>{memoryTitle(entry)}</span>
-                <span className={hub.wfMeta}>{memoryMeta(t, entry)}</span>
+                <MemoryMeta t={t} entry={entry} />
               </span>
             </button>
             <span className={hub.wfActions}>

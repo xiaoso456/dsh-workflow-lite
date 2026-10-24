@@ -1166,6 +1166,8 @@ export const zh = {
   'mem.title': '记忆',
   'mem.type.workflow': '工作流记忆',
   'mem.type.step': '步骤记忆',
+  'mem.tag.workflow': '全局',
+  'mem.tag.step': '步骤',
   'mem.libLabel': '记忆库',
   'mem.name': '记忆名称',
   'mem.descPlaceholder': '这条记忆攒的是什么（在记忆库里，用到它的地方都看得到）',
@@ -2486,6 +2488,8 @@ export const en: Record<LocaleKey, string> = {
   'mem.title': 'Memory',
   'mem.type.workflow': 'Workflow memory',
   'mem.type.step': 'Step memory',
+  'mem.tag.workflow': 'Global',
+  'mem.tag.step': 'Step',
   'mem.libLabel': 'Library',
   'mem.name': 'Memory name',
   'mem.descPlaceholder':

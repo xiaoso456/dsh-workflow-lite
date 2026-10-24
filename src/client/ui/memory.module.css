@@ -117,6 +117,39 @@
 /* ── 工作流中心「记忆」页 ─────────────────────────────── */
 
 /* 右栏头：图标 + 名称（输入框当标题）+ 类型和 id，右边是查看文件。 */
+/* 「记忆」页左边列表的第二行：类型小标签 + 用量，一行放得下。 */
+.listMeta {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  white-space: nowrap;
+}
+
+.listTag {
+  flex: none;
+  padding: 0 5px;
+  border: 1px solid var(--wl-line);
+  border-radius: calc(4px * var(--wl-round, 1));
+  color: var(--wl-text-3);
+  font-size: 10px;
+  line-height: 14px;
+}
+
+.listUsed {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 没被任何工作流用到：淡一点，和有人在用的区分开。 */
+.listUsed[data-unused="true"] {
+  opacity: 0.7;
+}
+
 .hubHead {
   display: flex;
   flex: none;
