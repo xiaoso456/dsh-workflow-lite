@@ -313,6 +313,17 @@
   letter-spacing: -0.005em;
 }
 
+/* 第一次加载完成之前先藏着（不占掉点击），加载完淡入；只动透明度。 */
+.root {
+  transition: opacity 140ms linear;
+}
+
+.root[data-booting="true"] {
+  opacity: 0;
+  pointer-events: none;
+  transition: none;
+}
+
 /* 选中的文字：系统整块深蓝太扎眼，换成半透明的强调色，字还是原来的颜色。 */
 .root ::selection {
   background: color-mix(in srgb, var(--wl-accent) 32%, transparent);

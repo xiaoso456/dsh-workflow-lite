@@ -144,6 +144,8 @@ export function WorkflowView(props: WorkflowViewProps): React.JSX.Element {
 
 /** 实例列表多久刷新一次（模型在会话里编译出新实例时，tab 里能看到提示）。 */
 const RUNS_REFRESH_MS = 8000
+/** 第一次加载最多藏多久（见 `booting`）。 */
+const BOOT_VEIL_MS = 400
 
 function Shell(props: {
   rpc: WorkflowLiteRpc
@@ -164,6 +166,19 @@ function Shell(props: {
   /** 从画布顶栏的「导出」进来：工作流中心直接停在「工作流」页、右栏是导出。 */
   const [hubExport, setHubExport] = useState(false)
   const [versionsOpen, setVersionsOpen] = useState(false)
+  /**
+   * 第一次加载完成之前先不显示：切回这个标签页时视图整个重新挂载，头几十毫秒是「加载中」的空壳
+   * （顶栏只有一半、画布是空的），一闪就变样。加载很快就直接淡入完整的界面；
+   * 慢了（超过 {@link BOOT_VEIL_MS}）再把加载中的样子亮出来，不让人对着空白等。
+   */
+  const [booting, setBooting] = useState(true)
+  useEffect(() => {
+    if (state.phase !== 'idle' && state.phase !== 'loading') setBooting(false)
+  }, [state.phase])
+  useEffect(() => {
+    const timer = window.setTimeout(() => setBooting(false), BOOT_VEIL_MS)
+    return () => window.clearTimeout(timer)
+  }, [])
   /** 磁盘上现在的内容和某一版一样吗；`null` = 不知道（没打开图、还在读）。存盘后、版本对话框开关后重新问一次。 */
   const [matchesVersion, setMatchesVersion] = useState<boolean | null>(null)
   const versionsName = state.phase === 'ready' ? state.name : null
@@ -774,6 +789,7 @@ function Shell(props: {
       data-library={libraryOpen && runId === null ? 'open' : 'closed'}
       data-panel={panelOpen ? 'open' : 'closed'}
       data-mode={runId === null ? 'template' : 'run'}
+      data-booting={booting && runId === null ? 'true' : undefined}
       data-session={props.session}
       role="region"
       aria-label={t('tab.label')}
