@@ -6,6 +6,7 @@
  *
  * - 浮层挂在视图根上：不被滚动区、对话框裁掉；画布缩放时字号也不跟着变。
  * - 悬停一会儿或键盘聚焦才出来；刚收起一个又指向下一个时立刻出来，扫一排按钮不用每个都等。
+ * - 文字比窗口还高、上下都放不下：放在空处大的一边，截到放得下为止，末尾淡出。
  * - 默认在元素正下方居中，下面放不下翻到上方，左右夹在视图里；长文字折行，`\n` 换行。
  *   窄栏里的短字配长提示（比如工作区名配完整路径）写 `data-tip-align="start"`：和元素左边对齐、往右展开，不越出栏外。
  * - 按下指针、滚动、滚轮、Esc 都收起；按过的那个元素在指针离开前不再弹，点完按钮不挡视线。
@@ -35,6 +36,8 @@ interface Place {
   top: number
   up: boolean
   glide: boolean
+  /** 文字比空处还高时截到这个高度；放得下就是 `null`。 */
+  clip: number | null
 }
 
 /** 收起时留下的影子：最后一次显示的字和位置。 */
@@ -43,6 +46,7 @@ interface Leaving {
   left: number
   top: number
   up: boolean
+  clip: number | null
 }
 
 /** 提示淡出的时长（和 ui.module.css 的 tipOut 一致）。 */
@@ -194,17 +198,23 @@ export function TipLayer(props: { root: HTMLElement | null }): React.ReactNode {
     const box = shown.target.getBoundingClientRect()
     const area = root.getBoundingClientRect()
     const width = tip.offsetWidth
-    const height = tip.offsetHeight
+    // `scrollHeight`：上一次截过的话 `offsetHeight` 是截后的，这里要量全文有多高。
+    const height = tip.scrollHeight
     const start =
       shown.target.dataset.tipAlign === 'start'
         ? box.left - area.left
         : box.left + box.width / 2 - area.left - width / 2
     const left = Math.max(GAP, Math.min(start, area.width - width - GAP))
     const below = box.bottom - area.top + GAP
-    const above = box.top - area.top - GAP - height
-    const up = below + height > area.height - GAP && above >= GAP
+    const roomBelow = area.height - GAP - below
+    const roomAbove = box.top - area.top - GAP - GAP
+    // 下面放得下就在下面；不然上面放得下就在上面；都放不下取空处大的一边、截到放得下。
+    const up = height > roomBelow && (height <= roomAbove || roomAbove > roomBelow)
+    const room = Math.max(up ? roomAbove : roomBelow, 0)
+    const clip = height > room ? room : null
+    const top = up ? box.top - area.top - GAP - (clip ?? height) : below
     const seq = shown.seq
-    setPlace((was) => ({ seq, left, top: up ? above : below, up, glide: was?.seq === seq }))
+    setPlace((was) => ({ seq, left, top, up, clip, glide: was?.seq === seq }))
   }, [shown, root])
 
   // 收起：留一个不接指针、没有 testid 的影子原地淡出（和出来时对称），弹出新的提示就立刻收掉影子。
@@ -231,7 +241,13 @@ export function TipLayer(props: { root: HTMLElement | null }): React.ReactNode {
         aria-hidden="true"
         style={{ transform: `translate(${leaving.left}px, ${leaving.top}px)` }}
       >
-        <div className={ui.tipLayer} data-up={leaving.up} data-leaving="true">
+        <div
+          className={ui.tipLayer}
+          data-up={leaving.up}
+          data-leaving="true"
+          data-clipped={leaving.clip === null ? undefined : true}
+          style={leaving.clip === null ? undefined : { maxHeight: leaving.clip }}
+        >
           {leaving.text}
         </div>
       </div>,
@@ -242,7 +258,13 @@ export function TipLayer(props: { root: HTMLElement | null }): React.ReactNode {
   // 不然会带着上一个提示的位置（或者还没量时的左上角）滑过来。
   const placed = place !== null && place.seq === shown.seq ? place : null
   if (placed !== null) {
-    resting.current = { text: shown.text, left: placed.left, top: placed.top, up: placed.up }
+    resting.current = {
+      text: shown.text,
+      left: placed.left,
+      top: placed.top,
+      up: placed.up,
+      clip: placed.clip,
+    }
   }
   return createPortal(
     <div
@@ -260,6 +282,8 @@ export function TipLayer(props: { root: HTMLElement | null }): React.ReactNode {
         className={ui.tipLayer}
         role="tooltip"
         data-up={placed?.up === true}
+        data-clipped={placed === null || placed.clip === null ? undefined : true}
+        style={placed === null || placed.clip === null ? undefined : { maxHeight: placed.clip }}
         data-testid="wl-tip"
       >
         {shown.text}

@@ -1129,6 +1129,12 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
   animation-name: tipInUp;
 }
 
+/* 文字比窗口里的空处还高：截掉，末尾淡出。 */
+.tipLayer[data-clipped] {
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
+}
+
 /* 收起：原地淡出、往进来的反方向让一点（TipLayer 留的影子，不接指针）。 */
 .tipLayer[data-leaving="true"] {
   animation: tipOut 110ms ease-in forwards;

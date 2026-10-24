@@ -270,6 +270,7 @@ function ItemRow(props: {
   const fallback = props.note?.fallback.trim()
   const custom = own !== '' && own !== fallback
   const note = custom ? own : (fallback ?? '')
+  const notePreview = preview(note)
   return (
     <li
       className={cx(css.row, ui.rise)}
@@ -298,7 +299,7 @@ function ItemRow(props: {
         {note !== '' && (
           <span
             className={css.rowNote}
-            data-tip={note}
+            data-tip={notePreview}
             data-custom={props.note === undefined ? undefined : custom}
             data-testid="wl-resource-item-note"
           >
@@ -320,4 +321,12 @@ function ItemRow(props: {
       )}
     </li>
   )
+}
+
+/** 悬浮提示里最多放多少字的说明：记忆的默认说明有两千多字，整段放进去只会撑出屏幕；全文在打开这一项后的说明框里。 */
+const NOTE_PREVIEW = 160
+
+function preview(note: string): string {
+  const chars = [...note]
+  return chars.length <= NOTE_PREVIEW ? note : `${chars.slice(0, NOTE_PREVIEW).join('').trimEnd()}…`
 }
