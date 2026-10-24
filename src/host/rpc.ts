@@ -22,7 +22,7 @@ import {
 } from '@deepseek-ai/dsh-client-connection'
 import type { MemoryVersionEntry } from '../shared/memoryLib.ts'
 import { normalizeDocument, readNodeData as readDataFields } from '../shared/model.ts'
-import type { PackSkillAction } from '../shared/pack.ts'
+import type { PackMemoryAction, PackSkillAction } from '../shared/pack.ts'
 import { memoryRefs } from '../shared/presets.ts'
 import type { StateEdit } from '../shared/runState.ts'
 import type { SkillBrowseRequest, SkillBuildRequest, SkillMeta } from '../shared/skillPack.ts'
@@ -956,12 +956,22 @@ async function dispatch(
           skills[name] = action
         }
       }
+      const memories: Record<string, PackMemoryAction> = {}
+      if (input.memories !== undefined) {
+        for (const [id, action] of Object.entries(asRecord(input.memories))) {
+          if (action !== 'use' && action !== 'copy') {
+            throw new Error(`unknown memory action for ${id}`)
+          }
+          memories[id] = action
+        }
+      }
       const outcome = await applyPack(packDeps(deps), {
         token: requireString(input, 'token'),
         mode,
         name: requireString(input, 'name'),
         ...(assets === undefined ? {} : { assets }),
         skills,
+        memories,
         ...readScope(input),
       })
       if (!outcome.ok) return failFrom(outcome.error)

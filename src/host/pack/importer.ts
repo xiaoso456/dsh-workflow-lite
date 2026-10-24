@@ -12,7 +12,7 @@
  */
 
 import { randomBytes } from 'node:crypto'
-import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { unzipSync } from 'fflate'
 import { normalize } from 'pathe'
@@ -39,6 +39,7 @@ import {
 import { renameMemoryRefs } from '../../shared/presets.ts'
 import type { ErrorCode, WorkflowDocument } from '../../shared/types.ts'
 import { listSkills } from '../hostFs.ts'
+import { renameDir } from '../store/atomic.ts'
 import { freeMemoryId, readMemoryMeta, writeMemoryMeta } from '../store/memories.ts'
 import {
   assetsDir,
@@ -452,16 +453,16 @@ export async function installSkill(
   try {
     if (replace) {
       const old = join(root, `.old-${randomBytes(6).toString('hex')}`)
-      await rename(target, old)
+      await renameDir(target, old)
       try {
-        await rename(temp, target)
+        await renameDir(temp, target)
       } catch (error) {
-        await rename(old, target).catch(() => undefined)
+        await renameDir(old, target).catch(() => undefined)
         throw error
       }
       await rm(old, { recursive: true, force: true })
     } else {
-      await rename(temp, target)
+      await renameDir(temp, target)
     }
   } catch (error) {
     await rm(temp, { recursive: true, force: true })

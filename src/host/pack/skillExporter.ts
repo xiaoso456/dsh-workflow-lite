@@ -19,7 +19,13 @@ import { analyzeGraph } from '../../shared/graph.ts'
 import { isStep } from '../../shared/model.ts'
 import { rootOf } from '../../shared/outputPaths.ts'
 import { PACK_MAX_BYTES, PACK_MAX_FILES } from '../../shared/pack.ts'
-import { INSTANCE_VAR, isWorkflowPath, skillPath, workflowRelative } from '../../shared/pathVars.ts'
+import {
+  INSTANCE_VAR,
+  isMemoryPath,
+  isWorkflowPath,
+  skillPath,
+  workflowRelative,
+} from '../../shared/pathVars.ts'
 import { memoryOf } from '../../shared/presets.ts'
 import { bindDirs, resourceGraph } from '../../shared/resources.ts'
 import {
@@ -154,6 +160,8 @@ async function buildSkill(
       continue
     }
     if (item.kind !== 'file' && item.kind !== 'folder') continue
+    // 库里已经没有的记忆：skill 里是个空的 memory/<id>，执行时从头攒，不算按绝对路径引用。
+    if (isMemoryPath(item.value)) continue
     if (!chosen) {
       // 相对路径换台机器照样按工作区找，资料目录里的随包走；产出写在产出根目录下，
       // 写到绝对路径的（比如在别的仓库里就地更新）却和读的一样，换台机器不一定有。

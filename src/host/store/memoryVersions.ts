@@ -15,13 +15,13 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { copyFile, mkdir, readdir, rename } from 'node:fs/promises'
+import { copyFile, mkdir, readdir } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { MAX_MEMORY_VERSIONS, MAX_VERSION_NOTE_CODEPOINTS } from '../../shared/limits.ts'
 import type { MemoryVersionEntry } from '../../shared/memoryLib.ts'
 import { codepointLength } from '../../shared/naming.ts'
 import { fingerprint, readTree, sha256, type Tree, walkTree } from '../pack/tree.ts'
-import { readFileText, removeTree, unlinkFile, writeFileAtomic } from './atomic.ts'
+import { readFileText, removeTree, renameDir, unlinkFile, writeFileAtomic } from './atomic.ts'
 import { readMemoryMeta, serialMemory } from './memories.ts'
 import { memoriesDir, memoryFolder, memoryVersionsDir } from './paths.ts'
 import type { Outcome } from './repository.ts'
@@ -180,7 +180,7 @@ async function copyTree(tree: Tree, target: string): Promise<void> {
       await mkdir(dirname(to), { recursive: true })
       await copyFile(file.full, to)
     }
-    await rename(temp, target)
+    await renameDir(temp, target)
   } catch (error) {
     await removeTree(temp).catch(() => undefined)
     throw error
@@ -271,11 +271,11 @@ export async function restoreMemoryVersion(
     const fresh = join(memoriesDir(dataDir), `.new-${randomUUID()}`)
     try {
       await copyTree(snapshot, fresh)
-      await rename(folder, old).catch((error: unknown) => {
+      await renameDir(folder, old).catch((error: unknown) => {
         // 文件夹本来就没有（还没写过）：直接放进去。
         if ((error as { code?: string }).code !== 'ENOENT') throw error
       })
-      await rename(fresh, folder)
+      await renameDir(fresh, folder)
       await removeTree(old)
     } catch (error) {
       await removeTree(fresh).catch(() => undefined)

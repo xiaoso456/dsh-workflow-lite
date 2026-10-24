@@ -332,6 +332,9 @@ describe('编译', () => {
     expect(scan).not.toContain('### 记忆 ')
     expect(scan).toContain('列在「经验」下')
     expect(scan).toContain('写明它现在在哪')
+    expect(scan).toContain('优先照它执行：少想、少探索')
+    expect(scan).toContain('能合成一次的工具调用合成一次')
+    expect(scan).toContain('没能照路径一步到位')
   })
 
   it('改过的说明原样进任务描述、替掉默认的', () => {
@@ -367,10 +370,16 @@ describe('编译', () => {
       expect(prompt).toContain('这个目录是')
       expect(prompt).not.toMatch(/\{[^}]*\}/u)
       expect(prompt).toContain('「## 步骤」')
+      expect(prompt).toContain('「## 快速路径」')
+      expect(prompt).toContain('一次查全')
+      expect(prompt).toContain('机械活进脚本')
+      expect(prompt).toContain('复制模板、只填内容')
       expect(prompt).toContain('写教训，不写日志')
       expect(prompt).not.toMatch(/最多 \d+ 条/u)
     }
     expect(STEP_MEMORY_PROMPT).toContain('开始前先读里面的 SKILL.md')
+    expect(STEP_MEMORY_PROMPT).toContain('优先照它执行：少想、少探索')
+    expect(STEP_MEMORY_PROMPT).toContain('能合成一次的调用合成一次')
     expect(STEP_MEMORY_PROMPT).toContain('第一次跑通')
     expect(GLOBAL_MEMORY_PROMPT).toContain('跨步骤都成立的东西')
   })

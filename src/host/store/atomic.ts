@@ -91,6 +91,28 @@ export async function renamePath(from: string, to: string): Promise<void> {
   await rename(from, to)
 }
 
+/** 改名撞上这几种错，在 Windows 上多半是杀毒、索引器刚好占着刚写完的目录，等一下就好。 */
+const TRANSIENT_RENAME = new Set(['EPERM', 'EBUSY', 'EACCES'])
+const RENAME_RETRIES = 6
+
+/**
+ * 改目录的名字：Windows 上目录里有文件被别的进程短暂打开时改名会失败（`EPERM` / `EBUSY` / `EACCES`），
+ * 按 50、100、…毫秒退避重试几次；其余错误、或一直不行，照抛。
+ */
+export async function renameDir(from: string, to: string): Promise<void> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      await rename(from, to)
+      return
+    } catch (error) {
+      const code = (error as { code?: string }).code
+      if (code === undefined || !TRANSIENT_RENAME.has(code) || attempt >= RENAME_RETRIES)
+        throw error
+      await new Promise((resolve) => setTimeout(resolve, 50 * attempt))
+    }
+  }
+}
+
 async function syncDirectory(dir: string): Promise<void> {
   let handle: FileHandle | null = null
   try {

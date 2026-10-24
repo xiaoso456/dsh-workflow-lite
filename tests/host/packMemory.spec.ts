@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { SkillViewer } from '../../src/host/hostFs.ts'
 import { exportPack, type PackDeps, scanPack } from '../../src/host/pack/exporter.ts'
 import { applyPack, inspectPack, openPack } from '../../src/host/pack/importer.ts'
-import { exportSkill } from '../../src/host/pack/skillExporter.ts'
+import { exportSkill, previewSkill } from '../../src/host/pack/skillExporter.ts'
 import { appendChunk, readChunk } from '../../src/host/pack/staging.ts'
 import { compileWorkflow } from '../../src/host/plan.ts'
 import { createMemory, readMemoryMeta, updateMemory } from '../../src/host/store/memories.ts'
@@ -281,5 +281,13 @@ describe('导出成 skill', () => {
     expect(all).toContain('{skill}/memory/review')
     expect(all).not.toContain(slash(memoriesDir(from.dataDir)))
     expect(all).not.toContain('{memory}')
+  })
+
+  it('库里已经没有的记忆：skill 里是空文件夹，不算「按绝对路径引用」', async () => {
+    const from = await sourceSide()
+    await rm(join(memoriesDir(from.dataDir), 'review.json'))
+    const preview = ok(await previewSkill(from.deps, { name: 'review', version: 1, pack: [] }))
+    expect(preview.absolute).toEqual([])
+    expect(preview.body).toContain('{skill}/memory/review')
   })
 })
