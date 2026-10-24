@@ -13,6 +13,7 @@
  * @module @xiaoso/dsh-workflow-lite
  */
 
+import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
@@ -36,6 +37,7 @@ import { createNotify } from './host/runs/notice.ts'
 import { RunService } from './host/runs/service.ts'
 import { registerRunStateSkill } from './host/runs/skill.ts'
 import { createSkillViewer } from './host/skillView.ts'
+import { memoryMetaFile } from './host/store/paths.ts'
 import { createRepository, type Repository, reportProblems } from './host/store/repository.ts'
 import { registerWorkflowLiteTool } from './host/tool/tool.ts'
 import { pluginVersion } from './host/version.ts'
@@ -63,16 +65,18 @@ export const inject = ['tools']
  */
 export async function apply(ctx: Context, config: WorkflowLiteSettings): Promise<void> {
   // 仓储不认识 Config：`maxNodes` 这类活值由装配方闭包进来。
+  // 数据根在装配时定住：仓储、实例、工具、画布都用这同一个，改了设置要重启才换（设置页会这么说）。
+  // 要是各处各读活值，改到一半就会出现「图在旧目录、实例在新目录」。
+  const dataDirAtStart = config.dataDir.get()
   const validate = (document: WorkflowDocument, workflow: string) =>
     reportProblems(
       validateDocument(document, {
         workflowName: workflow,
         maxNodes: config.maxNodes.get(),
+        // 记忆卡引用的不在库里：给警告（id 已经过了名字规矩，拼不出别处的路径）。
+        hasMemory: (id) => existsSync(memoryMetaFile(dataDirAtStart, id)),
       }),
     )
-  // 数据根在装配时定住：仓储、实例、工具、画布都用这同一个，改了设置要重启才换（设置页会这么说）。
-  // 要是各处各读活值，改到一半就会出现「图在旧目录、实例在新目录」。
-  const dataDirAtStart = config.dataDir.get()
   const dataDir = (): string => dataDirAtStart
   const repository: Repository = createRepository({ dataDir: dataDirAtStart, validate })
 

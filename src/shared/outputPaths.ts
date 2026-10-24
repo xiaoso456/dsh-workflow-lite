@@ -17,6 +17,7 @@ import { codepointLength, type NameProblem } from './naming.ts'
 import {
   bindInstance,
   INSTANCE_VAR,
+  isMemoryPath,
   isSkillPath,
   isWorkflowPath,
   workflowPath,
@@ -66,8 +67,8 @@ export function isAbsoluteRoot(root: string): boolean {
 export function resolveOutputPath(root: string | undefined, path: string): string {
   const value = path.trim()
   if (isWorkflowPath(value)) return workflowPath(workflowRelative(value))
-  // 导出成 skill 时包里的东西（`{skill}/…`）：在 skill 目录里，不拼根目录。
-  if (isSkillPath(value)) return normalize(value)
+  // 导出成 skill 时包里的东西（`{skill}/…`）、记忆库里的（`{memory}/…`）：不拼根目录。
+  if (isSkillPath(value) || isMemoryPath(value)) return normalize(value)
   if (isAbsoluteRoot(value) || /^[A-Za-z]:[/]/u.test(value)) return normalize(value)
   const base = normalizeRoot(root)
   return base === undefined ? normalize(value) : join(base, value)

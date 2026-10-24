@@ -12,7 +12,13 @@
  */
 
 import { Fragment, useEffect, useRef, useState } from 'react'
-import { PACK_SUFFIX, type PackImportPreview, type PackSkillAction } from '../../shared/pack.ts'
+import { memoryTitle } from '../../shared/memoryLib.ts'
+import {
+  PACK_SUFFIX,
+  type PackImportPreview,
+  type PackMemoryAction,
+  type PackSkillAction,
+} from '../../shared/pack.ts'
 import { uploadPack } from '../app/packTransfer.ts'
 import type { LocaleKey, T } from '../i18n.ts'
 import { formatBytes } from '../model/fileKind.ts'
@@ -22,6 +28,7 @@ import {
   defaultImportChoice,
   type ImportChoice,
   importSummary,
+  memoryActionOf,
   skillChoices,
   skillDestination,
 } from '../model/pack.ts'
@@ -35,6 +42,7 @@ import { Checkbox, Presence } from './motion.tsx'
 import { Callout, PackRow, PackSection } from './PackRow.tsx'
 import css from './pack.module.css'
 import { cx } from './primitives.tsx'
+import { memoryTypeText } from './ResourcePresets.tsx'
 import { KIND_ICON } from './resourceUi.ts'
 import { Segmented } from './Segmented.tsx'
 import ui from './ui.module.css'
@@ -503,6 +511,61 @@ function Preview(props: {
                       ))}
                     </ul>
                   </Presence>
+                </PackRow>
+              )
+            })}
+          </PackSection>
+        )}
+
+        {preview.memories.length > 0 && (
+          <PackSection title={t('pack.sectionMemories')} testId="wl-pack-memories">
+            {preview.memories.map((memory) => {
+              const action = memoryActionOf(choice, memory)
+              return (
+                <PackRow
+                  key={memory.id}
+                  icon="memory"
+                  tone={memory.exists ? undefined : 'accent'}
+                  title={memoryTitle(memory)}
+                  badge={
+                    <span className={hub.tag} data-tone={memory.exists ? 'plain' : undefined}>
+                      {t(memory.exists ? 'pack.mem.exists' : 'pack.mem.new')}
+                    </span>
+                  }
+                  meta={[
+                    memoryTypeText(t, memory.type),
+                    memory.files === 0
+                      ? t('pack.mem.empty')
+                      : `${t('pack.files').replace('{n}', String(memory.files))} · ${formatBytes(memory.bytes)}`,
+                  ]}
+                  testId={`wl-pack-memory-${memory.id}`}
+                >
+                  {memory.exists && (
+                    <div className={css.choice}>
+                      <Segmented<PackMemoryAction>
+                        label={memoryTitle(memory)}
+                        value={action === 'copy' ? 'copy' : 'use'}
+                        testId={`wl-pack-memory-${memory.id}`}
+                        options={[
+                          { value: 'use', label: t('pack.mem.use') },
+                          { value: 'copy', label: t('pack.mem.copy') },
+                        ]}
+                        onChange={(next) =>
+                          setChoice({
+                            ...choice,
+                            memories: { ...choice.memories, [memory.id]: next },
+                          })
+                        }
+                      />
+                    </div>
+                  )}
+                  <span className={css.rowMeta}>
+                    {action === 'create'
+                      ? t('pack.mem.toNew').replace('{id}', memory.id)
+                      : action === 'use'
+                        ? t('pack.mem.toUse').replace('{name}', memory.existingName || memory.id)
+                        : t('pack.mem.toCopy').replace('{id}', memory.rename)}
+                  </span>
                 </PackRow>
               )
             })}

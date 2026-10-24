@@ -39,6 +39,66 @@ div.body {
   min-width: 0;
 }
 
+/* 「连同记忆一起存」：勾选框 + 一句，夹在说明框和存的按钮之间。 */
+.withMem {
+  display: inline-flex;
+  flex: none;
+  gap: 6px;
+  align-items: center;
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-meta);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* 「版本」框标题栏里的「工作流 / 记忆」。 */
+.areas {
+  flex: none;
+  width: 220px;
+}
+
+/* 记忆一栏：这张引用的记忆，一条一块，选中的那块反白。 */
+.memChips {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.memChip {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  max-width: 220px;
+  padding: 3px 10px;
+  border: 1px solid var(--wl-line);
+  border-radius: calc(999px * var(--wl-round, 1));
+  background: transparent;
+  color: var(--wl-text-2);
+  font: inherit;
+  font-size: var(--wl-fs-meta);
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.memChip > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.memChip:hover {
+  color: var(--wl-text);
+}
+
+.memChip[aria-selected="true"] {
+  border-color: var(--wl-accent);
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+}
+
 .status {
   display: flex;
   flex: none;
@@ -170,7 +230,8 @@ button.main {
 }
 
 .main[aria-expanded="true"] .chevron,
-.chevron[data-open="true"] {
+.chevron[data-open="true"],
+.chevron[data-view="true"] {
   transform: rotate(0deg);
 }
 
@@ -465,4 +526,10 @@ button.main {
   border-top-color: var(--wl-text);
   border-bottom-color: var(--wl-line-strong);
   background: transparent;
+}
+
+:global([data-look="swiss"]) .memChip[aria-selected="true"] {
+  border-color: var(--wl-text);
+  background: var(--wl-text);
+  color: var(--wl-panel);
 }

@@ -16,7 +16,7 @@ import { affectsPlan, describeGraphChange, graphChanges } from '../../shared/gra
 import { checkAnswers, sameAnswers } from '../../shared/inputs.ts'
 import { isResource, isStep, readDocument, writeDocument } from '../../shared/model.ts'
 import { bindRoot, rootOf, WORKSPACE_ROOT } from '../../shared/outputPaths.ts'
-import { bindWorkflowDir } from '../../shared/resources.ts'
+import { bindDirs } from '../../shared/resources.ts'
 import {
   type CursorStep,
   type NextStep,
@@ -63,7 +63,7 @@ import {
   unlinkFile,
   writeFileAtomic,
 } from '../store/atomic.ts'
-import { assetsDir } from '../store/paths.ts'
+import { assetsDir, memoriesDir } from '../store/paths.ts'
 import type { Outcome } from '../store/repository.ts'
 import {
   cleanSub,
@@ -701,9 +701,13 @@ export class RunService {
     return { ...document, settings: { ...document.settings, outputRoot: WORKSPACE_ROOT } }
   }
 
-  /** 找文件用的快照：工作流目录里的文件（`{workflow}/…`）换成绝对路径（快照本身不改）。 */
+  /** 找文件用的快照：工作流目录、记忆库里的（`{workflow}/…`、`{memory}/…`）换成绝对路径（快照本身不改）。 */
   private withAssets(record: InstanceRecord, document: WorkflowDocument): WorkflowDocument {
-    return bindWorkflowDir(document, assetsDir(this.deps.dataDir(), record.workflow))
+    const dataDir = this.deps.dataDir()
+    return bindDirs(document, {
+      workflow: assetsDir(dataDir, record.workflow),
+      memory: memoriesDir(dataDir),
+    })
   }
 
   /** 读并校验状态文件。`document` 给了就对照快照。 */

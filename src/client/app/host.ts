@@ -1,9 +1,9 @@
 /**
  * dsh-workflow-lite — 画布看主机：给资源选文件、文件夹、Skill 时列出主机上有什么。
  *
- * 都走 RPC（`host/list`、`host/skills`、`host/skill`；浏览工作流里的文件夹走 `graph/dir` 那一组）。Skill 清单按「会话 + 工作区」记一份，
+ * 都走 RPC（`host/list`、`host/skills`、`host/skill`）。Skill 清单按「会话 + 工作区」记一份，
  * 一页里只问一次——选 Skill 是顺手的事，不该每点一下都等一趟。看某个 skill 的全文时才去读它。
- * 顺带捎上桌面能力（用系统程序打开 SKILL.md、在文件管理器里显示）。
+ * 顺带捎上桌面能力（用系统程序打开 SKILL.md、在文件管理器里显示）和记忆库。
  *
  * @module @xiaoso/dsh-workflow-lite/client/app/host
  */
@@ -11,7 +11,7 @@
 import type { HostListResponse, HostSkillResponse, HostSkillsResponse } from '../../shared/wire.ts'
 import type { WorkflowLiteRpc } from '../rpc.ts'
 import type { Desktop } from './desktop.ts'
-import { type BrowseSource, graphItemSource } from './useBrowse.ts'
+import { type MemoryStore, memoryStore } from './memories.ts'
 
 export interface HostAccess {
   /** 会话的工作区（列目录的起点，相对路径按它解析）；不知道就是 `undefined`。 */
@@ -24,8 +24,8 @@ export interface HostAccess {
   skills(): Promise<HostSkillsResponse>
   /** 读一个 skill 的全文。 */
   skill(name: string): Promise<HostSkillResponse>
-  /** 浏览存好的工作流里一个文件夹资源：`{workflow}` 指工作流目录，相对路径按本会话的工作区。 */
-  folder(workflow: string, node: string, item: number): BrowseSource
+  /** 插件的记忆库（记忆卡引用的就是它里面的一条）。 */
+  memories: MemoryStore
 }
 
 const skillCache = new Map<string, Promise<HostSkillsResponse>>()
@@ -59,6 +59,6 @@ export function createHostAccess(
       return pending
     },
     skill: (name) => rpc.call('host/skill', { name, ...scope }),
-    folder: (workflow, node, item) => graphItemSource(rpc, workflow, node, item, cwd),
+    memories: memoryStore(rpc),
   }
 }

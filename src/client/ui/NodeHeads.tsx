@@ -7,6 +7,7 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/NodeHeads
  */
 
+import { useState } from 'react'
 import type { GraphAnalysis } from '../../shared/graph.ts'
 import { inputKind } from '../../shared/inputs.ts'
 import { idKey } from '../../shared/model.ts'
@@ -91,8 +92,11 @@ export function StepHead(
 export function ResourceHead(
   props: HeadProps & {
     node: ResourceNode
-    /** 记忆卡：没起名字时标题栏里显示的称呼（「记忆」/「全局记忆」）。 */
-    memory?: string
+    /**
+     * 记忆卡：标题是记忆库里那条的名称——边打边改草稿，失焦才写回库里（用到它的地方都跟着变）。
+     * `placeholder` 是没起名时显示的（记忆的 id）。
+     */
+    memoryName?: { value: string; placeholder: string; onCommit(value: string): void }
     /** 标题左边的图标块（编辑面板里是类型选择）；缺省按类型画一个不能点的。 */
     lead?: React.ReactNode
     onEdit(edit: Edit): void
@@ -105,29 +109,58 @@ export function ResourceHead(
       t={t}
       lead={props.lead ?? <ResourceMark data={node.data} />}
       title={
-        <TitleField
-          t={t}
-          value={node.data.label ?? ''}
-          placeholder={
-            props.memory ?? resourceTitle({ ...node, data: { ...node.data, label: '' } })
-          }
-          ariaLabel={t('res.name')}
-          testId="wl-resource-label"
-          onType={(value) =>
-            props.onEdit({
-              type: 'patchResource',
-              id: node.id,
-              patch: { label: cleanName(value) },
-              merge: `${idKey(node.id)}:label`,
-            })
-          }
-          onBlur={props.onSeal}
-        />
+        props.memoryName !== undefined ? (
+          <MemoryTitle t={t} {...props.memoryName} />
+        ) : (
+          <TitleField
+            t={t}
+            value={node.data.label ?? ''}
+            placeholder={resourceTitle({ ...node, data: { ...node.data, label: '' } })}
+            ariaLabel={t('res.name')}
+            testId="wl-resource-label"
+            onType={(value) =>
+              props.onEdit({
+                type: 'patchResource',
+                id: node.id,
+                patch: { label: cleanName(value) },
+                merge: `${idKey(node.id)}:label`,
+              })
+            }
+            onBlur={props.onSeal}
+          />
+        )
       }
       id={node.id}
       extra={props.extra}
       onClose={props.onClose}
       closeTestId={props.closeTestId}
+    />
+  )
+}
+
+/** 记忆的名称：草稿在本地（没在改时跟着库里的），失焦（回车、确认）时和库里的不一样才写回去。 */
+function MemoryTitle(props: {
+  t: T
+  value: string
+  placeholder: string
+  onCommit(value: string): void
+}): React.JSX.Element {
+  const [draft, setDraft] = useState<string | null>(null)
+  return (
+    <TitleField
+      t={props.t}
+      value={draft ?? props.value}
+      placeholder={props.placeholder}
+      ariaLabel={props.t('mem.name')}
+      testId="wl-memory-name"
+      onType={setDraft}
+      onBlur={() => {
+        if (draft !== null) {
+          const next = cleanName(draft) ?? ''
+          if (next !== props.value) props.onCommit(next)
+        }
+        setDraft(null)
+      }}
     />
   )
 }

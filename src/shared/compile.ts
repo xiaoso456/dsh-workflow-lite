@@ -910,10 +910,7 @@ function resourcesSection(ctx: RenderContext, inline: boolean): string {
         lines.push(`- ${name}${shared}：${memoryBrief(ctx, info.resource)}`)
         continue
       }
-      lines.push(
-        `- ${name}${shared}：`,
-        ...memoryLines(ctx, info.resource, isShared(info), true, '  '),
-      )
+      lines.push(`- ${name}${shared}：`, ...memoryLines(ctx, info.resource, true, '  '))
       continue
     }
     const items = info.resource.data.items
@@ -1041,7 +1038,7 @@ function itemBlock(ctx: RenderContext, resource: ResourceNode, written: boolean)
   return [`${head}。说明：`, '', ...quoteLines(note, '')]
 }
 
-/** 记忆目录（skill 目录）的位置（记忆一律相对工作区，不拼产出根目录），去掉尾斜杠。 */
+/** 记忆目录（skill 目录）的位置（在记忆库里，不拼产出根目录），去掉尾斜杠。 */
 function memoryDir(ctx: RenderContext, resource: ResourceNode): string {
   const value = resource.data.items[0]?.value.trim() ?? ''
   return resolveItemPath(ctx.root, value, false).replace(/\/+$/u, '')
@@ -1059,14 +1056,13 @@ function memoryBrief(ctx: RenderContext, resource: ResourceNode): string {
 function memoryLines(
   ctx: RenderContext,
   resource: ResourceNode,
-  global: boolean,
   withNotes: boolean,
   indent: string,
 ): string[] {
   const dir = memoryDir(ctx, resource)
   return withNoteLines(
     `${indent}- 记忆目录：${code(dir)}`,
-    withNotes ? memoryPrompt(resource.data, global) : '',
+    withNotes ? memoryPrompt(resource.data) : '',
     indent,
   )
 }
@@ -1343,7 +1339,7 @@ function taskAppendix(facts: PlanFacts, ctx: RenderContext, id: string): string[
         `### ${memory ? '全局记忆 ' : ''}${resourceName(info.resource)}`,
         '',
         ...(memory
-          ? memoryLines(ctx, info.resource, true, false, '')
+          ? memoryLines(ctx, info.resource, false, '')
           : itemBlock(ctx, info.resource, false)),
         ...(memory ? ['', TASK_GLOBAL_MEMORY] : []),
       )
@@ -1381,7 +1377,7 @@ function taskAppendix(facts: PlanFacts, ctx: RenderContext, id: string): string[
       const written = underOutputRoot(graph.get(resource.id))
       lines.push(
         ...(role === '记忆'
-          ? memoryLines(ctx, resource, false, true, '')
+          ? memoryLines(ctx, resource, true, '')
           : itemBlock(ctx, resource, written)),
       )
     }

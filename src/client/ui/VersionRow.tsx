@@ -6,12 +6,14 @@
  * - 「切换 / 编辑说明 / 删除」平时藏着，悬停或键盘移进来时浮在右端（和 `WorkflowRow` 一个做法）；
  * - 切换、删除都要再确认一次，确认卡浮在按钮旁边；编辑说明就在这一行原地换成输入框。
  *
+ * 记忆的版本也用这一行：展开的那块换成「查看这一版的文件」（`onView`），第二行写文件数和大小。
+ *
  * @module @xiaoso/dsh-workflow-lite/client/ui/VersionRow
  */
 
 import { useEffect, useRef, useState } from 'react'
 import type { VersionEntry } from '../../shared/types.ts'
-import type { VersionDiff, Versions } from '../app/useVersions.ts'
+import type { VersionActions, VersionDiff, Versions } from '../app/useVersions.ts'
 import type { T } from '../i18n.ts'
 import { shortTime } from '../model/time.ts'
 import { useConfirm } from './Confirm.tsx'
@@ -28,12 +30,28 @@ const MAX_LINES = 12
 /** 比了这么久还没比完，才显示「正在比较」。 */
 const SLOW_MS = 180
 
+/** 一行版本要的：工作流的版本、记忆的版本都有这几样。 */
+export type RowEntry = Pick<
+  VersionEntry,
+  'n' | 'createdAt' | 'note' | 'autoBefore' | 'current' | 'invalid'
+>
+
 export function VersionRow(props: {
   t: T
-  entry: VersionEntry
-  versions: Versions
+  entry: RowEntry
+  versions: Pick<VersionActions<unknown>, 'busy' | 'restore' | 'setNote' | 'remove'>
   /** 和现在内容一样的那个版本号（切换的确认卡据此说"切回来不丢"）。 */
   currentN: number | null
+  /** 第二行时间后面那句（几个步骤 / 几个文件）。 */
+  meta: string
+  /** 点这一行展开的那块；不给就看 `onView`。 */
+  detail?: React.ReactNode
+  /** 点这一行打开这一版看（记忆：看那一版的文件）。 */
+  onView?: () => void
+  /** 切换确认卡上补的一句。 */
+  restoreNote?: string
+  /** 测试钩子的前缀（缺省 `wl-ver`）。 */
+  testPrefix?: string
 }): React.JSX.Element {
   const { t, entry, versions } = props
   const [open, setOpen] = useState(false)
@@ -41,7 +59,8 @@ export function VersionRow(props: {
   const restore = useConfirm<HTMLButtonElement>()
   const remove = useConfirm<HTMLButtonElement>()
   const busy = restore.open || remove.open
-  const testId = `wl-ver-${entry.n}`
+  const testId = `${props.testPrefix ?? 'wl-ver'}-${entry.n}`
+  const view = props.detail === undefined ? props.onView : undefined
 
   const note =
     entry.note !== ''
@@ -73,11 +92,7 @@ export function VersionRow(props: {
         )}
         <span className={v.meta}>
           <span className={v.time}>{shortTime(entry.createdAt)}</span>
-          <span>
-            {entry.invalid === true
-              ? t('ver.invalid')
-              : t('ver.steps').replace('{n}', String(entry.nodeCount))}
-          </span>
+          <span>{entry.invalid === true ? t('ver.invalid') : props.meta}</span>
           {entry.current && <span className={v.currentTag}>{t('ver.current')}</span>}
         </span>
       </span>
@@ -98,13 +113,14 @@ export function VersionRow(props: {
         <button
           type="button"
           className={v.main}
-          aria-expanded={open}
+          aria-expanded={view === undefined ? open : undefined}
+          disabled={view !== undefined && entry.invalid === true}
           data-testid={`${testId}-toggle`}
-          onClick={() => setOpen((value) => !value)}
+          onClick={() => (view === undefined ? setOpen((value) => !value) : view())}
         >
           {head}
-          <span className={v.chevron}>
-            <Icon name="chevronDown" size={14} />
+          <span className={v.chevron} data-view={view !== undefined}>
+            <Icon name={view === undefined ? 'chevronDown' : 'eye'} size={14} />
           </span>
         </button>
       )}
@@ -153,10 +169,14 @@ export function VersionRow(props: {
       {restore.render({
         t,
         title: t('ver.restoreTitle').replace('{n}', String(entry.n)),
-        desc:
+        desc: [
           props.currentN === null
             ? t('ver.restoreAuto')
             : t('ver.restoreSafe').replace('{n}', String(props.currentN)),
+          props.restoreNote,
+        ]
+          .filter((line) => line !== undefined)
+          .join(' '),
         confirmText: t('ver.restoreConfirm'),
         testId: `${testId}-restore-confirm`,
         disabled: versions.busy,
@@ -172,15 +192,13 @@ export function VersionRow(props: {
         disabled: versions.busy,
         onConfirm: () => void versions.remove(entry.n),
       })}
-      <Presence show={open && !editing}>
-        <DiffView t={t} entry={entry} versions={versions} />
-      </Presence>
+      {props.detail !== undefined && <Presence show={open && !editing}>{props.detail}</Presence>}
     </div>
   )
 }
 
-/** 展开的那一块：切到这一版会有哪些变化。列表每次重读（存了、切了）都重新比一次。 */
-function DiffView(props: {
+/** 工作流版本展开的那一块：切到这一版会有哪些变化。列表每次重读（存了、切了）都重新比一次。 */
+export function DiffView(props: {
   t: T
   entry: VersionEntry
   versions: Versions

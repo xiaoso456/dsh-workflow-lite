@@ -44,7 +44,7 @@ function lead(t: T, item: ResourceItem): React.ReactNode {
 /**
  * 文件夹：左边浏览（搜索、进子目录、面包屑），右边预览选中的文件，见 {@link FolderBrowser}。
  * 这一项的说明（要求写在这里的东西）收在标题行的「说明」开关里，不占正文。
- * 从哪读由 `source` 定：实例里的资源（`runFolderSource`），或编辑时的工作流（`graphItemSource`）。
+ * 从哪读由 `source` 定：实例里的资源（`runFolderSource`），或记忆库里的一条（`MemoryStore.source`）。
  */
 export function FolderDialog(props: {
   t: T

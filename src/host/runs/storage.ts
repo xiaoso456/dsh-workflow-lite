@@ -1,7 +1,7 @@
 /**
  * dsh-workflow-lite — 「工作流中心 · 存储」：数据目录的统计与清理。
  *
- * 统计数据目录里的几样东西：工作流、我的步骤、实例记录（`runs/` 下的图快照与回答）、
+ * 统计数据目录里的几样东西：工作流、我的步骤、记忆库（连同记忆的版本）、实例记录（`runs/` 下的图快照与回答）、
  * 旧版本遗留的任务描述（`.dispatch/`：早先编译时写在这里，现在任务描述放在各实例目录的 `tasks/` 里，
  * 不再有人写它、也不再有人读它）。
  *
@@ -14,10 +14,10 @@
 import type { Dirent } from 'node:fs'
 import { readdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
-import { VERSIONS_DIR } from '../../shared/limits.ts'
+import { MEMORY_VERSIONS_DIR, VERSIONS_DIR } from '../../shared/limits.ts'
 import type { StorageStats } from '../../shared/wire.ts'
 import { removeTree } from '../store/atomic.ts'
-import { dispatchRoot, templatesDir, workflowsDir } from '../store/paths.ts'
+import { dispatchRoot, memoriesDir, templatesDir, workflowsDir } from '../store/paths.ts'
 import type { RunService } from './service.ts'
 import { RUNS_DIR } from './store.ts'
 
@@ -49,6 +49,12 @@ async function treeSize(dir: string): Promise<{ files: number; bytes: number }> 
   return { files, bytes }
 }
 
+/** 记忆库里有几条（数元数据文件）。 */
+async function memoryCount(dir: string): Promise<number> {
+  const names = await readdir(dir).catch(() => [] as string[])
+  return names.filter((name) => name.endsWith('.json')).length
+}
+
 export async function storageAction(
   runs: RunService,
   dataDir: string,
@@ -67,10 +73,22 @@ export async function storageAction(
     cleared = finished.length
   }
   const all = await runs.list(undefined, true)
-  const [workflows, templates, versions, snapshots, dispatch] = await Promise.all([
+  const [
+    workflows,
+    templates,
+    versions,
+    memoryTree,
+    memoryVersions,
+    memories,
+    snapshots,
+    dispatch,
+  ] = await Promise.all([
     treeSize(workflowsDir(dataDir)),
     treeSize(templatesDir(dataDir)),
     treeSize(join(dataDir, VERSIONS_DIR)),
+    treeSize(memoriesDir(dataDir)),
+    treeSize(join(dataDir, MEMORY_VERSIONS_DIR)),
+    memoryCount(memoriesDir(dataDir)),
     treeSize(join(dataDir, RUNS_DIR)),
     treeSize(dispatchRoot(dataDir)),
   ])
@@ -82,6 +100,8 @@ export async function storageAction(
     templateBytes: templates.bytes,
     versions: versions.files,
     versionBytes: versions.bytes,
+    memories,
+    memoryBytes: memoryTree.bytes + memoryVersions.bytes,
     instances: all.length,
     finished: all.filter((item) => item.status === 'done' || item.status === 'cancelled').length,
     instanceBytes: snapshots.bytes,

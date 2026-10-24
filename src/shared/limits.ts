@@ -28,6 +28,22 @@ export const VERSIONS_DIR = 'versions'
  */
 export const ASSETS_DIR = 'assets'
 
+/**
+ * 记忆库：`memories/<id>.json` 是元数据，`memories/<id>/` 是那份 skill 文件夹（图里写 `{memory}/<id>`）。
+ * 不跟着工作流走：几个工作流可以引用同一条，删工作流不删记忆。
+ */
+export const MEMORIES_DIR = 'memories'
+
+/** 记忆的版本：`memory-versions/<id>/<n>.json` 是元信息，`memory-versions/<id>/<n>/` 是那时整个文件夹的拷贝。 */
+export const MEMORY_VERSIONS_DIR = 'memory-versions'
+
+/** 一条记忆最多留几个版本（到了就先删掉旧的再存）。 */
+export const MAX_MEMORY_VERSIONS = 100
+
+/** 记忆的名称、描述的长度上限（码点）。 */
+export const MAX_MEMORY_NAME_CODEPOINTS = 80
+export const MAX_MEMORY_DESCRIPTION_CODEPOINTS = 500
+
 /** 导入导出的暂存区（以 `.` 开头，一切扫描天然忽略）：`.pack/<token>/`。 */
 export const PACK_DIR = '.pack'
 

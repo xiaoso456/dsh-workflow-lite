@@ -1,5 +1,5 @@
 /**
- * dsh-workflow-lite — 文件夹浏览（{@link FolderBrowser}）从哪读：实例里的文件夹资源，或导出成 skill 前暂存的整个包。
+ * dsh-workflow-lite — 文件夹浏览（{@link FolderBrowser}）从哪读：实例里的文件夹资源、记忆库里的一条（`app/memories.ts`），或导出成 skill 前暂存的整个包。
  *
  * 两边长得一样：列一层、读一份、读一张图，路径都是相对根的 `sub`（`/` 分隔）。浏览框只认 {@link BrowseSource}，
  * 不管背后是哪条 RPC。
@@ -39,33 +39,6 @@ export function runFolderSource(
     file: (sub) => rpc.call('run/file', at(sub)),
     image: (sub, src) =>
       rpc.call('run/image', { ...at(sub), ...(src === undefined ? {} : { src }) }),
-  }
-}
-
-/**
- * 编辑时工作流里一个文件夹资源（存好的工作流 `name` 里 `node` 的第 `item` 项）：
- * `{workflow}` 指工作流目录，相对路径按 `cwd`（当前对话的工作区）。
- */
-export function graphItemSource(
-  rpc: WorkflowLiteRpc,
-  name: string,
-  node: string,
-  item: number,
-  cwd: string | undefined,
-): BrowseSource {
-  const at = (sub: string) => ({
-    name,
-    node,
-    item,
-    ...(sub === '' ? {} : { sub }),
-    ...(cwd === undefined ? {} : { cwd }),
-  })
-  return {
-    key: `graph:${name}:${node}#${item}:${cwd ?? ''}`,
-    dir: (sub) => rpc.call('graph/dir', at(sub)),
-    file: (sub) => rpc.call('graph/file', at(sub)),
-    image: (sub, src) =>
-      rpc.call('graph/image', { ...at(sub), ...(src === undefined ? {} : { src }) }),
   }
 }
 

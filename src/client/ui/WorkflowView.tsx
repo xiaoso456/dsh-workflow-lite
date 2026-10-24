@@ -16,12 +16,14 @@ import { orderedInputs } from '../../shared/inputs.ts'
 import { isInput, isResource, SETTINGS_CONFLICT_ID } from '../../shared/model.ts'
 import { stepMemories } from '../../shared/presets.ts'
 import type { InputAnswer, NodeData, Point, WorkflowDocument } from '../../shared/types.ts'
-import { addFromSource, addOrigin, duplicateEdit, memoryToggleEdit } from '../app/addStep.ts'
+import { addFromSource, addOrigin, duplicateEdit, memoryToggle } from '../app/addStep.ts'
 import type { Desktop } from '../app/desktop.ts'
 import { createHostAccess } from '../app/host.ts'
+import { useMemories } from '../app/memories.ts'
 import { revealNode } from '../app/reveal.ts'
 import { type SessionBridge, useSessionRows } from '../app/sessions.ts'
 import { useColorScheme, useThemeChoice } from '../app/theme.ts'
+import { useMemoryPick } from '../app/useMemoryPick.ts'
 import { useRuns } from '../app/useRuns.ts'
 import { useWorkflow, type Workflow } from '../app/useWorkflow.ts'
 import type { LocaleKey, NS, T } from '../i18n.ts'
@@ -38,6 +40,7 @@ import { Icon } from './Icon.tsx'
 import { InputsDialog } from './InputsDialog.tsx'
 import { Inspector } from './Inspector.tsx'
 import { Library } from './Library.tsx'
+import { MemoryPicker } from './MemoryPicker.tsx'
 import { ExitSeat, SWITCH_HOLD_MS, useSwapHold, useViewGhost } from './motion.tsx'
 import { PlanDialog } from './PlanDialog.tsx'
 import { cx, ModalHostProvider } from './primitives.tsx'
@@ -513,20 +516,45 @@ function Shell(props: {
     })
   }, [state.doc, analysis, wf, fitSoon, flow])
 
+  /** 加记忆、换一条记忆：弹「选已有的 / 新建」。 */
+  const memoryPick = useMemoryPick({
+    t,
+    store: host.memories,
+    doc: state.doc,
+    workflow: state.name,
+    root: rootRef,
+    edit: wf.edit,
+    notify: wf.notify,
+  })
+  const memories = useMemories(host.memories)
+  const openMemoryPick = memoryPick.open
+
   const addStep = useCallback(
     async (source: StepSource, position: Point, from?: string): Promise<void> => {
-      const step = source.kind !== 'resource' && source.kind !== 'input'
+      const step = source.kind !== 'resource' && source.kind !== 'input' && source.kind !== 'memory'
       // 新步骤会接管选中；之后任何一次换选中都会把这个标记清掉。
       if (step) setFocusPrompt(source.kind === 'blank')
       await addFromSource(
-        { t, doc: state.doc, edit: wf.edit, loadTemplate: wf.loadTemplate, workflow: state.name },
+        {
+          t,
+          doc: state.doc,
+          edit: wf.edit,
+          loadTemplate: wf.loadTemplate,
+          workflow: state.name,
+          pickMemory: (request) =>
+            openMemoryPick(
+              request.type === 'step'
+                ? { kind: 'step', step: request.step }
+                : { kind: 'workflow', position: request.position },
+            ),
+        },
         source,
         position,
         from,
       )
       if (step && source.kind !== 'blank') focusCanvas()
     },
-    [t, wf, focusCanvas, state.doc],
+    [t, wf, focusCanvas, state.doc, state.name, openMemoryPick],
   )
 
   const requestAdd = useCallback((request: AddRequest): void => {
@@ -550,13 +578,15 @@ function Shell(props: {
     [state.doc, wf, t],
   )
 
-  /** 步骤卡上的记忆开关。 */
+  /** 步骤卡上的记忆开关：开着就关；关着就弹「选已有的 / 新建」，贴着开关。 */
   const toggleMemory = useCallback(
-    (step: string): void => {
-      const edit = memoryToggleEdit(state.doc, state.name, step)
-      if (edit !== null) wf.edit(edit)
+    (step: string, anchor: Element): void => {
+      const toggle = memoryToggle(state.doc, state.name, step)
+      if (toggle === null) return
+      if ('off' in toggle) wf.edit(toggle.off)
+      else openMemoryPick({ kind: 'step', step: toggle.pick.step }, anchor)
     },
-    [state.doc, state.name, wf],
+    [state.doc, state.name, wf, openMemoryPick],
   )
 
   /** 删一个节点：删完点名告诉一声，并提示能撤销（画布上它会原地淡出）。 */
@@ -707,6 +737,7 @@ function Shell(props: {
     <HubDialog
       t={t}
       rpc={props.rpc}
+      host={host}
       session={props.session}
       sessionRows={sessionRows}
       sessionsReady={props.sessions?.available() === true}
@@ -802,6 +833,8 @@ function Shell(props: {
                   focusFile={focusFile}
                   onFocusFile={onFocusFile}
                   onMemory={toggleMemory}
+                  memories={memories.entries}
+                  workflow={state.name}
                 />
               )}
             </CanvasLayer>
@@ -852,6 +885,7 @@ function Shell(props: {
                     onFocusFile={onFocusFile}
                     host={host}
                     workflow={state.name}
+                    onPickMemory={openMemoryPick}
                   />
                 </div>
               )}
@@ -940,6 +974,22 @@ function Shell(props: {
               </ExitSeat>
             )}
 
+            {memoryPick.pick !== null && (
+              <MemoryPicker
+                t={t}
+                at={memoryPick.pick.at}
+                type={memoryPick.pick.type}
+                entries={memoryPick.pick.entries}
+                {...(memoryPick.pick.current === undefined
+                  ? {}
+                  : { current: memoryPick.pick.current })}
+                busy={memoryPick.busy}
+                onPick={memoryPick.choose}
+                onCreate={memoryPick.create}
+                onClose={memoryPick.close}
+              />
+            )}
+
             {quick !== null && (
               <QuickAdd
                 t={t}
@@ -981,6 +1031,9 @@ function Shell(props: {
                 t={t}
                 rpc={props.rpc}
                 name={state.name}
+                doc={doc}
+                memories={host.memories}
+                desktop={host.desktop}
                 flush={wf.flush}
                 onRestored={wf.reload}
                 onChanged={() => void wf.refreshCatalog()}

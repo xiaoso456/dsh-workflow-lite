@@ -25,7 +25,7 @@ import {
   resourceIdFor,
 } from './model.ts'
 import { outputKey } from './outputPaths.ts'
-import { bindWorkflowPath, isWorkflowPath } from './pathVars.ts'
+import { bindMemoryPath, bindWorkflowPath, isMemoryPath, isWorkflowPath } from './pathVars.ts'
 import { isMemory, memoryOf, writesUnderRoot } from './presets.ts'
 import {
   type Handoff,
@@ -336,18 +336,31 @@ export function setStepOutputs(
   return created
 }
 
+/** 路径变量换成哪个目录：`workflow` 换 `{workflow}/…`，`memory` 换 `{memory}/…`；不给的那个不换。 */
+export interface BoundDirs {
+  workflow?: string
+  memory?: string
+}
+
 /**
- * 把资源里的 `{workflow}/…` 换成 `dir` 下的路径（编译计划、看实例里的文件、导出成 skill 时用；存盘的图不换）。
- * 没有这种路径时原样返回同一个对象。
+ * 把资源里的 `{workflow}/…`、`{memory}/…` 换成实际目录下的路径（编译计划、看实例里的文件、导出成 skill 时用；
+ * 存盘的图不换）。没有这种路径时原样返回同一个对象。
  */
-export function bindWorkflowDir(document: WorkflowDocument, dir: string): WorkflowDocument {
-  const bound = (item: ResourceItem): boolean => isPathItem(item) && isWorkflowPath(item.value)
+export function bindDirs(document: WorkflowDocument, dirs: BoundDirs): WorkflowDocument {
+  const bind = (value: string): string => {
+    if (dirs.workflow !== undefined && isWorkflowPath(value)) {
+      return bindWorkflowPath(value, dirs.workflow)
+    }
+    if (dirs.memory !== undefined && isMemoryPath(value)) return bindMemoryPath(value, dirs.memory)
+    return value
+  }
+  const bound = (item: ResourceItem): boolean => isPathItem(item) && bind(item.value) !== item.value
   let changed = false
   const nodes = document.nodes.map((node) => {
     if (!isResource(node) || !node.data.items.some(bound)) return node
     changed = true
     const items = node.data.items.map((item) =>
-      bound(item) ? { ...item, value: bindWorkflowPath(item.value, dir) } : item,
+      bound(item) ? { ...item, value: bind(item.value) } : item,
     )
     return { ...node, data: { ...node.data, items } }
   })

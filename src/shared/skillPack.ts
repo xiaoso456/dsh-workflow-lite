@@ -30,10 +30,14 @@ export const SKILL_PATHS = {
   step: (id: string) => `steps/${id}.md`,
   asset: (path: string) => `assets/${path}`,
   skill: (name: string, path: string) => `skills/${name}/${path}`,
+  memory: (id: string, path: string) => `memory/${id}/${path}`,
 } as const
 
 /** 资料目录在 skill 里的位置（`{workflow}/…` 换成它）。 */
 export const SKILL_ASSETS = skillPath('assets')
+
+/** 记忆库在 skill 里的位置（`{memory}/…` 换成它）：引用的记忆各一个文件夹，执行时就地攒。 */
+export const SKILL_MEMORY = skillPath('memory')
 
 /** skill 名的上限（字数）。 */
 export const SKILL_NAME_MAX = 64

@@ -7,12 +7,7 @@
 import { isInput, isResource } from '../../shared/model.ts'
 import { stepMemories } from '../../shared/presets.ts'
 import { outputResource } from '../../shared/resources.ts'
-import {
-  DEFAULT_MEMORY_SCOPE,
-  type NodeData,
-  type Point,
-  type WorkflowDocument,
-} from '../../shared/types.ts'
+import type { MemoryType, NodeData, Point, WorkflowDocument } from '../../shared/types.ts'
 import type { T } from '../i18n.ts'
 import { type Edit, findNode } from '../model/editor.ts'
 import {
@@ -32,31 +27,33 @@ export interface AddContext {
   edit(edit: Edit): void
   /** 读「我的步骤」里的一个节点模板；读不到回 `null`。 */
   loadTemplate(name: string): Promise<NodeData | null>
-  /** 工作流名：记忆的默认路径里要用它；没有（实例视图）就加不了记忆。 */
+  /** 工作流名：新建记忆时默认 id 要用它；没有（实例视图）就加不了记忆。 */
   workflow?: string | null
+  /** 加记忆：弹出「选已有的 / 新建」（见 `ui/MemoryPicker.tsx`）；不给就加不了记忆。 */
+  pickMemory?: (request: MemoryPickRequest) => void
 }
 
+/** 要加一张什么记忆：给步骤开（`step`），或一张工作流记忆落在 `position`。 */
+export type MemoryPickRequest =
+  | { type: Extract<MemoryType, 'step'>; step: string }
+  | { type: Extract<MemoryType, 'workflow'>; position: Point }
+
 /**
- * 开 / 关一个步骤的记忆：开着就关（记忆目录不动），关着就开一张默认范围（本工作区）的记忆卡。
+ * 一个步骤的记忆开关：开着就是关掉它的编辑（库里那条不动）；关着就是要选一条（`pick`）。
  * 步骤不在、没有工作流名时是 `null`。
  */
-export function memoryToggleEdit(
+export function memoryToggle(
   doc: WorkflowDocument | null,
   workflow: string | null | undefined,
   step: string,
-): Edit | null {
+): { off: Edit } | { pick: Extract<MemoryPickRequest, { type: 'step' }> } | null {
   const node = doc === null ? undefined : findNode(doc, step)
   if (doc === null || node === undefined || isResource(node) || isInput(node)) return null
-  if (stepMemories(doc, node.id).length > 0)
-    return { type: 'setStepMemory', step: node.id, on: false }
-  if (workflow === null || workflow === undefined) return null
-  return {
-    type: 'setStepMemory',
-    step: node.id,
-    on: true,
-    scope: DEFAULT_MEMORY_SCOPE,
-    workflow,
+  if (stepMemories(doc, node.id).length > 0) {
+    return { off: { type: 'setStepMemory', step: node.id, on: false } }
   }
+  if (workflow === null || workflow === undefined) return null
+  return { pick: { type: 'step', step: node.id } }
 }
 
 /**
@@ -89,15 +86,17 @@ export async function addFromSource(
     return
   }
   if (source.kind === 'memory') {
-    // 从步骤的「＋」加 = 给这一步开记忆；别处加 = 一张全局记忆卡，落在原地、选中它。
+    // 从步骤的「＋」加 = 给这一步开记忆；别处加 = 一张工作流记忆卡，落在原地。都先选一条（或新建）。
     if (doc === null || ctx.workflow === null || ctx.workflow === undefined) return
+    const pick = ctx.pickMemory
+    if (pick === undefined) return
     const owner = from === undefined ? undefined : findNode(doc, from)
     if (owner !== undefined && !isResource(owner) && !isInput(owner)) {
-      const toggle = memoryToggleEdit(doc, ctx.workflow, owner.id)
-      if (toggle !== null && toggle.type === 'setStepMemory' && toggle.on) edit(toggle)
+      const toggle = memoryToggle(doc, ctx.workflow, owner.id)
+      if (toggle !== null && 'pick' in toggle) pick(toggle.pick)
       return
     }
-    edit({ type: 'addGlobalMemory', scope: DEFAULT_MEMORY_SCOPE, workflow: ctx.workflow, position })
+    pick({ type: 'workflow', position })
     return
   }
   if (source.kind === 'input') {

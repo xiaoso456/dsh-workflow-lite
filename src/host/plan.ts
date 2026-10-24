@@ -22,7 +22,7 @@ import { analyzeGraph } from '../shared/graph.ts'
 import { isStep } from '../shared/model.ts'
 import { bindRoot, rootOf } from '../shared/outputPaths.ts'
 import { INSTANCE_VAR } from '../shared/pathVars.ts'
-import { bindWorkflowDir } from '../shared/resources.ts'
+import { bindDirs } from '../shared/resources.ts'
 import type {
   InputAnswer,
   PlanId,
@@ -33,7 +33,7 @@ import type {
 } from '../shared/types.ts'
 import { ensureWorkspaceIgnore, instanceDir, TASKS_DIR } from './runs/store.ts'
 import { materialize } from './store/materialize.ts'
-import { assetsDir } from './store/paths.ts'
+import { assetsDir, memoriesDir } from './store/paths.ts'
 import { type Outcome, problemsToWarnings, type Repository } from './store/repository.ts'
 
 /** 计划对着的实例。 */
@@ -124,9 +124,9 @@ export async function compileDocument(
   // 产出根目录：没配用默认值（`.workflow-lite/runs/{instance}/out`），有实例就换上实例 id。
   const root =
     instance === undefined ? rootOf(document.settings) : bindRoot(rootOf(document.settings), id)
-  // 工作流目录里的文件（`{workflow}/…`）换成绝对路径：执行者拿到的是这台机器上实际的位置。
+  // 工作流目录里的文件（`{workflow}/…`）、记忆库里的（`{memory}/…`）换成绝对路径：执行者拿到的是这台机器上实际的位置。
   const planned: WorkflowDocument = {
-    ...bindWorkflowDir(document, assetsDir(dataDir, name)),
+    ...bindDirs(document, { workflow: assetsDir(dataDir, name), memory: memoriesDir(dataDir) }),
     settings: { ...document.settings, outputRoot: root },
   }
   const payloadPaths = new Map<string, string>(

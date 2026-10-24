@@ -16,7 +16,7 @@ import {
   workflowPath,
   workflowRelative,
 } from '../../src/shared/pathVars.ts'
-import { bindWorkflowDir } from '../../src/shared/resources.ts'
+import { bindDirs } from '../../src/shared/resources.ts'
 import { RESOURCE_TYPE, type WorkflowDocument } from '../../src/shared/types.ts'
 
 describe('{workflow}：认路径、拼路径', () => {
@@ -97,7 +97,7 @@ describe('{workflow} 的旧写法 {assets}', () => {
   })
 })
 
-describe('bindWorkflowDir：整张图', () => {
+describe('bindDirs：整张图', () => {
   it('只换文件、文件夹里的变量，没有就原样返回同一个对象', () => {
     const document: WorkflowDocument = {
       nodes: [
@@ -109,6 +109,7 @@ describe('bindWorkflowDir：整张图', () => {
             items: [
               { kind: 'file', value: '{workflow}/a.md' },
               { kind: 'text', value: '{workflow}/a.md' },
+              { kind: 'folder', value: '{memory}/notes' },
             ],
           },
         },
@@ -116,16 +117,25 @@ describe('bindWorkflowDir：整张图', () => {
       edges: [],
       viewport: { x: 0, y: 0, zoom: 1 },
     }
-    const bound = bindWorkflowDir(document, '/data/assets/w')
+    const bound = bindDirs(document, { workflow: '/data/assets/w', memory: '/data/memories' })
     expect(bound.nodes[0]?.data).toMatchObject({
       items: [
         { kind: 'file', value: '/data/assets/w/a.md' },
         { kind: 'text', value: '{workflow}/a.md' },
+        { kind: 'folder', value: '/data/memories/notes' },
+      ],
+    })
+    // 只给一个：另一个变量原样留着。
+    expect(bindDirs(document, { memory: '/m' }).nodes[0]?.data).toMatchObject({
+      items: [
+        { kind: 'file', value: '{workflow}/a.md' },
+        { kind: 'text', value: '{workflow}/a.md' },
+        { kind: 'folder', value: '/m/notes' },
       ],
     })
     expect(JSON.stringify(document)).toContain('{workflow}/a.md')
     const plain = { ...document, nodes: [] }
-    expect(bindWorkflowDir(plain, '/x')).toBe(plain)
+    expect(bindDirs(plain, { workflow: '/x', memory: '/y' })).toBe(plain)
   })
 })
 

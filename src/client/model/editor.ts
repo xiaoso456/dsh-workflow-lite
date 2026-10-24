@@ -37,6 +37,7 @@ import {
   addStepMemory,
   dropOrphanMemories,
   isMemory,
+  type MemoryRef,
   removeStepMemory,
   setPreset,
 } from '../../shared/presets.ts'
@@ -47,7 +48,6 @@ import {
   INPUT_TYPE,
   type InputData,
   type InputNode,
-  type MemoryScope,
   NODE_TYPE,
   type NodeData,
   type Point,
@@ -150,15 +150,17 @@ export type Edit =
    */
   | { type: 'addInput'; id: string; data: InputData; position?: Point; reader?: string }
   /**
-   * 开、关一个步骤的记忆（见 `shared/presets.ts`）。开：按范围和工作流名起默认路径，卡挂在步骤下方，
-   * 连一条「更新」线；关：去掉写记忆的线，不剩线的记忆卡一并删掉（文件不动）。
+   * 开、关一个步骤的记忆（见 `shared/presets.ts`）。开：引用记忆库里的 `memory`（选好的或刚建的），卡挂在步骤下方，
+   * 连一条「更新」线；关：去掉写记忆的线，不剩线的记忆卡一并删掉（库里那条不动）。
    */
-  | { type: 'setStepMemory'; step: string; on: true; scope: MemoryScope; workflow: string }
+  | { type: 'setStepMemory'; step: string; on: true; memory: MemoryRef }
   | { type: 'setStepMemory'; step: string; on: false }
-  /** 加一张全局记忆卡（不连线）；没给坐标就由布局补位。加完选中它。 */
-  | { type: 'addGlobalMemory'; scope: MemoryScope; workflow: string; position?: Point }
-  /** 换资源卡的类型标记（`null` = 普通资源）；打不上就不动（界面先用 `presetRefusal` 拦）。 */
-  | { type: 'setPreset'; id: string; preset: ResourcePresetKind | null; workflow: string }
+  /** 加一张引用 `memory` 的工作流记忆卡（不连线）；没给坐标就由布局补位。加完选中它。 */
+  | { type: 'addGlobalMemory'; memory: MemoryRef; position?: Point }
+  /**
+   * 换资源卡的类型标记（`null` = 普通资源）；打成记忆要给引用的那条。打不上就不动（界面先用 `presetRefusal` 拦）。
+   */
+  | { type: 'setPreset'; id: string; preset: ResourcePresetKind | null; memory?: MemoryRef }
   /** 改输入节点（值为 `undefined` 的键 = 清掉这一项）。`merge` 同 `patchNode`。 */
   | { type: 'patchInput'; id: string; patch: Partial<InputData>; merge?: string }
   /** 一次加进一小片图（示例流程）：算一条撤销步。`settings` 并进工作流设置（同一步）。 */
@@ -445,24 +447,18 @@ function applyEdit(doc: WorkflowDocument, selection: Selection, edit: Edit): App
       }
       const step = findNode(doc, edit.step)
       if (step === undefined) return null
-      const added = addStepMemory(
-        doc,
-        step.id,
-        edit.scope,
-        edit.workflow,
-        at(memorySpot(doc, step)),
-      )
+      const added = addStepMemory(doc, step.id, edit.memory, at(memorySpot(doc, step)))
       return added === null ? null : { doc: added.document, selection }
     }
 
     case 'addGlobalMemory': {
       const position = at(edit.position ?? { x: 0, y: 0 })
-      const added = addGlobalMemory(doc, edit.scope, edit.workflow, position)
+      const added = addGlobalMemory(doc, edit.memory, position)
       return { doc: added.document, selection: { kind: 'node', id: added.id } }
     }
 
     case 'setPreset': {
-      const next = setPreset(doc, edit.id, edit.preset, edit.workflow)
+      const next = setPreset(doc, edit.id, edit.preset, edit.memory)
       return next === null || 'refused' in next ? null : { doc: next, selection }
     }
 

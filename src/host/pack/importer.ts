@@ -5,7 +5,7 @@
  * 解包这一步就挡掉坏包：条目路径不安全（zip-slip）、总大小 / 文件数超限、清单与文件对不上（哈希）、
  * 版本读不出来、包格式比本插件新。
  *
- * 落盘的顺序：检查都过了才动手 → 资料目录 → skill → 版本 → 工作流文件。工作流文件最后写，
+ * 落盘的顺序：检查都过了才动手 → 资料目录 → skill → 记忆 → 版本 → 工作流文件。工作流文件最后写，
  * 中途失败不会留下一张半成品工作流。**不自动存**本机现在的内容（并入时前端事先提醒过）。
  *
  * @module @xiaoso/dsh-workflow-lite/host/pack/importer
@@ -16,7 +16,7 @@ import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/p
 import { dirname, join } from 'node:path'
 import { unzipSync } from 'fflate'
 import { normalize } from 'pathe'
-import { isResource } from '../../shared/model.ts'
+import { idKey, isResource } from '../../shared/model.ts'
 import { checkName, normalizeName } from '../../shared/naming.ts'
 import { isAbsoluteRoot } from '../../shared/outputPaths.ts'
 import {
@@ -29,14 +29,25 @@ import {
   type PackApplyResponse,
   type PackImportPreview,
   type PackManifest,
+  type PackMemoryAction,
+  type PackMemoryPreview,
   type PackSkill,
   type PackSkillAction,
   type PackSkillPreview,
   readManifest,
 } from '../../shared/pack.ts'
+import { renameMemoryRefs } from '../../shared/presets.ts'
 import type { ErrorCode, WorkflowDocument } from '../../shared/types.ts'
 import { listSkills } from '../hostFs.ts'
-import { assetsDir, assetsRoot, pathKind, scanWorkflowDir } from '../store/paths.ts'
+import { freeMemoryId, readMemoryMeta, writeMemoryMeta } from '../store/memories.ts'
+import {
+  assetsDir,
+  assetsRoot,
+  memoryFolder,
+  memoryMetaFile,
+  pathKind,
+  scanWorkflowDir,
+} from '../store/paths.ts'
 import type { ImportVersion, Outcome } from '../store/repository.ts'
 import { parseVersion } from '../store/versions.ts'
 import type { PackDeps } from './exporter.ts'
@@ -151,6 +162,12 @@ export function openPack(zip: Uint8Array): Outcome<OpenedPack> {
     }
     for (const file of skill.files) {
       const problem = check(PACK_PATHS.skill(skill.name, file.path), file)
+      if (problem !== null) return fail('invalid_args', `包坏了：${problem}`)
+    }
+  }
+  for (const memory of manifest.memories) {
+    for (const file of memory.files) {
+      const problem = check(PACK_PATHS.memory(memory.id, file.path), file)
       if (problem !== null) return fail('invalid_args', `包坏了：${problem}`)
     }
   }
@@ -307,6 +324,34 @@ export async function inspectPack(
     )
   }
 
+  // 记忆：和本机记忆库比；「另存一份」用的新 id 彼此也不能撞。
+  const memories: PackMemoryPreview[] = []
+  const renamedTo = new Set<string>()
+  for (const memory of manifest.memories) {
+    const local = await readMemoryMeta(deps.dataDir, memory.id)
+    let rename = memory.id
+    for (let n = 2; ; n += 1) {
+      const free = await freeMemoryId(deps.dataDir, rename)
+      if (free !== null && !renamedTo.has(idKey(free))) {
+        rename = free
+        break
+      }
+      if (n > 99) break
+      rename = `${memory.id}-${n}`
+    }
+    renamedTo.add(idKey(rename))
+    memories.push({
+      id: memory.id,
+      type: memory.type,
+      name: memory.name,
+      files: memory.files.length,
+      bytes: memory.files.reduce((sum, file) => sum + file.bytes, 0),
+      exists: local !== null,
+      ...(local !== null && local !== 'invalid' ? { existingName: local.name } : {}),
+      rename,
+    })
+  }
+
   const external: PackImportPreview['external'] = []
   for (const entry of manifest.external) {
     let found: boolean | null = null
@@ -336,6 +381,7 @@ export async function inspectPack(
       clashes,
       skillsRoot: slash(deps.skillsRoot),
       skills,
+      memories,
       external,
     },
   }
@@ -467,9 +513,24 @@ export async function applyPack(
   const renames = new Map(
     plan.filter((entry) => entry.action === 'rename').map((entry) => [entry.skill.name, entry.as]),
   )
+  // 每条记忆怎么办：本机没有的照包里的建；已有的缺省用本机的，「另存一份」换新 id、图里跟着改。
+  const memoryPlan: { id: string; as: string; action: PackMemoryAction | 'create' }[] = []
+  for (const memory of preview.result.memories) {
+    if (!memory.exists) {
+      memoryPlan.push({ id: memory.id, as: memory.id, action: 'create' })
+      continue
+    }
+    const action = request.memories?.[memory.id] ?? 'use'
+    memoryPlan.push({ id: memory.id, as: action === 'copy' ? memory.rename : memory.id, action })
+  }
+  const memoryRenames = new Map(
+    memoryPlan
+      .filter((entry) => entry.action === 'copy')
+      .map((entry) => [idKey(entry.id), entry.as]),
+  )
   const imported = versions.map((version) => ({
     ...version,
-    document: rewriteSkills(version.document, renames),
+    document: renameMemoryRefs(rewriteSkills(version.document, renames), memoryRenames),
   }))
   const current = imported.find((version) => version.n === manifest.current)
   if (current === undefined) return fail('invalid_args', '包坏了：找不到当前版本')
@@ -516,6 +577,36 @@ export async function applyPack(
           }
           await installSkill(deps.skillsRoot, target, files, replace)
         }
+
+        // 记忆：要建的那几条先查一遍没被占（预览之后可能有人建了同名的），再写元数据和内容。
+        for (const entry of memoryPlan) {
+          if (entry.action === 'use') continue
+          if (
+            (await pathKind(memoryMetaFile(deps.dataDir, entry.as))) !== 'missing' ||
+            (await pathKind(memoryFolder(deps.dataDir, entry.as))) !== 'missing'
+          ) {
+            return fail('conflict', `记忆 ${entry.as} 已经在了，重新导入一次`)
+          }
+        }
+        for (const entry of memoryPlan) {
+          if (entry.action === 'use') continue
+          const memory = manifest.memories.find((candidate) => candidate.id === entry.id)
+          if (memory === undefined) continue
+          await writeMemoryMeta(deps.dataDir, {
+            id: entry.as,
+            type: memory.type,
+            name: memory.name,
+            description: memory.description,
+            createdAt: deps.now?.() ?? Date.now(),
+          })
+          await writeTree(
+            memoryFolder(deps.dataDir, entry.as),
+            memory.files.map((file) => ({
+              path: file.path,
+              data: entries.get(PACK_PATHS.memory(memory.id, file.path)) as Uint8Array,
+            })),
+          )
+        }
       } catch (error) {
         return fail(
           'io_error',
@@ -535,6 +626,7 @@ export async function applyPack(
       duplicates: outcome.result.duplicates,
       assets: assetsWritten,
       skills: plan.map((entry) => ({ name: entry.skill.name, as: entry.as, action: entry.action })),
+      memories: memoryPlan,
     },
   }
 }

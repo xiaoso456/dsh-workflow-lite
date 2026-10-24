@@ -22,6 +22,8 @@ import { compareByCodepoint } from '../../shared/graph.ts'
 import {
   ASSETS_DIR,
   DISPATCH_DIR,
+  MEMORIES_DIR,
+  MEMORY_VERSIONS_DIR,
   PACK_DIR,
   TEMPLATES_DIR,
   TMP_PREFIX,
@@ -71,6 +73,26 @@ export function workflowsDir(dataDir: string): string {
 /** `<dataDir>/templates/nodes/`：节点模板（画布步骤库的「我的步骤」）。 */
 export function templatesDir(dataDir: string): string {
   return join(dataDir, TEMPLATES_DIR, 'nodes')
+}
+
+/** `<dataDir>/memories/`：记忆库（图里的 `{memory}`）。 */
+export function memoriesDir(dataDir: string): string {
+  return join(dataDir, MEMORIES_DIR)
+}
+
+/** `<dataDir>/memories/<id>.json`：一条记忆的元数据。 */
+export function memoryMetaFile(dataDir: string, id: string): string {
+  return join(memoriesDir(dataDir), `${id}${JSON_SUFFIX}`)
+}
+
+/** `<dataDir>/memories/<id>/`：一条记忆的 skill 文件夹。 */
+export function memoryFolder(dataDir: string, id: string): string {
+  return join(memoriesDir(dataDir), id)
+}
+
+/** `<dataDir>/memory-versions/<id>/`：一条记忆的版本。 */
+export function memoryVersionsDir(dataDir: string, id: string): string {
+  return join(dataDir, MEMORY_VERSIONS_DIR, id)
 }
 
 /** `<dataDir>/workflows/<名>.json`。 */

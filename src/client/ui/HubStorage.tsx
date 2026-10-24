@@ -133,6 +133,12 @@ export function HubStorage(props: {
             desc={t('hub.versionsDesc')}
           />
           <Item
+            icon="memory"
+            title={t('hub.memories')}
+            value={`${count(stats.memories)} · ${formatBytes(stats.memoryBytes)}`}
+            desc={t('hub.memoriesDesc')}
+          />
+          <Item
             icon="runs"
             title={t('hub.instances')}
             value={[

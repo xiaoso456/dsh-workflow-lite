@@ -41,7 +41,7 @@ import {
   isVerdictWhen,
 } from './naming.ts'
 import { checkOutputRoot, outputKey } from './outputPaths.ts'
-import { memoryItemsOk, memoryOf } from './presets.ts'
+import { memoryItemsOk, memoryMisplaced, memoryOf } from './presets.ts'
 import {
   edgeKind,
   flowEdges,
@@ -69,6 +69,8 @@ export interface ValidateOptions {
   maxNodes: number
   /** `workflows/` 下存在同名**目录**（md 版遗留）——算撞名占位。 */
   dirCollision?: boolean
+  /** 记忆库里有没有这条记忆；给了才查（记忆卡引用的不在库里就给警告）。 */
+  hasMemory?: (id: string) => boolean
 }
 
 export interface ValidationReport {
@@ -340,12 +342,12 @@ export function validateDocument(
       )
     }
     if (memoryOf(resource.data) !== undefined) {
-      if (!memoryItemsOk(resource.data.items)) {
+      if (!memoryItemsOk(resource.data)) {
         compile.push(
           mk(
             'compile',
             'memory_invalid',
-            `记忆 ${resource.id} 要是一个文件夹（skill 目录），不能放别的`,
+            `记忆 ${resource.id} 没有引用记忆库里的哪一条，换一条或新建一条`,
             {
               node: resource.id,
             },
@@ -459,6 +461,31 @@ export function validateDocument(
     )
   }
   for (const info of resources.values()) {
+    const memory = memoryOf(info.resource.data)
+    if (memory !== undefined && memoryItemsOk(info.resource.data)) {
+      if (options.hasMemory !== undefined && !options.hasMemory(memory.memory)) {
+        warning.push(
+          mk(
+            'warning',
+            'memory_missing',
+            `记忆 ${info.resource.id} 引用的「${memory.memory}」不在记忆库里（删掉了？），执行时会从空的开始攒`,
+            { node: info.resource.id },
+          ),
+        )
+      }
+      if (memoryMisplaced(document, info.resource)) {
+        warning.push(
+          mk(
+            'warning',
+            'memory_misplaced',
+            memory.type === 'step'
+              ? `步骤记忆 ${info.resource.id} 没有步骤写它：连到它是哪一步的做法，或换成工作流记忆`
+              : `工作流记忆 ${info.resource.id} 连在了步骤上：它是整个工作流的做法，不连线；一步的做法用步骤记忆`,
+            { node: info.resource.id },
+          ),
+        )
+      }
+    }
     // 不止一个步骤整份写它：后写的会把先写的覆盖掉。
     const producers = info.writers.filter((writer) => !writer.update).map((writer) => writer.id)
     if (producers.length > 1 && memoryOf(info.resource.data) === undefined) {

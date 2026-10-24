@@ -39,6 +39,7 @@ import { EdgeHead, StepHead } from './NodeHeads.tsx'
 import { PreviewCard } from './PreviewCard.tsx'
 import { cx } from './primitives.tsx'
 import { ResourcePanel } from './ResourcePanel.tsx'
+import type { PickMemory } from './ResourcePresets.tsx'
 import { ResourceEdgeBody, ResourceIcon, StepResourcesField } from './Resources.tsx'
 import { stepName } from './resourceUi.ts'
 import { Segmented } from './Segmented.tsx'
@@ -64,8 +65,10 @@ export interface InspectorProps {
   host: HostAccess
   /** 标题栏里关闭按钮左边的切换（实例视图里「运行 / 编辑」）；模板编辑不给。 */
   tabs?: React.ReactNode
-  /** 工作流名（记忆换范围时用）；实例视图不给。 */
+  /** 工作流名（换引用的记忆时用）；实例视图不给。 */
   workflow?: string | null
+  /** 换一条记忆、把资源卡换成记忆：弹「选已有的 / 新建」。 */
+  onPickMemory?: PickMemory
 }
 
 function titleOf(node: WorkflowNode | undefined, fallback: string): string {
@@ -93,6 +96,7 @@ export function Inspector(props: InspectorProps): React.JSX.Element | null {
           onRemove={props.onRemoveNode}
           tabs={props.tabs}
           workflow={props.workflow ?? null}
+          {...(props.onPickMemory === undefined ? {} : { onPickMemory: props.onPickMemory })}
         />
       )
     }
@@ -349,6 +353,8 @@ function NodePanel(props: InspectorProps & { node: StepNode }): React.JSX.Elemen
 export function DescriptionField(props: {
   t: T
   value: string
+  /** 缺省是步骤、资源卡那句占位。 */
+  placeholder?: string
   onChange(value: string): void
   onBlur?: () => void
 }): React.JSX.Element {
@@ -362,7 +368,7 @@ export function DescriptionField(props: {
       <input
         className={ui.input}
         value={props.value}
-        placeholder={t('ins.descriptionPlaceholder')}
+        placeholder={props.placeholder ?? t('ins.descriptionPlaceholder')}
         aria-label={t('ins.description')}
         aria-invalid={problem !== null}
         maxLength={MAX_TEXT_CODEPOINTS}

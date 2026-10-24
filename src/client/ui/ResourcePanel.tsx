@@ -7,11 +7,10 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/ResourcePanel
  */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { idKey, isStep } from '../../shared/model.ts'
-import { isAbsoluteRoot, normalizeRoot, rootOf } from '../../shared/outputPaths.ts'
-import { isWorkflowPath } from '../../shared/pathVars.ts'
-import { memoryOf } from '../../shared/presets.ts'
+import { normalizeRoot, rootOf } from '../../shared/outputPaths.ts'
+import { memoryItemsOk, memoryOf } from '../../shared/presets.ts'
 import { isShared, resourceGraph, resourceTitle, underOutputRoot } from '../../shared/resources.ts'
 import type {
   ResourceItem,
@@ -20,6 +19,7 @@ import type {
   WorkflowEdge,
 } from '../../shared/types.ts'
 import type { HostAccess } from '../app/host.ts'
+import { findMemory, useMemories } from '../app/memories.ts'
 import type { T } from '../i18n.ts'
 import { type Edit, findNode, type Selection } from '../model/editor.ts'
 import type { FocusFile } from './Handoff.tsx'
@@ -31,7 +31,12 @@ import { EDIT_VIEW, useResizeFlip, useSwap } from './motion.tsx'
 import { ResourceHead } from './NodeHeads.tsx'
 import { cx } from './primitives.tsx'
 import { ResourceItems } from './ResourceItems.tsx'
-import { PresetBlock, presetItems, ResourceTypePicker } from './ResourcePresets.tsx'
+import {
+  type PickMemory,
+  PresetBlock,
+  presetItems,
+  ResourceTypePicker,
+} from './ResourcePresets.tsx'
 import { ModeToggle } from './Resources.tsx'
 import { FolderDialog } from './RunItemDialog.tsx'
 import res from './resource.module.css'
@@ -51,8 +56,10 @@ export function ResourcePanel(props: {
   onRemove(id: string): void
   /** 标题栏里关闭按钮左边的切换（实例视图里「运行 / 编辑」）。 */
   tabs?: React.ReactNode
-  /** 工作流名：记忆换范围时重算默认路径要用；不给（实例视图）就不能换范围。 */
+  /** 工作流名；不给（实例视图）就不能换引用的记忆、也不能把资源卡换成记忆。 */
   workflow?: string | null
+  /** 换一条记忆、把资源卡换成记忆：弹「选已有的 / 新建」。 */
+  onPickMemory?: PickMemory
 }): React.JSX.Element {
   const { t, doc, node } = props
   const swap = useSwap<HTMLElement>(idKey(node.id), node.position.x, EDIT_VIEW)
@@ -76,23 +83,34 @@ export function ResourcePanel(props: {
       ...(field === undefined ? {} : { merge: merge(field) }),
     })
 
-  const presetProps = { t, node, shared, workflow, patch, onSeal: props.onSeal }
+  const presetProps = {
+    t,
+    node,
+    shared,
+    workflow,
+    host: props.host,
+    onPickMemory: props.onPickMemory,
+    patch,
+    onSeal: props.onSeal,
+  }
 
-  // 记忆：看里面现在攒了什么（存好的工作流里的路径；本工作区的按当前对话的工作区找）。
+  // 记忆：名称、描述在记忆库里；选中时重读一遍（在用的工作流可能刚变）。
+  const store = props.host.memories
+  const { entries } = useMemories(store)
+  const ref = memory !== undefined && memoryItemsOk(node.data) ? memory.memory : null
+  const entry = ref === null ? undefined : findMemory(entries, ref)
+  useEffect(() => {
+    if (ref !== null) void store.refresh()
+  }, [ref, store])
+  const [descDraft, setDescDraft] = useState<string | null>(null)
+  const updateMemory = (patchMeta: { name?: string; description?: string }): void => {
+    if (entry === undefined) return
+    void store.update({ id: entry.id, ...patchMeta }).catch(() => undefined)
+  }
+
+  // 记忆：看里面现在攒了什么。
   const [viewing, setViewing] = useState(false)
-  const dir = memory === undefined ? undefined : node.data.items[0]
-  const view =
-    workflow === null || dir === undefined || dir.kind !== 'folder' || dir.value.trim() === ''
-      ? null
-      : {
-          item: dir,
-          blocked:
-            props.host.cwd === undefined &&
-            !isWorkflowPath(dir.value) &&
-            !isAbsoluteRoot(dir.value.trim().replace(/\\/gu, '/'))
-              ? t('mem.viewNoWorkspace')
-              : null,
-        }
+  const view = ref === null || entry === undefined ? null : node.data.items[0]
 
   const stepRow = (id: string, extra: React.ReactNode, edge: WorkflowEdge): React.JSX.Element => {
     const step = findNode(doc, id)
@@ -144,19 +162,54 @@ export function ResourcePanel(props: {
         onSeal={props.onSeal}
         extra={props.tabs}
         onClose={() => props.onSelect(null)}
-        lead={<ResourceTypePicker t={t} node={node} workflow={workflow} onEdit={props.onEdit} />}
-        {...(memory === undefined ? {} : { memory: t(shared ? 'mem.global' : 'mem.title') })}
+        lead={
+          <ResourceTypePicker
+            t={t}
+            doc={doc}
+            node={node}
+            workflow={workflow}
+            onEdit={props.onEdit}
+            onPickMemory={props.onPickMemory}
+          />
+        }
+        {...(memory === undefined
+          ? {}
+          : {
+              memoryName: {
+                value: entry?.name ?? '',
+                placeholder: memory.memory || t('mem.title'),
+                onCommit: (name: string) => updateMemory({ name }),
+              },
+            })}
       />
 
       <div className={ins.body}>
-        <DescriptionField
-          t={t}
-          value={node.data.description ?? ''}
-          onChange={(description) =>
-            patch({ description: description === '' ? undefined : description }, 'description')
-          }
-          onBlur={props.onSeal}
-        />
+        {memory === undefined ? (
+          <DescriptionField
+            t={t}
+            value={node.data.description ?? ''}
+            onChange={(description) =>
+              patch({ description: description === '' ? undefined : description }, 'description')
+            }
+            onBlur={props.onSeal}
+          />
+        ) : (
+          entry !== undefined && (
+            // 记忆的描述在库里：草稿在本地，失焦才写回去。
+            <DescriptionField
+              t={t}
+              value={descDraft ?? entry.description}
+              placeholder={t('mem.descPlaceholder')}
+              onChange={setDescDraft}
+              onBlur={() => {
+                if (descDraft !== null && descDraft !== entry.description) {
+                  updateMemory({ description: descDraft })
+                }
+                setDescDraft(null)
+              }}
+            />
+          )
+        )}
 
         <PresetBlock {...presetProps} slot="head" />
 
@@ -173,16 +226,13 @@ export function ResourcePanel(props: {
             {view !== null && (
               <button
                 type="button"
-                className={cx(ui.btn, ui.small, ui.soft, res.valueAction)}
+                className={cx(ui.btn, ui.icon, ui.small, res.valueAction)}
+                data-tip={t('mem.view')}
+                aria-label={t('mem.view')}
                 data-testid="wl-memory-view"
-                aria-disabled={view.blocked === null ? undefined : true}
-                {...(view.blocked === null ? {} : { 'data-tip': view.blocked })}
-                onClick={() => {
-                  if (view.blocked === null) setViewing(true)
-                }}
+                onClick={() => setViewing(true)}
               >
-                <Icon name="eye" size={13} />
-                {t('mem.view')}
+                <Icon name="eye" size={15} />
               </button>
             )}
           </div>
@@ -276,11 +326,11 @@ export function ResourcePanel(props: {
         <p className={ins.help}>{t('res.connectHint')}</p>
       </div>
 
-      {viewing && view !== null && workflow !== null && (
+      {viewing && view !== undefined && view !== null && ref !== null && (
         <FolderDialog
           t={t}
-          source={props.host.folder(workflow, node.id, 0)}
-          item={view.item}
+          source={store.source(ref)}
+          item={view}
           desktop={props.host.desktop}
           missing={t('mem.viewEmpty')}
           onClose={() => setViewing(false)}

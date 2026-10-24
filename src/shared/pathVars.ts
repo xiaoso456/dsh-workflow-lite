@@ -4,6 +4,7 @@
  * | 变量 | 写在哪 | 换成什么 |
  * |---|---|---|
  * | `{workflow}` | 资源里文件、文件夹路径的开头 | 工作流自己的目录（`<dataDir>/assets/<图名>/`）；导出成 skill 时换成 `{skill}/assets` |
+ * | `{memory}` | 记忆卡那一项的开头（`{memory}/<记忆 id>`，插件写，用户不改） | 插件的记忆库（`<dataDir>/memories/`）；导出成 skill 时换成 `{skill}/memory` |
  * | `{instance}` | 产出根目录、状态文件路径里任意位置 | 实例 id：插件建实例时换；通用口径（skill）由执行者自己取 |
  * | `{skill}` | 导出成 skill 时计划里包内路径的开头 | 加载 skill 时宿主给出的目录：执行者自己换，插件不换 |
  *
@@ -76,6 +77,28 @@ export function upgradeWorkflowPath(path: string): string {
 export function bindWorkflowPath(path: string, dir: string): string {
   if (!isWorkflowPath(path)) return path
   const rest = workflowRelative(path)
+  return rest === '' ? normalize(dir) : join(normalize(dir), rest)
+}
+
+// ── {memory}：记忆库 ────────────────────────────────────────────
+
+/** 记忆库的变量。 */
+export const MEMORY_VAR = '{memory}'
+
+/** 这个路径是不是写在记忆库里（`{memory}` 本身或 `{memory}/…`）。 */
+export function isMemoryPath(path: string): boolean {
+  return leads(path, MEMORY_VAR)
+}
+
+/** 记忆库里一条记忆的文件夹（`code-review` → `{memory}/code-review`）。 */
+export function memoryPath(id: string): string {
+  return under(MEMORY_VAR, id)
+}
+
+/** 把 `{memory}/…` 换成 `dir` 下的路径（`dir` 是绝对路径，或导出成 skill 时的 `{skill}/memory`）；别的路径原样返回。 */
+export function bindMemoryPath(path: string, dir: string): string {
+  if (!isMemoryPath(path)) return path
+  const rest = restAfter(path, MEMORY_VAR.length)
   return rest === '' ? normalize(dir) : join(normalize(dir), rest)
 }
 

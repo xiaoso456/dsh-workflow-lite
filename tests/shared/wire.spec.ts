@@ -99,9 +99,9 @@ describe('RPC 目标', () => {
   it('端点两两不同，且数量就是契约里的那几条', () => {
     const names = WORKFLOW_LITE_ENDPOINTS.map((endpoint) => endpointName(endpoint))
     expect(new Set(names).size).toBe(names.length)
-    // 十二条图与模板、六条版本、一条计划、十条工作流实例（含 run/image、run/dir）、三条编辑时看资源里的文件夹（graph/file · graph/image · graph/dir），加三条看主机（host/list · host/skills · host/skill）、两条插件设置（config/get · config/set）、
+    // 十二条图与模板、六条版本、一条计划、十条工作流实例（含 run/image、run/dir）、十二条记忆库（list · create · update · delete · file · image · dir 与五条版本），加三条看主机（host/list · host/skills · host/skill）、两条插件设置（config/get · config/set）、
     // 七条导入导出（pack/scan · export · read · upload · inspect · apply · discard）、
     // 五条导出成 skill（skillPreview · skillExport · skillDir · skillFile · skillImage）。
-    expect(names).toHaveLength(49)
+    expect(names).toHaveLength(58)
   })
 })

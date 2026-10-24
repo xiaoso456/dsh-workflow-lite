@@ -2,7 +2,7 @@
  * dsh-workflow-lite — 把工作流的一个版本导出成 skill（布局见 `shared/skillPack.ts`）。
  *
  * 和导出工作流包共用盘点（{@link scanState}）与"打包哪些"的勾选：打包的文件、文件夹、资料目录进
- * `assets/`，打包的 skill 进 `skills/<名>/`。不同的是图不进包——包里是编译好的提示词：
+ * `assets/`，打包的 skill 进 `skills/<名>/`，引用的记忆（勾了带内容的）进 `memory/<id>/`。不同的是图不进包——包里是编译好的提示词：
  * SKILL.md 是 skill 口径的派发计划，`steps/<id>.md` 是各步骤的任务描述，路径里包内的写成 `{skill}/…`，
  * 产出根目录原样保留（`{instance}` 由执行者开始时取一个编号）。
  *
@@ -20,10 +20,12 @@ import { isStep } from '../../shared/model.ts'
 import { rootOf } from '../../shared/outputPaths.ts'
 import { PACK_MAX_BYTES, PACK_MAX_FILES } from '../../shared/pack.ts'
 import { INSTANCE_VAR, isWorkflowPath, skillPath, workflowRelative } from '../../shared/pathVars.ts'
-import { bindWorkflowDir, resourceGraph } from '../../shared/resources.ts'
+import { memoryOf } from '../../shared/presets.ts'
+import { bindDirs, resourceGraph } from '../../shared/resources.ts'
 import {
   checkSkillMeta,
   SKILL_ASSETS,
+  SKILL_MEMORY,
   SKILL_PATHS,
   type SkillBuildRequest,
   type SkillExisting,
@@ -100,7 +102,7 @@ async function buildSkill(
     ...(request.session === undefined ? {} : { session: request.session }),
   })
   if (!scanned.ok) return scanned
-  const { response, versions, trees, assetsTree, skills } = scanned.result
+  const { response, versions, trees, assetsTree, skills, memories } = scanned.result
   const [picked] = versions
   if (picked === undefined) return fail('invalid_args', '至少选一个版本')
   const original = picked.document
@@ -125,6 +127,17 @@ async function buildSkill(
   const needs: string[] = []
   const absolute: string[] = []
   for (const item of response.items) {
+    const memory = memories.get(item.key)
+    if (memory !== undefined) {
+      // 记忆：勾了就把现在攒下的带进去，没勾就是一个空文件夹（执行时从头攒）。
+      const tree = trees.get(item.key)
+      if (item.state !== 'memory' || !wanted.has(item.key) || tree === undefined) continue
+      const read = await readTree(tree)
+      for (const file of read.files) {
+        put(SKILL_PATHS.memory(memory.id, file.path), read.data.get(file.path) as Uint8Array)
+      }
+      continue
+    }
     const chosen = item.state === 'pack' && wanted.has(item.key)
     if (item.kind === 'skill') {
       if (!chosen) {
@@ -165,10 +178,10 @@ async function buildSkill(
     renames.set(item.key, item.as)
   }
 
-  // 图：打包的换成 `{workflow}/…`，工作流目录再换成 `{skill}/assets/…`；产出根目录写实（没配就是默认值）。
+  // 图：打包的换成 `{workflow}/…`，工作流目录再换成 `{skill}/assets/…`、记忆换成 `{skill}/memory/…`；产出根目录写实（没配就是默认值）。
   const rewritten = rewriteForPack(original, renames)
   const document: WorkflowDocument = {
-    ...bindWorkflowDir(rewritten, SKILL_ASSETS),
+    ...bindDirs(rewritten, { workflow: SKILL_ASSETS, memory: SKILL_MEMORY }),
     settings: { ...rewritten.settings, outputRoot: rootOf(rewritten.settings) },
   }
   const problems: ValidationProblem[] = deps.validate?.(original, request.name) ?? []
@@ -194,6 +207,12 @@ async function buildSkill(
   const labels = new Map(document.nodes.filter(isStep).map((node) => [node.id, node.data.label]))
   const writtenAssets: string[] = []
   for (const info of resourceGraph(original).values()) {
+    // 记忆不管连没连线都会被写（工作流记忆由编排者收尾时整理）。
+    const memory = memoryOf(info.resource.data)
+    if (memory !== undefined && memory.memory !== '') {
+      writtenAssets.push(SKILL_PATHS.memory(memory.memory, '').replace(/\/$/u, ''))
+      continue
+    }
     if (info.writers.length === 0) continue
     for (const item of info.resource.data.items) {
       if ((item.kind === 'file' || item.kind === 'folder') && isWorkflowPath(item.value)) {

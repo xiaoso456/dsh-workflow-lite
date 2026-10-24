@@ -1,5 +1,6 @@
 /**
- * 记忆（`src/shared/presets.ts`）：默认路径、换范围、开关、编译出来的写法。记忆是一个文件夹（一份 skill）。
+ * 记忆（`src/shared/presets.ts`）：引用记忆库里的一条、开关、换类型、存盘、编译出来的写法。
+ * 记忆是记忆库里的一个文件夹（一份 skill），卡上只记引用哪一条（`{memory}/<id>`）。
  */
 
 import { describe, expect, it } from 'vitest'
@@ -14,15 +15,19 @@ import {
   GLOBAL_MEMORY_PROMPT,
   globalMemories,
   memoryData,
-  memoryPath,
+  memoryItemsOk,
+  memoryMisplaced,
+  memoryRefs,
   presetRefusal,
+  rebindMemory,
   removeStepMemory,
-  rescopeMemory,
+  renameMemoryRefs,
   STEP_MEMORY_PROMPT,
   setPreset,
   stepMemories,
+  suggestMemoryId,
 } from '../../src/shared/presets.ts'
-import { setStepOutputs } from '../../src/shared/resources.ts'
+import { bindDirs, setStepOutputs } from '../../src/shared/resources.ts'
 import {
   NODE_TYPE,
   type PlanFacts,
@@ -57,53 +62,86 @@ function doc(nodes: WorkflowNode[], edges: WorkflowEdge[] = []): WorkflowDocumen
 /** `scan → review` 两步，`review` 开着记忆；再加一张全局记忆。 */
 function withMemories(settings?: WorkflowDocument['settings']): WorkflowDocument {
   let document = doc([step('scan'), step('review')], [link('scan', 'review')])
-  const added = addStepMemory(document, 'review', 'workspace', 'demo', { x: 0, y: 0 })
+  const added = addStepMemory(document, 'review', STEP_REF, { x: 0, y: 0 })
   if (added === null) throw new Error('没开成')
-  document = addGlobalMemory(added.document, 'workflow', 'demo', { x: 0, y: 0 }).document
+  document = addGlobalMemory(added.document, FLOW_REF, { x: 0, y: 0 }).document
   return settings === undefined ? document : { ...document, settings }
 }
 
+const STEP_REF = { memory: 'demo-review', type: 'step' } as const
+const FLOW_REF = { memory: 'demo', type: 'workflow' } as const
+/** 主机编译时 `{memory}` 绑到的记忆库目录。 */
+const LIB = 'C:/data/memories'
+
 function facts(document: WorkflowDocument): PlanFacts {
-  const payloadPaths = new Map(document.nodes.map((node) => [node.id, `C:/p/${node.id}.md`]))
-  return { name: 'demo', document, payloadPaths }
+  const bound = bindDirs(document, { memory: LIB })
+  const payloadPaths = new Map(bound.nodes.map((node) => [node.id, `C:/p/${node.id}.md`]))
+  return { name: 'demo', document: bound, payloadPaths }
 }
 
-describe('默认路径', () => {
-  it('一个文件夹，带着记忆卡 id；本工作区放在工作区里、按工作流分开，本工作流放在工作流目录里', () => {
-    expect(memoryPath('workspace', 'demo', 'mem-review')).toBe(
-      '.workflow-lite/memory/demo/mem-review',
-    )
-    expect(memoryPath('workflow', 'demo', 'mem-review')).toBe('{workflow}/memory/mem-review')
-    expect(memoryData('workspace', 'demo', 'mem-review').items).toEqual([
-      { kind: 'folder', value: '.workflow-lite/memory/demo/mem-review' },
-    ])
+describe('引用记忆库', () => {
+  it('卡上一项：库里那条的文件夹 `{memory}/<id>`；说明留在这一处', () => {
+    expect(memoryData(STEP_REF).items).toEqual([{ kind: 'folder', value: '{memory}/demo-review' }])
+    expect(memoryData(STEP_REF).preset).toEqual({
+      kind: 'memory',
+      memory: 'demo-review',
+      type: 'step',
+    })
+    expect(memoryData(FLOW_REF, '只记约定').items[0]?.note).toBe('只记约定')
+    expect(memoryItemsOk(memoryData(STEP_REF))).toBe(true)
+    expect(memoryItemsOk({ ...memoryData(STEP_REF), items: [] })).toBe(false)
+    expect(memoryItemsOk(memoryData({ memory: '../x', type: 'step' }))).toBe(false)
   })
 
-  it('换范围：默认路径跟着换（用现在的工作流名），用户改过的路径不动', () => {
-    const data = memoryData('workspace', 'old-name', 'mem-review')
-    const moved = rescopeMemory(data, 'workflow', 'demo', 'mem-review')
-    expect(moved.items[0]?.value).toBe('{workflow}/memory/mem-review')
-    expect(moved.preset).toEqual({ kind: 'memory', scope: 'workflow' })
-    expect(rescopeMemory(moved, 'workspace', 'demo', 'mem-review').items[0]?.value).toBe(
-      '.workflow-lite/memory/demo/mem-review',
-    )
-    // 旧写法 {assets}、带尾斜杠的默认路径也算默认路径。
-    const legacy: ResourceData = {
-      ...moved,
-      items: [{ kind: 'folder', value: '{assets}/memory/mem-review/' }],
-    }
-    expect(rescopeMemory(legacy, 'workspace', 'demo', 'mem-review').items[0]?.value).toBe(
-      '.workflow-lite/memory/demo/mem-review',
-    )
-    // 别的卡的默认路径（复制过来的）也算用户改过：不动。
-    expect(rescopeMemory(data, 'workflow', 'demo', 'mem-other').items[0]?.value).toBe(
-      '.workflow-lite/memory/old-name/mem-review',
-    )
+  it('建议的 id：工作流记忆用工作流名，步骤记忆再接上步骤 id', () => {
+    expect(suggestMemoryId('workflow', 'demo')).toBe('demo')
+    expect(suggestMemoryId('step', 'demo', 'review')).toBe('demo-review')
+  })
 
-    const custom: ResourceData = { ...data, items: [{ kind: 'folder', value: 'notes/review' }] }
-    const kept = rescopeMemory(custom, 'workflow', 'demo', 'mem-review')
-    expect(kept.items[0]?.value).toBe('notes/review')
-    expect(kept.preset?.scope).toBe('workflow')
+  it('换一条：说明、名字、颜色留着，引用和类型换掉', () => {
+    const data: ResourceData = { ...memoryData(STEP_REF, '只记坑'), label: '审查', color: 'teal' }
+    expect(rebindMemory(data, FLOW_REF)).toEqual({
+      label: '审查',
+      color: 'teal',
+      items: [{ kind: 'folder', value: '{memory}/demo', note: '只记坑' }],
+      preset: { kind: 'memory', memory: 'demo', type: 'workflow' },
+    })
+  })
+
+  it('图里引用的记忆：按出现顺序、大小写不同算一条；改 id 只动对上的那几张', () => {
+    const document = withMemories()
+    expect(memoryRefs(document)).toEqual(['demo-review', 'demo'])
+    const renamed = renameMemoryRefs(document, new Map([['demo', 'demo-2']]))
+    expect(memoryRefs(renamed)).toEqual(['demo-review', 'demo-2'])
+    expect(renameMemoryRefs(document, new Map())).toBe(document)
+  })
+
+  it('类型和位置对不上只是提示：步骤记忆没有步骤写、工作流记忆连在步骤上', () => {
+    const document = withMemories()
+    const card = (id: string) => {
+      const node = document.nodes.find((candidate) => candidate.id === id)
+      if (node === undefined || node.type !== RESOURCE_TYPE) throw new Error('没有卡')
+      return node
+    }
+    expect(memoryMisplaced(document, card('mem-review'))).toBe(false)
+    expect(memoryMisplaced(document, card('mem-global'))).toBe(false)
+    const moved = { ...document, edges: [...document.edges, link('scan', 'mem-global', true)] }
+    expect(memoryMisplaced(moved, card('mem-global'))).toBe(true)
+    const report = validateDocument(moved, { workflowName: 'demo', maxNodes: 100 })
+    expect(report.warning.some((problem) => problem.code === 'memory_misplaced')).toBe(true)
+  })
+
+  it('库里没有引用的那条：给了 hasMemory 才查，查不到是提示', () => {
+    const document = withMemories()
+    const codes = (hasMemory?: (id: string) => boolean) =>
+      validateDocument(document, {
+        workflowName: 'demo',
+        maxNodes: 100,
+        ...(hasMemory === undefined ? {} : { hasMemory }),
+      }).warning.map((problem) => problem.code)
+    expect(codes()).not.toContain('memory_missing')
+    expect(codes(() => true)).not.toContain('memory_missing')
+    expect(codes((id) => id !== 'demo')).toContain('memory_missing')
   })
 })
 
@@ -112,72 +150,53 @@ describe('换类型', () => {
     return { id, type: RESOURCE_TYPE, position: { x: 0, y: 0 }, data: { label: '笔记', items } }
   }
 
-  it('空卡换成记忆：补上默认的文件夹（本工作区）；名字留着；写它的线改成更新', () => {
+  it('空卡换成记忆：引用选的那条；名字留着；写它的线改成更新', () => {
     const document = doc([step('a'), resource('notes', [])], [link('a', 'notes')])
-    const next = setPreset(document, 'notes', 'memory', 'demo')
+    const next = setPreset(document, 'notes', 'memory', STEP_REF)
     if (next === null || 'refused' in next) throw new Error('没换成')
     expect(next.nodes[1]?.data).toEqual({
       label: '笔记',
-      items: [{ kind: 'folder', value: '.workflow-lite/memory/demo/notes' }],
-      preset: { kind: 'memory', scope: 'workspace' },
+      items: [{ kind: 'folder', value: '{memory}/demo-review' }],
+      preset: { kind: 'memory', memory: 'demo-review', type: 'step' },
     })
     expect(next.edges).toEqual([link('a', 'notes', true)])
     expect(stepMemories(next, 'a').map((node) => node.id)).toEqual(['notes'])
   })
 
-  it('只有一个文件夹：那个文件夹就是记忆目录；内容不合（多项、文件、网址）拒绝，图不动', () => {
-    const one = doc([resource('notes', [{ kind: 'folder', value: 'docs/review', note: '只记坑' }])])
-    const next = setPreset(one, 'notes', 'memory', 'demo')
-    if (next === null || 'refused' in next) throw new Error('没换成')
-    expect(next.nodes[0]?.data).toEqual({
-      label: '笔记',
-      items: [{ kind: 'folder', value: 'docs/review', note: '只记坑' }],
-      preset: { kind: 'memory', scope: 'workspace' },
-    })
-
-    const two = doc([
-      resource('notes', [
-        { kind: 'folder', value: 'a' },
-        { kind: 'folder', value: 'b' },
-      ]),
-    ])
-    expect(setPreset(two, 'notes', 'memory', 'demo')).toEqual({ refused: 'memory_items' })
-    const file = doc([resource('notes', [{ kind: 'file', value: 'lessons.md' }])])
-    expect(setPreset(file, 'notes', 'memory', 'demo')).toEqual({ refused: 'memory_items' })
+  it('有内容的卡换不了（不把外面的文件夹收进库里）；没选哪条也换不了，但类型清单里不因此置灰', () => {
+    const one = doc([resource('notes', [{ kind: 'folder', value: 'docs/review' }])])
+    expect(setPreset(one, 'notes', 'memory', STEP_REF)).toEqual({ refused: 'memory_items' })
     const url = doc([resource('notes', [{ kind: 'url', value: 'https://x' }])])
+    expect(presetRefusal(url.nodes[0]?.data as ResourceData, 'memory', { id: 'notes' })).toBe(
+      'memory_items',
+    )
+    const empty = doc([resource('notes', [])])
+    expect(setPreset(empty, 'notes', 'memory')).toEqual({ refused: 'memory_ref' })
     expect(
-      presetRefusal(url.nodes[0]?.data as ResourceData, 'memory', {
-        id: 'notes',
-        workflow: 'demo',
-      }),
-    ).toBe('memory_items')
+      presetRefusal(empty.nodes[0]?.data as ResourceData, 'memory', { id: 'notes' }),
+    ).toBeNull()
   })
 
   it('换回普通资源：去掉标记，内容、说明、连线都留着；没变化是 null', () => {
     const document = withMemories()
-    const plain = setPreset(document, 'mem-review', null, 'demo')
+    const plain = setPreset(document, 'mem-review', null)
     if (plain === null || 'refused' in plain) throw new Error('没换成')
     const card = plain.nodes.find((node) => node.id === 'mem-review')
-    expect(card?.data).toEqual({
-      items: [{ kind: 'folder', value: '.workflow-lite/memory/demo/mem-review' }],
-    })
+    expect(card?.data).toEqual({ items: [{ kind: 'folder', value: '{memory}/demo-review' }] })
     expect(plain.edges).toEqual(document.edges)
-    expect(setPreset(plain, 'mem-review', null, 'demo')).toBeNull()
-    expect(setPreset(document, 'review', 'memory', 'demo')).toBeNull()
+    expect(setPreset(plain, 'mem-review', null)).toBeNull()
+    expect(setPreset(document, 'review', 'memory', STEP_REF)).toBeNull()
   })
 })
 
 describe('开关', () => {
   it('开：一张 mem-<步骤> 卡 + 一条「更新」线；再开一次不重复', () => {
     const base = doc([step('review')])
-    const added = addStepMemory(base, 'review', 'workspace', 'demo', { x: 0, y: 0 })
+    const added = addStepMemory(base, 'review', STEP_REF, { x: 0, y: 0 })
     expect(added?.id).toBe('mem-review')
     expect(added?.document.edges).toEqual([link('review', 'mem-review', true)])
     expect(
-      addStepMemory(added?.document as WorkflowDocument, 'review', 'workspace', 'demo', {
-        x: 0,
-        y: 0,
-      }),
+      addStepMemory(added?.document as WorkflowDocument, 'review', STEP_REF, { x: 0, y: 0 }),
     ).toBeNull()
   })
 
@@ -210,12 +229,12 @@ describe('开关', () => {
 })
 
 describe('存盘', () => {
-  it('preset 写进文件、读回来一样；认不出的范围按本工作区', () => {
+  it('preset 写进文件、读回来一样；认不出的类型按步骤记忆；内容按引用重新摆好', () => {
     const document = withMemories()
     const parsed = readDocument(writeDocument(document))
     expect(parsed.document?.nodes.find((node) => node.id === 'mem-review')?.data).toEqual({
-      items: [{ kind: 'folder', value: '.workflow-lite/memory/demo/mem-review' }],
-      preset: { kind: 'memory', scope: 'workspace' },
+      items: [{ kind: 'folder', value: '{memory}/demo-review' }],
+      preset: { kind: 'memory', memory: 'demo-review', type: 'step' },
     })
     const odd = readDocument(
       JSON.stringify({
@@ -224,7 +243,10 @@ describe('存盘', () => {
             id: 'm',
             type: RESOURCE_TYPE,
             position: { x: 0, y: 0 },
-            data: { items: [], preset: { kind: 'memory', scope: '???' } },
+            data: {
+              items: [{ kind: 'folder', value: 'somewhere/else', note: '只记坑' }],
+              preset: { kind: 'memory', memory: ' notes ', type: '???' },
+            },
           },
         ],
         edges: [],
@@ -232,7 +254,8 @@ describe('存盘', () => {
       }),
     )
     const data = odd.document?.nodes[0]?.data as ResourceData
-    expect(data.preset).toEqual({ kind: 'memory', scope: 'workspace' })
+    expect(data.preset).toEqual({ kind: 'memory', memory: 'notes', type: 'step' })
+    expect(data.items).toEqual([{ kind: 'folder', value: '{memory}/notes', note: '只记坑' }])
   })
 
   it('资源卡的颜色写进文件、读回来一样；不在色板里的当没写', () => {
@@ -252,34 +275,31 @@ describe('存盘', () => {
     expect(odd.color).toBeUndefined()
   })
 
-  it('记忆只能放一个文件夹：多了、换成文件都挡编译', () => {
-    const invalid = (items: ResourceItem[]): boolean => {
+  it('没引用库里的哪一条（id 空着或不合法）挡编译', () => {
+    const invalid = (memory: string): boolean => {
       const document = withMemories()
-      const memory = document.nodes.find((node) => node.id === 'mem-review')
-      if (memory === undefined || memory.type !== RESOURCE_TYPE) throw new Error('没有记忆卡')
-      memory.data = { ...memory.data, items }
+      const card = document.nodes.find((node) => node.id === 'mem-review')
+      if (card === undefined || card.type !== RESOURCE_TYPE) throw new Error('没有记忆卡')
+      card.data = memoryData({ memory, type: 'step' })
       const report = validateDocument(document, { workflowName: 'demo', maxNodes: 100 })
       return report.compile.some((problem) => problem.code === 'memory_invalid')
     }
-    expect(invalid([{ kind: 'folder', value: 'notes/review' }])).toBe(false)
-    expect(
-      invalid([
-        { kind: 'folder', value: 'notes/review' },
-        { kind: 'url', value: 'x' },
-      ]),
-    ).toBe(true)
-    expect(invalid([{ kind: 'file', value: 'notes/review.md' }])).toBe(true)
+    expect(invalid('demo-review')).toBe(false)
+    expect(invalid('')).toBe(true)
+    expect(invalid('../x')).toBe(true)
   })
 })
 
 describe('编译', () => {
-  const dir = '.workflow-lite/memory/demo/mem-review'
+  const dir = `${LIB}/demo-review`
+  const flow = `${LIB}/demo`
 
-  it('记忆路径相对工作区，不拼产出根目录', () => {
+  it('记忆路径是记忆库里的绝对路径，不拼产出根目录', () => {
     const document = withMemories({ outputRoot: 'out' })
     const plan = buildPlan(facts(document), analyzeGraph(document)).plan
     expect(plan).toContain(`\`${dir}\``)
-    expect(plan).not.toContain('out/.workflow-lite')
+    expect(plan).not.toContain(`out/${LIB}`)
+    expect(plan).not.toContain('{memory}')
   })
 
   it('计划：写入列标「（记忆）」；约定只给定义；全局记忆的说明在「资源」里，步骤的只写位置', () => {
@@ -291,7 +311,7 @@ describe('编译', () => {
     expect(plan).not.toContain('**更新**：')
     const resources = plan.slice(plan.indexOf('## 资源'))
     expect(resources).toContain('`mem-global`（全局记忆，交给所有步骤）：')
-    expect(resources).toContain('  - 记忆目录：`{workflow}/memory/mem-global`。说明：')
+    expect(resources).toContain(`  - 记忆目录：\`${flow}\`。说明：`)
     expect(resources).toContain('> - 这个目录是整个工作流的做法')
     expect(resources).toContain(`- \`mem-review\`：记忆目录 \`${dir}\``)
     expect(resources).not.toContain('开始前先读')
@@ -306,7 +326,7 @@ describe('编译', () => {
     // 说明原样跟在目录路径后面，不需要占位。
     for (const line of lines(STEP_MEMORY_PROMPT)) expect(review).toContain(`> ${line}`)
     expect(review).toContain('### 全局记忆 `mem-global`')
-    expect(review).toContain('- 记忆目录：`{workflow}/memory/mem-global`\n')
+    expect(review).toContain(`- 记忆目录：\`${flow}\`\n`)
     expect(review).not.toContain('是整个工作流的做法')
     const scan = tasks.get('scan') ?? ''
     expect(scan).not.toContain('### 记忆 ')
@@ -342,8 +362,8 @@ describe('编译', () => {
   })
 
   it('默认说明照 skill 的写法：先读 SKILL.md、主动沉淀、四段结构；不设条数上限', () => {
-    for (const global of [false, true]) {
-      const prompt = defaultMemoryPrompt(global)
+    for (const type of ['step', 'workflow'] as const) {
+      const prompt = defaultMemoryPrompt(type)
       expect(prompt).toContain('这个目录是')
       expect(prompt).not.toMatch(/\{[^}]*\}/u)
       expect(prompt).toContain('「## 步骤」')

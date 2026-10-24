@@ -8,7 +8,8 @@
  * ├─ manifest.json        包格式版本、导出时的插件版本、清单（见 {@link PackManifest}）
  * ├─ versions/<n>.json    选中的版本，和 `versions/<图名>/<n>.json` 同一个格式
  * ├─ assets/…             工作流资料目录（图里写成 `{workflow}/…` 的文件），导入时解压到 `<dataDir>/assets/<图名>/`
- * └─ skills/<名>/…        打进来的 skill 整个目录，导入时装到 `~/.agents/skills/<名>/`
+ * ├─ skills/<名>/…        打进来的 skill 整个目录，导入时装到 `~/.agents/skills/<名>/`
+ * └─ memories/<id>/…      引用的记忆里勾了带内容的那几条（元数据都在清单里），导入时放进记忆库
  * ```
  *
  * 只导出**存成了版本的**内容：版本有编号、有说明，导入之后照样认得出是哪一版。
@@ -19,7 +20,8 @@
  * @module @xiaoso/dsh-workflow-lite/shared/pack
  */
 
-import type { ResourceKind } from './types.ts'
+import { checkName } from './naming.ts'
+import { MEMORY_TYPES, type MemoryType, type ResourceKind } from './types.ts'
 
 /** 包格式的版本号（和插件版本分开算）。读到比它新的直接拒绝，叫用户先升级插件。 */
 export const PACK_FORMAT = 1
@@ -53,6 +55,15 @@ export interface PackVersionMeta {
   createdAt: number
   note: string
   nodeCount: number
+}
+
+/** 图里引用的一条记忆：元数据总是带上；内容（`files`）勾了才有，没勾是空的。 */
+export interface PackMemory {
+  id: string
+  type: MemoryType
+  name: string
+  description: string
+  files: PackFile[]
 }
 
 export interface PackSkill {
@@ -89,6 +100,8 @@ export interface PackManifest {
   versions: PackVersionMeta[]
   assets: PackFile[]
   skills: PackSkill[]
+  /** 早先的包没有（当成空的）。 */
+  memories: PackMemory[]
   external: PackExternal[]
 }
 
@@ -177,6 +190,24 @@ export function readManifest(raw: unknown): ManifestRead {
       files,
     })
   }
+  if (!Array.isArray(raw.memories ?? [])) return bad('memories')
+  const memories: PackMemory[] = []
+  for (const entry of (raw.memories ?? []) as unknown[]) {
+    if (!isRecord(entry) || typeof entry.id !== 'string' || checkName(entry.id) !== null) {
+      return bad('memories[].id')
+    }
+    const type = MEMORY_TYPES.find((candidate) => candidate === entry.type)
+    if (type === undefined) return bad(`memories[${entry.id}].type`)
+    const files = readFiles(entry.files ?? [])
+    if (files === null) return bad(`memories[${entry.id}].files`)
+    memories.push({
+      id: entry.id,
+      type,
+      name: typeof entry.name === 'string' ? entry.name : '',
+      description: typeof entry.description === 'string' ? entry.description : '',
+      files,
+    })
+  }
   const external: PackExternal[] = []
   for (const entry of Array.isArray(raw.external) ? raw.external : []) {
     if (!isRecord(entry)) continue
@@ -201,6 +232,7 @@ export function readManifest(raw: unknown): ManifestRead {
       versions,
       assets,
       skills,
+      memories,
       external,
     },
   }
@@ -245,6 +277,7 @@ export const PACK_PATHS = {
   version: (n: number) => `versions/${n}.json`,
   asset: (path: string) => `assets/${path}`,
   skill: (name: string, path: string) => `skills/${name}/${path}`,
+  memory: (id: string, path: string) => `memories/${id}/${path}`,
 } as const
 
 // ─────────────────────────────────────────────────────────────
@@ -267,6 +300,8 @@ export type PackItemState =
   | 'output'
   /** 已经在工作流目录里（`{workflow}/…`）：随资料目录一起打包。 */
   | 'assets'
+  /** 记忆库里的一条（`{memory}/<id>`）：元数据总是带上，内容勾了才带（缺省勾上）。 */
+  | 'memory'
 
 export interface PackScanItem {
   /** 选中时回传的键。 */
@@ -285,6 +320,8 @@ export interface PackScanItem {
   source?: string
   /** 打包之后图里的写法（`{workflow}/…`）。 */
   as?: string
+  /** 记忆（`state` 是 `memory`，或记忆太大 `tooLarge`）：库里那条叫什么、什么类型。 */
+  memory?: { id: string; name: string; type: MemoryType }
   /** 出现在哪几个版本里。 */
   versions: number[]
 }
@@ -391,9 +428,29 @@ export interface PackImportPreview {
   /** `~/.agents/skills`。 */
   skillsRoot: string
   skills: PackSkillPreview[]
+  memories: PackMemoryPreview[]
   /** 包里没带的引用，本机有没有（`null` = 相对路径，查不了）。 */
   external: (PackExternal & { found: boolean | null })[]
 }
+
+/** 包里的一条记忆，和本机记忆库比。 */
+export interface PackMemoryPreview {
+  id: string
+  type: MemoryType
+  name: string
+  /** 带了几个文件（没带内容是 0：导入后是一条空记忆）。 */
+  files: number
+  bytes: number
+  /** 本机记忆库里已经有这个 id。 */
+  exists: boolean
+  /** 本机那条的名称（`exists` 时给）。 */
+  existingName?: string
+  /** 「另存一份」时用的新 id。 */
+  rename: string
+}
+
+/** 包里的记忆已经有同 id 的：`use` 用本机已有的（包里那份不进），`copy` 换个新 id 另存一份。 */
+export type PackMemoryAction = 'use' | 'copy'
 
 export type PackSkillAction = 'install' | 'skip' | 'overwrite' | 'rename'
 
@@ -406,6 +463,8 @@ export interface PackApplyRequest {
   assets?: 'package' | 'local'
   /** 每个 skill 怎么办；没给的：新的装，其余跳过。 */
   skills?: Record<string, PackSkillAction>
+  /** 已有同 id 的记忆怎么办；没给的用本机已有的。 */
+  memories?: Record<string, PackMemoryAction>
   cwd?: string
   session?: string
 }
@@ -419,4 +478,6 @@ export interface PackApplyResponse {
   /** 写进资料目录的文件数。 */
   assets: number
   skills: { name: string; as: string; action: PackSkillAction }[]
+  /** `create` 本机没有、照包里的建了。 */
+  memories: { id: string; as: string; action: PackMemoryAction | 'create' }[]
 }

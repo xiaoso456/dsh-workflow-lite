@@ -20,11 +20,13 @@ import {
   clientRequestSchema,
   RpcId,
 } from '@deepseek-ai/dsh-client-connection'
+import type { MemoryVersionEntry } from '../shared/memoryLib.ts'
 import { normalizeDocument, readNodeData as readDataFields } from '../shared/model.ts'
 import type { PackSkillAction } from '../shared/pack.ts'
+import { memoryRefs } from '../shared/presets.ts'
 import type { StateEdit } from '../shared/runState.ts'
 import type { SkillBrowseRequest, SkillBuildRequest, SkillMeta } from '../shared/skillPack.ts'
-import type { NodeData } from '../shared/types.ts'
+import type { MemoryType, NodeData } from '../shared/types.ts'
 import {
   endpointName,
   type GraphLoadResponse,
@@ -48,7 +50,24 @@ import {
 import type { RunFileTarget } from './runs/files.ts'
 import type { GraphEdit, RunService } from './runs/service.ts'
 import { storageAction } from './runs/storage.ts'
-import { type GraphItemTarget, graphDir, graphFile, graphImage } from './store/graphFiles.ts'
+import {
+  createMemory,
+  deleteMemory,
+  hasMemory,
+  listMemories,
+  type MemoryDeps,
+  memoryDir,
+  memoryFile,
+  memoryImage,
+  updateMemory,
+} from './store/memories.ts'
+import {
+  deleteMemoryVersion,
+  listMemoryVersions,
+  noteMemoryVersion,
+  restoreMemoryVersion,
+  saveMemoryVersion,
+} from './store/memoryVersions.ts'
 import {
   type DocumentValidator,
   type LoadResult,
@@ -228,6 +247,29 @@ function readEditValue(value: unknown): StateEdit['to'] {
   throw new Error('edit value must be a string, number, string[] or null')
 }
 
+function memoryDeps(deps: RpcDeps): MemoryDeps {
+  return { dataDir: deps.dataDir(), repository: deps.repository }
+}
+
+/** 连同工作流版本一起存：它现在引用的每条记忆各存一份（内容没变的跳过，不在库里的不存）。 */
+async function saveWorkflowMemories(
+  deps: RpcDeps,
+  name: string,
+  note: string,
+): Promise<{ id: string; version: MemoryVersionEntry | null; error?: string }[]> {
+  const load = await deps.repository.load(name)
+  if (load.document === null) return []
+  const results: { id: string; version: MemoryVersionEntry | null; error?: string }[] = []
+  for (const id of memoryRefs(load.document)) {
+    if (!(await hasMemory(deps.dataDir(), id))) continue
+    const saved = await saveMemoryVersion(deps.dataDir(), id, note, { skipSame: true })
+    results.push(
+      saved.ok ? { id, version: saved.result } : { id, version: null, error: saved.error.message },
+    )
+  }
+  return results
+}
+
 /** 一列正整数（版本号）。 */
 function requireNumbers(input: Record<string, unknown>, field: string): number[] {
   const value = input[field]
@@ -403,10 +445,20 @@ async function dispatch(
 
     case 'graph/versionSave': {
       const input = asRecord(payload)
+      const name = requireString(input, 'name')
       const note = typeof input.note === 'string' ? input.note : ''
-      const outcome = await deps.repository.saveVersion(requireString(input, 'name'), note)
-      if (!outcome.ok) return failFrom(outcome.error)
-      return ok({ version: outcome.result })
+      const outcome = await deps.repository.saveVersion(name, note)
+      if (input.memories !== true) {
+        return outcome.ok ? ok({ version: outcome.result }) : failFrom(outcome.error)
+      }
+      // 连同记忆：工作流和某一版一样就不另存，记忆照存（记忆可能变了）。
+      const same = outcome.ok ? undefined : outcome.error.detail?.same
+      if (!outcome.ok && typeof same !== 'number') return failFrom(outcome.error)
+      return ok({
+        version: outcome.ok ? outcome.result : null,
+        ...(typeof same === 'number' ? { same } : {}),
+        memories: await saveWorkflowMemories(deps, name, note),
+      })
     }
 
     case 'graph/versionLoad': {
@@ -650,26 +702,115 @@ async function dispatch(
       return ok(outcome.result)
     }
 
-    case 'graph/file':
-    case 'graph/image':
-    case 'graph/dir': {
+    case 'memory/list': {
+      return ok({ memories: await listMemories(memoryDeps(deps)) })
+    }
+
+    case 'memory/create': {
+      const input = asRecord(payload)
+      const type = requireString(input, 'type')
+      const id = optionalString(input, 'id')
+      const name = typeof input.name === 'string' ? input.name : undefined
+      const description = typeof input.description === 'string' ? input.description : undefined
+      const outcome = await createMemory(memoryDeps(deps), {
+        type: type as MemoryType,
+        ...(id === undefined ? {} : { id }),
+        ...(name === undefined ? {} : { name }),
+        ...(description === undefined ? {} : { description }),
+      })
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok({ memory: outcome.result })
+    }
+
+    case 'memory/update': {
+      const input = asRecord(payload)
+      const outcome = await updateMemory(memoryDeps(deps), {
+        id: requireString(input, 'id'),
+        ...(typeof input.name === 'string' ? { name: input.name } : {}),
+        ...(typeof input.description === 'string' ? { description: input.description } : {}),
+      })
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok({ memory: outcome.result })
+    }
+
+    case 'memory/delete': {
+      const outcome = await deleteMemory(memoryDeps(deps), requireString(asRecord(payload), 'id'))
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok(outcome.result)
+    }
+
+    case 'memory/file':
+    case 'memory/image':
+    case 'memory/dir': {
       const input = asRecord(payload)
       const sub = optionalString(input, 'sub')
-      const cwd = optionalString(input, 'cwd')
-      const target: GraphItemTarget = {
-        name: requireString(input, 'name'),
-        node: requireString(input, 'node'),
-        item: typeof input.item === 'number' && Number.isInteger(input.item) ? input.item : 0,
+      const src = optionalString(input, 'src')
+      const request = {
+        id: requireString(input, 'id'),
+        ...(input.version === undefined ? {} : { version: requireVersion({ n: input.version }) }),
         ...(sub === undefined ? {} : { sub }),
-        ...(cwd === undefined ? {} : { cwd }),
       }
-      const files = { repository: deps.repository, dataDir: deps.dataDir() }
       const outcome =
-        endpoint === 'graph/file'
-          ? await graphFile(files, target)
-          : endpoint === 'graph/dir'
-            ? await graphDir(files, target)
-            : await graphImage(files, target, optionalString(input, 'src'))
+        endpoint === 'memory/file'
+          ? await memoryFile(deps.dataDir(), request)
+          : endpoint === 'memory/dir'
+            ? await memoryDir(deps.dataDir(), request)
+            : await memoryImage(deps.dataDir(), {
+                ...request,
+                ...(src === undefined ? {} : { src }),
+              })
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok(outcome.result)
+    }
+
+    case 'memory/versions': {
+      const outcome = await listMemoryVersions(
+        deps.dataDir(),
+        requireString(asRecord(payload), 'id'),
+      )
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok({ versions: outcome.result })
+    }
+
+    case 'memory/versionSave': {
+      const input = asRecord(payload)
+      const note = typeof input.note === 'string' ? input.note : ''
+      const outcome = await saveMemoryVersion(deps.dataDir(), requireString(input, 'id'), note)
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok({ version: outcome.result })
+    }
+
+    case 'memory/versionRestore': {
+      const input = asRecord(payload)
+      const outcome = await restoreMemoryVersion(
+        deps.dataDir(),
+        requireString(input, 'id'),
+        requireVersion(input),
+      )
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok(outcome.result)
+    }
+
+    case 'memory/versionNote': {
+      const input = asRecord(payload)
+      const note = typeof input.note === 'string' ? input.note : ''
+      const outcome = await noteMemoryVersion(
+        deps.dataDir(),
+        requireString(input, 'id'),
+        requireVersion(input),
+        note,
+      )
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok({ version: outcome.result })
+    }
+
+    case 'memory/versionDelete': {
+      const input = asRecord(payload)
+      const outcome = await deleteMemoryVersion(
+        deps.dataDir(),
+        requireString(input, 'id'),
+        requireVersion(input),
+      )
       if (!outcome.ok) return failFrom(outcome.error)
       return ok(outcome.result)
     }

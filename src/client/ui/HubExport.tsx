@@ -13,20 +13,24 @@
  */
 
 import { type ComponentProps, useEffect, useState } from 'react'
+import { memoryTitle } from '../../shared/memoryLib.ts'
 import type { PackScanItem, PackScanResponse } from '../../shared/pack.ts'
 import { workflowRelative } from '../../shared/pathVars.ts'
 import { SKILL_PATHS, suggestSkillName } from '../../shared/skillPack.ts'
-import type { ResourceKind, VersionEntry } from '../../shared/types.ts'
+import type { VersionEntry } from '../../shared/types.ts'
 import { downloadPack, saveFile } from '../app/packTransfer.ts'
 import type { LocaleKey, T } from '../i18n.ts'
 import { formatBytes } from '../model/fileKind.ts'
 import {
   categoryItems,
+  categoryOf,
+  defaultPacked,
   defaultVersions,
   effectivePack,
   isSwitchable,
   leftAbsolute,
   PACK_CATEGORIES,
+  type PackCategory,
   type PackSwitch,
   type PackSwitches,
   packedBytes,
@@ -40,6 +44,7 @@ import { FadeStack, Presence, Staged, SwapText, useResizeFlip } from './motion.t
 import { Callout, PackRow, PackSection, PackSteps } from './PackRow.tsx'
 import css from './pack.module.css'
 import { cx } from './primitives.tsx'
+import { memoryTypeText } from './ResourcePresets.tsx'
 import { KIND_ICON, KIND_LABEL } from './resourceUi.ts'
 import { Segmented } from './Segmented.tsx'
 import ui from './ui.module.css'
@@ -77,6 +82,7 @@ export function HubExport(props: {
     skill: true,
     file: true,
     folder: true,
+    memory: true,
   })
   const [error, setError] = useState<string | null>(null)
   /** 打包 / 下载中的那句进度；`null` = 没在忙。 */
@@ -109,9 +115,7 @@ export function HubExport(props: {
       .call('pack/scan', { name, versions: [...picked], ...props.scope })
       .then((result) => {
         setScan(result)
-        setPacked(
-          new Set(result.items.filter((item) => item.state === 'pack').map((item) => item.key)),
-        )
+        setPacked(defaultPacked(result))
       })
       .catch((caught: unknown) => {
         setError(errorMessage(caught))
@@ -423,7 +427,7 @@ function Resources(props: {
   const over = total > scan.limit
   const left = leftAbsolute(scan, effective)
   /** 展开着的分类：缺省有东西的都展开；和开关无关。 */
-  const [expanded, setExpanded] = useState<ReadonlySet<ResourceKind>>(
+  const [expanded, setExpanded] = useState<ReadonlySet<PackCategory>>(
     () =>
       new Set([
         ...PACK_CATEGORIES.filter(
@@ -432,7 +436,7 @@ function Resources(props: {
         ),
       ]),
   )
-  const expand = (key: ResourceKind, open: boolean): void => {
+  const expand = (key: PackCategory, open: boolean): void => {
     const next = new Set(expanded)
     if (open) next.add(key)
     else next.delete(key)
@@ -446,27 +450,42 @@ function Resources(props: {
     const on = enabled && packed.has(item.key)
     const skipped =
       item.skipped !== undefined ? t('pack.skipped').replace('{n}', String(item.skipped)) : null
+    const memory = item.memory
     const where =
-      item.kind === 'skill'
-        ? `skills/${item.value}/`
-        : skill && item.as !== undefined
-          ? SKILL_PATHS.asset(workflowRelative(item.as))
-          : (item.as ?? '')
+      memory !== undefined
+        ? skill
+          ? `memory/${memory.id}/`
+          : `memories/${memory.id}/`
+        : item.kind === 'skill'
+          ? `skills/${item.value}/`
+          : skill && item.as !== undefined
+            ? SKILL_PATHS.asset(workflowRelative(item.as))
+            : (item.as ?? '')
+    const tag = memory !== undefined ? memoryTypeText(t, memory.type) : item.source
     return (
       <PackRow
         key={item.key}
-        title={item.kind === 'skill' ? item.value : pathTitle(item.value)}
-        mono={item.kind !== 'skill'}
+        title={
+          memory !== undefined
+            ? memoryTitle(memory)
+            : item.kind === 'skill'
+              ? item.value
+              : pathTitle(item.value)
+        }
+        mono={memory === undefined && item.kind !== 'skill'}
         badge={
-          item.source !== undefined ? (
+          tag !== undefined ? (
             <span className={hub.tag} data-tone="plain">
-              {item.source}
+              {tag}
             </span>
           ) : null
         }
         meta={[skipped, used(item)]}
         end={sizeOf(t, item)}
-        tip={[item.kind === 'skill' ? item.location : item.value, on ? `→ ${where}` : null]
+        tip={[
+          item.kind === 'skill' || memory !== undefined ? item.location : item.value,
+          on ? `→ ${where}` : null,
+        ]
           .filter((part) => part !== null && part !== '')
           .join('  ')}
         checked={packed.has(item.key)}
@@ -480,7 +499,10 @@ function Resources(props: {
   /** 不能勾的：一行，最左一格是状态图标（原因在它的悬停提示里），后面只有名字。 */
   const infoRow = (item: PackScanItem): React.JSX.Element => {
     const blocked = item.state === 'missing' || item.state === 'tooLarge'
-    const reason = t(`pack.state.${item.state}` as LocaleKey)
+    const reason =
+      categoryOf(item) === 'memory' && item.state === 'missing'
+        ? t('pack.state.memoryMissing')
+        : t(`pack.state.${item.state}` as LocaleKey)
     const lead: ComponentProps<typeof PackRow>['lead'] = blocked
       ? { icon: 'alert', tone: 'warn', tip: reason }
       : { icon: 'info', tip: reason }
@@ -515,8 +537,8 @@ function Resources(props: {
             return (
               <Category
                 key={kind}
-                icon={KIND_ICON[kind]}
-                title={t(KIND_LABEL[kind])}
+                icon={kind === 'memory' ? 'memory' : KIND_ICON[kind]}
+                title={t(kind === 'memory' ? 'mem.title' : KIND_LABEL[kind])}
                 stats={
                   count === 0
                     ? t('pack.catEmpty')

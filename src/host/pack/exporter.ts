@@ -6,6 +6,7 @@
  *   （本机的工作流不动）；重名的依次加 `-2`、`-3`；
  * - 有目录的 skill：可以打包，整个目录进 `skills/<名>/`；内置或插件注册的没有目录，只能原样引用；
  * - 工作流目录（`{workflow}/…`）：总是整个打进去；
+ * - 记忆（`{memory}/<id>`）：元数据总是写进清单，内容（那份 skill 文件夹）勾了才打进 `memories/<id>/`，缺省勾上；
  * - 相对路径、产出、网址、自定义文本：原样留在图里。
  *
  * @module @xiaoso/dsh-workflow-lite/host/pack/exporter
@@ -15,6 +16,7 @@ import { readdir } from 'node:fs/promises'
 import { basename, dirname } from 'node:path'
 import { zipSync } from 'fflate'
 import { normalize } from 'pathe'
+import type { MemoryMeta } from '../../shared/memoryLib.ts'
 import { isResource } from '../../shared/model.ts'
 import { isAbsoluteRoot, normalizeRoot } from '../../shared/outputPaths.ts'
 import {
@@ -31,12 +33,19 @@ import {
   type PackExternal,
   type PackFile,
   type PackManifest,
+  type PackMemory,
   type PackScanItem,
   type PackScanRequest,
   type PackScanResponse,
   type PackSkill,
 } from '../../shared/pack.ts'
-import { isWorkflowPath, workflowPath, workflowRelative } from '../../shared/pathVars.ts'
+import {
+  isMemoryPath,
+  isWorkflowPath,
+  workflowPath,
+  workflowRelative,
+} from '../../shared/pathVars.ts'
+import { memoryOf } from '../../shared/presets.ts'
 import { resourceGraph } from '../../shared/resources.ts'
 import {
   type ErrorCode,
@@ -46,7 +55,8 @@ import {
 } from '../../shared/types.ts'
 import type { HostSkillEntry } from '../../shared/wire.ts'
 import { listSkills, type SkillViewer } from '../hostFs.ts'
-import { assetsDir } from '../store/paths.ts'
+import { readMemoryMeta } from '../store/memories.ts'
+import { assetsDir, memoryFolder } from '../store/paths.ts'
 import type { DocumentValidator, Outcome, Repository } from '../store/repository.ts'
 import { versionText } from '../store/versions.ts'
 import { newStage, writeOut } from './staging.ts'
@@ -87,6 +97,8 @@ export interface ScanState {
   trees: Map<string, Tree>
   assetsTree: Tree | null
   skills: Map<string, HostSkillEntry>
+  /** 记忆项（`PackScanItem.key`）→ 库里那条的元数据。 */
+  memories: Map<string, MemoryMeta>
 }
 
 function itemKey(kind: string, value: string): string {
@@ -139,6 +151,7 @@ export async function scanState(
   const items = new Map<string, PackScanItem>()
   const trees = new Map<string, Tree>()
   const roots = new Set<string>()
+  const memories = new Map<string, MemoryMeta>()
 
   for (const { entry, document } of versions) {
     const root = normalizeRoot(document.settings?.outputRoot)
@@ -154,7 +167,12 @@ export async function scanState(
         if (seen !== undefined) {
           if (!seen.versions.includes(entry.n)) seen.versions.push(entry.n)
           // 哪一版里是产出，就算产出（产出不该被打包）。
-          if (written && WRITABLE_KINDS.includes(item.kind) && seen.state !== 'assets') {
+          if (
+            written &&
+            WRITABLE_KINDS.includes(item.kind) &&
+            seen.state !== 'assets' &&
+            seen.memory === undefined
+          ) {
             seen.state = 'output'
             delete seen.as
           }
@@ -185,6 +203,34 @@ export async function scanState(
               ...(tree.skipped > 0 ? { skipped: tree.skipped } : {}),
             })
           }
+          continue
+        }
+        const memory = memoryOf(info.resource.data)
+        if (memory !== undefined && isMemoryPath(item.value)) {
+          const meta = await readMemoryMeta(deps.dataDir, memory.memory)
+          if (meta === null || meta === 'invalid') {
+            items.set(key, { ...base, state: 'missing' })
+            continue
+          }
+          const location = memoryFolder(deps.dataDir, meta.id)
+          const tree = (await walkTree(location)) ?? {
+            dir: true,
+            files: [],
+            bytes: 0,
+            skipped: 0,
+            over: false,
+          }
+          trees.set(key, tree)
+          memories.set(key, meta)
+          items.set(key, {
+            ...base,
+            state: tree.over ? 'tooLarge' : 'memory',
+            location: location.replace(/\\/gu, '/'),
+            bytes: tree.bytes,
+            files: tree.files.length,
+            memory: { id: meta.id, name: meta.name, type: meta.type },
+            ...(tree.skipped > 0 ? { skipped: tree.skipped } : {}),
+          })
           continue
         }
         if (isWorkflowPath(item.value)) {
@@ -267,6 +313,7 @@ export async function scanState(
       trees,
       assetsTree: assets,
       skills,
+      memories,
     },
   }
 }
@@ -311,7 +358,7 @@ export async function exportPack(
 ): Promise<Outcome<PackExportResponse>> {
   const scanned = await scanState(deps, request)
   if (!scanned.ok) return scanned
-  const { response, versions, trees, assetsTree } = scanned.result
+  const { response, versions, trees, assetsTree, memories: memoryMetas } = scanned.result
   const wanted = new Set(request.pack)
   const top = response.name
   const entries: Record<string, Uint8Array> = {}
@@ -337,8 +384,31 @@ export async function exportPack(
   }
   const renames = new Map<string, string>()
   const skills: PackSkill[] = []
+  const memories: PackMemory[] = []
   const external: PackExternal[] = []
   for (const item of response.items) {
+    const meta = memoryMetas.get(item.key)
+    if (meta !== undefined) {
+      // 记忆：元数据总带上；内容勾了才带（太大的只带元数据）。
+      const tree = trees.get(item.key)
+      const files: PackFile[] = []
+      if (item.state === 'memory' && wanted.has(item.key) && tree !== undefined) {
+        const read = await readTree(tree)
+        for (const file of read.files) {
+          files.push(file)
+          put(PACK_PATHS.memory(meta.id, file.path), read.data.get(file.path) as Uint8Array)
+          tally(file.bytes)
+        }
+      }
+      memories.push({
+        id: meta.id,
+        type: meta.type,
+        name: meta.name,
+        description: meta.description,
+        files,
+      })
+      continue
+    }
     const chosen = item.state === 'pack' && wanted.has(item.key)
     if (!chosen) {
       if (item.state === 'output' || item.state === 'assets') continue
@@ -421,6 +491,7 @@ export async function exportPack(
     })),
     assets,
     skills,
+    memories,
     external,
   }
   put(PACK_PATHS.manifest, encoder.encode(`${JSON.stringify(manifest, null, 2)}\n`))

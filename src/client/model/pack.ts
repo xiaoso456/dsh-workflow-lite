@@ -8,11 +8,14 @@
 import type {
   PackApplyRequest,
   PackImportPreview,
+  PackMemoryAction,
+  PackMemoryPreview,
   PackScanItem,
   PackScanResponse,
   PackSkillAction,
   PackSkillPreview,
 } from '../../shared/pack.ts'
+import { isMemoryPath } from '../../shared/pathVars.ts'
 import type { SkillExisting, SkillPreviewResponse } from '../../shared/skillPack.ts'
 import type { ResourceKind, VersionEntry } from '../../shared/types.ts'
 import type { T } from '../i18n.ts'
@@ -46,7 +49,7 @@ export interface ExportGroups {
 export function exportGroups(scan: PackScanResponse): ExportGroups {
   const groups: ExportGroups = { packable: [], blocked: [], kept: [], assets: [], outputs: [] }
   for (const item of scan.items) {
-    if (item.state === 'pack') groups.packable.push(item)
+    if (isPackable(item)) groups.packable.push(item)
     else if (item.state === 'missing' || item.state === 'tooLarge') groups.blocked.push(item)
     else if (item.state === 'builtin' || item.state === 'relative') groups.kept.push(item)
     else if (item.state === 'assets') groups.assets.push(item)
@@ -55,15 +58,33 @@ export function exportGroups(scan: PackScanResponse): ExportGroups {
   return groups
 }
 
-/** 导出清单按资源种类分类展示（呈现顺序）。 */
-export const PACK_CATEGORIES: readonly ResourceKind[] = ['skill', 'file', 'folder']
+/** 导出清单的分类：资源种类，外加记忆（记忆是文件夹，但单独一类）。 */
+export type PackCategory = ResourceKind | 'memory'
+
+/** 导出清单按这几类分类展示（呈现顺序）。 */
+export const PACK_CATEGORIES: readonly PackCategory[] = ['skill', 'file', 'folder', 'memory']
 
 /** 能打包的几类，每类一个总开关：关着的那类整个不打包。 */
-export type PackSwitch = 'skill' | 'file' | 'folder'
+export type PackSwitch = 'skill' | 'file' | 'folder' | 'memory'
 export type PackSwitches = Readonly<Record<PackSwitch, boolean>>
 
-export function isSwitchable(kind: ResourceKind): kind is PackSwitch {
-  return kind === 'skill' || kind === 'file' || kind === 'folder'
+export function isSwitchable(kind: PackCategory): kind is PackSwitch {
+  return kind === 'skill' || kind === 'file' || kind === 'folder' || kind === 'memory'
+}
+
+/** 一项归哪一类：引用记忆库的是记忆，其余按资源种类。 */
+export function categoryOf(item: PackScanItem): PackCategory {
+  return item.memory !== undefined || isMemoryPath(item.value) ? 'memory' : item.kind
+}
+
+/** 能勾的一项：外部资源（`pack`）或记忆（`memory`）。 */
+export function isPackable(item: PackScanItem): boolean {
+  return item.state === 'pack' || item.state === 'memory'
+}
+
+/** 扫完之后缺省勾上的：能勾的全勾。 */
+export function defaultPacked(scan: PackScanResponse): Set<string> {
+  return new Set(scan.items.filter(isPackable).map((item) => item.key))
 }
 
 /** 不能勾的项按这个顺序排：打包不了的在前，原样保留的在后。 */
@@ -72,11 +93,11 @@ const OTHER_ORDER: readonly PackScanItem['state'][] = ['missing', 'tooLarge', 'b
 /** 一类里的项：能勾的、其余的（只说明原因）。产出、资料目录里的不算外部资源，不列。 */
 export function categoryItems(
   scan: PackScanResponse,
-  kind: ResourceKind,
+  kind: PackCategory,
 ): { packable: PackScanItem[]; others: PackScanItem[] } {
-  const of = scan.items.filter((item) => item.kind === kind)
+  const of = scan.items.filter((item) => categoryOf(item) === kind)
   return {
-    packable: of.filter((item) => item.state === 'pack'),
+    packable: of.filter(isPackable),
     others: of
       .filter((item) => OTHER_ORDER.includes(item.state))
       .sort((a, b) => OTHER_ORDER.indexOf(a.state) - OTHER_ORDER.indexOf(b.state)),
@@ -91,7 +112,10 @@ export function effectivePack(
 ): Set<string> {
   return new Set(
     scan.items
-      .filter((item) => picked.has(item.key) && isSwitchable(item.kind) && switches[item.kind])
+      .filter((item) => {
+        const kind = categoryOf(item)
+        return picked.has(item.key) && isSwitchable(kind) && switches[kind]
+      })
       .map((item) => item.key),
   )
 }
@@ -100,7 +124,7 @@ export function effectivePack(
 export function packedBytes(scan: PackScanResponse, picked: ReadonlySet<string>): number {
   let total = scan.assets?.bytes ?? 0
   for (const item of scan.items) {
-    if (item.state === 'pack' && picked.has(item.key)) total += item.bytes ?? 0
+    if (isPackable(item) && picked.has(item.key)) total += item.bytes ?? 0
   }
   return total
 }
@@ -110,6 +134,7 @@ export function leftAbsolute(scan: PackScanResponse, picked: ReadonlySet<string>
   return scan.items.filter(
     (item) =>
       item.kind !== 'skill' &&
+      categoryOf(item) !== 'memory' &&
       (item.state === 'missing' ||
         item.state === 'tooLarge' ||
         (item.state === 'pack' && !picked.has(item.key))),
@@ -145,6 +170,8 @@ export interface ImportChoice {
   name: string
   assets: 'package' | 'local'
   skills: Record<string, PackSkillAction>
+  /** 本机已有同 id 的记忆：用本机的，还是另存一份。 */
+  memories: Record<string, PackMemoryAction>
 }
 
 export function defaultImportChoice(preview: PackImportPreview): ImportChoice {
@@ -155,7 +182,17 @@ export function defaultImportChoice(preview: PackImportPreview): ImportChoice {
     skills: Object.fromEntries(
       preview.skills.map((skill) => [skill.name, defaultSkillAction(skill)]),
     ),
+    memories: {},
   }
+}
+
+/** 一条记忆怎么办：本机没有的就建；有的缺省用本机的。 */
+export function memoryActionOf(
+  choice: ImportChoice,
+  memory: PackMemoryPreview,
+): PackMemoryAction | 'create' {
+  if (!memory.exists) return 'create'
+  return choice.memories[memory.id] ?? 'use'
 }
 
 export function actionOf(choice: ImportChoice, skill: PackSkillPreview): PackSkillAction {
@@ -204,6 +241,11 @@ export function applyRequest(
     assets: choice.assets,
     skills: Object.fromEntries(
       preview.skills.map((skill) => [skill.name, actionOf(choice, skill)]),
+    ),
+    memories: Object.fromEntries(
+      preview.memories
+        .filter((memory) => memory.exists)
+        .map((memory) => [memory.id, choice.memories[memory.id] ?? 'use']),
     ),
     ...scope,
   }

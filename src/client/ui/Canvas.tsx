@@ -46,6 +46,7 @@ import type { Appearance, StepColor } from '../../shared/appearance.ts'
 import type { GraphAnalysis } from '../../shared/graph.ts'
 import { inputKind } from '../../shared/inputs.ts'
 import { MAX_TEXT_CODEPOINTS } from '../../shared/limits.ts'
+import { type MemoryEntry, memoryTitle } from '../../shared/memoryLib.ts'
 import { idKey, isInput, isResource } from '../../shared/model.ts'
 import { codepointLength } from '../../shared/naming.ts'
 import { memoryOf } from '../../shared/presets.ts'
@@ -63,7 +64,7 @@ import {
 import type { NodeStatus } from '../../shared/runState.ts'
 import type {
   InputKind,
-  MemoryScope,
+  MemoryType,
   Point,
   ResourceKind,
   ValidationProblem,
@@ -71,6 +72,7 @@ import type {
   WorkflowEdge,
   WorkflowNode,
 } from '../../shared/types.ts'
+import { findMemory } from '../app/memories.ts'
 import { recallViewport, rememberViewport } from '../app/viewport.ts'
 import type { LocaleKey, T } from '../i18n.ts'
 import {
@@ -161,8 +163,12 @@ export interface CanvasProps {
   onFocusFile: FocusFile
   /** 工作流实例视图：每张步骤卡挂上运行状态，走过的线亮、没走过的淡。缺省 = 模板编辑。 */
   run?: RunDecor
-  /** 步骤卡上的记忆开关；不给就不显示开关（只标出开着记忆的步骤）。 */
-  onMemory?: (step: string) => void
+  /** 步骤卡上的记忆开关（`anchor` 是那个按钮，菜单贴着它弹）；不给就不显示开关（只标出开着记忆的步骤）。 */
+  onMemory?: (step: string, anchor: Element) => void
+  /** 记忆库（记忆卡显示库里的名称、谁还在用）；没读回来是 `null`。 */
+  memories?: readonly MemoryEntry[] | null
+  /** 正在编辑的工作流名（「另有几个工作流在用」不算它自己）。 */
+  workflow?: string | null
 }
 
 /** 实例视图给画布的装饰。 */
@@ -224,7 +230,7 @@ interface StepData extends Record<string, unknown> {
   memory: boolean
   memoryText: string
   /** 一键开关记忆；实例视图里是 `null`（只显示开着的标记）。 */
-  onMemory: ((id: string) => void) | null
+  onMemory: ((id: string, anchor: Element) => void) | null
   /** 实例视图里的运行状态；模板编辑时为 `null`。 */
   run: StepRun | null
   onRunStatus: (id: string, anchor: Element) => void
@@ -253,8 +259,10 @@ interface ResourceCardData extends Record<string, unknown> {
   emptyText: string
   /** 紧凑时左边的签：文件印扩展名，其余放种类图标；空资源是一叠。 */
   tab: { kind: ResourceKind | 'many'; ext: string }
-  /** 记忆卡：这一步的记忆 / 全局记忆；普通资源是 `null`。 */
+  /** 记忆卡：步骤记忆 / 工作流记忆；普通资源是 `null`。 */
   memory: 'step' | 'global' | null
+  /** 记忆也被别的工作流用着：卡上挂的「共用」小标说的话；没有就是 `null`。 */
+  memoryShared: string | null
   /** 卡片的颜色；`null` = 资源卡本来的灰。 */
   tint: StepColor | null
   /** 一条线都没连：交给整个工作流。 */
@@ -496,7 +504,7 @@ const StepCard = memo(function StepCard(props: NodeProps<StepFlowNode>): React.J
             data-testid="wl-step-memory"
             onClick={(event) => {
               event.stopPropagation()
-              data.onMemory?.(id)
+              data.onMemory?.(id, event.currentTarget)
             }}
           >
             <Icon name="memory" size={14} />
@@ -1180,6 +1188,15 @@ const ResourceCard = memo(function ResourceCard(
           <Icon name="shared" size={11} />
         </span>
       )}
+      {data.memoryShared !== null && (
+        <span
+          className={css.resShared}
+          data-tip={data.memoryShared}
+          data-testid="wl-memory-shared-tag"
+        >
+          <Icon name="shared" size={11} />
+        </span>
+      )}
       {/* 有标题行的卡把警示放在标题行里（项数后面），紧凑的一行卡放在行尾。 */}
       {data.compact && data.tone !== 'ok' && (
         <span className={css.cardFlag} data-tone={data.tone}>
@@ -1662,7 +1679,10 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
   const memoryRef = useRef(props.onMemory)
   memoryRef.current = props.onMemory
   const memoryToggle = props.onMemory !== undefined
-  const onMemory = useCallback((id: string): void => memoryRef.current?.(id), [])
+  const onMemory = useCallback(
+    (id: string, anchor: Element): void => memoryRef.current?.(id, anchor),
+    [],
+  )
 
   /** 指针下的那条线：悬停时它也"活"起来，标明是哪种线。 */
   const [hoverEdge, setHoverEdge] = useState<string | null>(null)
@@ -1767,14 +1787,13 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
       pass: t('edge.pass'),
       fail: t('edge.fail'),
       generated: t('run.fileMade'),
-      memTitle: t('mem.title'),
-      memGlobal: t('mem.global'),
       memOn: t('mem.on'),
       memOff: t('mem.off'),
-      memScopes: {
-        workflow: t('mem.scope.workflow'),
-        workspace: t('mem.scope.workspace'),
-      } satisfies Record<MemoryScope, string>,
+      memTypes: {
+        workflow: t('mem.type.workflow'),
+        step: t('mem.type.step'),
+      } satisfies Record<MemoryType, string>,
+      memShared: t('mem.alsoUsed'),
       produce: t(ACCESS_TEXT.produce),
       update: t(ACCESS_TEXT.update),
       read: t(ACCESS_TEXT.read),
@@ -2019,13 +2038,19 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
         }))
         const firstNote = first?.note?.replace(/\s+/gu, ' ').trim() ?? ''
         const label = node.data.label?.trim() ?? ''
+        const entry =
+          memory === undefined ? undefined : findMemory(props.memories ?? null, memory.memory)
+        const others =
+          entry?.usedBy.filter(
+            (name) => props.workflow == null || idKey(name) !== idKey(props.workflow),
+          ) ?? []
         const title =
           memory !== undefined
-            ? label !== ''
-              ? label
-              : shared
-                ? texts.memGlobal
-                : texts.memTitle
+            ? entry !== undefined
+              ? memoryTitle(entry)
+              : label !== ''
+                ? label
+                : memory.memory || texts.memTypes[memory.type]
             : compact && first === undefined
               ? texts.resEmpty
               : compact && first !== undefined
@@ -2033,7 +2058,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
                 : resourceTitle(node)
         const sub =
           memory !== undefined
-            ? `${texts.memScopes[memory.scope]} · ${first?.value.trim() || '—'}`
+            ? `${texts.memTypes[memory.type]} · ${memory.memory || '—'}`
             : first === undefined
               ? texts.resEmptySub
               : firstNote !== ''
@@ -2054,7 +2079,9 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
           countText: texts.resCount.replace('{n}', String(all.length)),
           emptyText: texts.resEmpty,
           tab: { kind: first?.kind ?? 'many', ext },
-          memory: memory === undefined ? null : shared ? 'global' : 'step',
+          memory: memory === undefined ? null : memory.type === 'workflow' ? 'global' : 'step',
+          memoryShared:
+            others.length === 0 ? null : texts.memShared.replace('{n}', String(others.length)),
           tint: resourceTint(node.data),
           shared,
           sharedText: texts.resShared,
@@ -2162,6 +2189,8 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
     memorySteps,
     memoryToggle,
     onMemory,
+    props.memories,
+    props.workflow,
   ])
 
   const edges = useMemo<FlowEdge[]>(() => {

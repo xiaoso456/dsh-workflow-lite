@@ -24,7 +24,7 @@ div.dialog {
 
 .tabs {
   flex: none;
-  width: 340px;
+  width: 400px;
 }
 
 /* ── 运行实例：左栏工作区（和「工作流」页同一套 wf* 样式），右栏实例 ──── */

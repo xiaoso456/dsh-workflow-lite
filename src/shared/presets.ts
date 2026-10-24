@@ -7,14 +7,12 @@
  * 打上时怎么补内容、改连线，内容不合时拒绝，摘掉时怎么还原。以后的预设加在那张表里。
  *
  * 记忆（照 Hermes 的「skill 是流程性记忆」）：
- * - 一个文件夹，就是一份 skill：`SKILL.md` 写这一步（或整个工作流）怎么做得又快又对，
- *   `scripts/`、`templates/`、`references/` 放配套的东西。下次照着走，少走弯路。
- *   有步骤写它（步骤 → 记忆）= 那一步自己的记忆；一条线都没连 = 全局记忆（整个工作流的做法）；
- * - 相对路径一律相对工作区，不拼产出根目录（产出根目录默认每次执行一个，记忆要跨执行留下来）；
- * - 默认路径带着记忆卡的 id（同一个工作流里不会撞）：
- *   - 本工作区：`.workflow-lite/memory/<工作流>/<卡 id>/`，只在这个工作区、这个工作流里用；
- *   - 本工作流：`{workflow}/memory/<卡 id>/`，放在工作流自己的目录里，
- *     换个工作区执行也是同一份，跟着工作流改名、导出。
+ * - 记忆住在插件的记忆库里（`<dataDir>/memories/<id>/`，宿主 `host/store/memories.ts` 管），一条就是一份 skill：
+ *   `SKILL.md` 写这一步（或整个工作流）怎么做得又快又对，`scripts/`、`templates/`、`references/` 放配套的东西；
+ * - 记忆卡只存引用（{@link MemoryPreset}）和这一处的说明，那一项固定是 `{memory}/<id>`；
+ *   名称、描述在库里，几个工作流、几个步骤可以引用同一条；
+ * - 类型（工作流记忆 / 步骤记忆）建好就定，决定默认说明；步骤记忆连在步骤上（步骤 → 记忆），
+ *   工作流记忆一条线都不连（每一步都读，主 agent 收尾时统一整理）。
  *
  * 纯函数，不碰磁盘、不 import DSH 包。
  * @module @xiaoso/dsh-workflow-lite/shared/presets
@@ -22,10 +20,11 @@
 
 import { MEMORY_SKILL_FILE } from './limits.ts'
 import { idKey, isResource, isStep, makeEdgeId } from './model.ts'
-import { isWorkflowPath, workflowPath, workflowRelative } from './pathVars.ts'
+import { checkName } from './naming.ts'
+import { memoryPath } from './pathVars.ts'
 import type {
   MemoryPreset,
-  MemoryScope,
+  MemoryType,
   Point,
   ResourceData,
   ResourceItem,
@@ -35,13 +34,7 @@ import type {
   WorkflowEdge,
   WorkflowNode,
 } from './types.ts'
-import { DEFAULT_MEMORY_SCOPE, RESOURCE_TYPE } from './types.ts'
-
-/** 本工作区范围的记忆放在工作区的这个目录下（再分工作流）。 */
-export const MEMORY_DIR = '.workflow-lite/memory'
-
-/** 本工作流范围的记忆放在工作流目录的这个子目录下。 */
-const WORKFLOW_MEMORY_DIR = 'memory'
+import { RESOURCE_TYPE } from './types.ts'
 
 /** 全局记忆的节点 id（撞名时加序号）。 */
 export const GLOBAL_MEMORY_ID = 'mem-global'
@@ -60,16 +53,25 @@ export function memoryIdFor(step: string): string {
   return `mem-${step}`
 }
 
-/** 默认路径（一个文件夹）：本工作区放在工作区里（分工作流），本工作流放在工作流目录里。`id` 是记忆卡的 id。 */
-export function memoryPath(scope: MemoryScope, workflow: string, id: string): string {
-  return scope === 'workflow'
-    ? workflowPath(`${WORKFLOW_MEMORY_DIR}/${id}`)
-    : `${MEMORY_DIR}/${workflow}/${id}`
+/** 记忆卡引用库里的哪一条。 */
+export interface MemoryRef {
+  memory: string
+  type: MemoryType
 }
 
-/** 记忆的内容合不合规矩：一个文件夹（skill 目录）。 */
-export function memoryItemsOk(items: readonly ResourceItem[]): boolean {
-  return items.length === 1 && items[0]?.kind === 'folder'
+/** 新建记忆时建议的 id：工作流记忆用工作流名，步骤记忆用 `<工作流名>-<步骤 id>`（撞了由宿主加序号）。 */
+export function suggestMemoryId(type: MemoryType, workflow: string, step?: string): string {
+  return type === 'step' && step !== undefined ? `${workflow}-${step}` : workflow
+}
+
+/** 记忆的内容合不合规矩：引用的 id 是个合法名字，内容恰好一项、就是那条记忆的文件夹。 */
+export function memoryItemsOk(data: ResourceData): boolean {
+  const memory = memoryOf(data)
+  if (memory === undefined || checkName(memory.memory) !== null) return false
+  const [item] = data.items
+  return (
+    data.items.length === 1 && item?.kind === 'folder' && item.value === memoryPath(memory.memory)
+  )
 }
 
 /**
@@ -111,69 +113,78 @@ export const GLOBAL_MEMORY_PROMPT = [
   ...SHAPE_LINES,
 ].join('\n')
 
-/** 记忆的默认说明：全局记忆一份，步骤的记忆一份。 */
-export function defaultMemoryPrompt(global: boolean): string {
-  return global ? GLOBAL_MEMORY_PROMPT : STEP_MEMORY_PROMPT
+/** 记忆的默认说明：工作流记忆一份，步骤记忆一份。 */
+export function defaultMemoryPrompt(type: MemoryType): string {
+  return type === 'workflow' ? GLOBAL_MEMORY_PROMPT : STEP_MEMORY_PROMPT
 }
 
-/** 记忆实际用的说明：写了就是它，空着就是默认的。 */
-export function memoryPrompt(data: ResourceData, global: boolean): string {
+/** 记忆实际用的说明：写了就是它，空着就按类型用默认的。 */
+export function memoryPrompt(data: ResourceData): string {
   const note = data.items[0]?.note?.trim() ?? ''
-  return note === '' ? defaultMemoryPrompt(global) : note
+  return note === '' ? defaultMemoryPrompt(memoryOf(data)?.type ?? 'step') : note
 }
 
 /**
- * 新记忆的 `data`：一个文件夹项（skill 目录），不起名字——计划里叫它 `mem-<步骤>`、标题写「记忆」，
- * 卡片上按界面语言写「记忆 / 全局记忆」。`id` 是记忆卡的 id（默认路径里要用）。
+ * 引用 `ref` 的记忆卡 `data`：一项，库里那条记忆的文件夹；不起名字（卡片上显示库里的名称）。
+ * `note` 是这一处的说明（缺省按类型用默认的）。
  */
-export function memoryData(scope: MemoryScope, workflow: string, id: string): ResourceData {
-  return {
-    items: [{ kind: 'folder', value: memoryPath(scope, workflow, id) }],
-    preset: { kind: 'memory', scope },
+export function memoryData(ref: MemoryRef, note?: string): ResourceData {
+  const item: ResourceItem = { kind: 'folder', value: memoryPath(ref.memory) }
+  if (note !== undefined && note.trim() !== '') item.note = note
+  return { items: [item], preset: { kind: 'memory', memory: ref.memory, type: ref.type } }
+}
+
+/** 换成引用另一条记忆：这一处的说明、名字、颜色留着。 */
+export function rebindMemory(data: ResourceData, ref: MemoryRef): ResourceData {
+  if (memoryOf(data) === undefined) return data
+  return { ...data, ...memoryData(ref, data.items[0]?.note) }
+}
+
+/** 图里引用到的记忆 id（按出现顺序，大小写不同算同一条）。 */
+export function memoryRefs(document: WorkflowDocument): string[] {
+  const seen = new Set<string>()
+  const ids: string[] = []
+  for (const node of document.nodes) {
+    const memory = isResource(node) ? memoryOf(node.data) : undefined
+    if (memory === undefined || memory.memory === '') continue
+    const key = idKey(memory.memory)
+    if (seen.has(key)) continue
+    seen.add(key)
+    ids.push(memory.memory)
   }
+  return ids
+}
+
+/** 把引用的记忆 id 按 `renames`（旧 id 的 `idKey` → 新 id）改掉；没有要改的原样返回。 */
+export function renameMemoryRefs(
+  document: WorkflowDocument,
+  renames: ReadonlyMap<string, string>,
+): WorkflowDocument {
+  let changed = false
+  const nodes = document.nodes.map((node) => {
+    if (!isResource(node)) return node
+    const memory = memoryOf(node.data)
+    const next = memory === undefined ? undefined : renames.get(idKey(memory.memory))
+    if (memory === undefined || next === undefined) return node
+    changed = true
+    return { ...node, data: rebindMemory(node.data, { memory: next, type: memory.type }) }
+  })
+  return changed ? { ...document, nodes } : document
 }
 
 /**
- * 两种范围的默认路径（{@link memoryPath}），捕获卡片 id。
- * 本工作流那条对的是工作流目录里的相对部分（{@link workflowRelative}）。
+ * 记忆的类型和挂的位置对不上：步骤记忆没有步骤写它，或工作流记忆连在步骤上。
+ * 照样能用（默认说明按类型），只给提示。
  */
-const WORKSPACE_PATH = /^\.workflow-lite\/memory\/[^/]+\/([^/]+)$/u
-const WORKFLOW_PATH = /^memory\/([^/]+)$/u
-
-/** 这一项是不是这张记忆卡的默认路径（哪种范围、哪个工作流名都算；要是文件夹）。 */
-function isDefaultPath(item: ResourceItem, id: string): boolean {
-  if (item.kind !== 'folder') return false
-  const found = isWorkflowPath(item.value)
-    ? WORKFLOW_PATH.exec(workflowRelative(item.value).replace(/\/+$/u, ''))
-    : WORKSPACE_PATH.exec(
-        item.value.trim().replace(/\\/gu, '/').replace(/^\.\//u, '').replace(/\/+$/u, ''),
-      )
-  return found !== null && idKey(found[1] as string) === idKey(id)
-}
-
-/** 记忆还在默认路径上（没被改过）：换范围会跟着换。 */
-export function onDefaultPath(data: ResourceData, id: string): boolean {
-  return data.items.length === 1 && data.items.every((item) => isDefaultPath(item, id))
-}
-
-/**
- * 换范围：路径还是默认路径就跟着换成新范围的默认路径；用户改过的路径不动。
- * 工作流名用现在的（改过名的工作流换范围时顺手换成新名字）。
- */
-export function rescopeMemory(
-  data: ResourceData,
-  scope: MemoryScope,
-  workflow: string,
-  id: string,
-): ResourceData {
-  const memory = memoryOf(data)
-  if (memory === undefined) return data
-  const items = data.items.map((item, index) =>
-    index === 0 && isDefaultPath(item, id)
-      ? { ...item, value: memoryPath(scope, workflow, id) }
-      : item,
+export function memoryMisplaced(document: WorkflowDocument, node: ResourceNode): boolean {
+  const memory = memoryOf(node.data)
+  if (memory === undefined) return false
+  const written = document.edges.some(
+    (edge) =>
+      idKey(edge.target) === idKey(node.id) &&
+      document.nodes.some((source) => idKey(source.id) === idKey(edge.source) && isStep(source)),
   )
-  return { ...data, items, preset: { ...memory, scope } }
+  return memory.type === 'step' ? !written : written
 }
 
 /** 一个步骤写的记忆（步骤 → 记忆的线），按连线顺序。 */
@@ -214,14 +225,13 @@ function freeId(document: WorkflowDocument, base: string): string {
 }
 
 /**
- * 给步骤开记忆：新建一张记忆卡（id `mem-<步骤>`），连一条「在原文件上更新」的线。
+ * 给步骤开记忆：新建一张引用 `ref` 的记忆卡（id `mem-<步骤>`），连一条「在原文件上更新」的线。
  * 已经有了、不是步骤就是 `null`。
  */
 export function addStepMemory(
   document: WorkflowDocument,
   step: string,
-  scope: MemoryScope,
-  workflow: string,
+  ref: MemoryRef,
   position: Point,
 ): { document: WorkflowDocument; id: string } | null {
   const node = document.nodes.find((candidate) => idKey(candidate.id) === idKey(step))
@@ -232,7 +242,7 @@ export function addStepMemory(
     id,
     type: RESOURCE_TYPE,
     position: { ...position },
-    data: memoryData(scope, workflow, id),
+    data: memoryData(ref),
   }
   const edge: WorkflowEdge = {
     id: makeEdgeId(node.id, id),
@@ -252,11 +262,10 @@ export function addStepMemory(
   }
 }
 
-/** 加一张全局记忆卡（不连线）。 */
+/** 加一张引用 `ref` 的工作流记忆卡（不连线）。 */
 export function addGlobalMemory(
   document: WorkflowDocument,
-  scope: MemoryScope,
-  workflow: string,
+  ref: MemoryRef,
   position: Point,
 ): { document: WorkflowDocument; id: string } {
   const id = freeId(document, GLOBAL_MEMORY_ID)
@@ -264,7 +273,7 @@ export function addGlobalMemory(
     id,
     type: RESOURCE_TYPE,
     position: { ...position },
-    data: memoryData(scope, workflow, id),
+    data: memoryData(ref),
   }
   return { document: { ...document, nodes: [...document.nodes, resource] }, id }
 }
@@ -309,13 +318,13 @@ export function dropOrphanMemories(
 
 /* ── 换标记 ─────────────────────────────────────────────────── */
 
-/** 打不上标记的原因（界面按它给提示）。 */
-export type PresetRefusal = 'memory_items'
+/** 打不上标记的原因（界面按它给提示）：`memory_items` 卡上已经有内容了，`memory_ref` 没给要引用哪条记忆。 */
+export type PresetRefusal = 'memory_items' | 'memory_ref'
 
-/** 打标记时知道的事：卡片 id、工作流名（默认路径要用）。 */
+/** 打标记时知道的事：卡片 id；打成记忆时引用库里的哪一条。 */
 export interface PresetContext {
   id: string
-  workflow: string
+  memory?: MemoryRef
 }
 
 /** 一种预设：打上、摘掉时怎么改这张卡和写它的线。 */
@@ -339,13 +348,11 @@ function withoutPreset(data: ResourceData): ResourceData {
  */
 export const PRESET_SPECS: Record<ResourcePresetKind, PresetSpec> = {
   memory: {
-    // 记忆是一个文件夹（skill 目录）：空卡补上默认路径；原来就是一个文件夹就照用；别的内容拒绝。
+    // 记忆引用库里的一条：只有空卡能打（不把外面的文件夹收进库里）。
     attach(data, ctx) {
-      if (data.items.length === 0) {
-        return { ...data, ...memoryData(DEFAULT_MEMORY_SCOPE, ctx.workflow, ctx.id) }
-      }
-      if (!memoryItemsOk(data.items)) return { refused: 'memory_items' }
-      return { ...data, preset: { kind: 'memory', scope: DEFAULT_MEMORY_SCOPE } }
+      if (data.items.length > 0) return { refused: 'memory_items' }
+      if (ctx.memory === undefined) return { refused: 'memory_ref' }
+      return { ...data, ...memoryData(ctx.memory) }
     },
     // 写记忆一律是在原文件上更新。
     writeEdge: (edge) => ({ ...edge, data: { ...edge.data, update: true } }),
@@ -359,7 +366,10 @@ function detached(data: ResourceData): ResourceData {
   return current === undefined ? data : PRESET_SPECS[current.kind].detach(data)
 }
 
-/** 这张卡能不能打上这种预设：能就是 `null`，不能就是原因。 */
+/**
+ * 这张卡能不能打上这种预设：能就是 `null`，不能就是原因。只看卡上的内容——还没选引用哪条记忆不算
+ * （界面上选了类型再去挑一条）。
+ */
 export function presetRefusal(
   data: ResourceData,
   kind: ResourcePresetKind,
@@ -367,7 +377,7 @@ export function presetRefusal(
 ): PresetRefusal | null {
   if (data.preset?.kind === kind) return null
   const next = PRESET_SPECS[kind].attach(detached(data), ctx)
-  return 'refused' in next ? next.refused : null
+  return 'refused' in next && next.refused !== 'memory_ref' ? next.refused : null
 }
 
 /**
@@ -378,7 +388,7 @@ export function setPreset(
   document: WorkflowDocument,
   id: string,
   kind: ResourcePresetKind | null,
-  workflow: string,
+  memory?: MemoryRef,
 ): WorkflowDocument | { refused: PresetRefusal } | null {
   const node = document.nodes.find((candidate) => idKey(candidate.id) === idKey(id))
   if (node === undefined || !isResource(node)) return null
@@ -389,7 +399,7 @@ export function setPreset(
   let edges = document.edges
   if (kind !== null) {
     const spec = PRESET_SPECS[kind]
-    const attached = spec.attach(bare, { id: node.id, workflow })
+    const attached = spec.attach(bare, { id: node.id, ...(memory === undefined ? {} : { memory }) })
     if ('refused' in attached) return attached
     data = attached
     const writeEdge = spec.writeEdge

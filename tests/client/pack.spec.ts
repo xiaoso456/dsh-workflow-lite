@@ -2,12 +2,16 @@ import { describe, expect, it } from 'vitest'
 import {
   actionOf,
   applyRequest,
+  categoryItems,
+  categoryOf,
   defaultImportChoice,
+  defaultPacked,
   defaultVersions,
   exportGroups,
   fromBase64,
   importSummary,
   leftAbsolute,
+  memoryActionOf,
   packedBytes,
   skillChoices,
   skillDestination,
@@ -63,6 +67,32 @@ describe('导出', () => {
     // b 没勾、m 找不到：两个绝对路径留在图里；没勾的 skill 不算。
     expect(leftAbsolute(scan, new Set(['a']))).toBe(2)
   })
+
+  it('记忆单独一类：能勾、缺省勾上、算大小；库里没有的列在后面；不算留下的绝对路径', () => {
+    const withMemory: PackScanResponse = {
+      ...scan,
+      items: [
+        ...scan.items,
+        item('mem', 'memory', {
+          kind: 'folder',
+          value: '{memory}/w',
+          bytes: 20,
+          memory: { id: 'w', name: '', type: 'workflow' },
+        }),
+        item('gone', 'missing', { kind: 'folder', value: '{memory}/gone' }),
+      ],
+    }
+    const memory = withMemory.items.find((entry) => entry.key === 'mem') as PackScanItem
+    expect(categoryOf(memory)).toBe('memory')
+    expect(categoryItems(withMemory, 'memory')).toMatchObject({
+      packable: [{ key: 'mem' }],
+      others: [{ key: 'gone' }],
+    })
+    expect(categoryItems(withMemory, 'folder').packable).toEqual([])
+    expect([...defaultPacked(withMemory)]).toEqual(['a', 'b', 's', 'mem'])
+    expect(packedBytes(withMemory, new Set(['mem']))).toBe(1020)
+    expect(leftAbsolute(withMemory, new Set(['a', 'b']))).toBe(1)
+  })
 })
 
 function skill(state: PackSkillPreview['state'], overwritable = true): PackSkillPreview {
@@ -105,6 +135,19 @@ const preview: PackImportPreview = {
     skill('different'),
     { ...skill('different', false), name: 'k-far' },
   ],
+  memories: [
+    { id: 'w', type: 'workflow', name: '', files: 2, bytes: 9, exists: false, rename: 'w' },
+    {
+      id: 'w-review',
+      type: 'step',
+      name: '审查',
+      files: 0,
+      bytes: 0,
+      exists: true,
+      existingName: '本机的审查',
+      rename: 'w-review-2',
+    },
+  ],
   external: [],
 }
 
@@ -135,12 +178,26 @@ describe('导入', () => {
     expect(skillDestination(preview, skill('same'), 'skip')).toBeNull()
   })
 
+  it('记忆：本机没有的就建；有的缺省用本机的，可以另存一份', () => {
+    const choice = defaultImportChoice(preview)
+    expect(preview.memories.map((entry) => memoryActionOf(choice, entry))).toEqual([
+      'create',
+      'use',
+    ])
+    const copy = { ...choice, memories: { 'w-review': 'copy' as const } }
+    expect(memoryActionOf(copy, preview.memories[1] as PackImportPreview['memories'][number])).toBe(
+      'copy',
+    )
+    expect(applyRequest(preview, choice, {}).memories).toEqual({ 'w-review': 'use' })
+  })
+
   it('汇总与请求：并入时保留本机的资料不算写入', () => {
     const choice = {
       mode: 'merge' as const,
       name: 'ignored',
       assets: 'local' as const,
       skills: { 'k-different': 'overwrite' as const },
+      memories: { 'w-review': 'copy' as const },
     }
     expect(importSummary(preview, choice)).toEqual({
       versions: 2,
@@ -159,6 +216,7 @@ describe('导入', () => {
         'k-different': 'overwrite',
         'k-far': 'skip',
       },
+      memories: { 'w-review': 'copy' },
       session: 's',
     })
   })

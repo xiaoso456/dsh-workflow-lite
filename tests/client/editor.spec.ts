@@ -544,7 +544,8 @@ describe('输入节点与步骤的样子', () => {
 })
 
 describe('记忆', () => {
-  const on = { scope: 'workspace', workflow: 'g' } as const
+  const on = { memory: { memory: 'g-a', type: 'step' } } as const
+  const flow = { memory: { memory: 'g', type: 'workflow' } } as const
 
   it('开记忆：加一张 mem-<步骤> 卡、连一条更新线，一条撤销步；再关掉连卡一起删', () => {
     const opened = run(loaded(doc({ nodes: [node('a')] })), {
@@ -566,7 +567,7 @@ describe('记忆', () => {
     const state = run(
       loaded(doc({ nodes: [node('a'), node('b')] })),
       { type: 'setStepMemory', step: 'a', on: true, ...on },
-      { type: 'addGlobalMemory', ...on },
+      { type: 'addGlobalMemory', ...flow },
       { type: 'removeNode', id: 'a' },
     )
     expect(state.doc?.nodes.map((item) => item.id)).toEqual(['b', 'mem-global'])
@@ -575,7 +576,7 @@ describe('记忆', () => {
   it('从步骤连到记忆卡：默认就是更新', () => {
     const state = run(
       loaded(doc({ nodes: [node('a'), node('b')] })),
-      { type: 'addGlobalMemory', ...on },
+      { type: 'addGlobalMemory', ...flow },
       { type: 'connect', source: 'b', target: 'mem-global' },
     )
     expect(state.doc?.edges.find((item) => item.source === 'b')?.data).toEqual({ update: true })
@@ -588,17 +589,17 @@ describe('记忆', () => {
       writer: 'a',
     })
     const id = state.doc?.nodes[1]?.id ?? ''
-    const memory = run(state, { type: 'setPreset', id, preset: 'memory', workflow: 'g' })
+    const memory = run(state, { type: 'setPreset', id, preset: 'memory', ...on })
     const card = memory.doc?.nodes[1]
     expect(card?.data).toEqual({
-      items: [{ kind: 'folder', value: `.workflow-lite/memory/g/${id}` }],
-      preset: { kind: 'memory', scope: 'workspace' },
+      items: [{ kind: 'folder', value: '{memory}/g-a' }],
+      preset: { kind: 'memory', memory: 'g-a', type: 'step' },
     })
     expect(memory.doc?.edges[0]?.data).toEqual({ update: true })
     expect(memory.past).toHaveLength(state.past.length + 1)
-    const plain = run(memory, { type: 'setPreset', id, preset: null, workflow: 'g' })
+    const plain = run(memory, { type: 'setPreset', id, preset: null })
     expect(plain.doc?.nodes[1]?.data).toEqual({
-      items: [{ kind: 'folder', value: `.workflow-lite/memory/g/${id}` }],
+      items: [{ kind: 'folder', value: '{memory}/g-a' }],
     })
     expect(plain.doc?.edges[0]?.data).toEqual({ update: true })
   })

@@ -15,9 +15,8 @@
 import { isStepColor, isStepIcon } from './appearance.ts'
 import { COORD_DECIMALS } from './limits.ts'
 import { normalizeRoot, WORKSPACE_ROOT } from './outputPaths.ts'
-import { upgradeWorkflowPath } from './pathVars.ts'
+import { memoryPath, upgradeWorkflowPath } from './pathVars.ts'
 import {
-  DEFAULT_MEMORY_SCOPE,
   type EdgeData,
   EXECUTION_MODES,
   type Handoff,
@@ -26,7 +25,7 @@ import {
   type InputAnswer,
   type InputData,
   type InputNode,
-  MEMORY_SCOPES,
+  MEMORY_TYPES,
   NODE_TYPE,
   type NodeData,
   type OutputSpec,
@@ -346,15 +345,29 @@ export function readResourceData(raw: unknown): ResourceData {
     }
   }
   const preset = readPreset(raw.preset)
-  if (preset !== undefined) data.preset = preset
+  if (preset !== undefined) {
+    data.preset = preset
+    // 记忆卡那一项由引用定：固定是 `{memory}/<id>`，只留这一处的说明。
+    if (preset.memory !== '') {
+      const note = data.items[0]?.note
+      data.items = [
+        {
+          kind: 'folder',
+          value: memoryPath(preset.memory),
+          ...(note === undefined ? {} : { note }),
+        },
+      ]
+    }
+  }
   return data
 }
 
-/** 资源预设：认得的种类才留，范围认不出就按默认的。 */
+/** 资源预设：认得的种类才留。记忆没写引用（早先按范围存的卡）留空，校验时报出来；类型认不出按步骤记忆。 */
 function readPreset(raw: unknown): ResourcePreset | undefined {
   if (!isPlainObject(raw) || raw.kind !== 'memory') return undefined
-  const scope = MEMORY_SCOPES.find((candidate) => candidate === raw.scope) ?? DEFAULT_MEMORY_SCOPE
-  return { kind: 'memory', scope }
+  const memory = typeof raw.memory === 'string' ? raw.memory.trim() : ''
+  const type = MEMORY_TYPES.find((candidate) => candidate === raw.type) ?? 'step'
+  return { kind: 'memory', memory, type }
 }
 
 /** 资源节点 `data` 的规范写法（读入的规范化 + 固定键序），写盘与比较都用它。 */
@@ -364,7 +377,8 @@ export function canonicalResource(data: ResourceData): ResourceData {
   for (const key of RESOURCE_KEYS) {
     if (key === 'preset') {
       if (normalized.preset !== undefined) {
-        out.preset = { kind: normalized.preset.kind, scope: normalized.preset.scope }
+        const { kind, memory, type } = normalized.preset
+        out.preset = { kind, memory, type }
       }
       continue
     }
