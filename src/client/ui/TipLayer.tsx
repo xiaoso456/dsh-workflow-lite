@@ -70,6 +70,8 @@ function tipOf(node: EventTarget | null, root: HTMLElement): HTMLElement | null 
 export function TipLayer(props: { root: HTMLElement | null }): React.ReactNode {
   const { root } = props
   const [shown, setShown] = useState<Shown | null>(null)
+  /** 按下收起的提示直接消失、不留淡出的影子（点击常常紧跟着弹出别的东西，影子会晚一拍冒出来闪一下）。 */
+  const pressed = useRef(false)
   /**
    * 量好的位置。`seq` 记是给哪一次弹出量的：新弹出的提示拿不到上一个的位置。
    * `glide`：这一次弹出之前已经摆好过（是从上一个元素移过来的），换位置时滑过去；
@@ -150,6 +152,7 @@ export function TipLayer(props: { root: HTMLElement | null }): React.ReactNode {
     }
     const onDown = (event: PointerEvent): void => {
       muted = tipOf(event.target, root)
+      pressed.current = true
       hide()
     }
     const onFocusIn = (event: FocusEvent): void => {
@@ -223,7 +226,13 @@ export function TipLayer(props: { root: HTMLElement | null }): React.ReactNode {
   const gone = shown === null
   useEffect(() => {
     if (!gone) {
+      pressed.current = false
       setLeaving(null)
+      return
+    }
+    if (pressed.current) {
+      pressed.current = false
+      resting.current = null
       return
     }
     if (resting.current === null) return
