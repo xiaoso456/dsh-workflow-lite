@@ -1277,6 +1277,11 @@ span.memToggle {
   color: var(--wl-panel);
 }
 
+/* 「交给整个工作流」的小标已经占了右边那个位置：并排放在它左边。 */
+.resShared[data-beside] {
+  right: 46px;
+}
+
 .resBody ~ .cardFlag {
   position: absolute;
   top: 12px;

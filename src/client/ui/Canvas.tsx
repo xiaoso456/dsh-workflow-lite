@@ -1179,7 +1179,7 @@ const ResourceCard = memo(function ResourceCard(
           </span>
         </span>
       )}
-      {data.shared && data.memory === null && (
+      {data.shared && data.memory !== 'step' && (
         <span
           className={css.resShared}
           data-tip={data.sharedText}
@@ -1191,10 +1191,11 @@ const ResourceCard = memo(function ResourceCard(
       {data.memoryShared !== null && (
         <span
           className={css.resShared}
+          data-beside={data.shared || undefined}
           data-tip={data.memoryShared}
           data-testid="wl-memory-shared-tag"
         >
-          <Icon name="shared" size={11} />
+          <Icon name="hub" size={11} />
         </span>
       )}
       {/* 有标题行的卡把警示放在标题行里（项数后面），紧凑的一行卡放在行尾。 */}
