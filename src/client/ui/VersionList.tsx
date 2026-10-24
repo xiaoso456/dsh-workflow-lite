@@ -59,6 +59,7 @@ export function VersionList(props: {
               data-testid="wl-ver-with-memories"
               onChange={(event) => setWithMemories(event.currentTarget.checked)}
             />
+            <Icon name="memory" size={13} />
             {t('ver.withMem').replace('{n}', String(count))}
           </label>
         )
@@ -173,7 +174,6 @@ function VersionShell<E extends RowEntry>(props: {
             if (event.key === 'Enter') save()
           }}
         />
-        {props.extra}
         <button
           type="button"
           className={cx(ui.btn, ui.small, ui.primary)}
@@ -206,6 +206,7 @@ function VersionShell<E extends RowEntry>(props: {
             {notice.text}
           </span>
         )}
+        {props.extra}
       </div>
 
       {list !== null && list.length === 0 && (

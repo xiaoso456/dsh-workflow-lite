@@ -39,7 +39,7 @@ div.body {
   min-width: 0;
 }
 
-/* 「连同记忆一起存」：勾选框 + 一句，夹在说明框和存的按钮之间。 */
+/* 「连同记忆一起存」：勾选框 + 记忆图标 + 一句，在状态行最右边（不挤存的那一行）。 */
 .withMem {
   display: inline-flex;
   flex: none;
@@ -49,6 +49,10 @@ div.body {
   font-size: var(--wl-fs-meta);
   white-space: nowrap;
   cursor: pointer;
+}
+
+.withMem:hover {
+  color: var(--wl-text);
 }
 
 /* 「版本」框标题栏里的「工作流 / 记忆」。 */
@@ -109,6 +113,11 @@ div.body {
   font-size: var(--wl-fs-micro);
 }
 
+/* 状态行里排最后的那一项靠右（只有它自己时不动）。 */
+.status > :last-child:not(:first-child) {
+  margin-left: auto;
+}
+
 .state {
   display: inline-flex;
   gap: 6px;
@@ -131,7 +140,6 @@ div.body {
   display: inline-flex;
   gap: 4px;
   align-items: center;
-  margin-left: auto;
   color: var(--wl-ok);
   font-weight: 500;
 }
