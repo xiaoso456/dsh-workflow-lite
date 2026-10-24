@@ -272,6 +272,28 @@
   cursor: pointer;
 }
 
+/* 字后面的小数字标：灰底小胶囊，选中那格里换成强调色。 */
+.segCount {
+  display: inline-block;
+  min-width: 18px;
+  height: 16px;
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: calc(999px * var(--wl-round, 1));
+  background: var(--wl-fill-strong);
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-micro);
+  font-variant-numeric: tabular-nums;
+  line-height: 16px;
+  text-align: center;
+  vertical-align: 1px;
+}
+
+.segItem[aria-checked="true"] .segCount {
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+}
+
 /* 字色是 FadeText 的两层交叉淡：没选中灰，选中和悬停深。 */
 .segItem {
   --wl-off: var(--wl-text-3);

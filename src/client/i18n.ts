@@ -78,7 +78,7 @@ export const zh = {
   'ver.memFailed': '{n} 条没存成',
   'ver.memJoin': '；',
   'ver.areaWorkflow': '工作流',
-  'ver.areaMemory': '记忆 {n}',
+  'ver.areaMemory': '记忆',
   'ver.memEmptyText': '攒到满意的样子存一版，之后攒坏了能切回来。',
   'ver.memRestoreNote': '正在跑的实例之后读写的就是切回来的内容。',
   'wf.steps': '个步骤',
@@ -1347,7 +1347,7 @@ export const en: Record<LocaleKey, string> = {
   'ver.memFailed': '{n} not saved',
   'ver.memJoin': '; ',
   'ver.areaWorkflow': 'Workflow',
-  'ver.areaMemory': 'Memory {n}',
+  'ver.areaMemory': 'Memory',
   'ver.memEmptyText':
     'Save a version when the memory looks right, so you can switch back if it goes wrong.',
   'ver.memRestoreNote': 'Running instances will read and write the restored content from then on.',

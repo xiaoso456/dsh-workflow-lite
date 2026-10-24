@@ -244,7 +244,7 @@ function MemoryInfoField(props: PresetBlockProps): React.JSX.Element | null {
       <div className={ins.label}>
         <span>{t('mem.libLabel')}</span>
       </div>
-      <div className={mem.info} data-missing={missing}>
+      <div className={mem.info} data-missing={missing} data-pick-match="true">
         <span className={mem.infoIcon}>
           <Icon name={missing ? 'alert' : 'memory'} size={15} />
         </span>
@@ -268,7 +268,10 @@ function MemoryInfoField(props: PresetBlockProps): React.JSX.Element | null {
             className={cx(ui.btn, ui.small, mem.infoAction)}
             data-testid="wl-memory-rebind"
             onClick={(event) =>
-              pick({ kind: 'card', id: node.id, type: memory.type }, event.currentTarget)
+              pick(
+                { kind: 'card', id: node.id, type: memory.type },
+                event.currentTarget.parentElement,
+              )
             }
           >
             {t(missing ? 'mem.relink' : 'mem.rebind')}

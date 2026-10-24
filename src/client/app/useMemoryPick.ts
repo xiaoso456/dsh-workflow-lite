@@ -3,7 +3,7 @@
  *
  * 三种目标：给步骤开记忆、在画布上加一张工作流记忆、给一张卡换引用（资源卡换成记忆，或记忆卡换一条）。
  * 库里没有同类型的就不弹，直接新建；换一条时照样弹（好看清现在是哪条、也能新建）。
- * 菜单贴着点的那个按钮弹出；没有按钮（从步骤库、快捷添加来的）就贴着最后一次按下的位置。
+ * 菜单贴着点的那个按钮弹出（锚点写了 `data-pick-match` 的，菜单和它左对齐、一样宽）；没有按钮（从步骤库、快捷添加来的）就贴着最后一次按下的位置。
  *
  * @module @xiaoso/dsh-workflow-lite/client/app/useMemoryPick
  */
@@ -28,7 +28,7 @@ export type MemoryPickTarget =
 export interface MemoryPickState {
   target: MemoryPickTarget
   type: MemoryType
-  at: { x: number; y: number }
+  at: { x: number; y: number; width?: number }
   entries: MemoryEntry[]
   /** 换一条时现在引用的那条。 */
   current?: string
@@ -73,18 +73,24 @@ export function useMemoryPick(options: {
   }, [root])
 
   const placeAt = useCallback(
-    (anchor: Element | null | undefined): { x: number; y: number } => {
+    (anchor: Element | null | undefined): { x: number; y: number; width?: number } => {
       const element = root.current
       const box = element?.getBoundingClientRect()
       if (box === undefined) return { x: GAP, y: GAP }
       const rect = anchor?.getBoundingClientRect()
+      // 锚点是一整块（比如「记忆库」那张卡）：菜单和它一样宽，不是只贴着里面的小按钮。
+      const width =
+        rect !== undefined && anchor?.hasAttribute('data-pick-match') === true
+          ? Math.min(rect.width, box.width - GAP * 2)
+          : undefined
       const raw =
         rect !== undefined
           ? { x: rect.left - box.left, y: rect.bottom - box.top + 6 }
           : (pointer.current ?? { x: box.width / 2 - MEMORY_PICKER_W / 2, y: box.height / 3 })
       return {
-        x: Math.max(GAP, Math.min(raw.x, box.width - MEMORY_PICKER_W - GAP)),
+        x: Math.max(GAP, Math.min(raw.x, box.width - (width ?? MEMORY_PICKER_W) - GAP)),
         y: Math.max(GAP, Math.min(raw.y, box.height - 320)),
+        ...(width === undefined ? {} : { width }),
       }
     },
     [root],

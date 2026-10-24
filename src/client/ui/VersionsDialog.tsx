@@ -3,7 +3,7 @@
  *
  * - 工作流：正开着这张的版本（{@link VersionList}）；动手之前先把还没写下去的改动存掉（版本存的是磁盘上那份），
  *   切换写回之后按磁盘重新加载画布。这张引用了记忆时，存的那一栏能勾「连同记忆一起存」。
- * - 记忆：这张引用的记忆（库里有的），一条一个小块，选一条看它的版本（{@link MemoryVersionList}）；
+ * - 记忆：左边列这张引用的记忆（库里有的：名称、类型、几个版本），选一条，右边是它的版本（{@link MemoryVersionList}）；
  *   记忆的版本线各管各的，切记忆的版本不动工作流。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/VersionsDialog
@@ -18,9 +18,12 @@ import type { Desktop } from '../app/desktop.ts'
 import { findMemory, type MemoryStore, useMemories } from '../app/memories.ts'
 import type { T } from '../i18n.ts'
 import type { WorkflowLiteRpc } from '../rpc.ts'
+import hub from './hub.module.css'
 import { Icon } from './Icon.tsx'
+import { ListThumb } from './motion.tsx'
 import overlay from './overlay.module.css'
 import { cx, Modal } from './primitives.tsx'
+import { memoryTypeText } from './ResourcePresets.tsx'
 import { Segmented } from './Segmented.tsx'
 import ui from './ui.module.css'
 import { MemoryVersionList, VersionList } from './VersionList.tsx'
@@ -80,7 +83,8 @@ export function VersionsDialog(props: {
                 { value: 'workflow', label: t('ver.areaWorkflow') },
                 {
                   value: 'memory',
-                  label: t('ver.areaMemory').replace('{n}', String(refs.length)),
+                  label: t('ver.areaMemory'),
+                  count: refs.length,
                 },
               ]}
             />
@@ -108,34 +112,55 @@ export function VersionsDialog(props: {
             onMemoriesSaved={() => void props.memories.refresh()}
           />
         ) : (
-          <>
-            <div className={v.memChips} role="tablist" aria-label={t('mem.title')}>
-              {refs.map((entry) => (
-                <button
-                  key={entry.id}
-                  type="button"
-                  role="tab"
-                  className={v.memChip}
-                  aria-selected={entry === selected}
-                  data-testid="wl-ver-memory"
-                  data-memory-id={entry.id}
-                  data-tip={entry.id}
-                  onClick={() => setPicked(entry.id)}
-                >
-                  <Icon name="memory" size={13} />
-                  <span>{memoryTitle(entry)}</span>
-                </button>
-              ))}
+          <div className={v.memLayout}>
+            <div
+              className={cx(hub.wfList, v.memNav)}
+              role="tablist"
+              aria-orientation="vertical"
+              aria-label={t('mem.title')}
+            >
+              <ListThumb layout={`${selected.id}|${refs.map((entry) => entry.id).join(',')}`} />
+              {refs.map((entry) => {
+                const on = entry === selected
+                return (
+                  <div key={entry.id} className={hub.wfRow} data-selected={on}>
+                    <button
+                      type="button"
+                      role="tab"
+                      className={hub.wfItem}
+                      aria-selected={on}
+                      aria-current={on ? 'true' : undefined}
+                      data-testid="wl-ver-memory"
+                      data-memory-id={entry.id}
+                      data-tip={entry.id}
+                      onClick={() => setPicked(entry.id)}
+                    >
+                      <span className={hub.wfIcon}>
+                        <Icon name="memory" size={15} />
+                      </span>
+                      <span className={hub.wfText}>
+                        <span className={hub.wfName}>{memoryTitle(entry)}</span>
+                        <span className={hub.wfMeta}>
+                          {memoryTypeText(t, entry.type)} ·{' '}
+                          {t('ver.count').replace('{n}', String(entry.versions))}
+                        </span>
+                      </span>
+                    </button>
+                  </div>
+                )
+              })}
             </div>
-            <MemoryVersionList
-              key={selected.id}
-              t={t}
-              rpc={props.rpc}
-              store={props.memories}
-              id={selected.id}
-              desktop={props.desktop}
-            />
-          </>
+            <div className={v.memPane}>
+              <MemoryVersionList
+                key={selected.id}
+                t={t}
+                rpc={props.rpc}
+                store={props.memories}
+                id={selected.id}
+                desktop={props.desktop}
+              />
+            </div>
+          </div>
         )}
       </div>
     </Modal>

@@ -28,7 +28,8 @@ export function usedByText(t: T, entry: MemoryEntry): string {
 
 export function MemoryPicker(props: {
   t: T
-  at: { x: number; y: number }
+  /** 弹出的位置；`width` 给了就按它的宽度（和锚点那一块一样宽），不给是 {@link MEMORY_PICKER_W}。 */
+  at: { x: number; y: number; width?: number }
   type: MemoryType
   /** 同类型的记忆（已按名称排好）。 */
   entries: readonly MemoryEntry[]
@@ -63,7 +64,7 @@ export function MemoryPicker(props: {
     <div
       ref={ref}
       className={cx(ui.panel, mem.picker, ui.stagger)}
-      style={{ left: props.at.x, top: props.at.y, width: MEMORY_PICKER_W }}
+      style={{ left: props.at.x, top: props.at.y, width: props.at.width ?? MEMORY_PICKER_W }}
       role="menu"
       aria-label={t(step ? 'mem.pick.step' : 'mem.pick.workflow')}
       data-testid="wl-memory-picker"
