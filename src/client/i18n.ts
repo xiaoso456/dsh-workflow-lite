@@ -1190,6 +1190,11 @@ export const zh = {
     '每一步都读、只读不改，把通用的经验写在回复里；整个工作流结束时，主 agent 照它整理进去。',
   'mem.dir': '记忆目录',
   'mem.view': '查看',
+  'mem.statFiles': '文件',
+  'mem.statSize': '大小',
+  'mem.statUpdated': '最近修改',
+  'hub.memRenameTip': '点一下改名',
+  'hub.memUnusedHint': '还没有工作流用到它：在编辑页给步骤开记忆、或加工作流记忆时选它。',
   'mem.files': '{n} 个文件',
   'mem.viewEmpty': '还没有内容：第一次跑通、攒下做法之后会写在这里。',
   'mem.dirHint':
@@ -2509,6 +2514,12 @@ export const en: Record<LocaleKey, string> = {
     'Every step reads it without changing it and reports general lessons in its reply; when the workflow ends, the main agent folds them in by these instructions.',
   'mem.dir': 'Memory folder',
   'mem.view': 'View',
+  'mem.statFiles': 'Files',
+  'mem.statSize': 'Size',
+  'mem.statUpdated': 'Modified',
+  'hub.memRenameTip': 'Click to rename',
+  'hub.memUnusedHint':
+    'No workflow uses it yet: pick it when adding memory to a step, or a workflow memory, in the editor.',
   'mem.files': '{n} files',
   'mem.viewEmpty':
     'Nothing here yet: it is written after the first run that works out a procedure.',

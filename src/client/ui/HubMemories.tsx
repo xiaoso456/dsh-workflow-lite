@@ -220,38 +220,27 @@ function MemoryDetail(props: {
     })
   }
 
+  const stats: [string, string][] = [
+    [t('mem.statFiles'), String(entry.files)],
+    [t('mem.statSize'), formatBytes(entry.bytes)],
+    [t('mem.statUpdated'), shortTime(entry.updatedAt)],
+  ]
+
   return (
     <div className={cx(hub.wfDetail, hub.pinned, hub.paneIn)} data-testid="wl-hub-mem-detail">
-      <div className={hub.wfHead}>
-        <div className={hub.wfHeadText}>
-          <p className={hub.wfTitle}>{memoryTitle(entry)}</p>
-          <p className={hub.wfSub}>
-            {memoryTypeText(t, entry.type)} · <code>{entry.id}</code> ·{' '}
-            {t('mem.files').replace('{n}', String(entry.files))} · {formatBytes(entry.bytes)} ·{' '}
-            {shortTime(entry.updatedAt)}
-          </p>
-        </div>
-        <button
-          type="button"
-          className={cx(ui.btn, ui.small, ui.soft)}
-          data-testid="wl-hub-mem-view"
-          onClick={() => setViewing(true)}
-        >
-          <Icon name="folder" size={14} />
-          {t('mem.view')}
-        </button>
-      </div>
-
-      <div className={mem.hubFields}>
-        <label className={ins.field}>
-          <span className={ins.label}>
-            <span>{t('mem.name')}</span>
-          </span>
+      <div className={mem.hubHead}>
+        <span className={mem.hubIcon}>
+          <Icon name="memory" size={18} />
+        </span>
+        <div className={mem.hubHeadText}>
+          {/* 标题就是名称的输入框：平时像标题，悬停露出底色，点进去直接改。 */}
           <input
-            className={ui.input}
+            className={mem.hubName}
             value={name ?? entry.name}
             placeholder={entry.id}
             maxLength={80}
+            aria-label={t('mem.name')}
+            data-tip={t('hub.memRenameTip')}
             data-testid="wl-hub-mem-name"
             onChange={(event) => setName(event.currentTarget.value)}
             onKeyDown={(event) => {
@@ -262,58 +251,91 @@ function MemoryDetail(props: {
               setName(null)
             }}
           />
-        </label>
-        <label className={ins.field}>
-          <span className={ins.label}>
-            <span>{t('ins.description')}</span>
-          </span>
-          <textarea
-            className={cx(ui.textarea, mem.hubDesc)}
-            value={description ?? entry.description}
-            placeholder={t('mem.descPlaceholder')}
-            maxLength={500}
-            rows={2}
-            data-testid="wl-hub-mem-desc"
-            onChange={(event) => setDescription(event.currentTarget.value)}
-            onBlur={() => {
-              if (description !== null && description !== entry.description) {
-                save({ description })
-              }
-              setDescription(null)
-            }}
-          />
-        </label>
+          <p className={hub.wfSub}>
+            <span className={mem.hubTag}>{memoryTypeText(t, entry.type)}</span>
+            <code>{entry.id}</code>
+          </p>
+        </div>
+        <button
+          type="button"
+          className={cx(ui.btn, ui.icon, ui.small)}
+          data-tip={t('mem.view')}
+          aria-label={t('mem.view')}
+          data-testid="wl-hub-mem-view"
+          onClick={() => setViewing(true)}
+        >
+          <Icon name="eye" size={15} />
+        </button>
       </div>
 
-      <div className={mem.usedRow} data-testid="wl-hub-mem-used">
-        <span className={mem.usedLabel}>{t('hub.memUsedBy')}</span>
-        {entry.usedBy.length === 0 ? (
-          <span className={mem.usedNone}>{t('mem.unused')}</span>
-        ) : (
-          entry.usedBy.map((workflow) => (
-            <button
-              key={workflow}
-              type="button"
-              className={mem.usedChip}
-              data-tip={t('hub.wfOpenTip')}
-              data-testid="wl-hub-mem-workflow"
-              onClick={() => props.onOpen(workflow)}
-            >
-              <Icon name="folder" size={12} />
-              <span>{workflow}</span>
-            </button>
-          ))
-        )}
+      <div className={mem.stats} data-testid="wl-hub-mem-stats">
+        {stats.map(([label, value]) => (
+          <div key={label} className={mem.stat}>
+            <span className={mem.statLabel}>{label}</span>
+            <span className={mem.statValue}>{value}</span>
+          </div>
+        ))}
       </div>
+
+      <label className={mem.sec}>
+        <span className={mem.secHead}>{t('ins.description')}</span>
+        <textarea
+          className={cx(ui.textarea, mem.hubDesc)}
+          value={description ?? entry.description}
+          placeholder={t('mem.descPlaceholder')}
+          maxLength={500}
+          rows={2}
+          data-testid="wl-hub-mem-desc"
+          onChange={(event) => setDescription(event.currentTarget.value)}
+          onBlur={() => {
+            if (description !== null && description !== entry.description) {
+              save({ description })
+            }
+            setDescription(null)
+          }}
+        />
+      </label>
+
+      <section className={mem.sec} data-testid="wl-hub-mem-used">
+        <span className={mem.secHead}>
+          {t('hub.memUsedBy')}
+          {entry.usedBy.length > 0 && <span className={ins.count}>{entry.usedBy.length}</span>}
+        </span>
+        {entry.usedBy.length === 0 ? (
+          <p className={mem.usedNone}>{t('hub.memUnusedHint')}</p>
+        ) : (
+          <div className={mem.usedRow}>
+            {entry.usedBy.map((workflow) => (
+              <button
+                key={workflow}
+                type="button"
+                className={mem.usedChip}
+                data-tip={t('hub.wfOpenTip')}
+                data-testid="wl-hub-mem-workflow"
+                onClick={() => props.onOpen(workflow)}
+              >
+                <Icon name="folder" size={12} />
+                <span>{workflow}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </section>
 
       {entry.invalid !== true && (
-        <MemoryVersionList
-          t={t}
-          rpc={props.rpc}
-          store={store}
-          id={entry.id}
-          desktop={props.desktop}
-        />
+        <section className={cx(mem.sec, mem.secGrow)}>
+          <span className={mem.secHead}>
+            {t('ver.title')}
+            {entry.versions > 0 && <span className={ins.count}>{entry.versions}</span>}
+          </span>
+          <MemoryVersionList
+            t={t}
+            rpc={props.rpc}
+            store={store}
+            id={entry.id}
+            desktop={props.desktop}
+          />
+        </section>
       )}
 
       {viewing && (
