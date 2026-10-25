@@ -7,7 +7,7 @@
  *
  * 每种语言：把浏览器语言设成那种语言（DSH 与插件界面跟着变），在实例里建示例工作流「代码审查循环」，
  * 拍到 `tests/runs/hero/<lang>/`：编辑页的图（canvas.png）、编译出的计划（plan.txt）、
- * 一个实例按状态点亮的图（run-graph.png）、右栏的两小块（run-position.png 执行位置、run-timeline.png 时间线）
+ * 一个实例按状态点亮的图（run-graph.png）、右栏的两小块（run-position.png 执行位置、run-timeline.png 时间线；封面只用时间线）
  * 与查看框里打开的 HTML 看板（run-dashboard.png）。拍完删掉示例工作流和实例，把浏览器语言、侧栏、步骤库都放回去。
  *
  * 清晰度：封面按 2 倍像素出图，素材的一个像素对应封面的一个像素，不再缩放——
@@ -59,11 +59,11 @@ const SCALE = 2
 const FULL = process.env.SHOTS_FULL === '1'
 /** 封面里工作流的图有多宽（CSS 像素，`hero.html` 里 `.frame` 的内宽）。 */
 const GRAPH_WIDTH = 974
-/** 第三段下半截：两列间距、外边距——左列放右栏小块，右边的看板按剩下的宽度拍。 */
-const DETAIL_GAP = 20
-const DETAIL_PAD = 20
-/** 右栏小块、看板在封面里最小按原大的几成摆。 */
-const MIN_SCALE = 0.85
+/** 第三段下半截：两列间距、外边距——左边放右栏的时间线，右边的看板按剩下的宽度拍。 */
+const DETAIL_GAP = 16
+const DETAIL_PAD = 16
+/** 右栏小块、看板在封面里最小按原大的几成摆：再小，GitHub 把封面缩到 880 宽显示时字就糊了。 */
+const MIN_SCALE = 1
 
 /** 两种语言的示例：工作流、实例的目标与各步摘要、看板、界面上要点的按钮。 */
 const COPY = {
@@ -100,11 +100,6 @@ const COPY = {
         ['单元测试', '6 通过', '新增 6 个', 'green'],
       ],
       rounds: ['第 1 轮', '第 2 轮', '第 3 轮'],
-      head: ['轮次', '结论', '问题', '用时'],
-      rows: [
-        ['第 1 轮', ['red', '未通过'], '退避没有上限；并发刷新会发多次', '5 分钟'],
-        ['第 2 轮', ['blue', '审查中'], '—', '进行中'],
-      ],
     },
     aria: {
       collapseSidebar: '收起侧边栏',
@@ -165,11 +160,6 @@ const COPY = {
         ['Unit tests', '6 passed', '6 added', 'green'],
       ],
       rounds: ['Round 1', 'Round 2', 'Round 3'],
-      head: ['Round', 'Verdict', 'Issues', 'Time'],
-      rows: [
-        ['Round 1', ['red', 'Fail'], 'No backoff cap; refreshes fire twice', '5 min'],
-        ['Round 2', ['blue', 'Reviewing'], '—', 'running'],
-      ],
     },
     aria: {
       collapseSidebar: 'Collapse sidebar',
@@ -271,7 +261,7 @@ function fillState(state, copy) {
   ]
 }
 
-/** 示例看板：审查步骤每轮重新生成的单文件 HTML（暗底，顶部几张汇总卡、轮次进度、每轮一行）。 */
+/** 示例看板：审查步骤每轮重新生成的单文件 HTML（暗底，顶部几张汇总卡，下面一条轮次进度）。 */
 function dashboardHtml(d) {
   const tone = { blue: '#4d94ff', red: '#ff7a66', green: '#3ecf8e', gray: '#3a4556' }
   const cards = d.cards
@@ -286,27 +276,16 @@ function dashboardHtml(d) {
         `<div class="seg"><em style="background:${tone[color]}"></em>${d.rounds[i]}</div>`,
     )
     .join('')
-  const rows = d.rows
-    .map(
-      ([round, [color, verdict], issues, time]) =>
-        `<tr><td class="nowrap">${round}</td><td><span class="tag" style="color:${tone[color]};background:${tone[color]}22">${verdict}</span></td><td>${issues}</td><td class="dim nowrap">${time}</td></tr>`,
-    )
-    .join('')
   return `<!doctype html><html lang="${d.lang}"><head><meta charset="utf-8"><style>
-body{margin:0;padding:20px 22px;background:#0f141c;color:#e6ebf3;font:13px/1.5 "Microsoft YaHei UI","PingFang SC",system-ui,sans-serif}
-h1{margin:0;font-size:16px;font-weight:650}
-.sub{margin:2px 0 14px;color:#8a97ab;font-size:12px}
+body{margin:0;padding:10px 20px 4px;background:#0f141c;color:#e6ebf3;font:13px/1.5 "Microsoft YaHei UI","PingFang SC",system-ui,sans-serif}
+h1{margin:0;font-size:17px;font-weight:650}
+.sub{margin:1px 0 10px;color:#8a97ab;font-size:13px}
 .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-.card{display:flex;flex-direction:column;gap:1px;padding:9px 11px;border:1px solid #232c3a;border-radius:10px;background:#151c27}
-.card span{color:#8a97ab;font-size:11.5px}.card b{font-size:19px;font-weight:700;white-space:nowrap}.card i{color:#6f7d92;font-size:11.5px;font-style:normal}
-.segs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:18px 0 12px}
-.seg{color:#8a97ab;font-size:11.5px}.seg em{display:block;height:5px;margin-bottom:4px;border-radius:3px}
-table{width:100%;border-collapse:collapse}
-th{padding:6px 8px;border-bottom:1px solid #232c3a;color:#6f7d92;font-size:11.5px;font-weight:500;text-align:left}
-td{padding:9px 8px;border-bottom:1px solid #1b2330;vertical-align:top}
-.tag{padding:1px 8px;border-radius:999px;font-size:11.5px;font-weight:600;white-space:nowrap}.dim{color:#8a97ab}.nowrap{white-space:nowrap}
-</style></head><body><h1>${d.title}</h1><p class="sub">${d.sub}</p><div class="cards">${cards}</div>
-<div class="segs">${segs}</div><table><tr>${d.head.map((h) => `<th>${h}</th>`).join('')}</tr>${rows}</table></body></html>
+.card{display:flex;flex-direction:column;gap:0;padding:6px 11px;border:1px solid #232c3a;border-radius:10px;background:#151c27}
+.card span{color:#8a97ab;font-size:12.5px}.card b{font-size:21px;font-weight:700;white-space:nowrap}.card i{color:#6f7d92;font-size:12.5px;font-style:normal}
+.segs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+.seg{color:#8a97ab;font-size:12px}.seg em{display:block;height:5px;margin-bottom:3px;border-radius:3px}
+</style></head><body><h1>${d.title}</h1><p class="sub">${d.sub}</p><div class="cards">${cards}</div><div class="segs">${segs}</div></body></html>
 `
 }
 
@@ -339,14 +318,13 @@ const positionBox = `(() => {
   return { x: panel.left, y: section.top - 12, width: panel.width, height: section.height + 18 }
 })()`
 
-/** 右栏「概览」里的时间线：标题加最近的几条。 */
+/** 右栏「概览」里的时间线：标题加全部几条（夹具只记了 7 条，正好是一整圈循环）。 */
 const timelineBox = `(() => {
   const panel = document.querySelector('[data-testid="wl-run-panel"]').getBoundingClientRect()
   const list = document.querySelector('[data-testid="wl-run-timeline"]')
   const top = list.closest('section').getBoundingClientRect().top - 10
   const items = [...list.children]
-  // 裁到第 6 条的上沿（只有 5 条以内就到最后一条下面留一点边），不露半截。
-  const bottom = items[5]?.getBoundingClientRect().top ?? items[items.length - 1].getBoundingClientRect().bottom + 10
+  const bottom = items[items.length - 1].getBoundingClientRect().bottom + 10
   return { x: panel.left, y: top, width: panel.width, height: bottom - top }
 })()`
 
@@ -590,8 +568,9 @@ async function shoot(session, lang) {
       `document.querySelector('[data-testid="wl-root"]').dataset.mode === 'run'`,
     )
     await sleep(2500)
-    // 视口拉高：右栏的概览、时间线整段都在屏幕里。
-    await metrics(1500, 1400)
+    // 视口拉高：右栏的概览、时间线整段都在屏幕里。视口收窄到 1000：右栏宽 `clamp(300px, 30cqw, 360px)` 落到最窄的 300，
+    // 封面里右边的看板多分到宽度，查看框标题行里的文件名不被挤成省略号（再窄到 760 就成了窄屏布局，右栏收起）。
+    await metrics(1000, 1400)
     await sleep(600)
     if (
       !(await session.evaluate(
@@ -604,9 +583,9 @@ async function shoot(session, lang) {
     await sleep(600)
     const position = await session.evaluate(positionBox)
     const timeline = await session.evaluate(timelineBox)
-    await metrics(1500, 1400, SCALE * shotScale)
+    await metrics(1000, 1400, SCALE * shotScale)
     await sleep(600)
-    // 小块本来按 0.85 的比例拍，只有 600 出头宽。视频要 1920 以上，再乘一层 `clip.scale`
+    // 小块按原大拍，2 倍像素也只有 600 宽。视频要 1920 以上，再乘一层 `clip.scale`
     // 把出图像素补够——`clip.scale` 是重新光栅化，字不会糊（见 tests/readme-shots.mjs 的 capture）。
     const panelDensity = FULL
       ? Math.max(1, Math.ceil(1920 / (position.width * SCALE * shotScale)))
@@ -640,7 +619,7 @@ async function shoot(session, lang) {
       await capture(session, { x: 0, y: 0, width: 1920, height: 1080 }, join(out, 'run-graph.png'))
     }
 
-    // 看板：点开资源卡，在查看框里看页面。查看框随视口变：宽度对上封面里看板那一列，高度对上左列两小块叠起来。
+    // 看板：点开资源卡，在查看框里看页面。查看框随视口变：宽度对上封面里看板那一列，高度对上左边的时间线。
     await session.evaluate(
       `document.querySelector('.react-flow__node[data-id="dashboard"]').dispatchEvent(new MouseEvent('click', { bubbles: true }))`,
     )
@@ -652,8 +631,8 @@ async function shoot(session, lang) {
       `document.querySelector('[data-testid="wl-viewer-frame"]').style.minHeight = '0'`,
     )
     const boardWidth =
-      GRAPH_WIDTH - DETAIL_PAD * 2 - Math.ceil(position.width * shotScale) - DETAIL_GAP
-    const boardHeight = Math.round((position.height + timeline.height) * shotScale + 14)
+      GRAPH_WIDTH - DETAIL_PAD * 2 - Math.ceil(timeline.width * shotScale) - DETAIL_GAP
+    const boardHeight = Math.round(timeline.height * shotScale)
     // 查看框按「那一列的宽度 ÷ 小块的比例」摆，再按同一比例拍：字号和左列一致，仍是一个像素对一个像素。
     // 查看框的大小跟着插件区域走（比视口窄一截、矮一截）：先试一次，再按差值补上。
     const viewerWidth = boardWidth / shotScale

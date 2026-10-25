@@ -41,7 +41,7 @@
   img { display: block; }
 
   /* ── 标题 ── */
-  header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px; }
+  header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
   .brand { display: flex; gap: 14px; align-items: center; }
   .logo {
     display: grid; place-items: center; width: 48px; height: 48px; border-radius: 14px;
@@ -82,23 +82,24 @@
   .chip.ok { background: rgb(62 207 142 / 14%); color: var(--green); }
   .chip.run { background: var(--accent-soft); color: var(--accent); }
 
-  /* 第三段的下半截：左列右栏里裁出的两小块，右边查看框里的看板。 */
+  /* 第三段的下半截：左边右栏里裁出的时间线，右边查看框里的看板，两块一样高。 */
   .detail {
-    display: grid; grid-template-columns: auto 1fr; gap: 20px; padding: 20px;
+    display: grid; grid-template-columns: auto 1fr; gap: 16px; padding: 16px;
     border-top: 1px solid var(--line); background: rgb(18 25 37 / 55%);
   }
-  .detail .side { display: flex; flex-direction: column; gap: 14px; }
   .shot { border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 10px 26px rgb(0 0 0 / 35%); }
   .detail .board { border: 0; border-radius: 12px; justify-self: end; }
 
-  /* 段与段之间的连接：一根竖线 + 中间的动词。 */
-  .link { display: flex; gap: 12px; align-items: center; height: 52px; padding-left: 40px; }
+  /* 段与段之间的连接：一根竖线 + 动词，后面接下一段的标题行。 */
+  .link { display: flex; gap: 10px; align-items: center; height: 54px; padding-left: 40px; }
+  .link .verb { margin-right: 4px; }
+  .link h2 { flex: none; margin: 0; font-size: 19px; font-weight: 650; }
   .link .stem { flex: none; width: 2px; height: 100%; background: linear-gradient(var(--accent), rgb(77 148 255 / 15%)); }
   .link .verb {
     flex: none; padding: 4px 12px; border: 1px solid rgb(77 148 255 / 40%); border-radius: 999px;
     background: rgb(77 148 255 / 10%); color: var(--accent); font-size: 13px; font-weight: 600;
   }
-  .link .note { color: var(--text-3); font-size: 13.5px; }
+  .link .note { margin-left: 2px; color: var(--text-3); font-size: 14px; white-space: nowrap; }
 
   /* ── 第二段：计划 + 软工作流 ── */
   .middle { display: grid; grid-template-columns: 1.22fr 1fr; gap: 20px; }
@@ -116,7 +117,7 @@
   .plan .muted { color: var(--text-3); }
 
   .soft {
-    display: flex; flex-direction: column; justify-content: center; gap: 18px; padding: 24px 24px;
+    display: flex; flex-direction: column; justify-content: center; gap: 15px; padding: 20px 24px;
     border: 1px solid rgb(77 148 255 / 28%); border-radius: 14px;
     background: linear-gradient(160deg, rgb(77 148 255 / 13%), rgb(18 25 37 / 85%) 55%);
   }
@@ -131,10 +132,10 @@
   .soft .row b { display: block; margin-bottom: 2px; font-size: 15px; font-weight: 600; }
   .soft .row span { color: var(--text-2); font-size: 13.5px; line-height: 1.6; }
 
-  /* ── 底部特性：四列两行 ── */
-  footer { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 28px; }
+  /* ── 底部特性：一行排开 ── */
+  footer { display: flex; gap: 8px; margin-top: 24px; }
   footer .f {
-    display: flex; gap: 9px; align-items: center; padding: 10px 14px;
+    flex: 1 1 auto; display: flex; gap: 9px; align-items: center; justify-content: center; padding: 10px 12px;
     border: 1px solid var(--line); border-radius: 11px; background: rgb(18 25 37 / 75%);
     color: var(--text-2); font-size: 14px; white-space: nowrap;
   }
@@ -168,11 +169,10 @@
     </div>
   </section>
 
-  <div class="link"><i class="stem"></i><span class="verb" data-k="compile"></span><span class="note" data-k="compileNote"></span></div>
+  <div class="link"><i class="stem"></i><span class="verb" data-k="compile"></span><span class="num">2</span><h2 data-k="s2"></h2><span class="note" data-k="compileNote"></span></div>
 
   <section class="middle">
     <div>
-      <div class="label"><span class="num">2</span><h2 data-k="s2">生成计划提示词</h2><span data-k="s2d"></span></div>
       <div class="frame">
         <div class="bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span class="title" data-k="s2bar"></span></div>
         <div class="plan" data-k="plan"></div>
@@ -187,20 +187,16 @@
     </div>
   </section>
 
-  <div class="link"><i class="stem"></i><span class="verb" data-k="run"></span><span class="note" data-k="runNote"></span></div>
+  <div class="link"><i class="stem"></i><span class="verb" data-k="run"></span><span class="num">3</span><h2 data-k="s3"></h2><span class="note" data-k="runNote"></span></div>
 
   <section>
-    <div class="label"><span class="num">3</span><h2 data-k="s3">跟踪执行进度</h2><span data-k="s3d"></span></div>
     <div class="frame">
       <div class="bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i>
         <span class="title" data-k="s3bar"></span><span class="chip run" data-k="s3chip"></span>
       </div>
       <img data-img="run-graph" alt="" />
       <div class="detail">
-        <div class="side">
-          <img class="shot" data-img="run-position" alt="" />
-          <img class="shot" data-img="run-timeline" alt="" />
-        </div>
+        <img class="shot" data-img="run-timeline" alt="" />
         <img class="shot board" data-img="run-dashboard" alt="" />
       </div>
     </div>
@@ -221,10 +217,9 @@
         compile: '编译',
         compileNote: '工作流编译为一份计划提示词，各步骤的提示词原样交给执行者',
         s2: '生成计划提示词',
-        s2d: '节选',
-        s2bar: '计划 · <b>代码审查循环</b>',
+        s2bar: '计划 · <b>代码审查循环</b> · 节选',
         plan: `<h3>怎么执行</h3>
-          <ul><li>派发一个步骤，就是让执行者先读它那份任务描述再干活</li><li>原样转交，不要转述</li><li>每步开始前先读全局记忆里的「快速路径」，结束时把经验整理进去</li></ul>
+          <ul><li>派发步骤：让执行者先读它那份任务描述再干活，原样转交，不要转述</li><li>每步开始前先读全局记忆里的「快速路径」，结束时把经验整理进去</li></ul>
           <h3>流程</h3>
           <p>执行批次：${code('implement')} → ${code('review')} → ${code('fix')}、${code('report')}</p>
           <p><span class="hl">循环</span>：${code('review')} → ${code('fix')} → ${code('review')}，重复执行，直到 ${code('review')} 给出 ${code('VERDICT: pass')} 时走 ${code('report')}，离开循环</p>
@@ -236,19 +231,16 @@
         soft3: '<b>一个工作流一个 JSON</b><span>提示词随图保存，便于比对、分享，模型也能直接改。</span>',
         soft4: '<b>支持中断续跑</b><span>进度记在实例里，中断后从下一步接着做。</span>',
         run: '执行',
-        runNote: '模型执行时记录进度，画布同步显示；在画布上修改的状态会通知模型',
+        runNote: '画布同步显示各步骤状态与轮次；在画布上修改的状态会通知模型',
         s3: '跟踪执行进度',
-        s3d: '各步骤状态、当前轮次、分支走向；HTML 看板随时查看每轮产出',
         s3bar: '实例 · <b>给 auth/ 加上 token 刷新的重试</b>',
         s3chip: '● 执行中 · 第 2 轮',
         features: [
-          '分支与循环',
           '文件 / 网址 / Skill 资源',
           '执行前提问',
-          '运行状态',
-          '工作流记忆 · 实验性',
-          '版本管理',
           '模型协作编辑',
+          '版本管理',
+          '工作流记忆 · 实验性',
           '浅色 / 深色 · 中 / 英',
         ],
       },
@@ -260,12 +252,11 @@
         s1bar: 'Workflow · <b>code-review-loop</b>',
         ok: '✓ No problems',
         compile: 'Compile',
-        compileNote: 'The workflow becomes one plan prompt; each step’s prompt reaches its executor word for word',
+        compileNote: 'One plan prompt; each step’s prompt reaches its executor word for word',
         s2: 'Get a plan prompt',
-        s2d: 'Excerpt, translated',
-        s2bar: 'Plan · <b>code-review-loop</b>',
+        s2bar: 'Plan · <b>code-review-loop</b> · excerpt, translated',
         plan: `<h3>How to run</h3>
-          <ul><li>Dispatching a step means the executor reads its task file first, then works</li><li>Hand the task over word for word</li><li>Read the global memory’s quick path before each step; fold lessons back in at the end</li></ul>
+          <ul><li>Dispatching a step means the executor reads its task file first, then works; hand it over word for word</li><li>Read the global memory’s quick path before each step; fold lessons back in at the end</li></ul>
           <h3>Flow</h3>
           <p>Batches: ${code('implement')} → ${code('review')} → ${code('fix')}, ${code('report')}</p>
           <p><span class="hl">Loop</span>: ${code('review')} → ${code('fix')} → ${code('review')}, repeat until ${code('review')} answers ${code('VERDICT: pass')}, then go to ${code('report')} and leave the loop</p>
@@ -277,19 +268,16 @@
         soft3: '<b>One workflow, one JSON file</b><span>Prompts live inside the graph, easy to diff and share; the model can edit it too.</span>',
         soft4: '<b>Resume after interruption</b><span>Progress is kept per run; work continues from the next step, rounds worked out.</span>',
         run: 'Run',
-        runNote: 'The model records progress and the canvas follows; state you change on the canvas is reported back',
+        runNote: 'Step status and rounds show on the canvas; state you change there is reported back',
         s3: 'Track progress',
-        s3d: 'Step status, current round, branch taken; an HTML dashboard for each round’s output',
         s3bar: 'Run · <b>Add retry to auth/ token refresh</b>',
         s3chip: '● Running · round 2',
         features: [
-          'Branches & loops',
           'Files / URLs / Skills',
           'Pre-run questions',
-          'Run state',
-          'Memory (beta)',
-          'Versions',
           'Model co-editing',
+          'Versions',
+          'Memory (beta)',
           'Light / dark · 中 / EN',
         ],
       },
