@@ -196,6 +196,9 @@ export const zh = {
   'lib.blank': '空白步骤',
   'lib.blankDesc': '从零写提示词',
   'lib.collapse': '收起步骤库',
+  'lib.basic': '基础',
+  'lib.memory': '记忆',
+  'lib.memoryDesc': '新建一条，或选已有的',
 
   'preset.scan.label': '侦察',
   'preset.scan.desc': '读代码，摸清现状',
@@ -1479,6 +1482,9 @@ export const en: Record<LocaleKey, string> = {
   'lib.blank': 'Blank step',
   'lib.blankDesc': 'Write a prompt from scratch',
   'lib.collapse': 'Collapse library',
+  'lib.basic': 'Basics',
+  'lib.memory': 'Memory',
+  'lib.memoryDesc': 'New, or pick an existing one',
 
   'preset.scan.label': 'Recon',
   'preset.scan.desc': 'Read the code, map the current state',

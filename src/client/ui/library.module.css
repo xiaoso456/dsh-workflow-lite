@@ -242,6 +242,26 @@
   gap: 2px;
 }
 
+/* 第一节紧贴面板标题：分节之间的 8px 间距只留给它们之间。 */
+.sectionHead:first-child {
+  margin-top: 2px;
+}
+
+/* 标题右边的数量：收起后也看得出这一节里有几项。 */
+.sectionCount {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: calc(9px * var(--wl-round, 1));
+  background: var(--wl-fill);
+  color: var(--wl-text-3);
+  font-size: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  line-height: 16px;
+  text-align: center;
+}
+
 /* 标题的颜色是 FadeText 的两层交叉淡：没选中常规、选中蓝；底色是 ui.fillOn 的渐显。 */
 .item {
   --wl-off: var(--wl-text);
@@ -291,4 +311,10 @@
 :global([data-look="swiss"]) .title {
   font-weight: 700;
   letter-spacing: -0.015em;
+}
+
+/* 瑞士：数量不要底色，只留数字。 */
+:global([data-look="swiss"]) .sectionCount {
+  padding: 0;
+  background: none;
 }

@@ -3,7 +3,7 @@
  *
  * 三种目标：给步骤开记忆、在画布上加一张工作流记忆、给一张卡换引用（资源卡换成记忆，或记忆卡换一条）。
  * 库里没有同类型的就不弹，直接新建；换一条时照样弹（好看清现在是哪条、也能新建）。
- * 菜单贴着点的那个按钮弹出（锚点写了 `data-pick-match` 的，菜单和它左对齐、一样宽）；没有按钮（从步骤库、快捷添加来的）就贴着最后一次按下的位置。
+ * 菜单贴着点的那个按钮弹出（锚点写了 `data-pick-match` 的，菜单和它左对齐、一样宽）；没有按钮（从步骤库拖来的、快捷添加来的）就贴着最后一次按下或松手的位置。
  *
  * @module @xiaoso/dsh-workflow-lite/client/app/useMemoryPick
  */
@@ -59,17 +59,22 @@ export function useMemoryPick(options: {
   const { t, store, doc, workflow, root, edit, notify } = options
   const [pick, setPick] = useState<MemoryPickState | null>(null)
   const [busy, setBusy] = useState(false)
-  // 最后一次按下的位置（相对视图根）：没有按钮可贴时菜单弹在这儿。
+  // 最后一次按下、或拖放松手的位置（相对视图根）：没有按钮可贴时菜单弹在这儿（从步骤库拖来的就在落点）。
   const pointer = useRef<{ x: number; y: number } | null>(null)
   useEffect(() => {
     const element = root.current
     if (element === null) return
-    const onDown = (event: PointerEvent): void => {
+    const onDown = (event: MouseEvent): void => {
       const box = element.getBoundingClientRect()
       pointer.current = { x: event.clientX - box.left, y: event.clientY - box.top }
     }
+    // 捕获阶段：先于画布自己的 drop 处理记下位置，那里接着就会开菜单。
     element.addEventListener('pointerdown', onDown, true)
-    return () => element.removeEventListener('pointerdown', onDown, true)
+    element.addEventListener('drop', onDown, true)
+    return () => {
+      element.removeEventListener('pointerdown', onDown, true)
+      element.removeEventListener('drop', onDown, true)
+    }
   }, [root])
 
   const placeAt = useCallback(

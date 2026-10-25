@@ -6,7 +6,8 @@
  *   明确写着「添加到画布」的按钮）——单击加节点落点不明确，容易误加。
  * - **点**：在右侧面板里看它。常用步骤只读；我的步骤可以改、可以删。
  *
- * 「常用步骤」「我的步骤」两节都能收起，收起状态记在本机。
+ * 「基础」「常用步骤」「我的步骤」三节都能收起，收起状态记在本机；标题右边的数字是这一节里有几项，收起后也看得出。
+ * 「基础」里的「记忆」拖出去后再选已有的 / 新建。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/Library
  */
@@ -29,9 +30,9 @@ import { cx } from './primitives.tsx'
 import { StepMark } from './StepMark.tsx'
 import ui from './ui.module.css'
 
-type Section = 'builtin' | 'custom'
+type Section = 'basic' | 'builtin' | 'custom'
 
-const SECTIONS: readonly Section[] = ['builtin', 'custom']
+const SECTIONS: readonly Section[] = ['basic', 'builtin', 'custom']
 
 const SECTIONS_KEY = 'workflow-lite.library.collapsed'
 
@@ -129,6 +130,8 @@ function DragOnly(props: {
 
 function SectionHead(props: {
   label: string
+  /** 这一节里有几项。 */
+  count: number
   open: boolean
   onToggle: () => void
   testId: string
@@ -145,6 +148,9 @@ function SectionHead(props: {
       >
         <Icon name="chevronDown" size={13} />
         <span>{props.label}</span>
+        <span className={css.sectionCount} data-testid={`${props.testId}-count`}>
+          {props.count}
+        </span>
       </button>
       {props.action}
     </div>
@@ -197,63 +203,89 @@ export function Library(props: {
       </header>
 
       <div className={cx(css.scroll, ui.scrollFade)}>
-        {/* 空白步骤没有什么可看的：点它只提示"拖过去"。 */}
-        <button
-          type="button"
-          className={css.item}
-          draggable
-          data-testid="wl-lib-blank"
-          data-nudge={nudge === 0 ? undefined : nudge % 2}
-          onDragStart={(event) => {
-            event.dataTransfer.setData(DND_MIME, encodeStepSource({ kind: 'blank' }))
-            event.dataTransfer.effectAllowed = 'copy'
-          }}
-          onClick={() => {
-            setNudge((value) => value + 1)
-            setHinting((value) => value + 1)
-          }}
-        >
-          <StepMark look={presetAppearance('blank')} />
-          <span className={css.itemText}>
-            <span className={css.itemTitle}>{t('lib.blank')}</span>
-            <span className={css.itemDesc}>{t('lib.blankDesc')}</span>
-          </span>
-          <span className={css.grip} aria-hidden="true">
-            ⋮⋮
-          </span>
-        </button>
-
-        {/* 资源卡：和空白步骤一样只能拖。拖到画布上是一张空的资源卡，在右侧添加文件、文件夹、网址、
-            Skill 或自定义，再连到步骤上（一条线都不连 = 交给整个工作流）。 */}
-        <DragOnly
-          source={{ kind: 'resource' }}
-          mark={
-            <span className={cx(ui.kind, css.fileKind)}>
-              <Icon name="layers" size={15} />
-            </span>
-          }
-          title={t('lib.resource')}
-          desc={t('lib.resourceDesc')}
-          testId="wl-lib-resource"
-          onClick={() => setHinting((value) => value + 1)}
+        <SectionHead
+          label={t('lib.basic')}
+          count={4}
+          open={open('basic')}
+          testId="wl-lib-section-basic"
+          onToggle={() => toggle('basic')}
         />
+        <Presence show={open('basic')}>
+          <div className={css.group}>
+            {/* 空白步骤没有什么可看的：点它只提示"拖过去"。 */}
+            <button
+              type="button"
+              className={css.item}
+              draggable
+              data-testid="wl-lib-blank"
+              data-nudge={nudge === 0 ? undefined : nudge % 2}
+              onDragStart={(event) => {
+                event.dataTransfer.setData(DND_MIME, encodeStepSource({ kind: 'blank' }))
+                event.dataTransfer.effectAllowed = 'copy'
+              }}
+              onClick={() => {
+                setNudge((value) => value + 1)
+                setHinting((value) => value + 1)
+              }}
+            >
+              <StepMark look={presetAppearance('blank')} />
+              <span className={css.itemText}>
+                <span className={css.itemTitle}>{t('lib.blank')}</span>
+                <span className={css.itemDesc}>{t('lib.blankDesc')}</span>
+              </span>
+              <span className={css.grip} aria-hidden="true">
+                ⋮⋮
+              </span>
+            </button>
 
-        {/* 用户输入：执行前问用户的一个问题。和文件卡一样只能拖；交互方式（一句话、多行、单选、多选）在属性面板里切换。 */}
-        <DragOnly
-          source={{ kind: 'input' }}
-          mark={
-            <span className={cx(ui.kind, css.inputKind)}>
-              <Icon name="ask" size={15} />
-            </span>
-          }
-          title={t('lib.input')}
-          desc={t('lib.inputDesc')}
-          testId="wl-lib-input"
-          onClick={() => setHinting((value) => value + 1)}
-        />
+            {/* 资源卡：和空白步骤一样只能拖。拖到画布上是一张空的资源卡，在右侧添加文件、文件夹、网址、
+                Skill 或自定义，再连到步骤上（一条线都不连 = 交给整个工作流）。 */}
+            <DragOnly
+              source={{ kind: 'resource' }}
+              mark={
+                <span className={cx(ui.kind, css.fileKind)}>
+                  <Icon name="layers" size={15} />
+                </span>
+              }
+              title={t('lib.resource')}
+              desc={t('lib.resourceDesc')}
+              testId="wl-lib-resource"
+              onClick={() => setHinting((value) => value + 1)}
+            />
+
+            {/* 用户输入：执行前问用户的一个问题。和文件卡一样只能拖；交互方式（一句话、多行、单选、多选）在属性面板里切换。 */}
+            <DragOnly
+              source={{ kind: 'input' }}
+              mark={
+                <span className={cx(ui.kind, css.inputKind)}>
+                  <Icon name="ask" size={15} />
+                </span>
+              }
+              title={t('lib.input')}
+              desc={t('lib.inputDesc')}
+              testId="wl-lib-input"
+              onClick={() => setHinting((value) => value + 1)}
+            />
+
+            {/* 记忆：拖到画布上空白处是一张工作流记忆卡，松手后弹「选已有的 / 新建」。 */}
+            <DragOnly
+              source={{ kind: 'memory' }}
+              mark={
+                <span className={ui.kind} data-color="amber">
+                  <Icon name="memory" size={15} />
+                </span>
+              }
+              title={t('lib.memory')}
+              desc={t('lib.memoryDesc')}
+              testId="wl-lib-memory"
+              onClick={() => setHinting((value) => value + 1)}
+            />
+          </div>
+        </Presence>
 
         <SectionHead
           label={t('lib.builtin')}
+          count={PRESETS.length}
           open={open('builtin')}
           testId="wl-lib-section-builtin"
           onToggle={() => toggle('builtin')}
@@ -277,6 +309,7 @@ export function Library(props: {
 
         <SectionHead
           label={t('lib.custom')}
+          count={props.templates.length}
           open={open('custom')}
           testId="wl-lib-section-custom"
           onToggle={() => toggle('custom')}

@@ -1444,6 +1444,7 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
 }
 
 .presenceInner {
+  min-width: 0; /* 不让一行不折行的长文字把整块撑得比外面还宽（步骤库里「资源」的说明） */
   min-height: 0;
 }
 
