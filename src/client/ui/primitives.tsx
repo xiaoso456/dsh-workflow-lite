@@ -316,6 +316,8 @@ export function useSheetMotion(
   useLayoutEffect(() => {
     const dialog = dialogRef.current
     const scrim = scrimRef.current
+    // 合成层一直留着：放大动画一结束浏览器就把弹窗内容按真实大小重画一遍，里面的文字、图标会整体错位一两个像素（缩放不是整数的屏幕上最明显）。
+    if (dialog !== null) dialog.style.willChange = 'transform'
     const source = openSource()
     if (dialog === null || scrim === null || source === null || REDUCED_MOTION?.matches === true) {
       return
