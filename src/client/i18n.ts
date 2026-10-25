@@ -395,6 +395,8 @@ export const zh = {
   'hub.storage': '存储',
   'hub.settings': '设置',
   'hub.memories': '记忆',
+  'hub.memSearch': '搜索记忆名称、说明、类型',
+  'hub.memNoMatch': '没有符合条件的记忆',
   'hub.memEmpty': '记忆库里还没有记忆',
   'hub.memEmptyHint': '在编辑页给步骤开记忆，或加一张工作流记忆，就会出现在这里。',
   'hub.memInvalid': '记录坏了，读不出来',
@@ -457,6 +459,8 @@ export const zh = {
   'hub.wfOpen': '打开',
   'hub.wfOpenTip': '在编辑页打开这个工作流',
   'hub.wfEditing': '正在编辑',
+  'hub.wfSearch': '搜索工作流',
+  'hub.wfNoMatch': '没有符合条件的工作流',
   'hub.wfEmpty': '还没有工作流',
   // ── 导入导出（工作流中心「工作流」页）────────────────────────
   'pack.export': '导出',
@@ -1684,6 +1688,8 @@ export const en: Record<LocaleKey, string> = {
   'hub.storage': 'Storage',
   'hub.settings': 'Settings',
   'hub.memories': 'Memory',
+  'hub.memSearch': 'Search memory by name, note, type',
+  'hub.memNoMatch': 'No matching memories',
   'hub.memEmpty': 'The memory library is empty',
   'hub.memEmptyHint':
     'Turn on memory for a step or add workflow memory in the editor, and it shows up here.',
@@ -1752,6 +1758,8 @@ export const en: Record<LocaleKey, string> = {
   'hub.wfOpen': 'Open',
   'hub.wfOpenTip': 'Open this workflow in the editor',
   'hub.wfEditing': 'Editing',
+  'hub.wfSearch': 'Search workflows',
+  'hub.wfNoMatch': 'No matching workflows',
   'hub.wfEmpty': 'No workflows yet',
   // ── Import / export ───────────────────────────────────────
   'pack.export': 'Export',

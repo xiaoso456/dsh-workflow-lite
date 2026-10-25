@@ -21,6 +21,7 @@ import type { T } from '../i18n.ts'
 import { groupRuns, type HubGroup, pickGroup } from '../model/hubRuns.ts'
 import { errorCode, errorMessage } from '../rpc.ts'
 import { HubRunRow } from './HubRunRow.tsx'
+import { HubSearch } from './HubSearch.tsx'
 import hub from './hub.module.css'
 import { Icon } from './Icon.tsx'
 import { ListThumb, useFlip } from './motion.tsx'
@@ -136,27 +137,7 @@ export function HubRuns(props: {
   return (
     <div className={hub.wfPage}>
       <div className={hub.side}>
-        <label className={hub.search}>
-          <Icon name="search" size={14} />
-          <input
-            className={hub.searchInput}
-            value={query}
-            placeholder={t('hub.search')}
-            aria-label={t('hub.search')}
-            data-testid="wl-hub-search"
-            onChange={(event) => setQuery(event.currentTarget.value)}
-          />
-          {query !== '' && (
-            <button
-              type="button"
-              className={cx(ui.btn, ui.icon, ui.small, ui.fade)}
-              aria-label={t('hub.clearSearch')}
-              onClick={() => setQuery('')}
-            >
-              <Icon name="x" size={13} />
-            </button>
-          )}
-        </label>
+        <HubSearch t={t} value={query} placeholder={t('hub.search')} onChange={setQuery} />
         <nav
           ref={sideRef}
           className={cx(hub.wfList, hub.sideList)}

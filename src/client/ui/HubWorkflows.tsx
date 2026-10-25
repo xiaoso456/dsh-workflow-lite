@@ -15,10 +15,12 @@ import { useCallback, useEffect, useState } from 'react'
 import { normalizeName } from '../../shared/naming.ts'
 import type { WorkflowEntry } from '../../shared/types.ts'
 import type { T } from '../i18n.ts'
+import { matchesWords, searchWords } from '../model/search.ts'
 import { shortTime } from '../model/time.ts'
 import { errorMessage, type WorkflowLiteRpc } from '../rpc.ts'
 import { HubExport, type PackScope } from './HubExport.tsx'
 import { HubImport } from './HubImport.tsx'
+import { HubSearch } from './HubSearch.tsx'
 import { HubWorkflowList } from './HubWorkflowList.tsx'
 import hub from './hub.module.css'
 import { Icon } from './Icon.tsx'
@@ -57,6 +59,7 @@ export function HubWorkflows(props: {
   const [workflows, setWorkflows] = useState<WorkflowEntry[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [picked, setPicked] = useState<string | null>(current)
+  const [query, setQuery] = useState('')
   const [pane, setPane] = useState<Pane>(props.startExport === true ? 'export' : 'versions')
   /** 拖到页面上的包（交给导入页）。 */
   const [dropped, setDropped] = useState<File | null>(null)
@@ -146,32 +149,39 @@ export function HubWorkflows(props: {
     )
   }
 
-  const selected = workflows.find((entry) => entry.name === picked) ?? workflows[0]
-  if (selected === undefined) return <div />
+  const words = searchWords(query)
+  const visible = workflows.filter((entry) => matchesWords(words, [entry.name]))
+  const selected = visible.find((entry) => entry.name === picked) ?? visible[0]
   // 画布上正开着的还没落盘（没在列表里）：不拿别的一张顶替去导出，停在版本。
-  const shown = pane === 'export' && selected.name !== picked ? 'versions' : pane
-  const editing = selected.name === current
+  const shown = pane === 'export' && selected?.name !== picked ? 'versions' : pane
+  const editing = selected?.name === current
   return (
     <div className={cx(hub.wfPage, dragging && css.dropping)} data-wl-file-drop="">
       <div className={hub.side}>
-        <div className={css.tools}>
+        <HubSearch
+          t={t}
+          value={query}
+          placeholder={t('hub.wfSearch')}
+          testId="wl-hub-wf-search"
+          onChange={setQuery}
+        >
           <button
             type="button"
-            className={cx(ui.btn, ui.small, ui.soft)}
+            className={cx(ui.btn, ui.icon, ui.small)}
             aria-pressed={pane === 'import'}
+            aria-label={t('pack.import')}
             data-tip={t('pack.importTip')}
             data-testid="wl-hub-wf-import"
             onClick={() => openImport(null)}
           >
-            <Icon name="upload" size={14} />
-            {t('pack.import')}
+            <Icon name="upload" size={15} />
           </button>
-        </div>
+        </HubSearch>
         <HubWorkflowList
           t={t}
           className={hub.sideList}
-          workflows={workflows}
-          selected={selected.name}
+          workflows={visible}
+          selected={selected?.name ?? ''}
           current={current}
           onPick={(name) => {
             setPicked(name)
@@ -183,16 +193,16 @@ export function HubWorkflows(props: {
             const ok = await props.rename(from, to)
             if (!ok) return false
             // 主机按同一套规矩收拾名字：选中的跟着换成新名字。
-            if (from === selected.name) setPicked(normalizeName(to.trim()) || from)
+            if (from === selected?.name) setPicked(normalizeName(to.trim()) || from)
             await load()
             return true
           }}
           remove={async (name) => {
             // 删的是正看着的那张：选中挪到它下面一张（最后一张就挪到上面）。
-            const index = workflows.findIndex((entry) => entry.name === name)
-            const next = workflows[index + 1] ?? workflows[index - 1]
+            const index = visible.findIndex((entry) => entry.name === name)
+            const next = visible[index + 1] ?? visible[index - 1]
             const ok = await props.remove(name)
-            if (ok && name === selected.name) setPicked(next?.name ?? null)
+            if (ok && name === selected?.name) setPicked(next?.name ?? null)
             await load()
             return ok
           }}
@@ -200,6 +210,20 @@ export function HubWorkflows(props: {
       </div>
       {shown === 'import' ? (
         importPane
+      ) : selected === undefined ? (
+        <div className={hub.empty}>
+          <span className={hub.emptyIcon}>
+            <Icon name="search" size={20} />
+          </span>
+          <p className={hub.emptyTitle}>{t('hub.wfNoMatch')}</p>
+          <button
+            type="button"
+            className={cx(ui.btn, ui.small, ui.soft)}
+            onClick={() => setQuery('')}
+          >
+            {t('hub.clearSearch')}
+          </button>
+        </div>
       ) : shown === 'export' ? (
         <HubExport
           key={selected.name}

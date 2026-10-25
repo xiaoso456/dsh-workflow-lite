@@ -16,6 +16,7 @@ import { HubWorkflowRow } from './HubWorkflowRow.tsx'
 import hub from './hub.module.css'
 import { ListThumb, useFlip } from './motion.tsx'
 import { cx } from './primitives.tsx'
+import ui from './ui.module.css'
 import { deleteDesc } from './WorkflowRow.tsx'
 
 export function HubWorkflowList(props: {
@@ -49,6 +50,7 @@ export function HubWorkflowList(props: {
   return (
     <nav ref={listRef} className={cx(hub.wfList, props.className)} aria-label={t('hub.wfPage')}>
       <ListThumb layout={layout} />
+      {workflows.length === 0 && <p className={cx(hub.sideEmpty, ui.fade)}>{t('hub.wfNoMatch')}</p>}
       {workflows.map((entry, index) => (
         <HubWorkflowRow
           key={rowKey(rowKeys.current, names, index)}

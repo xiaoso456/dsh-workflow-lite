@@ -15,9 +15,11 @@ import type { Desktop } from '../app/desktop.ts'
 import { type MemoryStore, useMemories } from '../app/memories.ts'
 import type { T } from '../i18n.ts'
 import { formatBytes } from '../model/fileKind.ts'
+import { matchesWords, searchWords } from '../model/search.ts'
 import { shortTime } from '../model/time.ts'
 import { errorMessage, type WorkflowLiteRpc } from '../rpc.ts'
 import { useConfirm } from './Confirm.tsx'
+import { HubSearch } from './HubSearch.tsx'
 import hub from './hub.module.css'
 import { Icon } from './Icon.tsx'
 import ins from './inspector.module.css'
@@ -42,6 +44,7 @@ export function HubMemories(props: {
   const { t, store } = props
   const { entries, error } = useMemories(store)
   const [picked, setPicked] = useState<string | null>(null)
+  const [query, setQuery] = useState('')
   // 一进这一页重读一遍：在用的工作流、大小可能刚变。
   useEffect(() => {
     void store.refresh()
@@ -53,17 +56,34 @@ export function HubMemories(props: {
   if (entries.length === 0)
     return <Empty t={t} text={t('hub.memEmpty')} hint={t('hub.memEmptyHint')} />
 
-  const list = [...entries].sort((a, b) => b.updatedAt - a.updatedAt)
+  const words = searchWords(query)
+  const list = [...entries]
+    .sort((a, b) => b.updatedAt - a.updatedAt)
+    .filter((entry) =>
+      matchesWords(words, [
+        memoryTitle(entry),
+        entry.id,
+        entry.description,
+        memoryTypeText(t, entry.type),
+        ...entry.usedBy,
+      ]),
+    )
   const selected =
     list.find((entry) => picked !== null && idKey(entry.id) === idKey(picked)) ?? list[0]
-  if (selected === undefined) return <div />
   return (
     <div className={hub.wfPage}>
       <div className={hub.side}>
+        <HubSearch
+          t={t}
+          value={query}
+          placeholder={t('hub.memSearch')}
+          testId="wl-hub-mem-search"
+          onChange={setQuery}
+        />
         <MemoryList
           t={t}
           entries={list}
-          selected={selected.id}
+          selected={selected?.id ?? ''}
           onPick={setPicked}
           remove={async (entry) => {
             const index = list.indexOf(entry)
@@ -78,7 +98,23 @@ export function HubMemories(props: {
           }}
         />
       </div>
-      <MemoryDetail key={selected.id} {...props} entry={selected} />
+      {selected === undefined ? (
+        <div className={hub.empty}>
+          <span className={hub.emptyIcon}>
+            <Icon name="search" size={20} />
+          </span>
+          <p className={hub.emptyTitle}>{t('hub.memNoMatch')}</p>
+          <button
+            type="button"
+            className={cx(ui.btn, ui.small, ui.soft)}
+            onClick={() => setQuery('')}
+          >
+            {t('hub.clearSearch')}
+          </button>
+        </div>
+      ) : (
+        <MemoryDetail key={selected.id} {...props} entry={selected} />
+      )}
     </div>
   )
 }
@@ -132,6 +168,7 @@ function MemoryList(props: {
   return (
     <nav ref={listRef} className={cx(hub.wfList, hub.sideList)} aria-label={t('hub.memories')}>
       <ListThumb layout={layout} />
+      {entries.length === 0 && <p className={cx(hub.sideEmpty, ui.fade)}>{t('hub.memNoMatch')}</p>}
       {entries.map((entry) => {
         const selected = entry.id === props.selected
         const busy = confirm.open && doomed === entry.id

@@ -52,6 +52,24 @@ div.dialog {
   transition: background-color 120ms linear;
 }
 
+/* 搜索框右边还有个小按钮：两个并成一行，边距挪到这一行上。 */
+.searchRow {
+  display: flex;
+  flex: none;
+  gap: 6px;
+  align-items: center;
+  margin: 10px 8px 4px;
+}
+
+.searchRow > .search {
+  flex: 1 1 auto;
+  margin: 0;
+}
+
+.searchRow > button {
+  flex: none;
+}
+
 .search:hover {
   background: var(--wl-fill-strong);
 }

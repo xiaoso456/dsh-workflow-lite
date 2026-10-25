@@ -5,19 +5,6 @@
  * 底下一条贴底的操作栏。动效只动 transform / opacity。
  */
 
-/* ── 左栏顶上的「导入」 ─────────────────────────────────────── */
-
-.tools {
-  display: flex;
-  flex: none;
-  padding: 10px 8px 2px;
-}
-
-.tools > button {
-  flex: 1 1 auto;
-  justify-content: center;
-}
-
 /* 拖着包移到页面上：整页描一圈主色。 */
 .dropping {
   outline: 2px dashed var(--wl-accent);
