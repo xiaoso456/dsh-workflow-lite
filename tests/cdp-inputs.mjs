@@ -88,23 +88,15 @@ async function pointerDrag(session, from, to, steps = 10) {
   })
 }
 
-async function doubleClick(session, point) {
-  for (const clickCount of [1, 2]) {
+async function rightClick(session, point) {
+  for (const type of ['mousePressed', 'mouseReleased']) {
     await session.send('Input.dispatchMouseEvent', {
-      type: 'mousePressed',
+      type,
       x: point.x,
       y: point.y,
-      button: 'left',
-      buttons: 1,
-      clickCount,
-    })
-    await session.send('Input.dispatchMouseEvent', {
-      type: 'mouseReleased',
-      x: point.x,
-      y: point.y,
-      button: 'left',
-      buttons: 0,
-      clickCount,
+      button: 'right',
+      buttons: type === 'mousePressed' ? 2 : 0,
+      clickCount: 1,
     })
   }
 }
@@ -275,9 +267,9 @@ try {
   await onDisk((d) => nodeOf(d, 'scan')?.data.color === 'teal', 'scan 改成青色')
   pass('步骤面板列出用到的输入；换颜色、图标、恢复默认 → 落盘，卡片跟着变')
 
-  // 5) 双击空白处加两个空白步骤：各挑一个不重样的图标和颜色。
+  // 5) 右键空白处加两个空白步骤：各挑一个不重样的图标和颜色。
   for (const dy of [0, 150]) {
-    await doubleClick(session, {
+    await rightClick(session, {
       x: Math.round(canvasBox.x + canvasBox.w * 0.62),
       y: Math.round(canvasBox.y + canvasBox.h * 0.62 + dy),
     })

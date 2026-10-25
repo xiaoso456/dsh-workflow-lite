@@ -247,7 +247,7 @@ export const zh = {
   'welcome.title': '用步骤搭一条工作流',
   'welcome.body': '每个步骤是一段交给 AI 执行的提示词，连线决定先后、分支与循环。',
   'canvas.emptyTitle': '从第一个步骤开始',
-  'canvas.emptyBody': '把左侧的步骤拖进来，或者双击空白处。',
+  'canvas.emptyBody': '把左侧的步骤拖进来，或者右键点空白处。',
   'canvas.starter': '插入示例流程',
   'quick.title': '添加步骤',
 
@@ -981,7 +981,7 @@ export const zh = {
   // ── 快捷键 ──────────────────────────────────────────────────
   'keys.title': '快捷键',
   'keys.add': '添加步骤',
-  'keys.addCombo': '双击空白处',
+  'keys.addCombo': '右键点空白处',
   'keys.undo': '撤销',
   'keys.redo': '重做',
   'keys.duplicate': '复制选中的步骤',
@@ -1541,7 +1541,7 @@ export const en: Record<LocaleKey, string> = {
   'welcome.body':
     'Each step is a prompt handed to the AI; the lines decide order, branches and loops.',
   'canvas.emptyTitle': 'Start with a first step',
-  'canvas.emptyBody': 'Drag a step in from the left, or double-click the empty canvas.',
+  'canvas.emptyBody': 'Drag a step in from the left, or right-click the empty canvas.',
   'canvas.starter': 'Insert an example flow',
   'quick.title': 'Add a step',
 
@@ -2305,7 +2305,7 @@ export const en: Record<LocaleKey, string> = {
 
   'keys.title': 'Shortcuts',
   'keys.add': 'Add a step',
-  'keys.addCombo': 'Double-click canvas',
+  'keys.addCombo': 'Right-click canvas',
   'keys.undo': 'Undo',
   'keys.redo': 'Redo',
   'keys.duplicate': 'Duplicate selected step',

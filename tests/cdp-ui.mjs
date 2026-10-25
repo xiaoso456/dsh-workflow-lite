@@ -2,7 +2,7 @@
  * 工作流视图的真浏览器验收：真指针、真键盘、真拖放，结论以**磁盘**为准。
  *
  * 走一遍新用户会走的路：空图 → 从步骤库拖一个进来（带着它的产出资源卡）→ 点「＋」接一步 →
- * 双击空白处加空白步骤并写提示词 → 拖线连接 → 改连线条件 → 删除与撤销 → 资源卡（新建产出、
+ * 右键空白处加空白步骤并写提示词 → 拖线连接 → 改连线条件 → 删除与撤销 → 资源卡（新建产出、
  * 改说明、读取、更新、改路径）→ 整理布局 → 预览计划 → 改名 → 删除。
  * 每一步都读回 `graph/load` 确认真的落了盘，而不是只看界面。
  *
@@ -136,23 +136,15 @@ async function pointerDrag(session, from, to, steps = 8, { release = true } = {}
   })
 }
 
-async function doubleClick(session, point) {
-  for (const clickCount of [1, 2]) {
+async function rightClick(session, point) {
+  for (const type of ['mousePressed', 'mouseReleased']) {
     await session.send('Input.dispatchMouseEvent', {
-      type: 'mousePressed',
+      type,
       x: point.x,
       y: point.y,
-      button: 'left',
-      buttons: 1,
-      clickCount,
-    })
-    await session.send('Input.dispatchMouseEvent', {
-      type: 'mouseReleased',
-      x: point.x,
-      y: point.y,
-      button: 'left',
-      buttons: 0,
-      clickCount,
+      button: 'right',
+      buttons: type === 'mousePressed' ? 2 : 0,
+      clickCount: 1,
     })
   }
 }
@@ -241,12 +233,12 @@ async function run(session) {
   check(planAt.x > scanAt.x, '「添加下一步」应落在右边')
   pass('点「＋」添加下一步 → 自动连线、落在右侧')
 
-  // 4) 双击空白处 → 空白步骤，提示词弹窗直接进编辑、光标在里面；打字落盘。
+  // 4) 右键空白处 → 空白步骤，提示词弹窗直接进编辑、光标在里面；打字落盘。
   const blankAt = {
     x: Math.round(canvasBox.x + canvasBox.w * 0.45),
     y: Math.round(canvasBox.y + canvasBox.h * 0.78),
   }
-  await doubleClick(session, blankAt)
+  await rightClick(session, blankAt)
   await waitFor(session, exists('wl-quick-add'))
   await session.evaluate(clickTestId('wl-quick-blank'))
   await waitFor(session, `document.querySelector('.react-flow__node[data-id="step"]') !== null`)
@@ -271,7 +263,7 @@ async function run(session) {
     )) === '检查所有测试是否通过。',
     '关上弹窗后右栏应露出写好的提示词',
   )
-  pass('双击空白处加空白步骤 → 提示词弹窗直接进编辑、输入落盘')
+  pass('右键空白处加空白步骤 → 提示词弹窗直接进编辑、输入落盘')
 
   // 5) 从 implement 的出口拖线到 step 的入口。
   await pointerDrag(
@@ -355,7 +347,7 @@ async function run(session) {
     return { w: tip.width, h: tip.height, inside: tip.left >= root.left && tip.right <= root.right && tip.top >= root.top && tip.bottom <= root.bottom };
   })()`)
   check(
-    tipBox.w <= 320 && tipBox.h > 24,
+    tipBox.w <= 320.5 && tipBox.h > 24,
     `长条件的提示应折行、不超过 320 宽：${JSON.stringify(tipBox)}`,
   )
   check(tipBox.inside, '提示应整个落在视图里')

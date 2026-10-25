@@ -2515,10 +2515,11 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
       data-inset-right={props.insets.right}
       onDragOver={onDragOver}
       onDrop={onDrop}
-      onDoubleClick={(event) => {
-        // 双击空白处加步骤；双击在卡片或连线上不算。
+      onContextMenu={(event) => {
+        // 右键空白处加步骤；右键在卡片或连线上不算（浏览器自己的菜单照旧）。
         const target = event.target
         if (!(target instanceof Element) || !target.classList.contains('react-flow__pane')) return
+        event.preventDefault()
         const client = { x: event.clientX, y: event.clientY }
         const at = flow.screenToFlowPosition(client)
         onRequestAdd({ client, flow: { x: at.x - NODE_W / 2, y: at.y - NODE_H / 2 } })
