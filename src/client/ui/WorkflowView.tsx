@@ -823,6 +823,7 @@ function Shell(props: {
               onOpenRun={openRun}
               onOpenTemplate={openTemplate}
               slots={slots}
+              memories={memories.entries}
               reloadRef={reloadRun}
               onOpenHub={() => {
                 setHubExport(false)

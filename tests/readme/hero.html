@@ -215,7 +215,7 @@
         tagline: '<b>软工作流</b>：画布上设计流程，编译成计划提示词，由模型按计划执行',
         pill: 'DeepSeek Harness 插件 · <i>无需执行引擎</i>',
         s1: '设计流程',
-        s1d: '步骤、分支与循环、读写资源、执行前提问',
+        s1d: '步骤、分支与循环、读写资源、执行前提问、记忆',
         s1bar: '工作流 · <b>代码审查循环</b>',
         ok: '✓ 没有问题',
         compile: '编译',
@@ -224,7 +224,7 @@
         s2d: '节选',
         s2bar: '计划 · <b>代码审查循环</b>',
         plan: `<h3>怎么执行</h3>
-          <ul><li>派发一个步骤，就是让执行者先读它那份任务描述再干活</li><li>原样转交，不要转述</li></ul>
+          <ul><li>派发一个步骤，就是让执行者先读它那份任务描述再干活</li><li>原样转交，不要转述</li><li>每步开始前先读全局记忆里的「快速路径」，结束时把经验整理进去</li></ul>
           <h3>流程</h3>
           <p>执行批次：${code('implement')} → ${code('review')} → ${code('fix')}、${code('report')}</p>
           <p><span class="hl">循环</span>：${code('review')} → ${code('fix')} → ${code('review')}，重复执行，直到 ${code('review')} 给出 ${code('VERDICT: pass')} 时走 ${code('report')}，离开循环</p>
@@ -246,7 +246,7 @@
           '文件 / 网址 / Skill 资源',
           '执行前提问',
           '运行状态',
-          'HTML 看板预览',
+          '工作流记忆 · 实验性',
           '版本管理',
           '模型协作编辑',
           '浅色 / 深色 · 中 / 英',
@@ -256,7 +256,7 @@
         tagline: '<b>Soft workflows</b>: draw the flow, get a plan prompt, the model runs it',
         pill: 'DeepSeek Harness plugin · <i>no execution engine</i>',
         s1: 'Design the flow',
-        s1d: 'Steps, branches and loops, resources, questions to ask first',
+        s1d: 'Steps, branches and loops, resources, questions to ask first, memory',
         s1bar: 'Workflow · <b>code-review-loop</b>',
         ok: '✓ No problems',
         compile: 'Compile',
@@ -265,7 +265,7 @@
         s2d: 'Excerpt, translated',
         s2bar: 'Plan · <b>code-review-loop</b>',
         plan: `<h3>How to run</h3>
-          <ul><li>Dispatching a step means the executor reads its task file first, then works</li><li>Hand the task over word for word</li></ul>
+          <ul><li>Dispatching a step means the executor reads its task file first, then works</li><li>Hand the task over word for word</li><li>Read the global memory’s quick path before each step; fold lessons back in at the end</li></ul>
           <h3>Flow</h3>
           <p>Batches: ${code('implement')} → ${code('review')} → ${code('fix')}, ${code('report')}</p>
           <p><span class="hl">Loop</span>: ${code('review')} → ${code('fix')} → ${code('review')}, repeat until ${code('review')} answers ${code('VERDICT: pass')}, then go to ${code('report')} and leave the loop</p>
@@ -287,7 +287,7 @@
           'Files / URLs / Skills',
           'Pre-run questions',
           'Run state',
-          'HTML dashboards',
+          'Memory (beta)',
           'Versions',
           'Model co-editing',
           'Light / dark · 中 / EN',

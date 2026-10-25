@@ -22,6 +22,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parse, stringify } from 'yaml'
 import { RunService } from '../src/host/runs/service.ts'
+import { addGlobalMemory } from '../src/shared/presets.ts'
 import { bootToCanvas, revealHubRow } from './lib/canvas-harness.mjs'
 import { openPage, waitFor } from './lib/cdp-session.mjs'
 import { rpc } from './lib/web-session.mjs'
@@ -81,6 +82,7 @@ const COPY = {
       review: '问题清单，逐条可改',
       dashboard: '每轮审查后重新生成',
     },
+    memory: { id: 'review-lessons', name: '审查经验', description: '常见问题与最省事的审查走法' },
     goal: '给 auth/ 加上 token 刷新的重试',
     summary: {
       implement: '抽出 refreshWithRetry，指数退避三次；补了 6 个单测。',
@@ -141,6 +143,11 @@ const COPY = {
       review: 'Issues, one per line',
       dashboard: 'Regenerated after each review',
     },
+    memory: {
+      id: 'review-lessons',
+      name: 'Review lessons',
+      description: 'Common issues and the quickest way to review',
+    },
     goal: 'Add retry to auth/ token refresh',
     summary: {
       implement: 'Extracted refreshWithRetry with 3 exponential backoffs; added 6 unit tests.',
@@ -189,7 +196,7 @@ function documentFor(copy) {
   }
   const res = (id, data) => ({ id, type: 'wfResource', position: { x: 0, y: 0 }, data })
   const file = (value, note) => ({ items: [{ kind: 'file', value, note }] })
-  return {
+  const base = {
     nodes: [
       {
         id: 'ask-module',
@@ -226,6 +233,9 @@ function documentFor(copy) {
     viewport: { x: 0, y: 0, zoom: 1 },
     settings: { runState: true },
   }
+  // 全局记忆：一张不连步骤的记忆卡，每个步骤开始前都会读它。
+  return addGlobalMemory(base, { memory: copy.memory.id, type: 'workflow' }, { x: 0, y: 0 })
+    .document
 }
 
 /** 实现做完，第一轮审查没通过，修完了，第二轮审查进行中。 */
@@ -388,6 +398,8 @@ async function shoot(session, lang) {
   try {
     await rpc('graph/delete', { name: copy.name }).catch(() => {})
     await rpc('graph/create', { name: copy.name })
+    await rpc('memory/delete', { id: copy.memory.id }).catch(() => {})
+    await rpc('memory/create', { type: 'workflow', ...copy.memory })
     const disk = await rpc('graph/load', { name: copy.name })
     await rpc('graph/save', { name: copy.name, document: documentFor(copy), baseHash: disk.hash })
 
@@ -610,6 +622,7 @@ async function shoot(session, lang) {
     if (instance !== null)
       await rpc('run/delete', { id: instance, withState: true }).catch(() => {})
     await rpc('graph/delete', { name: copy.name }).catch(() => {})
+    await rpc('memory/delete', { id: copy.memory.id }).catch(() => {})
     // 只在**这一次**建出来的目录上删。夹具会认领上一次留下的工作区（会话跟着它的 cwd 走），
     // 那条路径可能来自很早以前、甚至仓库搬过家之前——对别人的目录动 rm -rf 是另一回事。
     // 删失败也不该把 finally 剩下的收尾带下去，所以吞掉。

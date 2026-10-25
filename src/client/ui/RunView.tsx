@@ -16,6 +16,7 @@ import { useReactFlow } from '@xyflow/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { GraphAnalysis } from '../../shared/graph.ts'
 import { analyzeGraph } from '../../shared/graph.ts'
+import type { MemoryEntry } from '../../shared/memoryLib.ts'
 import { idKey, isInput, isResource, isStep } from '../../shared/model.ts'
 import { type RunCursor, runCursor } from '../../shared/runCursor.ts'
 import {
@@ -129,6 +130,8 @@ export interface RunViewProps {
   reloadRef: React.MutableRefObject<(() => void) | null>
   /** 用系统程序打开产出文件；宿主没有桌面能力时不给。 */
   desktop?: Desktop
+  /** 记忆库（记忆卡上显示它的名称）；还没读回来是 `null`。 */
+  memories?: readonly MemoryEntry[] | null
 }
 
 const GAP = 12
@@ -648,6 +651,7 @@ export function RunView(props: RunViewProps): React.JSX.Element {
             {...(props.onSettled === undefined ? {} : { onSettled: props.onSettled })}
             focusFile={focusFile}
             onFocusFile={setFocusFile}
+            {...(props.memories === undefined ? {} : { memories: props.memories })}
             {...(decor === undefined || swap.dim ? {} : { run: decor })}
           />
         )}
