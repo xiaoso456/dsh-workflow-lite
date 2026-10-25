@@ -476,6 +476,7 @@ export async function startShotsEnv(options) {
     })
     return {
       base: instance.base,
+      url: instance.url,
       cookie,
       ...fixture,
       mock,

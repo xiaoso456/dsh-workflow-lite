@@ -401,6 +401,7 @@ export const zh = {
   'hub.memDeleted': '已删除记忆 {name}',
   'hub.memDeleteTitle': '删除记忆 {name}？',
   'hub.memDeleteUsed': '{n} 个工作流在用它，删掉后那里的记忆卡会提示库里没有这一条。',
+  'hub.memInfo': '信息',
   'hub.memUsedBy': '在用的工作流',
   'theme.group': '外观',
   'theme.lead': '亮色、暗色各选一套，画布跟着 DSH 的亮暗模式自动切换。只在这台设备上生效。',
@@ -1690,6 +1691,7 @@ export const en: Record<LocaleKey, string> = {
   'hub.memDeleted': 'Deleted memory {name}',
   'hub.memDeleteTitle': 'Delete memory {name}?',
   'hub.memDeleteUsed': '{n} workflows use it; their memory cards will say the entry is missing. ',
+  'hub.memInfo': 'Info',
   'hub.memUsedBy': 'Used by',
   'theme.group': 'Appearance',
   'theme.lead':
