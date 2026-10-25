@@ -78,6 +78,68 @@
           }
         ]
       }
+    },
+    "0.7.0": {
+      "zh": {
+        "headline": "让工作流记住跑通的做法，下次照着走",
+        "items": [
+          {
+            "icon": "idea",
+            "tone": "blue",
+            "title": "工作流记忆",
+            "tag": "实验性",
+            "text": "沉淀做法，整理出快速路径"
+          },
+          {
+            "icon": "library",
+            "tone": "green",
+            "title": "记忆库",
+            "text": "多个工作流共用，存版本可切回"
+          },
+          {
+            "icon": "package",
+            "tone": "gold",
+            "title": "随包导出",
+            "text": "工作流包、Skill 都能带上记忆"
+          },
+          {
+            "icon": "layers",
+            "tone": "teal",
+            "title": "画布更顺手",
+            "text": "步骤库分组可收起，右键加步骤"
+          }
+        ]
+      },
+      "en": {
+        "headline": "Workflows remember what worked",
+        "items": [
+          {
+            "icon": "idea",
+            "tone": "blue",
+            "title": "Workflow memory",
+            "tag": "Beta",
+            "text": "Quick paths distilled from runs"
+          },
+          {
+            "icon": "library",
+            "tone": "green",
+            "title": "Memory library",
+            "text": "Share and version memories"
+          },
+          {
+            "icon": "package",
+            "tone": "gold",
+            "title": "Exports carry it",
+            "text": "Packs and Skills include memory"
+          },
+          {
+            "icon": "layers",
+            "tone": "teal",
+            "title": "Smoother canvas",
+            "text": "Fold groups, right-click to add"
+          }
+        ]
+      }
     }
   }
 }
