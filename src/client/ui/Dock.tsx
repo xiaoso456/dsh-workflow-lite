@@ -5,7 +5,7 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/Dock
  */
 
-import { useReactFlow, useViewport } from '@xyflow/react'
+import { useReactFlow, useStore } from '@xyflow/react'
 import { useState } from 'react'
 import type { LocaleKey, T } from '../i18n.ts'
 import { Icon } from './Icon.tsx'
@@ -37,7 +37,8 @@ export function ZoomDock(props: {
 }): React.JSX.Element {
   const { t } = props
   const flow = useReactFlow()
-  const { zoom } = useViewport()
+  // 只订缩放：平移时视口每帧都变，订整个视口的话这一排每帧都要重渲染。
+  const zoom = useStore((state) => state.transform[2])
   const [legendOpen, setLegendOpen] = useState(false)
   // 两侧面板一开，整排图例收成「图例」按钮、缩放条变短：底面 scaleX 收过去，不是一下子跳。
   const glide = useGlide(0)

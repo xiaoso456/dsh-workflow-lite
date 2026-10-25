@@ -21,6 +21,9 @@
  * 等那一阵过渡走完再挂上光带；淡出时点停在原地，只让整组淡掉；平移、缩放画布时（每帧都出）点也停在
  * 原地，停手再接着走。停住的动画不用每帧过样式。
  *
+ * 挂上、卸掉光带本身也贵：宿主页面的 `:has()` 规则让视图里任何一次插拔都把整页样式重算一遍。
+ * 所以画布在动的时候（点卡片后挪出右栏、平移、拖卡片）不挂也不卸，停下来再做。
+ *
  * 系统设了「减少动态效果」就什么都不画。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/FlowStreaks
@@ -36,8 +39,10 @@ import {
   useRef,
   useState,
 } from 'react'
+import { afterPaint } from '../app/reveal.ts'
 import { type MeasuredPath, measurePath } from '../model/pathSample.ts'
 import css from './canvas.module.css'
+import { useCanvasMoving } from './motion.tsx'
 
 /** 一条线上最多几道光带；短线只放一道。 */
 const MAX_STREAKS = 2
@@ -70,11 +75,18 @@ function reducedMotion(): boolean {
 }
 
 /**
- * 画布让光带怎么样：`run` 照常走；`pause` 停在原地（平移、缩放画布时）；
+ * 光带怎么样：`run` 照常走；`pause` 停在原地（平移、缩放画布时）；
  * `hold` 藏起来停着，松手后再按最终的线铺（拖卡片时）。
  */
-export type StreakMode = 'run' | 'pause' | 'hold'
-export const StreaksMode = createContext<StreakMode>('run')
+type StreakMode = 'run' | 'pause' | 'hold'
+/** 画布给的：拖卡片时 `hold`，其余 `run`（视口在动另有 {@link useCanvasMoving}）。 */
+export const StreaksMode = createContext<'run' | 'hold'>('run')
+
+function useStreakMode(): StreakMode {
+  const mode = useContext(StreaksMode)
+  const moving = useCanvasMoving()
+  return mode === 'run' && moving ? 'pause' : mode
+}
 
 /** 这么长的线放几道光带。 */
 function streakCount(length: number): number {
@@ -109,19 +121,33 @@ export function FlowStreaks(props: {
   active: boolean
 }): React.JSX.Element | null {
   const still = reducedMotion()
+  // 画布在动（平移、缩放、定位、拖卡片）时不挂也不卸，停下来再说：宿主页面上有带 `:has()` 的规则，
+  // 视图里插、摘一个元素就要把整页样式重算一遍，落在视口动画中间就是一次明显的卡顿。
+  const quiet = useStreakMode() === 'run'
   const [mounted, setMounted] = useState(props.active)
   useEffect(() => {
-    const timer = props.active
-      ? setTimeout(() => setMounted(true), ENTER_DELAY_MS)
-      : setTimeout(() => setMounted(false), LEAVE_MS)
-    return () => clearTimeout(timer)
-  }, [props.active])
+    if (!quiet || mounted === props.active) return
+    if (!props.active) {
+      const timer = setTimeout(() => setMounted(false), LEAVE_MS)
+      return () => clearTimeout(timer)
+    }
+    // 从这一帧画完才开始等：点卡片那一帧很重，从提交算起的话，慢机器上那一帧一画完就到点了，
+    // 正赶在画布开始挪（同样隔一帧起步，见 afterPaint）之前插进来。
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const cancel = afterPaint(() => {
+      timer = setTimeout(() => setMounted(true), ENTER_DELAY_MS)
+    })
+    return () => {
+      cancel()
+      clearTimeout(timer)
+    }
+  }, [props.active, quiet, mounted])
   if (still || !mounted) return null
   return <Trail path={props.path} color={props.color} leaving={!props.active} />
 }
 
 function Trail(props: { path: string; color: string; leaving: boolean }): React.JSX.Element {
-  const mode = useContext(StreaksMode)
+  const mode = useStreakMode()
   const held = mode === 'hold'
   /** 点停在原地：整组在淡出，或画布正在平移、缩放。 */
   const stopped = props.leaving || mode === 'pause'

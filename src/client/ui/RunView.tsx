@@ -40,7 +40,7 @@ import type {
 import { addFromSource, addOrigin, duplicateEdit } from '../app/addStep.ts'
 import type { Desktop } from '../app/desktop.ts'
 import { createHostAccess, type HostAccess } from '../app/host.ts'
-import { revealNode } from '../app/reveal.ts'
+import { afterPaint, revealNode } from '../app/reveal.ts'
 import { useArrival } from '../app/useArrival.ts'
 import type { FileTarget } from '../app/useRunFile.ts'
 import { useRunGraph } from '../app/useRunGraph.ts'
@@ -73,7 +73,14 @@ import { FileViewer } from './FileViewer.tsx'
 import { Icon } from './Icon.tsx'
 import { edgeSwap, Inspector } from './Inspector.tsx'
 import css from './inspector.module.css'
-import { ExitSeat, SWITCH_HOLD_MS, useSwap, useSwapHold, useViewGhost } from './motion.tsx'
+import {
+  ExitSeat,
+  expectCanvasMove,
+  SWITCH_HOLD_MS,
+  useSwap,
+  useSwapHold,
+  useViewGhost,
+} from './motion.tsx'
 import { EdgeHead, InputHead, OverviewHead, ResourceHead, StepHead } from './NodeHeads.tsx'
 import { cx } from './primitives.tsx'
 import { QuickAdd } from './QuickAdd.tsx'
@@ -473,11 +480,15 @@ export function RunView(props: RunViewProps): React.JSX.Element {
       onPanel(true)
       const right = narrow ? 0 : inspectorW + GAP
       const zoom = Math.max(flow.getZoom(), 0.9)
-      void flow.setCenter(
-        node.position.x + NODE_W / 2 + right / 2 / zoom,
-        node.position.y + NODE_H / 2,
-        { zoom, duration: 360 },
-      )
+      // 选中、开右栏那一帧画完再滑（见 afterPaint）。
+      afterPaint(() => {
+        expectCanvasMove()
+        void flow.setCenter(
+          node.position.x + NODE_W / 2 + right / 2 / zoom,
+          node.position.y + NODE_H / 2,
+          { zoom, duration: 360 },
+        )
+      })
     },
     [doc, select, onPanel, narrow, inspectorW, flow],
   )

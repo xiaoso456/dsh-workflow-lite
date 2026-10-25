@@ -119,12 +119,19 @@ import {
   writePoints,
 } from '../model/route.ts'
 import css from './canvas.module.css'
-import { FlowStreaks, type StreakMode, StreaksMode } from './FlowStreaks.tsx'
+import { FlowStreaks, StreaksMode } from './FlowStreaks.tsx'
 import type { FocusFile } from './Handoff.tsx'
 import hand from './handoff.module.css'
 import { Icon, type IconName } from './Icon.tsx'
 import { ACCESS_COLOR, type Access, WHEN_COLOR, type WhenKind, whenKind } from './lines.ts'
-import { FadeRing, SwapIcon, SwapText, useCanvasExits, useLast } from './motion.tsx'
+import {
+  FadeRing,
+  SwapIcon,
+  SwapText,
+  setCanvasMoving,
+  useCanvasExits,
+  useLast,
+} from './motion.tsx'
 import { cx, useFloat } from './primitives.tsx'
 import { resourceTint } from './ResourcePresets.tsx'
 import { freeFilePath, itemText, KIND_ICON, KIND_LABEL } from './resourceUi.ts'
@@ -1606,11 +1613,10 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
   const [dragging, setDragging] = useState<Record<string, Point>>({})
   const draggingRef = useRef(dragging)
   draggingRef.current = dragging
-  /** 视口正在动（平移、缩放、看全图）。 */
-  const [panning, setPanning] = useState(false)
-  /** 拖卡片时光带先藏着、松手再铺；视口在动时停在原地（见 FlowStreaks）。 */
-  const streakMode: StreakMode =
-    Object.keys(dragging).length > 0 ? 'hold' : panning ? 'pause' : 'run'
+  /** 拖卡片时光带先藏着、松手再铺（视口在动时停在原地，见 FlowStreaks）。 */
+  const streakMode = Object.keys(dragging).length > 0 ? 'hold' : 'run'
+  // 动到一半卸掉了（换视图）：等着画布停下来的活不能一直压着。
+  useEffect(() => () => setCanvasMoving(false), [])
   /** React Flow 量出来的卡片尺寸：带回给它，重建节点对象时就不用重新量。 */
   const measured = useRef(new Map<string, { width: number; height: number }>())
   const cache = useRef(new Map<string, CacheEntry>())
@@ -2590,9 +2596,9 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
               onSelect(null)
               focusCanvas()
             }}
-            onMoveStart={() => setPanning(true)}
+            onMoveStart={() => setCanvasMoving(true)}
             onMoveEnd={(event, viewport) => {
-              setPanning(false)
+              setCanvasMoving(false)
               // 只记人动的视口；程序触发的移动（看全图、定位）事件参数是 null。
               // 视口只记在浏览器里：浏览不改图，不会变成「待保存」。
               if (event !== null && viewKey !== undefined) rememberViewport(viewKey, viewport)

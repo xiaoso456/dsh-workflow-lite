@@ -20,7 +20,7 @@ import { addFromSource, addOrigin, duplicateEdit, memoryToggle } from '../app/ad
 import type { Desktop } from '../app/desktop.ts'
 import { createHostAccess } from '../app/host.ts'
 import { useMemories } from '../app/memories.ts'
-import { revealNode } from '../app/reveal.ts'
+import { afterPaint, revealNode } from '../app/reveal.ts'
 import { type SessionBridge, useSessionRows } from '../app/sessions.ts'
 import { useColorScheme, useThemeChoice } from '../app/theme.ts'
 import { useMemoryPick } from '../app/useMemoryPick.ts'
@@ -41,7 +41,7 @@ import { InputsDialog } from './InputsDialog.tsx'
 import { Inspector } from './Inspector.tsx'
 import { Library } from './Library.tsx'
 import { MemoryPicker } from './MemoryPicker.tsx'
-import { ExitSeat, SWITCH_HOLD_MS, useSwapHold, useViewGhost } from './motion.tsx'
+import { ExitSeat, expectCanvasMove, SWITCH_HOLD_MS, useSwapHold, useViewGhost } from './motion.tsx'
 import { PlanDialog } from './PlanDialog.tsx'
 import { cx, ModalHostProvider } from './primitives.tsx'
 import { QuickAdd } from './QuickAdd.tsx'
@@ -480,9 +480,13 @@ function Shell(props: {
       const right = narrow ? 0 : inspectorW + GAP
       const zoom = Math.max(flow.getZoom(), 0.9)
       const shift = (right - left) / 2 / zoom
-      void flow.setCenter(node.position.x + NODE_W / 2 + shift, node.position.y + NODE_H / 2, {
-        zoom,
-        duration: 360,
+      // 选中、开右栏那一帧画完再滑（见 afterPaint）。
+      afterPaint(() => {
+        expectCanvasMove()
+        void flow.setCenter(node.position.x + NODE_W / 2 + shift, node.position.y + NODE_H / 2, {
+          zoom,
+          duration: 360,
+        })
       })
     },
     [state.doc, wf, flow, narrow, inspectorW],
@@ -500,7 +504,7 @@ function Shell(props: {
       revealed.current = null
       return
     }
-    const frame = requestAnimationFrame(() =>
+    return afterPaint(() =>
       revealNode({
         flow,
         root: rootRef.current,
@@ -511,7 +515,6 @@ function Shell(props: {
         gap: GAP,
       }),
     )
-    return () => cancelAnimationFrame(frame)
   }, [selectedNode, narrow, flow, inspectorW])
 
   const relayout = useCallback((): void => {
