@@ -23,7 +23,7 @@ import { fileURLToPath } from 'node:url'
 import { parse, stringify } from 'yaml'
 import { RunService } from '../src/host/runs/service.ts'
 import { addGlobalMemory } from '../src/shared/presets.ts'
-import { bootToCanvas, revealHubRow } from './lib/canvas-harness.mjs'
+import { bootToCanvas, mouseClick, mouseMove, revealHubRow } from './lib/canvas-harness.mjs'
 import { openPage, waitFor } from './lib/cdp-session.mjs'
 import { rpc } from './lib/web-session.mjs'
 import { installShotsCookie, SHOTS_SESSION_TITLE, startShotsEnv } from './support/shots-env.mjs'
@@ -356,6 +356,56 @@ const viewerBox = `(() => {
   return { x: r.left, y: r.top, width: r.width, height: r.height }
 })()`
 
+/** 两张卡的外框（视口坐标；资源卡取卡面，不算角标）；`handle` 是左边那个把手的左缘，对齐用它。 */
+const cardRects = (a, b) => `(() => {
+  const rect = (id) => {
+    const node = document.querySelector('.react-flow__node[data-id="' + id + '"]')
+    const box = (node.querySelector('[data-testid="wl-resource"]') ?? node).getBoundingClientRect()
+    const handle = node.querySelector('.react-flow__handle.target')?.getBoundingClientRect()
+    return { left: box.left, top: box.top, width: box.width, height: box.height, handle: handle?.left ?? box.left }
+  }
+  return [rect(${JSON.stringify(a)}), rect(${JSON.stringify(b)})]
+})()`
+
+/**
+ * 真指针拖一张卡：从卡片中心按下，分几步移到 `(dx, dy)` 之外再松开（和用户手上的拖一样）。
+ * 画布要先挪过一小段（`nodeDragThreshold`）才算开始拖，这一段不计入位移：先单独走一步，终点再补上它。
+ */
+async function dragCard(session, id, dx, dy) {
+  const [box] = await session.evaluate(cardRects(id, id))
+  const from = { x: box.left + box.width / 2, y: box.top + box.height / 2 }
+  const start = { x: from.x + 4, y: from.y + 4 }
+  const move = (x, y) =>
+    session.send('Input.dispatchMouseEvent', {
+      type: 'mouseMoved',
+      x,
+      y,
+      button: 'left',
+      buttons: 1,
+    })
+  await mouseMove(session, from)
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mousePressed',
+    x: from.x,
+    y: from.y,
+    button: 'left',
+    buttons: 1,
+    clickCount: 1,
+  })
+  await move(start.x, start.y)
+  for (let step = 1; step <= 10; step += 1) {
+    await move(start.x + (dx * step) / 10, start.y + (dy * step) / 10)
+  }
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseReleased',
+    x: start.x + dx,
+    y: start.y + dy,
+    button: 'left',
+    buttons: 0,
+    clickCount: 1,
+  })
+}
+
 const clickAria = (label) => `document.querySelector('button[aria-label="${label}"]')?.click()`
 const clickTestId = (testId) => `document.querySelector('[data-testid="${testId}"]')?.click()`
 
@@ -435,6 +485,23 @@ async function shoot(session, lang) {
     await sleep(500)
     await session.evaluate(clickTestId('wl-fit'))
     await sleep(1000)
+    // 整理会把没连任何步骤的全局记忆卡排在版面下方、比别的卡更靠左：拖到「需求与规范」正下面，和它左对齐。
+    {
+      const [spec, memory] = await session.evaluate(cardRects('spec', 'mem-global'))
+      await dragCard(
+        session,
+        'mem-global',
+        spec.handle - memory.handle,
+        spec.top + spec.height + 28 - memory.top,
+      )
+      await sleep(800)
+      // 拖完这张卡是选中的、右栏也开了：点卡片下面的空白处，选中和右栏一起收起。
+      const [, dropped] = await session.evaluate(cardRects('spec', 'mem-global'))
+      await mouseClick(session, { x: dropped.left + 20, y: dropped.top + dropped.height + 70 })
+      await sleep(800)
+      await session.evaluate(clickTestId('wl-fit'))
+      await sleep(1000)
+    }
     const graphScale = await shootGraph(
       1500,
       820,
