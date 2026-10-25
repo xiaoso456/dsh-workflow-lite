@@ -94,6 +94,8 @@ A complex workflow has to re-explore the environment and re-learn its pitfalls o
 - **Managing it**: the **Memory** page in the workflow hub lets you rename an entry, edit its description, browse its files, save versions, switch back to an older one, and see which workflows use it. When you export a workflow pack or a Skill, you can choose whether to include the memory content.
 - **Known limits**: instances running at the same time that change the same memory are not locked, so the later write overwrites the earlier one; re-exporting a Skill over an installed copy overwrites the memory it has built up.
 
+> Memory is only a shortcut for setting this up: it creates the folder that holds the experience and writes into the plan when to read and when to update it. For anything more elaborate, build it yourself with a resource plus prompts, for example your own folder layout, your own read and write timing, and your own rules for tidying it up.
+
 **We are still checking whether it helps, and we'd like your feedback.** In early trials that repeated one workflow, we saw no steady speedup; the "Quick path" was added afterwards, and whether it helps needs more real workflows to tell. If you try memory on a complex workflow, please tell us on [Issues](https://github.com/xiaoso456/dsh-workflow-lite/issues): did the time of repeated runs change, was what the memory recorded useful, and what was awkward.
 
 ## Path variables
