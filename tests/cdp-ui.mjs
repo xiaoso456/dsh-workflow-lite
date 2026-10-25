@@ -896,18 +896,7 @@ async function run(session) {
   check(!modelPlan.includes(`VERDICT: ${CONDITION}`), '自然语言条件不该要求 VERDICT 行')
   // 第二个文件在 7f 里改名成了 risks.md。
   check(modelPlan.includes('artifacts/run/risks.md'), '文件应进计划，路径拼上产出根目录')
-  check(modelPlan.includes(FILE_RULE), '文件的说明应进计划')
   check(modelPlan.includes('你是 leader'), '执行方式应进计划')
-  // 预览视图里反引号已经渲染成代码样式，textContent 里没有它们。
-  check(
-    modelPlan.includes('资源 res-changes：implement 产出；step 在原文件上更新。'),
-    '资源块应写清谁产出、谁在原文件上更新',
-  )
-  check(modelPlan.includes('资源 res-impl-risks：implement 产出；step 读取。'), '读取应进资源块')
-  check(
-    modelPlan.includes(`文件：artifacts/run/risks.md。说明：${FILE_RULE}`),
-    '资源里的文件应带着拼好的路径与说明',
-  )
   check(modelPlan.includes(NOTE), '交接说明应进计划')
   await session.evaluate(
     `[...document.querySelectorAll('[data-testid="wl-plan"] [role="radio"]')][1].click()`,
@@ -915,6 +904,13 @@ async function run(session) {
   await waitFor(
     session,
     `(document.querySelector('[data-testid="wl-plan-text"]')?.textContent || '').includes('检查所有测试是否通过。')`,
+  )
+  // 资源的路径与说明在「给人看的」版本里内联；给模型的版本只列总览，详情附在各步骤的任务描述里。
+  check(
+    (
+      await session.evaluate(`document.querySelector('[data-testid="wl-plan-text"]').textContent`)
+    ).includes(`res-impl-risks：文件：artifacts/run/risks.md。说明：${FILE_RULE}`),
+    '资源里的文件应带着拼好的路径与说明',
   )
   // 默认是「预览」（按 Markdown 渲染）：计划里的事实表渲染成真正的表格；切到源码就是原文。
   check(
@@ -933,7 +929,11 @@ async function run(session) {
   await waitFor(session, `document.querySelector('[data-testid="wl-plan"]') === null`)
   pass('预览计划：两个版本都对，默认预览、可切源码，Esc 关闭')
 
-  // 10a) 步骤库：两节都能收起展开。
+  // 10a) 步骤库：三节都能收起展开。
+  await session.evaluate(clickTestId('wl-lib-section-basic'))
+  await waitFor(session, `document.querySelector('[data-testid="wl-lib-blank"]') === null`)
+  await session.evaluate(clickTestId('wl-lib-section-basic'))
+  await waitFor(session, exists('wl-lib-memory'))
   await session.evaluate(clickTestId('wl-lib-section-builtin'))
   await waitFor(session, `document.querySelector('[data-testid="wl-lib-preset-scan"]') === null`)
   await session.evaluate(clickTestId('wl-lib-section-builtin'))
@@ -944,7 +944,7 @@ async function run(session) {
     `document.querySelector('[data-testid="wl-lib-section-custom"]').getAttribute('aria-expanded') === 'false'`,
   )
   await session.evaluate(clickTestId('wl-lib-section-custom'))
-  pass('「常用步骤」「我的步骤」都能收起、展开')
+  pass('「基础」「常用步骤」「我的步骤」都能收起、展开')
 
   // 10b) 点内置步骤：右侧只读展示提示词，没有任何输入框，也没有"连接"。
   await session.evaluate(clickTestId('wl-lib-preset-review'))
