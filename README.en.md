@@ -84,6 +84,17 @@ Turn on **Record run state** in **Workflow settings**. Every run then leaves a r
 | Workflow hub | One place for run records across sessions, all workflows and their versions, and plugin settings |
 | Interface | Four light and four dark color themes that follow DSH light or dark mode; English / 中文 |
 
+## Path variables
+
+Resource paths and the output root accept two variables, replaced with real locations at run time:
+
+| Variable | Where | Becomes |
+|---|---|---|
+| `{workflow}` | File and folder paths in resources, e.g. `{workflow}/refs/notes.md` | The workflow's own folder (by default `~/.dsh/workflow-lite/assets/<workflow name>/`). Every workspace reads and writes the same copy, and it moves with the workflow when you rename or export it |
+| `{instance}` | **Output root** in **Workflow settings**, e.g. the default `.workflow-lite/runs/{instance}/out` | The id of this run's instance, so each run keeps its outputs apart |
+
+Paths written as `{assets}/…` by earlier versions still work and become `{workflow}/…` when the workflow is opened.
+
 ## Experimental features
 
 These features are still being tried out, and their behavior and data formats may change. Besides workflow memory, there is **Export as a Skill** in the feature table above.
@@ -100,17 +111,6 @@ Lets a workflow keep what worked and follow it on the next run, with the aim of 
 Memory is only a configuration shortcut. For anything more elaborate, build it yourself with a resource plus prompts.
 
 **We are still checking whether it helps, and we'd like your feedback.** In early trials that repeated one workflow, we saw no steady speedup; the "Quick path" was added afterwards, and whether it helps needs more real workflows to tell. If you try it, please tell us on [Issues](https://github.com/xiaoso456/dsh-workflow-lite/issues): did the time of repeated runs change, was what it recorded useful, and what was awkward.
-
-## Path variables
-
-Resource paths and the output root accept two variables, replaced with real locations at run time:
-
-| Variable | Where | Becomes |
-|---|---|---|
-| `{workflow}` | File and folder paths in resources, e.g. `{workflow}/refs/notes.md` | The workflow's own folder (by default `~/.dsh/workflow-lite/assets/<workflow name>/`). Every workspace reads and writes the same copy, and it moves with the workflow when you rename or export it |
-| `{instance}` | **Output root** in **Workflow settings**, e.g. the default `.workflow-lite/runs/{instance}/out` | The id of this run's instance, so each run keeps its outputs apart |
-
-Paths written as `{assets}/…` by earlier versions still work and become `{workflow}/…` when the workflow is opened.
 
 ## How it works
 
