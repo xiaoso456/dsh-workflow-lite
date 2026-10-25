@@ -198,6 +198,12 @@ span.memToggle {
   color: var(--wl-tint);
 }
 
+.fileTabMark {
+  display: grid;
+  color: var(--wl-file);
+  opacity: 0.85;
+}
+
 .fileTab[data-tinted="true"] .fileTabMark,
 .resHeadIcon[data-tinted="true"] {
   color: var(--wl-tint);
@@ -1089,12 +1095,6 @@ span.memToggle {
 .fileTab[data-long="true"] {
   font-size: 7.5px;
   letter-spacing: 0;
-}
-
-.fileTabMark {
-  display: grid;
-  color: var(--wl-file);
-  opacity: 0.85;
 }
 
 .fileTabKind {

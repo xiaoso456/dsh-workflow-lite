@@ -207,6 +207,11 @@
   cursor: not-allowed;
 }
 
+.glyph {
+  display: grid;
+  place-items: center;
+}
+
 .icon[aria-disabled="true"] .glyph {
   opacity: 0.35;
 }
@@ -234,11 +239,6 @@
 
 .iconTone {
   background: color-mix(in srgb, var(--wl-swatch) 16%, transparent);
-}
-
-.glyph {
-  display: grid;
-  place-items: center;
 }
 
 /* 选中颜色外面的一圈环：滑到新选的颜色，环色交叉淡过去（只动 transform / opacity）。 */
