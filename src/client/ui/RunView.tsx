@@ -98,6 +98,8 @@ export interface RunViewProps {
   session: string | undefined
   id: string
   runs: Runs
+  /** 画布摆好视角、量完卡片（线定下来）：外层这才淡入。 */
+  onSettled?(): void
   workflows: readonly WorkflowEntry[]
   /** 「我的步骤」（就地添加菜单里列出来）。 */
   templates: readonly TemplateEntry[]
@@ -632,6 +634,7 @@ export function RunView(props: RunViewProps): React.JSX.Element {
             onRequestAdd={requestAdd}
             onDropSource={(from, at) => void addStep(from, at)}
             onStarter={() => {}}
+            {...(props.onSettled === undefined ? {} : { onSettled: props.onSettled })}
             focusFile={focusFile}
             onFocusFile={setFocusFile}
             {...(decor === undefined || swap.dim ? {} : { run: decor })}

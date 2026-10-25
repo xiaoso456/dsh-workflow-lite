@@ -168,13 +168,18 @@ function Shell(props: {
   const [versionsOpen, setVersionsOpen] = useState(false)
   /**
    * 第一次加载完成之前先不显示：切回这个标签页时视图整个重新挂载，头几十毫秒是「加载中」的空壳
-   * （顶栏只有一半、画布是空的），一闪就变样。加载很快就直接淡入完整的界面；
+   * （顶栏只有一半、画布是空的），一闪就变样。画布摆好视角、量完卡片（线跟着定下来）才淡入完整的界面；
    * 慢了（超过 {@link BOOT_VEIL_MS}）再把加载中的样子亮出来，不让人对着空白等。
    */
   const [booting, setBooting] = useState(true)
   useEffect(() => {
-    if (state.phase !== 'idle' && state.phase !== 'loading') setBooting(false)
+    if (state.phase === 'broken') setBooting(false)
   }, [state.phase])
+  /** 模板画布摆好了。本会话有当前实例时，实例列表一到就会换成实例视图，这时得等实例的画布摆好才算数。 */
+  const [templateSettled, setTemplateSettled] = useState(false)
+  useEffect(() => {
+    if (templateSettled && runs.loaded && runs.current === undefined) setBooting(false)
+  }, [templateSettled, runs.loaded, runs.current])
   useEffect(() => {
     const timer = window.setTimeout(() => setBooting(false), BOOT_VEIL_MS)
     return () => window.clearTimeout(timer)
@@ -789,7 +794,7 @@ function Shell(props: {
       data-library={libraryOpen && runId === null ? 'open' : 'closed'}
       data-panel={panelOpen ? 'open' : 'closed'}
       data-mode={runId === null ? 'template' : 'run'}
-      data-booting={booting && runId === null ? 'true' : undefined}
+      data-booting={booting ? 'true' : undefined}
       data-session={props.session}
       role="region"
       aria-label={t('tab.label')}
@@ -820,6 +825,7 @@ function Shell(props: {
                 setHubExport(false)
                 setHubOpen(true)
               }}
+              onSettled={() => setBooting(false)}
               {...(props.desktop === undefined ? {} : { desktop: props.desktop })}
             />
             {hub}
@@ -842,6 +848,7 @@ function Shell(props: {
                   onSelect={select}
                   onRequestAdd={requestAdd}
                   onDropSource={(source, at) => void addStep(source, at)}
+                  onSettled={() => setTemplateSettled(true)}
                   onStarter={() => {
                     wf.edit({ type: 'addGraph', ...starterGraph(t) })
                     fitSoon()

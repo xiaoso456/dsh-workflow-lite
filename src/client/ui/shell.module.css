@@ -1127,3 +1127,11 @@
     animation: none;
   }
 }
+
+/* 藏着的时候界面还在换到最终的样子（比如模板换成实例、步骤库收起）：直接到位，别在淡入时露出半截动画。 */
+.root[data-booting="true"] *,
+.root[data-booting="true"] *::before,
+.root[data-booting="true"] *::after {
+  /* biome-ignore lint/complexity/noImportantStyles: 要压过各处自己写的过渡 */
+  transition: none !important;
+}

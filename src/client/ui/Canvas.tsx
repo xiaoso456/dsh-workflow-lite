@@ -158,6 +158,8 @@ export interface CanvasProps {
   onRequestAdd(request: AddRequest): void
   onDropSource(source: StepSource, flow: Point): void
   onStarter(): void
+  /** 这一份刚载入的图摆好了视角、量好了卡片（头一回看全图 / 恢复视角之后）：之后才画得稳，线不会再挪。 */
+  onSettled?(): void
   /** 正在悬停的资源卡 id：用到它的步骤标出角色，其余的淡下去。 */
   focusFile: string | null
   onFocusFile: FocusFile
@@ -2388,18 +2390,29 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
   // ── 视口：换基线时恢复上次的视角；是默认视角（新图）就看全图 ──
   const insets = useRef(props.insets)
   insets.current = props.insets
+  const settled = useRef(props.onSettled)
+  settled.current = props.onSettled
   const viewKey = props.viewKey
   useEffect(() => {
     const saved =
       (viewKey === undefined ? null : recallViewport(viewKey)) ?? docRef.current.viewport
     const untouched = saved.x === 0 && saved.y === 0 && saved.zoom === 1
+    const settle = (): number =>
+      requestAnimationFrame(() => {
+        settled.current?.()
+      })
     if (!untouched) {
       void flow.setViewport(saved)
+      const done = settle()
+      return () => cancelAnimationFrame(done)
+    }
+    if (docRef.current.nodes.length === 0) {
+      settled.current?.()
       return
     }
-    if (docRef.current.nodes.length === 0) return
     // 等卡片渲染并量完尺寸再看全图（隔两帧）。
     let second = 0
+    let third = 0
     const first = requestAnimationFrame(() => {
       second = requestAnimationFrame(() => {
         void flow.fitView({
@@ -2411,11 +2424,13 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
             right: `${insets.current.right + 28}px`,
           },
         })
+        third = settle()
       })
     })
     return () => {
       cancelAnimationFrame(first)
       cancelAnimationFrame(second)
+      cancelAnimationFrame(third)
     }
   }, [props.loadKey, viewKey, flow])
 

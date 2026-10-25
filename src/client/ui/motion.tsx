@@ -1767,7 +1767,9 @@ export function useViewGhost(ref: RefObject<HTMLElement | null>): void {
     const el = ref.current
     const root = el?.closest('[data-workflow-lite-view]') ?? null
     return () => {
-      if (el !== null) ghostFade(el, root)
+      // 视图还藏着（第一次加载、没人看见）时从模板换成实例：不留影子，否则淡入时模板的残影会叠在实例上。
+      const hidden = root instanceof HTMLElement && root.dataset.booting === 'true'
+      if (el !== null && !hidden) ghostFade(el, root)
     }
   }, [ref])
 }
