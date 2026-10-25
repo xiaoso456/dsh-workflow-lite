@@ -110,7 +110,7 @@ Lets a workflow keep what worked and follow it on the next run, with the aim of 
 
 Memory is only a configuration shortcut. For anything more elaborate, build it yourself with a resource plus prompts.
 
-**We are still checking whether it helps, and we'd like your feedback.** In early trials that repeated one workflow, we saw no steady speedup; the "Quick path" was added afterwards, and whether it helps needs more real workflows to tell. If you try it, please tell us on [Issues](https://github.com/xiaoso456/dsh-workflow-lite/issues): did the time of repeated runs change, was what it recorded useful, and what was awkward.
+**We are still checking whether it helps, and we'd like your feedback.** In early trials that repeated one workflow, we saw no steady speedup; the "Quick path" was added afterwards, and whether it helps needs more real workflows to tell.
 
 ## How it works
 
