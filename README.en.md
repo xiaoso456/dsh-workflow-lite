@@ -80,8 +80,21 @@ Turn on **Record run state** in **Workflow settings**. Every run then leaves a r
 | Versions | Save versions with notes, compare differences, switch back at any time |
 | Import / export | Pack a workflow and the versions you pick into one `.wflite.zip`, optionally with the files and Skills it uses; before importing, see where each item will go |
 | Export as a Skill (beta) | Compile one version into a skill (SKILL.md, a task description per step, plus the files and Skills you pack) that works without the plugin; download a zip or install it straight into `~/.agents/skills` |
+| Memory (beta) | A workflow keeps what worked and its pitfalls as a skill and follows it on the next run; manage and version it on the **Memory** page, and export it with a workflow pack |
 | Workflow hub | One place for run records across sessions, all workflows and their versions, and plugin settings |
 | Interface | Four light and four dark color themes that follow DSH light or dark mode; English / 中文 |
+
+## Workflow memory (beta)
+
+A complex workflow has to re-explore the environment and re-learn its pitfalls on every run. Memory lets a workflow keep what worked and follow it next time, with the aim of speeding up complex workflows.
+
+- **Adding it**: turn it on for a single step (on the step, or click the **+** beside a step and pick **Memory**), or drag **Memory** from **Basics** in the step library onto the canvas as one shared by the whole workflow. When you add it, pick an existing entry or create a new one; several workflows can share the same one.
+- **What it keeps**: an entry is a skill folder. The "Quick path" at the top of `SKILL.md` is the cheapest way to do the task next time, a series of commands or script calls you can copy as they are; below it come the steps, the pitfalls and how to verify, and the scripts and templates you use often sit in the same folder.
+- **Who writes it**: each step reports what it learned in its reply, and when the workflow ends the model folds that into the memory. You don't have to write anything.
+- **Managing it**: the **Memory** page in the workflow hub lets you rename an entry, edit its description, browse its files, save versions, switch back to an older one, and see which workflows use it. When you export a workflow pack or a Skill, you can choose whether to include the memory content.
+- **Known limits**: instances running at the same time that change the same memory are not locked, so the later write overwrites the earlier one; re-exporting a Skill over an installed copy overwrites the memory it has built up.
+
+**We are still checking whether it helps, and we'd like your feedback.** In early trials that repeated one workflow, we saw no steady speedup; the "Quick path" was added afterwards, and whether it helps needs more real workflows to tell. If you try memory on a complex workflow, please tell us on [Issues](https://github.com/xiaoso456/dsh-workflow-lite/issues): did the time of repeated runs change, was what the memory recorded useful, and what was awkward.
 
 ## Path variables
 
@@ -89,7 +102,7 @@ Resource paths and the output root accept two variables, replaced with real loca
 
 | Variable | Where | Becomes |
 |---|---|---|
-| `{workflow}` | File and folder paths in resources, e.g. `{workflow}/memory/notes.md` | The workflow's own folder (by default `~/.dsh/workflow-lite/assets/<workflow name>/`). Every workspace reads and writes the same copy, and it moves with the workflow when you rename or export it |
+| `{workflow}` | File and folder paths in resources, e.g. `{workflow}/refs/notes.md` | The workflow's own folder (by default `~/.dsh/workflow-lite/assets/<workflow name>/`). Every workspace reads and writes the same copy, and it moves with the workflow when you rename or export it |
 | `{instance}` | **Output root** in **Workflow settings**, e.g. the default `.workflow-lite/runs/{instance}/out` | The id of this run's instance, so each run keeps its outputs apart |
 
 Paths written as `{assets}/…` by earlier versions still work and become `{workflow}/…` when the workflow is opened.

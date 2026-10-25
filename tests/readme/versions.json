@@ -60,14 +60,16 @@
       }
     },
     {
-      "version": "planned",
+      "version": "0.7.0",
       "zh": {
         "title": "工作流记忆",
-        "lines": ["记住历次执行经验", "加速执行"]
+        "tag": "实验性",
+        "lines": ["沉淀执行经验", "加速复杂流程"]
       },
       "en": {
-        "title": "Run memory",
-        "lines": ["Learns from past runs", "Faster runs"]
+        "title": "Memory",
+        "tag": "Beta",
+        "lines": ["Keeps what worked", "Faster complex flows"]
       }
     }
   ]
