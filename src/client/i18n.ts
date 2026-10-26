@@ -587,7 +587,7 @@ export const zh = {
     '选择一个已保存的版本，编译为提示词后写入 Skill；此后对工作流的修改不会同步到该 Skill。',
   'skillExport.pickOne': '选一个版本',
   'skillExport.resourcesHint':
-    '勾上的文件、文件夹放进 skill 的 assets/，skill 放进 skills/，记忆放进 memory/；没勾的原样引用，用的人那边要有。',
+    '勾上的文件、文件夹放进 skill 的 assets/，skill 放进 skills/，记忆连同内容放进 memory/；没勾的文件和 skill 原样引用，用的人那边要有，没勾的记忆只带一份空的，执行时从头攒。',
   'skillExport.building': '正在编译…',
   'skillExport.blocked': '这一版有编译级问题，导不出来：',
   'skillExport.sectionMeta': 'SKILL.md 头部',
@@ -1896,7 +1896,7 @@ export const en: Record<LocaleKey, string> = {
     'Select one saved version to compile into the skill. Later changes to the workflow are not carried over to it.',
   'skillExport.pickOne': 'Select a version',
   'skillExport.resourcesHint':
-    'Checked files and folders go into the skill’s assets/, skills into skills/, memory into memory/; unchecked ones stay as references and must exist on the user’s side.',
+    'Checked files and folders go into the skill’s assets/, skills into skills/, memory (with its contents) into memory/; unchecked files and skills stay as references and must exist on the user’s side, and unchecked memory goes in empty and builds up from scratch.',
   'skillExport.building': 'Compiling…',
   'skillExport.blocked': 'This version has compile-level problems and cannot be exported:',
   'skillExport.sectionMeta': 'SKILL.md header',

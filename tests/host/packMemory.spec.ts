@@ -254,33 +254,56 @@ describe('导出 → 导入', () => {
 })
 
 describe('导出成 skill', () => {
-  it('勾上的记忆放进 memory/<id>/；计划里写 {skill}/memory/<id>，不留本机路径', async () => {
-    const from = await sourceSide()
-    const scan = ok(await scanPack(from.deps, { name: 'review', versions: [1] }))
+  /** 导出成 skill 的 zip：`pick` 决定勾哪几条记忆。 */
+  async function skillFiles(
+    from: Side,
+    version: number,
+    pick: (id: string) => boolean,
+  ): Promise<Map<string, string>> {
+    const scan = ok(await scanPack(from.deps, { name: 'review', versions: [version] }))
     const pack = scan.items
-      .filter((item) => item.memory?.id === 'review-write')
+      .filter((item) => item.memory !== undefined && pick(item.memory.id))
       .map((item) => item.key)
     const out = ok(
       await exportSkill(from.deps, {
         name: 'review',
-        version: 1,
+        version,
         pack,
         meta: { name: 'review-skill', description: '写报告' },
         target: 'zip',
       }),
     )
     const entries = unzipSync(await download(from.dataDir, out.token as string))
-    const files = new Map(Object.entries(entries).map(([path, data]) => [path, strFromU8(data)]))
+    return new Map(Object.entries(entries).map(([path, data]) => [path, strFromU8(data)]))
+  }
+
+  it('勾上的记忆放进 memory/<id>/；计划里写 {skill}/memory/<id>，不留本机路径', async () => {
+    const from = await sourceSide()
+    const files = await skillFiles(from, 1, (id) => id === 'review-write')
     expect([...files.keys()].filter((path) => path.includes('/memory/')).sort()).toEqual([
       'review-skill/memory/review-write/SKILL.md',
       'review-skill/memory/review-write/scripts/fmt.sh',
     ])
     const all = [...files.values()].join('\n')
-    expect(all).toContain('{skill}/memory/review-write')
-    // 没勾的那条也指向 skill 里的位置（用的时候从空的开始攒）。
-    expect(all).toContain('{skill}/memory/review')
+    expect(all).toContain('`{skill}/memory/review-write`')
+    // 没勾的只是不带内容：记忆还在图里，照样指向 skill 里的位置（用的时候从空的开始攒）。
+    expect(all).toContain('`{skill}/memory/review`')
+    expect(all).toContain('全局记忆')
     expect(all).not.toContain(slash(memoriesDir(from.dataDir)))
     expect(all).not.toContain('{memory}')
+  })
+
+  it('图里的记忆卡都删了：整个包里不提记忆，没有 memory/，也不提醒会改写 skill 目录', async () => {
+    const from = await sourceSide()
+    ok(await from.repository.deleteNode('review', 'mem-write'))
+    ok(await from.repository.deleteNode('review', 'mem-global'))
+    ok(await from.repository.saveVersion('review', 'v2'))
+    const files = await skillFiles(from, 2, () => true)
+    expect([...files.keys()].some((path) => path.includes('/memory/'))).toBe(false)
+    expect([...files.keys()]).toContain('review-skill/steps/write.md')
+    for (const [path, text] of files) expect(text, path).not.toMatch(/记忆|memory/u)
+    const preview = ok(await previewSkill(from.deps, { name: 'review', version: 2, pack: [] }))
+    expect(preview.writtenAssets).toEqual([])
   })
 
   it('库里已经没有的记忆：skill 里是空文件夹，不算「按绝对路径引用」', async () => {
@@ -288,6 +311,6 @@ describe('导出成 skill', () => {
     await rm(join(memoriesDir(from.dataDir), 'review.json'))
     const preview = ok(await previewSkill(from.deps, { name: 'review', version: 1, pack: [] }))
     expect(preview.absolute).toEqual([])
-    expect(preview.body).toContain('{skill}/memory/review')
+    expect(preview.body).toContain('`{skill}/memory/review`')
   })
 })

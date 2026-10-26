@@ -143,6 +143,14 @@ describe('引用记忆库', () => {
     expect(codes(() => true)).not.toContain('memory_missing')
     expect(codes((id) => id !== 'demo')).toContain('memory_missing')
   })
+
+  it('不在终点的步骤开着记忆：不提示「写了没人读」（记忆是这一步自己读写的）', () => {
+    const base = doc([step('scan'), step('review')], [link('scan', 'review')])
+    const added = addStepMemory(base, 'scan', STEP_REF, { x: 0, y: 0 })
+    if (added === null) throw new Error('没开成')
+    const report = validateDocument(added.document, { workflowName: 'demo', maxNodes: 100 })
+    expect(report.hint.map((problem) => problem.code)).not.toContain('resource_unread')
+  })
 })
 
 describe('换类型', () => {
@@ -362,6 +370,69 @@ describe('编译', () => {
     expect(full).toContain(`- 记忆目录：\`${dir}\`。说明：`)
     expect(full).toContain('开始前先读里面的 SKILL.md')
     expect(full).toContain('> - 这个目录是整个工作流的做法')
+  })
+
+  it('「不要写进 dataDir」给记忆目录留了除外，不和记忆的说明打架；没有记忆的图不提', () => {
+    const document = withMemories()
+    const plan = buildPlan(facts(document), analyzeGraph(document)).plan
+    expect(plan).toContain('不要写进 `dataDir`（记忆目录除外：它跨执行留着，照记忆的说明就地改）')
+    const bare = doc([step('scan')])
+    expect(buildPlan(facts(bare), analyzeGraph(bare)).plan).not.toContain('记忆目录除外')
+  })
+
+  it('记忆卡都删掉之后：计划、任务描述、整卷版里一句记忆都不提（开着运行状态也一样）', () => {
+    const settings = { runState: true as const }
+    const cleared = withMemories(settings)
+    const ids = new Set(['mem-review', 'mem-global'])
+    const document: WorkflowDocument = {
+      ...cleared,
+      nodes: cleared.nodes.filter((node) => !ids.has(node.id)),
+      edges: cleared.edges.filter((edge) => !ids.has(edge.source) && !ids.has(edge.target)),
+    }
+    const analysis = analyzeGraph(document)
+    const texts = [
+      buildPlan(facts(document), analysis, { runState: { instance: 'r1' } }).plan,
+      buildFullText(facts(document), analysis),
+      ...buildTaskTexts(facts(document), analysis).values(),
+    ]
+    for (const text of texts) {
+      expect(text).not.toBe('')
+      expect(text).not.toMatch(/记忆|memory/u)
+    }
+  })
+
+  it('只有一种记忆时，约定里只提那一种', () => {
+    const onlyStep = withMemories()
+    const document: WorkflowDocument = {
+      ...onlyStep,
+      nodes: onlyStep.nodes.filter((node) => node.id !== 'mem-global'),
+    }
+    const plan = buildPlan(facts(document), analyzeGraph(document)).plan
+    expect(plan).toContain('照它的说明：步骤自己的记忆附在它的任务描述里。')
+    expect(plan).not.toContain('全局记忆')
+  })
+
+  it('全局记忆还不存在（第一次跑、导出时没带内容）：步骤跳过，编排者收尾时新建、改完再收尾', () => {
+    const document = withMemories()
+    const plan = buildPlan(facts(document), analyzeGraph(document)).plan
+    expect(plan).toContain('都读它的 SKILL.md（还不存在就跳过）')
+    expect(plan).toContain('（目录还不存在就新建），改完再收尾')
+    const scan = buildTaskTexts(facts(document), analyzeGraph(document)).get('scan') ?? ''
+    expect(scan).toContain('读它的 SKILL.md（还不存在就是还没有做法，跳过）')
+  })
+
+  it('导出成 skill：记忆写在 `{skill}/memory/…`，约定里「不要写进 skill 目录」留了除外', () => {
+    const document = bindDirs(withMemories(), { memory: '{skill}/memory' })
+    const payloadPaths = new Map(
+      document.nodes.map((node) => [node.id, `{skill}/steps/${node.id}.md`]),
+    )
+    const skill = { bundled: new Set<string>(), needs: [], absolute: [] }
+    const plan = buildPlan({ name: 'demo', document, payloadPaths }, analyzeGraph(document), {
+      skill,
+    }).plan
+    expect(plan).toContain('附带的资料、skill 和记忆都写成 `{skill}/…`')
+    expect(plan).toContain('不要写进 skill 目录（记忆目录除外')
+    expect(plan).toContain('`{skill}/memory/demo-review`')
   })
 
   it('默认说明照 skill 的写法：先读 SKILL.md、主动沉淀、四段结构；不设条数上限', () => {

@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { parameterSchemaSpecToJsonSchema } from '@deepseek-ai/dsh-tools'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { deleteMemory, readMemoryMeta } from '../../src/host/store/memories.ts'
 import {
   createRepository,
   type Repository,
@@ -702,5 +703,138 @@ describe('workflow_lite —— 输入节点', () => {
     const schema = parameterSchemaSpecToJsonSchema(PARAMETERS)
     expect(schema.properties?.input).toBeDefined()
     expect(schema.properties?.answers).toBeDefined()
+  })
+})
+
+describe('workflow_lite —— 记忆', () => {
+  /** `scan → review` 两步的图。 */
+  async function twoSteps(workflow: string): Promise<void> {
+    await run({ action: 'create', workflow })
+    await run({ action: 'write_node', workflow, node: 'scan', content: '扫描', no_output: true })
+    await run({ action: 'write_node', workflow, node: 'review', content: '审查', no_output: true })
+    await run({ action: 'connect', workflow, source: 'scan', target: 'review' })
+  }
+
+  /** `read` 索引里的一张资源卡。 */
+  async function resourceEntry(workflow: string, id: string): Promise<Record<string, JsonValue>> {
+    const resources = record(await run({ action: 'read', workflow })).resources
+    const found = Array.isArray(resources)
+      ? resources.map(record).find((entry) => entry.id === id)
+      : undefined
+    return found ?? {}
+  }
+
+  it('新建步骤记忆：库里建一条 <工作流>-<步骤>，卡片 mem-<步骤>，连一条更新线；read 认得出它', async () => {
+    await twoSteps('flow')
+    const added = record(
+      await run({
+        action: 'write_resource',
+        workflow: 'flow',
+        memory: { type: 'step', step: 'review', name: '审查做法' },
+      }),
+    )
+    expect(added.memory).toEqual({ id: 'flow-review', type: 'step', created: true })
+    expect(await readMemoryMeta(dataDir, 'flow-review')).toMatchObject({
+      type: 'step',
+      name: '审查做法',
+    })
+    const entry = await resourceEntry('flow', 'mem-review')
+    expect(entry.memory).toEqual({ id: 'flow-review', type: 'step' })
+    expect(entry.writers).toEqual([{ id: 'review', update: true }])
+  })
+
+  it('工作流记忆缺省类型、不连线；再加一条撞了名就加序号；list 带上记忆库', async () => {
+    await twoSteps('flow')
+    const first = record(await run({ action: 'write_resource', workflow: 'flow', memory: {} }))
+    expect(first.memory).toEqual({ id: 'flow', type: 'workflow', created: true })
+    const second = record(await run({ action: 'write_resource', workflow: 'flow', memory: {} }))
+    expect(second.memory).toEqual({ id: 'flow-2', type: 'workflow', created: true })
+    expect((await resourceEntry('flow', 'mem-global')).writers).toEqual([])
+    const list = record(await run({ action: 'list' }))
+    const memories = Array.isArray(list.memories) ? list.memories.map(record) : []
+    expect(memories.map((entry) => entry.id).sort()).toEqual(['flow', 'flow-2'])
+    expect(memories.find((entry) => entry.id === 'flow')?.usedBy).toEqual(['flow'])
+  })
+
+  it('给了库里已有的 id 就引用它（类型按库里的），不新建；name 没用上会说一声', async () => {
+    await twoSteps('a')
+    await twoSteps('b')
+    await run({ action: 'write_resource', workflow: 'a', memory: { id: 'shared' } })
+    const reused = record(
+      await run({
+        action: 'write_resource',
+        workflow: 'b',
+        memory: { id: 'shared', name: '改名' },
+      }),
+    )
+    expect(record(reused.memory)).toMatchObject({ id: 'shared', type: 'workflow', created: false })
+    expect(typeof record(reused.memory).note).toBe('string')
+    expect(await readMemoryMeta(dataDir, 'shared')).toMatchObject({ name: 'shared' })
+  })
+
+  it('参数对不上就拒绝，库里不留没用上的记忆', async () => {
+    await twoSteps('flow')
+    const call = (memory: Record<string, string>) =>
+      run({ action: 'write_resource', workflow: 'flow', memory })
+    expect(errorCode(await call({ type: 'step' }))).toBe('invalid_args')
+    expect(errorCode(await call({ type: 'workflow', step: 'scan' }))).toBe('invalid_args')
+    expect(errorCode(await call({ type: 'bogus' }))).toBe('invalid_args')
+    expect(errorCode(await call({ step: 'nope' }))).toBe('not_found')
+    await call({ id: 'flow' })
+    expect(errorCode(await call({ id: 'flow', type: 'step', step: 'scan' }))).toBe('invalid_args')
+    await call({ step: 'scan' })
+    expect(errorCode(await call({ step: 'scan' }))).toBe('conflict')
+    expect(
+      errorCode(
+        await run({
+          action: 'write_resource',
+          workflow: 'flow',
+          node: 'x',
+          memory: { step: 'review' },
+        }),
+      ),
+    ).toBe('invalid_args')
+    const list = record(await run({ action: 'list' }))
+    const ids = Array.isArray(list.memories) ? list.memories.map((entry) => record(entry).id) : []
+    expect(ids.sort()).toEqual(['flow', 'flow-scan'])
+  })
+
+  it('记忆卡的内容改不了（不拦的话读回时会被悄悄归一化掉）；名字照样能改', async () => {
+    await twoSteps('flow')
+    await run({ action: 'write_resource', workflow: 'flow', memory: { step: 'review' } })
+    const items = await run({
+      action: 'write_resource',
+      workflow: 'flow',
+      node: 'mem-review',
+      resource: { items: [{ kind: 'folder', value: 'elsewhere' }] },
+    })
+    expect(errorCode(items)).toBe('blocked')
+    const label = await run({
+      action: 'write_resource',
+      workflow: 'flow',
+      node: 'mem-review',
+      resource: { label: '审查记忆' },
+    })
+    expect(errorCode(label)).toBeUndefined()
+  })
+
+  it('删步骤：它的记忆卡一起删、changed 里列出来；库里那一条留着', async () => {
+    await twoSteps('flow')
+    await run({ action: 'write_resource', workflow: 'flow', memory: { step: 'review' } })
+    const removed = record(await run({ action: 'delete_node', workflow: 'flow', node: 'review' }))
+    const changed = Array.isArray(removed.changed) ? removed.changed.map(record) : []
+    expect(changed.map((entry) => entry.id)).toEqual(['review', 'mem-review'])
+    expect(await readMemoryMeta(dataDir, 'flow-review')).not.toBeNull()
+  })
+
+  it('库里那一条删掉了：read 索引里标 missing', async () => {
+    await twoSteps('flow')
+    await run({ action: 'write_resource', workflow: 'flow', memory: {} })
+    await deleteMemory({ dataDir, repository }, 'flow')
+    expect((await resourceEntry('flow', 'mem-global')).memory).toEqual({
+      id: 'flow',
+      type: 'workflow',
+      missing: true,
+    })
   })
 })

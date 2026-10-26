@@ -24,6 +24,7 @@ import { canonicalOutput, idKey, isInput, isResource, isStep } from '../../share
 import { checkName } from '../../shared/naming.ts'
 import { DEFAULT_OUTPUT_ROOT, WORKSPACE_ROOT } from '../../shared/outputPaths.ts'
 import { INSTANCE_VAR } from '../../shared/pathVars.ts'
+import { memoryOf, stepMemories, suggestMemoryId } from '../../shared/presets.ts'
 import { outputsOf, resourceGraph, stepResources } from '../../shared/resources.ts'
 import { NODE_STATUSES, RUN_STATUSES } from '../../shared/runState.ts'
 import type {
@@ -32,6 +33,8 @@ import type {
   Handoff,
   InputAnswer,
   InputIndexEntry,
+  MemoryIndexEntry,
+  MemoryType,
   NodeIndexEntry,
   ReadIndexResult,
   ReadNodeResult,
@@ -48,6 +51,7 @@ import {
   type Action,
   EXECUTION_MODES,
   INPUT_KINDS,
+  MEMORY_TYPES,
   RESOURCE_KINDS,
   REUSE_POLICIES,
   TOOL_NAME,
@@ -55,6 +59,14 @@ import {
 import { compileWorkflow } from '../plan.ts'
 import type { NodePatch, RunService, SessionRef, StatePatch } from '../runs/service.ts'
 import { writeFileAtomic } from '../store/atomic.ts'
+import {
+  createMemory,
+  deleteMemory,
+  hasMemory,
+  listMemories,
+  type MemoryDeps,
+  readMemoryMeta,
+} from '../store/memories.ts'
 import { templateFile, templateOccupant } from '../store/paths.ts'
 import {
   type InputUpsert,
@@ -84,12 +96,14 @@ const DESCRIPTION = [
   'create 新建一张空图 / write_node 新建或覆盖一个节点 / set_label 改显示名（id 不可改）/ ',
   'delete_node 删节点（连带删边）/ connect、disconnect 增删边 / rename_workflow、delete_workflow 改名删图 / ',
   'save_as_template 把一个步骤存成节点模板（画布步骤库的「我的步骤」）/ ',
-  'configure 改工作流设置（output_root 产出根目录、mode 执行方式、reuse 复用执行者、set_goal 设定目标、run_state 记录运行状态）/ write_resource 新建或修改资源节点 / ',
+  'configure 改工作流设置（output_root 产出根目录、mode 执行方式、reuse 复用执行者、set_goal 设定目标、run_state 记录运行状态）/ write_resource 新建或修改资源节点（带 memory 是加一张记忆卡）/ ',
   'runs 列工作流实例 / resume 拿一个实例的计划接着跑 / state 看或改实例的运行状态（开了 run_state 的图按计划末尾「运行状态」段用它记进度，不要直接编辑状态文件；插件补时间、轮次、流水并校验）。',
   '用户在画布上点「执行」时会发来一句带实例 id 的话：用 resume 拿那个实例的计划，照着执行。',
   '资源是独立的节点，一个资源里可以放好几项（file 文件、folder 文件夹、url 网址、skill、text 自定义）：',
   'connect 步骤 → 资源 = 写它（写其中的文件与文件夹；update 选在原文件上更新），资源 → 步骤 = 读它，一条线都没连的资源交给整个工作流；',
   'write_node 的 output/outputs 也会自动建好放着这个文件的资源并连上。步骤 → 步骤的线缺省交上游的执行结果（handoff / handoff_note 可改）。',
+  '记忆是跨多次执行攒下来的做法（一份 skill 文件夹，放在插件的记忆库里）：工作流记忆整个流程共用，步骤记忆只给那一步。',
+  'write_resource 带 memory 加记忆卡（引用 list 里已有的一条，或新建一条）。只给大型、复杂、会反复执行的工作流加，加之前读 skill workflow-authoring 的「记忆」一节。',
   '输入节点是执行前问用户的问题：write_node 带 input 新建或修改，connect 输入 → 步骤 = 把回答交给它。',
   '图里有输入节点时，compile 带 answers 给出用户的回答（没给的用默认值）；必填的没回答会回 problems，先问用户再编译。',
   '节点定位一律用 id。',
@@ -242,18 +256,178 @@ function inputUpsertOf(id: string, input: InputArgs): InputUpsert | string {
 }
 
 /** 资源节点的索引条目：名字、内容、谁写、谁读（描述是给人看的，不给）。 */
-function resourceEntries(document: WorkflowDocument): ResourceIndexEntry[] {
+function resourceEntries(
+  document: WorkflowDocument,
+  missing: ReadonlySet<string>,
+): ResourceIndexEntry[] {
   return [...resourceGraph(document).values()]
     .sort((a, b) => compareByCodepoint(a.resource.id, b.resource.id))
-    .map(({ resource, writers, readers }) => ({
-      id: resource.id,
-      ...(resource.data.label === undefined ? {} : { label: resource.data.label }),
-      items: resource.data.items,
-      writers: writers.map((writer) =>
-        writer.update ? { id: writer.id, update: true as const } : { id: writer.id },
-      ),
-      readers,
+    .map(({ resource, writers, readers }) => {
+      const memory = memoryOf(resource.data)
+      return {
+        id: resource.id,
+        ...(resource.data.label === undefined ? {} : { label: resource.data.label }),
+        items: resource.data.items,
+        writers: writers.map((writer) =>
+          writer.update ? { id: writer.id, update: true as const } : { id: writer.id },
+        ),
+        readers,
+        ...(memory === undefined
+          ? {}
+          : {
+              memory: {
+                id: memory.memory,
+                type: memory.type,
+                ...(missing.has(idKey(memory.memory)) ? { missing: true as const } : {}),
+              },
+            }),
+      }
+    })
+}
+
+/** 图里引用了、记忆库里却没有的记忆（`idKey`）。 */
+async function missingMemories(dataDir: string, document: WorkflowDocument): Promise<Set<string>> {
+  const missing = new Set<string>()
+  for (const node of document.nodes) {
+    const memory = isResource(node) ? memoryOf(node.data) : undefined
+    if (memory === undefined || memory.memory === '') continue
+    if (!(await hasMemory(dataDir, memory.memory))) missing.add(idKey(memory.memory))
+  }
+  return missing
+}
+
+/** `list` 里的记忆库：挑已有的引用时看。 */
+async function memoryIndex(deps: MemoryDeps): Promise<MemoryIndexEntry[]> {
+  return (await listMemories(deps))
+    .filter((entry) => entry.invalid !== true)
+    .map((entry) => ({
+      id: entry.id,
+      type: entry.type,
+      name: entry.name,
+      ...(entry.description === '' ? {} : { description: entry.description }),
+      usedBy: entry.usedBy,
     }))
+}
+
+type MemoryCardOutcome = Outcome<{
+  changed: ChangedEntry[]
+  warnings: ToolWarning[]
+  memory: { id: string; type: MemoryType; created: boolean; note?: string }
+}>
+
+function memoryFail(
+  code: 'invalid_args' | 'not_found' | 'conflict',
+  message: string,
+): MemoryCardOutcome {
+  return { ok: false, error: { code, message } }
+}
+
+/**
+ * `write_resource` 带 `memory`：引用库里已有的一条（给了 `id` 且库里有），或新建一条（没给 `id` 时按画布的规则起名，
+ * 撞了加序号），再加一张记忆卡。先查图，查过了才建库里的那条；卡没加上就把刚建的删掉，不留没人用的空记忆。
+ */
+async function writeMemoryCard(
+  deps: ToolDeps,
+  workflow: string,
+  input: MemoryArgs,
+): Promise<MemoryCardOutcome> {
+  for (const key of ['id', 'step', 'name', 'description'] as const) {
+    const value = input[key]
+    if (value !== undefined && typeof value !== 'string') {
+      return memoryFail('invalid_args', `memory.${key} 必须是文字`)
+    }
+  }
+  let type: MemoryType | undefined
+  if (input.type !== undefined) {
+    type = MEMORY_TYPES.find((candidate) => candidate === input.type)
+    if (type === undefined) {
+      return memoryFail(
+        'invalid_args',
+        `memory.type 不认识：${String(input.type)}（可选：${MEMORY_TYPES.join(' / ')}）`,
+      )
+    }
+  }
+  const id = input.id === undefined || input.id.trim() === '' ? undefined : input.id.trim()
+  const step = input.step === undefined || input.step.trim() === '' ? undefined : input.step.trim()
+
+  const load = await deps.repository.load(workflow)
+  if (!load.exists) return memoryFail('not_found', `图 ${workflow} 不存在`)
+  const document = load.document
+  if (document === null) return memoryFail('invalid_args', `图 ${workflow} 有保存级问题，先修好`)
+  if (step !== undefined) {
+    const node = document.nodes.find((candidate) => idKey(candidate.id) === idKey(step))
+    if (node === undefined) return memoryFail('not_found', `图 ${workflow} 里没有节点 ${step}`)
+    if (!isStep(node)) return memoryFail('invalid_args', `${node.id} 不是步骤，记忆只能挂在步骤上`)
+    const existing = stepMemories(document, node.id)[0]
+    if (existing !== undefined) {
+      return memoryFail('conflict', `步骤 ${node.id} 已经有记忆了（${existing.id}）`)
+    }
+  }
+
+  const dataDir = deps.dataDir()
+  const memoryDeps: MemoryDeps = { dataDir, repository: deps.repository }
+  const meta = id === undefined ? null : await readMemoryMeta(dataDir, id)
+  if (meta === 'invalid') {
+    return memoryFail('invalid_args', `记忆库里的 ${id} 元数据读不出来，换一条或新建一条`)
+  }
+  if (meta !== null && type !== undefined && type !== meta.type) {
+    return memoryFail(
+      'invalid_args',
+      `记忆库里的 ${meta.id} 是${meta.type === 'step' ? '步骤' : '工作流'}记忆，和 memory.type 对不上`,
+    )
+  }
+  const resolved: MemoryType = meta?.type ?? type ?? (step === undefined ? 'workflow' : 'step')
+  if (resolved === 'step' && step === undefined) {
+    return memoryFail('invalid_args', '步骤记忆要给 memory.step（挂在哪一步）')
+  }
+  if (resolved === 'workflow' && step !== undefined) {
+    return memoryFail(
+      'invalid_args',
+      '工作流记忆不挂在步骤上，去掉 memory.step；一步的做法用步骤记忆',
+    )
+  }
+
+  let ref: { memory: string; type: MemoryType }
+  let created = false
+  // 引用已有的：名称、描述是库里那一条的，这里给了也不改（改在工作流中心「记忆」页）。
+  const ignored = meta !== null && (input.name !== undefined || input.description !== undefined)
+  if (meta !== null) {
+    ref = { memory: meta.id, type: meta.type }
+  } else {
+    const made = await createMemory(memoryDeps, {
+      type: resolved,
+      id: id ?? suggestMemoryId(resolved, workflow, step),
+      ...(input.name === undefined ? {} : { name: input.name }),
+      ...(input.description === undefined ? {} : { description: input.description }),
+    })
+    if (!made.ok) return memoryFail('invalid_args', made.error.message)
+    ref = { memory: made.result.id, type: made.result.type }
+    created = true
+  }
+
+  const outcome = await deps.repository.addMemory(workflow, {
+    ref,
+    ...(step === undefined ? {} : { step }),
+  })
+  if (!outcome.ok) {
+    if (created) await deleteMemory(memoryDeps, ref.memory)
+    return outcome
+  }
+  return {
+    ok: true,
+    result: {
+      changed: outcome.result.changed,
+      warnings: outcome.result.warnings,
+      memory: {
+        id: ref.memory,
+        type: ref.type,
+        created,
+        ...(ignored
+          ? { note: '引用的是库里已有的一条，name / description 只在新建时起作用，没用上' }
+          : {}),
+      },
+    },
+  }
 }
 
 /** write_resource 的 resource 参数 → 仓储的入参。形状不对就回一句给模型看的错。 */
@@ -402,6 +576,16 @@ export interface WorkflowLiteArgs {
   input?: InputArgs
   answers?: AnswerArgs[]
   resource?: ResourceArgs
+  memory?: MemoryArgs
+}
+
+/** write_resource 的 memory（与参数声明同构）。 */
+export interface MemoryArgs {
+  type?: string
+  id?: string
+  step?: string
+  name?: string
+  description?: string
 }
 
 /** write_resource 的 resource（与参数声明同构）。 */
@@ -549,7 +733,10 @@ export function createWorkflowLiteHandler(
 
     switch (action) {
       case 'list':
-        return finish(await repository.list())
+        return finish({
+          ...(await repository.list()),
+          memories: await memoryIndex({ dataDir: deps.dataDir(), repository }),
+        })
 
       case 'read': {
         const name = requireWorkflow(args.workflow)
@@ -581,7 +768,12 @@ export function createWorkflowLiteHandler(
               indexEntry(load.document ?? document0(), node),
             ),
             ...(load.document.nodes.some(isResource)
-              ? { resources: resourceEntries(load.document) }
+              ? {
+                  resources: resourceEntries(
+                    load.document,
+                    await missingMemories(deps.dataDir(), load.document),
+                  ),
+                }
               : {}),
             ...(load.document.nodes.some(isInput) ? { inputs: inputEntries(load.document) } : {}),
             // 索引就是自检的入口：阻塞编译的问题也在这里给，不必为了看问题去编译（编译会建实例）。
@@ -864,6 +1056,25 @@ export function createWorkflowLiteHandler(
       case 'write_resource': {
         const name = requireWorkflow(args.workflow)
         if (name === null) return missingWorkflow()
+        if (args.memory !== undefined) {
+          if ((args.node !== undefined && args.node !== '') || args.resource !== undefined) {
+            return errorValue({
+              error: {
+                code: 'invalid_args',
+                message:
+                  '加记忆只给 memory，不带 node / resource（卡片 id 和内容由插件定）；建好的记忆卡要换一条就 delete_node 再加',
+              },
+            })
+          }
+          if (typeof args.memory !== 'object' || args.memory === null) {
+            return errorValue({
+              error: { code: 'invalid_args', message: 'memory 要写成 { type, id, step }' },
+            })
+          }
+          const outcome = await writeMemoryCard(deps, name, args.memory)
+          if (!outcome.ok) return errorValue(outcome)
+          return finish(outcome.result)
+        }
         if ((args.node === undefined || args.node === '') && args.resource === undefined) {
           return errorValue({
             error: {
@@ -969,6 +1180,27 @@ export const PARAMETERS = {
     type: 'boolean',
     description:
       'connect（步骤 → 资源）：true = 在原文件上更新（先读再改，如修完在问题清单里打钩）；false = 整份写出。缺省：资源还没人写就是整份写出，已经有人写就是更新。',
+  },
+  memory: {
+    type: 'object',
+    description:
+      'write_resource：加一张记忆卡（不带 node / resource）。给了 id 且库里有就引用那一条，否则新建一条；不给 id 就按工作流名起名。只给大型、复杂、会反复执行的工作流加。',
+    additionalProperties: false,
+    properties: {
+      type: {
+        type: 'string',
+        enum: [...MEMORY_TYPES],
+        description:
+          'workflow 工作流记忆（整个流程共用，不连线）/ step 步骤记忆（只给 step 那一步）。缺省：给了 step 就是 step；引用已有的按库里的类型。',
+      },
+      id: {
+        type: 'string',
+        description: '记忆库里的 id（list 的 memories 里有）；库里没有就用它新建。',
+      },
+      step: { type: 'string', description: '步骤记忆挂在哪一步（步骤 id）。' },
+      name: { type: 'string', description: '新建时的名称（给人看；缺省 = id）。' },
+      description: { type: 'string', description: '新建时的一句话描述（给人看）。' },
+    },
   },
   resource: {
     type: 'object',

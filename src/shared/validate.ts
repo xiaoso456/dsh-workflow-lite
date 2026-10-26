@@ -547,7 +547,9 @@ export function validateDocument(
 
   for (const info of resources.values()) {
     // 写出来却没有步骤读：下游只拿到交接里的执行结果。写它的步骤里有终点（没有下游）的，算交给用户的成品，不提示。
+    // 记忆不算：步骤记忆是那一步自己读写的，不交给下游。
     if (info.writers.length === 0 || info.readers.length > 0) continue
+    if (memoryOf(info.resource.data) !== undefined) continue
     const terminal = info.writers.some(
       (writer) => (analysis.successors.get(writer.id) ?? []).length === 0,
     )

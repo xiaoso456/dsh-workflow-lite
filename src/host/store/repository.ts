@@ -56,7 +56,15 @@ import {
   sameName,
 } from '../../shared/naming.ts'
 import { checkOutputRoot } from '../../shared/outputPaths.ts'
-import { dropOrphanMemories } from '../../shared/presets.ts'
+import {
+  addGlobalMemory,
+  addStepMemory,
+  dropOrphanMemories,
+  isMemory,
+  type MemoryRef,
+  memoryOf,
+  stepMemories,
+} from '../../shared/presets.ts'
 import { newResourceNode, setStepOutputs, splitOutputs } from '../../shared/resources.ts'
 import {
   type ChangedEntry,
@@ -244,6 +252,13 @@ export interface ResourceUpsert {
   position?: Point
 }
 
+/** 加一张记忆卡：引用库里的哪一条；给了 `step` 就是那一步的记忆（连一条写它的线），不给就是工作流记忆。 */
+export interface MemoryCardRequest {
+  ref: MemoryRef
+  step?: string
+  position?: Point
+}
+
 /** 改工作流设置时给的字段（没给的不动）。 */
 export interface SettingsPatch {
   outputRoot?: string
@@ -314,6 +329,8 @@ export interface Repository {
   deleteNodeTemplate(name: string): Promise<Outcome<WriteResult>>
   writeNode(workflow: string, upsert: NodeUpsert): Promise<Outcome<WriteResult>>
   writeResource(workflow: string, upsert: ResourceUpsert): Promise<Outcome<WriteResult>>
+  /** 加一张记忆卡（库里那一条由调用方先备好）。步骤不存在、已经有记忆了就拒绝。 */
+  addMemory(workflow: string, request: MemoryCardRequest): Promise<Outcome<WriteResult>>
   writeInput(workflow: string, upsert: InputUpsert): Promise<Outcome<WriteResult>>
   setLabel(workflow: string, node: string, label: string): Promise<Outcome<WriteResult>>
   /** 改工作流设置（产出根目录、执行方式、复用执行者、设定目标、记录运行状态）；给了的字段才改。 */
@@ -1491,6 +1508,14 @@ class FileRepository implements Repository {
       if (found !== undefined && !isResource(found)) {
         return fail('blocked', `${found.id} 不是资源节点`, { id: found.id })
       }
+      // 记忆卡的内容固定是引用的那条记忆；不拦的话改了也会在读回时归一化掉，模型却以为改成了。
+      if (found !== undefined && isMemory(found) && upsert.items !== undefined) {
+        return fail(
+          'blocked',
+          `${found.id} 是记忆卡，内容固定是它引用的那条记忆，不能改 items；要换一条就 delete_node 再用 memory 加`,
+          { id: found.id, code: 'memory_items' },
+        )
+      }
       if (found === undefined && upsert.id !== undefined) {
         const idIssue = checkName(normalizeName(upsert.id))
         if (idIssue !== null) {
@@ -1537,6 +1562,51 @@ class FileRepository implements Repository {
         ok: true,
         document,
         changed: [{ kind: 'node', op: 'update', id: found.id }],
+        warnings: [],
+      }
+    })
+  }
+
+  async addMemory(workflow: string, request: MemoryCardRequest): Promise<Outcome<WriteResult>> {
+    return this.mutate(workflow, async (document) => {
+      const position = request.position ?? { x: 0, y: 0 }
+      if (request.step === undefined) {
+        const added = addGlobalMemory(document, request.ref, position)
+        return {
+          ok: true,
+          document: added.document,
+          changed: [
+            { kind: 'node', op: 'add', id: added.id, detail: { memory: request.ref.memory } },
+          ],
+          warnings: [],
+        }
+      }
+      const step = findNode(document, request.step)
+      if (step === undefined) {
+        return fail('not_found', `节点 ${request.step} 不存在`, { node: request.step })
+      }
+      if (!isStep(step)) return fail('invalid_args', `${step.id} 不是步骤`, { node: step.id })
+      const existing = stepMemories(document, step.id)[0]
+      if (existing !== undefined) {
+        return fail('conflict', `步骤 ${step.id} 已经有记忆了（${existing.id}）`, {
+          node: step.id,
+          memory: existing.id,
+        })
+      }
+      const added = addStepMemory(document, step.id, request.ref, position)
+      if (added === null) {
+        return fail('invalid_args', `步骤 ${step.id} 加不了记忆`, { node: step.id })
+      }
+      const edge = added.document.edges[added.document.edges.length - 1]
+      return {
+        ok: true,
+        document: added.document,
+        changed: [
+          { kind: 'node', op: 'add', id: added.id, detail: { memory: request.ref.memory } },
+          ...(edge === undefined
+            ? []
+            : [{ kind: 'edge' as const, op: 'add' as const, id: edge.id }]),
+        ],
         warnings: [],
       }
     })
@@ -1620,8 +1690,10 @@ class FileRepository implements Repository {
       const before = { ...document }
       document.nodes = document.nodes.filter((current) => idKey(current.id) !== idKey(target.id))
       document.edges = document.edges.filter((edge) => !orphanIds.has(edge.id))
-      // 删步骤时它自己的记忆卡一起删掉，不然就悄悄成了全局记忆（记忆目录不动）。
-      document.nodes = dropOrphanMemories(before, document).nodes
+      // 删步骤时它自己的记忆卡一起删掉，不然就悄悄成了全局记忆（记忆库里那一条不动）。
+      const kept = dropOrphanMemories(before, document).nodes
+      const dropped = document.nodes.filter((current) => !kept.includes(current))
+      document.nodes = kept
       return {
         ok: true,
         document,
@@ -1632,6 +1704,12 @@ class FileRepository implements Repository {
             id: target.id,
             detail: { edges: orphans.map((edge) => edge.id) },
           },
+          ...dropped.map((card) => ({
+            kind: 'node' as const,
+            op: 'delete' as const,
+            id: card.id,
+            detail: { memory: isResource(card) ? (memoryOf(card.data)?.memory ?? '') : '' },
+          })),
         ],
         warnings: [],
       }

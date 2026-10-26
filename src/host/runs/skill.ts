@@ -75,7 +75,7 @@ summary、verdict、error、by 写空串 = 清掉；outputs 给空列表 = 清�
 | 分支没走到的步骤 | \`status: skipped\` |
 | 循环回到某个步骤 | 它重新 \`status: running\`（插件算新的一轮，上一轮的结论留在流水里） |
 | 要等用户 | 步骤或整体 \`status: waiting\` + 整体 note 写等什么；用户答复后改回 running |
-| 全部走完 / 走不下去 / 用户叫停 | 整体 \`status: done\` / \`failed\` / \`cancelled\` + note |
+| 全部走完 / 走不下去 / 用户叫停 | 整体 \`status: done\` / \`failed\` / \`cancelled\` + note；有全局记忆的，先照计划把各步骤报的「经验」整理进去再改 |
 
 同一批次并行派出的几个步骤可以在一次调用里一起改；一个步骤做完、下一个开始也可以一次写完。
 

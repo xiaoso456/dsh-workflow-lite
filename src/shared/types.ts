@@ -510,6 +510,16 @@ export interface ListResult {
   warnings: ToolWarning[]
 }
 
+/** 工具 `list` 里记忆库的一条（加记忆时挑已有的引用）。 */
+export interface MemoryIndexEntry {
+  id: string
+  type: MemoryType
+  name: string
+  description?: string
+  /** 当前存的那份引用了它的工作流。 */
+  usedBy: string[]
+}
+
 /** `read` 不给 `node` 时的索引——**绝不含 `prompt`**。 */
 export interface NodeIndexEntry {
   id: string
@@ -546,6 +556,8 @@ export interface ResourceIndexEntry {
   writers: { id: string; update?: true }[]
   /** 读它的步骤 id；写读都没有 = 交给整个工作流。 */
   readers: string[]
+  /** 记忆卡：引用记忆库里的哪一条（`missing` = 库里没有了）。 */
+  memory?: { id: string; type: MemoryType; missing?: true }
 }
 
 export interface ReadIndexResult {

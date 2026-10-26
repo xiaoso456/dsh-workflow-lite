@@ -121,11 +121,10 @@ const UPDATE_RULE =
  * 记忆（见 `shared/presets.ts`）：约定里只给定义，怎么读、什么时候改、怎么写是它自己的说明
  * （用户能看能改）——步骤的附在它的任务描述里，全局记忆的在「资源」里（编排者整理它时照着写）。
  */
-const MEMORY_RULE = `**记忆**：跨多次执行沉淀下来的做法，不是这一次的记录：一个文件夹就是一份 skill，${MEMORY_SKILL_FILE} 写怎么做，scripts/、templates/、references/ 放配套的东西。怎么读、什么时候改、怎么写，照它的说明：步骤自己的记忆附在它的任务描述里，全局记忆的在「资源」里。`
-const MEMORY_RULE_INLINE = `**记忆**：跨多次执行沉淀下来的做法，不是这一次的记录：一个文件夹就是一份 skill，${MEMORY_SKILL_FILE} 写怎么做，scripts/、templates/、references/ 放配套的东西。怎么读、什么时候改、怎么写，照「资源」里它的说明。`
-const GLOBAL_MEMORY_RULE = `**全局记忆**：每个步骤开始前都读它的 ${MEMORY_SKILL_FILE}，有「快速路径」就优先照它执行（少想、少探索，能合并的调用合并），只读不改，把换个步骤也成立的经验写在回复的「经验」里；整个工作流结束时（中途停下也一样）由你挑出来，照它的说明改进去。`
+const MEMORY_RULE_HEAD = `**记忆**：跨多次执行沉淀下来的做法，不是这一次的记录：一个文件夹就是一份 skill，${MEMORY_SKILL_FILE} 写怎么做，scripts/、templates/、references/ 放配套的东西。怎么读、什么时候改、怎么写，`
+const GLOBAL_MEMORY_RULE = `**全局记忆**：每个步骤开始前都读它的 ${MEMORY_SKILL_FILE}（还不存在就跳过），有「快速路径」就优先照它执行（少想、少探索，能合并的调用合并），只读不改，把换个步骤也成立的经验写在回复的「经验」里；整个工作流结束时（中途停下也一样）由你挑出来，照它的说明改进去（目录还不存在就新建），改完再收尾。`
 /** 任务描述里全局记忆小标题下的那句：只读，经验写在回复里。 */
-const TASK_GLOBAL_MEMORY = `只读：开始前读它的 ${MEMORY_SKILL_FILE}。有「快速路径」就优先照它执行：少想、少探索，路径里写了的不再重新验证；能合成一次的工具调用合成一次，数字用脚本算、不在推理里心算；某一条对不上「算对」才停下来想。里面的脚本、模板直接用，不必先读脚本源码。这一步学到的、换个步骤也成立的经验，在回复里（判定行之前）列在「经验」下，每条一行，没有就不写；这一步没能照路径一步到位的地方（多查了几次、绕了弯、自己心算了数字）也列进去，写明下次该怎么一次做到；写出了别的步骤也用得上、跑通过的脚本，写明它现在在哪、做什么。由编排者统一整理进去。`
+const TASK_GLOBAL_MEMORY = `只读：开始前读它的 ${MEMORY_SKILL_FILE}（还不存在就是还没有做法，跳过）。有「快速路径」就优先照它执行：少想、少探索，路径里写了的不再重新验证；能合成一次的工具调用合成一次，数字用脚本算、不在推理里心算；某一条对不上「算对」才停下来想。里面的脚本、模板直接用，不必先读脚本源码。这一步学到的、换个步骤也成立的经验，在回复里（判定行之前）列在「经验」下，每条一行，没有就不写；这一步没能照路径一步到位的地方（多查了几次、绕了弯、自己心算了数字）也列进去，写明下次该怎么一次做到；写出了别的步骤也用得上、跑通过的脚本，写明它现在在哪、做什么。由编排者统一整理进去。`
 
 /** 「流程」的小标题。执行批次的括注只说图里有的：没有循环不提回边，没有分支不提互斥分支。 */
 function batchHeading(loops: boolean, branches: boolean): string {
@@ -596,7 +595,8 @@ function conventionsSection(ctx: RenderContext, inline: boolean, options?: PlanO
   const lines: string[] = [PLAN_SECTIONS.conventions]
   if (ctx.skill !== undefined) lines.push(...skillPathItems(ctx, options?.runState !== undefined))
   else lines.push('- **路径**：相对路径都相对工作区。')
-  const home = ctx.skill === undefined ? code('dataDir') : 'skill 目录'
+  // 记忆目录就在 dataDir（skill 里是 skill 目录）下，执行时要改它：不说除外，这句和记忆的说明就打架了。
+  const home = `${ctx.skill === undefined ? code('dataDir') : 'skill 目录'}${hasMemory(ctx) ? '（记忆目录除外：它跨执行留着，照记忆的说明就地改）' : ''}`
   if (ctx.root === undefined) {
     lines.push(`- **产出写到哪**：工作区里，不要写进 ${home}。`)
   } else {
@@ -611,12 +611,30 @@ function conventionsSection(ctx: RenderContext, inline: boolean, options?: PlanO
     lines.push(`- ${bundled ? SKILL_RESOURCE_RULE : ctx.dialect.resourceRule}`)
   }
   const rules = writeRules(ctx)
-  if (nonEmptyResources(ctx).some((info) => memoryOf(info.resource.data) !== undefined)) {
-    rules.push(inline ? MEMORY_RULE_INLINE : MEMORY_RULE)
+  const global = globalMemoryInfos(ctx).length > 0
+  if (hasMemory(ctx)) {
+    // 说明在哪只说图里有的那种：只有步骤记忆就不提全局记忆，反过来也一样。
+    const where = [
+      ...(hasStepMemory(ctx) ? ['步骤自己的记忆附在它的任务描述里'] : []),
+      ...(global ? ['全局记忆的在「资源」里'] : []),
+    ].join('，')
+    rules.push(`${MEMORY_RULE_HEAD}${inline ? '照「资源」里它的说明。' : `照它的说明：${where}。`}`)
   }
-  if (globalMemoryInfos(ctx).length > 0) rules.push(GLOBAL_MEMORY_RULE)
+  if (global) rules.push(GLOBAL_MEMORY_RULE)
   for (const rule of rules) lines.push(`- ${rule}`)
   return lines.join('\n')
+}
+
+/** 图里有没有（有内容的）记忆。 */
+function hasMemory(ctx: RenderContext): boolean {
+  return nonEmptyResources(ctx).some((info) => memoryOf(info.resource.data) !== undefined)
+}
+
+/** 图里有没有连在步骤上的记忆。 */
+function hasStepMemory(ctx: RenderContext): boolean {
+  return nonEmptyResources(ctx).some(
+    (info) => memoryOf(info.resource.data) !== undefined && !isShared(info),
+  )
 }
 
 /** 执行方式是串行：你本人逐个做，不派子代理、不建团队。 */
@@ -642,7 +660,7 @@ function skillPathItems(ctx: RenderContext, runState: boolean): string[] {
     ? ''
     : `派给子代理或队员时，先把 ${code(SKILL_VAR)} 换成绝对路径再交出去——他们看不到这个目录。`
   return [
-    `- **${code(SKILL_VAR)}**：这个 skill 的目录（SKILL.md 所在的那一层，加载 skill 时给出的路径）。各步骤的任务描述、附带的资料和 skill 都写成 ${code(`${SKILL_VAR}/…`)}。${handOut}`,
+    `- **${code(SKILL_VAR)}**：这个 skill 的目录（SKILL.md 所在的那一层，加载 skill 时给出的路径）。各步骤的任务描述、附带的资料${hasMemory(ctx) ? '、skill 和记忆' : '和 skill'}都写成 ${code(`${SKILL_VAR}/…`)}。${handOut}`,
     ...(usesInstance
       ? [
           `- **${code(INSTANCE_VAR)}**：这次执行的编号。开始执行时取当前时间（${code('YYYYMMDD-HHmmss')}），路径里的 ${code(INSTANCE_VAR)} 都换成它，整次执行用同一个${resumed}。`,
