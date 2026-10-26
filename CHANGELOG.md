@@ -5,7 +5,11 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
-## [Unreleased]
+## [0.8.0] - 2026-10-26
+
+这一版让模型建图时也能加「工作流记忆」，并修了几处和记忆有关的问题。
+
+**升级不需要做任何事。**
 
 ### Added
 
