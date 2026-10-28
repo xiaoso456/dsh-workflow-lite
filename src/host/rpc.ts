@@ -709,6 +709,18 @@ async function dispatch(
       return ok(outcome.result)
     }
 
+    case 'run/latest': {
+      const input = asRecord(payload)
+      const workflow = requireString(input, 'workflow')
+      if (!Array.isArray(input.targets)) throw new Error('targets must be an array')
+      if (input.targets.length > RUN_STAT_MAX) throw new Error(`at most ${RUN_STAT_MAX} targets`)
+      const targets = input.targets.map((raw) => {
+        const target = asRecord(raw)
+        return { node: requireString(target, 'node'), value: requireString(target, 'value') }
+      })
+      return ok(await deps.runs.latest(workflow, targets))
+    }
+
     case 'run/dir': {
       const input = asRecord(payload)
       const id = requireString(input, 'id')

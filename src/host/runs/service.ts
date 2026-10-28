@@ -14,7 +14,7 @@ import { Document, isSeq, parseDocument } from 'yaml'
 import { planIdOf } from '../../shared/compile.ts'
 import { affectsPlan, describeGraphChange, graphChanges } from '../../shared/graphDiff.ts'
 import { checkAnswers, sameAnswers } from '../../shared/inputs.ts'
-import { isResource, isStep, readDocument, writeDocument } from '../../shared/model.ts'
+import { idKey, isResource, isStep, readDocument, writeDocument } from '../../shared/model.ts'
 import { bindRoot, rootOf, WORKSPACE_ROOT } from '../../shared/outputPaths.ts'
 import { bindDirs } from '../../shared/resources.ts'
 import {
@@ -54,11 +54,14 @@ import type {
   ValidationProblem,
   WorkflowDocument,
 } from '../../shared/types.ts'
-import type {
-  RunDirResponse,
-  RunFileResponse,
-  RunImageResponse,
-  RunStatResponse,
+import {
+  RUN_LATEST_SCAN,
+  type RunDirResponse,
+  type RunFileResponse,
+  type RunImageResponse,
+  type RunLatestOutput,
+  type RunLatestResponse,
+  type RunStatResponse,
 } from '../../shared/wire.ts'
 import { type CompileBundle, compileDocument } from '../plan.ts'
 import {
@@ -894,6 +897,57 @@ export class RunService {
       }),
     )
     return { ok: true, result: { stats } }
+  }
+
+  /**
+   * 模板画布上的「上次执行」：这个工作流最近建的 {@link RUN_LATEST_SCAN} 个实例里，同一个资源里同一个路径的文件
+   * 真的生成了的，取修改时间最新的。实例的图改过（资源换了 id、路径改了）就认不出，当没有。
+   */
+  async latest(
+    workflow: string,
+    targets: readonly { node: string; value: string }[],
+  ): Promise<RunLatestResponse> {
+    const records = (await this.store.read()).instances
+      .filter((record) => record.workflow === workflow)
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, RUN_LATEST_SCAN)
+    const located = await Promise.all(
+      records.map(async (record) => {
+        const snapshot = await this.snapshot(record)
+        return snapshot === null ? null : { record, document: this.withAssets(record, snapshot) }
+      }),
+    )
+    const latest = await Promise.all(
+      targets.map(async ({ node, value }) => {
+        let best: RunLatestOutput | null = null
+        for (const entry of located) {
+          if (entry === null) continue
+          const resource = entry.document.nodes.find(
+            (candidate) => idKey(candidate.id) === idKey(node),
+          )
+          if (resource === undefined || !isResource(resource)) continue
+          const item = resource.data.items.findIndex(
+            (candidate) => candidate.kind === 'file' && candidate.value.trim() === value.trim(),
+          )
+          if (item < 0) continue
+          const location = itemLocation(entry.document, resource.id, item)
+          if (location === null) continue
+          const full =
+            isAbsolute(location) || entry.record.cwd === undefined
+              ? location
+              : join(entry.record.cwd, location)
+          try {
+            const info = await stat(full)
+            if (!info.isFile() || (best !== null && info.mtimeMs <= best.mtime)) continue
+            best = { instance: entry.record.id, item, size: info.size, mtime: info.mtimeMs }
+          } catch {
+            // 没生成，或者被删了。
+          }
+        }
+        return best
+      }),
+    )
+    return { latest }
   }
 
   /** 看实例里的一份产出文件（文件面板与查看框）。 */

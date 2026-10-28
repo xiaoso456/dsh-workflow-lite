@@ -1886,8 +1886,13 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
   }, [])
   // 展示卡从哪读、怎么打开（模板里只有自定义文字能直接显示）。
   const displayEnv = useMemo(
-    (): DisplayEnv => ({ t, run: props.display?.run ?? null, open: props.display?.open }),
-    [t, props.display?.run, props.display?.open],
+    (): DisplayEnv => ({
+      t,
+      run: props.display?.run ?? null,
+      latest: props.display?.latest,
+      open: props.display?.open,
+    }),
+    [t, props.display?.run, props.display?.latest, props.display?.open],
   )
   const runStatusRef = useRef(run?.onStatus)
   runStatusRef.current = run?.onStatus

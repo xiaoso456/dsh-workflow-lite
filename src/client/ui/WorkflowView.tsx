@@ -29,6 +29,7 @@ import { useMemories } from '../app/memories.ts'
 import { afterPaint, revealNode } from '../app/reveal.ts'
 import { type SessionBridge, useSessionRows } from '../app/sessions.ts'
 import { useColorScheme, useThemeChoice } from '../app/theme.ts'
+import { useLatestOutputs } from '../app/useDisplayStats.ts'
 import { useMemoryPick } from '../app/useMemoryPick.ts'
 import { useRuns } from '../app/useRuns.ts'
 import { useWorkflow, type Workflow } from '../app/useWorkflow.ts'
@@ -370,16 +371,23 @@ function Shell(props: {
   docRef.current = state.doc
   /** 展示卡上打开的自定义文字（模板里文件还没生成，只有它能打开）。 */
   const [textView, setTextView] = useState<ResourceItem | null>(null)
+  /** 展示卡的「上次执行」：这个工作流最近真的生成了它的实例（看着实例时不问）。 */
+  const latestOutputs = useLatestOutputs(
+    props.rpc,
+    runId === null ? (state.name ?? null) : null,
+    state.doc,
+  )
   const canvasDisplay = useMemo(
     () => ({
       run: null,
+      latest: { rpc: props.rpc, outputs: latestOutputs, openRun },
       open: (node: string, item: number): void => {
         const found = docRef.current?.nodes.find((candidate) => candidate.id === node)
         const entry = found !== undefined && isResource(found) ? found.data.items[item] : undefined
         if (entry?.kind === 'text') setTextView(entry)
       },
     }),
-    [],
+    [props.rpc, latestOutputs, openRun],
   )
   const flow = useReactFlow()
   const rootRef = useRef<HTMLDivElement>(null)

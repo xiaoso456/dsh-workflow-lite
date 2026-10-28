@@ -97,6 +97,7 @@ export const WORKFLOW_LITE_ENDPOINTS = [
   'run/image',
   'run/dir',
   'run/stat',
+  'run/latest',
   'memory/list',
   'memory/create',
   'memory/update',
@@ -509,6 +510,7 @@ export interface WorkflowLiteRpcMap {
   'run/image': { args: RunImageRequest; result: RunImageResponse }
   'run/dir': { args: RunDirRequest; result: RunDirResponse }
   'run/stat': { args: RunStatRequest; result: RunStatResponse }
+  'run/latest': { args: RunLatestRequest; result: RunLatestResponse }
   'memory/list': { args: Record<string, never>; result: MemoryListResponse }
   'memory/create': { args: MemoryCreateRequest; result: MemoryEntryResponse }
   'memory/update': { args: MemoryUpdateRequest; result: MemoryEntryResponse }
@@ -616,6 +618,30 @@ export interface RunListResponse {
   /** 请求方会话的当前实例。 */
   current?: string
 }
+
+/**
+ * `run/latest`：模板画布上的展示卡要看「上次执行」的结果——这个工作流最近的几个实例里，
+ * 同一个资源（id 相同）里同一个文件（路径原文相同）真的生成了的，取修改时间最新的那一份。
+ */
+export interface RunLatestRequest {
+  workflow: string
+  /** 最多 {@link RUN_STAT_MAX} 项；`value` 是模板里这一项的路径原文。 */
+  targets: { node: string; value: string }[]
+}
+export interface RunLatestOutput {
+  instance: string
+  /** 这一项在那个实例的图里是第几项（读内容时用它）。 */
+  item: number
+  size: number
+  mtime: number
+}
+export interface RunLatestResponse {
+  /** 和 `targets` 一一对应；哪个实例里都没生成是 `null`。 */
+  latest: (RunLatestOutput | null)[]
+}
+
+/** `run/latest` 往回看这个工作流最近建的几个实例。 */
+export const RUN_LATEST_SCAN = 20
 
 /** `run/load`：`since` = 上次拿到的 `mtime`，文件没变就只回 `unchanged`。 */
 export interface RunLoadRequest {

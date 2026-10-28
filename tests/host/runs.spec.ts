@@ -2,7 +2,7 @@
  * 工作流实例（运行状态）：编译建实例、读、保存用户改动（含冲突）、归属转移、恢复、暂存通知。
  */
 
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, symlink, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
@@ -702,6 +702,48 @@ describe('看产出文件', () => {
     // 文件夹项不算（展示只认文件），网址、越界、不在快照里的都当不在。
     expect(rest.map((stat) => stat.exists)).toEqual([false, false, false, false])
     expect((await runs.stat('bad id', targets)).ok).toBe(false)
+  })
+
+  it('run/latest：最近几个实例里真的生成了的、修改时间最新的那一份；路径对不上、别的工作流都不算', async () => {
+    await run({
+      action: 'write_resource',
+      workflow: 'cr',
+      node: 'board',
+      resource: { items: [{ kind: 'file', value: 'board.html' }] },
+    })
+    await run({ action: 'connect', workflow: 'cr', source: 'scan', target: 'board' })
+    const first = String((await compileWithRuns()).instance)
+    const second = String((await compileWithRuns()).instance)
+    const target = [{ node: 'BOARD', value: ' board.html ' }]
+    expect((await runs.latest('cr', target)).latest).toEqual([null])
+
+    // 产出在各自实例的产出根目录下：只有第二个生成了。
+    const out = (id: string): string => join(workspace, '.workflow-lite', 'runs', id, 'out')
+    await mkdir(out(second), { recursive: true })
+    await writeFile(join(out(second), 'board.html'), '<h1>二</h1>')
+    await utimes(join(out(second), 'board.html'), new Date(1000_000), new Date(1000_000))
+    const only = (await runs.latest('cr', target)).latest[0]
+    expect(only).toMatchObject({
+      instance: second,
+      item: 0,
+      size: Buffer.byteLength('<h1>二</h1>'),
+    })
+
+    // 第一个后来又生成了一份更新的：认修改时间，不认实例谁新。
+    await mkdir(out(first), { recursive: true })
+    await writeFile(join(out(first), 'board.html'), '<h1>一</h1>')
+    await utimes(join(out(first), 'board.html'), new Date(2000_000), new Date(2000_000))
+    expect((await runs.latest('cr', target)).latest[0]?.instance).toBe(first)
+
+    expect(
+      (
+        await runs.latest('cr', [
+          { node: 'board', value: 'other.html' },
+          { node: 'x', value: 'board.html' },
+        ])
+      ).latest,
+    ).toEqual([null, null])
+    expect((await runs.latest('nope', target)).latest).toEqual([null])
   })
 
   it('文件夹资源：run/dir 逐层列，sub 只许往下走；里面的文件、图片能读，软链出不去', async () => {

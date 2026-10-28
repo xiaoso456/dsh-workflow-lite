@@ -1,9 +1,13 @@
 /**
  * dsh-workflow-lite — 资源卡的展示区：把资源里的一项（图片、网页、Markdown、文本）直接摆在画布上。
  *
- * 从哪读由 {@link DisplayContext} 定：实例视图给出实例与每项的修改时间（`run/stat`，见 `app/useDisplayStats.ts`），
- * 修改时间变了才重读，读回来之前上一份原样留着，新的淡入；模板里文件还没生成，摆一个同样大小的占位，
- * 只有自定义文字能直接显示。
+ * 从哪读由 {@link DisplayContext} 定：
+ * - 实例视图给出实例与每项的修改时间（`run/stat`，见 `app/useDisplayStats.ts`），修改时间变了才重读，
+ *   读回来之前上一份原样留着，新的淡入；还没生成时是草图（{@link DisplaySketch}），写它的步骤在跑时扫一道光。
+ *   实例视图只看这个实例，从不拿别的实例的结果来填。
+ * - 模板视图给出「上次执行」（`run/latest`）：这个工作流最近真的生成了它的那个实例，卡上显示那一份，
+ *   右上角一枚「上次执行 · 时间」，点了打开那个实例；哪次都没生成就是草图「执行后显示」。
+ * 自定义文字两边都直接显示。
  *
  * 平时展示区不接鼠标（拖卡片、平移、缩放画布照旧）；卡片进了「交互」才能在里面滚动、点网页里的按钮。
  * 第一次进视野、而且画布停着时才挂内容（宿主页面插拔元素要整页重算样式，平移中间插就是一次卡顿）。
@@ -11,20 +15,23 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/ResourceDisplay
  */
 
-import { createContext, useContext, useEffect, useRef, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { ResourceItem } from '../../shared/types.ts'
-import type { RunFileResponse } from '../../shared/wire.ts'
+import type { RunFileResponse, RunLatestOutput } from '../../shared/wire.ts'
 import { type DisplayStat, displayKey } from '../app/useDisplayStats.ts'
 import { useRunFile } from '../app/useRunFile.ts'
 import type { T } from '../i18n.ts'
 import type { Display } from '../model/display.ts'
 import { fileBaseName, formatBytes } from '../model/fileKind.ts'
 import { withPreviewStyle } from '../model/htmlPreview.ts'
+import { shortTime } from '../model/time.ts'
 import { errorMessage, type WorkflowLiteRpc } from '../rpc.ts'
+import { DisplaySketch } from './DisplaySketch.tsx'
 import css from './display.module.css'
 import { Icon, type IconName } from './Icon.tsx'
 import { Markdown } from './Markdown.tsx'
 import { useCanvasMoving } from './motion.tsx'
+import { cx } from './primitives.tsx'
 
 /** 展示区从哪读：实例视图给出实例与每项的样子；模板里是 `null`（文件还没生成）。 */
 export interface DisplayEnv {
@@ -34,6 +41,15 @@ export interface DisplayEnv {
     instance: string
     stats: Readonly<Record<string, DisplayStat>>
   } | null
+  /** 模板视图的「上次执行」（按模板里的 `displayKey`）；实例视图不给。 */
+  latest?:
+    | {
+        rpc: WorkflowLiteRpc
+        outputs: Readonly<Record<string, RunLatestOutput>>
+        /** 点「上次执行」：打开那个实例。 */
+        openRun(instance: string): void
+      }
+    | undefined
   /** 双击展示区、点「打开」：在查看框里看这一项。不给就不能打开。 */
   open?: ((node: string, item: number) => void) | undefined
 }
@@ -270,7 +286,8 @@ function RunFileView(props: {
   if (stat === undefined) return <div className={css.loading} aria-busy="true" />
   if (!stat.exists) {
     return (
-      <DisplayState
+      <DisplaySketch
+        display={display}
         icon={props.writing ? 'hourglass' : 'clock'}
         title={props.writing ? t('display.writing') : t('display.missing')}
         sub={name}
@@ -323,6 +340,8 @@ export function DisplayBody(props: {
   if (env === null) throw new Error('DisplayBody 要放在 DisplayContext 里')
   const { t } = env
   const [ref, seen] = useSeen<HTMLDivElement>()
+  const latest = env.run === null ? env.latest : undefined
+  const found = latest?.outputs[displayKey(props.node, display.item)]
   let body: React.ReactNode
   if (!seen) body = <div className={css.loading} />
   else if (item.kind === 'text') {
@@ -332,8 +351,17 @@ export function DisplayBody(props: {
       ) : (
         <Flow t={t} text={item.value} display={display} />
       )
+  } else if (env.run === null && latest !== undefined && found !== undefined) {
+    body = <LatestView t={t} rpc={latest.rpc} found={found} {...props} />
   } else if (env.run === null) {
-    body = <DisplayState icon="eye" title={t('display.later')} sub={fileBaseName(item.value)} />
+    body = (
+      <DisplaySketch
+        display={display}
+        icon="eye"
+        title={t('display.later')}
+        sub={fileBaseName(item.value)}
+      />
+    )
   } else {
     body = (
       <RunFileView
@@ -348,15 +376,72 @@ export function DisplayBody(props: {
     )
   }
   return (
-    <div
-      ref={ref}
-      className={css.body}
-      data-kind={display.kind}
-      data-interactive={props.interactive || undefined}
-      style={{ width: display.width, height: display.height }}
-      data-testid="wl-display-body"
-    >
-      {body}
-    </div>
+    <>
+      <div
+        ref={ref}
+        className={css.body}
+        data-kind={display.kind}
+        data-interactive={props.interactive || undefined}
+        style={{ width: display.width, height: display.height }}
+        data-testid="wl-display-body"
+      >
+        {body}
+      </div>
+      {/* 签在展示区外面那层（展示区平时不接鼠标），点它不算点卡片。 */}
+      {seen && latest !== undefined && found !== undefined && item.kind === 'file' && (
+        <button
+          type="button"
+          className={cx(css.lastRun, 'nodrag nopan')}
+          data-tip={t('display.lastRunTip')}
+          data-testid="wl-display-last-run"
+          onClick={(event) => {
+            event.stopPropagation()
+            latest.openRun(found.instance)
+          }}
+          onDoubleClick={(event) => event.stopPropagation()}
+        >
+          <Icon name="history" size={11} />
+          {t('display.lastRun').replace('{time}', shortTime(found.mtime))}
+        </button>
+      )}
+    </>
+  )
+}
+
+/** 模板里的「上次执行」：那个实例里那一份，读法和实例视图一样（那边的项号、修改时间）。 */
+function LatestView(props: {
+  t: T
+  rpc: WorkflowLiteRpc
+  found: RunLatestOutput
+  node: string
+  item: ResourceItem
+  display: Display
+  interactive: boolean
+}): React.JSX.Element {
+  const { found } = props
+  const run = useMemo(
+    () => ({
+      rpc: props.rpc,
+      instance: found.instance,
+      stats: {
+        [displayKey(props.node, found.item)]: {
+          exists: true,
+          size: found.size,
+          mtime: found.mtime,
+        },
+      },
+    }),
+    [props.rpc, props.node, found.instance, found.item, found.size, found.mtime],
+  )
+  return (
+    <RunFileView
+      t={props.t}
+      run={run}
+      node={props.node}
+      item={props.item}
+      display={{ ...props.display, item: found.item }}
+      interactive={props.interactive}
+      writing={false}
+    />
   )
 }
