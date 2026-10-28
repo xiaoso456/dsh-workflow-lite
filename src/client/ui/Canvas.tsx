@@ -1357,11 +1357,7 @@ function DisplayCard(
             <Icon name="alert" size={12} />
           </span>
         )}
-        {display.made === true && (
-          <span className={dcss.made} data-tip={data.generatedText} data-testid="wl-resource-made">
-            <Icon name="check" size={11} />
-          </span>
-        )}
+        {/* 生成了没有看展示区就知道，标题行不再打钩。 */}
         <span className={dcss.actions}>
           {canInteract && (
             <button

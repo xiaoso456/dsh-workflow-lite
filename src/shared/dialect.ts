@@ -16,7 +16,7 @@
  * @module @xiaoso/dsh-workflow-lite/shared/dialect
  */
 
-import type { DisplayBrief } from './display.ts'
+import { type DisplayBrief, IMAGE_MIN_FONT, IMAGE_MIN_STROKE } from './display.ts'
 import { PLAN_SECTIONS } from './limits.ts'
 import { INSTANCE_VAR } from './pathVars.ts'
 import type { ExecutionMode, ReusePolicy } from './types.ts'
@@ -104,11 +104,14 @@ export function dshRunStateLines(facts: Pick<RunStateFacts, 'instance' | 'solo'>
  * 网页的几条硬限制来自卡片的渲染方式：页面用 `srcdoc` 放进只开了脚本的沙箱，没有自己的源——
  * 相对路径的文件读不到、localStorage / cookie 一碰就抛错；CDN 上的脚本能加载。
  */
+/** 图片缩进卡片后还看得清：少画、字大线粗（按两倍分辨率出图时的像素）。 */
+const IMAGE_FIT = `卡片很小，一张图只讲一件事（一组对比或一条趋势），标注、刻度从简，细节写进文字产出；文字不小于 ${IMAGE_MIN_FONT} px、线条不细于 ${IMAGE_MIN_STROKE} px。`
+
 export function dshDisplayLine(brief: DisplayBrief, target?: string): string {
   const lead = target === undefined ? '**画布展示**：' : `**画布展示**（${target}）：`
   switch (brief.kind) {
     case 'html':
-      return `${lead}这个文件会直接显示在画布的卡片里：页面按 ${brief.layoutWidth} px 宽排版，不滚动时只露出最上面约 ${brief.firstScreen} px；用户也会在浏览器里单独打开它。页面要自适应宽度，在卡片里和浏览器里都完整好看：不要把宽高写死成卡片的尺寸，最要紧的结论和数字放在最上面这一屏；写成一个自包含的文件，样式、脚本、数据都写进页面，图片用内联 SVG 或 data URI（卡片里读不到相对路径的文件）；图表库可以从 CDN 引入；不要读写 localStorage、cookie（卡片里会报错）；给页面写明背景色。`
+      return `${lead}这个文件会直接显示在画布的卡片里：页面按 ${brief.layoutWidth} px 宽排版，不滚动时只露出最上面约 ${brief.firstScreen} px；用户也会在浏览器里单独打开它。卡片很小，最上面这一屏只放最要紧的两三项（结论、关键数字），正文不小于 ${brief.minFont} px、关键数字再大一号；明细表格、长图表放到下面。页面要自适应宽度，在卡片里和浏览器里都完整好看：不要把宽高写死成卡片的尺寸；写成一个自包含的文件，样式、脚本、数据都写进页面，图片用内联 SVG 或 data URI（卡片里读不到相对路径的文件）；图表库可以从 CDN 引入；不要读写 localStorage、cookie（卡片里会报错）；给页面写明背景色。`
     case 'image': {
       const size = `${brief.width}×${brief.height}`
       const double = `${brief.width * 2}×${brief.height * 2}`
@@ -116,9 +119,9 @@ export function dshDisplayLine(brief: DisplayBrief, target?: string): string {
         return `${lead}这张图会按原始像素显示在画布的卡片里，卡片里只露出图片中间约 ${brief.visible.width}×${brief.visible.height} px，用户点开才看整张。要看的内容集中在中间这一块，整张图照常画完整。`
       }
       if (brief.fit === 'cover') {
-        return `${lead}这张图会在画布的卡片里按 ${brief.ratio} 铺满显示（卡片 ${size}），超出这个比例的边会被裁掉，用户也会点开看原图。出图时尽量用 ${brief.ratio} 的宽高比、分辨率至少是卡片的两倍（比如 ${double}）；主体和文字放在中间，别贴着四边。`
+        return `${lead}这张图会在画布的卡片里按 ${brief.ratio} 铺满显示（卡片 ${size}），超出这个比例的边会被裁掉，用户也会点开看原图。出图时尽量用 ${brief.ratio} 的宽高比、分辨率至少是卡片的两倍（比如 ${double}）；${IMAGE_FIT}主体和文字放在中间，别贴着四边。`
       }
-      return `${lead}这张图会在画布的卡片里按 ${brief.ratio} 的框完整缩放显示（卡片 ${size}），用户也会点开看原图。出图时尽量用 ${brief.ratio} 的宽高比、分辨率至少是卡片的两倍（比如 ${double}）；文字和线条要在缩到卡片大小时还看得清。`
+      return `${lead}这张图会在画布的卡片里按 ${brief.ratio} 的框完整缩放显示（卡片 ${size}），用户也会点开看原图。出图时尽量用 ${brief.ratio} 的宽高比、分辨率至少是卡片的两倍（比如 ${double}）；${IMAGE_FIT}`
     }
     case 'markdown':
       return `${lead}这个文件会显示在画布的卡片里，只露出开头约 ${brief.lines} 行（往下淡出），用户点开才看全文。先写结论和关键数字，细节放后面；开头不要放长目录和大段背景。全文照常写完整。`

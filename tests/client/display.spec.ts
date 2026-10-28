@@ -89,7 +89,7 @@ describe('能展示什么', () => {
       kind: 'html',
       width: 480,
       height: 300,
-      zoom: 50,
+      zoom: 100,
       fit: 'contain',
       adapt: true,
     })

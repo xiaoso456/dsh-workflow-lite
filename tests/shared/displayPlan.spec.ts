@@ -64,6 +64,8 @@ describe('任务描述里的画布展示', () => {
     expect(board).toContain('**画布展示**：')
     expect(board).toContain('按 960 px 宽排版')
     expect(board).toContain('约 600 px')
+    expect(board).toContain('只放最要紧的两三项')
+    expect(board).toContain('正文不小于 24 px')
     expect(board).toContain('自适应宽度')
     expect(board).toContain('自包含')
     expect(board).toContain('localStorage')
@@ -82,6 +84,16 @@ describe('任务描述里的画布展示', () => {
     const skill: SkillPlan = { bundled: new Set(), needs: [], absolute: [] }
     const texts = tasks(doc(html({ width: 480, height: 300 })), skill)
     expect([...texts.values()].join('\n')).not.toContain('画布')
+  })
+
+  it('网页缺省按卡片原宽排版；图片要少画、字大线粗', () => {
+    expect(tasks(doc(html({ width: 480, height: 300 }))).get('board')).toContain('按 480 px 宽排版')
+    const chart = tasks(
+      doc({ items: [{ kind: 'file', value: 'latency.png' }], view: { width: 360, height: 240 } }),
+    ).get('board')
+    expect(chart).toContain('比如 720×480')
+    expect(chart).toContain('一张图只讲一件事')
+    expect(chart).toContain('文字不小于 20 px')
   })
 
   it('资源里不止一项：点明展示的是哪个文件', () => {
@@ -116,7 +128,12 @@ describe('卡片里看得到多少', () => {
   }
 
   it('网页按「宽 ÷ 缩放」排版；图片报比例（原大时报看得到的像素）；文字报大约几行', () => {
-    expect(displayBrief(base)).toEqual({ kind: 'html', layoutWidth: 960, firstScreen: 600 })
+    expect(displayBrief(base)).toEqual({
+      kind: 'html',
+      layoutWidth: 960,
+      firstScreen: 600,
+      minFont: 24,
+    })
     expect(displayBrief({ ...base, kind: 'image', width: 360, height: 240, zoom: 100 })).toEqual({
       kind: 'image',
       ratio: '3:2',

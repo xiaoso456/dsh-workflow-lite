@@ -910,7 +910,7 @@ describe('workflow_lite —— 画布展示（display）', () => {
       height: 400,
     })
     const plan = record(await run({ action: 'compile', workflow: 'd', full: true }, EXEC))
-    expect(String(plan.plan)).toContain('按 1280 px 宽排版')
+    expect(String(plan.plan)).toContain('按 640 px 宽排版')
   })
 
   it('参数不对：形状错是 invalid_args，内容放不进展示是 blocked', async () => {

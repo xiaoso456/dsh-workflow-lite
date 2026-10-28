@@ -66,12 +66,6 @@
   white-space: nowrap;
 }
 
-.made {
-  display: inline-flex;
-  flex: none;
-  color: var(--wl-ok);
-}
-
 /* 交互、打开：悬停或选中时淡入，平时不占眼。 */
 .actions {
   display: flex;
@@ -505,7 +499,7 @@
 
 .lastRun {
   position: absolute;
-  top: 6px;
+  bottom: 6px;
   right: 6px;
   z-index: 2;
   display: inline-flex;
