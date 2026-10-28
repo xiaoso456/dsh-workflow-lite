@@ -856,7 +856,7 @@ describe('workflow_lite —— 画布展示（display）', () => {
       node: 'res-board',
       resource: { items: [{ kind: 'file', value: 'dashboard.html' }], display: { size: 'l' } },
     })
-    expect(await viewOf('d', 'res-board')).toEqual({ width: 720, height: 450 })
+    expect(await viewOf('d', 'res-board')).toEqual({ width: 448, height: 280 })
     await run({
       action: 'write_resource',
       workflow: 'd',
@@ -864,16 +864,16 @@ describe('workflow_lite —— 画布展示（display）', () => {
       resource: { display: { zoom: 75, adapt: false } },
     })
     expect(await viewOf('d', 'res-board')).toEqual({
-      width: 720,
-      height: 450,
+      width: 448,
+      height: 280,
       zoom: 75,
       adapt: false,
     })
     const index = record(await run({ action: 'read', workflow: 'd' }))
     const resources = index.resources as JsonValue[]
     expect(record(resources[0] as JsonValue).display).toEqual({
-      width: 720,
-      height: 450,
+      width: 448,
+      height: 280,
       zoom: 75,
       adapt: false,
     })
@@ -910,7 +910,7 @@ describe('workflow_lite —— 画布展示（display）', () => {
       height: 400,
     })
     const plan = record(await run({ action: 'compile', workflow: 'd', full: true }, EXEC))
-    expect(String(plan.plan)).toContain('按 640 px 宽排版')
+    expect(String(plan.plan)).toContain('视口约 640×400 px')
   })
 
   it('参数不对：形状错是 invalid_args，内容放不进展示是 blocked', async () => {

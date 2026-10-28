@@ -24,6 +24,7 @@ import type {} from '@deepseek-ai/dsh-settings'
 // 只借类型：`ctx.tools` 的 Context 合并。
 import type {} from '@deepseek-ai/dsh-tools'
 import { registerAuthoringSkill } from './host/authoringSkill.ts'
+import { registerBoardSkill } from './host/boardSkill.ts'
 import {
   CONFIG_KEYS,
   Config,
@@ -94,7 +95,8 @@ export async function apply(ctx: Context, config: WorkflowLiteSettings): Promise
     notify: createNotify(ctx),
   })
 
-  // 按需 skill：怎么设计一张图（workflow-authoring），运行状态的字段与 `state` 动作的用法（workflow-run-state）。
+  // 按需 skill：怎么设计一张图（workflow-authoring），运行状态的字段与 `state` 动作的用法（workflow-run-state），
+  // 画布上的看板怎么写（workflow-board）。
   // `skills` 服务不在时跳过，计划里的那段照写。
   // 顺手记下 skill 服务：画布上给资源选 Skill 时列出会话里的 agent 能用的那些（见 host/skillView）。
   let skills: SkillLister | undefined
@@ -115,6 +117,7 @@ export async function apply(ctx: Context, config: WorkflowLiteSettings): Promise
       () => registerRunStateSkill(skillsCtx),
       'workflow-lite: workflow-run-state skill',
     )
+    skillsCtx.effect(() => registerBoardSkill(skillsCtx), 'workflow-lite: workflow-board skill')
   })
 
   // 唯一的工具：**始终注册**，没有 `off`/`read`/`readwrite` 那套档位——

@@ -14,7 +14,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Desktop } from '../app/desktop.ts'
 import type { T } from '../i18n.ts'
-import { brokenImagesOf, withPreviewStyle } from '../model/htmlPreview.ts'
+import { brokenImagesOf } from '../model/htmlPreview.ts'
+import { useBoardFrame } from './boardFrame.ts'
 import css from './files.module.css'
 import { Icon, type IconName } from './Icon.tsx'
 import { type ImageSource, Markdown } from './Markdown.tsx'
@@ -84,7 +85,7 @@ export function docFormat(body: DocBody): 'plain' | 'markdown' | 'html' {
   return body.kind === 'text' ? body.format : 'plain'
 }
 
-/** 沙箱框里渲染一份 HTML，并收框里报来的「加载失败的图片数」。 */
+/** 沙箱框里渲染一份 HTML（看板按完整版、带画布主题），并收框里报来的「加载失败的图片数」。 */
 function HtmlFrame(props: {
   name: string
   text: string
@@ -94,6 +95,7 @@ function HtmlFrame(props: {
   const report = useRef(props.onBroken)
   report.current = props.onBroken
   const { text } = props
+  const board = useBoardFrame(frame, text, 'full')
   // 依赖 text：换了页面内容就是一个新的框，旧的失败数作废（清理时回 0）。
   useEffect(() => {
     const onMessage = (event: MessageEvent): void => {
@@ -113,7 +115,8 @@ function HtmlFrame(props: {
       ref={frame}
       className={css.viewerFrame}
       title={props.name}
-      srcDoc={withPreviewStyle(text)}
+      srcDoc={board.srcDoc}
+      onLoad={board.onLoad}
       // 只给脚本：没有 allow-same-origin，页面是个独立的源，读不到画布的存储与登录态，也跳不走顶层。
       sandbox="allow-scripts"
       referrerPolicy="no-referrer"

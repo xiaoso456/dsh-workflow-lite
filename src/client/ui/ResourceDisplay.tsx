@@ -23,9 +23,9 @@ import { useRunFile } from '../app/useRunFile.ts'
 import type { T } from '../i18n.ts'
 import type { Display } from '../model/display.ts'
 import { fileBaseName, formatBytes } from '../model/fileKind.ts'
-import { withPreviewStyle } from '../model/htmlPreview.ts'
 import { shortTime } from '../model/time.ts'
 import { errorMessage, type WorkflowLiteRpc } from '../rpc.ts'
+import { useBoardFrame } from './boardFrame.ts'
 import { DisplaySketch } from './DisplaySketch.tsx'
 import css from './display.module.css'
 import { Icon, type IconName } from './Icon.tsx'
@@ -144,7 +144,7 @@ function DisplayState(props: {
   )
 }
 
-/** 网页：先按 `width / zoom` 宽排版，再整页缩进展示区。 */
+/** 网页：先按 `width / zoom` 宽排版，再整页缩进展示区。页面是看板的卡片版（`data-board="card"`），带画布主题。 */
 function HtmlView(props: {
   name: string
   text: string
@@ -152,11 +152,15 @@ function HtmlView(props: {
   interactive: boolean
 }): React.JSX.Element {
   const scale = props.display.zoom / 100
+  const frame = useRef<HTMLIFrameElement>(null)
+  const board = useBoardFrame(frame, props.text, 'card')
   return (
     <iframe
+      ref={frame}
       className={css.frame}
       title={props.name}
-      srcDoc={withPreviewStyle(props.text)}
+      srcDoc={board.srcDoc}
+      onLoad={board.onLoad}
       // 只给脚本：没有 allow-same-origin，页面是个独立的源，读不到画布的存储与登录态，也跳不走顶层。
       sandbox="allow-scripts"
       referrerPolicy="no-referrer"

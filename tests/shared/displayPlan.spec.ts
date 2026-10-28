@@ -62,11 +62,13 @@ describe('任务描述里的画布展示', () => {
     const texts = tasks(doc(html({ width: 480, height: 300, zoom: 50 })))
     const board = texts.get('board') ?? ''
     expect(board).toContain('**画布展示**：')
-    expect(board).toContain('按 960 px 宽排版')
-    expect(board).toContain('约 600 px')
-    expect(board).toContain('只放最要紧的两三项')
+    expect(board).toContain('视口约 960×600 px')
+    expect(board).toContain('`workflow-board`')
+    expect(board).toContain('data-board="card"')
+    expect(board).toContain('--board-*')
+    expect(board).toContain('完整版')
     expect(board).toContain('正文不小于 24 px')
-    expect(board).toContain('自适应宽度')
+    expect(board).toContain('宽度自适应')
     expect(board).toContain('自包含')
     expect(board).toContain('localStorage')
     expect(board).toContain('CDN')
@@ -87,7 +89,9 @@ describe('任务描述里的画布展示', () => {
   })
 
   it('网页缺省按卡片原宽排版；图片要少画、字大线粗', () => {
-    expect(tasks(doc(html({ width: 480, height: 300 }))).get('board')).toContain('按 480 px 宽排版')
+    expect(tasks(doc(html({ width: 480, height: 300 }))).get('board')).toContain(
+      '视口约 480×300 px',
+    )
     const chart = tasks(
       doc({ items: [{ kind: 'file', value: 'latency.png' }], view: { width: 360, height: 240 } }),
     ).get('board')
@@ -166,10 +170,10 @@ describe('工具的 display 落成 view', () => {
 
   it('没开过：按展示项的种类从中档起；只有一项能展示时不记 item', () => {
     expect(applyDisplay({ items: [{ kind: 'file', value: 'a.html' }] }, {})).toEqual({
-      view: { width: 480, height: 300 },
+      view: { width: 320, height: 200 },
     })
     expect(applyDisplay({ items }, { item: 1, size: 'l' })).toEqual({
-      view: { item: 1, width: 720, height: 450 },
+      view: { item: 1, width: 448, height: 280 },
     })
   })
 
@@ -179,7 +183,7 @@ describe('工具的 display 落成 view', () => {
       view: { item: 1, width: 600, height: 400, zoom: 75, adapt: false },
     })
     expect(applyDisplay(data, { item: 0 })).toEqual({
-      view: { item: 0, width: 360, height: 220 },
+      view: { item: 0, width: 320, height: 192 },
     })
     expect(applyDisplay(data, { show: false })).toEqual({ view: undefined })
     const huge = applyDisplay(data, { width: 99999 })

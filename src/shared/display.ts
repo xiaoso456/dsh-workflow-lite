@@ -56,12 +56,16 @@ export function displayableItems(items: readonly ResourceItem[]): number[] {
 export const VIEW_SIZE_KEYS = ['s', 'm', 'l'] as const
 export type ViewSize = (typeof VIEW_SIZE_KEYS)[number]
 
-/** 展示区的三档预设尺寸，按内容种类各一套（宽 × 高，画布像素）。 */
+/**
+ * 展示区的三档预设尺寸，按内容种类各一套（宽 × 高，画布像素）。宽度跟步骤卡（216）对齐：
+ * 加上展示卡左右 6 的边，小档和一个步骤一样宽，中档一个半，大档两个步骤加中间的空隙。
+ * 都是 8 的倍数（拖动按 8 取整）。网页 16:10、图片约 3:2。
+ */
 export const VIEW_SIZES: Record<DisplayKind, Record<ViewSize, [number, number]>> = {
-  image: { s: [240, 160], m: [360, 240], l: [560, 372] },
-  html: { s: [320, 200], m: [480, 300], l: [720, 450] },
-  markdown: { s: [280, 200], m: [360, 260], l: [520, 380] },
-  text: { s: [280, 160], m: [360, 220], l: [520, 320] },
+  image: { s: [208, 136], m: [320, 216], l: [448, 296] },
+  html: { s: [208, 128], m: [320, 200], l: [448, 280] },
+  markdown: { s: [208, 160], m: [320, 232], l: [448, 320] },
+  text: { s: [208, 128], m: [320, 192], l: [448, 272] },
 }
 
 /** 内容缩放的缺省值：都按原大（网页按卡片宽度排版）。缩得小了卡片里的字就看不清。 */

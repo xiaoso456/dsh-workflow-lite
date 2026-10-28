@@ -16,6 +16,7 @@
  * @module @xiaoso/dsh-workflow-lite/shared/dialect
  */
 
+import { BOARD_ATTR, BOARD_SKILL } from './board.ts'
 import { type DisplayBrief, IMAGE_MIN_FONT, IMAGE_MIN_STROKE } from './display.ts'
 import { PLAN_SECTIONS } from './limits.ts'
 import { INSTANCE_VAR } from './pathVars.ts'
@@ -111,7 +112,7 @@ export function dshDisplayLine(brief: DisplayBrief, target?: string): string {
   const lead = target === undefined ? '**画布展示**：' : `**画布展示**（${target}）：`
   switch (brief.kind) {
     case 'html':
-      return `${lead}这个文件会直接显示在画布的卡片里：页面按 ${brief.layoutWidth} px 宽排版，不滚动时只露出最上面约 ${brief.firstScreen} px；用户也会在浏览器里单独打开它。卡片很小，最上面这一屏只放最要紧的两三项（结论、关键数字），正文不小于 ${brief.minFont} px、关键数字再大一号；明细表格、长图表放到下面。页面要自适应宽度，在卡片里和浏览器里都完整好看：不要把宽高写死成卡片的尺寸；写成一个自包含的文件，样式、脚本、数据都写进页面，图片用内联 SVG 或 data URI（卡片里读不到相对路径的文件）；图表库可以从 CDN 引入；不要读写 localStorage、cookie（卡片里会报错）；给页面写明背景色。`
+      return `${lead}这个文件是一张看板，直接显示在画布的卡片里（卡片里页面的视口约 ${brief.layoutWidth}×${brief.firstScreen} px），用户也会点开、在浏览器里单独打开它。先用 skill 工具加载 \`${BOARD_SKILL}\`，照里面的模板写。要点：在卡片里 \`<html>\` 带 \`${BOARD_ATTR}="card"\`，这时只显示卡片版——一张卡只回答一个问题，正好铺满这一屏、不滚动：短标题、写着结论的徽标、一个主组件（主数字、进度环、对比条、状态格……），旁边至多一两样次要的；字号跟着卡片大小走，正文不小于 ${brief.minFont} px；其余情况显示完整版（全部指标、图表、明细，宽度自适应）。颜色、圆角、字体一律用 \`--board-*\` 变量（插件按画布主题注入，\`:root\` 里写后备值），不要写死颜色；图用内联 SVG、颜色写在 CSS 里。写成一个自包含的文件：样式、脚本、数据都写进页面（卡片里读不到相对路径的文件），图表库可以从 CDN 引入；不要读写 localStorage、cookie（卡片里会报错）。`
     case 'image': {
       const size = `${brief.width}×${brief.height}`
       const double = `${brief.width * 2}×${brief.height * 2}`
@@ -248,6 +249,9 @@ export const PORTABLE_DIALECT: Dialect = {
 export const DSH_ONLY_TERMS = [
   'workflow_lite',
   'workflow-run-state',
+  'workflow-board',
+  '--board-',
+  'data-board',
   'create_goal',
   'update_goal',
   '`subagent`',

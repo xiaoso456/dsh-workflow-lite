@@ -10,8 +10,18 @@
  * 样式用 `:where()` 把优先级压到零——页面自己写了滚动条样式就用页面的。插在 `<head>` 后
  * （没有就在 `<html>` / doctype 后），不能插到 doctype 前面，否则页面会掉进怪异模式。
  *
+ * 看板（画布展示的网页）再多补一段：标出卡片 / 查看框模式、写上画布主题的 `--board-*` 变量，换主题时就地改（约定见 shared/board.ts）。
+ *
  * @module @xiaoso/dsh-workflow-lite/client/model/htmlPreview
  */
+
+import {
+  BOARD_ATTR,
+  BOARD_THEME_EVENT,
+  BOARD_THEME_MESSAGE,
+  type BoardMode,
+  type BoardTheme,
+} from '../../shared/board.ts'
 
 /** 深底上的滑块、浅底上的滑块、还不知道底色时的滑块。 */
 export const THUMB = {
@@ -30,7 +40,7 @@ const STYLE = `<style data-wl-preview>:where(*){scrollbar-width:thin;scrollbar-c
  * 读页面底色、定滑块颜色和整页轨道颜色。`<body>` 没写背景就看 `<html>`，都没写就是框的白底。
  * 亮度按 sRGB 粗算（0.2126 / 0.7152 / 0.0722），低于一半算深底。
  */
-const SCRIPT = `<script data-wl-preview>(()=>{const fit=()=>{const seen=[document.body,document.documentElement].map((el)=>el&&getComputedStyle(el).backgroundColor).find((value)=>value&&!/^(transparent|rgba\\(0, 0, 0, 0\\))$/.test(value));const rgb=seen?seen.match(/[\\d.]+/g).map(Number):[255,255,255];const dark=(0.2126*rgb[0]+0.7152*rgb[1]+0.0722*rgb[2])/255<0.5;const root=document.documentElement.style;root.setProperty('--wl-preview-thumb',dark?'${THUMB.onDark}':'${THUMB.onLight}');root.setProperty('--wl-preview-track',seen??'#fff')};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',fit);else fit()})()</script>`
+const SCRIPT = `<script data-wl-preview>(()=>{const fit=()=>{const seen=[document.body,document.documentElement].map((el)=>el&&getComputedStyle(el).backgroundColor).find((value)=>value&&!/^(transparent|rgba\\(0, 0, 0, 0\\))$/.test(value));const rgb=seen?seen.match(/[\\d.]+/g).map(Number):[255,255,255];const dark=(0.2126*rgb[0]+0.7152*rgb[1]+0.0722*rgb[2])/255<0.5;const root=document.documentElement.style;root.setProperty('--wl-preview-thumb',dark?'${THUMB.onDark}':'${THUMB.onLight}');root.setProperty('--wl-preview-track',seen??'#fff')};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',fit);else fit();addEventListener('${BOARD_THEME_EVENT}',fit)})()</script>`
 
 /** 框里的页面告诉外面「有几张图没加载出来」时发的消息类型。 */
 export const BROKEN_IMAGES = 'wl-preview:broken-images'
@@ -61,13 +71,29 @@ const ANCHORS: readonly RegExp[] = [
   /<!doctype[^>]*>/iu,
 ]
 
-/** 把 {@link PREVIEW_STYLE} 插进页面。 */
-export function withPreviewStyle(html: string): string {
+/** 插进 `<script>` 的 JSON：`<` 写成转义，值里有 `</script>` 也截不断脚本。 */
+const scriptJson = (value: unknown): string => JSON.stringify(value).replace(/</gu, '\\u003c')
+
+/**
+ * 看板那一段：一上来就标模式、写变量（写在 `<html>` 的内联样式上，比页面 `:root` 的后备值优先），
+ * 之后只认父窗口发来的主题消息，只收 `--board-` 开头的字符串值，改完派发事件让页面重画图表。
+ */
+export function boardScript(mode: BoardMode, theme: BoardTheme): string {
+  return `<script data-wl-preview>(()=>{const root=document.documentElement;root.setAttribute('${BOARD_ATTR}',${scriptJson(mode)});const apply=(t)=>{for(const [k,v] of Object.entries(t.vars)){if(k.startsWith('--board-')&&typeof v==='string')root.style.setProperty(k,v)}root.style.colorScheme=t.scheme==='dark'?'dark':'light'};apply(${scriptJson(theme)});addEventListener('message',(e)=>{const d=e.data;if(e.source!==parent||!d||d.type!=='${BOARD_THEME_MESSAGE}'||typeof d.vars!=='object'||d.vars===null)return;apply(d);dispatchEvent(new Event('${BOARD_THEME_EVENT}'))})})()</script>`
+}
+
+/** 把 {@link PREVIEW_STYLE}（看板再加 {@link boardScript}）插进页面。 */
+export function withPreviewStyle(
+  html: string,
+  board?: { mode: BoardMode; theme: BoardTheme },
+): string {
+  const patch =
+    board === undefined ? PREVIEW_STYLE : `${boardScript(board.mode, board.theme)}${PREVIEW_STYLE}`
   for (const anchor of ANCHORS) {
     const match = anchor.exec(html)
     if (match === null) continue
     const at = match.index + match[0].length
-    return `${html.slice(0, at)}${PREVIEW_STYLE}${html.slice(at)}`
+    return `${html.slice(0, at)}${patch}${html.slice(at)}`
   }
-  return `${PREVIEW_STYLE}${html}`
+  return `${patch}${html}`
 }

@@ -442,7 +442,8 @@ export const zh = {
   'cfg.maxResult': '模型单次读取上限',
   'cfg.maxResultDesc': '模型读一张工作流、一份运行状态最多拿这么多；很大的工作流读不出来时调大。',
   'cfg.skill': '给模型的使用指南',
-  'cfg.skillDesc': '注册两份模型按需读的指南：怎么设计工作流、怎么记录运行状态。',
+  'cfg.skillDesc':
+    '注册三份模型按需读的指南：怎么设计工作流、怎么记录运行状态、怎么写画布上的看板。',
   'cfg.ms': '毫秒',
   'cfg.steps': '步',
   'cfg.kb': 'KB',
@@ -1777,7 +1778,8 @@ export const en: Record<LocaleKey, string> = {
   'cfg.maxResultDesc':
     'The most the model gets from one read of a workflow or run state; raise it if a big workflow cannot be read.',
   'cfg.skill': 'Guides for the model',
-  'cfg.skillDesc': 'Registers two on-demand guides: designing workflows and recording run state.',
+  'cfg.skillDesc':
+    'Registers three on-demand guides: designing workflows, recording run state, and writing canvas dashboards.',
   'cfg.ms': 'ms',
   'cfg.steps': 'steps',
   'cfg.kb': 'KB',

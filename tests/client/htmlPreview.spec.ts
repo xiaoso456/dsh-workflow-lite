@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest'
 
+import { boardTheme } from '../../src/client/model/boardTheme.ts'
 import {
   BROKEN_IMAGES,
+  boardScript,
   brokenImagesOf,
   PREVIEW_STYLE,
   THUMB,
   withPreviewStyle,
 } from '../../src/client/model/htmlPreview.ts'
+import { BOARD_THEME_EVENT, BOARD_THEME_MESSAGE } from '../../src/shared/board.ts'
 
 describe('withPreviewStyle —— HTML 预览补细滚动条', () => {
   it('有 <head> 就插在它后面', () => {
@@ -52,7 +55,11 @@ describe('滑块颜色跟页面的底色走', () => {
       backgroundColor:
         (element.kind === 'body' ? backgrounds.body : backgrounds.html) ?? 'rgba(0, 0, 0, 0)',
     })
-    new Function('document', 'getComputedStyle', script)(document, getComputedStyle)
+    new Function('document', 'getComputedStyle', 'addEventListener', script)(
+      document,
+      getComputedStyle,
+      () => {},
+    )
     return { thumb: set['--wl-preview-thumb'], track: set['--wl-preview-track'] }
   }
 
@@ -98,5 +105,81 @@ describe('加载失败的图片：框里报个数，外面只认整数', () => {
     ]) {
       expect(brokenImagesOf(bad)).toBeNull()
     }
+  })
+})
+
+describe('看板：标模式、写主题变量、换主题就地改', () => {
+  /** 在假页面里跑看板那段脚本，返回 <html> 上的属性、内联变量，和发消息的办法。 */
+  function runBoard(script: string) {
+    const attrs: Record<string, string> = {}
+    const vars: Record<string, string> = {}
+    const style = {
+      colorScheme: '',
+      setProperty: (name: string, value: string) => {
+        vars[name] = value
+      },
+    }
+    const root = { style, setAttribute: (name: string, value: string) => (attrs[name] = value) }
+    const listeners: ((event: { source: unknown; data: unknown }) => void)[] = []
+    const events: string[] = []
+    const parent = { kind: 'parent' }
+    const body = /<script data-wl-preview>([\s\S]*?)<\/script>/u.exec(script)?.[1] ?? ''
+    new Function('document', 'addEventListener', 'dispatchEvent', 'parent', 'Event', body)(
+      { documentElement: root },
+      (type: string, listener: (event: { source: unknown; data: unknown }) => void) => {
+        if (type === 'message') listeners.push(listener)
+      },
+      (event: { type: string }) => events.push(event.type),
+      parent,
+      class {
+        constructor(readonly type: string) {}
+      },
+    )
+    const post = (data: unknown, source: unknown = parent): void => {
+      for (const listener of listeners) listener({ source, data })
+    }
+    return { attrs, vars, style, events, post }
+  }
+
+  it('一上来就标出模式、写上变量和亮暗；没给看板就不插这段', () => {
+    const light = boardTheme('light', 'white')
+    const page = runBoard(boardScript('card', light))
+    expect(page.attrs['data-board']).toBe('card')
+    expect(page.vars['--board-bg']).toBe('#ffffff')
+    expect(page.vars['--board-radius']).toBe('10px')
+    expect(page.style.colorScheme).toBe('light')
+    expect(withPreviewStyle('<head></head>')).not.toContain('data-board')
+    expect(withPreviewStyle('<head></head>', { mode: 'full', theme: light })).toBe(
+      `<head>${boardScript('full', light)}${PREVIEW_STYLE}</head>`,
+    )
+  })
+
+  it('换主题：只认父窗口发来的那种消息、只收 --board- 开头的字符串，改完派发事件', () => {
+    const page = runBoard(boardScript('card', boardTheme('light', 'white')))
+    const dark = boardTheme('dark', 'slate')
+    page.post({ type: BOARD_THEME_MESSAGE, ...dark }, { kind: 'someone else' })
+    page.post({ type: 'other', ...dark })
+    expect(page.vars['--board-bg']).toBe('#ffffff')
+    expect(page.events).toEqual([])
+    page.post({
+      type: BOARD_THEME_MESSAGE,
+      scheme: 'dark',
+      vars: { ...dark.vars, color: 'red', '--board-text': 3 },
+    })
+    expect(page.vars['--board-bg']).toBe('#181c23')
+    expect(page.vars['--board-text']).toBe('#131820')
+    expect(page.vars.color).toBeUndefined()
+    expect(page.style.colorScheme).toBe('dark')
+    expect(page.events).toEqual([BOARD_THEME_EVENT])
+  })
+
+  it('瑞士是直角；值里有 </script> 也截不断脚本', () => {
+    expect(boardTheme('light', 'swiss', { look: 'swiss' }).vars['--board-radius']).toBe('0px')
+    const script = boardScript('card', {
+      scheme: 'light',
+      vars: { '--board-font': 'x</script><b>' },
+    })
+    expect(script.match(/<\/script>/gu)).toHaveLength(1)
+    expect(runBoard(script).vars['--board-font']).toBe('x</script><b>')
   })
 })
