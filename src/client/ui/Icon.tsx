@@ -27,6 +27,9 @@ const BASE_PATHS = {
   chevronLeft: 'M15 6l-6 6 6 6',
   chevronRight: 'M9 6l6 6-6 6',
   plus: 'M12 5v14M5 12h14',
+  // 画布展示卡：放大打开、进入交互（指针）
+  expand: 'M14 4h6v6M10 20H4v-6M20 4l-6 6M4 20l6-6',
+  pointer: 'M6 3.5l12.5 7.5-5.5 1.5 3 5.5-2.7 1.5-3-5.5L6.2 18z',
   minus: 'M5 12h14',
   x: 'M6 6l12 12M18 6L6 18',
   check: 'M5 12.5l4.5 4.5L19 7.5',

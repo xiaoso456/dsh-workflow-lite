@@ -31,6 +31,7 @@ import type {
   InputNode,
   NodeData,
   Point,
+  ResourceItem,
   ResourceNode,
   StepNode,
   TemplateEntry,
@@ -43,6 +44,7 @@ import type { Desktop } from '../app/desktop.ts'
 import { createHostAccess, type HostAccess } from '../app/host.ts'
 import { afterPaint, revealNode } from '../app/reveal.ts'
 import { useArrival } from '../app/useArrival.ts'
+import { useDisplayStats } from '../app/useDisplayStats.ts'
 import type { FileTarget } from '../app/useRunFile.ts'
 import { useRunGraph } from '../app/useRunGraph.ts'
 import { useRunHistory } from '../app/useRunHistory.ts'
@@ -88,6 +90,7 @@ import { QuickAdd } from './QuickAdd.tsx'
 import { DraftBar, type DraftLine, graphLine } from './RunDraftBar.tsx'
 import { RunEdgeDetail } from './RunEdge.tsx'
 import { RunInputDetail } from './RunInput.tsx'
+import { TextDialog } from './RunItemDialog.tsx'
 import { type PanelMode, RunModeSwitch } from './RunModeSwitch.tsx'
 import { RunNav } from './RunNav.tsx'
 import { Overview, Untracked } from './RunOverview.tsx'
@@ -261,6 +264,26 @@ export function RunView(props: RunViewProps): React.JSX.Element {
     title: string
     note?: string | undefined
   } | null>(null)
+  /** 展示卡上打开的自定义文字（文件走上面的查看框）。 */
+  const [textView, setTextView] = useState<ResourceItem | null>(null)
+  /** 画布上展示着的文件：隔一会儿看一眼在不在、改没改。 */
+  const displayStats = useDisplayStats(props.rpc, id, doc)
+  const displayRun = useMemo(
+    () => ({ rpc: props.rpc, instance: id, stats: displayStats }),
+    [props.rpc, id, displayStats],
+  )
+  const docRef = useRef(doc)
+  docRef.current = doc
+  const openDisplay = useCallback((node: string, item: number): void => {
+    const found = docRef.current?.nodes.find(
+      (candidate): candidate is ResourceNode => candidate.id === node && isResource(candidate),
+    )
+    const entry = found?.data.items[item]
+    if (entry === undefined) return
+    if (entry.kind === 'text') setTextView(entry)
+    else setViewer({ target: { node, item }, title: fileBaseName(entry.value), note: entry.note })
+  }, [])
+  const display = useMemo(() => ({ run: displayRun, open: openDisplay }), [displayRun, openDisplay])
   /** 看实例工作区里的文件夹、Skill（相对路径按实例的工作区，Skill 按实例所属的会话）。 */
   const cwd = summary?.cwd
   const host = useMemo(
@@ -653,6 +676,7 @@ export function RunView(props: RunViewProps): React.JSX.Element {
             onFocusFile={setFocusFile}
             {...(props.memories === undefined ? {} : { memories: props.memories })}
             {...(decor === undefined || swap.dim ? {} : { run: decor })}
+            display={display}
           />
         )}
       </div>
@@ -801,6 +825,15 @@ export function RunView(props: RunViewProps): React.JSX.Element {
           note={viewer.note}
           desktop={props.desktop}
           onClose={() => setViewer(null)}
+        />
+      )}
+
+      {textView !== null && (
+        <TextDialog
+          t={t}
+          item={textView}
+          desktop={props.desktop}
+          onClose={() => setTextView(null)}
         />
       )}
 
@@ -958,6 +991,9 @@ function RunPanel(props: {
         onSelectStep={props.onSelect}
         onFocusFile={props.onFocusFile}
         onView={props.onView}
+        onDisplay={(view) =>
+          props.onEdit({ type: 'patchResource', id: selectedFile.id, patch: { view } })
+        }
         onError={(text) => current.flash('error', text)}
       />
     )

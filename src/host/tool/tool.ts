@@ -18,6 +18,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
+import { DEFAULT_ZOOM, type DisplaySpec, VIEW_SIZE_KEYS, VIEW_SIZES } from '../../shared/display.ts'
 import { analyzeGraph, compareByCodepoint } from '../../shared/graph.ts'
 import { inputKind, inputReaders, orderedInputs, stepInputs } from '../../shared/inputs.ts'
 import { canonicalOutput, idKey, isInput, isResource, isStep } from '../../shared/model.ts'
@@ -55,6 +56,8 @@ import {
   RESOURCE_KINDS,
   REUSE_POLICIES,
   TOOL_NAME,
+  VIEW_FITS,
+  VIEW_LIMITS,
 } from '../../shared/types.ts'
 import { compileWorkflow } from '../plan.ts'
 import type { NodePatch, RunService, SessionRef, StatePatch } from '../runs/service.ts'
@@ -104,6 +107,7 @@ const DESCRIPTION = [
   'write_node 的 output/outputs 也会自动建好放着这个文件的资源并连上。步骤 → 步骤的线缺省交上游的执行结果（handoff / handoff_note 可改）。',
   '记忆是跨多次执行攒下来的做法（一份 skill 文件夹，放在插件的记忆库里）：工作流记忆整个流程共用，步骤记忆只给那一步。',
   'write_resource 带 memory 加记忆卡（引用 list 里已有的一条，或新建一条）。只给大型、复杂、会反复执行的工作流加，加之前读 skill workflow-authoring 的「记忆」一节。',
+  '资源卡可以直接在画布上展示其中一项（图片、HTML、Markdown、文本类文件）：write_resource 或 write_node 的 outputs 带 display。看板、图表、报告这类要给人看的产出建议打开；写它的步骤的任务描述会带上卡片尺寸，让产出在卡片里和单独打开时都好看。',
   '输入节点是执行前问用户的问题：write_node 带 input 新建或修改，connect 输入 → 步骤 = 把回答交给它。',
   '图里有输入节点时，compile 带 answers 给出用户的回答（没给的用默认值）；必填的没回答会回 problems，先问用户再编译。',
   '节点定位一律用 id。',
@@ -272,6 +276,7 @@ function resourceEntries(
           writer.update ? { id: writer.id, update: true as const } : { id: writer.id },
         ),
         readers,
+        ...(resource.data.view === undefined ? {} : { display: resource.data.view }),
         ...(memory === undefined
           ? {}
           : {
@@ -461,7 +466,48 @@ function resourceUpsertOf(node: string | undefined, input: ResourceArgs): Resour
     }
     upsert.items = items
   }
+  if (input.display !== undefined) {
+    const display = displaySpecOf(input.display, 'resource.display')
+    if (typeof display === 'string') return display
+    upsert.display = display
+  }
   return upsert
+}
+
+/** `display` 参数 → 展示设置的改动。形状不对就回一句给模型看的错（取值范围由 `applyDisplay` 再把关）。 */
+function displaySpecOf(raw: unknown, where: string): DisplaySpec | string {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    return `${where} 要写成 { size, width, height, zoom, fit, item, adapt } 或 { show: false }`
+  }
+  const input = raw as Record<string, unknown>
+  const spec: DisplaySpec = {}
+  for (const key of ['show', 'adapt'] as const) {
+    if (input[key] === undefined) continue
+    if (typeof input[key] !== 'boolean') return `${where}.${key} 必须是 true / false`
+    spec[key] = input[key]
+  }
+  for (const key of ['width', 'height', 'zoom', 'item'] as const) {
+    if (input[key] === undefined) continue
+    if (typeof input[key] !== 'number' || !Number.isFinite(input[key])) {
+      return `${where}.${key} 必须是数字`
+    }
+    spec[key] = input[key]
+  }
+  if (input.size !== undefined) {
+    const size = VIEW_SIZE_KEYS.find((candidate) => candidate === input.size)
+    if (size === undefined) {
+      return `${where}.size 不认识：${String(input.size)}（可选：${VIEW_SIZE_KEYS.join(' / ')}）`
+    }
+    spec.size = size
+  }
+  if (input.fit !== undefined) {
+    const fit = VIEW_FITS.find((candidate) => candidate === input.fit)
+    if (fit === undefined) {
+      return `${where}.fit 不认识：${String(input.fit)}（可选：${VIEW_FITS.join(' / ')}）`
+    }
+    spec.fit = fit
+  }
+  return spec
 }
 
 /** 按 `id` 码位序排步骤。 */
@@ -549,7 +595,7 @@ export interface WorkflowLiteArgs {
   content?: string
   label?: string
   output?: string
-  outputs?: { path: string; rule?: string }[]
+  outputs?: { path: string; rule?: string; display?: DisplaySpec }[]
   description?: string
   no_output?: boolean
   from_template?: string
@@ -593,6 +639,7 @@ export interface ResourceArgs {
   label?: string
   description?: string
   items?: { kind: string; value: string; note?: string }[]
+  display?: DisplaySpec
 }
 
 /** write_node 的 input（与参数声明同构）。 */
@@ -918,6 +965,16 @@ export function createWorkflowLiteHandler(
           upsert.outputs = args.outputs.map((spec) =>
             spec.rule === undefined ? { path: spec.path } : { path: spec.path, rule: spec.rule },
           )
+          const displays: { path: string; display: DisplaySpec }[] = []
+          for (const [index, spec] of args.outputs.entries()) {
+            if (spec.display === undefined) continue
+            const display = displaySpecOf(spec.display, `outputs[${index}].display`)
+            if (typeof display === 'string') {
+              return errorValue({ error: { code: 'invalid_args', message: display } })
+            }
+            displays.push({ path: spec.path, display })
+          }
+          if (displays.length > 0) upsert.displays = displays
         }
         if (args.description !== undefined) upsert.description = args.description
         if (args.no_output === true) upsert.noOutput = true
@@ -1103,6 +1160,44 @@ export function createWorkflowLiteHandler(
   }
 }
 
+/** `display`（write_resource 的 resource 里、write_node 的 outputs 每项里）：在画布上展示资源里的一项。 */
+const DISPLAY_PARAMETER = {
+  type: 'object',
+  description:
+    '在画布上直接展示这个资源里的一项（图片、HTML、Markdown、文本类文件、自定义文字），给了的字段才改。看板、图表、报告这类要给人看的产出建议打开。写它的步骤的任务描述会带上卡片尺寸和适配要求。',
+  additionalProperties: false,
+  properties: {
+    show: { type: 'boolean', description: 'false = 关掉展示（其余字段不看）。' },
+    size: {
+      type: 'string',
+      enum: [...VIEW_SIZE_KEYS],
+      description: `预设尺寸 s / m / l（缺省 m）。各类的中档：HTML ${VIEW_SIZES.html.m.join('×')}、图片 ${VIEW_SIZES.image.m.join('×')}、Markdown ${VIEW_SIZES.markdown.m.join('×')}、文本 ${VIEW_SIZES.text.m.join('×')}（画布像素）。`,
+    },
+    width: {
+      type: 'number',
+      description: `展示区宽（画布像素，${VIEW_LIMITS.width.join('–')}）；和 size 同时给以它为准。`,
+    },
+    height: {
+      type: 'number',
+      description: `展示区高（画布像素，${VIEW_LIMITS.height.join('–')}）。`,
+    },
+    zoom: {
+      type: 'number',
+      description: `内容缩放（百分比，${VIEW_LIMITS.zoom.join('–')}）。HTML 缺省 ${DEFAULT_ZOOM.html}：页面按「宽 ÷ 缩放」排版再缩进卡片；Markdown、文本是字号；图片只在 fit=actual 时用。`,
+    },
+    fit: {
+      type: 'string',
+      enum: [...VIEW_FITS],
+      description: '图片怎么放：contain 完整缩放（缺省）/ cover 铺满裁边 / actual 按 zoom 的原大。',
+    },
+    item: { type: 'number', description: '展示第几项（从 0 数；缺省 = 第一个能展示的）。' },
+    adapt: {
+      type: 'boolean',
+      description: '让写它的步骤按卡片尺寸适配产出（缺省 true）。',
+    },
+  },
+} as const
+
 /** 工具的参数声明（隐式开放对象根；`required` 内联写）。导出供测试直接编译成 JSON Schema 校验。 */
 export const PARAMETERS = {
   action: {
@@ -1138,6 +1233,7 @@ export const PARAMETERS = {
           type: 'string',
           description: '这份产出该怎么写：结构、必须包含什么、长度上限（进资源说明）。',
         },
+        display: DISPLAY_PARAMETER,
       },
     },
   },
@@ -1238,6 +1334,7 @@ export const PARAMETERS = {
           },
         },
       },
+      display: DISPLAY_PARAMETER,
     },
   },
   goal: {

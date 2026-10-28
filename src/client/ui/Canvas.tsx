@@ -66,7 +66,9 @@ import type {
   InputKind,
   MemoryType,
   Point,
+  ResourceItem,
   ResourceKind,
+  ResourceView,
   ValidationProblem,
   WorkflowDocument,
   WorkflowEdge,
@@ -84,6 +86,7 @@ import {
   linkAllowed,
   previewLink,
 } from '../model/connect.ts'
+import { type Display, displayOf, snapView } from '../model/display.ts'
 import { type Edit, type Selection, whenOf } from '../model/editor.ts'
 import {
   cardSize,
@@ -119,6 +122,7 @@ import {
   writePoints,
 } from '../model/route.ts'
 import css from './canvas.module.css'
+import dcss from './display.module.css'
 import { FlowStreaks, StreaksMode } from './FlowStreaks.tsx'
 import type { FocusFile } from './Handoff.tsx'
 import hand from './handoff.module.css'
@@ -133,6 +137,7 @@ import {
   useLast,
 } from './motion.tsx'
 import { cx, useFloat } from './primitives.tsx'
+import { DisplayBody, DisplayContext, type DisplayEnv } from './ResourceDisplay.tsx'
 import { resourceTint } from './ResourcePresets.tsx'
 import { freeFilePath, itemText, KIND_ICON, KIND_LABEL } from './resourceUi.ts'
 import { lookOf, StepMark } from './StepMark.tsx'
@@ -178,6 +183,8 @@ export interface CanvasProps {
   memories?: readonly MemoryEntry[] | null
   /** 正在编辑的工作流名（「另有几个工作流在用」不算它自己）。 */
   workflow?: string | null
+  /** 资源卡的画布展示从哪读、怎么打开（实例视图给出实例）；缺省 = 模板（文件还没生成，只摆占位）。 */
+  display?: Omit<DisplayEnv, 't'>
 }
 
 /** 实例视图给画布的装饰。 */
@@ -285,6 +292,28 @@ interface ResourceCardData extends Record<string, unknown> {
   readText: string
   onFocusFile: FocusFile
   generatedText: string
+  /** 开着画布展示：整张卡换成标题行 + 展示区；没开（或没有能展示的项）是 `null`。 */
+  display: CardDisplay | null
+  /** 拖完右下角：把新的展示设置写进文档。 */
+  onView(id: string, view: ResourceView): void
+}
+
+/** 展示卡要的东西。 */
+interface CardDisplay {
+  info: Display
+  item: ResourceItem
+  /** 文档里存的展示设置（改尺寸时在它上面改）。 */
+  view: ResourceView
+  /** 写它的步骤正在跑。 */
+  writing: boolean
+  /** 文件在不在（实例视图）；模板、不是文件时为 `null`。 */
+  made: boolean | null
+  /** 类型签上印的字：文件印扩展名，自定义文字是空串（放图标）。 */
+  ext: string
+  openText: string
+  interactText: string
+  leaveText: string
+  resizeText: string
 }
 
 interface LinkData extends Record<string, unknown> {
@@ -1103,6 +1132,7 @@ const ResourceCard = memo(function ResourceCard(
   props: NodeProps<ResourceFlowNode>,
 ): React.JSX.Element {
   const { data, id, selected } = props
+  if (data.display !== null) return <DisplayCard {...props} display={data.display} />
   const madeAll = data.compact && data.items[0]?.made === true
   return (
     <div
@@ -1228,6 +1258,194 @@ const ResourceCard = memo(function ResourceCard(
     </div>
   )
 })
+
+/**
+ * 展示卡：资源卡开了画布展示。上面一行和资源卡一样（类型签、名字、在不在），下面是展示区（见 ResourceDisplay）。
+ * 选中时右下角出一个拖柄改大小（拖动中只在这张卡里记临时尺寸，松手才写进文档）；图片按拖之前的比例走，
+ * 按住 Shift 自由拉。网页、长文能「交互」：进去之后展示区接鼠标（滚动、点按钮），Esc、取消选中都退出来。
+ */
+function DisplayCard(
+  props: NodeProps<ResourceFlowNode> & { display: CardDisplay },
+): React.JSX.Element {
+  const { data, id, selected, display } = props
+  const env = useContext(DisplayContext)
+  const flow = useReactFlow()
+  const [live, setLive] = useState<{ width: number; height: number } | null>(null)
+  const [interactive, setInteractive] = useState(false)
+  const shown: Display = live === null ? display.info : { ...display.info, ...live }
+  const canInteract = display.info.kind !== 'image'
+  const canOpen = env?.open !== undefined && (display.item.kind === 'text' || display.made === true)
+
+  useEffect(() => {
+    if (!selected) setInteractive(false)
+  }, [selected])
+  useEffect(() => {
+    if (!interactive) return
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setInteractive(false)
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [interactive])
+
+  const startResize = (event: React.PointerEvent<HTMLSpanElement>): void => {
+    if (event.button !== 0) return
+    event.stopPropagation()
+    event.preventDefault()
+    const zoom = flow.getZoom()
+    const start = { x: event.clientX, y: event.clientY, w: shown.width, h: shown.height }
+    const ratio = display.info.kind === 'image' ? start.w / start.h : null
+    const handle = event.currentTarget
+    handle.setPointerCapture(event.pointerId)
+    let last: { width: number; height: number } | null = null
+    const move = (next: PointerEvent): void => {
+      const w = start.w + (next.clientX - start.x) / zoom
+      const h = start.h + (next.clientY - start.y) / zoom
+      last = snapView(w, ratio !== null && !next.shiftKey ? w / ratio : h)
+      setLive(last)
+    }
+    const done = (): void => {
+      handle.removeEventListener('pointermove', move)
+      handle.removeEventListener('pointerup', done)
+      handle.removeEventListener('pointercancel', done)
+      if (last !== null && (last.width !== start.w || last.height !== start.h)) {
+        data.onView(id, { ...display.view, ...last })
+      }
+      setLive(null)
+    }
+    handle.addEventListener('pointermove', move)
+    handle.addEventListener('pointerup', done)
+    handle.addEventListener('pointercancel', done)
+  }
+
+  return (
+    <div
+      className={cx(css.resCard, dcss.card, selected && css.cardSelected)}
+      data-display={display.info.kind}
+      data-focused={data.focused}
+      data-dim={data.dim}
+      data-tone={data.tone}
+      data-resizing={live !== null || undefined}
+      data-interactive={interactive || undefined}
+      data-testid="wl-resource"
+      onPointerEnter={() => data.onFocusFile(id)}
+      onPointerLeave={() => data.onFocusFile(null)}
+    >
+      <Handle
+        id="in"
+        type="target"
+        position={Position.Left}
+        className={cx(css.handle, css.handleIn, css.hResIn)}
+      />
+      <span className={dcss.head} data-tip={data.note === '' ? undefined : data.note}>
+        <span
+          className={dcss.tab}
+          data-kind={display.item.kind}
+          data-tinted={data.tint !== null}
+          style={tintStyle(data.tint)}
+          aria-hidden="true"
+        >
+          {display.ext !== '' ? (
+            display.ext
+          ) : (
+            <Icon name={KIND_ICON[display.item.kind]} size={12} />
+          )}
+        </span>
+        <span className={dcss.title}>{data.title}</span>
+        {data.tone !== 'ok' && (
+          <span className={css.cardFlag} data-tone={data.tone}>
+            <Icon name="alert" size={12} />
+          </span>
+        )}
+        {display.made === true && (
+          <span className={dcss.made} data-tip={data.generatedText} data-testid="wl-resource-made">
+            <Icon name="check" size={11} />
+          </span>
+        )}
+        <span className={dcss.actions}>
+          {canInteract && (
+            <button
+              type="button"
+              className={cx(dcss.action, 'nodrag')}
+              aria-pressed={interactive}
+              data-tip={interactive ? display.leaveText : display.interactText}
+              aria-label={interactive ? display.leaveText : display.interactText}
+              data-testid="wl-display-interact"
+              onClick={(event) => {
+                event.stopPropagation()
+                setInteractive((on) => !on)
+              }}
+            >
+              <Icon name="pointer" size={13} />
+            </button>
+          )}
+          {canOpen && (
+            <button
+              type="button"
+              className={cx(dcss.action, 'nodrag')}
+              data-tip={display.openText}
+              aria-label={display.openText}
+              data-testid="wl-display-open"
+              onClick={(event) => {
+                event.stopPropagation()
+                env?.open?.(id, display.info.item)
+              }}
+            >
+              <Icon name="expand" size={13} />
+            </button>
+          )}
+        </span>
+      </span>
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: 双击展示区 = 点标题行的「打开」 */}
+      <div
+        className={cx(dcss.window, interactive && 'nowheel nodrag nopan')}
+        onDoubleClick={(event) => {
+          if (interactive || !canOpen) return
+          event.stopPropagation()
+          env?.open?.(id, display.info.item)
+        }}
+      >
+        <DisplayBody
+          node={id}
+          item={display.item}
+          display={shown}
+          interactive={interactive}
+          writing={display.writing}
+        />
+      </div>
+      {data.shared && (
+        <span
+          className={css.resShared}
+          data-tip={data.sharedText}
+          data-testid="wl-resource-shared-tag"
+        >
+          <Icon name="shared" size={11} />
+        </span>
+      )}
+      {selected && !interactive && (
+        <span
+          className={cx(dcss.grip, 'nodrag nopan')}
+          data-tip={display.resizeText}
+          aria-hidden="true"
+          data-testid="wl-display-resize"
+          onPointerDown={startResize}
+        />
+      )}
+      {live !== null && (
+        <span className={dcss.sizeTag}>
+          {live.width} × {live.height}
+        </span>
+      )}
+      <Handle
+        id="out"
+        type="source"
+        position={Position.Right}
+        className={cx(css.handle, css.handleOut, css.handleRead)}
+        data-tip={data.readText}
+      />
+    </div>
+  )
+}
 
 /**
  * 输入卡：执行前问用户的一个问题。左边一条墨色的签印着交互方式，右边的点拖到步骤上 = 把回答交给它。
@@ -1661,6 +1879,16 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
   const focusFileRef = useRef(props.onFocusFile)
   focusFileRef.current = props.onFocusFile
   const onFocusFile = useCallback((id: string | null): void => focusFileRef.current(id), [])
+  const editRef = useRef(props.onEdit)
+  editRef.current = props.onEdit
+  const onView = useCallback((id: string, view: ResourceView): void => {
+    editRef.current({ type: 'patchResource', id, patch: { view } })
+  }, [])
+  // 展示卡从哪读、怎么打开（模板里只有自定义文字能直接显示）。
+  const displayEnv = useMemo(
+    (): DisplayEnv => ({ t, run: props.display?.run ?? null, open: props.display?.open }),
+    [t, props.display?.run, props.display?.open],
+  )
   const runStatusRef = useRef(run?.onStatus)
   runStatusRef.current = run?.onStatus
   const onRunStatus = useCallback(
@@ -1807,6 +2035,10 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
       update: t(ACCESS_TEXT.update),
       read: t(ACCESS_TEXT.read),
       ask: t(ACCESS_TEXT.ask),
+      displayOpen: t('display.open'),
+      displayInteract: t('display.interact'),
+      displayLeave: t('display.leave'),
+      displayResize: t('display.resize'),
     }),
     [t],
   )
@@ -2077,6 +2309,28 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
                   : texts.kinds[first.kind]
         const ext = first?.kind === 'file' ? extensionOf(itemText(first)) : ''
         const description = (node.data.description ?? '').replace(/\s+/gu, ' ').trim()
+        const shownView = memory === undefined ? displayOf(node.data) : null
+        const shownItem = shownView === null ? undefined : all[shownView.item]
+        const display: CardDisplay | null =
+          shownView === null || shownItem === undefined || node.data.view === undefined
+            ? null
+            : {
+                info: shownView,
+                item: shownItem,
+                view: node.data.view,
+                writing:
+                  info?.writers.some((writer) => run?.nodes[writer.id]?.status === 'running') ===
+                  true,
+                made: made === undefined ? null : (made[shownView.item] ?? null),
+                ext:
+                  shownItem.kind === 'file'
+                    ? extensionOf(shownItem.value).toUpperCase().slice(0, 4)
+                    : '',
+                openText: texts.displayOpen,
+                interactText: texts.displayInteract,
+                leaveText: texts.displayLeave,
+                resizeText: texts.displayResize,
+              }
         const data: ResourceCardData = {
           compact,
           title,
@@ -2101,8 +2355,10 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
           readText: texts.readText,
           onFocusFile,
           generatedText: texts.generated,
+          display,
+          onView,
         }
-        signature = JSON.stringify([selected, used, { ...data, onFocusFile: null }])
+        signature = JSON.stringify([selected, used, { ...data, onFocusFile: null, onView: null }])
         build = () => ({
           id: node.id,
           type: 'wfResource',
@@ -2525,95 +2781,97 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
         onRequestAdd({ client, flow: { x: at.x - NODE_W / 2, y: at.y - NODE_H / 2 } })
       }}
     >
-      <DragInfo.Provider value={dragInfo}>
-        <StreaksMode.Provider value={streakMode}>
-          <ReactFlow<FlowNode, FlowEdge>
-            nodes={nodes}
-            edges={edges}
-            nodeTypes={NODE_TYPES}
-            edgeTypes={EDGE_TYPES}
-            minZoom={MIN_ZOOM}
-            maxZoom={MAX_ZOOM}
-            // 选中、删除、键盘都由我们自己的状态机管，关掉内置的那几套免得两边各说各话。
-            deleteKeyCode={null}
-            selectionKeyCode={null}
-            multiSelectionKeyCode={null}
-            disableKeyboardA11y
-            connectOnClick={false}
-            zoomOnDoubleClick={false}
-            zoomOnScroll={false}
-            elevateNodesOnSelect={false}
-            nodeDragThreshold={2}
-            connectionRadius={28}
-            connectionLineComponent={ConnectionLine}
-            proOptions={{ hideAttribution: true }}
-            onNodesChange={onNodesChange}
-            // 两头的连接点分工要对得上（见 model/connect.ts）：不连自己、资源不连资源、
-            // 步骤右边只连步骤、步骤底边只连资源、资源只连步骤。
-            isValidConnection={(connection) => linkAllowed(docRef.current, connection)}
-            onConnect={(connection) => {
-              onEdit({ type: 'connect', source: connection.source, target: connection.target })
-            }}
-            onConnectEnd={(event, state) => {
-              // 线拖到空白处松手：就地加一个步骤并连上；从步骤底边拖出来的是新建一个放着产出文件的资源。
-              if (state.isValid === true || state.fromNode === null) return
-              if (state.fromHandle?.type !== 'source') return
-              const point = 'changedTouches' in event ? event.changedTouches[0] : event
-              if (point === undefined) return
-              const target = event.target
-              if (!(target instanceof Element) || !target.classList.contains('react-flow__pane'))
-                return
-              const client = { x: point.clientX, y: point.clientY }
-              const at = flow.screenToFlowPosition(client)
-              if (state.fromHandle.id === 'file' || state.fromHandle.id === 'fileUp') {
-                onEdit({
-                  type: 'addResource',
-                  data: outputResource({
-                    path: freeFilePath(docRef.current, `${state.fromNode.id}.md`),
-                  }),
-                  // 松手处就是新资源卡左边的入口：线落在哪，卡就从哪接上。
-                  position: { x: at.x, y: at.y - RES_H / 2 },
-                  writer: state.fromNode.id,
-                  select: true,
+      <DisplayContext.Provider value={displayEnv}>
+        <DragInfo.Provider value={dragInfo}>
+          <StreaksMode.Provider value={streakMode}>
+            <ReactFlow<FlowNode, FlowEdge>
+              nodes={nodes}
+              edges={edges}
+              nodeTypes={NODE_TYPES}
+              edgeTypes={EDGE_TYPES}
+              minZoom={MIN_ZOOM}
+              maxZoom={MAX_ZOOM}
+              // 选中、删除、键盘都由我们自己的状态机管，关掉内置的那几套免得两边各说各话。
+              deleteKeyCode={null}
+              selectionKeyCode={null}
+              multiSelectionKeyCode={null}
+              disableKeyboardA11y
+              connectOnClick={false}
+              zoomOnDoubleClick={false}
+              zoomOnScroll={false}
+              elevateNodesOnSelect={false}
+              nodeDragThreshold={2}
+              connectionRadius={28}
+              connectionLineComponent={ConnectionLine}
+              proOptions={{ hideAttribution: true }}
+              onNodesChange={onNodesChange}
+              // 两头的连接点分工要对得上（见 model/connect.ts）：不连自己、资源不连资源、
+              // 步骤右边只连步骤、步骤底边只连资源、资源只连步骤。
+              isValidConnection={(connection) => linkAllowed(docRef.current, connection)}
+              onConnect={(connection) => {
+                onEdit({ type: 'connect', source: connection.source, target: connection.target })
+              }}
+              onConnectEnd={(event, state) => {
+                // 线拖到空白处松手：就地加一个步骤并连上；从步骤底边拖出来的是新建一个放着产出文件的资源。
+                if (state.isValid === true || state.fromNode === null) return
+                if (state.fromHandle?.type !== 'source') return
+                const point = 'changedTouches' in event ? event.changedTouches[0] : event
+                if (point === undefined) return
+                const target = event.target
+                if (!(target instanceof Element) || !target.classList.contains('react-flow__pane'))
+                  return
+                const client = { x: point.clientX, y: point.clientY }
+                const at = flow.screenToFlowPosition(client)
+                if (state.fromHandle.id === 'file' || state.fromHandle.id === 'fileUp') {
+                  onEdit({
+                    type: 'addResource',
+                    data: outputResource({
+                      path: freeFilePath(docRef.current, `${state.fromNode.id}.md`),
+                    }),
+                    // 松手处就是新资源卡左边的入口：线落在哪，卡就从哪接上。
+                    position: { x: at.x, y: at.y - RES_H / 2 },
+                    writer: state.fromNode.id,
+                    select: true,
+                  })
+                  return
+                }
+                onRequestAdd({
+                  client,
+                  flow: { x: at.x, y: at.y - NODE_H / 2 },
+                  from: state.fromNode.id,
                 })
-                return
-              }
-              onRequestAdd({
-                client,
-                flow: { x: at.x, y: at.y - NODE_H / 2 },
-                from: state.fromNode.id,
-              })
-            }}
-            onNodeClick={(_event, node) => onSelect({ kind: 'node', id: node.id })}
-            onNodeDragStart={(_event, node) => onSelect({ kind: 'node', id: node.id })}
-            onEdgeMouseEnter={(_event, edge) => setHoverEdge(edge.id)}
-            onEdgeMouseLeave={() => setHoverEdge(null)}
-            onEdgeClick={(_event, edge) => {
-              onSelect({ kind: 'edge', id: edge.id })
-              // 连线是 SVG，点它之后焦点会掉到 body：收回画布，Delete / Esc 才有人接。
-              focusCanvas()
-            }}
-            onPaneClick={() => {
-              onSelect(null)
-              focusCanvas()
-            }}
-            onMoveStart={() => setCanvasMoving(true)}
-            onMoveEnd={(event, viewport) => {
-              setCanvasMoving(false)
-              // 只记人动的视口；程序触发的移动（看全图、定位）事件参数是 null。
-              // 视口只记在浏览器里：浏览不改图，不会变成「待保存」。
-              if (event !== null && viewKey !== undefined) rememberViewport(viewKey, viewport)
-            }}
-          >
-            <Background
-              variant={BackgroundVariant.Dots}
-              gap={20}
-              size={1.6}
-              color="var(--wl-dot)"
-            />
-          </ReactFlow>
-        </StreaksMode.Provider>
-      </DragInfo.Provider>
+              }}
+              onNodeClick={(_event, node) => onSelect({ kind: 'node', id: node.id })}
+              onNodeDragStart={(_event, node) => onSelect({ kind: 'node', id: node.id })}
+              onEdgeMouseEnter={(_event, edge) => setHoverEdge(edge.id)}
+              onEdgeMouseLeave={() => setHoverEdge(null)}
+              onEdgeClick={(_event, edge) => {
+                onSelect({ kind: 'edge', id: edge.id })
+                // 连线是 SVG，点它之后焦点会掉到 body：收回画布，Delete / Esc 才有人接。
+                focusCanvas()
+              }}
+              onPaneClick={() => {
+                onSelect(null)
+                focusCanvas()
+              }}
+              onMoveStart={() => setCanvasMoving(true)}
+              onMoveEnd={(event, viewport) => {
+                setCanvasMoving(false)
+                // 只记人动的视口；程序触发的移动（看全图、定位）事件参数是 null。
+                // 视口只记在浏览器里：浏览不改图，不会变成「待保存」。
+                if (event !== null && viewKey !== undefined) rememberViewport(viewKey, viewport)
+              }}
+            >
+              <Background
+                variant={BackgroundVariant.Dots}
+                gap={20}
+                size={1.6}
+                color="var(--wl-dot)"
+              />
+            </ReactFlow>
+          </StreaksMode.Provider>
+        </DragInfo.Provider>
+      </DisplayContext.Provider>
 
       {doc.nodes.length === 0 && (
         <div className={css.empty} data-testid="wl-empty">

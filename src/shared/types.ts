@@ -142,6 +142,40 @@ export interface ResourceData {
   color?: string
   /** 预设：带专门写法与一键入口的一类资源（见 `shared/presets.ts`）；缺省 = 普通资源。 */
   preset?: ResourcePreset
+  /**
+   * 在画布上展示其中一项（图片、网页、Markdown、文本）；缺省 = 不展示。
+   * 不算计划的改动（改了不通知模型），但写它的步骤的任务描述里会带上展示尺寸（见 `adapt`）。
+   */
+  view?: ResourceView
+}
+
+/** 图片在展示区里怎么放：适应（缺省，不写盘）、填满、按 `zoom` 的原大比例。 */
+export const VIEW_FITS = ['contain', 'cover', 'actual'] as const
+export type ViewFit = (typeof VIEW_FITS)[number]
+
+/** 展示区尺寸与内容缩放的取值范围（画布像素 / 百分比）。 */
+export const VIEW_LIMITS = {
+  width: [160, 1600],
+  height: [100, 1200],
+  zoom: [25, 400],
+} as const
+
+/**
+ * 资源卡在画布上展示一项内容。卡片大小与内容缩放分开：
+ * - `width` / `height`：展示区的大小（画布像素，不含标题行）；
+ * - `zoom`：内容显示多大（百分比）。网页先按 `width / zoom` 宽排版再缩进来，Markdown / 文本是字号，
+ *   图片在 `fit = actual` 时是原大的百分比。缺省按内容种类（网页 50，其余 100）。
+ */
+export interface ResourceView {
+  /** 展示第几项；缺省 = 第一个能展示的。 */
+  item?: number
+  width: number
+  height: number
+  zoom?: number
+  /** 只对图片有用；缺省 = `contain`。 */
+  fit?: Exclude<ViewFit, 'contain'>
+  /** 让写它的步骤按展示尺寸做适配（任务描述里带上尺寸与要求）；缺省 = 要，只有关掉时写 `false`。 */
+  adapt?: false
 }
 
 /** 资源预设的种类（资源卡上的类型标记，见 `shared/presets.ts`）。以后的预设加在这里。 */
@@ -558,6 +592,8 @@ export interface ResourceIndexEntry {
   readers: string[]
   /** 记忆卡：引用记忆库里的哪一条（`missing` = 库里没有了）。 */
   memory?: { id: string; type: MemoryType; missing?: true }
+  /** 开着画布展示时的设置（和 `write_resource` 的 `display` 同名同义）。 */
+  display?: ResourceView
 }
 
 export interface ReadIndexResult {

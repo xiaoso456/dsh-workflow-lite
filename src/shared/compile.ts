@@ -27,6 +27,7 @@
 
 import { createHash } from 'node:crypto'
 import { type Dialect, DSH_DIALECT, PORTABLE_DIALECT } from './dialect.ts'
+import { displayBrief, displayOf } from './display.ts'
 import { byId, cycleHasNoExit, edgeWhen, type GraphAnalysis } from './graph.ts'
 import {
   customAnswers,
@@ -937,17 +938,19 @@ function resourcesSection(ctx: RenderContext, inline: boolean): string {
       lines.push(`- ${name}${shared}：${brief.join('；')}`)
       continue
     }
+    const display = info.writers.length === 0 ? null : displayLine(ctx, info.resource, written)
     const [only, ...more] = items
     if (only !== undefined && more.length === 0) {
       // 只有一项：接在资源名后面，不再套一层列表。
       const [first = '', ...rest] = itemLines(ctx, only, written, true, '')
       lines.push(`- ${name}${shared}：${first.slice(2)}`, ...rest)
-      continue
+    } else {
+      lines.push(`- ${name}${shared}：`)
+      for (const item of items) {
+        lines.push(...itemLines(ctx, item, written, true, '  '))
+      }
     }
-    lines.push(`- ${name}${shared}：`)
-    for (const item of items) {
-      lines.push(...itemLines(ctx, item, written, true, '  '))
-    }
+    if (display !== null) lines.push(`  - ${display}`)
   }
   return lines.join('\n')
 }
@@ -1054,6 +1057,22 @@ function itemBlock(ctx: RenderContext, resource: ResourceNode, written: boolean)
   if (note === '') return [head]
   if (!note.includes('\n')) return [`${head}。说明：${note}`]
   return [`${head}。说明：`, '', ...quoteLines(note, '')]
+}
+
+/**
+ * 给写它的步骤的「画布展示」：资源开了展示、展示的是文件、适配没关时才有（措辞在口径里，通用口径没有）。
+ * 资源里不止一项时点明展示的是哪个文件。
+ */
+function displayLine(ctx: RenderContext, resource: ResourceNode, written: boolean): string | null {
+  const display = displayOf(resource.data)
+  if (display === null || !display.adapt) return null
+  const item = resource.data.items[display.item]
+  if (item?.kind !== 'file') return null
+  const target =
+    resource.data.items.length === 1
+      ? undefined
+      : code(resolveItemPath(ctx.root, item.value.trim(), written))
+  return ctx.dialect.display(displayBrief(display), target)
 }
 
 /** 记忆目录（skill 目录）的位置（在记忆库里，不拼产出根目录），去掉尾斜杠。 */
@@ -1398,6 +1417,8 @@ function taskAppendix(facts: PlanFacts, ctx: RenderContext, id: string): string[
           ? memoryLines(ctx, resource, true, '')
           : itemBlock(ctx, resource, written)),
       )
+      const display = role === '读取' ? null : displayLine(ctx, resource, written)
+      if (display !== null) lines.push('', display)
     }
     sections.push(lines.join('\n'))
   }

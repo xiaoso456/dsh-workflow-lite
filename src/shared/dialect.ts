@@ -16,6 +16,7 @@
  * @module @xiaoso/dsh-workflow-lite/shared/dialect
  */
 
+import type { DisplayBrief } from './display.ts'
 import { PLAN_SECTIONS } from './limits.ts'
 import { INSTANCE_VAR } from './pathVars.ts'
 import type { ExecutionMode, ReusePolicy } from './types.ts'
@@ -55,6 +56,11 @@ export interface Dialect {
   runStateStep: string
   /** 「运行状态」段，整段。 */
   runState: (facts: RunStateFacts) => string[]
+  /**
+   * 任务描述里写它的资源开了画布展示时，交代产出要适配卡片（DSH 才有画布；通用口径是 `null`）。
+   * 编译器把它接在资源内容后面；资源里不止一项时 `target` 是展示的那个文件（已写成行内代码）。
+   */
+  display: (brief: DisplayBrief, target?: string) => string | null
 }
 
 function code(text: string): string {
@@ -93,6 +99,34 @@ export function dshRunStateLines(facts: Pick<RunStateFacts, 'instance' | 'solo'>
   ]
 }
 
+/**
+ * 画布展示（DSH）：卡片里看得到多少，以及产出要怎么写才能在卡片里和单独打开时都好看。
+ * 网页的几条硬限制来自卡片的渲染方式：页面用 `srcdoc` 放进只开了脚本的沙箱，没有自己的源——
+ * 相对路径的文件读不到、localStorage / cookie 一碰就抛错；CDN 上的脚本能加载。
+ */
+export function dshDisplayLine(brief: DisplayBrief, target?: string): string {
+  const lead = target === undefined ? '**画布展示**：' : `**画布展示**（${target}）：`
+  switch (brief.kind) {
+    case 'html':
+      return `${lead}这个文件会直接显示在画布的卡片里：页面按 ${brief.layoutWidth} px 宽排版，不滚动时只露出最上面约 ${brief.firstScreen} px；用户也会在浏览器里单独打开它。页面要自适应宽度，在卡片里和浏览器里都完整好看：不要把宽高写死成卡片的尺寸，最要紧的结论和数字放在最上面这一屏；写成一个自包含的文件，样式、脚本、数据都写进页面，图片用内联 SVG 或 data URI（卡片里读不到相对路径的文件）；图表库可以从 CDN 引入；不要读写 localStorage、cookie（卡片里会报错）；给页面写明背景色。`
+    case 'image': {
+      const size = `${brief.width}×${brief.height}`
+      const double = `${brief.width * 2}×${brief.height * 2}`
+      if (brief.fit === 'actual' && brief.visible !== undefined) {
+        return `${lead}这张图会按原始像素显示在画布的卡片里，卡片里只露出图片中间约 ${brief.visible.width}×${brief.visible.height} px，用户点开才看整张。要看的内容集中在中间这一块，整张图照常画完整。`
+      }
+      if (brief.fit === 'cover') {
+        return `${lead}这张图会在画布的卡片里按 ${brief.ratio} 铺满显示（卡片 ${size}），超出这个比例的边会被裁掉，用户也会点开看原图。出图时尽量用 ${brief.ratio} 的宽高比、分辨率至少是卡片的两倍（比如 ${double}）；主体和文字放在中间，别贴着四边。`
+      }
+      return `${lead}这张图会在画布的卡片里按 ${brief.ratio} 的框完整缩放显示（卡片 ${size}），用户也会点开看原图。出图时尽量用 ${brief.ratio} 的宽高比、分辨率至少是卡片的两倍（比如 ${double}）；文字和线条要在缩到卡片大小时还看得清。`
+    }
+    case 'markdown':
+      return `${lead}这个文件会显示在画布的卡片里，只露出开头约 ${brief.lines} 行（往下淡出），用户点开才看全文。先写结论和关键数字，细节放后面；开头不要放长目录和大段背景。全文照常写完整。`
+    default:
+      return `${lead}这个文件会显示在画布的卡片里，只露出开头约 ${brief.lines} 行，用户点开才看全文。格式照常；能调整顺序的地方，把最重要的内容放在最前面。`
+  }
+}
+
 export const DSH_DIALECT: Dialect = {
   id: 'dsh',
   mode: {
@@ -117,6 +151,7 @@ export const DSH_DIALECT: Dialect = {
     `确认这些 skill 已在本机装好（不在包里，用 skill 工具加载）：${names}。没有的话先告诉用户。`,
   runStateStep: '这次要记运行进度，怎么记见「运行状态」。',
   runState: dshRunStateLines,
+  display: dshDisplayLine,
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -199,6 +234,8 @@ export const PORTABLE_DIALECT: Dialect = {
   needsStep: (names) => `确认这些 skill 在本机能加载（不在包里）：${names}。没有的话先告诉用户。`,
   runStateStep: '这次要记运行进度：按「运行状态」先找回或新建状态文件。',
   runState: portableRunStateLines,
+  // 导出成 skill 就没有画布：产出照资源说明写，不提卡片。
+  display: () => null,
 }
 
 /**

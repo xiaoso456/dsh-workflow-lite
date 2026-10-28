@@ -22,6 +22,7 @@
 import { stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { pickAppearance } from '../../shared/appearance.ts'
+import { applyDisplay, type DisplaySpec } from '../../shared/display.ts'
 import { analyzeGraph } from '../../shared/graph.ts'
 import { CONTROL_CHARS, MAX_VERSION_NOTE_CODEPOINTS, MAX_VERSIONS } from '../../shared/limits.ts'
 import {
@@ -65,7 +66,12 @@ import {
   memoryOf,
   stepMemories,
 } from '../../shared/presets.ts'
-import { newResourceNode, setStepOutputs, splitOutputs } from '../../shared/resources.ts'
+import {
+  newResourceNode,
+  resourceByPath,
+  setStepOutputs,
+  splitOutputs,
+} from '../../shared/resources.ts'
 import {
   type ChangedEntry,
   type ErrorCode,
@@ -83,6 +89,7 @@ import {
   type ResourceData,
   type ResourceItem,
   type ResourceNode,
+  type ResourceView,
   type ReusePolicy,
   type StepNode,
   type TemplateEntry,
@@ -213,6 +220,8 @@ export interface NodeUpsert {
   output?: string | false | null
   /** 一个或多个写入的文件（可带生成规则）；给了它就整份替换（`noOutput` 仍然优先）。 */
   outputs?: OutputSpec[]
+  /** 给其中几个产出所在的资源设画布展示（`write_node` 的 `outputs[].display`）。 */
+  displays?: { path: string; display: DisplaySpec }[]
   /** 一句话描述；空串 = 清除。 */
   description?: string
   /** `true` ⇒ 不写任何文件（与 `output` 同时给出时以本字段为准）。 */
@@ -221,6 +230,14 @@ export interface NodeUpsert {
   fromTemplate?: string
   /** 显式坐标；缺省时新建节点留 `{0,0}` 并报 `position_filled` 提示（布局由上层跑）。 */
   position?: Point
+}
+
+/** 换上（`undefined` = 去掉）资源的画布展示。 */
+function withView(data: ResourceData, view: ResourceView | undefined): ResourceData {
+  const next = { ...data }
+  if (view === undefined) delete next.view
+  else next.view = view
+  return next
 }
 
 /**
@@ -249,6 +266,8 @@ export interface ResourceUpsert {
   /** 描述；空串 = 清除。 */
   description?: string
   items?: ResourceItem[]
+  /** 画布展示：给了的字段才改，`show: false` = 关掉（见 `shared/display.ts` 的 `applyDisplay`）。 */
+  display?: DisplaySpec
   position?: Point
 }
 
@@ -1431,6 +1450,23 @@ class FileRepository implements Repository {
         )
       }
       const created = outputs === undefined ? [] : setStepOutputs(document, node.id, outputs)
+      const shown: string[] = []
+      for (const { path, display } of upsert.displays ?? []) {
+        const resource = resourceByPath(document, path)
+        if (resource === undefined) continue
+        const applied = applyDisplay(resource.data, display)
+        if ('error' in applied) {
+          return fail('blocked', `产出 ${path} 的 display：${applied.error}`, {
+            code: 'display_invalid',
+          })
+        }
+        const data = withView(resource.data, applied.view)
+        if (sameNodeContent(resource, { ...resource, data })) continue
+        document.nodes = document.nodes.map((current) =>
+          current === resource ? { ...resource, data } : current,
+        )
+        if (!created.includes(resource.id)) shown.push(resource.id)
+      }
       return {
         ok: true,
         document,
@@ -1442,6 +1478,7 @@ class FileRepository implements Repository {
             detail: { fromTemplate: upsert.fromTemplate ?? null },
           },
           ...created.map((id) => ({ kind: 'node' as const, op: 'add' as const, id })),
+          ...shown.map((id) => ({ kind: 'node' as const, op: 'update' as const, id })),
         ],
         warnings,
       }
@@ -1533,6 +1570,14 @@ class FileRepository implements Repository {
         else base.description = upsert.description
       }
       if (upsert.items !== undefined) base.items = upsert.items
+      if (upsert.display !== undefined) {
+        const applied = applyDisplay(readResourceData(base), upsert.display)
+        if ('error' in applied) {
+          return fail('blocked', applied.error, { code: 'display_invalid' })
+        }
+        if (applied.view === undefined) delete base.view
+        else base.view = applied.view
+      }
       const data: ResourceData = readResourceData(base)
       const problem = resourceProblem(data)
       if (problem !== null) return fail('blocked', problem.message, { code: 'resource_invalid' })

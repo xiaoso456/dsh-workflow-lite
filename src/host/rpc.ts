@@ -30,6 +30,7 @@ import type { MemoryType, NodeData } from '../shared/types.ts'
 import {
   endpointName,
   type GraphLoadResponse,
+  RUN_STAT_MAX,
   routePath,
   WORKFLOW_LITE_ENDPOINTS,
   type WorkflowLiteEndpoint,
@@ -687,6 +688,23 @@ async function dispatch(
       const src = optionalString(input, 'src')
       const target = runFileTarget(input, 'run/image')
       const outcome = await deps.runs.image(id, target, src)
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok(outcome.result)
+    }
+
+    case 'run/stat': {
+      const input = asRecord(payload)
+      const id = requireString(input, 'id')
+      if (!Array.isArray(input.targets)) throw new Error('targets must be an array')
+      if (input.targets.length > RUN_STAT_MAX) throw new Error(`at most ${RUN_STAT_MAX} targets`)
+      const targets = input.targets.map((raw) => {
+        const target = asRecord(raw)
+        const node = requireString(target, 'node')
+        const item =
+          typeof target.item === 'number' && Number.isInteger(target.item) ? target.item : 0
+        return { node, item }
+      })
+      const outcome = await deps.runs.stat(id, targets)
       if (!outcome.ok) return failFrom(outcome.error)
       return ok(outcome.result)
     }

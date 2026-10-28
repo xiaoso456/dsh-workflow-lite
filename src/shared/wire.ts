@@ -96,6 +96,7 @@ export const WORKFLOW_LITE_ENDPOINTS = [
   'run/file',
   'run/image',
   'run/dir',
+  'run/stat',
   'memory/list',
   'memory/create',
   'memory/update',
@@ -507,6 +508,7 @@ export interface WorkflowLiteRpcMap {
   'run/file': { args: RunFileRequest; result: RunFileResponse }
   'run/image': { args: RunImageRequest; result: RunImageResponse }
   'run/dir': { args: RunDirRequest; result: RunDirResponse }
+  'run/stat': { args: RunStatRequest; result: RunStatResponse }
   'memory/list': { args: Record<string, never>; result: MemoryListResponse }
   'memory/create': { args: MemoryCreateRequest; result: MemoryEntryResponse }
   'memory/update': { args: MemoryUpdateRequest; result: MemoryEntryResponse }
@@ -735,6 +737,22 @@ export interface RunImageResponse {
   mime: string
   /** 图片字节的 base64。 */
   data: string
+}
+
+/** `run/stat` 一次最多问几份。 */
+export const RUN_STAT_MAX = 64
+
+/**
+ * `run/stat`：快照里几个资源项（文件）现在的样子，只看在不在、大小、修改时间，不读内容。
+ * 画布上展示着的卡隔一会儿问一次，变了才重读内容。
+ */
+export interface RunStatRequest {
+  id: string
+  targets: { node: string; item: number }[]
+}
+export interface RunStatResponse {
+  /** 按 `targets` 的顺序；定位不到（项不在快照里、越界）的当作不在。 */
+  stats: { exists: boolean; size: number; mtime: number }[]
 }
 
 /** `run/dir` 一次最多列多少项。 */

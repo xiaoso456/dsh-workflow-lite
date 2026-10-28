@@ -43,7 +43,7 @@ function edge(source: string, target: string, when?: string): WorkflowEdge {
   }
 }
 
-/** 扫描 → 审查 ⇄ 修复 → 报告；审查读一个没打包的 skill，扫描写一份产出，问一个问题交给扫描。 */
+/** 扫描 → 审查 ⇄ 修复 → 报告；审查读一个没打包的 skill，扫描写一份产出（开着画布展示），问一个问题交给扫描。 */
 function sample(mode: ExecutionMode, reuse: ReusePolicy): WorkflowDocument {
   return {
     nodes: [
@@ -55,7 +55,11 @@ function sample(mode: ExecutionMode, reuse: ReusePolicy): WorkflowDocument {
         id: 'res-scan',
         type: RESOURCE_TYPE,
         position: { x: 0, y: 0 },
-        data: { items: [{ kind: 'file', value: 'scan.md', note: '列出疑点' }] },
+        // 开着画布展示：DSH 口径会交代卡片尺寸，通用口径没有画布、一个字都不提。
+        data: {
+          items: [{ kind: 'file', value: 'scan.md', note: '列出疑点' }],
+          view: { width: 360, height: 260 },
+        },
       },
       {
         id: 'res-skill',

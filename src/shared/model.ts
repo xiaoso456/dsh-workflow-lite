@@ -36,8 +36,11 @@ import {
   type ResourceItem,
   type ResourceNode,
   type ResourcePreset,
+  type ResourceView,
   type StepNode,
   type ValidationProblem,
+  VIEW_FITS,
+  VIEW_LIMITS,
   type Viewport,
   type WorkflowDocument,
   type WorkflowEdge,
@@ -59,8 +62,10 @@ const INPUT_KEYS = [
   'other',
 ] as const
 /** 资源节点的 data 键序与一项的键序。 */
-const RESOURCE_KEYS = ['label', 'description', 'color', 'items', 'preset'] as const
+const RESOURCE_KEYS = ['label', 'description', 'color', 'items', 'preset', 'view'] as const
 const ITEM_KEYS = ['kind', 'value', 'note'] as const
+/** 展示设置的键序。 */
+const VIEW_KEYS = ['item', 'width', 'height', 'zoom', 'fit', 'adapt'] as const
 /** edge 的 data 键序。 */
 const EDGE_DATA_KEYS = ['when', 'label', 'handoff', 'update'] as const
 
@@ -344,6 +349,8 @@ export function readResourceData(raw: unknown): ResourceData {
       data.items.push(item)
     }
   }
+  const view = readView(raw.view)
+  if (view !== undefined) data.view = view
   const preset = readPreset(raw.preset)
   if (preset !== undefined) {
     data.preset = preset
@@ -360,6 +367,31 @@ export function readResourceData(raw: unknown): ResourceData {
     }
   }
   return data
+}
+
+/** 一个数夹进范围、取整；不是有限数就是 `undefined`。 */
+function clampInt(value: unknown, [lo, hi]: readonly [number, number]): number | undefined {
+  if (!isFiniteNumber(value)) return undefined
+  return Math.min(hi, Math.max(lo, Math.round(value)))
+}
+
+/**
+ * 展示设置：宽高缺一个就当没开展示；越界的数夹回范围；`item` 只认非负整数（指向的项能不能展示由画布判断，
+ * 认不出时回落到第一个能展示的）；`fit` 的缺省值 `contain` 不写盘。
+ */
+export function readView(raw: unknown): ResourceView | undefined {
+  if (!isPlainObject(raw)) return undefined
+  const width = clampInt(raw.width, VIEW_LIMITS.width)
+  const height = clampInt(raw.height, VIEW_LIMITS.height)
+  if (width === undefined || height === undefined) return undefined
+  const view: ResourceView = { width, height }
+  if (isFiniteNumber(raw.item) && Number.isInteger(raw.item) && raw.item >= 0) view.item = raw.item
+  const zoom = clampInt(raw.zoom, VIEW_LIMITS.zoom)
+  if (zoom !== undefined) view.zoom = zoom
+  const fit = VIEW_FITS.find((candidate) => candidate === raw.fit)
+  if (fit !== undefined && fit !== 'contain') view.fit = fit
+  if (raw.adapt === false) view.adapt = false
+  return view
 }
 
 /** 资源预设：认得的种类才留。记忆没写引用（早先按范围存的卡）留空，校验时报出来；类型认不出按步骤记忆。 */
@@ -379,6 +411,16 @@ export function canonicalResource(data: ResourceData): ResourceData {
       if (normalized.preset !== undefined) {
         const { kind, memory, type } = normalized.preset
         out.preset = { kind, memory, type }
+      }
+      continue
+    }
+    if (key === 'view') {
+      if (normalized.view !== undefined) {
+        const ordered: Record<string, unknown> = {}
+        for (const viewKey of VIEW_KEYS) {
+          if (normalized.view[viewKey] !== undefined) ordered[viewKey] = normalized.view[viewKey]
+        }
+        out.view = ordered
       }
       continue
     }
@@ -402,6 +444,7 @@ export function canonicalResource(data: ResourceData): ResourceData {
 export function cloneResourceData(data: ResourceData): ResourceData {
   const copy = { ...data, items: data.items.map((item) => ({ ...item })) }
   if (data.preset !== undefined) copy.preset = { ...data.preset }
+  if (data.view !== undefined) copy.view = { ...data.view }
   return copy
 }
 

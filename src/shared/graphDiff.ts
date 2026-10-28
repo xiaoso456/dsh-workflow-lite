@@ -37,7 +37,7 @@ export interface GraphChange {
 /** 不进计划的字段：只改了这些，模型那边什么都不用变。 */
 const COSMETIC: Record<Exclude<ChangeObject, 'layout'>, readonly string[]> = {
   step: ['description', 'look'],
-  resource: ['description'],
+  resource: ['description', 'view'],
   input: ['placeholder', 'hint'],
   edge: ['label'],
 }
@@ -69,6 +69,7 @@ function nodeFields(before: WorkflowNode, after: WorkflowNode): string[] {
       ...(text(a.label) === text(b.label) ? [] : ['label']),
       ...(text(a.description) === text(b.description) ? [] : ['description']),
       ...(same(a.items, b.items) ? [] : ['items']),
+      ...(same(a.view, b.view) ? [] : ['view']),
     ]
   }
   if (isInput(before) && isInput(after)) {
@@ -202,6 +203,7 @@ const FIELD_TEXT: Record<string, string> = {
   when: '条件',
   handoff: '交接',
   update: '写入方式',
+  view: '画布展示',
 }
 
 const OBJECT_TEXT: Record<Exclude<ChangeObject, 'layout'>, string> = {

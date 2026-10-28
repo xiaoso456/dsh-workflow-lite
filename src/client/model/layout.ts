@@ -33,6 +33,7 @@ import type {
   WorkflowEdge,
   WorkflowNode,
 } from '../../shared/types.ts'
+import { displayCardSize, displayOf } from './display.ts'
 import { STEP_SPOTS } from './route.ts'
 
 /** 步骤卡的宽度（CSS 里写死同一个数）与估算高度。 */
@@ -61,8 +62,18 @@ export function isCompactResource(data: ResourceData): boolean {
   )
 }
 
+/** 资源卡的估算尺寸：展示卡按展示区算，其余宽度固定。 */
+export function resourceSize(data: ResourceData): { w: number; h: number } {
+  const display = displayOf(data)
+  if (display === null) return { w: RES_W, h: resourceHeight(data) }
+  const size = displayCardSize(display)
+  return { w: Math.max(RES_W, size.w), h: size.h }
+}
+
 /** 资源卡的估算高度（画布量出来之前按它排）。 */
 export function resourceHeight(data: ResourceData): number {
+  const display = displayOf(data)
+  if (display !== null) return displayCardSize(display).h
   if (isCompactResource(data)) return RES_H
   const rows = Math.max(1, Math.min(data.items.length, RES_SHOWN))
   return (
@@ -81,7 +92,7 @@ export const INPUT_H = 56
 /** 一张卡的标称尺寸（还没量出来时按它算）。 */
 export function cardSize(node: WorkflowNode): { w: number; h: number } {
   if (isInput(node)) return { w: INPUT_W, h: INPUT_H }
-  return isResource(node) ? { w: RES_W, h: resourceHeight(node.data) } : { w: NODE_W, h: NODE_H }
+  return isResource(node) ? resourceSize(node.data) : { w: NODE_W, h: NODE_H }
 }
 
 /**
@@ -131,12 +142,13 @@ function freeBox(occupied: readonly Box[], want: Box, step: number): Point {
 /**
  * 一个资源卡该放哪：挂在写它的步骤（没人写就是读它的步骤）下面、往右缩进，被占了就往下找。
  * @param anchor - 写它 / 读它的步骤的坐标；没有就放在版面左下。
+ * @param size - 这张卡多大（展示卡比普通资源卡大，按它的真实尺寸找空位）。
  */
 export function resourceSpot(
   doc: WorkflowDocument,
   anchor: Point | undefined,
   skip?: string,
-  height = RES_H,
+  size: { w: number; h: number } = { w: RES_W, h: RES_H },
 ): Point {
   const occupied = doc.nodes
     .filter((node) => node.id !== skip && !isUnplaced(node.position))
@@ -151,7 +163,7 @@ export function resourceSpot(
         })
   return freeBox(
     occupied,
-    { x: base.x + RES_DX, y: base.y + NODE_H + RES_DY, w: RES_W, h: height },
+    { x: base.x + RES_DX, y: base.y + NODE_H + RES_DY, w: size.w, h: size.h },
     RES_H + RES_GAP,
   )
 }
@@ -297,6 +309,11 @@ export async function tidy(
 ): Promise<Record<string, Point>> {
   const index = nodeIndex(doc)
   const heightOf = (node: WorkflowNode): number => sizeOf(node.id)?.height ?? cardSize(node).h
+  const widthOf = (node: WorkflowNode): number => sizeOf(node.id)?.width ?? cardSize(node).w
+  /** 一块的宽度：块与块等宽（列才对得齐），挂着的展示卡比资源卡宽时撑开这一块（这一列跟着变宽）。 */
+  const blockWidth = (hung: readonly WorkflowNode[]): number =>
+    Math.max(BLOCK_W, ...hung.map((card) => RES_DX + widthOf(card)))
+  const blockW = new Map<string, number>()
 
   // ── 每个步骤在第几列（= 执行批次）──
   const column = new Map<string, number>()
@@ -375,31 +392,35 @@ export async function tidy(
         : RES_DY +
           hung.reduce((sum, card) => sum + heightOf(card), 0) +
           (hung.length - 1) * RES_GAP)
+    const width = blockWidth(hung)
+    blockW.set(node.id, width)
     children.push({
       id: node.id,
       x: columnOf(node.id) * COL_STEP,
       y: 0,
-      width: BLOCK_W,
+      width,
       height: blockH,
       layoutOptions: { 'elk.portConstraints': 'FIXED_POS' },
       ports: [
         { id: `${node.id}\u0000in`, x: 0, y: height / 2, width: 0, height: 0 },
-        { id: `${node.id}\u0000out`, x: BLOCK_W, y: height / 2, width: 0, height: 0 },
+        { id: `${node.id}\u0000out`, x: width, y: height / 2, width: 0, height: 0 },
       ],
     })
   }
   for (const input of inputs) {
+    const width = blockWidth([input.node])
+    blockW.set(input.node.id, width)
     children.push({
       id: input.node.id,
       x: input.column * COL_STEP,
       y: 0,
-      width: BLOCK_W,
+      width,
       height: heightOf(input.node),
       layoutOptions: { 'elk.portConstraints': 'FIXED_POS' },
       ports: [
         {
           id: `${input.node.id}\u0000out`,
-          x: BLOCK_W,
+          x: width,
           y: heightOf(input.node) / 2,
           width: 0,
           height: 0,
@@ -483,6 +504,13 @@ export async function tidy(
   const blocks = laid.children ?? []
   const blockColumn = (id: string): number => inputColumn.get(idKey(id)) ?? columnOf(id)
   const firstColumn = Math.min(...blocks.map((block) => blockColumn(block.id)))
+  // 有展示卡撑宽了块的列：列距跟着拉开（和挂牌子要的列距取大的）。
+  for (const block of blocks) {
+    const width = blockW.get(block.id) ?? BLOCK_W
+    if (width <= BLOCK_W) continue
+    const at = blockColumn(block.id)
+    pitch.set(at, Math.max(pitch.get(at) ?? COL_STEP, width + LAYER_GAP))
+  }
   const columnX = (target: number): number => {
     let x = ORIGIN.x
     for (let at = firstColumn; at < target; at += 1) x += pitch.get(at) ?? COL_STEP
@@ -512,9 +540,11 @@ export async function tidy(
     }
   }
   // 谁都不连的资源与输入：在版面下方排成一行。
-  loose.forEach((node, slot) => {
-    placed[node.id] = { x: ORIGIN.x + slot * (RES_W + 24), y: bottom + 48 }
-  })
+  let looseX = ORIGIN.x
+  for (const node of loose) {
+    placed[node.id] = { x: looseX, y: bottom + 48 }
+    looseX += widthOf(node) + 24
+  }
   return placed
 }
 
@@ -604,7 +634,7 @@ export async function placeMissing(
         return at === undefined ? { ...item, position: { x: 0, y: 0 } } : { ...item, position: at }
       }),
     }
-    const spot = resourceSpot(current, anchor, node.id, cardSize(node).h)
+    const spot = resourceSpot(current, anchor, node.id, cardSize(node))
     position.set(node.id, spot)
     placed[node.id] = spot
   }

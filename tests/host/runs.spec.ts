@@ -670,6 +670,40 @@ describe('看产出文件', () => {
     expect(folder.ok && folder.result.exists).toBe(true)
   })
 
+  it('run/stat：只看在不在、大小、修改时间；文件夹、网址、越界的项都当不在', async () => {
+    await run({
+      action: 'write_resource',
+      workflow: 'cr',
+      node: 'ref',
+      resource: {
+        items: [
+          { kind: 'file', value: 'docs/board.html' },
+          { kind: 'folder', value: 'docs' },
+          { kind: 'url', value: 'https://x.dev' },
+        ],
+      },
+    })
+    await run({ action: 'connect', workflow: 'cr', source: 'ref', target: 'scan' })
+    const id = String((await compileWithRuns()).instance)
+    const targets = [0, 1, 2, 9].map((item) => ({ node: 'ref', item }))
+
+    const before = await runs.stat(id, targets)
+    if (!before.ok) throw new Error(before.error.message)
+    expect(before.result.stats.map((stat) => stat.exists)).toEqual([false, false, false, false])
+
+    await mkdir(join(workspace, 'docs'), { recursive: true })
+    await writeFile(join(workspace, 'docs', 'board.html'), '<h1>看板</h1>')
+    const after = await runs.stat(id, [...targets, { node: 'nope', item: 0 }])
+    if (!after.ok) throw new Error(after.error.message)
+    const [board, ...rest] = after.result.stats
+    expect(board?.exists).toBe(true)
+    expect(board?.size).toBe(Buffer.byteLength('<h1>看板</h1>'))
+    expect(board?.mtime).toBeGreaterThan(0)
+    // 文件夹项不算（展示只认文件），网址、越界、不在快照里的都当不在。
+    expect(rest.map((stat) => stat.exists)).toEqual([false, false, false, false])
+    expect((await runs.stat('bad id', targets)).ok).toBe(false)
+  })
+
   it('文件夹资源：run/dir 逐层列，sub 只许往下走；里面的文件、图片能读，软链出不去', async () => {
     await run({
       action: 'write_resource',

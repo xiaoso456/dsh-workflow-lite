@@ -22,6 +22,7 @@ import type { HostAccess } from '../app/host.ts'
 import { findMemory, useMemories } from '../app/memories.ts'
 import type { T } from '../i18n.ts'
 import { type Edit, findNode, type Selection } from '../model/editor.ts'
+import { DisplaySettings } from './DisplaySettings.tsx'
 import type { FocusFile } from './Handoff.tsx'
 import css from './handoff.module.css'
 import { Icon } from './Icon.tsx'
@@ -250,6 +251,10 @@ export function ResourcePanel(props: {
         </section>
 
         <PresetBlock {...presetProps} slot="tail" />
+
+        {memory === undefined && (
+          <DisplaySettings t={t} data={node.data} onChange={(next) => patch({ view: next })} />
+        )}
 
         {memory !== undefined && shared ? null : shared ? (
           <section className={ins.field} data-testid="wl-resource-shared">

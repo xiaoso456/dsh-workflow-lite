@@ -10,6 +10,7 @@
  *   查看按种类不同：文件读正文（{@link FileViewer}），文件夹列里面有什么，网址、自定义文字显示全文，
  *   Skill 读 SKILL.md；每种都把这一项的说明放在正文前。
  * - **用到它的步骤**：谁产出、谁更新、谁读，带各自的运行状态，点一下跳过去。
+ * - **画布展示**：和模板里同一块设置，改的只是这个实例（进草稿栏，存的时候不通知模型）。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/RunResource
  */
@@ -18,7 +19,12 @@ import { useEffect, useMemo, useState } from 'react'
 import { isStep } from '../../shared/model.ts'
 import { resourceGraph, underOutputRoot } from '../../shared/resources.ts'
 import type { RunState } from '../../shared/runState.ts'
-import type { ResourceItem, ResourceNode, WorkflowDocument } from '../../shared/types.ts'
+import type {
+  ResourceItem,
+  ResourceNode,
+  ResourceView,
+  WorkflowDocument,
+} from '../../shared/types.ts'
 import type { Desktop } from '../app/desktop.ts'
 import type { HostAccess } from '../app/host.ts'
 import { runFolderSource } from '../app/useBrowse.ts'
@@ -27,6 +33,7 @@ import type { T } from '../i18n.ts'
 import { fileBaseName, formatBytes } from '../model/fileKind.ts'
 import { shortTime } from '../model/time.ts'
 import type { WorkflowLiteRpc } from '../rpc.ts'
+import { DisplaySettings } from './DisplaySettings.tsx'
 import files from './files.module.css'
 import { Icon } from './Icon.tsx'
 import ins from './inspector.module.css'
@@ -60,6 +67,7 @@ export function RunResourceDetail(props: {
   onSelectStep(id: string): void
   onFocusFile(id: string | null): void
   onView(target: FileTarget, title: string, note: string | undefined): void
+  onDisplay(view: ResourceView | undefined): void
   onError(text: string): void
 }): React.JSX.Element {
   const { t, snapshot, resource } = props
@@ -166,6 +174,10 @@ export function RunResourceDetail(props: {
           </div>
         )}
       </section>
+
+      {resource.data.preset === undefined && (
+        <DisplaySettings t={t} data={resource.data} onChange={props.onDisplay} />
+      )}
 
       {openItem !== undefined && open !== null && openItem.kind === 'folder' && (
         <FolderDialog

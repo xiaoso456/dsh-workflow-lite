@@ -15,7 +15,13 @@ import { pickTemplateAppearance } from '../../shared/appearance.ts'
 import { orderedInputs } from '../../shared/inputs.ts'
 import { isInput, isResource, SETTINGS_CONFLICT_ID } from '../../shared/model.ts'
 import { stepMemories } from '../../shared/presets.ts'
-import type { InputAnswer, NodeData, Point, WorkflowDocument } from '../../shared/types.ts'
+import type {
+  InputAnswer,
+  NodeData,
+  Point,
+  ResourceItem,
+  WorkflowDocument,
+} from '../../shared/types.ts'
 import { addFromSource, addOrigin, duplicateEdit, memoryToggle } from '../app/addStep.ts'
 import type { Desktop } from '../app/desktop.ts'
 import { createHostAccess } from '../app/host.ts'
@@ -45,6 +51,7 @@ import { ExitSeat, expectCanvasMove, SWITCH_HOLD_MS, useSwapHold, useViewGhost }
 import { PlanDialog } from './PlanDialog.tsx'
 import { cx, ModalHostProvider } from './primitives.tsx'
 import { QuickAdd } from './QuickAdd.tsx'
+import { TextDialog } from './RunItemDialog.tsx'
 import { RunView } from './RunView.tsx'
 import { SettingsDialog } from './SettingsDialog.tsx'
 import { StepPanel } from './StepPanel.tsx'
@@ -361,6 +368,19 @@ function Shell(props: {
   /** 当前的图（异步排版回来时据此判断图是不是已经变了）。 */
   const docRef = useRef(state.doc)
   docRef.current = state.doc
+  /** 展示卡上打开的自定义文字（模板里文件还没生成，只有它能打开）。 */
+  const [textView, setTextView] = useState<ResourceItem | null>(null)
+  const canvasDisplay = useMemo(
+    () => ({
+      run: null,
+      open: (node: string, item: number): void => {
+        const found = docRef.current?.nodes.find((candidate) => candidate.id === node)
+        const entry = found !== undefined && isResource(found) ? found.data.items[item] : undefined
+        if (entry?.kind === 'text') setTextView(entry)
+      },
+    }),
+    [],
+  )
   const flow = useReactFlow()
   const rootRef = useRef<HTMLDivElement>(null)
   /** 配色主题（工作流中心「设置」里挑）：亮、暗各一套，写成根节点上的两组变量。 */
@@ -862,6 +882,7 @@ function Shell(props: {
                   onMemory={toggleMemory}
                   memories={memories.entries}
                   workflow={state.name}
+                  display={canvasDisplay}
                 />
               )}
             </CanvasLayer>
@@ -1014,6 +1035,15 @@ function Shell(props: {
                 onPick={memoryPick.choose}
                 onCreate={memoryPick.create}
                 onClose={memoryPick.close}
+              />
+            )}
+
+            {textView !== null && (
+              <TextDialog
+                t={t}
+                item={textView}
+                desktop={props.desktop}
+                onClose={() => setTextView(null)}
               />
             )}
 

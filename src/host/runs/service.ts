@@ -54,7 +54,12 @@ import type {
   ValidationProblem,
   WorkflowDocument,
 } from '../../shared/types.ts'
-import type { RunDirResponse, RunFileResponse, RunImageResponse } from '../../shared/wire.ts'
+import type {
+  RunDirResponse,
+  RunFileResponse,
+  RunImageResponse,
+  RunStatResponse,
+} from '../../shared/wire.ts'
 import { type CompileBundle, compileDocument } from '../plan.ts'
 import {
   ensureDir,
@@ -857,6 +862,38 @@ export class RunService {
         answers: await this.answersOf(record),
       },
     }
+  }
+
+  /**
+   * 快照里几个资源项现在在不在、多大、什么时候改的（画布上展示着的卡隔一会儿问一次）。
+   * 只 stat，不读内容；项不在快照里、不是路径、读不到的一律当作不在。
+   */
+  async stat(
+    id: string,
+    targets: readonly { node: string; item: number }[],
+  ): Promise<Outcome<RunStatResponse>> {
+    if (!isInstanceId(id)) return fail('invalid_args', `实例 id 不合法：${id}`)
+    const record = (await this.store.read()).instances.find((candidate) => candidate.id === id)
+    if (record === undefined) return fail('not_found', `实例 ${id} 不存在`)
+    const snapshot = await this.snapshot(record)
+    if (snapshot === null) return fail('not_found', `实例 ${id} 的图快照不见了`)
+    const located = this.withAssets(record, snapshot)
+    const missing = { exists: false, size: 0, mtime: 0 }
+    const stats = await Promise.all(
+      targets.map(async ({ node, item }) => {
+        const location = itemLocation(located, node, item)
+        if (location === null) return missing
+        const full =
+          isAbsolute(location) || record.cwd === undefined ? location : join(record.cwd, location)
+        try {
+          const info = await stat(full)
+          return info.isFile() ? { exists: true, size: info.size, mtime: info.mtimeMs } : missing
+        } catch {
+          return missing
+        }
+      }),
+    )
+    return { ok: true, result: { stats } }
   }
 
   /** 看实例里的一份产出文件（文件面板与查看框）。 */

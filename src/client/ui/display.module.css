@@ -1,0 +1,439 @@
+/*
+ * 画布展示卡（资源卡开了「在画布上展示」）：上面一行标题，下面一块展示区。
+ * 外框、折角、选中环沿用资源卡（canvas.module.css 的 .resCard），这里只改版式：
+ * 宽度跟着展示区走，标题行 38、展示区四周留 6（和 model/display.ts 的 DISPLAY_HEAD / DISPLAY_PAD 一致）。
+ * 卡里有网页框：悬停、拖动都不抬起、不放大（变换会让框里的页面重新栅格化，一拖就糊、就卡）。
+ */
+
+.card[data-display] {
+  flex-direction: column;
+  width: auto;
+  min-height: 0;
+}
+
+.card[data-display]:hover,
+:global(.react-flow__node.dragging) .card[data-display] {
+  transform: none;
+}
+
+/* 拖柄、改尺寸时的读数要露在卡外：卡本身不裁。 */
+.card[data-display][data-interactive] {
+  cursor: default;
+}
+
+.head {
+  display: flex;
+  flex: none;
+  gap: 7px;
+  align-items: center;
+  height: 38px;
+  padding: 0 22px 0 8px;
+}
+
+.tab {
+  display: grid;
+  flex: none;
+  place-items: center;
+  min-width: 26px;
+  height: 20px;
+  padding: 0 4px;
+  border-radius: calc(5px * var(--wl-round, 1));
+  background: var(--wl-file-tab);
+  color: var(--wl-file);
+  font-family: var(--wl-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.tab[data-kind="text"] {
+  color: var(--wl-c-slate);
+}
+
+.tab[data-tinted="true"] {
+  background: color-mix(in oklab, var(--wl-tint) 16%, var(--wl-file-tab));
+  color: var(--wl-tint);
+}
+
+.title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text);
+  font-size: var(--wl-fs-meta);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.made {
+  display: inline-flex;
+  flex: none;
+  color: var(--wl-ok);
+}
+
+/* 交互、打开：悬停或选中时淡入，平时不占眼。 */
+.actions {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 140ms linear;
+}
+
+:global(.react-flow__node.selected) .actions,
+.card[data-display]:hover .actions,
+.card[data-display][data-interactive] .actions {
+  opacity: 1;
+}
+
+.action {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: calc(6px * var(--wl-round, 1));
+  background: transparent;
+  color: var(--wl-text-3);
+  cursor: pointer;
+}
+
+.action:hover {
+  background: var(--wl-hover);
+  color: var(--wl-text);
+}
+
+.action[aria-pressed="true"] {
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+}
+
+.action:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+/* ── 展示区 ── */
+
+.window {
+  position: relative;
+  flex: none;
+  margin: 0 6px 6px;
+  overflow: hidden;
+  border: 1px solid var(--wl-file-border);
+  border-radius: calc(6px * var(--wl-round, 1));
+  background: var(--wl-panel);
+}
+
+/* 进了交互：展示区描一圈强调色，告诉人「现在鼠标在里面」。 */
+.card[data-interactive] .window {
+  border-color: var(--wl-accent);
+  box-shadow: 0 0 0 3px var(--wl-accent-soft);
+}
+
+.body {
+  position: relative;
+  overflow: hidden;
+  /* 外框 1px 也算在展示区里：内容区比设置的尺寸各小 2px，卡片总尺寸才和估算一致。 */
+  margin: -1px;
+}
+
+/* 平时整块不接鼠标：拖卡、平移、双击都落在外面那层上。 */
+.body:not([data-interactive]) {
+  pointer-events: none;
+}
+
+.body[data-interactive] {
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.fresh {
+  width: 100%;
+  height: 100%;
+  animation: freshIn 220ms var(--wl-ease-out);
+}
+
+@keyframes freshIn {
+  from {
+    opacity: 0;
+  }
+}
+
+/* 读取中：一块浅底，上面一道光慢慢扫过。 */
+.loading {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--wl-fill);
+}
+
+.loading::after {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 30%,
+    light-dark(rgb(255 255 255 / 55%), rgb(255 255 255 / 6%)) 50%,
+    transparent 70%
+  );
+  content: "";
+  animation: sweep 1.4s var(--wl-ease) infinite;
+}
+
+@keyframes sweep {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(100%);
+  }
+}
+
+/* 占位 / 读不了：铺一层浅底，中间一枚图标、一两行字（展示区自己有边框）。 */
+.state {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 8px 12px;
+  background: color-mix(in oklab, var(--wl-fill) 55%, transparent);
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  text-align: center;
+}
+
+.stateIcon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  margin-bottom: 2px;
+  border-radius: 50%;
+  background: var(--wl-panel);
+  color: var(--wl-text-3);
+}
+
+.state[data-tone="error"] .stateIcon {
+  background: var(--wl-warn-soft);
+  color: var(--wl-warn);
+}
+
+.stateTitle {
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-meta);
+  font-weight: 600;
+}
+
+.stateSub {
+  max-width: 100%;
+  overflow: hidden;
+  font-family: var(--wl-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 写它的步骤正在跑：一道强调色的光往右扫。 */
+.state[data-busy] .stateIcon {
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+}
+
+.state[data-busy]::after {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 35%, var(--wl-accent-soft) 50%, transparent 65%);
+  content: "";
+  animation: sweep 1.6s var(--wl-ease) infinite;
+}
+
+/* ── 图片：透明处垫棋盘格 ── */
+
+.imageStage {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: var(--wl-panel);
+  background-image:
+    linear-gradient(45deg, var(--wl-fill) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--wl-fill) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--wl-fill) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--wl-fill) 75%);
+  background-position:
+    0 0,
+    0 6px,
+    6px -6px,
+    -6px 0;
+  background-size: 12px 12px;
+}
+
+.image {
+  display: block;
+  user-select: none;
+}
+
+.imageStage[data-fit="contain"] .image,
+.imageStage[data-fit="cover"] .image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.imageStage[data-fit="cover"] .image {
+  object-fit: cover;
+}
+
+.imageStage[data-fit="actual"] .image {
+  flex: none;
+  max-width: none;
+  max-height: none;
+}
+
+/* ── 网页：按放大后的宽排版，再整页缩进来 ── */
+
+.frame {
+  display: block;
+  border: 0;
+  background: #fff;
+  transform-origin: 0 0;
+}
+
+/* ── Markdown / 纯文本：超出展示区的部分在底边淡出（交互时能滚，不淡）── */
+
+.flow {
+  padding: 10px 12px;
+}
+
+.body:not([data-interactive]) .flow {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
+  min-height: 100%;
+}
+
+.md {
+  font-size: var(--wl-fs-meta);
+  line-height: 1.65;
+}
+
+.pre {
+  margin: 0;
+  color: var(--wl-text-2);
+  font-family: var(--wl-mono);
+  font-size: 11px;
+  line-height: 1.55;
+  white-space: pre;
+}
+
+/* ── 改尺寸：右下角的拖柄、拖动中的读数 ── */
+
+.grip {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  z-index: 3;
+  width: 18px;
+  height: 18px;
+  cursor: nwse-resize;
+  touch-action: none;
+}
+
+.grip::before {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 9px;
+  height: 9px;
+  border-right: 2px solid var(--wl-accent);
+  border-bottom: 2px solid var(--wl-accent);
+  border-bottom-right-radius: calc(3px * var(--wl-round, 1));
+  content: "";
+}
+
+.sizeTag {
+  position: absolute;
+  right: 0;
+  bottom: -28px;
+  padding: 2px 8px;
+  border-radius: calc(6px * var(--wl-round, 1));
+  background: var(--wl-tip);
+  color: var(--wl-tip-on);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fresh,
+  .loading::after,
+  .state[data-busy]::after {
+    animation: none;
+  }
+}
+
+/* ── 面板里的「画布展示」 ── */
+
+.panelRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.panelLabel {
+  flex: none;
+  width: 36px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+.panelGrow {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.sizeInputs {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+.sizeInput {
+  width: 64px;
+  font-variant-numeric: tabular-nums;
+}
+
+.stepper {
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
+}
+
+.stepperValue {
+  min-width: 46px;
+  color: var(--wl-text);
+  font-size: var(--wl-fs-meta);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.panelBox {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+:global([data-look="swiss"]) .window {
+  border-width: 1px 0 0;
+}

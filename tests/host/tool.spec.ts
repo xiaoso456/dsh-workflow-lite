@@ -838,3 +838,105 @@ describe('workflow_lite —— 记忆', () => {
     })
   })
 })
+
+describe('workflow_lite —— 画布展示（display）', () => {
+  /** 读一个资源的 view（图里没有就是 undefined）。 */
+  async function viewOf(workflow: string, id: string): Promise<unknown> {
+    const load = await repository.load(workflow)
+    const node = load.document?.nodes.find((item) => item.id === id)
+    return node !== undefined && 'items' in node.data ? node.data.view : undefined
+  }
+
+  it('write_resource 带 display：新建时按种类从中档起，修改时给了的字段才改，show:false 关掉；read 索引带上 display', async () => {
+    await run({ action: 'create', workflow: 'd' })
+    await run({ action: 'write_node', workflow: 'd', node: 'board', content: '出看板' })
+    await run({
+      action: 'write_resource',
+      workflow: 'd',
+      node: 'res-board',
+      resource: { items: [{ kind: 'file', value: 'dashboard.html' }], display: { size: 'l' } },
+    })
+    expect(await viewOf('d', 'res-board')).toEqual({ width: 720, height: 450 })
+    await run({
+      action: 'write_resource',
+      workflow: 'd',
+      node: 'res-board',
+      resource: { display: { zoom: 75, adapt: false } },
+    })
+    expect(await viewOf('d', 'res-board')).toEqual({
+      width: 720,
+      height: 450,
+      zoom: 75,
+      adapt: false,
+    })
+    const index = record(await run({ action: 'read', workflow: 'd' }))
+    const resources = index.resources as JsonValue[]
+    expect(record(resources[0] as JsonValue).display).toEqual({
+      width: 720,
+      height: 450,
+      zoom: 75,
+      adapt: false,
+    })
+    await run({
+      action: 'write_resource',
+      workflow: 'd',
+      node: 'res-board',
+      resource: { display: { show: false } },
+    })
+    expect(await viewOf('d', 'res-board')).toBeUndefined()
+  })
+
+  it('write_node 的 outputs 带 display：产出资源建好就开着展示', async () => {
+    await run({ action: 'create', workflow: 'd' })
+    const result = record(
+      await run({
+        action: 'write_node',
+        workflow: 'd',
+        node: 'board',
+        content: '出看板',
+        outputs: [
+          { path: 'logs/rounds.jsonl' },
+          { path: 'docs/dashboard.html', rule: '顶部四张卡', display: { width: 640, height: 400 } },
+        ],
+      }),
+    )
+    expect(errorCode(result)).toBeUndefined()
+    const load = await repository.load('d')
+    const board = load.document?.nodes.find(
+      (node) => 'items' in node.data && node.data.items[0]?.value === 'docs/dashboard.html',
+    )
+    expect(board !== undefined && 'items' in board.data ? board.data.view : null).toEqual({
+      width: 640,
+      height: 400,
+    })
+    const plan = record(await run({ action: 'compile', workflow: 'd', full: true }, EXEC))
+    expect(String(plan.plan)).toContain('按 1280 px 宽排版')
+  })
+
+  it('参数不对：形状错是 invalid_args，内容放不进展示是 blocked', async () => {
+    await run({ action: 'create', workflow: 'd' })
+    const bad = await run({
+      action: 'write_resource',
+      workflow: 'd',
+      resource: {
+        items: [{ kind: 'file', value: 'a.html' }],
+        display: { size: 'xl' } as unknown as never,
+      },
+    })
+    expect(errorCode(bad)).toBe('invalid_args')
+    const url = await run({
+      action: 'write_resource',
+      workflow: 'd',
+      resource: { items: [{ kind: 'url', value: 'https://x.dev' }], display: {} },
+    })
+    expect(errorCode(url)).toBe('blocked')
+    const zip = await run({
+      action: 'write_node',
+      workflow: 'd',
+      node: 'pack',
+      content: '打包',
+      outputs: [{ path: 'out.zip', display: {} }],
+    })
+    expect(errorCode(zip)).toBe('blocked')
+  })
+})
