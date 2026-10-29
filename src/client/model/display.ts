@@ -45,6 +45,28 @@ export function snapView(width: number, height: number): { width: number; height
 /** 内容缩放可选的几档（百分比）。 */
 export const ZOOM_STEPS = [25, 33, 50, 67, 75, 90, 100, 110, 125, 150, 200] as const
 
+/** 拖着缩放时离哪一档这么近（百分点）就吸上去。 */
+const ZOOM_SNAP = 3
+
+/**
+ * 按住 Ctrl 拖右下角＝缩放：拖到的那个角投到卡片对角线上，看是原来的几倍，缩放跟着乘上去。
+ * 只看对角线方向：横着拖、竖着拖、斜着拖都按「卡片变大了多少」算，不会因为手抖往一边偏就跳。
+ * 结果取整、夹进 25–400；离某一档（100%、125%……）不到 3 个百分点就吸到那一档。
+ * `from` 是开始拖时卡片在画布上的大小，`to` 是此刻拖到的大小（画布像素）。
+ */
+export function dragZoom(
+  zoom: number,
+  from: { width: number; height: number },
+  to: { width: number; height: number },
+): number {
+  const length = from.width * from.width + from.height * from.height
+  const ratio = length > 0 ? (to.width * from.width + to.height * from.height) / length : 1
+  const [lo, hi] = VIEW_LIMITS.zoom
+  const next = Math.min(hi, Math.max(lo, Math.round(zoom * Math.max(0, ratio))))
+  const near = ZOOM_STEPS.find((step) => Math.abs(step - next) <= ZOOM_SNAP)
+  return near ?? next
+}
+
 /** 往大 / 往小走一档。 */
 export function stepZoom(zoom: number, dir: 1 | -1): number {
   if (dir > 0) return ZOOM_STEPS.find((step) => step > zoom) ?? ZOOM_STEPS[ZOOM_STEPS.length - 1]

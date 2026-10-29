@@ -89,7 +89,14 @@ import {
   linkAllowed,
   previewLink,
 } from '../model/connect.ts'
-import { type Display, displayFootprint, displayOf, snapView } from '../model/display.ts'
+import {
+  DEFAULT_ZOOM,
+  type Display,
+  displayFootprint,
+  displayOf,
+  dragZoom,
+  snapView,
+} from '../model/display.ts'
 import { type Edit, type Selection, whenOf } from '../model/editor.ts'
 import {
   cardSize,
@@ -321,6 +328,8 @@ interface CardDisplay {
   interactText: string
   leaveText: string
   resizeText: string
+  /** 按住 Ctrl 拖着缩放时角上的读数：「缩放 {zoom}%」。 */
+  zoomText: string
 }
 
 interface LinkData extends Record<string, unknown> {
@@ -1277,7 +1286,8 @@ function DisplayCard(
   const { data, id, selected, display } = props
   const env = useContext(DisplayContext)
   const flow = useReactFlow()
-  const [live, setLive] = useState<{ width: number; height: number } | null>(null)
+  // 拖动中的临时样子：改大小时是排版尺寸，按住 Ctrl 缩放时多一个 `zoom`（尺寸不变）。
+  const [live, setLive] = useState<{ width: number; height: number; zoom?: number } | null>(null)
   const [interactive, setInteractive] = useState(false)
   const fallbackLook = useDisplayLook()
   const moving = useCanvasMoving()
@@ -1328,37 +1338,86 @@ function DisplayCard(
     return () => window.removeEventListener('keydown', onKey, true)
   }, [interactive])
 
+  /**
+   * 拖右下角：平时改大小，按住 Ctrl（Mac 上 ⌘）是缩放——卡片里的一切跟着放大缩小，排版不变（见 dragZoom）。
+   * 拖到一半按下、松开 Ctrl 当场换过去：两种都从开始拖的那一刻算，换过去就是另一种从头量，不叠加。
+   * 缩放只给能缩放的（图片要是「原大」）；Markdown、文本的缩放是字号，卡片不跟着变大。
+   * Esc 取消这次拖动（回到拖之前，不写进文档，也不连带取消选中）。松手、取消都在 window 上听：
+   * 拖柄跟着选中走，中途被卸掉（取消选中）时它身上的事件就收不到了。
+   */
   const startResize = (event: React.PointerEvent<HTMLSpanElement>): void => {
     if (event.button !== 0) return
     event.stopPropagation()
     event.preventDefault()
     const zoom = flow.getZoom()
+    const info = display.info
     // 拖的是卡片在画布上的大小；网页整张按缩放显示，记下来的是排版尺寸（画布上的大小 ÷ 缩放）。
-    const scale = display.info.kind === 'html' ? display.info.zoom / 100 : 1
+    const scale = info.kind === 'html' ? info.zoom / 100 : 1
     const area = displayFootprint(shown)
     const start = { x: event.clientX, y: event.clientY, w: area.width, h: area.height }
-    const ratio = display.info.kind === 'image' ? start.w / start.h : null
+    const ratio = info.kind === 'image' ? start.w / start.h : null
+    const canZoom = info.kind !== 'image' || info.fit === 'actual'
     const handle = event.currentTarget
-    handle.setPointerCapture(event.pointerId)
-    let last: { width: number; height: number } | null = null
-    const move = (next: PointerEvent): void => {
-      const w = start.w + (next.clientX - start.x) / zoom
-      const h = start.h + (next.clientY - start.y) / zoom
-      last = snapView(w / scale, (ratio !== null && !next.shiftKey ? w / ratio : h) / scale)
+    const pointerId = event.pointerId
+    handle.setPointerCapture(pointerId)
+    let last: { width: number; height: number; zoom?: number } | null = null
+    let pointer = { x: event.clientX, y: event.clientY, shift: event.shiftKey }
+    let scaling = canZoom && (event.ctrlKey || event.metaKey)
+    const update = (): void => {
+      const w = start.w + (pointer.x - start.x) / zoom
+      const h = start.h + (pointer.y - start.y) / zoom
+      last = scaling
+        ? {
+            width: info.width,
+            height: info.height,
+            zoom: dragZoom(info.zoom, { width: start.w, height: start.h }, { width: w, height: h }),
+          }
+        : snapView(w / scale, (ratio !== null && !pointer.shift ? w / ratio : h) / scale)
       setLive(last)
     }
-    const done = (): void => {
-      handle.removeEventListener('pointermove', move)
-      handle.removeEventListener('pointerup', done)
-      handle.removeEventListener('pointercancel', done)
-      if (last !== null && (last.width !== shown.width || last.height !== shown.height)) {
-        data.onView(id, { ...display.view, ...last })
+    const move = (next: PointerEvent): void => {
+      pointer = { x: next.clientX, y: next.clientY, shift: next.shiftKey }
+      scaling = canZoom && (next.ctrlKey || next.metaKey)
+      update()
+    }
+    const key = (next: KeyboardEvent): void => {
+      if (next.key === 'Escape') {
+        next.stopPropagation()
+        next.preventDefault()
+        finish(false)
+        return
+      }
+      if (next.key !== 'Control' && next.key !== 'Meta' && next.key !== 'Shift') return
+      pointer = { ...pointer, shift: next.shiftKey }
+      scaling = canZoom && (next.ctrlKey || next.metaKey)
+      update()
+    }
+    const finish = (keep: boolean): void => {
+      window.removeEventListener('pointermove', move, true)
+      window.removeEventListener('pointerup', done, true)
+      window.removeEventListener('pointercancel', cancel, true)
+      window.removeEventListener('keydown', key, true)
+      window.removeEventListener('keyup', key, true)
+      if (handle.hasPointerCapture(pointerId)) handle.releasePointerCapture(pointerId)
+      const end = keep ? (last as { width: number; height: number; zoom?: number } | null) : null
+      if (end?.zoom !== undefined) {
+        if (end.zoom !== info.zoom) {
+          const next: ResourceView = { ...display.view, zoom: end.zoom }
+          if (end.zoom === DEFAULT_ZOOM[info.kind]) delete next.zoom
+          data.onView(id, next)
+        }
+      } else if (end !== null && (end.width !== shown.width || end.height !== shown.height)) {
+        data.onView(id, { ...display.view, width: end.width, height: end.height })
       }
       setLive(null)
     }
-    handle.addEventListener('pointermove', move)
-    handle.addEventListener('pointerup', done)
-    handle.addEventListener('pointercancel', done)
+    const done = (): void => finish(true)
+    const cancel = (): void => finish(false)
+    window.addEventListener('pointermove', move, true)
+    window.addEventListener('pointerup', done, true)
+    window.addEventListener('pointercancel', cancel, true)
+    window.addEventListener('keydown', key, true)
+    window.addEventListener('keyup', key, true)
   }
 
   return (
@@ -1539,9 +1598,14 @@ function DisplayCard(
           ),
         })}
       {live !== null && (
-        <span className={dcss.sizeTag}>
-          {live.width} × {live.height}
-          {display.info.kind === 'html' && display.info.zoom !== 100 && ` · ${display.info.zoom}%`}
+        <span className={dcss.sizeTag} data-testid="wl-display-size-tag">
+          {live.zoom !== undefined
+            ? display.zoomText.replace('{zoom}', String(live.zoom))
+            : `${live.width} × ${live.height}${
+                display.info.kind === 'html' && display.info.zoom !== 100
+                  ? ` · ${display.info.zoom}%`
+                  : ''
+              }`}
         </span>
       )}
       <Handle
@@ -2152,6 +2216,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
       displayInteract: t('display.interact'),
       displayLeave: t('display.leave'),
       displayResize: t('display.resize'),
+      displayZoomTag: t('display.zoomTag'),
     }),
     [t],
   )
@@ -2443,6 +2508,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
                 interactText: texts.displayInteract,
                 leaveText: texts.displayLeave,
                 resizeText: texts.displayResize,
+                zoomText: texts.displayZoomTag,
               }
         const data: ResourceCardData = {
           compact,

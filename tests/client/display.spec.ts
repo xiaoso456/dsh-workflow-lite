@@ -9,6 +9,7 @@ import {
   displayCardSize,
   displayKindOf,
   displayOf,
+  dragZoom,
   snapView,
   stepZoom,
 } from '../../src/client/model/display.ts'
@@ -147,6 +148,20 @@ describe('尺寸', () => {
     expect(stepZoom(25, -1)).toBe(25)
     expect(defaultView('html')).toEqual({ width: 320, height: 176 })
     expect(defaultView('image', 2)).toEqual({ item: 2, width: 320, height: 216 })
+  })
+
+  it('按住 Ctrl 拖着缩放：按对角线上变大了几倍乘上去，离一档不到 3 个百分点就吸上去，夹进 25–400', () => {
+    const from = { width: 320, height: 176 }
+    // 拖大 1.37 倍：137%；拖到 1.24 倍附近吸到 125%
+    expect(dragZoom(100, from, { width: 438.4, height: 241.12 })).toBe(137)
+    expect(dragZoom(100, from, { width: 397, height: 218 })).toBe(125)
+    // 只横着拖：按投到对角线上的长度算（1.24 倍，吸到 125%），不按宽度那一边的 1.31 倍
+    expect(dragZoom(100, from, { width: 420, height: 176 })).toBe(125)
+    // 从 150% 开始缩一半：75%
+    expect(dragZoom(150, from, { width: 160, height: 88 })).toBe(75)
+    // 拖过头：夹在两头
+    expect(dragZoom(100, from, { width: 5000, height: 3000 })).toBe(400)
+    expect(dragZoom(100, from, { width: -50, height: -50 })).toBe(25)
   })
 })
 
