@@ -145,7 +145,7 @@ describe('看板：标模式、写主题变量、换主题就地改', () => {
     const light = boardTheme('light', 'white')
     const page = runBoard(boardScript('card', light))
     expect(page.attrs['data-board']).toBe('card')
-    expect(page.vars['--board-bg']).toBe('#ffffff')
+    expect(page.vars['--board-bg']).toBe('#fafbfd')
     expect(page.vars['--board-radius']).toBe('10px')
     expect(page.style.colorScheme).toBe('light')
     expect(withPreviewStyle('<head></head>')).not.toContain('data-board')
@@ -159,14 +159,14 @@ describe('看板：标模式、写主题变量、换主题就地改', () => {
     const dark = boardTheme('dark', 'slate')
     page.post({ type: BOARD_THEME_MESSAGE, ...dark }, { kind: 'someone else' })
     page.post({ type: 'other', ...dark })
-    expect(page.vars['--board-bg']).toBe('#ffffff')
+    expect(page.vars['--board-bg']).toBe('#fafbfd')
     expect(page.events).toEqual([])
     page.post({
       type: BOARD_THEME_MESSAGE,
       scheme: 'dark',
       vars: { ...dark.vars, color: 'red', '--board-text': 3 },
     })
-    expect(page.vars['--board-bg']).toBe('#181c23')
+    expect(page.vars['--board-bg']).toBe('#1b2029')
     expect(page.vars['--board-text']).toBe('#131820')
     expect(page.vars.color).toBeUndefined()
     expect(page.style.colorScheme).toBe('dark')

@@ -124,9 +124,6 @@ export function displayOf(data: ResourceData): Display | null {
 const LINE_HEIGHT = { markdown: 12 * 1.65, text: 11 * 1.55 } as const
 const FLOW_PAD_Y = 20
 
-/** 卡片里的字至少多大才看得清（画布像素，缩放 100% 时）。 */
-const CARD_MIN_FONT = 12
-
 /** 按两倍分辨率出图时，图里的字、线至少多大（图片像素）：缩到卡片里约 10 px 字、1.5 px 线。 */
 export const IMAGE_MIN_FONT = 20
 export const IMAGE_MIN_STROKE = 3
@@ -164,8 +161,8 @@ export type DisplayBrief =
       layoutWidth: number
       /** 不滚动时露出页面最上面多高。 */
       firstScreen: number
-      /** 正文至少多大（页面像素），缩进卡片后还看得清。 */
-      minFont: number
+      /** 卡片版的字号要乘几倍（缩放 100% 时是 1）：页面整页缩进展示区，乘回来才和画布上的步骤卡片一样大。 */
+      fontScale: number
     }
   | {
       kind: 'image'
@@ -192,7 +189,7 @@ export function displayBrief(display: Display): DisplayBrief {
         kind: 'html',
         layoutWidth: Math.round(display.width / scale),
         firstScreen: Math.round(display.height / scale),
-        minFont: Math.ceil(CARD_MIN_FONT / scale),
+        fontScale: Math.round(100 / scale) / 100,
       }
     case 'image':
       return {

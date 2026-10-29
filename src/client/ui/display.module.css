@@ -1,7 +1,8 @@
 /*
  * 画布展示卡（资源卡开了「在画布上展示」）：上面一行标题，下面一块展示区。
  * 外框、折角、选中环沿用资源卡（canvas.module.css 的 .resCard），这里只改版式：
- * 宽度跟着展示区走，标题行 38、展示区四周留 6（和 model/display.ts 的 DISPLAY_HEAD / DISPLAY_PAD 一致）。
+ * 宽度跟着展示区走，标题行 38（含底下一道分隔线，和 model/display.ts 的 DISPLAY_HEAD 一致）。
+ * 展示区和卡面是同一块：不另描边、不另垫底（看板的底色也是卡面色），只在标题行下面分一道线。
  * 卡里有网页框：悬停、拖动都不抬起、不放大（变换会让框里的页面重新栅格化，一拖就糊、就卡）。
  */
 
@@ -26,8 +27,14 @@
   flex: none;
   gap: 7px;
   align-items: center;
+  box-sizing: border-box;
   height: 38px;
-  padding: 0 22px 0 8px;
+  padding: 0 22px 0 12px;
+  /*
+   * 分隔线比外框淡一档：画布缩放后外框常正好落在整像素上、是一道实线，这道线落在两行像素之间、被抹成两行，
+   * 用同一个颜色就显得比外框粗、比外框亮。
+   */
+  border-bottom: 1px solid color-mix(in oklab, var(--wl-file-border) 60%, var(--wl-file-surface));
 }
 
 .tab {
@@ -114,24 +121,25 @@
 .window {
   position: relative;
   flex: none;
-  margin: 0 6px 6px;
   overflow: hidden;
-  border: 1px solid var(--wl-file-border);
-  border-radius: calc(6px * var(--wl-round, 1));
-  background: var(--wl-panel);
+  /* 卡的圆角 7、边框 1：里面这块的下边两角是 6。 */
+  border-radius: 0 0 calc(6px * var(--wl-round, 1)) calc(6px * var(--wl-round, 1));
 }
 
-/* 进了交互：展示区描一圈强调色，告诉人「现在鼠标在里面」。 */
-.card[data-interactive] .window {
-  border-color: var(--wl-accent);
-  box-shadow: 0 0 0 3px var(--wl-accent-soft);
+/* 进了交互：展示区内沿描一圈强调色，告诉人「现在鼠标在里面」。 */
+.card[data-interactive] .window::after {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 2px var(--wl-accent);
+  content: "";
+  pointer-events: none;
 }
 
 .body {
   position: relative;
   overflow: hidden;
-  /* 外框 1px 也算在展示区里：内容区比设置的尺寸各小 2px，卡片总尺寸才和估算一致。 */
-  margin: -1px;
 }
 
 /* 平时整块不接鼠标：拖卡、平移、双击都落在外面那层上。 */
@@ -187,7 +195,7 @@
   }
 }
 
-/* 占位 / 读不了：铺一层浅底，中间一枚图标、一两行字（展示区自己有边框）。 */
+/* 占位 / 读不了：铺一层浅底，中间一枚图标、一两行字。 */
 .state {
   position: absolute;
   inset: 0;
@@ -258,7 +266,6 @@
   position: absolute;
   inset: 0;
   overflow: hidden;
-  background: var(--wl-panel);
   container-type: size;
 }
 
@@ -495,37 +502,6 @@
   }
 }
 
-/* ── 模板里的「上次执行」：右上角一枚签，点了打开那个实例 ── */
-
-.lastRun {
-  position: absolute;
-  bottom: 6px;
-  right: 6px;
-  z-index: 2;
-  display: inline-flex;
-  gap: 5px;
-  align-items: center;
-  padding: 2px 8px;
-  border: 1px solid var(--wl-line);
-  border-radius: calc(999px * var(--wl-round, 1));
-  background: color-mix(in oklab, var(--wl-panel) 90%, transparent);
-  color: var(--wl-text-2);
-  font-size: var(--wl-fs-micro);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.lastRun:hover {
-  border-color: var(--wl-accent);
-  color: var(--wl-accent-text);
-}
-
-.lastRun:focus-visible {
-  outline: 2px solid var(--wl-accent);
-  outline-offset: 1px;
-}
-
 /* ── 图片：透明处垫棋盘格 ── */
 
 .imageStage {
@@ -572,10 +548,14 @@
 
 /* ── 网页：按放大后的宽排版，再整页缩进来 ── */
 
+/*
+ * 框的底色 = 卡面：框是整页缩放的，画布缩小时边落在半像素上，边上一圈像素会混进框的底色；
+ * 底色是白的话，左右下沿和标题行下面就多出一道亮线，像又描了一圈边。
+ */
 .frame {
   display: block;
   border: 0;
-  background: #fff;
+  background: var(--wl-file-surface);
   transform-origin: 0 0;
 }
 
@@ -705,8 +685,4 @@
   flex-direction: column;
   gap: 8px;
   margin-top: 8px;
-}
-
-:global([data-look="swiss"]) .window {
-  border-width: 1px 0 0;
 }

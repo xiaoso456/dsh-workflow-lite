@@ -4,7 +4,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   DISPLAY_HEAD,
-  DISPLAY_PAD,
   defaultView,
   displayableItems,
   displayCardSize,
@@ -106,10 +105,10 @@ describe('能展示什么', () => {
 })
 
 describe('尺寸', () => {
-  it('卡片 = 标题行 + 展示区 + 留白；资源卡尺寸跟着展示走，最窄不小于普通资源卡', () => {
+  it('卡片 = 标题行 + 展示区；资源卡尺寸跟着展示走，最窄不小于普通资源卡', () => {
     expect(displayCardSize({ width: 360, height: 240 })).toEqual({
-      w: 360 + DISPLAY_PAD * 2,
-      h: DISPLAY_HEAD + 240 + DISPLAY_PAD,
+      w: 360,
+      h: DISPLAY_HEAD + 240,
     })
     const node = (data: ResourceData): ResourceNode => ({
       id: 'r',
@@ -118,8 +117,8 @@ describe('尺寸', () => {
       data,
     })
     expect(cardSize(node({ items: [file('a.png')], view: { width: 480, height: 300 } }))).toEqual({
-      w: 492,
-      h: DISPLAY_HEAD + 300 + DISPLAY_PAD,
+      w: 480,
+      h: DISPLAY_HEAD + 300,
     })
     expect(cardSize(node({ items: [file('a.png')], view: { width: 160, height: 100 } })).w).toBe(
       RES_W,
@@ -180,7 +179,7 @@ describe('布局', () => {
     const board = placed.board
     const b = placed.b
     if (board === undefined || b === undefined) throw new Error('not placed')
-    expect(b.x).toBeGreaterThan(board.x + 720 + DISPLAY_PAD * 2)
+    expect(b.x).toBeGreaterThan(board.x + 720)
   })
 })
 

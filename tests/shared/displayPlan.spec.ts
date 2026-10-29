@@ -67,7 +67,8 @@ describe('任务描述里的画布展示', () => {
     expect(board).toContain('data-board="card"')
     expect(board).toContain('--board-*')
     expect(board).toContain('完整版')
-    expect(board).toContain('正文不小于 24 px')
+    expect(board).toContain('和画布上的步骤卡片一样大')
+    expect(board).toContain('`.card-view` 上写 `style="--k: 2"`')
     expect(board).toContain('宽度自适应')
     expect(board).toContain('自包含')
     expect(board).toContain('localStorage')
@@ -136,7 +137,7 @@ describe('卡片里看得到多少', () => {
       kind: 'html',
       layoutWidth: 960,
       firstScreen: 600,
-      minFont: 24,
+      fontScale: 2,
     })
     expect(displayBrief({ ...base, kind: 'image', width: 360, height: 240, zoom: 100 })).toEqual({
       kind: 'image',

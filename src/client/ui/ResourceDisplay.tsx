@@ -23,7 +23,6 @@ import { useRunFile } from '../app/useRunFile.ts'
 import type { T } from '../i18n.ts'
 import type { Display } from '../model/display.ts'
 import { fileBaseName, formatBytes } from '../model/fileKind.ts'
-import { shortTime } from '../model/time.ts'
 import { errorMessage, type WorkflowLiteRpc } from '../rpc.ts'
 import { useBoardFrame } from './boardFrame.ts'
 import { DisplaySketch } from './DisplaySketch.tsx'
@@ -31,7 +30,6 @@ import css from './display.module.css'
 import { Icon, type IconName } from './Icon.tsx'
 import { Markdown } from './Markdown.tsx'
 import { useCanvasMoving } from './motion.tsx'
-import { cx } from './primitives.tsx'
 
 /** 展示区从哪读：实例视图给出实例与每项的样子；模板里是 `null`（文件还没生成）。 */
 export interface DisplayEnv {
@@ -380,35 +378,16 @@ export function DisplayBody(props: {
     )
   }
   return (
-    <>
-      <div
-        ref={ref}
-        className={css.body}
-        data-kind={display.kind}
-        data-interactive={props.interactive || undefined}
-        style={{ width: display.width, height: display.height }}
-        data-testid="wl-display-body"
-      >
-        {body}
-      </div>
-      {/* 签在展示区外面那层（展示区平时不接鼠标），点它不算点卡片。 */}
-      {seen && latest !== undefined && found !== undefined && item.kind === 'file' && (
-        <button
-          type="button"
-          className={cx(css.lastRun, 'nodrag nopan')}
-          data-tip={t('display.lastRunTip')}
-          data-testid="wl-display-last-run"
-          onClick={(event) => {
-            event.stopPropagation()
-            latest.openRun(found.instance)
-          }}
-          onDoubleClick={(event) => event.stopPropagation()}
-        >
-          <Icon name="history" size={11} />
-          {t('display.lastRun').replace('{time}', shortTime(found.mtime))}
-        </button>
-      )}
-    </>
+    <div
+      ref={ref}
+      className={css.body}
+      data-kind={display.kind}
+      data-interactive={props.interactive || undefined}
+      style={{ width: display.width, height: display.height }}
+      data-testid="wl-display-body"
+    >
+      {body}
+    </div>
   )
 }
 

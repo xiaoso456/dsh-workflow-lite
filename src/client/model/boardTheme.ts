@@ -20,7 +20,8 @@ export function boardTheme(
 ): BoardTheme {
   const t = THEMES[id]
   const values: Record<BoardToken, string> = {
-    bg: t.panel,
+    // 页面底色 = 资源卡的卡面：看板和展示卡融成一块，不显出一个框。
+    bg: t.fileSurface,
     surface: t.fill,
     line: `rgb(${t.ink} / ${t.lineStrongAlpha}%)`,
     text: t.text,
@@ -31,12 +32,13 @@ export function boardTheme(
     ok: t.ok,
     warn: t.warn,
     bad: t.danger,
+    // 系列色避开状态色的色相（绿、琥珀、红），图上的类别不会被读成好坏。
     c1: t.cBlue,
-    c2: t.cGreen,
-    c3: t.cAmber,
-    c4: t.cCoral,
-    c5: t.cTeal,
-    c6: t.cViolet,
+    c2: t.cTeal,
+    c3: t.cViolet,
+    c4: t.cPink,
+    c5: t.cOlive,
+    c6: t.cSlate,
     radius: options.look === 'swiss' ? '0px' : '10px',
     font: options.font === undefined || options.font.trim() === '' ? BOARD_FONT : options.font,
     mono: BOARD_MONO,

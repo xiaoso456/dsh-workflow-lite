@@ -75,6 +75,7 @@ import type {
   WorkflowNode,
 } from '../../shared/types.ts'
 import { findMemory } from '../app/memories.ts'
+import { displayKey } from '../app/useDisplayStats.ts'
 import { recallViewport, rememberViewport } from '../app/viewport.ts'
 import type { LocaleKey, T } from '../i18n.ts'
 import {
@@ -121,6 +122,7 @@ import {
   spotOf,
   writePoints,
 } from '../model/route.ts'
+import { shortTime } from '../model/time.ts'
 import css from './canvas.module.css'
 import dcss from './display.module.css'
 import { FlowStreaks, StreaksMode } from './FlowStreaks.tsx'
@@ -1275,6 +1277,10 @@ function DisplayCard(
   const shown: Display = live === null ? display.info : { ...display.info, ...live }
   const canInteract = display.info.kind !== 'image'
   const canOpen = env?.open !== undefined && (display.item.kind === 'text' || display.made === true)
+  // 模板画布上，展示的是最近一次执行生成的：标题行悬停时多一个钟，点了打开那个实例。
+  const latest = env?.run === null ? env.latest : undefined
+  const found =
+    display.item.kind === 'file' ? latest?.outputs[displayKey(id, display.info.item)] : undefined
 
   useEffect(() => {
     if (!selected) setInteractive(false)
@@ -1373,6 +1379,21 @@ function DisplayCard(
               }}
             >
               <Icon name="pointer" size={13} />
+            </button>
+          )}
+          {latest !== undefined && found !== undefined && env !== null && (
+            <button
+              type="button"
+              className={cx(dcss.action, 'nodrag')}
+              data-tip={env.t('display.lastRunTip').replace('{time}', shortTime(found.mtime))}
+              aria-label={env.t('display.lastRun').replace('{time}', shortTime(found.mtime))}
+              data-testid="wl-display-last-run"
+              onClick={(event) => {
+                event.stopPropagation()
+                latest.openRun(found.instance)
+              }}
+            >
+              <Icon name="history" size={13} />
             </button>
           )}
           {canOpen && (
