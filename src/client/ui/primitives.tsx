@@ -511,7 +511,13 @@ export function useFloat<A extends HTMLElement>(options: {
   const anchorRef = useRef<A>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const [state, setState] = useState<FloatState>('off')
-  const [place, setPlace] = useState<{ left: number; top: number; up: boolean } | null>(null)
+  const [place, setPlace] = useState<{
+    left: number
+    top: number
+    up: boolean
+    /** 摆在旁边（`beside`）时在哪一边：入场从那张卡的方向出来。 */
+    side?: 'left' | 'right'
+  } | null>(null)
   const timer = useRef(0)
   const { openMs, closeMs, width, align = 'start', gap = FLOAT_GAP, exitMs = 0, beside } = options
   /**
@@ -566,7 +572,12 @@ export function useFloat<A extends HTMLElement>(options: {
       const left =
         room >= width ? card.left - area.left - gap * 2 - width : card.right - area.left + gap * 2
       const top = Math.max(8, Math.min(card.top - area.top, area.height - height - 8))
-      setPlace({ left: Math.max(8, Math.min(left, area.width - width - 8)), top, up: false })
+      setPlace({
+        left: Math.max(8, Math.min(left, area.width - width - 8)),
+        top,
+        up: false,
+        side: room >= width ? 'left' : 'right',
+      })
       return
     }
     const end =
@@ -630,6 +641,7 @@ export function useFloat<A extends HTMLElement>(options: {
         // 可聚焦（不进 Tab 序）：在浮层里点一下选文字时，焦点移进来而不是丢掉。
         tabIndex={-1}
         data-up={place?.up === true}
+        data-side={place?.side}
         data-leaving={gone ? true : undefined}
         data-testid={gone ? undefined : props.testId}
         style={{

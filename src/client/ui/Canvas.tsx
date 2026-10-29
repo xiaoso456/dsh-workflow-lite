@@ -140,6 +140,7 @@ import {
   setCanvasMoving,
   useCanvasExits,
   useCanvasMoving,
+  useCrossfade,
   useLast,
 } from './motion.tsx'
 import { cx, useFloat } from './primitives.tsx'
@@ -1280,8 +1281,8 @@ function DisplayCard(
   const [interactive, setInteractive] = useState(false)
   const fallbackLook = useDisplayLook()
   const moving = useCanvasMoving()
-  // 齿轮打开的细项浮层摆在卡片旁边（见 DisplaySettings）。
   const cardRef = useRef<HTMLDivElement>(null)
+  // 齿轮打开的细项浮层摆在卡片旁边（见 DisplaySettings）。
   const settings = useDisplayFloat<HTMLButtonElement>(cardRef)
   const settingsOpen = settings.state !== 'off'
   // 视口一动（平移、缩放、适应画布）浮层就和卡片错开了：收起。
@@ -1289,6 +1290,15 @@ function DisplayCard(
   useEffect(() => {
     if (moving) closeSettings('off')
   }, [moving, closeSettings])
+  // 浮层开着时这张卡一直是「在看的那张」（连线高亮）：换外观的过渡会让指针短暂地「离开」卡片，别跟着熄掉。
+  // 收起时指针已经不在卡上了才熄。
+  const onFocusFile = data.onFocusFile
+  const wasOpen = useRef(false)
+  useEffect(() => {
+    const closed = wasOpen.current && !settingsOpen
+    wasOpen.current = settingsOpen
+    if (closed && cardRef.current?.matches(':hover') !== true) onFocusFile(null)
+  }, [settingsOpen, onFocusFile])
   const canInteract = display.info.kind !== 'image'
   const canOpen = env?.open !== undefined && (display.item.kind === 'text' || display.made === true)
   // 模板画布上，展示的是最近一次执行生成的：标题行悬停时多一个钟，点了打开那个实例。
@@ -1299,7 +1309,11 @@ function DisplayCard(
   const filled =
     display.item.kind === 'text' ||
     (env?.run === null ? found !== undefined : display.made === true)
-  const look: ViewLook = filled ? (display.info.look ?? fallbackLook) : 'card'
+  // 换外观（这张卡自己改了、设置里改了默认、内容刚生成出来）时新旧两个样子交叉淡。
+  const look = useCrossfade<ViewLook>(
+    filled ? (display.info.look ?? fallbackLook) : 'card',
+    cardRef,
+  )
   const shown: Display = { ...display.info, ...live, look }
 
   useEffect(() => {
@@ -1363,7 +1377,9 @@ function DisplayCard(
       data-settings={settingsOpen || undefined}
       data-testid="wl-resource"
       onPointerEnter={() => data.onFocusFile(id)}
-      onPointerLeave={() => data.onFocusFile(null)}
+      onPointerLeave={() => {
+        if (!settingsOpen) data.onFocusFile(null)
+      }}
     >
       <Handle
         id="in"

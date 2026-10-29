@@ -765,15 +765,85 @@
   white-space: nowrap;
 }
 
-.adjust {
+/* 「调整」的座位：贴着开关块右边、上下居中（用 flex 居中，不占按钮自己的 transform，留给出入场）。 */
+.adjustSeat {
   position: absolute;
-  top: 50%;
+  top: 0;
   right: 8px;
-  transform: translateY(-50%);
+  bottom: 0;
+  display: flex;
+  align-items: center;
 }
 
+.adjust {
+  transform-origin: right center;
+}
+
+/* 打开展示时从右边长出来（关掉时由 motion.tsx 的 useExit 原地缩回）；刷新、换选中时就在那，不放。 */
+.adjust[data-grow] {
+  animation: adjustIn 320ms var(--wl-spring) both;
+}
+
+@keyframes adjustIn {
+  from {
+    opacity: 0;
+    transform: translateX(6px) scale(0.9);
+  }
+}
+
+/*
+ * 浮层从哪来：挂在开关块下面时从「调整」那个角长出来；画布上摆在卡片旁边时从卡片那一侧滑出来、收的时候退回去。
+ * 入场 / 收起的时长、回弹沿用 ui.module.css 的 hintIn / floatOut，只换方向。
+ */
 .optionsPop {
   padding: 12px;
+  transform-origin: top right;
+}
+
+.optionsPop[data-side="left"] {
+  transform-origin: right 24px;
+  animation-name: optInFromRight;
+}
+
+.optionsPop[data-side="right"] {
+  transform-origin: left 24px;
+  animation-name: optInFromLeft;
+}
+
+.optionsPop[data-side="left"][data-leaving="true"] {
+  animation-name: optOutToRight;
+}
+
+.optionsPop[data-side="right"][data-leaving="true"] {
+  animation-name: optOutToLeft;
+}
+
+@keyframes optInFromRight {
+  from {
+    opacity: 0;
+    transform: translateX(14px) scale(0.92);
+  }
+}
+
+@keyframes optInFromLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-14px) scale(0.92);
+  }
+}
+
+@keyframes optOutToRight {
+  to {
+    opacity: 0;
+    transform: translateX(4px) scale(0.98);
+  }
+}
+
+@keyframes optOutToLeft {
+  to {
+    opacity: 0;
+    transform: translateX(-4px) scale(0.98);
+  }
 }
 
 .options {
@@ -794,7 +864,6 @@
   align-items: center;
   color: var(--wl-text-3);
   font-size: var(--wl-fs-micro);
-  font-weight: 600;
 }
 
 .optTip {
@@ -806,13 +875,6 @@
 
 .optTip:hover {
   color: var(--wl-text);
-}
-
-.optRow {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  justify-content: space-between;
 }
 
 .optSwitch {
@@ -839,7 +901,9 @@
  * 外观小样：一小块带点的画布，上面一张迷你卡按那种样子画（卡片、柔边、纯镂空、毛玻璃）。
  * 选中的那张描一圈强调色；「跟随设置」画的是设置里现在用的那种。
  */
+/* 定位：选中圈（PickThumb）按这一格量位置。 */
 .looks {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 6px;
@@ -872,14 +936,29 @@
   );
   background-size: 5px 5px;
   box-shadow: inset 0 0 0 1px var(--wl-line);
-  transition: box-shadow 140ms linear;
 }
 
-.lookTile:hover .lookArt {
+/* 悬停描深一档：画在上面一层，淡入淡出它（不过渡 box-shadow）。 */
+.lookArt::after {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  border-radius: inherit;
   box-shadow: inset 0 0 0 1px var(--wl-line-strong);
+  content: "";
+  opacity: 0;
+  transition: opacity 120ms linear;
+  pointer-events: none;
 }
 
-.lookTile[aria-checked="true"] .lookArt {
+.lookTile:hover .lookArt::after {
+  opacity: 1;
+}
+
+/* 选中圈：PickThumb 量好选中那张小样的位置、大小，滑过去。 */
+.lookRing {
+  z-index: 2;
+  border-radius: calc(6px * var(--wl-round, 1));
   box-shadow: inset 0 0 0 2px var(--wl-accent);
 }
 
@@ -935,42 +1014,227 @@
   backdrop-filter: blur(1.5px);
 }
 
+/* 名字是 FadeText：灰、深两层交叉淡。 */
 .lookName {
-  overflow: hidden;
+  --wl-off: var(--wl-text-3);
+  --wl-on: var(--wl-text);
   font-size: var(--wl-fs-micro);
   text-align: center;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+}
+
+.lookTile:hover .lookName {
+  --wl-off: var(--wl-text-2);
 }
 
 .lookTile[aria-checked="true"] .lookName {
-  color: var(--wl-text);
   font-weight: 600;
 }
 
-.sizeInputs {
+/*
+ * 大小一组：大小（三档和尺寸框并排，同高 32）、摆放、缩放各一行，左边一列短标签。
+ * 尺寸框是一个输入框的样子，里面两个无框的数字、中间一个 ×，聚焦哪一半整框描边。
+ * 缩放是和分段一样的一条底：− 数 +，点中间的数还原。
+ */
+.dims {
   display: flex;
-  gap: 6px;
+  flex: none;
   align-items: center;
+  box-sizing: border-box;
+  height: 32px;
+  padding: 0 4px;
+  border: 1px solid transparent;
+  border-radius: var(--wl-r-control);
+  background: var(--wl-fill);
+  transition:
+    border-color 120ms linear,
+    background-color 120ms linear;
+}
+
+.dims:hover {
+  background: var(--wl-fill-strong);
+}
+
+.dims:focus-within {
+  border-color: var(--wl-accent);
+  background: var(--wl-panel);
+}
+
+.dimsX {
   color: var(--wl-text-3);
   font-size: var(--wl-fs-micro);
 }
 
 .sizeInput {
-  width: 64px;
-  font-variant-numeric: tabular-nums;
+  width: 4.2ch;
+  padding: 0 4px;
+  color: var(--wl-text);
+  font-size: var(--wl-fs-meta);
+  text-align: center;
 }
 
-.stepper {
-  display: inline-flex;
-  gap: 2px;
+.optLine {
+  display: flex;
+  gap: 8px;
   align-items: center;
 }
 
-.stepperValue {
-  min-width: 46px;
+.optLabel {
+  flex: none;
+  width: 32px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+.optGrow {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.zoom {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  border-radius: var(--wl-r-control);
+  background: var(--wl-fill);
+}
+
+.zoomStep {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: calc(6px * var(--wl-round, 1));
+  background: transparent;
+  color: var(--wl-text-2);
+  font: inherit;
+  cursor: pointer;
+  transition: background-color 120ms linear;
+}
+
+.zoomStep:hover:not(:disabled) {
+  background: var(--wl-panel);
+  color: var(--wl-text);
+}
+
+.zoomStep:disabled {
+  color: var(--wl-text-3);
+  cursor: default;
+  opacity: 0.5;
+}
+
+.zoomStep:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: -2px;
+}
+
+/* 中间的读数：一个能填的数字加一个不动的「%」，横排；悬停、聚焦时铺一层面板底，像一个小输入框。 */
+.zoomValue {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 52px;
+  height: 28px;
+  padding: 0 4px;
+  border: 1px solid transparent;
+  border-radius: calc(6px * var(--wl-round, 1));
   color: var(--wl-text);
   font-size: var(--wl-fs-meta);
   font-variant-numeric: tabular-nums;
-  text-align: center;
+  cursor: text;
+  transition:
+    background-color 120ms linear,
+    border-color 120ms linear;
+}
+
+.zoomValue:hover {
+  background: var(--wl-panel);
+}
+
+.zoomValue:focus-within {
+  border-color: var(--wl-accent);
+  background: var(--wl-panel);
+}
+
+.zoom[aria-disabled] .zoomValue {
+  color: var(--wl-text-3);
+  cursor: default;
+}
+
+.zoom[aria-disabled] .zoomValue:hover {
+  background: transparent;
+}
+
+.zoomInput {
+  width: 3.4ch;
+  text-align: right;
+}
+
+.zoomUnit {
+  color: var(--wl-text-3);
+}
+
+/*
+ * 能改的数字（RollInput）：输入框和一层 SwapText 叠在同一格。没在改时输入框的字透明、上面那层显示（换值时滚动）；
+ * 聚焦后上面那层藏起来、露出输入框里的字（光标、选中照常）。
+ */
+.roll {
+  position: relative;
+  display: inline-grid;
+}
+
+.rollInput {
+  grid-area: 1 / 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: transparent;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  outline: none;
+}
+
+.rollInput:focus {
+  color: var(--wl-text);
+}
+
+.rollShow {
+  display: flex;
+  grid-area: 1 / 1;
+  align-items: center;
+  justify-content: center;
+  color: var(--wl-text);
+  pointer-events: none;
+}
+
+.zoomValue .rollShow {
+  justify-content: flex-end;
+}
+
+.zoom[aria-disabled] .rollShow {
+  color: var(--wl-text-3);
+}
+
+.roll:focus-within .rollShow {
+  visibility: hidden;
+}
+
+:global([data-look="swiss"]) .dims {
+  border-width: 0 0 1px;
+  border-radius: 0;
+}
+
+/* 「减少动态效果」：浮层、「调整」直接出现（放在最后，压得过上面同样具体的入场规则）。 */
+@media (prefers-reduced-motion: reduce) {
+  .adjust[data-grow],
+  .optionsPop[data-side],
+  .optionsPop[data-side][data-leaving="true"] {
+    animation: none;
+  }
+
+  .lookArt::after {
+    transition: none;
+  }
 }

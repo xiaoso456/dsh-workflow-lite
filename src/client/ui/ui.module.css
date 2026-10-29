@@ -2125,3 +2125,25 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
     opacity: 0;
   }
 }
+
+/*
+ * 卡片换样子的交叉淡（motion.tsx 的 crossfade，View Transitions）：只有标了名字的卡片两张快照在淡，
+ * 整页（root）不淡——新的那张本来就是活的页面，叠在旧图上照常显示。快照层不接指针：过渡中点下一张小样照样点得到。
+ */
+:global(html:active-view-transition-type(wl-crossfade)::view-transition) {
+  pointer-events: none;
+}
+
+:global(html:active-view-transition-type(wl-crossfade)::view-transition-old(root)),
+:global(html:active-view-transition-type(wl-crossfade)::view-transition-new(root)) {
+  animation: none;
+}
+
+:global(html:active-view-transition-type(wl-crossfade)::view-transition-group(*)) {
+  animation-duration: 220ms;
+}
+
+:global(html:active-view-transition-type(wl-crossfade)::view-transition-old(*)),
+:global(html:active-view-transition-type(wl-crossfade)::view-transition-new(*)) {
+  animation-duration: 220ms;
+}

@@ -16,6 +16,7 @@ import { useRef, useState } from 'react'
 import {
   type ResourceData,
   type ResourceView,
+  VIEW_LIMITS,
   VIEW_LOOKS,
   type ViewFit,
   type ViewLook,
@@ -23,6 +24,7 @@ import {
 import { LOOK_NAME, useDisplayLook } from '../app/displayLook.ts'
 import type { LocaleKey, T } from '../i18n.ts'
 import {
+  DEFAULT_ZOOM,
   type Display,
   type DisplayKind,
   defaultView,
@@ -39,7 +41,7 @@ import css from './display.module.css'
 import { Icon } from './Icon.tsx'
 import inp from './input.module.css'
 import ins from './inspector.module.css'
-import { SwitchTrack } from './motion.tsx'
+import { FadeText, PickThumb, SwapText, SwitchTrack, useExit, useTrend } from './motion.tsx'
 import { cx, FLOAT_EXIT_MS, useFloat } from './primitives.tsx'
 import { itemName } from './resourceUi.ts'
 import { Segmented } from './Segmented.tsx'
@@ -82,14 +84,23 @@ export function displaySummary(t: T, display: Display, file: boolean): string {
   return parts.join(' · ')
 }
 
-/** 宽或高：输入时只是草稿，回车、失焦才写进去（夹进范围、按 8 取整）。 */
-function SizeInput(props: {
+/**
+ * 能直接改的数字（宽、高、缩放）：输入时只是草稿，回车、失焦才交给 `onCommit`（夹进范围、取整由调用方定）；
+ * 上下键按 `step` 走一下，当场生效。
+ * 没在改的时候，数字画在上面一层的 SwapText 里：点三档、按 − / + 时旧数字让开、新数字滚进来（变大往上、变小往下），
+ * 不是一下跳过去；点进去改时那一层藏起来，露出输入框里的字。
+ */
+function RollInput(props: {
   label: string
   value: number
   onCommit(value: number): void
+  step(up: boolean, big: boolean): number
   testId: string
+  className: string
+  disabled?: boolean
 }): React.JSX.Element {
   const [draft, setDraft] = useState<string | null>(null)
+  const trend = useTrend(props.value)
   const commit = (): void => {
     if (draft === null) return
     const value = Number.parseInt(draft, 10)
@@ -97,23 +108,37 @@ function SizeInput(props: {
     setDraft(null)
   }
   return (
-    <input
-      className={cx(ui.input, css.sizeInput)}
-      inputMode="numeric"
-      aria-label={props.label}
-      value={draft ?? String(props.value)}
-      onChange={(event) => setDraft(event.target.value.replace(/[^\d]/gu, ''))}
-      onBlur={commit}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter') commit()
-        if (event.key === 'Escape' && draft !== null) {
-          // 只撤掉这次输入，不连带收起浮层。
-          event.stopPropagation()
-          setDraft(null)
-        }
-      }}
-      data-testid={props.testId}
-    />
+    <span className={css.roll}>
+      <input
+        className={cx(css.rollInput, props.className)}
+        inputMode="numeric"
+        aria-label={props.label}
+        disabled={props.disabled}
+        value={draft ?? String(props.value)}
+        onChange={(event) => setDraft(event.target.value.replace(/[^\d]/gu, ''))}
+        onFocus={(event) => event.currentTarget.select()}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') commit()
+          if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+            event.preventDefault()
+            const base = draft === null ? props.value : Number.parseInt(draft, 10) || props.value
+            setDraft(null)
+            props.onCommit(base + props.step(event.key === 'ArrowUp', event.shiftKey))
+          }
+          if (event.key === 'Escape' && draft !== null) {
+            // 只撤掉这次输入，不连带收起浮层。
+            event.stopPropagation()
+            setDraft(null)
+          }
+        }}
+        data-testid={props.testId}
+      />
+      <span className={css.rollShow} aria-hidden="true">
+        {/* 占宽由输入框定（它比数字宽），这一层只按字宽、居中放：三位数、四位数都在正中。 */}
+        <SwapText text={String(props.value)} dir={trend} />
+      </span>
+    </span>
   )
 }
 
@@ -146,6 +171,8 @@ function LookPicker(props: {
   const current = props.value ?? 'auto'
   return (
     <div className={css.looks} role="radiogroup" aria-label={t('display.look')}>
+      {/* 选中圈：一块描边滑到新选的那张小样上（不是旧的熄掉、新的亮起）。 */}
+      <PickThumb layout={current} part={`.${css.lookArt}`} className={css.lookRing} />
       {options.map((option) => (
         <button
           key={option.value}
@@ -171,7 +198,7 @@ function LookPicker(props: {
               <span />
             </span>
           </span>
-          <span className={css.lookName}>{option.label}</span>
+          <FadeText className={css.lookName} text={option.label} on={option.value === current} />
         </button>
       ))}
     </div>
@@ -220,80 +247,114 @@ export function DisplayOptions(props: {
       )}
 
       <section className={css.optGroup}>
-        <GroupHead label={t('display.size')} tip={sizeTip} />
-        <Segmented<SizeKey>
-          label={t('display.size')}
-          value={sizeKeyOf(display.kind, display.width, display.height)}
-          options={(['s', 'm', 'l', 'custom'] as const).map((value) => ({
-            value,
-            label: t(SIZE_NAME[value]),
-          }))}
-          testId="wl-display-size"
-          onChange={(key) => {
-            if (key === 'custom') return
-            const [width, height] = VIEW_SIZES[display.kind][key]
-            set({ width, height })
-          }}
-        />
-        <div className={css.optRow}>
-          <span className={css.sizeInputs}>
-            <SizeInput
+        {/* 三档和宽高并排：宽高不是三档之一时三档都不亮，框里的数就是自定义的尺寸。 */}
+        <div className={css.optLine}>
+          <span className={css.optLabel}>{t('display.size')}</span>
+          <div className={css.optGrow}>
+            <Segmented<SizeKey>
+              label={t('display.size')}
+              value={sizeKeyOf(display.kind, display.width, display.height)}
+              options={(['s', 'm', 'l'] as const).map((value) => ({
+                value,
+                label: t(SIZE_NAME[value]),
+              }))}
+              testId="wl-display-size"
+              onChange={(key) => {
+                if (key === 'custom') return
+                const [width, height] = VIEW_SIZES[display.kind][key]
+                set({ width, height })
+              }}
+            />
+          </div>
+          <span className={css.dims} data-tip={sizeTip}>
+            <RollInput
               label={t('display.width')}
               value={display.width}
               testId="wl-display-width"
+              className={css.sizeInput}
+              step={(up, big) => (big ? 40 : 8) * (up ? 1 : -1)}
               onCommit={(width) => set(snapView(width, display.height))}
             />
-            ×
-            <SizeInput
+            <span className={css.dimsX} aria-hidden="true">
+              ×
+            </span>
+            <RollInput
               label={t('display.height')}
               value={display.height}
               testId="wl-display-height"
+              className={css.sizeInput}
+              step={(up, big) => (big ? 40 : 8) * (up ? 1 : -1)}
               onCommit={(height) => set(snapView(display.width, height))}
             />
           </span>
-          {zoomable(display) && (
-            <span className={css.stepper}>
-              <button
-                type="button"
-                className={cx(ui.btn, ui.icon, ui.small)}
-                aria-label={t('display.zoomOut')}
-                data-tip={t('display.zoomOut')}
-                disabled={display.zoom <= ZOOM_STEPS[0]}
-                data-testid="wl-display-zoom-out"
-                onClick={() => set({ zoom: stepZoom(display.zoom, -1) })}
-              >
-                <Icon name="minus" size={14} />
-              </button>
-              <span className={css.stepperValue} data-testid="wl-display-zoom">
-                {display.zoom}%
-              </span>
-              <button
-                type="button"
-                className={cx(ui.btn, ui.icon, ui.small)}
-                aria-label={t('display.zoomIn')}
-                data-tip={t('display.zoomIn')}
-                disabled={display.zoom >= ZOOM_STEPS[ZOOM_STEPS.length - 1]}
-                data-testid="wl-display-zoom-in"
-                onClick={() => set({ zoom: stepZoom(display.zoom, 1) })}
-              >
-                <Icon name="plus" size={14} />
-              </button>
-            </span>
-          )}
         </div>
         {display.kind === 'image' && (
-          <Segmented<ViewFit>
-            label={t('display.fit')}
-            value={display.fit}
-            options={[
-              { value: 'contain', label: t('display.fit.contain') },
-              { value: 'cover', label: t('display.fit.cover') },
-              { value: 'actual', label: t('display.fit.actual') },
-            ]}
-            testId="wl-display-fit"
-            onChange={(fit) => set({ fit: fit === 'contain' ? undefined : fit })}
-          />
+          <div className={css.optLine}>
+            <span className={css.optLabel}>{t('display.fit')}</span>
+            <div className={css.optGrow}>
+              <Segmented<ViewFit>
+                label={t('display.fit')}
+                value={display.fit}
+                options={[
+                  { value: 'contain', label: t('display.fit.contain') },
+                  { value: 'cover', label: t('display.fit.cover') },
+                  { value: 'actual', label: t('display.fit.actual') },
+                ]}
+                testId="wl-display-fit"
+                onChange={(fit) => set({ fit: fit === 'contain' ? undefined : fit })}
+              />
+            </div>
+          </div>
         )}
+        {/* 缩放一直在（图片不是「原大」时灰着、提示里说为什么），切摆放时下面的东西不跳。 */}
+        <div className={css.optLine}>
+          <span className={css.optLabel}>{t('display.zoom')}</span>
+          <span
+            className={css.zoom}
+            aria-disabled={!zoomable(display) || undefined}
+            data-tip={zoomable(display) ? undefined : t('display.zoomImage')}
+          >
+            <button
+              type="button"
+              className={css.zoomStep}
+              aria-label={t('display.zoomOut')}
+              data-tip={t('display.zoomOut')}
+              disabled={!zoomable(display) || display.zoom <= ZOOM_STEPS[0]}
+              data-testid="wl-display-zoom-out"
+              onClick={() => set({ zoom: stepZoom(display.zoom, -1) })}
+            >
+              <Icon name="minus" size={13} />
+            </button>
+            {/* 读数就是输入框：直接填（25–400），上下键一次 1%、按住 Shift 10%。 */}
+            <span className={css.zoomValue}>
+              <RollInput
+                label={t('display.zoom')}
+                value={display.zoom}
+                testId="wl-display-zoom"
+                className={css.zoomInput}
+                disabled={!zoomable(display)}
+                step={(up, big) => (big ? 10 : 1) * (up ? 1 : -1)}
+                onCommit={(zoom) => {
+                  const [lo, hi] = VIEW_LIMITS.zoom
+                  const next = Math.min(hi, Math.max(lo, Math.round(zoom)))
+                  set({ zoom: next === DEFAULT_ZOOM[display.kind] ? undefined : next })
+                }}
+              />
+              <span className={css.zoomUnit}>%</span>
+            </span>
+            <button
+              type="button"
+              className={css.zoomStep}
+              aria-label={t('display.zoomIn')}
+              data-tip={t('display.zoomIn')}
+              disabled={!zoomable(display) || display.zoom >= ZOOM_STEPS[ZOOM_STEPS.length - 1]}
+              data-testid="wl-display-zoom-in"
+              onClick={() => set({ zoom: stepZoom(display.zoom, 1) })}
+            >
+              <Icon name="plus" size={13} />
+            </button>
+          </span>
+        </div>
       </section>
 
       <section className={css.optGroup}>
@@ -333,6 +394,16 @@ export function useDisplayFloat<A extends HTMLElement>(
   })
 }
 
+/** 「调整」的座位：贴着开关块右边、上下居中；卸掉时里面的按钮留个影子缩回去。 */
+function AdjustSeat(props: { children: React.ReactNode }): React.JSX.Element {
+  const ref = useExit<HTMLSpanElement>('shrink', { inner: true })
+  return (
+    <span ref={ref} className={css.adjustSeat}>
+      {props.children}
+    </span>
+  )
+}
+
 export function DisplaySettings(props: {
   t: T
   data: ResourceData
@@ -359,6 +430,13 @@ export function DisplaySettings(props: {
     props.onChange(defaultView(kind))
   }
   const file = display !== null && data.items[display.item]?.kind === 'file'
+  // 「调整」只在这一次打开展示时长出来；面板刚挂上（刷新、换选中）时就在那。
+  const [wasOn, setWasOn] = useState(on)
+  const [grow, setGrow] = useState(false)
+  if (wasOn !== on) {
+    setWasOn(on)
+    setGrow(on)
+  }
 
   return (
     <section className={ins.field} data-testid="wl-display-settings">
@@ -380,35 +458,45 @@ export function DisplaySettings(props: {
           <SwitchTrack on={on} />
           <span className={inp.requiredText}>
             <span className={inp.requiredTitle}>{t('display.toggle')}</span>
-            {display !== null && on ? (
-              <span className={cx(inp.requiredDesc, css.summary)} data-testid="wl-display-summary">
-                {displaySummary(t, display, file)}
-              </span>
-            ) : (
-              <span className={inp.requiredDesc}>
-                {choices.length === 0 ? t('display.none') : t('display.toggleDesc')}
-              </span>
-            )}
+            {/* 开、关时说明和摘要在同一格里换；改了大小、外观，摘要也就地换字。 */}
+            <span
+              className={cx(inp.requiredDesc, on && css.summary)}
+              data-testid={on ? 'wl-display-summary' : undefined}
+            >
+              <SwapText
+                text={
+                  display !== null && on
+                    ? displaySummary(t, display, file)
+                    : choices.length === 0
+                      ? t('display.none')
+                      : t('display.toggleDesc')
+                }
+              />
+            </span>
           </span>
         </button>
+        {/* 开的时候从右边长出来，关的时候原地缩回去（座位不动，动的是里面的按钮）。 */}
         {on && (
-          <button
-            ref={adjust}
-            type="button"
-            className={cx(ui.btn, ui.small, css.adjust)}
-            aria-haspopup="dialog"
-            aria-expanded={open}
-            data-active={open || undefined}
-            data-testid="wl-display-adjust"
-            onClick={() => float.setState(open ? 'off' : 'pinned')}
-            onKeyDown={(event) => {
-              float.onKeyDown(event)
-              if (event.key === 'Escape') adjust.current?.focus()
-            }}
-          >
-            <Icon name="sliders" size={13} />
-            {t('display.adjust')}
-          </button>
+          <AdjustSeat>
+            <button
+              ref={adjust}
+              type="button"
+              className={cx(ui.btn, ui.small, css.adjust)}
+              data-grow={grow || undefined}
+              aria-haspopup="dialog"
+              aria-expanded={open}
+              data-active={open || undefined}
+              data-testid="wl-display-adjust"
+              onClick={() => float.setState(open ? 'off' : 'pinned')}
+              onKeyDown={(event) => {
+                float.onKeyDown(event)
+                if (event.key === 'Escape') adjust.current?.focus()
+              }}
+            >
+              <Icon name="sliders" size={13} />
+              {t('display.adjust')}
+            </button>
+          </AdjustSeat>
         )}
       </div>
       {view !== undefined &&
