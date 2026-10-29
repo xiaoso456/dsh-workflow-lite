@@ -18,6 +18,7 @@
 import {
   BOARD_ATTR,
   BOARD_CLEAR_ATTR,
+  BOARD_STILL_ATTR,
   BOARD_THEME_EVENT,
   BOARD_THEME_MESSAGE,
   type BoardMode,
@@ -77,17 +78,17 @@ const scriptJson = (value: unknown): string => JSON.stringify(value).replace(/</
 
 /**
  * 镂空：页面和 `<body>` 的底一律透明（压过页面自己写的背景）。框元素的 `color-scheme` 得和页面一致，
- * 不然浏览器在框后面垫一层不透明的底（见 ResourceDisplay）。
+ * 不然浏览器在框后面垫一层不透明的底（见 ResourceDisplay）。静止的卡片不画滚动条（也压过页面自己写的）。
  */
-const CLEAR_STYLE = `<style data-wl-preview>[${BOARD_CLEAR_ATTR}],[${BOARD_CLEAR_ATTR}] body{background:transparent!important}</style>`
+const CLEAR_STYLE = `<style data-wl-preview>[${BOARD_CLEAR_ATTR}],[${BOARD_CLEAR_ATTR}] body{background:transparent!important}[${BOARD_STILL_ATTR}],[${BOARD_STILL_ATTR}] *{scrollbar-width:none!important}</style>`
 
 /**
  * 看板那一段：一上来就标模式、写变量（写在 `<html>` 的内联样式上，比页面 `:root` 的后备值优先），
  * 之后只认父窗口发来的主题消息，只收 `--board-` 开头的字符串值，改完派发事件让页面重画图表。
- * 消息里 `clear` 为真时标上镂空、`--board-bg` 换成画布底色；镂空随时能开关，不用重载页面。
+ * 消息里 `clear` 为真时标上镂空、`--board-bg` 换成画布底色；`still` 为真时标上静止；都随时能开关，不用重载页面。
  */
 export function boardScript(mode: BoardMode, theme: BoardTheme): string {
-  return `${CLEAR_STYLE}<script data-wl-preview>(()=>{const root=document.documentElement;root.setAttribute('${BOARD_ATTR}',${scriptJson(mode)});const apply=(t)=>{for(const [k,v] of Object.entries(t.vars)){if(k.startsWith('--board-')&&typeof v==='string')root.style.setProperty(k,v)}const clear=t.clear===true&&typeof t.canvas==='string';root.toggleAttribute('${BOARD_CLEAR_ATTR}',clear);if(clear)root.style.setProperty('--board-bg',t.canvas);root.style.colorScheme=t.scheme==='dark'?'dark':'light'};apply(${scriptJson(theme)});addEventListener('message',(e)=>{const d=e.data;if(e.source!==parent||!d||d.type!=='${BOARD_THEME_MESSAGE}'||typeof d.vars!=='object'||d.vars===null)return;apply(d);dispatchEvent(new Event('${BOARD_THEME_EVENT}'))})})()</script>`
+  return `${CLEAR_STYLE}<script data-wl-preview>(()=>{const root=document.documentElement;root.setAttribute('${BOARD_ATTR}',${scriptJson(mode)});const apply=(t)=>{for(const [k,v] of Object.entries(t.vars)){if(k.startsWith('--board-')&&typeof v==='string')root.style.setProperty(k,v)}const clear=t.clear===true&&typeof t.canvas==='string';root.toggleAttribute('${BOARD_CLEAR_ATTR}',clear);root.toggleAttribute('${BOARD_STILL_ATTR}',t.still===true);if(clear)root.style.setProperty('--board-bg',t.canvas);root.style.colorScheme=t.scheme==='dark'?'dark':'light'};apply(${scriptJson(theme)});addEventListener('message',(e)=>{const d=e.data;if(e.source!==parent||!d||d.type!=='${BOARD_THEME_MESSAGE}'||typeof d.vars!=='object'||d.vars===null)return;apply(d);dispatchEvent(new Event('${BOARD_THEME_EVENT}'))})})()</script>`
 }
 
 /** 把 {@link PREVIEW_STYLE}（看板再加 {@link boardScript}）插进页面。 */

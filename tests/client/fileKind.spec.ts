@@ -3,7 +3,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { fileGroupOf } from '../../src/client/model/fileKind.ts'
+import { fileGroupOf, stripAnsi } from '../../src/client/model/fileKind.ts'
 
 describe('fileGroupOf', () => {
   it.each([
@@ -45,5 +45,15 @@ describe('fileGroupOf', () => {
   it('路径里的目录不影响判断', () => {
     expect(fileGroupOf('a/b.c/d.png')).toBe('image')
     expect(fileGroupOf('srcapp.py')).toBe('code')
+  })
+})
+
+describe('stripAnsi', () => {
+  const ESC = String.fromCharCode(27)
+  it('去掉日志里的颜色码、标题序列；不带 ESC 的方括号原样留着', () => {
+    expect(stripAnsi(`${ESC}[32mINFO ${ESC}[0m ok`)).toBe('INFO  ok')
+    expect(stripAnsi(`${ESC}[1;31mERROR${ESC}[0m`)).toBe('ERROR')
+    expect(stripAnsi(`${ESC}]0;title${String.fromCharCode(7)}x`)).toBe('x')
+    expect(stripAnsi('plain [32m kept')).toBe('plain [32m kept')
   })
 })

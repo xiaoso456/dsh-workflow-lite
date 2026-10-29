@@ -31,6 +31,41 @@ import {
 import type { Outcome } from '../store/repository.ts'
 
 const SNIFF_BYTES = 8192
+
+/** UTF-16 的两种 BOM（这种文件里全是 0 字节，不先认出来就被当成二进制）。 */
+const UTF16_BOM = { le: [0xff, 0xfe], be: [0xfe, 0xff] } as const
+const startsWith = (bytes: Uint8Array, head: readonly number[]): boolean =>
+  head.every((byte, index) => bytes[index] === byte)
+
+/** 宿主的 Node 不带这套编码（没有完整的 ICU）时是 `null`。 */
+function decoder(label: string, fatal = false): TextDecoder | null {
+  try {
+    return new TextDecoder(label, { fatal })
+  } catch {
+    return null
+  }
+}
+
+/**
+ * 文本文件按什么编码读：带 BOM 的按 BOM（UTF-8 / UTF-16，BOM 本身不留在正文里）；没有的先按 UTF-8 严格解，
+ * 解不通再退到 GB18030（GBK 的超集：Windows 上的中文日志、记事本存的文件多半是它）。
+ * 宿主没有这套编码时按 UTF-8 宽松读（认不出的字节成了替换符）。
+ */
+export function decodeText(bytes: Uint8Array): string {
+  if (startsWith(bytes, UTF16_BOM.le)) return (decoder('utf-16le') as TextDecoder).decode(bytes)
+  const be = startsWith(bytes, UTF16_BOM.be) ? decoder('utf-16be') : null
+  if (be !== null) return be.decode(bytes)
+  // TextDecoder 默认就把开头的 UTF-8 BOM 去掉。
+  try {
+    return (decoder('utf-8', true) as TextDecoder).decode(bytes)
+  } catch {
+    return (decoder('gb18030') ?? new TextDecoder('utf-8')).decode(bytes)
+  }
+}
+
+/** 开头是 UTF-16 的 BOM（里面的 0 字节不算二进制）。 */
+export const isUtf16 = (bytes: Uint8Array): boolean =>
+  startsWith(bytes, UTF16_BOM.le) || startsWith(bytes, UTF16_BOM.be)
 const MARKDOWN = new Set(['.md', '.markdown', '.mdx'])
 const HTML = new Set(['.html', '.htm'])
 
@@ -266,9 +301,9 @@ export async function readRunFile(full: string, display: string): Promise<RunFil
   try {
     const sniff = Buffer.alloc(Math.min(SNIFF_BYTES, info.size))
     await handle.read(sniff, 0, sniff.length, 0)
-    if (sniff.includes(0)) return { ...meta, kind: 'binary' }
+    if (sniff.includes(0) && !isUtf16(sniff)) return { ...meta, kind: 'binary' }
     if (info.size > limit) return { ...meta, kind: 'tooLarge' }
-    const text = (await handle.readFile()).toString('utf8')
+    const text = decodeText(await handle.readFile())
     return { ...meta, kind, text }
   } finally {
     await handle.close()

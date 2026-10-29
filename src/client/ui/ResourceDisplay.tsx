@@ -15,20 +15,31 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/ResourceDisplay
  */
 
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  createContext,
+  Fragment,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
+import { usesBoardTheme } from '../../shared/board.ts'
+import { textWraps } from '../../shared/display.ts'
 import type { ResourceItem } from '../../shared/types.ts'
 import type { RunFileResponse, RunLatestOutput } from '../../shared/wire.ts'
 import { type DisplayStat, displayKey } from '../app/useDisplayStats.ts'
-import { useRunFile } from '../app/useRunFile.ts'
+import { useRunFile, useRunImages } from '../app/useRunFile.ts'
 import type { T } from '../i18n.ts'
 import { type Display, displayFootprint } from '../model/display.ts'
-import { fileBaseName, formatBytes } from '../model/fileKind.ts'
+import { fileBaseName, formatBytes, stripAnsi } from '../model/fileKind.ts'
 import { errorMessage, type WorkflowLiteRpc } from '../rpc.ts'
 import { useBoardFrame } from './boardFrame.ts'
 import { DisplaySketch } from './DisplaySketch.tsx'
 import css from './display.module.css'
 import { Icon, type IconName } from './Icon.tsx'
-import { Markdown } from './Markdown.tsx'
+import { type ImageSource, Markdown } from './Markdown.tsx'
 import { useCanvasMoving } from './motion.tsx'
 
 /** 展示区从哪读：实例视图给出实例与每项的样子；模板里是 `null`（文件还没生成）。 */
@@ -151,10 +162,15 @@ function HtmlView(props: {
 }): React.JSX.Element {
   const scale = props.display.zoom / 100
   const frame = useRef<HTMLIFrameElement>(null)
-  // 透明只给看板：按约定写的页面跟着画布配色；别的网页多半写死了白底黑字，透出画布来就看不清了，留着自己的底。
+  // 透明只给看板：用了 `--board-*` 变量的页面跟着画布配色；别的网页多半写死了白底黑字（或者黑底白字），
+  // 透出画布来就看不清了，留着自己的底。
   const clear =
-    props.display.adapt && props.display.look !== undefined && props.display.look !== 'card'
-  const board = useBoardFrame(frame, props.text, 'card', clear)
+    props.display.adapt &&
+    props.display.look !== undefined &&
+    props.display.look !== 'card' &&
+    usesBoardTheme(props.text)
+  // 没进交互时不画滚动条：卡片是静止的一张图，滚动条只是噪音；进了交互（能滚了）再显示。
+  const board = useBoardFrame(frame, props.text, 'card', clear, !props.interactive)
   return (
     <iframe
       ref={frame}
@@ -183,7 +199,11 @@ function ImageView(props: { name: string; url: string; display: Display }): Reac
   const [natural, setNatural] = useState<{ w: number; h: number } | null>(null)
   const actual = display.fit === 'actual'
   return (
-    <div className={css.imageStage} data-fit={display.fit}>
+    <div
+      className={css.imageStage}
+      data-fit={display.fit}
+      data-vector={props.url.startsWith('data:image/svg+xml') || undefined}
+    >
       <img
         className={css.image}
         src={props.url}
@@ -216,6 +236,9 @@ function TextView(props: {
   file: RunFileResponse
   display: Display
   interactive: boolean
+  image?: ImageSource
+  /** 纯文本折行（见 textWraps）。 */
+  wrap?: boolean
 }): React.JSX.Element {
   const { t, file, display } = props
   if (file.kind === 'tooLarge') {
@@ -243,19 +266,103 @@ function TextView(props: {
       />
     )
   }
-  return <Flow t={t} text={text} display={display} />
+  return <Flow t={t} text={text} display={display} image={props.image} wrap={props.wrap} />
 }
 
-/** Markdown / 纯文本：按 `zoom` 放大缩小字号，超出展示区的部分在底边淡出。 */
-function Flow(props: { t: T; text: string; display: Display }): React.JSX.Element {
+/**
+ * 逗号后面可以断行（`<wbr>`，复制出来不多字）：没有空格的一长行（JSON 记录）折在字段之间，
+ * 不会在日期、字段名中间断开。
+ */
+function softBreaks(line: string): React.ReactNode {
+  if (!line.includes(',')) return line
+  const parts = line.split(',')
+  return parts.map((part, index) =>
+    index === parts.length - 1 ? (
+      part
+    ) : (
+      // biome-ignore lint/suspicious/noArrayIndexKey: 同一行里的第几段，内容一变整行重排
+      <Fragment key={index}>
+        {part},<wbr />
+      </Fragment>
+    ),
+  )
+}
+
+/** 折行的纯文本在卡片里最多排多少行：卡片是预览，一屏只看得到几十行；整份在「打开」里看。 */
+const WRAP_LINES = 1000
+
+/**
+ * Markdown / 纯文本：按 `zoom` 放大缩小字号。
+ * 外面一层（`flowClip`）和展示区一样大、负责裁：内容真的超出了才在那一边淡出——超出底边在底边、
+ * 不折行的长行超出右边在右边（量的是裁出来的这一层，内容、字号、卡片大小变了都重量）。进了交互不裁，展示区自己滚。
+ * Markdown 里相对路径的图按文档所在目录去实例里读（`image`；自定义文字没有目录，不给）。
+ * 纯文本去掉终端颜色码；折行时一行一块、续行悬挂缩进，看得出每一条从哪开始（行多时只排前 {@link WRAP_LINES} 行）。
+ */
+function Flow(props: {
+  t: T
+  text: string
+  display: Display
+  image?: ImageSource | undefined
+  wrap?: boolean | undefined
+}): React.JSX.Element {
   const { display } = props
+  const clip = useRef<HTMLDivElement>(null)
+  const [over, setOver] = useState({ x: false, y: false })
+  useLayoutEffect(() => {
+    const element = clip.current
+    if (element === null) return
+    const measure = (): void => {
+      const x = element.scrollWidth > element.clientWidth + 1
+      const y = element.scrollHeight > element.clientHeight + 1
+      setOver((last) => (last.x === x && last.y === y ? last : { x, y }))
+    }
+    measure()
+    // 量自己（卡片大小、进出交互）和里面那层（字号、图片加载完撑高）。
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+    if (element.firstElementChild !== null) observer.observe(element.firstElementChild)
+    return () => observer.disconnect()
+  }, [])
+  const plain = useMemo(
+    () => (display.kind === 'markdown' ? '' : stripAnsi(props.text)),
+    [display.kind, props.text],
+  )
+  const lines = useMemo(() => {
+    if (props.wrap !== true || plain === '') return null
+    const all = plain.split(/\r?\n/u)
+    if (all[all.length - 1] === '') all.pop()
+    return { shown: all.slice(0, WRAP_LINES), rest: Math.max(0, all.length - WRAP_LINES) }
+  }, [props.wrap, plain])
   return (
-    <div className={css.flow} style={{ zoom: display.zoom / 100 }} data-kind={display.kind}>
-      {display.kind === 'markdown' ? (
-        <Markdown t={props.t} text={props.text} className={css.md} />
-      ) : (
-        <pre className={css.pre}>{props.text}</pre>
-      )}
+    <div
+      ref={clip}
+      className={css.flowClip}
+      data-over-x={over.x || undefined}
+      data-over-y={over.y || undefined}
+    >
+      <div className={css.flow} style={{ zoom: display.zoom / 100 }} data-kind={display.kind}>
+        {display.kind === 'markdown' ? (
+          <Markdown t={props.t} text={props.text} className={css.md} image={props.image} />
+        ) : lines === null ? (
+          <pre className={css.pre}>{plain}</pre>
+        ) : (
+          <>
+            <pre className={css.pre} data-wrap>
+              {lines.shown.map((line, index) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: 行号就是身份，内容一变整块重排
+                <span key={index} className={css.line}>
+                  {softBreaks(line)}
+                </span>
+              ))}
+            </pre>
+            {lines.rest > 0 && (
+              <p className={css.moreLines}>
+                {props.t('display.moreLines').replace('{n}', lines.rest.toLocaleString())}
+              </p>
+            )}
+          </>
+        )}
+      </div>
     </div>
   )
 }
@@ -289,6 +396,7 @@ function RunFileView(props: {
   )
   const url = useHeld(image.url)
   const file = useHeld(loaded.file)
+  const images = useRunImages(run.rpc, run.instance, { node, item: display.item })
 
   if (stat === undefined) return <div className={css.loading} aria-busy="true" />
   if (!stat.exists) {
@@ -321,7 +429,14 @@ function RunFileView(props: {
   if (file?.exists) {
     return (
       <div key={file.mtime} className={css.fresh}>
-        <TextView t={t} file={file} display={display} interactive={props.interactive} />
+        <TextView
+          t={t}
+          file={file}
+          display={display}
+          interactive={props.interactive}
+          image={images}
+          wrap={textWraps(props.item.value)}
+        />
       </div>
     )
   }

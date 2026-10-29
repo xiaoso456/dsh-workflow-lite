@@ -22,6 +22,7 @@ import {
   resourceSpot,
   tidy,
 } from '../../src/client/model/layout.ts'
+import { textWraps } from '../../src/shared/display.ts'
 import { analyzeGraph } from '../../src/shared/graph.ts'
 import { affectsPlan, describeGraphChange, graphChanges } from '../../src/shared/graphDiff.ts'
 import { canonicalResource, readResourceData, readView } from '../../src/shared/model.ts'
@@ -260,5 +261,23 @@ describe('改展示不通知模型', () => {
     expect(describeGraphChange(changes[0] as (typeof changes)[number], before, after)).toContain(
       '画布展示',
     )
+  })
+})
+
+describe('纯文本折不折行', () => {
+  it('一行一条记录的折行；代码、配置、表格不折', () => {
+    for (const path of ['notes.txt', 'logs/app.log', 'events.jsonl', 'A.LOG']) {
+      expect(textWraps(path), path).toBe(true)
+    }
+    for (const path of [
+      'main.ts',
+      'config.json',
+      'app.yaml',
+      'sales.csv',
+      'feed.xml',
+      'build.sh',
+    ]) {
+      expect(textWraps(path), path).toBe(false)
+    }
   })
 })

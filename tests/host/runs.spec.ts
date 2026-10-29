@@ -634,6 +634,18 @@ describe('看产出文件', () => {
     const bin = await runs.file(id, { path: 'bin.dat' })
     expect(bin.ok && bin.result.kind).toBe('binary')
 
+    // 编码：BOM 不留在正文里；UTF-16 不当二进制；不是 UTF-8 的按 GB18030 读（GBK 的「你好」）。
+    await writeFile(join(workspace, 'bom.txt'), Buffer.from([0xef, 0xbb, 0xbf, 0x61]))
+    const bom = await runs.file(id, { path: 'bom.txt' })
+    expect(bom.ok && bom.result.text).toBe('a')
+    await writeFile(join(workspace, 'u16.txt'), Buffer.from([0xff, 0xfe, 0x60, 0x4f, 0x7d, 0x59]))
+    const u16 = await runs.file(id, { path: 'u16.txt' })
+    expect(u16.ok && u16.result.kind).toBe('text')
+    expect(u16.ok && u16.result.text).toBe('你好')
+    await writeFile(join(workspace, 'gbk.txt'), Buffer.from([0xc4, 0xe3, 0xba, 0xc3]))
+    const gbk = await runs.file(id, { path: 'gbk.txt' })
+    expect(gbk.ok && gbk.result.text).toBe('你好')
+
     expect((await runs.file(id, { path: '../outside.txt' })).ok).toBe(false)
     expect((await runs.file(id, { path: join(dataDir, 'instances.json') })).ok).toBe(false)
     expect((await runs.file(id, { node: 'nope', item: 0 })).ok).toBe(false)

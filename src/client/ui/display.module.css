@@ -747,6 +747,11 @@
   max-height: none;
 }
 
+/* 适应：位图最大放到原大（小图标、小截图放大了只是一团马赛克），比展示区大才缩；矢量图照样放满。 */
+.imageStage[data-fit="contain"]:not([data-vector]) .image {
+  object-fit: scale-down;
+}
+
 /* ── 网页：按放大后的宽排版，再整页缩进来 ── */
 
 /*
@@ -767,13 +772,36 @@
 
 /* ── Markdown / 纯文本：超出展示区的部分在底边淡出（交互时能滚，不淡）── */
 
-.flow {
-  padding: 10px 12px;
+/*
+ * 裁的那层和展示区一样大：淡出画在它身上（画在里面那层上的话，内容一长渐隐就落到看不见的地方去了）。
+ * 只在真的超出的那一边淡：底边 28px、右边 24px，两边都超出时取交集。进了交互不裁，展示区自己滚。
+ */
+.flowClip {
+  min-height: 100%;
 }
 
-.body:not([data-interactive]) .flow {
+.body:not([data-interactive]) .flowClip {
+  height: 100%;
+  overflow: hidden;
+}
+
+.body:not([data-interactive]) .flowClip[data-over-y] {
   mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
-  min-height: 100%;
+}
+
+.body:not([data-interactive]) .flowClip[data-over-x] {
+  mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+}
+
+.body:not([data-interactive]) .flowClip[data-over-x][data-over-y] {
+  mask-image:
+    linear-gradient(to bottom, #000 calc(100% - 28px), transparent),
+    linear-gradient(to right, #000 calc(100% - 24px), transparent);
+  mask-composite: intersect;
+}
+
+.flow {
+  padding: 10px 12px;
 }
 
 .md {
@@ -782,12 +810,35 @@
 }
 
 .pre {
+  width: max-content;
+  min-width: 100%;
   margin: 0;
   color: var(--wl-text-2);
   font-family: var(--wl-mono);
   font-size: 11px;
   line-height: 1.55;
   white-space: pre;
+  tab-size: 4;
+}
+
+/* 折行：一行一块，续行比行首多缩两格（悬挂缩进），一眼看得出每一条从哪开始；空行留一行高。 */
+.pre[data-wrap] {
+  width: auto;
+}
+
+.line {
+  display: block;
+  min-height: 1lh;
+  padding-left: 2ch;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  text-indent: -2ch;
+}
+
+.moreLines {
+  margin: 6px 0 0;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
 }
 
 /* ── 改尺寸：右下角的拖柄、拖动中的读数 ── */

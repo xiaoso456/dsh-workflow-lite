@@ -44,6 +44,14 @@ export function displayKindOf(item: ResourceItem): DisplayKind | null {
   }
 }
 
+/**
+ * 纯文本在卡片里折不折行：一行一条记录的（`.txt`、`.log`、`.jsonl`）折行——要看的多半在行尾（日志的消息、记录的后几个字段），
+ * 截掉就看不到了；代码、配置、表格不折——缩进、列就是结构，折了反而看不清。
+ */
+export function textWraps(path: string): boolean {
+  return fileKindOf(path) === 'text' || extensionOf(path) === 'jsonl'
+}
+
 /** 第一个能展示的项；没有就是 `null`。 */
 export function firstDisplayable(items: readonly ResourceItem[]): number | null {
   const index = items.findIndex((item) => displayKindOf(item) !== null)

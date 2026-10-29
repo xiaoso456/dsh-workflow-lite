@@ -149,3 +149,15 @@ export function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(bytes < 10 * 1024 ? 1 : 0)} KB`
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
+
+/**
+ * 终端颜色、光标控制这类转义序列（日志里常见的 `ESC[31m`）：文本里显示出来只是一串乱码，去掉。
+ * 认 CSI（`ESC [ … 终止字节`）、OSC（`ESC ] … BEL / ESC \`）和其余两字节的 `ESC x`。
+ */
+const ANSI =
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: 要认的就是这几个控制字符
+  /\u001b\[[0-?]*[ -/]*[@-~]|\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)|\u001b[@-Z\\-_]/gu
+
+export function stripAnsi(text: string): string {
+  return text.includes('\u001b') ? text.replace(ANSI, '') : text
+}

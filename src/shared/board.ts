@@ -26,6 +26,17 @@ export type BoardMode = 'card' | 'full'
  */
 export const BOARD_CLEAR_ATTR = 'data-board-clear'
 
+/** 卡片没进交互时 `<html>` 上多标的属性：不画滚动条（页面照样能排版、能被脚本滚，只是看不到滑块）。 */
+export const BOARD_STILL_ATTR = 'data-board-still'
+
+/**
+ * 页面跟着画布主题走吗：样式里用了 `var(--board-…)`。镂空只给这样的页面，别的网页写死了自己的底色和字色，
+ * 底一透明字就看不清了。
+ */
+export function usesBoardTheme(html: string): boolean {
+  return /var\(\s*--board-/u.test(html)
+}
+
 /** 主题变了之后在页面 `window` 上派发的事件（画了图表的页面据此重画）。 */
 export const BOARD_THEME_EVENT = 'wl-board:theme'
 
@@ -66,6 +77,8 @@ export interface BoardTheme {
   canvas?: string
   /** 这一框镂空（只有卡片里会是）。 */
   clear?: boolean
+  /** 卡片没进交互：不画滚动条。 */
+  still?: boolean
 }
 
 export const boardVar = (token: BoardToken): string => `--board-${token}`

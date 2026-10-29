@@ -14,6 +14,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Desktop } from '../app/desktop.ts'
 import type { T } from '../i18n.ts'
+import { stripAnsi } from '../model/fileKind.ts'
 import { brokenImagesOf } from '../model/htmlPreview.ts'
 import { useBoardFrame } from './boardFrame.ts'
 import css from './files.module.css'
@@ -186,7 +187,7 @@ export function DocContent(props: {
   if (format === 'html' && view === 'rendered') {
     return <HtmlFrame name={props.name} text={body.text} onBroken={props.onBroken} />
   }
-  return <pre className={css.viewerSource}>{body.text}</pre>
+  return <pre className={css.viewerSource}>{stripAnsi(body.text)}</pre>
 }
 
 export function DocViewer(props: {

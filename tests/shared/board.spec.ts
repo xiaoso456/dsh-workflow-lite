@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { BOARD_CARD, boardCardRoom } from '../../src/shared/board.ts'
+import { BOARD_STYLE } from '../../src/host/boardSkill.ts'
+import { BOARD_CARD, boardCardRoom, usesBoardTheme } from '../../src/shared/board.ts'
 import { VIEW_SIZES } from '../../src/shared/display.ts'
 
 describe('看板卡片版放得下多少', () => {
@@ -25,5 +26,14 @@ describe('看板卡片版放得下多少', () => {
 
   it('竖长：单栏上下排', () => {
     expect(boardCardRoom(224, 320)).toMatchObject({ small: false, columns: 1, width: 200 })
+  })
+})
+
+describe('页面跟不跟画布主题', () => {
+  it('看板模板用了 --board-* 变量；自己写死颜色的页面、只是提到变量名的文字不算', () => {
+    expect(usesBoardTheme(BOARD_STYLE)).toBe(true)
+    expect(usesBoardTheme('<style>body{color:var( --board-text, #222)}</style>')).toBe(true)
+    expect(usesBoardTheme('<style>body{background:#fff;color:#222}</style>')).toBe(false)
+    expect(usesBoardTheme('<p>主题变量叫 --board-bg</p>')).toBe(false)
   })
 })

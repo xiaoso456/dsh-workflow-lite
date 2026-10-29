@@ -198,6 +198,17 @@ describe('看板：标模式、写主题变量、换主题就地改', () => {
     expect(page.attrs['data-board-clear']).toBeUndefined()
   })
 
+  it('静止的卡片不画滚动条：标上属性、压过页面自己的滚动条；进了交互就摘掉', () => {
+    const light = boardTheme('light', 'white')
+    const page = runBoard(boardScript('card', { ...light, still: true }))
+    expect(page.attrs['data-board-still']).toBe('')
+    expect(boardScript('card', light)).toContain(
+      '[data-board-still],[data-board-still] *{scrollbar-width:none!important}',
+    )
+    page.post({ type: BOARD_THEME_MESSAGE, ...light })
+    expect(page.attrs['data-board-still']).toBeUndefined()
+  })
+
   it('瑞士是直角；值里有 </script> 也截不断脚本', () => {
     expect(boardTheme('light', 'swiss', { look: 'swiss' }).vars['--board-radius']).toBe('0px')
     const script = boardScript('card', {
