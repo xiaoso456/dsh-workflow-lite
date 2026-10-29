@@ -62,13 +62,14 @@ describe('任务描述里的画布展示', () => {
     const texts = tasks(doc(html({ width: 480, height: 300, zoom: 50 })))
     const board = texts.get('board') ?? ''
     expect(board).toContain('**画布展示**：')
-    expect(board).toContain('视口约 960×600 px')
+    expect(board).toContain('视口约 480×300 px')
     expect(board).toContain('`workflow-board`')
     expect(board).toContain('data-board="card"')
     expect(board).toContain('--board-*')
     expect(board).toContain('完整版')
     expect(board).toContain('和画布上的步骤卡片一样大')
-    expect(board).toContain('`.card-view` 上写 `style="--k: 2"`')
+    // 缩放只把整页等比缩放，排版按「大小」：不用让模型把字乘回来。
+    expect(board).not.toContain('--k')
     // 放得下多少按画布像素估（480×300 是横着的卡：左右两栏）。
     expect(board).toContain(
       '主体约 248 px 高、分左右两栏，右栏约 209 px 宽，一栏放得下约 9 行指标行或 12 行列表',
@@ -144,12 +145,11 @@ describe('卡片里看得到多少', () => {
     adapt: true,
   }
 
-  it('网页按「宽 ÷ 缩放」排版；图片报比例（原大时报看得到的像素）；文字报大约几行', () => {
+  it('网页按「大小」排版（缩放只整张等比缩放）；图片报比例（原大时报看得到的像素）；文字报大约几行', () => {
     expect(displayBrief(base)).toEqual({
       kind: 'html',
-      layoutWidth: 960,
-      firstScreen: 600,
-      fontScale: 2,
+      layoutWidth: 480,
+      firstScreen: 300,
       room: { columns: 2, small: false, width: 209, height: 248, stats: 9, list: 12, bars: 11 },
     })
     expect(displayBrief({ ...base, kind: 'image', width: 360, height: 240, zoom: 100 })).toEqual({

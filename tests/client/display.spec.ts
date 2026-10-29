@@ -105,10 +105,15 @@ describe('能展示什么', () => {
 })
 
 describe('尺寸', () => {
-  it('卡片 = 标题行 + 展示区；资源卡尺寸跟着展示走，最窄不小于普通资源卡', () => {
-    expect(displayCardSize({ width: 360, height: 240 })).toEqual({
+  it('卡片 = 标题行 + 展示区（网页乘缩放）；资源卡尺寸跟着展示走，最窄不小于普通资源卡', () => {
+    expect(displayCardSize({ kind: 'image', width: 360, height: 240, zoom: 50 })).toEqual({
       w: 360,
       h: DISPLAY_HEAD + 240,
+    })
+    // 网页按「大小」排版、整张按缩放显示：卡片在画布上占「大小 × 缩放」。
+    expect(displayCardSize({ kind: 'html', width: 320, height: 176, zoom: 50 })).toEqual({
+      w: 160,
+      h: DISPLAY_HEAD + 88,
     })
     const node = (data: ResourceData): ResourceNode => ({
       id: 'r',

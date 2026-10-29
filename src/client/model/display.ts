@@ -7,7 +7,7 @@
  * @module @xiaoso/dsh-workflow-lite/client/model/display
  */
 
-import type { Display } from '../../shared/display.ts'
+import { type Display, displayFootprint } from '../../shared/display.ts'
 import { VIEW_LIMITS } from '../../shared/types.ts'
 
 export {
@@ -16,6 +16,7 @@ export {
   type DisplayKind,
   defaultView,
   displayableItems,
+  displayFootprint,
   displayKindOf,
   displayOf,
   firstDisplayable,
@@ -25,12 +26,13 @@ export {
 /** 展示卡的标题行高（CSS 里写死同样的数）；展示区贴着标题行，四周不留白。 */
 export const DISPLAY_HEAD = 38
 
-/** 展示卡整张的尺寸。 */
-export function displayCardSize(display: Pick<Display, 'width' | 'height'>): {
+/** 展示卡整张的尺寸：标题行 + 展示区在画布上占的大小（网页要乘缩放）。 */
+export function displayCardSize(display: Pick<Display, 'kind' | 'width' | 'height' | 'zoom'>): {
   w: number
   h: number
 } {
-  return { w: display.width, h: DISPLAY_HEAD + display.height }
+  const area = displayFootprint(display)
+  return { w: area.width, h: DISPLAY_HEAD + area.height }
 }
 
 /** 拖出来的展示区尺寸：夹进范围、按 8 像素取整。 */

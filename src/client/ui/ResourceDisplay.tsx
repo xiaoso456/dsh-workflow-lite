@@ -21,7 +21,7 @@ import type { RunFileResponse, RunLatestOutput } from '../../shared/wire.ts'
 import { type DisplayStat, displayKey } from '../app/useDisplayStats.ts'
 import { useRunFile } from '../app/useRunFile.ts'
 import type { T } from '../i18n.ts'
-import type { Display } from '../model/display.ts'
+import { type Display, displayFootprint } from '../model/display.ts'
 import { fileBaseName, formatBytes } from '../model/fileKind.ts'
 import { errorMessage, type WorkflowLiteRpc } from '../rpc.ts'
 import { useBoardFrame } from './boardFrame.ts'
@@ -142,7 +142,7 @@ function DisplayState(props: {
   )
 }
 
-/** 网页：先按 `width / zoom` 宽排版，再整页缩进展示区。页面是看板的卡片版（`data-board="card"`），带画布主题。 */
+/** 网页：按「大小」排版，再按缩放整张等比缩放（像图片一样，排版不变）。页面是看板的卡片版（`data-board="card"`），带画布主题。 */
 function HtmlView(props: {
   name: string
   text: string
@@ -164,8 +164,8 @@ function HtmlView(props: {
       referrerPolicy="no-referrer"
       tabIndex={props.interactive ? 0 : -1}
       style={{
-        width: props.display.width / scale,
-        height: props.display.height / scale,
+        width: props.display.width,
+        height: props.display.height,
         transform: `scale(${scale})`,
       }}
       data-testid="wl-display-frame"
@@ -383,7 +383,7 @@ export function DisplayBody(props: {
       className={css.body}
       data-kind={display.kind}
       data-interactive={props.interactive || undefined}
-      style={{ width: display.width, height: display.height }}
+      style={displayFootprint(display)}
       data-testid="wl-display-body"
     >
       {body}

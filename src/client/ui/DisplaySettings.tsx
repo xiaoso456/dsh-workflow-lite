@@ -2,7 +2,7 @@
  * dsh-workflow-lite — 资源面板里的「画布展示」：开关、展示哪一项、大小、缩放（图片是摆放方式）。
  *
  * 开了之后资源卡在画布上变成一块展示区（见 Canvas 的展示卡与 ResourceDisplay）。
- * 大小三档按内容种类各一套，也能直接填宽高、在画布上拖卡片右下角；网页的缩放决定先按多宽排版。
+ * 大小三档按内容种类各一套，也能直接填宽高、在画布上拖卡片右下角；网页按大小排版，缩放把整张等比缩放。
  * 实例视图里改的只是这个实例（和挪卡片一样进草稿栏，存的时候不通知模型）。
  * 展示的是文件时多一个「让模型适配」（缺省开）：写它的步骤的任务描述里带上卡片尺寸和怎么写才好看。
  *
@@ -16,6 +16,7 @@ import {
   type DisplayKind,
   defaultView,
   displayableItems,
+  displayFootprint,
   displayKindOf,
   displayOf,
   snapView,
@@ -267,8 +268,8 @@ export function DisplaySettings(props: {
           {display.kind === 'html' && (
             <p className={ins.help}>
               {t('display.zoomHint.html').replace(
-                '{w}',
-                String(Math.round((display.width * 100) / display.zoom)),
+                '{size}',
+                `${displayFootprint(display).width}×${displayFootprint(display).height}`,
               )}
             </p>
           )}

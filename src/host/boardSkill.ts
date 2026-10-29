@@ -151,9 +151,9 @@ ${fallbackCss('dark', '      ')}
 
   /* ── 卡片版：正好一屏。字号和画布上的步骤卡片一套（标题 ${BOARD_CARD_FONT.title}、正文 ${BOARD_CARD_FONT.body}、指标值 ${BOARD_CARD_FONT.value}），
      只有主数字随卡片变大；卡片大了多放内容。从上往下排，不垂直居中（居中会在上下各空一截）。
-     放不下时末尾的脚本按 data-drop 收起次要项，再缩主数字。卡片按缩放显示时，任务描述会让你在 .card-view 上写 --k，把字乘回来。 ── */
+     放不下时末尾的脚本按 data-drop 收起次要项，再缩主数字。用户把卡片调成别的缩放时，插件把整页等比缩放，排版不变。 ── */
   .card-view { height: 100vh; padding: ${em(C.pad.top)} ${em(C.pad.x)} ${em(C.pad.bottom)}; gap: ${em(C.headGap)}; grid-template-rows: auto minmax(0, 1fr); line-height: 1.35;
-               font-size: calc(${BOARD_CARD_FONT.body}px * var(--k, 1)); }
+               font-size: ${BOARD_CARD_FONT.body}px; }
   /* 卡片自己有标题行，这里的标题是「看的是哪一期」，压成一行淡字，结论放在右边的徽标里。 */
   .card-head { display: flex; align-items: center; justify-content: space-between; gap: .6em; min-width: 0; height: ${em(C.head)}; }
   .card-head h1 { margin: 0; font-size: 1em; font-weight: 600; color: var(--board-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

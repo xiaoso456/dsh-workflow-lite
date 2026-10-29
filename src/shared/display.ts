@@ -162,9 +162,7 @@ export type DisplayBrief =
       layoutWidth: number
       /** 不滚动时露出页面最上面多高。 */
       firstScreen: number
-      /** 卡片版的字号要乘几倍（缩放 100% 时是 1）：页面整页缩进展示区，乘回来才和画布上的步骤卡片一样大。 */
-      fontScale: number
-      /** 卡片版放得下多少（按画布像素估）。 */
+      /** 卡片版放得下多少（按排版尺寸估；缩放只把整张等比缩放，不改排版）。 */
       room: BoardCardRoom
     }
   | {
@@ -184,15 +182,27 @@ export type DisplayBrief =
       lines: number
     }
 
+/**
+ * 展示区在画布上占多大。网页按「大小」排版，再按缩放整张等比缩放（像图片一样，排版不变），占「大小 × 缩放」；
+ * 其余种类就是「大小」（Markdown、文本的缩放只改字号，图片的缩放只在原大时用）。
+ */
+export function displayFootprint(display: Pick<Display, 'kind' | 'width' | 'height' | 'zoom'>): {
+  width: number
+  height: number
+} {
+  if (display.kind !== 'html') return { width: display.width, height: display.height }
+  const scale = display.zoom / 100
+  return { width: Math.round(display.width * scale), height: Math.round(display.height * scale) }
+}
+
 export function displayBrief(display: Display): DisplayBrief {
   const scale = display.zoom / 100
   switch (display.kind) {
     case 'html':
       return {
         kind: 'html',
-        layoutWidth: Math.round(display.width / scale),
-        firstScreen: Math.round(display.height / scale),
-        fontScale: Math.round(100 / scale) / 100,
+        layoutWidth: display.width,
+        firstScreen: display.height,
         room: boardCardRoom(display.width, display.height),
       }
     case 'image':

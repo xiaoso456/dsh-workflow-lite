@@ -815,7 +815,7 @@ export const zh = {
   'display.fit.contain': '适应',
   'display.fit.cover': '填满',
   'display.fit.actual': '原大',
-  'display.zoomHint.html': '网页先按 {w} 宽排版，再缩进卡片里。',
+  'display.zoomHint.html': '网页按上面的大小排版，缩放时整张等比缩放，在画布上占 {size}。',
   'display.hint': '选中卡片后拖右下角改大小。',
   'display.adapt': '让模型适配展示',
   'display.adaptDesc': '告诉写这个文件的步骤卡片多大，让它在卡片里和单独打开时都好看',
@@ -2170,7 +2170,8 @@ export const en: Record<LocaleKey, string> = {
   'display.fit.contain': 'Fit',
   'display.fit.cover': 'Fill',
   'display.fit.actual': 'Actual',
-  'display.zoomHint.html': 'The page is laid out {w} wide, then scaled into the card.',
+  'display.zoomHint.html':
+    'The page is laid out at the size above and scaled as a whole; it takes {size} on the canvas.',
   'display.hint': 'Select the card and drag its bottom-right corner to resize.',
   'display.adapt': 'Have the model fit the card',
   'display.adaptDesc':

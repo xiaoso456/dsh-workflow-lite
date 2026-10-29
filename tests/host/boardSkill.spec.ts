@@ -57,6 +57,6 @@ describe('skill workflow-board', () => {
       )?.[1]
     expect(BOARD_CARD_FONT.title).toBe(px(rule('cardTitle') ?? ''))
     expect(BOARD_CARD_FONT.body).toBe(px(rule('cardBody') ?? ''))
-    expect(BOARD_TEMPLATE).toContain(`font-size: calc(${BOARD_CARD_FONT.body}px * var(--k, 1))`)
+    expect(BOARD_TEMPLATE).toContain(`font-size: ${BOARD_CARD_FONT.body}px; }`)
   })
 })

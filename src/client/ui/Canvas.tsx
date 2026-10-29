@@ -87,7 +87,7 @@ import {
   linkAllowed,
   previewLink,
 } from '../model/connect.ts'
-import { type Display, displayOf, snapView } from '../model/display.ts'
+import { type Display, displayFootprint, displayOf, snapView } from '../model/display.ts'
 import { type Edit, type Selection, whenOf } from '../model/editor.ts'
 import {
   cardSize,
@@ -1299,7 +1299,10 @@ function DisplayCard(
     event.stopPropagation()
     event.preventDefault()
     const zoom = flow.getZoom()
-    const start = { x: event.clientX, y: event.clientY, w: shown.width, h: shown.height }
+    // 拖的是卡片在画布上的大小；网页整张按缩放显示，记下来的是排版尺寸（画布上的大小 ÷ 缩放）。
+    const scale = display.info.kind === 'html' ? display.info.zoom / 100 : 1
+    const area = displayFootprint(shown)
+    const start = { x: event.clientX, y: event.clientY, w: area.width, h: area.height }
     const ratio = display.info.kind === 'image' ? start.w / start.h : null
     const handle = event.currentTarget
     handle.setPointerCapture(event.pointerId)
@@ -1307,14 +1310,14 @@ function DisplayCard(
     const move = (next: PointerEvent): void => {
       const w = start.w + (next.clientX - start.x) / zoom
       const h = start.h + (next.clientY - start.y) / zoom
-      last = snapView(w, ratio !== null && !next.shiftKey ? w / ratio : h)
+      last = snapView(w / scale, (ratio !== null && !next.shiftKey ? w / ratio : h) / scale)
       setLive(last)
     }
     const done = (): void => {
       handle.removeEventListener('pointermove', move)
       handle.removeEventListener('pointerup', done)
       handle.removeEventListener('pointercancel', done)
-      if (last !== null && (last.width !== start.w || last.height !== start.h)) {
+      if (last !== null && (last.width !== shown.width || last.height !== shown.height)) {
         data.onView(id, { ...display.view, ...last })
       }
       setLive(null)
@@ -1451,6 +1454,7 @@ function DisplayCard(
       {live !== null && (
         <span className={dcss.sizeTag}>
           {live.width} × {live.height}
+          {display.info.kind === 'html' && display.info.zoom !== 100 && ` · ${display.info.zoom}%`}
         </span>
       )}
       <Handle
