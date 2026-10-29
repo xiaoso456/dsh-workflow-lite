@@ -241,6 +241,90 @@
   border-radius: 0 0 calc(9px * var(--wl-round, 1)) calc(9px * var(--wl-round, 1));
 }
 
+/*
+ * 「隐藏标题」：不选中、不悬停、没开着细项时标题淡出——位置留着，卡片不变高，指针下的东西不挪；告警标记照常显示。
+ * 毛玻璃的分隔线跟着淡掉。卡片外观的卡框改成只包住展示区（见下面），标题和镂空一样悬在上面。
+ * 动效例外（登记）：分隔线、卡框的颜色过渡，只在悬停进出、选中时变一次，视口动时不变。
+ */
+.card[data-hide-title] :is(.title, .tab) {
+  transition: opacity 140ms linear;
+}
+
+.card[data-hide-title] .head {
+  transition: border-bottom-color 140ms linear;
+}
+
+/*
+ * 卡片外观 +「隐藏标题」：卡框画在展示区上（一圈 box-shadow 当边，不占位置；卡面底色；折角、选中环往下挪到展示区顶上），
+ * 标题行变透明、标题压淡贴着内容，和镂空一样。卡片占的位置、连线都不变，只是标题那一条不再是卡的一部分。
+ */
+.card[data-display][data-hide-title]:not([data-board-look]) {
+  border-color: transparent;
+  background: transparent;
+}
+
+.card[data-display][data-hide-title]:not([data-board-look])::before,
+.card[data-display][data-hide-title]:not([data-board-look])::after {
+  top: 37px;
+}
+
+/* 折角压在展示区上面（展示区是定位的，排在后面会盖住它）。 */
+.card[data-display][data-hide-title]:not([data-board-look])::before {
+  z-index: 1;
+}
+
+.card[data-hide-title]:not([data-board-look]) .head {
+  align-items: flex-end;
+  padding-right: 8px;
+  padding-bottom: 6px;
+  border-bottom-color: transparent;
+}
+
+.card[data-hide-title]:not([data-board-look]) .title {
+  color: var(--wl-text-3);
+}
+
+.card[data-hide-title]:not([data-board-look]) .window {
+  border-radius: calc(7px * var(--wl-round, 1)) 0 calc(6px * var(--wl-round, 1))
+    calc(6px * var(--wl-round, 1));
+  background: var(--wl-file-surface);
+  box-shadow: 0 0 0 1px var(--wl-file-border);
+  transition: box-shadow 120ms linear;
+}
+
+.card[data-hide-title]:not([data-board-look]):hover .window {
+  box-shadow: 0 0 0 1px var(--wl-line-strong);
+}
+
+.card[data-hide-title]:not([data-board-look])[data-focused="true"] .window {
+  box-shadow: 0 0 0 1px var(--wl-file);
+}
+
+/* 平时（不选中、不悬停）：标题淡出、分隔线去掉。放在各外观的写法后面，压得住它们。 */
+:global(.react-flow__node:not(.selected))
+  .card[data-hide-title]:not(
+    :hover,
+    [data-focused="true"],
+    [data-settings],
+    [data-interactive],
+    [data-resizing]
+  )
+  :is(.title, .tab) {
+  opacity: 0;
+}
+
+:global(.react-flow__node:not(.selected))
+  .card[data-hide-title]:not(
+    :hover,
+    [data-focused="true"],
+    [data-settings],
+    [data-interactive],
+    [data-resizing]
+  )
+  .head {
+  border-bottom-color: transparent;
+}
+
 .body {
   position: relative;
   overflow: hidden;
@@ -636,6 +720,14 @@
 .image {
   display: block;
   user-select: none;
+}
+
+/*
+ * 适应、填满：格子的行列定死成展示区那么大，图片的 100% 才有得量。
+ * 行高跟着内容走的话，百分比高度量不出来、按图片比例撑开：比展示区「高」的图（方图放进扁框）下面一截被裁掉。
+ */
+.imageStage:is([data-fit="contain"], [data-fit="cover"]) {
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
 }
 
 .imageStage[data-fit="contain"] .image,

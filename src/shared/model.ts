@@ -66,7 +66,7 @@ const INPUT_KEYS = [
 const RESOURCE_KEYS = ['label', 'description', 'color', 'items', 'preset', 'view'] as const
 const ITEM_KEYS = ['kind', 'value', 'note'] as const
 /** 展示设置的键序。 */
-const VIEW_KEYS = ['item', 'width', 'height', 'zoom', 'fit', 'adapt', 'look'] as const
+const VIEW_KEYS = ['item', 'width', 'height', 'zoom', 'fit', 'adapt', 'look', 'hideTitle'] as const
 /** edge 的 data 键序。 */
 const EDGE_DATA_KEYS = ['when', 'label', 'handoff', 'update'] as const
 
@@ -394,6 +394,7 @@ export function readView(raw: unknown): ResourceView | undefined {
   if (raw.adapt === false) view.adapt = false
   const look = VIEW_LOOKS.find((candidate) => candidate === raw.look)
   if (look !== undefined) view.look = look
+  if (raw.hideTitle === true) view.hideTitle = true
   return view
 }
 

@@ -96,6 +96,8 @@ export interface Display {
   adapt: boolean
   /** 看板贴在画布上的样子：文档里写的（不写 = 跟着外观设置）；画布按设置定下之后也写在这里往下传。 */
   look?: ViewLook
+  /** 不选中、不悬停时藏起标题行。 */
+  hideTitle: boolean
 }
 
 export function displayOf(data: ResourceData): Display | null {
@@ -116,6 +118,7 @@ export function displayOf(data: ResourceData): Display | null {
     zoom: view.zoom ?? DEFAULT_ZOOM[kind],
     fit: view.fit ?? 'contain',
     adapt: view.adapt !== false,
+    hideTitle: view.hideTitle === true,
     ...(view.look === undefined ? {} : { look: view.look }),
   }
 }

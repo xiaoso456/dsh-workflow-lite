@@ -1426,6 +1426,8 @@ function DisplayCard(
       className={cx(css.resCard, dcss.card, selected && css.cardSelected)}
       data-display={display.info.kind}
       data-board-look={look === 'card' ? undefined : look}
+      // 「隐藏标题」：还没内容（显示草图、读不了的说明）时不藏，不然认不出是哪张。
+      data-hide-title={(shown.hideTitle && filled) || undefined}
       // 毛玻璃在视口动的时候先换成同色的实底：模糊每帧都要重算，平移、缩放会卡。
       data-moving={(look === 'glass' && moving) || undefined}
       data-focused={data.focused}

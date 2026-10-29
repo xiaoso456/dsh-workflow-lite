@@ -53,6 +53,20 @@ describe('存盘形状', () => {
       width: 480,
       height: 300,
     })
+    // 藏标题只记 true；别的写法当没写。
+    expect(readView({ width: 480, height: 300, hideTitle: true })).toEqual({
+      width: 480,
+      height: 300,
+      hideTitle: true,
+    })
+    expect(readView({ width: 480, height: 300, hideTitle: false })).toEqual({
+      width: 480,
+      height: 300,
+    })
+    expect(readView({ width: 480, height: 300, hideTitle: 'yes' })).toEqual({
+      width: 480,
+      height: 300,
+    })
   })
 
   it('规范写法：view 排在最后，键序固定；读进来再写出去不变', () => {
@@ -99,6 +113,7 @@ describe('能展示什么', () => {
       zoom: 100,
       fit: 'contain',
       adapt: true,
+      hideTitle: false,
     })
     expect(displayOf({ ...base, view: { width: 360, height: 240, item: 0 } })?.item).toBe(1)
     expect(displayOf({ items })).toBeNull()

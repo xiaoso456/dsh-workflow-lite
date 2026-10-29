@@ -188,6 +188,8 @@ export interface ResourceView {
   adapt?: false
   /** 看板贴在画布上的样子；缺省跟着外观设置。 */
   look?: ViewLook
+  /** 不选中、不悬停时把标题行藏起来（位置留着）；卡片外观下不起作用。缺省 = 一直显示。 */
+  hideTitle?: true
 }
 
 /** 资源预设的种类（资源卡上的类型标记，见 `shared/presets.ts`）。以后的预设加在这里。 */

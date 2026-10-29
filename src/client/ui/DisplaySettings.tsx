@@ -6,7 +6,7 @@
  * 标题行的齿轮打开同一张浮层，摆在卡片旁边（卡片往右下长大也碰不到它），改什么卡片当场跟着变。
  *
  * 细项分四组：内容（多项时才有）、大小（三档、宽高、缩放；图片多一个摆放）、外观（五张小样：跟随设置和四种样子，
- * 见 app/displayLook.ts）、适配（展示的是文件时：写它的步骤的任务描述里带上卡片尺寸）。说明都收进提示里。
+ * 见 app/displayLook.ts；下面一个「隐藏标题」）、适配（展示的是文件时：写它的步骤的任务描述里带上卡片尺寸）。说明都收进提示里。
  * 实例视图里改的只是这个实例（和挪卡片一样进草稿栏，存的时候不通知模型）。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/DisplaySettings
@@ -80,6 +80,7 @@ export function displaySummary(t: T, display: Display, file: boolean): string {
   if (display.kind === 'image') parts.push(t(`display.fit.${display.fit}`))
   if (zoomable(display)) parts.push(`${display.zoom}%`)
   parts.push(display.look === undefined ? t('display.look.auto') : t(LOOK_NAME[display.look]))
+  if (display.hideTitle) parts.push(t('display.hideTitle'))
   if (file && !display.adapt) parts.push(t('display.adaptOff'))
   return parts.join(' · ')
 }
@@ -360,6 +361,18 @@ export function DisplayOptions(props: {
       <section className={css.optGroup}>
         <GroupHead label={t('display.look')} tip={t('display.lookHint')} />
         <LookPicker t={t} value={display.look} onChange={(look) => set({ look })} />
+        <button
+          type="button"
+          role="switch"
+          aria-checked={display.hideTitle}
+          className={css.optSwitch}
+          data-tip={t('display.hideTitleTip')}
+          data-testid="wl-display-hide-title"
+          onClick={() => set({ hideTitle: display.hideTitle ? undefined : true })}
+        >
+          <SwitchTrack on={display.hideTitle} />
+          <span>{t('display.hideTitle')}</span>
+        </button>
       </section>
 
       {props.file && (
@@ -527,13 +540,14 @@ export function DisplaySettings(props: {
                   })),
                   onPick: (item) => {
                     const kind = displayKindOf(data.items[item] as (typeof data.items)[number])
-                    // 换成另一种内容：尺寸、缩放换成那一种的缺省（网页和图片的合适大小差得多），外观留着。
+                    // 换成另一种内容：尺寸、缩放换成那一种的缺省（网页和图片的合适大小差得多），外观、藏不藏标题留着。
                     if (kind !== null && kind !== display.kind) {
                       const fresh = defaultView(kind, item)
                       props.onChange({
                         ...fresh,
                         ...(display.adapt ? {} : { adapt: false }),
                         ...(view.look === undefined ? {} : { look: view.look }),
+                        ...(view.hideTitle === true ? { hideTitle: true as const } : {}),
                       })
                     } else props.onChange({ ...view, item })
                   },

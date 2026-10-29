@@ -12,6 +12,7 @@ const base: Display = {
   zoom: 100,
   fit: 'contain',
   adapt: true,
+  hideTitle: false,
 }
 
 describe('displaySummary', () => {
@@ -22,6 +23,12 @@ describe('displaySummary', () => {
   it('自定义尺寸只写宽高；选了外观写它的名字；文件没适配时末尾带一句', () => {
     const out = displaySummary(t, { ...base, width: 400, look: 'glass', adapt: false }, true)
     expect(out).toBe('400×176 · 100% · theme.board.glass · display.adaptOff')
+  })
+
+  it('藏了标题写在外观后面', () => {
+    expect(displaySummary(t, { ...base, look: 'card', hideTitle: true }, true)).toBe(
+      'display.size.m 320×176 · 100% · theme.board.card · display.hideTitle',
+    )
   })
 
   it('不是文件不提适配；图片写摆放，只有原大才写缩放', () => {

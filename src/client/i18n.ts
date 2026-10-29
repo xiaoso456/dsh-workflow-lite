@@ -835,6 +835,8 @@ export const zh = {
   'display.lookHint':
     '卡片以外的样子在有内容之后才生效；网页没让模型适配时保留自己的底色，只去掉卡片框。',
   'display.adapt': '让模型适配展示',
+  'display.hideTitle': '隐藏标题',
+  'display.hideTitleTip': '选中或悬停时才显示',
   'display.adaptDesc': '告诉写这个文件的步骤卡片多大，让它在卡片里和单独打开时都好看',
   'display.open': '打开',
   'display.interact': '交互：在卡片里滚动、点击',
@@ -2208,6 +2210,8 @@ export const en: Record<LocaleKey, string> = {
   'display.lookHint':
     'Looks other than Card take effect once there is content; a web page the model was not told to fit keeps its own background and only loses the card frame.',
   'display.adapt': 'Have the model fit the card',
+  'display.hideTitle': 'Hide title',
+  'display.hideTitleTip': 'Shown when selected or hovered',
   'display.adaptDesc':
     'Tells the steps that write this file how big the card is, so it reads well in the card and opened on its own',
   'display.open': 'Open',

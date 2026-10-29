@@ -143,6 +143,7 @@ describe('卡片里看得到多少', () => {
     zoom: 50,
     fit: 'contain',
     adapt: true,
+    hideTitle: false,
   }
 
   it('网页按「大小」排版（缩放只整张等比缩放）；图片报比例（原大时报看得到的像素）；文字报大约几行', () => {
