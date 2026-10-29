@@ -133,7 +133,7 @@ describe('尺寸', () => {
     expect(stepZoom(55, -1)).toBe(50)
     expect(stepZoom(200, 1)).toBe(200)
     expect(stepZoom(25, -1)).toBe(25)
-    expect(defaultView('html')).toEqual({ width: 320, height: 200 })
+    expect(defaultView('html')).toEqual({ width: 320, height: 176 })
     expect(defaultView('image', 2)).toEqual({ item: 2, width: 320, height: 216 })
   })
 })

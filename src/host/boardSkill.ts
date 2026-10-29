@@ -17,12 +17,15 @@ import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-skill'
 import {
   BOARD_ATTR,
+  BOARD_CARD,
   BOARD_SKILL,
   BOARD_THEME_EVENT,
   BOARD_TOKENS,
   type BoardToken,
+  boardCardRoom,
   boardVar,
 } from '../shared/board.ts'
+import { VIEW_SIZES } from '../shared/display.ts'
 
 const FONT = `system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif`
 const MONO = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
@@ -94,13 +97,16 @@ const TOKEN_TABLE = BOARD_TOKENS.map(([token, use]) => `| \`${boardVar(token)}\`
 )
 
 /**
- * 卡片版的字号（画布像素）：和画布上的步骤卡片一套——标题 = 步骤卡片的标题（`--wl-fs-body`），
- * 正文、标签 = 步骤卡片的说明（`--wl-fs-meta`），指标值大一档。画布的字号是定值，不随主题变，所以写死在模板里，
- * 不注入；`tests/host/boardSkill.spec.ts` 对着 `shell.module.css` 查，改画布字号时一起改。
+ * 卡片版的字号（画布像素）：标题 = 步骤卡片的标题（`--wl-fs-body`），正文、标签 = 步骤卡片的说明（`--wl-fs-meta`），
+ * 指标值大一档。`tests/host/boardSkill.spec.ts` 对着 `shell.module.css` 查，改画布字号时一起改。
  */
-export const BOARD_CARD_FONT = { title: 13, body: 12, value: 15 } as const
+export const BOARD_CARD_FONT = BOARD_CARD.font
+
+/** 一栏还有空时，成行的组件每个行距最多加多少（画布像素）。 */
+const SPARE_MAX = 4
 
 const em = (px: number): string => `${Number((px / BOARD_CARD_FONT.body).toFixed(4))}em`
+const C = BOARD_CARD
 
 /**
  * 模板的样式：后备值、两版切换、卡片版的版式、组件、完整版的网格。组件按 em 排，跟着所在那一版的字号走；
@@ -146,28 +152,30 @@ ${fallbackCss('dark', '      ')}
   /* ── 卡片版：正好一屏。字号和画布上的步骤卡片一套（标题 ${BOARD_CARD_FONT.title}、正文 ${BOARD_CARD_FONT.body}、指标值 ${BOARD_CARD_FONT.value}），
      只有主数字随卡片变大；卡片大了多放内容。从上往下排，不垂直居中（居中会在上下各空一截）。
      放不下时末尾的脚本按 data-drop 收起次要项，再缩主数字。卡片按缩放显示时，任务描述会让你在 .card-view 上写 --k，把字乘回来。 ── */
-  .card-view { height: 100vh; padding: ${em(10)} ${em(12)} ${em(12)}; gap: ${em(10)}; grid-template-rows: auto minmax(0, 1fr); line-height: 1.35;
+  .card-view { height: 100vh; padding: ${em(C.pad.top)} ${em(C.pad.x)} ${em(C.pad.bottom)}; gap: ${em(C.headGap)}; grid-template-rows: auto minmax(0, 1fr); line-height: 1.35;
                font-size: calc(${BOARD_CARD_FONT.body}px * var(--k, 1)); }
   /* 卡片自己有标题行，这里的标题是「看的是哪一期」，压成一行淡字，结论放在右边的徽标里。 */
-  .card-head { display: flex; align-items: center; justify-content: space-between; gap: .6em; min-width: 0; min-height: 1.6em; }
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: .6em; min-width: 0; height: ${em(C.head)}; }
   .card-head h1 { margin: 0; font-size: 1em; font-weight: 600; color: var(--board-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .card-head .badge { flex: none; padding: .1em .55em; font-weight: 650; }
   .card-view .hero > b { font-size: clamp(${em(22)}, 15cqi, ${em(32)}); }
   .card-view .kpi > b { font-size: ${em(BOARD_CARD_FONT.value)}; }
   .card-view .row { gap: ${em(16)}; }
   /* 默认单栏，主上次下；横着的卡左右两栏（主栏是进度环时按环宽）。 */
-  .card-body { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto; align-content: start; gap: ${em(12)} ${em(18)}; min-height: 0; }
+  .card-body { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto; align-content: start; gap: ${em(12)} ${em(C.colGap)}; min-height: 0; }
   @media (min-aspect-ratio: 5/4) and (min-width: 200px) and (min-height: 160px) {
     .card-body { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
     /* 主栏是进度环：主栏就是环那么宽（主栏是尺寸容器，按内容取宽会量成 0，所以直接写环的直径）。 */
-    .card-body:has(> .main > .ring) { grid-template-columns: min(calc(100vh - ${em(54)}), 7.5em) minmax(0, 1fr); }
+    .card-body:has(> .main > .ring) { grid-template-columns: min(calc(100vh - ${em(C.pad.top + C.pad.bottom + C.head + C.headGap)}), 7.5em) minmax(0, 1fr); }
   }
   .main { display: flex; flex-direction: column; gap: ${em(8)}; min-width: 0; min-height: 0; container-type: inline-size; }
   .side { display: grid; align-content: start; gap: ${em(10)}; min-width: 0; min-height: 0; }
+  /* 主栏只有一个环或一个主数字：在这一栏里上下居中。 */
+  .main:has(> .ring:only-child, > .hero:only-child) { justify-content: center; }
   /* 主栏里的迷你走势吃掉剩下的高度。 */
   .main > .spark { flex: 1 1 0; height: auto; min-height: 1.8em; max-height: 5em; }
   /* 环的直径 = 主体的高（卡高减去标题行和内距），再大也不超过 --ring。 */
-  .card-view .ring { --ring: 7.5em; width: min(calc(100vh - ${em(54)}), var(--ring)); }
+  .card-view .ring { --ring: 7.5em; width: min(calc(100vh - ${em(C.pad.top + C.pad.bottom + C.head + C.headGap)}), var(--ring)); }
   /* 竖长：主、次上下排开，环居中。 */
   @media (max-aspect-ratio: 5/4) {
     .card-body { gap: ${em(14)}; }
@@ -175,11 +183,11 @@ ${fallbackCss('dark', '      ')}
   }
   /* 小卡（矮或很窄）：只留标题和主组件，排得紧一些；进度条改成一行（标签 | 条 | 值）。 */
   @media (max-width: 199.98px), (max-height: 159.98px) {
-    .card-view { padding: ${em(8)} ${em(12)} ${em(10)}; gap: ${em(6)}; line-height: 1.2; }
+    .card-view { padding: ${em(C.padSmall.top)} ${em(C.padSmall.x)} ${em(C.padSmall.bottom)}; gap: ${em(C.headGapSmall)}; line-height: 1.2; }
     .card-view .ring { --ring: 5em; margin-inline: 0; }
     .card-body { grid-template-rows: minmax(0, 1fr); }
     .card-view .side, .card-view .hide-s { display: none; }
-    .card-view .bars { row-gap: .25em; }
+    .card-view .bars { row-gap: calc(.25em + var(--spare, 0px)); }
     .card-view .main:has(> .meter) { display: grid; grid-template-columns: minmax(0, max-content) minmax(2em, 1fr) max-content; gap: .45em .5em; align-content: start; }
     .card-view .main:has(> .meter) > * { grid-column: 1 / -1; }
     .card-view .main > .meter { grid-template-columns: subgrid; align-items: center; }
@@ -189,8 +197,8 @@ ${fallbackCss('dark', '      ')}
     .card-view .main > .meter > i, .card-view .main > .meter > .ci { grid-column: 2; grid-row: 1; }
   }
   /* 大卡才有的：.only-l。 */
-  @media (max-width: 419.98px), (max-height: 259.98px) { .card-view .only-l { display: none; } }
-  @media (min-width: 420px) and (min-height: 260px) { .main > .spark { max-height: 6.5em; } }
+  @media (max-width: 419.98px), (max-height: 239.98px) { .card-view .only-l { display: none; } }
+  @media (min-width: 420px) and (min-height: 240px) { .main > .spark { max-height: 9em; } }
 
   /* ── 组件（两版都能用） ── */
   .label, .hero > span, .kpi > span, .ring span, .meter > div > span, .bar > span { color: var(--board-muted); font-size: var(--fs-label); }
@@ -220,9 +228,10 @@ ${fallbackCss('dark', '      ')}
   .card-view .ring b { font-size: min(${em(16)}, 24cqi); }
 
   /* 指标行：几个次要的数，一行一个（标签在左、值在右），行间一道淡线。卡片的 .side 里首选它。 */
-  .stats { display: grid; margin: -.45em 0; min-width: 0; }
-  .stats > div { display: flex; justify-content: space-between; align-items: baseline; gap: .6em; min-width: 0; padding: .45em 0; }
-  .stats > div + div { border-top: 1px solid color-mix(in srgb, var(--board-line) 55%, transparent); }
+  /* 行距 = 基本行距 + --spare（卡片里一栏还有空时末尾的脚本把空白分到行间）；分隔线画在行距正中，不撑高容器。 */
+  .stats { display: grid; row-gap: calc(${em(C.stats.gap)} + var(--spare, 0px)); margin: 0; min-width: 0; }
+  .stats > div { position: relative; display: flex; justify-content: space-between; align-items: baseline; gap: .6em; min-width: 0; line-height: ${em(C.stats.row)}; }
+  .stats > div + div::before { content: ""; position: absolute; left: 0; right: 0; top: calc((${em(C.stats.gap)} + var(--spare, 0px)) / -2); border-top: 1px solid color-mix(in srgb, var(--board-line) 55%, transparent); }
   .stats dt { min-width: 0; overflow: hidden; color: var(--board-muted); font-size: var(--fs-label); text-overflow: ellipsis; white-space: nowrap; }
   .stats dd { flex: none; margin: 0; font-size: ${em(BOARD_CARD_FONT.title)}; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
   .full-view .stats dd { font-size: 1em; }
@@ -242,7 +251,7 @@ ${fallbackCss('dark', '      ')}
   .meter > div > b { font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
 
   /* 对比条：几条共用一套列，标签、条、值上下对齐。漏斗多一列「比上一步」。 */
-  .bars { display: grid; grid-template-columns: minmax(0, max-content) minmax(2em, 1fr) max-content; align-items: center; gap: .4em .6em; min-width: 0; }
+  .bars { display: grid; grid-template-columns: minmax(0, max-content) minmax(2em, 1fr) max-content; align-items: center; gap: calc(${em(C.bars.gap)} + var(--spare, 0px)) .6em; min-width: 0; line-height: ${em(C.bars.row)}; }
   .bars.funnel { grid-template-columns: minmax(0, max-content) minmax(2em, 1fr) max-content max-content; }
   .bar { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; align-items: center; min-width: 0; }
   .bar > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -283,8 +292,8 @@ ${fallbackCss('dark', '      ')}
   .steps li.now::before { border-color: var(--board-accent); background: color-mix(in srgb, var(--board-accent) 30%, var(--board-bg)); }
 
   /* 短列表：要处理的几件事。卡片里一行一条，完整版里长句换行。 */
-  .list { display: grid; gap: .35em; margin: 0; padding: 0; list-style: none; min-width: 0; }
-  .list > li { display: grid; grid-template-columns: .5em minmax(0, 1fr) max-content; align-items: center; gap: .5em; }
+  .list { display: grid; gap: calc(${em(C.list.gap)} + var(--spare, 0px)); margin: 0; padding: 0; list-style: none; min-width: 0; }
+  .list > li { display: grid; grid-template-columns: .5em minmax(0, 1fr) max-content; align-items: center; gap: .5em; line-height: ${em(C.list.row)}; }
   .list > li::before { content: ""; width: .5em; height: .5em; border-radius: 50%; background: var(--tone, var(--board-subtle)); }
   .list > li > span { color: var(--board-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .list > li > b { color: var(--tone, var(--board-muted)); font-size: var(--fs-label); font-weight: 700; white-space: nowrap; }
@@ -454,6 +463,11 @@ const SCRIPT = `<script>
     const card = document.querySelector('.card-view')
     if (card === null || root.getAttribute('${BOARD_ATTR}') !== 'card') return
     for (const node of card.querySelectorAll('.hero > b, .ring b, .kpi > b')) node.style.fontSize = ''
+    const rows = [...card.querySelectorAll('.main > .stats, .main > .list, .main > .bars, .side > .stats, .side > .list, .side > .bars')]
+    for (const node of rows) {
+      node.style.removeProperty('--spare')
+      for (const row of node.children) row.style.display = ''
+    }
     const drops = [...card.querySelectorAll('[data-drop]')].sort((a, b) => Number(a.dataset.drop) - Number(b.dataset.drop))
     for (const node of drops) node.style.display = ''
     const boxes = [card, ...card.querySelectorAll('.card-body, .main, .side')]
@@ -462,6 +476,11 @@ const SCRIPT = `<script>
     for (const node of drops) {
       if (!over()) break
       node.style.display = 'none'
+    }
+    // 还放不下（卡片被拖小了）：从后往前收起成行组件的末行，每组至少留一行。
+    for (const block of rows.slice().reverse()) {
+      const left = () => [...block.children].filter((node) => node.style.display !== 'none')
+      while (over() && left().length > 1) left().pop().style.display = 'none'
     }
     const big = [...card.querySelectorAll('.hero > b, .ring b')].map((node) => [node, parseFloat(getComputedStyle(node).fontSize)])
     for (let f = 0.95; over() && f >= 0.7; f -= 0.05) for (const [node, px] of big) node.style.fontSize = px * f + 'px'
@@ -473,6 +492,25 @@ const SCRIPT = `<script>
         node.style.fontSize = px + 'px'
       }
     }
+    // 一栏底下还有空：分到这一栏成行的组件（指标行、列表、对比条）的行间，每个行距最多加 ${SPARE_MAX}px。
+    // 两栏上下排时（竖长、小卡）只有最下面那栏能往下长，空白按整个主体算。
+    const shown = (node) => node.getClientRects().length > 0
+    const body = card.querySelector('.card-body')
+    const cols = [...card.querySelectorAll('.main, .side')].filter(shown)
+    if (body === null) return
+    const stacked = cols.length > 1 && cols[1].getBoundingClientRect().top >= cols[0].getBoundingClientRect().bottom - 1
+    cols.forEach((col, i) => {
+      if (stacked && i < cols.length - 1) return
+      const parts = [...col.children].filter(shown)
+      if (parts.length === 0) return
+      const floor = stacked ? body.getBoundingClientRect().bottom : col.getBoundingClientRect().bottom
+      const spare = floor - Math.max(...parts.map((node) => node.getBoundingClientRect().bottom))
+      const own = rows.filter((node) => node.parentElement === col && shown(node))
+      const gaps = own.reduce((n, node) => n + Math.max(0, [...node.children].filter(shown).length - 1), 0)
+      if (spare < 2 || gaps === 0) return
+      const add = Math.min(${SPARE_MAX}, Math.floor((spare - 1) / gaps))
+      for (const node of own) node.style.setProperty('--spare', add + 'px')
+    })
   }
 
   document.querySelectorAll('svg.spark[data-values]').forEach(spark)
@@ -642,6 +680,28 @@ const COMPONENTS: readonly [string, string, string][] = [
   ],
 ]
 
+/** 常见几档卡片的卡片版放得下多少（按 {@link boardCardRoom} 估，和任务描述里给的数一致）。 */
+const ROOM_TABLE = [
+  '  | 卡片 | 主体（标题行下面） | 一栏放得下 |',
+  '  |---|---|---|',
+  ...(
+    [
+      ['小', VIEW_SIZES.html.s],
+      ['中', VIEW_SIZES.html.m],
+      ['大', VIEW_SIZES.html.l],
+      ['竖长', [224, 320]],
+    ] as const
+  ).map(([name, [w, h]]) => {
+    const room = boardCardRoom(w, h)
+    const layout = room.small
+      ? `${room.width}×${room.height}，只有主栏`
+      : room.columns === 2
+        ? `${room.height} 高，左右两栏，右栏 ${room.width} 宽`
+        : `${room.width}×${room.height}，单栏上下排`
+    return `  | ${name}（${w}×${h}） | ${layout} | 指标行 ${room.stats} 行、列表 ${room.list} 行、对比条 ${room.bars} 行 |`
+  }),
+].join('\n')
+
 const COMPONENT_TABLE = COMPONENTS.map(
   ([name, use, html]) => `**${name}**：${use}\n\n\`\`\`html\n${html}\n\`\`\``,
 ).join('\n\n')
@@ -700,17 +760,14 @@ const CONTENT = `# 画布看板（workflow-lite）
   - 横着的卡：左 \`.main\`、右 \`.side\`；
   - 竖长的卡：\`.main\` 在上、\`.side\` 在下，上下排开；
   - 小卡（高 < 160 或宽 < 200）：只留标题、徽标和 \`.main\`，\`.side\`、\`.hide-s\` 隐藏，\`.main\` 里的进度条变成一行；
-  - 大卡（宽 ≥ 420 且高 ≥ 260）：再显示 \`.only-l\`。
+  - 大卡（宽 ≥ 420 且高 ≥ 240）：再显示 \`.only-l\`。
 - 所以**最要紧的放 \`.main\`**，次要的放 \`.side\`，锦上添花的标 \`.only-l\`。
-- **按卡片大小定放多少**（字号固定，大卡要多放东西，不然就空着）：
+- **按卡片大小写满**（字号固定，卡片大了就要多放，不然底下空一截）。任务描述里给了这张卡的主体多大、一栏放得下几行，照那个数写；常见几档：
 
-  | 卡片 | 大约放得下 |
-  |---|---|
-  | 小（208×128） | 标题行 + 主组件：主数字和一行对比，或三行条 |
-  | 中（320×200） | 再加旁边一组：三四行指标行，或三四行列表 |
-  | 大（448×280） | 再加两三项（标 \`.only-l\`）：迷你走势、短列表、一条进度条 |
-  | 竖长（224×320） | 主组件在上，下面三四项 |
-- **组件要少**：主组件一个，次要的一两样（一组指标行、一个短列表、一条进度条）；对比条、列表、指标行三四行，再往后的标 \`data-drop\`。不放表格、段落。
+${ROOM_TABLE}
+
+  主组件占一块（进度环约 90px 见方，主数字连标签、对比约 60px 高），剩下的高度放次要的。末尾的脚本会把一栏底下剩的一点空白分到行间（每个行距最多加 ${SPARE_MAX}px），空得多了还得多写内容。
+- **组件要少，行可以多**：主组件一个，次要的一两样（一组指标行、一个短列表、一条进度条）；行数照上面写满，再多写一两行标 \`data-drop\`，放不下时自动收起。不放表格、段落。
 - **字要短**：\`<h1>\` 六个字左右，徽标写结论、五六个字（「✓ 已达标」「⚠ 观察中」「✗ 3 个阻塞」），不只靠颜色——小卡、竖长卡上两个挤在一行；指标块的标签四个字以内、值五个字符以内（单位放进 \`<span class="u">\`，不算字数）；主数字下面那行十个字以内。
 
 ## 完整版

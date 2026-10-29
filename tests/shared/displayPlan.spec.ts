@@ -69,11 +69,23 @@ describe('任务描述里的画布展示', () => {
     expect(board).toContain('完整版')
     expect(board).toContain('和画布上的步骤卡片一样大')
     expect(board).toContain('`.card-view` 上写 `style="--k: 2"`')
+    // 放得下多少按画布像素估（480×300 是横着的卡：左右两栏）。
+    expect(board).toContain(
+      '主体约 248 px 高、分左右两栏，右栏约 209 px 宽，一栏放得下约 9 行指标行或 12 行列表',
+    )
+    expect(board).toContain('`data-drop`')
     expect(board).toContain('宽度自适应')
     expect(board).toContain('自包含')
     expect(board).toContain('localStorage')
     expect(board).toContain('CDN')
     expect(texts.get('report')).not.toContain('画布展示')
+  })
+
+  it('小卡、竖长卡：放得下多少换成单栏的说法', () => {
+    const small = tasks(doc(html({ width: 208, height: 128 }))).get('board') ?? ''
+    expect(small).toContain('这是小卡，只显示标题行和 `.main`')
+    const tall = tasks(doc(html({ width: 224, height: 320 }))).get('board') ?? ''
+    expect(tall).toContain('单栏，主组件和次要的上下排')
   })
 
   it('没开展示、关了适配：不提', () => {
@@ -138,6 +150,7 @@ describe('卡片里看得到多少', () => {
       layoutWidth: 960,
       firstScreen: 600,
       fontScale: 2,
+      room: { columns: 2, small: false, width: 209, height: 248, stats: 9, list: 12, bars: 11 },
     })
     expect(displayBrief({ ...base, kind: 'image', width: 360, height: 240, zoom: 100 })).toEqual({
       kind: 'image',
@@ -171,10 +184,10 @@ describe('工具的 display 落成 view', () => {
 
   it('没开过：按展示项的种类从中档起；只有一项能展示时不记 item', () => {
     expect(applyDisplay({ items: [{ kind: 'file', value: 'a.html' }] }, {})).toEqual({
-      view: { width: 320, height: 200 },
+      view: { width: 320, height: 176 },
     })
     expect(applyDisplay({ items }, { item: 1, size: 'l' })).toEqual({
-      view: { item: 1, width: 448, height: 280 },
+      view: { item: 1, width: 448, height: 256 },
     })
   })
 

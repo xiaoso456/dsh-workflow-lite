@@ -16,7 +16,7 @@
  * @module @xiaoso/dsh-workflow-lite/shared/dialect
  */
 
-import { BOARD_ATTR, BOARD_SKILL } from './board.ts'
+import { BOARD_ATTR, BOARD_SKILL, type BoardCardRoom } from './board.ts'
 import { type DisplayBrief, IMAGE_MIN_FONT, IMAGE_MIN_STROKE } from './display.ts'
 import { PLAN_SECTIONS } from './limits.ts'
 import { INSTANCE_VAR } from './pathVars.ts'
@@ -108,11 +108,21 @@ export function dshRunStateLines(facts: Pick<RunStateFacts, 'instance' | 'solo'>
 /** 图片缩进卡片后还看得清：少画、字大线粗（按两倍分辨率出图时的像素）。 */
 const IMAGE_FIT = `卡片很小，一张图只讲一件事（一组对比或一条趋势），标注、刻度从简，细节写进文字产出；文字不小于 ${IMAGE_MIN_FONT} px、线条不细于 ${IMAGE_MIN_STROKE} px。`
 
+/** 这张卡的卡片版放得下多少，写给模型照着定量（数是按模板的版式估的）。 */
+function boardRoomText(room: BoardCardRoom): string {
+  const rows = `约 ${room.stats} 行指标行或 ${room.list} 行列表（对比条 ${room.bars} 行）`
+  if (room.small)
+    return `这是小卡，只显示标题行和 \`.main\`（\`.side\` 隐藏）：主体约 ${room.width}×${room.height} px，放得下${rows}；`
+  if (room.columns === 2)
+    return `标题行下面的主体约 ${room.height} px 高、分左右两栏，右栏约 ${room.width} px 宽，一栏放得下${rows}；`
+  return `标题行下面的主体约 ${room.width}×${room.height} px、单栏，主组件和次要的上下排，一共放得下${rows}，主组件占的高度要扣掉；`
+}
+
 export function dshDisplayLine(brief: DisplayBrief, target?: string): string {
   const lead = target === undefined ? '**画布展示**：' : `**画布展示**（${target}）：`
   switch (brief.kind) {
     case 'html':
-      return `${lead}这个文件是一张看板，直接显示在画布的卡片里（卡片里页面的视口约 ${brief.layoutWidth}×${brief.firstScreen} px），用户也会点开、在浏览器里单独打开它。先用 skill 工具加载 \`${BOARD_SKILL}\`，照里面的模板写（样式和末尾的脚本照抄）。要点：在卡片里 \`<html>\` 带 \`${BOARD_ATTR}="card"\`，这时只显示卡片版——一张卡只回答一个问题，正好铺满这一屏、不滚动：短标题、写着结论的徽标、一个主组件（主数字、进度环、对比条、状态格……），旁边至多一两样次要的；字号照模板，和画布上的步骤卡片一样大（只有主数字随卡片变大），卡片大了多放内容、不放大字${brief.fontScale === 1 ? '' : `（这张卡按 ${Math.round(100 / brief.fontScale)}% 缩放显示，在 \`.card-view\` 上写 \`style="--k: ${brief.fontScale}"\`，字才和步骤卡片一样大）`}；其余情况显示完整版（全部指标、图表、明细，宽度自适应）。颜色、圆角、字体一律用 \`--board-*\` 变量（插件按画布主题注入，\`:root\` 里写后备值），不要写死颜色；图用模板里的迷你走势、走势图或内联 SVG，颜色写在 CSS 里。写成一个自包含的文件：样式、脚本、数据都写进页面（卡片里读不到相对路径的文件），图表库可以从 CDN 引入；不要读写 localStorage、cookie（卡片里会报错）。`
+      return `${lead}这个文件是一张看板，直接显示在画布的卡片里（卡片里页面的视口约 ${brief.layoutWidth}×${brief.firstScreen} px），用户也会点开、在浏览器里单独打开它。先用 skill 工具加载 \`${BOARD_SKILL}\`，照里面的模板写（样式和末尾的脚本照抄）。要点：在卡片里 \`<html>\` 带 \`${BOARD_ATTR}="card"\`，这时只显示卡片版——一张卡只回答一个问题，正好铺满这一屏、不滚动：一行淡字标题（写哪一期、哪一个）、写着结论的徽标、一个主组件（主数字、进度环、对比条、状态格……），旁边放次要的（指标行、短列表）。${boardRoomText(brief.room)}照这个量写满，再多写一两行标 \`data-drop\`（放不下时脚本会收起），别在底下留一截空白；字号照模板，和画布上的步骤卡片一样大（只有主数字随卡片变大），卡片大了多放内容、不放大字${brief.fontScale === 1 ? '' : `（这张卡按 ${Math.round(100 / brief.fontScale)}% 缩放显示，在 \`.card-view\` 上写 \`style="--k: ${brief.fontScale}"\`，字才和步骤卡片一样大）`}；其余情况显示完整版（全部指标、图表、明细，宽度自适应）。颜色、圆角、字体一律用 \`--board-*\` 变量（插件按画布主题注入，\`:root\` 里写后备值），不要写死颜色；图用模板里的迷你走势、走势图或内联 SVG，颜色写在 CSS 里。写成一个自包含的文件：样式、脚本、数据都写进页面（卡片里读不到相对路径的文件），图表库可以从 CDN 引入；不要读写 localStorage、cookie（卡片里会报错）。`
     case 'image': {
       const size = `${brief.width}×${brief.height}`
       const double = `${brief.width * 2}×${brief.height * 2}`

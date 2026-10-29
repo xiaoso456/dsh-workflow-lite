@@ -856,7 +856,7 @@ describe('workflow_lite —— 画布展示（display）', () => {
       node: 'res-board',
       resource: { items: [{ kind: 'file', value: 'dashboard.html' }], display: { size: 'l' } },
     })
-    expect(await viewOf('d', 'res-board')).toEqual({ width: 448, height: 280 })
+    expect(await viewOf('d', 'res-board')).toEqual({ width: 448, height: 256 })
     await run({
       action: 'write_resource',
       workflow: 'd',
@@ -865,7 +865,7 @@ describe('workflow_lite —— 画布展示（display）', () => {
     })
     expect(await viewOf('d', 'res-board')).toEqual({
       width: 448,
-      height: 280,
+      height: 256,
       zoom: 75,
       adapt: false,
     })
@@ -873,7 +873,7 @@ describe('workflow_lite —— 画布展示（display）', () => {
     const resources = index.resources as JsonValue[]
     expect(record(resources[0] as JsonValue).display).toEqual({
       width: 448,
-      height: 280,
+      height: 256,
       zoom: 75,
       adapt: false,
     })

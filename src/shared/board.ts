@@ -59,3 +59,66 @@ export interface BoardTheme {
 }
 
 export const boardVar = (token: BoardToken): string => `--board-${token}`
+
+/**
+ * 看板卡片版的版式（画布像素，正文 12px 时）。字号和画布上的步骤卡片一套（标题 = 卡片标题，正文 = 卡片说明，
+ * 指标值大一档）；画布的字号是定值、不随主题变，所以写死在模板里，不注入。
+ * 模板的样式按这些数生成（host/boardSkill.ts），编译器也按它估一张卡放得下几行（{@link boardCardRoom}），两边一起改。
+ */
+export const BOARD_CARD = {
+  font: { title: 13, body: 12, value: 15 },
+  /** 内距：普通 / 小卡（宽 < 200 或高 < 160）。 */
+  pad: { top: 10, x: 12, bottom: 12 },
+  padSmall: { top: 8, x: 12, bottom: 10 },
+  /** 标题行的高，标题行和主体之间的距离（普通 / 小卡）。 */
+  head: 20,
+  headGap: 10,
+  headGapSmall: 6,
+  /** 左右两栏之间。 */
+  colGap: 18,
+  /** 成行的组件：一行多高、行距。 */
+  stats: { row: 18, gap: 10 },
+  list: { row: 16, gap: 4 },
+  bars: { row: 16, gap: 6 },
+} as const
+
+/** 一张卡的卡片版放得下多少：主体（标题行下面）的大小，一栏放得下几行指标行、列表、对比条。 */
+export interface BoardCardRoom {
+  /** 2 = 左右两栏（横着的卡），1 = 单栏（竖长、小卡）。 */
+  columns: 1 | 2
+  /** 小卡：只显示标题行和主栏（`.side` 隐藏）。 */
+  small: boolean
+  /** 一栏多宽（两栏时是右栏）、主体多高。 */
+  width: number
+  height: number
+  stats: number
+  list: number
+  bars: number
+}
+
+/** 按展示区的大小（画布像素）估：断点和模板样式里的一致（小卡、横着的卡）。 */
+export function boardCardRoom(width: number, height: number): BoardCardRoom {
+  const small = width < 200 || height < 160
+  const wide = !small && width / height >= 1.25
+  const pad = small ? BOARD_CARD.padSmall : BOARD_CARD.pad
+  const body =
+    height -
+    pad.top -
+    pad.bottom -
+    BOARD_CARD.head -
+    (small ? BOARD_CARD.headGapSmall : BOARD_CARD.headGap)
+  const inner = width - pad.x * 2
+  // 两栏是 1.1fr : 1fr，右栏占 1 / 2.1。
+  const column = wide ? (inner - BOARD_CARD.colGap) / 2.1 : inner
+  const rows = ({ row, gap }: { row: number; gap: number }): number =>
+    Math.max(0, Math.floor((body + gap) / (row + gap)))
+  return {
+    columns: wide ? 2 : 1,
+    small,
+    width: Math.round(column),
+    height: Math.max(0, Math.round(body)),
+    stats: rows(BOARD_CARD.stats),
+    list: rows(BOARD_CARD.list),
+    bars: rows(BOARD_CARD.bars),
+  }
+}

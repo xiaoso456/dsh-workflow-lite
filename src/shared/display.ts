@@ -9,6 +9,7 @@
  * @module @xiaoso/dsh-workflow-lite/shared/display
  */
 
+import { type BoardCardRoom, boardCardRoom } from './board.ts'
 import { extensionOf, fileKindOf } from './fileKind.ts'
 import { readView } from './model.ts'
 import {
@@ -57,13 +58,13 @@ export const VIEW_SIZE_KEYS = ['s', 'm', 'l'] as const
 export type ViewSize = (typeof VIEW_SIZE_KEYS)[number]
 
 /**
- * 展示区的三档预设尺寸，按内容种类各一套（宽 × 高，画布像素）。宽度跟步骤卡（216）对齐：
- * 加上展示卡左右 6 的边，小档和一个步骤一样宽，中档一个半，大档两个步骤加中间的空隙。
- * 都是 8 的倍数（拖动按 8 取整）。网页 16:10、图片约 3:2。
+ * 展示区的三档预设尺寸，按内容种类各一套（宽 × 高，画布像素）。宽度约是步骤卡（216）的一个、一个半、两个；
+ * 都是 8 的倍数（拖动按 8 取整）。图片约 3:2；网页的高按看板卡片版（字号和步骤卡片一样）一个问题正好排满来定，
+ * 比 16:10 矮一些，高了底下会空一截。
  */
 export const VIEW_SIZES: Record<DisplayKind, Record<ViewSize, [number, number]>> = {
   image: { s: [208, 136], m: [320, 216], l: [448, 296] },
-  html: { s: [208, 128], m: [320, 200], l: [448, 280] },
+  html: { s: [208, 128], m: [320, 176], l: [448, 256] },
   markdown: { s: [208, 160], m: [320, 232], l: [448, 320] },
   text: { s: [208, 128], m: [320, 192], l: [448, 272] },
 }
@@ -163,6 +164,8 @@ export type DisplayBrief =
       firstScreen: number
       /** 卡片版的字号要乘几倍（缩放 100% 时是 1）：页面整页缩进展示区，乘回来才和画布上的步骤卡片一样大。 */
       fontScale: number
+      /** 卡片版放得下多少（按画布像素估）。 */
+      room: BoardCardRoom
     }
   | {
       kind: 'image'
@@ -190,6 +193,7 @@ export function displayBrief(display: Display): DisplayBrief {
         layoutWidth: Math.round(display.width / scale),
         firstScreen: Math.round(display.height / scale),
         fontScale: Math.round(100 / scale) / 100,
+        room: boardCardRoom(display.width, display.height),
       }
     case 'image':
       return {
