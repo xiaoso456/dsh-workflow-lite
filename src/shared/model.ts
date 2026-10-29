@@ -41,6 +41,7 @@ import {
   type ValidationProblem,
   VIEW_FITS,
   VIEW_LIMITS,
+  VIEW_LOOKS,
   type Viewport,
   type WorkflowDocument,
   type WorkflowEdge,
@@ -65,7 +66,7 @@ const INPUT_KEYS = [
 const RESOURCE_KEYS = ['label', 'description', 'color', 'items', 'preset', 'view'] as const
 const ITEM_KEYS = ['kind', 'value', 'note'] as const
 /** 展示设置的键序。 */
-const VIEW_KEYS = ['item', 'width', 'height', 'zoom', 'fit', 'adapt'] as const
+const VIEW_KEYS = ['item', 'width', 'height', 'zoom', 'fit', 'adapt', 'look'] as const
 /** edge 的 data 键序。 */
 const EDGE_DATA_KEYS = ['when', 'label', 'handoff', 'update'] as const
 
@@ -391,6 +392,8 @@ export function readView(raw: unknown): ResourceView | undefined {
   const fit = VIEW_FITS.find((candidate) => candidate === raw.fit)
   if (fit !== undefined && fit !== 'contain') view.fit = fit
   if (raw.adapt === false) view.adapt = false
+  const look = VIEW_LOOKS.find((candidate) => candidate === raw.look)
+  if (look !== undefined) view.look = look
   return view
 }
 

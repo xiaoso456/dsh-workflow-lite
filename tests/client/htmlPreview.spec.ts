@@ -119,7 +119,14 @@ describe('看板：标模式、写主题变量、换主题就地改', () => {
         vars[name] = value
       },
     }
-    const root = { style, setAttribute: (name: string, value: string) => (attrs[name] = value) }
+    const root = {
+      style,
+      setAttribute: (name: string, value: string) => (attrs[name] = value),
+      toggleAttribute: (name: string, on: boolean) => {
+        if (on) attrs[name] = ''
+        else delete attrs[name]
+      },
+    }
     const listeners: ((event: { source: unknown; data: unknown }) => void)[] = []
     const events: string[] = []
     const parent = { kind: 'parent' }
@@ -171,6 +178,24 @@ describe('看板：标模式、写主题变量、换主题就地改', () => {
     expect(page.vars.color).toBeUndefined()
     expect(page.style.colorScheme).toBe('dark')
     expect(page.events).toEqual([BOARD_THEME_EVENT])
+  })
+
+  it('镂空：标上属性、页面底透明、--board-bg 换成画布底色；关掉就回到卡面色，不用重载', () => {
+    const light = boardTheme('light', 'white')
+    expect(light.canvas).toMatch(/^#[0-9a-f]{6}$/u)
+    expect(light.canvas).not.toBe(light.vars['--board-bg'])
+    const page = runBoard(boardScript('card', { ...light, clear: true }))
+    expect(page.attrs['data-board-clear']).toBe('')
+    expect(page.vars['--board-bg']).toBe(light.canvas)
+    expect(boardScript('card', light)).toContain(
+      '[data-board-clear] body{background:transparent!important}',
+    )
+    page.post({ type: BOARD_THEME_MESSAGE, ...light })
+    expect(page.attrs['data-board-clear']).toBeUndefined()
+    expect(page.vars['--board-bg']).toBe('#fafbfd')
+    // 没带画布底色的消息不镂（不知道该换成什么颜色）。
+    page.post({ type: BOARD_THEME_MESSAGE, scheme: 'light', vars: light.vars, clear: true })
+    expect(page.attrs['data-board-clear']).toBeUndefined()
   })
 
   it('瑞士是直角；值里有 </script> 也截不断脚本', () => {

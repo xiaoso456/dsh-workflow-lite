@@ -18,6 +18,7 @@ import {
   type ResourceView,
   VIEW_FITS,
   type ViewFit,
+  type ViewLook,
 } from './types.ts'
 
 export type DisplayKind = 'image' | 'html' | 'markdown' | 'text'
@@ -93,6 +94,8 @@ export interface Display {
   fit: ViewFit
   /** 写它的步骤要不要按展示做适配。 */
   adapt: boolean
+  /** 看板贴在画布上的样子：文档里写的（不写 = 跟着外观设置）；画布按设置定下之后也写在这里往下传。 */
+  look?: ViewLook
 }
 
 export function displayOf(data: ResourceData): Display | null {
@@ -113,6 +116,7 @@ export function displayOf(data: ResourceData): Display | null {
     zoom: view.zoom ?? DEFAULT_ZOOM[kind],
     fit: view.fit ?? 'contain',
     adapt: view.adapt !== false,
+    ...(view.look === undefined ? {} : { look: view.look }),
   }
 }
 

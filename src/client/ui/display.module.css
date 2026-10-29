@@ -137,6 +137,109 @@
   pointer-events: none;
 }
 
+/*
+ * ── 看板贴在画布上的样子（外观设置里的默认、卡片自己的「外观」，见 app/displayLook.ts） ──
+ * 卡片还是那么大（连线、排版都不变），换的只是卡面：
+ * - 柔边镂空（clear）、纯镂空（bare）：不画外框和卡面；标题行留着位置，标签、分隔线不画，标题压淡、贴着内容；
+ *   选中环（::after）改成离内容 6px 的一圈虚线，悬停时同一圈淡色。
+ *   柔边再把折角那层（::before）改成垫底：一层画布底色、四边各渐隐 18px，画布的点在内容下面淡出去；纯镂空不垫。
+ * - 毛玻璃（glass）：半透明卡面、四角圆、后面的画布模糊着透出来；视口在动时（data-moving）换成同色的实底，
+ *   只有点的画布模糊了也就是一层底色，换的那一下看不出来。
+ */
+.card[data-display]:is([data-board-look="clear"], [data-board-look="bare"]) {
+  border-color: transparent;
+  background: transparent;
+}
+
+.card[data-display][data-board-look="clear"]::before {
+  inset: -14px;
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: var(--wl-canvas);
+  box-shadow: none;
+  mask-image:
+    linear-gradient(to right, transparent, #000 18px, #000 calc(100% - 18px), transparent),
+    linear-gradient(to bottom, transparent, #000 18px, #000 calc(100% - 18px), transparent);
+  mask-composite: intersect;
+  pointer-events: none;
+}
+
+.card[data-display]:is([data-board-look="bare"], [data-board-look="glass"])::before {
+  content: none;
+}
+
+.card[data-display]:is([data-board-look="clear"], [data-board-look="bare"])::after {
+  inset: -6px;
+  border: 1.5px dashed var(--wl-line-strong);
+  border-radius: calc(10px * var(--wl-round, 1));
+  box-shadow: none;
+}
+
+.card[data-display]:is([data-board-look="clear"], [data-board-look="bare"]):hover::after {
+  opacity: 1;
+}
+
+.card[data-display]:is(
+  [data-board-look="clear"],
+  [data-board-look="bare"]
+)[data-focused="true"]::after {
+  border-color: var(--wl-file);
+  opacity: 1;
+}
+
+:global(.react-flow__node.selected)
+  .card[data-display]:is([data-board-look="clear"], [data-board-look="bare"])::after {
+  border-color: var(--wl-accent);
+  opacity: 1;
+}
+
+/*
+ * 标题行在垫底那层上面（垫底是定位的，不定位的会被它盖住）。
+ * 看板四周留 12px：按钮 22 宽、图标 14，右边留 8 正好让图标和看板内容的右缘对齐（毛玻璃同理）。
+ */
+.card:is([data-board-look="clear"], [data-board-look="bare"]) .head {
+  position: relative;
+  align-items: flex-end;
+  padding-right: 8px;
+  padding-bottom: 6px;
+  border-bottom-color: transparent;
+}
+
+.card:is([data-board-look="clear"], [data-board-look="bare"]) .tab {
+  display: none;
+}
+
+.card:is([data-board-look="clear"], [data-board-look="bare"]) .title {
+  color: var(--wl-text-3);
+}
+
+.card[data-display][data-board-look="glass"] {
+  border-color: color-mix(in oklab, var(--wl-line-strong) 70%, transparent);
+  border-radius: calc(10px * var(--wl-round, 1));
+  background: color-mix(in oklab, var(--wl-file-surface) 55%, transparent);
+  box-shadow: var(--wl-shadow-2);
+  backdrop-filter: blur(10px);
+}
+
+.card[data-display][data-board-look="glass"][data-moving] {
+  background: color-mix(in oklab, var(--wl-file-surface) 55%, var(--wl-canvas));
+  backdrop-filter: none;
+}
+
+.card[data-board-look="glass"] .head {
+  padding-right: 8px;
+  border-bottom-color: color-mix(in oklab, var(--wl-line) 70%, transparent);
+}
+
+.card[data-board-look="glass"] .tab {
+  background: color-mix(in oklab, var(--wl-file-tab) 60%, transparent);
+}
+
+.card[data-board-look="glass"] .window {
+  border-radius: 0 0 calc(9px * var(--wl-round, 1)) calc(9px * var(--wl-round, 1));
+}
+
 .body {
   position: relative;
   overflow: hidden;
@@ -557,6 +660,11 @@
   border: 0;
   background: var(--wl-file-surface);
   transform-origin: 0 0;
+}
+
+/* 不是卡片的样子：框也透明，透出后面（垫底、画布、毛玻璃）。 */
+.card[data-board-look] .frame {
+  background: transparent;
 }
 
 /* ── Markdown / 纯文本：超出展示区的部分在底边淡出（交互时能滚，不淡）── */

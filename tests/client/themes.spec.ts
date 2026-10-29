@@ -1,6 +1,12 @@
 import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  getDisplayLook,
+  readDisplayLook,
+  resetDisplayLookCache,
+  setDisplayLook,
+} from '../../src/client/app/displayLook.ts'
+import {
   getThemeChoice,
   readThemeChoice,
   resetThemeCache,
@@ -171,6 +177,37 @@ describe('选了哪套主题记在浏览器里', () => {
   it('旧版记下的米色（paper）已不存在，亮色那一半回到默认', () => {
     store.set('workflow-lite.theme', JSON.stringify({ light: 'paper', dark: 'ocean' }))
     expect(readThemeChoice()).toEqual({ light: 'white', dark: 'ocean' })
+  })
+})
+
+describe('画布上的看板默认长什么样也记在浏览器里', () => {
+  let store: Map<string, string>
+  beforeEach(() => {
+    store = new Map()
+    vi.stubGlobal('window', {
+      localStorage: {
+        getItem: (key: string) => store.get(key) ?? null,
+        setItem: (key: string, value: string) => void store.set(key, value),
+        removeItem: (key: string) => void store.delete(key),
+      },
+    })
+    resetDisplayLookCache()
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('没记过、记坏了都是镂空；换成卡片记下来，换回镂空就不留记录', () => {
+    expect(readDisplayLook()).toBe('clear')
+    store.set('workflow-lite.displayLook', 'neon')
+    expect(readDisplayLook()).toBe('clear')
+    store.clear()
+    setDisplayLook('glass')
+    expect(store.get('workflow-lite.displayLook')).toBe('glass')
+    setDisplayLook('card')
+    expect(store.get('workflow-lite.displayLook')).toBe('card')
+    resetDisplayLookCache()
+    expect(getDisplayLook()).toBe('card')
+    setDisplayLook('clear')
+    expect(store.size).toBe(0)
   })
 })
 

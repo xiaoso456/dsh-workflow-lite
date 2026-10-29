@@ -1,0 +1,73 @@
+/*
+ * 下拉选择（Select.tsx）：触发块就是一个输入框，右边一枚箭头（打开时转半圈）；
+ * 浮层和别处的菜单同一套（ui.module.css 的 .popover / .menuItem），只是宽度跟着触发块、贴得近一点。
+ */
+
+.wrap {
+  display: flex;
+  min-width: 0;
+}
+
+/* Popover 的锚点（直接子元素）铺满这一格，浮层才能和触发块一样宽。 */
+.wrap > div {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.trigger {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  height: 32px;
+  padding: 0 8px 0 10px;
+  color: var(--wl-text);
+  font: inherit;
+  font-size: var(--wl-fs-meta);
+  text-align: left;
+  cursor: pointer;
+}
+
+.value {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chevron {
+  display: inline-flex;
+  flex: none;
+  color: var(--wl-text-3);
+  transition: transform 180ms var(--wl-ease-out);
+}
+
+.trigger[data-open] .chevron {
+  transform: rotate(180deg);
+}
+
+.pop {
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 0;
+  padding: 4px;
+}
+
+.check {
+  display: inline-flex;
+  flex: none;
+  color: var(--wl-accent-text);
+  opacity: 0;
+  transition: opacity 120ms linear;
+}
+
+[data-active="true"] > .check {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chevron {
+    transition: none;
+  }
+}

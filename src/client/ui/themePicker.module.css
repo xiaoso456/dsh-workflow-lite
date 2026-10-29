@@ -240,6 +240,11 @@
   }
 }
 
+/* 看板的样子：一组分段，不铺满整行。 */
+.lookPick {
+  max-width: 440px;
+}
+
 /* 瑞士：设置里的那只盒子改成上下两道线。 */
 :global([data-look="swiss"]) .box {
   border-width: 1px 0;

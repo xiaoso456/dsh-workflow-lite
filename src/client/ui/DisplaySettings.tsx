@@ -5,12 +5,19 @@
  * 大小三档按内容种类各一套，也能直接填宽高、在画布上拖卡片右下角；网页按大小排版，缩放把整张等比缩放。
  * 实例视图里改的只是这个实例（和挪卡片一样进草稿栏，存的时候不通知模型）。
  * 展示的是文件时多一个「让模型适配」（缺省开）：写它的步骤的任务描述里带上卡片尺寸和怎么写才好看。
+ * 网页开着适配时（就是看板）还能选「外观」：跟随设置，或者卡片、柔边镂空、纯镂空、毛玻璃之一（见 app/displayLook.ts）。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/DisplaySettings
  */
 
 import { useState } from 'react'
-import type { ResourceData, ResourceView, ViewFit } from '../../shared/types.ts'
+import {
+  type ResourceData,
+  type ResourceView,
+  VIEW_LOOKS,
+  type ViewFit,
+  type ViewLook,
+} from '../../shared/types.ts'
 import type { T } from '../i18n.ts'
 import {
   type DisplayKind,
@@ -32,6 +39,8 @@ import { SwitchTrack } from './motion.tsx'
 import { cx } from './primitives.tsx'
 import { itemName } from './resourceUi.ts'
 import { Segmented } from './Segmented.tsx'
+import { Select } from './Select.tsx'
+import { LOOK_NAME } from './ThemePicker.tsx'
 import ui from './ui.module.css'
 
 type SizeKey = 's' | 'm' | 'l' | 'custom'
@@ -132,13 +141,18 @@ export function DisplaySettings(props: {
           {choices.length > 1 && (
             <div className={css.panelRow}>
               <span className={css.panelLabel}>{t('display.item')}</span>
-              <select
-                className={cx(ui.input, css.panelGrow)}
-                value={display.item}
-                aria-label={t('display.item')}
-                data-testid="wl-display-item"
-                onChange={(event) => {
-                  const item = Number(event.target.value)
+              <Select<string>
+                className={css.panelGrow}
+                label={t('display.item')}
+                value={String(display.item)}
+                options={choices.map((index) => ({
+                  value: String(index),
+                  label:
+                    itemName(data.items[index] as (typeof data.items)[number]) || `#${index + 1}`,
+                }))}
+                testId="wl-display-item"
+                onChange={(value) => {
+                  const item = Number(value)
                   const kind = displayKindOf(data.items[item] as (typeof data.items)[number])
                   // 换成另一种内容：尺寸、缩放换成那一种的缺省（网页和图片的合适大小差得多）。
                   if (kind !== null && kind !== display.kind) {
@@ -146,13 +160,7 @@ export function DisplaySettings(props: {
                     props.onChange(display.adapt ? fresh : { ...fresh, adapt: false })
                   } else set({ item })
                 }}
-              >
-                {choices.map((index) => (
-                  <option key={index} value={index}>
-                    {itemName(data.items[index] as (typeof data.items)[number]) || `#${index + 1}`}
-                  </option>
-                ))}
-              </select>
+              />
             </div>
           )}
 
@@ -265,6 +273,23 @@ export function DisplaySettings(props: {
             </button>
           )}
 
+          {display.kind === 'html' && display.adapt && (
+            <div className={css.panelRow}>
+              <span className={css.panelLabel}>{t('display.look')}</span>
+              <Select<ViewLook | 'auto'>
+                className={css.panelGrow}
+                label={t('display.look')}
+                value={display.look ?? 'auto'}
+                options={[
+                  { value: 'auto', label: t('display.look.auto') },
+                  ...VIEW_LOOKS.map((value) => ({ value, label: t(LOOK_NAME[value]) })),
+                ]}
+                testId="wl-display-look"
+                onChange={(look) => set({ look: look === 'auto' ? undefined : look })}
+              />
+            </div>
+          )}
+
           {display.kind === 'html' && (
             <p className={ins.help}>
               {t('display.zoomHint.html').replace(
@@ -272,6 +297,9 @@ export function DisplaySettings(props: {
                 `${displayFootprint(display).width}×${displayFootprint(display).height}`,
               )}
             </p>
+          )}
+          {display.kind === 'html' && display.adapt && (
+            <p className={ins.help}>{t('display.lookHint')}</p>
           )}
           <p className={ins.help}>{t('display.hint')}</p>
         </div>

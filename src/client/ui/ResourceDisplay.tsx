@@ -151,7 +151,12 @@ function HtmlView(props: {
 }): React.JSX.Element {
   const scale = props.display.zoom / 100
   const frame = useRef<HTMLIFrameElement>(null)
-  const board = useBoardFrame(frame, props.text, 'card')
+  const board = useBoardFrame(
+    frame,
+    props.text,
+    'card',
+    props.display.look !== undefined && props.display.look !== 'card',
+  )
   return (
     <iframe
       ref={frame}
@@ -167,6 +172,7 @@ function HtmlView(props: {
         width: props.display.width,
         height: props.display.height,
         transform: `scale(${scale})`,
+        colorScheme: board.scheme,
       }}
       data-testid="wl-display-frame"
     />

@@ -153,6 +153,16 @@ export interface ResourceData {
 export const VIEW_FITS = ['contain', 'cover', 'actual'] as const
 export type ViewFit = (typeof VIEW_FITS)[number]
 
+/**
+ * 看板（网页、开着适配）贴在画布上的样子。不写 = 跟着「设置 → 外观」里的默认走。只是看起来的样子，不进计划。
+ * - `card` 展示卡：有边框、卡面、标题行；
+ * - `clear` 柔边镂空：不画卡片，看板透明地贴在画布上，后面垫一层四边渐隐的画布底色（画布的点在内容下面淡出）；
+ * - `bare` 纯镂空：同上但不垫底，画布的点透过来；
+ * - `glass` 毛玻璃：半透明卡面，后面的画布模糊着透出来。
+ */
+export const VIEW_LOOKS = ['card', 'clear', 'bare', 'glass'] as const
+export type ViewLook = (typeof VIEW_LOOKS)[number]
+
 /** 展示区尺寸与内容缩放的取值范围（画布像素 / 百分比）。 */
 export const VIEW_LIMITS = {
   width: [160, 1600],
@@ -162,9 +172,9 @@ export const VIEW_LIMITS = {
 
 /**
  * 资源卡在画布上展示一项内容。卡片大小与内容缩放分开：
- * - `width` / `height`：展示区的大小（画布像素，不含标题行）；
- * - `zoom`：内容显示多大（百分比）。网页先按 `width / zoom` 宽排版再缩进来，Markdown / 文本是字号，
- *   图片在 `fit = actual` 时是原大的百分比。缺省按内容种类（网页 50，其余 100）。
+ * - `width` / `height`：展示区的大小（画布像素，不含标题行）；网页是排版尺寸；
+ * - `zoom`：内容显示多大（百分比）。网页按 `width × height` 排版、整张等比缩放（卡片在画布上占「大小 × 缩放」），
+ *   Markdown / 文本是字号，图片在 `fit = actual` 时是原大的百分比。缺省都是 100。
  */
 export interface ResourceView {
   /** 展示第几项；缺省 = 第一个能展示的。 */
@@ -176,6 +186,8 @@ export interface ResourceView {
   fit?: Exclude<ViewFit, 'contain'>
   /** 让写它的步骤按展示尺寸做适配（任务描述里带上尺寸与要求）；缺省 = 要，只有关掉时写 `false`。 */
   adapt?: false
+  /** 看板贴在画布上的样子；缺省跟着外观设置。 */
+  look?: ViewLook
 }
 
 /** 资源预设的种类（资源卡上的类型标记，见 `shared/presets.ts`）。以后的预设加在这里。 */

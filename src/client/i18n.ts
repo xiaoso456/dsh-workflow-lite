@@ -428,6 +428,13 @@ export const zh = {
   'theme.inkDesc': '纯黑底、更鲜亮的颜色，OLED 屏更省电',
   'theme.ocean': '深海',
   'theme.oceanDesc': '带一点蓝的深色底，配长春花蓝',
+  'theme.board': '画布上的看板',
+  'theme.boardDesc':
+    '执行生成的网页看板在画布上的样子，默认柔边镂空。卡片带边框和标题行；柔边镂空不画卡片，内容下面的画布淡出；纯镂空连画布的点也透过来；毛玻璃是半透明卡面，后面的画布模糊着透出来。单张卡片可以在「画布展示」里另选。',
+  'theme.board.card': '卡片',
+  'theme.board.clear': '柔边镂空',
+  'theme.board.bare': '纯镂空',
+  'theme.board.glass': '毛玻璃',
   'theme.umber': '暖夜',
   'theme.umberDesc': '带一点暖褐的深色底、琥珀橙强调色',
   'cfg.groupStorage': '存储',
@@ -817,6 +824,10 @@ export const zh = {
   'display.fit.actual': '原大',
   'display.zoomHint.html': '网页按上面的大小排版，缩放时整张等比缩放，在画布上占 {size}。',
   'display.hint': '选中卡片后拖右下角改大小。',
+  'display.look': '外观',
+  'display.look.auto': '跟随设置',
+  'display.lookHint':
+    '「跟随设置」用「设置 → 外观」里选的样子；卡片以外的样子在生成内容之后才生效。',
   'display.adapt': '让模型适配展示',
   'display.adaptDesc': '告诉写这个文件的步骤卡片多大，让它在卡片里和单独打开时都好看',
   'display.open': '打开',
@@ -1740,6 +1751,13 @@ export const en: Record<LocaleKey, string> = {
   'hub.memDeleteUsed': '{n} workflows use it; their memory cards will say the entry is missing. ',
   'hub.memInfo': 'Info',
   'hub.memUsedBy': 'Used by',
+  'theme.board': 'Boards on the canvas',
+  'theme.boardDesc':
+    'How generated web boards sit on the canvas; Soft cut-out by default. Card has a border and title row; Soft cut-out drops the card and fades the canvas out under the content; Cut-out lets the canvas dots show through; Frosted glass is a translucent card with the canvas blurred behind it. Each card can pick its own under On the canvas.',
+  'theme.board.card': 'Card',
+  'theme.board.clear': 'Soft cut-out',
+  'theme.board.bare': 'Cut-out',
+  'theme.board.glass': 'Frosted glass',
   'theme.group': 'Appearance',
   'theme.lead':
     'Pick one light and one dark theme; the canvas follows DSH light or dark mode. Applies to this device only.',
@@ -2173,6 +2191,10 @@ export const en: Record<LocaleKey, string> = {
   'display.zoomHint.html':
     'The page is laid out at the size above and scaled as a whole; it takes {size} on the canvas.',
   'display.hint': 'Select the card and drag its bottom-right corner to resize.',
+  'display.look': 'Look',
+  'display.look.auto': 'Follow settings',
+  'display.lookHint':
+    'Follow settings uses the look picked under Settings → Appearance; looks other than Card take effect once the content is generated.',
   'display.adapt': 'Have the model fit the card',
   'display.adaptDesc':
     'Tells the steps that write this file how big the card is, so it reads well in the card and opened on its own',

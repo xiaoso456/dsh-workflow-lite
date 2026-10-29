@@ -45,6 +45,13 @@ describe('存盘形状', () => {
       fit: 'cover',
     })
     expect(readView({ width: 480, height: 300, fit: 'nope' })).toEqual({ width: 480, height: 300 })
+    for (const look of ['card', 'clear', 'bare', 'glass']) {
+      expect(readView({ width: 480, height: 300, look })).toEqual({ width: 480, height: 300, look })
+    }
+    expect(readView({ width: 480, height: 300, look: 'neon' })).toEqual({
+      width: 480,
+      height: 300,
+    })
   })
 
   it('规范写法：view 排在最后，键序固定；读进来再写出去不变', () => {

@@ -4,10 +4,13 @@
  * 点一下马上换，不进下面的保存条（只是看起来的样子，记在浏览器里，见 app/theme.ts）。
  * 每张小卡是那套主题的缩略：画布底、一条侧栏、两张卡和连着它们的线、选中的那张描强调色。
  * 亮、暗两行里，此刻正用着的那一行标「正在用」。
+ * 最下面一行是画布上的看板默认长什么样（卡片、柔边镂空、纯镂空、毛玻璃，见 app/displayLook.ts），同样即点即生效。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/ThemePicker
  */
 
+import { VIEW_LOOKS, type ViewLook } from '../../shared/types.ts'
+import { setDisplayLook, useDisplayLook } from '../app/displayLook.ts'
 import { setThemeChoice, useColorScheme, useThemeChoice } from '../app/theme.ts'
 import type { LocaleKey, T } from '../i18n.ts'
 import {
@@ -22,6 +25,7 @@ import {
 import hub from './hub.module.css'
 import { Icon } from './Icon.tsx'
 import { PickThumb } from './motion.tsx'
+import { Segmented } from './Segmented.tsx'
 import css from './themePicker.module.css'
 
 const NAME: Record<ThemeId, LocaleKey> = {
@@ -33,6 +37,14 @@ const NAME: Record<ThemeId, LocaleKey> = {
   ink: 'theme.ink',
   ocean: 'theme.ocean',
   umber: 'theme.umber',
+}
+
+/** 看板的几种样子在界面上的名字（卡片自己的「外观」也用）。 */
+export const LOOK_NAME: Record<ViewLook, LocaleKey> = {
+  card: 'theme.board.card',
+  clear: 'theme.board.clear',
+  bare: 'theme.board.bare',
+  glass: 'theme.board.glass',
 }
 
 const DESC: Record<ThemeId, LocaleKey> = {
@@ -50,6 +62,7 @@ export function ThemePicker(props: { t: T }): React.JSX.Element {
   const { t } = props
   const choice = useThemeChoice()
   const scheme = useColorScheme()
+  const look = useDisplayLook()
   return (
     <section className={hub.section} data-testid="wl-theme">
       <h3 className={hub.sectionTitle}>{t('theme.group')}</h3>
@@ -73,6 +86,22 @@ export function ThemePicker(props: { t: T }): React.JSX.Element {
           inUse={scheme === 'dark'}
           onPick={(id) => setThemeChoice({ dark: id as typeof choice.dark })}
         />
+        <div className={css.row}>
+          <span className={css.rowHead}>
+            <Icon name="overview" size={14} />
+            {t('theme.board')}
+          </span>
+          <p className={css.lead}>{t('theme.boardDesc')}</p>
+          <div className={css.lookPick}>
+            <Segmented<ViewLook>
+              label={t('theme.board')}
+              value={look}
+              options={VIEW_LOOKS.map((value) => ({ value, label: t(LOOK_NAME[value]) }))}
+              testId="wl-display-look-default"
+              onChange={setDisplayLook}
+            />
+          </div>
+        </div>
       </div>
     </section>
   )

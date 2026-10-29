@@ -20,6 +20,12 @@ export const BOARD_ATTR = 'data-board'
 
 export type BoardMode = 'card' | 'full'
 
+/**
+ * 卡片镂空时 `<html>` 上多标的属性：页面底透明，直接贴在画布上（`--board-bg` 换成画布底色，
+ * 要「挖空」的地方照样写 `--board-bg` 就和后面的画布一个颜色）。
+ */
+export const BOARD_CLEAR_ATTR = 'data-board-clear'
+
 /** 主题变了之后在页面 `window` 上派发的事件（画了图表的页面据此重画）。 */
 export const BOARD_THEME_EVENT = 'wl-board:theme'
 
@@ -56,6 +62,10 @@ export type BoardToken = (typeof BOARD_TOKENS)[number][0]
 export interface BoardTheme {
   scheme: 'light' | 'dark'
   vars: Record<string, string>
+  /** 画布底色：镂空时 `--board-bg` 换成它。 */
+  canvas?: string
+  /** 这一框镂空（只有卡片里会是）。 */
+  clear?: boolean
 }
 
 export const boardVar = (token: BoardToken): string => `--board-${token}`

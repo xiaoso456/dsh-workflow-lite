@@ -45,5 +45,5 @@ export function boardTheme(
   }
   const vars: Record<string, string> = {}
   for (const [token, value] of Object.entries(values)) vars[boardVar(token as BoardToken)] = value
-  return { scheme: mode, vars }
+  return { scheme: mode, vars, canvas: t.canvas }
 }

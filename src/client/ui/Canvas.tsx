@@ -74,6 +74,7 @@ import type {
   WorkflowEdge,
   WorkflowNode,
 } from '../../shared/types.ts'
+import { useDisplayLook } from '../app/displayLook.ts'
 import { findMemory } from '../app/memories.ts'
 import { displayKey } from '../app/useDisplayStats.ts'
 import { recallViewport, rememberViewport } from '../app/viewport.ts'
@@ -136,6 +137,7 @@ import {
   SwapText,
   setCanvasMoving,
   useCanvasExits,
+  useCanvasMoving,
   useLast,
 } from './motion.tsx'
 import { cx, useFloat } from './primitives.tsx'
@@ -1274,13 +1276,30 @@ function DisplayCard(
   const flow = useReactFlow()
   const [live, setLive] = useState<{ width: number; height: number } | null>(null)
   const [interactive, setInteractive] = useState(false)
-  const shown: Display = live === null ? display.info : { ...display.info, ...live }
+  const fallbackLook = useDisplayLook()
+  const moving = useCanvasMoving()
   const canInteract = display.info.kind !== 'image'
   const canOpen = env?.open !== undefined && (display.item.kind === 'text' || display.made === true)
   // 模板画布上，展示的是最近一次执行生成的：标题行悬停时多一个钟，点了打开那个实例。
   const latest = env?.run === null ? env.latest : undefined
   const found =
     display.item.kind === 'file' ? latest?.outputs[displayKey(id, display.info.item)] : undefined
+  // 卡片以外的样子只给看板（网页、开着适配），而且有内容了才换：草图、读不了的说明还是放在卡面上。
+  const board =
+    display.info.kind === 'html' &&
+    display.info.adapt &&
+    (env?.run === null ? found !== undefined : display.made === true)
+  const look =
+    display.info.kind === 'html'
+      ? board
+        ? (display.info.look ?? fallbackLook)
+        : 'card'
+      : undefined
+  const shown: Display = {
+    ...display.info,
+    ...live,
+    ...(look === undefined ? {} : { look }),
+  }
 
   useEffect(() => {
     if (!selected) setInteractive(false)
@@ -1331,6 +1350,9 @@ function DisplayCard(
     <div
       className={cx(css.resCard, dcss.card, selected && css.cardSelected)}
       data-display={display.info.kind}
+      data-board-look={look === 'card' ? undefined : look}
+      // 毛玻璃在视口动的时候先换成同色的实底：模糊每帧都要重算，平移、缩放会卡。
+      data-moving={(look === 'glass' && moving) || undefined}
       data-focused={data.focused}
       data-dim={data.dim}
       data-tone={data.tone}
