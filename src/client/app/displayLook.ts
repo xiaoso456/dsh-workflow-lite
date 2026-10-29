@@ -9,9 +9,18 @@
 
 import { useSyncExternalStore } from 'react'
 import { VIEW_LOOKS, type ViewLook } from '../../shared/types.ts'
+import type { LocaleKey } from '../i18n.ts'
 
 const KEY = 'workflow-lite.displayLook'
 export const DEFAULT_DISPLAY_LOOK: ViewLook = 'clear'
+
+/** 每种样子在界面上叫什么（设置页、卡片的「外观」共用）。 */
+export const LOOK_NAME: Record<ViewLook, LocaleKey> = {
+  card: 'theme.board.card',
+  clear: 'theme.board.clear',
+  bare: 'theme.board.bare',
+  glass: 'theme.board.glass',
+}
 
 let current: ViewLook | null = null
 const listeners = new Set<() => void>()

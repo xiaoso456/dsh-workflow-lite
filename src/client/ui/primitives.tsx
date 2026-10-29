@@ -482,6 +482,11 @@ export function useFloat<A extends HTMLElement>(options: {
    * 缺省 0：立刻拿掉。
    */
   exitMs?: number
+  /**
+   * 摆在这个元素旁边，而不是触发器下面：优先左边、放不下放右边，上沿和它对齐（夹在视图里）。
+   * 画布上的卡片用：浮层不盖住卡片，卡片往右下长大也碰不到它。
+   */
+  beside?: RefObject<HTMLElement | null>
 }): {
   state: FloatState
   setState: (next: FloatState | ((current: FloatState) => FloatState)) => void
@@ -508,7 +513,7 @@ export function useFloat<A extends HTMLElement>(options: {
   const [state, setState] = useState<FloatState>('off')
   const [place, setPlace] = useState<{ left: number; top: number; up: boolean } | null>(null)
   const timer = useRef(0)
-  const { openMs, closeMs, width, align = 'start', gap = FLOAT_GAP, exitMs = 0 } = options
+  const { openMs, closeMs, width, align = 'start', gap = FLOAT_GAP, exitMs = 0, beside } = options
   /**
    * 浮层还挂着吗：打开时挂上；收起后再挂 `exitMs` 放退场动画。
    * 「上一次的 state」在渲染时就比（不等 effect）：收起的那一次渲染里浮层就带着 `data-leaving` 留在原处，
@@ -554,6 +559,16 @@ export function useFloat<A extends HTMLElement>(options: {
     const box = anchor.getBoundingClientRect()
     const area = root.getBoundingClientRect()
     const height = panelRef.current?.offsetHeight ?? 0
+    const next = beside?.current
+    if (next !== undefined && next !== null) {
+      const card = next.getBoundingClientRect()
+      const room = card.left - area.left - gap * 2
+      const left =
+        room >= width ? card.left - area.left - gap * 2 - width : card.right - area.left + gap * 2
+      const top = Math.max(8, Math.min(card.top - area.top, area.height - height - 8))
+      setPlace({ left: Math.max(8, Math.min(left, area.width - width - 8)), top, up: false })
+      return
+    }
     const end =
       align === 'end' || (align === 'auto' && box.left + box.width / 2 - area.left > area.width / 2)
     const wanted = end ? box.right - area.left - width : box.left - area.left - 8
@@ -561,7 +576,7 @@ export function useFloat<A extends HTMLElement>(options: {
     const below = box.bottom - area.top + gap
     const up = below + height > area.height - 8 && box.top - area.top - gap - height > 8
     setPlace({ left, top: up ? box.top - area.top - gap - height : below, up })
-  }, [state, host, width, align, gap])
+  }, [state, host, width, align, gap, beside])
 
   useEffect(() => {
     if (state === 'off') return

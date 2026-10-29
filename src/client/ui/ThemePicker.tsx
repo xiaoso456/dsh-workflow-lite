@@ -4,13 +4,13 @@
  * 点一下马上换，不进下面的保存条（只是看起来的样子，记在浏览器里，见 app/theme.ts）。
  * 每张小卡是那套主题的缩略：画布底、一条侧栏、两张卡和连着它们的线、选中的那张描强调色。
  * 亮、暗两行里，此刻正用着的那一行标「正在用」。
- * 最下面一行是画布上的看板默认长什么样（卡片、柔边镂空、纯镂空、毛玻璃，见 app/displayLook.ts），同样即点即生效。
+ * 最下面一行是画布上的展示卡默认长什么样（卡片、柔边镂空、纯镂空、毛玻璃，见 app/displayLook.ts），同样即点即生效。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/ThemePicker
  */
 
 import { VIEW_LOOKS, type ViewLook } from '../../shared/types.ts'
-import { setDisplayLook, useDisplayLook } from '../app/displayLook.ts'
+import { LOOK_NAME, setDisplayLook, useDisplayLook } from '../app/displayLook.ts'
 import { setThemeChoice, useColorScheme, useThemeChoice } from '../app/theme.ts'
 import type { LocaleKey, T } from '../i18n.ts'
 import {
@@ -37,14 +37,6 @@ const NAME: Record<ThemeId, LocaleKey> = {
   ink: 'theme.ink',
   ocean: 'theme.ocean',
   umber: 'theme.umber',
-}
-
-/** 看板的几种样子在界面上的名字（卡片自己的「外观」也用）。 */
-export const LOOK_NAME: Record<ViewLook, LocaleKey> = {
-  card: 'theme.board.card',
-  clear: 'theme.board.clear',
-  bare: 'theme.board.bare',
-  glass: 'theme.board.glass',
 }
 
 const DESC: Record<ThemeId, LocaleKey> = {

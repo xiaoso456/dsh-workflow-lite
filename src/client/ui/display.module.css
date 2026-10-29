@@ -84,7 +84,8 @@
 
 :global(.react-flow__node.selected) .actions,
 .card[data-display]:hover .actions,
-.card[data-display][data-interactive] .actions {
+.card[data-display][data-interactive] .actions,
+.card[data-display][data-settings] .actions {
   opacity: 1;
 }
 
@@ -138,7 +139,7 @@
 }
 
 /*
- * ── 看板贴在画布上的样子（外观设置里的默认、卡片自己的「外观」，见 app/displayLook.ts） ──
+ * ── 展示卡在画布上的样子（外观设置里的默认、卡片自己的「外观」，见 app/displayLook.ts） ──
  * 卡片还是那么大（连线、排版都不变），换的只是卡面：
  * - 柔边镂空（clear）、纯镂空（bare）：不画外框和卡面；标题行留着位置，标签、分隔线不画，标题压淡、贴着内容；
  *   选中环（::after）改成离内容 6px 的一圈虚线，悬停时同一圈淡色。
@@ -627,6 +628,11 @@
   background-size: 12px 12px;
 }
 
+/* 不是卡片的样子：不垫棋盘格，图片直接放在画布（垫底、毛玻璃）上，透明处透出来。 */
+.card[data-board-look] .imageStage {
+  background: none;
+}
+
 .image {
   display: block;
   user-select: none;
@@ -662,8 +668,8 @@
   transform-origin: 0 0;
 }
 
-/* 不是卡片的样子：框也透明，透出后面（垫底、画布、毛玻璃）。 */
-.card[data-board-look] .frame {
+/* 不是卡片的样子、页面是看板（透明的）：框也透明，透出后面（垫底、画布、毛玻璃）。别的网页留着卡面底色。 */
+.card[data-board-look] .frame[data-clear] {
   background: transparent;
 }
 
@@ -741,24 +747,205 @@
   }
 }
 
-/* ── 面板里的「画布展示」 ── */
+/* ── 「画布展示」：面板里一行摘要 + 「调整」，细项在浮层里（DisplaySettings.tsx） ── */
 
-.panelRow {
+.toggleBox {
+  position: relative;
+}
+
+/* 右边让出「调整」的位置。 */
+.toggleMain[data-adjust] {
+  padding-right: 84px;
+}
+
+.summary {
+  overflow: hidden;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.adjust {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+}
+
+.optionsPop {
+  padding: 12px;
+}
+
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.optGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.optHead {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+}
+
+.optTip {
+  display: inline-grid;
+  place-items: center;
+  color: var(--wl-text-3);
+  cursor: help;
+}
+
+.optTip:hover {
+  color: var(--wl-text);
+}
+
+.optRow {
   display: flex;
   gap: 8px;
   align-items: center;
+  justify-content: space-between;
 }
 
-.panelLabel {
-  flex: none;
-  width: 36px;
-  color: var(--wl-text-3);
-  font-size: var(--wl-fs-micro);
+.optSwitch {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--wl-text);
+  font: inherit;
+  font-size: var(--wl-fs-meta);
+  text-align: left;
+  cursor: pointer;
 }
 
-.panelGrow {
-  flex: 1 1 auto;
+.optSwitch:focus-visible {
+  border-radius: calc(4px * var(--wl-round, 1));
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 2px;
+}
+
+/*
+ * 外观小样：一小块带点的画布，上面一张迷你卡按那种样子画（卡片、柔边、纯镂空、毛玻璃）。
+ * 选中的那张描一圈强调色；「跟随设置」画的是设置里现在用的那种。
+ */
+.looks {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.lookTile {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  align-items: stretch;
   min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--wl-text-3);
+  font: inherit;
+  cursor: pointer;
+}
+
+.lookArt {
+  position: relative;
+  display: block;
+  height: 40px;
+  overflow: hidden;
+  border-radius: calc(6px * var(--wl-round, 1));
+  background-color: var(--wl-canvas);
+  background-image: radial-gradient(
+    color-mix(in oklab, var(--wl-dot), var(--wl-text-3) 45%) 0.8px,
+    transparent 1px
+  );
+  background-size: 5px 5px;
+  box-shadow: inset 0 0 0 1px var(--wl-line);
+  transition: box-shadow 140ms linear;
+}
+
+.lookTile:hover .lookArt {
+  box-shadow: inset 0 0 0 1px var(--wl-line-strong);
+}
+
+.lookTile[aria-checked="true"] .lookArt {
+  box-shadow: inset 0 0 0 2px var(--wl-accent);
+}
+
+.lookTile:focus-visible {
+  outline: none;
+}
+
+.lookTile:focus-visible .lookArt {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 2px;
+}
+
+.lookMini {
+  position: absolute;
+  inset: 9px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  justify-content: center;
+  padding: 0 5px;
+  border-radius: calc(3px * var(--wl-round, 1));
+}
+
+.lookMini > span {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--wl-text-3);
+}
+
+.lookMini > span:nth-child(1) {
+  width: 55%;
+  background: var(--wl-accent);
+}
+
+.lookMini > span:nth-child(3) {
+  width: 75%;
+}
+
+.lookArt[data-art="card"] .lookMini {
+  border: 1px solid var(--wl-file-border);
+  background: var(--wl-file-surface);
+  box-shadow: var(--wl-shadow-1);
+}
+
+.lookArt[data-art="clear"] .lookMini {
+  background: var(--wl-canvas);
+  box-shadow: 0 0 5px 5px var(--wl-canvas);
+}
+
+.lookArt[data-art="glass"] .lookMini {
+  border: 1px solid color-mix(in oklab, var(--wl-line-strong) 70%, transparent);
+  background: color-mix(in oklab, var(--wl-file-surface) 55%, transparent);
+  backdrop-filter: blur(1.5px);
+}
+
+.lookName {
+  overflow: hidden;
+  font-size: var(--wl-fs-micro);
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lookTile[aria-checked="true"] .lookName {
+  color: var(--wl-text);
+  font-weight: 600;
 }
 
 .sizeInputs {
@@ -786,11 +973,4 @@
   font-size: var(--wl-fs-meta);
   font-variant-numeric: tabular-nums;
   text-align: center;
-}
-
-.panelBox {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 8px;
 }

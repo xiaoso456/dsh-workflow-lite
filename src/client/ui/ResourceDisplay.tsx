@@ -151,12 +151,10 @@ function HtmlView(props: {
 }): React.JSX.Element {
   const scale = props.display.zoom / 100
   const frame = useRef<HTMLIFrameElement>(null)
-  const board = useBoardFrame(
-    frame,
-    props.text,
-    'card',
-    props.display.look !== undefined && props.display.look !== 'card',
-  )
+  // 透明只给看板：按约定写的页面跟着画布配色；别的网页多半写死了白底黑字，透出画布来就看不清了，留着自己的底。
+  const clear =
+    props.display.adapt && props.display.look !== undefined && props.display.look !== 'card'
+  const board = useBoardFrame(frame, props.text, 'card', clear)
   return (
     <iframe
       ref={frame}
@@ -174,6 +172,7 @@ function HtmlView(props: {
         transform: `scale(${scale})`,
         colorScheme: board.scheme,
       }}
+      data-clear={clear || undefined}
       data-testid="wl-display-frame"
     />
   )

@@ -70,6 +70,7 @@ import type {
   ResourceKind,
   ResourceView,
   ValidationProblem,
+  ViewLook,
   WorkflowDocument,
   WorkflowEdge,
   WorkflowNode,
@@ -125,6 +126,7 @@ import {
 } from '../model/route.ts'
 import { shortTime } from '../model/time.ts'
 import css from './canvas.module.css'
+import { DisplayOptions, useDisplayFloat } from './DisplaySettings.tsx'
 import dcss from './display.module.css'
 import { FlowStreaks, StreaksMode } from './FlowStreaks.tsx'
 import type { FocusFile } from './Handoff.tsx'
@@ -1278,28 +1280,27 @@ function DisplayCard(
   const [interactive, setInteractive] = useState(false)
   const fallbackLook = useDisplayLook()
   const moving = useCanvasMoving()
+  // 齿轮打开的细项浮层摆在卡片旁边（见 DisplaySettings）。
+  const cardRef = useRef<HTMLDivElement>(null)
+  const settings = useDisplayFloat<HTMLButtonElement>(cardRef)
+  const settingsOpen = settings.state !== 'off'
+  // 视口一动（平移、缩放、适应画布）浮层就和卡片错开了：收起。
+  const closeSettings = settings.setState
+  useEffect(() => {
+    if (moving) closeSettings('off')
+  }, [moving, closeSettings])
   const canInteract = display.info.kind !== 'image'
   const canOpen = env?.open !== undefined && (display.item.kind === 'text' || display.made === true)
   // 模板画布上，展示的是最近一次执行生成的：标题行悬停时多一个钟，点了打开那个实例。
   const latest = env?.run === null ? env.latest : undefined
   const found =
     display.item.kind === 'file' ? latest?.outputs[displayKey(id, display.info.item)] : undefined
-  // 卡片以外的样子只给看板（网页、开着适配），而且有内容了才换：草图、读不了的说明还是放在卡面上。
-  const board =
-    display.info.kind === 'html' &&
-    display.info.adapt &&
+  // 有内容了才换成卡片以外的样子：草图、读不了的说明还是放在卡面上。
+  const filled =
+    display.item.kind === 'text' ||
     (env?.run === null ? found !== undefined : display.made === true)
-  const look =
-    display.info.kind === 'html'
-      ? board
-        ? (display.info.look ?? fallbackLook)
-        : 'card'
-      : undefined
-  const shown: Display = {
-    ...display.info,
-    ...live,
-    ...(look === undefined ? {} : { look }),
-  }
+  const look: ViewLook = filled ? (display.info.look ?? fallbackLook) : 'card'
+  const shown: Display = { ...display.info, ...live, look }
 
   useEffect(() => {
     if (!selected) setInteractive(false)
@@ -1348,6 +1349,7 @@ function DisplayCard(
 
   return (
     <div
+      ref={cardRef}
       className={cx(css.resCard, dcss.card, selected && css.cardSelected)}
       data-display={display.info.kind}
       data-board-look={look === 'card' ? undefined : look}
@@ -1358,6 +1360,7 @@ function DisplayCard(
       data-tone={data.tone}
       data-resizing={live !== null || undefined}
       data-interactive={interactive || undefined}
+      data-settings={settingsOpen || undefined}
       data-testid="wl-resource"
       onPointerEnter={() => data.onFocusFile(id)}
       onPointerLeave={() => data.onFocusFile(null)}
@@ -1390,6 +1393,25 @@ function DisplayCard(
         )}
         {/* 生成了没有看展示区就知道，标题行不再打钩。 */}
         <span className={dcss.actions}>
+          {env !== null && (
+            <button
+              ref={settings.anchorRef}
+              type="button"
+              className={cx(dcss.action, 'nodrag')}
+              aria-pressed={settingsOpen}
+              aria-haspopup="dialog"
+              data-tip={settingsOpen ? undefined : env.t('display.settings')}
+              aria-label={env.t('display.settings')}
+              data-testid="wl-display-settings-open"
+              onClick={(event) => {
+                event.stopPropagation()
+                settings.setState(settingsOpen ? 'off' : 'pinned')
+              }}
+              onKeyDown={settings.onKeyDown}
+            >
+              <Icon name="sliders" size={13} />
+            </button>
+          )}
           {canInteract && (
             <button
               type="button"
@@ -1473,6 +1495,33 @@ function DisplayCard(
           onPointerDown={startResize}
         />
       )}
+      {env !== null &&
+        settings.render({
+          className: cx(ui.confirmPop, dcss.optionsPop),
+          role: 'dialog',
+          label: env.t('display.settings'),
+          testId: 'wl-display-pop',
+          children: (
+            // 浮层挂在视图根，但 React 的事件顺着组件树冒泡：方向键、点击别冒到节点上（会挪卡片、改选中）。
+            // biome-ignore lint/a11y/noStaticElementInteractions: 只是截住冒泡
+            <div
+              onKeyDown={(event) => {
+                const save = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's'
+                if (event.key !== 'Escape' && !save) event.stopPropagation()
+              }}
+              onClick={(event) => event.stopPropagation()}
+              onDoubleClick={(event) => event.stopPropagation()}
+            >
+              <DisplayOptions
+                t={env.t}
+                view={display.view}
+                display={display.info}
+                file={display.item.kind === 'file'}
+                onChange={(view) => data.onView(id, view)}
+              />
+            </div>
+          ),
+        })}
       {live !== null && (
         <span className={dcss.sizeTag}>
           {live.width} × {live.height}
