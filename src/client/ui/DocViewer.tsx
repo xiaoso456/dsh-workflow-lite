@@ -1,12 +1,14 @@
 /**
  * dsh-workflow-lite — 看一份文档的模态框（产出文件、SKILL.md 共用）。
  *
- * 标题行：图标、名字、一行元信息，右边「预览 / 源码」（Markdown、HTML 才有）、复制路径、
+ * 标题行：图标、名字、一行元信息，右边「预览 / 源码」（Markdown、HTML、CSV、压成一行的 JSON 才有）、复制路径、
  * 用其他程序打开（含在文件管理器中显示）、关闭。正文：Markdown 默认排版，HTML 默认在沙箱框里渲染
- * （能跑脚本，但是独立的源：碰不到画布、拿不到登录态），其余原样；读不了的只说明原因。
+ * （能跑脚本，但是独立的源：碰不到画布、拿不到登录态），CSV / TSV 排成表，压成一行的 JSON 展开缩进，
+ * 其余原样；读不了的只说明原因。
  * 有说明（`note`）时标题行多一个「说明」开关，点开从右边滑出一栏，不占正文的地方。
  * 调用方可以在正文前插一段（`lead`），在底部放操作条（`footer`）。
  * 给了 `edit` 就多一个「编辑」：整块文字在这里改（提示词、摘要这类大段文字都在弹窗里改）。
+ * 调用方还能在标题行加按钮（`tools`），在正文右边放一栏（`side`：产出的各轮版本），框子大小不变、正文让出位置。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/DocViewer
  */
@@ -17,6 +19,7 @@ import type { T } from '../i18n.ts'
 import { stripAnsi } from '../model/fileKind.ts'
 import { brokenImagesOf } from '../model/htmlPreview.ts'
 import { useBoardFrame } from './boardFrame.ts'
+import { DataTable } from './DataTable.tsx'
 import css from './files.module.css'
 import { Icon, type IconName } from './Icon.tsx'
 import { type ImageSource, Markdown } from './Markdown.tsx'
@@ -40,11 +43,16 @@ export interface DocEdit {
   start?: boolean
 }
 
-/** 正文是什么：还在读、读不了（说明原因）、读到了一段文字。 */
+/**
+ * 文字按什么格式看：Markdown、HTML、CSV / TSV（排成表）、压成一行的 JSON（展开缩进）有两个视图，其余原样。
+ */
+export type DocFormat = 'plain' | 'markdown' | 'html' | 'csv' | 'tsv' | 'json'
+
+/** 正文是什么：还在读、读不了（说明原因）、读到了一段文字（JSON 的话 `pretty` 是展开的那份）。 */
 export type DocBody =
   | { kind: 'loading' }
   | { kind: 'state'; icon: IconName; text: string }
-  | { kind: 'text'; text: string; format: 'plain' | 'markdown' | 'html' }
+  | { kind: 'text'; text: string; format: DocFormat; pretty?: string }
   /** 调用方自己画的正文（文件夹里有什么、网址的说明）。 */
   | { kind: 'node'; node: React.ReactNode }
 
@@ -81,10 +89,20 @@ export function CopyButton(props: {
   )
 }
 
-/** 正文是哪种格式：Markdown、HTML 有「预览 / 源码」两个视图，其余原样。 */
-export function docFormat(body: DocBody): 'plain' | 'markdown' | 'html' {
+/** 正文是哪种格式：除了 `plain` 都有两个视图（{@link renderedLabel} / 源码），`plain` 原样。 */
+export function docFormat(body: DocBody): DocFormat {
   return body.kind === 'text' ? body.format : 'plain'
 }
+
+/** 排过的那个视图叫什么：表格、格式化、预览。 */
+export function renderedLabel(t: T, format: DocFormat): string {
+  if (format === 'csv' || format === 'tsv') return t('file.table')
+  if (format === 'json') return t('file.pretty')
+  return t('file.rendered')
+}
+
+/** 查看框里的表最多排多少行（再多切到「源码」看）。 */
+const VIEWER_ROWS = 2000
 
 /** 沙箱框里渲染一份 HTML（看板按完整版、带画布主题），并收框里报来的「加载失败的图片数」。 */
 function HtmlFrame(props: {
@@ -149,7 +167,7 @@ export function BrokenImagesHint(props: { t: T; count: number }): React.JSX.Elem
 export function DocContent(props: {
   t: T
   body: DocBody
-  /** 有两个视图的格式（Markdown、HTML）按它显示；别的格式不看它。 */
+  /** 有两个视图的格式（Markdown、HTML、表格、JSON）按它显示；别的格式不看它。 */
   view: 'rendered' | 'source'
   /** iframe 的标题。 */
   name: string
@@ -187,7 +205,11 @@ export function DocContent(props: {
   if (format === 'html' && view === 'rendered') {
     return <HtmlFrame name={props.name} text={body.text} onBroken={props.onBroken} />
   }
-  return <pre className={css.viewerSource}>{stripAnsi(body.text)}</pre>
+  if ((format === 'csv' || format === 'tsv') && view === 'rendered') {
+    return <DataTable t={t} text={body.text} format={format} maxRows={VIEWER_ROWS} />
+  }
+  const text = format === 'json' && view === 'rendered' ? (body.pretty ?? body.text) : body.text
+  return <pre className={css.viewerSource}>{stripAnsi(text)}</pre>
 }
 
 export function DocViewer(props: {
@@ -216,6 +238,12 @@ export function DocViewer(props: {
   edit?: DocEdit
   /** Markdown 里相对路径的图片怎么读（文件查看框按文档所在目录读）；不给就只显示替代文字。 */
   image?: ImageSource
+  /** 标题行里「说明」前面多放的按钮。 */
+  tools?: React.ReactNode
+  /** 正文右边的一栏（不盖住正文）。 */
+  side?: React.ReactNode
+  /** 打开就停在正文末尾（日志：要看的多半是最后几行）。 */
+  startAtEnd?: boolean
   onClose(): void
 }): React.JSX.Element {
   const { t, body, edit } = props
@@ -266,6 +294,7 @@ export function DocViewer(props: {
           <span className={css.viewerName}>{props.name}</span>
           <span className={css.viewerMeta}>{props.meta}</span>
         </div>
+        {props.tools}
         {note !== '' && (
           <NoteToggle t={t} open={noteOpen} onToggle={() => setNoteOpen((open) => !open)} />
         )}
@@ -279,7 +308,7 @@ export function DocViewer(props: {
               options={[
                 ...(formatted
                   ? [
-                      { value: 'rendered' as const, label: t('file.rendered') },
+                      { value: 'rendered' as const, label: renderedLabel(t, format) },
                       { value: 'source' as const, label: t('file.source') },
                     ]
                   : [{ value: 'rendered' as const, label: t('file.text') }]),
@@ -300,16 +329,22 @@ export function DocViewer(props: {
         </button>
       </header>
       {failure !== null && <p className={css.previewNote}>{failure}</p>}
-      <div className={css.viewerMain}>
+      <div className={css.viewerMain} data-side={props.side != null || undefined}>
         <div
           className={cx(css.viewerBody, body.kind === 'loading' ? undefined : css.viewerReveal)}
           // 读完了换一块：内容淡入浮起，不和骨架硬切。
           key={`${view}:${body.kind === 'loading'}`}
+          ref={(element) => {
+            if (element !== null && props.startAtEnd === true && body.kind !== 'loading') {
+              element.scrollTop = element.scrollHeight
+            }
+          }}
           data-testid="wl-viewer-body"
         >
           {props.lead}
           {content}
         </div>
+        {props.side}
         {noteOpen && note !== '' && (
           <NoteDrawer t={t} text={note} onClose={() => setNoteOpen(false)} />
         )}

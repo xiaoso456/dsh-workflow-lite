@@ -176,7 +176,7 @@ export function RunResourceDetail(props: {
       </section>
 
       {resource.data.preset === undefined && (
-        <DisplaySettings t={t} data={resource.data} onChange={props.onDisplay} />
+        <DisplaySettings t={t} node={resource.id} data={resource.data} onChange={props.onDisplay} />
       )}
 
       {openItem !== undefined && open !== null && openItem.kind === 'folder' && (

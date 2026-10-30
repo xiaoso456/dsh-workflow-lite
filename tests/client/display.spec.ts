@@ -31,13 +31,14 @@ import type { ResourceData, ResourceNode, WorkflowDocument } from '../../src/sha
 const file = (value: string) => ({ kind: 'file' as const, value })
 
 describe('存盘形状', () => {
-  it('宽高缺一个就当没开；越界夹回范围、取整；fit 的缺省 contain 不写盘', () => {
+  it('宽高缺一个就当没开；越界夹回范围、取整；认得的 fit 原样留着（图墙要记下 contain）', () => {
     expect(readView({ width: 300 })).toBeUndefined()
     expect(readView('x')).toBeUndefined()
     expect(readView({ width: 99999, height: 3.6, zoom: 1, fit: 'contain', item: -1 })).toEqual({
       width: 1600,
       height: 100,
       zoom: 25,
+      fit: 'contain',
     })
     expect(readView({ width: 480, height: 300, zoom: 50, fit: 'cover', item: 2 })).toEqual({
       item: 2,
@@ -84,7 +85,7 @@ describe('存盘形状', () => {
 })
 
 describe('能展示什么', () => {
-  it('图片、网页、Markdown、文本类文件和自定义文字；文件夹、网址、Skill、二进制不行', () => {
+  it('图片、网页、Markdown、文本类文件、文件夹（图墙）和自定义文字；网址、Skill、二进制不行', () => {
     expect(displayKindOf(file('a/shot.PNG'))).toBe('image')
     expect(displayKindOf(file('board.html'))).toBe('html')
     expect(displayKindOf(file('report.md'))).toBe('markdown')
@@ -94,7 +95,7 @@ describe('能展示什么', () => {
     expect(displayKindOf(file('main.ts'))).toBe('text')
     expect(displayKindOf(file('a.zip'))).toBeNull()
     expect(displayKindOf(file(''))).toBeNull()
-    expect(displayKindOf({ kind: 'folder', value: 'shots' })).toBeNull()
+    expect(displayKindOf({ kind: 'folder', value: 'shots' })).toBe('gallery')
     expect(displayKindOf({ kind: 'url', value: 'https://x.dev' })).toBeNull()
     expect(displayKindOf({ kind: 'skill', value: 'impeccable' })).toBeNull()
     expect(
@@ -115,6 +116,9 @@ describe('能展示什么', () => {
       fit: 'contain',
       adapt: true,
       hideTitle: false,
+      lines: {},
+      table: {},
+      gallery: {},
     })
     expect(displayOf({ ...base, view: { width: 360, height: 240, item: 0 } })?.item).toBe(1)
     expect(displayOf({ items })).toBeNull()

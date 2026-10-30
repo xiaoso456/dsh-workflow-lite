@@ -5,8 +5,8 @@
  * 旧版本遗留的任务描述（`.dispatch/`：早先编译时写在这里，现在任务描述放在各实例目录的 `tasks/` 里，
  * 不再有人写它、也不再有人读它）。
  *
- * 两样能清的东西：旧版遗留文件（随时可删）、已结束的实例记录（完成 / 已取消；只删索引条目与快照，
- * 工作区里的状态文件不动）。
+ * 三样能清的东西：旧版遗留文件（随时可删）、已结束的实例记录（完成 / 已取消；只删索引条目与快照，
+ * 工作区里的状态文件不动）、各实例存下的产出旧版（`runs/<实例>/history/`，现在的文件不动）。
  *
  * @module @xiaoso/dsh-workflow-lite/host/runs/storage
  */
@@ -18,10 +18,17 @@ import { MEMORY_VERSIONS_DIR, VERSIONS_DIR } from '../../shared/limits.ts'
 import type { StorageStats } from '../../shared/wire.ts'
 import { removeTree } from '../store/atomic.ts'
 import { dispatchRoot, memoriesDir, templatesDir, workflowsDir } from '../store/paths.ts'
+import { HISTORY_DIR } from './history.ts'
 import type { RunService } from './service.ts'
 import { RUNS_DIR } from './store.ts'
 
-export type StorageAction = 'stats' | 'clearDispatch' | 'clearFinished'
+export type StorageAction = 'stats' | 'clearDispatch' | 'clearFinished' | 'clearHistory'
+
+/** 各实例存下的产出旧版：每个实例目录下的 `history/`。 */
+async function historyDirs(dataDir: string): Promise<string[]> {
+  const names = await readdir(join(dataDir, RUNS_DIR)).catch(() => [] as string[])
+  return names.map((name) => join(dataDir, RUNS_DIR, name, HISTORY_DIR))
+}
 
 async function treeSize(dir: string): Promise<{ files: number; bytes: number }> {
   let entries: Dirent[]
@@ -72,6 +79,13 @@ export async function storageAction(
     for (const item of finished) await runs.remove(item.id, false)
     cleared = finished.length
   }
+  if (action === 'clearHistory') {
+    cleared = 0
+    for (const dir of await historyDirs(dataDir)) {
+      cleared += (await treeSize(dir)).files
+      await removeTree(dir)
+    }
+  }
   const all = await runs.list(undefined, true)
   const [
     workflows,
@@ -92,6 +106,7 @@ export async function storageAction(
     treeSize(join(dataDir, RUNS_DIR)),
     treeSize(dispatchRoot(dataDir)),
   ])
+  const histories = await Promise.all((await historyDirs(dataDir)).map(treeSize))
   return {
     dataDir,
     workflows: workflows.files,
@@ -105,6 +120,7 @@ export async function storageAction(
     instances: all.length,
     finished: all.filter((item) => item.status === 'done' || item.status === 'cancelled').length,
     instanceBytes: snapshots.bytes,
+    historyBytes: histories.reduce((sum, tree) => sum + tree.bytes, 0),
     dispatchFiles: dispatch.files,
     dispatchBytes: dispatch.bytes,
     ...(cleared === undefined ? {} : { cleared }),

@@ -624,6 +624,23 @@ describe('看产出文件', () => {
     expect(big.ok && big.result.kind).toBe('tooLarge')
     expect(big.ok && big.result.text).toBeUndefined()
 
+    // 日志读末尾：太大时给最后一段，从一整行开始，cut 是前面跳过的字节数。
+    const lines = Array.from({ length: 120_000 }, (_, n) => `第 ${n} 行`).join('\n')
+    await writeFile(join(workspace, 'run.log'), `${lines}\n`)
+    const tail = await runs.file(id, { path: 'run.log' }, { tail: true })
+    if (!tail.ok) throw new Error(tail.error.message)
+    expect(tail.result.kind).toBe('text')
+    expect(tail.result.text?.endsWith('第 119999 行\n')).toBe(true)
+    expect(tail.result.text?.startsWith('第 ')).toBe(true)
+    expect(tail.result.cut).toBeGreaterThan(0)
+    expect((tail.result.cut ?? 0) + Buffer.byteLength(tail.result.text ?? '')).toBe(
+      Buffer.byteLength(`${lines}\n`),
+    )
+    // 不带 tail、或者不太大：照旧。
+    expect((await runs.file(id, { path: 'run.log' })).ok && 'tooLarge').toBe('tooLarge')
+    const small = await runs.file(id, { path: 'board.html' }, { tail: true })
+    expect(small.ok && small.result.cut).toBeUndefined()
+
     // HTML 单独放宽：1.5 MB 的报告照旧带正文回来（普通文本在 1 MB 就拦下了）。
     await writeFile(join(workspace, 'big.html'), `<h1>x</h1>${'y'.repeat(1_500_000)}`)
     const bigHtml = await runs.file(id, { path: 'big.html' })
@@ -682,7 +699,7 @@ describe('看产出文件', () => {
     expect(folder.ok && folder.result.exists).toBe(true)
   })
 
-  it('run/stat：只看在不在、大小、修改时间；文件夹、网址、越界的项都当不在', async () => {
+  it('run/stat：只看在不在、大小、修改时间；文件夹报项数和最新的修改时间；网址、越界的项都当不在', async () => {
     await run({
       action: 'write_resource',
       workflow: 'cr',
@@ -711,8 +728,20 @@ describe('看产出文件', () => {
     expect(board?.exists).toBe(true)
     expect(board?.size).toBe(Buffer.byteLength('<h1>看板</h1>'))
     expect(board?.mtime).toBeGreaterThan(0)
-    // 文件夹项不算（展示只认文件），网址、越界、不在快照里的都当不在。
-    expect(rest.map((stat) => stat.exists)).toEqual([false, false, false, false])
+    // 文件夹：大小是这一层有几项，修改时间不早于里面最新的那份；网址、越界、不在快照里的都当不在。
+    const [folder, ...others] = rest
+    expect(folder).toMatchObject({ exists: true, size: 1 })
+    expect(folder?.mtime).toBeGreaterThanOrEqual(board?.mtime ?? 0)
+    expect(others.map((stat) => stat.exists)).toEqual([false, false, false])
+    // 往文件夹里覆盖写一份：文件夹自己的时间不一定变，报的修改时间要跟着变。
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    await writeFile(join(workspace, 'docs', 'board.html'), '<h1>看板 2</h1>')
+    const again = await runs.stat(id, targets)
+    if (!again.ok) throw new Error(again.error.message)
+    expect(again.result.stats[1]?.mtime).toBeGreaterThan(folder?.mtime ?? 0)
+    // 模板上的「上次执行」也认文件夹（图墙）。
+    const [latestFolder] = (await runs.latest('cr', [{ node: 'ref', value: 'docs' }])).latest
+    expect(latestFolder).toMatchObject({ instance: id, item: 1, size: 1 })
     expect((await runs.stat('bad id', targets)).ok).toBe(false)
   })
 

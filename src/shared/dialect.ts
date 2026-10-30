@@ -134,6 +134,14 @@ export function dshDisplayLine(brief: DisplayBrief, target?: string): string {
       }
       return `${lead}这张图会在画布的卡片里按 ${brief.ratio} 的框完整缩放显示（卡片 ${size}），用户也会点开看原图。出图时尽量用 ${brief.ratio} 的宽高比、分辨率至少是卡片的两倍（比如 ${double}）；${IMAGE_FIT}`
     }
+    case 'gallery': {
+      const hero =
+        brief.hero === undefined
+          ? ''
+          : `最新的一张占大格（约 ${brief.hero.width}×${brief.hero.height}），`
+      const fit = brief.fit === 'cover' ? '每格铺满、超出的边裁掉' : '每格完整缩放、不裁'
+      return `${lead}这个文件夹会在画布的卡片里排成图墙：里面的图片按修改时间从新到旧排，${hero}一次露出 ${brief.tiles} 张（${fit}），用户点开才看全部。往里放图片（PNG、JPG、WebP、SVG），一张一件事、主体放在中间，文件名写清是什么；${IMAGE_FIT}`
+    }
     case 'markdown':
       return `${lead}这个文件会显示在画布的卡片里，只露出开头约 ${brief.lines} 行（往下淡出），用户点开才看全文。先写结论和关键数字，细节放后面；开头不要放长目录和大段背景。全文照常写完整。`
     default:

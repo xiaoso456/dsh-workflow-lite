@@ -8,7 +8,11 @@ import {
   applyDisplay,
   type Display,
   displayBrief,
+  displayKindOf,
   displayOf,
+  galleryGrid,
+  galleryLayout,
+  galleryTracks,
   ratioText,
 } from '../../src/shared/display.ts'
 import { analyzeGraph } from '../../src/shared/graph.ts'
@@ -144,6 +148,9 @@ describe('卡片里看得到多少', () => {
     fit: 'contain',
     adapt: true,
     hideTitle: false,
+    lines: {},
+    table: {},
+    gallery: {},
   }
 
   it('网页按「大小」排版（缩放只整张等比缩放）；图片报比例（原大时报看得到的像素）；文字报大约几行', () => {
@@ -166,6 +173,105 @@ describe('卡片里看得到多少', () => {
     expect(displayBrief({ ...base, kind: 'markdown', height: 260, zoom: 100 })).toEqual({
       kind: 'markdown',
       lines: 12,
+    })
+  })
+
+  it('文件夹排成图墙：报一次露出几张、最新那张的大格多大', () => {
+    expect(displayKindOf({ kind: 'folder', value: 'out/shots' })).toBe('gallery')
+    expect(displayKindOf({ kind: 'folder', value: ' ' })).toBeNull()
+    expect(
+      displayOf({ items: [{ kind: 'folder', value: 'shots' }], view: { width: 320, height: 216 } }),
+    ).toMatchObject({ kind: 'gallery', fit: 'cover' })
+    expect(
+      displayBrief({ ...base, kind: 'gallery', width: 320, height: 216, zoom: 100, fit: 'cover' }),
+    ).toEqual({ kind: 'gallery', tiles: 9, hero: { width: 159, height: 143 }, fit: 'cover' })
+    // 小卡两格并排，没有大格。
+    expect(galleryGrid(208, 136)).toMatchObject({ columns: 2, rows: 1, hero: false, slots: 2 })
+    expect(galleryGrid(448, 296)).toMatchObject({ columns: 5, rows: 3, hero: true, slots: 12 })
+  })
+
+  it('图少时按张数重排：小格接近 4:3，五张起最新的占大格，最后一行摊开占满', () => {
+    expect(galleryLayout(448, 296, 1)).toMatchObject({ columns: 1, rows: 1, spans: [] })
+    expect(galleryLayout(448, 296, 2)).toMatchObject({ columns: 2, rows: 1, spans: [] })
+    // 三张：上面两张、下面一张占满一行。
+    expect(galleryLayout(448, 296, 3)).toMatchObject({
+      columns: 2,
+      rows: 2,
+      hero: false,
+      spans: [2],
+    })
+    expect(galleryLayout(448, 296, 5)).toMatchObject({ hero: true })
+    // 七张：大格 + 右边四张，最后一行两张各占两列。
+    expect(galleryLayout(448, 296, 7)).toMatchObject({
+      columns: 4,
+      rows: 3,
+      hero: true,
+      spans: [2, 2],
+    })
+    // 够多了：照满格的排法（多出来的写在最后一格的「+N」里）。
+    expect(galleryLayout(320, 216, 30)).toMatchObject({ hero: true, slots: 9, spans: [] })
+    // 每种张数都排得下、不留空：格子数（含摊开的）正好铺满。
+    for (const [w, h] of [
+      [208, 136],
+      [320, 216],
+      [448, 296],
+      [600, 200],
+    ]) {
+      for (let n = 1; n <= 30; n += 1) {
+        const l = galleryLayout(w, h, n)
+        const cells =
+          Math.min(n, l.slots) + l.spans.reduce((a, b) => a + b - 1, 0) + (l.hero ? 3 : 0)
+        expect(cells, `${w}×${h} ${n}`).toBe(l.columns * l.rows)
+      }
+    }
+  })
+
+  it('图墙的设置：固定几列几行、不放大、大图 + 胶片、最新一张', () => {
+    // 固定 3 × 2：卡片多大都是这几格，第一张占 2 × 2。
+    expect(galleryGrid(448, 296, { grid: { columns: 3, rows: 2 } })).toMatchObject({
+      columns: 3,
+      rows: 2,
+      hero: true,
+      slots: 3,
+    })
+    expect(galleryGrid(900, 600, { grid: { columns: 3, rows: 2 } }).slots).toBe(3)
+    expect(galleryGrid(448, 296, { hero: false })).toMatchObject({ hero: false, slots: 15 })
+    // 固定的不按张数重排：空着的格子就空着。
+    expect(galleryLayout(448, 296, 2, { grid: { columns: 4, rows: 2 } })).toMatchObject({
+      columns: 4,
+      rows: 2,
+      spans: [],
+    })
+    // 不放大时图少也不排出大格。
+    for (let n = 1; n <= 20; n += 1) {
+      expect(galleryLayout(448, 296, n, { hero: false }).hero).toBe(false)
+    }
+    // 大图 + 胶片：上面一整行，下面一排小格；张数不够一排时小格少几个，一张就是一张。
+    const strip = galleryGrid(448, 296, { layout: 'strip' })
+    expect(strip).toMatchObject({ rows: 2, hero: true, strip: 65 })
+    expect(strip.heroSpan).toEqual({ columns: strip.columns, rows: 1 })
+    expect(strip.slots).toBe(strip.columns + 1)
+    expect(galleryLayout(448, 296, 3, { layout: 'strip' })).toMatchObject({
+      columns: 2,
+      heroSpan: { columns: 2, rows: 1 },
+      slots: 3,
+    })
+    expect(galleryLayout(448, 296, 1, { layout: 'strip' })).toMatchObject({ columns: 1, rows: 1 })
+    // 图墙时固定过的格子，换到胶片后不碍事。
+    expect(
+      galleryLayout(448, 296, 3, { layout: 'strip', grid: { columns: 4, rows: 2 } }),
+    ).toMatchObject({ columns: 2, slots: 3 })
+    expect(galleryTracks(strip).rows).toBe('minmax(0, 1fr) 65px')
+    expect(galleryGrid(448, 296, { layout: 'single' })).toMatchObject({ slots: 1, hero: true })
+    // 给模型的说明跟着设置走。
+    const shown = { ...base, kind: 'gallery' as const, width: 448, height: 296, zoom: 100 }
+    expect(displayBrief({ ...shown, fit: 'cover', gallery: { layout: 'strip' } })).toMatchObject({
+      tiles: strip.slots,
+      hero: { width: 448, height: 228 },
+    })
+    expect(displayBrief({ ...shown, fit: 'cover', gallery: { layout: 'single' } })).toMatchObject({
+      tiles: 1,
+      hero: { width: 448, height: 296 },
     })
   })
 

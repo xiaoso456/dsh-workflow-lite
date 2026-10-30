@@ -20,6 +20,10 @@ export interface DisplayStat {
   exists: boolean
   size: number
   mtime: number
+  /** 存下了几版（循环迭代时每一轮的样子）；模板视图的「上次执行」不看各版，是 0。 */
+  versions: number
+  /** 各版每变一次加一：变了再去读各版。 */
+  revision: number
 }
 
 /** 一项的身份串（资源 id 不分大小写）。 */
@@ -27,7 +31,7 @@ export function displayKey(node: string, item: number): string {
   return `${idKey(node)}#${item}`
 }
 
-/** 图里开着展示、展示的是文件的那几项（`value` 是路径原文）。 */
+/** 图里开着展示、展示的是文件或文件夹的那几项（`value` 是路径原文）。 */
 export function displayTargets(
   doc: WorkflowDocument | null,
 ): { node: string; item: number; value: string }[] {
@@ -36,7 +40,7 @@ export function displayTargets(
     if (!isResource(node)) return []
     const display = displayOf(node.data)
     const item = display === null ? undefined : node.data.items[display.item]
-    if (display === null || item?.kind !== 'file') return []
+    if (display === null || (item?.kind !== 'file' && item?.kind !== 'folder')) return []
     return [{ node: node.id, item: display.item, value: item.value }]
   })
 }

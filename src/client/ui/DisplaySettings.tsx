@@ -22,6 +22,7 @@ import {
   type ViewLook,
 } from '../../shared/types.ts'
 import { LOOK_NAME, useDisplayLook } from '../app/displayLook.ts'
+import { displayKey } from '../app/useDisplayStats.ts'
 import type { LocaleKey, T } from '../i18n.ts'
 import {
   DEFAULT_ZOOM,
@@ -35,13 +36,14 @@ import {
   snapView,
   stepZoom,
   VIEW_SIZES,
-  ZOOM_STEPS,
 } from '../model/display.ts'
+import { ContentOptions, GroupHead } from './DisplayContent.tsx'
 import css from './display.module.css'
 import { Icon } from './Icon.tsx'
 import inp from './input.module.css'
 import ins from './inspector.module.css'
-import { FadeText, PickThumb, SwapText, SwitchTrack, useExit, useTrend } from './motion.tsx'
+import { FadeText, PickThumb, SwapText, SwitchTrack, useExit } from './motion.tsx'
+import { RollInput, Stepper } from './NumberStep.tsx'
 import { cx, FLOAT_EXIT_MS, useFloat } from './primitives.tsx'
 import { itemName } from './resourceUi.ts'
 import { Segmented } from './Segmented.tsx'
@@ -68,8 +70,12 @@ function sizeKeyOf(kind: DisplayKind, width: number, height: number): SizeKey {
   return 'custom'
 }
 
-/** 有缩放可调吗：图片只在「原大」时缩放（适应、填满跟着卡片走）。 */
-const zoomable = (display: Display): boolean => display.kind !== 'image' || display.fit === 'actual'
+/** 有缩放可调吗：图片只在「原大」时缩放（适应、填满跟着卡片走）；图墙的格子跟着卡片走，不缩放。 */
+const zoomable = (display: Display): boolean =>
+  display.kind === 'gallery' ? false : display.kind !== 'image' || display.fit === 'actual'
+
+/** 摆放方式的缺省值（和 `displayOf` 一致）：图墙铺满，单张图适应。 */
+const defaultFit = (display: Display): ViewFit => (display.kind === 'gallery' ? 'cover' : 'contain')
 
 /** 面板里那一行摘要：「大 448×256 · 100% · 柔边镂空」，没让模型适配时末尾带一句。 */
 export function displaySummary(t: T, display: Display, file: boolean): string {
@@ -77,84 +83,38 @@ export function displaySummary(t: T, display: Display, file: boolean): string {
   const parts = [
     `${size === 'custom' ? '' : `${t(SIZE_NAME[size])} `}${display.width}×${display.height}`,
   ]
-  if (display.kind === 'image') parts.push(t(`display.fit.${display.fit}`))
+  const files = display.kind === 'gallery' && display.gallery.show === 'files'
+  if (display.kind === 'image' || (display.kind === 'gallery' && !files)) {
+    parts.push(t(`display.fit.${display.fit}`))
+  }
   if (zoomable(display)) parts.push(`${display.zoom}%`)
   parts.push(display.look === undefined ? t('display.look.auto') : t(LOOK_NAME[display.look]))
   if (display.hideTitle) parts.push(t('display.hideTitle'))
+  const filter = display.lines.filter
+  if (filter !== undefined) {
+    const short = filter.pattern.length > 14 ? `${filter.pattern.slice(0, 13)}…` : filter.pattern
+    parts.push(t('display.summaryFilter').replace('{pattern}', short))
+  }
+  if (display.table.sort !== undefined) {
+    parts.push(t('display.summarySort').replace('{column}', display.table.sort.column))
+  }
+  if (display.table.hide !== undefined) {
+    parts.push(t('display.summaryHide').replace('{n}', String(display.table.hide.length)))
+  }
+  const folder = display.gallery
+  if (files) parts.push(t('display.show.files'))
+  else {
+    if (folder.show === 'images') parts.push(t('display.show.images'))
+    if (folder.layout !== undefined) parts.push(t(`display.layout.${folder.layout}`))
+    if (folder.grid !== undefined && folder.layout === undefined) {
+      parts.push(`${folder.grid.columns}×${folder.grid.rows}`)
+    }
+  }
+  if (folder.match !== undefined) {
+    parts.push(t('display.summaryFilter').replace('{pattern}', folder.match))
+  }
   if (file && !display.adapt) parts.push(t('display.adaptOff'))
   return parts.join(' · ')
-}
-
-/**
- * 能直接改的数字（宽、高、缩放）：输入时只是草稿，回车、失焦才交给 `onCommit`（夹进范围、取整由调用方定）；
- * 上下键按 `step` 走一下，当场生效。
- * 没在改的时候，数字画在上面一层的 SwapText 里：点三档、按 − / + 时旧数字让开、新数字滚进来（变大往上、变小往下），
- * 不是一下跳过去；点进去改时那一层藏起来，露出输入框里的字。
- */
-function RollInput(props: {
-  label: string
-  value: number
-  onCommit(value: number): void
-  step(up: boolean, big: boolean): number
-  testId: string
-  className: string
-  disabled?: boolean
-}): React.JSX.Element {
-  const [draft, setDraft] = useState<string | null>(null)
-  const trend = useTrend(props.value)
-  const commit = (): void => {
-    if (draft === null) return
-    const value = Number.parseInt(draft, 10)
-    if (Number.isFinite(value) && value !== props.value) props.onCommit(value)
-    setDraft(null)
-  }
-  return (
-    <span className={css.roll}>
-      <input
-        className={cx(css.rollInput, props.className)}
-        inputMode="numeric"
-        aria-label={props.label}
-        disabled={props.disabled}
-        value={draft ?? String(props.value)}
-        onChange={(event) => setDraft(event.target.value.replace(/[^\d]/gu, ''))}
-        onFocus={(event) => event.currentTarget.select()}
-        onBlur={commit}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') commit()
-          if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
-            event.preventDefault()
-            const base = draft === null ? props.value : Number.parseInt(draft, 10) || props.value
-            setDraft(null)
-            props.onCommit(base + props.step(event.key === 'ArrowUp', event.shiftKey))
-          }
-          if (event.key === 'Escape' && draft !== null) {
-            // 只撤掉这次输入，不连带收起浮层。
-            event.stopPropagation()
-            setDraft(null)
-          }
-        }}
-        data-testid={props.testId}
-      />
-      <span className={css.rollShow} aria-hidden="true">
-        {/* 占宽由输入框定（它比数字宽），这一层只按字宽、居中放：三位数、四位数都在正中。 */}
-        <SwapText text={String(props.value)} dir={trend} />
-      </span>
-    </span>
-  )
-}
-
-/** 一组的小标题，后面可带一枚「i」，悬停看说明。 */
-function GroupHead(props: { label: string; tip?: string }): React.JSX.Element {
-  return (
-    <div className={css.optHead}>
-      <span>{props.label}</span>
-      {props.tip !== undefined && (
-        <span className={css.optTip} data-tip={props.tip} aria-label={props.tip} role="img">
-          <Icon name="info" size={12} />
-        </span>
-      )}
-    </div>
-  )
 }
 
 /** 外观小样：一小块画布（带点），上面按那种样子画一张迷你卡。「跟随设置」画的是设置里现在选的那种（提示里写着是哪种）。 */
@@ -215,6 +175,10 @@ export function DisplayOptions(props: {
   display: Display
   /** 展示的是文件（才有「让模型适配」）。 */
   file: boolean
+  /** 展示的那一项的路径（日志、表格、文件夹有自己的「内容」一组）。 */
+  path: string
+  /** 卡片读到的列名记在哪（{@link useTableHead}）。 */
+  headKey: string
   items?: { options: readonly { value: string; label: string }[]; onPick(index: number): void }
   onChange(view: ResourceView): void
 }): React.JSX.Element {
@@ -248,6 +212,7 @@ export function DisplayOptions(props: {
       )}
 
       <section className={css.optGroup}>
+        <GroupHead label={t('display.sizeGroup')} />
         {/* 三档和宽高并排：宽高不是三档之一时三档都不亮，框里的数就是自定义的尺寸。 */}
         <div className={css.optLine}>
           <span className={css.optLabel}>{t('display.size')}</span>
@@ -289,6 +254,7 @@ export function DisplayOptions(props: {
             />
           </span>
         </div>
+        {/* 文件夹的摆放是每一格的事，放在「文件夹」那组里。 */}
         {display.kind === 'image' && (
           <div className={css.optLine}>
             <span className={css.optLabel}>{t('display.fit')}</span>
@@ -302,61 +268,43 @@ export function DisplayOptions(props: {
                   { value: 'actual', label: t('display.fit.actual') },
                 ]}
                 testId="wl-display-fit"
-                onChange={(fit) => set({ fit: fit === 'contain' ? undefined : fit })}
+                onChange={(fit) => set({ fit: fit === defaultFit(display) ? undefined : fit })}
               />
             </div>
           </div>
         )}
-        {/* 缩放一直在（图片不是「原大」时灰着、提示里说为什么），切摆放时下面的东西不跳。 */}
-        <div className={css.optLine}>
-          <span className={css.optLabel}>{t('display.zoom')}</span>
-          <span
-            className={css.zoom}
-            aria-disabled={!zoomable(display) || undefined}
-            data-tip={zoomable(display) ? undefined : t('display.zoomImage')}
-          >
-            <button
-              type="button"
-              className={css.zoomStep}
-              aria-label={t('display.zoomOut')}
-              data-tip={t('display.zoomOut')}
-              disabled={!zoomable(display) || display.zoom <= ZOOM_STEPS[0]}
-              data-testid="wl-display-zoom-out"
-              onClick={() => set({ zoom: stepZoom(display.zoom, -1) })}
-            >
-              <Icon name="minus" size={13} />
-            </button>
-            {/* 读数就是输入框：直接填（25–400），上下键一次 1%、按住 Shift 10%。 */}
-            <span className={css.zoomValue}>
-              <RollInput
-                label={t('display.zoom')}
-                value={display.zoom}
-                testId="wl-display-zoom"
-                className={css.zoomInput}
-                disabled={!zoomable(display)}
-                step={(up, big) => (big ? 10 : 1) * (up ? 1 : -1)}
-                onCommit={(zoom) => {
-                  const [lo, hi] = VIEW_LIMITS.zoom
-                  const next = Math.min(hi, Math.max(lo, Math.round(zoom)))
-                  set({ zoom: next === DEFAULT_ZOOM[display.kind] ? undefined : next })
-                }}
-              />
-              <span className={css.zoomUnit}>%</span>
-            </span>
-            <button
-              type="button"
-              className={css.zoomStep}
-              aria-label={t('display.zoomIn')}
-              data-tip={t('display.zoomIn')}
-              disabled={!zoomable(display) || display.zoom >= ZOOM_STEPS[ZOOM_STEPS.length - 1]}
-              data-testid="wl-display-zoom-in"
-              onClick={() => set({ zoom: stepZoom(display.zoom, 1) })}
-            >
-              <Icon name="plus" size={13} />
-            </button>
-          </span>
-        </div>
+        {/* 缩放：图片不是「原大」时灰着、提示里说为什么（切摆放时下面的东西不跳）；文件夹的格子跟着卡片走，没有这一行。 */}
+        {display.kind !== 'gallery' && (
+          <div className={css.optLine}>
+            <span className={css.optLabel}>{t('display.zoom')}</span>
+            <Stepper
+              label={t('display.zoom')}
+              value={display.zoom}
+              min={VIEW_LIMITS.zoom[0]}
+              max={VIEW_LIMITS.zoom[1]}
+              unit="%"
+              next={(zoom, dir) => stepZoom(zoom, dir)}
+              lessLabel={t('display.zoomOut')}
+              moreLabel={t('display.zoomIn')}
+              disabled={!zoomable(display)}
+              tip={zoomable(display) ? undefined : t('display.zoomImage')}
+              testId="wl-display-zoom"
+              onChange={(zoom) =>
+                set({ zoom: zoom === DEFAULT_ZOOM[display.kind] ? undefined : zoom })
+              }
+            />
+          </div>
+        )}
       </section>
+
+      <ContentOptions
+        t={t}
+        display={display}
+        view={view}
+        path={props.path}
+        headKey={props.headKey}
+        set={set}
+      />
 
       <section className={css.optGroup}>
         <GroupHead label={t('display.look')} tip={t('display.lookHint')} />
@@ -376,18 +324,21 @@ export function DisplayOptions(props: {
       </section>
 
       {props.file && (
-        <button
-          type="button"
-          role="switch"
-          aria-checked={display.adapt}
-          className={css.optSwitch}
-          data-tip={t('display.adaptDesc')}
-          data-testid="wl-display-adapt"
-          onClick={() => set({ adapt: display.adapt ? false : undefined })}
-        >
-          <SwitchTrack on={display.adapt} />
-          <span>{t('display.adapt')}</span>
-        </button>
+        <section className={css.optGroup}>
+          <GroupHead label={t('display.modelGroup')} />
+          <button
+            type="button"
+            role="switch"
+            aria-checked={display.adapt}
+            className={css.optSwitch}
+            data-tip={t('display.adaptDesc')}
+            data-testid="wl-display-adapt"
+            onClick={() => set({ adapt: display.adapt ? false : undefined })}
+          >
+            <SwitchTrack on={display.adapt} />
+            <span>{t('display.adapt')}</span>
+          </button>
+        </section>
       )}
     </div>
   )
@@ -396,6 +347,7 @@ export function DisplayOptions(props: {
 /** 「调整」按钮 + 浮层，或画布卡片上的齿轮 + 浮层：同一套开关、摆位、收起规则（见 useFloat）。 */
 export function useDisplayFloat<A extends HTMLElement>(
   beside?: React.RefObject<HTMLElement | null>,
+  besideTop?: 'beside' | 'anchor',
 ): ReturnType<typeof useFloat<A>> {
   return useFloat<A>({
     openMs: 0,
@@ -404,6 +356,7 @@ export function useDisplayFloat<A extends HTMLElement>(
     align: 'end',
     exitMs: FLOAT_EXIT_MS,
     ...(beside === undefined ? {} : { beside }),
+    ...(besideTop === undefined ? {} : { besideTop }),
   })
 }
 
@@ -419,6 +372,8 @@ function AdjustSeat(props: { children: React.ReactNode }): React.JSX.Element {
 
 export function DisplaySettings(props: {
   t: T
+  /** 资源卡的 id（表格挑列要用卡片读到的列名）。 */
+  node: string
   data: ResourceData
   onChange(view: ResourceView | undefined): void
 }): React.JSX.Element {
@@ -427,8 +382,10 @@ export function DisplaySettings(props: {
   const display = displayOf(data)
   const choices = displayableItems(data.items)
   const on = view !== undefined && display !== null
-  // 浮层挂在整块下面（不是「调整」按钮下面），不压住这一块。
-  const float = useDisplayFloat<HTMLDivElement>()
+  // 浮层摆在整条右栏的左边、和这一块齐平：栏窄、选项多，挂在下面放不下（上下都会被裁）。
+  // 不在栏里（找不到外面的 aside）时照旧挂在这一块下面。
+  const side = useRef<HTMLElement | null>(null)
+  const float = useDisplayFloat<HTMLDivElement>(side, 'anchor')
   const adjust = useRef<HTMLButtonElement>(null)
   const open = float.state !== 'off'
   const toggle = (): void => {
@@ -442,7 +399,10 @@ export function DisplaySettings(props: {
     const kind = displayKindOf(data.items[first] as (typeof data.items)[number]) as DisplayKind
     props.onChange(defaultView(kind))
   }
-  const file = display !== null && data.items[display.item]?.kind === 'file'
+  // 文件、文件夹由步骤写出来，才有「让模型适配」。
+  const file =
+    display !== null &&
+    (data.items[display.item]?.kind === 'file' || data.items[display.item]?.kind === 'folder')
   // 「调整」只在这一次打开展示时长出来；面板刚挂上（刷新、换选中）时就在那。
   const [wasOn, setWasOn] = useState(on)
   const [grow, setGrow] = useState(false)
@@ -500,7 +460,10 @@ export function DisplaySettings(props: {
               aria-expanded={open}
               data-active={open || undefined}
               data-testid="wl-display-adjust"
-              onClick={() => float.setState(open ? 'off' : 'pinned')}
+              onClick={() => {
+                side.current = float.anchorRef.current?.closest('aside') ?? null
+                float.setState(open ? 'off' : 'pinned')
+              }}
               onKeyDown={(event) => {
                 float.onKeyDown(event)
                 if (event.key === 'Escape') adjust.current?.focus()
@@ -532,6 +495,8 @@ export function DisplaySettings(props: {
                 view={view}
                 display={display}
                 file={file}
+                path={data.items[display.item]?.value ?? ''}
+                headKey={displayKey(props.node, display.item)}
                 items={{
                   options: choices.map((index) => ({
                     value: String(index),

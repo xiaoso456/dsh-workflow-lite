@@ -53,6 +53,8 @@ export function FolderDialog(props: {
   desktop: Desktop | undefined
   /** 文件夹还不存在时的说法（缺省「文件夹不存在」）。 */
   missing?: string
+  /** 一打开先看里面的哪一份（画布图墙上点的那张）。 */
+  initial?: string | undefined
   onClose(): void
 }): React.JSX.Element {
   const { t, source } = props
@@ -73,7 +75,15 @@ export function FolderDialog(props: {
   } else {
     body = {
       kind: 'node',
-      node: <FolderBrowser t={t} source={source} rootName={name} desktop={props.desktop} />,
+      node: (
+        <FolderBrowser
+          t={t}
+          source={source}
+          rootName={name}
+          desktop={props.desktop}
+          {...(props.initial === undefined ? {} : { initial: props.initial })}
+        />
+      ),
     }
   }
 

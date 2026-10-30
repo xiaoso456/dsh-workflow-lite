@@ -29,6 +29,7 @@ import {
 import { applySync, syncOps } from '../../shared/runSync.ts'
 import type {
   InputNode,
+  LineFilter,
   NodeData,
   Point,
   ResourceItem,
@@ -44,6 +45,7 @@ import type { Desktop } from '../app/desktop.ts'
 import { createHostAccess, type HostAccess } from '../app/host.ts'
 import { afterPaint, revealNode } from '../app/reveal.ts'
 import { useArrival } from '../app/useArrival.ts'
+import { runFolderSource } from '../app/useBrowse.ts'
 import { useDisplayStats } from '../app/useDisplayStats.ts'
 import type { FileTarget } from '../app/useRunFile.ts'
 import { useRunGraph } from '../app/useRunGraph.ts'
@@ -90,7 +92,7 @@ import { QuickAdd } from './QuickAdd.tsx'
 import { DraftBar, type DraftLine, graphLine } from './RunDraftBar.tsx'
 import { RunEdgeDetail } from './RunEdge.tsx'
 import { RunInputDetail } from './RunInput.tsx'
-import { TextDialog } from './RunItemDialog.tsx'
+import { FolderDialog, TextDialog } from './RunItemDialog.tsx'
 import { type PanelMode, RunModeSwitch } from './RunModeSwitch.tsx'
 import { RunNav } from './RunNav.tsx'
 import { Overview, Untracked } from './RunOverview.tsx'
@@ -263,25 +265,50 @@ export function RunView(props: RunViewProps): React.JSX.Element {
     target: FileTarget
     title: string
     note?: string | undefined
+    /** 从展示卡打开：卡片上「只看」的筛选。 */
+    filter?: LineFilter | undefined
   } | null>(null)
   /** 展示卡上打开的自定义文字（文件走上面的查看框）。 */
   const [textView, setTextView] = useState<ResourceItem | null>(null)
+  /** 展示卡上打开的文件夹（图墙里点了一张就先看那一张）。 */
+  const [folderView, setFolderView] = useState<{
+    node: string
+    item: number
+    entry: ResourceItem
+    initial?: string | undefined
+  } | null>(null)
   /** 画布上展示着的文件：隔一会儿看一眼在不在、改没改。 */
   const displayStats = useDisplayStats(props.rpc, id, doc)
+  /** 步骤 id → 名字：展示卡上各轮的点写「改稿 · 第 2 轮」。 */
+  const stepNames = useMemo(
+    () =>
+      Object.fromEntries(
+        (doc?.nodes ?? []).filter(isStep).map((node) => [node.id, nodeTitle(node)]),
+      ),
+    [doc],
+  )
   const displayRun = useMemo(
-    () => ({ rpc: props.rpc, instance: id, stats: displayStats }),
-    [props.rpc, id, displayStats],
+    () => ({ rpc: props.rpc, instance: id, stats: displayStats, names: stepNames }),
+    [props.rpc, id, displayStats, stepNames],
   )
   const docRef = useRef(doc)
   docRef.current = doc
-  const openDisplay = useCallback((node: string, item: number): void => {
+  const openDisplay = useCallback((node: string, item: number, sub?: string): void => {
     const found = docRef.current?.nodes.find(
       (candidate): candidate is ResourceNode => candidate.id === node && isResource(candidate),
     )
     const entry = found?.data.items[item]
     if (entry === undefined) return
     if (entry.kind === 'text') setTextView(entry)
-    else setViewer({ target: { node, item }, title: fileBaseName(entry.value), note: entry.note })
+    else if (entry.kind === 'folder') setFolderView({ node, item, entry, initial: sub })
+    else {
+      setViewer({
+        target: { node, item },
+        title: fileBaseName(entry.value),
+        note: entry.note,
+        filter: found?.data.view?.lines?.filter,
+      })
+    }
   }, [])
   const display = useMemo(() => ({ run: displayRun, open: openDisplay }), [displayRun, openDisplay])
   /** 看实例工作区里的文件夹、Skill（相对路径按实例的工作区，Skill 按实例所属的会话）。 */
@@ -823,8 +850,21 @@ export function RunView(props: RunViewProps): React.JSX.Element {
           target={viewer.target}
           title={viewer.title}
           note={viewer.note}
+          names={stepNames}
+          filter={viewer.filter}
           desktop={props.desktop}
           onClose={() => setViewer(null)}
+        />
+      )}
+
+      {folderView !== null && (
+        <FolderDialog
+          t={t}
+          source={runFolderSource(props.rpc, id, folderView.node, folderView.item)}
+          item={folderView.entry}
+          initial={folderView.initial}
+          desktop={props.desktop}
+          onClose={() => setFolderView(null)}
         />
       )}
 

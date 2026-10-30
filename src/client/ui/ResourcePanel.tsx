@@ -253,7 +253,12 @@ export function ResourcePanel(props: {
         <PresetBlock {...presetProps} slot="tail" />
 
         {memory === undefined && (
-          <DisplaySettings t={t} data={node.data} onChange={(next) => patch({ view: next })} />
+          <DisplaySettings
+            t={t}
+            node={node.id}
+            data={node.data}
+            onChange={(next) => patch({ view: next })}
+          />
         )}
 
         {memory !== undefined && shared ? null : shared ? (

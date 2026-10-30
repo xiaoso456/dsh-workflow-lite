@@ -1,0 +1,257 @@
+/*
+ * CSV / TSV 排成的表（DataTable.tsx）：查看框里撑满正文区，展示卡里字小一号、行矮一点。
+ * 表头钉在上面、行号钉在左边（滚动的是外面那层：查看框的正文区、交互中的展示区），钉住的格子垫一层不透明的底
+ * （`--tbl-bg`：查看框是面板色，展示卡是卡面色；镂空的卡是画布色）。
+ * 线只画横的、比外框淡一档；隔一行垫一层很浅的底，长表也跟得住行；数字列右对齐、等宽数字。
+ */
+
+.wrap {
+  --tbl-bg: var(--wl-panel);
+  --tbl-head: color-mix(in oklab, var(--wl-fill) 100%, var(--tbl-bg));
+  --tbl-rule: color-mix(in oklab, var(--wl-line) 70%, transparent);
+  --tbl-zebra: color-mix(in oklab, var(--wl-fill) 55%, transparent);
+  --tbl-pad-x: 12px;
+  --tbl-pad-y: 6px;
+  --tbl-cell: 260px;
+  min-width: 100%;
+  width: max-content;
+  color: var(--wl-text);
+  font-size: var(--wl-fs-meta);
+  line-height: 1.5;
+}
+
+.wrap[data-compact] {
+  --tbl-bg: var(--tbl-surface, var(--wl-file-surface));
+  --tbl-pad-x: 8px;
+  --tbl-pad-y: 3px;
+  --tbl-cell: 168px;
+  font-size: var(--wl-fs-micro);
+  line-height: 1.45;
+}
+
+.table {
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.table :is(th, td) {
+  max-width: var(--tbl-cell);
+  padding: var(--tbl-pad-y) var(--tbl-pad-x);
+  overflow: hidden;
+  border-bottom: 1px solid var(--tbl-rule);
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: baseline;
+}
+
+.table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  border-bottom-color: var(--wl-line-strong);
+  background: var(--tbl-head);
+  color: var(--wl-text-2);
+  font-weight: 600;
+}
+
+.table tbody tr:nth-child(even) td {
+  background: var(--tbl-zebra);
+}
+
+/* 数字列：右对齐、等宽数字，一列里的位数对得齐，大小一眼比得出。表头跟着列一起右对齐。 */
+.table :is(th, td)[data-num] {
+  text-align: right;
+}
+
+.table td[data-num] {
+  font-family: var(--wl-mono);
+  font-size: 0.95em;
+}
+
+/* 行号：钉在左边、淡色等宽，宽度随位数走；和正文之间一道竖线。 */
+.table .rowNo {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  width: 1px;
+  min-width: 2ch;
+  padding-right: calc(var(--tbl-pad-x) - 2px);
+  border-right: 1px solid var(--tbl-rule);
+  background: var(--tbl-bg);
+  color: var(--wl-text-3);
+  font-family: var(--wl-mono);
+  font-size: 0.9em;
+  font-weight: 400;
+  text-align: right;
+  user-select: none;
+}
+
+.table th.rowNo {
+  z-index: 2;
+  background: var(--tbl-head);
+}
+
+/* 斑马行的行号也垫上同一层浅底（垫在不透明底上，滚过去不透字）。 */
+.table tbody tr:nth-child(even) td.rowNo {
+  background: linear-gradient(var(--tbl-zebra), var(--tbl-zebra)), var(--tbl-bg);
+}
+
+/* 查看框里：悬停一行整行浅浅亮一下，横着看长行不串。 */
+.wrap:not([data-compact]) tbody tr:hover td {
+  background: var(--wl-hover);
+}
+
+.wrap:not([data-compact]) tbody tr:hover td.rowNo {
+  background: linear-gradient(var(--wl-hover), var(--wl-hover)), var(--tbl-bg);
+  color: var(--wl-text-2);
+}
+
+/*
+ * 文件更新后新加的行：整行垫一层强调色、行号边上一道竖线，停一会儿再淡下去（和展示卡里新的文字行一样）。
+ * 两个一样的动画按 data-new 的 0 / 1 轮换，连着两次都是新的也从头再亮。
+ */
+.table tr[data-new] td:not(.rowNo) {
+  position: relative;
+}
+
+.table tr[data-new] td::after {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in oklab, var(--wl-accent) 16%, transparent);
+  opacity: 0;
+  content: "";
+  pointer-events: none;
+}
+
+.table tr[data-new] td.rowNo::after {
+  box-shadow: inset 2px 0 0 var(--wl-accent);
+}
+
+.table tr[data-new="0"] td::after {
+  animation: newRowA 3.2s var(--wl-ease-out);
+}
+
+.table tr[data-new="1"] td::after {
+  animation: newRowB 3.2s var(--wl-ease-out);
+}
+
+@keyframes newRowA {
+  0%,
+  35% {
+    opacity: 1;
+  }
+}
+
+@keyframes newRowB {
+  0%,
+  35% {
+    opacity: 1;
+  }
+}
+
+/*
+ * 数字列的条：格子底下垫一层按大小比例的浅条（`--bar` 是 0–1），从左边长出来；数字还是右对齐压在上面。
+ * 画在背景上，不占位置、不改行高。斑马行的底在 td 上，条叠在它上面。
+ */
+.table td[data-bar] {
+  background-image: linear-gradient(
+    to right,
+    color-mix(in oklab, var(--wl-accent) 18%, transparent) calc(var(--bar) * 100%),
+    transparent 0
+  );
+}
+
+.table tbody tr:nth-child(even) td[data-bar] {
+  background-image:
+    linear-gradient(
+      to right,
+      color-mix(in oklab, var(--wl-accent) 18%, transparent) calc(var(--bar) * 100%),
+      transparent 0
+    ),
+    linear-gradient(var(--tbl-zebra), var(--tbl-zebra));
+  background-color: transparent;
+}
+
+/* 排着的那一列：表头字是强调色，箭头一直露着。 */
+.table th[data-sorted] {
+  color: var(--wl-accent-text);
+}
+
+/* 能点的表头：整格是按钮，样子和不能点的一样；悬停时字深一档、还没排的露出淡箭头。 */
+.sortButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: color 120ms linear;
+}
+
+.sortButton:hover {
+  color: var(--wl-text);
+}
+
+.table th[data-num] .sortButton {
+  flex-direction: row-reverse;
+}
+
+.sortMark {
+  display: inline-flex;
+  flex: none;
+  vertical-align: -1px;
+  transition:
+    transform 160ms var(--wl-ease-out),
+    opacity 120ms linear;
+}
+
+.sortMark[data-desc] {
+  transform: rotate(0deg);
+}
+
+.sortMark:not([data-desc]) {
+  transform: rotate(180deg);
+}
+
+.sortMark[data-off] {
+  opacity: 0;
+}
+
+.sortButton:is(:hover, :focus-visible) .sortMark[data-off] {
+  opacity: 0.5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sortMark {
+    transition: none;
+  }
+}
+
+.more {
+  position: sticky;
+  left: 0;
+  width: max-content;
+  margin: 0;
+  padding: 8px var(--tbl-pad-x) 10px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+/* 瑞士：表头压一道黑线、去掉斑马底，只留横线。 */
+:global([data-look="swiss"]) .table th {
+  border-bottom: 2px solid var(--wl-text);
+  background: var(--tbl-bg);
+  color: var(--wl-text);
+}
+
+:global([data-look="swiss"]) .table tbody tr:nth-child(even) td {
+  background: var(--tbl-bg);
+}

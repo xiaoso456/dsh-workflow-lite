@@ -182,15 +182,97 @@ export interface ResourceView {
   width: number
   height: number
   zoom?: number
-  /** 只对图片有用；缺省 = `contain`。 */
-  fit?: Exclude<ViewFit, 'contain'>
+  /** 图片、图墙的摆放方式；缺省 = 图片 `contain`、图墙 `cover`（缺省值不写）。 */
+  fit?: ViewFit
   /** 让写它的步骤按展示尺寸做适配（任务描述里带上尺寸与要求）；缺省 = 要，只有关掉时写 `false`。 */
   adapt?: false
   /** 看板贴在画布上的样子；缺省跟着外观设置。 */
   look?: ViewLook
   /** 不选中、不悬停时把标题行藏起来（位置留着）；卡片外观下不起作用。缺省 = 一直显示。 */
   hideTitle?: true
+  /** 日志、纯文本（`.log`、`.txt`、`.jsonl`）怎么看。 */
+  lines?: LineView
+  /** CSV / TSV 表格怎么看。 */
+  table?: TableView
+  /** 文件夹（图墙）怎么排。 */
+  gallery?: GalleryView
 }
+
+/**
+ * 只看匹配的行（`invert` = 只看不匹配的），每处可带上下文。匹配时已去掉终端颜色码；一行只看前 4096 个字。
+ */
+export interface LineFilter {
+  /** 要找的字（`regex` 时是 JavaScript 正则，按 Unicode）；最长 500 字。 */
+  pattern: string
+  regex?: boolean
+  /** 区分大小写；缺省不分。 */
+  caseSensitive?: boolean
+  invert?: boolean
+  /** 每处匹配前后各带几行（0–10）。 */
+  context?: number
+}
+
+/** 看哪一段：`end` 跟着末尾、`start` 从头；不写 = 自动。 */
+export const VIEW_FROMS = ['end', 'start'] as const
+export type ViewFrom = (typeof VIEW_FROMS)[number]
+
+/** 日志、纯文本。 */
+export interface LineView {
+  /** 不写 = 自动：`.log`、写它的步骤正在跑、文件很大时停在末尾，别的从头看。 */
+  from?: ViewFrom
+  filter?: LineFilter
+  /** 不按级别给错误、警告行着色；缺省着色。 */
+  levels?: false
+}
+
+/** CSV / TSV。 */
+export interface TableView {
+  /** 不写 = 自动：写它的步骤正在跑时看最后几行，别的从头看。 */
+  from?: ViewFrom
+  /** 卡片里不显示的列（按表头的字；查看框里照样都有）。 */
+  hide?: string[]
+  /** 数字列的格子底下垫一条按大小比例的浅条。 */
+  bars?: true
+  /** 按哪一列排（表头的字），`desc` 从大到小；只排读进来的那些行。 */
+  sort?: { column: string; desc?: true }
+}
+
+/** 图墙的排法：`wall` 图墙（缺省）、`strip` 大图 + 胶片条、`single` 只看最新一张。 */
+export const GALLERY_LAYOUTS = ['wall', 'strip', 'single'] as const
+export type GalleryLayoutKind = (typeof GALLERY_LAYOUTS)[number]
+
+/** 文件夹里展示什么：`images` 排成图片墙，`files` 列出文件。 */
+export const FOLDER_SHOWS = ['images', 'files'] as const
+export type FolderShow = (typeof FOLDER_SHOWS)[number]
+
+/** 文件夹按什么排：缺省最新在前，`name` 按文件名（带数字的按大小），`size` 大的在前。 */
+export const FOLDER_ORDERS = ['name', 'size'] as const
+
+/** 文件夹（图片墙、文件列表）。 */
+export interface GalleryView {
+  /** 展示什么：缺省自动（有图片排成图片墙，没有就列文件）。 */
+  show?: FolderShow
+  /** 图片墙的排法：缺省 `wall`（不写）。 */
+  layout?: GalleryLayoutKind
+  /** 图墙固定几列 × 几行（不写 = 按卡片大小自动排）；卡片拖大，格子跟着变大、张数不变。 */
+  grid?: { columns: number; rows: number }
+  /** 顺序（图片墙、文件列表都按它）。 */
+  order?: (typeof FOLDER_ORDERS)[number]
+  /** 图墙里最新一张不占大格。 */
+  hero?: false
+  /** 只看名字对得上的：`*.json, report-*`，逗号或空格隔开，`*` 是任意几个字，不分大小写。 */
+  match?: string
+  /** 文件列表排成格子（缺省一行一项）。 */
+  list?: 'grid'
+  /** 文件列表带修改时间。 */
+  time?: true
+}
+
+/** 文件夹「只看」最长多少字。 */
+export const FOLDER_MATCH_MAX = 200
+
+/** 图墙固定排法最多几列、几行。 */
+export const GALLERY_GRID_MAX = { columns: 8, rows: 6 } as const
 
 /** 资源预设的种类（资源卡上的类型标记，见 `shared/presets.ts`）。以后的预设加在这里。 */
 export const RESOURCE_PRESETS = ['memory'] as const

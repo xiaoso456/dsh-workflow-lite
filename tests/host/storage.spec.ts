@@ -37,6 +37,7 @@ describe('storageAction', () => {
       instances: 0,
       finished: 0,
       instanceBytes: 0,
+      historyBytes: 0,
       dispatchFiles: 0,
       dispatchBytes: 0,
     })

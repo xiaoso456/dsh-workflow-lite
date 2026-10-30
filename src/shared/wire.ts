@@ -36,6 +36,7 @@ import type {
 import type {
   CompileResult,
   InputAnswer,
+  LineFilter,
   ListResult,
   MemoryType,
   NodeData,
@@ -94,9 +95,11 @@ export const WORKFLOW_LITE_ENDPOINTS = [
   'run/storage',
   'run/start',
   'run/file',
+  'run/lines',
   'run/image',
   'run/dir',
   'run/stat',
+  'run/history',
   'run/latest',
   'memory/list',
   'memory/create',
@@ -507,9 +510,11 @@ export interface WorkflowLiteRpcMap {
   'run/storage': { args: RunStorageRequest; result: StorageStats }
   'run/start': { args: RunStartRequest; result: RunStartResponse }
   'run/file': { args: RunFileRequest; result: RunFileResponse }
+  'run/lines': { args: RunLinesRequest; result: RunLinesResponse }
   'run/image': { args: RunImageRequest; result: RunImageResponse }
   'run/dir': { args: RunDirRequest; result: RunDirResponse }
   'run/stat': { args: RunStatRequest; result: RunStatResponse }
+  'run/history': { args: RunHistoryRequest; result: RunHistoryResponse }
   'run/latest': { args: RunLatestRequest; result: RunLatestResponse }
   'memory/list': { args: Record<string, never>; result: MemoryListResponse }
   'memory/create': { args: MemoryCreateRequest; result: MemoryEntryResponse }
@@ -732,6 +737,10 @@ export interface RunFileRequest {
    * 不许 `..`、不许落到文件夹外面——软链指出去的也不行）。
    */
   sub?: string
+  /** `node` + `item` 指向文件时，看存下的第几版（{@link RunVersion.v}）；不给就是现在的文件。 */
+  version?: number
+  /** 纯文本太大时读最后一段（日志看最新的）而不是只回「太大」，见 {@link RunFileResponse.cut}。 */
+  tail?: boolean
 }
 export interface RunFileResponse {
   /** 绝对路径（交给系统程序打开用）。 */
@@ -745,6 +754,91 @@ export interface RunFileResponse {
   /** `markdown` / `html` / `text` 时才有。 */
   text?: string
   limit: number
+  /** 带 `tail` 读、文件太大时：前面没读的字节数（`text` 是从这之后到末尾）。 */
+  cut?: number
+}
+
+/** `run/lines` 的筛选（和展示设置里存的是同一个形状）。 */
+export type { LineFilter }
+
+/** `run/lines` 一次最多要多少行。 */
+export const RUN_LINES_MAX = 2000
+/** 不筛时一次最多读多少字节（凑不够行数也停）。 */
+export const RUN_LINES_PLAIN_BYTES = 1024 * 1024
+/** 筛的时候最多扫多少字节、多久（扫到就停，回的结果说清楚只扫了多少）。 */
+export const RUN_LINES_FILTER_BYTES = 64 * 1024 * 1024
+export const RUN_LINES_FILTER_MS = 300
+
+/**
+ * `run/lines`：日志、纯文本按行读（画布上只拿要显示的那几行，不整份读）。定位同 {@link RunFileRequest}（`node` + `item`，
+ * 文件夹里的一份带 `sub`，存下的一版带 `version`）。
+ * - `tail`：从末尾往前要 `limit` 行；给了 `before`（上一回的 `start`）就是接着往上翻。
+ * - `head`：从 `from`（缺省 0）往后要 `limit` 行。
+ * - `follow`：从上一回的 `end` 起读新追加的（`tag` 是上一回给的指纹，对不上——文件被重写、截短过——就当 `tail` 重读，
+ *   回答里没有 `appended`）。
+ */
+export interface RunLinesRequest {
+  id: string
+  node: string
+  item?: number
+  sub?: string
+  version?: number
+  mode: 'tail' | 'head' | 'follow'
+  limit: number
+  before?: number
+  from?: number
+  tag?: string
+  /** `follow` + 带上下文筛：上一回最后一处匹配还欠几行下文（上一回的 `owed`）。 */
+  owed?: number
+  filter?: LineFilter
+}
+
+/** 一行。 */
+export interface RunLine {
+  /** 行首在文件里的字节位置。 */
+  at: number
+  /** 去掉了行尾换行、终端颜色码；太长的截到 4096 个字（`long`）。 */
+  text: string
+  /** 命中的几段：`[起, 止, 起, 止, …]`（字的下标）。 */
+  hits?: number[]
+  /** 是匹配行的上下文，自己不匹配。 */
+  ctx?: true
+  long?: true
+  /** 和前一行（这一回的第一行：和读的起点）之间跳过了几行（筛掉的）。 */
+  skip?: number
+}
+
+export interface RunLinesResponse {
+  path: string
+  display: string
+  exists: boolean
+  size: number
+  mtime: number
+  /** `lines` 才有行；二进制、UTF-16（不按行读，改用 `run/file`）、不在的只有元信息。 */
+  kind: 'lines' | 'binary' | 'utf16' | 'missing'
+  /** 按文件里的顺序。 */
+  lines: RunLine[]
+  /** 末尾还没写完（没有换行）的那一行：显示，但不算进 `end`，续读时写完了再给。 */
+  pending?: RunLine
+  /** 这一回扫过的范围（字节）：`start` 起、`end` 止（`end` 在行首）。往上翻带 `start`，往下、续读带 `end`。 */
+  start: number
+  end: number
+  /** `end` 处的指纹（续读时带回来）。 */
+  tag: string
+  /** 最后一行之后、`end` 之前还扫过几行（筛掉的）。 */
+  trail: number
+  /** 扫过的范围里匹配了几行（不筛时 = 行数）。 */
+  matched: number
+  /** 这一回的方向上还有没扫的：`tail` = `start` 前面还有，`head` = `end` 后面还有。 */
+  more: boolean
+  /** 最后一处匹配还欠几行下文（续读时带回来）。 */
+  owed?: number
+  /** 扫到上限停下了：`bytes` 字节、`time` 时间。 */
+  stopped?: 'bytes' | 'time'
+  /** 续读时一下子多出太多，只给了最后那些：和上一回接不上。 */
+  gap?: true
+  /** 续读成功：这些行接在上一回后面。 */
+  appended?: true
 }
 
 /** `run/image` 一张图的上限（字节）。 */
@@ -777,9 +871,55 @@ export interface RunStatRequest {
   targets: { node: string; item: number }[]
 }
 export interface RunStatResponse {
-  /** 按 `targets` 的顺序；定位不到（项不在快照里、越界）的当作不在。 */
-  stats: { exists: boolean; size: number; mtime: number }[]
+  /**
+   * 按 `targets` 的顺序；定位不到（项不在快照里、越界）的当作不在。
+   * `versions`：这一项存下了几版（见 {@link RunHistoryResponse}）；`revision`：各版每变一次（多存一版、
+   * 记了一条判定）加一，变了再去问 `run/history`。
+   */
+  stats: { exists: boolean; size: number; mtime: number; versions: number; revision: number }[]
 }
+
+/**
+ * 一份产出存下的一版。写它的步骤每一轮做完（完成或失败）存一版；在原文件上更新的、开始前就在的，
+ * 第一次开始前先存一份原样（`phase: 'before'`）。和上一版一样的不存。
+ */
+export interface RunVersion {
+  /** 版本号：这份文件里从 1 递增，删掉中间的也不重排。读这一版时带上它。 */
+  v: number
+  /** 写它的步骤。 */
+  step: string
+  /** 那个步骤的第几轮。 */
+  round: number
+  phase: 'before' | 'done' | 'failed'
+  /** 存下的时间（毫秒）。 */
+  at: number
+  size: number
+  /** 存的时候原文件的修改时间：和现在的文件对得上 = 现在就是这一版。 */
+  mtime: number
+  /** 读过（或写了）这一版之后给出的判定；`again` = 这个判定把流程领回去重做。 */
+  verdicts?: { step: string; value: string; again: boolean }[]
+}
+
+/** `run/history`：快照里一个资源项（文件）存下的各版，旧的在前。 */
+export interface RunHistoryRequest {
+  id: string
+  node: string
+  item?: number
+}
+export interface RunHistoryResponse {
+  versions: RunVersion[]
+  /** 超了上限、从中间删掉的版数（第一版和最近的留着）。 */
+  dropped: number
+}
+
+/** 一份产出最多存几版（超了删中间的，第一版留着）。 */
+export const RUN_HISTORY_VERSIONS_MAX = 20
+
+/** 一份文件超过这么大就不存了（反正也只能这么大才看得了）。 */
+export const RUN_HISTORY_FILE_MAX = 8 * 1024 * 1024
+
+/** 一个实例存的各版加起来最多这么大（超了从版数最多的那份删中间的）。 */
+export const RUN_HISTORY_INSTANCE_MAX = 100 * 1024 * 1024
 
 /** `run/dir` 一次最多列多少项。 */
 export const RUN_DIR_MAX = 3000
@@ -819,7 +959,7 @@ export interface RunDirResponse {
 
 /** `run/storage`：存储统计与清理。 */
 export interface RunStorageRequest {
-  action?: 'stats' | 'clearDispatch' | 'clearFinished'
+  action?: 'stats' | 'clearDispatch' | 'clearFinished' | 'clearHistory'
 }
 export interface StorageStats {
   dataDir: string
@@ -840,6 +980,8 @@ export interface StorageStats {
   finished: number
   /** 实例在数据目录里的占用（`runs/` 下的图快照与回答；工作区里的实例目录不算）。 */
   instanceBytes: number
+  /** 其中各实例存下的产出各版（`runs/<实例>/history/`）占多少。 */
+  historyBytes: number
   /** 旧版本遗留的任务描述（`.dispatch/`），现在已不再读写。 */
   dispatchFiles: number
   dispatchBytes: number

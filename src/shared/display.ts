@@ -2,8 +2,8 @@
  * dsh-workflow-lite — 资源卡在画布上展示一项内容：哪些能展示、展示哪一项、缺省多大；
  * 编译计划时告诉写它的步骤「卡片里看得到多少」；工具建资源时怎么把 `display` 参数落成 `view`。
  *
- * 能展示的四类：图片、网页（HTML）、Markdown（含自定义文字）、纯文本（日志、代码、数据）。
- * 文件夹、网址、Skill 不展示。展示设置存在资源的 `view` 里（见 `types.ts` 的 `ResourceView`）。
+ * 能展示的五类：图片、网页（HTML）、Markdown（含自定义文字）、纯文本（日志、代码、数据）、
+ * 文件夹（图墙：里面的图按新旧排开，没有图时列出文件）。网址、Skill 不展示。展示设置存在资源的 `view` 里（见 `types.ts` 的 `ResourceView`）。
  * 卡片怎么画（标题行、留白、拖动取整）在 `client/model/display.ts`。
  *
  * @module @xiaoso/dsh-workflow-lite/shared/display
@@ -13,21 +13,25 @@ import { type BoardCardRoom, boardCardRoom } from './board.ts'
 import { extensionOf, fileKindOf } from './fileKind.ts'
 import { readView } from './model.ts'
 import {
+  type GalleryView,
+  type LineView,
   type ResourceData,
   type ResourceItem,
   type ResourceView,
+  type TableView,
   VIEW_FITS,
   type ViewFit,
   type ViewLook,
 } from './types.ts'
 
-export type DisplayKind = 'image' | 'html' | 'markdown' | 'text'
+export type DisplayKind = 'image' | 'html' | 'markdown' | 'text' | 'gallery'
 
 const HTML_EXTENSIONS = new Set(['html', 'htm'])
 
 /** 一项能怎么展示；不能展示是 `null`。 */
 export function displayKindOf(item: ResourceItem): DisplayKind | null {
   if (item.kind === 'text') return 'markdown'
+  if (item.kind === 'folder') return item.value.trim() === '' ? null : 'gallery'
   if (item.kind !== 'file' || item.value.trim() === '') return null
   if (HTML_EXTENSIONS.has(extensionOf(item.value))) return 'html'
   switch (fileKindOf(item.value)) {
@@ -76,6 +80,7 @@ export const VIEW_SIZES: Record<DisplayKind, Record<ViewSize, [number, number]>>
   html: { s: [208, 128], m: [320, 176], l: [448, 256] },
   markdown: { s: [208, 160], m: [320, 232], l: [448, 320] },
   text: { s: [208, 128], m: [320, 192], l: [448, 272] },
+  gallery: { s: [208, 136], m: [320, 216], l: [448, 296] },
 }
 
 /** 内容缩放的缺省值：都按原大（网页按卡片宽度排版）。缩得小了卡片里的字就看不清。 */
@@ -84,6 +89,7 @@ export const DEFAULT_ZOOM: Record<DisplayKind, number> = {
   html: 100,
   markdown: 100,
   text: 100,
+  gallery: 100,
 }
 
 /** 刚打开展示时的设置：中档尺寸，其余缺省。 */
@@ -106,7 +112,14 @@ export interface Display {
   look?: ViewLook
   /** 不选中、不悬停时藏起标题行。 */
   hideTitle: boolean
+  /** 日志、纯文本、表格、图墙各自的设置（没写是空的）。 */
+  lines: LineView
+  table: TableView
+  gallery: GalleryView
 }
+
+/** 没写的那组设置（共用一个空对象，比较时不算变了）。 */
+const NO_SETTINGS = Object.freeze({})
 
 export function displayOf(data: ResourceData): Display | null {
   const view = data.view
@@ -124,9 +137,13 @@ export function displayOf(data: ResourceData): Display | null {
     width: view.width,
     height: view.height,
     zoom: view.zoom ?? DEFAULT_ZOOM[kind],
-    fit: view.fit ?? 'contain',
+    // 图墙缺省铺满小格（一格一张、不留边）；单张图缺省整张放进框里。
+    fit: view.fit ?? (kind === 'gallery' ? 'cover' : 'contain'),
     adapt: view.adapt !== false,
     hideTitle: view.hideTitle === true,
+    lines: view.lines ?? NO_SETTINGS,
+    table: view.table ?? NO_SETTINGS,
+    gallery: view.gallery ?? NO_SETTINGS,
     ...(view.look === undefined ? {} : { look: view.look }),
   }
 }
@@ -196,6 +213,14 @@ export type DisplayBrief =
       /** 卡片里露出开头大约几行。 */
       lines: number
     }
+  | {
+      kind: 'gallery'
+      /** 卡片里一次露出几张（最新的在前）。 */
+      tiles: number
+      /** 最新那张占的大格（画布像素）；格子少时没有大格。 */
+      hero?: { width: number; height: number }
+      fit: ViewFit
+    }
 
 /**
  * 展示区在画布上占多大。网页按「大小」排版，再按缩放整张等比缩放（像图片一样，排版不变），占「大小 × 缩放」；
@@ -236,6 +261,11 @@ export function displayBrief(display: Display): DisplayBrief {
             }
           : {}),
       }
+    case 'gallery': {
+      const grid = galleryGrid(display.width, display.height, display.gallery)
+      const hero = grid.hero ? galleryHero(grid, display.width, display.height) : undefined
+      return { kind: 'gallery', tiles: grid.slots, ...(hero ? { hero } : {}), fit: display.fit }
+    }
     default: {
       const line = LINE_HEIGHT[display.kind] * scale
       return {
@@ -243,6 +273,166 @@ export function displayBrief(display: Display): DisplayBrief {
         lines: Math.max(1, Math.floor((display.height - FLOW_PAD_Y) / line)),
       }
     }
+  }
+}
+
+// ── 图墙的格子 ──────────────────────────────────────────────
+
+/** 图墙的格子：小格大约这么宽（画布像素），格子之间留这么宽的缝。 */
+const GALLERY_TILE = 88
+export const GALLERY_GAP = 3
+
+/**
+ * 图墙怎么排：几列几行；`hero` 时第一张（最新的）占一个大格（`heroSpan` 列 × 行）。`slots` 是一次露出几张（大格算一张）。
+ * 「大图 + 胶片」是两行：上面一整行大图，下面一排 `strip` 高的小格。
+ */
+export interface GalleryGrid {
+  columns: number
+  rows: number
+  hero: boolean
+  heroSpan: { columns: number; rows: number }
+  slots: number
+  /** 胶片那排多高（画布像素）；只有「大图 + 胶片」有。 */
+  strip?: number
+}
+
+/**
+ * 按设置排：
+ * - 图墙（缺省）：写了 `grid` 就是那几列几行（卡片拖大格子跟着大、张数不变），没写按卡片大小大约 88 宽一格；
+ *   至少三列两行时最新的占左上角两列两行（`hero: false` 不放大）。
+ * - 大图 + 胶片：最新一张占上面一整行，下面一排小格（高是展示区的两成多，36–72）。
+ * - 最新一张：整块就一张。
+ */
+export function galleryGrid(width: number, height: number, view: GalleryView = {}): GalleryGrid {
+  if (view.layout === 'single') {
+    return { columns: 1, rows: 1, hero: true, heroSpan: { columns: 1, rows: 1 }, slots: 1 }
+  }
+  if (view.layout === 'strip') {
+    const strip = Math.min(72, Math.max(36, Math.round(height * 0.22)))
+    const columns = Math.max(
+      2,
+      Math.round((width + GALLERY_GAP) / (strip * TILE_ASPECT + GALLERY_GAP)),
+    )
+    return {
+      columns,
+      rows: 2,
+      hero: true,
+      heroSpan: { columns, rows: 1 },
+      slots: columns + 1,
+      strip,
+    }
+  }
+  const columns = view.grid?.columns ?? Math.max(2, Math.round(width / GALLERY_TILE))
+  const tile = (width - GALLERY_GAP * (columns - 1)) / columns
+  const rows =
+    view.grid?.rows ?? Math.max(1, Math.round((height + GALLERY_GAP) / (tile + GALLERY_GAP)))
+  const hero = view.hero !== false && columns >= 3 && rows >= 2
+  return {
+    columns,
+    rows,
+    hero,
+    heroSpan: { columns: 2, rows: 2 },
+    slots: columns * rows - (hero ? 3 : 0),
+  }
+}
+
+/** 排成 CSS 网格的两条轨道。 */
+export function galleryTracks(grid: GalleryGrid): { columns: string; rows: string } {
+  return {
+    columns: `repeat(${grid.columns}, minmax(0, 1fr))`,
+    rows:
+      grid.strip === undefined
+        ? `repeat(${grid.rows}, minmax(0, 1fr))`
+        : `minmax(0, 1fr) ${grid.strip}px`,
+  }
+}
+
+/** 小格最好接近这个宽高比（截图、图表多是横的）。 */
+const TILE_ASPECT = 4 / 3
+/** 排法打分：最后一行每少一张扣多少、摊开的那几张变扁了扣多少；最新那张能占大格加多少。 */
+const EMPTY_COST = 0.15
+const STRETCH_COST = 0.5
+const HERO_BONUS = 0.3
+
+/**
+ * 这一回真要排几格：图够多就是 {@link galleryGrid}（最新的占大格，最后一格写「+N」）；
+ * 图少了按张数重排——小格尽量接近 4:3，五张起尽量让最新的占大格；最后一行不满时那几张摊开占满
+ * （`spans`：最后几张各占几列，没有就是都占一列）。固定了几列几行的不重排（空着的格子就空着）；
+ * 胶片不够一排时小格少几个，只有一张时就是一张。
+ */
+export function galleryLayout(
+  width: number,
+  height: number,
+  count: number,
+  view: GalleryView = {},
+): GalleryGrid & { spans: number[] } {
+  const grid = galleryGrid(width, height, view)
+  // 固定格子只对图墙有用（换到别的排法时还记着，换回来接着用）。
+  const fixed = view.grid !== undefined && (view.layout ?? 'wall') === 'wall'
+  if (count >= grid.slots || count <= 0 || fixed) return { ...grid, spans: [] }
+  if (view.layout === 'strip') {
+    if (count === 1) return { ...galleryGrid(width, height, { layout: 'single' }), spans: [] }
+    const columns = count - 1
+    return { ...grid, columns, heroSpan: { columns, rows: 1 }, slots: count, spans: [] }
+  }
+  const heroOk = view.hero !== false
+  let best = { columns: 1, rows: count, hero: false, score: Number.POSITIVE_INFINITY }
+  const consider = (columns: number, rows: number, hero: boolean): void => {
+    const empty = columns * rows - (hero ? 3 : 0) - count
+    if (empty < 0 || empty >= lastRowOf(columns, rows, hero)) return
+    const aspect = width / columns / (height / rows)
+    // 最后一行摊开的那几张也别太扁。
+    const lastRow = lastRowOf(columns, rows, hero)
+    const stretched =
+      empty === 0 ? 0 : Math.log((aspect * lastRow) / (lastRow - empty) / TILE_ASPECT)
+    const score =
+      Math.abs(Math.log(aspect / TILE_ASPECT)) +
+      Math.abs(stretched) * STRETCH_COST +
+      empty * EMPTY_COST -
+      (hero ? HERO_BONUS : 0)
+    if (score < best.score) best = { columns, rows, hero, score }
+  }
+  for (let columns = 1; columns <= count; columns += 1) {
+    for (let rows = 1; rows <= count; rows += 1) {
+      consider(columns, rows, false)
+      if (heroOk && count >= 5 && columns >= 3 && rows >= 2) consider(columns, rows, true)
+    }
+  }
+  const { columns, rows, hero } = best
+  const lastRow = lastRowOf(columns, rows, hero)
+  const empty = columns * rows - (hero ? 3 : 0) - count
+  const tiles = lastRow - empty
+  const spans =
+    empty === 0
+      ? []
+      : Array.from(
+          { length: tiles },
+          (_, index) => Math.floor(lastRow / tiles) + (index < lastRow % tiles ? 1 : 0),
+        )
+  return { columns, rows, hero, heroSpan: { columns: 2, rows: 2 }, slots: count, spans }
+}
+
+/** 最后一行有几格：有大格且只有两行时，最后一行只有大格右边那几格。 */
+function lastRowOf(columns: number, rows: number, hero: boolean): number {
+  return hero && rows === 2 ? columns - 2 : columns
+}
+
+/** 大格多大（画布像素）。 */
+function galleryHero(
+  grid: GalleryGrid,
+  width: number,
+  height: number,
+): { width: number; height: number } {
+  const cell = (size: number, count: number): number => (size - GALLERY_GAP * (count - 1)) / count
+  const span = (size: number, count: number, spans: number): number =>
+    cell(size, count) * spans + GALLERY_GAP * (spans - 1)
+  return {
+    width: Math.round(span(width, grid.columns, grid.heroSpan.columns)),
+    height: Math.round(
+      grid.strip === undefined
+        ? span(height, grid.rows, grid.heroSpan.rows)
+        : height - grid.strip - GALLERY_GAP,
+    ),
   }
 }
 
@@ -278,7 +468,8 @@ export function applyDisplay(
   const choices = displayableItems(data.items)
   if (choices.length === 0) {
     return {
-      error: '这个资源里没有能在画布上展示的项（图片、HTML、Markdown、文本类文件或自定义文字）',
+      error:
+        '这个资源里没有能在画布上展示的项（图片、HTML、Markdown、文本类文件、文件夹或自定义文字）',
     }
   }
   if (spec.item !== undefined && !choices.includes(spec.item)) {

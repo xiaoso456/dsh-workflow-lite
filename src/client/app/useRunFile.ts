@@ -5,13 +5,40 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { RunDirResponse, RunFileResponse } from '../../shared/wire.ts'
+import type { RunDirResponse, RunFileResponse, RunHistoryResponse } from '../../shared/wire.ts'
 import { errorMessage, type WorkflowLiteRpc } from '../rpc.ts'
 
 /**
- * 要看哪份：快照里某个资源的第几项（文件夹项可以再带 `sub`：文件夹里的相对路径），或实例工作区里的相对路径。
+ * 要看哪份：快照里某个资源的第几项（文件夹项可以再带 `sub`：文件夹里的相对路径；文件项可以带 `version`：
+ * 存下的第几版），或实例工作区里的相对路径。`tail`：太大时读最后一截（日志），不说「太大」。
  */
-export type FileTarget = { node: string; item: number; sub?: string } | { path: string }
+export type FileTarget =
+  | { node: string; item: number; sub?: string; version?: number; tail?: boolean }
+  | { path: string }
+
+/** 存下的旧版不会再变：读过的留几份，来回切着看（画布上悬停扫过各轮）不用每次重读。 */
+const VERSION_CACHE = 24
+const versionCache = new Map<string, RunFileResponse>()
+
+function cachedVersion(key: string): RunFileResponse | undefined {
+  const hit = versionCache.get(key)
+  if (hit !== undefined) {
+    versionCache.delete(key)
+    versionCache.set(key, hit)
+  }
+  return hit
+}
+
+function keepVersion(key: string, file: RunFileResponse): void {
+  versionCache.set(key, file)
+  if (versionCache.size > VERSION_CACHE) {
+    const oldest = versionCache.keys().next().value
+    if (oldest !== undefined) versionCache.delete(oldest)
+  }
+}
+
+const isVersion = (target: FileTarget | null): boolean =>
+  target !== null && 'node' in target && target.version !== undefined
 
 export interface RunFile {
   file: RunFileResponse | null
@@ -38,10 +65,24 @@ export function useRunFile(
   const [settled, setSettled] = useState('')
   const key = fileTargetKey(target)
 
+  // 换了文件：先清掉上一份，别让它闪一下（放在读之前：读的是缓存里的旧版时立刻就有，不能再被清掉）。
+  useEffect(() => {
+    setFile(null)
+  }, [instance, key])
+
   // `key` 就是 target 的身份；`version` / `tick` 只是重读的信号。
   useEffect(() => {
     if (target === null) {
       setFile(null)
+      return
+    }
+    const cacheKey = `${instance}|${key}`
+    const hit = isVersion(target) ? cachedVersion(cacheKey) : undefined
+    if (hit !== undefined) {
+      setFile(hit)
+      setError(null)
+      setLoading(false)
+      setSettled(key)
       return
     }
     let alive = true
@@ -50,6 +91,7 @@ export function useRunFile(
     rpc
       .call('run/file', { id: instance, ...target })
       .then((value) => {
+        if (isVersion(target)) keepVersion(cacheKey, value)
         if (!alive) return
         setFile(value)
         setSettled(key)
@@ -67,11 +109,6 @@ export function useRunFile(
     }
   }, [rpc, instance, key, version, tick])
 
-  // 换了文件：先清掉上一份，别让它闪一下。
-  useEffect(() => {
-    setFile(null)
-  }, [instance, key])
-
   const reload = useCallback(() => setTick((n) => n + 1), [])
   return { file, error, loading, settled, reload }
 }
@@ -79,9 +116,39 @@ export function useRunFile(
 /** 一个读取目标的身份串（`useRunFile` 的 `settled` 就是它）。 */
 export function fileTargetKey(target: FileTarget | null): string {
   if (target === null) return ''
-  return 'node' in target
-    ? `n:${target.node}#${target.item}/${target.sub ?? ''}`
-    : `p:${target.path}`
+  if (!('node' in target)) return `p:${target.path}`
+  const kept = target.version === undefined ? '' : `@${target.version}`
+  return `n:${target.node}#${target.item}/${target.sub ?? ''}${kept}${target.tail === true ? '~' : ''}`
+}
+
+/**
+ * 一份产出存下的各版（`run/history`）。`revision` 是 `run/stat` 报的变化次数：变了才重问，`0`（一版都没有）就不问。
+ * `null` = 还没问到（或一版都没有）。
+ */
+export function useRunHistory(
+  rpc: WorkflowLiteRpc,
+  instance: string,
+  target: { node: string; item: number } | null,
+  revision: number,
+): RunHistoryResponse | null {
+  const [state, setState] = useState<{ key: string; history: RunHistoryResponse } | null>(null)
+  const key = target === null ? '' : `${instance}|${target.node}#${target.item}`
+  useEffect(() => {
+    if (target === null || revision === 0) return
+    let alive = true
+    rpc
+      .call('run/history', { id: instance, node: target.node, item: target.item })
+      .then((history) => {
+        if (alive) setState({ key, history })
+      })
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+    // `key` 就是 target 的身份。
+  }, [rpc, instance, key, revision])
+  if (target === null || revision === 0 || state?.key !== key) return null
+  return state.history
 }
 
 /** 文件夹的一层（`useBrowseDir` 的结果）。 */

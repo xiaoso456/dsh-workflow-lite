@@ -58,9 +58,12 @@ import {
   RUN_LATEST_SCAN,
   type RunDirResponse,
   type RunFileResponse,
+  type RunHistoryResponse,
   type RunImageResponse,
   type RunLatestOutput,
   type RunLatestResponse,
+  type RunLinesRequest,
+  type RunLinesResponse,
   type RunStatResponse,
 } from '../../shared/wire.ts'
 import { type CompileBundle, compileDocument } from '../plan.ts'
@@ -84,7 +87,10 @@ import {
   resolveImageRef,
   resolveRunFile,
   resolveSelfImage,
+  statRunPath,
 } from './files.ts'
+import { type HistoryItem, historyPlan, RunHistory } from './history.ts'
+import { LineScanner, patternError, readRunLines, SlowPatternError } from './lines.ts'
 import {
   answersFile,
   ensureWorkspaceIgnore,
@@ -433,13 +439,18 @@ function pinRoot(document: WorkflowDocument, id: string): WorkflowDocument {
 
 export class RunService {
   readonly store: InstanceStore
+  /** 产出的各版（循环迭代时每一轮写成了什么样）。 */
+  readonly history: RunHistory
   private readonly deps: RunServiceDeps
   /** 每个实例的写入排队（模型的 `state`、用户的保存、插件记流水不会互相覆盖）。 */
   private readonly queues = new Map<string, Promise<unknown>>()
+  /** 带筛选按行读的工作线程（用到才起）。 */
+  private scanner: LineScanner | null = null
 
   constructor(deps: RunServiceDeps) {
     this.deps = deps
     this.store = new InstanceStore(deps.dataDir)
+    this.history = new RunHistory(deps.dataDir)
   }
 
   /** 同一个实例的写入一个接一个来。 */
@@ -718,6 +729,38 @@ export class RunService {
     })
   }
 
+  /** 快照里一项（文件）在磁盘上的位置；`located` 是 {@link withAssets} 过的快照。不是路径项是 `null`。 */
+  private itemFull(
+    record: InstanceRecord,
+    located: WorkflowDocument,
+    node: string,
+    item: number,
+  ): string | null {
+    const location = itemLocation(located, node, item)
+    if (location === null) return null
+    return isAbsolute(location) || record.cwd === undefined ? location : join(record.cwd, location)
+  }
+
+  /**
+   * 步骤状态变了：照前后的样子存下这一轮的产出（{@link historyPlan}）。存不下不影响状态本身。
+   * 在实例的写入队列里调（和下一次改状态不会交错）。
+   */
+  private async keepHistory(
+    record: InstanceRecord,
+    document: WorkflowDocument,
+    before: unknown,
+    after: Readonly<Record<string, NodeRunState>>,
+  ): Promise<void> {
+    const was = (isRecordLike(before) ? before : {}) as Record<string, NodeRunState>
+    const plan = historyPlan(document, was, after)
+    const located = this.withAssets(record, document)
+    await this.history
+      .apply(record.id, plan, ({ node, item }: HistoryItem) =>
+        this.itemFull(record, located, node, item),
+      )
+      .catch(() => {})
+  }
+
   /** 读并校验状态文件。`document` 给了就对照快照。 */
   private async readState(
     record: InstanceRecord,
@@ -882,18 +925,14 @@ export class RunService {
     if (snapshot === null) return fail('not_found', `实例 ${id} 的图快照不见了`)
     const located = this.withAssets(record, snapshot)
     const missing = { exists: false, size: 0, mtime: 0 }
+    const counts = await this.history.counts(id, targets)
     const stats = await Promise.all(
-      targets.map(async ({ node, item }) => {
-        const location = itemLocation(located, node, item)
-        if (location === null) return missing
-        const full =
-          isAbsolute(location) || record.cwd === undefined ? location : join(record.cwd, location)
-        try {
-          const info = await stat(full)
-          return info.isFile() ? { exists: true, size: info.size, mtime: info.mtimeMs } : missing
-        } catch {
-          return missing
-        }
+      targets.map(async ({ node, item }, index) => {
+        const kept = counts[index] ?? { versions: 0, revision: 0 }
+        const full = this.itemFull(record, located, node, item)
+        if (full === null) return { ...missing, ...kept }
+        const found = await statRunPath(full, itemKindOf(located, node, item))
+        return found === null ? { ...missing, ...kept } : { exists: true, ...found, ...kept }
       }),
     )
     return { ok: true, result: { stats } }
@@ -927,22 +966,22 @@ export class RunService {
           )
           if (resource === undefined || !isResource(resource)) continue
           const item = resource.data.items.findIndex(
-            (candidate) => candidate.kind === 'file' && candidate.value.trim() === value.trim(),
+            (candidate) =>
+              (candidate.kind === 'file' || candidate.kind === 'folder') &&
+              candidate.value.trim() === value.trim(),
           )
           if (item < 0) continue
+          const want = resource.data.items[item]?.kind === 'folder' ? 'folder' : 'file'
           const location = itemLocation(entry.document, resource.id, item)
           if (location === null) continue
           const full =
             isAbsolute(location) || entry.record.cwd === undefined
               ? location
               : join(entry.record.cwd, location)
-          try {
-            const info = await stat(full)
-            if (!info.isFile() || (best !== null && info.mtimeMs <= best.mtime)) continue
-            best = { instance: entry.record.id, item, size: info.size, mtime: info.mtimeMs }
-          } catch {
-            // 没生成，或者被删了。
-          }
+          // 没生成、被删了是 null。
+          const found = await statRunPath(full, want)
+          if (found === null || (best !== null && found.mtime <= best.mtime)) continue
+          best = { instance: entry.record.id, item, ...found }
         }
         return best
       }),
@@ -951,9 +990,46 @@ export class RunService {
   }
 
   /** 看实例里的一份产出文件（文件面板与查看框）。 */
-  async file(id: string, target: RunFileTarget): Promise<Outcome<RunFileResponse>> {
-    const located = await this.locateFile(id, target)
+  async file(
+    id: string,
+    target: RunFileTarget,
+    options: { tail?: boolean } = {},
+  ): Promise<Outcome<RunFileResponse>> {
+    const located = await this.locateFile(id, target, options)
     return located.ok ? { ok: true, result: located.result.file } : located
+  }
+
+  /**
+   * 日志、纯文本按行读（`run/lines`）：只读要显示的那几行；带筛选的在工作线程里扫（正则太慢就停下回错误）。
+   * 存下的旧版读那一版的内容。
+   */
+  async lines(
+    id: string,
+    target: { node: string; item: number; sub?: string; version?: number },
+    request: Omit<RunLinesRequest, 'id' | 'node' | 'item' | 'sub' | 'version'>,
+  ): Promise<Outcome<RunLinesResponse>> {
+    const bad = patternError(request.filter)
+    if (bad !== null) return fail('invalid_args', `正则写得不对：${bad}`)
+    const located = await this.resolveTarget(id, target)
+    if (!located.ok) return located
+    const { full, display } = located.result.found
+    let source = full
+    if (target.version !== undefined) {
+      const kept = await this.history.locate(id, target.node, target.item, target.version)
+      if (kept === null) return fail('not_found', `${display} 没有存下第 ${target.version} 版`)
+      source = kept.full
+    }
+    this.scanner ??= new LineScanner()
+    try {
+      const read = await readRunLines(source, display, request, this.scanner)
+      return { ok: true, result: { ...read, path: full } }
+    } catch (error) {
+      if (error instanceof SlowPatternError) return fail('invalid_args', error.message)
+      return fail(
+        'io_error',
+        `读文件失败：${error instanceof Error ? error.message : String(error)}`,
+      )
+    }
   }
 
   /**
@@ -963,10 +1039,11 @@ export class RunService {
   async image(id: string, target: RunFileTarget, src?: string): Promise<Outcome<RunImageResponse>> {
     const located = await this.locateFile(id, target)
     if (!located.ok) return located
-    const { record, file } = located.result
+    const { record, file, source } = located.result
     if (!file.exists) return fail('not_found', `文档不存在：${file.display}`)
+    // 存下的旧版：图本身读那一版；文档里引用的图还按原文件的位置找（旧版里引用的图只有现在这一份）。
     const resolved =
-      src === undefined ? resolveSelfImage(file.path) : resolveImageRef(record.cwd, file.path, src)
+      src === undefined ? resolveSelfImage(source) : resolveImageRef(record.cwd, file.path, src)
     if (!resolved.ok) return resolved
     try {
       return await readRunImage(resolved.result.full, resolved.result.mime)
@@ -1029,25 +1106,55 @@ export class RunService {
     }
   }
 
-  /** 找到并读出实例里的一份文件（连同实例记录，算图片路径要用它的工作区）。 */
+  /** 一份文件存下的各版（只认快照里的文件项）。 */
+  async versions(id: string, node: string, item: number): Promise<Outcome<RunHistoryResponse>> {
+    const located = await this.resolveTarget(id, { node, item })
+    if (!located.ok) return located
+    return { ok: true, result: await this.history.list(id, node, item) }
+  }
+
+  /**
+   * 找到并读出实例里的一份文件（连同实例记录，算图片路径要用它的工作区）。
+   * `source` 是真正读的那份：平时就是 `file.path`，看存下的旧版时是那一版的内容（`file` 里的路径还是原文件）。
+   */
   private async locateFile(
     id: string,
     target: RunFileTarget,
-  ): Promise<Outcome<{ record: InstanceRecord; file: RunFileResponse }>> {
+    options: { tail?: boolean } = {},
+  ): Promise<Outcome<{ record: InstanceRecord; file: RunFileResponse; source: string }>> {
     const located = await this.resolveTarget(id, target)
     if (!located.ok) return located
     const { record, document, found: resolved } = located.result
+    if ('node' in target && target.version !== undefined) {
+      const kept = await this.history.locate(id, target.node, target.item, target.version)
+      if (kept === null)
+        return fail('not_found', `${resolved.display} 没有存下第 ${target.version} 版`)
+      try {
+        const read = await readRunFile(kept.full, resolved.display, options)
+        if (!read.exists)
+          return fail('not_found', `${resolved.display} 的第 ${target.version} 版不见了`)
+        const file = { ...read, path: resolved.full, mtime: kept.version.mtime }
+        return { ok: true, result: { record, file, source: kept.full } }
+      } catch (error) {
+        return fail(
+          'io_error',
+          `读文件失败：${error instanceof Error ? error.message : String(error)}`,
+        )
+      }
+    }
     try {
-      const found = await readRunFile(resolved.full, resolved.display)
+      const found = await readRunFile(resolved.full, resolved.display, options)
       // 模型报告的产出可能是相对产出根目录写的：工作区里没有时再到根目录下找。
       if (!found.exists && 'path' in target) {
         const alt = resolveRunFile(record, document, target, true)
         if (alt.ok && alt.result.full !== resolved.full) {
-          const second = await readRunFile(alt.result.full, alt.result.display)
-          if (second.exists) return { ok: true, result: { record, file: second } }
+          const second = await readRunFile(alt.result.full, alt.result.display, options)
+          if (second.exists) {
+            return { ok: true, result: { record, file: second, source: second.path } }
+          }
         }
       }
-      return { ok: true, result: { record, file: found } }
+      return { ok: true, result: { record, file: found, source: found.path } }
     } catch (error) {
       return fail(
         'io_error',
@@ -1259,6 +1366,12 @@ export class RunService {
             if (entry !== undefined) entry.statePath = statePath
           })
         }
+        await this.keepHistory(
+          record,
+          document,
+          (raw as { nodes?: unknown }).nodes,
+          check.state.nodes,
+        )
       }
       const state = check.state
       const p = progressOf(state)
@@ -1427,6 +1540,7 @@ export class RunService {
         issues: doc.errors.map((error) => error.message),
       })
     }
+    const previous = (doc.toJS() as { nodes?: unknown } | null)?.nodes
     const applied = this.applyUserEdits(doc, edits)
     if (!applied.ok) return applied
     const now = isoNow()
@@ -1448,6 +1562,8 @@ export class RunService {
         `写状态文件失败：${error instanceof Error ? error.message : String(error)}`,
       )
     }
+    // 用户在画布上把步骤标成完成、失败：和模型报的一样，这一轮的产出存一版。
+    if (document !== null) await this.keepHistory(record, document, previous, check.state.nodes)
     const mtime = (await stat(statePath)).mtimeMs
     if (!notify) return { ok: true, result: { notified: false, mtime, quiet: true } }
     const notified = await this.tell(record, session, {
@@ -1807,4 +1923,14 @@ export class RunService {
     if (validateRunState(doc.toJS()).state === null) return
     await writeFileAtomic(record.statePath, doc.toString({ lineWidth: 0 }))
   }
+}
+
+/** 快照里这一项是文件夹还是文件（画布展示问它在不在时，按它本来的种类看）。 */
+function itemKindOf(document: WorkflowDocument, node: string, item: number): 'file' | 'folder' {
+  const resource = document.nodes.find((candidate) => idKey(candidate.id) === idKey(node))
+  return resource !== undefined &&
+    isResource(resource) &&
+    resource.data.items[item]?.kind === 'folder'
+    ? 'folder'
+    : 'file'
 }

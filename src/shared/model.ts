@@ -19,12 +19,20 @@ import { memoryPath, upgradeWorkflowPath } from './pathVars.ts'
 import {
   type EdgeData,
   EXECUTION_MODES,
+  FOLDER_MATCH_MAX,
+  FOLDER_ORDERS,
+  FOLDER_SHOWS,
+  GALLERY_GRID_MAX,
+  GALLERY_LAYOUTS,
+  type GalleryView,
   type Handoff,
   INPUT_KINDS,
   INPUT_TYPE,
   type InputAnswer,
   type InputData,
   type InputNode,
+  type LineFilter,
+  type LineView,
   MEMORY_TYPES,
   NODE_TYPE,
   type NodeData,
@@ -38,8 +46,10 @@ import {
   type ResourcePreset,
   type ResourceView,
   type StepNode,
+  type TableView,
   type ValidationProblem,
   VIEW_FITS,
+  VIEW_FROMS,
   VIEW_LIMITS,
   VIEW_LOOKS,
   type Viewport,
@@ -66,7 +76,19 @@ const INPUT_KEYS = [
 const RESOURCE_KEYS = ['label', 'description', 'color', 'items', 'preset', 'view'] as const
 const ITEM_KEYS = ['kind', 'value', 'note'] as const
 /** 展示设置的键序。 */
-const VIEW_KEYS = ['item', 'width', 'height', 'zoom', 'fit', 'adapt', 'look', 'hideTitle'] as const
+const VIEW_KEYS = [
+  'item',
+  'width',
+  'height',
+  'zoom',
+  'fit',
+  'adapt',
+  'look',
+  'hideTitle',
+  'lines',
+  'table',
+  'gallery',
+] as const
 /** edge 的 data 键序。 */
 const EDGE_DATA_KEYS = ['when', 'label', 'handoff', 'update'] as const
 
@@ -390,12 +412,106 @@ export function readView(raw: unknown): ResourceView | undefined {
   const zoom = clampInt(raw.zoom, VIEW_LIMITS.zoom)
   if (zoom !== undefined) view.zoom = zoom
   const fit = VIEW_FITS.find((candidate) => candidate === raw.fit)
-  if (fit !== undefined && fit !== 'contain') view.fit = fit
+  if (fit !== undefined) view.fit = fit
   if (raw.adapt === false) view.adapt = false
   const look = VIEW_LOOKS.find((candidate) => candidate === raw.look)
   if (look !== undefined) view.look = look
   if (raw.hideTitle === true) view.hideTitle = true
+  const lines = readLineView(raw.lines)
+  if (lines !== undefined) view.lines = lines
+  const table = readTableView(raw.table)
+  if (table !== undefined) view.table = table
+  const gallery = readGalleryView(raw.gallery)
+  if (gallery !== undefined) view.gallery = gallery
   return view
+}
+
+/** 筛选词最长多少字（再长多半是贴错了）。 */
+export const LINE_FILTER_MAX = 500
+/** 匹配的行前后最多各带几行。 */
+export const LINE_CONTEXT_MAX = 10
+
+/** 只看匹配的行：没写字当没筛；上下文夹到 0–{@link LINE_CONTEXT_MAX}。键序固定（写盘、比较都用它）。 */
+export function readLineFilter(raw: unknown): LineFilter | undefined {
+  if (!isPlainObject(raw) || typeof raw.pattern !== 'string') return undefined
+  const pattern = raw.pattern.slice(0, LINE_FILTER_MAX)
+  if (pattern === '') return undefined
+  const filter: LineFilter = { pattern }
+  if (raw.regex === true) filter.regex = true
+  if (raw.caseSensitive === true) filter.caseSensitive = true
+  if (raw.invert === true) filter.invert = true
+  const context = clampInt(raw.context, [0, LINE_CONTEXT_MAX])
+  if (context !== undefined && context > 0) filter.context = context
+  return filter
+}
+
+/** 一组设置全是缺省（空对象）就当没写。 */
+function nonEmpty<V extends object>(value: V): V | undefined {
+  return Object.keys(value).length === 0 ? undefined : value
+}
+
+function readLineView(raw: unknown): LineView | undefined {
+  if (!isPlainObject(raw)) return undefined
+  const view: LineView = {}
+  const from = VIEW_FROMS.find((candidate) => candidate === raw.from)
+  if (from !== undefined) view.from = from
+  const filter = readLineFilter(raw.filter)
+  if (filter !== undefined) view.filter = filter
+  if (raw.levels === false) view.levels = false
+  return nonEmpty(view)
+}
+
+/** 表头的字：去掉首尾空白、不要重复的，最多记 64 列。 */
+function readColumns(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  const names = raw
+    .filter((name): name is string => typeof name === 'string')
+    .map((name) => name.trim())
+  return [...new Set(names.filter((name) => name !== ''))].slice(0, 64)
+}
+
+function readTableView(raw: unknown): TableView | undefined {
+  if (!isPlainObject(raw)) return undefined
+  const view: TableView = {}
+  const from = VIEW_FROMS.find((candidate) => candidate === raw.from)
+  if (from !== undefined) view.from = from
+  const hide = readColumns(raw.hide)
+  if (hide.length > 0) view.hide = hide
+  if (raw.bars === true) view.bars = true
+  if (
+    isPlainObject(raw.sort) &&
+    typeof raw.sort.column === 'string' &&
+    raw.sort.column.trim() !== ''
+  ) {
+    view.sort = {
+      column: raw.sort.column.trim(),
+      ...(raw.sort.desc === true ? { desc: true } : {}),
+    }
+  }
+  return nonEmpty(view)
+}
+
+function readGalleryView(raw: unknown): GalleryView | undefined {
+  if (!isPlainObject(raw)) return undefined
+  const view: GalleryView = {}
+  const layout = GALLERY_LAYOUTS.find((candidate) => candidate === raw.layout)
+  if (layout !== undefined && layout !== 'wall') view.layout = layout
+  if (isPlainObject(raw.grid)) {
+    const columns = clampInt(raw.grid.columns, [1, GALLERY_GRID_MAX.columns])
+    const rows = clampInt(raw.grid.rows, [1, GALLERY_GRID_MAX.rows])
+    if (columns !== undefined && rows !== undefined) view.grid = { columns, rows }
+  }
+  const show = FOLDER_SHOWS.find((candidate) => candidate === raw.show)
+  if (show !== undefined) view.show = show
+  const order = FOLDER_ORDERS.find((candidate) => candidate === raw.order)
+  if (order !== undefined) view.order = order
+  if (raw.hero === false) view.hero = false
+  if (typeof raw.match === 'string' && raw.match.trim() !== '') {
+    view.match = raw.match.trim().slice(0, FOLDER_MATCH_MAX)
+  }
+  if (raw.list === 'grid') view.list = 'grid'
+  if (raw.time === true) view.time = true
+  return nonEmpty(view)
 }
 
 /** 资源预设：认得的种类才留。记忆没写引用（早先按范围存的卡）留空，校验时报出来；类型认不出按步骤记忆。 */
@@ -448,7 +564,7 @@ export function canonicalResource(data: ResourceData): ResourceData {
 export function cloneResourceData(data: ResourceData): ResourceData {
   const copy = { ...data, items: data.items.map((item) => ({ ...item })) }
   if (data.preset !== undefined) copy.preset = { ...data.preset }
-  if (data.view !== undefined) copy.view = { ...data.view }
+  if (data.view !== undefined) copy.view = structuredClone(data.view)
   return copy
 }
 

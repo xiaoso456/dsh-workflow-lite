@@ -13,6 +13,9 @@ const base: Display = {
   fit: 'contain',
   adapt: true,
   hideTitle: false,
+  lines: {},
+  table: {},
+  gallery: {},
 }
 
 describe('displaySummary', () => {

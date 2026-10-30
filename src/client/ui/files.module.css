@@ -492,3 +492,469 @@ div.viewer {
   height: 100%;
   min-height: 0;
 }
+
+/*
+ * ── 产出的各轮版本（FileHistory）：正文右边一栏，和对比视图 ──
+ * 栏不盖住正文：框子大小不变，正文让出位置（开关就在标题行，指针下的东西不挪）。
+ */
+.viewerMain[data-side] {
+  flex-direction: row;
+}
+
+.viewerMain[data-side] > .viewerBody {
+  min-width: 0;
+}
+
+.versions {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  width: 264px;
+  min-height: 0;
+  border-left: 1px solid var(--wl-line);
+  background: var(--wl-panel);
+  animation: versionsIn 260ms var(--wl-ease-out) both;
+}
+
+@keyframes versionsIn {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+}
+
+.versionsHead {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px 8px 14px;
+  border-bottom: 1px solid var(--wl-line);
+}
+
+.versionsHead > :last-child {
+  width: 120px;
+}
+
+/* 对比时的两列表头：和每行前面的两个圈对齐。 */
+.versionsCols {
+  display: flex;
+  gap: 2px;
+  padding: 6px 0 0 12px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+.versionsCols > span {
+  width: 18px;
+  text-align: center;
+}
+
+.versionsList {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 4px 6px 8px;
+  overflow: auto;
+  list-style: none;
+  scrollbar-width: thin;
+}
+
+.versionRow {
+  display: flex;
+  align-items: stretch;
+  border-radius: calc(7px * var(--wl-round, 1));
+}
+
+.versionRow[data-selected] {
+  background: var(--wl-accent-soft);
+}
+
+.versionButton,
+.versionStatic {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 9px;
+  align-items: flex-start;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.versionButton {
+  cursor: pointer;
+}
+
+.versionButton:hover {
+  background: var(--wl-hover);
+}
+
+.versionRow[data-selected] .versionButton:hover {
+  background: transparent;
+}
+
+.versionButton:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: -2px;
+}
+
+.versionPicks {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  align-items: flex-start;
+  padding: 8px 0 0 6px;
+}
+
+.versionRadio {
+  width: 16px;
+  height: 16px;
+  margin: 0 1px;
+  accent-color: var(--wl-accent);
+  cursor: pointer;
+}
+
+.versionRadio:disabled {
+  cursor: default;
+  opacity: 0.3;
+}
+
+/* 和画布卡片上的点一个样：按判定着色，最新的空心。 */
+.versionDot {
+  --dot: var(--wl-text-3);
+
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--dot);
+}
+
+.versionDot[data-tone="pass"] {
+  --dot: var(--wl-flow-pass);
+}
+
+.versionDot[data-tone="again"] {
+  --dot: var(--wl-flow-fail);
+}
+
+.versionDot[data-live] {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--dot);
+}
+
+.versionText {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.versionName {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  overflow: hidden;
+  color: var(--wl-text);
+  font-size: var(--wl-fs-meta);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.versionLive {
+  flex: none;
+  padding: 0 5px;
+  border-radius: calc(4px * var(--wl-round, 1));
+  background: var(--wl-fill);
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-micro);
+  font-weight: 400;
+}
+
+.versionMeta {
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.versionDelta {
+  flex: none;
+  color: var(--wl-text-3);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+.versionsNote {
+  flex: none;
+  margin: 0;
+  padding: 8px 14px 10px;
+  border-top: 1px solid var(--wl-line);
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+/* 对比：上面一行说明哪边是哪版（和视图切换），下面是内容。 */
+.compare {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.compareBar {
+  display: flex;
+  flex: none;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 12px 8px 16px;
+  border-bottom: 1px solid var(--wl-line);
+}
+
+.compareCaptions {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 16px;
+  min-width: 0;
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-micro);
+}
+
+.compareCaptions > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compareCaptions b {
+  margin-right: 4px;
+  padding: 0 5px;
+  border-radius: calc(4px * var(--wl-round, 1));
+  font-weight: 600;
+}
+
+.compareCaptions [data-side="old"] b {
+  background: var(--wl-danger-soft);
+  color: var(--wl-danger);
+}
+
+.compareCaptions [data-side="new"] b {
+  background: var(--wl-ok-soft);
+  color: var(--wl-ok);
+}
+
+.compareViews {
+  flex: none;
+  width: 132px;
+}
+
+.compareSides {
+  display: grid;
+  flex: 1 1 auto;
+  grid-template-columns: 1fr 1fr;
+  min-height: 0;
+}
+
+.compareSide {
+  min-width: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+}
+
+.compareSide .viewerDoc {
+  padding: 16px 18px 24px;
+}
+
+.compareImage {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  min-height: 0;
+  padding: 16px;
+  background: var(--wl-fill);
+}
+
+.compareSide + .compareSide,
+.compareImage + .compareImage {
+  border-left: 1px solid var(--wl-line);
+}
+
+.compareImage img,
+.sliderFrame img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+/* 逐行差异：两列行号、一列 +/−、正文；删的行淡红、加的行淡绿。 */
+.diff {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.diffCounts {
+  flex: none;
+  margin: 0;
+  padding: 6px 16px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+.diffBody {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding-bottom: 16px;
+  overflow: auto;
+  font-family: var(--wl-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  tab-size: 4;
+  scrollbar-width: thin;
+}
+
+.diffRow {
+  display: grid;
+  grid-template-columns: 3.5em 3.5em 1.5em minmax(0, 1fr);
+  min-width: max-content;
+}
+
+.diffRow[data-kind="del"] {
+  background: var(--wl-danger-soft);
+}
+
+.diffRow[data-kind="add"] {
+  background: var(--wl-ok-soft);
+}
+
+.diffNo {
+  padding-right: 8px;
+  color: var(--wl-text-3);
+  text-align: right;
+  user-select: none;
+}
+
+.diffSign {
+  color: var(--wl-text-3);
+  text-align: center;
+  user-select: none;
+}
+
+.diffRow[data-kind="del"] .diffSign {
+  color: var(--wl-danger);
+}
+
+.diffRow[data-kind="add"] .diffSign {
+  color: var(--wl-ok);
+}
+
+.diffText {
+  padding-right: 16px;
+  color: var(--wl-text);
+  white-space: pre;
+}
+
+.diffFold {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  width: 100%;
+  margin: 2px 0;
+  padding: 3px 0 3px calc(7em + 8px);
+  border: 0;
+  border-block: 1px dashed var(--wl-line);
+  background: var(--wl-fill);
+  color: var(--wl-text-3);
+  font: inherit;
+  font-size: var(--wl-fs-micro);
+  cursor: pointer;
+}
+
+.diffFold:hover {
+  color: var(--wl-text);
+}
+
+.diffFold:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: -2px;
+}
+
+/* 滑动对比：两张叠在一起，新的那张从分隔线往右露出来。 */
+.slider {
+  display: grid;
+  flex: 1 1 auto;
+  place-items: center;
+  min-height: 0;
+  padding: 16px;
+  background: var(--wl-fill);
+}
+
+.sliderFrame {
+  position: relative;
+  display: grid;
+  max-width: 100%;
+  max-height: 100%;
+  cursor: ew-resize;
+  touch-action: none;
+  user-select: none;
+}
+
+.sliderFrame > img {
+  grid-area: 1 / 1;
+}
+
+/* 动效例外（登记）：clip-path 跟着拖动改，是直接操纵、不是过渡动画；只重画这一层。 */
+.sliderAfter {
+  clip-path: inset(0 0 0 var(--at));
+}
+
+.sliderHandle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--at);
+  width: 2px;
+  margin-left: -1px;
+  background: var(--wl-accent);
+  box-shadow: 0 0 0 1px var(--wl-panel);
+  outline: none;
+}
+
+.sliderHandle::after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border: 2px solid var(--wl-panel);
+  border-radius: 50%;
+  background: var(--wl-accent);
+  content: "";
+}
+
+.sliderHandle:focus-visible::after {
+  box-shadow: 0 0 0 2px var(--wl-accent);
+}
+
+:global([data-look="swiss"]) .versionRow {
+  border-radius: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .versions {
+    animation: none;
+  }
+}

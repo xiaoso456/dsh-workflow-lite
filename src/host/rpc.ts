@@ -30,6 +30,7 @@ import type { MemoryType, NodeData } from '../shared/types.ts'
 import {
   endpointName,
   type GraphLoadResponse,
+  type LineFilter,
   RUN_STAT_MAX,
   routePath,
   WORKFLOW_LITE_ENDPOINTS,
@@ -213,7 +214,34 @@ function runFileTarget(input: Record<string, unknown>, route: string): RunFileTa
   if (node === undefined) return { path: path ?? '' }
   const sub = optionalString(input, 'sub')
   const item = typeof input.item === 'number' && Number.isInteger(input.item) ? input.item : 0
-  return { node, item, ...(sub === undefined ? {} : { sub }) }
+  const version =
+    typeof input.version === 'number' && Number.isInteger(input.version) && input.version > 0
+      ? input.version
+      : undefined
+  return {
+    node,
+    item,
+    ...(sub === undefined ? {} : { sub }),
+    ...(version === undefined ? {} : { version }),
+  }
+}
+
+/** `run/lines` 的筛选：空的当没筛；正则太长（多半是贴错了）拒绝。 */
+function readLineFilter(raw: unknown): LineFilter | undefined {
+  if (raw === undefined || raw === null) return undefined
+  const input = asRecord(raw)
+  const pattern = typeof input.pattern === 'string' ? input.pattern : ''
+  if (pattern === '') return undefined
+  if (pattern.length > 500) throw new Error('filter.pattern is too long')
+  const context =
+    typeof input.context === 'number' && Number.isInteger(input.context) ? input.context : 0
+  return {
+    pattern,
+    ...(input.regex === true ? { regex: true } : {}),
+    ...(input.caseSensitive === true ? { caseSensitive: true } : {}),
+    ...(input.invert === true ? { invert: true } : {}),
+    ...(context > 0 ? { context: Math.min(3, context) } : {}),
+  }
 }
 
 /**
@@ -642,7 +670,12 @@ async function dispatch(
     case 'run/storage': {
       const input = asRecord(payload)
       const action = optionalString(input, 'action') ?? 'stats'
-      if (action !== 'stats' && action !== 'clearDispatch' && action !== 'clearFinished') {
+      if (
+        action !== 'stats' &&
+        action !== 'clearDispatch' &&
+        action !== 'clearFinished' &&
+        action !== 'clearHistory'
+      ) {
         throw new Error(`unknown storage action ${action}`)
       }
       return ok(await storageAction(deps.runs, deps.dataDir(), action))
@@ -677,7 +710,38 @@ async function dispatch(
       const input = asRecord(payload)
       const id = requireString(input, 'id')
       const target = runFileTarget(input, 'run/file')
-      const outcome = await deps.runs.file(id, target)
+      const outcome = await deps.runs.file(id, target, { tail: input.tail === true })
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok(outcome.result)
+    }
+
+    case 'run/lines': {
+      const input = asRecord(payload)
+      const id = requireString(input, 'id')
+      const target = runFileTarget(input, 'run/lines')
+      if (!('node' in target)) throw new Error('run/lines requires node')
+      const mode = input.mode === 'head' || input.mode === 'follow' ? input.mode : 'tail'
+      const offset = (field: string): number | undefined => {
+        const value = input[field]
+        return typeof value === 'number' && Number.isInteger(value) && value >= 0
+          ? value
+          : undefined
+      }
+      const limit = offset('limit') ?? 200
+      const before = offset('before')
+      const from = offset('from')
+      const owed = offset('owed')
+      const tag = optionalString(input, 'tag')
+      const filter = readLineFilter(input.filter)
+      const outcome = await deps.runs.lines(id, target, {
+        mode,
+        limit,
+        ...(before === undefined ? {} : { before }),
+        ...(from === undefined ? {} : { from }),
+        ...(tag === undefined ? {} : { tag }),
+        ...(owed === undefined ? {} : { owed }),
+        ...(filter === undefined ? {} : { filter }),
+      })
       if (!outcome.ok) return failFrom(outcome.error)
       return ok(outcome.result)
     }
@@ -705,6 +769,16 @@ async function dispatch(
         return { node, item }
       })
       const outcome = await deps.runs.stat(id, targets)
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok(outcome.result)
+    }
+
+    case 'run/history': {
+      const input = asRecord(payload)
+      const id = requireString(input, 'id')
+      const node = requireString(input, 'node')
+      const item = typeof input.item === 'number' && Number.isInteger(input.item) ? input.item : 0
+      const outcome = await deps.runs.versions(id, node, item)
       if (!outcome.ok) return failFrom(outcome.error)
       return ok(outcome.result)
     }

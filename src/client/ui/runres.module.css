@@ -203,6 +203,22 @@ div.small {
   margin: 0 0 14px;
 }
 
+/* 只读了末尾一截：正文上面一行淡字说明，和下面的日志隔一道线；打开就停在末尾，说明钉在上面一直看得到。 */
+.tailNote {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin: 0;
+  padding: 9px 28px;
+  border-bottom: 1px solid var(--wl-line);
+  background: var(--wl-panel);
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
 .leadLabel {
   color: var(--wl-text-3);
   font-size: var(--wl-fs-micro);

@@ -468,7 +468,8 @@ export type FloatState = 'off' | 'hover' | 'pinned'
  *   里面的文字能选中复制，点击不会穿透到后面。
  * - 在触发器与浮层之外按下指针、滚动、滚轮缩放画布都收起；Esc 只收浮层。
  * - 先按"触发器正下方、左边对齐"放（`align: 'end'` 右边对齐；`'auto'` 触发器在视图右半边就右对齐），
- *   量出高度后下面放不下就翻到上方，左右夹在视图里。
+ *   量出高度后下面放不下就翻到上方，左右夹在视图里；上下都放不下就往回挪进视图，比视图还高才限高、里面滚。
+ * - 里面的内容变高变矮时跟着重量一次：不换边，只在要越出视图时往回挪。
  */
 export function useFloat<A extends HTMLElement>(options: {
   openMs: number
@@ -487,6 +488,11 @@ export function useFloat<A extends HTMLElement>(options: {
    * 画布上的卡片用：浮层不盖住卡片，卡片往右下长大也碰不到它。
    */
   beside?: RefObject<HTMLElement | null>
+  /**
+   * 摆在旁边时上沿和谁对齐：缺省和那个元素（画布卡片）；`'anchor'` 和触发器——
+   * 右栏里的设置摆在整条栏的左边，但和「调整」那一行齐平。
+   */
+  besideTop?: 'beside' | 'anchor'
 }): {
   state: FloatState
   setState: (next: FloatState | ((current: FloatState) => FloatState)) => void
@@ -517,9 +523,20 @@ export function useFloat<A extends HTMLElement>(options: {
     up: boolean
     /** 摆在旁边（`beside`）时在哪一边：入场从那张卡的方向出来。 */
     side?: 'left' | 'right'
+    /** 比整个视图还高时才有：限高、里面滚。 */
+    maxHeight?: number
   } | null>(null)
   const timer = useRef(0)
-  const { openMs, closeMs, width, align = 'start', gap = FLOAT_GAP, exitMs = 0, beside } = options
+  const {
+    openMs,
+    closeMs,
+    width,
+    align = 'start',
+    gap = FLOAT_GAP,
+    exitMs = 0,
+    beside,
+    besideTop = 'beside',
+  } = options
   /**
    * 浮层还挂着吗：打开时挂上；收起后再挂 `exitMs` 放退场动画。
    * 「上一次的 state」在渲染时就比（不等 effect）：收起的那一次渲染里浮层就带着 `data-leaving` 留在原处，
@@ -559,35 +576,72 @@ export function useFloat<A extends HTMLElement>(options: {
       if (exitMs === 0) setPlace(null)
       return
     }
-    const anchor = anchorRef.current
     const root = host ?? document.body
-    if (anchor === null) return
-    const box = anchor.getBoundingClientRect()
-    const area = root.getBoundingClientRect()
-    const height = panelRef.current?.offsetHeight ?? 0
-    const next = beside?.current
-    if (next !== undefined && next !== null) {
-      const card = next.getBoundingClientRect()
-      const room = card.left - area.left - gap * 2
-      const left =
-        room >= width ? card.left - area.left - gap * 2 - width : card.right - area.left + gap * 2
-      const top = Math.max(8, Math.min(card.top - area.top, area.height - height - 8))
-      setPlace({
-        left: Math.max(8, Math.min(left, area.width - width - 8)),
-        top,
-        up: false,
-        side: room >= width ? 'left' : 'right',
-      })
-      return
+    /**
+     * `again`：已经摆好、只是里面的内容变高变矮了（换了一种展示，选项多了几行）。
+     * 左右、上下哪一边都不换，只在要越出视图时往回挪——指针下的那一项尽量不动。
+     */
+    const measure = (again: boolean): void => {
+      const anchor = anchorRef.current
+      if (anchor === null) return
+      const panel = panelRef.current
+      const box = anchor.getBoundingClientRect()
+      const area = root.getBoundingClientRect()
+      // 限了高也按内容的高算（滚动高度加上下边框）。
+      const height =
+        panel === null ? 0 : panel.scrollHeight + panel.offsetHeight - panel.clientHeight
+      const tall = height > area.height - 16
+      const inView = (top: number): number =>
+        tall ? 8 : Math.max(8, Math.min(top, area.height - height - 8))
+      const maxHeight = tall ? area.height - 16 : undefined
+      const aboveTop = box.top - area.top - gap - height
+      if (again) {
+        setPlace((current) =>
+          current === null
+            ? current
+            : { ...current, top: inView(current.up ? aboveTop : current.top), maxHeight },
+        )
+        return
+      }
+      const next = beside?.current
+      if (next !== undefined && next !== null) {
+        const card = next.getBoundingClientRect()
+        const room = card.left - area.left - gap * 2
+        const left =
+          room >= width ? card.left - area.left - gap * 2 - width : card.right - area.left + gap * 2
+        setPlace({
+          left: Math.max(8, Math.min(left, area.width - width - 8)),
+          top: inView((besideTop === 'anchor' ? box.top : card.top) - area.top),
+          up: false,
+          side: room >= width ? 'left' : 'right',
+          maxHeight,
+        })
+        return
+      }
+      const end =
+        align === 'end' ||
+        (align === 'auto' && box.left + box.width / 2 - area.left > area.width / 2)
+      const wanted = end ? box.right - area.left - width : box.left - area.left - 8
+      const left = Math.max(8, Math.min(wanted, area.width - width - 8))
+      const below = box.bottom - area.top + gap
+      const up = below + height > area.height - 8 && aboveTop > 8
+      // 上下都放不下：贴着视图下沿往上挪（盖住触发器也比被裁掉强）。
+      setPlace({ left, top: up ? aboveTop : inView(below), up, maxHeight })
     }
-    const end =
-      align === 'end' || (align === 'auto' && box.left + box.width / 2 - area.left > area.width / 2)
-    const wanted = end ? box.right - area.left - width : box.left - area.left - 8
-    const left = Math.max(8, Math.min(wanted, area.width - width - 8))
-    const below = box.bottom - area.top + gap
-    const up = below + height > area.height - 8 && box.top - area.top - gap - height > 8
-    setPlace({ left, top: up ? box.top - area.top - gap - height : below, up })
-  }, [state, host, width, align, gap, beside])
+    measure(false)
+    const content = panelRef.current?.firstElementChild
+    const observer =
+      content == null || typeof ResizeObserver === 'undefined'
+        ? null
+        : new ResizeObserver(() => measure(true))
+    if (content != null) observer?.observe(content)
+    const onResize = (): void => measure(false)
+    window.addEventListener('resize', onResize)
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener('resize', onResize)
+    }
+  }, [state, host, width, align, gap, beside, besideTop])
 
   useEffect(() => {
     if (state === 'off') return
@@ -597,15 +651,23 @@ export function useFloat<A extends HTMLElement>(options: {
     const onAway = (event: Event): void => {
       if (!inside(event.target)) setState('off')
     }
+    // 滚动只在挪动了触发器（或它旁边那张卡）时才收：别处自己滚（日志卡停在末尾、跟着新内容往下拉）不算。
+    const onScroll = (event: Event): void => {
+      const target = event.target
+      const moved = (element: HTMLElement | null | undefined): boolean =>
+        element != null && target instanceof Node && target.contains(element)
+      if (inside(target)) return
+      if (moved(anchorRef.current) || moved(beside?.current)) setState('off')
+    }
     document.addEventListener('pointerdown', onAway, true)
-    document.addEventListener('scroll', onAway, true)
+    document.addEventListener('scroll', onScroll, true)
     document.addEventListener('wheel', onAway, true)
     return () => {
       document.removeEventListener('pointerdown', onAway, true)
-      document.removeEventListener('scroll', onAway, true)
+      document.removeEventListener('scroll', onScroll, true)
       document.removeEventListener('wheel', onAway, true)
     }
-  }, [state])
+  }, [state, beside])
 
   const onKeyDown = (event: React.KeyboardEvent): void => {
     if (event.key !== 'Escape' || state === 'off') return
@@ -648,6 +710,9 @@ export function useFloat<A extends HTMLElement>(options: {
           left: place?.left ?? 0,
           top: place?.top ?? 0,
           width,
+          ...(place?.maxHeight === undefined
+            ? {}
+            : { maxHeight: place.maxHeight, overflowY: 'auto' as const }),
           // 第一帧还没量好位置：先藏着量高度，摆好了再出现（避免闪一下）。
           visibility: place === null ? 'hidden' : 'visible',
         }}

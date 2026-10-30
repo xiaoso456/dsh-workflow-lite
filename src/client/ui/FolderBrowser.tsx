@@ -38,7 +38,14 @@ import {
 } from '../model/folderBrowse.ts'
 import { shortTime } from '../model/time.ts'
 import { FilterBar, PathBar, UpRow } from './DirParts.tsx'
-import { BrokenImagesHint, CopyButton, type DocBody, DocContent, docFormat } from './DocViewer.tsx'
+import {
+  BrokenImagesHint,
+  CopyButton,
+  type DocBody,
+  DocContent,
+  docFormat,
+  renderedLabel,
+} from './DocViewer.tsx'
 import { FileGlyph } from './FileGlyph.tsx'
 import { FileTag } from './FileTag.tsx'
 import { fileBody } from './FileViewer.tsx'
@@ -622,7 +629,7 @@ function FilePane(props: {
               setView(next)
             }}
             options={[
-              { value: 'rendered', label: t('file.rendered') },
+              { value: 'rendered', label: renderedLabel(t, docFormat(full)) },
               { value: 'source', label: t('file.source') },
             ]}
           />

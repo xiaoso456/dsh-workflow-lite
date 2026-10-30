@@ -69,6 +69,7 @@ import type {
   ResourceItem,
   ResourceKind,
   ResourceView,
+  TableView,
   ValidationProblem,
   ViewLook,
   WorkflowDocument,
@@ -1280,6 +1281,14 @@ const ResourceCard = memo(function ResourceCard(
  * 选中时右下角出一个拖柄改大小（拖动中只在这张卡里记临时尺寸，松手才写进文档）；图片按拖之前的比例走，
  * 按住 Shift 自由拉。网页、长文能「交互」：进去之后展示区接鼠标（滚动、点按钮），Esc、取消选中都退出来。
  */
+/** 换掉展示设置里的表格那组（`undefined` 是去掉）。 */
+function withTable(view: ResourceView, table: TableView | undefined): ResourceView {
+  const next: ResourceView = { ...view }
+  if (table === undefined) delete next.table
+  else next.table = table
+  return next
+}
+
 function DisplayCard(
   props: NodeProps<ResourceFlowNode> & { display: CardDisplay },
 ): React.JSX.Element {
@@ -1314,7 +1323,9 @@ function DisplayCard(
   // 模板画布上，展示的是最近一次执行生成的：标题行悬停时多一个钟，点了打开那个实例。
   const latest = env?.run === null ? env.latest : undefined
   const found =
-    display.item.kind === 'file' ? latest?.outputs[displayKey(id, display.info.item)] : undefined
+    display.item.kind === 'file' || display.item.kind === 'folder'
+      ? latest?.outputs[displayKey(id, display.info.item)]
+      : undefined
   // 有内容了才换成卡片以外的样子：草图、读不了的说明还是放在卡面上。
   const filled =
     display.item.kind === 'text' ||
@@ -1552,6 +1563,7 @@ function DisplayCard(
           display={shown}
           interactive={interactive}
           writing={display.writing}
+          onTable={(table) => data.onView(id, withTable(display.view, table))}
         />
       </div>
       {data.shared && (
@@ -1594,6 +1606,8 @@ function DisplayCard(
                 view={display.view}
                 display={display.info}
                 file={display.item.kind === 'file'}
+                path={display.item.value}
+                headKey={displayKey(id, display.info.item)}
                 onChange={(view) => data.onView(id, view)}
               />
             </div>

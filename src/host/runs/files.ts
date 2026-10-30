@@ -77,10 +77,12 @@ function textKind(full: string): RunFileKind {
 }
 
 /**
- * 要看哪份：快照里某个资源的第几项（文件夹项可以再带 `sub`：往下走的相对路径），
- * 或实例工作区里的相对路径。
+ * 要看哪份：快照里某个资源的第几项（文件夹项可以再带 `sub`：往下走的相对路径；文件项可以带 `version`：
+ * 存下的第几版，见 `history.ts`），或实例工作区里的相对路径。
  */
-export type RunFileTarget = { node: string; item: number; sub?: string } | { path: string }
+export type RunFileTarget =
+  | { node: string; item: number; sub?: string; version?: number }
+  | { path: string }
 
 /**
  * 整理文件夹里的相对路径：`/`、`\` 都当分隔符，空段和 `.` 去掉；`..`、盘符、绝对路径、空字符一律拒绝
@@ -277,8 +279,16 @@ export async function readRunImage(full: string, mime: string): Promise<Outcome<
   return { ok: true, result: { mime, data: (await readFile(full)).toString('base64') } }
 }
 
-/** 读一份文件给画布：小文本带正文，其余（含文件夹）只有元信息。 */
-export async function readRunFile(full: string, display: string): Promise<RunFileResponse> {
+/**
+ * 读一份文件给画布：小文本带正文，其余（含文件夹）只有元信息。
+ * `tail`：太大的文本不说「太大」，读最后 `limit` 字节（从下一个换行起，不留半行），`cut` 是前面没读的字节数——
+ * 日志要看的是最新那几行。UTF-16 的不这么读（从中间切开对不上字节）。
+ */
+export async function readRunFile(
+  full: string,
+  display: string,
+  options: { tail?: boolean } = {},
+): Promise<RunFileResponse> {
   const base = {
     path: full,
     display,
@@ -302,6 +312,15 @@ export async function readRunFile(full: string, display: string): Promise<RunFil
     const sniff = Buffer.alloc(Math.min(SNIFF_BYTES, info.size))
     await handle.read(sniff, 0, sniff.length, 0)
     if (sniff.includes(0) && !isUtf16(sniff)) return { ...meta, kind: 'binary' }
+    if (info.size > limit && options.tail === true && kind === 'text' && !isUtf16(sniff)) {
+      const bytes = Buffer.alloc(limit)
+      const { bytesRead } = await handle.read(bytes, 0, limit, info.size - limit)
+      // 切在一行中间（多半也切在一个字的中间）：从下一个换行之后开始。
+      const newline = bytes.indexOf(0x0a)
+      const start = newline < 0 || newline >= bytesRead - 1 ? 0 : newline + 1
+      const cut = info.size - limit + start
+      return { ...meta, kind, text: decodeText(bytes.subarray(start, bytesRead)), cut }
+    }
     if (info.size > limit) return { ...meta, kind: 'tooLarge' }
     const text = decodeText(await handle.readFile())
     return { ...meta, kind, text }
@@ -311,6 +330,41 @@ export async function readRunFile(full: string, display: string): Promise<RunFil
 }
 
 /** 列一层目录：目录在前、各自按名字排（数字按大小）；读不了的条目（断了的软链）跳过。 */
+/**
+ * 一个路径现在的样子（画布展示问在不在、变没变）：文件是大小与修改时间；文件夹的「大小」是这一层有几项，
+ * 修改时间取它自己和这一层里各项中最新的（往里加、删一份改的是文件夹自己的时间，覆盖写一份只改那一份的）。
+ * 不在、读不了、是文件夹却要文件（或反过来）都回 `null`。只看一层，最多 {@link RUN_DIR_MAX} 项。
+ */
+export async function statRunPath(
+  full: string,
+  want: 'file' | 'folder',
+): Promise<{ size: number; mtime: number } | null> {
+  let info: Awaited<ReturnType<typeof stat>>
+  try {
+    info = await stat(full)
+  } catch {
+    return null
+  }
+  if (want === 'file') return info.isFile() ? { size: info.size, mtime: info.mtimeMs } : null
+  if (!info.isDirectory()) return null
+  let names: string[]
+  try {
+    names = await readdir(full)
+  } catch {
+    return null
+  }
+  const times = await Promise.all(
+    names.slice(0, RUN_DIR_MAX).map(async (name) => {
+      try {
+        return (await stat(join(full, name))).mtimeMs
+      } catch {
+        return 0
+      }
+    }),
+  )
+  return { size: names.length, mtime: Math.max(info.mtimeMs, ...times) }
+}
+
 export async function readRunDir(
   full: string,
   display: string,

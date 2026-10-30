@@ -20,7 +20,7 @@ import { copyText, cx } from './primitives.tsx'
 import { Skeleton } from './Skeleton.tsx'
 import ui from './ui.module.css'
 
-type Action = 'stats' | 'clearDispatch' | 'clearFinished'
+type Action = 'stats' | 'clearDispatch' | 'clearFinished' | 'clearHistory'
 
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
@@ -39,6 +39,7 @@ export function HubStorage(props: {
   const [busy, setBusy] = useState<Action | null>(null)
   const [notice, setNotice] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null)
   const clearFinished = useConfirm<HTMLButtonElement>()
+  const clearHistory = useConfirm<HTMLButtonElement>()
   const [copied, setCopied] = useState(false)
 
   const outer = useRef(props)
@@ -50,7 +51,12 @@ export function HubStorage(props: {
       const result = await rpc.call('run/storage', { action })
       setStats(result)
       if (result.cleared !== undefined) {
-        const key = action === 'clearFinished' ? 'hub.clearedFinished' : 'hub.clearedLegacy'
+        const key =
+          action === 'clearFinished'
+            ? 'hub.clearedFinished'
+            : action === 'clearHistory'
+              ? 'hub.clearedHistory'
+              : 'hub.clearedLegacy'
         setNotice({ tone: 'ok', text: tr(key).replace('{n}', String(result.cleared)) })
         if (action === 'clearFinished') onChanged()
       }
@@ -171,6 +177,35 @@ export function HubStorage(props: {
               testId: 'wl-hub-clear-finished-confirm',
               disabled: busy !== null,
               onConfirm: () => void act('clearFinished'),
+            })}
+          </Item>
+          <Item
+            icon="history"
+            title={t('hub.history')}
+            value={formatBytes(stats.historyBytes)}
+            desc={t('hub.historyDesc')}
+            testId="wl-hub-history"
+          >
+            <button
+              ref={clearHistory.anchorRef}
+              type="button"
+              className={cx(ui.btn, ui.small, ui.soft)}
+              disabled={busy !== null || stats.historyBytes === 0}
+              aria-expanded={clearHistory.open}
+              data-tip={clearHistory.open ? undefined : t('hub.clearHistoryHint')}
+              data-testid="wl-hub-clear-history"
+              onClick={clearHistory.toggle}
+            >
+              {t('hub.clearHistory')}
+            </button>
+            {clearHistory.render({
+              t,
+              title: t('hub.clearHistoryTitle'),
+              desc: t('hub.clearHistoryHint'),
+              confirmText: t('hub.clearHistoryConfirm'),
+              testId: 'wl-hub-clear-history-confirm',
+              disabled: busy !== null,
+              onConfirm: () => void act('clearHistory'),
             })}
           </Item>
           {stats.dispatchFiles > 0 && (

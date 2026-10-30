@@ -4,7 +4,8 @@
  * - 网页：一张看板的样子（标题行、一排指标卡、一块折线图）；
  * - 图片：一座山和太阳，标出展示框的比例和建议的出图尺寸；
  * - Markdown：标题、几行正文、一张小表；
- * - 纯文本 / 代码：行号和长短不一的几行。
+ * - 纯文本 / 代码：行号和长短不一的几行；
+ * - 文件夹（图墙）：和真的一样排的格子，最新那张的大格里一座山。
  *
  * 线框只是「这里会出现什么」的示意，颜色压得很低，一眼就看得出不是真内容；尺寸跟着展示区走
  * （窄、矮的卡片上收掉放不下的部分，见 `display.module.css` 的容器查询）。全是静态的，不读文件、不动；
@@ -13,7 +14,7 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/DisplaySketch
  */
 
-import { ratioText } from '../../shared/display.ts'
+import { GALLERY_GAP, galleryGrid, galleryTracks, ratioText } from '../../shared/display.ts'
 import type { Display } from '../model/display.ts'
 import css from './display.module.css'
 import { Icon, type IconName } from './Icon.tsx'
@@ -57,13 +58,53 @@ function ImageSketch(props: { display: Display }): React.JSX.Element {
   const { width, height } = props.display
   return (
     <span className={css.skImage}>
-      <svg viewBox="0 0 48 32" aria-hidden="true">
-        <circle cx="35" cy="9" r="4" />
-        <path d="M2 30 L16 13 L25 23 L31 17 L46 30 Z" />
-      </svg>
+      <Mountain />
       <span className={css.skRatio}>
         {ratioText(width, height)} · {width * 2}×{height * 2}
       </span>
+    </span>
+  )
+}
+
+/** 山和太阳（图片、图墙的大格共用）。 */
+function Mountain(): React.JSX.Element {
+  return (
+    <svg viewBox="0 0 48 32" aria-hidden="true">
+      <circle cx="35" cy="9" r="4" />
+      <path d="M2 30 L16 13 L25 23 L31 17 L46 30 Z" />
+    </svg>
+  )
+}
+
+function GallerySketch(props: { display: Display }): React.JSX.Element {
+  const grid = galleryGrid(props.display.width, props.display.height, props.display.gallery)
+  const tracks = galleryTracks(grid)
+  return (
+    <span
+      className={css.skGallery}
+      style={{
+        gridTemplateColumns: tracks.columns,
+        gridTemplateRows: tracks.rows,
+        gap: GALLERY_GAP,
+      }}
+    >
+      {Array.from({ length: grid.slots }, (_, index) => (
+        <span
+          // biome-ignore lint/suspicious/noArrayIndexKey: 固定的几格占位
+          key={index}
+          className={css.skCell}
+          style={
+            index === 0 && grid.hero
+              ? {
+                  gridColumn: `span ${grid.heroSpan.columns}`,
+                  gridRow: `span ${grid.heroSpan.rows}`,
+                }
+              : undefined
+          }
+        >
+          {index === 0 && <Mountain />}
+        </span>
+      ))}
     </span>
   )
 }
@@ -125,6 +166,8 @@ export function DisplaySketch(props: {
           <HtmlSketch />
         ) : display.kind === 'image' ? (
           <ImageSketch display={display} />
+        ) : display.kind === 'gallery' ? (
+          <GallerySketch display={display} />
         ) : display.kind === 'markdown' ? (
           <MarkdownSketch />
         ) : (
