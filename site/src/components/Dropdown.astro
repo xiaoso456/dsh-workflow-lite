@@ -1,0 +1,319 @@
+---
+// 顶栏的下拉选择（主题、语言共用）。替换浏览器自带的 <select>：弹层用 popover，
+// 进出场只动 opacity / transform，键盘可用（↑↓ Home End Enter Esc），小屏也不会被侧栏裁掉。
+import { Icon } from '@astrojs/starlight/components'
+
+interface Option {
+  label: string
+  value: string
+  selected: boolean
+  href?: string
+  /** 选中这一项时触发按钮上显示的图标（主题：亮 / 暗 / 跟随系统）。 */
+  icon?: 'sun' | 'moon' | 'auto'
+}
+interface Props {
+  label: string
+  icon: 'sun' | 'moon' | 'laptop' | 'translate'
+  options: Option[]
+  /** 弹层最小宽度。 */
+  width?: string
+}
+
+const { label, icon, options, width = '8rem' } = Astro.props
+const current = options.find((o) => o.selected) ?? options[0]
+const id = `wl-dd-${Math.random().toString(36).slice(2, 8)}`
+---
+
+<wl-dropdown style={`--wl-dd-min: ${width}`}>
+  <button
+    type="button"
+    class="trigger"
+    aria-haspopup="listbox"
+    aria-expanded="false"
+    aria-controls={id}
+    aria-label={label}
+    data-icon={current?.icon}
+  >
+    {
+      current?.icon ? (
+        <span class="label-icon themed" aria-hidden="true">
+          <svg data-i="sun" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="4"></circle>
+            <path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"></path>
+          </svg>
+          <svg data-i="moon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20.5 13.6A8.5 8.5 0 1 1 10.4 3.5a6.8 6.8 0 0 0 10.1 10.1z"></path>
+          </svg>
+          <svg data-i="auto" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="8.5"></circle>
+            <path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor" stroke="none"></path>
+          </svg>
+        </span>
+      ) : (
+        <Icon name={icon} class="label-icon" size="1rem" />
+      )
+    }
+    <span class="current">{current?.label}</span>
+    <svg class="caret" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+      <path d="M4 6.5 8 10.5l4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
+    </svg>
+  </button>
+  <div class="menu" id={id} popover="auto" role="listbox" aria-label={label} tabindex="-1">
+    {
+      options.map((o) => {
+        const Tag = o.href ? 'a' : 'button'
+        return (
+          <Tag
+            class="option"
+            role="option"
+            aria-selected={o.selected ? 'true' : 'false'}
+            data-value={o.value}
+            data-icon={o.icon}
+            href={o.href}
+            type={o.href ? undefined : 'button'}
+          >
+            <span>{o.label}</span>
+            <svg class="tick" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+              <path d="m3.5 8.5 3 3 6-6.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+            </svg>
+          </Tag>
+        )
+      })
+    }
+  </div>
+</wl-dropdown>
+
+<script>
+  class WlDropdown extends HTMLElement {
+    private trigger!: HTMLButtonElement
+    private menu!: HTMLElement
+    private onReflow = () => {
+      if (this.menu.matches(':popover-open')) this.menu.hidePopover()
+    }
+
+    connectedCallback() {
+      this.trigger = this.querySelector('.trigger') as HTMLButtonElement
+      this.menu = this.querySelector('.menu') as HTMLElement
+
+      this.trigger.addEventListener('click', () => {
+        if (this.menu.matches(':popover-open')) this.menu.hidePopover()
+        else this.open()
+      })
+      this.trigger.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          e.preventDefault()
+          this.open()
+        }
+      })
+      this.menu.addEventListener('toggle', (e) => {
+        const opened = (e as ToggleEvent).newState === 'open'
+        this.trigger.setAttribute('aria-expanded', String(opened))
+        if (opened) {
+          addEventListener('scroll', this.onReflow, { capture: true, passive: true })
+          addEventListener('resize', this.onReflow)
+        } else {
+          removeEventListener('scroll', this.onReflow, { capture: true })
+          removeEventListener('resize', this.onReflow)
+        }
+      })
+      this.menu.addEventListener('keydown', (e) => this.onMenuKey(e))
+      this.menu.addEventListener('click', (e) => {
+        const option = (e.target as Element).closest<HTMLElement>('.option')
+        if (!option) return
+        const value = option.dataset.value ?? ''
+        // 链接型（语言）交给浏览器跳转；按钮型（主题）在这里改选中并通知。
+        if (!(option instanceof HTMLAnchorElement)) {
+          this.setValue(value)
+          this.dispatchEvent(new CustomEvent('wl-select', { detail: { value }, bubbles: true }))
+        }
+        this.menu.hidePopover()
+        this.trigger.focus()
+      })
+    }
+
+    /** 外部（主题切换逻辑）改选中项：更新触发按钮上的文字和菜单里的勾。 */
+    setValue(value: string) {
+      for (const option of this.querySelectorAll<HTMLElement>('.option')) {
+        const on = option.dataset.value === value
+        option.setAttribute('aria-selected', String(on))
+        if (on) {
+          ;(this.querySelector('.current') as HTMLElement).textContent = option.firstElementChild?.textContent ?? ''
+          if (option.dataset.icon) this.trigger.dataset.icon = option.dataset.icon
+        }
+      }
+    }
+
+    private options() {
+      return [...this.menu.querySelectorAll<HTMLElement>('.option')]
+    }
+
+    private open() {
+      const box = this.trigger.getBoundingClientRect()
+      this.menu.style.minWidth = `max(${box.width}px, var(--wl-dd-min))`
+      this.menu.showPopover()
+      const width = this.menu.offsetWidth
+      const left = Math.max(8, Math.min(box.left, innerWidth - width - 8))
+      this.menu.style.left = `${left}px`
+      this.menu.style.top = `${box.bottom + 6}px`
+      this.menu.style.setProperty('--wl-dd-origin', `${box.left - left + box.width / 2}px top`)
+      const selected = this.options().find((o) => o.getAttribute('aria-selected') === 'true')
+      ;(selected ?? this.options()[0])?.focus({ preventScroll: true })
+    }
+
+    private onMenuKey(e: KeyboardEvent) {
+      const items = this.options()
+      const at = items.indexOf(document.activeElement as HTMLElement)
+      const go = (i: number) => {
+        e.preventDefault()
+        items[(i + items.length) % items.length]?.focus()
+      }
+      if (e.key === 'ArrowDown') go(at + 1)
+      else if (e.key === 'ArrowUp') go(at - 1)
+      else if (e.key === 'Home') go(0)
+      else if (e.key === 'End') go(items.length - 1)
+      else if (e.key === 'Tab') this.menu.hidePopover()
+    }
+  }
+  if (!customElements.get('wl-dropdown')) customElements.define('wl-dropdown', WlDropdown)
+</script>
+
+<style>
+  wl-dropdown {
+    display: inline-flex;
+  }
+
+  .trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    height: 2.25rem;
+    padding-inline: 0.6rem 0.5rem;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--sl-color-gray-2);
+    font: inherit;
+    font-size: var(--sl-text-sm);
+    cursor: pointer;
+    transition:
+      color 0.15s,
+      background-color 0.15s,
+      border-color 0.15s;
+  }
+  .trigger:hover,
+  .trigger[aria-expanded='true'] {
+    color: var(--sl-color-white);
+    background: color-mix(in oklab, var(--sl-color-gray-3) 13%, transparent);
+  }
+  .trigger:focus-visible {
+    outline: 2px solid var(--sl-color-accent);
+    outline-offset: 1px;
+  }
+  .themed {
+    display: inline-flex;
+  }
+  .themed svg {
+    display: none;
+  }
+  .trigger[data-icon='sun'] .themed [data-i='sun'],
+  .trigger[data-icon='moon'] .themed [data-i='moon'],
+  .trigger[data-icon='auto'] .themed [data-i='auto'] {
+    display: block;
+  }
+  .caret {
+    margin-inline-start: 0.1rem;
+    opacity: 0.7;
+    transition: transform 0.22s var(--wl-ease);
+  }
+  .trigger[aria-expanded='true'] .caret {
+    transform: rotate(180deg);
+  }
+
+  .menu {
+    position: fixed;
+    inset: auto;
+    margin: 0;
+    padding: 4px;
+    min-width: var(--wl-dd-min);
+    border: 1px solid var(--sl-color-hairline-light);
+    border-radius: 10px;
+    background: var(--wl-pop);
+    color: var(--sl-color-gray-1);
+    box-shadow: var(--wl-shadow);
+    transform-origin: var(--wl-dd-origin, 50% 0);
+    opacity: 0;
+    transform: translateY(-6px) scale(0.97);
+    transition:
+      opacity 0.12s ease,
+      transform 0.12s ease,
+      overlay 0.12s allow-discrete,
+      display 0.12s allow-discrete;
+  }
+  .menu:popover-open {
+    opacity: 1;
+    transform: none;
+    transition-duration: 0.18s, 0.22s, 0.22s, 0.22s;
+    transition-timing-function: ease, var(--wl-ease), ease, ease;
+  }
+  @starting-style {
+    .menu:popover-open {
+      opacity: 0;
+      transform: translateY(-6px) scale(0.97);
+    }
+  }
+
+  .option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    width: 100%;
+    padding: 0.5rem 0.625rem;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: var(--sl-text-sm);
+    line-height: 1.3;
+    text-align: start;
+    text-decoration: none;
+    cursor: pointer;
+    transition:
+      background-color 0.12s,
+      color 0.12s;
+  }
+  .option:hover,
+  .option:focus-visible {
+    outline: none;
+    background: color-mix(in oklab, var(--sl-color-gray-3) 16%, transparent);
+    color: var(--sl-color-white);
+  }
+  .option[aria-selected='true'] {
+    color: var(--sl-color-text-accent);
+    font-weight: 600;
+  }
+  .tick {
+    flex: none;
+    opacity: 0;
+    transform: scale(0.6);
+    transition:
+      opacity 0.15s,
+      transform 0.2s var(--wl-ease);
+  }
+  .option[aria-selected='true'] .tick {
+    opacity: 1;
+    transform: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .menu,
+    .menu:popover-open {
+      transform: none;
+    }
+    .caret,
+    .tick {
+      transition: none;
+    }
+  }
+</style>

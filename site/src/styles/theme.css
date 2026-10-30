@@ -1,0 +1,672 @@
+/*
+ * 文档站主题。强调色沿用插件的蓝（词标的蓝 #3e7ce4），中性色整体偏向同一个蓝灰色相，
+ * 亮 / 暗各一组。Starlight 的样式都在 @layer 里，这里的无层规则天然优先。
+ */
+
+:root {
+  --wl-fill: #346fd1;
+  --wl-fill-hover: #2c62bd;
+  --sl-font:
+    ui-sans-serif, system-ui, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei UI',
+    'Noto Sans SC', sans-serif;
+  --sl-font-mono: ui-monospace, 'Cascadia Code', 'SF Mono', Menlo, Consolas, monospace;
+  --sl-line-height: 1.8;
+  --sl-line-height-headings: 1.3;
+  --sl-text-h1: 2rem;
+  --sl-text-h2: 1.5rem;
+  --sl-text-h3: 1.25rem;
+  --sl-text-h4: 1.0625rem;
+  --sl-sidebar-width: 17rem;
+  --wl-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* 暗色（默认） */
+:root {
+  --sl-color-accent-low: oklch(0.3 0.07 258);
+  --sl-color-accent: #3e7ce4;
+  --sl-color-accent-high: oklch(0.82 0.08 258);
+  --sl-color-white: oklch(0.97 0.004 255);
+  --sl-color-gray-1: oklch(0.88 0.008 255);
+  --sl-color-gray-2: oklch(0.78 0.012 255);
+  --sl-color-gray-3: oklch(0.65 0.016 255);
+  --sl-color-gray-4: oklch(0.47 0.018 255);
+  --sl-color-gray-5: oklch(0.31 0.016 255);
+  --sl-color-gray-6: oklch(0.225 0.014 255);
+  --sl-color-black: oklch(0.18 0.012 255);
+  --sl-color-bg-nav: var(--sl-color-black);
+  --sl-color-bg-sidebar: var(--sl-color-black);
+  --sl-color-hairline: oklch(0.27 0.015 255);
+  --sl-color-hairline-light: oklch(0.31 0.016 255);
+  --sl-color-hairline-shade: oklch(0.27 0.015 255);
+  --sl-color-bg-inline-code: oklch(0.26 0.016 255);
+  --wl-soft: oklch(0.225 0.014 255);
+  --wl-pop: oklch(0.225 0.014 255);
+  --wl-shadow: 0 1px 2px oklch(0.1 0.02 255 / 0.4), 0 12px 32px -12px oklch(0.05 0.02 255 / 0.6);
+}
+
+/* 亮色 */
+:root[data-theme='light'] {
+  --sl-color-accent-low: oklch(0.93 0.035 258);
+  --sl-color-accent: #2f64c4;
+  --sl-color-accent-high: #1f4a9e;
+  --sl-color-white: oklch(0.2 0.02 255);
+  --sl-color-gray-1: oklch(0.27 0.02 255);
+  --sl-color-gray-2: oklch(0.37 0.02 255);
+  --sl-color-gray-3: oklch(0.5 0.02 255);
+  --sl-color-gray-4: oklch(0.66 0.018 255);
+  --sl-color-gray-5: oklch(0.89 0.01 255);
+  --sl-color-gray-6: oklch(0.955 0.007 255);
+  --sl-color-gray-7: oklch(0.975 0.005 255);
+  --sl-color-black: #fff;
+  --sl-color-bg-nav: #fff;
+  --sl-color-bg-sidebar: oklch(0.978 0.005 255);
+  --sl-color-hairline: oklch(0.92 0.008 255);
+  --sl-color-hairline-light: oklch(0.89 0.01 255);
+  --sl-color-hairline-shade: oklch(0.92 0.008 255);
+  --sl-color-bg-inline-code: oklch(0.955 0.008 255);
+  --wl-soft: oklch(0.975 0.005 255);
+  --wl-pop: #fff;
+  --wl-shadow: 0 1px 2px oklch(0.3 0.04 255 / 0.1), 0 12px 32px -12px oklch(0.3 0.06 255 / 0.28);
+}
+
+/* 首页（没有侧栏）不输出标题，隐藏留下的空标题面板，否则顶栏下会多出一条空带。 */
+html:not([data-has-sidebar]) main > .content-panel:first-child {
+  display: none;
+}
+
+/* ── 浏览器自带的部分也跟着配色 ─────────────────────── */
+::selection {
+  background: color-mix(in oklab, var(--sl-color-accent) 32%, transparent);
+}
+:focus-visible {
+  outline: 2px solid var(--sl-color-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+html {
+  scrollbar-color: var(--sl-color-gray-5) transparent;
+  accent-color: var(--sl-color-accent);
+}
+a {
+  text-underline-offset: 0.2em;
+}
+
+/* ── 顶栏、侧栏 ───────────────────────────────────── */
+header.header {
+  border-bottom: 1px solid var(--sl-color-hairline);
+}
+.sidebar-pane {
+  border-inline-end: 1px solid var(--sl-color-hairline);
+}
+.sidebar-content {
+  gap: 0.5rem;
+}
+.sidebar-content .large {
+  font-size: var(--sl-text-sm);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--sl-color-white);
+}
+.sidebar-content a {
+  border-radius: 6px;
+  color: var(--sl-color-gray-2);
+  padding-block: 0.3rem;
+  transition:
+    color 0.15s,
+    background-color 0.15s;
+}
+.sidebar-content a:hover {
+  color: var(--sl-color-white);
+  background: color-mix(in oklab, var(--sl-color-gray-3) 12%, transparent);
+}
+.sidebar-content a[aria-current='page'],
+.sidebar-content a[aria-current='page']:hover {
+  color: var(--sl-color-text-accent);
+  background: var(--sl-color-accent-low);
+  font-weight: 600;
+}
+.right-sidebar-panel a[aria-current='true'] {
+  color: var(--sl-color-text-accent);
+}
+
+/* ── 正文 ─────────────────────────────────────────── */
+.sl-markdown-content {
+  --sl-content-gap-y: 1.1rem;
+}
+.sl-markdown-content :is(h1, h2, h3, h4):not(:where(.not-content *)) {
+  letter-spacing: -0.01em;
+}
+
+/* 二级标题：上方一条分隔线，分节更清楚。 */
+.sl-markdown-content .sl-heading-wrapper.level-h2:not(:where(.not-content *)) {
+  margin-top: 3rem;
+  padding-top: 1.75rem;
+  border-top: 1px solid var(--sl-color-hairline-light);
+}
+.sl-markdown-content .sl-heading-wrapper.level-h2:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+.sl-markdown-content .sl-heading-wrapper.level-h3:not(:where(.not-content *)) {
+  margin-top: 2rem;
+}
+
+.sl-markdown-content a:not(:where(.not-content *)) {
+  text-decoration-thickness: 1px;
+  text-decoration-color: color-mix(in oklab, var(--sl-color-text-accent) 45%, transparent);
+  transition: text-decoration-color 0.15s;
+}
+.sl-markdown-content a:not(:where(.not-content *)):hover {
+  text-decoration-color: currentColor;
+}
+
+.sl-markdown-content ol,
+.sl-markdown-content ul {
+  padding-inline-start: 1.4rem;
+}
+.sl-markdown-content li::marker {
+  color: var(--sl-color-gray-3);
+}
+
+/* 行内代码 */
+.sl-markdown-content code:not(pre code):not(:where(.not-content *)) {
+  font-size: 0.875em;
+  padding: 0.15em 0.4em;
+  border-radius: 6px;
+  color: var(--sl-color-white);
+}
+
+/* 表格：外框圆角、表头淡底、第一列不折行。窄屏改成可横向滚动。 */
+.sl-markdown-content table:not(:where(.not-content *)) {
+  display: table;
+  width: 100%;
+  border: 1px solid var(--sl-color-hairline-light);
+  border-radius: 10px;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.9375rem;
+}
+@media (max-width: 50rem) {
+  .sl-markdown-content table:not(:where(.not-content *)) {
+    display: block;
+    overflow-x: auto;
+  }
+  /* 说明列保持可读宽度，放不下时整张表横向滚动，而不是把它挤成一个字宽。 */
+  .sl-markdown-content td:last-child:not(:first-child, :where(.not-content *)) {
+    min-width: 15rem;
+  }
+}
+.sl-markdown-content thead tr:first-child th:first-child {
+  border-top-left-radius: 9px;
+}
+.sl-markdown-content thead tr:first-child th:last-child {
+  border-top-right-radius: 9px;
+}
+.sl-markdown-content tbody tr:last-child td:first-child {
+  border-bottom-left-radius: 9px;
+}
+.sl-markdown-content tbody tr:last-child td:last-child {
+  border-bottom-right-radius: 9px;
+}
+.sl-markdown-content table code:not(:where(.not-content *)) {
+  white-space: nowrap;
+}
+.sl-markdown-content :is(th, td):not(:where(.not-content *)) {
+  padding: 0.7rem 1rem;
+  border: 0;
+  border-bottom: 1px solid var(--sl-color-hairline-light);
+  vertical-align: top;
+  line-height: 1.7;
+}
+.sl-markdown-content thead th:not(:where(.not-content *)) {
+  background: var(--wl-soft);
+  color: var(--sl-color-white);
+  font-weight: 600;
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+.sl-markdown-content tbody tr:last-child td {
+  border-bottom: 0;
+}
+.sl-markdown-content :is(th, td):first-child:not(:where(.not-content *)) {
+  white-space: nowrap;
+  color: var(--sl-color-white);
+}
+.sl-markdown-content td:first-child {
+  font-weight: 500;
+}
+
+/* 提示框：细边框 + 淡底，不用粗的左边线。 */
+.starlight-aside {
+  border: 1px solid color-mix(in oklab, var(--sl-color-asides-border) 38%, transparent);
+  border-radius: 10px;
+  padding: 0.9rem 1.1rem;
+}
+.starlight-aside--note {
+  background: color-mix(in oklab, var(--sl-color-asides-border) 9%, transparent);
+}
+.starlight-aside--tip {
+  --sl-color-asides-text-accent: var(--sl-color-green-high);
+  --sl-color-asides-border: var(--sl-color-green);
+  background: color-mix(in oklab, var(--sl-color-green) 9%, transparent);
+}
+.starlight-aside--caution {
+  background: color-mix(in oklab, var(--sl-color-asides-border) 9%, transparent);
+}
+.starlight-aside__title {
+  font-size: var(--sl-text-body);
+}
+
+/* 页面标题下的说明（见 PageTitle.astro） */
+.page-lede {
+  margin-top: 0.75rem;
+  max-width: 40rem;
+  font-size: 1.0625rem;
+  line-height: 1.7;
+  color: var(--sl-color-gray-3);
+}
+
+/* 页脚上下页 */
+.pagination-links a {
+  border-radius: 10px;
+  transition:
+    border-color 0.15s,
+    background-color 0.15s;
+}
+.pagination-links a:hover {
+  background: var(--wl-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── 动效 ─────────────────────────────────────────── */
+
+/* 侧栏分组展开 / 收起：高度和透明度一起过渡。靠 ::details-content 和 interpolate-size，
+   不支持的浏览器直接跳到终态，功能不受影响。 */
+:root {
+  interpolate-size: allow-keywords;
+}
+.sidebar-content details::details-content {
+  block-size: 0;
+  opacity: 0;
+  overflow: clip;
+  transition:
+    block-size 0.28s var(--wl-ease),
+    opacity 0.18s ease,
+    content-visibility 0.28s allow-discrete;
+}
+.sidebar-content details[open]::details-content {
+  block-size: auto;
+  opacity: 1;
+  transition-duration: 0.28s, 0.26s, 0.28s;
+  transition-delay: 0s, 0.04s, 0s;
+}
+.sidebar-content summary {
+  border-radius: 6px;
+  transition:
+    color 0.15s,
+    background-color 0.15s;
+}
+.sidebar-content summary:hover {
+  background: color-mix(in oklab, var(--sl-color-gray-3) 12%, transparent);
+}
+.sidebar-content summary:focus-visible,
+.sidebar-content a:focus-visible {
+  outline: 2px solid var(--sl-color-accent);
+  outline-offset: -2px;
+}
+.sidebar-content .caret {
+  transition: transform 0.28s var(--wl-ease) !important;
+}
+
+/* 页面切换：正文淡入淡出，顶栏、侧栏不动。 */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.16s;
+  animation-timing-function: ease;
+}
+.sidebar-pane,
+header.header {
+  view-transition-name: none;
+}
+
+/* 目录、页脚翻页、按钮的悬停反馈统一过渡。 */
+.right-sidebar-panel a {
+  transition: color 0.15s;
+}
+.sl-link-button {
+  transition:
+    background-color 0.15s,
+    border-color 0.15s,
+    color 0.15s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-content details::details-content {
+    transition: none;
+  }
+  .sidebar-content .caret {
+    transition: none !important;
+  }
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
+
+/* ── 界面截图 ─────────────────────────────────────── */
+/* 图居中，下面一行说明（alt 文字）；显示宽度是原图的一半（按 2 倍像素拍的），放不下时按栏宽缩小。 */
+.sl-markdown-content figure.wl-fig {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 1.75rem auto;
+}
+.sl-markdown-content figure.wl-fig img {
+  display: block;
+  width: min(var(--wl-img-w, 100%), 100%);
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--sl-color-hairline-light);
+  border-radius: 10px;
+  box-shadow: var(--wl-shadow);
+  cursor: zoom-in;
+  transition: border-color 0.15s;
+}
+.sl-markdown-content figure.wl-fig img:hover {
+  border-color: var(--sl-color-accent);
+}
+.sl-markdown-content figure.wl-fig img:focus-visible {
+  outline: 2px solid var(--sl-color-accent);
+  outline-offset: 3px;
+}
+.sl-markdown-content figure.wl-fig figcaption {
+  max-width: 100%;
+  color: var(--sl-color-gray-3);
+  font-size: var(--sl-text-sm);
+  line-height: 1.5;
+  text-align: center;
+}
+
+/* 右侧「本页内容」：Starlight 默认把富余的宽度分一半给它，宽屏上一大片空白。定成窄栏，富余的给正文。 */
+:root {
+  --sl-content-width: 54rem;
+  --wl-toc-width: 14rem;
+}
+@media (min-width: 72rem) {
+  .right-sidebar-container {
+    width: var(--wl-toc-width) !important;
+  }
+  /* 固定定位的内层按视口算宽度，不跟着容器；不限宽的话长标题会被推到视口外截掉。 */
+  .right-sidebar {
+    width: var(--wl-toc-width) !important;
+  }
+  .right-sidebar-panel .sl-container {
+    width: auto !important;
+  }
+  [data-has-sidebar][data-has-toc] .main-pane {
+    width: calc(100% - var(--wl-toc-width)) !important;
+    /* 目录收窄后，正文在侧栏和目录之间居中，不贴着目录。 */
+    --sl-content-margin-inline: auto;
+  }
+}
+
+/* ── 右栏目录：一条细轨，当前小节有滑动的标记条 ── */
+.right-sidebar-panel h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--sl-color-gray-3);
+}
+.right-sidebar-panel h2::before {
+  content: '';
+  width: 0.9rem;
+  height: 0.9rem;
+  flex: none;
+  background: var(--sl-color-accent);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round'%3E%3Cpath d='M4 6h16M4 12h10M4 18h13'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round'%3E%3Cpath d='M4 6h16M4 12h10M4 18h13'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.right-sidebar-panel starlight-toc nav > ul {
+  position: relative;
+}
+.right-sidebar-panel starlight-toc nav > ul::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 1px;
+  background: var(--sl-color-hairline);
+}
+.right-sidebar-panel starlight-toc a {
+  --pad-inline: 0.875rem;
+  padding-block: 0.3rem;
+  line-height: 1.45;
+  border-radius: 0 6px 6px 0;
+}
+.right-sidebar-panel starlight-toc a:hover {
+  background: color-mix(in oklab, var(--sl-color-gray-3) 10%, transparent);
+}
+.right-sidebar-panel starlight-toc a[aria-current='true'] {
+  background: color-mix(in oklab, var(--sl-color-accent) 9%, transparent);
+}
+.wl-toc-bar {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  width: 2px;
+  height: 1px;
+  border-radius: 1px;
+  background: var(--sl-color-accent);
+  transform-origin: top;
+  opacity: 0;
+  pointer-events: none;
+}
+.wl-toc-bar.ready {
+  transition:
+    transform 0.28s var(--wl-ease),
+    opacity 0.15s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .wl-toc-bar.ready {
+    transition: none;
+  }
+}
+
+.wl-lightbox {
+  width: 100vw;
+  max-width: 100vw;
+  height: 100vh;
+  max-height: 100vh;
+  margin: 0;
+  padding: 1.5rem;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  cursor: zoom-out;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 0.75rem;
+  opacity: 0;
+  transition:
+    opacity 0.2s ease,
+    display 0.2s allow-discrete,
+    overlay 0.2s allow-discrete;
+}
+.wl-lightbox[open] {
+  display: flex;
+  opacity: 1;
+}
+@starting-style {
+  .wl-lightbox[open] {
+    opacity: 0;
+  }
+}
+.wl-lightbox::backdrop {
+  background: oklch(0.14 0.012 255 / 0.86);
+}
+.wl-lightbox img {
+  max-width: min(96vw, 2000px);
+  max-height: calc(100vh - 5rem);
+  width: auto;
+  height: auto;
+  border: 1px solid oklch(1 0 0 / 0.14);
+  border-radius: 10px;
+  box-shadow: 0 24px 64px -16px oklch(0 0 0 / 0.6);
+  cursor: zoom-out;
+  transform: scale(1);
+  transition: transform 0.28s var(--wl-ease);
+}
+@starting-style {
+  .wl-lightbox[open] img {
+    transform: scale(0.96);
+  }
+}
+.wl-lightbox p {
+  margin: 0;
+  font-size: var(--sl-text-sm);
+  color: oklch(0.85 0.01 255);
+}
+@media (prefers-reduced-motion: reduce) {
+  .wl-lightbox img {
+    transition: none;
+  }
+}
+
+/* 点目录、页内链接跳转时平滑滚动；开了「减少动态效果」则直接跳。 */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* ── 顶栏右侧：GitHub 图标沿用中性灰，和主题、语言按钮同高同底 ── */
+header .right-group,
+header .social-icons {
+  gap: 0.25rem;
+}
+header .social-icons a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  margin: 0;
+  padding: 0;
+  border-radius: 8px;
+  color: var(--sl-color-gray-2);
+  transition:
+    color 0.15s,
+    background-color 0.15s;
+}
+header .social-icons a:hover {
+  opacity: 1;
+  color: var(--sl-color-white);
+  background: color-mix(in oklab, var(--sl-color-gray-3) 13%, transparent);
+}
+header .social-icons a svg {
+  width: 1.2rem;
+  height: 1.2rem;
+}
+header .social-icons::after {
+  height: 1.25rem;
+  margin-inline: 0.5rem 0.25rem;
+  border-inline-end-color: var(--sl-color-hairline-light);
+}
+
+/* ── 代码块的复制按钮：小一号的方钮，提示换成中性小胶囊 ── */
+html .expressive-code .copy {
+  inset-block-start: calc(var(--ec-brdWd) + 0.5rem);
+  inset-inline-end: calc(var(--ec-brdWd) + 0.5rem);
+  gap: 0.4rem;
+}
+html .expressive-code .copy button {
+  width: 1.875rem;
+  height: 1.875rem;
+  border-radius: 7px;
+  background: transparent;
+  opacity: 0.6;
+}
+html .expressive-code .copy button::before {
+  border-color: var(--sl-color-hairline-light);
+  opacity: 1;
+}
+html .expressive-code .copy button::after {
+  margin: 0.4rem;
+  background-color: var(--sl-color-gray-2);
+}
+html .expressive-code .copy button:hover,
+html .expressive-code .copy button:focus:focus-visible {
+  opacity: 1;
+}
+html .expressive-code .copy button:hover div,
+html .expressive-code .copy button:focus:focus-visible div {
+  opacity: 1;
+  background: color-mix(in oklab, var(--sl-color-gray-3) 18%, transparent);
+}
+html .expressive-code .copy .feedback {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-inline-end: 0;
+  padding: 0.2rem 0.65rem 0.2rem 0.5rem;
+  border: 1px solid var(--sl-color-hairline-light);
+  border-radius: 999px;
+  background: var(--wl-pop);
+  box-shadow: var(--wl-shadow);
+  color: var(--sl-color-white);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  transform: translate3d(0.25rem, 0, 0);
+}
+html .expressive-code .copy .feedback.show {
+  transform: translate3d(0, 0, 0);
+}
+html .expressive-code .copy .feedback::before {
+  content: '';
+  width: 0.85rem;
+  height: 0.85rem;
+  background: #3fa66b;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 12.5 4.5 4.5L19 7.5'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 12.5 4.5 4.5L19 7.5'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+html .expressive-code .copy .feedback::after {
+  display: none;
+}
+
+/* 带标题栏的代码块（终端窗口、带文件名）：复制按钮缩进标题栏里，不要压在标题栏下沿的线上。 */
+html .expressive-code .frame.is-terminal .copy,
+html .expressive-code .frame.has-title .copy {
+  inset-block-start: calc(var(--ec-brdWd) + 0.25rem);
+  inset-inline-end: calc(var(--ec-brdWd) + 0.4rem);
+}
+html .expressive-code .frame.is-terminal .copy button,
+html .expressive-code .frame.has-title .copy button {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 6px;
+}
+html .expressive-code .frame.is-terminal .copy button::after,
+html .expressive-code .frame.has-title .copy button::after {
+  margin: 0.3rem;
+}
+
+/* 去掉两条贯穿的分割线：标题区与正文之间的整行横线、右栏目录左侧的整高竖线（目录自己有一条细轨）。 */
+.content-panel + .content-panel {
+  border-top: 0;
+}
+.right-sidebar {
+  border-inline-start: 0;
+}

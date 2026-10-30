@@ -1,0 +1,6 @@
+# 让 site/ 自成一个 pnpm 工作区根：它有自己的 lockfile 和 node_modules，
+# 根目录的 `pnpm install` 不会装它，它的依赖也不会混进插件包。
+packages:
+  - '.'
+minimumReleaseAgeExclude:
+  - '@astrojs/starlight@0.42.8'

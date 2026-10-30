@@ -15,12 +15,15 @@
 [![license](https://img.shields.io/npm/l/@xiaoso/dsh-workflow-lite.svg)](./LICENSE)
 [![node](https://img.shields.io/node/v/@xiaoso/dsh-workflow-lite.svg)](https://nodejs.org)
 [![DeepSeek Harness 0.2.x](https://img.shields.io/badge/DeepSeek%20Harness-0.2.x-4d6bfe.svg)](https://github.com/deepseek-ai/deepseek-harness)
+[![docs](https://img.shields.io/badge/docs-xiaoso456.github.io-3e7ce4.svg)](https://xiaoso456.github.io/dsh-workflow-lite/)
 
 </div>
 
 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的软工作流插件，基于提示词编排：在画布上设计流程，编译成计划提示词，由模型按计划执行。连线可带**任意条件**，支持顺序、并行、汇合、条件分支、循环、回退等流程结构，无需额外的执行引擎。
 
 > **实验阶段**：功能和数据格式仍在调整，后续任何版本都可能包含不兼容的改动。
+
+**使用文档**：<https://xiaoso456.github.io/dsh-workflow-lite/>——安装、上手、画布展示和各项设置，带截图。
 
 ![dsh-workflow-lite：画布 → 计划提示词 → 模型执行](./assets/hero.zh.png)
 

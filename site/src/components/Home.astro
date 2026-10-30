@@ -1,0 +1,686 @@
+---
+import { Image } from 'astro:assets'
+import mascot from '../assets/brand/icon-full.webp'
+import shotDesign from '../assets/brand/shot-design.webp'
+import shotDesignEn from '../assets/brand/shot-design.en.webp'
+import shotRun from '../assets/brand/shot-run.webp'
+import shotRunEn from '../assets/brand/shot-run.en.webp'
+
+interface Props {
+  lang?: 'zh' | 'en'
+}
+const { lang = 'zh' } = Astro.props
+
+const root = import.meta.env.BASE_URL.replace(/\/$/, '')
+const base = lang === 'en' ? `${root}/en` : root
+const INSTALL = 'dsh plugin --profile web add @xiaoso/dsh-workflow-lite'
+
+const text = {
+  zh: {
+    title: '轻量工作流',
+    tagline: '在画布上把步骤连成流程，交给模型按计划执行。',
+    sub: '支持顺序、并行、条件分支和循环。',
+    start: '快速开始',
+    first: '创建第一个工作流',
+    copy: '复制安装命令',
+    copied: '已复制',
+    failed: '复制失败',
+    hintBefore: '网页版的安装命令；桌面端的安装步骤见',
+    hintLink: '安装',
+    hintAfter: '。',
+    mascot: 'dsh-workflow-lite 图标',
+    tags: ['实现', '审查', '修复'],
+    howTitle: '工作原理',
+    howLede: '没有额外的执行引擎，调度与判断由当前会话中的模型完成。',
+    steps: [
+      { name: '设计', text: '在画布上连好步骤，写好提示词。' },
+      { name: '编译', text: '插件整理成一份计划。' },
+      { name: '执行', text: '模型按计划执行，进度同步回画布。' },
+    ],
+    designTitle: '在画布上设计流程',
+    designLede: '拖拽步骤并连线，用条件分支和循环描述流程。',
+    design: ['为步骤指定要读写的文件、网址或 Skill', '执行前向用户收集信息', '一键整理布局'],
+    designAlt: '画布上的「代码审查循环」工作流：实现、审查、修复与汇总',
+    runTitle: '实时查看执行进度',
+    runLede: '开启「记录运行状态」后，画布随执行进度更新。',
+    run: ['每一步的状态和轮次一目了然', '网页、图片、日志、表格直接显示在画布上', '循环产出按轮回看、对比'],
+    runLink: '了解画布展示',
+    runAlt: '执行中的工作流：画布显示各步骤状态，下方是时间线与每轮产出的看板',
+    moreTitle: '更多功能',
+    more: [
+      { title: '模型协作编辑', text: '一句话让模型创建或修改工作流。' },
+      { title: '版本管理', text: '保存、对比、随时切换。' },
+      { title: '导入与导出', text: '连同文件与 Skill 打成一个包。' },
+      { title: '导出为 Skill', text: '不装插件也能用。实验性。' },
+      { title: '工作流记忆', text: '把跑通的做法记下来。实验性。' },
+      { title: '亮暗主题', text: '各四套配色。' },
+    ],
+    noticeBefore: '实验阶段，后续版本可能包含不兼容的改动，见',
+    noticeLink: '更新日志',
+    noticeAfter: '。',
+  },
+  en: {
+    title: 'Workflow Lite',
+    tagline: 'Connect steps into a flow on a canvas and let the model run it by plan.',
+    sub: 'Sequences, parallel steps, conditional branches and loops.',
+    start: 'Get started',
+    first: 'Create your first workflow',
+    copy: 'Copy install command',
+    copied: 'Copied',
+    failed: 'Copy failed',
+    hintBefore: 'Install command for the web version; for the desktop app see ',
+    hintLink: 'Install',
+    hintAfter: '.',
+    mascot: 'dsh-workflow-lite icon',
+    tags: ['Implement', 'Review', 'Fix'],
+    howTitle: 'How it works',
+    howLede: 'There is no extra execution engine: scheduling and judgement are done by the model in the current session.',
+    steps: [
+      { name: 'Design', text: 'Connect steps on the canvas and write the prompts.' },
+      { name: 'Compile', text: 'The plugin turns it into a plan.' },
+      { name: 'Run', text: 'The model runs the plan and progress syncs back to the canvas.' },
+    ],
+    designTitle: 'Design flows on the canvas',
+    designLede: 'Drag steps, connect them, and describe the flow with conditional branches and loops.',
+    design: [
+      'Give a step the files, URLs or skills to read and write',
+      'Ask the user for information before running',
+      'Tidy up the layout in one click',
+    ],
+    designAlt: 'A code and review loop workflow on the canvas: implement, review, fix and summarise',
+    runTitle: 'Follow progress live',
+    runLede: 'With Record run state on, the canvas updates as the run progresses.',
+    run: [
+      'Status and round of every step at a glance',
+      'Web pages, images, logs and tables shown right on the canvas',
+      'Look back at and compare each round of a loop',
+    ],
+    runLink: 'About canvas display',
+    runAlt: 'A running workflow: the canvas shows the status of each step, with a timeline and a dashboard of every round below',
+    moreTitle: 'More features',
+    more: [
+      { title: 'Edit with the model', text: 'Create or change a workflow with one sentence.' },
+      { title: 'Versions', text: 'Save, compare and switch at any time.' },
+      { title: 'Import and export', text: 'Pack files and skills into one package.' },
+      { title: 'Export as a skill', text: 'Works without the plugin. Experimental.' },
+      { title: 'Workflow memory', text: 'Write down what worked. Experimental.' },
+      { title: 'Light and dark themes', text: 'Four color themes each.' },
+    ],
+    noticeBefore: 'Experimental: later releases may include breaking changes; see the ',
+    noticeLink: 'changelog',
+    noticeAfter: '.',
+  },
+}
+const t = text[lang]
+const shots = lang === 'en' ? { design: shotDesignEn, run: shotRunEn } : { design: shotDesign, run: shotRun }
+---
+
+<div class="home">
+  <section class="hero">
+    <div class="hero-text">
+      <h1>{t.title}</h1>
+      <p class="tagline">{t.tagline}</p>
+      <p class="sub">{t.sub}</p>
+      <div class="actions">
+        <a class="btn primary" href={`${base}/start/install/`}>{t.start}</a>
+        <a class="btn" href={`${base}/start/first-workflow/`}>{t.first}</a>
+      </div>
+      <div class="install">
+        <code>{INSTALL}</code>
+        <button type="button" class="copy" data-copy={INSTALL} data-copied={t.copied} data-failed={t.failed} aria-label={t.copy}>
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="9" y="9" width="11" height="11" rx="2"></rect>
+            <path d="M5 15V6a2 2 0 0 1 2-2h9"></path>
+          </svg>
+          <span class="copied" aria-live="polite"></span>
+        </button>
+      </div>
+      <p class="hint">{t.hintBefore}<a href={`${base}/start/install/`}>{t.hintLink}</a>{t.hintAfter}</p>
+    </div>
+    <div class="hero-art">
+      <svg class="links" viewBox="0 0 272 272" fill="none" aria-hidden="true">
+        <path d="M70 36C96 36 88 72 100 92" />
+        <path d="M214 52C212 70 196 74 184 90" />
+        <path d="M70 236C96 236 88 204 100 184" />
+      </svg>
+      <span class="tag c1" aria-hidden="true"><i></i>{t.tags[0]}</span>
+      <span class="tag c2" aria-hidden="true"><i></i>{t.tags[1]}</span>
+      <span class="tag c3" aria-hidden="true"><i></i>{t.tags[2]}</span>
+      <Image src={mascot} alt={t.mascot} width={320} height={320} loading="eager" />
+    </div>
+  </section>
+
+  <section class="block">
+    <h2>{t.howTitle}</h2>
+    <p class="lede">{t.howLede}</p>
+    <ol class="flow">
+      {
+        t.steps.map((step, i) => (
+          <>
+            {i > 0 && <li class="link" aria-hidden="true" />}
+            <li class="node">
+              <span class="chip">{step.name}</span>
+              <p>{step.text}</p>
+            </li>
+          </>
+        ))
+      }
+    </ol>
+  </section>
+
+  <section class="row">
+    <div class="row-text">
+      <h2>{t.designTitle}</h2>
+      <p>{t.designLede}</p>
+      <ul>
+        {t.design.map((item) => <li>{item}</li>)}
+      </ul>
+    </div>
+    <figure class="frame">
+      <Image src={shots.design} alt={t.designAlt} widths={[640, 960, 1280]} sizes="(min-width: 50rem) 60vw, 100vw" />
+    </figure>
+  </section>
+
+  <section class="row flip">
+    <div class="row-text">
+      <h2>{t.runTitle}</h2>
+      <p>{t.runLede}</p>
+      <ul>
+        {t.run.map((item) => <li>{item}</li>)}
+      </ul>
+      <p><a href={`${base}/display/overview/`}>{t.runLink}</a></p>
+    </div>
+    <figure class="frame">
+      <Image src={shots.run} alt={t.runAlt} widths={[640, 960, 1280]} sizes="(min-width: 50rem) 60vw, 100vw" />
+    </figure>
+  </section>
+
+  <section class="block">
+    <h2>{t.moreTitle}</h2>
+    <ul class="more">
+      {
+        t.more.map((item) => (
+          <li>
+            <h3>{item.title}</h3>
+            <p>{item.text}</p>
+          </li>
+        ))
+      }
+    </ul>
+  </section>
+
+  <p class="notice">
+    {t.noticeBefore}<a href={`${base}/changelog/`}>{t.noticeLink}</a>{t.noticeAfter}
+  </p>
+</div>
+
+<script>
+  // 复制安装命令。页面切换（视图过渡）后也要重新绑定。
+  document.addEventListener('astro:page-load', () => {
+    for (const button of document.querySelectorAll<HTMLButtonElement>('.home .copy')) {
+      button.addEventListener('click', async () => {
+        const label = button.querySelector('.copied')
+        try {
+          await navigator.clipboard.writeText(button.dataset.copy ?? '')
+          if (label) label.textContent = button.dataset.copied ?? ''
+        } catch {
+          if (label) label.textContent = button.dataset.failed ?? ''
+        }
+        setTimeout(() => {
+          if (label) label.textContent = ''
+        }, 1600)
+      })
+    }
+  })
+</script>
+
+<style>
+  .home {
+    padding-bottom: 3rem;
+  }
+
+  /* ── 英雄区 ─────────────────────────────────── */
+  .hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 17rem;
+    align-items: center;
+    gap: 4rem;
+    padding-block: 4.5rem 3.5rem;
+  }
+  h1 {
+    margin: 0;
+    font-size: clamp(2.5rem, 5.5vw, 3.75rem);
+    line-height: 1.1;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--sl-color-white);
+  }
+  .tagline {
+    margin: 1.25rem 0 0;
+    font-size: clamp(1.125rem, 2vw, 1.375rem);
+    line-height: 1.6;
+    color: var(--sl-color-gray-1);
+  }
+  .sub {
+    margin: 0.75rem 0 0;
+    max-width: 34rem;
+    line-height: 1.8;
+    color: var(--sl-color-gray-3);
+  }
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 2rem;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    height: 2.75rem;
+    padding-inline: 1.5rem;
+    border: 1px solid var(--sl-color-hairline-light);
+    border-radius: 999px;
+    font-weight: 600;
+    font-size: 0.9375rem;
+    color: var(--sl-color-white);
+    text-decoration: none;
+    background: var(--wl-soft);
+    transition:
+      background-color 0.15s,
+      border-color 0.15s;
+  }
+  .btn:hover {
+    border-color: var(--sl-color-gray-4);
+  }
+  .btn.primary {
+    border-color: transparent;
+    background: var(--wl-fill);
+    color: #fff;
+  }
+  .btn.primary:hover {
+    background: var(--wl-fill-hover);
+  }
+
+  .install {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    max-width: 34rem;
+    margin-top: 1.75rem;
+    padding: 0.5rem 0.5rem 0.5rem 1rem;
+    border: 1px solid var(--sl-color-hairline-light);
+    border-radius: 10px;
+    background: var(--wl-soft);
+  }
+  .install code {
+    flex: 1;
+    min-width: 0;
+    overflow-x: auto;
+    white-space: nowrap;
+    font-family: var(--sl-font-mono);
+    font-size: 0.875rem;
+    color: var(--sl-color-gray-1);
+    background: none;
+    padding: 0;
+  }
+  .copy {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    height: 2rem;
+    padding-inline: 0.55rem;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    color: var(--sl-color-gray-3);
+    font: inherit;
+    font-size: 0.8125rem;
+    cursor: pointer;
+    transition:
+      color 0.15s,
+      background-color 0.15s;
+  }
+  .copy:hover {
+    color: var(--sl-color-white);
+    background: color-mix(in oklab, var(--sl-color-gray-3) 16%, transparent);
+  }
+  .hint {
+    margin: 0.6rem 0 0;
+    font-size: 0.8125rem;
+    color: var(--sl-color-gray-3);
+  }
+  .hint a {
+    color: var(--sl-color-accent-high);
+  }
+
+  /* 点阵底的小画布：吉祥物居中，几个节点连向它，呼应产品本身。 */
+  .hero-art {
+    position: relative;
+    width: 17rem;
+    height: 17rem;
+    border: 1px solid var(--sl-color-hairline-light);
+    border-radius: 28px;
+    background-color: var(--wl-soft);
+    background-image:
+      radial-gradient(circle at 50% 50%, color-mix(in oklab, var(--sl-color-accent) 16%, transparent), transparent 62%),
+      radial-gradient(circle, var(--sl-color-hairline-light) 1px, transparent 1.5px);
+    background-size:
+      100% 100%,
+      16px 16px;
+  }
+  .hero-art :global(img) {
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 8rem;
+    height: 8rem;
+    border-radius: 22%;
+    box-shadow: var(--wl-shadow);
+  }
+  .links {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+  .links path {
+    stroke: var(--sl-color-gray-4);
+    stroke-width: 1.5;
+    stroke-dasharray: 4 5;
+    stroke-linecap: round;
+  }
+  .tag {
+    position: absolute;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    height: 1.875rem;
+    padding-inline: 0.7rem;
+    border: 1px solid var(--sl-color-hairline-light);
+    border-radius: 999px;
+    background: var(--wl-pop);
+    box-shadow: var(--wl-shadow);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--sl-color-white);
+  }
+  .tag i {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background: var(--dot);
+  }
+  .c1 {
+    --dot: #3e7ce4;
+    left: 0.9rem;
+    top: 1.3rem;
+  }
+  .c2 {
+    --dot: #60ba7e;
+    right: 0.9rem;
+    top: 1.3rem;
+  }
+  .c3 {
+    --dot: #cd9e70;
+    left: 0.9rem;
+    bottom: 1.3rem;
+  }
+
+  /* 进入时依次浮现：只用透明度和位移，一次。 */
+  @media (prefers-reduced-motion: no-preference) {
+    .hero-text > *,
+    .hero-art {
+      animation: rise 0.6s var(--wl-ease) both;
+    }
+    .hero-text > :nth-child(2) {
+      animation-delay: 0.06s;
+    }
+    .hero-text > :nth-child(3) {
+      animation-delay: 0.12s;
+    }
+    .hero-text > :nth-child(4) {
+      animation-delay: 0.18s;
+    }
+    .hero-text > :nth-child(5) {
+      animation-delay: 0.24s;
+    }
+    .hero-text > :nth-child(6) {
+      animation-delay: 0.3s;
+    }
+    .hero-art {
+      animation-delay: 0.15s;
+    }
+    @keyframes rise {
+      from {
+        opacity: 0;
+        transform: translateY(14px);
+      }
+    }
+  }
+
+  /* ── 通用分段 ───────────────────────────────── */
+  .block {
+    padding-block: 3.5rem 1rem;
+  }
+  h2 {
+    margin: 0;
+    font-size: 1.75rem;
+    line-height: 1.3;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    color: var(--sl-color-white);
+    border: 0;
+  }
+  .lede {
+    margin: 0.6rem 0 0;
+    color: var(--sl-color-gray-3);
+  }
+
+  /* ── 三步流程：像画布上的节点和连线 ─────────── */
+  .home .flow {
+    display: grid;
+    grid-template-columns: 1fr 2.5rem 1fr 2.5rem 1fr;
+    align-items: stretch;
+    margin: 2rem 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  .node {
+    margin: 0;
+    padding: 1.25rem 1.4rem 1.4rem;
+    border: 1px solid var(--sl-color-hairline-light);
+    border-radius: 12px;
+    background: var(--wl-soft);
+  }
+  .node p {
+    margin: 0.8rem 0 0;
+    font-size: 0.9375rem;
+    line-height: 1.75;
+    color: var(--sl-color-gray-2);
+  }
+  .chip {
+    display: inline-block;
+    padding: 0.1rem 0.7rem;
+    border-radius: 999px;
+    background: var(--sl-color-accent-low);
+    color: var(--sl-color-text-accent);
+    font-size: 0.8125rem;
+    font-weight: 600;
+  }
+  .link {
+    position: relative;
+    align-self: center;
+    height: 2px;
+    margin: 0;
+    background: var(--sl-color-accent);
+    opacity: 0.7;
+  }
+  .link::after {
+    content: '';
+    position: absolute;
+    inset-inline-end: 0;
+    top: 50%;
+    width: 7px;
+    height: 7px;
+    border-top: 2px solid var(--sl-color-accent);
+    border-inline-end: 2px solid var(--sl-color-accent);
+    transform: translateY(-50%) rotate(45deg);
+  }
+
+  /* ── 图文交替 ───────────────────────────────── */
+  .row {
+    display: grid;
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+    align-items: center;
+    gap: 3.5rem;
+    padding-block: 3.5rem 0;
+  }
+  .row.flip {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+  }
+  .row.flip .row-text {
+    order: 2;
+  }
+  .row-text p {
+    margin: 0.75rem 0 0;
+    line-height: 1.8;
+    color: var(--sl-color-gray-2);
+  }
+  .home .row-text ul {
+    margin: 1.25rem 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  .row-text li {
+    position: relative;
+    margin: 0;
+    padding-inline-start: 1.25rem;
+    font-size: 0.9375rem;
+    line-height: 1.8;
+    color: var(--sl-color-gray-2);
+  }
+  .row-text li + li {
+    margin-top: 0.35rem;
+  }
+  .row-text li::before {
+    content: '';
+    position: absolute;
+    inset-inline-start: 0;
+    top: 0.8em;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--sl-color-accent);
+  }
+  .frame {
+    margin: 0;
+    overflow: hidden;
+    border: 1px solid oklch(0.3 0.02 255 / 0.55);
+    border-radius: 14px;
+    box-shadow: var(--wl-shadow);
+    background: oklch(0.17 0.012 255);
+  }
+  .frame :global(img) {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  /* ── 更多功能：分隔线分栏，不套卡片 ─────────── */
+  .home .more {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 2rem 2.5rem;
+    margin: 2rem 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  .more li {
+    margin: 0;
+    padding-top: 1.1rem;
+    border-top: 1px solid var(--sl-color-hairline-light);
+  }
+  .more h3 {
+    margin: 0;
+    font-size: 1.0625rem;
+    font-weight: 600;
+    color: var(--sl-color-white);
+  }
+  .more p {
+    margin: 0.5rem 0 0;
+    font-size: 0.9375rem;
+    line-height: 1.75;
+    color: var(--sl-color-gray-3);
+  }
+
+  .notice {
+    max-width: 44rem;
+    margin: 4rem auto 0;
+    padding: 0.9rem 1.1rem;
+    border: 1px solid var(--sl-color-hairline-light);
+    border-radius: 10px;
+    background: var(--wl-soft);
+    font-size: 0.875rem;
+    line-height: 1.7;
+    color: var(--sl-color-gray-2);
+  }
+
+  /* ── 窄屏 ───────────────────────────────────── */
+  @media (max-width: 50rem) {
+    .hero,
+    .row,
+    .row.flip {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 2rem;
+    }
+    .hero {
+      padding-block: 2.5rem 2rem;
+    }
+    .hero-art {
+      order: -1;
+    }
+    /* 窄屏只留吉祥物，不占首屏高度。 */
+    .hero-art {
+      justify-self: start;
+      width: auto;
+      height: auto;
+      border: 0;
+      background: none;
+    }
+    .hero-art :global(img) {
+      position: static;
+      width: 5.5rem;
+      height: 5.5rem;
+    }
+    .links,
+    .tag {
+      display: none;
+    }
+    .row.flip .row-text {
+      order: 0;
+    }
+    .home .flow {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .link {
+      justify-self: center;
+      width: 2px;
+      height: 1.5rem;
+    }
+    .link::after {
+      inset-inline-end: auto;
+      top: auto;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%) rotate(135deg);
+    }
+    .home .more {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+  @media (min-width: 50.01rem) and (max-width: 66rem) {
+    .home .more {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+</style>

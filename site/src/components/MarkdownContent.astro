@@ -1,0 +1,30 @@
+---
+// 正文里单独成段的图片：包成 <figure>，居中，alt 文字当作图下的说明；
+// 按 2 倍像素出的截图，显示宽度写成 --wl-img-w（首屏就是对的尺寸，不等脚本）：
+// 整页、对话框取原宽的一半；只有一块卡片的小图放大到 3/4，免得在正文里小得看不清；窄而高的面板仍取一半。
+import Default from '@astrojs/starlight/components/MarkdownContent.astro'
+
+const html = await Astro.slots.render('default')
+const escapeHtml = (text: string) => text.replace(/&(?!(?:amp|lt|gt|quot|#\d+);)/g, '&amp;')
+
+// 代码块自带的几处文字（复制按钮、终端窗口）在 Windows 下总是落回中文，英文页在这里换掉。
+const english = Astro.locals.starlightRoute.locale === 'en'
+const localized = english
+  ? html
+      .replaceAll('title="复制到剪贴板"', 'title="Copy to clipboard"')
+      .replaceAll('data-copied="复制成功！"', 'data-copied="Copied!"')
+      .replaceAll('>终端窗口<', '>Terminal window<')
+  : html
+
+const wrapped = localized.replace(/<p>\s*(<img\b[^>]*>)\s*<\/p>/g, (_, img: string) => {
+  const alt = /\balt="([^"]*)"/.exec(img)?.[1] ?? ''
+  const width = Number(/\bwidth="(\d+)"/.exec(img)?.[1] ?? 0)
+  const height = Number(/height="(\d+)"/.exec(img)?.[1] ?? 0)
+  const scale = width <= 700 && height / width < 1.2 ? 0.75 : 0.5
+  const tag = width > 0 ? img.replace('<img', `<img style="--wl-img-w:${Math.round(width * scale)}px"`) : img
+  const caption = alt === '' ? '' : `<figcaption>${escapeHtml(alt)}</figcaption>`
+  return `<figure class="wl-fig">${tag}${caption}</figure>`
+})
+---
+
+<Default {...Astro.props}><Fragment set:html={wrapped} /></Default>

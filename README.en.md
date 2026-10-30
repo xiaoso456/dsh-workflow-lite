@@ -15,12 +15,15 @@
 [![license](https://img.shields.io/npm/l/@xiaoso/dsh-workflow-lite.svg)](./LICENSE)
 [![node](https://img.shields.io/node/v/@xiaoso/dsh-workflow-lite.svg)](https://nodejs.org)
 [![DeepSeek Harness 0.2.x](https://img.shields.io/badge/DeepSeek%20Harness-0.2.x-4d6bfe.svg)](https://github.com/deepseek-ai/deepseek-harness)
+[![docs](https://img.shields.io/badge/docs-xiaoso456.github.io-3e7ce4.svg)](https://xiaoso456.github.io/dsh-workflow-lite/)
 
 </div>
 
 A soft-workflow plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), built on prompt orchestration: design a flow on a canvas, compile it into a plan prompt, and let the model carry it out. Edges can carry **any condition**, and flows can be sequential, parallel, joined, conditionally branched, looped or rolled back, with no extra execution engine required.
 
 > **Experimental**: features and data formats are still changing, and any release may include breaking changes.
+
+**Documentation**: <https://xiaoso456.github.io/dsh-workflow-lite/> (installation, first steps, canvas display and settings, with screenshots).
 
 ![dsh-workflow-lite: canvas → plan prompt → model execution](./assets/hero.en.png)
 

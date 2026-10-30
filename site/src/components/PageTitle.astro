@@ -1,0 +1,26 @@
+---
+// 页面标题：在原有的 h1 下面补一行页面说明（frontmatter 的 description）。
+// 首页（splash）自己写标题，这里不输出。
+const { entry } = Astro.locals.starlightRoute
+const { title, description, template } = entry.data
+---
+
+{
+  template !== 'splash' && (
+    <>
+      <h1 id="_top">{title}</h1>
+      {description && <p class="page-lede">{description}</p>}
+    </>
+  )
+}
+
+<style>
+  h1 {
+    margin-top: 1rem;
+    font-size: var(--sl-text-h1);
+    line-height: var(--sl-line-height-headings);
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    color: var(--sl-color-white);
+  }
+</style>

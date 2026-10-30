@@ -1,0 +1,26 @@
+---
+// 语言选择：每个选项是一条指向「同一页的另一种语言」的链接，样式与主题下拉一致。
+import config from 'virtual:starlight/user-config'
+import Dropdown from './Dropdown.astro'
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '')
+const path = Astro.url.pathname.startsWith(base) ? Astro.url.pathname.slice(base.length) : Astro.url.pathname
+const onEnglish = /^\/en(\/|$)/.test(path)
+const bare = path.replace(/^\/en(?=\/|$)/, '') || '/'
+
+const options = Object.entries(config.locales ?? {}).map(([code, locale]) => {
+  const isEn = code === 'en'
+  return {
+    value: code,
+    label: locale!.label,
+    selected: isEn === onEnglish,
+    href: `${base}${isEn ? '/en' : ''}${bare}`,
+  }
+})
+---
+
+{
+  config.isMultilingual && (
+    <Dropdown icon="translate" label={Astro.locals.t('languageSelect.accessibleLabel')} width="8rem" options={options} />
+  )
+}

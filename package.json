@@ -13,7 +13,7 @@
     "type": "git",
     "url": "git+https://github.com/xiaoso456/dsh-workflow-lite.git"
   },
-  "homepage": "https://github.com/xiaoso456/dsh-workflow-lite#readme",
+  "homepage": "https://xiaoso456.github.io/dsh-workflow-lite/",
   "bugs": {
     "url": "https://github.com/xiaoso456/dsh-workflow-lite/issues"
   },
@@ -145,6 +145,7 @@
     "format": "biome check --write .",
     "hero": "node --experimental-strip-types tests/readme-shots.mjs && node tests/readme-hero.mjs",
     "hero:render": "node tests/readme-hero.mjs",
+    "docs:shots": "node --experimental-strip-types tests/docs-shots.mjs",
     "timeline": "node tests/readme-versions.mjs",
     "release-card": "node tests/readme-release.mjs"
   }

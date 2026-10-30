@@ -1,0 +1,14 @@
+---
+// 在 Starlight 默认的 <head> 之外加上视图过渡：切换页面时顶栏、侧栏不重绘，只有正文淡入淡出。
+import { ClientRouter } from 'astro:transitions'
+import Default from '@astrojs/starlight/components/Head.astro'
+---
+
+<Default {...Astro.props}><slot /></Default>
+<ClientRouter />
+
+<script>
+  import '../scripts/images.ts'
+  import '../scripts/sidebar.ts'
+  import '../scripts/toc.ts'
+</script>
