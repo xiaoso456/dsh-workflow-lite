@@ -140,6 +140,68 @@
           }
         ]
       }
+    },
+    "0.9.0": {
+      "zh": {
+        "headline": "看板、日志、图直接显示在画布上",
+        "items": [
+          {
+            "icon": "chart",
+            "tone": "blue",
+            "title": "画布展示",
+            "tag": "实验性",
+            "text": "看板、图片、文档直接上画布"
+          },
+          {
+            "icon": "history",
+            "tone": "green",
+            "title": "逐轮回看",
+            "text": "刻度轴切换，任挑两轮对比"
+          },
+          {
+            "icon": "terminal",
+            "tone": "gold",
+            "title": "日志与表格",
+            "text": "筛选、排序，几百 MB 也流畅"
+          },
+          {
+            "icon": "sparkle",
+            "tone": "teal",
+            "title": "模型适配展示",
+            "text": "按卡片大小写看板、出图"
+          }
+        ]
+      },
+      "en": {
+        "headline": "Outputs shown right on the canvas",
+        "items": [
+          {
+            "icon": "chart",
+            "tone": "blue",
+            "title": "Canvas display",
+            "tag": "Beta",
+            "text": "Boards, images, docs in place"
+          },
+          {
+            "icon": "history",
+            "tone": "green",
+            "title": "Round replay",
+            "text": "Scrub rounds, compare any two"
+          },
+          {
+            "icon": "terminal",
+            "tone": "gold",
+            "title": "Logs & tables",
+            "text": "Filter and sort, even huge files"
+          },
+          {
+            "icon": "sparkle",
+            "tone": "teal",
+            "title": "Fits the card",
+            "text": "Models write for the card size"
+          }
+        ]
+      }
     }
   }
 }

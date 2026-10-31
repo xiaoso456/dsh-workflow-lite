@@ -1154,6 +1154,15 @@ function FolderList(props: {
   const sorted = [...props.entries].sort((a, b) => (a.dir === b.dir ? order(a, b) : a.dir ? -1 : 1))
   const rest = sorted.length - FOLDER_ROWS
   const grid = view.list === 'grid'
+  // 子文件夹写里面有几项（全是图时写几张图），文件写大小。
+  const meta = (entry: RunDirEntry): string | null => {
+    if (!entry.dir) return formatBytes(entry.size)
+    if (entry.items === undefined) return null
+    const images = entry.images ?? 0
+    return images > 0 && images === entry.items
+      ? t('display.folderImages').replace('{n}', images.toLocaleString())
+      : t('display.folderItems').replace('{n}', entry.items.toLocaleString())
+  }
   const mark = (entry: RunDirEntry, large: boolean): React.JSX.Element =>
     entry.dir ? (
       <Icon name="folder" size={large ? 16 : 12} />
@@ -1172,7 +1181,7 @@ function FolderList(props: {
             <li key={entry.name} className={css.folderCell}>
               <span className={css.folderCellIcon}>{mark(entry, true)}</span>
               <span className={css.folderCellName}>{entry.name}</span>
-              {!entry.dir && <span className={css.folderCellMeta}>{formatBytes(entry.size)}</span>}
+              {meta(entry) !== null && <span className={css.folderCellMeta}>{meta(entry)}</span>}
               {view.time === true && (
                 <span className={css.folderCellMeta}>{shortTime(entry.mtime)}</span>
               )}
@@ -1184,15 +1193,18 @@ function FolderList(props: {
               {view.time === true && (
                 <span className={css.folderTime}>{shortTime(entry.mtime)}</span>
               )}
-              {!entry.dir && <span className={css.folderSize}>{formatBytes(entry.size)}</span>}
+              {meta(entry) !== null && (
+                <span className={entry.dir ? css.folderTime : css.folderSize}>{meta(entry)}</span>
+              )}
             </li>
           ),
         )}
-        {rest > 0 && (
-          <li className={css.folderMore}>
-            {t('display.folderMore').replace('{n}', rest.toLocaleString())}
-          </li>
-        )}
+        {/* 列得下时末尾写一共几项，几行字下面不至于空着一大块没有交代。 */}
+        <li className={css.folderMore}>
+          {rest > 0
+            ? t('display.folderMore').replace('{n}', rest.toLocaleString())
+            : t('display.folderTotal').replace('{n}', sorted.length.toLocaleString())}
+        </li>
       </ul>
     </div>
   )

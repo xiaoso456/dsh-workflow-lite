@@ -817,6 +817,10 @@ describe('看产出文件', () => {
       ['a b.png', false],
     ])
     expect(top.result.entries.find((entry) => entry.name === 'a b.png')?.size).toBe(png.length)
+    // 子文件夹带项数和图数；软链（可能指到外面）不数。
+    const deepEntry = top.result.entries.find((entry) => entry.name === 'deep')
+    expect([deepEntry?.items, deepEntry?.images]).toEqual([1, 0])
+    expect(top.result.entries.find((entry) => entry.name === 'link')?.items).toBeUndefined()
 
     // 往下一层：首尾的斜杠、反斜杠都认；显示的路径跟着变长。
     const deep = await runs.dir(id, { node: 'ref', item: 0, sub: '\\deep/' })

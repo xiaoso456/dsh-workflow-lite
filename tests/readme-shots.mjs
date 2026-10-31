@@ -7,8 +7,8 @@
  *
  * 每种语言：把浏览器语言设成那种语言（DSH 与插件界面跟着变），在实例里建示例工作流「代码审查循环」，
  * 拍到 `tests/runs/hero/<lang>/`：编辑页的图（canvas.png）、编译出的计划（plan.txt）、
- * 一个实例按状态点亮的图（run-graph.png）、右栏的两小块（run-position.png 执行位置、run-timeline.png 时间线；封面只用时间线）
- * 与查看框里打开的 HTML 看板（run-dashboard.png）。拍完删掉示例工作流和实例，把浏览器语言、侧栏、步骤库都放回去。
+ * 一个实例按状态点亮的图（run-graph.png，看板直接展示在画布上；封面第三段只用它）、右栏的两小块（run-position.png 执行位置、
+ * run-timeline.png 时间线）与查看框里打开的看板完整版（run-dashboard.png），后三张给介绍视频备用。拍完删掉示例工作流和实例，把浏览器语言、侧栏、步骤库都放回去。
  *
  * 清晰度：封面按 2 倍像素出图，素材的一个像素对应封面的一个像素，不再缩放——
  * 工作流的图按「封面里图的宽度 ÷ 图在页面上的宽度 × 2」拍，正好铺满；右栏小块和看板按图相对原大的比例拍
@@ -21,6 +21,7 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parse, stringify } from 'yaml'
+import { BOARD_SCRIPT, BOARD_STYLE } from '../src/host/boardSkill.ts'
 import { RunService } from '../src/host/runs/service.ts'
 import { addGlobalMemory } from '../src/shared/presets.ts'
 import { bootToCanvas, mouseClick, mouseMove, revealHubRow } from './lib/canvas-harness.mjs'
@@ -62,6 +63,8 @@ const GRAPH_WIDTH = 974
 /** 第三段下半截：两列间距、外边距——左边放右栏的时间线，右边的看板按剩下的宽度拍。 */
 const DETAIL_GAP = 16
 const DETAIL_PAD = 16
+/** 第三段画布上展示的看板卡片多大（画布像素，网页的中档）。 */
+const BOARD_VIEW = { width: 320, height: 176 }
 /** 右栏小块、看板在封面里最小按原大的几成摆：再小，GitHub 把封面缩到 880 宽显示时字就糊了。 */
 const MIN_SCALE = 1
 
@@ -89,17 +92,33 @@ const COPY = {
       fix: '修了审查提的两条：退避上限、并发刷新只发一次。',
       reviewFail: '退避没有上限；并发刷新会发多次',
     },
-    dashboard: {
+    // 画布上的看板（照 workflow-board 的模板写）：卡片版回答「这次改动离合进去还差什么」。
+    board: {
       lang: 'zh-CN',
-      title: '代码审查循环 · 看板',
-      sub: '第 2 轮审查进行中 · 更新于 10:25',
-      cards: [
-        ['当前轮次', '2 / 3', '最多三轮', 'blue'],
-        ['上轮结论', '未通过', '2 个问题', 'red'],
-        ['问题修复', '2 / 2', '已全部修完', 'green'],
-        ['单元测试', '6 通过', '新增 6 个', 'green'],
+      head: '第 2 轮',
+      badge: '审查中',
+      ring: ['2/2', '问题已修'],
+      stats: [
+        ['轮次', '2<span class="u">/3</span>', ''],
+        ['单元测试', '6<span class="u">通过</span>', 'ok'],
+        ['上轮问题', '2', 'bad'],
       ],
-      rounds: ['第 1 轮', '第 2 轮', '第 3 轮'],
+      meter: ['覆盖率', '87%'],
+      title: '代码审查循环 · 第 2 轮',
+      sub: 'auth/ token 刷新重试 · 更新于 10:25',
+      kpis: [
+        ['轮次', '2 / 3', '最多三轮', ''],
+        ['上轮结论', '未通过', '2 个问题', 'bad'],
+        ['问题修复', '2 / 2', '已全部修完', 'ok'],
+        ['单元测试', '6', '新增 6 个', 'ok'],
+      ],
+      steps: ['实现', '审查', '修复', '复审', '汇总'],
+      stepsTitle: '阶段',
+      issuesTitle: '上轮问题',
+      issues: [
+        ['退避没有上限', '已修'],
+        ['并发刷新会发多次', '已修'],
+      ],
     },
     aria: {
       collapseSidebar: '收起侧边栏',
@@ -149,17 +168,32 @@ const COPY = {
       fix: 'Fixed both review items: capped the backoff, deduplicated concurrent refreshes.',
       reviewFail: 'No backoff cap; refreshes fire twice',
     },
-    dashboard: {
+    board: {
       lang: 'en',
-      title: 'code-review-loop · Dashboard',
-      sub: 'Review round 2 in progress · updated 10:25',
-      cards: [
-        ['Round', '2 / 3', 'Max 3 rounds', 'blue'],
-        ['Last verdict', 'Fail', '2 issues', 'red'],
-        ['Issues fixed', '2 / 2', 'All addressed', 'green'],
-        ['Unit tests', '6 passed', '6 added', 'green'],
+      head: 'Round 2',
+      badge: 'Reviewing',
+      ring: ['2/2', 'fixed'],
+      stats: [
+        ['Round', '2<span class="u">/3</span>', ''],
+        ['Tests', '6<span class="u">pass</span>', 'ok'],
+        ['Last issues', '2', 'bad'],
       ],
-      rounds: ['Round 1', 'Round 2', 'Round 3'],
+      meter: ['Coverage', '87%'],
+      title: 'code-review-loop · round 2',
+      sub: 'Retry for auth/ token refresh · updated 10:25',
+      kpis: [
+        ['Round', '2 / 3', 'Max 3 rounds', ''],
+        ['Last verdict', 'Fail', '2 issues', 'bad'],
+        ['Issues fixed', '2 / 2', 'All addressed', 'ok'],
+        ['Unit tests', '6', '6 added', 'ok'],
+      ],
+      steps: ['Implement', 'Review', 'Fix', 'Re-review', 'Report'],
+      stepsTitle: 'Stage',
+      issuesTitle: 'Last round',
+      issues: [
+        ['No backoff cap', 'fixed'],
+        ['Refresh fires twice', 'fixed'],
+      ],
     },
     aria: {
       collapseSidebar: 'Collapse sidebar',
@@ -261,31 +295,60 @@ function fillState(state, copy) {
   ]
 }
 
-/** 示例看板：审查步骤每轮重新生成的单文件 HTML（暗底，顶部几张汇总卡，下面一条轮次进度）。 */
-function dashboardHtml(d) {
-  const tone = { blue: '#4d94ff', red: '#ff7a66', green: '#3ecf8e', gray: '#3a4556' }
-  const cards = d.cards
+/**
+ * 画布上展示的看板：照 skill `workflow-board` 的模板写（样式、脚本取插件里的同一份），卡片里显示卡片版、
+ * 点开显示完整版，颜色跟着画布主题。
+ */
+function boardHtml(b) {
+  const stats = b.stats
+    .map(([label, value, tone], i) => {
+      const drop = i === b.stats.length - 1 ? ' data-drop="1"' : ''
+      return `<div${drop}><dt>${label}</dt><dd class="num ${tone}">${value}</dd></div>`
+    })
+    .join('')
+  const kpis = b.kpis
     .map(
-      ([label, value, hint, color]) =>
-        `<div class="card"><span>${label}</span><b style="color:${tone[color]}">${value}</b><i>${hint}</i></div>`,
+      ([label, value, hint, tone]) =>
+        `<div class="kpi"><span>${label}</span><b class="num ${tone}">${value}</b><small>${hint}</small></div>`,
     )
     .join('')
-  const segs = ['red', 'blue', 'gray']
+  const steps = b.steps
     .map(
-      (color, i) =>
-        `<div class="seg"><em style="background:${tone[color]}"></em>${d.rounds[i]}</div>`,
+      (name, i) => `<li class="${i < 3 ? 'done' : i === 3 ? 'now' : ''}"><span>${name}</span></li>`,
     )
     .join('')
-  return `<!doctype html><html lang="${d.lang}"><head><meta charset="utf-8"><style>
-body{margin:0;padding:10px 20px 4px;background:#0f141c;color:#e6ebf3;font:13px/1.5 "Microsoft YaHei UI","PingFang SC",system-ui,sans-serif}
-h1{margin:0;font-size:17px;font-weight:650}
-.sub{margin:1px 0 10px;color:#8a97ab;font-size:13px}
-.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-.card{display:flex;flex-direction:column;gap:0;padding:6px 11px;border:1px solid #232c3a;border-radius:10px;background:#151c27}
-.card span{color:#8a97ab;font-size:12.5px}.card b{font-size:21px;font-weight:700;white-space:nowrap}.card i{color:#6f7d92;font-size:12.5px;font-style:normal}
-.segs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
-.seg{color:#8a97ab;font-size:12px}.seg em{display:block;height:5px;margin-bottom:3px;border-radius:3px}
-</style></head><body><h1>${d.title}</h1><p class="sub">${d.sub}</p><div class="cards">${cards}</div><div class="segs">${segs}</div></body></html>
+  const issues = b.issues
+    .map(([text, state]) => `<li class="ok"><span>${text}</span><b>${state}</b></li>`)
+    .join('')
+  return `<!doctype html>
+<html lang="${b.lang}">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${b.title}</title>
+${BOARD_STYLE}
+</head>
+<body>
+  <section class="card-view">
+    <div class="card-head"><h1>${b.head}</h1><span class="badge info">${b.badge}</span></div>
+    <div class="card-body">
+      <div class="main">
+        <div class="ring ok"><svg viewBox="0 0 36 36" aria-hidden="true"><circle class="track" cx="18" cy="18" r="15.5"/><circle class="arc" cx="18" cy="18" r="15.5" pathLength="100" stroke-dasharray="100 100"/></svg><div><b class="num">${b.ring[0]}</b><span>${b.ring[1]}</span></div></div>
+      </div>
+      <div class="side">
+        <dl class="stats">${stats}</dl>
+        <div class="meter ok" data-drop="2"><div><span>${b.meter[0]}</span><b class="num">${b.meter[1]}</b></div><i style="--v: 87%; --goal: 80%"></i></div>
+      </div>
+    </div>
+  </section>
+  <main class="full-view">
+    <header><div><h1>${b.title}</h1><div class="sub">${b.sub}</div></div><span class="badge info">${b.badge}</span></header>
+    <div class="kpis">${kpis}</div>
+    <div class="grid">
+      <section><h2>${b.stepsTitle}</h2><ol class="steps">${steps}</ol></section>
+      <section><h2>${b.issuesTitle}</h2><ul class="list">${issues}</ul></section>
+    </div>
+  </main>
+${BOARD_SCRIPT}
+</body>
+</html>
 `
 }
 
@@ -457,14 +520,14 @@ async function shoot(session, lang) {
     await sleep(600)
     await session.evaluate(clickAria(copy.aria.collapseLibrary))
     await sleep(400)
-    await session.evaluate(clickTestId('wl-tidy'))
-    await sleep(1500)
-    await metrics(1500, 820)
-    await sleep(500)
-    await session.evaluate(clickTestId('wl-fit'))
-    await sleep(1000)
-    // 整理会把没连任何步骤的全局记忆卡排在版面下方、比别的卡更靠左：拖到「需求与规范」正下面，和它左对齐。
-    {
+    // 整理版面：整理会把没连任何步骤的全局记忆卡排在版面下方、比别的卡更靠左，拖到「需求与规范」正下面，和它左对齐。
+    const tidy = async () => {
+      await session.evaluate(clickTestId('wl-tidy'))
+      await sleep(1500)
+      await metrics(1500, 820)
+      await sleep(500)
+      await session.evaluate(clickTestId('wl-fit'))
+      await sleep(1000)
       const [spec, memory] = await session.evaluate(cardRects('spec', 'mem-global'))
       await dragCard(
         session,
@@ -480,6 +543,7 @@ async function shoot(session, lang) {
       await session.evaluate(clickTestId('wl-fit'))
       await sleep(1000)
     }
+    await tidy()
     const graphScale = await shootGraph(
       1500,
       820,
@@ -539,6 +603,33 @@ async function shoot(session, lang) {
       await sleep(400)
     }
 
+    // 第三段：看板直接展示在画布上。第一段拍完再给看板资源打开展示、重新整理版面，存好之后再建实例（实例按这时的图建）。
+    {
+      const before = await rpc('graph/load', { name: copy.name })
+      const document = structuredClone(before.document)
+      const board = document.nodes.find((node) => node.id === 'dashboard')
+      board.data.view = { ...BOARD_VIEW }
+      await rpc('graph/save', { name: copy.name, document, baseHash: before.hash })
+      // 画布不跟着外部的保存刷新：重新进一次画布（侧栏、步骤库的收起记在浏览器里，不用再点）。
+      await bootToCanvas(session, copy.name, {
+        width: 1500,
+        height: 820,
+        lang,
+        sessionTitle: SESSION_TITLE,
+      })
+      await session.evaluate(clickAria(copy.aria.collapseSidebar))
+      await session.evaluate(clickAria(copy.aria.collapseLibrary))
+      await waitFor(
+        session,
+        `document.querySelector('.react-flow__node[data-id="dashboard"] [data-display]') !== null`,
+      )
+      await tidy()
+      await waitFor(
+        session,
+        `document.querySelector('[data-testid="wl-status"]')?.dataset.tone === 'saved'`,
+      )
+    }
+
     // 实例：状态写好后从工作流中心打开它。
     await mkdir(WORKSPACE, { recursive: true })
     const runs = new RunService({ dataDir: () => DATA_DIR, validate: () => [] })
@@ -556,7 +647,7 @@ async function shoot(session, lang) {
     // 看板是审查步骤的产出：没配产出根目录时落在实例自己的 out 目录。
     const produced = join(WORKSPACE, '.workflow-lite', 'runs', instance, 'out')
     await mkdir(produced, { recursive: true })
-    await writeFile(join(produced, 'dashboard.html'), dashboardHtml(copy.dashboard))
+    await writeFile(join(produced, 'dashboard.html'), boardHtml(copy.board))
 
     const view = `[data-testid="wl-hub-row"][data-id="${instance}"] [data-testid="wl-hub-view"]`
     await session.evaluate(clickTestId('wl-hub-open'))

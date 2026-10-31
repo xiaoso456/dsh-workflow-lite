@@ -8,6 +8,8 @@
  * 只需要一个带 DevTools 端口的 Chrome（`node tests/lib/cdp-chrome-launch.mjs 9222`），不用起 DSH。
  * 在 CDP 浏览器里另开一个标签页渲染，截完关掉。
  *
+ * 发版前想先看效果：给一个 CHANGELOG 里还没有的版本号，只要 Unreleased 一节有内容，就按它出图、日期写今天。
+ *
  * usage: node tests/readme-release.mjs [版本号] [zh|en]（版本号缺省取 package.json 的）
  */
 
@@ -50,11 +52,19 @@ async function build(lang) {
   const pkg = JSON.parse(pkgText)
   const { intro, versions } = JSON.parse(spec)
   const version = versionArg ?? pkg.version
-  const date = new RegExp(
+  const released = new RegExp(
     `^## \\[${version.replaceAll('.', '\\.')}\\] - (\\d{4}-\\d{2}-\\d{2})`,
     'mu',
   ).exec(changelog)?.[1]
-  if (date === undefined) throw new Error(`CHANGELOG.md 里没有 ${version} 这一版`)
+  // 发版前预览：版本号还不在 CHANGELOG 里，但 Unreleased 一节有内容，就当它是这一版、日期写今天。
+  const unreleased = /^## \[Unreleased\]\s*\n+(?!## )\S/mu.test(changelog)
+  if (released === undefined && !unreleased) {
+    throw new Error(`CHANGELOG.md 里没有 ${version} 这一版`)
+  }
+  if (released === undefined) {
+    console.log(`⚠ CHANGELOG 里还没有 ${version}：按 Unreleased 预览，日期写今天`)
+  }
+  const date = released ?? new Date().toISOString().slice(0, 10)
   const release = versions[version]?.[lang]
   if (release === undefined) throw new Error(`release.json 里没有 ${version} 的 ${lang} 内容`)
   const items = release.items.map((item) => {

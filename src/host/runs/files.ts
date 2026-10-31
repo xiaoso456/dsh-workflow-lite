@@ -10,14 +10,16 @@
  * @module @xiaoso/dsh-workflow-lite/host/runs/files
  */
 
-import { open, readdir, readFile, realpath, stat } from 'node:fs/promises'
+import { lstat, open, readdir, readFile, realpath, stat } from 'node:fs/promises'
 import { dirname, extname, isAbsolute, join, relative, resolve } from 'node:path'
+import { fileKindOf } from '../../shared/fileKind.ts'
 import { isResource } from '../../shared/model.ts'
 import { resolveItemPath, resolveOutputPath } from '../../shared/outputPaths.ts'
 import { resourceGraph, underOutputRoot } from '../../shared/resources.ts'
 import type { InstanceRecord } from '../../shared/runState.ts'
 import type { WorkflowDocument } from '../../shared/types.ts'
 import {
+  RUN_DIR_COUNTED,
   RUN_DIR_MAX,
   RUN_FILE_HTML_MAX,
   RUN_FILE_TEXT_MAX,
@@ -391,6 +393,22 @@ export async function readRunDir(
   )
   entries.sort((a, b) =>
     a.dir === b.dir ? a.name.localeCompare(b.name, undefined, { numeric: true }) : a.dir ? -1 : 1,
+  )
+  // 子文件夹数一下里面有几项、几张图（列表里写「3 张图」，不用点进去才知道）。软链不数：可能指到文件夹外面。
+  await Promise.all(
+    entries
+      .filter((entry) => entry.dir)
+      .slice(0, RUN_DIR_COUNTED)
+      .map(async (entry) => {
+        try {
+          if ((await lstat(join(full, entry.name))).isSymbolicLink()) return
+          const inner = await readdir(join(full, entry.name))
+          entry.items = inner.length
+          entry.images = inner.filter((name) => fileKindOf(name) === 'image').length
+        } catch {
+          // 读不了就不写项数。
+        }
+      }),
   )
   return { ...base, exists: true, entries, truncated: names.length > RUN_DIR_MAX }
 }

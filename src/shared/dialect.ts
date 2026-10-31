@@ -145,10 +145,10 @@ export function dshDisplayLine(brief: DisplayBrief, target?: string): string {
           ? ''
           : `最新的一张占大格（约 ${brief.hero.width}×${brief.hero.height}），`
       const fit = brief.fit === 'cover' ? '每格铺满、超出的边裁掉' : '每格完整缩放、不裁'
-      return `${lead}这个文件夹会在画布的卡片里排成图墙：里面的图片按修改时间从新到旧排，${hero}一次露出 ${brief.tiles} 张（${fit}），用户点开才看全部。往里放图片（PNG、JPG、WebP、SVG），一张一件事、主体放在中间，文件名写清是什么${matchText(brief.match)}；${IMAGE_FIT}`
+      return `${lead}这个文件夹会在画布的卡片里排成图墙：里面的图片按修改时间从新到旧排，${hero}一次露出 ${brief.tiles} 张（${fit}），用户点开才看全部。往里放图片（PNG、JPG、WebP、SVG），直接放在这个文件夹里、不要再分子文件夹（卡片只看这一层，轮次、组别写进文件名，如 ${code('r02-200.svg')}），一张一件事、主体放在中间，文件名写清是什么${matchText(brief.match)}；${IMAGE_FIT}`
     }
     case 'files':
-      return `${lead}这个文件夹会在画布的卡片里列出里面的文件（最新的在前），用户点开文件看内容。文件名写清是什么（比如带上轮次或日期），一眼分得出哪个是哪个${matchText(brief.match)}。`
+      return `${lead}这个文件夹会在画布的卡片里列出里面的文件（最新的在前），用户点开文件看内容。文件直接放在这一层、少分子文件夹，文件名写清是什么（比如带上轮次或日期），一眼分得出哪个是哪个${matchText(brief.match)}。`
     case 'log': {
       const where =
         brief.from === 'start'

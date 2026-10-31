@@ -941,7 +941,13 @@ export interface RunDirEntry {
   /** 字节数；文件夹是 0。 */
   size: number
   mtime: number
+  /** 子文件夹里有几项、其中几张图（只数一层；子文件夹多时只数前 {@link RUN_DIR_COUNTED} 个）。 */
+  items?: number
+  images?: number
 }
+
+/** 一层里最多数几个子文件夹的项数。 */
+export const RUN_DIR_COUNTED = 64
 export interface RunDirResponse {
   /** 这一层的绝对路径。 */
   path: string

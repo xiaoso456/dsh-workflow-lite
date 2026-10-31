@@ -82,13 +82,6 @@
   .chip.ok { background: rgb(62 207 142 / 14%); color: var(--green); }
   .chip.run { background: var(--accent-soft); color: var(--accent); }
 
-  /* 第三段的下半截：左边右栏里裁出的时间线，右边查看框里的看板，两块一样高。 */
-  .detail {
-    display: grid; grid-template-columns: auto 1fr; gap: 16px; padding: 16px;
-    border-top: 1px solid var(--line); background: rgb(18 25 37 / 55%);
-  }
-  .shot { border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 10px 26px rgb(0 0 0 / 35%); }
-  .detail .board { border: 0; border-radius: 12px; justify-self: end; }
 
   /* 段与段之间的连接：一根竖线 + 动词，后面接下一段的标题行。 */
   .link { display: flex; gap: 10px; align-items: center; height: 54px; padding-left: 40px; }
@@ -195,10 +188,6 @@
         <span class="title" data-k="s3bar"></span><span class="chip run" data-k="s3chip"></span>
       </div>
       <img data-img="run-graph" alt="" />
-      <div class="detail">
-        <img class="shot" data-img="run-timeline" alt="" />
-        <img class="shot board" data-img="run-dashboard" alt="" />
-      </div>
     </div>
   </section>
 
@@ -231,7 +220,7 @@
         soft3: '<b>一个工作流一个 JSON</b><span>提示词随图保存，便于比对、分享，模型也能直接改。</span>',
         soft4: '<b>支持中断续跑</b><span>进度记在实例里，中断后从下一步接着做。</span>',
         run: '执行',
-        runNote: '画布同步显示各步骤状态与轮次；在画布上修改的状态会通知模型',
+        runNote: '画布同步显示各步骤状态与轮次，看板直接展示在画布上，每轮自动更新',
         s3: '跟踪执行进度',
         s3bar: '实例 · <b>给 auth/ 加上 token 刷新的重试</b>',
         s3chip: '● 执行中 · 第 2 轮',
@@ -240,7 +229,7 @@
           '执行前提问',
           '模型协作编辑',
           '版本管理',
-          '工作流记忆 · 实验性',
+          '画布展示 · 实验性',
           '浅色 / 深色 · 中 / 英',
         ],
       },
@@ -268,7 +257,7 @@
         soft3: '<b>One workflow, one JSON file</b><span>Prompts live inside the graph, easy to diff and share; the model can edit it too.</span>',
         soft4: '<b>Resume after interruption</b><span>Progress is kept per run; work continues from the next step, rounds worked out.</span>',
         run: 'Run',
-        runNote: 'Step status and rounds show on the canvas; state you change there is reported back',
+        runNote: 'Step status and rounds show on the canvas, with the dashboard right on it, updated every round',
         s3: 'Track progress',
         s3bar: 'Run · <b>Add retry to auth/ token refresh</b>',
         s3chip: '● Running · round 2',
@@ -277,7 +266,7 @@
           'Pre-run questions',
           'Model co-editing',
           'Versions',
-          'Memory (beta)',
+          'Canvas display (beta)',
           'Light / dark · 中 / EN',
         ],
       },
