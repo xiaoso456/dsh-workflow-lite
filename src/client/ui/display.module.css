@@ -2144,130 +2144,154 @@ button.tile:focus-visible {
 }
 
 /*
- * ── 各轮产出（HistoryBar）：展示区左下角一排点 ──
- * 平时藏着（也不接鼠标，免得挡住拖卡片）；悬停卡片、键盘进来、钉住了某一版时露出来。
- * 点之间一道细线；现在显示的那点放大、描一圈强调色；最新那点是空心的；按判定着色（通过 / 不通过的线色）。
+ * ── 各轮产出（HistoryBar） ──
+ * 两块都和标题行右边的按钮一样：悬停卡片、选中、进了交互、开着细项时才出来。
+ * - 标题行里写看的是哪一版，跟着时间线上悬停的那一点换字；点它下拉出各版列表。钉在旧版时换强调色底，旁边一个 ✕ 回到最新。
+ * - 卡片底边外一条和卡片等宽的时间线（挂在 historyRail 里，卡片不裁）；拖卡片、改大小时让开。
  */
+.historySlot {
+  display: flex;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 60%;
+}
+
+.historySlot:empty {
+  display: none;
+}
+
 .history {
-  position: absolute;
-  bottom: 8px;
-  left: 8px;
-  z-index: 3;
-  display: flex;
-  gap: 4px;
+  display: inline-flex;
+  gap: 1px;
   align-items: center;
-  box-sizing: border-box;
-  max-width: calc(100% - 16px);
-  height: 24px;
-  padding: 0 3px 0 4px;
-  border-radius: calc(12px * var(--wl-round, 1));
-  background: color-mix(in oklab, var(--wl-panel) 94%, transparent);
-  box-shadow:
-    0 0 0 1px var(--wl-line),
-    var(--wl-shadow-1);
+  min-width: 0;
+  height: 22px;
+  border-radius: calc(6px * var(--wl-round, 1));
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-weight: 500;
+  white-space: nowrap;
   opacity: 0;
-  pointer-events: none;
-  transition: opacity 140ms linear;
+  transition:
+    opacity 140ms linear,
+    background-color 120ms linear,
+    color 120ms linear;
 }
 
-.card[data-display]:hover .history,
-.history:focus-within,
-.history[data-pinned] {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.historyTrack {
-  position: relative;
-  display: flex;
-  flex: none;
+.historyPick {
+  display: inline-flex;
+  gap: 5px;
   align-items: center;
-}
-
-.historyTrack::before {
-  position: absolute;
-  top: 50%;
-  right: 8px;
-  left: 8px;
-  height: 1px;
-  background: var(--wl-line-strong);
-  content: "";
-}
-
-.historyDot {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 16px;
-  height: 20px;
-  padding: 0;
+  min-width: 0;
+  height: 100%;
+  padding: 0 4px 0 6px;
   border: 0;
-  border-radius: calc(5px * var(--wl-round, 1));
+  border-radius: inherit;
   background: transparent;
+  color: inherit;
+  font: inherit;
   cursor: pointer;
+  transition: background-color 120ms linear;
 }
 
-.historyDot::before {
-  --dot: var(--wl-text-3);
-
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--dot);
-  box-shadow: 0 0 0 2px var(--wl-panel);
-  content: "";
-  transition: transform 160ms var(--wl-ease-out);
+.historyPick > svg {
+  flex: none;
 }
 
-.historyDot[data-tone="pass"]::before {
-  --dot: var(--wl-flow-pass);
+.historyPick:hover,
+.historyPick[aria-expanded="true"] {
+  background: var(--wl-hover);
 }
 
-.historyDot[data-tone="again"]::before {
-  --dot: var(--wl-flow-fail);
+.history[data-old] .historyPick:hover,
+.history[data-old] .historyPick[aria-expanded="true"] {
+  background: color-mix(in oklab, var(--wl-accent) 14%, transparent);
 }
 
-/* 最新（现在的文件）：空心。 */
-.historyDot[data-live]::before {
-  background: var(--wl-panel);
-  box-shadow:
-    0 0 0 2px var(--wl-panel),
-    inset 0 0 0 1.5px var(--dot);
-}
-
-.historyDot:hover::before {
-  transform: scale(1.3);
-}
-
-.historyDot[data-shown]::before {
-  box-shadow:
-    0 0 0 1.5px var(--wl-panel),
-    0 0 0 3px var(--wl-accent);
-  transform: scale(1.15);
-}
-
-.historyDot[data-live][data-shown]::before {
-  box-shadow:
-    0 0 0 1.5px var(--wl-panel),
-    0 0 0 3px var(--wl-accent),
-    inset 0 0 0 1.5px var(--dot);
-}
-
-.historyDot:focus-visible {
+.historyPick:focus-visible {
   outline: 2px solid var(--wl-accent);
   outline-offset: -1px;
 }
 
-/* 钉着旧版时又来了新的：最新那点右上角一个小点，慢慢呼吸。 */
-.historyDot[data-new]::after {
+/* 下拉的小箭头：打开时翻过来。 */
+.historyCaret {
+  display: inline-grid;
+  flex: none;
+  opacity: 0.7;
+  transition: transform 180ms var(--wl-ease-out);
+}
+
+.historyPick[aria-expanded="true"] .historyCaret {
+  transform: rotate(180deg);
+}
+
+:global(.react-flow__node.selected) .history,
+.history[data-open],
+.card[data-display]:hover .history,
+.card[data-display][data-interactive] .history,
+.card[data-display][data-settings] .history {
+  opacity: 1;
+}
+
+.history[data-preview] {
+  color: var(--wl-text);
+}
+
+.history[data-old] {
+  padding-right: 2px;
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+  font-weight: 600;
+}
+
+.historyChipText {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.historyCount {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+
+.historyBack {
+  position: relative;
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: calc(5px * var(--wl-round, 1));
+  background: transparent;
+  color: var(--wl-accent-text);
+  cursor: pointer;
+  transition: background-color 120ms linear;
+}
+
+.historyBack:hover {
+  background: color-mix(in oklab, var(--wl-accent) 18%, transparent);
+}
+
+.historyBack:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: -1px;
+}
+
+/* 钉着旧版时又来了新的：✕ 角上一个小点，慢慢呼吸。 */
+.historyBack[data-new]::after {
   position: absolute;
-  top: 1px;
-  right: 1px;
-  width: 5px;
-  height: 5px;
+  top: -1px;
+  right: -1px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: var(--wl-accent);
+  box-shadow: 0 0 0 2px var(--wl-file-surface);
   content: "";
+  corner-shape: round;
   animation: historyNew 1.6s var(--wl-ease) infinite alternate;
 }
 
@@ -2277,59 +2301,403 @@ button.tile:focus-visible {
   }
 }
 
-/* 中间删掉了几版：线上断开一小截。 */
-.historyGap {
-  position: relative;
-  z-index: 1;
+/* 各版列表：和别处的菜单一样的项，前面一个按判定着色的圆点，后面存下的时间，钉住的那项带钩。 */
+.historyMenu {
+  padding: 4px;
+}
+
+.historyList {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.historyRow {
+  display: flex;
+  flex-direction: column;
+}
+
+.historyItem {
+  --tick: var(--wl-text-3);
+
+  min-height: 30px;
+  font-size: var(--wl-fs-meta);
+}
+
+.historyItem[data-tone="pass"] {
+  --tick: var(--wl-flow-pass);
+}
+
+.historyItem[data-tone="again"] {
+  --tick: var(--wl-flow-fail);
+}
+
+.historyItemDot {
   flex: none;
-  width: 10px;
-  height: 20px;
-  background:
-    radial-gradient(circle, var(--wl-text-3) 0.8px, transparent 1.2px) 0 50% / 4px 4px repeat-x,
-    var(--wl-panel);
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--tick);
+  corner-shape: round;
 }
 
-.historyLabel {
-  min-width: 0;
-  padding: 0 4px 0 2px;
-  overflow: hidden;
-  color: var(--wl-text-2);
+.historyItem[data-live] .historyItemDot {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--wl-text-3);
+}
+
+.historyItemTime {
+  flex: none;
+  color: var(--wl-text-3);
   font-size: var(--wl-fs-micro);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
-.historyBack {
-  display: grid;
+.historyItemCheck {
+  display: inline-grid;
   flex: none;
   place-items: center;
-  width: 18px;
-  height: 18px;
+  width: 14px;
+  color: var(--wl-accent-text);
+}
+
+.historyDropped {
+  padding: 2px 8px 4px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+/* 时间线挂的位置：卡片底边外，和卡片等宽。上面 6px 的缝是时间线自己的桥，指针从卡片移下来不会中途收掉。 */
+.historyRail {
+  position: absolute;
+  z-index: 3;
+  top: 100%;
+  /* 卡片有 1px 边框：往外各扩 1px，和卡片外沿对齐。 */
+  right: -1px;
+  left: -1px;
+  padding-top: 6px;
+  pointer-events: none;
+}
+
+.historyRail:empty {
+  display: none;
+}
+
+.historyTimeline {
+  position: relative;
+  height: 42px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-3px);
+  transition:
+    opacity 160ms linear,
+    transform 240ms var(--wl-ease-out);
+}
+
+/* 上面 6px 的缝：指针从卡片移下来不会中途收掉。 */
+.historyTimeline::before {
+  position: absolute;
+  top: -6px;
+  right: 0;
+  left: 0;
+  height: 6px;
+  content: "";
+}
+
+/*
+ * 底下垫一层画布色、四边羽化：在画布上看不出来，但从卡片下面经过的连线、线上的小牌子走到这里就淡下去，
+ * 不会从进度条中间穿过。
+ */
+.historyTimeline::after {
+  position: absolute;
+  z-index: -1;
+  inset: -4px -20px -2px;
+  background: var(--wl-canvas);
+  content: "";
+  mask-image:
+    linear-gradient(90deg, transparent, #000 20px, #000 calc(100% - 20px), transparent),
+    linear-gradient(transparent, #000 6px, #000 calc(100% - 8px), transparent);
+  mask-composite: intersect;
+  pointer-events: none;
+}
+
+.historyTimeline:focus-within,
+:global(.react-flow__node.selected) .historyTimeline,
+.card[data-display]:hover .historyTimeline {
+  opacity: 1;
+  pointer-events: auto;
+  transform: none;
+}
+
+.card[data-display][data-resizing] .historyTimeline,
+:global(.react-flow__node.dragging) .card[data-display] .historyTimeline {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/*
+ * 时间线挂在卡片外面：悬停、选中时把这张卡抬到别的卡片和连线上的小牌子（循环线上的回环标、交接牌）之上，
+ * 不然时间线会被压在下面。React Flow 的层级写在行内，所以要 !important。
+ */
+:global(.react-flow__node):has(> .card[data-display]:hover),
+:global(.react-flow__node.selected):has(> .card[data-display]) {
+  /* biome-ignore lint/complexity/noImportantStyles: 要压过 React Flow 写在行内的层级 */
+  z-index: 1001 !important;
+}
+
+/*
+ * 刻度轴。一列一版，整列（整条高）都是命中区。从下往上叠：
+ * - historyAxis：1px 细线，从第一版的刻度画到最新那道。
+ * - historyFill：走过的一段，强调色，按 --at 横向缩放。
+ * - 每列一道刻度（historyMajor），一律中性灰：判定写在下面的说明里，不在刻度上着色。
+ * - historyThumb：一格宽的滑块，按 --at 横移，中间一枚实心的钟表；换版时表针转（转多少由行内的角度给）。
+ *   滑块、走过的一段用同一条曲线（--glide），滑的时候粘在一起。
+ * 头尾两道刻度正对着看得见的卡片边（--pad 是离时间线边多远：卡片样子对着卡片的边框；没有卡面的几种外观
+ * 对着悬停时那圈虚线，它在卡片外 6px）。轨道比时间线宽出半格、往左挪半格，每一格（版与版的间距 --c）都一样宽，
+ * 刻度在格子正中。宽出来的那点也接指针。
+ * 只动 transform / opacity。
+ */
+.historyTrack {
+  /* 换版时滑块、表圈、走过的一段、说明一起走：缓起缓停、不回弹，像推着一样滑过去。 */
+  --glide: 620ms cubic-bezier(0.45, 0, 0.2, 1);
+  --axis: 13px;
+  --pad: 1.5px;
+  --c: calc((100% - 2 * var(--pad)) / (var(--n) - 1));
+
+  position: relative;
+  display: grid;
+  width: calc(var(--c) * var(--n));
+  height: 100%;
+  margin-left: calc(var(--pad) - var(--c) / 2);
+  cursor: pointer;
+  touch-action: none;
+}
+
+.card[data-display]:is([data-board-look="clear"], [data-board-look="bare"]) .historyTrack {
+  --pad: -4.25px;
+}
+
+.historyAxis,
+.historyFill {
+  position: absolute;
+  top: var(--axis);
+  right: calc(50% / var(--n));
+  left: calc(50% / var(--n));
+  pointer-events: none;
+}
+
+.historyAxis {
+  height: 1px;
+  background: var(--wl-line-strong);
+}
+
+.historyFill {
+  height: 2px;
+  margin-top: -0.5px;
+  border-radius: 1px;
+  background: var(--wl-accent);
+  transform: scaleX(calc(var(--at) / (var(--n) - 1)));
+  transform-origin: left;
+  transition: transform var(--glide);
+}
+
+.historyTick {
+  --tick: var(--wl-text-3);
+
+  position: relative;
+  min-width: 0;
+  height: 100%;
   padding: 0;
   border: 0;
-  border-radius: calc(5px * var(--wl-round, 1));
-  background: var(--wl-accent-soft);
-  color: var(--wl-accent-text);
+  background: transparent;
   cursor: pointer;
+  outline: none;
 }
 
-.historyBack:hover {
-  background: var(--wl-accent);
-  color: var(--wl-accent-on);
+.historyMajor {
+  position: absolute;
+  top: calc(var(--axis) - 5px);
+  left: 50%;
+  width: 1.5px;
+  height: 11px;
+  margin-left: -0.75px;
+  border-radius: 1px;
+  background: var(--tick);
+  transition: transform 220ms var(--wl-spring, var(--wl-ease-out));
 }
 
-.historyBack:focus-visible {
-  outline: 2px solid var(--wl-accent);
-  outline-offset: 1px;
+/* 悬停那道变高、变亮；钉住的那道（悬停预览着别处时）也高一截，看得出移开后回到哪。 */
+.historyTick:hover,
+.historyTick[data-kept] {
+  --tick: var(--wl-text);
+}
+
+.historyTick:hover .historyMajor,
+.historyTick[data-kept] .historyMajor {
+  transform: scaleY(1.55);
+}
+
+/* 钉着旧版时又来了新的：最新那道刻度亮起来、慢慢呼吸。 */
+.historyTick[data-new] {
+  --tick: var(--wl-text);
+}
+
+.historyTick[data-new] .historyMajor {
+  animation: historyNew 1.6s var(--wl-ease) infinite alternate;
+}
+
+.historyThumb {
+  position: absolute;
+  top: calc(var(--axis) - 10px);
+  left: 0;
+  display: grid;
+  place-items: center;
+  width: calc(100% / var(--n));
+  height: 20px;
+  pointer-events: none;
+  transform: translateX(calc(var(--at) * 100%));
+  transition: transform var(--glide);
+}
+
+/*
+ * 钟表：和标题行那枚一样是线描的，表圈就是进度——强调色从十二点顺时针走到「第几版 / 共几版」，没走到的部分是浅灰的底圈。
+ * 底下一块画布色的圆把轴线断开（在画布上看不出来）。
+ * 例外（只动 transform / opacity 的规矩）：表圈伸缩动的是 stroke-dashoffset——20px 的一个小 SVG，重绘只在这一小块里。
+ */
+.historyClock {
+  display: block;
+  overflow: visible;
+  transition: transform 180ms var(--wl-spring, var(--wl-ease-out));
+}
+
+/* 整枚表滚过去：和滑块横移同一条曲线、同样长，像轮子沿着轴滚。 */
+.historyRoll {
+  transform-box: view-box;
+  transform-origin: 12px 12px;
+  transition: transform var(--glide);
+}
+
+.historyClockBack {
+  fill: var(--wl-canvas);
+}
+
+.historyClockTrack,
+.historyClockRing,
+.historyClockHands {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.historyClockTrack {
+  stroke: var(--wl-line-strong);
+}
+
+.historyClockRing {
+  stroke: var(--wl-accent);
+  stroke-dasharray: 1;
+  transform: rotate(-90deg);
+  transform-box: view-box;
+  transform-origin: 12px 12px;
+  transition: stroke-dashoffset var(--glide);
+}
+
+.historyClockHands {
+  stroke: var(--wl-accent-text);
+}
+
+/* 按住拖的时候表稍微鼓一下。 */
+.historyTrack:active .historyClock {
+  transform: scale(1.12);
+}
+
+.historyTrack:has(.historyTick:focus-visible) .historyClockBack {
+  stroke: var(--wl-accent);
+  stroke-width: 1;
+}
+
+/*
+ * 说明：一条和刻度轴等宽的轨道，整条按 --at 横移到显示的那道刻度上（% 以轨道自身宽度算），
+ * 里面的字以自己的中心对准；头尾两道改成和卡片左右边对齐（刻度离边 --pad）。换版时滑过去，只动 transform。
+ */
+.historyCaption {
+  position: absolute;
+  top: 25px;
+  right: 0;
+  left: 0;
+  height: 16px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(calc((var(--at) + 0.5) * 100% / var(--n)));
+  transition:
+    opacity 140ms linear,
+    transform var(--glide);
+}
+
+.historyTrack:is(:hover, :focus-within) .historyCaption {
+  opacity: 1;
+}
+
+.historyCaptionText {
+  --tick: var(--wl-text-3);
+
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  height: 16px;
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-micro);
+  font-weight: 500;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  transition: transform var(--glide);
+}
+
+.historyCaption[data-edge="first"] .historyCaptionText {
+  transform: translateX(calc(-1 * var(--pad)));
+}
+
+.historyCaption[data-edge="last"] .historyCaptionText {
+  transform: translateX(calc(-100% + var(--pad)));
+}
+
+.historyCaptionText[data-tone="pass"] {
+  --tick: var(--wl-flow-pass);
+}
+
+.historyCaptionText[data-tone="again"] {
+  --tick: var(--wl-flow-fail);
+}
+
+.historyCaptionDot {
+  flex: none;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--tick);
+  corner-shape: round;
+}
+
+.historyCaptionText:not([data-tone]) .historyCaptionDot {
+  display: none;
+}
+
+.historyCaptionName {
+  color: var(--wl-text);
+}
+
+.historyCaptionTime {
+  color: var(--wl-text-3);
+  font-variant-numeric: tabular-nums;
 }
 
 :global([data-look="swiss"]) .dims {
   border-width: 0 0 1px;
   border-radius: 0;
-}
-
-:global([data-look="swiss"]) .card[data-display] .history {
-  box-shadow: 0 0 0 1px var(--wl-line-strong);
 }
 
 /* 「减少动态效果」：浮层、「调整」直接出现（放在最后，压得过上面同样具体的入场规则）。 */
@@ -2344,11 +2712,23 @@ button.tile:focus-visible {
     transition: none;
   }
 
-  .historyDot::before {
+  .history,
+  .historyPick,
+  .historyCaret,
+  .historyTimeline,
+  .historyFill,
+  .historyMajor,
+  .historyThumb,
+  .historyClock,
+  .historyRoll,
+  .historyClockRing,
+  .historyCaption,
+  .historyCaptionText {
     transition: none;
   }
 
-  .historyDot[data-new]::after {
+  .historyTick[data-new] .historyMajor,
+  .historyBack[data-new]::after {
     animation: none;
   }
 }

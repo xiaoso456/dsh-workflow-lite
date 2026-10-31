@@ -9,8 +9,8 @@
  *   右上角一枚「上次执行 · 时间」，点了打开那个实例；哪次都没生成就是草图「执行后显示」。
  * 自定义文字两边都直接显示。
  *
- * 实例视图里存过几版的（循环迭代时每一轮存一版，见 `host/runs/history.ts`），左下角多一排点（{@link HistoryBar}）：
- * 悬停预览、点一下钉住某一轮。钉住的那版只在这张卡上，不存进图里。
+ * 实例视图里存过几版的（循环迭代时每一轮存一版，见 `host/runs/history.ts`），悬停卡片时底下出现一条时间线，
+ * 标题行写出看的是哪一版（{@link HistoryBar}）：悬停预览、点一下钉住。钉住的那版只在这张卡上，不存进图里。
  *
  * 平时展示区不接鼠标（拖卡片、平移、缩放画布照旧）；卡片进了「交互」才能在里面滚动、点网页里的按钮。
  * 第一次进视野、而且画布停着时才挂内容（宿主页面插拔元素要整页重算样式，平移中间插就是一次卡顿）。
@@ -78,7 +78,7 @@ import { FileTag } from './FileTag.tsx'
 import { HistoryBar } from './HistoryBar.tsx'
 import { Icon, type IconName } from './Icon.tsx'
 import { type ImageSource, Markdown } from './Markdown.tsx'
-import { useCanvasMoving } from './motion.tsx'
+import { SlideSwap, useCanvasMoving, useTrend } from './motion.tsx'
 
 /** 展示区从哪读：实例视图给出实例与每项的样子；模板里是 `null`（文件还没生成）。 */
 export interface DisplayEnv {
@@ -104,6 +104,14 @@ export interface DisplayEnv {
 }
 
 export const DisplayContext = createContext<DisplayEnv | null>(null)
+
+/**
+ * 展示卡上留给各轮产出的两块位置：标题行里写「看的是哪一版」，卡片底边外挂时间线（卡片不裁，挂在这里才露得出来）。
+ */
+export const HistorySlotContext = createContext<{
+  slot: HTMLElement | null
+  rail: HTMLElement | null
+} | null>(null)
 
 /** 第一次进视野（且画布停着）才为真，之后一直为真：挂上了就不再摘。 */
 function useSeen<E extends Element>(): [React.RefObject<E>, boolean] {
@@ -1343,7 +1351,7 @@ function RunFileView(props: {
   }
   if (display.kind === 'image') {
     if (shot?.url != null) {
-      // 换了一版：新图读回来再换一层、淡入（读的时候上一张留着）。
+      // 图更新了：新图读回来再换一层、淡入（读的时候上一张留着）。
       return (
         <div key={shot.at} className={css.fresh}>
           <ImageView name={name} url={shot.url} display={display} />
@@ -1374,7 +1382,7 @@ function RunFileView(props: {
       }
       if (win.lines.length === 0) return <DisplayState icon="file" title={t('file.empty')} />
       return (
-        <div key={kept === null ? 'live' : `v${kept}`} className={css.fresh}>
+        <div className={css.fresh}>
           <TableLines
             t={t}
             win={win}
@@ -1403,7 +1411,7 @@ function RunFileView(props: {
       )
     }
     return (
-      <div key={kept === null ? 'live' : `v${kept}`} className={css.fresh}>
+      <div className={css.fresh}>
         <LogFlow
           t={t}
           win={win}
@@ -1417,8 +1425,8 @@ function RunFileView(props: {
     )
   }
   if (file?.exists) {
-    // 网页换一版是重新载入一个页面：换一层、淡入。文字原地换（新的几行亮一下），只有在现在和各版之间切时换一层。
-    const layer = display.kind === 'html' ? file.mtime : kept === null ? 'live' : `v${kept}`
+    // 网页更新是重新载入一个页面：换一层、淡入。文字原地换（新的几行亮一下）。换一版由外面滑着换（SlideSwap）。
+    const layer = display.kind === 'html' ? file.mtime : 'text'
     return (
       <div key={layer} className={css.fresh}>
         <TextView
@@ -1468,7 +1476,7 @@ export function DisplayBody(props: {
     style: displayFootprint(display),
     'data-testid': 'wl-display-body',
   }
-  // 实例里的文件：可能存过几版，展示区旁边带一排点（读之前也是这个组件，展示区不换一个元素）。
+  // 实例里的文件：可能存过几版，卡片底下带一条时间线（读之前也是这个组件，展示区不换一个元素）。
   if (env.run !== null && item.kind !== 'text') {
     const open = env.open
     return (
@@ -1510,7 +1518,7 @@ export function DisplayBody(props: {
 const FRESH_MS = 4000
 
 /**
- * 实例视图里的一份文件，连同它存下的各版：至少两点时左下角一排点（{@link HistoryBar}）。
+ * 实例视图里的一份文件，连同它存下的各版：至少两版时卡片底下一条时间线、标题行写出看的是哪一版（{@link HistoryBar}）。
  * 悬停预览的那版优先，其次钉住的那版，都没有就是现在的文件。
  * 右上角一枚小签：写它的步骤在跑时「生成中」，现在的文件更新了「刚更新」（几秒后淡出）。
  */
@@ -1528,6 +1536,7 @@ function RunFileBody(props: {
   onTable?: ((table: TableView | undefined) => void) | undefined
 }): React.JSX.Element {
   const { t, run, node, display } = props
+  const slot = useContext(HistorySlotContext)
   const stat = run.stats[displayKey(node, display.item)]
   const history = useRunHistory(
     run.rpc,
@@ -1552,6 +1561,11 @@ function RunFileBody(props: {
   const shown = line.dots.length < 2 ? null : preview !== undefined ? preview : pinnedV
   // 显示的是最新那点：读现在的文件（最新那点也可能就是存下的最后一版，读哪个都一样，读现在的）。
   const kept = shown === null ? null : (line.dots[dotIndex(line, shown)]?.v ?? null)
+  // 换一版：新的从行进方向滑进来（往后的版从右边进）。
+  const layer = kept === null ? 'live' : `v${kept}`
+  const dir = useTrend(line.dots.length < 2 ? 0 : dotIndex(line, shown))
+  const showing = useRef(layer)
+  showing.current = layer
   // 现在的文件刚更新：右上角「刚更新」亮一会儿（每次更新从头来）；写它的步骤在跑时一直是「生成中」。
   const [fresh, setFresh] = useState(0)
   useEffect(() => {
@@ -1567,20 +1581,27 @@ function RunFileBody(props: {
     <>
       <div {...props.frame}>
         {props.seen ? (
-          <RunFileView
-            t={t}
-            run={run}
-            node={node}
-            item={props.item}
-            display={display}
-            interactive={props.interactive}
-            writing={props.writing}
-            kept={kept}
-            onFresh={() => setFresh(Date.now())}
-            onOpen={props.onOpen}
-            onMatch={setMatch}
-            onTable={props.onTable}
-          />
+          <SlideSwap id={layer} dir={dir}>
+            {(id) => (
+              <RunFileView
+                t={t}
+                run={run}
+                node={node}
+                item={props.item}
+                display={display}
+                interactive={props.interactive}
+                writing={props.writing}
+                kept={id === 'live' ? null : Number(id.slice(1))}
+                onFresh={() => setFresh(Date.now())}
+                onOpen={props.onOpen}
+                // 只听要显示的那一版（滑走的那层卸下时会报个空）。
+                onMatch={(text) => {
+                  if (id === showing.current) setMatch(text)
+                }}
+                onTable={props.onTable}
+              />
+            )}
+          </SlideSwap>
         ) : (
           <div className={css.loading} />
         )}
@@ -1612,9 +1633,12 @@ function RunFileBody(props: {
       {line.dots.length >= 2 && (
         <HistoryBar
           t={t}
+          slot={slot?.slot ?? null}
+          rail={slot?.rail ?? null}
           line={line}
           names={run.names ?? {}}
           shown={shown}
+          previewing={preview !== undefined}
           pinned={pinnedV}
           newer={pinned !== null && pinned.latest !== latestKey}
           onPreview={setPreview}

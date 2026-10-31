@@ -5,6 +5,7 @@
  * 前置：一个带 DevTools 端口的 Chrome（`node tests/lib/cdp-chrome-launch.mjs 9222`），`pnpm run build` 过。
  * usage: node --experimental-strip-types tests/docs-shots.mjs [名字 ...]   不给名字就全拍。
  *        DOCS_LANG=en node --experimental-strip-types tests/docs-shots.mjs   拍英文界面（`shots/en/`）。
+ *        DOCS_KEEP=1 node --experimental-strip-types tests/docs-shots.mjs run-graph   拍完留着环境（打印带令牌的地址），给人在浏览器里看。
  *
  * 环境的坑同 `tests/readme-shots.mjs`：自己一个家、夹具会话是认领来的、关实例要等真的关掉。
  */
@@ -551,6 +552,12 @@ async function main(session) {
     () => dashFile,
     Date.now() - 600_000,
   )
+  // 第 2 轮审查进行中，看板又更新了一次：现在的文件比存下的最后一版新，播放条上多出「最新」一格。
+  await writeFile(
+    dashFile,
+    `${dashboardHtml(BOARD_NOW)}
+<!-- 10:25 -->`,
+  )
   await writeFile(
     join(produced, 'review.md'),
     t(
@@ -624,6 +631,65 @@ async function main(session) {
       'display-card',
       await session.evaluate(rectOf('.react-flow__node[data-id="dashboard"]', 14)),
     )
+  })
+  await step('rounds-bar', async () => {
+    const node = '.react-flow__node[data-id="dashboard"]'
+    const point = (selector, index = 0) =>
+      `(() => { const r = document.querySelectorAll(${JSON.stringify(selector)})[${index}].getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 } })()`
+    // 画布拉远一点：时间线在卡片底下，放大时会落到视口底边的图例后面。
+    const wheel = async (at, deltaY) => {
+      await mouseMove(session, at)
+      for (let i = 0; i < 3; i += 1) {
+        await session.send('Input.dispatchMouseEvent', {
+          type: 'mouseWheel',
+          x: at.x,
+          y: at.y,
+          deltaX: 0,
+          deltaY,
+          modifiers: 2,
+        })
+        await sleep(120)
+      }
+      await sleep(800)
+    }
+    const hover = await session.evaluate(point(node))
+    await wheel(hover, 120)
+    await mouseMove(session, await session.evaluate(point(node)))
+    await waitFor(
+      session,
+      `getComputedStyle(document.querySelector('${node} [data-testid="wl-display-history-timeline"]')).opacity === '1'`,
+    )
+    // 悬停到第 1 版就换过去、停住，指针停在那道刻度上（刻度轴、标题行、下面的说明都露着）。
+    // 第 1 道刻度压在卡片边框上：先从卡片里面靠近它，不然指针一出卡片时间线就收了。
+    const first = await session.evaluate(point(`${node} [data-testid="wl-display-history-dot"]`))
+    const card = await session.evaluate(
+      `(() => { const r = document.querySelector('${node}').getBoundingClientRect(); return { x: r.left + 24, y: r.bottom - 6 } })()`,
+    )
+    await mouseMove(session, card)
+    await mouseMove(session, { x: card.x, y: first.y })
+    await mouseMove(session, first)
+    await sleep(1100)
+    await snap(
+      session,
+      'rounds-bar',
+      await session.evaluate(`(() => {
+        const a = document.querySelector('${node}').getBoundingClientRect()
+        const b = document.querySelector('${node} [data-testid="wl-display-history-timeline"]').getBoundingClientRect()
+        // 表盘停在头一道刻度上时半个露在卡片外：左右多留一点。
+        const pad = 24
+        const x = Math.max(0, a.left - pad)
+        const y = Math.max(0, a.top - pad)
+        return { x, y, width: a.width + pad * 2, height: Math.min(innerHeight - y, b.bottom - a.top + pad * 2) }
+      })()`),
+    )
+    // 回到最新，别带着钉住的状态进下一步；画布拉回原来的大小。
+    await mouseClick(
+      session,
+      await session.evaluate(point(`${node} [data-testid="wl-display-history-back"]`)),
+    )
+    await sleep(400)
+    await wheel(hover, -120)
+    await mouseMove(session, { x: 20, y: 20 })
   })
   await step('dashboard-viewer', async () => {
     await session.evaluate(nodeClick('dashboard'))
@@ -1289,6 +1355,13 @@ try {
   })
   await installShotsCookie(session, env.base, env.cookie)
   await main(session)
+  if (process.env.DOCS_KEEP !== undefined) {
+    // 留着环境给人看：示例工作流和实例都在，Ctrl+C 后照常收尾。
+    console.log(`
+环境保留中：${env.url}
+（Ctrl+C 结束并清理）`)
+    await new Promise((resolve) => process.once('SIGINT', resolve))
+  }
   if (session.errors.length > 0) console.log('页面报错：', JSON.stringify(session.errors))
 } finally {
   if (instance2 !== null)

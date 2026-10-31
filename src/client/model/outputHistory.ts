@@ -1,5 +1,5 @@
 /**
- * dsh-workflow-lite — 一份产出的各版怎么排给人看：画布卡片上的一排点、查看框里的版本列表都从这里取。
+ * dsh-workflow-lite — 一份产出的各版怎么排给人看：展示卡的时间线、查看框里的版本列表都从这里取。
  *
  * 存下的各版（`run/history`，见 `host/runs/history.ts`）按时间排，最后补一点「最新」——现在的文件。
  * 现在的文件就是最后存的那一版（修改时间、大小都对得上）时不另补：那一版就是最新。
@@ -9,7 +9,6 @@
 
 import type { RunHistoryResponse, RunVersion } from '../../shared/wire.ts'
 import type { T } from '../i18n.ts'
-import { shortTime } from './time.ts'
 
 /** 现在的文件此刻的样子（`run/stat`）。 */
 export interface LiveFile {
@@ -92,16 +91,4 @@ export function versionName(
   }
   const round = t('history.round').replace('{step}', step).replace('{round}', String(version.round))
   return version.phase === 'failed' ? `${round}${t('history.failedMark')}` : round
-}
-
-/** 悬停一点的说明：名字、时间，有判定再加一句「审稿：未通过」。 */
-export function versionTip(t: T, dot: HistoryDot, names: Readonly<Record<string, string>>): string {
-  const { version } = dot
-  const parts = [versionName(t, version, names)]
-  if (version !== null) parts.push(shortTime(version.at))
-  if (dot.v === null && version !== null) parts.push(t('history.live'))
-  for (const verdict of version?.verdicts ?? []) {
-    parts.push(`${names[verdict.step] ?? verdict.step}：${verdict.value}`)
-  }
-  return parts.join(' · ')
 }

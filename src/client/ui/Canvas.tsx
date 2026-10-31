@@ -152,7 +152,12 @@ import {
   useLast,
 } from './motion.tsx'
 import { cx, useFloat } from './primitives.tsx'
-import { DisplayBody, DisplayContext, type DisplayEnv } from './ResourceDisplay.tsx'
+import {
+  DisplayBody,
+  DisplayContext,
+  type DisplayEnv,
+  HistorySlotContext,
+} from './ResourceDisplay.tsx'
 import { resourceTint } from './ResourcePresets.tsx'
 import { freeFilePath, itemText, KIND_ICON, KIND_LABEL } from './resourceUi.ts'
 import { lookOf, StepMark } from './StepMark.tsx'
@@ -1303,6 +1308,10 @@ function DisplayCard(
   const cardRef = useRef<HTMLDivElement>(null)
   // 齿轮打开的细项浮层摆在卡片旁边（见 DisplaySettings）。
   const settings = useDisplayFloat<HTMLButtonElement>(cardRef)
+  /** 各轮产出：标题行里写看的是哪一版、底边外挂时间线。 */
+  const [slot, setSlot] = useState<HTMLElement | null>(null)
+  const [rail, setRail] = useState<HTMLElement | null>(null)
+  const history = useMemo(() => ({ slot, rail }), [slot, rail])
   const settingsOpen = settings.state !== 'off'
   // 视口一动（平移、缩放、适应画布）浮层就和卡片错开了：收起。
   const closeSettings = settings.setState
@@ -1474,6 +1483,7 @@ function DisplayCard(
           )}
         </span>
         <span className={dcss.title}>{data.title}</span>
+        <span ref={setSlot} className={dcss.historySlot} />
         {data.tone !== 'ok' && (
           <span className={css.cardFlag} data-tone={data.tone}>
             <Icon name="alert" size={12} />
@@ -1557,15 +1567,18 @@ function DisplayCard(
           env?.open?.(id, display.info.item)
         }}
       >
-        <DisplayBody
-          node={id}
-          item={display.item}
-          display={shown}
-          interactive={interactive}
-          writing={display.writing}
-          onTable={(table) => data.onView(id, withTable(display.view, table))}
-        />
+        <HistorySlotContext.Provider value={history}>
+          <DisplayBody
+            node={id}
+            item={display.item}
+            display={shown}
+            interactive={interactive}
+            writing={display.writing}
+            onTable={(table) => data.onView(id, withTable(display.view, table))}
+          />
+        </HistorySlotContext.Provider>
       </div>
+      <span ref={setRail} className={dcss.historyRail} />
       {data.shared && (
         <span
           className={css.resShared}

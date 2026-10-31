@@ -578,6 +578,163 @@ export function Staged(props: {
   )
 }
 
+/** 换一版内容（{@link SlideSwap}）：横向挪多远、旧的淡出多久、新的晚多久进来（两层字少叠在一起）、滑动多久、新的最多等多久。 */
+const SLIDE_SHIFT = 32
+const SLIDE_OUT_MS = 130
+const SLIDE_LAG_MS = 70
+const SLIDE_MOVE_MS = 300
+const SLIDE_WAIT_MS = 900
+
+interface SlideLayer {
+  n: number
+  id: string
+  state: 'shown' | 'pending' | 'leaving'
+  /** 往哪边走：`1` = 往后（新的从右边进来）。 */
+  dir: 1 | -1
+}
+
+/**
+ * 同一处换一版内容（展示卡回看各轮）：新的一层先垫在底下读（看不见），读好了——没有读取中的块、网页载完、
+ * 图片解完（最多等 {@link SLIDE_WAIT_MS}）——再从行进方向滑进来，旧的一层同时往另一边滑走、淡掉。
+ * 新的没读好时旧的一直在（不闪空）；连着换时还没轮上的那层直接丢掉。旧的一层是真的 DOM（不是影子），网页不会变白。
+ * `dir`：`up` = 往后的版（配 {@link useTrend}）。`children(id)` 画某一版。
+ */
+export function SlideSwap(props: {
+  id: string
+  dir: 'up' | 'down'
+  children(id: string): ReactNode
+}): React.JSX.Element {
+  const [layers, setLayers] = useState<SlideLayer[]>(() => [
+    { n: 0, id: props.id, state: 'shown', dir: 1 },
+  ])
+  const next = useRef(1)
+  const target =
+    layers.find((layer) => layer.state === 'pending')?.id ??
+    layers.find((layer) => layer.state === 'shown')?.id
+  if (props.id !== target) {
+    const dir = props.dir === 'down' ? -1 : 1
+    const n = next.current
+    setLayers((list) => {
+      const rest = list.filter((layer) => layer.state !== 'pending')
+      // 换回了正显示着的那一版：只是不换了。
+      if (rest.some((layer) => layer.state === 'shown' && layer.id === props.id)) return rest
+      return [...rest, { n, id: props.id, state: 'pending', dir }]
+    })
+    next.current = n + 1
+  }
+  const ready = useCallback((n: number): void => {
+    setLayers((list) => {
+      const layer = list.find((one) => one.n === n && one.state === 'pending')
+      if (layer === undefined) return list
+      return list.map((one) =>
+        one === layer
+          ? { ...one, state: 'shown' }
+          : one.state === 'shown'
+            ? { ...one, state: 'leaving', dir: layer.dir }
+            : one,
+      )
+    })
+  }, [])
+  const drop = useCallback((n: number): void => {
+    setLayers((list) => list.filter((one) => one.n !== n))
+  }, [])
+  return (
+    <div
+      className={ui.slides}
+      data-moving={layers.some((layer) => layer.state === 'leaving') || undefined}
+    >
+      {layers.map((layer) => (
+        <SlidePane key={layer.n} layer={layer} onReady={ready} onDrop={drop}>
+          {props.children(layer.id)}
+        </SlidePane>
+      ))}
+    </div>
+  )
+}
+
+function SlidePane(props: {
+  layer: SlideLayer
+  onReady(n: number): void
+  onDrop(n: number): void
+  children: ReactNode
+}): React.JSX.Element {
+  const { layer, onReady, onDrop } = props
+  const ref = useRef<HTMLDivElement>(null)
+  const was = useRef(layer.state)
+  // 垫在底下的那层：每帧看一眼读好了没有。网页的 load 不冒泡，在捕获阶段接。
+  useLayoutEffect(() => {
+    const node = ref.current
+    if (layer.state !== 'pending' || node === null) return
+    const loaded = new WeakSet<EventTarget>()
+    const onLoad = (event: Event): void => {
+      if (event.target !== null) loaded.add(event.target)
+    }
+    node.addEventListener('load', onLoad, true)
+    const start = performance.now()
+    let frame = 0
+    const check = (): void => {
+      const done =
+        node.firstElementChild !== null &&
+        node.querySelector('[aria-busy="true"]') === null &&
+        [...node.querySelectorAll('iframe')].every((element) => loaded.has(element)) &&
+        [...node.querySelectorAll('img')].every((element) => element.complete)
+      if (done || performance.now() - start > SLIDE_WAIT_MS) onReady(layer.n)
+      else frame = requestAnimationFrame(check)
+    }
+    frame = requestAnimationFrame(check)
+    return () => {
+      cancelAnimationFrame(frame)
+      node.removeEventListener('load', onLoad, true)
+    }
+  }, [layer.state, layer.n, onReady])
+  useLayoutEffect(() => {
+    const from = was.current
+    was.current = layer.state
+    const node = ref.current
+    if (node === null || from === layer.state) return
+    const still = REDUCED?.matches === true
+    if (layer.state === 'shown' && !still) {
+      node.animate(
+        [
+          { opacity: 0, transform: `translateX(${layer.dir * SLIDE_SHIFT}px)` },
+          { opacity: 1, transform: 'none' },
+        ],
+        { duration: SLIDE_MOVE_MS, easing: EASE_OUT, delay: SLIDE_LAG_MS, fill: 'backwards' },
+      )
+    }
+    if (layer.state === 'leaving') {
+      if (still) {
+        onDrop(layer.n)
+        return
+      }
+      node.animate([{ opacity: 1 }, { opacity: 0 }], {
+        duration: SLIDE_OUT_MS,
+        easing: 'linear',
+        fill: 'forwards',
+      })
+      const slide = node.animate(
+        [{ transform: 'none' }, { transform: `translateX(${-layer.dir * SLIDE_SHIFT}px)` }],
+        { duration: SLIDE_MOVE_MS, easing: EASE_OUT, fill: 'forwards' },
+      )
+      slide.finished.then(
+        () => onDrop(layer.n),
+        () => undefined,
+      )
+    }
+  }, [layer.state, layer.dir, layer.n, onDrop])
+  return (
+    <div
+      ref={ref}
+      className={ui.slide}
+      data-state={layer.state}
+      aria-hidden={layer.state === 'shown' ? undefined : true}
+      {...(layer.state === 'shown' ? {} : { inert: '' })}
+    >
+      {props.children}
+    </div>
+  )
+}
+
 /**
  * 几段话轮流摆在同一处（导出页的说明：工作流包、Skill 各一句）：全叠在同一格里，高度按最高的那段占住，
  * 换的时候旧的原地淡掉、新的从下面浮上来——换字不推动下面的东西。只有 `at` 那段读得到（其余 aria-hidden）。

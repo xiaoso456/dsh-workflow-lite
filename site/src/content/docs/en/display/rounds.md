@@ -11,11 +11,21 @@ When a loop runs repeatedly, a step that writes an output file saves a version a
 
 ## Look back on a display card
 
-On an instance's canvas, a row of dots sits at the bottom left of a display card, one dot per round.
+On an instance's canvas, move the pointer over a display card with two or more saved versions (or select it): a ruler appears below the card, and the title row shows which version is on display.
 
-- Hover to preview, click to pin, and use the arrow keys to move between adjacent rounds.
-- Click **Back to latest** to return; when a new version arrives it says "A newer version is in".
-- Rounds are marked as passed or failed by the review result, and failed ones carry "(failed)".
+![The ruler under a display card: on round 1, with the version name and save time below it](../../../../assets/shots/en/rounds-bar.webp)
+
+| Action | Effect |
+|---|---|
+| Hover a version on the ruler, or drag across it | The card switches to that version and stays there after the pointer leaves |
+| Click the version name in the title row | Lists every version; hover to preview, click to choose |
+| Click the ✕ in the title row | Back to the latest; if a new version arrives meanwhile, a dot appears on the ✕ |
+| Keyboard ← → Home End | Step between versions, jump to either end |
+
+- One tick per version. The clock sits on the version on display, its ring filled to "this version / all versions", and rolls along the ruler when you switch.
+- Below the ticks are the version's name and save time; reviewed versions carry a dot, one color for passed and one for failed.
+- While an older version is on display, the name in the title row turns the accent color.
+- Rounds are named like "Round 2 · after Review", and failed ones carry "(failed)".
 
 ## Compare
 

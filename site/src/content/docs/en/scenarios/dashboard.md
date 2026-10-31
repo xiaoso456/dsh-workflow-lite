@@ -29,7 +29,7 @@ Turn on **Record run state** and click **Run**. While the step that writes the f
 
 ![The dashboard's viewer, showing the full content](../../../../assets/shots/en/dashboard-viewer.webp)
 
-With a loop, a version is saved after every round, and a row of dots appears at the bottom left of the card: hover to preview, click to pin, use the arrow keys to switch. In the viewer's **Versions** you can pick two rounds to compare.
+With a loop, a version is saved after every round, and a ruler appears under the card when the pointer is over it: hover or drag to switch versions, or use the arrow keys. In the viewer's **Versions** you can pick two rounds to compare.
 
 ![The viewer's Versions: pick any round to view](../../../../assets/shots/en/rounds-viewer.webp)
 

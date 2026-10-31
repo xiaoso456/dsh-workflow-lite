@@ -1474,6 +1474,35 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
   min-height: 0;
 }
 
+/* ── 同一处换一版内容（motion.tsx 的 SlideSwap）────────────────── */
+
+/* 显示着的那层照常排版（交互时由外面滚）；垫在底下读的、正在滑走的叠在上面，不占位置、不接鼠标。 */
+.slides {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+/* 只在滑的这段时间横向裁（滑出去的部分不撑出横向滚动条）；平时不裁，宽内容照常横着滚。 */
+.slides[data-moving] {
+  overflow-x: clip;
+}
+
+.slide {
+  width: 100%;
+  height: 100%;
+}
+
+.slide:not([data-state="shown"]) {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.slide[data-state="pending"] {
+  opacity: 0;
+}
+
 /* ── 叠在同一格里轮流出现的几段话（motion.tsx 的 FadeStack）───────── */
 
 .fadeStack {

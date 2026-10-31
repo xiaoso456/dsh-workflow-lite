@@ -1,12 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { T } from '../../src/client/i18n.ts'
 import { diffCounts, diffLines, foldDiff, splitLines } from '../../src/client/model/lineDiff.ts'
-import {
-  dotIndex,
-  historyLine,
-  versionName,
-  versionTip,
-} from '../../src/client/model/outputHistory.ts'
+import { dotIndex, historyLine, versionName } from '../../src/client/model/outputHistory.ts'
 import type { RunVersion } from '../../src/shared/wire.ts'
 
 const t = ((key: string): string => key) as T
@@ -81,7 +76,7 @@ describe('historyLine', () => {
   })
 })
 
-describe('versionName / versionTip', () => {
+describe('versionName', () => {
   const names = { fix: '改稿', review: '审稿' }
 
   it('按步骤与轮次起名；开始前的原样、失败的一轮各有说法', () => {
@@ -92,20 +87,6 @@ describe('versionName / versionTip', () => {
       'history.roundhistory.failedMark',
     )
     expect(versionName(t, null, names)).toBe('history.live')
-  })
-
-  it('悬停说明带上判定（用步骤名）', () => {
-    const tip = versionTip(
-      t,
-      {
-        v: 1,
-        key: 'v1',
-        version: version(1, { verdicts: [{ step: 'review', value: '未通过', again: true }] }),
-        tone: 'again',
-      },
-      names,
-    )
-    expect(tip.endsWith(' · 审稿：未通过')).toBe(true)
   })
 })
 
