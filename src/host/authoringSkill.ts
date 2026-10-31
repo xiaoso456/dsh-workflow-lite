@@ -12,6 +12,9 @@
 import type { Context } from '@deepseek-ai/cordis'
 // 只借类型：`ctx.skills` 的 Context 合并。
 import type {} from '@deepseek-ai/dsh-skill'
+import { DEFAULT_ZOOM, VIEW_SIZES } from '../shared/display.ts'
+import { LINE_CONTEXT_MAX } from '../shared/model.ts'
+import { VIEW_LIMITS } from '../shared/types.ts'
 
 export const AUTHORING_SKILL = 'workflow-authoring'
 
@@ -215,12 +218,38 @@ SCOREBOARD.md（更新，只有 judge 写）。结构固定，不加别的节：
 
 ### 在画布上展示
 
-资源卡可以直接在画布上展示其中一项：图片、HTML、Markdown、文本类文件、自定义文字。要给人看的成品（看板、图表、报告）建资源时就打开：\`write_node\` 的 \`outputs\` 每项、\`write_resource\` 的 \`resource\` 里带 \`display\`。
+资源卡可以直接在画布上展示其中一项：图片、HTML、Markdown、文本类文件、文件夹、自定义文字。执行时用户在画布上看进度，一眼能看懂、不用点开的产出适合展示：建资源时在 \`write_node\` 的 \`outputs\` 每项、\`write_resource\` 的 \`resource\` 里带 \`display\`。
 
-- 尺寸用 \`size\`（s / m / l，缺省 m），要精确再给 \`width\` / \`height\`。看板用 m 或 l；图片按出图的比例给宽高；报告用 m。
-- 写它的步骤的任务描述会自动带上卡片尺寸和适配要求（网页按看板写：卡片版加完整版、颜色跟着画布主题，做法在 skill \`workflow-board\`；图按比例出；报告先写结论），资源说明里不用再写这些。用户在画布上改了尺寸，下次执行它的步骤就按新尺寸来。
-- 一张资源卡只展示一项；数据文件（\`rounds.jsonl\`）、中间产物不用展示，画布上卡片太大会挤。
+| 想让人看到什么 | 产出写成 | \`display\` 怎么给 |
+|---|---|---|
+| 进度、指标一览 | HTML 看板（见上一节） | \`size\` m 或 l |
+| 生成的图、图表 | 一张图片 | 宽高按出图的比例 |
+| 每轮出的一批图 | 一个文件夹，往里放图 | 缺省排成图墙；\`folder.layout\` 换成大图 + 胶片 |
+| 长时间跑的过程 | \`.log\` 日志，一行一条 | 缺省停在末尾跟着走；\`lines.filter\` 只看要紧的行 |
+| 逐轮的指标、对比 | \`.csv\` / \`.tsv\`，一行一轮 | 排成表格；\`table.sort\`、\`table.bars\`、\`table.hide\` 挑重点 |
+| 结论、摘要 | 短 Markdown | \`size\` m |
+
+- 只给下游读的数据（\`rounds.jsonl\`）、草稿这类中间文件不用展示；一张图里展示卡挑最能说明进展的几张，太多画布会挤。
+- 一张资源卡只展示一项。\`display\` 给了的字段才改，没给的保持原样；\`{ show: false }\` 关掉。
+- 写它的步骤的任务描述会自动带上卡片尺寸和适配要求（网页按看板写：卡片版加完整版、颜色跟着画布主题，做法在 skill \`workflow-board\`；图按比例出；日志一行一条、表格列名短；报告先写结论），资源说明里不用再写这些。用户在画布上改了尺寸，下次执行它的步骤就按新尺寸来。
+- 循环里的展示卡能回看每一轮写成的样子（插件在每轮做完时存一份），要开 \`run_state\`；文件夹不存版本。
 - 展示卡比普通资源卡大，画布摆位置时会按它的尺寸让开，不用自己给坐标。
+
+\`display\` 的字段（尺寸都是画布像素）：
+
+| 字段 | 取值 | 说明 |
+|---|---|---|
+| \`size\` | s / m / l | 预设尺寸，缺省 m。中档：HTML ${VIEW_SIZES.html.m.join('×')}、图片 ${VIEW_SIZES.image.m.join('×')}、Markdown ${VIEW_SIZES.markdown.m.join('×')}、文本 ${VIEW_SIZES.text.m.join('×')}、文件夹 ${VIEW_SIZES.gallery.m.join('×')} |
+| \`width\` / \`height\` | ${VIEW_LIMITS.width.join('–')} / ${VIEW_LIMITS.height.join('–')} | 精确尺寸，和 \`size\` 同时给以它为准 |
+| \`zoom\` | ${VIEW_LIMITS.zoom.join('–')}（百分比） | HTML 缺省 ${DEFAULT_ZOOM.html}，页面按「宽 ÷ 缩放」排版再缩进卡片；Markdown、文本是字号；图片只在 \`fit: actual\` 时用 |
+| \`fit\` | contain / cover / actual | 图片完整缩放（缺省）/ 铺满裁边 / 按 \`zoom\` 的原大 |
+| \`item\` | 第几项（从 0 数） | 缺省展示第一个能展示的 |
+| \`adapt\` | true / false | 写它的步骤按卡片适配产出，缺省 true |
+| \`lines\` | \`{ from, filter, regex, context }\` | 日志、纯文本（.log、.txt、.jsonl）：\`from\` end 停在末尾跟着走 / start 从头（不写 = 自动，.log、正在写、文件很大时看末尾）；\`filter\` 只显示含这段字的行（\`regex\` 按正则），\`context\` 每处前后带 0–${LINE_CONTEXT_MAX} 行；\`filter: ""\` 清掉 |
+| \`table\` | \`{ from, hide, sort, desc, bars }\` | CSV / TSV：\`hide\` 卡片里藏起的列、\`sort\` 按哪列排（都写表头的字，点开照样全有），\`desc\` 从大到小，\`bars\` 数字列垫浅条；\`sort: ""\`、\`hide: []\` 清掉 |
+| \`folder\` | \`{ show, layout, order, match }\` | 文件夹：\`show\` images 图片墙 / files 文件列表（不写 = 有图就排图墙）；\`layout\` wall 图墙 / strip 大图 + 胶片 / single 只看最新一张；\`order\` newest / name / size；\`match\` 只看名字对得上的（\`*.png, report-*\`） |
+
+\`lines\`、\`table\`、\`folder\` 只能给对应种类的项，给错了会报错。
 
 ### 台账：一行一轮
 
@@ -228,7 +257,7 @@ SCOREBOARD.md（更新，只有 judge 写）。结构固定，不加别的节：
 
 ### 要留下每一轮的全文
 
-循环里的产出每轮覆盖。要保留历史，建一个**文件夹**资源（如 \`rounds/\`），连**更新**线，说明写「每轮新增 \`rounds/R<轮次>-judge.md\`，不改旧文件」；不要让执行者自己去备份上一轮的文件。
+循环里的产出每轮覆盖。只是想让人回头看各轮，开 \`run_state\` 就够了：插件每轮存一份，展示卡和查看框里都能翻。后面的步骤要读之前几轮的全文时，才建一个**文件夹**资源（如 \`rounds/\`），连**更新**线，说明写「每轮新增 \`rounds/R<轮次>-judge.md\`，不改旧文件」；不要让执行者自己去备份上一轮的文件。
 
 ### 判定步骤
 
@@ -277,7 +306,7 @@ SCOREBOARD.md（更新，只有 judge 写）。结构固定，不加别的节：
 - **\`mode\`**：\`serial\` 适合短而连贯的流程；步骤需要隔离（独立审查）或能并行时用 \`subagent\` / \`team\`；拿不准用 \`auto\`。
 - **\`reuse\`**（复用执行者）：循环里的步骤要记住上一轮试过什么（修复类）用 \`reuse\`；每轮都要不带偏见地重看（独立审查）用 \`fresh\`；拿不准留 \`auto\`。\`serial\` 时不起作用。
 - **\`set_goal\`**（设定目标，缺省开）：让主 agent 开始前把这次执行设成会话目标，长流程不会做一半就停。只有一两步的小流程可以关掉。
-- **\`run_state\`**：步骤多、有循环、可能中断或要在画布上看进度时打开。
+- **\`run_state\`**：步骤多、有循环、可能中断或要在画布上看进度、回看各轮产出时打开。
 
 ## 记忆
 

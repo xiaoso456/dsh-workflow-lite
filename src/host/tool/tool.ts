@@ -18,7 +18,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
-import { DEFAULT_ZOOM, type DisplaySpec, VIEW_SIZE_KEYS, VIEW_SIZES } from '../../shared/display.ts'
+import { type DisplaySpec, FOLDER_ORDER_CHOICES, VIEW_SIZE_KEYS } from '../../shared/display.ts'
 import { analyzeGraph, compareByCodepoint } from '../../shared/graph.ts'
 import { inputKind, inputReaders, orderedInputs, stepInputs } from '../../shared/inputs.ts'
 import { canonicalOutput, idKey, isInput, isResource, isStep } from '../../shared/model.ts'
@@ -51,13 +51,15 @@ import {
   ACTIONS,
   type Action,
   EXECUTION_MODES,
+  FOLDER_SHOWS,
+  GALLERY_LAYOUTS,
   INPUT_KINDS,
   MEMORY_TYPES,
   RESOURCE_KINDS,
   REUSE_POLICIES,
   TOOL_NAME,
   VIEW_FITS,
-  VIEW_LIMITS,
+  VIEW_FROMS,
 } from '../../shared/types.ts'
 import { compileWorkflow } from '../plan.ts'
 import type { NodePatch, RunService, SessionRef, StatePatch } from '../runs/service.ts'
@@ -107,7 +109,7 @@ const DESCRIPTION = [
   'write_node 的 output/outputs 也会自动建好放着这个文件的资源并连上。步骤 → 步骤的线缺省交上游的执行结果（handoff / handoff_note 可改）。',
   '记忆是跨多次执行攒下来的做法（一份 skill 文件夹，放在插件的记忆库里）：工作流记忆整个流程共用，步骤记忆只给那一步。',
   'write_resource 带 memory 加记忆卡（引用 list 里已有的一条，或新建一条）。只给大型、复杂、会反复执行的工作流加，加之前读 skill workflow-authoring 的「记忆」一节。',
-  '资源卡可以直接在画布上展示其中一项（图片、HTML、Markdown、文本类文件）：write_resource 或 write_node 的 outputs 带 display。看板、图表、报告这类要给人看的产出建议打开；写它的步骤的任务描述会带上卡片尺寸，让产出在卡片里和单独打开时都好看。',
+  '资源卡可以在画布上直接展示其中一项：write_resource 或 write_node 的 outputs 带 display（什么适合展示、各项怎么配见 skill workflow-authoring 的「在画布上展示」）。',
   '输入节点是执行前问用户的问题：write_node 带 input 新建或修改，connect 输入 → 步骤 = 把回答交给它。',
   '图里有输入节点时，compile 带 answers 给出用户的回答（没给的用默认值）；必填的没回答会回 problems，先问用户再编译。',
   '节点定位一律用 id。',
@@ -477,7 +479,7 @@ function resourceUpsertOf(node: string | undefined, input: ResourceArgs): Resour
 /** `display` 参数 → 展示设置的改动。形状不对就回一句给模型看的错（取值范围由 `applyDisplay` 再把关）。 */
 function displaySpecOf(raw: unknown, where: string): DisplaySpec | string {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
-    return `${where} 要写成 { size, width, height, zoom, fit, item, adapt } 或 { show: false }`
+    return `${where} 要写成 { size, width, height, zoom, fit, item, adapt, lines, table, folder } 或 { show: false }`
   }
   const input = raw as Record<string, unknown>
   const spec: DisplaySpec = {}
@@ -507,7 +509,58 @@ function displaySpecOf(raw: unknown, where: string): DisplaySpec | string {
     }
     spec.fit = fit
   }
+  for (const key of ['lines', 'table', 'folder'] as const) {
+    if (input[key] === undefined) continue
+    const group = displayGroupOf(input[key], DISPLAY_GROUPS[key], `${where}.${key}`)
+    if (typeof group === 'string') return group
+    spec[key] = group
+  }
   return spec
+}
+
+/** `display` 里三组内容设置各自认哪些字段：类型名，或可选值。 */
+const DISPLAY_GROUPS = {
+  lines: { from: VIEW_FROMS, filter: 'string', regex: 'boolean', context: 'number' },
+  table: { from: VIEW_FROMS, hide: 'strings', sort: 'string', desc: 'boolean', bars: 'boolean' },
+  folder: {
+    show: FOLDER_SHOWS,
+    layout: GALLERY_LAYOUTS,
+    order: FOLDER_ORDER_CHOICES,
+    match: 'string',
+  },
+} as const
+
+type GroupField = 'string' | 'strings' | 'boolean' | 'number' | readonly string[]
+
+/** 一组内容设置：字段认得、类型对得上才收（取值范围由 `applyDisplay` / `readView` 再把关）。 */
+function displayGroupOf(
+  raw: unknown,
+  fields: Readonly<Record<string, GroupField>>,
+  where: string,
+): Record<string, never> | string {
+  const names = Object.keys(fields).join(' / ')
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    return `${where} 要写成对象（可写：${names}）`
+  }
+  for (const [key, value] of Object.entries(raw)) {
+    const field = fields[key]
+    if (value === undefined) continue
+    if (field === undefined) return `${where}.${key} 不认识（可写：${names}）`
+    if (typeof field !== 'string') {
+      if (!field.includes(value as string)) {
+        return `${where}.${key} 不认识：${String(value)}（可选：${field.join(' / ')}）`
+      }
+    } else if (field === 'strings') {
+      if (!Array.isArray(value) || value.some((name) => typeof name !== 'string')) {
+        return `${where}.${key} 必须是字符串数组`
+      }
+    } else if (field === 'number') {
+      if (typeof value !== 'number' || !Number.isFinite(value)) return `${where}.${key} 必须是数字`
+    } else if (typeof value !== field) {
+      return `${where}.${key} 必须是${field === 'boolean' ? ' true / false' : '字符串'}`
+    }
+  }
+  return raw as Record<string, never>
 }
 
 /** 按 `id` 码位序排步骤。 */
@@ -1164,36 +1217,62 @@ export function createWorkflowLiteHandler(
 const DISPLAY_PARAMETER = {
   type: 'object',
   description:
-    '在画布上直接展示这个资源里的一项（图片、HTML、Markdown、文本类文件、自定义文字），给了的字段才改。看板、图表、报告这类要给人看的产出建议打开。写它的步骤的任务描述会带上卡片尺寸和适配要求。',
+    '在画布上展示这个资源里的一项（图片、HTML、Markdown、文本、文件夹），给了的字段才改。详见 skill workflow-authoring 的「在画布上展示」。',
   additionalProperties: false,
   properties: {
-    show: { type: 'boolean', description: 'false = 关掉展示（其余字段不看）。' },
-    size: {
-      type: 'string',
-      enum: [...VIEW_SIZE_KEYS],
-      description: `预设尺寸 s / m / l（缺省 m）。各类的中档：HTML ${VIEW_SIZES.html.m.join('×')}、图片 ${VIEW_SIZES.image.m.join('×')}、Markdown ${VIEW_SIZES.markdown.m.join('×')}、文本 ${VIEW_SIZES.text.m.join('×')}（画布像素）。`,
+    show: { type: 'boolean', description: 'false = 关掉展示。' },
+    size: { type: 'string', enum: [...VIEW_SIZE_KEYS], description: '预设尺寸，缺省 m。' },
+    width: { type: 'number', description: '展示区宽（画布像素），优先于 size。' },
+    height: { type: 'number', description: '展示区高（画布像素）。' },
+    zoom: { type: 'number', description: '缩放百分比。' },
+    fit: { type: 'string', enum: [...VIEW_FITS], description: '图片怎么放，缺省 contain。' },
+    item: { type: 'number', description: '展示第几项（从 0 数）。' },
+    adapt: { type: 'boolean', description: '写它的步骤按卡片适配产出，缺省 true。' },
+    lines: {
+      type: 'object',
+      description: '日志、纯文本怎么看。',
+      additionalProperties: false,
+      properties: {
+        from: {
+          type: 'string',
+          enum: [...VIEW_FROMS],
+          description: '看末尾还是开头，不写 = 自动。',
+        },
+        filter: { type: 'string', description: '只显示含这段字的行，空串 = 不筛。' },
+        regex: { type: 'boolean', description: 'filter 按正则。' },
+        context: { type: 'number', description: '匹配前后各带几行。' },
+      },
     },
-    width: {
-      type: 'number',
-      description: `展示区宽（画布像素，${VIEW_LIMITS.width.join('–')}）；和 size 同时给以它为准。`,
+    table: {
+      type: 'object',
+      description: 'CSV / TSV 怎么看。',
+      additionalProperties: false,
+      properties: {
+        from: {
+          type: 'string',
+          enum: [...VIEW_FROMS],
+          description: '看末尾还是开头，不写 = 自动。',
+        },
+        hide: { type: 'array', items: { type: 'string' }, description: '卡片里藏起的列名。' },
+        sort: { type: 'string', description: '按哪列排，空串 = 不排。' },
+        desc: { type: 'boolean', description: '从大到小。' },
+        bars: { type: 'boolean', description: '数字列画浅条。' },
+      },
     },
-    height: {
-      type: 'number',
-      description: `展示区高（画布像素，${VIEW_LIMITS.height.join('–')}）。`,
-    },
-    zoom: {
-      type: 'number',
-      description: `内容缩放（百分比，${VIEW_LIMITS.zoom.join('–')}）。HTML 缺省 ${DEFAULT_ZOOM.html}：页面按「宽 ÷ 缩放」排版再缩进卡片；Markdown、文本是字号；图片只在 fit=actual 时用。`,
-    },
-    fit: {
-      type: 'string',
-      enum: [...VIEW_FITS],
-      description: '图片怎么放：contain 完整缩放（缺省）/ cover 铺满裁边 / actual 按 zoom 的原大。',
-    },
-    item: { type: 'number', description: '展示第几项（从 0 数；缺省 = 第一个能展示的）。' },
-    adapt: {
-      type: 'boolean',
-      description: '让写它的步骤按卡片尺寸适配产出（缺省 true）。',
+    folder: {
+      type: 'object',
+      description: '文件夹怎么展示。',
+      additionalProperties: false,
+      properties: {
+        show: { type: 'string', enum: [...FOLDER_SHOWS], description: '图片墙或文件列表。' },
+        layout: { type: 'string', enum: [...GALLERY_LAYOUTS], description: '图片墙的排法。' },
+        order: {
+          type: 'string',
+          enum: [...FOLDER_ORDER_CHOICES],
+          description: '排序，缺省 newest。',
+        },
+        match: { type: 'string', description: '只看名字对得上的，如 *.png。' },
+      },
     },
   },
 } as const

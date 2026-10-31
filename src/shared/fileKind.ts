@@ -84,6 +84,14 @@ export function extensionOf(path: string): string {
   return name.slice(dot + 1).toLowerCase()
 }
 
+/** 按扩展名能不能排成表：`.csv` 认逗号（或分号），`.tsv` / `.tab` 认制表符。 */
+export function tableFormat(path: string): 'csv' | 'tsv' | null {
+  const ext = extensionOf(path)
+  if (ext === 'csv') return 'csv'
+  if (ext === 'tsv' || ext === 'tab') return 'tsv'
+  return null
+}
+
 export function fileKindOf(path: string): FileKind {
   const ext = extensionOf(path)
   if (ext === '') return 'other'

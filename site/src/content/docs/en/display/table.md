@@ -20,7 +20,7 @@ Adjust them in **Canvas display settings**:
 | Bars in number columns | A faint bar sized by value under each number cell, so values can be compared without reading them. |
 | Sort | Choose a column to sort by, or **File order**; in interact mode, click a header to sort, and again to reverse. |
 
-Sorting only covers the rows already read.
+Sorting only covers the rows already read. With **Have the model fit the card** on, the step writing the table keeps the headers short and appends new rows at the end.
 
 ## Viewer
 

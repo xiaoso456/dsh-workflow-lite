@@ -1060,19 +1060,19 @@ function itemBlock(ctx: RenderContext, resource: ResourceNode, written: boolean)
 }
 
 /**
- * 给写它的步骤的「画布展示」：资源开了展示、展示的是文件、适配没关时才有（措辞在口径里，通用口径没有）。
- * 资源里不止一项时点明展示的是哪个文件。
+ * 给写它的步骤的「画布展示」：资源开了展示、展示的是文件或文件夹、适配没关时才有（措辞在口径里，通用口径没有）。
+ * 资源里不止一项时点明展示的是哪一项。
  */
 function displayLine(ctx: RenderContext, resource: ResourceNode, written: boolean): string | null {
   const display = displayOf(resource.data)
   if (display === null || !display.adapt) return null
   const item = resource.data.items[display.item]
-  if (item?.kind !== 'file') return null
+  if (item?.kind !== 'file' && item?.kind !== 'folder') return null
   const target =
     resource.data.items.length === 1
       ? undefined
       : code(resolveItemPath(ctx.root, item.value.trim(), written))
-  return ctx.dialect.display(displayBrief(display), target)
+  return ctx.dialect.display(displayBrief(display, item.value.trim()), target)
 }
 
 /** 记忆目录（skill 目录）的位置（在记忆库里，不拼产出根目录），去掉尾斜杠。 */

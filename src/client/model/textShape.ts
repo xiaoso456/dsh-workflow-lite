@@ -10,13 +10,8 @@ import { diffLines } from './lineDiff.ts'
 
 // ── 表格 ────────────────────────────────────────────────────
 
-/** 按扩展名能不能排成表：`.csv` 认逗号（或分号，见 {@link parseDelimited}），`.tsv` / `.tab` 认制表符。 */
-export function tableFormat(path: string): 'csv' | 'tsv' | null {
-  const ext = extensionOf(path)
-  if (ext === 'csv') return 'csv'
-  if (ext === 'tsv' || ext === 'tab') return 'tsv'
-  return null
-}
+/** 按扩展名能不能排成表（分隔符的细节见 {@link parseDelimited}）。 */
+export { tableFormat } from '../../shared/fileKind.ts'
 
 export interface ParsedTable {
   /** 第一行当表头。 */

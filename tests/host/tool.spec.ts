@@ -939,4 +939,45 @@ describe('workflow_lite —— 画布展示（display）', () => {
     })
     expect(errorCode(zip)).toBe('blocked')
   })
+
+  it('日志、表格、文件夹的设置：形状错是 invalid_args，给错了种类是 blocked', async () => {
+    await run({ action: 'create', workflow: 'd' })
+    await run({
+      action: 'write_resource',
+      workflow: 'd',
+      node: 'res-log',
+      resource: {
+        items: [{ kind: 'file', value: 'run.log' }],
+        display: { lines: { filter: 'ERROR', context: 1 } },
+      },
+    })
+    expect(await viewOf('d', 'res-log')).toEqual({
+      width: 320,
+      height: 192,
+      lines: { filter: { pattern: 'ERROR', context: 1 } },
+    })
+    const shapes: unknown[] = [
+      { lines: 'end' },
+      { lines: { from: 'middle' } },
+      { lines: { tail: true } },
+      { table: { hide: 'note' } },
+      { folder: { order: 'oldest' } },
+    ]
+    for (const display of shapes) {
+      const bad = await run({
+        action: 'write_resource',
+        workflow: 'd',
+        node: 'res-log',
+        resource: { display: display as never },
+      })
+      expect(errorCode(bad)).toBe('invalid_args')
+    }
+    const wrong = await run({
+      action: 'write_resource',
+      workflow: 'd',
+      node: 'res-log',
+      resource: { display: { table: { sort: 'score' } } },
+    })
+    expect(errorCode(wrong)).toBe('blocked')
+  })
 })

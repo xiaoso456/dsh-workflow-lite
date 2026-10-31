@@ -118,6 +118,11 @@ function boardRoomText(room: BoardCardRoom): string {
   return `标题行下面的主体约 ${room.width}×${room.height} px、单栏，主组件和次要的上下排，一共放得下${rows}，主组件占的高度要扣掉；`
 }
 
+/** 文件夹只显示名字对得上的那些时，告诉写它的步骤文件名要对得上。 */
+function matchText(match: string | undefined): string {
+  return match === undefined ? '' : `（卡片只显示名字对得上 ${code(match)} 的，文件名照这个起）`
+}
+
 export function dshDisplayLine(brief: DisplayBrief, target?: string): string {
   const lead = target === undefined ? '**画布展示**：' : `**画布展示**（${target}）：`
   switch (brief.kind) {
@@ -140,7 +145,29 @@ export function dshDisplayLine(brief: DisplayBrief, target?: string): string {
           ? ''
           : `最新的一张占大格（约 ${brief.hero.width}×${brief.hero.height}），`
       const fit = brief.fit === 'cover' ? '每格铺满、超出的边裁掉' : '每格完整缩放、不裁'
-      return `${lead}这个文件夹会在画布的卡片里排成图墙：里面的图片按修改时间从新到旧排，${hero}一次露出 ${brief.tiles} 张（${fit}），用户点开才看全部。往里放图片（PNG、JPG、WebP、SVG），一张一件事、主体放在中间，文件名写清是什么；${IMAGE_FIT}`
+      return `${lead}这个文件夹会在画布的卡片里排成图墙：里面的图片按修改时间从新到旧排，${hero}一次露出 ${brief.tiles} 张（${fit}），用户点开才看全部。往里放图片（PNG、JPG、WebP、SVG），一张一件事、主体放在中间，文件名写清是什么${matchText(brief.match)}；${IMAGE_FIT}`
+    }
+    case 'files':
+      return `${lead}这个文件夹会在画布的卡片里列出里面的文件（最新的在前），用户点开文件看内容。文件名写清是什么（比如带上轮次或日期），一眼分得出哪个是哪个${matchText(brief.match)}。`
+    case 'log': {
+      const where =
+        brief.from === 'start'
+          ? `只露出开头约 ${brief.lines} 行`
+          : brief.from === 'end'
+            ? `停在末尾、跟着新写的内容走，露出最后约 ${brief.lines} 行`
+            : `在你写的时候停在末尾、跟着新内容走，露出最后约 ${brief.lines} 行`
+      const filter =
+        brief.filter === undefined
+          ? ''
+          : `卡片里只显示能对上 ${code(brief.filter)} 的行，要让人看到的行写进这段字。`
+      return `${lead}这个文件会显示在画布的卡片里，${where}，用户点开才看全文。一行写一条、往后追加，写过的行不再改；每行开头带时间和级别（INFO / WARN / ERROR，卡片按级别给错误、警告行着色），后面是一句单独能看懂的话；不画进度条、不输出终端颜色码。${filter}`
+    }
+    case 'table': {
+      const order =
+        brief.from === 'start'
+          ? '最要紧的行排在前面。'
+          : '新的行追加在末尾（写的时候卡片看最后几行）。'
+      return `${lead}这个表会在画布的卡片里排成表格（卡片约 ${brief.width} px 宽，列多了要横着滚），用户点开看全部。第一行是表头、列名写短；列控制在几列，格子里写短值，数字列只写数（单位写进表头），长说明另放文件；${order}`
     }
     case 'markdown':
       return `${lead}这个文件会显示在画布的卡片里，只露出开头约 ${brief.lines} 行（往下淡出），用户点开才看全文。先写结论和关键数字，细节放后面；开头不要放长目录和大段背景。全文照常写完整。`

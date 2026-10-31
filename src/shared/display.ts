@@ -10,9 +10,12 @@
  */
 
 import { type BoardCardRoom, boardCardRoom } from './board.ts'
-import { extensionOf, fileKindOf } from './fileKind.ts'
+import { extensionOf, fileKindOf, tableFormat } from './fileKind.ts'
 import { readView } from './model.ts'
 import {
+  FOLDER_ORDERS,
+  type FolderShow,
+  type GalleryLayoutKind,
   type GalleryView,
   type LineView,
   type ResourceData,
@@ -21,6 +24,7 @@ import {
   type TableView,
   VIEW_FITS,
   type ViewFit,
+  type ViewFrom,
   type ViewLook,
 } from './types.ts'
 
@@ -54,6 +58,20 @@ export function displayKindOf(item: ResourceItem): DisplayKind | null {
  */
 export function textWraps(path: string): boolean {
   return fileKindOf(path) === 'text' || extensionOf(path) === 'jsonl'
+}
+
+/**
+ * 这一项在「内容」一组里能调什么：日志、纯文本按行（`lines`），CSV / TSV 排成表（`table`），文件夹（`gallery`）；
+ * 代码、配置、Markdown、图片、网页没有这一组。
+ */
+export function contentKindOf(
+  kind: DisplayKind,
+  path: string,
+): 'lines' | 'table' | 'gallery' | null {
+  if (kind === 'gallery') return 'gallery'
+  if (kind !== 'text') return null
+  if (tableFormat(path) !== null) return 'table'
+  return textWraps(path) ? 'lines' : null
 }
 
 /** 第一个能展示的项；没有就是 `null`。 */
@@ -214,12 +232,35 @@ export type DisplayBrief =
       lines: number
     }
   | {
+      /** 日志、一行一条的纯文本（卡片里折行）。 */
+      kind: 'log'
+      /** 卡片里露出大约几行。 */
+      lines: number
+      /** 卡片看哪一段：`auto` = 写它的步骤在跑、`.log`、文件很大时停在末尾，别的从头。 */
+      from: ViewFrom | 'auto'
+      /** 卡片只显示匹配的行（要找的字）。 */
+      filter?: string
+    }
+  | {
+      kind: 'table'
+      /** 展示区宽（画布像素）。 */
+      width: number
+      from: ViewFrom | 'auto'
+    }
+  | {
       kind: 'gallery'
       /** 卡片里一次露出几张（最新的在前）。 */
       tiles: number
       /** 最新那张占的大格（画布像素）；格子少时没有大格。 */
       hero?: { width: number; height: number }
       fit: ViewFit
+      /** 只显示名字对得上的。 */
+      match?: string
+    }
+  | {
+      /** 文件夹列出文件（不排图墙）。 */
+      kind: 'files'
+      match?: string
     }
 
 /**
@@ -235,8 +276,15 @@ export function displayFootprint(display: Pick<Display, 'kind' | 'width' | 'heig
   return { width: Math.round(display.width * scale), height: Math.round(display.height * scale) }
 }
 
-export function displayBrief(display: Display): DisplayBrief {
+/** `path` 是展示的那一项（日志、表格按它认）。 */
+export function displayBrief(display: Display, path = ''): DisplayBrief {
   const scale = display.zoom / 100
+  const content = contentKindOf(display.kind, path)
+  const match = display.gallery.match === undefined ? {} : { match: display.gallery.match }
+  if (content === 'table') {
+    return { kind: 'table', width: display.width, from: display.table.from ?? 'auto' }
+  }
+  if (content === 'gallery' && display.gallery.show === 'files') return { kind: 'files', ...match }
   switch (display.kind) {
     case 'html':
       return {
@@ -264,13 +312,24 @@ export function displayBrief(display: Display): DisplayBrief {
     case 'gallery': {
       const grid = galleryGrid(display.width, display.height, display.gallery)
       const hero = grid.hero ? galleryHero(grid, display.width, display.height) : undefined
-      return { kind: 'gallery', tiles: grid.slots, ...(hero ? { hero } : {}), fit: display.fit }
+      return {
+        kind: 'gallery',
+        tiles: grid.slots,
+        ...(hero ? { hero } : {}),
+        fit: display.fit,
+        ...match,
+      }
     }
     default: {
       const line = LINE_HEIGHT[display.kind] * scale
+      const lines = Math.max(1, Math.floor((display.height - FLOW_PAD_Y) / line))
+      if (content !== 'lines') return { kind: display.kind, lines }
+      const filter = display.lines.filter?.pattern
       return {
-        kind: display.kind,
-        lines: Math.max(1, Math.floor((display.height - FLOW_PAD_Y) / line)),
+        kind: 'log',
+        lines,
+        from: display.lines.from ?? 'auto',
+        ...(filter === undefined ? {} : { filter }),
       }
     }
   }
@@ -452,7 +511,50 @@ export interface DisplaySpec {
   item?: number
   /** 写它的步骤要不要按展示做适配；缺省 = 要。 */
   adapt?: boolean
+  /** 日志、纯文本：看哪一段、只看哪些行。 */
+  lines?: DisplayLinesSpec
+  /** CSV / TSV：看哪一段、藏哪几列、按哪列排、数字列画浅条。 */
+  table?: DisplayTableSpec
+  /** 文件夹：展示什么、怎么排、按什么排、只看哪些名字。 */
+  folder?: DisplayFolderSpec
 }
+
+export interface DisplayLinesSpec {
+  from?: ViewFrom
+  /** 只看含这段字的行；空串 = 不筛。 */
+  filter?: string
+  regex?: boolean
+  /** 每处匹配前后各带几行。 */
+  context?: number
+}
+
+export interface DisplayTableSpec {
+  from?: ViewFrom
+  /** 卡片里不显示的列（表头的字）；空数组 = 都显示。 */
+  hide?: string[]
+  /** 按哪一列排（表头的字）；空串 = 不排。 */
+  sort?: string
+  desc?: boolean
+  bars?: boolean
+}
+
+/** 文件夹的顺序：`newest` 最新在前（缺省）。 */
+export const FOLDER_ORDER_CHOICES = ['newest', ...FOLDER_ORDERS] as const
+
+export interface DisplayFolderSpec {
+  show?: FolderShow
+  layout?: GalleryLayoutKind
+  order?: (typeof FOLDER_ORDER_CHOICES)[number]
+  /** 只看名字对得上的（`*.png, report-*`）；空串 = 都看。 */
+  match?: string
+}
+
+/** 三组设置各自只用于哪种内容（报错时说给模型听）。 */
+const CONTENT_GROUPS = {
+  lines: { kind: 'lines', label: '日志、纯文本文件（.log、.txt、.jsonl 等）' },
+  table: { kind: 'table', label: 'CSV / TSV 文件' },
+  folder: { kind: 'gallery', label: '文件夹' },
+} as const
 
 /**
  * 把 `display` 落到资源上：没开过的按展示项的种类从中档起，开过的在原设置上改。
@@ -498,7 +600,86 @@ export function applyDisplay(
   if (spec.zoom !== undefined) raw.zoom = spec.zoom
   if (spec.fit !== undefined) raw.fit = spec.fit
   if (spec.adapt !== undefined) raw.adapt = spec.adapt
+  const content = contentKindOf(kind, (data.items[item] as ResourceItem).value)
+  for (const key of ['lines', 'table', 'folder'] as const) {
+    const group = CONTENT_GROUPS[key]
+    if (spec[key] !== undefined && content !== group.kind) {
+      return { error: `display.${key} 只用于${group.label}；展示的这一项用不上` }
+    }
+  }
+  if (spec.lines !== undefined) {
+    const lines = mergeLines(raw.lines as LineView | undefined, spec.lines)
+    if (typeof lines === 'string') return { error: lines }
+    raw.lines = lines
+  }
+  if (spec.table !== undefined)
+    raw.table = mergeTable(raw.table as TableView | undefined, spec.table)
+  if (spec.folder !== undefined) {
+    raw.gallery = mergeFolder(raw.gallery as GalleryView | undefined, spec.folder)
+  }
   // 只有一项能展示时不记 item：以后加了项，展示的还是「第一个能展示的」。
   if (choices.length === 1) delete raw.item
   return { view: readView(raw) }
+}
+
+/**
+ * 在原来的按行设置上改（`raw` 形状，规范化——夹范围、去空、丢认不出的值——交给 `readView`）；
+ * 正则写错了、只给了 regex / context 没有要找的字，是一句错。
+ */
+function mergeLines(
+  before: LineView | undefined,
+  spec: DisplayLinesSpec,
+): Record<string, unknown> | string {
+  const next: Record<string, unknown> = { ...before }
+  if (spec.from !== undefined) next.from = spec.from
+  if (spec.filter === undefined && spec.regex === undefined && spec.context === undefined) {
+    return next
+  }
+  const pattern = spec.filter ?? before?.filter?.pattern ?? ''
+  if (pattern === '') {
+    if (spec.filter === undefined) return 'display.lines 的 regex、context 要和 filter 一起给'
+    delete next.filter
+    return next
+  }
+  const regex = spec.regex ?? before?.filter?.regex === true
+  if (regex) {
+    try {
+      new RegExp(pattern, 'u')
+    } catch {
+      return `display.lines.filter 不是合法的正则：${pattern}`
+    }
+  }
+  next.filter = {
+    ...before?.filter,
+    pattern,
+    regex,
+    context: spec.context ?? before?.filter?.context,
+  }
+  return next
+}
+
+function mergeTable(
+  before: TableView | undefined,
+  spec: DisplayTableSpec,
+): Record<string, unknown> {
+  const next: Record<string, unknown> = { ...before }
+  if (spec.from !== undefined) next.from = spec.from
+  if (spec.hide !== undefined) next.hide = spec.hide
+  if (spec.bars !== undefined) next.bars = spec.bars
+  const column = spec.sort ?? before?.sort?.column ?? ''
+  if (column === '') delete next.sort
+  else next.sort = { column, desc: spec.desc ?? before?.sort?.desc === true }
+  return next
+}
+
+function mergeFolder(
+  before: GalleryView | undefined,
+  spec: DisplayFolderSpec,
+): Record<string, unknown> {
+  const next: Record<string, unknown> = { ...before }
+  if (spec.show !== undefined) next.show = spec.show
+  if (spec.layout !== undefined) next.layout = spec.layout
+  if (spec.order !== undefined) next.order = spec.order
+  if (spec.match !== undefined) next.match = spec.match
+  return next
 }

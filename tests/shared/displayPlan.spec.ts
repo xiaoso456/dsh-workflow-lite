@@ -131,6 +131,47 @@ describe('任务描述里的画布展示', () => {
     expect(board).toMatch(/\*\*画布展示\*\*（`[^`]*dashboard\.html`）：/u)
   })
 
+  it('日志：卡片停在末尾，要一行一条、带时间和级别；筛了行的点明要对上哪段字', () => {
+    const log = (view: ResourceData['view']) =>
+      tasks(doc({ items: [{ kind: 'file', value: 'logs/train.log' }], view })).get('board') ?? ''
+    const auto = log({ width: 320, height: 192 })
+    expect(auto).toContain('在你写的时候停在末尾')
+    expect(auto).toContain('一行写一条')
+    expect(auto).toContain('INFO / WARN / ERROR')
+    expect(auto).not.toContain('只露出开头')
+    expect(log({ width: 320, height: 192, lines: { from: 'start' } })).toContain('只露出开头约')
+    expect(log({ width: 320, height: 192, lines: { filter: { pattern: 'loss=' } } })).toContain(
+      '只显示能对上 `loss=` 的行',
+    )
+    // 代码、配置还是「开头约几行」。
+    const config = tasks(
+      doc({ items: [{ kind: 'file', value: 'conf.yaml' }], view: { width: 320, height: 192 } }),
+    ).get('board')
+    expect(config).toContain('只露出开头约')
+  })
+
+  it('表格：排成表，表头短、列少、新行追加在末尾', () => {
+    const table = tasks(
+      doc({ items: [{ kind: 'file', value: 'metrics.csv' }], view: { width: 448, height: 256 } }),
+    ).get('board')
+    expect(table).toContain('排成表格（卡片约 448 px 宽')
+    expect(table).toContain('第一行是表头')
+    expect(table).toContain('新的行追加在末尾')
+  })
+
+  it('文件夹：图墙、文件列表都交代；只看某些名字时点明文件名照它起', () => {
+    const folder = (view: ResourceData['view']) =>
+      tasks(doc({ items: [{ kind: 'folder', value: 'shots/' }], view })).get('board') ?? ''
+    const wall = folder({ width: 320, height: 216 })
+    expect(wall).toContain('排成图墙')
+    expect(folder({ width: 320, height: 216, gallery: { match: '*.png' } })).toContain(
+      '名字对得上 `*.png`',
+    )
+    expect(folder({ width: 320, height: 216, gallery: { show: 'files' } })).toContain(
+      '列出里面的文件',
+    )
+  })
+
   it('整卷版：写它的资源下面挂一条画布展示', () => {
     const document = doc(html({ width: 480, height: 300 }))
     const full = buildFullText(facts(document), analyzeGraph(document))
@@ -309,6 +350,89 @@ describe('工具的 display 落成 view', () => {
     expect(applyDisplay(data, { show: false })).toEqual({ view: undefined })
     const huge = applyDisplay(data, { width: 99999 })
     expect('view' in huge && displayOf({ ...data, view: huge.view })?.width).toBe(1600)
+  })
+
+  it('日志、表格、文件夹的设置：在原设置上逐项改，空值清掉', () => {
+    const log: ResourceData = {
+      items: [{ kind: 'file', value: 'run.log' }],
+      view: { width: 320, height: 192, lines: { from: 'start' } },
+    }
+    expect(applyDisplay(log, { lines: { filter: 'ERROR', context: 2 } })).toEqual({
+      view: {
+        width: 320,
+        height: 192,
+        lines: { from: 'start', filter: { pattern: 'ERROR', context: 2 } },
+      },
+    })
+    const filtered: ResourceData = {
+      ...log,
+      view: { width: 320, height: 192, lines: { filter: { pattern: 'ERROR', context: 2 } } },
+    }
+    expect(applyDisplay(filtered, { lines: { regex: true } })).toEqual({
+      view: {
+        width: 320,
+        height: 192,
+        lines: { filter: { pattern: 'ERROR', regex: true, context: 2 } },
+      },
+    })
+    expect(applyDisplay(filtered, { lines: { filter: '' } })).toEqual({
+      view: { width: 320, height: 192 },
+    })
+
+    const csv: ResourceData = { items: [{ kind: 'file', value: 'metrics.csv' }] }
+    expect(
+      applyDisplay(csv, { table: { sort: 'score', desc: true, bars: true, hide: ['note'] } }),
+    ).toEqual({
+      view: {
+        width: 320,
+        height: 192,
+        table: { hide: ['note'], bars: true, sort: { column: 'score', desc: true } },
+      },
+    })
+    const sorted: ResourceData = {
+      ...csv,
+      view: {
+        width: 320,
+        height: 192,
+        table: { bars: true, sort: { column: 'score', desc: true } },
+      },
+    }
+    expect(applyDisplay(sorted, { table: { sort: '', bars: false } })).toEqual({
+      view: { width: 320, height: 192 },
+    })
+
+    const folder: ResourceData = { items: [{ kind: 'folder', value: 'shots/' }] }
+    const wall = applyDisplay(folder, {
+      folder: { layout: 'strip', order: 'name', match: '*.png' },
+    })
+    expect(wall).toEqual({
+      view: {
+        width: 320,
+        height: 216,
+        gallery: { layout: 'strip', order: 'name', match: '*.png' },
+      },
+    })
+    const back = applyDisplay(
+      { ...folder, view: 'view' in wall ? wall.view : undefined },
+      { folder: { layout: 'wall', order: 'newest', match: '' } },
+    )
+    expect(back).toEqual({ view: { width: 320, height: 216 } })
+  })
+
+  it('设置给错了种类、正则写错、只给 regex 没有要找的字：回一句错', () => {
+    const log: ResourceData = { items: [{ kind: 'file', value: 'run.log' }] }
+    expect(applyDisplay(log, { table: { sort: 'a' } })).toEqual({
+      error: expect.stringContaining('display.table 只用于CSV / TSV'),
+    })
+    expect(applyDisplay(log, { folder: { layout: 'strip' } })).toHaveProperty('error')
+    expect(applyDisplay(log, { lines: { filter: '(', regex: true } })).toHaveProperty('error')
+    expect(applyDisplay(log, { lines: { regex: true } })).toHaveProperty('error')
+    expect(
+      applyDisplay({ items: [{ kind: 'file', value: 'metrics.csv' }] }, { lines: { from: 'end' } }),
+    ).toHaveProperty('error')
+    expect(
+      applyDisplay({ items: [{ kind: 'file', value: 'main.ts' }] }, { lines: { from: 'end' } }),
+    ).toHaveProperty('error')
   })
 
   it('没有能展示的项、item 指错、记忆卡：回一句错', () => {

@@ -12,7 +12,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
-import { galleryGrid, textWraps } from '../../shared/display.ts'
+import { contentKindOf, galleryGrid } from '../../shared/display.ts'
 import { extensionOf } from '../../shared/fileKind.ts'
 import { LINE_CONTEXT_MAX } from '../../shared/model.ts'
 import {
@@ -33,7 +33,6 @@ import type { T } from '../i18n.ts'
 import type { Display } from '../model/display.ts'
 import { fileBaseName } from '../model/fileKind.ts'
 import { FILTER_PRESETS, type FilterPreset, filterProblem } from '../model/logLines.ts'
-import { tableFormat } from '../model/textShape.ts'
 import css from './display.module.css'
 import { FileTag } from './FileTag.tsx'
 import { Icon } from './Icon.tsx'
@@ -46,10 +45,7 @@ import { Select } from './Select.tsx'
 
 /** 这一项有没有「内容」一组。 */
 export function contentKind(display: Display, path: string): 'lines' | 'table' | 'gallery' | null {
-  if (display.kind === 'gallery') return 'gallery'
-  if (display.kind !== 'text') return null
-  if (tableFormat(path) !== null) return 'table'
-  return textWraps(path) ? 'lines' : null
+  return contentKindOf(display.kind, path)
 }
 
 /** 筛选框停手多久才生效。 */

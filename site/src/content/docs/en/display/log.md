@@ -15,6 +15,7 @@ While a step that writes a log is running, the card stays at the end and follows
 - Scrolling up is never pulled back, and **Back to latest** appears at the bottom with a count of new lines.
 - Error lines are red and warning lines amber (turn this off with **Color errors & warnings**).
 - Under **Position**, choose **Auto** (logs and very large files stay at the end, others start from the top), **End** or **Start**.
+- With **Have the model fit the card** on, the step writing the log puts one entry per line, each with a time and a level.
 
 ## Only show
 
