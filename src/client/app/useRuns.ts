@@ -37,9 +37,19 @@ import type { SideHistory } from '../model/runHistory.ts'
 import { errorCode, errorMessage, type WorkflowLiteRpc, WorkflowLiteRpcError } from '../rpc.ts'
 
 /** 实例视图轮询的间隔。 */
-export const RUN_POLL_MS = 2000
+export const RUN_POLL_MS = 5000
+/** 实例已经结束（完成、失败、取消）时问得慢一些：多半不会再变，接着跑时最多晚这么久看到。 */
+export const RUN_IDLE_POLL_MS = 15000
 /** 每几轮轮询整份重读一次（产出文件的生成情况）。 */
-const RUN_FULL_EVERY = 4
+const RUN_FULL_EVERY = 2
+
+/** 按这个实例的状态定轮询间隔；没有状态文件（不记进度）的当作还在跑。 */
+export function runPollMs(view: InstanceView | null): number {
+  const status = view?.state?.status
+  return status === 'done' || status === 'failed' || status === 'cancelled'
+    ? RUN_IDLE_POLL_MS
+    : RUN_POLL_MS
+}
 
 export interface Runs {
   /** 本会话的实例（新的在前）。 */
@@ -361,15 +371,17 @@ export function useRun(
 
   // 轮询：只在页面可见时问。状态文件没变时只回"没变"；每隔几轮整份重读一次——
   // 产出文件生成没有不会改状态文件的修改时间（尤其是不记进度的实例），靠它跟上。
+  // 结束了的实例问得慢一些（见 runPollMs）。
+  const interval = runPollMs(view !== null && view.summary.id === id ? view : null)
   useEffect(() => {
     let tick = 0
     const timer = window.setInterval(() => {
       if (document.visibilityState !== 'visible') return
       tick += 1
       void load(tick % RUN_FULL_EVERY === 0)
-    }, RUN_POLL_MS)
+    }, interval)
     return () => window.clearInterval(timer)
-  }, [load])
+  }, [load, interval])
 
   // 换实例的那一帧，上一个实例的视图还在 state 里（清理在渲染之后的 effect 里）：不认它，免得把别人的图与状态当成这个实例的。
   const mine = view !== null && view.summary.id === id ? view : null

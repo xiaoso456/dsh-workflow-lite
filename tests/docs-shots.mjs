@@ -1087,6 +1087,14 @@ async function main(session) {
     ]) {
       await writeFile(join(out, 'reports', file), body)
     }
+    // 一个子文件夹：文件列表里标出「N 张图」。
+    await mkdir(join(out, 'reports', 'charts'), { recursive: true })
+    for (const name of ['r01-p95.svg', 'r02-p95.svg', 'r03-p95.svg']) {
+      await writeFile(
+        join(out, 'reports', 'charts', name),
+        '<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"/>',
+      )
+    }
   }
 
   /** 从工作流中心打开某个实例（进入实例视图，关掉右栏）。 */
@@ -1133,7 +1141,7 @@ async function main(session) {
         [
           'list',
           { kind: 'folder', value: 'reports' },
-          { width: 320, height: 160, gallery: { show: 'files', time: true } },
+          { width: 320, height: 216, gallery: { show: 'files', time: true } },
           900,
           1180,
         ],

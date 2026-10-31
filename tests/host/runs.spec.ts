@@ -8,6 +8,7 @@ import { join } from 'node:path'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
+import { statRunPath } from '../../src/host/runs/files.ts'
 import { RunService } from '../../src/host/runs/service.ts'
 import { instancesFile } from '../../src/host/runs/store.ts'
 import {
@@ -1325,5 +1326,41 @@ describe('用户输入', () => {
     expect(again.instance).toBe(first.instance)
     expect(other.instance).not.toBe(first.instance)
     expect(String(other.plan)).toContain('答：B')
+  })
+})
+
+describe('statRunPath：大文件夹', () => {
+  let dir: string
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'wl-stat-'))
+  })
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  it('文件夹自己的时间没变时只看最近改过的几份，加一份、覆盖写最近的一份都看得到', async () => {
+    // 100 份旧文件，时间一份比一份新；最新的是 f099。
+    const base = Date.now() / 1000 - 3600
+    for (let i = 0; i < 100; i += 1) {
+      const file = join(dir, `f${String(i).padStart(3, '0')}.txt`)
+      await writeFile(file, String(i))
+      await utimes(file, base + i, base + i)
+    }
+    const first = await statRunPath(dir, 'folder')
+    expect(first?.size).toBe(100)
+    // 覆盖写最近的那份：文件夹自己的时间不变，报的修改时间跟着变。
+    await writeFile(join(dir, 'f099.txt'), 'again')
+    const touched = await statRunPath(dir, 'folder')
+    expect(touched?.size).toBe(100)
+    expect(touched?.mtime).toBeGreaterThan(first?.mtime ?? 0)
+    // 加一份：项数和修改时间都跟着变。
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    await writeFile(join(dir, 'new.txt'), 'new')
+    const added = await statRunPath(dir, 'folder')
+    expect(added?.size).toBe(101)
+    expect(added?.mtime).toBeGreaterThanOrEqual(touched?.mtime ?? 0)
+    // 删一份：项数跟着变。
+    await rm(join(dir, 'f000.txt'))
+    expect((await statRunPath(dir, 'folder'))?.size).toBe(100)
   })
 })

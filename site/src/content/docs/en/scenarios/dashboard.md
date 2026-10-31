@@ -11,21 +11,23 @@ There is no need to open the file: the latest result is on the canvas, and earli
 
 ## Build it
 
+When the model builds the workflow from the conversation, it adds a dashboard by itself to flows with a loop and metrics; for other flows, ask it to add one. To build it by hand:
+
 1. **Have a step produce a finished file**: in the prompt and generation rules of a step such as Summarise, name the file (for example `dashboard.html` or `report.md`), say how the content is organised, and state that every round overwrites the same file.
 2. **Turn it into a resource card**: drag from the dot on the right of the step to an empty spot and choose **Output file**. See [Resources](/dsh-workflow-lite/en/materials/resources/).
 3. **Turn on display**: select the resource card and turn on **Show on the canvas** in the right panel.
 
 | Content | Suggestion |
 |---|---|
-| Web dashboard | Choose **L**; reduce the scale if needed so the whole page is visible. |
-| Markdown report | **M** or **L**. |
+| Web dashboard | **M**, with zoom left at 100%; the card shows a one-screen summary and the viewer shows everything. |
+| Markdown report | **M**. |
 | Image | Use **Fit** for placement. |
 
 **Have the model fit the card** is on by default, so the step that writes the file knows how big the card is. See [Canvas display](/dsh-workflow-lite/en/display/overview/) for more settings.
 
 ## Run and look back
 
-Turn on **Record run state** and click **Run**. While the step that writes the file is running, the card shows "Being written…"; when it finishes, the card switches to the latest content and lights up **Updated**. Click **Interact** to scroll inside the card, and double-click to open the viewer.
+Turn on **Record run state** and click **Run**. While the step that writes the file is running, the card shows "Being written…" and **Live** appears next to the title; when it finishes, the card switches to the latest content and lights up **Updated**. Click **Interact** to scroll inside the card, and double-click to open the viewer.
 
 ![The dashboard's viewer, showing the full content](../../../../assets/shots/en/dashboard-viewer.webp)
 

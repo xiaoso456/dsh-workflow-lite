@@ -20,11 +20,11 @@ for (const name of FILES) copyFileSync(root(`../../assets/${name}`), `${OUT}/${n
 const CROPS = {
   zh: {
     'shot-design': { left: 64, top: 327, width: 1952, height: 603 },
-    'shot-run': { left: 64, top: 1826, width: 1952, height: 1195 },
+    'shot-run': { left: 64, top: 1826, width: 1952, height: 793 },
   },
   en: {
     'shot-design': { left: 64, top: 327, width: 1952, height: 603 },
-    'shot-run': { left: 64, top: 1974, width: 1952, height: 1195 },
+    'shot-run': { left: 64, top: 1974, width: 1952, height: 790 },
   },
 }
 

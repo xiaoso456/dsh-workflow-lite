@@ -331,11 +331,40 @@ export async function readRunFile(
   }
 }
 
-/** 列一层目录：目录在前、各自按名字排（数字按大小）；读不了的条目（断了的软链）跳过。 */
+/** 大文件夹每回只再看这么多份最近改过的（往里加、删、改名改的是文件夹自己的时间，不用逐份看）。 */
+const DIR_HOT = 64
+/** 隔这么久整份重看一次：原地改写一份不在「最近」里的旧文件，最多晚这么久看到。 */
+const DIR_RESCAN_MS = 60_000
+/** 记着几个文件夹的上回结果（画布上同时展示的文件夹不会多）。 */
+const DIR_SCANS_MAX = 128
+
+interface DirScan {
+  /** 整份看时文件夹自己的修改时间：变了就是加、删、改名过，要重看。 */
+  dirMtime: number
+  at: number
+  count: number
+  newest: number
+  /** 最近改过的那几份。 */
+  hot: string[]
+}
+
+const dirScans = new Map<string, DirScan>()
+
+async function mtimeOf(path: string): Promise<number> {
+  try {
+    return (await stat(path)).mtimeMs
+  } catch {
+    return 0
+  }
+}
+
 /**
  * 一个路径现在的样子（画布展示问在不在、变没变）：文件是大小与修改时间；文件夹的「大小」是这一层有几项，
  * 修改时间取它自己和这一层里各项中最新的（往里加、删一份改的是文件夹自己的时间，覆盖写一份只改那一份的）。
  * 不在、读不了、是文件夹却要文件（或反过来）都回 `null`。只看一层，最多 {@link RUN_DIR_MAX} 项。
+ *
+ * 文件夹隔一会儿就被问一次：文件夹自己的时间没变时，只再看上回最近改过的 {@link DIR_HOT} 份，
+ * 每 {@link DIR_RESCAN_MS} 整份重看一次，几千份的文件夹也不必每回逐份 stat。
  */
 export async function statRunPath(
   full: string,
@@ -349,24 +378,36 @@ export async function statRunPath(
   }
   if (want === 'file') return info.isFile() ? { size: info.size, mtime: info.mtimeMs } : null
   if (!info.isDirectory()) return null
+  const now = Date.now()
+  const known = dirScans.get(full)
+  if (known !== undefined && known.dirMtime === info.mtimeMs && now - known.at < DIR_RESCAN_MS) {
+    const times = await Promise.all(known.hot.map((name) => mtimeOf(join(full, name))))
+    return { size: known.count, mtime: Math.max(info.mtimeMs, known.newest, ...times) }
+  }
   let names: string[]
   try {
     names = await readdir(full)
   } catch {
     return null
   }
-  const times = await Promise.all(
-    names.slice(0, RUN_DIR_MAX).map(async (name) => {
-      try {
-        return (await stat(join(full, name))).mtimeMs
-      } catch {
-        return 0
-      }
-    }),
-  )
-  return { size: names.length, mtime: Math.max(info.mtimeMs, ...times) }
+  const shown = names.slice(0, RUN_DIR_MAX)
+  const times = await Promise.all(shown.map((name) => mtimeOf(join(full, name))))
+  const hot = shown
+    .map((name, index) => ({ name, time: times[index] ?? 0 }))
+    .sort((a, b) => b.time - a.time)
+    .slice(0, DIR_HOT)
+    .map(({ name }) => name)
+  const newest = Math.max(info.mtimeMs, ...times)
+  dirScans.delete(full)
+  dirScans.set(full, { dirMtime: info.mtimeMs, at: now, count: names.length, newest, hot })
+  if (dirScans.size > DIR_SCANS_MAX) {
+    const oldest = dirScans.keys().next().value
+    if (oldest !== undefined) dirScans.delete(oldest)
+  }
+  return { size: names.length, mtime: newest }
 }
 
+/** 列一层目录：目录在前、各自按名字排（数字按大小）；读不了的条目（断了的软链）跳过。 */
 export async function readRunDir(
   full: string,
   display: string,

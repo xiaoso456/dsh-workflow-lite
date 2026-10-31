@@ -50,7 +50,7 @@ import { useDisplayStats } from '../app/useDisplayStats.ts'
 import type { FileTarget } from '../app/useRunFile.ts'
 import { useRunGraph } from '../app/useRunGraph.ts'
 import { useRunHistory } from '../app/useRunHistory.ts'
-import { type Run, type Runs, useRun } from '../app/useRuns.ts'
+import { type Run, type Runs, runPollMs, useRun } from '../app/useRuns.ts'
 import type { T } from '../i18n.ts'
 import { type Edit, findNode } from '../model/editor.ts'
 import { fileBaseName } from '../model/fileKind.ts'
@@ -278,7 +278,7 @@ export function RunView(props: RunViewProps): React.JSX.Element {
     initial?: string | undefined
   } | null>(null)
   /** 画布上展示着的文件：隔一会儿看一眼在不在、改没改。 */
-  const displayStats = useDisplayStats(props.rpc, id, doc)
+  const displayStats = useDisplayStats(props.rpc, id, doc, runPollMs(current.view))
   /** 步骤 id → 名字：展示卡上各轮的点写「改稿 · 第 2 轮」。 */
   const stepNames = useMemo(
     () =>

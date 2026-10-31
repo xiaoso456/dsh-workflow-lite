@@ -9,7 +9,7 @@ With **Show on the canvas** on, a folder resource can be laid out as an image wa
 
 ![Image wall: the newest image takes the big tile and the rest follow from newest to oldest](../../../../assets/shots/en/card-folder-wall.webp)
 
-![File list: one item per row, with a type marker and the modified time](../../../../assets/shots/en/card-folder-list.webp)
+![File list: one item per row; subfolders show how many items they hold, with a total at the end](../../../../assets/shots/en/card-folder-list.webp)
 
 ## Use
 
@@ -17,7 +17,7 @@ With **Show on the canvas** on, a folder resource can be laid out as an image wa
 2. Choose how to **Show** it in **Canvas display settings**.
 3. Click an image in the wall to browse it in the viewer.
 
-An empty folder shows "Folder is empty"; when there are too many files only some are listed, with "N more items".
+Files show their size and subfolders show how many items they hold ("N images" when they are all images); the list ends with "N items in all". An empty folder shows "Folder is empty"; when there are too many files only some are listed, with "N more".
 
 ## Settings
 
@@ -42,4 +42,5 @@ Open a folder resource to get two panes: on the left a path bar, a filter box an
 
 ## Notes
 
-The window for choosing a folder lists folders only; when nothing is ticked the main button reads **This folder**, and once something is ticked it becomes **Add**.
+- The image wall only lays out images at this level, not those in subfolders; have steps write images straight into this folder, with the round in the file name (such as `r02-chart.png`).
+- The window for choosing a folder lists folders only; when nothing is ticked the main button reads **This folder**, and once something is ticked it becomes **Add**.

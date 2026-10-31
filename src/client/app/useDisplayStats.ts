@@ -71,13 +71,14 @@ function same<V>(previous: V, next: V): V {
 }
 
 /**
- * 实例视图：这个实例里每一项此刻的样子。
+ * 实例视图：这个实例里每一项此刻的样子。`interval` 跟着实例的轮询走（结束了的实例问得慢些）。
  * @returns 按 {@link displayKey}；还没问到的不在表里。
  */
 export function useDisplayStats(
   rpc: WorkflowLiteRpc,
   instance: string,
   doc: WorkflowDocument | null,
+  interval: number = RUN_POLL_MS,
 ): Readonly<Record<string, DisplayStat>> {
   const targets = displayTargets(doc).slice(0, RUN_STAT_MAX)
   // `signature` 就是 targets 的身份：targets 每次渲染都是新数组，不拿它当依赖。
@@ -100,8 +101,8 @@ export function useDisplayStats(
           setStats((previous) => same(previous, next))
         })
         .catch(() => {})
-    }, RUN_POLL_MS)
-  }, [rpc, instance, signature])
+    }, interval)
+  }, [rpc, instance, signature, interval])
 
   return stats
 }

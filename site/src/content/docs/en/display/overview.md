@@ -38,7 +38,7 @@ URLs and skills cannot be displayed. In a loop, the output of every round can be
 
 - Click **Interact** to scroll inside the card or click inside a web page; press Esc to leave.
 - Double-click the display area to open the full viewer, where you can switch between **Preview** and **Source**, **Open with…**, **Show in file manager** and **Copy path**.
-- After the file changes, the card switches to the latest content, **Updated** lights up next to the title, and newly written parts are briefly highlighted before fading.
+- While the step that writes the file is running, **Live** appears next to the title; after the file changes, the card switches to the latest content, **Updated** lights up next to the title, and newly written parts are briefly highlighted before fading.
 
 | Card shows | Meaning |
 |---|---|

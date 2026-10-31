@@ -13,7 +13,7 @@ Have a step write its result as an HTML file, and the canvas gains a dashboard t
 
 1. Have a step produce an HTML file such as `dashboard.html`, overwriting the same file every round.
 2. Create a resource card for that file (drag from the step to an empty spot and choose **Output file**), and turn on **Show on the canvas**.
-3. Choose size **L**; if the page is too big, lower the **Zoom** until the whole page is visible.
+3. **M** usually fits, with zoom left at 100%; lowering the zoom shrinks all the text on the page, so open the viewer for what does not fit.
 
 For the full setup, see [Check each round's output on a dashboard](/dsh-workflow-lite/en/scenarios/dashboard/).
 
