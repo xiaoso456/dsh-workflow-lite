@@ -1221,10 +1221,14 @@ const DISPLAY_PARAMETER = {
   additionalProperties: false,
   properties: {
     show: { type: 'boolean', description: 'false = 关掉展示。' },
-    size: { type: 'string', enum: [...VIEW_SIZE_KEYS], description: '预设尺寸，缺省 m。' },
-    width: { type: 'number', description: '展示区宽（画布像素），优先于 size。' },
+    size: {
+      type: 'string',
+      enum: [...VIEW_SIZE_KEYS],
+      description: '预设尺寸，缺省 m；一般用 s 或 m。',
+    },
+    width: { type: 'number', description: '展示区宽（画布像素），优先于 size；一般用 size。' },
     height: { type: 'number', description: '展示区高（画布像素）。' },
-    zoom: { type: 'number', description: '缩放百分比。' },
+    zoom: { type: 'number', description: '缩放百分比，缺省 100，一般不动。' },
     fit: { type: 'string', enum: [...VIEW_FITS], description: '图片怎么放，缺省 contain。' },
     item: { type: 'number', description: '展示第几项（从 0 数）。' },
     adapt: { type: 'boolean', description: '写它的步骤按卡片适配产出，缺省 true。' },

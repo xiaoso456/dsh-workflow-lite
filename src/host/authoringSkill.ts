@@ -222,16 +222,18 @@ SCOREBOARD.md（更新，只有 judge 写）。结构固定，不加别的节：
 
 | 想让人看到什么 | 产出写成 | \`display\` 怎么给 |
 |---|---|---|
-| 进度、指标一览 | HTML 看板（见上一节） | \`size\` m 或 l |
-| 生成的图、图表 | 一张图片 | 宽高按出图的比例 |
-| 每轮出的一批图 | 一个文件夹，往里放图 | 缺省排成图墙；\`folder.layout\` 换成大图 + 胶片 |
-| 长时间跑的过程 | \`.log\` 日志，一行一条 | 缺省停在末尾跟着走；\`lines.filter\` 只看要紧的行 |
-| 逐轮的指标、对比 | \`.csv\` / \`.tsv\`，一行一轮 | 排成表格；\`table.sort\`、\`table.bars\`、\`table.hide\` 挑重点 |
-| 结论、摘要 | 短 Markdown | \`size\` m |
+| 进度、指标一览 | HTML 看板（见上一节） | \`size\` m，全图最主要的一张可以 l |
+| 生成的图、图表 | 一张图片 | \`size\` m；比例特殊时给宽高，别比 m 大 |
+| 每轮出的一批图 | 一个文件夹，往里放图 | \`size\` m，缺省排成图墙；\`folder.layout\` 换成大图 + 胶片 |
+| 长时间跑的过程 | \`.log\` 日志，一行一条 | \`size\` s 或 m，缺省停在末尾跟着走；\`lines.filter\` 只看要紧的行 |
+| 逐轮的指标、对比 | \`.csv\` / \`.tsv\`，一行一轮 | \`size\` m，排成表格；\`table.sort\`、\`table.bars\`、\`table.hide\` 挑重点 |
+| 结论、摘要 | 短 Markdown | \`size\` s 或 m |
 
 - 只给下游读的数据（\`rounds.jsonl\`）、草稿这类中间文件不用展示；一张图里展示卡挑最能说明进展的几张，太多画布会挤。
 - 一张资源卡只展示一项。\`display\` 给了的字段才改，没给的保持原样；\`{ show: false }\` 关掉。
-- 写它的步骤的任务描述会自动带上卡片尺寸和适配要求（网页按看板写：卡片版加完整版、颜色跟着画布主题，做法在 skill \`workflow-board\`；图按比例出；日志一行一条、表格列名短；报告先写结论），资源说明里不用再写这些。用户在画布上改了尺寸，下次执行它的步骤就按新尺寸来。
+- **卡片要小**：展示卡和步骤卡（216 宽）摆在一张画布上，s 约一张步骤卡宽、m 约一张半、l 约两张。用 \`size\`，不要自己给 \`width\` / \`height\`；一张图里最多一张 l。卡片只用来一眼看个大概，细节用户点开看，嫌小也能自己拖大，不要为了「看得清」把卡片加大。
+- **缩放保持 100**：100 时卡片里的字和步骤卡一样大，缩小了字就看不清，放大了卡片跟着变大。网页的缩放是整张等比缩放（按宽高排版，卡片在画布上占「宽高 × 缩放」）；Markdown、文本的缩放是字号；图片的缩放只在 \`fit: actual\` 时用。
+- 写它的步骤的任务描述会自动带上卡片尺寸和适配要求（网页按看板写：卡片版加完整版、颜色跟着画布主题，做法在 skill \`workflow-board\`，执行时会自动点名，不用把它连成资源；图按比例出；日志一行一条、表格列名短；报告先写结论），资源说明里不用再写这些。用户在画布上改了尺寸，下次执行它的步骤就按新尺寸来。
 - 循环里的展示卡能回看每一轮写成的样子（插件在每轮做完时存一份），要开 \`run_state\`；文件夹不存版本。
 - 展示卡比普通资源卡大，画布摆位置时会按它的尺寸让开，不用自己给坐标。
 
@@ -239,9 +241,9 @@ SCOREBOARD.md（更新，只有 judge 写）。结构固定，不加别的节：
 
 | 字段 | 取值 | 说明 |
 |---|---|---|
-| \`size\` | s / m / l | 预设尺寸，缺省 m。中档：HTML ${VIEW_SIZES.html.m.join('×')}、图片 ${VIEW_SIZES.image.m.join('×')}、Markdown ${VIEW_SIZES.markdown.m.join('×')}、文本 ${VIEW_SIZES.text.m.join('×')}、文件夹 ${VIEW_SIZES.gallery.m.join('×')} |
-| \`width\` / \`height\` | ${VIEW_LIMITS.width.join('–')} / ${VIEW_LIMITS.height.join('–')} | 精确尺寸，和 \`size\` 同时给以它为准 |
-| \`zoom\` | ${VIEW_LIMITS.zoom.join('–')}（百分比） | HTML 缺省 ${DEFAULT_ZOOM.html}，页面按「宽 ÷ 缩放」排版再缩进卡片；Markdown、文本是字号；图片只在 \`fit: actual\` 时用 |
+| \`size\` | s / m / l | 预设尺寸，缺省 m。宽 ${VIEW_SIZES.html.s[0]} / ${VIEW_SIZES.html.m[0]} / ${VIEW_SIZES.html.l[0]}；中档：HTML ${VIEW_SIZES.html.m.join('×')}、图片 ${VIEW_SIZES.image.m.join('×')}、Markdown ${VIEW_SIZES.markdown.m.join('×')}、文本 ${VIEW_SIZES.text.m.join('×')}、文件夹 ${VIEW_SIZES.gallery.m.join('×')} |
+| \`width\` / \`height\` | ${VIEW_LIMITS.width.join('–')} / ${VIEW_LIMITS.height.join('–')} | 精确尺寸，和 \`size\` 同时给以它为准；只在图片比例特殊时给 |
+| \`zoom\` | ${VIEW_LIMITS.zoom.join('–')}（百分比） | 缺省 ${DEFAULT_ZOOM.html}，一般不动（见上） |
 | \`fit\` | contain / cover / actual | 图片完整缩放（缺省）/ 铺满裁边 / 按 \`zoom\` 的原大 |
 | \`item\` | 第几项（从 0 数） | 缺省展示第一个能展示的 |
 | \`adapt\` | true / false | 写它的步骤按卡片适配产出，缺省 true |
