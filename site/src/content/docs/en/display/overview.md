@@ -8,6 +8,10 @@ sidebar:
 
 With **Show on the canvas** turned on, a resource card becomes a display area: files written by steps appear on the canvas after a run and switch to the latest content whenever they change. Dashboards, reports, screenshots and logs no longer have to be opened one by one.
 
+:::caution[Experimental feature]
+The behavior and settings of canvas display may change later.
+:::
+
 ![Several kinds of display cards on one canvas: Markdown, table, log, web dashboard, image, image wall](../../../../assets/shots/en/display-collage.webp)
 
 ## Supported content
@@ -34,7 +38,7 @@ URLs and skills cannot be displayed. In a loop, the output of every round can be
 
 - Click **Interact** to scroll inside the card or click inside a web page; press Esc to leave.
 - Double-click the display area to open the full viewer, where you can switch between **Preview** and **Source**, **Open with…**, **Show in file manager** and **Copy path**.
-- After the file changes, the card switches to the latest content, **Updated** lights up at the top right, and newly written parts are briefly highlighted before fading.
+- After the file changes, the card switches to the latest content, **Updated** lights up next to the title, and newly written parts are briefly highlighted before fading.
 
 | Card shows | Meaning |
 |---|---|

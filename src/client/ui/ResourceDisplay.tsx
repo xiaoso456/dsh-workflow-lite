@@ -29,6 +29,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { createPortal } from 'react-dom'
 import { usesBoardTheme } from '../../shared/board.ts'
 import { GALLERY_GAP, galleryLayout, galleryTracks, textWraps } from '../../shared/display.ts'
 import { extensionOf } from '../../shared/fileKind.ts'
@@ -106,9 +107,11 @@ export interface DisplayEnv {
 export const DisplayContext = createContext<DisplayEnv | null>(null)
 
 /**
- * 展示卡上留给各轮产出的两块位置：标题行里写「看的是哪一版」，卡片底边外挂时间线（卡片不裁，挂在这里才露得出来）。
+ * 展示卡上留给展示区之外的几块位置：标题行里紧跟标题的状态（生成中、刚更新、筛出几行），标题行里写「看的是哪一版」，
+ * 卡片底边外挂时间线（卡片不裁，挂在这里才露得出来）。状态不压在展示区上，免得挡住内容。
  */
 export const HistorySlotContext = createContext<{
+  status: HTMLElement | null
   slot: HTMLElement | null
   rail: HTMLElement | null
 } | null>(null)
@@ -1537,6 +1540,9 @@ function RunFileBody(props: {
 }): React.JSX.Element {
   const { t, run, node, display } = props
   const slot = useContext(HistorySlotContext)
+  // 状态签：卡片标题行里有位置就挂过去（不压在展示区上），没有（查看框之类）才浮在展示区右上角。
+  const chips = (content: React.ReactNode): React.ReactNode =>
+    slot?.status ? createPortal(<span className={css.chips}>{content}</span>, slot.status) : content
   const stat = run.stats[displayKey(node, display.item)]
   const history = useRunHistory(
     run.rpc,
@@ -1606,29 +1612,33 @@ function RunFileBody(props: {
           <div className={css.loading} />
         )}
       </div>
-      {match !== null && filter !== undefined && (
-        <span
-          className={css.chip}
-          data-side="left"
-          data-tip={t('display.filterTip').replace('{pattern}', filter.pattern)}
-          data-testid="wl-display-match"
-        >
-          <Icon name="search" size={11} />
-          {match}
-        </span>
-      )}
-      {live ? (
-        <span className={css.chip} data-live data-testid="wl-display-live">
-          <span className={css.chipDot} />
-          {t('display.live')}
-        </span>
-      ) : (
-        fresh !== 0 && (
-          <span key={fresh} className={css.chip} data-fresh data-testid="wl-display-fresh">
-            <span className={css.chipDot} />
-            {t('display.updated')}
-          </span>
-        )
+      {chips(
+        <>
+          {match !== null && filter !== undefined && (
+            <span
+              className={css.chip}
+              data-side="left"
+              data-tip={t('display.filterTip').replace('{pattern}', filter.pattern)}
+              data-testid="wl-display-match"
+            >
+              <Icon name="search" size={11} />
+              {match}
+            </span>
+          )}
+          {live ? (
+            <span className={css.chip} data-live data-testid="wl-display-live">
+              <span className={css.chipDot} />
+              {t('display.live')}
+            </span>
+          ) : (
+            fresh !== 0 && (
+              <span key={fresh} className={css.chip} data-fresh data-testid="wl-display-fresh">
+                <span className={css.chipDot} />
+                {t('display.updated')}
+              </span>
+            )
+          )}
+        </>,
       )}
       {line.dots.length >= 2 && (
         <HistoryBar

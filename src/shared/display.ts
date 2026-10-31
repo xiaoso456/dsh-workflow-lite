@@ -23,6 +23,7 @@ import {
   type ResourceView,
   type TableView,
   VIEW_FITS,
+  VIEW_LOOKS,
   type ViewFit,
   type ViewFrom,
   type ViewLook,
@@ -511,6 +512,10 @@ export interface DisplaySpec {
   item?: number
   /** 写它的步骤要不要按展示做适配；缺省 = 要。 */
   adapt?: boolean
+  /** 卡片外观；`auto` = 跟着「设置 → 外观」（清掉单张卡的选择）。 */
+  look?: ViewLook | 'auto'
+  /** 不选中、不悬停时藏起标题行。 */
+  hideTitle?: boolean
   /** 日志、纯文本：看哪一段、只看哪些行。 */
   lines?: DisplayLinesSpec
   /** CSV / TSV：看哪一段、藏哪几列、按哪列排、数字列画浅条。 */
@@ -537,6 +542,9 @@ export interface DisplayTableSpec {
   desc?: boolean
   bars?: boolean
 }
+
+/** 卡片外观的可选值：`auto` 跟着设置。 */
+export const LOOK_CHOICES = [...VIEW_LOOKS, 'auto'] as const
 
 /** 文件夹的顺序：`newest` 最新在前（缺省）。 */
 export const FOLDER_ORDER_CHOICES = ['newest', ...FOLDER_ORDERS] as const
@@ -600,6 +608,8 @@ export function applyDisplay(
   if (spec.zoom !== undefined) raw.zoom = spec.zoom
   if (spec.fit !== undefined) raw.fit = spec.fit
   if (spec.adapt !== undefined) raw.adapt = spec.adapt
+  if (spec.look !== undefined) raw.look = spec.look
+  if (spec.hideTitle !== undefined) raw.hideTitle = spec.hideTitle
   const content = contentKindOf(kind, (data.items[item] as ResourceItem).value)
   for (const key of ['lines', 'table', 'folder'] as const) {
     const group = CONTENT_GROUPS[key]

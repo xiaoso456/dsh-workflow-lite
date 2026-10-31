@@ -72,9 +72,6 @@ sidebar:
 
 ## 导出为 Skill
 
-:::caution[实验性功能]
-Skill 的结构以后还可能调整。
-:::
 导出的 Skill 包含 `SKILL.md`、每一步的任务描述和打包的文件，不依赖 DSH 的工具，在别的 agent 里也能照着执行。导出后再改工作流，不会同步到已导出的 Skill。
 
 ### 步骤

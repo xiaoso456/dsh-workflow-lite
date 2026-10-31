@@ -72,9 +72,6 @@ After you confirm, a dialog "Import to '…'?" states the number of versions, ma
 
 ## Export as a skill
 
-:::caution[Experimental feature]
-The structure of the skill may change later.
-:::
 An exported skill contains `SKILL.md`, a task description for each step and the packed files. It does not depend on DSH's tools, and can be followed in other agents too. Changing the workflow after exporting does not update a skill already exported.
 
 ### Steps

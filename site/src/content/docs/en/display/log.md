@@ -5,7 +5,7 @@ sidebar:
   order: 5
 ---
 
-While a step that writes a log is running, the card stays at the end and follows new content, with **Live** at the top right. For big files only the few hundred visible lines are read, and an update reads only what was added.
+While a step that writes a log is running, the card stays at the end and follows new content, with **Live** next to the title. For big files only the few hundred visible lines are read, and an update reads only what was added.
 
 ![Log card: stays at the end and follows new content; errors in red, warnings in amber](../../../../assets/shots/en/card-log.webp)
 
@@ -19,7 +19,7 @@ While a step that writes a log is running, the card stays at the end and follows
 
 ## Only show
 
-Use **Only show** in **Canvas display settings** to display only matching lines; the top left of the card shows how many lines match.
+Use **Only show** in **Canvas display settings** to display only matching lines; the number of matching lines appears next to the title.
 
 | Option | Description |
 |---|---|

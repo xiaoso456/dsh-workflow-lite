@@ -3,25 +3,14 @@
   "stops": [
     {
       "version": "0.1.0",
+      "to": "0.3.0",
       "zh": {
         "title": "画布编排",
-        "lines": ["分支、循环", "计划与版本"]
+        "lines": ["分支、循环、版本", "文件预览"]
       },
       "en": {
         "title": "Canvas flows",
-        "lines": ["Branches and loops", "Plans and versions"]
-      }
-    },
-    {
-      "version": "0.2.0",
-      "to": "0.3.0",
-      "zh": {
-        "title": "交互与预览",
-        "lines": ["全站动效", "Markdown、图片预览"]
-      },
-      "en": {
-        "title": "UX & previews",
-        "lines": ["Site-wide motion", "Markdown and images"]
+        "lines": ["Branches and loops", "File previews"]
       }
     },
     {
@@ -50,18 +39,17 @@
       "version": "0.6.0",
       "zh": {
         "title": "导出 Skill",
-        "tag": "实验性",
         "lines": ["工作流文档更清晰", "界面美化"]
       },
       "en": {
         "title": "Skill export",
-        "tag": "Beta",
         "lines": ["Clearer plans", "UI polish"]
       }
     },
     {
       "version": "0.7.0",
       "to": "0.8.0",
+      "label": "v0.7~0.8",
       "zh": {
         "title": "工作流记忆",
         "tag": "实验性",
@@ -71,6 +59,19 @@
         "title": "Memory",
         "tag": "Beta",
         "lines": ["Keeps what worked", "Faster complex flows"]
+      }
+    },
+    {
+      "version": "next",
+      "zh": {
+        "title": "画布展示",
+        "tag": "实验性",
+        "lines": ["看板、日志、表格", "逐轮回看、对比"]
+      },
+      "en": {
+        "title": "Canvas view",
+        "tag": "Beta",
+        "lines": ["Boards, logs, tables", "Replay every round"]
       }
     }
   ]

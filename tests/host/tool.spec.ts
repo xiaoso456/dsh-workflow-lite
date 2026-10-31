@@ -962,6 +962,8 @@ describe('workflow_lite —— 画布展示（display）', () => {
       { lines: { tail: true } },
       { table: { hide: 'note' } },
       { folder: { order: 'oldest' } },
+      { look: 'paper' },
+      { hideTitle: 'yes' },
     ]
     for (const display of shapes) {
       const bad = await run({

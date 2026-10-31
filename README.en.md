@@ -79,10 +79,11 @@ Turn on **Record run state** in **Workflow settings**. Every run then leaves a r
 | Pre-run questions | Collect the information a run needs from the user; answers are passed to the model with the plan |
 | Model co-editing | The model can create and edit workflows directly, and the canvas updates live |
 | Run state | Progress appears on the canvas as it happens; read each step's summary, adjust its state, and the model is notified |
+| Canvas display (beta) | Dashboards, images, documents, logs, tables and folders show right on the canvas and update during a run; review and compare each round of a loop |
 | File preview | Open a run's resources in place: Markdown, HTML pages (make one a dashboard updated every round to follow a loop's output), images; browse folders in a two-pane view |
 | Versions | Save versions with notes, compare differences, switch back at any time |
 | Import / export | Pack a workflow and the versions you pick into one `.wflite.zip`, optionally with the files and Skills it uses; before importing, see where each item will go |
-| Export as a Skill (beta) | Compile one version into a skill (SKILL.md, a task description per step, plus the files and Skills you pack) that works without the plugin; download a zip or install it straight into `~/.agents/skills` |
+| Export as a Skill | Compile one version into a skill (SKILL.md, a task description per step, plus the files and Skills you pack) that works without the plugin; download a zip or install it straight into `~/.agents/skills` |
 | Memory (beta) | A workflow keeps what worked and its pitfalls as a skill and follows it on the next run; manage and version it on the **Memory** page, and export it with a workflow pack |
 | Workflow hub | One place for run records across sessions, all workflows and their versions, and plugin settings |
 | Interface | Four light and four dark color themes that follow DSH light or dark mode; English / 中文 |
@@ -100,7 +101,7 @@ Paths written as `{assets}/…` by earlier versions still work and become `{work
 
 ## Experimental features
 
-These features are still being tried out, and their behavior and data formats may change. Besides workflow memory, there is **Export as a Skill** in the feature table above.
+These features are still being tried out, and their behavior and data formats may change. Besides workflow memory, there is **Canvas display** in the feature table above.
 
 ### Workflow memory
 

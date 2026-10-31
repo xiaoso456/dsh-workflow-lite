@@ -1311,7 +1311,8 @@ function DisplayCard(
   /** 各轮产出：标题行里写看的是哪一版、底边外挂时间线。 */
   const [slot, setSlot] = useState<HTMLElement | null>(null)
   const [rail, setRail] = useState<HTMLElement | null>(null)
-  const history = useMemo(() => ({ slot, rail }), [slot, rail])
+  const [status, setStatus] = useState<HTMLElement | null>(null)
+  const history = useMemo(() => ({ status, slot, rail }), [status, slot, rail])
   const settingsOpen = settings.state !== 'off'
   // 视口一动（平移、缩放、适应画布）浮层就和卡片错开了：收起。
   const closeSettings = settings.setState
@@ -1482,7 +1483,10 @@ function DisplayCard(
             <Icon name={KIND_ICON[display.item.kind]} size={12} />
           )}
         </span>
-        <span className={dcss.title}>{data.title}</span>
+        <span className={dcss.titleLine}>
+          <span className={dcss.title}>{data.title}</span>
+          <span ref={setStatus} className={dcss.statusSlot} />
+        </span>
         <span ref={setSlot} className={dcss.historySlot} />
         {data.tone !== 'ok' && (
           <span className={css.cardFlag} data-tone={data.tone}>

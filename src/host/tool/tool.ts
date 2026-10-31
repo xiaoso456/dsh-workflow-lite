@@ -18,7 +18,12 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
-import { type DisplaySpec, FOLDER_ORDER_CHOICES, VIEW_SIZE_KEYS } from '../../shared/display.ts'
+import {
+  type DisplaySpec,
+  FOLDER_ORDER_CHOICES,
+  LOOK_CHOICES,
+  VIEW_SIZE_KEYS,
+} from '../../shared/display.ts'
 import { analyzeGraph, compareByCodepoint } from '../../shared/graph.ts'
 import { inputKind, inputReaders, orderedInputs, stepInputs } from '../../shared/inputs.ts'
 import { canonicalOutput, idKey, isInput, isResource, isStep } from '../../shared/model.ts'
@@ -479,11 +484,11 @@ function resourceUpsertOf(node: string | undefined, input: ResourceArgs): Resour
 /** `display` 参数 → 展示设置的改动。形状不对就回一句给模型看的错（取值范围由 `applyDisplay` 再把关）。 */
 function displaySpecOf(raw: unknown, where: string): DisplaySpec | string {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
-    return `${where} 要写成 { size, width, height, zoom, fit, item, adapt, lines, table, folder } 或 { show: false }`
+    return `${where} 要写成 { size, width, height, zoom, fit, item, adapt, look, hideTitle, lines, table, folder } 或 { show: false }`
   }
   const input = raw as Record<string, unknown>
   const spec: DisplaySpec = {}
-  for (const key of ['show', 'adapt'] as const) {
+  for (const key of ['show', 'adapt', 'hideTitle'] as const) {
     if (input[key] === undefined) continue
     if (typeof input[key] !== 'boolean') return `${where}.${key} 必须是 true / false`
     spec[key] = input[key]
@@ -508,6 +513,13 @@ function displaySpecOf(raw: unknown, where: string): DisplaySpec | string {
       return `${where}.fit 不认识：${String(input.fit)}（可选：${VIEW_FITS.join(' / ')}）`
     }
     spec.fit = fit
+  }
+  if (input.look !== undefined) {
+    const look = LOOK_CHOICES.find((candidate) => candidate === input.look)
+    if (look === undefined) {
+      return `${where}.look 不认识：${String(input.look)}（可选：${LOOK_CHOICES.join(' / ')}）`
+    }
+    spec.look = look
   }
   for (const key of ['lines', 'table', 'folder'] as const) {
     if (input[key] === undefined) continue
@@ -1232,6 +1244,8 @@ const DISPLAY_PARAMETER = {
     fit: { type: 'string', enum: [...VIEW_FITS], description: '图片怎么放，缺省 contain。' },
     item: { type: 'number', description: '展示第几项（从 0 数）。' },
     adapt: { type: 'boolean', description: '写它的步骤按卡片适配产出，缺省 true。' },
+    look: { type: 'string', enum: [...LOOK_CHOICES], description: '卡片外观，不写跟着用户设置。' },
+    hideTitle: { type: 'boolean', description: '不选中、不悬停时藏起标题。' },
     lines: {
       type: 'object',
       description: '日志、纯文本怎么看。',

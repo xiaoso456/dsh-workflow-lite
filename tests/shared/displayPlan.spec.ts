@@ -419,6 +419,16 @@ describe('工具的 display 落成 view', () => {
     expect(back).toEqual({ view: { width: 320, height: 216 } })
   })
 
+  it('外观、隐藏标题：给了才记，auto 清掉单张的外观、hideTitle:false 去掉', () => {
+    const image: ResourceData = { items: [{ kind: 'file', value: 'poster.png' }] }
+    const set = applyDisplay(image, { look: 'bare', hideTitle: true })
+    expect(set).toEqual({ view: { width: 320, height: 216, look: 'bare', hideTitle: true } })
+    const view = 'view' in set ? set.view : undefined
+    expect(applyDisplay({ ...image, view }, { look: 'auto', hideTitle: false })).toEqual({
+      view: { width: 320, height: 216 },
+    })
+  })
+
   it('设置给错了种类、正则写错、只给 regex 没有要找的字：回一句错', () => {
     const log: ResourceData = { items: [{ kind: 'file', value: 'run.log' }] }
     expect(applyDisplay(log, { table: { sort: 'a' } })).toEqual({
