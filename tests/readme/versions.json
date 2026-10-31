@@ -62,7 +62,7 @@
       }
     },
     {
-      "version": "next",
+      "version": "0.9.0",
       "zh": {
         "title": "画布展示",
         "tag": "实验性",
