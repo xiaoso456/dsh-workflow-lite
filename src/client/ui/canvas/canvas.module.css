@@ -189,27 +189,6 @@ span.memToggle {
   cursor: default;
 }
 
-.cardOutput {
-  display: inline-flex;
-  gap: 5px;
-  align-items: center;
-  align-self: flex-start;
-  max-width: 100%;
-  height: 22px;
-  padding: 0 7px;
-  border-radius: calc(6px * var(--wl-round, 1));
-  background: var(--wl-fill);
-  color: var(--wl-text-2);
-  font-family: var(--wl-mono);
-  font-size: var(--wl-fs-micro);
-}
-
-.cardOutput span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 /* ── 连接点 ───────────────────────────────────────────────── */
 
 /*

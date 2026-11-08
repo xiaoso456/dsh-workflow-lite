@@ -43,7 +43,6 @@
   min-width: 0;
 }
 
-.detailPath,
 .detailTitle {
   min-width: 0;
   overflow: hidden;
@@ -52,10 +51,6 @@
   font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.detailPath {
-  font-family: var(--wl-mono);
 }
 
 .detailMeta {
@@ -145,19 +140,6 @@ label.resultRow::after {
   line-height: 1.55;
 }
 
-/* ── 文件清单（选中步骤 / 选中文件卡）─────────────────────── */
-
-.fileIcon {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  border-radius: calc(7px * var(--wl-round, 1));
-  background: var(--wl-file-soft);
-  color: var(--wl-file);
-}
-
 /* 输入节点的小图标：墨色的提问气泡（和交回答的线同色）。 */
 .askIcon {
   display: grid;
@@ -168,32 +150,6 @@ label.resultRow::after {
   border-radius: calc(7px * var(--wl-round, 1));
   background: var(--wl-ask-soft);
   color: var(--wl-io-ask);
-}
-
-/* 文件卡面板的标题。 */
-.fileBadge {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: calc(8px * var(--wl-round, 1));
-  background: var(--wl-file-soft);
-  color: var(--wl-file);
-}
-
-.fileTitle {
-  min-width: 0;
-  overflow: hidden;
-  font-family: var(--wl-mono);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ruleArea {
-  min-height: 120px;
-  font-size: var(--wl-fs-body);
-  line-height: 1.6;
 }
 
 /* 瑞士：成块的卡片行只留底线。 */

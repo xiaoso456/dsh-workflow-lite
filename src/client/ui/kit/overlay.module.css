@@ -70,16 +70,6 @@
   font-weight: 600;
 }
 
-.planId {
-  padding: 1px 6px;
-  border-radius: calc(6px * var(--wl-round, 1));
-  background: var(--wl-fill);
-  color: var(--wl-text-3);
-  font-family: var(--wl-mono);
-  font-size: var(--wl-fs-micro);
-  font-weight: 400;
-}
-
 .versions {
   width: 200px;
 }

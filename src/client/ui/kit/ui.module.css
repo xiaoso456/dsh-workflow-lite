@@ -507,12 +507,6 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
   cursor: default;
 }
 
-/* 菜单、列表里的选中块（PickThumb）：只管样子，位置、大小由它量。 */
-.menuThumb {
-  border-radius: var(--wl-r-control);
-  background: var(--wl-accent-soft);
-}
-
 /* 浮层收起：先淡出、稍微缩一点再拿掉（useFloat 的 exitMs），这段时间不接指针。 */
 @keyframes floatOut {
   to {

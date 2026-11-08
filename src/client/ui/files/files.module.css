@@ -126,21 +126,6 @@
   color: var(--wl-text-2);
 }
 
-.spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid var(--wl-line-strong);
-  border-top-color: var(--wl-accent);
-  border-radius: 50%;
-  animation: spin 700ms linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 /* ── 图片预览（查看框、文件夹浏览共用）─────────────────────────── */
 
 .imageStage {

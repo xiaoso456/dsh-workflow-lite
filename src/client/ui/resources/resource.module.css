@@ -30,17 +30,6 @@
   --wl-kind: var(--wl-file);
 }
 
-.headIcon {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: calc(8px * var(--wl-round, 1));
-  background: var(--wl-file-soft);
-  color: var(--wl-file);
-}
-
 /* 一种内容的小图标（实例视图的清单也用它）。 */
 .kindIcon {
   display: grid;
