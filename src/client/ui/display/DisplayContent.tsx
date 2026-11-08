@@ -18,7 +18,6 @@ import type { T } from '../../i18n.ts'
 import type { Display } from '../../model/display.ts'
 import { fileBaseName } from '../../model/fileKind.ts'
 import { FileTag } from '../files/FileTag.tsx'
-import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import css from './display.module.css'
 import { FolderOptions } from './options/FolderOptions.tsx'
@@ -58,7 +57,7 @@ export function ContentOptions(props: {
   const name =
     kind === 'lines' && extensionOf(props.path) === 'log' ? CONTENT_NAME.log : CONTENT_NAME[kind]
   return (
-    <section className={cx(css.optGroup, css.content)} data-testid="wl-display-content">
+    <section className={css.optGroup} data-testid="wl-display-content">
       <GroupHead
         label={t(name)}
         sub={fileBaseName(props.path.replace(/[\\/]+$/u, ''))}

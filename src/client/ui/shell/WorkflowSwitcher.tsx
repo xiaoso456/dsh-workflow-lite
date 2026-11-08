@@ -367,7 +367,7 @@ function RunsMore(props: {
       data-testid="wl-run-more"
       onClick={props.onToggle}
     >
-      <span className={css.moreText}>
+      <span>
         {props.expanded ? t('run.showLess') : t('run.showAll').replace('{n}', String(props.hidden))}
       </span>
       <span className={css.moreChev} data-open={props.expanded}>

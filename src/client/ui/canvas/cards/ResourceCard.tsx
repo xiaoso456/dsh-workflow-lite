@@ -94,7 +94,7 @@ export const ResourceCard = memo(function ResourceCard(
         id="in"
         type="target"
         position={Position.Left}
-        className={cx(shared.handle, shared.handleIn, shared.hResIn)}
+        className={cx(shared.handle, shared.hResIn)}
       />
       {data.compact ? (
         <>

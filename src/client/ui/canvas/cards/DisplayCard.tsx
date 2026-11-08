@@ -218,7 +218,7 @@ export function DisplayCard(
         id="in"
         type="target"
         position={Position.Left}
-        className={cx(css.handle, css.handleIn, css.hResIn)}
+        className={cx(css.handle, css.hResIn)}
       />
       <span className={dcss.head} data-tip={data.note === '' ? undefined : data.note}>
         <span

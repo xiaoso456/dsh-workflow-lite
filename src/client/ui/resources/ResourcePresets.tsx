@@ -148,13 +148,13 @@ export function ResourceTypePicker(props: {
   const value: ResourceType = node.data.preset?.kind ?? 'none'
   const ctx = { id: node.id }
   const icons = TYPES.map((type) => {
-    const ui = typeUi(type)
+    const info = typeUi(type)
     const why = type === value || type === 'none' ? null : presetRefusal(node.data, type, ctx)
-    const name = t(ui.label)
+    const name = t(info.label)
     return {
       value: type,
-      icon: ui.icon,
-      tip: why === null ? `${name}：${t(ui.desc)}` : `${name}：${t(REFUSAL_TEXT[why])}`,
+      icon: info.icon,
+      tip: why === null ? `${name}：${t(info.desc)}` : `${name}：${t(REFUSAL_TEXT[why])}`,
       disabled: why !== null,
     }
   })

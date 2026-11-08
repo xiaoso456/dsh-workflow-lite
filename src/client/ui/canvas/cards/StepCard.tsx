@@ -99,7 +99,7 @@ export const StepCard = memo(function StepCard(props: NodeProps<StepFlowNode>): 
         id="in"
         type="target"
         position={Position.Left}
-        className={cx(shared.handle, shared.handleIn, shared.hStepIn)}
+        className={cx(shared.handle, shared.hStepIn)}
       />
       <div className={css.cardHead}>
         <StepMark look={data.look} />
@@ -176,13 +176,7 @@ export const StepCard = memo(function StepCard(props: NodeProps<StepFlowNode>): 
         id="read"
         type="target"
         position={Position.Bottom}
-        className={cx(
-          shared.handle,
-          shared.handleIn,
-          shared.hRead,
-          shared.handleAux,
-          shared.spotted,
-        )}
+        className={cx(shared.handle, shared.hRead, shared.handleAux, shared.spotted)}
         style={spotVar(STEP_SPOTS.read)}
         data-used={data.used.includes('read')}
       />
@@ -190,13 +184,7 @@ export const StepCard = memo(function StepCard(props: NodeProps<StepFlowNode>): 
         id="readTop"
         type="target"
         position={Position.Top}
-        className={cx(
-          shared.handle,
-          shared.handleIn,
-          shared.hReadTop,
-          shared.handleAux,
-          shared.spotted,
-        )}
+        className={cx(shared.handle, shared.hReadTop, shared.handleAux, shared.spotted)}
         style={spotVar(STEP_SPOTS.readTop)}
         data-used={data.used.includes('readTop')}
       />
