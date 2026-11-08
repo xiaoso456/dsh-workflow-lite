@@ -2,7 +2,7 @@
  * 检查「插件设置」页是否写全了设置页里的每一项。
  *
  * 做法：从 src/shared/wire.ts 读设置页能改的键（PLUGIN_CONFIG_KEYS），换成界面上显示的名字
- * （src/client/i18n.ts 的中文文案），逐个确认 settings/plugin.md 里出现过。
+ * （src/client/i18n/config.ts 的中文文案），逐个确认 settings/plugin.md 里出现过。
  * 新增了设置项却没写文档，构建会在这里失败。
  */
 
@@ -30,7 +30,7 @@ const block = wire.match(/PLUGIN_CONFIG_KEYS\s*=\s*\[([^\]]*)\]/u)
 if (block === null) throw new Error('src/shared/wire.ts 里找不到 PLUGIN_CONFIG_KEYS')
 const keys = [...block[1].matchAll(/'([^']+)'/gu)].map((m) => m[1])
 
-const i18n = read('../../src/client/i18n.ts')
+const i18n = read('../../src/client/i18n/config.ts')
 const page = read(PAGE)
 
 const problems = []

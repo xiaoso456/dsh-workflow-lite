@@ -10,7 +10,7 @@ on:
       - 'CHANGELOG.md'
       - 'assets/**'
       - 'src/shared/wire.ts'
-      - 'src/client/i18n.ts'
+      - 'src/client/i18n/**'
       - '.github/workflows/docs.yml'
   workflow_dispatch:
 
