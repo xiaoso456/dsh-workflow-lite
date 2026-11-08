@@ -17,7 +17,6 @@ import {
   BaseEdge,
   type ConnectionLineComponentProps,
   type Edge,
-  EdgeLabelRenderer,
   type EdgeProps,
   getBezierPath,
   Handle,
@@ -30,6 +29,7 @@ import {
   ReactFlow,
   useConnection,
   useReactFlow,
+  useStore,
 } from '@xyflow/react'
 import '@xyflow/react/dist/base.css'
 import {
@@ -140,6 +140,7 @@ import { FlowStreaks, StreaksMode } from './FlowStreaks.tsx'
 import type { FocusFile } from './Handoff.tsx'
 import hand from './handoff.module.css'
 import { Icon, type IconName } from './Icon.tsx'
+import { LabelLayer, OnLabels } from './LabelLayer.tsx'
 import { ACCESS_COLOR, type Access, WHEN_COLOR, type WhenKind, whenKind } from './lines.ts'
 import {
   FadeRing,
@@ -747,6 +748,140 @@ function laneStart(sy: number, ty: number): number {
   return Math.abs(ty - sy) > NODE_H + 40 ? (sy + ty) / 2 : Math.max(sy, ty) + NODE_H / 2 + 18
 }
 
+/** 走廊线按卡片算出来的出口 / 入口位置（分道之后据此换算竖段挪了多少）。 */
+interface Corridor {
+  right: number
+  left: number
+  back: boolean
+  chip: number | null
+}
+
+/** 一条线挑好的走法（分道之前）。 */
+interface EdgeRoute {
+  /** 走廊线横着走的那一段的 y。 */
+  lane?: number
+  corridor?: Corridor
+  /** 读写线改走的绕行折线。 */
+  bend?: [number, number][]
+  /** 参与分道的直角线。 */
+  track?: Track
+  /** 读写线挂在哪两个连接点上，以及两张卡上各占了哪个点。 */
+  handles?: { source: string; target: string }
+  marks?: [string, string][]
+  /** 别的卡挪到 `moved` 时这条线会不会被压到（拖卡片时据此决定要不要重新挑路）。 */
+  hitBy: (moved: readonly Rect[]) => boolean
+}
+
+/** 挑一条线的走法；两头的卡不在 `rects` 里、或不是要挑路的线时返回 `null`。 */
+function routeEdge(
+  edge: WorkflowEdge,
+  kind: ReturnType<typeof edgeKind>,
+  rects: ReadonlyMap<string, Rect>,
+  boxes: readonly Rect[],
+): EdgeRoute | null {
+  if (kind === 'flow') {
+    // 往回走的线（终点在出口左边）：挑一条不压到任何卡片的走廊。
+    const from = rects.get(idKey(edge.source))
+    const to = rects.get(idKey(edge.target))
+    if (from === undefined || to === undefined) return null
+    const sx = from.x + from.w
+    const sy = from.y + from.h / 2
+    const ty = to.y + to.h / 2
+    let lane: number | undefined
+    if (to.x >= sx + 8) {
+      // 往右走：贝塞尔压到中间的卡片（跨列时常见）才改走直角，挑离终点那一行最近的走廊。
+      const others = boxes.filter((box) => box !== from && box !== to)
+      if (flowBlocked(others, sx, sy, to.x, ty)) {
+        lane = nearestLane(others, sx + LOOP_REACH, to.x - ROUTE_PAD, ty)
+      }
+    } else {
+      lane = freeLane(boxes, to.x - ROUTE_PAD, sx + LOOP_REACH, laneStart(sy, ty))
+    }
+    if (lane === undefined) {
+      return { hitBy: (moved) => flowBlocked(moved, sx, sy, to.x, ty) }
+    }
+    const right = sx + LOOP_REACH
+    const left = to.x - ROUTE_PAD
+    const points: [number, number][] = [
+      [sx, sy],
+      [right, sy],
+      [right, lane],
+      [left, lane],
+      [left, ty],
+      [to.x, ty],
+    ]
+    return {
+      lane,
+      corridor: { right, left, back: to.x < sx + 8, chip: chipWidth(edge, to.x < sx + 8) },
+      track: { id: edge.id, group: `when:${whenKind(whenOf(edge))}`, points },
+      hitBy: (moved) => pointsBlocked(points, moved, []),
+    }
+  }
+  if (kind !== 'write' && kind !== 'read' && kind !== 'ask') return null
+  // 输入 → 步骤的走法和读资源一样（输入卡在这里就是一张"被读"的卡）。
+  const way = kind === 'write' ? 'write' : 'read'
+  const stepId = way === 'write' ? edge.source : edge.target
+  const fileId = way === 'write' ? edge.target : edge.source
+  const stepBox = rects.get(idKey(stepId))
+  const fileBox = rects.get(idKey(fileId))
+  if (stepBox === undefined || fileBox === undefined) return null
+  const route = routeFileLink(way, stepBox, fileBox)
+  let stepHandle: StepFileHandle = route.step
+  // 平时的走法（写 = 树干直角，读 = 贝塞尔）压到别的卡片时，改走绕开卡片的直角折线；
+  // 上下两个点都试一试，挑便宜的那条。
+  const skip = [stepBox, fileBox]
+  const fileEnd = spotOf(fileBox, FILE_SPOTS[route.file])
+  const stepEnd = spotOf(stepBox, STEP_SPOTS[route.step])
+  const simple = way === 'write' ? writePoints(stepEnd, fileEnd, fileBox.h) : null
+  const blocked =
+    simple === null
+      ? fileBox.x + fileBox.w / 2 > stepBox.x + stepBox.w / 2 ||
+        bezierBlocked(fileEnd, stepEnd, boxes, skip)
+      : simple.length !== 3 || pointsBlocked(simple, boxes, skip)
+  let bend: [number, number][] | undefined
+  if (blocked) {
+    const options: StepFileHandle[] = way === 'write' ? ['file', 'fileUp'] : ['read', 'readTop']
+    let best: { handle: StepFileHandle; route: OrthoRoute } | null = null
+    for (const handle of options) {
+      const end = spotOf(stepBox, STEP_SPOTS[handle])
+      const found =
+        way === 'write'
+          ? orthoRoute(end, fileEnd, boxes, stepBox, fileBox)
+          : orthoRoute(fileEnd, end, boxes, fileBox, stepBox)
+      if (found !== null && (best === null || found.cost < best.route.cost)) {
+        best = { handle, route: found }
+      }
+    }
+    if (best !== null) {
+      stepHandle = best.handle
+      bend = best.route.points
+    }
+  }
+  const drawn = bend ?? (blocked ? null : simple)
+  const access =
+    kind === 'ask'
+      ? 'ask'
+      : kind === 'read'
+        ? 'read'
+        : edge.data?.update === true
+          ? 'update'
+          : 'produce'
+  return {
+    ...(bend === undefined ? {} : { bend }),
+    ...(drawn === null ? {} : { track: { id: edge.id, group: `access:${access}`, points: drawn } }),
+    handles:
+      way === 'write'
+        ? { source: stepHandle, target: route.file }
+        : { source: route.file, target: stepHandle },
+    marks: [
+      [stepId, stepHandle],
+      [fileId, route.file],
+    ],
+    hitBy: (moved) =>
+      drawn !== null ? pointsBlocked(drawn, moved, []) : bezierBlocked(fileEnd, stepEnd, moved, []),
+  }
+}
+
 /**
  * 往回走的线：从出口向右伸出去，拐到一条横向"走廊"上走回来，再从左边进入目标。
  * 走廊由画布按卡片的位置挑（`freeLane`：不压到任何卡片，包括步骤下面挂着的文件卡）；
@@ -846,7 +981,7 @@ const LinkLine = memo(function LinkLine(props: EdgeProps<LinkEdge>): React.JSX.E
         <FlowStreaks path={path} color={color} active={data.active && handoff?.none !== true} />
       )}
       {(showWhen || handoff !== null) && data !== undefined && (
-        <EdgeLabelRenderer>
+        <OnLabels>
           {/* 条件在上、交接在下，竖着叠在线的中点：两张卡之间的空隙放不下横排的两块。
               两块都和线同色。 */}
           <div
@@ -885,7 +1020,7 @@ const LinkLine = memo(function LinkLine(props: EdgeProps<LinkEdge>): React.JSX.E
               />
             )}
           </div>
-        </EdgeLabelRenderer>
+        </OnLabels>
       )}
     </>
   )
@@ -1766,7 +1901,7 @@ const FileLine = memo(function FileLine(props: EdgeProps<FileEdge>): React.JSX.E
       )}
       <FlowStreaks path={path} color={color} active={active} />
       {data !== undefined && (
-        <EdgeLabelRenderer>
+        <OnLabels>
           {/* 不接指针：点在小牌子上等于点在线上（下面就是线的命中区），悬停也不会被它打断。
               常驻、平时透明，和光晕一样淡入淡出。 */}
           <span
@@ -1790,7 +1925,7 @@ const FileLine = memo(function FileLine(props: EdgeProps<FileEdge>): React.JSX.E
             <SwapIcon name={ACCESS_ICON[data.access]} size={11} />
             <SwapText text={data.chipText} />
           </span>
-        </EdgeLabelRenderer>
+        </OnLabels>
       )}
     </>
   )
@@ -2030,6 +2165,12 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
   } = props
   const flow = useReactFlow<FlowNode, FlowEdge>()
   const wrapRef = useRef<HTMLDivElement>(null)
+  /** 连线标签层：找一次发给各条线（见 LabelLayer.tsx）。 */
+  const flowRoot = useStore((store) => store.domNode)
+  const labelLayer = useMemo(
+    () => flowRoot?.querySelector<HTMLElement>('.react-flow__edgelabel-renderer') ?? null,
+    [flowRoot],
+  )
   /** 卡片尺寸量出来 / 变了就加一：线的走法要按真实尺寸重算。 */
   const [sized, setSized] = useState(0)
   /** 拖动中的临时坐标（松手才写进文档）。 */
@@ -2051,6 +2192,12 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
   })
   const docRef = useRef(doc)
   docRef.current = doc
+  /** 没在拖卡片时挑好的各条线的走法：拖动中没碰到的线照用（见 `routes`）。 */
+  const routeBase = useRef<{
+    doc: WorkflowDocument
+    sized: number
+    routes: Map<string, EdgeRoute | null>
+  } | null>(null)
 
   /** 每个步骤的语气与悬停说明：空提示词当场就算（不等保存后的校验回来）。 */
   const tones = useMemo(() => {
@@ -2174,7 +2321,12 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
     return { kind, color: preview === null ? dragColor(kind) : PREVIEW_COLOR[preview.kind] }
   }, [dragKey, doc])
   // 拖线时不做悬停资源的聚光：拖过资源卡不该把别的卡都淡下去。
-  const focusFile = drag === null ? hoveredFile : null
+  // 拖卡片时聚光定在开拖那一刻：拖着的卡从别的资源卡底下钻过时，指针会落到那张卡上，
+  // 不定住的话整张画布的线和卡跟着一明一暗，每次都是整页样式重算。
+  const dragFocus = useRef<string | null>(null)
+  const draggingCard = streakMode === 'hold'
+  if (!draggingCard) dragFocus.current = hoveredFile
+  const focusFile = drag === null ? (draggingCard ? dragFocus.current : hoveredFile) : null
   const focused = focusFile === null ? undefined : files.get(focusFile)
 
   const onPick = useCallback(
@@ -2278,122 +2430,42 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
     const bends = new Map<string, [number, number][]>()
     const rects = new Map(doc.nodes.map((node) => [idKey(node.id), rectFor(node)]))
     const boxes = [...rects.values()]
-    const mark = (nodeId: string, handle: string): void => {
-      const list = used.get(idKey(nodeId)) ?? []
-      if (!list.includes(handle)) list.push(handle)
-      used.set(idKey(nodeId), list)
-    }
     /** 直角走的线（走廊线、绕行折线、写线的树干）：挑完路之后统一分道，不同颜色的不叠在一条道上。 */
     const tracks: Track[] = []
-    /** 走廊线按卡片算出来的出口 / 入口位置（分道之后据此换算竖段挪了多少）。 */
-    const corridors = new Map<
-      string,
-      { right: number; left: number; back: boolean; chip: number | null }
-    >()
+    const corridors = new Map<string, Corridor>()
+    // 拖卡片时只给碰到的线重新挑路：两头有被拖的卡、或被拖的卡压到了它松手前的走法。
+    // 其余的线沿用松手前那一份（被拖的卡离开后它们可能有更短的走法，松手时整张图重挑一次）。
+    const movedIds = new Set(Object.keys(dragging).map(idKey))
+    const base = routeBase.current
+    const reuse =
+      movedIds.size > 0 && base !== null && base.doc === doc && base.sized === sized
+        ? base.routes
+        : null
+    const moved = [...movedIds].flatMap((id) => rects.get(id) ?? [])
+    const picked = new Map<string, EdgeRoute | null>()
     for (const edge of doc.edges) {
-      const kind = edgeKind(index, edge)
-      if (kind === 'flow') {
-        // 往回走的线（终点在出口左边）：挑一条不压到任何卡片的走廊。
-        const from = rects.get(idKey(edge.source))
-        const to = rects.get(idKey(edge.target))
-        if (from === undefined || to === undefined) continue
-        const sx = from.x + from.w
-        const sy = from.y + from.h / 2
-        const ty = to.y + to.h / 2
-        let lane: number | undefined
-        if (to.x >= sx + 8) {
-          // 往右走：贝塞尔压到中间的卡片（跨列时常见）才改走直角，挑离终点那一行最近的走廊。
-          const others = boxes.filter((box) => box !== from && box !== to)
-          if (flowBlocked(others, sx, sy, to.x, ty)) {
-            lane = nearestLane(others, sx + LOOP_REACH, to.x - ROUTE_PAD, ty)
-          }
-        } else {
-          lane = freeLane(boxes, to.x - ROUTE_PAD, sx + LOOP_REACH, laneStart(sy, ty))
-        }
-        if (lane === undefined) continue
-        lanes.set(edge.id, lane)
-        const right = sx + LOOP_REACH
-        const left = to.x - ROUTE_PAD
-        corridors.set(edge.id, {
-          right,
-          left,
-          back: to.x < sx + 8,
-          chip: chipWidth(edge, to.x < sx + 8),
-        })
-        tracks.push({
-          id: edge.id,
-          group: `when:${whenKind(whenOf(edge))}`,
-          points: [
-            [sx, sy],
-            [right, sy],
-            [right, lane],
-            [left, lane],
-            [left, ty],
-            [to.x, ty],
-          ],
-        })
-        continue
+      const cached = reuse?.get(edge.id)
+      const route =
+        cached !== undefined &&
+        !movedIds.has(idKey(edge.source)) &&
+        !movedIds.has(idKey(edge.target)) &&
+        (cached === null || !cached.hitBy(moved))
+          ? cached
+          : routeEdge(edge, edgeKind(index, edge), rects, boxes)
+      picked.set(edge.id, route)
+      if (route === null) continue
+      if (route.lane !== undefined) lanes.set(edge.id, route.lane)
+      if (route.corridor !== undefined) corridors.set(edge.id, route.corridor)
+      if (route.bend !== undefined) bends.set(edge.id, route.bend)
+      if (route.track !== undefined) tracks.push(route.track)
+      if (route.handles !== undefined) handles.set(edge.id, route.handles)
+      for (const [nodeId, handle] of route.marks ?? []) {
+        const list = used.get(idKey(nodeId)) ?? []
+        if (!list.includes(handle)) list.push(handle)
+        used.set(idKey(nodeId), list)
       }
-      if (kind !== 'write' && kind !== 'read' && kind !== 'ask') continue
-      // 输入 → 步骤的走法和读资源一样（输入卡在这里就是一张"被读"的卡）。
-      const way = kind === 'write' ? 'write' : 'read'
-      const stepId = way === 'write' ? edge.source : edge.target
-      const fileId = way === 'write' ? edge.target : edge.source
-      const stepBox = rects.get(idKey(stepId))
-      const fileBox = rects.get(idKey(fileId))
-      if (stepBox === undefined || fileBox === undefined) continue
-      const route = routeFileLink(way, stepBox, fileBox)
-      let stepHandle: StepFileHandle = route.step
-      // 平时的走法（写 = 树干直角，读 = 贝塞尔）压到别的卡片时，改走绕开卡片的直角折线；
-      // 上下两个点都试一试，挑便宜的那条。
-      const skip = [stepBox, fileBox]
-      const fileEnd = spotOf(fileBox, FILE_SPOTS[route.file])
-      const stepEnd = spotOf(stepBox, STEP_SPOTS[route.step])
-      const simple = way === 'write' ? writePoints(stepEnd, fileEnd, fileBox.h) : null
-      const blocked =
-        simple === null
-          ? fileBox.x + fileBox.w / 2 > stepBox.x + stepBox.w / 2 ||
-            bezierBlocked(fileEnd, stepEnd, boxes, skip)
-          : simple.length !== 3 || pointsBlocked(simple, boxes, skip)
-      if (blocked) {
-        const options: StepFileHandle[] = way === 'write' ? ['file', 'fileUp'] : ['read', 'readTop']
-        let best: { handle: StepFileHandle; route: OrthoRoute } | null = null
-        for (const handle of options) {
-          const end = spotOf(stepBox, STEP_SPOTS[handle])
-          const found =
-            way === 'write'
-              ? orthoRoute(end, fileEnd, boxes, stepBox, fileBox)
-              : orthoRoute(fileEnd, end, boxes, fileBox, stepBox)
-          if (found !== null && (best === null || found.cost < best.route.cost)) {
-            best = { handle, route: found }
-          }
-        }
-        if (best !== null) {
-          stepHandle = best.handle
-          bends.set(edge.id, best.route.points)
-        }
-      }
-      const drawn = bends.get(edge.id) ?? (blocked ? null : simple)
-      if (drawn !== null) {
-        const access =
-          kind === 'ask'
-            ? 'ask'
-            : kind === 'read'
-              ? 'read'
-              : edge.data?.update === true
-                ? 'update'
-                : 'produce'
-        tracks.push({ id: edge.id, group: `access:${access}`, points: drawn })
-      }
-      handles.set(
-        edge.id,
-        way === 'write'
-          ? { source: stepHandle, target: route.file }
-          : { source: route.file, target: stepHandle },
-      )
-      mark(stepId, stepHandle)
-      mark(fileId, route.file)
     }
+    if (movedIds.size === 0) routeBase.current = { doc, sized, routes: picked }
     const shifts = new Map<string, LaneShift>()
     for (const [id, points] of nudge(tracks, boxes)) {
       const corridor = corridors.get(id)
@@ -2705,6 +2777,8 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
       next.set(built.id, { signature, flow: kept })
       return kept
     }
+    // 活着的线画在最上面，不被淡下去的线压住：靠每条线的 zIndex，不挪它在数组里的位置——
+    // 挪位置会让 React 把一大串线的元素拔下来再插回去，宿主的 `:has()` 规则下每次插拔都是整页样式重算。
     const list = doc.edges.map((edge): FlowEdge => {
       const selected = edge.id === selectedId
       const kind = edgeKind(index, edge)
@@ -2735,6 +2809,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
           sourceHandle: routes.handles.get(edge.id)?.source ?? (kind === 'write' ? 'file' : 'out'),
           targetHandle: routes.handles.get(edge.id)?.target ?? (kind === 'write' ? 'in' : 'read'),
           selected,
+          zIndex: active ? 1 : 0,
           className: cx(
             css.fileLink,
             access === 'read' && css.fileLinkRead,
@@ -2775,6 +2850,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
         sourceHandle: 'out',
         targetHandle: 'in',
         selected,
+        zIndex: active ? 1 : 0,
         className: cx(
           css.link,
           back && css.linkBack,
@@ -2808,11 +2884,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
       })
     })
     edgeCache.current.map = next
-    // 活着的线画在最上面，不被淡下去的线压住。
-    return [
-      ...list.filter((edge) => edge.data?.active !== true),
-      ...list.filter((edge) => edge.data?.active === true),
-    ]
+    return list
   }, [doc, analysis, selection, texts, onPick, acts, focusFile, hoverEdge, routes, t, run])
 
   // 删掉的步骤、资源、连线原地退场（同一份文档里少了的才放，换图不放）。
@@ -2993,97 +3065,102 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
         onRequestAdd({ client, flow: { x: at.x - NODE_W / 2, y: at.y - NODE_H / 2 } })
       }}
     >
-      <DisplayContext.Provider value={displayEnv}>
-        <DragInfo.Provider value={dragInfo}>
-          <StreaksMode.Provider value={streakMode}>
-            <ReactFlow<FlowNode, FlowEdge>
-              nodes={nodes}
-              edges={edges}
-              nodeTypes={NODE_TYPES}
-              edgeTypes={EDGE_TYPES}
-              minZoom={MIN_ZOOM}
-              maxZoom={MAX_ZOOM}
-              // 选中、删除、键盘都由我们自己的状态机管，关掉内置的那几套免得两边各说各话。
-              deleteKeyCode={null}
-              selectionKeyCode={null}
-              multiSelectionKeyCode={null}
-              disableKeyboardA11y
-              connectOnClick={false}
-              zoomOnDoubleClick={false}
-              zoomOnScroll={false}
-              elevateNodesOnSelect={false}
-              nodeDragThreshold={2}
-              connectionRadius={28}
-              connectionLineComponent={ConnectionLine}
-              proOptions={{ hideAttribution: true }}
-              onNodesChange={onNodesChange}
-              // 两头的连接点分工要对得上（见 model/connect.ts）：不连自己、资源不连资源、
-              // 步骤右边只连步骤、步骤底边只连资源、资源只连步骤。
-              isValidConnection={(connection) => linkAllowed(docRef.current, connection)}
-              onConnect={(connection) => {
-                onEdit({ type: 'connect', source: connection.source, target: connection.target })
-              }}
-              onConnectEnd={(event, state) => {
-                // 线拖到空白处松手：就地加一个步骤并连上；从步骤底边拖出来的是新建一个放着产出文件的资源。
-                if (state.isValid === true || state.fromNode === null) return
-                if (state.fromHandle?.type !== 'source') return
-                const point = 'changedTouches' in event ? event.changedTouches[0] : event
-                if (point === undefined) return
-                const target = event.target
-                if (!(target instanceof Element) || !target.classList.contains('react-flow__pane'))
-                  return
-                const client = { x: point.clientX, y: point.clientY }
-                const at = flow.screenToFlowPosition(client)
-                if (state.fromHandle.id === 'file' || state.fromHandle.id === 'fileUp') {
-                  onEdit({
-                    type: 'addResource',
-                    data: outputResource({
-                      path: freeFilePath(docRef.current, `${state.fromNode.id}.md`),
-                    }),
-                    // 松手处就是新资源卡左边的入口：线落在哪，卡就从哪接上。
-                    position: { x: at.x, y: at.y - RES_H / 2 },
-                    writer: state.fromNode.id,
-                    select: true,
+      <LabelLayer.Provider value={labelLayer}>
+        <DisplayContext.Provider value={displayEnv}>
+          <DragInfo.Provider value={dragInfo}>
+            <StreaksMode.Provider value={streakMode}>
+              <ReactFlow<FlowNode, FlowEdge>
+                nodes={nodes}
+                edges={edges}
+                nodeTypes={NODE_TYPES}
+                edgeTypes={EDGE_TYPES}
+                minZoom={MIN_ZOOM}
+                maxZoom={MAX_ZOOM}
+                // 选中、删除、键盘都由我们自己的状态机管，关掉内置的那几套免得两边各说各话。
+                deleteKeyCode={null}
+                selectionKeyCode={null}
+                multiSelectionKeyCode={null}
+                disableKeyboardA11y
+                connectOnClick={false}
+                zoomOnDoubleClick={false}
+                zoomOnScroll={false}
+                elevateNodesOnSelect={false}
+                nodeDragThreshold={2}
+                connectionRadius={28}
+                connectionLineComponent={ConnectionLine}
+                proOptions={{ hideAttribution: true }}
+                onNodesChange={onNodesChange}
+                // 两头的连接点分工要对得上（见 model/connect.ts）：不连自己、资源不连资源、
+                // 步骤右边只连步骤、步骤底边只连资源、资源只连步骤。
+                isValidConnection={(connection) => linkAllowed(docRef.current, connection)}
+                onConnect={(connection) => {
+                  onEdit({ type: 'connect', source: connection.source, target: connection.target })
+                }}
+                onConnectEnd={(event, state) => {
+                  // 线拖到空白处松手：就地加一个步骤并连上；从步骤底边拖出来的是新建一个放着产出文件的资源。
+                  if (state.isValid === true || state.fromNode === null) return
+                  if (state.fromHandle?.type !== 'source') return
+                  const point = 'changedTouches' in event ? event.changedTouches[0] : event
+                  if (point === undefined) return
+                  const target = event.target
+                  if (
+                    !(target instanceof Element) ||
+                    !target.classList.contains('react-flow__pane')
+                  )
+                    return
+                  const client = { x: point.clientX, y: point.clientY }
+                  const at = flow.screenToFlowPosition(client)
+                  if (state.fromHandle.id === 'file' || state.fromHandle.id === 'fileUp') {
+                    onEdit({
+                      type: 'addResource',
+                      data: outputResource({
+                        path: freeFilePath(docRef.current, `${state.fromNode.id}.md`),
+                      }),
+                      // 松手处就是新资源卡左边的入口：线落在哪，卡就从哪接上。
+                      position: { x: at.x, y: at.y - RES_H / 2 },
+                      writer: state.fromNode.id,
+                      select: true,
+                    })
+                    return
+                  }
+                  onRequestAdd({
+                    client,
+                    flow: { x: at.x, y: at.y - NODE_H / 2 },
+                    from: state.fromNode.id,
                   })
-                  return
-                }
-                onRequestAdd({
-                  client,
-                  flow: { x: at.x, y: at.y - NODE_H / 2 },
-                  from: state.fromNode.id,
-                })
-              }}
-              onNodeClick={(_event, node) => onSelect({ kind: 'node', id: node.id })}
-              onNodeDragStart={(_event, node) => onSelect({ kind: 'node', id: node.id })}
-              onEdgeMouseEnter={(_event, edge) => setHoverEdge(edge.id)}
-              onEdgeMouseLeave={() => setHoverEdge(null)}
-              onEdgeClick={(_event, edge) => {
-                onSelect({ kind: 'edge', id: edge.id })
-                // 连线是 SVG，点它之后焦点会掉到 body：收回画布，Delete / Esc 才有人接。
-                focusCanvas()
-              }}
-              onPaneClick={() => {
-                onSelect(null)
-                focusCanvas()
-              }}
-              onMoveStart={() => setCanvasMoving(true)}
-              onMoveEnd={(event, viewport) => {
-                setCanvasMoving(false)
-                // 只记人动的视口；程序触发的移动（看全图、定位）事件参数是 null。
-                // 视口只记在浏览器里：浏览不改图，不会变成「待保存」。
-                if (event !== null && viewKey !== undefined) rememberViewport(viewKey, viewport)
-              }}
-            >
-              <Background
-                variant={BackgroundVariant.Dots}
-                gap={20}
-                size={1.6}
-                color="var(--wl-dot)"
-              />
-            </ReactFlow>
-          </StreaksMode.Provider>
-        </DragInfo.Provider>
-      </DisplayContext.Provider>
+                }}
+                onNodeClick={(_event, node) => onSelect({ kind: 'node', id: node.id })}
+                onNodeDragStart={(_event, node) => onSelect({ kind: 'node', id: node.id })}
+                onEdgeMouseEnter={(_event, edge) => setHoverEdge(edge.id)}
+                onEdgeMouseLeave={() => setHoverEdge(null)}
+                onEdgeClick={(_event, edge) => {
+                  onSelect({ kind: 'edge', id: edge.id })
+                  // 连线是 SVG，点它之后焦点会掉到 body：收回画布，Delete / Esc 才有人接。
+                  focusCanvas()
+                }}
+                onPaneClick={() => {
+                  onSelect(null)
+                  focusCanvas()
+                }}
+                onMoveStart={() => setCanvasMoving(true)}
+                onMoveEnd={(event, viewport) => {
+                  setCanvasMoving(false)
+                  // 只记人动的视口；程序触发的移动（看全图、定位）事件参数是 null。
+                  // 视口只记在浏览器里：浏览不改图，不会变成「待保存」。
+                  if (event !== null && viewKey !== undefined) rememberViewport(viewKey, viewport)
+                }}
+              >
+                <Background
+                  variant={BackgroundVariant.Dots}
+                  gap={20}
+                  size={1.6}
+                  color="var(--wl-dot)"
+                />
+              </ReactFlow>
+            </StreaksMode.Provider>
+          </DragInfo.Provider>
+        </DisplayContext.Provider>
+      </LabelLayer.Provider>
 
       {doc.nodes.length === 0 && (
         <div className={css.empty} data-testid="wl-empty">

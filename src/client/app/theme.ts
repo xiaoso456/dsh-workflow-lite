@@ -103,17 +103,66 @@ export function currentScheme(): ThemeMode {
   return globalThis.matchMedia?.('(prefers-color-scheme: dark)').matches === true ? 'dark' : 'light'
 }
 
+/**
+ * 订阅着时记下的亮暗：只在 `<html>` 的属性或系统设置变了时重读。
+ * `useSyncExternalStore` 每次渲染都要取一次快照，直接读 `getComputedStyle` 的话，
+ * 拖卡片、换选中时样式正脏着，每次渲染都逼浏览器把整页样式当场算一遍。
+ */
+let seenScheme: ThemeMode | null = null
+const schemeListeners = new Set<() => void>()
+let stopWatching: (() => void) | null = null
+
+function rereadScheme(): void {
+  const next = currentScheme()
+  if (next === seenScheme) return
+  seenScheme = next
+  for (const listener of schemeListeners) listener()
+}
+
+/**
+ * `<html>` 的属性一变（宿主开拖时也会改）就重读，但等这一帧画完：那时样式是干净的，读一次几乎不花钱；
+ * 当场读的话要逼浏览器把刚改脏的整页样式先算一遍。
+ */
+let rereadQueued = false
+function queueReread(): void {
+  if (rereadQueued) return
+  rereadQueued = true
+  requestAnimationFrame(() =>
+    setTimeout(() => {
+      rereadQueued = false
+      rereadScheme()
+    }, 0),
+  )
+}
+
 function subscribeScheme(listener: () => void): () => void {
-  const observer = new MutationObserver(listener)
-  observer.observe(document.documentElement, { attributes: true })
-  const media = globalThis.matchMedia?.('(prefers-color-scheme: dark)')
-  media?.addEventListener('change', listener)
+  schemeListeners.add(listener)
+  if (stopWatching === null) {
+    const observer = new MutationObserver(queueReread)
+    observer.observe(document.documentElement, { attributes: true })
+    const media = globalThis.matchMedia?.('(prefers-color-scheme: dark)')
+    media?.addEventListener('change', queueReread)
+    stopWatching = () => {
+      observer.disconnect()
+      media?.removeEventListener('change', queueReread)
+    }
+    // 没人订阅的那段时间里可能变过。
+    rereadScheme()
+  }
   return () => {
-    observer.disconnect()
-    media?.removeEventListener('change', listener)
+    schemeListeners.delete(listener)
+    if (schemeListeners.size > 0) return
+    stopWatching?.()
+    stopWatching = null
+    seenScheme = null
   }
 }
 
+function schemeSnapshot(): ThemeMode {
+  seenScheme ??= currentScheme()
+  return seenScheme
+}
+
 export function useColorScheme(): ThemeMode {
-  return useSyncExternalStore(subscribeScheme, currentScheme, () => 'light')
+  return useSyncExternalStore(subscribeScheme, schemeSnapshot, () => 'light')
 }

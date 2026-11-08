@@ -29,7 +29,6 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/FlowStreaks
  */
 
-import { EdgeLabelRenderer } from '@xyflow/react'
 import {
   createContext,
   useCallback,
@@ -42,6 +41,7 @@ import {
 import { afterPaint } from '../app/reveal.ts'
 import { type MeasuredPath, measurePath } from '../model/pathSample.ts'
 import css from './canvas.module.css'
+import { OnLabels } from './LabelLayer.tsx'
 import { useCanvasMoving } from './motion.tsx'
 
 /** 一条线上最多几道光带；短线只放一道。 */
@@ -276,7 +276,7 @@ function Trail(props: { path: string; color: string; leaving: boolean }): React.
   )
 
   return (
-    <EdgeLabelRenderer>
+    <OnLabels>
       <div
         className={css.streaks}
         data-leaving={props.leaving}
@@ -297,6 +297,6 @@ function Trail(props: { path: string; color: string; leaving: boolean }): React.
           </span>
         ))}
       </div>
-    </EdgeLabelRenderer>
+    </OnLabels>
   )
 }

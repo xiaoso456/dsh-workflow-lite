@@ -278,25 +278,33 @@ export function useResizeFlip(
         }
         return slots
       }
-      let slots = measure()
+      // 第一次量放到 ResizeObserver 头一回叫的时候（布局刚算完，量起来不花钱）：挂上列表时正在提交，
+      // 当场量会逼浏览器先把这一下改脏的整页样式、布局算一遍——换选中时右栏整块换掉，就卡在这里。
+      let slots: Map<HTMLElement, Slot> | null = null
       const settle = (): void => {
         const next = measure()
+        const before = slots
+        slots = next
         // 列表里有 Presence 正在长 / 收（它每一帧都在改布局，后面的项本来就是跟着走的）：不再补位移，
         // 两边叠起来，后面的项会被甩到别的项上面。
-        if (REDUCED?.matches !== true && list.querySelector('[data-moving]') === null) {
-          // 只给看得见的项放动画：目录里成百上千行时，屏幕外的项滑不滑看不出来，不白费。
-          const band = clipBand(list)
-          for (const [child, slot] of next) {
-            const was = slots.get(child)
-            if (was === undefined || was.top === slot.top) continue
-            const now = child.getBoundingClientRect()
-            const offset = was.top - slot.top
-            if (seen(band, now.top, now.height) || seen(band, now.top + offset, now.height)) {
-              slide(child, offset)
-            }
+        if (
+          before === null ||
+          REDUCED?.matches === true ||
+          list.querySelector('[data-moving]') !== null
+        )
+          return
+        // 只给看得见的项放动画：目录里成百上千行时，屏幕外的项滑不滑看不出来，不白费。
+        let band: ReturnType<typeof clipBand> | null = null
+        for (const [child, slot] of next) {
+          const was = before.get(child)
+          if (was === undefined || was.top === slot.top) continue
+          band ??= clipBand(list)
+          const now = child.getBoundingClientRect()
+          const offset = was.top - slot.top
+          if (seen(band, now.top, now.height) || seen(band, now.top + offset, now.height)) {
+            slide(child, offset)
           }
         }
-        slots = next
       }
       const sizes = new ResizeObserver(settle)
       const watch = (): void => {
@@ -308,7 +316,8 @@ export function useResizeFlip(
       watch()
       const children = new MutationObserver((records) => {
         const still = REDUCED?.matches === true || performance.now() - swappedAt < 80
-        if (!still && (exit || enter)) {
+        // 还没量过（刚挂上）：没有旧位置可比，不放退场 / 入场。
+        if (!still && (exit || enter) && slots !== null) {
           const band = clipBand(list)
           const origin = list.getBoundingClientRect().top - (isScroller(list) ? list.scrollTop : 0)
           for (const record of records) {
@@ -317,7 +326,7 @@ export function useResizeFlip(
                 // 挪了位置（删了又插回来）的不算删。
                 if (!(node instanceof HTMLElement) || node.isConnected || leaving.has(node))
                   continue
-                const slot = slots.get(node)
+                const slot = slots?.get(node)
                 if (slot !== undefined && seen(band, origin + slot.top, slot.height)) {
                   leaveAt(list, node, slot)
                 }
@@ -325,7 +334,12 @@ export function useResizeFlip(
             }
             if (enter) {
               for (const node of record.addedNodes) {
-                if (node instanceof HTMLElement && !leaving.has(node) && !slots.has(node)) {
+                if (
+                  node instanceof HTMLElement &&
+                  !leaving.has(node) &&
+                  slots !== null &&
+                  !slots.has(node)
+                ) {
                   const box = node.getBoundingClientRect()
                   if (seen(band, box.top, box.height)) enterIn(node)
                 }

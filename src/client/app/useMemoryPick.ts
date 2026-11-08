@@ -59,14 +59,14 @@ export function useMemoryPick(options: {
   const { t, store, doc, workflow, root, edit, notify } = options
   const [pick, setPick] = useState<MemoryPickState | null>(null)
   const [busy, setBusy] = useState(false)
-  // 最后一次按下、或拖放松手的位置（相对视图根）：没有按钮可贴时菜单弹在这儿（从步骤库拖来的就在落点）。
+  // 最后一次按下、或拖放松手的位置（屏幕坐标）：没有按钮可贴时菜单弹在这儿（从步骤库拖来的就在落点）。
   const pointer = useRef<{ x: number; y: number } | null>(null)
   useEffect(() => {
     const element = root.current
     if (element === null) return
+    // 只记屏幕坐标，开菜单时再换成相对位置：每次按下都量一次的话，拖卡片、换选中那一下会被逼着先排一遍版。
     const onDown = (event: MouseEvent): void => {
-      const box = element.getBoundingClientRect()
-      pointer.current = { x: event.clientX - box.left, y: event.clientY - box.top }
+      pointer.current = { x: event.clientX, y: event.clientY }
     }
     // 捕获阶段：先于画布自己的 drop 处理记下位置，那里接着就会开菜单。
     element.addEventListener('pointerdown', onDown, true)
@@ -91,7 +91,9 @@ export function useMemoryPick(options: {
       const raw =
         rect !== undefined
           ? { x: rect.left - box.left, y: rect.bottom - box.top + 6 }
-          : (pointer.current ?? { x: box.width / 2 - MEMORY_PICKER_W / 2, y: box.height / 3 })
+          : pointer.current !== null
+            ? { x: pointer.current.x - box.left, y: pointer.current.y - box.top }
+            : { x: box.width / 2 - MEMORY_PICKER_W / 2, y: box.height / 3 }
       return {
         x: Math.max(GAP, Math.min(raw.x, box.width - (width ?? MEMORY_PICKER_W) - GAP)),
         y: Math.max(GAP, Math.min(raw.y, box.height - 320)),
