@@ -16,7 +16,7 @@ import { shortTime } from '../../model/time.ts'
 import { Icon } from '../kit/Icon.tsx'
 import { cx, Popover } from '../kit/primitives.tsx'
 import ui from '../kit/ui.module.css'
-import { SwapIcon } from '../motion/motion.tsx'
+import { SwapIcon } from '../motion/swapText.tsx'
 import css from './topbar.module.css'
 
 export interface LaunchProps {

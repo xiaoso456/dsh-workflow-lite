@@ -30,14 +30,10 @@ import { stepName } from '../kit/resourceUi.ts'
 import { Segmented } from '../kit/Segmented.tsx'
 import { lookOf, StepMark } from '../kit/StepMark.tsx'
 import ui from '../kit/ui.module.css'
-import {
-  CheckMark,
-  EDIT_VIEW,
-  SwitchTrack,
-  useResizeFlip,
-  useRowKeys,
-  useSwap,
-} from '../motion/motion.tsx'
+import { useResizeFlip } from '../motion/flip.ts'
+import { CheckMark, SwitchTrack } from '../motion/marks.tsx'
+import { useRowKeys } from '../motion/stage.tsx'
+import { EDIT_VIEW, useSwap } from '../motion/swap.tsx'
 import hand from './handoff.module.css'
 import css from './input.module.css'
 import ins from './inspector.module.css'

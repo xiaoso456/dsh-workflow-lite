@@ -8,7 +8,9 @@
 
 import { Icon, type IconName } from '../kit/Icon.tsx'
 import { cx } from '../kit/primitives.tsx'
-import { Checkbox, SwapText, useTrail } from '../motion/motion.tsx'
+import { useTrail } from '../motion/flip.ts'
+import { Checkbox } from '../motion/marks.tsx'
+import { SwapText } from '../motion/swapText.tsx'
 import hub from './hub.module.css'
 import css from './pack.module.css'
 

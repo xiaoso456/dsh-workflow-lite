@@ -21,7 +21,7 @@ import { EditActions } from '../kit/EditActions.tsx'
 import { Icon } from '../kit/Icon.tsx'
 import { cx } from '../kit/primitives.tsx'
 import ui from '../kit/ui.module.css'
-import { Presence, useLineExit } from '../motion/motion.tsx'
+import { Presence, useLineExit } from '../motion/exits.tsx'
 import { graphLine } from '../run/RunDraftBar.tsx'
 import v from './versions.module.css'
 

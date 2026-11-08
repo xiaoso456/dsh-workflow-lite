@@ -30,18 +30,12 @@ import { Icon } from '../kit/Icon.tsx'
 import overlay from '../kit/overlay.module.css'
 import { cx, Modal } from '../kit/primitives.tsx'
 import ui from '../kit/ui.module.css'
-import {
-  CheckMark,
-  FadeMark,
-  FadeText,
-  markSwap,
-  PickThumb,
-  Presence,
-  type StageDir,
-  useResizeFlip,
-  useStage,
-  useTrail,
-} from '../motion/motion.tsx'
+import { Presence } from '../motion/exits.tsx'
+import { useResizeFlip, useTrail } from '../motion/flip.ts'
+import { CheckMark, FadeMark, FadeText } from '../motion/marks.tsx'
+import { type StageDir, useStage } from '../motion/stage.tsx'
+import { markSwap } from '../motion/swap.tsx'
+import { PickThumb } from '../motion/thumb.tsx'
 import { FilterBar, PathBar, UpRow } from './DirParts.tsx'
 import css from './picker.module.css'
 

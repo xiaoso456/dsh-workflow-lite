@@ -32,7 +32,8 @@ import {
   sameItem,
 } from '../kit/resourceUi.ts'
 import ui from '../kit/ui.module.css'
-import { useResizeFlip, useRowKeys } from '../motion/motion.tsx'
+import { useResizeFlip } from '../motion/flip.ts'
+import { useRowKeys } from '../motion/stage.tsx'
 import { HostPicker, type PickMode } from './HostPicker.tsx'
 import { ResourceItemDialog } from './ResourceItemDialog.tsx'
 import css from './resource.module.css'

@@ -23,7 +23,7 @@ import overlay from '../kit/overlay.module.css'
 import { cx, Modal } from '../kit/primitives.tsx'
 import { Segmented } from '../kit/Segmented.tsx'
 import ui from '../kit/ui.module.css'
-import { useResizeFlip } from '../motion/motion.tsx'
+import { useResizeFlip } from '../motion/flip.ts'
 import css from './inspector.module.css'
 
 type OutputMode = 'unset' | 'file' | 'none'

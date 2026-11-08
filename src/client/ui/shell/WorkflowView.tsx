@@ -54,13 +54,9 @@ import { HubDialog } from '../hub/HubDialog.tsx'
 import { Icon } from '../kit/Icon.tsx'
 import { cx, ModalHostProvider } from '../kit/primitives.tsx'
 import ui from '../kit/ui.module.css'
-import {
-  ExitSeat,
-  expectCanvasMove,
-  SWITCH_HOLD_MS,
-  useSwapHold,
-  useViewGhost,
-} from '../motion/motion.tsx'
+import { expectCanvasMove } from '../motion/canvasMoving.ts'
+import { ExitSeat, useViewGhost } from '../motion/exits.tsx'
+import { SWITCH_HOLD_MS, useSwapHold } from '../motion/swap.tsx'
 import { MemoryPicker } from '../resources/MemoryPicker.tsx'
 import { TextDialog } from '../run/RunItemDialog.tsx'
 import { RunView } from '../run/RunView.tsx'

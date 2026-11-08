@@ -2,7 +2,7 @@
  * dsh-workflow-lite — 文件夹浏览（实例里点开文件夹资源）：左边列表、右边预览。
  *
  * 左右两栏顶上各有一条 46px 的标题行（搜索框 / 文件名），分隔线在同一高度。
- * 动的只有 transform / opacity：换层的横向交接在 motion.tsx（useStage / useTrail），选中块（.thumb）跟着光标上下滑。
+ * 动的只有 transform / opacity：换层的横向交接在 motion/stage.tsx、motion/flip.ts（useStage / useTrail），选中块（.thumb）跟着光标上下滑。
  * 容器窄到放不下两栏（框被缩得很窄）时一次只看一栏，预览标题行多出一个「回到列表」。
  */
 

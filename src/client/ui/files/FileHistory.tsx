@@ -29,7 +29,7 @@ import { Icon } from '../kit/Icon.tsx'
 import { cx } from '../kit/primitives.tsx'
 import { Segmented } from '../kit/Segmented.tsx'
 import ui from '../kit/ui.module.css'
-import { FadeMark, FadeText } from '../motion/motion.tsx'
+import { FadeMark, FadeText } from '../motion/marks.tsx'
 import { DocContent } from './DocViewer.tsx'
 import css from './files.module.css'
 

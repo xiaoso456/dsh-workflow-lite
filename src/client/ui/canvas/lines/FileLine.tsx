@@ -7,7 +7,7 @@
 import { BaseEdge, type EdgeProps, getBezierPath } from '@xyflow/react'
 import { memo } from 'react'
 import { cx } from '../../kit/primitives.tsx'
-import { SwapIcon, SwapText, useLast } from '../../motion/motion.tsx'
+import { SwapIcon, SwapText, useLast } from '../../motion/swapText.tsx'
 import css from '../canvas.module.css'
 import type { FileEdge } from '../types.ts'
 import { FlowStreaks } from './FlowStreaks.tsx'

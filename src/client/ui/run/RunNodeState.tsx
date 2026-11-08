@@ -22,7 +22,9 @@ import { PreviewCard } from '../files/PreviewCard.tsx'
 import { Icon, type IconName } from '../kit/Icon.tsx'
 import { cx } from '../kit/primitives.tsx'
 import ui from '../kit/ui.module.css'
-import { FadeMark, FadeText, PickThumb, SwapText, useTrend } from '../motion/motion.tsx'
+import { FadeMark, FadeText } from '../motion/marks.tsx'
+import { SwapText, useTrend } from '../motion/swapText.tsx'
+import { PickThumb } from '../motion/thumb.tsx'
 import run from './run.module.css'
 
 /** 步骤状态的一句话说明（悬停提示）。 */
@@ -76,7 +78,7 @@ export interface ChoiceOption<V extends string> {
 
 /**
  * 一排可换行的状态按钮（单选）：选中块从旧的一个滑到新的一个，颜色跟着状态色交叉淡过去
- * （见 motion.tsx 的 PickThumb）；字和小图标的颜色是两层交叉淡（FadeText / FadeMark），
+ * （见 motion/thumb.tsx 的 PickThumb）；字和小图标的颜色是两层交叉淡（FadeText / FadeMark），
  * 字重不变，换选中时这一排不会被挤动。
  */
 export function Choices<V extends string>(props: {

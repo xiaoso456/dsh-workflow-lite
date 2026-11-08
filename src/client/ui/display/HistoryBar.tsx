@@ -22,7 +22,7 @@ import { shortTime } from '../../model/time.ts'
 import { Icon } from '../kit/Icon.tsx'
 import { cx, FLOAT_EXIT_MS, useFloat } from '../kit/primitives.tsx'
 import ui from '../kit/ui.module.css'
-import { SwapText, useTrend } from '../motion/motion.tsx'
+import { SwapText, useTrend } from '../motion/swapText.tsx'
 import css from './display.module.css'
 
 /**

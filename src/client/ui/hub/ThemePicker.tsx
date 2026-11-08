@@ -24,7 +24,7 @@ import {
 } from '../../model/themes.ts'
 import { Icon } from '../kit/Icon.tsx'
 import { Segmented } from '../kit/Segmented.tsx'
-import { PickThumb } from '../motion/motion.tsx'
+import { PickThumb } from '../motion/thumb.tsx'
 import hub from './hub.module.css'
 import css from './themePicker.module.css'
 

@@ -390,7 +390,7 @@ label.resultRow::after {
 }
 
 /*
- * 整份写出 / 在原文件上更新：两格的小开关，换法同实例里的状态按钮（motion.tsx 的 PickThumb）。
+ * 整份写出 / 在原文件上更新：两格的小开关，换法同实例里的状态按钮（motion/thumb.tsx 的 PickThumb）。
  * 两格等宽；底下一块滑块滑过去，滑块的两层底色（产出 / 更新）交叉淡入，字色也是两层交叉淡过去，
  * 新选中的字弹一下。全程只动 transform / opacity。
  */

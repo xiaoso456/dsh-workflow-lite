@@ -10,7 +10,7 @@
  * - **存储**（`HubStorage.tsx`）：数据目录、各样东西的占用，清理已结束的实例与旧版本遗留文件；
  * - **设置**（`HubSettings.tsx`）：插件自己的几项设置（数据目录、步骤上限、自动保存等待……）。
  *
- * 换页时新的一页从点的那一侧滑进来（动效都只动 transform / opacity，见 `motion.tsx` 与 hub.module.css）。
+ * 换页时新的一页从点的那一侧滑进来（动效都只动 transform / opacity，见 `motion/` 里的各文件与 hub.module.css）。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/HubDialog
  */

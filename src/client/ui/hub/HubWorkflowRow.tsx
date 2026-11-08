@@ -17,7 +17,7 @@ import { EditActions } from '../kit/EditActions.tsx'
 import { Icon } from '../kit/Icon.tsx'
 import { cx } from '../kit/primitives.tsx'
 import ui from '../kit/ui.module.css'
-import { useLineExit } from '../motion/motion.tsx'
+import { useLineExit } from '../motion/exits.tsx'
 import hub from './hub.module.css'
 
 export interface HubWorkflowRowProps {

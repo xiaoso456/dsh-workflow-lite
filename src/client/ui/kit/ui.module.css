@@ -472,7 +472,7 @@
 }
 
 /*
- * 列表的选中底块（`motion.tsx` 的 ListThumb）：换选中时靠 transform 滑过去；
+ * 列表的选中底块（`motion/thumb.tsx` 的 ListThumb）：换选中时靠 transform 滑过去；
  * 第一次摆好之前不带过渡。项要 `position: relative` 才盖在它上面。
  */
 .listThumb {
@@ -509,7 +509,7 @@
 }
 
 /*
- * 单选组的选中块（`motion.tsx` 的 PickThumb）：滑动由 Web Animations 放（transform），
+ * 单选组的选中块（`motion/thumb.tsx` 的 PickThumb）：滑动由 Web Animations 放（transform），
  * 这里只管显隐、换色时各层的交叉淡入淡出。圆角、底色、描边由调用方的类给。
  * 组要 `position: relative`，项要 `position: relative` 才盖在它上面。
  */
@@ -546,7 +546,7 @@
 }
 
 /*
- * 随选中态变色的字、图标（`motion.tsx` 的 FadeText / FadeMark）：灰、强调色两层交叉淡，不是颜色瞬切。
+ * 随选中态变色的字、图标（`motion/marks.tsx` 的 FadeText / FadeMark）：灰、强调色两层交叉淡，不是颜色瞬切。
  * 颜色靠自定义属性：`--wl-off` 没选中（默认 text-2）、`--wl-on` 选中（字默认 text、图标默认 accent-text）；
  * 悬停变深就在外面的 `:hover` 里改 `--wl-off`。
  */
@@ -640,7 +640,7 @@
 }
 
 /*
- * 圆圈和 ✓ 是同一条描边路径（motion.tsx 的 CheckMark）：路径先绕圆一周，再一笔写出 ✓。
+ * 圆圈和 ✓ 是同一条描边路径（motion/marks.tsx 的 CheckMark）：路径先绕圆一周，再一笔写出 ✓。
  * 照 Uiverse 的「描边变形」。虚线的一段窗口决定看见哪部分——没选中时窗口罩住整圈（圆环），选中时窗口滑到 ✓ 那一段：
  * 窗口的起点和长度一起过渡，圆环就像被收成了 ✓，取消时再放开成圆环。
  * 圆环不是正圆：宿主给所有圆角都设了 `corner-shape: superellipse(1.5)`，底色那层 50% 圆角因此是「超椭圆」，
@@ -680,7 +680,7 @@
 /*
  * 勾选标记的样子，全局只有这一份（`.check`）：16px 圆形（单选、多选、勾选一律是它，不分方圆），
  * 没有填充：选中只是圆环收成 ✓、整体换成强调色（`.checkDraw`）。
- * 用法有三种，样子一样：motion.tsx 的 `Checkbox`（原生 input）、`CheckBox`（纯展示，包在按钮里）、
+ * 用法有三种，样子一样：motion/marks.tsx 的 `Checkbox`（原生 input）、`CheckBox`（纯展示，包在按钮里）、
  * 或者自己是个 `<button role="checkbox">`（`class="check"` + `<CheckMark />`）。
  * 模块自己的 CSS 只管位置（边距、悬停才露出），不再重写方框。
  */
@@ -750,7 +750,7 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
   --check-line: var(--wl-accent);
 }
 
-/* 原生勾选框（motion.tsx 的 Checkbox）：真的 <input> 透明地叠在上面（键盘、label 点击、表单语义都照旧）。 */
+/* 原生勾选框（motion/marks.tsx 的 Checkbox）：真的 <input> 透明地叠在上面（键盘、label 点击、表单语义都照旧）。 */
 .checkbox {
   position: relative;
   display: inline-grid;
@@ -775,7 +775,7 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
   cursor: default;
 }
 
-/* 描边层（motion.tsx 的 FadeRing）：新状态的一层淡入、旧状态的一层淡出。 */
+/* 描边层（motion/marks.tsx 的 FadeRing）：新状态的一层淡入、旧状态的一层淡出。 */
 .ringIn {
   animation: ringIn 220ms linear backwards;
 }
@@ -1424,7 +1424,7 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
   }
 }
 
-/* ── 出现 / 消失的一块（motion.tsx 的 Presence）──────────────── */
+/* ── 出现 / 消失的一块（motion/exits.tsx 的 Presence）──────────────── */
 
 .presence {
   display: grid;
@@ -1453,7 +1453,7 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
   overflow: hidden;
 }
 
-/* ── 按步骤换的一块（motion.tsx 的 Staged）────────────────────── */
+/* ── 按步骤换的一块（motion/stage.tsx 的 Staged）────────────────────── */
 
 /* 外层：影子绝对定位摆在里面，退场时不越出这块。间距沿用父元素的（gap: inherit 一层层传下来）。 */
 .stage {
@@ -1474,7 +1474,7 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
   min-height: 0;
 }
 
-/* ── 同一处换一版内容（motion.tsx 的 SlideSwap）────────────────── */
+/* ── 同一处换一版内容（motion/stage.tsx 的 SlideSwap）────────────────── */
 
 /* 显示着的那层照常排版（交互时由外面滚）；垫在底下读的、正在滑走的叠在上面，不占位置、不接鼠标。 */
 .slides {
@@ -1503,7 +1503,7 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
   opacity: 0;
 }
 
-/* ── 叠在同一格里轮流出现的几段话（motion.tsx 的 FadeStack）───────── */
+/* ── 叠在同一格里轮流出现的几段话（motion/stage.tsx 的 FadeStack）───────── */
 
 .fadeStack {
   display: grid;
@@ -1742,7 +1742,7 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
   }
 }
 
-/* 「是 / 否」的小状态（motion.tsx 的 DotState）：是 = 绿点实心 + 绿字，否 = 空心灰圈 + 灰字。 */
+/* 「是 / 否」的小状态（motion/marks.tsx 的 DotState）：是 = 绿点实心 + 绿字，否 = 空心灰圈 + 灰字。 */
 .dotState {
   display: inline-flex;
   gap: 5px;
@@ -1973,7 +1973,7 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
  * 外面用负的左外边距把字对齐到旁边的文字。
  */
 .lineField {
-  /* 线伸出、缩回的时长：进入（动画）、离开（过渡）、卸掉时的影子（motion.tsx 的 useLineExit 读这个值）共用一份。 */
+  /* 线伸出、缩回的时长：进入（动画）、离开（过渡）、卸掉时的影子（motion/exits.tsx 的 useLineExit 读这个值）共用一份。 */
   --line-ms: 240ms;
 
   position: relative;
@@ -2156,7 +2156,7 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
 }
 
 /*
- * 卡片换样子的交叉淡（motion.tsx 的 crossfade，View Transitions）：只有标了名字的卡片两张快照在淡，
+ * 卡片换样子的交叉淡（motion/crossfade.ts 的 crossfade，View Transitions）：只有标了名字的卡片两张快照在淡，
  * 整页（root）不淡——新的那张本来就是活的页面，叠在旧图上照常显示。快照层不接指针：过渡中点下一张小样照样点得到。
  */
 :global(html:active-view-transition-type(wl-crossfade)::view-transition) {

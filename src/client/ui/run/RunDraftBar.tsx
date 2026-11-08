@@ -21,7 +21,7 @@ import { useConfirm } from '../kit/Confirm.tsx'
 import { Icon } from '../kit/Icon.tsx'
 import { cx, Popover } from '../kit/primitives.tsx'
 import ui from '../kit/ui.module.css'
-import { useExit } from '../motion/motion.tsx'
+import { useExit } from '../motion/exits.tsx'
 import { RUN_STATUS_TEXT } from './RunTopBar.tsx'
 import run from './run.module.css'
 

@@ -6,7 +6,7 @@
 
 import { useState } from 'react'
 import css from '../display/display.module.css'
-import { SwapText, useTrend } from '../motion/motion.tsx'
+import { SwapText, useTrend } from '../motion/swapText.tsx'
 import { Icon } from './Icon.tsx'
 import { cx } from './primitives.tsx'
 

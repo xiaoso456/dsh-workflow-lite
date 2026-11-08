@@ -856,7 +856,7 @@ input.statusNote {
 }
 
 /*
- * 左栏列表：选中底色是一块滑块（motion.tsx 的 ListThumb），换选中时滑过去；
+ * 左栏列表：选中底色是一块滑块（motion/thumb.tsx 的 ListThumb），换选中时滑过去；
  * 各项挂上时依次淡入，筛选、增删时留下的项滑到新位置（都在 useFlip 里）。
  */
 .wfList {

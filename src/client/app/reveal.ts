@@ -5,7 +5,7 @@
  */
 
 import type { ReactFlowInstance } from '@xyflow/react'
-import { expectCanvasMove } from '../ui/motion/motion.tsx'
+import { expectCanvasMove } from '../ui/motion/canvasMoving.ts'
 
 export interface RevealOptions {
   flow: Pick<ReactFlowInstance, 'getViewport' | 'setViewport'>

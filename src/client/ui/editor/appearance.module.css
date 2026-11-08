@@ -222,7 +222,7 @@
 
 /*
  * 选中的图标：当前颜色的浅底 + 当前颜色的笔画，和卡片上的图标块一个样子。
- * 浅底是滑过去的选中块（`.iconThumb`，motion.tsx 的 PickThumb），每种颜色一层，换颜色时交叉淡过去。
+ * 浅底是滑过去的选中块（`.iconThumb`，motion/thumb.tsx 的 PickThumb），每种颜色一层，换颜色时交叉淡过去。
  */
 .icon[aria-checked="true"] {
   color: var(--wl-swatch);

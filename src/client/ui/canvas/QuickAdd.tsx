@@ -19,7 +19,7 @@ import css from '../kit/overlay.module.css'
 import { cx, useDismiss } from '../kit/primitives.tsx'
 import { StepMark } from '../kit/StepMark.tsx'
 import ui from '../kit/ui.module.css'
-import { useExit } from '../motion/motion.tsx'
+import { useExit } from '../motion/exits.tsx'
 
 /** 菜单的估算尺寸：用来在贴边时往回收，别伸出视图外。 */
 const MENU_W = 260

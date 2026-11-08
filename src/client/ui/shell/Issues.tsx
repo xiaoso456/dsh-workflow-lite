@@ -11,7 +11,7 @@ import type { LocaleKey, T } from '../../i18n.ts'
 import { Icon } from '../kit/Icon.tsx'
 import { cx, Popover } from '../kit/primitives.tsx'
 import ui from '../kit/ui.module.css'
-import { SwapIcon, SwapText } from '../motion/motion.tsx'
+import { SwapIcon, SwapText } from '../motion/swapText.tsx'
 import css from './topbar.module.css'
 
 const LEVEL_TEXT: Record<ValidationLevel, LocaleKey> = {

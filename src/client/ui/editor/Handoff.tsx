@@ -18,7 +18,7 @@ import type { Edit } from '../../model/editor.ts'
 import { Icon } from '../kit/Icon.tsx'
 import { cx, HelpTip } from '../kit/primitives.tsx'
 import ui from '../kit/ui.module.css'
-import { Checkbox } from '../motion/motion.tsx'
+import { Checkbox } from '../motion/marks.tsx'
 import css from './handoff.module.css'
 import ins from './inspector.module.css'
 

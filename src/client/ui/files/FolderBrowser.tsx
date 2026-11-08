@@ -41,14 +41,9 @@ import { Icon } from '../kit/Icon.tsx'
 import { cx } from '../kit/primitives.tsx'
 import { Segmented } from '../kit/Segmented.tsx'
 import ui from '../kit/ui.module.css'
-import {
-  type StageDir,
-  SwapNode,
-  SwapText,
-  useStage,
-  useTrail,
-  useTrend,
-} from '../motion/motion.tsx'
+import { useTrail } from '../motion/flip.ts'
+import { type StageDir, useStage } from '../motion/stage.tsx'
+import { SwapNode, SwapText, useTrend } from '../motion/swapText.tsx'
 import { FilterBar, PathBar, UpRow } from '../resources/DirParts.tsx'
 import picker from '../resources/picker.module.css'
 import { headFields, SkillMetaList } from '../resources/SkillPreview.tsx'

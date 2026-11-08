@@ -40,7 +40,7 @@ import {
 } from 'react'
 import { afterPaint } from '../../../app/reveal.ts'
 import { type MeasuredPath, measurePath } from '../../../model/pathSample.ts'
-import { useCanvasMoving } from '../../motion/motion.tsx'
+import { useCanvasMoving } from '../../motion/canvasMoving.ts'
 import css from '../canvas.module.css'
 import { OnLabels } from './LabelLayer.tsx'
 

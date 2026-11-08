@@ -23,7 +23,7 @@ import { Icon, type IconName } from '../kit/Icon.tsx'
 import { cx, Popover } from '../kit/primitives.tsx'
 import { StepMark } from '../kit/StepMark.tsx'
 import ui from '../kit/ui.module.css'
-import { PickThumb } from '../motion/motion.tsx'
+import { PickThumb } from '../motion/thumb.tsx'
 import css from './appearance.module.css'
 
 /** 下面一格：一个值、画哪个图标；`tip` 是悬停的字，`disabled` 是点不了（`tip` 里写原因）。 */

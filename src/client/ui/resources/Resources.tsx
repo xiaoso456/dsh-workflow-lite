@@ -39,7 +39,9 @@ import { cx, Popover } from '../kit/primitives.tsx'
 import { freeFilePath, itemText, KIND_ICON, stepName } from '../kit/resourceUi.ts'
 import { Segmented } from '../kit/Segmented.tsx'
 import ui from '../kit/ui.module.css'
-import { FadeText, PickThumb, useResizeFlip } from '../motion/motion.tsx'
+import { useResizeFlip } from '../motion/flip.ts'
+import { FadeText } from '../motion/marks.tsx'
+import { PickThumb } from '../motion/thumb.tsx'
 import res from './resource.module.css'
 
 /** 资源的小图标：只有一项时用那一项的种类图标，否则是一叠。 */

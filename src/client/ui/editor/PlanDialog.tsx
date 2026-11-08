@@ -18,7 +18,7 @@ import css from '../kit/overlay.module.css'
 import { copyText, cx, useSheetMotion } from '../kit/primitives.tsx'
 import { Segmented } from '../kit/Segmented.tsx'
 import ui from '../kit/ui.module.css'
-import { SwapIcon, SwapText } from '../motion/motion.tsx'
+import { SwapIcon, SwapText } from '../motion/swapText.tsx'
 
 type Version = 'model' | 'human'
 type View = 'rendered' | 'source'

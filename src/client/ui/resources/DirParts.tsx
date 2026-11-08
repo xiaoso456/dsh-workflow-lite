@@ -15,7 +15,7 @@
 import { Icon } from '../kit/Icon.tsx'
 import { cx } from '../kit/primitives.tsx'
 import ui from '../kit/ui.module.css'
-import { FadeMark, FadeText } from '../motion/motion.tsx'
+import { FadeMark, FadeText } from '../motion/marks.tsx'
 import css from './picker.module.css'
 
 /** 路径栏里的一级。`onGo` 缺省就只是个字（折起来的「…」）。 */

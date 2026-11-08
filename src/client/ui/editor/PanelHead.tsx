@@ -12,7 +12,7 @@ import type { T } from '../../i18n.ts'
 import { Icon } from '../kit/Icon.tsx'
 import { copyText, cx } from '../kit/primitives.tsx'
 import ui from '../kit/ui.module.css'
-import { SwapIcon } from '../motion/motion.tsx'
+import { SwapIcon } from '../motion/swapText.tsx'
 import css from './inspector.module.css'
 
 export function PanelHead(props: {

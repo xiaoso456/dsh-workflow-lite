@@ -76,14 +76,9 @@ import { FileViewer } from '../files/FileViewer.tsx'
 import { Icon } from '../kit/Icon.tsx'
 import { cx } from '../kit/primitives.tsx'
 import ui from '../kit/ui.module.css'
-import {
-  ExitSeat,
-  expectCanvasMove,
-  SWITCH_HOLD_MS,
-  useSwap,
-  useSwapHold,
-  useViewGhost,
-} from '../motion/motion.tsx'
+import { expectCanvasMove } from '../motion/canvasMoving.ts'
+import { ExitSeat, useViewGhost } from '../motion/exits.tsx'
+import { SWITCH_HOLD_MS, useSwap, useSwapHold } from '../motion/swap.tsx'
 import { ZoomDock } from '../shell/Dock.tsx'
 import shell from '../shell/shell.module.css'
 import type { TopSlots } from '../shell/TopBar.tsx'

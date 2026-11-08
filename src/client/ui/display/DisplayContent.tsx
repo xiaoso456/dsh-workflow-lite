@@ -39,7 +39,7 @@ import { Stepper } from '../kit/NumberStep.tsx'
 import { cx } from '../kit/primitives.tsx'
 import { Segmented } from '../kit/Segmented.tsx'
 import { Select } from '../kit/Select.tsx'
-import { SwitchTrack } from '../motion/motion.tsx'
+import { SwitchTrack } from '../motion/marks.tsx'
 import css from './display.module.css'
 import { patchTable } from './ResourceDisplay.tsx'
 

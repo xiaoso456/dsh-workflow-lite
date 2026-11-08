@@ -1471,7 +1471,7 @@ button.tile:focus-visible {
   transform-origin: right center;
 }
 
-/* 打开展示时从右边长出来（关掉时由 motion.tsx 的 useExit 原地缩回）；刷新、换选中时就在那，不放。 */
+/* 打开展示时从右边长出来（关掉时由 motion/exits.tsx 的 useExit 原地缩回）；刷新、换选中时就在那，不放。 */
 .adjust[data-grow] {
   animation: adjustIn 320ms var(--wl-spring) both;
 }

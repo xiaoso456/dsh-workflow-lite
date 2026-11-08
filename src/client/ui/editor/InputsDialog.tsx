@@ -17,7 +17,7 @@ import { Icon } from '../kit/Icon.tsx'
 import overlay from '../kit/overlay.module.css'
 import { cx, Modal } from '../kit/primitives.tsx'
 import ui from '../kit/ui.module.css'
-import { CheckBox } from '../motion/motion.tsx'
+import { CheckBox } from '../motion/marks.tsx'
 import hand from './handoff.module.css'
 import css from './inputs-dialog.module.css'
 
