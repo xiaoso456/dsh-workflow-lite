@@ -196,8 +196,3 @@ export async function compileDocument(
     result: { planId, plan: result.plan, problems: [], warnings, payloadPaths: asRecord() },
   }
 }
-
-/** 该图的警告与提示（画布校验面板用）。 */
-export function nonBlockingProblems(problems: readonly ValidationProblem[]): ValidationProblem[] {
-  return problems.filter((problem) => problem.level === 'warning' || problem.level === 'hint')
-}

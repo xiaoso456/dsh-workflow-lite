@@ -15,9 +15,6 @@ import type { Volatile } from '@deepseek-ai/cordis'
 import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
 import z from '@deepseek-ai/schemastery'
 
-/** 设置命名空间——同一个 kebab-case 串也是 locale 的 NS。 */
-export const WORKFLOW_LITE_SETTINGS_NS = 'workflow-lite'
-
 /** 插件在 profile 里的那一行的 id（`cordis.patch.yml` 的 `insert.id`）。 */
 export const WORKFLOW_LITE_ROW_ID = 'workflow-lite'
 

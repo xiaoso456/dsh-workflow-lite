@@ -714,13 +714,3 @@ function reaches(analysis: GraphAnalysis, from: string, to: string): boolean {
   }
   return false
 }
-
-/** 把一份报告摊平成一条通道（`warnings` 用；`problems` 只装编译级，见 8.2）。 */
-export function toWarnings(
-  report: ValidationReport,
-): Array<{ level: 'warning' | 'hint' } & ValidationProblem> {
-  return [...report.warning, ...report.hint].map((problem) => ({
-    ...problem,
-    level: problem.level === 'warning' ? 'warning' : 'hint',
-  }))
-}

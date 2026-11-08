@@ -399,14 +399,8 @@ export interface Handoff {
   note: string
 }
 
-/** 顶层键序（canonical writer 与白名单的唯一口径）。 */
-export const DOCUMENT_KEYS = ['nodes', 'edges', 'viewport', 'settings'] as const
-
 /** node 的写出键序。 */
 export const NODE_KEYS = ['id', 'type', 'position', 'data'] as const
-
-/** edge 的写出键序。 */
-export const EDGE_KEYS = ['id', 'source', 'target', 'sourceHandle', 'targetHandle', 'data'] as const
 
 // ─────────────────────────────────────────────────────────────
 // 模板

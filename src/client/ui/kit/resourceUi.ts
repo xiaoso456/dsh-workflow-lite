@@ -6,7 +6,7 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/kit/resourceUi
  */
 
-import { idKey, isInput, isResource, itemShortName } from '../../../shared/model.ts'
+import { isInput, isResource, itemShortName } from '../../../shared/model.ts'
 import { outputKey, resolveItemPath } from '../../../shared/outputPaths.ts'
 import { resourceTitle } from '../../../shared/resources.ts'
 import type {
@@ -18,9 +18,6 @@ import type {
 import type { HostSkillEntry } from '../../../shared/wire.ts'
 import type { LocaleKey } from '../../i18n.ts'
 import type { IconName } from './Icon.tsx'
-
-/** 呈现顺序 = 「添加」菜单里的顺序。 */
-export const KIND_ORDER: readonly ResourceKind[] = ['file', 'folder', 'url', 'skill', 'text']
 
 export const KIND_ICON: Record<ResourceKind, IconName> = {
   file: 'file',
@@ -146,12 +143,6 @@ export function stepName(node: WorkflowNode | undefined, fallback: string): stri
   return node.data.label === undefined || node.data.label === '' ? node.id : node.data.label
 }
 
-/** 路径的最后一段（卡片标题里放不下整条路径）。 */
-export function baseName(path: string): string {
-  const parts = path.split(/[\\/]/u).filter((part) => part !== '' && part !== '.')
-  return parts[parts.length - 1] ?? path
-}
-
 /** 图里没被资源占用的文件路径：`x.md` 被占了就 `x-2.md`、`x-3.md`… */
 export function freeFilePath(doc: WorkflowDocument, want: string): string {
   const taken = new Set(
@@ -179,9 +170,4 @@ export function sameItem(a: ResourceItem, b: ResourceItem): boolean {
     return outputKey(a.value).toLowerCase() === outputKey(b.value).toLowerCase()
   }
   return a.value.trim() === b.value.trim()
-}
-
-/** 是不是同一个节点。 */
-export function sameId(a: string, b: string): boolean {
-  return idKey(a) === idKey(b)
 }
