@@ -1,7 +1,7 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { Markdown } from '../../src/client/ui/Markdown.tsx'
+import { Markdown } from '../../src/client/ui/files/Markdown.tsx'
 
 const t = (key: string): string => key
 const html = (text: string): string => renderToStaticMarkup(createElement(Markdown, { t, text }))

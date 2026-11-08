@@ -25,7 +25,7 @@ import {
 } from './app/sessions.ts'
 import { en, NS, zh } from './i18n.ts'
 import { createWorkflowLiteRpc, requireRpcCarrier } from './rpc.ts'
-import { WorkflowView, type WorkflowViewInjected } from './ui/WorkflowView.tsx'
+import { WorkflowView, type WorkflowViewInjected } from './ui/shell/WorkflowView.tsx'
 
 /** 视图需要的三个客户端服务。 */
 export const inject = ['slots', 'locale', 'connection']

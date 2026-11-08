@@ -353,7 +353,7 @@ function withoutPreset(data: ResourceData): ResourceData {
 
 /**
  * 各预设的规矩。加新预设：在 `RESOURCE_PRESETS` 加种类、在这里写一套，
- * 界面（名字、图标、快捷配置）在 `client/ui/ResourcePresets.tsx` 配。
+ * 界面（名字、图标、快捷配置）在 `client/ui/resources/ResourcePresets.tsx` 配。
  */
 export const PRESET_SPECS: Record<ResourcePresetKind, PresetSpec> = {
   memory: {

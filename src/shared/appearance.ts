@@ -4,7 +4,7 @@
  * 图标与颜色只是认路的记号，**不进计划**。存在步骤的 `data.icon` / `data.color` 里；没存的老步骤
  * 按 id 猜（`review`、`review-2` 都是审查的样子，猜不中就是通用的样子）。
  *
- * 这里只有名字（host 与 client 都要用：校验、新建步骤时挑一个）；图标的笔画在 `client/ui/stepIcons.ts`。
+ * 这里只有名字（host 与 client 都要用：校验、新建步骤时挑一个）；图标的笔画在 `client/ui/kit/stepIcons.ts`。
  * 纯函数，不碰磁盘、不 import DSH 包。
  *
  * @module @xiaoso/dsh-workflow-lite/shared/appearance

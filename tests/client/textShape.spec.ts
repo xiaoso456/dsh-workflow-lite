@@ -11,7 +11,7 @@ import {
   sortOrder,
   tableFormat,
 } from '../../src/client/model/textShape.ts'
-import { nextSort } from '../../src/client/ui/DataTable.tsx'
+import { nextSort } from '../../src/client/ui/kit/DataTable.tsx'
 
 describe('tableFormat / delimiterOf', () => {
   it('按扩展名认 CSV、TSV', () => {

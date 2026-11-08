@@ -19,7 +19,7 @@ import {
   type StepSource,
 } from '../model/library.ts'
 import { copyTitle, takenLabels } from '../model/nodeName.ts'
-import { freeFilePath } from '../ui/resourceUi.ts'
+import { freeFilePath } from '../ui/kit/resourceUi.ts'
 
 export interface AddContext {
   t: T
@@ -29,7 +29,7 @@ export interface AddContext {
   loadTemplate(name: string): Promise<NodeData | null>
   /** 工作流名：新建记忆时默认 id 要用它；没有（实例视图）就加不了记忆。 */
   workflow?: string | null
-  /** 加记忆：弹出「选已有的 / 新建」（见 `ui/MemoryPicker.tsx`）；不给就加不了记忆。 */
+  /** 加记忆：弹出「选已有的 / 新建」（见 `ui/resources/MemoryPicker.tsx`）；不给就加不了记忆。 */
   pickMemory?: (request: MemoryPickRequest) => void
 }
 

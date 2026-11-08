@@ -42,11 +42,11 @@ describe('skill workflow-board', () => {
 
   it('卡片版的字号就是画布上步骤卡片的字号（标题 = 卡片标题，正文 = 卡片说明）', () => {
     const shell = readFileSync(
-      new URL('../../src/client/ui/shell.module.css', import.meta.url),
+      new URL('../../src/client/ui/shell/shell.module.css', import.meta.url),
       'utf8',
     )
     const canvas = readFileSync(
-      new URL('../../src/client/ui/canvas.module.css', import.meta.url),
+      new URL('../../src/client/ui/canvas/canvas.module.css', import.meta.url),
       'utf8',
     )
     const px = (name: string) =>

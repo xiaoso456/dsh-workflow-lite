@@ -53,7 +53,7 @@ export interface ThemeTokens {
   danger: string
   warn: string
   ok: string
-  /** 七种线：流程线按条件，读写线按读写（见 ui/lines.ts）。 */
+  /** 七种线：流程线按条件，读写线按读写（见 ui/canvas/lines.ts）。 */
   always: string
   pass: string
   fail: string

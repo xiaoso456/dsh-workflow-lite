@@ -1,5 +1,5 @@
 /**
- * dsh-workflow-lite — 加记忆、换一条记忆：弹「选已有的 / 新建」的小菜单（`ui/MemoryPicker.tsx`），选好了改图。
+ * dsh-workflow-lite — 加记忆、换一条记忆：弹「选已有的 / 新建」的小菜单（`ui/resources/MemoryPicker.tsx`），选好了改图。
  *
  * 三种目标：给步骤开记忆、在画布上加一张工作流记忆、给一张卡换引用（资源卡换成记忆，或记忆卡换一条）。
  * 库里没有同类型的就不弹，直接新建；换一条时照样弹（好看清现在是哪条、也能新建）。
@@ -16,7 +16,7 @@ import type { MemoryType, Point, WorkflowDocument } from '../../shared/types.ts'
 import type { T } from '../i18n.ts'
 import { type Edit, findNode } from '../model/editor.ts'
 import { errorMessage } from '../rpc.ts'
-import { MEMORY_PICKER_W } from '../ui/MemoryPicker.tsx'
+import { MEMORY_PICKER_W } from '../ui/resources/MemoryPicker.tsx'
 import { type MemoryStore, memoriesOfType } from './memories.ts'
 
 export type MemoryPickTarget =

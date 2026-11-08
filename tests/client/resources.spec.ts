@@ -1,5 +1,5 @@
 /**
- * 资源在画布上的样子：卡片高度的估算（`model/layout.ts`）、一项的简称、路径查重（`ui/resourceUi.ts`）。
+ * 资源在画布上的样子：卡片高度的估算（`model/layout.ts`）、一项的简称、路径查重（`ui/kit/resourceUi.ts`）。
  */
 
 import { describe, expect, it } from 'vitest'
@@ -22,7 +22,7 @@ import {
   itemText,
   sameItem,
   skillSource,
-} from '../../src/client/ui/resourceUi.ts'
+} from '../../src/client/ui/kit/resourceUi.ts'
 import { analyzeGraph } from '../../src/shared/graph.ts'
 import type { ResourceItem, WorkflowDocument } from '../../src/shared/types.ts'
 

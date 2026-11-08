@@ -123,7 +123,7 @@ describe('主题写成 CSS 变量', () => {
   })
 
   it('shell.module.css 用到的每个 --wl-l-* / --wl-d-* 都有值', () => {
-    const css = ['shell.module.css', 'canvas.module.css']
+    const css = ['shell/shell.module.css', 'canvas/canvas.module.css']
       .map((file) => readFileSync(new URL(`../../src/client/ui/${file}`, import.meta.url), 'utf8'))
       .join('\n')
     const used = new Set([...css.matchAll(/var\((--wl-[ld]-[a-z0-9-]+)\)/gu)].map((m) => m[1]))

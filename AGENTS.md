@@ -114,7 +114,7 @@ DSH_WEB_TOKEN=<token> DSH_BASE=http://127.0.0.1:3190 node --experimental-strip-t
 
 发群聊用的一张图：头像 + 词标、插件是什么、本版标题 + 4 条两列亮点、带版本号的安装命令。560 宽（出图 1120），整张深色直角不留透明边（聊天软件会把透明处铺成白底）。
 
-- 内容在 `tests/readme/release.json`（`intro` 写一次，`versions` 按版本写 `headline` + `items`），字数上限见其 `_说明`；排版在 `release.html`。图标名取 `src/client/ui/Icon.tsx`，色调 blue / green / gold / teal。
+- 内容在 `tests/readme/release.json`（`intro` 写一次，`versions` 按版本写 `headline` + `items`），字数上限见其 `_说明`；排版在 `release.html`。图标名取 `src/client/ui/kit/Icon.tsx`，色调 blue / green / gold / teal。
 - 出到 `tests/runs/release/v<版本>.<lang>.png`，不进库；版本号要在 CHANGELOG 里，日期从那里读。
 - 发版时从 CHANGELOG 挑 4 条用户最能感知的，各写一个标题加一行短话，句末不加句号；出图后看一眼，超长会被省略号截掉。
 

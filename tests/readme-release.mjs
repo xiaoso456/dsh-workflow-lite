@@ -3,7 +3,7 @@
  *
  * 内容来自三处：`tests/readme/release.json`（插件是什么、各版的亮点，手写）、`CHANGELOG.md`（这一版的日期，
  * 版本号必须在里面）、`package.json`（包名、缺省的版本号、仓库地址）。亮点的图标取插件自己的图标集
- * （`src/client/ui/Icon.tsx`、`stepIcons.ts`），和界面上的同一套。排版在 `tests/readme/release.html`。
+ * （`src/client/ui/kit/Icon.tsx`、`stepIcons.ts`），和界面上的同一套。排版在 `tests/readme/release.html`。
  *
  * 只需要一个带 DevTools 端口的 Chrome（`node tests/lib/cdp-chrome-launch.mjs 9222`），不用起 DSH。
  * 在 CDP 浏览器里另开一个标签页渲染，截完关掉。
@@ -34,7 +34,9 @@ const LANGS = langArg === undefined ? ['zh', 'en'] : [langArg]
 
 /** 插件图标集：`name: 'path'`（路径可能折到下一行）。 */
 async function readIcons() {
-  const files = ['Icon.tsx', 'stepIcons.ts'].map((name) => join(ROOT, 'src', 'client', 'ui', name))
+  const files = ['Icon.tsx', 'stepIcons.ts'].map((name) =>
+    join(ROOT, 'src', 'client', 'ui', 'kit', name),
+  )
   const icons = new Map()
   for (const text of await Promise.all(files.map((file) => readFile(file, 'utf8')))) {
     for (const match of text.matchAll(/^\s*(\w+):\s*'([^']+)'/gmu)) icons.set(match[1], match[2])

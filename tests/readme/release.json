@@ -1,5 +1,5 @@
 {
-  "_说明": "「版本更新卡片」的内容（pnpm run release-card [版本号] [zh|en]）。intro 写一次：插件是什么、安装标签等固定文字。versions 按版本号各写一段：headline 一句话说重点（≤ 20 个汉字 / 40 个英文字符）；items 挑 4 条（两列排，4 条正好两行），每条写 icon（src/client/ui/Icon.tsx 里的图标名）、tone（blue / green / gold / teal）、title（≤ 8 个汉字 / 18 个英文字符）、text（一行放下：≤ 16 个汉字 / 32 个英文字符，不重复 headline 和 title 说过的；整张图的句子末尾都不加句号），小签写 tag。版本号要在 CHANGELOG.md 里有。",
+  "_说明": "「版本更新卡片」的内容（pnpm run release-card [版本号] [zh|en]）。intro 写一次：插件是什么、安装标签等固定文字。versions 按版本号各写一段：headline 一句话说重点（≤ 20 个汉字 / 40 个英文字符）；items 挑 4 条（两列排，4 条正好两行），每条写 icon（src/client/ui/kit/Icon.tsx 里的图标名）、tone（blue / green / gold / teal）、title（≤ 8 个汉字 / 18 个英文字符）、text（一行放下：≤ 16 个汉字 / 32 个英文字符，不重复 headline 和 title 说过的；整张图的句子末尾都不加句号），小签写 tag。版本号要在 CHANGELOG.md 里有。",
   "intro": {
     "zh": {
       "kicker": "工作流插件",

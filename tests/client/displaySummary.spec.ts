@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { T } from '../../src/client/i18n.ts'
 import type { Display } from '../../src/client/model/display.ts'
-import { displaySummary } from '../../src/client/ui/DisplaySettings.tsx'
+import { displaySummary } from '../../src/client/ui/display/DisplaySettings.tsx'
 
 const t = ((key: string): string => key) as T
 const base: Display = {
