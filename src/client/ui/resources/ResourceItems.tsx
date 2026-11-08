@@ -37,7 +37,8 @@ import { useResizeFlip } from '../motion/flip.ts'
 import { useRowKeys } from '../motion/stage.tsx'
 import { HostPicker, type PickMode } from './HostPicker.tsx'
 import { ResourceItemDialog } from './ResourceItemDialog.tsx'
-import css from './resource.module.css'
+import shared from './resource.module.css'
+import css from './resourceItems.module.css'
 import { SkillPicker } from './SkillPicker.tsx'
 
 /** 「添加内容」菜单里的一行：种类 + 怎么加。`manualFile` = 手填一个文件路径。 */
@@ -121,11 +122,11 @@ export function ResourceItems(props: {
   const editingItem = editingIndex === null ? null : (items[editingIndex] ?? null)
 
   return (
-    <div className={css.items}>
+    <div className={shared.items}>
       {items.length === 0 ? (
         <p className={css.itemsEmpty}>{t('res.itemsEmpty')}</p>
       ) : (
-        <ul ref={listRef} className={css.list} data-testid="wl-resource-list">
+        <ul ref={listRef} className={shared.list} data-testid="wl-resource-list">
           {items.map((item, index) => (
             <ItemRow
               // 内容没有 id：按位置配的稳定键（删中间一项时删的是那一行）。

@@ -26,12 +26,12 @@ import { Skeleton } from '../kit/Skeleton.tsx'
 import ui from '../kit/ui.module.css'
 import { useFlip } from '../motion/flip.ts'
 import { ListThumb } from '../motion/thumb.tsx'
-import mem from '../resources/memory.module.css'
 import { memoryTypeText } from '../resources/ResourcePresets.tsx'
 import { FolderDialog } from '../run/RunItemDialog.tsx'
 import { MemoryVersionList } from '../versions/VersionList.tsx'
 import { HubSearch } from './HubSearch.tsx'
 import hub from './hub.module.css'
+import css from './hubMemories.module.css'
 
 export function HubMemories(props: {
   t: T
@@ -136,13 +136,13 @@ function Empty(props: { t: T; text: string; hint?: string }): React.JSX.Element 
 /** 列表行的第二行：类型小标签 + 用量（大小在右边详情的统计卡里，列表里不放）。 */
 function MemoryMeta(props: { t: T; entry: MemoryEntry }): React.JSX.Element {
   const { t, entry } = props
-  if (entry.invalid === true) return <span className={mem.listMeta}>{t('hub.memInvalid')}</span>
+  if (entry.invalid === true) return <span className={css.listMeta}>{t('hub.memInvalid')}</span>
   return (
-    <span className={mem.listMeta}>
-      <span className={mem.listTag} data-tip={memoryTypeText(t, entry.type)}>
+    <span className={css.listMeta}>
+      <span className={css.listTag} data-tip={memoryTypeText(t, entry.type)}>
         {t(entry.type === 'workflow' ? 'mem.tag.workflow' : 'mem.tag.step')}
       </span>
-      <span className={mem.listUsed} data-unused={entry.usedBy.length === 0}>
+      <span className={css.listUsed} data-unused={entry.usedBy.length === 0}>
         {entry.usedBy.length === 0
           ? t('mem.unused')
           : t('mem.usedBy').replace('{n}', String(entry.usedBy.length))}
@@ -280,15 +280,15 @@ function MemoryDetail(props: {
 
   return (
     <div className={cx(hub.wfDetail, hub.paneIn)} data-testid="wl-hub-mem-detail">
-      <div className={mem.hubHead}>
-        <span className={mem.hubIcon}>
+      <div className={css.hubHead}>
+        <span className={css.hubIcon}>
           <Icon name="memory" size={18} />
         </span>
-        <div className={mem.hubHeadText}>
-          <div className={mem.hubNameRow}>
+        <div className={css.hubHeadText}>
+          <div className={css.hubNameRow}>
             {/* 标题就是名称的输入框：平时像标题，悬停露出底色，点进去直接改。 */}
             <input
-              className={mem.hubName}
+              className={css.hubName}
               value={name ?? entry.name}
               placeholder={entry.id}
               maxLength={80}
@@ -316,28 +316,28 @@ function MemoryDetail(props: {
             </button>
           </div>
           <p className={hub.wfSub}>
-            <span className={mem.hubTag}>{memoryTypeText(t, entry.type)}</span>
+            <span className={css.hubTag}>{memoryTypeText(t, entry.type)}</span>
             <code>{entry.id}</code>
           </p>
         </div>
       </div>
 
-      <div className={mem.hubBody}>
-        <div className={mem.hubInfo}>
-          <span className={mem.secHead}>{t('hub.memInfo')}</span>
-          <div className={mem.stats} data-testid="wl-hub-mem-stats">
+      <div className={css.hubBody}>
+        <div className={css.hubInfo}>
+          <span className={css.secHead}>{t('hub.memInfo')}</span>
+          <div className={css.stats} data-testid="wl-hub-mem-stats">
             {stats.map(([label, value]) => (
-              <div key={label} className={mem.stat}>
-                <span className={mem.statLabel}>{label}</span>
-                <span className={mem.statValue}>{value}</span>
+              <div key={label} className={css.stat}>
+                <span className={css.statLabel}>{label}</span>
+                <span className={css.statValue}>{value}</span>
               </div>
             ))}
           </div>
 
-          <label className={mem.sec}>
-            <span className={mem.secHead}>{t('ins.description')}</span>
+          <label className={css.sec}>
+            <span className={css.secHead}>{t('ins.description')}</span>
             <textarea
-              className={cx(ui.textarea, mem.hubDesc)}
+              className={cx(ui.textarea, css.hubDesc)}
               value={description ?? entry.description}
               placeholder={t('mem.descPlaceholder')}
               maxLength={500}
@@ -353,20 +353,20 @@ function MemoryDetail(props: {
             />
           </label>
 
-          <section className={mem.sec} data-testid="wl-hub-mem-used">
-            <span className={mem.secHead}>
+          <section className={css.sec} data-testid="wl-hub-mem-used">
+            <span className={css.secHead}>
               {t('hub.memUsedBy')}
               {entry.usedBy.length > 0 && <span className={ins.count}>{entry.usedBy.length}</span>}
             </span>
             {entry.usedBy.length === 0 ? (
-              <p className={mem.usedNone}>{t('hub.memUnusedHint')}</p>
+              <p className={css.usedNone}>{t('hub.memUnusedHint')}</p>
             ) : (
-              <div className={mem.usedRow}>
+              <div className={css.usedRow}>
                 {entry.usedBy.map((workflow) => (
                   <button
                     key={workflow}
                     type="button"
-                    className={mem.usedChip}
+                    className={css.usedChip}
                     data-tip={t('hub.wfOpenTip')}
                     data-testid="wl-hub-mem-workflow"
                     onClick={() => props.onOpen(workflow)}
@@ -381,8 +381,8 @@ function MemoryDetail(props: {
         </div>
 
         {entry.invalid !== true && (
-          <section className={mem.hubVers}>
-            <span className={mem.secHead}>
+          <section className={css.hubVers}>
+            <span className={css.secHead}>
               {t('ver.title')}
               {entry.versions > 0 && <span className={ins.count}>{entry.versions}</span>}
             </span>

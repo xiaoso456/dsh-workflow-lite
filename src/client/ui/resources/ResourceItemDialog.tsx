@@ -31,7 +31,8 @@ import { KIND_ICON, KIND_LABEL, sameItem } from '../kit/resourceUi.ts'
 import ui from '../kit/ui.module.css'
 import { HostPicker } from './HostPicker.tsx'
 import type { ItemNote } from './ResourceItems.tsx'
-import css from './resource.module.css'
+import shared from './resource.module.css'
+import css from './resourceItemDialog.module.css'
 import { SkillPicker } from './SkillPicker.tsx'
 import { SkillPreview } from './SkillPreview.tsx'
 
@@ -200,8 +201,8 @@ export function ResourceItemDialog(props: {
 
           <div className={overlay.sheetBody}>
             <section className={ins.field}>
-              <div className={css.valueHead}>
-                <label className={cx(ins.label, css.valueLabel)} htmlFor="wl-resource-value">
+              <div className={shared.valueHead}>
+                <label className={cx(ins.label, shared.valueLabel)} htmlFor="wl-resource-value">
                   <span>{t(VALUE_LABEL[kind])}</span>
                   {kind === 'text' && (
                     <span className={ins.count}>
@@ -212,7 +213,7 @@ export function ResourceItemDialog(props: {
                 {pathLike && (
                   <button
                     type="button"
-                    className={cx(ui.btn, ui.small, ui.soft, css.valueAction)}
+                    className={cx(ui.btn, ui.small, ui.soft, shared.valueAction)}
                     data-testid="wl-resource-browse"
                     onClick={() => setBrowsing(true)}
                   >
@@ -223,7 +224,7 @@ export function ResourceItemDialog(props: {
                 {kind === 'skill' && (
                   <button
                     type="button"
-                    className={cx(ui.btn, ui.small, ui.soft, css.valueAction)}
+                    className={cx(ui.btn, ui.small, ui.soft, shared.valueAction)}
                     data-testid="wl-resource-choose-skill"
                     onClick={() => setChoosing(true)}
                   >
@@ -233,7 +234,7 @@ export function ResourceItemDialog(props: {
                 )}
                 {kind === 'url' && (
                   <a
-                    className={cx(ui.btn, ui.small, ui.soft, css.valueAction)}
+                    className={cx(ui.btn, ui.small, ui.soft, shared.valueAction)}
                     href={openable ? trimmed : undefined}
                     target="_blank"
                     rel="noreferrer noopener"
@@ -318,8 +319,8 @@ export function ResourceItemDialog(props: {
 
             {kind !== 'text' && (
               <section className={ins.field}>
-                <div className={css.valueHead}>
-                  <label className={cx(ins.label, css.valueLabel)} htmlFor="wl-resource-note">
+                <div className={shared.valueHead}>
+                  <label className={cx(ins.label, shared.valueLabel)} htmlFor="wl-resource-note">
                     <span>
                       {props.note?.label ?? t('res.note')}
                       {props.note === undefined ? (
@@ -341,7 +342,7 @@ export function ResourceItemDialog(props: {
                   {fallback !== undefined && custom && (
                     <button
                       type="button"
-                      className={cx(ui.btn, ui.small, ui.soft, css.valueAction)}
+                      className={cx(ui.btn, ui.small, ui.soft, shared.valueAction)}
                       data-testid="wl-resource-note-reset"
                       onClick={() => setNote(fallback)}
                     >

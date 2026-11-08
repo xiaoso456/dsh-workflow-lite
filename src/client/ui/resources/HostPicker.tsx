@@ -38,7 +38,8 @@ import { type StageDir, useStage } from '../motion/stage.tsx'
 import { markSwap } from '../motion/swap.tsx'
 import { PickThumb } from '../motion/thumb.tsx'
 import { FilterBar, PathBar, UpRow } from './DirParts.tsx'
-import css from './picker.module.css'
+import css from './hostPicker.module.css'
+import picker from './picker.module.css'
 
 export type PickMode = 'file' | 'folder'
 
@@ -180,7 +181,7 @@ export function HostPicker(props: {
   const here = mode === 'folder' && picked.length === 0
   const title = mode === 'file' ? t('pick.fileTitle') : t('pick.folderTitle')
   return (
-    <Modal label={title} testId="wl-picker" className={css.sheet} onDismiss={props.onClose}>
+    <Modal label={title} testId="wl-picker" className={picker.sheet} onDismiss={props.onClose}>
       {/* biome-ignore lint/a11y/noStaticElementInteractions: Alt+↑ 是整个选择框的快捷键 */}
       <div
         className={overlay.sheetForm}
@@ -325,12 +326,12 @@ export function HostPicker(props: {
 
         <div className={css.listWrap} ref={stage.wrap}>
           <div
-            className={cx(css.list, ui.scrollFade)}
+            className={cx(picker.list, ui.scrollFade)}
             ref={listRef}
             data-testid="wl-picker-list"
             data-loading={loading}
           >
-            <div className={css.listBody} ref={rowsRef}>
+            <div className={picker.listBody} ref={rowsRef}>
               {parent !== null && (
                 <UpRow
                   label={t('pick.up')}
@@ -341,10 +342,10 @@ export function HostPicker(props: {
                 />
               )}
               <Presence show={error !== null}>
-                {error !== null && <p className={css.error}>{error}</p>}
+                {error !== null && <p className={picker.error}>{error}</p>}
               </Presence>
               {error === null && listing !== null && entries.length === 0 && (
-                <p className={css.empty}>
+                <p className={picker.empty}>
                   {filter.trim() === '' ? t('pick.emptyDir') : t('pick.noMatch')}
                 </p>
               )}
@@ -367,13 +368,13 @@ export function HostPicker(props: {
                     />
                   )
                 })}
-              {listing?.truncated === true && <p className={css.empty}>{t('pick.truncated')}</p>}
+              {listing?.truncated === true && <p className={picker.empty}>{t('pick.truncated')}</p>}
             </div>
           </div>
         </div>
 
         <footer className={overlay.sheetFoot}>
-          <span className={css.count}>
+          <span className={picker.count}>
             {picked.length === 0 ? '' : t('pick.count').replace('{n}', String(picked.length))}
           </span>
           <span className={ui.grow} />
@@ -411,7 +412,7 @@ function PickRow(props: {
 }): React.JSX.Element {
   return (
     <div
-      className={cx(css.row, ui.fillOn)}
+      className={cx(picker.row, ui.fillOn)}
       data-dir={props.dir}
       data-on={props.on}
       data-testid="wl-picker-row"
@@ -424,7 +425,7 @@ function PickRow(props: {
         onDoubleClick={props.onAdd}
       >
         {props.dir ? (
-          <span className={css.entryIcon} data-dir="true">
+          <span className={picker.entryIcon} data-dir="true">
             <Icon name="folder" size={15} />
           </span>
         ) : (
@@ -432,7 +433,7 @@ function PickRow(props: {
         )}
         <span className={css.entryName}>{props.name}</span>
         {props.dir && (
-          <span className={css.enter}>
+          <span className={picker.enter}>
             <Icon name="chevronRight" size={14} />
           </span>
         )}
@@ -440,7 +441,7 @@ function PickRow(props: {
       {props.selectable && (
         <button
           type="button"
-          className={cx(ui.check, css.check)}
+          className={cx(ui.check, picker.check)}
           role="checkbox"
           aria-checked={props.on}
           aria-label={props.name}

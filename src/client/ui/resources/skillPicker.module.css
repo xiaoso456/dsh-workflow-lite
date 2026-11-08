@@ -1,0 +1,180 @@
+/**
+ * dsh-workflow-lite — 「选择 Skill」清单（SkillPicker.tsx）：一行两块（勾选区、来源 + 眼睛）、说明与筛选命中。
+ */
+
+/* 「选择 Skill」：内容边放宽到 24px（标题、搜索框、计数、✕ 都在这条边上），左右不贴着弹窗边和滚动条。 */
+.skillSheet {
+  --wl-sheet-inset: 24px;
+}
+
+/* ── Skill 清单 ───────────────────────────────────────────── */
+
+/*
+ * 行与行之间留 2px：相邻两行都选中时是两块，不糊成一片。
+ * 悬停、选中的底色是一块缩进的圆角：左边离弹窗边 16px，右边离滚动条 6px（滚动条自己占 10px，
+ * 所以两边的底色边缘都落在离弹窗边 17px 处）；名字、勾选框、小眼睛在底色里各留 8px。
+ */
+ul.skillList {
+  gap: 2px;
+  margin-top: 0;
+  margin-bottom: 0;
+  padding: 4px 6px 8px 16px;
+  list-style: none;
+}
+
+/* 一行两块并排：左边勾选区（选上 / 取消），右边「来源 + 眼睛」（看 SKILL.md）。 */
+.skillRow {
+  display: flex;
+  flex: none;
+  align-items: stretch;
+  min-height: 52px;
+  border-radius: var(--wl-r-control);
+  color: var(--wl-text);
+  transition: background-color 120ms linear;
+}
+
+.skillRow:hover {
+  background: var(--wl-hover);
+}
+
+.skillPick {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+  padding: 6px 6px 6px 8px;
+  border: 0;
+  border-radius: var(--wl-r-control);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.skillPick:disabled {
+  cursor: default;
+}
+
+.skillRow[data-added="true"] .skillPick > * {
+  opacity: 0.6;
+}
+
+.skillPick:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: -2px;
+}
+
+/* 右边：来源（纯文字）+ 一个小眼睛按钮；只有按钮自己在悬停时有底色。 */
+.skillSide {
+  display: flex;
+  flex: none;
+  gap: 4px;
+  align-items: center;
+  padding: 0 2px 0 4px;
+}
+
+.skillPeek {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: calc(6px * var(--wl-round, 1));
+  background: transparent;
+  color: var(--wl-text-3);
+  cursor: pointer;
+  opacity: 0.55;
+  transition:
+    opacity 120ms linear,
+    background-color 120ms linear,
+    color 120ms linear;
+}
+
+.skillRow:hover .skillPeek,
+.skillPeek:focus-visible {
+  opacity: 1;
+}
+
+.skillPeek:hover {
+  background: var(--wl-fill);
+  color: var(--wl-accent-text);
+}
+
+.skillPeek:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+.skillText {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.skillName {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-meta);
+  font-weight: 600;
+}
+
+.skillTag {
+  padding: 0 5px;
+  border-radius: calc(5px * var(--wl-round, 1));
+  background: var(--wl-fill);
+  color: var(--wl-text-3);
+  font-family: var(--wl-sans, inherit);
+  font-size: var(--wl-fs-micro);
+  font-weight: 500;
+  line-height: 16px;
+}
+
+/* 说明留两行（一行常常刚读到一半就被截掉）；完整的在右边的小眼睛里。 */
+.skillDesc {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.5;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+/* 筛选命中的字：强调色，不加底色。 */
+.skillMark {
+  background: transparent;
+  color: var(--wl-accent-text);
+  font-weight: 700;
+}
+
+/* 来源小签定宽、靠右：每行的眼睛排成一列，说明的右边界也齐。 */
+.skillSource {
+  flex: none;
+  width: 52px;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skillManual {
+  display: flex;
+  flex: none;
+  justify-content: center;
+  padding: 0 0 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skillPeek {
+    transition: none;
+  }
+}

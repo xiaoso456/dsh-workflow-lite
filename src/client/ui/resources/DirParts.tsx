@@ -7,7 +7,7 @@
  * - {@link FilterBar}：筛选框 + 「隐藏项」开关，框里右侧可以放一小段说明（数量）；
  * - {@link UpRow}：列表第一行的「上一级」，右边淡淡写出上一级是哪儿。
  *
- * 样式在 `picker.module.css`。
+ * 样式在 `dirParts.module.css`，与选择框共用的部分在 `picker.module.css`。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/resources/DirParts
  */
@@ -16,7 +16,8 @@ import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import ui from '../kit/ui.module.css'
 import { FadeMark, FadeText } from '../motion/marks.tsx'
-import css from './picker.module.css'
+import css from './dirParts.module.css'
+import picker from './picker.module.css'
 
 /** 路径栏里的一级。`onGo` 缺省就只是个字（折起来的「…」）。 */
 export interface Crumb {
@@ -116,18 +117,18 @@ export function FilterBar(props: {
 }): React.JSX.Element {
   return (
     <div
-      className={css.tools}
+      className={picker.tools}
       style={props.style}
       data-plain={props.plain === true ? 'true' : undefined}
     >
-      <span className={css.filterBox}>
+      <span className={picker.filterBox}>
         {/* 有搜索词时放大镜淡成强调色，告诉你列表正被筛着。 */}
         <FadeMark on={props.value.trim() !== ''} className={css.filterIcon}>
           <Icon name="search" size={13} />
         </FadeMark>
         <input
           ref={props.inputRef}
-          className={css.filter}
+          className={picker.filter}
           value={props.value}
           placeholder={props.placeholder}
           aria-label={props.placeholder}
@@ -140,7 +141,7 @@ export function FilterBar(props: {
       </span>
       <button
         type="button"
-        className={cx(css.hiddenToggle, ui.fillOn)}
+        className={cx(picker.hiddenToggle, ui.fillOn)}
         aria-pressed={props.hidden}
         data-on={props.hidden}
         onClick={props.onHidden}
@@ -163,13 +164,13 @@ export function UpRow(props: {
   return (
     <button
       type="button"
-      className={cx(css.row, css.upRow)}
+      className={cx(picker.row, picker.upRow)}
       data-testid={props.testId}
       data-tip={props.tip}
       tabIndex={props.tabIndex}
       onClick={props.onClick}
     >
-      <span className={cx(css.entryIcon, css.upIcon)}>
+      <span className={cx(picker.entryIcon, css.upIcon)}>
         <Icon name="arrowRight" size={14} />
       </span>
       <span className={css.upName}>{props.label}</span>

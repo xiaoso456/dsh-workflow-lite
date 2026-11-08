@@ -1,212 +1,11 @@
 /**
- * dsh-workflow-lite — 「选择文件 / 选择文件夹」对话框。
+ * dsh-workflow-lite — 「选择文件 / 选择文件夹」对话框里几个组件共用的部分：弹窗宽高、筛选条、列表与行、空态 / 错误 / 计数。
+ * 路径栏在 dirParts.module.css，常用位置与目录项在 hostPicker.module.css，「选择 Skill」的内容边在 skillPicker.module.css。
  */
 
 .sheet {
   width: min(560px, 100%);
   height: min(560px, 100%);
-}
-
-/* 「选择 Skill」：内容边放宽到 24px（标题、搜索框、计数、✕ 都在这条边上），左右不贴着弹窗边和滚动条。 */
-.skillSheet {
-  --wl-sheet-inset: 24px;
-}
-
-.headIcon {
-  background: var(--wl-file-tab);
-  color: var(--wl-file);
-}
-
-/* ── 路径栏（面包屑 / 输入框）与常用位置 ─────────────────── */
-
-.bar {
-  display: flex;
-  flex: none;
-  gap: 6px;
-  align-items: center;
-  margin: 6px 16px 0;
-  padding: 0 2px 0 4px;
-  border: 1px solid var(--wl-line);
-  border-radius: var(--wl-r-control);
-  background: var(--wl-fill);
-}
-
-.crumbs {
-  position: relative;
-  display: flex;
-  flex: 1 1 auto;
-  align-items: center;
-  min-width: 0;
-  height: 30px;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-/*
- * 一级路径 = 分隔箭头 + 名字，是面包屑里增减的单位（useTrail 认直接子项）。
- * 展开 / 收回靠「后面的一级从前面的一级背后滑出 / 滑回」，所以单元有不透明底色（和路径栏一个样子，
- * 平时看不出来）、前面的 z-index 更高（JSX 里按顺序给）。
- */
-.crumbUnit {
-  position: relative;
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  background: linear-gradient(var(--wl-fill), var(--wl-fill)), var(--wl-panel);
-}
-
-.crumbs::-webkit-scrollbar {
-  display: none;
-}
-
-.crumb {
-  flex: none;
-  max-width: 220px;
-  height: 22px;
-  padding: 0 6px;
-  overflow: hidden;
-  border: 0;
-  border-radius: calc(5px * var(--wl-round, 1));
-  background: transparent;
-  color: var(--wl-text-2);
-  font: inherit;
-  font-family: var(--wl-mono);
-  font-size: var(--wl-fs-meta);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  cursor: pointer;
-  transition:
-    background-color 120ms linear,
-    color 120ms linear;
-}
-
-.crumb:hover {
-  background: var(--wl-hover);
-  color: var(--wl-text);
-}
-
-.crumb[aria-current="location"] {
-  color: var(--wl-text);
-  font-weight: 600;
-}
-
-.crumb:focus-visible {
-  outline: 2px solid var(--wl-accent);
-  outline-offset: -2px;
-}
-
-/* 只是个字（折起来的「…」）：不能点。 */
-.crumb[data-static="true"] {
-  display: inline-flex;
-  align-items: center;
-  cursor: default;
-}
-
-.crumb[data-static="true"]:hover {
-  background: transparent;
-  color: var(--wl-text-2);
-}
-
-.crumbSep {
-  display: inline-flex;
-  flex: none;
-  color: var(--wl-text-3);
-  opacity: 0.6;
-}
-
-.upIcon {
-  display: inline-flex;
-  transform: rotate(-90deg);
-}
-
-.addressForm {
-  display: flex;
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.address {
-  width: 100%;
-  height: 26px;
-  border-color: transparent;
-  background: transparent;
-  font-size: var(--wl-fs-meta);
-}
-
-.places {
-  position: relative;
-  display: flex;
-  flex: none;
-  flex-wrap: wrap;
-  gap: 4px;
-  padding: 8px 16px 0;
-}
-
-.place {
-  position: relative;
-  display: inline-flex;
-  gap: 5px;
-  align-items: center;
-  height: 24px;
-  padding: 0 9px;
-  border: 1px solid transparent;
-  border-radius: calc(999px * var(--wl-round, 1));
-  background: transparent;
-  color: var(--wl-text-2);
-  font: inherit;
-  font-size: var(--wl-fs-micro);
-  cursor: pointer;
-  transition:
-    background-color 120ms linear,
-    color 120ms linear;
-}
-
-/* 平时的描边画在伪元素上，选中时淡掉（让给滑过来的选中块）。 */
-.place::before {
-  position: absolute;
-  inset: -1px;
-  border: 1px solid var(--wl-line);
-  border-radius: inherit;
-  content: "";
-  pointer-events: none;
-  transition: opacity 160ms linear;
-}
-
-.place:hover {
-  background: var(--wl-hover);
-  color: var(--wl-text);
-}
-
-.place[aria-current="true"]::before {
-  opacity: 0;
-}
-
-.place:focus-visible {
-  outline: 2px solid var(--wl-accent);
-  outline-offset: 1px;
-}
-
-/* 选中块：位置、大小由 PickThumb 量，这里只管样子。 */
-.placeThumb {
-  border: 1px solid var(--wl-accent);
-  border-radius: calc(999px * var(--wl-round, 1));
-  background: var(--wl-accent-soft);
-}
-
-/* 字、图标的颜色是 FadeText / FadeMark 的两层交叉淡：没选中灰、悬停深、选中蓝。 */
-.place {
-  --wl-off: var(--wl-text-2);
-  --wl-on: var(--wl-accent-text);
-}
-
-.place:hover {
-  --wl-off: var(--wl-text);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .place::before {
-    transition: none;
-  }
 }
 
 /* ── 筛选 ─────────────────────────────────────────────────── */
@@ -234,13 +33,6 @@
 
 .filterBox:focus-within {
   border-color: var(--wl-accent);
-}
-
-/* 放大镜：没筛时灰，有搜索词时 FadeMark 交叉淡成强调色。 */
-.filterIcon {
-  --wl-off: var(--wl-text-3);
-  --wl-on: var(--wl-accent-text);
-  flex: none;
 }
 
 .filter {
@@ -280,17 +72,6 @@ button.hiddenToggle::after {
 }
 
 /* ── 列表 ─────────────────────────────────────────────────── */
-
-/* 列表外面这层只管定位和裁切：换目录时旧内容的影子在里面往外走（useStage），不能越出列表框。 */
-.listWrap {
-  position: relative;
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  min-height: 0;
-  margin: 0 10px;
-  overflow: hidden;
-}
 
 .list {
   display: flex;
@@ -340,25 +121,6 @@ button.hiddenToggle::after {
   background: var(--wl-hover);
 }
 
-.entry {
-  display: flex;
-  flex: 1 1 auto;
-  gap: 8px;
-  align-items: center;
-  min-width: 0;
-  height: 100%;
-  padding: 0 4px 0 8px;
-  border: 0;
-  border-radius: calc(6px * var(--wl-round, 1));
-  background: transparent;
-  color: var(--wl-text);
-  font: inherit;
-  font-size: var(--wl-fs-meta);
-  text-align: left;
-  cursor: pointer;
-}
-
-.entry:focus-visible,
 .upRow:focus-visible {
   outline: 2px solid var(--wl-accent);
   outline-offset: -2px;
@@ -372,14 +134,6 @@ button.hiddenToggle::after {
 
 .entryIcon[data-dir="true"] {
   color: var(--wl-c-amber);
-}
-
-.entryName {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .enter {
@@ -406,23 +160,6 @@ button.hiddenToggle::after {
   font-size: var(--wl-fs-meta);
   text-align: left;
   cursor: pointer;
-}
-
-.upName {
-  flex: none;
-  white-space: nowrap;
-}
-
-.rowMeta {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  color: var(--wl-text-3);
-  font-family: var(--wl-mono);
-  font-size: var(--wl-fs-micro);
-  text-align: right;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* 方框的样子在 ui.module.css 的 .check；这里只管位置和「悬停那一行才露出」。 */
@@ -465,61 +202,6 @@ button.hiddenToggle::after {
 }
 
 /* ── 不画框的变体（文件夹浏览）：路径直接写在面板上，搜索框是淡底、开关不描边，整块没有线 ── */
-
-.bar[data-plain="true"] {
-  padding: 0;
-  border-color: transparent;
-  background: transparent;
-}
-
-/*
- * 文件夹浏览的左栏只有两百来宽，放不下就让前面几级先缩成省略号，当前这一级最后才让：
- * 前面几级的收缩系数远大于当前这一级（1000 : 1，按宽度加权后当前这一级几乎不动），
- * 各自缩到还留一两个字（根 32px，带分隔箭头的 44px）就停，再不够才轮到当前这一级截断。
- * 折起来的「…」本来就短，不缩。被截断的那一级悬停时提示全名（DirParts 的 tipWhenCut）。
- */
-.bar[data-plain="true"] {
-  min-width: 0;
-}
-
-.bar[data-plain="true"] .crumbUnit {
-  flex: 0 1000 auto;
-  min-width: 44px;
-  overflow: hidden;
-  background: var(--wl-panel);
-}
-
-.bar[data-plain="true"] .crumbUnit[data-first="true"] {
-  min-width: 32px;
-}
-
-.bar[data-plain="true"] .crumbUnit[data-static="true"] {
-  flex-shrink: 0;
-  min-width: 0;
-}
-
-.bar[data-plain="true"] .crumbUnit[data-last="true"] {
-  flex-shrink: 1;
-  min-width: 0;
-}
-
-.bar[data-plain="true"] .crumb {
-  flex: 0 1 auto;
-  min-width: 0;
-  height: 26px;
-  padding: 0 7px;
-  font-family: inherit;
-  font-size: var(--wl-fs-body, 13px);
-  color: var(--wl-text-3);
-}
-
-.bar[data-plain="true"] .crumb:hover {
-  color: var(--wl-text);
-}
-
-.bar[data-plain="true"] .crumb[aria-current="location"] {
-  color: var(--wl-text);
-}
 
 .tools[data-plain="true"] {
   padding: 0 var(--wl-sheet-inset, 16px) 10px;

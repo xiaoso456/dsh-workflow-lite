@@ -1,0 +1,34 @@
+/* 记忆：加记忆的小菜单（MemoryPicker.tsx）。 */
+
+.picker {
+  position: absolute;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  animation: pickerIn 120ms ease-out backwards;
+}
+
+@keyframes pickerIn {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}
+
+.pickList {
+  display: flex;
+  flex-direction: column;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+/* 「N 个工作流在用」一列右对齐，几行对得齐。 */
+.pickMeta {
+  min-width: 84px;
+  text-align: right;
+}
+
+:global([data-look="swiss"]) .picker {
+  box-shadow: none;
+}

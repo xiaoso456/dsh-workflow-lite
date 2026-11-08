@@ -1,0 +1,144 @@
+/**
+ * dsh-workflow-lite — 「选择文件 / 选择文件夹」对话框（HostPicker.tsx）：标题图标、地址输入、常用位置、目录项。
+ */
+
+.headIcon {
+  background: var(--wl-file-tab);
+  color: var(--wl-file);
+}
+
+/* ── 路径栏（面包屑 / 输入框）与常用位置 ─────────────────── */
+
+.addressForm {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.address {
+  width: 100%;
+  height: 26px;
+  border-color: transparent;
+  background: transparent;
+  font-size: var(--wl-fs-meta);
+}
+
+.places {
+  position: relative;
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 8px 16px 0;
+}
+
+.place {
+  position: relative;
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  height: 24px;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: calc(999px * var(--wl-round, 1));
+  background: transparent;
+  color: var(--wl-text-2);
+  font: inherit;
+  font-size: var(--wl-fs-micro);
+  cursor: pointer;
+  transition:
+    background-color 120ms linear,
+    color 120ms linear;
+}
+
+/* 平时的描边画在伪元素上，选中时淡掉（让给滑过来的选中块）。 */
+.place::before {
+  position: absolute;
+  inset: -1px;
+  border: 1px solid var(--wl-line);
+  border-radius: inherit;
+  content: "";
+  pointer-events: none;
+  transition: opacity 160ms linear;
+}
+
+.place:hover {
+  background: var(--wl-hover);
+  color: var(--wl-text);
+}
+
+.place[aria-current="true"]::before {
+  opacity: 0;
+}
+
+.place:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+/* 选中块：位置、大小由 PickThumb 量，这里只管样子。 */
+.placeThumb {
+  border: 1px solid var(--wl-accent);
+  border-radius: calc(999px * var(--wl-round, 1));
+  background: var(--wl-accent-soft);
+}
+
+/* 字、图标的颜色是 FadeText / FadeMark 的两层交叉淡：没选中灰、悬停深、选中蓝。 */
+.place {
+  --wl-off: var(--wl-text-2);
+  --wl-on: var(--wl-accent-text);
+}
+
+.place:hover {
+  --wl-off: var(--wl-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .place::before {
+    transition: none;
+  }
+}
+
+/* ── 列表 ─────────────────────────────────────────────────── */
+
+/* 列表外面这层只管定位和裁切：换目录时旧内容的影子在里面往外走（useStage），不能越出列表框。 */
+.listWrap {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  margin: 0 10px;
+  overflow: hidden;
+}
+
+.entry {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  height: 100%;
+  padding: 0 4px 0 8px;
+  border: 0;
+  border-radius: calc(6px * var(--wl-round, 1));
+  background: transparent;
+  color: var(--wl-text);
+  font: inherit;
+  font-size: var(--wl-fs-meta);
+  text-align: left;
+  cursor: pointer;
+}
+
+.entry:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: -2px;
+}
+
+.entryName {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

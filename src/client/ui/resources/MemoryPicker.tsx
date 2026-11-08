@@ -14,7 +14,7 @@ import type { T } from '../../i18n.ts'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import ui from '../kit/ui.module.css'
-import mem from './memory.module.css'
+import css from './memoryPicker.module.css'
 
 /** 菜单宽度（贴着锚点弹出时据此让开右边）。 */
 export const MEMORY_PICKER_W = 300
@@ -63,7 +63,7 @@ export function MemoryPicker(props: {
   return (
     <div
       ref={ref}
-      className={cx(ui.panel, mem.picker, ui.stagger)}
+      className={cx(ui.panel, css.picker, ui.stagger)}
       style={{ left: props.at.x, top: props.at.y, width: props.at.width ?? MEMORY_PICKER_W }}
       role="menu"
       aria-label={t(step ? 'mem.pick.step' : 'mem.pick.workflow')}
@@ -84,7 +84,7 @@ export function MemoryPicker(props: {
         </span>
       </button>
       <div className={ui.menuSep} />
-      <div className={mem.pickList}>
+      <div className={css.pickList}>
         {props.entries.map((entry) => (
           <button
             key={entry.id}
@@ -101,7 +101,7 @@ export function MemoryPicker(props: {
           >
             <Icon name="memory" size={14} />
             <span className={ui.menuLabel}>{memoryTitle(entry)}</span>
-            <span className={cx(ui.menuMeta, mem.pickMeta)}>{usedByText(t, entry)}</span>
+            <span className={cx(ui.menuMeta, css.pickMeta)}>{usedByText(t, entry)}</span>
           </button>
         ))}
       </div>

@@ -22,9 +22,10 @@ import overlay from '../kit/overlay.module.css'
 import { filterSkills, skillSource } from '../kit/resourceUi.ts'
 import ui from '../kit/ui.module.css'
 import { CheckBox } from '../motion/marks.tsx'
-import css from './picker.module.css'
-import skill from './resource.module.css'
+import picker from './picker.module.css'
+import resource from './resource.module.css'
 import { SkillPreview } from './SkillPreview.tsx'
+import css from './skillPicker.module.css'
 
 export function SkillPicker(props: {
   t: T
@@ -83,12 +84,12 @@ export function SkillPicker(props: {
     <Modal
       label={t('skill.title')}
       testId="wl-skill-picker"
-      className={cx(css.sheet, css.skillSheet)}
+      className={cx(picker.sheet, css.skillSheet)}
       onDismiss={props.onClose}
     >
       <div className={overlay.sheetForm}>
         <header className={overlay.sheetHead}>
-          <span className={cx(overlay.sheetIcon, skill.skillHeadIcon)}>
+          <span className={cx(overlay.sheetIcon, resource.skillHeadIcon)}>
             <Icon name="sparkle" size={16} />
           </span>
           <div className={overlay.sheetTitles}>
@@ -105,11 +106,11 @@ export function SkillPicker(props: {
           </button>
         </header>
 
-        <div className={css.tools}>
-          <span className={css.filterBox}>
+        <div className={picker.tools}>
+          <span className={picker.filterBox}>
             <Icon name="search" size={13} />
             <input
-              className={css.filter}
+              className={picker.filter}
               value={filter}
               placeholder={t('skill.filter')}
               aria-label={t('skill.filter')}
@@ -120,7 +121,7 @@ export function SkillPicker(props: {
             />
           </span>
           {all.length > 0 && (
-            <span className={css.count}>
+            <span className={picker.count}>
               {filter.trim() === ''
                 ? t('skill.count').replace('{n}', String(all.length))
                 : t('skill.countOf')
@@ -131,19 +132,21 @@ export function SkillPicker(props: {
         </div>
 
         <ul
-          className={cx(css.list, skill.skillList)}
+          className={cx(picker.list, css.skillList)}
           data-testid="wl-skill-list"
           data-loading={catalog === null && error === null}
         >
-          {error !== null && <li className={css.error}>{error}</li>}
-          {catalog?.available === false && <li className={css.empty}>{t('skill.unavailable')}</li>}
+          {error !== null && <li className={picker.error}>{error}</li>}
+          {catalog?.available === false && (
+            <li className={picker.empty}>{t('skill.unavailable')}</li>
+          )}
           {catalog?.available === true && shown.length === 0 && (
-            <li className={css.empty}>
+            <li className={picker.empty}>
               {filter.trim() === '' ? t('skill.none') : t('pick.noMatch')}
             </li>
           )}
           {nothing && props.onManual !== undefined && (
-            <li className={skill.skillManual}>
+            <li className={css.skillManual}>
               <button
                 type="button"
                 className={cx(ui.btn, ui.small, ui.soft)}
@@ -172,7 +175,7 @@ export function SkillPicker(props: {
 
         {props.single !== true && (
           <footer className={overlay.sheetFoot}>
-            <span className={css.count}>
+            <span className={picker.count}>
               {picked.length === 0 ? '' : t('pick.count').replace('{n}', String(picked.length))}
             </span>
             <span className={ui.grow} />
@@ -239,7 +242,7 @@ function Highlight(props: { text: string; needle: string }): React.JSX.Element {
   return (
     <>
       {text.slice(0, at)}
-      <mark className={skill.skillMark}>{text.slice(at, at + needle.length)}</mark>
+      <mark className={css.skillMark}>{text.slice(at, at + needle.length)}</mark>
       {text.slice(at + needle.length)}
     </>
   )
@@ -265,7 +268,7 @@ function SkillRow(props: {
   const checked = props.on || props.added
   return (
     <li
-      className={cx(skill.skillRow, ui.fillOn)}
+      className={cx(css.skillRow, ui.fillOn)}
       data-on={props.on}
       data-added={props.added}
       data-testid="wl-skill-row"
@@ -273,32 +276,32 @@ function SkillRow(props: {
     >
       <button
         type="button"
-        className={skill.skillPick}
+        className={css.skillPick}
         // 多选时是勾选框；单选时就是个普通按钮（点了就选定）。
         {...(props.single ? {} : { role: 'checkbox', 'aria-checked': checked })}
         disabled={props.added}
         onClick={props.onChoose}
       >
         {!props.single && <CheckBox on={checked} />}
-        <span className={skill.skillText}>
-          <span className={skill.skillName}>
+        <span className={css.skillText}>
+          <span className={css.skillName}>
             <span>
               <Highlight text={entry.name} needle={props.needle} />
             </span>
-            {props.added && <span className={skill.skillTag}>{t('skill.added')}</span>}
+            {props.added && <span className={css.skillTag}>{t('skill.added')}</span>}
           </span>
-          <span className={skill.skillDesc}>
+          <span className={css.skillDesc}>
             <Highlight text={entry.description} needle={props.needle} />
           </span>
         </span>
       </button>
-      <span className={skill.skillSide}>
-        <span className={skill.skillSource} data-tip={source.full}>
+      <span className={css.skillSide}>
+        <span className={css.skillSource} data-tip={source.full}>
           {source.short}
         </span>
         <button
           type="button"
-          className={skill.skillPeek}
+          className={css.skillPeek}
           data-tip={t('skill.preview')}
           aria-label={`${t('skill.preview')}：${entry.name}`}
           data-testid="wl-skill-preview-open"

@@ -19,7 +19,8 @@ import { Icon, type IconName } from '../kit/Icon.tsx'
 import overlay from '../kit/overlay.module.css'
 import { fileMetadata, skillSource } from '../kit/resourceUi.ts'
 import ui from '../kit/ui.module.css'
-import css from './resource.module.css'
+import shared from './resource.module.css'
+import css from './skillPreview.module.css'
 
 /** 底部的那个按钮（不给就没有底部）。 */
 export interface SkillPreviewAction {
@@ -53,7 +54,7 @@ function MetaValue(props: { text: string }): React.JSX.Element {
   )
 }
 
-/** 色点循环用几种颜色（见 resource.module.css 的 `data-tone`）。 */
+/** 色点循环用几种颜色（见 skillPreview.module.css 的 `data-tone`）。 */
 const TONES = 8
 
 /**
@@ -185,7 +186,7 @@ export function SkillPreview(props: {
       t={t}
       name={name}
       badge={
-        <span className={cx(overlay.sheetIcon, css.skillHeadIcon)}>
+        <span className={cx(overlay.sheetIcon, shared.skillHeadIcon)}>
           <Icon name="sparkle" size={16} />
         </span>
       }

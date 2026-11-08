@@ -1,0 +1,123 @@
+/**
+ * dsh-workflow-lite — 编辑一项内容的模态框（ResourceItemDialog.tsx）：路径 / 网址 / 文字输入、小眼睛、说明框与「默认 / 已改」小签。
+ *
+ * 每种内容一个颜色（只用在小图标上，不和线色抢）：文件 = 文件色、文件夹 = 橄榄、网址 = 青、
+ * Skill = 粉、自定义 = 石板灰。画布上的资源卡用同一套（见 canvas.module.css）。
+ */
+
+.sheetKind[data-kind="file"] {
+  --wl-kind: var(--wl-file);
+}
+
+.sheetKind[data-kind="folder"] {
+  --wl-kind: var(--wl-c-olive);
+}
+
+.sheetKind[data-kind="url"] {
+  --wl-kind: var(--wl-c-teal);
+}
+
+.sheetKind[data-kind="skill"] {
+  --wl-kind: var(--wl-c-pink);
+}
+
+.sheetKind[data-kind="text"] {
+  --wl-kind: var(--wl-c-slate);
+}
+
+.sheetKind[data-kind="many"] {
+  --wl-kind: var(--wl-file);
+}
+
+/* ── 编辑一项（模态框）────────────────────────────────────── */
+
+.itemSheet {
+  width: min(560px, 100%);
+}
+
+.sheetKind[data-kind] {
+  background: color-mix(in srgb, var(--wl-kind) 14%, transparent);
+  color: var(--wl-kind);
+}
+
+.valueRow {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.valueField {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.value {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* 认得的 skill：小眼睛浮在输入框右端（不占位，输入框宽度不变），点开看 SKILL.md。 */
+.value[data-peek] {
+  padding-right: 36px;
+}
+
+.valuePeek {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: calc(6px * var(--wl-round, 1));
+  background: transparent;
+  color: var(--wl-text-3);
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+
+.valuePeek:hover {
+  background: var(--wl-fill-strong);
+  color: var(--wl-accent-text);
+}
+
+.valuePeek:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+.textArea {
+  min-height: 240px;
+  font-size: var(--wl-fs-body);
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.noteArea {
+  min-height: 96px;
+  font-size: var(--wl-fs-body);
+  line-height: 1.6;
+  resize: vertical;
+}
+
+/* 有默认说明的项（记忆）：编辑框里说明旁边的「默认 / 已改」；改过的和清单行尾的小签一起换强调色。 */
+.noteTag {
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: calc(5px * var(--wl-round, 1));
+  background: var(--wl-fill);
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-weight: 500;
+  line-height: 18px;
+}
+
+.noteTag[data-custom="true"] {
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+}

@@ -43,7 +43,7 @@ import ui from '../kit/ui.module.css'
 import { useResizeFlip } from '../motion/flip.ts'
 import { FadeText } from '../motion/marks.tsx'
 import { PickThumb } from '../motion/thumb.tsx'
-import res from './resource.module.css'
+import res from './resources.module.css'
 
 /** 资源的小图标：只有一项时用那一项的种类图标，否则是一叠。 */
 export function ResourceIcon(props: { resource: ResourceNode; size?: number }): React.JSX.Element {

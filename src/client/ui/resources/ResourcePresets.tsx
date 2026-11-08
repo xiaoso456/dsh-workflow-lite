@@ -37,8 +37,8 @@ import ins from '../editor/inspector.module.css'
 import { cx } from '../kit/cx.ts'
 import { Icon, type IconName } from '../kit/Icon.tsx'
 import ui from '../kit/ui.module.css'
-import mem from './memory.module.css'
 import type { ItemNote, ItemsRule } from './ResourceItems.tsx'
+import css from './resourcePresets.module.css'
 
 /** 换一条记忆、把资源卡换成记忆：弹「选已有的 / 新建」（贴着 `anchor`，没给就贴着最后按下的位置）。 */
 export type PickMemory = (target: MemoryPickTarget, anchor?: Element | null) => void
@@ -244,16 +244,16 @@ function MemoryInfoField(props: PresetBlockProps): React.JSX.Element | null {
       <div className={ins.label}>
         <span>{t('mem.libLabel')}</span>
       </div>
-      <div className={mem.info} data-missing={missing} data-pick-match="true">
-        <span className={mem.infoIcon}>
+      <div className={css.info} data-missing={missing} data-pick-match="true">
+        <span className={css.infoIcon}>
           <Icon name={missing ? 'alert' : 'memory'} size={15} />
         </span>
-        <span className={mem.infoType} data-testid="wl-memory-type">
+        <span className={css.infoType} data-testid="wl-memory-type">
           {memoryTypeText(t, memory.type)}
         </span>
         {entry !== undefined && (
           <span
-            className={mem.infoUsed}
+            className={css.infoUsed}
             data-shared={others.length > 0}
             data-testid="wl-memory-used"
           >
@@ -265,7 +265,7 @@ function MemoryInfoField(props: PresetBlockProps): React.JSX.Element | null {
         {workflow !== null && pick !== undefined && (
           <button
             type="button"
-            className={cx(ui.btn, ui.small, mem.infoAction)}
+            className={cx(ui.btn, ui.small, css.infoAction)}
             data-testid="wl-memory-rebind"
             onClick={(event) =>
               pick(
@@ -280,7 +280,7 @@ function MemoryInfoField(props: PresetBlockProps): React.JSX.Element | null {
         )}
       </div>
       {missing && (
-        <p className={mem.missing} data-testid="wl-memory-missing">
+        <p className={css.missing} data-testid="wl-memory-missing">
           <span>{t('mem.missing')}</span>
         </p>
       )}
