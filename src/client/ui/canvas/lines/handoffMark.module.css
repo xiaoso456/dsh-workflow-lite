@@ -1,0 +1,231 @@
+/**
+ * dsh-workflow-lite — 画布上步骤间连线的交接标记与悬停卡片（HandoffMark.tsx）。
+ *
+ * 线上的东西和线同色：`--wl-chip` 是它所在那条线的颜色（产出 = 金，在原文件上更新 = 洋红，读取 = 青）。
+ */
+
+.detailNote {
+  margin: 0 2px;
+  padding: 7px 10px;
+  border-left: 3px solid var(--wl-accent);
+  border-radius: calc(4px * var(--wl-round, 1)) calc(8px * var(--wl-round, 1))
+    calc(8px * var(--wl-round, 1)) calc(4px * var(--wl-round, 1));
+  background: var(--wl-fill);
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ── 画布：步骤间连线上的交接标记 ─────────────────────────── */
+
+.mark {
+  position: relative;
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+  height: 20px;
+  padding: 0 6px;
+  border: 1px solid color-mix(in srgb, var(--wl-chip) 45%, transparent);
+  border-radius: calc(999px * var(--wl-round, 1));
+  background: var(--wl-panel);
+  /* 线上的东西和线同色：`--wl-chip` 是它所在那条线的颜色。 */
+  color: var(--wl-chip);
+  font: inherit;
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  pointer-events: all;
+  transition:
+    transform 140ms var(--wl-ease),
+    border-color 120ms linear;
+}
+
+.mark:hover,
+.mark[data-open="true"] {
+  border-color: currentColor;
+  transform: scale(1.06);
+}
+
+/* 只管先后：虚线框、字细一档（它什么都不交）。 */
+.mark[data-none="true"] {
+  border-style: dashed;
+  font-weight: 500;
+}
+
+.mark[data-selected="true"] {
+  border-style: solid;
+  border-color: var(--wl-chip);
+  background: color-mix(in srgb, var(--wl-chip) 14%, var(--wl-panel));
+}
+
+/* 附了交接说明：右上角一个小点。 */
+.markDot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 7px;
+  height: 7px;
+  border: 1.5px solid var(--wl-panel);
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* 悬停卡片（挂在视图根上，跟 `?` 说明同一套浮层）。 */
+.card {
+  position: absolute;
+  z-index: 45;
+  max-width: calc(100% - 16px);
+  padding: 8px;
+  border: 1px solid var(--wl-line);
+  border-radius: calc(12px * var(--wl-round, 1));
+  background: var(--wl-panel);
+  box-shadow: var(--wl-shadow-2);
+  color: var(--wl-text);
+  font-size: var(--wl-fs-body);
+  text-align: left;
+  cursor: auto;
+  outline: none;
+  user-select: text;
+  animation: cardIn 360ms var(--wl-spring) both;
+}
+
+.card[data-up="true"] {
+  animation-name: cardInUp;
+}
+
+@keyframes cardIn {
+  from {
+    opacity: 0;
+    transform: translateY(-14px) scale(0.88);
+  }
+}
+
+@keyframes cardInUp {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.88);
+  }
+}
+
+.cardHead {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+  padding: 2px 4px 8px;
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-meta);
+  font-weight: 600;
+}
+
+.cardIcon {
+  display: inline-flex;
+  flex: none;
+  color: var(--wl-accent-text);
+}
+
+/* 标题不许被挤得折行：它很短，让后面的路线去省略。 */
+.cardTitle {
+  flex: none;
+  white-space: nowrap;
+}
+
+.cardRoute {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 说明本身也是个按钮：点一下就进入编辑。 */
+.cardNote {
+  display: block;
+  width: calc(100% - 4px);
+  border-top: 0;
+  border-right: 0;
+  border-bottom: 0;
+  font: inherit;
+  font-size: var(--wl-fs-micro);
+  text-align: left;
+  cursor: text;
+  transition: background-color 120ms linear;
+}
+
+.cardNote:hover {
+  background: var(--wl-hover);
+}
+
+.cardInput {
+  display: block;
+  width: calc(100% - 4px);
+  margin: 0 2px;
+  resize: vertical;
+  font-size: var(--wl-fs-micro);
+  line-height: 1.6;
+}
+
+.cardFoot {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  margin: 6px 4px 0;
+  padding-top: 6px;
+  border-top: 1px solid var(--wl-line);
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+.cardHint {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cardAction {
+  display: inline-flex;
+  flex: none;
+  gap: 4px;
+  align-items: center;
+  padding: 3px 8px;
+  border: 0;
+  border-radius: calc(6px * var(--wl-round, 1));
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+  font: inherit;
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 120ms linear;
+}
+
+.cardAction:hover {
+  background: var(--wl-hover);
+}
+
+.cardAction:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+.cardActionQuiet {
+  background: transparent;
+  color: var(--wl-text-3);
+  font-weight: 500;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mark,
+  .card {
+    animation: none;
+    transition: none;
+  }
+}

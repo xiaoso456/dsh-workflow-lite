@@ -16,7 +16,6 @@ import { Icon } from '../kit/Icon.tsx'
 import { stepName } from '../kit/resourceUi.ts'
 import { lookOf, StepMark } from '../kit/StepMark.tsx'
 import { HandoffChip } from './Handoff.tsx'
-import ins from './inspector.module.css'
 import css from './linkrow.module.css'
 
 /** 条件的小标（和画布上那条线同色）；`always` 时只有要求才画。 */
@@ -28,13 +27,13 @@ export function WhenChip(props: {
   const { t, when } = props
   if (when === undefined) {
     return props.always === true ? (
-      <span className={ins.whenChip} data-when="always">
+      <span className={css.whenChip} data-when="always">
         {t('edge.always')}
       </span>
     ) : null
   }
   return (
-    <span className={ins.whenChip} data-when={whenKind(when)} data-tip={when}>
+    <span className={css.whenChip} data-when={whenKind(when)} data-tip={when}>
       {when === 'pass' ? t('edge.pass') : when === 'fail' ? t('edge.fail') : when}
     </span>
   )

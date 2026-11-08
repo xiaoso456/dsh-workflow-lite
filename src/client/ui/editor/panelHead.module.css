@@ -1,0 +1,62 @@
+/**
+ * dsh-workflow-lite — 属性面板标题栏（PanelHead.tsx）里名字下面那行 ID：悬停才浮出复制图标。
+ */
+
+.idLine {
+  display: inline-flex;
+  flex: none;
+  gap: 5px;
+  align-items: center;
+  align-self: flex-start;
+  max-width: 100%;
+  height: 18px;
+  margin-left: -6px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: calc(5px * var(--wl-round, 1));
+  background: transparent;
+  color: var(--wl-text-3);
+  font: inherit;
+  font-size: var(--wl-fs-micro);
+  cursor: pointer;
+  transition:
+    background-color 120ms linear,
+    color 120ms linear;
+}
+
+.idLine code {
+  overflow: hidden;
+  font-family: var(--wl-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.idLine svg {
+  flex: none;
+  opacity: 0;
+  transition: opacity 120ms linear;
+}
+
+.idLine:hover {
+  background: var(--wl-hover);
+  color: var(--wl-text-2);
+}
+
+.idLine:hover svg,
+.idLine:focus-visible svg {
+  opacity: 1;
+}
+
+.idKey {
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+/* 瑞士：分组小标题改成加粗、加宽字距的大写小字（见 shell.module.css 的 data-look）。 */
+:global([data-look="swiss"]) .idKey {
+  color: var(--wl-text);
+  font-size: var(--wl-fs-micro);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}

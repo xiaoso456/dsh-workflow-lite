@@ -1,0 +1,107 @@
+/**
+ * dsh-workflow-lite — 文件清单里的一行（ResourcePanel.tsx、Resources.tsx 共用）：
+ * 行尾的「产出 / 更新 / 读取」小牌子、一组行、一行的底、点开的主按钮与悬停才出现的移除钮。
+ *
+ * 颜色口径与画布上的线一致：产出 = 金，在原文件上更新 = 洋红，读取 = 青。
+ */
+
+/* 产出 / 更新 / 读取 的小牌子。 */
+.access {
+  flex: none;
+  padding: 1px 7px;
+  border-radius: calc(999px * var(--wl-round, 1));
+  background: var(--wl-fill);
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* 与画布上那条线同色：产出金、更新洋红、读取青。 */
+.access[data-access="produce"] {
+  --wl-chip: var(--wl-io-produce);
+}
+
+.access[data-access="update"] {
+  --wl-chip: var(--wl-io-update);
+}
+
+.access[data-access="read"] {
+  --wl-chip: var(--wl-io-read);
+}
+
+.access[data-access] {
+  background: color-mix(in srgb, var(--wl-chip) 12%, transparent);
+  color: var(--wl-chip);
+}
+
+.fileGroup {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fileRow {
+  position: relative;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding-right: 4px;
+  border: 1px solid var(--wl-line);
+  border-radius: calc(10px * var(--wl-round, 1));
+  background: var(--wl-panel);
+  transition:
+    background-color 120ms linear,
+    border-color 120ms linear;
+}
+
+.fileRow:hover {
+  border-color: var(--wl-line-strong);
+  background: var(--wl-hover);
+}
+
+.fileRowMain {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  padding: 6px 4px 6px 7px;
+  border: 0;
+  border-radius: calc(9px * var(--wl-round, 1));
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.fileRowMain:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: -2px;
+}
+
+.fileRowRemove {
+  flex: none;
+  opacity: 0;
+  transition: opacity 120ms linear;
+}
+
+.fileRow:hover .fileRowRemove,
+.fileRowRemove:focus-visible {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fileRowRemove {
+    animation: none;
+    transition: none;
+  }
+}
+
+/* 瑞士：成块的卡片行只留底线。 */
+:global([data-look="swiss"]) .fileRow {
+  border-width: 0 0 1px;
+  border-color: var(--wl-line-strong);
+}

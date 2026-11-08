@@ -14,7 +14,8 @@ import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import ui from '../kit/ui.module.css'
 import { SwapIcon } from '../motion/swapText.tsx'
-import css from './inspector.module.css'
+import shared from './inspector.module.css'
+import css from './panelHead.module.css'
 
 export function PanelHead(props: {
   t: T
@@ -30,9 +31,9 @@ export function PanelHead(props: {
 }): React.JSX.Element {
   const { t } = props
   return (
-    <header className={css.head}>
+    <header className={shared.head}>
       {props.lead}
-      <div className={css.headMain}>
+      <div className={shared.headMain}>
         {props.title}
         {props.id !== undefined && <IdLine t={t} id={props.id} />}
       </div>

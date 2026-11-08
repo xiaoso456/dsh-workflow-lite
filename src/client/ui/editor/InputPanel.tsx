@@ -388,11 +388,11 @@ export function InputPanel(props: InputPanelProps): React.JSX.Element {
                   <button
                     key={id}
                     type="button"
-                    className={ins.link}
+                    className={css.link}
                     data-testid="wl-input-reader"
                     onClick={() => props.onSelect({ kind: 'node', id })}
                   >
-                    <span className={ins.linkTop}>
+                    <span className={css.linkTop}>
                       <StepMark
                         look={lookOf(
                           id,
@@ -400,7 +400,7 @@ export function InputPanel(props: InputPanelProps): React.JSX.Element {
                         )}
                         size={13}
                       />
-                      <span className={ins.linkName}>{stepName(step, id)}</span>
+                      <span className={css.linkName}>{stepName(step, id)}</span>
                     </span>
                   </button>
                 )
@@ -450,15 +450,15 @@ export function StepInputsField(props: {
           <button
             key={input.id}
             type="button"
-            className={ins.link}
+            className={css.link}
             data-testid="wl-step-input"
             onClick={() => props.onSelect({ kind: 'node', id: input.id })}
           >
-            <span className={ins.linkTop}>
+            <span className={css.linkTop}>
               <span className={hand.askIcon}>
                 <Icon name="ask" size={13} />
               </span>
-              <span className={ins.linkName}>
+              <span className={css.linkName}>
                 {input.data.question.trim() === '' ? t('input.questionEmpty') : input.data.question}
               </span>
               {input.data.required === true && (

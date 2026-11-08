@@ -179,6 +179,46 @@
   font-weight: 600;
 }
 
+/* ── 读取这个问题的步骤清单 ───────────────────────────────── */
+
+.link {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: stretch;
+  width: 100%;
+  min-height: 32px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--wl-r-control);
+  background: transparent;
+  color: var(--wl-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms linear;
+}
+
+.link:hover {
+  background: var(--wl-hover);
+}
+
+/* 一行连接：上面是对面的步骤与条件，下面是交接摘要。 */
+.linkTop {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+.linkName {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .remove {
     transition: none;

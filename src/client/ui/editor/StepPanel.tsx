@@ -27,8 +27,9 @@ import { TitleField } from '../kit/TitleField.tsx'
 import ui from '../kit/ui.module.css'
 import { AppearancePicker } from './AppearancePicker.tsx'
 import { DescriptionField } from './Inspector.tsx'
-import css from './inspector.module.css'
+import ins from './inspector.module.css'
 import { OutputField, OutputList } from './Outputs.tsx'
+import css from './stepPanel.module.css'
 
 export interface StepPanelProps {
   t: T
@@ -62,14 +63,14 @@ function PresetView(props: StepPanelProps & { id: string }): React.JSX.Element |
   const prompt = data.prompt ?? ''
   return (
     <aside
-      className={cx(ui.panel, css.panel)}
+      className={cx(ui.panel, ins.panel)}
       data-testid="wl-step-panel"
       aria-label={t(preset.labelKey)}
     >
-      <header className={css.head}>
+      <header className={ins.head}>
         <StepMark look={presetAppearance(preset.id)} size={16} />
-        <span className={css.headTitle}>{t(preset.labelKey)}</span>
-        <span className={css.badge}>{t('step.builtin')}</span>
+        <span className={ins.headTitle}>{t(preset.labelKey)}</span>
+        <span className={ins.badge}>{t('step.builtin')}</span>
         <button
           type="button"
           className={cx(ui.btn, ui.icon, ui.small)}
@@ -81,7 +82,7 @@ function PresetView(props: StepPanelProps & { id: string }): React.JSX.Element |
       </header>
       <p className={css.subtitle}>{t(preset.descKey)}</p>
 
-      <div className={cx(css.body, ui.scrollFade)}>
+      <div className={cx(ins.body, ui.scrollFade)}>
         <PreviewCard
           t={t}
           label={t('ins.prompt')}
@@ -94,19 +95,19 @@ function PresetView(props: StepPanelProps & { id: string }): React.JSX.Element |
           testId="wl-step-prompt"
           lines={8}
         />
-        <section className={css.field}>
-          <div className={css.label}>
+        <section className={ins.field}>
+          <div className={ins.label}>
             <span>{t('ins.output')}</span>
           </div>
           <OutputList t={t} output={data.output} owner={t(preset.labelKey)} />
         </section>
-        <p className={css.note}>
+        <p className={ins.note}>
           <Icon name="info" size={13} />
           <span>{t('step.readonlyNote')}</span>
         </p>
       </div>
 
-      <footer className={css.foot}>
+      <footer className={ins.foot}>
         <button
           type="button"
           className={cx(ui.btn, ui.small, ui.primary)}
@@ -231,7 +232,7 @@ function MineEditor(
 
   if (draft === null) {
     return (
-      <aside className={cx(ui.panel, css.panel)} data-testid="wl-step-panel">
+      <aside className={cx(ui.panel, ins.panel)} data-testid="wl-step-panel">
         <div className={css.loading}>{t('step.loading')}</div>
       </aside>
     )
@@ -240,7 +241,7 @@ function MineEditor(
   const prompt = draft.data.prompt ?? ''
   return (
     <aside
-      className={cx(ui.panel, css.panel)}
+      className={cx(ui.panel, ins.panel)}
       data-testid="wl-step-panel"
       aria-label={original === null ? t('step.newTitle') : t('step.mine')}
       onKeyDown={(event) => {
@@ -250,7 +251,7 @@ function MineEditor(
         }
       }}
     >
-      <header className={css.head}>
+      <header className={ins.head}>
         {/* 我的步骤的样子：新建时已挑好一个不重样的，点这里换；存进模板，拖到画布上的步骤照着它。 */}
         <AppearancePicker
           t={t}
@@ -274,7 +275,7 @@ function MineEditor(
             if (canSave) void save()
           }}
         />
-        <span className={css.badge}>{original === null ? t('step.newTitle') : t('step.mine')}</span>
+        <span className={ins.badge}>{original === null ? t('step.newTitle') : t('step.mine')}</span>
         <button
           type="button"
           className={cx(ui.btn, ui.icon, ui.small)}
@@ -285,9 +286,9 @@ function MineEditor(
         </button>
       </header>
 
-      <div className={cx(css.body, ui.scrollFade)}>
-        <section className={css.field}>
-          <div className={css.label}>
+      <div className={cx(ins.body, ui.scrollFade)}>
+        <section className={ins.field}>
+          <div className={ins.label}>
             <span>{t('step.id')}</span>
           </div>
           <input
@@ -305,9 +306,9 @@ function MineEditor(
             }}
           />
           {nameProblem !== null && draft.name !== '' ? (
-            <p className={css.error}>{nameProblem.message}</p>
+            <p className={ins.error}>{nameProblem.message}</p>
           ) : (
-            <p className={css.help}>{t('step.idHint')}</p>
+            <p className={ins.help}>{t('step.idHint')}</p>
           )}
         </section>
 
@@ -350,7 +351,7 @@ function MineEditor(
         />
       </div>
 
-      <footer className={css.foot}>
+      <footer className={ins.foot}>
         <button
           type="button"
           className={cx(ui.btn, ui.small, ui.primary)}

@@ -8,12 +8,12 @@ import { useCallback, useEffect, useState } from 'react'
 import { MAX_TEXT_CODEPOINTS } from '../../../../shared/limits.ts'
 import { codepointLength } from '../../../../shared/naming.ts'
 import type { T } from '../../../i18n.ts'
-import hand from '../../editor/handoff.module.css'
 import { cx } from '../../kit/cx.ts'
 import { Icon } from '../../kit/Icon.tsx'
 import ui from '../../kit/ui.module.css'
 import { useFloat } from '../../kit/useFloat.tsx'
 import type { HandoffActs } from '../types.ts'
+import css from './handoffMark.module.css'
 
 /** 交接卡片：悬停多久才弹出（扫过画布不该一路弹）、离开多久才收。 */
 const MARK_OPEN_MS = 220
@@ -74,7 +74,7 @@ export function HandoffMark(props: {
       <button
         ref={float.anchorRef}
         type="button"
-        className={hand.mark}
+        className={css.mark}
         data-none={handoff.none}
         data-selected={props.selected}
         data-open={float.state !== 'off'}
@@ -93,12 +93,12 @@ export function HandoffMark(props: {
         ) : (
           <>
             <Icon name="result" size={12} />
-            <span className={hand.markDot} />
+            <span className={css.markDot} />
           </>
         )}
       </button>
       {float.render({
-        className: hand.card,
+        className: css.card,
         testId: 'wl-handoff-card',
         label: t('hand.title'),
         role: editing ? 'dialog' : 'tooltip',
@@ -107,16 +107,16 @@ export function HandoffMark(props: {
           // biome-ignore lint/a11y/noStaticElementInteractions: 只在这一层拦住冒上来的点击
           // biome-ignore lint/a11y/useKeyWithClickEvents: 同上，键盘走卡片里各个按钮自己的事件
           <div style={{ display: 'contents' }} onClick={(event) => event.stopPropagation()}>
-            <div className={hand.cardHead}>
-              <span className={hand.cardIcon}>
+            <div className={css.cardHead}>
+              <span className={css.cardIcon}>
                 <Icon name="result" size={14} />
               </span>
-              <span className={hand.cardTitle}>{t('hand.note')}</span>
-              <span className={hand.cardRoute}>{props.route}</span>
+              <span className={css.cardTitle}>{t('hand.note')}</span>
+              <span className={css.cardRoute}>{props.route}</span>
             </div>
             {editing ? (
               <textarea
-                className={cx(ui.textarea, hand.cardInput)}
+                className={cx(ui.textarea, css.cardInput)}
                 value={draft}
                 rows={4}
                 placeholder={t('hand.notePlaceholder')}
@@ -144,20 +144,20 @@ export function HandoffMark(props: {
             ) : (
               <button
                 type="button"
-                className={cx(hand.detailNote, hand.cardNote)}
+                className={cx(css.detailNote, css.cardNote)}
                 data-testid="wl-handoff-card-text"
                 onClick={edit}
               >
                 {note}
               </button>
             )}
-            <div className={hand.cardFoot}>
+            <div className={css.cardFoot}>
               {editing ? (
                 <>
-                  <span className={hand.cardHint}>{t('hand.editHint')}</span>
+                  <span className={css.cardHint}>{t('hand.editHint')}</span>
                   <button
                     type="button"
-                    className={hand.cardAction}
+                    className={css.cardAction}
                     data-testid="wl-handoff-card-done"
                     onClick={() => float.setState('off')}
                   >
@@ -169,7 +169,7 @@ export function HandoffMark(props: {
                 <>
                   <button
                     type="button"
-                    className={hand.cardAction}
+                    className={css.cardAction}
                     data-testid="wl-handoff-card-edit"
                     onClick={edit}
                   >
@@ -178,7 +178,7 @@ export function HandoffMark(props: {
                   </button>
                   <button
                     type="button"
-                    className={cx(hand.cardAction, hand.cardActionQuiet)}
+                    className={cx(css.cardAction, css.cardActionQuiet)}
                     data-testid="wl-handoff-card-open"
                     onClick={() => {
                       float.setState('off')

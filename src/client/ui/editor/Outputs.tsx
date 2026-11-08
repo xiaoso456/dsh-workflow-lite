@@ -25,7 +25,8 @@ import overlay from '../kit/overlay.module.css'
 import { Segmented } from '../kit/Segmented.tsx'
 import ui from '../kit/ui.module.css'
 import { useResizeFlip } from '../motion/flip.ts'
-import css from './inspector.module.css'
+import ins from './inspector.module.css'
+import css from './outputs.module.css'
 
 type OutputMode = 'unset' | 'file' | 'none'
 
@@ -100,11 +101,11 @@ export function OutputField(props: {
   }
 
   return (
-    <section className={css.field}>
-      <div className={css.label}>
+    <section className={ins.field}>
+      <div className={ins.label}>
         <span>{t('ins.output')}</span>
         {specs.length > 1 && (
-          <span className={css.count}>
+          <span className={ins.count}>
             {specs.length} {t('out.files')}
           </span>
         )}
@@ -148,8 +149,8 @@ export function OutputField(props: {
           </button>
         </div>
       )}
-      {mode === 'none' && <p className={css.help}>{t('out.noneHint')}</p>}
-      {mode === 'unset' && <p className={css.help}>{t('out.unsetHint')}</p>}
+      {mode === 'none' && <p className={ins.help}>{t('out.noneHint')}</p>}
+      {mode === 'unset' && <p className={ins.help}>{t('out.unsetHint')}</p>}
 
       {editing !== null && (
         <OutputEditor
@@ -386,8 +387,8 @@ export function OutputEditor(props: {
           onClose={props.onClose}
         />
         <div className={overlay.sheetBody}>
-          <section className={css.field}>
-            <label className={css.label} htmlFor="wl-output-path">
+          <section className={ins.field}>
+            <label className={ins.label} htmlFor="wl-output-path">
               <span>{t('out.path')}</span>
             </label>
             <input
@@ -403,26 +404,26 @@ export function OutputEditor(props: {
               onChange={(event) => setPath(event.currentTarget.value)}
             />
             {pathError !== null && path !== '' ? (
-              <p className={css.error}>{pathError}</p>
+              <p className={ins.error}>{pathError}</p>
             ) : props.root !== undefined && pathError === null ? (
               // 配了产出根目录：直接给出拼好、标准化之后的最终路径（和编译器同一份拼接）。
-              <div className={css.rootPreview} data-testid="wl-output-final">
-                <span className={css.rootPreviewLabel}>{t('out.finalPath')}</span>
-                <code className={css.rootPreviewResult}>
+              <div className={ins.rootPreview} data-testid="wl-output-final">
+                <span className={ins.rootPreviewLabel}>{t('out.finalPath')}</span>
+                <code className={ins.rootPreviewResult}>
                   {resolveOutputPath(props.root, trimmed)}
                 </code>
               </div>
             ) : (
-              <p className={css.help}>{t('out.pathHint')}</p>
+              <p className={ins.help}>{t('out.pathHint')}</p>
             )}
           </section>
-          <section className={css.field}>
-            <label className={css.label} htmlFor="wl-output-rule">
+          <section className={ins.field}>
+            <label className={ins.label} htmlFor="wl-output-rule">
               <span>
                 {t('ins.output.rule')}
-                <span className={css.optional}>{t('out.optional')}</span>
+                <span className={ins.optional}>{t('out.optional')}</span>
               </span>
-              <span className={css.count}>
+              <span className={ins.count}>
                 {codepointLength(rule)} / {MAX_TEXT_CODEPOINTS}
               </span>
             </label>
@@ -437,9 +438,9 @@ export function OutputEditor(props: {
               onChange={(event) => setRule(event.currentTarget.value)}
             />
             {ruleError !== null ? (
-              <p className={css.error}>{ruleError}</p>
+              <p className={ins.error}>{ruleError}</p>
             ) : (
-              <p className={css.help}>{t('out.ruleHint')}</p>
+              <p className={ins.help}>{t('out.ruleHint')}</p>
             )}
           </section>
         </div>
@@ -494,8 +495,8 @@ function OutputViewer(props: {
         onClose={props.onClose}
       />
       <div className={overlay.sheetBody}>
-        <section className={css.field}>
-          <div className={css.label}>
+        <section className={ins.field}>
+          <div className={ins.label}>
             <span>{t('out.path')}</span>
           </div>
           <span className={css.readonlyChip}>
@@ -503,18 +504,18 @@ function OutputViewer(props: {
             {spec.path}
           </span>
         </section>
-        <section className={css.field}>
-          <div className={css.label}>
+        <section className={ins.field}>
+          <div className={ins.label}>
             <span>{t('ins.output.rule')}</span>
           </div>
           {rule === '' ? (
-            <p className={css.help}>{t('out.noRule')}</p>
+            <p className={ins.help}>{t('out.noRule')}</p>
           ) : (
             <div className={cx(css.readonly, css.readonlyShort)} data-testid="wl-output-rule-view">
               {rule}
             </div>
           )}
-          <p className={css.help}>{t('out.ruleHint')}</p>
+          <p className={ins.help}>{t('out.ruleHint')}</p>
         </section>
       </div>
       <footer className={overlay.sheetFoot}>

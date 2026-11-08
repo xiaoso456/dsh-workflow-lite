@@ -29,7 +29,7 @@ import type { T } from '../../i18n.ts'
 import { type Edit, findNode, type Selection } from '../../model/editor.ts'
 import { DisplaySettings } from '../display/DisplaySettings.tsx'
 import type { FocusFile } from '../editor/Handoff.tsx'
-import css from '../editor/handoff.module.css'
+import hand from '../editor/handoff.module.css'
 import { DescriptionField } from '../editor/Inspector.tsx'
 import ins from '../editor/inspector.module.css'
 import { ResourceHead } from '../editor/NodeHeads.tsx'
@@ -41,6 +41,7 @@ import ui from '../kit/ui.module.css'
 import { useResizeFlip } from '../motion/flip.ts'
 import { EDIT_VIEW, useSwap } from '../motion/swap.tsx'
 import { FolderDialog } from '../run/RunItemDialog.tsx'
+import rows from './fileRows.module.css'
 import { ResourceItems } from './ResourceItems.tsx'
 import {
   type PickMemory,
@@ -122,22 +123,22 @@ export function ResourcePanel(props: {
   const stepRow = (id: string, extra: React.ReactNode, edge: WorkflowEdge): React.JSX.Element => {
     const step = findNode(doc, id)
     return (
-      <div key={edge.id} className={css.fileRow} data-testid="wl-resource-user">
+      <div key={edge.id} className={rows.fileRow} data-testid="wl-resource-user">
         <button
           type="button"
-          className={css.fileRowMain}
+          className={rows.fileRowMain}
           onClick={() => props.onSelect({ kind: 'node', id })}
         >
           <StepMark
             look={lookOf(id, step !== undefined && isStep(step) ? step.data : undefined)}
             size={13}
           />
-          <span className={cx(css.detailTitle, css.grow)}>{stepName(step, id)}</span>
+          <span className={cx(hand.detailTitle, hand.grow)}>{stepName(step, id)}</span>
         </button>
         {extra}
         <button
           type="button"
-          className={cx(ui.btn, ui.icon, ui.small, css.fileRowRemove)}
+          className={cx(ui.btn, ui.icon, ui.small, rows.fileRowRemove)}
           aria-label={t('res.unlink')}
           data-tip={t('res.unlink')}
           onClick={() => props.onEdit({ type: 'removeEdge', id: edge.id })}
@@ -286,7 +287,7 @@ export function ResourcePanel(props: {
               {(info?.writers ?? []).length === 0 ? (
                 <p className={ins.help}>{t('res.noWriters')}</p>
               ) : (
-                <div ref={writersRef} className={css.fileGroup}>
+                <div ref={writersRef} className={rows.fileGroup}>
                   {(info?.writers ?? []).map((writer) => {
                     const edge = edgeOf(writer.id, node.id)
                     if (edge === undefined) return null
@@ -294,7 +295,7 @@ export function ResourcePanel(props: {
                     return stepRow(
                       writer.id,
                       memory !== undefined ? (
-                        <span className={css.access} data-access="update">
+                        <span className={rows.access} data-access="update">
                           {t('file.update')}
                         </span>
                       ) : (
@@ -321,14 +322,14 @@ export function ResourcePanel(props: {
               {(info?.readers ?? []).length === 0 ? (
                 <p className={ins.help}>{t('res.noReaders')}</p>
               ) : (
-                <div ref={readersRef} className={css.fileGroup}>
+                <div ref={readersRef} className={rows.fileGroup}>
                   {(info?.readers ?? []).map((reader) => {
                     const edge = edgeOf(node.id, reader)
                     return edge === undefined
                       ? null
                       : stepRow(
                           reader,
-                          <span className={css.access} data-access="read">
+                          <span className={rows.access} data-access="read">
                             {t('file.read')}
                           </span>,
                           edge,

@@ -3,6 +3,8 @@
  *
  * 每种内容一个颜色（只用在小图标上，不和线色抢）：文件 = 文件色、文件夹 = 橄榄、网址 = 青、
  * Skill = 粉、自定义 = 石板灰。画布上的资源卡用同一套（见 canvas.module.css）。
+ *
+ * 后半是这一屏里只有它用的块：关联已有资源的菜单、新建 / 关联按钮、整份写出 / 更新的小开关。
  */
 
 .resIcon[data-kind="file"] {
@@ -39,4 +41,162 @@
   border-radius: calc(7px * var(--wl-round, 1));
   background: color-mix(in srgb, var(--wl-kind) 13%, transparent);
   color: var(--wl-kind);
+}
+
+.empty {
+  margin: 0;
+  padding: 6px 8px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.55;
+}
+
+.fileActions {
+  display: flex;
+  gap: 6px;
+}
+
+.outAddLike {
+  display: flex;
+  flex: 1 1 0;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  border: 1px dashed var(--wl-line-strong);
+  border-radius: calc(10px * var(--wl-round, 1));
+  background: transparent;
+  color: var(--wl-accent-text);
+  font: inherit;
+  font-size: var(--wl-fs-meta);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 120ms linear,
+    border-color 120ms linear;
+}
+
+.outAddLike:hover {
+  border-color: var(--wl-accent);
+  background: var(--wl-accent-soft);
+}
+
+.outAddLike:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+/* 「关联已有文件」的下拉：每个文件一行，后面是「读取」「写入」两个按钮。 */
+.linkMenu {
+  width: 300px;
+  max-height: 280px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  padding: 4px;
+}
+
+.linkItem {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 4px;
+  border-radius: calc(8px * var(--wl-round, 1));
+  transition: background-color 120ms linear;
+}
+
+.linkItem:hover {
+  background: var(--wl-hover);
+}
+
+.linkPath {
+  flex: 1 1 auto;
+}
+
+.linkAction {
+  flex: none;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--wl-line);
+  border-radius: calc(6px * var(--wl-round, 1));
+  background: var(--wl-panel);
+  color: var(--wl-text-2);
+  font: inherit;
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    border-color 120ms linear,
+    color 120ms linear;
+}
+
+.linkAction:hover {
+  border-color: var(--wl-accent);
+  color: var(--wl-accent-text);
+}
+
+/*
+ * 整份写出 / 在原文件上更新：两格的小开关，换法同实例里的状态按钮（motion/thumb.tsx 的 PickThumb）。
+ * 两格等宽；底下一块滑块滑过去，滑块的两层底色（产出 / 更新）交叉淡入，字色也是两层交叉淡过去，
+ * 新选中的字弹一下。全程只动 transform / opacity。
+ */
+.accessSeg {
+  position: relative;
+  display: inline-grid;
+  flex: none;
+  grid-template-columns: 1fr 1fr;
+  padding: 2px;
+  border-radius: calc(7px * var(--wl-round, 1));
+  background: var(--wl-fill);
+}
+
+.accessThumb {
+  border-radius: calc(5px * var(--wl-round, 1));
+  background: var(--wl-panel);
+  box-shadow: var(--wl-shadow-thumb);
+}
+
+/* 滑块的一层：每种写法一层，`--wl-chip` 跟着层上的 data-access。 */
+.accessTone {
+  background: color-mix(in srgb, var(--wl-chip) 16%, var(--wl-panel));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--wl-chip) 45%, transparent);
+}
+
+.accessTone[data-access="produce"],
+.accessSeg button[data-access="produce"] {
+  --wl-chip: var(--wl-io-produce);
+}
+
+.accessTone[data-access="update"],
+.accessSeg button[data-access="update"] {
+  --wl-chip: var(--wl-io-update);
+}
+
+.accessSeg button {
+  position: relative;
+  height: 22px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: calc(5px * var(--wl-round, 1));
+  background: transparent;
+  color: transparent;
+  font: inherit;
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.accessSeg button:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 0;
+}
+
+/* 字色是 FadeText 的两层交叉淡：没选中灰、悬停深、选中写法色。 */
+.accessSeg button {
+  --wl-off: var(--wl-text-3);
+  --wl-on: var(--wl-chip);
+}
+
+.accessSeg button:hover {
+  --wl-off: var(--wl-text);
 }

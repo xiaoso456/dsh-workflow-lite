@@ -86,3 +86,34 @@
 .dir[data-taken="false"] {
   opacity: 0.5;
 }
+
+.whenChip {
+  flex: none;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 1px 7px;
+  border-radius: calc(999px * var(--wl-round, 1));
+  background: color-mix(in srgb, var(--wl-chip) 12%, var(--wl-panel));
+  color: var(--wl-chip);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+}
+
+/* 和画布上那条线同色。 */
+.whenChip[data-when="always"] {
+  --wl-chip: var(--wl-flow-always);
+}
+
+.whenChip[data-when="pass"] {
+  --wl-chip: var(--wl-flow-pass);
+}
+
+.whenChip[data-when="fail"] {
+  --wl-chip: var(--wl-flow-fail);
+}
+
+.whenChip[data-when="custom"] {
+  --wl-chip: var(--wl-flow-custom);
+}

@@ -62,56 +62,6 @@
   line-height: 28px;
 }
 
-.idLine {
-  display: inline-flex;
-  flex: none;
-  gap: 5px;
-  align-items: center;
-  align-self: flex-start;
-  max-width: 100%;
-  height: 18px;
-  margin-left: -6px;
-  padding: 0 6px;
-  border: 0;
-  border-radius: calc(5px * var(--wl-round, 1));
-  background: transparent;
-  color: var(--wl-text-3);
-  font: inherit;
-  font-size: var(--wl-fs-micro);
-  cursor: pointer;
-  transition:
-    background-color 120ms linear,
-    color 120ms linear;
-}
-
-.idLine code {
-  overflow: hidden;
-  font-family: var(--wl-mono);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.idLine svg {
-  flex: none;
-  opacity: 0;
-  transition: opacity 120ms linear;
-}
-
-.idLine:hover {
-  background: var(--wl-hover);
-  color: var(--wl-text-2);
-}
-
-.idLine:hover svg,
-.idLine:focus-visible svg {
-  opacity: 1;
-}
-
-.idKey {
-  font-weight: 600;
-  letter-spacing: 0.04em;
-}
-
 .body {
   display: flex;
   flex: 1 1 auto;
@@ -180,36 +130,6 @@
   gap: 2px;
 }
 
-.link {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  align-items: stretch;
-  width: 100%;
-  min-height: 32px;
-  padding: 6px 8px;
-  border: 0;
-  border-radius: var(--wl-r-control);
-  background: transparent;
-  color: var(--wl-text);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition: background-color 120ms linear;
-}
-
-.link:hover {
-  background: var(--wl-hover);
-}
-
-/* 一行连接：上面是对面的步骤与条件，下面是交接摘要。 */
-.linkTop {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  min-width: 0;
-}
-
 .linkDir {
   display: inline-flex;
   flex: none;
@@ -236,45 +156,6 @@
 
 .links + .links {
   margin-top: 6px;
-}
-
-.linkName {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.whenChip {
-  flex: none;
-  max-width: 140px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  padding: 1px 7px;
-  border-radius: calc(999px * var(--wl-round, 1));
-  background: color-mix(in srgb, var(--wl-chip) 12%, var(--wl-panel));
-  color: var(--wl-chip);
-  font-size: var(--wl-fs-micro);
-  font-weight: 600;
-}
-
-/* 和画布上那条线同色。 */
-.whenChip[data-when="always"] {
-  --wl-chip: var(--wl-flow-always);
-}
-
-.whenChip[data-when="pass"] {
-  --wl-chip: var(--wl-flow-pass);
-}
-
-.whenChip[data-when="fail"] {
-  --wl-chip: var(--wl-flow-fail);
-}
-
-.whenChip[data-when="custom"] {
-  --wl-chip: var(--wl-flow-custom);
 }
 
 .foot {
@@ -377,239 +258,10 @@
   white-space: nowrap;
 }
 
-.subtitle {
-  margin: 0 14px 4px 50px;
-  color: var(--wl-text-3);
-  font-size: var(--wl-fs-meta);
-}
-
-/* 只读的提示词：看起来是"一段文字"而不是"一个输入框"。 */
-.readonly {
-  flex: 1 0 auto;
-  min-height: 160px;
-  padding: 10px 12px;
-  border-left: 3px solid var(--wl-line-strong);
-  border-radius: calc(4px * var(--wl-round, 1)) var(--wl-r-control) var(--wl-r-control)
-    calc(4px * var(--wl-round, 1));
-  background: var(--wl-fill);
-  color: var(--wl-text-2);
-  font-size: var(--wl-fs-body);
-  line-height: 1.65;
-  white-space: pre-wrap;
-  word-break: break-word;
-  user-select: text;
-}
-
-.readonlyChip {
-  display: inline-flex;
-  gap: 6px;
-  align-items: center;
-  align-self: flex-start;
-  height: 26px;
-  padding: 0 10px;
-  border-radius: calc(7px * var(--wl-round, 1));
-  background: var(--wl-fill);
-  color: var(--wl-text-2);
-  font-family: var(--wl-mono);
-  font-size: var(--wl-fs-meta);
-}
-
-.loading {
-  display: grid;
-  flex: 1 1 auto;
-  place-items: center;
-  color: var(--wl-text-3);
-}
-
-.saveState {
-  color: var(--wl-warn);
-  font-size: var(--wl-fs-micro);
-  white-space: nowrap;
-}
-
-/* ── 产出文件清单 ─────────────────────────────────────────── */
-
-.outList {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.outItem {
-  position: relative;
-}
-
-/* 一行 = 一个文件：图标占两行高，右边是路径与规则摘要。整行就是按钮。 */
-.outMain {
-  display: grid;
-  grid-template-columns: 30px minmax(0, 1fr) 16px;
-  gap: 2px 10px;
-  align-items: center;
-  width: 100%;
-  padding: 8px 10px 8px 8px;
-  border: 1px solid var(--wl-line);
-  border-radius: calc(10px * var(--wl-round, 1));
-  background: var(--wl-panel);
-  color: var(--wl-text);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition:
-    background-color 120ms linear,
-    border-color 120ms linear;
-}
-
-.outMain:hover {
-  border-color: var(--wl-line-strong);
-  background: var(--wl-hover);
-}
-
-.outMain:focus-visible {
-  outline: 2px solid var(--wl-accent);
-  outline-offset: 1px;
-}
-
-.outIcon {
-  display: grid;
-  grid-row: span 2;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: calc(8px * var(--wl-round, 1));
-  background: var(--wl-accent-soft);
-  color: var(--wl-accent-text);
-}
-
-.outMain[data-editable="false"] .outIcon {
-  background: var(--wl-fill);
-  color: var(--wl-text-2);
-}
-
-.outPath {
-  min-width: 0;
-  overflow: hidden;
-  font-family: var(--wl-mono);
-  font-size: var(--wl-fs-meta);
-  font-weight: 500;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.outRule {
-  display: -webkit-box;
-  grid-column: 2;
-  min-width: 0;
-  overflow: hidden;
-  color: var(--wl-text-3);
-  font-size: var(--wl-fs-micro);
-  line-height: 1.5;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  word-break: break-word;
-}
-
-.outRuleEmpty {
-  font-style: italic;
-}
-
-.outMain[data-editable="true"] .outRuleEmpty {
-  color: var(--wl-accent-text);
-  font-style: normal;
-  opacity: 0.8;
-}
-
-/* 行尾的小箭头 / 铅笔：悬停时才浮出来，说明"点这一行"。 */
-.outGo {
-  display: inline-flex;
-  grid-row: 1 / span 2;
-  grid-column: 3;
-  color: var(--wl-text-3);
-  opacity: 0;
-  transform: translateX(-3px);
-  transition:
-    opacity 120ms linear,
-    transform 160ms var(--wl-ease);
-}
-
-.outMain:hover .outGo,
-.outMain:focus-visible .outGo {
-  opacity: 1;
-  transform: translateX(0);
-}
-
-/* 可删的行：删除钮压在行尾，悬停时换掉那支铅笔。 */
-.outRemove {
-  position: absolute;
-  top: 50%;
-  right: 6px;
-  opacity: 0;
-  transform: translateY(-50%);
-  transition: opacity 120ms linear;
-}
-
-.outItem:hover .outRemove,
-.outRemove:focus-visible {
-  opacity: 1;
-}
-
-.outItem:has(.outRemove):hover .outGo {
-  opacity: 0;
-}
-
-.outAdd {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  justify-content: center;
-  height: 34px;
-  border: 1px dashed var(--wl-line-strong);
-  border-radius: calc(10px * var(--wl-round, 1));
-  background: transparent;
-  color: var(--wl-accent-text);
-  font: inherit;
-  font-size: var(--wl-fs-meta);
-  font-weight: 500;
-  cursor: pointer;
-  transition:
-    background-color 120ms linear,
-    border-color 120ms linear;
-}
-
-.outAdd:hover {
-  border-color: var(--wl-accent);
-  background: var(--wl-accent-soft);
-}
-
-.outAdd:focus-visible {
-  outline: 2px solid var(--wl-accent);
-  outline-offset: 1px;
-}
-
-/* 模态框里的生成规则：有地方好好写一段。 */
-.ruleArea {
-  min-height: 180px;
-  font-size: var(--wl-fs-body);
-  line-height: 1.6;
-}
-
 .optional {
   margin-left: 6px;
   color: var(--wl-text-3);
   font-weight: 400;
-}
-
-.readonlyShort {
-  flex: none;
-  min-height: 0;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .outGo,
-  .outRemove {
-    transition: none;
-  }
 }
 
 /* 自定义条件：一段话，不是一个短词。 */
@@ -662,23 +314,8 @@
   text-transform: uppercase;
 }
 
-/* 瑞士：分组小标题改成加粗、加宽字距的大写小字（见 shell.module.css 的 data-look）。 */
-:global([data-look="swiss"]) .idKey {
-  color: var(--wl-text);
-  font-size: var(--wl-fs-micro);
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
 /* 瑞士：成块的卡片行只留底线。 */
 :global([data-look="swiss"]) .end {
-  border-width: 0 0 1px;
-  border-color: var(--wl-line-strong);
-}
-
-/* 瑞士：成块的卡片行只留底线。 */
-:global([data-look="swiss"]) .outMain {
   border-width: 0 0 1px;
   border-color: var(--wl-line-strong);
 }

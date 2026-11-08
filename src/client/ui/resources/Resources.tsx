@@ -31,7 +31,7 @@ import type {
 import type { T } from '../../i18n.ts'
 import { type Edit, findNode, type Selection, takenPaths } from '../../model/editor.ts'
 import type { FocusFile } from '../editor/Handoff.tsx'
-import css from '../editor/handoff.module.css'
+import hand from '../editor/handoff.module.css'
 import ins from '../editor/inspector.module.css'
 import { OutputEditor } from '../editor/Outputs.tsx'
 import { cx } from '../kit/cx.ts'
@@ -43,6 +43,7 @@ import ui from '../kit/ui.module.css'
 import { useResizeFlip } from '../motion/flip.ts'
 import { FadeText } from '../motion/marks.tsx'
 import { PickThumb } from '../motion/thumb.tsx'
+import rows from './fileRows.module.css'
 import res from './resources.module.css'
 
 /** 资源的小图标：只有一项时用那一项的种类图标，否则是一叠。 */
@@ -107,27 +108,27 @@ export function StepResourcesField(props: {
   ): React.JSX.Element => (
     <div
       key={key}
-      className={css.fileRow}
+      className={rows.fileRow}
       data-testid="wl-step-resource"
       onPointerEnter={() => props.onFocusFile(resource.id)}
       onPointerLeave={() => props.onFocusFile(null)}
     >
       <button
         type="button"
-        className={css.fileRowMain}
+        className={rows.fileRowMain}
         onClick={() => props.onSelect({ kind: 'node', id: resource.id })}
       >
         <ResourceIcon resource={resource} />
-        <span className={css.pickText}>
-          <span className={css.detailTitle}>{resourceTitle(resource)}</span>
-          <span className={css.detailMeta}>{meta}</span>
+        <span className={hand.pickText}>
+          <span className={hand.detailTitle}>{resourceTitle(resource)}</span>
+          <span className={hand.detailMeta}>{meta}</span>
         </span>
         {badge}
       </button>
       {edge !== null && (
         <button
           type="button"
-          className={cx(ui.btn, ui.icon, ui.small, css.fileRowRemove)}
+          className={cx(ui.btn, ui.icon, ui.small, rows.fileRowRemove)}
           aria-label={t('res.unlink')}
           data-tip={t('res.unlink')}
           onClick={() => props.onEdit({ type: 'removeEdge', id: edge.id })}
@@ -153,13 +154,13 @@ export function StepResourcesField(props: {
       </div>
       {nothing && <p className={ins.help}>{t('res.none')}</p>}
       {linkedNow.writes.length > 0 && (
-        <div ref={writesRef} className={css.fileGroup}>
-          <p className={css.subLabel}>{t('res.writes')}</p>
+        <div ref={writesRef} className={rows.fileGroup}>
+          <p className={hand.subLabel}>{t('res.writes')}</p>
           {linkedNow.writes.map(({ resource, update, edge }) =>
             row(
               resource,
               edge.id,
-              <span className={css.access} data-access={update ? 'update' : 'produce'}>
+              <span className={rows.access} data-access={update ? 'update' : 'produce'}>
                 {update ? t('file.update') : t('file.produce')}
               </span>,
               resourceSummary(t, resource),
@@ -169,14 +170,14 @@ export function StepResourcesField(props: {
         </div>
       )}
       {linkedNow.reads.length > 0 && (
-        <div ref={readsRef} className={css.fileGroup}>
-          <p className={css.subLabel}>{t('res.reads')}</p>
+        <div ref={readsRef} className={rows.fileGroup}>
+          <p className={hand.subLabel}>{t('res.reads')}</p>
           {linkedNow.reads.map(({ resource, edge }) => {
             const from = writersOf(graph.get(resource.id))
             return row(
               resource,
               edge.id,
-              <span className={css.access} data-access="read">
+              <span className={rows.access} data-access="read">
                 {t('file.read')}
               </span>,
               from === '' ? resourceSummary(t, resource) : `${t('res.from')} ${from}`,
@@ -186,23 +187,23 @@ export function StepResourcesField(props: {
         </div>
       )}
       {shared.length > 0 && (
-        <div ref={sharedRef} className={css.fileGroup}>
-          <p className={css.subLabel}>{t('res.shared')}</p>
+        <div ref={sharedRef} className={rows.fileGroup}>
+          <p className={hand.subLabel}>{t('res.shared')}</p>
           {shared.map((resource) =>
             row(
               resource,
               resource.id,
-              <span className={css.access}>{t('res.sharedTag')}</span>,
+              <span className={rows.access}>{t('res.sharedTag')}</span>,
               resourceSummary(t, resource),
               null,
             ),
           )}
         </div>
       )}
-      <div className={css.fileActions}>
+      <div className={res.fileActions}>
         <button
           type="button"
-          className={css.outAddLike}
+          className={res.outAddLike}
           data-testid="wl-resource-new"
           onClick={() => setCreating(true)}
         >
@@ -215,11 +216,11 @@ export function StepResourcesField(props: {
           align="end"
           up
           label={t('res.link')}
-          className={css.linkMenu}
+          className={res.linkMenu}
           trigger={
             <button
               type="button"
-              className={css.outAddLike}
+              className={res.outAddLike}
               data-testid="wl-resource-link"
               aria-expanded={linking}
               onClick={() => setLinking((open) => !open)}
@@ -230,15 +231,17 @@ export function StepResourcesField(props: {
           }
         >
           {others.length === 0 ? (
-            <p className={css.empty}>{t('res.linkEmpty')}</p>
+            <p className={res.empty}>{t('res.linkEmpty')}</p>
           ) : (
             others.map((resource) => (
-              <div key={resource.id} className={css.linkItem} data-testid="wl-resource-link-item">
+              <div key={resource.id} className={res.linkItem} data-testid="wl-resource-link-item">
                 <ResourceIcon resource={resource} />
-                <span className={cx(css.detailTitle, css.linkPath)}>{resourceTitle(resource)}</span>
+                <span className={cx(hand.detailTitle, res.linkPath)}>
+                  {resourceTitle(resource)}
+                </span>
                 <button
                   type="button"
-                  className={css.linkAction}
+                  className={res.linkAction}
                   data-testid="wl-resource-link-read"
                   onClick={() => {
                     setLinking(false)
@@ -250,7 +253,7 @@ export function StepResourcesField(props: {
                 </button>
                 <button
                   type="button"
-                  className={css.linkAction}
+                  className={res.linkAction}
                   data-testid="wl-resource-link-write"
                   onClick={() => {
                     setLinking(false)
@@ -300,7 +303,7 @@ export function ModeToggle(props: {
   const { t } = props
   return (
     <div
-      className={css.accessSeg}
+      className={res.accessSeg}
       role="radiogroup"
       aria-label={t('res.writers')}
       data-update={props.update}
@@ -308,12 +311,12 @@ export function ModeToggle(props: {
       {/* 滑块：滑过去，颜色是两层叠着的底色交叉淡入，字色也交叉淡（同实例里的状态按钮，见 PickThumb）。 */}
       <PickThumb
         layout={String(props.update)}
-        className={css.accessThumb}
+        className={res.accessThumb}
         tone={{
           list: ['produce', 'update'],
           on: props.update ? 'update' : 'produce',
           attr: 'data-access',
-          className: css.accessTone,
+          className: res.accessTone,
         }}
       />
       <button

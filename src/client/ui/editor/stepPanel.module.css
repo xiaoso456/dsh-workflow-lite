@@ -1,0 +1,22 @@
+/**
+ * dsh-workflow-lite — 步骤库条目的属性面板（StepPanel.tsx）里只有它用的块：副标题、加载中、未保存提示。
+ */
+
+.subtitle {
+  margin: 0 14px 4px 50px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+}
+
+.loading {
+  display: grid;
+  flex: 1 1 auto;
+  place-items: center;
+  color: var(--wl-text-3);
+}
+
+.saveState {
+  color: var(--wl-warn);
+  font-size: var(--wl-fs-micro);
+  white-space: nowrap;
+}
