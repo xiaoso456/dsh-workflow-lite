@@ -1,0 +1,36 @@
+/*
+ * 原地改名那一行末尾的「确认」「取消」两个小按钮（EditActions.tsx）。整行的排版（.editRow / .editActions）留在 ui.module.css。
+ */
+
+/* 确认是实心的强调色小方块，取消是淡的；两个都是 24px 的点击区，悬停时才有底。 */
+.editAction {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: calc(6px * var(--wl-round, 1));
+  background: transparent;
+  color: var(--wl-text-3);
+  cursor: pointer;
+  transition:
+    background-color 120ms linear,
+    color 120ms linear;
+}
+
+.editAction:hover {
+  background: var(--wl-hover);
+  color: var(--wl-text);
+}
+
+.editAction[data-tone="confirm"] {
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+}
+
+.editAction[data-tone="confirm"]:hover {
+  background: var(--wl-accent);
+  color: var(--wl-accent-on);
+}

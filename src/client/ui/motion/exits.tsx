@@ -17,7 +17,7 @@ import {
 } from 'react'
 import { cx } from '../kit/cx.ts'
 import { ghostClone, ghostFade } from '../kit/ghost.ts'
-import ui from '../kit/ui.module.css'
+import css from './exits.module.css'
 import { EASE, fadeAway, leaving, REDUCED } from './shared.ts'
 
 /** 退场：往哪边走、走多久（都是入场的反方向）。 */
@@ -359,7 +359,7 @@ export function Presence(props: {
   return (
     <div
       ref={ref}
-      className={cx(ui.presence, props.className)}
+      className={cx(css.presence, props.className)}
       data-open={open}
       data-moving={moving ? true : undefined}
       aria-hidden={show ? undefined : true}
@@ -369,7 +369,7 @@ export function Presence(props: {
         }
       }}
     >
-      <div className={ui.presenceInner}>{show ? props.children : last.current}</div>
+      <div className={css.presenceInner}>{show ? props.children : last.current}</div>
     </div>
   )
 }

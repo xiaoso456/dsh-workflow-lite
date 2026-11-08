@@ -8,8 +8,9 @@
  */
 
 import type { T } from '../../i18n.ts'
+import css from './editActions.module.css'
 import { Icon } from './Icon.tsx'
-import ui from './ui.module.css'
+import shared from './ui.module.css'
 
 export function EditActions(props: {
   t: T
@@ -18,10 +19,10 @@ export function EditActions(props: {
 }): React.JSX.Element {
   const { t } = props
   return (
-    <span className={ui.editActions}>
+    <span className={shared.editActions}>
       <button
         type="button"
-        className={ui.editAction}
+        className={css.editAction}
         data-tone="confirm"
         data-tip={`${t('common.confirm')} · Enter`}
         aria-label={t('common.confirm')}
@@ -33,7 +34,7 @@ export function EditActions(props: {
       </button>
       <button
         type="button"
-        className={ui.editAction}
+        className={css.editAction}
         data-tip={`${t('common.cancel')} · Esc`}
         aria-label={t('common.cancel')}
         data-testid="wl-edit-cancel"

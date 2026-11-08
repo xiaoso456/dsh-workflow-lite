@@ -1,0 +1,148 @@
+/*
+ * 分段选择（Segmented.tsx）：一条底、滑块（PickThumb）、各格，格里的小色点和数字标。
+ */
+
+/* 焦点环、按下回弹：和 ui.module.css 里的输入框、菜单项、开关同一份写法。 */
+.segItem {
+  outline: 2px solid transparent;
+  outline-offset: var(--ring, 1px);
+  transition-property: scale;
+  transition-duration: 160ms;
+  transition-timing-function: var(--wl-ease-sheet);
+}
+
+.segItem:active {
+  scale: 0.95;
+}
+
+.seg {
+  position: relative;
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  padding: 2px;
+  border-radius: var(--wl-r-control);
+  background: var(--wl-fill);
+}
+
+/* 滑块的位置、大小由 PickThumb 按选中格量，这里只管样子。 */
+.segThumb {
+  border-radius: calc(6px * var(--wl-round, 1));
+  background: var(--wl-panel);
+  box-shadow: var(--wl-shadow-thumb);
+}
+
+.segItem {
+  position: relative;
+  height: 28px;
+  padding: 0 6px;
+  overflow: hidden;
+  border: 0;
+  border-radius: calc(6px * var(--wl-round, 1));
+  background: transparent;
+  color: var(--wl-text-3);
+  font: inherit;
+  font-size: var(--wl-fs-meta);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* 字后面的小数字标：灰底小胶囊，选中那格里换成强调色。 */
+.segCount {
+  display: inline-block;
+  min-width: 18px;
+  height: 16px;
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: calc(999px * var(--wl-round, 1));
+  background: var(--wl-fill-strong);
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-micro);
+  font-variant-numeric: tabular-nums;
+  line-height: 16px;
+  text-align: center;
+  vertical-align: 1px;
+}
+
+.segItem[aria-checked="true"] .segCount {
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+}
+
+/* 字色是 FadeText 的两层交叉淡：没选中灰，选中和悬停深。 */
+.segItem {
+  --wl-off: var(--wl-text-3);
+}
+
+.segItem:hover {
+  --wl-off: var(--wl-text);
+}
+
+.segItem:focus-visible {
+  --ring: -2px;
+
+  outline-color: var(--wl-accent);
+  outline-offset: var(--ring);
+}
+
+.seg[aria-disabled="true"] {
+  opacity: 0.5;
+}
+
+.segItem:disabled {
+  color: var(--wl-text-3);
+  cursor: default;
+}
+
+/* 选项前的小色点：没选中时淡一些，选中时是实色。 */
+.segDot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 5px;
+  border-radius: 50%;
+  vertical-align: 1px;
+  opacity: 0.55;
+  transition: opacity 160ms ease;
+}
+
+.segItem[aria-checked="true"] .segDot,
+.segItem:hover .segDot {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .segItem,
+  .segThumb {
+    transition: none;
+  }
+}
+
+/* 瑞士：分段选择是「反白」的——整条一道细框，选中的那格是黑底白字（见 shell.module.css 的 data-look）。 */
+:global([data-look="swiss"]) .seg {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--wl-line-strong);
+}
+
+:global([data-look="swiss"]) .segThumb {
+  background: var(--wl-text);
+  box-shadow: none;
+}
+
+:global([data-look="swiss"]) .segItem {
+  --wl-on: var(--wl-panel);
+}
+
+/* 数字标：只留一圈线，选中那格（黑底）里跟着字反白。 */
+:global([data-look="swiss"]) .segCount,
+:global([data-look="swiss"]) .segItem[aria-checked="true"] .segCount {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px currentColor;
+  color: var(--wl-text-3);
+}
+
+:global([data-look="swiss"]) .segItem[aria-checked="true"] .segCount {
+  color: var(--wl-panel);
+}

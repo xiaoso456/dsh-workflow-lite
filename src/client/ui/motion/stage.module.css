@@ -1,0 +1,90 @@
+/*
+ * 按步骤换、滑着换、叠着轮流换的几种容器（stage.tsx 的 Staged / SlideSwap / FadeStack）。
+ */
+
+/* ── 按步骤换的一块（motion/stage.tsx 的 Staged）────────────────────── */
+
+/* 外层：影子绝对定位摆在里面，退场时不越出这块。间距沿用父元素的（gap: inherit 一层层传下来）。 */
+.stage {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: inherit;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.stageBody {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: inherit;
+  min-height: 0;
+}
+
+/* ── 同一处换一版内容（motion/stage.tsx 的 SlideSwap）────────────────── */
+
+/* 显示着的那层照常排版（交互时由外面滚）；垫在底下读的、正在滑走的叠在上面，不占位置、不接鼠标。 */
+.slides {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+/* 只在滑的这段时间横向裁（滑出去的部分不撑出横向滚动条）；平时不裁，宽内容照常横着滚。 */
+.slides[data-moving] {
+  overflow-x: clip;
+}
+
+.slide {
+  width: 100%;
+  height: 100%;
+}
+
+.slide:not([data-state="shown"]) {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.slide[data-state="pending"] {
+  opacity: 0;
+}
+
+/* ── 叠在同一格里轮流出现的几段话（motion/stage.tsx 的 FadeStack）───────── */
+
+.fadeStack {
+  display: grid;
+}
+
+/* 退场：原地淡掉，淡完再悄悄挪回下方的起点、藏起来（不往下沉，免得和进来的那段反着走）。 */
+.fadeLayer {
+  grid-area: 1 / 1;
+  min-width: 0;
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(4px);
+  transition:
+    opacity 120ms linear,
+    transform 0s linear 120ms,
+    visibility 0s linear 120ms;
+}
+
+/* 进场：等旧的淡下去一点，再从下面浮上来。 */
+.fadeLayer[data-on="true"] {
+  visibility: visible;
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 180ms linear 60ms,
+    transform 260ms var(--wl-ease-out) 60ms,
+    visibility 0s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fadeLayer,
+  .fadeLayer[data-on="true"] {
+    transition: none;
+  }
+}

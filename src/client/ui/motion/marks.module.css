@@ -1,0 +1,126 @@
+/*
+ * 随状态换色的小标记（marks.tsx 的 FadeText / FadeMark / FadeRing / DotState）：两层交叉淡，不是颜色瞬切。
+ * 勾选圈（.check / .checkDraw）、开关（.switch）几处共用，留在 kit/ui.module.css。
+ */
+
+/*
+ * 随选中态变色的字、图标（`motion/marks.tsx` 的 FadeText / FadeMark）：灰、强调色两层交叉淡，不是颜色瞬切。
+ * 颜色靠自定义属性：`--wl-off` 没选中（默认 text-2）、`--wl-on` 选中（字默认 text、图标默认 accent-text）；
+ * 悬停变深就在外面的 `:hover` 里改 `--wl-off`。
+ */
+.fadeText {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  color: transparent;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: top;
+}
+
+.fadeText::before,
+.fadeText::after {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  content: attr(data-text);
+  text-overflow: ellipsis;
+  transition: opacity 200ms linear;
+}
+
+.fadeText::before {
+  color: var(--wl-off, var(--wl-text-2));
+}
+
+.fadeText::after {
+  color: var(--wl-on, var(--wl-text));
+  opacity: 0;
+}
+
+.fadeText[data-on="true"]::before {
+  opacity: 0;
+}
+
+.fadeText[data-on="true"]::after {
+  opacity: 1;
+}
+
+.fadeMark {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+}
+
+.fadeMarkOff,
+.fadeMarkOn {
+  display: inline-flex;
+  grid-area: 1 / 1;
+  transition: opacity 200ms linear;
+}
+
+.fadeMarkOn {
+  color: var(--wl-on, var(--wl-accent-text));
+  opacity: 0;
+}
+
+.fadeMark[data-on="true"] .fadeMarkOff {
+  opacity: 0;
+}
+
+.fadeMark[data-on="true"] .fadeMarkOn {
+  opacity: 1;
+}
+
+/* 描边层（motion/marks.tsx 的 FadeRing）：新状态的一层淡入、旧状态的一层淡出。 */
+.ringIn {
+  animation: ringIn 220ms linear backwards;
+}
+
+.ringOut {
+  pointer-events: none;
+  animation: ringOut 220ms linear forwards;
+}
+
+@keyframes ringIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes ringOut {
+  to {
+    opacity: 0;
+  }
+}
+
+/* 「是 / 否」的小状态（motion/marks.tsx 的 DotState）：是 = 绿点实心 + 绿字，否 = 空心灰圈 + 灰字。 */
+.dotState {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  color: var(--wl-text-3);
+  --wl-off: var(--wl-text-3);
+  --wl-on: var(--wl-ok);
+}
+
+.dotState .fadeMarkOn > * {
+  background: currentcolor;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ringIn {
+    animation: none;
+  }
+
+  .ringOut {
+    display: none;
+  }
+
+  .fadeText::before,
+  .fadeText::after,
+  .fadeMarkOff,
+  .fadeMarkOn {
+    transition: none;
+  }
+}

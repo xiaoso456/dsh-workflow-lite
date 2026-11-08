@@ -4,7 +4,8 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/kit/HelpTip
  */
 
-import ui from './ui.module.css'
+import css from './helpTip.module.css'
+import shared from './ui.module.css'
 import { FLOAT_EXIT_MS, useFloat } from './useFloat.tsx'
 
 /** 「?」说明：悬停多久才出来、离开多久才收（留出把鼠标移进浮层的时间）。 */
@@ -29,11 +30,11 @@ export function HelpTip(props: {
   })
   const { state, setState } = float
   return (
-    <span className={ui.hint}>
+    <span className={css.hint}>
       <button
         ref={float.anchorRef}
         type="button"
-        className={ui.hintButton}
+        className={css.hintButton}
         aria-label={props.label}
         aria-expanded={state !== 'off'}
         data-open={state !== 'off'}
@@ -68,7 +69,7 @@ export function HelpTip(props: {
         </svg>
       </button>
       {float.render({
-        className: ui.hintPanel,
+        className: shared.hintPanel,
         testId: props.testId === undefined ? undefined : `${props.testId}-panel`,
         children: props.children,
       })}

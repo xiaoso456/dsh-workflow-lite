@@ -1,0 +1,47 @@
+/*
+ * 单选组的选中块（thumb.tsx 的 PickThumb）：显隐和换色的交叉淡；列表的选中底块（ListThumb）留在 kit/ui.module.css。
+ */
+
+/*
+ * 单选组的选中块（`motion/thumb.tsx` 的 PickThumb）：滑动由 Web Animations 放（transform），
+ * 这里只管显隐、换色时各层的交叉淡入淡出。圆角、底色、描边由调用方的类给。
+ * 组要 `position: relative`，项要 `position: relative` 才盖在它上面。
+ */
+.pickThumb {
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0;
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+
+.pickThumb[data-on="true"] {
+  opacity: 1;
+}
+
+.pickThumb[data-live="true"] {
+  transition: opacity 160ms linear;
+}
+
+.pickTone {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0;
+}
+
+.pickTone[data-on="true"] {
+  opacity: 1;
+}
+
+.pickThumb[data-live="true"] .pickTone {
+  transition: opacity 220ms linear;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pickThumb[data-live="true"],
+  .pickThumb[data-live="true"] .pickTone {
+    transition: none;
+  }
+}

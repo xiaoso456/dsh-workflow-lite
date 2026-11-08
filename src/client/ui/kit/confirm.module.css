@@ -1,0 +1,60 @@
+/*
+ * 二次确认卡片（Confirm.tsx）里面的排版：图标、标题、说明、按钮行。
+ * 卡片外壳（.confirmPop）和「?」说明的浮层同一套入场、收起，留在 ui.module.css。
+ */
+
+.confirmBody {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.confirmHead {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.confirmIcon {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: calc(6px * var(--wl-round, 1));
+  background: var(--wl-danger-soft);
+  color: var(--wl-danger);
+}
+
+.confirmIcon[data-tone="accent"] {
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+}
+
+.confirmTitle {
+  padding-top: 1px;
+  color: var(--wl-text);
+  font-weight: 600;
+}
+
+.confirmDesc {
+  margin: -4px 0 0 30px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+.confirmBody label {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  margin-left: 30px;
+  color: var(--wl-text-2);
+  cursor: pointer;
+}
+
+.confirmActions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  margin-top: 2px;
+}

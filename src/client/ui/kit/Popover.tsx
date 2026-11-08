@@ -6,7 +6,7 @@
 
 import { type RefObject, useEffect, useRef, useState } from 'react'
 import { cx } from './cx.ts'
-import ui from './ui.module.css'
+import css from './popover.module.css'
 import { FLOAT_EXIT_MS } from './useFloat.tsx'
 
 /**
@@ -75,7 +75,7 @@ export function Popover(props: {
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: 只在这一层消化浮层内冒上来的 Esc
     <div
-      className={ui.anchor}
+      className={css.anchor}
       ref={ref}
       onPointerLeave={(event) => {
         if (props.open && event.pointerType === 'mouse') props.onLeave?.()
@@ -91,9 +91,9 @@ export function Popover(props: {
         <div
           key={round}
           className={cx(
-            ui.popover,
-            props.align === 'end' && ui.popoverEnd,
-            props.up === true && ui.popoverUp,
+            css.popover,
+            props.align === 'end' && css.popoverEnd,
+            props.up === true && css.popoverUp,
             props.className,
           )}
           role="dialog"

@@ -19,7 +19,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import ui from '../kit/ui.module.css'
+import css from './tipLayer.module.css'
 
 /** 悬停多久才出来。 */
 const OPEN_MS = 380
@@ -246,12 +246,12 @@ export function TipLayer(props: { root: HTMLElement | null }): React.ReactNode {
     if (leaving === null || root === null) return null
     return createPortal(
       <div
-        className={ui.tipSeat}
+        className={css.tipSeat}
         aria-hidden="true"
         style={{ transform: `translate(${leaving.left}px, ${leaving.top}px)` }}
       >
         <div
-          className={ui.tipLayer}
+          className={css.tipLayer}
           data-up={leaving.up}
           data-leaving="true"
           data-clipped={leaving.clip === null ? undefined : true}
@@ -279,7 +279,7 @@ export function TipLayer(props: { root: HTMLElement | null }): React.ReactNode {
     <div
       key={shown.seq}
       ref={tipRef}
-      className={ui.tipSeat}
+      className={css.tipSeat}
       data-glide={placed?.glide === true}
       style={{
         transform: `translate(${placed?.left ?? 0}px, ${placed?.top ?? 0}px)`,
@@ -288,7 +288,7 @@ export function TipLayer(props: { root: HTMLElement | null }): React.ReactNode {
       }}
     >
       <div
-        className={ui.tipLayer}
+        className={css.tipLayer}
         role="tooltip"
         data-up={placed?.up === true}
         data-clipped={placed === null || placed.clip === null ? undefined : true}

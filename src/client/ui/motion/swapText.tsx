@@ -7,7 +7,7 @@
 
 import { useEffect, useState } from 'react'
 import { Icon, type IconName } from '../kit/Icon.tsx'
-import ui from '../kit/ui.module.css'
+import css from './swapText.module.css'
 
 /** 换字、换图标时旧的留多久（和 ui.module.css 的 swapOut / iconOut 一致）。 */
 const SWAP_TEXT_MS = 160
@@ -55,16 +55,16 @@ export function SwapText(props: {
     <span
       // 每换一次重新挂：两段动画都从头放。
       key={n}
-      className={ui.swapText}
+      className={css.swapText}
       data-was={was ?? undefined}
       data-fresh={n > 0 || undefined}
       data-pop={props.pop === true || undefined}
       data-dir={props.dir === 'down' ? 'down' : undefined}
     >
       {props.reserve?.map((text) => (
-        <span key={text} className={ui.swapSizer} data-text={text} aria-hidden="true" />
+        <span key={text} className={css.swapSizer} data-text={text} aria-hidden="true" />
       ))}
-      <span className={ui.swapNow}>{props.text}</span>
+      <span className={css.swapNow}>{props.text}</span>
     </span>
   )
 }
@@ -76,15 +76,15 @@ export function SwapText(props: {
 export function SwapIcon(props: { name: IconName; size?: number }): React.JSX.Element {
   const { was, n } = useLast(props.name, SWAP_ICON_MS)
   return (
-    <span className={ui.swapIcon}>
+    <span className={css.swapIcon}>
       {was !== null && (
-        <span key={`out-${n}`} className={ui.iconOut} data-ok={was === 'check' || undefined}>
+        <span key={`out-${n}`} className={css.iconOut} data-ok={was === 'check' || undefined}>
           <Icon name={was} size={props.size} />
         </span>
       )}
       <span
         key={`in-${n}`}
-        className={n > 0 ? ui.iconIn : undefined}
+        className={n > 0 ? css.iconIn : undefined}
         data-ok={props.name === 'check' || undefined}
       >
         <Icon name={props.name} size={props.size} />
@@ -103,13 +103,13 @@ export function SwapNode(props: {
 }): React.JSX.Element {
   const { was, n } = useLast(props.id, SWAP_ICON_MS)
   return (
-    <span className={ui.swapIcon}>
+    <span className={css.swapIcon}>
       {was !== null && (
-        <span key={`out-${n}`} className={ui.nodeOut}>
+        <span key={`out-${n}`} className={css.nodeOut}>
           {props.render(was)}
         </span>
       )}
-      <span key={`in-${n}`} className={n > 0 ? ui.nodeIn : undefined}>
+      <span key={`in-${n}`} className={n > 0 ? css.nodeIn : undefined}>
         {props.render(props.id)}
       </span>
     </span>

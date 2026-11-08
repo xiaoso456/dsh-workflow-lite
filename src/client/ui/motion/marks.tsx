@@ -6,7 +6,8 @@
  */
 
 import { cx } from '../kit/cx.ts'
-import ui from '../kit/ui.module.css'
+import shared from '../kit/ui.module.css'
+import css from './marks.module.css'
 import { useLast } from './swapText.tsx'
 
 /**
@@ -23,7 +24,7 @@ export function FadeText(props: {
 }): React.JSX.Element {
   return (
     <span
-      className={cx(ui.fadeText, props.className)}
+      className={cx(css.fadeText, props.className)}
       data-text={props.text}
       data-on={props.on}
       data-pick-pop={props.pop === true ? '0.9' : undefined}
@@ -43,9 +44,9 @@ export function FadeMark(props: {
   className?: string
 }): React.JSX.Element {
   return (
-    <span className={cx(ui.fadeMark, props.className)} data-on={props.on}>
-      <span className={ui.fadeMarkOff}>{props.children}</span>
-      <span className={ui.fadeMarkOn} data-pick-pop="">
+    <span className={cx(css.fadeMark, props.className)} data-on={props.on}>
+      <span className={css.fadeMarkOff}>{props.children}</span>
+      <span className={css.fadeMarkOn} data-pick-pop="">
         {props.children}
       </span>
     </span>
@@ -58,7 +59,7 @@ export function FadeMark(props: {
  */
 export function CheckMark(): React.JSX.Element {
   return (
-    <svg className={ui.checkDraw} width="16" height="16" viewBox="0 0 64 64" aria-hidden="true">
+    <svg className={shared.checkDraw} width="16" height="16" viewBox="0 0 64 64" aria-hidden="true">
       <path d="M3 32C3 10.16 10.16 3 32 3C53.84 3 61 10.16 61 32C61 53.84 53.84 61 32 61C10.16 61 3 53.84 3 32L18 33L28 43L47 22" />
     </svg>
   )
@@ -70,8 +71,8 @@ export function CheckMark(): React.JSX.Element {
  */
 export function SwitchTrack(props: { on: boolean }): React.JSX.Element {
   return (
-    <span className={ui.switch} data-on={props.on} aria-hidden="true">
-      <span className={ui.knob} />
+    <span className={shared.switch} data-on={props.on} aria-hidden="true">
+      <span className={shared.knob} />
     </span>
   )
 }
@@ -85,8 +86,8 @@ export function Checkbox(
 ): React.JSX.Element {
   const { className, ...rest } = props
   return (
-    <span className={cx(ui.checkbox, className)}>
-      <input type="checkbox" className={ui.checkInput} {...rest} />
+    <span className={cx(shared.checkbox, className)}>
+      <input type="checkbox" className={shared.checkInput} {...rest} />
       <CheckBox />
     </span>
   )
@@ -98,7 +99,7 @@ export function Checkbox(
  */
 export function CheckBox(props: { on?: boolean; className?: string }): React.JSX.Element {
   return (
-    <span className={cx(ui.check, props.className)} data-on={props.on} aria-hidden="true">
+    <span className={cx(shared.check, props.className)} data-on={props.on} aria-hidden="true">
       <CheckMark />
     </span>
   )
@@ -117,7 +118,7 @@ export function DotState(props: {
 }): React.JSX.Element {
   return (
     <span
-      className={cx(ui.dotState, props.className)}
+      className={cx(css.dotState, props.className)}
       data-on={props.on}
       data-testid={props.testId}
     >
@@ -148,7 +149,7 @@ export function FadeRing(props: {
       {was !== null && (
         <span
           key={`out-${n}`}
-          className={cx(props.className, ui.ringOut)}
+          className={cx(props.className, css.ringOut)}
           data-ring={was}
           aria-hidden="true"
         />
@@ -156,7 +157,7 @@ export function FadeRing(props: {
       {props.ring !== undefined && (
         <span
           key={`in-${props.ring}`}
-          className={cx(props.className, ui.ringIn)}
+          className={cx(props.className, css.ringIn)}
           data-ring={props.ring}
           aria-hidden="true"
         />

@@ -7,9 +7,10 @@
 
 import { useLayoutEffect, useRef, useState } from 'react'
 import { cx } from '../kit/cx.ts'
-import ui from '../kit/ui.module.css'
+import shared from '../kit/ui.module.css'
 import { EASE_OUT, REDUCED } from './shared.ts'
 import { swappedAt } from './swap.tsx'
+import css from './thumb.module.css'
 
 interface Place {
   top: number
@@ -94,7 +95,7 @@ export function ListThumb(props: {
     <span
       ref={ref}
       aria-hidden="true"
-      className={cx(ui.listThumb, props.className)}
+      className={cx(shared.listThumb, props.className)}
       data-live={live}
       data-hidden={place === null || place.hidden}
       // 自己管位置（行内 transform），不参与列表的滑动：藏起来（display: none）时 offsetTop 会变，会被当成"挪了"。
@@ -323,11 +324,11 @@ export function PickThumb(props: {
   }, [layout, part, match, resized, carry])
   const { tone } = props
   return (
-    <span ref={ref} aria-hidden="true" className={cx(ui.pickThumb, props.className)}>
+    <span ref={ref} aria-hidden="true" className={cx(css.pickThumb, props.className)}>
       {tone?.list.map((name) => (
         <span
           key={name}
-          className={cx(ui.pickTone, tone.className)}
+          className={cx(css.pickTone, tone.className)}
           data-on={name === tone.on}
           {...{ [tone.attr]: name }}
         />

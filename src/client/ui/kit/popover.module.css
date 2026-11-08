@@ -1,0 +1,75 @@
+/*
+ * 下拉浮层（Popover.tsx）：挂在触发块旁边，弹出、收起的动画。
+ */
+
+.anchor {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+
+.popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 30;
+  min-width: 220px;
+  padding: 6px;
+  border: 1px solid var(--wl-line);
+  border-radius: var(--wl-r-card);
+  background: var(--wl-panel);
+  box-shadow: var(--wl-shadow-2);
+  transform-origin: top left;
+  animation: pop 380ms var(--wl-spring) both;
+}
+
+/* 焦点只是暂放在浮层上（里面的按钮被删掉之后），不画框。 */
+.popover:focus {
+  outline: none;
+}
+
+.popoverEnd {
+  right: 0;
+  left: auto;
+  transform-origin: top right;
+}
+
+.popoverUp {
+  top: auto;
+  bottom: calc(100% + 8px);
+  transform-origin: bottom left;
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: translateY(-14px) scale(0.86);
+  }
+}
+
+/* 下拉收起：在原处淡出、略缩（Popover 收起后多挂 FLOAT_EXIT_MS），这段时间不接指针。 */
+.popover[data-leaving="true"] {
+  animation: popOut 120ms ease-in both;
+  pointer-events: none;
+}
+
+@keyframes popOut {
+  to {
+    opacity: 0;
+    transform: translateY(-3px) scale(0.98);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .popover {
+    animation: none;
+  }
+
+  .popover[data-leaving="true"] {
+    visibility: hidden;
+  }
+}
+
+:global([data-look="swiss"]) .popover {
+  border-color: var(--wl-line-strong);
+}

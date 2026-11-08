@@ -1,0 +1,70 @@
+/*
+ * 读取中的占位（Skeleton.tsx）：几行灰条，晚一点淡入、一明一暗地呼吸。
+ */
+
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  padding: 16px;
+  animation: skelIn 220ms ease-out 150ms backwards;
+}
+
+.skelRow {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  animation: skelPulse 1.1s ease-in-out infinite alternate;
+}
+
+.skelDot {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: calc(8px * var(--wl-round, 1));
+  background: var(--wl-fill-strong);
+}
+
+.skelLines {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.skelBar {
+  display: block;
+  height: 10px;
+  border-radius: calc(5px * var(--wl-round, 1));
+  background: var(--wl-fill-strong);
+}
+
+.skeleton[data-shape="form"] .skelBar:first-child {
+  height: 12px;
+}
+
+.skeleton[data-shape="form"] .skelBar:last-child {
+  height: 30px;
+  border-radius: var(--wl-r-control);
+}
+
+@keyframes skelIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes skelPulse {
+  from {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton,
+  .skelRow {
+    animation: none;
+  }
+}

@@ -16,8 +16,8 @@ import {
 } from 'react'
 import { cx } from '../kit/cx.ts'
 import { ghostClone } from '../kit/ghost.ts'
-import ui from '../kit/ui.module.css'
 import { EASE_OUT, REDUCED } from './shared.ts'
+import css from './stage.module.css'
 
 /** 整块内容换成另一块（{@link useStage}）：横向挪多远、旧的退多久、新的进多久。 */
 const STAGE_SHIFT = 16
@@ -148,8 +148,8 @@ export function Staged(props: {
     mounted.current = true
   }, [props.at, stage])
   return (
-    <div className={cx(ui.stage, props.className)} ref={stage.wrap}>
-      <div className={ui.stageBody} ref={bodyRef}>
+    <div className={cx(css.stage, props.className)} ref={stage.wrap}>
+      <div className={css.stageBody} ref={bodyRef}>
         {props.children}
       </div>
     </div>
@@ -218,7 +218,7 @@ export function SlideSwap(props: {
   }, [])
   return (
     <div
-      className={ui.slides}
+      className={css.slides}
       data-moving={layers.some((layer) => layer.state === 'leaving') || undefined}
     >
       {layers.map((layer) => (
@@ -303,7 +303,7 @@ function SlidePane(props: {
   return (
     <div
       ref={ref}
-      className={ui.slide}
+      className={css.slide}
       data-state={layer.state}
       aria-hidden={layer.state === 'shown' ? undefined : true}
       {...(layer.state === 'shown' ? {} : { inert: '' })}
@@ -323,11 +323,11 @@ export function FadeStack(props: {
   className?: string
 }): React.JSX.Element {
   return (
-    <span className={cx(ui.fadeStack, props.className)}>
+    <span className={cx(css.fadeStack, props.className)}>
       {props.items.map((item) => (
         <span
           key={item.key}
-          className={ui.fadeLayer}
+          className={css.fadeLayer}
           data-on={item.key === props.at}
           aria-hidden={item.key === props.at ? undefined : true}
         >

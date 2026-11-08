@@ -1,0 +1,36 @@
+/*
+ * 出现 / 消失的一块（exits.tsx 的 Presence）：高度从 0 展开、淡入。
+ */
+
+.presence {
+  display: grid;
+  flex-shrink: 0; /* 放在高度受限的 flex 列里（步骤库）时不被压扁：压扁了内容会溢出去盖住下一节 */
+  grid-template-rows: 0fr;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    grid-template-rows 260ms var(--wl-ease),
+    opacity 260ms var(--wl-ease);
+}
+
+.presence[data-open="true"] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.presenceInner {
+  min-width: 0; /* 不让一行不折行的长文字把整块撑得比外面还宽（步骤库里「资源」的说明） */
+  min-height: 0;
+}
+
+/* 只在动的这段时间裁内容（长到一半时不露出还没到位的部分）；平时不裁，阴影、焦点环照常画。 */
+.presence[data-moving] > .presenceInner {
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .presence {
+    transition: none;
+  }
+}

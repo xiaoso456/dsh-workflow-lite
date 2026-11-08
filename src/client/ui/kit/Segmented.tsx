@@ -9,7 +9,7 @@
 
 import { FadeText } from '../motion/marks.tsx'
 import { PickThumb } from '../motion/thumb.tsx'
-import ui from './ui.module.css'
+import css from './segmented.module.css'
 
 export function Segmented<V extends string>(props: {
   label: string
@@ -24,14 +24,14 @@ export function Segmented<V extends string>(props: {
 }): React.JSX.Element {
   return (
     <div
-      className={ui.seg}
+      className={css.seg}
       role="radiogroup"
       aria-label={props.label}
       aria-disabled={props.disabled === true ? true : undefined}
     >
       <PickThumb
         layout={`${props.value}|${props.options.map((option) => option.value).join(',')}`}
-        className={ui.segThumb}
+        className={css.segThumb}
       />
       {props.options.map((option) => (
         <button
@@ -39,7 +39,7 @@ export function Segmented<V extends string>(props: {
           type="button"
           role="radio"
           aria-checked={option.value === props.value}
-          className={ui.segItem}
+          className={css.segItem}
           disabled={props.disabled}
           data-tip={option.tip}
           aria-label={option.tip}
@@ -47,10 +47,10 @@ export function Segmented<V extends string>(props: {
           onClick={() => props.onChange(option.value)}
         >
           {option.color !== undefined && (
-            <span className={ui.segDot} style={{ background: option.color }} />
+            <span className={css.segDot} style={{ background: option.color }} />
           )}
           <FadeText text={option.label} on={option.value === props.value} />
-          {option.count !== undefined && <span className={ui.segCount}>{option.count}</span>}
+          {option.count !== undefined && <span className={css.segCount}>{option.count}</span>}
         </button>
       ))}
     </div>

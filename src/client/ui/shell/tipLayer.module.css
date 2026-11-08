@@ -1,0 +1,95 @@
+/*
+ * 悬停提示（TipLayer.tsx）：整个视图共用一个浮层。
+ */
+
+/*
+ * 提示的座位管位置（transform 摆，不动 left / top），里面的气泡管样子和入场。
+ * 已经亮着时指向相邻的元素：座位滑过去（`data-glide`），气泡不重新弹一次。
+ */
+.tipSeat {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 50;
+  width: max-content;
+  max-width: min(320px, calc(100% - 16px));
+  pointer-events: none;
+}
+
+.tipSeat[data-glide="true"] {
+  transition: transform 160ms var(--wl-ease-out);
+}
+
+.tipLayer {
+  padding: 4px 8px;
+  border-radius: calc(6px * var(--wl-round, 1));
+  background: var(--wl-tip);
+  color: var(--wl-tip-on);
+  font-size: var(--wl-fs-micro);
+  font-weight: 500;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  animation: tipIn 120ms var(--wl-ease);
+}
+
+.tipLayer[data-up="true"] {
+  animation-name: tipInUp;
+}
+
+/* 文字比窗口里的空处还高：截掉，末尾淡出。 */
+.tipLayer[data-clipped] {
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
+}
+
+/* 收起：原地淡出、往进来的反方向让一点（TipLayer 留的影子，不接指针）。 */
+.tipLayer[data-leaving="true"] {
+  animation: tipOut 110ms ease-in forwards;
+}
+
+@keyframes tipOut {
+  to {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}
+
+.tipLayer[data-leaving="true"][data-up="true"] {
+  animation-name: tipOutUp;
+}
+
+@keyframes tipOutUp {
+  to {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+}
+
+@keyframes tipIn {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes tipInUp {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tipSeat[data-glide="true"] {
+    transition: none;
+  }
+
+  .tipLayer {
+    animation: none;
+  }
+
+  .tipLayer[data-leaving="true"] {
+    display: none;
+  }
+}

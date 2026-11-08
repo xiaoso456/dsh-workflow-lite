@@ -1,0 +1,37 @@
+/*
+ * 「?」说明的按钮（HelpTip.tsx）。点开的浮层（.hintPanel）和二次确认卡片同一套，留在 ui.module.css。
+ */
+
+.hint {
+  position: relative;
+  display: inline-flex;
+  align-self: center;
+}
+
+.hintButton {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--wl-text-3);
+  cursor: help;
+  transition:
+    background-color 120ms linear,
+    color 120ms linear;
+}
+
+.hintButton:hover,
+.hintButton:focus-visible {
+  background: var(--wl-hover);
+  color: var(--wl-accent-text);
+  outline: none;
+}
+
+.hintButton[data-open="true"] {
+  background: var(--wl-hover);
+  color: var(--wl-accent-text);
+}

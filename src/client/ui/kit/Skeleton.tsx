@@ -7,7 +7,7 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/kit/Skeleton
  */
 
-import ui from './ui.module.css'
+import css from './skeleton.module.css'
 
 /** 每行字的宽度（百分比），错落着放才像字。 */
 const LINES = [72, 54, 66, 48, 60, 40]
@@ -20,19 +20,19 @@ export function Skeleton(props: {
   const shape = props.shape ?? 'list'
   const rows = props.rows ?? (shape === 'list' ? 5 : 4)
   return (
-    <div className={ui.skeleton} role="status" aria-label={props.label} data-shape={shape}>
+    <div className={css.skeleton} role="status" aria-label={props.label} data-shape={shape}>
       {Array.from({ length: rows }, (_row, index) => (
         <div
           // biome-ignore lint/suspicious/noArrayIndexKey: 占位行，顺序不变
           key={index}
-          className={ui.skelRow}
+          className={css.skelRow}
           style={{ animationDelay: `${index * 90}ms` }}
         >
-          {shape === 'list' && <span className={ui.skelDot} />}
-          <span className={ui.skelLines}>
-            <span className={ui.skelBar} style={{ width: `${LINES[index % LINES.length]}%` }} />
+          {shape === 'list' && <span className={css.skelDot} />}
+          <span className={css.skelLines}>
+            <span className={css.skelBar} style={{ width: `${LINES[index % LINES.length]}%` }} />
             <span
-              className={ui.skelBar}
+              className={css.skelBar}
               style={{ width: `${(LINES[(index + 2) % LINES.length] ?? 50) * 0.7}%` }}
             />
           </span>

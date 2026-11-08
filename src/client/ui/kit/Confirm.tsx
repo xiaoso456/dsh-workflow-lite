@@ -17,9 +17,10 @@
 
 import { useEffect } from 'react'
 import type { T } from '../../i18n.ts'
+import css from './confirm.module.css'
 import { cx } from './cx.ts'
 import { Icon } from './Icon.tsx'
-import ui from './ui.module.css'
+import shared from './ui.module.css'
 import { FLOAT_EXIT_MS, useFloat } from './useFloat.tsx'
 
 const CONFIRM_W = 288
@@ -98,34 +99,34 @@ export function useConfirm<A extends HTMLElement>(): {
     toggle: () => (open ? hide() : setState('pinned')),
     render: (options) =>
       float.render({
-        className: ui.confirmPop,
+        className: shared.confirmPop,
         role: 'alertdialog',
         label: options.title,
         testId: options.testId === undefined ? undefined : `${options.testId}-pop`,
         children: (
           // biome-ignore lint/a11y/noStaticElementInteractions: 只在这一层截住卡片里的按键
           <div
-            className={ui.confirmBody}
+            className={css.confirmBody}
             onKeyDown={(event) => {
               // Esc 留给外层收起；别的键不再往视图根冒。
               if (event.key !== 'Escape') event.stopPropagation()
             }}
           >
-            <div className={ui.confirmHead}>
+            <div className={css.confirmHead}>
               <span
-                className={ui.confirmIcon}
+                className={css.confirmIcon}
                 data-tone={options.danger === false ? 'accent' : undefined}
               >
                 <Icon name={options.danger === false ? 'info' : 'alert'} size={14} />
               </span>
-              <span className={ui.confirmTitle}>{options.title}</span>
+              <span className={css.confirmTitle}>{options.title}</span>
             </div>
-            {options.desc !== undefined && <p className={ui.confirmDesc}>{options.desc}</p>}
+            {options.desc !== undefined && <p className={css.confirmDesc}>{options.desc}</p>}
             {options.children}
-            <div className={ui.confirmActions}>
+            <div className={css.confirmActions}>
               <button
                 type="button"
-                className={cx(ui.btn, ui.small)}
+                className={cx(shared.btn, shared.small)}
                 data-confirm="cancel"
                 onClick={hide}
               >
@@ -134,9 +135,9 @@ export function useConfirm<A extends HTMLElement>(): {
               <button
                 type="button"
                 className={cx(
-                  ui.btn,
-                  ui.small,
-                  options.danger === false ? ui.primary : ui.dangerSolid,
+                  shared.btn,
+                  shared.small,
+                  options.danger === false ? shared.primary : shared.dangerSolid,
                 )}
                 disabled={options.disabled}
                 data-testid={options.testId}

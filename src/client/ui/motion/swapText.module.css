@@ -1,0 +1,209 @@
+/*
+ * 原地换字、换图标、换一小块内容（swapText.tsx 的 SwapText / SwapIcon / SwapNode）：新旧两份叠在同一处交接。
+ */
+
+/*
+ * 原地换字（SwapText）：新字和旧字（`::after`，不进 DOM 文本）叠在同一处，
+ * 旧的往上让 4px 淡掉，新的从下 4px 浮上来。
+ * 宽度一换就是新字的宽度：旧字绝对定位、不占宽，多出来的部分横向裁掉。
+ * 要是让旧字也撑宽，长字换短字时（「进行中」→「完成」）外面的小标会先停在宽的那档、动画放完再缩回去，像回弹了一下。
+ */
+.swapText {
+  position: relative;
+  display: inline-grid;
+  overflow-x: clip;
+}
+
+.swapNow {
+  grid-area: 1 / 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.swapText::after {
+  position: absolute;
+  top: 0;
+  left: 0;
+  white-space: nowrap;
+}
+
+/*
+ * 占位：把会换到的几段字（`reserve`）都隐形地叠在同一格，宽度按最长的那段定死。
+ * 点一下就换字的按钮（「复制路径」→「已复制」）用它，按钮不跟着变宽变窄。字画在 `::before` 里，不进 DOM 文本。
+ */
+.swapSizer {
+  grid-area: 1 / 1;
+  visibility: hidden;
+  white-space: nowrap;
+}
+
+.swapSizer::before {
+  content: attr(data-text);
+}
+
+.swapText[data-fresh="true"] > .swapNow {
+  animation: swapIn 160ms ease-in-out backwards;
+}
+
+.swapText[data-was]::after {
+  content: attr(data-was);
+  pointer-events: none;
+  animation: swapOut 160ms ease-in-out forwards;
+}
+
+/* 数字：新数字从下面弹上来，略带回弹（只在进场用，收不弹）。 */
+.swapText[data-pop="true"][data-fresh="true"] > .swapNow {
+  animation: numberIn 420ms cubic-bezier(0.34, 1.45, 0.64, 1) backwards;
+}
+
+/* 反方向（数字变小）：新的从上面落下来，旧的往下沉。只换动画名，时长、缓动沿用上面的。 */
+.swapText[data-dir="down"][data-fresh="true"] > .swapNow {
+  animation-name: swapInDown;
+}
+
+.swapText[data-dir="down"][data-was]::after {
+  animation-name: swapOutDown;
+}
+
+.swapText[data-pop="true"][data-fresh="true"][data-dir="down"] > .swapNow {
+  animation-name: numberInDown;
+}
+
+@keyframes swapIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@keyframes swapInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes swapOutDown {
+  to {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@keyframes numberInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes swapOut {
+  to {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes numberIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* 原地换图标（SwapIcon）：两枚叠在同一格，新的从 1/4 大放大淡入，旧的缩回去淡出。 */
+.swapIcon {
+  position: relative;
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+}
+
+.swapIcon > * {
+  display: inline-flex;
+  grid-area: 1 / 1;
+}
+
+.swapIcon > [data-ok] {
+  color: var(--wl-ok);
+}
+
+.iconIn {
+  animation: iconIn 240ms ease-in-out backwards;
+}
+
+.iconOut {
+  pointer-events: none;
+  animation: iconOut 240ms ease-in-out forwards;
+}
+
+.nodeIn {
+  animation: nodeIn 240ms ease-in-out backwards;
+}
+
+.nodeOut {
+  pointer-events: none;
+  animation: nodeOut 240ms ease-in-out forwards;
+}
+
+@keyframes nodeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.88);
+  }
+}
+
+@keyframes nodeOut {
+  to {
+    opacity: 0;
+    transform: scale(0.88);
+  }
+}
+
+@keyframes iconIn {
+  from {
+    opacity: 0;
+    transform: scale(0.25);
+  }
+}
+
+/* 完成的小勾（data-ok）用弹簧弹进来，过冲约 20%——「已复制」「已保存」的那一下。 */
+.swapIcon > [data-ok].iconIn {
+  animation: iconPop 460ms var(--wl-spring-bouncy) backwards;
+}
+
+@keyframes iconPop {
+  from {
+    opacity: 0;
+    transform: scale(0.25);
+  }
+}
+
+@keyframes iconOut {
+  to {
+    opacity: 0;
+    transform: scale(0.25);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .swapIcon > [data-ok].iconIn {
+    animation: none;
+  }
+
+  .swapText[data-fresh] > .swapNow,
+  .swapText[data-pop][data-fresh] > .swapNow,
+  .swapText[data-dir][data-fresh] > .swapNow,
+  .swapText[data-pop][data-dir][data-fresh] > .swapNow,
+  .iconIn,
+  .nodeIn {
+    animation: none;
+  }
+
+  .swapText[data-was]::after,
+  .iconOut,
+  .nodeOut {
+    display: none;
+  }
+}
