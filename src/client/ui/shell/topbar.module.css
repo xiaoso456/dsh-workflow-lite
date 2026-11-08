@@ -55,69 +55,9 @@
   pointer-events: none;
 }
 
-.switch {
-  display: inline-flex;
-  gap: 6px;
-  align-items: center;
-  max-width: 260px;
-  height: 32px;
-  padding: 0 8px 0 10px;
-  border: 0;
-  border-radius: var(--wl-r-control);
-  background: transparent;
-  color: var(--wl-text);
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 120ms linear;
-}
-
-.switch:hover {
-  background: var(--wl-hover);
-}
-
-.switch:focus-visible {
-  outline: 2px solid var(--wl-accent);
-  outline-offset: 1px;
-}
-
-.switch svg {
-  flex: none;
-  color: var(--wl-text-3);
-  transition: transform 180ms var(--wl-ease);
-}
-
-.switch[aria-expanded="true"] svg {
-  transform: rotate(180deg);
-}
-
 .chev {
   display: inline-flex;
   flex: none;
-}
-
-.name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* 名字是 SwapText（换字时旧的上浮淡出、新的浮上来）：长名字仍旧在这一格里截断成省略号。 */
-.name > span {
-  max-width: 100%;
-  vertical-align: bottom;
-}
-
-/* 改名：底线的样子在 ui.module.css 的 `.lineField`；左边 4px + 内边距 6px = 原来名字的 10px，字不动。 */
-.renameField {
-  width: 220px;
-  margin-left: 4px;
-}
-
-.rename {
-  height: 32px;
-  font-weight: 600;
 }
 
 /* ── 保存状态 ─────────────────────────────────────────────── */
@@ -199,18 +139,6 @@
   color: var(--wl-text-3);
 }
 
-/* 「在哪里执行」的会话列表：限高、在里面滚（会话多了不能把浮层撑出屏幕）；留着滚动条的位置，筛选时宽度不跳。 */
-.list {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  max-height: max(120px, min(340px, calc(100dvh - 300px)));
-  overflow-x: hidden;
-  overflow-y: auto;
-  scrollbar-gutter: stable;
-  scrollbar-width: thin;
-}
-
 .searchInput {
   flex: 1 1 auto;
   min-width: 0;
@@ -220,63 +148,6 @@
   color: var(--wl-text);
   font: inherit;
   outline: none;
-}
-
-/*
- * 实例 + 工作流共用的滚动区：外层管滚动，里层（.listBody）剪掉自己框外的东西。
- * 筛选时各行从旧位置滑过来、选中块还停在旧位置，这些短暂地越出框外的部分
- * 不剪的话会把外层撑出一闪而过的滚动条。
- */
-.scroll {
-  max-height: 340px;
-  overflow-x: hidden;
-  overflow-y: auto;
-  scrollbar-width: thin;
-}
-
-.listBody {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  overflow: clip;
-}
-
-/* 分组标题（实例 / 工作流）：右端是这一组的条数。 */
-.groupTitle {
-  display: flex;
-  flex: none;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.groupTitle:not(:first-of-type) {
-  margin-top: 4px;
-}
-
-.groupCount {
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0;
-}
-
-/* 实例这一组的尾巴：「显示全部 N 个」/「收起」，小一号、居中，不抢实例行。 */
-.more {
-  flex: none;
-  gap: 4px;
-  justify-content: center;
-  min-height: 28px;
-  color: var(--wl-text-3);
-  font-size: var(--wl-fs-micro);
-}
-
-.moreChev {
-  display: inline-grid;
-  place-items: center;
-  transition: transform 200ms var(--wl-ease);
-}
-
-.moreChev[data-open="true"] {
-  transform: rotate(180deg);
 }
 
 .emptyLine {
@@ -380,30 +251,6 @@
   outline-offset: -1px;
 }
 
-/* 改名：原行换成输入框，高度、图标位置都不变。 */
-.rowEditing {
-  display: flex;
-  flex: none;
-  gap: 8px;
-  align-items: center;
-  height: 34px;
-  padding: 0 8px;
-  border-radius: var(--wl-r-control);
-  background: var(--wl-hover);
-  color: var(--wl-text-3);
-}
-
-/* 改名：底线的样子在 ui.module.css 的 `.lineField`；负的左外边距把字对回原来名字的位置。 */
-.rowField {
-  flex: 1 1 auto;
-  height: 24px;
-  margin-left: -6px;
-}
-
-.rowInput {
-  height: 100%;
-}
-
 @media (hover: none) {
   .rowActions {
     opacity: 1;
@@ -421,270 +268,7 @@
   gap: 0;
 }
 
-.issueChip {
-  padding: 0 10px;
-  font-size: var(--wl-fs-meta);
-}
-
-.issueChip[data-tone="ok"] {
-  color: var(--wl-ok);
-}
-
-.issueChip[data-tone="warn"] {
-  color: var(--wl-warn);
-}
-
-.issueChip[data-tone="error"] {
-  color: var(--wl-danger);
-}
-
-.issues {
-  width: 360px;
-  max-width: calc(100cqw - 24px);
-  padding: 6px;
-}
-
-.issueList {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  max-height: 360px;
-  overflow-y: auto;
-  scrollbar-width: thin;
-}
-
-.issue {
-  display: flex;
-  gap: 10px;
-  align-items: flex-start;
-  width: 100%;
-  padding: 8px;
-  border: 0;
-  border-radius: var(--wl-r-control);
-  background: transparent;
-  color: var(--wl-text);
-  font: inherit;
-  font-size: var(--wl-fs-meta);
-  text-align: left;
-  cursor: pointer;
-  transition: background-color 120ms linear;
-}
-
-.issue:hover {
-  background: var(--wl-hover);
-}
-
-.issue:disabled {
-  cursor: default;
-  transition: background-color 120ms linear;
-}
-
-.issue:disabled:hover {
-  background: transparent;
-}
-
-.issueLevel {
-  flex: none;
-  min-width: 44px;
-  padding: 1px 6px;
-  border-radius: calc(6px * var(--wl-round, 1));
-  background: var(--wl-fill);
-  color: var(--wl-text-2);
-  font-size: var(--wl-fs-micro);
-  font-weight: 600;
-  text-align: center;
-}
-
-.issueLevel[data-level="save"],
-.issueLevel[data-level="compile"] {
-  background: var(--wl-danger-soft);
-  color: var(--wl-danger);
-}
-
-.issueLevel[data-level="warning"] {
-  background: var(--wl-warn-soft);
-  color: var(--wl-warn);
-}
-
-.issueText {
-  flex: 1 1 auto;
-  min-width: 0;
-  line-height: 1.5;
-  word-break: break-word;
-}
-
-.allGood {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  align-items: center;
-  padding: 18px 12px 14px;
-  text-align: center;
-}
-
-.allGoodIcon {
-  display: grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
-  margin-bottom: 4px;
-  border-radius: 50%;
-  background: var(--wl-ok-soft);
-  color: var(--wl-ok);
-}
-
-.allGoodTitle {
-  margin: 0;
-  font-weight: 600;
-}
-
-.allGoodBody {
-  margin: 0;
-  color: var(--wl-text-3);
-  font-size: var(--wl-fs-meta);
-}
-
-/* ── 预览 / 执行 ───────────────────────────────────────────── */
-
-/*
- * 执行和左边实例下拉的触发器一个样子：平时不着色，悬停整块一起亮。
- * 左半「▶ 执行」在本会话执行，右半箭头打开会话选择；悬停时两半之间浮出一道细线。
- */
-.run {
-  display: flex;
-  align-items: center;
-  height: 32px;
-  border-radius: var(--wl-r-control);
-  transition: background-color 120ms linear;
-}
-
-.run:hover,
-.run[data-open="true"] {
-  background: var(--wl-hover);
-}
-
-.run[data-disabled="true"] {
-  background: transparent;
-  opacity: 0.42;
-}
-
-.runMain,
-.runMore {
-  display: inline-flex;
-  align-items: center;
-  height: 100%;
-  border: 0;
-  background: transparent;
-  color: var(--wl-text);
-  font: inherit;
-  cursor: pointer;
-}
-
-.runMain {
-  gap: 6px;
-  padding: 0 6px 0 10px;
-  border-radius: var(--wl-r-control) 0 0 var(--wl-r-control);
-  font-weight: 600;
-}
-
-.run .runMain svg {
-  flex: none;
-  color: var(--wl-accent-text);
-}
-
-.runMain[data-busy="true"] svg {
-  animation: spin 1.2s linear infinite;
-}
-
-.runMore {
-  position: relative;
-  justify-content: center;
-  width: 26px;
-  padding: 0 4px 0 2px;
-  border-radius: 0 var(--wl-r-control) var(--wl-r-control) 0;
-  color: var(--wl-text-3);
-}
-
-.run .runMore svg {
-  flex: none;
-  transition: transform 180ms var(--wl-ease);
-}
-
-.runMore[aria-expanded="true"] svg {
-  transform: rotate(180deg);
-}
-
-.run[data-disabled="true"] .runMain,
-.run[data-disabled="true"] .runMore {
-  cursor: not-allowed;
-}
-
-.runMain:focus-visible,
-.runMore:focus-visible {
-  outline: 2px solid var(--wl-accent);
-  outline-offset: -2px;
-}
-
-.runMore::before {
-  position: absolute;
-  top: 8px;
-  bottom: 8px;
-  left: 0;
-  width: 1px;
-  background: var(--wl-line-strong);
-  content: "";
-  opacity: 0;
-  transition: opacity 120ms linear;
-}
-
-.run:not([data-disabled="true"]):hover .runMore::before {
-  opacity: 1;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.picker {
-  width: 320px;
-}
-
-/* 新建会话：缺省的去处，图标用主色点一下。 */
-.picker .newSession svg {
-  flex: none;
-  color: var(--wl-accent-text);
-}
-
-.sessionDot {
-  flex: none;
-  width: 7px;
-  height: 7px;
-  margin: 0 3px;
-  border-radius: 50%;
-  background: var(--wl-text-3);
-  opacity: 0.5;
-}
-
-.sessionDot[data-running="true"] {
-  background: var(--wl-ok-dot);
-  opacity: 1;
-}
-
 @container (max-width: 760px) {
-  .runText {
-    display: none;
-  }
-
-  .runMain {
-    padding: 0 2px 0 9px;
-  }
-
-  .switch {
-    max-width: 150px;
-  }
-
   .status span:not(.dot) {
     display: none;
   }
@@ -692,12 +276,9 @@
 
 @media (prefers-reduced-motion: reduce) {
   .right,
-  .switch svg,
-  .run .runMore svg,
   .rowMeta,
   .rowActions,
-  .rowAction,
-  .moreChev {
+  .rowAction {
     transition: none;
   }
 

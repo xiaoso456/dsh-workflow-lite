@@ -1,0 +1,162 @@
+/*
+ * 缩放、快捷键、图例这一排浮层（Dock.tsx）里只有它用的部分；外壳和图例条共用的部分留在 shell.module.css。
+ */
+
+/*
+ * 底面（边框、底色、阴影）单独一层：宽度一变（整排图例 ↔ 「图例」按钮）由 useGlide 用 scaleX 收放，
+ * 只动 transform。进场的那一边（图例 / 按钮）淡入，退场的那一边随布局直接让位。
+ */
+.dockSurface {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border: 1px solid var(--wl-line);
+  border-radius: var(--wl-r-panel);
+  background: var(--wl-panel);
+  box-shadow: var(--wl-shadow-1);
+  pointer-events: none;
+  transform-origin: 0 50%;
+}
+
+.zoom {
+  min-width: 44px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.keys {
+  width: 250px;
+  padding: 10px 12px;
+}
+
+.keysTitle {
+  margin: 0 0 6px;
+  font-size: var(--wl-fs-body);
+  font-weight: 600;
+}
+
+.keysRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 28px;
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-meta);
+}
+
+.keysRow span:last-child {
+  display: inline-flex;
+  gap: 4px;
+}
+
+/* 图例和「图例」按钮共用一个座位：收起时整排图例不摘掉，叠在座位上原处淡出，缩放条的底面同时收短。 */
+.legendSlot {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.legendItem {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  height: 26px;
+  padding: 0 6px;
+  border-radius: calc(6px * var(--wl-round, 1));
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-micro);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: default;
+  transition: background-color 120ms linear;
+}
+
+.legendItem:hover {
+  background: var(--wl-hover);
+}
+
+/* 线的小样本（整排图例、收起后的图例单、按钮上的三道线共用）：颜色跟着 `data-line` 走。 */
+.legendRow svg {
+  flex: none;
+  overflow: visible;
+}
+
+/* 连接点图例：空心圈 = 入口，实心点 = 出口。各种线都这样，所以样本用中性色。 */
+.legendItem[data-port] circle {
+  stroke: var(--wl-text-2);
+  stroke-width: 1.8;
+}
+
+.legendItem[data-port="in"] circle {
+  fill: var(--wl-panel);
+}
+
+.legendItem[data-port="out"] circle {
+  fill: var(--wl-text-2);
+}
+
+/* 三组（流程线 / 读写线 / 连接点）之间的一道细竖线。 */
+.legendSep {
+  width: 1px;
+  height: 14px;
+  margin: 0 4px;
+  background: var(--wl-line-strong);
+}
+
+.legendToggle {
+  gap: 6px;
+  padding: 0 8px;
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-micro);
+}
+
+.legendToggle line[data-line] {
+  stroke-linecap: round;
+}
+
+.legendPop {
+  width: 344px;
+  padding: 10px 12px;
+}
+
+.legendGroup + .legendGroup {
+  margin-top: 8px;
+}
+
+.legendHead {
+  margin: 0 0 4px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+}
+
+.legendRow {
+  display: grid;
+  grid-template-columns: 20px 44px 1fr;
+  gap: 8px;
+  align-items: center;
+  min-height: 24px;
+  font-size: var(--wl-fs-micro);
+}
+
+.legendName {
+  color: var(--wl-text);
+  font-weight: 600;
+}
+
+.legendTip {
+  color: var(--wl-text-3);
+  line-height: 1.4;
+}
+
+.legendFoot {
+  margin: 8px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--wl-line);
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.5;
+}

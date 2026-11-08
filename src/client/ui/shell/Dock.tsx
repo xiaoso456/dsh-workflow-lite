@@ -13,7 +13,8 @@ import { Icon } from '../kit/Icon.tsx'
 import { Popover } from '../kit/Popover.tsx'
 import ui from '../kit/ui.module.css'
 import { useGlide } from '../motion/exits.tsx'
-import css from './shell.module.css'
+import css from './dock.module.css'
+import shared from './shell.module.css'
 
 const SHORTCUTS: readonly { key: LocaleKey; combos: readonly string[] }[] = [
   { key: 'keys.add', combos: [] },
@@ -44,7 +45,7 @@ export function ZoomDock(props: {
   // 两侧面板一开，整排图例收成「图例」按钮、缩放条变短：底面 scaleX 收过去，不是一下子跳。
   const glide = useGlide(0)
   return (
-    <div ref={glide} className={css.dock}>
+    <div ref={glide} className={shared.dock}>
       <span className={css.dockSurface} data-glide-surface="" aria-hidden="true" />
       <button
         type="button"
@@ -117,7 +118,7 @@ export function ZoomDock(props: {
       <span className={css.legendSlot}>
         <LineLegend t={t} />
         {/* 放不下整排图例时（左右两边的面板都开着、窗口又窄）收成一个按钮，点开看同一份图例。 */}
-        <span className={css.legendCompact}>
+        <span className={shared.legendCompact}>
           <Popover
             open={legendOpen}
             onClose={() => setLegendOpen(false)}
@@ -208,7 +209,7 @@ function LegendSheet(props: { t: T }): React.JSX.Element {
 function LineLegend(props: { t: T }): React.JSX.Element {
   const { t } = props
   return (
-    <ul className={css.legend} aria-label={t('legend.title')} data-testid="wl-legend">
+    <ul className={shared.legend} aria-label={t('legend.title')} data-testid="wl-legend">
       {LEGEND.map((group) => [
         ...group.map((item) => (
           <li key={item.key} className={css.legendItem} data-line={item.key} data-tip={t(item.tip)}>

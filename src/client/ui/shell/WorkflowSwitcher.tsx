@@ -33,8 +33,9 @@ import { SwapIcon, SwapText } from '../motion/swapText.tsx'
 import { ListThumb } from '../motion/thumb.tsx'
 import { RunMenuRow, runSearchTexts } from '../run/RunTopBar.tsx'
 import run from '../run/run.module.css'
-import css from './topbar.module.css'
+import shared from './topbar.module.css'
 import { deleteDesc, WorkflowRow } from './WorkflowRow.tsx'
+import css from './workflowSwitcher.module.css'
 
 export interface WorkflowSwitcherProps {
   t: T
@@ -150,7 +151,7 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
         if (lingering && editing === null && !remove.open) close()
       }}
       label={t('wf.pick')}
-      className={css.menu}
+      className={shared.menu}
       trigger={
         renaming && !inRun && state.name !== null ? (
           <NameInput
@@ -188,7 +189,7 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
                 <span className={css.name}>
                   <SwapText text={state.name ?? t('wf.pick')} />
                 </span>
-                <span className={css.chev} data-glide="">
+                <span className={shared.chev} data-glide="">
                   <Icon name="chevronDown" size={14} />
                 </span>
               </>
@@ -197,10 +198,10 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
         )
       }
     >
-      <div className={css.search}>
+      <div className={shared.search}>
         <Icon name="search" size={14} />
         <input
-          className={css.searchInput}
+          className={shared.searchInput}
           value={query}
           placeholder={t('wf.search')}
           aria-label={t('wf.search')}
@@ -250,7 +251,7 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
             </p>
           )}
           {filtered.length === 0 && shownRuns.length === 0 && (workflows.length > 0 || grouped) && (
-            <p className={css.emptyLine}>{t('wf.none')}</p>
+            <p className={shared.emptyLine}>{t('wf.none')}</p>
           )}
           {filtered.map((entry, index) => (
             <WorkflowRow

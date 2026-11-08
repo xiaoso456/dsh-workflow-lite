@@ -18,7 +18,8 @@ import { Icon } from '../kit/Icon.tsx'
 import { Popover } from '../kit/Popover.tsx'
 import ui from '../kit/ui.module.css'
 import { SwapIcon } from '../motion/swapText.tsx'
-import css from './topbar.module.css'
+import css from './launch.module.css'
+import shared from './topbar.module.css'
 
 export interface LaunchProps {
   t: T
@@ -66,7 +67,7 @@ export function Launch(props: LaunchProps): React.JSX.Element {
   }
 
   return (
-    <div className={cx(ui.panel, css.pill)} data-testid="wl-launch">
+    <div className={cx(ui.panel, shared.pill)} data-testid="wl-launch">
       <button
         type="button"
         className={cx(ui.btn, ui.icon)}
@@ -140,10 +141,10 @@ export function Launch(props: LaunchProps): React.JSX.Element {
             <div className={ui.menuSep} />
           </>
         )}
-        <div className={css.search}>
+        <div className={shared.search}>
           <Icon name="search" size={14} />
           <input
-            className={css.searchInput}
+            className={shared.searchInput}
             value={query}
             placeholder={t('launch.search')}
             aria-label={t('launch.search')}
@@ -154,7 +155,7 @@ export function Launch(props: LaunchProps): React.JSX.Element {
           />
         </div>
         <div className={css.list} role="listbox" aria-label={t('launch.pick')}>
-          {filtered.length === 0 && <p className={css.emptyLine}>{t('launch.none')}</p>}
+          {filtered.length === 0 && <p className={shared.emptyLine}>{t('launch.none')}</p>}
           {filtered.map((row) => (
             <button
               key={row.id}

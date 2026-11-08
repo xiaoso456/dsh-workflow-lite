@@ -1,0 +1,126 @@
+/*
+ * 问题清单（Issues.tsx）：顶栏上的问题数、浮层里的清单和「全部正常」空态。
+ */
+
+.issueChip {
+  padding: 0 10px;
+  font-size: var(--wl-fs-meta);
+}
+
+.issueChip[data-tone="ok"] {
+  color: var(--wl-ok);
+}
+
+.issueChip[data-tone="warn"] {
+  color: var(--wl-warn);
+}
+
+.issueChip[data-tone="error"] {
+  color: var(--wl-danger);
+}
+
+.issues {
+  width: 360px;
+  max-width: calc(100cqw - 24px);
+  padding: 6px;
+}
+
+.issueList {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: 360px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.issue {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  width: 100%;
+  padding: 8px;
+  border: 0;
+  border-radius: var(--wl-r-control);
+  background: transparent;
+  color: var(--wl-text);
+  font: inherit;
+  font-size: var(--wl-fs-meta);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms linear;
+}
+
+.issue:hover {
+  background: var(--wl-hover);
+}
+
+.issue:disabled {
+  cursor: default;
+  transition: background-color 120ms linear;
+}
+
+.issue:disabled:hover {
+  background: transparent;
+}
+
+.issueLevel {
+  flex: none;
+  min-width: 44px;
+  padding: 1px 6px;
+  border-radius: calc(6px * var(--wl-round, 1));
+  background: var(--wl-fill);
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+  text-align: center;
+}
+
+.issueLevel[data-level="save"],
+.issueLevel[data-level="compile"] {
+  background: var(--wl-danger-soft);
+  color: var(--wl-danger);
+}
+
+.issueLevel[data-level="warning"] {
+  background: var(--wl-warn-soft);
+  color: var(--wl-warn);
+}
+
+.issueText {
+  flex: 1 1 auto;
+  min-width: 0;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.allGood {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+  padding: 18px 12px 14px;
+  text-align: center;
+}
+
+.allGoodIcon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  margin-bottom: 4px;
+  border-radius: 50%;
+  background: var(--wl-ok-soft);
+  color: var(--wl-ok);
+}
+
+.allGoodTitle {
+  margin: 0;
+  font-weight: 600;
+}
+
+.allGoodBody {
+  margin: 0;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+}

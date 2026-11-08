@@ -13,7 +13,7 @@ import { Icon } from '../kit/Icon.tsx'
 import { Popover } from '../kit/Popover.tsx'
 import ui from '../kit/ui.module.css'
 import { SwapIcon, SwapText } from '../motion/swapText.tsx'
-import css from './topbar.module.css'
+import css from './issues.module.css'
 
 const LEVEL_TEXT: Record<ValidationLevel, LocaleKey> = {
   save: 'issues.level.save',

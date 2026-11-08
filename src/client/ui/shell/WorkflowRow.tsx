@@ -18,7 +18,8 @@ import { Highlight } from '../kit/Highlight.tsx'
 import { Icon } from '../kit/Icon.tsx'
 import ui from '../kit/ui.module.css'
 import { useLineExit } from '../motion/exits.tsx'
-import css from './topbar.module.css'
+import shared from './topbar.module.css'
+import css from './workflowRow.module.css'
 
 export interface WorkflowRowProps {
   t: T
@@ -46,7 +47,7 @@ export function WorkflowRow(props: WorkflowRowProps): React.JSX.Element {
   // 根节点在「看」和「改名」之间是同一个元素：列表的「依次浮出」只认新挂上的子项，换成输入框不能算新项（不然名字先淡掉再浮出，像闪了一下）。
   return (
     <div
-      className={props.editing ? css.rowEditing : css.row}
+      className={props.editing ? css.rowEditing : shared.row}
       data-busy={props.editing ? undefined : props.busy}
       data-selected={props.active}
     >
@@ -56,7 +57,7 @@ export function WorkflowRow(props: WorkflowRowProps): React.JSX.Element {
         <>
           <button
             type="button"
-            className={cx(ui.menuItem, css.rowMain)}
+            className={cx(ui.menuItem, shared.rowMain)}
             aria-current={props.active ? 'true' : undefined}
             data-testid="wl-wf-item"
             data-value={name}
@@ -66,14 +67,14 @@ export function WorkflowRow(props: WorkflowRowProps): React.JSX.Element {
             <span className={ui.menuLabel}>
               <Highlight text={name} needle={props.needle ?? ''} />
             </span>
-            <span className={cx(ui.menuMeta, css.rowMeta)}>
+            <span className={cx(ui.menuMeta, shared.rowMeta)}>
               {entry.invalid === true ? t('wf.broken') : `${entry.nodeCount} ${t('wf.steps')}`}
             </span>
           </button>
-          <span className={css.rowActions}>
+          <span className={shared.rowActions}>
             <button
               type="button"
-              className={css.rowAction}
+              className={shared.rowAction}
               data-tip={t('wf.rename')}
               aria-label={`${t('wf.rename')} ${name}`}
               data-testid={`wl-wf-rename-${name}`}
@@ -84,7 +85,7 @@ export function WorkflowRow(props: WorkflowRowProps): React.JSX.Element {
             <button
               ref={props.deleteRef}
               type="button"
-              className={css.rowAction}
+              className={shared.rowAction}
               data-danger="true"
               data-tip={t('common.delete')}
               aria-label={`${t('common.delete')} ${name}`}

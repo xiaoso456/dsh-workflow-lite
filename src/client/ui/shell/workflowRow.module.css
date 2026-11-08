@@ -1,0 +1,27 @@
+/*
+ * 工作流行（WorkflowRow.tsx）里编辑态的样子；行本身的样式和运行行共用，留在 topbar.module.css。
+ */
+
+/* 改名：原行换成输入框，高度、图标位置都不变。 */
+.rowEditing {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  align-items: center;
+  height: 34px;
+  padding: 0 8px;
+  border-radius: var(--wl-r-control);
+  background: var(--wl-hover);
+  color: var(--wl-text-3);
+}
+
+/* 改名：底线的样子在 ui.module.css 的 `.lineField`；负的左外边距把字对回原来名字的位置。 */
+.rowField {
+  flex: 1 1 auto;
+  height: 24px;
+  margin-left: -6px;
+}
+
+.rowInput {
+  height: 100%;
+}

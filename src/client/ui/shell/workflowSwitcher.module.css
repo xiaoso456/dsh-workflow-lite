@@ -1,0 +1,133 @@
+/*
+ * 工作流切换器（WorkflowSwitcher.tsx）：顶栏上的名字按钮、搜索框以下的列表、改名输入。
+ */
+
+.switch {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  max-width: 260px;
+  height: 32px;
+  padding: 0 8px 0 10px;
+  border: 0;
+  border-radius: var(--wl-r-control);
+  background: transparent;
+  color: var(--wl-text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 120ms linear;
+}
+
+.switch:hover {
+  background: var(--wl-hover);
+}
+
+.switch:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+.switch svg {
+  flex: none;
+  color: var(--wl-text-3);
+  transition: transform 180ms var(--wl-ease);
+}
+
+.switch[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+
+.name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 名字是 SwapText（换字时旧的上浮淡出、新的浮上来）：长名字仍旧在这一格里截断成省略号。 */
+.name > span {
+  max-width: 100%;
+  vertical-align: bottom;
+}
+
+/* 改名：底线的样子在 ui.module.css 的 `.lineField`；左边 4px + 内边距 6px = 原来名字的 10px，字不动。 */
+.renameField {
+  width: 220px;
+  margin-left: 4px;
+}
+
+.rename {
+  height: 32px;
+  font-weight: 600;
+}
+
+/*
+ * 实例 + 工作流共用的滚动区：外层管滚动，里层（.listBody）剪掉自己框外的东西。
+ * 筛选时各行从旧位置滑过来、选中块还停在旧位置，这些短暂地越出框外的部分
+ * 不剪的话会把外层撑出一闪而过的滚动条。
+ */
+.scroll {
+  max-height: 340px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.listBody {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow: clip;
+}
+
+/* 分组标题（实例 / 工作流）：右端是这一组的条数。 */
+.groupTitle {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.groupTitle:not(:first-of-type) {
+  margin-top: 4px;
+}
+
+.groupCount {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+/* 实例这一组的尾巴：「显示全部 N 个」/「收起」，小一号、居中，不抢实例行。 */
+.more {
+  flex: none;
+  gap: 4px;
+  justify-content: center;
+  min-height: 28px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+.moreChev {
+  display: inline-grid;
+  place-items: center;
+  transition: transform 200ms var(--wl-ease);
+}
+
+.moreChev[data-open="true"] {
+  transform: rotate(180deg);
+}
+
+@container (max-width: 760px) {
+  .switch {
+    max-width: 150px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .switch svg,
+  .moreChev {
+    transition: none;
+  }
+}
