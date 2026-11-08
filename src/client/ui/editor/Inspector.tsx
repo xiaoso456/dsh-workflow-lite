@@ -27,7 +27,7 @@ import type {
 import type { HostAccess } from '../../app/host.ts'
 import type { T } from '../../i18n.ts'
 import { type Edit, findNode, type Selection, whenOf } from '../../model/editor.ts'
-import { WHEN_COLOR, type WhenKind, whenKind } from '../canvas/lines.ts'
+import { WHEN_COLOR, type WhenKind, whenKind } from '../canvas/lines/lines.ts'
 import { PreviewCard } from '../files/PreviewCard.tsx'
 import { Icon } from '../kit/Icon.tsx'
 import { cx } from '../kit/primitives.tsx'

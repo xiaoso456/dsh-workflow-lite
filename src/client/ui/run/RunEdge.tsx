@@ -20,7 +20,7 @@ import type { InputAnswer, WorkflowDocument, WorkflowEdge } from '../../../share
 import type { Desktop } from '../../app/desktop.ts'
 import type { T } from '../../i18n.ts'
 import { findNode, whenOf } from '../../model/editor.ts'
-import { RUN_TEXT } from '../canvas/Canvas.tsx'
+import { RUN_TEXT } from '../canvas/cards/cardParts.ts'
 import { EndIcon } from '../editor/Inspector.tsx'
 import ins from '../editor/inspector.module.css'
 import { WhenChip } from '../editor/LinkRow.tsx'

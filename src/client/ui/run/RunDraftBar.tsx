@@ -16,7 +16,7 @@ import type { NodeStatus, RunStatus, StateEdit } from '../../../shared/runState.
 import type { WorkflowDocument } from '../../../shared/types.ts'
 import type { Run } from '../../app/useRuns.ts'
 import type { LocaleKey, T } from '../../i18n.ts'
-import { RUN_TEXT } from '../canvas/Canvas.tsx'
+import { RUN_TEXT } from '../canvas/cards/cardParts.ts'
 import { useConfirm } from '../kit/Confirm.tsx'
 import { Icon } from '../kit/Icon.tsx'
 import { cx, Popover } from '../kit/primitives.tsx'

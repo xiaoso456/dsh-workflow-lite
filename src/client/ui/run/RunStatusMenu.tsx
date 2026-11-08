@@ -8,7 +8,7 @@
 import { useEffect, useRef } from 'react'
 import { NODE_STATUSES, type NodeStatus } from '../../../shared/runState.ts'
 import type { T } from '../../i18n.ts'
-import { RUN_TEXT } from '../canvas/Canvas.tsx'
+import { RUN_TEXT } from '../canvas/cards/cardParts.ts'
 import { Icon } from '../kit/Icon.tsx'
 import { cx } from '../kit/primitives.tsx'
 import ui from '../kit/ui.module.css'

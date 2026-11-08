@@ -5,7 +5,7 @@
  * `EdgeLabelRenderer` 每个实例都订阅 store，store 每变一次（拖卡片时一帧好几次）各自 `querySelector` 一遍，
  * 线一多就是一帧几百次查询。
  *
- * @module @xiaoso/dsh-workflow-lite/client/ui/canvas/LabelLayer
+ * @module @xiaoso/dsh-workflow-lite/client/ui/canvas/lines/LabelLayer
  */
 
 import { createContext, useContext } from 'react'

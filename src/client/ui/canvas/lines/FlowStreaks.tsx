@@ -26,7 +26,7 @@
  *
  * 系统设了「减少动态效果」就什么都不画。
  *
- * @module @xiaoso/dsh-workflow-lite/client/ui/canvas/FlowStreaks
+ * @module @xiaoso/dsh-workflow-lite/client/ui/canvas/lines/FlowStreaks
  */
 
 import {
@@ -38,10 +38,10 @@ import {
   useRef,
   useState,
 } from 'react'
-import { afterPaint } from '../../app/reveal.ts'
-import { type MeasuredPath, measurePath } from '../../model/pathSample.ts'
-import { useCanvasMoving } from '../motion/motion.tsx'
-import css from './canvas.module.css'
+import { afterPaint } from '../../../app/reveal.ts'
+import { type MeasuredPath, measurePath } from '../../../model/pathSample.ts'
+import { useCanvasMoving } from '../../motion/motion.tsx'
+import css from '../canvas.module.css'
 import { OnLabels } from './LabelLayer.tsx'
 
 /** 一条线上最多几道光带；短线只放一道。 */

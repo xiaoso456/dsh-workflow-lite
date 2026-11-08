@@ -66,14 +66,9 @@ import {
 } from '../../model/runDraft.ts'
 import { lockedSteps } from '../../model/runGraph.ts'
 import type { WorkflowLiteRpc } from '../../rpc.ts'
-import {
-  type AddRequest,
-  Canvas,
-  type RunDecor,
-  type RunMark,
-  type RunNodeDecor,
-} from '../canvas/Canvas.tsx'
+import { type AddRequest, Canvas, type RunDecor, type RunNodeDecor } from '../canvas/Canvas.tsx'
 import { QuickAdd } from '../canvas/QuickAdd.tsx'
+import type { RunMark } from '../canvas/types.ts'
 import { edgeSwap, Inspector } from '../editor/Inspector.tsx'
 import css from '../editor/inspector.module.css'
 import { EdgeHead, InputHead, OverviewHead, ResourceHead, StepHead } from '../editor/NodeHeads.tsx'
