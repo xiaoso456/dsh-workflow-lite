@@ -66,7 +66,7 @@ import {
 import { DND_MIME, decodeStepSource, type StepSource } from '../../model/library.ts'
 import { type Chip, nudge, placeChips, type Track } from '../../model/nudge.ts'
 import type { Rect } from '../../model/route.ts'
-import { DisplayContext, type DisplayEnv } from '../display/ResourceDisplay.tsx'
+import { DisplayContext, type DisplayEnv } from '../display/displayEnv.ts'
 import type { FocusFile } from '../editor/Handoff.tsx'
 import { Icon } from '../kit/Icon.tsx'
 import { cx } from '../kit/primitives.tsx'

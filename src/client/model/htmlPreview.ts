@@ -78,7 +78,7 @@ const scriptJson = (value: unknown): string => JSON.stringify(value).replace(/</
 
 /**
  * 镂空：页面和 `<body>` 的底一律透明（压过页面自己写的背景）。框元素的 `color-scheme` 得和页面一致，
- * 不然浏览器在框后面垫一层不透明的底（见 ResourceDisplay）。静止的卡片不画滚动条（也压过页面自己写的）。
+ * 不然浏览器在框后面垫一层不透明的底（见 display/views/HtmlView.tsx）。静止的卡片不画滚动条（也压过页面自己写的）。
  */
 const CLEAR_STYLE = `<style data-wl-preview>[${BOARD_CLEAR_ATTR}],[${BOARD_CLEAR_ATTR}] body{background:transparent!important}[${BOARD_STILL_ATTR}],[${BOARD_STILL_ATTR}] *{scrollbar-width:none!important}</style>`
 

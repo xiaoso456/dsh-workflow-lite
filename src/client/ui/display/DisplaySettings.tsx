@@ -50,8 +50,9 @@ import { useExit } from '../motion/exits.tsx'
 import { FadeText, SwitchTrack } from '../motion/marks.tsx'
 import { SwapText } from '../motion/swapText.tsx'
 import { PickThumb } from '../motion/thumb.tsx'
-import { ContentOptions, GroupHead } from './DisplayContent.tsx'
+import { ContentOptions } from './DisplayContent.tsx'
 import css from './display.module.css'
+import { GroupHead } from './options/optionParts.tsx'
 
 type SizeKey = 's' | 'm' | 'l' | 'custom'
 

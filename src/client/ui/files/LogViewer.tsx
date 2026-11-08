@@ -29,8 +29,8 @@ import {
   windowOf,
 } from '../../model/logLines.ts'
 import { errorMessage, type WorkflowLiteRpc } from '../../rpc.ts'
-import { FilterField } from '../display/DisplayContent.tsx'
 import css from '../display/display.module.css'
+import { FilterField } from '../display/options/FilterField.tsx'
 import { Icon } from '../kit/Icon.tsx'
 import { cx } from '../kit/primitives.tsx'
 import ui from '../kit/ui.module.css'
