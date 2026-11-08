@@ -18,6 +18,11 @@ export function fail(code: ErrorCode, message: string, detail?: Record<string, u
   return { ok: false, error: detail === undefined ? { code, message } : { code, message, detail } }
 }
 
+/** 某件事做到一半 IO 出错：`<what>失败：<原因>`。 */
+export function ioError(what: string, error: unknown): Failure {
+  return fail('io_error', `${what}失败：${error instanceof Error ? error.message : String(error)}`)
+}
+
 export function ok<T>(result: T): { ok: true; result: T } {
   return { ok: true, result }
 }

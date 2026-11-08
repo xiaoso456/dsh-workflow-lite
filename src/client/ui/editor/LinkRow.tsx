@@ -7,10 +7,10 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/editor/LinkRow
  */
 
+import { edgeWhen } from '../../../shared/graph.ts'
 import { isStep } from '../../../shared/model.ts'
 import type { WorkflowEdge, WorkflowNode } from '../../../shared/types.ts'
 import type { T } from '../../i18n.ts'
-import { whenOf } from '../../model/editor.ts'
 import { whenKind } from '../canvas/lines/lines.ts'
 import { Icon } from '../kit/Icon.tsx'
 import { stepName } from '../kit/resourceUi.ts'
@@ -75,7 +75,7 @@ export function LinkRow(props: {
       <span className={css.name}>
         <span className={css.nameText}>{stepName(other, props.otherId)}</span>
         {props.back && <Icon name="loop" size={12} />}
-        <WhenChip t={t} when={whenOf(edge)} />
+        <WhenChip t={t} when={edgeWhen(edge)} />
       </span>
       <span className={css.end}>{props.end}</span>
       <span className={css.sub}>

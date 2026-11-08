@@ -7,11 +7,11 @@
  */
 
 import { type InternalNode, Position } from '@xyflow/react'
+import { edgeWhen } from '../../../../shared/graph.ts'
 import { idKey } from '../../../../shared/model.ts'
 import { type edgeKind, resolveHandoff } from '../../../../shared/resources.ts'
 import type { WorkflowEdge } from '../../../../shared/types.ts'
 import type { HandleLink } from '../../../model/connect.ts'
-import { whenOf } from '../../../model/editor.ts'
 import { NODE_H, RES_H } from '../../../model/layout.ts'
 import type { Track } from '../../../model/nudge.ts'
 import {
@@ -131,7 +131,7 @@ export function routedPath(
  * 「通过 / 未通过」画出来是翻译过的短词，按三个字算；牌子文字最宽 120px（见 `.linkLabel`）。
  */
 function chipWidth(edge: WorkflowEdge, back: boolean): number | null {
-  const when = whenOf(edge)
+  const when = edgeWhen(edge)
   const handoff = resolveHandoff(edge.data?.handoff)
   const mark = !handoff.result || handoff.note !== undefined ? 34 : 0
   if (when === undefined && !back) return mark === 0 ? null : mark
@@ -213,7 +213,7 @@ export function routeEdge(
     return {
       lane,
       corridor: { right, left, back: to.x < sx + 8, chip: chipWidth(edge, to.x < sx + 8) },
-      track: { id: edge.id, group: `when:${whenKind(whenOf(edge))}`, points },
+      track: { id: edge.id, group: `when:${whenKind(edgeWhen(edge))}`, points },
       hitBy: (moved) => pointsBlocked(points, moved, []),
     }
   }

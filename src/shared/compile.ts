@@ -377,11 +377,6 @@ function targetIdOf(ctx: RenderContext, edge: WorkflowEdge): string | undefined 
   return ctx.keyToId.get(idKey(edge.target))
 }
 
-/** 一条边的条件值；缺省与空串都当"无条件"（{@link edgeWhen} 的唯一口径）。 */
-function whenOf(edge: WorkflowEdge): string | undefined {
-  return edgeWhen(edge)
-}
-
 /**
  * 把一句自然语言条件写进计划：压成一行、用「」括起来（不用反引号——条件里可能本来就有反引号）。
  */
@@ -391,7 +386,7 @@ function condition(text: string): string {
 
 /** 出边里的条件边（≥1 条 ⇒ 该节点必须在回复末行给出判定）。 */
 function conditionalEdgesOf(ctx: RenderContext, id: string): WorkflowEdge[] {
-  return (ctx.outEdges.get(id) ?? []).filter((edge) => whenOf(edge) !== undefined)
+  return (ctx.outEdges.get(id) ?? []).filter((edge) => edgeWhen(edge) !== undefined)
 }
 
 /** 条件出边按「目标 `id` → `when` → 边 `id`」排——纯 `id` 码位序，不随数组序变。 */
@@ -399,7 +394,7 @@ function sortOutgoing(ctx: RenderContext, edges: readonly WorkflowEdge[]): Workf
   return [...edges].sort((a, b) => {
     const byTarget = byId(targetIdOf(ctx, a) ?? '', targetIdOf(ctx, b) ?? '')
     if (byTarget !== 0) return byTarget
-    const byWhen = byId(whenOf(a) ?? '', whenOf(b) ?? '')
+    const byWhen = byId(edgeWhen(a) ?? '', edgeWhen(b) ?? '')
     if (byWhen !== 0) return byWhen
     return byId(a.id, b.id)
   })
@@ -410,7 +405,7 @@ function sortIncoming(ctx: RenderContext, edges: readonly WorkflowEdge[]): Workf
   return [...edges].sort((a, b) => {
     const bySource = byId(sourceIdOf(ctx, a) ?? '', sourceIdOf(ctx, b) ?? '')
     if (bySource !== 0) return bySource
-    const byWhen = byId(whenOf(a) ?? '', whenOf(b) ?? '')
+    const byWhen = byId(edgeWhen(a) ?? '', edgeWhen(b) ?? '')
     if (byWhen !== 0) return byWhen
     return byId(a.id, b.id)
   })
@@ -841,12 +836,12 @@ function branchLines(ctx: RenderContext): string[] {
     const values = verdictValues(ctx, id)
     const rules: string[] = []
     if (values.length > 0) rules.push(`回复的最后一行必须是 ${values.join(' 或 ')}，不得省略`)
-    if (conditional.some((edge) => !isVerdictWhen(whenOf(edge) ?? ''))) {
+    if (conditional.some((edge) => !isVerdictWhen(edgeWhen(edge) ?? ''))) {
       rules.push('完成后由你对照它的产出判断条件是否成立（它的回复要把结果写清楚，足以判断）')
     }
     const routes: string[] = []
     for (const edge of conditional) {
-      const when = whenOf(edge)
+      const when = edgeWhen(edge)
       const target = targetIdOf(ctx, edge)
       if (when === undefined || target === undefined) continue
       if (isVerdictWhen(when)) routes.push(`${code(`${VERDICT_PREFIX}${when}`)} → ${code(target)}`)
@@ -870,7 +865,7 @@ function cycleLines(ctx: RenderContext): string[] {
     for (const exitId of cycle.exits) {
       const edge = ctx.analysis.edgesById.get(exitId)
       if (edge === undefined) continue
-      const when = whenOf(edge)
+      const when = edgeWhen(edge)
       const source = sourceIdOf(ctx, edge)
       const target = targetIdOf(ctx, edge)
       if (when === undefined || source === undefined || target === undefined) continue
@@ -1152,7 +1147,7 @@ function handoffLines(ctx: RenderContext): string[] {
 function verdictValues(ctx: RenderContext, id: string): string[] {
   const values = new Set<string>()
   for (const edge of conditionalEdgesOf(ctx, id)) {
-    const when = whenOf(edge)
+    const when = edgeWhen(edge)
     if (when !== undefined && isVerdictWhen(when)) values.add(when)
   }
   return [...values].sort(byId).map((value) => code(`${VERDICT_PREFIX}${value}`))
@@ -1268,7 +1263,7 @@ function taskText(facts: PlanFacts, ctx: RenderContext, id: string, prompt: stri
  * `brief` 时自然语言条件只写「满足条件时」（表格单元格里放不下一段话，原文在表下的分支里）。
  */
 function edgeGuard(ctx: RenderContext, edge: WorkflowEdge, back: string, brief = false): string {
-  const when = whenOf(edge)
+  const when = edgeWhen(edge)
   const parts: string[] = []
   if (when !== undefined) {
     parts.push(

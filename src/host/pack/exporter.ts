@@ -47,18 +47,13 @@ import {
 } from '../../shared/pathVars.ts'
 import { memoryOf } from '../../shared/presets.ts'
 import { resourceGraph } from '../../shared/resources.ts'
-import {
-  type ErrorCode,
-  type VersionEntry,
-  type WorkflowDocument,
-  WRITABLE_KINDS,
-} from '../../shared/types.ts'
+import { type VersionEntry, type WorkflowDocument, WRITABLE_KINDS } from '../../shared/types.ts'
 import type { HostSkillEntry } from '../../shared/wire.ts'
 import { listSkills, type SkillViewer } from '../hostFs.ts'
 import { readMemoryMeta } from '../store/memories.ts'
 import { assetsDir, memoryFolder } from '../store/paths.ts'
 import type { DocumentValidator } from '../store/repoCore.ts'
-import type { Outcome } from '../store/repoResult.ts'
+import { fail, type Outcome } from '../store/repoResult.ts'
 import type { Repository } from '../store/repository.ts'
 import { versionText } from '../store/versions.ts'
 import { newStage, writeOut } from './staging.ts'
@@ -75,15 +70,6 @@ export interface PackDeps {
   /** 文档级校验（导出成 skill 时看有没有编译级问题）；没给就不查。 */
   validate?: DocumentValidator
   now?: () => number
-}
-
-type Fail = {
-  ok: false
-  error: { code: ErrorCode; message: string; detail?: Record<string, unknown> }
-}
-
-function fail(code: ErrorCode, message: string, detail?: Record<string, unknown>): Fail {
-  return { ok: false, error: detail === undefined ? { code, message } : { code, message, detail } }
 }
 
 /** 选中的一个版本。 */

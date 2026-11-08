@@ -311,6 +311,11 @@ export function sameEdgeData(a: EdgeData | undefined, b: EdgeData | undefined): 
   )
 }
 
+/** 边的"内容"＝端点 + `data`（条件、标签、交接）；边没有独立的视图态。 */
+export function sameEdgeContent(a: WorkflowEdge, b: WorkflowEdge): boolean {
+  return a.source === b.source && a.target === b.target && sameEdgeData(a.data, b.data)
+}
+
 /** 深拷一份边的 `data`。 */
 function cloneEdgeData(data: EdgeData): EdgeData {
   const copy: EdgeData = { ...data }

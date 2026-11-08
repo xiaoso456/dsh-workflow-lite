@@ -14,6 +14,7 @@
  */
 
 import { pickAppearance } from '../../shared/appearance.ts'
+import { edgeWhen } from '../../shared/graph.ts'
 import {
   canonicalHandoff,
   canonicalInput,
@@ -262,12 +263,6 @@ export function findNode(doc: WorkflowDocument, id: string): WorkflowNode | unde
 
 export function findEdge(doc: WorkflowDocument, id: string): WorkflowEdge | undefined {
   return doc.edges.find((edge) => edge.id === id)
-}
-
-/** 一条边的条件值（空串与缺省同义）。 */
-export function whenOf(edge: WorkflowEdge): string | undefined {
-  const when = edge.data?.when
-  return when === undefined || when === '' ? undefined : when
 }
 
 /** 新步骤的 id：撞名就加 `-2`、`-3`…（**绝不静默覆盖**）。 */
@@ -614,7 +609,7 @@ function applyEdit(doc: WorkflowDocument, selection: Selection, edit: Edit): App
       const edge = findEdge(doc, edit.id)
       if (edge === undefined) return null
       const when = edit.when === '' ? undefined : edit.when
-      if (whenOf(edge) === when) return null
+      if (edgeWhen(edge) === when) return null
       // `when` 是边 id 的一部分：改它等于换一条边。目标 id 已被占用就不动（不造重复边）。
       const id = makeEdgeId(edge.source, edge.target, when)
       if (findEdge(doc, id) !== undefined) return null

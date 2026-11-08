@@ -40,23 +40,14 @@ import {
   type SkillPreviewResponse,
   skillDoc,
 } from '../../shared/skillPack.ts'
-import type { ErrorCode, ValidationProblem, WorkflowDocument } from '../../shared/types.ts'
+import type { ValidationProblem, WorkflowDocument } from '../../shared/types.ts'
 import { pathKind } from '../store/paths.ts'
-import type { Outcome } from '../store/repoResult.ts'
+import { fail, type Outcome } from '../store/repoResult.ts'
 import { isAbsolutePath, type PackDeps, rewriteForPack, scanState } from './exporter.ts'
 import { installSkill } from './importer.ts'
 import { stageSkill } from './skillBrowse.ts'
 import { newStage, writeOut } from './staging.ts'
 import { readTree } from './tree.ts'
-
-type Fail = {
-  ok: false
-  error: { code: ErrorCode; message: string; detail?: Record<string, unknown> }
-}
-
-function fail(code: ErrorCode, message: string, detail?: Record<string, unknown>): Fail {
-  return { ok: false, error: detail === undefined ? { code, message } : { code, message, detail } }
-}
 
 const slash = (path: string): string => path.replace(/\\/gu, '/')
 

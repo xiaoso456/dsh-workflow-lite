@@ -23,7 +23,7 @@ import {
   useStore,
 } from '@xyflow/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { GraphAnalysis } from '../../../shared/graph.ts'
+import { edgeWhen, type GraphAnalysis } from '../../../shared/graph.ts'
 import { inputKind } from '../../../shared/inputs.ts'
 import { type MemoryEntry, memoryTitle } from '../../../shared/memoryLib.ts'
 import { idKey, isInput, isResource } from '../../../shared/model.ts'
@@ -53,7 +53,7 @@ import { recallViewport, rememberViewport } from '../../app/viewport.ts'
 import type { LocaleKey, T } from '../../i18n.ts'
 import { type CardKind, dragKindOf, linkAllowed, previewLink } from '../../model/connect.ts'
 import { displayOf } from '../../model/display.ts'
-import { type Edit, type Selection, whenOf } from '../../model/editor.ts'
+import type { Edit, Selection } from '../../model/editor.ts'
 import {
   cardSize,
   isCompactResource,
@@ -928,7 +928,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
           },
         })
       }
-      const when = whenOf(edge)
+      const when = edgeWhen(edge)
       const mode = whenKind(when)
       const back = analysis.backEdges.has(edge.id)
       const handoff = resolveHandoff(edge.data?.handoff)

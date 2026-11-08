@@ -49,7 +49,7 @@ import {
   memoryMetaFile,
   memoryVersionsDir,
 } from './paths.ts'
-import type { Outcome } from './repoResult.ts'
+import { ioError, type Outcome } from './repoResult.ts'
 import type { Repository } from './repository.ts'
 
 /** 撞名加序号的上限（`-2` … `-99`）。 */
@@ -64,10 +64,6 @@ export interface MemoryDeps {
 
 function fail(code: 'invalid_args' | 'not_found' | 'io_error', message: string): Outcome<never> {
   return { ok: false, error: { code, message } }
-}
-
-function ioError(what: string, error: unknown): Outcome<never> {
-  return fail('io_error', `${what}失败：${error instanceof Error ? error.message : String(error)}`)
 }
 
 /** 同一条记忆上的写操作排队做（建、改、删、存版本、恢复），免得两个请求交错着写。 */

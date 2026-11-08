@@ -9,7 +9,7 @@
 import {
   idKey,
   readDocument,
-  sameEdgeData,
+  sameEdgeContent,
   sameNodeContent,
   writeDocument,
 } from '../../shared/model.ts'
@@ -20,7 +20,6 @@ import type {
   ToolWarning,
   ValidationProblem,
   WorkflowDocument,
-  WorkflowEdge,
   WorkflowNode,
   WriteResult,
 } from '../../shared/types.ts'
@@ -82,10 +81,6 @@ function emptyDocument(): WorkflowDocument {
 
 function sameData(a: WorkflowNode, b: WorkflowNode): boolean {
   return sameNodeContent(a, b)
-}
-
-function sameEdgeContent(a: WorkflowEdge, b: WorkflowEdge): boolean {
-  return a.source === b.source && a.target === b.target && sameEdgeData(a.data, b.data)
 }
 
 /** `before → after` 的变更摘要（`save` 回告用）。 */

@@ -24,7 +24,7 @@ import { fingerprint, readTree, sha256, type Tree, walkTree } from '../pack/tree
 import { readFileText, removeTree, renameDir, unlinkFile, writeFileAtomic } from './atomic.ts'
 import { readMemoryMeta, serialMemory } from './memories.ts'
 import { memoriesDir, memoryFolder, memoryVersionsDir } from './paths.ts'
-import type { Outcome } from './repoResult.ts'
+import { ioError, type Outcome } from './repoResult.ts'
 
 const FORMAT = 1
 const FILE_NAME = /^([1-9]\d{0,8})\.json$/iu
@@ -51,10 +51,6 @@ function fail(
   detail?: Record<string, unknown>,
 ): Outcome<never> {
   return { ok: false, error: { code, message, ...(detail === undefined ? {} : { detail }) } }
-}
-
-function ioError(what: string, error: unknown): Outcome<never> {
-  return fail('io_error', `${what}失败：${error instanceof Error ? error.message : String(error)}`)
 }
 
 function versionText(version: StoredMemoryVersion): string {

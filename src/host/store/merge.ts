@@ -18,7 +18,7 @@ import {
   idKey,
   readSettings,
   SETTINGS_CONFLICT_ID,
-  sameEdgeData,
+  sameEdgeContent,
   sameNodeContent,
 } from '../../shared/model.ts'
 import type {
@@ -204,21 +204,21 @@ function mergeEdges(
         out.push(local)
         continue
       }
-      if (sameEdge(origin, local)) continue
+      if (sameEdgeContent(origin, local)) continue
       conflicts.add(local.id)
       out.push(local)
       continue
     }
 
     if (origin === undefined) {
-      if (!sameEdge(local, other)) conflicts.add(local.id)
+      if (!sameEdgeContent(local, other)) conflicts.add(local.id)
       out.push(local)
       continue
     }
 
-    const localChanged = !sameEdge(origin, local)
-    const otherChanged = !sameEdge(origin, other)
-    if (localChanged && otherChanged && !sameEdge(local, other)) {
+    const localChanged = !sameEdgeContent(origin, local)
+    const otherChanged = !sameEdgeContent(origin, other)
+    if (localChanged && otherChanged && !sameEdgeContent(local, other)) {
       conflicts.add(local.id)
       out.push(local)
       continue
@@ -235,7 +235,7 @@ function mergeEdges(
       out.push(other)
       continue
     }
-    if (sameEdge(origin, other)) continue
+    if (sameEdgeContent(origin, other)) continue
     conflicts.add(other.id)
   }
 
@@ -249,9 +249,4 @@ function indexEdges(edges: readonly WorkflowEdge[]): Map<string, WorkflowEdge> {
     if (!map.has(key)) map.set(key, edge)
   }
   return map
-}
-
-/** 边的"内容"＝端点 + `data`（条件、标签、交接）；边没有独立的视图态。 */
-function sameEdge(a: WorkflowEdge, b: WorkflowEdge): boolean {
-  return a.source === b.source && a.target === b.target && sameEdgeData(a.data, b.data)
 }

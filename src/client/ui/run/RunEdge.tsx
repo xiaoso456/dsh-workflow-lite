@@ -11,7 +11,7 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/run/RunEdge
  */
 
-import type { GraphAnalysis } from '../../../shared/graph.ts'
+import { edgeWhen, type GraphAnalysis } from '../../../shared/graph.ts'
 import { isInput, isStep } from '../../../shared/model.ts'
 import { isVerdictWhen } from '../../../shared/naming.ts'
 import { type EdgeKind, edgeKind, nodeIndex, resolveHandoff } from '../../../shared/resources.ts'
@@ -19,7 +19,7 @@ import type { RunState } from '../../../shared/runState.ts'
 import type { InputAnswer, WorkflowDocument, WorkflowEdge } from '../../../shared/types.ts'
 import type { Desktop } from '../../app/desktop.ts'
 import type { T } from '../../i18n.ts'
-import { findNode, whenOf } from '../../model/editor.ts'
+import { findNode } from '../../model/editor.ts'
 import { RUN_TEXT } from '../canvas/cards/cardParts.ts'
 import { EndIcon } from '../editor/Inspector.tsx'
 import ins from '../editor/inspector.module.css'
@@ -51,7 +51,7 @@ export function RunEdgeDetail(props: {
   const target = findNode(snapshot, edge.target)
   const sourceName = stepName(source, edge.source)
   const back = props.analysis.backEdges.has(edge.id)
-  const when = whenOf(edge)
+  const when = edgeWhen(edge)
   const handoff = resolveHandoff(edge.data?.handoff)
   const update = edge.data?.update === true
   const summary =
@@ -231,7 +231,7 @@ function takenWhy(
   state: RunState | null,
 ): string {
   if (kind !== 'flow') return t('run.edgeWhyStep')
-  const when = whenOf(edge)
+  const when = edgeWhen(edge)
   if (when === undefined) return t('run.edgeWhyFlow')
   const source = findNode(doc, edge.source)
   const name = stepName(source, edge.source)

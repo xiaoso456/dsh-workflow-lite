@@ -12,7 +12,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
-import type { GraphAnalysis } from '../../../shared/graph.ts'
+import { edgeWhen, type GraphAnalysis } from '../../../shared/graph.ts'
 import { MAX_TEXT_CODEPOINTS } from '../../../shared/limits.ts'
 import { canonicalOutput, idKey, isInput, isResource } from '../../../shared/model.ts'
 import { checkText, checkWhen, isVerdictWhen } from '../../../shared/naming.ts'
@@ -26,7 +26,7 @@ import type {
 } from '../../../shared/types.ts'
 import type { HostAccess } from '../../app/host.ts'
 import type { T } from '../../i18n.ts'
-import { type Edit, findNode, type Selection, whenOf } from '../../model/editor.ts'
+import { type Edit, findNode, type Selection } from '../../model/editor.ts'
 import { WHEN_COLOR, type WhenKind, whenKind } from '../canvas/lines/lines.ts'
 import { PreviewCard } from '../files/PreviewCard.tsx'
 import { cx } from '../kit/cx.ts'
@@ -426,7 +426,7 @@ function EdgePanel(props: InspectorProps & { edge: WorkflowEdge }): React.JSX.El
   const { t, edge, doc, analysis, onEdit, onSelect } = props
   const spot = edgeSwap(doc, edge)
   const swapEdge = useSwap<HTMLElement>(spot.key, spot.at, EDIT_VIEW)
-  const when = whenOf(edge)
+  const when = edgeWhen(edge)
   const [mode, setMode] = useState<WhenKind>(whenKind(when))
   const [draft, setDraft] = useState(mode === 'custom' ? (when ?? '') : '')
   const source = findNode(doc, edge.source)

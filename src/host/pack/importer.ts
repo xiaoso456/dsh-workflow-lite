@@ -37,7 +37,7 @@ import {
   readManifest,
 } from '../../shared/pack.ts'
 import { renameMemoryRefs } from '../../shared/presets.ts'
-import type { ErrorCode, WorkflowDocument } from '../../shared/types.ts'
+import type { WorkflowDocument } from '../../shared/types.ts'
 import { listSkills } from '../hostFs.ts'
 import { renameDir } from '../store/atomic.ts'
 import { freeMemoryId, readMemoryMeta, writeMemoryMeta } from '../store/memories.ts'
@@ -49,21 +49,12 @@ import {
   pathKind,
   scanWorkflowDir,
 } from '../store/paths.ts'
-import type { Outcome } from '../store/repoResult.ts'
+import { fail, type Outcome } from '../store/repoResult.ts'
 import type { ImportVersion } from '../store/repoVersions.ts'
 import { parseVersion } from '../store/versions.ts'
 import type { PackDeps } from './exporter.ts'
 import { discard, readIn } from './staging.ts'
 import { fingerprint, readTree, sha256, walkTree } from './tree.ts'
-
-type Fail = {
-  ok: false
-  error: { code: ErrorCode; message: string; detail?: Record<string, unknown> }
-}
-
-function fail(code: ErrorCode, message: string, detail?: Record<string, unknown>): Fail {
-  return { ok: false, error: detail === undefined ? { code, message } : { code, message, detail } }
-}
 
 /** 解开、校验过的包。 */
 export interface OpenedPack {
