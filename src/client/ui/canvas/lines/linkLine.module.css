@@ -1,0 +1,50 @@
+/**
+ * dsh-workflow-lite — 流程线（LinkLine）上的条件牌子和交接标记层。
+ *
+ * 共用的部分（卡片外壳、连接点、连线粗细线型）留在 canvas.module.css。
+ */
+
+/* 条件牌子和它那条线同色（`--wl-chip` 由线给）；选中时填满。 */
+.linkLabel {
+  position: relative;
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid color-mix(in srgb, var(--wl-chip) 45%, transparent);
+  border-radius: calc(999px * var(--wl-round, 1));
+  background: color-mix(in srgb, var(--wl-chip) 10%, var(--wl-panel));
+  color: var(--wl-chip);
+  font: inherit;
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  pointer-events: all;
+}
+
+.linkLabel[data-selected="true"] {
+  border-color: var(--wl-chip);
+  background: var(--wl-chip);
+  color: var(--wl-panel);
+}
+
+/* ── 长条件：截断（全文走 data-tip 悬停提示）──────────────── */
+
+.linkText {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── 连线标签：条件在上、交接标记在下 ─────────────────────── */
+
+.linkLabels {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: center;
+  pointer-events: none;
+}

@@ -1,0 +1,322 @@
+/**
+ * dsh-workflow-lite — 画布上步骤卡（StepCard）自己的样子：标题行、摘要、运行状态小标、角色 / 执行位置标记、描边层。
+ *
+ * 共用的部分（卡片外壳、连接点、连线粗细线型）留在 canvas.module.css。
+ */
+
+.cardHead {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+.cardBody {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+  line-height: 1.5;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  word-break: break-word;
+}
+
+.cardBodyEmpty {
+  color: var(--wl-danger);
+  font-style: italic;
+}
+
+.roleTag {
+  position: absolute;
+  top: -10px;
+  right: 10px;
+  z-index: 2;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: calc(999px * var(--wl-round, 1));
+  color: var(--wl-panel);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+  line-height: 20px;
+  box-shadow: var(--wl-shadow-1);
+  pointer-events: none;
+  animation: roleIn 160ms var(--wl-ease) backwards;
+}
+
+/*
+ * 角色标与它那条读写线同色：产出金、更新洋红、读取青。
+ * 底色三层叠着，换角色时交叉淡过去，字原地换（SwapText）。
+ */
+.roleTone {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--wl-role);
+  opacity: 0;
+  transition: opacity 220ms linear;
+}
+
+.roleTone[data-on="true"] {
+  opacity: 1;
+}
+
+.roleTone[data-role="producer"] {
+  --wl-role: var(--wl-io-produce);
+}
+
+.roleTone[data-role="updater"] {
+  --wl-role: var(--wl-io-update);
+}
+
+.roleTone[data-role="reader"] {
+  --wl-role: var(--wl-io-read);
+}
+
+/*
+ * 卡片的描边层（FadeRing）：运行态 / 角色的边框、执行位置的外圈各一层，换状态时交叉淡。
+ * 层的颜色、粗细、位置按 `data-ring`；卡片自己的边框保持平时的灰。
+ */
+.cardRing {
+  position: absolute;
+  inset: -1px;
+  border: 1px solid var(--wl-ring);
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.cardRing[data-ring="producer"] {
+  --wl-ring: var(--wl-io-produce);
+}
+
+.cardRing[data-ring="updater"] {
+  --wl-ring: var(--wl-io-update);
+}
+
+.cardRing[data-ring="reader"] {
+  --wl-ring: var(--wl-io-read);
+}
+
+.cardRing[data-ring="running"] {
+  --wl-ring: var(--wl-accent);
+}
+
+.cardRing[data-ring="failed"] {
+  --wl-ring: var(--wl-danger);
+}
+
+.cardRing[data-ring="waiting"] {
+  --wl-ring: var(--wl-warn);
+}
+
+/* 执行位置：最后执行 = 实线外圈、下一步 = 虚线外圈（原来的 outline，位置、粗细照旧）。 */
+.markRing {
+  position: absolute;
+  inset: -6px;
+  border: 2px solid color-mix(in srgb, var(--wl-text) 30%, transparent);
+  border-radius: calc(var(--wl-r-card) + calc(5px * var(--wl-round, 1)));
+  pointer-events: none;
+}
+
+.markRing[data-ring="next"] {
+  inset: -5.5px;
+  border: 1.5px dashed color-mix(in srgb, var(--wl-text-3) 80%, transparent);
+  border-radius: calc(var(--wl-r-card) + calc(4.5px * var(--wl-round, 1)));
+}
+
+@keyframes roleIn {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .roleTag,
+  .markTag {
+    animation: none;
+  }
+
+  .roleTone {
+    transition: none;
+  }
+}
+
+/* 卡片左上角的状态小标：点它改状态。颜色走语义色，和画布上的线色分开。 */
+.runChip {
+  --wl-run: var(--wl-text-3);
+
+  position: absolute;
+  top: -11px;
+  left: 12px;
+  z-index: 2;
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px 0 6px;
+  border: 1px solid color-mix(in srgb, var(--wl-run) 40%, transparent);
+  border-radius: calc(999px * var(--wl-round, 1));
+  background: color-mix(in srgb, var(--wl-run) 12%, var(--wl-panel));
+  box-shadow: var(--wl-shadow-thumb);
+  color: var(--wl-run);
+  font: inherit;
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform 140ms var(--wl-ease);
+}
+
+.runChip:hover {
+  transform: translateY(-1px);
+}
+
+.runChip:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+.runChip[data-status="running"] {
+  --wl-run: var(--wl-accent);
+}
+
+.runChip[data-status="done"] {
+  --wl-run: var(--wl-ok);
+}
+
+.runChip[data-status="failed"] {
+  --wl-run: var(--wl-danger);
+}
+
+.runChip[data-status="waiting"] {
+  --wl-run: var(--wl-warn);
+}
+
+/*
+ * 状态变了小标弹一下（从 0.85 放大、略回弹；不动透明度——里面的图标、文字自己在交叉淡入，外面再暗一下就成了闪）。
+ * 每种状态一个动画名：
+ * 状态一换动画名就换，浏览器才会从头再放一次（同名的动画改属性不会重放）。图标、文字的换法见 SwapIcon / SwapText。
+ */
+.runChip[data-status="pending"] {
+  animation: chipPopA 320ms cubic-bezier(0.34, 1.36, 0.64, 1) backwards;
+}
+
+.runChip[data-status="running"] {
+  animation: chipPopB 320ms cubic-bezier(0.34, 1.36, 0.64, 1) backwards;
+}
+
+.runChip[data-status="done"] {
+  animation: chipPopC 320ms cubic-bezier(0.34, 1.36, 0.64, 1) backwards;
+}
+
+.runChip[data-status="failed"] {
+  animation: chipPopD 320ms cubic-bezier(0.34, 1.36, 0.64, 1) backwards;
+}
+
+.runChip[data-status="waiting"] {
+  animation: chipPopE 320ms cubic-bezier(0.34, 1.36, 0.64, 1) backwards;
+}
+
+.runChip[data-status="skipped"] {
+  animation: chipPopF 320ms cubic-bezier(0.34, 1.36, 0.64, 1) backwards;
+}
+
+@keyframes chipPopA {
+  from {
+    transform: scale(0.85);
+  }
+}
+
+@keyframes chipPopB {
+  from {
+    transform: scale(0.85);
+  }
+}
+
+@keyframes chipPopC {
+  from {
+    transform: scale(0.85);
+  }
+}
+
+@keyframes chipPopD {
+  from {
+    transform: scale(0.85);
+  }
+}
+
+@keyframes chipPopE {
+  from {
+    transform: scale(0.85);
+  }
+}
+
+@keyframes chipPopF {
+  from {
+    transform: scale(0.85);
+  }
+}
+
+/* 改了还没保存：右上角一个小圆点。 */
+.runChip[data-edited="true"]::after {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid var(--wl-panel);
+  border-radius: 50%;
+  background: var(--wl-accent);
+  content: "";
+}
+
+.runRound {
+  padding-left: 4px;
+  border-left: 1px solid color-mix(in srgb, var(--wl-run) 35%, transparent);
+  font-weight: 500;
+}
+
+/* 执行位置：右上角一个小标（最后执行 = 实心深色、下一步 = 虚线框），卡片外再描一圈。
+   悬停文件时让位给角色标。 */
+.markTag {
+  position: absolute;
+  top: -10px;
+  right: 10px;
+  z-index: 2;
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px 0 6px;
+  border: 1px solid transparent;
+  border-radius: calc(999px * var(--wl-round, 1));
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: roleIn 160ms var(--wl-ease) backwards;
+}
+
+.markTag[data-mark="last"] {
+  background: var(--wl-text);
+  box-shadow: var(--wl-shadow-thumb);
+  color: var(--wl-panel);
+}
+
+.markTag[data-mark="next"] {
+  border-style: dashed;
+  border-color: var(--wl-text-3);
+  background: var(--wl-panel);
+  color: var(--wl-text-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .runChip[data-status] {
+    animation: none;
+  }
+}

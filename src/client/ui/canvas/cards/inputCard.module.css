@@ -1,0 +1,31 @@
+/**
+ * dsh-workflow-lite — 画布上输入卡（InputCard）自己的样子：左边的交互方式签、问题文字。
+ *
+ * 共用的部分（卡片外壳、连接点、连线粗细线型）留在 canvas.module.css。
+ */
+
+.inputTab {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 34px;
+  border-radius: calc(9px * var(--wl-round, 1)) 0 0 calc(9px * var(--wl-round, 1));
+  background: var(--wl-ask-soft);
+  color: var(--wl-io-ask);
+}
+
+.inputQuestion {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--wl-text);
+  font-size: var(--wl-fs-meta);
+  font-weight: 600;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.inputEmpty {
+  color: var(--wl-text-3);
+  font-weight: 500;
+}

@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   getDisplayLook,
@@ -123,8 +123,13 @@ describe('主题写成 CSS 变量', () => {
   })
 
   it('shell.module.css 用到的每个 --wl-l-* / --wl-d-* 都有值', () => {
-    const css = ['shell/shell.module.css', 'canvas/canvas.module.css']
-      .map((file) => readFileSync(new URL(`../../src/client/ui/${file}`, import.meta.url), 'utf8'))
+    const ui = new URL('../../src/client/ui/', import.meta.url)
+    // 画布的样式分在 canvas/ 下的好几个模块里（卡片、连线各一个），全部都要查
+    const canvasFiles = readdirSync(new URL('canvas/', ui), { recursive: true, encoding: 'utf8' })
+      .filter((file) => file.endsWith('.module.css'))
+      .map((file) => `canvas/${file.replaceAll('\\', '/')}`)
+    const css = ['shell/shell.module.css', ...canvasFiles]
+      .map((file) => readFileSync(new URL(file, ui), 'utf8'))
       .join('\n')
     const used = new Set([...css.matchAll(/var\((--wl-[ld]-[a-z0-9-]+)\)/gu)].map((m) => m[1]))
     const style = themeStyle('white', 'slate')

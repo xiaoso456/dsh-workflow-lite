@@ -4,6 +4,10 @@
  * React Flow 自己的类名（`.react-flow__*`）都收在 `.wrap` 下面改，不外溢到宿主页面。
  * 节点外层那个 `.react-flow__node` 的 `transform` 归 React Flow 定位用——所有入场与悬停
  * 动效都做在里面的 `.card` 上，两个 transform 不打架。
+ *
+ * 这里只留几处共用的：卡片外壳、连接点、连线粗细线型，以及画布根和空态。只有某一个组件用到的样子，
+ * 放在它旁边的模块里：cards/{stepCard,resourceCard,inputCard}.module.css、
+ * lines/{linkLine,fileLine,connectionLine,flowStreaks}.module.css。
  */
 
 .wrap {
@@ -121,13 +125,6 @@
   }
 }
 
-.cardHead {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  min-width: 0;
-}
-
 .cardTitle {
   flex: 1 1 auto;
   min-width: 0;
@@ -190,45 +187,6 @@
 
 span.memToggle {
   cursor: default;
-}
-
-/* 染了色的签（选了颜色、或是记忆）：卡片颜色的浅底，记号也用卡片颜色（压过 .fileTab 的底色与字色）。 */
-.fileTab[data-tinted="true"] {
-  background: color-mix(in oklab, var(--wl-tint) 12%, var(--wl-panel));
-  color: var(--wl-tint);
-}
-
-.fileTabMark {
-  display: grid;
-  color: var(--wl-file);
-  opacity: 0.85;
-}
-
-.fileTab[data-tinted="true"] .fileTabMark,
-.resHeadIcon[data-tinted="true"] {
-  color: var(--wl-tint);
-}
-
-.resHeadIcon[data-tinted="true"] {
-  background: color-mix(in oklab, var(--wl-tint) 14%, transparent);
-}
-
-.cardBody {
-  display: -webkit-box;
-  margin: 0;
-  overflow: hidden;
-  color: var(--wl-text-3);
-  font-size: var(--wl-fs-meta);
-  line-height: 1.5;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  word-break: break-word;
-}
-
-.cardBodyEmpty {
-  color: var(--wl-danger);
-  font-style: italic;
 }
 
 .cardOutput {
@@ -520,227 +478,6 @@ span.memToggle {
   opacity: 1;
 }
 
-/* 正在拖的线：没落到目标上是虚线；落到能连的点上变实线（颜色都由 ConnectionLine 给）。 */
-.connection {
-  fill: none;
-  stroke-dasharray: 5 5;
-  stroke-width: 1.8;
-}
-
-.connection[data-snapped="true"] {
-  stroke-dasharray: none;
-  stroke-width: 2.4;
-}
-
-/* 指针旁的预告：这条线连上后是什么、数据从谁流向谁。 */
-.previewSeat {
-  overflow: visible;
-  pointer-events: none;
-}
-
-/* 预告条居中压在指针正上方：不挡住要落的卡片，也不会伸到右侧面板底下。 */
-.previewSeat > span {
-  position: absolute;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-}
-
-.preview {
-  display: inline-flex;
-  gap: 6px;
-  align-items: center;
-  max-width: 100%;
-  height: 24px;
-  padding: 0 9px 0 7px;
-  border: 1px solid var(--wl-line-strong);
-  border-radius: calc(999px * var(--wl-round, 1));
-  background: var(--wl-panel);
-  box-shadow: var(--wl-shadow-1);
-  color: var(--wl-text-3);
-  font-size: var(--wl-fs-micro);
-  white-space: nowrap;
-  animation: previewIn 140ms ease-out backwards;
-}
-
-.preview[data-kind] {
-  border-color: color-mix(in srgb, var(--wl-chip) 45%, transparent);
-  color: var(--wl-text-2);
-}
-
-.previewKind {
-  display: inline-flex;
-  gap: 3px;
-  align-items: center;
-  color: var(--wl-chip);
-  font-weight: 700;
-}
-
-.previewRoute {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.previewMuted {
-  color: var(--wl-text-3);
-}
-
-@keyframes previewIn {
-  from {
-    opacity: 0;
-  }
-}
-
-/* 读写线中点的小牌子：产出 / 更新 / 读取。不接指针，点它等于点线。 */
-.ioChip {
-  position: absolute;
-  display: inline-flex;
-  gap: 3px;
-  align-items: center;
-  height: 20px;
-  padding: 0 7px 0 6px;
-  border: 1px solid transparent;
-  border-radius: calc(999px * var(--wl-round, 1));
-  box-shadow: var(--wl-shadow-thumb);
-  color: var(--wl-chip);
-  font-size: var(--wl-fs-micro);
-  font-weight: 600;
-  white-space: nowrap;
-  opacity: 0;
-  pointer-events: none;
-  /* 定位用的 transform 写在行内，显隐只动 opacity。 */
-  transition: opacity 220ms ease;
-}
-
-.ioChip[data-active="true"] {
-  opacity: 1;
-}
-
-.ioChip[data-access="produce"] {
-  --wl-chip: var(--wl-io-produce);
-}
-
-.ioChip[data-access="update"] {
-  --wl-chip: var(--wl-io-update);
-}
-
-.ioChip[data-access="read"] {
-  --wl-chip: var(--wl-io-read);
-}
-
-.ioChip[data-access="ask"] {
-  --wl-chip: var(--wl-io-ask);
-}
-
-/*
- * 小牌子的底色、描边：每种写法一层叠在字底下，换写法（产出 ↔ 更新）时交叉淡过去（只动 opacity）。
- * 字的颜色跟着牌子的 data-access，字、图标自己在原地换（SwapText / SwapIcon）。
- */
-.ioTone {
-  position: absolute;
-  inset: -1px;
-  border: 1px solid color-mix(in srgb, var(--wl-chip) 38%, transparent);
-  border-radius: inherit;
-  background: color-mix(in srgb, var(--wl-chip) 11%, var(--wl-panel));
-  opacity: 0;
-  transition: opacity 220ms linear;
-}
-
-.ioTone[data-on="true"] {
-  opacity: 1;
-}
-
-.ioTone[data-access="produce"] {
-  --wl-chip: var(--wl-io-produce);
-}
-
-.ioTone[data-access="update"] {
-  --wl-chip: var(--wl-io-update);
-}
-
-.ioTone[data-access="read"] {
-  --wl-chip: var(--wl-io-read);
-}
-
-.ioTone[data-access="ask"] {
-  --wl-chip: var(--wl-io-ask);
-}
-
-/*
- * 流动的光带（FlowStreaks）：一串沿线走的小点组成，贴着曲线弯、不伸出线头。
- * 外层位置全由 Web Animations 的 transform 关键帧给出；里层只管大小和颜色（头大尾小）。
- * 整组淡入淡出（只动 opacity）。`color` 只为让验收脚本读到解析后的颜色。
- */
-.streaks {
-  position: absolute;
-  top: 0;
-  left: 0;
-  color: var(--wl-streak);
-  pointer-events: none;
-  animation: streaksIn 420ms ease-out backwards;
-  transition: opacity 300ms ease-in;
-}
-
-.streaks[data-leaving="true"] {
-  opacity: 0;
-}
-
-/* 线正在跟着卡片动：光带先藏起来（很快），停下来按新的线铺好再淡回来。 */
-.streaks[data-moving="true"] {
-  opacity: 0;
-  transition-duration: 100ms;
-}
-
-@keyframes streaksIn {
-  from {
-    opacity: 0;
-  }
-}
-
-.streakDot {
-  position: absolute;
-  top: 0;
-  left: 0;
-  opacity: 0;
-}
-
-.streakDot > span {
-  display: block;
-  border-radius: 50%;
-  background: var(--wl-streak);
-}
-
-/* 光带的头：带一点同色的光晕。 */
-.streakDot[data-testid] > span {
-  box-shadow: 0 0 6px 1px color-mix(in srgb, var(--wl-streak) 60%, transparent);
-}
-
-/* 条件牌子和它那条线同色（`--wl-chip` 由线给）；选中时填满。 */
-.linkLabel {
-  position: relative;
-  display: inline-flex;
-  gap: 3px;
-  align-items: center;
-  height: 22px;
-  padding: 0 8px;
-  border: 1px solid color-mix(in srgb, var(--wl-chip) 45%, transparent);
-  border-radius: calc(999px * var(--wl-round, 1));
-  background: color-mix(in srgb, var(--wl-chip) 10%, var(--wl-panel));
-  color: var(--wl-chip);
-  font: inherit;
-  font-size: var(--wl-fs-micro);
-  font-weight: 600;
-  white-space: nowrap;
-  cursor: pointer;
-  pointer-events: all;
-}
-
-.linkLabel[data-selected="true"] {
-  border-color: var(--wl-chip);
-  background: var(--wl-chip);
-  color: var(--wl-panel);
-}
-
 /* ── 空态 ─────────────────────────────────────────────────── */
 
 .empty {
@@ -785,25 +522,6 @@ span.memToggle {
   }
 }
 
-/* ── 长条件：截断（全文走 data-tip 悬停提示）──────────────── */
-
-.linkText {
-  max-width: 120px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* ── 连线标签：条件在上、交接标记在下 ─────────────────────── */
-
-.linkLabels {
-  position: absolute;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  align-items: center;
-  pointer-events: none;
-}
-
 /* ── 悬停文件：用到它的步骤标角色，其余淡下去 ─────────────── */
 
 .resCard[data-dim="true"] {
@@ -812,132 +530,6 @@ span.memToggle {
 
 .card[data-dim="true"] {
   opacity: 0.32;
-}
-
-.roleTag {
-  position: absolute;
-  top: -10px;
-  right: 10px;
-  z-index: 2;
-  height: 20px;
-  padding: 0 8px;
-  border-radius: calc(999px * var(--wl-round, 1));
-  color: var(--wl-panel);
-  font-size: var(--wl-fs-micro);
-  font-weight: 600;
-  line-height: 20px;
-  box-shadow: var(--wl-shadow-1);
-  pointer-events: none;
-  animation: roleIn 160ms var(--wl-ease) backwards;
-}
-
-/*
- * 角色标与它那条读写线同色：产出金、更新洋红、读取青。
- * 底色三层叠着，换角色时交叉淡过去，字原地换（SwapText）。
- */
-.roleTone {
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: var(--wl-role);
-  opacity: 0;
-  transition: opacity 220ms linear;
-}
-
-.roleTone[data-on="true"] {
-  opacity: 1;
-}
-
-.roleTone[data-role="producer"] {
-  --wl-role: var(--wl-io-produce);
-}
-
-.roleTone[data-role="updater"] {
-  --wl-role: var(--wl-io-update);
-}
-
-.roleTone[data-role="reader"] {
-  --wl-role: var(--wl-io-read);
-}
-
-/*
- * 卡片的描边层（FadeRing）：运行态 / 角色的边框、执行位置的外圈各一层，换状态时交叉淡。
- * 层的颜色、粗细、位置按 `data-ring`；卡片自己的边框保持平时的灰。
- */
-.cardRing {
-  position: absolute;
-  inset: -1px;
-  border: 1px solid var(--wl-ring);
-  border-radius: inherit;
-  pointer-events: none;
-}
-
-.cardRing[data-ring="producer"] {
-  --wl-ring: var(--wl-io-produce);
-}
-
-.cardRing[data-ring="updater"] {
-  --wl-ring: var(--wl-io-update);
-}
-
-.cardRing[data-ring="reader"] {
-  --wl-ring: var(--wl-io-read);
-}
-
-.cardRing[data-ring="running"] {
-  --wl-ring: var(--wl-accent);
-}
-
-.cardRing[data-ring="failed"] {
-  --wl-ring: var(--wl-danger);
-}
-
-.cardRing[data-ring="waiting"] {
-  --wl-ring: var(--wl-warn);
-}
-
-/* 执行位置：最后执行 = 实线外圈、下一步 = 虚线外圈（原来的 outline，位置、粗细照旧）。 */
-.markRing {
-  position: absolute;
-  inset: -6px;
-  border: 2px solid color-mix(in srgb, var(--wl-text) 30%, transparent);
-  border-radius: calc(var(--wl-r-card) + calc(5px * var(--wl-round, 1)));
-  pointer-events: none;
-}
-
-.markRing[data-ring="next"] {
-  inset: -5.5px;
-  border: 1.5px dashed color-mix(in srgb, var(--wl-text-3) 80%, transparent);
-  border-radius: calc(var(--wl-r-card) + calc(4.5px * var(--wl-round, 1)));
-}
-
-/* 换了写法的线：新颜色的一份淡入，旧颜色的一份叠在上面淡出。 */
-.lineIn {
-  animation: lineIn 240ms linear backwards;
-}
-
-@keyframes lineIn {
-  from {
-    opacity: 0;
-  }
-}
-
-.lineFade {
-  pointer-events: none;
-  animation: lineFade 240ms linear forwards;
-}
-
-@keyframes lineFade {
-  to {
-    opacity: 0;
-  }
-}
-
-@keyframes roleIn {
-  from {
-    opacity: 0;
-    transform: translateY(3px);
-  }
 }
 
 .link,
@@ -950,28 +542,8 @@ span.memToggle {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .roleTag,
-  .markTag {
-    animation: none;
-  }
-
-  .roleTone,
-  .ioTone {
-    transition: none;
-  }
-
-  .lineFade {
-    display: none;
-  }
-
-  .lineIn {
-    animation: none;
-  }
-
   .link,
-  .fileLink,
-  .ioChip,
-  .streaks {
+  .fileLink {
     animation: none;
     transition: none;
   }
@@ -1048,61 +620,6 @@ span.memToggle {
   transform: scale(1.03);
 }
 
-/* 每种内容一个颜色（只用在小图标上）：文件 = 文件色、文件夹 = 橄榄、网址 = 青、Skill = 粉、自定义 = 石板灰。 */
-:is(.fileTab, .resItem)[data-kind="file"] {
-  --wl-kind: var(--wl-file);
-}
-
-:is(.fileTab, .resItem)[data-kind="folder"] {
-  --wl-kind: var(--wl-c-olive);
-}
-
-:is(.fileTab, .resItem)[data-kind="url"] {
-  --wl-kind: var(--wl-c-teal);
-}
-
-:is(.fileTab, .resItem)[data-kind="skill"] {
-  --wl-kind: var(--wl-c-pink);
-}
-
-:is(.fileTab, .resItem)[data-kind="text"] {
-  --wl-kind: var(--wl-c-slate);
-}
-
-/*
- * 类型签：左侧整条浅底。上面是资源的「一叠」记号（资源色，和清单卡标题里的一样），
- * 下面一行小字是这一项的种类——扩展名（MD / JSON……）或种类图标，用种类色。
- */
-.fileTab {
-  display: flex;
-  flex: none;
-  flex-direction: column;
-  gap: 3px;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  border-right: 1px solid var(--wl-file-border);
-  border-radius: calc(6px * var(--wl-round, 1)) 0 0 calc(6px * var(--wl-round, 1));
-  background: var(--wl-file-tab);
-  color: var(--wl-kind, var(--wl-file));
-  font-family: var(--wl-mono);
-  font-size: 9px;
-  font-weight: 700;
-  line-height: 1;
-  letter-spacing: 0.02em;
-}
-
-.fileTab[data-long="true"] {
-  font-size: 7.5px;
-  letter-spacing: 0;
-}
-
-.fileTabKind {
-  display: grid;
-  place-items: center;
-  min-height: 11px;
-}
-
 .resCard > .cardFlag {
   align-self: center;
   margin-right: 16px;
@@ -1118,28 +635,12 @@ span.memToggle {
   padding: 6px 16px 6px 10px;
 }
 
-.fileName {
-  overflow: hidden;
-  color: var(--wl-text);
-  font-family: var(--wl-mono);
-  font-size: var(--wl-fs-meta);
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .fileRule {
   overflow: hidden;
   color: var(--wl-text-3);
   font-size: var(--wl-fs-micro);
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.resEmptyTitle {
-  color: var(--wl-text-3);
-  font-family: inherit;
-  font-weight: 500;
 }
 
 /* ── 资源卡展开的清单 ── */
@@ -1149,116 +650,6 @@ span.memToggle {
   flex: 1 1 auto;
   flex-direction: column;
   min-width: 0;
-}
-
-.resHead {
-  display: flex;
-  flex: none;
-  gap: 7px;
-  align-items: center;
-  height: 38px;
-  padding: 0 18px 0 10px;
-  border-bottom: 1px solid var(--wl-file-border);
-}
-
-.resHeadIcon {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  border-radius: calc(6px * var(--wl-round, 1));
-  background: var(--wl-file-tab);
-  color: var(--wl-file);
-}
-
-.resName {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  color: var(--wl-text);
-  font-size: var(--wl-fs-meta);
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.resCount {
-  flex: none;
-  color: var(--wl-text-3);
-  font-size: var(--wl-fs-micro);
-  font-variant-numeric: tabular-nums;
-}
-
-.resDesc {
-  flex: none;
-  height: 18px;
-  margin-top: 4px;
-  padding: 0 12px;
-  overflow: hidden;
-  color: var(--wl-text-3);
-  font-size: var(--wl-fs-micro);
-  line-height: 18px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.resItems {
-  display: flex;
-  flex-direction: column;
-  padding: 5px 0;
-}
-
-.resDesc + .resItems {
-  padding-top: 1px;
-}
-
-.resItem {
-  display: flex;
-  flex: none;
-  gap: 7px;
-  align-items: center;
-  height: 22px;
-  padding: 0 12px;
-  color: var(--wl-text-2);
-  font-size: var(--wl-fs-micro);
-}
-
-.resItemIcon {
-  display: inline-flex;
-  flex: none;
-  color: var(--wl-kind, var(--wl-text-3));
-}
-
-.resItemText {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.resItemText[data-mono="true"] {
-  font-family: var(--wl-mono);
-}
-
-.resItemEmpty {
-  color: var(--wl-text-3);
-}
-
-.resItemMade {
-  display: inline-flex;
-  flex: none;
-  color: var(--wl-ok);
-}
-
-.resMore {
-  flex: none;
-  height: 20px;
-  padding: 0 12px 0 31px;
-  color: var(--wl-text-3);
-  font-size: var(--wl-fs-micro);
-  line-height: 20px;
 }
 
 /* 一条线都没连：交给整个工作流。右上角折角旁边一个小圆标。 */
@@ -1351,32 +742,6 @@ span.memToggle {
   transform: scale(1.03);
 }
 
-.inputTab {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 34px;
-  border-radius: calc(9px * var(--wl-round, 1)) 0 0 calc(9px * var(--wl-round, 1));
-  background: var(--wl-ask-soft);
-  color: var(--wl-io-ask);
-}
-
-.inputQuestion {
-  display: -webkit-box;
-  overflow: hidden;
-  color: var(--wl-text);
-  font-size: var(--wl-fs-meta);
-  font-weight: 600;
-  line-height: 1.35;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-
-.inputEmpty {
-  color: var(--wl-text-3);
-  font-weight: 500;
-}
-
 .inputCard > .cardFlag {
   align-self: center;
   margin-right: 14px;
@@ -1393,10 +758,6 @@ span.memToggle {
   opacity: 1;
 }
 
-.ioChip[data-access="ask"] {
-  --wl-chip: var(--wl-io-ask);
-}
-
 @media (prefers-reduced-motion: reduce) {
   .inputCard,
   .inputCard::after {
@@ -1406,142 +767,6 @@ span.memToggle {
 }
 
 /* ── 工作流实例：运行状态 ──────────────────────────────────── */
-
-/* 卡片左上角的状态小标：点它改状态。颜色走语义色，和画布上的线色分开。 */
-.runChip {
-  --wl-run: var(--wl-text-3);
-
-  position: absolute;
-  top: -11px;
-  left: 12px;
-  z-index: 2;
-  display: inline-flex;
-  gap: 4px;
-  align-items: center;
-  height: 20px;
-  padding: 0 8px 0 6px;
-  border: 1px solid color-mix(in srgb, var(--wl-run) 40%, transparent);
-  border-radius: calc(999px * var(--wl-round, 1));
-  background: color-mix(in srgb, var(--wl-run) 12%, var(--wl-panel));
-  box-shadow: var(--wl-shadow-thumb);
-  color: var(--wl-run);
-  font: inherit;
-  font-size: var(--wl-fs-micro);
-  font-weight: 600;
-  line-height: 1;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: transform 140ms var(--wl-ease);
-}
-
-.runChip:hover {
-  transform: translateY(-1px);
-}
-
-.runChip:focus-visible {
-  outline: 2px solid var(--wl-accent);
-  outline-offset: 1px;
-}
-
-.runChip[data-status="running"] {
-  --wl-run: var(--wl-accent);
-}
-
-.runChip[data-status="done"] {
-  --wl-run: var(--wl-ok);
-}
-
-.runChip[data-status="failed"] {
-  --wl-run: var(--wl-danger);
-}
-
-.runChip[data-status="waiting"] {
-  --wl-run: var(--wl-warn);
-}
-
-/*
- * 状态变了小标弹一下（从 0.85 放大、略回弹；不动透明度——里面的图标、文字自己在交叉淡入，外面再暗一下就成了闪）。
- * 每种状态一个动画名：
- * 状态一换动画名就换，浏览器才会从头再放一次（同名的动画改属性不会重放）。图标、文字的换法见 SwapIcon / SwapText。
- */
-.runChip[data-status="pending"] {
-  animation: chipPopA 320ms cubic-bezier(0.34, 1.36, 0.64, 1) backwards;
-}
-
-.runChip[data-status="running"] {
-  animation: chipPopB 320ms cubic-bezier(0.34, 1.36, 0.64, 1) backwards;
-}
-
-.runChip[data-status="done"] {
-  animation: chipPopC 320ms cubic-bezier(0.34, 1.36, 0.64, 1) backwards;
-}
-
-.runChip[data-status="failed"] {
-  animation: chipPopD 320ms cubic-bezier(0.34, 1.36, 0.64, 1) backwards;
-}
-
-.runChip[data-status="waiting"] {
-  animation: chipPopE 320ms cubic-bezier(0.34, 1.36, 0.64, 1) backwards;
-}
-
-.runChip[data-status="skipped"] {
-  animation: chipPopF 320ms cubic-bezier(0.34, 1.36, 0.64, 1) backwards;
-}
-
-@keyframes chipPopA {
-  from {
-    transform: scale(0.85);
-  }
-}
-
-@keyframes chipPopB {
-  from {
-    transform: scale(0.85);
-  }
-}
-
-@keyframes chipPopC {
-  from {
-    transform: scale(0.85);
-  }
-}
-
-@keyframes chipPopD {
-  from {
-    transform: scale(0.85);
-  }
-}
-
-@keyframes chipPopE {
-  from {
-    transform: scale(0.85);
-  }
-}
-
-@keyframes chipPopF {
-  from {
-    transform: scale(0.85);
-  }
-}
-
-/* 改了还没保存：右上角一个小圆点。 */
-.runChip[data-edited="true"]::after {
-  position: absolute;
-  top: -3px;
-  right: -3px;
-  width: 8px;
-  height: 8px;
-  border: 1.5px solid var(--wl-panel);
-  border-radius: 50%;
-  background: var(--wl-accent);
-  content: "";
-}
-
-.runRound {
-  padding-left: 4px;
-  border-left: 1px solid color-mix(in srgb, var(--wl-run) 35%, transparent);
-  font-weight: 500;
-}
 
 .card[data-run="pending"] {
   opacity: 0.8;
@@ -1580,78 +805,9 @@ span.memToggle {
   }
 }
 
-/* 执行位置：右上角一个小标（最后执行 = 实心深色、下一步 = 虚线框），卡片外再描一圈。
-   悬停文件时让位给角色标。 */
-.markTag {
-  position: absolute;
-  top: -10px;
-  right: 10px;
-  z-index: 2;
-  display: inline-flex;
-  gap: 4px;
-  align-items: center;
-  height: 20px;
-  padding: 0 8px 0 6px;
-  border: 1px solid transparent;
-  border-radius: calc(999px * var(--wl-round, 1));
-  font-size: var(--wl-fs-micro);
-  font-weight: 600;
-  line-height: 1;
-  white-space: nowrap;
-  pointer-events: none;
-  animation: roleIn 160ms var(--wl-ease) backwards;
-}
-
-.markTag[data-mark="last"] {
-  background: var(--wl-text);
-  box-shadow: var(--wl-shadow-thumb);
-  color: var(--wl-panel);
-}
-
-.markTag[data-mark="next"] {
-  border-style: dashed;
-  border-color: var(--wl-text-3);
-  background: var(--wl-panel);
-  color: var(--wl-text-2);
-}
-
-/* 文件已经生成：左上角一个绿色对勾。 */
-.fileMade {
-  position: absolute;
-  top: -7px;
-  left: -7px;
-  z-index: 2;
-  display: grid;
-  place-items: center;
-  width: 18px;
-  height: 18px;
-  border: 1.5px solid var(--wl-panel);
-  border-radius: 50%;
-  background: var(--wl-ok);
-  color: var(--wl-panel);
-}
-
-/* 文件刚生成：对勾从小弹出来、带一点转（只在挂上时放一次）。 */
-.fileMade {
-  animation: madeIn 480ms cubic-bezier(0.34, 1.36, 0.64, 1) backwards;
-}
-
-@keyframes madeIn {
-  from {
-    opacity: 0;
-    transform: scale(0.4) rotate(-45deg);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .card[data-run="running"]::before {
     opacity: 0.35;
-    animation: none;
-  }
-
-  .preview,
-  .runChip[data-status],
-  .fileMade {
     animation: none;
   }
 }

@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { boardTheme } from '../../src/client/model/boardTheme.ts'
 import {
@@ -45,10 +45,12 @@ describe('skill workflow-board', () => {
       new URL('../../src/client/ui/shell/shell.module.css', import.meta.url),
       'utf8',
     )
-    const canvas = readFileSync(
-      new URL('../../src/client/ui/canvas/canvas.module.css', import.meta.url),
-      'utf8',
-    )
+    // 画布的样式分在 canvas/ 下的好几个模块里，步骤卡自己的在 cards/stepCard.module.css
+    const canvasDir = new URL('../../src/client/ui/canvas/', import.meta.url)
+    const canvas = readdirSync(canvasDir, { recursive: true, encoding: 'utf8' })
+      .filter((file) => file.endsWith('.module.css'))
+      .map((file) => readFileSync(new URL(file.replaceAll('\\', '/'), canvasDir), 'utf8'))
+      .join('\n')
     const px = (name: string) =>
       Number(new RegExp(String.raw`--wl-fs-${name}: (\d+)px`, 'u').exec(shell)?.[1])
     const rule = (name: string) =>

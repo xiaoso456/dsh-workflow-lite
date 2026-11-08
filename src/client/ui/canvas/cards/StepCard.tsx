@@ -14,8 +14,9 @@ import { Icon, type IconName } from '../../kit/Icon.tsx'
 import { StepMark } from '../../kit/StepMark.tsx'
 import { FadeRing } from '../../motion/marks.tsx'
 import { SwapIcon, SwapText } from '../../motion/swapText.tsx'
-import css from '../canvas.module.css'
+import shared from '../canvas.module.css'
 import type { StepData, StepFlowNode } from '../types.ts'
+import css from './stepCard.module.css'
 
 const ROLES = ['producer', 'updater', 'reader'] as const satisfies readonly ResourceRole[]
 
@@ -45,7 +46,7 @@ export const StepCard = memo(function StepCard(props: NodeProps<StepFlowNode>): 
   const { data, id, selected } = props
   return (
     <div
-      className={cx(css.card, selected && css.cardSelected)}
+      className={cx(shared.card, selected && shared.cardSelected)}
       data-tone={data.tone}
       data-dim={data.dim}
       data-role={data.role ?? undefined}
@@ -98,13 +99,13 @@ export const StepCard = memo(function StepCard(props: NodeProps<StepFlowNode>): 
         id="in"
         type="target"
         position={Position.Left}
-        className={cx(css.handle, css.handleIn, css.hStepIn)}
+        className={cx(shared.handle, shared.handleIn, shared.hStepIn)}
       />
       <div className={css.cardHead}>
         <StepMark look={data.look} />
-        <span className={css.cardTitle}>{data.title}</span>
+        <span className={shared.cardTitle}>{data.title}</span>
         {data.tone !== 'ok' && (
-          <span className={css.cardFlag} data-tone={data.tone}>
+          <span className={shared.cardFlag} data-tone={data.tone}>
             <Icon name="alert" size={13} />
           </span>
         )}
@@ -112,7 +113,7 @@ export const StepCard = memo(function StepCard(props: NodeProps<StepFlowNode>): 
         {data.onMemory !== null ? (
           <button
             type="button"
-            className={cx(css.memToggle, 'nodrag')}
+            className={cx(shared.memToggle, 'nodrag')}
             data-on={data.memory}
             data-tip={data.memoryText}
             aria-label={data.memoryText}
@@ -127,7 +128,7 @@ export const StepCard = memo(function StepCard(props: NodeProps<StepFlowNode>): 
           </button>
         ) : (
           data.memory && (
-            <span className={css.memToggle} data-on="true" aria-hidden="true">
+            <span className={shared.memToggle} data-on="true" aria-hidden="true">
               <Icon name="memory" size={14} />
             </span>
           )
@@ -142,7 +143,7 @@ export const StepCard = memo(function StepCard(props: NodeProps<StepFlowNode>): 
         id="out"
         type="source"
         position={Position.Right}
-        className={cx(css.handle, css.handleOut, css.handleSource)}
+        className={cx(shared.handle, shared.handleOut, shared.handleSource)}
         data-tip={data.addText}
         onClick={(event) => data.onAdd(id, event.currentTarget)}
       />
@@ -152,7 +153,7 @@ export const StepCard = memo(function StepCard(props: NodeProps<StepFlowNode>): 
         id="file"
         type="source"
         position={Position.Bottom}
-        className={cx(css.handle, css.handleOut, css.handleFile, css.spotted)}
+        className={cx(shared.handle, shared.handleOut, shared.handleFile, shared.spotted)}
         style={spotVar(STEP_SPOTS.file)}
         data-used={data.used.includes('file')}
         data-tip={data.fileText}
@@ -161,7 +162,13 @@ export const StepCard = memo(function StepCard(props: NodeProps<StepFlowNode>): 
         id="fileUp"
         type="source"
         position={Position.Top}
-        className={cx(css.handle, css.handleOut, css.handleFileUp, css.handleAux, css.spotted)}
+        className={cx(
+          shared.handle,
+          shared.handleOut,
+          shared.handleFileUp,
+          shared.handleAux,
+          shared.spotted,
+        )}
         style={spotVar(STEP_SPOTS.fileUp)}
         data-used={data.used.includes('fileUp')}
       />
@@ -169,7 +176,13 @@ export const StepCard = memo(function StepCard(props: NodeProps<StepFlowNode>): 
         id="read"
         type="target"
         position={Position.Bottom}
-        className={cx(css.handle, css.handleIn, css.hRead, css.handleAux, css.spotted)}
+        className={cx(
+          shared.handle,
+          shared.handleIn,
+          shared.hRead,
+          shared.handleAux,
+          shared.spotted,
+        )}
         style={spotVar(STEP_SPOTS.read)}
         data-used={data.used.includes('read')}
       />
@@ -177,7 +190,13 @@ export const StepCard = memo(function StepCard(props: NodeProps<StepFlowNode>): 
         id="readTop"
         type="target"
         position={Position.Top}
-        className={cx(css.handle, css.handleIn, css.hReadTop, css.handleAux, css.spotted)}
+        className={cx(
+          shared.handle,
+          shared.handleIn,
+          shared.hReadTop,
+          shared.handleAux,
+          shared.spotted,
+        )}
         style={spotVar(STEP_SPOTS.readTop)}
         data-used={data.used.includes('readTop')}
       />

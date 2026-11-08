@@ -1,0 +1,82 @@
+/**
+ * dsh-workflow-lite — 正在拖的线与指针旁的预告条（ConnectionLine）。
+ *
+ * 共用的部分（卡片外壳、连接点、连线粗细线型）留在 canvas.module.css。
+ */
+
+/* 正在拖的线：没落到目标上是虚线；落到能连的点上变实线（颜色都由 ConnectionLine 给）。 */
+.connection {
+  fill: none;
+  stroke-dasharray: 5 5;
+  stroke-width: 1.8;
+}
+
+.connection[data-snapped="true"] {
+  stroke-dasharray: none;
+  stroke-width: 2.4;
+}
+
+/* 指针旁的预告：这条线连上后是什么、数据从谁流向谁。 */
+.previewSeat {
+  overflow: visible;
+  pointer-events: none;
+}
+
+/* 预告条居中压在指针正上方：不挡住要落的卡片，也不会伸到右侧面板底下。 */
+.previewSeat > span {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.preview {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  max-width: 100%;
+  height: 24px;
+  padding: 0 9px 0 7px;
+  border: 1px solid var(--wl-line-strong);
+  border-radius: calc(999px * var(--wl-round, 1));
+  background: var(--wl-panel);
+  box-shadow: var(--wl-shadow-1);
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  white-space: nowrap;
+  animation: previewIn 140ms ease-out backwards;
+}
+
+.preview[data-kind] {
+  border-color: color-mix(in srgb, var(--wl-chip) 45%, transparent);
+  color: var(--wl-text-2);
+}
+
+.previewKind {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+  color: var(--wl-chip);
+  font-weight: 700;
+}
+
+.previewRoute {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.previewMuted {
+  color: var(--wl-text-3);
+}
+
+@keyframes previewIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .preview {
+    animation: none;
+  }
+}

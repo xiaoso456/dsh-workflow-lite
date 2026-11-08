@@ -1,0 +1,125 @@
+/**
+ * dsh-workflow-lite — 读写线（FileLine）自己的样子：中点的小牌子、换写法时的新旧线交叉淡。
+ *
+ * 共用的部分（卡片外壳、连接点、连线粗细线型）留在 canvas.module.css。
+ */
+
+/* 读写线中点的小牌子：产出 / 更新 / 读取。不接指针，点它等于点线。 */
+.ioChip {
+  position: absolute;
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+  height: 20px;
+  padding: 0 7px 0 6px;
+  border: 1px solid transparent;
+  border-radius: calc(999px * var(--wl-round, 1));
+  box-shadow: var(--wl-shadow-thumb);
+  color: var(--wl-chip);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  /* 定位用的 transform 写在行内，显隐只动 opacity。 */
+  transition: opacity 220ms ease;
+}
+
+.ioChip[data-active="true"] {
+  opacity: 1;
+}
+
+.ioChip[data-access="produce"] {
+  --wl-chip: var(--wl-io-produce);
+}
+
+.ioChip[data-access="update"] {
+  --wl-chip: var(--wl-io-update);
+}
+
+.ioChip[data-access="read"] {
+  --wl-chip: var(--wl-io-read);
+}
+
+.ioChip[data-access="ask"] {
+  --wl-chip: var(--wl-io-ask);
+}
+
+/*
+ * 小牌子的底色、描边：每种写法一层叠在字底下，换写法（产出 ↔ 更新）时交叉淡过去（只动 opacity）。
+ * 字的颜色跟着牌子的 data-access，字、图标自己在原地换（SwapText / SwapIcon）。
+ */
+.ioTone {
+  position: absolute;
+  inset: -1px;
+  border: 1px solid color-mix(in srgb, var(--wl-chip) 38%, transparent);
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--wl-chip) 11%, var(--wl-panel));
+  opacity: 0;
+  transition: opacity 220ms linear;
+}
+
+.ioTone[data-on="true"] {
+  opacity: 1;
+}
+
+.ioTone[data-access="produce"] {
+  --wl-chip: var(--wl-io-produce);
+}
+
+.ioTone[data-access="update"] {
+  --wl-chip: var(--wl-io-update);
+}
+
+.ioTone[data-access="read"] {
+  --wl-chip: var(--wl-io-read);
+}
+
+.ioTone[data-access="ask"] {
+  --wl-chip: var(--wl-io-ask);
+}
+
+/* 换了写法的线：新颜色的一份淡入，旧颜色的一份叠在上面淡出。 */
+.lineIn {
+  animation: lineIn 240ms linear backwards;
+}
+
+@keyframes lineIn {
+  from {
+    opacity: 0;
+  }
+}
+
+.lineFade {
+  pointer-events: none;
+  animation: lineFade 240ms linear forwards;
+}
+
+@keyframes lineFade {
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ioTone {
+    transition: none;
+  }
+
+  .lineFade {
+    display: none;
+  }
+
+  .lineIn {
+    animation: none;
+  }
+
+  .ioChip {
+    animation: none;
+    transition: none;
+  }
+}
+
+.ioChip[data-access="ask"] {
+  --wl-chip: var(--wl-io-ask);
+}

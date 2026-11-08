@@ -1,0 +1,241 @@
+/**
+ * dsh-workflow-lite — 画布上资源卡（ResourceCard）自己的样子：类型签、展开的清单、「已生成」对勾。
+ *
+ * 共用的部分（卡片外壳、连接点、连线粗细线型）留在 canvas.module.css。
+ */
+
+/* 染了色的签（选了颜色、或是记忆）：卡片颜色的浅底，记号也用卡片颜色（压过 .fileTab 的底色与字色）。 */
+.fileTab[data-tinted="true"] {
+  background: color-mix(in oklab, var(--wl-tint) 12%, var(--wl-panel));
+  color: var(--wl-tint);
+}
+
+.fileTabMark {
+  display: grid;
+  color: var(--wl-file);
+  opacity: 0.85;
+}
+
+.fileTab[data-tinted="true"] .fileTabMark,
+.resHeadIcon[data-tinted="true"] {
+  color: var(--wl-tint);
+}
+
+.resHeadIcon[data-tinted="true"] {
+  background: color-mix(in oklab, var(--wl-tint) 14%, transparent);
+}
+
+/* 每种内容一个颜色（只用在小图标上）：文件 = 文件色、文件夹 = 橄榄、网址 = 青、Skill = 粉、自定义 = 石板灰。 */
+:is(.fileTab, .resItem)[data-kind="file"] {
+  --wl-kind: var(--wl-file);
+}
+
+:is(.fileTab, .resItem)[data-kind="folder"] {
+  --wl-kind: var(--wl-c-olive);
+}
+
+:is(.fileTab, .resItem)[data-kind="url"] {
+  --wl-kind: var(--wl-c-teal);
+}
+
+:is(.fileTab, .resItem)[data-kind="skill"] {
+  --wl-kind: var(--wl-c-pink);
+}
+
+:is(.fileTab, .resItem)[data-kind="text"] {
+  --wl-kind: var(--wl-c-slate);
+}
+
+/*
+ * 类型签：左侧整条浅底。上面是资源的「一叠」记号（资源色，和清单卡标题里的一样），
+ * 下面一行小字是这一项的种类——扩展名（MD / JSON……）或种类图标，用种类色。
+ */
+.fileTab {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 3px;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  border-right: 1px solid var(--wl-file-border);
+  border-radius: calc(6px * var(--wl-round, 1)) 0 0 calc(6px * var(--wl-round, 1));
+  background: var(--wl-file-tab);
+  color: var(--wl-kind, var(--wl-file));
+  font-family: var(--wl-mono);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.02em;
+}
+
+.fileTab[data-long="true"] {
+  font-size: 7.5px;
+  letter-spacing: 0;
+}
+
+.fileTabKind {
+  display: grid;
+  place-items: center;
+  min-height: 11px;
+}
+
+.fileName {
+  overflow: hidden;
+  color: var(--wl-text);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-meta);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resEmptyTitle {
+  color: var(--wl-text-3);
+  font-family: inherit;
+  font-weight: 500;
+}
+
+.resHead {
+  display: flex;
+  flex: none;
+  gap: 7px;
+  align-items: center;
+  height: 38px;
+  padding: 0 18px 0 10px;
+  border-bottom: 1px solid var(--wl-file-border);
+}
+
+.resHeadIcon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: calc(6px * var(--wl-round, 1));
+  background: var(--wl-file-tab);
+  color: var(--wl-file);
+}
+
+.resName {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text);
+  font-size: var(--wl-fs-meta);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resCount {
+  flex: none;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+.resDesc {
+  flex: none;
+  height: 18px;
+  margin-top: 4px;
+  padding: 0 12px;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resItems {
+  display: flex;
+  flex-direction: column;
+  padding: 5px 0;
+}
+
+.resDesc + .resItems {
+  padding-top: 1px;
+}
+
+.resItem {
+  display: flex;
+  flex: none;
+  gap: 7px;
+  align-items: center;
+  height: 22px;
+  padding: 0 12px;
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-micro);
+}
+
+.resItemIcon {
+  display: inline-flex;
+  flex: none;
+  color: var(--wl-kind, var(--wl-text-3));
+}
+
+.resItemText {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resItemText[data-mono="true"] {
+  font-family: var(--wl-mono);
+}
+
+.resItemEmpty {
+  color: var(--wl-text-3);
+}
+
+.resItemMade {
+  display: inline-flex;
+  flex: none;
+  color: var(--wl-ok);
+}
+
+.resMore {
+  flex: none;
+  height: 20px;
+  padding: 0 12px 0 31px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  line-height: 20px;
+}
+
+/* 文件已经生成：左上角一个绿色对勾。 */
+.fileMade {
+  position: absolute;
+  top: -7px;
+  left: -7px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--wl-panel);
+  border-radius: 50%;
+  background: var(--wl-ok);
+  color: var(--wl-panel);
+}
+
+/* 文件刚生成：对勾从小弹出来、带一点转（只在挂上时放一次）。 */
+.fileMade {
+  animation: madeIn 480ms cubic-bezier(0.34, 1.36, 0.64, 1) backwards;
+}
+
+@keyframes madeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.4) rotate(-45deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fileMade {
+    animation: none;
+  }
+}

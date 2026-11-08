@@ -1,0 +1,61 @@
+/**
+ * dsh-workflow-lite — 沿线流动的光带（FlowStreaks）。
+ *
+ * 共用的部分（卡片外壳、连接点、连线粗细线型）留在 canvas.module.css。
+ */
+
+/*
+ * 流动的光带（FlowStreaks）：一串沿线走的小点组成，贴着曲线弯、不伸出线头。
+ * 外层位置全由 Web Animations 的 transform 关键帧给出；里层只管大小和颜色（头大尾小）。
+ * 整组淡入淡出（只动 opacity）。`color` 只为让验收脚本读到解析后的颜色。
+ */
+.streaks {
+  position: absolute;
+  top: 0;
+  left: 0;
+  color: var(--wl-streak);
+  pointer-events: none;
+  animation: streaksIn 420ms ease-out backwards;
+  transition: opacity 300ms ease-in;
+}
+
+.streaks[data-leaving="true"] {
+  opacity: 0;
+}
+
+/* 线正在跟着卡片动：光带先藏起来（很快），停下来按新的线铺好再淡回来。 */
+.streaks[data-moving="true"] {
+  opacity: 0;
+  transition-duration: 100ms;
+}
+
+@keyframes streaksIn {
+  from {
+    opacity: 0;
+  }
+}
+
+.streakDot {
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0;
+}
+
+.streakDot > span {
+  display: block;
+  border-radius: 50%;
+  background: var(--wl-streak);
+}
+
+/* 光带的头：带一点同色的光晕。 */
+.streakDot[data-testid] > span {
+  box-shadow: 0 0 6px 1px color-mix(in srgb, var(--wl-streak) 60%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .streaks {
+    animation: none;
+    transition: none;
+  }
+}

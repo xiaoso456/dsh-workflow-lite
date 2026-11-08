@@ -8,8 +8,9 @@ import { Handle, type NodeProps, Position } from '@xyflow/react'
 import { memo } from 'react'
 import { cx } from '../../kit/cx.ts'
 import { Icon } from '../../kit/Icon.tsx'
-import css from '../canvas.module.css'
+import shared from '../canvas.module.css'
 import type { InputFlowNode } from '../types.ts'
+import css from './inputCard.module.css'
 
 /** 输入卡左侧签上的图标：按交互方式。 */
 const INPUT_ICON = {
@@ -30,7 +31,7 @@ export const InputCard = memo(function InputCard(
   const empty = data.question === ''
   return (
     <div
-      className={cx(css.inputCard, selected && css.cardSelected)}
+      className={cx(shared.inputCard, selected && shared.cardSelected)}
       data-tone={data.tone}
       data-dim={data.dim}
       data-testid="wl-input"
@@ -39,14 +40,14 @@ export const InputCard = memo(function InputCard(
       <span className={css.inputTab} aria-hidden="true">
         <Icon name={INPUT_ICON[data.kind]} size={14} />
       </span>
-      <span className={css.fileText}>
+      <span className={shared.fileText}>
         <span className={cx(css.inputQuestion, empty && css.inputEmpty)}>
           {empty ? data.emptyText : data.question}
         </span>
-        <span className={css.fileRule}>{data.meta}</span>
+        <span className={shared.fileRule}>{data.meta}</span>
       </span>
       {data.tone !== 'ok' && (
-        <span className={css.cardFlag} data-tone={data.tone}>
+        <span className={shared.cardFlag} data-tone={data.tone}>
           <Icon name="alert" size={12} />
         </span>
       )}
@@ -54,7 +55,7 @@ export const InputCard = memo(function InputCard(
         id="out"
         type="source"
         position={Position.Right}
-        className={cx(css.handle, css.handleOut, css.handleRead, css.handleAsk)}
+        className={cx(shared.handle, shared.handleOut, shared.handleRead, shared.handleAsk)}
         data-tip={data.connectText}
       />
     </div>

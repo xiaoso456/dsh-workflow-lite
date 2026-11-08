@@ -41,7 +41,7 @@ import {
 import { afterPaint } from '../../../app/reveal.ts'
 import { type MeasuredPath, measurePath } from '../../../model/pathSample.ts'
 import { useCanvasMoving } from '../../motion/canvasMoving.ts'
-import css from '../canvas.module.css'
+import css from './flowStreaks.module.css'
 import { OnLabels } from './LabelLayer.tsx'
 
 /** 一条线上最多几道光带；短线只放一道。 */

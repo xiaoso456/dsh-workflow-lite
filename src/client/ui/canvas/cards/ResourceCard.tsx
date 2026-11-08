@@ -11,10 +11,11 @@ import type { ResourceKind } from '../../../../shared/types.ts'
 import { cx } from '../../kit/cx.ts'
 import { Icon } from '../../kit/Icon.tsx'
 import { KIND_ICON } from '../../kit/resourceUi.ts'
-import css from '../canvas.module.css'
+import shared from '../canvas.module.css'
 import type { ResourceFlowNode } from '../types.ts'
 import { tintStyle } from './cardParts.ts'
 import { DisplayCard } from './DisplayCard.tsx'
+import css from './resourceCard.module.css'
 
 /**
  * 紧凑资源卡左侧的类型签：上面是资源卡统一的「一叠」记号（和清单卡标题里的同一个），
@@ -77,7 +78,7 @@ export const ResourceCard = memo(function ResourceCard(
   const madeAll = data.compact && data.items[0]?.made === true
   return (
     <div
-      className={cx(css.resCard, selected && css.cardSelected)}
+      className={cx(shared.resCard, selected && shared.cardSelected)}
       data-compact={data.compact}
       data-memory={data.memory ?? undefined}
       data-focused={data.focused}
@@ -93,7 +94,7 @@ export const ResourceCard = memo(function ResourceCard(
         id="in"
         type="target"
         position={Position.Left}
-        className={cx(css.handle, css.handleIn, css.hResIn)}
+        className={cx(shared.handle, shared.handleIn, shared.hResIn)}
       />
       {data.compact ? (
         <>
@@ -103,15 +104,15 @@ export const ResourceCard = memo(function ResourceCard(
             memory={data.memory !== null}
             tint={data.tint}
           />
-          <span className={css.fileText}>
+          <span className={shared.fileText}>
             <span className={cx(css.fileName, data.items.length === 0 && css.resEmptyTitle)}>
               {data.title}
             </span>
-            <span className={css.fileRule}>{data.sub}</span>
+            <span className={shared.fileRule}>{data.sub}</span>
           </span>
         </>
       ) : (
-        <span className={css.resBody}>
+        <span className={shared.resBody}>
           <span className={css.resHead}>
             <span
               className={css.resHeadIcon}
@@ -123,7 +124,7 @@ export const ResourceCard = memo(function ResourceCard(
             <span className={css.resName}>{data.title}</span>
             <span className={css.resCount}>{data.countText}</span>
             {data.tone !== 'ok' && (
-              <span className={css.cardFlag} data-tone={data.tone}>
+              <span className={shared.cardFlag} data-tone={data.tone}>
                 <Icon name="alert" size={12} />
               </span>
             )}
@@ -161,7 +162,7 @@ export const ResourceCard = memo(function ResourceCard(
       )}
       {data.shared && data.memory !== 'step' && (
         <span
-          className={css.resShared}
+          className={shared.resShared}
           data-tip={data.sharedText}
           data-testid="wl-resource-shared-tag"
         >
@@ -170,7 +171,7 @@ export const ResourceCard = memo(function ResourceCard(
       )}
       {data.memoryShared !== null && (
         <span
-          className={css.resShared}
+          className={shared.resShared}
           data-beside={data.shared || undefined}
           data-tip={data.memoryShared}
           data-testid="wl-memory-shared-tag"
@@ -180,7 +181,7 @@ export const ResourceCard = memo(function ResourceCard(
       )}
       {/* 有标题行的卡把警示放在标题行里（项数后面），紧凑的一行卡放在行尾。 */}
       {data.compact && data.tone !== 'ok' && (
-        <span className={css.cardFlag} data-tone={data.tone}>
+        <span className={shared.cardFlag} data-tone={data.tone}>
           <Icon name="alert" size={12} />
         </span>
       )}
@@ -193,7 +194,7 @@ export const ResourceCard = memo(function ResourceCard(
         id="out"
         type="source"
         position={Position.Right}
-        className={cx(css.handle, css.handleOut, css.handleRead)}
+        className={cx(shared.handle, shared.handleOut, shared.handleRead)}
         data-tip={data.readText}
       />
     </div>

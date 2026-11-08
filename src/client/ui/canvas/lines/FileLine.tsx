@@ -8,9 +8,10 @@ import { BaseEdge, type EdgeProps, getBezierPath } from '@xyflow/react'
 import { memo } from 'react'
 import { cx } from '../../kit/cx.ts'
 import { SwapIcon, SwapText, useLast } from '../../motion/swapText.tsx'
-import css from '../canvas.module.css'
+import shared from '../canvas.module.css'
 import type { FileEdge } from '../types.ts'
 import { FlowStreaks } from './FlowStreaks.tsx'
+import css from './fileLine.module.css'
 import { OnLabels } from './LabelLayer.tsx'
 import { ACCESS_COLOR, type Access } from './lines.ts'
 import { routedPath, writePath } from './route.ts'
@@ -25,7 +26,7 @@ const ACCESSES = ['produce', 'update', 'read', 'ask'] as const satisfies readonl
  * 三种各有颜色与线型：产出 = 金色实线，在原文件上更新 = 洋红实线、两头箭头，读取 = 青色虚线。
  * 与选中的东西相连时描粗、加光晕、光带按数据方向流动，中点挂一个小牌子写明是哪种。
  */
-/** 旧线色留多久（同 canvas.module.css 的 lineFade）。 */
+/** 旧线色留多久（同 fileLine.module.css 的 lineFade）。 */
 const LINE_FADE_MS = 240
 
 export const FileLine = memo(function FileLine(props: EdgeProps<FileEdge>): React.JSX.Element {
@@ -52,7 +53,7 @@ export const FileLine = memo(function FileLine(props: EdgeProps<FileEdge>): Reac
   return (
     <>
       {/* 光晕常驻、平时透明：活起来时淡入，不活了淡出，不会一闪而现。 */}
-      <path d={path} className={css.halo} data-active={active} style={{ stroke: color }} />
+      <path d={path} className={shared.halo} data-active={active} style={{ stroke: color }} />
       <BaseEdge
         // 换色那一下重新挂：新颜色（连箭头）的一份淡入，和叠在上面淡出的旧颜色交叉。
         key={faded.n}

@@ -9,12 +9,13 @@ import { memo } from 'react'
 import { flowPath } from '../../../model/route.ts'
 import { cx } from '../../kit/cx.ts'
 import { Icon } from '../../kit/Icon.tsx'
-import css from '../canvas.module.css'
+import shared from '../canvas.module.css'
 import type { LinkEdge } from '../types.ts'
 import { FlowStreaks } from './FlowStreaks.tsx'
 import { HandoffMark } from './HandoffMark.tsx'
 import { OnLabels } from './LabelLayer.tsx'
 import { WHEN_COLOR } from './lines.ts'
+import css from './linkLine.module.css'
 import { bypass, detour, laneStart } from './route.ts'
 
 /** 条件超过这么多字就在线上截断、悬停看全文（与 CSS 里标签的最大宽度大致对应）。 */
@@ -40,7 +41,7 @@ export const LinkLine = memo(function LinkLine(props: EdgeProps<LinkEdge>): Reac
     <>
       <path
         d={path}
-        className={css.halo}
+        className={shared.halo}
         data-active={data?.active === true}
         style={{ stroke: color }}
       />
