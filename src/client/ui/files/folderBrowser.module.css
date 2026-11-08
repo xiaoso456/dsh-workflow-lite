@@ -21,7 +21,7 @@
   min-height: 0;
 }
 
-/* ── 左：路径栏、筛选、列表（路径栏、筛选框、上一级是 DirParts，样式在 picker.module.css） ───────────────────────────────── */
+/* ── 左：路径栏、筛选、列表（路径栏、筛选框、上一级是 DirParts，样式在 dirParts.module.css 与 picker.module.css） ───────────────────────────────── */
 
 .side {
   display: flex;

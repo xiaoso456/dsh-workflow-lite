@@ -49,7 +49,7 @@ interface Leaving {
   clip: number | null
 }
 
-/** 提示淡出的时长（和 ui.module.css 的 tipOut 一致）。 */
+/** 提示淡出的时长（和 tipLayer.module.css 的 tipOut 一致）。 */
 const LEAVE_MS = 110
 
 interface Shown {

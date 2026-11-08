@@ -9,7 +9,7 @@ import { useEffect, useState } from 'react'
 import { Icon, type IconName } from '../kit/Icon.tsx'
 import css from './swapText.module.css'
 
-/** 换字、换图标时旧的留多久（和 ui.module.css 的 swapOut / iconOut 一致）。 */
+/** 换字、换图标时旧的留多久（和 swapText.module.css 的 swapOut / iconOut 一致）。 */
 const SWAP_TEXT_MS = 160
 const SWAP_ICON_MS = 240
 

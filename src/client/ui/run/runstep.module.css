@@ -121,7 +121,7 @@
   font-size: var(--wl-fs-micro);
 }
 
-/* 经过没有：实心绿点 / 空心圈（颜色、渐变见 ui.module.css 的 dotState）。 */
+/* 经过没有：实心绿点 / 空心圈（颜色、渐变见 marks.module.css 的 dotState）。 */
 .takenDot {
   width: 7px;
   height: 7px;

@@ -130,7 +130,7 @@ export function DotState(props: {
   )
 }
 
-/** 描边层换色时旧的留多久（同 ui.module.css 的 ringOut）。 */
+/** 描边层换色时旧的留多久（同 marks.module.css 的 ringOut）。 */
 const RING_MS = 220
 
 /**

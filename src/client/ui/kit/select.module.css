@@ -1,6 +1,6 @@
 /*
  * 下拉选择（Select.tsx）：触发块就是一个输入框，右边一枚箭头（打开时转半圈）；
- * 浮层和别处的菜单同一套（ui.module.css 的 .popover / .menuItem），只是宽度跟着触发块、贴得近一点。
+ * 浮层和别处的菜单同一套（popover.module.css 的 .popover、ui.module.css 的 .menuItem），只是宽度跟着触发块、贴得近一点。
  */
 
 .wrap {

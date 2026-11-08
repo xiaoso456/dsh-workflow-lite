@@ -302,7 +302,7 @@ export function useViewGhost(ref: RefObject<HTMLElement | null>): void {
   }, [ref])
 }
 
-/** 折叠区展开 / 收起的时长（和 ui.module.css 的 `.presence` 过渡一致；也是 transitionend 没来时的兜底）。 */
+/** 折叠区展开 / 收起的时长（和 exits.module.css 的 `.presence` 过渡一致；也是 transitionend 没来时的兜底）。 */
 const PRESENCE_MS = 260
 
 /**
