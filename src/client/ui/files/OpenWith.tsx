@@ -14,7 +14,7 @@ import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import { Popover } from '../kit/Popover.tsx'
 import ui from '../kit/ui.module.css'
-import css from './files.module.css'
+import css from './openWith.module.css'
 
 export interface OpenWithProps {
   t: T

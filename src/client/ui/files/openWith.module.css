@@ -1,0 +1,24 @@
+/**
+ * dsh-workflow-lite — 「用其他程序打开」菜单（OpenWith）。
+ */
+
+/* ── 「用其他程序打开」菜单 ─────────────────────────────────── */
+
+.apps {
+  width: 260px;
+}
+
+.appList {
+  display: flex;
+  flex-direction: column;
+  max-height: min(340px, 50vh);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.appIcon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  object-fit: contain;
+}

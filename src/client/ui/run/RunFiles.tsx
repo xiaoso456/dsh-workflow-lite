@@ -18,10 +18,11 @@ import type { ResourceNode, WorkflowDocument } from '../../../shared/types.ts'
 import type { T } from '../../i18n.ts'
 import { fileBaseName } from '../../model/fileKind.ts'
 import { FileTag } from '../files/FileTag.tsx'
-import css from '../files/files.module.css'
+import shared from '../files/files.module.css'
 import { Icon } from '../kit/Icon.tsx'
 import { ResourceIcon, resourceSummary } from '../resources/Resources.tsx'
 import run from './run.module.css'
+import css from './runFiles.module.css'
 
 /**
  * 资源里一个文件 / 文件夹在工作区里的路径（实例的快照里产出根目录已换上实例 id）：
@@ -100,7 +101,7 @@ export function StepResourceList(props: {
           </span>
           <span className={css.rowEnd}>
             {mode === 'update' && (
-              <span className={css.mode} data-mode="update">
+              <span className={shared.mode} data-mode="update">
                 {t('file.update')}
               </span>
             )}
@@ -117,8 +118,8 @@ export function StepResourceList(props: {
   if (linked.writes.length === 0 && linked.reads.length === 0 && extra.length === 0) {
     return (
       <section className={run.section}>
-        <p className={css.groupTitle}>{t('res.title')}</p>
-        <p className={css.previewNote} style={{ padding: 0 }}>
+        <p className={shared.groupTitle}>{t('res.title')}</p>
+        <p className={shared.previewNote} style={{ padding: 0 }}>
           {t('run.noFiles')}
         </p>
       </section>
@@ -128,9 +129,9 @@ export function StepResourceList(props: {
     <>
       {(linked.writes.length > 0 || extra.length > 0) && (
         <section className={run.section} data-testid="wl-run-step-outputs">
-          <p className={css.groupTitle}>
+          <p className={shared.groupTitle}>
             {t('run.outputs')}
-            <span className={css.groupCount}>{linked.writes.length + extra.length}</span>
+            <span className={shared.groupCount}>{linked.writes.length + extra.length}</span>
           </p>
           <ul className={css.list}>
             {linked.writes.map((write) => row(write.resource, write.update ? 'update' : 'produce'))}
@@ -158,9 +159,9 @@ export function StepResourceList(props: {
       )}
       {linked.reads.length > 0 && (
         <section className={run.section} data-testid="wl-run-step-inputs">
-          <p className={css.groupTitle}>
+          <p className={shared.groupTitle}>
             {t('run.inputs')}
-            <span className={css.groupCount}>{linked.reads.length}</span>
+            <span className={shared.groupCount}>{linked.reads.length}</span>
           </p>
           <ul className={css.list}>{linked.reads.map((read) => row(read.resource, 'read'))}</ul>
         </section>

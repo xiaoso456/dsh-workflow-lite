@@ -1,0 +1,48 @@
+/**
+ * dsh-workflow-lite — 文件类型签（FileTag）：按类型配色，印扩展名。
+ */
+
+/* ── 类型签：按类型配色，印扩展名 ───────────────────────────── */
+
+[data-file-kind] {
+  --wl-fk: var(--wl-file);
+}
+
+[data-file-kind="markdown"] {
+  --wl-fk: var(--wl-flow-always);
+}
+
+[data-file-kind="code"] {
+  --wl-fk: var(--wl-ok);
+}
+
+[data-file-kind="data"] {
+  --wl-fk: var(--wl-warn);
+}
+
+[data-file-kind="image"] {
+  --wl-fk: var(--wl-io-update);
+}
+
+.tag {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  min-width: 30px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: calc(5px * var(--wl-round, 1));
+  background: color-mix(in srgb, var(--wl-fk) 13%, var(--wl-panel));
+  color: var(--wl-fk);
+  font-family: var(--wl-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.tagLarge {
+  min-width: 38px;
+  height: 26px;
+  border-radius: calc(7px * var(--wl-round, 1));
+  font-size: 11px;
+}

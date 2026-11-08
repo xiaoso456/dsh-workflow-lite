@@ -14,15 +14,16 @@ import { Icon } from '../kit/Icon.tsx'
 import ui from '../kit/ui.module.css'
 import { useExit } from '../motion/exits.tsx'
 import { FadeMark, FadeText } from '../motion/marks.tsx'
-import css from './files.module.css'
+import shared from './files.module.css'
 import { Markdown } from './Markdown.tsx'
+import css from './noteDrawer.module.css'
 
 /** 标题行里的开关。 */
 export function NoteToggle(props: { t: T; open: boolean; onToggle(): void }): React.JSX.Element {
   return (
     <button
       type="button"
-      className={cx(ui.btn, ui.small, ui.soft, ui.fillOn, css.noteToggle)}
+      className={cx(ui.btn, ui.small, ui.soft, ui.fillOn, shared.noteToggle)}
       aria-expanded={props.open}
       data-on={props.open}
       data-testid="wl-viewer-note-toggle"
@@ -61,7 +62,7 @@ export function NoteDrawer(props: { t: T; text: string; onClose(): void }): Reac
       }}
     >
       <div className={css.noteDrawerHead}>
-        <span className={css.noteDrawerTitle}>{t('res.note')}</span>
+        <span className={shared.noteDrawerTitle}>{t('res.note')}</span>
         <button
           type="button"
           className={cx(ui.btn, ui.icon, ui.small)}

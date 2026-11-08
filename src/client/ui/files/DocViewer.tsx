@@ -27,7 +27,8 @@ import { Modal } from '../kit/Modal.tsx'
 import { Segmented } from '../kit/Segmented.tsx'
 import ui from '../kit/ui.module.css'
 import { SwapIcon } from '../motion/swapText.tsx'
-import css from './files.module.css'
+import css from './docViewer.module.css'
+import shared from './files.module.css'
 import { type ImageSource, Markdown } from './Markdown.tsx'
 import { NoteDrawer, NoteToggle } from './NoteDrawer.tsx'
 import { OpenWith } from './OpenWith.tsx'
@@ -180,8 +181,8 @@ export function DocContent(props: {
   const { t, body, view } = props
   const format = docFormat(body)
   const state = (icon: IconName, text: string): React.JSX.Element => (
-    <div className={css.viewerState} data-testid="wl-viewer-state">
-      <span className={css.viewerStateIcon}>
+    <div className={shared.viewerState} data-testid="wl-viewer-state">
+      <span className={shared.viewerStateIcon}>
         <Icon name={icon} size={20} />
       </span>
       <span>{text}</span>
@@ -202,7 +203,7 @@ export function DocContent(props: {
   if (body.kind === 'node') return <>{body.node}</>
   if (body.text === '') return state('file', t('file.empty'))
   if (format === 'markdown' && view === 'rendered') {
-    return <Markdown t={t} text={body.text} className={css.viewerDoc} image={props.image} />
+    return <Markdown t={t} text={body.text} className={shared.viewerDoc} image={props.image} />
   }
   if (format === 'html' && view === 'rendered') {
     return <HtmlFrame name={props.name} text={body.text} onBroken={props.onBroken} />
@@ -330,10 +331,13 @@ export function DocViewer(props: {
           <Icon name="x" size={16} />
         </button>
       </header>
-      {failure !== null && <p className={css.previewNote}>{failure}</p>}
-      <div className={css.viewerMain} data-side={props.side != null || undefined}>
+      {failure !== null && <p className={shared.previewNote}>{failure}</p>}
+      <div className={shared.viewerMain} data-side={props.side != null || undefined}>
         <div
-          className={cx(css.viewerBody, body.kind === 'loading' ? undefined : css.viewerReveal)}
+          className={cx(
+            shared.viewerBody,
+            body.kind === 'loading' ? undefined : shared.viewerReveal,
+          )}
           // 读完了换一块：内容淡入浮起，不和骨架硬切。
           key={`${view}:${body.kind === 'loading'}`}
           ref={(element) => {

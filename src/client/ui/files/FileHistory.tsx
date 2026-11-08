@@ -31,7 +31,8 @@ import { Segmented } from '../kit/Segmented.tsx'
 import ui from '../kit/ui.module.css'
 import { FadeMark, FadeText } from '../motion/marks.tsx'
 import { DocContent } from './DocViewer.tsx'
-import css from './files.module.css'
+import css from './fileHistory.module.css'
+import shared from './files.module.css'
 
 /** 栏里在做什么：挑一版看，还是挑两版比。 */
 export type VersionsMode = 'view' | 'compare'
@@ -70,7 +71,7 @@ export function VersionsToggle(props: {
   return (
     <button
       type="button"
-      className={cx(ui.btn, ui.small, ui.soft, ui.fillOn, css.noteToggle)}
+      className={cx(ui.btn, ui.small, ui.soft, ui.fillOn, shared.noteToggle)}
       aria-expanded={props.open}
       data-on={props.open}
       data-testid="wl-viewer-versions-toggle"
@@ -124,7 +125,7 @@ export function VersionsPanel(props: {
       data-testid="wl-viewer-versions"
     >
       <div className={css.versionsHead}>
-        <span className={css.noteDrawerTitle}>{t('history.title')}</span>
+        <span className={shared.noteDrawerTitle}>{t('history.title')}</span>
         <Segmented<VersionsMode>
           label={t('history.title')}
           value={mode}
@@ -321,7 +322,7 @@ function TextCompare(props: CompareProps): React.JSX.Element {
       ) : (
         <div className={css.compareSides}>
           {[a, b].map((file, index) => (
-            <div key={index === 0 ? 'old' : 'new'} className={css.compareSide}>
+            <div key={index === 0 ? 'old' : 'new'} className={shared.compareSide}>
               <DocContent
                 t={t}
                 body={{ kind: 'text', text: file.text ?? '', format }}
@@ -497,8 +498,8 @@ function CompareState(props: {
   text: string
 }): React.JSX.Element {
   return (
-    <div className={css.viewerState} data-testid="wl-viewer-state">
-      <span className={css.viewerStateIcon}>
+    <div className={shared.viewerState} data-testid="wl-viewer-state">
+      <span className={shared.viewerStateIcon}>
         <Icon name={props.icon} size={20} />
       </span>
       <span>{props.text}</span>

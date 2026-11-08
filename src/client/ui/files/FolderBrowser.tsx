@@ -58,8 +58,8 @@ import {
 import { FileGlyph } from './FileGlyph.tsx'
 import { FileTag } from './FileTag.tsx'
 import { fileBody } from './FileViewer.tsx'
-import files from './files.module.css'
-import css from './folder.module.css'
+import shared from './files.module.css'
+import css from './folderBrowser.module.css'
 import { BrowseImagePreview } from './ImagePreview.tsx'
 import { OpenWith } from './OpenWith.tsx'
 
@@ -482,7 +482,7 @@ export function FolderBrowser(props: {
         <section className={css.main} data-testid="wl-folder-preview">
           {previewPath === null ? (
             <div
-              className={cx(css.empty, files.viewerReveal)}
+              className={cx(css.empty, shared.viewerReveal)}
               key={current?.dir === true ? 'dir' : 'none'}
             >
               <span className={css.emptyIcon}>
