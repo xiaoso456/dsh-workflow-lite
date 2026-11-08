@@ -1,0 +1,111 @@
+/*
+ * 选中节点的运行状态区（RunNodeState.tsx）：状态按钮组（带滑过去的选中块）、步骤下面的操作按钮、轮次的步进器。
+ */
+
+/*
+ * 状态按钮组（RunNodeState.tsx 的 Choices）：一排可换行的小按钮。
+ * 选中的底色、描边是一块滑过去的选中块（`.choiceThumb`），按钮自己只画平时的描边，选中时把它淡掉。
+ */
+.choices {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.choice {
+  position: relative;
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  height: 26px;
+  padding: 0 10px 0 8px;
+  border: 1px solid transparent;
+  border-radius: calc(999px * var(--wl-round, 1));
+  background: transparent;
+  color: var(--wl-text-2);
+  font: inherit;
+  font-size: var(--wl-fs-meta);
+  font-weight: 500;
+  cursor: pointer;
+  transition: transform 120ms var(--wl-ease);
+}
+
+/* 平时的描边：画在伪元素上，选中时淡掉（让给滑过来的选中块），取消选中时淡回来。 */
+.choice::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border: 1px solid var(--wl-line-strong);
+  border-radius: inherit;
+  pointer-events: none;
+  transition: opacity 160ms linear;
+}
+
+.choice:active {
+  transform: scale(0.96);
+}
+
+.choice:hover::before {
+  border-color: color-mix(in srgb, var(--wl-run) 60%, transparent);
+}
+
+/* 字和小图标的颜色是 FadeText / FadeMark 的两层交叉淡：没选中灰、悬停深、选中状态色。 */
+.choice {
+  --wl-off: var(--wl-text-2);
+  --wl-on: var(--wl-run);
+}
+
+.choice:hover {
+  --wl-off: var(--wl-text);
+}
+
+.choice[aria-checked="true"]::before {
+  opacity: 0;
+}
+
+.choice:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+.choiceThumb {
+  border-radius: calc(999px * var(--wl-round, 1));
+}
+
+/* 选中块的一层：每种状态一层，`--wl-run` 跟着层上的 data-run-status。 */
+.choiceTone {
+  border: 1px solid color-mix(in srgb, var(--wl-run) 55%, transparent);
+  background: color-mix(in srgb, var(--wl-run) 14%, var(--wl-panel));
+}
+
+.stepper {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.stepperValue {
+  min-width: 28px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* 步骤状态下面的一排操作（设为下一步、重跑）。 */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* 「钉住」这类开关：底色 ui.fillOn 渐显、字和图标 FadeText / FadeMark 交叉淡。 */
+.actions button {
+  --wl-off: var(--wl-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .choice,
+  .choice::before {
+    transition: none;
+  }
+}

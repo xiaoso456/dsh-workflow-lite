@@ -12,7 +12,7 @@ import type { LocaleKey, T } from '../../i18n.ts'
 import { Icon, type IconName } from '../kit/Icon.tsx'
 import { FadeMark } from '../motion/marks.tsx'
 import { PickThumb } from '../motion/thumb.tsx'
-import run from './run.module.css'
+import css from './runModeSwitch.module.css'
 
 /** 右栏选中东西时看什么：这次运行的样子，还是改它（模板的属性面板）。 */
 export type PanelMode = 'run' | 'edit'
@@ -30,12 +30,12 @@ export function RunModeSwitch(props: {
   const { t } = props
   return (
     <div
-      className={run.mode}
+      className={css.mode}
       role="radiogroup"
       aria-label={t('run.tab.label')}
       data-testid="wl-run-mode"
     >
-      <PickThumb layout={props.mode} carry="run-mode" className={run.modeThumb} />
+      <PickThumb layout={props.mode} carry="run-mode" className={css.modeThumb} />
       {OPTIONS.map((option) => (
         <button
           key={option.value}
@@ -45,7 +45,7 @@ export function RunModeSwitch(props: {
           aria-label={t(option.label)}
           data-tip={t(option.label)}
           data-mode={option.value}
-          className={run.modeItem}
+          className={css.modeItem}
           onClick={() => props.onChange(option.value)}
         >
           <FadeMark on={option.value === props.mode}>

@@ -24,7 +24,8 @@ import { Popover } from '../kit/Popover.tsx'
 import ui from '../kit/ui.module.css'
 import { useExit } from '../motion/exits.tsx'
 import { RUN_STATUS_TEXT } from './RunTopBar.tsx'
-import run from './run.module.css'
+import shared from './run.module.css'
+import css from './runDraftBar.module.css'
 
 /** 清单里图的一行。 */
 export interface DraftLine {
@@ -147,14 +148,14 @@ export function DraftBar(props: {
   // 保存、放弃之后往下沉、淡出（和浮上来时反过来）；动的是里面那层，外面那层带着居中的 translateX。
   const seat = useExit<HTMLDivElement>('down', { inner: true })
   return (
-    <div ref={seat} className={run.draftSeat} data-panel={props.panel}>
-      <div className={cx(ui.panel, run.draft, ui.rise)} data-testid="wl-run-draft">
+    <div ref={seat} className={css.draftSeat} data-panel={props.panel}>
+      <div className={cx(ui.panel, css.draft, ui.rise)} data-testid="wl-run-draft">
         <Popover
           open={open}
           onClose={() => setOpen(false)}
           up
           label={t('run.changes')}
-          className={run.draftList}
+          className={css.draftList}
           trigger={
             <button
               type="button"
@@ -163,8 +164,8 @@ export function DraftBar(props: {
               data-testid="wl-run-draft-toggle"
               onClick={() => setOpen(!open)}
             >
-              <span className={run.draftCount}>
-                <span className={run.edited} style={{ margin: 0 }} />
+              <span className={css.draftCount}>
+                <span className={shared.edited} style={{ margin: 0 }} />
                 {t('run.changed').replace('{n}', String(props.count))}
               </span>
               <Icon name="chevronDown" size={13} />
@@ -174,7 +175,7 @@ export function DraftBar(props: {
           {current.conflicts.map((conflict) => (
             <div
               key={conflict.path.join('.')}
-              className={run.conflict}
+              className={css.conflict}
               data-testid="wl-run-conflict"
             >
               <span>
@@ -184,7 +185,7 @@ export function DraftBar(props: {
                 {t('run.conflictMine')}：{String(conflict.to ?? t('run.empty'))} ·{' '}
                 {t('run.conflictDisk')}：{String(conflict.disk ?? t('run.empty'))}
               </span>
-              <span className={run.conflictActions}>
+              <span className={css.conflictActions}>
                 <button
                   type="button"
                   className={cx(ui.btn, ui.small, ui.primary)}
@@ -203,8 +204,8 @@ export function DraftBar(props: {
             </div>
           ))}
           {props.graph.map((line) => (
-            <div key={line.key} className={run.change} data-testid="wl-run-graph-change">
-              <span className={run.changeText}>{line.text}</span>
+            <div key={line.key} className={css.change} data-testid="wl-run-graph-change">
+              <span className={css.changeText}>{line.text}</span>
               <button
                 type="button"
                 className={cx(ui.btn, ui.icon, ui.small)}
@@ -216,8 +217,8 @@ export function DraftBar(props: {
             </div>
           ))}
           {current.draft.map((edit) => (
-            <div key={edit.path.join('.')} className={run.change}>
-              <span className={run.changeText}>{describe(t, edit)}</span>
+            <div key={edit.path.join('.')} className={css.change}>
+              <span className={css.changeText}>{describe(t, edit)}</span>
               <button
                 type="button"
                 className={cx(ui.btn, ui.icon, ui.small)}
@@ -230,7 +231,7 @@ export function DraftBar(props: {
           ))}
         </Popover>
         <input
-          className={cx(ui.input, run.draftNote)}
+          className={cx(ui.input, css.draftNote)}
           value={current.note}
           placeholder={t('run.notePrompt')}
           aria-label={t('run.notePrompt')}
@@ -240,7 +241,7 @@ export function DraftBar(props: {
             if (event.key === 'Enter' && props.blocked === null) props.onSave()
           }}
         />
-        <label className={run.notify} htmlFor={notifyId} data-tip={t('run.notifyTip')}>
+        <label className={shared.notify} htmlFor={notifyId} data-tip={t('run.notifyTip')}>
           <button
             id={notifyId}
             type="button"

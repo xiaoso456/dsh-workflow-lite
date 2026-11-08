@@ -1,0 +1,93 @@
+/*
+ * 实例概览（RunOverview.tsx）：进度条、状态文件路径、说明输入框，以及可滚动的时间线。
+ */
+
+.path {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.path code {
+  min-width: 0;
+  color: var(--wl-text-2);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+  overflow-wrap: anywhere;
+}
+
+.bar {
+  height: 6px;
+  overflow: hidden;
+  border-radius: calc(999px * var(--wl-round, 1));
+  background: var(--wl-fill);
+}
+
+.barFill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--wl-ok-dot);
+  transform-origin: left center;
+  transition: transform 320ms var(--wl-ease);
+}
+
+.timelineScroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0 -6px;
+  padding: 0 6px 4px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+/* 说明、摘要：随内容长高，到一定高度再滚。 */
+.autoArea {
+  min-height: 56px;
+  max-height: 160px;
+  field-sizing: content;
+  resize: none;
+}
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.event {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 8px;
+  padding: 6px 4px;
+  border-radius: calc(6px * var(--wl-round, 1));
+  font-size: var(--wl-fs-micro);
+  cursor: pointer;
+  transition: background-color 120ms linear;
+}
+
+.event:hover {
+  background: var(--wl-hover);
+}
+
+.eventTime {
+  color: var(--wl-text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.eventText {
+  color: var(--wl-text-2);
+  overflow-wrap: anywhere;
+}
+
+.eventText b {
+  color: var(--wl-text);
+  font-weight: 600;
+}
+
+.eventUser {
+  color: var(--wl-accent-text);
+  font-weight: 600;
+}

@@ -25,7 +25,8 @@ import ui from '../kit/ui.module.css'
 import { ResourceIcon } from '../resources/Resources.tsx'
 import top from '../shell/topbar.module.css'
 import { StatusChip } from './RunNodeState.tsx'
-import run from './run.module.css'
+import shared from './run.module.css'
+import css from './runNav.module.css'
 
 function nodeIcon(node: WorkflowNode, size: number): React.JSX.Element {
   if (isResource(node)) return <ResourceIcon resource={node} size={size - 1} />
@@ -114,11 +115,11 @@ export function RunNav(props: {
       onClose={() => setOpen(false)}
       label={t('run.navTitle')}
       align="end"
-      className={cx(top.menu, run.navMenu)}
+      className={cx(top.menu, shared.navMenu)}
       trigger={
         <button
           type="button"
-          className={run.nav}
+          className={css.nav}
           data-tip={t('run.navTip')}
           aria-label={`${t('run.navTip')}：${what}`}
           aria-expanded={open}
@@ -150,7 +151,7 @@ export function RunNav(props: {
           }}
         />
       </div>
-      <div className={run.navList} role="listbox" aria-label={t('run.navTitle')}>
+      <div className={css.navList} role="listbox" aria-label={t('run.navTitle')}>
         {showOverview && (
           <button
             type="button"
@@ -167,10 +168,10 @@ export function RunNav(props: {
           </button>
         )}
         {groups.map((group) => (
-          <div key={group.key} className={run.navGroup}>
+          <div key={group.key} className={css.navGroup}>
             <p className={ui.menuTitle}>
               {group.title}
-              <span className={run.navCount}>{group.nodes.length}</span>
+              <span className={css.navCount}>{group.nodes.length}</span>
             </p>
             {group.nodes.map((node) => {
               const active = selection?.kind === 'node' && selection.id === node.id

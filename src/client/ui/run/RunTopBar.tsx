@@ -30,7 +30,8 @@ import { Issues } from '../shell/Issues.tsx'
 import type { TopSlots } from '../shell/TopBar.tsx'
 import top from '../shell/topbar.module.css'
 import type { RunViewProps } from './RunView.tsx'
-import run from './run.module.css'
+import shared from './run.module.css'
+import css from './runTopBar.module.css'
 
 export const RUN_STATUS_TEXT: Record<RunStatus, LocaleKey> = {
   pending: 'run.overall.pending',
@@ -53,19 +54,19 @@ export function RunStatusBadge(props: {
   if (props.untracked === true) {
     return (
       <span
-        className={run.status}
+        className={shared.status}
         data-glide=""
         data-run-status="untracked"
         data-testid="wl-run-status"
       >
-        <span className={run.dot} />
+        <span className={shared.dot} />
         {t('run.untracked')}
       </span>
     )
   }
   if (props.problem !== undefined || props.status === undefined) {
     return (
-      <span className={run.status} data-glide="" data-run-status="failed">
+      <span className={shared.status} data-glide="" data-run-status="failed">
         <Icon name="alert" size={11} />
         {t(props.problem === 'missing' ? 'run.stateMissing' : 'run.stateInvalid')}
       </span>
@@ -73,12 +74,12 @@ export function RunStatusBadge(props: {
   }
   return (
     <span
-      className={run.status}
+      className={shared.status}
       data-glide=""
       data-run-status={props.status}
       data-testid="wl-run-status"
     >
-      <span className={run.dot} />
+      <span className={shared.dot} />
       <SwapText text={t(RUN_STATUS_TEXT[props.status])} />
     </span>
   )
@@ -119,9 +120,9 @@ export function RunTopBar(
       {slots.trigger !== null &&
         createPortal(
           <>
-            <span className={run.switchKind}>{t('run.kind')}</span>
-            <span className={run.switchName}>{summary?.workflow ?? '…'}</span>
-            <span className={run.switchTime}>{shortTime(summary?.createdAt)}</span>
+            <span className={css.switchKind}>{t('run.kind')}</span>
+            <span className={css.switchName}>{summary?.workflow ?? '…'}</span>
+            <span className={css.switchTime}>{shortTime(summary?.createdAt)}</span>
             <span className={top.chev} data-glide="">
               <Icon name="chevronDown" size={14} />
             </span>
@@ -148,7 +149,7 @@ export function RunTopBar(
               />
             )}
             {progress !== null && (
-              <span className={run.progress} data-testid="wl-run-progress">
+              <span className={shared.progress} data-testid="wl-run-progress">
                 <SwapText pop text={`${progress.done}/${progress.total}`} />
               </span>
             )}
@@ -315,20 +316,20 @@ export function RunMenuRow(props: {
         onClick={props.onOpen}
       >
         <span
-          className={run.rowDot}
+          className={css.rowDot}
           data-run-status={item.statePath === undefined ? 'untracked' : (item.status ?? 'failed')}
         >
-          <span className={run.dot} style={{ opacity: props.current ? 1 : 0.45 }} />
+          <span className={shared.dot} style={{ opacity: props.current ? 1 : 0.45 }} />
         </span>
-        <span className={run.rowName}>
+        <span className={css.rowName}>
           <Highlight text={item.workflow} needle={props.needle} />
         </span>
         {props.current && (
-          <span className={run.currentTag} data-tip={t('run.current')} data-testid="wl-run-current">
+          <span className={css.currentTag} data-tip={t('run.current')} data-testid="wl-run-current">
             {t('hub.current')}
           </span>
         )}
-        <span className={cx(ui.menuMeta, top.rowMeta, run.rowMeta)}>{runMeta(t, item)}</span>
+        <span className={cx(ui.menuMeta, top.rowMeta, css.rowMeta)}>{runMeta(t, item)}</span>
       </button>
       {!props.current && (
         <span className={top.rowActions}>

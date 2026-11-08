@@ -25,7 +25,8 @@ import ui from '../kit/ui.module.css'
 import { FadeMark, FadeText } from '../motion/marks.tsx'
 import { SwapText, useTrend } from '../motion/swapText.tsx'
 import { PickThumb } from '../motion/thumb.tsx'
-import run from './run.module.css'
+import shared from './run.module.css'
+import css from './runNodeState.module.css'
 
 /** 步骤状态的一句话说明（悬停提示）。 */
 export function nodeHint(status: NodeStatus): LocaleKey {
@@ -47,7 +48,7 @@ export function isEdited(draft: readonly StateEdit[], path: readonly string[]): 
 
 /** 改了还没保存的字段：标题旁一个小圆点。 */
 export function EditedDot(props: { on: boolean }): React.JSX.Element | null {
-  return props.on ? <span className={run.edited} aria-hidden="true" /> : null
+  return props.on ? <span className={shared.edited} aria-hidden="true" /> : null
 }
 
 /** 状态小标（只读）：用到它的步骤、上下游里每一行行尾的那个。 */
@@ -57,8 +58,8 @@ export function StatusChip(props: {
 }): React.JSX.Element | null {
   if (props.status === undefined) return null
   return (
-    <span className={run.status} data-run-status={props.status}>
-      <span className={run.dot} />
+    <span className={shared.status} data-run-status={props.status}>
+      <span className={shared.dot} />
       {props.t(RUN_TEXT[props.status])}
     </span>
   )
@@ -91,15 +92,15 @@ export function Choices<V extends string>(props: {
   const picked = options.find((option) => option.value === props.value)
   const tones = [...new Set(options.map((option) => option.status))]
   return (
-    <div className={run.choices} role="radiogroup" aria-label={props.label}>
+    <div className={css.choices} role="radiogroup" aria-label={props.label}>
       <PickThumb
         layout={`${props.value ?? ''}|${options.map((option) => option.value).join(',')}`}
-        className={run.choiceThumb}
+        className={css.choiceThumb}
         tone={{
           list: tones,
           on: picked?.status,
           attr: 'data-run-status',
-          className: run.choiceTone,
+          className: css.choiceTone,
         }}
       />
       {options.map((option) => (
@@ -108,7 +109,7 @@ export function Choices<V extends string>(props: {
           type="button"
           role="radio"
           aria-checked={option.value === props.value}
-          className={run.choice}
+          className={css.choice}
           data-run-status={option.status}
           data-testid={option.testId}
           data-value={option.testId === undefined ? undefined : option.value}
@@ -148,8 +149,8 @@ export function StepStatus(props: {
   const trend = useTrend(round)
   return (
     <>
-      <section className={run.section}>
-        <p className={run.sectionTitle}>
+      <section className={shared.section}>
+        <p className={shared.sectionTitle}>
           <span>
             {t('run.nodeStatus')}
             <EditedDot on={isEdited(current.draft, path('status'))} />
@@ -175,7 +176,7 @@ export function StepStatus(props: {
             current.setStatus(id, status)
           }}
         />
-        <div className={run.actions}>
+        <div className={css.actions}>
           <button
             type="button"
             className={cx(ui.btn, ui.small, ui.soft, ui.fillOn)}
@@ -199,13 +200,13 @@ export function StepStatus(props: {
         </div>
       </section>
 
-      <section className={run.section}>
-        <p className={run.sectionTitle}>
+      <section className={shared.section}>
+        <p className={shared.sectionTitle}>
           <span>
             {t('run.roundLabel')}
             <EditedDot on={isEdited(current.draft, path('round'))} />
           </span>
-          <span className={run.stepper}>
+          <span className={css.stepper}>
             <button
               type="button"
               className={cx(ui.btn, ui.icon, ui.small)}
@@ -215,7 +216,7 @@ export function StepStatus(props: {
             >
               <Icon name="minus" size={13} />
             </button>
-            <span className={run.stepperValue}>
+            <span className={css.stepperValue}>
               <SwapText pop dir={trend} text={round === 0 ? '—' : String(round)} />
             </span>
             <button
@@ -231,8 +232,8 @@ export function StepStatus(props: {
       </section>
 
       {props.verdicts !== undefined && (
-        <section className={run.section}>
-          <p className={run.sectionTitle}>
+        <section className={shared.section}>
+          <p className={shared.sectionTitle}>
             <span>
               {t('run.verdict')}
               <EditedDot on={isEdited(current.draft, path('verdict'))} />
@@ -319,8 +320,8 @@ export function StepFacts(props: {
     return null
   }
   return (
-    <section className={run.section}>
-      <dl className={run.facts}>
+    <section className={shared.section}>
+      <dl className={shared.facts}>
         {node.by !== undefined && (
           <>
             <dt>{t('run.by')}</dt>

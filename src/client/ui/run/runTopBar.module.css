@@ -1,0 +1,68 @@
+/*
+ * 实例顶栏（RunTopBar.tsx）：实例下拉触发器里的类型、名称、时间，下拉列表里的一行。
+ */
+
+.switchKind {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: calc(5px * var(--wl-round, 1));
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+}
+
+.switchName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.switchTime {
+  flex: none;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 实例列表（顶栏下拉里的一行）──────────────────── */
+
+/*
+ * 骨架和工作流那一行是同一个（topbar.module.css 的 .row / .rowMain / .rowActions）：
+ * 状态点占图标的位置（同宽，和下面工作流的文件夹图标上下对齐），名字，右端小字。
+ */
+.rowDot {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 15px;
+}
+
+/* 名字不撑满：「当前」小标紧跟在名字后面，右端小字靠 margin-left: auto 推到最右。 */
+.rowName {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowMeta {
+  margin-left: auto;
+}
+
+/* 本会话的当前实例：和工作流中心里的「当前」同一个小标；底色比选中块深一档，选中时也看得清。 */
+.currentTag {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: calc(999px * var(--wl-round, 1));
+  background: color-mix(in srgb, var(--wl-accent) 22%, transparent);
+  color: var(--wl-accent-text);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+  white-space: nowrap;
+}

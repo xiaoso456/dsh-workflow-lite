@@ -1,0 +1,67 @@
+/*
+ * 顶栏最右的「在看什么」（RunNav.tsx）：触发按钮、下拉里的节点列表和分组。
+ */
+
+/* ── 顶栏最右的「在看什么」──────────────────────────────── */
+
+.nav {
+  display: inline-flex;
+  flex: none;
+  gap: 2px;
+  align-items: center;
+  height: 32px;
+  margin-left: 4px;
+  padding: 0 6px 0 0;
+  border: 0;
+  border-radius: var(--wl-r-control);
+  background: transparent;
+  color: var(--wl-text-3);
+  cursor: pointer;
+  transition:
+    background-color 120ms linear,
+    color 120ms linear;
+}
+
+/* 图标块和旁边右栏开关按下时的底色一样大（32px、同一个圆角），两块并排对齐。 */
+.nav > span:first-child {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--wl-r-control);
+}
+
+/* 右栏收着：图标块不上色，和顶栏里别的按钮一样。 */
+.nav[data-idle="true"] > span:first-child {
+  background: transparent;
+  color: var(--wl-text-2);
+}
+
+.nav:hover,
+.nav[aria-expanded="true"] {
+  background: var(--wl-hover);
+  color: var(--wl-text-2);
+}
+
+.nav:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+.navList {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: 380px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.navGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.navCount {
+  margin-left: 6px;
+  font-weight: 400;
+}

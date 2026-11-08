@@ -1,0 +1,90 @@
+/*
+ * 草稿栏（RunDraftBar.tsx）：画布底部的待保存改动条、改动清单和冲突提示。
+ */
+
+/* ── 草稿栏 ────────────────────────────────────────────────── */
+
+.draftSeat {
+  position: absolute;
+  bottom: var(--wl-gap);
+  left: 50%;
+  z-index: 6;
+  width: max-content;
+  max-width: calc(100% - 2 * var(--wl-gap));
+  transform: translateX(-50%);
+}
+
+/*
+ * 右栏开着：摆在右栏左边那块画布的正中间，不压住右栏底部的按钮；
+ * 那块不够宽，抬到左下角缩放条那一行上面，免得和它叠在一起。
+ */
+.draftSeat[data-panel="true"] {
+  bottom: calc(var(--wl-gap) + 46px);
+  left: calc(50% - (var(--wl-inspector-w) + var(--wl-gap)) / 2);
+  max-width: calc(100% - var(--wl-inspector-w) - 3 * var(--wl-gap));
+}
+
+.draft {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 6px 6px 12px;
+}
+
+.draftCount {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  font-size: var(--wl-fs-meta);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.draftNote {
+  width: 240px;
+  height: 30px;
+  font-size: var(--wl-fs-meta);
+}
+
+.draftList {
+  width: 380px;
+  max-height: 320px;
+  padding: 8px;
+  overflow-y: auto;
+}
+
+.change {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 5px 4px;
+  font-size: var(--wl-fs-meta);
+}
+
+.change + .change {
+  border-top: 1px solid var(--wl-line);
+}
+
+.changeText {
+  overflow-wrap: anywhere;
+}
+
+.changeText s {
+  color: var(--wl-text-3);
+}
+
+.conflict {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border-radius: calc(8px * var(--wl-round, 1));
+  background: var(--wl-warn-soft);
+  font-size: var(--wl-fs-meta);
+}
+
+.conflictActions {
+  display: flex;
+  gap: 6px;
+}

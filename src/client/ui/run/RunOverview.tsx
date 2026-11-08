@@ -25,7 +25,8 @@ import { SwapText } from '../motion/swapText.tsx'
 import { Choices, EditedDot, isEdited } from './RunNodeState.tsx'
 import { RunPosition } from './RunPosition.tsx'
 import { RUN_STATUS_TEXT } from './RunTopBar.tsx'
-import run from './run.module.css'
+import shared from './run.module.css'
+import own from './runOverview.module.css'
 
 /** 不记运行状态的实例：右栏只讲清楚为什么看不到进度，再列几样基本信息。 */
 export function Untracked(props: {
@@ -39,8 +40,8 @@ export function Untracked(props: {
       <p className={css.help} data-testid="wl-run-untracked">
         {t('run.untrackedBanner')}
       </p>
-      <section className={run.section}>
-        <dl className={run.facts}>
+      <section className={shared.section}>
+        <dl className={shared.facts}>
           <dt>{t('run.mode')}</dt>
           <dd>{t(`settings.mode.${summary.mode}` as LocaleKey)}</dd>
           <dt>{t('run.started')}</dt>
@@ -68,19 +69,19 @@ export function Overview(props: {
   const log = [...state.log].reverse()
   return (
     <>
-      <section className={run.section}>
-        <p className={run.sectionTitle}>
+      <section className={shared.section}>
+        <p className={shared.sectionTitle}>
           <span>
             {t('run.overall')}
             <EditedDot on={isEdited(current.draft, ['status'])} />
           </span>
-          <span className={run.progress}>
+          <span className={shared.progress}>
             <SwapText pop text={`${progress.done}/${progress.total}`} />
           </span>
         </p>
-        <div className={run.bar} aria-hidden="true">
+        <div className={own.bar} aria-hidden="true">
           <div
-            className={run.barFill}
+            className={own.barFill}
             style={{
               transform: `scaleX(${progress.total === 0 ? 0 : progress.done / progress.total})`,
             }}
@@ -93,7 +94,7 @@ export function Overview(props: {
             value: status,
             text: t(RUN_STATUS_TEXT[status]),
             status,
-            mark: <span className={run.dot} />,
+            mark: <span className={shared.dot} />,
             tip: t(`run.hint.${status}` as LocaleKey),
             testId: 'wl-run-overall',
           }))}
@@ -113,15 +114,15 @@ export function Overview(props: {
         />
       )}
 
-      <section className={run.section}>
-        <p className={run.sectionTitle}>
+      <section className={shared.section}>
+        <p className={shared.sectionTitle}>
           <span>
             {t('run.note')}
             <EditedDot on={isEdited(current.draft, ['note'])} />
           </span>
         </p>
         <textarea
-          className={cx(ui.textarea, run.autoArea)}
+          className={cx(ui.textarea, own.autoArea)}
           rows={2}
           value={state.note ?? ''}
           placeholder={t('run.notePlaceholder')}
@@ -135,8 +136,8 @@ export function Overview(props: {
         />
       </section>
 
-      <section className={run.section}>
-        <dl className={run.facts}>
+      <section className={shared.section}>
+        <dl className={shared.facts}>
           {summary?.goal !== undefined && (
             <>
               <dt>{t('run.goal')}</dt>
@@ -152,7 +153,7 @@ export function Overview(props: {
           {summary?.statePath !== undefined && (
             <>
               <dt>{t('run.stateFile')}</dt>
-              <dd className={run.path}>
+              <dd className={own.path}>
                 <code>{summary.statePath}</code>
               </dd>
             </>
@@ -160,15 +161,15 @@ export function Overview(props: {
         </dl>
       </section>
 
-      <section className={cx(run.section, run.timelineSection)}>
-        <p className={run.sectionTitle}>
+      <section className={cx(shared.section, shared.timelineSection)}>
+        <p className={shared.sectionTitle}>
           <span>{t('run.timeline')}</span>
-          {log.length > 0 && <span className={run.progress}>{log.length}</span>}
+          {log.length > 0 && <span className={shared.progress}>{log.length}</span>}
         </p>
         {log.length === 0 ? (
           <p className={css.help}>{t('run.noEvents')}</p>
         ) : (
-          <ul className={cx(run.timeline, run.timelineScroll)} data-testid="wl-run-timeline">
+          <ul className={cx(own.timeline, own.timelineScroll)} data-testid="wl-run-timeline">
             {log.map((entry, index) => (
               <TimelineItem
                 // biome-ignore lint/suspicious/noArrayIndexKey: 流水只追加，倒序后的下标就是稳定身份
@@ -212,10 +213,10 @@ function TimelineItem(props: {
     : `${String(time.getHours()).padStart(2, '0')}:${String(time.getMinutes()).padStart(2, '0')}`
   return (
     // biome-ignore lint/a11y/useKeyWithClickEvents: 时间线行的键盘入口是右栏里的状态控件；点一下只是顺手定位
-    <li className={run.event} onClick={() => props.onSelect(entry.node ?? null)}>
-      <span className={run.eventTime}>{clock}</span>
-      <span className={run.eventText}>
-        {entry.by === 'user' && <span className={run.eventUser}>{t('run.byUser')} </span>}
+    <li className={own.event} onClick={() => props.onSelect(entry.node ?? null)}>
+      <span className={own.eventTime}>{clock}</span>
+      <span className={own.eventText}>
+        {entry.by === 'user' && <span className={own.eventUser}>{t('run.byUser')} </span>}
         {entry.node !== undefined && <b>{props.labelOf(entry.node)} </b>}
         {t(EVENT_TEXT[entry.event])}
         {entry.round !== undefined &&

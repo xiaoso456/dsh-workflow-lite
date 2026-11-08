@@ -86,75 +86,10 @@
   pointer-events: none;
 }
 
-.switchKind {
-  flex: none;
-  padding: 1px 6px;
-  border-radius: calc(5px * var(--wl-round, 1));
-  background: var(--wl-accent-soft);
-  color: var(--wl-accent-text);
-  font-size: var(--wl-fs-micro);
-  font-weight: 600;
-}
-
-.switchName {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.switchTime {
-  flex: none;
-  color: var(--wl-text-3);
-  font-size: var(--wl-fs-meta);
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-}
-
 .progress {
   color: var(--wl-text-3);
   font-size: var(--wl-fs-micro);
   font-variant-numeric: tabular-nums;
-}
-
-/* ── 实例列表（顶栏下拉里的一行）──────────────────── */
-
-/*
- * 骨架和工作流那一行是同一个（topbar.module.css 的 .row / .rowMain / .rowActions）：
- * 状态点占图标的位置（同宽，和下面工作流的文件夹图标上下对齐），名字，右端小字。
- */
-.rowDot {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 15px;
-}
-
-/* 名字不撑满：「当前」小标紧跟在名字后面，右端小字靠 margin-left: auto 推到最右。 */
-.rowName {
-  flex: 0 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.rowMeta {
-  margin-left: auto;
-}
-
-/* 本会话的当前实例：和工作流中心里的「当前」同一个小标；底色比选中块深一档，选中时也看得清。 */
-.currentTag {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  height: 18px;
-  padding: 0 6px;
-  border-radius: calc(999px * var(--wl-round, 1));
-  background: color-mix(in srgb, var(--wl-accent) 22%, transparent);
-  color: var(--wl-accent-text);
-  font-size: var(--wl-fs-micro);
-  font-weight: 600;
-  white-space: nowrap;
 }
 
 /* ── 右栏 ──────────────────────────────────────────────────── */
@@ -174,83 +109,6 @@
   color: var(--wl-text-2);
   font-size: var(--wl-fs-meta);
   font-weight: 600;
-}
-
-/*
- * 状态按钮组（RunNodeState.tsx 的 Choices）：一排可换行的小按钮。
- * 选中的底色、描边是一块滑过去的选中块（`.choiceThumb`），按钮自己只画平时的描边，选中时把它淡掉。
- */
-.choices {
-  position: relative;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.choice {
-  position: relative;
-  display: inline-flex;
-  gap: 5px;
-  align-items: center;
-  height: 26px;
-  padding: 0 10px 0 8px;
-  border: 1px solid transparent;
-  border-radius: calc(999px * var(--wl-round, 1));
-  background: transparent;
-  color: var(--wl-text-2);
-  font: inherit;
-  font-size: var(--wl-fs-meta);
-  font-weight: 500;
-  cursor: pointer;
-  transition: transform 120ms var(--wl-ease);
-}
-
-/* 平时的描边：画在伪元素上，选中时淡掉（让给滑过来的选中块），取消选中时淡回来。 */
-.choice::before {
-  content: "";
-  position: absolute;
-  inset: -1px;
-  border: 1px solid var(--wl-line-strong);
-  border-radius: inherit;
-  pointer-events: none;
-  transition: opacity 160ms linear;
-}
-
-.choice:active {
-  transform: scale(0.96);
-}
-
-.choice:hover::before {
-  border-color: color-mix(in srgb, var(--wl-run) 60%, transparent);
-}
-
-/* 字和小图标的颜色是 FadeText / FadeMark 的两层交叉淡：没选中灰、悬停深、选中状态色。 */
-.choice {
-  --wl-off: var(--wl-text-2);
-  --wl-on: var(--wl-run);
-}
-
-.choice:hover {
-  --wl-off: var(--wl-text);
-}
-
-.choice[aria-checked="true"]::before {
-  opacity: 0;
-}
-
-.choice:focus-visible {
-  outline: 2px solid var(--wl-accent);
-  outline-offset: 1px;
-}
-
-.choiceThumb {
-  border-radius: calc(999px * var(--wl-round, 1));
-}
-
-/* 选中块的一层：每种状态一层，`--wl-run` 跟着层上的 data-run-status。 */
-.choiceTone {
-  border: 1px solid color-mix(in srgb, var(--wl-run) 55%, transparent);
-  background: color-mix(in srgb, var(--wl-run) 14%, var(--wl-panel));
 }
 
 /* 改了还没保存的字段：标题旁一个小圆点。 */
@@ -283,47 +141,6 @@
   color: var(--wl-text);
 }
 
-.path {
-  display: flex;
-  gap: 6px;
-  align-items: flex-start;
-}
-
-.path code {
-  min-width: 0;
-  color: var(--wl-text-2);
-  font-family: var(--wl-mono);
-  font-size: var(--wl-fs-micro);
-  overflow-wrap: anywhere;
-}
-
-.bar {
-  height: 6px;
-  overflow: hidden;
-  border-radius: calc(999px * var(--wl-round, 1));
-  background: var(--wl-fill);
-}
-
-.barFill {
-  height: 100%;
-  border-radius: inherit;
-  background: var(--wl-ok-dot);
-  transform-origin: left center;
-  transition: transform 320ms var(--wl-ease);
-}
-
-.stepper {
-  display: inline-flex;
-  gap: 4px;
-  align-items: center;
-}
-
-.stepperValue {
-  min-width: 28px;
-  font-variant-numeric: tabular-nums;
-  text-align: center;
-}
-
 /* 概览：上面几块按内容高，时间线吃掉剩下的高度、自己滚动（矮屏时整栏滚，时间线保底高度）。 */
 .bodyOverview > * {
   flex: none;
@@ -332,67 +149,6 @@
 .bodyOverview > .timelineSection {
   flex: 1 1 0;
   min-height: 200px;
-}
-
-.timelineScroll {
-  flex: 1 1 auto;
-  min-height: 0;
-  margin: 0 -6px;
-  padding: 0 6px 4px;
-  overflow-y: auto;
-  scrollbar-gutter: stable;
-  scrollbar-width: thin;
-}
-
-/* 说明、摘要：随内容长高，到一定高度再滚。 */
-.autoArea {
-  min-height: 56px;
-  max-height: 160px;
-  field-sizing: content;
-  resize: none;
-}
-
-.timeline {
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.event {
-  display: grid;
-  grid-template-columns: 44px minmax(0, 1fr);
-  gap: 8px;
-  padding: 6px 4px;
-  border-radius: calc(6px * var(--wl-round, 1));
-  font-size: var(--wl-fs-micro);
-  cursor: pointer;
-  transition: background-color 120ms linear;
-}
-
-.event:hover {
-  background: var(--wl-hover);
-}
-
-.eventTime {
-  color: var(--wl-text-3);
-  font-variant-numeric: tabular-nums;
-}
-
-.eventText {
-  color: var(--wl-text-2);
-  overflow-wrap: anywhere;
-}
-
-.eventText b {
-  color: var(--wl-text);
-  font-weight: 600;
-}
-
-.eventUser {
-  color: var(--wl-accent-text);
-  font-weight: 600;
 }
 
 .outputs {
@@ -435,18 +191,6 @@
   font-size: var(--wl-fs-micro);
 }
 
-/* 步骤状态下面的一排操作（设为下一步、重跑）。 */
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-/* 「钉住」这类开关：底色 ui.fillOn 渐显、字和图标 FadeText / FadeMark 交叉淡。 */
-.actions button {
-  --wl-off: var(--wl-text);
-}
-
 /* 执行位置里「指定」的勾选列表：步骤多时在框里滚。 */
 .pinList {
   width: 260px;
@@ -455,50 +199,6 @@
   color: var(--wl-text);
   font-size: var(--wl-fs-body);
   font-weight: 400;
-}
-
-/* ── 草稿栏 ────────────────────────────────────────────────── */
-
-.draftSeat {
-  position: absolute;
-  bottom: var(--wl-gap);
-  left: 50%;
-  z-index: 6;
-  width: max-content;
-  max-width: calc(100% - 2 * var(--wl-gap));
-  transform: translateX(-50%);
-}
-
-/*
- * 右栏开着：摆在右栏左边那块画布的正中间，不压住右栏底部的按钮；
- * 那块不够宽，抬到左下角缩放条那一行上面，免得和它叠在一起。
- */
-.draftSeat[data-panel="true"] {
-  bottom: calc(var(--wl-gap) + 46px);
-  left: calc(50% - (var(--wl-inspector-w) + var(--wl-gap)) / 2);
-  max-width: calc(100% - var(--wl-inspector-w) - 3 * var(--wl-gap));
-}
-
-.draft {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  padding: 6px 6px 6px 12px;
-}
-
-.draftCount {
-  display: inline-flex;
-  gap: 6px;
-  align-items: center;
-  font-size: var(--wl-fs-meta);
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.draftNote {
-  width: 240px;
-  height: 30px;
-  font-size: var(--wl-fs-meta);
 }
 
 .notify {
@@ -512,164 +212,17 @@
   cursor: pointer;
 }
 
-.draftList {
-  width: 380px;
-  max-height: 320px;
-  padding: 8px;
-  overflow-y: auto;
-}
-
-.change {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
-  align-items: center;
-  padding: 5px 4px;
-  font-size: var(--wl-fs-meta);
-}
-
-.change + .change {
-  border-top: 1px solid var(--wl-line);
-}
-
-.changeText {
-  overflow-wrap: anywhere;
-}
-
-.changeText s {
-  color: var(--wl-text-3);
-}
-
-.conflict {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 8px;
-  border-radius: calc(8px * var(--wl-round, 1));
-  background: var(--wl-warn-soft);
-  font-size: var(--wl-fs-meta);
-}
-
-.conflictActions {
-  display: flex;
-  gap: 6px;
-}
-
-/* ── 选中输入节点：用户这次的回答 ─────────────────────────── */
-
-.inputDetail {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.inputHead {
-  display: flex;
-  gap: 8px;
-  align-items: flex-start;
-}
-
-.inputQuestion {
-  flex: 1 1 auto;
-  min-width: 0;
-  padding-top: 3px;
-  font-weight: 600;
-  line-height: 1.45;
-  word-break: break-word;
-}
-
-.inputAnswer {
-  margin: 0;
-  padding: 8px 10px;
-  border-radius: var(--wl-r-control);
-  background: var(--wl-fill);
-  color: var(--wl-text);
-  line-height: 1.55;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.inputAnswerEmpty {
-  margin: 0;
-  color: var(--wl-text-3);
-  font-size: var(--wl-fs-meta);
-}
-
-.inputPicked {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.inputPicked li {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  color: var(--wl-text);
-}
-
-.inputPicked svg {
-  flex: none;
-  color: var(--wl-accent-text);
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .choice,
-  .choice::before {
-    transition: none;
-  }
-
   .menu {
     animation: none;
   }
 }
 
-/* ── 顶栏最右的「在看什么」──────────────────────────────── */
-
-.nav {
-  display: inline-flex;
-  flex: none;
-  gap: 2px;
-  align-items: center;
-  height: 32px;
-  margin-left: 4px;
-  padding: 0 6px 0 0;
-  border: 0;
-  border-radius: var(--wl-r-control);
-  background: transparent;
-  color: var(--wl-text-3);
-  cursor: pointer;
-  transition:
-    background-color 120ms linear,
-    color 120ms linear;
-}
-
-/* 图标块和旁边右栏开关按下时的底色一样大（32px、同一个圆角），两块并排对齐。 */
-.nav > span:first-child {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--wl-r-control);
-}
-
-/* 右栏收着：图标块不上色，和顶栏里别的按钮一样。 */
-.nav[data-idle="true"] > span:first-child {
-  background: transparent;
-  color: var(--wl-text-2);
-}
-
-.nav:hover,
-.nav[aria-expanded="true"] {
-  background: var(--wl-hover);
-  color: var(--wl-text-2);
-}
-
-.nav:focus-visible {
-  outline: 2px solid var(--wl-accent);
-  outline-offset: 1px;
-}
+/*
+ * ── 顶栏最右的「在看什么」──
+ * 触发按钮和下拉里的列表在 runNav.module.css。
+ * .navMenu 留在这里：它和 topbar.module.css 的 .menu 在同一元素上争 width，先后顺序要保持。
+ */
 
 .navOverview {
   display: grid;
@@ -684,70 +237,6 @@
 
 .navMenu {
   width: 300px;
-}
-
-.navList {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  max-height: 380px;
-  overflow-y: auto;
-  scrollbar-width: thin;
-}
-
-.navGroup {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.navCount {
-  margin-left: 6px;
-  font-weight: 400;
-}
-
-/* ── 右栏标题栏里「运行 / 编辑」的切换：两个图标格 ─────────── */
-
-.mode {
-  position: relative;
-  display: inline-grid;
-  flex: none;
-  grid-auto-columns: 26px;
-  grid-auto-flow: column;
-  padding: 2px;
-  border-radius: calc(8px * var(--wl-round, 1));
-  background: var(--wl-fill);
-}
-
-/* 滑块的位置、大小由 PickThumb 按选中格量出来，这里只管样子。 */
-.modeThumb {
-  border-radius: calc(6px * var(--wl-round, 1));
-  background: var(--wl-panel);
-  box-shadow: var(--wl-shadow-thumb);
-}
-
-.modeItem {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 24px;
-  padding: 0;
-  border: 0;
-  border-radius: calc(6px * var(--wl-round, 1));
-  background: transparent;
-  color: var(--wl-text-3);
-  cursor: pointer;
-  transition: color 120ms linear;
-}
-
-.modeItem:hover {
-  color: var(--wl-text);
-}
-
-.modeItem:focus-visible {
-  outline: 2px solid var(--wl-accent);
-  outline-offset: -2px;
 }
 
 /* 瑞士：分组小标题改成加粗、加宽字距的大写小字（见 shell.module.css 的 data-look）。 */

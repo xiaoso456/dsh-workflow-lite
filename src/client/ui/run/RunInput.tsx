@@ -20,21 +20,21 @@ import { Icon } from '../kit/Icon.tsx'
 import { stepName } from '../kit/resourceUi.ts'
 import { lookOf, StepMark } from '../kit/StepMark.tsx'
 import { StatusChip } from './RunNodeState.tsx'
-import run from './run.module.css'
+import own from './runInput.module.css'
 
 /** 用户的回答：文字原样、多选一行一个、没填写就说没填写。 */
 export function AnswerView(props: { t: T; answer: InputAnswer | undefined }): React.JSX.Element {
   const { t, answer } = props
   if (answer === undefined) {
     return (
-      <p className={run.inputAnswerEmpty} data-testid="wl-run-input-answer">
+      <p className={own.inputAnswerEmpty} data-testid="wl-run-input-answer">
         {t('input.noAnswer')}
       </p>
     )
   }
   if (Array.isArray(answer)) {
     return (
-      <ul className={run.inputPicked} data-testid="wl-run-input-answer">
+      <ul className={own.inputPicked} data-testid="wl-run-input-answer">
         {answer.map((item) => (
           <li key={item}>
             <Icon name="check" size={12} />
@@ -45,7 +45,7 @@ export function AnswerView(props: { t: T; answer: InputAnswer | undefined }): Re
     )
   }
   return (
-    <p className={run.inputAnswer} data-testid="wl-run-input-answer">
+    <p className={own.inputAnswer} data-testid="wl-run-input-answer">
       {answer}
     </p>
   )
@@ -70,12 +70,12 @@ export function RunInputDetail(props: {
   const readers = inputReaders(props.snapshot, input.id)
   const label = inputKindLabel(kind)
   return (
-    <div className={run.inputDetail} data-testid="wl-run-input">
-      <div className={run.inputHead}>
+    <div className={own.inputDetail} data-testid="wl-run-input">
+      <div className={own.inputHead}>
         <span className={hand.askIcon}>
           <Icon name="ask" size={14} />
         </span>
-        <span className={run.inputQuestion}>{input.data.question}</span>
+        <span className={own.inputQuestion}>{input.data.question}</span>
       </div>
       <p className={css.help}>
         {t(label)}
