@@ -4,7 +4,7 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/display/options/FilterField
  */
 
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { LINE_CONTEXT_MAX } from '../../../../shared/model.ts'
 import type { LineFilter } from '../../../../shared/types.ts'
 import type { T } from '../../../i18n.ts'
@@ -12,6 +12,7 @@ import { FILTER_PRESETS, type FilterPreset, filterProblem } from '../../../model
 import { Icon } from '../../kit/Icon.tsx'
 import { Stepper } from '../../kit/NumberStep.tsx'
 import css from '../display.module.css'
+import { useDelayedCommit } from './useDelayedCommit.ts'
 
 /** 筛选框停手多久才生效。 */
 const FILTER_DELAY = 320
@@ -55,11 +56,10 @@ export function FilterField(props: {
 }): React.JSX.Element {
   const { t } = props
   const value = props.value
-  const [draft, setDraft] = useState<string | null>(null)
-  const timer = useRef<number | null>(null)
+  const field = useDelayedCommit(value?.pattern ?? '', FILTER_DELAY)
+  const text = field.text
   const latest = useRef(value)
   latest.current = value
-  const text = draft ?? value?.pattern ?? ''
   // 还没写字时按下的开关先记在这里（没写字就是不筛，存不进设置里）。
   const [loose, setLoose] = useState({
     regex: false,
@@ -88,18 +88,12 @@ export function FilterField(props: {
       ...(next.context > 0 ? { context: next.context } : {}),
     }
   }
-  const cancel = (): void => {
-    if (timer.current !== null) window.clearTimeout(timer.current)
-    timer.current = null
-  }
   const commit = (pattern: string, patch: Partial<typeof flags> = {}): void => {
-    cancel()
-    setDraft(null)
+    field.settle()
     if (pattern === '') setLoose({ ...flags, ...patch })
     const next = make(pattern, patch)
     if (JSON.stringify(next) !== JSON.stringify(latest.current)) props.onChange(next)
   }
-  useEffect(() => cancel, [])
   const problem = filterProblem(make(text))
   // 前后各带几行：没写字时灰着（不筛就没有「前后」），提示里说先写字。
   const context = (
@@ -126,31 +120,13 @@ export function FilterField(props: {
           <input
             ref={props.inputRef}
             className={css.filterInput}
-            value={text}
+            {...field.bind((next) => commit(next))}
             placeholder={t('display.filterPlaceholder')}
             aria-label={t('display.filter')}
             aria-invalid={problem !== null || undefined}
             spellCheck={false}
             maxLength={500}
             data-testid="wl-display-filter"
-            onChange={(event) => {
-              const next = event.currentTarget.value
-              setDraft(next)
-              cancel()
-              timer.current = window.setTimeout(() => commit(next), FILTER_DELAY)
-            }}
-            onBlur={() => {
-              if (draft !== null) commit(draft)
-            }}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') commit(text)
-              if (event.key === 'Escape' && draft !== null) {
-                // 只撤掉这次输入，不连带收起浮层。
-                event.stopPropagation()
-                cancel()
-                setDraft(null)
-              }
-            }}
           />
           {text !== '' && (
             <button

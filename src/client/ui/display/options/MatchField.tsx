@@ -4,11 +4,11 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/display/options/MatchField
  */
 
-import { useEffect, useRef, useState } from 'react'
 import { FOLDER_MATCH_MAX } from '../../../../shared/types.ts'
 import type { T } from '../../../i18n.ts'
 import { Icon } from '../../kit/Icon.tsx'
 import css from '../display.module.css'
+import { useDelayedCommit } from './useDelayedCommit.ts'
 
 /** 名字筛选框停手多久才生效。 */
 const MATCH_DELAY = 320
@@ -22,20 +22,13 @@ export function MatchField(props: {
   onChange(match: string | undefined): void
 }): React.JSX.Element {
   const { t } = props
-  const [draft, setDraft] = useState<string | null>(null)
-  const timer = useRef<number | null>(null)
-  const text = draft ?? props.value ?? ''
-  const cancel = (): void => {
-    if (timer.current !== null) window.clearTimeout(timer.current)
-    timer.current = null
-  }
+  const field = useDelayedCommit(props.value ?? '', MATCH_DELAY)
+  const text = field.text
   const commit = (next: string): void => {
-    cancel()
-    setDraft(null)
+    field.settle()
     const value = next.trim() === '' ? undefined : next.trim()
     if (value !== props.value) props.onChange(value)
   }
-  useEffect(() => cancel, [])
   return (
     <div className={css.optLine}>
       <span className={css.optLabel} data-tip={t('display.matchTip')}>
@@ -45,29 +38,12 @@ export function MatchField(props: {
         <Icon name="search" size={13} />
         <input
           className={css.filterInput}
-          value={text}
+          {...field.bind(commit)}
           placeholder={t('display.matchPlaceholder')}
           aria-label={t('display.filter')}
           spellCheck={false}
           maxLength={FOLDER_MATCH_MAX}
           data-testid="wl-display-match-input"
-          onChange={(event) => {
-            const next = event.currentTarget.value
-            setDraft(next)
-            cancel()
-            timer.current = window.setTimeout(() => commit(next), MATCH_DELAY)
-          }}
-          onBlur={() => {
-            if (draft !== null) commit(draft)
-          }}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') commit(text)
-            if (event.key === 'Escape' && draft !== null) {
-              event.stopPropagation()
-              cancel()
-              setDraft(null)
-            }
-          }}
         />
         {text !== '' && (
           <button
