@@ -10,12 +10,9 @@ import {
   type Repository,
   reportProblems,
 } from '../../src/host/store/repository.ts'
-import {
-  createWorkflowLiteHandler,
-  PARAMETERS,
-  type ToolExecView,
-  type WorkflowLiteArgs,
-} from '../../src/host/tool/tool.ts'
+import type { WorkflowLiteArgs } from '../../src/host/tool/args.ts'
+import { PARAMETERS } from '../../src/host/tool/schema.ts'
+import { createWorkflowLiteHandler, type ToolExecView } from '../../src/host/tool/tool.ts'
 import { ACTIONS, TOOL_NAME } from '../../src/shared/types.ts'
 import { validateDocument } from '../../src/shared/validate.ts'
 

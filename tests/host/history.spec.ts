@@ -16,11 +16,8 @@ import {
 import { RunService } from '../../src/host/runs/service.ts'
 import { storageAction } from '../../src/host/runs/storage.ts'
 import { createRepository, type Repository } from '../../src/host/store/repository.ts'
-import {
-  createWorkflowLiteHandler,
-  type ToolExecView,
-  type WorkflowLiteArgs,
-} from '../../src/host/tool/tool.ts'
+import type { WorkflowLiteArgs } from '../../src/host/tool/args.ts'
+import { createWorkflowLiteHandler, type ToolExecView } from '../../src/host/tool/tool.ts'
 import { RUN_HISTORY_VERSIONS_MAX } from '../../src/shared/wire.ts'
 
 let dataDir: string

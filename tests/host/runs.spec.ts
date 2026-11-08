@@ -16,11 +16,8 @@ import {
   type Repository,
   reportProblems,
 } from '../../src/host/store/repository.ts'
-import {
-  createWorkflowLiteHandler,
-  type ToolExecView,
-  type WorkflowLiteArgs,
-} from '../../src/host/tool/tool.ts'
+import type { WorkflowLiteArgs } from '../../src/host/tool/args.ts'
+import { createWorkflowLiteHandler, type ToolExecView } from '../../src/host/tool/tool.ts'
 import type { InstanceView, StateEdit } from '../../src/shared/runState.ts'
 import type { WorkflowDocument } from '../../src/shared/types.ts'
 import { validateDocument } from '../../src/shared/validate.ts'
