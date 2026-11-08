@@ -33,7 +33,8 @@ import type {
 } from '../../shared/types.ts'
 import { type Action, TOOL_NAME } from '../../shared/types.ts'
 import { compileWorkflow } from '../plan.ts'
-import type { RunService, SessionRef } from '../runs/service.ts'
+import type { SessionRef } from '../runs/runCore.ts'
+import type { RunService } from '../runs/service.ts'
 import { hasMemory, listMemories, type MemoryDeps } from '../store/memories.ts'
 import { type NodeUpsert, problemsToWarnings, type Repository } from '../store/repository.ts'
 import {

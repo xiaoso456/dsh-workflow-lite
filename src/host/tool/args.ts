@@ -11,7 +11,7 @@ import type { DisplaySpec } from '../../shared/display.ts'
 import { NODE_STATUSES, RUN_STATUSES } from '../../shared/runState.ts'
 import type { ExecutionMode, Handoff, InputAnswer, ReusePolicy } from '../../shared/types.ts'
 import { type Action, INPUT_KINDS } from '../../shared/types.ts'
-import type { NodePatch, StatePatch } from '../runs/service.ts'
+import type { NodePatch, StatePatch } from '../runs/runProgress.ts'
 import type { InputUpsert } from '../store/repository.ts'
 
 /** 工具的参数面（与下方注册处的 `parameters` 同构；抽成具名接口好让单测直接构造）。 */

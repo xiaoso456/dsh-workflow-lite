@@ -50,7 +50,8 @@ import {
   writePluginConfig,
 } from './pluginConfig.ts'
 import type { RunFileTarget } from './runs/files.ts'
-import type { GraphEdit, RunService } from './runs/service.ts'
+import type { GraphEdit } from './runs/runEdits.ts'
+import type { RunService } from './runs/service.ts'
 import { storageAction } from './runs/storage.ts'
 import {
   createMemory,
