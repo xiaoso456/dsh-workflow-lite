@@ -8,8 +8,8 @@
 
 import { type Appearance, appearanceOf } from '../../../shared/appearance.ts'
 import type { NodeData } from '../../../shared/types.ts'
+import { cx } from './cx.ts'
 import { Icon } from './Icon.tsx'
-import { cx } from './primitives.tsx'
 import ui from './ui.module.css'
 
 /** 一个步骤的样子。 */

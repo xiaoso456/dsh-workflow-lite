@@ -6,8 +6,8 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/PackRow
  */
 
+import { cx } from '../kit/cx.ts'
 import { Icon, type IconName } from '../kit/Icon.tsx'
-import { cx } from '../kit/primitives.tsx'
 import { useTrail } from '../motion/flip.ts'
 import { Checkbox } from '../motion/marks.tsx'
 import { SwapText } from '../motion/swapText.tsx'

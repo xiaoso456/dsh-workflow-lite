@@ -9,9 +9,10 @@ import { MAX_TEXT_CODEPOINTS } from '../../../../shared/limits.ts'
 import { codepointLength } from '../../../../shared/naming.ts'
 import type { T } from '../../../i18n.ts'
 import hand from '../../editor/handoff.module.css'
+import { cx } from '../../kit/cx.ts'
 import { Icon } from '../../kit/Icon.tsx'
-import { cx, useFloat } from '../../kit/primitives.tsx'
 import ui from '../../kit/ui.module.css'
+import { useFloat } from '../../kit/useFloat.tsx'
 import type { HandoffActs } from '../types.ts'
 
 /** 交接卡片：悬停多久才弹出（扫过画布不该一路弹）、离开多久才收。 */

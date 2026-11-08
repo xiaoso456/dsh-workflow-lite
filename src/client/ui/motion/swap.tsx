@@ -8,7 +8,7 @@
  */
 
 import { type RefObject, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { type Ghost, ghostClone } from '../kit/primitives.tsx'
+import { type Ghost, ghostClone } from '../kit/ghost.ts'
 import { whenStill } from './canvasMoving.ts'
 import { EASE, EASE_OUT, REDUCED } from './shared.ts'
 

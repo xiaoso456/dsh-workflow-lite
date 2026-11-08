@@ -23,8 +23,8 @@ import {
   PRESETS,
   type StepSource,
 } from '../../model/library.ts'
+import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
-import { cx } from '../kit/primitives.tsx'
 import { StepMark } from '../kit/StepMark.tsx'
 import ui from '../kit/ui.module.css'
 import { Presence } from '../motion/exits.tsx'

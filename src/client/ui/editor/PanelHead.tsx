@@ -9,8 +9,9 @@
 
 import { useEffect, useState } from 'react'
 import type { T } from '../../i18n.ts'
+import { copyText } from '../kit/clipboard.ts'
+import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
-import { copyText, cx } from '../kit/primitives.tsx'
 import ui from '../kit/ui.module.css'
 import { SwapIcon } from '../motion/swapText.tsx'
 import css from './inspector.module.css'

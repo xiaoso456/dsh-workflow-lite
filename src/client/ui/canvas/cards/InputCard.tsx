@@ -6,8 +6,8 @@
 
 import { Handle, type NodeProps, Position } from '@xyflow/react'
 import { memo } from 'react'
+import { cx } from '../../kit/cx.ts'
 import { Icon } from '../../kit/Icon.tsx'
-import { cx } from '../../kit/primitives.tsx'
 import css from '../canvas.module.css'
 import type { InputFlowNode } from '../types.ts'
 

@@ -17,9 +17,10 @@
 
 import { useEffect } from 'react'
 import type { T } from '../../i18n.ts'
+import { cx } from './cx.ts'
 import { Icon } from './Icon.tsx'
-import { cx, FLOAT_EXIT_MS, useFloat } from './primitives.tsx'
 import ui from './ui.module.css'
+import { FLOAT_EXIT_MS, useFloat } from './useFloat.tsx'
 
 const CONFIRM_W = 288
 /** 离触发器远一点：触发器常在一条带内边距的栏里，卡片别压到栏的边。 */

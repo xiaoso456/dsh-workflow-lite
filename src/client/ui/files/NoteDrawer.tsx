@@ -9,8 +9,8 @@
 
 import { useEffect } from 'react'
 import type { T } from '../../i18n.ts'
+import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
-import { cx } from '../kit/primitives.tsx'
 import ui from '../kit/ui.module.css'
 import { useExit } from '../motion/exits.tsx'
 import { FadeMark, FadeText } from '../motion/marks.tsx'

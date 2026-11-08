@@ -19,8 +19,9 @@ import {
   type StepIcon,
 } from '../../../shared/appearance.ts'
 import type { LocaleKey, T } from '../../i18n.ts'
+import { cx } from '../kit/cx.ts'
 import { Icon, type IconName } from '../kit/Icon.tsx'
-import { cx, Popover } from '../kit/primitives.tsx'
+import { Popover } from '../kit/Popover.tsx'
 import { StepMark } from '../kit/StepMark.tsx'
 import ui from '../kit/ui.module.css'
 import { PickThumb } from '../motion/thumb.tsx'

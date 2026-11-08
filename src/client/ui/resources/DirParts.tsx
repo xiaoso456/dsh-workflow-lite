@@ -12,8 +12,8 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/resources/DirParts
  */
 
+import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
-import { cx } from '../kit/primitives.tsx'
 import ui from '../kit/ui.module.css'
 import { FadeMark, FadeText } from '../motion/marks.tsx'
 import css from './picker.module.css'

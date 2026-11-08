@@ -7,8 +7,8 @@
 import { useState } from 'react'
 import css from '../display/display.module.css'
 import { SwapText, useTrend } from '../motion/swapText.tsx'
+import { cx } from './cx.ts'
 import { Icon } from './Icon.tsx'
-import { cx } from './primitives.tsx'
 
 /**
  * 能直接改的数字（宽、高、缩放、上下文）：输入时只是草稿，回车、失焦才交给 `onCommit`（夹进范围、取整由调用方定）；

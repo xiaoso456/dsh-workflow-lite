@@ -10,8 +10,9 @@
 import { useEffect, useState } from 'react'
 import type { Desktop, DesktopApp } from '../../app/desktop.ts'
 import type { T } from '../../i18n.ts'
+import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
-import { cx, Popover } from '../kit/primitives.tsx'
+import { Popover } from '../kit/Popover.tsx'
 import ui from '../kit/ui.module.css'
 import css from './files.module.css'
 

@@ -37,8 +37,8 @@ import {
   stepCursor,
 } from '../../model/folderBrowse.ts'
 import { shortTime } from '../../model/time.ts'
+import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
-import { cx } from '../kit/primitives.tsx'
 import { Segmented } from '../kit/Segmented.tsx'
 import ui from '../kit/ui.module.css'
 import { useTrail } from '../motion/flip.ts'

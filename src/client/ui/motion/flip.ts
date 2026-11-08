@@ -10,7 +10,7 @@
  */
 
 import { type RefObject, useCallback, useEffect, useLayoutEffect, useRef } from 'react'
-import { ghostClone } from '../kit/primitives.tsx'
+import { ghostClone } from '../kit/ghost.ts'
 import { EASE, EASE_OUT, fadeAway, leaving, REDUCED, seen } from './shared.ts'
 import { swappedAt } from './swap.tsx'
 

@@ -20,8 +20,9 @@ import {
   type ReusePolicy,
 } from '../../../shared/types.ts'
 import type { LocaleKey, T } from '../../i18n.ts'
+import { cx } from '../kit/cx.ts'
+import { HelpTip } from '../kit/HelpTip.tsx'
 import { Icon, type IconName } from '../kit/Icon.tsx'
-import { cx, HelpTip } from '../kit/primitives.tsx'
 import { Segmented } from '../kit/Segmented.tsx'
 import ui from '../kit/ui.module.css'
 import { CheckBox, FadeMark } from '../motion/marks.tsx'

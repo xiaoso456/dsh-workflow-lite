@@ -14,7 +14,8 @@ import {
   useRef,
   useState,
 } from 'react'
-import { cx, ghostClone } from '../kit/primitives.tsx'
+import { cx } from '../kit/cx.ts'
+import { ghostClone } from '../kit/ghost.ts'
 import ui from '../kit/ui.module.css'
 import { EASE_OUT, REDUCED } from './shared.ts'
 

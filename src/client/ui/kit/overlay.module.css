@@ -38,7 +38,7 @@
  * 弹簧放大浮起：从 0.8 大、低 32px 的地方弹到位，略过冲再收住（--wl-spring）。
  * 缩放的原点由 Modal 在打开前量好、写成行内 `transform-origin`（从触发它的按钮、点的位置长出来）；
  * 没量到就是卡片中心。淡入单独一条（弹簧的过冲会被 opacity 截在 1，放在一起会让淡入看着过早收住）。
- * 收起见 primitives 的 ghostOut。
+ * 收起见 ghost.ts 的 ghostOut。
  */
 @keyframes dialogIn {
   from {

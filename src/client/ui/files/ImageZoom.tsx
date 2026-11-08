@@ -25,9 +25,11 @@ import {
   ZOOM_STEP,
   zoomView,
 } from '../../model/imageView.ts'
+import { cx } from '../kit/cx.ts'
+import { ghostClone } from '../kit/ghost.ts'
 import { Icon } from '../kit/Icon.tsx'
+import { Modal } from '../kit/Modal.tsx'
 import overlay from '../kit/overlay.module.css'
-import { cx, ghostClone, Modal } from '../kit/primitives.tsx'
 import { Segmented } from '../kit/Segmented.tsx'
 import ui from '../kit/ui.module.css'
 import { SwapText, useTrend } from '../motion/swapText.tsx'

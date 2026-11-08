@@ -8,8 +8,9 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
+import { cx } from './cx.ts'
 import { Icon } from './Icon.tsx'
-import { cx, Popover } from './primitives.tsx'
+import { Popover } from './Popover.tsx'
 import css from './select.module.css'
 import ui from './ui.module.css'
 

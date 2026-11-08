@@ -21,8 +21,9 @@ import { MAX_RESOURCE_ITEMS } from '../../../shared/limits.ts'
 import type { ResourceItem, ResourceKind } from '../../../shared/types.ts'
 import type { HostAccess } from '../../app/host.ts'
 import type { LocaleKey, T } from '../../i18n.ts'
+import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
-import { cx, Popover } from '../kit/primitives.tsx'
+import { Popover } from '../kit/Popover.tsx'
 import {
   addItems,
   itemLocation,

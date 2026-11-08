@@ -22,9 +22,10 @@ import {
   visibleRuns,
 } from '../../model/switcherSearch.ts'
 import { useConfirm } from '../kit/Confirm.tsx'
+import { cx } from '../kit/cx.ts'
 import { EditActions } from '../kit/EditActions.tsx'
 import { Icon } from '../kit/Icon.tsx'
-import { cx, Popover } from '../kit/primitives.tsx'
+import { Popover } from '../kit/Popover.tsx'
 import ui from '../kit/ui.module.css'
 import { useLineExit } from '../motion/exits.tsx'
 import { useResizeFlip } from '../motion/flip.ts'

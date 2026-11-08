@@ -12,8 +12,8 @@
 import { useRef } from 'react'
 import type { T } from '../../i18n.ts'
 import css from '../editor/inspector.module.css'
+import { cx } from './cx.ts'
 import { EditActions } from './EditActions.tsx'
-import { cx } from './primitives.tsx'
 import ui from './ui.module.css'
 
 export function TitleField(props: {

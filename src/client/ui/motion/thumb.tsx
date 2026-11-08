@@ -6,7 +6,7 @@
  */
 
 import { useLayoutEffect, useRef, useState } from 'react'
-import { cx } from '../kit/primitives.tsx'
+import { cx } from '../kit/cx.ts'
 import ui from '../kit/ui.module.css'
 import { EASE_OUT, REDUCED } from './shared.ts'
 import { swappedAt } from './swap.tsx'

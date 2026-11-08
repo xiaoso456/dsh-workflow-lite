@@ -31,8 +31,8 @@ import {
 import { errorMessage, type WorkflowLiteRpc } from '../../rpc.ts'
 import css from '../display/display.module.css'
 import { FilterField } from '../display/options/FilterField.tsx'
+import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
-import { cx } from '../kit/primitives.tsx'
 import ui from '../kit/ui.module.css'
 import files from './files.module.css'
 

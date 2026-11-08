@@ -5,8 +5,8 @@
  */
 
 import { extensionOf, fileKindOf } from '../../model/fileKind.ts'
+import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
-import { cx } from '../kit/primitives.tsx'
 import css from './files.module.css'
 
 export function FileTag(props: { path: string; large?: boolean }): React.JSX.Element {

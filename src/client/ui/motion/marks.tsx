@@ -5,7 +5,7 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/motion/marks
  */
 
-import { cx } from '../kit/primitives.tsx'
+import { cx } from '../kit/cx.ts'
 import ui from '../kit/ui.module.css'
 import { useLast } from './swapText.tsx'
 
