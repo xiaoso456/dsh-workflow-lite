@@ -134,8 +134,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .roleTag,
-  .markTag {
+  .roleTag {
     animation: none;
   }
 
@@ -316,6 +315,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .markTag,
   .runChip[data-status] {
     animation: none;
   }
