@@ -24,7 +24,8 @@ import { Icon } from '../kit/Icon.tsx'
 import ui from '../kit/ui.module.css'
 import { FLOAT_EXIT_MS, useFloat } from '../kit/useFloat.tsx'
 import { SwapText, useTrend } from '../motion/swapText.tsx'
-import css from './display.module.css'
+import shared from './display.module.css'
+import css from './historyBar.module.css'
 
 /**
  * 钟表像轮子一样滚：转过的角度 = 走过的距离 ÷ 半径（表盘 20px 宽）。跨得远时封顶——
@@ -119,7 +120,7 @@ export function HistoryBar(props: {
     <>
       {createPortal(
         <span
-          className={css.history}
+          className={shared.history}
           data-old={old || undefined}
           data-preview={props.previewing || undefined}
           data-open={open || undefined}
@@ -128,7 +129,7 @@ export function HistoryBar(props: {
           <button
             ref={menu.anchorRef}
             type="button"
-            className={cx(css.historyPick, 'nodrag')}
+            className={cx(shared.historyPick, 'nodrag')}
             aria-haspopup="menu"
             aria-expanded={open}
             aria-label={`${t('history.title')}：${labels[current] ?? ''}`}
@@ -151,14 +152,14 @@ export function HistoryBar(props: {
             <span className={css.historyCount}>
               {current + 1}/{count}
             </span>
-            <span className={css.historyCaret} aria-hidden="true">
+            <span className={shared.historyCaret} aria-hidden="true">
               <Icon name="chevronDown" size={11} />
             </span>
           </button>
           {old && (
             <button
               type="button"
-              className={cx(css.historyBack, 'nodrag')}
+              className={cx(shared.historyBack, 'nodrag')}
               data-new={props.newer || undefined}
               data-tip={props.newer ? t('history.newer') : t('history.back')}
               aria-label={t('history.back')}
@@ -242,7 +243,7 @@ export function HistoryBar(props: {
         // 时间线在节点里：点击、双击、按键都别落到卡片上（会改选中、打开查看框、挪卡片）。
         // biome-ignore lint/a11y/noStaticElementInteractions: 只是截住冒泡
         <div
-          className={cx(css.historyTimeline, 'nodrag', 'nopan')}
+          className={cx(shared.historyTimeline, 'nodrag', 'nopan')}
           data-testid="wl-display-history-timeline"
           onClick={stop}
           onDoubleClick={stop}
@@ -265,7 +266,7 @@ export function HistoryBar(props: {
         >
           <div
             ref={track}
-            className={css.historyTrack}
+            className={shared.historyTrack}
             role="radiogroup"
             aria-label={t('history.title')}
             style={
@@ -310,7 +311,7 @@ export function HistoryBar(props: {
                 aria-checked={index === pinnedAt}
                 aria-label={labels[index]}
                 tabIndex={index === pinnedAt ? 0 : -1}
-                className={css.historyTick}
+                className={shared.historyTick}
                 data-tick={index}
                 data-edge={index === 0 ? 'first' : index === count - 1 ? 'last' : undefined}
                 data-tone={dot.tone ?? undefined}
@@ -323,20 +324,20 @@ export function HistoryBar(props: {
                 // 键盘上回车、空格（指针在按下时就钉住了，这里再钉一次也一样）。
                 onClick={() => props.onPin(dot.v)}
               >
-                <span className={css.historyMajor} />
+                <span className={shared.historyMajor} />
               </button>
             ))}
             {/* 滑块：一格宽、按 --at 横移，钟表在格子中间。 */}
             <span className={css.historyThumb} aria-hidden="true">
               <svg
-                className={css.historyClock}
+                className={shared.historyClock}
                 viewBox="0 0 24 24"
                 width="20"
                 height="20"
                 aria-hidden="true"
               >
                 <g className={css.historyRoll} style={{ transform: `rotate(${roll.deg}deg)` }}>
-                  <circle className={css.historyClockBack} cx="12" cy="12" r="11.5" />
+                  <circle className={shared.historyClockBack} cx="12" cy="12" r="11.5" />
                   <circle className={css.historyClockTrack} cx="12" cy="12" r="9" />
                   {/* 表圈走了几分之几：第几版 / 共几版，从十二点顺时针。 */}
                   <circle
@@ -353,17 +354,17 @@ export function HistoryBar(props: {
             </span>
             {/* 说明：滑到显示的那一段下面（头尾两段贴边对齐）。 */}
             <span
-              className={css.historyCaption}
+              className={shared.historyCaption}
               style={{ '--at': current } as React.CSSProperties}
               data-edge={current === 0 ? 'first' : current === count - 1 ? 'last' : undefined}
               aria-hidden="true"
             >
               <span
-                className={css.historyCaptionText}
+                className={shared.historyCaptionText}
                 data-tone={currentDot?.tone ?? undefined}
                 data-testid="wl-display-history-caption"
               >
-                <span className={css.historyCaptionDot} />
+                <span className={shared.historyCaptionDot} />
                 <span className={css.historyCaptionName}>{labels[current]}</span>
                 {currentDot?.version != null && (
                   <span className={css.historyCaptionTime}>{shortTime(currentDot.version.at)}</span>

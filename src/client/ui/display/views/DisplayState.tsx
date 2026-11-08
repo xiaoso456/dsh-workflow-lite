@@ -5,7 +5,7 @@
  */
 
 import { Icon, type IconName } from '../../kit/Icon.tsx'
-import css from '../display.module.css'
+import css from './displayState.module.css'
 
 /** 占位与读不了的说明：居中一枚图标、一两行字。 */
 export function DisplayState(props: {

@@ -1,0 +1,123 @@
+/*
+ * 画布展示卡（DisplayCard.tsx）自己的几块：标题行里的名字与状态位、右上角的操作按钮、历史条的挂位、右下角改尺寸的拖柄与读数。
+ * 外框、标题行、展示区这些各种视图共用的样子留在 display/display.module.css。
+ */
+
+/* 标题和紧跟其后的状态（生成中、刚更新、筛出几行）占住标题行剩下的地方；标题太长时标题省略，状态不让。 */
+.titleLine {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+.statusSlot {
+  display: flex;
+  flex: none;
+}
+
+.statusSlot:empty {
+  display: none;
+}
+
+.action {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: calc(6px * var(--wl-round, 1));
+  background: transparent;
+  color: var(--wl-text-3);
+  cursor: pointer;
+}
+
+.action:hover {
+  background: var(--wl-hover);
+  color: var(--wl-text);
+}
+
+.action[aria-pressed="true"] {
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+}
+
+.action:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+/* ── 改尺寸：右下角的拖柄、拖动中的读数 ── */
+
+.grip {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  z-index: 3;
+  width: 18px;
+  height: 18px;
+  cursor: nwse-resize;
+  touch-action: none;
+}
+
+.grip::before {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 9px;
+  height: 9px;
+  border-right: 2px solid var(--wl-accent);
+  border-bottom: 2px solid var(--wl-accent);
+  border-bottom-right-radius: calc(3px * var(--wl-round, 1));
+  content: "";
+}
+
+.sizeTag {
+  position: absolute;
+  right: 0;
+  bottom: -28px;
+  padding: 2px 8px;
+  border-radius: calc(6px * var(--wl-round, 1));
+  background: var(--wl-tip);
+  color: var(--wl-tip-on);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/*
+ * ── 各轮产出（HistoryBar） ──
+ * 两块都和标题行右边的按钮一样：悬停卡片、选中、进了交互、开着细项时才出来。
+ * - 标题行里写看的是哪一版，跟着时间线上悬停的那一点换字；点它下拉出各版列表。钉在旧版时换强调色底，旁边一个 ✕ 回到最新。
+ * - 卡片底边外一条和卡片等宽的时间线（挂在 historyRail 里，卡片不裁）；拖卡片、改大小时让开。
+ */
+.historySlot {
+  display: flex;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 60%;
+}
+
+.historySlot:empty {
+  display: none;
+}
+
+/* 时间线挂的位置：卡片底边外，和卡片等宽。上面 6px 的缝是时间线自己的桥，指针从卡片移下来不会中途收掉。 */
+.historyRail {
+  position: absolute;
+  z-index: 3;
+  top: 100%;
+  /* 卡片有 1px 边框：往外各扩 1px，和卡片外沿对齐。 */
+  right: -1px;
+  left: -1px;
+  padding-top: 6px;
+  pointer-events: none;
+}
+
+.historyRail:empty {
+  display: none;
+}

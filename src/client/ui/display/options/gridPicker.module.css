@@ -1,0 +1,51 @@
+/*
+ * 图墙张数（GridPicker.tsx）：8 × 6 的小方格，挑几列几行。
+ */
+
+.gridPick {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.gridCells {
+  display: grid;
+  flex: none;
+  grid-template-columns: repeat(8, 14px);
+  gap: 3px;
+}
+
+/* 一格：灰底；在选中范围里是强调色浅底，第一张的大格那四格深一档。只换颜色（按项目的 120ms 线性）。 */
+.gridCell {
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: 0;
+  border-radius: calc(3px * var(--wl-round, 1));
+  background: var(--wl-fill);
+  cursor: pointer;
+  transition: background-color 120ms linear;
+}
+
+.gridCell[data-on] {
+  background: color-mix(in oklab, var(--wl-accent) 38%, var(--wl-fill));
+}
+
+.gridCell[data-hero] {
+  background: color-mix(in oklab, var(--wl-accent) 70%, var(--wl-fill));
+}
+
+.gridCell:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gridCell {
+    transition: none;
+  }
+}
+
+:global([data-look="swiss"]) .gridCell {
+  border-radius: 0;
+}

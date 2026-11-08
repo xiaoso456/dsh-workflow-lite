@@ -1,0 +1,56 @@
+/*
+ * 展示区里的状态提示（DisplayState.tsx）：图标、标题和副标题。
+ */
+
+/* 占位 / 读不了：铺一层浅底，中间一枚图标、一两行字。 */
+.state {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 8px 12px;
+  background: color-mix(in oklab, var(--wl-fill) 55%, transparent);
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  text-align: center;
+}
+
+.stateIcon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  margin-bottom: 2px;
+  border-radius: 50%;
+  background: var(--wl-panel);
+  color: var(--wl-text-3);
+}
+
+.state[data-tone="error"] .stateIcon {
+  background: var(--wl-warn-soft);
+  color: var(--wl-warn);
+}
+
+.stateTitle {
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-meta);
+  font-weight: 600;
+}
+
+.stateSub {
+  max-width: 100%;
+  overflow: hidden;
+  font-family: var(--wl-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 写它的步骤正在跑：图标换成强调色。 */
+.state[data-busy] .stateIcon {
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+}

@@ -29,12 +29,13 @@ import {
   windowOf,
 } from '../../model/logLines.ts'
 import { errorMessage, type WorkflowLiteRpc } from '../../rpc.ts'
-import css from '../display/display.module.css'
+import shared from '../display/display.module.css'
 import { FilterField } from '../display/options/FilterField.tsx'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import ui from '../kit/ui.module.css'
 import files from './files.module.css'
+import css from './logViewer.module.css'
 
 /** 页面里最多留几行。 */
 const WINDOW_LINES = 5000
@@ -372,11 +373,11 @@ export function LogViewer(props: {
                   : t('display.noMatch')}
             </p>
           ) : (
-            <pre className={cx(css.pre, css.logPre)} data-wrap>
+            <pre className={cx(shared.pre, shared.logPre)} data-wrap>
               {win.lines.map((line, index) => (
                 <Fragment key={line.at}>
                   {context && index > 0 && (line.skip ?? 0) > 0 && (
-                    <span className={css.skip}>
+                    <span className={shared.skip}>
                       {t('display.skipped').replace('{n}', (line.skip ?? 0).toLocaleString())}
                     </span>
                   )}
@@ -453,7 +454,7 @@ function ViewerLine(props: {
             'data-tip': props.t('file.logLocate'),
           }
         : {})}
-      className={css.line}
+      className={shared.line}
       data-at={props.at}
       data-level={level ?? undefined}
       data-ctx={props.ctx || undefined}
@@ -464,7 +465,7 @@ function ViewerLine(props: {
       {parts.map(([text, hit], index) =>
         hit ? (
           // biome-ignore lint/suspicious/noArrayIndexKey: 一行里的第几段，内容一变整行重排
-          <mark key={index} className={css.hit}>
+          <mark key={index} className={shared.hit}>
             {text}
           </mark>
         ) : (
@@ -472,7 +473,7 @@ function ViewerLine(props: {
           <Fragment key={index}>{text}</Fragment>
         ),
       )}
-      {props.long && <span className={css.longMark}>…</span>}
+      {props.long && <span className={shared.longMark}>…</span>}
     </Tag>
   )
 }

@@ -7,7 +7,8 @@
 import { useRef, useState } from 'react'
 import { GALLERY_GRID_MAX } from '../../../../shared/types.ts'
 import type { T } from '../../../i18n.ts'
-import css from '../display.module.css'
+import shared from '../display.module.css'
+import css from './gridPicker.module.css'
 
 type Grid = { columns: number; rows: number }
 
@@ -89,7 +90,7 @@ export function GridPicker(props: {
           }),
         )}
       </div>
-      <span className={css.optNote} aria-live="polite">
+      <span className={shared.optNote} aria-live="polite">
         {t('display.countPick')
           .replace('{columns}', String(shown.columns))
           .replace('{rows}', String(shown.rows))

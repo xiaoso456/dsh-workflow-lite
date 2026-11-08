@@ -1,0 +1,64 @@
+/*
+ * 日志查看器（LogViewer.tsx）：顶栏、计数、正文、两端提示、空状态和骨架。
+ */
+
+/*
+ * 查看框里看日志（LogViewer.tsx）：顶上一条筛选粘在正文区顶端（面板底色，底下一道细线），
+ * 正文和卡片里同一套行样式，只是字大一号、留白宽一些；前后各一行小字说还有多少、读到哪了。
+ */
+.logView {
+  min-height: 100%;
+}
+
+.logBar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--wl-line);
+  background: var(--wl-panel);
+}
+
+.logBarEnd {
+  display: inline-flex;
+  flex: none;
+  gap: 2px;
+  align-items: center;
+  margin-left: auto;
+}
+
+.logCount {
+  margin-right: 6px;
+  color: var(--wl-accent-text);
+  font-size: var(--wl-fs-micro);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.logError {
+  margin: 12px 20px 0;
+  color: var(--wl-danger);
+  font-size: var(--wl-fs-meta);
+}
+
+.logBody {
+  padding: 4px 20px 24px;
+}
+
+.logEdge {
+  margin: 8px 0;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  text-align: center;
+}
+
+.logEmpty {
+  margin: 48px 0;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+  text-align: center;
+}
+
+.logSkeleton {
+  height: 240px;
+}

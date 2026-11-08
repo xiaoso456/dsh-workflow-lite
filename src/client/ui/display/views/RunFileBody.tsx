@@ -17,10 +17,11 @@ import { dotIndex, historyLine } from '../../../model/outputHistory.ts'
 import { Icon } from '../../kit/Icon.tsx'
 import { SlideSwap } from '../../motion/stage.tsx'
 import { useTrend } from '../../motion/swapText.tsx'
-import css from '../display.module.css'
+import shared from '../display.module.css'
 import { type DisplayEnv, HistorySlotContext } from '../displayEnv.ts'
 import { HistoryBar } from '../HistoryBar.tsx'
 import { RunFileView } from './RunFileView.tsx'
+import css from './runFileBody.module.css'
 
 /** 「刚更新」亮多久（淡入、停留、淡出一共）。 */
 const FRESH_MS = 4000
@@ -114,7 +115,7 @@ export function RunFileBody(props: {
             )}
           </SlideSwap>
         ) : (
-          <div className={css.loading} />
+          <div className={shared.loading} />
         )}
       </div>
       {chips(

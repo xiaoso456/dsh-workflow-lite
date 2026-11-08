@@ -8,7 +8,7 @@
  * - 文件夹（图墙）：和真的一样排的格子，最新那张的大格里一座山。
  *
  * 线框只是「这里会出现什么」的示意，颜色压得很低，一眼就看得出不是真内容；尺寸跟着展示区走
- * （窄、矮的卡片上收掉放不下的部分，见 `display.module.css` 的容器查询）。全是静态的，不读文件、不动；
+ * （窄、矮的卡片上收掉放不下的部分，见 `displaySketch.module.css` 的容器查询）。全是静态的，不读文件、不动；
  * 写它的步骤正在跑时，上面扫一道光。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/display/DisplaySketch
@@ -17,7 +17,7 @@
 import { GALLERY_GAP, galleryGrid, galleryTracks, ratioText } from '../../../shared/display.ts'
 import type { Display } from '../../model/display.ts'
 import { Icon, type IconName } from '../kit/Icon.tsx'
-import css from './display.module.css'
+import css from './displaySketch.module.css'
 
 /** 几行的长短（百分比）：固定的一组，每张卡都一样，不随机。 */
 const PROSE = [92, 78, 86, 64]

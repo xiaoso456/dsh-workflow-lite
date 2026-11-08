@@ -30,6 +30,7 @@ import { useCrossfade } from '../../motion/crossfade.ts'
 import css from '../canvas.module.css'
 import type { CardDisplay, ResourceFlowNode } from '../types.ts'
 import { tintStyle } from './cardParts.ts'
+import own from './displayCard.module.css'
 
 /**
  * 展示卡：资源卡开了画布展示。上面一行和资源卡一样（类型签、名字、在不在），下面是展示区（见 ResourceDisplay）。
@@ -233,11 +234,11 @@ export function DisplayCard(
             <Icon name={KIND_ICON[display.item.kind]} size={12} />
           )}
         </span>
-        <span className={dcss.titleLine}>
+        <span className={own.titleLine}>
           <span className={dcss.title}>{data.title}</span>
-          <span ref={setStatus} className={dcss.statusSlot} />
+          <span ref={setStatus} className={own.statusSlot} />
         </span>
-        <span ref={setSlot} className={dcss.historySlot} />
+        <span ref={setSlot} className={own.historySlot} />
         {data.tone !== 'ok' && (
           <span className={css.cardFlag} data-tone={data.tone}>
             <Icon name="alert" size={12} />
@@ -249,7 +250,7 @@ export function DisplayCard(
             <button
               ref={settings.anchorRef}
               type="button"
-              className={cx(dcss.action, 'nodrag')}
+              className={cx(own.action, 'nodrag')}
               aria-pressed={settingsOpen}
               aria-haspopup="dialog"
               data-tip={settingsOpen ? undefined : env.t('display.settings')}
@@ -267,7 +268,7 @@ export function DisplayCard(
           {canInteract && (
             <button
               type="button"
-              className={cx(dcss.action, 'nodrag')}
+              className={cx(own.action, 'nodrag')}
               aria-pressed={interactive}
               data-tip={interactive ? display.leaveText : display.interactText}
               aria-label={interactive ? display.leaveText : display.interactText}
@@ -283,7 +284,7 @@ export function DisplayCard(
           {latest !== undefined && found !== undefined && env !== null && (
             <button
               type="button"
-              className={cx(dcss.action, 'nodrag')}
+              className={cx(own.action, 'nodrag')}
               data-tip={env.t('display.lastRunTip').replace('{time}', shortTime(found.mtime))}
               aria-label={env.t('display.lastRun').replace('{time}', shortTime(found.mtime))}
               data-testid="wl-display-last-run"
@@ -298,7 +299,7 @@ export function DisplayCard(
           {canOpen && (
             <button
               type="button"
-              className={cx(dcss.action, 'nodrag')}
+              className={cx(own.action, 'nodrag')}
               data-tip={display.openText}
               aria-label={display.openText}
               data-testid="wl-display-open"
@@ -332,7 +333,7 @@ export function DisplayCard(
           />
         </HistorySlotContext.Provider>
       </div>
-      <span ref={setRail} className={dcss.historyRail} />
+      <span ref={setRail} className={own.historyRail} />
       {data.shared && (
         <span
           className={css.resShared}
@@ -344,7 +345,7 @@ export function DisplayCard(
       )}
       {selected && !interactive && (
         <span
-          className={cx(dcss.grip, 'nodrag nopan')}
+          className={cx(own.grip, 'nodrag nopan')}
           data-tip={display.resizeText}
           aria-hidden="true"
           data-testid="wl-display-resize"
@@ -381,7 +382,7 @@ export function DisplayCard(
           ),
         })}
       {live !== null && (
-        <span className={dcss.sizeTag} data-testid="wl-display-size-tag">
+        <span className={own.sizeTag} data-testid="wl-display-size-tag">
           {live.zoom !== undefined
             ? display.zoomText.replace('{zoom}', String(live.zoom))
             : `${live.width} × ${live.height}${

@@ -1,0 +1,120 @@
+/*
+ * 文件夹列表视图（FolderList.tsx）：一行一项的列表，和一格一项的图块两种排法。
+ */
+
+/* 文件夹里没有图：一行一项，左边类型签、右边大小，行间一道淡线。 */
+.folderList {
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+  font-size: var(--wl-fs-micro);
+}
+
+.folderRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  height: 26px;
+  padding: 0 12px;
+  border-bottom: 1px solid color-mix(in oklab, var(--wl-line) 60%, transparent);
+}
+
+.folderIcon {
+  display: flex;
+  flex: none;
+  justify-content: center;
+  width: 30px;
+  color: var(--wl-text-3);
+}
+
+.folderName {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folderSize {
+  flex: none;
+  color: var(--wl-text-3);
+  font-family: var(--wl-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.folderMore {
+  padding: 6px 12px;
+  color: var(--wl-text-3);
+}
+
+.folderTime {
+  flex: none;
+  color: var(--wl-text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 文件排成格子：一格一个大一号的类型记号、名字最多两行、下面大小（和修改时间）。 */
+.folderGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+  gap: 4px;
+  margin: 0;
+  padding: 8px;
+  list-style: none;
+  font-size: var(--wl-fs-micro);
+}
+
+.folderGrid .folderMore {
+  grid-column: 1 / -1;
+  padding: 4px;
+}
+
+.folderCell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+  min-width: 0;
+  padding: 10px 4px 6px;
+  border-radius: calc(6px * var(--wl-round, 1));
+  /* 拿字色调一层薄底：镂空的卡（底是画布色）上也看得出一格一格。 */
+  background: color-mix(in oklab, var(--wl-text) 6%, transparent);
+}
+
+.folderCellIcon {
+  display: grid;
+  place-items: center;
+  height: 26px;
+  color: var(--wl-text-3);
+}
+
+.folderCellName {
+  display: -webkit-box;
+  width: 100%;
+  overflow: hidden;
+  color: var(--wl-text);
+  line-height: 1.3;
+  text-align: center;
+  word-break: break-all;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+/* 格子里的大小、修改时间：一行一样、居中，放不下就截。 */
+.folderCellMeta {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: 0.92em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:global([data-look="swiss"]) .folderCell {
+  border-radius: 0;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--wl-line);
+}

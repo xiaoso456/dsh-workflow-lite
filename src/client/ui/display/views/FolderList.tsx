@@ -12,8 +12,9 @@ import { folderOrder } from '../../../model/folderView.ts'
 import { shortTime } from '../../../model/time.ts'
 import { FileTag } from '../../files/FileTag.tsx'
 import { Icon } from '../../kit/Icon.tsx'
-import css from '../display.module.css'
+import shared from '../display.module.css'
 import { DisplayState } from './DisplayState.tsx'
+import css from './folderList.module.css'
 
 /** 列表最多排几项（再多写「还有 N 项」）。 */
 const FOLDER_ROWS = 40
@@ -51,7 +52,7 @@ export function FolderList(props: {
       <FileTag path={entry.name} large={large} />
     )
   return (
-    <div className={css.flowClip}>
+    <div className={shared.flowClip}>
       <ul
         className={grid ? css.folderGrid : css.folderList}
         data-testid="wl-display-folder"

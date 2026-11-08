@@ -1,0 +1,124 @@
+/*
+ * 运行文件视图（RunFileBody.tsx）标题行里的状态小标：小标本体、圆点和它们的动效。
+ */
+
+/*
+ * 右上角的小签：写它的步骤在跑时「生成中」（点慢慢呼吸），现在的文件更新了「刚更新」（落下来、停几秒、淡出）。
+ * 不接鼠标，不挡卡片里的东西。
+ */
+.chip {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 3;
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px 0 7px;
+  border-radius: calc(10px * var(--wl-round, 1));
+  background: var(--wl-panel);
+  box-shadow:
+    0 0 0 1px var(--wl-line),
+    var(--wl-shadow-1);
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-micro);
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* 筛着看时左上角那枚：写匹配了多少（悬停看在找什么）。接鼠标只为了提示。 */
+.chip[data-side="left"] {
+  right: auto;
+  left: 8px;
+  gap: 4px;
+  color: var(--wl-accent-text);
+  pointer-events: auto;
+}
+
+.chipDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--wl-accent);
+}
+
+/* 「生成中」的点和步骤卡上「执行中」同色（强调色），慢慢呼吸；「刚更新」的点不动。 */
+.chip[data-live] .chipDot {
+  animation: liveBreath 1.6s ease-in-out infinite alternate;
+}
+
+@keyframes liveBreath {
+  to {
+    opacity: 0.3;
+  }
+}
+
+.chip[data-fresh] {
+  animation: freshChip 4s var(--wl-ease-out) both;
+}
+
+@keyframes freshChip {
+  0% {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  8%,
+  78% {
+    opacity: 1;
+    transform: none;
+  }
+  100% {
+    opacity: 0;
+    transform: none;
+  }
+}
+
+/* 挂在标题行里的状态签：不要底和框，只留点和字，和标题同一行排开。 */
+.chips {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.chips .chip {
+  position: static;
+  height: auto;
+  padding: 0;
+  background: none;
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chip[data-live] .chipDot {
+    animation: none;
+  }
+
+  /* 「刚更新」、新行的高亮只淡入淡出，不落下来（不淡的话它们就一直亮着）。 */
+  .chip[data-fresh] {
+    animation-name: freshChipStill;
+  }
+}
+
+@keyframes freshChipStill {
+  0% {
+    opacity: 0;
+  }
+  8%,
+  78% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+:global([data-look="swiss"]) .chip {
+  box-shadow: 0 0 0 1px var(--wl-text);
+}
+
+:global([data-look="swiss"]) .chips .chip {
+  box-shadow: none;
+}

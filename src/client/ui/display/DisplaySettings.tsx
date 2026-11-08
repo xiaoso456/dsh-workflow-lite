@@ -42,6 +42,7 @@ import ins from '../editor/inspector.module.css'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import { RollInput, Stepper } from '../kit/NumberStep.tsx'
+import numberStep from '../kit/numberStep.module.css'
 import { itemName } from '../kit/resourceUi.ts'
 import { Segmented } from '../kit/Segmented.tsx'
 import { Select } from '../kit/Select.tsx'
@@ -52,7 +53,8 @@ import { FadeText, SwitchTrack } from '../motion/marks.tsx'
 import { SwapText } from '../motion/swapText.tsx'
 import { PickThumb } from '../motion/thumb.tsx'
 import { ContentOptions } from './DisplayContent.tsx'
-import css from './display.module.css'
+import shared from './display.module.css'
+import css from './displaySettings.module.css'
 import { GroupHead } from './options/optionParts.tsx'
 
 type SizeKey = 's' | 'm' | 'l' | 'custom'
@@ -202,9 +204,9 @@ export function DisplayOptions(props: {
       : t('display.sizeTip')
 
   return (
-    <div className={css.options} data-testid="wl-display-options">
+    <div className={shared.options} data-testid="wl-display-options">
       {props.items !== undefined && props.items.options.length > 1 && (
-        <section className={css.optGroup}>
+        <section className={shared.optGroup}>
           <GroupHead label={t('display.item')} />
           <Select<string>
             label={t('display.item')}
@@ -216,12 +218,12 @@ export function DisplayOptions(props: {
         </section>
       )}
 
-      <section className={css.optGroup}>
+      <section className={shared.optGroup}>
         <GroupHead label={t('display.sizeGroup')} />
         {/* 三档和宽高并排：宽高不是三档之一时三档都不亮，框里的数就是自定义的尺寸。 */}
-        <div className={css.optLine}>
-          <span className={css.optLabel}>{t('display.size')}</span>
-          <div className={css.optGrow}>
+        <div className={shared.optLine}>
+          <span className={shared.optLabel}>{t('display.size')}</span>
+          <div className={shared.optGrow}>
             <Segmented<SizeKey>
               label={t('display.size')}
               value={sizeKeyOf(display.kind, display.width, display.height)}
@@ -242,7 +244,7 @@ export function DisplayOptions(props: {
               label={t('display.width')}
               value={display.width}
               testId="wl-display-width"
-              className={css.sizeInput}
+              className={numberStep.sizeInput}
               step={(up, big) => (big ? 40 : 8) * (up ? 1 : -1)}
               onCommit={(width) => set(snapView(width, display.height))}
             />
@@ -253,7 +255,7 @@ export function DisplayOptions(props: {
               label={t('display.height')}
               value={display.height}
               testId="wl-display-height"
-              className={css.sizeInput}
+              className={numberStep.sizeInput}
               step={(up, big) => (big ? 40 : 8) * (up ? 1 : -1)}
               onCommit={(height) => set(snapView(display.width, height))}
             />
@@ -261,9 +263,9 @@ export function DisplayOptions(props: {
         </div>
         {/* 文件夹的摆放是每一格的事，放在「文件夹」那组里。 */}
         {display.kind === 'image' && (
-          <div className={css.optLine}>
-            <span className={css.optLabel}>{t('display.fit')}</span>
-            <div className={css.optGrow}>
+          <div className={shared.optLine}>
+            <span className={shared.optLabel}>{t('display.fit')}</span>
+            <div className={shared.optGrow}>
               <Segmented<ViewFit>
                 label={t('display.fit')}
                 value={display.fit}
@@ -280,8 +282,8 @@ export function DisplayOptions(props: {
         )}
         {/* 缩放：图片不是「原大」时灰着、提示里说为什么（切摆放时下面的东西不跳）；文件夹的格子跟着卡片走，没有这一行。 */}
         {display.kind !== 'gallery' && (
-          <div className={css.optLine}>
-            <span className={css.optLabel}>{t('display.zoom')}</span>
+          <div className={shared.optLine}>
+            <span className={shared.optLabel}>{t('display.zoom')}</span>
             <Stepper
               label={t('display.zoom')}
               value={display.zoom}
@@ -311,14 +313,14 @@ export function DisplayOptions(props: {
         set={set}
       />
 
-      <section className={css.optGroup}>
+      <section className={shared.optGroup}>
         <GroupHead label={t('display.look')} tip={t('display.lookHint')} />
         <LookPicker t={t} value={display.look} onChange={(look) => set({ look })} />
         <button
           type="button"
           role="switch"
           aria-checked={display.hideTitle}
-          className={css.optSwitch}
+          className={shared.optSwitch}
           data-tip={t('display.hideTitleTip')}
           data-testid="wl-display-hide-title"
           onClick={() => set({ hideTitle: display.hideTitle ? undefined : true })}
@@ -329,13 +331,13 @@ export function DisplayOptions(props: {
       </section>
 
       {props.file && (
-        <section className={css.optGroup}>
+        <section className={shared.optGroup}>
           <GroupHead label={t('display.modelGroup')} />
           <button
             type="button"
             role="switch"
             aria-checked={display.adapt}
-            className={css.optSwitch}
+            className={shared.optSwitch}
             data-tip={t('display.adaptDesc')}
             data-testid="wl-display-adapt"
             onClick={() => set({ adapt: display.adapt ? false : undefined })}
@@ -483,7 +485,7 @@ export function DisplaySettings(props: {
       {view !== undefined &&
         display !== null &&
         float.render({
-          className: cx(ui.confirmPop, css.optionsPop),
+          className: cx(ui.confirmPop, shared.optionsPop),
           role: 'dialog',
           label: t('display.settings'),
           testId: 'wl-display-pop',
