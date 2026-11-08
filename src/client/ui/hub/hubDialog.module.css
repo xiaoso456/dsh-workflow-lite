@@ -1,0 +1,64 @@
+/**
+ * dsh-workflow-lite — 工作流中心外框与标题栏（`HubDialog.tsx`）：对话框尺寸、标题栏、页签，以及换页时新一页从点的那一侧滑进来。
+ */
+
+/* ── 外框与标题栏 ─────────────────────────────────────────── */
+
+div.dialog {
+  width: min(920px, 100%);
+  max-width: none;
+  height: min(620px, 100%);
+}
+
+.head {
+  display: flex;
+  flex: none;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 12px 12px 16px;
+  border-bottom: 1px solid var(--wl-line);
+}
+
+.tabs {
+  flex: none;
+  width: 400px;
+}
+
+/*
+ * 工作流中心换页：新的一页从点的那一侧滑进来（往右边的页点 → 从右边进）。
+ * 刚打开时不滑（对话框自己有入场）。
+ */
+.pane {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.pane[data-from="right"] {
+  animation: paneFromRight 260ms var(--wl-ease) backwards;
+}
+
+.pane[data-from="left"] {
+  animation: paneFromLeft 260ms var(--wl-ease) backwards;
+}
+
+@keyframes paneFromRight {
+  from {
+    opacity: 0;
+    transform: translateX(18px);
+  }
+}
+
+@keyframes paneFromLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-18px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pane[data-from] {
+    animation: none;
+  }
+}

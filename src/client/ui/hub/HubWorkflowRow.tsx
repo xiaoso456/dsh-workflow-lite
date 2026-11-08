@@ -19,6 +19,7 @@ import { Icon } from '../kit/Icon.tsx'
 import ui from '../kit/ui.module.css'
 import { useLineExit } from '../motion/exits.tsx'
 import hub from './hub.module.css'
+import css from './hubWorkflowRow.module.css'
 
 export interface HubWorkflowRowProps {
   t: T
@@ -136,11 +137,11 @@ function RenameRow(props: HubWorkflowRowProps): React.JSX.Element {
         <Icon name={entry.invalid === true ? 'alert' : 'folder'} size={15} />
       </span>
       <span className={hub.wfText}>
-        <span className={cx(ui.editRow, hub.wfField)}>
+        <span className={cx(ui.editRow, css.wfField)}>
           <span ref={lineRef} className={ui.lineField}>
             <input
               ref={ref}
-              className={cx(ui.lineInput, hub.wfInput)}
+              className={cx(ui.lineInput, css.wfInput)}
               defaultValue={entry.name}
               aria-label={t('wf.rename')}
               data-testid="wl-hub-wf-rename-input"

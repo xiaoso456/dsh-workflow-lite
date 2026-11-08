@@ -26,6 +26,7 @@ import { FLOAT_EXIT_MS, useFloat } from '../kit/useFloat.tsx'
 import { RUN_STATUS_TEXT, RunStatusBadge } from '../run/RunTopBar.tsx'
 import run from '../run/run.module.css'
 import hub from './hub.module.css'
+import css from './hubRunStatus.module.css'
 
 const MENU_W = 248
 
@@ -81,7 +82,7 @@ export function HubRunStatus(props: {
       <button
         ref={menu.anchorRef}
         type="button"
-        className={hub.statusButton}
+        className={css.statusButton}
         aria-haspopup="menu"
         aria-expanded={open || confirm.open}
         aria-label={`${t('hub.setStatus')}：${t(RUN_STATUS_TEXT[status])}`}
@@ -97,15 +98,15 @@ export function HubRunStatus(props: {
         }}
         onKeyDown={menu.onKeyDown}
       >
-        <span key={changes} className={changes > 0 ? hub.statusPop : undefined}>
+        <span key={changes} className={changes > 0 ? css.statusPop : undefined}>
           <RunStatusBadge t={t} status={status} />
         </span>
-        <span className={hub.statusCaret}>
+        <span className={css.statusCaret}>
           <Icon name="chevronDown" size={12} />
         </span>
       </button>
       {menu.render({
-        className: cx(ui.confirmPop, hub.statusMenu),
+        className: cx(ui.confirmPop, css.statusMenu),
         role: 'menu',
         label: t('hub.setStatus'),
         testId: 'wl-hub-status-menu',
@@ -118,7 +119,7 @@ export function HubRunStatus(props: {
             type="button"
             role="menuitemradio"
             aria-checked={value === status}
-            className={cx(ui.menuItem, hub.statusItem)}
+            className={cx(ui.menuItem, css.statusItem)}
             data-run-status={value}
             data-value={value}
             data-testid="wl-hub-status-item"
@@ -133,12 +134,12 @@ export function HubRunStatus(props: {
             }}
           >
             <span className={run.dot} />
-            <span className={hub.statusText}>
-              <span className={hub.statusName}>{t(RUN_STATUS_TEXT[value])}</span>
-              <span className={hub.statusHint}>{t(`run.hint.${value}` as LocaleKey)}</span>
+            <span className={css.statusText}>
+              <span className={css.statusName}>{t(RUN_STATUS_TEXT[value])}</span>
+              <span className={css.statusHint}>{t(`run.hint.${value}` as LocaleKey)}</span>
             </span>
             {value === status && (
-              <span className={hub.statusCheck}>
+              <span className={css.statusCheck}>
                 <Icon name="check" size={14} />
               </span>
             )}
@@ -155,7 +156,7 @@ export function HubRunStatus(props: {
           testId: 'wl-hub-status-confirm',
           onConfirm: () => props.onChange(target, { notify, note }),
           children: (
-            <div className={hub.statusOptions}>
+            <div className={css.statusOptions}>
               <label className={run.notify} htmlFor={notifyId} data-tip={t('run.notifyTip')}>
                 <button
                   id={notifyId}
@@ -172,7 +173,7 @@ export function HubRunStatus(props: {
               </label>
               {notify && (
                 <input
-                  className={cx(ui.input, hub.statusNote)}
+                  className={cx(ui.input, css.statusNote)}
                   value={note}
                   placeholder={t('run.notePrompt')}
                   aria-label={t('run.notePrompt')}

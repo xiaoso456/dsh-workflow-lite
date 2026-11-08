@@ -49,8 +49,9 @@ import { SwapText } from '../motion/swapText.tsx'
 import { memoryTypeText } from '../resources/ResourcePresets.tsx'
 import { HubSkillInfo, type SkillDraft } from './HubSkillInfo.tsx'
 import hub from './hub.module.css'
+import css from './hubExport.module.css'
 import { Callout, PackRow, PackSection, PackSteps } from './PackRow.tsx'
-import css from './pack.module.css'
+import pack from './pack.module.css'
 
 /** 导出成什么：工作流包（`.wflite.zip`，导回 workflow-lite）或 skill（不装插件也能用）。 */
 type ExportKind = 'pack' | 'skill'
@@ -182,7 +183,7 @@ export function HubExport(props: {
   }
 
   return (
-    <div className={cx(hub.wfDetail, hub.paneIn, css.page)} data-testid="wl-pack-export">
+    <div className={cx(hub.wfDetail, hub.paneIn, pack.page)} data-testid="wl-pack-export">
       <div className={hub.wfHead}>
         <div className={hub.wfHeadText}>
           <p className={hub.wfTitle}>{t('pack.exportTitle').replace('{name}', name)}</p>
@@ -240,15 +241,15 @@ export function HubExport(props: {
         {error !== null && <Callout tone="error">{error}</Callout>}
       </Presence>
 
-      <Staged at={`${step}:${phase}`} order={step} className={css.flow}>
+      <Staged at={`${step}:${phase}`} order={step} className={pack.flow}>
         {busy !== null ? (
-          <div className={css.busy} data-testid="wl-pack-busy">
+          <div className={pack.busy} data-testid="wl-pack-busy">
             <span className={hub.spinner} />
             {busy}
           </div>
         ) : step === 0 ? (
           list === null ? (
-            <div className={css.busy}>
+            <div className={pack.busy}>
               <span className={hub.spinner} />
               {t('hub.loading')}
             </div>
@@ -262,7 +263,7 @@ export function HubExport(props: {
             </div>
           ) : (
             <>
-              <div className={cx(css.scroll, ui.scrollFade)}>
+              <div className={cx(pack.scroll, ui.scrollFade)}>
                 {unsaved && (
                   <Callout tone="warn" testId="wl-pack-unsaved">
                     {t('pack.unsaved')}
@@ -327,8 +328,8 @@ export function HubExport(props: {
                   ))}
                 </PackSection>
               </div>
-              <div className={css.foot}>
-                <div className={css.footInfo}>
+              <div className={pack.foot}>
+                <div className={pack.footInfo}>
                   <SwapText
                     text={
                       picked.size === 0
@@ -368,7 +369,7 @@ export function HubExport(props: {
             onDone={props.onDone}
           />
         ) : scan === null ? (
-          <div className={css.busy}>
+          <div className={pack.busy}>
             <span className={hub.spinner} />
             {t('pack.scanning')}
           </div>
@@ -523,15 +524,15 @@ function Resources(props: {
 
   return (
     <>
-      <p className={cx(css.sectionHint, css.pageHint)}>
+      <p className={cx(pack.sectionHint, css.pageHint)}>
         {t(skill ? 'skillExport.resourcesHint' : 'pack.resourcesHint')}
       </p>
       {PACK_CATEGORIES.every(
         (kind) =>
           categoryItems(scan, kind).packable.length + categoryItems(scan, kind).others.length === 0,
       ) && <Callout>{t('pack.nothing')}</Callout>}
-      <div className={cx(css.scroll, ui.scrollFade)}>
-        <div ref={listRef} className={css.cats}>
+      <div className={cx(pack.scroll, ui.scrollFade)}>
+        <div ref={listRef} className={pack.cats}>
           {PACK_CATEGORIES.map((kind) => {
             const { packable, others } = categoryItems(scan, kind)
             const count = packable.length + others.length
@@ -574,8 +575,8 @@ function Resources(props: {
           })}
         </div>
       </div>
-      <div className={css.foot}>
-        <div className={css.footInfo} data-tone={over ? 'error' : left > 0 ? 'warn' : undefined}>
+      <div className={pack.foot}>
+        <div className={pack.footInfo} data-tone={over ? 'error' : left > 0 ? 'warn' : undefined}>
           <span data-testid="wl-pack-total">
             {t('pack.total').replace('{size}', formatBytes(total))}
           </span>
@@ -650,7 +651,7 @@ function Category(props: {
   const open = props.expanded && !props.empty
   const lit = props.switch === undefined ? !props.empty : props.switch.on
   return (
-    <section className={css.section} data-testid={props.testId}>
+    <section className={pack.section} data-testid={props.testId}>
       <div className={css.catHead}>
         <button
           type="button"
@@ -685,7 +686,7 @@ function Category(props: {
         )}
       </div>
       <Presence show={open}>
-        <div className={css.catBody}>{props.children}</div>
+        <div className={pack.catBody}>{props.children}</div>
       </Presence>
     </section>
   )

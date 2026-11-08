@@ -1,0 +1,24 @@
+/**
+ * dsh-workflow-lite — skill 说明对话框里的字段（`HubSkillInfo.tsx`）。
+ */
+
+.fieldWarn {
+  color: var(--wl-warn);
+  font-size: var(--wl-fs-micro);
+  overflow-wrap: anywhere;
+}
+
+.fieldHint {
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+.fieldArea {
+  resize: vertical;
+}
+
+/* 提醒里逐条列的东西（编译级问题）：一条一行。 */
+.line {
+  display: block;
+  margin-top: 2px;
+}

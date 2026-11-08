@@ -20,8 +20,9 @@ import { SwapText } from '../motion/swapText.tsx'
 import { RunStatusBadge } from '../run/RunTopBar.tsx'
 import { HubRunStatus } from './HubRunStatus.tsx'
 import hub from './hub.module.css'
+import css from './hubRunRow.module.css'
 
-/** 删除时这一行淡出的时长（和 hub.module.css 的 rowOut 一致）。 */
+/** 删除时这一行淡出的时长（和 hubRunRow.module.css 的 rowOut 一致）。 */
 const LEAVE_MS = 180
 
 export function HubRunRow(props: {
@@ -53,53 +54,53 @@ export function HubRunRow(props: {
     item.total !== undefined && item.total > 0 ? (item.done ?? 0) / item.total : undefined
   return (
     <div
-      className={hub.row}
+      className={css.row}
       style={{ '--i': props.order } as React.CSSProperties}
       data-flip={item.id}
       data-leaving={leaving}
       data-testid="wl-hub-row"
       data-id={item.id}
     >
-      <div className={hub.main}>
-        <div className={hub.titleLine}>
-          <span className={hub.name}>{item.workflow}</span>
+      <div className={css.main}>
+        <div className={css.titleLine}>
+          <span className={css.name}>{item.workflow}</span>
           {item.current && (
             <span className={hub.tag} data-tip={t('run.current')}>
               {t('hub.current')}
             </span>
           )}
         </div>
-        <div className={hub.meta}>
+        <div className={css.meta}>
           <span className={cx(hub.metaItem, hub.session)} data-tip={props.session.text}>
             <Icon name="chat" size={12} />
-            <span className={hub.sessionName}>{props.session.text}</span>
+            <span className={css.sessionName}>{props.session.text}</span>
             {props.session.mine && (
               <span className={hub.tag} data-tone="plain">
                 {t('hub.thisSession')}
               </span>
             )}
           </span>
-          <span className={cx(hub.metaItem, hub.time)}>
+          <span className={cx(hub.metaItem, css.time)}>
             <Icon name="clock" size={12} />
             {shortTime(item.createdAt)}
           </span>
           {item.goal !== undefined && item.goal !== '' && (
-            <span className={cx(hub.metaItem, hub.goal)} data-tip={item.goal}>
+            <span className={cx(hub.metaItem, css.goal)} data-tip={item.goal}>
               <Icon name="flag" size={12} />
               <span>{item.goal}</span>
             </span>
           )}
         </div>
       </div>
-      <div className={hub.progress} data-run-status={status} data-testid="wl-hub-progress">
+      <div className={css.progress} data-run-status={status} data-testid="wl-hub-progress">
         {ratio !== undefined && (
           <>
-            <span className={hub.progressText}>
+            <span className={css.progressText}>
               <SwapText pop text={`${item.done}/${item.total}`} />
             </span>
-            <span className={hub.progressBar}>
+            <span className={css.progressBar}>
               <span
-                className={hub.progressFill}
+                className={css.progressFill}
                 style={{ transform: `scaleX(${Math.min(1, ratio)})` }}
               />
             </span>
@@ -117,7 +118,7 @@ export function HubRunRow(props: {
           ) : (
             <button
               type="button"
-              className={hub.why}
+              className={css.why}
               aria-expanded={why}
               data-tip={t('hub.why')}
               data-testid="wl-hub-why"
@@ -133,7 +134,7 @@ export function HubRunRow(props: {
         文字按钮在前、图标按钮成一组在后。「移到本会话」不是每行都有：没有它的行留一个空位，
         删除还在原位（整页都没有能移的行时不留）。
       */}
-      <div className={hub.actions}>
+      <div className={css.actions}>
         <button
           type="button"
           className={cx(ui.btn, ui.small, ui.soft)}
@@ -145,7 +146,7 @@ export function HubRunRow(props: {
         {props.canMove ? (
           <button
             type="button"
-            className={cx(ui.btn, ui.icon, ui.small, hub.quiet)}
+            className={cx(ui.btn, ui.icon, ui.small, css.quiet)}
             aria-label={t('hub.move')}
             data-tip={`${t('hub.move')}\n${t('hub.moveHint')}`}
             data-testid="wl-hub-move"
@@ -154,12 +155,12 @@ export function HubRunRow(props: {
             <Icon name="moveIn" size={14} />
           </button>
         ) : (
-          props.moveSlot && <span className={hub.iconSlot} aria-hidden="true" />
+          props.moveSlot && <span className={css.iconSlot} aria-hidden="true" />
         )}
         <button
           ref={remove.anchorRef}
           type="button"
-          className={cx(ui.btn, ui.icon, ui.small, ui.danger, hub.quiet)}
+          className={cx(ui.btn, ui.icon, ui.small, ui.danger, css.quiet)}
           aria-label={t('common.delete')}
           data-tip={remove.open ? undefined : t('common.delete')}
           aria-expanded={remove.open}
@@ -195,16 +196,16 @@ export function HubRunRow(props: {
         })}
       </div>
       {why && item.stateProblem !== undefined && (
-        <div className={cx(hub.reason, ui.rise)} data-testid="wl-hub-reason">
+        <div className={cx(css.reason, ui.rise)} data-testid="wl-hub-reason">
           {item.stateProblem === 'missing' ? (
             <>
               <span>{t('hub.missingAt')}</span>
-              <code className={hub.reasonPath}>{item.statePath}</code>
+              <code className={css.reasonPath}>{item.statePath}</code>
             </>
           ) : (
             <>
               <span>{t('hub.invalidHead')}</span>
-              <ul className={hub.reasonList}>
+              <ul className={css.reasonList}>
                 {(item.stateIssues ?? []).map((issue) => (
                   <li key={`${issue.path}:${issue.message}`}>
                     {issue.path !== '' && <code>{issue.path}</code>}
@@ -212,7 +213,7 @@ export function HubRunRow(props: {
                   </li>
                 ))}
               </ul>
-              <span className={hub.reasonMore}>{t('hub.invalidMore')}</span>
+              <span className={css.reasonMore}>{t('hub.invalidMore')}</span>
             </>
           )}
         </div>

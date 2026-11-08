@@ -1,0 +1,20 @@
+/**
+ * dsh-workflow-lite — 「工作流」页左栏一行里的改名输入框（`HubWorkflowRow.tsx`）。
+ */
+
+/* 改名：底线的样子在 ui.module.css 的 `.lineField`；字对齐原来那行名字（外面 -6px、里面 6px 内边距），上下各收进一点，整行不变高。 */
+.wfField {
+  width: calc(100% + 6px);
+  margin: -1.25px 0 -1.25px -6px;
+}
+
+.wfInput {
+  height: 22px;
+  font-weight: 600;
+}
+
+.wfInput::selection {
+  /* 系统的整块深蓝太扎眼：换成半透明的主色，字还是原来的颜色。 */
+  background: color-mix(in srgb, var(--wl-accent) 32%, transparent);
+  color: var(--wl-text);
+}

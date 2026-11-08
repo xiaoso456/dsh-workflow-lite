@@ -45,8 +45,9 @@ import { Checkbox } from '../motion/marks.tsx'
 import { memoryTypeText } from '../resources/ResourcePresets.tsx'
 import type { PackScope } from './HubExport.tsx'
 import hub from './hub.module.css'
+import css from './hubImport.module.css'
 import { Callout, PackRow, PackSection } from './PackRow.tsx'
-import css from './pack.module.css'
+import pack from './pack.module.css'
 
 /** 资料文件一开始列几个（多了点「还有 N 个」展开）。 */
 const ASSET_PREVIEW = 6
@@ -124,7 +125,7 @@ export function HubImport(props: {
   }
 
   return (
-    <div className={cx(hub.wfDetail, hub.paneIn, css.page)} data-testid="wl-pack-import">
+    <div className={cx(hub.wfDetail, hub.paneIn, pack.page)} data-testid="wl-pack-import">
       <div className={hub.wfHead}>
         <div className={hub.wfHeadText}>
           <p className={hub.wfTitle}>{t('pack.importTitle')}</p>
@@ -149,7 +150,7 @@ export function HubImport(props: {
         )}
       </Presence>
       {phase.kind === 'busy' ? (
-        <div className={css.busy} data-testid="wl-pack-busy">
+        <div className={pack.busy} data-testid="wl-pack-busy">
           <span className={hub.spinner} />
           {phase.text}
         </div>
@@ -265,7 +266,7 @@ function Preview(props: {
 
   return (
     <>
-      <div className={cx(css.scroll, ui.scrollFade)}>
+      <div className={cx(pack.scroll, ui.scrollFade)}>
         <PackSection
           title={t('pack.versionsIn')}
           note={t('pack.meta')
@@ -304,7 +305,7 @@ function Preview(props: {
 
         <PackSection title={t('pack.sectionName')} testId="wl-pack-target">
           {preview.exists && (
-            <div className={css.field}>
+            <div className={pack.field}>
               <span>{t('pack.exists').replace('{name}', preview.name)}</span>
               <div className={css.choice}>
                 <Segmented<ImportChoice['mode']>
@@ -321,8 +322,8 @@ function Preview(props: {
             </div>
           )}
           {choice.mode === 'new' ? (
-            <div className={css.field}>
-              <label className={css.fieldRow}>
+            <div className={pack.field}>
+              <label className={pack.fieldRow}>
                 <span className={hub.wfSub}>{t('pack.nameLabel')}</span>
                 <input
                   className={ui.input}
@@ -333,10 +334,10 @@ function Preview(props: {
                   onChange={(event) => setChoice({ ...choice, name: event.currentTarget.value })}
                 />
               </label>
-              {nameProblem !== null && <span className={css.fieldError}>{nameProblem}</span>}
+              {nameProblem !== null && <span className={pack.fieldError}>{nameProblem}</span>}
             </div>
           ) : (
-            <div className={css.field}>
+            <div className={pack.field}>
               <span className={hub.wfSub}>
                 {t('pack.mergeHint').replace('{n}', String(preview.current))}
               </span>
@@ -346,7 +347,7 @@ function Preview(props: {
                 </Callout>
               )}
               {preview.clashes.length > 0 && (
-                <div className={css.fieldRow}>
+                <div className={pack.fieldRow}>
                   <span className={hub.wfSub}>
                     {t('pack.clashes').replace('{n}', String(preview.clashes.length))}
                   </span>
@@ -397,11 +398,11 @@ function Preview(props: {
               />
             ))}
             {preview.assets.length > ASSET_PREVIEW && (
-              <div className={css.row}>
+              <div className={pack.row}>
                 <span />
                 <button
                   type="button"
-                  className={css.sectionLink}
+                  className={pack.sectionLink}
                   onClick={() => setAllAssets(!allAssets)}
                 >
                   {allAssets
@@ -459,7 +460,7 @@ function Preview(props: {
                   end={
                     <button
                       type="button"
-                      className={css.sectionLink}
+                      className={pack.sectionLink}
                       onClick={() => setOpenSkill(open ? null : skill.name)}
                     >
                       {open ? t('pack.hideFiles') : t('pack.showFiles')}
@@ -484,7 +485,7 @@ function Preview(props: {
                     </div>
                   )}
                   <span
-                    className={css.rowMeta}
+                    className={pack.rowMeta}
                     data-tone={action === 'overwrite' ? 'warn' : undefined}
                   >
                     {destination !== null ? (
@@ -560,7 +561,7 @@ function Preview(props: {
                       />
                     </div>
                   )}
-                  <span className={css.rowMeta}>
+                  <span className={pack.rowMeta}>
                     {action === 'create'
                       ? t('pack.mem.toNew').replace('{id}', memory.id)
                       : action === 'use'
@@ -616,8 +617,8 @@ function Preview(props: {
           </label>
         )}
       </div>
-      <div className={css.foot}>
-        <div className={css.footInfo}>
+      <div className={pack.foot}>
+        <div className={pack.footInfo}>
           {t('pack.confirmDesc')
             .replace('{v}', String(summary.versions))
             .replace('{a}', String(summary.assets))

@@ -29,6 +29,7 @@ import { ListThumb } from '../motion/thumb.tsx'
 import { HubRunRow } from './HubRunRow.tsx'
 import { HubSearch } from './HubSearch.tsx'
 import hub from './hub.module.css'
+import css from './hubRuns.module.css'
 
 export function HubRuns(props: {
   t: T
@@ -212,7 +213,7 @@ function WorkspaceItem(props: {
         <Icon name="folder" size={15} />
       </span>
       <span className={hub.wfText}>
-        <span className={hub.wsName}>
+        <span className={css.wsName}>
           {/* 完整路径挂在名字上：提示贴着名字、和它左边对齐着往右展开，不是整项下面、也不越出左栏。 */}
           <span
             className={hub.wfName}
@@ -229,7 +230,7 @@ function WorkspaceItem(props: {
           {group.active > 0 && (
             <>
               {' · '}
-              <span className={hub.wsActive}>
+              <span className={css.wsActive}>
                 {t('hub.active').replace('{n}', String(group.active))}
               </span>
             </>
@@ -272,14 +273,14 @@ function WorkspaceRuns(props: {
     >
       <div className={hub.wfHead}>
         <div className={hub.wfHeadText}>
-          <p className={cx(hub.wfTitle, hub.wsTitle)}>
+          <p className={cx(hub.wfTitle, css.wsTitle)}>
             <span className={hub.wfName}>
               {workspace.path === undefined ? t('hub.noWorkspace') : workspace.name}
             </span>
             {workspace.here && <span className={hub.tag}>{t('hub.here')}</span>}
           </p>
           {workspace.path !== undefined && (
-            <p className={cx(hub.wfSub, hub.wsPath)} data-tip={workspace.path}>
+            <p className={cx(hub.wfSub, css.wsPath)} data-tip={workspace.path}>
               {workspace.path}
             </p>
           )}
@@ -288,7 +289,7 @@ function WorkspaceRuns(props: {
       {/* 标题钉在上面，实例多了只在这个框里滚。 */}
       <div
         ref={boxRef}
-        className={cx(hub.box, hub.runBox, hub.scrollBox)}
+        className={cx(hub.box, hub.runBox, css.scrollBox)}
         data-testid="wl-hub-list"
       >
         {group.items.map((item, order) => (

@@ -1,0 +1,39 @@
+/**
+ * dsh-workflow-lite — 「运行实例」页（`HubRuns.tsx`）自己的部分：左栏工作区的名字与路径，右栏在框里滚的清单框。
+ */
+
+/* 名字和「本工作区」小标一行：名字太长先省略，小标不挤掉。 */
+.wsName {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+}
+
+.wsActive {
+  color: var(--wl-accent-text);
+  font-weight: 600;
+}
+
+.wsTitle {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+.wsPath {
+  overflow: hidden;
+  font-family: var(--wl-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 在框里滚的清单框：按内容高，放不下时缩到剩下的高度；滚到头不带着外面的弹窗一起滚。 */
+.scrollBox {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}

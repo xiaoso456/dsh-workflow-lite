@@ -36,8 +36,9 @@ import { Staged } from '../motion/stage.tsx'
 import resource from '../resources/resource.module.css'
 import type { PackScope } from './HubExport.tsx'
 import hub from './hub.module.css'
+import css from './hubSkillInfo.module.css'
 import { Callout, PackRow, PackSection } from './PackRow.tsx'
-import css from './pack.module.css'
+import pack from './pack.module.css'
 
 /** 头部填的字（上一步、下一步来回切时留着）。 */
 export interface SkillDraft {
@@ -121,8 +122,8 @@ export function HubSkillInfo(props: {
   // 编好之前转圈；编好了整块原地淡入（和导出前两步之间的交接同一套，见 Staged）。
   if (preview === null) {
     return (
-      <Staged at="building" order={0} className={css.flow}>
-        <div className={css.busy}>
+      <Staged at="building" order={0} className={pack.flow}>
+        <div className={pack.busy}>
           <span className={hub.spinner} />
           {t('skillExport.building')}
         </div>
@@ -213,8 +214,8 @@ export function HubSkillInfo(props: {
 
   return (
     <>
-      <Staged at="ready" order={0} className={css.flow}>
-        <div className={cx(css.scroll, ui.scrollFade)} data-testid="wl-skill-info">
+      <Staged at="ready" order={0} className={pack.flow}>
+        <div className={cx(pack.scroll, ui.scrollFade)} data-testid="wl-skill-info">
           {blocked ? (
             <Callout tone="error" testId="wl-skill-blocked">
               {t('skillExport.blocked')}
@@ -233,8 +234,8 @@ export function HubSkillInfo(props: {
           )}
 
           <PackSection title={t('skillExport.sectionMeta')} testId="wl-skill-meta-form">
-            <div className={css.field}>
-              <label className={css.fieldRow}>
+            <div className={pack.field}>
+              <label className={pack.fieldRow}>
                 <span className={hub.wfSub}>{t('skillExport.name')}</span>
                 <input
                   className={ui.input}
@@ -248,7 +249,7 @@ export function HubSkillInfo(props: {
                 />
               </label>
               {nameError !== null ? (
-                <span className={css.fieldError}>{nameError}</span>
+                <span className={pack.fieldError}>{nameError}</span>
               ) : existing !== undefined ? (
                 <span className={css.fieldWarn} data-testid="wl-skill-name-taken">
                   {existing.path === undefined
@@ -261,7 +262,7 @@ export function HubSkillInfo(props: {
                 <span className={css.fieldHint}>{t('skillExport.nameHint')}</span>
               )}
             </div>
-            <div className={css.field}>
+            <div className={pack.field}>
               <span className={hub.wfSub}>{t('skillExport.description')}</span>
               <textarea
                 className={cx(ui.textarea, css.fieldArea)}
@@ -273,12 +274,12 @@ export function HubSkillInfo(props: {
                 onChange={(event) => set({ description: event.currentTarget.value }, true)}
               />
               {descError !== null ? (
-                <span className={css.fieldError}>{descError}</span>
+                <span className={pack.fieldError}>{descError}</span>
               ) : (
                 <span className={css.fieldHint}>{t('skillExport.descHint')}</span>
               )}
             </div>
-            <div className={css.field}>
+            <div className={pack.field}>
               <span className={hub.wfSub}>{t('skillExport.whenToUse')}</span>
               <textarea
                 className={cx(ui.textarea, css.fieldArea)}
@@ -289,7 +290,7 @@ export function HubSkillInfo(props: {
                 data-testid="wl-skill-when"
                 onChange={(event) => set({ whenToUse: event.currentTarget.value })}
               />
-              {whenError !== null && <span className={css.fieldError}>{whenError}</span>}
+              {whenError !== null && <span className={pack.fieldError}>{whenError}</span>}
             </div>
           </PackSection>
 
@@ -317,8 +318,8 @@ export function HubSkillInfo(props: {
             </PackSection>
           )}
         </div>
-        <div className={css.foot}>
-          <div className={css.footInfo}>
+        <div className={pack.foot}>
+          <div className={pack.footInfo}>
             {t('skillExport.installTip').replace('{root}', preview.skillsRoot)}
           </div>
           <button type="button" className={cx(ui.btn, ui.small)} onClick={props.onPrev}>

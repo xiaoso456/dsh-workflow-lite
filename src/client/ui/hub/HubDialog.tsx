@@ -10,7 +10,7 @@
  * - **存储**（`HubStorage.tsx`）：数据目录、各样东西的占用，清理已结束的实例与旧版本遗留文件；
  * - **设置**（`HubSettings.tsx`）：插件自己的几项设置（数据目录、步骤上限、自动保存等待……）。
  *
- * 换页时新的一页从点的那一侧滑进来（动效都只动 transform / opacity，见 `motion/` 里的各文件与 hub.module.css）。
+ * 换页时新的一页从点的那一侧滑进来（动效都只动 transform / opacity，见 `motion/` 里的各文件与 hubDialog.module.css）。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/HubDialog
  */
@@ -32,7 +32,7 @@ import { HubRuns } from './HubRuns.tsx'
 import { HubSettings } from './HubSettings.tsx'
 import { HubStorage } from './HubStorage.tsx'
 import { HubWorkflows } from './HubWorkflows.tsx'
-import hub from './hub.module.css'
+import css from './hubDialog.module.css'
 
 type HubPage = 'runs' | 'workflows' | 'memories' | 'storage' | 'settings'
 const PAGES: readonly HubPage[] = ['runs', 'workflows', 'memories', 'storage', 'settings']
@@ -77,8 +77,8 @@ export function HubDialog(props: {
     setPage(next)
   }
   return (
-    <Modal label={t('hub.title')} onDismiss={props.onClose} className={hub.dialog} testId="wl-hub">
-      <header className={hub.head}>
+    <Modal label={t('hub.title')} onDismiss={props.onClose} className={css.dialog} testId="wl-hub">
+      <header className={css.head}>
         <span className={overlay.sheetIcon}>
           <Icon name="hub" size={16} />
         </span>
@@ -86,7 +86,7 @@ export function HubDialog(props: {
           <p className={overlay.sheetTitle}>{t('hub.title')}</p>
           <p className={overlay.sheetSub}>{t('hub.sub')}</p>
         </div>
-        <div className={hub.tabs}>
+        <div className={css.tabs}>
           <Segmented<HubPage>
             label={t('hub.title')}
             value={page}
@@ -111,7 +111,7 @@ export function HubDialog(props: {
         </button>
       </header>
       {/* 换页：整页换一块，从点的那一侧滑进来。 */}
-      <div key={page} className={hub.pane} data-from={from}>
+      <div key={page} className={css.pane} data-from={from}>
         {page === 'runs' ? (
           <HubRuns
             t={t}

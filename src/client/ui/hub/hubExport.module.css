@@ -1,0 +1,146 @@
+/**
+ * dsh-workflow-lite — 「工作流」页右栏导出（`HubExport.tsx`）自己的部分：分类标题与展开、路径、导出成什么。
+ *
+ * 动效只动 transform / opacity。
+ */
+
+/* 页上的说明（不在哪一节里）：和步骤指示、底栏一样顶着页边，不像节里的说明那样跟标题缩进 2px。 */
+.pageHint {
+  margin-inline: 0;
+}
+
+/* 左边一个按钮（点它展开 / 收起），右端是打包开关；两者互不相干。 */
+.catHead {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 32px;
+}
+
+.catToggle {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex: 1 1 auto;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  margin: 0 0 0 -6px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: calc(8px * var(--wl-round, 1));
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* 悬停底色是一层 ::before 渐显（只动 opacity）。 */
+.catToggle::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--wl-fill);
+  content: "";
+  opacity: 0;
+  transition: opacity 120ms linear;
+}
+
+.catToggle:hover:not(:disabled)::before {
+  opacity: 1;
+}
+
+.catToggle:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 0;
+}
+
+.catToggle:disabled {
+  cursor: default;
+}
+
+.catChevron {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 14px;
+  color: var(--wl-text-3);
+  transition: transform 180ms var(--wl-ease-out);
+}
+
+.catChevron[data-open="true"] {
+  transform: rotate(90deg);
+}
+
+.catToggle:disabled .catChevron {
+  opacity: 0.35;
+}
+
+.catIcon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: calc(7px * var(--wl-round, 1));
+  background: var(--wl-fill);
+  color: var(--wl-text-3);
+}
+
+.catIcon[data-on="true"] {
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+}
+
+.catTitle {
+  flex: none;
+  color: var(--wl-text);
+  font-size: var(--wl-fs-body);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.catToggle:disabled .catTitle {
+  color: var(--wl-text-3);
+}
+
+.catStats {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.catSwitch {
+  flex: none;
+  margin-left: auto;
+}
+
+/* 路径：文件名在前、所在目录淡一档跟在后面，太长从目录尾巴截。 */
+.dir {
+  color: var(--wl-text-3);
+  font-weight: 400;
+}
+
+/* ── 导出成什么 ───────────────────────────────────────────── */
+
+.kindRow {
+  display: flex;
+  flex: none;
+  gap: 10px;
+  align-items: center;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .catToggle::before,
+  .catChevron {
+    transition: none;
+  }
+}

@@ -1,0 +1,123 @@
+/**
+ * dsh-workflow-lite — 「工作流」页右栏导入（`HubImport.tsx`）自己的部分：选文件、包内文件清单、信任确认。
+ *
+ * 动效只动 transform / opacity。
+ */
+
+.path {
+  font-family: var(--wl-mono);
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.choice {
+  max-width: 360px;
+}
+
+.files {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 2px 0 0;
+  padding: 6px 8px;
+  border-radius: calc(6px * var(--wl-round, 1));
+  background: var(--wl-fill);
+  color: var(--wl-text-2);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+  list-style: none;
+}
+
+.files li {
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.files li > span:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.files li > span:last-child {
+  flex: none;
+  color: var(--wl-text-3);
+}
+
+/* ── 选文件 ───────────────────────────────────────────────── */
+
+.drop {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  min-height: 240px;
+  /* 页面去掉了底边距（留给贴底的操作栏），这一步没有操作栏：自己留出整栏的底边距（.wfDetail 的 18px），虚线框不贴到底。 */
+  margin-bottom: 18px;
+  padding: 28px 24px;
+  border: 1.5px dashed var(--wl-line-strong);
+  border-radius: calc(12px * var(--wl-round, 1));
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+  text-align: center;
+  transition: transform 160ms var(--wl-ease);
+}
+
+.drop[data-over="true"] {
+  border-color: var(--wl-accent);
+  background: var(--wl-accent-soft);
+  transform: scale(1.01);
+}
+
+.dropIcon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 4px;
+  border-radius: calc(12px * var(--wl-round, 1));
+  background: var(--wl-fill);
+  color: var(--wl-text-2);
+}
+
+.dropTitle {
+  margin: 0;
+  color: var(--wl-text);
+  font-size: var(--wl-fs-body);
+  font-weight: 600;
+}
+
+.dropText {
+  max-width: 380px;
+  margin: 0 0 6px;
+  line-height: 1.6;
+}
+
+.hidden {
+  display: none;
+}
+
+.trust {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border-radius: calc(8px * var(--wl-round, 1));
+  background: var(--wl-warn-soft);
+  color: var(--wl-text);
+  font-size: var(--wl-fs-meta);
+  line-height: 1.55;
+  cursor: pointer;
+}
+
+.trustCheck {
+  margin-top: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drop {
+    transition: none;
+  }
+}

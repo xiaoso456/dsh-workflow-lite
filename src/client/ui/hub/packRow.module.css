@@ -1,0 +1,367 @@
+/**
+ * dsh-workflow-lite — 导出、导入清单的各个零件（`PackRow.tsx`）：步骤指示、提醒条、一节、一行、贴底操作栏。
+ *
+ * 动效只动 transform / opacity。
+ */
+
+/* ── 步骤指示 ─────────────────────────────────────────────── */
+
+/*
+ * 步数会变（导出成 Skill 多一步）：多出的一步从前一步背后展开、少了的收回去（useTrail）。
+ * 靠前一步盖住后一步做出来，所以每步有不透明的底、前面的 z-index 高（JSX 里给），整排自己裁切；
+ * 步与步之间的空也算进后一步（内边距），展开时不会从缝里露出半截字。
+ */
+.steps {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+/*
+ * 步骤切换：高亮色从左往右走——前一步的图标、文字先褪下去，连线从左填到右，后一步的图标、文字再亮起来；
+ * 往回退时反过来。全部只动 transform / opacity（合成层，不触发布局和重绘）：
+ * 圆点和文字各叠一份"暗"和一份"亮"，换的是两层的透明度，不换颜色、不换字重，宽度也就不会变。
+ * 过渡写在"亮起来"那一态上，所以亮起的一方等连线走完（延时 --step-lag）才出现，褪下的一方立刻开始。
+ */
+.step {
+  --step-lag: 200ms;
+  --step-out: 140ms;
+  --step-in: 200ms;
+  --step-ease: var(--wl-ease-out, cubic-bezier(0.2, 0, 0, 1));
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  gap: 6px;
+  align-items: center;
+  background: var(--wl-panel);
+}
+
+.step + .step {
+  padding-left: 6px;
+}
+
+.stepNum {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--wl-circle, 50%);
+  background: var(--wl-fill-strong);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.stepFill {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--wl-circle, 50%);
+  background: var(--wl-accent);
+  opacity: 0;
+  transform: scale(0.6);
+  transition:
+    opacity var(--step-out) linear,
+    transform var(--step-out) var(--step-ease);
+}
+
+.numDim,
+.numLit,
+.labelDim,
+.labelLit {
+  grid-area: 1 / 1;
+  transition: opacity var(--step-out) linear;
+}
+
+.numDim {
+  position: relative;
+  color: var(--wl-text-2);
+}
+
+.numLit {
+  position: relative;
+  color: var(--wl-panel);
+  opacity: 0;
+}
+
+.stepLabel {
+  display: grid;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.labelDim {
+  color: var(--wl-text-3);
+}
+
+.labelLit {
+  color: var(--wl-text);
+  opacity: 0;
+}
+
+.step[data-on="true"] .stepFill {
+  opacity: 1;
+  transform: none;
+  transition-delay: var(--step-lag);
+  transition-duration: var(--step-in);
+}
+
+.step[data-on="true"] .numDim,
+.step[data-on="true"] .labelDim {
+  opacity: 0;
+  transition-delay: var(--step-lag);
+}
+
+.step[data-on="true"] .numLit,
+.step[data-on="true"] .labelLit {
+  opacity: 1;
+  transition-delay: var(--step-lag);
+  transition-duration: var(--step-in);
+}
+
+/* 连线：底色一条，上面盖一条主色，从左往右伸（退回去时从右往左缩）。 */
+.stepGap {
+  position: relative;
+  width: 18px;
+  height: 1px;
+  overflow: hidden;
+  background: var(--wl-line-strong);
+}
+
+.stepGap::after {
+  position: absolute;
+  inset: 0;
+  background: var(--wl-accent);
+  transform: scaleX(0);
+  transform-origin: right;
+  transition: transform var(--step-lag) var(--step-ease);
+  content: "";
+}
+
+.step[data-reached="true"] .stepGap::after {
+  transform: none;
+  transform-origin: left;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .step {
+    --step-lag: 0ms;
+    --step-out: 0ms;
+    --step-in: 0ms;
+  }
+}
+
+/* ── 提醒条 ───────────────────────────────────────────────── */
+
+.callout {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 8px 12px;
+  border-radius: calc(8px * var(--wl-round, 1));
+  background: var(--wl-fill);
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-meta);
+  line-height: 1.55;
+}
+
+.callout > svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+.calloutText {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* 右上角的 ✕：跟着提醒的颜色走，平时淡一点，悬停时垫一层底。 */
+.calloutClose {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin: 0 -6px 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: calc(6px * var(--wl-round, 1));
+  background: transparent;
+  color: inherit;
+  opacity: 0.7;
+  cursor: pointer;
+  transition:
+    opacity 120ms linear,
+    background-color 120ms linear;
+}
+
+.calloutClose:hover {
+  background: color-mix(in srgb, currentColor 14%, transparent);
+  opacity: 1;
+}
+
+.calloutClose:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 1px;
+  opacity: 1;
+}
+
+.callout[data-tone="warn"] {
+  background: var(--wl-warn-soft);
+  color: var(--wl-warn);
+}
+
+.callout[data-tone="error"] {
+  background: var(--wl-danger-soft);
+  color: var(--wl-danger);
+}
+
+.callout[data-tone="ok"] {
+  background: var(--wl-ok-soft);
+  color: var(--wl-ok);
+}
+
+.sectionHead {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 0 2px;
+}
+
+/* 标题不让：后面的说明（长路径）挤的时候是说明省略，不是标题折行。 */
+.sectionTitle {
+  flex: none;
+  margin: 0;
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-meta);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.sectionNote {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 旁注、链接这会儿用不上（导出成 Skill）：原地淡掉，位置留着，切回来时标题行不跳。 */
+.sectionNote {
+  transition: opacity 160ms linear;
+}
+
+.sectionNote[data-quiet="true"] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.rowLead {
+  display: grid;
+  place-items: center;
+  color: var(--wl-text-3);
+}
+
+.rowLead[data-tone="warn"] {
+  color: var(--wl-warn);
+}
+
+/* 产出 / 更新：用画布上读写线的颜色。 */
+.rowLead[data-tone="produce"] {
+  color: var(--wl-io-produce);
+}
+
+.rowLead[data-tone="update"] {
+  color: var(--wl-io-update);
+}
+
+.rowIcon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: calc(8px * var(--wl-round, 1));
+  background: var(--wl-fill);
+  color: var(--wl-text-2);
+}
+
+.rowIcon[data-tone="accent"] {
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+}
+
+.rowIcon[data-tone="warn"] {
+  background: var(--wl-warn-soft);
+  color: var(--wl-warn);
+}
+
+.rowIcon[data-tone="ok"] {
+  background: var(--wl-ok-soft);
+  color: var(--wl-ok);
+}
+
+.rowTitle {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  font-weight: 600;
+}
+
+.rowName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mono {
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-meta);
+  font-weight: 500;
+}
+
+.rowEnd {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.rowEnd[data-tone="warn"] {
+  color: var(--wl-warn);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sectionNote {
+    transition: none;
+  }
+}
+
+/* 瑞士：分组小标题改成加粗、加宽字距的大写小字（见 shell.module.css 的 data-look）。 */
+:global([data-look="swiss"]) .sectionTitle {
+  color: var(--wl-text);
+  font-size: var(--wl-fs-micro);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* 瑞士：分组标题上面压一道黑线。 */
+:global([data-look="swiss"]) .sectionTitle {
+  padding-top: 8px;
+  border-top: 2px solid var(--wl-text);
+}
+
+:global([data-look="swiss"]) .sectionTitle {
+  font-size: var(--wl-fs-body);
+  letter-spacing: 0.02em;
+}

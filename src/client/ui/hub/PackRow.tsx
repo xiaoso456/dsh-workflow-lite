@@ -12,7 +12,8 @@ import { useTrail } from '../motion/flip.ts'
 import { Checkbox } from '../motion/marks.tsx'
 import { SwapText } from '../motion/swapText.tsx'
 import hub from './hub.module.css'
-import css from './pack.module.css'
+import pack from './pack.module.css'
+import css from './packRow.module.css'
 
 export function PackRow(props: {
   /** 不给 = 紧凑的一行（导出清单：分类标题已经有图标，行里不再重复）。 */
@@ -69,13 +70,13 @@ export function PackRow(props: {
           <Icon name={props.icon} size={15} />
         </span>
       )}
-      <span className={css.rowText} data-tip={props.tip}>
+      <span className={pack.rowText} data-tip={props.tip}>
         <span className={css.rowTitle}>
           <span className={cx(css.rowName, props.mono === true && css.mono)}>{props.title}</span>
           {props.badge}
         </span>
         {meta.length > 0 && (
-          <span className={css.rowMeta} data-tone={props.metaTone}>
+          <span className={pack.rowMeta} data-tone={props.metaTone}>
             {meta.map((part, index) => (
               // biome-ignore lint/suspicious/noArrayIndexKey: 说明段按位置排，不会重排
               <span key={index}>{part}</span>
@@ -90,14 +91,14 @@ export function PackRow(props: {
       ) : (
         <span />
       )}
-      {props.children !== undefined && <div className={css.rowWide}>{props.children}</div>}
+      {props.children !== undefined && <div className={pack.rowWide}>{props.children}</div>}
     </>
   )
   if (checkable) {
     return (
       // biome-ignore lint/a11y/noLabelWithoutControl: 勾选框就在 body 里（第一个子元素）
       <label
-        className={css.row}
+        className={pack.row}
         data-check="true"
         data-compact={compact}
         data-dim={props.dim === true}
@@ -109,7 +110,7 @@ export function PackRow(props: {
   }
   return (
     <div
-      className={css.row}
+      className={pack.row}
       data-compact={compact}
       data-dim={props.dim === true}
       data-testid={props.testId}
@@ -137,7 +138,7 @@ export function PackSection(props: {
 }): React.JSX.Element {
   const quiet = props.quiet === true
   return (
-    <section className={cx(css.section, props.className)} data-testid={props.testId}>
+    <section className={cx(pack.section, props.className)} data-testid={props.testId}>
       <div className={css.sectionHead}>
         <p className={css.sectionTitle}>
           <SwapText text={props.title} />
@@ -150,7 +151,7 @@ export function PackSection(props: {
         {props.action !== undefined && (
           <button
             type="button"
-            className={css.sectionLink}
+            className={pack.sectionLink}
             data-quiet={quiet}
             disabled={quiet}
             aria-hidden={quiet || undefined}
@@ -161,7 +162,7 @@ export function PackSection(props: {
           </button>
         )}
       </div>
-      {props.hint !== undefined && <p className={css.sectionHint}>{props.hint}</p>}
+      {props.hint !== undefined && <p className={pack.sectionHint}>{props.hint}</p>}
       {props.box === false ? props.children : <div className={hub.box}>{props.children}</div>}
     </section>
   )
@@ -187,7 +188,7 @@ export function PackSteps(props: { steps: readonly string[]; at: number }): Reac
           aria-current={index === props.at ? 'step' : undefined}
         >
           {index > 0 && <span className={css.stepGap} />}
-          {/* 暗、亮各一份叠着，换的是透明度（见 pack.module.css 的步骤切换）。 */}
+          {/* 暗、亮各一份叠着，换的是透明度（见 packRow.module.css 的步骤切换）。 */}
           <span className={css.stepNum}>
             <span className={css.stepFill} />
             <span className={css.numDim} aria-hidden="true">

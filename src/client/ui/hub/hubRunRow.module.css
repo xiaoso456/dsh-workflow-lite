@@ -1,0 +1,264 @@
+/**
+ * dsh-workflow-lite — 「运行实例」页的实例行（`HubRunRow.tsx`）：行本身、标题与会话、进度条、操作按钮，以及读不出状态时的原因。
+ */
+
+/*
+ * 一行：挂上时按序往上浮出来（`--i` 是第几行，前十行错开）；悬停的底色画在 ::before 上、渐显。
+ * ::before 绝对定位，不占 subgrid 的格子。
+ */
+.row {
+  position: relative;
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  row-gap: 8px;
+  align-items: center;
+  min-height: 58px;
+  padding: 9px 8px 9px 14px;
+  isolation: isolate;
+  animation: rowIn 280ms var(--wl-ease) backwards;
+  animation-delay: calc(min(var(--i, 0), 10) * 32ms);
+}
+
+.row::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--wl-hover);
+  content: "";
+  opacity: 0;
+  transition: opacity 140ms linear;
+  pointer-events: none;
+}
+
+.row + .row {
+  border-top: 1px solid var(--wl-line);
+}
+
+.row:hover::before {
+  opacity: 1;
+}
+
+@keyframes rowIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* 确认删除：先往右淡出，删完下面的行滑上来（useFlip）。 */
+.row[data-leaving="true"] {
+  animation: rowOut 180ms ease-in both;
+  pointer-events: none;
+}
+
+@keyframes rowOut {
+  to {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.titleLine {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+}
+
+.name {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meta {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+.goal {
+  flex: 1 1 0;
+}
+
+.goal > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sessionName {
+  color: var(--wl-text-2);
+}
+
+.time {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 进度：一行数字 + 一根细条，颜色跟着总状态（--wl-run 见 run.module.css）。 */
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.progressText {
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-micro);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.progressBar {
+  display: block;
+  height: 4px;
+  overflow: hidden;
+  border-radius: calc(999px * var(--wl-round, 1));
+  background: var(--wl-fill-strong);
+}
+
+/*
+ * 填满整条再按比例 scaleX 缩：是 span，不写 display: block 宽度就是 0，怎么缩都是空的。
+ * 挂上时从 0 长到当前进度（跟在这一行浮出来之后），之后进度变了滑过去。
+ */
+.progressFill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--wl-run-fill, var(--wl-run));
+  transform-origin: left center;
+  transition: transform 420ms var(--wl-ease);
+  animation: barIn 620ms var(--wl-ease) backwards;
+  animation-delay: calc(min(var(--i, 0), 10) * 32ms + 140ms);
+}
+
+@keyframes barIn {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+/* 「查看」在前，图标按钮成一组在后：组内挨着，和「查看」之间稍宽一点。 */
+.actions {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.actions > :first-child {
+  margin-right: 4px;
+}
+
+/* 这一行没有「移到本会话」时的空位：和小号图标按钮一样大。 */
+.iconSlot {
+  flex: none;
+  width: 26px;
+  height: 26px;
+}
+
+/* 次要的图标按钮：平时淡着，悬停时才换成各自的颜色（删除是红）。 */
+.quiet:not(:hover) {
+  color: var(--wl-text-3);
+}
+
+/* 读不出来的状态小标：能点，旁边一个小箭头。 */
+.why {
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
+  padding: 0 2px 0 0;
+  border: 0;
+  border-radius: calc(999px * var(--wl-round, 1));
+  background: transparent;
+  color: var(--wl-danger);
+  font: inherit;
+  cursor: pointer;
+  transition: background-color 120ms linear;
+}
+
+.why:hover {
+  background: var(--wl-danger-soft);
+}
+
+.why:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+/* 原因：路径或问题清单，等宽字写字段路径。 */
+.reason {
+  display: flex;
+  flex-direction: column;
+  grid-column: 1 / -1;
+  gap: 4px;
+  padding: 8px 12px;
+  border-radius: calc(8px * var(--wl-round, 1));
+  background: var(--wl-danger-soft);
+  color: var(--wl-text);
+  font-size: var(--wl-fs-meta);
+  line-height: 1.55;
+  user-select: text;
+}
+
+.reasonPath,
+.reasonList code {
+  color: var(--wl-danger);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+  overflow-wrap: anywhere;
+}
+
+.reasonList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--wl-text-2);
+}
+
+.reasonList code {
+  margin-right: 6px;
+}
+
+.reasonMore {
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+@container (max-width: 680px) {
+  .progress {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row,
+  .progressFill {
+    animation: none;
+  }
+
+  .row[data-leaving="true"] {
+    animation: none;
+    opacity: 0;
+  }
+
+  .row::before,
+  .progressFill {
+    transition: none;
+  }
+}

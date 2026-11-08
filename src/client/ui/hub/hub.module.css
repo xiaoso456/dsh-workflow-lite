@@ -1,31 +1,10 @@
 /**
- * dsh-workflow-lite — 工作流中心：标题栏（两页的切换在这里）、运行实例页、存储页。
+ * dsh-workflow-lite — 工作流中心：运行实例页、存储页、工作流页里几个组件共用的样式。
+ * 只有某一个组件用的部分在它旁边的 `hub*.module.css` 里（标题栏 `hubDialog`、实例行 `hubRunRow` 等）。
  *
  * 一组东西收进一个圆角框、行间一条细线，和「工作流设置」对话框同一种样子。
  * 框不裁内容（不写 overflow: hidden），圆角由第一行、最后一行自己画——免得裁掉行里的浮层。
  */
-
-/* ── 外框与标题栏 ─────────────────────────────────────────── */
-
-div.dialog {
-  width: min(920px, 100%);
-  max-width: none;
-  height: min(620px, 100%);
-}
-
-.head {
-  display: flex;
-  flex: none;
-  gap: 12px;
-  align-items: center;
-  padding: 14px 12px 12px 16px;
-  border-bottom: 1px solid var(--wl-line);
-}
-
-.tabs {
-  flex: none;
-  width: 400px;
-}
 
 /* ── 运行实例：左栏工作区（和「工作流」页同一套 wf* 样式），右栏实例 ──── */
 
@@ -117,33 +96,6 @@ div.dialog {
   font-size: var(--wl-fs-meta);
 }
 
-/* 名字和「本工作区」小标一行：名字太长先省略，小标不挤掉。 */
-.wsName {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  min-width: 0;
-}
-
-.wsActive {
-  color: var(--wl-accent-text);
-  font-weight: 600;
-}
-
-.wsTitle {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  min-width: 0;
-}
-
-.wsPath {
-  overflow: hidden;
-  font-family: var(--wl-mono);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 /* 小标签：「本工作区」「当前」用强调色，「本会话」用中性色。 */
 .tag {
   display: inline-flex;
@@ -193,94 +145,6 @@ div.dialog {
   column-gap: 14px;
 }
 
-/*
- * 一行：挂上时按序往上浮出来（`--i` 是第几行，前十行错开）；悬停的底色画在 ::before 上、渐显。
- * ::before 绝对定位，不占 subgrid 的格子。
- */
-.row {
-  position: relative;
-  display: grid;
-  grid-column: 1 / -1;
-  grid-template-columns: subgrid;
-  row-gap: 8px;
-  align-items: center;
-  min-height: 58px;
-  padding: 9px 8px 9px 14px;
-  isolation: isolate;
-  animation: rowIn 280ms var(--wl-ease) backwards;
-  animation-delay: calc(min(var(--i, 0), 10) * 32ms);
-}
-
-.row::before {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  border-radius: inherit;
-  background: var(--wl-hover);
-  content: "";
-  opacity: 0;
-  transition: opacity 140ms linear;
-  pointer-events: none;
-}
-
-.row + .row {
-  border-top: 1px solid var(--wl-line);
-}
-
-.row:hover::before {
-  opacity: 1;
-}
-
-@keyframes rowIn {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-}
-
-/* 确认删除：先往右淡出，删完下面的行滑上来（useFlip）。 */
-.row[data-leaving="true"] {
-  animation: rowOut 180ms ease-in both;
-  pointer-events: none;
-}
-
-@keyframes rowOut {
-  to {
-    opacity: 0;
-    transform: translateX(16px);
-  }
-}
-
-.main {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-
-.titleLine {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  min-width: 0;
-}
-
-.name {
-  overflow: hidden;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.meta {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  min-width: 0;
-  color: var(--wl-text-3);
-  font-size: var(--wl-fs-micro);
-}
-
 .metaItem {
   display: inline-flex;
   flex: none;
@@ -300,354 +164,15 @@ div.dialog {
   max-width: 50%;
 }
 
-.goal {
-  flex: 1 1 0;
-}
-
-.session > span:not(.tag),
-.goal > span {
+.session > span:not(.tag) {
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.sessionName {
-  color: var(--wl-text-2);
-}
-
-.time {
-  font-variant-numeric: tabular-nums;
-}
-
-/* 进度：一行数字 + 一根细条，颜色跟着总状态（--wl-run 见 run.module.css）。 */
-.progress {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.progressText {
-  color: var(--wl-text-2);
-  font-size: var(--wl-fs-micro);
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-}
-
-.progressBar {
-  display: block;
-  height: 4px;
-  overflow: hidden;
-  border-radius: calc(999px * var(--wl-round, 1));
-  background: var(--wl-fill-strong);
-}
-
-/*
- * 填满整条再按比例 scaleX 缩：是 span，不写 display: block 宽度就是 0，怎么缩都是空的。
- * 挂上时从 0 长到当前进度（跟在这一行浮出来之后），之后进度变了滑过去。
- */
-.progressFill {
-  display: block;
-  width: 100%;
-  height: 100%;
-  border-radius: inherit;
-  background: var(--wl-run-fill, var(--wl-run));
-  transform-origin: left center;
-  transition: transform 420ms var(--wl-ease);
-  animation: barIn 620ms var(--wl-ease) backwards;
-  animation-delay: calc(min(var(--i, 0), 10) * 32ms + 140ms);
-}
-
-@keyframes barIn {
-  from {
-    transform: scaleX(0);
-  }
 }
 
 /* 状态一格：小标靠左，不被列宽拉长。 */
 .state {
   display: flex;
   align-items: center;
-}
-
-/* 能改的状态小标：小标本身是按钮，右边一个小箭头；悬停、菜单开着时底下渐显一层。 */
-.statusButton {
-  position: relative;
-  display: inline-flex;
-  flex: 1;
-  gap: 2px;
-  align-items: center;
-  /* 撑满这一列、箭头靠右：小标长短不一（「完成」比「执行中」短），各行的箭头还在一条竖线上。 */
-  justify-content: space-between;
-  padding: 0 4px 0 0;
-  border: 0;
-  border-radius: calc(999px * var(--wl-round, 1));
-  background: transparent;
-  color: var(--wl-text-3);
-  font: inherit;
-  cursor: pointer;
-  isolation: isolate;
-  transition:
-    transform 120ms var(--wl-ease),
-    color 120ms linear;
-}
-
-.statusButton::before {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  border-radius: inherit;
-  background: var(--wl-fill-strong);
-  content: "";
-  opacity: 0;
-  transition: opacity 140ms linear;
-}
-
-.statusButton:hover,
-.statusButton[aria-expanded="true"] {
-  color: var(--wl-text-2);
-}
-
-.statusButton:hover::before,
-.statusButton[aria-expanded="true"]::before {
-  opacity: 1;
-}
-
-.statusButton:active {
-  transform: scale(0.97);
-}
-
-/* 状态改了：新小标弹一下。 */
-.statusPop {
-  display: inline-flex;
-  animation: statusPop 320ms var(--wl-ease) backwards;
-}
-
-@keyframes statusPop {
-  from {
-    opacity: 0;
-    transform: scale(0.82);
-  }
-
-  60% {
-    opacity: 1;
-    transform: scale(1.06);
-  }
-}
-
-.statusButton:focus-visible {
-  outline: 2px solid var(--wl-accent);
-  outline-offset: 1px;
-}
-
-.statusCaret {
-  display: inline-grid;
-  transition: transform 200ms var(--wl-ease);
-}
-
-.statusButton[aria-expanded="true"] .statusCaret {
-  transform: rotate(180deg);
-}
-
-/*
- * 状态菜单：和确认卡同一种浮层，内边距收窄，一项两行（名字 + 说明）。
- * 从小标那一角展开（小标在列表右边，菜单右对齐），各项跟着依次浮出；收起时淡出（useFloat 的 exitMs）。
- */
-/* 带上元素名：压过同时挂着的 ui.confirmPop 的入场 / 退场（两个模块谁先加载说不准）。 */
-div.statusMenu {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  padding: 6px;
-  transform-origin: top right;
-  animation: menuIn 380ms var(--wl-spring) both;
-}
-
-div.statusMenu[data-up="true"] {
-  transform-origin: bottom right;
-  animation-name: menuIn;
-}
-
-div.statusMenu[data-leaving="true"],
-div.statusMenu[data-leaving="true"][data-up="true"] {
-  animation: menuOut 120ms ease-in both;
-}
-
-@keyframes menuIn {
-  from {
-    opacity: 0;
-    transform: translateY(-12px) scale(0.84);
-  }
-}
-
-@keyframes menuOut {
-  to {
-    opacity: 0;
-    transform: scale(0.97);
-  }
-}
-
-button.statusItem {
-  min-height: 42px;
-  padding: 5px 8px;
-  animation: itemIn 220ms var(--wl-ease) backwards;
-  animation-delay: calc(var(--i, 0) * 18ms + 40ms);
-}
-
-@keyframes itemIn {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-}
-
-.statusText {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.statusName {
-  color: var(--wl-text);
-  font-weight: 600;
-}
-
-.statusHint {
-  color: var(--wl-text-3);
-  font-size: var(--wl-fs-micro);
-  line-height: 1.4;
-}
-
-.statusCheck {
-  display: inline-grid;
-  flex: none;
-  color: var(--wl-accent-text);
-  animation: checkIn 260ms var(--wl-ease) 160ms backwards;
-}
-
-@keyframes checkIn {
-  from {
-    opacity: 0;
-    transform: scale(0.4);
-  }
-}
-
-.statusItem[aria-checked="true"]::after {
-  opacity: 1;
-}
-
-/* 确认卡里：通知模型开关，打开时下面多一栏说明；都和标题的字对齐。 */
-.statusOptions {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.statusOptions > label {
-  align-self: flex-start;
-}
-
-/* 打开「通知模型」时说明栏从开关下面滑出来。 */
-input.statusNote {
-  width: calc(100% - 30px);
-  height: 30px;
-  margin-left: 30px;
-  animation: noteIn 200ms var(--wl-ease) backwards;
-}
-
-@keyframes noteIn {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-}
-
-/* 「查看」在前，图标按钮成一组在后：组内挨着，和「查看」之间稍宽一点。 */
-.actions {
-  display: flex;
-  gap: 2px;
-  align-items: center;
-  justify-content: flex-end;
-}
-
-.actions > :first-child {
-  margin-right: 4px;
-}
-
-/* 这一行没有「移到本会话」时的空位：和小号图标按钮一样大。 */
-.iconSlot {
-  flex: none;
-  width: 26px;
-  height: 26px;
-}
-
-/* 次要的图标按钮：平时淡着，悬停时才换成各自的颜色（删除是红）。 */
-.quiet:not(:hover) {
-  color: var(--wl-text-3);
-}
-
-/* 读不出来的状态小标：能点，旁边一个小箭头。 */
-.why {
-  display: inline-flex;
-  gap: 2px;
-  align-items: center;
-  padding: 0 2px 0 0;
-  border: 0;
-  border-radius: calc(999px * var(--wl-round, 1));
-  background: transparent;
-  color: var(--wl-danger);
-  font: inherit;
-  cursor: pointer;
-  transition: background-color 120ms linear;
-}
-
-.why:hover {
-  background: var(--wl-danger-soft);
-}
-
-.why:focus-visible {
-  outline: 2px solid var(--wl-accent);
-  outline-offset: 1px;
-}
-
-/* 原因：路径或问题清单，等宽字写字段路径。 */
-.reason {
-  display: flex;
-  flex-direction: column;
-  grid-column: 1 / -1;
-  gap: 4px;
-  padding: 8px 12px;
-  border-radius: calc(8px * var(--wl-round, 1));
-  background: var(--wl-danger-soft);
-  color: var(--wl-text);
-  font-size: var(--wl-fs-meta);
-  line-height: 1.55;
-  user-select: text;
-}
-
-.reasonPath,
-.reasonList code {
-  color: var(--wl-danger);
-  font-family: var(--wl-mono);
-  font-size: var(--wl-fs-micro);
-  overflow-wrap: anywhere;
-}
-
-.reasonList {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin: 0;
-  padding-left: 18px;
-  color: var(--wl-text-2);
-}
-
-.reasonList code {
-  margin-right: 6px;
-}
-
-.reasonMore {
-  color: var(--wl-text-3);
-  font-size: var(--wl-fs-micro);
 }
 
 /* ── 空状态 ────────────────────────────────────────────────── */
@@ -839,10 +364,6 @@ input.statusNote {
 @container (max-width: 680px) {
   .runBox {
     grid-template-columns: minmax(0, 1fr) max-content max-content;
-  }
-
-  .progress {
-    display: none;
   }
 }
 
@@ -1058,23 +579,6 @@ input.statusNote {
   background: var(--wl-hover);
 }
 
-/* 改名：底线的样子在 ui.module.css 的 `.lineField`；字对齐原来那行名字（外面 -6px、里面 6px 内边距），上下各收进一点，整行不变高。 */
-.wfField {
-  width: calc(100% + 6px);
-  margin: -1.25px 0 -1.25px -6px;
-}
-
-.wfInput {
-  height: 22px;
-  font-weight: 600;
-}
-
-.wfInput::selection {
-  /* 系统的整块深蓝太扎眼：换成半透明的主色，字还是原来的颜色。 */
-  background: color-mix(in srgb, var(--wl-accent) 32%, transparent);
-  color: var(--wl-text);
-}
-
 @media (hover: none) {
   .wfActions {
     opacity: 1;
@@ -1111,15 +615,6 @@ input.statusNote {
   scrollbar-gutter: auto;
 }
 
-/* 在框里滚的清单框：按内容高，放不下时缩到剩下的高度；滚到头不带着外面的弹窗一起滚。 */
-.scrollBox {
-  flex: 0 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: thin;
-}
-
 /*
  * 右栏换了内容（左边换了选中）：标题先浮出来，下面的稍后跟上。
  * 实例框不整块动——里面的行自己依次浮出（.row）。
@@ -1143,63 +638,12 @@ input.statusNote {
   }
 }
 
-/*
- * 工作流中心换页：新的一页从点的那一侧滑进来（往右边的页点 → 从右边进）。
- * 刚打开时不滑（对话框自己有入场）。
- */
-.pane {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  min-height: 0;
-}
-
-.pane[data-from="right"] {
-  animation: paneFromRight 260ms var(--wl-ease) backwards;
-}
-
-.pane[data-from="left"] {
-  animation: paneFromLeft 260ms var(--wl-ease) backwards;
-}
-
-@keyframes paneFromRight {
-  from {
-    opacity: 0;
-    transform: translateX(18px);
-  }
-}
-
-@keyframes paneFromLeft {
-  from {
-    opacity: 0;
-    transform: translateX(-18px);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .row,
-  .progressFill,
-  .statusPop,
-  div.statusMenu,
-  button.statusItem,
-  .statusCheck,
-  input.statusNote,
-  .paneIn > *,
-  .pane[data-from] {
+  .paneIn > * {
     animation: none;
   }
 
-  .row[data-leaving="true"] {
-    animation: none;
-    opacity: 0;
-  }
-
-  .row::before,
-  .wfItem::before,
-  .statusButton::before,
-  .statusButton,
-  .statusCaret,
-  .progressFill {
+  .wfItem::before {
     transition: none;
   }
 }
