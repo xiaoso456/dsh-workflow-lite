@@ -6,7 +6,7 @@
  * 单文件写入天然原子：读者看到的要么是旧全文、要么是新全文，没有中间态。
  *
  * `writeFileAtomic` **抛错**而不是返回错误码——把 errno 翻译成 `invalid_args` / `io_error`
- * 是仓储层的事（见 `repository.ts` 的 `mapWriteFailure`）。
+ * 是仓储层的事（见 `repoResult.ts` 的 `mapWriteFailure`）。
  * @module @xiaoso/dsh-workflow-lite/host/store/atomic
  */
 

@@ -129,12 +129,6 @@ function splitProblems(problems: readonly ValidationProblem[]): {
   }
 }
 
-/**
- * 注册那唯一的工具。
- * @param ctx - 插件上下文（`tools` 已就绪）。
- * @param deps - 仓储与两个活配置。
- * @returns 注销器。
- */
 /** `execute` 真正用到的那一小块执行上下文（完整 `ToolRunContext` 结构上兼容它）。 */
 export interface ToolExecView {
   agent?: {
