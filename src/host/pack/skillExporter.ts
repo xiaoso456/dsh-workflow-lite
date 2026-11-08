@@ -42,7 +42,7 @@ import {
 } from '../../shared/skillPack.ts'
 import type { ErrorCode, ValidationProblem, WorkflowDocument } from '../../shared/types.ts'
 import { pathKind } from '../store/paths.ts'
-import type { Outcome } from '../store/repository.ts'
+import type { Outcome } from '../store/repoResult.ts'
 import { isAbsolutePath, type PackDeps, rewriteForPack, scanState } from './exporter.ts'
 import { installSkill } from './importer.ts'
 import { stageSkill } from './skillBrowse.ts'

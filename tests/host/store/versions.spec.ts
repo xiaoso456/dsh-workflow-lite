@@ -11,11 +11,8 @@ import {
   workflowFile,
   workflowsDir,
 } from '../../../src/host/store/paths.ts'
-import {
-  createRepository,
-  type Outcome,
-  type Repository,
-} from '../../../src/host/store/repository.ts'
+import type { Outcome } from '../../../src/host/store/repoResult.ts'
+import { createRepository, type Repository } from '../../../src/host/store/repository.ts'
 import { parseVersion, versionText } from '../../../src/host/store/versions.ts'
 import { MAX_VERSIONS } from '../../../src/shared/limits.ts'
 import { readDocument, writeDocument } from '../../../src/shared/model.ts'

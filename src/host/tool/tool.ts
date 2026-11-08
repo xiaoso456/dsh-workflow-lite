@@ -36,7 +36,9 @@ import { compileWorkflow } from '../plan.ts'
 import type { SessionRef } from '../runs/runCore.ts'
 import type { RunService } from '../runs/service.ts'
 import { hasMemory, listMemories, type MemoryDeps } from '../store/memories.ts'
-import { type NodeUpsert, problemsToWarnings, type Repository } from '../store/repository.ts'
+import type { NodeUpsert } from '../store/repoNodes.ts'
+import { problemsToWarnings } from '../store/repoResult.ts'
+import type { Repository } from '../store/repository.ts'
 import {
   answersOf,
   handoffOf,

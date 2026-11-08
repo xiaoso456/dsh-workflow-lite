@@ -19,7 +19,7 @@ import {
   VIEW_FITS,
   VIEW_FROMS,
 } from '../../shared/types.ts'
-import type { ResourceUpsert } from '../store/repository.ts'
+import type { ResourceUpsert } from '../store/repoNodes.ts'
 import type { ResourceArgs } from './args.ts'
 
 /** write_resource 的 resource 参数 → 仓储的入参。形状不对就回一句给模型看的错。 */

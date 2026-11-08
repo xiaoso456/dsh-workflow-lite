@@ -49,7 +49,8 @@ import {
   pathKind,
   scanWorkflowDir,
 } from '../store/paths.ts'
-import type { ImportVersion, Outcome } from '../store/repository.ts'
+import type { Outcome } from '../store/repoResult.ts'
+import type { ImportVersion } from '../store/repoVersions.ts'
 import { parseVersion } from '../store/versions.ts'
 import type { PackDeps } from './exporter.ts'
 import { discard, readIn } from './staging.ts'

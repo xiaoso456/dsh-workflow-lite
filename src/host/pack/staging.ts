@@ -16,7 +16,7 @@ import { join } from 'node:path'
 import { PACK_CHUNK_BYTES, PACK_MAX_BYTES } from '../../shared/pack.ts'
 import type { ErrorCode } from '../../shared/types.ts'
 import { packRoot } from '../store/paths.ts'
-import type { Outcome } from '../store/repository.ts'
+import type { Outcome } from '../store/repoResult.ts'
 
 /** 暂存放多久算没人要了。 */
 const STALE_MS = 24 * 60 * 60 * 1000

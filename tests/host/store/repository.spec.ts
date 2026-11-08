@@ -13,13 +13,13 @@ import {
   workflowNamesOnDisk,
   workflowsDir,
 } from '../../../src/host/store/paths.ts'
+import type { Outcome } from '../../../src/host/store/repoResult.ts'
 import {
   createRepository,
-  diffDocuments,
-  type Outcome,
   type Repository,
   reportProblems,
 } from '../../../src/host/store/repository.ts'
+import { diffDocuments } from '../../../src/host/store/repoWorkflows.ts'
 import { readDocument, writeDocument } from '../../../src/shared/model.ts'
 import {
   NODE_TYPE,

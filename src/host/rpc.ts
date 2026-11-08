@@ -71,12 +71,10 @@ import {
   restoreMemoryVersion,
   saveMemoryVersion,
 } from './store/memoryVersions.ts'
-import {
-  type DocumentValidator,
-  type LoadResult,
-  problemsToWarnings,
-  type Repository,
-} from './store/repository.ts'
+import type { DocumentValidator } from './store/repoCore.ts'
+import { problemsToWarnings } from './store/repoResult.ts'
+import type { Repository } from './store/repository.ts'
+import type { LoadResult } from './store/repoWorkflows.ts'
 
 /** 路由需要的活依赖。 */
 export interface RpcDeps {

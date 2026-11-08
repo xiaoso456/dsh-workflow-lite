@@ -28,7 +28,7 @@ import type {
   RunStatResponse,
 } from '../../shared/wire.ts'
 import type { CompileBundle } from '../plan.ts'
-import type { Outcome } from '../store/repository.ts'
+import type { Outcome } from '../store/repoResult.ts'
 import type { RunFileTarget } from './files.ts'
 import type { RunHistory } from './history.ts'
 import { RunCore, type RunServiceDeps, type SessionRef } from './runCore.ts'

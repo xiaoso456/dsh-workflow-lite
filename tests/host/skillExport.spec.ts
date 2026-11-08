@@ -10,7 +10,8 @@ import { skillDir, skillFile, skillImage, splitHead } from '../../src/host/pack/
 import { exportSkill, previewSkill } from '../../src/host/pack/skillExporter.ts'
 import { discard, readChunk } from '../../src/host/pack/staging.ts'
 import { assetsDir, versionFile, workflowFile } from '../../src/host/store/paths.ts'
-import { createRepository, type Outcome, type Repository } from '../../src/host/store/repository.ts'
+import type { Outcome } from '../../src/host/store/repoResult.ts'
+import { createRepository, type Repository } from '../../src/host/store/repository.ts'
 import { DSH_ONLY_TERMS } from '../../src/shared/dialect.ts'
 import {
   INPUT_TYPE,

@@ -9,7 +9,9 @@ import { outputsOf } from '../../shared/resources.ts'
 import type { ChangedEntry } from '../../shared/types.ts'
 import { writeFileAtomic } from '../store/atomic.ts'
 import { templateFile, templateOccupant } from '../store/paths.ts'
-import { MAX_SEQUENTIAL, type Outcome, type Repository } from '../store/repository.ts'
+import { MAX_SEQUENTIAL } from '../store/repoCore.ts'
+import type { Outcome } from '../store/repoResult.ts'
+import type { Repository } from '../store/repository.ts'
 import type { ToolDeps } from './tool.ts'
 
 /** 把节点存成节点模板（`templates/nodes/<名>.json`）——撞名加序号，绝不静默覆盖。 */

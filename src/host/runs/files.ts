@@ -30,7 +30,7 @@ import {
   type RunFileResponse,
   type RunImageResponse,
 } from '../../shared/wire.ts'
-import type { Outcome } from '../store/repository.ts'
+import type { Outcome } from '../store/repoResult.ts'
 
 const SNIFF_BYTES = 8192
 

@@ -19,7 +19,7 @@ import type {
   HostSkillResponse,
   HostSkillsResponse,
 } from '../shared/wire.ts'
-import type { Outcome } from './store/repository.ts'
+import type { Outcome } from './store/repoResult.ts'
 
 /** 一个目录最多列多少项（再多前端也没法一眼扫完，改用路径栏直接输入）。 */
 const MAX_ENTRIES = 3000

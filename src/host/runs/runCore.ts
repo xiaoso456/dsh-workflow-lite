@@ -29,7 +29,7 @@ import type { InputAnswer, ValidationProblem, WorkflowDocument } from '../../sha
 import { type CompileBundle, compileDocument } from '../plan.ts'
 import { readFileText, writeFileAtomic } from '../store/atomic.ts'
 import { assetsDir, memoriesDir } from '../store/paths.ts'
-import type { Outcome } from '../store/repository.ts'
+import type { Outcome } from '../store/repoResult.ts'
 import { itemLocation } from './files.ts'
 import { type HistoryItem, historyPlan, RunHistory } from './history.ts'
 import {

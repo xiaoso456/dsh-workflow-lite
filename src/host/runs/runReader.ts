@@ -21,7 +21,7 @@ import {
   type RunLinesResponse,
   type RunStatResponse,
 } from '../../shared/wire.ts'
-import type { Outcome } from '../store/repository.ts'
+import type { Outcome } from '../store/repoResult.ts'
 import {
   cleanSub,
   itemLocation,

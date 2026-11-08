@@ -34,7 +34,8 @@ import type {
 import { ensureWorkspaceIgnore, instanceDir, TASKS_DIR } from './runs/store.ts'
 import { materialize } from './store/materialize.ts'
 import { assetsDir, memoriesDir } from './store/paths.ts'
-import { type Outcome, problemsToWarnings, type Repository } from './store/repository.ts'
+import { type Outcome, problemsToWarnings } from './store/repoResult.ts'
+import type { Repository } from './store/repository.ts'
 
 /** 计划对着的实例。 */
 export interface PlanInstance {

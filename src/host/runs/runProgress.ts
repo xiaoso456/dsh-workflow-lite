@@ -23,7 +23,7 @@ import {
   validateRunState,
 } from '../../shared/runState.ts'
 import { ensureDir, readFileText, writeFileAtomic } from '../store/atomic.ts'
-import type { Outcome } from '../store/repository.ts'
+import type { Outcome } from '../store/repoResult.ts'
 import { fail, isRecordLike, type RunCore, type SessionRef, stateText } from './runCore.ts'
 import { ensureWorkspaceIgnore, isInstanceId, snapshotFile, statePathFor } from './store.ts'
 

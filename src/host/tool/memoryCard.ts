@@ -8,7 +8,7 @@ import { stepMemories, suggestMemoryId } from '../../shared/presets.ts'
 import type { ChangedEntry, MemoryType, ToolWarning } from '../../shared/types.ts'
 import { MEMORY_TYPES } from '../../shared/types.ts'
 import { createMemory, deleteMemory, type MemoryDeps, readMemoryMeta } from '../store/memories.ts'
-import type { Outcome } from '../store/repository.ts'
+import type { Outcome } from '../store/repoResult.ts'
 import type { MemoryArgs } from './args.ts'
 import type { ToolDeps } from './tool.ts'
 

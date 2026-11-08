@@ -30,7 +30,7 @@ import {
   resolveImageRef,
   resolveSelfImage,
 } from '../runs/files.ts'
-import type { Outcome } from '../store/repository.ts'
+import type { Outcome } from '../store/repoResult.ts'
 import { newStage, stageDir } from './staging.ts'
 
 const PACK_DIR = 'skill'

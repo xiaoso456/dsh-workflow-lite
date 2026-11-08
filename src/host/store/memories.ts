@@ -49,7 +49,8 @@ import {
   memoryMetaFile,
   memoryVersionsDir,
 } from './paths.ts'
-import type { Outcome, Repository } from './repository.ts'
+import type { Outcome } from './repoResult.ts'
+import type { Repository } from './repository.ts'
 
 /** 撞名加序号的上限（`-2` … `-99`）。 */
 const MAX_SEQUENTIAL = 99

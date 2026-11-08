@@ -24,7 +24,7 @@ import type {
 } from '../../shared/types.ts'
 import { type CompileBundle, compileDocument } from '../plan.ts'
 import { ensureDir, removeTree, unlinkFile, writeFileAtomic } from '../store/atomic.ts'
-import type { Outcome } from '../store/repository.ts'
+import type { Outcome } from '../store/repoResult.ts'
 import { progressReport, startPrompt } from './prompts.ts'
 import { fail, type RunCore, type SessionRef, stateText } from './runCore.ts'
 import {

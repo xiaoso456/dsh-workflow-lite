@@ -25,7 +25,8 @@ import {
   saveMemoryVersion,
 } from '../../../src/host/store/memoryVersions.ts'
 import { memoryFolder, memoryMetaFile, memoryVersionsDir } from '../../../src/host/store/paths.ts'
-import { createRepository, type Outcome } from '../../../src/host/store/repository.ts'
+import type { Outcome } from '../../../src/host/store/repoResult.ts'
+import { createRepository } from '../../../src/host/store/repository.ts'
 import { addGlobalMemory, addStepMemory } from '../../../src/shared/presets.ts'
 import { NODE_TYPE, type WorkflowDocument } from '../../../src/shared/types.ts'
 

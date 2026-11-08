@@ -24,7 +24,7 @@ import { fingerprint, readTree, sha256, type Tree, walkTree } from '../pack/tree
 import { readFileText, removeTree, renameDir, unlinkFile, writeFileAtomic } from './atomic.ts'
 import { readMemoryMeta, serialMemory } from './memories.ts'
 import { memoriesDir, memoryFolder, memoryVersionsDir } from './paths.ts'
-import type { Outcome } from './repository.ts'
+import type { Outcome } from './repoResult.ts'
 
 const FORMAT = 1
 const FILE_NAME = /^([1-9]\d{0,8})\.json$/iu
