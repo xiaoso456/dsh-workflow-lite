@@ -20,8 +20,8 @@
 import type { open as openFile } from 'node:fs/promises'
 import { open, stat } from 'node:fs/promises'
 import { Worker } from 'node:worker_threads'
+import type { LineFilter } from '../../shared/types.ts'
 import {
-  type LineFilter,
   RUN_LINES_FILTER_BYTES,
   RUN_LINES_FILTER_MS,
   RUN_LINES_MAX,

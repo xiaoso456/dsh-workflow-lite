@@ -154,9 +154,6 @@ export interface RunFileResponse {
   cut?: number
 }
 
-/** `run/lines` 的筛选（和展示设置里存的是同一个形状）。 */
-export type { LineFilter }
-
 /** `run/lines` 一次最多要多少行。 */
 export const RUN_LINES_MAX = 2000
 /** 不筛时一次最多读多少字节（凑不够行数也停）。 */

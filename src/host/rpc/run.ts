@@ -6,7 +6,8 @@
 
 import { normalizeDocument } from '../../shared/model.ts'
 import type { StateEdit } from '../../shared/runState.ts'
-import { type LineFilter, RUN_STAT_MAX } from '../../shared/wire/run.ts'
+import type { LineFilter } from '../../shared/types.ts'
+import { RUN_STAT_MAX } from '../../shared/wire/run.ts'
 import type { WorkflowLiteEndpoint } from '../../shared/wire.ts'
 import type { RunFileTarget } from '../runs/files.ts'
 import type { GraphEdit } from '../runs/runEdits.ts'

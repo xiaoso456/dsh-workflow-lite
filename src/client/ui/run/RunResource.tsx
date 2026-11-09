@@ -50,9 +50,9 @@ import ins from '../panel/panel.module.css'
 import res from '../resources/resource.module.css'
 import { SkillPreview } from '../resources/SkillPreview.tsx'
 import { itemDisplayPath } from './RunFiles.tsx'
-import { UrlDialog } from './RunItemDialog.tsx'
 import { StatusChip } from './RunNodeState.tsx'
 import css from './runres.module.css'
+import { UrlDialog } from './UrlDialog.tsx'
 
 export function RunResourceDetail(props: {
   t: T

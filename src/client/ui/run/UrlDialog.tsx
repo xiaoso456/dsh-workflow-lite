@@ -6,7 +6,7 @@
  * 框子是 {@link DocViewer} 的小号：标题行有复制、关闭，网址的说明放在正文前（框小、说明就是主要内容）：
  * - 网址：整条网址（点了在浏览器里开），底部一个「在浏览器中打开」。
  *
- * @module @xiaoso/dsh-workflow-lite/client/ui/run/RunItemDialog
+ * @module @xiaoso/dsh-workflow-lite/client/ui/run/UrlDialog
  */
 
 import type { ResourceItem } from '../../../shared/types.ts'
