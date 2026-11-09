@@ -99,6 +99,12 @@ DSH_WEB_TOKEN=<token> DSH_BASE=http://127.0.0.1:3190 node --experimental-strip-t
 
 坑：宿主页面有条 `:has` 规则，视图里**任何一次插拔元素都是整页重算样式**（400 张卡时约 400ms），只改属性、改文字不会；热路径上（打字、拖动、轮询）别挂载 / 卸载元素。headless Chrome 没开 GPU，平移的绘制开销偏大，只看相对变化。
 
+由此定下的写法：
+
+- 多行输入一律用 `ui/kit/TextArea.tsx`，不写裸 `<textarea value>`：React 的受控 textarea 每次渲染都重写文字子节点，大图上每敲一个字卡几百毫秒。
+- 换字的动效用 `SwapText`（换属性重放 CSS 动画，不重挂元素）；热路径上别调 `element.animate()`，它会当场把同一次提交里的样式改动一起算掉。
+- 画布只在位置、尺寸、连线变了时重算走线（`sameRouting`），只改文字时画布晚一拍跟上；给走线加了新的输入，要同步补进 `sameRouting`。
+
 ## 插件图标与词标
 
 - 两张 448 见方的图**别互相替换**（`tests/package.spec.ts` 钉着）：
