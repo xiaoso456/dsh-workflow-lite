@@ -40,6 +40,9 @@ export function useTrend(value: number): 'up' | 'down' {
 /**
  * 原地换一段字（「保存中… → 已保存」「没有问题 → 3 个问题」、数字）：旧字往上让开淡掉，新字从下面浮上来。
  * 旧字画在 `::after` 里（`content: attr(data-was)`），不进 DOM 文本——读 `innerText` 的地方只看到新字。
+ * 换字时元素不重挂，只改文字和几个属性（`data-fresh` 在 a / b 之间切，两段 CSS 动画换个名字从头放）：
+ * 宿主页面的 `:has` 样式让视图里任何插拔都整页重算样式，状态字在打字、拖动时一直在换，重挂一次就卡一下；
+ * 也不用 `animate()`——它当场要样式，会把同一次提交里别处的改动一起逼着算一遍。
  * `pop`：数字用，新数字带一点回弹。
  * `dir`：`down` = 反方向——新字从上面落下来、旧字往下沉（数字减小时用，配 {@link useTrend}）；缺省 = 往上走。
  * `reserve`：会换到的所有字。给了就按最长的那段占宽，换字时外面的按钮不变宽变窄（点一下就换字的按钮要给）。
@@ -53,11 +56,9 @@ export function SwapText(props: {
   const { was, n } = useLast(props.text, SWAP_TEXT_MS)
   return (
     <span
-      // 每换一次重新挂：两段动画都从头放。
-      key={n}
       className={css.swapText}
       data-was={was ?? undefined}
-      data-fresh={n > 0 || undefined}
+      data-fresh={n === 0 ? undefined : n % 2 === 1 ? 'a' : 'b'}
       data-pop={props.pop === true || undefined}
       data-dir={props.dir === 'down' ? 'down' : undefined}
     >
