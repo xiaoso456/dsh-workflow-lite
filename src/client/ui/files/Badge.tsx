@@ -7,13 +7,12 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/files/Badge
  */
 
-// biome-ignore assist/source/organizeImports: 样式注入顺序：runres 要先于 resource（同一个图标上 `.kindIcon` 与 `.icon` 的规则特异性相同，后注入的赢）
 import type { ResourceItem } from '../../../shared/types.ts'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import { KIND_ICON } from '../kit/resourceUi.ts'
-import css from '../run/runres.module.css'
 import res from '../resources/resource.module.css'
+import css from '../run/runres.module.css'
 
 export function Badge(props: { kind: ResourceItem['kind'] }): React.JSX.Element {
   return (

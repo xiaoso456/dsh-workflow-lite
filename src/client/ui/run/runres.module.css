@@ -69,11 +69,10 @@
   outline-offset: -2px;
 }
 
+/* 总和 resource 模块的 .kindIcon 叠在一起用：大小、圆角由 .kindIcon 定，这里只管占两行。
+   不要在这里再写宽高圆角——两条规则特异性相同，谁赢要看哪个模块先注入，顺序一变图标就变大。 */
 .icon {
   grid-row: span 2;
-  width: 28px;
-  height: 28px;
-  border-radius: calc(8px * var(--wl-round, 1));
 }
 
 .name {
