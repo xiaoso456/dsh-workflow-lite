@@ -35,7 +35,6 @@ import type {
   SkillImageRequest,
   SkillPreviewResponse,
 } from './skillPack.ts'
-import type { CompileResult, NodeIndexEntry, Viewport, WorkflowNode } from './types.ts'
 import type { PluginConfigView, PluginConfigWrite } from './wire/config.ts'
 import type {
   GraphCreateRequest,
@@ -313,6 +312,3 @@ export interface WorkflowLiteRpcMap {
   'pack/skillFile': { args: SkillBrowseRequest; result: SkillFileResponse }
   'pack/skillImage': { args: SkillImageRequest; result: RunImageResponse }
 }
-
-/** 画布内部用的节点索引（host 的 `read` 索引与它同构）。 */
-export type { CompileResult, NodeIndexEntry, Viewport, WorkflowNode }
