@@ -14,8 +14,9 @@ import type { NodeStatus } from '../../../shared/runState.ts'
 import type { InputKind, ResourceItem, ResourceKind, ResourceView } from '../../../shared/types.ts'
 import type { T } from '../../i18n.ts'
 import type { Display } from '../../model/display.ts'
-import type { FocusFile } from '../editor/Handoff.tsx'
-import type { Access, WhenKind } from './lines/lines.ts'
+import type { FocusFile } from '../../model/editor.ts'
+import type { WhenKind } from '../../model/whenKind.ts'
+import type { Access } from '../kit/lineColors.ts'
 
 /** 卡片、连线上的运行标记：最后执行的、接下来要做的。 */
 export type RunMark = 'last' | 'next'

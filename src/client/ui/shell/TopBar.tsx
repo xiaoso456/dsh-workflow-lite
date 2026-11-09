@@ -15,6 +15,7 @@ import type { LocaleKey, T } from '../../i18n.ts'
 import { isDirty } from '../../model/editor.ts'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
+import type { TopSlots } from '../kit/topSlots.ts'
 import ui from '../kit/ui.module.css'
 import { useGlide } from '../motion/exits.tsx'
 import { FadeMark } from '../motion/marks.tsx'
@@ -24,16 +25,6 @@ import { Issues } from './Issues.tsx'
 import { Launch, type LaunchProps } from './Launch.tsx'
 import css from './topbar.module.css'
 import { WorkflowSwitcher } from './WorkflowSwitcher.tsx'
-
-/** 实例视图往共用顶栏里填东西的三个位置（元素挂上才有值；见 `RunTopBar`）。 */
-export interface TopSlots {
-  /** 名字下拉触发器里的内容。 */
-  trigger: HTMLElement | null
-  /** 左边药丸里、名字后面：状态小标与进度。 */
-  left: HTMLElement | null
-  /** 右边的按钮组。 */
-  right: HTMLElement | null
-}
 
 export const NO_SLOTS: TopSlots = { trigger: null, left: null, right: null }
 

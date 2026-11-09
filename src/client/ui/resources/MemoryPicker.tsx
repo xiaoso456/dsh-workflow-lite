@@ -10,14 +10,12 @@ import { useEffect, useRef } from 'react'
 import { type MemoryEntry, memoryTitle } from '../../../shared/memoryLib.ts'
 import { idKey } from '../../../shared/model.ts'
 import type { MemoryType } from '../../../shared/types.ts'
+import { MEMORY_PICKER_W } from '../../app/useMemoryPick.ts'
 import type { T } from '../../i18n.ts'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import ui from '../kit/ui.module.css'
 import css from './memoryPicker.module.css'
-
-/** 菜单宽度（贴着锚点弹出时据此让开右边）。 */
-export const MEMORY_PICKER_W = 300
 
 /** 「N 个工作流在用」/「没被用」。 */
 export function usedByText(t: T, entry: MemoryEntry): string {

@@ -29,15 +29,21 @@ import type {
   WorkflowEdge,
 } from '../../../shared/types.ts'
 import type { T } from '../../i18n.ts'
-import { type Edit, findNode, type Selection, takenPaths } from '../../model/editor.ts'
-import type { FocusFile } from '../editor/Handoff.tsx'
+import {
+  type Edit,
+  type FocusFile,
+  findNode,
+  freeFilePath,
+  type Selection,
+  takenPaths,
+} from '../../model/editor.ts'
 import hand from '../editor/handoff.module.css'
 import ins from '../editor/inspector.module.css'
 import { OutputEditor } from '../editor/Outputs.tsx'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import { Popover } from '../kit/Popover.tsx'
-import { freeFilePath, itemText, KIND_ICON, stepName } from '../kit/resourceUi.ts'
+import { itemText, KIND_ICON, stepName } from '../kit/resourceUi.ts'
 import { Segmented } from '../kit/Segmented.tsx'
 import ui from '../kit/ui.module.css'
 import { useResizeFlip } from '../motion/flip.ts'

@@ -66,6 +66,9 @@ import { inputSpot, memorySpot, resourceSpot } from './layout.ts'
 /** 选中态：步骤、连线，或什么都不选。用一个联合表达，互斥是结构上保证的。 */
 export type Selection = { kind: 'node'; id: string } | { kind: 'edge'; id: string } | null
 
+/** 悬停到一个文件卡（`null` = 离开）：视图据此在画布上高亮用到它的步骤。 */
+export type FocusFile = (fileId: string | null) => void
+
 /** `idle` 没打开任何工作流；`broken` 文件读不了（只读，绝不写盘）。 */
 export type Phase = 'idle' | 'loading' | 'ready' | 'broken'
 
@@ -345,6 +348,26 @@ export function takenPaths(doc: WorkflowDocument): string[] {
           .map((item) => outputKey(item.value).toLowerCase())
       : [],
   )
+}
+
+/** 图里没被资源占用的文件路径：`x.md` 被占了就 `x-2.md`、`x-3.md`… */
+export function freeFilePath(doc: WorkflowDocument, want: string): string {
+  const taken = new Set(
+    doc.nodes.flatMap((node) =>
+      isResource(node)
+        ? node.data.items
+            .filter((item) => item.kind === 'file')
+            .map((item) => outputKey(item.value).toLowerCase())
+        : [],
+    ),
+  )
+  if (!taken.has(outputKey(want).toLowerCase())) return want
+  const dot = want.lastIndexOf('.')
+  const cut = dot > 0 ? dot : want.length
+  for (let n = 2; ; n += 1) {
+    const candidate = `${want.slice(0, cut)}-${n}${want.slice(cut)}`
+    if (!taken.has(outputKey(candidate).toLowerCase())) return candidate
+  }
 }
 
 /** 换掉一条边的 `data`（空了就整键不留）。 */

@@ -16,7 +16,6 @@ import type { MemoryType, Point, WorkflowDocument } from '../../shared/types.ts'
 import type { T } from '../i18n.ts'
 import { type Edit, findNode } from '../model/editor.ts'
 import { errorMessage } from '../rpc.ts'
-import { MEMORY_PICKER_W } from '../ui/resources/MemoryPicker.tsx'
 import { type MemoryStore, memoriesOfType } from './memories.ts'
 
 export type MemoryPickTarget =
@@ -35,6 +34,9 @@ export interface MemoryPickState {
 }
 
 const GAP = 8
+
+/** 菜单宽度（贴着锚点弹出时据此让开右边）。 */
+export const MEMORY_PICKER_W = 300
 
 function typeOf(target: MemoryPickTarget): MemoryType {
   return target.kind === 'step' ? 'step' : target.kind === 'workflow' ? 'workflow' : target.type

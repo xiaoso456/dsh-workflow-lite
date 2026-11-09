@@ -9,12 +9,7 @@
 import { isInput, isResource, itemShortName } from '../../../shared/model.ts'
 import { outputKey, resolveItemPath } from '../../../shared/outputPaths.ts'
 import { resourceTitle } from '../../../shared/resources.ts'
-import type {
-  ResourceItem,
-  ResourceKind,
-  WorkflowDocument,
-  WorkflowNode,
-} from '../../../shared/types.ts'
+import type { ResourceItem, ResourceKind, WorkflowNode } from '../../../shared/types.ts'
 import type { HostSkillEntry } from '../../../shared/wire/host.ts'
 import type { LocaleKey } from '../../i18n.ts'
 import type { IconName } from './Icon.tsx'
@@ -141,26 +136,6 @@ export function stepName(node: WorkflowNode | undefined, fallback: string): stri
   if (isResource(node)) return resourceTitle(node)
   if (isInput(node)) return node.data.question.trim() === '' ? node.id : node.data.question
   return node.data.label === undefined || node.data.label === '' ? node.id : node.data.label
-}
-
-/** 图里没被资源占用的文件路径：`x.md` 被占了就 `x-2.md`、`x-3.md`… */
-export function freeFilePath(doc: WorkflowDocument, want: string): string {
-  const taken = new Set(
-    doc.nodes.flatMap((node) =>
-      isResource(node)
-        ? node.data.items
-            .filter((item) => item.kind === 'file')
-            .map((item) => outputKey(item.value).toLowerCase())
-        : [],
-    ),
-  )
-  if (!taken.has(outputKey(want).toLowerCase())) return want
-  const dot = want.lastIndexOf('.')
-  const cut = dot > 0 ? dot : want.length
-  for (let n = 2; ; n += 1) {
-    const candidate = `${want.slice(0, cut)}-${n}${want.slice(cut)}`
-    if (!taken.has(outputKey(candidate).toLowerCase())) return candidate
-  }
 }
 
 /** 同一个资源里两项是不是重复（种类相同、值规范化后相同）。 */

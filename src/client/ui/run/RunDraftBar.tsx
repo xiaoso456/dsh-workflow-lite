@@ -9,13 +9,9 @@
  */
 
 import { useId, useState } from 'react'
-import type { GraphChange } from '../../../shared/graphDiff.ts'
-import { idKey, isInput, isResource } from '../../../shared/model.ts'
-import { resourceTitle } from '../../../shared/resources.ts'
 import type { NodeStatus, RunStatus, StateEdit } from '../../../shared/runState.ts'
-import type { WorkflowDocument } from '../../../shared/types.ts'
 import type { Run } from '../../app/useRuns.ts'
-import type { LocaleKey, T } from '../../i18n.ts'
+import type { T } from '../../i18n.ts'
 import { RUN_TEXT } from '../canvas/cards/cardParts.ts'
 import { useConfirm } from '../kit/Confirm.tsx'
 import { cx } from '../kit/cx.ts'
@@ -23,7 +19,7 @@ import { Icon } from '../kit/Icon.tsx'
 import { Popover } from '../kit/Popover.tsx'
 import ui from '../kit/ui.module.css'
 import { useExit } from '../motion/exits.tsx'
-import { RUN_STATUS_TEXT } from './RunTopBar.tsx'
+import { RUN_STATUS_TEXT } from './RunStatusBadge.tsx'
 import shared from './run.module.css'
 import css from './runDraftBar.module.css'
 
@@ -32,78 +28,6 @@ export interface DraftLine {
   key: string
   text: React.ReactNode
   onUndo(): void
-}
-
-const FIELD_TEXT: Record<string, LocaleKey> = {
-  label: 'draft.field.label',
-  description: 'draft.field.description',
-  look: 'draft.field.look',
-  prompt: 'draft.field.prompt',
-  items: 'draft.field.items',
-  question: 'draft.field.question',
-  kind: 'draft.field.kind',
-  options: 'draft.field.options',
-  default: 'draft.field.default',
-  placeholder: 'draft.field.placeholder',
-  hint: 'draft.field.hint',
-  required: 'draft.field.required',
-  when: 'draft.field.when',
-  handoff: 'draft.field.handoff',
-  update: 'draft.field.update',
-}
-
-function nodeLabel(doc: WorkflowDocument, id: string): string {
-  const node = doc.nodes.find((candidate) => idKey(candidate.id) === idKey(id))
-  if (node === undefined) return id
-  if (isResource(node)) return resourceTitle(node)
-  if (isInput(node)) {
-    const question = node.data.question.trim()
-    return question === '' ? node.id : question.length > 18 ? `${question.slice(0, 18)}…` : question
-  }
-  return node.data.label === undefined || node.data.label.trim() === '' ? node.id : node.data.label
-}
-
-/** 图的一处改动写成清单里的一行：「<b>审查</b> · 改了提示词、名称」。 */
-export function graphLine(
-  t: T,
-  change: GraphChange,
-  base: WorkflowDocument,
-  doc: WorkflowDocument,
-): React.ReactNode {
-  if (change.object === 'layout') {
-    return (
-      <>
-        <b>{t('draft.layout')}</b> · {t('draft.moved').replace('{n}', String(change.fields.length))}
-      </>
-    )
-  }
-  const from = change.kind === 'removed' ? base : doc
-  let name: string
-  if (change.object === 'edge') {
-    const edge = from.edges.find((candidate) => candidate.id === change.id)
-    name =
-      edge === undefined
-        ? change.id
-        : `${nodeLabel(from, edge.source)} → ${nodeLabel(from, edge.target)}`
-  } else {
-    name = nodeLabel(from, change.id)
-  }
-  const what =
-    change.kind === 'added'
-      ? t(`draft.added.${change.object}` as LocaleKey)
-      : change.kind === 'removed'
-        ? t('draft.removed')
-        : t('draft.changedFields').replace(
-            '{fields}',
-            change.fields
-              .map((field) => (FIELD_TEXT[field] ? t(FIELD_TEXT[field]) : field))
-              .join('、'),
-          )
-  return (
-    <>
-      <b>{name}</b> · {what}
-    </>
-  )
 }
 
 function describe(t: T, edit: StateEdit): React.ReactNode {

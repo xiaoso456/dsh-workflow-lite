@@ -19,10 +19,10 @@ import {
 import { NODE_H, NODE_W, RES_H, RES_W } from '../../../model/layout.ts'
 import { fileLinkEnds, type Side } from '../../../model/route.ts'
 import { Icon } from '../../kit/Icon.tsx'
+import { ACCESS_COLOR, WHEN_COLOR } from '../../kit/lineColors.ts'
 import { cardKindOf } from '../cards/cardParts.ts'
 import type { FlowNode } from '../types.ts'
 import css from './connectionLine.module.css'
-import { ACCESS_COLOR, WHEN_COLOR } from './lines.ts'
 import { linkOf, rectOf, writePath } from './route.ts'
 
 const SIDE_POSITION: Record<Side, Position> = {

@@ -9,7 +9,7 @@ import { stepMemories } from '../../shared/presets.ts'
 import { outputResource } from '../../shared/resources.ts'
 import type { MemoryType, NodeData, Point, WorkflowDocument } from '../../shared/types.ts'
 import type { T } from '../i18n.ts'
-import { type Edit, findNode } from '../model/editor.ts'
+import { type Edit, findNode, freeFilePath } from '../model/editor.ts'
 import {
   BLANK_ID,
   INPUT_ID,
@@ -19,7 +19,6 @@ import {
   type StepSource,
 } from '../model/library.ts'
 import { copyTitle, takenLabels } from '../model/nodeName.ts'
-import { freeFilePath } from '../ui/kit/resourceUi.ts'
 
 export interface AddContext {
   t: T

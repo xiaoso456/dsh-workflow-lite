@@ -13,9 +13,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { edgeWhen, type GraphAnalysis } from '../../../shared/graph.ts'
-import { MAX_TEXT_CODEPOINTS } from '../../../shared/limits.ts'
 import { canonicalOutput, idKey, isInput, isResource } from '../../../shared/model.ts'
-import { checkText, checkWhen, isVerdictWhen } from '../../../shared/naming.ts'
+import { checkWhen, isVerdictWhen } from '../../../shared/naming.ts'
 import { edgeKind, flowEdges, nodeIndex, outputsOf } from '../../../shared/resources.ts'
 import type {
   NodeData,
@@ -26,11 +25,12 @@ import type {
 } from '../../../shared/types.ts'
 import type { HostAccess } from '../../app/host.ts'
 import type { T } from '../../i18n.ts'
-import { type Edit, findNode, type Selection } from '../../model/editor.ts'
-import { WHEN_COLOR, type WhenKind, whenKind } from '../canvas/lines/lines.ts'
+import { type Edit, type FocusFile, findNode, type Selection } from '../../model/editor.ts'
+import { type WhenKind, whenKind } from '../../model/whenKind.ts'
 import { PreviewCard } from '../files/PreviewCard.tsx'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
+import { WHEN_COLOR } from '../kit/lineColors.ts'
 import { stepName } from '../kit/resourceUi.ts'
 import { Segmented } from '../kit/Segmented.tsx'
 import { lookOf, StepMark } from '../kit/StepMark.tsx'
@@ -41,7 +41,8 @@ import { EDIT_VIEW, useSwap } from '../motion/swap.tsx'
 import { ResourcePanel } from '../resources/ResourcePanel.tsx'
 import type { PickMemory } from '../resources/ResourcePresets.tsx'
 import { ResourceEdgeBody, ResourceIcon, StepResourcesField } from '../resources/Resources.tsx'
-import { type FocusFile, HandoffField } from './Handoff.tsx'
+import { DescriptionField } from './DescriptionField.tsx'
+import { HandoffField } from './Handoff.tsx'
 import hand from './handoff.module.css'
 import { InputPanel, StepInputsField } from './InputPanel.tsx'
 import css from './inspector.module.css'
@@ -348,41 +349,6 @@ function NodePanel(props: InspectorProps & { node: StepNode }): React.JSX.Elemen
         )}
       </footer>
     </aside>
-  )
-}
-
-/** 一句话描述（给人看：步骤库条目、画布卡片），不进计划。 */
-export function DescriptionField(props: {
-  t: T
-  value: string
-  /** 缺省是步骤、资源卡那句占位。 */
-  placeholder?: string
-  onChange(value: string): void
-  onBlur?: () => void
-}): React.JSX.Element {
-  const { t } = props
-  const problem = checkText(props.value, t('ins.description'))
-  return (
-    <section className={css.field}>
-      <div className={css.label}>
-        <span>{t('ins.description')}</span>
-      </div>
-      <input
-        className={ui.input}
-        value={props.value}
-        placeholder={props.placeholder ?? t('ins.descriptionPlaceholder')}
-        aria-label={t('ins.description')}
-        aria-invalid={problem !== null}
-        maxLength={MAX_TEXT_CODEPOINTS}
-        data-testid="wl-description"
-        // 描述是一行字：换行直接不让打进来。
-        onChange={(event) => props.onChange(event.currentTarget.value.replace(/[\r\n]+/gu, ' '))}
-        onBlur={props.onBlur}
-      />
-      <Presence show={problem !== null}>
-        {problem !== null && <p className={css.error}>{problem.message}</p>}
-      </Presence>
-    </section>
   )
 }
 

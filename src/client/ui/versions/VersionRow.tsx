@@ -19,10 +19,10 @@ import { shortTime } from '../../model/time.ts'
 import { useConfirm } from '../kit/Confirm.tsx'
 import { cx } from '../kit/cx.ts'
 import { EditActions } from '../kit/EditActions.tsx'
+import { graphLine } from '../kit/graphLine.tsx'
 import { Icon } from '../kit/Icon.tsx'
 import ui from '../kit/ui.module.css'
 import { Presence, useLineExit } from '../motion/exits.tsx'
-import { graphLine } from '../run/RunDraftBar.tsx'
 import v from './versions.module.css'
 
 /** 展开后最多列几处变化，再多只说个数。 */

@@ -24,7 +24,7 @@ import ui from '../kit/ui.module.css'
 import { SwapText } from '../motion/swapText.tsx'
 import { Choices, EditedDot, isEdited } from './RunNodeState.tsx'
 import { RunPosition } from './RunPosition.tsx'
-import { RUN_STATUS_TEXT } from './RunTopBar.tsx'
+import { RUN_STATUS_TEXT } from './RunStatusBadge.tsx'
 import shared from './run.module.css'
 import own from './runOverview.module.css'
 

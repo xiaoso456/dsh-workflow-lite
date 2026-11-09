@@ -31,8 +31,8 @@ import {
   spotOf,
   writePoints,
 } from '../../../model/route.ts'
+import { whenKind } from '../../../model/whenKind.ts'
 import type { LaneShift } from '../types.ts'
-import { whenKind } from './lines.ts'
 
 /** 折线从连接点伸出去多远再拐弯。 */
 const ROUTE_PAD = 26

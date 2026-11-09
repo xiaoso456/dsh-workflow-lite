@@ -11,7 +11,8 @@ import type { RunGraph } from '../../../app/useRunGraph.ts'
 import type { Run } from '../../../app/useRuns.ts'
 import type { T } from '../../../i18n.ts'
 import { changeCount } from '../../../model/runDraft.ts'
-import { type DraftLine, graphLine } from '../RunDraftBar.tsx'
+import { graphLine } from '../../kit/graphLine.tsx'
+import type { DraftLine } from '../RunDraftBar.tsx'
 
 export interface RunDraftInput {
   t: T

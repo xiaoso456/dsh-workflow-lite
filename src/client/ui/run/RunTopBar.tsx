@@ -16,74 +16,23 @@ import {
 } from '../../../shared/runState.ts'
 import type { ValidationProblem } from '../../../shared/types.ts'
 import type { RunHistory } from '../../app/useRunHistory.ts'
-import type { LocaleKey, T } from '../../i18n.ts'
+import type { T } from '../../i18n.ts'
 import { shortTime } from '../../model/time.ts'
 import { HubRunStatus } from '../hub/HubRunStatus.tsx'
 import { copyText } from '../kit/clipboard.ts'
 import { cx } from '../kit/cx.ts'
 import { Highlight } from '../kit/Highlight.tsx'
 import { Icon } from '../kit/Icon.tsx'
+import type { TopSlots } from '../kit/topSlots.ts'
 import ui from '../kit/ui.module.css'
 import { FadeMark } from '../motion/marks.tsx'
 import { SwapIcon, SwapText } from '../motion/swapText.tsx'
 import { Issues } from '../shell/Issues.tsx'
-import type { TopSlots } from '../shell/TopBar.tsx'
 import top from '../shell/topbar.module.css'
+import { RUN_STATUS_TEXT, RunStatusBadge } from './RunStatusBadge.tsx'
 import type { RunViewProps } from './RunView.tsx'
 import shared from './run.module.css'
 import css from './runTopBar.module.css'
-
-export const RUN_STATUS_TEXT: Record<RunStatus, LocaleKey> = {
-  pending: 'run.overall.pending',
-  running: 'run.overall.running',
-  waiting: 'run.overall.waiting',
-  done: 'run.overall.done',
-  failed: 'run.overall.failed',
-  cancelled: 'run.overall.cancelled',
-}
-
-/** 实例的状态小标。 */
-export function RunStatusBadge(props: {
-  t: T
-  status: RunStatus | undefined
-  problem?: 'missing' | 'invalid' | undefined
-  /** 这个实例不记运行状态（没有状态文件）。 */
-  untracked?: boolean
-}): React.JSX.Element {
-  const { t } = props
-  if (props.untracked === true) {
-    return (
-      <span
-        className={shared.status}
-        data-glide=""
-        data-run-status="untracked"
-        data-testid="wl-run-status"
-      >
-        <span className={shared.dot} />
-        {t('run.untracked')}
-      </span>
-    )
-  }
-  if (props.problem !== undefined || props.status === undefined) {
-    return (
-      <span className={shared.status} data-glide="" data-run-status="failed">
-        <Icon name="alert" size={11} />
-        {t(props.problem === 'missing' ? 'run.stateMissing' : 'run.stateInvalid')}
-      </span>
-    )
-  }
-  return (
-    <span
-      className={shared.status}
-      data-glide=""
-      data-run-status={props.status}
-      data-testid="wl-run-status"
-    >
-      <span className={shared.dot} />
-      <SwapText text={t(RUN_STATUS_TEXT[props.status])} />
-    </span>
-  )
-}
 
 // ─────────────────────────────────────────────────────────────
 // 顶栏

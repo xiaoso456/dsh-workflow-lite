@@ -6,8 +6,8 @@
 
 import type { MemoryType } from '../../../../shared/types.ts'
 import type { LocaleKey, T } from '../../../i18n.ts'
+import type { Access } from '../../kit/lineColors.ts'
 import { KIND_LABEL } from '../../kit/resourceUi.ts'
-import type { Access } from '../lines/lines.ts'
 
 const ACCESS_TEXT: Record<Access, LocaleKey> = {
   produce: 'file.produce',

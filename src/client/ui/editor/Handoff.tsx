@@ -23,9 +23,6 @@ import { Checkbox } from '../motion/marks.tsx'
 import css from './handoff.module.css'
 import ins from './inspector.module.css'
 
-/** 悬停到一个文件卡（`null` = 离开）：视图据此在画布上高亮用到它的步骤。 */
-export type FocusFile = (fileId: string | null) => void
-
 /** 一条步骤间的线交了什么（属性面板的连接清单里用）。 */
 export function HandoffChip(props: { t: T; edge: WorkflowEdge }): React.JSX.Element {
   const { t } = props

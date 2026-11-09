@@ -7,13 +7,13 @@
 import { BaseEdge, type EdgeProps, getBezierPath } from '@xyflow/react'
 import { memo } from 'react'
 import { cx } from '../../kit/cx.ts'
+import { ACCESS_COLOR, type Access } from '../../kit/lineColors.ts'
 import { SwapIcon, SwapText, useLast } from '../../motion/swapText.tsx'
 import shared from '../canvas.module.css'
 import type { FileEdge } from '../types.ts'
 import { FlowStreaks } from './FlowStreaks.tsx'
 import css from './fileLine.module.css'
 import { OnLabels } from './LabelLayer.tsx'
-import { ACCESS_COLOR, type Access } from './lines.ts'
 import { routedPath, writePath } from './route.ts'
 
 const ACCESS_ICON = { produce: 'pencil', update: 'reload', read: 'eye', ask: 'ask' } as const

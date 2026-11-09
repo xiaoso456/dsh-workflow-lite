@@ -1,9 +1,10 @@
 /**
- * 资源在画布上的样子：卡片高度的估算（`model/layout.ts`）、一项的简称、路径查重（`ui/kit/resourceUi.ts`）。
+ * 资源在画布上的样子：卡片高度的估算（`model/layout.ts`）、一项的简称、路径查重（`model/editor.ts`）。
  */
 
 import { describe, expect, it } from 'vitest'
 import { type LocaleKey, zh } from '../../src/client/i18n.ts'
+import { freeFilePath } from '../../src/client/model/editor.ts'
 import {
   cardSize,
   isCompactResource,
@@ -16,7 +17,6 @@ import {
   addItems,
   fileMetadata,
   filterSkills,
-  freeFilePath,
   itemLocation,
   itemName,
   itemText,
