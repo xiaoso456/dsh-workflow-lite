@@ -9,7 +9,7 @@ on:
       - 'site/**'
       - 'CHANGELOG.md'
       - 'assets/**'
-      - 'src/shared/wire.ts'
+      - 'src/shared/wire/config.ts'
       - 'src/client/i18n/**'
       - '.github/workflows/docs.yml'
   workflow_dispatch:
