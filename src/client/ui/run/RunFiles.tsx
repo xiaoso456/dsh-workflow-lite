@@ -28,10 +28,15 @@ import css from './runFiles.module.css'
  * 资源里一个文件 / 文件夹在工作区里的路径（实例的快照里产出根目录已换上实例 id）：
  * 有步骤写它时相对路径拼上产出根目录，只被读时相对工作区。
  */
-export function itemDisplayPath(doc: WorkflowDocument, node: ResourceNode, index: number): string {
+export function itemDisplayPath(
+  doc: WorkflowDocument,
+  node: ResourceNode,
+  index: number,
+  graph: ReturnType<typeof resourceGraph> = resourceGraph(doc),
+): string {
   const item = node.data.items[index]
   if (item === undefined) return ''
-  const written = underOutputRoot(resourceGraph(doc).get(node.id))
+  const written = underOutputRoot(graph.get(node.id))
   return resolveItemPath(rootOf(doc.settings), item.value, written)
 }
 
@@ -65,18 +70,21 @@ export function StepResourceList(props: {
   const { t, snapshot } = props
   const linked = useMemo(() => stepResources(snapshot, props.step), [snapshot, props.step])
   // 模型报告产出时可能写完整路径，也可能只写相对产出根目录的那段：两种都算图里有的。
-  const known = new Set(
-    snapshot.nodes
-      .filter(isResource)
-      .flatMap((node) =>
-        node.data.items.flatMap((item, index) =>
-          item.kind === 'file' || item.kind === 'folder'
-            ? [itemDisplayPath(snapshot, node, index), item.value]
-            : [],
-        ),
-      )
-      .map((path) => outputKey(path).toLowerCase()),
-  )
+  const known = useMemo(() => {
+    const graph = resourceGraph(snapshot)
+    return new Set(
+      snapshot.nodes
+        .filter(isResource)
+        .flatMap((node) =>
+          node.data.items.flatMap((item, index) =>
+            item.kind === 'file' || item.kind === 'folder'
+              ? [itemDisplayPath(snapshot, node, index, graph), item.value]
+              : [],
+          ),
+        )
+        .map((path) => outputKey(path).toLowerCase()),
+    )
+  }, [snapshot])
   const extra = props.reported.filter((path) => !known.has(outputKey(path).toLowerCase()))
 
   const row = (resource: ResourceNode, mode: 'produce' | 'update' | 'read'): React.JSX.Element => {

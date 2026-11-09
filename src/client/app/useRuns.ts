@@ -268,6 +268,8 @@ export function useRun(
   const [error, setError] = useState<string | null>(null)
   const [toast, setToast] = useState<RunToast | null>(null)
   const mtime = useRef<number | undefined>(undefined)
+  /** 上一次读回来的整份（序列化）：定期整份重读时内容一点没变就不换对象，画布不用整张重算。 */
+  const lastLoad = useRef<string | undefined>(undefined)
   /** 刚保存的字段与改前的值：之后如果又变回改前，多半是被模型拿旧内容覆盖了。 */
   const saved = useRef<StateEdit[]>([])
   const draftRef = useRef(draft)
@@ -333,6 +335,9 @@ export function useRun(
           ...(force || mtime.current === undefined ? {} : { since: mtime.current }),
         })
         if ('unchanged' in result) return
+        const json = JSON.stringify(result)
+        if (json === lastLoad.current) return
+        lastLoad.current = json
         mtime.current = result.mtime
         setView(result)
         setError(null)
@@ -349,6 +354,8 @@ export function useRun(
           if (reverted.length > 0) setOverwritten(reverted.map((edit) => edit.path))
         }
       } catch (caught) {
+        // 出错之后读回来的哪怕和出错前一样，也要照常收下（清掉错误）。
+        lastLoad.current = undefined
         setError(errorMessage(caught))
       }
     },
@@ -358,6 +365,7 @@ export function useRun(
   // 换了实例：清掉上一份的显示，读新的。
   useEffect(() => {
     mtime.current = undefined
+    lastLoad.current = undefined
     saved.current = []
     setView(null)
     setLastGood(null)
