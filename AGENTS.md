@@ -89,13 +89,14 @@ DSH_WEB_TOKEN=<token> DSH_BASE=http://127.0.0.1:3190 node --experimental-strip-t
 | `cdp-versions.mjs` | 版本、工作流中心「工作流」页 |
 | `cdp-config.mjs` | 「设置」页（含配色主题） |
 | `cdp-pack.mjs` | 导出、导入、导出成 Skill（装到本机用一次性名字，验完删掉） |
+| `cdp-big.mjs` | 400 张卡的大图：只挂视口附近的卡片之后，看全图、定位、拖卡片、平移、长线、展示卡挪出去再挪回来（自备一次性实例，不用 `DSH_WEB_TOKEN`） |
 
 ## 性能场景
 
-大图（`tests/perf/bigGraph.ts`，一份 25 张卡复制 K 份）下的开销，改了画布、实例视图、仓储列表前后各量一次：
+大图（`tests/perf/bigGraph.ts`，一份 25 张卡复制 K 份）下的开销，改了画布、实例视图、仓储列表前后各量一次。前端为此做的几样东西（只挂视口附近的卡片、画布几何、读取缓存、打字不卡）的设计、不变式和量过的结果写在 [`src/client/PERFORMANCE.md`](src/client/PERFORMANCE.md)，改到相关代码前先读：
 
 - `node --experimental-strip-types tests/perf/bench-model.ts`：Node 里量纯计算（整理排版、全图走线、拖动一帧走线、改动比对、工作流列表）。
-- `node --experimental-strip-types tests/perf/canvas-scenarios.mjs [--copies 16]`：自备一次性实例在真浏览器里量切图、拖动、平移、模板 / 实例里打字、实例静置、打开切换列表；`--mut` 看 DOM 插拔、`--profile` 看 CPU、`--css` / `--no-host-has` 做对照。
+- `node --experimental-strip-types tests/perf/canvas-scenarios.mjs [--copies 16]`：自备一次性实例在真浏览器里量切图、拖动、平移（另记插拔数，应为 0）、缩小后平移、模板 / 实例里打字、实例静置、打开切换列表；`--mut` 看 DOM 插拔、`--profile` 看 CPU、`--css` / `--no-host-has` 做对照。机器噪声大，各跑两遍取平均，只比整套跑的结果。
 
 坑：宿主页面有条 `:has` 规则，视图里**任何一次插拔元素都是整页重算样式**（400 张卡时约 400ms），只改属性、改文字不会；热路径上（打字、拖动、轮询）别挂载 / 卸载元素。headless Chrome 没开 GPU，平移的绘制开销偏大，只看相对变化。
 
@@ -103,7 +104,9 @@ DSH_WEB_TOKEN=<token> DSH_BASE=http://127.0.0.1:3190 node --experimental-strip-t
 
 - 多行输入一律用 `ui/kit/TextArea.tsx`，不写裸 `<textarea value>`：React 的受控 textarea 每次渲染都重写文字子节点，大图上每敲一个字卡几百毫秒。
 - 换字的动效用 `SwapText`（换属性重放 CSS 动画，不重挂元素）；热路径上别调 `element.animate()`，它会当场把同一次提交里的样式改动一起算掉。
-- 画布只在位置、尺寸、连线变了时重算走线（`sameRouting`），只改文字时画布晚一拍跟上；给走线加了新的输入，要同步补进 `sameRouting`。
+- 画布只在位置、尺寸、连线变了时重算走线（`sameRouting`），只改文字时画布晚一拍跟上；给走线加了新的输入，要同步补进 `sameRouting`（结构类的计算同理，见 `sameStructure`）。
+- 50 张卡以上的图只把视口附近的卡片和线交给 React Flow：按 React Flow 节点算的东西（`getNodes`、`getInternalNode`、`fitView`）在大图上只看得到一部分，改用 `useCanvasGeometry`（按文档坐标 + 尺寸表）；要求不管在哪都挂着的，加进 `useCulledFlow` 的钉住列表。
+- 展示卡里的读取会随卡片摘下、挂回来而重来：新加的读取按「目标 + 信号」走 `app/readCache.ts`，挂上时用 `useState` 的初始化函数先查缓存。
 
 ## 插件图标与词标
 
