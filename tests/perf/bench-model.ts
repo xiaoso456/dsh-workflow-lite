@@ -6,6 +6,8 @@
  * | 整理排版 | `tidy`（ELK）给整张图排一次 |
  * | 全图走线 | `buildRoutes` 没有上一版可复用时（打开、整理、改了图）算一遍所有读写线 |
  * | 拖动一帧走线 | 拖连线最多的步骤时每帧的 `buildRoutes`（复用拖动前的走法，只重算受影响的线） |
+ * | 判断走线没变 | `sameRouting`：打字时每个字判一次，判成没变就沿用全图走线 |
+ * | 挑要挂的 | `mountedIn`：大图换区域时挑一次要挂的卡片和线 |
  * | 改动比对 | `graphChanges`：改了一个步骤的提示词，和磁盘上那版比出改了什么（保存、实例草稿都走它） |
  * | 工作流列表 | 仓储 `list()`：数据目录里 N 张图时列一次（顶栏切换列表、工作流中心都要它） |
  *
@@ -14,6 +16,8 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { mountedIn, regionFor, viewOf } from '../../src/client/model/cull.ts'
+import { sameRouting } from '../../src/client/model/docShape.ts'
 import { tidy } from '../../src/client/model/layout.ts'
 import { buildRoutes, type RouteBase } from '../../src/client/ui/canvas/flow/buildRoutes.ts'
 import { workflowFile } from '../../src/host/store/paths.ts'
@@ -101,6 +105,25 @@ for (const copies of arg('copies', '4,16')) {
     ),
   }
   row('改动比对', ms(await time(50, () => graphChanges(doc, edited))))
+  // 打字时每个字判一次「结构 / 走线没变」，判成没变就沿用图分析和全图走线。
+  row('判断走线没变', ms(await time(200, () => sameRouting(doc, edited))))
+
+  // 大图只挂视口附近的：换区域时挑一次要挂哪些（1600×960 的视口，缩放 1 和 0.3）。
+  const routes = buildRoutes({ doc, dragging: {}, sized: 0, sizes, routeBase: { current: null } })
+  const none = new Set<string>()
+  for (const zoom of [1, 0.3]) {
+    const region = regionFor(viewOf([0, 0, zoom], 1600, 960))
+    const pick = (): ReturnType<typeof mountedIn> =>
+      mountedIn({
+        doc,
+        sizes,
+        region,
+        pinnedNodes: none,
+        pinnedEdges: none,
+        pathOf: (id) => ({ lane: routes.lanes.get(id), bend: routes.bends.get(id) }),
+      })
+    row(`挑要挂的（缩放 ${zoom}，挂 ${pick().nodes.size} 张）`, ms(await time(100, pick)))
+  }
 }
 
 for (const count of arg('workflows', '50,200')) {

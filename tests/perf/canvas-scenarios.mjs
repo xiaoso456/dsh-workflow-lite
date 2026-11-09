@@ -27,6 +27,18 @@
 import { rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import {
+  blankExpr,
+  click,
+  drag,
+  focusNode as focusAt,
+  laidBigGraph,
+  centerOfNode as nodeAt,
+  paneCenterExpr,
+  saveGraph,
+  sleep,
+  wheel,
+} from '../lib/big-canvas.mjs'
 import { bootToCanvas, revealHubRow, selectGraph } from '../lib/canvas-harness.mjs'
 import { openPage, waitFor } from '../lib/cdp-session.mjs'
 import { rpc } from '../lib/web-session.mjs'
@@ -50,7 +62,11 @@ const NO_HOST_HAS = process.argv.includes('--no-host-has')
 const PROFILE = process.argv.includes('--profile')
 const BIG = 'perf-big'
 const SMALL = 'perf-small'
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+/** 画布上是大图了：有卡、而且没有小图的卡（不要求 400 张都挂上——视口裁剪时只挂看得见的）。 */
+const BIG_SHOWN = `(() => {
+  const ids = [...document.querySelectorAll('.react-flow__node')].map((node) => node.dataset.id ?? '');
+  return ids.length > 0 && ids.every((id) => !id.endsWith('_s'));
+})()`
 
 /** 页面里装的计量：rAF 帧间隔、长任务、按键的 Event Timing。 */
 const INSTALL = `(() => {
@@ -123,6 +139,8 @@ async function metrics(session) {
 }
 
 const results = {}
+/** 平移这类场景另记插拔了多少个元素（宿主的 `:has` 规则下每次插拔都是整页样式重算；平移中最好一个都没有）。 */
+const churn = (f) => ({ 插拔: f.mut.added + f.mut.removed })
 async function measure(session, label, act, extra = () => ({})) {
   if (ONLY !== '' && !label.includes(ONLY)) return
   await sleep(600)
@@ -140,14 +158,15 @@ async function measure(session, label, act, extra = () => ({})) {
       Math.round((after[k] - before[k]) * 1000),
     ]),
   )
-  const result = { ...f, main, ...(own ?? {}), ...extra() }
+  const result = { ...f, main, ...(own ?? {}), ...extra(f) }
   results[label] = result
   const keys =
     f.keysOver16 > 0 || label.includes('改提示词')
       ? `  按键>16ms ${f.keysOver16} 次 p50 ${f.keyP50} 最大 ${f.keyMax}`
       : ''
   console.log(`\n■ ${label}`)
-  if (own !== undefined) console.log(`  ${JSON.stringify(own)}`)
+  const noted = { ...(own ?? {}), ...extra(f) }
+  if (Object.keys(noted).length > 0) console.log(`  ${JSON.stringify(noted)}`)
   console.log(
     `  帧 ${f.frames}  p50 ${f.p50}  p90 ${f.p90}  最大 ${f.max}  >33ms ${f.over33}  长任务 ${f.longTasks}（${f.longSum}ms）${keys}`,
   )
@@ -210,38 +229,10 @@ async function topSelf(profile, n = 15) {
     .map(([k, v]) => `${v.toFixed(0).padStart(6)}ms  ${k}`)
 }
 
-const centerOfNode = (id, dy = 0.5) =>
-  `(() => { const r = document.querySelector('.react-flow__node[data-id="${id}"]').getBoundingClientRect(); return { x: Math.round(r.left + Math.min(40, r.width / 3)), y: Math.round(r.top + r.height * ${dy}) }; })()`
-
-const mouse = (session, type, x, y, buttons) =>
-  session.send('Input.dispatchMouseEvent', {
-    type,
-    x,
-    y,
-    button: type === 'mouseMoved' && buttons === 0 ? 'none' : 'left',
-    buttons,
-    clickCount: 1,
-  })
-
-/** 按住拖：默认往返一趟回到起点；`back = false` 时拖过去就松手。 */
-async function drag(session, from, dx, dy, steps = 120, back = true) {
-  await mouse(session, 'mouseMoved', from.x, from.y, 0)
-  await mouse(session, 'mousePressed', from.x, from.y, 1)
-  let end = from
-  for (let i = 1; i <= steps; i += 1) {
-    const t = !back ? i / steps : i <= steps / 2 ? i / (steps / 2) : (steps - i) / (steps / 2)
-    end = { x: Math.round(from.x + dx * t), y: Math.round(from.y + dy * t) }
-    await mouse(session, 'mouseMoved', end.x, end.y, 1)
-    await sleep(14)
-  }
-  await mouse(session, 'mouseReleased', end.x, end.y, 0)
-}
-
-async function click(session, point) {
-  await mouse(session, 'mouseMoved', point.x, point.y, 0)
-  await mouse(session, 'mousePressed', point.x, point.y, 1)
-  await mouse(session, 'mouseReleased', point.x, point.y, 0)
-}
+/** 大图排好之后各卡的位置（看不见的卡不在 DOM 里，按它算屏幕位置）。 */
+const POSITIONS = new Map()
+const centerOfNode = (id, dy = 0.5) => nodeAt(id, POSITIONS.get(id), dy)
+const focusNode = (session, id, zoomSteps = 5) => focusAt(session, id, POSITIONS.get(id), zoomSteps)
 
 /** 连打 n 个字，每个字间隔 `gap` 毫秒（打字速度约每秒 12 个字）。 */
 async function type(session, n, gap = 80) {
@@ -259,44 +250,6 @@ async function type(session, n, gap = 80) {
   }
 }
 
-const blankExpr = `(() => {
-  const pane = document.querySelector('.react-flow__pane').getBoundingClientRect();
-  for (let y = pane.top + 30; y < pane.bottom - 30; y += 17) for (let x = pane.left + 30; x < pane.right - 30; x += 23) {
-    const el = document.elementFromPoint(x, y);
-    if (el && el.classList.contains('react-flow__pane')) return { x: Math.round(x), y: Math.round(y) };
-  }
-  return null;
-})()`
-
-async function saveGraph(name, document) {
-  await rpc('graph/delete', { name }).catch(() => {})
-  await rpc('graph/create', { name })
-  const disk = await rpc('graph/load', { name })
-  await rpc('graph/save', { name, document, baseHash: disk.hash })
-}
-
-/** 先把那张卡平移到画布中间，再以它为中心放大 `zoomSteps` 下（放大到点得准它）。大图在最小缩放下也放不下，不挪的话卡可能在屏幕外。 */
-async function focusNode(session, id, zoomSteps = 5) {
-  const paneCenter = `(() => { const r = document.querySelector('.react-flow__pane').getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }; })()`
-  const center = await session.evaluate(paneCenter)
-  const at = await session.evaluate(centerOfNode(id))
-  const blank = await session.evaluate(blankExpr)
-  await drag(session, blank, center.x - at.x, center.y - at.y, 30, false)
-  await sleep(400)
-  for (let i = 0; i < zoomSteps; i += 1) {
-    const target = await session.evaluate(centerOfNode(id))
-    await session.send('Input.dispatchMouseEvent', {
-      type: 'mouseWheel',
-      x: target.x,
-      y: target.y,
-      deltaX: 0,
-      deltaY: -100,
-    })
-    await sleep(250)
-  }
-  await sleep(600)
-}
-
 await rm(SCRATCH, { recursive: true, force: true })
 const env = await startShotsEnv({
   dataDir: join(SCRATCH, 'data'),
@@ -308,10 +261,24 @@ try {
   session = await openPage()
   await session.send('Network.clearBrowserCookies').catch(() => {})
   await installShotsCookie(session, env.base, env.cookie)
-  const doc = bigGraph(COPIES)
+  // 在 Node 里先排好版再存（画布上点「整理」时就基本不动了），各卡的位置脚本里也知道。
+  const doc = await laidBigGraph(COPIES)
+  for (const node of doc.nodes) POSITIONS.set(node.id, node.position)
   const busy = busiestStep(doc)
   await saveGraph(BIG, doc)
-  await saveGraph(SMALL, bigGraph(1))
+  // 小图的 id 带个后缀，和大图区分开：切过去之后看画布上还有没有小图的卡（大图开了视口裁剪时不会全挂上）。
+  const tagged = bigGraph(1)
+  const tag = (id) => `${id}_s`
+  await saveGraph(SMALL, {
+    ...tagged,
+    nodes: tagged.nodes.map((node) => ({ ...node, id: tag(node.id) })),
+    edges: tagged.edges.map((edge) => ({
+      ...edge,
+      id: tag(edge.id),
+      source: tag(edge.source),
+      target: tag(edge.target),
+    })),
+  })
   // 切换列表要列的那些图（每张一份 25 张卡的流程）。
   const small = bigGraph(1)
   for (let i = 0; i < WORKFLOWS; i += 1)
@@ -351,11 +318,7 @@ try {
     await sleep(1500)
     const t0 = await session.evaluate('performance.now()')
     await selectGraph(session, BIG)
-    await waitFor(
-      session,
-      `document.querySelectorAll('.react-flow__node').length === ${doc.nodes.length}`,
-      { timeoutMs: 30_000 },
-    )
+    await waitFor(session, BIG_SHOWN, { timeoutMs: 30_000 })
     const done = await session.evaluate('window.__perf.settled()')
     return { 停稳ms: Math.round(done - t0) }
   })
@@ -388,7 +351,14 @@ try {
     return { 卡片挪了px: Math.round(Math.hypot(mid.x - from.x, mid.y - from.y)) }
   })
   const blank = await session.evaluate(blankExpr)
-  await measure(session, '平移画布', async () => drag(session, blank, 220, 120))
+  await measure(session, '平移画布', async () => drag(session, blank, 220, 120), churn)
+  // 缩到最小再来回平移：一屏里卡片最多的时候。
+  await wheel(session, await session.evaluate(paneCenterExpr), -8)
+  await sleep(800)
+  const far = await session.evaluate(blankExpr)
+  await measure(session, '缩小后平移', async () => drag(session, far, 360, 200), churn)
+  await session.evaluate(`document.querySelector('[data-testid="wl-fit"]')?.click()`)
+  await sleep(1200)
 
   // 模板里改提示词：放大到那一步、点中它、打开提示词编辑、连打 30 个字。
   await focusNode(session, busy)
@@ -426,11 +396,7 @@ try {
   await session.evaluate(
     `document.querySelector('[data-testid="wl-hub-row"][data-id="${instance}"] [data-testid="wl-hub-view"]').click()`,
   )
-  await waitFor(
-    session,
-    `document.querySelectorAll('.react-flow__node').length === ${doc.nodes.length}`,
-    { timeoutMs: 30_000 },
-  )
+  await waitFor(session, BIG_SHOWN, { timeoutMs: 30_000 })
   await sleep(2000)
   await measure(session, '实例静置 16 秒（后台问 3 次）', () => sleep(16_000))
   await focusNode(session, busy)
