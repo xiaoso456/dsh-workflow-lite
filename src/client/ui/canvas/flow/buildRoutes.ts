@@ -4,9 +4,15 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/canvas/flow/buildRoutes
  */
 
+import { edgeWhen } from '../../../../shared/graph.ts'
 import { idKey } from '../../../../shared/model.ts'
-import { edgeKind, nodeIndex } from '../../../../shared/resources.ts'
-import type { Point, WorkflowDocument, WorkflowNode } from '../../../../shared/types.ts'
+import { edgeKind, nodeIndex, resolveHandoff } from '../../../../shared/resources.ts'
+import type {
+  Point,
+  WorkflowDocument,
+  WorkflowEdge,
+  WorkflowNode,
+} from '../../../../shared/types.ts'
 import { cardSize } from '../../../model/layout.ts'
 import { type Chip, nudge, placeChips, type Track } from '../../../model/nudge.ts'
 import type { Rect } from '../../../model/route.ts'
@@ -125,3 +131,36 @@ export function buildRoutes({ doc, dragging, sized, measured, routeBase }: Route
 }
 
 export type CanvasRoutes = ReturnType<typeof buildRoutes>
+
+/** 两条线走法相关的部分一样吗：两头、条件（牌子宽度、分道颜色）、交接标记、读写方式。 */
+function sameEdgeRoute(a: WorkflowEdge, b: WorkflowEdge): boolean {
+  if (a === b) return true
+  if (a.id !== b.id || a.source !== b.source || a.target !== b.target) return false
+  if (edgeWhen(a) !== edgeWhen(b) || a.data?.update !== b.data?.update) return false
+  const ha = resolveHandoff(a.data?.handoff)
+  const hb = resolveHandoff(b.data?.handoff)
+  return ha.result === hb.result && (ha.note === undefined) === (hb.note === undefined)
+}
+
+/**
+ * 两份文档的走线是否一定相同：`buildRoutes` 只看卡片的 id、种类、位置、估算尺寸，和 {@link sameEdgeRoute} 里那几样。
+ * 改提示词、标题、描述这类只动文字的编辑，走线不用重算——大图上全图走线一次要几十毫秒，每敲一个字都算就卡。
+ */
+export function sameRouting(a: WorkflowDocument, b: WorkflowDocument): boolean {
+  if (a === b) return true
+  if (a.nodes.length !== b.nodes.length || a.edges.length !== b.edges.length) return false
+  for (let i = 0; i < a.nodes.length; i += 1) {
+    const x = a.nodes[i] as WorkflowNode
+    const y = b.nodes[i] as WorkflowNode
+    if (x === y) continue
+    if (x.id !== y.id || x.type !== y.type) return false
+    if (x.position.x !== y.position.x || x.position.y !== y.position.y) return false
+    const sx = cardSize(x)
+    const sy = cardSize(y)
+    if (sx.w !== sy.w || sx.h !== sy.h) return false
+  }
+  for (let i = 0; i < a.edges.length; i += 1) {
+    if (!sameEdgeRoute(a.edges[i] as WorkflowEdge, b.edges[i] as WorkflowEdge)) return false
+  }
+  return true
+}

@@ -40,6 +40,8 @@ export interface EdgeCache {
   onPick: unknown
   acts: unknown
   map: Map<string, EdgeCacheEntry>
+  /** 上一次交出去的整份数组：一条线都没变时原样交回，React Flow 就不用把所有线再过一遍。 */
+  list?: FlowEdge[]
 }
 
 export interface EdgesInput {
@@ -207,5 +209,8 @@ export function buildEdges({
     })
   })
   edgeCache.current.map = next
+  const last = edgeCache.current.list
+  if (last?.length === list.length && list.every((edge, i) => edge === last[i])) return last
+  edgeCache.current.list = list
   return list
 }

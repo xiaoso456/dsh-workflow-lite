@@ -13,7 +13,7 @@
 
 import '@xyflow/react/dist/base.css'
 import { Background, BackgroundVariant, ReactFlow, useReactFlow, useStore } from '@xyflow/react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import type { GraphAnalysis } from '../../../shared/graph.ts'
 import type { MemoryEntry } from '../../../shared/memoryLib.ts'
 import { idKey } from '../../../shared/model.ts'
@@ -44,7 +44,7 @@ import { ResourceCard } from './cards/ResourceCard.tsx'
 import { StepCard } from './cards/StepCard.tsx'
 import { buildEdges, type EdgeCacheEntry } from './flow/buildEdges.ts'
 import { buildNodes, type CacheEntry } from './flow/buildNodes.ts'
-import { buildRoutes, type RouteBase } from './flow/buildRoutes.ts'
+import { buildRoutes, type RouteBase, sameRouting } from './flow/buildRoutes.ts'
 import { buildTexts } from './flow/buildTexts.ts'
 import { useConnectionDrag } from './hooks/useConnectionDrag.ts'
 import { useNodeChanges } from './hooks/useNodeChanges.ts'
@@ -135,10 +135,7 @@ const EDGE_TYPES = { wfEdge: LinkLine, wfFileLink: FileLine }
 export function Canvas(props: CanvasProps): React.JSX.Element {
   const {
     t,
-    doc,
-    analysis,
     selection,
-    problems,
     focusFile: hoveredFile,
     onEdit,
     onSeal,
@@ -147,6 +144,20 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
     onDropSource,
     run,
   } = props
+  // 只改了文字（打字改提示词、标题……）时画布晚一拍跟上：按键那一帧照旧画上一版，
+  // 新的一版放到空闲时重画（React 会在下一次按键时让路）。挪了卡片、改了连线、换了图的照常当场画。
+  const live = useMemo(
+    () => ({
+      doc: props.doc,
+      analysis: props.analysis,
+      problems: props.problems,
+      loadKey: props.loadKey,
+    }),
+    [props.doc, props.analysis, props.problems, props.loadKey],
+  )
+  const deferred = useDeferredValue(live)
+  const { doc, analysis, problems } =
+    deferred.loadKey === live.loadKey && sameRouting(deferred.doc, live.doc) ? deferred : live
   const flow = useReactFlow<FlowNode, FlowEdge>()
   const wrapRef = useRef<HTMLDivElement>(null)
   /** 连线标签层：找一次发给各条线（见 LabelLayer.tsx）。 */
@@ -174,8 +185,9 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
     acts: null as unknown,
     map: new Map<string, EdgeCacheEntry>(),
   })
-  const docRef = useRef(doc)
-  docRef.current = doc
+  /** 最新的文档（画出来的可能晚一拍，见上）：回调里按它找卡片、算位置。 */
+  const docRef = useRef(props.doc)
+  docRef.current = props.doc
   /** 没在拖卡片时挑好的各条线的走法：拖动中没碰到的线照用（见 `routes`）。 */
   const routeBase = useRef<RouteBase | null>(null)
 
@@ -296,9 +308,13 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
 
   const texts = useMemo(() => buildTexts(t), [t])
 
+  // 只改了文字（提示词、标题……）时沿用上一份文档算走线：走线只看位置、尺寸、连线，见 `sameRouting`。
+  const routeDocRef = useRef(doc)
+  if (!sameRouting(routeDocRef.current, doc)) routeDocRef.current = doc
+  const routeDoc = routeDocRef.current
   const routes = useMemo(
-    () => buildRoutes({ doc, dragging, sized, measured, routeBase }),
-    [doc, dragging, sized],
+    () => buildRoutes({ doc: routeDoc, dragging, sized, measured, routeBase }),
+    [routeDoc, dragging, sized],
   )
 
   const nodes = useMemo<FlowNode[]>(
