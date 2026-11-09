@@ -15,10 +15,9 @@ import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import ui from '../kit/ui.module.css'
 import ins from '../panel/panel.module.css'
-import run from '../run/run.module.css'
-import css from '../run/runstep.module.css'
 import { type DocEdit, DocViewer } from './DocViewer.tsx'
 import files from './files.module.css'
+import css from './previewCard.module.css'
 
 /** 能改时怎么交出去。 */
 export interface PreviewEdit extends Omit<DocEdit, 'start'> {
@@ -60,7 +59,7 @@ export function PreviewCard(props: {
     edit?.onSeal?.()
   }
   return (
-    <section className={run.section} data-testid={props.testId}>
+    <section className={css.section} data-testid={props.testId}>
       <div className={css.titleRow}>
         <span className={files.groupTitle}>
           {props.label}

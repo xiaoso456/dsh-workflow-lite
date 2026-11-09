@@ -9,6 +9,7 @@ import type { T } from '../../../i18n.ts'
 import type { Display } from '../../../model/display.ts'
 import { formatBytes, stripAnsi } from '../../../model/fileKind.ts'
 import { newLines, prettyJson } from '../../../model/textShape.ts'
+import logCss from '../../files/logViewer.module.css'
 import { type ImageSource, Markdown } from '../../files/Markdown.tsx'
 import css from '../display.module.css'
 import { useFollow, useMarks, useOverflow, WRAP_LINES } from './follow.ts'
@@ -94,12 +95,12 @@ export function Flow(props: {
           lines !== null && (
             <>
               {earlier !== null && <p className={css.earlier}>{earlier}</p>}
-              <pre className={css.pre} data-wrap={props.wrap || undefined}>
+              <pre className={logCss.pre} data-wrap={props.wrap || undefined}>
                 {lines.shown.map((line, index) => (
                   <span
                     // biome-ignore lint/suspicious/noArrayIndexKey: 第几行就是身份，内容一变整块重排
                     key={index}
-                    className={css.line}
+                    className={logCss.line}
                     data-new={
                       marks?.items.has(lines.start + index) === true ? marks.parity : undefined
                     }

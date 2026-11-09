@@ -26,6 +26,7 @@ import { Skeleton } from '../kit/Skeleton.tsx'
 import ui from '../kit/ui.module.css'
 import { useFlip } from '../motion/flip.ts'
 import { ListThumb } from '../motion/thumb.tsx'
+import wf from '../versions/wfList.module.css'
 import { HubRunRow } from './HubRunRow.tsx'
 import { HubSearch } from './HubSearch.tsx'
 import hub from './hub.module.css'
@@ -140,11 +141,7 @@ export function HubRuns(props: {
     <div className={hub.wfPage}>
       <div className={hub.side}>
         <HubSearch t={t} value={query} placeholder={t('hub.search')} onChange={setQuery} />
-        <nav
-          ref={sideRef}
-          className={cx(hub.wfList, hub.sideList)}
-          aria-label={t('hub.workspaces')}
-        >
+        <nav ref={sideRef} className={cx(wf.wfList, wf.sideList)} aria-label={t('hub.workspaces')}>
           <ListThumb layout={sideLayout} />
           {groups.length === 0 ? (
             <p className={cx(hub.sideEmpty, ui.fade)}>{t('hub.noMatch')}</p>
@@ -202,21 +199,21 @@ function WorkspaceItem(props: {
     <button
       type="button"
       aria-current={props.selected ? 'true' : undefined}
-      className={hub.wfItem}
+      className={wf.wfItem}
       data-flip={workspace.key}
       data-selected={props.selected}
       data-testid="wl-hub-ws"
       data-path={workspace.path}
       onClick={props.onPick}
     >
-      <span className={hub.wfIcon}>
+      <span className={wf.wfIcon}>
         <Icon name="folder" size={15} />
       </span>
-      <span className={hub.wfText}>
+      <span className={wf.wfText}>
         <span className={css.wsName}>
           {/* 完整路径挂在名字上：提示贴着名字、和它左边对齐着往右展开，不是整项下面、也不越出左栏。 */}
           <span
-            className={hub.wfName}
+            className={wf.wfName}
             data-tip={workspace.path}
             data-tip-align="start"
             data-testid="wl-hub-ws-name"
@@ -225,7 +222,7 @@ function WorkspaceItem(props: {
           </span>
           {workspace.here && <span className={hub.tag}>{t('hub.here')}</span>}
         </span>
-        <span className={hub.wfMeta}>
+        <span className={wf.wfMeta}>
           {t('hub.runCount').replace('{n}', String(workspace.count))}
           {group.active > 0 && (
             <>
@@ -274,7 +271,7 @@ function WorkspaceRuns(props: {
       <div className={hub.wfHead}>
         <div className={hub.wfHeadText}>
           <p className={cx(hub.wfTitle, css.wsTitle)}>
-            <span className={hub.wfName}>
+            <span className={wf.wfName}>
               {workspace.path === undefined ? t('hub.noWorkspace') : workspace.name}
             </span>
             {workspace.here && <span className={hub.tag}>{t('hub.here')}</span>}

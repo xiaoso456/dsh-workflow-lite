@@ -29,6 +29,7 @@ import { ListThumb } from '../motion/thumb.tsx'
 import ins from '../panel/panel.module.css'
 import { memoryTypeText } from '../resources/ResourcePresets.tsx'
 import { MemoryVersionList } from '../versions/VersionList.tsx'
+import wf from '../versions/wfList.module.css'
 import { HubSearch } from './HubSearch.tsx'
 import hub from './hub.module.css'
 import css from './hubMemories.module.css'
@@ -167,7 +168,7 @@ function MemoryList(props: {
   useFlip(listRef, layout, { enter: true })
 
   return (
-    <nav ref={listRef} className={cx(hub.wfList, hub.sideList)} aria-label={t('hub.memories')}>
+    <nav ref={listRef} className={cx(wf.wfList, wf.sideList)} aria-label={t('hub.memories')}>
       <ListThumb layout={layout} />
       {entries.length === 0 && <p className={cx(hub.sideEmpty, ui.fade)}>{t('hub.memNoMatch')}</p>}
       {entries.map((entry) => {
@@ -176,7 +177,7 @@ function MemoryList(props: {
         return (
           <div
             key={entry.id}
-            className={hub.wfRow}
+            className={wf.wfRow}
             data-busy={busy}
             data-flip={entry.id}
             data-selected={selected}
@@ -184,7 +185,7 @@ function MemoryList(props: {
             <button
               type="button"
               aria-current={selected ? 'true' : undefined}
-              className={hub.wfItem}
+              className={wf.wfItem}
               data-testid="wl-hub-mem"
               data-value={entry.id}
               {...(memoryTitle(entry) === entry.id
@@ -194,15 +195,15 @@ function MemoryList(props: {
                   })}
               onClick={() => props.onPick(entry.id)}
             >
-              <span className={hub.wfIcon}>
+              <span className={wf.wfIcon}>
                 <Icon name={entry.invalid === true ? 'alert' : 'memory'} size={15} />
               </span>
-              <span className={hub.wfText}>
-                <span className={hub.wfName}>{memoryTitle(entry)}</span>
+              <span className={wf.wfText}>
+                <span className={wf.wfName}>{memoryTitle(entry)}</span>
                 <MemoryMeta t={t} entry={entry} />
               </span>
             </button>
-            <span className={hub.wfActions}>
+            <span className={wf.wfActions}>
               <button
                 ref={doomed === entry.id ? confirm.anchorRef : undefined}
                 type="button"

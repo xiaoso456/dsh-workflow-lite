@@ -29,7 +29,6 @@ import {
   windowOf,
 } from '../../model/logLines.ts'
 import { errorMessage, type WorkflowLiteRpc } from '../../rpc.ts'
-import shared from '../display/display.module.css'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import ui from '../kit/ui.module.css'
@@ -373,11 +372,11 @@ export function LogViewer(props: {
                   : t('display.noMatch')}
             </p>
           ) : (
-            <pre className={cx(shared.pre, shared.logPre)} data-wrap>
+            <pre className={cx(css.pre, css.logPre)} data-wrap>
               {win.lines.map((line, index) => (
                 <Fragment key={line.at}>
                   {context && index > 0 && (line.skip ?? 0) > 0 && (
-                    <span className={shared.skip}>
+                    <span className={css.skip}>
                       {t('display.skipped').replace('{n}', (line.skip ?? 0).toLocaleString())}
                     </span>
                   )}
@@ -454,7 +453,7 @@ function ViewerLine(props: {
             'data-tip': props.t('file.logLocate'),
           }
         : {})}
-      className={shared.line}
+      className={css.line}
       data-at={props.at}
       data-level={level ?? undefined}
       data-ctx={props.ctx || undefined}
@@ -465,7 +464,7 @@ function ViewerLine(props: {
       {parts.map(([text, hit], index) =>
         hit ? (
           // biome-ignore lint/suspicious/noArrayIndexKey: 一行里的第几段，内容一变整行重排
-          <mark key={index} className={shared.hit}>
+          <mark key={index} className={css.hit}>
             {text}
           </mark>
         ) : (
@@ -473,7 +472,7 @@ function ViewerLine(props: {
           <Fragment key={index}>{text}</Fragment>
         ),
       )}
-      {props.long && <span className={shared.longMark}>…</span>}
+      {props.long && <span className={css.longMark}>…</span>}
     </Tag>
   )
 }

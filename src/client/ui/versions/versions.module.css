@@ -70,12 +70,6 @@ div.body {
   min-height: 0;
 }
 
-/* 列表的行、选中滑块沿用工作流中心那几列；这里只管框：右边一条分隔线，不要它自带的内边距。 */
-.memNav {
-  padding: 0 12px 0 0;
-  border-right: 1px solid var(--wl-line);
-}
-
 .memPane {
   display: flex;
   flex-direction: column;
@@ -88,18 +82,6 @@ div.body {
   .memLayout {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr);
-  }
-
-  .memNav {
-    flex-direction: row;
-    padding: 0 0 8px;
-    overflow: auto hidden;
-    border-right: 0;
-    border-bottom: 1px solid var(--wl-line);
-  }
-
-  .memNav > div {
-    flex: 0 0 180px;
   }
 }
 

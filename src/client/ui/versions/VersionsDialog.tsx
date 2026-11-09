@@ -18,7 +18,6 @@ import type { Desktop } from '../../app/desktop.ts'
 import { findMemory, type MemoryStore, useMemories } from '../../app/memories.ts'
 import type { T } from '../../i18n.ts'
 import type { WorkflowLiteRpc } from '../../rpc.ts'
-import hub from '../hub/hub.module.css'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import { Modal } from '../kit/Modal.tsx'
@@ -29,6 +28,7 @@ import { ListThumb } from '../motion/thumb.tsx'
 import { memoryTypeText } from '../resources/ResourcePresets.tsx'
 import { MemoryVersionList, VersionList } from './VersionList.tsx'
 import v from './versions.module.css'
+import wf from './wfList.module.css'
 
 type Area = 'workflow' | 'memory'
 
@@ -115,7 +115,7 @@ export function VersionsDialog(props: {
         ) : (
           <div className={v.memLayout}>
             <div
-              className={cx(hub.wfList, v.memNav)}
+              className={cx(wf.wfList, wf.memNav)}
               role="tablist"
               aria-orientation="vertical"
               aria-label={t('mem.title')}
@@ -124,11 +124,11 @@ export function VersionsDialog(props: {
               {refs.map((entry) => {
                 const on = entry === selected
                 return (
-                  <div key={entry.id} className={hub.wfRow} data-selected={on}>
+                  <div key={entry.id} className={wf.wfRow} data-selected={on}>
                     <button
                       type="button"
                       role="tab"
-                      className={hub.wfItem}
+                      className={wf.wfItem}
                       aria-selected={on}
                       aria-current={on ? 'true' : undefined}
                       data-testid="wl-ver-memory"
@@ -136,12 +136,12 @@ export function VersionsDialog(props: {
                       data-tip={entry.id}
                       onClick={() => setPicked(entry.id)}
                     >
-                      <span className={hub.wfIcon}>
+                      <span className={wf.wfIcon}>
                         <Icon name="memory" size={15} />
                       </span>
-                      <span className={hub.wfText}>
-                        <span className={hub.wfName}>{memoryTitle(entry)}</span>
-                        <span className={hub.wfMeta}>
+                      <span className={wf.wfText}>
+                        <span className={wf.wfName}>{memoryTitle(entry)}</span>
+                        <span className={wf.wfMeta}>
                           {memoryTypeText(t, entry.type)} ·{' '}
                           {t('ver.count').replace('{n}', String(entry.versions))}
                         </span>

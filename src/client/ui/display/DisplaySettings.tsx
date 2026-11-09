@@ -37,6 +37,7 @@ import {
   stepZoom,
   VIEW_SIZES,
 } from '../../model/display.ts'
+import filterCss from '../files/filterField.module.css'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import { RollInput, Stepper } from '../kit/NumberStep.tsx'
@@ -220,8 +221,8 @@ export function DisplayOptions(props: {
       <section className={shared.optGroup}>
         <GroupHead label={t('display.sizeGroup')} />
         {/* 三档和宽高并排：宽高不是三档之一时三档都不亮，框里的数就是自定义的尺寸。 */}
-        <div className={shared.optLine}>
-          <span className={shared.optLabel}>{t('display.size')}</span>
+        <div className={filterCss.optLine}>
+          <span className={filterCss.optLabel}>{t('display.size')}</span>
           <div className={shared.optGrow}>
             <Segmented<SizeKey>
               label={t('display.size')}
@@ -262,8 +263,8 @@ export function DisplayOptions(props: {
         </div>
         {/* 文件夹的摆放是每一格的事，放在「文件夹」那组里。 */}
         {display.kind === 'image' && (
-          <div className={shared.optLine}>
-            <span className={shared.optLabel}>{t('display.fit')}</span>
+          <div className={filterCss.optLine}>
+            <span className={filterCss.optLabel}>{t('display.fit')}</span>
             <div className={shared.optGrow}>
               <Segmented<ViewFit>
                 label={t('display.fit')}
@@ -281,8 +282,8 @@ export function DisplayOptions(props: {
         )}
         {/* 缩放：图片不是「原大」时灰着、提示里说为什么（切摆放时下面的东西不跳）；文件夹的格子跟着卡片走，没有这一行。 */}
         {display.kind !== 'gallery' && (
-          <div className={shared.optLine}>
-            <span className={shared.optLabel}>{t('display.zoom')}</span>
+          <div className={filterCss.optLine}>
+            <span className={filterCss.optLabel}>{t('display.zoom')}</span>
             <Stepper
               label={t('display.zoom')}
               value={display.zoom}

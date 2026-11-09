@@ -18,6 +18,7 @@ import { EditActions } from '../kit/EditActions.tsx'
 import { Icon } from '../kit/Icon.tsx'
 import ui from '../kit/ui.module.css'
 import { useLineExit } from '../motion/exits.tsx'
+import wf from '../versions/wfList.module.css'
 import hub from './hub.module.css'
 import css from './hubWorkflowRow.module.css'
 
@@ -49,7 +50,7 @@ export function HubWorkflowRow(props: HubWorkflowRowProps): React.JSX.Element {
   if (props.editing) return <RenameRow {...props} />
   return (
     <div
-      className={hub.wfRow}
+      className={wf.wfRow}
       data-busy={props.busy}
       data-flip={props.flipKey}
       data-selected={props.selected}
@@ -57,25 +58,25 @@ export function HubWorkflowRow(props: HubWorkflowRowProps): React.JSX.Element {
       <button
         type="button"
         aria-current={props.selected ? 'true' : undefined}
-        className={hub.wfItem}
+        className={wf.wfItem}
         data-testid="wl-hub-wf"
         data-value={name}
         onClick={props.onPick}
       >
-        <span className={hub.wfIcon}>
+        <span className={wf.wfIcon}>
           <Icon name={entry.invalid === true ? 'alert' : 'folder'} size={15} />
         </span>
-        <span className={hub.wfText}>
-          <span className={hub.wfName}>{name}</span>
-          <span className={hub.wfMeta}>
+        <span className={wf.wfText}>
+          <span className={wf.wfName}>{name}</span>
+          <span className={wf.wfMeta}>
             {t('ver.steps').replace('{n}', String(entry.nodeCount))}
             {(entry.versions ?? 0) > 0 &&
               ` · ${t('ver.count').replace('{n}', String(entry.versions))}`}
           </span>
         </span>
-        {props.open && <span className={hub.wfDot} data-tip={t('hub.wfEditing')} />}
+        {props.open && <span className={wf.wfDot} data-tip={t('hub.wfEditing')} />}
       </button>
-      <span className={hub.wfActions}>
+      <span className={wf.wfActions}>
         <button
           type="button"
           className={hub.wfAction}
@@ -133,10 +134,10 @@ function RenameRow(props: HubWorkflowRowProps): React.JSX.Element {
   return (
     // 键和原来那一行一样：换成输入框行不算新项，不放入场动画（选中底块在改名时淡掉，输入框行自己有底色）。
     <div className={hub.wfEditing} data-flip={props.flipKey}>
-      <span className={hub.wfIcon}>
+      <span className={wf.wfIcon}>
         <Icon name={entry.invalid === true ? 'alert' : 'folder'} size={15} />
       </span>
-      <span className={hub.wfText}>
+      <span className={wf.wfText}>
         <span className={cx(ui.editRow, css.wfField)}>
           <span ref={lineRef} className={ui.lineField}>
             <input
@@ -159,7 +160,7 @@ function RenameRow(props: HubWorkflowRowProps): React.JSX.Element {
           </span>
           <EditActions t={t} onConfirm={() => commit(ref.current?.value ?? '')} onCancel={cancel} />
         </span>
-        <span className={hub.wfMeta}>{t('wf.renameHint')}</span>
+        <span className={wf.wfMeta}>{t('wf.renameHint')}</span>
       </span>
     </div>
   )

@@ -26,6 +26,7 @@ import type { T } from '../../i18n.ts'
 import { crumbs } from '../../model/hostPath.ts'
 import { errorMessage } from '../../rpc.ts'
 import { FilterBar, PathBar, UpRow } from '../files/DirParts.tsx'
+import parts from '../files/dirParts.module.css'
 import { FileGlyph } from '../files/FileGlyph.tsx'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
@@ -331,7 +332,7 @@ export function HostPicker(props: {
             data-testid="wl-picker-list"
             data-loading={loading}
           >
-            <div className={picker.listBody} ref={rowsRef}>
+            <div className={parts.listBody} ref={rowsRef}>
               {parent !== null && (
                 <UpRow
                   label={t('pick.up')}
@@ -412,7 +413,7 @@ function PickRow(props: {
 }): React.JSX.Element {
   return (
     <div
-      className={cx(picker.row, ui.fillOn)}
+      className={cx(parts.row, ui.fillOn)}
       data-dir={props.dir}
       data-on={props.on}
       data-testid="wl-picker-row"
@@ -425,7 +426,7 @@ function PickRow(props: {
         onDoubleClick={props.onAdd}
       >
         {props.dir ? (
-          <span className={picker.entryIcon} data-dir="true">
+          <span className={parts.entryIcon} data-dir="true">
             <Icon name="folder" size={15} />
           </span>
         ) : (
@@ -433,7 +434,7 @@ function PickRow(props: {
         )}
         <span className={css.entryName}>{props.name}</span>
         {props.dir && (
-          <span className={picker.enter}>
+          <span className={parts.enter}>
             <Icon name="chevronRight" size={14} />
           </span>
         )}
@@ -441,7 +442,7 @@ function PickRow(props: {
       {props.selectable && (
         <button
           type="button"
-          className={cx(ui.check, picker.check)}
+          className={cx(ui.check, parts.check)}
           role="checkbox"
           aria-checked={props.on}
           aria-label={props.name}

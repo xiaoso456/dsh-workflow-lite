@@ -25,7 +25,6 @@ import { shortTime } from '../../model/time.ts'
 import type { WorkflowLiteRpc } from '../../rpc.ts'
 import { tableSize } from '../kit/DataTable.tsx'
 import { Icon } from '../kit/Icon.tsx'
-import css from '../run/runres.module.css'
 import { type DocBody, DocViewer } from './DocViewer.tsx'
 import {
   defaultPair,
@@ -37,6 +36,7 @@ import {
   versionTarget,
 } from './FileHistory.tsx'
 import { FileTag } from './FileTag.tsx'
+import css from './fileViewer.module.css'
 import { RunImagePreview } from './ImagePreview.tsx'
 import { LogViewer } from './LogViewer.tsx'
 

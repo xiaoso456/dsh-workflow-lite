@@ -15,6 +15,7 @@ import type { HostSkillEntry, HostSkillsResponse } from '../../../shared/wire/ho
 import type { HostAccess } from '../../app/host.ts'
 import type { T } from '../../i18n.ts'
 import { errorMessage } from '../../rpc.ts'
+import parts from '../files/dirParts.module.css'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import { Modal } from '../kit/Modal.tsx'
@@ -106,11 +107,11 @@ export function SkillPicker(props: {
           </button>
         </header>
 
-        <div className={picker.tools}>
-          <span className={picker.filterBox}>
+        <div className={parts.tools}>
+          <span className={parts.filterBox}>
             <Icon name="search" size={13} />
             <input
-              className={picker.filter}
+              className={parts.filter}
               value={filter}
               placeholder={t('skill.filter')}
               aria-label={t('skill.filter')}

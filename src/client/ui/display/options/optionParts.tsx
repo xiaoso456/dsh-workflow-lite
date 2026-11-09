@@ -6,6 +6,7 @@
 
 import type { ViewFrom } from '../../../../shared/types.ts'
 import type { T } from '../../../i18n.ts'
+import filterCss from '../../files/filterField.module.css'
 import { Icon } from '../../kit/Icon.tsx'
 import { Segmented } from '../../kit/Segmented.tsx'
 import { SwitchTrack } from '../../motion/marks.tsx'
@@ -22,8 +23,8 @@ export function FromPicker(props: {
 }): React.JSX.Element {
   const { t } = props
   return (
-    <div className={css.optLine}>
-      <span className={css.optLabel} data-tip={props.tip}>
+    <div className={filterCss.optLine}>
+      <span className={filterCss.optLabel} data-tip={props.tip}>
         {t('display.from')}
       </span>
       <div className={css.optGrow}>
@@ -77,8 +78,8 @@ export function SegLine<V extends string>(props: {
   onChange(value: V): void
 }): React.JSX.Element {
   return (
-    <div className={css.optLine}>
-      <span className={css.optLabel} data-tip={props.tip}>
+    <div className={filterCss.optLine}>
+      <span className={filterCss.optLabel} data-tip={props.tip}>
         {props.label}
       </span>
       <div className={css.optGrow}>

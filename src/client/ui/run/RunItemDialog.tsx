@@ -15,6 +15,7 @@ import type { T } from '../../i18n.ts'
 import { Badge } from '../files/Badge.tsx'
 import { DocViewer } from '../files/DocViewer.tsx'
 import { NoteLead } from '../files/FileViewer.tsx'
+import viewer from '../files/fileViewer.module.css'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import { itemName, KIND_LABEL } from '../kit/resourceUi.ts'
@@ -44,7 +45,7 @@ export function UrlDialog(props: {
       body={{
         kind: 'node',
         node: (
-          <div className={css.pane}>
+          <div className={viewer.pane}>
             {lead(t, item)}
             <a className={css.link} href={url} target="_blank" rel="noopener noreferrer">
               {url}

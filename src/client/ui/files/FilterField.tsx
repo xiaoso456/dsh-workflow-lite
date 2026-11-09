@@ -9,9 +9,9 @@ import { LINE_CONTEXT_MAX } from '../../../shared/model.ts'
 import type { LineFilter } from '../../../shared/types.ts'
 import type { T } from '../../i18n.ts'
 import { FILTER_PRESETS, type FilterPreset, filterProblem } from '../../model/logLines.ts'
-import css from '../display/display.module.css'
 import { Icon } from '../kit/Icon.tsx'
 import { Stepper } from '../kit/NumberStep.tsx'
+import css from './filterField.module.css'
 import { useDelayedCommit } from './useDelayedCommit.ts'
 
 /** 筛选框停手多久才生效。 */

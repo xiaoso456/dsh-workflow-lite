@@ -1,5 +1,6 @@
 /*
- * 日志查看器（LogViewer.tsx）：顶栏、计数、正文、两端提示、空状态和骨架。
+ * 日志查看器（LogViewer.tsx）：顶栏、计数、正文、两端提示、空状态和骨架；
+ * 以及按行显示日志的行样式（画布上的日志展示 display/views/LogView.tsx、Flow.tsx 也用）。
  */
 
 /*
@@ -61,4 +62,181 @@
 
 .logSkeleton {
   height: 240px;
+}
+
+/* 自成一层：新行的高亮（z-index -1）垫在字下面，不沉到卡面底下去。 */
+.pre {
+  position: relative;
+  z-index: 0;
+  width: max-content;
+  min-width: 100%;
+  margin: 0;
+  color: var(--wl-text-2);
+  font-family: var(--wl-mono);
+  font-size: 11px;
+  line-height: 1.55;
+  white-space: pre;
+  tab-size: 4;
+}
+
+/* 一行一块（空行留一行高）。 */
+.line {
+  position: relative;
+  display: block;
+  min-height: 1lh;
+}
+
+/* 折行：续行比行首多缩两格（悬挂缩进），一眼看得出每一条从哪开始。 */
+.pre[data-wrap] {
+  width: auto;
+}
+
+.pre[data-wrap] .line {
+  padding-left: 2ch;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  text-indent: -2ch;
+}
+
+/*
+ * 文件更新后新的几行：整行（连左右留白）垫一层强调色、左边一道竖线，停一会儿再淡下去。
+ * 两个一样的动画按 data-new 的 0 / 1 轮换：同一行连着两次都是新的，也从头再亮一次。
+ */
+.line[data-new]::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0 -12px;
+  background: color-mix(in oklab, var(--wl-accent) 16%, transparent);
+  box-shadow: inset 2px 0 0 var(--wl-accent);
+  opacity: 0;
+  content: "";
+  pointer-events: none;
+}
+
+.line[data-new="0"]::before {
+  animation: newLineA 3.2s var(--wl-ease-out);
+}
+
+.line[data-new="1"]::before {
+  animation: newLineB 3.2s var(--wl-ease-out);
+}
+
+@keyframes newLineA {
+  0%,
+  35% {
+    opacity: 1;
+  }
+}
+
+@keyframes newLineB {
+  0%,
+  35% {
+    opacity: 1;
+  }
+}
+
+/*
+ * 按行看的日志（LogFlow）：错误、警告行左边一道状态色细线、字换成状态色；筛着看时的上下文行淡一些；
+ * 命中的字垫一层强调色；不挨着的两段之间一道「跳过 N 行」；还没写完的最后一行淡一点。
+ */
+.line[data-level] {
+  margin-left: -12px;
+  padding-left: 12px;
+  box-shadow: inset 2px 0 0 currentcolor;
+}
+
+.pre[data-wrap] .line[data-level] {
+  padding-left: calc(12px + 2ch);
+}
+
+/* 着色的行往左伸到了展示区边上：新行的底色从那里起，别再往外伸。 */
+.line[data-level][data-new]::before {
+  left: 0;
+}
+
+.line[data-level="error"] {
+  color: var(--wl-danger);
+}
+
+.line[data-level="warn"] {
+  color: var(--wl-warn);
+}
+
+.line[data-ctx] {
+  color: var(--wl-text-3);
+}
+
+.line[data-pending] {
+  opacity: 0.72;
+}
+
+.hit {
+  border-radius: calc(2px * var(--wl-round, 1));
+  background: color-mix(in oklab, var(--wl-accent) 26%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--wl-accent) 30%, transparent);
+  color: var(--wl-text);
+}
+
+.longMark {
+  color: var(--wl-text-3);
+}
+
+.skip {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 3px 0;
+  color: var(--wl-text-3);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.skip::after {
+  flex: 1;
+  border-top: 1px dashed var(--wl-line);
+  content: "";
+}
+
+.logPre {
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.pre.logPre[data-wrap] .line[data-level] {
+  margin-left: -20px;
+  padding-left: calc(20px + 2ch);
+}
+
+.logPre .line[data-new]::before {
+  inset: 0 -20px;
+}
+
+.logPre .line[data-level][data-new]::before {
+  left: 0;
+}
+
+/* 筛着看时一行是个按钮：点了回到全文停在这里。悬停垫一层浅底。 */
+button.line[data-locate] {
+  width: 100%;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  white-space: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* 字色跟着外面（错误、警告、上下文行各自的颜色压得过它）。 */
+:where(button.line[data-locate]) {
+  color: inherit;
+}
+
+button.line[data-locate]:hover {
+  background: var(--wl-hover);
+}
+
+button.line[data-locate]:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: -2px;
 }

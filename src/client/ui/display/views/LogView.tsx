@@ -11,6 +11,7 @@ import type { T } from '../../../i18n.ts'
 import type { Display } from '../../../model/display.ts'
 import { formatBytes } from '../../../model/fileKind.ts'
 import { type LineWindow, lineLevel, splitHits } from '../../../model/logLines.ts'
+import logCss from '../../files/logViewer.module.css'
 import { Icon } from '../../kit/Icon.tsx'
 import css from '../display.module.css'
 import { softBreaks } from './Flow.tsx'
@@ -32,7 +33,7 @@ function LogLine(props: {
   const parts = splitHits(line.text, line.hits)
   return (
     <span
-      className={css.line}
+      className={logCss.line}
       data-level={level ?? undefined}
       data-ctx={line.ctx || undefined}
       data-new={props.fresh}
@@ -41,7 +42,7 @@ function LogLine(props: {
       {parts.map(([text, hit], index) =>
         hit ? (
           // biome-ignore lint/suspicious/noArrayIndexKey: 一行里的第几段，内容一变整行重排
-          <mark key={index} className={css.hit}>
+          <mark key={index} className={logCss.hit}>
             {text}
           </mark>
         ) : (
@@ -49,7 +50,7 @@ function LogLine(props: {
           <Fragment key={index}>{props.wrap ? softBreaks(text) : text}</Fragment>
         ),
       )}
-      {line.long && <span className={css.longMark}>…</span>}
+      {line.long && <span className={logCss.longMark}>…</span>}
     </span>
   )
 }
@@ -96,11 +97,15 @@ export function LogFlow(props: {
     >
       <div className={css.flow} style={{ zoom: display.zoom / 100 }} data-kind="text">
         {earlier !== null && <p className={css.earlier}>{earlier}</p>}
-        <pre className={css.pre} data-wrap={props.wrap || undefined} data-testid="wl-display-lines">
+        <pre
+          className={logCss.pre}
+          data-wrap={props.wrap || undefined}
+          data-testid="wl-display-lines"
+        >
           {win.lines.map((line, index) => (
             <Fragment key={line.at}>
               {context && index > 0 && (line.skip ?? 0) > 0 && (
-                <span className={css.skip}>
+                <span className={logCss.skip}>
                   {t('display.skipped').replace('{n}', (line.skip ?? 0).toLocaleString())}
                 </span>
               )}

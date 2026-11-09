@@ -1,0 +1,48 @@
+/**
+ * dsh-workflow-lite — 一种内容的小图标（Badge.tsx）：资源详情框的标题行、实例视图的清单（run/RunResource.tsx）都用它。
+ *
+ * 每种内容一个颜色（只用在小图标上，不和线色抢）：文件 = 文件色、文件夹 = 橄榄、网址 = 青、
+ * Skill = 粉、自定义 = 石板灰。画布上的资源卡用同一套（见 canvas.module.css）。
+ */
+
+.kindIcon[data-kind="file"] {
+  --wl-kind: var(--wl-file);
+}
+
+.kindIcon[data-kind="folder"] {
+  --wl-kind: var(--wl-c-olive);
+}
+
+.kindIcon[data-kind="url"] {
+  --wl-kind: var(--wl-c-teal);
+}
+
+.kindIcon[data-kind="skill"] {
+  --wl-kind: var(--wl-c-pink);
+}
+
+.kindIcon[data-kind="text"] {
+  --wl-kind: var(--wl-c-slate);
+}
+
+.kindIcon[data-kind="many"] {
+  --wl-kind: var(--wl-file);
+}
+
+/* 一种内容的小图标（实例视图的清单也用它）。 */
+.kindIcon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: calc(6px * var(--wl-round, 1));
+  background: color-mix(in srgb, var(--wl-kind) 13%, transparent);
+  color: var(--wl-kind);
+}
+
+/* 和上面的 .kindIcon 叠在一起用：大小、圆角由 .kindIcon 定，这里只管占两行。
+   不要在这里再写宽高圆角——两条规则特异性相同，谁在后谁赢，顺序一变图标就变大。 */
+.icon {
+  grid-row: span 2;
+}

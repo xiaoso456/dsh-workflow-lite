@@ -1,0 +1,68 @@
+/**
+ * dsh-workflow-lite — 右栏里只露几行的长文字卡（提示词、摘要、交接说明，实例与模板共用，PreviewCard.tsx）。
+ */
+
+/* 一段的外框：标题行 + 长文字卡竖着排（和 run.module.css 的 .section 一个样子）。 */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.titleRow {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-height: 26px;
+}
+
+.titleRow > :last-child {
+  margin-left: auto;
+}
+
+/* 长文字只露几行（行数由调用方给）；整块就是「看全文」的按钮。 */
+.card {
+  display: -webkit-box;
+  width: 100%;
+  margin: 0;
+  /* 底下的留白用透明边框而不是内边距：截断后剩下的行会画进内边距、露出半截，边框里不会。 */
+  padding: 9px 12px 0;
+  overflow: hidden;
+  border: 0;
+  border-bottom: 9px solid transparent;
+  border-radius: calc(10px * var(--wl-round, 1));
+  background: var(--wl-fill);
+  color: var(--wl-text-2);
+  font: inherit;
+  font-size: var(--wl-fs-meta);
+  line-height: 1.6;
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: break-word;
+  cursor: pointer;
+  -webkit-box-orient: vertical;
+  transition: color 120ms linear;
+}
+
+.card:hover {
+  color: var(--wl-text);
+}
+
+/* 能改、还空着：写着占位，点一下进「编辑」。 */
+.card[data-empty="true"] {
+  padding-bottom: 9px;
+  border: 1px dashed var(--wl-line-strong);
+  background: transparent;
+  color: var(--wl-text-3);
+}
+
+.titleActions {
+  display: inline-flex;
+  gap: 1px;
+  align-items: center;
+}
+
+.card:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}

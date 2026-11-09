@@ -1,5 +1,6 @@
 /**
- * dsh-workflow-lite — 目录浏览的零件（DirParts.tsx）：路径栏（面包屑）、筛选框的放大镜、「上一级」行里的字，以及文件夹浏览里不画框的变体。
+ * dsh-workflow-lite — 目录浏览的零件（DirParts.tsx）：路径栏（面包屑）、筛选框、列表里的行、「上一级」行里的字，以及文件夹浏览里不画框的变体；
+ * 选择框（resources/HostPicker.tsx、SkillPicker.tsx）也用其中的筛选框与行。
  */
 
 /* ── 路径栏（面包屑）、筛选框、上一级 ─────────────────── */
@@ -187,4 +188,181 @@
 
 .bar[data-plain="true"] .crumb[aria-current="location"] {
   color: var(--wl-text);
+}
+
+/* ── 筛选 ─────────────────────────────────────────────────── */
+
+.tools {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  align-items: center;
+  padding: 10px var(--wl-sheet-inset, 16px) 6px;
+}
+
+.filterBox {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0; /* 输入框的固有宽度不能撑住它：窄的容器里搜索框要能收，不把右边的开关挤出去 */
+  gap: 6px;
+  align-items: center;
+  height: 28px;
+  padding: 0 9px;
+  border: 1px solid var(--wl-line);
+  border-radius: var(--wl-r-control);
+  color: var(--wl-text-3);
+}
+
+.filterBox:focus-within {
+  border-color: var(--wl-accent);
+}
+
+.filter {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--wl-text);
+  font: inherit;
+  font-size: var(--wl-fs-meta);
+  outline: none;
+}
+
+.hiddenToggle {
+  flex: none;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--wl-line);
+  border-radius: var(--wl-r-control);
+  background: transparent;
+  color: var(--wl-text-3);
+  font: inherit;
+  font-size: var(--wl-fs-micro);
+  cursor: pointer;
+}
+
+/* 开着时：强调色描边（::after 渐显，ui.fillOn）、字色是 FadeText 的两层交叉淡。 */
+.hiddenToggle {
+  --wl-fill-on: transparent;
+  --wl-off: var(--wl-text-3);
+  --wl-on: var(--wl-accent-text);
+}
+
+button.hiddenToggle::after {
+  inset: -1px;
+  border: 1px solid var(--wl-accent);
+}
+
+/* 目录里的行都挂在这一层：整层换目录时横着换，行增减时各行滑动、淡入淡出（useResizeFlip 认直接子项，影子需要它定位）。 */
+.listBody {
+  position: relative;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+}
+
+/*
+ * 一行 28px：线条图标（不带底色）+ 名字，右边文件夹的进入箭头、能选的圆形勾选。
+ * 勾选平时藏着，悬停这一行或选上时才显出来——列表本身保持干净。
+ */
+.row {
+  display: flex;
+  flex: none;
+  align-items: center;
+  height: 28px;
+  padding-right: 6px;
+  border-radius: calc(6px * var(--wl-round, 1));
+  transition: background-color 120ms linear;
+}
+
+/* 行滑动、淡入淡出时要能盖住底下的东西，不叠出重影（useResizeFlip）：行底色不透明，悬停时再换成悬停色。 */
+.listBody > .row {
+  background: var(--wl-panel);
+}
+
+.row:hover {
+  background: var(--wl-hover);
+}
+
+.upRow:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: -2px;
+}
+
+.entryIcon {
+  display: inline-flex;
+  flex: none;
+  color: var(--wl-text-3);
+}
+
+.entryIcon[data-dir="true"] {
+  color: var(--wl-c-amber);
+}
+
+.enter {
+  display: inline-flex;
+  flex: none;
+  color: var(--wl-text-3);
+  opacity: 0;
+  transition: opacity 120ms linear;
+}
+
+.row:hover .enter {
+  opacity: 0.8;
+}
+
+/* 「上一级」：列表第一行，和别的行一个样子，右边淡淡写出上一级是哪儿。 */
+.upRow {
+  gap: 8px;
+  width: 100%;
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  color: var(--wl-text-2);
+  font: inherit;
+  font-size: var(--wl-fs-meta);
+  text-align: left;
+  cursor: pointer;
+}
+
+/* 方框的样子在 ui.module.css 的 .check；这里只管位置和「悬停那一行才露出」。 */
+.check {
+  margin-left: 6px;
+  opacity: 0;
+  transition: opacity 120ms linear;
+}
+
+.row:hover .check,
+.check:focus-visible,
+.check[aria-checked="true"] {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .enter,
+  .check {
+    transition: none;
+  }
+}
+
+/* ── 不画框的变体（文件夹浏览）：路径直接写在面板上，搜索框是淡底、开关不描边，整块没有线 ── */
+
+.tools[data-plain="true"] {
+  padding: 0 var(--wl-sheet-inset, 16px) 10px;
+}
+
+.tools[data-plain="true"] .filterBox {
+  height: 30px;
+  border-color: transparent;
+  background: var(--wl-fill);
+}
+
+.tools[data-plain="true"] .filterBox:focus-within {
+  border-color: var(--wl-accent);
+}
+
+.tools[data-plain="true"] .hiddenToggle {
+  height: 30px;
+  border-color: transparent;
+  background: var(--wl-fill);
 }

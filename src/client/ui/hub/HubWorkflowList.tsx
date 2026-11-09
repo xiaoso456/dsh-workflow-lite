@@ -17,12 +17,13 @@ import ui from '../kit/ui.module.css'
 import { useFlip } from '../motion/flip.ts'
 import { ListThumb } from '../motion/thumb.tsx'
 import { deleteDesc } from '../shell/WorkflowRow.tsx'
+import wf from '../versions/wfList.module.css'
 import { HubWorkflowRow } from './HubWorkflowRow.tsx'
 import hub from './hub.module.css'
 
 export function HubWorkflowList(props: {
   t: T
-  /** 外面那一栏另有边线时换掉列表自己的样子（见 hub.sideList）。 */
+  /** 外面那一栏另有边线时换掉列表自己的样子（见 wf.sideList）。 */
   className?: string
   workflows: readonly WorkflowEntry[]
   selected: string
@@ -49,7 +50,7 @@ export function HubWorkflowList(props: {
   useFlip(listRef, layout, { enter: true })
 
   return (
-    <nav ref={listRef} className={cx(hub.wfList, props.className)} aria-label={t('hub.wfPage')}>
+    <nav ref={listRef} className={cx(wf.wfList, props.className)} aria-label={t('hub.wfPage')}>
       <ListThumb layout={layout} />
       {workflows.length === 0 && <p className={cx(hub.sideEmpty, ui.fade)}>{t('hub.wfNoMatch')}</p>}
       {workflows.map((entry, index) => (

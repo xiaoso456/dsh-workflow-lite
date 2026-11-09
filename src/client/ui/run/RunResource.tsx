@@ -34,6 +34,7 @@ import { fileBaseName, formatBytes } from '../../model/fileKind.ts'
 import { shortTime } from '../../model/time.ts'
 import type { WorkflowLiteRpc } from '../../rpc.ts'
 import { DisplaySettings } from '../display/DisplaySettings.tsx'
+import badge from '../files/badge.module.css'
 import { FolderDialog } from '../files/FolderDialog.tsx'
 import files from '../files/files.module.css'
 import { OpenWith } from '../files/OpenWith.tsx'
@@ -279,7 +280,7 @@ function ItemRow(props: {
   return (
     <li className={css.row} data-kind={item.kind} data-testid="wl-run-resource-item">
       <button type="button" className={css.main} data-tip={title} onClick={props.onView}>
-        <span className={cx(res.kindIcon, css.icon)} data-kind={item.kind}>
+        <span className={cx(badge.kindIcon, badge.icon)} data-kind={item.kind}>
           <Icon name={KIND_ICON[item.kind]} size={14} />
         </span>
         <span className={css.name}>{name}</span>

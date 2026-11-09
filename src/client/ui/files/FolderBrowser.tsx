@@ -44,7 +44,6 @@ import ui from '../kit/ui.module.css'
 import { useTrail } from '../motion/flip.ts'
 import { type StageDir, useStage } from '../motion/stage.tsx'
 import { SwapNode, SwapText, useTrend } from '../motion/swapText.tsx'
-import picker from '../resources/picker.module.css'
 import { FilterBar, PathBar, UpRow } from './DirParts.tsx'
 import {
   BrokenImagesHint,
@@ -54,6 +53,7 @@ import {
   docFormat,
   renderedLabel,
 } from './DocViewer.tsx'
+import parts from './dirParts.module.css'
 import { FileGlyph } from './FileGlyph.tsx'
 import { FileTag } from './FileTag.tsx'
 import { fileBody } from './FileViewer.tsx'
@@ -364,7 +364,7 @@ export function FolderBrowser(props: {
               onClick={() => open(entry)}
             >
               {entry.dir ? (
-                <span className={picker.entryIcon} data-dir="true">
+                <span className={parts.entryIcon} data-dir="true">
                   <Icon name="folder" size={15} />
                 </span>
               ) : (

@@ -8,6 +8,7 @@
 import type { TableView } from '../../../../shared/types.ts'
 import { useTableHead } from '../../../app/cardFacts.ts'
 import type { T } from '../../../i18n.ts'
+import filterCss from '../../files/filterField.module.css'
 import { Segmented } from '../../kit/Segmented.tsx'
 import { Select } from '../../kit/Select.tsx'
 import css from '../display.module.css'
@@ -48,14 +49,14 @@ export function TableOptions(props: {
         tip={t('display.tableFromTip')}
         onChange={(from) => set({ from })}
       />
-      <div className={css.optLine} data-align="top">
-        <span className={css.optLabel} data-tip={t('display.columnsTip')}>
+      <div className={filterCss.optLine} data-align="top">
+        <span className={filterCss.optLabel} data-tip={t('display.columnsTip')}>
           {t('display.columns')}
         </span>
         {names.length === 0 ? (
           <span className={css.optNote}>{t('display.columnsNone')}</span>
         ) : (
-          <span className={css.columns} data-testid="wl-display-columns">
+          <span className={filterCss.columns} data-testid="wl-display-columns">
             {names.map((name) => {
               const off = hidden.has(name)
               // 只剩这一列露着：不让藏（一列都没有的表没法看）。
@@ -64,7 +65,7 @@ export function TableOptions(props: {
                 <button
                   key={name}
                   type="button"
-                  className={css.preset}
+                  className={filterCss.preset}
                   aria-pressed={!off}
                   disabled={last}
                   data-off={off || undefined}
@@ -79,8 +80,8 @@ export function TableOptions(props: {
           </span>
         )}
       </div>
-      <div className={css.optLine}>
-        <span className={css.optLabel} data-tip={t('display.sortTip')}>
+      <div className={filterCss.optLine}>
+        <span className={filterCss.optLabel} data-tip={t('display.sortTip')}>
           {t('display.sort')}
         </span>
         <div className={css.optGrow}>

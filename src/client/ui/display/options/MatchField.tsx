@@ -6,9 +6,9 @@
 
 import { FOLDER_MATCH_MAX } from '../../../../shared/types.ts'
 import type { T } from '../../../i18n.ts'
+import filterCss from '../../files/filterField.module.css'
 import { useDelayedCommit } from '../../files/useDelayedCommit.ts'
 import { Icon } from '../../kit/Icon.tsx'
-import css from '../display.module.css'
 
 /** 名字筛选框停手多久才生效。 */
 const MATCH_DELAY = 320
@@ -30,14 +30,14 @@ export function MatchField(props: {
     if (value !== props.value) props.onChange(value)
   }
   return (
-    <div className={css.optLine}>
-      <span className={css.optLabel} data-tip={t('display.matchTip')}>
+    <div className={filterCss.optLine}>
+      <span className={filterCss.optLabel} data-tip={t('display.matchTip')}>
         {t('display.filter')}
       </span>
-      <div className={css.filterBox}>
+      <div className={filterCss.filterBox}>
         <Icon name="search" size={13} />
         <input
-          className={css.filterInput}
+          className={filterCss.filterInput}
           {...field.bind(commit)}
           placeholder={t('display.matchPlaceholder')}
           aria-label={t('display.filter')}
@@ -48,7 +48,7 @@ export function MatchField(props: {
         {text !== '' && (
           <button
             type="button"
-            className={css.clearFilter}
+            className={filterCss.clearFilter}
             aria-label={t('display.filter.clear')}
             data-tip={t('display.filter.clear')}
             onClick={() => commit('')}

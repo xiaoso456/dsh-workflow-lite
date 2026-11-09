@@ -11,12 +11,11 @@ import type { ResourceItem } from '../../../shared/types.ts'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import { KIND_ICON } from '../kit/resourceUi.ts'
-import res from '../resources/resource.module.css'
-import css from '../run/runres.module.css'
+import css from './badge.module.css'
 
 export function Badge(props: { kind: ResourceItem['kind'] }): React.JSX.Element {
   return (
-    <span className={cx(res.kindIcon, css.icon)} data-kind={props.kind}>
+    <span className={cx(css.kindIcon, css.icon)} data-kind={props.kind}>
       <Icon name={KIND_ICON[props.kind]} size={15} />
     </span>
   )

@@ -24,6 +24,7 @@ import { Skeleton } from '../kit/Skeleton.tsx'
 import ui from '../kit/ui.module.css'
 import { useResizeFlip } from '../motion/flip.ts'
 import { VersionList } from '../versions/VersionList.tsx'
+import wf from '../versions/wfList.module.css'
 import { HubExport, type PackScope } from './HubExport.tsx'
 import { HubImport } from './HubImport.tsx'
 import { HubSearch } from './HubSearch.tsx'
@@ -179,7 +180,7 @@ export function HubWorkflows(props: {
         </HubSearch>
         <HubWorkflowList
           t={t}
-          className={hub.sideList}
+          className={wf.sideList}
           workflows={visible}
           selected={selected?.name ?? ''}
           current={current}
