@@ -6,7 +6,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { LineFilter } from '../../shared/types.ts'
-import type { RunLinesResponse } from '../../shared/wire.ts'
+import type { RunLinesResponse } from '../../shared/wire/run.ts'
 import { appendWindow, filterKey, type LineWindow, windowOf } from '../model/logLines.ts'
 import { errorMessage, type WorkflowLiteRpc } from '../rpc.ts'
 

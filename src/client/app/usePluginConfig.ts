@@ -15,7 +15,7 @@ import {
   type PluginConfigValues,
   type PluginConfigView,
   RESTART_CONFIG_KEYS,
-} from '../../shared/wire.ts'
+} from '../../shared/wire/config.ts'
 import type { LocaleKey, T } from '../i18n.ts'
 import { errorCode, errorMessage, type WorkflowLiteRpc } from '../rpc.ts'
 

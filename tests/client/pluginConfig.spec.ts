@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest'
 import { fromDraft, toDraft } from '../../src/client/app/usePluginConfig.ts'
 import { type LocaleKey, zh } from '../../src/client/i18n.ts'
-import type { PluginConfigValues } from '../../src/shared/wire.ts'
+import type { PluginConfigValues } from '../../src/shared/wire/config.ts'
 
 const t = (key: LocaleKey): string => zh[key]
 

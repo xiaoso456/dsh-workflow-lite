@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
-import type { PlanBuildResponse } from '../../../shared/wire.ts'
+import type { PlanBuildResponse } from '../../../shared/wire/plan.ts'
 import type { T } from '../../i18n.ts'
 import { errorMessage } from '../../rpc.ts'
 import { Markdown } from '../files/Markdown.tsx'

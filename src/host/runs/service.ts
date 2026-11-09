@@ -26,7 +26,7 @@ import type {
   RunLinesRequest,
   RunLinesResponse,
   RunStatResponse,
-} from '../../shared/wire.ts'
+} from '../../shared/wire/run.ts'
 import type { CompileBundle } from '../plan.ts'
 import type { Outcome } from '../store/repoResult.ts'
 import type { RunFileTarget } from './files.ts'

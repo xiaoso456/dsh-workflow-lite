@@ -31,7 +31,7 @@ import {
   RUN_HISTORY_VERSIONS_MAX,
   type RunHistoryResponse,
   type RunVersion,
-} from '../../shared/wire.ts'
+} from '../../shared/wire/run.ts'
 import { ensureDir, readFileText, removeTree, writeFileAtomic } from '../store/atomic.ts'
 import { runDir } from './store.ts'
 

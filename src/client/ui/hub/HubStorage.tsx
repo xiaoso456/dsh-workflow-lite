@@ -9,7 +9,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { StorageStats } from '../../../shared/wire.ts'
+import type { StorageStats } from '../../../shared/wire/run.ts'
 import type { T } from '../../i18n.ts'
 import { errorMessage, type WorkflowLiteRpc } from '../../rpc.ts'
 import { useConfirm } from '../kit/Confirm.tsx'

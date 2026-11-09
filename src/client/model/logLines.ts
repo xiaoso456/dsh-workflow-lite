@@ -9,7 +9,7 @@
  */
 
 import type { LineFilter, ViewFrom } from '../../shared/types.ts'
-import type { RunLine, RunLinesResponse } from '../../shared/wire.ts'
+import type { RunLine, RunLinesResponse } from '../../shared/wire/run.ts'
 
 export interface LineWindow {
   lines: RunLine[]

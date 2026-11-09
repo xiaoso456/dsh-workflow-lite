@@ -6,7 +6,7 @@
 
 import { useCallback, useMemo } from 'react'
 import type { TableView } from '../../../../shared/types.ts'
-import type { RunLine } from '../../../../shared/wire.ts'
+import type { RunLine } from '../../../../shared/wire/run.ts'
 import { publishTableHead } from '../../../app/cardFacts.ts'
 import type { T } from '../../../i18n.ts'
 import type { Display } from '../../../model/display.ts'

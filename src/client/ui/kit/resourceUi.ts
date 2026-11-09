@@ -15,7 +15,7 @@ import type {
   WorkflowDocument,
   WorkflowNode,
 } from '../../../shared/types.ts'
-import type { HostSkillEntry } from '../../../shared/wire.ts'
+import type { HostSkillEntry } from '../../../shared/wire/host.ts'
 import type { LocaleKey } from '../../i18n.ts'
 import type { IconName } from './Icon.tsx'
 

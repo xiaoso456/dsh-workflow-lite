@@ -5,7 +5,7 @@
  */
 
 import type { GalleryView as FolderSettings } from '../../../../shared/types.ts'
-import type { RunDirEntry } from '../../../../shared/wire.ts'
+import type { RunDirEntry } from '../../../../shared/wire/run.ts'
 import type { T } from '../../../i18n.ts'
 import { formatBytes } from '../../../model/fileKind.ts'
 import { folderOrder } from '../../../model/folderView.ts'

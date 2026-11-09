@@ -11,7 +11,7 @@
 import { useEffect, useState } from 'react'
 import { idKey, isResource } from '../../shared/model.ts'
 import type { WorkflowDocument } from '../../shared/types.ts'
-import { RUN_STAT_MAX, type RunLatestOutput } from '../../shared/wire.ts'
+import { RUN_STAT_MAX, type RunLatestOutput } from '../../shared/wire/run.ts'
 import { displayOf } from '../model/display.ts'
 import type { WorkflowLiteRpc } from '../rpc.ts'
 import { RUN_POLL_MS } from './useRuns.ts'

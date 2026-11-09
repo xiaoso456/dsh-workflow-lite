@@ -18,7 +18,7 @@ import type {
   HostListResponse,
   HostSkillResponse,
   HostSkillsResponse,
-} from '../shared/wire.ts'
+} from '../shared/wire/host.ts'
 import type { Outcome } from './store/repoResult.ts'
 
 /** 一个目录最多列多少项（再多前端也没法一眼扫完，改用路径栏直接输入）。 */

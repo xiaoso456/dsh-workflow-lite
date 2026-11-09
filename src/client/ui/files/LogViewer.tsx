@@ -14,7 +14,7 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { extensionOf } from '../../../shared/fileKind.ts'
 import type { LineFilter } from '../../../shared/types.ts'
-import type { RunLinesRequest, RunLinesResponse } from '../../../shared/wire.ts'
+import type { RunLinesRequest, RunLinesResponse } from '../../../shared/wire/run.ts'
 import type { LinesTarget } from '../../app/useRunLines.ts'
 import type { T } from '../../i18n.ts'
 import { formatBytes } from '../../model/fileKind.ts'

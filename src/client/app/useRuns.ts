@@ -20,7 +20,7 @@ import {
   type StateEdit,
 } from '../../shared/runState.ts'
 import type { WorkflowDocument } from '../../shared/types.ts'
-import type { RunSaveResponse } from '../../shared/wire.ts'
+import type { RunSaveResponse } from '../../shared/wire/run.ts'
 import type { T } from '../i18n.ts'
 import {
   applyDraft,

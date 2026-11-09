@@ -17,7 +17,7 @@ import {
   type PluginConfigKey,
   type PluginConfigValues,
   type PluginConfigView,
-} from '../shared/wire.ts'
+} from '../shared/wire/config.ts'
 import { WORKFLOW_LITE_ROW_ID } from './config.ts'
 
 /** 用到的那一小截设置服务（`@deepseek-ai/dsh-settings` 的 `SettingsForms`）。 */

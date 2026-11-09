@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { T } from '../../src/client/i18n.ts'
 import { diffCounts, diffLines, foldDiff, splitLines } from '../../src/client/model/lineDiff.ts'
 import { dotIndex, historyLine, versionName } from '../../src/client/model/outputHistory.ts'
-import type { RunVersion } from '../../src/shared/wire.ts'
+import type { RunVersion } from '../../src/shared/wire/run.ts'
 
 const t = ((key: string): string => key) as T
 

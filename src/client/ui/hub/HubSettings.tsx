@@ -11,7 +11,7 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/HubSettings
  */
 
-import { type PluginConfigKey, RESTART_CONFIG_KEYS } from '../../../shared/wire.ts'
+import { type PluginConfigKey, RESTART_CONFIG_KEYS } from '../../../shared/wire/config.ts'
 import type { ConfigDraft, PluginConfigState } from '../../app/usePluginConfig.ts'
 import { LABEL, usePluginConfig } from '../../app/usePluginConfig.ts'
 import type { LocaleKey, T } from '../../i18n.ts'

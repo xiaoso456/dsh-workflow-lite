@@ -17,7 +17,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { analyzeGraph, type GraphAnalysis } from '../../shared/graph.ts'
 import { checkName, normalizeName } from '../../shared/naming.ts'
 import type { NodeData, WorkflowDocument } from '../../shared/types.ts'
-import type { GraphListResponse, PlanBuildResponse } from '../../shared/wire.ts'
+import type { GraphListResponse } from '../../shared/wire/graph.ts'
+import type { PlanBuildResponse } from '../../shared/wire/plan.ts'
 import type { T } from '../i18n.ts'
 import {
   type Action,

@@ -11,7 +11,7 @@ import {
   type SettingsRow,
   writePluginConfig,
 } from '../../src/host/pluginConfig.ts'
-import type { PluginConfigValues } from '../../src/shared/wire.ts'
+import type { PluginConfigValues } from '../../src/shared/wire/config.ts'
 
 const DEFAULTS: PluginConfigValues = {
   dataDir: '/home/u/.dsh/workflow-lite',

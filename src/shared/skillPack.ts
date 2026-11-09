@@ -22,7 +22,7 @@
 
 import { skillPath } from './pathVars.ts'
 import type { ValidationProblem } from './types.ts'
-import type { RunFileResponse } from './wire.ts'
+import type { RunFileResponse } from './wire/run.ts'
 
 /** 包里各块的位置（相对 skill 目录）。 */
 export const SKILL_PATHS = {

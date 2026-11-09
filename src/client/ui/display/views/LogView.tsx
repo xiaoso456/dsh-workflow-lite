@@ -6,7 +6,7 @@
 
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { LineFilter } from '../../../../shared/types.ts'
-import type { RunLine } from '../../../../shared/wire.ts'
+import type { RunLine } from '../../../../shared/wire/run.ts'
 import type { T } from '../../../i18n.ts'
 import type { Display } from '../../../model/display.ts'
 import { formatBytes } from '../../../model/fileKind.ts'

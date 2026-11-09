@@ -5,7 +5,7 @@
  */
 
 import { createContext } from 'react'
-import type { RunLatestOutput } from '../../../shared/wire.ts'
+import type { RunLatestOutput } from '../../../shared/wire/run.ts'
 import type { DisplayStat } from '../../app/useDisplayStats.ts'
 import type { T } from '../../i18n.ts'
 import type { WorkflowLiteRpc } from '../../rpc.ts'

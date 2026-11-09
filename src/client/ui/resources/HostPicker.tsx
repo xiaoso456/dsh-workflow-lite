@@ -20,7 +20,7 @@
  */
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { HostListResponse } from '../../../shared/wire.ts'
+import type { HostListResponse } from '../../../shared/wire/host.ts'
 import type { HostAccess } from '../../app/host.ts'
 import type { T } from '../../i18n.ts'
 import { crumbs } from '../../model/hostPath.ts'

@@ -6,7 +6,7 @@
 
 import { useMemo } from 'react'
 import type { ResourceItem, TableView } from '../../../../shared/types.ts'
-import type { RunLatestOutput } from '../../../../shared/wire.ts'
+import type { RunLatestOutput } from '../../../../shared/wire/run.ts'
 import { displayKey } from '../../../app/useDisplayStats.ts'
 import type { T } from '../../../i18n.ts'
 import type { Display } from '../../../model/display.ts'

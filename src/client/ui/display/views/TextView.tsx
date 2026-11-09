@@ -6,7 +6,7 @@
 
 import { textWraps } from '../../../../shared/display.ts'
 import { extensionOf } from '../../../../shared/fileKind.ts'
-import type { RunFileResponse } from '../../../../shared/wire.ts'
+import type { RunFileResponse } from '../../../../shared/wire/run.ts'
 import type { T } from '../../../i18n.ts'
 import type { Display } from '../../../model/display.ts'
 import { fileBaseName, formatBytes } from '../../../model/fileKind.ts'

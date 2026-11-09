@@ -11,7 +11,7 @@ import { useEffect, useSyncExternalStore } from 'react'
 import type { MemoryEntry } from '../../shared/memoryLib.ts'
 import { idKey } from '../../shared/model.ts'
 import type { MemoryType } from '../../shared/types.ts'
-import type { MemoryCreateRequest, MemoryUpdateRequest } from '../../shared/wire.ts'
+import type { MemoryCreateRequest, MemoryUpdateRequest } from '../../shared/wire/memory.ts'
 import type { WorkflowLiteRpc } from '../rpc.ts'
 import type { BrowseSource } from './useBrowse.ts'
 

@@ -16,7 +16,7 @@
  */
 
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { RunDirEntry, RunDirResponse } from '../../../shared/wire.ts'
+import type { RunDirEntry, RunDirResponse } from '../../../shared/wire/run.ts'
 import type { Desktop } from '../../app/desktop.ts'
 import {
   type BrowseFile,

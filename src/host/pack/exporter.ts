@@ -48,7 +48,7 @@ import {
 import { memoryOf } from '../../shared/presets.ts'
 import { resourceGraph } from '../../shared/resources.ts'
 import { type VersionEntry, type WorkflowDocument, WRITABLE_KINDS } from '../../shared/types.ts'
-import type { HostSkillEntry } from '../../shared/wire.ts'
+import type { HostSkillEntry } from '../../shared/wire/host.ts'
 import { listSkills, type SkillViewer } from '../hostFs.ts'
 import { readMemoryMeta } from '../store/memories.ts'
 import { assetsDir, memoryFolder } from '../store/paths.ts'

@@ -5,7 +5,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { RunDirResponse, RunFileResponse, RunHistoryResponse } from '../../shared/wire.ts'
+import type { RunDirResponse, RunFileResponse, RunHistoryResponse } from '../../shared/wire/run.ts'
 import { errorMessage, type WorkflowLiteRpc } from '../rpc.ts'
 
 /**

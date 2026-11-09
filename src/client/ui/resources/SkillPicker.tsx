@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react'
-import type { HostSkillEntry, HostSkillsResponse } from '../../../shared/wire.ts'
+import type { HostSkillEntry, HostSkillsResponse } from '../../../shared/wire/host.ts'
 import type { HostAccess } from '../../app/host.ts'
 import type { T } from '../../i18n.ts'
 import { errorMessage } from '../../rpc.ts'

@@ -9,7 +9,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { SkillFileResponse, SkillMeta } from '../../shared/skillPack.ts'
-import type { RunDirResponse, RunImageResponse } from '../../shared/wire.ts'
+import type { RunDirResponse, RunImageResponse } from '../../shared/wire/run.ts'
 import { errorMessage, type WorkflowLiteRpc } from '../rpc.ts'
 import type { RunDir, RunImage } from './useRunFile.ts'
 

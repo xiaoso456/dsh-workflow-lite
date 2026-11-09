@@ -8,7 +8,11 @@
  * @module @xiaoso/dsh-workflow-lite/client/app/host
  */
 
-import type { HostListResponse, HostSkillResponse, HostSkillsResponse } from '../../shared/wire.ts'
+import type {
+  HostListResponse,
+  HostSkillResponse,
+  HostSkillsResponse,
+} from '../../shared/wire/host.ts'
 import type { WorkflowLiteRpc } from '../rpc.ts'
 import type { Desktop } from './desktop.ts'
 import { type MemoryStore, memoryStore } from './memories.ts'

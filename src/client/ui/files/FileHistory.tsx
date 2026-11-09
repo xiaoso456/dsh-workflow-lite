@@ -12,7 +12,7 @@
  */
 
 import { useRef, useState } from 'react'
-import type { RunFileResponse } from '../../../shared/wire.ts'
+import type { RunFileResponse } from '../../../shared/wire/run.ts'
 import { type FileTarget, useRunFile, useRunImage } from '../../app/useRunFile.ts'
 import type { T } from '../../i18n.ts'
 import { fileKindOf, formatBytes } from '../../model/fileKind.ts'

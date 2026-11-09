@@ -7,7 +7,7 @@
  * @module @xiaoso/dsh-workflow-lite/client/model/outputHistory
  */
 
-import type { RunHistoryResponse, RunVersion } from '../../shared/wire.ts'
+import type { RunHistoryResponse, RunVersion } from '../../shared/wire/run.ts'
 import type { T } from '../i18n.ts'
 
 /** 现在的文件此刻的样子（`run/stat`）。 */

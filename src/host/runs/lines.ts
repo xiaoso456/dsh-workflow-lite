@@ -28,7 +28,7 @@ import {
   RUN_LINES_PLAIN_BYTES,
   type RunLine,
   type RunLinesResponse,
-} from '../../shared/wire.ts'
+} from '../../shared/wire/run.ts'
 
 /** 一次扫描要做什么（主线程、工作线程共用，只有能结构化克隆的字段）。 */
 export interface LineScanJob {

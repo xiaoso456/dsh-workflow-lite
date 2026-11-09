@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useState } from 'react'
-import type { HostSkillResponse } from '../../../shared/wire.ts'
+import type { HostSkillResponse } from '../../../shared/wire/host.ts'
 import type { HostAccess } from '../../app/host.ts'
 import type { T } from '../../i18n.ts'
 import { errorMessage } from '../../rpc.ts'

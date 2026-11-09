@@ -20,7 +20,7 @@ import {
   type SkillMeta,
   skillDoc,
 } from '../../shared/skillPack.ts'
-import type { RunDirResponse, RunImageResponse } from '../../shared/wire.ts'
+import type { RunDirResponse, RunImageResponse } from '../../shared/wire/run.ts'
 import {
   cleanSub,
   readRunDir,

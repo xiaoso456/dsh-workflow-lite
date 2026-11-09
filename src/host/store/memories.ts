@@ -27,10 +27,8 @@ import type {
   MemoryCreateRequest,
   MemoryImageRequest,
   MemoryUpdateRequest,
-  RunDirResponse,
-  RunFileResponse,
-  RunImageResponse,
-} from '../../shared/wire.ts'
+} from '../../shared/wire/memory.ts'
+import type { RunDirResponse, RunFileResponse, RunImageResponse } from '../../shared/wire/run.ts'
 import { walkTree } from '../pack/tree.ts'
 import {
   cleanSub,

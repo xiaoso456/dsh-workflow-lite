@@ -20,7 +20,7 @@ import {
   type RunLinesRequest,
   type RunLinesResponse,
   type RunStatResponse,
-} from '../../shared/wire.ts'
+} from '../../shared/wire/run.ts'
 import type { Outcome } from '../store/repoResult.ts'
 import {
   cleanSub,

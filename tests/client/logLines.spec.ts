@@ -10,7 +10,7 @@ import {
   windowOf,
 } from '../../src/client/model/logLines.ts'
 import { readView } from '../../src/shared/model.ts'
-import type { RunLine, RunLinesResponse } from '../../src/shared/wire.ts'
+import type { RunLine, RunLinesResponse } from '../../src/shared/wire/run.ts'
 
 const line = (at: number, text = `line ${at}`, extra: Partial<RunLine> = {}): RunLine => ({
   at,

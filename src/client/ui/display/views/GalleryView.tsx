@@ -6,7 +6,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { GALLERY_GAP, galleryLayout, galleryTracks } from '../../../../shared/display.ts'
-import type { RunDirEntry, RunDirResponse } from '../../../../shared/wire.ts'
+import type { RunDirEntry, RunDirResponse } from '../../../../shared/wire/run.ts'
 import { publishFolderFacts } from '../../../app/cardFacts.ts'
 import { displayKey } from '../../../app/useDisplayStats.ts'
 import type { T } from '../../../i18n.ts'
