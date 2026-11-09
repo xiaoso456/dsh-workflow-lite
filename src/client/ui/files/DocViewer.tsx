@@ -24,6 +24,7 @@ import { DataTable } from '../kit/DataTable.tsx'
 import { Icon, type IconName } from '../kit/Icon.tsx'
 import { Modal } from '../kit/Modal.tsx'
 import { Segmented } from '../kit/Segmented.tsx'
+import { TextArea } from '../kit/TextArea.tsx'
 import ui from '../kit/ui.module.css'
 import { SwapIcon } from '../motion/swapText.tsx'
 import { useBoardFrame } from './boardFrame.ts'
@@ -261,7 +262,7 @@ export function DocViewer(props: {
 
   const content: React.ReactNode =
     view === 'edit' && edit !== undefined && body.kind === 'text' ? (
-      <textarea
+      <TextArea
         className={cx(ui.textarea, css.viewerEdit)}
         value={body.text}
         placeholder={edit.placeholder}
@@ -269,7 +270,6 @@ export function DocViewer(props: {
         maxLength={edit.maxLength}
         spellCheck={false}
         data-testid={edit.testId}
-        // biome-ignore lint/a11y/noAutofocus: 切到「编辑」就是要打字
         autoFocus
         onChange={(event) => edit.onChange(event.currentTarget.value)}
       />

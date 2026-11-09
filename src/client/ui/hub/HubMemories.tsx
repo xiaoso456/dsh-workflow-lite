@@ -23,6 +23,7 @@ import { useConfirm } from '../kit/Confirm.tsx'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import { Skeleton } from '../kit/Skeleton.tsx'
+import { TextArea } from '../kit/TextArea.tsx'
 import ui from '../kit/ui.module.css'
 import { useFlip } from '../motion/flip.ts'
 import { ListThumb } from '../motion/thumb.tsx'
@@ -337,7 +338,7 @@ function MemoryDetail(props: {
 
           <label className={css.sec}>
             <span className={css.secHead}>{t('ins.description')}</span>
-            <textarea
+            <TextArea
               className={cx(ui.textarea, css.hubDesc)}
               value={description ?? entry.description}
               placeholder={t('mem.descPlaceholder')}

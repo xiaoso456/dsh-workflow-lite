@@ -17,6 +17,7 @@ import type { Edit } from '../../model/editor.ts'
 import { cx } from '../kit/cx.ts'
 import { HelpTip } from '../kit/HelpTip.tsx'
 import { Icon } from '../kit/Icon.tsx'
+import { TextArea } from '../kit/TextArea.tsx'
 import ui from '../kit/ui.module.css'
 import { Checkbox } from '../motion/marks.tsx'
 import ins from '../panel/panel.module.css'
@@ -104,7 +105,7 @@ export function HandoffField(props: {
             {t('hand.note')}
             <span className={ins.optional}>{t('out.optional')}</span>
           </p>
-          <textarea
+          <TextArea
             className={cx(ui.textarea, css.note, ui.rise)}
             value={note}
             rows={3}

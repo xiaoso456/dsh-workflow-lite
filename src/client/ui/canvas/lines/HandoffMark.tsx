@@ -10,6 +10,7 @@ import { codepointLength } from '../../../../shared/naming.ts'
 import type { T } from '../../../i18n.ts'
 import { cx } from '../../kit/cx.ts'
 import { Icon } from '../../kit/Icon.tsx'
+import { TextArea } from '../../kit/TextArea.tsx'
 import ui from '../../kit/ui.module.css'
 import { useFloat } from '../../kit/useFloat.tsx'
 import type { HandoffActs } from '../types.ts'
@@ -115,7 +116,7 @@ export function HandoffMark(props: {
               <span className={css.cardRoute}>{props.route}</span>
             </div>
             {editing ? (
-              <textarea
+              <TextArea
                 className={cx(ui.textarea, css.cardInput)}
                 value={draft}
                 rows={4}
@@ -123,7 +124,6 @@ export function HandoffMark(props: {
                 aria-label={t('hand.note')}
                 aria-invalid={tooLong}
                 data-testid="wl-handoff-card-note"
-                // biome-ignore lint/a11y/noAutofocus: 点了「编辑交接」就是要打字
                 autoFocus
                 onFocus={(event) => {
                   const end = event.currentTarget.value.length

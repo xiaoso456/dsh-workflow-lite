@@ -27,6 +27,7 @@ import { Icon } from '../kit/Icon.tsx'
 import { Modal } from '../kit/Modal.tsx'
 import overlay from '../kit/overlay.module.css'
 import { KIND_ICON, KIND_LABEL, sameItem } from '../kit/resourceUi.ts'
+import { TextArea } from '../kit/TextArea.tsx'
 import ui from '../kit/ui.module.css'
 import ins from '../panel/panel.module.css'
 import { HostPicker } from './HostPicker.tsx'
@@ -247,7 +248,7 @@ export function ResourceItemDialog(props: {
                 )}
               </div>
               {kind === 'text' ? (
-                <textarea
+                <TextArea
                   id="wl-resource-value"
                   ref={valueRef}
                   className={cx(ui.textarea, css.textArea)}
@@ -351,7 +352,7 @@ export function ResourceItemDialog(props: {
                     </button>
                   )}
                 </div>
-                <textarea
+                <TextArea
                   id="wl-resource-note"
                   ref={noteRef}
                   // 有默认说明的（记忆）一般有好几条，给大一点的框。

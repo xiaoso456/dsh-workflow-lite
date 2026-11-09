@@ -34,6 +34,7 @@ import { WHEN_COLOR } from '../kit/lineColors.ts'
 import { stepName } from '../kit/resourceUi.ts'
 import { Segmented } from '../kit/Segmented.tsx'
 import { lookOf, StepMark } from '../kit/StepMark.tsx'
+import { TextArea } from '../kit/TextArea.tsx'
 import ui from '../kit/ui.module.css'
 import { Presence } from '../motion/exits.tsx'
 import { useResizeFlip } from '../motion/flip.ts'
@@ -476,7 +477,7 @@ function EdgePanel(props: InspectorProps & { edge: WorkflowEdge }): React.JSX.El
               />
               {mode === 'custom' && (
                 <>
-                  <textarea
+                  <TextArea
                     className={cx(ui.textarea, local.condition, ui.rise)}
                     value={draft}
                     rows={3}

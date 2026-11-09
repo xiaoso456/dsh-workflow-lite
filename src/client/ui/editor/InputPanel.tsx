@@ -29,6 +29,7 @@ import { Icon } from '../kit/Icon.tsx'
 import { stepName } from '../kit/resourceUi.ts'
 import { Segmented } from '../kit/Segmented.tsx'
 import { lookOf, StepMark } from '../kit/StepMark.tsx'
+import { TextArea } from '../kit/TextArea.tsx'
 import ui from '../kit/ui.module.css'
 import { useResizeFlip } from '../motion/flip.ts'
 import { CheckMark, SwitchTrack } from '../motion/marks.tsx'
@@ -118,7 +119,7 @@ export function InputPanel(props: InputPanelProps): React.JSX.Element {
           <div className={ins.label}>
             <span>{t('input.question')}</span>
           </div>
-          <textarea
+          <TextArea
             className={cx(ui.textarea, css.question)}
             value={data.question}
             rows={2}
@@ -267,7 +268,7 @@ export function InputPanel(props: InputPanelProps): React.JSX.Element {
               <span>{t('input.default')}</span>
             </div>
             {kind === 'textarea' ? (
-              <textarea
+              <TextArea
                 className={cx(ui.textarea, css.defaultArea)}
                 value={typeof data.default === 'string' ? data.default : ''}
                 rows={3}
@@ -355,7 +356,7 @@ export function InputPanel(props: InputPanelProps): React.JSX.Element {
           )}
           <label className={css.sub}>
             <span className={css.subLabel}>{t('input.hint')}</span>
-            <textarea
+            <TextArea
               className={cx(ui.textarea, css.hint)}
               value={data.hint ?? ''}
               rows={2}

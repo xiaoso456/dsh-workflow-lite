@@ -23,6 +23,7 @@ import { Icon } from '../kit/Icon.tsx'
 import { Modal } from '../kit/Modal.tsx'
 import overlay from '../kit/overlay.module.css'
 import { Segmented } from '../kit/Segmented.tsx'
+import { TextArea } from '../kit/TextArea.tsx'
 import ui from '../kit/ui.module.css'
 import { useResizeFlip } from '../motion/flip.ts'
 import css from './outputs.module.css'
@@ -427,7 +428,7 @@ export function OutputEditor(props: {
                 {codepointLength(rule)} / {MAX_TEXT_CODEPOINTS}
               </span>
             </label>
-            <textarea
+            <TextArea
               id="wl-output-rule"
               ref={ruleRef}
               className={cx(ui.textarea, css.ruleArea)}

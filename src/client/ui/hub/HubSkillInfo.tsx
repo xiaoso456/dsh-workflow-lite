@@ -31,6 +31,7 @@ import { useConfirm } from '../kit/Confirm.tsx'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import overlay from '../kit/overlay.module.css'
+import { TextArea } from '../kit/TextArea.tsx'
 import ui from '../kit/ui.module.css'
 import { Staged } from '../motion/stage.tsx'
 import resource from '../resources/resource.module.css'
@@ -264,7 +265,7 @@ export function HubSkillInfo(props: {
             </div>
             <div className={pack.field}>
               <span className={hub.wfSub}>{t('skillExport.description')}</span>
-              <textarea
+              <TextArea
                 className={cx(ui.textarea, css.fieldArea)}
                 value={meta.description}
                 maxLength={SKILL_TEXT_MAX}
@@ -281,7 +282,7 @@ export function HubSkillInfo(props: {
             </div>
             <div className={pack.field}>
               <span className={hub.wfSub}>{t('skillExport.whenToUse')}</span>
-              <textarea
+              <TextArea
                 className={cx(ui.textarea, css.fieldArea)}
                 value={meta.whenToUse ?? ''}
                 maxLength={SKILL_TEXT_MAX}

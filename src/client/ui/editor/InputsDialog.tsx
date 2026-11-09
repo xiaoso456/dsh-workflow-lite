@@ -17,6 +17,7 @@ import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import { Modal } from '../kit/Modal.tsx'
 import overlay from '../kit/overlay.module.css'
+import { TextArea } from '../kit/TextArea.tsx'
 import ui from '../kit/ui.module.css'
 import { CheckBox } from '../motion/marks.tsx'
 import panel from '../panel/panel.module.css'
@@ -213,7 +214,7 @@ function Question(props: {
         />
       )}
       {kind === 'textarea' && (
-        <textarea
+        <TextArea
           className={cx(ui.textarea, css.area)}
           value={text}
           rows={4}

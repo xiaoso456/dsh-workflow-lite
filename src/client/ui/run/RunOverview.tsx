@@ -21,6 +21,7 @@ import { shortTime } from '../../model/time.ts'
 import { RUN_STATUS_TEXT } from '../chrome/RunStatusBadge.tsx'
 import badge from '../chrome/runStatus.module.css'
 import { cx } from '../kit/cx.ts'
+import { TextArea } from '../kit/TextArea.tsx'
 import ui from '../kit/ui.module.css'
 import { SwapText } from '../motion/swapText.tsx'
 import css from '../panel/panel.module.css'
@@ -122,7 +123,7 @@ export function Overview(props: {
             <EditedDot on={isEdited(current.draft, ['note'])} />
           </span>
         </p>
-        <textarea
+        <TextArea
           className={cx(ui.textarea, own.autoArea)}
           rows={2}
           value={state.note ?? ''}
