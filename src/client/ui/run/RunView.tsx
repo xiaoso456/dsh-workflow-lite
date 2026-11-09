@@ -19,20 +19,12 @@ import { analyzeGraph } from '../../../shared/graph.ts'
 import type { MemoryEntry } from '../../../shared/memoryLib.ts'
 import { idKey, isInput, isResource, isStep } from '../../../shared/model.ts'
 import { type RunCursor, runCursor } from '../../../shared/runCursor.ts'
-import {
-  graphFacts,
-  type NodeStatus,
-  type RunState,
-  takenEdges,
-  validateRunState,
-} from '../../../shared/runState.ts'
+import { graphFacts, type NodeStatus, type RunState } from '../../../shared/runState.ts'
 import { applySync, syncOps } from '../../../shared/runSync.ts'
 import type {
   InputNode,
-  LineFilter,
   NodeData,
   Point,
-  ResourceItem,
   ResourceNode,
   StepNode,
   TemplateEntry,
@@ -40,39 +32,25 @@ import type {
   WorkflowEdge,
   WorkflowEntry,
 } from '../../../shared/types.ts'
-import { addFromSource, addOrigin, duplicateEdit } from '../../app/addStep.ts'
+import { addOrigin } from '../../app/addStep.ts'
 import type { Desktop } from '../../app/desktop.ts'
 import { createHostAccess, type HostAccess } from '../../app/host.ts'
-import { afterPaint, revealNode } from '../../app/reveal.ts'
-import { useArrival } from '../../app/useArrival.ts'
-import { runFolderSource } from '../../app/useBrowse.ts'
-import { useDisplayStats } from '../../app/useDisplayStats.ts'
+import { afterPaint } from '../../app/reveal.ts'
 import type { FileTarget } from '../../app/useRunFile.ts'
 import { useRunGraph } from '../../app/useRunGraph.ts'
 import { useRunHistory } from '../../app/useRunHistory.ts'
-import { type Run, type Runs, runPollMs, useRun } from '../../app/useRuns.ts'
+import { type Run, type Runs, useRun } from '../../app/useRuns.ts'
 import type { T } from '../../i18n.ts'
 import { type Edit, findNode } from '../../model/editor.ts'
 import { fileBaseName } from '../../model/fileKind.ts'
-import { NODE_H, NODE_W, placeMissing, tidy } from '../../model/layout.ts'
-import type { StepSource } from '../../model/library.ts'
-import { nodeTitle } from '../../model/nodeName.ts'
-import {
-  changeCount,
-  downstreamOf,
-  editedNodes,
-  togglePin,
-  withDraftLog,
-} from '../../model/runDraft.ts'
-import { lockedSteps } from '../../model/runGraph.ts'
+import { NODE_H, NODE_W } from '../../model/layout.ts'
+import { downstreamOf, editedNodes, togglePin, withDraftLog } from '../../model/runDraft.ts'
 import type { WorkflowLiteRpc } from '../../rpc.ts'
-import { type AddRequest, Canvas, type RunDecor, type RunNodeDecor } from '../canvas/Canvas.tsx'
+import { type AddRequest, Canvas, type RunDecor } from '../canvas/Canvas.tsx'
 import { QuickAdd } from '../canvas/QuickAdd.tsx'
-import type { RunMark } from '../canvas/types.ts'
 import { edgeSwap, Inspector } from '../editor/Inspector.tsx'
 import css from '../editor/inspector.module.css'
 import { EdgeHead, InputHead, OverviewHead, ResourceHead, StepHead } from '../editor/NodeHeads.tsx'
-import { FileViewer } from '../files/FileViewer.tsx'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import ui from '../kit/ui.module.css'
@@ -82,10 +60,9 @@ import { SWITCH_HOLD_MS, useSwap, useSwapHold } from '../motion/swap.tsx'
 import { ZoomDock } from '../shell/Dock.tsx'
 import shell from '../shell/shell.module.css'
 import type { TopSlots } from '../shell/TopBar.tsx'
-import { DraftBar, type DraftLine, graphLine } from './RunDraftBar.tsx'
+import { DraftBar } from './RunDraftBar.tsx'
 import { RunEdgeDetail } from './RunEdge.tsx'
 import { RunInputDetail } from './RunInput.tsx'
-import { FolderDialog, TextDialog } from './RunItemDialog.tsx'
 import { type PanelMode, RunModeSwitch } from './RunModeSwitch.tsx'
 import { RunNav } from './RunNav.tsx'
 import { Overview, Untracked } from './RunOverview.tsx'
@@ -94,6 +71,13 @@ import { StatusMenu } from './RunStatusMenu.tsx'
 import { RunStepDetail } from './RunStep.tsx'
 import { RunTopBar } from './RunTopBar.tsx'
 import run from './run.module.css'
+import { buildRunDecor } from './runView/buildRunDecor.ts'
+import { DisplayDialogs } from './runView/DisplayDialogs.tsx'
+import { GAP } from './runView/geometry.ts'
+import { useDisplayCards } from './runView/useDisplayCards.ts'
+import { useGraphEdit } from './runView/useGraphEdit.ts'
+import { usePlacedSnapshot } from './runView/usePlacedSnapshot.ts'
+import { useRunDraft } from './runView/useRunDraft.ts'
 
 export interface RunViewProps {
   t: T
@@ -128,10 +112,6 @@ export interface RunViewProps {
   /** 记忆库（记忆卡上显示它的名称）；还没读回来是 `null`。 */
   memories?: readonly MemoryEntry[] | null
 }
-
-const GAP = 12
-/** 改状态小菜单的宽度（与 run.module.css 的 `.menu` 一致）。 */
-const MENU_W = 220
 
 const TYPING = new Set(['INPUT', 'TEXTAREA', 'SELECT'])
 
@@ -169,37 +149,7 @@ export function RunView(props: RunViewProps): React.JSX.Element {
     }
   }, [props.reloadRef, reloadNow])
   const raw = useSnapshot(id, current.view?.document, summary?.planId)
-  // 快照里没摆过位置的节点（模型用工具建的图、还没在画布上打开过）：照模板那边的规矩补位。
-  const [placed, setPlaced] = useState<{
-    key: string
-    planId: string
-    doc: WorkflowDocument
-  } | null>(null)
-  useEffect(() => {
-    if (raw === null) return
-    let live = true
-    void placeMissing(raw.doc, analyzeGraph(raw.doc)).then((positions) => {
-      if (!live) return
-      const moved = Object.keys(positions).length > 0
-      setPlaced({
-        key: `${id}:${raw.planId}`,
-        planId: raw.planId,
-        doc: moved
-          ? {
-              ...raw.doc,
-              nodes: raw.doc.nodes.map((node) => {
-                const at = positions[node.id]
-                return at === undefined ? node : { ...node, position: at }
-              }),
-            }
-          : raw.doc,
-      })
-    })
-    return () => {
-      live = false
-    }
-  }, [raw, id])
-  const source = placed !== null && placed.key === `${id}:${raw?.planId}` ? placed : null
+  const source = usePlacedSnapshot({ id, raw })
   const graph = useRunGraph(id, source, summary?.workflow)
   const history = useRunHistory({
     graph: { history: graph.history, undo: graph.undo, redo: graph.redo, dropRedo: graph.dropRedo },
@@ -250,57 +200,16 @@ export function RunView(props: RunViewProps): React.JSX.Element {
   const [keysOpen, setKeysOpen] = useState(false)
   /** 悬停着的文件（画布上的文件卡、右栏的文件行）：画布高亮它和它的上下游。 */
   const [focusFile, setFocusFile] = useState<string | null>(null)
-  /** 查看框里打开着的文件。 */
-  const [viewer, setViewer] = useState<{
-    target: FileTarget
-    title: string
-    note?: string | undefined
-    /** 从展示卡打开：卡片上「只看」的筛选。 */
-    filter?: LineFilter | undefined
-  } | null>(null)
-  /** 展示卡上打开的自定义文字（文件走上面的查看框）。 */
-  const [textView, setTextView] = useState<ResourceItem | null>(null)
-  /** 展示卡上打开的文件夹（图墙里点了一张就先看那一张）。 */
-  const [folderView, setFolderView] = useState<{
-    node: string
-    item: number
-    entry: ResourceItem
-    initial?: string | undefined
-  } | null>(null)
-  /** 画布上展示着的文件：隔一会儿看一眼在不在、改没改。 */
-  const displayStats = useDisplayStats(props.rpc, id, doc, runPollMs(current.view))
-  /** 步骤 id → 名字：展示卡上各轮的点写「改稿 · 第 2 轮」。 */
-  const stepNames = useMemo(
-    () =>
-      Object.fromEntries(
-        (doc?.nodes ?? []).filter(isStep).map((node) => [node.id, nodeTitle(node)]),
-      ),
-    [doc],
-  )
-  const displayRun = useMemo(
-    () => ({ rpc: props.rpc, instance: id, stats: displayStats, names: stepNames }),
-    [props.rpc, id, displayStats, stepNames],
-  )
-  const docRef = useRef(doc)
-  docRef.current = doc
-  const openDisplay = useCallback((node: string, item: number, sub?: string): void => {
-    const found = docRef.current?.nodes.find(
-      (candidate): candidate is ResourceNode => candidate.id === node && isResource(candidate),
-    )
-    const entry = found?.data.items[item]
-    if (entry === undefined) return
-    if (entry.kind === 'text') setTextView(entry)
-    else if (entry.kind === 'folder') setFolderView({ node, item, entry, initial: sub })
-    else {
-      setViewer({
-        target: { node, item },
-        title: fileBaseName(entry.value),
-        note: entry.note,
-        filter: found?.data.view?.lines?.filter,
-      })
-    }
-  }, [])
-  const display = useMemo(() => ({ run: displayRun, open: openDisplay }), [displayRun, openDisplay])
+  const {
+    viewer,
+    setViewer,
+    textView,
+    setTextView,
+    folderView,
+    setFolderView,
+    stepNames,
+    display,
+  } = useDisplayCards({ rpc: props.rpc, id, doc, current })
   /** 看实例工作区里的文件夹、Skill（相对路径按实例的工作区，Skill 按实例所属的会话）。 */
   const cwd = summary?.cwd
   const host = useMemo(
@@ -335,53 +244,24 @@ export function RunView(props: RunViewProps): React.JSX.Element {
     [doc, analysis, shown, draft],
   )
 
-  const decor = useMemo<RunDecor | undefined>(() => {
-    if (doc === null) return undefined
-    const onStatus = (nodeId: string, anchor: Element): void => {
-      if (fresh(nodeId)) {
-        current.flash('ok', t('run.freshStep'))
-        return
-      }
-      const root = anchor.closest('[data-testid="wl-root"]')
-      if (root === null) return
-      const box = root.getBoundingClientRect()
-      const rect = anchor.getBoundingClientRect()
-      // 菜单贴着小标弹出，但不伸到右栏底下。
-      const limit = box.width - insetRight - MENU_W - GAP
-      setMenu({
-        id: nodeId,
-        x: Math.max(GAP, Math.min(rect.left - box.left, limit)),
-        y: rect.bottom - box.top + 6,
-        step: 'status',
-      })
-    }
-    if (shown === null) {
-      return {
-        nodes: {},
-        taken: new Set(doc.edges.map((edge) => edge.id)),
-        files: {},
-        onStatus,
-      }
-    }
-    const marks = new Map<string, RunMark>()
-    for (const step of cursor?.next ?? []) marks.set(step.node, 'next')
-    for (const step of cursor?.last ?? []) marks.set(step.node, 'last')
-    const nodes: Record<string, RunNodeDecor> = {}
-    for (const [nodeId, node] of Object.entries(shown.nodes)) {
-      nodes[nodeId] = {
-        status: node.status,
-        round: node.round ?? 0,
-        edited: edited.has(nodeId),
-        mark: marks.get(nodeId),
-      }
-    }
-    return {
-      nodes,
-      taken: takenEdges(doc, shown),
-      files: current.view?.files ?? {},
-      onStatus,
-    }
-  }, [doc, shown, cursor, edited, current.view?.files, insetRight, fresh, current.flash, t])
+  const decor = useMemo<RunDecor | undefined>(
+    () =>
+      doc === null
+        ? undefined
+        : buildRunDecor({
+            doc,
+            shown,
+            cursor,
+            edited,
+            files: current.view?.files,
+            flash: current.flash,
+            insetRight,
+            fresh,
+            setMenu,
+            t,
+          }),
+    [doc, shown, cursor, edited, current.view?.files, insetRight, fresh, current.flash, t],
+  )
 
   const fitAll = useCallback((): void => {
     void flow.fitView({
@@ -410,107 +290,33 @@ export function RunView(props: RunViewProps): React.JSX.Element {
 
   // ── 改图 ───────────────────────────────────────────────────
 
-  const locked = useMemo(
-    () => lockedSteps(current.view?.state ?? current.lastGood),
-    [current.view?.state, current.lastGood],
-  )
-  const focusCanvas = useCallback((): void => {
-    canvasRef.current?.querySelector<HTMLElement>('[data-testid="wl-canvas"]')?.focus()
-  }, [])
-  /** 所有改图的动作都走这里：执行过的步骤不让删；加了东西、连了线就把右栏切到「编辑」。 */
-  const edit = useCallback(
-    (next: Edit): void => {
-      if (next.type === 'removeNode' && locked(next.id)) {
-        current.flash('error', t('run.lockedStep'))
-        return
-      }
-      graph.edit(next)
-      if (
-        next.type === 'addNode' ||
-        next.type === 'addResource' ||
-        next.type === 'addInput' ||
-        next.type === 'connect'
-      ) {
-        setMode('edit')
-        onPanel(true)
-      }
-    },
-    [locked, current.flash, t, graph.edit, onPanel],
-  )
-  const addStep = useCallback(
-    async (from: StepSource, position: Point, after?: string): Promise<void> => {
-      setFocusPrompt(from.kind === 'blank')
-      await addFromSource({ t, doc, edit, loadTemplate: props.loadTemplate }, from, position, after)
-    },
-    [t, doc, edit, props.loadTemplate],
-  )
-  const requestAdd = useCallback((request: AddRequest): void => {
-    const root = canvasRef.current?.closest('[data-testid="wl-root"]')
-    if (root === null || root === undefined) return
-    const rect = root.getBoundingClientRect()
-    setQuick({
-      ...request,
-      at: { x: request.client.x - rect.left, y: request.client.y - rect.top },
-      bounds: { width: rect.width, height: rect.height },
-    })
-  }, [])
-  /** 复制之后右栏盖住了新节点，就把画布挪一点（右栏随加东西自动打开）。 */
-  const armArrival = useArrival(selection?.kind === 'node' ? selection.id : null, (nodeId) =>
-    revealNode({
-      flow,
-      root: canvasRef.current?.closest('[data-testid="wl-root"]') ?? null,
-      id: nodeId,
-      narrow,
-      panelW: inspectorW,
-      leftInset: 0,
-      gap: GAP,
-    }),
-  )
-  const duplicate = useCallback(
-    (nodeId: string): void => {
-      const original = doc === null ? undefined : findNode(doc, nodeId)
-      const next = duplicateEdit(doc, nodeId, t('node.copySuffix'))
-      if (original === undefined || next === null) return
-      armArrival()
-      edit(next)
-      current.flash('ok', t('node.copied').replace('{name}', nodeTitle(original)))
-    },
-    [doc, edit, t, armArrival, current.flash],
-  )
-  /** 删一个节点：删完点名告诉一声，并提示能撤销。执行过的步骤不让删，那边自己会报错，这里不再覆盖它。 */
-  const removeNode = useCallback(
-    (nodeId: string): void => {
-      const node = doc === null ? undefined : findNode(doc, nodeId)
-      const blocked = locked(nodeId)
-      edit({ type: 'removeNode', id: nodeId })
-      if (node !== undefined && !blocked) {
-        current.flash('ok', t('node.removed').replace('{name}', nodeTitle(node)))
-      }
-    },
-    [doc, edit, locked, t, current.flash],
-  )
-  const removeSelection = useCallback((): void => {
-    if (selection === null) return
-    if (selection.kind === 'node') removeNode(selection.id)
-    else edit({ type: 'removeEdge', id: selection.id })
-    focusCanvas()
-  }, [selection, edit, removeNode, focusCanvas])
-  const relayout = useCallback((): void => {
-    if (doc === null || analysis === null || doc.nodes.length === 0) return
-    const sizeOf = (nodeId: string): { width: number; height: number } | undefined => {
-      const measured = flow.getInternalNode(nodeId)?.measured
-      return measured?.width === undefined || measured.height === undefined
-        ? undefined
-        : { width: measured.width, height: measured.height }
-    }
-    const ids = doc.nodes.map((node) => node.id).join('\n')
-    void tidy(doc, analysis, sizeOf).then((positions) => {
-      // 排版是异步的：这期间加了 / 删了节点就作废。
-      if (graph.doc === null || graph.doc.nodes.map((node) => node.id).join('\n') !== ids) return
-      edit({ type: 'moveNodes', positions })
-      requestAnimationFrame(() => requestAnimationFrame(fitAll))
-    })
-  }, [doc, analysis, flow, graph.doc, edit, fitAll])
+  const {
+    focusCanvas,
+    edit,
+    addStep,
+    requestAdd,
+    duplicate,
+    removeNode,
+    removeSelection,
+    relayout,
+  } = useGraphEdit({
+    t,
+    canvasRef,
+    current,
+    graph,
+    doc,
+    analysis,
+    selection,
+    flow,
+    narrow,
+    inspectorW,
+    onPanel,
+    loadTemplate: props.loadTemplate,
+    fitAll,
+    setMode,
+    setFocusPrompt,
+    setQuick,
+  })
 
   /** 检查结果里点一条：选中那个节点、打开右栏，把它挪到右栏左边那块的正中间。 */
   const locate = useCallback(
@@ -588,39 +394,7 @@ export function RunView(props: RunViewProps): React.JSX.Element {
 
   // ── 草稿 ───────────────────────────────────────────────────
 
-  const graphLines = useMemo<DraftLine[]>(
-    () =>
-      graph.base === null || doc === null
-        ? []
-        : graph.changes.map((change) => ({
-            key: `${change.object}:${change.kind}:${change.id}`,
-            text: graphLine(t, change, graph.base as WorkflowDocument, doc),
-            onUndo: () => graph.revert(change),
-          })),
-    [graph.base, graph.changes, graph.revert, doc, t],
-  )
-  const count = changeCount(current.draft) + graph.changes.length
-  const blocked = useMemo((): string | null => {
-    const problem = graph.problems[0]
-    if (problem !== undefined) return t('run.graphProblem').replace('{p}', problem.message)
-    if (graph.changes.length === 0 || shown === null || facts === null) return null
-    const issue = validateRunState(shown, facts).issues[0]
-    return issue === undefined
-      ? null
-      : t('run.stateMismatch').replace('{p}', `${issue.path} ${issue.message}`)
-  }, [graph.problems, graph.changes.length, shown, facts, t])
-  const save = (): void => {
-    const changed = graph.changes.length > 0 && graph.doc !== null && graph.basePlan !== null
-    void current
-      .save(
-        changed && graph.doc !== null && graph.basePlan !== null
-          ? { base: graph.basePlan, document: graph.doc }
-          : undefined,
-      )
-      .then((result) => {
-        if (result?.planId !== undefined) graph.commit(result.planId)
-      })
-  }
+  const { graphLines, count, blocked, save } = useRunDraft({ t, current, graph, doc, shown, facts })
 
   const selectedStep =
     selection?.kind === 'node'
@@ -832,40 +606,19 @@ export function RunView(props: RunViewProps): React.JSX.Element {
 
       <Banners t={t} current={current} />
 
-      {viewer !== null && (
-        <FileViewer
-          t={t}
-          rpc={props.rpc}
-          instance={id}
-          target={viewer.target}
-          title={viewer.title}
-          note={viewer.note}
-          names={stepNames}
-          filter={viewer.filter}
-          desktop={props.desktop}
-          onClose={() => setViewer(null)}
-        />
-      )}
-
-      {folderView !== null && (
-        <FolderDialog
-          t={t}
-          source={runFolderSource(props.rpc, id, folderView.node, folderView.item)}
-          item={folderView.entry}
-          initial={folderView.initial}
-          desktop={props.desktop}
-          onClose={() => setFolderView(null)}
-        />
-      )}
-
-      {textView !== null && (
-        <TextDialog
-          t={t}
-          item={textView}
-          desktop={props.desktop}
-          onClose={() => setTextView(null)}
-        />
-      )}
+      <DisplayDialogs
+        t={t}
+        rpc={props.rpc}
+        id={id}
+        viewer={viewer}
+        folderView={folderView}
+        textView={textView}
+        stepNames={stepNames}
+        desktop={props.desktop}
+        onCloseViewer={() => setViewer(null)}
+        onCloseFolder={() => setFolderView(null)}
+        onCloseText={() => setTextView(null)}
+      />
 
       {(count > 0 || current.conflicts.length > 0) && (
         <DraftBar
