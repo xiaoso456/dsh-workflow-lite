@@ -9,15 +9,15 @@
  *
  * 样式在 `dirParts.module.css`，与选择框共用的部分在 `picker.module.css`。
  *
- * @module @xiaoso/dsh-workflow-lite/client/ui/resources/DirParts
+ * @module @xiaoso/dsh-workflow-lite/client/ui/files/DirParts
  */
 
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import ui from '../kit/ui.module.css'
 import { FadeMark, FadeText } from '../motion/marks.tsx'
+import picker from '../resources/picker.module.css'
 import css from './dirParts.module.css'
-import picker from './picker.module.css'
 
 /** 路径栏里的一级。`onGo` 缺省就只是个字（折起来的「…」）。 */
 export interface Crumb {

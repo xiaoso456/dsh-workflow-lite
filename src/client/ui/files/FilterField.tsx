@@ -1,17 +1,17 @@
 /**
  * dsh-workflow-lite — 日志、纯文本的筛选框：一个输入框、三个小开关、两个现成的、前后带几行；打字停一下才生效。
  *
- * @module @xiaoso/dsh-workflow-lite/client/ui/display/options/FilterField
+ * @module @xiaoso/dsh-workflow-lite/client/ui/files/FilterField
  */
 
 import { useRef, useState } from 'react'
-import { LINE_CONTEXT_MAX } from '../../../../shared/model.ts'
-import type { LineFilter } from '../../../../shared/types.ts'
-import type { T } from '../../../i18n.ts'
-import { FILTER_PRESETS, type FilterPreset, filterProblem } from '../../../model/logLines.ts'
-import { Icon } from '../../kit/Icon.tsx'
-import { Stepper } from '../../kit/NumberStep.tsx'
-import css from '../display.module.css'
+import { LINE_CONTEXT_MAX } from '../../../shared/model.ts'
+import type { LineFilter } from '../../../shared/types.ts'
+import type { T } from '../../i18n.ts'
+import { FILTER_PRESETS, type FilterPreset, filterProblem } from '../../model/logLines.ts'
+import css from '../display/display.module.css'
+import { Icon } from '../kit/Icon.tsx'
+import { Stepper } from '../kit/NumberStep.tsx'
 import { useDelayedCommit } from './useDelayedCommit.ts'
 
 /** 筛选框停手多久才生效。 */

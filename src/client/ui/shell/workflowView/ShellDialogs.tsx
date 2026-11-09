@@ -27,8 +27,8 @@ import { QuickAdd } from '../../canvas/QuickAdd.tsx'
 import { InputsDialog } from '../../editor/InputsDialog.tsx'
 import { PlanDialog } from '../../editor/PlanDialog.tsx'
 import { SettingsDialog } from '../../editor/SettingsDialog.tsx'
+import { TextDialog } from '../../files/TextDialog.tsx'
 import { MemoryPicker } from '../../resources/MemoryPicker.tsx'
-import { TextDialog } from '../../run/RunItemDialog.tsx'
 import { VersionsDialog } from '../../versions/VersionsDialog.tsx'
 
 export function ShellDialogs({

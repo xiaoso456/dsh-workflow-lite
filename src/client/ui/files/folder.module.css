@@ -1,5 +1,5 @@
 /**
- * dsh-workflow-lite — 文件夹浏览框的外框尺寸（HubSkillInfo、RunItemDialog 开的框用）；框里的样子在 folderBrowser.module.css。
+ * dsh-workflow-lite — 文件夹浏览框的外框尺寸（HubSkillInfo、FolderDialog 开的框用）；框里的样子在 folderBrowser.module.css。
  */
 
 /* 比普通查看框大：左边列表、右边预览。用属性选择器压过 docViewer.module.css 里的 div.viewer。 */

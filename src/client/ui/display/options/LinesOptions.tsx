@@ -8,7 +8,7 @@
 
 import type { LineView } from '../../../../shared/types.ts'
 import type { T } from '../../../i18n.ts'
-import { FilterField } from './FilterField.tsx'
+import { FilterField } from '../../files/FilterField.tsx'
 import { FromPicker, OptSwitch } from './optionParts.tsx'
 
 /** 日志、纯文本的那几项。 */

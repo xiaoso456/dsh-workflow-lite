@@ -7,7 +7,7 @@
 import { useRef } from 'react'
 import { usesBoardTheme } from '../../../../shared/board.ts'
 import type { Display } from '../../../model/display.ts'
-import { useBoardFrame } from '../boardFrame.ts'
+import { useBoardFrame } from '../../files/boardFrame.ts'
 import css from '../display.module.css'
 
 /** 网页：按「大小」排版，再按缩放整张等比缩放（像图片一样，排版不变）。页面是看板的卡片版（`data-board="card"`），带画布主题。 */

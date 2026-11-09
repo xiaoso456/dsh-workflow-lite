@@ -30,10 +30,10 @@ import {
 } from '../../model/logLines.ts'
 import { errorMessage, type WorkflowLiteRpc } from '../../rpc.ts'
 import shared from '../display/display.module.css'
-import { FilterField } from '../display/options/FilterField.tsx'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import ui from '../kit/ui.module.css'
+import { FilterField } from './FilterField.tsx'
 import files from './files.module.css'
 import css from './logViewer.module.css'
 

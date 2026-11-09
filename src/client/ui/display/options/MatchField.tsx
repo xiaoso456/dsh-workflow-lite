@@ -6,9 +6,9 @@
 
 import { FOLDER_MATCH_MAX } from '../../../../shared/types.ts'
 import type { T } from '../../../i18n.ts'
+import { useDelayedCommit } from '../../files/useDelayedCommit.ts'
 import { Icon } from '../../kit/Icon.tsx'
 import css from '../display.module.css'
-import { useDelayedCommit } from './useDelayedCommit.ts'
 
 /** 名字筛选框停手多久才生效。 */
 const MATCH_DELAY = 320

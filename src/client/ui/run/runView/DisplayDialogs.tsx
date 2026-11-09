@@ -11,7 +11,8 @@ import { runFolderSource } from '../../../app/useBrowse.ts'
 import type { T } from '../../../i18n.ts'
 import type { WorkflowLiteRpc } from '../../../rpc.ts'
 import { FileViewer } from '../../files/FileViewer.tsx'
-import { FolderDialog, TextDialog } from '../RunItemDialog.tsx'
+import { FolderDialog } from '../../files/FolderDialog.tsx'
+import { TextDialog } from '../../files/TextDialog.tsx'
 import type { RunFolderView, RunViewer } from './useDisplayCards.ts'
 
 export function DisplayDialogs({

@@ -44,9 +44,8 @@ import ui from '../kit/ui.module.css'
 import { useTrail } from '../motion/flip.ts'
 import { type StageDir, useStage } from '../motion/stage.tsx'
 import { SwapNode, SwapText, useTrend } from '../motion/swapText.tsx'
-import { FilterBar, PathBar, UpRow } from '../resources/DirParts.tsx'
 import picker from '../resources/picker.module.css'
-import { headFields, SkillMetaList } from '../resources/SkillPreview.tsx'
+import { FilterBar, PathBar, UpRow } from './DirParts.tsx'
 import {
   BrokenImagesHint,
   CopyButton,
@@ -62,6 +61,7 @@ import shared from './files.module.css'
 import css from './folderBrowser.module.css'
 import { BrowseImagePreview } from './ImagePreview.tsx'
 import { OpenWith } from './OpenWith.tsx'
+import { headFields, SkillMetaList } from './SkillMetaList.tsx'
 
 /** 列表每行的高度（px）。CSS 里读的是同一个值（`--fb-row`）：选中块按「第几行 × 行高」摆。 */
 const ROW = 28

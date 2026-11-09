@@ -7,7 +7,7 @@
  * 镂空（`clear`）、卡片静止时不画滚动条（`still`）也跟着主题消息走：开关时同样不重载。返回的 `scheme` 要写到框元素的 `color-scheme` 上，
  * 和页面一致框后面才不垫底。
  *
- * @module @xiaoso/dsh-workflow-lite/client/ui/display/boardFrame
+ * @module @xiaoso/dsh-workflow-lite/client/ui/files/boardFrame
  */
 
 import {

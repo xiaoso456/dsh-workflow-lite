@@ -3,7 +3,7 @@
  *
  * 筛选框（FilterField）和名字筛选框（MatchField）共用；怎么把文字变成设置值、写不写回，由各自的 `apply` 决定。
  *
- * @module @xiaoso/dsh-workflow-lite/client/ui/display/options/useDelayedCommit
+ * @module @xiaoso/dsh-workflow-lite/client/ui/files/useDelayedCommit
  */
 
 import { useEffect, useRef, useState } from 'react'
