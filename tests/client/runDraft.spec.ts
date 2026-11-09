@@ -50,6 +50,17 @@ describe('runDraft', () => {
     expect(editedNodes(draft)).toEqual(new Set(['review']))
   })
 
+  it('叠草稿只复制改到的步骤：其余步骤原样沿用，原状态不被改动', () => {
+    const state = base()
+    const draft = setNodeStatus([], state, 'review', 'done', NOW)
+    const shown = applyDraft(state, draft)
+    expect(shown.nodes.scan).toBe(state.nodes.scan)
+    expect(shown.nodes.fix).toBe(state.nodes.fix)
+    expect(shown.nodes.review).not.toBe(state.nodes.review)
+    expect(state.nodes.review).toEqual({ status: 'running', round: 1, startedAt: T })
+    expect(applyDraft(state, [])).toBe(state)
+  })
+
   it('重跑：做过的步骤一起改回待执行、清掉结束时间', () => {
     const draft = rerun([], base(), ['scan', 'review', 'fix'], NOW)
     const shown = applyDraft(base(), draft)

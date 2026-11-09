@@ -12,6 +12,7 @@ import type { WorkflowDocument } from '../../../../shared/types.ts'
 import type { T } from '../../../i18n.ts'
 import type { Selection } from '../../../model/editor.ts'
 import { cardSize, RES_H } from '../../../model/layout.ts'
+import { samePlain } from '../../../model/samePlain.ts'
 import { whenKind } from '../../../model/whenKind.ts'
 import { cx } from '../../kit/cx.ts'
 import { ACCESS_COLOR, type Access, WHEN_COLOR } from '../../kit/lineColors.ts'
@@ -21,25 +22,16 @@ import type { FlowEdge, HandoffActs } from '../types.ts'
 import type { CanvasRoutes } from './buildRoutes.ts'
 import type { CanvasTexts } from './buildTexts.ts'
 
-/** 连线对象的缓存：内容没变就交回同一个对象，React Flow 不重画这条线。 */
-export interface EdgeCacheEntry {
-  signature: string
-  flow: FlowEdge
-}
-
-/** 连线对象的指纹：除了回调与翻译函数（它们换了就整份缓存作废，见 `edges`）。 */
-function edgeSignature(edge: FlowEdge): string {
-  return JSON.stringify(edge, (key, value) =>
-    key === 't' || key === 'onPick' || key === 'acts' ? undefined : value,
-  )
-}
+/** 比连线对象时不看的键：回调与翻译函数（它们换了就整份缓存作废，见 `edges`）。 */
+const EDGE_SKIP: ReadonlySet<string> = new Set(['t', 'onPick', 'acts'])
 
 /** 连线对象缓存连同它是按哪份翻译函数与回调建的（它们换了就整份作废）。 */
 export interface EdgeCache {
   t: T
   onPick: unknown
   acts: unknown
-  map: Map<string, EdgeCacheEntry>
+  /** 上一次交出去的每条线：内容没变就交回同一个对象，React Flow 不重画这条线。 */
+  map: Map<string, FlowEdge>
   /** 上一次交出去的整份数组：一条线都没变时原样交回，React Flow 就不用把所有线再过一遍。 */
   list?: FlowEdge[]
 }
@@ -96,12 +88,11 @@ export function buildEdges({
     edgeCache.current = { t, onPick, acts, map: new Map() }
   }
   const previous = edgeCache.current.map
-  const next = new Map<string, EdgeCacheEntry>()
+  const next = new Map<string, FlowEdge>()
   const reuse = (built: FlowEdge): FlowEdge => {
-    const signature = edgeSignature(built)
     const cached = previous.get(built.id)
-    const kept = cached !== undefined && cached.signature === signature ? cached.flow : built
-    next.set(built.id, { signature, flow: kept })
+    const kept = cached !== undefined && samePlain(cached, built, EDGE_SKIP) ? cached : built
+    next.set(built.id, kept)
     return kept
   }
   // 活着的线画在最上面，不被淡下去的线压住：靠每条线的 zIndex，不挪它在数组里的位置——

@@ -44,7 +44,7 @@ import css from './canvas.module.css'
 import { InputCard } from './cards/InputCard.tsx'
 import { ResourceCard } from './cards/ResourceCard.tsx'
 import { StepCard } from './cards/StepCard.tsx'
-import { buildEdges, type EdgeCacheEntry } from './flow/buildEdges.ts'
+import { buildEdges } from './flow/buildEdges.ts'
 import { buildNodes, type CacheEntry } from './flow/buildNodes.ts'
 import { buildRoutes, type RouteBase } from './flow/buildRoutes.ts'
 import { buildTexts } from './flow/buildTexts.ts'
@@ -185,7 +185,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
     t,
     onPick: null as unknown,
     acts: null as unknown,
-    map: new Map<string, EdgeCacheEntry>(),
+    map: new Map<string, FlowEdge>(),
   })
   /** 最新的文档（画出来的可能晚一拍，见上）：回调里按它找卡片、算位置。 */
   const docRef = useRef(props.doc)

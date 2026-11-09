@@ -18,6 +18,7 @@ import {
   type StateEdit,
   statusFields,
 } from '../../shared/runState.ts'
+import { samePlain } from './samePlain.ts'
 
 /** 草稿里的一条冲突：用户以为的旧值、用户要的新值、文件里现在的值。 */
 export interface DraftConflict {
@@ -32,7 +33,7 @@ export function samePath(a: readonly string[], b: readonly string[]): boolean {
 }
 
 export function sameValue(a: EditValue, b: EditValue): boolean {
-  return JSON.stringify(a) === JSON.stringify(b)
+  return samePlain(a, b)
 }
 
 /** 状态里某个字段的值（没有 = `null`）。 */
@@ -69,13 +70,14 @@ export function setField(
   return draft.map((edit) => (samePath(edit.path, path) ? next : edit))
 }
 
-/** 把草稿叠到状态上（画布显示的就是叠完的样子）。 */
+/**
+ * 把草稿叠到状态上（画布显示的就是叠完的样子）。
+ * 只复制改到的那几个步骤：其余步骤交回原来的对象，画布上它们的卡片不用重算。
+ */
 export function applyDraft(state: RunState, draft: readonly StateEdit[]): RunState {
   if (draft.length === 0) return state
-  const next: RunState = {
-    ...state,
-    nodes: Object.fromEntries(Object.entries(state.nodes).map(([id, node]) => [id, { ...node }])),
-  }
+  const next: RunState = { ...state, nodes: { ...state.nodes } }
+  const copied = new Set<string>()
   for (const edit of draft) {
     if (edit.path.length === 1) {
       const key = edit.path[0] as 'status' | 'note'
@@ -83,8 +85,15 @@ export function applyDraft(state: RunState, draft: readonly StateEdit[]): RunSta
       else (next as unknown as Record<string, EditValue>)[key] = edit.to
       continue
     }
-    const node = next.nodes[edit.path[1] ?? '']
-    if (node === undefined) continue
+    const id = edit.path[1] ?? ''
+    const original = next.nodes[id]
+    if (original === undefined) continue
+    let node = original
+    if (!copied.has(id)) {
+      node = { ...original }
+      next.nodes[id] = node
+      copied.add(id)
+    }
     const field = edit.path[2] as keyof NodeRunState
     if (edit.to === null) delete node[field]
     else (node as unknown as Record<string, EditValue>)[field] = edit.to

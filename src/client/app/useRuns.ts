@@ -34,6 +34,7 @@ import {
   valueAt,
 } from '../model/runDraft.ts'
 import type { SideHistory } from '../model/runHistory.ts'
+import { shareSame } from '../model/samePlain.ts'
 import { errorCode, errorMessage, type WorkflowLiteRpc, WorkflowLiteRpcError } from '../rpc.ts'
 
 /** 实例视图轮询的间隔。 */
@@ -268,8 +269,11 @@ export function useRun(
   const [error, setError] = useState<string | null>(null)
   const [toast, setToast] = useState<RunToast | null>(null)
   const mtime = useRef<number | undefined>(undefined)
-  /** 上一次读回来的整份（序列化）：定期整份重读时内容一点没变就不换对象，画布不用整张重算。 */
-  const lastLoad = useRef<string | undefined>(undefined)
+  /**
+   * 上一次收下的读取结果。新读回来的和它逐层比：没变的部分沿用原来的对象（见 `shareSame`），
+   * 整份没变就不更新，画布、面板按对象身份记的计算都不重做。
+   */
+  const seen = useRef<InstanceView | null>(null)
   /** 刚保存的字段与改前的值：之后如果又变回改前，多半是被模型拿旧内容覆盖了。 */
   const saved = useRef<StateEdit[]>([])
   const draftRef = useRef(draft)
@@ -335,13 +339,14 @@ export function useRun(
           ...(force || mtime.current === undefined ? {} : { since: mtime.current }),
         })
         if ('unchanged' in result) return
-        const json = JSON.stringify(result)
-        if (json === lastLoad.current) return
-        lastLoad.current = json
-        mtime.current = result.mtime
-        setView(result)
+        // 出错之后读回来的哪怕和出错前一样，也要清掉错误。
         setError(null)
-        const state = result.state
+        const merged = shareSame(seen.current, result)
+        if (merged === seen.current) return
+        seen.current = merged
+        mtime.current = merged.mtime
+        setView(merged)
+        const state = merged.state
         if (state === null) return
         setLastGood(state)
         const rebased = rebase(draftRef.current, state)
@@ -354,8 +359,6 @@ export function useRun(
           if (reverted.length > 0) setOverwritten(reverted.map((edit) => edit.path))
         }
       } catch (caught) {
-        // 出错之后读回来的哪怕和出错前一样，也要照常收下（清掉错误）。
-        lastLoad.current = undefined
         setError(errorMessage(caught))
       }
     },
@@ -365,7 +368,7 @@ export function useRun(
   // 换了实例：清掉上一份的显示，读新的。
   useEffect(() => {
     mtime.current = undefined
-    lastLoad.current = undefined
+    seen.current = null
     saved.current = []
     setView(null)
     setLastGood(null)

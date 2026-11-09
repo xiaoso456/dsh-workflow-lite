@@ -23,6 +23,7 @@ import type { LocaleKey, T } from '../../../i18n.ts'
 import { displayOf } from '../../../model/display.ts'
 import type { Selection } from '../../../model/editor.ts'
 import { isCompactResource, RES_SHOWN } from '../../../model/layout.ts'
+import { samePlain } from '../../../model/samePlain.ts'
 import { itemText } from '../../kit/resourceUi.ts'
 import { lookOf } from '../../kit/StepMark.tsx'
 import { resourceTint } from '../../resources/ResourcePresets.tsx'
@@ -69,9 +70,13 @@ function excerptOf(prompt: string | undefined): string {
 
 export interface CacheEntry {
   node: WorkflowNode
-  signature: string
+  /** 除了文档里的节点，这张卡还取决于什么（选中、语气、文字……）：和上一次逐项比（{@link samePlain}）。 */
+  signature: unknown
   flow: FlowNode
 }
+
+/** 比指纹时不看的键：每张资源卡共用的回调。 */
+const NODE_SKIP: ReadonlySet<string> = new Set(['onFocusFile', 'onView'])
 
 export interface NodesInput {
   doc: WorkflowDocument
@@ -132,7 +137,7 @@ export function buildNodes({
     const reported = tones.get(idKey(node.id))
     const selected = idKey(node.id) === selectedId
     const moving = dragging[node.id]
-    let signature: string
+    let signature: unknown
     let build: () => FlowNode
     const used = routes.used.get(idKey(node.id)) ?? NO_HANDLES
     if (isInput(node)) {
@@ -265,7 +270,7 @@ export function buildNodes({
         display,
         onView,
       }
-      signature = JSON.stringify([selected, used, { ...data, onFocusFile: null, onView: null }])
+      signature = [selected, used, data]
       build = () => ({
         id: node.id,
         type: 'wfResource',
@@ -330,7 +335,7 @@ export function buildNodes({
       moving === undefined &&
       cached !== undefined &&
       cached.node === node &&
-      cached.signature === signature
+      samePlain(cached.signature, signature, NODE_SKIP)
     ) {
       next.set(node.id, cached)
       return cached.flow
