@@ -50,6 +50,7 @@ import { buildRoutes, type RouteBase } from './flow/buildRoutes.ts'
 import { buildTexts } from './flow/buildTexts.ts'
 import { useCardSizes } from './hooks/useCanvasGeometry.ts'
 import { useConnectionDrag } from './hooks/useConnectionDrag.ts'
+import { useCulledFlow } from './hooks/useCulling.ts'
 import { useNodeChanges } from './hooks/useNodeChanges.ts'
 import { useStepDrop } from './hooks/useStepDrop.ts'
 import { useViewportRestore } from './hooks/useViewportRestore.ts'
@@ -276,7 +277,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
   /** 指针下的那条线：悬停时它也"活"起来，标明是哪种线。 */
   const [hoverEdge, setHoverEdge] = useState<string | null>(null)
 
-  const { dragInfo, drag, focusFile, focused } = useConnectionDrag({
+  const { dragInfo, drag, dragFrom, focusFile, focused } = useConnectionDrag({
     doc,
     t,
     hoveredFile,
@@ -385,7 +386,20 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
     [doc, analysis, selection, texts, onPick, acts, focusFile, hoverEdge, routes, t, run],
   )
 
-  // 删掉的步骤、资源、连线原地退场（同一份文档里少了的才放，换图不放）。
+  // 大图只把视口附近的交给 React Flow（见 hooks/useCulling.ts）。
+  const shown = useCulledFlow({
+    doc: routeDoc,
+    nodes,
+    edges,
+    sizes,
+    sized,
+    routes,
+    selection,
+    dragging,
+    dragFrom,
+  })
+
+  // 删掉的步骤、资源、连线原地退场（同一份文档里少了的才放，换图不放）：按整份比，没挂上的不算删掉。
   const flowIds = useMemo(
     () => [...nodes.map((node) => node.id), ...edges.map((edge) => edge.id)],
     [nodes, edges],
@@ -437,8 +451,8 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
           <DragInfo.Provider value={dragInfo}>
             <StreaksMode.Provider value={streakMode}>
               <ReactFlow<FlowNode, FlowEdge>
-                nodes={nodes}
-                edges={edges}
+                nodes={shown.nodes}
+                edges={shown.edges}
                 nodeTypes={NODE_TYPES}
                 edgeTypes={EDGE_TYPES}
                 minZoom={MIN_ZOOM}

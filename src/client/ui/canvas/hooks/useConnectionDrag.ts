@@ -72,5 +72,7 @@ export function useConnectionDrag({ doc, t, hoveredFile, streakMode, files }: Co
   if (!draggingCard) dragFocus.current = hoveredFile
   const focusFile = drag === null ? (draggingCard ? dragFocus.current : hoveredFile) : null
   const focused = focusFile === null ? undefined : files.get(focusFile)
-  return { dragInfo, drag, focusFile, focused }
+  /** 正在拖的线从哪张卡拖出来（大图只挂视口附近的卡片时，它一直挂着）。 */
+  const dragFrom = dragKey === '' ? null : ((JSON.parse(dragKey) as [string])[0] ?? null)
+  return { dragInfo, drag, dragFrom, focusFile, focused }
 }
