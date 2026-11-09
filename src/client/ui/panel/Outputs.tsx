@@ -8,7 +8,7 @@
  *
  * 画布卡片上的产出浮窗、步骤面板、「我的步骤」编辑器、内置步骤的只读详情，都走这里。
  *
- * @module @xiaoso/dsh-workflow-lite/client/ui/editor/Outputs
+ * @module @xiaoso/dsh-workflow-lite/client/ui/panel/Outputs
  */
 
 import { useEffect, useRef, useState } from 'react'
@@ -25,8 +25,8 @@ import overlay from '../kit/overlay.module.css'
 import { Segmented } from '../kit/Segmented.tsx'
 import ui from '../kit/ui.module.css'
 import { useResizeFlip } from '../motion/flip.ts'
-import ins from './inspector.module.css'
 import css from './outputs.module.css'
+import ins from './panel.module.css'
 
 type OutputMode = 'unset' | 'file' | 'none'
 

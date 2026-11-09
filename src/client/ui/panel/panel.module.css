@@ -1,0 +1,372 @@
+/**
+ * dsh-workflow-lite — 属性面板的通用样子：标题栏、正文、字段、连接清单、连线两端，
+ * 模板编辑（editor/）、实例右栏（run/）、资源面板（resources/）等共用。
+ * 只在模板编辑里用的（连线的判据、步骤模板表单）在 editor/inspector.module.css。
+ */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.head {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  align-items: center;
+  padding: 12px 10px 4px 14px;
+}
+
+.headTitle {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--wl-fs-title);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 名字输入框：底线的样子在 ui.module.css 的 `.lineField` / `.lineInput`，这里只管标题栏里的版式。 */
+.titleRow {
+  flex: 1 1 auto;
+  margin-left: -6px;
+}
+
+.titleInput {
+  height: 32px;
+  font-size: var(--wl-fs-title);
+  font-weight: 600;
+}
+
+/* 名字与它下面一行 ID。 */
+.headMain {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+/* 能改的名字（输入框）和只看的名字一样高：换面板时标题栏不跳。 */
+.headMain .titleRow {
+  flex: none;
+}
+
+.headMain .titleInput {
+  height: 28px;
+}
+
+.headMain .headTitle {
+  flex: none;
+  line-height: 28px;
+}
+
+.body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 18px;
+  min-height: 0;
+  padding: 10px 14px 16px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.field {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.label {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  justify-content: space-between;
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-meta);
+  font-weight: 600;
+}
+
+.count {
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.help {
+  margin: 0;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.55;
+}
+
+.error {
+  margin: 0;
+  color: var(--wl-danger);
+  font-size: var(--wl-fs-micro);
+}
+
+.links {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.linkGroup {
+  margin: 2px 0 2px 8px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+}
+
+.links + .links {
+  margin-top: 6px;
+}
+
+.foot {
+  display: flex;
+  flex: none;
+  gap: 6px;
+  align-items: center;
+  padding: 10px 12px;
+  border-top: 1px solid var(--wl-line);
+}
+
+/* ── 连线 ─────────────────────────────────────────────────── */
+
+.edgeIcon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: calc(8px * var(--wl-round, 1));
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+}
+
+.ends {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.end {
+  display: flex;
+  flex: 1 1 0;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--wl-line);
+  border-radius: calc(10px * var(--wl-round, 1));
+  background: var(--wl-panel);
+  color: var(--wl-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms linear;
+}
+
+.end:hover {
+  background: var(--wl-hover);
+}
+
+.endName {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.endArrow {
+  display: inline-flex;
+  flex: none;
+  color: var(--wl-text-3);
+}
+
+/* ── 步骤库条目的详情 ─────────────────────────────────────── */
+
+.badge {
+  flex: none;
+  padding: 1px 8px;
+  border-radius: calc(999px * var(--wl-round, 1));
+  background: var(--wl-fill);
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.optional {
+  margin-left: 6px;
+  color: var(--wl-text-3);
+  font-weight: 400;
+}
+
+/* 拼接预览：示例产出 → 最终路径。 */
+.rootPreview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+  padding: 7px 10px;
+  border-radius: var(--wl-r-control);
+  background: var(--wl-fill);
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+.rootPreview code {
+  font-family: var(--wl-mono);
+  word-break: break-all;
+}
+
+.rootPreviewLabel {
+  white-space: nowrap;
+}
+
+.rootPreviewResult {
+  color: var(--wl-text);
+  font-weight: 600;
+}
+
+/* ── 通用的小块（来自交接：一行的图标、标题与说明） ─────────── */
+
+.grow {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.subLabel {
+  margin: 2px 0 0;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+}
+
+.pickText {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.detailTitle {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text);
+  font-size: var(--wl-fs-meta);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detailMeta {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── 必填开关（输入节点的属性面板、画布展示的设置共用） ────── */
+
+.required {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--wl-line);
+  border-radius: var(--wl-r-control);
+  background: transparent;
+  color: var(--wl-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms linear;
+}
+
+.required:hover {
+  background: var(--wl-hover);
+}
+
+.required:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+.requiredText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.requiredTitle {
+  font-size: var(--wl-fs-meta);
+  font-weight: 600;
+}
+
+.requiredDesc {
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+/* ── 输入节点的小图标 ─────────────────────────────────────── */
+
+/*
+ * 标题栏里的输入图标（28）。它和下面的 .askIcon（26）叠在同一个元素上、特异性相同，
+ * 原先 askIcon 所在的样式注入得更晚，所以实际生效的一直是 askIcon 的尺寸；
+ * 搬到同一个文件后保持「askIcon 在后」，样子不变。
+ */
+.headIcon {
+  width: 28px;
+  height: 28px;
+  border-radius: calc(8px * var(--wl-round, 1));
+}
+
+/* 输入节点的小图标：墨色的提问气泡（和交回答的线同色）。 */
+.askIcon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: calc(7px * var(--wl-round, 1));
+  background: var(--wl-ask-soft);
+  color: var(--wl-io-ask);
+}
+
+/* 瑞士：分组小标题改成加粗、加宽字距的大写小字（见 shell.module.css 的 data-look）。 */
+:global([data-look="swiss"]) .label {
+  color: var(--wl-text);
+  font-size: var(--wl-fs-micro);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* 瑞士：成块的卡片行只留底线。 */
+:global([data-look="swiss"]) .end {
+  border-width: 0 0 1px;
+  border-color: var(--wl-line-strong);
+}
+
+/* 瑞士：成块的卡片行只留底线。 */
+:global([data-look="swiss"]) .required {
+  border-width: 0 0 1px;
+  border-color: var(--wl-line-strong);
+}

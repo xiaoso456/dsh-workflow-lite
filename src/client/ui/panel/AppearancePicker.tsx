@@ -7,7 +7,7 @@
  *
  * 选了就改，不用确认；「恢复默认」只清颜色和图标这类外观（步骤回到按 id 猜的样子，资源回到类型的颜色）。
  *
- * @module @xiaoso/dsh-workflow-lite/client/ui/editor/AppearancePicker
+ * @module @xiaoso/dsh-workflow-lite/client/ui/panel/AppearancePicker
  */
 
 import { useState } from 'react'

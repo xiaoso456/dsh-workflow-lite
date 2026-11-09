@@ -4,7 +4,7 @@
  * 属性面板（`Inspector`）、步骤面板（`StepPanel`）、资源面板（`resources/ResourcePanel`）都要放它，
  * 单独成文件，让资源面板不必回头 import 属性面板。
  *
- * @module @xiaoso/dsh-workflow-lite/client/ui/editor/DescriptionField
+ * @module @xiaoso/dsh-workflow-lite/client/ui/panel/DescriptionField
  */
 
 import { MAX_TEXT_CODEPOINTS } from '../../../shared/limits.ts'
@@ -12,7 +12,7 @@ import { checkText } from '../../../shared/naming.ts'
 import type { T } from '../../i18n.ts'
 import ui from '../kit/ui.module.css'
 import { Presence } from '../motion/exits.tsx'
-import css from './inspector.module.css'
+import css from './panel.module.css'
 
 /** 一句话描述（给人看：步骤库条目、画布卡片），不进计划。 */
 export function DescriptionField(props: {

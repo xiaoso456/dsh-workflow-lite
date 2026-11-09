@@ -13,12 +13,11 @@ import type { RunState } from '../../../shared/runState.ts'
 import type { InputAnswer, InputNode, WorkflowDocument } from '../../../shared/types.ts'
 import type { T } from '../../i18n.ts'
 import { inputKindLabel } from '../../model/library.ts'
-import hand from '../editor/handoff.module.css'
-import css from '../editor/inspector.module.css'
-import row from '../editor/linkrow.module.css'
 import { Icon } from '../kit/Icon.tsx'
 import { stepName } from '../kit/resourceUi.ts'
 import { lookOf, StepMark } from '../kit/StepMark.tsx'
+import row from '../panel/linkrow.module.css'
+import css from '../panel/panel.module.css'
 import { StatusChip } from './RunNodeState.tsx'
 import own from './runInput.module.css'
 
@@ -72,7 +71,7 @@ export function RunInputDetail(props: {
   return (
     <div className={own.inputDetail} data-testid="wl-run-input">
       <div className={own.inputHead}>
-        <span className={hand.askIcon}>
+        <span className={css.askIcon}>
           <Icon name="ask" size={14} />
         </span>
         <span className={own.inputQuestion}>{input.data.question}</span>

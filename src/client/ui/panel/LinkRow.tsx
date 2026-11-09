@@ -4,7 +4,7 @@
  * 上面一行：方向箭头、对面那一步的图标与名字、回头线的环、条件小标，行尾可放一样东西
  * （实例里是对面那一步的状态）；下面一行是这条线交了什么。整行点下去选中这条线。
  *
- * @module @xiaoso/dsh-workflow-lite/client/ui/editor/LinkRow
+ * @module @xiaoso/dsh-workflow-lite/client/ui/panel/LinkRow
  */
 
 import { edgeWhen } from '../../../shared/graph.ts'
@@ -15,7 +15,7 @@ import { whenKind } from '../../model/whenKind.ts'
 import { Icon } from '../kit/Icon.tsx'
 import { stepName } from '../kit/resourceUi.ts'
 import { lookOf, StepMark } from '../kit/StepMark.tsx'
-import { HandoffChip } from './Handoff.tsx'
+import { HandoffChip } from './HandoffChip.tsx'
 import css from './linkrow.module.css'
 
 /** 条件的小标（和画布上那条线同色）；`always` 时只有要求才画。 */

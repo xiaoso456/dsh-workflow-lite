@@ -23,12 +23,13 @@ import { useConfirm } from '../kit/Confirm.tsx'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import { StepMark } from '../kit/StepMark.tsx'
-import { TitleField } from '../kit/TitleField.tsx'
 import ui from '../kit/ui.module.css'
-import { AppearancePicker } from './AppearancePicker.tsx'
-import { DescriptionField } from './DescriptionField.tsx'
-import ins from './inspector.module.css'
-import { OutputField, OutputList } from './Outputs.tsx'
+import { AppearancePicker } from '../panel/AppearancePicker.tsx'
+import { DescriptionField } from '../panel/DescriptionField.tsx'
+import { OutputField, OutputList } from '../panel/Outputs.tsx'
+import ins from '../panel/panel.module.css'
+import { TitleField } from '../panel/TitleField.tsx'
+import local from './inspector.module.css'
 import css from './stepPanel.module.css'
 
 export interface StepPanelProps {
@@ -101,7 +102,7 @@ function PresetView(props: StepPanelProps & { id: string }): React.JSX.Element |
           </div>
           <OutputList t={t} output={data.output} owner={t(preset.labelKey)} />
         </section>
-        <p className={ins.note}>
+        <p className={local.note}>
           <Icon name="info" size={13} />
           <span>{t('step.readonlyNote')}</span>
         </p>

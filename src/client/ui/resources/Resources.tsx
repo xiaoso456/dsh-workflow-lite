@@ -37,9 +37,6 @@ import {
   type Selection,
   takenPaths,
 } from '../../model/editor.ts'
-import hand from '../editor/handoff.module.css'
-import ins from '../editor/inspector.module.css'
-import { OutputEditor } from '../editor/Outputs.tsx'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import { Popover } from '../kit/Popover.tsx'
@@ -49,6 +46,8 @@ import ui from '../kit/ui.module.css'
 import { useResizeFlip } from '../motion/flip.ts'
 import { FadeText } from '../motion/marks.tsx'
 import { PickThumb } from '../motion/thumb.tsx'
+import { OutputEditor } from '../panel/Outputs.tsx'
+import ins from '../panel/panel.module.css'
 import rows from './fileRows.module.css'
 import res from './resources.module.css'
 
@@ -125,9 +124,9 @@ export function StepResourcesField(props: {
         onClick={() => props.onSelect({ kind: 'node', id: resource.id })}
       >
         <ResourceIcon resource={resource} />
-        <span className={hand.pickText}>
-          <span className={hand.detailTitle}>{resourceTitle(resource)}</span>
-          <span className={hand.detailMeta}>{meta}</span>
+        <span className={ins.pickText}>
+          <span className={ins.detailTitle}>{resourceTitle(resource)}</span>
+          <span className={ins.detailMeta}>{meta}</span>
         </span>
         {badge}
       </button>
@@ -161,7 +160,7 @@ export function StepResourcesField(props: {
       {nothing && <p className={ins.help}>{t('res.none')}</p>}
       {linkedNow.writes.length > 0 && (
         <div ref={writesRef} className={rows.fileGroup}>
-          <p className={hand.subLabel}>{t('res.writes')}</p>
+          <p className={ins.subLabel}>{t('res.writes')}</p>
           {linkedNow.writes.map(({ resource, update, edge }) =>
             row(
               resource,
@@ -177,7 +176,7 @@ export function StepResourcesField(props: {
       )}
       {linkedNow.reads.length > 0 && (
         <div ref={readsRef} className={rows.fileGroup}>
-          <p className={hand.subLabel}>{t('res.reads')}</p>
+          <p className={ins.subLabel}>{t('res.reads')}</p>
           {linkedNow.reads.map(({ resource, edge }) => {
             const from = writersOf(graph.get(resource.id))
             return row(
@@ -194,7 +193,7 @@ export function StepResourcesField(props: {
       )}
       {shared.length > 0 && (
         <div ref={sharedRef} className={rows.fileGroup}>
-          <p className={hand.subLabel}>{t('res.shared')}</p>
+          <p className={ins.subLabel}>{t('res.shared')}</p>
           {shared.map((resource) =>
             row(
               resource,
@@ -242,9 +241,7 @@ export function StepResourcesField(props: {
             others.map((resource) => (
               <div key={resource.id} className={res.linkItem} data-testid="wl-resource-link-item">
                 <ResourceIcon resource={resource} />
-                <span className={cx(hand.detailTitle, res.linkPath)}>
-                  {resourceTitle(resource)}
-                </span>
+                <span className={cx(ins.detailTitle, res.linkPath)}>{resourceTitle(resource)}</span>
                 <button
                   type="button"
                   className={res.linkAction}

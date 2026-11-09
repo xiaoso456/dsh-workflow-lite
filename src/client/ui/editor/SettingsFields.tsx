@@ -27,7 +27,8 @@ import { Segmented } from '../kit/Segmented.tsx'
 import ui from '../kit/ui.module.css'
 import { CheckBox, FadeMark } from '../motion/marks.tsx'
 import { PickThumb } from '../motion/thumb.tsx'
-import css from './inspector.module.css'
+import css from '../panel/panel.module.css'
+import local from './inspector.module.css'
 import s from './settings.module.css'
 
 const MODE_TEXT: Record<ExecutionMode, { icon: IconName; title: LocaleKey; desc: LocaleKey }> = {
@@ -56,7 +57,7 @@ function GroupHead(props: {
 }): React.JSX.Element {
   return (
     <div className={css.label}>
-      <span className={css.labelMain}>
+      <span className={local.labelMain}>
         {props.title}
         {props.help !== undefined && (
           <HelpTip label={props.title} testId={props.helpTestId}>

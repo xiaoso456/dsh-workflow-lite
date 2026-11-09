@@ -11,7 +11,6 @@ import { useEffect, useRef, useState } from 'react'
 import { MAX_TEXT_CODEPOINTS } from '../../../shared/limits.ts'
 import { idKey } from '../../../shared/model.ts'
 import { codepointLength } from '../../../shared/naming.ts'
-import { resolveHandoff } from '../../../shared/resources.ts'
 import type { WorkflowEdge } from '../../../shared/types.ts'
 import type { T } from '../../i18n.ts'
 import type { Edit } from '../../model/editor.ts'
@@ -20,31 +19,9 @@ import { HelpTip } from '../kit/HelpTip.tsx'
 import { Icon } from '../kit/Icon.tsx'
 import ui from '../kit/ui.module.css'
 import { Checkbox } from '../motion/marks.tsx'
+import ins from '../panel/panel.module.css'
 import css from './handoff.module.css'
-import ins from './inspector.module.css'
-
-/** 一条步骤间的线交了什么（属性面板的连接清单里用）。 */
-export function HandoffChip(props: { t: T; edge: WorkflowEdge }): React.JSX.Element {
-  const { t } = props
-  const handoff = resolveHandoff(props.edge.data?.handoff)
-  if (!handoff.result) {
-    return <span className={cx(css.chip, css.chipMuted)}>{t('hand.flowOnly')}</span>
-  }
-  return (
-    <span className={css.chips}>
-      <span className={css.chip} data-result="true">
-        <Icon name="result" size={11} />
-        <span className={css.chipText}>{t('hand.resultShort')}</span>
-      </span>
-      {handoff.note !== undefined && (
-        <span className={css.chip} data-tip={handoff.note}>
-          <Icon name="pencil" size={11} />
-          <span className={css.chipText}>{handoff.note}</span>
-        </span>
-      )}
-    </span>
-  )
-}
+import local from './inspector.module.css'
 
 /**
  * 交接：一个开关（交不交执行结果）+ 交接说明。开关关掉时说明先记着，再打开还在。
@@ -93,7 +70,7 @@ export function HandoffField(props: {
   return (
     <section className={ins.field} data-testid="wl-handoff">
       <div className={ins.label}>
-        <span className={ins.labelMain}>
+        <span className={local.labelMain}>
           {t('hand.title')}
           <HelpTip label={t('hand.title')} testId="wl-handoff-help">
             <p className={ui.hintTitle}>{t('hand.title')}</p>
@@ -114,16 +91,16 @@ export function HandoffField(props: {
         <span className={css.detailIcon} data-result={on}>
           <Icon name="result" size={13} />
         </span>
-        <span className={css.pickText}>
-          <span className={css.detailTitle}>{t('hand.result')}</span>
-          <span className={css.detailMeta}>
+        <span className={ins.pickText}>
+          <span className={ins.detailTitle}>{t('hand.result')}</span>
+          <span className={ins.detailMeta}>
             {on ? `${props.source}${t('hand.resultOf')}` : t('hand.flowOnlyHint')}
           </span>
         </span>
       </label>
       {on && (
         <>
-          <p className={css.subLabel}>
+          <p className={ins.subLabel}>
             {t('hand.note')}
             <span className={ins.optional}>{t('out.optional')}</span>
           </p>

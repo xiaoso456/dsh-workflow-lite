@@ -34,10 +34,9 @@ import { useResizeFlip } from '../motion/flip.ts'
 import { CheckMark, SwitchTrack } from '../motion/marks.tsx'
 import { useRowKeys } from '../motion/stage.tsx'
 import { EDIT_VIEW, useSwap } from '../motion/swap.tsx'
-import hand from './handoff.module.css'
+import { InputHead } from '../panel/NodeHeads.tsx'
+import ins from '../panel/panel.module.css'
 import css from './input.module.css'
-import ins from './inspector.module.css'
-import { InputHead } from './NodeHeads.tsx'
 
 export interface InputPanelProps {
   t: T
@@ -305,14 +304,14 @@ export function InputPanel(props: InputPanelProps): React.JSX.Element {
               type="button"
               role="switch"
               aria-checked={data.other === true}
-              className={css.required}
+              className={ins.required}
               data-testid="wl-input-other"
               onClick={() => patch({ other: data.other === true ? undefined : true })}
             >
               <SwitchTrack on={data.other === true} />
-              <span className={css.requiredText}>
-                <span className={css.requiredTitle}>{t('input.other')}</span>
-                <span className={css.requiredDesc}>{t('input.otherDesc')}</span>
+              <span className={ins.requiredText}>
+                <span className={ins.requiredTitle}>{t('input.other')}</span>
+                <span className={ins.requiredDesc}>{t('input.otherDesc')}</span>
               </span>
             </button>
           )}
@@ -321,14 +320,14 @@ export function InputPanel(props: InputPanelProps): React.JSX.Element {
             type="button"
             role="switch"
             aria-checked={data.required === true}
-            className={css.required}
+            className={ins.required}
             data-testid="wl-input-required"
             onClick={() => patch({ required: data.required === true ? undefined : true })}
           >
             <SwitchTrack on={data.required === true} />
-            <span className={css.requiredText}>
-              <span className={css.requiredTitle}>{t('input.required')}</span>
-              <span className={css.requiredDesc}>{t('input.requiredDesc')}</span>
+            <span className={ins.requiredText}>
+              <span className={ins.requiredTitle}>{t('input.required')}</span>
+              <span className={ins.requiredDesc}>{t('input.requiredDesc')}</span>
             </span>
           </button>
         </div>
@@ -455,7 +454,7 @@ export function StepInputsField(props: {
             onClick={() => props.onSelect({ kind: 'node', id: input.id })}
           >
             <span className={css.linkTop}>
-              <span className={hand.askIcon}>
+              <span className={ins.askIcon}>
                 <Icon name="ask" size={13} />
               </span>
               <span className={css.linkName}>

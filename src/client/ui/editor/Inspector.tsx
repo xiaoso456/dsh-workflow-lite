@@ -38,16 +38,17 @@ import ui from '../kit/ui.module.css'
 import { Presence } from '../motion/exits.tsx'
 import { useResizeFlip } from '../motion/flip.ts'
 import { EDIT_VIEW, useSwap } from '../motion/swap.tsx'
+import { DescriptionField } from '../panel/DescriptionField.tsx'
+import { LinkRow } from '../panel/LinkRow.tsx'
+import { EdgeHead, StepHead } from '../panel/NodeHeads.tsx'
+import css from '../panel/panel.module.css'
+import { EndIcon } from '../resources/EndIcon.tsx'
 import { ResourcePanel } from '../resources/ResourcePanel.tsx'
 import type { PickMemory } from '../resources/ResourcePresets.tsx'
-import { ResourceEdgeBody, ResourceIcon, StepResourcesField } from '../resources/Resources.tsx'
-import { DescriptionField } from './DescriptionField.tsx'
+import { ResourceEdgeBody, StepResourcesField } from '../resources/Resources.tsx'
 import { HandoffField } from './Handoff.tsx'
-import hand from './handoff.module.css'
 import { InputPanel, StepInputsField } from './InputPanel.tsx'
-import css from './inspector.module.css'
-import { LinkRow } from './LinkRow.tsx'
-import { EdgeHead, StepHead } from './NodeHeads.tsx'
+import local from './inspector.module.css'
 
 export interface InspectorProps {
   t: T
@@ -274,7 +275,7 @@ function NodePanel(props: InspectorProps & { node: StepNode }): React.JSX.Elemen
       <footer className={css.foot}>
         {templating ? (
           <form
-            className={cx(css.templateForm, ui.rise)}
+            className={cx(local.templateForm, ui.rise)}
             onSubmit={(event) => {
               event.preventDefault()
               // 模板 = 步骤的 `data` + 它写的文件（作为产出清单，放回画布时再展开成资源卡）。
@@ -350,22 +351,6 @@ function NodePanel(props: InspectorProps & { node: StepNode }): React.JSX.Elemen
       </footer>
     </aside>
   )
-}
-
-/** 连线两端的小图标：步骤用它的图标，资源用资源图标。 */
-export function EndIcon(props: { node: WorkflowNode | undefined; id: string }): React.JSX.Element {
-  if (props.node !== undefined && isInput(props.node)) {
-    return (
-      <span className={hand.askIcon}>
-        <Icon name="ask" size={13} />
-      </span>
-    )
-  }
-  if (props.node !== undefined && isResource(props.node)) {
-    return <ResourceIcon resource={props.node} />
-  }
-  const step = props.node !== undefined && !isResource(props.node) ? props.node : undefined
-  return <StepMark look={lookOf(props.id, step?.data)} size={14} />
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -492,7 +477,7 @@ function EdgePanel(props: InspectorProps & { edge: WorkflowEdge }): React.JSX.El
               {mode === 'custom' && (
                 <>
                   <textarea
-                    className={cx(ui.textarea, css.condition, ui.rise)}
+                    className={cx(ui.textarea, local.condition, ui.rise)}
                     value={draft}
                     rows={3}
                     placeholder={t('edge.customPlaceholder')}
@@ -516,15 +501,15 @@ function EdgePanel(props: InspectorProps & { edge: WorkflowEdge }): React.JSX.El
               {mode === 'always' ? (
                 <p className={css.help}>{t('edge.hintAlways')}</p>
               ) : verdict === '' ? null : isVerdictWhen(verdict) ? (
-                <div className={css.verdict}>
+                <div className={local.verdict}>
                   <p className={css.help}>{t('edge.hintVerdict')}</p>
-                  <code className={css.verdictCode}>VERDICT: {verdict}</code>
+                  <code className={local.verdictCode}>VERDICT: {verdict}</code>
                 </div>
               ) : (
                 <p className={css.help}>{t('edge.hintJudge')}</p>
               )}
               {back && (
-                <p className={css.note}>
+                <p className={local.note}>
                   <Icon name="loop" size={13} />
                   {t('edge.loop')}
                 </p>

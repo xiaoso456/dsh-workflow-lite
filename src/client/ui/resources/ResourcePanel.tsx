@@ -28,10 +28,6 @@ import { findMemory, useMemories } from '../../app/memories.ts'
 import type { T } from '../../i18n.ts'
 import { type Edit, type FocusFile, findNode, type Selection } from '../../model/editor.ts'
 import { DisplaySettings } from '../display/DisplaySettings.tsx'
-import { DescriptionField } from '../editor/DescriptionField.tsx'
-import hand from '../editor/handoff.module.css'
-import ins from '../editor/inspector.module.css'
-import { ResourceHead } from '../editor/NodeHeads.tsx'
 import { FolderDialog } from '../files/FolderDialog.tsx'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
@@ -40,7 +36,10 @@ import { lookOf, StepMark } from '../kit/StepMark.tsx'
 import ui from '../kit/ui.module.css'
 import { useResizeFlip } from '../motion/flip.ts'
 import { EDIT_VIEW, useSwap } from '../motion/swap.tsx'
+import { DescriptionField } from '../panel/DescriptionField.tsx'
+import ins from '../panel/panel.module.css'
 import rows from './fileRows.module.css'
+import { ResourceHead } from './ResourceHead.tsx'
 import { ResourceItems } from './ResourceItems.tsx'
 import {
   type PickMemory,
@@ -132,7 +131,7 @@ export function ResourcePanel(props: {
             look={lookOf(id, step !== undefined && isStep(step) ? step.data : undefined)}
             size={13}
           />
-          <span className={cx(hand.detailTitle, hand.grow)}>{stepName(step, id)}</span>
+          <span className={cx(ins.detailTitle, ins.grow)}>{stepName(step, id)}</span>
         </button>
         {extra}
         <button

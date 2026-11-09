@@ -2,12 +2,6 @@
  * dsh-workflow-lite — 输入节点的属性面板。
  */
 
-.headIcon {
-  width: 28px;
-  height: 28px;
-  border-radius: calc(8px * var(--wl-round, 1));
-}
-
 .question {
   min-height: 58px;
   font-size: var(--wl-fs-body);
@@ -92,47 +86,6 @@
   gap: 6px;
 }
 
-.required {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  width: 100%;
-  padding: 8px 10px;
-  border: 1px solid var(--wl-line);
-  border-radius: var(--wl-r-control);
-  background: transparent;
-  color: var(--wl-text);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition: background-color 120ms linear;
-}
-
-.required:hover {
-  background: var(--wl-hover);
-}
-
-.required:focus-visible {
-  outline: 2px solid var(--wl-accent);
-  outline-offset: 1px;
-}
-
-.requiredText {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.requiredTitle {
-  font-size: var(--wl-fs-meta);
-  font-weight: 600;
-}
-
-.requiredDesc {
-  color: var(--wl-text-3);
-  font-size: var(--wl-fs-micro);
-}
-
 .requiredChip {
   flex: none;
   padding: 0 6px;
@@ -145,7 +98,7 @@
 
 /* ── 只给填写的人看的：占位与说明 ────────────────────────── */
 
-/* 自带属性面板 .field 的排法、只把间距放宽：不和 inspector 的 .field 叠在一个元素上，
+/* 自带属性面板 .field 的排法、只把间距放宽：不和 panel.module.css 的 .field 叠在一个元素上，
    否则谁赢要看两个模块哪个先注入（拆文件后顺序一变，间距就从 10 掉回 8）。 */
 .private {
   position: relative;
@@ -234,10 +187,4 @@
 .private .sub > input,
 .private .sub > textarea {
   background: var(--wl-panel);
-}
-
-/* 瑞士：成块的卡片行只留底线。 */
-:global([data-look="swiss"]) .required {
-  border-width: 0 0 1px;
-  border-color: var(--wl-line-strong);
 }

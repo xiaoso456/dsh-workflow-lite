@@ -6,15 +6,15 @@
  * - 取消 / Esc：把名字改回聚焦时的样子，再收起焦点。
  * 两个按钮只在聚焦时才占位（`ui.editRow[data-live]`），平时标题栏里只有一条名字。
  *
- * @module @xiaoso/dsh-workflow-lite/client/ui/kit/TitleField
+ * @module @xiaoso/dsh-workflow-lite/client/ui/panel/TitleField
  */
 
 import { useRef } from 'react'
 import type { T } from '../../i18n.ts'
-import css from '../editor/inspector.module.css'
-import { cx } from './cx.ts'
-import { EditActions } from './EditActions.tsx'
-import ui from './ui.module.css'
+import { cx } from '../kit/cx.ts'
+import { EditActions } from '../kit/EditActions.tsx'
+import ui from '../kit/ui.module.css'
+import css from './panel.module.css'
 
 export function TitleField(props: {
   t: T

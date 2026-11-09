@@ -37,8 +37,6 @@ import {
   stepZoom,
   VIEW_SIZES,
 } from '../../model/display.ts'
-import inp from '../editor/input.module.css'
-import ins from '../editor/inspector.module.css'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import { RollInput, Stepper } from '../kit/NumberStep.tsx'
@@ -52,6 +50,7 @@ import { useExit } from '../motion/exits.tsx'
 import { FadeText, SwitchTrack } from '../motion/marks.tsx'
 import { SwapText } from '../motion/swapText.tsx'
 import { PickThumb } from '../motion/thumb.tsx'
+import ins from '../panel/panel.module.css'
 import { ContentOptions } from './DisplayContent.tsx'
 import shared from './display.module.css'
 import css from './displaySettings.module.css'
@@ -429,18 +428,18 @@ export function DisplaySettings(props: {
           type="button"
           role="switch"
           aria-checked={on}
-          className={cx(inp.required, css.toggleMain)}
+          className={cx(ins.required, css.toggleMain)}
           data-adjust={on || undefined}
           disabled={choices.length === 0}
           data-testid="wl-display-toggle"
           onClick={toggle}
         >
           <SwitchTrack on={on} />
-          <span className={inp.requiredText}>
-            <span className={inp.requiredTitle}>{t('display.toggle')}</span>
+          <span className={ins.requiredText}>
+            <span className={ins.requiredTitle}>{t('display.toggle')}</span>
             {/* 开、关时说明和摘要在同一格里换；改了大小、外观，摘要也就地换字。 */}
             <span
-              className={cx(inp.requiredDesc, on && css.summary)}
+              className={cx(ins.requiredDesc, on && css.summary)}
               data-testid={on ? 'wl-display-summary' : undefined}
             >
               <SwapText

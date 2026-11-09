@@ -28,16 +28,15 @@ import type { Desktop } from '../../app/desktop.ts'
 import type { Run } from '../../app/useRuns.ts'
 import type { T } from '../../i18n.ts'
 import { findNode } from '../../model/editor.ts'
-import hand from '../editor/handoff.module.css'
-import ins from '../editor/inspector.module.css'
-import { LinkRow } from '../editor/LinkRow.tsx'
-import row from '../editor/linkrow.module.css'
 import files from '../files/files.module.css'
 import { PreviewCard } from '../files/PreviewCard.tsx'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import { stepName } from '../kit/resourceUi.ts'
 import { lookOf, StepMark } from '../kit/StepMark.tsx'
+import { LinkRow } from '../panel/LinkRow.tsx'
+import row from '../panel/linkrow.module.css'
+import ins from '../panel/panel.module.css'
 import { StepResourceList } from './RunFiles.tsx'
 import { answerLine } from './RunInput.tsx'
 import { StatusChip, StepFacts, StepStatus } from './RunNodeState.tsx'
@@ -205,7 +204,7 @@ function InputsSection(props: {
             data-id={input.id}
             onClick={() => props.onSelect(input.id)}
           >
-            <span className={hand.askIcon}>
+            <span className={ins.askIcon}>
               <Icon name="ask" size={13} />
             </span>
             <span className={row.name}>

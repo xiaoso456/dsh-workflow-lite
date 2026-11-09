@@ -4,7 +4,7 @@
  * 左边一个图标块（步骤的外观、资源 / 输入 / 连线的图标；实例里是「在看什么」的切换），中间是名字，
  * 名字下面一行小字是 ID（点一下复制，复制图标悬停才露），右边是关闭。
  *
- * @module @xiaoso/dsh-workflow-lite/client/ui/editor/PanelHead
+ * @module @xiaoso/dsh-workflow-lite/client/ui/panel/PanelHead
  */
 
 import { useEffect, useState } from 'react'
@@ -14,7 +14,7 @@ import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import ui from '../kit/ui.module.css'
 import { SwapIcon } from '../motion/swapText.tsx'
-import shared from './inspector.module.css'
+import shared from './panel.module.css'
 import css from './panelHead.module.css'
 
 export function PanelHead(props: {

@@ -19,7 +19,7 @@ import { Modal } from '../kit/Modal.tsx'
 import overlay from '../kit/overlay.module.css'
 import ui from '../kit/ui.module.css'
 import { CheckBox } from '../motion/marks.tsx'
-import hand from './handoff.module.css'
+import panel from '../panel/panel.module.css'
 import css from './inputs-dialog.module.css'
 
 /** 表单里一题的值：文字题是一段字，选择题是选中的那几项。 */
@@ -90,7 +90,7 @@ export function InputsDialog(props: {
         }}
       >
         <header className={overlay.sheetHead}>
-          <span className={cx(hand.askIcon, css.headIcon)}>
+          <span className={cx(panel.askIcon, css.headIcon)}>
             <Icon name="ask" size={16} />
           </span>
           <div className={overlay.sheetTitles}>

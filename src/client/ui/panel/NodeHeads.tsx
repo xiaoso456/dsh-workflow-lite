@@ -1,40 +1,30 @@
 /**
- * dsh-workflow-lite — 各种东西的右栏标题栏：步骤、资源、输入、连线、概览。
+ * dsh-workflow-lite — 各种东西的右栏标题栏：步骤、输入、连线。
+ * 资源的在 `resources/ResourceHead.tsx`，概览的在 `run/OverviewHead.tsx`（各自依赖的图标块在那两边）。
  *
  * 模板的属性面板、实例右栏的「运行」与「编辑」都用这几个，所以实例里两边切换时标题栏一点不动。
  * 右边的 `extra` 放在关闭按钮左边（实例里是「运行 / 编辑」的切换）。
  *
- * @module @xiaoso/dsh-workflow-lite/client/ui/editor/NodeHeads
+ * @module @xiaoso/dsh-workflow-lite/client/ui/panel/NodeHeads
  */
 
-import { useState } from 'react'
 import type { GraphAnalysis } from '../../../shared/graph.ts'
 import { inputKind } from '../../../shared/inputs.ts'
 import { idKey } from '../../../shared/model.ts'
-import { edgeKind, nodeIndex, resourceTitle } from '../../../shared/resources.ts'
-import type {
-  InputNode,
-  ResourceNode,
-  StepNode,
-  WorkflowDocument,
-  WorkflowEdge,
-} from '../../../shared/types.ts'
+import { edgeKind, nodeIndex } from '../../../shared/resources.ts'
+import type { InputNode, StepNode, WorkflowDocument, WorkflowEdge } from '../../../shared/types.ts'
 import type { LocaleKey, T } from '../../i18n.ts'
 import type { Edit } from '../../model/editor.ts'
 import { inputKindLabel } from '../../model/library.ts'
 import { cx } from '../kit/cx.ts'
 import { Icon, type IconName } from '../kit/Icon.tsx'
 import { lookOf } from '../kit/StepMark.tsx'
-import { TitleField } from '../kit/TitleField.tsx'
-import { ResourceMark } from '../resources/ResourcePresets.tsx'
-import run from '../run/run.module.css'
 import { AppearancePicker } from './AppearancePicker.tsx'
-import hand from './handoff.module.css'
-import input from './input.module.css'
-import css from './inspector.module.css'
 import { PanelHead } from './PanelHead.tsx'
+import css from './panel.module.css'
+import { TitleField } from './TitleField.tsx'
 
-interface HeadProps {
+export interface HeadProps {
   t: T
   /** 关闭按钮左边的东西。 */
   extra?: React.ReactNode
@@ -43,7 +33,7 @@ interface HeadProps {
 }
 
 /** 名称会进计划里的表格：换行与竖线直接不让打进来。 */
-function cleanName(value: string): string | undefined {
+export function cleanName(value: string): string | undefined {
   const clean = value.replace(/[\r\n|]/gu, '')
   return clean === '' ? undefined : clean
 }
@@ -89,89 +79,13 @@ export function StepHead(
   )
 }
 
-export function ResourceHead(
-  props: HeadProps & {
-    node: ResourceNode
-    /**
-     * 记忆卡：标题是记忆库里那条的名称——边打边改草稿，失焦才写回库里（用到它的地方都跟着变）。
-     * `placeholder` 是没起名时显示的（记忆的 id）。
-     */
-    memoryName?: { value: string; placeholder: string; onCommit(value: string): void }
-    /** 标题左边的图标块（编辑面板里是类型选择）；缺省按类型画一个不能点的。 */
-    lead?: React.ReactNode
-    onEdit(edit: Edit): void
-    onSeal(): void
-  },
-): React.JSX.Element {
-  const { t, node } = props
-  return (
-    <PanelHead
-      t={t}
-      lead={props.lead ?? <ResourceMark data={node.data} />}
-      title={
-        props.memoryName !== undefined ? (
-          <MemoryTitle t={t} {...props.memoryName} />
-        ) : (
-          <TitleField
-            t={t}
-            value={node.data.label ?? ''}
-            placeholder={resourceTitle({ ...node, data: { ...node.data, label: '' } })}
-            ariaLabel={t('res.name')}
-            testId="wl-resource-label"
-            onType={(value) =>
-              props.onEdit({
-                type: 'patchResource',
-                id: node.id,
-                patch: { label: cleanName(value) },
-                merge: `${idKey(node.id)}:label`,
-              })
-            }
-            onBlur={props.onSeal}
-          />
-        )
-      }
-      id={node.id}
-      extra={props.extra}
-      onClose={props.onClose}
-      closeTestId={props.closeTestId}
-    />
-  )
-}
-
-/** 记忆的名称：草稿在本地（没在改时跟着库里的），失焦（回车、确认）时和库里的不一样才写回去。 */
-function MemoryTitle(props: {
-  t: T
-  value: string
-  placeholder: string
-  onCommit(value: string): void
-}): React.JSX.Element {
-  const [draft, setDraft] = useState<string | null>(null)
-  return (
-    <TitleField
-      t={props.t}
-      value={draft ?? props.value}
-      placeholder={props.placeholder}
-      ariaLabel={props.t('mem.name')}
-      testId="wl-memory-name"
-      onType={setDraft}
-      onBlur={() => {
-        if (draft !== null) {
-          const next = cleanName(draft) ?? ''
-          if (next !== props.value) props.onCommit(next)
-        }
-        setDraft(null)
-      }}
-    />
-  )
-}
-
 export function InputHead(props: HeadProps & { node: InputNode }): React.JSX.Element {
   const { t, node } = props
   return (
     <PanelHead
       t={t}
       lead={
-        <span className={cx(hand.askIcon, input.headIcon)}>
+        <span className={cx(css.askIcon, css.headIcon)}>
           <Icon name="ask" size={16} />
         </span>
       }
@@ -216,29 +130,6 @@ export function EdgeHead(
         </span>
       }
       title={<span className={css.headTitle}>{t(head.title)}</span>}
-      extra={props.extra}
-      onClose={props.onClose}
-      closeTestId={props.closeTestId}
-    />
-  )
-}
-
-/** 概览的图标块（右栏标题栏与顶栏「在看什么」共用）。 */
-export function OverviewMark(): React.JSX.Element {
-  return (
-    <span className={run.navOverview}>
-      <Icon name="overview" size={15} />
-    </span>
-  )
-}
-
-export function OverviewHead(props: HeadProps): React.JSX.Element {
-  const { t } = props
-  return (
-    <PanelHead
-      t={t}
-      lead={<OverviewMark />}
-      title={<span className={css.headTitle}>{t('run.overview')}</span>}
       extra={props.extra}
       onClose={props.onClose}
       closeTestId={props.closeTestId}

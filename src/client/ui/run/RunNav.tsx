@@ -14,16 +14,16 @@ import type { RunState } from '../../../shared/runState.ts'
 import type { WorkflowDocument, WorkflowNode } from '../../../shared/types.ts'
 import type { T } from '../../i18n.ts'
 import { findNode, type Selection } from '../../model/editor.ts'
-import hand from '../editor/handoff.module.css'
-import ins from '../editor/inspector.module.css'
-import { edgeHead, OverviewMark } from '../editor/NodeHeads.tsx'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import { Popover } from '../kit/Popover.tsx'
 import { lookOf, StepMark } from '../kit/StepMark.tsx'
 import ui from '../kit/ui.module.css'
+import { edgeHead } from '../panel/NodeHeads.tsx'
+import ins from '../panel/panel.module.css'
 import { ResourceIcon } from '../resources/Resources.tsx'
 import top from '../shell/topbar.module.css'
+import { OverviewMark } from './OverviewHead.tsx'
 import { StatusChip } from './RunNodeState.tsx'
 import shared from './run.module.css'
 import css from './runNav.module.css'
@@ -32,7 +32,7 @@ function nodeIcon(node: WorkflowNode, size: number): React.JSX.Element {
   if (isResource(node)) return <ResourceIcon resource={node} size={size - 1} />
   if (isInput(node)) {
     return (
-      <span className={hand.askIcon}>
+      <span className={ins.askIcon}>
         <Icon name="ask" size={size - 1} />
       </span>
     )

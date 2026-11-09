@@ -1,0 +1,41 @@
+/**
+ * dsh-workflow-lite — 连接清单里一条线交了什么（HandoffChip.tsx）：交执行结果 / 交接说明 / 只管先后的小标签。
+ */
+
+.chips {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+}
+
+.chip {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: calc(6px * var(--wl-round, 1));
+  background: var(--wl-fill);
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-micro);
+}
+
+.chip[data-result="true"] {
+  flex: none;
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+}
+
+.chipMuted {
+  color: var(--wl-text-3);
+  font-style: italic;
+}
+
+.chipText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

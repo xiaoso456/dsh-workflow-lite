@@ -1,24 +1,12 @@
 /**
- * dsh-workflow-lite — 交接与文件：属性面板里的连接清单摘要 / 交接开关，
- * 以及几个组件共用的小块（文件、输入节点的图标，一行的标题与说明）。
+ * dsh-workflow-lite — 交接：属性面板里的交接开关。
+ * 连接清单里的交接摘要在 panel/handoffChip.module.css，一行的标题与说明、输入节点的图标在 panel/panel.module.css；
  * 文件清单的行在 resources/fileRows.module.css，画布连线上的交接标记在 canvas/lines/handoffMark.module.css。
  *
  * 颜色口径与画布上的线一致：产出 = 金，在原文件上更新 = 洋红，读取 = 青；执行结果 = 主色。
  */
 
 /* ── 通用的小块 ───────────────────────────────────────────── */
-
-.grow {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.subLabel {
-  margin: 2px 0 0;
-  color: var(--wl-text-3);
-  font-size: var(--wl-fs-micro);
-  font-weight: 600;
-}
 
 .detailIcon {
   display: grid;
@@ -34,72 +22,6 @@
 .detailIcon[data-result="true"] {
   background: var(--wl-accent-soft);
   color: var(--wl-accent-text);
-}
-
-.pickText {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.detailTitle {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--wl-text);
-  font-size: var(--wl-fs-meta);
-  font-weight: 500;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.detailMeta {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--wl-text-3);
-  font-size: var(--wl-fs-micro);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* ── 连接清单里的交接摘要 ─────────────────────────────────── */
-
-.chips {
-  display: flex;
-  gap: 4px;
-  min-width: 0;
-}
-
-.chip {
-  display: inline-flex;
-  gap: 4px;
-  align-items: center;
-  min-width: 0;
-  max-width: 100%;
-  height: 20px;
-  padding: 0 6px;
-  border-radius: calc(6px * var(--wl-round, 1));
-  background: var(--wl-fill);
-  color: var(--wl-text-2);
-  font-size: var(--wl-fs-micro);
-}
-
-.chip[data-result="true"] {
-  flex: none;
-  background: var(--wl-accent-soft);
-  color: var(--wl-accent-text);
-}
-
-.chipMuted {
-  color: var(--wl-text-3);
-  font-style: italic;
-}
-
-.chipText {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* ── 交接开关 ─────────────────────────────────────────────── */
@@ -138,18 +60,6 @@ label.resultRow::after {
   min-height: 72px;
   font-size: var(--wl-fs-body);
   line-height: 1.55;
-}
-
-/* 输入节点的小图标：墨色的提问气泡（和交回答的线同色）。 */
-.askIcon {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  border-radius: calc(7px * var(--wl-round, 1));
-  background: var(--wl-ask-soft);
-  color: var(--wl-io-ask);
 }
 
 /* 瑞士：成块的卡片行只留底线。 */
