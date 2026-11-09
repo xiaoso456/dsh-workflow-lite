@@ -21,6 +21,8 @@ import {
   RUNS_SHOWN,
   visibleRuns,
 } from '../../model/switcherSearch.ts'
+import shared from '../chrome/topbar.module.css'
+import { deleteDesc, WorkflowRow } from '../chrome/WorkflowRow.tsx'
 import { useConfirm } from '../kit/Confirm.tsx'
 import { cx } from '../kit/cx.ts'
 import { EditActions } from '../kit/EditActions.tsx'
@@ -33,8 +35,6 @@ import { SwapIcon, SwapText } from '../motion/swapText.tsx'
 import { ListThumb } from '../motion/thumb.tsx'
 import { RunMenuRow, runSearchTexts } from '../run/RunTopBar.tsx'
 import run from '../run/run.module.css'
-import shared from './topbar.module.css'
-import { deleteDesc, WorkflowRow } from './WorkflowRow.tsx'
 import css from './workflowSwitcher.module.css'
 
 export interface WorkflowSwitcherProps {

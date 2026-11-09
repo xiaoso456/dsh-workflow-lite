@@ -12,7 +12,7 @@
  *
  * 动效（都只动 transform / opacity）：菜单从小标那一角展开、各项依次浮出，收起时淡出；状态真的变了小标弹一下。
  *
- * @module @xiaoso/dsh-workflow-lite/client/ui/hub/HubRunStatus
+ * @module @xiaoso/dsh-workflow-lite/client/ui/chrome/HubRunStatus
  */
 
 import { useEffect, useId, useRef, useState } from 'react'
@@ -23,10 +23,9 @@ import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import ui from '../kit/ui.module.css'
 import { FLOAT_EXIT_MS, useFloat } from '../kit/useFloat.tsx'
-import { RUN_STATUS_TEXT, RunStatusBadge } from '../run/RunStatusBadge.tsx'
-import run from '../run/run.module.css'
-import hub from './hub.module.css'
 import css from './hubRunStatus.module.css'
+import { RUN_STATUS_TEXT, RunStatusBadge } from './RunStatusBadge.tsx'
+import badge from './runStatus.module.css'
 
 const MENU_W = 248
 
@@ -78,7 +77,7 @@ export function HubRunStatus(props: {
   }
 
   return (
-    <span ref={confirm.anchorRef} className={hub.state}>
+    <span ref={confirm.anchorRef} className={badge.state}>
       <button
         ref={menu.anchorRef}
         type="button"
@@ -133,7 +132,7 @@ export function HubRunStatus(props: {
               items.current[next]?.focus()
             }}
           >
-            <span className={run.dot} />
+            <span className={badge.dot} />
             <span className={css.statusText}>
               <span className={css.statusName}>{t(RUN_STATUS_TEXT[value])}</span>
               <span className={css.statusHint}>{t(`run.hint.${value}` as LocaleKey)}</span>
@@ -157,7 +156,7 @@ export function HubRunStatus(props: {
           onConfirm: () => props.onChange(target, { notify, note }),
           children: (
             <div className={css.statusOptions}>
-              <label className={run.notify} htmlFor={notifyId} data-tip={t('run.notifyTip')}>
+              <label className={badge.notify} htmlFor={notifyId} data-tip={t('run.notifyTip')}>
                 <button
                   id={notifyId}
                   type="button"

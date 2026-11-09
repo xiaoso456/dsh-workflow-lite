@@ -155,12 +155,6 @@
   text-overflow: ellipsis;
 }
 
-/* 状态一格：小标靠左，不被列宽拉长。 */
-.state {
-  display: flex;
-  align-items: center;
-}
-
 /* ── 空状态 ────────────────────────────────────────────────── */
 
 .empty {

@@ -21,6 +21,9 @@ import { isDirty } from '../../model/editor.ts'
 import { starterGraph } from '../../model/library.ts'
 import type { WorkflowLiteRpc } from '../../rpc.ts'
 import { type AddRequest, Canvas } from '../canvas/Canvas.tsx'
+import { ZoomDock } from '../chrome/Dock.tsx'
+import dock from '../chrome/dock.module.css'
+import frame from '../chrome/frame.module.css'
 import { Library } from '../editor/Library.tsx'
 import { BoardThemeContext } from '../files/boardFrame.ts'
 import { cx } from '../kit/cx.ts'
@@ -31,7 +34,6 @@ import ui from '../kit/ui.module.css'
 import { ExitSeat, useViewGhost } from '../motion/exits.tsx'
 import { SWITCH_HOLD_MS, useSwapHold } from '../motion/swap.tsx'
 import { RunView } from '../run/RunView.tsx'
-import { ZoomDock } from './Dock.tsx'
 import css from './shell.module.css'
 import { TipLayer } from './TipLayer.tsx'
 import { NO_SLOTS, TopBar } from './TopBar.tsx'
@@ -80,7 +82,7 @@ function CanvasLayer(props: {
   return (
     <div
       ref={ref}
-      className={css.canvas}
+      className={frame.canvas}
       data-hidden={props.hidden || undefined}
       data-dim={props.dim || undefined}
       {...(props.dim ? { inert: '' } : {})}
@@ -303,7 +305,7 @@ function Shell(props: {
     <BoardThemeContext.Provider value={board}>
       <div
         ref={rootRef}
-        className={css.root}
+        className={cx(css.root, dock.root)}
         style={themeVars}
         data-light-theme={theme.light}
         data-dark-theme={theme.dark}
@@ -458,8 +460,8 @@ function Shell(props: {
               {hub}
 
               {wf.toast !== null && (
-                <ExitSeat className={css.toastSeat} exit="down" key={wf.toast.id}>
-                  <div className={cx(css.toast, ui.rise)} data-tone={wf.toast.tone} role="status">
+                <ExitSeat className={frame.toastSeat} exit="down" key={wf.toast.id}>
+                  <div className={cx(frame.toast, ui.rise)} data-tone={wf.toast.tone} role="status">
                     {wf.toast.tone === 'error' ? (
                       <Icon name="alert" size={14} />
                     ) : (

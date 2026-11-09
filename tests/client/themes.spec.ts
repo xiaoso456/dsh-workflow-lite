@@ -128,10 +128,12 @@ describe('主题写成 CSS 变量', () => {
     const canvasFiles = readdirSync(new URL('canvas/', ui), { recursive: true, encoding: 'utf8' })
       .filter((file) => file.endsWith('.module.css'))
       .map((file) => `canvas/${file.replaceAll('\\', '/')}`)
-    // 外壳的样式也分在 shell/ 下的好几个模块里（顶栏、停靠条各一个），全部都要查
-    const shellFiles = readdirSync(new URL('shell/', ui), { encoding: 'utf8' })
-      .filter((file) => file.endsWith('.module.css'))
-      .map((file) => `shell/${file}`)
+    // 外壳的样式也分在 shell/ 与 chrome/（模板视图、实例视图、工作流中心共用的外框）下的好几个模块里（顶栏、停靠条各一个），全部都要查
+    const shellFiles = ['shell', 'chrome'].flatMap((dir) =>
+      readdirSync(new URL(`${dir}/`, ui), { encoding: 'utf8' })
+        .filter((file) => file.endsWith('.module.css'))
+        .map((file) => `${dir}/${file}`),
+    )
     const css = [...shellFiles, ...canvasFiles]
       .map((file) => readFileSync(new URL(file, ui), 'utf8'))
       .join('\n')

@@ -18,7 +18,11 @@ import type { ValidationProblem } from '../../../shared/types.ts'
 import type { RunHistory } from '../../app/useRunHistory.ts'
 import type { T } from '../../i18n.ts'
 import { shortTime } from '../../model/time.ts'
-import { HubRunStatus } from '../hub/HubRunStatus.tsx'
+import { HubRunStatus } from '../chrome/HubRunStatus.tsx'
+import { Issues } from '../chrome/Issues.tsx'
+import { RUN_STATUS_TEXT, RunStatusBadge } from '../chrome/RunStatusBadge.tsx'
+import badge from '../chrome/runStatus.module.css'
+import top from '../chrome/topbar.module.css'
 import { copyText } from '../kit/clipboard.ts'
 import { cx } from '../kit/cx.ts'
 import { Highlight } from '../kit/Highlight.tsx'
@@ -27,9 +31,6 @@ import type { TopSlots } from '../kit/topSlots.ts'
 import ui from '../kit/ui.module.css'
 import { FadeMark } from '../motion/marks.tsx'
 import { SwapIcon, SwapText } from '../motion/swapText.tsx'
-import { Issues } from '../shell/Issues.tsx'
-import top from '../shell/topbar.module.css'
-import { RUN_STATUS_TEXT, RunStatusBadge } from './RunStatusBadge.tsx'
 import type { RunViewProps } from './RunView.tsx'
 import shared from './run.module.css'
 import css from './runTopBar.module.css'
@@ -268,7 +269,7 @@ export function RunMenuRow(props: {
           className={css.rowDot}
           data-run-status={item.statePath === undefined ? 'untracked' : (item.status ?? 'failed')}
         >
-          <span className={shared.dot} style={{ opacity: props.current ? 1 : 0.45 }} />
+          <span className={badge.dot} style={{ opacity: props.current ? 1 : 0.45 }} />
         </span>
         <span className={css.rowName}>
           <Highlight text={item.workflow} needle={props.needle} />

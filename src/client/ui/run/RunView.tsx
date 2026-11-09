@@ -48,6 +48,8 @@ import { downstreamOf, editedNodes, togglePin, withDraftLog } from '../../model/
 import type { WorkflowLiteRpc } from '../../rpc.ts'
 import { type AddRequest, Canvas, type RunDecor } from '../canvas/Canvas.tsx'
 import { QuickAdd } from '../canvas/QuickAdd.tsx'
+import { ZoomDock } from '../chrome/Dock.tsx'
+import frame from '../chrome/frame.module.css'
 import { edgeSwap, Inspector } from '../editor/Inspector.tsx'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
@@ -59,8 +61,6 @@ import { SWITCH_HOLD_MS, useSwap, useSwapHold } from '../motion/swap.tsx'
 import { EdgeHead, InputHead, StepHead } from '../panel/NodeHeads.tsx'
 import css from '../panel/panel.module.css'
 import { ResourceHead } from '../resources/ResourceHead.tsx'
-import { ZoomDock } from '../shell/Dock.tsx'
-import shell from '../shell/shell.module.css'
 import { OverviewHead } from './OverviewHead.tsx'
 import { DraftBar } from './RunDraftBar.tsx'
 import { RunEdgeDetail } from './RunEdge.tsx'
@@ -437,7 +437,7 @@ export function RunView(props: RunViewProps): React.JSX.Element {
     // biome-ignore lint/a11y/noStaticElementInteractions: 只在这一层收视图内冒上来的按键
     <div onKeyDown={onKeyDown} style={{ display: 'contents' }}>
       <div
-        className={shell.canvas}
+        className={frame.canvas}
         ref={canvasRef}
         data-hidden={held === null || undefined}
         data-dim={swap.dim || undefined}
@@ -495,7 +495,7 @@ export function RunView(props: RunViewProps): React.JSX.Element {
         doc !== null &&
         analysis !== null &&
         (mode === 'edit' && selection !== null ? (
-          <div className={shell.inspector}>
+          <div className={frame.inspector}>
             <Inspector
               t={t}
               doc={doc}
@@ -522,7 +522,7 @@ export function RunView(props: RunViewProps): React.JSX.Element {
             />
           </div>
         ) : (
-          <div className={shell.inspector}>
+          <div className={frame.inspector}>
             <RunPanel
               t={t}
               rpc={props.rpc}
@@ -639,8 +639,8 @@ export function RunView(props: RunViewProps): React.JSX.Element {
       )}
 
       {current.toast !== null && (
-        <ExitSeat className={shell.toastSeat} exit="down" key={current.toast.id}>
-          <div className={cx(shell.toast, ui.rise)} data-tone={current.toast.tone} role="status">
+        <ExitSeat className={frame.toastSeat} exit="down" key={current.toast.id}>
+          <div className={cx(frame.toast, ui.rise)} data-tone={current.toast.tone} role="status">
             <Icon name={current.toast.tone === 'error' ? 'alert' : 'check'} size={14} />
             <span>{current.toast.text}</span>
           </div>
@@ -880,16 +880,16 @@ function Banners(props: { t: T; current: Run }): React.JSX.Element | null {
   }
   if (text === null) return null
   return (
-    <ExitSeat className={shell.bannerSeat} exit="up">
+    <ExitSeat className={frame.bannerSeat} exit="up">
       <div
-        className={cx(ui.panel, shell.banner, tone === 'danger' && shell.bannerDanger, ui.rise)}
+        className={cx(ui.panel, frame.banner, tone === 'danger' && frame.bannerDanger, ui.rise)}
         role={tone === 'danger' ? 'alert' : 'status'}
         data-testid="wl-run-banner"
       >
         <Icon name={tone === 'danger' ? 'alert' : 'info'} size={15} />
-        <span className={shell.bannerText}>
+        <span className={frame.bannerText}>
           {text}
-          {detail !== null && <span className={shell.bannerIds}> · {detail}</span>}
+          {detail !== null && <span className={frame.bannerIds}> · {detail}</span>}
         </span>
       </div>
     </ExitSeat>

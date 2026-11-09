@@ -4,9 +4,11 @@
  *
  * 1. `shared` 只依赖 `shared`；`host` 与 `client` 互不依赖。
  * 2. `client/model`、`client/app` 不依赖界面（`client/ui`），只有 `client/app` 用到动效层 `ui/motion`。
- * 3. 界面的基础层（`kit`、`motion`）不依赖功能目录；属性面板的通用零件（`panel`）只依赖基础层。
+ * 3. 界面的基础层（`kit`、`motion`）不依赖功能目录；属性面板的通用零件（`panel`）只依赖基础层；
+ *    视图外框的零件（`chrome`：顶栏样式、停靠栏、问题清单、实例状态、工作流行、外框版式）只依赖基础层与 `panel`。
  * 4. 没有循环 import（只看值依赖，`import type` 不算：它在运行时不存在）。
- * 5. 功能目录之间互相引用的只有下面登记过的几对；新出现一对说明边界划错了，先想清楚再加进表。
+ * 5. 功能目录之间不许互相引用（hub、run、shell 都往下依赖基础层与 chrome）；新出现一对说明边界划错了，
+ *    先想清楚是不是该把共用的零件放进 chrome，再考虑登记进表。
  */
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { dirname, relative, resolve } from 'node:path'
@@ -53,14 +55,20 @@ function layer(file: string): string {
 
 const BASE = new Set(['ui/kit', 'ui/motion'])
 
-/** 属性面板的通用零件：模板编辑器、实例视图、资源面板都用，所以只许依赖基础层。 */
+/**
+ * 夹在基础层与功能目录之间的两层共用零件：属性面板的通用零件（`panel`）和视图外框的零件（`chrome`）。
+ * 模板视图（shell）、实例视图（run）、工作流中心（hub）都用它们，所以它们不能依赖功能目录：
+ * panel 只依赖基础层，chrome 再多依赖一个 panel。
+ */
 const PANEL = 'ui/panel'
+const CHROME = 'ui/chrome'
+const SHARED_PARTS = new Set([PANEL, CHROME])
 
 /**
- * 允许互相引用的功能目录（字母序在前的写前面）。这三对都在外框上：工作流视图（shell）装着实例视图（run），
- * 顶栏的菜单行、状态徽标、问题清单几处共用；要拆得先把顶栏零件单独成一层。
+ * 允许互相引用的功能目录（字母序在前的写前面）。现在一对也没有：外框的共用零件都下沉到了 chrome，
+ * 工作流视图（shell）装着实例视图（run），单向依赖；新出现一对说明又有零件放错了层。
  */
-const TWO_WAY = new Set<string>(['ui/hub ↔ ui/run', 'ui/hub ↔ ui/shell', 'ui/run ↔ ui/shell'])
+const TWO_WAY = new Set<string>()
 
 const lines = (list: Edge[]): string[] => list.map(({ from, to }) => `${from} → ${to}`)
 
@@ -89,11 +97,13 @@ describe('源码分层', () => {
     expect(lines(bad)).toEqual([])
   })
 
-  it('界面基础层（kit、motion）不依赖功能目录；panel 只依赖基础层', () => {
+  it('界面基础层（kit、motion）不依赖功能目录；panel 只依赖基础层；chrome 只依赖基础层与 panel', () => {
     const bad = edges.filter(({ from, to }) => {
       const [a, b] = [layer(from), layer(to)]
       if (!b.startsWith('ui/') || BASE.has(b) || a === b) return false
-      return BASE.has(a) || a === PANEL
+      // chrome 可以再依赖 panel；panel 只依赖基础层
+      if (a === CHROME && b === PANEL) return false
+      return BASE.has(a) || SHARED_PARTS.has(a)
     })
     expect(lines(bad)).toEqual([])
   })

@@ -421,7 +421,7 @@ export async function revealHubRow(session, instanceId, workspacePath) {
 /**
  * 等页面上的动画走完再截图。
  *
- * 右栏（`.inspector`）、步骤库这类浮层进场时是 `translateX + opacity` 的动画（`shell.module.css`
+ * 右栏（`.inspector`）、步骤库这类浮层进场时是 `translateX + opacity` 的动画（`chrome/frame.module.css`
  * 的 `slideIn` / `panelFade`，460ms/180ms）。选中项刚变、面板刚打开就截图，会拍到半透明、
  * 还在滑的那一帧——画面上看像「面板发灰、右边被裁」，其实是拍早了。
  *

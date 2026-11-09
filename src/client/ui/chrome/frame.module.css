@@ -1,0 +1,144 @@
+/**
+ * dsh-workflow-lite — 视图外框的版式：画布、右侧属性面板、提示条与轻提示。
+ * 模板编辑视图（shell）与实例视图（run）共用同一套；外壳的主题与变量留在 shell.module.css。
+ */
+
+.canvas {
+  position: absolute;
+  inset: 0;
+  transition: opacity 320ms var(--wl-ease-out);
+}
+
+/* 内容还没到（刚切到实例视图、第一次加载）：先透明，到了淡入。 */
+.canvas[data-hidden] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* 切换工作流：旧图压暗留着（点不了），新图到了再亮回来——不卸载重建，画布不闪。 */
+.canvas[data-dim] {
+  opacity: 0.4;
+  transition-duration: 160ms;
+  pointer-events: none;
+}
+
+/* ── 属性面板（右）────────────────────────────────────────── */
+
+.inspector {
+  position: absolute;
+  top: var(--wl-top);
+  right: var(--wl-gap);
+  bottom: var(--wl-gap);
+  z-index: 5;
+  width: var(--wl-inspector-w);
+  /* 和步骤库展开同一套（方向相反）：位移 240ms 缓出、透明度 180ms 匀速。收起见 motion/swap.tsx 的 closeOut。 */
+  animation:
+    slideIn 460ms var(--wl-spring) both,
+    panelFade 180ms linear both;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(64px);
+  }
+}
+
+@keyframes panelFade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes sheetIn {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+}
+
+/* ── 提示条 / 轻提示 ──────────────────────────────────────── */
+
+/* 居中用的位移放在座位上，入场动画放在里面那层——两个 transform 不打架。 */
+.bannerSeat {
+  position: absolute;
+  top: var(--wl-top);
+  left: 50%;
+  z-index: 7;
+  width: max-content;
+  max-width: min(560px, calc(100% - 2 * var(--wl-gap)));
+  transform: translateX(-50%);
+}
+
+.banner {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 6px 6px 12px;
+  font-size: var(--wl-fs-meta);
+}
+
+.bannerDanger {
+  border-color: color-mix(in srgb, var(--wl-danger) 40%, transparent);
+}
+
+.bannerText {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.bannerIds {
+  color: var(--wl-text-3);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+}
+
+.toastSeat {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  z-index: 40;
+  max-width: calc(100% - 2 * var(--wl-gap));
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.toast {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 14px;
+  border-radius: calc(999px * var(--wl-round, 1));
+  background: var(--wl-tip);
+  color: var(--wl-tip-on);
+  font-size: var(--wl-fs-meta);
+  font-weight: 500;
+  box-shadow: var(--wl-shadow-2);
+}
+
+.toast[data-tone="error"] {
+  background: var(--wl-danger);
+  color: var(--wl-accent-on);
+}
+
+/* ── 窄视图：属性面板变成底部抽屉，步骤库盖在画布上 ───────── */
+
+@container (max-width: 760px) {
+  .inspector {
+    top: auto;
+    right: 8px;
+    left: 8px;
+    width: auto;
+    height: min(62%, 460px);
+    animation-name: sheetIn;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .canvas {
+    transition: none;
+  }
+
+  .inspector {
+    animation: none;
+  }
+}

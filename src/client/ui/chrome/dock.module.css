@@ -1,0 +1,377 @@
+/*
+ * 缩放、快捷键、图例这一排浮层（Dock.tsx）的样子。
+ * `.root` 只作选择器里的上下文：视图根（shell/WorkflowView）同时挂着它，根上的 data-library / data-panel
+ * 决定缩放条让不让步骤库、整排图例收不收成按钮。
+ */
+
+/* ── 左下角：缩放与快捷键 ─────────────────────────────────── */
+
+.dock {
+  position: absolute;
+  bottom: var(--wl-gap);
+  left: var(--wl-gap);
+  z-index: 4;
+  display: flex;
+  gap: 2px;
+  align-items: center;
+  /* 边框画在底面上（见 .dockSurface），内边距补上那 1px。 */
+  padding: 4px;
+  isolation: isolate;
+  /* 步骤库开着时让到它右边：位置靠 transform 挪。 */
+  transform: translateX(calc(var(--wl-library-w) + var(--wl-gap)));
+  transition: transform 240ms var(--wl-ease);
+}
+
+@keyframes dockFade {
+  from {
+    opacity: 0;
+  }
+}
+
+.root[data-library="closed"] .dock {
+  transform: translateX(0);
+}
+
+/* ── 线条图例（缩放条右半截）─────────────────────────────── */
+
+.legend {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+  margin: 0;
+  padding: 0 4px 0 0;
+  list-style: none;
+  transition: opacity 200ms linear;
+}
+
+/* 线的小样本（整排图例、收起后的图例单、按钮上的三道线共用）：颜色跟着 `data-line` 走。 */
+.legend svg {
+  flex: none;
+  overflow: visible;
+}
+
+.dock [data-line] line,
+.dock line[data-line] {
+  stroke: var(--wl-line-color);
+  stroke-width: 1.8;
+}
+
+.dock [data-line] path {
+  fill: var(--wl-line-color);
+}
+
+.dock [data-line="always"] {
+  --wl-line-color: var(--wl-flow-always);
+}
+
+.dock [data-line="pass"] {
+  --wl-line-color: var(--wl-flow-pass);
+}
+
+.dock [data-line="fail"] {
+  --wl-line-color: var(--wl-flow-fail);
+}
+
+.dock [data-line="custom"] {
+  --wl-line-color: var(--wl-flow-custom);
+}
+
+.dock [data-line="produce"] {
+  --wl-line-color: var(--wl-io-produce);
+}
+
+.dock [data-line="update"] {
+  --wl-line-color: var(--wl-io-update);
+}
+
+.dock [data-line="read"] {
+  --wl-line-color: var(--wl-io-read);
+}
+
+.dock [data-line="read"] line,
+.dock line[data-line="read"] {
+  stroke-dasharray: 4 3;
+}
+
+.dock [data-line="ask"] {
+  --wl-line-color: var(--wl-io-ask);
+}
+
+.dock [data-line="ask"] line {
+  stroke-dasharray: 1 3;
+  stroke-linecap: round;
+}
+
+/* 放不下整排图例时的收起形态：一个「图例」按钮（三道彩线 + 字），点开是一张图例单。 */
+.legendCompact {
+  display: none;
+  animation: dockFade 200ms linear both;
+}
+
+/*
+ * 整排图例放得下才摊开，放不下就收成「图例」按钮——缩放条不能伸到右侧面板底下。
+ * 门槛 = 缩放条连同整排图例约 840px + 左边的步骤库（开着时）+ 右边的面板（开着时，最宽 360px）+ 间距，
+ * 留了些余量给英文界面。
+ */
+@container (max-width: 910px) {
+  .legend {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: max-content;
+    visibility: hidden;
+    opacity: 0;
+    transition:
+      opacity 140ms linear,
+      visibility 0s 140ms;
+    pointer-events: none;
+  }
+
+  .legendCompact {
+    display: inline-flex;
+  }
+}
+
+@container (max-width: 1150px) {
+  .root[data-library="open"] .legend {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: max-content;
+    visibility: hidden;
+    opacity: 0;
+    transition:
+      opacity 140ms linear,
+      visibility 0s 140ms;
+    pointer-events: none;
+  }
+
+  .root[data-library="open"] .legendCompact {
+    display: inline-flex;
+  }
+}
+
+@container (max-width: 1290px) {
+  .root[data-panel="open"] .legend {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: max-content;
+    visibility: hidden;
+    opacity: 0;
+    transition:
+      opacity 140ms linear,
+      visibility 0s 140ms;
+    pointer-events: none;
+  }
+
+  .root[data-panel="open"] .legendCompact {
+    display: inline-flex;
+  }
+}
+
+@container (max-width: 1530px) {
+  .root[data-library="open"][data-panel="open"] .legend {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: max-content;
+    visibility: hidden;
+    opacity: 0;
+    transition:
+      opacity 140ms linear,
+      visibility 0s 140ms;
+    pointer-events: none;
+  }
+
+  .root[data-library="open"][data-panel="open"] .legendCompact {
+    display: inline-flex;
+  }
+}
+
+/* ── 窄视图：属性面板变成底部抽屉（见 frame.module.css），缩放条不再让到步骤库右边 ── */
+
+@container (max-width: 760px) {
+  .dock,
+  .root[data-library="closed"] .dock {
+    transform: none;
+  }
+
+  .root[data-library="open"] .dock {
+    visibility: hidden;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dock {
+    transition: none;
+  }
+
+  .legend,
+  .legendCompact {
+    animation: none;
+  }
+}
+
+/*
+ * 底面（边框、底色、阴影）单独一层：宽度一变（整排图例 ↔ 「图例」按钮）由 useGlide 用 scaleX 收放，
+ * 只动 transform。进场的那一边（图例 / 按钮）淡入，退场的那一边随布局直接让位。
+ */
+.dockSurface {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border: 1px solid var(--wl-line);
+  border-radius: var(--wl-r-panel);
+  background: var(--wl-panel);
+  box-shadow: var(--wl-shadow-1);
+  pointer-events: none;
+  transform-origin: 0 50%;
+}
+
+.zoom {
+  min-width: 44px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.keys {
+  width: 250px;
+  padding: 10px 12px;
+}
+
+.keysTitle {
+  margin: 0 0 6px;
+  font-size: var(--wl-fs-body);
+  font-weight: 600;
+}
+
+.keysRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 28px;
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-meta);
+}
+
+.keysRow span:last-child {
+  display: inline-flex;
+  gap: 4px;
+}
+
+/* 图例和「图例」按钮共用一个座位：收起时整排图例不摘掉，叠在座位上原处淡出，缩放条的底面同时收短。 */
+.legendSlot {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.legendItem {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  height: 26px;
+  padding: 0 6px;
+  border-radius: calc(6px * var(--wl-round, 1));
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-micro);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: default;
+  transition: background-color 120ms linear;
+}
+
+.legendItem:hover {
+  background: var(--wl-hover);
+}
+
+/* 线的小样本（整排图例、收起后的图例单、按钮上的三道线共用）：颜色跟着 `data-line` 走。 */
+.legendRow svg {
+  flex: none;
+  overflow: visible;
+}
+
+/* 连接点图例：空心圈 = 入口，实心点 = 出口。各种线都这样，所以样本用中性色。 */
+.legendItem[data-port] circle {
+  stroke: var(--wl-text-2);
+  stroke-width: 1.8;
+}
+
+.legendItem[data-port="in"] circle {
+  fill: var(--wl-panel);
+}
+
+.legendItem[data-port="out"] circle {
+  fill: var(--wl-text-2);
+}
+
+/* 三组（流程线 / 读写线 / 连接点）之间的一道细竖线。 */
+.legendSep {
+  width: 1px;
+  height: 14px;
+  margin: 0 4px;
+  background: var(--wl-line-strong);
+}
+
+.legendToggle {
+  gap: 6px;
+  padding: 0 8px;
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-micro);
+}
+
+.legendToggle line[data-line] {
+  stroke-linecap: round;
+}
+
+.legendPop {
+  width: 344px;
+  padding: 10px 12px;
+}
+
+.legendGroup + .legendGroup {
+  margin-top: 8px;
+}
+
+.legendHead {
+  margin: 0 0 4px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+}
+
+.legendRow {
+  display: grid;
+  grid-template-columns: 20px 44px 1fr;
+  gap: 8px;
+  align-items: center;
+  min-height: 24px;
+  font-size: var(--wl-fs-micro);
+}
+
+.legendName {
+  color: var(--wl-text);
+  font-weight: 600;
+}
+
+.legendTip {
+  color: var(--wl-text-3);
+  line-height: 1.4;
+}
+
+.legendFoot {
+  margin: 8px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--wl-line);
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.5;
+}

@@ -7,11 +7,11 @@
 import { SETTINGS_CONFLICT_ID } from '../../../../shared/model.ts'
 import type { Workflow } from '../../../app/useWorkflow.ts'
 import type { T } from '../../../i18n.ts'
+import css from '../../chrome/frame.module.css'
 import { cx } from '../../kit/cx.ts'
 import { Icon } from '../../kit/Icon.tsx'
 import ui from '../../kit/ui.module.css'
 import { ExitSeat } from '../../motion/exits.tsx'
-import css from '../shell.module.css'
 
 export function Banners({
   t,

@@ -257,7 +257,7 @@ export function useSwap<E extends HTMLElement>(key: string, at: number, view = 0
 // 切换工作流：旧图多留一会、顶栏左边的药丸展开收缩
 // ─────────────────────────────────────────────────────────────
 
-/** 切换时旧图至少压暗多久再换新的（和 shell.module.css 里压暗的过渡一致）。 */
+/** 切换时旧图至少压暗多久再换新的（和 chrome/frame.module.css 里压暗的过渡一致）。 */
 export const SWITCH_HOLD_MS = 170
 
 /**

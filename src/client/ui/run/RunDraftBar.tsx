@@ -13,13 +13,14 @@ import type { NodeStatus, RunStatus, StateEdit } from '../../../shared/runState.
 import type { Run } from '../../app/useRuns.ts'
 import type { T } from '../../i18n.ts'
 import { RUN_TEXT } from '../canvas/cards/cardParts.ts'
+import { RUN_STATUS_TEXT } from '../chrome/RunStatusBadge.tsx'
+import badge from '../chrome/runStatus.module.css'
 import { useConfirm } from '../kit/Confirm.tsx'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import { Popover } from '../kit/Popover.tsx'
 import ui from '../kit/ui.module.css'
 import { useExit } from '../motion/exits.tsx'
-import { RUN_STATUS_TEXT } from './RunStatusBadge.tsx'
 import shared from './run.module.css'
 import css from './runDraftBar.module.css'
 
@@ -165,7 +166,7 @@ export function DraftBar(props: {
             if (event.key === 'Enter' && props.blocked === null) props.onSave()
           }}
         />
-        <label className={shared.notify} htmlFor={notifyId} data-tip={t('run.notifyTip')}>
+        <label className={badge.notify} htmlFor={notifyId} data-tip={t('run.notifyTip')}>
           <button
             id={notifyId}
             type="button"

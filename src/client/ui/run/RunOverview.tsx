@@ -18,13 +18,14 @@ import type { WorkflowDocument } from '../../../shared/types.ts'
 import type { Run } from '../../app/useRuns.ts'
 import type { LocaleKey, T } from '../../i18n.ts'
 import { shortTime } from '../../model/time.ts'
+import { RUN_STATUS_TEXT } from '../chrome/RunStatusBadge.tsx'
+import badge from '../chrome/runStatus.module.css'
 import { cx } from '../kit/cx.ts'
 import ui from '../kit/ui.module.css'
 import { SwapText } from '../motion/swapText.tsx'
 import css from '../panel/panel.module.css'
 import { Choices, EditedDot, isEdited } from './RunNodeState.tsx'
 import { RunPosition } from './RunPosition.tsx'
-import { RUN_STATUS_TEXT } from './RunStatusBadge.tsx'
 import shared from './run.module.css'
 import own from './runOverview.module.css'
 
@@ -94,7 +95,7 @@ export function Overview(props: {
             value: status,
             text: t(RUN_STATUS_TEXT[status]),
             status,
-            mark: <span className={shared.dot} />,
+            mark: <span className={badge.dot} />,
             tip: t(`run.hint.${status}` as LocaleKey),
             testId: 'wl-run-overall',
           }))}

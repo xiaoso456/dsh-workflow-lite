@@ -2,7 +2,7 @@
  * dsh-workflow-lite — 左下角的缩放条：缩放、看全图、快捷键说明，加上线条图例
  * （放不下时收成一个「图例」按钮）。模板编辑与实例视图共用。
  *
- * @module @xiaoso/dsh-workflow-lite/client/ui/shell/Dock
+ * @module @xiaoso/dsh-workflow-lite/client/ui/chrome/Dock
  */
 
 import { useReactFlow, useStore } from '@xyflow/react'
@@ -14,7 +14,6 @@ import { Popover } from '../kit/Popover.tsx'
 import ui from '../kit/ui.module.css'
 import { useGlide } from '../motion/exits.tsx'
 import css from './dock.module.css'
-import shared from './shell.module.css'
 
 const SHORTCUTS: readonly { key: LocaleKey; combos: readonly string[] }[] = [
   { key: 'keys.add', combos: [] },
@@ -45,7 +44,7 @@ export function ZoomDock(props: {
   // 两侧面板一开，整排图例收成「图例」按钮、缩放条变短：底面 scaleX 收过去，不是一下子跳。
   const glide = useGlide(0)
   return (
-    <div ref={glide} className={shared.dock}>
+    <div ref={glide} className={css.dock}>
       <span className={css.dockSurface} data-glide-surface="" aria-hidden="true" />
       <button
         type="button"
@@ -118,7 +117,7 @@ export function ZoomDock(props: {
       <span className={css.legendSlot}>
         <LineLegend t={t} />
         {/* 放不下整排图例时（左右两边的面板都开着、窗口又窄）收成一个按钮，点开看同一份图例。 */}
-        <span className={shared.legendCompact}>
+        <span className={css.legendCompact}>
           <Popover
             open={legendOpen}
             onClose={() => setLegendOpen(false)}
@@ -209,7 +208,7 @@ function LegendSheet(props: { t: T }): React.JSX.Element {
 function LineLegend(props: { t: T }): React.JSX.Element {
   const { t } = props
   return (
-    <ul className={shared.legend} aria-label={t('legend.title')} data-testid="wl-legend">
+    <ul className={css.legend} aria-label={t('legend.title')} data-testid="wl-legend">
       {LEGEND.map((group) => [
         ...group.map((item) => (
           <li key={item.key} className={css.legendItem} data-line={item.key} data-tip={t(item.tip)}>

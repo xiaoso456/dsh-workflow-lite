@@ -10,9 +10,9 @@ import type { Workflow } from '../../../app/useWorkflow.ts'
 import type { T } from '../../../i18n.ts'
 import type { Selection } from '../../../model/editor.ts'
 import type { LibraryFocus, StepSource } from '../../../model/library.ts'
+import css from '../../chrome/frame.module.css'
 import { Inspector } from '../../editor/Inspector.tsx'
 import { StepPanel } from '../../editor/StepPanel.tsx'
-import css from '../shell.module.css'
 
 export function InspectorPanes({
   t,

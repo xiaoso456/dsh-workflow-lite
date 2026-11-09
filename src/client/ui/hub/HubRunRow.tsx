@@ -11,14 +11,15 @@ import { useEffect, useState } from 'react'
 import type { InstanceSummary, RunStatus } from '../../../shared/runState.ts'
 import type { T } from '../../i18n.ts'
 import { shortTime } from '../../model/time.ts'
+import { HubRunStatus } from '../chrome/HubRunStatus.tsx'
+import { RunStatusBadge } from '../chrome/RunStatusBadge.tsx'
+import badge from '../chrome/runStatus.module.css'
 import { useConfirm } from '../kit/Confirm.tsx'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import ui from '../kit/ui.module.css'
 import { Checkbox } from '../motion/marks.tsx'
 import { SwapText } from '../motion/swapText.tsx'
-import { RunStatusBadge } from '../run/RunStatusBadge.tsx'
-import { HubRunStatus } from './HubRunStatus.tsx'
 import hub from './hub.module.css'
 import css from './hubRunRow.module.css'
 
@@ -112,7 +113,7 @@ export function HubRunRow(props: {
       item.status !== undefined ? (
         <HubRunStatus t={t} status={item.status} onChange={props.onSetStatus} />
       ) : (
-        <div className={hub.state}>
+        <div className={badge.state}>
           {item.stateProblem === undefined ? (
             <RunStatusBadge t={t} status={item.status} untracked={item.statePath === undefined} />
           ) : (

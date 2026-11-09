@@ -107,7 +107,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* 进度：一行数字 + 一根细条，颜色跟着总状态（--wl-run 见 run.module.css）。 */
+/* 进度：一行数字 + 一根细条，颜色跟着总状态（--wl-run 见 chrome/runStatus.module.css）。 */
 .progress {
   display: flex;
   flex-direction: column;

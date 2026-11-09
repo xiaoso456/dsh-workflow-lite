@@ -6,7 +6,7 @@
  * - 改名在原行换成输入框，高度不变：回车或点开确认，Esc 取消。
  * - 删除的确认卡挂在这一行的删除按钮上（由下拉统一管，见 `WorkflowSwitcher`）。
  *
- * @module @xiaoso/dsh-workflow-lite/client/ui/shell/WorkflowRow
+ * @module @xiaoso/dsh-workflow-lite/client/ui/chrome/WorkflowRow
  */
 
 import { useEffect, useRef } from 'react'

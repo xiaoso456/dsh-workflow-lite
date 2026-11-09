@@ -21,6 +21,7 @@ import type { Desktop } from '../../app/desktop.ts'
 import type { T } from '../../i18n.ts'
 import { findNode } from '../../model/editor.ts'
 import { RUN_TEXT } from '../canvas/cards/cardParts.ts'
+import badge from '../chrome/runStatus.module.css'
 import files from '../files/files.module.css'
 import { PreviewCard } from '../files/PreviewCard.tsx'
 import { Icon } from '../kit/Icon.tsx'
@@ -75,7 +76,7 @@ export function RunEdgeDetail(props: {
         <span className={ins.endName}>{stepName(node, id)}</span>
         {status !== undefined && (
           <span className={css.endDot} data-run-status={status} data-tip={t(RUN_TEXT[status])}>
-            <span className={run.dot} />
+            <span className={badge.dot} />
           </span>
         )}
       </button>

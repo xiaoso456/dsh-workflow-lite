@@ -2,16 +2,16 @@
  * dsh-workflow-lite — 实例的整体状态：状态名的文案表与状态小标。
  *
  * 实例视图的顶栏与右栏、草稿栏，工作流中心的实例列表与改状态菜单都用它，
- * 单独成文件，让工作流中心不必回头 import 实例视图的顶栏。
+ * 放在 chrome/，让工作流中心不必回头 import 实例视图的顶栏。
  *
- * @module @xiaoso/dsh-workflow-lite/client/ui/run/RunStatusBadge
+ * @module @xiaoso/dsh-workflow-lite/client/ui/chrome/RunStatusBadge
  */
 
 import type { RunStatus } from '../../../shared/runState.ts'
 import type { LocaleKey, T } from '../../i18n.ts'
 import { Icon } from '../kit/Icon.tsx'
 import { SwapText } from '../motion/swapText.tsx'
-import shared from './run.module.css'
+import shared from './runStatus.module.css'
 
 export const RUN_STATUS_TEXT: Record<RunStatus, LocaleKey> = {
   pending: 'run.overall.pending',

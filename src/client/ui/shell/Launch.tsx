@@ -13,13 +13,13 @@ import { useMemo, useState } from 'react'
 import { pickable, type SessionRow } from '../../app/sessions.ts'
 import type { LocaleKey, T } from '../../i18n.ts'
 import { shortTime } from '../../model/time.ts'
+import shared from '../chrome/topbar.module.css'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import { Popover } from '../kit/Popover.tsx'
 import ui from '../kit/ui.module.css'
 import { SwapIcon } from '../motion/swapText.tsx'
 import css from './launch.module.css'
-import shared from './topbar.module.css'
 
 export interface LaunchProps {
   t: T

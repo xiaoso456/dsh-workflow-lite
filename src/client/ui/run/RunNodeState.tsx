@@ -18,6 +18,7 @@ import type { LocaleKey, T } from '../../i18n.ts'
 import { samePath, togglePin } from '../../model/runDraft.ts'
 import { shortTime } from '../../model/time.ts'
 import { RUN_TEXT } from '../canvas/cards/cardParts.ts'
+import badge from '../chrome/runStatus.module.css'
 import { PreviewCard } from '../files/PreviewCard.tsx'
 import { cx } from '../kit/cx.ts'
 import { Icon, type IconName } from '../kit/Icon.tsx'
@@ -58,8 +59,8 @@ export function StatusChip(props: {
 }): React.JSX.Element | null {
   if (props.status === undefined) return null
   return (
-    <span className={shared.status} data-run-status={props.status}>
-      <span className={shared.dot} />
+    <span className={badge.status} data-run-status={props.status}>
+      <span className={badge.dot} />
       {props.t(RUN_TEXT[props.status])}
     </span>
   )
