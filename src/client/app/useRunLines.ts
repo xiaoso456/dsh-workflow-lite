@@ -9,6 +9,7 @@ import type { LineFilter } from '../../shared/types.ts'
 import type { RunLinesResponse } from '../../shared/wire/run.ts'
 import { appendWindow, filterKey, type LineWindow, windowOf } from '../model/logLines.ts'
 import { errorMessage, type WorkflowLiteRpc } from '../rpc.ts'
+import { readCache } from './readCache.ts'
 
 export interface LinesTarget {
   node: string
@@ -25,6 +26,13 @@ export interface RunLines {
   error: string | null
 }
 
+/** 读到的窗口：按目标和信号记，展示卡被摘下再挂回来（大图平移）时直接用。 */
+const windows = readCache<Pick<RunLines, 'win' | 'kind'>>({
+  entries: 48,
+  budget: 4_000_000,
+  weigh: ({ win }) => 256 + (win?.lines.reduce((sum, line) => sum + line.text.length, 0) ?? 0),
+})
+
 /**
  * @param from - `end` 读末尾、跟着往下走；`start` 读开头（文件变了从头再读一遍：只读 `limit` 行，不贵）。
  * @param signal - 变了就续读（现在的文件拿修改时间；`null` 不读）。
@@ -36,12 +44,6 @@ export function useRunLines(
   options: { from: 'end' | 'start'; limit: number; filter: LineFilter | undefined },
   signal: string | number | null,
 ): RunLines {
-  const [state, setState] = useState<RunLines & { key: string }>({
-    win: null,
-    kind: null,
-    error: null,
-    key: '',
-  })
   const key =
     target === null
       ? ''
@@ -55,6 +57,17 @@ export function useRunLines(
           options.limit,
           filterKey(options.filter),
         ].join('\u0000')
+  const [state, setState] = useState<RunLines & { key: string }>(() => {
+    const hit = signal === null ? undefined : windows.get(key, signal)
+    return {
+      win: hit?.win ?? null,
+      kind: hit?.kind ?? null,
+      error: null,
+      key: hit === undefined ? '' : key,
+    }
+  })
+  /** 手上这一份是哪个目标、哪个信号读的：挂上时从缓存拿到的，就不用再读。 */
+  const have = useRef(state.key === '' ? null : { key, signal })
   const latest = useRef(state)
   latest.current = state
   /** 正在读的那一次（后来的读回来了，先发的晚到就扔掉）。 */
@@ -62,6 +75,7 @@ export function useRunLines(
 
   useEffect(() => {
     if (target === null || signal === null) return
+    if (have.current?.key === key && have.current.signal === signal) return
     const current = latest.current
     const follow =
       options.from === 'end' &&
@@ -99,6 +113,8 @@ export function useRunLines(
             : follow && before.key === key && before.win !== null
               ? appendWindow(before.win, response, options.limit * 2)
               : windowOf(response, request.mode)
+        windows.put(key, signal, { win, kind: response.kind })
+        have.current = { key, signal }
         setState({ key, win, kind: response.kind, error: null })
       })
       .catch((reason: unknown) => {

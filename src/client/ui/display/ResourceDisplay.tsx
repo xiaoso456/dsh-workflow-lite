@@ -29,11 +29,18 @@ import { Flow } from './views/Flow.tsx'
 import { LatestView } from './views/LatestView.tsx'
 import { RunFileBody } from './views/RunFileBody.tsx'
 
-/** 第一次进视野（且画布停着）才为真，之后一直为真：挂上了就不再摘。 */
-function useSeen<E extends Element>(): [React.RefObject<E>, boolean] {
+/**
+ * 看过的展示区（实例 | 资源#项）：大图只挂视口附近的卡片，平移出去再挪回来时卡片重新挂上，
+ * 看过的直接挂内容（内容多半还在读取缓存里，见 `app/readCache.ts`），不再等进视野、不闪「读取中」。
+ */
+const seenBodies = new Set<string>()
+const SEEN_LIMIT = 2000
+
+/** 第一次进视野（且画布停着）才为真，之后一直为真：挂上了就不再摘。`key` 看过的一挂上就为真。 */
+function useSeen<E extends Element>(key: string): [React.RefObject<E>, boolean] {
   const ref = useRef<E>(null)
   const [visible, setVisible] = useState(false)
-  const [seen, setSeen] = useState(false)
+  const [seen, setSeen] = useState(() => seenBodies.has(key))
   const moving = useCanvasMoving()
   useEffect(() => {
     const element = ref.current
@@ -48,6 +55,11 @@ function useSeen<E extends Element>(): [React.RefObject<E>, boolean] {
   useEffect(() => {
     if (visible && !moving) setSeen(true)
   }, [visible, moving])
+  useEffect(() => {
+    if (!seen) return
+    if (seenBodies.size >= SEEN_LIMIT) seenBodies.clear()
+    seenBodies.add(key)
+  }, [seen, key])
   return [ref, seen]
 }
 
@@ -68,7 +80,9 @@ export function DisplayBody(props: {
   const env = useContext(DisplayContext)
   if (env === null) throw new Error('DisplayBody 要放在 DisplayContext 里')
   const { t } = env
-  const [ref, seen] = useSeen<HTMLDivElement>()
+  const [ref, seen] = useSeen<HTMLDivElement>(
+    `${env.run?.instance ?? ''}|${props.node}#${display.item}`,
+  )
   const latest = env.run === null ? env.latest : undefined
   const found = latest?.outputs[displayKey(props.node, display.item)]
   const frame = {

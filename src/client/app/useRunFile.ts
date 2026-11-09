@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { RunDirResponse, RunFileResponse, RunHistoryResponse } from '../../shared/wire/run.ts'
 import { errorMessage, type WorkflowLiteRpc } from '../rpc.ts'
+import { type ReadSignal, readCache } from './readCache.ts'
 
 /**
  * 要看哪份：快照里某个资源的第几项（文件夹项可以再带 `sub`：文件夹里的相对路径；文件项可以带 `version`：
@@ -16,26 +17,15 @@ export type FileTarget =
   | { node: string; item: number; sub?: string; version?: number; tail?: boolean }
   | { path: string }
 
-/** 存下的旧版不会再变：读过的留几份，来回切着看（画布上悬停扫过各轮）不用每次重读。 */
-const VERSION_CACHE = 24
-const versionCache = new Map<string, RunFileResponse>()
-
-function cachedVersion(key: string): RunFileResponse | undefined {
-  const hit = versionCache.get(key)
-  if (hit !== undefined) {
-    versionCache.delete(key)
-    versionCache.set(key, hit)
-  }
-  return hit
-}
-
-function keepVersion(key: string, file: RunFileResponse): void {
-  versionCache.set(key, file)
-  if (versionCache.size > VERSION_CACHE) {
-    const oldest = versionCache.keys().next().value
-    if (oldest !== undefined) versionCache.delete(oldest)
-  }
-}
+/**
+ * 读过的文件：存下的旧版不会再变，来回切着看（画布上悬停扫过各轮）不用每次重读；
+ * 现在的文件按调用方给的版本记，展示卡被摘下再挂回来（大图平移）时直接用。
+ */
+const files = readCache<RunFileResponse>({
+  entries: 48,
+  budget: 4_000_000,
+  weigh: (file) => 256 + (file.text?.length ?? 0),
+})
 
 const isVersion = (target: FileTarget | null): boolean =>
   target !== null && 'node' in target && target.version !== undefined
@@ -51,6 +41,7 @@ export interface RunFile {
 
 /**
  * @param version - 变了就重读（文件面板拿"文件在不在 + 状态文件修改时间"当版本：模型写完文件通常也会更新状态）。
+ *   给了（不是 0）就按它记进缓存：同一目标、同一版本再挂上时直接用；不给就每次挂上都重读。
  */
 export function useRunFile(
   rpc: WorkflowLiteRpc,
@@ -58,17 +49,27 @@ export function useRunFile(
   target: FileTarget | null,
   version: string | number = 0,
 ): RunFile {
-  const [file, setFile] = useState<RunFileResponse | null>(null)
+  const key = fileTargetKey(target)
+  const cacheKey = `${instance}|${key}`
+  // 旧版不会再变；现在的文件按调用方给的版本认。都没有就不缓存。
+  const signal = isVersion(target) ? 'kept' : version === 0 ? null : version
+  const cached = (): RunFileResponse | undefined =>
+    signal === null ? undefined : files.get(cacheKey, signal)
+  const [file, setFile] = useState<RunFileResponse | null>(() => cached() ?? null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [tick, setTick] = useState(0)
-  const [settled, setSettled] = useState('')
-  const key = fileTargetKey(target)
+  const [settled, setSettled] = useState(() => (cached() === undefined ? '' : key))
+  /** 「重新读取」按过了：不拿缓存。 */
+  const lastTick = useRef(tick)
 
-  // 换了文件：先清掉上一份，别让它闪一下（放在读之前：读的是缓存里的旧版时立刻就有，不能再被清掉）。
+  // 换了文件：先清掉上一份，别让它闪一下（放在读之前：读的是缓存里的时立刻就有，不能再被清掉）。
+  const shownKey = useRef(cacheKey)
   useEffect(() => {
+    if (shownKey.current === cacheKey) return
+    shownKey.current = cacheKey
     setFile(null)
-  }, [instance, key])
+  }, [cacheKey])
 
   // `key` 就是 target 的身份；`version` / `tick` 只是重读的信号。
   useEffect(() => {
@@ -76,8 +77,9 @@ export function useRunFile(
       setFile(null)
       return
     }
-    const cacheKey = `${instance}|${key}`
-    const hit = isVersion(target) ? cachedVersion(cacheKey) : undefined
+    const forced = lastTick.current !== tick
+    lastTick.current = tick
+    const hit = forced ? undefined : cached()
     if (hit !== undefined) {
       setFile(hit)
       setError(null)
@@ -91,7 +93,7 @@ export function useRunFile(
     rpc
       .call('run/file', { id: instance, ...target })
       .then((value) => {
-        if (isVersion(target)) keepVersion(cacheKey, value)
+        if (signal !== null) files.put(cacheKey, signal, value)
         if (!alive) return
         setFile(value)
         setSettled(key)
@@ -121,6 +123,9 @@ export function fileTargetKey(target: FileTarget | null): string {
   return `n:${target.node}#${target.item}/${target.sub ?? ''}${kept}${target.tail === true ? '~' : ''}`
 }
 
+/** 各版清单：按变化次数记（展示卡被摘下再挂回来时直接用）。 */
+const histories = readCache<RunHistoryResponse>({ entries: 64 })
+
 /**
  * 一份产出存下的各版（`run/history`）。`revision` 是 `run/stat` 报的变化次数：变了才重问，`0`（一版都没有）就不问。
  * `null` = 还没问到（或一版都没有）。
@@ -131,14 +136,23 @@ export function useRunHistory(
   target: { node: string; item: number } | null,
   revision: number,
 ): RunHistoryResponse | null {
-  const [state, setState] = useState<{ key: string; history: RunHistoryResponse } | null>(null)
   const key = target === null ? '' : `${instance}|${target.node}#${target.item}`
+  const [state, setState] = useState<{ key: string; history: RunHistoryResponse } | null>(() => {
+    const hit = histories.get(key, revision)
+    return hit === undefined ? null : { key, history: hit }
+  })
   useEffect(() => {
     if (target === null || revision === 0) return
+    const hit = histories.get(key, revision)
+    if (hit !== undefined) {
+      setState({ key, history: hit })
+      return
+    }
     let alive = true
     rpc
       .call('run/history', { id: instance, node: target.node, item: target.item })
       .then((history) => {
+        histories.put(key, revision, history)
         if (alive) setState({ key, history })
       })
       .catch(() => {})
@@ -216,14 +230,23 @@ export function useRunImage(
   return state.key === key ? { url: state.url, error: state.error } : { url: null, error: null }
 }
 
+/** 文档里引用的图（data URL，按字符数封顶）：按文档的版本记，展示卡被摘下再挂回来时直接用。 */
+const docImages = readCache<string>({
+  entries: 32,
+  budget: 12_000_000,
+  weigh: (url) => url.length,
+})
+
 /**
  * 这份文档里相对路径的图片怎么读（交给 Markdown）：按文档所在目录去实例里读，读回来是 data URL。
  * 同一份文档里同一张图只读一次；换了文档就换一份缓存。
+ * @param signal - 文档的版本（修改时间）：给了就跨挂载记着读过的图，文档变了重读；不给就只在这次挂载里记。
  */
 export function useRunImages(
   rpc: WorkflowLiteRpc,
   instance: string,
   target: FileTarget,
+  signal?: ReadSignal,
 ): (src: string) => Promise<string> {
   const key = fileTargetKey(target)
   // `key` 就是 target 的身份：target 对象每次渲染都可能是新的，不拿它当依赖。
@@ -232,12 +255,19 @@ export function useRunImages(
     return (src: string) => {
       let pending = cache.get(src)
       if (pending === undefined) {
-        pending = rpc
-          .call('run/image', { id: instance, ...target, src })
-          .then(({ mime, data }) => `data:${mime};base64,${data}`)
+        const shared = `${instance}|${key}|${src}`
+        const hit = signal === undefined ? undefined : docImages.get(shared, signal)
+        pending =
+          hit !== undefined
+            ? Promise.resolve(hit)
+            : rpc.call('run/image', { id: instance, ...target, src }).then(({ mime, data }) => {
+                const url = `data:${mime};base64,${data}`
+                if (signal !== undefined) docImages.put(shared, signal, url)
+                return url
+              })
         cache.set(src, pending)
       }
       return pending
     }
-  }, [rpc, instance, key])
+  }, [rpc, instance, key, signal])
 }

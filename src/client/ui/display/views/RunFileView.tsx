@@ -113,7 +113,12 @@ export function RunFileView(props: {
   )
   const shot = useHeld(image.url === null ? null : image)
   const file = useHeld(loaded.file)
-  const images = useRunImages(run.rpc, run.instance, { node, item: display.item })
+  const images = useRunImages(
+    run.rpc,
+    run.instance,
+    { node, item: display.item },
+    signal ?? undefined,
+  )
 
   // 现在的文件读回来一份新的（不是第一份、不是从旧版切回来）：告诉外面。
   const fresh =

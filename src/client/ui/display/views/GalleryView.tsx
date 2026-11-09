@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { GALLERY_GAP, galleryLayout, galleryTracks } from '../../../../shared/display.ts'
 import type { RunDirEntry, RunDirResponse } from '../../../../shared/wire/run.ts'
 import { publishFolderFacts } from '../../../app/cardFacts.ts'
+import { readCache } from '../../../app/readCache.ts'
 import { displayKey } from '../../../app/useDisplayStats.ts'
 import type { T } from '../../../i18n.ts'
 import type { Display } from '../../../model/display.ts'
@@ -21,15 +22,11 @@ import { DisplayState } from './DisplayState.tsx'
 import { FolderList } from './FolderList.tsx'
 import { useMarks } from './follow.ts'
 
-/** 图墙里读过的图：按「实例 | 资源#项 / 文件名 @ 修改时间」记着，文件没改就不重读（base64 的，别存太多）。 */
-const GALLERY_CACHE = 32
-const galleryCache = new Map<string, string>()
+/** 图墙里读过的图：按「实例 | 资源#项 / 文件名」和修改时间记着，文件没改就不重读（base64 的，按字符数封顶）。 */
+const tiles = readCache<string>({ entries: 48, budget: 24_000_000, weigh: (url) => url.length })
 
-function rememberTile(key: string, url: string): void {
-  galleryCache.set(key, url)
-  const oldest = galleryCache.size > GALLERY_CACHE ? galleryCache.keys().next().value : undefined
-  if (oldest !== undefined) galleryCache.delete(oldest)
-}
+/** 列出来的文件夹：按文件夹的修改时间记，展示卡被摘下再挂回来（大图平移）时直接用。 */
+const listings = readCache<RunDirResponse>({ entries: 32 })
 
 /**
  * 图墙露出来的那几张：名字 → 图（`null` = 读不出来）。一张改了，新的读回来之前旧的那张留着；不再露出的扔掉。
@@ -41,29 +38,35 @@ function useGalleryImages(
   item: number,
   entries: readonly RunDirEntry[],
 ): Readonly<Record<string, string | null>> {
-  const [urls, setUrls] = useState<Record<string, string | null>>({})
+  const keyOf = (entry: RunDirEntry): string => `${instance}|${node}#${item}/${entry.name}`
+  const [urls, setUrls] = useState<Record<string, string | null>>(() => {
+    const kept: Record<string, string | null> = {}
+    for (const entry of entries) {
+      const hit = tiles.get(keyOf(entry), entry.mtime)
+      if (hit !== undefined) kept[entry.name] = hit
+    }
+    return kept
+  })
   const want = entries.map((entry) => `${entry.name}@${entry.mtime}`).join('\n')
   // `want` 就是 `entries` 的身份：内容没变不重来。
   useEffect(() => {
     let alive = true
-    const keyOf = (entry: RunDirEntry): string =>
-      `${instance}|${node}#${item}/${entry.name}@${entry.mtime}`
     setUrls((last) => {
       const next: Record<string, string | null> = {}
       for (const entry of entries) {
-        const hit = galleryCache.get(keyOf(entry)) ?? last[entry.name]
+        const hit = tiles.get(keyOf(entry), entry.mtime) ?? last[entry.name]
         if (hit !== undefined) next[entry.name] = hit
       }
       return next
     })
     for (const entry of entries) {
       const key = keyOf(entry)
-      if (galleryCache.has(key)) continue
+      if (tiles.get(key, entry.mtime) !== undefined) continue
       rpc
         .call('run/image', { id: instance, node, item, sub: entry.name })
         .then(({ mime, data }) => {
           const url = `data:${mime};base64,${data}`
-          rememberTile(key, url)
+          tiles.put(key, entry.mtime, url)
           if (alive) setUrls((last) => ({ ...last, [entry.name]: url }))
         })
         .catch(() => {
@@ -105,15 +108,21 @@ export function GalleryView(props: {
   onOpen?: ((sub: string) => void) | undefined
 }): React.JSX.Element {
   const { t, run, node, display } = props
-  const [listing, setListing] = useState<{ dir: RunDirResponse | null; error: string | null }>({
-    dir: null,
-    error: null,
-  })
+  const listKey = `${run.instance}|${node}#${display.item}`
+  const [listing, setListing] = useState<{ dir: RunDirResponse | null; error: string | null }>(
+    () => ({ dir: listings.get(listKey, props.signal) ?? null, error: null }),
+  )
   useEffect(() => {
+    const hit = listings.get(listKey, props.signal)
+    if (hit !== undefined) {
+      setListing((last) => (last.dir === hit ? last : { dir: hit, error: null }))
+      return
+    }
     let alive = true
     run.rpc
       .call('run/dir', { id: run.instance, node, item: display.item })
       .then((dir) => {
+        listings.put(listKey, props.signal, dir)
         if (alive) setListing({ dir, error: null })
       })
       .catch((reason: unknown) => {
