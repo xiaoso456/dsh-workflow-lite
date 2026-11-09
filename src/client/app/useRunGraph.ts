@@ -10,7 +10,15 @@
  * @module @xiaoso/dsh-workflow-lite/client/app/useRunGraph
  */
 
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from 'react'
 import { type GraphChange, graphChanges } from '../../shared/graphDiff.ts'
 import type { ValidationProblem, WorkflowDocument } from '../../shared/types.ts'
 import { validateDocument } from '../../shared/validate.ts'
@@ -32,6 +40,11 @@ export interface RunGraph {
   problems: ValidationProblem[]
   /** 这张图的全部检查结果（四级，和模板同一套规则）：顶栏的检查结果、画布上的标记。 */
   report: ValidationProblem[]
+  /**
+   * 按改到现在的图当场再查一遍挡保存的问题。`problems` / `report` 打字时晚一拍跟上（见下），
+   * 保存这一下要以眼前的图为准。
+   */
+  problemsNow(): ValidationProblem[]
   /** 图的撤销栈。 */
   history: SideHistory
   edit(edit: Edit): void
@@ -76,6 +89,9 @@ function writeStored(id: string, value: { base: string; doc: WorkflowDocument } 
   }
 }
 
+/** 改过的图停手多久再存进浏览器。 */
+const STORE_QUIET_MS = 400
+
 /** 实例的图校验不看节点数上限（建实例时已经过了一遍，上限由 host 再把关）。 */
 const NO_LIMIT = Number.MAX_SAFE_INTEGER
 
@@ -116,21 +132,40 @@ export function useRunGraph(
   const current = base?.id === id ? base : null
   const doc = current === null ? null : state.doc
 
+  // 改过的图存进浏览器：整张图序列化再同步写入，大图上一次就是几毫秒到几十毫秒，
+  // 所以打字停下来再写；换实例、关页面时把没写的当场写掉。
+  const pending = useRef<(() => void) | null>(null)
   useEffect(() => {
     if (current === null || doc === null) return
-    writeStored(id, doc === current.doc ? null : { base: current.planId, doc })
+    const write = (): void => {
+      pending.current = null
+      writeStored(id, doc === current.doc ? null : { base: current.planId, doc })
+    }
+    pending.current = write
+    const timer = window.setTimeout(write, STORE_QUIET_MS)
+    return () => window.clearTimeout(timer)
   }, [id, current, doc])
+  useEffect(() => {
+    const flush = (): void => pending.current?.()
+    window.addEventListener('pagehide', flush)
+    return () => {
+      window.removeEventListener('pagehide', flush)
+      flush()
+    }
+  }, [id])
 
   const changes = useMemo(
     () => (current === null || doc === null ? [] : graphChanges(current.doc, doc)),
     [current, doc],
   )
+  // 检查结果按「晚一拍」的那份图算：打字时按键那一帧不等它，空闲时跟上（挡保存的另见 problemsNow）。
+  const settled = useDeferredValue(doc)
   const checked = useMemo(
     () =>
-      doc === null
+      settled === null
         ? null
-        : validateDocument(doc, { workflowName: workflow ?? 'workflow', maxNodes: NO_LIMIT }),
-    [doc, workflow],
+        : validateDocument(settled, { workflowName: workflow ?? 'workflow', maxNodes: NO_LIMIT }),
+    [settled, workflow],
   )
   const report = useMemo(
     () =>
@@ -143,6 +178,11 @@ export function useRunGraph(
     () => (checked === null || changes.length === 0 ? [] : [...checked.save, ...checked.compile]),
     [checked, changes.length],
   )
+  const problemsNow = useCallback((): ValidationProblem[] => {
+    if (doc === null || changes.length === 0) return []
+    const now = validateDocument(doc, { workflowName: workflow ?? 'workflow', maxNodes: NO_LIMIT })
+    return [...now.save, ...now.compile]
+  }, [doc, changes.length, workflow])
   const history = useMemo<SideHistory>(
     () => ({ past: state.past.length, future: state.future.length, seq: state.historySeq }),
     [state.past.length, state.future.length, state.historySeq],
@@ -186,6 +226,7 @@ export function useRunGraph(
     changes,
     problems,
     report,
+    problemsNow,
     history,
     edit,
     select,

@@ -26,9 +26,11 @@ import type {
   ValidationProblem,
   WorkflowDocument,
 } from '../../../shared/types.ts'
+import { useStable } from '../../app/useStable.ts'
 import { rememberViewport } from '../../app/viewport.ts'
 import type { T } from '../../i18n.ts'
 import { linkAllowed } from '../../model/connect.ts'
+import { sameRouting } from '../../model/docShape.ts'
 import { type Edit, type FocusFile, freeFilePath, type Selection } from '../../model/editor.ts'
 import { NODE_H, NODE_W, nextTo, RES_H } from '../../model/layout.ts'
 import type { StepSource } from '../../model/library.ts'
@@ -44,7 +46,7 @@ import { ResourceCard } from './cards/ResourceCard.tsx'
 import { StepCard } from './cards/StepCard.tsx'
 import { buildEdges, type EdgeCacheEntry } from './flow/buildEdges.ts'
 import { buildNodes, type CacheEntry } from './flow/buildNodes.ts'
-import { buildRoutes, type RouteBase, sameRouting } from './flow/buildRoutes.ts'
+import { buildRoutes, type RouteBase } from './flow/buildRoutes.ts'
 import { buildTexts } from './flow/buildTexts.ts'
 import { useConnectionDrag } from './hooks/useConnectionDrag.ts'
 import { useNodeChanges } from './hooks/useNodeChanges.ts'
@@ -309,9 +311,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
   const texts = useMemo(() => buildTexts(t), [t])
 
   // 只改了文字（提示词、标题……）时沿用上一份文档算走线：走线只看位置、尺寸、连线，见 `sameRouting`。
-  const routeDocRef = useRef(doc)
-  if (!sameRouting(routeDocRef.current, doc)) routeDocRef.current = doc
-  const routeDoc = routeDocRef.current
+  const routeDoc = useStable(doc, sameRouting)
   const routes = useMemo(
     () => buildRoutes({ doc: routeDoc, dragging, sized, measured, routeBase }),
     [routeDoc, dragging, sized],

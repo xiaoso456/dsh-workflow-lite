@@ -1,12 +1,14 @@
 /**
- * `src/client/ui/canvas/flow/buildRoutes.ts` 的 `sameRouting`：判成「走线相同」的两份文档，`buildRoutes` 必须算出一样的结果；
- * 动了位置、尺寸、连线的必须判成不同。
+ * `src/client/model/docShape.ts`：判成「一样」的两份文档，对应的计算必须算出一样的结果
+ * （`sameStructure` → `analyzeGraph`、`graphFacts`；`sameRouting` → `buildRoutes`）；动了相关输入的必须判成不同。
  */
 
 import { describe, expect, it } from 'vitest'
+import { sameRouting, sameStructure } from '../../src/client/model/docShape.ts'
 import { tidy } from '../../src/client/model/layout.ts'
-import { buildRoutes, sameRouting } from '../../src/client/ui/canvas/flow/buildRoutes.ts'
+import { buildRoutes } from '../../src/client/ui/canvas/flow/buildRoutes.ts'
 import { analyzeGraph } from '../../src/shared/graph.ts'
+import { graphFacts } from '../../src/shared/runState.ts'
 import type { WorkflowDocument, WorkflowNode } from '../../src/shared/types.ts'
 import { bigGraph } from '../perf/bigGraph.ts'
 
@@ -47,25 +49,68 @@ function mapNode(
   }
 }
 
+/** 改第一张步骤卡的文字（提示词、标题、描述）。 */
+function retext(doc: WorkflowDocument): WorkflowDocument {
+  return mapNode(
+    doc,
+    (node) => node.type === 'wfNode',
+    (node) =>
+      node.type === 'wfNode'
+        ? {
+            ...node,
+            data: {
+              ...node.data,
+              prompt: `${node.data.prompt}改`,
+              label: '新标题',
+              description: '说明',
+            },
+          }
+        : node,
+  )
+}
+
+/** 图分析、步骤事实转成能比的普通对象。 */
+function structureOf(doc: WorkflowDocument): unknown {
+  const analysis = analyzeGraph(doc)
+  return JSON.parse(
+    JSON.stringify({ analysis, facts: graphFacts(doc) }, (_key, value: unknown) =>
+      value instanceof Map ? [...value] : value instanceof Set ? [...value] : value,
+    ),
+  )
+}
+
+describe('sameStructure', () => {
+  it('只改文字、挪卡片：判成相同，图分析和步骤事实也确实一样', async () => {
+    const doc = await laidOut()
+    const edited = retext(doc)
+    expect(sameStructure(doc, edited)).toBe(true)
+    expect(structureOf(edited)).toEqual(structureOf(doc))
+    const moved = mapNode(
+      doc,
+      (node) => node.type === 'wfNode',
+      (node) => ({ ...node, position: { x: node.position.x + 40, y: node.position.y } }),
+    )
+    expect(sameStructure(doc, moved)).toBe(true)
+  })
+
+  it('连线换了对象、增删节点、换了种类：不同', async () => {
+    const doc = await laidOut()
+    const [first] = doc.edges
+    if (first === undefined) throw new Error('图里没有线')
+    expect(sameStructure(doc, { ...doc, edges: [{ ...first }, ...doc.edges.slice(1)] })).toBe(false)
+    expect(sameStructure(doc, { ...doc, nodes: doc.nodes.slice(1) })).toBe(false)
+    const [node] = doc.nodes
+    if (node === undefined) throw new Error('图里没有卡片')
+    expect(
+      sameStructure(doc, { ...doc, nodes: [{ ...node, id: 'other' }, ...doc.nodes.slice(1)] }),
+    ).toBe(false)
+  })
+})
+
 describe('sameRouting', () => {
   it('只改文字（提示词、标题、描述）：判成相同，走线也确实一样', async () => {
     const doc = await laidOut()
-    const edited = mapNode(
-      doc,
-      (node) => node.type === 'wfNode',
-      (node) =>
-        node.type === 'wfNode'
-          ? {
-              ...node,
-              data: {
-                ...node.data,
-                prompt: `${node.data.prompt}改`,
-                label: '新标题',
-                description: '说明',
-              },
-            }
-          : node,
-    )
+    const edited = retext(doc)
     expect(sameRouting(doc, edited)).toBe(true)
     expect(routesOf(edited)).toEqual(routesOf(doc))
   })

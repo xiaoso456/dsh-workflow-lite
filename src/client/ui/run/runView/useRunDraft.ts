@@ -51,6 +51,12 @@ export function useRunDraft({ t, current, graph, doc, shown, facts }: RunDraftIn
       : t('run.stateMismatch').replace('{p}', `${issue.path} ${issue.message}`)
   }, [graph.problems, graph.changes.length, shown, facts, t])
   const save = (): void => {
+    // 显示的检查结果打字时晚一拍：保存前按眼前的图再查一遍，有挡保存的问题就不交。
+    const late = graph.problemsNow()[0]
+    if (late !== undefined) {
+      current.flash('error', t('run.graphProblem').replace('{p}', late.message))
+      return
+    }
     const changed = graph.changes.length > 0 && graph.doc !== null && graph.basePlan !== null
     void current
       .save(

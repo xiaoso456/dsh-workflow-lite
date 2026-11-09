@@ -20,6 +20,7 @@ import type { NodeData, WorkflowDocument } from '../../shared/types.ts'
 import type { GraphListResponse } from '../../shared/wire/graph.ts'
 import type { PlanBuildResponse } from '../../shared/wire/plan.ts'
 import type { T } from '../i18n.ts'
+import { sameStructure } from '../model/docShape.ts'
 import {
   type Action,
   type Edit,
@@ -31,6 +32,7 @@ import {
 } from '../model/editor.ts'
 import { placeMissing } from '../model/layout.ts'
 import { errorCode, errorMessage, type WorkflowLiteRpc, WorkflowLiteRpcError } from '../rpc.ts'
+import { useStable } from './useStable.ts'
 
 /** 上次打开的工作流（重新进来时接着看它）。 */
 const LAST_KEY = 'workflow-lite.last'
@@ -605,7 +607,9 @@ export function useWorkflow(rpc: WorkflowLiteRpc, t: T): Workflow {
     return () => window.removeEventListener('focus', onFocus)
   }, [rpc, apply, notify])
 
-  const analysis = useMemo(() => (state.doc === null ? null : analyzeGraph(state.doc)), [state.doc])
+  // 图分析只看结构：打字改提示词时沿用上一份（见 model/docShape.ts）。
+  const shape = useStable(state.doc, sameStructure)
+  const analysis = useMemo(() => (shape === null ? null : analyzeGraph(shape)), [shape])
 
   // 还没摆过的节点（模型用工具加的、或整张新图）补上坐标。补位是真实改动，会落盘。
   useEffect(() => {

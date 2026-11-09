@@ -40,7 +40,9 @@ import type { FileTarget } from '../../app/useRunFile.ts'
 import { useRunGraph } from '../../app/useRunGraph.ts'
 import { useRunHistory } from '../../app/useRunHistory.ts'
 import { type Run, type Runs, useRun } from '../../app/useRuns.ts'
+import { useStable } from '../../app/useStable.ts'
 import type { T } from '../../i18n.ts'
+import { sameStructure } from '../../model/docShape.ts'
 import { type Edit, findNode } from '../../model/editor.ts'
 import { fileBaseName } from '../../model/fileKind.ts'
 import { NODE_H, NODE_W } from '../../model/layout.ts'
@@ -164,7 +166,9 @@ export function RunView(props: RunViewProps): React.JSX.Element {
   })
   const doc = graph.doc
   const selection = graph.selection
-  const analysis = useMemo(() => (doc === null ? null : analyzeGraph(doc)), [doc])
+  // 图分析、判定词只看结构：打字改提示词时沿用上一份（见 model/docShape.ts）。
+  const shape = useStable(doc, sameStructure)
+  const analysis = useMemo(() => (shape === null ? null : analyzeGraph(shape)), [shape])
   // 切换实例：新的这份还没读回来时，旧图压暗留着（点不了），到了再换——不卸载重建，画布不闪。
   const swap = useSwapHold(
     doc !== null && analysis !== null ? { key: `run:${id}`, doc, analysis } : null,
@@ -172,7 +176,7 @@ export function RunView(props: RunViewProps): React.JSX.Element {
     SWITCH_HOLD_MS,
   )
   const held = swap.view
-  const facts = useMemo(() => (doc === null ? null : graphFacts(doc)), [doc])
+  const facts = useMemo(() => (shape === null ? null : graphFacts(shape)), [shape])
   /** 叠上草稿、再和改过的图对齐之后的状态：新步骤是待执行，删掉的步骤不在了。 */
   const shown = useMemo(
     () =>
