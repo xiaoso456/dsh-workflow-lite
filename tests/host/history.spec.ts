@@ -203,6 +203,7 @@ describe('存下每一轮的产出', () => {
     ])
   })
 
+  // 要走二十多轮、每轮都落盘：单跑不到 2 秒，整套并行时机器一忙就过了默认的 5 秒。
   it('超了版数删中间的，第一版留着；删实例连各版一起删；存储页能清', async () => {
     const { id, out } = await compile()
     const total = RUN_HISTORY_VERSIONS_MAX + 3
@@ -232,7 +233,7 @@ describe('存下每一轮的产出', () => {
     expect((await versions(id)).versions).toHaveLength(1)
     await runs.remove(id, false)
     await expect(readdir(historyDir(dataDir, id))).rejects.toThrow()
-  })
+  }, 30_000)
 })
 
 describe('要存什么（只看图和状态）', () => {

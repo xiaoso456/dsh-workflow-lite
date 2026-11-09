@@ -228,7 +228,9 @@ describe('scanLines：筛', () => {
 
 describe('LineScanner：工作线程', () => {
   it('扫得出来；正则太慢就终止线程、回错误，之后还能接着用', async () => {
-    const scanner = new LineScanner(400)
+    // 用正式的时限：计时从发出任务算起、含线程冷启动，整套并行时 400ms 连正常的正则都会被判成太慢。
+    // 那条坏正则要 2^40 步，多等的这一秒多不影响它被判超时。
+    const scanner = new LineScanner()
     try {
       const path = await file(content())
       const ok = await scanner.scan(job(path, { filter: { pattern: 'b+', regex: true } }))
