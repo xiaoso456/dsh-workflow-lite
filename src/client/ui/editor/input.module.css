@@ -145,7 +145,12 @@
 
 /* ── 只给填写的人看的：占位与说明 ────────────────────────── */
 
+/* 自带属性面板 .field 的排法、只把间距放宽：不和 inspector 的 .field 叠在一个元素上，
+   否则谁赢要看两个模块哪个先注入（拆文件后顺序一变，间距就从 10 掉回 8）。 */
 .private {
+  position: relative;
+  display: flex;
+  flex-direction: column;
   gap: 10px;
   padding: 10px;
   border-radius: var(--wl-r-control);

@@ -333,7 +333,7 @@ export function InputPanel(props: InputPanelProps): React.JSX.Element {
           </button>
         </div>
 
-        <section className={cx(ins.field, css.private)}>
+        <section className={css.private}>
           <p className={css.privateNote}>
             <Icon name="eye" size={13} />
             <span>{t('input.private')}</span>
