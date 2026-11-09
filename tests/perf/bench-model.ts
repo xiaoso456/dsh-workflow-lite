@@ -65,19 +65,19 @@ for (const copies of arg('copies', '4,16')) {
   row('整理排版', ms(await time(5, () => tidy(raw, analyzeGraph(raw)), 1)))
 
   const doc = await laidOut(copies)
-  const measured = { current: new Map<string, { width: number; height: number }>() }
+  const sizes = new Map<string, { width: number; height: number }>()
   const fresh = { current: null as RouteBase | null }
   row(
     '全图走线',
     ms(
       await time(20, () =>
-        buildRoutes({ doc, dragging: {}, sized: 0, measured, routeBase: { current: null } }),
+        buildRoutes({ doc, dragging: {}, sized: 0, sizes, routeBase: { current: null } }),
       ),
     ),
   )
 
   // 拖动：先算一遍不拖的（留下 routeBase），再沿一条往返的路一帧一帧挪。
-  buildRoutes({ doc, dragging: {}, sized: 0, measured, routeBase: fresh })
+  buildRoutes({ doc, dragging: {}, sized: 0, sizes, routeBase: fresh })
   const busy = busiestStep(doc)
   const start = doc.nodes.find((node) => node.id === busy)?.position as Point
   let frame = 0
@@ -87,7 +87,7 @@ for (const copies of arg('copies', '4,16')) {
     const dragging = {
       [busy]: { x: start.x + Math.sin(t * Math.PI * 2) * 300, y: start.y + t * 200 },
     }
-    buildRoutes({ doc, dragging, sized: 0, measured, routeBase: fresh })
+    buildRoutes({ doc, dragging, sized: 0, sizes, routeBase: fresh })
   }
   const degree = doc.edges.filter((edge) => edge.source === busy || edge.target === busy).length
   row(`拖动一帧走线（${degree} 条线）`, ms(await time(120, dragFrame)))

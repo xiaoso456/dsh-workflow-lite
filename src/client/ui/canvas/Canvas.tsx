@@ -48,6 +48,7 @@ import { buildEdges } from './flow/buildEdges.ts'
 import { buildNodes, type CacheEntry } from './flow/buildNodes.ts'
 import { buildRoutes, type RouteBase } from './flow/buildRoutes.ts'
 import { buildTexts } from './flow/buildTexts.ts'
+import { useCardSizes } from './hooks/useCanvasGeometry.ts'
 import { useConnectionDrag } from './hooks/useConnectionDrag.ts'
 import { useNodeChanges } from './hooks/useNodeChanges.ts'
 import { useStepDrop } from './hooks/useStepDrop.ts'
@@ -178,8 +179,8 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
   const streakMode = Object.keys(dragging).length > 0 ? 'hold' : 'run'
   // 动到一半卸掉了（换视图）：等着画布停下来的活不能一直压着。
   useEffect(() => () => setCanvasMoving(false), [])
-  /** React Flow 量出来的卡片尺寸：带回给它，重建节点对象时就不用重新量。 */
-  const measured = useRef(new Map<string, { width: number; height: number }>())
+  /** React Flow 量出来的卡片尺寸：带回给它，重建节点对象时就不用重新量；走线、看全图也按它算。 */
+  const sizes = useCardSizes()
   const cache = useRef(new Map<string, CacheEntry>())
   const edgeCache = useRef({
     t,
@@ -313,7 +314,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
   // 只改了文字（提示词、标题……）时沿用上一份文档算走线：走线只看位置、尺寸、连线，见 `sameRouting`。
   const routeDoc = useStable(doc, sameRouting)
   const routes = useMemo(
-    () => buildRoutes({ doc: routeDoc, dragging, sized, measured, routeBase }),
+    () => buildRoutes({ doc: routeDoc, dragging, sized, sizes, routeBase }),
     [routeDoc, dragging, sized],
   )
 
@@ -341,7 +342,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
         workflow: props.workflow,
         files,
         cache,
-        measured,
+        sizes,
       }),
     [
       doc.nodes,
@@ -392,7 +393,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
   useCanvasExits(wrapRef, props.loadKey, flowIds)
 
   const onNodesChange = useNodeChanges({
-    measured,
+    sizes,
     draggingRef,
     setSized,
     setDragging,

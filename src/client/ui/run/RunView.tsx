@@ -49,6 +49,7 @@ import { NODE_H, NODE_W } from '../../model/layout.ts'
 import { downstreamOf, editedNodes, togglePin, withDraftLog } from '../../model/runDraft.ts'
 import type { WorkflowLiteRpc } from '../../rpc.ts'
 import { type AddRequest, Canvas, type RunDecor } from '../canvas/Canvas.tsx'
+import { AUTO_FIT, fitPadding, useCanvasGeometry } from '../canvas/hooks/useCanvasGeometry.ts'
 import { QuickAdd } from '../canvas/QuickAdd.tsx'
 import { ZoomDock } from '../chrome/Dock.tsx'
 import frame from '../chrome/frame.module.css'
@@ -269,18 +270,15 @@ export function RunView(props: RunViewProps): React.JSX.Element {
     [doc, shown, cursor, edited, current.view?.files, insetRight, fresh, current.flash, t],
   )
 
+  const { fitDoc } = useCanvasGeometry()
   const fitAll = useCallback((): void => {
-    void flow.fitView({
+    if (doc === null) return
+    fitDoc(doc, {
       duration: 320,
-      maxZoom: 1,
-      padding: {
-        top: '84px',
-        bottom: '64px',
-        left: '28px',
-        right: `${insets.right + 28}px`,
-      },
+      maxZoom: AUTO_FIT.maxZoom,
+      padding: fitPadding({ left: 0, right: insets.right }),
     })
-  }, [flow, insets.right])
+  }, [fitDoc, doc, insets.right])
 
   const steps = useMemo(
     () => new Set((doc?.nodes ?? []).filter(isStep).map((node) => node.id)),

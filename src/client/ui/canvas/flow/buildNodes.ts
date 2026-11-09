@@ -20,6 +20,7 @@ import {
 import type { Point, WorkflowDocument, WorkflowNode } from '../../../../shared/types.ts'
 import { findMemory } from '../../../app/memories.ts'
 import type { LocaleKey, T } from '../../../i18n.ts'
+import type { SizeTable } from '../../../model/canvasGeometry.ts'
 import { displayOf } from '../../../model/display.ts'
 import type { Selection } from '../../../model/editor.ts'
 import { isCompactResource, RES_SHOWN } from '../../../model/layout.ts'
@@ -104,7 +105,8 @@ export interface NodesInput {
   files: Map<string, ResourceInfo>
   /** 节点对象缓存（传 ref 本身：读写的是调用那一刻的 `.current`）。 */
   cache: React.MutableRefObject<Map<string, CacheEntry>>
-  measured: React.MutableRefObject<Map<string, { width: number; height: number }>>
+  /** 量出来的卡片尺寸（见 `useCardSizes`）：带回给 React Flow，重建节点对象时就不用重新量。 */
+  sizes: SizeTable
 }
 
 export function buildNodes({
@@ -129,7 +131,7 @@ export function buildNodes({
   workflow,
   files,
   cache,
-  measured,
+  sizes,
 }: NodesInput): FlowNode[] {
   const next = new Map<string, CacheEntry>()
   const selectedId = selection?.kind === 'node' ? idKey(selection.id) : null
@@ -340,7 +342,7 @@ export function buildNodes({
       next.set(node.id, cached)
       return cached.flow
     }
-    const size = measured.current.get(node.id)
+    const size = sizes.get(node.id)
     const built = build()
     if (size !== undefined) built.measured = size
     // 拖动中的对象每帧都不同，不进缓存；松手后按文档里的新坐标重建一次再缓存。

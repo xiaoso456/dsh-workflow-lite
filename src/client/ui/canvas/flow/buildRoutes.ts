@@ -7,7 +7,7 @@
 import { idKey } from '../../../../shared/model.ts'
 import { edgeKind, nodeIndex } from '../../../../shared/resources.ts'
 import type { Point, WorkflowDocument, WorkflowNode } from '../../../../shared/types.ts'
-import { cardSize } from '../../../model/layout.ts'
+import { cardRect, type SizeTable } from '../../../model/canvasGeometry.ts'
 import { type Chip, nudge, placeChips, type Track } from '../../../model/nudge.ts'
 import type { Rect } from '../../../model/route.ts'
 import { type Corridor, type EdgeRoute, routeEdge } from '../lines/route.ts'
@@ -26,8 +26,8 @@ export interface RoutesInput {
   dragging: Record<string, Point>
   /** 卡片尺寸量出来 / 变了就加一。 */
   sized: number
-  /** React Flow 量出来的卡片尺寸（传 ref 本身：读的是调用那一刻的 `.current`）。 */
-  measured: React.MutableRefObject<Map<string, { width: number; height: number }>>
+  /** 量出来的卡片尺寸（见 `useCardSizes`）。 */
+  sizes: SizeTable
   routeBase: React.MutableRefObject<RouteBase | null>
 }
 
@@ -35,19 +35,9 @@ export interface RoutesInput {
  * 每条读写线挂在哪两个连接点上（按两张卡当下的位置挑，见 model/route.ts），
  * 以及每张卡上哪些点挂着线（备用的点只有挂上线才显示）。拖动中的卡按临时坐标算，线实时换点。
  */
-export function buildRoutes({ doc, dragging, sized, measured, routeBase }: RoutesInput) {
+export function buildRoutes({ doc, dragging, sized, sizes, routeBase }: RoutesInput) {
   const index = nodeIndex(doc)
-  const rectFor = (node: WorkflowNode): Rect => {
-    const at = dragging[node.id] ?? node.position
-    const size = measured.current.get(node.id)
-    const nominal = cardSize(node)
-    return {
-      x: at.x,
-      y: at.y,
-      w: size?.width ?? nominal.w,
-      h: size?.height ?? nominal.h,
-    }
-  }
+  const rectFor = (node: WorkflowNode): Rect => cardRect(node, sizes, dragging[node.id])
   const handles = new Map<string, { source: string; target: string }>()
   const used = new Map<string, string[]>()
   const lanes = new Map<string, number>()

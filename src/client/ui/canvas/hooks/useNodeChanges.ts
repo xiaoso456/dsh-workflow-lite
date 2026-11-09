@@ -7,11 +7,13 @@
 import type { NodeChange } from '@xyflow/react'
 import { useCallback } from 'react'
 import type { Point } from '../../../../shared/types.ts'
+import type { Size } from '../../../model/canvasGeometry.ts'
 import type { Edit } from '../../../model/editor.ts'
 import type { FlowNode } from '../types.ts'
 
 export interface NodeChangesInput {
-  measured: React.MutableRefObject<Map<string, { width: number; height: number }>>
+  /** 量出来的卡片尺寸（见 `useCardSizes`）：这里记下 React Flow 报上来的。 */
+  sizes: Map<string, Size>
   draggingRef: React.MutableRefObject<Record<string, Point>>
   setSized: React.Dispatch<React.SetStateAction<number>>
   setDragging: React.Dispatch<React.SetStateAction<Record<string, Point>>>
@@ -19,7 +21,7 @@ export interface NodeChangesInput {
 }
 
 export function useNodeChanges({
-  measured,
+  sizes,
   draggingRef,
   setSized,
   setDragging,
@@ -33,7 +35,7 @@ export function useNodeChanges({
       let finished = false
       for (const change of changes) {
         if (change.type === 'dimensions' && change.dimensions !== undefined) {
-          const before = measured.current.get(change.id)
+          const before = sizes.get(change.id)
           if (
             before === undefined ||
             Math.abs(before.width - change.dimensions.width) > 0.5 ||
@@ -41,7 +43,7 @@ export function useNodeChanges({
           ) {
             resized = true
           }
-          measured.current.set(change.id, change.dimensions)
+          sizes.set(change.id, change.dimensions)
           continue
         }
         if (change.type !== 'position' || change.position === undefined) continue

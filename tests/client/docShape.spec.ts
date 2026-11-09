@@ -27,7 +27,7 @@ function routesOf(doc: WorkflowDocument): unknown {
     doc,
     dragging: {},
     sized: 0,
-    measured: { current: new Map() },
+    sizes: new Map(),
     routeBase: { current: null },
   })
   return Object.fromEntries(Object.entries(routes).map(([key, map]) => [key, [...map]]))

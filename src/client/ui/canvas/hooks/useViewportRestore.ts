@@ -10,9 +10,7 @@ import type { WorkflowDocument } from '../../../../shared/types.ts'
 import { recallViewport } from '../../../app/viewport.ts'
 import type { CanvasProps } from '../Canvas.tsx'
 import type { FlowEdge, FlowNode } from '../types.ts'
-
-/** 自动看全图不放大过 100%，也不缩到读不了字。 */
-const AUTO_FIT = { minZoom: 0.55, maxZoom: 1 }
+import { AUTO_FIT, fitPadding, useCanvasGeometry } from './useCanvasGeometry.ts'
 
 export interface ViewportRestoreInput {
   flow: ReactFlowInstance<FlowNode, FlowEdge>
@@ -22,6 +20,7 @@ export interface ViewportRestoreInput {
 }
 
 export function useViewportRestore({ flow, docRef, props, viewKey }: ViewportRestoreInput): void {
+  const { fitDoc } = useCanvasGeometry()
   const insets = useRef(props.insets)
   insets.current = props.insets
   const settled = useRef(props.onSettled)
@@ -48,15 +47,7 @@ export function useViewportRestore({ flow, docRef, props, viewKey }: ViewportRes
     let third = 0
     const first = requestAnimationFrame(() => {
       second = requestAnimationFrame(() => {
-        void flow.fitView({
-          ...AUTO_FIT,
-          padding: {
-            top: '84px',
-            bottom: '64px',
-            left: `${insets.current.left + 28}px`,
-            right: `${insets.current.right + 28}px`,
-          },
-        })
+        fitDoc(docRef.current, { ...AUTO_FIT, padding: fitPadding(insets.current) })
         third = settle()
       })
     })
@@ -65,5 +56,5 @@ export function useViewportRestore({ flow, docRef, props, viewKey }: ViewportRes
       cancelAnimationFrame(second)
       cancelAnimationFrame(third)
     }
-  }, [props.loadKey, viewKey, flow])
+  }, [props.loadKey, viewKey, flow, fitDoc])
 }

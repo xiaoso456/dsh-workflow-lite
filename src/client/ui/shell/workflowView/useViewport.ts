@@ -10,6 +10,7 @@ import { afterPaint, revealNode } from '../../../app/reveal.ts'
 import type { Workflow } from '../../../app/useWorkflow.ts'
 import { findNode } from '../../../model/editor.ts'
 import { NODE_H, NODE_W, tidy } from '../../../model/layout.ts'
+import { AUTO_FIT, fitPadding, useCanvasGeometry } from '../../canvas/hooks/useCanvasGeometry.ts'
 import { expectCanvasMove } from '../../motion/canvasMoving.ts'
 import { GAP } from './geometry.ts'
 
@@ -43,26 +44,22 @@ export function useViewport({
   locate(nodeId: string): void
   relayout(): void
 } {
+  const { fitDoc, sizeOf } = useCanvasGeometry()
   const focusCanvas = useCallback((): void => {
     rootRef.current?.querySelector<HTMLElement>('[data-testid="wl-canvas"]')?.focus()
   }, [])
 
   const fitAll = useCallback(
     (options: { duration?: number; auto?: boolean } = {}): void => {
-      const { left, right } = insetsRef.current
-      void flow.fitView({
+      const doc = docRef.current
+      if (doc === null) return
+      fitDoc(doc, {
         duration: options.duration ?? 320,
-        maxZoom: 1,
-        ...(options.auto === true ? { minZoom: 0.55 } : {}),
-        padding: {
-          top: '84px',
-          bottom: '64px',
-          left: `${left + 28}px`,
-          right: `${right + 28}px`,
-        },
+        ...(options.auto === true ? AUTO_FIT : { maxZoom: AUTO_FIT.maxZoom }),
+        padding: fitPadding(insetsRef.current),
       })
     },
-    [flow],
+    [fitDoc],
   )
 
   /** 等新坐标渲染并量完尺寸再看全图。 */
@@ -127,12 +124,6 @@ export function useViewport({
     const doc = state.doc
     if (doc === null || analysis === null || doc.nodes.length === 0) return
     // 按卡片量出来的真实尺寸排（步骤卡的高度随描述长短变）。
-    const sizeOf = (id: string): { width: number; height: number } | undefined => {
-      const measured = flow.getInternalNode(id)?.measured
-      return measured?.width === undefined || measured.height === undefined
-        ? undefined
-        : { width: measured.width, height: measured.height }
-    }
     const ids = (nodes: readonly { id: string }[]): string =>
       nodes.map((node) => node.id).join('\n')
     void tidy(doc, analysis, sizeOf).then((positions) => {
@@ -143,6 +134,6 @@ export function useViewport({
       wf.edit({ type: 'moveNodes', positions })
       fitSoon()
     })
-  }, [state.doc, analysis, wf, fitSoon, flow])
+  }, [state.doc, analysis, wf, fitSoon, sizeOf])
   return { focusCanvas, fitAll, fitSoon, locate, relayout }
 }

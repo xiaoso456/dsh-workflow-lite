@@ -21,6 +21,7 @@ import type { StepSource } from '../../../model/library.ts'
 import { nodeTitle } from '../../../model/nodeName.ts'
 import { lockedSteps } from '../../../model/runGraph.ts'
 import type { AddRequest } from '../../canvas/Canvas.tsx'
+import { useCanvasGeometry } from '../../canvas/hooks/useCanvasGeometry.ts'
 import type { PanelMode } from '../RunModeSwitch.tsx'
 import { GAP } from './geometry.ts'
 
@@ -62,6 +63,7 @@ export function useGraphEdit({
   setFocusPrompt,
   setQuick,
 }: GraphEditInput) {
+  const { sizeOf } = useCanvasGeometry()
   const locked = useMemo(
     () => lockedSteps(current.view?.state ?? current.lastGood),
     [current.view?.state, current.lastGood],
@@ -149,12 +151,6 @@ export function useGraphEdit({
   }, [selection, edit, removeNode, focusCanvas])
   const relayout = useCallback((): void => {
     if (doc === null || analysis === null || doc.nodes.length === 0) return
-    const sizeOf = (nodeId: string): { width: number; height: number } | undefined => {
-      const measured = flow.getInternalNode(nodeId)?.measured
-      return measured?.width === undefined || measured.height === undefined
-        ? undefined
-        : { width: measured.width, height: measured.height }
-    }
     const ids = doc.nodes.map((node) => node.id).join('\n')
     void tidy(doc, analysis, sizeOf).then((positions) => {
       // 排版是异步的：这期间加了 / 删了节点就作废。
@@ -162,7 +158,7 @@ export function useGraphEdit({
       edit({ type: 'moveNodes', positions })
       requestAnimationFrame(() => requestAnimationFrame(fitAll))
     })
-  }, [doc, analysis, flow, graph.doc, edit, fitAll])
+  }, [doc, analysis, sizeOf, graph.doc, edit, fitAll])
   return {
     focusCanvas,
     edit,
