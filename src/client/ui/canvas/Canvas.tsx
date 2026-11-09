@@ -181,7 +181,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
   // 动到一半卸掉了（换视图）：等着画布停下来的活不能一直压着。
   useEffect(() => () => setCanvasMoving(false), [])
   /** React Flow 量出来的卡片尺寸：带回给它，重建节点对象时就不用重新量；走线、看全图也按它算。 */
-  const sizes = useCardSizes()
+  const sizes = useCardSizes(props.loadKey)
   const cache = useRef(new Map<string, CacheEntry>())
   const edgeCache = useRef({
     t,

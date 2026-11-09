@@ -13,18 +13,40 @@ import { useCallback, useMemo } from 'react'
 import type { WorkflowDocument } from '../../../../shared/types.ts'
 import { boundsOf, type Size, type SizeTable } from '../../../model/canvasGeometry.ts'
 
-/** 各画布（按 React Flow 的 store 认）的卡片尺寸表。 */
-const tables = new WeakMap<object, Map<string, Size>>()
+/** 一块画布的卡片尺寸表，和它是给哪份文档量的。 */
+interface Table {
+  map: Map<string, Size>
+  owner: string | null
+}
 
-/** 这块画布的卡片尺寸表（可写：画布在 React Flow 报上尺寸时写进去）。 */
-export function useCardSizes(): Map<string, Size> {
-  const store = useStoreApi()
-  let table = tables.get(store)
+/** 各画布的卡片尺寸表，按 store 的 `getState` 认。 */
+const tables = new WeakMap<object, Table>()
+
+/**
+ * `useStoreApi()` 拿到的 store 的尺寸表。`useStoreApi()` 每处调用各包一层新对象，
+ * 只有里面的 `getState` 才是同一画布共用的，所以按它认：画布、整理排版、看全图读写的是同一张表。
+ *
+ * 给了 `owner`（画布的 `loadKey`）且和上次不同就先清空：模板和实例共用一个画布，
+ * 不同工作流的卡片 id 也会重名，别人量的尺寸不能拿来排版、看全图。
+ */
+export function sizeTableOf(store: { getState: object }, owner?: string): Map<string, Size> {
+  let table = tables.get(store.getState)
   if (table === undefined) {
-    table = new Map()
-    tables.set(store, table)
+    table = { map: new Map(), owner: owner ?? null }
+    tables.set(store.getState, table)
+  } else if (owner !== undefined && owner !== table.owner) {
+    table.map.clear()
+    table.owner = owner
   }
-  return table
+  return table.map
+}
+
+/**
+ * 这块画布的卡片尺寸表。画布自己传 `owner`（它的 `loadKey`），在 React Flow 报上尺寸时写进去；
+ * 画布外面（整理排版、看全图）不传，只读。
+ */
+export function useCardSizes(owner?: string): Map<string, Size> {
+  return sizeTableOf(useStoreApi(), owner)
 }
 
 /** 看全图时四边留的空（像素）。 */
