@@ -625,8 +625,11 @@ async function run(session) {
     '说明浮层不该挂在对话框的滚动区里',
   )
   // 鼠标从「?」移进浮层：浮层不收；在里面拖选文字能选中，对话框也不会被关掉。
-  const panelBox = await session.evaluate(`(() => {
-    const r = document.querySelector('[data-testid="wl-settings-root-help-panel"] li').getBoundingClientRect();
+  // 先等浮层的入场动画走完再量：动画中途量到的位置会偏下近 10px，拖选就从文字外面起手、选不中。
+  const panelBox = await session.evaluate(`(async () => {
+    const panel = document.querySelector('[data-testid="wl-settings-root-help-panel"]');
+    await Promise.all(panel.getAnimations({ subtree: true }).map((a) => a.finished));
+    const r = panel.querySelector('li').getBoundingClientRect();
     return { x: Math.round(r.left + 4), y: Math.round(r.top + 8), right: Math.round(r.right - 8) };
   })()`)
   await mouseMove(session, { x: panelBox.x + 20, y: panelBox.y })
