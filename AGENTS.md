@@ -90,6 +90,15 @@ DSH_WEB_TOKEN=<token> DSH_BASE=http://127.0.0.1:3190 node --experimental-strip-t
 | `cdp-config.mjs` | 「设置」页（含配色主题） |
 | `cdp-pack.mjs` | 导出、导入、导出成 Skill（装到本机用一次性名字，验完删掉） |
 
+## 性能场景
+
+大图（`tests/perf/bigGraph.ts`，一份 25 张卡复制 K 份）下的开销，改了画布、实例视图、仓储列表前后各量一次：
+
+- `node --experimental-strip-types tests/perf/bench-model.ts`：Node 里量纯计算（整理排版、全图走线、拖动一帧走线、改动比对、工作流列表）。
+- `node --experimental-strip-types tests/perf/canvas-scenarios.mjs [--copies 16]`：自备一次性实例在真浏览器里量切图、拖动、平移、模板 / 实例里打字、实例静置、打开切换列表；`--mut` 看 DOM 插拔、`--profile` 看 CPU、`--css` / `--no-host-has` 做对照。
+
+坑：宿主页面有条 `:has` 规则，视图里**任何一次插拔元素都是整页重算样式**（400 张卡时约 400ms），只改属性、改文字不会；热路径上（打字、拖动、轮询）别挂载 / 卸载元素。headless Chrome 没开 GPU，平移的绘制开销偏大，只看相对变化。
+
 ## 插件图标与词标
 
 - 两张 448 见方的图**别互相替换**（`tests/package.spec.ts` 钉着）：
