@@ -332,7 +332,9 @@ try {
     '搜索后左栏只留有命中的工作区，右栏跟着换过去',
   )
   await typeSearch('')
-  await waitFor(session, `document.querySelector('${rowSel}') !== null`)
+  // 清空搜索后左栏回到上面点过的那个工作区（点过的记着，搜索只是临时换过去）；
+  // 实例里不止一个工作区时右栏就不是我们的了，点回来再往下。
+  await revealHubRow(session, instance, WORKSPACE)
   await session.evaluate(`document.querySelector('[data-testid="wl-hub-storage"]').click()`)
   await waitFor(session, `document.querySelector('[data-testid="wl-hub-stats"]') !== null`)
   const flips = await session.evaluate(`new Promise((resolve) => {
