@@ -2,6 +2,10 @@
 
 给在本仓库里干活的代理（和人）看的说明。
 
+## 代码要求
+
+始终以干净、模块化、高内聚、低耦合的方式构建代码，并采用适当的架构和关注点分离。永远不要仅仅因为我要求就简单地拼凑一个功能。如果你找不到一种自然的方式来构建它，你应该建议进行重构以使整个系统更加干净，请提前停止工作并说明情况。
+
 ## 常用命令
 
 | 命令 | 作用 |
@@ -165,23 +169,45 @@ DSH_WEB_TOKEN=<token> DSH_BASE=http://127.0.0.1:3190 node --experimental-strip-t
 
 ## 文档站
 
-`site/` 是面向使用者的文档站（Starlight），部署到 GitHub Pages（`.github/workflows/docs.yml`，推到 main 且改了站点相关文件时触发）。仓库设置里要把 Pages 的来源选成 GitHub Actions。
+`site/` 是给插件使用者看的文档站（Starlight）。推到 main 且改了站点文件时，`.github/workflows/docs.yml` 自动发到 GitHub Pages。
 
-- **独立安装单元**：`site/` 有自己的 `pnpm-workspace.yaml`、lockfile 和 `node_modules`。根目录的 `pnpm install`、lint、tsc、vitest、tsdown 都不碰它，它也不 import `src/`。在 `site/` 里 `pnpm install` / `pnpm dev` / `pnpm build`。
-- **Astro 版本钉在 7.3.x**：7.4 起要求 Node ≥ 22.23.4，换版本前先看本机和 CI 的 Node。
-- **`pnpm run sync`（dev 和 build 前自动跑）** 生成两样东西，都在 `site/.gitignore` 里，别手改：品牌图（从根 `assets/` 复制）、「更新日志」页（由 `CHANGELOG.md` 生成）。
-- **`pnpm run check:settings`（build 前自动跑）**：设置页（`settings/plugin.md`）必须写到 `PLUGIN_CONFIG_KEYS` 里的每一项，用界面上的中文名对照。新增设置项时，在 `site/scripts/check-settings.mjs` 的 `LABEL_KEY` 补一行、在设置页补说明，否则构建失败。
-- **侧栏分组**在 `astro.config.mjs` 的 `sidebar` 里逐页列出，不跟目录走：快速开始、典型场景、画布操作（常用，页面要短）、画布展示（里程碑功能，每种内容各一页）、进阶（少用的，查阅）。新增页面要在这里加一行，改了侧栏要重启 dev。分组默认收起，当前页所在的组自动展开。功能越是里程碑式的（版本说明里反复出现的），越要单独成组、每个变体各有截图。
-- **界面截图**在 `site/src/assets/shots/`（进库，webp，按 2 倍像素）：`pnpm run docs:shots [名字 ...]` 自备环境重拍（要一个带 DevTools 端口的 Chrome，同 `hero`；界面改了先 `pnpm run build`；嵌套的步骤要整套跑，别按名字筛）。脚本在 `tests/docs-shots.mjs`，示例工作流写在脚本里。正文用 `![一句说明](../../../assets/shots/名字.webp)` 引用：图居中，`alt` 就是图下的说明文字，所以要写成有信息的一句话（`src/components/MarkdownContent.astro` 负责包成 figure）；整页和对话框按一半尺寸显示，单张卡片按四分之三，点击放大。**截图在正文栏（约 800 像素）里要看得清字**：太宽的整张画布缩进去就糊了，要裁到相关的一段（如 `loopBox`），或把几张卡片拼成总览（`display-collage`）。新页面能配图就配图，让读者先看到效果。
-- **顶栏的主题、语言下拉**是自绘的（`src/components/Dropdown.astro`，popover）；侧栏展开收起、页面切换、截图放大都有过渡，只动 opacity / transform（侧栏高度例外，靠 `::details-content`），都要照顾 `prefers-reduced-motion`。页面用视图过渡（`Head.astro` 里的 `ClientRouter`）切换，写页面脚本时监听 `astro:page-load`，不要只在首次加载时绑一次。
-- **英文页**在 `src/content/docs/en/`，与中文页同路径；缺哪页就回退显示中文（更新日志只有中文）。改了中文页要同步英文页。界面名称用 `src/client/i18n.ts` 里 `en` 的原文（先按中文名在 `zh` 里找键，再取同键的 `en`），别自己意译；站内链接带 `/dsh-workflow-lite/en/` 前缀，锚点用英文标题的 slug；图片相对路径比中文页多一级（`../../../../assets/shots/`）。`description` 里有冒号要加引号，否则 frontmatter 解析失败。首页文字在 `Home.astro` 的 `text.zh` / `text.en`。英文页引用 `site/src/assets/shots/en/` 的英文界面截图（`DOCS_LANG=en pnpm run docs:shots` 重拍，与中文同名，示例工作流名不能含空白）；首页的两张界面图由 `sync-assets` 从 `hero.en.png` 裁出。界面或示例内容改了，两种语言各拍一遍。
-- **代码块自带的文字**（复制按钮、终端窗口）在 Windows 下总是中文，`MarkdownContent.astro` 在英文页里替换成英文；改动 Starlight 或 Expressive Code 版本后，核对 `dist/en` 里还有没有中文残留。
+### 怎么跑
 
-写作规则（读者是插件使用者，写「怎么用、各项怎么配、能做到什么」）：
+- 独立安装：在 `site/` 里 `pnpm install` / `pnpm dev` / `pnpm build`。根目录的命令都不碰它，它也不 import `src/`。
+- Astro 钉在 7.3.x：7.4 起要 Node ≥ 22.23.4，升级前先看本机和 CI 的 Node。
+- dev / build 前自动跑两个脚本：
+  - `sync`：复制品牌图、首页界面图，由 `CHANGELOG.md` 生成「更新日志」页。生成物在 `.gitignore` 里，别手改。
+  - `check:settings`：设置页要写到每个插件设置项。新增设置项时在 `scripts/check-settings.mjs` 的 `LABEL_KEY` 补一行，否则构建失败。
 
-- **少写字，让读者看图**：页首一句话说明这是什么，紧跟一张截图；操作写成编号步骤，一步一行；配置项用表格；注意事项不超过几条，只写会踩的坑。界面上看得出来的不用文字重复，同一件事只在一页写全、其他页放链接。每页的篇幅以一屏半到两屏为限。
-- 页面按「概述 → 使用 → 设置 → 注意」的顺序组织，没有内容的部分不写标题；配置项用表格，写明位置、可选值、默认值、效果。
-- 用书面语：陈述句，不用「你」，不写口语词；操作写「点击「执行」」，界面名称原样放进「」。
-- 页面里每个词，用户在界面或日常使用中都能看到。不写 peer、补丁、口径、RPC、组件名、内部文件格式、工具参数。DSH 版本只写「支持 0.2.x」。
-- 配置项的名称、选项、默认值以界面文案（`src/client/i18n.ts`）和源码默认值为准；没核实过的行为不写。
-- 站内链接带 `/dsh-workflow-lite/` 前缀。
+### 加页面
+
+- 侧栏在 `astro.config.mjs` 的 `sidebar` 里逐页列，新页要加一行（改完重启 dev）。分组：快速开始、典型场景、画布操作、画布展示、进阶；里程碑功能单独成组，每种变体一页。
+- 中英两份：英文页放 `src/content/docs/en/` 同路径，缺了回退中文。改中文页要同步英文页：
+  - 界面名称取 `src/client/i18n.ts` 里 `en` 的原文，不自己译；
+  - 站内链接前缀 `/dsh-workflow-lite/en/`，图片相对路径比中文页多一级；
+  - `description` 里有冒号要加引号。
+- 首页文字在 `Home.astro`。
+
+### 截图
+
+- 重拍：`pnpm run docs:shots [名字 ...]`，英文加 `DOCS_LANG=en`。要带 DevTools 端口的 Chrome；界面改了先 `pnpm run build`；嵌套的步骤整套跑，别按名字筛。示例工作流写在 `tests/docs-shots.mjs`。
+- 存放：`site/src/assets/shots/`（英文在 `en/`，同名），webp，2 倍像素，进库。界面或示例改了，两种语言各拍一遍。
+- 引用：`![一句说明](../../../assets/shots/名字.webp)`。`alt` 就是图下的说明，写成有信息的一句话。
+- 正文栏约 800 像素宽，图里的字要看得清：整张画布太宽就裁到相关的一段，或把几张卡片拼成总览。
+
+### 改站点本身
+
+- 动效只动 opacity / transform，照顾 `prefers-reduced-motion`。
+- 页面切换用视图过渡：页面脚本监听 `astro:page-load`，不要只在首次加载时绑一次。
+- 升级 Starlight 或 Expressive Code 后，看一眼 `dist/en` 里代码块的按钮文字还有没有中文。
+
+### 写法
+
+读者是插件使用者，写「怎么用、怎么配、能做到什么」。
+
+- 页首一句话说明是什么，紧跟一张截图。按「概述 → 使用 → 设置 → 注意」组织，没内容的不写标题；一页不超过两屏。
+- 操作写编号步骤，一步一行；配置项用表格，写明位置、可选值、默认值、效果；注意只写会踩的坑。
+- 书面语、陈述句，不用「你」；界面名称放进「」，如：点击「执行」。
+- 只用用户看得到的词：不写 peer、补丁、口径、RPC、组件名、文件格式、工具参数；DSH 版本只写「支持 0.2.x」。
+- 名称、选项、默认值以 `i18n.ts` 和源码为准，没核实过的行为不写。
+- 界面上看得出来的不用文字重复；同一件事只在一页写全，其他页放链接。站内链接带 `/dsh-workflow-lite/` 前缀。
