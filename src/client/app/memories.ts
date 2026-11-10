@@ -13,6 +13,7 @@ import { idKey } from '../../shared/model.ts'
 import type { MemoryType } from '../../shared/types.ts'
 import type { MemoryCreateRequest, MemoryUpdateRequest } from '../../shared/wire/memory.ts'
 import type { WorkflowLiteRpc } from '../rpc.ts'
+import { refresher } from './refresher.ts'
 import type { BrowseSource } from './useBrowse.ts'
 
 export interface MemorySnapshot {
@@ -24,7 +25,7 @@ export interface MemorySnapshot {
 export interface MemoryStore {
   snapshot(): MemorySnapshot
   subscribe(listener: () => void): () => void
-  /** 重读一遍（读着的时候再叫就等同一趟）。 */
+  /** 重读一遍（读着的时候再叫，就排在这一趟后面再读一次；连叫几次只多读一次）。 */
   refresh(): Promise<void>
   create(request: MemoryCreateRequest): Promise<MemoryEntry>
   update(request: MemoryUpdateRequest): Promise<MemoryEntry>
@@ -47,7 +48,6 @@ export function memoryStore(rpc: WorkflowLiteRpc): MemoryStore {
 
 function createMemoryStore(rpc: WorkflowLiteRpc): MemoryStore {
   let state: MemorySnapshot = { entries: null, error: null }
-  let pending: Promise<void> | null = null
   const listeners = new Set<() => void>()
   const set = (next: MemorySnapshot): void => {
     state = next
@@ -57,19 +57,14 @@ function createMemoryStore(rpc: WorkflowLiteRpc): MemoryStore {
     const others = (state.entries ?? []).filter((row) => idKey(row.id) !== idKey(entry.id))
     set({ entries: [...others, entry], error: null })
   }
-  const refresh = (): Promise<void> => {
-    if (pending !== null) return pending
-    pending = rpc
-      .call('memory/list', {})
-      .then((result) => set({ entries: result.memories, error: null }))
-      .catch((reason: unknown) =>
-        set({ ...state, error: reason instanceof Error ? reason.message : String(reason) }),
-      )
-      .finally(() => {
-        pending = null
-      })
-    return pending
-  }
+  // 读着的时候再要读（比如刚建了一条）：排在这一趟后面再读一次，不拿这一趟的旧结果交差。
+  const lister = refresher({
+    fetch: () => rpc.call('memory/list', {}),
+    apply: (result) => set({ entries: result.memories, error: null }),
+    fail: (reason) =>
+      set({ ...state, error: reason instanceof Error ? reason.message : String(reason) }),
+  })
+  const refresh = (): Promise<void> => lister.run(undefined)
   return {
     snapshot: () => state,
     subscribe: (listener) => {

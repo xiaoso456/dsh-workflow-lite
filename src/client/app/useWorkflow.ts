@@ -32,6 +32,7 @@ import {
 } from '../model/editor.ts'
 import { placeMissing } from '../model/layout.ts'
 import { errorCode, errorMessage, type WorkflowLiteRpc, WorkflowLiteRpcError } from '../rpc.ts'
+import { useRefresher } from './useRefresher.ts'
 import { useStable } from './useStable.ts'
 
 /** 上次打开的工作流（重新进来时接着看它）。 */
@@ -162,15 +163,19 @@ export function useWorkflow(rpc: WorkflowLiteRpc, t: T): Workflow {
     [notify],
   )
 
-  const refreshCatalog = useCallback(async (): Promise<void> => {
-    try {
-      const list = await rpc.call('graph/list', {})
-      debounceMs.current = list.limits.saveDebounceMs
-      setCatalog(list)
-    } catch (error) {
-      fail(error)
-    }
-  }, [rpc, fail])
+  // 存完、改名、删除后都会重列一次，叠在一起时排成一条队：先发的列表晚回来也盖不掉后发的。
+  const lister = useRefresher(
+    {
+      fetch: () => rpc.call('graph/list', {}),
+      apply: (list) => {
+        debounceMs.current = list.limits.saveDebounceMs
+        setCatalog(list)
+      },
+      fail: (error) => fail(error),
+    },
+    [rpc, fail],
+  )
+  const refreshCatalog = useCallback((): Promise<void> => lister.run(undefined), [lister])
 
   // ── 保存 ────────────────────────────────────────────────────
 

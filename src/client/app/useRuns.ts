@@ -36,6 +36,7 @@ import {
 import type { SideHistory } from '../model/runHistory.ts'
 import { shareSame } from '../model/samePlain.ts'
 import { errorCode, errorMessage, type WorkflowLiteRpc, WorkflowLiteRpcError } from '../rpc.ts'
+import { useRefresher } from './useRefresher.ts'
 
 /** 实例视图轮询的间隔。 */
 export const RUN_POLL_MS = 5000
@@ -82,21 +83,28 @@ export function useRuns(rpc: WorkflowLiteRpc, session: string | undefined): Runs
   const [current, setCurrent] = useState<string | undefined>(undefined)
   const [loaded, setLoaded] = useState(false)
 
+  // 轮询、改完后的刷新、切换列表里的刷新会叠在一起：排成一条队，旧的回来晚了也盖不掉新的。
+  const lister = useRefresher(
+    {
+      fetch: (session: string) => rpc.call('run/list', { session }),
+      apply: (result) => {
+        setList(result.instances)
+        setCurrent(result.current)
+        setLoaded(true)
+      },
+      // 列不出来就当没有实例：模板编辑不受影响。
+      fail: () => setLoaded(true),
+    },
+    // 换了会话：上一个会话路上的列表丢掉。
+    [rpc, session],
+  )
   const refresh = useCallback(async (): Promise<void> => {
     if (session === undefined) {
       setLoaded(true)
       return
     }
-    try {
-      const result = await rpc.call('run/list', { session })
-      setList(result.instances)
-      setCurrent(result.current)
-    } catch {
-      // 列不出来就当没有实例：模板编辑不受影响。
-    } finally {
-      setLoaded(true)
-    }
-  }, [rpc, session])
+    await lister.run(session)
+  }, [lister, session])
 
   useEffect(() => {
     void refresh()
@@ -330,14 +338,18 @@ export function useRun(
     return () => window.clearTimeout(timer)
   }, [toast])
 
-  const load = useCallback(
-    async (force: boolean): Promise<void> => {
-      try {
-        const result = await rpc.call('run/load', {
+  // 轮询、存完后的重读、手点刷新排成一条队：慢的旧读取盖不掉新的，读得比轮询还慢时也不越堆越多。
+  // 换了实例就换一条队，上一个实例路上的读取回来直接丢掉（不然它会把修改时间、上一份结果记到这个实例名下）。
+  const reader = useRefresher(
+    {
+      // 修改时间在发出时才读：排着的那次要用前一次读回来的。
+      fetch: (force: boolean) =>
+        rpc.call('run/load', {
           id,
           ...(session === undefined ? {} : { session }),
           ...(force || mtime.current === undefined ? {} : { since: mtime.current }),
-        })
+        }),
+      apply: (result) => {
         if ('unchanged' in result) return
         // 出错之后读回来的哪怕和出错前一样，也要清掉错误。
         setError(null)
@@ -358,12 +370,14 @@ export function useRun(
           )
           if (reverted.length > 0) setOverwritten(reverted.map((edit) => edit.path))
         }
-      } catch (caught) {
-        setError(errorMessage(caught))
-      }
+      },
+      fail: (caught) => setError(errorMessage(caught)),
+      // 排着的几次里有一次要整份重读，就整份重读。
+      merge: (queued, next) => queued || next,
     },
     [rpc, id, session, resetDraft],
   )
+  const load = useCallback((force: boolean): Promise<void> => reader.run(force), [reader])
 
   // 换了实例：清掉上一份的显示，读新的。
   useEffect(() => {
