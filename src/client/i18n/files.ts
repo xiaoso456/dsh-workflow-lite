@@ -36,6 +36,10 @@ export const zh = {
   'history.empty': '还没有存下的版本。写它的步骤每做完一轮，这里存一版。',
   'history.missing': '现在的文件不在了',
   'history.sliderHandle': '拖动比较两版',
+  'history.markStart': '初始',
+  'history.markRound': '第 {round} 轮',
+  'history.pass': '通过',
+  'history.again': '打回',
 
   // ── 文件夹预览 ──────────────────────────────────────────────
   'res.folderEmpty': '文件夹是空的。',
@@ -132,6 +136,10 @@ export const en: Record<keyof typeof zh, string> = {
     'No versions yet. One is kept each time the step that writes this file finishes a round.',
   'history.missing': 'The current file is gone',
   'history.sliderHandle': 'Drag to compare the two versions',
+  'history.markStart': 'Start',
+  'history.markRound': 'R{round}',
+  'history.pass': 'Passed',
+  'history.again': 'Sent back',
 
   // ── 文件夹预览 ──────────────────────────────────────────────
   'res.folderEmpty': 'The folder is empty.',

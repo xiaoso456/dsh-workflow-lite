@@ -1,0 +1,262 @@
+/*
+ * 各轮产出刻度盘（HistoryDial.tsx）。外面那层的显隐、羽化的底在 display.module.css 的 historyTimeline。
+ *
+ * 从上往下：判定色小点 → 刻度（底边对齐在一条线上，往上长）→ 轮次标记 → 下面一行说明。
+ * 刻度尺的位置和每道刻度的缩放、透明度由 useDialMotion 逐帧写在行内；这里只给静止的样子和颜色。
+ * 只动 transform / opacity：换色一律叠一层再改透明度。
+ */
+
+/* 宽度跟卡片走、有上下限，居中；卡片比下限还窄时两边一样多地露出去。 */
+.dial {
+  /* 相邻两版隔多远：和 model/dial.ts 的 DIAL_GAP 一致。 */
+  --dial-gap: 56px;
+
+  position: relative;
+  left: 50%;
+  width: clamp(220px, 100%, 336px);
+  transform: translateX(-50%);
+}
+
+.window {
+  position: relative;
+  height: 50px;
+  overflow: hidden;
+  outline: none;
+  cursor: grab;
+  touch-action: none;
+  mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
+}
+
+.window[data-drag] {
+  cursor: grabbing;
+}
+
+/* 放大区：正中身后一团很淡的强调色，像拨盘的取景窗。 */
+.lens {
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  width: 64px;
+  height: 40px;
+  margin-left: -32px;
+  background: radial-gradient(
+    closest-side,
+    color-mix(in oklab, var(--wl-accent) 18%, transparent),
+    transparent
+  );
+  pointer-events: none;
+}
+
+/* 尺子的原点在正中：第 pos 版对准正中 = 往左挪 pos 格。 */
+.ruler {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 0;
+  will-change: transform;
+}
+
+.mark {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+}
+
+.mark[data-tone="pass"] {
+  --tone: var(--wl-flow-pass);
+}
+
+.mark[data-tone="again"] {
+  --tone: var(--wl-flow-fail);
+}
+
+.bob {
+  position: absolute;
+  inset: 0;
+}
+
+/* 停稳在一版上：那道刻度连同小点轻轻一跳。两套一样的关键帧轮流用，换名字就重放。 */
+.bob[data-snap="a"] {
+  animation: dialSnapA 420ms var(--wl-spring, var(--wl-ease-out));
+}
+
+.bob[data-snap="b"] {
+  animation: dialSnapB 420ms var(--wl-spring, var(--wl-ease-out));
+}
+
+@keyframes dialSnapA {
+  30% {
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes dialSnapB {
+  30% {
+    transform: translateY(-2px);
+  }
+}
+
+/* 刻度底边都在离窗口底 20px 的那条线上；主刻度 10px 高（useDialMotion 的 MAJOR_TICK_PX 跟着它）。 */
+.tick {
+  position: absolute;
+  bottom: 20px;
+  left: -0.5px;
+  width: 1px;
+  height: 5px;
+  border-radius: 1px;
+  background: var(--wl-text-3);
+  transform-origin: bottom;
+}
+
+.mark[data-major] .tick {
+  left: -0.75px;
+  width: 1.5px;
+  height: 10px;
+  background: var(--wl-text-2);
+}
+
+/* 正对正中的那道（data-cur，useDialMotion 写）亮成强调色；没有另外的指针。 */
+.tick::after {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--wl-accent);
+  content: "";
+  opacity: 0;
+  transition: opacity 140ms linear;
+}
+
+.mark[data-cur] .tick::after {
+  opacity: 1;
+}
+
+.mark[data-hover] .tick {
+  background: var(--wl-text);
+}
+
+/* 判定色小点：在主刻度头上，刻度被放大时跟着抬高（行内的 translateY）。现在的文件是一个空心圈。 */
+.dot {
+  position: absolute;
+  bottom: 33px;
+  left: -2.5px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--tone);
+  corner-shape: round;
+}
+
+.mark[data-live] .dot {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.2px var(--wl-text-2);
+}
+
+/* 钉着旧版时又来了新的：最新那点换成强调色、慢慢呼吸。 */
+.mark[data-live][data-new] .dot {
+  box-shadow: inset 0 0 0 1.2px var(--wl-accent);
+  animation: dialBreathe 1.4s var(--wl-ease) infinite alternate;
+}
+
+@keyframes dialBreathe {
+  to {
+    opacity: 0.35;
+  }
+}
+
+/* 轮次标记：每轮第一版下面一个，离正中越近越清楚（行内的透明度、缩放）。 */
+.label {
+  position: absolute;
+  top: 34px;
+  left: 0;
+  color: var(--wl-text-3);
+  font-size: calc(var(--wl-fs-micro) - 1px);
+  font-variant-numeric: tabular-nums;
+  line-height: 12px;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+.mark[data-cur] .label {
+  color: var(--wl-accent-text);
+  font-weight: 600;
+}
+
+.mark[data-hover] .label {
+  color: var(--wl-text);
+}
+
+/* 主刻度的命中区：整条高、一整格宽，首尾相接（扫过去不会落进两道之间的空当、卡里来回闪）。 */
+.hit {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--dial-gap) / -2);
+  width: var(--dial-gap);
+}
+
+/* 说明：这一版叫什么 · 判定 · 存于何时 · 第几版。悬停预览别处时名字淡一档。 */
+.caption {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  justify-content: center;
+  height: 16px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  white-space: nowrap;
+}
+
+.caption[data-tone="pass"] {
+  --tone: var(--wl-flow-pass);
+}
+
+.caption[data-tone="again"] {
+  --tone: var(--wl-flow-fail);
+}
+
+.name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text);
+  font-weight: 600;
+  text-overflow: ellipsis;
+}
+
+.caption[data-hovering] .name {
+  color: var(--wl-text-2);
+}
+
+/* 键盘焦点：说明一行底下一道强调色的细线（窗口两头是渐隐的，框画在上面会被吃掉）。 */
+.dial:has(> .window:focus-visible) .name {
+  text-decoration: underline 1.5px var(--wl-accent);
+  text-underline-offset: 3px;
+}
+
+.verdict {
+  flex: none;
+  color: var(--tone);
+}
+
+.time,
+.count {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 瑞士：不要光晕。 */
+:global([data-look="swiss"]) .lens {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bob[data-snap],
+  .mark[data-live][data-new] .dot {
+    animation: none;
+  }
+
+  .tick::after {
+    transition: none;
+  }
+}

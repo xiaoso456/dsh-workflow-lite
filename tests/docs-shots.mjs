@@ -659,15 +659,20 @@ async function main(session) {
       session,
       `getComputedStyle(document.querySelector('${node} [data-testid="wl-display-history-timeline"]')).opacity === '1'`,
     )
-    // 悬停到第 1 版就换过去、停住，指针停在那道刻度上（刻度轴、标题行、下面的说明都露着）。
-    // 第 1 道刻度压在卡片边框上：先从卡片里面靠近它，不然指针一出卡片时间线就收了。
-    const first = await session.evaluate(point(`${node} [data-testid="wl-display-history-dot"]`))
+    // 点左边相邻的那一版：刻度尺滑过去、那道刻度亮起来，卡里换成那一版（悬停只预览，要点一下才停住）。
+    // 先从卡片里面往下移进刻度盘，不然指针一出卡片时间线就收了。
+    const dots = `${node} [data-testid="wl-display-history-dot"]`
+    const count = await session.evaluate(
+      `document.querySelectorAll(${JSON.stringify(dots)}).length`,
+    )
+    const target = await session.evaluate(point(dots, count - 2))
     const card = await session.evaluate(
-      `(() => { const r = document.querySelector('${node}').getBoundingClientRect(); return { x: r.left + 24, y: r.bottom - 6 } })()`,
+      `(() => { const r = document.querySelector('${node}').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.bottom - 6 } })()`,
     )
     await mouseMove(session, card)
-    await mouseMove(session, { x: card.x, y: first.y })
-    await mouseMove(session, first)
+    await mouseMove(session, { x: target.x, y: card.y })
+    await mouseMove(session, target)
+    await mouseClick(session, target)
     await sleep(1100)
     await snap(
       session,
@@ -675,11 +680,11 @@ async function main(session) {
       await session.evaluate(`(() => {
         const a = document.querySelector('${node}').getBoundingClientRect()
         const b = document.querySelector('${node} [data-testid="wl-display-history-timeline"]').getBoundingClientRect()
-        // 表盘停在头一道刻度上时半个露在卡片外：左右多留一点。
         const pad = 24
-        const x = Math.max(0, a.left - pad)
+        const x = Math.max(0, Math.min(a.left, b.left) - pad)
         const y = Math.max(0, a.top - pad)
-        return { x, y, width: a.width + pad * 2, height: Math.min(innerHeight - y, b.bottom - a.top + pad * 2) }
+        const right = Math.max(a.right, b.right) + pad
+        return { x, y, width: right - x, height: Math.min(innerHeight - y, b.bottom - a.top + pad * 2) }
       })()`),
     )
     // 回到最新，别带着钉住的状态进下一步；画布拉回原来的大小。

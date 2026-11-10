@@ -11,19 +11,21 @@ When a loop runs repeatedly, a step that writes an output file saves a version a
 
 ## Look back on a display card
 
-On an instance's canvas, move the pointer over a display card with two or more saved versions (or select it): a ruler appears below the card, and the title row shows which version is on display.
+On an instance's canvas, move the pointer over a display card with two or more saved versions (or select it): a dial appears below the card, and the title row shows which version is on display.
 
-![The ruler under a display card: on round 1, with the version name and save time below it](../../../../assets/shots/en/rounds-bar.webp)
+![The dial under a display card: the lit tick in the middle is round 2 before Review, with the version name and save time below it](../../../../assets/shots/en/rounds-bar.webp)
 
 | Action | Effect |
 |---|---|
-| Hover a version on the ruler, or drag across it | The card switches to that version and stays there after the pointer leaves |
+| Hover a version on the dial | The card shows that version for now and switches back when the pointer leaves |
+| Click a tick | Switches to that version and stays there |
+| Drag the dial sideways, or scroll the wheel over it | The ticks slide and the card follows; on release it settles on the nearest version |
 | Click the version name in the title row | Lists every version; hover to preview, click to choose |
 | Click the ✕ in the title row | Back to the latest; if a new version arrives meanwhile, a dot appears on the ✕ |
 | Keyboard ← → Home End | Step between versions, jump to either end |
 
-- One tick per version. The clock sits on the version on display, its ring filled to "this version / all versions", and rolls along the ruler when you switch.
-- Below the ticks are the version's name and save time; reviewed versions carry a dot, one color for passed and one for failed.
+- One long tick per version; the lit tick in the middle is the version on display. The first version of each round is labelled "R1", "R2" and so on, a version saved before round 1 is labelled "Start", and the last tick is "Latest".
+- Reviewed versions carry a dot above their tick, one color for passed and one for sent back; below the dial are the version's name, the review result and the save time.
 - While an older version is on display, the name in the title row turns the accent color.
 - Rounds are named like "Round 2 · after Review", and failed ones carry "(failed)".
 

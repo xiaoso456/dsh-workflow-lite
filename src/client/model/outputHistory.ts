@@ -92,3 +92,27 @@ export function versionName(
   const round = t('history.round').replace('{step}', step).replace('{round}', String(version.round))
   return version.phase === 'failed' ? `${round}${t('history.failedMark')}` : round
 }
+
+/**
+ * 刻度盘主刻度下的短标记：每轮第一版写「第 N 轮」，第一轮之前存下的写「初始」，最后一点写「最新」，其余不写
+ * （一版一个标记会挤，轮次在一组里只标一次）。轮次按存下的那一版算，没存过的「最新」不算进哪一轮。
+ */
+export function roundMarks(t: T, line: HistoryLine): (string | null)[] {
+  let group: number | null = null
+  return line.dots.map((dot, index) => {
+    if (index === line.dots.length - 1) return t('history.live')
+    const version = dot.version
+    if (version === null) return null
+    const at = version.phase === 'before' && version.round <= 1 ? 0 : version.round
+    if (at === group) return null
+    group = at
+    return at === 0 ? t('history.markStart') : t('history.markRound').replace('{round}', String(at))
+  })
+}
+
+/** 判定写成一个词：通过 / 打回；没有判定是空串。 */
+export function toneWord(t: T, tone: HistoryDot['tone']): string {
+  if (tone === 'pass') return t('history.pass')
+  if (tone === 'again') return t('history.again')
+  return ''
+}

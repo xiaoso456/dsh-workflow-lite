@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import type { T } from '../../src/client/i18n.ts'
 import { diffCounts, diffLines, foldDiff, splitLines } from '../../src/client/model/lineDiff.ts'
-import { dotIndex, historyLine, versionName } from '../../src/client/model/outputHistory.ts'
+import {
+  dotIndex,
+  historyLine,
+  roundMarks,
+  toneWord,
+  versionName,
+} from '../../src/client/model/outputHistory.ts'
 import type { RunVersion } from '../../src/shared/wire/run.ts'
 
 const t = ((key: string): string => key) as T
@@ -87,6 +93,48 @@ describe('versionName', () => {
       'history.roundhistory.failedMark',
     )
     expect(versionName(t, null, names)).toBe('history.live')
+  })
+})
+
+describe('roundMarks', () => {
+  const live = { exists: true, size: 0, mtime: 0 }
+
+  it('每轮第一版写轮次，第一轮之前的写「初始」，最后一点写「最新」', () => {
+    const line = historyLine(
+      {
+        versions: [
+          version(1, { round: 1, phase: 'before' }),
+          version(2, { round: 1 }),
+          version(3, { round: 1, step: 'review' }),
+          version(4, { round: 2 }),
+          version(5, { round: 2, step: 'review' }),
+        ],
+        dropped: 0,
+      },
+      live,
+    )
+    expect(roundMarks(t, line)).toEqual([
+      'history.markStart',
+      'history.markRound',
+      null,
+      'history.markRound',
+      null,
+      'history.live',
+    ])
+  })
+
+  it('最后一版就是现在的文件：它写「最新」，不写轮次', () => {
+    const line = historyLine(
+      { versions: [version(1, { round: 1 }), version(2, { round: 2 })], dropped: 0 },
+      { exists: true, size: 20, mtime: 2000 },
+    )
+    expect(roundMarks(t, line)).toEqual(['history.markRound', 'history.live'])
+  })
+
+  it('判定写成一个词', () => {
+    expect(toneWord(t, 'pass')).toBe('history.pass')
+    expect(toneWord(t, 'again')).toBe('history.again')
+    expect(toneWord(t, null)).toBe('')
   })
 })
 

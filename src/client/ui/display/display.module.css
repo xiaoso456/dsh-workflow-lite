@@ -982,9 +982,9 @@ button.tile:focus-visible {
   }
 }
 
+/* 高度由里面的刻度盘撑开（见 historyDial.module.css）。 */
 .historyTimeline {
   position: relative;
-  height: 42px;
   opacity: 0;
   pointer-events: none;
   transform: translateY(-3px);
@@ -1044,177 +1044,6 @@ button.tile:focus-visible {
   z-index: 1001 !important;
 }
 
-/*
- * 刻度轴。一列一版，整列（整条高）都是命中区。从下往上叠：
- * - historyAxis：1px 细线，从第一版的刻度画到最新那道。
- * - historyFill：走过的一段，强调色，按 --at 横向缩放。
- * - 每列一道刻度（historyMajor），一律中性灰：判定写在下面的说明里，不在刻度上着色。
- * - historyThumb：一格宽的滑块，按 --at 横移，中间一枚实心的钟表；换版时表针转（转多少由行内的角度给）。
- *   滑块、走过的一段用同一条曲线（--glide），滑的时候粘在一起。
- * 头尾两道刻度正对着看得见的卡片边（--pad 是离时间线边多远：卡片样子对着卡片的边框；没有卡面的几种外观
- * 对着悬停时那圈虚线，它在卡片外 6px）。轨道比时间线宽出半格、往左挪半格，每一格（版与版的间距 --c）都一样宽，
- * 刻度在格子正中。宽出来的那点也接指针。
- * 只动 transform / opacity。
- */
-.historyTrack {
-  /* 换版时滑块、表圈、走过的一段、说明一起走：缓起缓停、不回弹，像推着一样滑过去。 */
-  --glide: 620ms cubic-bezier(0.45, 0, 0.2, 1);
-  --axis: 13px;
-  --pad: 1.5px;
-  --c: calc((100% - 2 * var(--pad)) / (var(--n) - 1));
-
-  position: relative;
-  display: grid;
-  width: calc(var(--c) * var(--n));
-  height: 100%;
-  margin-left: calc(var(--pad) - var(--c) / 2);
-  cursor: pointer;
-  touch-action: none;
-}
-
-.card[data-display]:is([data-board-look="clear"], [data-board-look="bare"]) .historyTrack {
-  --pad: -4.25px;
-}
-
-.historyTick {
-  --tick: var(--wl-text-3);
-
-  position: relative;
-  min-width: 0;
-  height: 100%;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-  outline: none;
-}
-
-.historyMajor {
-  position: absolute;
-  top: calc(var(--axis) - 5px);
-  left: 50%;
-  width: 1.5px;
-  height: 11px;
-  margin-left: -0.75px;
-  border-radius: 1px;
-  background: var(--tick);
-  transition: transform 220ms var(--wl-spring, var(--wl-ease-out));
-}
-
-/* 悬停那道变高、变亮；钉住的那道（悬停预览着别处时）也高一截，看得出移开后回到哪。 */
-.historyTick:hover,
-.historyTick[data-kept] {
-  --tick: var(--wl-text);
-}
-
-.historyTick:hover .historyMajor,
-.historyTick[data-kept] .historyMajor {
-  transform: scaleY(1.55);
-}
-
-/* 钉着旧版时又来了新的：最新那道刻度亮起来、慢慢呼吸。 */
-.historyTick[data-new] {
-  --tick: var(--wl-text);
-}
-
-.historyTick[data-new] .historyMajor {
-  animation: historyNew 1.6s var(--wl-ease) infinite alternate;
-}
-
-/*
- * 钟表：和标题行那枚一样是线描的，表圈就是进度——强调色从十二点顺时针走到「第几版 / 共几版」，没走到的部分是浅灰的底圈。
- * 底下一块画布色的圆把轴线断开（在画布上看不出来）。
- * 例外（只动 transform / opacity 的规矩）：表圈伸缩动的是 stroke-dashoffset——20px 的一个小 SVG，重绘只在这一小块里。
- */
-.historyClock {
-  display: block;
-  overflow: visible;
-  transition: transform 180ms var(--wl-spring, var(--wl-ease-out));
-}
-
-.historyClockBack {
-  fill: var(--wl-canvas);
-}
-
-/* 按住拖的时候表稍微鼓一下。 */
-.historyTrack:active .historyClock {
-  transform: scale(1.12);
-}
-
-.historyTrack:has(.historyTick:focus-visible) .historyClockBack {
-  stroke: var(--wl-accent);
-  stroke-width: 1;
-}
-
-/*
- * 说明：一条和刻度轴等宽的轨道，整条按 --at 横移到显示的那道刻度上（% 以轨道自身宽度算），
- * 里面的字以自己的中心对准；头尾两道改成和卡片左右边对齐（刻度离边 --pad）。换版时滑过去，只动 transform。
- */
-.historyCaption {
-  position: absolute;
-  top: 25px;
-  right: 0;
-  left: 0;
-  height: 16px;
-  opacity: 0;
-  pointer-events: none;
-  transform: translateX(calc((var(--at) + 0.5) * 100% / var(--n)));
-  transition:
-    opacity 140ms linear,
-    transform var(--glide);
-}
-
-.historyTrack:is(:hover, :focus-within) .historyCaption {
-  opacity: 1;
-}
-
-.historyCaptionText {
-  --tick: var(--wl-text-3);
-
-  position: absolute;
-  top: 0;
-  left: 0;
-  display: inline-flex;
-  gap: 6px;
-  align-items: center;
-  height: 16px;
-  color: var(--wl-text-2);
-  font-size: var(--wl-fs-micro);
-  font-weight: 500;
-  white-space: nowrap;
-  transform: translateX(-50%);
-  transition: transform var(--glide);
-}
-
-.historyCaption[data-edge="first"] .historyCaptionText {
-  transform: translateX(calc(-1 * var(--pad)));
-}
-
-.historyCaption[data-edge="last"] .historyCaptionText {
-  transform: translateX(calc(-100% + var(--pad)));
-}
-
-.historyCaptionText[data-tone="pass"] {
-  --tick: var(--wl-flow-pass);
-}
-
-.historyCaptionText[data-tone="again"] {
-  --tick: var(--wl-flow-fail);
-}
-
-.historyCaptionDot {
-  flex: none;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--tick);
-  corner-shape: round;
-}
-
-.historyCaptionText:not([data-tone]) .historyCaptionDot {
-  display: none;
-}
-
 /* 「减少动态效果」：浮层、「调整」直接出现（放在最后，压得过上面同样具体的入场规则）。 */
 @media (prefers-reduced-motion: reduce) {
   .optionsPop[data-side],
@@ -1225,15 +1054,10 @@ button.tile:focus-visible {
   .history,
   .historyPick,
   .historyCaret,
-  .historyTimeline,
-  .historyMajor,
-  .historyClock,
-  .historyCaption,
-  .historyCaptionText {
+  .historyTimeline {
     transition: none;
   }
 
-  .historyTick[data-new] .historyMajor,
   .historyBack[data-new]::after {
     animation: none;
   }
