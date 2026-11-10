@@ -20,6 +20,7 @@ import type { NodeData, WorkflowDocument } from '../../shared/types.ts'
 import type { GraphListResponse } from '../../shared/wire/graph.ts'
 import type { PlanBuildResponse } from '../../shared/wire/plan.ts'
 import type { T } from '../i18n.ts'
+import { recordSaved } from '../model/catalog.ts'
 import { sameStructure } from '../model/docShape.ts'
 import {
   type Action,
@@ -211,8 +212,10 @@ export function useWorkflow(rpc: WorkflowLiteRpc, t: T): Workflow {
        * 保存期间又来了改动就**不换文档**——否则磁盘版本会静默吃掉在途改动；那时基线哈希也
        * 留着这次写回的值，不采用回读到的（它对应的文档我们没有拿）。
        */
+      let nodeCount = current.doc.nodes.length
       try {
         const disk = await rpc.call('graph/load', { name })
+        nodeCount = disk.document.nodes.length
         const now = stateRef.current
         if (now.name === name && now.phase === 'ready' && now.doc !== null) {
           const adopt = now.rev === rev && !sameDocument(now.doc, disk.document)
@@ -225,6 +228,8 @@ export function useWorkflow(rpc: WorkflowLiteRpc, t: T): Workflow {
       } catch {
         // 顺手刷新而已，失败就维持本地状态。
       }
+      // 列表里这张就地记成刚存过（见 model/catalog.ts）：和上面的回读同一拍落下，不多渲染一次。
+      setCatalog((list) => recordSaved(list, { name, nodeCount, savedAt: Date.now() }))
       if (isDirty(stateRef.current)) scheduleRef.current()
     },
     [rpc, apply],
