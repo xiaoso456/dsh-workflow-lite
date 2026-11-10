@@ -190,9 +190,9 @@ export function routeEdge(
     let lane: number | undefined
     if (to.x >= sx + 8) {
       // 往右走：贝塞尔压到中间的卡片（跨列时常见）才改走直角，挑离终点那一行最近的走廊。
-      const others = boxes.filter((box) => box !== from && box !== to)
-      if (flowBlocked(others, sx, sy, to.x, ty)) {
-        lane = nearestLane(others, sx + LOOP_REACH, to.x - ROUTE_PAD, ty)
+      const ends = [from, to]
+      if (flowBlocked(boxes, sx, sy, to.x, ty, ends)) {
+        lane = nearestLane(boxes, sx + LOOP_REACH, to.x - ROUTE_PAD, ty, ends)
       }
     } else {
       lane = freeLane(boxes, to.x - ROUTE_PAD, sx + LOOP_REACH, laneStart(sy, ty))

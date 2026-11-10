@@ -171,6 +171,26 @@ export function flowPath(sx: number, sy: number, tx: number, ty: number): [strin
   ]
 }
 
+const NONE: readonly Rect[] = []
+
+/**
+ * 外框和 `[left, right] × [top, bottom]` 相交（含贴边）的卡，次序不变；一张都没有时不建数组。
+ * 贝塞尔线整条落在四个控制点围出的框里，先用它把框外的卡筛掉，再逐个采样点细查：
+ * 拖卡片时每帧几百条线都要问一遍「被拖的卡压没压到我」，绝大多数在这一步就答完了。
+ */
+function touching(
+  boxes: readonly Rect[],
+  left: number,
+  top: number,
+  right: number,
+  bottom: number,
+): readonly Rect[] {
+  const touches = (box: Rect): boolean =>
+    box.x <= right && box.x + box.w >= left && box.y <= bottom && box.y + box.h >= top
+  const first = boxes.findIndex(touches)
+  return first < 0 ? NONE : boxes.slice(first).filter(touches)
+}
+
 /** 流程线两个控制柄的横坐标（纵坐标分别与起点、终点齐平）。 */
 function flowControls(sx: number, tx: number): [number, number] {
   const dx = Math.max(0, tx - sx)
@@ -202,18 +222,28 @@ export function freeLane(boxes: readonly Rect[], x1: number, x2: number, from: n
   return lane
 }
 
-/** 贝塞尔流程线（`flowPath` 的那条）会不会压到哪张卡片（不算两头自己的卡）。 */
+/** 贝塞尔流程线（`flowPath` 的那条）会不会压到哪张卡片（`skip` 里的不算，通常是两头自己的卡）。 */
 export function flowBlocked(
   boxes: readonly Rect[],
   sx: number,
   sy: number,
   tx: number,
   ty: number,
+  skip: readonly Rect[] = NONE,
 ): boolean {
   const [c1x, c2x] = flowControls(sx, tx)
+  const hull = touching(
+    boxes,
+    Math.min(sx, c1x, c2x, tx),
+    Math.min(sy, ty),
+    Math.max(sx, c1x, c2x, tx),
+    Math.max(sy, ty),
+  )
+  if (hull.length === 0) return false
+  const near = skip.length === 0 ? hull : hull.filter((box) => !skip.includes(box))
   const inset = 4
   const inside = (x: number, y: number): boolean =>
-    boxes.some(
+    near.some(
       (box) =>
         x > box.x + inset &&
         x < box.x + box.w - inset &&
@@ -241,10 +271,11 @@ export function nearestLane(
   x1: number,
   x2: number,
   around: number,
+  skip: readonly Rect[] = NONE,
 ): number {
   const gap = 18
   const [left, right] = x1 <= x2 ? [x1, x2] : [x2, x1]
-  const across = boxes.filter((box) => box.x < right && box.x + box.w > left)
+  const across = boxes.filter((box) => box.x < right && box.x + box.w > left && !skip.includes(box))
   const clear = (y: number): boolean =>
     across.every((box) => y <= box.y - gap || y >= box.y + box.h + gap)
   const candidates = [
@@ -631,6 +662,14 @@ export function bezierBlocked(
   }
   const [c1x, c1y] = control(from, to)
   const [c2x, c2y] = control(to, from)
+  const near = touching(
+    boxes,
+    Math.min(from.x, c1x, c2x, to.x),
+    Math.min(from.y, c1y, c2y, to.y),
+    Math.max(from.x, c1x, c2x, to.x),
+    Math.max(from.y, c1y, c2y, to.y),
+  )
+  if (near.length === 0) return false
   for (let index = 2; index < 48; index += 1) {
     const t = index / 50
     const u = 1 - t
@@ -638,7 +677,7 @@ export function bezierBlocked(
     const y = u ** 3 * from.y + 3 * u * u * t * c1y + 3 * u * t * t * c2y + t ** 3 * to.y
     // 两头自己的卡片只在线的两端豁免：绕一圈又压回自己的卡片上同样算挡路。
     const ends = t < 0.12 || t > 0.88
-    const hit = boxes.some(
+    const hit = near.some(
       (box) =>
         !(ends && skip.includes(box)) &&
         x > box.x &&

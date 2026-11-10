@@ -218,3 +218,86 @@ describe('绕开卡片的直角走线', () => {
     ).toBe(false)
   })
 })
+
+describe('先按控制点外框筛卡', () => {
+  // 对照：不筛，逐个采样点把每张卡都查一遍（改前的做法）。
+  const flowOracle = (boxes: Rect[], sx: number, sy: number, tx: number, ty: number): boolean => {
+    const dx = Math.max(0, tx - sx)
+    const [c1x, c2x] = [sx + Math.max(dx / 2, Math.min(dx + 28, 140)), tx - dx / 2]
+    for (let index = 1; index < 40; index += 1) {
+      const t = index / 40
+      const u = 1 - t
+      const x = u ** 3 * sx + 3 * u * u * t * c1x + 3 * u * t * t * c2x + t ** 3 * tx
+      const y = u ** 3 * sy + 3 * u * u * t * sy + 3 * u * t * t * ty + t ** 3 * ty
+      if (x <= sx + 2 || x >= tx - 2) continue
+      if (boxes.some((b) => x > b.x + 4 && x < b.x + b.w - 4 && y > b.y + 4 && y < b.y + b.h - 4))
+        return true
+    }
+    return false
+  }
+  let seed = 11
+  const rnd = (span: number): number => {
+    seed = (seed * 1103515245 + 12345) % 2147483648
+    return Math.round((seed / 2147483648) * span)
+  }
+  const boxesAround = (): Rect[] =>
+    Array.from({ length: 30 }, () => ({
+      x: rnd(1600),
+      y: rnd(900),
+      w: 60 + rnd(200),
+      h: 40 + rnd(80),
+    }))
+
+  it('流程线：和逐张逐点查的结果一样（含跳过两头的卡）', () => {
+    for (let round = 0; round < 400; round += 1) {
+      const boxes = boxesAround()
+      const [sx, sy, tx, ty] = [rnd(800), rnd(900), 400 + rnd(1200), rnd(900)]
+      const skip = boxes.slice(0, 2)
+      const rest = boxes.slice(2)
+      expect(flowBlocked(boxes, sx, sy, tx, ty)).toBe(flowOracle(boxes, sx, sy, tx, ty))
+      expect(flowBlocked(boxes, sx, sy, tx, ty, skip)).toBe(flowOracle(rest, sx, sy, tx, ty))
+    }
+  })
+
+  it('读线：和逐张逐点查的结果一样（两头的卡只在线的两端豁免）', () => {
+    type Side = 'top' | 'right' | 'bottom' | 'left'
+    type End = { x: number; y: number; side: Side }
+    const offset = (d: number): number => (d >= 0 ? 0.5 * d : 0.25 * 25 * Math.sqrt(-d))
+    const control = (a: End, o: End): [number, number] =>
+      a.side === 'left'
+        ? [a.x - offset(a.x - o.x), a.y]
+        : a.side === 'right'
+          ? [a.x + offset(o.x - a.x), a.y]
+          : a.side === 'top'
+            ? [a.x, a.y - offset(a.y - o.y)]
+            : [a.x, a.y + offset(o.y - a.y)]
+    const oracle = (from: End, to: End, boxes: Rect[], skip: Rect[]): boolean => {
+      const [c1x, c1y] = control(from, to)
+      const [c2x, c2y] = control(to, from)
+      for (let index = 2; index < 48; index += 1) {
+        const t = index / 50
+        const u = 1 - t
+        const x = u ** 3 * from.x + 3 * u * u * t * c1x + 3 * u * t * t * c2x + t ** 3 * to.x
+        const y = u ** 3 * from.y + 3 * u * u * t * c1y + 3 * u * t * t * c2y + t ** 3 * to.y
+        const ends = t < 0.12 || t > 0.88
+        if (
+          boxes.some(
+            (b) =>
+              !(ends && skip.includes(b)) && x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h,
+          )
+        )
+          return true
+      }
+      return false
+    }
+    const sides: Side[] = ['top', 'right', 'bottom', 'left']
+    for (let round = 0; round < 400; round += 1) {
+      const boxes = boxesAround()
+      const from: End = { x: rnd(1600), y: rnd(900), side: sides[rnd(3)] as Side }
+      const to: End = { x: rnd(1600), y: rnd(900), side: sides[rnd(3)] as Side }
+      const skip = boxes.slice(0, 2)
+      expect(bezierBlocked(from, to, boxes, skip)).toBe(oracle(from, to, boxes, skip))
+      expect(bezierBlocked(from, to, boxes, [])).toBe(oracle(from, to, boxes, []))
+    }
+  })
+})

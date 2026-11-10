@@ -5,6 +5,7 @@
  * |---|---|
  * | 整理排版 | `tidy`（ELK）给整张图排一次 |
  * | 全图走线 | `buildRoutes` 没有上一版可复用时（打开、整理、改了图）算一遍所有读写线 |
+ * | 全图走线（没缓存） | 同上，但每次整张图都挪了位置，绕行走法的缓存用不上（第一次打开、整理排版之后） |
  * | 拖动一帧走线 | 拖连线最多的步骤时每帧的 `buildRoutes`（复用拖动前的走法，只重算受影响的线） |
  * | 判断走线没变 | `sameRouting`：打字时每个字判一次，判成没变就沿用全图走线 |
  * | 挑要挂的 | `mountedIn`：大图换区域时挑一次要挂的卡片和线 |
@@ -77,6 +78,25 @@ for (const copies of arg('copies', '4,16')) {
       await time(20, () =>
         buildRoutes({ doc, dragging: {}, sized: 0, sizes, routeBase: { current: null } }),
       ),
+    ),
+  )
+
+  // 每次整张图错开一点：绕行走法的缓存都用不上，相当于第一次打开、整理排版之后。
+  let shift = 0
+  row(
+    '全图走线（没缓存）',
+    ms(
+      await time(10, () => {
+        shift += 1
+        const moved = {
+          ...doc,
+          nodes: doc.nodes.map((node) => ({
+            ...node,
+            position: { x: node.position.x + shift, y: node.position.y },
+          })),
+        }
+        buildRoutes({ doc: moved, dragging: {}, sized: 0, sizes, routeBase: { current: null } })
+      }),
     ),
   )
 
