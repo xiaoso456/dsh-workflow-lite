@@ -15,24 +15,15 @@
     },
     {
       "version": "0.4.0",
+      "to": "0.5.0",
+      "label": "v0.4~0.5",
       "zh": {
-        "title": "分享",
-        "lines": ["导入", "导出"]
+        "title": "分享与主题",
+        "lines": ["导入、导出", "弹簧动效、瑞士主题"]
       },
       "en": {
-        "title": "Sharing",
-        "lines": ["Import", "Export"]
-      }
-    },
-    {
-      "version": "0.5.0",
-      "zh": {
-        "title": "动效与主题",
-        "lines": ["弹簧动效", "瑞士主题"]
-      },
-      "en": {
-        "title": "Motion & themes",
-        "lines": ["Spring motion", "Swiss theme"]
+        "title": "Share & themes",
+        "lines": ["Import and export", "Motion, Swiss theme"]
       }
     },
     {
@@ -72,6 +63,17 @@
         "title": "Canvas view",
         "tag": "Beta",
         "lines": ["Boards, logs, tables", "Replay every round"]
+      }
+    },
+    {
+      "version": "next",
+      "zh": {
+        "title": "性能优化",
+        "lines": ["拖动、平移更顺", "打字、切换更快"]
+      },
+      "en": {
+        "title": "Performance",
+        "lines": ["Smoother drag & pan", "Snappier typing"]
       }
     }
   ]
