@@ -210,6 +210,18 @@ span.memToggle {
   background: transparent;
 }
 
+/*
+ * 左右两边的点落在卡片看得见的那道框上：框画在卡外的（展示卡的镂空 / 无框，见 display.module.css），
+ * 卡片用 `--wl-frame-out` 说框往外让了多少，点跟着往外挪。拖线时扩大命中区的规则更具体，照样盖过这里。
+ */
+.wrap :global(.react-flow__handle-left).handle {
+  left: calc(-1 * var(--wl-frame-out, 0px));
+}
+
+.wrap :global(.react-flow__handle-right).handle {
+  right: calc(-1 * var(--wl-frame-out, 0px));
+}
+
 /* 上下边上不在正中的点：沿边摆在 `--wl-at` 成处（与 model/route.ts 的 STEP_SPOTS 同一个数）。 */
 .wrap :global(.react-flow__handle).spotted {
   left: calc(var(--wl-at) * 100%);

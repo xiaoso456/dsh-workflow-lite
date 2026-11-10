@@ -37,6 +37,11 @@ import type { LaneShift } from '../types.ts'
 /** 折线从连接点伸出去多远再拐弯。 */
 const ROUTE_PAD = 26
 const ROUTE_RADIUS = 12
+/**
+ * 绕行折线两头伸出去的那一小段画出来至少多长：算的时候伸 14（route.ts 的 STUB），
+ * 线头落在连接点命中区的外沿、比卡边再往外 10，平时画出来正好剩 4。
+ */
+const MIN_STUB = 4
 
 /** 把一串直角折点连成圆角路径。 */
 function roundedPath(points: readonly [number, number][]): string {
@@ -100,18 +105,34 @@ export function routedPath(
   targetY: number,
 ): [string, number, number] {
   const fixed = points.map((point) => [...point] as [number, number])
-  const snap = (end: number, next: number, x: number, y: number): void => {
+  const snap = (end: number, next: number, far: number, x: number, y: number): void => {
     const at = fixed[end] as [number, number]
     const near = fixed[next] as [number, number] | undefined
     if (near !== undefined) {
       // 伸出去的那段是竖的就对齐 x，横的就对齐 y。
-      if (near[0] === at[0]) near[0] = x
-      else near[1] = y
+      const along = near[0] === at[0] ? 1 : 0
+      near[1 - along] = along === 1 ? x : y
+      // 量出来的点比算的更往外（展示卡的点挪到了卡外的虚线框上）时，这一小段会被拉短甚至拉反、箭头调头：
+      // 把它连同上一个拐角顺着原来的方向推出去，留够 MIN_STUB。上一个拐角是另一头的端点时推不动，照旧。
+      const tip = along === 1 ? y : x
+      const dir = Math.sign(near[along] - at[along])
+      const corner = fixed[far]
+      if (
+        dir !== 0 &&
+        dir * (near[along] - tip) < MIN_STUB &&
+        far > 0 &&
+        far < fixed.length - 1 &&
+        corner !== undefined &&
+        corner[along] === near[along]
+      ) {
+        near[along] = tip + dir * MIN_STUB
+        corner[along] = near[along]
+      }
     }
     fixed[end] = [x, y]
   }
-  snap(0, 1, sourceX, sourceY)
-  snap(fixed.length - 1, fixed.length - 2, targetX, targetY)
+  snap(0, 1, 2, sourceX, sourceY)
+  snap(fixed.length - 1, fixed.length - 2, fixed.length - 3, targetX, targetY)
   let best = 0
   let mid: [number, number] = [sourceX, sourceY]
   for (let index = 1; index < fixed.length; index += 1) {

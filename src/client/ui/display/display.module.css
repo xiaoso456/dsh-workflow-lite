@@ -120,6 +120,9 @@
  *   只有点的画布模糊了也就是一层底色，换的那一下看不出来。
  */
 .card[data-display]:is([data-board-look="clear"], [data-board-look="bare"]) {
+  /* 虚线框画在卡外 6px（下面的 ::after）：左右两个连接点跟着挪到框上（见 canvas.module.css）。 */
+  --wl-frame-out: 6px;
+
   border-color: transparent;
   background: transparent;
 }
@@ -143,7 +146,7 @@
 }
 
 .card[data-display]:is([data-board-look="clear"], [data-board-look="bare"])::after {
-  inset: -6px;
+  inset: calc(-1 * var(--wl-frame-out));
   border: 1.5px dashed var(--wl-line-strong);
   border-radius: calc(10px * var(--wl-round, 1));
   box-shadow: none;

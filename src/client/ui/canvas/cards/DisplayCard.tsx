@@ -4,7 +4,13 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/canvas/cards/DisplayCard
  */
 
-import { Handle, type NodeProps, Position, useReactFlow } from '@xyflow/react'
+import {
+  Handle,
+  type NodeProps,
+  Position,
+  useReactFlow,
+  useUpdateNodeInternals,
+} from '@xyflow/react'
 import { useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { ResourceView, TableView, ViewLook } from '../../../../shared/types.ts'
 import { useDisplayLook } from '../../../app/displayLook.ts'
@@ -97,6 +103,15 @@ export function DisplayCard(
     cardRef,
   )
   const shown: Display = { ...display.info, ...live, look }
+  // 镂空 / 无框的左右连接点挪到卡外的虚线框上：换进换出这两种外观时点挪了、卡片尺寸没变，React Flow 不会自己重量。
+  const framed = look === 'clear' || look === 'bare'
+  const updateNodeInternals = useUpdateNodeInternals()
+  const wasFramed = useRef(framed)
+  useEffect(() => {
+    if (wasFramed.current === framed) return
+    wasFramed.current = framed
+    updateNodeInternals(id)
+  }, [framed, id, updateNodeInternals])
 
   useEffect(() => {
     if (!selected) setInteractive(false)
