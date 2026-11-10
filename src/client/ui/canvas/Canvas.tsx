@@ -511,7 +511,9 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
                   })
                 }}
                 onNodeClick={(_event, node) => onSelect({ kind: 'node', id: node.id })}
-                onNodeDragStart={(_event, node) => onSelect({ kind: 'node', id: node.id })}
+                // 拖动的卡片松手时才选中：选中会打开右侧面板、给全图的线换一遍高亮，大图上是一次整页重算样式；
+                // 放在按下拖动的那一下，卡片头几帧跟不上鼠标。
+                onNodeDragStop={(_event, node) => onSelect({ kind: 'node', id: node.id })}
                 onEdgeMouseEnter={(_event, edge) => setHoverEdge(edge.id)}
                 onEdgeMouseLeave={() => setHoverEdge(null)}
                 onEdgeClick={(_event, edge) => {
