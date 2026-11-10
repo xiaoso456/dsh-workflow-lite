@@ -6,7 +6,7 @@
  * |---|---|
  * | 切到大图 | 从一张小图切到大图，直到画面停稳 |
  * | 静置 | 什么都不做 2 秒（基线） |
- * | 拖步骤 | 拖连线最多的步骤往返一趟（120 步） |
+ * | 拖步骤 | 拖连线最多的步骤往返一趟（120 步）；另记抓起来、松手那一下各自最长的一帧 |
  * | 平移 | 在空白处拖着平移 |
  * | 模板里改提示词 | 选中那个步骤、打开提示词编辑、连打 30 个字 |
  * | 实例里改提示词 | 同一张图建实例、在实例视图里打开那一步的提示词编辑、连打 30 个字 |
@@ -72,10 +72,10 @@ const BIG_SHOWN = `(() => {
 const INSTALL = `(() => {
   const p = window.__perf = { on: false };
   p.start = () => {
-    p.frames = []; p.long = []; p.keys = [];
+    p.frames = []; p.at = []; p.long = []; p.keys = [];
     let last = performance.now();
     p.on = true;
-    const loop = (t) => { p.frames.push(t - last); last = t; if (p.on) requestAnimationFrame(loop); };
+    const loop = (t) => { p.frames.push(t - last); p.at.push(t); last = t; if (p.on) requestAnimationFrame(loop); };
     requestAnimationFrame(loop);
     p.po = new PerformanceObserver((l) => { for (const e of l.getEntries()) p.long.push(e.duration); });
     p.po.observe({ type: 'longtask' });
@@ -116,6 +116,12 @@ const INSTALL = `(() => {
       longTasks: p.long.length, longSum: Math.round(p.long.reduce((a, b) => a + b, 0)),
       keysOver16: k.length, keyP50: q(k, 0.5), keyMax: q(k, 1),
       mut: { ...p.mut, byAttr: Object.fromEntries(Object.entries(p.mut.byAttr).sort((a, b) => b[1] - a[1]).slice(0, 6)), what: Object.fromEntries(Object.entries(p.mut.what).sort((a, b) => b[1] - a[1]).slice(0, 8)) } };
+  };
+  /** [from, to] 之间画出来的帧里最长的一帧（帧间隔，ms）：看某个动作那一下卡了多久。 */
+  p.worst = (from, to) => {
+    let worst = 0;
+    p.at.forEach((t, i) => { if (t >= from && t <= to) worst = Math.max(worst, p.frames[i]); });
+    return +worst.toFixed(1);
   };
   /** 画面停稳：连续 10 帧间隔都在 25ms 内。回停稳那一刻（减去这 10 帧）。 */
   p.settled = () => new Promise((resolve) => {
@@ -344,11 +350,22 @@ try {
   await focusNode(session, busy, 0)
   await measure(session, `拖步骤（${busy}）`, async () => {
     const from = await session.evaluate(centerOfNode(busy, 0.2))
+    // 拖之前什么都没选中（抓起一张卡就拖）：起拖、松手那一下各卡了多久。
+    const pressed = await session.evaluate('performance.now()')
     await drag(session, from, 160, 90, 60, false)
+    const released = await session.evaluate('performance.now()')
+    await sleep(500)
+    const [起拖最长帧ms, 松手最长帧ms] = await session.evaluate(
+      `[window.__perf.worst(${pressed}, ${pressed} + 400), window.__perf.worst(${released}, ${released} + 400)]`,
+    )
     const mid = await session.evaluate(centerOfNode(busy, 0.2))
     await drag(session, mid, from.x - mid.x, from.y - mid.y, 60, false)
     // 卡片真被拖动了（没点空、没变成平移）：拖过去那一下屏幕上挪了多少像素。
-    return { 卡片挪了px: Math.round(Math.hypot(mid.x - from.x, mid.y - from.y)) }
+    return {
+      卡片挪了px: Math.round(Math.hypot(mid.x - from.x, mid.y - from.y)),
+      起拖最长帧ms,
+      松手最长帧ms,
+    }
   })
   const blank = await session.evaluate(blankExpr)
   await measure(session, '平移画布', async () => drag(session, blank, 220, 120), churn)
