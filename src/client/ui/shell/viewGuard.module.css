@@ -1,0 +1,61 @@
+/* 视图出错时的卡片（ViewGuard）：居中一张，和欢迎页同一种面板。 */
+
+.root {
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  width: min(440px, 100%);
+  padding: 28px 28px 24px;
+  text-align: center;
+}
+
+.icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  margin-bottom: 4px;
+  border-radius: calc(10px * var(--wl-round, 1));
+  background: var(--wl-danger-soft);
+  color: var(--wl-danger);
+}
+
+.title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.body {
+  margin: 0;
+  color: var(--wl-text-3);
+}
+
+.detail {
+  max-width: 100%;
+  margin: 4px 0 12px;
+  padding: 6px 10px;
+  overflow-wrap: anywhere;
+  border-radius: calc(6px * var(--wl-round, 1));
+  background: var(--wl-fill);
+  color: var(--wl-text-2);
+  font-size: 12px;
+}
+
+:global([data-look="swiss"]) .icon {
+  border: 1px solid var(--wl-danger);
+  background: none;
+}
+
+:global([data-look="swiss"]) .detail {
+  border-bottom: 1px solid var(--wl-line-strong);
+  background: none;
+}

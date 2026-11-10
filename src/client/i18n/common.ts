@@ -19,6 +19,8 @@ export const zh = {
   'common.delete': '删除',
   'common.retry': '重试',
   'error.generic': '操作失败',
+  'error.viewCrashed': '工作流视图出错了',
+  'error.viewCrashedBody': '已保存的工作流和实例不受影响；点「重试」重新打开这个视图。',
 } as const
 
 /** 英文。键与 `zh` 同构，少一个键或多一个键都过不了类型检查。 */
@@ -34,4 +36,7 @@ export const en: Record<keyof typeof zh, string> = {
   'common.delete': 'Delete',
   'common.retry': 'Retry',
   'error.generic': 'Something went wrong',
+  'error.viewCrashed': 'The workflow view ran into an error',
+  'error.viewCrashedBody':
+    'Saved workflows and instances are not affected. Click Retry to reopen this view.',
 }

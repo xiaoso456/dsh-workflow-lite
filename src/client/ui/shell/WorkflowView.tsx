@@ -37,6 +37,7 @@ import { RunView } from '../run/RunView.tsx'
 import css from './shell.module.css'
 import { TipLayer } from './TipLayer.tsx'
 import { NO_SLOTS, TopBar } from './TopBar.tsx'
+import { ViewGuard } from './ViewGuard.tsx'
 import { Banners } from './workflowView/Banners.tsx'
 import { inspectorWidth, NARROW } from './workflowView/geometry.ts'
 import { HubLayer } from './workflowView/HubLayer.tsx'
@@ -94,16 +95,18 @@ function CanvasLayer(props: {
 
 export function WorkflowView(props: WorkflowViewProps): React.JSX.Element {
   return (
-    <ReactFlowProvider>
-      <Shell
-        rpc={props.rpc}
-        t={props.t as T}
-        session={props.sessionId}
-        openView={props.openView}
-        {...(props.sessions === undefined ? {} : { sessions: props.sessions })}
-        {...(props.desktop === undefined ? {} : { desktop: props.desktop })}
-      />
-    </ReactFlowProvider>
+    <ViewGuard t={props.t as T}>
+      <ReactFlowProvider>
+        <Shell
+          rpc={props.rpc}
+          t={props.t as T}
+          session={props.sessionId}
+          openView={props.openView}
+          {...(props.sessions === undefined ? {} : { sessions: props.sessions })}
+          {...(props.desktop === undefined ? {} : { desktop: props.desktop })}
+        />
+      </ReactFlowProvider>
+    </ViewGuard>
   )
 }
 
