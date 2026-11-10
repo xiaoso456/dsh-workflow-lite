@@ -56,6 +56,9 @@ export const MAX_SEQUENTIAL = 99
  *
  * 图名要一起给：校验层有两条规则依赖它（图名的文件名约束、同名目录占位）。
  * `maxNodes` 这类活配置由装配方闭包进来，仓储不认识 Config。
+ *
+ * 列表按文件身份记着每张图的保存级问题（见 `repoList.ts`）：**保存级问题只能取决于文档和图名**。
+ * 要加看别的东西（配置、别的文件）的规则，放到编译级或警告里。
  */
 export type DocumentValidator = (
   document: WorkflowDocument,
@@ -86,7 +89,7 @@ export class RepoCore {
 
   /**
    * 基线快照：`"<图名>\0<整图哈希>" → document`，只记 `load()` / 上一次写落盘的那个版本。
-   * **它不服务任何读路径**（`list` / `read` / `compile` 永远直接读盘，不设内容缓存），
+   * **它不服务任何读路径**（`read` / `compile` 永远直接读盘；`list` 每次看盘上的文件身份，见 `repoList.ts`），
    * 只为了让 `save()` 拿得到 `mergeDocuments` 需要的 `base`。
    *
    * 同名留多个快照是必要的：画布与工具可能各自持有旧基线并发写，只留最新一份的话

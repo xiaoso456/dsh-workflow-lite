@@ -22,10 +22,11 @@ import { sameRouting } from '../../src/client/model/docShape.ts'
 import { tidy } from '../../src/client/model/layout.ts'
 import { buildRoutes, type RouteBase } from '../../src/client/ui/canvas/flow/buildRoutes.ts'
 import { workflowFile } from '../../src/host/store/paths.ts'
-import { createRepository } from '../../src/host/store/repository.ts'
+import { createRepository, reportProblems } from '../../src/host/store/repository.ts'
 import { analyzeGraph } from '../../src/shared/graph.ts'
 import { graphChanges } from '../../src/shared/graphDiff.ts'
 import type { Point, WorkflowDocument } from '../../src/shared/types.ts'
+import { validateDocument } from '../../src/shared/validate.ts'
 import { bigGraph, busiestStep } from './bigGraph.ts'
 
 const arg = (name: string, fallback: string): number[] => {
@@ -149,7 +150,12 @@ for (const copies of arg('copies', '4,16')) {
 for (const count of arg('workflows', '50,200')) {
   const dataDir = await mkdtemp(join(tmpdir(), 'wl-perf-list-'))
   try {
-    const repository = createRepository({ dataDir })
+    // 和插件装配时一样接上校验（每张图都要校验一遍，是列表的大头）。
+    const repository = createRepository({
+      dataDir,
+      validate: (document, workflow) =>
+        reportProblems(validateDocument(document, { workflowName: workflow, maxNodes: 400 })),
+    })
     await repository.ensureLayout()
     const doc = JSON.stringify(await laidOut(4))
     for (let i = 0; i < count; i += 1) await writeFile(workflowFile(dataDir, `wf-${i}`), doc)
@@ -158,6 +164,18 @@ for (const count of arg('workflows', '50,200')) {
     await repository.list()
     row('第一次', `${(performance.now() - first).toFixed(1)} ms`)
     row('再列（都没改）', ms(await time(10, () => repository.list(), 1)))
+    // 每次先改掉一张图（像刚保存过），其余没动。
+    let edits = 0
+    row(
+      '再列（改了一张）',
+      ms(
+        await time(10, async () => {
+          edits += 1
+          await writeFile(workflowFile(dataDir, 'wf-0'), `${doc}${' '.repeat(edits % 7)}`)
+          await repository.list()
+        }),
+      ),
+    )
   } finally {
     await rm(dataDir, { recursive: true, force: true })
   }

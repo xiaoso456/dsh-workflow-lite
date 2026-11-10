@@ -32,6 +32,7 @@ import {
   type WorkflowNode,
 } from '../../../src/shared/types.ts'
 import { validateDocument } from '../../../src/shared/validate.ts'
+import { bigGraph } from '../../perf/bigGraph.ts'
 
 let root = ''
 let repo: Repository
@@ -754,6 +755,57 @@ describe('list', () => {
     expect(codes).toContain('legacy_structure')
     expect(codes).toContain('stray_entry')
     expect(listed.warnings.some((warning) => warning.message.includes('notes.txt'))).toBe(true)
+  })
+
+  it('文件没变就不再读、不再校验；改了（保存、外部改写、修好坏文件、删掉）马上跟上', async () => {
+    let checked = 0
+    const counted = createRepository({
+      dataDir: root,
+      validate: (document, workflow) => {
+        checked += 1
+        return reportProblems(validateDocument(document, { workflowName: workflow, maxNodes: 400 }))
+      },
+    })
+    await seedGraph('a', d([n('s1', { prompt: 'P' })]))
+    await seedGraph('b', d([n('s1', { prompt: 'P' })]))
+    const first = await counted.list()
+    expect(checked).toBe(2)
+    expect(await counted.list()).toEqual(first)
+    expect(checked).toBe(2)
+
+    // 仓储自己存：原子写入落下的是新文件。
+    const loaded = await counted.load('a')
+    expectOk(
+      await counted.save('a', d([n('s1', { prompt: 'P' }), n('s2', { prompt: 'Q' })]), {
+        baseHash: loaded.hash,
+      }),
+    )
+    // 外部原地改写成一样长的坏文件，又改回能用。
+    const text = writeDocument(d([n('s1', { prompt: 'P' })]))
+    await writeFile(workflowFile(root, 'b'), text.replace('{', '!'))
+    let listed = await counted.list()
+    expect(listed.workflows.find((entry) => entry.name === 'a')?.nodeCount).toBe(2)
+    expect(listed.workflows.find((entry) => entry.name === 'b')?.invalid).toBe(true)
+    await writeFile(workflowFile(root, 'b'), text)
+    listed = await counted.list()
+    expect(listed.workflows.find((entry) => entry.name === 'b')?.invalid).toBeUndefined()
+
+    await rm(workflowFile(root, 'a'))
+    listed = await counted.list()
+    expect(listed.workflows.map((entry) => entry.name)).toEqual(['b'])
+  })
+
+  it('列表记着的保存级问题只看文档和图名：节点上限、记忆库在不在都不影响它', () => {
+    const doc = bigGraph(2) as WorkflowDocument
+    const saveLevel = (maxNodes: number, hasMemory: boolean, name = 'x') =>
+      reportProblems(
+        validateDocument(doc, { workflowName: name, maxNodes, hasMemory: () => hasMemory }),
+      ).filter((problem) => problem.level === 'save')
+    expect(saveLevel(1, false)).toEqual(saveLevel(10_000, true))
+    // 对照：编译级、警告确实随它们变（这条规则没有空转）。
+    const all = (maxNodes: number) =>
+      validateDocument(doc, { workflowName: 'x', maxNodes, hasMemory: () => true })
+    expect(all(1).compile.length).toBeGreaterThan(all(10_000).compile.length)
   })
 
   it('空目录 ⇒ 空清单，不抛错', async () => {
