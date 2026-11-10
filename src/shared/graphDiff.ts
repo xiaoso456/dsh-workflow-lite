@@ -128,6 +128,8 @@ export function graphChanges(base: WorkflowDocument, next: WorkflowDocument): Gr
       changes.push({ object: objectOf(node), kind: 'added', id: node.id, fields: [] })
       continue
     }
+    // 同一个对象（编辑只换改到的节点）：没改。
+    if (old === node) continue
     const fields = nodeFields(old, node)
     if (fields.length > 0)
       changes.push({ object: objectOf(node), kind: 'changed', id: node.id, fields })
@@ -137,13 +139,17 @@ export function graphChanges(base: WorkflowDocument, next: WorkflowDocument): Gr
 
   // 连线：同 id 的直接比；剩下的按两端配对（改条件换了 id），再剩下的才是删掉 / 新加的。
   const oldEdges = new Map(base.edges.map((edge) => [edge.id, edge]))
-  const unmatchedOld = base.edges.filter((edge) => !next.edges.some((e) => e.id === edge.id))
+  // id 重了（本不该有）认第一条，和逐条往前找的结果一样。
+  const newEdges = new Map<string, WorkflowEdge>()
+  for (const edge of next.edges) if (!newEdges.has(edge.id)) newEdges.set(edge.id, edge)
+  const unmatchedOld = base.edges.filter((edge) => !newEdges.has(edge.id))
   const removed: WorkflowEdge[] = []
   const pairs = new Map<string, WorkflowEdge[]>()
   for (const edge of unmatchedOld) pairs.set(ends(edge), [...(pairs.get(ends(edge)) ?? []), edge])
   const edgeChanges: GraphChange[] = []
   for (const edge of next.edges) {
     const old = oldEdges.get(edge.id)
+    if (old === edge) continue
     if (old !== undefined) {
       const fields = edgeFields(old, edge)
       if (fields.length > 0)
@@ -173,7 +179,7 @@ export function graphChanges(base: WorkflowDocument, next: WorkflowDocument): Gr
     changes.push({ object: 'edge', kind: 'removed', id: edge.id, fields: [] })
   }
   for (const change of edgeChanges) {
-    const edge = next.edges.find((candidate) => candidate.id === change.id)
+    const edge = newEdges.get(change.id)
     if (change.kind === 'added' && edge !== undefined && (fresh(edge.source) || fresh(edge.target)))
       continue
     changes.push(change)
