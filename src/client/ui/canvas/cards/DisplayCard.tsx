@@ -214,12 +214,6 @@ export function DisplayCard(
         if (!settingsOpen) data.onFocusFile(null)
       }}
     >
-      <Handle
-        id="in"
-        type="target"
-        position={Position.Left}
-        className={cx(css.handle, css.hResIn)}
-      />
       <span className={dcss.head} data-tip={data.note === '' ? undefined : data.note}>
         <span
           className={dcss.tab}
@@ -392,6 +386,16 @@ export function DisplayCard(
               }`}
         </span>
       )}
+      {/*
+        两个连接点排在展示区后面：展示区是定位的，排在它前面的点会被图盖住一半（看着像半个圈、也只有外半边点得中），
+        拖线时扩到整张卡的命中区也会被它挡住。
+      */}
+      <Handle
+        id="in"
+        type="target"
+        position={Position.Left}
+        className={cx(css.handle, css.hResIn)}
+      />
       <Handle
         id="out"
         type="source"
