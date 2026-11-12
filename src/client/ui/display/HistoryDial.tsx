@@ -43,8 +43,10 @@ export function HistoryDial(props: {
   line: HistoryLine
   /** 每一点叫什么（最后一点叫「最新」）。 */
   labels: readonly string[]
-  /** 卡片里现在显示的是第几点（含悬停预览）。 */
+  /** 卡片里现在显示的是第几点（含悬停预览；连续换版时等停下才跟上）。 */
   current: number
+  /** 现在显示的是悬停预览。 */
+  previewing: boolean
   /** 钉住的是第几点（没钉 = 最后一点）。 */
   pinnedAt: number
   /** 钉着旧版的时候又来了新的一版。 */
@@ -302,7 +304,7 @@ export function HistoryDial(props: {
         <div
           className={css.caption}
           data-tone={tone}
-          data-hovering={(current !== pinnedAt && !dragging) || undefined}
+          data-hovering={(props.previewing && !dragging) || undefined}
           data-testid="wl-display-history-caption"
           aria-hidden="true"
         >

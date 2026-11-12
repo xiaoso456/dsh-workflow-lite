@@ -5,7 +5,7 @@
  * - 卡片底边外的刻度盘（{@link HistoryDial}）：正中对着显示的那一版，悬停预览、点击 / 拖动 / 滚轮 / 方向键换版钉住。
  * - 标题行里写出看的是哪一版（「第 2 轮 · 审查后 3/6」），跟着刻度盘上悬停的那一点换字；点它下拉出各版列表
  *   （新的在上），悬停一项卡里临时换成那一版，点一下钉住。
- *   钉在旧版时换强调色、旁边一个 ✕ 回到最新。
+ *   钉在旧版时旁边多一个 ✕ 回到最新（颜色不变）。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/display/HistoryBar
  */
@@ -82,7 +82,6 @@ export function HistoryBar(props: {
       {createPortal(
         <span
           className={shared.history}
-          data-old={old || undefined}
           data-preview={props.previewing || undefined}
           data-open={open || undefined}
           data-testid="wl-display-history"
@@ -206,6 +205,7 @@ export function HistoryBar(props: {
           line={line}
           labels={labels}
           current={current}
+          previewing={props.previewing}
           pinnedAt={pinnedAt}
           newer={props.newer}
           onPreview={onPreview}

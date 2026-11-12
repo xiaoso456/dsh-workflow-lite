@@ -6,11 +6,12 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/display/views/RunFileBody
  */
 
-import { useContext, useEffect, useRef, useState } from 'react'
+import { useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { ResourceItem, TableView } from '../../../../shared/types.ts'
 import { displayKey } from '../../../app/useDisplayStats.ts'
 import { useRunHistory } from '../../../app/useRunFile.ts'
+import { useSettled } from '../../../app/useSettled.ts'
 import type { T } from '../../../i18n.ts'
 import type { Display } from '../../../model/display.ts'
 import { dotIndex, historyLine } from '../../../model/outputHistory.ts'
@@ -25,6 +26,12 @@ import css from './runFileBody.module.css'
 
 /** 「刚更新」亮多久（淡入、停留、淡出一共）。 */
 const FRESH_MS = 4000
+
+/**
+ * 指着的那一版停这么久，卡里的内容和写着版名的两处字才换过去：滚轮、拖动、扫过刻度时中间几版只有刻度在滑，
+ * 不逐版载入（每换一版都要读文件、重排一遍展示区），字也不一版一版地闪。
+ */
+const SETTLE_MS = 140
 
 /**
  * 实例视图里的一份文件，连同它存下的各版：至少两版时卡片底下一条时间线、标题行写出看的是哪一版（{@link HistoryBar}）。
@@ -71,11 +78,16 @@ export function RunFileBody(props: {
   }, [lost])
   const pinnedV = pinned === null || lost ? null : pinned.v
   const shown = line.dots.length < 2 ? null : preview !== undefined ? preview : pinnedV
+  // 刻度尺马上跟着钉住的那版滑；卡里的内容、标题行和刻度盘下面写的版名等它停下来（见 SETTLE_MS）。
+  // 「显示哪一版」和「是不是预览」一起停，不会有一拍对不上。
+  const previewing = preview !== undefined
+  const view = useMemo(() => ({ shown, previewing }), [shown, previewing])
+  const { shown: settled, previewing: settledPreview } = useSettled(view, SETTLE_MS)
   // 显示的是最新那点：读现在的文件（最新那点也可能就是存下的最后一版，读哪个都一样，读现在的）。
-  const kept = shown === null ? null : (line.dots[dotIndex(line, shown)]?.v ?? null)
+  const kept = settled === null ? null : (line.dots[dotIndex(line, settled)]?.v ?? null)
   // 换一版：新的从行进方向滑进来（往后的版从右边进）。
   const layer = kept === null ? 'live' : `v${kept}`
-  const dir = useTrend(line.dots.length < 2 ? 0 : dotIndex(line, shown))
+  const dir = useTrend(line.dots.length < 2 ? 0 : dotIndex(line, settled))
   const showing = useRef(layer)
   showing.current = layer
   // 现在的文件刚更新：右上角「刚更新」亮一会儿（每次更新从头来）；写它的步骤在跑时一直是「生成中」。
@@ -153,8 +165,8 @@ export function RunFileBody(props: {
           rail={slot?.rail ?? null}
           line={line}
           names={run.names ?? {}}
-          shown={shown}
-          previewing={preview !== undefined}
+          shown={settled}
+          previewing={settledPreview}
           pinned={pinnedV}
           newer={pinned !== null && pinned.latest !== latestKey}
           onPreview={setPreview}

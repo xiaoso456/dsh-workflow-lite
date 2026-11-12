@@ -895,11 +895,6 @@ button.tile:focus-visible {
   background: var(--wl-hover);
 }
 
-.history[data-old] .historyPick:hover,
-.history[data-old] .historyPick[aria-expanded="true"] {
-  background: color-mix(in oklab, var(--wl-accent) 14%, transparent);
-}
-
 .historyPick:focus-visible {
   outline: 2px solid var(--wl-accent);
   outline-offset: -1px;
@@ -929,13 +924,6 @@ button.tile:focus-visible {
   color: var(--wl-text);
 }
 
-.history[data-old] {
-  padding-right: 2px;
-  background: var(--wl-accent-soft);
-  color: var(--wl-accent-text);
-  font-weight: 600;
-}
-
 .historyBack {
   position: relative;
   display: grid;
@@ -947,13 +935,16 @@ button.tile:focus-visible {
   border: 0;
   border-radius: calc(5px * var(--wl-round, 1));
   background: transparent;
-  color: var(--wl-accent-text);
+  color: inherit;
   cursor: pointer;
-  transition: background-color 120ms linear;
+  transition:
+    background-color 120ms linear,
+    color 120ms linear;
 }
 
 .historyBack:hover {
-  background: color-mix(in oklab, var(--wl-accent) 18%, transparent);
+  background: var(--wl-hover);
+  color: var(--wl-text);
 }
 
 .historyBack:focus-visible {

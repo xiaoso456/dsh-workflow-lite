@@ -26,7 +26,7 @@ On an instance's canvas, move the pointer over a display card with two or more s
 
 - One long tick per version; the lit tick in the middle is the version on display. The first version of each round is labelled "R1", "R2" and so on, a version saved before round 1 is labelled "Start", and the last tick is "Latest".
 - Reviewed versions carry a dot above their tick, one color for passed and one for sent back; below the dial are the version's name, the review result and the save time.
-- While an older version is on display, the name in the title row turns the accent color.
+- While an older version is on display, a ✕ appears next to the name in the title row.
 - Rounds are named like "Round 2 · after Review", and failed ones carry "(failed)".
 
 ## Compare
