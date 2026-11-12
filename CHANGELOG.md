@@ -5,7 +5,7 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
-## [Unreleased]
+## [0.10.0] - 2026-11-11
 
 这一版让几百张卡片的大工作流也能流畅编辑，并修了几处连线对不准连接点的问题。
 

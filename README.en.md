@@ -31,7 +31,7 @@ A soft-workflow plugin for [DeepSeek Harness](https://github.com/deepseek-ai/dee
 
 ## Install
 
-Works with DeepSeek Harness 0.2.0 and 0.2.1, including their preview builds (such as 0.2.1-rc.2).
+Works with DeepSeek Harness 0.2.0, 0.2.1 and 0.2.2, including their preview builds (such as 0.2.2-rc.1).
 
 ### Web
 
