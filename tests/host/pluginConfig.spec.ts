@@ -19,6 +19,7 @@ const DEFAULTS: PluginConfigValues = {
   saveDebounceMs: 400,
   maxResultBytes: 262_144,
   installSkill: true,
+  triggerPort: 3791,
 }
 
 /** 一个最小的设置服务：一行 `workflow-lite`，`user` 层就是改过的那几项。 */

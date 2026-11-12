@@ -676,6 +676,20 @@ export async function placeMissing(
     position.set(node.id, spot)
     placed[node.id] = spot
   }
+  // 触发卡片（模型用工具加的）：放到整张图上面那一排。
+  for (const node of missing) {
+    if (placed[node.id] !== undefined || !isTrigger(node)) continue
+    const current: WorkflowDocument = {
+      ...doc,
+      nodes: doc.nodes.map((item) => ({
+        ...item,
+        position: position.get(item.id) ?? { x: 0, y: 0 },
+      })),
+    }
+    const spot = triggerSpot(current, node.id)
+    position.set(node.id, spot)
+    placed[node.id] = spot
+  }
   // 批次里没有的步骤（理论上没有）：放到版面下方，别让它留在原点。
   for (const node of missing) {
     if (placed[node.id] !== undefined) continue

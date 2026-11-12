@@ -27,6 +27,7 @@ export interface ConfigDraft {
   /** 以 KB 计。 */
   maxResultBytes: string
   installSkill: boolean
+  triggerPort: string
 }
 
 export type ConfigErrors = Partial<Record<PluginConfigKey, string>>
@@ -48,11 +49,16 @@ export interface PluginConfigState {
   save(): Promise<void>
 }
 
-const MIN: Record<'maxNodes' | 'saveDebounceMs' | 'maxResultBytes', number> = {
+type NumberKey = 'maxNodes' | 'saveDebounceMs' | 'maxResultBytes' | 'triggerPort'
+
+const MIN: Record<NumberKey, number> = {
   maxNodes: 1,
   saveDebounceMs: 0,
   maxResultBytes: 1,
+  triggerPort: 1024,
 }
+
+const MAX: Partial<Record<NumberKey, number>> = { triggerPort: 65535 }
 
 export function toDraft(values: PluginConfigValues): ConfigDraft {
   return {
@@ -61,6 +67,7 @@ export function toDraft(values: PluginConfigValues): ConfigDraft {
     saveDebounceMs: String(values.saveDebounceMs),
     maxResultBytes: String(Math.round(values.maxResultBytes / 1024)),
     installSkill: values.installSkill,
+    triggerPort: String(values.triggerPort),
   }
 }
 
@@ -78,7 +85,7 @@ export function fromDraft(
   const dataDir = draft.dataDir.trim()
   if (dataDir === '') errors.dataDir = t('cfg.required')
   else values.dataDir = dataDir
-  for (const key of ['maxNodes', 'saveDebounceMs', 'maxResultBytes'] as const) {
+  for (const key of ['maxNodes', 'saveDebounceMs', 'maxResultBytes', 'triggerPort'] as const) {
     const text = draft[key].trim()
     if (text === '') {
       errors[key] = t('cfg.required')
@@ -91,6 +98,11 @@ export function fromDraft(
     const number = Number(text)
     if (number < MIN[key]) {
       errors[key] = t('cfg.min').replace('{n}', String(MIN[key]))
+      continue
+    }
+    const max = MAX[key]
+    if (max !== undefined && number > max) {
+      errors[key] = t('cfg.max').replace('{n}', String(max))
       continue
     }
     if (key !== 'maxResultBytes') values[key] = number
@@ -227,4 +239,5 @@ export const LABEL = {
   saveDebounceMs: 'cfg.saveDebounce',
   maxResultBytes: 'cfg.maxResult',
   installSkill: 'cfg.skill',
+  triggerPort: 'cfg.triggerPort',
 } as const satisfies Record<PluginConfigKey, LocaleKey>

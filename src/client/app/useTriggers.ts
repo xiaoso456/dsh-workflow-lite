@@ -1,6 +1,6 @@
 /**
  * dsh-workflow-lite — 触发卡片的状态：每隔几秒问一次这个工作流里各张卡片现在的样子，
- * 以及改开关与本机设置、「立即触发一次」、读触发记录。
+ * 以及改开关与本机设置（确认命令、换令牌）、「立即触发一次」、读触发记录和最近的输出。
  *
  * 只在图里有触发卡片时才问（没有就一次都不发）；页面不可见时停下，回来马上补问一次。
  * 读回来的内容没变就交回同一个对象，画布上的卡片不会跟着每次轮询重画。
@@ -23,12 +23,16 @@ import { useRefresher } from './useRefresher.ts'
 /** 多久问一次。 */
 export const TRIGGER_POLL_MS = 5000
 
-/** 能在本机改的三样。 */
+/** 能在本机改的几样。 */
 export interface TriggerChange {
   enabled?: boolean
   workspace?: string
   /** 空串 = 清掉。 */
   session?: string
+  /** 确认要运行的命令：原样带上用户看到的那条。 */
+  approve?: string
+  /** HTTP 触发换一个新令牌。 */
+  resetToken?: true
 }
 
 export interface Triggers {
@@ -42,6 +46,8 @@ export interface Triggers {
   fire(node: string, info?: string): Promise<FireRecord | string>
   /** 一张卡片的触发记录，新的在前。 */
   history(node: string): Promise<FireRecord[]>
+  /** 轮询命令、监听程序最近的输出；读不到是空串。 */
+  output(node: string): Promise<string>
 }
 
 const EMPTY: TriggerListResponse = { triggers: [] }
@@ -143,8 +149,20 @@ export function useTriggers(
     [rpc, workflow],
   )
 
+  const output = useCallback(
+    async (node: string): Promise<string> => {
+      if (workflow === null) return ''
+      try {
+        return (await rpc.call('trigger/output', { workflow, node })).text
+      } catch {
+        return ''
+      }
+    },
+    [rpc, workflow],
+  )
+
   return useMemo(
-    () => ({ view, owner: list.owner, set, fire, history }),
-    [view, list.owner, set, fire, history],
+    () => ({ view, owner: list.owner, set, fire, history, output }),
+    [view, list.owner, set, fire, history, output],
   )
 }

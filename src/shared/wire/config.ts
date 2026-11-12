@@ -13,6 +13,7 @@ export const PLUGIN_CONFIG_KEYS = [
   'saveDebounceMs',
   'maxResultBytes',
   'installSkill',
+  'triggerPort',
 ] as const
 export type PluginConfigKey = (typeof PLUGIN_CONFIG_KEYS)[number]
 
@@ -22,6 +23,7 @@ export interface PluginConfigValues {
   saveDebounceMs: number
   maxResultBytes: number
   installSkill: boolean
+  triggerPort: number
 }
 
 /** 要重启 DSH 才生效的几项（装配时定住的）。 */

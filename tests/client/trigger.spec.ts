@@ -6,7 +6,9 @@ import { type Edit, type EditorState, initialState, reduce } from '../../src/cli
 import { cardSize, TRIGGER_H, TRIGGER_W, tidy, triggerSpot } from '../../src/client/model/layout.ts'
 import { decodeStepSource, encodeStepSource } from '../../src/client/model/library.ts'
 import { originText } from '../../src/client/model/originText.ts'
-import { momentText, ruleText, stateText } from '../../src/client/model/triggerText.ts'
+import { momentText, ruleText, sourceText, stateText } from '../../src/client/model/triggerText.ts'
+import { parseKeywords } from '../../src/client/ui/trigger/FilterField.tsx'
+import { curlOf } from '../../src/client/ui/trigger/SourceField.tsx'
 import { analyzeGraph } from '../../src/shared/graph.ts'
 import { isTrigger } from '../../src/shared/model.ts'
 import { DEFAULT_TRIGGER } from '../../src/shared/trigger.ts'
@@ -70,7 +72,10 @@ describe('触发卡片：编辑', () => {
       },
     })
     expect(triggers(state)[0]?.data.note).toBe('只看 src')
-    expect(triggers(state)[0]?.data.source.schedule).toEqual({ kind: 'daily', time: '09:00' })
+    expect(triggers(state)[0]?.data.source).toEqual({
+      kind: 'schedule',
+      schedule: { kind: 'daily', time: '09:00' },
+    })
     const before = state
     state = reduce(state, { type: 'patchTrigger', id: 'tick', patch: { note: '只看 src' } })
     expect(state).toBe(before)
@@ -214,17 +219,57 @@ describe('触发卡片：卡片上的字', () => {
   it('状态一行：等待中带下一次；关着、出错不带', () => {
     const now = new Date(2026, 10, 12, 8, 0).getTime()
     const next = new Date(2026, 10, 12, 9, 0).getTime()
-    expect(stateText(t, undefined, now)).toBe('已停用')
-    expect(stateText(t, { node: 'tick', enabled: true, state: 'waiting', next }, now)).toBe(
-      '等待中 · 下一次 今天 09:00',
+    expect(stateText(t, undefined, 'schedule', now)).toBe('已停用')
+    expect(
+      stateText(t, { node: 'tick', enabled: true, state: 'waiting', next }, 'schedule', now),
+    ).toBe('等待中 · 下一次 今天 09:00')
+    expect(
+      stateText(t, { node: 'tick', enabled: true, state: 'elsewhere', next }, 'schedule', now),
+    ).toBe('由另一个 DSH 负责 · 下一次 今天 09:00')
+    expect(
+      stateText(t, { node: 'tick', enabled: false, state: 'stopped', next }, 'schedule', now),
+    ).toBe('已自动停用')
+    expect(stateText(t, { node: 'tick', enabled: true, state: 'invalid' }, 'schedule', now)).toBe(
+      '设置不对',
     )
-    expect(stateText(t, { node: 'tick', enabled: true, state: 'elsewhere', next }, now)).toBe(
-      '由另一个 DSH 负责 · 下一次 今天 09:00',
+  })
+
+  it('轮询、监听程序、HTTP 的状态与触发源一句话', () => {
+    const now = new Date(2026, 10, 12, 8, 0).getTime()
+    const at = new Date(2026, 10, 12, 7, 55).getTime()
+    const view = { node: 'tick', enabled: true } as const
+    expect(stateText(t, { ...view, state: 'waiting', next: at }, 'poll', now)).toBe(
+      '检查中 · 下一次 今天 07:55',
     )
-    expect(stateText(t, { node: 'tick', enabled: false, state: 'stopped', next }, now)).toBe(
-      '已自动停用',
+    expect(
+      stateText(t, { ...view, state: 'waiting', checked: { at, met: false } }, 'poll', now),
+    ).toBe('检查中 · 上次 今天 07:55 未满足')
+    expect(stateText(t, { ...view, state: 'listening', since: at }, 'listen', now)).toBe(
+      '接收中 · 今天 07:55 启动',
     )
-    expect(stateText(t, { node: 'tick', enabled: true, state: 'invalid' }, now)).toBe('规则不对')
+    expect(stateText(t, { ...view, state: 'restarting', next: at }, 'listen', now)).toBe(
+      '重启中 · 今天 07:55 重启',
+    )
+    expect(stateText(t, { ...view, state: 'confirm' }, 'listen', now)).toBe(
+      '待确认 · 在面板里确认命令',
+    )
+    expect(sourceText(t, { kind: 'poll', command: 'x', seconds: 300 })).toBe('每 5 分钟检查')
+    expect(sourceText(t, { kind: 'poll', command: 'x', seconds: 7200 })).toBe('每 2 小时检查')
+    expect(sourceText(t, { kind: 'poll', command: 'x', seconds: 45 })).toBe('每 45 秒检查')
+    expect(sourceText(t, { kind: 'listen', command: 'x' })).toBe('监听程序')
+    expect(sourceText(t, { kind: 'http' })).toBe('HTTP 请求')
+  })
+
+  it('关键字一格按中英文逗号、顿号、换行拆开；curl 带上令牌', () => {
+    expect(parseKeywords('ERROR, 失败，超时、\n timeout ,,')).toEqual([
+      'ERROR',
+      '失败',
+      '超时',
+      'timeout',
+    ])
+    const curl = curlOf({ url: 'http://127.0.0.1:3791/trigger/abc', token: 'tok' })
+    expect(curl).toContain('http://127.0.0.1:3791/trigger/abc')
+    expect(curl).toContain('Bearer tok')
   })
 
   it('实例来源的一句话', () => {
@@ -235,6 +280,12 @@ describe('触发卡片：卡片上的字', () => {
     ).toBe('定时触发 · 夜巡')
     expect(originText(t, { channel: 'now', trigger: { id: 'tick', name: 'tick' } })).toBe(
       '立即触发 · tick',
+    )
+    expect(originText(t, { channel: 'listen', trigger: { id: 'log', name: '报错' } })).toBe(
+      '监听程序触发 · 报错',
+    )
+    expect(originText(t, { channel: 'http', trigger: { id: 'ci', name: 'CI' } })).toBe(
+      'HTTP 触发 · CI',
     )
   })
 })

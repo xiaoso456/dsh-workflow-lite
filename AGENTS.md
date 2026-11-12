@@ -69,14 +69,16 @@ gh release create workflow-lite-v<ver> --title "v<ver>" --notes-file <notes 文�
 
 ## 触发卡片
 
-`wfTrigger` 节点让工作流到点自动执行（设计与分期见 `docs/触发器设计.md`，目前只有定时）。
+`wfTrigger` 节点让工作流在某件事发生时自动执行：定时、条件轮询、监听程序、HTTP（设计、分期与各期落地情况见 `docs/触发器设计.md`）。
 
-- 写在图里的只有定义（规则、触发说明、会话方式、保护）；开关、工作区、固定会话、触发记录是本机状态，存 `<数据目录>/triggers/`，不进工作流 JSON、不随导出。往卡片上加东西先分清是哪一类。
-- 宿主侧在 `src/host/triggers/`，各管一件事：`store`（本机状态）、`owner`（同一个数据目录只有一个进程负责）、`reconcile`（对账，只算不做）、`launcher`（发进会话）、`claims`（实例认领来源）、`service`（串起来）。宿主的会话接口没有类型，只在 `sessions.ts` 里按结构取用。
-- 「发不出去」只算触发本身没成功（工作区或会话不在、会话建不出来、图编译不出计划）；跳过的和发出去之后的事都不算，不计入自动停用。
-- 触发卡片不是步骤：`isStep` 不含它，不连线，模型的工具不能建、改它。按节点类型分支的地方新加一种节点时要逐处看（`grep isInput(`）。
+- 写在图里的只有定义（触发源、过滤、触发条件、触发说明、会话方式、保护）；开关、工作区、固定会话、命令确认、HTTP 令牌、轮询的上一次结果、触发记录是本机状态，存 `<数据目录>/triggers/`，不进工作流 JSON、不随导出。往卡片上加东西先分清是哪一类。
+- 宿主侧在 `src/host/triggers/`，各管一件事：`store`（本机状态）、`owner`（同一个数据目录只有一个进程负责）、`reconcile`（定时对账，只算不做）、`runtime`（常驻触发源的启停，只在负责的进程里）、`poller` / `listener` / `hooks`（三种常驻触发源）、`processes`（在本机跑命令）、`intake`（过滤）、`launcher`（发进会话）、`message`（发进去的那段话）、`claims`（实例认领来源）、`service`（串起来）。宿主的会话接口没有类型，只在 `sessions.ts` 里按结构取用。
+- 「失败」只算触发器自己干不了活（工作区或会话不在、会话建不出来、图编译不出计划、命令跑不起来、监听程序一启动就退出）；跳过的、条件不满足的、过滤掉的、端口被占用、发出去之后的事都不算，不计入自动停用。
+- 要在本机跑命令的卡片，开关只在用户确认过「这条命令在这个工作区」之后才打开（`approvalOf`）；两样改了任一样就回到「待确认」。不要加绕过确认的路径，模型建的卡片也一律关着。
+- 触发卡片不是步骤：`isStep` 不含它，不连线；模型只能经 `write_trigger` 建、改它，`write_node` 拒绝。按节点类型分支的地方新加一种节点时要逐处看（`grep isInput(`）。
 - 卡片上的状态走 `ui/trigger/triggerEnv.ts` 的上下文，不进画布节点数据：轮询只换字和属性，不重建节点。
-- 改了界面跑 `tests/cdp-triggers.mjs` 在一次性实例上走一遍；文档站的两张图是 `docs:shots trigger-card trigger-panel`。
+- 测常驻触发源时 `TriggerService` 的 `runtime` 换成假的（拿到事件口自己喂），跑命令、开端口的放在 `tests/host/triggerSources.spec.ts`。
+- 改了界面跑 `tests/cdp-triggers.mjs` 在一次性实例上走一遍；文档站的图是 `docs:shots trigger-card trigger-panel trigger-poll trigger-confirm trigger-filter trigger-http`。
 
 ## 配色主题
 
@@ -104,7 +106,7 @@ DSH_WEB_TOKEN=<token> DSH_BASE=http://127.0.0.1:3190 node --experimental-strip-t
 | `cdp-versions.mjs` | 版本、工作流中心「工作流」页 |
 | `cdp-config.mjs` | 「设置」页（含配色主题） |
 | `cdp-pack.mjs` | 导出、导入、导出成 Skill（装到本机用一次性名字，验完删掉） |
-| `cdp-triggers.mjs` | 触发卡片：卡片与面板、开关与状态、立即触发、触发记录、实例的来源（自备一次性实例，不用 `DSH_WEB_TOKEN`；假模型不调工具，认领来源只有单测） |
+| `cdp-triggers.mjs` | 触发卡片：卡片与面板、开关与状态、立即触发、触发记录、实例的来源；监听程序（命令确认、收到一行发进会话、最近的输出、改命令后待确认）、HTTP（端口设置、401 / 202）、换触发源（自备一次性实例，不用 `DSH_WEB_TOKEN`；假模型不调工具，认领来源、`decline` 只有单测） |
 | `cdp-big.mjs` | 400 张卡的大图：只挂视口附近的卡片之后，看全图、定位、拖卡片、平移、长线、展示卡挪出去再挪回来（自备一次性实例，不用 `DSH_WEB_TOKEN`） |
 
 ## 性能场景

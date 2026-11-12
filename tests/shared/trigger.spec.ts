@@ -4,13 +4,14 @@
 
 import { describe, expect, it } from 'vitest'
 import { readDocument, writeDocument } from '../../src/shared/model.ts'
+import { nextFire, parseCron, scheduleProblem } from '../../src/shared/schedule.ts'
 import {
   canonicalTrigger,
+  commandOf,
   launchOf,
-  nextFire,
-  parseCron,
   readTriggerData,
-  scheduleProblem,
+  sourceProblem,
+  sourceText,
 } from '../../src/shared/trigger.ts'
 import type { TriggerSchedule, WorkflowDocument } from '../../src/shared/types.ts'
 import { validateDocument } from '../../src/shared/validate.ts'
@@ -50,7 +51,7 @@ describe('触发节点的读入', () => {
     const data = readTriggerData({
       source: { schedule: { kind: 'daily', time: '08:00', weekdays: [1, 2, 3, 4, 5, 6, 7] } },
     })
-    expect(data.source.schedule).toEqual({ kind: 'daily', time: '08:00' })
+    expect(data.source).toEqual({ kind: 'schedule', schedule: { kind: 'daily', time: '08:00' } })
   })
 
   it('写盘再读回来不变，键序固定', () => {
@@ -70,6 +71,75 @@ describe('触发节点的读入', () => {
     const parsed = readDocument(text)
     expect(parsed.document?.nodes[0]).toEqual(document.nodes[0])
     expect(writeDocument(parsed.document as WorkflowDocument)).toBe(text)
+  })
+})
+
+describe('轮询、监听程序、HTTP', () => {
+  it('触发源按形状读入：命令原样保留，判定方式缺省不写，认不出的回落到定时', () => {
+    expect(
+      readTriggerData({
+        source: { kind: 'poll', command: ' git ls-remote ', seconds: 60, when: 'success' },
+      }).source,
+    ).toEqual({ kind: 'poll', command: ' git ls-remote ', seconds: 60 })
+    expect(readTriggerData({ source: { kind: 'poll', when: 'change' } }).source).toEqual({
+      kind: 'poll',
+      command: '',
+      seconds: 300,
+      when: 'change',
+    })
+    expect(readTriggerData({ source: { kind: 'listen', command: 1 } }).source).toEqual({
+      kind: 'listen',
+      command: '',
+    })
+    expect(readTriggerData({ source: { kind: 'http', command: 'x' } }).source).toEqual({
+      kind: 'http',
+    })
+    expect(readTriggerData({ source: { kind: 'webhook' } }).source.kind).toBe('schedule')
+  })
+
+  it('过滤：等于缺省的不留，关键字去空去重；定时不要过滤', () => {
+    const data = readTriggerData({
+      source: { kind: 'listen', command: 'node tail.mjs' },
+      condition: '只管支付模块',
+      filter: { merge: 5, dedupe: 0, include: [' ERROR ', 'ERROR', ''], exclude: 'x' },
+    })
+    expect(data).toEqual({
+      source: { kind: 'listen', command: 'node tail.mjs' },
+      condition: '只管支付模块',
+      filter: { include: ['ERROR'] },
+    })
+    expect(
+      readTriggerData({ source: { kind: 'poll', command: 'x' }, filter: { merge: 5 } }).filter,
+    ).toEqual({ merge: 5 })
+    expect(readTriggerData({ filter: { include: ['ERROR'] } })).not.toHaveProperty('filter')
+    expect(
+      readTriggerData({ source: { kind: 'http' }, filter: { merge: 99_999, dedupe: -1 } }),
+    ).not.toHaveProperty('filter')
+  })
+
+  it('写盘再读回来不变，键序固定', () => {
+    const data = canonicalTrigger({
+      filter: { exclude: ['health'], merge: 0 },
+      condition: '只管支付',
+      source: { when: 'change', seconds: 600, command: 'node check.mjs', kind: 'poll' },
+      label: '网页变了',
+    })
+    expect(Object.keys(data)).toEqual(['label', 'source', 'condition', 'filter'])
+    expect(Object.keys(data.source)).toEqual(['kind', 'command', 'seconds', 'when'])
+    expect(canonicalTrigger(readTriggerData(JSON.parse(JSON.stringify(data))))).toEqual(data)
+  })
+
+  it('设置不对的说出来；要跑的命令与一句话说法', () => {
+    expect(sourceProblem({ kind: 'listen', command: '  ' })).toBe('还没写要运行的命令')
+    expect(sourceProblem({ kind: 'poll', command: 'x', seconds: 5 })).toContain('10 秒')
+    expect(sourceProblem({ kind: 'poll', command: 'x', seconds: 10 })).toBeNull()
+    expect(sourceProblem({ kind: 'http' })).toBeNull()
+    expect(commandOf({ kind: 'http' })).toBeUndefined()
+    expect(commandOf({ kind: 'listen', command: 'node a.mjs' })).toBe('node a.mjs')
+    expect(sourceText({ kind: 'poll', command: 'x', seconds: 300, when: 'change' })).toBe(
+      '条件轮询（每 5 分钟 跑一次命令，输出变了时触发）',
+    )
+    expect(sourceText({ kind: 'http' })).toBe('收到一个 HTTP 请求')
   })
 })
 

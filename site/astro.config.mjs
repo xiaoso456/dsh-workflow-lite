@@ -35,7 +35,13 @@ const sidebar = [
     'display/folder',
     'display/rounds',
   ]),
-  group('自动触发', 'Triggers', ['trigger/schedule']),
+  group('自动触发', 'Triggers', [
+    'trigger/schedule',
+    'trigger/poll',
+    'trigger/listen',
+    'trigger/http',
+    'trigger/filter',
+  ]),
   group('进阶', 'Advanced', [
     'materials/inputs',
     'materials/resources',

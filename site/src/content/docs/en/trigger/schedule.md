@@ -7,12 +7,14 @@ sidebar:
 
 A trigger card runs a workflow on a schedule: when the time comes, the plugin sends the workflow to a session and the model runs it as usual. This feature is experimental.
 
+Besides schedules, a trigger card can [poll a command](/dsh-workflow-lite/en/trigger/poll/), run a [listener](/dsh-workflow-lite/en/trigger/listen/) or receive [HTTP requests](/dsh-workflow-lite/en/trigger/http/). Session modes, safeguards, status and origin are shared by all of them and described on this page.
+
 ![A trigger card on the canvas: name, rule, status and switch](../../../../assets/shots/en/trigger-card.webp)
 
 ## Use
 
 1. Drag **Trigger** from **Basics** in the step library, or right-click an empty spot on the canvas to add one. A trigger card takes no lines; it triggers the whole workflow.
-2. Choose a rule under **When** in the right panel.
+2. Under **When** in the right panel, choose **Schedule** and a rule.
 3. Choose the session mode and workspace under **How to run**.
 4. Turn on the switch on the card. The card shows **Waiting** and the next trigger time.
 
@@ -31,7 +33,7 @@ To see it work right away, click **Trigger once now** in the panel. The box abov
 | If still running | Skip, Run anyway | Skip | What to do when the session from the previous trigger is still running. |
 | Catch up | On, off | On | Runs once after startup if a trigger was missed while DSH was closed. |
 | Max triggers per hour | 1 or more | 12 | Triggers beyond the limit are skipped. |
-| Stop after failed deliveries in a row | 1 or more | 3 | See **Status** below. |
+| Stop after failures in a row | 1 or more | 3 | See **Status** below. |
 
 ## Status
 
@@ -39,14 +41,14 @@ To see it work right away, click **Trigger once now** in the panel. The box abov
 |---|---|
 | Off | The switch is off. |
 | Waiting | On; followed by the next trigger time. |
-| Invalid rule | The schedule is wrong; the panel says why. |
-| Stopped automatically | Several deliveries in a row failed. Fix the cause, then switch it back on. |
+| Invalid settings | The rule or command is wrong; the panel says why. |
+| Stopped automatically | Several failures in a row. Fix the cause, then switch it back on. |
 | Handled by another DSH | When several DSH instances share one data folder, only one handles triggers; this one takes over when it exits. |
 | Can't trigger here | This environment cannot create sessions or send messages. |
 
-A failed delivery means the trigger itself did not get through: the workspace or session is missing, the session cannot be created, or the workflow has errors and cannot run. Skipped triggers and the outcome of a run after delivery do not count.
+A failure means the trigger itself did not get through: the workspace or session is missing, the session cannot be created, the workflow has errors and cannot run, or a poll command or listener cannot run. Skipped triggers, unmet conditions, filtered triggers and the outcome of a run after delivery do not count.
 
-**Trigger history** in the panel lists the time and result of recent triggers. Once the model starts the run, the arrow on the right of a record opens it.
+**Trigger history** in the panel lists the time and result of recent triggers. Once the model starts the run, the arrow on the right of a record opens it. With a [trigger condition](/dsh-workflow-lite/en/trigger/filter/#trigger-condition), a trigger the model decided to skip shows **Not needed** and the reason.
 
 ## Questions before running
 
@@ -60,5 +62,6 @@ Every instance records how it was started. See **Origin** in the instance **Over
 
 - Triggers only fire while DSH is running; nothing runs after it is closed.
 - The switch, workspace and session are stored on this machine only and are not [exported](/dsh-workflow-lite/en/manage/import-export/) with the workflow. After importing, choose them again and turn the switch on.
+- The model can add trigger cards when asked in a conversation. Cards it adds are always off; review them and turn them on yourself.
 - **Trigger once now** ignores the switch, the hourly limit and **If still running**.
 - Do not open a workflow that has trigger cards with plugin version 0.10.0 or earlier; the trigger settings are lost on save.

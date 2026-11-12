@@ -334,10 +334,39 @@ export type TriggerSchedule =
   | { kind: 'daily'; time: string; weekdays?: number[] }
   | { kind: 'cron'; expression: string }
 
-/** 触发源：什么时候触发。 */
-export interface TriggerSource {
-  kind: 'schedule'
-  schedule: TriggerSchedule
+/** 条件轮询什么时候算「满足」：命令成功（退出码 0，只在从不成功变成成功时触发一次）/ 输出变了。 */
+export type PollWhen = 'success' | 'change'
+
+/**
+ * 触发源：什么时候触发。
+ * - `schedule` 定时；
+ * - `poll` 条件轮询：每隔 `seconds` 秒在工作区里跑一次 `command`，输出是背景信息；
+ * - `listen` 监听程序：常驻的 `command`，往标准输出每打一行就是一次触发，那一行是背景信息；
+ * - `http` 别的程序向插件的触发端口发请求，请求体是背景信息（地址、令牌是本机状态）。
+ *
+ * 命令里可以写 `{workflow}`（工作流目录，脚本放这里随工作流导出）；以 DSH 进程的身份运行，不进沙箱，
+ * 所以要用户在本机确认过才跑，命令或工作区改了要重新确认。
+ */
+export type TriggerSource =
+  | { kind: 'schedule'; schedule: TriggerSchedule }
+  | { kind: 'poll'; command: string; seconds: number; when?: Extract<PollWhen, 'change'> }
+  | { kind: 'listen'; command: string }
+  | { kind: 'http' }
+
+export type TriggerSourceKind = TriggerSource['kind']
+
+/**
+ * 不花模型调用的过滤（定时没有背景信息，不用它）。缺省值不写盘，见 `shared/trigger.ts` 的 `filterOf`。
+ */
+export interface TriggerFilter {
+  /** 合并：这么多秒内的几次触发并成一次，背景信息拼在一起；0 = 不合并。缺省监听、HTTP 5 秒，轮询 0。 */
+  merge?: number
+  /** 去重：相同的背景信息这么多分钟内只触发一次；缺省 0 = 不去重。 */
+  dedupe?: number
+  /** 背景信息里有其中任意一个才触发。 */
+  include?: string[]
+  /** 背景信息里有其中任意一个就不触发。 */
+  exclude?: string[]
 }
 
 /** 触发后用哪个会话：每次新建 / 沿用这个触发器上一次的 / 固定某一个（哪一个存本机）。 */
@@ -364,6 +393,9 @@ export interface TriggerData {
   source: TriggerSource
   /** 触发说明：每次触发都带给模型的一段话。 */
   note?: string
+  /** 触发条件：模型先按它判断这次要不要执行，不要就不开始工作流。 */
+  condition?: string
+  filter?: TriggerFilter
   launch?: TriggerLaunch
 }
 
@@ -584,7 +616,7 @@ export interface ValidationProblem {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 工具线格式（唯一工具 workflow_lite，16 个 action）
+// 工具线格式（唯一工具 workflow_lite，19 个 action）
 // ─────────────────────────────────────────────────────────────
 
 export const TOOL_NAME = 'workflow_lite'
@@ -604,9 +636,11 @@ export const ACTIONS = [
   'save_as_template',
   'configure',
   'write_resource',
+  'write_trigger',
   'runs',
   'resume',
   'state',
+  'decline',
 ] as const
 
 export type Action = (typeof ACTIONS)[number]
@@ -745,6 +779,8 @@ export interface ResourceIndexEntry {
 
 export interface ReadIndexResult {
   workflow: string
+  /** 工作流目录的绝对路径（`{workflow}` 指的那个目录；触发卡片的脚本、资料文件放这里）。 */
+  dir?: string
   viewport: Viewport
   /** 工作流设置（有才给）。 */
   settings?: WorkflowSettings
@@ -753,6 +789,8 @@ export interface ReadIndexResult {
   resources?: ResourceIndexEntry[]
   /** 输入节点（有才给），按画布上从上到下的顺序。 */
   inputs?: InputIndexEntry[]
+  /** 触发卡片的定义（有才给）；开没开、在哪个工作区是用户本机的事，不在这里。 */
+  triggers?: ({ id: string } & TriggerData)[]
   /** 阻塞编译的问题（有才给）。 */
   problems?: ValidationProblem[]
   warnings: ToolWarning[]
@@ -796,6 +834,7 @@ export type ToolSuccess =
   | { action: 'save_as_template'; result: WriteResult }
   | { action: 'configure'; result: WriteResult }
   | { action: 'write_resource'; result: WriteResult }
+  | { action: 'write_trigger'; result: WriteResult }
   | { action: 'runs'; result: unknown }
   | { action: 'resume'; result: unknown }
 

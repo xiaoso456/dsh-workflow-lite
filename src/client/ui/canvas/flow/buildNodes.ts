@@ -25,7 +25,7 @@ import { displayOf } from '../../../model/display.ts'
 import type { Selection } from '../../../model/editor.ts'
 import { isCompactResource, RES_SHOWN } from '../../../model/layout.ts'
 import { samePlain } from '../../../model/samePlain.ts'
-import { ruleText } from '../../../model/triggerText.ts'
+import { sourceText } from '../../../model/triggerText.ts'
 import { itemText } from '../../kit/resourceUi.ts'
 import { lookOf } from '../../kit/StepMark.tsx'
 import { resourceTint } from '../../resources/ResourcePresets.tsx'
@@ -182,14 +182,15 @@ export function buildNodes({
       const note = reported?.note ?? ''
       const dim = focusFile !== null
       const title = node.data.label?.trim() || node.id
-      const rule = ruleText(t, node.data.source.schedule)
-      signature = `${selected}|${tone}|${note}|${dim}|${title}|${rule}`
+      const rule = sourceText(t, node.data.source)
+      const kind = node.data.source.kind
+      signature = `${selected}|${tone}|${note}|${dim}|${title}|${rule}|${kind}`
       build = () => ({
         id: node.id,
         type: 'wfTrigger',
         position: moving ?? node.position,
         selected,
-        data: { title, rule, tone, note, dim, t },
+        data: { title, rule, kind, tone, note, dim, t },
       })
     } else if (isResource(node)) {
       const isFocus = focusFile !== null && idKey(focusFile) === idKey(node.id)

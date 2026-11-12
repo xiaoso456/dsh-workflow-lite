@@ -24,6 +24,8 @@ export interface FireInput {
   at: number
   /** 触发时带来的背景信息。 */
   info?: string
+  /** 合并窗口里并进来了几次。 */
+  merged?: number
 }
 
 const reasonOf = (error: unknown): string =>
@@ -51,7 +53,11 @@ export class Launcher {
         outcome: 'failed',
       },
       ...(input.trigger.data.note === undefined ? {} : { note: input.trigger.data.note }),
+      ...(input.trigger.data.condition === undefined
+        ? {}
+        : { condition: input.trigger.data.condition }),
       ...(info === undefined || info === '' ? {} : { info }),
+      ...(input.merged === undefined || input.merged < 2 ? {} : { merged: input.merged }),
     }
   }
 
@@ -103,7 +109,7 @@ export class Launcher {
       return this.close(detail, 'skipped', { reason: '上一次触发的会话还在运行' })
     }
 
-    const text = fireMessage(detail, input.trigger.data)
+    const text = fireMessage(detail, input.trigger.data, this.store.infoPath(detail.record.id))
     const summary = fireSummary(detail)
     if (target !== undefined) {
       try {

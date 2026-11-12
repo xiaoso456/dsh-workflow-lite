@@ -1,5 +1,5 @@
 /**
- * dsh-workflow-lite — 仓储的节点与边部分：写节点（步骤 / 输入 / 资源 / 记忆卡）、改显示名与设置、删节点、连线与断线。
+ * dsh-workflow-lite — 仓储的节点与边部分：写节点（步骤 / 输入 / 资源 / 记忆卡 / 触发卡片）、改显示名与设置、删节点、连线与断线。
  *
  * 每一个动作都只交给核心的 `mutate` 一段「拿到文档、改文档、回变更摘要」的函数；
  * 锁、预检、哈希比对、合并与落盘都在 `repoCore`。
@@ -50,6 +50,13 @@ import {
   splitOutputs,
 } from '../../shared/resources.ts'
 import {
+  canonicalTrigger,
+  DEFAULT_TRIGGER,
+  readTriggerData,
+  SOURCE_KINDS,
+  sourceProblem,
+} from '../../shared/trigger.ts'
+import {
   type ExecutionMode,
   type Handoff,
   INPUT_TYPE,
@@ -67,6 +74,8 @@ import {
   type ReusePolicy,
   type StepNode,
   type ToolWarning,
+  TRIGGER_TYPE,
+  type TriggerNode,
   type WorkflowEdge,
   type WriteResult,
 } from '../../shared/types.ts'
@@ -126,6 +135,25 @@ export interface InputUpsert {
   other?: boolean
   position?: Point
 }
+
+/**
+ * `write_trigger`：新建或修改一张触发卡片的定义（图里的那部分）。给了的字段才改：
+ * `label` / `note` / `condition` 空串 = 清除；`source` / `filter` / `launch` 给了就整项替换（`null` = 清除）。
+ * 开关、工作区、命令的确认是本机状态，不在这里——模型建的卡片一律是关着的，由用户打开。
+ */
+export interface TriggerUpsert {
+  /** 卡片 id；缺省 = 新建，叫 `trigger`（被占了就 `trigger-2`……）。 */
+  id?: string
+  label?: string
+  note?: string
+  condition?: string
+  source?: unknown
+  filter?: unknown
+  launch?: unknown
+}
+
+/** 新建触发卡片缺省的 id。 */
+const TRIGGER_ID = 'trigger'
 
 /** `write_resource`：新建或修改一个资源节点。给了的字段才改；`items` 给了就整份替换。 */
 export interface ResourceUpsert {
@@ -222,7 +250,7 @@ export class NodeWriter {
         return fail('blocked', `${rawId} 是输入节点，改它请带上 input`, { id: rawId })
       }
       if (found !== undefined && isTrigger(found)) {
-        return fail('blocked', `${rawId} 是触发卡片，由用户在画布上设置`, { id: rawId })
+        return fail('blocked', `${rawId} 是触发卡片，改它请用 write_trigger`, { id: rawId })
       }
       const existing = found
       let data: NodeData = existing === undefined ? {} : { ...existing.data }
@@ -367,6 +395,77 @@ export class NodeWriter {
         ok: true,
         document,
         changed: [{ kind: 'node', op: found === undefined ? 'add' : 'update', id: node.id }],
+        warnings: [],
+      }
+    })
+  }
+
+  async writeTrigger(workflow: string, upsert: TriggerUpsert): Promise<Outcome<WriteResult>> {
+    return this.core.mutate(workflow, async (document) => {
+      const found = upsert.id === undefined ? undefined : findNode(document, upsert.id)
+      if (found !== undefined && !isTrigger(found)) {
+        return fail('blocked', `${found.id} 不是触发卡片`, { id: found.id })
+      }
+      let id = found?.id
+      if (id === undefined) {
+        const wanted = normalizeName(upsert.id ?? TRIGGER_ID)
+        const idIssue = checkName(wanted)
+        if (idIssue !== null) {
+          return fail('blocked', `节点 id 不合法：${idIssue.message}`, { code: idIssue.code })
+        }
+        id = wanted
+        for (let n = 2; upsert.id === undefined && findNode(document, id) !== undefined; n += 1) {
+          id = `${wanted}-${String(n)}`
+        }
+      }
+      const source = upsert.source as { kind?: unknown } | null | undefined
+      if (
+        source !== undefined &&
+        (typeof source !== 'object' ||
+          source === null ||
+          !SOURCE_KINDS.some((kind) => kind === source.kind))
+      ) {
+        return fail('invalid_args', `source.kind 要是 ${SOURCE_KINDS.join(' / ')} 之一`, {
+          code: 'trigger_invalid',
+        })
+      }
+      const base: Record<string, unknown> =
+        found === undefined ? { ...DEFAULT_TRIGGER } : { ...found.data }
+      for (const key of ['label', 'note', 'condition'] as const) {
+        const value = upsert[key]
+        if (value === undefined) continue
+        if (value.trim() === '') delete base[key]
+        else base[key] = value
+      }
+      for (const key of ['source', 'filter', 'launch'] as const) {
+        const value = upsert[key]
+        if (value === undefined) continue
+        if (value === null) delete base[key]
+        else base[key] = value
+      }
+      const data = canonicalTrigger(readTriggerData(base))
+      const problem = sourceProblem(data.source)
+      if (problem !== null) {
+        return fail('invalid_args', `触发设置不对：${problem}`, { code: 'trigger_invalid' })
+      }
+      // 新卡片先放在原点（「还没摆过」），画布按触发卡片的位置补上。
+      const node: TriggerNode = {
+        id,
+        type: TRIGGER_TYPE,
+        position: found?.position ?? { x: 0, y: 0 },
+        data,
+      }
+      if (found !== undefined && sameNodeContent(found, node)) {
+        return { ok: true, document, changed: [], warnings: [] }
+      }
+      document.nodes =
+        found === undefined
+          ? [...document.nodes, node]
+          : document.nodes.map((current) => (current === found ? node : current))
+      return {
+        ok: true,
+        document,
+        changed: [{ kind: 'node', op: found === undefined ? 'add' : 'update', id }],
         warnings: [],
       }
     })

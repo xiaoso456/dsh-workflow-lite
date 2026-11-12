@@ -1,14 +1,15 @@
 /**
  * dsh-workflow-lite — 对一遍账：拿本机状态对照图，算出这一轮哪些卡片到点了、各自下一次是什么时候。
  *
- * 只算不做：返回要写回本机状态的改动、到点的卡片、最早的下一次时刻，由 `service.ts` 去写、去触发。
+ * 只算不做、只管定时：返回要写回本机状态的改动、到点的卡片、最早的下一次时刻，由 `service.ts` 去写、去触发。
+ * 工作流、卡片不在了的本机状态也在这里清掉（不分触发源）。
  * 改动是按「现读的状态」再应用一遍的（{@link RoundPlan.apply}）——算的时候和写的时候之间，
  * 别的进程可能已经把开关关了，这种卡片不动它。
  *
  * @module @xiaoso/dsh-workflow-lite/host/triggers/reconcile
  */
 
-import { nextFire, scheduleProblem } from '../../shared/trigger.ts'
+import { nextFire, scheduleProblem } from '../../shared/schedule.ts'
 import type { TriggerSchedule } from '../../shared/types.ts'
 import type { TriggerDefinition, TriggerGraphs } from './graphs.ts'
 import type { TriggerLocal, TriggerLocals } from './store.ts'
@@ -92,7 +93,8 @@ export async function planRound(
         changes.push({ kind: 'dropNode', workflow, node })
         continue
       }
-      if (!local.enabled) continue
+      // 只排定时；轮询、监听程序、HTTP 由 `runtime.ts` 常驻着做。
+      if (!local.enabled || trigger.data.source.kind !== 'schedule') continue
       const { schedule } = trigger.data.source
       const rule = ruleOf(schedule)
       if (scheduleProblem(schedule) !== null) {

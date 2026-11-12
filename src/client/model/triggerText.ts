@@ -1,10 +1,10 @@
 /**
- * dsh-workflow-lite — 触发卡片上的字：定时规则的一句话、下一次的时刻、状态。纯函数，不碰界面。
+ * dsh-workflow-lite — 触发卡片上的字：触发源的一句话、下一次的时刻、状态。纯函数，不碰界面。
  *
  * @module @xiaoso/dsh-workflow-lite/client/model/triggerText
  */
 
-import type { TriggerSchedule } from '../../shared/types.ts'
+import type { TriggerSchedule, TriggerSource, TriggerSourceKind } from '../../shared/types.ts'
 import type { TriggerState, TriggerView } from '../../shared/wire/trigger.ts'
 import type { LocaleKey, T } from '../i18n.ts'
 import { shortTime } from './time.ts'
@@ -57,6 +57,21 @@ export function ruleText(t: T, schedule: TriggerSchedule): string {
   return t('trigger.rule.weekly').replace('{days}', days).replace('{time}', schedule.time)
 }
 
+/** 触发源的一句话（卡片上的第二行）：定时说规则，轮询说间隔，监听、HTTP 说是什么。 */
+export function sourceText(t: T, source: TriggerSource): string {
+  if (source.kind === 'schedule') return ruleText(t, source.schedule)
+  if (source.kind === 'listen') return t('trigger.rule.listen')
+  if (source.kind === 'http') return t('trigger.rule.http')
+  const { seconds } = source
+  if (seconds > 0 && seconds % 3600 === 0) {
+    return t('trigger.rule.pollHours').replace('{n}', String(seconds / 3600))
+  }
+  if (seconds > 0 && seconds % 60 === 0) {
+    return t('trigger.rule.pollMinutes').replace('{n}', String(seconds / 60))
+  }
+  return t('trigger.rule.pollSeconds').replace('{n}', String(seconds))
+}
+
 /** 一个时刻怎么说：今天、明天只说钟点，再远的带上月日。 */
 export function momentText(t: T, at: number, now: number = Date.now()): string {
   const date = new Date(at)
@@ -73,16 +88,56 @@ export function momentText(t: T, at: number, now: number = Date.now()): string {
 const STATE_TEXT: Record<TriggerState, LocaleKey> = {
   off: 'trigger.state.off',
   waiting: 'trigger.state.waiting',
+  listening: 'trigger.state.listening',
+  restarting: 'trigger.state.restarting',
+  error: 'trigger.state.error',
   invalid: 'trigger.state.invalid',
+  confirm: 'trigger.state.confirm',
   stopped: 'trigger.state.stopped',
   elsewhere: 'trigger.state.elsewhere',
   unavailable: 'trigger.state.unavailable',
 }
 
-/** 卡片、面板上的那一行状态：「等待中 · 下一次 明天 09:00」。还没读到状态时按关着算。 */
-export function stateText(t: T, view: TriggerView | undefined, now: number = Date.now()): string {
-  const state = view?.state ?? 'off'
-  const label = t(STATE_TEXT[state])
-  if (view?.next === undefined || (state !== 'waiting' && state !== 'elsewhere')) return label
-  return `${label} · ${t('trigger.next').replace('{time}', momentText(t, view.next, now))}`
+/** 状态后面跟的那半句；没有就是空串。 */
+function stateDetail(t: T, view: TriggerView, kind: TriggerSourceKind, now: number): string {
+  const at = (key: LocaleKey, moment: number): string =>
+    t(key).replace('{time}', momentText(t, moment, now))
+  switch (view.state) {
+    case 'waiting':
+      // 轮询：先说上一次检查的结果，还没检查过就说下一次。
+      if (kind === 'poll' && view.checked !== undefined) {
+        return at(view.checked.met ? 'trigger.checkedMet' : 'trigger.checkedUnmet', view.checked.at)
+      }
+      return view.next === undefined ? '' : at('trigger.next', view.next)
+    case 'elsewhere':
+      return view.next === undefined ? '' : at('trigger.next', view.next)
+    case 'listening':
+      return view.since === undefined ? '' : at('trigger.started', view.since)
+    case 'restarting':
+      return view.next === undefined ? '' : at('trigger.restartAt', view.next)
+    case 'confirm':
+      return t('trigger.confirmHint')
+    default:
+      return ''
+  }
+}
+
+/**
+ * 卡片、面板上的那一行状态：「等待中 · 下一次 明天 09:00」「检查中 · 上次 10:02 未满足」。
+ * 还没读到状态时按关着算。
+ */
+export function stateText(
+  t: T,
+  view: TriggerView | undefined,
+  kind: TriggerSourceKind = 'schedule',
+  now: number = Date.now(),
+): string {
+  if (view === undefined) return t(STATE_TEXT.off)
+  // 轮询开着时叫「检查中」，别的都叫「等待中」。
+  const label =
+    view.state === 'waiting' && kind === 'poll'
+      ? t('trigger.state.checking')
+      : t(STATE_TEXT[view.state])
+  const detail = stateDetail(t, view, kind, now)
+  return detail === '' ? label : `${label} · ${detail}`
 }

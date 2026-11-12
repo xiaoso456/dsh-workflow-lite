@@ -5,7 +5,7 @@ sidebar:
   order: 2
 ---
 
-Plugin settings apply to all workflows. Open **Workflow hub** → **Settings**: the top part is **Appearance** (color themes and the look of display cards), and the rest is split into three groups, **Storage**, **Canvas** and **Model**.
+Plugin settings apply to all workflows. Open **Workflow hub** → **Settings**: the top part is **Appearance** (color themes and the look of display cards), and the rest is split into four groups, **Storage**, **Canvas**, **Model** and **Triggers**.
 
 ![The Settings page: appearance and plugin settings](../../../../assets/shots/en/hub-settings.webp)
 
@@ -25,7 +25,8 @@ For settings marked **After restart**, restart DSH after saving.
 | Canvas | Max steps per workflow | 400 steps | Beyond this the canvas stops auto-arranging and the workflow cannot run. |
 | Canvas | Autosave delay | 400 ms | How long the canvas waits after you stop before writing to disk. |
 | Model | Model read limit | 256 KB | The most the model gets when it reads a workflow or run state; raise it if reading a very large workflow fails. |
-| Model | Guides for the model | On | Registers three guides the model reads on demand: designing a workflow, recording run state, writing a canvas dashboard. Takes effect after restart. |
+| Model | Guides for the model | On | Registers four guides the model reads on demand: designing a workflow, recording run state, writing a canvas dashboard, adding trigger cards. Takes effect after restart. |
+| Triggers | HTTP trigger port | 3791 | Local port for [HTTP trigger](/dsh-workflow-lite/en/trigger/http/) addresses; only taken while an HTTP trigger card is on. Changing it changes the addresses, so update the callers. |
 
 ## Notes
 

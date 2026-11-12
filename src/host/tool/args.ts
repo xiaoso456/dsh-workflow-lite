@@ -51,6 +51,18 @@ export interface WorkflowLiteArgs {
   fire?: string
   resource?: ResourceArgs
   memory?: MemoryArgs
+  trigger?: TriggerArgs
+  reason?: string
+}
+
+/** write_trigger 的 trigger（与参数声明同构；形状由仓储按触发卡片的规矩读入）。 */
+export interface TriggerArgs {
+  label?: string
+  note?: string
+  condition?: string
+  source?: unknown
+  filter?: unknown
+  launch?: unknown
 }
 
 /** write_resource 的 memory（与参数声明同构）。 */

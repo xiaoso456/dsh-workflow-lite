@@ -12,7 +12,7 @@
 import { edgeWhen } from './graph.ts'
 import { isStep } from './model.ts'
 import { flowEdges } from './resources.ts'
-import type { FireChannel } from './trigger.ts'
+import { FIRE_CHANNELS, type FireChannel } from './trigger.ts'
 import {
   EXECUTION_MODES,
   type ExecutionMode,
@@ -601,7 +601,7 @@ export function takenEdges(document: WorkflowDocument, state: RunState): Set<str
  */
 export type OriginChannel = 'manual' | 'session' | FireChannel
 
-export const ORIGIN_CHANNELS: readonly OriginChannel[] = ['manual', 'session', 'schedule', 'now']
+export const ORIGIN_CHANNELS: readonly OriginChannel[] = ['manual', 'session', ...FIRE_CHANNELS]
 
 /** 实例的来源（进索引的那部分，列表里要用）。 */
 export interface InstanceOrigin {

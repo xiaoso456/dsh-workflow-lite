@@ -50,7 +50,7 @@ import {
   resourceGraph,
   resourceTitle,
 } from './resources.ts'
-import { scheduleProblem } from './trigger.ts'
+import { sourceProblem } from './trigger.ts'
 import type {
   InputData,
   ResourceData,
@@ -172,11 +172,11 @@ export function validateDocument(
   // ── 保存级：每个节点的字段规则 ──────────────────────────────
   for (const node of document.nodes) {
     if (isTrigger(node)) {
-      // 定时规则写得不对只是警告：触发器开不了，但不挡保存，也不挡手动执行。
-      const problem = scheduleProblem(node.data.source.schedule)
+      // 触发源写得不对只是警告：触发器开不了，但不挡保存，也不挡手动执行。
+      const problem = sourceProblem(node.data.source)
       if (problem !== null) {
         warning.push(
-          mk('warning', 'trigger_invalid', `触发 ${node.id} 的定时规则不对：${problem}`, {
+          mk('warning', 'trigger_invalid', `触发 ${node.id} 设置得不对：${problem}`, {
             node: node.id,
           }),
         )

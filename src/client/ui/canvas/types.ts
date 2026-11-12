@@ -11,7 +11,13 @@ import type { Edge, Node } from '@xyflow/react'
 import type { Appearance, StepColor } from '../../../shared/appearance.ts'
 import type { ResourceRole } from '../../../shared/resources.ts'
 import type { NodeStatus } from '../../../shared/runState.ts'
-import type { InputKind, ResourceItem, ResourceKind, ResourceView } from '../../../shared/types.ts'
+import type {
+  InputKind,
+  ResourceItem,
+  ResourceKind,
+  ResourceView,
+  TriggerSourceKind,
+} from '../../../shared/types.ts'
 import type { T } from '../../i18n.ts'
 import type { Display } from '../../model/display.ts'
 import type { FocusFile } from '../../model/editor.ts'
@@ -195,7 +201,9 @@ export interface InputCardData extends Record<string, unknown> {
 /** 触发卡片：名字 + 定时规则的一句话（状态和开关卡片自己从现场读，见 `trigger/triggerEnv.ts`）。 */
 export interface TriggerCardData extends Record<string, unknown> {
   title: string
+  /** 触发源的一句话。 */
   rule: string
+  kind: TriggerSourceKind
   tone: Tone
   note: string
   /** 悬停某个资源时它跟着淡下去。 */

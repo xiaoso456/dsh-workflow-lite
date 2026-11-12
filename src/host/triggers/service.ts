@@ -1,20 +1,26 @@
 /**
- * dsh-workflow-lite — 触发器的业务面：到点触发、开关与本机设置、「立即触发一次」、状态与触发记录。
+ * dsh-workflow-lite — 触发器的业务面：到点触发、常驻的触发源、开关与本机设置、「立即触发一次」、状态与触发记录。
  *
- * 到点触发只由负责的那个 DSH 进程做（见 `owner.ts`）：每隔几秒报到一次、对一遍账（`reconcile.ts`），
- * 到点的交给 `launcher.ts` 发进会话。开关、设置、「立即触发一次」哪个进程都能做，都落在
+ * 触发只由负责的那个 DSH 进程做（见 `owner.ts`）：每隔几秒报到一次、对一遍账（`reconcile.ts`），
+ * 到点的交给 `launcher.ts` 发进会话；条件轮询、监听程序、HTTP 地址按本机状态开着或停下（`runtime.ts`），
+ * 它们进来的内容过了过滤也交给 `launcher.ts`。开关、设置、「立即触发一次」哪个进程都能做，都落在
  * `<dataDir>/triggers/` 里，负责的进程下一轮就看到。
  *
- * 「连续几次没发出去就自动停用」里的「没发出去」只指触发器自己干不了活：工作区或会话不在了、
- * 会话建不出来、图编译不出计划。跳过（上一次还在跑、超过每小时上限、错过了）不算，
- * 消息发进去之后工作流执行得怎么样更不算。
+ * 要在本机跑命令的（轮询、监听程序）打开前要用户确认那条命令，记下命令与工作区的记号；
+ * 两样有一样改了就停下、等重新确认（`confirm`）。模型能建、改触发卡片，但开关只在用户手里。
+ *
+ * 「连续几次失败就自动停用」里的「失败」只指触发器自己干不了活：工作区或会话不在了、会话建不出来、
+ * 图编译不出计划、监听程序一启动就退出、轮询的命令跑不起来。跳过（上一次还在跑、超过每小时上限、错过了）、
+ * 条件不满足、过滤掉的都不算，消息发进去之后工作流执行得怎么样更不算。
+ * 端口被占用也不算：那是「出错」，端口空出来或换一个就恢复。
  *
  * @module @xiaoso/dsh-workflow-lite/host/triggers/service
  */
 
 import { stat } from 'node:fs/promises'
 import { isAbsolute } from 'node:path'
-import { launchOf, scheduleProblem } from '../../shared/trigger.ts'
+import { bindWorkflowVar } from '../../shared/pathVars.ts'
+import { commandOf, filterOf, launchOf, sourceProblem } from '../../shared/trigger.ts'
 import type {
   FireRecord,
   TriggerFireRequest,
@@ -22,13 +28,30 @@ import type {
   TriggerSetRequest,
   TriggerView,
 } from '../../shared/wire/trigger.ts'
+import { assetsDir } from '../store/paths.ts'
 import { fail, type Outcome, ok } from '../store/repoResult.ts'
 import type { TriggerDefinition, TriggerGraphs } from './graphs.ts'
-import { Launcher } from './launcher.ts'
+import { hookUrl, newHookId, newHookToken } from './hooks.ts'
+import type { IntakeBatch } from './intake.ts'
+import { type FireInput, Launcher } from './launcher.ts'
 import { OwnerLock } from './owner.ts'
 import { type DueFire, planRound, upcoming } from './reconcile.ts'
+import {
+  type LiveRef,
+  type LiveRuntime,
+  type LiveSpec,
+  type RuntimeEvents,
+  TriggerRuntime,
+} from './runtime.ts'
 import type { SessionPort } from './sessions.ts'
-import { ownerFile, type TriggerLocal, type TriggerStore } from './store.ts'
+import {
+  approvalOf,
+  type LiveFile,
+  ownerFile,
+  type TriggerLocal,
+  type TriggerLocals,
+  type TriggerStore,
+} from './store.ts'
 
 /** 多久报到、对一次账。 */
 export const BEAT_MS = 5_000
@@ -37,15 +60,21 @@ export const LATE_MS = 2 * 60_000
 /** 触发记录一次最多给画布多少条。 */
 const HISTORY_PAGE = 50
 const HOUR_MS = 60 * 60_000
+/** 超过每小时上限的常驻触发源，隔多久才再记一条「跳过」（日志刷屏时别把记录也刷满）。 */
+const CAP_NOTE_MS = 10 * 60_000
 
 export interface TriggerServiceDeps {
   dataDir: () => string
   store: TriggerStore
   graphs: TriggerGraphs
   sessions: SessionPort
+  /** HTTP 触发用的端口（插件设置）。 */
+  port: () => number
   now?: () => number
   /** 测试里换掉（假的进程号、假的存活判断）。 */
   lock?: OwnerLock
+  /** 测试里换掉（不真的跑命令、开端口；拿到事件口自己喂）。 */
+  runtime?: (events: RuntimeEvents) => LiveRuntime
   warn?: (message: string) => void
 }
 
@@ -55,6 +84,9 @@ export class TriggerService {
   private readonly sessions: SessionPort
   private readonly launcher: Launcher
   private readonly lock: OwnerLock
+  private readonly runtime: LiveRuntime
+  private readonly dataDir: () => string
+  private readonly port: () => number
   private readonly now: () => number
   private readonly warn: (message: string) => void
   private timer: ReturnType<typeof setTimeout> | undefined
@@ -63,18 +95,45 @@ export class TriggerService {
   private round: Promise<void> = Promise.resolve()
   /** 开着的卡片里最早的下一次时刻（决定下一轮什么时候来）。 */
   private nextDue: number | undefined
+  /** 常驻触发源进来的事一件一件办（连着来的不会抢着建会话、抢着写记录）。 */
+  private delivering: Promise<void> = Promise.resolve()
+  /** 每张卡片上一次记「到上限了」的时刻。 */
+  private readonly capNoted = new Map<string, number>()
 
   constructor(deps: TriggerServiceDeps) {
     this.store = deps.store
     this.graphs = deps.graphs
     this.sessions = deps.sessions
+    this.dataDir = deps.dataDir
+    this.port = deps.port
     this.now = deps.now ?? Date.now
     this.warn = deps.warn ?? (() => {})
     this.launcher = new Launcher(deps.sessions, deps.store)
     this.lock = deps.lock ?? new OwnerLock({ file: () => ownerFile(deps.dataDir()), now: this.now })
+    const events: RuntimeEvents = {
+      deliver: (ref, batch) => this.enqueue(() => this.deliver(ref, batch)),
+      failed: (ref, reason) => this.enqueue(() => this.sourceFailed(ref, reason)),
+      healthy: (ref) => this.enqueue(() => this.clearFailures(ref)),
+      probed: (ref, probe) =>
+        this.enqueue(() =>
+          this.store.update((locals) => {
+            const local = locals[ref.workflow]?.[ref.node]
+            if (local?.enabled === true) local.probe = probe
+          }),
+        ),
+    }
+    this.runtime =
+      deps.runtime?.(events) ??
+      new TriggerRuntime({
+        store: deps.store,
+        port: deps.port,
+        pid: this.lock.pid,
+        now: this.now,
+        events,
+      })
   }
 
-  // ── 到点触发 ───────────────────────────────────────────────
+  // ── 一轮一轮 ───────────────────────────────────────────────
 
   /** 开始一轮一轮地跑；返回的函数停下来并让出负责权。 */
   start(): () => void {
@@ -90,6 +149,8 @@ export class TriggerService {
     if (this.timer !== undefined) clearTimeout(this.timer)
     this.timer = undefined
     await this.round.catch(() => {})
+    await this.runtime.stopAll().catch(() => {})
+    await this.delivering
     await this.lock.release().catch(() => {})
   }
 
@@ -100,7 +161,7 @@ export class TriggerService {
       this.timer = undefined
       void this.tick()
         .catch((error: unknown) => {
-          this.warn(`触发器这一轮出错：${error instanceof Error ? error.message : String(error)}`)
+          this.warn(`触发器这一轮出错：${messageOf(error)}`)
         })
         .then(() => {
           // 下一轮：最迟一个报到间隔之后；有卡片更早到点就提前到那一刻。
@@ -110,7 +171,7 @@ export class TriggerService {
     }, delay)
   }
 
-  /** 跑一轮：报到；负责触发的是本进程就对账、触发到点的卡片。 */
+  /** 跑一轮：报到；负责触发的是本进程就对账、触发到点的卡片、开好该开着的常驻触发源。 */
   tick(): Promise<void> {
     const run = this.round.catch(() => {}).then(() => this.runRound())
     this.round = run
@@ -121,10 +182,15 @@ export class TriggerService {
     this.nextDue = undefined
     // 这个进程发不了会话：不争负责权，留给发得了的。
     if (this.sessions.unavailable() !== null) {
+      await this.runtime.stopAll()
       await this.lock.release()
       return
     }
-    if (!(await this.lock.beat())) return
+    // 不归这个进程负责（或刚被别人接手）：常驻的都停下。
+    if (!(await this.lock.beat())) {
+      await this.runtime.stopAll()
+      return
+    }
     const now = this.now()
     const plan = await planRound(await this.store.locals(), this.graphs, now)
     const fresh = await this.store.update((locals) => {
@@ -138,15 +204,18 @@ export class TriggerService {
       if (local?.enabled !== true) continue
       await this.fireDue({ ...due, local }, now)
     }
+    await this.runtime.sync(await this.liveSpecs(fresh))
   }
+
+  // ── 定时 ───────────────────────────────────────────────────
 
   private async fireDue(due: DueFire, now: number): Promise<void> {
     const launch = launchOf(due.trigger.data)
-    const input = {
+    const input: FireInput = {
       workflow: due.workflow,
       trigger: due.trigger,
       local: due.local,
-      channel: 'schedule' as const,
+      channel: 'schedule',
       at: now,
     }
     let record: FireRecord
@@ -154,7 +223,9 @@ export class TriggerService {
       record = await this.launcher.skip(input, '到点时 DSH 没在运行，错过了')
     } else if (due.blocked !== undefined) {
       record = await this.launcher.fail(input, `工作流现在执行不了：${due.blocked}`)
-    } else if ((await this.sentWithinHour(due, now)) >= launch.maxPerHour) {
+    } else if (
+      (await this.sentWithinHour(due.workflow, due.trigger.node, now)) >= launch.maxPerHour
+    ) {
       record = await this.launcher.skip(
         input,
         `这一小时已经触发了 ${String(launch.maxPerHour)} 次，到上限了`,
@@ -165,18 +236,126 @@ export class TriggerService {
     await this.settle(record, launch.maxFailures)
   }
 
-  private async sentWithinHour(due: DueFire, now: number): Promise<number> {
+  // ── 常驻触发源 ─────────────────────────────────────────────
+
+  /** 本机状态里开着、确认过、设置得对的常驻触发源（轮询、监听程序、HTTP）。 */
+  private async liveSpecs(locals: TriggerLocals): Promise<LiveSpec[]> {
+    const specs: LiveSpec[] = []
+    for (const [workflow, nodes] of Object.entries(locals)) {
+      const enabled = Object.entries(nodes).filter(([, local]) => local.enabled)
+      if (enabled.length === 0) continue
+      const graph = await this.graphs.read(workflow)
+      if (graph.kind !== 'ok') continue
+      for (const [node, local] of enabled) {
+        const trigger = graph.triggers.find((candidate) => candidate.node === node)
+        if (trigger === undefined) continue
+        const { source } = trigger.data
+        if (source.kind === 'schedule' || sourceProblem(source) !== null) continue
+        if (pendingApproval(trigger, local) !== null) continue
+        const base = { workflow, node, filter: filterOf(trigger.data), cwd: local.workspace ?? '' }
+        if (source.kind === 'http') {
+          if (local.hook === undefined || local.token === undefined) continue
+          specs.push({ ...base, source, hook: { id: local.hook, token: local.token } })
+          continue
+        }
+        const dir = assetsDir(this.dataDir(), workflow)
+        specs.push({
+          ...base,
+          source,
+          command: bindWorkflowVar(source.command, dir),
+          env: { WORKFLOW_DIR: dir },
+          ...(local.probe === undefined ? {} : { probe: local.probe }),
+        })
+      }
+    }
+    return specs
+  }
+
+  /** 等常驻触发源交来的事都办完（测试用）。 */
+  settled(): Promise<void> {
+    return this.delivering
+  }
+
+  private enqueue(task: () => Promise<unknown>): void {
+    this.delivering = this.delivering.then(task).then(
+      () => {},
+      (error: unknown) => this.warn(`触发器出错：${messageOf(error)}`),
+    )
+  }
+
+  /** 一张常驻的卡片现在的定义与本机设置；关掉了、删掉了是 `null`。 */
+  private async liveInput(ref: LiveRef): Promise<{ input: FireInput; blocked?: string } | null> {
+    const found = await this.definition(ref.workflow, ref.node)
+    if (!found.ok) return null
+    const local = (await this.store.locals())[ref.workflow]?.[ref.node]
+    if (local?.enabled !== true) return null
+    const { trigger, blocked } = found.result
+    return {
+      input: { workflow: ref.workflow, trigger, local, channel: ref.kind, at: this.now() },
+      ...(blocked === undefined ? {} : { blocked }),
+    }
+  }
+
+  /** 过了过滤的一批：发进会话（工作流有错、到了每小时上限时不发）。 */
+  private async deliver(ref: LiveRef, batch: IntakeBatch): Promise<void> {
+    const found = await this.liveInput(ref)
+    if (found === null) return
+    const input: FireInput = {
+      ...found.input,
+      ...(batch.info === undefined ? {} : { info: batch.info }),
+      merged: batch.count,
+    }
+    const launch = launchOf(input.trigger.data)
+    let record: FireRecord
+    if (found.blocked !== undefined) {
+      record = await this.launcher.fail(input, `工作流现在执行不了：${found.blocked}`)
+    } else if ((await this.sentWithinHour(ref.workflow, ref.node, input.at)) >= launch.maxPerHour) {
+      // 到上限了：丢掉这一次；隔一会儿才记一条。
+      const key = `${ref.workflow}\u0000${ref.node}`
+      const noted = this.capNoted.get(key)
+      if (noted !== undefined && input.at - noted < CAP_NOTE_MS) return
+      this.capNoted.set(key, input.at)
+      record = await this.launcher.skip(
+        input,
+        `这一小时已经触发了 ${String(launch.maxPerHour)} 次，到上限了（之后十分钟里超出的不再逐条记录）`,
+      )
+    } else {
+      record = await this.launcher.fire(input)
+    }
+    await this.settle(record, launch.maxFailures)
+  }
+
+  /** 触发源自己出了问题（程序一启动就退出、命令跑不起来）：记一条、计一次失败。 */
+  private async sourceFailed(ref: LiveRef, reason: string): Promise<void> {
+    const found = await this.liveInput(ref)
+    if (found === null) return
+    const record = await this.launcher.fail(found.input, reason)
+    await this.settle(record, launchOf(found.input.trigger.data).maxFailures)
+    // 可能刚被自动停用：马上对一遍账，把它停下。
+    if (this.running) this.schedule(0)
+  }
+
+  private clearFailures(ref: LiveRef): Promise<void> {
+    return this.store.update((locals) => {
+      const local = locals[ref.workflow]?.[ref.node]
+      if (local?.failures !== undefined) delete local.failures
+    })
+  }
+
+  // ── 共用 ───────────────────────────────────────────────────
+
+  private async sentWithinHour(workflow: string, node: string, now: number): Promise<number> {
     const fires = await this.store.fires()
     return fires.filter(
       (fire) =>
-        fire.workflow === due.workflow &&
-        fire.node === due.trigger.node &&
+        fire.workflow === workflow &&
+        fire.node === node &&
         fire.outcome === 'sent' &&
         now - fire.at < HOUR_MS,
     ).length
   }
 
-  /** 一次定时触发之后：发出去了清掉失败计数、记下会话；连续没发出去到了次数就自动停用。 */
+  /** 一次触发之后：发出去了清掉失败计数、记下会话；连续失败到了次数就自动停用。 */
   private settle(record: FireRecord, maxFailures: number): Promise<void> {
     return this.store.update((locals) => {
       const local = locals[record.workflow]?.[record.node]
@@ -191,7 +370,7 @@ export class TriggerService {
       local.failures = failures
       if (failures < maxFailures) return
       local.enabled = false
-      local.stopped = `连续 ${String(failures)} 次没发出去：${record.reason ?? '原因不明'}`
+      local.stopped = `连续 ${String(failures)} 次失败：${record.reason ?? '原因不明'}`
       delete local.due
       delete local.failures
     })
@@ -211,29 +390,47 @@ export class TriggerService {
     }
     const unavailable = this.sessions.unavailable()
     const now = this.now()
+    // 负责的进程写下的运行情况；写它的不是现在负责的进程就不作数。
+    const liveFile = await this.store.live()
+    const live = owner !== undefined && liveFile?.pid === owner.pid ? liveFile : null
+    const port = this.port()
     const triggers = graph.triggers.map((trigger): TriggerView => {
       const local = locals[trigger.node] ?? { enabled: false }
       const recent = last.get(trigger.node)
+      const { source } = trigger.data
+      const command = commandOf(source)
       const base = {
         node: trigger.node,
         enabled: local.enabled,
         ...(local.workspace === undefined ? {} : { workspace: local.workspace }),
         ...(local.session === undefined ? {} : { session: local.session }),
         ...(recent === undefined ? {} : { last: recent }),
+        ...(command === undefined
+          ? {}
+          : { approved: local.approved === approvalOf(command, local.workspace) }),
+        ...(source.kind === 'http' && local.hook !== undefined && local.token !== undefined
+          ? { endpoint: { url: hookUrl(port, local.hook), token: local.token } }
+          : {}),
       }
       if (!local.enabled) {
         return local.stopped === undefined
           ? { ...base, state: 'off' }
           : { ...base, state: 'stopped', problem: local.stopped }
       }
-      const { schedule } = trigger.data.source
-      const problem = scheduleProblem(schedule)
+      const problem = sourceProblem(source)
       if (problem !== null) return { ...base, state: 'invalid', problem }
-      const next = upcoming(local, schedule, now)
-      const when = next === undefined ? {} : { next }
-      if (owner !== undefined && !owner.mine) return { ...base, ...when, state: 'elsewhere' }
+      const pending = pendingApproval(trigger, local)
+      if (pending !== null) return { ...base, state: 'confirm', problem: pending }
+      if (source.kind === 'schedule') {
+        const next = upcoming(local, source.schedule, now)
+        const when = next === undefined ? {} : { next }
+        if (owner !== undefined && !owner.mine) return { ...base, ...when, state: 'elsewhere' }
+        if (unavailable !== null) return { ...base, state: 'unavailable', problem: unavailable }
+        return { ...base, ...when, state: 'waiting' }
+      }
+      if (owner !== undefined && !owner.mine) return { ...base, state: 'elsewhere' }
       if (unavailable !== null) return { ...base, state: 'unavailable', problem: unavailable }
-      return { ...base, ...when, state: 'waiting' }
+      return { ...base, ...liveView(source.kind, live?.sources[workflow]?.[trigger.node], live) }
     })
     return { triggers, ...(owner === undefined ? {} : { owner }) }
   }
@@ -252,11 +449,15 @@ export class TriggerService {
     return ok({ trigger, ...(graph.blocked === undefined ? {} : { blocked: graph.blocked }) })
   }
 
-  /** 改一张卡片的本机设置：开关、工作区、固定会话；给了哪项改哪项。回这个工作流各卡片的新样子。 */
+  /**
+   * 改一张卡片的本机设置：开关、工作区、固定会话、确认命令、换令牌；给了哪项改哪项。
+   * 回这个工作流各卡片的新样子。
+   */
   async set(request: TriggerSetRequest): Promise<Outcome<TriggerListResponse>> {
     const found = await this.definition(request.workflow, request.node)
     if (!found.ok) return found
     const { trigger } = found.result
+    const { source } = trigger.data
     if (request.workspace !== undefined && request.workspace !== '') {
       const directory = await workspaceProblem(request.workspace)
       if (directory !== null) return fail('invalid_args', directory)
@@ -272,6 +473,21 @@ export class TriggerService {
       if (request.session !== undefined) {
         if (request.session === '') delete local.session
         else local.session = request.session
+      }
+      // 确认命令记在工作区改完之后：确认的是「这条命令在这个工作区里跑」。
+      if (request.approve !== undefined) {
+        const command = commandOf(source)
+        if (command === undefined) return '这张触发卡片不用运行命令'
+        // 用户看到的和图里现在的不一样（刚被改过）：不算确认。
+        if (request.approve !== command) return '要运行的命令刚改过，请重新查看后再确认'
+        if (local.workspace === undefined) return '先选命令在哪个工作区里运行'
+        local.approved = approvalOf(command, local.workspace)
+      }
+      if (source.kind === 'http' && (request.resetToken === true || request.enabled === true)) {
+        local.hook ??= newHookId()
+        if (request.resetToken === true || local.token === undefined) local.token = newHookToken()
+      } else if (request.resetToken === true) {
+        return '只有 HTTP 触发有令牌'
       }
       if (request.enabled === true && !local.enabled) {
         const missing = enableProblem(trigger, local)
@@ -294,7 +510,7 @@ export class TriggerService {
       return null
     })
     if (refused !== null) return fail('blocked', refused)
-    // 负责触发的是本进程时马上对一遍账（新打开的卡片立刻有「下一次」）。
+    // 负责触发的是本进程时马上对一遍账（新打开的卡片立刻有「下一次」、程序马上起来）。
     if (this.running) this.schedule(0)
     return ok(await this.list(request.workflow))
   }
@@ -307,11 +523,11 @@ export class TriggerService {
     const local = (await this.store.locals())[request.workflow]?.[request.node] ?? {
       enabled: false,
     }
-    const input = {
+    const input: FireInput = {
       workflow: request.workflow,
       trigger,
       local,
-      channel: 'now' as const,
+      channel: 'now',
       at: this.now(),
       ...(request.info === undefined ? {} : { info: request.info }),
     }
@@ -329,6 +545,29 @@ export class TriggerService {
     return ok(record)
   }
 
+  /**
+   * 模型按触发条件判断这一次不需要执行：记下原因（触发记录里显示「模型判断不需要」）。
+   * 已经开始执行（建出了实例）的不能再说不需要。
+   */
+  async decline(fire: string, reason: string): Promise<Outcome<FireRecord>> {
+    const detail = await this.store.detail(fire)
+    if (detail === null) return fail('not_found', `没有这次触发：${fire}`)
+    if (detail.record.instance !== undefined) {
+      return fail(
+        'blocked',
+        `这次触发已经开始执行了（实例 ${detail.record.instance}），不能再判断为不需要`,
+      )
+    }
+    const text = reason.trim() === '' ? '没有说明原因' : reason.trim()
+    await this.store.decline(fire, text)
+    return ok({ ...detail.record, declined: text })
+  }
+
+  /** 轮询命令、监听程序最近的输出。 */
+  async output(workflow: string, node: string): Promise<string> {
+    return (await this.store.output(workflow, node)) ?? ''
+  }
+
   /** 触发记录，新的在前；给了卡片就只看它的。 */
   async history(workflow: string, node?: string): Promise<FireRecord[]> {
     const fires = await this.store.fires()
@@ -339,10 +578,58 @@ export class TriggerService {
   }
 }
 
+/** 要在本机跑的命令还没确认、或确认之后命令和工作区改过：一句原因；不用确认或确认过是 `null`。 */
+function pendingApproval(trigger: TriggerDefinition, local: TriggerLocal): string | null {
+  const command = commandOf(trigger.data.source)
+  if (command === undefined) return null
+  if (local.workspace === undefined) return '先选命令在哪个工作区里运行'
+  if (local.approved === undefined) return '要先确认将要运行的命令'
+  return local.approved === approvalOf(command, local.workspace)
+    ? null
+    : '要运行的命令或工作区改过了，要重新确认'
+}
+
+/** 常驻触发源开着、确认过时的状态：按负责的进程写下的运行情况说。 */
+function liveView(
+  kind: 'poll' | 'listen' | 'http',
+  status: LiveFile['sources'][string][string] | undefined,
+  live: LiveFile | null,
+): Pick<TriggerView, 'state' | 'next' | 'problem' | 'checked' | 'since'> {
+  if (kind === 'http') {
+    const port = live?.port
+    return port?.kind === 'error'
+      ? { state: 'error', problem: port.problem }
+      : { state: 'listening' }
+  }
+  // 负责的进程还没开起来（刚打开开关、刚接手）。
+  if (status === undefined) return { state: 'waiting' }
+  if (kind === 'poll') {
+    return {
+      state: 'waiting',
+      ...(status.next === undefined ? {} : { next: status.next }),
+      ...(status.checked === undefined ? {} : { checked: status.checked }),
+      ...(status.note === undefined ? {} : { problem: status.note }),
+    }
+  }
+  if (status.state === 'restarting') {
+    return {
+      state: 'restarting',
+      ...(status.next === undefined ? {} : { next: status.next }),
+      ...(status.note === undefined ? {} : { problem: status.note }),
+    }
+  }
+  return { state: 'listening', ...(status.since === undefined ? {} : { since: status.since }) }
+}
+
 /** 打开开关之前要先配好的东西；都齐了是 `null`。 */
 function enableProblem(trigger: TriggerDefinition, local: TriggerLocal): string | null {
-  const problem = scheduleProblem(trigger.data.source.schedule)
-  if (problem !== null) return `定时规则不对：${problem}`
+  const { source } = trigger.data
+  const problem = sourceProblem(source)
+  if (problem !== null) {
+    return source.kind === 'schedule' ? `定时规则不对：${problem}` : `触发设置不对：${problem}`
+  }
+  const pending = pendingApproval(trigger, local)
+  if (pending !== null) return pending
   const launch = launchOf(trigger.data)
   if (launch.session === 'fixed') {
     return local.session === undefined ? '先选定发进哪个会话' : null
@@ -358,4 +645,8 @@ async function workspaceProblem(path: string): Promise<string | null> {
   } catch {
     return `工作区目录不存在：${path}`
   }
+}
+
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }

@@ -1,13 +1,14 @@
 /**
- * dsh-workflow-lite — 触发卡片的「何时触发」：每隔多久 / 每天几点（可限定星期几）/ 五段 cron。
+ * dsh-workflow-lite — 定时触发的规则：每隔多久 / 每天几点（可限定星期几）/ 五段 cron。
  *
  * 换一种就给那一种的常用值；写得不对当场说出原因，写对了预告下一次是什么时候。
+ * 放在「何时触发」那一段里（见 `SourceField.tsx`），自己不带分组标题。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/trigger/ScheduleField
  */
 
 import { useState } from 'react'
-import { EVERY_MAX, nextFire, parseClock, scheduleProblem } from '../../../shared/trigger.ts'
+import { EVERY_MAX, nextFire, parseClock, scheduleProblem } from '../../../shared/schedule.ts'
 import type { TriggerSchedule } from '../../../shared/types.ts'
 import type { LocaleKey, T } from '../../i18n.ts'
 import { momentText, weekdayText } from '../../model/triggerText.ts'
@@ -62,10 +63,7 @@ export function ScheduleField(props: {
   const problem = scheduleProblem(schedule)
   const next = problem === null ? nextFire(schedule, new Date()) : null
   return (
-    <section className={ins.field} data-testid="wl-trigger-when">
-      <div className={ins.label}>
-        <span>{t('trigger.when')}</span>
-      </div>
+    <>
       <Segmented<Kind>
         label={t('trigger.when')}
         value={schedule.kind}
@@ -164,7 +162,7 @@ export function ScheduleField(props: {
             ? ''
             : t('trigger.preview').replace('{time}', momentText(t, next.getTime())))}
       </p>
-    </section>
+    </>
   )
 }
 

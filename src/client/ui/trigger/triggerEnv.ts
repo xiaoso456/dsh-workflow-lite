@@ -24,8 +24,13 @@ export interface TriggerEnv {
   workspaces: readonly string[]
   /** 可以选作「固定会话」的会话。 */
   sessions: readonly SessionChoice[]
-  /** 开、关一张卡片；开不了（还没选工作区…）时选中它并说出原因。 */
+  /**
+   * 开、关一张卡片；开不了（还没选工作区…）时选中它并说出原因。
+   * 要在本机跑命令、命令还没确认过的：不直接打开，选中它、在面板里请用户确认命令（{@link ask}）。
+   */
   toggle(node: string, on: boolean): void
+  /** 刚请求确认命令的那张卡片（`seq` 每请求一次加一，面板据此弹出确认卡）。 */
+  ask: { node: string; seq: number } | null
   /** 打开一次触发建出来的实例。 */
   openRun(instance: string): void
 }

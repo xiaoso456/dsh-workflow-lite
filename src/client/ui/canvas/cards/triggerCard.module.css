@@ -77,6 +77,7 @@
 }
 
 .card[data-state="waiting"] .tab,
+.card[data-state="listening"] .tab,
 .card[data-state="elsewhere"] .tab {
   background: var(--wl-accent-soft);
   color: var(--wl-accent-text);
@@ -136,7 +137,8 @@
   border-radius: 50%;
 }
 
-.card[data-state="waiting"] .dot {
+.card[data-state="waiting"] .dot,
+.card[data-state="listening"] .dot {
   border-color: var(--wl-ok-dot);
   background: var(--wl-ok-dot);
 }
@@ -147,17 +149,21 @@
 }
 
 .card[data-state="invalid"] .dot,
+.card[data-state="error"] .dot,
 .card[data-state="stopped"] .dot {
   border-color: var(--wl-danger);
   background: var(--wl-danger);
 }
 
-.card[data-state="unavailable"] .dot {
+.card[data-state="unavailable"] .dot,
+.card[data-state="restarting"] .dot,
+.card[data-state="confirm"] .dot {
   border-color: var(--wl-warn-dot);
   background: var(--wl-warn-dot);
 }
 
 .card[data-state="invalid"] .statusText,
+.card[data-state="error"] .statusText,
 .card[data-state="stopped"] .statusText {
   color: var(--wl-danger);
 }

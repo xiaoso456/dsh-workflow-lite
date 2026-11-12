@@ -44,6 +44,7 @@ import {
   NodeWriter,
   type ResourceUpsert,
   type SettingsPatch,
+  type TriggerUpsert,
 } from './repoNodes.ts'
 import type { Outcome } from './repoResult.ts'
 import { TemplateStore } from './repoTemplates.ts'
@@ -126,6 +127,8 @@ export interface Repository {
   /** 加一张记忆卡（库里那一条由调用方先备好）。步骤不存在、已经有记忆了就拒绝。 */
   addMemory(workflow: string, request: MemoryCardRequest): Promise<Outcome<WriteResult>>
   writeInput(workflow: string, upsert: InputUpsert): Promise<Outcome<WriteResult>>
+  /** 新建或修改触发卡片的定义（开关等本机状态不在这里，模型建的卡片一律关着）。 */
+  writeTrigger(workflow: string, upsert: TriggerUpsert): Promise<Outcome<WriteResult>>
   setLabel(workflow: string, node: string, label: string): Promise<Outcome<WriteResult>>
   /** 改工作流设置（产出根目录、执行方式、复用执行者、设定目标、记录运行状态）；给了的字段才改。 */
   configure(workflow: string, patch: SettingsPatch): Promise<Outcome<WriteResult>>
@@ -195,6 +198,7 @@ export function createRepository(options: RepositoryOptions): Repository {
     writeResource: (workflow, upsert) => nodes.writeResource(workflow, upsert),
     addMemory: (workflow, request) => nodes.addMemory(workflow, request),
     writeInput: (workflow, upsert) => nodes.writeInput(workflow, upsert),
+    writeTrigger: (workflow, upsert) => nodes.writeTrigger(workflow, upsert),
     setLabel: (workflow, node, label) => nodes.setLabel(workflow, node, label),
     configure: (workflow, patch) => nodes.configure(workflow, patch),
     deleteNode: (workflow, node) => nodes.deleteNode(workflow, node),

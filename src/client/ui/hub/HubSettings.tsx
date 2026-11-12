@@ -1,6 +1,6 @@
 /**
  * dsh-workflow-lite — 工作流中心「设置」页：最上面是外观（配色主题，点了就换），
- * 下面是插件自己的几项设置，分「存储 / 画布 / 模型」三组。
+ * 下面是插件自己的几项设置，分「存储 / 画布 / 模型 / 触发」四组。
  *
  * - 改在草稿上，底下浮出一条「有 N 处改动还没保存 · 放弃 · 保存」，点保存才写；
  *   数据目录这种改错了很麻烦的东西，不能一敲字就生效。
@@ -31,6 +31,7 @@ const DESC: Record<PluginConfigKey, LocaleKey> = {
   saveDebounceMs: 'cfg.saveDebounceDesc',
   maxResultBytes: 'cfg.maxResultDesc',
   installSkill: 'cfg.skillDesc',
+  triggerPort: 'cfg.triggerPortDesc',
 }
 
 const ICON: Record<PluginConfigKey, IconName> = {
@@ -39,6 +40,7 @@ const ICON: Record<PluginConfigKey, IconName> = {
   saveDebounceMs: 'clock',
   maxResultBytes: 'download',
   installSkill: 'bookmark',
+  triggerPort: 'bolt',
 }
 
 export function HubSettings(props: {
@@ -130,6 +132,12 @@ export function HubSettings(props: {
             >
               <span className={ui.knob} />
             </button>
+          </Row>
+        </Group>
+
+        <Group title={t('cfg.groupTrigger')}>
+          <Row {...field} name="triggerPort">
+            <NumberInput {...field} name="triggerPort" />
           </Row>
         </Group>
       </div>
@@ -233,7 +241,10 @@ function Row(props: FieldProps & { wide?: boolean; children: React.ReactNode }):
 }
 
 function NumberInput(
-  props: FieldProps & { name: 'maxNodes' | 'saveDebounceMs' | 'maxResultBytes'; unit?: string },
+  props: FieldProps & {
+    name: 'maxNodes' | 'saveDebounceMs' | 'maxResultBytes' | 'triggerPort'
+    unit?: string
+  },
 ): React.JSX.Element {
   const { t, state, name } = props
   return (

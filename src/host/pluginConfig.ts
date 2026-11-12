@@ -133,6 +133,10 @@ function checkValue(key: PluginConfigKey, value: unknown): string | null {
       return isInt(value, 0) ? null : '自动保存等待不能是负数'
     case 'maxResultBytes':
       return isInt(value, 1024) ? null : '读取上限至少 1 KB'
+    case 'triggerPort':
+      return isInt(value, 1024) && (value as number) <= 65535
+        ? null
+        : '触发端口要是 1024 到 65535 之间的整数'
   }
 }
 

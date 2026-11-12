@@ -467,9 +467,157 @@ async function triggerShots(session) {
   }
 }
 
+/** 常驻触发源那几张图用的工作流：一张条件轮询、一张监听程序（带过滤和触发条件）、一张 HTTP。 */
+const SOURCES_NAME = t('线上告警', 'alerts')
+const SOURCE_SHOTS = ['trigger-poll', 'trigger-confirm', 'trigger-filter', 'trigger-http']
+function sourcesDocument() {
+  const card = (id, x, data) => ({ id, type: 'wfTrigger', position: { x, y: 100 }, data })
+  return {
+    nodes: [
+      {
+        id: 'triage',
+        type: 'wfNode',
+        position: { x: 80, y: 260 },
+        data: {
+          label: t('分析告警', 'Triage'),
+          prompt: t('找出是哪个模块出的问题。', 'Find which module is at fault.'),
+        },
+      },
+      card('remote', 80, {
+        label: t('远端有新提交', 'New commits'),
+        source: {
+          kind: 'poll',
+          command: 'git ls-remote origin -h refs/heads/main',
+          seconds: 300,
+          when: 'change',
+        },
+      }),
+      card('errors', 420, {
+        label: t('日志报错', 'Log errors'),
+        source: { kind: 'listen', command: 'node "{workflow}/triggers/tail-log.mjs" logs/app.log' },
+        filter: { merge: 10, dedupe: 30, include: ['ERROR'], exclude: ['healthcheck'] },
+        condition: t(
+          '只处理支付模块的报错，其他模块的忽略。',
+          'Only handle errors from the payment module; ignore the rest.',
+        ),
+      }),
+      card('ci', 760, { label: t('CI 通知', 'CI hook'), source: { kind: 'http' } }),
+    ],
+    edges: [],
+    viewport: { x: 0, y: 0, zoom: 1 },
+  }
+}
+
+/** 几个元素合起来的外框（视口坐标），外扩 pad；找不到的跳过。 */
+const unionOf = (selectors, pad = 8) => `(() => {
+  const rects = ${JSON.stringify(selectors)}
+    .map((s) => document.querySelector(s))
+    .filter(Boolean)
+    .map((el) => el.getBoundingClientRect())
+  const left = Math.min(...rects.map((r) => r.left)) - ${pad}
+  const top = Math.min(...rects.map((r) => r.top)) - ${pad}
+  const right = Math.max(...rects.map((r) => r.right)) + ${pad}
+  const bottom = Math.max(...rects.map((r) => r.bottom)) + ${pad}
+  return { x: Math.max(0, left), y: Math.max(0, top), width: right - Math.max(0, left), height: bottom - Math.max(0, top) }
+})()`
+
+/**
+ * 常驻触发源：条件轮询的设置、监听程序打开前的命令确认、过滤与触发条件、HTTP 的地址与令牌。
+ * 只有 HTTP 那张真的打开（不用确认命令）；监听程序停在确认卡上，不真的跑命令。
+ */
+async function triggerSourceShots(session) {
+  if (!SOURCE_SHOTS.some(wants)) return
+  try {
+    await rpc('graph/delete', { name: SOURCES_NAME }).catch(() => {})
+    await rpc('graph/create', { name: SOURCES_NAME })
+    const disk = await rpc('graph/load', { name: SOURCES_NAME })
+    await rpc('graph/save', {
+      name: SOURCES_NAME,
+      document: sourcesDocument(),
+      baseHash: disk.hash,
+    })
+    for (const node of ['remote', 'errors', 'ci']) {
+      await rpc('trigger/set', { workflow: SOURCES_NAME, node, workspace: WORKSPACE })
+    }
+    await rpc('trigger/set', { workflow: SOURCES_NAME, node: 'ci', enabled: true })
+    await bootToCanvas(session, SOURCES_NAME, {
+      width: 1280,
+      height: 1100,
+      lang: LANG,
+      sessionTitle: SHOTS_SESSION_TITLE,
+    })
+    await metrics(session, 1280, 1100)
+    await sleep(600)
+    await session.evaluate(clickTestId('wl-fit'))
+    await sleep(1200)
+
+    // 条件轮询：何时触发一节。
+    await session.evaluate(nodeClick('remote'))
+    await waitFor(session, has('wl-trigger-command'))
+    await sleep(1000)
+    await mouseMove(session, { x: 8, y: 8 })
+    await snap(
+      session,
+      'trigger-poll',
+      await session.evaluate(rectOf('[data-testid="wl-trigger-when"]', 8)),
+    )
+
+    // 监听程序：点开关，开关旁浮出确认卡。
+    await session.evaluate(nodeClick('errors'))
+    await waitFor(session, has('wl-trigger-enable'))
+    await sleep(800)
+    await session.evaluate(clickTestId('wl-trigger-enable'))
+    await waitFor(session, has('wl-trigger-approve-pop'))
+    await sleep(1000)
+    await mouseMove(session, { x: 8, y: 8 })
+    // 确认卡打开时焦点落在「取消」上：拍之前移走，图里不带焦点框。
+    await session.evaluate('document.activeElement?.blur()')
+    await sleep(300)
+    await snap(
+      session,
+      'trigger-confirm',
+      await session.evaluate(
+        unionOf(['[data-testid="wl-trigger-enable"]', '[data-testid="wl-trigger-approve-pop"]']),
+      ),
+    )
+    await pressEscape(session)
+    await sleep(600)
+
+    // 过滤与触发条件。
+    await session.evaluate(
+      `document.querySelector('[data-testid="wl-trigger-filter"]').scrollIntoView({ block: 'start' })`,
+    )
+    await sleep(800)
+    await snap(
+      session,
+      'trigger-filter',
+      await session.evaluate(
+        unionOf(['[data-testid="wl-trigger-filter"]', '[data-testid="wl-trigger-condition"]']),
+      ),
+    )
+
+    // HTTP：开着，地址、令牌（遮住）和复制 curl。
+    await session.evaluate(nodeClick('ci'))
+    await waitFor(session, has('wl-trigger-url'))
+    await sleep(1200)
+    await mouseMove(session, { x: 8, y: 8 })
+    await snap(
+      session,
+      'trigger-http',
+      await session.evaluate(rectOf('[data-testid="wl-trigger-when"]', 8)),
+    )
+  } catch (error) {
+    console.log(`  ✗ trigger sources：${String(error.message).split('\n')[0]}`)
+  } finally {
+    await rpc('trigger/set', { workflow: SOURCES_NAME, node: 'ci', enabled: false }).catch(() => {})
+    await rpc('graph/delete', { name: SOURCES_NAME }).catch(() => {})
+  }
+}
+
 async function main(session) {
   await mkdir(OUT, { recursive: true })
   await triggerShots(session)
+  await triggerSourceShots(session)
   await rpc('graph/delete', { name: NAME }).catch(() => {})
   await rpc('graph/create', { name: NAME })
   await rpc('memory/delete', { id: 'review-lessons' }).catch(() => {})

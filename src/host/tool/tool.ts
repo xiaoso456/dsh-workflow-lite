@@ -20,7 +20,7 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import type { DisplaySpec } from '../../shared/display.ts'
 import { compareByCodepoint } from '../../shared/graph.ts'
-import { idKey, isInput, isResource, isStep } from '../../shared/model.ts'
+import { idKey, isInput, isResource, isStep, isTrigger } from '../../shared/model.ts'
 import { memoryOf } from '../../shared/presets.ts'
 import type {
   MemoryIndexEntry,
@@ -36,7 +36,9 @@ import { compileWorkflow } from '../plan.ts'
 import type { SessionRef } from '../runs/runCore.ts'
 import type { RunService } from '../runs/service.ts'
 import { hasMemory, listMemories, type MemoryDeps } from '../store/memories.ts'
+import { assetsDir } from '../store/paths.ts'
 import type { NodeUpsert } from '../store/repoNodes.ts'
+import type { Outcome } from '../store/repoResult.ts'
 import { problemsToWarnings } from '../store/repoResult.ts'
 import type { Repository } from '../store/repository.ts'
 import {
@@ -60,6 +62,13 @@ export interface ToolDeps {
   maxResultBytes: () => number
   /** 工作流实例（运行状态）；不给就当没有这块能力（`runs` / `resume` 报错，编译不建实例）。 */
   runs?: RunService
+  /** 触发卡片：模型按触发条件判断不需要执行时回报（`decline`）。不给就当没有这块能力。 */
+  triggers?: TriggerPort
+}
+
+/** 工具用到的触发器那一面。 */
+export interface TriggerPort {
+  decline(fire: string, reason: string): Promise<Outcome<unknown>>
 }
 
 /** 参数与返回值里的 `{ error }` 形状（工具返回它，不抛）。 */
@@ -206,6 +215,7 @@ export function createWorkflowLiteHandler(
         if (nodeId === undefined || nodeId === '') {
           const result: ReadIndexResult = {
             workflow: name,
+            dir: assetsDir(deps.dataDir(), name),
             viewport: load.document.viewport,
             ...(load.document.settings === undefined ? {} : { settings: load.document.settings }),
             nodes: sortedNodes(load.document).map((node) =>
@@ -220,6 +230,13 @@ export function createWorkflowLiteHandler(
                 }
               : {}),
             ...(load.document.nodes.some(isInput) ? { inputs: inputEntries(load.document) } : {}),
+            ...(load.document.nodes.some(isTrigger)
+              ? {
+                  triggers: load.document.nodes
+                    .filter(isTrigger)
+                    .map((node) => ({ id: node.id, ...node.data })),
+                }
+              : {}),
             // 索引就是自检的入口：阻塞编译的问题也在这里给，不必为了看问题去编译（编译会建实例）。
             ...(compile.length === 0 ? {} : { problems: compile }),
             warnings,
@@ -545,6 +562,43 @@ export function createWorkflowLiteHandler(
         const outcome = await repository.writeResource(name, upsert)
         if (!outcome.ok) return errorValue(outcome)
         return finish(outcome.result)
+      }
+
+      case 'write_trigger': {
+        const name = requireWorkflow(args.workflow)
+        if (name === null) return missingWorkflow()
+        const trigger = args.trigger ?? {}
+        if (typeof trigger !== 'object' || trigger === null) {
+          return errorValue({
+            error: { code: 'invalid_args', message: 'trigger 要写成 { source, note, … }' },
+          })
+        }
+        const outcome = await repository.writeTrigger(name, {
+          ...(args.node === undefined || args.node === '' ? {} : { id: args.node }),
+          ...trigger,
+        })
+        if (!outcome.ok) return errorValue(outcome)
+        return finish({
+          ...outcome.result,
+          // 写在返回值里，模型照着告诉用户。
+          next: '触发卡片是关着的：请用户在画布上选好工作区、确认要运行的命令（如果有）后打开开关。',
+        })
+      }
+
+      case 'decline': {
+        if (deps.triggers === undefined) {
+          return errorValue({
+            error: { code: 'invalid_args', message: '触发卡片不可用（插件没有装配触发器）' },
+          })
+        }
+        if (args.fire === undefined || args.fire === '') {
+          return errorValue({
+            error: { code: 'invalid_args', message: 'decline 要带 fire（消息里写的触发编号）' },
+          })
+        }
+        const outcome = await deps.triggers.decline(args.fire, args.reason ?? '')
+        if (!outcome.ok) return errorValue(outcome)
+        return finish({ declined: args.fire, next: '已记下，这次不执行工作流；到这里结束。' })
       }
 
       default: {

@@ -18,6 +18,7 @@ const LABEL_KEY = {
   saveDebounceMs: 'cfg.saveDebounce',
   maxResultBytes: 'cfg.maxResult',
   installSkill: 'cfg.skill',
+  triggerPort: 'cfg.triggerPort',
 }
 
 const PAGE = '../src/content/docs/settings/plugin.md'

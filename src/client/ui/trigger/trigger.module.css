@@ -1,5 +1,6 @@
 /**
- * dsh-workflow-lite — 触发卡片属性面板里自己的样子：一行一项的小表单、星期几的一排圆钮、触发记录。
+ * dsh-workflow-lite — 触发卡片属性面板里自己的样子：一行一项的小表单、星期几的一排圆钮、命令、
+ * HTTP 地址、确认命令、最近的输出、触发记录。
  *
  * 面板外壳、分组标题、说明文字、开关行都用 panel/panel.module.css 的。
  */
@@ -42,9 +43,88 @@
 }
 
 .note,
-.info {
+.info,
+.command {
   min-height: 0;
   resize: vertical;
+}
+
+/* 上下两行：说明在上，控件整行宽（关键字）。 */
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* HTTP 地址与令牌：两行，说明 · 值 · 小按钮。 */
+.endpoint {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 6px 8px;
+  align-items: center;
+  padding: 8px 8px 8px 10px;
+  border: 1px solid var(--wl-line);
+  border-radius: var(--wl-r-control);
+}
+
+.endpointValue {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text);
+  font-family: var(--wl-font-mono);
+  font-size: var(--wl-fs-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.endpointValue[data-masked="true"] {
+  color: var(--wl-text-3);
+  letter-spacing: 1px;
+}
+
+.endpointTools {
+  display: flex;
+  gap: 2px;
+}
+
+/* 确认命令：命令原样等宽显示，可以换行，太长就在框里滚。 */
+.confirmCommand {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.confirmCode {
+  max-height: 120px;
+  overflow: auto;
+  padding: 6px 8px;
+  border: 1px solid var(--wl-line);
+  border-radius: calc(4px * var(--wl-round, 1));
+  background: var(--wl-sunken);
+  color: var(--wl-text);
+  font-family: var(--wl-font-mono);
+  font-size: var(--wl-fs-micro);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* 最近的输出：末尾在下，框里滚。 */
+.output {
+  max-height: 220px;
+  margin: 0;
+  overflow: auto;
+  padding: 8px 10px;
+  border: 1px solid var(--wl-line);
+  border-radius: var(--wl-r-control);
+  background: var(--wl-sunken);
+  color: var(--wl-text-2);
+  font-family: var(--wl-font-mono);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 /* 星期几：七个小圆钮，选中的填强调色。 */
@@ -170,6 +250,10 @@
   color: var(--wl-danger);
 }
 
+.fire[data-outcome="declined"] .fireOutcome {
+  color: var(--wl-text-2);
+}
+
 .fireOpen {
   flex: none;
 }
@@ -181,7 +265,9 @@
 }
 
 /* 瑞士：成组的列表只留上下线，圆钮成方的（圆角已经跟着 --wl-round 归零）。 */
-:global([data-look="swiss"]) .fires {
+:global([data-look="swiss"]) .fires,
+:global([data-look="swiss"]) .endpoint,
+:global([data-look="swiss"]) .output {
   border-width: 1px 0;
   border-color: var(--wl-line-strong);
 }

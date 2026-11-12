@@ -2,19 +2,21 @@
  * dsh-workflow-lite — 触发卡片的属性面板。
  *
  * 一张触发卡片 = 什么时候自动执行这个工作流：
- * - **现在怎么样**（只在模板视图）：开关与状态、「立即触发一次」、触发记录；
- * - **何时触发**：每隔多久 / 每天几点 / cron；
+ * - **现在怎么样**（只在模板视图）：开关与状态、确认命令、「立即触发一次」、最近的输出、触发记录；
+ * - **何时触发**：定时 / 条件轮询 / 监听程序 / HTTP，以及那一种的设置；
+ * - **过滤**（有背景信息的才有）：合并、去重、关键字；
+ * - **触发条件**：每次先由模型判断要不要执行；
  * - **触发说明**：每次触发时原样交给模型的话；
  * - **怎么运行**：发进哪个会话、在哪个工作区、上一次没跑完怎么办、两项保护。
  *
- * 规则、说明、启动方式写在图里；开关、工作区、会话是这台机器上的事（见 `triggerEnv.ts`）。
+ * 触发源、过滤、条件、说明、启动方式写在图里；开关、工作区、会话、令牌是这台机器上的事（见 `triggerEnv.ts`）。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/trigger/TriggerPanel
  */
 
 import { idKey } from '../../../shared/model.ts'
-import type { TriggerData, TriggerNode } from '../../../shared/types.ts'
-import type { T } from '../../i18n.ts'
+import type { TriggerData, TriggerNode, TriggerSourceKind } from '../../../shared/types.ts'
+import type { LocaleKey, T } from '../../i18n.ts'
 import type { Edit, Selection } from '../../model/editor.ts'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
@@ -25,11 +27,19 @@ import { cleanName } from '../panel/NodeHeads.tsx'
 import { PanelHead } from '../panel/PanelHead.tsx'
 import ins from '../panel/panel.module.css'
 import { TitleField } from '../panel/TitleField.tsx'
+import { FilterField } from './FilterField.tsx'
 import { LaunchField } from './LaunchField.tsx'
-import { ScheduleField } from './ScheduleField.tsx'
+import { SourceField } from './SourceField.tsx'
 import { TriggerStatus } from './TriggerStatus.tsx'
 import css from './trigger.module.css'
 import { useTriggerEnv } from './triggerEnv.ts'
+
+const BADGE: Record<TriggerSourceKind, LocaleKey> = {
+  schedule: 'trigger.source.schedule',
+  poll: 'trigger.source.poll',
+  listen: 'trigger.source.listen',
+  http: 'trigger.source.http',
+}
 
 export interface TriggerPanelProps {
   t: T
@@ -84,7 +94,7 @@ export function TriggerPanel(props: TriggerPanelProps): React.JSX.Element {
         id={node.id}
         extra={
           <>
-            <span className={ins.badge}>{t('trigger.badge')}</span>
+            <span className={ins.badge}>{t(BADGE[data.source.kind])}</span>
             {props.tabs}
           </>
         }
@@ -95,20 +105,43 @@ export function TriggerPanel(props: TriggerPanelProps): React.JSX.Element {
         {env === null ? (
           <p className={ins.help}>{t('trigger.snapshot')}</p>
         ) : (
-          <TriggerStatus t={t} env={env} node={node.id} />
+          <TriggerStatus t={t} env={env} node={node.id} data={data} />
         )}
 
-        <ScheduleField
+        <SourceField
           t={t}
-          schedule={data.source.schedule}
-          onChange={(schedule, typing) =>
-            patch(
-              { source: { kind: 'schedule', schedule } },
-              typing === true ? 'schedule' : undefined,
-            )
+          node={node.id}
+          source={data.source}
+          env={env}
+          onChange={(source, typing) =>
+            patch({ source }, typing === true ? `source:${source.kind}` : undefined)
           }
           onSeal={props.onSeal}
         />
+
+        {data.source.kind !== 'schedule' && (
+          <FilterField t={t} data={data} onFilter={(filter) => patch({ filter })} />
+        )}
+
+        <section className={ins.field}>
+          <div className={ins.label}>
+            <span>{t('trigger.condition')}</span>
+          </div>
+          <TextArea
+            className={cx(ui.textarea, css.note)}
+            value={data.condition ?? ''}
+            rows={2}
+            placeholder={t('trigger.conditionPlaceholder')}
+            aria-label={t('trigger.condition')}
+            data-testid="wl-trigger-condition"
+            onChange={(event) => {
+              const value = event.currentTarget.value
+              patch({ condition: value === '' ? undefined : value }, 'condition')
+            }}
+            onBlur={props.onSeal}
+          />
+          <p className={ins.help}>{t('trigger.conditionHint')}</p>
+        </section>
 
         <section className={ins.field}>
           <div className={ins.label}>

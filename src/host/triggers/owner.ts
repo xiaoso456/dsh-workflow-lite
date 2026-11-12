@@ -78,7 +78,8 @@ export class OwnerLock {
   private readonly token = randomBytes(8).toString('hex')
   private readonly file: () => string
   private readonly now: () => number
-  private readonly pid: number
+  /** 本进程报到用的进程号。 */
+  readonly pid: number
   private readonly alive: (pid: number) => boolean
 
   constructor(options: OwnerLockOptions) {

@@ -17,6 +17,7 @@ const SAVED: PluginConfigValues = {
   saveDebounceMs: 400,
   maxResultBytes: 262_144,
   installSkill: true,
+  triggerPort: 3791,
 }
 
 describe('设置草稿', () => {
@@ -27,6 +28,7 @@ describe('设置草稿', () => {
       saveDebounceMs: '400',
       maxResultBytes: '256',
       installSkill: true,
+      triggerPort: '3791',
     })
   })
 
@@ -50,6 +52,7 @@ describe('设置草稿', () => {
         saveDebounceMs: '1.5',
         maxResultBytes: '0',
         installSkill: false,
+        triggerPort: '80',
       },
       SAVED,
       t,
@@ -60,6 +63,7 @@ describe('设置草稿', () => {
       maxNodes: zh['cfg.required'],
       saveDebounceMs: zh['cfg.int'],
       maxResultBytes: zh['cfg.min'].replace('{n}', '1'),
+      triggerPort: zh['cfg.min'].replace('{n}', '1024'),
     })
   })
 

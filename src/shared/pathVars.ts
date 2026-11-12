@@ -80,6 +80,18 @@ export function bindWorkflowPath(path: string, dir: string): string {
   return rest === '' ? normalize(dir) : join(normalize(dir), rest)
 }
 
+/**
+ * 把一条命令里所有的 `{workflow}`（含旧写法）换成工作流目录（正斜杠写法，Windows 下也认）。
+ * 命令不是路径，变量可以出现在任意位置（`node "{workflow}/watch.mjs" --dir src`）；目录里有空格时引号由写命令的人加。
+ */
+export function bindWorkflowVar(command: string, dir: string): string {
+  const target = normalize(dir)
+  return [WORKFLOW_VAR, ...LEGACY_WORKFLOW_VARS].reduce(
+    (text, token) => text.split(token).join(target),
+    command,
+  )
+}
+
 // ── {memory}：记忆库 ────────────────────────────────────────────
 
 /** 记忆库的变量。 */

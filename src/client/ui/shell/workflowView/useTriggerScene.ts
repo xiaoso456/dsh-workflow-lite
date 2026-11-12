@@ -5,8 +5,9 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/shell/workflowView/useTriggerScene
  */
 
-import { useCallback, useMemo } from 'react'
-import { isTrigger } from '../../../../shared/model.ts'
+import { useCallback, useMemo, useRef, useState } from 'react'
+import { findNode, isTrigger } from '../../../../shared/model.ts'
+import { commandOf } from '../../../../shared/trigger.ts'
 import type { SessionRow } from '../../../app/sessions.ts'
 import { useTriggers } from '../../../app/useTriggers.ts'
 import type { Workflow } from '../../../app/useWorkflow.ts'
@@ -51,8 +52,23 @@ export function useTriggerScene(input: TriggerSceneInput): TriggerEnv {
     [sessionRows],
   )
 
+  const [ask, setAsk] = useState<TriggerEnv['ask']>(null)
+  const asked = useRef(0)
+  const doc = useRef(state.doc)
+  doc.current = state.doc
+
   const toggle = useCallback(
     (node: string, on: boolean): void => {
+      // 要跑命令、还没确认过：先请用户在面板里看一眼命令。
+      const card = doc.current === null ? undefined : findNode(doc.current, node)
+      const command =
+        card !== undefined && isTrigger(card) ? commandOf(card.data.source) : undefined
+      if (on && command !== undefined && triggers.view(node)?.approved !== true) {
+        select({ kind: 'node', id: node })
+        asked.current += 1
+        setAsk({ node, seq: asked.current })
+        return
+      }
       void triggers.set(node, { enabled: on }).then((problem) => {
         if (problem === null) return
         // 开不了：说出原因，并把这张卡片的面板打开（要补的设置就在里面）。
@@ -60,7 +76,7 @@ export function useTriggerScene(input: TriggerSceneInput): TriggerEnv {
         select({ kind: 'node', id: node })
       })
     },
-    [triggers.set, wf.notify, select],
+    [triggers.set, triggers.view, wf.notify, select],
   )
 
   return useMemo(
@@ -70,8 +86,9 @@ export function useTriggerScene(input: TriggerSceneInput): TriggerEnv {
       workspaces,
       sessions,
       toggle,
+      ask,
       openRun,
     }),
-    [triggers, session, sessionCwd, workspaces, sessions, toggle, openRun],
+    [triggers, session, sessionCwd, workspaces, sessions, toggle, ask, openRun],
   )
 }

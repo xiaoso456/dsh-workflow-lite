@@ -2,7 +2,7 @@
  * dsh-workflow-lite — host 半。
  *
  * 三件事：把**文件仓储**（单文件 JSON、原子写、写前哈希 + 字段级合并）接到活配置上；
- * 注册**唯一的模型可见工具** `workflow_lite`（14 个 action，没有档位开关）；把**画布 RPC**
+ * 注册**唯一的模型可见工具** `workflow_lite`（19 个 action，没有档位开关）；把**画布 RPC**
  * 挂到共享 Connection 的 `/api` 通道上（只在有 web 的 profile 里挂，缺它不影响工具可用）。
  *
  * 这个插件**不执行任何节点**：它只管理文件、渲染画布、把图编译成一份派发计划，
@@ -41,6 +41,7 @@ import { createSkillViewer } from './host/skillView.ts'
 import { memoryMetaFile } from './host/store/paths.ts'
 import { createRepository, type Repository, reportProblems } from './host/store/repository.ts'
 import { registerWorkflowLiteTool } from './host/tool/tool.ts'
+import { registerTriggerSkill } from './host/triggerSkill.ts'
 import { createFireClaims } from './host/triggers/claims.ts'
 import { createTriggerGraphs, followRenames } from './host/triggers/graphs.ts'
 import { TriggerService } from './host/triggers/service.ts'
@@ -106,18 +107,20 @@ export async function apply(ctx: Context, config: WorkflowLiteSettings): Promise
     origins: createFireClaims(triggerStore),
   })
 
-  // 触发卡片：到点在会话里发起一次执行。同一个数据目录只有一个 DSH 进程负责，它退出后别的接手。
+  // 触发卡片：到点、条件满足、收到通知时在会话里发起一次执行。
+  // 同一个数据目录只有一个 DSH 进程负责（命令、端口都在它那里），它退出后别的接手。
   const triggers = new TriggerService({
     dataDir,
     store: triggerStore,
     graphs: createTriggerGraphs(repository),
     sessions: createSessionPort(ctx),
+    port: () => config.triggerPort.get(),
     warn: (message) => ctx.logger.warn(`[workflow-lite] ${message}`),
   })
   ctx.effect(() => triggers.start(), 'workflow-lite: triggers')
 
   // 按需 skill：怎么设计一张图（workflow-authoring），运行状态的字段与 `state` 动作的用法（workflow-run-state），
-  // 画布上的看板怎么写（workflow-board）。
+  // 画布上的看板怎么写（workflow-board），触发卡片和触发脚本怎么写（workflow-trigger）。
   // `skills` 服务不在时跳过，计划里的那段照写。
   // 顺手记下 skill 服务：画布上给资源选 Skill 时列出会话里的 agent 能用的那些（见 host/skillView）。
   let skills: SkillLister | undefined
@@ -139,6 +142,7 @@ export async function apply(ctx: Context, config: WorkflowLiteSettings): Promise
       'workflow-lite: workflow-run-state skill',
     )
     skillsCtx.effect(() => registerBoardSkill(skillsCtx), 'workflow-lite: workflow-board skill')
+    skillsCtx.effect(() => registerTriggerSkill(skillsCtx), 'workflow-lite: workflow-trigger skill')
   })
 
   // 唯一的工具：**始终注册**，没有 `off`/`read`/`readwrite` 那套档位——
@@ -150,6 +154,7 @@ export async function apply(ctx: Context, config: WorkflowLiteSettings): Promise
         dataDir,
         maxResultBytes: () => config.maxResultBytes.get(),
         runs,
+        triggers,
       }),
     'workflow-lite: workflow_lite tool',
   )
@@ -176,6 +181,7 @@ export async function apply(ctx: Context, config: WorkflowLiteSettings): Promise
     saveDebounceMs: config.saveDebounceMs.get(),
     maxResultBytes: config.maxResultBytes.get(),
     installSkill: config.installSkill.get(),
+    triggerPort: config.triggerPort.get(),
   })
 
   // 画布 RPC：只在 connection 可用时挂。
@@ -201,5 +207,5 @@ export async function apply(ctx: Context, config: WorkflowLiteSettings): Promise
   })
 }
 
-/** 六个配置键（文档与测试用）。`dataDir` 改动需要重启——仓储在装配时定住数据根。 */
+/** 七个配置键（文档与测试用）。`dataDir` 改动需要重启——仓储在装配时定住数据根。 */
 export { CONFIG_KEYS }

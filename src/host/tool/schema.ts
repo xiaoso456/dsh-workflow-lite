@@ -9,6 +9,7 @@ import { FOLDER_ORDER_CHOICES, LOOK_CHOICES, VIEW_SIZE_KEYS } from '../../shared
 import { DEFAULT_OUTPUT_ROOT, WORKSPACE_ROOT } from '../../shared/outputPaths.ts'
 import { INSTANCE_VAR } from '../../shared/pathVars.ts'
 import { NODE_STATUSES, RUN_STATUSES } from '../../shared/runState.ts'
+import { SOURCE_KINDS } from '../../shared/trigger.ts'
 import {
   ACTIONS,
   EXECUTION_MODES,
@@ -42,6 +43,8 @@ export const DESCRIPTION = [
   '资源卡可以在画布上直接展示其中一项：write_resource 或 write_node 的 outputs 带 display（什么适合展示、各项怎么配见 skill workflow-authoring 的「在画布上展示」）。',
   '输入节点是执行前问用户的问题：write_node 带 input 新建或修改，connect 输入 → 步骤 = 把回答交给它。',
   '图里有输入节点时，compile 带 answers 给出用户的回答（没给的用默认值）；必填的没回答会回 problems，先问用户再编译。',
+  'write_trigger 新建或修改触发卡片（让工作流到点、条件满足、收到通知时自动执行）：模型建的卡片一律是关着的，开关只由用户在画布上打开；写之前读 skill workflow-trigger。',
+  '收到触发卡片发来的消息、消息里有「触发条件」时，先判断要不要执行：不需要就用 decline 带 fire 和 reason 回报，然后结束。',
   '节点定位一律用 id。',
   '新建或修改图之前先读 skill workflow-authoring（步骤怎么拆、产物怎么传、资源说明怎么写、建完怎么自检）。',
 ].join('')
@@ -127,7 +130,8 @@ export const PARAMETERS = {
   workflow: { type: 'string', description: '图名（不带 .json）。除 list 外都需要。' },
   node: {
     type: 'string',
-    description: '节点 id（read / write_node / set_label / delete_node / save_as_template）。',
+    description:
+      '节点 id（read / write_node / set_label / delete_node / save_as_template / write_trigger）。',
   },
   content: {
     type: 'string',
@@ -354,7 +358,124 @@ export const PARAMETERS = {
   },
   fire: {
     type: 'string',
-    description: 'compile：触发编号。只在收到触发卡片发来的消息时照消息里写的填，别的时候不给。',
+    description:
+      'compile / decline：触发编号。只在收到触发卡片发来的消息时照消息里写的填，别的时候不给。',
+  },
+  reason: {
+    type: 'string',
+    description: 'decline：按触发条件判断这次不需要执行的原因（一句话，用户在触发记录里看到）。',
+  },
+  trigger: {
+    type: 'object',
+    description:
+      'write_trigger：触发卡片的定义（给了 node 且是已有的触发卡片就是修改，给了的字段才改；否则新建）。详见 skill workflow-trigger。',
+    additionalProperties: false,
+    properties: {
+      label: { type: 'string', description: '名字；空串 = 清除。' },
+      note: {
+        type: 'string',
+        description:
+          '触发说明：每次触发原样交给执行的模型（这次要处理的范围和要求）；空串 = 清除。',
+      },
+      condition: {
+        type: 'string',
+        description:
+          '触发条件：有它时每次触发先由模型判断要不要执行，不需要就不开始工作流；空串 = 清除。只放读一下背景信息就能判断的条件。',
+      },
+      source: {
+        type: 'object',
+        description: '何时触发（整项替换）。',
+        additionalProperties: false,
+        properties: {
+          kind: {
+            type: 'string',
+            enum: [...SOURCE_KINDS],
+            required: true,
+            description:
+              'schedule 定时 / poll 条件轮询（每隔一段跑一次命令）/ listen 监听程序（常驻命令，每打一行触发一次）/ http 别的程序来调一个本机地址。',
+          },
+          schedule: {
+            type: 'object',
+            description: 'schedule：定时规则。',
+            additionalProperties: false,
+            properties: {
+              kind: { type: 'string', enum: ['daily', 'every', 'cron'], required: true },
+              time: { type: 'string', description: 'daily：HH:MM（本机时区）。' },
+              weekdays: {
+                type: 'array',
+                items: { type: 'number' },
+                description: 'daily：只在星期几（1 = 周一 … 7 = 周日）；不给 = 每天。',
+              },
+              minutes: { type: 'number', description: 'every：间隔分钟（1 到 10080）。' },
+              expression: { type: 'string', description: 'cron：五段表达式（本机时区）。' },
+            },
+          },
+          command: {
+            type: 'string',
+            description:
+              'poll / listen：要运行的命令（在用户选的工作区里、由系统 shell 运行）；{workflow} 换成工作流目录，脚本放那里。',
+          },
+          seconds: {
+            type: 'number',
+            description: 'poll：多久检查一次（秒，10 到 604800），缺省 300。',
+          },
+          when: {
+            type: 'string',
+            enum: ['success', 'change'],
+            description:
+              'poll：success（缺省）命令从不成功变成成功（退出码 0）时触发一次 / change 输出和上一次不一样时触发。',
+          },
+        },
+      },
+      filter: {
+        type: 'object',
+        description:
+          '不花模型调用的过滤（定时不用；整项替换，null = 清除）：先按关键字、再去重、最后合并。',
+        additionalProperties: false,
+        properties: {
+          merge: {
+            type: 'number',
+            description:
+              '合并窗口（秒）：这么久里进来的几次并成一次。监听、HTTP 缺省 5，轮询缺省 0。',
+          },
+          dedupe: { type: 'number', description: '去重（分钟）：一样的内容这么久里只触发一次。' },
+          include: {
+            type: 'array',
+            items: { type: 'string' },
+            description: '背景信息要含其中一个才触发（不分大小写）。',
+          },
+          exclude: {
+            type: 'array',
+            items: { type: 'string' },
+            description: '背景信息含其中任何一个就不触发。',
+          },
+        },
+      },
+      launch: {
+        type: 'object',
+        description: '怎么运行（整项替换，null = 清除）。',
+        additionalProperties: false,
+        properties: {
+          session: {
+            type: 'string',
+            enum: ['new', 'last', 'fixed'],
+            description:
+              'new 每次新建会话（缺省）/ last 接着上一次的会话 / fixed 发进用户选定的会话。',
+          },
+          overlap: {
+            type: 'string',
+            enum: ['skip', 'parallel'],
+            description: '上一次还在跑时：skip 跳过（缺省）/ parallel 照样触发。',
+          },
+          catchUp: {
+            type: 'boolean',
+            description: '定时：DSH 没开时错过的，启动后补一次（缺省 true）。',
+          },
+          maxPerHour: { type: 'number', description: '每小时最多触发几次（缺省 12）。' },
+          maxFailures: { type: 'number', description: '连续失败几次后自动停用（缺省 3）。' },
+        },
+      },
+    },
   },
   all: { type: 'boolean', description: 'runs：true = 列所有会话的实例（缺省只列本会话的）。' },
   mode: {

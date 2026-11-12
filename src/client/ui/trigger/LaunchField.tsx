@@ -8,7 +8,7 @@
  */
 
 import { useState } from 'react'
-import { launchOf, readTriggerData } from '../../../shared/trigger.ts'
+import { commandOf, launchOf, readTriggerData } from '../../../shared/trigger.ts'
 import type {
   TriggerData,
   TriggerLaunch,
@@ -66,6 +66,8 @@ export function LaunchField(props: {
     setFailed((await env.triggers.set(props.node, change)) ?? '')
   }
 
+  // 要跑命令的触发源（轮询、监听）不论会话方式都要选工作区：命令在那里运行。
+  const runsCommand = commandOf(data.source) !== undefined
   const workspace = view?.workspace ?? ''
   const workspaces = env === null ? [] : [...new Set([...env.workspaces, workspace])]
   const session = view?.session ?? ''
@@ -87,7 +89,7 @@ export function LaunchField(props: {
         onChange={(mode) => patch({ session: mode })}
         options={SESSION_MODES.map((mode) => ({ value: mode.value, label: t(mode.label) }))}
       />
-      {env !== null && launch.session !== 'fixed' && (
+      {env !== null && (launch.session !== 'fixed' || runsCommand) && (
         <div className={css.row}>
           <span className={css.rowLabel}>{t('trigger.workspace')}</span>
           <Select<string>

@@ -1,6 +1,8 @@
 /**
  * 触发器（host）：谁负责触发、到点触发与跳过、连续失败自动停用、开关与本机设置、
- * 「立即触发一次」，以及触发出来的实例记下的来源。
+ * 「立即触发一次」，以及触发出来的实例记下的来源；常驻触发源（轮询、监听程序、HTTP）的
+ * 命令确认、发进会话、失败计数、模型判断不需要，模型建触发卡片。
+ * 常驻触发源本身（跑命令、开端口）换成假的，见 `triggerSources.spec.ts`。
  */
 
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
@@ -9,6 +11,7 @@ import { join } from 'node:path'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { RunService } from '../../src/host/runs/service.ts'
+import { assetsDir } from '../../src/host/store/paths.ts'
 import {
   createRepository,
   type Repository,
@@ -19,6 +22,7 @@ import { createWorkflowLiteHandler, type ToolExecView } from '../../src/host/too
 import { createFireClaims } from '../../src/host/triggers/claims.ts'
 import { createTriggerGraphs, followRenames } from '../../src/host/triggers/graphs.ts'
 import { OWNER_STALE_MS, OwnerLock } from '../../src/host/triggers/owner.ts'
+import type { LiveRuntime, LiveSpec, RuntimeEvents } from '../../src/host/triggers/runtime.ts'
 import { LATE_MS, TriggerService } from '../../src/host/triggers/service.ts'
 import type { SessionPort } from '../../src/host/triggers/sessions.ts'
 import { ownerFile, TriggerStore } from '../../src/host/triggers/store.ts'
@@ -39,6 +43,8 @@ let busy: Set<string>
 let gone: Set<string>
 let unavailable: string | null
 let openError: string | null
+/** 假的常驻触发源：记下每一轮该开着的，事件口留给测试自己喂。 */
+let live: { specs: LiveSpec[]; events: RuntimeEvents | undefined; stopped: number }
 
 const validate = (document: WorkflowDocument, workflow: string) =>
   reportProblems(validateDocument(document, { workflowName: workflow, maxNodes: 200 }))
@@ -64,7 +70,20 @@ function service(pid = 100, alive: (pid: number) => boolean = () => true): Trigg
     graphs: createTriggerGraphs(repository),
     sessions,
     now: () => clock,
+    port: () => 3791,
     lock: new OwnerLock({ file: () => ownerFile(dataDir), now: () => clock, pid, alive }),
+    runtime: (events): LiveRuntime => {
+      live.events = events
+      return {
+        sync: async (specs) => {
+          live.specs = [...specs]
+        },
+        stopAll: async () => {
+          live.specs = []
+          live.stopped += 1
+        },
+      }
+    },
   })
 }
 
@@ -114,6 +133,7 @@ beforeEach(async () => {
   gone = new Set()
   unavailable = null
   openError = null
+  live = { specs: [], events: undefined, stopped: 0 }
 })
 
 afterEach(async () => {
@@ -426,7 +446,7 @@ describe('到点触发', () => {
     }
     const [view] = (await triggers.list('patrol')).triggers
     expect(view).toMatchObject({ enabled: false, state: 'stopped' })
-    expect(view?.problem).toContain('连续 3 次没发出去')
+    expect(view?.problem).toContain('连续 3 次失败')
     expect(view?.problem).toContain('工作区不见了')
 
     // 停用之后不再触发；用户再打开就重新开始。
@@ -575,5 +595,330 @@ describe('实例记下的来源', () => {
     })
     if (!started.ok) throw new Error('没建出实例')
     expect(started.result.instance.origin).toEqual({ channel: 'manual' })
+  })
+})
+
+describe('常驻触发源', () => {
+  const COMMAND = 'node "{workflow}/triggers/tail-log.mjs" app.log'
+  const listen = (command = COMMAND): Partial<TriggerData> => ({
+    source: { kind: 'listen', command },
+  })
+  const set = (triggers: TriggerService, change: Record<string, unknown>) =>
+    triggers.set({ workflow: 'patrol', node: 'tick', ...change })
+  const ref = { workflow: 'patrol', node: 'tick', kind: 'listen' } as const
+
+  /** 一张确认过、开着的监听卡片，本进程负责。 */
+  async function listening(data: Partial<TriggerData> = {}): Promise<TriggerService> {
+    await saveGraph('patrol', { ...listen(), ...data })
+    const triggers = service()
+    const on = await set(triggers, {
+      workspace,
+      approve: (data.source as { command?: string } | undefined)?.command ?? COMMAND,
+      enabled: true,
+    })
+    expect(on.ok).toBe(true)
+    await own(triggers)
+    return triggers
+  }
+
+  it('要跑命令的卡片：先选工作区、确认命令才打开；确认的是图里现在的那条', async () => {
+    await saveGraph('patrol', listen())
+    const triggers = service()
+    const noCwd = await set(triggers, { enabled: true })
+    expect(!noCwd.ok && noCwd.error.message).toBe('先选命令在哪个工作区里运行')
+    const unconfirmed = await set(triggers, { workspace, enabled: true })
+    expect(!unconfirmed.ok && unconfirmed.error.message).toBe('要先确认将要运行的命令')
+    // 被拒的那次什么都不留：工作区也要再给一次。
+    const stale = await set(triggers, { workspace, approve: 'node old.mjs', enabled: true })
+    expect(!stale.ok && stale.error.message).toContain('刚改过')
+
+    const on = await set(triggers, { workspace, approve: COMMAND, enabled: true })
+    expect(on.ok && on.result.triggers[0]).toMatchObject({
+      enabled: true,
+      approved: true,
+      state: 'waiting',
+    })
+    await own(triggers)
+    // 命令里的 {workflow} 换成工作流目录，环境变量里也有。
+    const dir = assetsDir(dataDir, 'patrol')
+    expect(live.specs).toEqual([
+      {
+        workflow: 'patrol',
+        node: 'tick',
+        source: { kind: 'listen', command: COMMAND },
+        filter: { merge: 5, dedupe: 0, include: [], exclude: [] },
+        cwd: workspace,
+        command: COMMAND.replace('{workflow}', dir.replace(/\\/gu, '/')),
+        env: { WORKFLOW_DIR: dir },
+      },
+    ])
+  })
+
+  it('命令或工作区改过：停下来等重新确认；确认后接着跑', async () => {
+    const triggers = await listening()
+    await saveGraph('patrol', listen('node other.mjs'))
+    await triggers.tick()
+    expect(live.specs).toEqual([])
+    expect((await triggers.list('patrol')).triggers[0]).toMatchObject({
+      enabled: true,
+      approved: false,
+      state: 'confirm',
+      problem: '要运行的命令或工作区改过了，要重新确认',
+    })
+    await set(triggers, { approve: 'node other.mjs' })
+    await triggers.tick()
+    expect(live.specs).toHaveLength(1)
+
+    const elsewhere = join(dataDir, 'ws2')
+    await mkdir(elsewhere)
+    await set(triggers, { workspace: elsewhere })
+    await triggers.tick()
+    expect(live.specs).toEqual([])
+    expect((await triggers.list('patrol')).triggers[0]?.state).toBe('confirm')
+  })
+
+  it('进来的内容发进会话：带上背景信息、合并了几次；记录的渠道是监听程序', async () => {
+    const triggers = await listening({ note: '看看是哪个模块' })
+    live.events?.deliver(ref, { info: 'ERROR pay timeout\nERROR pay 502', count: 2 })
+    await triggers.settled()
+    expect(sent).toHaveLength(1)
+    const message = sent[0]?.text ?? ''
+    expect(message).toContain('监听程序打出了一行')
+    expect(message).toContain('## 背景信息')
+    expect(message).toContain('这次是 2 次触发合并在一起的')
+    expect(message).toContain('> ERROR pay timeout\n> ERROR pay 502')
+    expect(message).not.toContain('action=decline')
+    expect((await triggers.history('patrol'))[0]).toMatchObject({
+      channel: 'listen',
+      outcome: 'sent',
+    })
+
+    // 关掉之后进来的不发。
+    await set(triggers, { enabled: false })
+    live.events?.deliver(ref, { info: 'late', count: 1 })
+    await triggers.settled()
+    expect(sent).toHaveLength(1)
+  })
+
+  it('背景信息很长：消息里只放开头，全文另存成文件', async () => {
+    const triggers = await listening()
+    const long = `${'x'.repeat(5000)}END`
+    live.events?.deliver(ref, { info: long, count: 1 })
+    await triggers.settled()
+    const message = sent[0]?.text ?? ''
+    expect(message).not.toContain('END')
+    const [fire] = await triggers.history('patrol')
+    const path = /全文在 `([^`]+)`/u.exec(message)?.[1] ?? ''
+    expect(path).toContain(fire?.id ?? '?')
+    expect(await readFile(path, 'utf8')).toBe(long)
+  })
+
+  it('每小时的上限：超过的丢掉，十分钟里只记一条跳过', async () => {
+    const triggers = await listening({ launch: { maxPerHour: 1, overlap: 'parallel' } })
+    for (let n = 0; n < 4; n += 1) live.events?.deliver(ref, { info: `e${String(n)}`, count: 1 })
+    await triggers.settled()
+    expect(sent).toHaveLength(1)
+    expect((await triggers.history('patrol')).map((fire) => fire.outcome)).toEqual([
+      'skipped',
+      'sent',
+    ])
+    clock += 11 * MINUTE
+    live.events?.deliver(ref, { info: 'e5', count: 1 })
+    await triggers.settled()
+    expect((await triggers.history('patrol')).map((fire) => fire.outcome)).toEqual([
+      'skipped',
+      'skipped',
+      'sent',
+    ])
+  })
+
+  it('程序一启动就退出算失败，连续几次自动停用；好好跑过一次就重新数', async () => {
+    const triggers = await listening()
+    live.events?.failed(ref, '监听程序运行 1 秒后退出了（退出码 1）')
+    live.events?.failed(ref, '监听程序运行 1 秒后退出了（退出码 1）')
+    live.events?.healthy(ref)
+    live.events?.failed(ref, '监听程序运行 1 秒后退出了（退出码 1）')
+    live.events?.failed(ref, '监听程序运行 1 秒后退出了（退出码 1）')
+    await triggers.settled()
+    expect((await triggers.list('patrol')).triggers[0]?.enabled).toBe(true)
+    live.events?.failed(ref, '找不到命令')
+    await triggers.settled()
+    await triggers.tick()
+    const [view] = (await triggers.list('patrol')).triggers
+    expect(view).toMatchObject({ enabled: false, state: 'stopped' })
+    expect(view?.problem).toBe('连续 3 次失败：找不到命令')
+    expect(live.specs).toEqual([])
+  })
+
+  it('状态按负责的进程写下的运行情况说；别的进程写的不作数', async () => {
+    const triggers = await listening()
+    const sources = {
+      patrol: { tick: { state: 'restarting' as const, note: '退出了', next: clock + 4000 } },
+    }
+    await store.writeLive({ pid: 100, sources, port: { kind: 'closed' } })
+    expect((await triggers.list('patrol')).triggers[0]).toMatchObject({
+      state: 'restarting',
+      problem: '退出了',
+      next: clock + 4000,
+    })
+    await store.writeLive({ pid: 999, sources, port: { kind: 'closed' } })
+    expect((await triggers.list('patrol')).triggers[0]?.state).toBe('waiting')
+  })
+
+  it('HTTP：打开时给地址和令牌；换令牌地址不变；端口开不了时显示出错', async () => {
+    await saveGraph('patrol', { source: { kind: 'http' } })
+    const triggers = service()
+    const on = await set(triggers, { workspace, enabled: true })
+    const endpoint = on.ok ? on.result.triggers[0]?.endpoint : undefined
+    expect(endpoint?.url).toMatch(/^http:\/\/127\.0\.0\.1:3791\/trigger\/[\w-]+$/u)
+    expect(endpoint?.token.length).toBeGreaterThan(20)
+    expect(on.ok && on.result.triggers[0]).not.toHaveProperty('approved')
+
+    const reset = await set(triggers, { resetToken: true })
+    const after = reset.ok ? reset.result.triggers[0]?.endpoint : undefined
+    expect(after?.url).toBe(endpoint?.url)
+    expect(after?.token).not.toBe(endpoint?.token)
+
+    await own(triggers)
+    expect(live.specs[0]?.hook).toEqual({
+      id: endpoint?.url.split('/').pop(),
+      token: after?.token,
+    })
+    await store.writeLive({
+      pid: 100,
+      sources: {},
+      port: { kind: 'error', port: 3791, problem: '端口 3791 被别的程序占用了' },
+    })
+    expect((await triggers.list('patrol')).triggers[0]).toMatchObject({
+      state: 'error',
+      problem: '端口 3791 被别的程序占用了',
+    })
+    // 定时卡片没有令牌可换。
+    await saveGraph('patrol')
+    const refused = await set(triggers, { resetToken: true })
+    expect(!refused.ok && refused.error.message).toBe('只有 HTTP 触发有令牌')
+  })
+
+  it('不归这个进程负责时常驻的都停下', async () => {
+    const triggers = await listening()
+    expect(live.specs).toHaveLength(1)
+    unavailable = '这个 DSH 里没有会话服务'
+    await triggers.tick()
+    expect(live.specs).toEqual([])
+    expect(live.stopped).toBeGreaterThan(0)
+  })
+})
+
+describe('触发条件与模型判断', () => {
+  let run: (args: WorkflowLiteArgs, exec?: ToolExecView) => Promise<JsonValue>
+  let triggers: TriggerService
+
+  beforeEach(() => {
+    triggers = service()
+    run = createWorkflowLiteHandler({
+      repository,
+      dataDir: () => dataDir,
+      maxResultBytes: () => 262_144,
+      triggers,
+    })
+  })
+
+  it('有触发条件时先让模型判断；模型判断不需要就记下原因', async () => {
+    await saveGraph('patrol', { condition: '只处理支付模块的报错' })
+    await triggers.set({ workflow: 'patrol', node: 'tick', workspace })
+    const fired = await triggers.fireNow({ workflow: 'patrol', node: 'tick', info: 'ERROR user' })
+    if (!fired.ok) throw new Error('没触发')
+    const message = sent[0]?.text ?? ''
+    expect(message).toContain('## 触发条件')
+    expect(message).toContain('> 只处理支付模块的报错')
+    expect(message).toContain(`action=decline，fire=${fired.result.id}`)
+
+    const result = await run({ action: 'decline', fire: fired.result.id, reason: '是用户模块的' })
+    expect(result).toMatchObject({ declined: fired.result.id })
+    expect((await triggers.history('patrol'))[0]).toMatchObject({
+      outcome: 'sent',
+      declined: '是用户模块的',
+    })
+    expect((await triggers.list('patrol')).triggers[0]?.last?.declined).toBe('是用户模块的')
+    expect(await run({ action: 'decline', fire: 'nope', reason: 'x' })).toMatchObject({
+      error: { code: 'not_found' },
+    })
+  })
+
+  it('已经建出实例的那次不能再说不需要', async () => {
+    await saveGraph('patrol')
+    await triggers.set({ workflow: 'patrol', node: 'tick', workspace })
+    const fired = await triggers.fireNow({ workflow: 'patrol', node: 'tick' })
+    if (!fired.ok) throw new Error('没触发')
+    await store.bind(fired.result.id, 'run-1')
+    const refused = await triggers.decline(fired.result.id, '不需要')
+    expect(!refused.ok && refused.error.message).toContain('已经开始执行了')
+  })
+})
+
+describe('模型建触发卡片', () => {
+  let run: (args: WorkflowLiteArgs, exec?: ToolExecView) => Promise<JsonValue>
+
+  beforeEach(() => {
+    run = createWorkflowLiteHandler({
+      repository,
+      dataDir: () => dataDir,
+      maxResultBytes: () => 262_144,
+    })
+  })
+
+  it('建一张关着的卡片；同一个 id 再写是修改；设置不对的拒绝；读的时候列出卡片和目录', async () => {
+    await saveGraph('patrol')
+    const created = await run({
+      action: 'write_trigger',
+      workflow: 'patrol',
+      trigger: {
+        label: '日志报错',
+        source: { kind: 'listen', command: 'node "{workflow}/triggers/tail-log.mjs" app.log' },
+        filter: { include: ['ERROR'] },
+        note: '找出是哪个模块',
+      },
+    })
+    expect(created).toMatchObject({ changed: [{ id: 'trigger', op: 'add' }] })
+    expect((created as { next?: string }).next).toContain('关着')
+
+    const edited = await run({
+      action: 'write_trigger',
+      workflow: 'patrol',
+      node: 'trigger',
+      trigger: { condition: '只管支付模块', note: '' },
+    })
+    expect(edited).toMatchObject({ changed: [{ id: 'trigger' }] })
+    const load = await repository.load('patrol')
+    const card = load.document?.nodes.find((node) => node.id === 'trigger')
+    expect(card).toMatchObject({
+      type: 'wfTrigger',
+      position: { x: 0, y: 0 },
+      data: {
+        label: '日志报错',
+        source: { kind: 'listen' },
+        condition: '只管支付模块',
+        filter: { include: ['ERROR'] },
+      },
+    })
+    expect(card?.data).not.toHaveProperty('note')
+
+    expect(
+      await run({
+        action: 'write_trigger',
+        workflow: 'patrol',
+        trigger: { source: { kind: 'poll', command: 'x', seconds: 1 } },
+      }),
+    ).toMatchObject({ error: { code: 'invalid_args' } })
+    expect(
+      await run({ action: 'write_trigger', workflow: 'patrol', node: 'work', trigger: {} }),
+    ).toMatchObject({ error: { code: 'blocked' } })
+
+    const index = (await run({ action: 'read', workflow: 'patrol' })) as {
+      dir?: string
+      triggers?: { id: string }[]
+    }
+    expect(index.dir).toBe(assetsDir(dataDir, 'patrol'))
+    expect(index.triggers?.map((item) => item.id)).toEqual(['tick', 'trigger'])
   })
 })

@@ -43,6 +43,7 @@ export const zh = {
   'cfg.groupStorage': '存储',
   'cfg.groupCanvas': '画布',
   'cfg.groupModel': '模型',
+  'cfg.groupTrigger': '触发',
   'cfg.dataDir': '数据目录',
   'cfg.dataDirDesc': '工作流、版本和实例记录都存在这里。原来目录里的东西不会自动搬过去。',
   'cfg.maxNodes': '单张工作流最多步骤',
@@ -53,7 +54,10 @@ export const zh = {
   'cfg.maxResultDesc': '模型读一张工作流、一份运行状态最多拿这么多；很大的工作流读不出来时调大。',
   'cfg.skill': '给模型的使用指南',
   'cfg.skillDesc':
-    '注册三份模型按需读的指南：怎么设计工作流、怎么记录运行状态、怎么写画布上的看板。',
+    '注册四份模型按需读的指南：怎么设计工作流、怎么记录运行状态、怎么写画布上的看板、怎么加触发卡片。',
+  'cfg.triggerPort': 'HTTP 触发端口',
+  'cfg.triggerPortDesc':
+    'HTTP 触发卡片的地址用这个本机端口，只接受本机的请求；有打开的 HTTP 触发卡片时才占用。改了之后地址跟着变，要更新调用方。',
   'cfg.ms': '毫秒',
   'cfg.steps': '步',
   'cfg.kb': 'KB',
@@ -68,6 +72,7 @@ export const zh = {
   'cfg.readonly': '当前 profile 不允许在这里改设置。',
   'cfg.int': '要填整数',
   'cfg.min': '不能小于 {n}',
+  'cfg.max': '不能大于 {n}',
   'cfg.required': '不能为空',
 } as const
 
@@ -110,6 +115,7 @@ export const en: Record<keyof typeof zh, string> = {
   'cfg.groupStorage': 'Storage',
   'cfg.groupCanvas': 'Canvas',
   'cfg.groupModel': 'Model',
+  'cfg.groupTrigger': 'Triggers',
   'cfg.dataDir': 'Data folder',
   'cfg.dataDirDesc':
     'Workflows, versions and instance records live here. Existing files are not moved for you.',
@@ -122,7 +128,10 @@ export const en: Record<keyof typeof zh, string> = {
     'The most the model gets from one read of a workflow or run state; raise it if a big workflow cannot be read.',
   'cfg.skill': 'Guides for the model',
   'cfg.skillDesc':
-    'Registers three on-demand guides: designing workflows, recording run state, and writing canvas dashboards.',
+    'Registers four on-demand guides: designing workflows, recording run state, writing canvas dashboards, and adding trigger cards.',
+  'cfg.triggerPort': 'HTTP trigger port',
+  'cfg.triggerPortDesc':
+    'Local port for HTTP trigger addresses; only accepts requests from this machine and is only taken while an HTTP trigger card is on. Changing it changes the addresses, so update the callers.',
   'cfg.ms': 'ms',
   'cfg.steps': 'steps',
   'cfg.kb': 'KB',
@@ -138,5 +147,6 @@ export const en: Record<keyof typeof zh, string> = {
   'cfg.readonly': 'This profile does not allow editing settings here.',
   'cfg.int': 'Enter a whole number',
   'cfg.min': 'Must be at least {n}',
+  'cfg.max': 'Must be at most {n}',
   'cfg.required': 'Required',
 }

@@ -1,5 +1,6 @@
 /**
- * dsh-workflow-lite — `trigger/*`：触发卡片的状态、开关与本机设置、「立即触发一次」、触发记录。
+ * dsh-workflow-lite — `trigger/*`：触发卡片的状态、开关与本机设置（含确认命令、换令牌）、「立即触发一次」、
+ * 触发记录、最近的输出。
  *
  * @module @xiaoso/dsh-workflow-lite/host/rpc/trigger
  */
@@ -38,14 +39,20 @@ export async function dispatchTrigger(
       if (input.enabled !== undefined && typeof input.enabled !== 'boolean') {
         throw new Error('enabled must be a boolean')
       }
+      if (input.resetToken !== undefined && input.resetToken !== true) {
+        throw new Error('resetToken must be true')
+      }
       const workspace = clearableString(input, 'workspace')
       const session = clearableString(input, 'session')
+      const approve = clearableString(input, 'approve')
       const outcome = await deps.triggers.set({
         workflow,
         node: requireString(input, 'node'),
         ...(input.enabled === undefined ? {} : { enabled: input.enabled }),
         ...(workspace === undefined ? {} : { workspace }),
         ...(session === undefined ? {} : { session }),
+        ...(approve === undefined ? {} : { approve }),
+        ...(input.resetToken === true ? { resetToken: true as const } : {}),
       })
       if (!outcome.ok) return failFrom(outcome.error)
       return ok(outcome.result)
@@ -64,5 +71,8 @@ export async function dispatchTrigger(
 
     case 'trigger/history':
       return ok({ fires: await deps.triggers.history(workflow, optionalString(input, 'node')) })
+
+    case 'trigger/output':
+      return ok({ text: await deps.triggers.output(workflow, requireString(input, 'node')) })
   }
 }

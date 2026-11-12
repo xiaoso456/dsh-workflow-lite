@@ -132,6 +132,8 @@ import type {
   TriggerHistoryResponse,
   TriggerListRequest,
   TriggerListResponse,
+  TriggerOutputRequest,
+  TriggerOutputResponse,
   TriggerSetRequest,
 } from './wire/trigger.ts'
 
@@ -189,6 +191,7 @@ export const WORKFLOW_LITE_ENDPOINTS = [
   'trigger/set',
   'trigger/fire',
   'trigger/history',
+  'trigger/output',
   'memory/list',
   'memory/create',
   'memory/update',
@@ -299,6 +302,7 @@ export interface WorkflowLiteRpcMap {
   'trigger/set': { args: TriggerSetRequest; result: TriggerListResponse }
   'trigger/fire': { args: TriggerFireRequest; result: FireRecord }
   'trigger/history': { args: TriggerHistoryRequest; result: TriggerHistoryResponse }
+  'trigger/output': { args: TriggerOutputRequest; result: TriggerOutputResponse }
   'memory/list': { args: Record<string, never>; result: MemoryListResponse }
   'memory/create': { args: MemoryCreateRequest; result: MemoryEntryResponse }
   'memory/update': { args: MemoryUpdateRequest; result: MemoryEntryResponse }

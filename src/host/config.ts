@@ -1,12 +1,12 @@
 /**
  * dsh-workflow-lite — 配置面。
  *
- * 六个键，默认值全部写在 schema 里（**不硬编码在代码里**）。字段类型是
+ * 七个键，默认值全部写在 schema 里（**不硬编码在代码里**）。字段类型是
  * `Volatile`：设置表单投影的正是这些字段，写入落进当前 profile 的 Cordis patch，
  * 运行中的插件读的是**活引用**——一次配置写入就地更新它，不重挂插件。
  *
  * 部署相关的取值一律走这里：`dataDir`（数据根）、`maxNodes`、`maxResultBytes`
- * （单次返回字节上限）、`saveDebounceMs`、`routePrefix`、`installSkill`。
+ * （单次返回字节上限）、`saveDebounceMs`、`routePrefix`、`installSkill`、`triggerPort`（HTTP 触发的端口）。
  *
  * @module @xiaoso/dsh-workflow-lite/host/config
  */
@@ -30,8 +30,16 @@ export interface WorkflowLiteSettings {
   maxResultBytes: Volatile<number>
   /** 画布 ↔ host 的同源路由前缀。插件不自开端口。 */
   routePrefix: Volatile<string>
-  /** 是否随插件注册按需 skill `workflow-authoring`（设计图）、`workflow-run-state`（运行状态）与 `workflow-board`（看板）。 */
+  /**
+   * 是否随插件注册按需 skill `workflow-authoring`（设计图）、`workflow-run-state`（运行状态）、
+   * `workflow-board`（看板）与 `workflow-trigger`（触发卡片）。
+   */
   installSkill: Volatile<boolean>
+  /**
+   * HTTP 触发卡片用的本机端口（只监听 127.0.0.1）。没有开着的 HTTP 触发卡片时不开；改了下一轮（几秒内）换过去。
+   * 这是插件**唯一**自己开的端口，画布仍走 DSH 的同源路由。
+   */
+  triggerPort: Volatile<number>
 }
 
 /**
@@ -45,9 +53,10 @@ export const Config = z.object({
   maxResultBytes: z.number().min(1024).default(262_144).volatile(),
   routePrefix: z.string().pattern(/^\//u).default('/workflow-lite').volatile(),
   installSkill: z.boolean().default(true).volatile(),
+  triggerPort: z.number().min(1024).max(65535).default(3791).volatile(),
 })
 
-/** 六个键的名字（测试与文档用，避免两处各写一遍）。 */
+/** 七个键的名字（测试与文档用，避免两处各写一遍）。 */
 export const CONFIG_KEYS = [
   'dataDir',
   'saveDebounceMs',
@@ -55,4 +64,5 @@ export const CONFIG_KEYS = [
   'maxResultBytes',
   'routePrefix',
   'installSkill',
+  'triggerPort',
 ] as const

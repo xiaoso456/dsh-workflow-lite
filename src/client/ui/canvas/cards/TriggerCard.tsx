@@ -1,7 +1,7 @@
 /**
  * dsh-workflow-lite — 触发卡片：什么时候自动执行这个工作流。不连线——它触发的是整个工作流。
  *
- * 卡片上三行：名字、定时规则、此刻的状态（等待中 · 下一次什么时候 / 已停用 / 由另一个 DSH 负责…），
+ * 卡片上三行：名字、触发源（定时规则、轮询间隔、监听、HTTP）、此刻的状态（等待中 · 下一次什么时候 / 已停用 / 由另一个 DSH 负责…），
  * 右边一个开关。名字和规则来自图；状态和开关是这台机器上的事，从 {@link useTriggerEnv} 现读，
  * 所以轮询到新状态时只有这张卡片换字、换属性，不重建节点。实例视图里没有现场：只剩名字和规则。
  *
@@ -44,7 +44,7 @@ export const TriggerCard = memo(function TriggerCard(
         {env !== null && (
           <span className={css.status} data-testid="wl-trigger-state">
             <span className={css.dot} aria-hidden="true" />
-            <span className={css.statusText}>{stateText(data.t, view)}</span>
+            <span className={css.statusText}>{stateText(data.t, view, data.kind)}</span>
           </span>
         )}
       </span>
