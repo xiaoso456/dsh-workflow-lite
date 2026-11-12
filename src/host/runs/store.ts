@@ -15,7 +15,7 @@
 
 import { randomBytes } from 'node:crypto'
 import { dirname, join } from 'node:path'
-import type { InstanceRecord } from '../../shared/runState.ts'
+import { type InstanceRecord, originSummary, readOrigin } from '../../shared/runState.ts'
 import { EXECUTION_MODES } from '../../shared/types.ts'
 import { ensureDir, readFileText, renamePath, writeFileAtomic } from '../store/atomic.ts'
 
@@ -49,6 +49,11 @@ export function snapshotFile(dataDir: string, id: string): string {
 /** 用户执行前对输入节点的回答（输入 id → 回答），和图快照放在一起。 */
 export function answersFile(dataDir: string, id: string): string {
   return join(runDir(dataDir, id), 'inputs.json')
+}
+
+/** 实例的来源（触发说明、背景信息的原文也在里面），和图快照放在一起。 */
+export function originFile(dataDir: string, id: string): string {
+  return join(runDir(dataDir, id), 'origin.json')
 }
 
 /** 实例目录：有工作区就放工作区（沙箱 `workspace-write` 档能写，执行者也找得到），否则退回数据目录。 */
@@ -94,6 +99,7 @@ function readRecord(raw: unknown): InstanceRecord | null {
   if (!isRecord(raw)) return null
   const { id, workflow, planId, statePath, createdAt } = raw
   const mode = EXECUTION_MODES.find((candidate) => candidate === raw.mode)
+  const origin = readOrigin(raw.origin)
   if (
     !isInstanceId(id) ||
     typeof workflow !== 'string' ||
@@ -114,6 +120,7 @@ function readRecord(raw: unknown): InstanceRecord | null {
     ...(typeof statePath === 'string' ? { statePath } : {}),
     ...(typeof raw.session === 'string' ? { session: raw.session } : {}),
     createdAt,
+    ...(origin === undefined ? {} : { origin: originSummary(origin) }),
     ...(typeof raw.pendingNotice === 'string' ? { pendingNotice: raw.pendingNotice } : {}),
   }
 }

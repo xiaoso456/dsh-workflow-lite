@@ -8,7 +8,7 @@
 
 import { useMemo, useState } from 'react'
 import type { GraphAnalysis } from '../../../shared/graph.ts'
-import { isInput, isResource, isStep } from '../../../shared/model.ts'
+import { isInput, isResource, isStep, isTrigger } from '../../../shared/model.ts'
 import { resourceTitle } from '../../../shared/resources.ts'
 import type { RunState } from '../../../shared/runState.ts'
 import type { WorkflowDocument, WorkflowNode } from '../../../shared/types.ts'
@@ -34,6 +34,13 @@ function nodeIcon(node: WorkflowNode, size: number): React.JSX.Element {
     return (
       <span className={ins.askIcon}>
         <Icon name="ask" size={size - 1} />
+      </span>
+    )
+  }
+  if (isTrigger(node)) {
+    return (
+      <span className={ins.triggerIcon}>
+        <Icon name="bolt" size={size - 1} />
       </span>
     )
   }

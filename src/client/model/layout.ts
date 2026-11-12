@@ -24,7 +24,7 @@ import type { ElkExtendedEdge, ElkNode } from 'elkjs/lib/elk-api.js'
 import type { GraphAnalysis } from '../../shared/graph.ts'
 import { byId, edgeWhen } from '../../shared/graph.ts'
 import { inputReaders } from '../../shared/inputs.ts'
-import { idKey, isInput, isResource } from '../../shared/model.ts'
+import { idKey, isInput, isResource, isStep, isTrigger } from '../../shared/model.ts'
 import { edgeKind, nodeIndex, resolveHandoff, resourceGraph } from '../../shared/resources.ts'
 import type {
   Point,
@@ -89,9 +89,14 @@ export function resourceHeight(data: ResourceData): number {
 export const INPUT_W = 180
 export const INPUT_H = 56
 
+/** 触发卡片的宽度（CSS 里写死同一个数）与估算高度：不连线，自己待在一边。 */
+export const TRIGGER_W = 264
+export const TRIGGER_H = 66
+
 /** 一张卡的标称尺寸（还没量出来时按它算）。 */
 export function cardSize(node: WorkflowNode): { w: number; h: number } {
   if (isInput(node)) return { w: INPUT_W, h: INPUT_H }
+  if (isTrigger(node)) return { w: TRIGGER_W, h: TRIGGER_H }
   return isResource(node) ? resourceSize(node.data) : { w: NODE_W, h: NODE_H }
 }
 
@@ -178,7 +183,7 @@ export function memorySpot(doc: WorkflowDocument, step: WorkflowNode): Point {
     .filter((node) => node.id !== step.id && !isUnplaced(node.position))
     .map((node) => ({ node, box: boxOf(node) }))
   const boxes = occupied.map((item) => item.box)
-  const others = occupied.filter((item) => !isResource(item.node) && !isInput(item.node))
+  const others = occupied.filter((item) => isStep(item.node))
   const x = step.position.x + RES_DX
   // 上边的写点比底边的靠右（见 route.ts 的 STEP_SPOTS），放上面要多缩进那么一截，写线才是一个直角。
   const upX = x + Math.ceil((STEP_SPOTS.fileUp.at - STEP_SPOTS.file.at) * NODE_W)
@@ -223,6 +228,34 @@ export function inputSpot(doc: WorkflowDocument, reader: Point | undefined, skip
     { x: base.x - INPUT_W - LAYER_GAP, y: base.y, w: INPUT_W, h: INPUT_H },
     INPUT_H + RES_GAP,
   )
+}
+
+/**
+ * 新的触发卡片放哪：整张图上面的一排，从最左边起；那里已经有卡片（多半是别的触发卡片）就接在右边。
+ * 「整张图」不算已有的触发卡片——否则每加一张就又往上叠一排；图里只有触发卡片时和它们排成一排。
+ */
+export function triggerSpot(doc: WorkflowDocument, skip?: string): Point {
+  const placed = doc.nodes.filter((node) => node.id !== skip && !isUnplaced(node.position))
+  const occupied = placed.map((node) => boxOf(node))
+  if (occupied.length === 0) return { ...ORIGIN }
+  const graph = placed.filter((node) => !isTrigger(node)).map((node) => boxOf(node))
+  const y =
+    graph.length === 0
+      ? Math.min(...occupied.map((box) => box.y))
+      : Math.min(...graph.map((box) => box.y)) - TRIGGER_H - BLOCK_GAP
+  let x = Math.min(...occupied.map((box) => box.x))
+  for (let tries = 0; tries <= occupied.length; tries += 1) {
+    const hit = occupied.find(
+      (other) =>
+        x < other.x + other.w + RES_GAP &&
+        other.x < x + TRIGGER_W + RES_GAP &&
+        y < other.y + other.h &&
+        other.y < y + TRIGGER_H,
+    )
+    if (hit === undefined) break
+    x = hit.x + hit.w + RES_GAP + 10
+  }
+  return { x, y }
 }
 
 /** 资源卡的锚点：第一个写它的步骤，没有就第一个读它的步骤。 */
@@ -320,7 +353,7 @@ export async function tidy(
   analysis.batches.forEach((batch, batchIndex) => {
     for (const id of batch.nodes) column.set(idKey(id), batchIndex)
   })
-  const steps = doc.nodes.filter((node) => !isResource(node) && !isInput(node))
+  const steps = doc.nodes.filter(isStep)
   // 批次之外的步骤（理论上没有）：排在最后一列之后。
   for (const node of steps) {
     if (!column.has(idKey(node.id))) column.set(idKey(node.id), analysis.batches.length)
@@ -333,6 +366,11 @@ export async function tidy(
   const inputs: { node: WorkflowNode; column: number }[] = []
   const loose: WorkflowNode[] = []
   for (const node of doc.nodes) {
+    // 触发卡片不连线：和没连线的资源一起排在版面下方。
+    if (isTrigger(node)) {
+      loose.push(node)
+      continue
+    }
     // 输入节点和没人写的资源一样：单独成块，放在第一个用到它的步骤的前一列。
     if (isInput(node)) {
       const readers = inputReaders(doc, node.id)

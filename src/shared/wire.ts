@@ -6,7 +6,7 @@
  * 这里只放**名字与形状**，host 与 client 两边都 import 它，避免两处各写一套字面量。
  *
  * 本文件留通道名、端点名表与把各组串起来的调用映射；各端点的请求 / 返回形状按组放在 `wire/`：
- * `graph`（`graph/*`）、`plan`、`memory`、`host`、`run`、`config`，与 `host/rpc/` 的分组一一对应；
+ * `graph`（`graph/*`）、`plan`、`memory`、`host`、`run`、`trigger`、`config`，与 `host/rpc/` 的分组一一对应；
  * `pack/*` 的形状在 `pack.ts` 与 `skillPack.ts`；各组共用的 `WireWarning` 在 `wire/common.ts`。
  *
  * @module @xiaoso/dsh-workflow-lite/shared/wire
@@ -125,6 +125,15 @@ import type {
   RunStorageRequest,
   StorageStats,
 } from './wire/run.ts'
+import type {
+  FireRecord,
+  TriggerFireRequest,
+  TriggerHistoryRequest,
+  TriggerHistoryResponse,
+  TriggerListRequest,
+  TriggerListResponse,
+  TriggerSetRequest,
+} from './wire/trigger.ts'
 
 /**
  * 共享 Connection 的通道名。
@@ -176,6 +185,10 @@ export const WORKFLOW_LITE_ENDPOINTS = [
   'run/stat',
   'run/history',
   'run/latest',
+  'trigger/list',
+  'trigger/set',
+  'trigger/fire',
+  'trigger/history',
   'memory/list',
   'memory/create',
   'memory/update',
@@ -282,6 +295,10 @@ export interface WorkflowLiteRpcMap {
   'run/stat': { args: RunStatRequest; result: RunStatResponse }
   'run/history': { args: RunHistoryRequest; result: RunHistoryResponse }
   'run/latest': { args: RunLatestRequest; result: RunLatestResponse }
+  'trigger/list': { args: TriggerListRequest; result: TriggerListResponse }
+  'trigger/set': { args: TriggerSetRequest; result: TriggerListResponse }
+  'trigger/fire': { args: TriggerFireRequest; result: FireRecord }
+  'trigger/history': { args: TriggerHistoryRequest; result: TriggerHistoryResponse }
   'memory/list': { args: Record<string, never>; result: MemoryListResponse }
   'memory/create': { args: MemoryCreateRequest; result: MemoryEntryResponse }
   'memory/update': { args: MemoryUpdateRequest; result: MemoryEntryResponse }

@@ -48,6 +48,7 @@ export interface WorkflowLiteArgs {
   log?: string
   input?: InputArgs
   answers?: AnswerArgs[]
+  fire?: string
   resource?: ResourceArgs
   memory?: MemoryArgs
 }

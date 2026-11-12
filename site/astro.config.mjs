@@ -8,7 +8,7 @@ const group = (label, en, items, collapsed = true) => ({ label, translations: { 
 
 /**
  * 侧栏按使用频率分：先装好、跟着做一遍；常用操作要短；「画布展示」是最大的一块功能，每种内容各一页；
- * 其余少用的放进「进阶」，用到再查。页面放在哪个目录不影响侧栏，这里只列路径。
+ * 「自动触发」是另一块里程碑功能，每种触发方式一页；其余少用的放进「进阶」，用到再查。页面放在哪个目录不影响侧栏，这里只列路径。
  */
 const sidebar = [
   group('快速开始', 'Getting started', ['start/install', 'start/first-workflow']),
@@ -35,6 +35,7 @@ const sidebar = [
     'display/folder',
     'display/rounds',
   ]),
+  group('自动触发', 'Triggers', ['trigger/schedule']),
   group('进阶', 'Advanced', [
     'materials/inputs',
     'materials/resources',

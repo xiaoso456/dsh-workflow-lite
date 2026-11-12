@@ -1,0 +1,200 @@
+/**
+ * dsh-workflow-lite — 画布上触发卡片（TriggerCard）的样子。
+ *
+ * 一张自己待着的卡片（没有连接点）：左边一条签印着闪电，中间名字、定时规则、状态三行，右边一个开关。
+ * 开着（等待中、由别的 DSH 负责）时签是强调色，关着是灰的；状态前的小圆点按状态换色。
+ * 宽度和 model/layout.ts 的 `TRIGGER_W` 是同一个数。
+ */
+
+.card {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  width: 264px;
+  min-height: 64px;
+  border: 1px solid var(--wl-card-line, var(--wl-line));
+  border-radius: calc(10px * var(--wl-round, 1));
+  background: var(--wl-panel);
+  box-shadow: var(--wl-shadow-1);
+  cursor: grab;
+  /* 只填充"开始之前"：动画走完就交还给普通样式，悬停的 transform 过渡才生效。 */
+  animation: triggerIn 380ms var(--wl-spring) backwards;
+  transition:
+    transform 340ms var(--wl-spring),
+    opacity 160ms linear,
+    border-color 120ms linear;
+}
+
+@keyframes triggerIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+/* 选中环画在伪元素上，渐显只动它的 opacity。 */
+.card::after {
+  position: absolute;
+  inset: -1px;
+  border: 2px solid var(--wl-accent);
+  border-radius: inherit;
+  box-shadow: 0 0 0 4px var(--wl-accent-soft);
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms linear;
+}
+
+.card[data-selected]::after {
+  opacity: 1;
+}
+
+.card:hover {
+  border-color: var(--wl-line-strong);
+  transform: translateY(-1px);
+}
+
+.card[data-dim="true"] {
+  opacity: 0.32;
+}
+
+:global(.react-flow__node.dragging) .card {
+  cursor: grabbing;
+  transform: scale(1.03);
+}
+
+.tab {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 34px;
+  border-radius: calc(9px * var(--wl-round, 1)) 0 0 calc(9px * var(--wl-round, 1));
+  background: var(--wl-fill);
+  color: var(--wl-text-3);
+  transition:
+    background-color 160ms linear,
+    color 160ms linear;
+}
+
+.card[data-state="waiting"] .tab,
+.card[data-state="elsewhere"] .tab {
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+}
+
+.text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 1px;
+  justify-content: center;
+  min-width: 0;
+  padding: 7px 8px 7px 10px;
+}
+
+.title {
+  overflow: hidden;
+  color: var(--wl-text);
+  font-size: var(--wl-fs-meta);
+  font-weight: 600;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rule,
+.status {
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rule {
+  color: var(--wl-text-2);
+}
+
+.status {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+
+.statusText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 状态前的小圆点：关着是空心的灰圈，其余按状态上色。 */
+.dot {
+  flex: none;
+  box-sizing: border-box;
+  width: 7px;
+  height: 7px;
+  border: 1.5px solid var(--wl-text-3);
+  border-radius: 50%;
+}
+
+.card[data-state="waiting"] .dot {
+  border-color: var(--wl-ok-dot);
+  background: var(--wl-ok-dot);
+}
+
+.card[data-state="elsewhere"] .dot {
+  border-color: var(--wl-accent);
+  background: var(--wl-accent);
+}
+
+.card[data-state="invalid"] .dot,
+.card[data-state="stopped"] .dot {
+  border-color: var(--wl-danger);
+  background: var(--wl-danger);
+}
+
+.card[data-state="unavailable"] .dot {
+  border-color: var(--wl-warn-dot);
+  background: var(--wl-warn-dot);
+}
+
+.card[data-state="invalid"] .statusText,
+.card[data-state="stopped"] .statusText {
+  color: var(--wl-danger);
+}
+
+.card > :global(.nodrag) {
+  cursor: pointer;
+}
+
+/* 开关：一整块按钮（好点），里面是和别处一样的开关轨道。 */
+.toggle {
+  display: grid;
+  flex: none;
+  align-self: center;
+  place-items: center;
+  width: 38px;
+  height: 30px;
+  margin-right: 6px;
+  padding: 0;
+  border: 0;
+  border-radius: calc(8px * var(--wl-round, 1));
+  background: transparent;
+}
+
+.toggle:hover {
+  background: var(--wl-hover);
+}
+
+.toggle:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .card::after,
+  .tab {
+    animation: none;
+    transition: none;
+  }
+}

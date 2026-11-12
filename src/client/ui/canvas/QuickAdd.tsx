@@ -183,6 +183,21 @@ export function QuickAdd(props: {
           <span className={cx(ui.menuMeta, css.quickMeta)}>{t('quick.globalMemoryDesc')}</span>
         </button>
       )}
+      {props.origin === 'none' && (
+        <button
+          type="button"
+          role="menuitem"
+          className={ui.menuItem}
+          data-testid="wl-quick-trigger"
+          onClick={() => props.onPick({ kind: 'trigger' })}
+        >
+          <span className={cx(ui.kind, css.quickKind)} data-color="blue">
+            <Icon name="bolt" size={13} />
+          </span>
+          <span className={cx(ui.menuLabel, css.quickLabel)}>{t('quick.trigger')}</span>
+          <span className={cx(ui.menuMeta, css.quickMeta)}>{t('quick.triggerDesc')}</span>
+        </button>
+      )}
       {PRESETS.map((preset) => (
         <button
           key={preset.id}

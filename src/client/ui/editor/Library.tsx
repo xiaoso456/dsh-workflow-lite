@@ -206,7 +206,7 @@ export function Library(props: {
       <div className={cx(css.scroll, ui.scrollFade)}>
         <SectionHead
           label={t('lib.basic')}
-          count={4}
+          count={5}
           open={open('basic')}
           testId="wl-lib-section-basic"
           onToggle={() => toggle('basic')}
@@ -279,6 +279,20 @@ export function Library(props: {
               title={t('lib.memory')}
               desc={t('lib.memoryDesc')}
               testId="wl-lib-memory"
+              onClick={() => setHinting((value) => value + 1)}
+            />
+
+            {/* 触发：到点自动执行这个工作流。拖到画布上是一张不连线的触发卡片，规则和开关在右侧设置。 */}
+            <DragOnly
+              source={{ kind: 'trigger' }}
+              mark={
+                <span className={ui.kind} data-color="blue">
+                  <Icon name="bolt" size={15} />
+                </span>
+              }
+              title={t('lib.trigger')}
+              desc={t('lib.triggerDesc')}
+              testId="wl-lib-trigger"
               onClick={() => setHinting((value) => value + 1)}
             />
           </div>

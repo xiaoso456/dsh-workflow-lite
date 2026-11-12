@@ -7,7 +7,7 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/resources/EndIcon
  */
 
-import { isInput, isResource } from '../../../shared/model.ts'
+import { isInput, isResource, isStep } from '../../../shared/model.ts'
 import type { WorkflowNode } from '../../../shared/types.ts'
 import { Icon } from '../kit/Icon.tsx'
 import { lookOf, StepMark } from '../kit/StepMark.tsx'
@@ -26,6 +26,6 @@ export function EndIcon(props: { node: WorkflowNode | undefined; id: string }): 
   if (props.node !== undefined && isResource(props.node)) {
     return <ResourceIcon resource={props.node} />
   }
-  const step = props.node !== undefined && !isResource(props.node) ? props.node : undefined
+  const step = props.node !== undefined && isStep(props.node) ? props.node : undefined
   return <StepMark look={lookOf(props.id, step?.data)} size={14} />
 }

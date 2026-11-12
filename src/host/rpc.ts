@@ -8,7 +8,7 @@
  * 注册走 `ctx.inject(['connection'])` 的子上下文——这样**插件在没有 web 的 profile 里
  * 也能只带工具起来**（RPC 是画布专用，缺它不该让整个插件停摆）。
  *
- * 分派只按 endpoint 的前缀转给 `rpc/` 下各组（graph / plan / run / memory / host / config / pack），
+ * 分派只按 endpoint 的前缀转给 `rpc/` 下各组（graph / plan / run / trigger / memory / host / config / pack），
  * 每组各管自己的入参读取。
  *
  * @module @xiaoso/dsh-workflow-lite/host/rpc
@@ -30,6 +30,7 @@ import { dispatchPack } from './rpc/pack.ts'
 import { dispatchPlan } from './rpc/plan.ts'
 import { dispatchRun } from './rpc/run.ts'
 import { fail, type RpcDeps, type RpcResult } from './rpc/shared.ts'
+import { dispatchTrigger } from './rpc/trigger.ts'
 
 /**
  * 注册全部画布路由。
@@ -110,6 +111,7 @@ async function dispatch(
   if (inGroup(endpoint, 'graph')) return dispatchGraph(deps, endpoint, payload)
   if (inGroup(endpoint, 'plan')) return dispatchPlan(deps, endpoint, payload)
   if (inGroup(endpoint, 'run')) return dispatchRun(deps, endpoint, payload)
+  if (inGroup(endpoint, 'trigger')) return dispatchTrigger(deps, endpoint, payload)
   if (inGroup(endpoint, 'memory')) return dispatchMemory(deps, endpoint, payload)
   if (inGroup(endpoint, 'host')) return dispatchHost(deps, endpoint, payload)
   if (inGroup(endpoint, 'config')) return dispatchConfig(deps, endpoint, payload)

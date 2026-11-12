@@ -60,6 +60,7 @@ type ReaderCore = Pick<
   | 'store'
   | 'history'
   | 'deps'
+  | 'originOf'
   | 'snapshot'
   | 'withAssets'
   | 'itemFull'
@@ -136,6 +137,8 @@ export class RunReader {
         )
       }),
     )
+    const detail = await this.core.originOf(record)
+    const origin = detail === undefined ? {} : { origin: detail }
     return {
       ok: true,
       result: {
@@ -146,6 +149,7 @@ export class RunReader {
         mtime: read.mtime,
         files,
         answers: await this.core.answersOf(record),
+        ...origin,
       },
     }
   }

@@ -4,9 +4,10 @@
  * @module @xiaoso/dsh-workflow-lite/client/app/addStep
  */
 
-import { isInput, isResource } from '../../shared/model.ts'
+import { isInput, isResource, isStep, isTrigger } from '../../shared/model.ts'
 import { stepMemories } from '../../shared/presets.ts'
 import { outputResource } from '../../shared/resources.ts'
+import { DEFAULT_TRIGGER } from '../../shared/trigger.ts'
 import type { MemoryType, NodeData, Point, WorkflowDocument } from '../../shared/types.ts'
 import type { T } from '../i18n.ts'
 import { type Edit, findNode, freeFilePath } from '../model/editor.ts'
@@ -17,6 +18,7 @@ import {
   PRESETS,
   presetData,
   type StepSource,
+  TRIGGER_ID,
 } from '../model/library.ts'
 import { copyTitle, takenLabels } from '../model/nodeName.ts'
 
@@ -47,7 +49,7 @@ export function memoryToggle(
   step: string,
 ): { off: Edit } | { pick: Extract<MemoryPickRequest, { type: 'step' }> } | null {
   const node = doc === null ? undefined : findNode(doc, step)
-  if (doc === null || node === undefined || isResource(node) || isInput(node)) return null
+  if (doc === null || node === undefined || !isStep(node)) return null
   if (stepMemories(doc, node.id).length > 0) {
     return { off: { type: 'setStepMemory', step: node.id, on: false } }
   }
@@ -70,8 +72,7 @@ export async function addFromSource(
     // 加完选中它，好接着添加内容、改路径。
     if (doc === null) return
     const writer = from === undefined ? undefined : findNode(doc, from)
-    const step =
-      writer !== undefined && !isResource(writer) && !isInput(writer) ? writer : undefined
+    const step = writer !== undefined && isStep(writer) ? writer : undefined
     edit(
       step === undefined
         ? { type: 'addResource', data: { items: [] }, position, select: true }
@@ -90,7 +91,7 @@ export async function addFromSource(
     const pick = ctx.pickMemory
     if (pick === undefined) return
     const owner = from === undefined ? undefined : findNode(doc, from)
-    if (owner !== undefined && !isResource(owner) && !isInput(owner)) {
+    if (owner !== undefined && isStep(owner)) {
       const toggle = memoryToggle(doc, ctx.workflow, owner.id)
       if (toggle !== null && 'pick' in toggle) pick(toggle.pick)
       return
@@ -102,14 +103,18 @@ export async function addFromSource(
     // 从步骤的「＋」加的放在它左边、连上；别处加的落在原地。加完选中它，好写问题。
     if (doc === null) return
     const reader = from === undefined ? undefined : findNode(doc, from)
-    const step =
-      reader !== undefined && !isResource(reader) && !isInput(reader) ? reader : undefined
+    const step = reader !== undefined && isStep(reader) ? reader : undefined
     edit({
       type: 'addInput',
       id: INPUT_ID,
       data: inputData(t),
       ...(step === undefined ? { position } : { reader: step.id }),
     })
+    return
+  }
+  if (source.kind === 'trigger') {
+    // 不连线：落在原地，加完选中它，好接着设什么时候触发。
+    edit({ type: 'addTrigger', id: TRIGGER_ID, data: DEFAULT_TRIGGER, position })
     return
   }
   let id: string
@@ -140,6 +145,7 @@ export function addOrigin(
   const node = findNode(doc, from)
   if (node === undefined) return 'none'
   if (isInput(node)) return 'input'
+  if (isTrigger(node)) return 'none'
   return isResource(node) ? 'resource' : 'step'
 }
 
@@ -165,5 +171,9 @@ export function duplicateEdit(
     return { type: 'addResource', data: renamed(node.data), position, select: true }
   }
   if (isInput(node)) return { type: 'addInput', id: node.id, data: node.data, position }
+  // 开关、工作区这些本机设置不跟着复制：副本是关着的。
+  if (isTrigger(node)) {
+    return { type: 'addTrigger', id: node.id, data: renamed(node.data), position }
+  }
   return { type: 'addNode', id: node.id, data: renamed({ ...node.data }), position }
 }

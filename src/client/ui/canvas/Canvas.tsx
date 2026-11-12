@@ -44,6 +44,7 @@ import css from './canvas.module.css'
 import { InputCard } from './cards/InputCard.tsx'
 import { ResourceCard } from './cards/ResourceCard.tsx'
 import { StepCard } from './cards/StepCard.tsx'
+import { TriggerCard } from './cards/TriggerCard.tsx'
 import { buildEdges } from './flow/buildEdges.ts'
 import { buildNodes, type CacheEntry } from './flow/buildNodes.ts'
 import { buildRoutes, type RouteBase } from './flow/buildRoutes.ts'
@@ -130,7 +131,12 @@ export interface RunNodeDecor {
 }
 
 /** `nodeTypes` / `edgeTypes` 必须是稳定引用，否则 React Flow 每次渲染都重建全部节点。 */
-const NODE_TYPES = { wfNode: StepCard, wfResource: ResourceCard, wfInput: InputCard }
+const NODE_TYPES = {
+  wfNode: StepCard,
+  wfResource: ResourceCard,
+  wfInput: InputCard,
+  wfTrigger: TriggerCard,
+}
 const EDGE_TYPES = { wfEdge: LinkLine, wfFileLink: FileLine }
 
 // ─────────────────────────────────────────────────────────────

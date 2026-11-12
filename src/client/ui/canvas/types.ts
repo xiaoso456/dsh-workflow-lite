@@ -1,7 +1,7 @@
 /**
  * dsh-workflow-lite — 画布内部的数据类型：节点、连线交给 React Flow 的 `data`。
  *
- * 卡片（步骤 / 资源 / 输入）和连线组件各自拿到的数据长什么样，都在这里；
+ * 卡片（步骤 / 资源 / 输入 / 触发）和连线组件各自拿到的数据长什么样，都在这里；
  * 画布（Canvas）按文档造出这些对象，卡片、连线只管画。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/canvas/types
@@ -192,10 +192,22 @@ export interface InputCardData extends Record<string, unknown> {
   dim: boolean
 }
 
+/** 触发卡片：名字 + 定时规则的一句话（状态和开关卡片自己从现场读，见 `trigger/triggerEnv.ts`）。 */
+export interface TriggerCardData extends Record<string, unknown> {
+  title: string
+  rule: string
+  tone: Tone
+  note: string
+  /** 悬停某个资源时它跟着淡下去。 */
+  dim: boolean
+  t: T
+}
+
 export type StepFlowNode = Node<StepData, 'wfNode'>
 export type ResourceFlowNode = Node<ResourceCardData, 'wfResource'>
 export type InputFlowNode = Node<InputCardData, 'wfInput'>
-export type FlowNode = StepFlowNode | ResourceFlowNode | InputFlowNode
+export type TriggerFlowNode = Node<TriggerCardData, 'wfTrigger'>
+export type FlowNode = StepFlowNode | ResourceFlowNode | InputFlowNode | TriggerFlowNode
 export type LinkEdge = Edge<LinkData, 'wfEdge'>
 export type FileEdge = Edge<FileLinkData, 'wfFileLink'>
 export type FlowEdge = LinkEdge | FileEdge

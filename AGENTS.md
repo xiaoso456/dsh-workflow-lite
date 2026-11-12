@@ -67,6 +67,17 @@ gh release create workflow-lite-v<ver> --title "v<ver>" --notes-file <notes 文�
 - 运行状态：DSH 口径由插件建实例、模型经 `state` 改；通用口径由模型自己建、改 `.workflow-lite/runs/{instance}/state.yaml`，计划里给出初始内容。
 - 加设置或改措辞两套一起写；`tests/shared/dialect.spec.ts` 用通用口径扫 `DSH_ONLY_TERMS`，新的工具名、插件说法要补进表。
 
+## 触发卡片
+
+`wfTrigger` 节点让工作流到点自动执行（设计与分期见 `docs/触发器设计.md`，目前只有定时）。
+
+- 写在图里的只有定义（规则、触发说明、会话方式、保护）；开关、工作区、固定会话、触发记录是本机状态，存 `<数据目录>/triggers/`，不进工作流 JSON、不随导出。往卡片上加东西先分清是哪一类。
+- 宿主侧在 `src/host/triggers/`，各管一件事：`store`（本机状态）、`owner`（同一个数据目录只有一个进程负责）、`reconcile`（对账，只算不做）、`launcher`（发进会话）、`claims`（实例认领来源）、`service`（串起来）。宿主的会话接口没有类型，只在 `sessions.ts` 里按结构取用。
+- 「发不出去」只算触发本身没成功（工作区或会话不在、会话建不出来、图编译不出计划）；跳过的和发出去之后的事都不算，不计入自动停用。
+- 触发卡片不是步骤：`isStep` 不含它，不连线，模型的工具不能建、改它。按节点类型分支的地方新加一种节点时要逐处看（`grep isInput(`）。
+- 卡片上的状态走 `ui/trigger/triggerEnv.ts` 的上下文，不进画布节点数据：轮询只换字和属性，不重建节点。
+- 改了界面跑 `tests/cdp-triggers.mjs` 在一次性实例上走一遍；文档站的两张图是 `docs:shots trigger-card trigger-panel`。
+
 ## 配色主题
 
 - 亮暗各四套（晴白、瑞士、雾蓝、林间 / 石板、墨黑、深海、暖夜），色值全在 `src/client/model/themes.ts`；默认晴白 + 石板。非默认几套照成熟方案配（Nord、Everforest、Geist、Tokyo Night、Gruvbox），一套换全套：线色、强调色、步骤图标色、状态色。
@@ -93,6 +104,7 @@ DSH_WEB_TOKEN=<token> DSH_BASE=http://127.0.0.1:3190 node --experimental-strip-t
 | `cdp-versions.mjs` | 版本、工作流中心「工作流」页 |
 | `cdp-config.mjs` | 「设置」页（含配色主题） |
 | `cdp-pack.mjs` | 导出、导入、导出成 Skill（装到本机用一次性名字，验完删掉） |
+| `cdp-triggers.mjs` | 触发卡片：卡片与面板、开关与状态、立即触发、触发记录、实例的来源（自备一次性实例，不用 `DSH_WEB_TOKEN`；假模型不调工具，认领来源只有单测） |
 | `cdp-big.mjs` | 400 张卡的大图：只挂视口附近的卡片之后，看全图、定位、拖卡片、平移、长线、展示卡挪出去再挪回来（自备一次性实例，不用 `DSH_WEB_TOKEN`） |
 
 ## 性能场景
@@ -181,7 +193,7 @@ DSH_WEB_TOKEN=<token> DSH_BASE=http://127.0.0.1:3190 node --experimental-strip-t
 
 ### 加页面
 
-- 侧栏在 `astro.config.mjs` 的 `sidebar` 里逐页列，新页要加一行（改完重启 dev）。分组：快速开始、典型场景、画布操作、画布展示、进阶；里程碑功能单独成组，每种变体一页。
+- 侧栏在 `astro.config.mjs` 的 `sidebar` 里逐页列，新页要加一行（改完重启 dev）。分组：快速开始、典型场景、画布操作、画布展示、自动触发、进阶；里程碑功能单独成组，每种变体一页。
 - 中英两份：英文页放 `src/content/docs/en/` 同路径，缺了回退中文。改中文页要同步英文页：
   - 界面名称取 `src/client/i18n.ts` 里 `en` 的原文，不自己译；
   - 站内链接前缀 `/dsh-workflow-lite/en/`，图片相对路径比中文页多一级；

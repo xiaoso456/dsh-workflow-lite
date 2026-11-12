@@ -1,5 +1,5 @@
 /**
- * dsh-workflow-lite — 画布上的节点对象：步骤卡、资源卡、输入卡各自的数据，以及按"文档里的那个节点 + 指纹"缓存的复用。
+ * dsh-workflow-lite — 画布上的节点对象：步骤卡、资源卡、输入卡、触发卡各自的数据，以及按"文档里的那个节点 + 指纹"缓存的复用。
  *
  * 没变的节点交回同一个对象，React Flow 就不会重建它的内部状态（尺寸、连接点位置）。
  *
@@ -8,7 +8,7 @@
 
 import { inputKind } from '../../../../shared/inputs.ts'
 import { memoryTitle } from '../../../../shared/memoryLib.ts'
-import { idKey, isInput, isResource } from '../../../../shared/model.ts'
+import { idKey, isInput, isResource, isTrigger } from '../../../../shared/model.ts'
 import { memoryOf } from '../../../../shared/presets.ts'
 import {
   isShared,
@@ -25,6 +25,7 @@ import { displayOf } from '../../../model/display.ts'
 import type { Selection } from '../../../model/editor.ts'
 import { isCompactResource, RES_SHOWN } from '../../../model/layout.ts'
 import { samePlain } from '../../../model/samePlain.ts'
+import { ruleText } from '../../../model/triggerText.ts'
 import { itemText } from '../../kit/resourceUi.ts'
 import { lookOf } from '../../kit/StepMark.tsx'
 import { resourceTint } from '../../resources/ResourcePresets.tsx'
@@ -175,6 +176,20 @@ export function buildNodes({
           connectText: texts.askText,
           dim,
         },
+      })
+    } else if (isTrigger(node)) {
+      const tone: Tone = reported?.tone ?? 'ok'
+      const note = reported?.note ?? ''
+      const dim = focusFile !== null
+      const title = node.data.label?.trim() || node.id
+      const rule = ruleText(t, node.data.source.schedule)
+      signature = `${selected}|${tone}|${note}|${dim}|${title}|${rule}`
+      build = () => ({
+        id: node.id,
+        type: 'wfTrigger',
+        position: moving ?? node.position,
+        selected,
+        data: { title, rule, tone, note, dim, t },
       })
     } else if (isResource(node)) {
       const isFocus = focusFile !== null && idKey(focusFile) === idKey(node.id)

@@ -24,6 +24,12 @@ export const RESOURCE_TYPE = 'wfResource'
 /** 输入节点的类型标记：执行前问用户的一个问题，连到用得着回答的步骤上（输入 → 步骤）。 */
 export const INPUT_TYPE = 'wfInput'
 
+/**
+ * 触发节点的类型标记：条件满足时由插件在会话里发起一次执行（见 `shared/trigger.ts`）。
+ * 不连线，触发的是整个工作流。
+ */
+export const TRIGGER_TYPE = 'wfTrigger'
+
 /** 一张图 = 一个 JSON 的顶层形状（React Flow 原生三件套 + 可选的工作流设置）。 */
 export interface WorkflowDocument {
   nodes: WorkflowNode[]
@@ -86,8 +92,8 @@ export interface Point {
   y: number
 }
 
-/** 图里的节点：步骤、资源，或输入。 */
-export type WorkflowNode = StepNode | ResourceNode | InputNode
+/** 图里的节点：步骤、资源、输入，或触发。 */
+export type WorkflowNode = StepNode | ResourceNode | InputNode | TriggerNode
 
 export interface StepNode {
   /** 身份，**创建后不可改**；同时是载荷文件名 ⇒ 受文件名约束。图内**大小写不敏感唯一**。 */
@@ -311,6 +317,56 @@ export interface InputNode {
   data: InputData
 }
 
+/**
+ * 触发节点：什么时候替用户发起一次执行。`id` 与步骤、资源、输入共用一个命名空间，不产生载荷文件，不进计划。
+ * 开关、选定的工作区和会话是本机状态，不在这里。
+ */
+export interface TriggerNode {
+  id: string
+  type: typeof TRIGGER_TYPE
+  position: Point
+  data: TriggerData
+}
+
+/** 定时规则（时间按本机时区）：每隔多少分钟 / 每天（或每周几）几点 / 五段 cron。 */
+export type TriggerSchedule =
+  | { kind: 'every'; minutes: number }
+  | { kind: 'daily'; time: string; weekdays?: number[] }
+  | { kind: 'cron'; expression: string }
+
+/** 触发源：什么时候触发。 */
+export interface TriggerSource {
+  kind: 'schedule'
+  schedule: TriggerSchedule
+}
+
+/** 触发后用哪个会话：每次新建 / 沿用这个触发器上一次的 / 固定某一个（哪一个存本机）。 */
+export type TriggerSessionMode = 'new' | 'last' | 'fixed'
+
+/** 上一次还没跑完时：跳过这一次 / 照样再开一次。 */
+export type TriggerOverlap = 'skip' | 'parallel'
+
+/** 启动方式（缺省值不写盘，见 `shared/trigger.ts` 的 `launchOf`）。 */
+export interface TriggerLaunch {
+  session?: TriggerSessionMode
+  overlap?: TriggerOverlap
+  /** DSH 关着期间错过的定时，启动后不补（缺省补一次）。 */
+  catchUp?: false
+  /** 每小时最多触发几次。 */
+  maxPerHour?: number
+  /** 连续失败几次后自动停用。 */
+  maxFailures?: number
+}
+
+export interface TriggerData {
+  /** 显示名；缺省或空串时回落渲染 `id`。 */
+  label?: string
+  source: TriggerSource
+  /** 触发说明：每次触发都带给模型的一段话。 */
+  note?: string
+  launch?: TriggerLaunch
+}
+
 /** 输入的交互方式：单行文字 / 多行文字 / 单选 / 多选。 */
 export const INPUT_KINDS = ['text', 'textarea', 'choice', 'multi'] as const
 export type InputKind = (typeof INPUT_KINDS)[number]
@@ -481,6 +537,7 @@ export type ValidationCode =
   | 'resource_edge_invalid'
   | 'resource_invalid'
   | 'input_invalid'
+  | 'trigger_invalid'
   // 编译级
   | 'prompt_empty'
   | 'too_many_nodes'

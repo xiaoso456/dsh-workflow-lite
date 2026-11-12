@@ -41,6 +41,11 @@ import { createSkillViewer } from './host/skillView.ts'
 import { memoryMetaFile } from './host/store/paths.ts'
 import { createRepository, type Repository, reportProblems } from './host/store/repository.ts'
 import { registerWorkflowLiteTool } from './host/tool/tool.ts'
+import { createFireClaims } from './host/triggers/claims.ts'
+import { createTriggerGraphs, followRenames } from './host/triggers/graphs.ts'
+import { TriggerService } from './host/triggers/service.ts'
+import { createSessionPort } from './host/triggers/sessions.ts'
+import { TriggerStore } from './host/triggers/store.ts'
 import { pluginVersion } from './host/version.ts'
 import type { WorkflowDocument } from './shared/types.ts'
 import { validateDocument } from './shared/validate.ts'
@@ -79,7 +84,12 @@ export async function apply(ctx: Context, config: WorkflowLiteSettings): Promise
       }),
     )
   const dataDir = (): string => dataDirAtStart
-  const repository: Repository = createRepository({ dataDir: dataDirAtStart, validate })
+  // 触发卡片在这台机器上的状态（开关、工作区、触发记录）；工作流改名时跟着走。
+  const triggerStore = new TriggerStore(dataDir)
+  const repository: Repository = followRenames(
+    createRepository({ dataDir: dataDirAtStart, validate }),
+    triggerStore,
+  )
 
   // 首次启动按需建 `workflows/` 与 `templates/nodes/`；**不建 `.dispatch/`**
   // （那是派生物，编译时才出现）。目录不可用只是警告——工具会把它翻成 `invalid_args`。
@@ -93,7 +103,18 @@ export async function apply(ctx: Context, config: WorkflowLiteSettings): Promise
     dataDir,
     validate,
     notify: createNotify(ctx),
+    origins: createFireClaims(triggerStore),
   })
+
+  // 触发卡片：到点在会话里发起一次执行。同一个数据目录只有一个 DSH 进程负责，它退出后别的接手。
+  const triggers = new TriggerService({
+    dataDir,
+    store: triggerStore,
+    graphs: createTriggerGraphs(repository),
+    sessions: createSessionPort(ctx),
+    warn: (message) => ctx.logger.warn(`[workflow-lite] ${message}`),
+  })
+  ctx.effect(() => triggers.start(), 'workflow-lite: triggers')
 
   // 按需 skill：怎么设计一张图（workflow-authoring），运行状态的字段与 `state` 动作的用法（workflow-run-state），
   // 画布上的看板怎么写（workflow-board）。
@@ -167,6 +188,7 @@ export async function apply(ctx: Context, config: WorkflowLiteSettings): Promise
         saveDebounceMs: config.saveDebounceMs.get(),
       }),
       runs,
+      triggers,
       skills: createSkillViewer(ctx, () => skills),
       config: { port: () => settings, live: liveConfig },
       // 导入的 skill 装进各家 agent 通用的那个目录（DSH 也从这里发现 skill）。

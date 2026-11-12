@@ -16,6 +16,15 @@
   overflow-wrap: anywhere;
 }
 
+/* 来源里的触发说明、背景信息：原样分行，太长了自己滚。 */
+.originText {
+  max-height: 132px;
+  overflow-y: auto;
+  color: var(--wl-text-2);
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
 .bar {
   height: 6px;
   overflow: hidden;

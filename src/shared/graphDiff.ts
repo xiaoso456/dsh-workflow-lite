@@ -17,11 +17,12 @@ import {
   idKey,
   isInput,
   isResource,
+  isTrigger,
 } from './model.ts'
 import { resourceTitle } from './resources.ts'
 import type { WorkflowDocument, WorkflowEdge, WorkflowNode } from './types.ts'
 
-export type ChangeObject = 'step' | 'resource' | 'input' | 'edge' | 'layout'
+export type ChangeObject = 'step' | 'resource' | 'input' | 'trigger' | 'edge' | 'layout'
 
 export interface GraphChange {
   object: ChangeObject
@@ -34,11 +35,15 @@ export interface GraphChange {
   fields: string[]
 }
 
+const TRIGGER_FIELDS = ['label', 'source', 'note', 'launch'] as const
+
 /** 不进计划的字段：只改了这些，模型那边什么都不用变。 */
 const COSMETIC: Record<Exclude<ChangeObject, 'layout'>, readonly string[]> = {
   step: ['description', 'look'],
   resource: ['description', 'view'],
   input: ['placeholder', 'hint'],
+  // 触发卡片整张都不进计划。
+  trigger: TRIGGER_FIELDS,
   edge: ['label'],
 }
 
@@ -53,6 +58,7 @@ export function affectsPlan(change: GraphChange): boolean {
 function objectOf(node: WorkflowNode): Exclude<ChangeObject, 'edge' | 'layout'> {
   if (isResource(node)) return 'resource'
   if (isInput(node)) return 'input'
+  if (isTrigger(node)) return 'trigger'
   return 'step'
 }
 
@@ -86,6 +92,12 @@ function nodeFields(before: WorkflowNode, after: WorkflowNode): string[] {
       'other',
     ].filter((key) => !same(a[key], b[key]))
   }
+  if (isTrigger(before) && isTrigger(after)) {
+    const a = before.data
+    const b = after.data
+    return TRIGGER_FIELDS.filter((key) => !same(a[key], b[key]))
+  }
+  if (isTrigger(before) || isTrigger(after)) return []
   if (isResource(before) || isInput(before) || isResource(after) || isInput(after)) return []
   const a = before.data
   const b = after.data
@@ -204,6 +216,9 @@ const FIELD_TEXT: Record<string, string> = {
   default: '默认值',
   placeholder: '占位',
   hint: '说明',
+  source: '触发源',
+  note: '触发说明',
+  launch: '启动方式',
   required: '必填',
   other: '允许自己填写',
   when: '条件',
@@ -216,6 +231,7 @@ const OBJECT_TEXT: Record<Exclude<ChangeObject, 'layout'>, string> = {
   step: '步骤',
   resource: '资源',
   input: '输入',
+  trigger: '触发',
   edge: '连线',
 }
 
@@ -225,6 +241,8 @@ function nodeName(doc: WorkflowDocument, id: string): string {
   if (isResource(node))
     return resourceTitle(node) === node.id ? node.id : `${node.id}（${resourceTitle(node)}）`
   if (isInput(node)) return node.id
+  if (isTrigger(node))
+    return text(node.data.label) === '' ? node.id : `${node.id}（${text(node.data.label)}）`
   const label = text(node.data.label)
   return label === '' || label === node.id ? node.id : `${node.id}（${label}）`
 }

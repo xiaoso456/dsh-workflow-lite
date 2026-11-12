@@ -16,6 +16,7 @@ import { isStepColor, isStepIcon } from './appearance.ts'
 import { COORD_DECIMALS } from './limits.ts'
 import { normalizeRoot, WORKSPACE_ROOT } from './outputPaths.ts'
 import { memoryPath, upgradeWorkflowPath } from './pathVars.ts'
+import { canonicalTrigger, cloneTriggerData, readTriggerData } from './trigger.ts'
 import {
   type EdgeData,
   EXECUTION_MODES,
@@ -47,6 +48,8 @@ import {
   type ResourceView,
   type StepNode,
   type TableView,
+  TRIGGER_TYPE,
+  type TriggerNode,
   type ValidationProblem,
   VIEW_FITS,
   VIEW_FROMS,
@@ -340,7 +343,11 @@ function readEdgeData(raw: unknown): EdgeData | undefined {
 // ─────────────────────────────────────────────────────────────
 
 export function isStep(node: WorkflowNode): node is StepNode {
-  return node.type !== RESOURCE_TYPE && node.type !== INPUT_TYPE
+  return node.type !== RESOURCE_TYPE && node.type !== INPUT_TYPE && node.type !== TRIGGER_TYPE
+}
+
+export function isTrigger(node: WorkflowNode): node is TriggerNode {
+  return node.type === TRIGGER_TYPE
 }
 
 export function isInput(node: WorkflowNode): node is InputNode {
@@ -646,6 +653,13 @@ export function canonicalInput(data: InputData): InputData {
 
 /** 两个节点的内容是否相同（类型 + `data`；坐标不算）。 */
 export function sameNodeContent(a: WorkflowNode, b: WorkflowNode): boolean {
+  if (isTrigger(a) || isTrigger(b)) {
+    return (
+      isTrigger(a) &&
+      isTrigger(b) &&
+      JSON.stringify(canonicalTrigger(a.data)) === JSON.stringify(canonicalTrigger(b.data))
+    )
+  }
   if (isInput(a) || isInput(b)) {
     return (
       isInput(a) &&
@@ -770,6 +784,15 @@ export function normalizeDocument(input: unknown): ParseOutcome {
       })
       continue
     }
+    if (raw.type === TRIGGER_TYPE) {
+      nodes.push({
+        id: raw.id,
+        type: TRIGGER_TYPE,
+        position: position ?? { x: 0, y: 0 },
+        data: readTriggerData(raw.data),
+      })
+      continue
+    }
     if (raw.type === INPUT_TYPE) {
       nodes.push({
         id: raw.id,
@@ -878,6 +901,9 @@ function pickNode(node: WorkflowNode): Record<string, unknown> {
   if (isInput(node)) {
     return { id: node.id, type: INPUT_TYPE, position, data: canonicalInput(node.data) }
   }
+  if (isTrigger(node)) {
+    return { id: node.id, type: TRIGGER_TYPE, position, data: canonicalTrigger(node.data) }
+  }
   if (isResource(node)) {
     return { id: node.id, type: RESOURCE_TYPE, position, data: canonicalResource(node.data) }
   }
@@ -947,6 +973,9 @@ export function cloneDocument(document: WorkflowDocument): WorkflowDocument {
     nodes: document.nodes.map((node): WorkflowNode => {
       if (isInput(node)) {
         return { ...node, position: { ...node.position }, data: cloneInputData(node.data) }
+      }
+      if (isTrigger(node)) {
+        return { ...node, position: { ...node.position }, data: cloneTriggerData(node.data) }
       }
       return isResource(node)
         ? { ...node, position: { ...node.position }, data: cloneResourceData(node.data) }

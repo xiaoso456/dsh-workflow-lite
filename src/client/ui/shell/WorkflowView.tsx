@@ -34,6 +34,7 @@ import ui from '../kit/ui.module.css'
 import { ExitSeat, useViewGhost } from '../motion/exits.tsx'
 import { SWITCH_HOLD_MS, useSwapHold } from '../motion/swap.tsx'
 import { RunView } from '../run/RunView.tsx'
+import { TriggerContext } from '../trigger/triggerEnv.ts'
 import css from './shell.module.css'
 import { TipLayer } from './TipLayer.tsx'
 import { NO_SLOTS, TopBar } from './TopBar.tsx'
@@ -53,6 +54,7 @@ import { useMatchesVersion } from './workflowView/useMatchesVersion.ts'
 import { usePanelLink } from './workflowView/usePanelLink.ts'
 import { useSidePanels } from './workflowView/useSidePanels.ts'
 import { useStepEdit } from './workflowView/useStepEdit.ts'
+import { useTriggerScene } from './workflowView/useTriggerScene.ts'
 import { useViewport } from './workflowView/useViewport.ts'
 import { useViewTheme } from './workflowView/useViewTheme.ts'
 
@@ -255,6 +257,17 @@ function Shell(props: {
     select,
   } = useStepEdit({ t, host, rootRef, wf, state, focusCanvas, setFocusPrompt, setQuick, setFocus })
 
+  // 触发卡片的现场：画布上的卡片和右栏的面板读同一份。
+  const triggerScene = useTriggerScene({
+    rpc: props.rpc,
+    wf,
+    session: props.session,
+    sessionRows,
+    sessionCwd,
+    select,
+    openRun,
+  })
+
   const { focusFile, onFocusFile, focusLibrary, freeStepName, freshTemplateLook, addToCanvas } =
     usePanelLink({ wf, state, flow, rootRef, insetsRef, setFocus, addStep })
 
@@ -356,7 +369,7 @@ function Shell(props: {
               {hub}
             </>
           ) : (
-            <>
+            <TriggerContext.Provider value={triggerScene}>
               <CanvasLayer
                 hidden={state.phase === 'loading' && shown === null}
                 dim={canvasHold.dim}
@@ -474,7 +487,7 @@ function Shell(props: {
                   </div>
                 </ExitSeat>
               )}
-            </>
+            </TriggerContext.Provider>
           )}
           {live && (
             <div className={css.library} aria-hidden={!libraryOpen}>

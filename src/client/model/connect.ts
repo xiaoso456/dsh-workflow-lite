@@ -15,7 +15,7 @@
  * @module @xiaoso/dsh-workflow-lite/client/model/connect
  */
 
-import { idKey, isInput, isResource, isStep, makeEdgeId } from '../../shared/model.ts'
+import { idKey, isInput, isResource, isStep, isTrigger, makeEdgeId } from '../../shared/model.ts'
 import { nodeIndex } from '../../shared/resources.ts'
 import type { WorkflowDocument, WorkflowNode } from '../../shared/types.ts'
 import { alreadyWritten, findEdge } from './editor.ts'
@@ -67,6 +67,7 @@ export function linkAllowed(doc: WorkflowDocument, link: HandleLink): boolean {
   if (source === undefined || target === undefined) return false
   const from = link.sourceHandle ?? ''
   const to = link.targetHandle ?? ''
+  if (isTrigger(source) || isTrigger(target)) return false
   if (isInput(target)) return false
   if (isInput(source)) return FILE_OUT.has(from) && isStep(target) && STEP_READ.has(to)
   if (isResource(source)) return FILE_OUT.has(from) && !isResource(target) && STEP_READ.has(to)

@@ -10,6 +10,7 @@
 import { useEffect, useState } from 'react'
 import type { InstanceSummary, RunStatus } from '../../../shared/runState.ts'
 import type { T } from '../../i18n.ts'
+import { originText } from '../../model/originText.ts'
 import { shortTime } from '../../model/time.ts'
 import { HubRunStatus } from '../chrome/HubRunStatus.tsx'
 import { RunStatusBadge } from '../chrome/RunStatusBadge.tsx'
@@ -85,6 +86,16 @@ export function HubRunRow(props: {
             <Icon name="clock" size={12} />
             {shortTime(item.createdAt)}
           </span>
+          {item.origin?.trigger !== undefined && (
+            <span
+              className={cx(hub.metaItem, css.origin)}
+              data-tip={originText(t, item.origin)}
+              data-testid="wl-hub-origin"
+            >
+              <Icon name="bolt" size={12} />
+              <span>{item.origin.trigger.name}</span>
+            </span>
+          )}
           {item.goal !== undefined && item.goal !== '' && (
             <span className={cx(hub.metaItem, css.goal)} data-tip={item.goal}>
               <Icon name="flag" size={12} />

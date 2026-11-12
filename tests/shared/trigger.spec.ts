@@ -1,0 +1,167 @@
+/**
+ * `src/shared/trigger.ts`：触发节点的读入与规范写法、定时规则的下一次触发时刻。
+ */
+
+import { describe, expect, it } from 'vitest'
+import { readDocument, writeDocument } from '../../src/shared/model.ts'
+import {
+  canonicalTrigger,
+  launchOf,
+  nextFire,
+  parseCron,
+  readTriggerData,
+  scheduleProblem,
+} from '../../src/shared/trigger.ts'
+import type { TriggerSchedule, WorkflowDocument } from '../../src/shared/types.ts'
+import { validateDocument } from '../../src/shared/validate.ts'
+
+/** 本机时区的一个时刻。 */
+const at = (y: number, mo: number, d: number, h = 0, mi = 0): Date => new Date(y, mo - 1, d, h, mi)
+
+describe('触发节点的读入', () => {
+  it('缺省值不留在对象里，形状不对的字段丢掉', () => {
+    expect(readTriggerData(undefined)).toEqual({
+      source: { kind: 'schedule', schedule: { kind: 'daily', time: '09:00' } },
+    })
+    const data = readTriggerData({
+      label: '  ',
+      note: '分支用 main',
+      source: {
+        kind: 'schedule',
+        schedule: { kind: 'daily', time: '18:30', weekdays: [5, 1, 1, 9] },
+      },
+      launch: { session: 'new', overlap: 'skip', catchUp: true, maxPerHour: 12, maxFailures: 5 },
+    })
+    expect(data).toEqual({
+      note: '分支用 main',
+      source: { kind: 'schedule', schedule: { kind: 'daily', time: '18:30', weekdays: [1, 5] } },
+      launch: { maxFailures: 5 },
+    })
+    expect(launchOf(data)).toEqual({
+      session: 'new',
+      overlap: 'skip',
+      catchUp: true,
+      maxPerHour: 12,
+      maxFailures: 5,
+    })
+  })
+
+  it('七天全选和不写是一回事', () => {
+    const data = readTriggerData({
+      source: { schedule: { kind: 'daily', time: '08:00', weekdays: [1, 2, 3, 4, 5, 6, 7] } },
+    })
+    expect(data.source.schedule).toEqual({ kind: 'daily', time: '08:00' })
+  })
+
+  it('写盘再读回来不变，键序固定', () => {
+    const data = canonicalTrigger({
+      launch: { catchUp: false, session: 'fixed' },
+      note: '只看 src/',
+      source: { kind: 'schedule', schedule: { kind: 'cron', expression: '*/15 9-17 * * 1-5' } },
+      label: '工作时间巡检',
+    })
+    expect(Object.keys(data)).toEqual(['label', 'source', 'note', 'launch'])
+    const document: WorkflowDocument = {
+      nodes: [{ id: 'patrol', type: 'wfTrigger', position: { x: 0, y: 0 }, data }],
+      edges: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+    }
+    const text = writeDocument(document)
+    const parsed = readDocument(text)
+    expect(parsed.document?.nodes[0]).toEqual(document.nodes[0])
+    expect(writeDocument(parsed.document as WorkflowDocument)).toBe(text)
+  })
+})
+
+describe('图里的触发节点', () => {
+  const doc = (expression: string): WorkflowDocument => ({
+    nodes: [
+      {
+        id: 'tick',
+        type: 'wfTrigger',
+        position: { x: 0, y: 0 },
+        data: readTriggerData({ source: { schedule: { kind: 'cron', expression } } }),
+      },
+      { id: 'work', type: 'wfNode', position: { x: 200, y: 0 }, data: { prompt: '干活' } },
+    ],
+    edges: [],
+    viewport: { x: 0, y: 0, zoom: 1 },
+  })
+
+  it('不算步骤；定时规则写错只是警告，不挡保存和编译', () => {
+    const fine = validateDocument(doc('0 9 * * *'), { workflowName: 'w', maxNodes: 100 })
+    expect(fine.warning.filter((problem) => problem.node === 'tick')).toEqual([])
+    expect(fine.canCompile).toBe(true)
+    const bad = validateDocument(doc('0 25 * * *'), { workflowName: 'w', maxNodes: 100 })
+    expect(bad.warning.map((problem) => [problem.node, problem.code])).toEqual([
+      ['tick', 'trigger_invalid'],
+    ])
+    expect(bad.canLoad && bad.canCompile).toBe(true)
+  })
+
+  it('不能连线', () => {
+    const linked: WorkflowDocument = {
+      ...doc('0 9 * * *'),
+      edges: [{ id: 'e', source: 'tick', target: 'work', sourceHandle: null, targetHandle: null }],
+    }
+    const problems = validateDocument(linked, { workflowName: 'w', maxNodes: 100 })
+    const all = [...problems.save, ...problems.compile, ...problems.warning]
+    expect(all.some((problem) => problem.message.includes('触发卡片不连线'))).toBe(true)
+  })
+})
+
+describe('定时规则', () => {
+  it('每隔多久：从起算的时刻往后数，严格晚于现在', () => {
+    const rule = { kind: 'every', minutes: 30 } as const
+    const start = at(2026, 11, 12, 9, 10)
+    expect(nextFire(rule, start, start)).toEqual(at(2026, 11, 12, 9, 40))
+    expect(nextFire(rule, at(2026, 11, 12, 9, 40), start)).toEqual(at(2026, 11, 12, 10, 10))
+    expect(nextFire(rule, at(2026, 11, 12, 11, 5), start)).toEqual(at(2026, 11, 12, 11, 10))
+    expect(scheduleProblem({ kind: 'every', minutes: 0 })).not.toBeNull()
+    expect(nextFire({ kind: 'every', minutes: 0 }, start)).toBeNull()
+  })
+
+  it('每天几点：过了就是明天；限定星期几时跳到下一个允许的日子', () => {
+    const daily = { kind: 'daily', time: '09:00' } as const
+    expect(nextFire(daily, at(2026, 11, 12, 8, 59))).toEqual(at(2026, 11, 12, 9, 0))
+    expect(nextFire(daily, at(2026, 11, 12, 9, 0))).toEqual(at(2026, 11, 13, 9, 0))
+    // 2026-11-12 是周四；只在周一、周五。
+    const some: TriggerSchedule = { kind: 'daily', time: '09:00', weekdays: [1, 5] }
+    expect(nextFire(some, at(2026, 11, 12, 10, 0))).toEqual(at(2026, 11, 13, 9, 0))
+    expect(nextFire(some, at(2026, 11, 13, 10, 0))).toEqual(at(2026, 11, 16, 9, 0))
+    expect(scheduleProblem({ kind: 'daily', time: '9点' })).not.toBeNull()
+  })
+
+  it('cron：步长、范围、列表；周的 0 和 7 都是周日', () => {
+    const work = { kind: 'cron', expression: '*/15 9-17 * * 1-5' } as const
+    expect(nextFire(work, at(2026, 11, 12, 9, 1))).toEqual(at(2026, 11, 12, 9, 15))
+    expect(nextFire(work, at(2026, 11, 13, 17, 45))).toEqual(at(2026, 11, 16, 9, 0))
+    for (const expression of ['0 8 * * 0', '0 8 * * 7']) {
+      expect(nextFire({ kind: 'cron', expression }, at(2026, 11, 12))).toEqual(
+        at(2026, 11, 15, 8, 0),
+      )
+    }
+    expect(nextFire({ kind: 'cron', expression: '30 6 1,15 * *' }, at(2026, 11, 12))).toEqual(
+      at(2026, 11, 15, 6, 30),
+    )
+  })
+
+  it('cron：日和周都限定了，满足其一即可；只限定一个时两个都要满足', () => {
+    // 每月 13 号，或者每周一。2026-11-13 是周五，16 号是周一。
+    const either = { kind: 'cron', expression: '0 0 13 * 1' } as const
+    expect(nextFire(either, at(2026, 11, 12, 1))).toEqual(at(2026, 11, 13))
+    expect(nextFire(either, at(2026, 11, 13, 1))).toEqual(at(2026, 11, 16))
+    // 日写的是带步长的星号：和周一起限定（奇数日里的周一）。
+    const both = { kind: 'cron', expression: '0 0 */2 * 1' } as const
+    expect(nextFire(both, at(2026, 11, 12, 1))).toEqual(at(2026, 11, 23))
+  })
+
+  it('cron 写得不对：说出是哪一段', () => {
+    expect(parseCron('0 9 * *')).toContain('五段')
+    expect(parseCron('60 9 * * *')).toContain('「分」')
+    expect(parseCron('0 9 * * mon')).toContain('「周」')
+    expect(parseCron('0 9 */0 * *')).toContain('步长')
+    expect(scheduleProblem({ kind: 'cron', expression: '0 0 31 2 *' })).toContain('永远不会触发')
+    expect(scheduleProblem({ kind: 'cron', expression: '5/20 * * * *' })).toBeNull()
+  })
+})

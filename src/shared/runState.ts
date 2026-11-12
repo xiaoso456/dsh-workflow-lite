@@ -12,6 +12,7 @@
 import { edgeWhen } from './graph.ts'
 import { isStep } from './model.ts'
 import { flowEdges } from './resources.ts'
+import type { FireChannel } from './trigger.ts'
 import {
   EXECUTION_MODES,
   type ExecutionMode,
@@ -594,6 +595,72 @@ export function takenEdges(document: WorkflowDocument, state: RunState): Set<str
 // 实例（索引记录与画布线格式）
 // ─────────────────────────────────────────────────────────────
 
+/**
+ * 实例是怎么来的：`manual` 用户在画布上点「执行」；`session` 模型在对话里自己编译；
+ * 其余是触发卡片发起的（见 `FireChannel`）。
+ */
+export type OriginChannel = 'manual' | 'session' | FireChannel
+
+export const ORIGIN_CHANNELS: readonly OriginChannel[] = ['manual', 'session', 'schedule', 'now']
+
+/** 实例的来源（进索引的那部分，列表里要用）。 */
+export interface InstanceOrigin {
+  channel: OriginChannel
+  /** 触发卡片发起时：卡片 id 与当时的名字。 */
+  trigger?: { id: string; name: string }
+  /** 触发时刻（epoch 毫秒）。 */
+  firedAt?: number
+}
+
+/** 来源的全部：再加上触发时带过来的话（和图快照放在一起，打开实例时才读）。 */
+export interface OriginDetail extends InstanceOrigin {
+  /** 触发卡片上的「触发说明」在那一刻的样子。 */
+  note?: string
+  /** 触发时带来的背景信息（外部输入的原文）。 */
+  info?: string
+}
+
+/** 进索引的那部分。 */
+export function originSummary(origin: InstanceOrigin): InstanceOrigin {
+  return {
+    channel: origin.channel,
+    ...(origin.trigger === undefined ? {} : { trigger: { ...origin.trigger } }),
+    ...(origin.firedAt === undefined ? {} : { firedAt: origin.firedAt }),
+  }
+}
+
+/** 两个来源是不是同一次（复用还没开始的实例时用：不同的触发不共用一个实例）。 */
+export function sameOrigin(a: InstanceOrigin | undefined, b: InstanceOrigin | undefined): boolean {
+  return (
+    (a?.channel ?? 'session') === (b?.channel ?? 'session') &&
+    a?.trigger?.id === b?.trigger?.id &&
+    a?.firedAt === b?.firedAt
+  )
+}
+
+/** 按形状读一个来源；读不出来是 `undefined`。 */
+export function readOrigin(raw: unknown): OriginDetail | undefined {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return undefined
+  const input = raw as Record<string, unknown>
+  const channel = ORIGIN_CHANNELS.find((candidate) => candidate === input.channel)
+  if (channel === undefined) return undefined
+  const trigger = input.trigger as Record<string, unknown> | null | undefined
+  const named =
+    typeof trigger === 'object' &&
+    trigger !== null &&
+    typeof trigger.id === 'string' &&
+    typeof trigger.name === 'string'
+      ? { id: trigger.id, name: trigger.name }
+      : undefined
+  return {
+    channel,
+    ...(named === undefined ? {} : { trigger: named }),
+    ...(typeof input.firedAt === 'number' ? { firedAt: input.firedAt } : {}),
+    ...(typeof input.note === 'string' && input.note !== '' ? { note: input.note } : {}),
+    ...(typeof input.info === 'string' && input.info !== '' ? { info: input.info } : {}),
+  }
+}
+
 /** 实例索引 `instances.json` 里的一条（只有插件写）。 */
 export interface InstanceRecord {
   id: string
@@ -612,6 +679,8 @@ export interface InstanceRecord {
   session?: string
   /** 建立时刻（epoch 毫秒）。 */
   createdAt: number
+  /** 它是怎么来的；早先建的实例没有。 */
+  origin?: InstanceOrigin
   /** 用户改了状态、但当时没能通知到模型时暂存的通知正文；交付后删掉。 */
   pendingNotice?: string
 }
@@ -628,6 +697,8 @@ export interface InstanceSummary {
   statePath?: string
   session?: string
   createdAt: number
+  /** 它是怎么来的；早先建的实例没有。 */
+  origin?: InstanceOrigin
   /** 是不是请求方会话的当前实例。 */
   current: boolean
   status?: RunStatus
@@ -658,6 +729,8 @@ export interface InstanceView {
   files: Record<string, (boolean | null)[]>
   /** 用户执行前对输入节点的回答（已补上默认值；输入 id → 回答）。 */
   answers: Record<string, InputAnswer>
+  /** 来源的全部（含触发说明、背景信息）；早先建的实例没有。 */
+  origin?: OriginDetail
 }
 
 /** 用户在画布上的一处改动。`null` = 删掉这个字段。 */

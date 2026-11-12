@@ -9,6 +9,7 @@ import { isStep } from '../../../shared/model.ts'
 import type { RunCursor } from '../../../shared/runCursor.ts'
 import {
   type InstanceSummary,
+  type OriginDetail,
   progressOf,
   RUN_STATUSES,
   type RunLogEntry,
@@ -26,6 +27,7 @@ import ui from '../kit/ui.module.css'
 import { SwapText } from '../motion/swapText.tsx'
 import css from '../panel/panel.module.css'
 import { Choices, EditedDot, isEdited } from './RunNodeState.tsx'
+import { OriginRows } from './RunOrigin.tsx'
 import { RunPosition } from './RunPosition.tsx'
 import shared from './run.module.css'
 import own from './runOverview.module.css'
@@ -35,6 +37,8 @@ export function Untracked(props: {
   t: T
   summary: InstanceSummary
   snapshot: WorkflowDocument
+  /** 这个实例是怎么发起的。 */
+  origin: OriginDetail | undefined
 }): React.JSX.Element {
   const { t, summary } = props
   return (
@@ -50,6 +54,7 @@ export function Untracked(props: {
           <dd>{shortTime(summary.createdAt)}</dd>
           <dt>{t('run.steps')}</dt>
           <dd>{props.snapshot.nodes.filter(isStep).length}</dd>
+          <OriginRows t={t} origin={props.origin} />
         </dl>
       </section>
     </>
@@ -150,6 +155,7 @@ export function Overview(props: {
           <dd>{t(`settings.mode.${state.mode}` as LocaleKey)}</dd>
           <dt>{t('run.started')}</dt>
           <dd>{shortTime(summary?.createdAt)}</dd>
+          <OriginRows t={t} origin={current.view?.origin} />
           <dt>{t('run.updated')}</dt>
           <dd>{shortTime(state.updatedAt)}</dd>
           {summary?.statePath !== undefined && (

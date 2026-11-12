@@ -814,7 +814,7 @@ function RunPanel(props: {
     // 概览没有「编辑」：不给切换。
     head = <OverviewHead {...headProps} extra={undefined} />
     if (state === null && summary !== undefined && summary.statePath === undefined) {
-      body = <Untracked t={t} summary={summary} snapshot={doc} />
+      body = <Untracked t={t} summary={summary} snapshot={doc} origin={current.view?.origin} />
     } else if (state === null) {
       body = (
         <p className={css.help}>{current.view === null ? t('run.loading') : t('run.noState')}</p>

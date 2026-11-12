@@ -352,6 +352,10 @@ export const PARAMETERS = {
       },
     },
   },
+  fire: {
+    type: 'string',
+    description: 'compile：触发编号。只在收到触发卡片发来的消息时照消息里写的填，别的时候不给。',
+  },
   all: { type: 'boolean', description: 'runs：true = 列所有会话的实例（缺省只列本会话的）。' },
   mode: {
     type: 'string',

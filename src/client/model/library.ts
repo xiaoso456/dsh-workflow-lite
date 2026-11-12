@@ -90,6 +90,9 @@ export const BLANK_ID = 'step'
 /** 输入节点的建议 id。 */
 export const INPUT_ID = 'ask'
 
+/** 触发卡片的建议 id。 */
+export const TRIGGER_ID = 'trigger'
+
 /**
  * 输入的四种交互（呈现顺序）与文案。步骤库里只有一个「用户输入」，拖到画布上默认是一句话，
  * 在属性面板里切换交互方式。
@@ -281,6 +284,8 @@ export type StepSource =
   | { kind: 'resource' }
   /** 一个输入节点（执行前问用户的问题）。 */
   | { kind: 'input' }
+  /** 一张触发卡片（什么时候自动执行这个工作流）。 */
+  | { kind: 'trigger' }
   /** 记忆：从步骤的「＋」加是这一步的记忆，别处加是全局记忆（见 `shared/presets.ts`）。 */
   | { kind: 'memory' }
   | { kind: 'preset'; id: string }
@@ -318,6 +323,8 @@ export function decodeStepSource(raw: string | null | undefined): StepSource | n
       return { kind: 'resource' }
     case 'input':
       return { kind: 'input' }
+    case 'trigger':
+      return { kind: 'trigger' }
     case 'memory':
       return { kind: 'memory' }
     case 'preset': {

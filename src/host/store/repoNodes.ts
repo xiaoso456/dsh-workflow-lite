@@ -15,6 +15,7 @@ import {
   isInput,
   isResource,
   isStep,
+  isTrigger,
   makeEdgeId,
   normalizeCoord,
   readInputData,
@@ -219,6 +220,9 @@ export class NodeWriter {
       }
       if (found !== undefined && isInput(found)) {
         return fail('blocked', `${rawId} 是输入节点，改它请带上 input`, { id: rawId })
+      }
+      if (found !== undefined && isTrigger(found)) {
+        return fail('blocked', `${rawId} 是触发卡片，由用户在画布上设置`, { id: rawId })
       }
       const existing = found
       let data: NodeData = existing === undefined ? {} : { ...existing.data }
@@ -608,6 +612,9 @@ export class NodeWriter {
       const to = findNode(document, target)
       if (to === undefined) return fail('not_found', `目标节点 ${target} 不存在`, { node: target })
       // 线的种类由两端决定：步骤 → 步骤是先后；步骤 → 资源是写；资源 → 步骤是读。
+      if (isTrigger(from) || isTrigger(to)) {
+        return fail('invalid_args', '触发卡片不连线——它触发的是整个工作流', { source, target })
+      }
       if (isResource(from) && isResource(to)) {
         return fail('invalid_args', '资源不能直接连到资源', { source, target })
       }

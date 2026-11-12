@@ -19,9 +19,11 @@ import {
   type InstanceSummary,
   isoNow,
   type NodeRunState,
+  type OriginDetail,
   progressOf,
   type RunState,
   type RunStateIssue,
+  readOrigin,
   SUMMARY_ISSUES_MAX,
   validateRunState,
 } from '../../shared/runState.ts'
@@ -37,17 +39,35 @@ import {
   type InstanceIndex,
   InstanceStore,
   instanceDir,
+  originFile,
   snapshotFile,
 } from './store.ts'
 
 /** 把一条通知送进会话（`steer`：空闲就开一轮，正在跑就排进下一步）。送到了回 `true`。 */
 export type Notify = (session: string, text: string, summary: string) => Promise<boolean>
 
+/**
+ * 模型编译一张图时，问一句「这是不是哪次触发引起的」。是的话实例记下那次触发的来源，
+ * 建好之后再告诉对方实例是哪个（触发记录里要显示）。
+ */
+export interface OriginSource {
+  /** 找这次编译对应的触发：给了触发编号按编号找，没给就看这个会话里有没有刚发过、还没认领的。 */
+  find(input: {
+    workflow: string
+    session?: string
+    fire?: string
+  }): Promise<{ fire: string; origin: OriginDetail } | undefined>
+  /** 这次触发建出了哪个实例。 */
+  bind(fire: string, instance: string): Promise<void>
+}
+
 export interface RunServiceDeps {
   dataDir: () => string
   /** 校验一张图（计划的「注意事项」要它）；不给就当没有警告。 */
   validate?: (document: WorkflowDocument, workflow: string) => ValidationProblem[]
   notify?: Notify
+  /** 触发器那边的来源（不给 = 模型编译出来的实例一律记成「对话里发起」）。 */
+  origins?: OriginSource
 }
 
 /** 会话信息：工具从执行上下文取，画布从槽位给。 */
@@ -128,6 +148,17 @@ export class RunCore {
       return answers
     } catch {
       return {}
+    }
+  }
+
+  /** 实例来源的全部；早先建的实例（没有这个文件）回索引里记的那部分。 */
+  async originOf(record: InstanceRecord): Promise<OriginDetail | undefined> {
+    const text = await readFileText(originFile(this.deps.dataDir(), record.id))
+    if (text === null) return record.origin
+    try {
+      return readOrigin(JSON.parse(text)) ?? record.origin
+    } catch {
+      return record.origin
     }
   }
 
@@ -262,6 +293,7 @@ export class RunCore {
       ...(record.statePath === undefined ? {} : { statePath: record.statePath }),
       ...(record.session === undefined ? {} : { session: record.session }),
       createdAt: record.createdAt,
+      ...(record.origin === undefined ? {} : { origin: record.origin }),
       current: session !== undefined && index.current[session] === record.id,
     }
     if (record.statePath === undefined) return base

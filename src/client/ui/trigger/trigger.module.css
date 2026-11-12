@@ -1,0 +1,193 @@
+/**
+ * dsh-workflow-lite — 触发卡片属性面板里自己的样子：一行一项的小表单、星期几的一排圆钮、触发记录。
+ *
+ * 面板外壳、分组标题、说明文字、开关行都用 panel/panel.module.css 的。
+ */
+
+/* 一行一项：左边说明，右边控件。 */
+.row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+.rowLabel {
+  flex: none;
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-meta);
+}
+
+.grow {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.number {
+  flex: none;
+  width: 64px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.unit {
+  flex: none;
+  width: 96px;
+}
+
+.time {
+  flex: none;
+  width: 112px;
+  font-variant-numeric: tabular-nums;
+}
+
+.note,
+.info {
+  min-height: 0;
+  resize: vertical;
+}
+
+/* 星期几：七个小圆钮，选中的填强调色。 */
+.days {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 4px;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.day {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--wl-line);
+  border-radius: calc(13px * var(--wl-round, 1));
+  background: transparent;
+  color: var(--wl-text-2);
+  font: inherit;
+  font-size: var(--wl-fs-micro);
+  cursor: pointer;
+  transition:
+    background-color 120ms linear,
+    border-color 120ms linear,
+    color 120ms linear;
+}
+
+.day:hover {
+  background: var(--wl-hover);
+}
+
+.day[aria-checked="true"] {
+  border-color: var(--wl-accent);
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+  font-weight: 600;
+}
+
+.day:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+/* 「立即触发一次」和它的结果。 */
+.fireRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+.fireResult {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-danger);
+  font-size: var(--wl-fs-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fireResult[data-ok="true"] {
+  color: var(--wl-ok);
+}
+
+/* 触发记录：一条一行，原因另起一行。 */
+.fires {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--wl-line);
+  border-radius: var(--wl-r-control);
+  list-style: none;
+}
+
+.fire {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px 6px 10px;
+  font-size: var(--wl-fs-micro);
+}
+
+.fire + .fire {
+  border-top: 1px solid var(--wl-line);
+}
+
+.fireTop {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 22px;
+}
+
+.fireTime {
+  color: var(--wl-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.fireChannel {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fireOutcome {
+  flex: none;
+  color: var(--wl-text-2);
+  font-weight: 600;
+}
+
+.fire[data-outcome="sent"] .fireOutcome {
+  color: var(--wl-ok);
+}
+
+.fire[data-outcome="failed"] .fireOutcome {
+  color: var(--wl-danger);
+}
+
+.fireOpen {
+  flex: none;
+}
+
+.fireReason {
+  color: var(--wl-text-3);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+/* 瑞士：成组的列表只留上下线，圆钮成方的（圆角已经跟着 --wl-round 归零）。 */
+:global([data-look="swiss"]) .fires {
+  border-width: 1px 0;
+  border-color: var(--wl-line-strong);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .day {
+    transition: none;
+  }
+}

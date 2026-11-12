@@ -254,6 +254,8 @@ async function maskLocal(session) {
       [/[A-Za-z]:[\\\\/][^\\s"'<>]*?docs-data/g, '~/.dsh/workflow-lite'],
       [/(~\\/projects\\/shop)(\\\\[^\\s]*)/g, (_, root, rest) => root + rest.replace(/\\\\/g, '/')],
       [${JSON.stringify(t('会话已不在', 'Session no longer exists'))}, '${t('新建会话', 'New session')}'],
+      // 工作区只写文件夹名的地方（下拉里的「shop（当前工作区）」）。
+      [/\\bdocs-ws\\b/g, 'shop'],
     ]
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT)
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
@@ -355,8 +357,119 @@ async function tidyAndFit(session) {
   await sleep(1000)
 }
 
+/** 触发卡片那两张图用的小工作流：三个步骤，上面一张工作日凌晨的触发卡片。 */
+const TRIGGER_NAME = t('夜间巡检', 'nightly-check')
+function triggerDocument() {
+  const step = (id, label, prompt, x) => ({
+    id,
+    type: 'wfNode',
+    position: { x, y: 220 },
+    data: { label, prompt },
+  })
+  return {
+    nodes: [
+      step(
+        'scan',
+        t('扫描改动', 'Scan changes'),
+        t(
+          '看最近一天的提交，列出改动的模块。',
+          'Read the last day of commits and list the modules touched.',
+        ),
+        80,
+      ),
+      step(
+        'check',
+        t('跑检查', 'Run checks'),
+        t('对改动的模块跑测试和 lint。', 'Run tests and lint on the modules touched.'),
+        420,
+      ),
+      step(
+        'report',
+        t('写巡检报告', 'Write report'),
+        t('把发现的问题写成一份报告。', 'Write up what was found as a report.'),
+        760,
+      ),
+      {
+        id: 'nightly',
+        type: 'wfTrigger',
+        position: { x: 80, y: 100 },
+        data: {
+          label: t('夜巡', 'Nightly'),
+          source: {
+            kind: 'schedule',
+            schedule: { kind: 'daily', time: '02:30', weekdays: [1, 2, 3, 4, 5] },
+          },
+          note: t('只看 src 目录，报告写中文。', 'Only look at src/. Keep the report short.'),
+        },
+      },
+    ],
+    edges: [edge('scan', 'check'), edge('check', 'report')],
+    viewport: { x: 0, y: 0, zoom: 1 },
+  }
+}
+
+/**
+ * 触发卡片：画布上的卡片（开着、等待中）和它的属性面板。自己建图、拍完删掉，放在最前面——
+ * 后面每一段都从 `bootToCanvas` 重新进页面，不受这里影响（所以这里不收步骤库、不改偏好）。
+ * 不点「立即触发一次」：那会在侧栏里多出一个会话。
+ */
+async function triggerShots(session) {
+  if (!wants('trigger-card') && !wants('trigger-panel')) return
+  try {
+    await rpc('graph/delete', { name: TRIGGER_NAME }).catch(() => {})
+    await rpc('graph/create', { name: TRIGGER_NAME })
+    const disk = await rpc('graph/load', { name: TRIGGER_NAME })
+    await rpc('graph/save', {
+      name: TRIGGER_NAME,
+      document: triggerDocument(),
+      baseHash: disk.hash,
+    })
+    await rpc('trigger/set', {
+      workflow: TRIGGER_NAME,
+      node: 'nightly',
+      workspace: WORKSPACE,
+      enabled: true,
+    })
+    await bootToCanvas(session, TRIGGER_NAME, {
+      width: 1280,
+      height: 780,
+      lang: LANG,
+      sessionTitle: SHOTS_SESSION_TITLE,
+    })
+    await metrics(session, 1280, 780)
+    await sleep(600)
+    await session.evaluate(clickTestId('wl-fit'))
+    // 等状态读回来：卡片上写出下一次的时刻。
+    await waitFor(
+      session,
+      `document.querySelector('.react-flow__node[data-id="nightly"] [data-state="waiting"]') !== null`,
+    )
+    await sleep(1200)
+    await mouseMove(session, { x: 8, y: 8 })
+    await snap(session, 'trigger-card', await session.evaluate(graphBox))
+
+    // 面板比窗口高：先把窗口拉高，整块拍下来。
+    await metrics(session, 1280, LANG === 'en' ? 1340 : 1260)
+    await sleep(600)
+    await session.evaluate(nodeClick('nightly'))
+    await waitFor(session, has('wl-trigger-status'))
+    await sleep(1200)
+    await mouseMove(session, { x: 8, y: 8 })
+    await snap(
+      session,
+      'trigger-panel',
+      await session.evaluate(rectOf('[data-testid="wl-inspector"]', 8)),
+    )
+  } catch (error) {
+    console.log(`  ✗ trigger：${String(error.message).split('\n')[0]}`)
+  } finally {
+    await rpc('graph/delete', { name: TRIGGER_NAME }).catch(() => {})
+  }
+}
+
 async function main(session) {
   await mkdir(OUT, { recursive: true })
+  await triggerShots(session)
   await rpc('graph/delete', { name: NAME }).catch(() => {})
   await rpc('graph/create', { name: NAME })
   await rpc('memory/delete', { id: 'review-lessons' }).catch(() => {})

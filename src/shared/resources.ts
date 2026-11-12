@@ -19,6 +19,7 @@ import {
   isInput,
   isResource,
   isStep,
+  isTrigger,
   itemShortName,
   makeEdgeId,
   outputSpecs,
@@ -67,6 +68,8 @@ export function edgeKind(nodes: ReadonlyMap<string, WorkflowNode>, edge: Workflo
   const source = nodes.get(idKey(edge.source))
   const target = nodes.get(idKey(edge.target))
   if (source === undefined || target === undefined) return 'dangling'
+  // 触发卡片不连线。
+  if (isTrigger(source) || isTrigger(target)) return 'invalid'
   if (isInput(target)) return 'invalid'
   if (isInput(source)) return isStep(target) ? 'ask' : 'invalid'
   if (isResource(source)) return isResource(target) ? 'invalid' : 'read'

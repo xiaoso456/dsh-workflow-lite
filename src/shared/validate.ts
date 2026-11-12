@@ -30,7 +30,7 @@ import {
   MAX_VALUE_CODEPOINTS,
   WELL_KNOWN_WHEN,
 } from './limits.ts'
-import { idKey, isInput, isResource, isStep, outputSpecs } from './model.ts'
+import { idKey, isInput, isResource, isStep, isTrigger, outputSpecs } from './model.ts'
 import {
   checkLabel,
   checkName,
@@ -50,6 +50,7 @@ import {
   resourceGraph,
   resourceTitle,
 } from './resources.ts'
+import { scheduleProblem } from './trigger.ts'
 import type {
   InputData,
   ResourceData,
@@ -170,6 +171,18 @@ export function validateDocument(
 
   // ── 保存级：每个节点的字段规则 ──────────────────────────────
   for (const node of document.nodes) {
+    if (isTrigger(node)) {
+      // 定时规则写得不对只是警告：触发器开不了，但不挡保存，也不挡手动执行。
+      const problem = scheduleProblem(node.data.source.schedule)
+      if (problem !== null) {
+        warning.push(
+          mk('warning', 'trigger_invalid', `触发 ${node.id} 的定时规则不对：${problem}`, {
+            node: node.id,
+          }),
+        )
+      }
+      continue
+    }
     if (isInput(node)) {
       const problem = inputProblem(node.data)
       if (problem !== null) {
@@ -694,6 +707,9 @@ export function resourceProblem(data: ResourceData): { message: string } | null 
 
 /** 两端都在、但种类不成立的线错在哪。 */
 function invalidReason(source: WorkflowNode | undefined, target: WorkflowNode | undefined): string {
+  if ((source !== undefined && isTrigger(source)) || (target !== undefined && isTrigger(target))) {
+    return '触发卡片不连线——它触发的是整个工作流'
+  }
   if (target !== undefined && isInput(target)) return '不能连进输入节点——输入只往外连到步骤'
   if (source !== undefined && isInput(source)) return '输入节点只能连到步骤'
   return '资源不能直接连到资源'

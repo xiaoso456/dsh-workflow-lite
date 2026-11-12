@@ -15,6 +15,9 @@ import {
   type InstanceSummary,
   initialRunState,
   isoNow,
+  type OriginDetail,
+  originSummary,
+  sameOrigin,
 } from '../../shared/runState.ts'
 import type {
   ExecutionMode,
@@ -33,6 +36,7 @@ import {
   instanceDir,
   isInstanceId,
   newInstanceId,
+  originFile,
   runDir,
   snapshotFile,
   statePathFor,
@@ -86,8 +90,11 @@ export class RunSetup {
     track?: boolean
     /** 复用本会话还没开始过的同一份实例（缺省复用；画布上点「执行」每次都是新的一次）。 */
     reuse?: boolean
+    /** 这个实例是怎么来的（缺省：对话里发起）。 */
+    origin?: OriginDetail
   }): Promise<Outcome<InstanceRecord>> {
     const dataDir = this.core.deps.dataDir()
+    const origin: OriginDetail = input.origin ?? { channel: 'session' }
     const mode: ExecutionMode = input.document.settings?.mode ?? 'auto'
     const session = input.session.id
     const track = input.track ?? input.document.settings?.runState === true
@@ -99,6 +106,7 @@ export class RunSetup {
         current !== undefined &&
         current.workflow === input.workflow &&
         current.planId === planIdOf(pinRoot(input.document, current.id)) &&
+        sameOrigin(current.origin, origin) &&
         sameAnswers(await this.core.answersOf(current), input.answers ?? {})
       ) {
         const read = await this.core.readState(current)
@@ -121,6 +129,7 @@ export class RunSetup {
       if (Object.keys(answers).length > 0) {
         await writeFileAtomic(answersFile(dataDir, id), `${JSON.stringify(answers, null, 2)}\n`)
       }
+      await writeFileAtomic(originFile(dataDir, id), `${JSON.stringify(origin, null, 2)}\n`)
       // 工作区里的隐藏目录：放一个忽略一切的 .gitignore，状态、任务描述与默认产出不进版本库。
       if (cwd !== undefined) await ensureWorkspaceIgnore(cwd)
       if (statePath !== undefined) {
@@ -156,6 +165,7 @@ export class RunSetup {
       ...(statePath === undefined ? {} : { statePath }),
       ...(session === undefined ? {} : { session }),
       createdAt: Date.now(),
+      origin: originSummary(origin),
     }
     await this.core.store.update((index) => {
       index.instances.push(record)
@@ -176,6 +186,8 @@ export class RunSetup {
     goal?: string
     /** 用户对输入节点的回答（输入 id → 回答）；没回答的用默认值。 */
     answers?: unknown
+    /** 触发编号：这次编译是触发卡片发来的那条消息引起的。 */
+    fire?: string
   }): Promise<Outcome<InstancePlan | CompileBundle>> {
     const answers = checkAnswers(input.document, input.answers)
     if (answers.errors.length > 0) {
@@ -190,14 +202,26 @@ export class RunSetup {
       input.session.cwd,
     )
     if (!check.ok || check.result.problems.length > 0) return check
+    // 触发卡片发起的：实例记下是哪次触发；找不到对应的触发就是模型在对话里自己发起的。
+    const fired = await this.core.deps.origins
+      ?.find({
+        workflow: input.workflow,
+        ...(input.session.id === undefined ? {} : { session: input.session.id }),
+        ...(input.fire === undefined ? {} : { fire: input.fire }),
+      })
+      .catch(() => undefined)
     const prepared = await this.prepare({
       workflow: input.workflow,
       document: input.document,
       session: input.session,
       ...(input.goal === undefined ? {} : { goal: input.goal }),
       answers: answers.answers,
+      origin: fired?.origin ?? { channel: 'session' },
     })
     if (!prepared.ok) return prepared
+    if (fired !== undefined) {
+      await this.core.deps.origins?.bind(fired.fire, prepared.result.id).catch(() => {})
+    }
     const resumed = await this.resume(prepared.result.id, input.session)
     if (!resumed.ok) return resumed
     // 读入阶段的警告（快照校验不到的那些，比如文件里的问题）也带上。
@@ -246,6 +270,7 @@ export class RunSetup {
       session: input.session,
       answers: answers.answers,
       reuse: false,
+      origin: { channel: 'manual' },
     })
     if (!prepared.ok) return prepared
     const id = prepared.result.id

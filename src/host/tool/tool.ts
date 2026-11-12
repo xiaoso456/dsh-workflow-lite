@@ -293,6 +293,7 @@ export function createWorkflowLiteHandler(
           session,
           ...(args.goal === undefined ? {} : { goal: args.goal }),
           answers: answers ?? {},
+          ...(typeof args.fire === 'string' && args.fire !== '' ? { fire: args.fire } : {}),
         })
         if (!outcome.ok) return errorValue(outcome)
         return finish(outcome.result)

@@ -1,0 +1,240 @@
+import { describe, expect, it } from 'vitest'
+import { addFromSource, addOrigin, duplicateEdit } from '../../src/client/app/addStep.ts'
+import { en as enText, type LocaleKey, zh } from '../../src/client/i18n.ts'
+import { linkAllowed } from '../../src/client/model/connect.ts'
+import { type Edit, type EditorState, initialState, reduce } from '../../src/client/model/editor.ts'
+import { cardSize, TRIGGER_H, TRIGGER_W, tidy, triggerSpot } from '../../src/client/model/layout.ts'
+import { decodeStepSource, encodeStepSource } from '../../src/client/model/library.ts'
+import { originText } from '../../src/client/model/originText.ts'
+import { momentText, ruleText, stateText } from '../../src/client/model/triggerText.ts'
+import { analyzeGraph } from '../../src/shared/graph.ts'
+import { isTrigger } from '../../src/shared/model.ts'
+import { DEFAULT_TRIGGER } from '../../src/shared/trigger.ts'
+import type {
+  StepNode,
+  TriggerData,
+  TriggerNode,
+  WorkflowDocument,
+} from '../../src/shared/types.ts'
+
+const t = (key: LocaleKey): string => zh[key]
+const en = (key: LocaleKey): string => enText[key]
+
+function step(id: string, x = 100, y = 100): StepNode {
+  return { id, type: 'wfNode', position: { x, y }, data: { prompt: `do ${id}` } }
+}
+
+function trigger(id: string, data: TriggerData = DEFAULT_TRIGGER, x = 100, y = -60): TriggerNode {
+  return { id, type: 'wfTrigger', position: { x, y }, data }
+}
+
+function doc(partial: Partial<WorkflowDocument> = {}): WorkflowDocument {
+  return { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 }, ...partial }
+}
+
+function loaded(document: WorkflowDocument): EditorState {
+  return reduce(initialState, {
+    type: 'loaded',
+    name: 'g',
+    doc: document,
+    baseHash: 'h0',
+    problems: [],
+  })
+}
+
+function triggers(state: EditorState): TriggerNode[] {
+  return (state.doc?.nodes ?? []).filter(isTrigger)
+}
+
+describe('触发卡片：编辑', () => {
+  it('加一张：选中它，放在整张图上面，重名的接着编号', () => {
+    let state = loaded(doc({ nodes: [step('a', 100, 100)] }))
+    state = reduce(state, { type: 'addTrigger', id: 'trigger', data: DEFAULT_TRIGGER })
+    const [first] = triggers(state)
+    expect(first?.id).toBe('trigger')
+    expect(state.selection).toEqual({ kind: 'node', id: 'trigger' })
+    expect(first?.position.y).toBeLessThan(100 - TRIGGER_H)
+    state = reduce(state, { type: 'addTrigger', id: 'trigger', data: DEFAULT_TRIGGER })
+    const ids = triggers(state).map((node) => node.id)
+    expect(new Set(ids).size).toBe(2)
+  })
+
+  it('改规则、清掉一项；没变化不算一步', () => {
+    let state = loaded(doc({ nodes: [trigger('tick')] }))
+    state = reduce(state, {
+      type: 'patchTrigger',
+      id: 'tick',
+      patch: {
+        note: '只看 src',
+        source: { kind: 'schedule', schedule: { kind: 'daily', time: '09:00' } },
+      },
+    })
+    expect(triggers(state)[0]?.data.note).toBe('只看 src')
+    expect(triggers(state)[0]?.data.source.schedule).toEqual({ kind: 'daily', time: '09:00' })
+    const before = state
+    state = reduce(state, { type: 'patchTrigger', id: 'tick', patch: { note: '只看 src' } })
+    expect(state).toBe(before)
+    state = reduce(state, { type: 'patchTrigger', id: 'tick', patch: { note: undefined } })
+    expect(triggers(state)[0]?.data).not.toHaveProperty('note')
+  })
+
+  it('patchTrigger 只认触发卡片', () => {
+    const state = loaded(doc({ nodes: [step('a')] }))
+    expect(reduce(state, { type: 'patchTrigger', id: 'a', patch: { label: 'x' } })).toBe(state)
+  })
+
+  it('同一个合并键连着打字只留一条撤销', () => {
+    let state = loaded(doc({ nodes: [trigger('tick')] }))
+    for (const note of ['只', '只看', '只看 src']) {
+      state = reduce(state, {
+        type: 'patchTrigger',
+        id: 'tick',
+        patch: { note },
+        merge: 'tick:trigger:note',
+      })
+    }
+    state = reduce(state, { type: 'undo' })
+    expect(triggers(state)[0]?.data.note).toBeUndefined()
+  })
+
+  it('触发卡片不连线：两头都拒绝', () => {
+    const document = doc({ nodes: [step('a'), trigger('tick')] })
+    expect(linkAllowed(document, { source: 'tick', target: 'a' })).toBe(false)
+    expect(linkAllowed(document, { source: 'a', target: 'tick' })).toBe(false)
+    const state = loaded(document)
+    const next = reduce(state, { type: 'connect', source: 'tick', target: 'a' })
+    expect(next.doc?.edges).toEqual([])
+  })
+})
+
+describe('触发卡片：从步骤库加进来、复制', () => {
+  it('拖进来 = 一张缺省规则的卡片，落在松手的地方', async () => {
+    const edits: Edit[] = []
+    await addFromSource(
+      { t, doc: doc(), edit: (edit) => edits.push(edit), loadTemplate: async () => null },
+      { kind: 'trigger' },
+      { x: 40, y: 50 },
+    )
+    expect(edits).toEqual([
+      { type: 'addTrigger', id: 'trigger', data: DEFAULT_TRIGGER, position: { x: 40, y: 50 } },
+    ])
+  })
+
+  it('拖拽内容编得回来', () => {
+    expect(decodeStepSource(encodeStepSource({ kind: 'trigger' }))).toEqual({ kind: 'trigger' })
+  })
+
+  it('从触发卡片上拉不出「接着加一步」', () => {
+    expect(addOrigin(doc({ nodes: [trigger('tick')] }), 'tick')).toBe('none')
+  })
+
+  it('复制出来是另一张触发卡片（规则照抄）', () => {
+    const data: TriggerData = {
+      label: '夜巡',
+      source: { kind: 'schedule', schedule: { kind: 'every', minutes: 30 } },
+    }
+    const edit = duplicateEdit(doc({ nodes: [trigger('tick', data)] }), 'tick', '副本')
+    expect(edit?.type).toBe('addTrigger')
+    if (edit?.type !== 'addTrigger') return
+    expect(edit.data.source).toEqual(data.source)
+    expect(edit.data.label).toContain('副本')
+  })
+})
+
+describe('触发卡片：摆放', () => {
+  it('卡片尺寸', () => {
+    expect(cardSize(trigger('tick'))).toEqual({ w: TRIGGER_W, h: TRIGGER_H })
+  })
+
+  it('空图放在起始位置；有图放在最上面一排的上方、最左', () => {
+    expect(triggerSpot(doc())).toEqual({ x: 80, y: 80 })
+    const document = doc({ nodes: [step('a', 200, 120), step('b', 500, 300)] })
+    const spot = triggerSpot(document)
+    expect(spot.x).toBe(200)
+    expect(spot.y).toBeLessThanOrEqual(120 - TRIGGER_H)
+  })
+
+  it('那里已经有一张：接在它右边，不叠', () => {
+    const first = triggerSpot(doc({ nodes: [step('a', 200, 120)] }))
+    const document = doc({
+      nodes: [step('a', 200, 120), trigger('t1', DEFAULT_TRIGGER, first.x, first.y)],
+    })
+    const second = triggerSpot(document)
+    expect(second.y).toBe(first.y)
+    expect(second.x).toBeGreaterThanOrEqual(first.x + TRIGGER_W)
+  })
+
+  it('整理排版：触发卡片有位置，不和步骤叠在一起', async () => {
+    const document = doc({
+      nodes: [step('a'), step('b'), trigger('tick')],
+      edges: [{ id: 'a->b', source: 'a', target: 'b', sourceHandle: null, targetHandle: null }],
+    })
+    const placed = await tidy(document, analyzeGraph(document))
+    const at = placed.tick
+    expect(at).toBeDefined()
+    if (at === undefined) return
+    for (const id of ['a', 'b']) {
+      const other = placed[id]
+      expect(other).toBeDefined()
+      if (other === undefined) continue
+      const size = cardSize(step(id))
+      const apart =
+        at.x + TRIGGER_W <= other.x ||
+        other.x + size.w <= at.x ||
+        at.y + TRIGGER_H <= other.y ||
+        other.y + size.h <= at.y
+      expect(apart).toBe(true)
+    }
+  })
+})
+
+describe('触发卡片：卡片上的字', () => {
+  it('规则的一句话', () => {
+    expect(ruleText(t, { kind: 'every', minutes: 30 })).toBe('每 30 分钟')
+    expect(ruleText(t, { kind: 'every', minutes: 120 })).toBe('每 2 小时')
+    expect(ruleText(t, { kind: 'every', minutes: 2880 })).toBe('每 2 天')
+    expect(ruleText(t, { kind: 'every', minutes: 90 })).toBe('每 90 分钟')
+    expect(ruleText(t, { kind: 'daily', time: '09:00' })).toBe('每天 09:00')
+    expect(ruleText(t, { kind: 'daily', time: '09:00', weekdays: [1, 5] })).toBe('每周一、五 09:00')
+    expect(ruleText(t, { kind: 'daily', time: '09:00', weekdays: [1, 2, 3, 4, 5] })).toBe(
+      '工作日 09:00',
+    )
+    expect(ruleText(t, { kind: 'daily', time: '10:00', weekdays: [6, 7] })).toBe('周末 10:00')
+    expect(ruleText(en, { kind: 'daily', time: '09:00', weekdays: [1, 3] })).toBe('Mon, Wed 09:00')
+    expect(ruleText(t, { kind: 'cron', expression: ' 0 9 * * 1-5 ' })).toBe('cron 0 9 * * 1-5')
+  })
+
+  it('时刻：今天、明天只说钟点，再远带月日', () => {
+    const now = new Date(2026, 10, 12, 8, 0).getTime()
+    expect(momentText(t, new Date(2026, 10, 12, 9, 5).getTime(), now)).toBe('今天 09:05')
+    expect(momentText(t, new Date(2026, 10, 13, 0, 0).getTime(), now)).toBe('明天 00:00')
+    expect(momentText(t, new Date(2026, 10, 20, 9, 0).getTime(), now)).toBe('11-20 09:00')
+  })
+
+  it('状态一行：等待中带下一次；关着、出错不带', () => {
+    const now = new Date(2026, 10, 12, 8, 0).getTime()
+    const next = new Date(2026, 10, 12, 9, 0).getTime()
+    expect(stateText(t, undefined, now)).toBe('已停用')
+    expect(stateText(t, { node: 'tick', enabled: true, state: 'waiting', next }, now)).toBe(
+      '等待中 · 下一次 今天 09:00',
+    )
+    expect(stateText(t, { node: 'tick', enabled: true, state: 'elsewhere', next }, now)).toBe(
+      '由另一个 DSH 负责 · 下一次 今天 09:00',
+    )
+    expect(stateText(t, { node: 'tick', enabled: false, state: 'stopped', next }, now)).toBe(
+      '已自动停用',
+    )
+    expect(stateText(t, { node: 'tick', enabled: true, state: 'invalid' }, now)).toBe('规则不对')
+  })
+
+  it('实例来源的一句话', () => {
+    expect(originText(t, { channel: 'manual' })).toBe('在画布上点「执行」')
+    expect(originText(t, { channel: 'session' })).toBe('在对话里发起')
+    expect(
+      originText(t, { channel: 'schedule', trigger: { id: 'tick', name: '夜巡' }, firedAt: 1 }),
+    ).toBe('定时触发 · 夜巡')
+    expect(originText(t, { channel: 'now', trigger: { id: 'tick', name: 'tick' } })).toBe(
+      '立即触发 · tick',
+    )
+  })
+})

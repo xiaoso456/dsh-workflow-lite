@@ -13,7 +13,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { edgeWhen, type GraphAnalysis } from '../../../shared/graph.ts'
-import { canonicalOutput, idKey, isInput, isResource } from '../../../shared/model.ts'
+import { canonicalOutput, idKey, isInput, isResource, isTrigger } from '../../../shared/model.ts'
 import { checkWhen, isVerdictWhen } from '../../../shared/naming.ts'
 import { edgeKind, flowEdges, nodeIndex, outputsOf } from '../../../shared/resources.ts'
 import type {
@@ -47,6 +47,7 @@ import { EndIcon } from '../resources/EndIcon.tsx'
 import { ResourcePanel } from '../resources/ResourcePanel.tsx'
 import type { PickMemory } from '../resources/ResourcePresets.tsx'
 import { ResourceEdgeBody, StepResourcesField } from '../resources/Resources.tsx'
+import { TriggerPanel } from '../trigger/TriggerPanel.tsx'
 import { HandoffField } from './Handoff.tsx'
 import { InputPanel, StepInputsField } from './InputPanel.tsx'
 import local from './inspector.module.css'
@@ -111,6 +112,20 @@ export function Inspector(props: InspectorProps): React.JSX.Element | null {
           key={idKey(node.id)}
           t={props.t}
           doc={doc}
+          node={node}
+          onEdit={props.onEdit}
+          onSelect={props.onSelect}
+          onSeal={props.onSeal}
+          onRemove={props.onRemoveNode}
+          tabs={props.tabs}
+        />
+      )
+    }
+    if (isTrigger(node)) {
+      return (
+        <TriggerPanel
+          key={idKey(node.id)}
+          t={props.t}
           node={node}
           onEdit={props.onEdit}
           onSelect={props.onSelect}

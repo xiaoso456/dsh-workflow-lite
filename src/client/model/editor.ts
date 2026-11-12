@@ -25,6 +25,7 @@ import {
   isInput,
   isResource,
   isStep,
+  isTrigger,
   makeEdgeId,
   normalizeCoord,
   readSettings,
@@ -43,6 +44,7 @@ import {
   setPreset,
 } from '../../shared/presets.ts'
 import { newResourceNode, setStepOutputs, splitOutputs } from '../../shared/resources.ts'
+import { canonicalTrigger, cloneTriggerData } from '../../shared/trigger.ts'
 import {
   type EdgeData,
   type Handoff,
@@ -55,13 +57,16 @@ import {
   type ResourceData,
   type ResourcePresetKind,
   type StepNode,
+  TRIGGER_TYPE,
+  type TriggerData,
+  type TriggerNode,
   type ValidationProblem,
   type WorkflowDocument,
   type WorkflowEdge,
   type WorkflowNode,
   type WorkflowSettings,
 } from '../../shared/types.ts'
-import { inputSpot, memorySpot, resourceSpot } from './layout.ts'
+import { inputSpot, memorySpot, resourceSpot, triggerSpot } from './layout.ts'
 
 /** 选中态：步骤、连线，或什么都不选。用一个联合表达，互斥是结构上保证的。 */
 export type Selection = { kind: 'node'; id: string } | { kind: 'edge'; id: string } | null
@@ -153,6 +158,10 @@ export type Edit =
    * 加完选中它（好接着写问题）。
    */
   | { type: 'addInput'; id: string; data: InputData; position?: Point; reader?: string }
+  /** 加一张触发卡片（不连线）；没给坐标就放在图的左上方。加完选中它（好接着设什么时候触发）。 */
+  | { type: 'addTrigger'; id: string; data: TriggerData; position?: Point }
+  /** 改触发卡片（值为 `undefined` 的键 = 清掉这一项）。`merge` 同 `patchNode`。 */
+  | { type: 'patchTrigger'; id: string; patch: Partial<TriggerData>; merge?: string }
   /**
    * 开、关一个步骤的记忆（见 `shared/presets.ts`）。开：引用记忆库里的 `memory`（选好的或刚建的），卡挂在步骤下方，
    * 连一条「更新」线；关：去掉写记忆的线，不剩线的记忆卡一并删掉（库里那条不动）。
@@ -458,6 +467,36 @@ function applyEdit(doc: WorkflowDocument, selection: Selection, edit: Edit): App
       }
     }
 
+    case 'addTrigger': {
+      const id = uniqueNodeId(doc, edit.id)
+      const node: TriggerNode = {
+        id,
+        type: TRIGGER_TYPE,
+        position: at(edit.position ?? triggerSpot(doc)),
+        data: canonicalTrigger(edit.data),
+      }
+      return { doc: { ...doc, nodes: [...doc.nodes, node] }, selection: { kind: 'node', id } }
+    }
+
+    case 'patchTrigger': {
+      const node = findNode(doc, edit.id)
+      if (node === undefined || !isTrigger(node)) return null
+      const merged: Record<string, unknown> = { ...node.data, ...edit.patch }
+      for (const [key, value] of Object.entries(edit.patch)) {
+        if (value === undefined) delete merged[key]
+      }
+      // 不在这里规范化：正在打的名称、说明里的空格要留着；写盘时（canonical writer）再取形。
+      const data = merged as unknown as TriggerData
+      if (JSON.stringify(data) === JSON.stringify(node.data)) return null
+      return {
+        doc: {
+          ...doc,
+          nodes: doc.nodes.map((candidate) => (candidate === node ? { ...node, data } : candidate)),
+        },
+        selection,
+      }
+    }
+
     case 'setStepMemory': {
       if (!edit.on) {
         const next = removeStepMemory(doc, edit.step)
@@ -511,7 +550,9 @@ function applyEdit(doc: WorkflowDocument, selection: Selection, edit: Edit): App
           ? { ...node, id, position: at(node.position), data: cloneInputData(node.data) }
           : isResource(node)
             ? { ...node, id, position: at(node.position), data: cloneResourceData(node.data) }
-            : newNode(id, node.data, node.position)
+            : isTrigger(node)
+              ? { ...node, id, position: at(node.position), data: cloneTriggerData(node.data) }
+              : newNode(id, node.data, node.position)
         next = { ...next, nodes: [...next.nodes, added] }
       }
       const edges = [...next.edges]
@@ -606,7 +647,8 @@ function applyEdit(doc: WorkflowDocument, selection: Selection, edit: Edit): App
       const source = findNode(doc, edit.source)
       const target = findNode(doc, edit.target)
       if (source === undefined || target === undefined) return null
-      // 资源不能直接连资源、不能连进输入、输入只连步骤；连着资源或输入的线没有条件。
+      // 触发卡片不连线；资源不能直接连资源、不能连进输入、输入只连步骤；连着资源或输入的线没有条件。
+      if (isTrigger(source) || isTrigger(target)) return null
       if (isResource(source) && isResource(target)) return null
       if (isInput(target) || (isInput(source) && !isStep(target))) return null
       const toResource = isResource(target)
@@ -705,6 +747,8 @@ function isEdit(action: Action): action is Edit {
     case 'patchResource':
     case 'addInput':
     case 'patchInput':
+    case 'addTrigger':
+    case 'patchTrigger':
     case 'setUpdate':
     case 'addGraph':
     case 'removeNode':
@@ -742,6 +786,7 @@ function historyAfter(
     edit.type === 'patchNode' ||
     edit.type === 'patchResource' ||
     edit.type === 'patchInput' ||
+    edit.type === 'patchTrigger' ||
     edit.type === 'setWhen' ||
     edit.type === 'setHandoff'
       ? (edit.merge ?? null)

@@ -3,7 +3,7 @@
  * @module @xiaoso/dsh-workflow-lite/host/tool/nodeTemplate
  */
 
-import { canonicalOutput, idKey, isInput, isResource } from '../../shared/model.ts'
+import { canonicalOutput, idKey, isInput, isResource, isStep } from '../../shared/model.ts'
 import { checkName } from '../../shared/naming.ts'
 import { outputsOf } from '../../shared/resources.ts'
 import type { ChangedEntry } from '../../shared/types.ts'
@@ -33,12 +33,13 @@ export async function saveNodeAsTemplate(
       error: { code: 'not_found', message: `图 ${workflow} 里没有节点 ${nodeId}` },
     }
   }
-  if (isResource(node) || isInput(node)) {
+  if (!isStep(node)) {
+    const kind = isResource(node) ? '资源节点' : isInput(node) ? '输入节点' : '触发卡片'
     return {
       ok: false,
       error: {
         code: 'invalid_args',
-        message: `${node.id} 是${isResource(node) ? '资源' : '输入'}节点，只有步骤能存成节点模板`,
+        message: `${node.id} 是${kind}，只有步骤能存成节点模板`,
       },
     }
   }

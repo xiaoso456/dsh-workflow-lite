@@ -107,6 +107,11 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* 由触发卡片发起的：一个闪电加卡片名字，强调色。 */
+.origin {
+  color: var(--wl-accent-text);
+}
+
 /* 进度：一行数字 + 一根细条，颜色跟着总状态（--wl-run 见 chrome/runStatus.module.css）。 */
 .progress {
   display: flex;

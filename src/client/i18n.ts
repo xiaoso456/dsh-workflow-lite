@@ -30,6 +30,7 @@ import * as run from './i18n/run.ts'
 import * as runState from './i18n/runState.ts'
 import * as settings from './i18n/settings.ts'
 import * as shell from './i18n/shell.ts'
+import * as trigger from './i18n/trigger.ts'
 
 export const NS = 'workflow-lite' as const
 
@@ -52,6 +53,7 @@ export const zh = {
   ...plan.zh,
   ...memory.zh,
   ...inputs.zh,
+  ...trigger.zh,
 } as const
 
 export type LocaleKey = keyof typeof zh
@@ -87,4 +89,5 @@ export const en: Record<LocaleKey, string> = {
   ...plan.en,
   ...memory.en,
   ...inputs.en,
+  ...trigger.en,
 }
