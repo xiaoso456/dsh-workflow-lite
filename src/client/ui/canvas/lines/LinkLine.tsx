@@ -1,5 +1,5 @@
 /**
- * dsh-workflow-lite — 步骤之间的流程线：贝塞尔 / 绕行折线，线上的条件牌子与交接标记。
+ * dsh-workflow-lite — 步骤之间的流程线：贝塞尔（同一对卡片之间的几条上下拱开）/ 绕行折线，线上的条件牌子与交接标记。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/canvas/lines/LinkLine
  */
@@ -30,7 +30,7 @@ export const LinkLine = memo(function LinkLine(props: EdgeProps<LinkEdge>): Reac
   const [path, pathLabelX, labelY] = backwards
     ? detour(sourceX, sourceY, targetX, targetY, lane ?? laneStart(sourceY, targetY), shift)
     : lane === null
-      ? flowPath(sourceX, sourceY, targetX, targetY)
+      ? flowPath(sourceX, sourceY, targetX, targetY, data?.bow ?? 0)
       : bypass(sourceX, sourceY, targetX, targetY, lane, shift)
   const labelX = backwards || lane !== null ? (data?.labelX ?? pathLabelX) : pathLabelX
   const text = data?.text ?? ''

@@ -160,15 +160,67 @@ export function writePoints(
  * 往右走的流程线：一条三次贝塞尔。出口那头的控制柄拉得比入口那头长——线先横着走出一截、
  * 走到两列之间的空当里再拐下去（上来），不会斜着擦过出口下面挂着的那串文件卡（它们比步骤卡
  * 往右多伸出一截）。
+ *
+ * 同一对卡片之间不止一条时各自拱开 `bow`（见 {@link fanBows}）：像一片叶子的两条边，从同一个点横着出去，
+ * 一道连续的弧拱到正中最高（牌子挂在那儿），再弧回来、横着进同一个入口——出入口的方向和别的流程线一样，中间没有平段。
+ * @param bow - 正中比两头连线的中点往下（负数往上）拱出去多少；0 就是原来那条贝塞尔。
  * @returns `[路径, 标签 x, 标签 y]`（曲线正中）。
  */
-export function flowPath(sx: number, sy: number, tx: number, ty: number): [string, number, number] {
-  const [c1x, c2x] = flowControls(sx, tx)
+export function flowPath(
+  sx: number,
+  sy: number,
+  tx: number,
+  ty: number,
+  bow = 0,
+): [string, number, number] {
+  if (bow === 0) {
+    const [c1x, c2x] = flowControls(sx, tx)
+    return [
+      `M ${sx} ${sy} C ${c1x} ${sy} ${c2x} ${ty} ${tx} ${ty}`,
+      (sx + 3 * c1x + 3 * c2x + tx) / 8,
+      (sy + ty) / 2,
+    ]
+  }
+  // 两段贝塞尔在正中相接，四个控制柄都是横的、一样长：两头横着出入，正中的切线也是横的，接得上。
+  const mx = (sx + tx) / 2
+  const y = (sy + ty) / 2 + bow
+  const reach = Math.max(0, tx - sx) * BOW_REACH
   return [
-    `M ${sx} ${sy} C ${c1x} ${sy} ${c2x} ${ty} ${tx} ${ty}`,
-    (sx + 3 * c1x + 3 * c2x + tx) / 8,
-    (sy + ty) / 2,
+    `M ${sx} ${sy} C ${sx + reach} ${sy} ${mx - reach} ${y} ${mx} ${y}` +
+      ` C ${mx + reach} ${y} ${tx - reach} ${ty} ${tx} ${ty}`,
+    mx,
+    y,
   ]
+}
+
+/** 拱开的线每个控制柄伸多长（占两张卡间距的几成）：再长正中就成了平段，再短两头拐得急。 */
+const BOW_REACH = 0.3
+
+/** 牌子一行多高（条件牌子、交接标记各一行，竖着叠）、行与行之间隔多少、相邻两条线的牌子之间留多少。 */
+const CHIP_ROW = 22
+const CHIP_ROW_GAP = 3
+const CHIP_CLEAR = 4
+/** 什么都不挂的线之间也拱开这么多。 */
+const BOW_MIN = 14
+
+/**
+ * 同一对卡片之间的几条直连流程线（比如「通过」和另一个条件都去同一步）各往上下拱多少：不分开就叠成一根，牌子也压在一起。
+ * 按给的次序从上到下排，整束以原来那条曲线为中心；相邻两条隔的距离够放下它们挂的牌子。只有一条时不拱。
+ * @param rows - 每条线上挂了几行牌子（0–2）。
+ */
+export function fanBows(rows: readonly number[]): number[] {
+  const tall = (count: number): number =>
+    count === 0 ? 0 : count * CHIP_ROW + (count - 1) * CHIP_ROW_GAP
+  const at: number[] = []
+  let y = 0
+  rows.forEach((count, index) => {
+    const before = rows[index - 1]
+    if (before !== undefined) {
+      y += Math.max(BOW_MIN, (tall(before) + tall(count)) / 2 + CHIP_CLEAR)
+    }
+    at.push(y)
+  })
+  return at.map((value) => value - y / 2)
 }
 
 const NONE: readonly Rect[] = []

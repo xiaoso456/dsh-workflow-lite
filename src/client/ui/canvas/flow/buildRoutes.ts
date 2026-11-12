@@ -1,5 +1,6 @@
 /**
- * dsh-workflow-lite — 画布上读写线的走法：每条线挂在哪两个连接点上、绕不绕行、并排的线怎么分道、牌子怎么错开。
+ * dsh-workflow-lite — 画布上各条线的走法：每条线挂在哪两个连接点上、绕不绕行、并排的线怎么分道、牌子怎么错开，
+ * 同一对卡片之间的几条直连流程线怎么拱开。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/canvas/flow/buildRoutes
  */
@@ -9,7 +10,7 @@ import { edgeKind, nodeIndex } from '../../../../shared/resources.ts'
 import type { Point, WorkflowDocument, WorkflowNode } from '../../../../shared/types.ts'
 import { cardRect, type SizeTable } from '../../../model/canvasGeometry.ts'
 import { type Chip, nudge, placeChips, type Track } from '../../../model/nudge.ts'
-import type { Rect } from '../../../model/route.ts'
+import { fanBows, type Rect } from '../../../model/route.ts'
 import { type Corridor, type EdgeRoute, routeEdge } from '../lines/route.ts'
 import type { LaneShift } from '../types.ts'
 
@@ -48,6 +49,8 @@ export function buildRoutes({ doc, dragging, sized, sizes, routeBase }: RoutesIn
   /** 直角走的线（走廊线、绕行折线、写线的树干）：挑完路之后统一分道，不同颜色的不叠在一条道上。 */
   const tracks: Track[] = []
   const corridors = new Map<string, Corridor>()
+  /** 直连的流程线按两头的那对卡片归拢：一对之间不止一条的要拱开。 */
+  const bundles = new Map<string, { id: string; rows: number }[]>()
   // 拖卡片时只给碰到的线重新挑路：两头有被拖的卡、或被拖的卡压到了它松手前的走法。
   // 其余的线沿用松手前那一份（被拖的卡离开后它们可能有更短的走法，松手时整张图重挑一次）。
   const movedIds = new Set(Object.keys(dragging).map(idKey))
@@ -73,6 +76,12 @@ export function buildRoutes({ doc, dragging, sized, sizes, routeBase }: RoutesIn
     if (route.corridor !== undefined) corridors.set(edge.id, route.corridor)
     if (route.bend !== undefined) bends.set(edge.id, route.bend)
     if (route.track !== undefined) tracks.push(route.track)
+    if (route.direct !== undefined) {
+      const bundle = bundles.get(route.direct.pair)
+      if (bundle === undefined)
+        bundles.set(route.direct.pair, [{ id: edge.id, rows: route.direct.rows }])
+      else bundle.push({ id: edge.id, rows: route.direct.rows })
+    }
     if (route.handles !== undefined) handles.set(edge.id, route.handles)
     for (const [nodeId, handle] of route.marks ?? []) {
       const list = used.get(idKey(nodeId)) ?? []
@@ -111,7 +120,15 @@ export function buildRoutes({ doc, dragging, sized, sizes, routeBase }: RoutesIn
     })
   }
   const labels = placeChips(chips)
-  return { handles, used, lanes, bends, shifts, labels }
+  const bows = new Map<string, number>()
+  for (const bundle of bundles.values()) {
+    if (bundle.length < 2) continue
+    const offsets = fanBows(bundle.map((line) => line.rows))
+    bundle.forEach((line, at) => {
+      bows.set(line.id, offsets[at] as number)
+    })
+  }
+  return { handles, used, lanes, bends, shifts, labels, bows }
 }
 
 export type CanvasRoutes = ReturnType<typeof buildRoutes>

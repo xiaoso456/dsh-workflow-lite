@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 import {
   bezierBlocked,
   FILE_SPOTS,
+  fanBows,
   fileLinkEnds,
   flowBlocked,
   flowPath,
@@ -100,6 +101,37 @@ describe('写线的折点', () => {
 })
 
 describe('步骤之间的线', () => {
+  it('同一对卡片之间的几条线上下拱开：两头不动，正中隔开够放牌子，整束以原来那条为中心', () => {
+    expect(fanBows([1])).toEqual([0])
+    const [up, down] = fanBows([1, 1]) as [number, number]
+    expect(up).toBe(-down)
+    // 一行牌子 22 高，两条的牌子之间还留着缝。
+    expect(down - up).toBeGreaterThan(22)
+    // 带交接标记的（两行）隔得更开；什么都不挂的也分得出是两条。
+    const tall = fanBows([2, 2]) as [number, number]
+    expect(tall[1] - tall[0]).toBeGreaterThan(47)
+    const bare = fanBows([0, 0, 0]) as [number, number, number]
+    expect(bare[1]).toBe(0)
+    expect(bare[2] - bare[1]).toBeGreaterThanOrEqual(10)
+
+    const [flat, , flatY] = flowPath(0, 0, 200, 40)
+    const [bowed, , bowedY] = flowPath(0, 0, 200, 40, down)
+    const ends = (d: string): number[] => {
+      const n = d.match(/-?[\d.]+/gu)?.map(Number) ?? []
+      return [...n.slice(0, 2), ...n.slice(-2)]
+    }
+    expect(ends(bowed)).toEqual(ends(flat))
+    // 两段弧在正中相接，牌子挂在那儿；两头的控制柄和端点齐平（横着出、横着进），正中两边的控制柄也齐平（接得顺）。
+    expect(bowedY - flatY).toBeCloseTo(down)
+    const n = bowed.match(/-?[\d.]+/gu)?.map(Number) ?? []
+    expect(n).toHaveLength(14)
+    expect(n[3]).toBe(0)
+    expect(n[11]).toBe(40)
+    expect([n[6], n[7]]).toEqual([100, bowedY])
+    expect(n[5]).toBe(bowedY)
+    expect(n[9]).toBe(bowedY)
+  })
+
   it('往右走的流程线先横着走出一截再拐：出口下面那串文件卡（右沿多伸出 48px）擦不到', () => {
     // 步骤 216 宽、文件卡右沿在 x=264，下一列在 x=328；落差再大，过了步骤卡下沿之后曲线都在 264 右边。
     const [path] = flowPath(216, 48, 328, 948)

@@ -145,6 +145,8 @@ export interface LinkData extends Record<string, unknown> {
   shift: LaneShift | null
   /** 走廊线上牌子中心的 x（和并排的线错开过，见 model/nudge.ts 的 `placeChips`）。 */
   labelX: number | null
+  /** 直连的线正中往下拱多少（同一对卡片之间不止一条时拱开，见 model/route.ts 的 `fanBows`）；只有一条是 0。 */
+  bow: number
   t: T
   onPick: (id: string) => void
   /** 线上交接卡片里就地改说明。 */

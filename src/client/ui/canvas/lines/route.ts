@@ -164,6 +164,13 @@ function chipWidth(edge: WorkflowEdge, back: boolean): number | null {
   return Math.max(mark, 18 + Math.min(120, text) + (back ? 14 : 0))
 }
 
+/** 一条流程线上竖着叠了几行牌子（条件、交接标记各一行）：同一对卡片之间的几条线按它拱开。 */
+function chipRows(edge: WorkflowEdge): number {
+  const handoff = resolveHandoff(edge.data?.handoff)
+  const mark = !handoff.result || handoff.note !== undefined
+  return (edgeWhen(edge) === undefined ? 0 : 1) + (mark ? 1 : 0)
+}
+
 /** 往回走的线从哪儿开始找走廊：两张卡上下错开时从两行中间找，挨在同一行时从两张卡下方找。 */
 export function laneStart(sy: number, ty: number): number {
   return Math.abs(ty - sy) > NODE_H + 40 ? (sy + ty) / 2 : Math.max(sy, ty) + NODE_H / 2 + 18
@@ -186,6 +193,8 @@ export interface EdgeRoute {
   bend?: [number, number][]
   /** 参与分道的直角线。 */
   track?: Track
+  /** 直连的贝塞尔流程线：两头是哪一对卡片（同一对的几条要拱开）、线上挂了几行牌子。 */
+  direct?: { pair: string; rows: number }
   /** 读写线挂在哪两个连接点上，以及两张卡上各占了哪个点。 */
   handles?: { source: string; target: string }
   marks?: [string, string][]
@@ -219,7 +228,13 @@ export function routeEdge(
       lane = freeLane(boxes, to.x - ROUTE_PAD, sx + LOOP_REACH, laneStart(sy, ty))
     }
     if (lane === undefined) {
-      return { hitBy: (moved) => flowBlocked(moved, sx, sy, to.x, ty) }
+      return {
+        direct: {
+          pair: JSON.stringify([idKey(edge.source), idKey(edge.target)]),
+          rows: chipRows(edge),
+        },
+        hitBy: (moved) => flowBlocked(moved, sx, sy, to.x, ty),
+      }
     }
     const right = sx + LOOP_REACH
     const left = to.x - ROUTE_PAD

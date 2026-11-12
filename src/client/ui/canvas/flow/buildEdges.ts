@@ -193,6 +193,7 @@ export function buildEdges({
         lane: routes.lanes.get(edge.id) ?? null,
         shift: routes.shifts.get(edge.id) ?? null,
         labelX: routes.labels.get(edge.id) ?? null,
+        bow: routes.bows.get(edge.id) ?? 0,
         t,
         onPick,
         acts,
