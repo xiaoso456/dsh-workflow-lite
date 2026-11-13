@@ -21,6 +21,7 @@ import type {
 import type { T } from '../../i18n.ts'
 import type { Display } from '../../model/display.ts'
 import type { FocusFile } from '../../model/editor.ts'
+import type { TriggerGlance } from '../../model/triggerGlance.ts'
 import type { WhenKind } from '../../model/whenKind.ts'
 import type { Access } from '../kit/lineColors.ts'
 
@@ -198,14 +199,12 @@ export interface InputCardData extends Record<string, unknown> {
   dim: boolean
 }
 
-/** 触发卡片：名字 + 定时规则的一句话（状态和开关卡片自己从现场读，见 `trigger/triggerEnv.ts`）。 */
+/** 触发卡片：名字 + 速览（状态、开关和本机现场卡片自己从现场读，见 `trigger/triggerEnv.ts`）。 */
 export interface TriggerCardData extends Record<string, unknown> {
   title: string
-  /** 触发源的一句话。 */
-  rule: string
+  /** 中间那一行按触发源画什么（图里写着的部分）。 */
+  glance: TriggerGlance
   kind: TriggerSourceKind
-  /** 要在本机跑的命令（轮询、监听）；打开前要确认的就是它。 */
-  command?: string
   tone: Tone
   note: string
   /** 悬停某个资源时它跟着淡下去。 */

@@ -72,41 +72,7 @@
   white-space: nowrap;
 }
 
-/* 关着是空心的灰圈，其余按状态上色。 */
-.dot {
-  flex: none;
-  box-sizing: border-box;
-  width: 7px;
-  height: 7px;
-  border: 1.5px solid var(--wl-text-3);
-  border-radius: 50%;
-}
-
-[data-state="waiting"] > .dot,
-[data-state="listening"] > .dot {
-  border-color: var(--wl-ok-dot);
-  background: var(--wl-ok-dot);
-}
-
-[data-state="elsewhere"] > .dot {
-  border-color: var(--wl-accent);
-  background: var(--wl-accent);
-}
-
-[data-state="invalid"] > .dot,
-[data-state="error"] > .dot,
-[data-state="stopped"] > .dot {
-  border-color: var(--wl-danger);
-  background: var(--wl-danger);
-}
-
-[data-state="unavailable"] > .dot,
-[data-state="restarting"] > .dot,
-[data-state="confirm"] > .dot,
-[data-state="paused"] > .dot {
-  border-color: var(--wl-warn-dot);
-  background: var(--wl-warn-dot);
-}
+/* 状态前的圆点在 trigger/stateTone.module.css（和画布卡片的状态小标同一套颜色）。 */
 
 .state[data-state="invalid"],
 .state[data-state="error"],

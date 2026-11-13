@@ -216,10 +216,17 @@ try {
   check('画布上有触发卡片', await session.evaluate(`document.querySelector('${CARD}') !== null`))
   const cardText = await session.evaluate(textOf(CARD))
   check(
-    '卡片写着名字、规则、状态',
-    /夜巡/.test(cardText) && /工作日 02:30/.test(cardText) && /已停用/.test(cardText),
+    '卡片写着名字、几点、主动、状态',
+    /夜巡/.test(cardText) &&
+      /02:30/.test(cardText) &&
+      /主动/.test(cardText) &&
+      /已停用/.test(cardText),
     cardText,
   )
+  const lit = await session.evaluate(
+    `[...document.querySelectorAll('${CARD} [data-testid="wl-trigger-glance"] i[data-on="true"]')].map((day) => day.textContent).join('')`,
+  )
+  check('速览：一周七格里亮着周一到周五', lit === '一二三四五', lit)
   const handles = await session.evaluate(
     `document.querySelectorAll('${CARD} .react-flow__handle').length`,
   )
@@ -234,8 +241,26 @@ try {
   await capture(session, 'card-off-dark.png', await session.evaluate(boxOf(CARD)), 2)
   await session.evaluate(scheme('light'))
 
-  // 没选工作区就开：开不了，提示原因，并打开面板。
-  await mouseClick(session, await centerOf(session, `${CARD} [role="switch"]`))
+  check(
+    '卡片上没有开关',
+    await session.evaluate(`document.querySelector('${CARD} [role="switch"]') === null`),
+  )
+  check(
+    '状态小标在标题右边',
+    await session.evaluate(`(() => {
+      const title = document.querySelector('${CARD} [class*="cardTitle"]').getBoundingClientRect();
+      const pill = document.querySelector('${CARD} [data-testid="wl-trigger-state"]').getBoundingClientRect();
+      return pill.left >= title.right && Math.abs((pill.top + pill.bottom) / 2 - (title.top + title.bottom) / 2) < 3;
+    })()`),
+  )
+  // 没选工作区就开（面板里的开关）：开不了，提示原因，把「工作区」带到眼前。
+  await mouseClick(session, await centerOf(session, `${CARD} [data-testid="wl-trigger"]`))
+  await waitFor(
+    session,
+    `((el) => (el?.value ?? el?.textContent))(document.querySelector('[data-testid="wl-trigger-name"]')) === '夜巡' && document.querySelector('[data-testid="wl-trigger-enable"]') !== null`,
+  )
+  await sleep(500)
+  await session.evaluate(clickTestId('wl-trigger-enable'))
   await sleep(1500)
   const toast = await session.evaluate(textOf('[role="status"]'))
   const afterRefuse = await rpc('trigger/list', { workflow: NAME })
@@ -278,7 +303,7 @@ try {
   await sleep(5500)
 
   // 再开：等待中，卡片上写下一次。
-  await mouseClick(session, await centerOf(session, `${CARD} [role="switch"]`))
+  await session.evaluate(clickTestId('wl-trigger-enable'))
   await sleep(1500)
   const on = await rpc('trigger/list', { workflow: NAME })
   check('这个进程在负责触发', on.owner?.mine === true, JSON.stringify(on.owner))
@@ -457,21 +482,27 @@ try {
   await sleep(1200)
   const tailText = await session.evaluate(textOf(TAIL))
   check(
-    '监听卡片写着「监听程序」',
-    /日志报错/.test(tailText) && /监听程序/.test(tailText),
+    '监听卡片写着要跑的命令，是被动的',
+    /日志报错/.test(tailText) && tailText.includes('emit.mjs') && /被动/.test(tailText),
     tailText,
   )
 
-  // 画布上点开关：命令还没确认，就在这个开关旁边浮出确认卡，列出命令和工作区。
-  const tailSwitch = await centerOf(session, `${TAIL} [role="switch"]`)
+  // 面板里点开关：命令还没确认，就在这个开关旁边浮出确认卡，列出命令和工作区。
+  await mouseClick(session, await centerOf(session, `${TAIL} [data-testid="wl-trigger"]`))
+  await waitFor(
+    session,
+    `((el) => (el?.value ?? el?.textContent))(document.querySelector('[data-testid="wl-trigger-name"]')) === '日志报错' && document.querySelector('[data-testid="wl-trigger-enable"]') !== null`,
+  )
+  await sleep(500)
+  const tailSwitch = await centerOf(session, '[data-testid="wl-trigger-enable"]')
   await mouseClick(session, tailSwitch)
   await waitFor(
     session,
-    `document.querySelector('[data-testid="wl-trigger-card-approve-pop"]') !== null`,
+    `document.querySelector('[data-testid="wl-trigger-approve-pop"]') !== null`,
   )
   await sleep(400)
   const popBox = await session.evaluate(`(() => {
-    const r = document.querySelector('[data-testid="wl-trigger-card-approve-pop"]').getBoundingClientRect();
+    const r = document.querySelector('[data-testid="wl-trigger-approve-pop"]').getBoundingClientRect();
     return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
   })()`)
   const gapX = Math.max(0, popBox.left - tailSwitch.x, tailSwitch.x - popBox.right)
@@ -484,12 +515,12 @@ try {
   check(
     '确认卡打开时焦点在「取消」上',
     await session.evaluate(
-      `document.activeElement === document.querySelector('[data-testid="wl-trigger-card-approve-pop"] [data-confirm="cancel"]')`,
+      `document.activeElement === document.querySelector('[data-testid="wl-trigger-approve-pop"] [data-confirm="cancel"]')`,
     ),
   )
   const shown = await session.evaluate(textOf('[data-testid="wl-trigger-approve-command"]'))
   check('确认卡列出要运行的命令', shown === COMMAND, shown)
-  const pop = await session.evaluate(textOf('[data-testid="wl-trigger-card-approve-pop"]'))
+  const pop = await session.evaluate(textOf('[data-testid="wl-trigger-approve-pop"]'))
   check(
     '确认卡写着工作区',
     pop.includes(WORKSPACE.replace(/\\/gu, '/')) || pop.includes(WORKSPACE),
@@ -501,13 +532,11 @@ try {
   )
   await capture(session, 'listen-confirm-light.png')
 
-  // 取消之后，选中这张卡片、换走再选回来：确认卡不会自己再弹出来。
+  // 取消之后，换选别的卡片再选回来：确认卡不会自己再弹出来。
   await session.evaluate(
-    `document.querySelector('[data-testid="wl-trigger-card-approve-pop"] [data-confirm="cancel"]').click()`,
+    `document.querySelector('[data-testid="wl-trigger-approve-pop"] [data-confirm="cancel"]').click()`,
   )
   await sleep(400)
-  await mouseClick(session, await centerOf(session, `${TAIL} [data-testid="wl-trigger"]`))
-  await sleep(600)
   await mouseClick(session, await centerOf(session, `${HOOK} [data-testid="wl-trigger"]`))
   await sleep(600)
   await mouseClick(session, await centerOf(session, `${TAIL} [data-testid="wl-trigger"]`))
@@ -516,7 +545,6 @@ try {
     '取消后再选中卡片，确认卡不再自己弹出',
     await session.evaluate(`document.querySelector('[data-testid$="approve-pop"]') === null`),
   )
-  // 面板里的开关同样在它旁边问。
   await session.evaluate(clickTestId('wl-trigger-enable'))
   await waitFor(
     session,
@@ -545,6 +573,7 @@ try {
   await sleep(5500)
   const tailOn = await session.evaluate(textOf(TAIL))
   check('卡片写着接收中', /接收中/.test(tailOn), tailOn)
+  check('卡片速览换成程序最近打出的一行', /ERROR pay timeout/.test(tailOn), tailOn)
   await session.evaluate(clickTestId('wl-trigger-output-toggle'))
   await sleep(1500)
   const output = await session.evaluate(textOf('[data-testid="wl-trigger-output-text"]'))
@@ -574,7 +603,13 @@ try {
   await rpc('trigger/set', { workflow: NAME2, node: 'tail', enabled: false })
 
   // HTTP：开关直接打开（没有命令），给地址和令牌；地址用设置里的端口。
-  await mouseClick(session, await centerOf(session, `${HOOK} [role="switch"]`))
+  await mouseClick(session, await centerOf(session, `${HOOK} [data-testid="wl-trigger"]`))
+  await waitFor(
+    session,
+    `((el) => (el?.value ?? el?.textContent))(document.querySelector('[data-testid="wl-trigger-name"]')) === 'CI 通知' && document.querySelector('[data-testid="wl-trigger-enable"]') !== null`,
+  )
+  await sleep(500)
+  await session.evaluate(clickTestId('wl-trigger-enable'))
   const hook = await waitTrigger(NAME2, 'hook', (view) => view.state === 'listening')
   const url = hook?.endpoint?.url ?? ''
   check(
@@ -617,7 +652,11 @@ try {
   )
   check('换成条件轮询后出现命令框', commandBox)
   const hookText = await session.evaluate(textOf(HOOK))
-  check('卡片写着每 5 分钟检查', /每 5 分钟检查/.test(hookText), hookText)
+  check(
+    '卡片写着每 5 分钟、命令成功时，是主动的',
+    /每 5 分钟/.test(hookText) && /命令成功时/.test(hookText) && /主动/.test(hookText),
+    hookText,
+  )
   await capture(session, 'poll-panel-light.png')
 
   // ── 接续触发：hook 换成「等夜间巡检跑完」────────────────────
@@ -647,7 +686,11 @@ try {
   await session.evaluate(clickTestId('wl-trigger-after-when-any'))
   await sleep(600)
   const afterCard = await session.evaluate(textOf(HOOK))
-  check('卡片写着「夜间巡检」跑完后', afterCard.includes(`「${NAME}」跑完后`), afterCard)
+  check(
+    '卡片写着等「夜间巡检」、不论结果，是被动的',
+    afterCard.includes(NAME) && afterCard.includes('不论结果') && afterCard.includes('被动'),
+    afterCard,
+  )
   const filterGone = await session.evaluate(
     `document.querySelector('[data-testid="wl-trigger-filter"]') === null`,
   )
@@ -799,9 +842,14 @@ try {
     `document.querySelector('[data-testid="wl-trigger-name"]')?.value === '夜巡' || document.querySelector('[data-testid="wl-trigger-name"]')?.textContent === '夜巡'`,
     20_000,
   )
-  const selectedCard = await session.evaluate(
+  // 面板换过来之后画布还要一拍才把那张卡片标成选中。
+  const selectedCard = await waitFor(
+    session,
     `document.querySelector('${CARD}')?.classList.contains('selected') === true`,
+    { timeoutMs: 5_000 },
   )
+    .then(() => true)
+    .catch(() => false)
   check('在画布上打开：换到那个工作流并选中这张卡片', selectedCard)
   await rpc('trigger/set', { workflow: NAME2, node: 'hook', enabled: false }).catch(() => {})
   await rpc('trigger/pause', { paused: false }).catch(() => {})

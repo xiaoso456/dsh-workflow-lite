@@ -9,14 +9,14 @@ A trigger card runs a workflow on a schedule: when the time comes, the plugin se
 
 Besides schedules, a trigger card can [poll a command](/dsh-workflow-lite/en/trigger/poll/), run a [listener](/dsh-workflow-lite/en/trigger/listen/), receive [HTTP requests](/dsh-workflow-lite/en/trigger/http/), or run [after another workflow](/dsh-workflow-lite/en/trigger/after/) finishes. Session modes, safeguards, status and origin are shared by all of them and described on this page.
 
-![A trigger card on the canvas: name, rule, status and switch](../../../../assets/shots/en/trigger-card.webp)
+![A schedule trigger card on the canvas: icon, name and status, the chosen weekdays and time in the middle, Active and the next trigger time at the bottom](../../../../assets/shots/en/trigger-card.webp)
 
 ## Use
 
 1. Drag **Trigger** from **Basics** in the step library, or right-click an empty spot on the canvas to add one. A trigger card takes no lines; it triggers the whole workflow.
 2. Under **When** in the right panel, choose **Schedule** and a rule.
 3. Choose the session mode and workspace under **How to run**.
-4. Turn on the switch on the card. The card shows **Waiting** and the next trigger time.
+4. Turn on the switch at the top of the panel. The card shows **Waiting** next to its name and the next trigger time at the bottom.
 
 To see it work right away, click **Trigger once now** in the panel, optionally add background info for that run in the small card that opens, and click **Trigger**.
 
@@ -36,6 +36,8 @@ To see it work right away, click **Trigger once now** in the panel, optionally a
 | Stop after failures in a row | 1 or more | 3 | See **Status** below. |
 
 ## Status
+
+**Active** at the bottom of a card means the plugin starts it on its own timer (schedule, poll); **Passive** means it waits for something outside to happen (listener, HTTP, after another workflow).
 
 | Status | Meaning |
 |---|---|

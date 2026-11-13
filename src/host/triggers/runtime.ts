@@ -99,6 +99,17 @@ function signatureOf(spec: LiveSpec): string {
   return JSON.stringify(rest)
 }
 
+/** 卡片上显示的那一行最多几个字。 */
+const LINE_MAX_CHARS = 200
+
+/** 一行输出在卡片上怎么显示：去掉终端颜色和首尾空白，太长截短。 */
+export function lastLineText(line: string): string {
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: 要去掉的正是终端颜色的转义序列
+  const plain = line.replace(/\u001b\[[0-9;?]*[A-Za-z]/gu, '').trim()
+  const chars = [...plain]
+  return chars.length > LINE_MAX_CHARS ? `${chars.slice(0, LINE_MAX_CHARS).join('')}…` : plain
+}
+
 function clock(at: number): string {
   const date = new Date(at)
   const pad = (n: number): string => String(n).padStart(2, '0')
@@ -112,6 +123,8 @@ export class TriggerRuntime implements LiveRuntime {
     { workflow: string; node: string; status: LiveStatus }
   >()
   private readonly outputs = new Map<string, { workflow: string; node: string; text: string }>()
+  /** 监听程序最近打出的一行：写 live.json 时并进它的运行情况（重启时不丢）。 */
+  private readonly lines = new Map<string, { at: number; text: string }>()
   private readonly dirtyOutputs = new Set<string>()
   private readonly hooks: HookServer
   private readonly now: () => number
@@ -167,6 +180,7 @@ export class TriggerRuntime implements LiveRuntime {
   private async stopOne(key: string, running: Running): Promise<void> {
     this.running.delete(key)
     this.statuses.delete(key)
+    this.lines.delete(key)
     this.markLive()
     running.intake.dispose()
     await running.stop()
@@ -203,7 +217,10 @@ export class TriggerRuntime implements LiveRuntime {
       return { signature, intake, stop: async () => poller.stop() }
     }
     const listener = new Listener(command, {
-      line: (line) => intake.push(line),
+      line: (line) => {
+        intake.push(line)
+        this.noteLine(key, line)
+      },
       output: (text) => this.appendOutput(key, spec, text),
       running: ({ since, restarts }) => {
         this.appendOutput(key, spec, `[${clock(since)}] 启动监听程序\n`)
@@ -246,6 +263,13 @@ export class TriggerRuntime implements LiveRuntime {
     this.markLive()
   }
 
+  private noteLine(key: string, line: string): void {
+    const text = lastLineText(line)
+    if (text === '') return
+    this.lines.set(key, { at: this.now(), text })
+    this.markLive()
+  }
+
   private appendOutput(key: string, spec: LiveSpec, text: string): void {
     if (text === '') return
     const previous = this.outputs.get(key)?.text ?? ''
@@ -277,9 +301,10 @@ export class TriggerRuntime implements LiveRuntime {
     if (this.liveDirty) {
       this.liveDirty = false
       const sources: LiveFile['sources'] = {}
-      for (const { workflow, node, status } of this.statuses.values()) {
+      for (const [key, { workflow, node, status }] of this.statuses) {
         const group = sources[workflow] ?? {}
-        group[node] = status
+        const line = this.lines.get(key)
+        group[node] = line === undefined ? status : { ...status, line }
         sources[workflow] = group
       }
       await store.writeLive({

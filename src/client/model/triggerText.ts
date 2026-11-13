@@ -241,3 +241,84 @@ export function stateText(
   const detail = stateDetail(t, view, kind, now, options.next !== false)
   return detail === '' ? label : `${label} · ${detail}`
 }
+
+const BADGE_TEXT: Record<TriggerState, LocaleKey> = {
+  off: 'trigger.badge.off',
+  waiting: 'trigger.badge.waiting',
+  listening: 'trigger.badge.listening',
+  restarting: 'trigger.badge.restarting',
+  error: 'trigger.badge.error',
+  invalid: 'trigger.badge.invalid',
+  confirm: 'trigger.badge.confirm',
+  stopped: 'trigger.badge.stopped',
+  elsewhere: 'trigger.badge.elsewhere',
+  unavailable: 'trigger.badge.unavailable',
+  paused: 'trigger.badge.paused',
+}
+
+/**
+ * 画布卡片标题右边的状态小标：两三个字（「已停用」「等待中」「别处负责」）。
+ * 还没读到状态时按关着算；轮询开着时叫「检查中」。
+ */
+export function stateBadge(
+  t: T,
+  view: TriggerView | undefined,
+  kind: TriggerSourceKind = 'schedule',
+): string {
+  if (view === undefined) return t(BADGE_TEXT.off)
+  if (view.state === 'waiting' && kind === 'poll') return t('trigger.badge.checking')
+  return t(BADGE_TEXT[view.state])
+}
+
+/**
+ * 画布卡片底行跟在「主动 / 被动」后面的那半句：下一次什么时候、上次检查的结果、出了什么错；没有就是空串。
+ * （状态本身在标题右边的小标上，这里不重复。）
+ */
+export function stateNote(
+  t: T,
+  view: TriggerView | undefined,
+  kind: TriggerSourceKind = 'schedule',
+  now: number = Date.now(),
+): string {
+  if (view === undefined) return ''
+  const detail = stateDetail(t, view, kind, now, true)
+  if (detail !== '') return detail
+  // 小标缩短了的几种，底行补全说法。
+  if (view.state === 'elsewhere' || view.state === 'unavailable' || view.state === 'paused') {
+    return t(STATE_TEXT[view.state])
+  }
+  return view.problem ?? ''
+}
+
+/**
+ * 状态的颜色分组（卡片的状态小标、「触发」页的圆点共用）：
+ * - `off` 关着（灰）；
+ * - `armed` 开着、等时间或等别的工作流（强调色）：定时、接续的等待中；
+ * - `live` 正在盯着外面（绿，圆点一呼一吸）：监听、HTTP 的接收中，轮询的检查中；
+ * - `other` 开着但不归这里管（石板灰）：由另一个 DSH 负责；
+ * - `warn` 停着等人处理（琥珀）：待确认、已全部暂停、重启中、这里无法触发；
+ * - `bad` 出了问题（红）：出错、设置不对、已自动停用。
+ */
+export type TriggerTone = 'off' | 'armed' | 'live' | 'other' | 'warn' | 'bad'
+
+export function stateTone(state: TriggerState, kind: TriggerSourceKind): TriggerTone {
+  switch (state) {
+    case 'off':
+      return 'off'
+    case 'waiting':
+      return kind === 'poll' ? 'live' : 'armed'
+    case 'listening':
+      return 'live'
+    case 'elsewhere':
+      return 'other'
+    case 'confirm':
+    case 'paused':
+    case 'restarting':
+    case 'unavailable':
+      return 'warn'
+    case 'error':
+    case 'invalid':
+    case 'stopped':
+      return 'bad'
+  }
+}

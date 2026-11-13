@@ -140,6 +140,8 @@ export interface LiveStatus {
   checked?: { at: number; met: boolean }
   /** 连着重启了几次。 */
   restarts?: number
+  /** 监听程序最近打出的一行（画布卡片上显示；去掉了终端颜色、截短）。 */
+  line?: { at: number; text: string }
 }
 
 /** `live.json`：写它的进程、各卡片的运行情况、HTTP 端口。 */

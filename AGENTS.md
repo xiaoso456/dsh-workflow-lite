@@ -77,6 +77,7 @@ gh release create workflow-lite-v<ver> --title "v<ver>" --notes-file <notes 文�
 - 要在本机跑命令的卡片，开关只在用户确认过「这条命令在这个工作区」之后才打开（`approvalOf`）；两样改了任一样就回到「待确认」。不要加绕过确认的路径，模型建的卡片也一律关着。
 - 触发卡片不是步骤：`isStep` 不含它，不连线；模型只能经 `write_trigger` 建、改它，`write_node` 拒绝。按节点类型分支的地方新加一种节点时要逐处看（`grep isInput(`）。
 - 卡片上的状态走 `ui/trigger/triggerEnv.ts` 的上下文，不进画布节点数据：轮询只换字和属性，不重建节点。
+- 卡片中间的速览按触发源换样子（`model/triggerGlance.ts` 算图里写着的部分，`TriggerGlanceRow` 再读现场的最近一行、地址、轮询进度）；每种触发源的图标、颜色在 `ui/trigger/TriggerMark.tsx`，主动 / 被动按 `triggerMode`。新加触发源三处都要补。
 - 全部暂停是一个总闸（`paused.json`），不动各卡片的开关：暂停着定时照常往后排但不发、常驻触发源全停、接续触发只记下看过的实例，恢复后都不补；「立即触发一次」不受它管。新加触发源时同样要想清楚暂停期间怎么办。
 - 测常驻触发源时 `TriggerService` 的 `runtime` 换成假的（拿到事件口自己喂），测接续触发时 `runs` 换成假的 `RunWatch`；跑命令、开端口的放在 `tests/host/triggerSources.spec.ts`。
 - 改了界面跑 `tests/cdp-triggers.mjs` 在一次性实例上走一遍；文档站的图是 `docs:shots trigger-card trigger-panel trigger-poll trigger-confirm trigger-filter trigger-http trigger-after trigger-hub`。

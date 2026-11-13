@@ -786,7 +786,7 @@ function liveView(
   kind: 'poll' | 'listen' | 'http',
   status: LiveFile['sources'][string][string] | undefined,
   live: LiveFile | null,
-): Pick<TriggerView, 'state' | 'next' | 'problem' | 'checked' | 'since'> {
+): Pick<TriggerView, 'state' | 'next' | 'problem' | 'checked' | 'since' | 'line'> {
   if (kind === 'http') {
     const port = live?.port
     return port?.kind === 'error'
@@ -803,14 +803,20 @@ function liveView(
       ...(status.note === undefined ? {} : { problem: status.note }),
     }
   }
+  const line = status.line === undefined ? {} : { line: status.line }
   if (status.state === 'restarting') {
     return {
       state: 'restarting',
       ...(status.next === undefined ? {} : { next: status.next }),
       ...(status.note === undefined ? {} : { problem: status.note }),
+      ...line,
     }
   }
-  return { state: 'listening', ...(status.since === undefined ? {} : { since: status.since }) }
+  return {
+    state: 'listening',
+    ...(status.since === undefined ? {} : { since: status.since }),
+    ...line,
+  }
 }
 
 /** 打开开关之前要先配好的东西；都齐了是 `null`。 */

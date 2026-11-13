@@ -15,7 +15,7 @@ A listener is a command that keeps running: it starts when the switch is turned 
 2. Choose a workspace under **How to run**.
 3. Turn on the switch, check the command and workspace in the confirmation card, and click **Confirm and turn on**.
 
-The card shows **Receiving** and when the program started. Click **Show recent output** in the panel to see the program's recent output, including its error output.
+The card shows **Receiving** and when the program started, and its middle row changes to the last line the program printed. Click **Show recent output** in the panel to see the program's recent output, including its error output.
 
 When a log prints many lines at once, use [filters](/dsh-workflow-lite/en/trigger/filter/) to merge them, drop duplicates or keep only lines with certain words. By default, lines within 5 seconds are merged into one trigger.
 

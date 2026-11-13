@@ -17,7 +17,6 @@ import {
   resourceTitle,
   roleOf,
 } from '../../../../shared/resources.ts'
-import { commandOf } from '../../../../shared/trigger.ts'
 import type { Point, WorkflowDocument, WorkflowNode } from '../../../../shared/types.ts'
 import { findMemory } from '../../../app/memories.ts'
 import type { LocaleKey, T } from '../../../i18n.ts'
@@ -26,7 +25,7 @@ import { displayOf } from '../../../model/display.ts'
 import type { Selection } from '../../../model/editor.ts'
 import { isCompactResource, RES_SHOWN } from '../../../model/layout.ts'
 import { samePlain } from '../../../model/samePlain.ts'
-import { sourceText } from '../../../model/triggerText.ts'
+import { triggerGlance } from '../../../model/triggerGlance.ts'
 import { itemText } from '../../kit/resourceUi.ts'
 import { lookOf } from '../../kit/StepMark.tsx'
 import { resourceTint } from '../../resources/ResourcePresets.tsx'
@@ -183,11 +182,9 @@ export function buildNodes({
       const note = reported?.note ?? ''
       const dim = focusFile !== null
       const title = node.data.label?.trim() || node.id
-      const rule = sourceText(t, node.data.source)
+      const glance = triggerGlance(t, node.data.source)
       const kind = node.data.source.kind
-      // 要跑的命令：卡片上点开关、还没确认过时，确认卡里列出它。
-      const command = commandOf(node.data.source)
-      signature = `${selected}|${tone}|${note}|${dim}|${title}|${rule}|${kind}|${command ?? ''}`
+      signature = `${selected}|${tone}|${note}|${dim}|${title}|${JSON.stringify(glance)}|${kind}`
       build = () => ({
         id: node.id,
         type: 'wfTrigger',
@@ -195,13 +192,12 @@ export function buildNodes({
         selected,
         data: {
           title,
-          rule,
+          glance,
           kind,
           tone,
           note,
           dim,
           t,
-          ...(command === undefined ? {} : { command }),
         },
       })
     } else if (isResource(node)) {

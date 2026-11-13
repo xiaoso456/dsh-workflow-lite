@@ -21,6 +21,7 @@ import {
   runCommand,
   startProcess,
 } from '../../src/host/triggers/processes.ts'
+import { lastLineText } from '../../src/host/triggers/runtime.ts'
 import { filterOf, keywordMiss } from '../../src/shared/trigger.ts'
 
 const NO_FILTER = { merge: 0, dedupe: 0, include: [], exclude: [] }
@@ -192,6 +193,13 @@ describe('监听程序', () => {
   })
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  it('卡片上的最近一行：去掉终端颜色和首尾空白，太长截到 200 个字', () => {
+    expect(lastLineText('[31mERROR[0m pay timeout  ')).toBe('ERROR pay timeout')
+    const long = '错'.repeat(250)
+    expect(lastLineText(long)).toBe(`${'错'.repeat(200)}…`)
+    expect(lastLineText('😀'.repeat(201))).toBe(`${'😀'.repeat(200)}…`)
   })
 
   it('退避 2 秒起翻倍，最长 1 分钟', () => {

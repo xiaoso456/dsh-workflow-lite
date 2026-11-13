@@ -2,13 +2,14 @@
  * dsh-workflow-lite — 画布上触发卡片（TriggerCard）自己的样子。
  *
  * 外壳（宽度、内边距、圆角、悬停、选中环、变暗、入场）和步骤卡共用 canvas.module.css 的 `.card`；
- * 这里只有：挂在上沿的闪电圆标、标题行里的开关、规则和状态两行。
+ * 这里只有：挂在上沿的闪电圆标、标题行右边的状态小标、底行的「主动 / 被动」小标和状态的后半句。
+ * 中间的速览在 triggerGlance.module.css；触发源的颜色由卡片写在 `--wl-kind` 上。
  * 宽度和 model/layout.ts 的 `TRIGGER_W` 是同一个数（= 步骤卡）。
  */
 
 /* 卡片没有连接点：不用给左右留连接点的位置。 */
 .card {
-  gap: 5px;
+  gap: 7px;
 }
 
 /*
@@ -62,107 +63,87 @@
   min-width: 0;
 }
 
-.lines {
+/* 底行：「主动 / 被动」小标 + 状态。字比标题、速览都小。 */
+.foot {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  gap: 6px;
+  align-items: center;
+  /* 定高：后半句有没有字，卡片都一样高。 */
+  height: 16px;
   min-width: 0;
 }
 
-.rule,
-.status {
+/*
+ * 「主动 ↗」/「被动 ↙」：触发源颜色的淡底小标（和图标块同一个颜色）。
+ * 字往正文色里掺一点，小字也看得清。
+ */
+.mode {
+  display: inline-flex;
+  flex: none;
+  gap: 3px;
+  align-items: center;
+  height: 17px;
+  padding: 0 6px 0 5px;
+  border-radius: calc(999px * var(--wl-round, 1));
+  background: color-mix(in srgb, var(--wl-kind) 14%, transparent);
+  color: color-mix(in srgb, var(--wl-kind) 78%, var(--wl-text));
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* 底行跟在「主动 / 被动」后面的半句（下一次什么时候、出了什么错）。 */
+.note {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.rule {
-  color: var(--wl-text-2);
-  font-size: var(--wl-fs-meta);
-  line-height: 1.5;
-}
-
-.status {
-  display: flex;
+/* 标题右边的状态小标：实心圆点 + 两三个字；颜色按状态分组（trigger/stateTone.module.css），关着是灰底，其余是状态色的淡底。 */
+.pill {
+  display: inline-flex;
+  flex: none;
   gap: 5px;
   align-items: center;
-  color: var(--wl-text-3);
+  height: 20px;
+  padding: 0 8px 0 7px;
+  border-radius: calc(999px * var(--wl-round, 1));
+  background: var(--wl-fill);
+  color: var(--tone-text);
   font-size: var(--wl-fs-micro);
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
 }
 
-.statusText {
-  overflow: hidden;
-  text-overflow: ellipsis;
+.pill:not([data-tone="off"]) {
+  background: color-mix(in srgb, var(--tone) 14%, transparent);
 }
 
-/* 状态前的小圆点：关着是空心的灰圈，其余按状态上色。 */
-.dot {
-  flex: none;
-  box-sizing: border-box;
-  width: 7px;
-  height: 7px;
-  border: 1.5px solid var(--wl-text-3);
-  border-radius: 50%;
-}
-
-.card[data-state="waiting"] .dot,
-.card[data-state="listening"] .dot {
-  border-color: var(--wl-ok-dot);
-  background: var(--wl-ok-dot);
-}
-
-.card[data-state="elsewhere"] .dot {
-  border-color: var(--wl-accent);
-  background: var(--wl-accent);
-}
-
-.card[data-state="invalid"] .dot,
-.card[data-state="error"] .dot,
-.card[data-state="stopped"] .dot {
-  border-color: var(--wl-danger);
-  background: var(--wl-danger);
-}
-
-.card[data-state="unavailable"] .dot,
-.card[data-state="paused"] .dot,
-.card[data-state="restarting"] .dot,
-.card[data-state="confirm"] .dot {
-  border-color: var(--wl-warn-dot);
-  background: var(--wl-warn-dot);
-}
-
-.card[data-state="invalid"] .statusText,
-.card[data-state="error"] .statusText,
-.card[data-state="stopped"] .statusText {
+.card[data-state="invalid"] .note,
+.card[data-state="error"] .note,
+.card[data-state="stopped"] .note {
   color: var(--wl-danger);
-}
-
-/* 开关：标题行末一块好点的按钮，往外借边距，不把标题行撑高。 */
-.toggle {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 38px;
-  height: 26px;
-  margin: -4px -7px -4px 0;
-  padding: 0;
-  border: 0;
-  border-radius: calc(7px * var(--wl-round, 1));
-  background: transparent;
-  cursor: pointer;
-}
-
-.toggle:hover {
-  background: var(--wl-hover);
-}
-
-.toggle:focus-visible {
-  outline: 2px solid var(--wl-accent);
-  outline-offset: 1px;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .badge::before {
     transition: none;
   }
+}
+
+/* 瑞士：小标反白成线框。 */
+:global([data-look="swiss"]) .mode {
+  background: none;
+  box-shadow: inset 0 0 0 1px currentColor;
+}
+
+:global([data-look="swiss"]) .pill.pill {
+  background: none;
+  box-shadow: inset 0 0 0 1px var(--tone);
 }

@@ -1,0 +1,224 @@
+/**
+ * dsh-workflow-lite — 触发卡片中间的速览那一行（TriggerGlanceRow）。
+ *
+ * 一行、浅底，字号不超过 12（卡片标题 13 最大）。触发源的颜色从卡片继承（`--wl-kind`）。
+ */
+
+.glance {
+  position: relative;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  height: 26px;
+  padding: 0 9px;
+  overflow: hidden;
+  border-radius: calc(7px * var(--wl-round, 1));
+  background: var(--wl-fill);
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-meta);
+  line-height: 1.3;
+}
+
+.strong {
+  flex: none;
+  color: var(--wl-text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.soft,
+.empty {
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.soft {
+  flex: none;
+  max-width: 60%;
+}
+
+/* 挤到右端（轮询的「什么时候算满足」）。 */
+.soft[data-push="true"] {
+  margin-left: auto;
+  flex: 0 1 auto;
+}
+
+.empty {
+  flex: 1;
+  min-width: 0;
+}
+
+.code {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 还没有现场的那段（没跑起来的命令、还没有的地址）用浅字。 */
+.code[data-idle="true"] {
+  color: var(--wl-text-3);
+}
+
+.glance[data-shape="http"] .code[data-idle="true"] {
+  font-family: inherit;
+}
+
+/* 一周七格：选中的上触发源的颜色。 */
+.days {
+  display: flex;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+
+.day {
+  display: grid;
+  flex: 1;
+  place-items: center;
+  height: 16px;
+  border-radius: calc(4px * var(--wl-round, 1));
+  color: var(--wl-text-3);
+  font-size: 10px;
+  font-style: normal;
+  line-height: 1;
+}
+
+.day[data-on="true"] {
+  background: color-mix(in srgb, var(--wl-kind) 16%, transparent);
+  color: var(--wl-kind);
+  font-weight: 700;
+}
+
+.tag {
+  flex: none;
+  color: var(--wl-kind);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.glance[data-shape="http"] .tag {
+  font-size: var(--wl-fs-micro);
+  letter-spacing: 0.02em;
+}
+
+/* 接续：等的那个工作流的名字。 */
+.pill {
+  flex: 0 1 auto;
+  min-width: 0;
+  padding: 1px 6px;
+  overflow: hidden;
+  border-radius: calc(5px * var(--wl-round, 1));
+  background: var(--wl-panel);
+  color: var(--wl-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.arrow {
+  display: grid;
+  flex: none;
+  color: var(--wl-text-3);
+}
+
+/* 监听：收到过输出才亮的小绿点（一直挂着，按属性显隐）。 */
+.live {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--wl-ok-dot);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--wl-ok-dot) 22%, transparent);
+  font-style: normal;
+  transition:
+    opacity 160ms linear,
+    transform 160ms ease-out;
+}
+
+.live[data-on="false"] {
+  opacity: 0;
+  transform: scale(0.4);
+  /* 没亮时不占位：命令贴着左边。 */
+  margin-right: -14px;
+}
+
+/* 轮询：沿底边一条，走到下一次检查。 */
+.track {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  background: color-mix(in srgb, var(--wl-kind) 14%, transparent);
+  opacity: 0;
+  transition: opacity 160ms linear;
+}
+
+.track[data-run="true"] {
+  opacity: 1;
+}
+
+.fill {
+  position: absolute;
+  inset: 0;
+  background: var(--wl-kind);
+  transform: scaleX(var(--from, 0));
+  transform-origin: left;
+}
+
+/* 换一段时动画名在 a / b 间切，浏览器才会从头再放（同名改属性不会重放）。 */
+.track[data-run="true"] .fill[data-cycle="a"] {
+  animation: fillA var(--left) linear forwards;
+}
+
+.track[data-run="true"] .fill[data-cycle="b"] {
+  animation: fillB var(--left) linear forwards;
+}
+
+@keyframes fillA {
+  from {
+    transform: scaleX(var(--from));
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes fillB {
+  from {
+    transform: scaleX(var(--from));
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* 不走：停在这一段开始时的位置，下一次轮询到了再跳。 */
+  .track[data-run="true"] .fill[data-cycle] {
+    animation: none;
+  }
+
+  .live,
+  .track {
+    transition: none;
+  }
+}
+
+/* 瑞士：浅底块换成上下两道线（轮询的进度条正好压在下线上）。 */
+:global([data-look="swiss"]) .glance {
+  border-block: 1px solid var(--wl-line-strong);
+  background: none;
+}
+
+:global([data-look="swiss"]) .pill {
+  box-shadow: 0 0 0 1px var(--wl-line-strong);
+}

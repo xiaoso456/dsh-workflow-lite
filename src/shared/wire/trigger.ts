@@ -84,6 +84,8 @@ export interface TriggerView {
   checked?: { at: number; met: boolean }
   /** 监听程序这次启动的时刻。 */
   since?: number
+  /** 监听程序最近打出的一行与时刻（画布卡片上显示）。 */
+  line?: { at: number; text: string }
   /** 要运行的命令（轮询、监听）已经在本机确认过、而且之后没改过。 */
   approved?: boolean
   /** HTTP 触发：地址与令牌（打开过开关之后才有）。 */

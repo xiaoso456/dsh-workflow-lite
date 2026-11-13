@@ -12,11 +12,11 @@ The **Triggers** page of the workflow hub lists the trigger cards of every workf
 ## Use
 
 1. Click **Workflow hub** at the top left of the canvas and switch to **Triggers**.
-2. Each row on the left is one card: name, workflow, when it triggers and status. The switch at the end of the row is the same switch as on the card in the canvas.
+2. Each row on the left is one card: name, workflow, when it triggers and status. The switch at the end of the row is the same switch as in the card's settings panel.
 3. Click a row to see its status, the reason for any error, when it triggers, its session, workspace and trigger history on the right; the arrow on a record opens that run. **Trigger once now** is there too.
 4. Click **Open on canvas** to switch to that workflow with the card selected, where the workspace, session and other settings are changed.
 
-The first time a card that runs a command (poll, listener) is switched on, the command and workspace appear beside the switch and need confirming, just like on the canvas.
+The first time a card that runs a command (poll, listener) is switched on, the command and workspace appear beside the switch and need confirming, just like in the settings panel.
 
 ## Pause all
 

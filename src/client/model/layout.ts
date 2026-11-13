@@ -91,7 +91,7 @@ export const INPUT_H = 56
 
 /** 触发卡片的宽度（和步骤卡同一副外壳）与估算高度：不连线，自己待在一边。 */
 export const TRIGGER_W = NODE_W
-export const TRIGGER_H = 85
+export const TRIGGER_H = 108
 
 /** 一张卡的标称尺寸（还没量出来时按它算）。 */
 export function cardSize(node: WorkflowNode): { w: number; h: number } {

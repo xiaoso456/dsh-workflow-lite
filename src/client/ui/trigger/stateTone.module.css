@@ -1,0 +1,77 @@
+/**
+ * dsh-workflow-lite — 触发状态的颜色（分组见 model/triggerText 的 `stateTone`）。
+ *
+ * 带 `.tone` 和 `data-tone` 的元素上写两个变量：`--tone`（圆点、淡底）、`--tone-text`（字，过 4.5:1 的那一档）；
+ * 里面的 `.dot` 是实心圆点，`live` 时外面一圈一呼一吸（只动 transform / opacity）。
+ * 画布卡片的状态小标、工作流中心「触发」页的状态行都用它。
+ */
+
+.tone {
+  --tone: var(--wl-text-3);
+  --tone-text: var(--wl-text-2);
+}
+
+.tone[data-tone="armed"] {
+  --tone: var(--wl-accent);
+  --tone-text: var(--wl-accent-text);
+}
+
+.tone[data-tone="live"] {
+  --tone: var(--wl-ok-dot);
+  --tone-text: var(--wl-ok);
+}
+
+.tone[data-tone="other"] {
+  --tone: var(--wl-c-slate);
+  --tone-text: var(--wl-text-2);
+}
+
+.tone[data-tone="warn"] {
+  --tone: var(--wl-warn-dot);
+  --tone-text: var(--wl-warn);
+}
+
+.tone[data-tone="bad"] {
+  --tone: var(--wl-danger);
+  --tone-text: var(--wl-danger);
+}
+
+.dot {
+  position: relative;
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--tone);
+}
+
+/* 呼吸的那一圈：一直挂着，只在 live 时放动画。 */
+.dot::after {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--tone);
+  content: "";
+  opacity: 0;
+}
+
+.tone[data-tone="live"] .dot::after {
+  animation: breathe 2s ease-out infinite;
+}
+
+@keyframes breathe {
+  from {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(2.6);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tone[data-tone="live"] .dot::after {
+    animation: none;
+  }
+}

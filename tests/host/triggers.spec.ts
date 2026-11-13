@@ -693,6 +693,25 @@ describe('常驻触发源', () => {
     expect((await triggers.list('patrol')).triggers[0]?.state).toBe('confirm')
   })
 
+  it('监听程序最近打出的一行跟着状态给到卡片；重启等待中也留着', async () => {
+    const triggers = await listening()
+    const line = { at: clock, text: 'ERROR pay timeout' }
+    await store.writeLive({
+      pid: 100,
+      sources: { patrol: { tick: { state: 'running', since: clock - 1000, line } } },
+    })
+    expect((await triggers.list('patrol')).triggers[0]).toMatchObject({
+      state: 'listening',
+      since: clock - 1000,
+      line,
+    })
+    await store.writeLive({
+      pid: 100,
+      sources: { patrol: { tick: { state: 'restarting', next: clock + 5000, line } } },
+    })
+    expect((await triggers.list('patrol')).triggers[0]).toMatchObject({ state: 'restarting', line })
+  })
+
   it('进来的内容发进会话：带上背景信息、合并了几次；记录的渠道是监听程序', async () => {
     const triggers = await listening({ note: '看看是哪个模块' })
     live.events?.deliver(ref, { info: 'ERROR pay timeout\nERROR pay 502', count: 2 })

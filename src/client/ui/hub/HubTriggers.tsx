@@ -21,7 +21,7 @@ import { type TriggerHub, useTriggerHub } from '../../app/useTriggerHub.ts'
 import type { LocaleKey, T } from '../../i18n.ts'
 import { matchesWords, searchWords } from '../../model/search.ts'
 import { shortTime } from '../../model/time.ts'
-import { sourceText, stateText } from '../../model/triggerText.ts'
+import { sourceText, stateText, stateTone } from '../../model/triggerText.ts'
 import type { WorkflowLiteRpc } from '../../rpc.ts'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
@@ -33,6 +33,8 @@ import ins from '../panel/panel.module.css'
 import { useApproveConfirm } from '../trigger/ApproveConfirm.tsx'
 import { FireList } from '../trigger/FireList.tsx'
 import { FireNow } from '../trigger/FireNow.tsx'
+import tone from '../trigger/stateTone.module.css'
+import { TRIGGER_ICON } from '../trigger/TriggerMark.tsx'
 import wf from '../versions/wfList.module.css'
 import { HubSearch } from './HubSearch.tsx'
 import hub from './hub.module.css'
@@ -203,7 +205,7 @@ function TriggerList(props: {
               onClick={() => props.onPick(key)}
             >
               <span className={wf.wfIcon}>
-                <Icon name="bolt" size={15} />
+                <Icon name={TRIGGER_ICON[kind]} size={15} />
               </span>
               <span className={wf.wfText}>
                 <span className={wf.wfName}>{entry.name}</span>
@@ -211,11 +213,12 @@ function TriggerList(props: {
                   {entry.workflow} · {sourceText(t, entry.data.source)}
                 </span>
                 <span
-                  className={css.state}
+                  className={cx(css.state, tone.tone)}
                   data-state={entry.view.state}
+                  data-tone={stateTone(entry.view.state, kind)}
                   data-testid="wl-hub-trg-state"
                 >
-                  <span className={css.dot} aria-hidden="true" />
+                  <span className={tone.dot} aria-hidden="true" />
                   <span className={css.stateText}>{stateText(t, entry.view, kind)}</span>
                 </span>
               </span>
@@ -339,12 +342,13 @@ function TriggerDetail(props: {
       )}
       <section className={ins.field}>
         <p
-          className={css.detailState}
+          className={cx(css.detailState, tone.tone)}
           data-state={view.state}
+          data-tone={stateTone(view.state, entry.data.source.kind)}
           data-testid="wl-hub-trg-detail-state"
           hidden={pausedHere}
         >
-          <span className={css.dot} aria-hidden="true" />
+          <span className={tone.dot} aria-hidden="true" />
           {stateText(t, view, entry.data.source.kind)}
         </p>
         <p className={ins.error} hidden={problem === ''} data-testid="wl-hub-trg-problem">
