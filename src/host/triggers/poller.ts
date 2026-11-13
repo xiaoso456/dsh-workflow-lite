@@ -26,6 +26,12 @@ export interface Probe {
   digest?: string
 }
 
+/**
+ * 从现在起算（全部暂停之后恢复时用）：第一次检查不触发、只记下。
+ * 成功时触发——当作上次已经成功，现在成功也不算「变成成功」；输出变了时触发——没有摘要，第一次只记下。
+ */
+export const FRESH_PROBE: Readonly<Probe> = { ok: true }
+
 /** 一次检查之后的情况。 */
 export interface PollCheck {
   at: number

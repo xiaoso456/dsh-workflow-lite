@@ -26,6 +26,7 @@ export function HubLayer({
   hubExport,
   onClose,
   openTemplate,
+  openCard,
 }: {
   t: T
   rpc: WorkflowLiteRpc
@@ -41,6 +42,8 @@ export function HubLayer({
   hubExport: boolean
   onClose(): void
   openTemplate(name: string): void
+  /** 打开一个工作流、选中里面的一张卡片。 */
+  openCard(workflow: string, node: string): void
 }): React.JSX.Element {
   const { state } = wf
   return (
@@ -53,6 +56,7 @@ export function HubLayer({
       sessionsReady={sessionsReady}
       runs={runs}
       onOpenRun={openRun}
+      onOpenCard={openCard}
       onNotice={wf.notify}
       workflows={{
         current: state.name,

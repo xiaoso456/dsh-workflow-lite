@@ -2,7 +2,7 @@
 title: Filters and conditions
 description: Merge, deduplicate or drop triggers by keyword, or let the model decide first whether a trigger needs a run.
 sidebar:
-  order: 5
+  order: 6
 ---
 
 Poll, listener and HTTP triggers all bring background info. **Filters** drop unwanted triggers inside the plugin at no model cost; a **Trigger condition** lets the model read the content and decide.

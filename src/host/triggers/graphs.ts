@@ -32,10 +32,14 @@ export type WorkflowTriggers =
       triggers: TriggerDefinition[]
       /** 图有编译级问题、出不了计划时的一句原因（触发了也执行不了）。 */
       blocked?: string
+      /** 这张图开着「记录运行状态」（别的图的接续触发要靠它看出什么时候跑完）。 */
+      runState: boolean
     }
 
 export interface TriggerGraphs {
   read(workflow: string): Promise<WorkflowTriggers>
+  /** 图里有触发卡片的那些工作流（工作流中心「触发」页列它们）。 */
+  names(): Promise<string[]>
 }
 
 export function createTriggerGraphs(repository: Repository): TriggerGraphs {
@@ -67,10 +71,18 @@ export function createTriggerGraphs(repository: Repository): TriggerGraphs {
           ...(blocking.length === 0
             ? {}
             : { blocked: blocking.map((problem) => problem.message).join('；') }),
+          runState: load.document.settings?.runState === true,
         }
       }
       cache.set(workflow, { stamp, value })
       return value
+    },
+    // 列表按文件身份记着每张图有几张触发卡片，没改过的图不重读。
+    async names() {
+      const listed = await repository.list()
+      return listed.workflows
+        .filter((entry) => (entry.triggers ?? 0) > 0)
+        .map((entry) => entry.name)
     },
   }
 }

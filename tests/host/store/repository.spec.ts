@@ -742,6 +742,7 @@ describe('list', () => {
     expect(good?.invalid).toBeUndefined()
     expect(good?.nodeCount).toBe(1)
     expect(good?.updatedAt).toBeGreaterThan(0)
+    expect(good).not.toHaveProperty('triggers')
 
     const broken = listed.workflows.find((entry) => entry.name === 'broken')
     expect(broken?.invalid).toBe(true)
@@ -755,6 +756,26 @@ describe('list', () => {
     expect(codes).toContain('legacy_structure')
     expect(codes).toContain('stray_entry')
     expect(listed.warnings.some((warning) => warning.message.includes('notes.txt'))).toBe(true)
+  })
+
+  it('有触发卡片的图带上张数（「触发」页据此只读这几张）', async () => {
+    const trigger = (id: string): WorkflowNode => ({
+      id,
+      type: 'wfTrigger',
+      position: { x: 0, y: 0 },
+      data: { source: { kind: 'http' } },
+    })
+    await seedGraph('hooks', d([n('s1', { prompt: 'P' }), trigger('t1'), trigger('t2')]))
+    const listed = await repo.list()
+    expect(listed.workflows.find((entry) => entry.name === 'hooks')?.triggers).toBe(2)
+  })
+
+  it('开着「记录运行状态」的图带上记号（接续触发的下拉据此标出没开的）', async () => {
+    await seedGraph('tracked', { ...d([n('s1', { prompt: 'P' })]), settings: { runState: true } })
+    await seedGraph('plain', d([n('s1', { prompt: 'P' })]))
+    const listed = await repo.list()
+    expect(listed.workflows.find((entry) => entry.name === 'tracked')?.runState).toBe(true)
+    expect(listed.workflows.find((entry) => entry.name === 'plain')?.runState).toBeUndefined()
   })
 
   it('文件没变就不再读、不再校验；改了（保存、外部改写、修好坏文件、删掉）马上跟上', async () => {

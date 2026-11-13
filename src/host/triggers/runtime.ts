@@ -11,16 +11,16 @@
  * @module @xiaoso/dsh-workflow-lite/host/triggers/runtime
  */
 
-import type { FilterSettings } from '../../shared/trigger.ts'
-import type { TriggerSource, TriggerSourceKind } from '../../shared/types.ts'
+import type { FilterKind, FilterSettings } from '../../shared/trigger.ts'
+import type { TriggerSource } from '../../shared/types.ts'
 import { type HookPortState, type HookRoute, HookServer } from './hooks.ts'
 import { Intake, type IntakeBatch } from './intake.ts'
 import { Listener } from './listener.ts'
 import { type PollCheck, Poller, type Probe } from './poller.ts'
 import type { LiveFile, LiveStatus, TriggerStore } from './store.ts'
 
-/** 常驻的那几种触发源。 */
-export type LiveSource = Exclude<TriggerSource, { kind: 'schedule' }>
+/** 常驻的那几种触发源（轮询、监听程序、HTTP）。 */
+export type LiveSource = Extract<TriggerSource, { kind: FilterKind }>
 
 /** 一张该开着的卡片。 */
 export interface LiveSpec {
@@ -44,7 +44,7 @@ export interface LiveSpec {
 export interface LiveRef {
   workflow: string
   node: string
-  kind: Exclude<TriggerSourceKind, 'schedule'>
+  kind: FilterKind
 }
 
 export interface RuntimeEvents {

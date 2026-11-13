@@ -11,7 +11,7 @@
 import type { Stats } from 'node:fs'
 import { stat } from 'node:fs/promises'
 import { join } from 'node:path'
-import { readDocument } from '../../shared/model.ts'
+import { isTrigger, readDocument } from '../../shared/model.ts'
 import type {
   ListResult,
   TemplateEntry,
@@ -42,7 +42,14 @@ const READ_AHEAD = 16
 /** 一份图文件读出来的结论：只取决于文件内容和图名。 */
 type FileFacts =
   | { parsed: false; reason: string }
-  | { parsed: true; nodeCount: number; errors: ValidationProblem[] }
+  | {
+      parsed: true
+      nodeCount: number
+      triggers: number
+      /** 开着「记录运行状态」。 */
+      runState: boolean
+      errors: ValidationProblem[]
+    }
 
 /** 文件身份：换了文件（原子写入落下的是新文件）、改了大小或修改时间，都会变。 */
 function stampOf(stats: Stats): string {
@@ -173,7 +180,13 @@ export class WorkflowLister {
         reason: describeProblems(errors),
       }
     }
-    return { name, nodeCount: facts.nodeCount, updatedAt }
+    return {
+      name,
+      nodeCount: facts.nodeCount,
+      updatedAt,
+      ...(facts.triggers > 0 ? { triggers: facts.triggers } : {}),
+      ...(facts.runState ? { runState: true as const } : {}),
+    }
   }
 
   /** 这份图文件的结论：文件身份和上次一样就用上次的，否则读、解析、校验一遍；读不到是 `null`。 */
@@ -189,6 +202,8 @@ export class WorkflowLister {
         : {
             parsed: true,
             nodeCount: parsed.document.nodes.length,
+            triggers: parsed.document.nodes.filter(isTrigger).length,
+            runState: parsed.document.settings?.runState === true,
             errors: onlyLevel(this.core.validate(parsed.document, name), 'save'),
           }
     this.facts.set(name, { stamp, facts })

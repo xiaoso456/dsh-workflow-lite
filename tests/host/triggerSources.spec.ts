@@ -14,7 +14,7 @@ import {
   Listener,
   type ListenerHandlers,
 } from '../../src/host/triggers/listener.ts'
-import { judge, type PollCheck, Poller } from '../../src/host/triggers/poller.ts'
+import { FRESH_PROBE, judge, type PollCheck, Poller } from '../../src/host/triggers/poller.ts'
 import {
   type ExitInfo,
   type RunResult,
@@ -131,6 +131,14 @@ describe('条件轮询', () => {
     const failed = judge('change', first.probe, result(2, 'boom'))
     expect(failed).toMatchObject({ met: false, probe: first.probe })
     expect(judge('change', failed.probe, result(0, 'abd')).met).toBe(true)
+  })
+
+  it('从现在起算（恢复全部暂停后）：两种判定的第一次检查都只记下', () => {
+    expect(judge('success', FRESH_PROBE, result(0)).met).toBe(false)
+    expect(judge('success', FRESH_PROBE, result(1)).probe).toEqual({ ok: false })
+    const change = judge('change', FRESH_PROBE, result(0, 'abc'))
+    expect(change.met).toBe(false)
+    expect(change.probe.digest).toBeDefined()
   })
 
   describe('节奏', () => {

@@ -13,6 +13,75 @@
   min-width: 0;
 }
 
+/*
+ * 短标签那一列（时间、星期、间隔、判定、工作流、结果、工作区、会话）：整个面板里一样宽，
+ * 各行的控件左边落在同一条线上。宽度按语言给（面板根上的 --wl-trigger-lead，见 TriggerPanel）。
+ * 长句子的行（过滤、上限）另一种排法：句子占满，数字框靠右。
+ */
+.lead {
+  flex: none;
+  box-sizing: border-box;
+  width: var(--wl-trigger-lead, 3.5em);
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-meta);
+  overflow-wrap: anywhere;
+}
+
+/* 几行「标签 + 控件」排成两列，标签列同 .lead。 */
+.pairs {
+  display: grid;
+  grid-template-columns: var(--wl-trigger-lead, 3.5em) minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.pairs > .lead {
+  width: auto;
+}
+
+/* 开关打不开、缺的就是这一项：底下闪一下强调色（只动透明度）。 */
+.attention {
+  position: relative;
+}
+
+.attention::before {
+  position: absolute;
+  inset: -4px -6px;
+  border-radius: var(--wl-r-control);
+  background: var(--wl-accent-soft);
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+}
+
+.attention > * {
+  position: relative;
+}
+
+.attention[data-flash="true"]::before {
+  animation: attention 1200ms var(--wl-ease) both;
+}
+
+@keyframes attention {
+  0%,
+  45% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+/* 按钮在一列里不拉满。 */
+.selfStart {
+  align-self: flex-start;
+}
+
+.pairStart {
+  justify-self: start;
+}
+
 .rowLabel {
   flex: none;
   color: var(--wl-text-2);
@@ -57,10 +126,10 @@
   min-width: 0;
 }
 
-/* HTTP 地址与令牌：两行，说明 · 值 · 小按钮。 */
+/* HTTP 地址与令牌：两行，说明 · 值 · 小按钮。值和框外各行的控件对齐（扣掉框的边线和内边距）。 */
 .endpoint {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: calc(var(--wl-trigger-lead, 3.5em) - 11px) minmax(0, 1fr) auto;
   gap: 6px 8px;
   align-items: center;
   padding: 8px 8px 8px 10px;
@@ -192,6 +261,23 @@
   color: var(--wl-ok);
 }
 
+.fireResult[data-pending="true"] {
+  color: var(--wl-text-3);
+}
+
+/* 「立即触发一次」浮出的小卡：背景信息、一句说明、取消 / 触发。 */
+.firePop {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fireActions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 /* 触发记录：一条一行，原因另起一行。 */
 .fires {
   display: flex;
@@ -275,5 +361,10 @@
 @media (prefers-reduced-motion: reduce) {
   .day {
     transition: none;
+  }
+
+  /* 不闪，只亮一下再退（透明度直接跳）。 */
+  .attention[data-flash="true"]::before {
+    animation: attention 1200ms steps(1, end) both;
   }
 }

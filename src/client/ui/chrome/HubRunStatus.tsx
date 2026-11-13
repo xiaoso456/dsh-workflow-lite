@@ -46,6 +46,8 @@ export function HubRunStatus(props: {
     width: MENU_W,
     align: 'auto',
     exitMs: FLOAT_EXIT_MS,
+    // 打开后焦点落在当前那一项上，上下键能接着挑。
+    initialFocus: '[role="menuitemradio"][aria-checked="true"]',
   })
   const confirm = useConfirm<HTMLSpanElement>()
   const [target, setTarget] = useState<RunStatus | null>(null)
@@ -90,10 +92,6 @@ export function HubRunStatus(props: {
         onClick={() => {
           if (confirm.open) confirm.hide()
           menu.setState(open ? 'off' : 'pinned')
-          // 打开后焦点落在当前那一项上，上下键能接着挑。
-          requestAnimationFrame(() =>
-            items.current[RUN_STATUSES.indexOf(status)]?.focus({ preventScroll: true }),
-          )
         }}
         onKeyDown={menu.onKeyDown}
       >

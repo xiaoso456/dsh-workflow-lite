@@ -19,9 +19,10 @@ div.dialog {
   border-bottom: 1px solid var(--wl-line);
 }
 
+/* 六页，每页 80px（英文的「Workflows」「Instances」放得下）；标题、副标题放不下时截断。 */
 .tabs {
   flex: none;
-  width: 400px;
+  width: 480px;
 }
 
 /*

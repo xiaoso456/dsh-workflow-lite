@@ -173,7 +173,12 @@ export function validateDocument(
   for (const node of document.nodes) {
     if (isTrigger(node)) {
       // 触发源写得不对只是警告：触发器开不了，但不挡保存，也不挡手动执行。
-      const problem = sourceProblem(node.data.source)
+      const { source } = node.data
+      const problem =
+        sourceProblem(source) ??
+        (source.kind === 'after' && source.workflow === options.workflowName
+          ? '不能等自己跑完（会一直触发自己）'
+          : null)
       if (problem !== null) {
         warning.push(
           mk('warning', 'trigger_invalid', `触发 ${node.id} 设置得不对：${problem}`, {

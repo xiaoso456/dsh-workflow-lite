@@ -1,16 +1,17 @@
 ---
 title: Workflow hub
-description: Manage execution records of all sessions, all workflows, memories, storage and plugin settings in one place.
+description: Manage execution records of all sessions, all workflows, trigger cards, memories, storage and plugin settings in one place.
 sidebar:
   order: 4
 ---
 
-Open the **Workflow hub** at the top left of the canvas to manage the instances of every session, all workflows and versions, the memory library, local data and settings.
+Open the **Workflow hub** at the top left of the canvas to manage the instances of every session, all workflows and versions, trigger cards, the memory library, local data and settings.
 
 | Page | Use |
 |---|---|
 | Instances | See all instances by workspace. |
 | Workflows | Manage workflows and versions, export and import. |
+| Triggers | Trigger cards of every workflow and Pause all; see [Managing and pausing](/dsh-workflow-lite/en/trigger/manage/). |
 | Memory | Manage the memory library; see [Memory](/dsh-workflow-lite/en/materials/memory/). |
 | Storage | See local data usage and clean up. |
 | Settings | Appearance and themes, plugin settings. |

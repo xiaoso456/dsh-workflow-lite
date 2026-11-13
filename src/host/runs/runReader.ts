@@ -39,6 +39,21 @@ import { LineScanner, patternError, readRunLines, SlowPatternError } from './lin
 import { fail, type RunCore } from './runCore.ts'
 import { isInstanceId } from './store.ts'
 
+/** 结束了的实例（接续触发看的那一面，见 `host/triggers/after.ts`）。 */
+export interface FinishedInstance {
+  id: string
+  status: 'done' | 'failed' | 'cancelled'
+  /** 状态文件最后修改的时刻。 */
+  at: number
+  goal?: string
+  cwd?: string
+  statePath?: string
+  done?: number
+  total?: number
+}
+
+const FINISHED: ReadonlySet<string> = new Set(['done', 'failed', 'cancelled'])
+
 /** `run/load` 带 `since` 且文件没变时的回答。 */
 export interface Unchanged {
   unchanged: true
@@ -86,6 +101,45 @@ export class RunReader {
       .filter((record) => all || (session !== undefined && record.session === session))
       .sort((a, b) => b.createdAt - a.createdAt)
     return Promise.all(records.map((record) => this.core.summarize(record, index, session)))
+  }
+
+  /**
+   * 工作流 `workflow` 里状态文件在 `since` 之后改过、已经结束、不在 `skip` 里的实例（旧的在前），
+   * 以及它现在所有实例的 id。只读改过的那几个状态文件：没开运行状态、早就没动过的都只 stat 一下。
+   */
+  async finished(
+    workflow: string,
+    since: number,
+    skip: ReadonlySet<string>,
+  ): Promise<{ runs: FinishedInstance[]; ids: string[] }> {
+    const index = await this.core.store.read()
+    const records = index.instances.filter((record) => record.workflow === workflow)
+    const runs: FinishedInstance[] = []
+    for (const record of records) {
+      if (skip.has(record.id) || record.statePath === undefined) continue
+      let at: number
+      try {
+        at = (await stat(record.statePath)).mtimeMs
+      } catch {
+        continue
+      }
+      if (at <= since) continue
+      const summary = await this.core.summarize(record, index, undefined)
+      const status = summary.status
+      if (status === undefined || !FINISHED.has(status)) continue
+      runs.push({
+        id: record.id,
+        status: status as FinishedInstance['status'],
+        at,
+        ...(record.goal === undefined ? {} : { goal: record.goal }),
+        ...(record.cwd === undefined ? {} : { cwd: record.cwd }),
+        statePath: record.statePath,
+        ...(summary.done === undefined ? {} : { done: summary.done }),
+        ...(summary.total === undefined ? {} : { total: summary.total }),
+      })
+    }
+    runs.sort((a, b) => a.at - b.at)
+    return { runs, ids: records.map((record) => record.id) }
   }
 
   /** 会话的当前实例 id（没有就 `undefined`）。 */

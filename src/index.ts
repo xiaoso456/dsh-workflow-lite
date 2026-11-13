@@ -115,6 +115,7 @@ export async function apply(ctx: Context, config: WorkflowLiteSettings): Promise
     graphs: createTriggerGraphs(repository),
     sessions: createSessionPort(ctx),
     port: () => config.triggerPort.get(),
+    runs,
     warn: (message) => ctx.logger.warn(`[workflow-lite] ${message}`),
   })
   ctx.effect(() => triggers.start(), 'workflow-lite: triggers')

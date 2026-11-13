@@ -4,7 +4,14 @@
  * @module @xiaoso/dsh-workflow-lite/client/model/triggerText
  */
 
-import type { TriggerSchedule, TriggerSource, TriggerSourceKind } from '../../shared/types.ts'
+import type { CronFieldName, ScheduleIssue } from '../../shared/schedule.ts'
+import { afterWhen, type SourceIssue } from '../../shared/trigger.ts'
+import type {
+  AfterWhen,
+  TriggerSchedule,
+  TriggerSource,
+  TriggerSourceKind,
+} from '../../shared/types.ts'
 import type { TriggerState, TriggerView } from '../../shared/wire/trigger.ts'
 import type { LocaleKey, T } from '../i18n.ts'
 import { shortTime } from './time.ts'
@@ -22,6 +29,21 @@ const DAY_KEYS: readonly LocaleKey[] = [
 /** 星期几的字（ISO：1 = 周一 … 7 = 周日）。 */
 export function weekdayText(t: T, day: number): string {
   return t(DAY_KEYS[day - 1] ?? 'trigger.day.1')
+}
+
+const CHIP_KEYS: readonly LocaleKey[] = [
+  'trigger.dayChip.1',
+  'trigger.dayChip.2',
+  'trigger.dayChip.3',
+  'trigger.dayChip.4',
+  'trigger.dayChip.5',
+  'trigger.dayChip.6',
+  'trigger.dayChip.7',
+]
+
+/** 选星期的小圆钮上的字：一行排七个，英文用两个字母（规则摘要里仍用 {@link weekdayText}）。 */
+export function weekdayChip(t: T, day: number): string {
+  return t(CHIP_KEYS[day - 1] ?? 'trigger.dayChip.1')
 }
 
 /** 星期几的一组是不是正好这几天。 */
@@ -57,11 +79,21 @@ export function ruleText(t: T, schedule: TriggerSchedule): string {
   return t('trigger.rule.weekly').replace('{days}', days).replace('{time}', schedule.time)
 }
 
-/** 触发源的一句话（卡片上的第二行）：定时说规则，轮询说间隔，监听、HTTP 说是什么。 */
+const AFTER_TEXT: Record<AfterWhen, LocaleKey> = {
+  done: 'trigger.rule.afterDone',
+  failed: 'trigger.rule.afterFailed',
+  any: 'trigger.rule.afterAny',
+}
+
+/** 触发源的一句话（卡片上的第二行）：定时说规则，轮询说间隔，监听、HTTP 说是什么，接续说等谁。 */
 export function sourceText(t: T, source: TriggerSource): string {
   if (source.kind === 'schedule') return ruleText(t, source.schedule)
   if (source.kind === 'listen') return t('trigger.rule.listen')
   if (source.kind === 'http') return t('trigger.rule.http')
+  if (source.kind === 'after') {
+    if (source.workflow === '') return t('trigger.rule.afterNone')
+    return t(AFTER_TEXT[afterWhen(source)]).replace('{name}', source.workflow)
+  }
   const { seconds } = source
   if (seconds > 0 && seconds % 3600 === 0) {
     return t('trigger.rule.pollHours').replace('{n}', String(seconds / 3600))
@@ -96,10 +128,76 @@ const STATE_TEXT: Record<TriggerState, LocaleKey> = {
   stopped: 'trigger.state.stopped',
   elsewhere: 'trigger.state.elsewhere',
   unavailable: 'trigger.state.unavailable',
+  paused: 'trigger.state.paused',
+}
+
+const CRON_FIELD: Record<CronFieldName, LocaleKey> = {
+  minute: 'trigger.cronField.minute',
+  hour: 'trigger.cronField.hour',
+  day: 'trigger.cronField.day',
+  month: 'trigger.cronField.month',
+  weekday: 'trigger.cronField.weekday',
+}
+
+/** 定时规则写得不对的一句话（按界面语言）。 */
+export function scheduleIssueText(t: T, issue: ScheduleIssue): string {
+  const fill = (key: LocaleKey, values: Record<string, string | number>): string =>
+    Object.entries(values).reduce(
+      (text, [name, value]) => text.replace(`{${name}}`, String(value)),
+      t(key),
+    )
+  switch (issue.code) {
+    case 'every':
+      return fill('trigger.issue.every', { min: issue.min, max: issue.max })
+    case 'time':
+      return fill('trigger.issue.time', { time: issue.time })
+    case 'cronEmpty':
+      return t('trigger.issue.cronEmpty')
+    case 'cronParts':
+      return fill('trigger.issue.cronParts', { n: issue.count })
+    case 'cronSyntax':
+    case 'cronStep':
+      return fill(
+        issue.code === 'cronSyntax' ? 'trigger.issue.cronSyntax' : 'trigger.issue.cronStep',
+        {
+          field: t(CRON_FIELD[issue.field]),
+          part: issue.part === '' ? t('trigger.issue.empty') : issue.part,
+        },
+      )
+    case 'cronRange':
+      return fill('trigger.issue.cronRange', {
+        field: t(CRON_FIELD[issue.field]),
+        part: issue.part,
+        min: issue.min,
+        max: issue.max,
+      })
+    case 'cronNever':
+      return t('trigger.issue.cronNever')
+  }
+}
+
+/** 触发源写得不对的一句话（按界面语言）。 */
+export function sourceIssueText(t: T, issue: SourceIssue): string {
+  switch (issue.code) {
+    case 'schedule':
+      return scheduleIssueText(t, issue.issue)
+    case 'noWorkflow':
+      return t('trigger.issue.noWorkflow')
+    case 'noCommand':
+      return t('trigger.issue.noCommand')
+    case 'interval':
+      return t('trigger.issue.interval').replace('{min}', String(issue.min))
+  }
 }
 
 /** 状态后面跟的那半句；没有就是空串。 */
-function stateDetail(t: T, view: TriggerView, kind: TriggerSourceKind, now: number): string {
+function stateDetail(
+  t: T,
+  view: TriggerView,
+  kind: TriggerSourceKind,
+  now: number,
+  next: boolean,
+): string {
   const at = (key: LocaleKey, moment: number): string =>
     t(key).replace('{time}', momentText(t, moment, now))
   switch (view.state) {
@@ -108,9 +206,9 @@ function stateDetail(t: T, view: TriggerView, kind: TriggerSourceKind, now: numb
       if (kind === 'poll' && view.checked !== undefined) {
         return at(view.checked.met ? 'trigger.checkedMet' : 'trigger.checkedUnmet', view.checked.at)
       }
-      return view.next === undefined ? '' : at('trigger.next', view.next)
+      return view.next === undefined || !next ? '' : at('trigger.next', view.next)
     case 'elsewhere':
-      return view.next === undefined ? '' : at('trigger.next', view.next)
+      return view.next === undefined || !next ? '' : at('trigger.next', view.next)
     case 'listening':
       return view.since === undefined ? '' : at('trigger.started', view.since)
     case 'restarting':
@@ -125,12 +223,14 @@ function stateDetail(t: T, view: TriggerView, kind: TriggerSourceKind, now: numb
 /**
  * 卡片、面板上的那一行状态：「等待中 · 下一次 明天 09:00」「检查中 · 上次 10:02 未满足」。
  * 还没读到状态时按关着算。
+ * @param options.next - 说不说「下一次」（缺省说；面板里定时规则下面已经写着下一次，就不再说）。
  */
 export function stateText(
   t: T,
   view: TriggerView | undefined,
   kind: TriggerSourceKind = 'schedule',
   now: number = Date.now(),
+  options: { next?: boolean } = {},
 ): string {
   if (view === undefined) return t(STATE_TEXT.off)
   // 轮询开着时叫「检查中」，别的都叫「等待中」。
@@ -138,6 +238,6 @@ export function stateText(
     view.state === 'waiting' && kind === 'poll'
       ? t('trigger.state.checking')
       : t(STATE_TEXT[view.state])
-  const detail = stateDetail(t, view, kind, now)
+  const detail = stateDetail(t, view, kind, now, options.next !== false)
   return detail === '' ? label : `${label} · ${detail}`
 }

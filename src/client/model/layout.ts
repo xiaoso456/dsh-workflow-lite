@@ -89,9 +89,9 @@ export function resourceHeight(data: ResourceData): number {
 export const INPUT_W = 180
 export const INPUT_H = 56
 
-/** 触发卡片的宽度（CSS 里写死同一个数）与估算高度：不连线，自己待在一边。 */
-export const TRIGGER_W = 264
-export const TRIGGER_H = 66
+/** 触发卡片的宽度（和步骤卡同一副外壳）与估算高度：不连线，自己待在一边。 */
+export const TRIGGER_W = NODE_W
+export const TRIGGER_H = 85
 
 /** 一张卡的标称尺寸（还没量出来时按它算）。 */
 export function cardSize(node: WorkflowNode): { w: number; h: number } {

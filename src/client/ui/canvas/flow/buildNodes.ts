@@ -17,6 +17,7 @@ import {
   resourceTitle,
   roleOf,
 } from '../../../../shared/resources.ts'
+import { commandOf } from '../../../../shared/trigger.ts'
 import type { Point, WorkflowDocument, WorkflowNode } from '../../../../shared/types.ts'
 import { findMemory } from '../../../app/memories.ts'
 import type { LocaleKey, T } from '../../../i18n.ts'
@@ -184,13 +185,24 @@ export function buildNodes({
       const title = node.data.label?.trim() || node.id
       const rule = sourceText(t, node.data.source)
       const kind = node.data.source.kind
-      signature = `${selected}|${tone}|${note}|${dim}|${title}|${rule}|${kind}`
+      // 要跑的命令：卡片上点开关、还没确认过时，确认卡里列出它。
+      const command = commandOf(node.data.source)
+      signature = `${selected}|${tone}|${note}|${dim}|${title}|${rule}|${kind}|${command ?? ''}`
       build = () => ({
         id: node.id,
         type: 'wfTrigger',
         position: moving ?? node.position,
         selected,
-        data: { title, rule, kind, tone, note, dim, t },
+        data: {
+          title,
+          rule,
+          kind,
+          tone,
+          note,
+          dim,
+          t,
+          ...(command === undefined ? {} : { command }),
+        },
       })
     } else if (isResource(node)) {
       const isFocus = focusFile !== null && idKey(focusFile) === idKey(node.id)

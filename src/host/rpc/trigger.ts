@@ -1,6 +1,6 @@
 /**
  * dsh-workflow-lite — `trigger/*`：触发卡片的状态、开关与本机设置（含确认命令、换令牌）、「立即触发一次」、
- * 触发记录、最近的输出。
+ * 触发记录、最近的输出，以及工作流中心「触发」页的全部卡片与「全部暂停」。
  *
  * @module @xiaoso/dsh-workflow-lite/host/rpc/trigger
  */
@@ -30,6 +30,12 @@ export async function dispatchTrigger(
   payload: unknown,
 ): Promise<RpcResult<unknown>> {
   const input = asRecord(payload)
+  // 这两条不针对某一个工作流。
+  if (endpoint === 'trigger/all') return ok(await deps.triggers.all())
+  if (endpoint === 'trigger/pause') {
+    if (typeof input.paused !== 'boolean') throw new Error('paused must be a boolean')
+    return ok(await deps.triggers.pause(input.paused))
+  }
   const workflow = requireString(input, 'workflow')
   switch (endpoint) {
     case 'trigger/list':

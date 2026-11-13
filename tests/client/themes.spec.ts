@@ -88,6 +88,9 @@ describe('配色主题：每套都看得清', () => {
     expect(contrast(p.text3, p.fill), '第三级文字在输入框底上').toBeGreaterThanOrEqual(4.5)
     expect(contrast(p.accentOn, p.accent), '主按钮上的字').toBeGreaterThanOrEqual(4.5)
     expect(contrast(p.file, p.fileSurface), '资源卡上的字').toBeGreaterThanOrEqual(4.5)
+    // 关着的开关：边和旋钮用第三级文字色，在面板、画布上和轨道底上都要看得出（界面部件 3:1）。
+    expect(contrast(p.text3, p.canvas), '关着的开关在画布上').toBeGreaterThanOrEqual(3)
+    expect(contrast(p.text3, p.fillStrong), '关着的旋钮在轨道上').toBeGreaterThanOrEqual(3)
     for (const key of LINES) {
       expect(contrast(p[key], p.canvas), `${key} 线在画布上`).toBeGreaterThanOrEqual(3)
     }

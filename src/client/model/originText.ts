@@ -14,6 +14,7 @@ const CHANNEL_TEXT: Record<OriginChannel, LocaleKey> = {
   poll: 'origin.poll',
   listen: 'origin.listen',
   http: 'origin.http',
+  after: 'origin.after',
   now: 'origin.now',
 }
 

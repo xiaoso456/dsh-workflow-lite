@@ -7,15 +7,17 @@
 
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { findNode, isTrigger } from '../../../../shared/model.ts'
-import { commandOf } from '../../../../shared/trigger.ts'
+import { commandOf, launchMissing } from '../../../../shared/trigger.ts'
 import type { SessionRow } from '../../../app/sessions.ts'
 import { useTriggers } from '../../../app/useTriggers.ts'
 import type { Workflow } from '../../../app/useWorkflow.ts'
+import type { T } from '../../../i18n.ts'
 import type { Selection } from '../../../model/editor.ts'
 import type { WorkflowLiteRpc } from '../../../rpc.ts'
 import type { TriggerEnv } from '../../trigger/triggerEnv.ts'
 
 export interface TriggerSceneInput {
+  t: T
   rpc: WorkflowLiteRpc
   wf: Workflow
   /** 这个视图所在的会话。 */
@@ -28,7 +30,7 @@ export interface TriggerSceneInput {
 }
 
 export function useTriggerScene(input: TriggerSceneInput): TriggerEnv {
-  const { rpc, wf, session, sessionRows, sessionCwd, select, openRun } = input
+  const { t, rpc, wf, session, sessionRows, sessionCwd, select, openRun } = input
   const { state } = wf
   // 图里一张触发卡片都没有就不问状态。
   const active = useMemo(() => state.doc?.nodes.some(isTrigger) === true, [state.doc])
@@ -52,31 +54,70 @@ export function useTriggerScene(input: TriggerSceneInput): TriggerEnv {
     [sessionRows],
   )
 
-  const [ask, setAsk] = useState<TriggerEnv['ask']>(null)
-  const asked = useRef(0)
+  // 接续触发能等的工作流：不含正在编辑的这一张（等自己跑完会一直触发自己）。
+  const catalog = wf.catalog
+  const workflows = useMemo(
+    () =>
+      (catalog?.workflows ?? [])
+        .filter((entry) => entry.name !== state.name)
+        .map((entry) => ({ name: entry.name, runState: entry.runState === true }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [catalog, state.name],
+  )
+
+  const [reveal, setReveal] = useState<TriggerEnv['reveal']>(null)
   const doc = useRef(state.doc)
   doc.current = state.doc
 
+  /** 开不了：说出原因，选中这张卡片；缺的是本机设置（工作区、会话）就把面板里那一项带到眼前。 */
+  const refuse = useCallback(
+    (node: string, problem: string): void => {
+      wf.notify(problem, 'error')
+      select({ kind: 'node', id: node })
+      const card = doc.current === null ? undefined : findNode(doc.current, node)
+      if (card === undefined || !isTrigger(card)) return
+      const field = launchMissing(card.data, triggers.view(node) ?? {})
+      if (field !== null) setReveal({ node, field })
+    },
+    [wf.notify, select, triggers.view],
+  )
+
   const toggle = useCallback(
-    (node: string, on: boolean): void => {
-      // 要跑命令、还没确认过：先请用户在面板里看一眼命令。
+    (node: string, on: boolean): 'confirm' | 'done' => {
       const card = doc.current === null ? undefined : findNode(doc.current, node)
       const command =
         card !== undefined && isTrigger(card) ? commandOf(card.data.source) : undefined
-      if (on && command !== undefined && triggers.view(node)?.approved !== true) {
-        select({ kind: 'node', id: node })
-        asked.current += 1
-        setAsk({ node, seq: asked.current })
-        return
+      const view = triggers.view(node)
+      // 要跑命令、还没确认过：有工作区就请点开关的那一处问一句；没有就先去选工作区。
+      if (on && command !== undefined && view?.approved !== true) {
+        if (view?.workspace !== undefined) return 'confirm'
+        refuse(node, t('trigger.needWorkspace'))
+        return 'done'
       }
       void triggers.set(node, { enabled: on }).then((problem) => {
-        if (problem === null) return
-        // 开不了：说出原因，并把这张卡片的面板打开（要补的设置就在里面）。
-        wf.notify(problem, 'error')
-        select({ kind: 'node', id: node })
+        if (problem !== null) refuse(node, problem)
+      })
+      return 'done'
+    },
+    [t, triggers.set, triggers.view, refuse],
+  )
+
+  const approve = useCallback(
+    (node: string, command: string): void => {
+      void triggers.set(node, { approve: command, enabled: true }).then((problem) => {
+        if (problem !== null) refuse(node, problem)
       })
     },
-    [triggers.set, triggers.view, wf.notify, select],
+    [triggers.set, refuse],
+  )
+
+  const takeReveal = useCallback(
+    (node: string) => {
+      if (reveal === null || reveal.node !== node) return null
+      setReveal(null)
+      return reveal.field
+    },
+    [reveal],
   )
 
   return useMemo(
@@ -85,10 +126,25 @@ export function useTriggerScene(input: TriggerSceneInput): TriggerEnv {
       here: { session, cwd: sessionCwd },
       workspaces,
       sessions,
+      workflows,
       toggle,
-      ask,
+      approve,
+      reveal,
+      takeReveal,
       openRun,
     }),
-    [triggers, session, sessionCwd, workspaces, sessions, toggle, ask, openRun],
+    [
+      triggers,
+      session,
+      sessionCwd,
+      workspaces,
+      sessions,
+      workflows,
+      toggle,
+      approve,
+      reveal,
+      takeReveal,
+      openRun,
+    ],
   )
 }

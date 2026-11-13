@@ -27,8 +27,8 @@ import { Segmented } from '../kit/Segmented.tsx'
 import ui from '../kit/ui.module.css'
 import { CheckBox, FadeMark } from '../motion/marks.tsx'
 import { PickThumb } from '../motion/thumb.tsx'
+import { FieldHead } from '../panel/FieldHead.tsx'
 import css from '../panel/panel.module.css'
-import local from './inspector.module.css'
 import s from './settings.module.css'
 
 const MODE_TEXT: Record<ExecutionMode, { icon: IconName; title: LocaleKey; desc: LocaleKey }> = {
@@ -46,29 +46,6 @@ const REUSE_TEXT: Record<ReusePolicy, { title: LocaleKey; desc: LocaleKey }> = {
   auto: { title: 'settings.reuse.auto', desc: 'settings.reuse.autoDesc' },
   reuse: { title: 'settings.reuse.reuse', desc: 'settings.reuse.reuseDesc' },
   fresh: { title: 'settings.reuse.fresh', desc: 'settings.reuse.freshDesc' },
-}
-
-/** 一块的标题：名字 +「?」，右边可以再挂东西。 */
-function GroupHead(props: {
-  title: string
-  help?: React.ReactNode
-  helpTestId?: string
-  children?: React.ReactNode
-}): React.JSX.Element {
-  return (
-    <div className={css.label}>
-      <span className={local.labelMain}>
-        {props.title}
-        {props.help !== undefined && (
-          <HelpTip label={props.title} testId={props.helpTestId}>
-            <p className={ui.hintTitle}>{props.title}</p>
-            {props.help}
-          </HelpTip>
-        )}
-      </span>
-      {props.children}
-    </div>
-  )
 }
 
 function Tips(props: { t: T; keys: readonly LocaleKey[] }): React.JSX.Element {
@@ -97,7 +74,7 @@ export function ModeGroup(props: {
   const off = props.mode === 'serial'
   return (
     <section className={s.group}>
-      <GroupHead
+      <FieldHead
         title={t('settings.mode')}
         helpTestId="wl-settings-mode-help"
         help={
@@ -234,7 +211,7 @@ export function DuringGroup(props: {
   const { t } = props
   return (
     <section className={s.group}>
-      <GroupHead title={t('settings.during')} />
+      <FieldHead title={t('settings.during')} />
       <div className={s.rows}>
         <SwitchRow
           icon="target"
@@ -306,7 +283,7 @@ export function RootGroup(props: {
   const { problem, normalized, isDefault } = rootStatus(props.root)
   return (
     <section className={s.group}>
-      <GroupHead
+      <FieldHead
         title={t('settings.root')}
         helpTestId="wl-settings-root-help"
         help={
@@ -361,7 +338,7 @@ export function RootGroup(props: {
             {t('settings.rootReset')}
           </button>
         )}
-      </GroupHead>
+      </FieldHead>
       <input
         ref={props.inputRef}
         className={cx(ui.input, ui.mono)}

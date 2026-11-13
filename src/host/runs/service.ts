@@ -85,6 +85,15 @@ export class RunService {
     return this.reader.list(session, all)
   }
 
+  /** 结束了的实例（接续触发用，见 {@link RunReader.finished}）。 */
+  finished(
+    workflow: string,
+    since: number,
+    skip: ReadonlySet<string>,
+  ): ReturnType<RunReader['finished']> {
+    return this.reader.finished(workflow, since, skip)
+  }
+
   /** 会话的当前实例 id（没有就 `undefined`）。 */
   currentOf(session: string): Promise<string | undefined> {
     return this.reader.currentOf(session)

@@ -1,17 +1,18 @@
 /**
  * dsh-workflow-lite — 定时触发的规则：每隔多久 / 每天几点（可限定星期几）/ 五段 cron。
  *
- * 换一种就给那一种的常用值；写得不对当场说出原因，写对了预告下一次是什么时候。
+ * 换一种：这一张面板开着时那一种填过的先记着，换回来还在，没填过的给常用值；
+ * 写得不对当场说出原因（按界面语言），写对了预告下一次是什么时候。
  * 放在「何时触发」那一段里（见 `SourceField.tsx`），自己不带分组标题。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/trigger/ScheduleField
  */
 
-import { useState } from 'react'
-import { EVERY_MAX, nextFire, parseClock, scheduleProblem } from '../../../shared/schedule.ts'
+import { useRef, useState } from 'react'
+import { EVERY_MAX, nextFire, parseClock, scheduleIssue } from '../../../shared/schedule.ts'
 import type { TriggerSchedule } from '../../../shared/types.ts'
 import type { LocaleKey, T } from '../../i18n.ts'
-import { momentText, weekdayText } from '../../model/triggerText.ts'
+import { momentText, scheduleIssueText, weekdayChip, weekdayText } from '../../model/triggerText.ts'
 import { cx } from '../kit/cx.ts'
 import { Segmented } from '../kit/Segmented.tsx'
 import { Select } from '../kit/Select.tsx'
@@ -55,13 +56,26 @@ const sizeOf = (unit: Unit): number => UNITS.find((item) => item.value === unit)
 export function ScheduleField(props: {
   t: T
   schedule: TriggerSchedule
+  /**
+   * 卡片开着时宿主排好的下一次。「每隔多久」从打开开关的那一刻起算，这里算不出来，有就用它；
+   * 每天几点、cron 和打开的时刻无关，照规则算。
+   */
+  live?: number | undefined
   /** `typing` = 正在连续输入（并成一条撤销步）。 */
   onChange(schedule: TriggerSchedule, typing?: boolean): void
   onSeal(): void
 }): React.JSX.Element {
   const { t, schedule } = props
-  const problem = scheduleProblem(schedule)
-  const next = problem === null ? nextFire(schedule, new Date()) : null
+  const issue = scheduleIssue(schedule)
+  const problem = issue === null ? null : scheduleIssueText(t, issue)
+  const next =
+    problem !== null
+      ? null
+      : schedule.kind === 'every' && props.live !== undefined
+        ? new Date(props.live)
+        : nextFire(schedule, new Date())
+  /** 这张面板开着时各种规则填过的样子。 */
+  const kept = useRef(new Map<Kind, TriggerSchedule>())
   return (
     <>
       <Segmented<Kind>
@@ -69,7 +83,9 @@ export function ScheduleField(props: {
         value={schedule.kind}
         testId="wl-trigger-kind"
         onChange={(kind) => {
-          if (kind !== schedule.kind) props.onChange(SEED[kind])
+          if (kind === schedule.kind) return
+          kept.current.set(schedule.kind, schedule)
+          props.onChange(kept.current.get(kind) ?? SEED[kind])
         }}
         options={KINDS.map((kind) => ({ value: kind.value, label: t(kind.label) }))}
       />
@@ -84,7 +100,7 @@ export function ScheduleField(props: {
       {schedule.kind === 'daily' && (
         <>
           <label className={css.row}>
-            <span className={css.rowLabel}>{t('trigger.time')}</span>
+            <span className={css.lead}>{t('trigger.time')}</span>
             <input
               type="time"
               className={cx(ui.input, css.time)}
@@ -99,7 +115,7 @@ export function ScheduleField(props: {
             />
           </label>
           <div className={css.row}>
-            <span className={css.rowLabel}>{t('trigger.weekdays')}</span>
+            <span className={css.lead}>{t('trigger.weekdays')}</span>
             <span className={css.days} role="group" aria-label={t('trigger.weekdays')}>
               {DAYS.map((day) => {
                 const on = schedule.weekdays?.includes(day) === true
@@ -110,6 +126,7 @@ export function ScheduleField(props: {
                     role="checkbox"
                     aria-checked={on}
                     className={css.day}
+                    aria-label={weekdayText(t, day)}
                     data-testid={`wl-trigger-day-${String(day)}`}
                     onClick={() => {
                       const picked = new Set(schedule.weekdays ?? [])
@@ -124,7 +141,7 @@ export function ScheduleField(props: {
                       )
                     }}
                   >
-                    {weekdayText(t, day)}
+                    {weekdayChip(t, day)}
                   </button>
                 )
               })}
@@ -187,7 +204,7 @@ function EveryRow(props: {
   return (
     <>
       <div className={css.row}>
-        <span className={css.rowLabel}>{t('trigger.every')}</span>
+        <span className={css.lead}>{t('trigger.every')}</span>
         <input
           className={cx(ui.input, css.number)}
           inputMode="numeric"

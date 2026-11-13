@@ -15,14 +15,13 @@ import type { WorkflowEdge } from '../../../shared/types.ts'
 import type { T } from '../../i18n.ts'
 import type { Edit } from '../../model/editor.ts'
 import { cx } from '../kit/cx.ts'
-import { HelpTip } from '../kit/HelpTip.tsx'
 import { Icon } from '../kit/Icon.tsx'
 import { TextArea } from '../kit/TextArea.tsx'
 import ui from '../kit/ui.module.css'
 import { Checkbox } from '../motion/marks.tsx'
+import { FieldHead } from '../panel/FieldHead.tsx'
 import ins from '../panel/panel.module.css'
 import css from './handoff.module.css'
-import local from './inspector.module.css'
 
 /**
  * 交接：一个开关（交不交执行结果）+ 交接说明。开关关掉时说明先记着，再打开还在。
@@ -70,18 +69,16 @@ export function HandoffField(props: {
 
   return (
     <section className={ins.field} data-testid="wl-handoff">
-      <div className={ins.label}>
-        <span className={local.labelMain}>
-          {t('hand.title')}
-          <HelpTip label={t('hand.title')} testId="wl-handoff-help">
-            <p className={ui.hintTitle}>{t('hand.title')}</p>
-            <ul className={ui.hintList}>
-              <li>{t('hand.tipWhat')}</li>
-              <li>{t('hand.tipFiles')}</li>
-            </ul>
-          </HelpTip>
-        </span>
-      </div>
+      <FieldHead
+        title={t('hand.title')}
+        helpTestId="wl-handoff-help"
+        help={
+          <ul className={ui.hintList}>
+            <li>{t('hand.tipWhat')}</li>
+            <li>{t('hand.tipFiles')}</li>
+          </ul>
+        }
+      />
       <label className={cx(css.resultRow, ui.fillOn)} data-on={on}>
         <Checkbox
           className={css.check}

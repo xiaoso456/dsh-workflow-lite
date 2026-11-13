@@ -66,6 +66,8 @@ export function HistoryBar(props: {
     closeMs: 0,
     width: MENU_W,
     exitMs: FLOAT_EXIT_MS,
+    // 打开后焦点落在钉住的那一项上，上下键能接着挑。
+    initialFocus: '[role="menuitemradio"][aria-checked="true"]',
   })
   const open = menu.state !== 'off'
   const items = useRef<(HTMLButtonElement | null)[]>([])
@@ -97,10 +99,6 @@ export function HistoryBar(props: {
             onClick={(event) => {
               event.stopPropagation()
               menu.setState(open ? 'off' : 'pinned')
-              // 打开后焦点落在钉住的那一项上，上下键接着挑。
-              requestAnimationFrame(() =>
-                items.current[count - 1 - pinnedAt]?.focus({ preventScroll: true }),
-              )
             }}
             onDoubleClick={stop}
             onKeyDown={menu.onKeyDown}

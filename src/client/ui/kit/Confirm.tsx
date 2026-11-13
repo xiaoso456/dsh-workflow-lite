@@ -15,7 +15,6 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/kit/Confirm
  */
 
-import { useEffect } from 'react'
 import type { T } from '../../i18n.ts'
 import css from './confirm.module.css'
 import { cx } from './cx.ts'
@@ -60,21 +59,11 @@ export function useConfirm<A extends HTMLElement>(): {
     align: 'auto',
     gap: CONFIRM_GAP,
     exitMs: FLOAT_EXIT_MS,
+    // 打开时焦点落在「取消」上：键盘连按两下回车不会直接删掉。
+    initialFocus: '[data-confirm="cancel"]',
   })
-  const { state, setState, panelRef, anchorRef } = float
+  const { state, setState, anchorRef } = float
   const open = state !== 'off'
-
-  // 打开时焦点落在「取消」上：键盘连按两下回车不会直接删掉。
-  // 卡片第一帧还藏着量尺寸（藏着的元素拿不到焦点），等摆好那一帧再聚焦。
-  useEffect(() => {
-    if (!open) return
-    const frame = requestAnimationFrame(() => {
-      panelRef.current
-        ?.querySelector<HTMLElement>('[data-confirm="cancel"]')
-        ?.focus({ preventScroll: true })
-    })
-    return () => cancelAnimationFrame(frame)
-  }, [open, panelRef])
 
   const hide = (): void => {
     setState('off')

@@ -35,6 +35,24 @@ export const zh = {
   'hub.wfNoMatch': '没有符合条件的工作流',
   'hub.wfEmpty': '还没有工作流',
 
+  // ── 工作流中心：触发页 ──────────────────────────────────────
+  'hub.trgPage': '触发',
+  'hub.trgSearch': '搜索触发卡片、工作流',
+  'hub.trgNoMatch': '没有符合条件的触发卡片',
+  'hub.trgEmpty': '还没有触发卡片',
+  'hub.trgEmptyHint': '在画布上从步骤库拖一张「触发」卡片进来，就会出现在这里。',
+  'hub.trgRunning': '触发卡片照各自的开关运行',
+  'hub.trgPausedSince': '{time} 起全部暂停',
+  'hub.trgPause': '全部暂停',
+  'hub.trgResume': '恢复',
+  'hub.trgPauseTip': '所有触发卡片都不再自动触发，各自的开关不变；恢复后不补触发',
+  'hub.trgPausedNote':
+    '全部暂停着：定时到点不触发，轮询、监听程序、HTTP 都停着，别的工作流跑完也不接续；恢复后不补触发。「立即触发一次」照常可用。',
+  'hub.trgOpen': '在画布上打开',
+  'hub.trgOpenTip': '打开这个工作流，选中这张触发卡片',
+  'hub.trgNoCwd': '先在画布上这张卡片的「怎么运行」里选工作区。',
+  'hub.trgNotChosen': '还没选',
+
   // ── 工作流中心：实例与存储 ──────────────────────────────────
   'hub.search': '搜索工作流、会话、目标',
   'hub.clearSearch': '清空搜索',
@@ -128,6 +146,23 @@ export const en: Record<keyof typeof zh, string> = {
   'hub.wfSearch': 'Search workflows',
   'hub.wfNoMatch': 'No matching workflows',
   'hub.wfEmpty': 'No workflows yet',
+  'hub.trgPage': 'Triggers',
+  'hub.trgSearch': 'Search triggers and workflows',
+  'hub.trgNoMatch': 'No matching triggers',
+  'hub.trgEmpty': 'No triggers yet',
+  'hub.trgEmptyHint': 'Drag a Trigger card from the library onto a canvas and it shows up here.',
+  'hub.trgRunning': 'Each trigger follows its own switch',
+  'hub.trgPausedSince': 'All paused since {time}',
+  'hub.trgPause': 'Pause all',
+  'hub.trgResume': 'Resume',
+  'hub.trgPauseTip':
+    'No trigger fires on its own; each switch stays as it is, and nothing is caught up on resume',
+  'hub.trgPausedNote':
+    'All paused: schedules do not fire, polls, listeners and HTTP are stopped, and finished workflows trigger nothing; nothing is caught up on resume. Trigger once now still works.',
+  'hub.trgOpen': 'Open on canvas',
+  'hub.trgOpenTip': 'Open this workflow and select this trigger',
+  'hub.trgNoCwd': 'First pick a workspace under How to run on this card in the canvas.',
+  'hub.trgNotChosen': 'Not chosen',
 
   // ── 工作流中心：实例与存储 ──────────────────────────────────
   'hub.search': 'Search instances',

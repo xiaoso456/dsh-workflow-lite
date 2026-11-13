@@ -16,6 +16,16 @@ export interface SessionChoice {
   title: string
 }
 
+/** 接续触发可以等的一个工作流。 */
+export interface WorkflowChoice {
+  name: string
+  /** 开着「记录运行状态」（没开的看不出什么时候跑完）。 */
+  runState: boolean
+}
+
+/** 面板里打开开关前要补的一项。 */
+export type LaunchField = 'workspace' | 'session'
+
 export interface TriggerEnv {
   triggers: Triggers
   /** 这个视图所在的会话与它的工作区（「当前会话」「当前工作区」）。 */
@@ -24,13 +34,20 @@ export interface TriggerEnv {
   workspaces: readonly string[]
   /** 可以选作「固定会话」的会话。 */
   sessions: readonly SessionChoice[]
+  /** 接续触发能等的工作流（除了这一张之外的全部）。 */
+  workflows: readonly WorkflowChoice[]
   /**
-   * 开、关一张卡片；开不了（还没选工作区…）时选中它并说出原因。
-   * 要在本机跑命令、命令还没确认过的：不直接打开，选中它、在面板里请用户确认命令（{@link ask}）。
+   * 开、关一张卡片。
+   * - 要在本机跑命令、命令还没确认过：回 `'confirm'`，由点开关的那一处在开关旁边浮出确认卡（{@link approve}）；
+   * - 开不了（还没选工作区、会话…）：说出原因，选中这张卡片，把面板里要补的那一项带到眼前（{@link reveal}）。
    */
-  toggle(node: string, on: boolean): void
-  /** 刚请求确认命令的那张卡片（`seq` 每请求一次加一，面板据此弹出确认卡）。 */
-  ask: { node: string; seq: number } | null
+  toggle(node: string, on: boolean): 'confirm' | 'done'
+  /** 确认要运行的命令并打开开关；开不了时同 {@link toggle}。 */
+  approve(node: string, command: string): void
+  /** 刚请求「把要补的那一项带到眼前」的卡片；面板用 {@link takeReveal} 接手，接手后就清掉（重新挂上不会再来一次）。 */
+  reveal: { node: string; field: LaunchField } | null
+  /** 面板接手 {@link reveal}：是这张卡片的就回要补的那一项并清掉，否则 `null`。 */
+  takeReveal(node: string): LaunchField | null
   /** 打开一次触发建出来的实例。 */
   openRun(instance: string): void
 }

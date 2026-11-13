@@ -4,12 +4,14 @@
 
 import { describe, expect, it } from 'vitest'
 import { readDocument, writeDocument } from '../../src/shared/model.ts'
-import { nextFire, parseCron, scheduleProblem } from '../../src/shared/schedule.ts'
+import { nextFire, parseCron, scheduleIssue, scheduleProblem } from '../../src/shared/schedule.ts'
 import {
   canonicalTrigger,
   commandOf,
+  launchMissing,
   launchOf,
   readTriggerData,
+  sourceIssue,
   sourceProblem,
   sourceText,
 } from '../../src/shared/trigger.ts'
@@ -141,6 +143,80 @@ describe('轮询、监听程序、HTTP', () => {
     )
     expect(sourceText({ kind: 'http' })).toBe('收到一个 HTTP 请求')
   })
+
+  it('哪里不对也给出处（界面按语言说）', () => {
+    expect(sourceIssue({ kind: 'listen', command: '' })).toEqual({ code: 'noCommand' })
+    expect(sourceIssue({ kind: 'poll', command: 'x', seconds: 5 })).toEqual({
+      code: 'interval',
+      min: 10,
+      max: 7 * 24 * 3600,
+    })
+    expect(sourceIssue({ kind: 'after', workflow: '' })).toEqual({ code: 'noWorkflow' })
+    expect(sourceIssue({ kind: 'schedule', schedule: { kind: 'daily', time: '25:00' } })).toEqual({
+      code: 'schedule',
+      issue: { code: 'time', time: '25:00' },
+    })
+    expect(sourceIssue({ kind: 'http' })).toBeNull()
+  })
+
+  it('打开开关前本机还缺哪一样', () => {
+    const listen = readTriggerData({ source: { kind: 'listen', command: 'x' } })
+    expect(launchMissing(listen, {})).toBe('workspace')
+    // 要跑命令的：发进固定会话也要工作区（命令在那里跑）。
+    const fixedListen = readTriggerData({
+      source: { kind: 'listen', command: 'x' },
+      launch: { session: 'fixed' },
+    })
+    expect(launchMissing(fixedListen, { workspace: 'D:/w' })).toBe('session')
+    const fixedHttp = readTriggerData({ source: { kind: 'http' }, launch: { session: 'fixed' } })
+    expect(launchMissing(fixedHttp, {})).toBe('session')
+    expect(launchMissing(fixedHttp, { session: 's1' })).toBeNull()
+    const http = readTriggerData({ source: { kind: 'http' } })
+    expect(launchMissing(http, { workspace: 'D:/w' })).toBeNull()
+  })
+})
+
+describe('接续触发', () => {
+  it('读入：工作流名去掉两头空白，结果缺省（成功时）不写；没有过滤', () => {
+    expect(
+      readTriggerData({ source: { kind: 'after', workflow: ' 构建 ', when: 'done' } }).source,
+    ).toEqual({ kind: 'after', workflow: '构建' })
+    expect(readTriggerData({ source: { kind: 'after', when: 'any' } }).source).toEqual({
+      kind: 'after',
+      workflow: '',
+      when: 'any',
+    })
+    expect(
+      readTriggerData({ source: { kind: 'after', workflow: 'b' }, filter: { merge: 5 } }),
+    ).not.toHaveProperty('filter')
+    const data = canonicalTrigger({ source: { when: 'failed', workflow: 'b', kind: 'after' } })
+    expect(Object.keys(data.source)).toEqual(['kind', 'workflow', 'when'])
+  })
+
+  it('没选工作流说出来；一句话说法；等自己跑完是警告', () => {
+    expect(sourceProblem({ kind: 'after', workflow: '' })).toContain('还没选')
+    expect(sourceProblem({ kind: 'after', workflow: 'b' })).toBeNull()
+    expect(sourceText({ kind: 'after', workflow: 'b' })).toBe('工作流「b」的一次执行成功了')
+    expect(sourceText({ kind: 'after', workflow: 'b', when: 'any' })).toBe(
+      '工作流「b」的一次执行结束了',
+    )
+    const self: WorkflowDocument = {
+      nodes: [
+        {
+          id: 'tick',
+          type: 'wfTrigger',
+          position: { x: 0, y: 0 },
+          data: { source: { kind: 'after', workflow: 'w' } },
+        },
+      ],
+      edges: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+    }
+    const problems = validateDocument(self, { workflowName: 'w', maxNodes: 100 })
+    expect(problems.warning.map((problem) => problem.message)).toEqual([
+      expect.stringContaining('不能等自己跑完'),
+    ])
+  })
 })
 
 describe('图里的触发节点', () => {
@@ -233,5 +309,11 @@ describe('定时规则', () => {
     expect(parseCron('0 9 */0 * *')).toContain('步长')
     expect(scheduleProblem({ kind: 'cron', expression: '0 0 31 2 *' })).toContain('永远不会触发')
     expect(scheduleProblem({ kind: 'cron', expression: '5/20 * * * *' })).toBeNull()
+    expect(scheduleIssue({ kind: 'cron', expression: '0 9 * * mon' })).toEqual({
+      code: 'cronSyntax',
+      field: 'weekday',
+      part: 'mon',
+    })
+    expect(scheduleIssue({ kind: 'cron', expression: '0 0 31 2 *' })).toEqual({ code: 'cronNever' })
   })
 })

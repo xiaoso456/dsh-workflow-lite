@@ -1,125 +1,93 @@
 /**
- * dsh-workflow-lite — 画布上触发卡片（TriggerCard）的样子。
+ * dsh-workflow-lite — 画布上触发卡片（TriggerCard）自己的样子。
  *
- * 一张自己待着的卡片（没有连接点）：左边一条签印着闪电，中间名字、定时规则、状态三行，右边一个开关。
- * 开着（等待中、由别的 DSH 负责）时签是强调色，关着是灰的；状态前的小圆点按状态换色。
- * 宽度和 model/layout.ts 的 `TRIGGER_W` 是同一个数。
+ * 外壳（宽度、内边距、圆角、悬停、选中环、变暗、入场）和步骤卡共用 canvas.module.css 的 `.card`；
+ * 这里只有：挂在上沿的闪电圆标、标题行里的开关、规则和状态两行。
+ * 宽度和 model/layout.ts 的 `TRIGGER_W` 是同一个数（= 步骤卡）。
  */
 
+/* 卡片没有连接点：不用给左右留连接点的位置。 */
 .card {
-  position: relative;
-  display: flex;
-  align-items: stretch;
-  width: 264px;
-  min-height: 64px;
-  border: 1px solid var(--wl-card-line, var(--wl-line));
-  border-radius: calc(10px * var(--wl-round, 1));
-  background: var(--wl-panel);
-  box-shadow: var(--wl-shadow-1);
-  cursor: grab;
-  /* 只填充"开始之前"：动画走完就交还给普通样式，悬停的 transform 过渡才生效。 */
-  animation: triggerIn 380ms var(--wl-spring) backwards;
-  transition:
-    transform 340ms var(--wl-spring),
-    opacity 160ms linear,
-    border-color 120ms linear;
+  gap: 5px;
 }
 
-@keyframes triggerIn {
-  from {
-    opacity: 0;
-    transform: scale(0.9);
-  }
-}
-
-/* 选中环画在伪元素上，渐显只动它的 opacity。 */
-.card::after {
+/*
+ * 闪电圆标：和资源卡上沿「交给整个工作流」的小圆标同一种（18px、画布色描边），同样挂在右上。
+ * 底是灰的；开着时强调色那层淡进来（只动 opacity）。
+ */
+.badge {
   position: absolute;
-  inset: -1px;
-  border: 2px solid var(--wl-accent);
+  top: -9px;
+  right: 12px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--wl-canvas);
+  border-radius: 50%;
+  background: var(--wl-text-3);
+  color: var(--wl-panel);
+}
+
+.badge::before {
+  position: absolute;
+  inset: 0;
   border-radius: inherit;
-  box-shadow: 0 0 0 4px var(--wl-accent-soft);
+  background: var(--wl-accent);
   content: "";
   opacity: 0;
-  pointer-events: none;
-  transition: opacity 160ms linear;
+  transition: opacity 180ms linear;
 }
 
-.card[data-selected]::after {
+.badge > * {
+  position: relative;
+}
+
+.card[data-state="waiting"] .badge::before,
+.card[data-state="listening"] .badge::before,
+.card[data-state="elsewhere"] .badge::before {
   opacity: 1;
 }
 
-.card:hover {
-  border-color: var(--wl-line-strong);
-  transform: translateY(-1px);
+/* 实例视图没有现场：圆标保持强调色，表示「这是一张触发卡片」，不表示开着。 */
+.card:not([data-state]) .badge::before {
+  opacity: 1;
 }
 
-.card[data-dim="true"] {
-  opacity: 0.32;
-}
-
-:global(.react-flow__node.dragging) .card {
-  cursor: grabbing;
-  transform: scale(1.03);
-}
-
-.tab {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 34px;
-  border-radius: calc(9px * var(--wl-round, 1)) 0 0 calc(9px * var(--wl-round, 1));
-  background: var(--wl-fill);
-  color: var(--wl-text-3);
-  transition:
-    background-color 160ms linear,
-    color 160ms linear;
-}
-
-.card[data-state="waiting"] .tab,
-.card[data-state="listening"] .tab,
-.card[data-state="elsewhere"] .tab {
-  background: var(--wl-accent-soft);
-  color: var(--wl-accent-text);
-}
-
-.text {
+.head {
   display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  gap: 1px;
-  justify-content: center;
+  gap: 8px;
+  align-items: center;
   min-width: 0;
-  padding: 7px 8px 7px 10px;
 }
 
-.title {
-  overflow: hidden;
-  color: var(--wl-text);
-  font-size: var(--wl-fs-meta);
-  font-weight: 600;
-  line-height: 1.35;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.lines {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 
 .rule,
 .status {
   overflow: hidden;
-  color: var(--wl-text-3);
-  font-size: var(--wl-fs-micro);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .rule {
   color: var(--wl-text-2);
+  font-size: var(--wl-fs-meta);
+  line-height: 1.5;
 }
 
 .status {
   display: flex;
   gap: 5px;
   align-items: center;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
 }
 
 .statusText {
@@ -156,6 +124,7 @@
 }
 
 .card[data-state="unavailable"] .dot,
+.card[data-state="paused"] .dot,
 .card[data-state="restarting"] .dot,
 .card[data-state="confirm"] .dot {
   border-color: var(--wl-warn-dot);
@@ -168,23 +137,19 @@
   color: var(--wl-danger);
 }
 
-.card > :global(.nodrag) {
-  cursor: pointer;
-}
-
-/* 开关：一整块按钮（好点），里面是和别处一样的开关轨道。 */
+/* 开关：标题行末一块好点的按钮，往外借边距，不把标题行撑高。 */
 .toggle {
   display: grid;
   flex: none;
-  align-self: center;
   place-items: center;
   width: 38px;
-  height: 30px;
-  margin-right: 6px;
+  height: 26px;
+  margin: -4px -7px -4px 0;
   padding: 0;
   border: 0;
-  border-radius: calc(8px * var(--wl-round, 1));
+  border-radius: calc(7px * var(--wl-round, 1));
   background: transparent;
+  cursor: pointer;
 }
 
 .toggle:hover {
@@ -197,10 +162,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .card,
-  .card::after,
-  .tab {
-    animation: none;
+  .badge::before {
     transition: none;
   }
 }

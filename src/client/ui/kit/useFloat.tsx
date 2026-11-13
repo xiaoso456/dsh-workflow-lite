@@ -49,6 +49,11 @@ export function useFloat<A extends HTMLElement>(options: {
    * 右栏里的设置摆在整条栏的左边，但和「调整」那一行齐平。
    */
   besideTop?: 'beside' | 'anchor'
+  /**
+   * 钉住打开时焦点落到浮层里的哪一项（选择器）。等浮层摆好、露出来之后才聚焦：
+   * 第一帧还藏着量尺寸，藏着的元素拿不到焦点，按帧去猜会赶不上。
+   */
+  initialFocus?: string
 }): {
   state: FloatState
   setState: (next: FloatState | ((current: FloatState) => FloatState)) => void
@@ -92,6 +97,7 @@ export function useFloat<A extends HTMLElement>(options: {
     exitMs = 0,
     beside,
     besideTop = 'beside',
+    initialFocus,
   } = options
   /**
    * 浮层还挂着吗：打开时挂上；收起后再挂 `exitMs` 放退场动画。
@@ -199,6 +205,13 @@ export function useFloat<A extends HTMLElement>(options: {
     }
   }, [state, host, width, align, gap, beside, besideTop])
 
+  // 摆好的那一次提交之后聚焦（每打开一次一回：内容变高重量时 `place` 一直不是 null）。
+  const placed = place !== null
+  useEffect(() => {
+    if (state !== 'pinned' || !placed || initialFocus === undefined) return
+    panelRef.current?.querySelector<HTMLElement>(initialFocus)?.focus({ preventScroll: true })
+  }, [state, placed, initialFocus])
+
   useEffect(() => {
     if (state === 'off') return
     const inside = (target: EventTarget | null): boolean =>
@@ -269,8 +282,9 @@ export function useFloat<A extends HTMLElement>(options: {
           ...(place?.maxHeight === undefined
             ? {}
             : { maxHeight: place.maxHeight, overflowY: 'auto' as const }),
-          // 第一帧还没量好位置：先藏着量高度，摆好了再出现（避免闪一下）。
-          visibility: place === null ? 'hidden' : 'visible',
+          // 第一帧还没量好位置：先透明着量高度，摆好了再出现（避免闪一下）。
+          // 不用 visibility：它会继承，「减少动态效果」的兜底过渡让里面的元素晚一刻才露出来，那一刻聚焦会落空。
+          ...(place === null ? { opacity: 0, pointerEvents: 'none' as const } : {}),
         }}
         onPointerEnter={cancel}
         onPointerLeave={() => {

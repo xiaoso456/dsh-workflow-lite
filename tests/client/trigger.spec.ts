@@ -6,12 +6,20 @@ import { type Edit, type EditorState, initialState, reduce } from '../../src/cli
 import { cardSize, TRIGGER_H, TRIGGER_W, tidy, triggerSpot } from '../../src/client/model/layout.ts'
 import { decodeStepSource, encodeStepSource } from '../../src/client/model/library.ts'
 import { originText } from '../../src/client/model/originText.ts'
-import { momentText, ruleText, sourceText, stateText } from '../../src/client/model/triggerText.ts'
+import {
+  momentText,
+  ruleText,
+  scheduleIssueText,
+  sourceIssueText,
+  sourceText,
+  stateText,
+} from '../../src/client/model/triggerText.ts'
 import { parseKeywords } from '../../src/client/ui/trigger/FilterField.tsx'
-import { curlOf } from '../../src/client/ui/trigger/SourceField.tsx'
+import { curlOf, switchSource } from '../../src/client/ui/trigger/SourceField.tsx'
 import { analyzeGraph } from '../../src/shared/graph.ts'
 import { isTrigger } from '../../src/shared/model.ts'
-import { DEFAULT_TRIGGER } from '../../src/shared/trigger.ts'
+import { scheduleIssue } from '../../src/shared/schedule.ts'
+import { DEFAULT_TRIGGER, SOURCE_SEED, sourceIssue } from '../../src/shared/trigger.ts'
 import type {
   StepNode,
   TriggerData,
@@ -251,13 +259,26 @@ describe('触发卡片：卡片上的字', () => {
       '重启中 · 今天 07:55 重启',
     )
     expect(stateText(t, { ...view, state: 'confirm' }, 'listen', now)).toBe(
-      '待确认 · 在面板里确认命令',
+      '待确认 · 打开开关时确认命令',
     )
     expect(sourceText(t, { kind: 'poll', command: 'x', seconds: 300 })).toBe('每 5 分钟检查')
     expect(sourceText(t, { kind: 'poll', command: 'x', seconds: 7200 })).toBe('每 2 小时检查')
     expect(sourceText(t, { kind: 'poll', command: 'x', seconds: 45 })).toBe('每 45 秒检查')
     expect(sourceText(t, { kind: 'listen', command: 'x' })).toBe('监听程序')
     expect(sourceText(t, { kind: 'http' })).toBe('HTTP 请求')
+  })
+
+  it('接续触发与全部暂停的说法', () => {
+    expect(sourceText(t, { kind: 'after', workflow: '构建' })).toBe('「构建」成功后')
+    expect(sourceText(t, { kind: 'after', workflow: '构建', when: 'failed' })).toBe(
+      '「构建」失败后',
+    )
+    expect(sourceText(t, { kind: 'after', workflow: '构建', when: 'any' })).toBe('「构建」跑完后')
+    expect(sourceText(t, { kind: 'after', workflow: '' })).toBe('还没选工作流')
+    expect(stateText(t, { node: 'tick', enabled: true, state: 'paused' }, 'schedule')).toBe(
+      '已全部暂停',
+    )
+    expect(originText(t, { channel: 'after' })).toBe('接续触发')
   })
 
   it('关键字一格按中英文逗号、顿号、换行拆开；curl 带上令牌', () => {
@@ -287,5 +308,69 @@ describe('触发卡片：卡片上的字', () => {
     expect(originText(t, { channel: 'http', trigger: { id: 'ci', name: 'CI' } })).toBe(
       'HTTP 触发 · CI',
     )
+  })
+})
+
+describe('触发卡片：写得不对的说法按界面语言', () => {
+  it('定时规则与触发源的毛病：中文、英文各说各的，不夹中文', () => {
+    const cron = scheduleIssue({ kind: 'cron', expression: '60 9 * * *' })
+    if (cron === null) throw new Error('应当报超出范围')
+    expect(scheduleIssueText(t, cron)).toBe('「分」这一段超出范围（0–59）：60')
+    expect(scheduleIssueText(en, cron)).toBe('The minute field is out of range (0–59): 60')
+    const parts = scheduleIssue({ kind: 'cron', expression: '0 9 * *' })
+    if (parts === null) throw new Error('应当报段数不对')
+    expect(scheduleIssueText(en, parts)).toContain('this one has 4')
+    const empty = scheduleIssue({ kind: 'cron', expression: '0 9 , * *' })
+    if (empty === null) throw new Error('应当报空的一段')
+    expect(scheduleIssueText(t, empty)).toBe('「日」这一段写得不对：空的')
+    const command = sourceIssue({ kind: 'listen', command: ' ' })
+    if (command === null) throw new Error('应当报没写命令')
+    expect(sourceIssueText(en, command)).toBe('Write the command to run')
+    const interval = sourceIssue({ kind: 'poll', command: 'x', seconds: 5 })
+    if (interval === null) throw new Error('应当报间隔')
+    expect(sourceIssueText(en, interval)).toBe('The interval must be between 10 seconds and 7 days')
+    const after = sourceIssue({ kind: 'after', workflow: '' })
+    if (after === null) throw new Error('应当报没选工作流')
+    expect(sourceIssueText(t, after)).toBe('还没选等哪个工作流跑完')
+    // 英文的说法里不留中文。
+    for (const key of Object.keys(enText) as LocaleKey[]) {
+      if (key.startsWith('trigger.issue.') || key.startsWith('trigger.cronField.')) {
+        expect(enText[key]).not.toMatch(/[\u4e00-\u9fff]/u)
+      }
+    }
+  })
+
+  it('面板里定时卡片的状态不再说下一次（规则下面已经写着）', () => {
+    const now = new Date(2026, 10, 13, 7, 0).getTime()
+    const next = new Date(2026, 10, 13, 9, 0).getTime()
+    const view = { node: 'tick', enabled: true, state: 'waiting', next } as const
+    expect(stateText(t, view, 'schedule', now)).toBe('等待中 · 下一次 今天 09:00')
+    expect(stateText(t, view, 'schedule', now, { next: false })).toBe('等待中')
+  })
+})
+
+describe('触发卡片：换触发源', () => {
+  it('换走再换回来，填过的还在；没填过的给常用值', () => {
+    const poll = { kind: 'poll', command: 'git status', seconds: 60 } as const
+    const kept = new Map([['poll', poll]] as const)
+    expect(switchSource({ kind: 'http' }, 'poll', kept)).toBe(poll)
+    expect(switchSource({ kind: 'http' }, 'after', kept)).toEqual(SOURCE_SEED.after)
+  })
+
+  it('轮询、监听之间换：那边还没写命令就带上这边的', () => {
+    const fromPoll = switchSource(
+      { kind: 'poll', command: 'tail -f log', seconds: 60 },
+      'listen',
+      new Map(),
+    )
+    expect(fromPoll).toEqual({ kind: 'listen', command: 'tail -f log' })
+    const written = { kind: 'listen', command: 'node watch.mjs' } as const
+    expect(
+      switchSource(
+        { kind: 'poll', command: 'x', seconds: 60 },
+        'listen',
+        new Map([['listen', written]]),
+      ),
+    ).toBe(written)
   })
 })

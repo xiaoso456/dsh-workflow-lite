@@ -51,22 +51,49 @@ export interface Cron {
   weekday: CronField
 }
 
-const CRON_RANGES: readonly [name: string, min: number, max: number][] = [
-  ['分', 0, 59],
-  ['时', 0, 23],
-  ['日', 1, 31],
-  ['月', 1, 12],
-  ['周', 0, 7],
+/** 五段的名字（报错时说是哪一段）。 */
+export type CronFieldName = 'minute' | 'hour' | 'day' | 'month' | 'weekday'
+
+const CRON_RANGES: readonly [name: CronFieldName, min: number, max: number][] = [
+  ['minute', 0, 59],
+  ['hour', 0, 23],
+  ['day', 1, 31],
+  ['month', 1, 12],
+  ['weekday', 0, 7],
 ]
 
-function parseCronField(text: string, name: string, min: number, max: number): CronField | string {
+/**
+ * 定时规则哪里写得不对。结构化的：界面按语言说，校验结果、发给模型的话用 {@link scheduleProblem} 的中文。
+ * - `every`：间隔不在 `min`–`max` 分钟之间；`time`：钟点不是 `HH:mm`；
+ * - `cronEmpty` / `cronParts`：cron 是空的、不是五段；
+ * - `cronSyntax` / `cronStep` / `cronRange`：某一段写得不对、步长不大于 0、超出范围；
+ * - `cronNever`：永远轮不到。
+ */
+export type ScheduleIssue =
+  | { code: 'every'; min: number; max: number }
+  | { code: 'time'; time: string }
+  | { code: 'cronEmpty' }
+  | { code: 'cronParts'; count: number }
+  | { code: 'cronSyntax'; field: CronFieldName; part: string }
+  | { code: 'cronStep'; field: CronFieldName; part: string }
+  | { code: 'cronRange'; field: CronFieldName; part: string; min: number; max: number }
+  | { code: 'cronNever' }
+
+type CronIssue = Exclude<ScheduleIssue, { code: 'every' | 'time' | 'cronNever' }>
+
+function parseCronField(
+  text: string,
+  name: CronFieldName,
+  min: number,
+  max: number,
+): CronField | CronIssue {
   const values = new Set<number>()
   for (const part of text.split(',')) {
     const match = /^(\*|\d+(?:-\d+)?)(?:\/(\d+))?$/u.exec(part)
-    if (match === null) return `「${name}」这一段写得不对：${part === '' ? '空的' : part}`
+    if (match === null) return { code: 'cronSyntax', field: name, part }
     const [, range, stepText] = match
     const step = stepText === undefined ? 1 : Number(stepText)
-    if (step < 1) return `「${name}」这一段的步长要大于 0：${part}`
+    if (step < 1) return { code: 'cronStep', field: name, part }
     let from = min
     let to = max
     if (range !== '*') {
@@ -76,24 +103,23 @@ function parseCronField(text: string, name: string, min: number, max: number): C
       to = high ?? (stepText === undefined ? low : max)
     }
     if (from < min || to > max || from > to) {
-      return `「${name}」这一段超出范围（${String(min)}–${String(max)}）：${part}`
+      return { code: 'cronRange', field: name, part, min, max }
     }
     for (let value = from; value <= to; value += step) values.add(value)
   }
   return { values, star: text.startsWith('*') }
 }
 
-/** 解析五段 cron；写得不对时回一句原因。周的 0 和 7 都是周日。 */
-export function parseCron(expression: string): Cron | string {
+/** 解析五段 cron；写得不对时回哪里不对。周的 0 和 7 都是周日。 */
+function readCron(expression: string): Cron | CronIssue {
   const parts = expression.trim().split(/\s+/u)
-  if (expression.trim() === '') return 'cron 表达式是空的'
-  if (parts.length !== 5)
-    return `cron 表达式要写五段（分 时 日 月 周），现在是 ${String(parts.length)} 段`
+  if (expression.trim() === '') return { code: 'cronEmpty' }
+  if (parts.length !== 5) return { code: 'cronParts', count: parts.length }
   const fields: CronField[] = []
   for (const [index, part] of parts.entries()) {
-    const [name, min, max] = CRON_RANGES[index] as [string, number, number]
+    const [name, min, max] = CRON_RANGES[index] as [CronFieldName, number, number]
     const field = parseCronField(part, name, min, max)
-    if (typeof field === 'string') return field
+    if ('code' in field) return field
     fields.push(field)
   }
   const [minute, hour, day, month, weekday] = fields as [
@@ -105,6 +131,12 @@ export function parseCron(expression: string): Cron | string {
   ]
   if (weekday.values.delete(7)) weekday.values.add(0)
   return { minute, hour, day, month, weekday }
+}
+
+/** 解析五段 cron；写得不对时回一句原因（中文）。周的 0 和 7 都是周日。 */
+export function parseCron(expression: string): Cron | string {
+  const cron = readCron(expression)
+  return 'code' in cron ? issueText(cron) : cron
 }
 
 function cronDayMatches(cron: Cron, date: Date): boolean {
@@ -158,19 +190,58 @@ export function scheduleText(schedule: TriggerSchedule): string {
   return `每周${days} ${schedule.time}`
 }
 
-/** 规则写得不对时的一句原因；没问题是 `null`。 */
-export function scheduleProblem(schedule: TriggerSchedule): string | null {
+/** 规则哪里写得不对；没问题是 `null`。 */
+export function scheduleIssue(schedule: TriggerSchedule): ScheduleIssue | null {
   if (schedule.kind === 'every') {
     return wholeIn(schedule.minutes, EVERY_MIN, EVERY_MAX) === undefined
-      ? `间隔要是 ${String(EVERY_MIN)}–${String(EVERY_MAX)} 之间的整数分钟`
+      ? { code: 'every', min: EVERY_MIN, max: EVERY_MAX }
       : null
   }
   if (schedule.kind === 'daily') {
-    return parseClock(schedule.time) === null ? `时间要写成 HH:mm：${schedule.time}` : null
+    return parseClock(schedule.time) === null ? { code: 'time', time: schedule.time } : null
   }
-  const cron = parseCron(schedule.expression)
-  if (typeof cron === 'string') return cron
-  return nextCron(cron, new Date()) === null ? '这条 cron 规则永远不会触发' : null
+  const cron = readCron(schedule.expression)
+  if ('code' in cron) return cron
+  return nextCron(cron, new Date()) === null ? { code: 'cronNever' } : null
+}
+
+const CRON_FIELD_TEXT: Record<CronFieldName, string> = {
+  minute: '分',
+  hour: '时',
+  day: '日',
+  month: '月',
+  weekday: '周',
+}
+
+/** 一处毛病的中文说法。 */
+function issueText(issue: ScheduleIssue): string {
+  switch (issue.code) {
+    case 'every':
+      return `间隔要是 ${String(issue.min)}–${String(issue.max)} 之间的整数分钟`
+    case 'time':
+      return `时间要写成 HH:mm：${issue.time}`
+    case 'cronEmpty':
+      return 'cron 表达式是空的'
+    case 'cronParts':
+      return `cron 表达式要写五段（分 时 日 月 周），现在是 ${String(issue.count)} 段`
+    case 'cronSyntax':
+      return `「${CRON_FIELD_TEXT[issue.field]}」这一段写得不对：${issue.part === '' ? '空的' : issue.part}`
+    case 'cronStep':
+      return `「${CRON_FIELD_TEXT[issue.field]}」这一段的步长要大于 0：${issue.part}`
+    case 'cronRange':
+      return `「${CRON_FIELD_TEXT[issue.field]}」这一段超出范围（${String(issue.min)}–${String(issue.max)}）：${issue.part}`
+    case 'cronNever':
+      return '这条 cron 规则永远不会触发'
+  }
+}
+
+/**
+ * 规则写得不对时的一句原因（中文：校验结果、发给模型的话都用它）；没问题是 `null`。
+ * 界面按语言说的那句由 {@link scheduleIssue} 给出处，客户端自己翻。
+ */
+export function scheduleProblem(schedule: TriggerSchedule): string | null {
+  const issue = scheduleIssue(schedule)
+  return issue === null ? null : issueText(issue)
 }
 
 /**

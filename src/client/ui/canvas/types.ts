@@ -204,6 +204,8 @@ export interface TriggerCardData extends Record<string, unknown> {
   /** 触发源的一句话。 */
   rule: string
   kind: TriggerSourceKind
+  /** 要在本机跑的命令（轮询、监听）；打开前要确认的就是它。 */
+  command?: string
   tone: Tone
   note: string
   /** 悬停某个资源时它跟着淡下去。 */

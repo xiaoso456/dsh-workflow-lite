@@ -51,6 +51,7 @@ import { useCanvasDisplay } from './workflowView/useCanvasDisplay.ts'
 import { useFreshRun } from './workflowView/useFreshRun.ts'
 import { useLaunch } from './workflowView/useLaunch.ts'
 import { useMatchesVersion } from './workflowView/useMatchesVersion.ts'
+import { useOpenCard } from './workflowView/useOpenCard.ts'
 import { usePanelLink } from './workflowView/usePanelLink.ts'
 import { useSidePanels } from './workflowView/useSidePanels.ts'
 import { useStepEdit } from './workflowView/useStepEdit.ts'
@@ -259,6 +260,7 @@ function Shell(props: {
 
   // 触发卡片的现场：画布上的卡片和右栏的面板读同一份。
   const triggerScene = useTriggerScene({
+    t,
     rpc: props.rpc,
     wf,
     session: props.session,
@@ -267,6 +269,8 @@ function Shell(props: {
     select,
     openRun,
   })
+
+  const openCard = useOpenCard({ state, openTemplate, locate })
 
   const { focusFile, onFocusFile, focusLibrary, freeStepName, freshTemplateLook, addToCanvas } =
     usePanelLink({ wf, state, flow, rootRef, insetsRef, setFocus, addStep })
@@ -315,6 +319,7 @@ function Shell(props: {
       hubExport={hubExport}
       onClose={() => setHubOpen(false)}
       openTemplate={openTemplate}
+      openCard={openCard}
     />
   )
   return (

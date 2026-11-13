@@ -59,6 +59,11 @@ function liveFile(dataDir: string): string {
   return join(triggersDir(dataDir), 'live.json')
 }
 
+/** 「全部暂停」：文件在就是暂停着，里面记着从什么时候起。 */
+function pausedFile(dataDir: string): string {
+  return join(triggersDir(dataDir), 'paused.json')
+}
+
 /** 一张卡片最近的输出：文件名用工作流名 + 卡片 id 的摘要（名字里的字符不进路径）。 */
 function outputFile(dataDir: string, workflow: string, node: string): string {
   const key = createHash('sha256').update(`${workflow}\u0000${node}`).digest('hex').slice(0, 24)
@@ -99,6 +104,8 @@ export interface TriggerLocal {
   token?: string
   /** 条件轮询：上一次检查的结果。 */
   probe?: Probe
+  /** 接续触发：那个工作流里已经处理过（触发过或判过不用触发）的、已结束的实例。 */
+  seen?: string[]
 }
 
 /** 确认过的命令与工作区的记号：两样有一样改了就对不上。 */
@@ -180,6 +187,10 @@ function readLocal(raw: unknown): TriggerLocal | null {
     const digest = text(raw.probe.digest)
     if (digest !== undefined) probe.digest = digest
     if (Object.keys(probe).length > 0) local.probe = probe
+  }
+  if (Array.isArray(raw.seen)) {
+    const seen = raw.seen.filter((id): id is string => typeof id === 'string' && id !== '')
+    if (seen.length > 0) local.seen = seen
   }
   return local
 }
@@ -419,6 +430,35 @@ export class TriggerStore {
   async writeOutput(workflow: string, node: string, text: string): Promise<void> {
     await ensureDir(join(triggersDir(this.dataDir()), 'output'))
     await writeFileAtomic(outputFile(this.dataDir(), workflow, node), text)
+  }
+
+  // ── 全部暂停 ───────────────────────────────────────────────
+
+  /** 暂停着时是开始暂停的时刻；没暂停是 `undefined`。 */
+  async paused(): Promise<number | undefined> {
+    const source = await readFileText(pausedFile(this.dataDir()))
+    if (source === null) return undefined
+    try {
+      const raw: unknown = JSON.parse(source)
+      return isRecord(raw) ? (whole(raw.since) ?? 0) : 0
+    } catch {
+      // 文件在但坏了：仍按暂停算（宁可不触发）。
+      return 0
+    }
+  }
+
+  /** 暂停（给开始的时刻）或恢复（`null`）。 */
+  setPaused(since: number | null): Promise<void> {
+    return this.queued(async () => {
+      const file = pausedFile(this.dataDir())
+      if (since === null) {
+        await unlinkFile(file)
+        return
+      }
+      if ((await readFileText(file)) !== null) return
+      await ensureDir(triggersDir(this.dataDir()))
+      await writeFileAtomic(file, `${JSON.stringify({ since }, null, 2)}\n`)
+    })
   }
 
   /** 工作流改名：开关与设置跟着走。 */

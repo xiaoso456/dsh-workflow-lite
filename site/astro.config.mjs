@@ -40,7 +40,9 @@ const sidebar = [
     'trigger/poll',
     'trigger/listen',
     'trigger/http',
+    'trigger/after',
     'trigger/filter',
+    'trigger/manage',
   ]),
   group('进阶', 'Advanced', [
     'materials/inputs',

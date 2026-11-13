@@ -93,6 +93,13 @@
   font-weight: 600;
 }
 
+/* 字段名 + 跟在后面的「?」（FieldHead）。 */
+.labelMain {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+
 .count {
   color: var(--wl-text-3);
   font-size: var(--wl-fs-micro);

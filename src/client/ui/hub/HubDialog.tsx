@@ -6,6 +6,7 @@
  *   查看、改整体状态、移到本会话、删除记录（状态文件另外问要不要一起删）；
  * - **工作流**（`HubWorkflows.tsx`）：全部工作流，每一行能就地改名、删除；选一张看它的版本——存、切换、改说明、删除，不用先打开它；
  *   导入、导出工作流包也在这一页；
+ * - **触发**（`HubTriggers.tsx`）：所有工作流里的触发卡片，行尾开关、触发记录，以及「全部暂停」；
  * - **记忆**（`HubMemories.tsx`）：记忆库里的每一条——名称、描述、在用的工作流、文件和版本，删掉不用的；
  * - **存储**（`HubStorage.tsx`）：数据目录、各样东西的占用，清理已结束的实例与旧版本遗留文件；
  * - **设置**（`HubSettings.tsx`）：插件自己的几项设置（数据目录、步骤上限、自动保存等待……）。
@@ -31,11 +32,19 @@ import { HubMemories } from './HubMemories.tsx'
 import { HubRuns } from './HubRuns.tsx'
 import { HubSettings } from './HubSettings.tsx'
 import { HubStorage } from './HubStorage.tsx'
+import { HubTriggers } from './HubTriggers.tsx'
 import { HubWorkflows } from './HubWorkflows.tsx'
 import css from './hubDialog.module.css'
 
-type HubPage = 'runs' | 'workflows' | 'memories' | 'storage' | 'settings'
-const PAGES: readonly HubPage[] = ['runs', 'workflows', 'memories', 'storage', 'settings']
+type HubPage = 'runs' | 'workflows' | 'triggers' | 'memories' | 'storage' | 'settings'
+const PAGES: readonly HubPage[] = [
+  'runs',
+  'workflows',
+  'triggers',
+  'memories',
+  'storage',
+  'settings',
+]
 
 export function HubDialog(props: {
   t: T
@@ -49,6 +58,8 @@ export function HubDialog(props: {
   sessionsReady: boolean
   runs: Runs
   onOpenRun(id: string): void
+  /** 打开一个工作流、选中里面的一张卡片（「触发」页的「在画布上打开」）。 */
+  onOpenCard(workflow: string, node: string): void
   /** 一句结果提示（改完实例状态之后）。 */
   onNotice(text: string, tone?: 'info' | 'error'): void
   /** 「工作流」页要的：编辑页正开着哪张、怎么把它的改动写下去 / 重新加载、怎么打开别的一张。 */
@@ -95,6 +106,7 @@ export function HubDialog(props: {
             options={[
               { value: 'runs', label: t('hub.runs') },
               { value: 'workflows', label: t('hub.wfPage') },
+              { value: 'triggers', label: t('hub.trgPage') },
               { value: 'memories', label: t('hub.memories') },
               { value: 'storage', label: t('hub.storage') },
               { value: 'settings', label: t('hub.settings') },
@@ -133,6 +145,21 @@ export function HubDialog(props: {
             startExport={props.exportCurrent === true}
             onOpen={(name) => {
               props.workflows.onOpen(name)
+              props.onClose()
+            }}
+          />
+        ) : page === 'triggers' ? (
+          <HubTriggers
+            t={t}
+            rpc={props.rpc}
+            flush={props.workflows.flush}
+            onNotice={props.onNotice}
+            onOpenCard={(workflow, node) => {
+              props.onOpenCard(workflow, node)
+              props.onClose()
+            }}
+            onOpenRun={(id) => {
+              props.onOpenRun(id)
               props.onClose()
             }}
           />

@@ -1,7 +1,7 @@
 /**
  * 触发器（host）：谁负责触发、到点触发与跳过、连续失败自动停用、开关与本机设置、
  * 「立即触发一次」，以及触发出来的实例记下的来源；常驻触发源（轮询、监听程序、HTTP）的
- * 命令确认、发进会话、失败计数、模型判断不需要，模型建触发卡片。
+ * 命令确认、发进会话、失败计数、模型判断不需要，模型建触发卡片；全部暂停、接续触发、「触发」页的总表。
  * 常驻触发源本身（跑命令、开端口）换成假的，见 `triggerSources.spec.ts`。
  */
 
@@ -19,6 +19,7 @@ import {
 } from '../../src/host/store/repository.ts'
 import type { WorkflowLiteArgs } from '../../src/host/tool/args.ts'
 import { createWorkflowLiteHandler, type ToolExecView } from '../../src/host/tool/tool.ts'
+import type { FinishedRun, RunWatch } from '../../src/host/triggers/after.ts'
 import { createFireClaims } from '../../src/host/triggers/claims.ts'
 import { createTriggerGraphs, followRenames } from '../../src/host/triggers/graphs.ts'
 import { OWNER_STALE_MS, OwnerLock } from '../../src/host/triggers/owner.ts'
@@ -43,6 +44,8 @@ let busy: Set<string>
 let gone: Set<string>
 let unavailable: string | null
 let openError: string | null
+/** 假的实例：接续触发看的「哪些实例结束了」（按工作流）。 */
+let finished: Map<string, FinishedRun[]>
 /** 假的常驻触发源：记下每一轮该开着的，事件口留给测试自己喂。 */
 let live: { specs: LiveSpec[]; events: RuntimeEvents | undefined; stopped: number }
 
@@ -63,6 +66,17 @@ const sessions: SessionPort = {
   busy: (session) => busy.has(session),
 }
 
+/** 按 `RunReader.finished` 的约定从 {@link finished} 里挑。 */
+const watch: RunWatch = {
+  finished: async (workflow, since, skip) => {
+    const all = finished.get(workflow) ?? []
+    return {
+      runs: all.filter((run) => run.at > since && !skip.has(run.id)).sort((a, b) => a.at - b.at),
+      ids: all.map((run) => run.id),
+    }
+  },
+}
+
 function service(pid = 100, alive: (pid: number) => boolean = () => true): TriggerService {
   return new TriggerService({
     dataDir: () => dataDir,
@@ -71,6 +85,7 @@ function service(pid = 100, alive: (pid: number) => boolean = () => true): Trigg
     sessions,
     now: () => clock,
     port: () => 3791,
+    runs: watch,
     lock: new OwnerLock({ file: () => ownerFile(dataDir), now: () => clock, pid, alive }),
     runtime: (events): LiveRuntime => {
       live.events = events
@@ -134,6 +149,7 @@ beforeEach(async () => {
   unavailable = null
   openError = null
   live = { specs: [], events: undefined, stopped: 0 }
+  finished = new Map()
 })
 
 afterEach(async () => {
@@ -920,5 +936,270 @@ describe('模型建触发卡片', () => {
     }
     expect(index.dir).toBe(assetsDir(dataDir, 'patrol'))
     expect(index.triggers?.map((item) => item.id)).toEqual(['tick', 'trigger'])
+  })
+
+  it('接续触发：触发源里写等哪个工作流、什么结果', async () => {
+    await saveGraph('patrol')
+    const created = await run({
+      action: 'write_trigger',
+      workflow: 'patrol',
+      node: 'tick',
+      trigger: { source: { kind: 'after', workflow: '构建', when: 'failed' } },
+    })
+    expect(created).toMatchObject({ changed: [{ id: 'tick' }] })
+    const load = await repository.load('patrol')
+    expect(load.document?.nodes.find((node) => node.id === 'tick')?.data).toMatchObject({
+      source: { kind: 'after', workflow: '构建', when: 'failed' },
+    })
+  })
+})
+
+describe('全部暂停', () => {
+  async function ready(): Promise<TriggerService> {
+    await saveGraph('patrol')
+    const triggers = service()
+    await triggers.set({ workflow: 'patrol', node: 'tick', enabled: true, workspace })
+    await own(triggers)
+    return triggers
+  }
+
+  it('暂停着到点不触发、开关不变；恢复后不补，下一次从恢复时往后排', async () => {
+    const triggers = await ready()
+    const paused = await triggers.pause(true)
+    expect(paused).toEqual({ paused: clock })
+    expect(await triggers.list('patrol')).toMatchObject({
+      paused: clock,
+      triggers: [{ enabled: true, state: 'paused' }],
+    })
+
+    clock += 95 * MINUTE
+    await triggers.tick()
+    expect(sent).toHaveLength(0)
+
+    expect(await triggers.pause(false)).toEqual({})
+    await triggers.tick()
+    expect(sent).toHaveLength(0)
+    const view = (await triggers.list('patrol')).triggers[0]
+    expect(view).toMatchObject({ enabled: true, state: 'waiting' })
+    expect(view?.next).toBeGreaterThan(clock)
+    expect(await triggers.history('patrol')).toEqual([])
+  })
+
+  it('暂停着「立即触发一次」照常可用', async () => {
+    const triggers = await ready()
+    await triggers.pause(true)
+    const fired = await triggers.fireNow({ workflow: 'patrol', node: 'tick' })
+    expect(fired.ok && fired.result).toMatchObject({ outcome: 'sent', channel: 'now' })
+    expect(sent).toHaveLength(1)
+  })
+
+  it('暂停着常驻触发源都停下；恢复后照常开着', async () => {
+    const command = 'node watch.mjs'
+    await saveGraph('patrol', { source: { kind: 'listen', command } })
+    const triggers = service()
+    await triggers.set({
+      workflow: 'patrol',
+      node: 'tick',
+      workspace,
+      approve: command,
+      enabled: true,
+    })
+    await own(triggers)
+    expect(live.specs).toHaveLength(1)
+    await triggers.pause(true)
+    await triggers.tick()
+    expect(live.specs).toEqual([])
+    await triggers.pause(false)
+    await triggers.tick()
+    expect(live.specs).toHaveLength(1)
+  })
+
+  it('恢复后条件轮询从现在起算：暂停前记下的结果不拿来比', async () => {
+    const command = 'git ls-remote origin'
+    await saveGraph('patrol', { source: { kind: 'poll', command, seconds: 60, when: 'change' } })
+    const triggers = service()
+    await triggers.set({
+      workflow: 'patrol',
+      node: 'tick',
+      workspace,
+      approve: command,
+      enabled: true,
+    })
+    await own(triggers)
+    live.events?.probed({ workflow: 'patrol', node: 'tick', kind: 'poll' }, { digest: 'before' })
+    await triggers.settled()
+    expect((await store.locals()).patrol?.tick?.probe).toEqual({ digest: 'before' })
+
+    await triggers.pause(true)
+    await triggers.pause(false)
+    expect((await store.locals()).patrol?.tick?.probe).toEqual({ ok: true })
+    await triggers.tick()
+    expect(live.specs[0]).toMatchObject({ probe: { ok: true } })
+  })
+})
+
+describe('接续触发', () => {
+  /** 被等的工作流：一个步骤，可选记不记运行状态。 */
+  async function saveUpstream(name: string, runState = true): Promise<void> {
+    const existing = await repository.load(name)
+    if (!existing.exists) await repository.create(name)
+    const base = (await repository.load(name)).hash
+    const saved = await repository.save(
+      name,
+      {
+        nodes: [
+          { id: 'build', type: 'wfNode', position: { x: 0, y: 0 }, data: { prompt: '构建' } },
+        ],
+        edges: [],
+        viewport: { x: 0, y: 0, zoom: 1 },
+        ...(runState ? { settings: { runState: true } } : {}),
+      },
+      { baseHash: base as string },
+    )
+    expect(saved.ok).toBe(true)
+  }
+
+  const run = (id: string, status: FinishedRun['status'], at: number): FinishedRun => ({
+    id,
+    status,
+    at,
+    goal: '构建发布包',
+    cwd: workspace,
+    statePath: join(workspace, '.workflow-lite', 'runs', id, 'state.yaml'),
+    done: 3,
+    total: 4,
+  })
+
+  const enable = (triggers: TriggerService) =>
+    triggers.set({ workflow: 'patrol', node: 'tick', enabled: true, workspace })
+
+  async function ready(data: Partial<TriggerData> = {}): Promise<TriggerService> {
+    await saveUpstream('build')
+    await saveGraph('patrol', { source: { kind: 'after', workflow: 'build' }, ...data })
+    const triggers = service()
+    const on = await enable(triggers)
+    expect(on.ok).toBe(true)
+    await own(triggers)
+    return triggers
+  }
+
+  it('等的工作流不在、没开「记录运行状态」、是自己：打不开，说出原因', async () => {
+    await saveGraph('patrol', { source: { kind: 'after', workflow: 'build' } })
+    const triggers = service()
+    const missing = await enable(triggers)
+    expect(!missing.ok && missing.error.message).toContain('不存在')
+
+    await saveUpstream('build', false)
+    const noState = await enable(triggers)
+    expect(!noState.ok && noState.error.message).toContain('记录运行状态')
+
+    await saveGraph('patrol', { source: { kind: 'after', workflow: 'patrol' } })
+    const self = await enable(triggers)
+    expect(!self.ok && self.error.message).toContain('不能等自己')
+  })
+
+  it('开着之后等的工作流关了「记录运行状态」：显示设置不对，不触发', async () => {
+    const triggers = await ready()
+    await saveUpstream('build', false)
+    finished.set('build', [run('r1', 'done', clock + 1)])
+    clock += MINUTE
+    await triggers.tick()
+    expect(sent).toHaveLength(0)
+    expect((await triggers.list('patrol')).triggers[0]).toMatchObject({ state: 'invalid' })
+  })
+
+  it('结束了一次、结果对得上就触发一次，背景信息说明是哪个实例；同一个实例不再触发', async () => {
+    const triggers = await ready()
+    expect((await triggers.list('patrol')).triggers[0]).toMatchObject({ state: 'waiting' })
+    // 打开之前结束的不算。
+    finished.set('build', [run('old', 'done', clock - MINUTE)])
+    await triggers.tick()
+    expect(sent).toHaveLength(0)
+
+    finished.set('build', [
+      run('old', 'done', clock - MINUTE),
+      run('r1', 'done', clock + 1),
+      run('r2', 'failed', clock + 2),
+    ])
+    clock += MINUTE
+    await triggers.tick()
+    expect(sent).toHaveLength(1)
+    expect(sent[0]?.text).toContain('工作流「build」的实例 r1 结束了：成功（done），完成 3/4 步。')
+    expect(sent[0]?.text).toContain(join(workspace, '.workflow-lite', 'runs', 'r1', 'state.yaml'))
+    expect((await triggers.history('patrol'))[0]).toMatchObject({
+      outcome: 'sent',
+      channel: 'after',
+    })
+
+    await triggers.tick()
+    expect(sent).toHaveLength(1)
+  })
+
+  it('「失败时」「不论结果」按结果挑', async () => {
+    const triggers = await ready({ source: { kind: 'after', workflow: 'build', when: 'failed' } })
+    finished.set('build', [run('r1', 'done', clock + 1), run('r2', 'failed', clock + 2)])
+    clock += MINUTE
+    await triggers.tick()
+    expect(sent).toHaveLength(1)
+    expect(sent[0]?.text).toContain('实例 r2 结束了')
+
+    await saveGraph('patrol', { source: { kind: 'after', workflow: 'build', when: 'any' } })
+    finished.set('build', [
+      run('r1', 'done', clock - 1),
+      run('r2', 'failed', clock - 1),
+      run('r3', 'cancelled', clock + 1),
+    ])
+    clock += MINUTE
+    await triggers.tick()
+    // r1、r2 已经看过，只有 r3。
+    expect(sent).toHaveLength(2)
+    expect(sent[1]?.text).toContain('实例 r3 结束了：取消（cancelled）')
+  })
+
+  it('暂停着结束的只记下、不触发；恢复后也不补', async () => {
+    const triggers = await ready()
+    await triggers.pause(true)
+    finished.set('build', [run('r1', 'done', clock + 1)])
+    clock += MINUTE
+    await triggers.tick()
+    await triggers.pause(false)
+    await triggers.tick()
+    expect(sent).toHaveLength(0)
+  })
+
+  it('两个工作流互相等：每小时的上限挡住来回触发', async () => {
+    const triggers = await ready({ launch: { maxPerHour: 2, overlap: 'parallel' } })
+    for (let round = 1; round <= 4; round += 1) {
+      finished.set('build', [
+        ...(finished.get('build') ?? []),
+        run(`r${String(round)}`, 'done', clock + 1),
+      ])
+      clock += MINUTE
+      await triggers.tick()
+    }
+    expect(sent).toHaveLength(2)
+    const fires = await triggers.history('patrol')
+    expect(fires.map((fire) => fire.outcome)).toEqual(['skipped', 'sent', 'sent'])
+  })
+})
+
+describe('「触发」页的总表', () => {
+  it('列出各工作流里的卡片（按工作流名排），带上定义、状态和暂停', async () => {
+    await saveGraph('zeta')
+    await saveGraph('alpha', { label: '早报' })
+    await repository.create('empty')
+    const triggers = service()
+    await triggers.set({ workflow: 'zeta', node: 'tick', enabled: true, workspace })
+    await triggers.pause(true)
+    const all = await triggers.all()
+    expect(all.paused).toBe(clock)
+    expect(all.triggers.map((entry) => [entry.workflow, entry.name, entry.view.state])).toEqual([
+      ['alpha', '早报', 'off'],
+      ['zeta', '巡检', 'paused'],
+    ])
+    expect(all.triggers[0]?.data.source).toEqual({
+      kind: 'schedule',
+      schedule: { kind: 'every', minutes: 30 },
+    })
   })
 })

@@ -392,7 +392,7 @@ export const PARAMETERS = {
             enum: [...SOURCE_KINDS],
             required: true,
             description:
-              'schedule 定时 / poll 条件轮询（每隔一段跑一次命令）/ listen 监听程序（常驻命令，每打一行触发一次）/ http 别的程序来调一个本机地址。',
+              'schedule 定时 / poll 条件轮询（每隔一段跑一次命令）/ listen 监听程序（常驻命令，每打一行触发一次）/ http 别的程序来调一个本机地址 / after 另一个工作流的一次执行结束了。',
           },
           schedule: {
             type: 'object',
@@ -421,9 +421,14 @@ export const PARAMETERS = {
           },
           when: {
             type: 'string',
-            enum: ['success', 'change'],
+            enum: ['success', 'change', 'failed', 'any'],
             description:
-              'poll：success（缺省）命令从不成功变成成功（退出码 0）时触发一次 / change 输出和上一次不一样时触发。',
+              'poll：success（缺省）命令从不成功变成成功（退出码 0）时触发一次 / change 输出和上一次不一样时触发。after：不给 = 那个工作流成功（done）时触发 / failed 失败时 / any 不论结果（含取消）。',
+          },
+          workflow: {
+            type: 'string',
+            description:
+              'after：等哪个工作流跑完（工作流名，不能是自己）。那个工作流要开着记录运行状态（configure 的 run_state），插件才看得出它什么时候结束。',
           },
         },
       },

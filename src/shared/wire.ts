@@ -127,6 +127,7 @@ import type {
 } from './wire/run.ts'
 import type {
   FireRecord,
+  TriggerAllResponse,
   TriggerFireRequest,
   TriggerHistoryRequest,
   TriggerHistoryResponse,
@@ -134,6 +135,8 @@ import type {
   TriggerListResponse,
   TriggerOutputRequest,
   TriggerOutputResponse,
+  TriggerPauseRequest,
+  TriggerPauseResponse,
   TriggerSetRequest,
 } from './wire/trigger.ts'
 
@@ -192,6 +195,8 @@ export const WORKFLOW_LITE_ENDPOINTS = [
   'trigger/fire',
   'trigger/history',
   'trigger/output',
+  'trigger/all',
+  'trigger/pause',
   'memory/list',
   'memory/create',
   'memory/update',
@@ -303,6 +308,8 @@ export interface WorkflowLiteRpcMap {
   'trigger/fire': { args: TriggerFireRequest; result: FireRecord }
   'trigger/history': { args: TriggerHistoryRequest; result: TriggerHistoryResponse }
   'trigger/output': { args: TriggerOutputRequest; result: TriggerOutputResponse }
+  'trigger/all': { args: Record<string, never>; result: TriggerAllResponse }
+  'trigger/pause': { args: TriggerPauseRequest; result: TriggerPauseResponse }
   'memory/list': { args: Record<string, never>; result: MemoryListResponse }
   'memory/create': { args: MemoryCreateRequest; result: MemoryEntryResponse }
   'memory/update': { args: MemoryUpdateRequest; result: MemoryEntryResponse }

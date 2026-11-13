@@ -5,6 +5,7 @@
  */
 
 import type { FireChannel } from '../trigger.ts'
+import type { TriggerData } from '../types.ts'
 
 /** 一次触发的结果：消息发进会话了 / 被跳过（没轮到它）/ 没发出去。 */
 export type FireOutcome = 'sent' | 'skipped' | 'failed'
@@ -39,7 +40,8 @@ export interface FireRecord {
  * - `invalid` 开着但触发源写得不对；`confirm` 开着，但要运行的命令（或工作区）改过了，要重新确认才跑；
  * - `stopped` 连续失败被自动停用（开关已被关掉）；
  * - `elsewhere` 开着，但负责触发的是另一个 DSH 进程；
- * - `unavailable` 这里触发不了（发不了会话），`problem` 写原因。
+ * - `unavailable` 这里触发不了（发不了会话），`problem` 写原因；
+ * - `paused` 开着，但这台机器上的触发器「全部暂停」了（开关不动，恢复后接着跑）。
  */
 export type TriggerState =
   | 'off'
@@ -52,6 +54,7 @@ export type TriggerState =
   | 'stopped'
   | 'elsewhere'
   | 'unavailable'
+  | 'paused'
 
 /** HTTP 触发的地址与令牌（本机状态；只给画布看）。 */
 export interface TriggerEndpoint {
@@ -97,6 +100,32 @@ export interface TriggerListResponse {
   triggers: TriggerView[]
   /** 现在由谁负责触发；还没有进程负责时没有。 */
   owner?: TriggerOwner
+  /** 「全部暂停」着：从什么时候起。 */
+  paused?: number
+}
+
+/** 工作流中心「触发」页里的一张卡片：在哪个工作流、叫什么、怎么触发，以及现在的样子。 */
+export interface TriggerEntry {
+  workflow: string
+  name: string
+  data: TriggerData
+  view: TriggerView
+}
+
+/** 这台机器上所有工作流里的触发卡片（按工作流名、再按图里的先后）。 */
+export interface TriggerAllResponse {
+  triggers: TriggerEntry[]
+  owner?: TriggerOwner
+  paused?: number
+}
+
+/** 全部暂停 / 恢复。 */
+export interface TriggerPauseRequest {
+  paused: boolean
+}
+
+export interface TriggerPauseResponse {
+  paused?: number
 }
 
 /** 改本机设置：开关、工作区、固定会话、确认命令、换令牌。给了哪项改哪项。 */

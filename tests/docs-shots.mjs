@@ -614,10 +614,120 @@ async function triggerSourceShots(session) {
   }
 }
 
+/** 接续触发与「触发」页用的两张图：「夜间构建」跑完接着跑「发布检查」。 */
+const CHAIN_UP = t('夜间构建', 'nightly-build')
+const CHAIN_DOWN = t('发布检查', 'release-check')
+const CHAIN_SHOTS = ['trigger-after', 'trigger-hub']
+function chainDocuments() {
+  const work = (id, label, prompt) => ({
+    id,
+    type: 'wfNode',
+    position: { x: 80, y: 260 },
+    data: { label, prompt },
+  })
+  const card = (id, x, data) => ({ id, type: 'wfTrigger', position: { x, y: 100 }, data })
+  const base = { edges: [], viewport: { x: 0, y: 0, zoom: 1 } }
+  return {
+    [CHAIN_UP]: {
+      ...base,
+      settings: { runState: true },
+      nodes: [
+        work('build', t('构建', 'Build'), t('构建发布包。', 'Build the release package.')),
+        card('nightly', 80, {
+          label: t('每晚', 'Nightly'),
+          source: { kind: 'schedule', schedule: { kind: 'daily', time: '02:00' } },
+        }),
+      ],
+    },
+    [CHAIN_DOWN]: {
+      ...base,
+      nodes: [
+        work(
+          'check',
+          t('检查发布包', 'Check package'),
+          t('检查上一次构建的产出。', 'Check what the last build produced.'),
+        ),
+        card('after', 80, {
+          label: t('构建完成后', 'After build'),
+          source: { kind: 'after', workflow: CHAIN_UP },
+        }),
+        card('cleanup', 420, {
+          label: t('构建失败善后', 'Build failed'),
+          source: { kind: 'after', workflow: CHAIN_UP, when: 'failed' },
+          note: t('只清理临时文件，不重试。', 'Only clean up temp files; do not retry.'),
+        }),
+      ],
+    },
+  }
+}
+
+/** 接续触发：「何时触发」一节；工作流中心「触发」页：两个工作流里的三张卡片。不点「立即触发一次」。 */
+async function triggerChainShots(session) {
+  if (!CHAIN_SHOTS.some(wants)) return
+  try {
+    for (const [name, document] of Object.entries(chainDocuments())) {
+      await rpc('graph/delete', { name }).catch(() => {})
+      await rpc('graph/create', { name })
+      const disk = await rpc('graph/load', { name })
+      await rpc('graph/save', { name, document, baseHash: disk.hash })
+    }
+    for (const [workflow, node] of [
+      [CHAIN_UP, 'nightly'],
+      [CHAIN_DOWN, 'after'],
+    ]) {
+      await rpc('trigger/set', { workflow, node, workspace: WORKSPACE, enabled: true })
+    }
+    await bootToCanvas(session, CHAIN_DOWN, {
+      width: 1280,
+      height: 900,
+      lang: LANG,
+      sessionTitle: SHOTS_SESSION_TITLE,
+    })
+    await metrics(session, 1280, 900)
+    await sleep(600)
+    await session.evaluate(clickTestId('wl-fit'))
+    await sleep(1200)
+
+    await session.evaluate(nodeClick('after'))
+    await waitFor(session, has('wl-trigger-after'))
+    await sleep(1200)
+    await mouseMove(session, { x: 8, y: 8 })
+    await snap(
+      session,
+      'trigger-after',
+      await session.evaluate(rectOf('[data-testid="wl-trigger-when"]', 8)),
+    )
+
+    await session.evaluate(clickTestId('wl-hub-open'))
+    await waitFor(session, has('wl-hub'))
+    await session.evaluate(clickTestId('wl-hub-triggers'))
+    await waitFor(session, has('wl-hub-trg-page'))
+    await session.evaluate(
+      `document.querySelector('[data-testid="wl-hub-trg"][data-value="${CHAIN_DOWN}/after"]').click()`,
+    )
+    await sleep(1500)
+    await mouseMove(session, { x: 8, y: 8 })
+    await snap(
+      session,
+      'trigger-hub',
+      await session.evaluate(rectOf('[data-testid="wl-hub"]', 0, 560)),
+    )
+    await pressEscape(session)
+    await sleep(600)
+  } catch (error) {
+    console.log(`  ✗ trigger chain：${String(error.message).split('\n')[0]}`)
+  } finally {
+    for (const name of [CHAIN_UP, CHAIN_DOWN]) {
+      await rpc('graph/delete', { name }).catch(() => {})
+    }
+  }
+}
+
 async function main(session) {
   await mkdir(OUT, { recursive: true })
   await triggerShots(session)
   await triggerSourceShots(session)
+  await triggerChainShots(session)
   await rpc('graph/delete', { name: NAME }).catch(() => {})
   await rpc('graph/create', { name: NAME })
   await rpc('memory/delete', { id: 'review-lessons' }).catch(() => {})

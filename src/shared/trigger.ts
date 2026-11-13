@@ -10,8 +10,9 @@
  * @module @xiaoso/dsh-workflow-lite/shared/trigger
  */
 
-import { scheduleProblem, scheduleText } from './schedule.ts'
+import { type ScheduleIssue, scheduleIssue, scheduleProblem, scheduleText } from './schedule.ts'
 import type {
+  AfterWhen,
   PollWhen,
   TriggerData,
   TriggerFilter,
@@ -27,7 +28,13 @@ import type {
 /** 一次触发是怎么来的：哪一种触发源，或用户点了「立即触发一次」。 */
 export type FireChannel = TriggerSourceKind | 'now'
 
-export const SOURCE_KINDS: readonly TriggerSourceKind[] = ['schedule', 'poll', 'listen', 'http']
+export const SOURCE_KINDS: readonly TriggerSourceKind[] = [
+  'schedule',
+  'poll',
+  'listen',
+  'http',
+  'after',
+]
 export const FIRE_CHANNELS: readonly FireChannel[] = [...SOURCE_KINDS, 'now']
 
 /** 触发编号的形状（拿去拼路径之前先过这一道）。 */
@@ -60,11 +67,17 @@ export const DEDUPE_MAX_MINUTES = 7 * 24 * 60
 export const KEYWORDS_MAX = 20
 
 /** 合并窗口的缺省（秒）：一下子来一串的（监听、HTTP）并成一次；轮询本来就隔一段才跑一次。 */
-const DEFAULT_MERGE: Record<TriggerSourceKind, number> = {
-  schedule: 0,
+const DEFAULT_MERGE: Record<FilterKind, number> = {
   poll: 0,
   listen: 5,
   http: 5,
+}
+
+/** 有过滤的触发源：带来外面的内容（命令输出、程序打出的行、请求体）。 */
+export type FilterKind = Extract<TriggerSourceKind, 'poll' | 'listen' | 'http'>
+
+export function isFilterKind(kind: TriggerSourceKind): kind is FilterKind {
+  return kind === 'poll' || kind === 'listen' || kind === 'http'
 }
 
 /** 换一种触发源时给的常用值。 */
@@ -73,6 +86,7 @@ export const SOURCE_SEED: Record<TriggerSourceKind, TriggerSource> = {
   poll: { kind: 'poll', command: '', seconds: DEFAULT_POLL_SECONDS },
   listen: { kind: 'listen', command: '' },
   http: { kind: 'http' },
+  after: { kind: 'after', workflow: '' },
 }
 
 const SESSION_MODES: readonly TriggerSessionMode[] = ['new', 'last', 'fixed']
@@ -134,6 +148,13 @@ function readSource(raw: unknown): TriggerSource {
   }
   if (input.kind === 'listen') return { kind: 'listen', command }
   if (input.kind === 'http') return { kind: 'http' }
+  if (input.kind === 'after') {
+    return {
+      kind: 'after',
+      workflow: typeof input.workflow === 'string' ? input.workflow.trim() : '',
+      ...(input.when === 'failed' || input.when === 'any' ? { when: input.when } : {}),
+    }
+  }
   return { kind: 'schedule', schedule: readSchedule(input.schedule) }
 }
 
@@ -153,7 +174,7 @@ function readKeywords(raw: unknown): string[] | undefined {
 
 /** 过滤按形状读入：等于这种触发源的缺省值的项不留；定时没有背景信息，整个不要。 */
 function readFilter(raw: unknown, kind: TriggerSourceKind): TriggerFilter | undefined {
-  if (!isPlainObject(raw) || kind === 'schedule') return undefined
+  if (!isPlainObject(raw) || !isFilterKind(kind)) return undefined
   const filter: TriggerFilter = {}
   const merge = wholeIn(raw.merge, 0, MERGE_MAX_SECONDS)
   if (merge !== undefined && merge !== DEFAULT_MERGE[kind]) filter.merge = merge
@@ -210,6 +231,13 @@ function canonicalSource(source: TriggerSource): TriggerSource {
   }
   if (source.kind === 'listen') return { kind: 'listen', command: source.command }
   if (source.kind === 'http') return { kind: 'http' }
+  if (source.kind === 'after') {
+    return {
+      kind: 'after',
+      workflow: source.workflow,
+      ...(source.when === undefined ? {} : { when: source.when }),
+    }
+  }
   const { schedule } = source
   return {
     kind: 'schedule',
@@ -285,6 +313,20 @@ export function launchOf(data: TriggerData): LaunchSettings {
   }
 }
 
+/**
+ * 打开开关之前，这张卡片在本机还缺哪一样：要跑命令的（轮询、监听）和新建 / 接着上一次会话的要工作区，
+ * 发进固定会话的要选会话；都齐了是 `null`。
+ */
+export function launchMissing(
+  data: TriggerData,
+  local: { workspace?: string | undefined; session?: string | undefined },
+): 'workspace' | 'session' | null {
+  const needsWorkspace = commandOf(data.source) !== undefined || launchOf(data).session !== 'fixed'
+  if (needsWorkspace && local.workspace === undefined) return 'workspace'
+  if (launchOf(data).session === 'fixed' && local.session === undefined) return 'session'
+  return null
+}
+
 /** 过滤里的各项，缺省值都补上了。 */
 export interface FilterSettings {
   /** 合并窗口（秒）；0 = 不合并。 */
@@ -295,10 +337,10 @@ export interface FilterSettings {
   exclude: readonly string[]
 }
 
-/** 过滤里的各项，按触发源补上缺省值（定时全是关的）。 */
+/** 过滤里的各项，按触发源补上缺省值（定时、接续全是关的）。 */
 export function filterOf(data: TriggerData): FilterSettings {
   const kind = data.source.kind
-  if (kind === 'schedule') return { merge: 0, dedupe: 0, include: [], exclude: [] }
+  if (!isFilterKind(kind)) return { merge: 0, dedupe: 0, include: [], exclude: [] }
   return {
     merge: data.filter?.merge ?? DEFAULT_MERGE[kind],
     dedupe: data.filter?.dedupe ?? 0,
@@ -321,18 +363,47 @@ export function pollWhen(source: Extract<TriggerSource, { kind: 'poll' }>): Poll
   return source.when ?? 'success'
 }
 
-/** 触发源写得不对时的一句原因；没问题是 `null`。 */
-export function sourceProblem(source: TriggerSource): string | null {
-  if (source.kind === 'schedule') return scheduleProblem(source.schedule)
+/** 接续触发的结果条件，补上缺省（成功时）。 */
+export function afterWhen(source: Extract<TriggerSource, { kind: 'after' }>): AfterWhen {
+  return source.when ?? 'done'
+}
+
+/** 触发源哪里写得不对。结构化的：界面按语言说，校验结果、发给模型的话用 {@link sourceProblem} 的中文。 */
+export type SourceIssue =
+  | { code: 'schedule'; issue: ScheduleIssue }
+  | { code: 'noWorkflow' }
+  | { code: 'noCommand' }
+  | { code: 'interval'; min: number; max: number }
+
+/**
+ * 触发源哪里写得不对；没问题是 `null`。
+ * 只看卡片本身：接续触发「不能等自己」「那个工作流在不在、记不记运行状态」要看图名和别的图，由调用方查。
+ */
+export function sourceIssue(source: TriggerSource): SourceIssue | null {
+  if (source.kind === 'schedule') {
+    const issue = scheduleIssue(source.schedule)
+    return issue === null ? null : { code: 'schedule', issue }
+  }
   if (source.kind === 'http') return null
-  if (source.command.trim() === '') return '还没写要运行的命令'
+  if (source.kind === 'after') return source.workflow === '' ? { code: 'noWorkflow' } : null
+  if (source.command.trim() === '') return { code: 'noCommand' }
   if (
     source.kind === 'poll' &&
     wholeIn(source.seconds, POLL_MIN_SECONDS, POLL_MAX_SECONDS) === undefined
   ) {
-    return `轮询间隔要是 ${String(POLL_MIN_SECONDS)} 秒到 7 天之间的整数秒`
+    return { code: 'interval', min: POLL_MIN_SECONDS, max: POLL_MAX_SECONDS }
   }
   return null
+}
+
+/** 触发源写得不对时的一句原因（中文）；没问题是 `null`。 */
+export function sourceProblem(source: TriggerSource): string | null {
+  if (source.kind === 'schedule') return scheduleProblem(source.schedule)
+  const issue = sourceIssue(source)
+  if (issue === null) return null
+  if (issue.code === 'noWorkflow') return '还没选等哪个工作流跑完'
+  if (issue.code === 'noCommand') return '还没写要运行的命令'
+  return `轮询间隔要是 ${String(POLL_MIN_SECONDS)} 秒到 7 天之间的整数秒`
 }
 
 /** 秒数的一句话说法（「30 秒」「5 分钟」「2 小时」）。 */
@@ -351,6 +422,10 @@ export function sourceText(source: TriggerSource): string {
     return `条件轮询（每 ${secondsText(source.seconds)} 跑一次命令，${when}时触发）`
   }
   if (source.kind === 'listen') return '监听程序打出了一行'
+  if (source.kind === 'after') {
+    const when = { done: '成功', failed: '失败', any: '结束' }[afterWhen(source)]
+    return `工作流「${source.workflow}」的一次执行${when}了`
+  }
   return '收到一个 HTTP 请求'
 }
 

@@ -1,10 +1,9 @@
 /**
- * dsh-workflow-lite — 触发卡片面板最上面的「现在怎么样」：开关与状态、出了什么问题、确认要运行的命令、
- * 「立即触发一次」、最近的输出（轮询、监听），以及最近的触发记录。
- * 只在模板视图里出现（实例里的卡片是快照，没有现场）。
+ * dsh-workflow-lite — 触发卡片面板里「现在怎么样」的两块，只在模板视图里出现（实例里的卡片是快照，没有现场）：
  *
- * 要在本机跑命令的卡片，打开前在开关旁边浮出一张确认卡，列出命令和工作区；
- * 画布上点卡片的开关也走这里（`env.ask`）。
+ * - {@link TriggerStatus}（面板最上面）：开关与状态、出了什么问题、「立即触发一次」。
+ *   要在本机跑命令、还没确认过的卡片，打开前在开关旁边浮出确认卡，列出命令和工作区；
+ * - {@link TriggerLog}（面板最下面）：最近的输出（轮询、监听）和最近的触发记录。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/trigger/TriggerStatus
  */
@@ -12,34 +11,19 @@
 import { useEffect, useState } from 'react'
 import { commandOf } from '../../../shared/trigger.ts'
 import type { TriggerData } from '../../../shared/types.ts'
-import type { FireRecord } from '../../../shared/wire/trigger.ts'
-import type { LocaleKey, T } from '../../i18n.ts'
-import { shortTime } from '../../model/time.ts'
+import { firesSignal, useFires } from '../../app/useFires.ts'
+import type { T } from '../../i18n.ts'
 import { stateText } from '../../model/triggerText.ts'
-import { useConfirm } from '../kit/Confirm.tsx'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
-import { TextArea } from '../kit/TextArea.tsx'
 import ui from '../kit/ui.module.css'
 import { SwitchTrack } from '../motion/marks.tsx'
 import ins from '../panel/panel.module.css'
+import { useApproveConfirm } from './ApproveConfirm.tsx'
+import { FireList } from './FireList.tsx'
+import { FireNow } from './FireNow.tsx'
 import css from './trigger.module.css'
 import type { TriggerEnv } from './triggerEnv.ts'
-
-const CHANNEL_TEXT: Record<FireRecord['channel'], LocaleKey> = {
-  schedule: 'trigger.channel.schedule',
-  poll: 'trigger.channel.poll',
-  listen: 'trigger.channel.listen',
-  http: 'trigger.channel.http',
-  now: 'trigger.channel.now',
-}
-
-/** 一条记录的结果：发出去了但模型判断不需要的，单独说。 */
-function outcomeKey(record: FireRecord): LocaleKey {
-  if (record.declined !== undefined) return 'trigger.outcome.declined'
-  if (record.outcome === 'sent') return 'trigger.outcome.sent'
-  return record.outcome === 'skipped' ? 'trigger.outcome.skipped' : 'trigger.outcome.failed'
-}
 
 /** 面板里列几条触发记录。 */
 const SHOWN = 8
@@ -55,207 +39,103 @@ export function TriggerStatus(props: {
   const on = view?.enabled === true
   const state = view?.state ?? 'off'
   const command = commandOf(data.source)
-  const [info, setInfo] = useState('')
-  const [firing, setFiring] = useState(false)
-  /** 刚才那次「立即触发」的结果（一句话）。 */
-  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null)
-  const [fires, setFires] = useState<FireRecord[]>([])
-  const [failed, setFailed] = useState('')
-  const confirm = useConfirm<HTMLButtonElement>()
+  const approve = useApproveConfirm<HTMLButtonElement>()
 
-  // 记录跟着最近一次触发走：有新的一次、它对上了实例、模型判断了不需要，就重新读。
-  const lastId = view?.last?.id
-  const lastInstance = view?.last?.instance
-  const lastDeclined = view?.last?.declined
-  useEffect(() => {
-    let alive = true
-    void env.triggers.history(node).then((list) => {
-      if (alive) setFires(list.slice(0, SHOWN))
-    })
-    return () => {
-      alive = false
-    }
-  }, [env.triggers.history, node, lastId, lastInstance, lastDeclined])
-
-  // 画布上点了开关、命令还没确认：在这里弹出确认卡。
-  const asked = env.ask?.node === node ? env.ask.seq : 0
-  useEffect(() => {
-    if (asked > 0) confirm.show()
-  }, [asked])
-
-  const fire = async (): Promise<void> => {
-    setFiring(true)
-    const record = await env.triggers.fire(node, info)
-    setFiring(false)
-    if (typeof record === 'string') {
-      setResult({ ok: false, text: t('trigger.fireFailed').replace('{reason}', record) })
-      return
-    }
-    if (record.outcome === 'sent') {
-      setInfo('')
-      setResult({ ok: true, text: t('trigger.fired') })
-      return
-    }
-    setResult({
-      ok: false,
-      text: t('trigger.fireFailed').replace('{reason}', record.reason ?? ''),
-    })
-  }
-
-  /** 开关：要跑命令、还没确认的，先确认；别的直接开关。 */
+  /** 开关：要跑命令、还没确认的，在开关旁边问一句；别的直接开关。 */
   const onSwitch = (): void => {
-    if (!on && command !== undefined && view?.approved !== true) {
-      confirm.toggle()
+    if (approve.open) {
+      approve.hide()
       return
     }
-    env.toggle(node, !on)
-  }
-
-  const approve = async (): Promise<void> => {
-    if (command === undefined) return
-    setFailed((await env.triggers.set(node, { approve: command, enabled: true })) ?? '')
+    if (env.toggle(node, !on) === 'confirm') approve.show()
   }
 
   const problem =
-    failed !== ''
-      ? failed
-      : state === 'elsewhere' && env.triggers.owner !== undefined
-        ? t('trigger.ownerOther').replace('{pid}', String(env.triggers.owner.pid))
-        : state === 'stopped'
-          ? `${view?.problem ?? ''} ${t('trigger.stoppedHint')}`
+    state === 'elsewhere' && env.triggers.owner !== undefined
+      ? t('trigger.ownerOther').replace('{pid}', String(env.triggers.owner.pid))
+      : state === 'stopped'
+        ? `${view?.problem ?? ''} ${t('trigger.stoppedHint')}`
+        : state === 'paused'
+          ? t('trigger.pausedHint')
           : (view?.problem ?? '')
-  const calm = state === 'elsewhere' || state === 'waiting' || state === 'listening'
+  const calm =
+    state === 'elsewhere' || state === 'waiting' || state === 'listening' || state === 'paused'
 
   return (
-    <>
-      <section className={ins.field} data-testid="wl-trigger-status" data-state={state}>
-        <button
-          ref={confirm.anchorRef}
-          type="button"
-          role="switch"
-          aria-checked={on}
-          className={ins.required}
-          data-testid="wl-trigger-enable"
-          onClick={onSwitch}
-        >
-          <SwitchTrack on={on} />
-          <span className={ins.requiredText}>
-            <span className={ins.requiredTitle}>{t('trigger.switch')}</span>
-            <span className={ins.requiredDesc} data-testid="wl-trigger-state-text">
-              {stateText(t, view, data.source.kind)}
-            </span>
+    <section className={ins.field} data-testid="wl-trigger-status" data-state={state}>
+      <button
+        ref={approve.anchorRef}
+        type="button"
+        role="switch"
+        aria-checked={on}
+        className={ins.required}
+        data-testid="wl-trigger-enable"
+        onClick={onSwitch}
+      >
+        <SwitchTrack on={on} />
+        <span className={ins.requiredText}>
+          <span className={ins.requiredTitle}>{t('trigger.switch')}</span>
+          <span className={ins.requiredDesc} data-testid="wl-trigger-state-text">
+            {/* 定时规则下面已经写着下一次，这里不再说。 */}
+            {stateText(t, view, data.source.kind, Date.now(), {
+              next: data.source.kind !== 'schedule',
+            })}
           </span>
-        </button>
-        {confirm.render({
+        </span>
+      </button>
+      {command !== undefined &&
+        approve.render({
           t,
-          title: t('trigger.confirmTitle'),
-          desc: t('trigger.confirmDesc'),
-          confirmText: t('trigger.confirmOk'),
+          command,
+          workspace: view?.workspace,
+          noCwd: t('trigger.confirmNoCwd'),
           testId: 'wl-trigger-approve',
-          disabled: view?.workspace === undefined,
-          onConfirm: () => void approve(),
-          children: (
-            <div className={css.confirmCommand}>
-              <code className={css.confirmCode} data-testid="wl-trigger-approve-command">
-                {command ?? ''}
-              </code>
-              <span className={view?.workspace === undefined ? ins.error : ins.help}>
-                {view?.workspace === undefined
-                  ? t('trigger.confirmNoCwd')
-                  : t('trigger.confirmCwd').replace('{path}', view.workspace)}
-              </span>
-            </div>
-          ),
+          onApprove: (approved) => env.approve(node, approved),
         })}
-        {/* 一直挂着：没问题时是空的，出了问题只换字。 */}
-        <p
-          className={calm ? ins.help : ins.error}
-          data-testid="wl-trigger-problem"
-          hidden={problem.trim() === ''}
+      {/* 一直挂着：没问题时是空的，出了问题只换字。 */}
+      <p
+        className={calm ? ins.help : ins.error}
+        data-testid="wl-trigger-problem"
+        hidden={problem.trim() === ''}
+      >
+        {problem}
+      </p>
+      {state === 'confirm' && (
+        <button
+          type="button"
+          className={cx(ui.btn, ui.small, css.selfStart)}
+          data-testid="wl-trigger-confirm-again"
+          onClick={() => approve.show()}
         >
-          {problem}
-        </p>
-        {state === 'confirm' && (
-          <button
-            type="button"
-            className={cx(ui.btn, ui.small)}
-            data-testid="wl-trigger-confirm-again"
-            onClick={() => confirm.show()}
-          >
-            {t('trigger.confirmAgain')}
-          </button>
-        )}
-        <TextArea
-          className={cx(ui.textarea, css.info)}
-          value={info}
-          rows={2}
-          placeholder={t('trigger.infoPlaceholder')}
-          aria-label={t('trigger.infoPlaceholder')}
-          data-testid="wl-trigger-info"
-          onChange={(event) => setInfo(event.currentTarget.value)}
-        />
-        <div className={css.fireRow}>
-          <button
-            type="button"
-            className={cx(ui.btn, ui.small, ui.soft)}
-            disabled={firing}
-            data-testid="wl-trigger-fire"
-            onClick={() => void fire()}
-          >
-            <Icon name="bolt" size={13} />
-            {t('trigger.fireNow')}
-          </button>
-          <span
-            className={css.fireResult}
-            data-ok={result?.ok ?? undefined}
-            data-testid="wl-trigger-fire-result"
-          >
-            {result?.text ?? ''}
-          </span>
-        </div>
-      </section>
+          {t('trigger.confirmAgain')}
+        </button>
+      )}
+      <FireNow t={t} testId="wl-trigger" fire={(info) => env.triggers.fire(node, info)} />
+    </section>
+  )
+}
 
-      {command !== undefined && <RecentOutput t={t} env={env} node={node} />}
-
+/** 面板最下面：最近的输出（要跑命令的才有）和最近的触发记录。 */
+export function TriggerLog(props: {
+  t: T
+  env: TriggerEnv
+  node: string
+  data: TriggerData
+}): React.JSX.Element {
+  const { t, env, node } = props
+  const view = env.triggers.view(node)
+  const fires = useFires(node, firesSignal(view?.last), () => env.triggers.history(node))
+  return (
+    <>
+      {commandOf(props.data.source) !== undefined && <RecentOutput t={t} env={env} node={node} />}
       <section className={ins.field} data-testid="wl-trigger-history">
         <div className={ins.label}>
           <span>{t('trigger.history')}</span>
-          <span className={ins.count}>{fires.length === 0 ? '' : fires.length}</span>
+          <span className={ins.count}>
+            {fires === null || fires.length === 0 ? '' : Math.min(fires.length, SHOWN)}
+          </span>
         </div>
-        {fires.length === 0 ? (
-          <p className={ins.help}>{t('trigger.historyEmpty')}</p>
-        ) : (
-          <ul className={css.fires}>
-            {fires.map((record) => (
-              <li
-                key={record.id}
-                className={css.fire}
-                data-outcome={record.declined === undefined ? record.outcome : 'declined'}
-              >
-                <span className={css.fireTop}>
-                  <span className={css.fireTime}>{shortTime(record.at)}</span>
-                  <span className={css.fireChannel}>{t(CHANNEL_TEXT[record.channel])}</span>
-                  <span className={css.fireOutcome}>{t(outcomeKey(record))}</span>
-                  {record.instance !== undefined && (
-                    <button
-                      type="button"
-                      className={cx(ui.btn, ui.icon, ui.small, css.fireOpen)}
-                      aria-label={t('trigger.openRun')}
-                      data-tip={t('trigger.openRun')}
-                      data-testid="wl-trigger-open-run"
-                      onClick={() => env.openRun(record.instance as string)}
-                    >
-                      <Icon name="arrowRight" size={13} />
-                    </button>
-                  )}
-                </span>
-                {(record.declined ?? record.reason) !== undefined && (
-                  <span className={css.fireReason}>{record.declined ?? record.reason}</span>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
+        <FireList t={t} fires={fires?.slice(0, SHOWN) ?? null} onOpenRun={env.openRun} />
       </section>
     </>
   )
@@ -283,9 +163,12 @@ function RecentOutput(props: { t: T; env: TriggerEnv; node: string }): React.JSX
   }, [open, env.triggers.output, node, stamp])
   return (
     <section className={ins.field} data-testid="wl-trigger-output">
+      <div className={ins.label}>
+        <span>{t('trigger.output')}</span>
+      </div>
       <button
         type="button"
-        className={cx(ui.btn, ui.small)}
+        className={cx(ui.btn, ui.small, css.selfStart)}
         aria-expanded={open}
         data-testid="wl-trigger-output-toggle"
         onClick={() => setOpen((value) => !value)}

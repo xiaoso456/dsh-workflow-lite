@@ -337,12 +337,17 @@ export type TriggerSchedule =
 /** 条件轮询什么时候算「满足」：命令成功（退出码 0，只在从不成功变成成功时触发一次）/ 输出变了。 */
 export type PollWhen = 'success' | 'change'
 
+/** 另一个工作流的实例以什么结果结束才触发：成功（`done`）/ 失败（`failed`）/ 不论结果（含取消）。 */
+export type AfterWhen = 'done' | 'failed' | 'any'
+
 /**
  * 触发源：什么时候触发。
  * - `schedule` 定时；
  * - `poll` 条件轮询：每隔 `seconds` 秒在工作区里跑一次 `command`，输出是背景信息；
  * - `listen` 监听程序：常驻的 `command`，往标准输出每打一行就是一次触发，那一行是背景信息；
- * - `http` 别的程序向插件的触发端口发请求，请求体是背景信息（地址、令牌是本机状态）。
+ * - `http` 别的程序向插件的触发端口发请求，请求体是背景信息（地址、令牌是本机状态）；
+ * - `after` 另一个工作流（`workflow`）的一次执行结束了：那个实例的结果是背景信息。
+ *   那个工作流要开着「记录运行状态」，插件才看得出它什么时候结束。
  *
  * 命令里可以写 `{workflow}`（工作流目录，脚本放这里随工作流导出）；以 DSH 进程的身份运行，不进沙箱，
  * 所以要用户在本机确认过才跑，命令或工作区改了要重新确认。
@@ -352,11 +357,12 @@ export type TriggerSource =
   | { kind: 'poll'; command: string; seconds: number; when?: Extract<PollWhen, 'change'> }
   | { kind: 'listen'; command: string }
   | { kind: 'http' }
+  | { kind: 'after'; workflow: string; when?: Exclude<AfterWhen, 'done'> }
 
 export type TriggerSourceKind = TriggerSource['kind']
 
 /**
- * 不花模型调用的过滤（定时没有背景信息，不用它）。缺省值不写盘，见 `shared/trigger.ts` 的 `filterOf`。
+ * 不花模型调用的过滤（只给带外来内容的轮询、监听、HTTP；定时、接续没有可筛的）。缺省值不写盘，见 `shared/trigger.ts` 的 `filterOf`。
  */
 export interface TriggerFilter {
   /** 合并：这么多秒内的几次触发并成一次，背景信息拼在一起；0 = 不合并。缺省监听、HTTP 5 秒，轮询 0。 */
@@ -698,6 +704,10 @@ export interface WorkflowEntry {
   reason?: string
   /** 存下的版本数（有才给）。 */
   versions?: number
+  /** 图里的触发卡片数（有才给）。 */
+  triggers?: number
+  /** 开着「记录运行状态」（接续触发要靠它看出什么时候跑完；开着才给）。 */
+  runState?: true
 }
 
 /** 工作流的一个版本（`versions/<图名>/<序号>.json`）。 */
