@@ -10,7 +10,7 @@ import type { Runs } from '../../../app/useRuns.ts'
 import type { Workflow } from '../../../app/useWorkflow.ts'
 import type { T } from '../../../i18n.ts'
 import type { WorkflowLiteRpc } from '../../../rpc.ts'
-import { HubDialog } from '../../hub/HubDialog.tsx'
+import { HubDialog, type HubFocus } from '../../hub/HubDialog.tsx'
 
 export function HubLayer({
   t,
@@ -23,7 +23,7 @@ export function HubLayer({
   openRun,
   wf,
   sessionCwd,
-  hubExport,
+  hubFocus,
   onClose,
   openTemplate,
   openCard,
@@ -38,8 +38,8 @@ export function HubLayer({
   openRun(id: string): void
   wf: Workflow
   sessionCwd: string | undefined
-  /** 从画布顶栏的「导出」进来：直接停在「工作流」页、右栏是导出。 */
-  hubExport: boolean
+  /** 打开时停在哪（导出、某张触发卡片）；`null` = 从头。 */
+  hubFocus: HubFocus | null
   onClose(): void
   openTemplate(name: string): void
   /** 打开一个工作流、选中里面的一张卡片。 */
@@ -71,7 +71,7 @@ export function HubLayer({
         remove: wf.remove,
         onChanged: () => void wf.refreshCatalog(),
       }}
-      exportCurrent={hubExport}
+      {...(hubFocus === null ? {} : { focus: hubFocus })}
       onClose={onClose}
     />
   )

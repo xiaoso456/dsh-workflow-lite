@@ -3,12 +3,11 @@
  *
  * - {@link TriggerStatus}（面板最上面）：开关与状态、出了什么问题、「立即触发一次」。
  *   要在本机跑命令、还没确认过的卡片，打开前在开关旁边浮出确认卡，列出命令和工作区；
- * - {@link TriggerLog}（面板最下面）：最近的输出（轮询、监听）和最近的触发记录。
+ * - {@link TriggerLog}（面板最下面）：最近几次触发记录（最近的输出在「触发方式」对话框里）。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/trigger/TriggerStatus
  */
 
-import { useEffect, useState } from 'react'
 import { commandOf } from '../../../shared/trigger.ts'
 import type { TriggerData } from '../../../shared/types.ts'
 import { firesSignal, useFires } from '../../app/useFires.ts'
@@ -25,8 +24,8 @@ import { FireNow } from './FireNow.tsx'
 import css from './trigger.module.css'
 import type { TriggerEnv } from './triggerEnv.ts'
 
-/** 面板里列几条触发记录。 */
-const SHOWN = 8
+/** 面板里列几条触发记录（全部的在工作流中心「触发」页）。 */
+const SHOWN = 3
 
 export function TriggerStatus(props: {
   t: T
@@ -115,72 +114,28 @@ export function TriggerStatus(props: {
   )
 }
 
-/** 面板最下面：最近的输出（要跑命令的才有）和最近的触发记录。 */
-export function TriggerLog(props: {
-  t: T
-  env: TriggerEnv
-  node: string
-  data: TriggerData
-}): React.JSX.Element {
+/** 面板最下面：最近几次触发；「全部记录」到工作流中心「触发」页里这张卡片下面看。 */
+export function TriggerLog(props: { t: T; env: TriggerEnv; node: string }): React.JSX.Element {
   const { t, env, node } = props
   const view = env.triggers.view(node)
   const fires = useFires(node, firesSignal(view?.last), () => env.triggers.history(node))
   return (
-    <>
-      {commandOf(props.data.source) !== undefined && <RecentOutput t={t} env={env} node={node} />}
-      <section className={ins.field} data-testid="wl-trigger-history">
-        <div className={ins.label}>
-          <span>{t('trigger.history')}</span>
-          <span className={ins.count}>
-            {fires === null || fires.length === 0 ? '' : Math.min(fires.length, SHOWN)}
-          </span>
-        </div>
-        <FireList t={t} fires={fires?.slice(0, SHOWN) ?? null} onOpenRun={env.openRun} />
-      </section>
-    </>
-  )
-}
-
-/**
- * 轮询命令、监听程序最近的输出：点开才读；开着时卡片状态一变（又检查了一次、程序重启了）就再读一次。
- * 只换文字，不插拔元素。
- */
-function RecentOutput(props: { t: T; env: TriggerEnv; node: string }): React.JSX.Element {
-  const { t, env, node } = props
-  const [open, setOpen] = useState(false)
-  const [text, setText] = useState('')
-  const view = env.triggers.view(node)
-  const stamp = `${view?.state ?? ''}|${String(view?.checked?.at ?? '')}|${String(view?.since ?? '')}|${String(view?.next ?? '')}`
-  useEffect(() => {
-    if (!open) return
-    let alive = true
-    void env.triggers.output(node).then((value) => {
-      if (alive) setText(value)
-    })
-    return () => {
-      alive = false
-    }
-  }, [open, env.triggers.output, node, stamp])
-  return (
-    <section className={ins.field} data-testid="wl-trigger-output">
+    <section className={ins.field} data-testid="wl-trigger-history">
       <div className={ins.label}>
-        <span>{t('trigger.output')}</span>
+        <span>{t('trigger.history')}</span>
+        {fires !== null && fires.length > 0 && (
+          <button
+            type="button"
+            className={cx(ui.btn, ui.small, css.historyAll)}
+            data-testid="wl-trigger-history-all"
+            onClick={() => env.openHistory(node)}
+          >
+            {t('trigger.historyAll')}
+            <Icon name="arrowRight" size={13} />
+          </button>
+        )}
       </div>
-      <button
-        type="button"
-        className={cx(ui.btn, ui.small, css.selfStart)}
-        aria-expanded={open}
-        data-testid="wl-trigger-output-toggle"
-        onClick={() => setOpen((value) => !value)}
-      >
-        <Icon name={open ? 'chevronUp' : 'chevronDown'} size={13} />
-        {t(open ? 'trigger.outputHide' : 'trigger.outputShow')}
-      </button>
-      {open && (
-        <pre className={css.output} data-testid="wl-trigger-output-text">
-          {text === '' ? t('trigger.outputEmpty') : text}
-        </pre>
-      )}
+      <FireList t={t} fires={fires?.slice(0, SHOWN) ?? null} onOpenRun={env.openRun} />
     </section>
   )
 }

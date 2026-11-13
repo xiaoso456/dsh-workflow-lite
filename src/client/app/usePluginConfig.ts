@@ -9,6 +9,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { isListenHost } from '../../shared/triggerHttp.ts'
 import {
   PLUGIN_CONFIG_KEYS,
   type PluginConfigKey,
@@ -28,6 +29,7 @@ export interface ConfigDraft {
   maxResultBytes: string
   installSkill: boolean
   triggerPort: string
+  triggerHost: string
 }
 
 export type ConfigErrors = Partial<Record<PluginConfigKey, string>>
@@ -49,7 +51,7 @@ export interface PluginConfigState {
   save(): Promise<void>
 }
 
-type NumberKey = 'maxNodes' | 'saveDebounceMs' | 'maxResultBytes' | 'triggerPort'
+export type NumberKey = 'maxNodes' | 'saveDebounceMs' | 'maxResultBytes' | 'triggerPort'
 
 const MIN: Record<NumberKey, number> = {
   maxNodes: 1,
@@ -60,6 +62,30 @@ const MIN: Record<NumberKey, number> = {
 
 const MAX: Partial<Record<NumberKey, number>> = { triggerPort: 65535 }
 
+/** 数字框能填的范围（给人看的提示用）。 */
+export function numberRange(key: NumberKey): { min: number; max?: number } {
+  const max = MAX[key]
+  return max === undefined ? { min: MIN[key] } : { min: MIN[key], max }
+}
+
+/** 数字框只收数字：别的字打不进去。 */
+export function digitsOnly(text: string): string {
+  return text.replace(/\D+/gu, '')
+}
+
+/**
+ * 数字框离开时收拾：空的回到 `fallback`（已保存的值），超出范围的拉回边上。
+ * 打字途中不提示错（敲「1100」要先经过「11」），离开时直接改成能用的值，行的高度不跟着变。
+ */
+export function settleNumber(key: NumberKey, text: string, fallback: string): string {
+  if (text.trim() === '') return fallback
+  const number = Number(text)
+  const max = MAX[key]
+  if (number < MIN[key]) return String(MIN[key])
+  if (max !== undefined && number > max) return String(max)
+  return String(number)
+}
+
 export function toDraft(values: PluginConfigValues): ConfigDraft {
   return {
     dataDir: values.dataDir,
@@ -68,6 +94,7 @@ export function toDraft(values: PluginConfigValues): ConfigDraft {
     maxResultBytes: String(Math.round(values.maxResultBytes / 1024)),
     installSkill: values.installSkill,
     triggerPort: String(values.triggerPort),
+    triggerHost: values.triggerHost,
   }
 }
 
@@ -85,6 +112,8 @@ export function fromDraft(
   const dataDir = draft.dataDir.trim()
   if (dataDir === '') errors.dataDir = t('cfg.required')
   else values.dataDir = dataDir
+  if (isListenHost(draft.triggerHost)) values.triggerHost = draft.triggerHost
+  else errors.triggerHost = t('cfg.host.invalid')
   for (const key of ['maxNodes', 'saveDebounceMs', 'maxResultBytes', 'triggerPort'] as const) {
     const text = draft[key].trim()
     if (text === '') {
@@ -240,4 +269,5 @@ export const LABEL = {
   maxResultBytes: 'cfg.maxResult',
   installSkill: 'cfg.skill',
   triggerPort: 'cfg.triggerPort',
+  triggerHost: 'cfg.triggerHost',
 } as const satisfies Record<PluginConfigKey, LocaleKey>

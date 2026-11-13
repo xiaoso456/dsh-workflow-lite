@@ -15,7 +15,8 @@ import {
   stateText,
 } from '../../src/client/model/triggerText.ts'
 import { parseKeywords } from '../../src/client/ui/trigger/FilterField.tsx'
-import { curlOf, switchSource } from '../../src/client/ui/trigger/SourceField.tsx'
+import { curlOf } from '../../src/client/ui/trigger/HttpEndpoint.tsx'
+import { switchSource } from '../../src/client/ui/trigger/SourceField.tsx'
 import { analyzeGraph } from '../../src/shared/graph.ts'
 import { isTrigger } from '../../src/shared/model.ts'
 import { scheduleIssue } from '../../src/shared/schedule.ts'
@@ -288,7 +289,7 @@ describe('触发卡片：卡片上的字', () => {
       '超时',
       'timeout',
     ])
-    const curl = curlOf({ url: 'http://127.0.0.1:3791/trigger/abc', token: 'tok' })
+    const curl = curlOf({ url: 'http://127.0.0.1:3791/trigger/abc', hook: 'abc', token: 'tok' })
     expect(curl).toContain('http://127.0.0.1:3791/trigger/abc')
     expect(curl).toContain('Bearer tok')
   })

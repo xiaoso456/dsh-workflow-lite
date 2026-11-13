@@ -11,12 +11,12 @@ A poll trigger runs a command on this machine at an interval and decides from th
 
 ## Use
 
-1. Add a trigger card and choose **Poll** under **When**.
-2. Fill in **Command**, then choose the interval and **Fire when**.
-3. Choose a workspace under **How to run**: both the command and new sessions run there.
+1. Add a trigger card, click **Schedule ▾** in the header of **Trigger**, and choose **Poll**.
+2. Click **Write command**, fill in **Command**, choose the interval and **Fire when**, and click **Save**.
+3. Choose a workspace under **Run settings**: both the command and new sessions run there.
 4. Turn on the switch, check the command and workspace in the confirmation card, and click **Confirm and turn on**.
 
-The card shows **Checking** and the result of the last check. Click **Show recent output** in the panel to see the command's recent output.
+The card shows **Checking** and the result of the last check, and the bar in its middle row runs to the next check. Click **Edit** under **Trigger**; the right side of the dialog shows the command's recent output.
 
 ## Settings
 

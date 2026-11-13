@@ -1,0 +1,94 @@
+/**
+ * dsh-workflow-lite — 触发卡片面板里的一行摘要（SummaryRow）：和面板里的开关行同一种框（描边、圆角、悬停底色）。
+ */
+
+.row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  padding: 8px 8px 8px 10px;
+  border: 1px solid var(--wl-line);
+  border-radius: var(--wl-r-control);
+  background: transparent;
+  color: var(--wl-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms linear;
+}
+
+.row:hover {
+  background: var(--wl-hover);
+}
+
+.row:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+.text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.title {
+  font-size: var(--wl-fs-meta);
+  font-weight: 600;
+}
+
+.summary {
+  overflow: hidden;
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.5;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 两行的（触发条件、触发说明）：多出来的省略掉。 */
+.two {
+  display: -webkit-box;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.summary[data-blank] {
+  color: var(--wl-text-3);
+}
+
+/* 右端的铅笔：平时淡，悬停整行时亮起来（只动 opacity）。 */
+.edit {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  color: var(--wl-text-2);
+  opacity: 0.55;
+  transition: opacity 120ms linear;
+}
+
+.row:hover .edit,
+.row:focus-visible .edit {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row,
+  .edit {
+    transition: none;
+  }
+}
+
+/* 瑞士：框只留底线。 */
+:global([data-look="swiss"]) .row {
+  border-width: 0 0 1px;
+  border-color: var(--wl-line-strong);
+  border-radius: 0;
+}

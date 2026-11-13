@@ -5,14 +5,19 @@
  * 现场变了只换字和属性，不插拔元素（宿主的 `:has` 样式让任何插拔都整页重算）：
  * 监听的小绿点、轮询的进度条一直挂着，按属性显隐；进度条换一段时动画名在 a / b 间切，从头再放。
  *
- * @module @xiaoso/dsh-workflow-lite/client/ui/canvas/cards/TriggerGlanceRow
+ * @module @xiaoso/dsh-workflow-lite/client/ui/trigger/TriggerGlanceRow
  */
 
 import { useMemo } from 'react'
-import type { TriggerView } from '../../../../shared/wire/trigger.ts'
-import { endpointPath, pollProgress, type TriggerGlance } from '../../../model/triggerGlance.ts'
-import { Icon } from '../../kit/Icon.tsx'
-import { useLast } from '../../motion/swapText.tsx'
+import type { TriggerView } from '../../../shared/wire/trigger.ts'
+import {
+  endpointPath,
+  pollProgress,
+  readableUrl,
+  type TriggerGlance,
+} from '../../model/triggerGlance.ts'
+import { Icon } from '../kit/Icon.tsx'
+import { useLast } from '../motion/swapText.tsx'
 import css from './triggerGlance.module.css'
 
 export function TriggerGlanceRow(props: {
@@ -22,9 +27,10 @@ export function TriggerGlanceRow(props: {
 }): React.JSX.Element {
   const { glance, view } = props
   return (
-    <div className={css.glance} data-shape={glance.shape} data-testid="wl-trigger-glance">
+    // span：画布卡片上它包在一个按钮里（点了打开「触发方式」）。
+    <span className={css.glance} data-shape={glance.shape} data-testid="wl-trigger-glance">
       {renderShape(glance, view)}
-    </div>
+    </span>
   )
 }
 
@@ -72,7 +78,8 @@ function renderShape(glance: TriggerGlance, view: TriggerView | undefined): Reac
       )
     }
     case 'http': {
-      const url = view?.endpoint?.url
+      const raw = view?.endpoint?.url
+      const url = raw === undefined ? undefined : readableUrl(raw)
       return (
         <>
           <span className={css.tag}>POST</span>

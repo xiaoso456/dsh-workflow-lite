@@ -46,6 +46,9 @@ const PAGES: readonly HubPage[] = [
   'settings',
 ]
 
+/** 工作流中心打开时停在哪。 */
+export type HubFocus = { kind: 'export' } | { kind: 'trigger'; workflow: string; node: string }
+
 export function HubDialog(props: {
   t: T
   rpc: WorkflowLiteRpc
@@ -74,12 +77,18 @@ export function HubDialog(props: {
     remove(name: string): Promise<boolean>
     onChanged(): void
   }
-  /** 从画布顶栏的「导出」打开：停在「工作流」页，右栏直接是正在编辑那张的导出。 */
-  exportCurrent?: boolean
+  /** 打开时停在哪：顶栏「导出」进来停在「工作流」页、右栏是导出；触发卡片「全部记录」进来停在「触发」页、选中那张。 */
+  focus?: HubFocus
   onClose(): void
 }): React.JSX.Element {
   const { t, runs } = props
-  const [page, setPage] = useState<HubPage>(props.exportCurrent === true ? 'workflows' : 'runs')
+  const [page, setPage] = useState<HubPage>(
+    props.focus?.kind === 'export'
+      ? 'workflows'
+      : props.focus?.kind === 'trigger'
+        ? 'triggers'
+        : 'runs',
+  )
   /** 新的一页从哪一侧进来：点了右边的页就从右边进；刚打开时不滑。 */
   const [from, setFrom] = useState<'left' | 'right' | undefined>(undefined)
   const turn = (next: HubPage): void => {
@@ -142,7 +151,7 @@ export function HubDialog(props: {
             t={t}
             rpc={props.rpc}
             {...props.workflows}
-            startExport={props.exportCurrent === true}
+            startExport={props.focus?.kind === 'export'}
             onOpen={(name) => {
               props.workflows.onOpen(name)
               props.onClose()
@@ -152,6 +161,9 @@ export function HubDialog(props: {
           <HubTriggers
             t={t}
             rpc={props.rpc}
+            {...(props.focus?.kind === 'trigger'
+              ? { start: { workflow: props.focus.workflow, node: props.focus.node } }
+              : {})}
             flush={props.workflows.flush}
             onNotice={props.onNotice}
             onOpenCard={(workflow, node) => {

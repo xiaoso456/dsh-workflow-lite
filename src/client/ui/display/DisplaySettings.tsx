@@ -209,6 +209,7 @@ export function DisplayOptions(props: {
         <section className={shared.optGroup}>
           <GroupHead label={t('display.item')} />
           <Select<string>
+            t={t}
             label={t('display.item')}
             value={String(display.item)}
             options={props.items.options}

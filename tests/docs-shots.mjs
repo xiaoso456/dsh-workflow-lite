@@ -307,6 +307,21 @@ const clickText = (text) => `(() => {
   return true
 })()`
 const clickAria = (label) => `document.querySelector('button[aria-label="${label}"]')?.click()`
+/** 点面板里的一行摘要，等它的对话框长出来、动效停下。 */
+async function openSheet(session, rowTestId, dialogTestId) {
+  await session.evaluate(clickTestId(rowTestId))
+  await waitFor(session, has(dialogTestId))
+  await sleep(1000)
+  await mouseMove(session, { x: 8, y: 8 })
+}
+/** 不保存，关掉对话框。 */
+async function closeSheet(session, dialogTestId) {
+  await session.evaluate(clickTestId(`${dialogTestId}-cancel`))
+  await waitFor(session, `document.querySelector('[data-testid="${dialogTestId}"]') === null`)
+  await sleep(400)
+}
+const SOURCE_DIALOG = 'wl-trigger-source-dialog'
+
 const nodeClick = (id) =>
   `document.querySelector('.react-flow__node[data-id="${id}"]').dispatchEvent(new MouseEvent('click', { bubbles: true }))`
 const pressEscape = (session) =>
@@ -448,8 +463,8 @@ async function triggerShots(session) {
     await mouseMove(session, { x: 8, y: 8 })
     await snap(session, 'trigger-card', await session.evaluate(graphBox))
 
-    // 面板比窗口高：先把窗口拉高，整块拍下来。
-    await metrics(session, 1280, LANG === 'en' ? 1340 : 1260)
+    // 面板只放摘要，详细设置在对话框里：窗口留够高，整块拍下来。
+    await metrics(session, 1280, LANG === 'en' ? 960 : 920)
     await sleep(600)
     await session.evaluate(nodeClick('nightly'))
     await waitFor(session, has('wl-trigger-status'))
@@ -551,16 +566,17 @@ async function triggerSourceShots(session) {
     await session.evaluate(clickTestId('wl-fit'))
     await sleep(1200)
 
-    // 条件轮询：何时触发一节。
+    // 条件轮询：「触发方式」对话框。
     await session.evaluate(nodeClick('remote'))
-    await waitFor(session, has('wl-trigger-command'))
-    await sleep(1000)
-    await mouseMove(session, { x: 8, y: 8 })
+    await waitFor(session, has('wl-trigger-when-edit'))
+    await sleep(800)
+    await openSheet(session, 'wl-trigger-when-edit', SOURCE_DIALOG)
     await snap(
       session,
       'trigger-poll',
-      await session.evaluate(rectOf('[data-testid="wl-trigger-when"]', 8)),
+      await session.evaluate(rectOf(`[data-testid="${SOURCE_DIALOG}"]`)),
     )
+    await closeSheet(session, SOURCE_DIALOG)
 
     // 监听程序：点开关，开关旁浮出确认卡。
     await session.evaluate(nodeClick('errors'))
@@ -580,32 +596,36 @@ async function triggerSourceShots(session) {
         unionOf(['[data-testid="wl-trigger-enable"]', '[data-testid="wl-trigger-approve-pop"]']),
       ),
     )
-    await pressEscape(session)
+    await session.evaluate(
+      `document.querySelector('[data-testid="wl-trigger-approve-pop"] [data-confirm="cancel"]')?.click()`,
+    )
+    await waitFor(
+      session,
+      `document.querySelector('[data-testid="wl-trigger-approve-pop"]') === null`,
+    )
     await sleep(600)
 
-    // 过滤与触发条件。
-    await session.evaluate(
-      `document.querySelector('[data-testid="wl-trigger-filter"]').scrollIntoView({ block: 'start' })`,
-    )
-    await sleep(800)
+    // 过滤：面板里那一行点开的对话框。
+    await openSheet(session, 'wl-trigger-filter-edit', 'wl-trigger-filter-dialog')
     await snap(
       session,
       'trigger-filter',
-      await session.evaluate(
-        unionOf(['[data-testid="wl-trigger-filter"]', '[data-testid="wl-trigger-condition"]']),
-      ),
+      await session.evaluate(rectOf('[data-testid="wl-trigger-filter-dialog"]')),
     )
+    await closeSheet(session, 'wl-trigger-filter-dialog')
 
-    // HTTP：开着，地址、令牌（遮住）和复制 curl。
+    // HTTP：开着，对话框里有地址、令牌（遮住）和复制 curl。
     await session.evaluate(nodeClick('ci'))
-    await waitFor(session, has('wl-trigger-url'))
+    await waitFor(session, has('wl-trigger-when-edit'))
     await sleep(1200)
-    await mouseMove(session, { x: 8, y: 8 })
+    await openSheet(session, 'wl-trigger-when-edit', SOURCE_DIALOG)
+    await waitFor(session, has('wl-trigger-url'))
     await snap(
       session,
       'trigger-http',
-      await session.evaluate(rectOf('[data-testid="wl-trigger-when"]', 8)),
+      await session.evaluate(rectOf(`[data-testid="${SOURCE_DIALOG}"]`)),
     )
+    await closeSheet(session, SOURCE_DIALOG)
   } catch (error) {
     console.log(`  ✗ trigger sources：${String(error.message).split('\n')[0]}`)
   } finally {
@@ -661,7 +681,7 @@ function chainDocuments() {
   }
 }
 
-/** 接续触发：「何时触发」一节；工作流中心「触发」页：两个工作流里的三张卡片。不点「立即触发一次」。 */
+/** 接续触发：「触发方式」一节；工作流中心「触发」页：两个工作流里的三张卡片。不点「立即触发一次」。 */
 async function triggerChainShots(session) {
   if (!CHAIN_SHOTS.some(wants)) return
   try {
@@ -689,14 +709,15 @@ async function triggerChainShots(session) {
     await sleep(1200)
 
     await session.evaluate(nodeClick('after'))
-    await waitFor(session, has('wl-trigger-after'))
+    await waitFor(session, has('wl-trigger-when-edit'))
     await sleep(1200)
-    await mouseMove(session, { x: 8, y: 8 })
+    await openSheet(session, 'wl-trigger-when-edit', SOURCE_DIALOG)
     await snap(
       session,
       'trigger-after',
-      await session.evaluate(rectOf('[data-testid="wl-trigger-when"]', 8)),
+      await session.evaluate(rectOf(`[data-testid="${SOURCE_DIALOG}"]`)),
     )
+    await closeSheet(session, SOURCE_DIALOG)
 
     await session.evaluate(clickTestId('wl-hub-open'))
     await waitFor(session, has('wl-hub'))

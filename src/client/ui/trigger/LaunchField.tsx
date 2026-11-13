@@ -1,7 +1,7 @@
 /**
- * dsh-workflow-lite — 触发卡片的「怎么运行」：发进哪个会话、在哪个工作区、上一次没跑完怎么办，以及两项保护。
+ * dsh-workflow-lite — 触发卡片的「执行设置」：发进哪个会话、在哪个工作区，下面一行「保护」摘要（点开是对话框）。
  *
- * 两类设置放在一起，但存的地方不同：会话方式、重叠、补触发、上限写在图里（跟着工作流走）；
+ * 会话方式和工作区留在面板上：打开开关前就要选好。存的地方不同：会话方式、保护写在图里（跟着工作流走）；
  * 选定的工作区和会话只存在这台机器上（见 {@link TriggerEnv}），实例视图里没有现场就不显示。
  *
  * 开关打不开是因为这里缺了一项（工作区、会话）时，画布那边会请面板把它带到眼前（`env.reveal`）：
@@ -14,13 +14,14 @@ import { useEffect, useRef, useState } from 'react'
 import { commandOf, launchOf, readTriggerData } from '../../../shared/trigger.ts'
 import type { TriggerData, TriggerLaunch, TriggerSessionMode } from '../../../shared/types.ts'
 import type { LocaleKey, T } from '../../i18n.ts'
+import { guardSummary } from '../../model/triggerSummary.ts'
 import { cx } from '../kit/cx.ts'
 import { Segmented } from '../kit/Segmented.tsx'
 import { Select } from '../kit/Select.tsx'
-import ui from '../kit/ui.module.css'
-import { SwitchTrack } from '../motion/marks.tsx'
 import { FieldHead, HelpText } from '../panel/FieldHead.tsx'
 import ins from '../panel/panel.module.css'
+import { GuardDialog } from './dialogs/GuardDialog.tsx'
+import { SummaryRow } from './SummaryRow.tsx'
 import css from './trigger.module.css'
 import type { LaunchField as Missing, TriggerEnv } from './triggerEnv.ts'
 
@@ -36,6 +37,9 @@ function folderName(path: string): string {
   return parts[parts.length - 1] ?? path
 }
 
+/** 这一节接手的「带到眼前」。 */
+const LAUNCH_FIELDS: readonly Missing[] = ['workspace', 'session']
+
 /** 闪一下要补的那一项（和 CSS 里 `.attention` 的动画一样长）。 */
 const ATTENTION_MS = 1200
 
@@ -49,7 +53,7 @@ function useReveal(env: TriggerEnv | null, node: string): Missing | null {
   const take = env?.takeReveal
   useEffect(() => {
     if (request === undefined || request === null || take === undefined) return
-    const field = take(node)
+    const field = take(node, LAUNCH_FIELDS)
     if (field !== null) setFlash(field)
   }, [request, take, node])
   useEffect(() => {
@@ -63,6 +67,8 @@ function useReveal(env: TriggerEnv | null, node: string): Missing | null {
 export function LaunchField(props: {
   t: T
   node: string
+  /** 卡片名（对话框标题下面那行）。 */
+  name: string
   data: TriggerData
   /** 模板视图的现场；实例视图是 `null`。 */
   env: TriggerEnv | null
@@ -75,6 +81,7 @@ export function LaunchField(props: {
   /** 选工作区、会话没存下去时的原因。 */
   const [failed, setFailed] = useState('')
   const flash = useReveal(env, props.node)
+  const [guard, setGuard] = useState(false)
   const workspaceRow = useRef<HTMLDivElement>(null)
   const sessionRow = useRef<HTMLDivElement>(null)
 
@@ -129,6 +136,7 @@ export function LaunchField(props: {
         >
           <span className={css.lead}>{t('trigger.workspace')}</span>
           <Select<string>
+            t={t}
             label={t('trigger.workspace')}
             value={workspace}
             className={css.grow}
@@ -154,6 +162,7 @@ export function LaunchField(props: {
         >
           <span className={css.lead}>{t('trigger.fixed')}</span>
           <Select<string>
+            t={t}
             label={t('trigger.fixed')}
             value={session}
             className={css.grow}
@@ -178,35 +187,23 @@ export function LaunchField(props: {
         </p>
       )}
 
-      <SwitchRow
-        on={launch.overlap === 'parallel'}
-        title={t('trigger.overlap')}
-        desc={t('trigger.overlapDesc')}
-        testId="wl-trigger-overlap"
-        onToggle={(on) => patch({ overlap: on ? 'parallel' : 'skip' })}
+      <SummaryRow
+        title={t('trigger.guard')}
+        summary={guardSummary(t, launch)}
+        lines={2}
+        editLabel={t('trigger.edit')}
+        testId="wl-trigger-guard"
+        onEdit={() => setGuard(true)}
       />
-      <SwitchRow
-        on={launch.catchUp}
-        title={t('trigger.catchUp')}
-        desc={t('trigger.catchUpDesc')}
-        testId="wl-trigger-catchup"
-        onToggle={(on) => patch({ catchUp: on ? undefined : false })}
-      />
-
-      <LimitRow
-        label={t('trigger.maxPerHour')}
-        value={launch.maxPerHour}
-        max={3600}
-        testId="wl-trigger-max-hour"
-        onCommit={(maxPerHour) => patch({ maxPerHour })}
-      />
-      <LimitRow
-        label={t('trigger.maxFailures')}
-        value={launch.maxFailures}
-        max={100}
-        testId="wl-trigger-max-failures"
-        onCommit={(maxFailures) => patch({ maxFailures })}
-      />
+      {guard && (
+        <GuardDialog
+          t={t}
+          name={props.name}
+          data={data}
+          onSave={props.onLaunch}
+          onClose={() => setGuard(false)}
+        />
+      )}
     </section>
   )
 }
@@ -227,66 +224,4 @@ function scrollIntoPanel(element: HTMLElement): void {
   if (inner.top < outer.top + margin) box.scrollTop -= outer.top + margin - inner.top
   else if (inner.bottom > outer.bottom - margin)
     box.scrollTop += inner.bottom - (outer.bottom - margin)
-}
-
-/** 一行开关：标题加一句说明，整行可点（和面板里别的开关行一样）。 */
-function SwitchRow(props: {
-  on: boolean
-  title: string
-  desc: string
-  testId: string
-  onToggle(on: boolean): void
-}): React.JSX.Element {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={props.on}
-      className={ins.required}
-      data-testid={props.testId}
-      onClick={() => props.onToggle(!props.on)}
-    >
-      <SwitchTrack on={props.on} />
-      <span className={ins.requiredText}>
-        <span className={ins.requiredTitle}>{props.title}</span>
-        <span className={ins.requiredDesc}>{props.desc}</span>
-      </span>
-    </button>
-  )
-}
-
-/** 一个上限：一行说明加一个数字框。输入时是草稿，失焦、回车才生效（夹进范围）。 */
-function LimitRow(props: {
-  label: string
-  value: number
-  max: number
-  testId: string
-  onCommit(value: number): void
-}): React.JSX.Element {
-  const [draft, setDraft] = useState<string | null>(null)
-  const commit = (): void => {
-    if (draft === null) return
-    const value = Number.parseInt(draft, 10)
-    if (Number.isFinite(value) && value !== props.value) {
-      props.onCommit(Math.min(props.max, Math.max(1, value)))
-    }
-    setDraft(null)
-  }
-  return (
-    <label className={css.row}>
-      <span className={cx(css.rowLabel, css.grow)}>{props.label}</span>
-      <input
-        className={cx(ui.input, css.number)}
-        inputMode="numeric"
-        value={draft ?? String(props.value)}
-        aria-label={props.label}
-        data-testid={props.testId}
-        onChange={(event) => setDraft(event.currentTarget.value.replace(/[^\d]/gu, ''))}
-        onBlur={commit}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') commit()
-        }}
-      />
-    </label>
-  )
 }

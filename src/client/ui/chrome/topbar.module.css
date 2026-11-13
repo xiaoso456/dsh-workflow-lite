@@ -127,36 +127,6 @@
   width: 380px;
 }
 
-.search {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  height: 34px;
-  margin-bottom: 4px;
-  padding: 0 10px;
-  border-radius: var(--wl-r-control);
-  background: var(--wl-fill);
-  color: var(--wl-text-3);
-}
-
-.searchInput {
-  flex: 1 1 auto;
-  min-width: 0;
-  height: 100%;
-  border: 0;
-  background: transparent;
-  color: var(--wl-text);
-  font: inherit;
-  outline: none;
-}
-
-.emptyLine {
-  margin: 0;
-  padding: 10px 8px;
-  color: var(--wl-text-3);
-  font-size: var(--wl-fs-meta);
-}
-
 /*
  * 列表的一行：「改名 / 删除」浮在右端，和步骤数占同一个位置。
  * 平时步骤数在、按钮透明；悬停、键盘移进来、确认卡开着时两者对换（只动透明度，名字不挪）。

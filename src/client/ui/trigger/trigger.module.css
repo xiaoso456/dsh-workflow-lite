@@ -113,6 +113,14 @@
 
 .note,
 .info,
+/* 对话框里的一张表单：各行之间的间距和面板里一节的一样。 */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
 .command {
   min-height: 0;
   resize: vertical;
@@ -155,6 +163,58 @@
 .endpointTools {
   display: flex;
   gap: 2px;
+  justify-content: flex-end;
+}
+
+/* 改地址、令牌：就地换成输入框；地址前半（不能改的那截）灰着写在框里。 */
+.endpointEdit {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  height: 26px;
+  padding: 0 7px;
+  border: 1px solid var(--wl-accent);
+  border-radius: var(--wl-r-control);
+  background: var(--wl-fill);
+  font-family: var(--wl-font-mono);
+  font-size: var(--wl-fs-micro);
+}
+
+.endpointEdit[data-invalid] {
+  border-color: var(--wl-danger);
+}
+
+.endpointPrefix {
+  flex: 0 1 auto;
+  min-width: 2em;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+}
+
+.endpointInput {
+  flex: 1 1 6em;
+  min-width: 4em;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--wl-text);
+  font: inherit;
+}
+
+.endpointNote {
+  grid-column: 2 / -1;
+  margin: -2px 0 0;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.5;
+}
+
+.endpointNote[data-tone="error"] {
+  color: var(--wl-danger);
 }
 
 /* 确认命令：命令原样等宽显示，可以换行，太长就在框里滚。 */
@@ -367,4 +427,11 @@
   .attention[data-flash="true"]::before {
     animation: attention 1200ms steps(1, end) both;
   }
+}
+
+/* 触发记录标题右边的「全部记录」：贴着标题行，不把它撑高。 */
+.historyAll {
+  margin: -4px -6px -4px 0;
+  color: var(--wl-text-2);
+  font-weight: 400;
 }

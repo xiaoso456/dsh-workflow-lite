@@ -1,0 +1,165 @@
+/**
+ * dsh-workflow-lite — 面板里「何时触发」那张卡（WhenCard.tsx）和卡头的触发方式菜单（KindMenu.tsx）。
+ *
+ * 样子跟画布上的触发卡片走：描边圆角卡、卡头图标块 + 名字 + 主动 / 被动，卡身是同一个速览。
+ * 触发源的颜色由卡写在 `--wl-kind` 上。
+ */
+
+.card {
+  border: 1px solid var(--wl-line);
+  border-radius: calc(12px * var(--wl-round, 1));
+  background: var(--wl-panel);
+}
+
+.head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 9px 9px 0 10px;
+}
+
+/* 「定时 ▾」：看起来是卡片的标题，悬停才显出是个按钮。 */
+.kind {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+  height: 26px;
+  margin-left: -4px;
+  padding: 0 5px;
+  border: 0;
+  border-radius: calc(7px * var(--wl-round, 1));
+  background: transparent;
+  color: var(--wl-text);
+  font: inherit;
+  font-size: var(--wl-fs-body);
+  font-weight: 650;
+  cursor: pointer;
+  transition: background-color 120ms linear;
+}
+
+.kind:hover,
+.kind[data-open] {
+  background: var(--wl-hover);
+}
+
+.kind:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+.chevron {
+  display: inline-flex;
+  color: var(--wl-text-3);
+  transition: transform 180ms var(--wl-ease-out);
+}
+
+.kind[data-open] .chevron {
+  transform: rotate(180deg);
+}
+
+/* 没缺东西时「编辑」是不带框的按钮；缺东西时换成主按钮（ui.primary）。 */
+.edit {
+  border-color: transparent;
+  background: transparent;
+  color: var(--wl-text-2);
+}
+
+.edit:hover {
+  color: var(--wl-text);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px 9px;
+}
+
+.detail {
+  min-height: 1.5em;
+  margin: 0;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.5;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail[data-tone="code"] {
+  color: var(--wl-text-2);
+  font-family: var(--wl-font-mono);
+}
+
+.detail[data-tone="problem"] {
+  color: var(--wl-danger);
+  white-space: normal;
+}
+
+/* ── 触发方式菜单 ── */
+
+.menu {
+  top: calc(100% + 6px);
+  left: -40px;
+  width: 296px;
+  padding: 4px;
+}
+
+.item {
+  gap: 10px;
+  min-height: 46px;
+  padding: 6px 8px;
+}
+
+.itemText {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.itemName {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  font-weight: 600;
+}
+
+.itemMode {
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-weight: 400;
+}
+
+.itemDesc {
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.check {
+  display: inline-flex;
+  flex: none;
+  color: var(--wl-accent-text);
+  opacity: 0;
+}
+
+.item[aria-checked="true"] .check {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kind,
+  .chevron {
+    transition: none;
+  }
+}
+
+/* 瑞士：卡只留上下线。 */
+:global([data-look="swiss"]) .card {
+  border-width: 1px 0;
+  border-color: var(--wl-line-strong);
+  border-radius: 0;
+}

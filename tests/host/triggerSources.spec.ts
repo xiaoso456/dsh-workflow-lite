@@ -290,9 +290,9 @@ describe('HTTP 地址', () => {
     const port = await freePort()
     const bodies: string[] = []
     const route: HookRoute = { token: 'secret', accept: (body) => bodies.push(body) }
-    await hooks.sync(port, new Map([['abc', route]]))
-    expect(hooks.current()).toEqual({ kind: 'open', port })
-    const url = hookUrl(port, 'abc')
+    await hooks.sync({ host: '127.0.0.1', port }, new Map([['abc', route]]))
+    expect(hooks.current()).toEqual({ kind: 'open', port, host: '127.0.0.1' })
+    const url = hookUrl('127.0.0.1', port, 'abc')
     expect(url).toBe(`http://127.0.0.1:${String(port)}/trigger/abc`)
 
     const post = (target: string, token?: string) =>
@@ -305,21 +305,67 @@ describe('HTTP 地址', () => {
     expect((await post(`${url}?token=secret`)).status).toBe(202)
     expect((await post(url, 'wrong')).status).toBe(401)
     expect((await post(url)).status).toBe(401)
-    expect((await post(hookUrl(port, 'nope'), 'secret')).status).toBe(404)
+    expect((await post(hookUrl('127.0.0.1', port, 'nope'), 'secret')).status).toBe(404)
     expect((await fetch(url)).status).toBe(405)
     expect(bodies).toEqual(['{"alert":"磁盘 91%"}', '{"alert":"磁盘 91%"}'])
 
     // 没有开着的地址就关掉端口。
-    await hooks.sync(port, new Map())
+    await hooks.sync({ host: '127.0.0.1', port }, new Map())
     expect(hooks.current()).toEqual({ kind: 'closed' })
     await expect(post(url, 'secret')).rejects.toThrow()
+  })
+
+  it('地址里有中文：网址里转义，收到时解开再对', async () => {
+    const port = await freePort()
+    const bodies: string[] = []
+    const route: HookRoute = { token: 'secret', accept: (body) => bodies.push(body) }
+    await hooks.sync({ host: '127.0.0.1', port }, new Map([['巡检-日报', route]]))
+    const url = hookUrl('127.0.0.1', port, '巡检-日报')
+    expect(url).toBe(
+      `http://127.0.0.1:${String(port)}/trigger/%E5%B7%A1%E6%A3%80-%E6%97%A5%E6%8A%A5`,
+    )
+    const post = (target: string) =>
+      fetch(target, { method: 'POST', body: 'x', headers: { authorization: 'Bearer secret' } })
+    expect((await post(url)).status).toBe(202)
+    expect((await post(`http://127.0.0.1:${String(port)}/trigger/%E5%B7%A1`)).status).toBe(404)
+    expect((await post(`http://127.0.0.1:${String(port)}/trigger/%E5%B7`)).status).toBe(404)
+    expect(bodies).toEqual(['x'])
+  })
+
+  it('监听所有网卡时本机照样连得上', async () => {
+    const port = await freePort()
+    const bodies: string[] = []
+    const route: HookRoute = { token: 'secret', accept: (body) => bodies.push(body) }
+    await hooks.sync({ host: '0.0.0.0', port }, new Map([['abc', route]]))
+    expect(hooks.current()).toEqual({ kind: 'open', port, host: '0.0.0.0' })
+    const response = await fetch(hookUrl('127.0.0.1', port, 'abc'), {
+      method: 'POST',
+      body: 'x',
+      headers: { authorization: 'Bearer secret' },
+    })
+    expect(response.status).toBe(202)
+    expect(bodies).toEqual(['x'])
+  })
+
+  it('监听地址换了就重开；本机没有的地址报出原因', async () => {
+    const port = await freePort()
+    const routes = new Map([['abc', { token: 't', accept: () => {} }]])
+    await hooks.sync({ host: '127.0.0.1', port }, routes)
+    expect(hooks.current()).toMatchObject({ kind: 'open', host: '127.0.0.1' })
+    await hooks.sync({ host: '203.0.113.7', port }, routes)
+    const state = hooks.current()
+    expect(state).toMatchObject({ kind: 'error', host: '203.0.113.7' })
+    expect(state.kind === 'error' && state.problem).toContain('没有地址 203.0.113.7')
   })
 
   it('端口被占用：报出原因，不抛', async () => {
     const port = await freePort()
     blocker = createNetServer()
     await new Promise<void>((resolve) => blocker?.listen(port, '127.0.0.1', resolve))
-    await hooks.sync(port, new Map([['abc', { token: 't', accept: () => {} }]]))
+    await hooks.sync(
+      { host: '127.0.0.1', port },
+      new Map([['abc', { token: 't', accept: () => {} }]]),
+    )
     const state = hooks.current()
     expect(state.kind).toBe('error')
     expect(state.kind === 'error' && state.problem).toContain('被别的程序占用')

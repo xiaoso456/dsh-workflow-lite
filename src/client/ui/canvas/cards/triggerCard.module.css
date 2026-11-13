@@ -3,7 +3,7 @@
  *
  * 外壳（宽度、内边距、圆角、悬停、选中环、变暗、入场）和步骤卡共用 canvas.module.css 的 `.card`；
  * 这里只有：挂在上沿的闪电圆标、标题行右边的状态小标、底行的「主动 / 被动」小标和状态的后半句。
- * 中间的速览在 triggerGlance.module.css；触发源的颜色由卡片写在 `--wl-kind` 上。
+ * 中间的速览在 ui/trigger/triggerGlance.module.css；触发源的颜色由卡片写在 `--wl-kind` 上。
  * 宽度和 model/layout.ts 的 `TRIGGER_W` 是同一个数（= 步骤卡）。
  */
 
@@ -63,6 +63,29 @@
   min-width: 0;
 }
 
+/* 速览外面那层按钮（卡片选中后点了打开「何时触发」）：自己不占样子；选中时悬停描一圈触发源的颜色、换手形。 */
+.glanceHit {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: calc(7px * var(--wl-round, 1));
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: inherit;
+}
+
+.glanceHit[data-armed="true"] {
+  cursor: pointer;
+}
+
+.glanceHit[data-armed="true"]:hover {
+  outline: 1px solid color-mix(in srgb, var(--wl-kind) 55%, transparent);
+  outline-offset: 0;
+}
+
 /* 底行：「主动 / 被动」小标 + 状态。字比标题、速览都小。 */
 .foot {
   display: flex;
@@ -77,21 +100,6 @@
  * 「主动 ↗」/「被动 ↙」：触发源颜色的淡底小标（和图标块同一个颜色）。
  * 字往正文色里掺一点，小字也看得清。
  */
-.mode {
-  display: inline-flex;
-  flex: none;
-  gap: 3px;
-  align-items: center;
-  height: 17px;
-  padding: 0 6px 0 5px;
-  border-radius: calc(999px * var(--wl-round, 1));
-  background: color-mix(in srgb, var(--wl-kind) 14%, transparent);
-  color: color-mix(in srgb, var(--wl-kind) 78%, var(--wl-text));
-  font-size: 10.5px;
-  font-weight: 600;
-  line-height: 1;
-  white-space: nowrap;
-}
 
 /* 底行跟在「主动 / 被动」后面的半句（下一次什么时候、出了什么错）。 */
 .note {
@@ -138,10 +146,6 @@
 }
 
 /* 瑞士：小标反白成线框。 */
-:global([data-look="swiss"]) .mode {
-  background: none;
-  box-shadow: inset 0 0 0 1px currentColor;
-}
 
 :global([data-look="swiss"]) .pill.pill {
   background: none;

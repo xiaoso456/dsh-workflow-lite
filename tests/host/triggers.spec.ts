@@ -43,6 +43,8 @@ let opened: { cwd: string; title: string }[]
 let busy: Set<string>
 let gone: Set<string>
 let unavailable: string | null
+/** 插件设置里 HTTP 触发的监听地址。 */
+let listenHost = '127.0.0.1'
 let openError: string | null
 /** 假的实例：接续触发看的「哪些实例结束了」（按工作流）。 */
 let finished: Map<string, FinishedRun[]>
@@ -84,7 +86,7 @@ function service(pid = 100, alive: (pid: number) => boolean = () => true): Trigg
     graphs: createTriggerGraphs(repository),
     sessions,
     now: () => clock,
-    port: () => 3791,
+    listen: () => ({ host: listenHost, port: 3791 }),
     runs: watch,
     lock: new OwnerLock({ file: () => ownerFile(dataDir), now: () => clock, pid, alive }),
     runtime: (events): LiveRuntime => {
@@ -136,6 +138,7 @@ async function own(triggers: TriggerService): Promise<void> {
 
 beforeEach(async () => {
   dataDir = await mkdtemp(join(tmpdir(), 'workflow-lite-triggers-'))
+  listenHost = '127.0.0.1'
   workspace = join(dataDir, 'ws')
   await mkdir(workspace)
   store = new TriggerStore(() => dataDir)
@@ -800,12 +803,13 @@ describe('常驻触发源', () => {
     expect((await triggers.list('patrol')).triggers[0]?.state).toBe('waiting')
   })
 
-  it('HTTP：打开时给地址和令牌；换令牌地址不变；端口开不了时显示出错', async () => {
+  it('HTTP：打开时给地址（缺省用工作流名）和令牌；换令牌地址不变；端口开不了时显示出错', async () => {
     await saveGraph('patrol', { source: { kind: 'http' } })
     const triggers = service()
     const on = await set(triggers, { workspace, enabled: true })
     const endpoint = on.ok ? on.result.triggers[0]?.endpoint : undefined
-    expect(endpoint?.url).toMatch(/^http:\/\/127\.0\.0\.1:3791\/trigger\/[\w-]+$/u)
+    expect(endpoint?.url).toBe('http://127.0.0.1:3791/trigger/patrol')
+    expect(endpoint?.hook).toBe('patrol')
     expect(endpoint?.token.length).toBeGreaterThan(20)
     expect(on.ok && on.result.triggers[0]).not.toHaveProperty('approved')
 
@@ -822,7 +826,7 @@ describe('常驻触发源', () => {
     await store.writeLive({
       pid: 100,
       sources: {},
-      port: { kind: 'error', port: 3791, problem: '端口 3791 被别的程序占用了' },
+      port: { kind: 'error', port: 3791, host: '127.0.0.1', problem: '端口 3791 被别的程序占用了' },
     })
     expect((await triggers.list('patrol')).triggers[0]).toMatchObject({
       state: 'error',
@@ -831,7 +835,87 @@ describe('常驻触发源', () => {
     // 定时卡片没有令牌可换。
     await saveGraph('patrol')
     const refused = await set(triggers, { resetToken: true })
-    expect(!refused.ok && refused.error.message).toBe('只有 HTTP 触发有令牌')
+    expect(!refused.ok && refused.error.message).toBe('只有 HTTP 触发有地址和令牌')
+  })
+
+  it('HTTP：地址、令牌能自己写；写得不对、和别的卡片重了就拒绝', async () => {
+    await saveGraph('patrol', { source: { kind: 'http' } })
+    await saveGraph('other', { source: { kind: 'http' } })
+    const triggers = service()
+    const endpointOf = async (workflow: string) =>
+      (await triggers.list(workflow)).triggers[0]?.endpoint
+
+    // 没打开过也能先写地址：令牌跟着生成。
+    const named = await set(triggers, { hook: '巡检-日报' })
+    expect(named.ok).toBe(true)
+    expect(await endpointOf('patrol')).toMatchObject({
+      hook: '巡检-日报',
+      url: `http://127.0.0.1:3791/trigger/${encodeURIComponent('巡检-日报')}`,
+    })
+    const token = 'my-own_token.v1~abcdef'
+    expect((await set(triggers, { token })).ok).toBe(true)
+    expect((await endpointOf('patrol'))?.token).toBe(token)
+
+    const message = async (change: Record<string, unknown>) => {
+      const outcome = await set(triggers, change)
+      return outcome.ok ? null : outcome.error.message
+    }
+    expect(await message({ hook: '' })).toBe('地址不能为空')
+    expect(await message({ hook: 'a/b' })).toBe('地址只能用字母、数字、中文和 - _')
+    expect(await message({ token: 'short' })).toBe('令牌至少 16 个字')
+    expect(await message({ token: 'has space in it 1234' })).toBe('令牌只能用字母、数字和 - _ . ~')
+    expect(await message({ token, resetToken: true })).toBe('自己写令牌和换一个令牌只能选一样')
+    expect((await endpointOf('patrol'))?.token).toBe(token)
+
+    // 另一个工作流打开时缺省用自己的名字；改成已被占的地址被拒，原来的不变。
+    expect((await triggers.set({ workflow: 'other', node: 'tick', hook: '巡检-日报' })).ok).toBe(
+      false,
+    )
+    await triggers.set({ workflow: 'other', node: 'tick', workspace, enabled: true })
+    expect((await endpointOf('other'))?.hook).toBe('other')
+    // 自己的地址原样再写一遍不算重。
+    expect((await set(triggers, { hook: '巡检-日报' })).ok).toBe(true)
+  })
+
+  it('HTTP 监听状态：没人负责、没开、开着、开不了，按负责的进程写下的说', async () => {
+    const triggers = service()
+    expect(await triggers.httpStatus()).toEqual({ state: 'away' })
+    await own(triggers)
+    expect(await triggers.httpStatus()).toEqual({ state: 'idle' })
+    await store.writeLive({
+      pid: 100,
+      sources: {},
+      port: { kind: 'open', port: 3791, host: '192.168.1.20' },
+    })
+    expect(await triggers.httpStatus()).toEqual({
+      state: 'open',
+      host: '192.168.1.20',
+      port: 3791,
+      url: 'http://192.168.1.20:3791',
+    })
+    await store.writeLive({
+      pid: 100,
+      sources: {},
+      port: { kind: 'error', port: 3791, host: '127.0.0.1', problem: '端口 3791 被别的程序占用了' },
+    })
+    expect(await triggers.httpStatus()).toEqual({
+      state: 'error',
+      problem: '端口 3791 被别的程序占用了',
+    })
+    // 别的进程写的不作数。
+    await store.writeLive({ pid: 999, sources: {}, port: { kind: 'open', port: 1, host: 'x' } })
+    expect(await triggers.httpStatus()).toEqual({ state: 'idle' })
+  })
+
+  it('HTTP：缺省地址和别的卡片重了接 -2；监听地址设成某块网卡时网址用它', async () => {
+    await saveGraph('patrol', { source: { kind: 'http' } })
+    await saveGraph('other', { source: { kind: 'http' } })
+    const triggers = service()
+    await triggers.set({ workflow: 'other', node: 'tick', hook: 'patrol' })
+    listenHost = '192.168.1.20'
+    await set(triggers, { workspace, enabled: true })
+    const endpoint = (await triggers.list('patrol')).triggers[0]?.endpoint
+    expect(endpoint?.url).toBe('http://192.168.1.20:3791/trigger/patrol-2')
   })
 
   it('不归这个进程负责时常驻的都停下', async () => {

@@ -12,6 +12,7 @@
  * @module @xiaoso/dsh-workflow-lite/host/pluginConfig
  */
 
+import { isListenHost } from '../shared/triggerHttp.ts'
 import {
   PLUGIN_CONFIG_KEYS,
   type PluginConfigKey,
@@ -137,6 +138,10 @@ function checkValue(key: PluginConfigKey, value: unknown): string | null {
       return isInt(value, 1024) && (value as number) <= 65535
         ? null
         : '触发端口要是 1024 到 65535 之间的整数'
+    case 'triggerHost':
+      return typeof value === 'string' && isListenHost(value)
+        ? null
+        : '监听地址要是 IPv4 地址，如 127.0.0.1、0.0.0.0'
   }
 }
 

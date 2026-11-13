@@ -3,7 +3,7 @@
  *
  * 换一种：这一张面板开着时那一种填过的先记着，换回来还在，没填过的给常用值；
  * 写得不对当场说出原因（按界面语言），写对了预告下一次是什么时候。
- * 放在「何时触发」那一段里（见 `SourceField.tsx`），自己不带分组标题。
+ * 放在「触发方式」那一段里（见 `SourceField.tsx`），自己不带分组标题。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/trigger/ScheduleField
  */
@@ -61,9 +61,10 @@ export function ScheduleField(props: {
    * 每天几点、cron 和打开的时刻无关，照规则算。
    */
   live?: number | undefined
-  /** `typing` = 正在连续输入（并成一条撤销步）。 */
+  /** `typing` = 正在连续输入（在对话框里改的是草稿，用不上）。 */
   onChange(schedule: TriggerSchedule, typing?: boolean): void
-  onSeal(): void
+  /** 一段连续输入结束（失焦）；草稿里用不上。 */
+  onSeal?(): void
 }): React.JSX.Element {
   const { t, schedule } = props
   const issue = scheduleIssue(schedule)
@@ -188,7 +189,7 @@ function EveryRow(props: {
   t: T
   minutes: number
   onChange(schedule: TriggerSchedule, typing?: boolean): void
-  onSeal(): void
+  onSeal?(): void
 }): React.JSX.Element {
   const { t, minutes } = props
   const [unit, setUnit] = useState<Unit>(() => unitOf(minutes))
@@ -218,10 +219,11 @@ function EveryRow(props: {
           }}
           onBlur={() => {
             setDraft(null)
-            props.onSeal()
+            props.onSeal?.()
           }}
         />
         <Select<Unit>
+          t={t}
           label={t('trigger.every')}
           value={shown}
           className={css.unit}

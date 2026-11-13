@@ -18,6 +18,8 @@ export const zh = {
   'common.copied': '已复制',
   'common.delete': '删除',
   'common.retry': '重试',
+  'common.search': '搜索',
+  'common.noMatch': '没有匹配的',
   'error.generic': '操作失败',
   'error.viewCrashed': '工作流视图出错了',
   'error.viewCrashedBody': '已保存的工作流和实例不受影响；点「重试」重新打开这个视图。',
@@ -35,6 +37,8 @@ export const en: Record<keyof typeof zh, string> = {
   'common.copied': 'Copied',
   'common.delete': 'Delete',
   'common.retry': 'Retry',
+  'common.search': 'Search',
+  'common.noMatch': 'No matches',
   'error.generic': 'Something went wrong',
   'error.viewCrashed': 'The workflow view ran into an error',
   'error.viewCrashedBody':

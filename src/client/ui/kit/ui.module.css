@@ -528,6 +528,37 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
 
 /* ── 菜单 ─────────────────────────────────────────────────── */
 
+/* 菜单顶上的搜索框（切换工作流、选实例、长下拉）与搜不到时的一行。 */
+.menuSearch {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  height: 34px;
+  margin-bottom: 4px;
+  padding: 0 10px;
+  border-radius: var(--wl-r-control);
+  background: var(--wl-fill);
+  color: var(--wl-text-3);
+}
+
+.menuSearchInput {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--wl-text);
+  font: inherit;
+  outline: none;
+}
+
+.menuEmpty {
+  margin: 0;
+  padding: 10px 8px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+}
+
 .menuItem {
   position: relative;
   display: flex;

@@ -58,7 +58,10 @@ export type TriggerState =
 
 /** HTTP 触发的地址与令牌（本机状态；只给画布看）。 */
 export interface TriggerEndpoint {
+  /** 别人连的网址（地址里的中文等已转义）。 */
   url: string
+  /** `/trigger/` 后面那一段（原样）。 */
+  hook: string
   token: string
 }
 
@@ -121,6 +124,19 @@ export interface TriggerAllResponse {
   paused?: number
 }
 
+/**
+ * HTTP 触发的端口现在的样子（设置页「监听状态」）：按负责触发的那个 DSH 进程写下的说。
+ * - `idle`：没有打开的 HTTP 触发卡片，端口没占用；
+ * - `open`：正在监听，`url` 是别人连的地址（监听所有网卡时是某块网卡的地址）；
+ * - `error`：开不了（端口被占用、地址不在本机），`problem` 是原因；
+ * - `away`：没有 DSH 进程在负责触发。
+ */
+export type TriggerHttpStatus =
+  | { state: 'idle' }
+  | { state: 'open'; host: string; port: number; url: string }
+  | { state: 'error'; problem: string }
+  | { state: 'away' }
+
 /** 全部暂停 / 恢复。 */
 export interface TriggerPauseRequest {
   paused: boolean
@@ -130,7 +146,7 @@ export interface TriggerPauseResponse {
   paused?: number
 }
 
-/** 改本机设置：开关、工作区、固定会话、确认命令、换令牌。给了哪项改哪项。 */
+/** 改本机设置：开关、工作区、固定会话、确认命令、HTTP 的地址与令牌。给了哪项改哪项。 */
 export interface TriggerSetRequest {
   workflow: string
   node: string
@@ -143,8 +159,12 @@ export interface TriggerSetRequest {
    * 命令以 DSH 进程的身份在工作区里运行、不进沙箱，所以开之前要确认；命令或工作区改了要重新确认。
    */
   approve?: string
-  /** HTTP 触发：换一个新令牌（旧的马上作废）。 */
+  /** HTTP 触发：换一个随机的新令牌（旧的马上作废）。 */
   resetToken?: true
+  /** HTTP 触发：自己写的地址（`/trigger/` 后面那一段，不能和别的卡片重）。 */
+  hook?: string
+  /** HTTP 触发：自己写的令牌（至少 16 个字）。 */
+  token?: string
 }
 
 export interface TriggerFireRequest {

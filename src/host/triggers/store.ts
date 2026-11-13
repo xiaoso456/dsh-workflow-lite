@@ -99,7 +99,7 @@ export interface TriggerLocal {
   stopped?: string
   /** 用户确认过的命令与工作区的记号（{@link approvalOf}）；和现在的对不上就要重新确认。 */
   approved?: string
-  /** HTTP 触发：地址号与令牌。 */
+  /** HTTP 触发：地址（`/trigger/` 后面那一段）与令牌。 */
   hook?: string
   token?: string
   /** 条件轮询：上一次检查的结果。 */

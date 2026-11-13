@@ -86,6 +86,7 @@ export function TableOptions(props: {
         </span>
         <div className={css.optGrow}>
           <Select<string>
+            t={t}
             label={t('display.sort')}
             value={value.sort?.column ?? NO_SORT}
             options={[

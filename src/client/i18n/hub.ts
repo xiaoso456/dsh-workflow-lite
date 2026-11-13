@@ -50,7 +50,7 @@ export const zh = {
     '全部暂停着：定时到点不触发，轮询、监听程序、HTTP 都停着，别的工作流跑完也不接续；恢复后不补触发。「立即触发一次」照常可用。',
   'hub.trgOpen': '在画布上打开',
   'hub.trgOpenTip': '打开这个工作流，选中这张触发卡片',
-  'hub.trgNoCwd': '先在画布上这张卡片的「怎么运行」里选工作区。',
+  'hub.trgNoCwd': '先在画布上这张卡片的「执行设置」里选工作区。',
   'hub.trgNotChosen': '还没选',
 
   // ── 工作流中心：实例与存储 ──────────────────────────────────
@@ -161,7 +161,7 @@ export const en: Record<keyof typeof zh, string> = {
     'All paused: schedules do not fire, polls, listeners and HTTP are stopped, and finished workflows trigger nothing; nothing is caught up on resume. Trigger once now still works.',
   'hub.trgOpen': 'Open on canvas',
   'hub.trgOpenTip': 'Open this workflow and select this trigger',
-  'hub.trgNoCwd': 'First pick a workspace under How to run on this card in the canvas.',
+  'hub.trgNoCwd': 'First pick a workspace under Run settings on this card in the canvas.',
   'hub.trgNotChosen': 'Not chosen',
 
   // ── 工作流中心：实例与存储 ──────────────────────────────────

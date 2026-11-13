@@ -4,7 +4,7 @@
  * - 左栏：每张卡片一行（名字、所在工作流、触发源、现在的状态），行尾的开关和画布上卡片的开关是同一个；
  *   要在本机跑命令、还没确认过的，开之前在开关旁浮出确认卡（和画布上一样列出命令和工作区）。
  *   最下面是「全部暂停 / 恢复」：只是一个总闸，各张卡片自己的开关不变。
- * - 右栏：选中那张的状态、「立即触发一次」、何时触发与怎么运行的摘要（只读）、触发记录；
+ * - 右栏：选中那张的状态、「立即触发一次」、触发方式与执行设置的摘要（只读）、触发记录；
  *   「在画布上打开」跳到那个工作流、选中这张卡片。全部暂停着时右栏顶上一条说明，状态行不再重复说。
  *
  * 工作区、会话这些只能在画布上那张卡片的面板里改（这里没有工作流的现场）。
@@ -42,7 +42,8 @@ import css from './hubTriggers.module.css'
 import { Callout } from './PackRow.tsx'
 
 /** 一张卡片在这一页上的键（不同工作流里的卡片 id 会重）。 */
-const keyOf = (entry: TriggerEntry): string => `${entry.workflow}\n${entry.view.node}`
+const pairKey = (workflow: string, node: string): string => `${workflow}\n${node}`
+const keyOf = (entry: TriggerEntry): string => pairKey(entry.workflow, entry.view.node)
 
 /** 右栏列几条触发记录。 */
 const SHOWN = 20
@@ -62,11 +63,15 @@ export function HubTriggers(props: {
   onOpenCard(workflow: string, node: string): void
   onOpenRun(id: string): void
   onNotice(text: string, tone?: 'info' | 'error'): void
+  /** 打开时先选中的卡片（画布上点了「全部记录」）。 */
+  start?: { workflow: string; node: string }
 }): React.JSX.Element {
   const { t } = props
   const hubData = useTriggerHub(props.rpc, props.flush)
   const [query, setQuery] = useState('')
-  const [picked, setPicked] = useState<string | null>(null)
+  const [picked, setPicked] = useState<string | null>(
+    props.start === undefined ? null : pairKey(props.start.workflow, props.start.node),
+  )
   const list = hubData.list
 
   if (list === null) {
@@ -193,6 +198,7 @@ function TriggerList(props: {
           <div
             key={key}
             className={wf.wfRow}
+            data-end="fixed"
             data-flip={key}
             data-selected={key === props.selected}
           >
@@ -374,7 +380,7 @@ function TriggerDetail(props: {
   )
 }
 
-/** 何时触发、怎么运行的摘要（只读；要改到画布上那张卡片的面板里）。没填的项不列。 */
+/** 触发方式、执行设置的摘要（只读；要改到画布上那张卡片的面板里）。没填的项不列。 */
 function Facts(props: { t: T; entry: TriggerEntry }): React.JSX.Element {
   const { t, entry } = props
   const { source } = entry.data

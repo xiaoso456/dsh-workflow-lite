@@ -99,6 +99,15 @@ export function triggerGlance(t: T, source: TriggerSource): TriggerGlance {
 }
 
 /** 地址在卡片上的短写法：去掉 `http://` 和主机，留端口和路径（`:3791/trigger/7f3a…`）。 */
+/** 网址给人看的样子：地址里转义过的中文等解开；解不开就原样。 */
+export function readableUrl(url: string): string {
+  try {
+    return decodeURI(url)
+  } catch {
+    return url
+  }
+}
+
 export function endpointPath(url: string): string {
   const match = /^[a-z]+:\/\/[^/:]+(.*)$/iu.exec(url)
   return match?.[1] ?? url

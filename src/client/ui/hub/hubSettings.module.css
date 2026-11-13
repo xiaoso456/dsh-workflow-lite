@@ -41,6 +41,24 @@
   min-width: 0;
 }
 
+.host {
+  display: inline-flex;
+  width: 240px;
+}
+
+.host > * {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.hostLocked {
+  overflow: hidden;
+  color: var(--wl-text-2);
+  font-family: var(--wl-font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .number {
   display: inline-flex;
   gap: 6px;
@@ -86,6 +104,10 @@
     color 120ms linear;
 }
 
+.reset[data-off] {
+  visibility: hidden;
+}
+
 .reset:hover {
   background: var(--wl-hover);
   color: var(--wl-text);
@@ -100,9 +122,46 @@
   outline-offset: -1px;
 }
 
-.error {
+/* 监听状态：一行省略（不让行变高），小标带一个圆点。 */
+.listenDesc {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.listenDesc[data-tone="error"] {
   color: var(--wl-danger);
+}
+
+.listenChip {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: var(--wl-fill);
+  color: var(--wl-text-2);
   font-size: var(--wl-fs-micro);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.listenChip[data-tone="ok"] {
+  background: var(--wl-ok-soft);
+  color: var(--wl-ok);
+}
+
+.listenChip[data-tone="error"] {
+  background: var(--wl-danger-soft);
+  color: var(--wl-danger);
+}
+
+.listenDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
 }
 
 /* 保存条：有没保存的改动时才出现，贴在页面底下（不盖住最后一行）。 */
@@ -117,7 +176,19 @@
 }
 
 .barText {
+  display: flex;
   flex: 1 1 auto;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
   color: var(--wl-text-2);
   font-size: var(--wl-fs-meta);
+}
+
+.barText[data-tone="ok"] {
+  color: var(--wl-ok);
+}
+
+.barText[data-tone="error"] {
+  color: var(--wl-danger);
 }

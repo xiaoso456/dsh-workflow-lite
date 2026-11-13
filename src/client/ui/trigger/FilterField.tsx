@@ -1,8 +1,9 @@
 /**
- * dsh-workflow-lite — 触发卡片的「过滤」：合并、去重、关键字。都在插件里做，不花模型调用。
+ * dsh-workflow-lite — 触发卡片「过滤」的表单（在 `dialogs/FilterDialog.tsx` 里，改的是草稿）：合并、去重、关键字。
+ * 都在插件里做，不花模型调用。
  *
- * 只对带背景信息的触发源（轮询、监听、HTTP）显示；定时没有内容可筛。
- * 数字、关键字都是草稿：失焦、回车才写进图（缺省值不留在图里，借读入的规范化去掉）。
+ * 只对带背景信息的触发源（轮询、监听、HTTP）有；定时、接续没有内容可筛。
+ * 每打一个字就交给草稿（数字夹进范围），失焦时框里的字整理成交出去的样子。缺省值不留在图里，借读入的规范化去掉。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/trigger/FilterField
  */
@@ -18,7 +19,6 @@ import type { TriggerData, TriggerFilter } from '../../../shared/types.ts'
 import type { T } from '../../i18n.ts'
 import { cx } from '../kit/cx.ts'
 import ui from '../kit/ui.module.css'
-import ins from '../panel/panel.module.css'
 import css from './trigger.module.css'
 
 /** 关键字一格：逗号（中英文）、换行隔开。 */
@@ -29,7 +29,7 @@ export function parseKeywords(text: string): string[] {
     .filter((word) => word !== '')
 }
 
-export function FilterField(props: {
+export function FilterForm(props: {
   t: T
   data: TriggerData
   onFilter(filter: TriggerFilter | undefined): void
@@ -40,10 +40,7 @@ export function FilterField(props: {
     props.onFilter(readTriggerData({ ...data, filter: { ...filter, ...next } }).filter)
   }
   return (
-    <section className={ins.field} data-testid="wl-trigger-filter">
-      <div className={ins.label}>
-        <span>{t('trigger.filter')}</span>
-      </div>
+    <div className={css.form} data-testid="wl-trigger-filter">
       <NumberRow
         label={t('trigger.merge')}
         value={filter.merge}
@@ -72,12 +69,11 @@ export function FilterField(props: {
         testId="wl-trigger-exclude"
         onCommit={(exclude) => patch({ exclude })}
       />
-      <p className={ins.help}>{t('trigger.filterHint')}</p>
-    </section>
+    </div>
   )
 }
 
-/** 一个数（0 = 不用）：一行说明加一个数字框，失焦、回车才生效（夹进范围）。 */
+/** 一个数（0 = 不用）：一行说明加一个数字框；打字就交给草稿（夹进范围），失焦时框里显示夹过的数。 */
 function NumberRow(props: {
   label: string
   value: number
@@ -86,14 +82,6 @@ function NumberRow(props: {
   onCommit(value: number): void
 }): React.JSX.Element {
   const [draft, setDraft] = useState<string | null>(null)
-  const commit = (): void => {
-    if (draft === null) return
-    const value = draft === '' ? 0 : Number.parseInt(draft, 10)
-    if (Number.isFinite(value) && value !== props.value) {
-      props.onCommit(Math.min(props.max, Math.max(0, value)))
-    }
-    setDraft(null)
-  }
   return (
     <label className={css.row}>
       <span className={cx(css.rowLabel, css.grow)}>{props.label}</span>
@@ -103,17 +91,19 @@ function NumberRow(props: {
         value={draft ?? String(props.value)}
         aria-label={props.label}
         data-testid={props.testId}
-        onChange={(event) => setDraft(event.currentTarget.value.replace(/[^\d]/gu, ''))}
-        onBlur={commit}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') commit()
+        onChange={(event) => {
+          const text = event.currentTarget.value.replace(/[^\d]/gu, '')
+          setDraft(text)
+          const value = text === '' ? 0 : Number.parseInt(text, 10)
+          if (Number.isFinite(value)) props.onCommit(Math.min(props.max, Math.max(0, value)))
         }}
+        onBlur={() => setDraft(null)}
       />
     </label>
   )
 }
 
-/** 一组关键字：一个文字框，逗号隔开；失焦、回车才生效。 */
+/** 一组关键字：一个文字框，逗号隔开；打字就交给草稿，失焦时整理成「、」隔开。 */
 function KeywordRow(props: {
   t: T
   label: string
@@ -123,12 +113,6 @@ function KeywordRow(props: {
 }): React.JSX.Element {
   const shown = props.words.join(props.t('trigger.rule.sep'))
   const [draft, setDraft] = useState<string | null>(null)
-  const commit = (): void => {
-    if (draft === null) return
-    const words = parseKeywords(draft)
-    if (words.join('\n') !== props.words.join('\n')) props.onCommit(words)
-    setDraft(null)
-  }
   return (
     <label className={css.stack}>
       <span className={css.rowLabel}>{props.label}</span>
@@ -138,11 +122,12 @@ function KeywordRow(props: {
         placeholder={props.t('trigger.keywordsPlaceholder')}
         aria-label={props.label}
         data-testid={props.testId}
-        onChange={(event) => setDraft(event.currentTarget.value)}
-        onBlur={commit}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') commit()
+        onChange={(event) => {
+          const text = event.currentTarget.value
+          setDraft(text)
+          props.onCommit(parseKeywords(text))
         }}
+        onBlur={() => setDraft(null)}
       />
     </label>
   )

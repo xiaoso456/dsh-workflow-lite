@@ -131,6 +131,7 @@ import type {
   TriggerFireRequest,
   TriggerHistoryRequest,
   TriggerHistoryResponse,
+  TriggerHttpStatus,
   TriggerListRequest,
   TriggerListResponse,
   TriggerOutputRequest,
@@ -197,6 +198,7 @@ export const WORKFLOW_LITE_ENDPOINTS = [
   'trigger/output',
   'trigger/all',
   'trigger/pause',
+  'trigger/http',
   'memory/list',
   'memory/create',
   'memory/update',
@@ -310,6 +312,7 @@ export interface WorkflowLiteRpcMap {
   'trigger/output': { args: TriggerOutputRequest; result: TriggerOutputResponse }
   'trigger/all': { args: Record<string, never>; result: TriggerAllResponse }
   'trigger/pause': { args: TriggerPauseRequest; result: TriggerPauseResponse }
+  'trigger/http': { args: Record<string, never>; result: TriggerHttpStatus }
   'memory/list': { args: Record<string, never>; result: MemoryListResponse }
   'memory/create': { args: MemoryCreateRequest; result: MemoryEntryResponse }
   'memory/update': { args: MemoryUpdateRequest; result: MemoryEntryResponse }

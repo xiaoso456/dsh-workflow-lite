@@ -4,8 +4,10 @@
  * @module @xiaoso/dsh-workflow-lite/host/rpc/config
  */
 
+import type { PluginConfigView } from '../../shared/wire/config.ts'
 import type { WorkflowLiteEndpoint } from '../../shared/wire.ts'
 import { readPluginConfig, writePluginConfig } from '../pluginConfig.ts'
+import { listenInterfaces } from '../triggers/netAddress.ts'
 import { asRecord, failFrom, ok, type RpcDeps, type RpcResult } from './shared.ts'
 
 export async function dispatchConfig(
@@ -15,7 +17,7 @@ export async function dispatchConfig(
 ): Promise<RpcResult<unknown>> {
   switch (endpoint) {
     case 'config/get':
-      return ok(readPluginConfig(deps.config.port(), deps.config.live))
+      return ok(withInterfaces(readPluginConfig(deps.config.port(), deps.config.live)))
 
     case 'config/set': {
       const input = asRecord(payload)
@@ -34,7 +36,7 @@ export async function dispatchConfig(
         reset,
       })
       if (!outcome.ok) return failFrom(outcome.error)
-      return ok(outcome.result)
+      return ok(withInterfaces(outcome.result))
     }
 
     default: {
@@ -42,4 +44,9 @@ export async function dispatchConfig(
       throw new Error(`unknown endpoint ${String(exhaustive)}`)
     }
   }
+}
+
+/** 带上本机各块网卡（设置页选监听地址用；每次现查，换了网也对）。 */
+function withInterfaces(view: PluginConfigView): PluginConfigView {
+  return { ...view, interfaces: listenInterfaces() }
 }

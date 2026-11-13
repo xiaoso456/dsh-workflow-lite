@@ -6,7 +6,12 @@
  * usage: DSH_WEB_TOKEN=<token> DSH_BASE=http://127.0.0.1:3190 node --experimental-strip-types tests/cdp-config.mjs
  */
 
-import { bootToCanvas, screenshot, setReactInput } from './lib/canvas-harness.mjs'
+import {
+  bootToCanvas,
+  screenshot,
+  setReactInput,
+  setReactInputExpr,
+} from './lib/canvas-harness.mjs'
 import { openPage, waitFor } from './lib/cdp-session.mjs'
 import { rpc } from './lib/web-session.mjs'
 
@@ -54,13 +59,43 @@ async function run(session) {
   await screenshot(session, 'cfg-01-page.png')
   pass('设置页：显示现值')
 
-  // 2) 填个坏值：报错、保存按钮按住；改成好值：保存条说 1 处改动。
+  // 2) 填个坏值：保存按钮按住，行的高度不变（不在行里多出一行错字）；数字框只打得进数字，离开时拉回范围里。
+  const rowHeight = (id) =>
+    `document.querySelector('[data-testid="${id}"]').closest('[data-wide]').getBoundingClientRect().height`
+  const heightBefore = await session.evaluate(rowHeight('wl-cfg-maxNodes'))
   await setReactInput(session, '[data-testid="wl-cfg-maxNodes"]', '0')
   await waitFor(session, exists('wl-cfg-bar'))
   check(
     await session.evaluate(`document.querySelector('[data-testid="wl-cfg-save"]').disabled`),
     '坏值不能保存',
   )
+  await sleep(300)
+  check(
+    (await session.evaluate(rowHeight('wl-cfg-maxNodes'))) === heightBefore,
+    '填了坏值、出了恢复默认按钮，行的高度都不变',
+  )
+  await session.evaluate(
+    `(() => { const el = document.querySelector('[data-testid="wl-cfg-maxNodes"]'); el.dispatchEvent(new FocusEvent('focusout', { bubbles: true })) })()`,
+  )
+  await waitFor(session, `${inputValue('wl-cfg-maxNodes')} === '1'`)
+  // 带字母：只留下数字（受控输入框当场改回，这里不用 setReactInput 的「写进去的就是读出来的」检查）。
+  await session.evaluate(setReactInputExpr('[data-testid="wl-cfg-triggerPort"]', '8a0'))
+  await sleep(100)
+  check((await session.evaluate(inputValue('wl-cfg-triggerPort'))) === '80', '端口框只收数字')
+  await session.evaluate(
+    `(() => { const el = document.querySelector('[data-testid="wl-cfg-triggerPort"]'); el.dispatchEvent(new FocusEvent('focusout', { bubbles: true })) })()`,
+  )
+  await waitFor(session, `${inputValue('wl-cfg-triggerPort')} === '1024'`)
+  await session.evaluate(clickTestId('wl-cfg-discard'))
+  await waitFor(session, gone('wl-cfg-bar'))
+  check(
+    await session.evaluate(
+      `document.querySelector('[data-testid="wl-cfg-listen"]')?.dataset.state !== undefined`,
+    ),
+    '「触发」组里有监听状态',
+  )
+  await setReactInput(session, '[data-testid="wl-cfg-maxNodes"]', '0')
+  await waitFor(session, exists('wl-cfg-bar'))
   await setReactInput(session, '[data-testid="wl-cfg-maxNodes"]', String(fallback + 50))
   await waitFor(session, `!document.querySelector('[data-testid="wl-cfg-save"]').disabled`)
   check(

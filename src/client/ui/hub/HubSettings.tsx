@@ -13,16 +13,25 @@
 
 import { type PluginConfigKey, RESTART_CONFIG_KEYS } from '../../../shared/wire/config.ts'
 import type { ConfigDraft, PluginConfigState } from '../../app/usePluginConfig.ts'
-import { LABEL, usePluginConfig } from '../../app/usePluginConfig.ts'
+import {
+  digitsOnly,
+  LABEL,
+  type NumberKey,
+  numberRange,
+  settleNumber,
+  toDraft,
+  usePluginConfig,
+} from '../../app/usePluginConfig.ts'
 import type { LocaleKey, T } from '../../i18n.ts'
 import type { WorkflowLiteRpc } from '../../rpc.ts'
 import { cx } from '../kit/cx.ts'
 import { Icon, type IconName } from '../kit/Icon.tsx'
 import { Skeleton } from '../kit/Skeleton.tsx'
 import ui from '../kit/ui.module.css'
-import { Presence } from '../motion/exits.tsx'
 import hub from './hub.module.css'
 import css from './hubSettings.module.css'
+import { ListenHostSelect } from './ListenHostSelect.tsx'
+import { ListenStatus } from './ListenStatus.tsx'
 import { ThemePicker } from './ThemePicker.tsx'
 
 const DESC: Record<PluginConfigKey, LocaleKey> = {
@@ -32,6 +41,7 @@ const DESC: Record<PluginConfigKey, LocaleKey> = {
   maxResultBytes: 'cfg.maxResultDesc',
   installSkill: 'cfg.skillDesc',
   triggerPort: 'cfg.triggerPortDesc',
+  triggerHost: 'cfg.triggerHostDesc',
 }
 
 const ICON: Record<PluginConfigKey, IconName> = {
@@ -41,6 +51,7 @@ const ICON: Record<PluginConfigKey, IconName> = {
   maxResultBytes: 'download',
   installSkill: 'bookmark',
   triggerPort: 'bolt',
+  triggerHost: 'globe',
 }
 
 export function HubSettings(props: {
@@ -70,6 +81,7 @@ export function HubSettings(props: {
   }
 
   const locked = !view.writable || state.busy
+  const dirty = state.dirty.length > 0 && view.writable
   const field = { t, state, locked }
   return (
     <div className={css.wrap} data-testid="wl-hub-config">
@@ -81,14 +93,6 @@ export function HubSettings(props: {
           </div>
         )}
         <ThemePicker t={t} />
-        <Presence show={state.notice !== null}>
-          {state.notice !== null && (
-            <div className={hub.notice} data-tone={state.notice.tone} role="status">
-              <Icon name={state.notice.tone === 'ok' ? 'check' : 'alert'} size={14} />
-              {state.notice.text}
-            </div>
-          )}
-        </Presence>
 
         <Group title={t('cfg.groupStorage')}>
           <Row {...field} name="dataDir" wide>
@@ -100,8 +104,14 @@ export function HubSettings(props: {
               autoComplete="off"
               aria-label={t('cfg.dataDir')}
               aria-invalid={state.errors.dataDir !== undefined}
+              data-tip={state.errors.dataDir}
               data-testid="wl-cfg-dataDir"
               onChange={(event) => state.edit('dataDir', event.currentTarget.value)}
+              onBlur={(event) => {
+                // 清空了就回到已保存的路径：数据目录不能是空的，也不在行里多出一行错字。
+                if (event.currentTarget.value.trim() === '')
+                  state.edit('dataDir', view.values.dataDir)
+              }}
             />
           </Row>
         </Group>
@@ -136,35 +146,57 @@ export function HubSettings(props: {
         </Group>
 
         <Group title={t('cfg.groupTrigger')}>
+          <Row {...field} name="triggerHost">
+            <ListenHostSelect
+              t={t}
+              value={draft.triggerHost}
+              interfaces={view.interfaces ?? []}
+              locked={locked}
+              onChange={(value) => state.edit('triggerHost', value)}
+            />
+          </Row>
           <Row {...field} name="triggerPort">
             <NumberInput {...field} name="triggerPort" />
           </Row>
+          <ListenStatus t={t} rpc={props.rpc} />
         </Group>
       </div>
 
-      {state.dirty.length > 0 && view.writable && (
-        <div className={cx(css.bar, ui.rise)} data-testid="wl-cfg-bar">
-          <span className={css.barText}>
-            {t('cfg.dirty').replace('{n}', String(state.dirty.length))}
-          </span>
-          <button
-            type="button"
-            className={cx(ui.btn, ui.small)}
-            disabled={state.busy}
-            data-testid="wl-cfg-discard"
-            onClick={state.discard}
-          >
-            {t('cfg.discard')}
-          </button>
-          <button
-            type="button"
-            className={cx(ui.btn, ui.small, ui.primary)}
-            disabled={state.busy || Object.keys(state.errors).length > 0}
-            data-testid="wl-cfg-save"
-            onClick={() => void state.save()}
-          >
-            {t('cfg.save')}
-          </button>
+      {/* 保存条与保存后的提示都在页底这一条里：不在页顶插一行，把下面的设置项顶下去。 */}
+      {(dirty || state.notice !== null) && (
+        <div className={cx(css.bar, ui.rise)} data-testid={dirty ? 'wl-cfg-bar' : 'wl-cfg-notice'}>
+          {state.notice !== null ? (
+            <span className={css.barText} data-tone={state.notice.tone} role="status">
+              <Icon name={state.notice.tone === 'ok' ? 'check' : 'alert'} size={14} />
+              {state.notice.text}
+            </span>
+          ) : (
+            <span className={css.barText}>
+              {t('cfg.dirty').replace('{n}', String(state.dirty.length))}
+            </span>
+          )}
+          {dirty && (
+            <>
+              <button
+                type="button"
+                className={cx(ui.btn, ui.small)}
+                disabled={state.busy}
+                data-testid="wl-cfg-discard"
+                onClick={state.discard}
+              >
+                {t('cfg.discard')}
+              </button>
+              <button
+                type="button"
+                className={cx(ui.btn, ui.small, ui.primary)}
+                disabled={state.busy || Object.keys(state.errors).length > 0}
+                data-testid="wl-cfg-save"
+                onClick={() => void state.save()}
+              >
+                {t('cfg.save')}
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>
@@ -194,14 +226,19 @@ function Row(props: FieldProps & { wide?: boolean; children: React.ReactNode }):
   const draft = state.draft
   const defaultText = view === null ? '' : shown(name, view.defaults, t)
   const atDefault = draft !== null && view !== null && sameAsDefault(name, draft, view)
-  const error = state.errors[name]
-  const reset = !atDefault && !props.locked && (
+  // 位置一直留着，只在和默认值不一样时显出来：按钮出现时控件那一列不变宽，说明不会换行、行不会变高。
+  const off = atDefault || props.locked
+  const reset = (
     <button
       type="button"
       className={css.reset}
-      data-tip={t('cfg.reset').replace('{v}', defaultText)}
+      data-off={off || undefined}
+      disabled={off}
+      tabIndex={off ? -1 : undefined}
+      aria-hidden={off || undefined}
+      data-tip={off ? undefined : t('cfg.reset').replace('{v}', defaultText)}
       aria-label={t('cfg.reset').replace('{v}', defaultText)}
-      data-testid={`wl-cfg-${name}-reset`}
+      data-testid={off ? undefined : `wl-cfg-${name}-reset`}
       onClick={() => state.toDefault(name)}
     >
       <Icon name="restore" size={14} />
@@ -226,9 +263,6 @@ function Row(props: FieldProps & { wide?: boolean; children: React.ReactNode }):
             {reset}
           </span>
         )}
-        <Presence show={error !== undefined}>
-          {error !== undefined && <span className={css.error}>{error}</span>}
-        </Presence>
       </div>
       {props.wide !== true && (
         <div className={hub.itemEnd}>
@@ -240,13 +274,18 @@ function Row(props: FieldProps & { wide?: boolean; children: React.ReactNode }):
   )
 }
 
+/** 数字框：只打得进数字；离开时空的回到已保存的值、超出范围的拉回边上（不在行里多出一行错字）。 */
 function NumberInput(
   props: FieldProps & {
-    name: 'maxNodes' | 'saveDebounceMs' | 'maxResultBytes' | 'triggerPort'
+    name: NumberKey
     unit?: string
   },
 ): React.JSX.Element {
   const { t, state, name } = props
+  const range = numberRange(name)
+  const tip = (range.max === undefined ? t('cfg.atLeast') : t('cfg.range'))
+    .replace('{min}', String(range.min))
+    .replace('{max}', String(range.max ?? ''))
   return (
     <span className={css.number}>
       <input
@@ -255,9 +294,14 @@ function NumberInput(
         value={state.draft?.[name] ?? ''}
         disabled={props.locked}
         aria-label={t(LABEL[name])}
-        aria-invalid={state.errors[name] !== undefined}
+        data-tip={tip}
         data-testid={`wl-cfg-${name}`}
-        onChange={(event) => state.edit(name, event.currentTarget.value)}
+        onChange={(event) => state.edit(name, digitsOnly(event.currentTarget.value))}
+        onBlur={(event) => {
+          const saved = state.view === null ? '' : toDraft(state.view.values)[name]
+          const settled = settleNumber(name, event.currentTarget.value, saved)
+          if (settled !== event.currentTarget.value) state.edit(name, settled)
+        }}
       />
       {props.unit !== undefined && <span className={css.unit}>{props.unit}</span>}
     </span>

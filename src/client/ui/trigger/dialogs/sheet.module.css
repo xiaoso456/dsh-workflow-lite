@@ -1,0 +1,72 @@
+/**
+ * dsh-workflow-lite — 触发卡片详细设置对话框（TriggerSheet）：左边表单、右边一栏预览和说明。
+ * 外壳的头、脚沿用 kit/overlay.module.css 的 `.sheet*`。
+ */
+
+/* 窄的跟 overlay 的 `.sheet` 一样宽；左右两栏的（表单 + 预览说明）给宽一点，窄视口时右栏落到下面。 */
+.sheet.wide {
+  width: min(760px, 100%);
+  min-height: min(420px, 100%);
+}
+
+.body {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 20px;
+  min-height: 0;
+  padding: 12px var(--wl-sheet-inset, 16px) 16px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.main {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.aside {
+  display: flex;
+  flex: 0 0 248px;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  padding-left: 18px;
+  border-left: 1px solid var(--wl-line);
+}
+
+@container (max-width: 640px) {
+  .body {
+    flex-direction: column;
+  }
+
+  .aside {
+    flex-basis: auto;
+    padding-top: 14px;
+    padding-left: 0;
+    border-top: 1px solid var(--wl-line);
+    border-left: 0;
+  }
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.blockTitle {
+  margin: 0;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+}
+
+/* 瑞士：右栏的分隔线压黑。 */
+:global([data-look="swiss"]) .aside {
+  border-color: var(--wl-line-strong);
+}

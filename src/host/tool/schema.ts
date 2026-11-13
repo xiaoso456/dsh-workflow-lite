@@ -384,7 +384,7 @@ export const PARAMETERS = {
       },
       source: {
         type: 'object',
-        description: '何时触发（整项替换）。',
+        description: '触发方式（整项替换）。',
         additionalProperties: false,
         properties: {
           kind: {
@@ -458,7 +458,7 @@ export const PARAMETERS = {
       },
       launch: {
         type: 'object',
-        description: '怎么运行（整项替换，null = 清除）。',
+        description: '执行设置（整项替换，null = 清除）。',
         additionalProperties: false,
         properties: {
           session: {

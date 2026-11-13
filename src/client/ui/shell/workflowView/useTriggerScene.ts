@@ -14,7 +14,7 @@ import type { Workflow } from '../../../app/useWorkflow.ts'
 import type { T } from '../../../i18n.ts'
 import type { Selection } from '../../../model/editor.ts'
 import type { WorkflowLiteRpc } from '../../../rpc.ts'
-import type { TriggerEnv } from '../../trigger/triggerEnv.ts'
+import type { RevealField, TriggerEnv } from '../../trigger/triggerEnv.ts'
 
 export interface TriggerSceneInput {
   t: T
@@ -27,10 +27,12 @@ export interface TriggerSceneInput {
   sessionCwd: string | undefined
   select(selection: Selection): void
   openRun(id: string): void
+  /** 打开工作流中心「触发」页、选中这个工作流里的这张卡片。 */
+  openHistory(node: string): void
 }
 
 export function useTriggerScene(input: TriggerSceneInput): TriggerEnv {
-  const { t, rpc, wf, session, sessionRows, sessionCwd, select, openRun } = input
+  const { t, rpc, wf, session, sessionRows, sessionCwd, select, openRun, openHistory } = input
   const { state } = wf
   // 图里一张触发卡片都没有就不问状态。
   const active = useMemo(() => state.doc?.nodes.some(isTrigger) === true, [state.doc])
@@ -112,12 +114,22 @@ export function useTriggerScene(input: TriggerSceneInput): TriggerEnv {
   )
 
   const takeReveal = useCallback(
-    (node: string) => {
+    <F extends RevealField>(node: string, fields: readonly F[]): F | null => {
       if (reveal === null || reveal.node !== node) return null
+      const field = fields.find((item) => item === reveal.field)
+      if (field === undefined) return null
       setReveal(null)
-      return reveal.field
+      return field
     },
     [reveal],
+  )
+
+  const editSource = useCallback(
+    (node: string): void => {
+      select({ kind: 'node', id: node })
+      setReveal({ node, field: 'source' })
+    },
+    [select],
   )
 
   return useMemo(
@@ -131,7 +143,9 @@ export function useTriggerScene(input: TriggerSceneInput): TriggerEnv {
       approve,
       reveal,
       takeReveal,
+      editSource,
       openRun,
+      openHistory,
     }),
     [
       triggers,
@@ -144,7 +158,9 @@ export function useTriggerScene(input: TriggerSceneInput): TriggerEnv {
       approve,
       reveal,
       takeReveal,
+      editSource,
       openRun,
+      openHistory,
     ],
   )
 }

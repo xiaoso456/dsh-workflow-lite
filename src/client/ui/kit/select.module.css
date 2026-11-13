@@ -54,6 +54,19 @@
   padding: 4px;
 }
 
+.list {
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.popUp {
+  top: auto;
+  bottom: calc(100% + 4px);
+  transform-origin: bottom left;
+}
+
 .check {
   display: inline-flex;
   flex: none;

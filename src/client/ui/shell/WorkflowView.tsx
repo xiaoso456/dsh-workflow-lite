@@ -26,6 +26,7 @@ import dock from '../chrome/dock.module.css'
 import frame from '../chrome/frame.module.css'
 import { Library } from '../editor/Library.tsx'
 import { BoardThemeContext } from '../files/boardFrame.ts'
+import type { HubFocus } from '../hub/HubDialog.tsx'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import { ModalHostProvider } from '../kit/Modal.tsx'
@@ -129,8 +130,11 @@ function Shell(props: {
   /** 正在看的工作流实例；`null` = 模板编辑。 */
   const [runId, setRunId] = useState<string | null>(null)
   const [hubOpen, setHubOpen] = useState(false)
-  /** 从画布顶栏的「导出」进来：工作流中心直接停在「工作流」页、右栏是导出。 */
-  const [hubExport, setHubExport] = useState(false)
+  /**
+   * 工作流中心打开时停在哪：顶栏「导出」进来停在「工作流」页、右栏是导出；
+   * 触发卡片的「全部记录」进来停在「触发」页、选中那张卡片；`null` = 从头（「运行实例」页）。
+   */
+  const [hubFocus, setHubFocus] = useState<HubFocus | null>(null)
   const [versionsOpen, setVersionsOpen] = useState(false)
   const { booting, setBooting, setTemplateSettled } = useBooting({ state, runs })
   const matchesVersion = useMatchesVersion({ rpc: props.rpc, state, versionsOpen })
@@ -258,6 +262,17 @@ function Shell(props: {
     select,
   } = useStepEdit({ t, host, rootRef, wf, state, focusCanvas, setFocusPrompt, setQuick, setFocus })
 
+  // 触发卡片的「全部记录」：到工作流中心「触发」页、选中这张卡片（回调要稳，卡片的现场按它算）。
+  const workflowName = state.name
+  const openHistory = useCallback(
+    (node: string): void => {
+      if (workflowName === null) return
+      setHubFocus({ kind: 'trigger', workflow: workflowName, node })
+      setHubOpen(true)
+    },
+    [workflowName],
+  )
+
   // 触发卡片的现场：画布上的卡片和右栏的面板读同一份。
   const triggerScene = useTriggerScene({
     t,
@@ -268,6 +283,7 @@ function Shell(props: {
     sessionCwd,
     select,
     openRun,
+    openHistory,
   })
 
   const openCard = useOpenCard({ state, openTemplate, locate })
@@ -316,7 +332,7 @@ function Shell(props: {
       openRun={openRun}
       wf={wf}
       sessionCwd={sessionCwd}
-      hubExport={hubExport}
+      hubFocus={hubFocus}
       onClose={() => setHubOpen(false)}
       openTemplate={openTemplate}
       openCard={openCard}
@@ -365,7 +381,7 @@ function Shell(props: {
                 memories={memories.entries}
                 reloadRef={reloadRun}
                 onOpenHub={() => {
-                  setHubExport(false)
+                  setHubFocus(null)
                   setHubOpen(true)
                 }}
                 onSettled={() => setBooting(false)}
@@ -537,11 +553,11 @@ function Shell(props: {
               runs={runs}
               onOpenRun={openRun}
               onOpenHub={() => {
-                setHubExport(false)
+                setHubFocus(null)
                 setHubOpen(true)
               }}
               onExport={() => {
-                setHubExport(true)
+                setHubFocus({ kind: 'export' })
                 setHubOpen(true)
               }}
               onOpenWorkflow={openTemplate}

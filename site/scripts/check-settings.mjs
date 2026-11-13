@@ -19,6 +19,7 @@ const LABEL_KEY = {
   maxResultBytes: 'cfg.maxResult',
   installSkill: 'cfg.skill',
   triggerPort: 'cfg.triggerPort',
+  triggerHost: 'cfg.triggerHost',
 }
 
 const PAGE = '../src/content/docs/settings/plugin.md'

@@ -57,7 +57,18 @@ export const zh = {
     '注册四份模型按需读的指南：怎么设计工作流、怎么记录运行状态、怎么写画布上的看板、怎么加触发卡片。',
   'cfg.triggerPort': 'HTTP 触发端口',
   'cfg.triggerPortDesc':
-    'HTTP 触发卡片的地址用这个本机端口，只接受本机的请求；有打开的 HTTP 触发卡片时才占用。改了之后地址跟着变，要更新调用方。',
+    'HTTP 触发卡片的地址用这个端口；有打开的 HTTP 触发卡片时才占用。改了之后地址跟着变，要更新调用方。',
+  'cfg.triggerHost': 'HTTP 触发监听地址',
+  'cfg.triggerHostDesc':
+    '缺省只接受本机的请求。要让别的机器调用，选「所有网卡」或某块网卡的地址；请求是明文 HTTP，只在信得过的网络里用，或放在 HTTPS 代理后面。',
+  'cfg.host.local': '仅本机（127.0.0.1）',
+  'cfg.host.any': '所有网卡（0.0.0.0）',
+  'cfg.host.missing': '{address}（本机没有这个地址）',
+  'cfg.host.confirm': '让别的机器也能调用？',
+  'cfg.host.confirmDesc':
+    '请求走明文 HTTP，同一网络里的人能看到令牌，拿到令牌就能触发工作流。只在信得过的网络里用，或放在 HTTPS 代理后面。',
+  'cfg.host.confirmOk': '允许',
+  'cfg.host.invalid': '要是 IPv4 地址',
   'cfg.ms': '毫秒',
   'cfg.steps': '步',
   'cfg.kb': 'KB',
@@ -74,6 +85,18 @@ export const zh = {
   'cfg.min': '不能小于 {n}',
   'cfg.max': '不能大于 {n}',
   'cfg.required': '不能为空',
+  'cfg.range': '{min} 到 {max}',
+  'cfg.listen': '监听状态',
+  'cfg.listen.open': '监听中',
+  'cfg.listen.idle': '未占用',
+  'cfg.listen.error': '出错',
+  'cfg.listen.away': '未运行',
+  'cfg.listen.openOne': '在 {bind} 上接收请求',
+  'cfg.listen.openAny': '在所有网卡上接收请求（{bind}），别的机器用 {url}',
+  'cfg.listen.idleDesc': '没有打开的 HTTP 触发卡片，端口没有占用；打开一张就开始监听。',
+  'cfg.listen.awayDesc': '没有 DSH 进程在负责触发。',
+  'cfg.listen.loading': '读取中…',
+  'cfg.atLeast': '至少 {min}',
 } as const
 
 /** 英文。键与 `zh` 同构，少一个键或多一个键都过不了类型检查。 */
@@ -131,7 +154,18 @@ export const en: Record<keyof typeof zh, string> = {
     'Registers four on-demand guides: designing workflows, recording run state, writing canvas dashboards, and adding trigger cards.',
   'cfg.triggerPort': 'HTTP trigger port',
   'cfg.triggerPortDesc':
-    'Local port for HTTP trigger addresses; only accepts requests from this machine and is only taken while an HTTP trigger card is on. Changing it changes the addresses, so update the callers.',
+    'Port for HTTP trigger addresses; only taken while an HTTP trigger card is on. Changing it changes the addresses, so update the callers.',
+  'cfg.triggerHost': 'HTTP trigger listen address',
+  'cfg.triggerHostDesc':
+    'Only requests from this machine are accepted by default. To let other machines call in, pick All interfaces or one interface address; requests are plain HTTP, so use it only on a trusted network or behind an HTTPS proxy.',
+  'cfg.host.local': 'This machine only (127.0.0.1)',
+  'cfg.host.any': 'All interfaces (0.0.0.0)',
+  'cfg.host.missing': '{address} (not on this machine)',
+  'cfg.host.confirm': 'Let other machines call in?',
+  'cfg.host.confirmDesc':
+    'Requests are plain HTTP, so anyone on the same network can see the token, and the token is enough to start the workflow. Use it only on a trusted network or behind an HTTPS proxy.',
+  'cfg.host.confirmOk': 'Allow',
+  'cfg.host.invalid': 'Must be an IPv4 address',
   'cfg.ms': 'ms',
   'cfg.steps': 'steps',
   'cfg.kb': 'KB',
@@ -149,4 +183,17 @@ export const en: Record<keyof typeof zh, string> = {
   'cfg.min': 'Must be at least {n}',
   'cfg.max': 'Must be at most {n}',
   'cfg.required': 'Required',
+  'cfg.range': '{min} to {max}',
+  'cfg.listen': 'Listening',
+  'cfg.listen.open': 'Listening',
+  'cfg.listen.idle': 'Not in use',
+  'cfg.listen.error': 'Error',
+  'cfg.listen.away': 'Not running',
+  'cfg.listen.openOne': 'Receiving requests on {bind}',
+  'cfg.listen.openAny': 'Receiving requests on all interfaces ({bind}); other machines use {url}',
+  'cfg.listen.idleDesc':
+    'No HTTP trigger card is on, so the port is not taken; it starts listening once one is on.',
+  'cfg.listen.awayDesc': 'No DSH process is in charge of triggers.',
+  'cfg.listen.loading': 'Loading…',
+  'cfg.atLeast': 'At least {min}',
 }

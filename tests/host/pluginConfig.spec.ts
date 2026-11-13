@@ -20,6 +20,7 @@ const DEFAULTS: PluginConfigValues = {
   maxResultBytes: 262_144,
   installSkill: true,
   triggerPort: 3791,
+  triggerHost: '127.0.0.1',
 }
 
 /** 一个最小的设置服务：一行 `workflow-lite`，`user` 层就是改过的那几项。 */
@@ -124,6 +125,9 @@ describe('写设置', () => {
     [{ dataDir: '   ' }],
     [{ installSkill: 'yes' }],
     [{ routePrefix: '/x' }],
+    [{ triggerHost: 'localhost' }],
+    [{ triggerHost: '256.1.1.1' }],
+    [{ triggerHost: '192.168.1' }],
   ])('坏值 %j 在写之前就挡下', async (set) => {
     const { port, calls } = fakePort()
     const outcome = await writePluginConfig(port, live, { revision: 3, set })

@@ -1,0 +1,25 @@
+/**
+ * dsh-workflow-lite — 「主动 / 被动」小标（TriggerMark.tsx 的 ModeChip）：触发源颜色的浅底胶囊，字比卡片标题小。
+ */
+
+.mode {
+  display: inline-flex;
+  flex: none;
+  gap: 3px;
+  align-items: center;
+  height: 17px;
+  padding: 0 6px 0 5px;
+  border-radius: calc(999px * var(--wl-round, 1));
+  background: color-mix(in srgb, var(--wl-kind) 14%, transparent);
+  color: color-mix(in srgb, var(--wl-kind) 78%, var(--wl-text));
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* 瑞士：反白成线框。 */
+:global([data-look="swiss"]) .mode {
+  background: none;
+  box-shadow: inset 0 0 0 1px currentColor;
+}

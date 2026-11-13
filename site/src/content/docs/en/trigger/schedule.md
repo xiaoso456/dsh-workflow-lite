@@ -14,23 +14,25 @@ Besides schedules, a trigger card can [poll a command](/dsh-workflow-lite/en/tri
 ## Use
 
 1. Drag **Trigger** from **Basics** in the step library, or right-click an empty spot on the canvas to add one. A trigger card takes no lines; it triggers the whole workflow.
-2. Under **When** in the right panel, choose **Schedule** and a rule.
-3. Choose the session mode and workspace under **How to run**.
+2. New cards use **Schedule**. Under **Trigger** in the right panel, click **Edit**, set the rule, and click **Save**.
+3. Choose the session mode and workspace under **Run settings**.
 4. Turn on the switch at the top of the panel. The card shows **Waiting** next to its name and the next trigger time at the bottom.
 
 To see it work right away, click **Trigger once now** in the panel, optionally add background info for that run in the small card that opens, and click **Trigger**.
 
-![The settings panel of a trigger card](../../../../assets/shots/en/trigger-panel.webp)
+![The settings panel of a trigger card: one summary row each for Trigger, Trigger condition, Trigger note and Safeguards](../../../../assets/shots/en/trigger-panel.webp)
+
+**Trigger** is a card that looks like the one on the canvas: click the trigger type in its header (such as **Schedule ▾**) to pick another from the menu, which takes effect right away and can be undone; click **Edit** to change the details in a dialog. When the new type still needs something, **Edit** becomes **Write command** or **Pick workflow**. **Handling** (filters, trigger condition, trigger note) and the safeguards under **Run settings** each show one summary row; click a row to open a dialog and change it. Changes in a dialog take effect when you click **Save** (Ctrl+Enter); while there are unsaved changes, Esc or a click outside does not close it, so click **Cancel** instead. Once the card is selected, clicking its middle row also opens the **Trigger** dialog.
 
 ## Settings
 
 | Setting | Values | Default | Description |
 |---|---|---|---|
-| When | Every, Daily, Cron | Daily 09:00 | **Every** ranges from 1 minute to 7 days, counted from the moment the switch is turned on; **Daily** can be limited to certain weekdays; **Cron** takes a five-field expression in local time. |
-| Trigger note | Text | Empty | Passed to the model as is on every trigger; a good place for the scope and requirements of the run. |
+| Trigger | Every, Daily, Cron | Daily 09:00 | **Every** ranges from 1 minute to 7 days, counted from the moment the switch is turned on; **Daily** can be limited to certain weekdays; **Cron** takes a five-field expression in local time. |
+| Trigger note | Text | Empty | Passed to the model as is on every trigger; a good place for the scope and requirements of the run. Shares a dialog with the [trigger condition](/dsh-workflow-lite/en/trigger/filter/#trigger-condition). |
 | Session | New session, Continue last, Fixed session | New session | **Continue last** sends to the session used by the previous trigger, or creates one if it is gone. |
 | Workspace | Workspaces opened before | None | New sessions are created here; with **Fixed session**, choose **Session** instead. |
-| Run even if still running | On, off | Off | When off, a trigger is skipped while the session from the previous trigger is still running. |
+| Run even if still running | On, off | Off | When off, a trigger is skipped while the session from the previous trigger is still running. This and the next three settings are in the **Safeguards** dialog. |
 | Catch up | On, off | On | Runs once after startup if a trigger was missed while DSH was closed. |
 | Max triggers per hour | 1 or more | 12 | Triggers beyond the limit are skipped. |
 | Stop after failures in a row | 1 or more | 3 | See **Status** below. |
@@ -51,7 +53,7 @@ To see it work right away, click **Trigger once now** in the panel, optionally a
 
 A failure means the trigger itself did not get through: the workspace or session is missing, the session cannot be created, the workflow has errors and cannot run, or a poll command or listener cannot run. Skipped triggers, unmet conditions, filtered triggers and the outcome of a run after delivery do not count.
 
-**Trigger history** in the panel lists the time and result of recent triggers. Once the model starts the run, the arrow on the right of a record opens it. With a [trigger condition](/dsh-workflow-lite/en/trigger/filter/#trigger-condition), a trigger the model decided to skip shows **Not needed** and the reason.
+**Trigger history** in the panel lists the time and result of the last three triggers; click **All history** to see them all on the [**Triggers** page of the workflow hub](/dsh-workflow-lite/en/trigger/manage/). Once the model starts the run, the arrow on the right of a record opens it. With a [trigger condition](/dsh-workflow-lite/en/trigger/filter/#trigger-condition), a trigger the model decided to skip shows **Not needed** and the reason.
 
 ## Questions before running
 

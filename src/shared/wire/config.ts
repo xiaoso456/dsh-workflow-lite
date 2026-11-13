@@ -14,6 +14,7 @@ export const PLUGIN_CONFIG_KEYS = [
   'maxResultBytes',
   'installSkill',
   'triggerPort',
+  'triggerHost',
 ] as const
 export type PluginConfigKey = (typeof PLUGIN_CONFIG_KEYS)[number]
 
@@ -24,6 +25,15 @@ export interface PluginConfigValues {
   maxResultBytes: number
   installSkill: boolean
   triggerPort: number
+  /** HTTP 触发的监听地址（IPv4）。 */
+  triggerHost: string
+}
+
+/** 本机一块网卡的 IPv4 地址（设置页列出来给人选监听地址）。 */
+export interface ListenInterface {
+  /** 网卡名（如 `Wi-Fi`、`eth0`）。 */
+  name: string
+  address: string
 }
 
 /** 要重启 DSH 才生效的几项（装配时定住的）。 */
@@ -41,6 +51,8 @@ export interface PluginConfigView {
   defaults: PluginConfigValues
   /** 用户改过的那几项。 */
   overridden: PluginConfigKey[]
+  /** 本机各块网卡（不含回环），选监听地址用。 */
+  interfaces?: ListenInterface[]
 }
 
 /** `config/set`：改几项、把几项恢复默认；`revision` 是读到时的修订号，别人先改了就拒绝。 */

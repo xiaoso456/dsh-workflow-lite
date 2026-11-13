@@ -26,6 +26,9 @@ export interface WorkflowChoice {
 /** 面板里打开开关前要补的一项。 */
 export type LaunchField = 'workspace' | 'session'
 
+/** 请面板接手的一件事：把要补的那一项带到眼前，或者打开「触发方式」对话框（画布上点了卡片的速览）。 */
+export type RevealField = LaunchField | 'source'
+
 export interface TriggerEnv {
   triggers: Triggers
   /** 这个视图所在的会话与它的工作区（「当前会话」「当前工作区」）。 */
@@ -44,12 +47,16 @@ export interface TriggerEnv {
   toggle(node: string, on: boolean): 'confirm' | 'done'
   /** 确认要运行的命令并打开开关；开不了时同 {@link toggle}。 */
   approve(node: string, command: string): void
-  /** 刚请求「把要补的那一项带到眼前」的卡片；面板用 {@link takeReveal} 接手，接手后就清掉（重新挂上不会再来一次）。 */
-  reveal: { node: string; field: LaunchField } | null
-  /** 面板接手 {@link reveal}：是这张卡片的就回要补的那一项并清掉，否则 `null`。 */
-  takeReveal(node: string): LaunchField | null
+  /** 刚请求面板接手的事；面板用 {@link takeReveal} 接手，接手后就清掉（重新挂上不会再来一次）。 */
+  reveal: { node: string; field: RevealField } | null
+  /** 面板接手 {@link reveal}：是这张卡片的、又是 `fields` 里的一项就回那一项并清掉，否则 `null`。 */
+  takeReveal<F extends RevealField>(node: string, fields: readonly F[]): F | null
+  /** 选中这张卡片并打开它的「触发方式」对话框（画布上点卡片的速览）。 */
+  editSource(node: string): void
   /** 打开一次触发建出来的实例。 */
   openRun(instance: string): void
+  /** 到工作流中心「触发」页看这张卡片的全部触发记录。 */
+  openHistory(node: string): void
 }
 
 export const TriggerContext = createContext<TriggerEnv | null>(null)

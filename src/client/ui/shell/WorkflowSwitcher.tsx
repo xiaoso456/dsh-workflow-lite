@@ -198,10 +198,10 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
         )
       }
     >
-      <div className={shared.search}>
+      <div className={ui.menuSearch}>
         <Icon name="search" size={14} />
         <input
-          className={shared.searchInput}
+          className={ui.menuSearchInput}
           value={query}
           placeholder={t('wf.search')}
           aria-label={t('wf.search')}
@@ -251,7 +251,7 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
             </p>
           )}
           {filtered.length === 0 && shownRuns.length === 0 && (workflows.length > 0 || grouped) && (
-            <p className={shared.emptyLine}>{t('wf.none')}</p>
+            <p className={ui.menuEmpty}>{t('wf.none')}</p>
           )}
           {filtered.map((entry, index) => (
             <WorkflowRow

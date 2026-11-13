@@ -7,9 +7,11 @@ sidebar:
 
 Poll, listener and HTTP triggers all bring background info. **Filters** drop unwanted triggers inside the plugin at no model cost; a **Trigger condition** lets the model read the content and decide.
 
-![Filters and trigger condition](../../../../assets/shots/en/trigger-filter.webp)
+![The Filters dialog: merging, deduplication and two keyword lists](../../../../assets/shots/en/trigger-filter.webp)
 
 ## Filters
+
+Click the **Filters** row in the panel, set them in the dialog, and click **Save**.
 
 | Setting | Default | Description |
 |---|---|---|
@@ -22,7 +24,7 @@ Separate words with commas or new lines; 0 or empty turns a setting off. Filtere
 
 ## Trigger condition
 
-Put anything that needs reading the content to decide into **Trigger condition**, for example "Only handle errors from the payment module". With it, the model decides first on every trigger:
+Put anything that needs reading the content to decide into **Trigger condition**, for example "Only handle errors from the payment module": click the **Trigger condition** row in the panel, write it in the dialog, and click **Save**. With it, the model decides first on every trigger:
 
 - A run is needed: the workflow starts as usual.
 - No run is needed: the model gives the reason and stops, and the history shows **Not needed** and the reason for that trigger.

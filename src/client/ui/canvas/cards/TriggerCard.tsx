@@ -7,6 +7,8 @@
  * - 底行：「主动 ↗」/「被动 ↙」小标（触发源的颜色）+ 状态的后半句（下一次什么时候、上次检查的结果、出了什么错）。
  *
  * 卡片上不放开关：开关在属性面板和工作流中心「触发」页里（要确认命令的也在那里问）。
+ * 卡片选中之后再点速览，打开「触发方式」对话框（面板接手）；没选中时点它只是选中卡片（速览占着卡片中间，
+ * 一点就弹框太冒失）。按着速览拖动卡片不算点。
  * 名字和速览来自图；状态和本机现场是这台机器上的事，从 {@link useTriggerEnv} 现读，
  * 所以轮询到新状态时只有这张卡片换字、换属性，不重建节点。实例视图里没有现场：只剩图里写着的部分。
  *
@@ -14,17 +16,16 @@
  */
 
 import type { NodeProps } from '@xyflow/react'
-import { memo } from 'react'
-import { triggerMode } from '../../../model/triggerGlance.ts'
+import { memo, useRef } from 'react'
 import { stateBadge, stateNote, stateTone } from '../../../model/triggerText.ts'
 import { cx } from '../../kit/cx.ts'
 import { Icon } from '../../kit/Icon.tsx'
 import tone from '../../trigger/stateTone.module.css'
-import { TriggerMark, triggerTint } from '../../trigger/TriggerMark.tsx'
+import { TriggerGlanceRow } from '../../trigger/TriggerGlanceRow.tsx'
+import { ModeChip, TriggerMark, triggerTint } from '../../trigger/TriggerMark.tsx'
 import { useTriggerEnv } from '../../trigger/triggerEnv.ts'
 import shared from '../canvas.module.css'
 import type { TriggerFlowNode } from '../types.ts'
-import { TriggerGlanceRow } from './TriggerGlanceRow.tsx'
 import css from './triggerCard.module.css'
 
 export const TriggerCard = memo(function TriggerCard(
@@ -33,7 +34,6 @@ export const TriggerCard = memo(function TriggerCard(
   const { data, selected, id } = props
   const env = useTriggerEnv()
   const view = env?.triggers.view(id)
-  const mode = triggerMode(data.kind)
   const note = env === null ? '' : stateNote(data.t, view, data.kind)
   return (
     <div
@@ -68,20 +68,19 @@ export const TriggerCard = memo(function TriggerCard(
           </span>
         )}
       </div>
-      <TriggerGlanceRow glance={data.glance} view={view} />
-      <div className={css.foot}>
-        <span
-          className={css.mode}
-          data-mode={mode}
-          data-tip={data.t(
-            mode === 'active' ? 'trigger.mode.activeTip' : 'trigger.mode.passiveTip',
-          )}
-          data-testid="wl-trigger-mode"
+      {env === null ? (
+        <TriggerGlanceRow glance={data.glance} view={view} />
+      ) : (
+        <GlanceButton
+          label={data.t('trigger.editWhen')}
+          armed={selected}
+          onPress={() => env.editSource(id)}
         >
-          {/* 主动往外（插件自己去做），被动往里（等外面的事进来）。 */}
-          <Icon name={mode === 'active' ? 'arrowOut' : 'arrowIn'} size={10} />
-          {data.t(mode === 'active' ? 'trigger.mode.active' : 'trigger.mode.passive')}
-        </span>
+          <TriggerGlanceRow glance={data.glance} view={view} />
+        </GlanceButton>
+      )}
+      <div className={css.foot}>
+        <ModeChip t={data.t} kind={data.kind} testId="wl-trigger-mode" />
         {/* 一直挂着（没话说时是空的）：状态变了只换字。 */}
         <span
           className={css.note}
@@ -94,3 +93,45 @@ export const TriggerCard = memo(function TriggerCard(
     </div>
   )
 })
+
+/** 指针按下到松开挪了超过这么多像素就是在拖卡片，不算点。 */
+const DRAG_SLOP = 4
+
+/**
+ * 速览外面那层按钮：卡片选中时点它打开「触发方式」（弹窗从它长出来）。不进 Tab 顺序（键盘走面板里的那一行），
+ * 拖动照常交给画布——松手时离按下的地方远了就不算点。
+ * 选中与否在按下时记下：这一下点击本身也会选中卡片，松手时再看就分不出是第一下还是第二下了。
+ */
+function GlanceButton(props: {
+  label: string
+  /** 卡片选中着：点了才打开。 */
+  armed: boolean
+  onPress(): void
+  children: React.ReactNode
+}): React.JSX.Element {
+  const down = useRef<{ x: number; y: number; armed: boolean } | null>(null)
+  return (
+    <button
+      type="button"
+      className={css.glanceHit}
+      tabIndex={-1}
+      aria-label={props.label}
+      data-testid="wl-trigger-glance-edit"
+      data-armed={props.armed}
+      onPointerDown={(event) => {
+        down.current = { x: event.clientX, y: event.clientY, armed: props.armed }
+      }}
+      onClick={(event) => {
+        const from = down.current
+        down.current = null
+        // 键盘、程序点的没有按下：看现在选没选中。
+        if (!(from?.armed ?? props.armed)) return
+        if (from !== null && Math.hypot(event.clientX - from.x, event.clientY - from.y) > DRAG_SLOP)
+          return
+        props.onPress()
+      }}
+    >
+      {props.children}
+    </button>
+  )
+}

@@ -31,11 +31,24 @@ import {
   launchOf,
   sourceProblem,
 } from '../../shared/trigger.ts'
+import {
+  HOOK_MAX_LENGTH,
+  type HookIssue,
+  hookFromName,
+  hookIssue,
+  LOCAL_HOST,
+  TOKEN_MAX_LENGTH,
+  TOKEN_MIN_LENGTH,
+  type TokenIssue,
+  tokenIssue,
+} from '../../shared/triggerHttp.ts'
+import type { TriggerSource } from '../../shared/types.ts'
 import type {
   FireRecord,
   TriggerAllResponse,
   TriggerEntry,
   TriggerFireRequest,
+  TriggerHttpStatus,
   TriggerListResponse,
   TriggerOwner,
   TriggerPauseResponse,
@@ -46,9 +59,10 @@ import { assetsDir } from '../store/paths.ts'
 import { fail, type Outcome, ok } from '../store/repoResult.ts'
 import { afterInfo, afterMatches, afterProblem, type RunWatch } from './after.ts'
 import type { TriggerDefinition, TriggerGraphs } from './graphs.ts'
-import { hookUrl, newHookId, newHookToken } from './hooks.ts'
+import { type HookBind, hookUrl, newHookId, newHookToken } from './hooks.ts'
 import type { IntakeBatch } from './intake.ts'
 import { type FireInput, Launcher } from './launcher.ts'
+import { advertisedHost } from './netAddress.ts'
 import { OwnerLock } from './owner.ts'
 import { FRESH_PROBE } from './poller.ts'
 import { type DueFire, planRound, upcoming } from './reconcile.ts'
@@ -84,8 +98,8 @@ export interface TriggerServiceDeps {
   store: TriggerStore
   graphs: TriggerGraphs
   sessions: SessionPort
-  /** HTTP 触发用的端口（插件设置）。 */
-  port: () => number
+  /** HTTP 触发的监听地址与端口（插件设置）。 */
+  listen: () => HookBind
   /** 实例那边：接续触发看别的工作流有没有实例结束。不给就当没有这种触发源。 */
   runs?: RunWatch
   now?: () => number
@@ -105,7 +119,7 @@ export class TriggerService {
   private readonly lock: OwnerLock
   private readonly runtime: LiveRuntime
   private readonly dataDir: () => string
-  private readonly port: () => number
+  private readonly listen: () => HookBind
   private readonly now: () => number
   private readonly warn: (message: string) => void
   private timer: ReturnType<typeof setTimeout> | undefined
@@ -125,7 +139,7 @@ export class TriggerService {
     this.sessions = deps.sessions
     this.runs = deps.runs
     this.dataDir = deps.dataDir
-    this.port = deps.port
+    this.listen = deps.listen
     this.now = deps.now ?? Date.now
     this.warn = deps.warn ?? (() => {})
     this.launcher = new Launcher(deps.sessions, deps.store)
@@ -146,7 +160,7 @@ export class TriggerService {
       deps.runtime?.(events) ??
       new TriggerRuntime({
         store: deps.store,
-        port: deps.port,
+        listen: deps.listen,
         pid: this.lock.pid,
         now: this.now,
         events,
@@ -487,6 +501,30 @@ export class TriggerService {
     return { triggers, ...sceneHead(scene) }
   }
 
+  /** HTTP 触发的端口现在的样子（设置页「监听状态」）。 */
+  async httpStatus(): Promise<TriggerHttpStatus> {
+    const owner = await this.lock.current()
+    if (owner === undefined) return { state: 'away' }
+    const port = (await this.ownerLive(owner))?.port
+    if (port === undefined || port.kind === 'closed') return { state: 'idle' }
+    if (port.kind === 'error') return { state: 'error', problem: port.problem }
+    // 早先写下的运行情况没有监听地址：那时只监听本机。
+    const host = port.host ?? LOCAL_HOST
+    return {
+      state: 'open',
+      host,
+      port: port.port,
+      url: `http://${advertisedHost(host)}:${String(port.port)}`,
+    }
+  }
+
+  /** 负责的进程写下的运行情况；写它的不是现在负责的进程就不作数。 */
+  private async ownerLive(owner: TriggerOwner | undefined): Promise<LiveFile | null> {
+    if (owner === undefined) return null
+    const liveFile = await this.store.live()
+    return liveFile?.pid === owner.pid ? liveFile : null
+  }
+
   /** 全部暂停（`true`）或恢复（`false`）。各卡片的开关不动；恢复后暂停期间的变化不补。 */
   async pause(paused: boolean): Promise<TriggerPauseResponse> {
     if (!paused && (await this.store.paused()) !== undefined) await this.freshPolls()
@@ -524,16 +562,14 @@ export class TriggerService {
     const last = new Map<string, FireRecord>()
     for (const fire of await this.store.fires())
       last.set(`${fire.workflow}\u0000${fire.node}`, fire)
-    // 负责的进程写下的运行情况；写它的不是现在负责的进程就不作数。
-    const liveFile = await this.store.live()
     return {
       owner,
       locals: await this.store.locals(),
       last,
-      live: owner !== undefined && liveFile?.pid === owner.pid ? liveFile : null,
+      live: await this.ownerLive(owner),
       unavailable: this.sessions.unavailable(),
       paused: await this.store.paused(),
-      port: this.port(),
+      listen: this.listen(),
       now: this.now(),
     }
   }
@@ -545,7 +581,8 @@ export class TriggerService {
     const graph = await this.graphs.read(workflow)
     if (graph.kind !== 'ok') return []
     const locals = scene.locals[workflow] ?? {}
-    const { owner, live, unavailable, paused, port, now } = scene
+    const { owner, live, unavailable, paused, listen, now } = scene
+    const host = advertisedHost(listen.host)
     const cards: { trigger: TriggerDefinition; view: TriggerView }[] = []
     for (const trigger of graph.triggers) {
       const local = locals[trigger.node] ?? { enabled: false }
@@ -562,7 +599,13 @@ export class TriggerService {
           ? {}
           : { approved: local.approved === approvalOf(command, local.workspace) }),
         ...(source.kind === 'http' && local.hook !== undefined && local.token !== undefined
-          ? { endpoint: { url: hookUrl(port, local.hook), token: local.token } }
+          ? {
+              endpoint: {
+                url: hookUrl(host, listen.port, local.hook),
+                hook: local.hook,
+                token: local.token,
+              },
+            }
           : {}),
       }
       const view = await (async (): Promise<TriggerView> => {
@@ -653,12 +696,8 @@ export class TriggerService {
         if (local.workspace === undefined) return '先选命令在哪个工作区里运行'
         local.approved = approvalOf(command, local.workspace)
       }
-      if (source.kind === 'http' && (request.resetToken === true || request.enabled === true)) {
-        local.hook ??= newHookId()
-        if (request.resetToken === true || local.token === undefined) local.token = newHookToken()
-      } else if (request.resetToken === true) {
-        return '只有 HTTP 触发有令牌'
-      }
+      const endpoint = setEndpoint(request, source, local, locals)
+      if (endpoint !== null) return endpoint
       if (request.enabled === true && !local.enabled) {
         const missing = after ?? enableProblem(trigger, local)
         if (missing !== null) return missing
@@ -758,7 +797,8 @@ interface Scene {
   live: LiveFile | null
   unavailable: string | null
   paused: number | undefined
-  port: number
+  /** HTTP 触发的监听地址与端口。 */
+  listen: HookBind
   now: number
 }
 
@@ -768,6 +808,62 @@ function sceneHead(scene: Scene): { owner?: TriggerOwner; paused?: number } {
     ...(scene.owner === undefined ? {} : { owner: scene.owner }),
     ...(scene.paused === undefined ? {} : { paused: scene.paused }),
   }
+}
+
+/**
+ * HTTP 触发的地址与令牌：自己写的先核对（地址不能和别的卡片重），没有的补上缺省
+ * （地址用工作流名、令牌随机）。打开开关、换令牌、改地址或令牌时才补。
+ * @returns 改不成的原因；改成了（或这次不涉及）是 `null`。
+ */
+function setEndpoint(
+  request: TriggerSetRequest,
+  source: TriggerSource,
+  local: TriggerLocal,
+  locals: TriggerLocals,
+): string | null {
+  const touched = request.hook !== undefined || request.token !== undefined
+  if (source.kind !== 'http') {
+    if (touched || request.resetToken === true) return '只有 HTTP 触发有地址和令牌'
+    return null
+  }
+  if (!touched && request.resetToken !== true && request.enabled !== true) return null
+  if (request.token !== undefined && request.resetToken === true)
+    return '自己写令牌和换一个令牌只能选一样'
+  const taken = new Set<string>()
+  for (const [workflow, group] of Object.entries(locals)) {
+    for (const [node, other] of Object.entries(group)) {
+      if (workflow === request.workflow && node === request.node) continue
+      if (other.hook !== undefined) taken.add(other.hook)
+    }
+  }
+  if (request.hook !== undefined) {
+    const hook = request.hook.normalize('NFC')
+    const issue = hookIssue(hook)
+    if (issue !== null) return HOOK_ISSUE[issue]
+    if (taken.has(hook)) return `地址「${hook}」已经被别的 HTTP 触发卡片用了`
+    local.hook = hook
+  }
+  local.hook ??= hookFromName(request.workflow, taken) ?? newHookId()
+  if (request.token !== undefined) {
+    const issue = tokenIssue(request.token)
+    if (issue !== null) return TOKEN_ISSUE[issue]
+    local.token = request.token
+  } else if (request.resetToken === true || local.token === undefined) {
+    local.token = newHookToken()
+  }
+  return null
+}
+
+const HOOK_ISSUE: Record<HookIssue, string> = {
+  empty: '地址不能为空',
+  chars: '地址只能用字母、数字、中文和 - _',
+  long: `地址最长 ${String(HOOK_MAX_LENGTH)} 个字`,
+}
+
+const TOKEN_ISSUE: Record<TokenIssue, string> = {
+  short: `令牌至少 ${String(TOKEN_MIN_LENGTH)} 个字`,
+  chars: '令牌只能用字母、数字和 - _ . ~',
+  long: `令牌最长 ${String(TOKEN_MAX_LENGTH)} 个字`,
 }
 
 /** 要在本机跑的命令还没确认、或确认之后命令和工作区改过：一句原因；不用确认或确认过是 `null`。 */

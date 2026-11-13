@@ -12,9 +12,9 @@ An **After** trigger runs the workflow once a run of another workflow finishes. 
 ## Use
 
 1. Open the workflow to wait for and turn on **Record run state** in **Workflow settings**.
-2. Add a trigger card to this workflow and choose **After** under **When**.
-3. Pick the workflow to wait for under **Workflow**, and the result that triggers under **Result**.
-4. Choose a session mode and workspace under **How to run** and turn on the switch. The card shows **Waiting**.
+2. Add a trigger card to this workflow, click **Schedule ▾** in the header of **Trigger**, and choose **After**.
+3. Click **Pick workflow**, choose the workflow to wait for under **Workflow** and the result that triggers under **Result**, then click **Save**.
+4. Choose a session mode and workspace under **Run settings** and turn on the switch. The card shows **Waiting**.
 
 When a run of that workflow finishes with a matching result, this workflow triggers once. The background info holds that run's instance ID, result, steps done, goal, workspace and the location of its run-state file, which the model reads when it needs that run's output.
 

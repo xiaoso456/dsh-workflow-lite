@@ -25,7 +25,10 @@ import {
   centerOf,
   dragItemTo,
   mouseClick,
+  pressKey,
+  pressShortcut,
   revealHubRow,
+  setReactInput,
   settleAnimations,
 } from './lib/canvas-harness.mjs'
 import { openPage, waitFor } from './lib/cdp-session.mjs'
@@ -40,6 +43,7 @@ const OUT = join(RUNS, 'trigger')
 const NAME = '夜间巡检'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const clickTestId = (id) => `document.querySelector('[data-testid="${id}"]')?.click()`
+const has = (id) => `document.querySelector('[data-testid="${id}"]') !== null`
 const textOf = (selector) =>
   `(document.querySelector(${JSON.stringify(selector)})?.textContent ?? '').trim()`
 
@@ -381,21 +385,112 @@ try {
   )
   await sleep(500)
   await capture(session, 'panel-history-light.png')
+
+  // 「全部记录」：到工作流中心「触发」页、选中这张卡片；Esc 关掉回到画布。
+  await session.evaluate(clickTestId('wl-trigger-history-all'))
+  await waitFor(session, `document.querySelector('[data-testid="wl-hub-trg-page"]') !== null`)
+  await sleep(800)
+  const pickedRow = await session.evaluate(
+    `document.querySelector('[data-testid="wl-hub-trg"][aria-current="true"]')?.dataset.value ?? ''`,
+  )
+  check('「全部记录」打开「触发」页并选中这张卡片', pickedRow === `${NAME}/nightly`, pickedRow)
+  await pressKey(session, 'Escape')
+  await waitFor(session, `document.querySelector('[data-testid="wl-hub-trg-page"]') === null`)
+  await sleep(600)
+
+  // 面板只放摘要：保护是一行，点开对话框改；改的是草稿，「保存」才写进图。
+  check(
+    '面板里没有保护的开关和数字框（在对话框里）',
+    await session.evaluate(
+      `document.querySelector('[data-testid="wl-inspector"] [data-testid="wl-trigger-overlap"]') === null`,
+    ),
+  )
+  const guardBefore = await session.evaluate(textOf('[data-testid="wl-trigger-guard-summary"]'))
+  check('保护的摘要写着缺省的几项', /没跑完时跳过/.test(guardBefore), guardBefore)
+  await mouseClick(session, await centerOf(session, '[data-testid="wl-trigger-guard"]'))
+  await waitFor(session, has('wl-trigger-guard-dialog'))
+  await sleep(500)
+  await capture(session, 'guard-dialog-light.png')
+  await session.evaluate(clickTestId('wl-trigger-overlap'))
+  await sleep(300)
+  check(
+    '对话框里改了还没写进图',
+    /没跑完时跳过/.test(await session.evaluate(textOf('[data-testid="wl-trigger-guard-summary"]'))),
+  )
   await session.evaluate(
-    `document.querySelector('[data-testid="wl-trigger-launch"]')?.scrollIntoView({ block: 'center' })`,
+    `document.querySelector('[data-testid="wl-trigger-guard-dialog"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`,
   )
   await sleep(500)
-  await capture(session, 'panel-launch-light.png')
-
-  // 改规则：换成每隔，卡片上的字跟着变。
-  await session.evaluate(
-    `document.querySelector('[data-testid="wl-trigger-when"]')?.scrollIntoView({ block: 'center' })`,
+  check('有没保存的改动时 Esc 不关对话框', await session.evaluate(has('wl-trigger-guard-dialog')))
+  await session.evaluate(clickTestId('wl-trigger-guard-dialog-save'))
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-trigger-guard-dialog"]') === null`,
   )
-  await sleep(300)
+  await sleep(400)
+  const guardAfter = await session.evaluate(textOf('[data-testid="wl-trigger-guard-summary"]'))
+  check('保存后摘要变成没跑完也触发', /没跑完也触发/.test(guardAfter), guardAfter)
+
+  // 触发条件：点摘要那一行，对话框打开、焦点落在触发条件上。
+  await mouseClick(session, await centerOf(session, '[data-testid="wl-trigger-condition-edit"]'))
+  await waitFor(session, has('wl-trigger-notes-dialog'))
+  await sleep(500)
+  check(
+    '点「触发条件」打开后焦点在触发条件上',
+    await session.evaluate(
+      `document.activeElement === document.querySelector('[data-testid="wl-trigger-condition"]')`,
+    ),
+  )
+  await setReactInput(session, '[data-testid="wl-trigger-condition"]', '只有工作日才跑')
+  await sleep(200)
+  await pressShortcut(session, 'Enter')
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-trigger-notes-dialog"]') === null`,
+  )
+  await sleep(400)
+  const conditionShown = await session.evaluate(
+    textOf('[data-testid="wl-trigger-condition-edit-summary"]'),
+  )
+  check(
+    'Ctrl+Enter 保存，面板摘要写着触发条件',
+    conditionShown === '只有工作日才跑',
+    conditionShown,
+  )
+
+  // 改规则：点画布卡片的速览打开「触发方式」，换成每隔；保存后卡片上的字才变。
+  await mouseClick(
+    session,
+    await centerOf(session, `${CARD} [data-testid="wl-trigger-glance-edit"]`),
+  )
+  await waitFor(session, has('wl-trigger-source-dialog'))
+  await sleep(600)
+  check(
+    '「触发方式」对话框带卡片上的预览',
+    await session.evaluate(
+      `document.querySelector('[data-testid="wl-trigger-source-dialog"] [data-testid="wl-trigger-source-preview"] [data-testid="wl-trigger-glance"]') !== null`,
+    ),
+  )
   await session.evaluate(clickTestId('wl-trigger-kind-every'))
+  await sleep(600)
+  check('草稿没保存时卡片上的字不变', !/每 1 小时/.test(await session.evaluate(textOf(CARD))))
+  const previewEvery = await session.evaluate(
+    textOf('[data-testid="wl-trigger-source-preview"] [data-testid="wl-trigger-glance"]'),
+  )
+  check('对话框里的预览跟着草稿变', /每 1 小时/.test(previewEvery), previewEvery)
+  await capture(session, 'source-dialog-light.png')
+  await session.evaluate(scheme('dark'))
+  await sleep(400)
+  await capture(session, 'source-dialog-dark.png')
+  await session.evaluate(scheme('light'))
+  await session.evaluate(clickTestId('wl-trigger-source-dialog-save'))
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-trigger-source-dialog"]') === null`,
+  )
   await sleep(1200)
   const everyText = await session.evaluate(textOf(CARD))
-  check('换成「每隔」后卡片写每 1 小时', /每 1 小时/.test(everyText), everyText)
+  check('保存后卡片写每 1 小时', /每 1 小时/.test(everyText), everyText)
   await capture(session, 'panel-every-light.png')
 
   // 从步骤库再拖一张：落在画布上，是第二张触发卡片。
@@ -574,7 +669,10 @@ try {
   const tailOn = await session.evaluate(textOf(TAIL))
   check('卡片写着接收中', /接收中/.test(tailOn), tailOn)
   check('卡片速览换成程序最近打出的一行', /ERROR pay timeout/.test(tailOn), tailOn)
-  await session.evaluate(clickTestId('wl-trigger-output-toggle'))
+  await capture(session, 'listen-on-light.png')
+  // 最近的输出在「触发方式」对话框的右栏（点面板里的速览那一行打开）。
+  await mouseClick(session, await centerOf(session, '[data-testid="wl-trigger-when-edit"]'))
+  await waitFor(session, has('wl-trigger-source-dialog'))
   await sleep(1500)
   const output = await session.evaluate(textOf('[data-testid="wl-trigger-output-text"]'))
   check(
@@ -582,7 +680,12 @@ try {
     /INFO 启动好了/.test(output) && /ERROR pay timeout/.test(output),
     output.slice(0, 300),
   )
-  await capture(session, 'listen-on-light.png')
+  await capture(session, 'listen-dialog-light.png')
+  await session.evaluate(clickTestId('wl-trigger-source-dialog-cancel'))
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-trigger-source-dialog"]') === null`,
+  )
   await capture(session, 'card-listen-light.png', await session.evaluate(boxOf(TAIL)), 2)
 
   // 命令改了：停下来等重新确认。
@@ -613,15 +716,20 @@ try {
   const hook = await waitTrigger(NAME2, 'hook', (view) => view.state === 'listening')
   const url = hook?.endpoint?.url ?? ''
   check(
-    'HTTP 打开后有地址和令牌，用设置里的端口',
-    url.startsWith(`http://127.0.0.1:${port}/trigger/`) &&
+    'HTTP 打开后有地址和令牌，用设置里的端口；地址缺省用工作流名',
+    url === `http://127.0.0.1:${port}/trigger/${encodeURIComponent(NAME2)}` &&
+      hook?.endpoint?.hook === NAME2 &&
       (hook?.endpoint?.token ?? '').length > 20,
     JSON.stringify(hook),
   )
-  await mouseClick(session, await centerOf(session, `${HOOK} [data-testid="wl-trigger-state"]`))
+  await mouseClick(
+    session,
+    await centerOf(session, `${HOOK} [data-testid="wl-trigger-glance-edit"]`),
+  )
+  await waitFor(session, has('wl-trigger-source-dialog'))
   await sleep(1500)
   const shownUrl = await session.evaluate(textOf('[data-testid="wl-trigger-url"]'))
-  check('面板上写着地址', shownUrl === url, shownUrl)
+  check('对话框里写着地址（中文不转义）', shownUrl === decodeURI(url), shownUrl)
   const masked = await session.evaluate(
     `document.querySelector('[data-testid="wl-trigger-token"]')?.dataset.masked`,
   )
@@ -644,13 +752,94 @@ try {
   const body3 = await waitModel(env.mock, served3, /pipeline/u)
   check('请求体作为背景信息发到了模型', /nightly/u.test(body3) && /status/u.test(body3))
 
-  // 换触发源：HTTP 换成条件轮询，出现命令框；卡片上的字跟着变。
+  // 改地址：铅笔 → 输入框，Enter 只存这一项（对话框不关）；旧地址马上 404。
+  const endpointNow = async () =>
+    (await rpc('trigger/list', { workflow: NAME2 })).triggers.find((item) => item.node === 'hook')
+      ?.endpoint
+  await session.evaluate(clickTestId('wl-trigger-hook'))
+  await waitFor(session, has('wl-trigger-hook-input'))
+  await setReactInput(session, '[data-testid="wl-trigger-hook-input"]', 'a/b')
+  await pressKey(session, 'Enter')
+  await sleep(300)
+  const hookError = await session.evaluate(textOf('[data-testid="wl-trigger-hook-note"]'))
+  check(
+    '地址写得不对当场说，不发出去',
+    /只能用/u.test(hookError) && (await endpointNow())?.hook === NAME2,
+    hookError,
+  )
+  await setReactInput(session, '[data-testid="wl-trigger-hook-input"]', 'ci-通知')
+  await pressKey(session, 'Enter')
+  await waitFor(session, `!(${has('wl-trigger-hook-input')})`)
+  const renamed = await endpointNow()
+  check(
+    '改地址：存下来，Enter 不关对话框',
+    renamed?.hook === 'ci-通知' &&
+      (await session.evaluate(has('wl-trigger-source-dialog'))) &&
+      (await session.evaluate(textOf('[data-testid="wl-trigger-url"]'))).endsWith(
+        '/trigger/ci-通知',
+      ),
+    JSON.stringify(renamed),
+  )
+  await sleep(6000)
+  const oldGone = await fetch(url, { method: 'POST', headers: { authorization: 'Bearer x' } })
+  const newThere = await fetch(renamed?.url ?? '', {
+    method: 'POST',
+    headers: { authorization: 'Bearer x' },
+  })
+  check(
+    '旧地址 404，新地址在（令牌不对 401）',
+    oldGone.status === 404 && newThere.status === 401,
+    `${oldGone.status} / ${newThere.status}`,
+  )
+  // Esc 只收起这一项，不关对话框。
+  await session.evaluate(clickTestId('wl-trigger-hook'))
+  await waitFor(session, has('wl-trigger-hook-input'))
+  await pressKey(session, 'Escape')
+  await sleep(300)
+  check(
+    'Esc 收起改地址，对话框还在',
+    !(await session.evaluate(has('wl-trigger-hook-input'))) &&
+      (await session.evaluate(has('wl-trigger-source-dialog'))),
+  )
+  // 自己写令牌：太短当场说；写对了存下来。
+  await session.evaluate(clickTestId('wl-trigger-token-edit'))
+  await waitFor(session, has('wl-trigger-token-edit-input'))
+  await setReactInput(session, '[data-testid="wl-trigger-token-edit-input"]', 'short')
+  await pressKey(session, 'Enter')
+  await sleep(300)
+  const tokenError = await session.evaluate(textOf('[data-testid="wl-trigger-token-edit-note"]'))
+  check('令牌太短当场说', /至少 16/u.test(tokenError), tokenError)
+  await setReactInput(
+    session,
+    '[data-testid="wl-trigger-token-edit-input"]',
+    'my-own-token-for-ci-2026',
+  )
+  await capture(session, 'http-edit-token-light.png')
+  await pressKey(session, 'Enter')
+  await waitFor(session, `!(${has('wl-trigger-token-edit-input')})`)
+  check('自己写的令牌存下来了', (await endpointNow())?.token === 'my-own-token-for-ci-2026')
+
+  // 换触发源：对话框里 HTTP 换成条件轮询，出现命令框；保存后卡片上的字跟着变。
   await session.evaluate(clickTestId('wl-trigger-source-poll'))
-  await sleep(1500)
+  await sleep(800)
   const commandBox = await session.evaluate(
     `document.querySelector('[data-testid="wl-trigger-command"]') !== null`,
   )
   check('换成条件轮询后出现命令框', commandBox)
+  check(
+    '没写命令时「保存」按不了',
+    await session.evaluate(
+      `document.querySelector('[data-testid="wl-trigger-source-dialog-save"]').disabled === true`,
+    ),
+  )
+  await setReactInput(session, '[data-testid="wl-trigger-command"]', 'git ls-remote origin main')
+  await sleep(300)
+  await session.evaluate(clickTestId('wl-trigger-source-dialog-save'))
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-trigger-source-dialog"]') === null`,
+  )
+  await sleep(1500)
   const hookText = await session.evaluate(textOf(HOOK))
   check(
     '卡片写着每 5 分钟、命令成功时，是主动的',
@@ -669,7 +858,21 @@ try {
     },
     baseHash: upstream.hash,
   })
-  await session.evaluate(clickTestId('wl-trigger-source-after'))
+  // 卡头「轮询 ▾」换成「接续」：直接换、不弹对话框；还没选工作流，「编辑」变成「选工作流」。
+  await mouseClick(session, await centerOf(session, '[data-testid="wl-trigger-pick"]'))
+  await waitFor(session, has('wl-trigger-pick-after'))
+  await sleep(500)
+  await capture(session, 'kind-menu-light.png')
+  await session.evaluate(clickTestId('wl-trigger-pick-after'))
+  await sleep(800)
+  check('换触发方式不弹对话框', !(await session.evaluate(has('wl-trigger-source-dialog'))))
+  const fixLabel = await session.evaluate(textOf('[data-testid="wl-trigger-when-edit"]'))
+  check('没选工作流时按钮写「选工作流」', fixLabel === '选工作流', fixLabel)
+  const missingDetail = await session.evaluate(textOf('[data-testid="wl-trigger-when-detail"]'))
+  check('卡里提示选好工作流才能打开', /选好要等的工作流/.test(missingDetail), missingDetail)
+  await capture(session, 'when-missing-light.png')
+  await session.evaluate(clickTestId('wl-trigger-when-edit'))
+  await waitFor(session, has('wl-trigger-source-dialog'))
   await sleep(800)
   await session.evaluate(clickTestId('wl-trigger-after'))
   await sleep(400)
@@ -684,7 +887,14 @@ try {
   await session.evaluate(clickTestId(`wl-trigger-after-${NAME}`))
   await sleep(400)
   await session.evaluate(clickTestId('wl-trigger-after-when-any'))
-  await sleep(600)
+  await sleep(400)
+  await capture(session, 'after-dialog-light.png')
+  await session.evaluate(clickTestId('wl-trigger-source-dialog-save'))
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-trigger-source-dialog"]') === null`,
+  )
+  await sleep(800)
   const afterCard = await session.evaluate(textOf(HOOK))
   check(
     '卡片写着等「夜间巡检」、不论结果，是被动的',
@@ -692,7 +902,7 @@ try {
     afterCard,
   )
   const filterGone = await session.evaluate(
-    `document.querySelector('[data-testid="wl-trigger-filter"]') === null`,
+    `document.querySelector('[data-testid="wl-trigger-filter-edit"]') === null`,
   )
   check('接续触发没有过滤', filterGone)
   await capture(session, 'after-panel-light.png')
@@ -774,7 +984,7 @@ try {
   check('右栏列出选中卡片的触发记录', historyRows >= 1, String(historyRows))
   const facts = await session.evaluate(textOf('[data-testid="wl-hub-trg-facts"]'))
   check(
-    '右栏有何时触发、会话、工作区的摘要',
+    '右栏有触发方式、会话、工作区的摘要',
     /跑完后/.test(facts) && /新建会话/.test(facts) && /工作区/.test(facts),
     facts,
   )
@@ -824,6 +1034,40 @@ try {
   const resumed = await rpc('trigger/all', {})
   check('恢复：不再暂停', resumed.paused === undefined, JSON.stringify(resumed.paused))
 
+  // 设置：监听地址换成所有网卡要先确认；取消不改，允许后保存，卡片上的网址跟着换。
+  await session.evaluate(clickTestId('wl-hub-settings'))
+  await waitFor(session, has('wl-cfg-triggerHost'))
+  await session.evaluate(clickTestId('wl-cfg-triggerHost'))
+  await waitFor(session, has('wl-cfg-triggerHost-0.0.0.0'))
+  await session.evaluate(clickTestId('wl-cfg-triggerHost-0.0.0.0'))
+  await waitFor(session, has('wl-cfg-triggerHost-confirm-pop'))
+  await sleep(400)
+  await capture(session, 'settings-host-confirm-light.png')
+  await session.evaluate(
+    `document.querySelector('[data-testid="wl-cfg-triggerHost-confirm-pop"] [data-confirm="cancel"]').click()`,
+  )
+  await sleep(400)
+  check(
+    '取消：监听地址不变，没有待保存的改动',
+    !(await session.evaluate(has('wl-cfg-bar'))) &&
+      /127\.0\.0\.1/u.test(await session.evaluate(textOf('[data-testid="wl-cfg-triggerHost"]'))),
+  )
+  await session.evaluate(clickTestId('wl-cfg-triggerHost'))
+  await waitFor(session, has('wl-cfg-triggerHost-0.0.0.0'))
+  await session.evaluate(clickTestId('wl-cfg-triggerHost-0.0.0.0'))
+  await waitFor(session, has('wl-cfg-triggerHost-confirm'))
+  await sleep(300)
+  await session.evaluate(clickTestId('wl-cfg-triggerHost-confirm'))
+  await waitFor(session, has('wl-cfg-save'))
+  await session.evaluate(clickTestId('wl-cfg-save'))
+  await waitFor(session, `!(${has('wl-cfg-bar')})`)
+  const hostConfig = await rpc('config/get', {})
+  check('允许并保存后监听地址是 0.0.0.0', hostConfig.values.triggerHost === '0.0.0.0')
+  // 卡片上的网址换成网卡地址、所有网卡时本机照样连得上：这时已没有开着的 HTTP 卡片，见单测。
+  await session.evaluate(clickTestId('wl-hub-triggers'))
+  await waitFor(session, has('wl-hub-trg-page'))
+  await sleep(600)
+
   // 行尾的开关就是卡片的开关。
   const hookSwitch = `${hookRow} ~ [data-testid="wl-hub-trg-switch"]`
   await session.evaluate(`document.querySelector('${hookSwitch}').click()`)
@@ -855,7 +1099,7 @@ try {
   await rpc('trigger/pause', { paused: false }).catch(() => {})
   await rpc('config/set', {
     revision: (await rpc('config/get', {})).revision,
-    reset: ['triggerPort'],
+    reset: ['triggerPort', 'triggerHost'],
   }).catch(() => {})
 
   // 宿主侧栏自己的一条不算：触发新建的会话出现在侧栏时，它偶尔会报一次打开失败（不是本插件的代码）。

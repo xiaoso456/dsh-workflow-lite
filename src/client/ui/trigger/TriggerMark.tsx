@@ -2,15 +2,19 @@
  * dsh-workflow-lite — 触发源的图标块：画布上的触发卡片、工作流中心「触发」页里认一种触发源的那个小色块。
  *
  * 和步骤的图标块（kit/StepMark）同一种样子（`ui.kind`）：每种触发源一个图标、一种颜色。
+ * 「主动 ↗ / 被动 ↙」小标（{@link ModeChip}）也在这里：画布卡片的底行、面板「触发方式」的卡头共用。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/trigger/TriggerMark
  */
 
 import type { StepColor } from '../../../shared/appearance.ts'
 import type { TriggerSourceKind } from '../../../shared/types.ts'
+import type { T } from '../../i18n.ts'
+import { triggerMode } from '../../model/triggerGlance.ts'
 import { cx } from '../kit/cx.ts'
 import { Icon, type IconName } from '../kit/Icon.tsx'
 import ui from '../kit/ui.module.css'
+import css from './triggerMark.module.css'
 
 /** 每种触发源的图标。 */
 export const TRIGGER_ICON: Record<TriggerSourceKind, IconName> = {
@@ -46,6 +50,28 @@ export function TriggerMark(props: {
       data-trigger-kind={props.kind}
     >
       <Icon name={TRIGGER_ICON[props.kind]} size={props.size ?? 15} />
+    </span>
+  )
+}
+
+/** 「主动 ↗」/「被动 ↙」小标：主动往外（插件自己去做），被动往里（等外面的事进来）。颜色跟着触发源。 */
+export function ModeChip(props: {
+  t: T
+  kind: TriggerSourceKind
+  testId?: string
+}): React.JSX.Element {
+  const { t } = props
+  const mode = triggerMode(props.kind)
+  return (
+    <span
+      className={css.mode}
+      style={{ '--wl-kind': triggerTint(props.kind) } as React.CSSProperties}
+      data-mode={mode}
+      data-tip={t(mode === 'active' ? 'trigger.mode.activeTip' : 'trigger.mode.passiveTip')}
+      data-testid={props.testId}
+    >
+      <Icon name={mode === 'active' ? 'arrowOut' : 'arrowIn'} size={10} />
+      {t(mode === 'active' ? 'trigger.mode.active' : 'trigger.mode.passive')}
     </span>
   )
 }

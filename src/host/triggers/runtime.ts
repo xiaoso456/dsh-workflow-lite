@@ -13,7 +13,7 @@
 
 import type { FilterKind, FilterSettings } from '../../shared/trigger.ts'
 import type { TriggerSource } from '../../shared/types.ts'
-import { type HookPortState, type HookRoute, HookServer } from './hooks.ts'
+import { type HookBind, type HookPortState, type HookRoute, HookServer } from './hooks.ts'
 import { Intake, type IntakeBatch } from './intake.ts'
 import { Listener } from './listener.ts'
 import { type PollCheck, Poller, type Probe } from './poller.ts'
@@ -36,7 +36,7 @@ export interface LiveSpec {
   env?: Record<string, string>
   /** 条件轮询：上一次检查的结果。 */
   probe?: Probe
-  /** HTTP：地址号与令牌。 */
+  /** HTTP：地址（`/trigger/` 后面那一段）与令牌。 */
   hook?: { id: string; token: string }
 }
 
@@ -61,8 +61,8 @@ export interface RuntimeEvents {
 export interface RuntimeDeps {
   store: TriggerStore
   events: RuntimeEvents
-  /** 插件设置里的触发端口。 */
-  port(): number
+  /** 插件设置里 HTTP 触发的监听地址与端口。 */
+  listen(): HookBind
   /** 写进运行情况的进程号（与负责权里的对得上才作数）。 */
   pid?: number
   now?: () => number
@@ -159,7 +159,7 @@ export class TriggerRuntime implements LiveRuntime {
         routes.set(spec.hook.id, { token: spec.hook.token, accept: (body) => intake.push(body) })
       }
     }
-    await this.hooks.sync(this.deps.port(), routes)
+    await this.hooks.sync(this.deps.listen(), routes)
   }
 
   /** 全部停下（不再负责触发、插件卸载）。运行情况文件留给接手的进程覆盖。 */

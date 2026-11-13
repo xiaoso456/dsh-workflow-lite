@@ -141,10 +141,10 @@ export function Launch(props: LaunchProps): React.JSX.Element {
             <div className={ui.menuSep} />
           </>
         )}
-        <div className={shared.search}>
+        <div className={ui.menuSearch}>
           <Icon name="search" size={14} />
           <input
-            className={shared.searchInput}
+            className={ui.menuSearchInput}
             value={query}
             placeholder={t('launch.search')}
             aria-label={t('launch.search')}
@@ -155,7 +155,7 @@ export function Launch(props: LaunchProps): React.JSX.Element {
           />
         </div>
         <div className={css.list} role="listbox" aria-label={t('launch.pick')}>
-          {filtered.length === 0 && <p className={shared.emptyLine}>{t('launch.none')}</p>}
+          {filtered.length === 0 && <p className={ui.menuEmpty}>{t('launch.none')}</p>}
           {filtered.map((row) => (
             <button
               key={row.id}

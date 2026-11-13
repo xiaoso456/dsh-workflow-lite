@@ -31,8 +31,12 @@ export interface TriggerChange {
   session?: string
   /** 确认要运行的命令：原样带上用户看到的那条。 */
   approve?: string
-  /** HTTP 触发换一个新令牌。 */
+  /** HTTP 触发换一个随机的新令牌。 */
   resetToken?: true
+  /** HTTP 触发：自己写的地址（`/trigger/` 后面那一段）。 */
+  hook?: string
+  /** HTTP 触发：自己写的令牌。 */
+  token?: string
 }
 
 export interface Triggers {

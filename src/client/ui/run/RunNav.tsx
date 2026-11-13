@@ -139,10 +139,10 @@ export function RunNav(props: {
         </button>
       }
     >
-      <div className={top.search}>
+      <div className={ui.menuSearch}>
         <Icon name="search" size={14} />
         <input
-          className={top.searchInput}
+          className={ui.menuSearchInput}
           value={query}
           placeholder={t('run.navSearch')}
           aria-label={t('run.navSearch')}
@@ -206,9 +206,7 @@ export function RunNav(props: {
             })}
           </div>
         ))}
-        {groups.length === 0 && !showOverview && (
-          <p className={top.emptyLine}>{t('run.navNone')}</p>
-        )}
+        {groups.length === 0 && !showOverview && <p className={ui.menuEmpty}>{t('run.navNone')}</p>}
       </div>
     </Popover>
   )

@@ -103,6 +103,6 @@ describe('RPC 目标', () => {
     // 七条导入导出（pack/scan · export · read · upload · inspect · apply · discard）、
     // 五条导出成 skill（skillPreview · skillExport · skillDir · skillFile · skillImage）、
     // 七条触发（trigger/list · set · fire · history · output · all · pause）。
-    expect(names).toHaveLength(69)
+    expect(names).toHaveLength(70)
   })
 })

@@ -30,8 +30,9 @@ export async function dispatchTrigger(
   payload: unknown,
 ): Promise<RpcResult<unknown>> {
   const input = asRecord(payload)
-  // 这两条不针对某一个工作流。
+  // 这几条不针对某一个工作流。
   if (endpoint === 'trigger/all') return ok(await deps.triggers.all())
+  if (endpoint === 'trigger/http') return ok(await deps.triggers.httpStatus())
   if (endpoint === 'trigger/pause') {
     if (typeof input.paused !== 'boolean') throw new Error('paused must be a boolean')
     return ok(await deps.triggers.pause(input.paused))
@@ -51,6 +52,9 @@ export async function dispatchTrigger(
       const workspace = clearableString(input, 'workspace')
       const session = clearableString(input, 'session')
       const approve = clearableString(input, 'approve')
+      // 空串也送进去：由服务说「地址不能为空」，不悄悄当没给。
+      const hook = typeof input.hook === 'string' ? input.hook : undefined
+      const token = typeof input.token === 'string' ? input.token : undefined
       const outcome = await deps.triggers.set({
         workflow,
         node: requireString(input, 'node'),
@@ -59,6 +63,8 @@ export async function dispatchTrigger(
         ...(session === undefined ? {} : { session }),
         ...(approve === undefined ? {} : { approve }),
         ...(input.resetToken === true ? { resetToken: true as const } : {}),
+        ...(hook === undefined ? {} : { hook }),
+        ...(token === undefined ? {} : { token }),
       })
       if (!outcome.ok) return failFrom(outcome.error)
       return ok(outcome.result)
