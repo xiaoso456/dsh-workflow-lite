@@ -1,15 +1,25 @@
 /**
- * dsh-workflow-lite — 触发卡片面板里的一行摘要（SummaryRow）：和面板里的开关行同一种框（描边、圆角、悬停底色）。
+ * dsh-workflow-lite — 触发卡片面板里的摘要列表（SummaryList / SummaryRow）：
+ * 一组一个框，里面一项一行「名字 | 值 | 铅笔」，项之间只隔一条细线；名字一列各行对齐（subgrid）。
  */
 
-.row {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  width: 100%;
-  padding: 8px 8px 8px 10px;
+.list {
+  display: grid;
+  grid-template-columns: fit-content(42%) minmax(0, 1fr) auto;
+  overflow: hidden;
   border: 1px solid var(--wl-line);
   border-radius: var(--wl-r-control);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+  column-gap: 12px;
+  align-items: center;
+  min-height: 36px;
+  padding: 6px 6px 6px 10px;
+  border: 0;
   background: transparent;
   color: var(--wl-text);
   font: inherit;
@@ -18,38 +28,34 @@
   transition: background-color 120ms linear;
 }
 
+.row + .row {
+  border-top: 1px solid var(--wl-line);
+}
+
 .row:hover {
   background: var(--wl-hover);
 }
 
 .row:focus-visible {
   outline: 2px solid var(--wl-accent);
-  outline-offset: 1px;
-}
-
-.text {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
+  outline-offset: -2px;
 }
 
 .title {
+  color: var(--wl-text-2);
   font-size: var(--wl-fs-meta);
-  font-weight: 600;
+  overflow-wrap: anywhere;
 }
 
 .summary {
   overflow: hidden;
-  color: var(--wl-text-2);
-  font-size: var(--wl-fs-micro);
+  font-size: var(--wl-fs-meta);
   line-height: 1.5;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* 两行的（触发条件、触发说明）：多出来的省略掉。 */
+/* 两行的（触发条件、触发说明、保护）：多出来的省略掉。 */
 .two {
   display: -webkit-box;
   white-space: normal;
@@ -58,6 +64,7 @@
   -webkit-line-clamp: 2;
 }
 
+/* 没设置的：浅字，让设置过的那几项显出来。 */
 .summary[data-blank] {
   color: var(--wl-text-3);
 }
@@ -65,12 +72,11 @@
 /* 右端的铅笔：平时淡，悬停整行时亮起来（只动 opacity）。 */
 .edit {
   display: grid;
-  flex: none;
   place-items: center;
   width: 24px;
   height: 24px;
   color: var(--wl-text-2);
-  opacity: 0.55;
+  opacity: 0.4;
   transition: opacity 120ms linear;
 }
 
@@ -86,9 +92,9 @@
   }
 }
 
-/* 瑞士：框只留底线。 */
-:global([data-look="swiss"]) .row {
-  border-width: 0 0 1px;
+/* 瑞士：列表只留上下线。 */
+:global([data-look="swiss"]) .list {
+  border-width: 1px 0;
   border-color: var(--wl-line-strong);
   border-radius: 0;
 }

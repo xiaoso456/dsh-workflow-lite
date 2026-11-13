@@ -21,7 +21,7 @@ import { Select } from '../kit/Select.tsx'
 import { FieldHead, HelpText } from '../panel/FieldHead.tsx'
 import ins from '../panel/panel.module.css'
 import { GuardDialog } from './dialogs/GuardDialog.tsx'
-import { SummaryRow } from './SummaryRow.tsx'
+import { SummaryList, SummaryRow } from './SummaryRow.tsx'
 import css from './trigger.module.css'
 import type { LaunchField as Missing, TriggerEnv } from './triggerEnv.ts'
 
@@ -187,14 +187,16 @@ export function LaunchField(props: {
         </p>
       )}
 
-      <SummaryRow
-        title={t('trigger.guard')}
-        summary={guardSummary(t, launch)}
-        lines={2}
-        editLabel={t('trigger.edit')}
-        testId="wl-trigger-guard"
-        onEdit={() => setGuard(true)}
-      />
+      <SummaryList>
+        <SummaryRow
+          title={t('trigger.guard')}
+          summary={guardSummary(t, launch)}
+          lines={2}
+          editLabel={t('trigger.edit')}
+          testId="wl-trigger-guard"
+          onEdit={() => setGuard(true)}
+        />
+      </SummaryList>
       {guard && (
         <GuardDialog
           t={t}

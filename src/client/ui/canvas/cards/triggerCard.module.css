@@ -63,7 +63,7 @@
   min-width: 0;
 }
 
-/* 速览外面那层按钮（卡片选中后点了打开「何时触发」）：自己不占样子；选中时悬停描一圈触发源的颜色、换手形。 */
+/* 速览外面那层按钮（卡片选中后点了打开「何时触发」）：自己不占样子；选中时悬停把速览的底色换深一档、换手形。 */
 .glanceHit {
   display: block;
   width: 100%;
@@ -82,8 +82,7 @@
 }
 
 .glanceHit[data-armed="true"]:hover {
-  outline: 1px solid color-mix(in srgb, var(--wl-kind) 55%, transparent);
-  outline-offset: 0;
+  --wl-glance-bg: var(--wl-fill-strong);
 }
 
 /* 底行：「主动 / 被动」小标 + 状态。字比标题、速览都小。 */

@@ -73,6 +73,19 @@ describe('触发面板的摘要', () => {
     })
   })
 
+  it('触发方式的第二行：HTTP 有了地址写谁能访问，没有地址、接续不写', () => {
+    const now = new Date()
+    const http = { kind: 'http' } as const
+    expect(whenDetail(t, http, {}, now).text).toBe('')
+    expect(whenDetail(t, http, { url: 'http://127.0.0.1:3791/trigger/ci' }, now).text).toBe(
+      '只有这台电脑上的程序能访问',
+    )
+    expect(whenDetail(t, http, { url: 'http://192.168.1.5:3791/trigger/ci' }, now).text).toBe(
+      '同一网络里的其他机器也能访问',
+    )
+    expect(whenDetail(t, { kind: 'after', workflow: '夜间巡检' }, {}, now).text).toBe('')
+  })
+
   it('还差东西时：缺命令、缺工作流不重复速览的红字，规则写错用红字；按钮换成补上的那件事', () => {
     const now = new Date()
     const noCommand = { kind: 'listen', command: '' } as const

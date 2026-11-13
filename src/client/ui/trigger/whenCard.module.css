@@ -7,7 +7,7 @@
 
 .card {
   border: 1px solid var(--wl-line);
-  border-radius: calc(12px * var(--wl-round, 1));
+  border-radius: var(--wl-r-control);
   background: var(--wl-panel);
 }
 
@@ -15,7 +15,7 @@
   display: flex;
   gap: 8px;
   align-items: center;
-  padding: 9px 9px 0 10px;
+  padding: 8px 6px 0 10px;
 }
 
 /* 「定时 ▾」：看起来是卡片的标题，悬停才显出是个按钮。 */
@@ -57,33 +57,84 @@
   transform: rotate(180deg);
 }
 
-/* 没缺东西时「编辑」是不带框的按钮；缺东西时换成主按钮（ui.primary）。 */
+/* 没缺东西时是一支不带框的铅笔（和下面摘要列表行尾的同一个样子）；缺东西时换成带字的主按钮（ui.primary）。 */
 .edit {
+  border-color: transparent;
+  background: transparent;
+  color: var(--wl-text-2);
+  opacity: 0.4;
+  transition: opacity 120ms linear;
+}
+
+.edit:hover,
+.edit:focus-visible,
+.card:hover .edit {
+  opacity: 1;
+}
+
+/* 速览一行 + 行尾的复制。 */
+.glanceRow {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+/* 速览整行是个按钮（点开对话框）：悬停时速览的底色深一档（和下面摘要列表行的悬停一个路数）。 */
+.glanceHit {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: calc(7px * var(--wl-round, 1));
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.glanceHit:hover {
+  --wl-glance-bg: var(--wl-fill-strong);
+}
+
+.glanceHit:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+.copy {
+  flex: none;
   border-color: transparent;
   background: transparent;
   color: var(--wl-text-2);
 }
 
-.edit:hover {
-  color: var(--wl-text);
+.copy:disabled {
+  opacity: 0.35;
 }
 
 .body {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 8px 10px 9px;
+  padding: 8px 10px 10px;
 }
 
+/* 左边和速览里的字对齐（速览左内边距 9px）。没话说时不占地方（元素一直挂着，只换字）。 */
 .detail {
-  min-height: 1.5em;
   margin: 0;
+  padding: 0 9px;
   overflow: hidden;
   color: var(--wl-text-3);
   font-size: var(--wl-fs-micro);
   line-height: 1.5;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.detail:empty {
+  display: none;
 }
 
 .detail[data-tone="code"] {
@@ -152,7 +203,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .kind,
-  .chevron {
+  .chevron,
+  .edit {
     transition: none;
   }
 }

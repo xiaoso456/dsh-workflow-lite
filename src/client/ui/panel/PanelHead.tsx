@@ -7,12 +7,12 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/panel/PanelHead
  */
 
-import { useEffect, useState } from 'react'
 import type { T } from '../../i18n.ts'
 import { copyText } from '../kit/clipboard.ts'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import ui from '../kit/ui.module.css'
+import { useCopied } from '../kit/useCopied.ts'
 import { SwapIcon } from '../motion/swapText.tsx'
 import shared from './panel.module.css'
 import css from './panelHead.module.css'
@@ -54,10 +54,7 @@ export function PanelHead(props: {
 
 function IdLine(props: { t: T; id: string }): React.JSX.Element {
   const { t, id } = props
-  const [copied, setCopied] = useState(false)
-  useEffect(() => {
-    setCopied(false)
-  }, [id])
+  const [copied, setCopied] = useCopied(id)
   return (
     <button
       type="button"

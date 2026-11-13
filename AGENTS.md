@@ -11,7 +11,7 @@
 | 命令 | 作用 |
 |---|---|
 | `pnpm install` | 安装依赖 |
-| `pnpm run build` | 构建 `lib/`（改了前端或主机代码，测试实例要重启才看得到） |
+| `pnpm run build` | 构建 `lib/`（只改前端：构建后刷新页面即可；改了主机代码，测试实例要重启才看得到） |
 | `pnpm run typecheck` / `lint` / `pnpm test` | 类型检查 / biome / vitest |
 | `pnpm run hero` | 重做 README 封面图 |
 | `pnpm run timeline` | 重做 README 版本线 |

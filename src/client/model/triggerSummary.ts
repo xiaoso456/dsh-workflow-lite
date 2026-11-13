@@ -7,6 +7,7 @@
 
 import { nextFire } from '../../shared/schedule.ts'
 import { type FilterSettings, type LaunchSettings, sourceIssue } from '../../shared/trigger.ts'
+import { isLoopbackHost } from '../../shared/triggerHttp.ts'
 import type { TriggerSource } from '../../shared/types.ts'
 import type { LocaleKey, T } from '../i18n.ts'
 import { momentText, sourceIssueText } from './triggerText.ts'
@@ -51,13 +52,14 @@ export interface WhenDetail {
  * 「触发方式」卡片速览下面那一行，补速览没说的：
  * - 定时：下一次什么时候（「每隔」开着时以宿主排的为准，`live.next`）；
  * - 轮询：要跑的命令；监听：速览在显示程序打出的行时写命令，否则一句怎么触发；
- * - HTTP、接续：一句怎么触发；
+ * - HTTP：有了地址之后写谁能访问（只有这台电脑 / 同一网络里的机器也行）；怎么触发在换方式的菜单里说过，不重复；
+ * - 接续：速览已经说全了，不写；
  * - 没写命令、没选工作流：速览已经红着说了，这里说「补上才能打开」；别的写错（规则、间隔）在这里用红字说。
  */
 export function whenDetail(
   t: T,
   source: TriggerSource,
-  live: { next?: number | undefined; line?: string | undefined },
+  live: { next?: number | undefined; line?: string | undefined; url?: string | undefined },
   now: Date,
 ): WhenDetail {
   const issue = sourceIssue(source)
@@ -84,10 +86,16 @@ export function whenDetail(
         ? { text: t('trigger.detail.listen'), tone: 'plain' }
         : { text: source.command, tone: 'code' }
     case 'http':
-      return { text: t('trigger.detail.http'), tone: 'plain' }
+      return { text: live.url === undefined ? '' : reachText(t, live.url), tone: 'plain' }
     case 'after':
-      return { text: t('trigger.detail.after'), tone: 'plain' }
+      return { text: '', tone: 'plain' }
   }
+}
+
+/** HTTP 触发的地址谁能访问。 */
+function reachText(t: T, url: string): string {
+  const host = URL.canParse(url) ? new URL(url).hostname : ''
+  return t(isLoopbackHost(host) ? 'trigger.detail.httpLocal' : 'trigger.detail.httpLan')
 }
 
 /** 规则还差什么时「触发方式」卡头那个按钮写什么（没问题时是「编辑」）。 */

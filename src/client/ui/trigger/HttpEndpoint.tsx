@@ -27,6 +27,7 @@ import { copyText } from '../kit/clipboard.ts'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import ui from '../kit/ui.module.css'
+import { useCopied } from '../kit/useCopied.ts'
 import { SwapIcon } from '../motion/swapText.tsx'
 import ins from '../panel/panel.module.css'
 import css from './trigger.module.css'
@@ -346,13 +347,4 @@ function CopyIcon(props: { t: T; text: string; testId: string }): React.JSX.Elem
       <SwapIcon name={copied ? 'check' : 'copy'} size={13} />
     </button>
   )
-}
-
-/** 「已复制」：复制的东西换了就回到没复制。 */
-function useCopied(text: string): [boolean, (ok: boolean) => void] {
-  const [copied, setCopied] = useState(false)
-  useEffect(() => {
-    setCopied(false)
-  }, [text])
-  return [copied, setCopied]
 }

@@ -35,7 +35,7 @@ import { TitleField } from '../panel/TitleField.tsx'
 import { FilterDialog } from './dialogs/FilterDialog.tsx'
 import { NotesDialog, type NotesField } from './dialogs/NotesDialog.tsx'
 import { LaunchField } from './LaunchField.tsx'
-import { SummaryRow } from './SummaryRow.tsx'
+import { SummaryList, SummaryRow } from './SummaryRow.tsx'
 import { TriggerLog, TriggerStatus } from './TriggerStatus.tsx'
 import { useTriggerEnv } from './triggerEnv.ts'
 import { WhenCard } from './WhenCard.tsx'
@@ -122,33 +122,35 @@ export function TriggerPanel(props: TriggerPanelProps): React.JSX.Element {
             单独一组、带组标题，不和上面「触发方式」那张卡看成一组。 */}
         <section className={ins.field} data-testid="wl-trigger-notes">
           <FieldHead title={t('trigger.afterFire')} />
-          {isFilterKind(data.source.kind) && (
+          <SummaryList>
+            {isFilterKind(data.source.kind) && (
+              <SummaryRow
+                title={t('trigger.filter')}
+                summary={filterSummary(t, filterOf(data))}
+                editLabel={t('trigger.edit')}
+                testId="wl-trigger-filter-edit"
+                onEdit={() => setDialog({ kind: 'filter' })}
+              />
+            )}
             <SummaryRow
-              title={t('trigger.filter')}
-              summary={filterSummary(t, filterOf(data))}
+              title={t('trigger.condition')}
+              summary={data.condition ?? ''}
+              empty={t('trigger.conditionEmpty')}
+              lines={2}
               editLabel={t('trigger.edit')}
-              testId="wl-trigger-filter-edit"
-              onEdit={() => setDialog({ kind: 'filter' })}
+              testId="wl-trigger-condition-edit"
+              onEdit={() => setDialog({ kind: 'notes', focus: 'condition' })}
             />
-          )}
-          <SummaryRow
-            title={t('trigger.condition')}
-            summary={data.condition ?? ''}
-            empty={t('trigger.conditionEmpty')}
-            lines={2}
-            editLabel={t('trigger.edit')}
-            testId="wl-trigger-condition-edit"
-            onEdit={() => setDialog({ kind: 'notes', focus: 'condition' })}
-          />
-          <SummaryRow
-            title={t('trigger.note')}
-            summary={data.note ?? ''}
-            empty={t('trigger.noteEmpty')}
-            lines={2}
-            editLabel={t('trigger.edit')}
-            testId="wl-trigger-note-edit"
-            onEdit={() => setDialog({ kind: 'notes', focus: 'note' })}
-          />
+            <SummaryRow
+              title={t('trigger.note')}
+              summary={data.note ?? ''}
+              empty={t('trigger.noteEmpty')}
+              lines={2}
+              editLabel={t('trigger.edit')}
+              testId="wl-trigger-note-edit"
+              onEdit={() => setDialog({ kind: 'notes', focus: 'note' })}
+            />
+          </SummaryList>
         </section>
 
         <LaunchField
