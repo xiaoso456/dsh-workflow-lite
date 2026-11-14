@@ -1,6 +1,7 @@
 /**
  * dsh-workflow-lite — 定时触发的规则：每隔多久 / 每天几点（可以几个时刻、可限定星期几）/ 五段 cron。
  *
+ * 先选规则，下面一行是这种规则的常用值（`source/SchedulePresets.tsx`），再下面是这种规则自己的几行。
  * 换一种：这一张面板开着时那一种填过的先记着，换回来还在，没填过的给常用值。
  * 规则的一句人话、写得不对的原因、接下来 7 天都不在这里：对话框顶上的一句话和时间轴（见 `source/ScheduleStage.tsx`）。
  *
@@ -29,6 +30,7 @@ import { useResizeFlip } from '../motion/flip.ts'
 import { useRowKeys } from '../motion/stage.tsx'
 import { CronEditor } from './CronEditor.tsx'
 import css from './schedule.module.css'
+import { SchedulePresets } from './source/SchedulePresets.tsx'
 import row from './trigger.module.css'
 
 type Kind = TriggerSchedule['kind']
@@ -100,6 +102,10 @@ export function ScheduleField(props: {
             options={KINDS.map((kind) => ({ value: kind.value, label: t(kind.label) }))}
           />
         </div>
+      </div>
+      <div className={row.row}>
+        <span className={row.lead}>{t('trigger.presets')}</span>
+        <SchedulePresets t={t} schedule={schedule} onChange={props.onChange} />
       </div>
       {/* 三种各一块：换一种时旧的收起、新的长开（高度连续变），下面的东西顺势挪，不是一下跳开。 */}
       <div className={css.kindRows}>

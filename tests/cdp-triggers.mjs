@@ -509,6 +509,8 @@ try {
     `['wl-trigger-day-6','wl-trigger-day-7'].every((id) => document.querySelector('[data-testid="' + id + '"]').getAttribute('aria-checked') === 'true') && document.querySelector('[data-testid="wl-trigger-day-1"]').getAttribute('aria-checked') === 'false'`,
   )
   check('点「周末」只亮六、日', weekendOn === true)
+  const customOf = `document.querySelector('[data-testid="wl-trigger-preset-custom-daily"]').dataset.on`
+  check('对不上任何常用规则时「自定义」亮着', (await session.evaluate(customOf)) === 'true')
   // 常用规则：点「工作日 09:00」整条换掉，那一项按下去、星期只亮一到五。
   await session.evaluate(clickTestId('wl-trigger-preset-workdays'))
   await sleep(400)
@@ -516,6 +518,7 @@ try {
     `document.querySelector('[data-testid="wl-trigger-preset-workdays"]').getAttribute('aria-pressed') === 'true' && document.querySelector('[data-testid="wl-trigger-day-1"]').getAttribute('aria-checked') === 'true' && document.querySelector('[data-testid="wl-trigger-day-6"]').getAttribute('aria-checked') === 'false'`,
   )
   check('点常用规则「工作日 09:00」：按下去、只亮一到五', presetOn === true)
+  check('选了常用规则后「自定义」灭了', (await session.evaluate(customOf)) === 'false')
   await capture(session, 'source-dialog-daily-light.png')
   // Cron：整条粘贴进一格就拆进五格、头部说人话；写错一格只那一格标红。
   await session.evaluate(clickTestId('wl-trigger-kind-cron'))

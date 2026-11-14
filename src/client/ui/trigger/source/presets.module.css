@@ -3,6 +3,20 @@
  * 选中不改宽度（不加对勾、不加粗）：点一下，旁边的胶囊不挪。
  */
 
+/* 定时的「常用」：三种规则各一排叠在同一格（SchedulePresets）。 */
+.stack {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
 .chip {
   position: relative;
   display: inline-flex;
@@ -43,12 +57,23 @@
   transition: opacity 180ms linear;
 }
 
-.chip[aria-pressed="true"]::before {
+.chip[aria-pressed="true"]::before,
+.chip[data-on="true"]::before {
   opacity: 1;
 }
 
-.chip:hover:not([aria-pressed="true"]) {
+.chip:hover:not([aria-pressed="true"], .tag) {
   --wl-off: var(--wl-text);
+}
+
+/* 「自定义」：只是个标记（规则对不上任何一条常用时亮），虚边、点不了。 */
+.tag {
+  border-style: dashed;
+  cursor: default;
+}
+
+.tag:active {
+  scale: none;
 }
 
 /* 字在选中层上面。 */

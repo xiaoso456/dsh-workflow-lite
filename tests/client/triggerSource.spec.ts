@@ -9,7 +9,7 @@ import { SAMPLE_BODY, SNIPPET_LANGS, snippetOf } from '../../src/client/model/ht
 import { fillSay, programName, sourceSay, spanText } from '../../src/client/model/triggerSay.ts'
 import { DAY_DOTS_MAX, WEEK_DAYS, weekOf } from '../../src/client/model/triggerWeek.ts'
 import { INTERVAL_STOPS, isStop } from '../../src/client/ui/trigger/source/IntervalField.tsx'
-import { SCHEDULE_PRESETS } from '../../src/client/ui/trigger/source/ScheduleStage.tsx'
+import { SCHEDULE_PRESETS } from '../../src/client/ui/trigger/source/SchedulePresets.tsx'
 import { scheduleIssue } from '../../src/shared/schedule.ts'
 import { POLL_MAX_SECONDS, POLL_MIN_SECONDS } from '../../src/shared/trigger.ts'
 
@@ -167,9 +167,15 @@ describe('间隔的常用档与常用规则', () => {
     }
   })
 
-  it('常用规则都写得对，id 不重复', () => {
-    for (const preset of SCHEDULE_PRESETS) expect(scheduleIssue(preset.schedule)).toBeNull()
-    const ids = SCHEDULE_PRESETS.map((preset) => preset.id)
+  it('常用规则都写得对、归在自己那种规则下，id 不重复', () => {
+    const all = Object.entries(SCHEDULE_PRESETS).flatMap(([kind, list]) =>
+      list.map((preset) => ({ kind, preset })),
+    )
+    for (const { kind, preset } of all) {
+      expect(scheduleIssue(preset.schedule)).toBeNull()
+      expect(preset.schedule.kind).toBe(kind)
+    }
+    const ids = all.map(({ preset }) => preset.id)
     expect(new Set(ids).size).toBe(ids.length)
   })
 })
