@@ -65,12 +65,6 @@
   align-items: center;
 }
 
-.numberInput {
-  width: 92px;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
 .unit {
   min-width: 28px;
   color: var(--wl-text-3);

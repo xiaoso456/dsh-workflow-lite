@@ -78,31 +78,12 @@
 }
 
 .timeBox {
-  position: relative;
   display: flex;
   flex: none;
 }
 
-.time {
-  width: 76px;
-  font-variant-numeric: tabular-nums;
-}
-
-/* 能去掉时给 ✕ 留出位置。 */
-.timeBox[data-removable="true"] .time {
-  width: 94px;
-  padding-right: 26px;
-}
-
-/* 浏览器自带的时钟图标和别处的图标不是一套：不要，直接打字或用上下键。 */
-.time::-webkit-calendar-picker-indicator {
-  display: none;
-}
-
+/* 有两个以上时刻时，钟后面跟一个 ✕。 */
 .timeRemove {
-  position: absolute;
-  top: 50%;
-  right: 4px;
   display: grid;
   place-items: center;
   width: 20px;
@@ -112,7 +93,6 @@
   border-radius: calc(5px * var(--wl-round, 1));
   background: transparent;
   color: var(--wl-text-3);
-  transform: translateY(-50%);
   cursor: pointer;
 }
 

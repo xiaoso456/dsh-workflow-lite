@@ -51,7 +51,10 @@
   outline-offset: -2px;
 }
 
-/* 中间的读数：一个能填的数字加一个不动的「%」，横排；悬停、聚焦时铺一层面板底，像一个小输入框。 */
+/*
+ * 中间的读数：一个能填的数字（后面可以跟一个不动的单位），横排；悬停、聚焦时铺一层面板底，像一个小输入框。
+ * 聚焦不描边：底色加上光标、选中的字已经够说明在改它了。
+ */
 .zoomValue {
   display: inline-flex;
   align-items: center;
@@ -75,7 +78,6 @@
 }
 
 .zoomValue:focus-within {
-  border-color: var(--wl-accent);
   background: var(--wl-panel);
 }
 
@@ -88,8 +90,13 @@
   background: transparent;
 }
 
+/* 数字居中；带单位时数字贴着单位（靠右）。 */
 .zoomInput {
-  width: 3.4ch;
+  width: calc(var(--digits, 3) * 1ch + 0.4ch);
+  text-align: center;
+}
+
+.zoomValue[data-unit] .zoomInput {
   text-align: right;
 }
 
@@ -99,6 +106,16 @@
 
 .zoomUnit[data-word] {
   margin-left: 3px;
+}
+
+/* 矮一号：和 26 高的胶囊、下拉排在一行。 */
+.zoom[data-compact] .zoomStep {
+  width: 22px;
+  height: 22px;
+}
+
+.zoom[data-compact] .zoomValue {
+  height: 22px;
 }
 
 /*
@@ -135,7 +152,7 @@
   pointer-events: none;
 }
 
-.zoomValue .rollShow {
+.zoomValue[data-unit] .rollShow {
   justify-content: flex-end;
 }
 
@@ -145,4 +162,70 @@
 
 .roll:focus-within .rollShow {
   visibility: hidden;
+}
+
+/* 打出超出范围的数：字变红（下面或提示里说范围）。 */
+.rollInput[aria-invalid="true"] {
+  color: var(--wl-danger);
+}
+
+/* 空着（能空着的数，比如「不限制」）：浅字。 */
+.rollShow[data-empty] {
+  color: var(--wl-text-3);
+}
+
+/* 空着时浅字画在上面那层；聚焦后上面那层藏起来，浅字由输入框自己的占位字接上。 */
+.rollInput::placeholder {
+  color: transparent;
+}
+
+.rollInput:focus::placeholder {
+  color: var(--wl-text-3);
+}
+
+/* 走不动了（到头）：读数往要走的方向轻轻顶一下再回来，不绕回。a / b 换名字，连着顶也每次都放。 */
+.rollShow[data-bump="up-a"] {
+  animation: bumpUp 200ms var(--wl-ease-out);
+}
+
+.rollShow[data-bump="up-b"] {
+  animation: bumpUpB 200ms var(--wl-ease-out);
+}
+
+.rollShow[data-bump="down-a"] {
+  animation: bumpDown 200ms var(--wl-ease-out);
+}
+
+.rollShow[data-bump="down-b"] {
+  animation: bumpDownB 200ms var(--wl-ease-out);
+}
+
+@keyframes bumpUp {
+  40% {
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes bumpUpB {
+  40% {
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes bumpDown {
+  40% {
+    transform: translateY(2px);
+  }
+}
+
+@keyframes bumpDownB {
+  40% {
+    transform: translateY(2px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rollShow[data-bump] {
+    animation: none;
+  }
 }

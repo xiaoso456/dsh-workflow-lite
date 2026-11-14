@@ -11,7 +11,7 @@ import { launchOf, NO_LIMIT, readTriggerData } from '../../../../shared/trigger.
 import type { TriggerData, TriggerLaunch } from '../../../../shared/types.ts'
 import type { T } from '../../../i18n.ts'
 import { cx } from '../../kit/cx.ts'
-import ui from '../../kit/ui.module.css'
+import { Stepper } from '../../kit/NumberStep.tsx'
 import { SwitchTrack } from '../../motion/marks.tsx'
 import ins from '../../panel/panel.module.css'
 import { TriggerMark } from '../TriggerMark.tsx'
@@ -64,6 +64,7 @@ export function GuardDialog(props: {
         onToggle={(on) => patch({ catchUp: on ? undefined : false })}
       />
       <LimitRow
+        t={t}
         none={t('trigger.noLimit')}
         label={t('trigger.maxPerHour')}
         desc={t('trigger.maxPerHourDesc')}
@@ -72,6 +73,7 @@ export function GuardDialog(props: {
         onCommit={(maxPerHour) => patch({ maxPerHour })}
       />
       <LimitRow
+        t={t}
         none={t('trigger.noLimit')}
         label={t('trigger.maxFailures')}
         desc={t('trigger.maxFailuresDesc')}
@@ -84,7 +86,8 @@ export function GuardDialog(props: {
 }
 
 /** 数字框里最多几位（放得下、也远在整数的安全范围里）。 */
-const LIMIT_DIGITS = 7
+/** 上限最多填到多少（七位数）。 */
+const LIMIT_MAX = 9_999_999
 
 /** 一行开关：标题加一句说明，整行可点（和面板里别的开关行一样）。 */
 function SwitchRow(props: {
@@ -113,10 +116,11 @@ function SwitchRow(props: {
 }
 
 /**
- * 一个上限：名字加一句说明，右边一个数字框（只收数字，多大都行）；留空（或填 0）是不限制，框里浅字写着「不限制」。
- * 打字就交给草稿，失焦时框里显示存下的数。
+ * 一个上限：名字加一句说明，右边一个「− 数 +」；空着是不限制（框里浅字写着「不限制」），在 1 再往下减就是空着。
+ * 打字当场交给草稿。
  */
 function LimitRow(props: {
+  t: T
   label: string
   desc: string
   /** 不限制时框里的浅字。 */
@@ -125,28 +129,25 @@ function LimitRow(props: {
   testId: string
   onCommit(value: number): void
 }): React.JSX.Element {
-  const [draft, setDraft] = useState<string | null>(null)
+  const { t } = props
   return (
-    <label className={css.row}>
+    <div className={css.row}>
       <span className={cx(ins.requiredText, css.grow)}>
         <span className={ins.requiredTitle}>{props.label}</span>
         <span className={ins.requiredDesc}>{props.desc}</span>
       </span>
-      <input
-        className={cx(ui.input, css.number)}
-        inputMode="numeric"
-        value={draft ?? (props.value === NO_LIMIT ? '' : String(props.value))}
-        placeholder={props.none}
-        aria-label={props.label}
-        data-testid={props.testId}
-        onChange={(event) => {
-          const text = event.currentTarget.value.replace(/[^\d]/gu, '').slice(0, LIMIT_DIGITS)
-          setDraft(text)
-          const value = text === '' ? NO_LIMIT : Number.parseInt(text, 10)
-          props.onCommit(value)
-        }}
-        onBlur={() => setDraft(null)}
+      <Stepper
+        label={props.label}
+        value={props.value === NO_LIMIT ? null : props.value}
+        min={1}
+        max={LIMIT_MAX}
+        empty={props.none}
+        digits={4}
+        lessLabel={t('common.decrease')}
+        moreLabel={t('common.increase')}
+        testId={props.testId}
+        onChange={(value) => props.onCommit(value ?? NO_LIMIT)}
       />
-    </label>
+    </div>
   )
 }

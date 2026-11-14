@@ -247,7 +247,10 @@ export function DisplayOptions(props: {
               testId="wl-display-width"
               className={numberStep.sizeInput}
               step={(up, big) => (big ? 40 : 8) * (up ? 1 : -1)}
-              onCommit={(width) => set(snapView(width, display.height))}
+              wheel
+              onCommit={(width) => {
+                if (width !== null) set(snapView(width, display.height))
+              }}
             />
             <span className={css.dimsX} aria-hidden="true">
               ×
@@ -258,7 +261,10 @@ export function DisplayOptions(props: {
               testId="wl-display-height"
               className={numberStep.sizeInput}
               step={(up, big) => (big ? 40 : 8) * (up ? 1 : -1)}
-              onCommit={(height) => set(snapView(display.width, height))}
+              wheel
+              onCommit={(height) => {
+                if (height !== null) set(snapView(display.width, height))
+              }}
             />
           </span>
         </div>

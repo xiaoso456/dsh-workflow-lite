@@ -138,17 +138,8 @@ export interface MenuPlace {
   list: number
 }
 
-/**
- * 量触发块在所在滚动区（没有就是窗口）里上下各有多少地方：下面放得下就往下，否则往宽的那边；
- * 列表高度封顶在那边放得下的高度。
- */
-export function menuPlace(
-  element: HTMLElement | null,
-  count: number,
-  searchable: boolean,
-  itemHeight = ITEM_HEIGHT,
-): MenuPlace {
-  if (element === null) return { up: false, list: LIST_MAX }
+/** 触发块在所在滚动区（没有就是窗口）里上下各有多少地方（别的浮层定往哪边开也用）。 */
+export function roomAround(element: HTMLElement): { above: number; below: number } {
   let top = 0
   let bottom = window.innerHeight
   for (let node = element.parentElement; node !== null; node = node.parentElement) {
@@ -161,13 +152,21 @@ export function menuPlace(
     }
   }
   const rect = element.getBoundingClientRect()
-  return placeMenu({
-    below: bottom - rect.bottom,
-    above: rect.top - top,
-    count,
-    searchable,
-    itemHeight,
-  })
+  return { above: rect.top - top, below: bottom - rect.bottom }
+}
+
+/**
+ * 量触发块上下各有多少地方（{@link roomAround}）：下面放得下就往下，否则往宽的那边；
+ * 列表高度封顶在那边放得下的高度。
+ */
+export function menuPlace(
+  element: HTMLElement | null,
+  count: number,
+  searchable: boolean,
+  itemHeight = ITEM_HEIGHT,
+): MenuPlace {
+  if (element === null) return { up: false, list: LIST_MAX }
+  return placeMenu({ ...roomAround(element), count, searchable, itemHeight })
 }
 
 /** {@link menuPlace} 的算术部分（单测用）。 */

@@ -68,22 +68,18 @@ export function numberRange(key: NumberKey): { min: number; max?: number } {
   return max === undefined ? { min: MIN[key] } : { min: MIN[key], max }
 }
 
-/** 数字框只收数字：别的字打不进去。 */
-export function digitsOnly(text: string): string {
-  return text.replace(/\D+/gu, '')
+/** − / +、↑↓、滚轮一步走多少（Shift 走十步）：毫秒按 50 走，读取上限按 64 KB 走。 */
+const STEP: Record<NumberKey, number> = {
+  maxNodes: 10,
+  saveDebounceMs: 50,
+  maxResultBytes: 64,
+  triggerPort: 1,
 }
 
-/**
- * 数字框离开时收拾：空的回到 `fallback`（已保存的值），超出范围的拉回边上。
- * 打字途中不提示错（敲「1100」要先经过「11」），离开时直接改成能用的值，行的高度不跟着变。
- */
-export function settleNumber(key: NumberKey, text: string, fallback: string): string {
-  if (text.trim() === '') return fallback
-  const number = Number(text)
-  const max = MAX[key]
-  if (number < MIN[key]) return String(MIN[key])
-  if (max !== undefined && number > max) return String(max)
-  return String(number)
+/** 走一步到哪：不在整步上的先落到最近的整步（400 → 410，405 往上是 410、往下是 400）。 */
+export function stepNumber(key: NumberKey, value: number, dir: 1 | -1, big: boolean): number {
+  const step = STEP[key] * (big ? 10 : 1)
+  return dir > 0 ? Math.floor(value / step) * step + step : Math.ceil(value / step) * step - step
 }
 
 export function toDraft(values: PluginConfigValues): ConfigDraft {

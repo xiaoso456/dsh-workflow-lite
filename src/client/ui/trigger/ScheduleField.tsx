@@ -22,8 +22,10 @@ import type { LocaleKey, T } from '../../i18n.ts'
 import { weekdayChip, weekdayText } from '../../model/triggerText.ts'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
+import { Stepper } from '../kit/NumberStep.tsx'
 import { Segmented } from '../kit/Segmented.tsx'
 import { Select } from '../kit/Select.tsx'
+import { TimeField } from '../kit/TimeField.tsx'
 import ui from '../kit/ui.module.css'
 import { Presence } from '../motion/exits.tsx'
 import { useResizeFlip } from '../motion/flip.ts'
@@ -179,39 +181,36 @@ function TimesRow(props: {
       <span className={cx(row.lead, css.leadTop)}>{t('trigger.time')}</span>
       <div ref={flip} className={css.times}>
         {times.map((time, index) => (
-          <span key={rowKeys.keys[index]} className={css.timeBox} data-removable={times.length > 1}>
-            <input
-              type="time"
-              className={cx(ui.input, css.time)}
-              value={parseClock(time) === null ? '' : formatClock(parseClock(time) as number)}
-              aria-label={t('trigger.time')}
-              data-testid={index === 0 ? 'wl-trigger-time' : `wl-trigger-time-${String(index)}`}
-              onChange={(event) => {
-                const value = event.currentTarget.value
-                if (value !== '') {
-                  set(
-                    times.map((old, at) => (at === index ? value : old)),
-                    true,
-                  )
-                }
-              }}
-              onBlur={props.onSeal}
-            />
-            {times.length > 1 && (
-              <button
-                type="button"
-                className={css.timeRemove}
-                aria-label={t('trigger.timeRemove')}
-                data-tip={t('trigger.timeRemove')}
-                data-testid={`wl-trigger-time-remove-${String(index)}`}
-                onClick={() => {
-                  rowKeys.drop(index)
-                  set(times.filter((_, at) => at !== index))
-                }}
-              >
-                <Icon name="x" size={12} />
-              </button>
-            )}
+          <span key={rowKeys.keys[index]} className={css.timeBox}>
+            <TimeField
+              t={t}
+              label={t('trigger.time')}
+              value={parseClock(time) ?? 0}
+              testId={index === 0 ? 'wl-trigger-time' : `wl-trigger-time-${String(index)}`}
+              onChange={(minutes) =>
+                set(
+                  times.map((old, at) => (at === index ? formatClock(minutes) : old)),
+                  true,
+                )
+              }
+              onEnd={props.onSeal}
+            >
+              {times.length > 1 && (
+                <button
+                  type="button"
+                  className={css.timeRemove}
+                  aria-label={t('trigger.timeRemove')}
+                  data-tip={t('trigger.timeRemove')}
+                  data-testid={`wl-trigger-time-remove-${String(index)}`}
+                  onClick={() => {
+                    rowKeys.drop(index)
+                    set(times.filter((_, at) => at !== index))
+                  }}
+                >
+                  <Icon name="x" size={12} />
+                </button>
+              )}
+            </TimeField>
           </span>
         ))}
         <button
@@ -287,7 +286,7 @@ function DaysRow(props: {
   )
 }
 
-/** 「每隔多久」：一个数加一个单位。数字框里是草稿，打得出一个合法的数才写进图。 */
+/** 「每隔多久」：一个数（「− 数 +」）加一个单位。打出范围内的数当场写进草稿。 */
 function EveryRow(props: {
   t: T
   minutes: number
@@ -296,32 +295,25 @@ function EveryRow(props: {
 }): React.JSX.Element {
   const { t, minutes } = props
   const [unit, setUnit] = useState<Unit>(() => unitOf(minutes))
-  const [draft, setDraft] = useState<string | null>(null)
   // 图里的数按现在的单位除不尽（别处改过）：退回按分钟显示。
   const shown = minutes % sizeOf(unit) === 0 ? unit : 'minute'
   const amount = minutes / sizeOf(shown)
-  const commit = (text: string, size: number): void => {
-    const value = Number.parseInt(text, 10)
-    if (!Number.isFinite(value) || value < 1) return
-    props.onChange({ kind: 'every', minutes: Math.min(EVERY_MAX, value * size) }, true)
-  }
   return (
     <div className={row.row}>
       <span className={row.lead}>{t('trigger.every')}</span>
-      <input
-        className={cx(ui.input, row.number)}
-        inputMode="numeric"
-        value={draft ?? String(amount)}
-        aria-label={t('trigger.every')}
-        data-testid="wl-trigger-every"
-        onChange={(event) => {
-          const text = event.currentTarget.value.replace(/[^\d]/gu, '')
-          setDraft(text)
-          commit(text, sizeOf(shown))
-        }}
-        onBlur={() => {
-          setDraft(null)
-          props.onSeal?.()
+      <Stepper
+        label={t('trigger.every')}
+        value={amount}
+        min={1}
+        max={Math.floor(EVERY_MAX / sizeOf(shown))}
+        lessLabel={t('common.decrease')}
+        moreLabel={t('common.increase')}
+        testId="wl-trigger-every"
+        onChange={(value) =>
+          props.onChange({ kind: 'every', minutes: value * sizeOf(shown) }, true)
+        }
+        onTyped={(value) => {
+          if (value === null) props.onSeal?.()
         }}
       />
       <Select<Unit>
@@ -332,7 +324,6 @@ function EveryRow(props: {
         testId="wl-trigger-unit"
         onChange={(nextUnit) => {
           setUnit(nextUnit)
-          setDraft(null)
           props.onChange({
             kind: 'every',
             minutes: Math.min(EVERY_MAX, amount * sizeOf(nextUnit)),

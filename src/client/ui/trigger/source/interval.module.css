@@ -1,5 +1,5 @@
 /*
- * 轮询间隔（IntervalField.tsx）：一排常用间隔的胶囊（同「常用」规则），「自定义…」展开后同一行接着数字框 + 单位。
+ * 轮询间隔（IntervalField.tsx）：一排常用间隔的胶囊（同「常用」规则），「自定义」展开后同一行接着数字框 + 单位。
  */
 
 .custom {
@@ -12,7 +12,7 @@
   display: none;
 }
 
-/* 点「自定义…」：数字框和单位从左边一点淡入（只放出现；点回常用的一档时直接收起）。 */
+/* 点「自定义」：数字框和单位从左边一点淡入（只放出现；点回常用的一档时直接收起）。 */
 .custom:not([hidden]) {
   animation: customIn 220ms var(--wl-ease-out) backwards;
 }
@@ -28,14 +28,6 @@
   .custom:not([hidden]) {
     animation: none;
   }
-}
-
-.number {
-  width: 64px;
-  height: 26px;
-  font-family: var(--wl-mono);
-  font-weight: 600;
-  text-align: center;
 }
 
 /* 和胶囊一样高：展开时这一行不变高（下面的行不跟着跳）。 */

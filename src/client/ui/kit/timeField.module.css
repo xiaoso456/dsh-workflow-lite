@@ -1,0 +1,182 @@
+/*
+ * 时刻框（TimeField.tsx）：「时 : 分」两段加一个钟，和输入框一样高、一样的底；聚焦不描边，只给那一段铺底色。
+ * 浮层里时、分两列像滚轮：不要滚动条，上下两头淡出（看得出还有），前后各垫半列，头尾两项也能滚到正中。
+ */
+
+.field {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  height: 32px;
+  padding: 0 3px 0 7px;
+  border-radius: var(--wl-r-control);
+  background: var(--wl-fill);
+  color: var(--wl-text);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-body);
+  font-variant-numeric: tabular-nums;
+  cursor: text;
+}
+
+.seg {
+  display: inline-grid;
+  justify-items: center;
+  min-width: 2.2ch;
+  padding: 1px 2px;
+  border-radius: calc(4px * var(--wl-round, 1));
+  outline: none;
+  cursor: ns-resize;
+  user-select: none;
+  transition:
+    background-color 120ms linear,
+    color 120ms linear;
+}
+
+.seg:hover {
+  background: var(--wl-hover);
+}
+
+.seg:focus {
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+}
+
+/* 正在打字（打了一位、等第二位）：实底反白。 */
+.seg[data-typing] {
+  background: var(--wl-accent);
+  color: var(--wl-accent-on);
+}
+
+.colon {
+  padding: 0 1px;
+  color: var(--wl-text-3);
+}
+
+.clock {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin-left: 4px;
+  padding: 0;
+  border: 0;
+  border-radius: calc(6px * var(--wl-round, 1));
+  background: transparent;
+  color: var(--wl-text-3);
+  cursor: pointer;
+  transition:
+    background-color 120ms linear,
+    color 120ms linear;
+}
+
+.clock:hover {
+  background: var(--wl-hover);
+  color: var(--wl-text);
+}
+
+.clock[aria-expanded="true"] {
+  color: var(--wl-accent);
+}
+
+.clock:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: -2px;
+}
+
+.pop {
+  width: 232px;
+  padding: 8px;
+}
+
+.quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--wl-line);
+}
+
+.quick button {
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--wl-line-strong);
+  border-radius: calc(999px * var(--wl-round, 1));
+  background: transparent;
+  color: var(--wl-text-2);
+  font: inherit;
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-meta);
+  cursor: pointer;
+  transition:
+    border-color 120ms linear,
+    color 120ms linear;
+}
+
+.quick button:hover {
+  border-color: var(--wl-text-3);
+  color: var(--wl-text);
+}
+
+.cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.colHead {
+  padding-bottom: 4px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  text-align: center;
+}
+
+.col {
+  position: relative;
+  height: 196px;
+  padding: 84px 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-snap-type: y mandatory;
+  scrollbar-width: none;
+  mask-image: linear-gradient(transparent, black 30%, black 70%, transparent);
+}
+
+.col::-webkit-scrollbar {
+  display: none;
+}
+
+.col button {
+  display: block;
+  width: 100%;
+  height: 28px;
+  border: 0;
+  border-radius: calc(6px * var(--wl-round, 1));
+  background: transparent;
+  color: var(--wl-text-2);
+  font: inherit;
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-meta);
+  cursor: pointer;
+  scroll-snap-align: center;
+  transition:
+    background-color 120ms linear,
+    color 120ms linear;
+}
+
+.col button:hover {
+  background: var(--wl-hover);
+  color: var(--wl-text);
+}
+
+.col button[aria-selected="true"] {
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+  font-weight: 600;
+}
+
+/* 瑞士：输入框只留底线。 */
+:global([data-look="swiss"]) .field {
+  border-bottom: 1px solid var(--wl-line-strong);
+  background: transparent;
+}

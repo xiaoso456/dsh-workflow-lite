@@ -43,13 +43,6 @@
   min-width: 0;
 }
 
-.number {
-  flex: none;
-  width: 72px;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-}
-
 .unit {
   flex: none;
   width: 96px;

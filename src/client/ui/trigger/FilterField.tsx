@@ -18,6 +18,7 @@ import {
 import type { TriggerData, TriggerFilter } from '../../../shared/types.ts'
 import type { T } from '../../i18n.ts'
 import { cx } from '../kit/cx.ts'
+import { Stepper } from '../kit/NumberStep.tsx'
 import ui from '../kit/ui.module.css'
 import css from './trigger.module.css'
 
@@ -42,6 +43,7 @@ export function FilterForm(props: {
   return (
     <div className={css.form} data-testid="wl-trigger-filter">
       <NumberRow
+        t={t}
         label={t('trigger.merge')}
         value={filter.merge}
         max={MERGE_MAX_SECONDS}
@@ -49,6 +51,7 @@ export function FilterForm(props: {
         onCommit={(merge) => patch({ merge })}
       />
       <NumberRow
+        t={t}
         label={t('trigger.dedupe')}
         value={filter.dedupe}
         max={DEDUPE_MAX_MINUTES}
@@ -73,33 +76,31 @@ export function FilterForm(props: {
   )
 }
 
-/** 一个数（0 = 不用）：一行说明加一个数字框；打字就交给草稿（夹进范围），失焦时框里显示夹过的数。 */
+/** 一个数（0 = 不用）：一行说明加一个「− 数 +」；打出范围内的数当场交给草稿。 */
 function NumberRow(props: {
+  t: T
   label: string
   value: number
   max: number
   testId: string
   onCommit(value: number): void
 }): React.JSX.Element {
-  const [draft, setDraft] = useState<string | null>(null)
+  const { t } = props
   return (
-    <label className={css.row}>
+    <div className={css.row}>
       <span className={cx(css.rowLabel, css.grow)}>{props.label}</span>
-      <input
-        className={cx(ui.input, css.number)}
-        inputMode="numeric"
-        value={draft ?? String(props.value)}
-        aria-label={props.label}
-        data-testid={props.testId}
-        onChange={(event) => {
-          const text = event.currentTarget.value.replace(/[^\d]/gu, '')
-          setDraft(text)
-          const value = text === '' ? 0 : Number.parseInt(text, 10)
-          if (Number.isFinite(value)) props.onCommit(Math.min(props.max, Math.max(0, value)))
-        }}
-        onBlur={() => setDraft(null)}
+      <Stepper
+        label={props.label}
+        value={props.value}
+        min={0}
+        max={props.max}
+        digits={4}
+        lessLabel={t('common.decrease')}
+        moreLabel={t('common.increase')}
+        testId={props.testId}
+        onChange={props.onCommit}
       />
-    </label>
+    </div>
   )
 }
 

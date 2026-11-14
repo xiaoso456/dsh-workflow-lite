@@ -14,18 +14,17 @@
 import { type PluginConfigKey, RESTART_CONFIG_KEYS } from '../../../shared/wire/config.ts'
 import type { ConfigDraft, PluginConfigState } from '../../app/usePluginConfig.ts'
 import {
-  digitsOnly,
   LABEL,
   type NumberKey,
   numberRange,
-  settleNumber,
-  toDraft,
+  stepNumber,
   usePluginConfig,
 } from '../../app/usePluginConfig.ts'
 import type { LocaleKey, T } from '../../i18n.ts'
 import type { WorkflowLiteRpc } from '../../rpc.ts'
 import { cx } from '../kit/cx.ts'
 import { Icon, type IconName } from '../kit/Icon.tsx'
+import { Stepper } from '../kit/NumberStep.tsx'
 import { Skeleton } from '../kit/Skeleton.tsx'
 import ui from '../kit/ui.module.css'
 import hub from './hub.module.css'
@@ -274,7 +273,13 @@ function Row(props: FieldProps & { wide?: boolean; children: React.ReactNode }):
   )
 }
 
-/** 数字框：只打得进数字；离开时空的回到已保存的值、超出范围的拉回边上（不在行里多出一行错字）。 */
+/** 数字框里填得下的最大数（没有上限的几项）。 */
+const NUMBER_CEILING = 99_999
+
+/**
+ * 数字设置：「− 数 +」，后面跟单位（单位占一列，几行的数字框上下对齐）。
+ * 打出范围内的数当场写进草稿，超出范围的标红、离开时拉回边上；一步走多少按 {@link stepNumber}。
+ */
 function NumberInput(
   props: FieldProps & {
     name: NumberKey
@@ -286,24 +291,23 @@ function NumberInput(
   const tip = (range.max === undefined ? t('cfg.atLeast') : t('cfg.range'))
     .replace('{min}', String(range.min))
     .replace('{max}', String(range.max ?? ''))
+  const text = state.draft?.[name] ?? ''
   return (
-    <span className={css.number}>
-      <input
-        className={cx(ui.input, css.numberInput)}
-        inputMode="numeric"
-        value={state.draft?.[name] ?? ''}
+    <span className={css.number} data-tip={tip}>
+      <Stepper
+        label={t(LABEL[name])}
+        value={text === '' ? range.min : Number(text)}
+        min={range.min}
+        max={range.max ?? NUMBER_CEILING}
+        next={(value, dir, big) => stepNumber(name, value, dir, big)}
+        digits={5}
         disabled={props.locked}
-        aria-label={t(LABEL[name])}
-        data-tip={tip}
-        data-testid={`wl-cfg-${name}`}
-        onChange={(event) => state.edit(name, digitsOnly(event.currentTarget.value))}
-        onBlur={(event) => {
-          const saved = state.view === null ? '' : toDraft(state.view.values)[name]
-          const settled = settleNumber(name, event.currentTarget.value, saved)
-          if (settled !== event.currentTarget.value) state.edit(name, settled)
-        }}
+        lessLabel={t('common.decrease')}
+        moreLabel={t('common.increase')}
+        testId={`wl-cfg-${name}`}
+        onChange={(value) => state.edit(name, String(value))}
       />
-      {props.unit !== undefined && <span className={css.unit}>{props.unit}</span>}
+      <span className={css.unit}>{props.unit}</span>
     </span>
   )
 }

@@ -59,33 +59,43 @@ async function run(session) {
   await screenshot(session, 'cfg-01-page.png')
   pass('设置页：显示现值')
 
-  // 2) 填个坏值：保存按钮按住，行的高度不变（不在行里多出一行错字）；数字框只打得进数字，离开时拉回范围里。
+  // 2) 打出超出范围的数：框标红、不进草稿（没有保存条），行的高度不变；离开时拉回范围里（这时才算改动）。
+  //    数字框只打得进数字；− / + 一步按这一项的步长走。
   const rowHeight = (id) =>
     `document.querySelector('[data-testid="${id}"]').closest('[data-wide]').getBoundingClientRect().height`
+  const invalid = (id) =>
+    `document.querySelector('[data-testid="${id}"]').getAttribute('aria-invalid') === 'true'`
+  const blur = (id) =>
+    `(() => { const el = document.querySelector('[data-testid="${id}"]'); el.dispatchEvent(new FocusEvent('focusout', { bubbles: true })) })()`
   const heightBefore = await session.evaluate(rowHeight('wl-cfg-maxNodes'))
   await setReactInput(session, '[data-testid="wl-cfg-maxNodes"]', '0')
-  await waitFor(session, exists('wl-cfg-bar'))
-  check(
-    await session.evaluate(`document.querySelector('[data-testid="wl-cfg-save"]').disabled`),
-    '坏值不能保存',
-  )
-  await sleep(300)
+  await sleep(150)
+  check(await session.evaluate(invalid('wl-cfg-maxNodes')), '超出范围的数标红')
+  check(await session.evaluate(gone('wl-cfg-bar')), '超出范围的数不进草稿')
   check(
     (await session.evaluate(rowHeight('wl-cfg-maxNodes'))) === heightBefore,
-    '填了坏值、出了恢复默认按钮，行的高度都不变',
+    '标红时行的高度不变',
   )
-  await session.evaluate(
-    `(() => { const el = document.querySelector('[data-testid="wl-cfg-maxNodes"]'); el.dispatchEvent(new FocusEvent('focusout', { bubbles: true })) })()`,
-  )
+  await session.evaluate(blur('wl-cfg-maxNodes'))
   await waitFor(session, `${inputValue('wl-cfg-maxNodes')} === '1'`)
+  await waitFor(session, exists('wl-cfg-bar'))
+  check(!(await session.evaluate(invalid('wl-cfg-maxNodes'))), '拉回范围后不再标红')
   // 带字母：只留下数字（受控输入框当场改回，这里不用 setReactInput 的「写进去的就是读出来的」检查）。
   await session.evaluate(setReactInputExpr('[data-testid="wl-cfg-triggerPort"]', '8a0'))
   await sleep(100)
   check((await session.evaluate(inputValue('wl-cfg-triggerPort'))) === '80', '端口框只收数字')
-  await session.evaluate(
-    `(() => { const el = document.querySelector('[data-testid="wl-cfg-triggerPort"]'); el.dispatchEvent(new FocusEvent('focusout', { bubbles: true })) })()`,
-  )
+  await session.evaluate(blur('wl-cfg-triggerPort'))
   await waitFor(session, `${inputValue('wl-cfg-triggerPort')} === '1024'`)
+  // + 按一步：毫秒按 50 走。
+  const debounce = Number(await session.evaluate(inputValue('wl-cfg-saveDebounceMs')))
+  await session.evaluate(
+    `document.querySelector('[data-testid="wl-cfg-saveDebounceMs-more"]').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }))`,
+  )
+  await session.evaluate(`window.dispatchEvent(new PointerEvent('pointerup'))`)
+  await waitFor(
+    session,
+    `${inputValue('wl-cfg-saveDebounceMs')} === ${JSON.stringify(String(Math.floor(debounce / 50) * 50 + 50))}`,
+  )
   await session.evaluate(clickTestId('wl-cfg-discard'))
   await waitFor(session, gone('wl-cfg-bar'))
   check(
@@ -94,9 +104,8 @@ async function run(session) {
     ),
     '「触发」组里有监听状态',
   )
-  await setReactInput(session, '[data-testid="wl-cfg-maxNodes"]', '0')
-  await waitFor(session, exists('wl-cfg-bar'))
   await setReactInput(session, '[data-testid="wl-cfg-maxNodes"]', String(fallback + 50))
+  await waitFor(session, exists('wl-cfg-bar'))
   await waitFor(session, `!document.querySelector('[data-testid="wl-cfg-save"]').disabled`)
   check(
     (
@@ -106,7 +115,7 @@ async function run(session) {
   )
   await sleep(250)
   await screenshot(session, 'cfg-02-dirty.png')
-  pass('改一项：坏值挡住，好值出保存条')
+  pass('改一项：超出范围标红、离开时拉回，好值出保存条')
 
   // 3) 保存：落进 profile，活配置跟着变（graph/list 回的上限也变了），保存条收起。
   await session.evaluate(clickTestId('wl-cfg-save'))

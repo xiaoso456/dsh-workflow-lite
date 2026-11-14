@@ -5,12 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import {
-  digitsOnly,
-  fromDraft,
-  settleNumber,
-  toDraft,
-} from '../../src/client/app/usePluginConfig.ts'
+import { fromDraft, stepNumber, toDraft } from '../../src/client/app/usePluginConfig.ts'
 import { type LocaleKey, zh } from '../../src/client/i18n.ts'
 import type { PluginConfigValues } from '../../src/shared/wire/config.ts'
 
@@ -84,16 +79,16 @@ describe('设置草稿', () => {
 })
 
 describe('数字框', () => {
-  it('只打得进数字', () => {
-    expect(digitsOnly('3a7-9.1 ')).toBe('3791')
+  it('一步按各项的步长走，Shift 走十步', () => {
+    expect(stepNumber('triggerPort', 3791, 1, false)).toBe(3792)
+    expect(stepNumber('saveDebounceMs', 400, 1, false)).toBe(450)
+    expect(stepNumber('saveDebounceMs', 1200, 1, true)).toBe(1500)
+    expect(stepNumber('maxResultBytes', 256, 1, false)).toBe(320)
   })
 
-  it('离开时：空的回到已保存的值，超出范围拉回边上，别的原样', () => {
-    expect(settleNumber('triggerPort', '', '3791')).toBe('3791')
-    expect(settleNumber('triggerPort', '11', '3791')).toBe('1024')
-    expect(settleNumber('triggerPort', '99999', '3791')).toBe('65535')
-    expect(settleNumber('triggerPort', '08080', '3791')).toBe('8080')
-    expect(settleNumber('maxNodes', '0', '400')).toBe('1')
-    expect(settleNumber('saveDebounceMs', '1500', '400')).toBe('1500')
+  it('不在整步上的先落到最近的整步', () => {
+    expect(stepNumber('maxNodes', 405, 1, false)).toBe(410)
+    expect(stepNumber('maxNodes', 405, -1, false)).toBe(400)
+    expect(stepNumber('saveDebounceMs', 420, -1, false)).toBe(400)
   })
 })
