@@ -889,10 +889,52 @@ describe('常驻触发源', () => {
       state: 'error',
       problem: '端口 3791 被别的程序占用了',
     })
-    // 定时卡片没有令牌可换。
+    // 换成定时之后，先前生成的地址、令牌还留着，照样能换；从来没有过地址的定时卡片没有令牌可换。
     await saveGraph('patrol')
-    const refused = await set(triggers, { resetToken: true })
+    expect((await set(triggers, { resetToken: true })).ok).toBe(true)
+    await saveGraph('other')
+    const refused = await triggers.set({ workflow: 'other', node: 'tick', resetToken: true })
     expect(!refused.ok && refused.error.message).toBe('只有 HTTP 触发有地址和令牌')
+  })
+
+  it('HTTP：可以不要令牌；令牌照样留着，换回需要还是它', async () => {
+    await saveGraph('patrol', { source: { kind: 'http' } })
+    const triggers = service()
+    const on = await set(triggers, { workspace, enabled: true })
+    const token = on.ok ? on.result.triggers[0]?.endpoint?.token : undefined
+    expect(token).toBeDefined()
+
+    const off = await set(triggers, { noToken: true })
+    expect(off.ok && off.result.triggers[0]?.endpoint).toMatchObject({ token, noToken: true })
+    await own(triggers)
+    expect(live.specs[0]?.hook).toEqual({ id: 'patrol', token: null })
+
+    const back = await set(triggers, { noToken: false })
+    expect(back.ok && back.result.triggers[0]?.endpoint).not.toHaveProperty('noToken')
+    await triggers.tick()
+    expect(live.specs[0]?.hook).toEqual({ id: 'patrol', token })
+
+    // 从来没有过地址的定时卡片：没有令牌可放开。
+    await saveGraph('other')
+    const refused = await triggers.set({ workflow: 'other', node: 'tick', noToken: true })
+    expect(!refused.ok && refused.error.message).toBe('只有 HTTP 触发有地址和令牌')
+  })
+
+  it('HTTP：先生成地址、令牌不打开开关；图里还不是 HTTP（对话框里没保存）也能先生成', async () => {
+    const triggers = service()
+    await saveGraph('patrol')
+    expect((await set(triggers, { prepareEndpoint: true })).ok).toBe(true)
+    const [view] = (await triggers.list('patrol')).triggers
+    expect(view).toMatchObject({ enabled: false, state: 'off' })
+    expect(view?.endpoint?.hook).toBe('patrol')
+    expect(view?.endpoint?.token.length).toBeGreaterThanOrEqual(16)
+    // 再要一次不换：地址、令牌原样。
+    await set(triggers, { prepareEndpoint: true })
+    expect((await triggers.list('patrol')).triggers[0]?.endpoint).toEqual(view?.endpoint)
+    // 先生成过的能改地址；改成 HTTP、打开之后用的就是它。
+    expect((await set(triggers, { hook: 'ci-done' })).ok).toBe(true)
+    await saveGraph('patrol', { source: { kind: 'http' } })
+    expect((await triggers.list('patrol')).triggers[0]?.endpoint?.hook).toBe('ci-done')
   })
 
   it('HTTP：地址、令牌能自己写；写得不对、和别的卡片重了就拒绝', async () => {

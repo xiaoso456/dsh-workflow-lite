@@ -7,16 +7,18 @@ sidebar:
 
 An **After** trigger runs the workflow once a run of another workflow finishes. Use it to chain build, check and release, or to clean up after a failure. This feature is experimental.
 
-![After trigger: the workflow to wait for and the result that triggers](../../../../assets/shots/en/trigger-after.webp)
+![After trigger: the workflow to wait for and the result, with its recent runs below](../../../../assets/shots/en/trigger-after.webp)
 
 ## Use
 
 1. Make sure the workflow to wait for has **Record run state** on (you can also click **Turn on** in the list in step 3).
 2. Add a trigger card to this workflow, click **Schedule ▾** in the header of **Trigger**, and choose **After**.
-3. Click **Pick workflow**, choose the workflow to wait for under **Which workflow** and the result under **On which result**, then click **Save**.
+3. Click **Pick workflow**, open the **Workflow** dropdown and choose the workflow to wait for, choose a **Result**, then click **Save**.
 4. Choose a session mode and workspace under **Run settings** and turn on the switch. The card shows **Waiting**.
 
-**Which workflow** lists every workflow except this one, with the result of its latest run; search it when there are many. A workflow without **Record run state** cannot be picked; click **Turn on** in its row and confirm to switch it on for that workflow.
+The **Workflow** dropdown lists every workflow except this one, with the result of its latest run; search it when there are many. A workflow without **Record run state** cannot be picked; click **Turn on** in its row and confirm to switch it on for that workflow.
+
+**Recent runs** below lists the latest runs of the chosen workflow and marks the ones that would run this workflow next under the current **Result**; it updates as the result changes.
 
 When a run of that workflow finishes with a matching result, this workflow triggers once. The background info holds that run's instance ID, result, steps done, goal, workspace and the location of its run-state file, which the model reads when it needs that run's output.
 
@@ -24,8 +26,8 @@ When a run of that workflow finishes with a matching result, this workflow trigg
 
 | Setting | Options | Default | Description |
 |---|---|---|---|
-| Which workflow | Any workflow except this one | None | The workflow to wait for; it needs **Record run state** on. |
-| On which result | Succeeded, Failed, Any result | Succeeded | **Any result** includes cancelled runs. |
+| Workflow | Any workflow except this one | None | The workflow to wait for; it needs **Record run state** on. |
+| Result | Succeeded, Failed, Any result | Succeeded | **Any result** includes cancelled runs. |
 
 Whether a run has finished, and how, is read from the overall status in its run state: it counts as finished once it becomes **Done**, **Failed** or **Cancelled**. Changing the overall status by hand in the [workflow hub](/dsh-workflow-lite/en/manage/hub/#instances) counts too.
 

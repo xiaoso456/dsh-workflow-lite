@@ -102,6 +102,8 @@ export interface TriggerLocal {
   /** HTTP 触发：地址（`/trigger/` 后面那一段）与令牌。 */
   hook?: string
   token?: string
+  /** HTTP 触发：不校验令牌（令牌照样留着，再打开校验还用它）。 */
+  noToken?: true
   /** 条件轮询：上一次检查的结果。 */
   probe?: Probe
   /** 接续触发：那个工作流里已经处理过（触发过或判过不用触发）的、已结束的实例。 */
@@ -181,6 +183,7 @@ function readLocal(raw: unknown): TriggerLocal | null {
     const value = text(raw[key])
     if (value !== undefined) local[key] = value
   }
+  if (raw.noToken === true) local.noToken = true
   const failures = whole(raw.failures)
   if (failures !== undefined && failures > 0) local.failures = failures
   if (isRecord(raw.probe)) {

@@ -15,6 +15,7 @@ import { useEffect, useRef, useState } from 'react'
 import { commandOf, launchOf, readTriggerData } from '../../../shared/trigger.ts'
 import type { TriggerData, TriggerLaunch, TriggerSessionMode } from '../../../shared/types.ts'
 import type { LocaleKey, T } from '../../i18n.ts'
+import { folderName } from '../../model/hostPath.ts'
 import { guardBrief, guardSummary } from '../../model/triggerSummary.ts'
 import { Select } from '../kit/Select.tsx'
 import { FieldHead, HelpText } from '../panel/FieldHead.tsx'
@@ -28,12 +29,6 @@ const SESSION_MODES: readonly { value: TriggerSessionMode; label: LocaleKey }[] 
   { value: 'last', label: 'trigger.session.last' },
   { value: 'fixed', label: 'trigger.session.fixed' },
 ]
-
-/** 路径的最后一段（下拉里先看到文件夹名，再是完整路径）。 */
-function folderName(path: string): string {
-  const parts = path.split(/[\\/]/u).filter((part) => part !== '')
-  return parts[parts.length - 1] ?? path
-}
 
 /** 这一节接手的「带到眼前」。 */
 const LAUNCH_FIELDS: readonly Missing[] = ['workspace', 'session']

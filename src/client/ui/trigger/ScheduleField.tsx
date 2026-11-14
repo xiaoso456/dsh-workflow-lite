@@ -113,12 +113,19 @@ export function ScheduleField(props: {
         </>
       )}
       {schedule.kind === 'cron' && (
-        <CronEditor
-          t={t}
-          expression={schedule.expression}
-          onChange={(expression, typing) => props.onChange({ kind: 'cron', expression }, typing)}
-          onSeal={props.onSeal}
-        />
+        <div className={cx(row.row, css.top)}>
+          <span className={cx(row.lead, css.leadCron)}>{t('trigger.cronLead')}</span>
+          <div className={css.cron}>
+            <CronEditor
+              t={t}
+              expression={schedule.expression}
+              onChange={(expression, typing) =>
+                props.onChange({ kind: 'cron', expression }, typing)
+              }
+              onSeal={props.onSeal}
+            />
+          </div>
+        </div>
       )}
     </>
   )

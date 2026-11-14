@@ -24,6 +24,7 @@ import { stat } from 'node:fs/promises'
 import { isAbsolute } from 'node:path'
 import { bindWorkflowVar } from '../../shared/pathVars.ts'
 import {
+  afterMatches,
   commandOf,
   filterOf,
   isFilterKind,
@@ -63,7 +64,7 @@ import type {
 } from '../../shared/wire/trigger.ts'
 import { assetsDir } from '../store/paths.ts'
 import { fail, type Outcome, ok } from '../store/repoResult.ts'
-import { afterInfo, afterMatches, afterProblem, type RunWatch } from './after.ts'
+import { afterInfo, afterProblem, type RunWatch } from './after.ts'
 import type { TriggerDefinition, TriggerGraphs } from './graphs.ts'
 import { type HookBind, hookUrl, newHookId, newHookToken } from './hooks.ts'
 import type { IntakeBatch } from './intake.ts'
@@ -361,7 +362,8 @@ export class TriggerService {
         const base = { workflow, node, filter: filterOf(trigger.data), cwd: local.workspace ?? '' }
         if (source.kind === 'http') {
           if (local.hook === undefined || local.token === undefined) continue
-          specs.push({ ...base, source, hook: { id: local.hook, token: local.token } })
+          const token = local.noToken === true ? null : local.token
+          specs.push({ ...base, source, hook: { id: local.hook, token } })
           continue
         }
         if (source.kind !== 'poll' && source.kind !== 'listen') continue
@@ -614,12 +616,14 @@ export class TriggerService {
         ...(command === undefined
           ? {}
           : { approved: local.approved === approvalOf(command, local.workspace) }),
-        ...(source.kind === 'http' && local.hook !== undefined && local.token !== undefined
+        // 地址、令牌有了就给（打开前先生成的也给）；只在打开了的 HTTP 卡片上收请求（见 specs）。
+        ...(local.hook !== undefined && local.token !== undefined
           ? {
               endpoint: {
                 url: hookUrl(host, listen.port, local.hook),
                 hook: local.hook,
                 token: local.token,
+                ...(local.noToken === true ? { noToken: true as const } : {}),
               },
             }
           : {}),
@@ -819,7 +823,7 @@ export class TriggerService {
     }
     const listen = this.listen()
     const url = hookUrl(advertisedHost(listen.host), listen.port, local.hook)
-    const result = await pingHook(url, local.token)
+    const result = await pingHook(url, local.noToken === true ? null : local.token)
     return 'failure' in result ? fail('blocked', result.failure) : ok(result)
   }
 
@@ -880,7 +884,10 @@ function sceneHead(scene: Scene): { owner?: TriggerOwner; paused?: number } {
 
 /**
  * HTTP 触发的地址与令牌：自己写的先核对（地址不能和别的卡片重），没有的补上缺省
- * （地址用工作流名、令牌随机）。打开开关、换令牌、改地址或令牌时才补。
+ * （地址用工作流名、令牌随机）。先生成（`prepareEndpoint`）、打开开关、换令牌、改地址或令牌时才补。
+ *
+ * 先生成的不看图里是不是 HTTP（对话框里刚换到 HTTP、还没保存）；先生成过的卡片之后也能改地址、令牌。
+ * 不校验令牌（`noToken`）只是一个记号，令牌照样留着：再打开校验还是原来那个。
  * @returns 改不成的原因；改成了（或这次不涉及）是 `null`。
  */
 function setEndpoint(
@@ -889,12 +896,15 @@ function setEndpoint(
   local: TriggerLocal,
   locals: TriggerLocals,
 ): string | null {
-  const touched = request.hook !== undefined || request.token !== undefined
-  if (source.kind !== 'http') {
+  const touched =
+    request.hook !== undefined || request.token !== undefined || request.noToken !== undefined
+  const prepare = request.prepareEndpoint === true
+  if (source.kind !== 'http' && !prepare && local.hook === undefined) {
     if (touched || request.resetToken === true) return '只有 HTTP 触发有地址和令牌'
     return null
   }
-  if (!touched && request.resetToken !== true && request.enabled !== true) return null
+  const enabling = request.enabled === true && source.kind === 'http'
+  if (!touched && request.resetToken !== true && !enabling && !prepare) return null
   if (request.token !== undefined && request.resetToken === true)
     return '自己写令牌和换一个令牌只能选一样'
   const taken = new Set<string>()
@@ -919,6 +929,8 @@ function setEndpoint(
   } else if (request.resetToken === true || local.token === undefined) {
     local.token = newHookToken()
   }
+  if (request.noToken === true) local.noToken = true
+  else if (request.noToken === false) delete local.noToken
   return null
 }
 

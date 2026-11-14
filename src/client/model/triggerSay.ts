@@ -1,6 +1,5 @@
 /**
- * dsh-workflow-lite — 「触发方式」对话框顶上那一句话：这张卡片什么时候执行，关键的几处（规则、间隔、等哪个工作流）
- * 标成可以上色的一段。纯计算，按界面语言。
+ * dsh-workflow-lite — 「触发方式」对话框顶上那一句话：这张卡片什么时候执行。纯计算，按界面语言。
  *
  * @module @xiaoso/dsh-workflow-lite/client/model/triggerSay
  */
@@ -11,30 +10,40 @@ import type { LocaleKey, T } from '../i18n.ts'
 import { ruleText } from './triggerText.ts'
 import { cronPhrase } from './triggerUpcoming.ts'
 
-/** 一句话里的一段：`token` 的那几段上色。 */
-export interface SaySegment {
-  text: string
-  token?: true
-}
+const HAN = /\p{Script=Han}/u
+const LATIN = /[A-Za-z0-9]/u
 
-/** 把 `{name}` 换成上色的一段，其余照写。没给值的占位原样留着（写错了看得出来）。 */
-export function fillSay(template: string, values: Readonly<Record<string, string>>): SaySegment[] {
-  const segments: SaySegment[] = []
-  const pattern = /\{(\w+)\}/gu
+/** 两个字一个是汉字、一个是字母或数字。 */
+const needsSpace = (left: string, right: string): boolean =>
+  (HAN.test(left) && LATIN.test(right)) || (LATIN.test(left) && HAN.test(right))
+
+/**
+ * 把 `{name}` 换成值，没给值的占位原样留着（写错了看得出来）。
+ * 换进去的值和两边的汉字、字母、数字挨着时补一个空格（「发 POST 请求」「18:00 执行」）。
+ */
+export function fillSay(template: string, values: Readonly<Record<string, string>>): string {
+  let out = ''
   let from = 0
-  for (const match of template.matchAll(pattern)) {
+  for (const match of template.matchAll(/\{(\w+)\}/gu)) {
     const at = match.index ?? 0
-    if (at > from) segments.push({ text: template.slice(from, at) })
+    const end = at + match[0].length
+    out += template.slice(from, at)
     const value = values[match[1] ?? '']
-    segments.push(value === undefined ? { text: match[0] } : { text: value, token: true })
-    from = at + match[0].length
+    if (value === undefined) out += match[0]
+    else {
+      out += needsSpace(out.slice(-1), value.slice(0, 1)) ? ` ${value}` : value
+      if (needsSpace(value.slice(-1), template.slice(end, end + 1))) out += ' '
+    }
+    from = end
   }
-  if (from < template.length) segments.push({ text: template.slice(from) })
-  return segments
+  return out + template.slice(from)
 }
 
-/** 轮询间隔的短写法：「5 分钟」「30 秒」「2 小时」。 */
+/** 轮询间隔的短写法：「5 分钟」「30 秒」「2 小时」「1 天」。 */
 export function spanText(t: T, seconds: number): string {
+  if (seconds > 0 && seconds % 86_400 === 0) {
+    return t('trigger.say.days').replace('{n}', String(seconds / 86_400))
+  }
   if (seconds > 0 && seconds % 3600 === 0) {
     return t('trigger.say.hours').replace('{n}', String(seconds / 3600))
   }
@@ -68,7 +77,7 @@ const AFTER_RESULT: Record<AfterWhen, LocaleKey> = {
 }
 
 /** 这张卡片什么时候执行的一句话。 */
-export function sourceSay(t: T, source: TriggerSource): SaySegment[] {
+export function sourceSay(t: T, source: TriggerSource): string {
   switch (source.kind) {
     case 'schedule': {
       const { schedule } = source
@@ -85,13 +94,13 @@ export function sourceSay(t: T, source: TriggerSource): SaySegment[] {
       })
     case 'listen': {
       const program = programName(source.command)
-      if (program === '') return [{ text: t('trigger.say.listenNone') }]
+      if (program === '') return t('trigger.say.listenNone')
       return fillSay(t('trigger.say.listen'), { program })
     }
     case 'http':
       return fillSay(t('trigger.say.http'), { method: 'POST' })
     case 'after':
-      if (source.workflow === '') return [{ text: t('trigger.say.afterNone') }]
+      if (source.workflow === '') return t('trigger.say.afterNone')
       return fillSay(t('trigger.say.after'), {
         name: source.workflow,
         result: t(AFTER_RESULT[afterWhen(source)]),

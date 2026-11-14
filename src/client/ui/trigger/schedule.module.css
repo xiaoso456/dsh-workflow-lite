@@ -18,6 +18,17 @@
   line-height: 30px;
 }
 
+/* Cron 五格上面各有一行名字：标签对着格子。 */
+.leadCron {
+  padding-top: 20px;
+  line-height: 30px;
+}
+
+.cron {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .wrap {
   flex-wrap: wrap;
   row-gap: 6px;
@@ -128,12 +139,12 @@
   outline-offset: 1px;
 }
 
-/* 三种常用选法：小字链接样，正合上的那一种加重。 */
+/* 三种常用选法：小字链接样，紧跟在七个小格后面（放不下才折行），正合上的那一种加重。 */
 .daySets {
   display: flex;
   flex: none;
   gap: 2px;
-  margin-left: auto;
+  margin-left: 6px;
 }
 
 .daySet {

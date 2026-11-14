@@ -44,6 +44,9 @@ const OUT = join(RUNS, 'trigger')
 const NAME = '夜间巡检'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const clickTestId = (id) => `document.querySelector('[data-testid="${id}"]')?.click()`
+/** 往 Cron 第一格里粘贴一整条表达式（编辑器自己拆进五格）。 */
+const pasteCron = (expression) =>
+  `(() => { const data = new DataTransfer(); data.setData('text', ${JSON.stringify(expression)}); document.querySelector('[data-testid="wl-trigger-cron"]').dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true })) })()`
 const has = (id) => `document.querySelector('[data-testid="${id}"]') !== null`
 const textOf = (selector) =>
   `(document.querySelector(${JSON.stringify(selector)})?.textContent ?? '').trim()`
@@ -479,13 +482,11 @@ try {
   )
   await waitFor(session, has('wl-trigger-source-dialog'))
   await sleep(600)
-  check(
-    '「触发方式」对话框带卡片上的预览',
-    await session.evaluate(
-      `document.querySelector('[data-testid="wl-trigger-source-dialog"] [data-testid="wl-trigger-source-preview"] [data-testid="wl-trigger-glance"]') !== null`,
-    ),
+  const headSay = await session.evaluate(
+    textOf('[data-testid="wl-trigger-source-dialog"] header [data-testid="wl-trigger-rule-title"]'),
   )
-  // 每天几点：时间轴排出接下来 7 天、标出下一次；加一个时刻后每天两次，预览写「+1」；「周末」一键选好星期。
+  check('「触发方式」对话框头部写着什么时候执行', /执行/.test(headSay), headSay)
+  // 每天几点：时间轴排出接下来 7 天、标出下一次；加一个时刻后头部那句话写两个时刻；「周末」一键选好星期。
   const weekShown = await session.evaluate(
     `(() => { const root = document.querySelector('[data-testid="wl-trigger-upcoming"]'); return [root.querySelectorAll('[data-ahead]').length, root.querySelectorAll('[data-next="true"]').length].join() })()`,
   )
@@ -493,14 +494,12 @@ try {
   await session.evaluate(clickTestId('wl-trigger-time-add'))
   await sleep(400)
   check(
-    '加了一个时刻：有两个时间框，预览写 +1',
+    '加了一个时刻：有两个时间框，头部那句话写两个时刻',
     (await session.evaluate(
       `document.querySelectorAll('[data-testid^="wl-trigger-time"] , input[type=time]').length`,
     )) >= 2 &&
-      /\+1/.test(
-        await session.evaluate(
-          textOf('[data-testid="wl-trigger-source-preview"] [data-testid="wl-trigger-glance"]'),
-        ),
+      /\d\d:\d\d.+\d\d:\d\d/.test(
+        await session.evaluate(textOf('[data-testid="wl-trigger-rule-title"]')),
       ),
   )
   await session.evaluate(clickTestId('wl-trigger-time-remove-1'))
@@ -518,17 +517,17 @@ try {
   )
   check('点常用规则「工作日 09:00」：按下去、只亮一到五', presetOn === true)
   await capture(session, 'source-dialog-daily-light.png')
-  // Cron：预设一点就填好五格、规则卡说人话；写错一格只那一格标红；整条粘贴自动拆进五格。
+  // Cron：整条粘贴进一格就拆进五格、头部说人话；写错一格只那一格标红。
   await session.evaluate(clickTestId('wl-trigger-kind-cron'))
   await waitFor(session, has('wl-trigger-cron-editor'))
-  await session.evaluate(clickTestId('wl-trigger-cron-preset-monday'))
+  await session.evaluate(pasteCron('0 9 * * 1'))
   await sleep(400)
   const cronCells = await session.evaluate(
     `['wl-trigger-cron','wl-trigger-cron-hour','wl-trigger-cron-day','wl-trigger-cron-month','wl-trigger-cron-weekday'].map((id) => document.querySelector('[data-testid="' + id + '"]').value).join(' ')`,
   )
   const cronTitle = await session.evaluate(textOf('[data-testid="wl-trigger-rule-title"]'))
   check(
-    '点预设「每周一 9 点」：五格填好、规则卡说人话',
+    '粘贴「0 9 * * 1」：五格填好、头部说人话',
     cronCells === '0 9 * * 1' && /周一/.test(cronTitle),
     `${cronCells} | ${cronTitle}`,
   )
@@ -541,17 +540,19 @@ try {
   )
   check('小时写成 99：只「时」那一格标红', badHour === 'false,true', badHour)
   await capture(session, 'source-dialog-cron-light.png')
-  await session.evaluate(clickTestId('wl-trigger-cron-preset-workdays'))
+  await session.evaluate(pasteCron('0 9 * * 1-5'))
   await sleep(300)
   await session.evaluate(clickTestId('wl-trigger-kind-daily'))
   await sleep(300)
   await session.evaluate(clickTestId('wl-trigger-kind-every'))
   await sleep(600)
   check('草稿没保存时卡片上的字不变', !/每 1 小时/.test(await session.evaluate(textOf(CARD))))
-  const previewEvery = await session.evaluate(
-    textOf('[data-testid="wl-trigger-source-preview"] [data-testid="wl-trigger-glance"]'),
+  const previewEvery = await session.evaluate(textOf('[data-testid="wl-trigger-rule-title"]'))
+  check('头部那句话跟着草稿变', /1 小时/.test(previewEvery), previewEvery)
+  check(
+    '草稿改过：头部写「有改动，保存后生效」',
+    /保存后生效/.test(await session.evaluate(textOf('[data-testid="wl-trigger-summary-state"]'))),
   )
-  check('对话框里的预览跟着草稿变', /每 1 小时/.test(previewEvery), previewEvery)
   await capture(session, 'source-dialog-light.png')
   await session.evaluate(scheme('dark'))
   await sleep(400)
@@ -937,7 +938,7 @@ try {
     `document.querySelector('[data-testid="wl-trigger-command"]').value`,
   )
   check(
-    '点模板「Git 远端有新提交」填好命令、判定换成输出变了时',
+    '点模板「Git 远端有新提交」填好命令、判定换成输出变化',
     /^git /u.test(templated) &&
       (await session.evaluate(
         `document.querySelector('[data-testid="wl-trigger-poll-when-change"]').getAttribute('aria-checked') === 'true'`,
@@ -946,7 +947,7 @@ try {
   )
   await session.evaluate(clickTestId('wl-trigger-poll-when-success'))
   await sleep(300)
-  // 试运行：先问一句，确认了才在工作区里跑；写出退出码、满足没有、输出。不打开开关。
+  // 试运行：先问一句，确认了才在工作区里跑；写出退出码、算成功还是失败、输出。不打开开关。
   await setReactInput(session, '[data-testid="wl-trigger-command"]', 'node -e "console.log(4242)"')
   await sleep(300)
   await session.evaluate(clickTestId('wl-trigger-try'))
@@ -960,8 +961,8 @@ try {
   const tried = await session.evaluate(textOf('[data-testid="wl-trigger-try-result"]'))
   const triedOut = await session.evaluate(textOf('[data-testid="wl-trigger-try-output"]'))
   check(
-    '试运行：退出码 0、满足、输出原样',
-    /满足/.test(tried) && /4242/.test(triedOut),
+    '试运行：退出码 0、算成功、输出原样',
+    /算成功/.test(tried) && /4242/.test(triedOut),
     `${tried} | ${triedOut}`,
   )
   await capture(session, 'poll-try-light.png')
@@ -980,8 +981,8 @@ try {
   await sleep(1500)
   const hookText = await session.evaluate(textOf(HOOK))
   check(
-    '卡片写着每 5 分钟、命令成功时，是主动的',
-    /每 5 分钟/.test(hookText) && /命令成功时/.test(hookText) && /主动/.test(hookText),
+    '卡片写着每 5 分钟、执行成功，是主动的',
+    /每 5 分钟/.test(hookText) && /执行成功/.test(hookText) && /主动/.test(hookText),
     hookText,
   )
   await capture(session, 'poll-panel-light.png')
@@ -1012,6 +1013,14 @@ try {
   await session.evaluate(clickTestId('wl-trigger-when-edit'))
   await waitFor(session, has('wl-trigger-source-dialog'))
   await sleep(800)
+  check(
+    '接续：没选工作流时工作台请先选一个',
+    /选好工作流/.test(await session.evaluate(textOf('[data-testid="wl-trigger-after-runs"]'))),
+  )
+  // 等哪个工作流是一个下拉：点开才是带搜索的列表。
+  await session.evaluate(clickTestId('wl-trigger-after-pick'))
+  await waitFor(session, has('wl-trigger-after'))
+  await sleep(300)
   const afterOptions = await session.evaluate(
     `[...document.querySelectorAll('[data-testid="wl-trigger-after"] [role="radio"]')].map((el) => el.dataset.testid.slice('wl-trigger-after-'.length))`,
   )
@@ -1032,7 +1041,10 @@ try {
   await setReactInput(session, '[data-testid="wl-trigger-after-search"]', '')
   await sleep(300)
   await session.evaluate(clickTestId(`wl-trigger-after-${NAME}`))
-  await sleep(400)
+  await sleep(500)
+  check('接续：选好之后下拉收起', !(await session.evaluate(has('wl-trigger-after'))))
+  const pickText = await session.evaluate(textOf('[data-testid="wl-trigger-after-pick"]'))
+  check('接续：下拉上写着选中的工作流', pickText.includes(NAME), pickText)
   await session.evaluate(clickTestId('wl-trigger-after-when-any'))
   await sleep(400)
   await capture(session, 'after-dialog-light.png')

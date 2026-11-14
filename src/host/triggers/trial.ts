@@ -79,13 +79,17 @@ export function tryListen(spec: CommandSpec, ms = TRIAL_LISTEN_MS): Promise<Trig
 /** 带上令牌向 `url` 发一条 POST。连不上、超时回一句原因。 */
 export async function pingHook(
   url: string,
-  token: string,
+  /** `null` = 地址不校验令牌，不带。 */
+  token: string | null,
   timeoutMs = PING_TIMEOUT_MS,
 ): Promise<TriggerPingResponse | { failure: string }> {
   try {
     const response = await fetch(url, {
       method: 'POST',
-      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      headers: {
+        ...(token === null ? {} : { authorization: `Bearer ${token}` }),
+        'content-type': 'application/json',
+      },
       body: PING_BODY,
       signal: AbortSignal.timeout(timeoutMs),
     })

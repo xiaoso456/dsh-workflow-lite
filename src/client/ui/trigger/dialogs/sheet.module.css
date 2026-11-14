@@ -66,13 +66,19 @@
   font-weight: 600;
 }
 
+/* 头部有 `head` 时标题只占自己的宽，余下的给它。 */
+.titlesTight {
+  flex: 0 1 auto;
+  max-width: 34%;
+}
+
 /*
  * 带左栏的（「触发方式」）：更宽、高度固定；左栏贴着对话框左边，不跟着右边滚，右边自己滚。
  * 窄视口时左栏收成一排图标（说明、卡片预览藏起来）。
  */
 .sheet.railed {
   width: min(960px, 100%);
-  height: min(660px, 100%);
+  height: min(640px, 100%);
 }
 
 .railed .body {
@@ -83,7 +89,7 @@
 
 .rail {
   display: flex;
-  flex: 0 0 236px;
+  flex: 0 0 228px;
   flex-direction: column;
   min-height: 0;
   padding: 12px 10px;
@@ -94,9 +100,9 @@
 }
 
 .railed .main {
-  gap: 16px;
+  gap: 14px;
   min-height: 0;
-  padding: 18px 22px 20px;
+  padding: 14px 18px 16px;
   overflow-y: auto;
   scrollbar-gutter: stable;
   scrollbar-width: thin;

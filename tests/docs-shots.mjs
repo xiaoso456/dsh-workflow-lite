@@ -598,7 +598,7 @@ async function triggerSourceShots(session) {
       'trigger-poll',
       await session.evaluate(rectOf(`[data-testid="${SOURCE_DIALOG}"]`)),
     )
-    // 试运行：草稿里换成「命令成功时」和一条哪都能跑的命令，确认后跑一次，拍命令框和结果。
+    // 试运行：草稿里换成「执行成功」和一条哪都能跑的命令，确认后跑一次，拍命令框和结果。
     if (wants('trigger-try')) {
       await session.evaluate(clickTestId('wl-trigger-poll-when-success'))
       await setReactInput(session, '[data-testid="wl-trigger-command"]', 'git --version')
@@ -723,6 +723,7 @@ function chainDocuments() {
 /** 接续触发：「触发方式」一节；工作流中心「触发」页：两个工作流里的三张卡片。不点「立即触发一次」。 */
 async function triggerChainShots(session) {
   if (!CHAIN_SHOTS.some(wants)) return
+  const chainIds = []
   try {
     for (const [name, document] of Object.entries(chainDocuments())) {
       await rpc('graph/delete', { name }).catch(() => {})
@@ -730,6 +731,7 @@ async function triggerChainShots(session) {
       const disk = await rpc('graph/load', { name })
       await rpc('graph/save', { name, document, baseHash: disk.hash })
     }
+    await chainRuns(chainIds)
     for (const [workflow, node] of [
       [CHAIN_UP, 'nightly'],
       [CHAIN_DOWN, 'after'],
@@ -751,9 +753,6 @@ async function triggerChainShots(session) {
     await waitFor(session, has('wl-trigger-when-edit'))
     await sleep(1200)
     await openSheet(session, 'wl-trigger-when-edit', SOURCE_DIALOG)
-    // 截图用的数据目录里还有别几段留下的工作流：搜一下，列表里只留要等的那个。
-    await setReactInput(session, '[data-testid="wl-trigger-after-search"]', t('构建', 'build'))
-    await sleep(600)
     await mouseMove(session, { x: 8, y: 8 })
     await snap(
       session,
@@ -781,10 +780,48 @@ async function triggerChainShots(session) {
   } catch (error) {
     console.log(`  ✗ trigger chain：${String(error.message).split('\n')[0]}`)
   } finally {
+    for (const id of chainIds) await rpc('run/delete', { id, withState: true }).catch(() => {})
     for (const name of [CHAIN_UP, CHAIN_DOWN]) {
       await rpc('graph/delete', { name }).catch(() => {})
     }
   }
+}
+
+/**
+ * 「夜间构建」最近三次执行（成功、失败、成功，隔一天一次），「最近的执行」里才有东西可标。
+ * 建实例的时刻是现在：往前挪要改状态文件的 `updatedAt`（列表上写的时刻）和实例索引里的 `createdAt`（排序），
+ * 截图专用的数据目录，只有这里在写。
+ */
+async function chainRuns(ids) {
+  const runs = new RunService({ dataDir: () => DATA_DIR, validate: () => [] })
+  const document = (await rpc('graph/load', { name: CHAIN_UP })).document
+  const plan = [
+    ['done', 50 * 60_000],
+    ['failed', 24 * 3_600_000 + 40 * 60_000],
+    ['done', 48 * 3_600_000 + 35 * 60_000],
+  ]
+  const ago = new Map()
+  for (const [index, [status, before]] of plan.entries()) {
+    const prepared = await runs.prepare({
+      workflow: CHAIN_UP,
+      document,
+      session: { id: `docs-chain-${String(index)}`, cwd: WORKSPACE },
+      goal: t('构建发布包', 'Build the release package'),
+    })
+    if (!prepared.ok) throw new Error(JSON.stringify(prepared))
+    ids.push(prepared.result.id)
+    ago.set(prepared.result.id, before)
+    const state = parse(await readFile(prepared.result.statePath, 'utf8'))
+    state.status = status
+    state.updatedAt = new Date(Date.now() - before + 20 * 60_000).toISOString()
+    await writeFile(prepared.result.statePath, stringify(state, { lineWidth: 0 }))
+  }
+  const file = join(DATA_DIR, 'instances.json')
+  const index = JSON.parse(await readFile(file, 'utf8'))
+  for (const record of index.instances) {
+    if (ago.has(record.id)) record.createdAt = Date.now() - ago.get(record.id)
+  }
+  await writeFile(file, JSON.stringify(index, null, 2))
 }
 
 async function main(session) {

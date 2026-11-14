@@ -1,5 +1,5 @@
 /*
- * 「触发方式」对话框的左栏（SourceRail.tsx）：两组方式、选中的底块（PickThumb，按方式换色交叉淡）、底下的卡片预览。
+ * 「触发方式」对话框的左栏（SourceRail.tsx）：两组方式、选中的底块（PickThumb，按方式换色交叉淡）。
  * 选中只是一层淡底 + 同色细边，不发光。
  */
 
@@ -134,61 +134,21 @@
   font-weight: 600;
 }
 
+/* 一律一行：几张卡片等高，左右两组对得齐（写长了截掉，不折行）。 */
 .desc {
+  overflow: hidden;
   color: var(--wl-text-3);
   font-size: var(--wl-fs-micro);
   line-height: 1.4;
-}
-
-/* 底下的卡片预览：画布上那张卡片的缩影。 */
-.preview {
-  margin-top: auto;
-  padding-top: 12px;
-  border-top: 1px dashed var(--wl-line-strong);
-}
-
-.card {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 9px 10px;
-  border: 1px solid var(--wl-line-strong);
-  border-radius: var(--wl-r-control);
-  background: var(--wl-panel);
-}
-
-.cardHead {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  min-width: 0;
-  margin: 0;
-  font-size: var(--wl-fs-meta);
-  font-weight: 600;
-}
-
-.cardMark {
-  width: 20px;
-  height: 20px;
-  border-radius: calc(6px * var(--wl-round, 1));
-}
-
-.cardName {
-  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.cardFoot {
-  display: flex;
 }
 
 /* 窄视口：只留图标。 */
 @container (max-width: 640px) {
   .groupTitle,
   .desc,
-  .name,
-  .preview {
+  .name {
     display: none;
   }
 
@@ -200,8 +160,4 @@
 
 :global([data-look="swiss"]) .thumb {
   box-shadow: none;
-}
-
-:global([data-look="swiss"]) .card {
-  border-color: var(--wl-line-strong);
 }

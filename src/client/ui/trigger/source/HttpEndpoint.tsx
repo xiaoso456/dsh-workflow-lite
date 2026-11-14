@@ -1,10 +1,11 @@
 /**
- * dsh-workflow-lite — HTTP 触发的地址与令牌（「触发方式」对话框里的接口卡）：一行「POST + 地址」，一行令牌。
+ * dsh-workflow-lite — HTTP 触发的地址与令牌（「触发方式」对话框的两行设置）：一行「POST + 地址」，一行令牌。
  *
  * - 打开过开关才有地址和令牌（缺省地址用工作流名，令牌随机）；令牌默认遮住，遮不遮由外面管（调用示例跟着一起）。
  * - 地址、令牌都能点铅笔改：就地换成输入框，Enter 保存、Esc 取消，写得不对当场说；
  *   改的是本机设置，保存即生效，不等对话框的「保存」，旧地址 / 旧令牌马上失效。
  * - 令牌那一行的「换一个令牌」换成随机的，先问一句。
+ * - 令牌可以设成「不需要」（先问一句，监听地址对局域网开放时多说一句）；令牌照样留着，换回「需要」还是它。
  *
  * 网址里的中文等是转义过的（复制出去哪里都能用），显示时解开给人看。
  *
@@ -15,6 +16,7 @@ import { useEffect, useRef, useState } from 'react'
 import {
   HOOK_MAX_LENGTH,
   hookIssue,
+  isLoopbackHost,
   TOKEN_MAX_LENGTH,
   TOKEN_MIN_LENGTH,
   tokenIssue,
@@ -26,11 +28,14 @@ import { useConfirm } from '../../kit/Confirm.tsx'
 import { copyText } from '../../kit/clipboard.ts'
 import { cx } from '../../kit/cx.ts'
 import { Icon } from '../../kit/Icon.tsx'
+import { Segmented } from '../../kit/Segmented.tsx'
 import ui from '../../kit/ui.module.css'
 import { useCopied } from '../../kit/useCopied.ts'
 import { SwapIcon } from '../../motion/swapText.tsx'
 import type { TriggerEnv } from '../triggerEnv.ts'
 import css from './http.module.css'
+import { StageRow } from './StageRow.tsx'
+import stage from './sourceStage.module.css'
 
 const HOOK_ISSUE = {
   empty: 'trigger.hookIssue.empty',
@@ -72,11 +77,42 @@ export function HttpEndpoint(props: {
 }): React.JSX.Element {
   const { t, env, endpoint, reveal } = props
   const reset = useConfirm<HTMLButtonElement>()
+  const open = useConfirm<HTMLSpanElement>()
   const shown = readableUrl(endpoint.url)
   const base = shown.slice(0, shown.length - endpoint.hook.length)
   const split = endpoint.hook !== '' && shown.endsWith(endpoint.hook)
+  const noToken = endpoint.noToken === true
+  const lan = !isLoopbackHost(urlHost(endpoint.url))
+  const need = (
+    <span ref={open.anchorRef} className={css.need}>
+      <Segmented<'on' | 'off'>
+        label={t('trigger.tokenNeed')}
+        value={noToken ? 'off' : 'on'}
+        testId="wl-trigger-token-need"
+        options={[
+          { value: 'on', label: t('trigger.tokenNeed.on') },
+          { value: 'off', label: t('trigger.tokenNeed.off') },
+        ]}
+        onChange={(next) => {
+          // 换回「需要」收得紧，直接改；放开要先问一句。
+          if (next === 'on') void env.triggers.set(props.node, { noToken: false })
+          else open.show()
+        }}
+      />
+      {open.render({
+        t,
+        title: t('trigger.noTokenTitle'),
+        desc: `${t('trigger.noTokenDesc')}${lan ? t('trigger.noTokenLan') : ''}`,
+        confirmText: t('trigger.noTokenConfirm'),
+        testId: 'wl-trigger-no-token-confirm',
+        onConfirm: () => {
+          void env.triggers.set(props.node, { noToken: true })
+        },
+      })}
+    </span>
+  )
   return (
-    <div className={css.endpoint} data-testid="wl-trigger-endpoint">
+    <>
       <EditableRow
         t={t}
         label={t('trigger.url')}
@@ -91,14 +127,7 @@ export function HttpEndpoint(props: {
           <span className={css.value} data-tip={shown}>
             <span className={css.method}>POST</span>
             <code className={css.url} data-testid="wl-trigger-url">
-              {split ? (
-                <>
-                  <span className={css.urlBase}>{base}</span>
-                  <span className={css.urlHook}>{endpoint.hook}</span>
-                </>
-              ) : (
-                shown
-              )}
+              {shown}
             </code>
           </span>
         }
@@ -112,6 +141,14 @@ export function HttpEndpoint(props: {
         check={(text) => tokenIssueText(t, text)}
         editLabel={t('trigger.editToken')}
         testId="wl-trigger-token-edit"
+        lead={need}
+        off={
+          noToken ? (
+            <span className={stage.fact} data-testid="wl-trigger-no-token">
+              {t('trigger.noTokenNote')}
+            </span>
+          ) : undefined
+        }
         onSave={(token) => env.triggers.set(props.node, { token })}
         shown={
           <code className={css.token} data-testid="wl-trigger-token" data-masked={!reveal}>
@@ -128,7 +165,7 @@ export function HttpEndpoint(props: {
               data-testid="wl-trigger-reveal"
               onClick={() => props.onReveal(!reveal)}
             >
-              <Icon name="eye" size={13} />
+              <SwapIcon name={reveal ? 'eyeOff' : 'eye'} size={13} />
             </button>
             <button
               ref={reset.anchorRef}
@@ -155,12 +192,21 @@ export function HttpEndpoint(props: {
           </>
         }
       />
-    </div>
+    </>
   )
 }
 
+/** 网址里的主机名（IPv6 去掉方括号）；写得不对是空串。 */
+function urlHost(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^\[(.*)\]$/u, '$1')
+  } catch {
+    return ''
+  }
+}
+
 /**
- * 接口卡里的一行：名字、值、右边的小按钮和铅笔；点铅笔就地换成输入框。
+ * 地址、令牌的一行：名字、值、右边的小按钮和铅笔；点铅笔就地换成输入框。
  * 输入框在对话框的表单里：Enter 只保存这一项（不提交整个对话框），Esc 只收起这一项（不关对话框）。
  */
 function EditableRow(props: {
@@ -178,6 +224,10 @@ function EditableRow(props: {
   onSave(text: string): Promise<string | null>
   shown: React.ReactNode
   tools: React.ReactNode
+  /** 值的框前面的东西（令牌的「需要 / 不需要」）。 */
+  lead?: React.ReactNode
+  /** 给了就不显示值的框，换成它（不需要令牌时的一句话）。 */
+  off?: React.ReactNode | undefined
 }): React.JSX.Element {
   const { t } = props
   const [text, setText] = useState<string | null>(null)
@@ -217,97 +267,103 @@ function EditableRow(props: {
   }
 
   return (
-    <div className={css.row}>
-      <span className={css.label}>{props.label}</span>
-      {editing ? (
-        <span className={css.edit} data-invalid={error !== null || undefined}>
-          {props.prefix !== undefined && (
-            <span className={css.prefix} data-tip={props.prefix}>
-              {props.prefix}
+    <StageRow
+      label={props.label}
+      note={editing ? (error ?? props.help) : undefined}
+      problem={error !== null}
+      testId={`${props.testId}-row`}
+      noteTestId={`${props.testId}-note`}
+    >
+      <div className={css.line}>
+        {props.lead}
+        {props.off ?? (
+          <div
+            className={css.field}
+            data-editing={editing}
+            data-invalid={error !== null || undefined}
+          >
+            {editing ? (
+              <span className={css.edit}>
+                {props.prefix !== undefined && (
+                  <span className={css.prefix} data-tip={props.prefix}>
+                    {props.prefix}
+                  </span>
+                )}
+                <input
+                  ref={input}
+                  className={css.input}
+                  value={text}
+                  spellCheck={false}
+                  autoComplete="off"
+                  aria-label={props.label}
+                  aria-invalid={error !== null}
+                  disabled={busy}
+                  data-testid={`${props.testId}-input`}
+                  onChange={(event) => {
+                    setText(event.currentTarget.value)
+                    setError(null)
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault()
+                      void save()
+                    } else if (event.key === 'Escape') {
+                      event.preventDefault()
+                      event.stopPropagation()
+                      close()
+                    }
+                  }}
+                />
+              </span>
+            ) : (
+              props.shown
+            )}
+            <span className={css.tools}>
+              {editing ? (
+                <>
+                  <button
+                    type="button"
+                    className={cx(ui.btn, ui.icon, ui.small)}
+                    aria-label={t('trigger.applyEdit')}
+                    data-tip={t('trigger.applyEdit')}
+                    disabled={busy}
+                    data-testid={`${props.testId}-save`}
+                    onClick={() => void save()}
+                  >
+                    <Icon name="check" size={13} />
+                  </button>
+                  <button
+                    type="button"
+                    className={cx(ui.btn, ui.icon, ui.small)}
+                    aria-label={t('trigger.cancelEdit')}
+                    data-tip={t('trigger.cancelEdit')}
+                    data-testid={`${props.testId}-cancel`}
+                    onClick={close}
+                  >
+                    <Icon name="x" size={13} />
+                  </button>
+                </>
+              ) : (
+                <>
+                  {props.tools}
+                  <button
+                    ref={pencil}
+                    type="button"
+                    className={cx(ui.btn, ui.icon, ui.small)}
+                    aria-label={props.editLabel}
+                    data-tip={props.editLabel}
+                    data-testid={props.testId}
+                    onClick={() => setText(props.value)}
+                  >
+                    <Icon name="pencil" size={13} />
+                  </button>
+                </>
+              )}
             </span>
-          )}
-          <input
-            ref={input}
-            className={css.input}
-            value={text}
-            spellCheck={false}
-            autoComplete="off"
-            aria-label={props.label}
-            aria-invalid={error !== null}
-            disabled={busy}
-            data-testid={`${props.testId}-input`}
-            onChange={(event) => {
-              setText(event.currentTarget.value)
-              setError(null)
-            }}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                event.preventDefault()
-                void save()
-              } else if (event.key === 'Escape') {
-                event.preventDefault()
-                event.stopPropagation()
-                close()
-              }
-            }}
-          />
-        </span>
-      ) : (
-        props.shown
-      )}
-      <span className={css.tools}>
-        {editing ? (
-          <>
-            <button
-              type="button"
-              className={cx(ui.btn, ui.icon, ui.small)}
-              aria-label={t('trigger.applyEdit')}
-              data-tip={t('trigger.applyEdit')}
-              disabled={busy}
-              data-testid={`${props.testId}-save`}
-              onClick={() => void save()}
-            >
-              <Icon name="check" size={13} />
-            </button>
-            <button
-              type="button"
-              className={cx(ui.btn, ui.icon, ui.small)}
-              aria-label={t('trigger.cancelEdit')}
-              data-tip={t('trigger.cancelEdit')}
-              data-testid={`${props.testId}-cancel`}
-              onClick={close}
-            >
-              <Icon name="x" size={13} />
-            </button>
-          </>
-        ) : (
-          <>
-            {props.tools}
-            <button
-              ref={pencil}
-              type="button"
-              className={cx(ui.btn, ui.icon, ui.small)}
-              aria-label={props.editLabel}
-              data-tip={props.editLabel}
-              data-testid={props.testId}
-              onClick={() => setText(props.value)}
-            >
-              <Icon name="pencil" size={13} />
-            </button>
-          </>
+          </div>
         )}
-      </span>
-      {editing && (
-        <p
-          className={css.note}
-          data-tone={error === null ? 'help' : 'error'}
-          role={error === null ? undefined : 'alert'}
-          data-testid={`${props.testId}-note`}
-        >
-          {error ?? props.help}
-        </p>
-      )}
-    </div>
+      </div>
+    </StageRow>
   )
 }
 

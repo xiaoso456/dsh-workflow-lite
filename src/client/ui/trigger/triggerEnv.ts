@@ -26,8 +26,13 @@ export interface WorkflowChoice {
   nodes: number
 }
 
-/** 一个工作流最近一次执行（最新建的那个实例）。 */
-export interface LastRun {
+/** 每个工作流最多列几次执行。 */
+export const RECENT_RUNS = 6
+
+/** 一个工作流的一次执行（一个实例）。 */
+export interface RunBrief {
+  /** 实例 id。 */
+  id: string
   /** 状态文件里写的；读不出来是 `undefined`。 */
   status?: RunStatus
   /** 最后一次更新的时刻。 */
@@ -52,8 +57,8 @@ export interface TriggerEnv {
   sessions: readonly SessionChoice[]
   /** 接续触发能等的工作流（除了这一张之外的全部）。 */
   workflows: readonly WorkflowChoice[]
-  /** 各工作流最近一次执行（按工作流名）；读不到是空的。 */
-  lastRuns(): Promise<ReadonlyMap<string, LastRun>>
+  /** 各工作流最近的几次执行（按工作流名，新的在前，每个最多 {@link RECENT_RUNS} 个）；读不到是空的。 */
+  recentRuns(): Promise<ReadonlyMap<string, readonly RunBrief[]>>
   /** 在另一个工作流的设置里打开「记录运行状态」（接续触发要靠它）；打不开回一句原因。 */
   enableRunState(workflow: string): Promise<string | null>
   /**

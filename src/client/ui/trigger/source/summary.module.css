@@ -1,0 +1,90 @@
+/*
+ * 「触发方式」对话框头部的一句话（SourceSummary.tsx）：标题后一道细竖线，右边两行和标题、卡片名对齐；
+ * 贴着 ✕ 一个状态小标记。字号和正文一档，重点只加粗，不上色、不垫底。
+ */
+
+.summary {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+  margin-left: 4px;
+}
+
+/* 两行：竖线在左边，高度跟着标题那一块。 */
+.lines {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  min-height: 34px;
+  padding-left: 14px;
+  border-left: 1px solid var(--wl-line-strong);
+}
+
+.say {
+  margin: 0;
+  overflow: hidden;
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-body);
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sub {
+  margin: 0;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 没有下一次、也没写错：只剩一行，居中。 */
+.sub:empty {
+  display: none;
+}
+
+.sub[data-problem="true"] {
+  color: var(--wl-danger);
+}
+
+/* 现在怎样：细边小胶囊，圆点和字按状态换色。 */
+.state {
+  display: inline-flex;
+  flex: none;
+  gap: 6px;
+  align-items: center;
+  max-width: 30%;
+  height: 24px;
+  padding: 0 10px;
+  overflow: hidden;
+  border: 1px solid var(--wl-line-strong);
+  border-radius: calc(99px * var(--wl-round, 1));
+  color: var(--tone-text);
+  font-size: var(--wl-fs-micro);
+  white-space: nowrap;
+}
+
+.state[data-shown="false"] {
+  display: none;
+}
+
+/* 窄视口：标题已经挤了，这一块整个不放（左栏选中的那一种、右边的设置还在）。 */
+@container (max-width: 640px) {
+  .summary {
+    display: none;
+  }
+}
+
+:global([data-look="swiss"]) .lines {
+  border-left-color: var(--wl-text);
+}
+
+:global([data-look="swiss"]) .state {
+  border-radius: 0;
+}

@@ -1,8 +1,8 @@
 /**
- * dsh-workflow-lite — 轮询的间隔：一条带刻度的滑条（10 秒 … 1 天几档常用的），旁边一个数加一个单位，两边连着。
+ * dsh-workflow-lite — 轮询的间隔（「触发方式」对话框的一行设置）：一排常用间隔的胶囊，点一下就定；
+ * 「自定义…」展开数字框 + 单位（间隔不是常用的那几档时一直展开）。
  *
  * 数字框里是草稿：打得出一个范围内的数才写进去；超出范围的在下面说一句、不写，失焦时夹进范围（框里的数跟着变）。
- * 滑条只停在刻度上；数字框里写了刻度之间的值，滑块停在最近的那一档下面。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/trigger/source/IntervalField
  */
@@ -12,9 +12,12 @@ import { POLL_MAX_SECONDS, POLL_MIN_SECONDS } from '../../../../shared/trigger.t
 import type { LocaleKey, T } from '../../../i18n.ts'
 import { spanText } from '../../../model/triggerSay.ts'
 import { cx } from '../../kit/cx.ts'
+import { Icon } from '../../kit/Icon.tsx'
 import { Select } from '../../kit/Select.tsx'
 import ui from '../../kit/ui.module.css'
 import css from './interval.module.css'
+import chips from './presets.module.css'
+import { StageRow } from './StageRow.tsx'
 import stage from './sourceStage.module.css'
 
 type Unit = 'second' | 'minute' | 'hour'
@@ -25,8 +28,8 @@ const UNITS: readonly { value: Unit; label: LocaleKey; seconds: number }[] = [
   { value: 'hour', label: 'trigger.unit.hour', seconds: 3600 },
 ]
 
-/** 滑条上的几档。 */
-export const INTERVAL_STOPS = [10, 30, 60, 300, 900, 1800, 3600, 6 * 3600, 86_400] as const
+/** 常用的几档（别的点「自定义…」填）。 */
+export const INTERVAL_STOPS = [60, 300, 900, 3600, 86_400] as const
 
 const sizeOf = (unit: Unit): number => UNITS.find((item) => item.value === unit)?.seconds ?? 1
 
@@ -36,26 +39,9 @@ function unitOf(seconds: number): Unit {
   return 'second'
 }
 
-/** 滑块停在哪一档：不超过它的最大一档。 */
-export function stopOf(seconds: number): number {
-  let index = 0
-  INTERVAL_STOPS.forEach((stop, at) => {
-    if (stop <= seconds) index = at
-  })
-  return index
-}
-
-/** 刻度下的短写法：「10秒」「5分」「6时」「1天」。 */
-function tickText(t: T, seconds: number): string {
-  const [key, size]: [LocaleKey, number] =
-    seconds % 86_400 === 0
-      ? ['trigger.tick.d', 86_400]
-      : seconds % 3600 === 0
-        ? ['trigger.tick.h', 3600]
-        : seconds % 60 === 0
-          ? ['trigger.tick.m', 60]
-          : ['trigger.tick.s', 1]
-  return t(key).replace('{n}', String(seconds / size))
+/** 是不是常用的那几档之一。 */
+export function isStop(seconds: number): boolean {
+  return (INTERVAL_STOPS as readonly number[]).includes(seconds)
 }
 
 const clamp = (value: number): number =>
@@ -69,17 +55,57 @@ export function IntervalField(props: {
   const { t, seconds } = props
   const [unit, setUnit] = useState<Unit>(() => unitOf(seconds))
   const [draft, setDraft] = useState<string | null>(null)
+  /** 点过「自定义…」。 */
+  const [opened, setOpened] = useState(false)
+  const custom = opened || !isStop(seconds)
   const shown = seconds % sizeOf(unit) === 0 ? unit : 'second'
   const amount = seconds / sizeOf(shown)
   const typed = draft === null ? Number.NaN : Number.parseInt(draft, 10) * sizeOf(shown)
   const outOfRange = Number.isFinite(typed) && clamp(typed) !== typed
-  const stop = stopOf(seconds)
-  const exact = INTERVAL_STOPS[stop] === seconds
   return (
-    <section className={stage.section}>
-      <p className={stage.head}>
-        {t('trigger.every')}
-        <span className={stage.headAside}>
+    <StageRow
+      label={t('trigger.every')}
+      note={
+        outOfRange ? t('trigger.issue.interval').replace('{min}', String(POLL_MIN_SECONDS)) : ''
+      }
+      problem
+      testId="wl-trigger-poll-interval"
+    >
+      <div className={stage.line} role="group" aria-label={t('trigger.every')}>
+        {INTERVAL_STOPS.map((stop) => {
+          const on = !custom && stop === seconds
+          return (
+            <button
+              key={stop}
+              type="button"
+              className={chips.chip}
+              aria-pressed={on}
+              data-testid={`wl-trigger-poll-every-${String(stop)}`}
+              onClick={() => {
+                setOpened(false)
+                setDraft(null)
+                setUnit(unitOf(stop))
+                props.onChange(stop)
+              }}
+            >
+              <span className={chips.check} aria-hidden="true">
+                <Icon name="check" size={11} />
+              </span>
+              {spanText(t, stop)}
+            </button>
+          )
+        })}
+        <button
+          type="button"
+          className={chips.chip}
+          aria-pressed={custom}
+          aria-expanded={custom}
+          data-testid="wl-trigger-poll-custom"
+          onClick={() => setOpened(true)}
+        >
+          {t('trigger.everyCustom')}
+        </button>
+        <span className={css.custom} hidden={!custom}>
           <input
             className={cx(ui.input, css.number)}
             inputMode="numeric"
@@ -112,44 +138,7 @@ export function IntervalField(props: {
             options={UNITS.map((item) => ({ value: item.value, label: t(item.label) }))}
           />
         </span>
-      </p>
-      <div
-        className={css.slider}
-        style={{ '--at': String(stop / (INTERVAL_STOPS.length - 1)) } as React.CSSProperties}
-      >
-        <input
-          type="range"
-          className={css.range}
-          min={0}
-          max={INTERVAL_STOPS.length - 1}
-          step={1}
-          value={stop}
-          aria-label={t('trigger.every')}
-          aria-valuetext={spanText(t, seconds)}
-          data-testid="wl-trigger-poll-slider"
-          onChange={(event) => {
-            const next = INTERVAL_STOPS[Number(event.currentTarget.value)]
-            if (next === undefined) return
-            setDraft(null)
-            setUnit(unitOf(next))
-            props.onChange(next)
-          }}
-        />
-        <span className={css.ticks} aria-hidden="true">
-          {INTERVAL_STOPS.map((value, index) => (
-            <span key={value} className={css.tick} data-on={exact && index === stop}>
-              {tickText(t, value)}
-            </span>
-          ))}
-        </span>
       </div>
-      <p
-        className={stage.error}
-        role={outOfRange ? 'alert' : undefined}
-        data-testid="wl-trigger-poll-range"
-      >
-        {outOfRange ? t('trigger.issue.interval').replace('{min}', String(POLL_MIN_SECONDS)) : ''}
-      </p>
-    </section>
+    </StageRow>
   )
 }

@@ -1,29 +1,33 @@
 /**
- * dsh-workflow-lite — 「触发方式」对话框里接续的设置：上面两张工作流卡片连一条线（线色和画布上同一套：
- * 成功绿、失败红、不论结果蓝），下面左边挑等哪个工作流、右边挑什么结果时。
+ * dsh-workflow-lite — 「触发方式」对话框里接续的设置：设置行是等哪个工作流（一个下拉，展开是带搜索的列表）和什么结果时；
+ * 工作台上面两张工作流卡片连一条线（线色和画布上同一套：成功绿、失败红、不论结果蓝），
+ * 下面列那个工作流最近几次执行，按现在选的结果标出哪几次会接着执行。
  *
- * - 工作流列表带搜索，每行写最近一次执行的结果和几张卡片；没开「记录运行状态」的看不出什么时候跑完，
+ * - 列表每行写最近一次执行的结果和几张卡片；没开「记录运行状态」的看不出什么时候跑完，
  *   那一行选不了，行尾「去打开」问一句后替它打开（改的是那个工作流的设置）。
  * - 选中的那一个不在列表里（改了名、删了，或者在实例视图里）也照样列出来。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/trigger/source/AfterStage
  */
 
-import { useEffect, useState } from 'react'
-import { afterWhen } from '../../../../shared/trigger.ts'
+import { useEffect, useRef, useState } from 'react'
+import { afterMatches, afterWhen, type FinishedStatus } from '../../../../shared/trigger.ts'
 import type { AfterWhen, TriggerSource } from '../../../../shared/types.ts'
 import type { LocaleKey, T } from '../../../i18n.ts'
 import { momentText } from '../../../model/triggerText.ts'
-import { ChoiceCards } from '../../kit/ChoiceCards.tsx'
 import { useConfirm } from '../../kit/Confirm.tsx'
 import { cx } from '../../kit/cx.ts'
+import { HelpTip } from '../../kit/HelpTip.tsx'
 import { Icon } from '../../kit/Icon.tsx'
 import { WHEN_COLOR } from '../../kit/lineColors.ts'
+import { Popover } from '../../kit/Popover.tsx'
+import { Segmented } from '../../kit/Segmented.tsx'
 import { CheckBox } from '../../motion/marks.tsx'
 import { TriggerMark } from '../TriggerMark.tsx'
-import type { LastRun, TriggerEnv, WorkflowChoice } from '../triggerEnv.ts'
+import type { RunBrief, TriggerEnv, WorkflowChoice } from '../triggerEnv.ts'
 import css from './after.module.css'
-import stage from './sourceStage.module.css'
+import { Bench, benchAside } from './Bench.tsx'
+import { StageRow, StageRows } from './StageRow.tsx'
 
 type After = Extract<TriggerSource, { kind: 'after' }>
 
@@ -33,6 +37,11 @@ const RESULTS: readonly { value: AfterWhen; label: LocaleKey; line: 'pass' | 'fa
     { value: 'failed', label: 'trigger.afterWhen.failed', line: 'fail' },
     { value: 'any', label: 'trigger.afterWhen.any', line: 'always' },
   ]
+
+const FINISHED: readonly string[] = ['done', 'failed', 'cancelled'] satisfies FinishedStatus[]
+
+const finishedOf = (run: RunBrief): FinishedStatus | null =>
+  run.status !== undefined && FINISHED.includes(run.status) ? (run.status as FinishedStatus) : null
 
 /** 换结果：「成功时」是缺省，不写进图。 */
 function withWhen(source: After, when: AfterWhen): After {
@@ -54,51 +63,31 @@ export function AfterStage(props: {
       ? known
       : [{ name: source.workflow, runState: true, nodes: 0 }, ...known]
   const picked = choices.find((item) => item.name === source.workflow)
-  const [runs, setRuns] = useState<ReadonlyMap<string, LastRun>>(new Map())
+  const [runs, setRuns] = useState<ReadonlyMap<string, readonly RunBrief[]>>(new Map())
   useEffect(() => {
     if (env === null) return
     let alive = true
-    void env.lastRuns().then((value) => {
+    void env.recentRuns().then((value) => {
       if (alive) setRuns(value)
     })
     return () => {
       alive = false
     }
   }, [env])
-  const line = WHEN_COLOR[RESULTS.find((item) => item.value === when)?.line ?? 'pass']
+  const result = RESULTS.find((item) => item.value === when)
+  const line = WHEN_COLOR[result?.line ?? 'pass']
   const noState = known.find((item) => item.name === source.workflow)?.runState === false
+  const pickedRuns = picked === undefined ? undefined : runs.get(picked.name)
   return (
     <>
-      <div className={css.chain} style={{ '--line': line } as React.CSSProperties}>
-        <div className={css.wf} data-empty={picked === undefined}>
-          <span className={css.wfName}>
-            <span className={css.wfIcon}>
-              <Icon name="hub" size={12} />
-            </span>
-            <span className={css.ellipsis}>{picked?.name ?? t('trigger.afterNone')}</span>
-          </span>
-          <span className={css.wfSub}>
-            {picked === undefined ? '' : <LastText t={t} run={runs.get(picked.name)} />}
-          </span>
-        </div>
-        <span className={css.edge} data-empty={picked === undefined}>
-          <span className={css.edgeLabel}>
-            {t(RESULTS.find((item) => item.value === when)?.label ?? 'trigger.afterWhen.done')}
-          </span>
-        </span>
-        <div className={css.wf} data-self="true">
-          <span className={css.wfName}>
-            <TriggerMark kind="after" size={11} className={css.wfMark} />
-            <span className={css.ellipsis}>{env?.workflow || t('trigger.afterThis')}</span>
-          </span>
-          <span className={css.wfSub}>{t('trigger.afterThis')}</span>
-        </div>
-      </div>
-
-      <div className={cx(stage.pair, stage.pairWide)}>
-        <section className={stage.section}>
-          <p className={stage.head}>{t('trigger.afterPick')}</p>
-          <WorkflowList
+      <StageRows>
+        <StageRow
+          label={t('trigger.afterLead')}
+          note={noState ? t('trigger.afterNeedsState').replace('{name}', source.workflow) : ''}
+          problem
+          noteTestId="wl-trigger-after-state"
+        >
+          <WorkflowPicker
             t={t}
             env={env}
             choices={choices}
@@ -106,14 +95,17 @@ export function AfterStage(props: {
             value={source.workflow}
             onPick={(workflow) => props.onChange({ ...source, workflow })}
           />
-          <p className={stage.error} data-testid="wl-trigger-after-state">
-            {noState ? t('trigger.afterNeedsState').replace('{name}', source.workflow) : ''}
-          </p>
-        </section>
-        <section className={stage.section}>
-          <p className={stage.head}>{t('trigger.afterResult')}</p>
-          <ChoiceCards<AfterWhen>
-            label={t('trigger.afterWhen')}
+        </StageRow>
+        <StageRow
+          label={t('trigger.afterWhen')}
+          help={
+            <HelpTip label={t('trigger.afterResultHelp')} testId="wl-trigger-after-when-help">
+              <ResultHelp t={t} />
+            </HelpTip>
+          }
+        >
+          <Segmented<AfterWhen>
+            label={t('trigger.afterResult')}
             value={when}
             testId="wl-trigger-after-when"
             onChange={(next) => props.onChange(withWhen(source, next))}
@@ -123,18 +115,170 @@ export function AfterStage(props: {
               color: WHEN_COLOR[item.line],
             }))}
           />
-        </section>
-      </div>
-      <p className={stage.note}>
-        <Icon name="info" size={13} />
-        <span>{t('trigger.afterHint')}</span>
-      </p>
+        </StageRow>
+      </StageRows>
+      <Bench
+        icon="after"
+        title={t('trigger.afterRuns')}
+        tools={<span className={benchAside}>{t('trigger.afterRunsAside')}</span>}
+        foot={t('trigger.afterFoot')}
+        testId="wl-trigger-after-bench"
+      >
+        <div className={css.flow} style={{ '--line': line } as React.CSSProperties}>
+          <div className={css.chain}>
+            <div className={css.wf} data-empty={picked === undefined}>
+              <span className={css.wfName}>
+                <span className={css.wfIcon}>
+                  <Icon name="hub" size={12} />
+                </span>
+                <span className={css.ellipsis}>{picked?.name ?? t('trigger.afterNone')}</span>
+              </span>
+              <span className={css.wfSub}>
+                {picked === undefined ? '' : <LastText t={t} run={pickedRuns?.[0]} />}
+              </span>
+            </div>
+            <span className={css.edge} data-empty={picked === undefined}>
+              <span className={css.edgeLabel}>{t(result?.label ?? 'trigger.afterWhen.done')}</span>
+            </span>
+            <div className={css.wf} data-self="true">
+              <span className={css.wfName}>
+                <TriggerMark kind="after" size={11} className={css.wfMark} />
+                <span className={css.ellipsis}>{env?.workflow || t('trigger.afterThis')}</span>
+              </span>
+              <span className={css.wfSub}>{t('trigger.afterThis')}</span>
+            </div>
+          </div>
+          <RunList t={t} source={source} picked={picked !== undefined} runs={pickedRuns} />
+        </div>
+      </Bench>
     </>
   )
 }
 
+/** 「结果」旁「?」里的说明：三个选项各一行（选项名带线色圆点，和分段控件里一样），下面一句前提。 */
+function ResultHelp(props: { t: T }): React.JSX.Element {
+  const { t } = props
+  return (
+    <div className={css.help}>
+      <ul className={css.helpList}>
+        {RESULTS.map((item) => (
+          <li key={item.value} className={css.helpItem}>
+            <span className={css.helpName}>
+              <span className={css.helpDot} style={{ background: WHEN_COLOR[item.line] }} />
+              {t(item.label)}
+            </span>
+            <span>{t(`trigger.afterResultTip.${item.value}` as LocaleKey)}</span>
+          </li>
+        ))}
+      </ul>
+      <p className={css.helpNote}>{t('trigger.afterResultTip.note')}</p>
+    </div>
+  )
+}
+
+/** 那个工作流最近几次执行：结果圆点、时刻、结果，行尾按现在的设置写会不会接着执行。 */
+function RunList(props: {
+  t: T
+  source: After
+  picked: boolean
+  runs: readonly RunBrief[] | undefined
+}): React.JSX.Element {
+  const { t, source, runs } = props
+  if (!props.picked || runs === undefined || runs.length === 0) {
+    return (
+      <p className={css.runsEmpty} data-testid="wl-trigger-after-runs">
+        {t(props.picked ? 'trigger.afterNever' : 'trigger.afterRunsPick')}
+      </p>
+    )
+  }
+  return (
+    <ul className={css.runs} data-testid="wl-trigger-after-runs">
+      {runs.map((run) => {
+        const finished = finishedOf(run)
+        const fires = finished !== null && afterMatches(source, finished)
+        const verdict: LocaleKey =
+          finished === null
+            ? 'trigger.afterRunOpen'
+            : fires
+              ? 'trigger.afterRunFires'
+              : 'trigger.afterRunSkips'
+        return (
+          <li key={run.id} className={css.run} data-fires={fires}>
+            <span className={css.dot} data-status={run.status} />
+            <span className={css.runAt}>{momentText(t, run.at)}</span>
+            <span className={css.runStatus}>
+              {run.status === undefined ? '' : t(`run.status.${run.status}` as LocaleKey)}
+            </span>
+            <span className={css.runVerdict}>
+              {fires && <Icon name="bolt" size={11} />}
+              {t(verdict)}
+            </span>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
+/** 等哪个工作流：一个像下拉框的按钮（名字 + 最近一次），点开是带搜索的列表。 */
+function WorkflowPicker(props: {
+  t: T
+  env: TriggerEnv | null
+  choices: readonly WorkflowChoice[]
+  runs: ReadonlyMap<string, readonly RunBrief[]>
+  value: string
+  onPick(workflow: string): void
+}): React.JSX.Element {
+  const { t } = props
+  const [open, setOpen] = useState(false)
+  const button = useRef<HTMLButtonElement>(null)
+  const picked = props.choices.find((item) => item.name === props.value)
+  return (
+    <Popover
+      open={open}
+      wide
+      onClose={() => {
+        setOpen(false)
+        button.current?.focus({ preventScroll: true })
+      }}
+      label={t('trigger.afterPick')}
+      className={css.pop}
+      trigger={
+        <button
+          ref={button}
+          type="button"
+          className={css.picker}
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          data-empty={picked === undefined}
+          data-testid="wl-trigger-after-pick"
+          onClick={() => setOpen(!open)}
+        >
+          <span className={css.pickerName}>{picked?.name ?? t('trigger.afterNone')}</span>
+          <span className={cx(css.last, css.pickerLast)}>
+            {picked === undefined ? '' : <LastText t={t} run={props.runs.get(picked.name)?.[0]} />}
+          </span>
+          <Icon name="chevronDown" size={13} />
+        </button>
+      }
+    >
+      <WorkflowList
+        t={t}
+        env={props.env}
+        choices={props.choices}
+        runs={props.runs}
+        value={props.value}
+        onPick={(workflow) => {
+          setOpen(false)
+          props.onPick(workflow)
+        }}
+      />
+    </Popover>
+  )
+}
+
 /** 最近一次执行：「今天 08:12 完成」；没执行过写「还没执行过」。 */
-function LastText(props: { t: T; run: LastRun | undefined }): React.JSX.Element {
+function LastText(props: { t: T; run: RunBrief | undefined }): React.JSX.Element {
   const { t, run } = props
   if (run === undefined) return <>{t('trigger.afterNever')}</>
   const status = run.status === undefined ? '' : t(`run.status.${run.status}` as LocaleKey)
@@ -151,7 +295,7 @@ function WorkflowList(props: {
   t: T
   env: TriggerEnv | null
   choices: readonly WorkflowChoice[]
-  runs: ReadonlyMap<string, LastRun>
+  runs: ReadonlyMap<string, readonly RunBrief[]>
   value: string
   onPick(workflow: string): void
 }): React.JSX.Element {
@@ -180,7 +324,7 @@ function WorkflowList(props: {
             t={t}
             env={props.env}
             item={item}
-            run={props.runs.get(item.name)}
+            run={props.runs.get(item.name)?.[0]}
             on={item.name === props.value}
             onPick={() => props.onPick(item.name)}
           />
@@ -197,7 +341,7 @@ function WorkflowRow(props: {
   t: T
   env: TriggerEnv | null
   item: WorkflowChoice
-  run: LastRun | undefined
+  run: RunBrief | undefined
   on: boolean
   onPick(): void
 }): React.JSX.Element {

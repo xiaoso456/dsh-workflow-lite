@@ -1,61 +1,97 @@
 /**
- * dsh-workflow-lite — 「触发方式」对话框右边顶上的一块：小字写「主动 · 定时」，下面一句话说这张卡片什么时候执行
- * （规则、间隔、等哪个工作流这几处上触发方式的颜色），再下面一行是现在的情况（下一次、在不在跑、改了没保存）。
+ * dsh-workflow-lite — 「触发方式」对话框头部标题右边的一块：一句话说这张卡片什么时候执行（不加粗、不上色），
+ * 下面一行小字写下一次（定时）或写得不对的原因；贴着 ✕ 一个小标记写现在怎样（等待中、接收中、有改动没保存）。
  *
- * 一直挂着：换方式、改设置时只换字。
+ * 规则和现状分开放：改设置只换中间的字，状态变了只换右边的标记。一直挂着，只换字、换属性（不插拔元素）。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/trigger/source/SourceSummary
  */
 
+import { nextFire, scheduleIssue } from '../../../../shared/schedule.ts'
+import { sourceIssue } from '../../../../shared/trigger.ts'
 import type { TriggerSource } from '../../../../shared/types.ts'
+import type { TriggerView } from '../../../../shared/wire/trigger.ts'
 import type { T } from '../../../i18n.ts'
-import { triggerMode } from '../../../model/triggerGlance.ts'
 import { sourceSay } from '../../../model/triggerSay.ts'
-import { Icon } from '../../kit/Icon.tsx'
-import { SOURCE_KINDS } from './kinds.ts'
-import css from './sourceStage.module.css'
+import {
+  momentText,
+  scheduleIssueText,
+  sourceIssueText,
+  stateText,
+  stateTone,
+} from '../../../model/triggerText.ts'
+import { cx } from '../../kit/cx.ts'
+import tone from '../stateTone.module.css'
+import { triggerTint } from '../TriggerMark.tsx'
+import css from './summary.module.css'
+
+/** 草稿写得不对的一句话；没问题是 `null`。 */
+export function draftProblem(t: T, source: TriggerSource): string | null {
+  if (source.kind === 'schedule') {
+    const issue = scheduleIssue(source.schedule)
+    return issue === null ? null : scheduleIssueText(t, issue)
+  }
+  const issue = sourceIssue(source)
+  return issue === null ? null : sourceIssueText(t, issue)
+}
+
+/** 卡片开着、排着队时宿主排好的下一次（「每隔多久」从这一次往后数）；别的时候 `undefined`。 */
+export function armedNext(view: TriggerView | undefined): number | undefined {
+  return view !== undefined && (view.state === 'waiting' || view.state === 'elsewhere')
+    ? view.next
+    : undefined
+}
 
 export function SourceSummary(props: {
   t: T
+  /** 草稿。 */
   source: TriggerSource
-  /** 写得不对的一句（定时规则不对等）：换掉那句话下面一行，标红。 */
-  problem?: string | null | undefined
-  /** 下面一行：现在的情况。 */
-  children?: React.ReactNode
+  /** 现场（草稿改过时不给：现场是图里那条规则的）。 */
+  view: TriggerView | undefined
+  /** 草稿和图里的不一样。 */
+  dirty: boolean
 }): React.JSX.Element {
-  const { t, source } = props
-  const mode = triggerMode(source.kind)
-  const kind = SOURCE_KINDS.find((item) => item.value === source.kind)
-  const problem = props.problem ?? null
+  const { t, source, view } = props
+  const now = Date.now()
+  const say = sourceSay(t, source)
+  const problem = draftProblem(t, source)
+  const next =
+    source.kind !== 'schedule'
+      ? null
+      : (armedNext(view) ?? nextFire(source.schedule, new Date(now))?.getTime() ?? null)
+  const sub =
+    problem ?? (next === null ? '' : t('trigger.next').replace('{time}', momentText(t, next, now)))
+  const state = props.dirty
+    ? { tone: 'warn', text: t('trigger.say.saveFirst') }
+    : view === undefined
+      ? null
+      : {
+          tone: stateTone(view.state, source.kind),
+          text: stateText(t, view, source.kind, now, { next: false }),
+        }
   return (
-    <section
+    <div
       className={css.summary}
+      style={{ '--wl-kind': triggerTint(source.kind) } as React.CSSProperties}
       data-testid="wl-trigger-summary"
-      data-problem={problem !== null}
     >
-      <p className={css.eyebrow}>
-        <Icon name={mode === 'active' ? 'arrowOut' : 'arrowIn'} size={11} />
-        {t(mode === 'active' ? 'trigger.mode.active' : 'trigger.mode.passive')}
-        <span aria-hidden="true">·</span>
-        {kind === undefined ? '' : t(kind.label)}
-      </p>
-      <p className={css.say} data-testid="wl-trigger-rule-title">
-        {sourceSay(t, source).map((segment, index) =>
-          segment.token === true ? (
-            // 一句话里的段落只按位置区分。
-            // biome-ignore lint/suspicious/noArrayIndexKey: 段落没有别的标识，整句一起换
-            <span key={index} className={css.token}>
-              {segment.text}
-            </span>
-          ) : (
-            // biome-ignore lint/suspicious/noArrayIndexKey: 同上
-            <span key={index}>{segment.text}</span>
-          ),
-        )}
-      </p>
-      <div className={css.meta} data-testid="wl-trigger-preview">
-        {problem === null ? props.children : <span className={css.problem}>{problem}</span>}
+      <div className={css.lines}>
+        <p className={css.say} data-tip={say} data-testid="wl-trigger-rule-title">
+          {say}
+        </p>
+        <p className={css.sub} data-problem={problem !== null} data-testid="wl-trigger-preview">
+          {sub}
+        </p>
       </div>
-    </section>
+      <span
+        className={cx(css.state, tone.tone)}
+        data-tone={state?.tone}
+        data-shown={state !== null}
+        data-testid="wl-trigger-summary-state"
+      >
+        <span className={tone.dot} />
+        {state?.text ?? ''}
+      </span>
+    </div>
   )
 }

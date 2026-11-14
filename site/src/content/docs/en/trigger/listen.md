@@ -11,8 +11,8 @@ A listener is a command that keeps running: it starts when the switch is turned 
 
 ## Use
 
-1. Add a trigger card, click **Schedule ▾** in the header of **Trigger**, and choose **Listen**; click **Write command**, fill in **Command** or click **Start from a template** and edit one, and click **Save**.
-2. Choose a workspace under **Run settings**.
+1. Add a trigger card, click **Schedule ▾** in the header of **Trigger**, and choose **Listen**; click **Write command**.
+2. Choose the **Workspace** the program runs in, fill in **Command** or click **Start from a template**, search, pick one and edit it, and click **Save**.
 3. Turn on the switch, check the command and workspace in the confirmation card, and click **Confirm and turn on**.
 
 The card shows **Receiving** and when the program started, and its middle row changes to the last line the program printed. Click **Edit** under **Trigger**; the program's recent output, including its error output, is shown below the command box.

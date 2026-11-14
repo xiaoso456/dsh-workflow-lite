@@ -316,6 +316,21 @@ describe('HTTP 地址', () => {
     await expect(post(url, 'secret')).rejects.toThrow()
   })
 
+  it('不要令牌的地址：带不带、带错都收下', async () => {
+    const port = await freePort()
+    const bodies: string[] = []
+    await hooks.sync(
+      { host: '127.0.0.1', port },
+      new Map([['open', { token: null, accept: (body: string) => bodies.push(body) }]]),
+    )
+    const url = hookUrl('127.0.0.1', port, 'open')
+    expect((await fetch(url, { method: 'POST', body: 'a' })).status).toBe(202)
+    const wrong = { authorization: 'Bearer whatever' }
+    expect((await fetch(url, { method: 'POST', body: 'b', headers: wrong })).status).toBe(202)
+    expect(await pingHook(url, null)).toMatchObject({ status: 202 })
+    expect(bodies).toEqual(['a', 'b', PING_BODY])
+  })
+
   it('地址里有中文：网址里转义，收到时解开再对', async () => {
     const port = await freePort()
     const bodies: string[] = []

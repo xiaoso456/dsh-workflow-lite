@@ -2,7 +2,7 @@
  * dsh-workflow-lite — HTTP 触发：插件自己在本机开一个固定端口，每张 HTTP 触发卡片一个地址、一个令牌。
  *
  * - 监听地址和端口在插件设置里定（缺省只监听 127.0.0.1）；没有开着的 HTTP 触发卡片时不开端口。
- * - `POST /trigger/<地址>`，令牌放在 `Authorization: Bearer <令牌>`（或 `?token=`）；
+ * - `POST /trigger/<地址>`，令牌放在 `Authorization: Bearer <令牌>`（或 `?token=`）；卡片可以设成不校验令牌；
  *   令牌不对回 401，地址不在（卡片关着、删了）回 404，别的方法回 405，请求体超过 1 MiB 回 413。
  * - 请求一收到就回 202，不等工作流跑完；请求体原样作为背景信息。
  * - 端口被占用、监听地址不在本机时报出原因，每隔一会儿再试；空出来或在设置里换一个就自动恢复。
@@ -43,9 +43,9 @@ export function hookUrl(host: string, port: number, hook: string): string {
   return `http://${host}:${String(port)}${hookPath(hook)}`
 }
 
-/** 一个开着的地址：令牌、收到请求体之后交给谁。 */
+/** 一个开着的地址：令牌（`null` = 不校验）、收到请求体之后交给谁。 */
 export interface HookRoute {
-  token: string
+  token: string | null
   accept(body: string): void
 }
 
@@ -85,6 +85,13 @@ function hookOf(pathname: string): string | undefined {
 function sameToken(given: string, expected: string): boolean {
   const digest = (text: string): Buffer => createHash('sha256').update(text).digest()
   return timingSafeEqual(digest(given), digest(expected))
+}
+
+/** 带的令牌对不对；地址不校验令牌（`expected` 是 `null`）时都算对。 */
+function authorized(request: IncomingMessage, url: URL, expected: string | null): boolean {
+  if (expected === null) return true
+  const given = tokenOf(request, url)
+  return given !== undefined && sameToken(given, expected)
 }
 
 function tokenOf(request: IncomingMessage, url: URL): string | undefined {
@@ -191,8 +198,7 @@ export class HookServer {
       request.resume()
       return
     }
-    const token = tokenOf(request, url)
-    if (token === undefined || !sameToken(token, route.token)) {
+    if (!authorized(request, url, route.token)) {
       reply(response, 401, { error: 'unauthorized', message: '令牌不对' })
       request.resume()
       return

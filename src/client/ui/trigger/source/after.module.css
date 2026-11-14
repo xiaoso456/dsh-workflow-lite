@@ -1,16 +1,119 @@
 /*
- * 接续（AfterStage.tsx）：两张工作流卡片 + 中间一条线（`--line`，和画布同色）、工作流列表（搜索、行）。
- * 选中的卡片、行只有同色细边和淡底，不发光。
+ * 接续（AfterStage.tsx）：设置行里的下拉（点开是工作流列表：搜索、行）；工作台里两张工作流卡片 +
+ * 中间一条线（`--line`，和画布同色），下面是最近几次执行。选中的卡片、行只有同色细边和淡底，不发光。
  */
 
-.chain {
-  --line: var(--wl-flow-pass);
+/* ── 设置行：像下拉框的按钮 ─────────────────────────────────── */
 
+.picker {
   display: flex;
+  flex: 1 1 auto;
   align-items: center;
-  padding: 16px;
-  border: 1px solid var(--wl-line);
+  gap: 10px;
+  min-width: 0;
+  height: 32px;
+  padding: 0 10px 0 11px;
+  border: 1px solid var(--wl-line-strong);
   border-radius: var(--wl-r-control);
+  background: var(--wl-fill);
+  color: var(--wl-text-3);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms linear;
+}
+
+.picker:hover,
+.picker[aria-expanded="true"] {
+  border-color: color-mix(in oklab, var(--wl-kind) 55%, var(--wl-line-strong));
+}
+
+.picker:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+.pickerName {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text);
+  font-size: var(--wl-fs-meta);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.picker[data-empty="true"] .pickerName {
+  color: var(--wl-text-3);
+  font-weight: 400;
+}
+
+.pickerLast {
+  flex: 1 1 auto;
+}
+
+.picker > svg {
+  flex: none;
+  margin-left: auto;
+}
+
+.pop {
+  padding: 0;
+}
+
+/* 「结果」旁「?」里的说明：一项一行，选项名一列对齐。 */
+.help {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.helpList {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 5px 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.helpItem {
+  display: contents;
+}
+
+.helpName {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--wl-text);
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.helpDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.helpNote {
+  margin: 0;
+  color: var(--wl-text-3);
+}
+
+/* ── 工作台：两张卡片 + 线，下面最近几次执行 ─────────────────── */
+
+.flow {
+  --line: var(--wl-flow-pass);
+}
+
+.chain {
+  display: flex;
+  flex: none;
+  align-items: center;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--wl-line);
   background:
     radial-gradient(var(--wl-dot) 1px, transparent 1.2px) 0 0 / 16px 16px,
     var(--wl-canvas);
@@ -155,14 +258,65 @@
   background: var(--wl-accent);
 }
 
-/* ── 工作流列表 ─────────────────────────────────────────────── */
+/* 最近几次执行：等高的行，行尾按现在的设置写会不会接着执行。 */
+.runs {
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+}
+
+.run {
+  display: grid;
+  grid-template-columns: 6px minmax(0, 9em) minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  height: 30px;
+  padding: 0 14px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+.run + .run {
+  border-top: 1px solid var(--wl-line);
+}
+
+.runAt {
+  color: var(--wl-text-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.runStatus {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.runVerdict {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.run[data-fires="true"] .runVerdict {
+  color: var(--line, var(--wl-kind));
+  font-weight: 600;
+}
+
+.runsEmpty {
+  margin: 0;
+  padding: 14px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+}
+
+/* ── 工作流列表（下拉里） ───────────────────────────────────── */
 
 .list {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid var(--wl-line-strong);
-  border-radius: var(--wl-r-control);
 }
 
 .search {
@@ -312,9 +466,14 @@
   font-size: var(--wl-fs-meta);
 }
 
-:global([data-look="swiss"]) .list {
-  border-width: 1px 0;
+:global([data-look="swiss"]) .picker {
+  border-width: 0 0 1px;
   border-radius: 0;
+  background: transparent;
+}
+
+:global([data-look="swiss"]) .run + .run {
+  border-top-color: var(--wl-line-strong);
 }
 
 :global([data-look="swiss"]) .wf {

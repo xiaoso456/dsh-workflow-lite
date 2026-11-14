@@ -52,6 +52,8 @@ export function Popover(props: {
   className?: string
   label: string
   hold?: boolean
+  /** 触发块占满一行（像下拉框），浮层和它一样宽。 */
+  wide?: boolean
   /** 鼠标从触发器和浮层上整个移开（离开两者合起来的范围）。 */
   onLeave?: () => void
 }): React.JSX.Element {
@@ -75,7 +77,7 @@ export function Popover(props: {
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: 只在这一层消化浮层内冒上来的 Esc
     <div
-      className={css.anchor}
+      className={cx(css.anchor, props.wide === true && css.anchorWide)}
       ref={ref}
       onPointerLeave={(event) => {
         if (props.open && event.pointerType === 'mouse') props.onLeave?.()
@@ -94,6 +96,7 @@ export function Popover(props: {
             css.popover,
             props.align === 'end' && css.popoverEnd,
             props.up === true && css.popoverUp,
+            props.wide === true && css.popoverWide,
             props.className,
           )}
           role="dialog"

@@ -1,0 +1,136 @@
+/*
+ * 「触发方式」的工作台（Bench.tsx）：比面板深一档的底、细边，顶栏 / 内容 / 底栏三段；占满剩下的高度。
+ * 外框不裁内容：顶栏里的菜单（命令模板）放不下时往上开，要能伸出框外。
+ */
+
+.bench {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 186px;
+  border: 1px solid var(--wl-line-strong);
+  border-radius: var(--wl-r-control);
+  background: var(--wl-canvas);
+}
+
+.bench:focus-within {
+  border-color: color-mix(in oklab, var(--wl-kind) 55%, var(--wl-line-strong));
+}
+
+.head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 5px 6px 5px 12px;
+  border-bottom: 1px solid var(--wl-line);
+}
+
+.title {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 7px;
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-meta);
+  font-weight: 600;
+}
+
+.title > svg {
+  color: var(--wl-kind);
+}
+
+.tools {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 0;
+}
+
+.aside {
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.body[data-split="true"] {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.foot {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  min-height: 30px;
+  padding: 5px 12px;
+  border-top: 1px solid var(--wl-line);
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.5;
+}
+
+.button {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 9px;
+  border: 1px solid var(--wl-line-strong);
+  border-radius: calc(7px * var(--wl-round, 1));
+  background: var(--wl-panel);
+  color: var(--wl-text-2);
+  font: inherit;
+  font-size: var(--wl-fs-meta);
+  white-space: nowrap;
+  cursor: pointer;
+  outline: 2px solid transparent;
+  outline-offset: 1px;
+  transition: scale 160ms var(--wl-ease-sheet);
+}
+
+.button:active:not(:disabled) {
+  scale: 0.96;
+}
+
+.button:focus-visible {
+  outline-color: var(--wl-accent);
+}
+
+.button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.primary {
+  border-color: color-mix(in oklab, var(--wl-kind) 40%, transparent);
+  background: color-mix(in oklab, var(--wl-kind) 10%, var(--wl-panel));
+  color: var(--wl-kind);
+  font-weight: 600;
+}
+
+:global([data-look="swiss"]) .head {
+  border-bottom-color: var(--wl-line-strong);
+}
+
+:global([data-look="swiss"]) .button {
+  border-radius: 0;
+}

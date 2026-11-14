@@ -1,8 +1,8 @@
 /**
  * dsh-workflow-lite — Cron 的编辑器：五格（分 时 日 月 周）、每格上面写名字，光标在哪一格下面就解释那一格能填什么；
- * 哪一格写错只那一格标红；一排常用的预设，点一下填入；往任何一格里粘贴整条表达式，会自动拆进五格。
+ * 哪一格写错只那一格标红；往任何一格里粘贴整条表达式，会自动拆进五格。常用规则在对话框上面那一排（不在这里另放一排）。
  *
- * 格子里是草稿：和表达式对不上才从表达式重新拆（预设、换回来），自己打字时不被改写。
+ * 格子里是草稿：和表达式对不上才从表达式重新拆（点常用规则、换回来），自己打字时不被改写。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/trigger/CronEditor
  */
@@ -21,15 +21,6 @@ const FIELDS: readonly { name: CronFieldName; label: LocaleKey; help: LocaleKey 
   { name: 'day', label: 'trigger.cronField.day', help: 'trigger.cronHelp.day' },
   { name: 'month', label: 'trigger.cronField.month', help: 'trigger.cronHelp.month' },
   { name: 'weekday', label: 'trigger.cronField.weekday', help: 'trigger.cronHelp.weekday' },
-]
-
-/** 常用的几条。 */
-const PRESETS: readonly { id: string; label: LocaleKey; expression: string }[] = [
-  { id: 'hourly', label: 'trigger.cronPreset.hourly', expression: '0 * * * *' },
-  { id: 'daily', label: 'trigger.cronPreset.daily', expression: '0 9 * * *' },
-  { id: 'workdays', label: 'trigger.cronPreset.workdays', expression: '0 9 * * 1-5' },
-  { id: 'monday', label: 'trigger.cronPreset.monday', expression: '0 9 * * 1' },
-  { id: 'monthly', label: 'trigger.cronPreset.monthly', expression: '0 9 1 * *' },
 ]
 
 /** 拆成空白隔开的几段（空的不算）。 */
@@ -59,7 +50,7 @@ export function CronEditor(props: {
   /** 光标在哪一格（`null` = 都不在，下面说五段各是什么）。 */
   const [focus, setFocus] = useState<number | null>(null)
 
-  // 表达式被别处改了（预设、换回这一种）：重新拆；自己打字改的不用。
+  // 表达式被别处改了（常用规则、换回这一种）：重新拆；自己打字改的不用。
   useEffect(() => {
     setParts((now) =>
       tokens(now.join(' ')).join(' ') === tokens(expression).join(' ') ? now : split(expression),
@@ -76,7 +67,6 @@ export function CronEditor(props: {
     setParts(next)
     props.onChange(next.join(' ').trim(), typing)
   }
-  const current = tokens(expression).join(' ')
 
   return (
     <div className={css.editor} data-testid="wl-trigger-cron-editor">
@@ -125,21 +115,6 @@ export function CronEditor(props: {
       <p className={ins.help} data-testid="wl-trigger-cron-help">
         {focus === null ? t('trigger.cronHint') : t(FIELDS[focus]?.help ?? 'trigger.cronHint')}
       </p>
-      <div className={css.presets} role="group" aria-label={t('trigger.cronPresets')}>
-        <span className={css.presetsLabel}>{t('trigger.cronPresets')}</span>
-        {PRESETS.map((preset) => (
-          <button
-            key={preset.id}
-            type="button"
-            className={css.preset}
-            aria-pressed={tokens(preset.expression).join(' ') === current}
-            data-testid={`wl-trigger-cron-preset-${preset.id}`}
-            onClick={() => write(split(preset.expression))}
-          >
-            {t(preset.label)}
-          </button>
-        ))}
-      </div>
     </div>
   )
 }

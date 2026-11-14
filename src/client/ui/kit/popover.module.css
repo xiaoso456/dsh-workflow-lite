@@ -8,6 +8,13 @@
   flex: none;
 }
 
+.anchorWide {
+  display: flex;
+  flex: 1 1 auto;
+  align-self: stretch;
+  min-width: 0;
+}
+
 .popover {
   position: absolute;
   top: calc(100% + 8px);
@@ -26,6 +33,10 @@
 /* 焦点只是暂放在浮层上（里面的按钮被删掉之后），不画框。 */
 .popover:focus {
   outline: none;
+}
+
+.popoverWide {
+  right: 0;
 }
 
 .popoverEnd {

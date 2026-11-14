@@ -14,6 +14,12 @@ export interface Crumb {
   path: string
 }
 
+/** 路径的最后一段（下拉里先看到文件夹名，再是完整路径）；两种分隔符都认。 */
+export function folderName(path: string): string {
+  const parts = path.split(/[\\/]/u).filter((part) => part !== '')
+  return parts[parts.length - 1] ?? path
+}
+
 export function crumbs(path: string): Crumb[] {
   const value = path.replace(/\\/gu, '/')
   const unc = /^\/\/[^/]+\/[^/]+/u.exec(value)

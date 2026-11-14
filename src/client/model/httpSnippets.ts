@@ -13,47 +13,53 @@ export type SnippetLang = (typeof SNIPPET_LANGS)[number]
 /** 示例里的正文：随便一个 JSON，收到的会话把它当背景信息。 */
 export const SAMPLE_BODY = '{"event":"deploy","ref":"main"}'
 
-/** 这种语言的示例（多行，带上令牌）。 */
+/**
+ * 这种语言的示例（多行）。
+ * @param endpoint - `token` 是 `null` 时地址不校验令牌，示例里不带。
+ */
 export function snippetOf(
   lang: SnippetLang,
-  endpoint: Pick<TriggerEndpoint, 'url' | 'token'>,
+  endpoint: Pick<TriggerEndpoint, 'url'> & { token: string | null },
 ): string {
   const { url, token } = endpoint
+  const lines = (...items: (string | false)[]): string =>
+    items.filter((line): line is string => line !== false).join('\n')
+  const auth = token !== null
   switch (lang) {
     case 'curl':
-      return [
+      return lines(
         `curl -X POST "${url}" \\`,
-        `  -H "Authorization: Bearer ${token}" \\`,
+        auth && `  -H "Authorization: Bearer ${token}" \\`,
         `  -H "Content-Type: application/json" \\`,
         `  -d '${SAMPLE_BODY}'`,
-      ].join('\n')
+      )
     case 'powershell':
-      return [
+      return lines(
         `Invoke-RestMethod -Method Post -Uri "${url}" \``,
-        `  -Headers @{ Authorization = "Bearer ${token}" } \``,
+        auth && `  -Headers @{ Authorization = "Bearer ${token}" } \``,
         `  -ContentType "application/json" \``,
         `  -Body '${SAMPLE_BODY}'`,
-      ].join('\n')
+      )
     case 'javascript':
-      return [
+      return lines(
         `await fetch("${url}", {`,
         `  method: "POST",`,
         `  headers: {`,
-        `    Authorization: "Bearer ${token}",`,
+        auth && `    Authorization: "Bearer ${token}",`,
         `    "Content-Type": "application/json",`,
         `  },`,
         `  body: JSON.stringify(${SAMPLE_BODY}),`,
         `})`,
-      ].join('\n')
+      )
     case 'python':
-      return [
+      return lines(
         'import requests',
         '',
         'requests.post(',
         `    "${url}",`,
-        `    headers={"Authorization": "Bearer ${token}"},`,
+        auth && `    headers={"Authorization": "Bearer ${token}"},`,
         `    json=${SAMPLE_BODY},`,
         ')',
-      ].join('\n')
+      )
   }
 }

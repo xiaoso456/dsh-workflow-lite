@@ -7,27 +7,27 @@
  * 浮层不越出所在的滚动区（属性面板、对话框、设置页）：
  * - 打开时量一下触发块上下各有多少地方，往宽的那边开，列表高度封顶在那边放得下的高度，多的在列表里滚；
  *   不会被滚动区裁掉，也不会把滚动区撑长、把页面顶下去（收起时页面再弹回来，还会收掉随后浮出的确认小卡）。
- * - 项多（{@link SEARCH_FROM} 项以上，比如选会话）时顶上带一个搜索框（和切换工作流的同一个样子），焦点落在框里，
- *   打字即筛，命中的字高亮；下键进列表，Enter 选第一个命中的。
+ * - 项多（{@link SEARCH_FROM} 项以上，比如选会话）或给了 `search` 时顶上带一个搜索框（和切换工作流的同一个样子），
+ *   菜单里面见 {@link SelectMenu}。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/kit/Select
  */
 
 import { useRef, useState } from 'react'
 import type { T } from '../../i18n.ts'
-import { matchRange, normalizeNeedle } from '../../model/switcherSearch.ts'
 import { cx } from './cx.ts'
-import { Highlight } from './Highlight.tsx'
 import { Icon } from './Icon.tsx'
 import { Popover } from './Popover.tsx'
+import { type MenuOption, SelectMenu } from './SelectMenu.tsx'
 import css from './select.module.css'
 import ui from './ui.module.css'
-import { useRadioMenu } from './useRadioMenu.ts'
 
 /** 多少项起带搜索框。 */
 export const SEARCH_FROM = 8
 /** 菜单一项的高（`ui.menuItem` 的最小高）、搜索框连下边距的高、菜单上下内边距与离触发块的间距。 */
 const ITEM_HEIGHT = 34
+/** 带一行说明的项的高（`select.module.css` 的 `.twoLine`，连上下内边距）。 */
+export const TWO_LINE_HEIGHT = 46
 const SEARCH_HEIGHT = 38
 const MENU_CHROME = 16
 /** 列表最高多少；地方再小也至少给这么高（宁可在滚动区里滚，也别只露一两项）。 */
@@ -36,10 +36,7 @@ const LIST_MIN = 120
 /** 浮层离滚动区边缘留的空。 */
 const EDGE = 8
 
-export interface SelectOption<V extends string> {
-  value: V
-  label: string
-}
+export type SelectOption<V extends string> = MenuOption<V>
 
 export function Select<V extends string>(props: {
   label: string
@@ -53,31 +50,25 @@ export function Select<V extends string>(props: {
   t?: T
   /** 不带自己的框和底（放在已经有框的列表行里，见 trigger/SummaryRow 的 SummaryField）。 */
   plain?: boolean
+  /** 项少也带搜索框（要 `t`）。 */
+  search?: boolean
 }): React.JSX.Element {
   const { t } = props
   const [open, setOpen] = useState(false)
   const [place, setPlace] = useState<MenuPlace>({ up: false, list: LIST_MAX })
-  const [query, setQuery] = useState('')
   const trigger = useRef<HTMLButtonElement>(null)
-  const list = useRef<HTMLDivElement>(null)
   const current = props.options.find((option) => option.value === props.value)
-  const searchable = t !== undefined && props.options.length >= SEARCH_FROM
-  const needle = searchable ? normalizeNeedle(query) : ''
-  const shown =
-    needle === ''
-      ? props.options
-      : props.options.filter((option) => matchRange(option.label, needle) !== null)
+  const searchable =
+    t !== undefined && (props.search === true || props.options.length >= SEARCH_FROM)
 
   const close = (): void => {
     setOpen(false)
-    setQuery('')
     trigger.current?.focus()
   }
   const pick = (value: V): void => {
     if (value !== props.value) props.onChange(value)
     close()
   }
-  const onKeyDown = useRadioMenu(open, list, !searchable)
 
   return (
     <div className={cx(css.wrap, props.className)}>
@@ -102,73 +93,40 @@ export function Select<V extends string>(props: {
                 close()
                 return
               }
-              setPlace(menuPlace(trigger.current, props.options.length, searchable))
+              setPlace(
+                menuPlace(
+                  trigger.current,
+                  props.options.length,
+                  searchable,
+                  props.options.some((option) => option.desc !== undefined)
+                    ? TWO_LINE_HEIGHT
+                    : ITEM_HEIGHT,
+                ),
+              )
               setOpen(true)
             }}
           >
-            <span className={css.value}>{current?.label ?? ''}</span>
+            <span className={css.value}>
+              {current?.label ?? ''}
+              {current?.desc !== undefined && <span className={css.valueDesc}>{current.desc}</span>}
+            </span>
             <span className={css.chevron} aria-hidden="true">
               <Icon name="chevronDown" size={14} />
             </span>
           </button>
         }
       >
-        {/* biome-ignore lint/a11y/noStaticElementInteractions: 搜索框和列表共用一套上下键 */}
-        <div onKeyDown={onKeyDown}>
-          {searchable && (
-            <div className={ui.menuSearch}>
-              <Icon name="search" size={14} />
-              <input
-                className={ui.menuSearchInput}
-                value={query}
-                placeholder={t('common.search')}
-                aria-label={t('common.search')}
-                data-testid={props.testId === undefined ? undefined : `${props.testId}-search`}
-                // biome-ignore lint/a11y/noAutofocus: 项多时打开下拉多半是为了找一项
-                autoFocus
-                onChange={(event) => setQuery(event.currentTarget.value)}
-                onKeyDown={(event) => {
-                  if (event.key !== 'Enter') return
-                  event.preventDefault()
-                  const first = shown[0]
-                  if (first !== undefined) pick(first.value)
-                }}
-              />
-            </div>
-          )}
-          <div
-            ref={list}
-            role="menu"
-            aria-label={props.label}
-            className={css.list}
-            style={{ maxHeight: place.list }}
-          >
-            {shown.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                role="menuitemradio"
-                aria-checked={option.value === props.value}
-                className={ui.menuItem}
-                data-active={option.value === props.value}
-                data-testid={
-                  props.testId === undefined ? undefined : `${props.testId}-${option.value}`
-                }
-                onClick={() => pick(option.value)}
-              >
-                <span className={ui.menuLabel}>
-                  <Highlight text={option.label} needle={needle} />
-                </span>
-                <span className={css.check} aria-hidden="true">
-                  <Icon name="check" size={13} />
-                </span>
-              </button>
-            ))}
-            {shown.length === 0 && t !== undefined && (
-              <p className={ui.menuEmpty}>{t('common.noMatch')}</p>
-            )}
-          </div>
-        </div>
+        <SelectMenu<V>
+          open={open}
+          label={props.label}
+          options={props.options}
+          value={props.value}
+          searchable={searchable}
+          {...(t === undefined ? {} : { t })}
+          {...(props.testId === undefined ? {} : { testId: props.testId })}
+          listMax={place.list}
+          onPick={pick}
+        />
       </Popover>
     </div>
   )
@@ -188,6 +146,7 @@ export function menuPlace(
   element: HTMLElement | null,
   count: number,
   searchable: boolean,
+  itemHeight = ITEM_HEIGHT,
 ): MenuPlace {
   if (element === null) return { up: false, list: LIST_MAX }
   let top = 0
@@ -207,6 +166,7 @@ export function menuPlace(
     above: rect.top - top,
     count,
     searchable,
+    itemHeight,
   })
 }
 
@@ -216,9 +176,11 @@ export function placeMenu(room: {
   above: number
   count: number
   searchable: boolean
+  /** 一项多高（缺省一行的）。 */
+  itemHeight?: number
 }): MenuPlace {
   const chrome = MENU_CHROME + (room.searchable ? SEARCH_HEIGHT : 0) + EDGE
-  const want = Math.min(room.count * ITEM_HEIGHT, LIST_MAX)
+  const want = Math.min(room.count * (room.itemHeight ?? ITEM_HEIGHT), LIST_MAX)
   const cap = (space: number): number => Math.max(LIST_MIN, Math.min(LIST_MAX, space - chrome))
   if (room.below - chrome >= want) return { up: false, list: cap(room.below) }
   const up = room.above > room.below

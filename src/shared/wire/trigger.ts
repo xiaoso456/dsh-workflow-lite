@@ -62,7 +62,10 @@ export interface TriggerEndpoint {
   url: string
   /** `/trigger/` 后面那一段（原样）。 */
   hook: string
+  /** 令牌；不校验令牌时也留着（再打开校验还是它）。 */
   token: string
+  /** 不校验令牌：能连到这个地址的程序都能触发。 */
+  noToken?: true
 }
 
 /** 负责触发的那个 DSH 进程。 */
@@ -161,10 +164,17 @@ export interface TriggerSetRequest {
   approve?: string
   /** HTTP 触发：换一个随机的新令牌（旧的马上作废）。 */
   resetToken?: true
+  /**
+   * HTTP 触发：还没有地址、令牌就先按缺省生成（不打开开关），打开前就能看、能改、能复制调用示例。
+   * 对话框里刚换到 HTTP、还没保存时也要用，所以不要求图里已经是 HTTP；地址只在打开了的 HTTP 卡片上收请求。
+   */
+  prepareEndpoint?: true
   /** HTTP 触发：自己写的地址（`/trigger/` 后面那一段，不能和别的卡片重）。 */
   hook?: string
   /** HTTP 触发：自己写的令牌（至少 16 个字）。 */
   token?: string
+  /** HTTP 触发：不校验令牌（`false` = 恢复校验，令牌还是原来那个）。 */
+  noToken?: boolean
 }
 
 export interface TriggerFireRequest {

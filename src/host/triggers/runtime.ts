@@ -36,8 +36,8 @@ export interface LiveSpec {
   env?: Record<string, string>
   /** 条件轮询：上一次检查的结果。 */
   probe?: Probe
-  /** HTTP：地址（`/trigger/` 后面那一段）与令牌。 */
-  hook?: { id: string; token: string }
+  /** HTTP：地址（`/trigger/` 后面那一段）与令牌（`null` = 不校验）。 */
+  hook?: { id: string; token: string | null }
 }
 
 /** 一张卡片是谁（交回 `service.ts` 时用）。 */

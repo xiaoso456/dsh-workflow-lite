@@ -14,7 +14,12 @@ import type { Workflow } from '../../../app/useWorkflow.ts'
 import type { T } from '../../../i18n.ts'
 import type { Selection } from '../../../model/editor.ts'
 import { errorMessage, type WorkflowLiteRpc } from '../../../rpc.ts'
-import type { LastRun, RevealField, TriggerEnv } from '../../trigger/triggerEnv.ts'
+import {
+  RECENT_RUNS,
+  type RevealField,
+  type RunBrief,
+  type TriggerEnv,
+} from '../../trigger/triggerEnv.ts'
 
 export interface TriggerSceneInput {
   t: T
@@ -71,24 +76,35 @@ export function useTriggerScene(input: TriggerSceneInput): TriggerEnv {
     [catalog, state.name],
   )
 
-  const lastRuns = useCallback(async (): Promise<ReadonlyMap<string, LastRun>> => {
-    const last = new Map<string, LastRun & { created: number }>()
+  const recentRuns = useCallback(async (): Promise<ReadonlyMap<string, readonly RunBrief[]>> => {
+    const byWorkflow = new Map<string, (RunBrief & { created: number })[]>()
     try {
       const { instances } = await rpc.call('run/list', { all: true })
       for (const run of instances) {
-        const seen = last.get(run.workflow)
-        if (seen !== undefined && seen.created >= run.createdAt) continue
         const updated = run.updatedAt === undefined ? Number.NaN : Date.parse(run.updatedAt)
-        last.set(run.workflow, {
+        const list = byWorkflow.get(run.workflow) ?? []
+        list.push({
+          id: run.id,
           created: run.createdAt,
           at: Number.isFinite(updated) ? updated : run.createdAt,
           ...(run.status === undefined ? {} : { status: run.status }),
         })
+        byWorkflow.set(run.workflow, list)
       }
     } catch {
-      // 读不到就不显示最近一次。
+      // 读不到就不显示最近的执行。
     }
-    return last
+    const recent = new Map<string, readonly RunBrief[]>()
+    for (const [workflow, list] of byWorkflow) {
+      recent.set(
+        workflow,
+        list
+          .sort((a, b) => b.created - a.created)
+          .slice(0, RECENT_RUNS)
+          .map(({ created: _created, ...run }) => run),
+      )
+    }
+    return recent
   }, [rpc])
 
   const refreshCatalog = wf.refreshCatalog
@@ -185,7 +201,7 @@ export function useTriggerScene(input: TriggerSceneInput): TriggerEnv {
       workspaces,
       sessions,
       workflows,
-      lastRuns,
+      recentRuns,
       enableRunState,
       toggle,
       approve,
@@ -197,7 +213,7 @@ export function useTriggerScene(input: TriggerSceneInput): TriggerEnv {
     }),
     [
       state.name,
-      lastRuns,
+      recentRuns,
       enableRunState,
       triggers,
       session,

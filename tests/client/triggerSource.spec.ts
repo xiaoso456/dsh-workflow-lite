@@ -8,25 +8,28 @@ import { LISTEN_TEMPLATES, POLL_TEMPLATES } from '../../src/client/model/command
 import { SAMPLE_BODY, SNIPPET_LANGS, snippetOf } from '../../src/client/model/httpSnippets.ts'
 import { fillSay, programName, sourceSay, spanText } from '../../src/client/model/triggerSay.ts'
 import { DAY_DOTS_MAX, WEEK_DAYS, weekOf } from '../../src/client/model/triggerWeek.ts'
-import { INTERVAL_STOPS, stopOf } from '../../src/client/ui/trigger/source/IntervalField.tsx'
+import { INTERVAL_STOPS, isStop } from '../../src/client/ui/trigger/source/IntervalField.tsx'
 import { SCHEDULE_PRESETS } from '../../src/client/ui/trigger/source/ScheduleStage.tsx'
 import { scheduleIssue } from '../../src/shared/schedule.ts'
 import { POLL_MAX_SECONDS, POLL_MIN_SECONDS } from '../../src/shared/trigger.ts'
 
 const t = (key: LocaleKey): string => zh[key]
 const en = (key: LocaleKey): string => enText[key]
-const said = (segments: { text: string }[]): string => segments.map((s) => s.text).join('')
 
 describe('顶上那句话', () => {
-  it('占位换成上色的一段，没给值的原样留着', () => {
-    expect(fillSay('每{every}跑一次，{when}时执行{x}', { every: '5 分钟', when: '变了' })).toEqual([
-      { text: '每' },
-      { text: '5 分钟', token: true },
-      { text: '跑一次，' },
-      { text: '变了', token: true },
-      { text: '时执行' },
-      { text: '{x}' },
-    ])
+  it('占位换成值，没给值的原样留着', () => {
+    expect(fillSay('每{every}跑一次，{when}时执行{x}', { every: '5 分钟', when: '变了' })).toBe(
+      '每 5 分钟跑一次，变了时执行{x}',
+    )
+  })
+
+  it('换进去的值和汉字、字母、数字挨着时补空格', () => {
+    expect(fillSay('发{method}请求', { method: 'POST' })).toBe('发 POST 请求')
+    expect(fillSay('{rule}执行一次', { rule: '每天 18:00' })).toBe('每天 18:00 执行一次')
+    expect(fillSay('{name}执行{result}之后', { name: '夜间巡检', result: '失败' })).toBe(
+      '夜间巡检执行失败之后',
+    )
+    expect(fillSay('Runs {rule}', { rule: 'daily' })).toBe('Runs daily')
   })
 
   it('间隔按整小时、整分钟、秒写', () => {
@@ -43,23 +46,24 @@ describe('顶上那句话', () => {
     expect(programName('   ')).toBe('')
   })
 
-  it('五种触发方式各说一句，关键处上色', () => {
+  it('五种触发方式各说一句', () => {
     const poll = sourceSay(t, { kind: 'poll', command: 'git status', seconds: 300, when: 'change' })
-    expect(said(poll)).toBe('每5 分钟跑一次命令，输出和上一次不一样时执行')
-    expect(poll.filter((s) => s.token).map((s) => s.text)).toEqual(['5 分钟', '输出和上一次不一样'])
+    expect(poll).toBe('每 5 分钟跑一次命令，输出和上一次不同时执行')
+    expect(sourceSay(t, { kind: 'poll', command: 'git status', seconds: 60 })).toBe(
+      '每 1 分钟跑一次命令，由失败变为成功时执行',
+    )
 
     const listen = sourceSay(en, { kind: 'listen', command: 'node watch.mjs' })
-    expect(said(listen)).toBe('Keeps watch.mjs running and fires on every line it prints')
-    expect(said(sourceSay(t, { kind: 'listen', command: '' }))).toBe(t('trigger.say.listenNone'))
+    expect(listen).toBe('Keeps watch.mjs running and fires on every line it prints')
+    expect(sourceSay(t, { kind: 'listen', command: '' })).toBe(t('trigger.say.listenNone'))
 
-    expect(said(sourceSay(t, { kind: 'http' }))).toContain('POST')
+    expect(sourceSay(t, { kind: 'http' })).toContain('POST')
 
-    const after = sourceSay(t, { kind: 'after', workflow: '构建', when: 'failed' })
-    expect(after.filter((s) => s.token).map((s) => s.text)).toEqual(['构建', '失败'])
-    expect(said(sourceSay(t, { kind: 'after', workflow: '' }))).toBe(t('trigger.say.afterNone'))
+    expect(sourceSay(t, { kind: 'after', workflow: '构建', when: 'failed' })).toContain('构建')
+    expect(sourceSay(t, { kind: 'after', workflow: '' })).toBe(t('trigger.say.afterNone'))
 
     const daily = sourceSay(t, { kind: 'schedule', schedule: { kind: 'daily', time: '09:00' } })
-    expect(daily.some((s) => s.token === true && s.text.includes('09:00'))).toBe(true)
+    expect(daily).toContain('09:00')
   })
 })
 
@@ -125,6 +129,15 @@ describe('调用示例与命令模板', () => {
     expect(JSON.parse(SAMPLE_BODY)).toEqual({ event: 'deploy', ref: 'main' })
   })
 
+  it('不要令牌时示例里不带 Authorization，其余照旧', () => {
+    for (const lang of SNIPPET_LANGS) {
+      const code = snippetOf(lang, { url: 'http://127.0.0.1:3791/trigger/abc', token: null })
+      expect(code).not.toContain('Authorization')
+      expect(code).toContain('http://127.0.0.1:3791/trigger/abc')
+      expect(code).toContain('"event":"deploy"')
+    }
+  })
+
   it('模板的 id 不重复，说明两种语言都有', () => {
     for (const list of [POLL_TEMPLATES, LISTEN_TEMPLATES]) {
       const ids = list.map((item) => item.id)
@@ -138,16 +151,16 @@ describe('调用示例与命令模板', () => {
   })
 })
 
-describe('间隔滑条与常用规则', () => {
-  it('滑块停在不超过间隔的最大一档', () => {
-    expect(stopOf(5)).toBe(0)
-    expect(stopOf(10)).toBe(0)
-    expect(stopOf(59)).toBe(1)
-    expect(stopOf(300)).toBe(INTERVAL_STOPS.indexOf(300))
-    expect(stopOf(10 ** 9)).toBe(INTERVAL_STOPS.length - 1)
+describe('间隔的常用档与常用规则', () => {
+  it('只有正好落在一档上的间隔算常用档，别的走「自定义」', () => {
+    expect(isStop(300)).toBe(true)
+    expect(isStop(86_400)).toBe(true)
+    expect(isStop(30)).toBe(false)
+    expect(isStop(301)).toBe(false)
+    expect(isStop(45)).toBe(false)
   })
 
-  it('滑条的每一档都在允许的间隔里', () => {
+  it('常用档都在允许的间隔里', () => {
     for (const stop of INTERVAL_STOPS) {
       expect(stop).toBeGreaterThanOrEqual(POLL_MIN_SECONDS)
       expect(stop).toBeLessThanOrEqual(POLL_MAX_SECONDS)

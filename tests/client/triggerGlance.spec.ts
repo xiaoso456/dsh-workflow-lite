@@ -49,12 +49,12 @@ describe('触发卡片的速览', () => {
     ).toEqual({
       shape: 'poll',
       every: '每 5 分钟',
-      when: '输出变了时',
+      when: '输出变化',
       seconds: 300,
     })
     expect(triggerGlance(t, { kind: 'poll', command: 'x', seconds: 45 })).toMatchObject({
       every: '每 45 秒',
-      when: '命令成功时',
+      when: '执行成功',
     })
     expect(triggerGlance(tEn, { kind: 'poll', command: 'x', seconds: 7200 })).toMatchObject({
       every: 'Every 2 h',

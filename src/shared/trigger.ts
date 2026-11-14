@@ -390,6 +390,18 @@ export function afterWhen(source: Extract<TriggerSource, { kind: 'after' }>): Af
   return source.when ?? 'done'
 }
 
+/** 一次执行结束时的结果（状态文件里的 done / failed / cancelled）。 */
+export type FinishedStatus = 'done' | 'failed' | 'cancelled'
+
+/** 那个工作流的一次执行以这个结果结束时，接续触发要不要触发（「不论结果」连取消的也算）。 */
+export function afterMatches(
+  source: Extract<TriggerSource, { kind: 'after' }>,
+  status: FinishedStatus,
+): boolean {
+  const when = afterWhen(source)
+  return when === 'any' || when === status
+}
+
 /** 触发源哪里写得不对。结构化的：界面按语言说，校验结果、发给模型的话用 {@link sourceProblem} 的中文。 */
 export type SourceIssue =
   | { code: 'schedule'; issue: ScheduleIssue }

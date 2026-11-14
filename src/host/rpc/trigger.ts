@@ -51,6 +51,12 @@ export async function dispatchTrigger(
       if (input.resetToken !== undefined && input.resetToken !== true) {
         throw new Error('resetToken must be true')
       }
+      if (input.prepareEndpoint !== undefined && input.prepareEndpoint !== true) {
+        throw new Error('prepareEndpoint must be true')
+      }
+      if (input.noToken !== undefined && typeof input.noToken !== 'boolean') {
+        throw new Error('noToken must be a boolean')
+      }
       const workspace = clearableString(input, 'workspace')
       const session = clearableString(input, 'session')
       const approve = clearableString(input, 'approve')
@@ -65,8 +71,10 @@ export async function dispatchTrigger(
         ...(session === undefined ? {} : { session }),
         ...(approve === undefined ? {} : { approve }),
         ...(input.resetToken === true ? { resetToken: true as const } : {}),
+        ...(input.prepareEndpoint === true ? { prepareEndpoint: true as const } : {}),
         ...(hook === undefined ? {} : { hook }),
         ...(token === undefined ? {} : { token }),
+        ...(input.noToken === undefined ? {} : { noToken: input.noToken }),
       })
       if (!outcome.ok) return failFrom(outcome.error)
       return ok(outcome.result)

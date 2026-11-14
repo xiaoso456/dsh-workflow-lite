@@ -1,33 +1,44 @@
 /*
- * HTTP 触发（HttpEndpoint.tsx、HttpStage.tsx）：接口卡（POST + 地址、令牌两行）、调用示例的页签和代码、测试请求那一行。
+ * HTTP 触发（HttpEndpoint.tsx、HttpStage.tsx）：地址、令牌两行设置的框，调用示例工作台里的页签、代码和测试请求的结果。
  */
 
-/* ── 接口卡 ─────────────────────────────────────────────────── */
+/* ── 地址、令牌 ─────────────────────────────────────────────── */
 
-.endpoint {
+/* 一行设置：前面可以有个分段（令牌的「需要 / 不需要」），后面是值的框。 */
+.line {
   display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  border: 1px solid var(--wl-line-strong);
-  border-radius: var(--wl-r-control);
-}
-
-.row {
-  display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) auto;
-  gap: 4px 10px;
   align-items: center;
-  min-height: 44px;
-  padding: 6px 8px 6px 12px;
+  gap: 10px;
+  align-self: stretch;
+  min-width: 0;
 }
 
-.row + .row {
-  border-top: 1px solid var(--wl-line);
+.need {
+  display: flex;
+  flex: none;
 }
 
-.label {
-  color: var(--wl-text-3);
-  font-size: var(--wl-fs-meta);
+/* 一行设置里的框：值在左，小按钮在右；改的时候描一圈强调色（写错了红）。 */
+.field {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 10px;
+  align-self: stretch;
+  min-width: 0;
+  height: 32px;
+  padding: 0 3px 0 10px;
+  border: 1px solid transparent;
+  border-radius: var(--wl-r-control);
+  background: var(--wl-fill);
+}
+
+.field[data-editing="true"] {
+  border-color: var(--wl-accent);
+}
+
+.field[data-invalid] {
+  border-color: var(--wl-danger);
 }
 
 .value {
@@ -60,14 +71,6 @@
   white-space: nowrap;
 }
 
-.urlBase {
-  color: var(--wl-text-3);
-}
-
-.urlHook {
-  color: var(--wl-kind);
-}
-
 .token[data-masked="true"] {
   color: var(--wl-text-3);
   letter-spacing: 1px;
@@ -75,26 +78,19 @@
 
 .tools {
   display: flex;
+  flex: none;
   gap: 2px;
-  justify-content: flex-end;
+  margin-left: auto;
 }
 
-/* 改地址、令牌：就地换成输入框；地址前半（不能改的那截）灰着写在框里。 */
+/* 改地址、令牌：框里就地换成输入框；地址前半（不能改的那截）灰着写在前面。 */
 .edit {
   display: flex;
+  flex: 1 1 auto;
   align-items: center;
   min-width: 0;
-  height: 28px;
-  padding: 0 8px;
-  border: 1px solid var(--wl-accent);
-  border-radius: var(--wl-r-control);
-  background: var(--wl-fill);
   font-family: var(--wl-mono);
   font-size: var(--wl-fs-meta);
-}
-
-.edit[data-invalid] {
-  border-color: var(--wl-danger);
 }
 
 .prefix {
@@ -118,45 +114,22 @@
   font: inherit;
 }
 
-.note {
-  grid-column: 2 / -1;
-  margin: 0 0 2px;
-  color: var(--wl-text-3);
-  font-size: var(--wl-fs-micro);
-  line-height: 1.5;
-}
-
-.note[data-tone="error"] {
-  color: var(--wl-danger);
-}
-
-/* 还没打开过开关：一张虚线卡写说明。 */
-.pending {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+/* 还没有地址（没打开过开关、实例视图）：工作台里一句说明。 */
+.empty {
+  margin: 0;
   padding: 12px;
-  border: 1px dashed var(--wl-line-strong);
-  border-radius: var(--wl-r-control);
   color: var(--wl-text-3);
   font-size: var(--wl-fs-meta);
 }
 
 /* ── 调用示例 ───────────────────────────────────────────────── */
 
-.tabs {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 6px;
-  border-bottom: 1px solid var(--wl-line);
-}
-
 .tabList {
   position: relative;
   display: flex;
-  flex: 1 1 auto;
+  flex: none;
   gap: 2px;
+  margin-left: 6px;
 }
 
 .tabThumb {
@@ -171,7 +144,7 @@
 
   position: relative;
   height: 26px;
-  padding: 0 10px;
+  padding: 0 9px;
   border: 0;
   border-radius: calc(6px * var(--wl-round, 1));
   background: transparent;
@@ -194,31 +167,37 @@
 .code {
   margin: 0;
   padding: 10px 14px;
-  overflow-x: auto;
   color: var(--wl-text);
   font-family: var(--wl-mono);
   font-size: var(--wl-fs-micro);
-  line-height: 1.75;
-  white-space: pre;
-  scrollbar-width: thin;
-}
-
-.ping {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 40px;
-  padding: 6px 12px;
-  border-top: 1px solid var(--wl-line);
+  line-height: 1.7;
+  /* 长网址折行，不出横向滚动条（复制出去的是原样）。 */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .pingResult {
   min-width: 0;
   overflow: hidden;
   color: var(--wl-danger);
-  font-size: var(--wl-fs-meta);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.pingResult:empty {
+  display: none;
+}
+
+.offNote {
+  color: var(--wl-text-2);
+}
+
+.offNote[hidden] {
+  display: none;
+}
+
+.footNote {
+  margin-left: auto;
 }
 
 .pingResult[data-ok="true"] {
@@ -240,9 +219,11 @@
   color: var(--wl-ok);
 }
 
-:global([data-look="swiss"]) .endpoint {
-  border-width: 1px 0;
+:global([data-look="swiss"]) .field {
+  border-width: 0 0 1px;
+  border-color: var(--wl-line-strong);
   border-radius: 0;
+  background: transparent;
 }
 
 :global([data-look="swiss"]) .tabThumb {

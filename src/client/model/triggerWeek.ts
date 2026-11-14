@@ -36,6 +36,8 @@ export interface Week {
   now: number
   /** 下一次执行：时刻、在第几天、在那一天里的位置；没有是 `undefined`。 */
   next: { at: number; ahead: number; spot: number } | undefined
+  /** 从现在到第 7 天结束还要执行几次。 */
+  upcoming: number
 }
 
 function dayStart(at: number): number {
@@ -86,12 +88,14 @@ export function weekOf(schedule: TriggerSchedule, now: number, live?: number): W
   const anchor = every && live !== undefined && live > now ? live - schedule.minutes * 60_000 : now
   let from = new Date(every ? now : today - 1)
   let next: Week['next']
+  let upcoming = 0
   // 最多走这么多步（一天最密也就 1440 次）。
   for (let step = 0; step < WEEK_DAYS * 1440 + 1; step += 1) {
     const fire = nextFire(schedule, from, new Date(anchor))
     if (fire === null || fire.getTime() >= end) break
     const at = fire.getTime()
     const past = at <= now
+    if (!past) upcoming += 1
     if (!past && next === undefined) {
       const found = place(at)
       if (found !== undefined) next = { at, ahead: found.day.ahead, spot: found.spot }
@@ -100,5 +104,5 @@ export function weekOf(schedule: TriggerSchedule, now: number, live?: number): W
     from = fire
   }
   const length = dayAfter(today, 1) - today
-  return { days, now: (now - today) / length, next }
+  return { days, now: (now - today) / length, next, upcoming }
 }

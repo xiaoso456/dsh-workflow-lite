@@ -1,6 +1,6 @@
 /**
- * dsh-workflow-lite — 「触发方式」对话框里定时的设置：一排常用规则（点一下整条换掉）、规则表单（`ScheduleField`）、
- * 接下来 7 天的时间轴。
+ * dsh-workflow-lite — 「触发方式」对话框里定时的设置：设置行是一排常用规则（点一下整条换掉）和规则表单（`ScheduleField`），
+ * 工作台是接下来 7 天的时间轴，底栏写下一次和 7 天内还要执行几次。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/trigger/source/ScheduleStage
  */
@@ -8,9 +8,13 @@
 import { scheduleIssue } from '../../../../shared/schedule.ts'
 import type { TriggerSchedule } from '../../../../shared/types.ts'
 import type { LocaleKey, T } from '../../../i18n.ts'
+import { zoneText } from '../../../model/triggerUpcoming.ts'
+import { weekOf } from '../../../model/triggerWeek.ts'
 import { Icon } from '../../kit/Icon.tsx'
 import { ScheduleField } from '../ScheduleField.tsx'
+import { Bench, benchAside } from './Bench.tsx'
 import presets from './presets.module.css'
+import { StageRow, StageRows } from './StageRow.tsx'
 import stage from './sourceStage.module.css'
 import { WeekStrip } from './WeekStrip.tsx'
 
@@ -57,40 +61,52 @@ export function ScheduleStage(props: {
   onChange(schedule: TriggerSchedule): void
 }): React.JSX.Element {
   const { t, schedule } = props
+  const now = Date.now()
+  const week = weekOf(schedule, now, props.live)
+  const valid = scheduleIssue(schedule) === null
   return (
     <>
-      <section className={stage.section}>
-        <p className={stage.head}>{t('trigger.presets')}</p>
-        <div className={presets.row}>
-          {SCHEDULE_PRESETS.map((preset) => {
-            const on = sameSchedule(preset.schedule, schedule)
-            return (
-              <button
-                key={preset.id}
-                type="button"
-                className={presets.chip}
-                aria-pressed={on}
-                data-testid={`wl-trigger-preset-${preset.id}`}
-                onClick={() => props.onChange(preset.schedule)}
-              >
-                <span className={presets.check} aria-hidden="true">
-                  <Icon name="check" size={11} />
-                </span>
-                {t(preset.label)}
-              </button>
-            )
-          })}
-        </div>
-      </section>
-      <section className={stage.section}>
+      <StageRows>
+        <StageRow label={t('trigger.presets')} top>
+          <div className={stage.line}>
+            {SCHEDULE_PRESETS.map((preset) => {
+              const on = sameSchedule(preset.schedule, schedule)
+              return (
+                <button
+                  key={preset.id}
+                  type="button"
+                  className={presets.chip}
+                  aria-pressed={on}
+                  data-testid={`wl-trigger-preset-${preset.id}`}
+                  onClick={() => props.onChange(preset.schedule)}
+                >
+                  <span className={presets.check} aria-hidden="true">
+                    <Icon name="check" size={11} />
+                  </span>
+                  {t(preset.label)}
+                </button>
+              )
+            })}
+          </div>
+        </StageRow>
         <ScheduleField t={t} schedule={schedule} onChange={props.onChange} />
-      </section>
-      <WeekStrip
-        t={t}
-        schedule={schedule}
-        valid={scheduleIssue(schedule) === null}
-        live={props.live}
-      />
+      </StageRows>
+      <Bench
+        icon="clock"
+        title={t('trigger.week')}
+        tools={
+          <span className={benchAside}>
+            {[
+              valid ? t('trigger.week.total').replace('{n}', String(week.upcoming)) : '',
+              t('trigger.upcoming.zone').replace('{zone}', zoneText(now)),
+            ]
+              .filter((part) => part !== '')
+              .join(' · ')}
+          </span>
+        }
+      >
+        <WeekStrip t={t} week={week} valid={valid} />
+      </Bench>
     </>
   )
 }

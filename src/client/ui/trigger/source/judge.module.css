@@ -1,0 +1,90 @@
+/*
+ * 轮询「判定」的示意（JudgeStrip.tsx）：一排 6 格，格与格之间一条细线；执行的那几格用触发方式的颜色、上面一枚闪电，
+ * 满足但不执行的只把字染成成功色。
+ */
+
+.strip {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.check {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 50px;
+}
+
+/* 连到前一格的线：穿过框的中线。 */
+.check + .check::before {
+  position: absolute;
+  top: 25px;
+  right: 50%;
+  width: 50px;
+  height: 1px;
+  background: var(--wl-line-strong);
+  content: "";
+}
+
+.bolt {
+  display: inline-flex;
+  height: 13px;
+  color: var(--wl-kind);
+  opacity: 0;
+  transition: opacity 160ms linear;
+}
+
+.check[data-mark="fire"] .bolt {
+  opacity: 1;
+}
+
+.value {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-width: 26px;
+  height: 20px;
+  padding: 0 5px;
+  border: 1px solid var(--wl-line-strong);
+  border-radius: calc(6px * var(--wl-round, 1));
+  background: var(--wl-panel);
+  color: var(--wl-text-3);
+  font-family: var(--wl-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition:
+    border-color 160ms linear,
+    color 160ms linear;
+}
+
+.check[data-mark="hold"] .value {
+  color: var(--wl-ok);
+}
+
+.check[data-mark="fire"] .value {
+  border-color: var(--wl-kind);
+  background: color-mix(in oklab, var(--wl-kind) 12%, var(--wl-panel));
+  color: var(--wl-kind);
+}
+
+.caption {
+  color: var(--wl-text-3);
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+.check[data-mark="fire"] .caption {
+  color: var(--wl-kind);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bolt,
+  .value {
+    transition: none;
+  }
+}

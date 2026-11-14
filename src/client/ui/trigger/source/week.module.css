@@ -6,10 +6,8 @@
 .week {
   display: grid;
   grid-template-columns: 76px minmax(0, 1fr) 64px;
-  row-gap: 2px;
+  row-gap: 0;
   padding: 10px 12px 8px;
-  border: 1px solid var(--wl-line);
-  border-radius: var(--wl-r-control);
 }
 
 .day,
@@ -18,11 +16,11 @@
   grid-column: 1 / -1;
   grid-template-columns: subgrid;
   align-items: center;
-  height: 22px;
+  height: 21px;
 }
 
 .axis {
-  height: 18px;
+  height: 16px;
 }
 
 .label {
@@ -148,9 +146,4 @@
 .week[data-valid="false"] .day,
 .week[data-valid="false"] .axis {
   opacity: 0.35;
-}
-
-:global([data-look="swiss"]) .week {
-  border-width: 1px 0;
-  border-radius: 0;
 }

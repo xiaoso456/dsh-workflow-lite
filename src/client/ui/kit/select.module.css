@@ -48,6 +48,14 @@
   white-space: nowrap;
 }
 
+/* 选中项带说明时跟在名字后面（工作区：文件夹名 + 完整路径）。 */
+.valueDesc {
+  margin-left: 10px;
+  color: var(--wl-text-3);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+}
+
 .chevron {
   display: inline-flex;
   flex: none;
@@ -89,6 +97,33 @@
 
 [data-active="true"] > .check {
   opacity: 1;
+}
+
+/* 带一行说明的项：名字加粗，下面一行灰字。 */
+.twoLine {
+  min-height: 44px;
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+
+.text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.name {
+  font-weight: 600;
+}
+
+.desc {
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1,19 +1,13 @@
 /*
- * 定时「常用」（ScheduleStage.tsx）：一排胶囊；和现在的规则一样的那颗淡底 + 同色细边，前面的对勾展开（只动 transform / opacity）。
+ * 一排胶囊（定时的「常用」、轮询的间隔）：和现在的规则一样的那颗淡底 + 同色细边，前面的对勾展开（只动 transform / opacity）。
  */
-
-.row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
 
 .chip {
   position: relative;
   display: inline-flex;
   align-items: center;
-  height: 28px;
-  padding: 0 11px;
+  height: 26px;
+  padding: 0 10px;
   border: 1px solid var(--wl-line-strong);
   border-radius: calc(99px * var(--wl-round, 1));
   background: transparent;

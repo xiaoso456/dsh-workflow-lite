@@ -3,6 +3,7 @@
  * 中间是表单（右边可以带一栏预览和说明，左边可以带一栏目录），底部「取消」「保存」。
  *
  * 带左栏的（「触发方式」）高度固定：左栏里换一种，对话框不跟着变高变矮，只有右边的内容在框里滚。
+ * 头部标题和 ✕ 之间可以放一块（`head`）：「触发方式」在这里写它什么时候执行、现在怎样。
  *
  * 里面改的都是草稿：点「保存」（或 Ctrl+Enter）才一次写进图（一次改动 = 一条撤销步）；
  * 有没保存的改动时，Esc、点遮罩不关（和「工作流设置」一样），要点「取消」。
@@ -25,6 +26,8 @@ export function TriggerSheet(props: {
   sub: string
   /** 头部左边的图标块。 */
   mark: React.ReactNode
+  /** 头部标题右边、✕ 左边的一块；没有就是空着。 */
+  head?: React.ReactNode
   testId: string
   dirty: boolean
   /** 现在能不能保存（有写错的项时不能）。 */
@@ -73,10 +76,11 @@ export function TriggerSheet(props: {
       >
         <header className={overlay.sheetHead}>
           {props.mark}
-          <div className={overlay.sheetTitles}>
+          <div className={cx(overlay.sheetTitles, props.head !== undefined && css.titlesTight)}>
             <p className={overlay.sheetTitle}>{props.title}</p>
             <p className={overlay.sheetSub}>{props.sub}</p>
           </div>
+          {props.head}
           <button
             type="button"
             className={cx(ui.btn, ui.icon, ui.small)}

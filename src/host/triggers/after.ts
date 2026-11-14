@@ -6,16 +6,13 @@
  * 拿到「打开开关之后改过状态文件、已经结束、还没处理过」的实例。处理过的记进本机状态（`seen`），
  * 不论触发了没有（结果对不上、暂停着）都记，免得每一轮重读。
  *
- * 这里只放判定与说法，触发、记账在 `service.ts`。
+ * 这里只放说法（结果对不对得上在 `shared/trigger.ts` 的 `afterMatches`，对话框里也用），触发、记账在 `service.ts`。
  *
  * @module @xiaoso/dsh-workflow-lite/host/triggers/after
  */
 
-import { afterWhen } from '../../shared/trigger.ts'
+import type { FinishedStatus } from '../../shared/trigger.ts'
 import type { TriggerSource } from '../../shared/types.ts'
-
-/** 已经结束的实例的结果。 */
-export type FinishedStatus = 'done' | 'failed' | 'cancelled'
 
 /** 结束了的一个实例。 */
 export interface FinishedRun {
@@ -45,12 +42,6 @@ export interface RunWatch {
 }
 
 type AfterSource = Extract<TriggerSource, { kind: 'after' }>
-
-/** 这个结果要不要触发。 */
-export function afterMatches(source: AfterSource, status: FinishedStatus): boolean {
-  const when = afterWhen(source)
-  return when === 'any' || when === status
-}
 
 const STATUS_TEXT: Record<FinishedStatus, string> = {
   done: '成功（done）',

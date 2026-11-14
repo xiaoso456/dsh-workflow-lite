@@ -37,10 +37,14 @@ export interface TriggerChange {
   approve?: string
   /** HTTP 触发换一个随机的新令牌。 */
   resetToken?: true
+  /** HTTP 触发：还没有地址、令牌就先生成（不打开开关）。 */
+  prepareEndpoint?: true
   /** HTTP 触发：自己写的地址（`/trigger/` 后面那一段）。 */
   hook?: string
   /** HTTP 触发：自己写的令牌。 */
   token?: string
+  /** HTTP 触发：不校验令牌（`false` = 恢复校验）。 */
+  noToken?: boolean
 }
 
 export interface Triggers {
