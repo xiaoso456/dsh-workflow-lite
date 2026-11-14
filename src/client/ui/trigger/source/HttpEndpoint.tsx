@@ -1,14 +1,14 @@
 /**
- * dsh-workflow-lite — HTTP 触发的地址、令牌和 curl（触发方式对话框里）。
+ * dsh-workflow-lite — HTTP 触发的地址与令牌（「触发方式」对话框里的接口卡）：一行「POST + 地址」，一行令牌。
  *
- * - 打开过开关才有地址和令牌（缺省地址用工作流名，令牌随机）；令牌默认遮住。
+ * - 打开过开关才有地址和令牌（缺省地址用工作流名，令牌随机）；令牌默认遮住，遮不遮由外面管（调用示例跟着一起）。
  * - 地址、令牌都能点铅笔改：就地换成输入框，Enter 保存、Esc 取消，写得不对当场说；
  *   改的是本机设置，保存即生效，不等对话框的「保存」，旧地址 / 旧令牌马上失效。
- * - 「换一个令牌」换成随机的，先问一句。
+ * - 令牌那一行的「换一个令牌」换成随机的，先问一句。
  *
  * 网址里的中文等是转义过的（复制出去哪里都能用），显示时解开给人看。
  *
- * @module @xiaoso/dsh-workflow-lite/client/ui/trigger/HttpEndpoint
+ * @module @xiaoso/dsh-workflow-lite/client/ui/trigger/source/HttpEndpoint
  */
 
 import { useEffect, useRef, useState } from 'react'
@@ -18,20 +18,19 @@ import {
   TOKEN_MAX_LENGTH,
   TOKEN_MIN_LENGTH,
   tokenIssue,
-} from '../../../shared/triggerHttp.ts'
-import type { TriggerEndpoint } from '../../../shared/wire/trigger.ts'
-import type { LocaleKey, T } from '../../i18n.ts'
-import { readableUrl } from '../../model/triggerGlance.ts'
-import { useConfirm } from '../kit/Confirm.tsx'
-import { copyText } from '../kit/clipboard.ts'
-import { cx } from '../kit/cx.ts'
-import { Icon } from '../kit/Icon.tsx'
-import ui from '../kit/ui.module.css'
-import { useCopied } from '../kit/useCopied.ts'
-import { SwapIcon } from '../motion/swapText.tsx'
-import ins from '../panel/panel.module.css'
-import css from './trigger.module.css'
-import type { TriggerEnv } from './triggerEnv.ts'
+} from '../../../../shared/triggerHttp.ts'
+import type { TriggerEndpoint } from '../../../../shared/wire/trigger.ts'
+import type { LocaleKey, T } from '../../../i18n.ts'
+import { readableUrl } from '../../../model/triggerGlance.ts'
+import { useConfirm } from '../../kit/Confirm.tsx'
+import { copyText } from '../../kit/clipboard.ts'
+import { cx } from '../../kit/cx.ts'
+import { Icon } from '../../kit/Icon.tsx'
+import ui from '../../kit/ui.module.css'
+import { useCopied } from '../../kit/useCopied.ts'
+import { SwapIcon } from '../../motion/swapText.tsx'
+import type { TriggerEnv } from '../triggerEnv.ts'
+import css from './http.module.css'
 
 const HOOK_ISSUE = {
   empty: 'trigger.hookIssue.empty',
@@ -59,108 +58,109 @@ export function tokenIssueText(t: T, token: string): string | null {
   return t(TOKEN_ISSUE[issue]).replace('{n}', String(n))
 }
 
+/** 遮住时令牌显示成这个。 */
+export const TOKEN_MASK = '•'.repeat(16)
+
 export function HttpEndpoint(props: {
   t: T
   node: string
-  env: TriggerEnv | null
+  env: TriggerEnv
+  endpoint: TriggerEndpoint
+  /** 令牌露不露出来。 */
+  reveal: boolean
+  onReveal(reveal: boolean): void
 }): React.JSX.Element {
-  const { t, env } = props
-  const endpoint = env?.triggers.view(props.node)?.endpoint
-  const [reveal, setReveal] = useState(false)
+  const { t, env, endpoint, reveal } = props
   const reset = useConfirm<HTMLButtonElement>()
-  if (env === null || endpoint === undefined) {
-    return (
-      <p className={ins.help} data-testid="wl-trigger-http-pending">
-        {t('trigger.httpHint')} {env === null ? '' : t('trigger.httpPending')}
-      </p>
-    )
-  }
   const shown = readableUrl(endpoint.url)
   const base = shown.slice(0, shown.length - endpoint.hook.length)
+  const split = endpoint.hook !== '' && shown.endsWith(endpoint.hook)
   return (
-    <>
-      <div className={css.endpoint} data-testid="wl-trigger-endpoint">
-        <EditableRow
-          t={t}
-          label={t('trigger.url')}
-          value={endpoint.hook}
-          prefix={endpoint.hook !== '' && shown.endsWith(endpoint.hook) ? base : undefined}
-          help={t('trigger.hookHelp')}
-          check={(text) => hookIssueText(t, text)}
-          editLabel={t('trigger.editUrl')}
-          testId="wl-trigger-hook"
-          onSave={(hook) => env.triggers.set(props.node, { hook })}
-          shown={
-            <code className={css.endpointValue} data-tip={shown} data-testid="wl-trigger-url">
-              {shown}
+    <div className={css.endpoint} data-testid="wl-trigger-endpoint">
+      <EditableRow
+        t={t}
+        label={t('trigger.url')}
+        value={endpoint.hook}
+        prefix={split ? base : undefined}
+        help={t('trigger.hookHelp')}
+        check={(text) => hookIssueText(t, text)}
+        editLabel={t('trigger.editUrl')}
+        testId="wl-trigger-hook"
+        onSave={(hook) => env.triggers.set(props.node, { hook })}
+        shown={
+          <span className={css.value} data-tip={shown}>
+            <span className={css.method}>POST</span>
+            <code className={css.url} data-testid="wl-trigger-url">
+              {split ? (
+                <>
+                  <span className={css.urlBase}>{base}</span>
+                  <span className={css.urlHook}>{endpoint.hook}</span>
+                </>
+              ) : (
+                shown
+              )}
             </code>
-          }
-          tools={<CopyIcon t={t} text={endpoint.url} testId="wl-trigger-copy-url" />}
-        />
-        <EditableRow
-          t={t}
-          label={t('trigger.token')}
-          value={endpoint.token}
-          help={t('trigger.tokenHelp')}
-          check={(text) => tokenIssueText(t, text)}
-          editLabel={t('trigger.editToken')}
-          testId="wl-trigger-token-edit"
-          onSave={(token) => env.triggers.set(props.node, { token })}
-          shown={
-            <code
-              className={css.endpointValue}
-              data-testid="wl-trigger-token"
-              data-masked={!reveal}
+          </span>
+        }
+        tools={<CopyIcon t={t} text={endpoint.url} testId="wl-trigger-copy-url" />}
+      />
+      <EditableRow
+        t={t}
+        label={t('trigger.token')}
+        value={endpoint.token}
+        help={t('trigger.tokenHelp')}
+        check={(text) => tokenIssueText(t, text)}
+        editLabel={t('trigger.editToken')}
+        testId="wl-trigger-token-edit"
+        onSave={(token) => env.triggers.set(props.node, { token })}
+        shown={
+          <code className={css.token} data-testid="wl-trigger-token" data-masked={!reveal}>
+            {reveal ? endpoint.token : TOKEN_MASK}
+          </code>
+        }
+        tools={
+          <>
+            <button
+              type="button"
+              className={cx(ui.btn, ui.icon, ui.small)}
+              aria-label={t(reveal ? 'trigger.hideToken' : 'trigger.showToken')}
+              data-tip={t(reveal ? 'trigger.hideToken' : 'trigger.showToken')}
+              data-testid="wl-trigger-reveal"
+              onClick={() => props.onReveal(!reveal)}
             >
-              {reveal ? endpoint.token : '•'.repeat(16)}
-            </code>
-          }
-          tools={
-            <>
-              <button
-                type="button"
-                className={cx(ui.btn, ui.icon, ui.small)}
-                aria-label={t(reveal ? 'trigger.hideToken' : 'trigger.showToken')}
-                data-tip={t(reveal ? 'trigger.hideToken' : 'trigger.showToken')}
-                data-testid="wl-trigger-reveal"
-                onClick={() => setReveal((value) => !value)}
-              >
-                <Icon name="eye" size={13} />
-              </button>
-              <CopyIcon t={t} text={endpoint.token} testId="wl-trigger-copy-token" />
-            </>
-          }
-        />
-      </div>
-      <div className={css.fireRow}>
-        <CopyButton t={t} endpoint={endpoint} />
-        <span className={ui.grow} />
-        <button
-          ref={reset.anchorRef}
-          type="button"
-          className={cx(ui.btn, ui.small)}
-          data-testid="wl-trigger-reset-token"
-          onClick={reset.toggle}
-        >
-          {t('trigger.resetToken')}
-        </button>
-        {reset.render({
-          t,
-          title: t('trigger.resetTokenTitle'),
-          desc: t('trigger.resetTokenDesc'),
-          confirmText: t('trigger.resetTokenConfirm'),
-          testId: 'wl-trigger-reset-confirm',
-          onConfirm: () => {
-            void env.triggers.set(props.node, { resetToken: true })
-          },
-        })}
-      </div>
-    </>
+              <Icon name="eye" size={13} />
+            </button>
+            <button
+              ref={reset.anchorRef}
+              type="button"
+              className={cx(ui.btn, ui.icon, ui.small)}
+              aria-label={t('trigger.resetToken')}
+              data-tip={t('trigger.resetToken')}
+              data-testid="wl-trigger-reset-token"
+              onClick={reset.toggle}
+            >
+              <Icon name="reload" size={13} />
+            </button>
+            {reset.render({
+              t,
+              title: t('trigger.resetTokenTitle'),
+              desc: t('trigger.resetTokenDesc'),
+              confirmText: t('trigger.resetTokenConfirm'),
+              testId: 'wl-trigger-reset-confirm',
+              onConfirm: () => {
+                void env.triggers.set(props.node, { resetToken: true })
+              },
+            })}
+            <CopyIcon t={t} text={endpoint.token} testId="wl-trigger-copy-token" />
+          </>
+        }
+      />
+    </div>
   )
 }
 
 /**
- * 端点框里的一行：名字、值、右边的小按钮和铅笔；点铅笔就地换成输入框。
+ * 接口卡里的一行：名字、值、右边的小按钮和铅笔；点铅笔就地换成输入框。
  * 输入框在对话框的表单里：Enter 只保存这一项（不提交整个对话框），Esc 只收起这一项（不关对话框）。
  */
 function EditableRow(props: {
@@ -217,18 +217,18 @@ function EditableRow(props: {
   }
 
   return (
-    <>
-      <span className={css.rowLabel}>{props.label}</span>
+    <div className={css.row}>
+      <span className={css.label}>{props.label}</span>
       {editing ? (
-        <span className={css.endpointEdit} data-invalid={error !== null || undefined}>
+        <span className={css.edit} data-invalid={error !== null || undefined}>
           {props.prefix !== undefined && (
-            <span className={css.endpointPrefix} data-tip={props.prefix}>
+            <span className={css.prefix} data-tip={props.prefix}>
               {props.prefix}
             </span>
           )}
           <input
             ref={input}
-            className={css.endpointInput}
+            className={css.input}
             value={text}
             spellCheck={false}
             autoComplete="off"
@@ -255,7 +255,7 @@ function EditableRow(props: {
       ) : (
         props.shown
       )}
-      <span className={css.endpointTools}>
+      <span className={css.tools}>
         {editing ? (
           <>
             <button
@@ -299,7 +299,7 @@ function EditableRow(props: {
       </span>
       {editing && (
         <p
-          className={css.endpointNote}
+          className={css.note}
           data-tone={error === null ? 'help' : 'error'}
           role={error === null ? undefined : 'alert'}
           data-testid={`${props.testId}-note`}
@@ -307,32 +307,12 @@ function EditableRow(props: {
           {error ?? props.help}
         </p>
       )}
-    </>
+    </div>
   )
 }
 
-/** 复制给别的程序用的 curl 命令（带上令牌）。 */
-export function curlOf(endpoint: TriggerEndpoint): string {
-  return `curl -X POST ${endpoint.url} -H "Authorization: Bearer ${endpoint.token}" -d "..."`
-}
-
-function CopyButton(props: { t: T; endpoint: TriggerEndpoint }): React.JSX.Element {
-  const { t } = props
-  const [copied, setCopied] = useCopied(curlOf(props.endpoint))
-  return (
-    <button
-      type="button"
-      className={cx(ui.btn, ui.small, ui.soft)}
-      data-testid="wl-trigger-copy-curl"
-      onClick={() => void copyText(curlOf(props.endpoint)).then(setCopied)}
-    >
-      <SwapIcon name={copied ? 'check' : 'copy'} size={13} />
-      {t('trigger.copyCurl')}
-    </button>
-  )
-}
-
-function CopyIcon(props: { t: T; text: string; testId: string }): React.JSX.Element {
+/** 复制一段文字的小按钮：复制好了图标换成对勾一会儿。 */
+export function CopyIcon(props: { t: T; text: string; testId: string }): React.JSX.Element {
   const { t } = props
   const [copied, setCopied] = useCopied(props.text)
   return (

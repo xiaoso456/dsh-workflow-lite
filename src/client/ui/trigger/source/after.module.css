@@ -1,0 +1,322 @@
+/*
+ * 接续（AfterStage.tsx）：两张工作流卡片 + 中间一条线（`--line`，和画布同色）、工作流列表（搜索、行）。
+ * 选中的卡片、行只有同色细边和淡底，不发光。
+ */
+
+.chain {
+  --line: var(--wl-flow-pass);
+
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  border: 1px solid var(--wl-line);
+  border-radius: var(--wl-r-control);
+  background:
+    radial-gradient(var(--wl-dot) 1px, transparent 1.2px) 0 0 / 16px 16px,
+    var(--wl-canvas);
+}
+
+.wf {
+  display: flex;
+  flex: 0 1 200px;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  padding: 9px 11px;
+  border: 1px solid var(--wl-line-strong);
+  border-radius: var(--wl-r-control);
+  background: var(--wl-panel);
+}
+
+.wf[data-self="true"] {
+  border-color: color-mix(in oklab, var(--wl-kind) 50%, transparent);
+}
+
+.wf[data-empty="true"] {
+  border-style: dashed;
+  background: transparent;
+}
+
+.wfName {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--wl-text);
+  font-size: var(--wl-fs-meta);
+  font-weight: 600;
+}
+
+.wf[data-empty="true"] .wfName {
+  color: var(--wl-text-3);
+  font-weight: 400;
+}
+
+.wfIcon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: calc(6px * var(--wl-round, 1));
+  background: var(--wl-fill-strong);
+  color: var(--wl-text-2);
+}
+
+.wfMark {
+  width: 22px;
+  height: 22px;
+  border-radius: calc(6px * var(--wl-round, 1));
+}
+
+.ellipsis {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wfSub {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 16px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+/* 中间的线：一段实线加箭头，牌子压在线上。 */
+.edge {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  min-width: 90px;
+  height: 32px;
+}
+
+.edge::before {
+  position: absolute;
+  top: calc(50% - 1px);
+  left: 0;
+  right: 7px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--line);
+  content: "";
+}
+
+.edge::after {
+  position: absolute;
+  top: calc(50% - 5px);
+  right: 0;
+  border: 5px solid transparent;
+  border-right: 0;
+  border-left: 8px solid var(--line);
+  content: "";
+}
+
+.edge[data-empty="true"]::before {
+  background: repeating-linear-gradient(90deg, var(--line) 0 5px, transparent 5px 10px);
+  opacity: 0.6;
+}
+
+.edgeLabel {
+  position: relative;
+  padding: 1px 9px;
+  border: 1px solid color-mix(in oklab, var(--line) 55%, transparent);
+  border-radius: 99px;
+  background: var(--wl-panel);
+  color: var(--line);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+}
+
+/* 最近一次执行的小圆点：完成绿、失败红、别的灰。 */
+.dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--wl-text-3);
+}
+
+.dot[data-status="done"] {
+  background: var(--wl-ok-dot);
+}
+
+.dot[data-status="failed"] {
+  background: var(--wl-danger);
+}
+
+.dot[data-status="running"],
+.dot[data-status="waiting"] {
+  background: var(--wl-accent);
+}
+
+/* ── 工作流列表 ─────────────────────────────────────────────── */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--wl-line-strong);
+  border-radius: var(--wl-r-control);
+}
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--wl-line);
+  color: var(--wl-text-3);
+}
+
+.searchInput {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--wl-text);
+  font: inherit;
+  font-size: var(--wl-fs-meta);
+}
+
+.rows {
+  max-height: 200px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding-right: 12px;
+}
+
+.row + .row {
+  border-top: 1px solid var(--wl-line);
+}
+
+/* 选中这一行：淡底（::before，交叉淡），不换边框。 */
+.row::before {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in oklab, var(--wl-kind) 8%, transparent);
+  content: "";
+  opacity: 0;
+  transition: opacity 180ms linear;
+  pointer-events: none;
+}
+
+.row[data-on="true"]::before {
+  opacity: 1;
+}
+
+.pick {
+  position: relative;
+  display: grid;
+  flex: 1 1 auto;
+  grid-template-columns: 18px minmax(0, 1fr) minmax(0, auto);
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+  height: 100%;
+  padding: 0 0 0 12px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  outline: 2px solid transparent;
+  outline-offset: -2px;
+}
+
+.pick:focus-visible {
+  outline-color: var(--wl-accent);
+}
+
+.pick:disabled {
+  cursor: default;
+}
+
+.check {
+  border-radius: 50%;
+}
+
+.name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text);
+  font-size: var(--wl-fs-meta);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row[data-off="true"] .name {
+  color: var(--wl-text-3);
+}
+
+.last {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  white-space: nowrap;
+}
+
+.steps {
+  position: relative;
+  flex: none;
+  min-width: 2em;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.enable {
+  position: relative;
+  flex: none;
+  padding: 2px 4px;
+  border: 0;
+  background: transparent;
+  color: var(--wl-accent-text);
+  font: inherit;
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.enable:hover {
+  text-decoration: underline;
+}
+
+.empty {
+  margin: 0;
+  padding: 12px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+}
+
+:global([data-look="swiss"]) .list {
+  border-width: 1px 0;
+  border-radius: 0;
+}
+
+:global([data-look="swiss"]) .wf {
+  border-radius: 0;
+}

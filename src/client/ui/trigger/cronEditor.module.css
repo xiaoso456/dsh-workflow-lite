@@ -1,0 +1,93 @@
+/**
+ * dsh-workflow-lite — Cron 的编辑器（CronEditor）：五格、每格上面一个名字，下面一行说明，再下面一排预设。
+ */
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.name {
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-micro);
+  text-align: center;
+}
+
+.cell {
+  text-align: center;
+}
+
+.cell[aria-invalid="true"] {
+  border-color: var(--wl-danger);
+}
+
+/* 说明那一行高度固定（两行），光标换格子时下面的东西不跳。 */
+.editor > p {
+  min-height: calc(2 * 1.5em);
+}
+
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.presetsLabel {
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+.preset {
+  height: 24px;
+  padding: 0 9px;
+  border: 1px solid var(--wl-line);
+  border-radius: calc(12px * var(--wl-round, 1));
+  background: transparent;
+  color: var(--wl-text-2);
+  font: inherit;
+  font-size: var(--wl-fs-micro);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 120ms linear,
+    border-color 120ms linear,
+    color 120ms linear;
+}
+
+.preset:hover {
+  background: var(--wl-hover);
+  color: var(--wl-text);
+}
+
+.preset[aria-pressed="true"] {
+  border-color: var(--wl-accent);
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+}
+
+.preset:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .preset {
+    transition: none;
+  }
+}

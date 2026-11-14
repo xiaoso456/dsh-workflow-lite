@@ -1,10 +1,11 @@
 /**
  * 触发卡片的浏览器验收：自备一次性实例（假模型、一次性的家、随机端口，不用 `DSH_WEB_TOKEN`），
  * 建一张带触发卡片的工作流，在真浏览器里走一遍：卡片与面板、没选工作区时开不了、开关与下一次时间、
- * 立即触发（新建会话、消息到达模型）、触发记录、改规则、从步骤库拖入、实例概览与工作流中心里的来源；
+ * 立即触发（新建会话、消息到达模型）、触发记录、改规则（时间轴、常用规则）、从步骤库拖入、实例概览与工作流中心里的来源；
  * 第二张图走常驻触发源：监听程序（开关旁确认命令 → 程序打出一行 → 过关键字发进会话 → 最近的输出
- * → 改了命令要重新确认）、HTTP（改触发端口、地址与令牌、令牌不对 401、请求到达模型）、换触发源；
- * 接续触发（选等哪个工作流、那边一个实例结束后消息到达模型），以及工作流中心「触发」页
+ * → 改了命令要重新确认）、HTTP（改触发端口、地址与令牌、令牌不对 401、请求到达模型、发一条测试请求）、
+ * 换触发源（命令模板、试运行）；
+ * 接续触发（在列表里选等哪个工作流、搜索、那边一个实例结束后消息到达模型），以及工作流中心「触发」页
  * （列出各工作流的卡片、触发记录、全部暂停与恢复、行尾开关、在画布上打开并选中）。
  * 结论以磁盘 / RPC 为准；截图落在 `tests/runs/trigger/`，给人看一眼样子。
  *
@@ -484,9 +485,11 @@ try {
       `document.querySelector('[data-testid="wl-trigger-source-dialog"] [data-testid="wl-trigger-source-preview"] [data-testid="wl-trigger-glance"]') !== null`,
     ),
   )
-  // 每天几点：右栏列出接下来 5 次；加一个时刻后每天两次，预览写「+1」；「周末」一键选好星期。
-  const rowsShown = `[...document.querySelectorAll('[data-testid="wl-trigger-upcoming"] li:not([hidden])')].length`
-  check('右栏列出接下来 5 次', (await session.evaluate(rowsShown)) === 5)
+  // 每天几点：时间轴排出接下来 7 天、标出下一次；加一个时刻后每天两次，预览写「+1」；「周末」一键选好星期。
+  const weekShown = await session.evaluate(
+    `(() => { const root = document.querySelector('[data-testid="wl-trigger-upcoming"]'); return [root.querySelectorAll('[data-ahead]').length, root.querySelectorAll('[data-next="true"]').length].join() })()`,
+  )
+  check('时间轴排出 7 天、标出一个下一次', weekShown === '7,1', weekShown)
   await session.evaluate(clickTestId('wl-trigger-time-add'))
   await sleep(400)
   check(
@@ -507,8 +510,41 @@ try {
     `['wl-trigger-day-6','wl-trigger-day-7'].every((id) => document.querySelector('[data-testid="' + id + '"]').getAttribute('aria-checked') === 'true') && document.querySelector('[data-testid="wl-trigger-day-1"]').getAttribute('aria-checked') === 'false'`,
   )
   check('点「周末」只亮六、日', weekendOn === true)
-  await session.evaluate(clickTestId('wl-trigger-days-work'))
+  // 常用规则：点「工作日 09:00」整条换掉，那一项按下去、星期只亮一到五。
+  await session.evaluate(clickTestId('wl-trigger-preset-workdays'))
+  await sleep(400)
+  const presetOn = await session.evaluate(
+    `document.querySelector('[data-testid="wl-trigger-preset-workdays"]').getAttribute('aria-pressed') === 'true' && document.querySelector('[data-testid="wl-trigger-day-1"]').getAttribute('aria-checked') === 'true' && document.querySelector('[data-testid="wl-trigger-day-6"]').getAttribute('aria-checked') === 'false'`,
+  )
+  check('点常用规则「工作日 09:00」：按下去、只亮一到五', presetOn === true)
   await capture(session, 'source-dialog-daily-light.png')
+  // Cron：预设一点就填好五格、规则卡说人话；写错一格只那一格标红；整条粘贴自动拆进五格。
+  await session.evaluate(clickTestId('wl-trigger-kind-cron'))
+  await waitFor(session, has('wl-trigger-cron-editor'))
+  await session.evaluate(clickTestId('wl-trigger-cron-preset-monday'))
+  await sleep(400)
+  const cronCells = await session.evaluate(
+    `['wl-trigger-cron','wl-trigger-cron-hour','wl-trigger-cron-day','wl-trigger-cron-month','wl-trigger-cron-weekday'].map((id) => document.querySelector('[data-testid="' + id + '"]').value).join(' ')`,
+  )
+  const cronTitle = await session.evaluate(textOf('[data-testid="wl-trigger-rule-title"]'))
+  check(
+    '点预设「每周一 9 点」：五格填好、规则卡说人话',
+    cronCells === '0 9 * * 1' && /周一/.test(cronTitle),
+    `${cronCells} | ${cronTitle}`,
+  )
+  await session.evaluate(
+    `(() => { const el = document.querySelector('[data-testid="wl-trigger-cron-hour"]'); const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(el, '99'); el.dispatchEvent(new Event('input', { bubbles: true })) })()`,
+  )
+  await sleep(400)
+  const badHour = await session.evaluate(
+    `['wl-trigger-cron','wl-trigger-cron-hour'].map((id) => document.querySelector('[data-testid="' + id + '"]').getAttribute('aria-invalid')).join()`,
+  )
+  check('小时写成 99：只「时」那一格标红', badHour === 'false,true', badHour)
+  await capture(session, 'source-dialog-cron-light.png')
+  await session.evaluate(clickTestId('wl-trigger-cron-preset-workdays'))
+  await sleep(300)
+  await session.evaluate(clickTestId('wl-trigger-kind-daily'))
+  await sleep(300)
   await session.evaluate(clickTestId('wl-trigger-kind-every'))
   await sleep(600)
   check('草稿没保存时卡片上的字不变', !/每 1 小时/.test(await session.evaluate(textOf(CARD))))
@@ -772,6 +808,12 @@ try {
     `document.querySelector('[data-testid="wl-trigger-token"]')?.dataset.masked`,
   )
   check('令牌默认遮住', masked === 'true', String(masked))
+  const snippetMasked = await session.evaluate(textOf('[data-testid="wl-trigger-snippet"]'))
+  check(
+    '令牌遮着时调用示例里也遮着',
+    !snippetMasked.includes(hook.endpoint.token) && /•{8}/u.test(snippetMasked),
+    snippetMasked,
+  )
   await capture(session, 'http-panel-light.png')
 
   const denied = await fetch(url, {
@@ -857,6 +899,22 @@ try {
   await waitFor(session, `!(${has('wl-trigger-token-edit-input')})`)
   check('自己写的令牌存下来了', (await endpointNow())?.token === 'my-own-token-for-ci-2026')
 
+  // 发一条测试请求：先问一句，确认了才发；回 202，示例请求体发到了模型。
+  const served4 = env.mock.requests.length
+  await session.evaluate(clickTestId('wl-trigger-ping'))
+  await waitFor(session, has('wl-trigger-ping-confirm'))
+  check('点「发一条测试请求」先问一句', true)
+  await session.evaluate(clickTestId('wl-trigger-ping-confirm'))
+  await waitFor(
+    session,
+    `/202/.test(document.querySelector('[data-testid="wl-trigger-ping-result"]')?.textContent ?? '')`,
+    { timeoutMs: 15_000 },
+  )
+  check('测试请求回 202', true)
+  const body4 = await waitModel(env.mock, served4, /workflow-lite/u)
+  check('测试请求的请求体发到了模型', /test\W{0,6}true/u.test(body4), body4.slice(0, 200))
+  await capture(session, 'http-ping-light.png')
+
   // 换触发源：对话框里 HTTP 换成条件轮询，出现命令框；保存后卡片上的字跟着变。
   await session.evaluate(clickTestId('wl-trigger-source-poll'))
   await sleep(800)
@@ -870,7 +928,49 @@ try {
       `document.querySelector('[data-testid="wl-trigger-source-dialog-save"]').disabled === true`,
     ),
   )
+  // 从模板开始：点一项填好命令。
+  await session.evaluate(clickTestId('wl-trigger-template'))
+  await waitFor(session, has('wl-trigger-template-git'))
+  await session.evaluate(clickTestId('wl-trigger-template-git'))
+  await sleep(300)
+  const templated = await session.evaluate(
+    `document.querySelector('[data-testid="wl-trigger-command"]').value`,
+  )
+  check(
+    '点模板「Git 远端有新提交」填好命令、判定换成输出变了时',
+    /^git /u.test(templated) &&
+      (await session.evaluate(
+        `document.querySelector('[data-testid="wl-trigger-poll-when-change"]').getAttribute('aria-checked') === 'true'`,
+      )),
+    templated,
+  )
+  await session.evaluate(clickTestId('wl-trigger-poll-when-success'))
+  await sleep(300)
+  // 试运行：先问一句，确认了才在工作区里跑；写出退出码、满足没有、输出。不打开开关。
+  await setReactInput(session, '[data-testid="wl-trigger-command"]', 'node -e "console.log(4242)"')
+  await sleep(300)
+  await session.evaluate(clickTestId('wl-trigger-try'))
+  await waitFor(session, has('wl-trigger-try-confirm'))
+  await session.evaluate(clickTestId('wl-trigger-try-confirm'))
+  await waitFor(
+    session,
+    `/退出码 0/.test(document.querySelector('[data-testid="wl-trigger-try-result"]')?.textContent ?? '')`,
+    { timeoutMs: 20_000 },
+  )
+  const tried = await session.evaluate(textOf('[data-testid="wl-trigger-try-result"]'))
+  const triedOut = await session.evaluate(textOf('[data-testid="wl-trigger-try-output"]'))
+  check(
+    '试运行：退出码 0、满足、输出原样',
+    /满足/.test(tried) && /4242/.test(triedOut),
+    `${tried} | ${triedOut}`,
+  )
+  await capture(session, 'poll-try-light.png')
   await setReactInput(session, '[data-testid="wl-trigger-command"]', 'git ls-remote origin main')
+  await sleep(300)
+  check(
+    '改了命令，上一次的试运行结果收起来',
+    !(await session.evaluate(has('wl-trigger-try-result'))),
+  )
   await sleep(300)
   await session.evaluate(clickTestId('wl-trigger-source-dialog-save'))
   await waitFor(
@@ -912,16 +1012,25 @@ try {
   await session.evaluate(clickTestId('wl-trigger-when-edit'))
   await waitFor(session, has('wl-trigger-source-dialog'))
   await sleep(800)
-  await session.evaluate(clickTestId('wl-trigger-after'))
-  await sleep(400)
   const afterOptions = await session.evaluate(
-    `[...document.querySelectorAll('[data-testid^="wl-trigger-after-"][role="menuitemradio"]')].map((el) => el.textContent)`,
+    `[...document.querySelectorAll('[data-testid="wl-trigger-after"] [role="radio"]')].map((el) => el.dataset.testid.slice('wl-trigger-after-'.length))`,
   )
   check(
-    '接续：下拉里有别的工作流、没有自己',
+    '接续：列表里有别的工作流、没有自己',
     afterOptions.includes(NAME) && !afterOptions.includes(NAME2),
     JSON.stringify(afterOptions),
   )
+  // 搜索只留名字对得上的那几行。
+  await setReactInput(session, '[data-testid="wl-trigger-after-search"]', 'zz-no-such')
+  await sleep(300)
+  check(
+    '接续：搜不到时列表是空的',
+    (await session.evaluate(
+      `[...document.querySelectorAll('[data-testid="wl-trigger-after"] [role="radio"]')].length`,
+    )) === 0,
+  )
+  await setReactInput(session, '[data-testid="wl-trigger-after-search"]', '')
+  await sleep(300)
   await session.evaluate(clickTestId(`wl-trigger-after-${NAME}`))
   await sleep(400)
   await session.evaluate(clickTestId('wl-trigger-after-when-any'))
@@ -1159,7 +1268,7 @@ try {
   await waitFor(
     session,
     `document.querySelector('[data-testid="wl-trigger-name"]')?.value === '夜巡' || document.querySelector('[data-testid="wl-trigger-name"]')?.textContent === '夜巡'`,
-    20_000,
+    { timeoutMs: 20_000 },
   )
   // 面板换过来之后画布还要一拍才把那张卡片标成选中。
   const selectedCard = await waitFor(

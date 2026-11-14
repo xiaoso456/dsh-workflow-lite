@@ -1,6 +1,6 @@
 /**
  * dsh-workflow-lite — 触发卡片的状态：每隔几秒问一次这个工作流里各张卡片现在的样子，
- * 以及改开关与本机设置（确认命令、换令牌）、「立即触发一次」、读触发记录和最近的输出。
+ * 以及改开关与本机设置（确认命令、换令牌）、「立即触发一次」、读触发记录和最近的输出、试运行命令与 HTTP 测试请求。
  *
  * 只在图里有触发卡片时才问（没有就一次都不发）；页面不可见时停下，回来马上补问一次。
  * 读回来的内容没变就交回同一个对象，画布上的卡片不会跟着每次轮询重画。
@@ -15,6 +15,9 @@ import type {
   TriggerDetailResponse,
   TriggerListResponse,
   TriggerOwner,
+  TriggerPingResponse,
+  TriggerTryRequest,
+  TriggerTryResponse,
   TriggerView,
 } from '../../shared/wire/trigger.ts'
 import { shareSame } from '../model/samePlain.ts'
@@ -56,6 +59,10 @@ export interface Triggers {
   detail(fire: string): Promise<TriggerDetailResponse>
   /** 轮询命令、监听程序最近的输出；读不到是空串。 */
   output(node: string): Promise<string>
+  /** 「试运行」还没保存的命令；请求本身失败回一句原因。 */
+  tryCommand(request: Omit<TriggerTryRequest, 'workflow'>): Promise<TriggerTryResponse | string>
+  /** HTTP 触发「发一条测试请求」；发不了回一句原因。 */
+  ping(node: string): Promise<TriggerPingResponse | string>
 }
 
 const EMPTY: TriggerListResponse = { triggers: [] }
@@ -180,8 +187,35 @@ export function useTriggers(
     [rpc, workflow],
   )
 
+  const tryCommand = useCallback(
+    async (request: Omit<TriggerTryRequest, 'workflow'>): Promise<TriggerTryResponse | string> => {
+      if (workflow === null) return ''
+      try {
+        return await rpc.call('trigger/try', { workflow, ...request })
+      } catch (error) {
+        return errorMessage(error)
+      }
+    },
+    [rpc, workflow],
+  )
+
+  const ping = useCallback(
+    async (node: string): Promise<TriggerPingResponse | string> => {
+      if (workflow === null) return ''
+      try {
+        const response = await rpc.call('trigger/ping', { workflow, node })
+        // 收下了会马上记进触发记录：卡片上的「最近一次」跟着变。
+        await lister.run(workflow)
+        return response
+      } catch (error) {
+        return errorMessage(error)
+      }
+    },
+    [rpc, workflow, lister],
+  )
+
   return useMemo(
-    () => ({ view, owner: list.owner, set, fire, history, detail, output }),
-    [view, list.owner, set, fire, history, detail, output],
+    () => ({ view, owner: list.owner, set, fire, history, detail, output, tryCommand, ping }),
+    [view, list.owner, set, fire, history, detail, output, tryCommand, ping],
   )
 }

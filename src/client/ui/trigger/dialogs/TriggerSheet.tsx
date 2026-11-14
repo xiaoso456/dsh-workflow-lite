@@ -1,6 +1,8 @@
 /**
  * dsh-workflow-lite — 触发卡片各项详细设置的对话框外壳：从点的那一行长出来，头部是触发方式的图标块、标题和卡片名，
- * 中间左边是表单、右边一栏放预览和说明，底部「取消」「保存」。
+ * 中间是表单（右边可以带一栏预览和说明，左边可以带一栏目录），底部「取消」「保存」。
+ *
+ * 带左栏的（「触发方式」）高度固定：左栏里换一种，对话框不跟着变高变矮，只有右边的内容在框里滚。
  *
  * 里面改的都是草稿：点「保存」（或 Ctrl+Enter）才一次写进图（一次改动 = 一条撤销步）；
  * 有没保存的改动时，Esc、点遮罩不关（和「工作流设置」一样），要点「取消」。
@@ -31,6 +33,8 @@ export function TriggerSheet(props: {
   onClose(): void
   /** 右边一栏：预览、说明。没有就只有表单一栏。 */
   aside?: React.ReactNode
+  /** 左边一栏：目录（不跟着表单滚）。 */
+  rail?: React.ReactNode
   /** 宽的（左右两栏）还是窄的（只有表单）。 */
   wide?: boolean
   children: React.ReactNode
@@ -43,7 +47,11 @@ export function TriggerSheet(props: {
     <Modal
       label={props.title}
       testId={props.testId}
-      className={cx(css.sheet, props.wide === true && css.wide)}
+      className={cx(
+        css.sheet,
+        props.wide === true && css.wide,
+        props.rail !== undefined && css.railed,
+      )}
       onDismiss={() => {
         if (!props.dirty) props.onClose()
       }}
@@ -80,6 +88,7 @@ export function TriggerSheet(props: {
         </header>
 
         <div className={css.body}>
+          {props.rail !== undefined && <div className={css.rail}>{props.rail}</div>}
           <div className={css.main}>{props.children}</div>
           {props.aside !== undefined && <aside className={css.aside}>{props.aside}</aside>}
         </div>

@@ -1,0 +1,256 @@
+/*
+ * HTTP 触发（HttpEndpoint.tsx、HttpStage.tsx）：接口卡（POST + 地址、令牌两行）、调用示例的页签和代码、测试请求那一行。
+ */
+
+/* ── 接口卡 ─────────────────────────────────────────────────── */
+
+.endpoint {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--wl-line-strong);
+  border-radius: var(--wl-r-control);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  gap: 4px 10px;
+  align-items: center;
+  min-height: 44px;
+  padding: 6px 8px 6px 12px;
+}
+
+.row + .row {
+  border-top: 1px solid var(--wl-line);
+}
+
+.label {
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+}
+
+.value {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.method {
+  flex: none;
+  padding: 2px 6px;
+  border-radius: calc(5px * var(--wl-round, 1));
+  background: color-mix(in oklab, var(--wl-kind) 14%, transparent);
+  color: var(--wl-kind);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.url,
+.token {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-meta);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.urlBase {
+  color: var(--wl-text-3);
+}
+
+.urlHook {
+  color: var(--wl-kind);
+}
+
+.token[data-masked="true"] {
+  color: var(--wl-text-3);
+  letter-spacing: 1px;
+}
+
+.tools {
+  display: flex;
+  gap: 2px;
+  justify-content: flex-end;
+}
+
+/* 改地址、令牌：就地换成输入框；地址前半（不能改的那截）灰着写在框里。 */
+.edit {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--wl-accent);
+  border-radius: var(--wl-r-control);
+  background: var(--wl-fill);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-meta);
+}
+
+.edit[data-invalid] {
+  border-color: var(--wl-danger);
+}
+
+.prefix {
+  flex: 0 1 auto;
+  min-width: 2em;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+}
+
+.input {
+  flex: 1 1 6em;
+  min-width: 4em;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--wl-text);
+  font: inherit;
+}
+
+.note {
+  grid-column: 2 / -1;
+  margin: 0 0 2px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.5;
+}
+
+.note[data-tone="error"] {
+  color: var(--wl-danger);
+}
+
+/* 还没打开过开关：一张虚线卡写说明。 */
+.pending {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border: 1px dashed var(--wl-line-strong);
+  border-radius: var(--wl-r-control);
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+}
+
+/* ── 调用示例 ───────────────────────────────────────────────── */
+
+.tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px;
+  border-bottom: 1px solid var(--wl-line);
+}
+
+.tabList {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  gap: 2px;
+}
+
+.tabThumb {
+  border-radius: calc(6px * var(--wl-round, 1));
+  background: var(--wl-panel);
+  box-shadow: var(--wl-shadow-thumb);
+}
+
+.tab {
+  --wl-off: var(--wl-text-3);
+  --wl-on: var(--wl-text);
+
+  position: relative;
+  height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: calc(6px * var(--wl-round, 1));
+  background: transparent;
+  font: inherit;
+  font-size: var(--wl-fs-meta);
+  font-weight: 500;
+  cursor: pointer;
+  outline: 2px solid transparent;
+  outline-offset: -2px;
+}
+
+.tab:hover {
+  --wl-off: var(--wl-text);
+}
+
+.tab:focus-visible {
+  outline-color: var(--wl-accent);
+}
+
+.code {
+  margin: 0;
+  padding: 10px 14px;
+  overflow-x: auto;
+  color: var(--wl-text);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.75;
+  white-space: pre;
+  scrollbar-width: thin;
+}
+
+.ping {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 6px 12px;
+  border-top: 1px solid var(--wl-line);
+}
+
+.pingResult {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-danger);
+  font-size: var(--wl-fs-meta);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pingResult[data-ok="true"] {
+  color: var(--wl-text-2);
+}
+
+.status {
+  margin-right: 8px;
+  padding: 1px 6px;
+  border-radius: calc(5px * var(--wl-round, 1));
+  background: var(--wl-danger-soft);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+}
+
+.pingResult[data-ok="true"] .status {
+  background: var(--wl-ok-soft);
+  color: var(--wl-ok);
+}
+
+:global([data-look="swiss"]) .endpoint {
+  border-width: 1px 0;
+  border-radius: 0;
+}
+
+:global([data-look="swiss"]) .tabThumb {
+  border-radius: 0;
+  box-shadow: none;
+  background: var(--wl-text);
+}
+
+:global([data-look="swiss"]) .tab {
+  --wl-on: var(--wl-panel);
+}

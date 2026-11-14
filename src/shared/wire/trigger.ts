@@ -216,3 +216,47 @@ export interface TriggerOutputRequest {
 export interface TriggerOutputResponse {
   text: string
 }
+
+/**
+ * `trigger/try`：「触发方式」对话框里的「试运行」——把还没保存的命令在选定的工作区里跑一次给人看。
+ * 不看开关、不记触发记录、不发进会话；用户在界面上确认过才发（命令以 DSH 进程的身份运行、不进沙箱）。
+ */
+export interface TriggerTryRequest {
+  workflow: string
+  /** 轮询：跑完为止；监听：跑几秒、收下这几秒打出的行就结束。 */
+  kind: 'poll' | 'listen'
+  command: string
+  /** 在哪个工作区里跑（绝对路径）。 */
+  workspace: string
+}
+
+export interface TriggerTryResponse {
+  /** 退出码；没跑起来、超时、监听到点被结束时是 `null`。 */
+  code: number | null
+  /** 标准输出与错误输出（只留最后一截）。 */
+  output: string
+  /** 监听：这几秒里打出的非空行数（每一行会触发一次）。 */
+  lines?: number
+  /** 跑了多久（毫秒）。 */
+  ms: number
+  /** 监听：到点时程序还在跑，是试运行结束了它。 */
+  stopped?: true
+  /** 命令没跑成（启动不了、找不到命令、超时）的原因。 */
+  failure?: string
+}
+
+/**
+ * `trigger/ping`：HTTP 触发「发一条测试请求」——带上令牌向这张卡片的地址真的发一条 POST，
+ * 和别的程序发来的一样走过滤、发进会话、记进触发记录。
+ */
+export interface TriggerPingRequest {
+  workflow: string
+  node: string
+}
+
+export interface TriggerPingResponse {
+  /** HTTP 状态码（202 = 收下了）。 */
+  status: number
+  /** 回应的正文（只留开头）。 */
+  text: string
+}

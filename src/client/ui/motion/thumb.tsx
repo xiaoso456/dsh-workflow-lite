@@ -203,6 +203,8 @@ export function PickThumb(props: {
     on: string | null | undefined
     attr: string
     className?: string
+    /** 各层自己的样式（颜色不在样式表里、按选项给的时候）。 */
+    style?: (name: string) => React.CSSProperties | undefined
   }
 }): React.JSX.Element {
   const ref = useRef<HTMLSpanElement>(null)
@@ -329,6 +331,7 @@ export function PickThumb(props: {
         <span
           key={name}
           className={cx(css.pickTone, tone.className)}
+          style={tone.style?.(name)}
           data-on={name === tone.on}
           {...{ [tone.attr]: name }}
         />

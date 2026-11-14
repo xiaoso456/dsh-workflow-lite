@@ -1,6 +1,6 @@
 /**
  * dsh-workflow-lite — `trigger/*`：触发卡片的状态、开关与本机设置（含确认命令、换令牌）、「立即触发一次」、
- * 触发记录与一次触发的详情、最近的输出，以及工作流中心「触发」页的全部卡片与「全部暂停」。
+ * 触发记录与一次触发的详情、最近的输出、「试运行」命令与 HTTP 测试请求，以及工作流中心「触发」页的全部卡片与「全部暂停」。
  *
  * @module @xiaoso/dsh-workflow-lite/host/rpc/trigger
  */
@@ -90,6 +90,25 @@ export async function dispatchTrigger(
       return ok({
         fires: await deps.triggers.history(workflow, optionalString(input, 'node'), input.limit),
       })
+
+    case 'trigger/try': {
+      const kind = input.kind
+      if (kind !== 'poll' && kind !== 'listen') throw new Error('kind must be poll or listen')
+      const outcome = await deps.triggers.tryCommand({
+        workflow,
+        kind,
+        command: requireString(input, 'command'),
+        workspace: requireString(input, 'workspace'),
+      })
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok(outcome.result)
+    }
+
+    case 'trigger/ping': {
+      const outcome = await deps.triggers.ping({ workflow, node: requireString(input, 'node') })
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok(outcome.result)
+    }
 
     case 'trigger/output':
       return ok({ text: await deps.triggers.output(workflow, requireString(input, 'node')) })

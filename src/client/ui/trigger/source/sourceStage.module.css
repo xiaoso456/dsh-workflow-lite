@@ -1,0 +1,169 @@
+/*
+ * 「触发方式」对话框右边（各种方式共用）：顶上的一句话、一段一段的小标题、两栏、底下的说明。
+ * 颜色跟着触发方式走（`--wl-kind`，由 SourceStage 写在根上）；不发光、不用渐变，字号和正文一档。
+ */
+
+.stage {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+  /* 两列的几块（.pair）按这一栏的宽窄换成一列，不看整个视图。 */
+  container-type: inline-size;
+}
+
+/* ── 顶上一句话 ─────────────────────────────────────────────── */
+
+.summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 11px 14px 10px;
+  border: 1px solid var(--wl-line);
+  border-radius: var(--wl-r-control);
+  background: var(--wl-fill);
+}
+
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+  color: var(--wl-kind);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+}
+
+.say {
+  margin: 0;
+  color: var(--wl-text);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.65;
+}
+
+.token {
+  margin: 0 2px;
+  padding: 1px 5px;
+  border-radius: calc(5px * var(--wl-round, 1));
+  background: color-mix(in oklab, var(--wl-kind) 12%, transparent);
+  color: var(--wl-kind);
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+  min-height: 20px;
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-meta);
+}
+
+.metaItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mute {
+  color: var(--wl-text-3);
+}
+
+.problem {
+  color: var(--wl-danger);
+}
+
+/* ── 一段 ───────────────────────────────────────────────────── */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+  margin: 0;
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-meta);
+  font-weight: 600;
+}
+
+.headAside {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  color: var(--wl-text-3);
+  font-weight: 400;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 18px;
+}
+
+.pairWide {
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+}
+
+@container (max-width: 560px) {
+  .pair,
+  .pairWide {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* 底下一句说明（图标 + 灰字）。 */
+.note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 9px 12px;
+  border-radius: var(--wl-r-control);
+  background: var(--wl-hover);
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+  line-height: 1.55;
+}
+
+.note > svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+.error {
+  margin: 0;
+  color: var(--wl-danger);
+  font-size: var(--wl-fs-meta);
+}
+
+.error:empty {
+  display: none;
+}
+
+:global([data-look="swiss"]) .summary {
+  border-width: 0 0 0 2px;
+  border-color: var(--wl-kind);
+  background: transparent;
+}
+
+:global([data-look="swiss"]) .note {
+  border-top: 1px solid var(--wl-line-strong);
+  background: transparent;
+}

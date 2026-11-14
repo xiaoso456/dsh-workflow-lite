@@ -13,8 +13,8 @@ import { useTriggers } from '../../../app/useTriggers.ts'
 import type { Workflow } from '../../../app/useWorkflow.ts'
 import type { T } from '../../../i18n.ts'
 import type { Selection } from '../../../model/editor.ts'
-import type { WorkflowLiteRpc } from '../../../rpc.ts'
-import type { RevealField, TriggerEnv } from '../../trigger/triggerEnv.ts'
+import { errorMessage, type WorkflowLiteRpc } from '../../../rpc.ts'
+import type { LastRun, RevealField, TriggerEnv } from '../../trigger/triggerEnv.ts'
 
 export interface TriggerSceneInput {
   t: T
@@ -62,9 +62,54 @@ export function useTriggerScene(input: TriggerSceneInput): TriggerEnv {
     () =>
       (catalog?.workflows ?? [])
         .filter((entry) => entry.name !== state.name)
-        .map((entry) => ({ name: entry.name, runState: entry.runState === true }))
+        .map((entry) => ({
+          name: entry.name,
+          runState: entry.runState === true,
+          nodes: entry.nodeCount,
+        }))
         .sort((a, b) => a.name.localeCompare(b.name)),
     [catalog, state.name],
+  )
+
+  const lastRuns = useCallback(async (): Promise<ReadonlyMap<string, LastRun>> => {
+    const last = new Map<string, LastRun & { created: number }>()
+    try {
+      const { instances } = await rpc.call('run/list', { all: true })
+      for (const run of instances) {
+        const seen = last.get(run.workflow)
+        if (seen !== undefined && seen.created >= run.createdAt) continue
+        const updated = run.updatedAt === undefined ? Number.NaN : Date.parse(run.updatedAt)
+        last.set(run.workflow, {
+          created: run.createdAt,
+          at: Number.isFinite(updated) ? updated : run.createdAt,
+          ...(run.status === undefined ? {} : { status: run.status }),
+        })
+      }
+    } catch {
+      // 读不到就不显示最近一次。
+    }
+    return last
+  }, [rpc])
+
+  const refreshCatalog = wf.refreshCatalog
+  const enableRunState = useCallback(
+    async (workflow: string): Promise<string | null> => {
+      try {
+        const loaded = await rpc.call('graph/load', { name: workflow })
+        if (loaded.problems.length > 0) return loaded.problems[0]?.message ?? ''
+        const { document } = loaded
+        await rpc.call('graph/save', {
+          name: workflow,
+          document: { ...document, settings: { ...document.settings, runState: true } },
+          baseHash: loaded.hash,
+        })
+        await refreshCatalog()
+        return null
+      } catch (error) {
+        return errorMessage(error)
+      }
+    },
+    [rpc, refreshCatalog],
   )
 
   const [reveal, setReveal] = useState<TriggerEnv['reveal']>(null)
@@ -135,10 +180,13 @@ export function useTriggerScene(input: TriggerSceneInput): TriggerEnv {
   return useMemo(
     () => ({
       triggers,
+      workflow: state.name ?? '',
       here: { session, cwd: sessionCwd },
       workspaces,
       sessions,
       workflows,
+      lastRuns,
+      enableRunState,
       toggle,
       approve,
       reveal,
@@ -148,6 +196,9 @@ export function useTriggerScene(input: TriggerSceneInput): TriggerEnv {
       openHistory,
     }),
     [
+      state.name,
+      lastRuns,
+      enableRunState,
       triggers,
       session,
       sessionCwd,

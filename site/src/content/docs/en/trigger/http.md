@@ -7,13 +7,14 @@ sidebar:
 
 An HTTP trigger gives each card an address and a token. When CI, a script or another tool sends a POST request to it, the workflow is triggered once, with the request body as background info. This feature is experimental.
 
-![HTTP trigger: address, token and Copy curl command](../../../../assets/shots/en/trigger-http.webp)
+![HTTP trigger: address, token, four call examples and Send a test request](../../../../assets/shots/en/trigger-http.webp)
 
 ## Use
 
 1. Add a trigger card, click **Schedule ▾** in the header of **Trigger**, and choose **HTTP**.
 2. Choose a workspace under **Run settings** and turn on the switch. The card shows **Receiving**.
-3. Click **Edit** under **Trigger**; the dialog shows **Address** and **Token**. Click **Copy curl command** to get a command you can run as is.
+3. Click **Edit** under **Trigger**; the dialog shows **Address** and **Token**. **Examples** has the call written for curl, PowerShell, JavaScript and Python with the address and token filled in; copy it with the button at the top right.
+4. Click **Send a test request** and then **Send** in the small card that pops up. The status code appears next to it; 202 means it was received, and the workflow is triggered once as usual. This works only while the card is on and shows **Receiving**.
 
 The address defaults to the workflow name, such as `/trigger/nightly-report`; if another card already uses it, `-2` is appended. To change the address or token, click the pencil on that row and press Enter to save.
 

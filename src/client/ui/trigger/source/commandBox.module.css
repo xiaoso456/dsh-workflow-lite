@@ -1,0 +1,243 @@
+/*
+ * 命令框（CommandBox.tsx）：一块终端——顶栏、`$` 加命令、试运行的结果栏和输出。底色取画布色，比面板深一档。
+ */
+
+.box {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--wl-line-strong);
+  border-radius: var(--wl-r-control);
+  background: var(--wl-canvas);
+}
+
+.box:focus-within {
+  border-color: color-mix(in oklab, var(--wl-kind) 55%, var(--wl-line-strong));
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 5px 6px 5px 12px;
+  border-bottom: 1px solid var(--wl-line);
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+}
+
+.barTitle {
+  font-weight: 600;
+}
+
+.barButton {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 9px;
+  border: 1px solid var(--wl-line-strong);
+  border-radius: calc(7px * var(--wl-round, 1));
+  background: var(--wl-panel);
+  color: var(--wl-text-2);
+  font: inherit;
+  font-size: var(--wl-fs-meta);
+  cursor: pointer;
+  outline: 2px solid transparent;
+  outline-offset: 1px;
+  transition: scale 160ms var(--wl-ease-sheet);
+}
+
+.barButton:active:not(:disabled) {
+  scale: 0.96;
+}
+
+.barButton:focus-visible {
+  outline-color: var(--wl-accent);
+}
+
+.barButton:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.try {
+  border-color: color-mix(in oklab, var(--wl-kind) 40%, transparent);
+  background: color-mix(in oklab, var(--wl-kind) 10%, var(--wl-panel));
+  color: var(--wl-kind);
+  font-weight: 600;
+}
+
+.menu {
+  top: calc(100% + 6px);
+  width: 300px;
+  padding: 4px;
+}
+
+.menuItem {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  min-height: 44px;
+  padding: 6px 9px;
+}
+
+.menuName {
+  font-weight: 600;
+}
+
+.menuDesc {
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+.code {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+}
+
+.prompt {
+  flex: none;
+  color: var(--wl-kind);
+  font-family: var(--wl-mono);
+  font-size: 13px;
+  line-height: 1.7;
+  user-select: none;
+}
+
+.input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--wl-text);
+  font-family: var(--wl-mono);
+  font-size: 13px;
+  line-height: 1.7;
+  resize: vertical;
+  outline: none;
+  field-sizing: content;
+}
+
+.input::placeholder {
+  color: var(--wl-text-3);
+}
+
+/* 试运行的结果栏：一行小结。 */
+.result {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+  padding: 6px 12px;
+  border-top: 1px solid var(--wl-line);
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-meta);
+}
+
+.result[data-tone="ok"] {
+  --tone: var(--wl-ok);
+}
+
+.result[data-tone="off"] {
+  --tone: var(--wl-text-2);
+}
+
+.result[data-tone="bad"] {
+  --tone: var(--wl-danger);
+}
+
+.badge {
+  flex: none;
+  padding: 1px 7px;
+  border-radius: calc(5px * var(--wl-round, 1));
+  background: color-mix(in oklab, var(--tone, var(--wl-text-3)) 14%, transparent);
+  color: var(--tone, var(--wl-text-2));
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+}
+
+.resultText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spinner {
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid var(--wl-line-strong);
+  border-top-color: var(--wl-kind);
+  border-radius: 50%;
+  animation: spin 800ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.output {
+  max-height: 140px;
+  margin: 0;
+  padding: 8px 12px 10px;
+  overflow: auto;
+  border-top: 1px solid var(--wl-line);
+  color: var(--wl-text-2);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  scrollbar-width: thin;
+}
+
+/* 监听：跑着的那条命令最近的输出，接在命令框底下。 */
+.recent {
+  border-top: 1px solid var(--wl-line);
+}
+
+.recentTitle {
+  margin: 0;
+  padding: 7px 12px 0;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+}
+
+.recentText {
+  max-height: 150px;
+  margin: 0;
+  padding: 4px 12px 10px;
+  overflow: auto;
+  color: var(--wl-text-2);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  scrollbar-width: thin;
+}
+
+.recentText[data-empty="true"] {
+  color: var(--wl-text-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 2400ms;
+  }
+}
+
+:global([data-look="swiss"]) .box {
+  border-color: var(--wl-line-strong);
+}

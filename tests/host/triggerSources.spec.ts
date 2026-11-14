@@ -22,6 +22,7 @@ import {
   startProcess,
 } from '../../src/host/triggers/processes.ts'
 import { lastLineText } from '../../src/host/triggers/runtime.ts'
+import { PING_BODY, pingHook, tryListen, tryPoll } from '../../src/host/triggers/trial.ts'
 import { filterOf, keywordMiss } from '../../src/shared/trigger.ts'
 
 const NO_FILTER = { merge: 0, dedupe: 0, include: [], exclude: [] }
@@ -418,5 +419,72 @@ describe('在本机跑命令', () => {
     expect(lines).toEqual(['一', '二'])
     await live.stop()
     expect(exits).toEqual([])
+  }, 30_000)
+})
+
+/** 输出按行切开；本机的 node 可能往错误输出打警告（代理之类），只留命令自己打的。 */
+const ownLines = (text: string): string[] =>
+  text.split(/\r?\n/u).filter((line) => !line.startsWith('(node:') && !line.startsWith('(Use '))
+
+describe('试一试（「触发方式」对话框）', () => {
+  const cwd = process.cwd()
+
+  it('轮询试运行：退出码、输出（标准输出 + 错误输出）、用时；找不到命令给原因', async () => {
+    const ok = await tryPoll({
+      command: `node -e "console.log('up');console.error('warn');process.exit(2)"`,
+      cwd,
+    })
+    expect(ok.code).toBe(2)
+    expect(ownLines(ok.output)).toEqual(['up', 'warn'])
+    expect(ok.ms).toBeGreaterThanOrEqual(0)
+    expect(ok.failure).toBeUndefined()
+
+    const missing = await tryPoll({ command: 'no-such-command-wl-test', cwd })
+    expect(missing.failure).toContain('找不到命令')
+
+    const slow = await tryPoll({ command: 'node -e "setTimeout(() => {}, 30000)"', cwd }, 500)
+    expect(slow).toMatchObject({ code: null })
+    expect(slow.failure).toContain('没结束')
+  }, 30_000)
+
+  it('监听试运行：到点结束程序、数出打了几行；自己先退出的记下退出码', async () => {
+    const running = await tryListen(
+      {
+        command:
+          "node -e \"console.log('a');console.log('');console.log('b');setInterval(() => {}, 1000)\"",
+        cwd,
+      },
+      1500,
+    )
+    expect(running).toMatchObject({ code: null, stopped: true, lines: 2 })
+    expect(ownLines(running.output)).toEqual(['a', '', 'b'])
+
+    const quick = await tryListen(
+      { command: 'node -e "console.log(\'x\');process.exit(4)"', cwd },
+      5000,
+    )
+    expect(quick).toMatchObject({ code: 4, lines: 1 })
+    expect(quick.stopped).toBeUndefined()
+  }, 30_000)
+
+  it('测试请求：带上令牌发 POST，回状态码；连不上给原因', async () => {
+    const hooks = new HookServer()
+    try {
+      const port = await freePort()
+      const bodies: string[] = []
+      await hooks.sync(
+        { host: '127.0.0.1', port },
+        new Map([['abc', { token: 'secret', accept: (body: string) => bodies.push(body) }]]),
+      )
+      const url = hookUrl('127.0.0.1', port, 'abc')
+      expect(await pingHook(url, 'secret')).toMatchObject({ status: 202 })
+      expect(bodies).toEqual([PING_BODY])
+      expect(await pingHook(url, 'wrong')).toMatchObject({ status: 401 })
+      await hooks.sync({ host: '127.0.0.1', port }, new Map())
+      const refused = await pingHook(url, 'secret', 2000)
+      expect('failure' in refused && refused.failure).toContain('连不上')
+    } finally {
+      await hooks.close()
+    }
   }, 30_000)
 })

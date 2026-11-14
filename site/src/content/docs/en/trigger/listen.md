@@ -11,11 +11,13 @@ A listener is a command that keeps running: it starts when the switch is turned 
 
 ## Use
 
-1. Add a trigger card, click **Schedule ▾** in the header of **Trigger**, and choose **Listen**; click **Write command**, fill in **Command**, and click **Save**.
+1. Add a trigger card, click **Schedule ▾** in the header of **Trigger**, and choose **Listen**; click **Write command**, fill in **Command** or click **Start from a template** and edit one, and click **Save**.
 2. Choose a workspace under **Run settings**.
 3. Turn on the switch, check the command and workspace in the confirmation card, and click **Confirm and turn on**.
 
-The card shows **Receiving** and when the program started, and its middle row changes to the last line the program printed. Click **Edit** under **Trigger**; the right side of the dialog shows the program's recent output, including its error output.
+The card shows **Receiving** and when the program started, and its middle row changes to the last line the program printed. Click **Edit** under **Trigger**; the program's recent output, including its error output, is shown below the command box.
+
+Before saving, you can click **Try it** at the top right of the command box: once confirmed, the program runs in the chosen workspace for 5 seconds, and the result bar shows how many lines it printed in that time, with the output below. Trying it does not switch the card on or trigger the workflow.
 
 When a log prints many lines at once, use [filters](/dsh-workflow-lite/en/trigger/filter/) to merge them, drop duplicates or keep only lines with certain words. By default, lines within 5 seconds are merged into one trigger.
 

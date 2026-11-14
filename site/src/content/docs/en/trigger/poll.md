@@ -12,11 +12,17 @@ A poll trigger runs a command on this machine at an interval and decides from th
 ## Use
 
 1. Add a trigger card, click **Schedule ▾** in the header of **Trigger**, and choose **Poll**.
-2. Click **Write command**, fill in **Command**, choose the interval and **Fire when**, and click **Save**.
+2. Click **Write command** and fill in **Command**, or click **Start from a template** and edit one; choose the interval and **When it fires**, and click **Save**.
 3. Choose a workspace under **Run settings**: both the command and new sessions run there.
 4. Turn on the switch, check the command and workspace in the confirmation card, and click **Confirm and turn on**.
 
-The card shows **Checking** and the result of the last check, and the bar in its middle row runs to the next check. Click **Edit** under **Trigger**; the right side of the dialog shows the command's recent output.
+The card shows **Checking** and the result of the last check, and the bar in its middle row runs to the next check. Click **Edit** under **Trigger**; the command's recent output is shown below the command box.
+
+## Try it
+
+Before saving, you can run the command once: click **Try it** at the top right of the command box and confirm in the small card that pops up. The command runs in the workspace chosen under **Run settings** (or the current session's workspace if none is chosen). The result bar shows the exit code, whether it passes under **Command succeeds**, and how long it took, with the output below. Trying it does not switch the card on or trigger the workflow; once you edit the command, the last result is put away.
+
+![The result of Try it: exit 0, passes, the time taken, and the command's output below](../../../../assets/shots/en/trigger-try.webp)
 
 ## Settings
 
@@ -24,9 +30,9 @@ The card shows **Checking** and the result of the last check, and the bar in its
 |---|---|---|---|
 | Command | One command | Empty | Runs in the system shell (cmd on Windows, sh elsewhere); `{workflow}` becomes the workflow folder. |
 | Interval | 10 seconds to 7 days | 5 minutes | How long to wait after each run; it runs once right away when switched on. |
-| Fire when | Command succeeds, Output changes | Command succeeds | See the table below. |
+| When it fires | Command succeeds, Output changes | Command succeeds | See the table below. |
 
-| Fire when | Triggers | Background info |
+| When it fires | Triggers | Background info |
 |---|---|---|
 | Command succeeds | Once when the exit code goes from non-zero to 0; staying at 0 does not trigger again. | The command's standard output |
 | Output changes | When the standard output differs from last time; the first check only records it, and runs with a non-zero exit code are not compared. | The command's standard output |

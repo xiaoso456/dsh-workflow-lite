@@ -1,0 +1,156 @@
+/*
+ * 定时「接下来 7 天」（WeekStrip.tsx）：每天一行（日期 · 0–24 点的细线 · 太密时的次数），底下一行刻度。
+ * 点是触发方式的颜色，已过去的空心灰圈，下一次大一圈加一道同色淡环（不发光）。
+ */
+
+.week {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr) 64px;
+  row-gap: 2px;
+  padding: 10px 12px 8px;
+  border: 1px solid var(--wl-line);
+  border-radius: var(--wl-r-control);
+}
+
+.day,
+.axis {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: center;
+  height: 22px;
+}
+
+.axis {
+  height: 18px;
+}
+
+.label {
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  white-space: nowrap;
+}
+
+.label b {
+  margin-right: 4px;
+  color: var(--wl-text-2);
+  font-weight: 600;
+}
+
+.day[data-off="true"] .label {
+  opacity: 0.55;
+}
+
+.track {
+  position: relative;
+  height: 100%;
+}
+
+.track::before {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  left: 0;
+  height: 1px;
+  background: var(--wl-line-strong);
+  content: "";
+}
+
+.day[data-off="true"] .track::before {
+  background: repeating-linear-gradient(90deg, var(--wl-line-strong) 0 3px, transparent 3px 7px);
+}
+
+.past {
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  left: 0;
+  border-radius: 3px;
+  background: repeating-linear-gradient(135deg, var(--wl-hover) 0 4px, transparent 4px 8px);
+}
+
+.now {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  width: 1.5px;
+  margin-left: -0.75px;
+  background: var(--wl-danger);
+}
+
+.fire {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  border-radius: 50%;
+  background: var(--wl-kind);
+}
+
+.fire[data-past="true"] {
+  border: 1.5px solid var(--wl-text-3);
+  background: var(--wl-panel);
+}
+
+.fire[data-next="true"] {
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--wl-kind) 22%, transparent);
+}
+
+/* 太密：从（今天是现在、别的天是 0 点）到 24 点一整条。 */
+.band {
+  position: absolute;
+  top: calc(50% - 2px);
+  right: 0;
+  left: 0;
+  height: 4px;
+  border-radius: 2px;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--wl-kind) 0 2px,
+    color-mix(in oklab, var(--wl-kind) 35%, transparent) 2px 4px
+  );
+}
+
+.count {
+  padding-left: 8px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  white-space: nowrap;
+}
+
+.hours {
+  display: flex;
+  justify-content: space-between;
+}
+
+.hour {
+  display: flex;
+  justify-content: center;
+  width: 0;
+  color: var(--wl-text-3);
+  font-family: var(--wl-mono);
+  font-size: 10px;
+}
+
+.none {
+  grid-column: 1 / -1;
+  margin: 4px 0 0;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+}
+
+/* 规则写错时整块淡下去，只留说明。 */
+.week[data-valid="false"] .day,
+.week[data-valid="false"] .axis {
+  opacity: 0.35;
+}
+
+:global([data-look="swiss"]) .week {
+  border-width: 1px 0;
+  border-radius: 0;
+}

@@ -22,13 +22,19 @@ To see it work right away, click **Trigger once now** in the panel, optionally a
 
 ![The settings panel of a trigger card: one summary row each for Trigger, Trigger condition, Trigger note and Safeguards](../../../../assets/shots/en/trigger-panel.webp)
 
-**Trigger** is a card that looks like the one on the canvas: click the trigger type in its header (such as **Schedule ▾**) to pick another from the menu, which takes effect right away and can be undone; click **Edit** to change the details in a dialog. When the new type still needs something, **Edit** becomes **Write command** or **Pick workflow**. **Handling** (filters, trigger condition, trigger note) and the safeguards under **Run settings** each show one summary row; click a row to open a dialog and change it. The right side of the dialog lists the next 5 trigger times in local time, so a wrong rule shows at a glance. Changes in a dialog take effect when you click **Save** (Ctrl+Enter); while there are unsaved changes, Esc or a click outside does not close it, so click **Cancel** instead. Once the card is selected, clicking its middle row also opens the **Trigger** dialog.
+**Trigger** is a card that looks like the one on the canvas: click the trigger type in its header (such as **Schedule ▾**) to pick another from the menu, which takes effect right away and can be undone; click **Edit** to change the details in a dialog. When the new type still needs something, **Edit** becomes **Write command** or **Pick workflow**. **Handling** (filters, trigger condition, trigger note) and the safeguards under **Run settings** each show one summary row; click a row to open a dialog and change it.
+
+The left side of the **Trigger** dialog lists the five trigger types and how the card will look under **On the card**; click a type to switch to it. At the top right, one sentence says when this card runs. For a schedule, a click on an item under **Presets** replaces the whole rule, and **Next 7 days** draws every trigger time in local time, with the next one drawn larger, so a wrong rule shows at a glance.
+
+![The Trigger dialog: the five trigger types on the left; the sentence, presets, rule form and the next 7 days on the right](../../../../assets/shots/en/trigger-source.webp)
+
+Changes in a dialog take effect when you click **Save** (Ctrl+Enter); while there are unsaved changes, Esc or a click outside does not close it, so click **Cancel** instead. Once the card is selected, clicking its middle row also opens the **Trigger** dialog.
 
 ## Settings
 
 | Setting | Values | Default | Description |
 |---|---|---|---|
-| Trigger | Every, Daily, Cron | Daily 09:00 | **Every** ranges from 1 minute to 7 days, counted from the moment the switch is turned on; **Daily** can have several times (up to 12) and can be limited to certain weekdays (with **Every day**, **Weekdays** and **Weekends** shortcuts); **Cron** takes a five-field expression in local time and, once valid, shows which plain rule it equals. |
+| Trigger | Every, Daily, Cron | Daily 09:00 | **Every** ranges from 1 minute to 7 days, counted from the moment the switch is turned on; **Daily** can have several times (up to 12) and can be limited to certain weekdays (with **Every day**, **Weekdays** and **Weekends** shortcuts); **Cron** is split into minute, hour, day, month and weekday boxes: click a box to see how to write it, only the wrong box is marked, a whole expression can be pasted into any box, and presets such as **Hourly** and **Weekdays 9:00** sit below; times are local. **Presets** at the top of the dialog offers **Hourly**, **Daily 09:00**, **Weekdays 09:00**, **Weekdays, morning and evening**, **Mondays 09:00** and **Nightly 23:00**. |
 | Trigger note | Text | Empty | Passed to the model as is on every trigger; a good place for the scope and requirements of the run. Shares a dialog with the [trigger condition](/dsh-workflow-lite/en/trigger/filter/#trigger-condition). |
 | Session | New session, Continue last, Fixed session | New session | **Continue last** sends to the session used by the previous trigger, or creates one if it is gone. |
 | Workspace | Workspaces opened before | None | New sessions are created here; with **Fixed session**, choose **Session** instead. |

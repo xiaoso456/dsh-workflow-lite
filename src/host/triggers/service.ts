@@ -54,7 +54,11 @@ import type {
   TriggerListResponse,
   TriggerOwner,
   TriggerPauseResponse,
+  TriggerPingRequest,
+  TriggerPingResponse,
   TriggerSetRequest,
+  TriggerTryRequest,
+  TriggerTryResponse,
   TriggerView,
 } from '../../shared/wire/trigger.ts'
 import { assetsDir } from '../store/paths.ts'
@@ -85,6 +89,7 @@ import {
   type TriggerLocals,
   type TriggerStore,
 } from './store.ts'
+import { pingHook, tryListen, tryPoll } from './trial.ts'
 
 /** 多久报到、对一次账。 */
 export const BEAT_MS = 5_000
@@ -782,6 +787,40 @@ export class TriggerService {
     const text = reason.trim() === '' ? '没有说明原因' : reason.trim()
     await this.store.decline(fire, text)
     return ok({ ...detail.record, declined: text })
+  }
+
+  /**
+   * 「试运行」：把对话框里还没保存的命令在 `workspace` 里跑一次（跑法同打开开关之后）。
+   * 不看开关、不记触发记录；界面上用户确认过才会发来。
+   */
+  async tryCommand(request: TriggerTryRequest): Promise<Outcome<TriggerTryResponse>> {
+    if (request.command.trim() === '') return fail('invalid_args', '命令是空的')
+    const directory = await workspaceProblem(request.workspace)
+    if (directory !== null) return fail('invalid_args', directory)
+    const dir = assetsDir(this.dataDir(), request.workflow)
+    const spec = {
+      command: bindWorkflowVar(request.command, dir),
+      cwd: request.workspace,
+      env: { WORKFLOW_DIR: dir },
+    }
+    return ok(request.kind === 'listen' ? await tryListen(spec) : await tryPoll(spec))
+  }
+
+  /** 「发一条测试请求」：带上令牌向这张 HTTP 触发卡片的地址发一条 POST，和别的程序发来的一样被收下。 */
+  async ping(request: TriggerPingRequest): Promise<Outcome<TriggerPingResponse>> {
+    const found = await this.definition(request.workflow, request.node)
+    if (!found.ok) return found
+    if (found.result.trigger.data.source.kind !== 'http') {
+      return fail('invalid_args', '这张触发卡片不是 HTTP 触发')
+    }
+    const local = (await this.store.locals())[request.workflow]?.[request.node]
+    if (local?.enabled !== true || local.hook === undefined || local.token === undefined) {
+      return fail('blocked', '先打开这张卡片的开关，地址才收请求')
+    }
+    const listen = this.listen()
+    const url = hookUrl(advertisedHost(listen.host), listen.port, local.hook)
+    const result = await pingHook(url, local.token)
+    return 'failure' in result ? fail('blocked', result.failure) : ok(result)
   }
 
   /** 轮询命令、监听程序最近的输出。 */

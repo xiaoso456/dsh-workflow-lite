@@ -18,7 +18,13 @@ import { parse, stringify } from 'yaml'
 import { RunHistory } from '../src/host/runs/history.ts'
 import { RunService } from '../src/host/runs/service.ts'
 import { addGlobalMemory } from '../src/shared/presets.ts'
-import { bootToCanvas, mouseClick, mouseMove, revealHubRow } from './lib/canvas-harness.mjs'
+import {
+  bootToCanvas,
+  mouseClick,
+  mouseMove,
+  revealHubRow,
+  setReactInput,
+} from './lib/canvas-harness.mjs'
 import { openPage, waitFor } from './lib/cdp-session.mjs'
 import { rpc } from './lib/web-session.mjs'
 import { installShotsCookie, SHOTS_SESSION_TITLE, startShotsEnv } from './support/shots-env.mjs'
@@ -424,12 +430,12 @@ function triggerDocument() {
 }
 
 /**
- * 触发卡片：画布上的卡片（开着、等待中）和它的属性面板。自己建图、拍完删掉，放在最前面——
+ * 触发卡片：画布上的卡片（开着、等待中）、它的属性面板和「触发方式」对话框。自己建图、拍完删掉，放在最前面——
  * 后面每一段都从 `bootToCanvas` 重新进页面，不受这里影响（所以这里不收步骤库、不改偏好）。
  * 不点「立即触发一次」：那会在侧栏里多出一个会话。
  */
 async function triggerShots(session) {
-  if (!wants('trigger-card') && !wants('trigger-panel')) return
+  if (!['trigger-card', 'trigger-panel', 'trigger-source'].some(wants)) return
   try {
     await rpc('graph/delete', { name: TRIGGER_NAME }).catch(() => {})
     await rpc('graph/create', { name: TRIGGER_NAME })
@@ -475,6 +481,15 @@ async function triggerShots(session) {
       'trigger-panel',
       await session.evaluate(rectOf('[data-testid="wl-inspector"]', 8)),
     )
+
+    // 「触发方式」对话框：左边五种方式，右边一句话、常用规则、规则表单和接下来 7 天。
+    await openSheet(session, 'wl-trigger-when-edit', SOURCE_DIALOG)
+    await snap(
+      session,
+      'trigger-source',
+      await session.evaluate(rectOf(`[data-testid="${SOURCE_DIALOG}"]`)),
+    )
+    await closeSheet(session, SOURCE_DIALOG)
   } catch (error) {
     console.log(`  ✗ trigger：${String(error.message).split('\n')[0]}`)
   } finally {
@@ -484,7 +499,13 @@ async function triggerShots(session) {
 
 /** 常驻触发源那几张图用的工作流：一张条件轮询、一张监听程序（带过滤和触发条件）、一张 HTTP。 */
 const SOURCES_NAME = t('线上告警', 'alerts')
-const SOURCE_SHOTS = ['trigger-poll', 'trigger-confirm', 'trigger-filter', 'trigger-http']
+const SOURCE_SHOTS = [
+  'trigger-poll',
+  'trigger-try',
+  'trigger-confirm',
+  'trigger-filter',
+  'trigger-http',
+]
 function sourcesDocument() {
   const card = (id, x, data) => ({ id, type: 'wfTrigger', position: { x, y: 100 }, data })
   return {
@@ -537,8 +558,9 @@ const unionOf = (selectors, pad = 8) => `(() => {
 })()`
 
 /**
- * 常驻触发源：条件轮询的设置、监听程序打开前的命令确认、过滤与触发条件、HTTP 的地址与令牌。
+ * 常驻触发源：条件轮询的设置与试运行、监听程序打开前的命令确认、过滤与触发条件、HTTP 的地址与令牌。
  * 只有 HTTP 那张真的打开（不用确认命令）；监听程序停在确认卡上，不真的跑命令。
+ * 试运行在草稿里换一条哪都能跑的命令（`git --version`），不保存。
  */
 async function triggerSourceShots(session) {
   if (!SOURCE_SHOTS.some(wants)) return
@@ -576,6 +598,23 @@ async function triggerSourceShots(session) {
       'trigger-poll',
       await session.evaluate(rectOf(`[data-testid="${SOURCE_DIALOG}"]`)),
     )
+    // 试运行：草稿里换成「命令成功时」和一条哪都能跑的命令，确认后跑一次，拍命令框和结果。
+    if (wants('trigger-try')) {
+      await session.evaluate(clickTestId('wl-trigger-poll-when-success'))
+      await setReactInput(session, '[data-testid="wl-trigger-command"]', 'git --version')
+      await sleep(300)
+      await session.evaluate(clickTestId('wl-trigger-try'))
+      await waitFor(session, has('wl-trigger-try-confirm'))
+      await session.evaluate(clickTestId('wl-trigger-try-confirm'))
+      await waitFor(session, has('wl-trigger-try-output'), { timeoutMs: 30_000 })
+      await sleep(800)
+      await mouseMove(session, { x: 8, y: 8 })
+      await snap(
+        session,
+        'trigger-try',
+        await session.evaluate(rectOf('[data-testid="wl-trigger-command-box"]', 8)),
+      )
+    }
     await closeSheet(session, SOURCE_DIALOG)
 
     // 监听程序：点开关，开关旁浮出确认卡。
@@ -614,7 +653,7 @@ async function triggerSourceShots(session) {
     )
     await closeSheet(session, 'wl-trigger-filter-dialog')
 
-    // HTTP：开着，对话框里有地址、令牌（遮住）和复制 curl。
+    // HTTP：开着，对话框里有地址、令牌（遮住）、调用示例和「发一条测试请求」（不发）。
     await session.evaluate(nodeClick('ci'))
     await waitFor(session, has('wl-trigger-when-edit'))
     await sleep(1200)
@@ -712,6 +751,10 @@ async function triggerChainShots(session) {
     await waitFor(session, has('wl-trigger-when-edit'))
     await sleep(1200)
     await openSheet(session, 'wl-trigger-when-edit', SOURCE_DIALOG)
+    // 截图用的数据目录里还有别几段留下的工作流：搜一下，列表里只留要等的那个。
+    await setReactInput(session, '[data-testid="wl-trigger-after-search"]', t('构建', 'build'))
+    await sleep(600)
+    await mouseMove(session, { x: 8, y: 8 })
     await snap(
       session,
       'trigger-after',

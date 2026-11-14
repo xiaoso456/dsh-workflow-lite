@@ -3,6 +3,7 @@ import { addFromSource, addOrigin, duplicateEdit } from '../../src/client/app/ad
 import { en as enText, type LocaleKey, zh } from '../../src/client/i18n.ts'
 import { linkAllowed } from '../../src/client/model/connect.ts'
 import { type Edit, type EditorState, initialState, reduce } from '../../src/client/model/editor.ts'
+import { SNIPPET_LANGS, snippetOf } from '../../src/client/model/httpSnippets.ts'
 import { cardSize, TRIGGER_H, TRIGGER_W, tidy, triggerSpot } from '../../src/client/model/layout.ts'
 import { decodeStepSource, encodeStepSource } from '../../src/client/model/library.ts'
 import { originText } from '../../src/client/model/originText.ts'
@@ -15,8 +16,7 @@ import {
   stateText,
 } from '../../src/client/model/triggerText.ts'
 import { parseKeywords } from '../../src/client/ui/trigger/FilterField.tsx'
-import { curlOf } from '../../src/client/ui/trigger/HttpEndpoint.tsx'
-import { switchSource } from '../../src/client/ui/trigger/SourceField.tsx'
+import { switchSource } from '../../src/client/ui/trigger/source/kinds.ts'
 import { analyzeGraph } from '../../src/shared/graph.ts'
 import { isTrigger } from '../../src/shared/model.ts'
 import { scheduleIssue } from '../../src/shared/schedule.ts'
@@ -289,9 +289,12 @@ describe('触发卡片：卡片上的字', () => {
       '超时',
       'timeout',
     ])
-    const curl = curlOf({ url: 'http://127.0.0.1:3791/trigger/abc', hook: 'abc', token: 'tok' })
-    expect(curl).toContain('http://127.0.0.1:3791/trigger/abc')
-    expect(curl).toContain('Bearer tok')
+    // 四种写法的调用示例都带上地址和令牌。
+    for (const lang of SNIPPET_LANGS) {
+      const code = snippetOf(lang, { url: 'http://127.0.0.1:3791/trigger/abc', token: 'tok' })
+      expect(code).toContain('http://127.0.0.1:3791/trigger/abc')
+      expect(code).toContain('Bearer tok')
+    }
   })
 
   it('实例来源的一句话', () => {

@@ -140,7 +140,11 @@ import type {
   TriggerOutputResponse,
   TriggerPauseRequest,
   TriggerPauseResponse,
+  TriggerPingRequest,
+  TriggerPingResponse,
   TriggerSetRequest,
+  TriggerTryRequest,
+  TriggerTryResponse,
 } from './wire/trigger.ts'
 
 /**
@@ -202,6 +206,8 @@ export const WORKFLOW_LITE_ENDPOINTS = [
   'trigger/all',
   'trigger/pause',
   'trigger/http',
+  'trigger/try',
+  'trigger/ping',
   'memory/list',
   'memory/create',
   'memory/update',
@@ -317,6 +323,8 @@ export interface WorkflowLiteRpcMap {
   'trigger/all': { args: Record<string, never>; result: TriggerAllResponse }
   'trigger/pause': { args: TriggerPauseRequest; result: TriggerPauseResponse }
   'trigger/http': { args: Record<string, never>; result: TriggerHttpStatus }
+  'trigger/try': { args: TriggerTryRequest; result: TriggerTryResponse }
+  'trigger/ping': { args: TriggerPingRequest; result: TriggerPingResponse }
   'memory/list': { args: Record<string, never>; result: MemoryListResponse }
   'memory/create': { args: MemoryCreateRequest; result: MemoryEntryResponse }
   'memory/update': { args: MemoryUpdateRequest; result: MemoryEntryResponse }

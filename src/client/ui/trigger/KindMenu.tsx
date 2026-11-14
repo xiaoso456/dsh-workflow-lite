@@ -8,24 +8,16 @@
 
 import { useRef, useState } from 'react'
 import type { TriggerSourceKind } from '../../../shared/types.ts'
-import type { LocaleKey, T } from '../../i18n.ts'
+import type { T } from '../../i18n.ts'
 import { triggerMode } from '../../model/triggerGlance.ts'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import { Popover } from '../kit/Popover.tsx'
 import ui from '../kit/ui.module.css'
 import { useRadioMenu } from '../kit/useRadioMenu.ts'
-import { SOURCE_KINDS } from './SourceField.tsx'
+import { KIND_DESC, SOURCE_KINDS } from './source/kinds.ts'
 import { TriggerMark } from './TriggerMark.tsx'
 import css from './whenCard.module.css'
-
-const KIND_DESC: Record<TriggerSourceKind, LocaleKey> = {
-  schedule: 'trigger.kindDesc.schedule',
-  poll: 'trigger.kindDesc.poll',
-  listen: 'trigger.kindDesc.listen',
-  http: 'trigger.kindDesc.http',
-  after: 'trigger.kindDesc.after',
-}
 
 export function KindMenu(props: {
   t: T

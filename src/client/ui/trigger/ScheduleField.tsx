@@ -1,10 +1,8 @@
 /**
  * dsh-workflow-lite — 定时触发的规则：每隔多久 / 每天几点（可以几个时刻、可限定星期几）/ 五段 cron。
  *
- * 换一种：这一张面板开着时那一种填过的先记着，换回来还在，没填过的给常用值；
- * 写得不对当场说出原因（按界面语言）；cron 写对了在下面说一句相当于什么。
- * 「接下来几次」不在这里：对话框的右栏列（`Upcoming.tsx`）。
- * 放在「触发方式」那一段里（见 `SourceField.tsx`），自己不带分组标题。
+ * 换一种：这一张面板开着时那一种填过的先记着，换回来还在，没填过的给常用值。
+ * 规则的一句人话、写得不对的原因、接下来 7 天都不在这里：对话框顶上的一句话和时间轴（见 `source/ScheduleStage.tsx`）。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/trigger/ScheduleField
  */
@@ -16,19 +14,17 @@ import {
   EVERY_MAX,
   formatClock,
   parseClock,
-  scheduleIssue,
   withDailyTimes,
 } from '../../../shared/schedule.ts'
 import type { TriggerSchedule } from '../../../shared/types.ts'
 import type { LocaleKey, T } from '../../i18n.ts'
-import { scheduleIssueText, weekdayChip, weekdayText } from '../../model/triggerText.ts'
-import { cronPhrase } from '../../model/triggerUpcoming.ts'
+import { weekdayChip, weekdayText } from '../../model/triggerText.ts'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import { Segmented } from '../kit/Segmented.tsx'
 import { Select } from '../kit/Select.tsx'
 import ui from '../kit/ui.module.css'
-import ins from '../panel/panel.module.css'
+import { CronEditor } from './CronEditor.tsx'
 import css from './schedule.module.css'
 import row from './trigger.module.css'
 
@@ -82,10 +78,6 @@ export function ScheduleField(props: {
   onSeal?(): void
 }): React.JSX.Element {
   const { t, schedule } = props
-  const issue = scheduleIssue(schedule)
-  const problem = issue === null ? null : scheduleIssueText(t, issue)
-  const phrase =
-    schedule.kind === 'cron' && problem === null ? cronPhrase(t, schedule.expression) : null
   /** 这张面板开着时各种规则填过的样子。 */
   const kept = useRef(new Map<Kind, TriggerSchedule>())
   return (
@@ -121,32 +113,13 @@ export function ScheduleField(props: {
         </>
       )}
       {schedule.kind === 'cron' && (
-        <>
-          <input
-            className={cx(ui.input, ui.mono)}
-            value={schedule.expression}
-            placeholder="0 9 * * 1-5"
-            spellCheck={false}
-            aria-label={t('trigger.cron')}
-            aria-invalid={problem !== null}
-            data-testid="wl-trigger-cron"
-            onChange={(event) =>
-              props.onChange({ kind: 'cron', expression: event.currentTarget.value }, true)
-            }
-            onBlur={props.onSeal}
-          />
-          {/* 一直挂着，只换字：写对了又说得成一句话时是「相当于：…」，否则是五段的说明。 */}
-          <p className={ins.help} data-testid="wl-trigger-cron-phrase">
-            {phrase === null
-              ? t('trigger.cronHint')
-              : t('trigger.cronMeans').replace('{rule}', phrase)}
-          </p>
-        </>
+        <CronEditor
+          t={t}
+          expression={schedule.expression}
+          onChange={(expression, typing) => props.onChange({ kind: 'cron', expression }, typing)}
+          onSeal={props.onSeal}
+        />
       )}
-      {/* 一直挂着：写得不对才有字。 */}
-      <p className={ins.error} data-testid="wl-trigger-preview" hidden={problem === null}>
-        {problem ?? ''}
-      </p>
     </>
   )
 }
@@ -300,43 +273,40 @@ function EveryRow(props: {
     props.onChange({ kind: 'every', minutes: Math.min(EVERY_MAX, value * size) }, true)
   }
   return (
-    <>
-      <div className={row.row}>
-        <span className={row.lead}>{t('trigger.every')}</span>
-        <input
-          className={cx(ui.input, row.number)}
-          inputMode="numeric"
-          value={draft ?? String(amount)}
-          aria-label={t('trigger.every')}
-          data-testid="wl-trigger-every"
-          onChange={(event) => {
-            const text = event.currentTarget.value.replace(/[^\d]/gu, '')
-            setDraft(text)
-            commit(text, sizeOf(shown))
-          }}
-          onBlur={() => {
-            setDraft(null)
-            props.onSeal?.()
-          }}
-        />
-        <Select<Unit>
-          t={t}
-          label={t('trigger.every')}
-          value={shown}
-          className={row.unit}
-          testId="wl-trigger-unit"
-          onChange={(nextUnit) => {
-            setUnit(nextUnit)
-            setDraft(null)
-            props.onChange({
-              kind: 'every',
-              minutes: Math.min(EVERY_MAX, amount * sizeOf(nextUnit)),
-            })
-          }}
-          options={UNITS.map((item) => ({ value: item.value, label: t(item.label) }))}
-        />
-      </div>
-      <p className={ins.help}>{t('trigger.everyHint')}</p>
-    </>
+    <div className={row.row}>
+      <span className={row.lead}>{t('trigger.every')}</span>
+      <input
+        className={cx(ui.input, row.number)}
+        inputMode="numeric"
+        value={draft ?? String(amount)}
+        aria-label={t('trigger.every')}
+        data-testid="wl-trigger-every"
+        onChange={(event) => {
+          const text = event.currentTarget.value.replace(/[^\d]/gu, '')
+          setDraft(text)
+          commit(text, sizeOf(shown))
+        }}
+        onBlur={() => {
+          setDraft(null)
+          props.onSeal?.()
+        }}
+      />
+      <Select<Unit>
+        t={t}
+        label={t('trigger.every')}
+        value={shown}
+        className={row.unit}
+        testId="wl-trigger-unit"
+        onChange={(nextUnit) => {
+          setUnit(nextUnit)
+          setDraft(null)
+          props.onChange({
+            kind: 'every',
+            minutes: Math.min(EVERY_MAX, amount * sizeOf(nextUnit)),
+          })
+        }}
+        options={UNITS.map((item) => ({ value: item.value, label: t(item.label) }))}
+      />
+    </div>
   )
 }

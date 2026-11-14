@@ -1,0 +1,207 @@
+/*
+ * 「触发方式」对话框的左栏（SourceRail.tsx）：两组方式、选中的底块（PickThumb，按方式换色交叉淡）、底下的卡片预览。
+ * 选中只是一层淡底 + 同色细边，不发光。
+ */
+
+.rail {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 100%;
+}
+
+.kinds {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.groupTitle {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0 0 4px;
+  padding: 0 8px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+}
+
+.groupSub {
+  font-weight: 400;
+}
+
+/* 选中的底块：面板色的底，外面一层按方式换色的淡底和细边（各方式一层，交叉淡）。 */
+.thumb {
+  border-radius: calc(10px * var(--wl-round, 1));
+  background: var(--wl-panel);
+  box-shadow: var(--wl-shadow-thumb);
+}
+
+.thumb > [data-kind] {
+  border: 1px solid color-mix(in oklab, var(--k) 32%, transparent);
+  background: color-mix(in oklab, var(--k) 7%, transparent);
+}
+
+.thumb > [data-kind="schedule"] {
+  --k: var(--wl-c-blue);
+}
+
+.thumb > [data-kind="poll"] {
+  --k: var(--wl-c-teal);
+}
+
+.thumb > [data-kind="listen"] {
+  --k: var(--wl-c-amber);
+}
+
+.thumb > [data-kind="http"] {
+  --k: var(--wl-c-violet);
+}
+
+.thumb > [data-kind="after"] {
+  --k: var(--wl-c-green);
+}
+
+.tile {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 9px;
+  border: 0;
+  border-radius: calc(10px * var(--wl-round, 1));
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  outline: 2px solid transparent;
+  outline-offset: -2px;
+}
+
+/* 悬停的淡底在 ::before 上淡入淡出（不改底色）。 */
+.tile::before {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--wl-hover);
+  content: "";
+  opacity: 0;
+  transition: opacity 140ms linear;
+}
+
+.tile[data-on="false"]:hover::before {
+  opacity: 1;
+}
+
+.tile:focus-visible {
+  outline-color: var(--wl-accent);
+}
+
+.mark {
+  position: relative;
+  transition: opacity 200ms linear;
+}
+
+.tile[data-on="false"] .mark {
+  opacity: 0.72;
+}
+
+.text {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  padding-top: 1px;
+}
+
+.name {
+  --wl-off: var(--wl-text-2);
+  --wl-on: var(--wl-text);
+
+  font-size: var(--wl-fs-body);
+  font-weight: 600;
+}
+
+.desc {
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.4;
+}
+
+/* 底下的卡片预览：画布上那张卡片的缩影。 */
+.preview {
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px dashed var(--wl-line-strong);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 9px 10px;
+  border: 1px solid var(--wl-line-strong);
+  border-radius: var(--wl-r-control);
+  background: var(--wl-panel);
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--wl-fs-meta);
+  font-weight: 600;
+}
+
+.cardMark {
+  width: 20px;
+  height: 20px;
+  border-radius: calc(6px * var(--wl-round, 1));
+}
+
+.cardName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cardFoot {
+  display: flex;
+}
+
+/* 窄视口：只留图标。 */
+@container (max-width: 640px) {
+  .groupTitle,
+  .desc,
+  .name,
+  .preview {
+    display: none;
+  }
+
+  .tile {
+    justify-content: center;
+    padding: 8px 0;
+  }
+}
+
+:global([data-look="swiss"]) .thumb {
+  box-shadow: none;
+}
+
+:global([data-look="swiss"]) .card {
+  border-color: var(--wl-line-strong);
+}

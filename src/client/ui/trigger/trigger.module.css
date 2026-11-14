@@ -1,6 +1,6 @@
 /**
- * dsh-workflow-lite — 触发卡片属性面板里自己的样子：一行一项的小表单、星期几的一排圆钮、命令、
- * HTTP 地址、确认命令、最近的输出、触发记录。
+ * dsh-workflow-lite — 触发卡片属性面板里自己的样子：一行一项的小表单、星期几的一排圆钮、
+ * 确认命令、最近的输出、触发记录。
  *
  * 面板外壳、分组标题、说明文字、开关行都用 panel/panel.module.css 的。
  */
@@ -27,25 +27,9 @@
   overflow-wrap: anywhere;
 }
 
-/* 几行「标签 + 控件」排成两列，标签列同 .lead。 */
-.pairs {
-  display: grid;
-  grid-template-columns: var(--wl-trigger-lead, 3.5em) minmax(0, 1fr);
-  gap: 8px;
-  align-items: center;
-}
-
-.pairs > .lead {
-  width: auto;
-}
-
 /* 按钮在一列里不拉满。 */
 .selfStart {
   align-self: flex-start;
-}
-
-.pairStart {
-  justify-self: start;
 }
 
 .rowLabel {
@@ -81,100 +65,12 @@
   min-width: 0;
 }
 
-.command {
-  min-height: 0;
-  resize: vertical;
-}
-
 /* 上下两行：说明在上，控件整行宽（关键字）。 */
 .stack {
   display: flex;
   flex-direction: column;
   gap: 4px;
   min-width: 0;
-}
-
-/* HTTP 地址与令牌：两行，说明 · 值 · 小按钮。值和框外各行的控件对齐（扣掉框的边线和内边距）。 */
-.endpoint {
-  display: grid;
-  grid-template-columns: calc(var(--wl-trigger-lead, 3.5em) - 11px) minmax(0, 1fr) auto;
-  gap: 6px 8px;
-  align-items: center;
-  padding: 8px 8px 8px 10px;
-  border: 1px solid var(--wl-line);
-  border-radius: var(--wl-r-control);
-}
-
-.endpointValue {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--wl-text);
-  font-family: var(--wl-font-mono);
-  font-size: var(--wl-fs-micro);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.endpointValue[data-masked="true"] {
-  color: var(--wl-text-3);
-  letter-spacing: 1px;
-}
-
-.endpointTools {
-  display: flex;
-  gap: 2px;
-  justify-content: flex-end;
-}
-
-/* 改地址、令牌：就地换成输入框；地址前半（不能改的那截）灰着写在框里。 */
-.endpointEdit {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-  height: 26px;
-  padding: 0 7px;
-  border: 1px solid var(--wl-accent);
-  border-radius: var(--wl-r-control);
-  background: var(--wl-fill);
-  font-family: var(--wl-font-mono);
-  font-size: var(--wl-fs-micro);
-}
-
-.endpointEdit[data-invalid] {
-  border-color: var(--wl-danger);
-}
-
-.endpointPrefix {
-  flex: 0 1 auto;
-  min-width: 2em;
-  overflow: hidden;
-  color: var(--wl-text-3);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  direction: rtl;
-}
-
-.endpointInput {
-  flex: 1 1 6em;
-  min-width: 4em;
-  padding: 0;
-  border: 0;
-  outline: none;
-  background: transparent;
-  color: var(--wl-text);
-  font: inherit;
-}
-
-.endpointNote {
-  grid-column: 2 / -1;
-  margin: -2px 0 0;
-  color: var(--wl-text-3);
-  font-size: var(--wl-fs-micro);
-  line-height: 1.5;
-}
-
-.endpointNote[data-tone="error"] {
-  color: var(--wl-danger);
 }
 
 /* 确认命令：命令原样等宽显示，可以换行，太长就在框里滚。 */
@@ -336,7 +232,6 @@
 
 /* 瑞士：成组的列表只留上下线，圆钮成方的（圆角已经跟着 --wl-round 归零）。 */
 :global([data-look="swiss"]) .statusCard,
-:global([data-look="swiss"]) .endpoint,
 :global([data-look="swiss"]) .output {
   border-width: 1px 0;
   border-color: var(--wl-line-strong);

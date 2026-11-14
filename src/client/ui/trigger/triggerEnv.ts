@@ -8,6 +8,7 @@
  */
 
 import { createContext, useContext } from 'react'
+import type { RunStatus } from '../../../shared/runState.ts'
 import type { Triggers } from '../../app/useTriggers.ts'
 
 /** 可以选的一个会话。 */
@@ -21,6 +22,16 @@ export interface WorkflowChoice {
   name: string
   /** 开着「记录运行状态」（没开的看不出什么时候跑完）。 */
   runState: boolean
+  /** 图里有几张卡片。 */
+  nodes: number
+}
+
+/** 一个工作流最近一次执行（最新建的那个实例）。 */
+export interface LastRun {
+  /** 状态文件里写的；读不出来是 `undefined`。 */
+  status?: RunStatus
+  /** 最后一次更新的时刻。 */
+  at: number
 }
 
 /** 面板里打开开关前要补的一项。 */
@@ -31,6 +42,8 @@ export type RevealField = LaunchField | 'source'
 
 export interface TriggerEnv {
   triggers: Triggers
+  /** 正在编辑的工作流名。 */
+  workflow: string
   /** 这个视图所在的会话与它的工作区（「当前会话」「当前工作区」）。 */
   here: { session?: string | undefined; cwd?: string | undefined }
   /** 已知的工作区目录（侧栏里各会话所在的）。 */
@@ -39,6 +52,10 @@ export interface TriggerEnv {
   sessions: readonly SessionChoice[]
   /** 接续触发能等的工作流（除了这一张之外的全部）。 */
   workflows: readonly WorkflowChoice[]
+  /** 各工作流最近一次执行（按工作流名）；读不到是空的。 */
+  lastRuns(): Promise<ReadonlyMap<string, LastRun>>
+  /** 在另一个工作流的设置里打开「记录运行状态」（接续触发要靠它）；打不开回一句原因。 */
+  enableRunState(workflow: string): Promise<string | null>
   /**
    * 开、关一张卡片。
    * - 要在本机跑命令、命令还没确认过：回 `'confirm'`，由点开关的那一处在开关旁边浮出确认卡（{@link approve}）；
