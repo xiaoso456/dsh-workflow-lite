@@ -1,6 +1,7 @@
 /*
  * 定时「接下来 7 天」（WeekStrip.tsx）：每天一行（日期 · 0–24 点的细线 · 太密时的次数），底下一行刻度。
  * 点是触发方式的颜色，已过去的空心灰圈，下一次大一圈加一道同色淡环（不发光）。
+ * 改规则时只动 transform / opacity：点从旧位置按 translateX 补回来（WeekStrip 的 DayDots），空心、太密的一条、虚线是叠层换透明度。
  */
 
 .week {
@@ -36,6 +37,10 @@
   font-weight: 600;
 }
 
+.label {
+  transition: opacity 200ms linear;
+}
+
 .day[data-off="true"] .label {
   opacity: 0.55;
 }
@@ -45,18 +50,10 @@
   height: 100%;
 }
 
-.track::before {
+/* 一天的点都在这一层里：和细线一样宽，点的位置按它量。 */
+.dots {
   position: absolute;
-  top: 50%;
-  right: 0;
-  left: 0;
-  height: 1px;
-  background: var(--wl-line-strong);
-  content: "";
-}
-
-.day[data-off="true"] .track::before {
-  background: repeating-linear-gradient(90deg, var(--wl-line-strong) 0 3px, transparent 3px 7px);
+  inset: 0;
 }
 
 .past {
@@ -77,6 +74,7 @@
   background: var(--wl-danger);
 }
 
+/* 一个点：按 left 摆在它的时刻；下一次放大一圈（`scale`，和滑动用的 transform 互不覆盖）。 */
 .fire {
   position: absolute;
   top: 50%;
@@ -85,18 +83,61 @@
   margin: -4px 0 0 -4px;
   border-radius: 50%;
   background: var(--wl-kind);
-}
-
-.fire[data-past="true"] {
-  border: 1.5px solid var(--wl-text-3);
-  background: var(--wl-panel);
+  transition: scale 240ms var(--wl-ease-out);
+  animation: dotIn 220ms var(--wl-ease-out) backwards;
 }
 
 .fire[data-next="true"] {
-  width: 10px;
-  height: 10px;
-  margin: -5px 0 0 -5px;
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--wl-kind) 22%, transparent);
+  scale: 1.25;
+}
+
+.fire::after {
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  border-radius: 50%;
+}
+
+/* 下一次：外面一道同色淡环（按放大前算，放大后约 3px），落到哪个点上就在哪个点上淡入。 */
+.fire[data-next="true"]::after {
+  box-shadow: 0 0 0 2.4px color-mix(in oklab, var(--wl-kind) 22%, transparent);
+  content: "";
+  animation: dotRing 200ms linear backwards;
+}
+
+/* 已过去（只有今天有）：实心点上盖一层空心灰圈，换的时候交叉淡。 */
+.day[data-ahead="0"] .fire:not([data-next="true"])::after {
+  border: 1.5px solid var(--wl-text-3);
+  background: var(--wl-panel);
+  content: "";
+  opacity: 0;
+  transition: opacity 200ms linear;
+}
+
+.day[data-ahead="0"] .fire[data-past="true"]::after {
+  opacity: 1;
+}
+
+.fire[data-gone] {
+  animation: dotOut 180ms linear forwards;
+}
+
+@keyframes dotRing {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes dotIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes dotOut {
+  to {
+    opacity: 0;
+  }
 }
 
 /* 太密：从（今天是现在、别的天是 0 点）到 24 点一整条。 */
@@ -112,6 +153,12 @@
     var(--wl-kind) 0 2px,
     color-mix(in oklab, var(--wl-kind) 35%, transparent) 2px 4px
   );
+  opacity: 0;
+  transition: opacity 200ms linear;
+}
+
+.band[data-on="true"] {
+  opacity: 1;
 }
 
 .count {
@@ -143,7 +190,35 @@
 }
 
 /* 规则写错时整块淡下去，只留说明。 */
+.day,
+.axis {
+  transition: opacity 200ms linear;
+}
+
 .week[data-valid="false"] .day,
 .week[data-valid="false"] .axis {
   opacity: 0.35;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .label,
+  .track::before,
+  .track::after,
+  .fire,
+  .fire::after,
+  .band,
+  .day,
+  .axis {
+    transition: none;
+  }
+
+  .fire,
+  .fire::after,
+  .fire[data-gone] {
+    animation: none;
+  }
+
+  .fire[data-gone] {
+    display: none;
+  }
 }

@@ -44,9 +44,31 @@
   white-space: nowrap;
 }
 
-.picker[data-empty="true"] .pickerName {
+/* 没选时的「选一个工作流」：灰、不加粗（和名字叠在同一格，见 PickedName）。 */
+.placeholder {
   color: var(--wl-text-3);
   font-weight: 400;
+}
+
+/* 名字 / 最近一次两层叠在一格：在横排里能缩、超长省略。 */
+.pickedStack {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.pickedStack > * {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.lastLine {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .pickerLast {
@@ -119,25 +141,53 @@
     var(--wl-canvas);
 }
 
+/*
+ * 工作流卡片：框画在两层伪元素上——实框带底色、虚框透明，没选（data-empty）和选上之间交叉淡，不瞬换。
+ */
 .wf {
+  position: relative;
+  isolation: isolate;
   display: flex;
   flex: 0 1 200px;
   flex-direction: column;
   gap: 5px;
   min-width: 0;
   padding: 9px 11px;
-  border: 1px solid var(--wl-line-strong);
+  border: 1px solid transparent;
   border-radius: var(--wl-r-control);
+}
+
+.wf::before,
+.wf::after {
+  position: absolute;
+  z-index: -1;
+  inset: -1px;
+  border-radius: inherit;
+  content: "";
+  pointer-events: none;
+  transition: opacity 200ms linear;
+}
+
+.wf::before {
+  border: 1px solid var(--wl-line-strong);
   background: var(--wl-panel);
 }
 
-.wf[data-self="true"] {
+.wf::after {
+  border: 1px dashed var(--wl-line-strong);
+  opacity: 0;
+}
+
+.wf[data-self="true"]::before {
   border-color: color-mix(in oklab, var(--wl-kind) 50%, transparent);
 }
 
-.wf[data-empty="true"] {
-  border-style: dashed;
-  background: transparent;
+.wf[data-empty="true"]::before {
+  opacity: 0;
+}
+
+.wf[data-empty="true"]::after {
+  opacity: 1;
 }
 
 .wfName {
@@ -150,9 +200,8 @@
   font-weight: 600;
 }
 
-.wf[data-empty="true"] .wfName {
-  color: var(--wl-text-3);
-  font-weight: 400;
+.wfNameText {
+  flex: 0 1 auto;
 }
 
 .wfIcon {
@@ -199,15 +248,26 @@
   height: 32px;
 }
 
-.edge::before {
+/* 实线（::before）和虚线（edgeDash）叠着：没选工作流时是虚线，选上交叉淡成实线。 */
+.edge::before,
+.edgeDash {
   position: absolute;
   top: calc(50% - 1px);
   left: 0;
   right: 7px;
   height: 2px;
   border-radius: 2px;
+  transition: opacity 200ms linear;
+}
+
+.edge::before {
   background: var(--line);
   content: "";
+}
+
+.edgeDash {
+  background: repeating-linear-gradient(90deg, var(--line) 0 5px, transparent 5px 10px);
+  opacity: 0;
 }
 
 .edge::after {
@@ -221,8 +281,20 @@
 }
 
 .edge[data-empty="true"]::before {
-  background: repeating-linear-gradient(90deg, var(--line) 0 5px, transparent 5px 10px);
+  opacity: 0;
+}
+
+.edge[data-empty="true"] > .edgeDash {
   opacity: 0.6;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wf::before,
+  .wf::after,
+  .edge::before,
+  .edgeDash {
+    transition: none;
+  }
 }
 
 .edgeLabel {

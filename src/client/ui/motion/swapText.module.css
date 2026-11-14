@@ -21,10 +21,12 @@
   text-overflow: ellipsis;
 }
 
+/* 旧字的颜色：缺省跟着外面；外面换字的同时换了颜色，给 `--wl-swap-was` 让旧字按原来的颜色淡掉。 */
 .swapText::after {
   position: absolute;
   top: 0;
   left: 0;
+  color: var(--wl-swap-was, currentColor);
   white-space: nowrap;
 }
 

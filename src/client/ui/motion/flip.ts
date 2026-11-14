@@ -36,22 +36,27 @@ const sliding = new WeakMap<HTMLElement, Animation>()
 
 /**
  * 让一项看上去还在 `offset`（新位置之上多少像素）、`across`（新位置左边多少像素）的地方，再滑到新位置。
- * 纵向列表只有 `offset`；一排会折行的小件（时刻框）两个方向都有。
+ * 纵向列表只有 `offset`；一排会折行的小件（时刻框）两个方向都有；图上的点（定时的「接下来 7 天」）只有 `across`。
+ * 还在半路又变了，从此刻看上去的地方接着滑。
+ *
+ * 动的是单独的 `translate` 属性，不是 `transform`：它排在 `scale` / `transform` 外面，
+ * 项自己的缩放（下一次的点放大一圈）不会把位移也放大，项自己的 transform（入场的小位移）也不会被盖掉。
  */
-function slide(child: HTMLElement, offset: number, across = 0): void {
+export function slide(child: HTMLElement, offset: number, across = 0): void {
   const running = sliding.get(child)
   let fromY = offset
   let fromX = across
   if (running !== undefined && running.playState === 'running') {
     // 还在半路：把它此刻的位移加上（读的是动画的当前值，不是起点）。
-    const now = new DOMMatrixReadOnly(getComputedStyle(child).transform)
-    fromX += now.m41
-    fromY += now.m42
+    const [x = 0, y = 0] = getComputedStyle(child)
+      .translate.split(' ')
+      .map((part) => Number.parseFloat(part) || 0)
+    fromX += x
+    fromY += y
     running.cancel()
   }
   if (Math.abs(fromY) < 0.5 && Math.abs(fromX) < 0.5) return
-  const from = fromX === 0 ? `translateY(${fromY}px)` : `translate(${fromX}px, ${fromY}px)`
-  const anim = child.animate([{ transform: from }, { transform: 'none' }], {
+  const anim = child.animate([{ translate: `${fromX}px ${fromY}px` }, { translate: '0 0' }], {
     duration: FLIP_MS,
     easing: EASE,
   })

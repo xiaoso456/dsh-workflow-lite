@@ -186,7 +186,7 @@ export function CommandBox(props: {
           spellCheck={false}
           placeholder={props.placeholder}
           aria-label={t('trigger.command')}
-          aria-invalid={empty}
+          aria-required="true"
           data-testid="wl-trigger-command"
           onChange={(event) => {
             if (trial.kind !== 'idle' && trial.kind !== 'running') setTrial({ kind: 'idle' })

@@ -10,7 +10,7 @@ import { Icon, type IconName } from '../kit/Icon.tsx'
 import css from './swapText.module.css'
 
 /** 换字、换图标时旧的留多久（和 swapText.module.css 的 swapOut / iconOut 一致）。 */
-const SWAP_TEXT_MS = 160
+export const SWAP_TEXT_MS = 160
 const SWAP_ICON_MS = 240
 
 /** 记住上一个值：变了的那次渲染里把旧值、换了几次一起记下，过一会儿把旧值清掉。 */

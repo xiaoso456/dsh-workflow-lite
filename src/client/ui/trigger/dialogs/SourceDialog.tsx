@@ -17,6 +17,7 @@ import { useRef, useState } from 'react'
 import { sourceIssue } from '../../../../shared/trigger.ts'
 import type { TriggerSource, TriggerSourceKind } from '../../../../shared/types.ts'
 import type { T } from '../../../i18n.ts'
+import { SwapNode } from '../../motion/swapText.tsx'
 import { switchSource } from '../source/kinds.ts'
 import { SourceRail } from '../source/SourceRail.tsx'
 import { SourceStage } from '../source/SourceStage.tsx'
@@ -52,7 +53,12 @@ export function SourceDialog(props: {
       t={t}
       title={t('trigger.when')}
       sub={props.name}
-      mark={<TriggerMark kind={draft.kind} size={16} />}
+      mark={
+        <SwapNode
+          id={draft.kind}
+          render={(kind) => <TriggerMark kind={kind as TriggerSourceKind} size={16} />}
+        />
+      }
       head={<SourceSummary t={t} source={draft} view={view} dirty={dirty} />}
       testId="wl-trigger-source-dialog"
       dirty={dirty}

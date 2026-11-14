@@ -24,7 +24,7 @@ import {
 } from '../../../model/triggerText.ts'
 import { cx } from '../../kit/cx.ts'
 import { useGlide } from '../../motion/exits.tsx'
-import { SwapText } from '../../motion/swapText.tsx'
+import { SWAP_TEXT_MS, SwapText, useLast } from '../../motion/swapText.tsx'
 import tone from '../stateTone.module.css'
 import { triggerTint } from '../TriggerMark.tsx'
 import css from './summary.module.css'
@@ -66,6 +66,8 @@ export function SourceSummary(props: {
       : (armedNext(view) ?? nextFire(source.schedule, new Date(now))?.getTime() ?? null)
   const sub =
     problem ?? (next === null ? '' : t('trigger.next').replace('{time}', momentText(t, next, now)))
+  // 问题（红字）和下一次（灰字）换的那一下，旧字按它原来的颜色淡掉。
+  const { was: wasProblem } = useLast(problem !== null, SWAP_TEXT_MS)
   const state = props.dirty
     ? { tone: 'warn', text: t('trigger.say.saveFirst') }
     : view === undefined
@@ -84,7 +86,18 @@ export function SourceSummary(props: {
         <p className={css.say} data-tip={say} data-testid="wl-trigger-rule-title">
           <SwapText text={say} />
         </p>
-        <p className={css.sub} data-problem={problem !== null} data-testid="wl-trigger-preview">
+        <p
+          className={css.sub}
+          data-problem={problem !== null}
+          style={
+            wasProblem === null
+              ? undefined
+              : ({
+                  '--wl-swap-was': wasProblem ? 'var(--wl-danger)' : 'var(--wl-text-3)',
+                } as React.CSSProperties)
+          }
+          data-testid="wl-trigger-preview"
+        >
           <SwapText text={sub} />
         </p>
       </div>

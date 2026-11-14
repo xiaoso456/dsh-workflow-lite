@@ -6,6 +6,8 @@
  * - 列表每行写最近一次执行的结果和几张卡片；没开「记录运行状态」的看不出什么时候跑完，
  *   那一行选不了，行尾「去打开」问一句后替它打开（改的是那个工作流的设置）。
  * - 选中的那一个不在列表里（改了名、删了，或者在实例视图里）也照样列出来。
+ * - 从没选到选上（或换一个）：名字、最近一次是叠在同一格的两层交叉淡，左边卡片的虚框、线的虚线也是叠层换透明度，
+ *   下面的执行列表整块交接（{@link Staged}）——没有哪一块瞬换。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/trigger/source/AfterStage
  */
@@ -23,6 +25,7 @@ import { WHEN_COLOR } from '../../kit/lineColors.ts'
 import { Popover } from '../../kit/Popover.tsx'
 import { Segmented } from '../../kit/Segmented.tsx'
 import { CheckBox } from '../../motion/marks.tsx'
+import { FadeStack, Staged } from '../../motion/stage.tsx'
 import { SwapText } from '../../motion/swapText.tsx'
 import { TriggerMark } from '../TriggerMark.tsx'
 import type { RunBrief, TriggerEnv, WorkflowChoice } from '../triggerEnv.ts'
@@ -132,13 +135,14 @@ export function AfterStage(props: {
                 <span className={css.wfIcon}>
                   <Icon name="hub" size={12} />
                 </span>
-                <span className={css.ellipsis}>{picked?.name ?? t('trigger.afterNone')}</span>
+                <PickedName t={t} name={picked?.name} className={css.wfNameText} />
               </span>
               <span className={css.wfSub}>
-                {picked === undefined ? '' : <LastText t={t} run={pickedRuns?.[0]} />}
+                <PickedLast t={t} name={picked?.name} run={pickedRuns?.[0]} />
               </span>
             </div>
             <span className={css.edge} data-empty={picked === undefined}>
+              <span className={css.edgeDash} aria-hidden="true" />
               <span className={css.edgeLabel}>
                 <SwapText text={t(result?.label ?? 'trigger.afterWhen.done')} />
               </span>
@@ -151,7 +155,12 @@ export function AfterStage(props: {
               <span className={css.wfSub}>{t('trigger.afterThis')}</span>
             </div>
           </div>
-          <RunList t={t} source={source} picked={picked !== undefined} runs={pickedRuns} />
+          <Staged
+            at={`${picked?.name ?? ''}|${pickedRuns === undefined ? '' : pickedRuns.map((run) => run.id).join()}`}
+            order={0}
+          >
+            <RunList t={t} source={source} picked={picked !== undefined} runs={pickedRuns} />
+          </Staged>
         </div>
       </Bench>
     </>
@@ -257,11 +266,13 @@ function WorkflowPicker(props: {
           data-testid="wl-trigger-after-pick"
           onClick={() => setOpen(!open)}
         >
-          <span className={css.pickerName}>
-            <SwapText text={picked?.name ?? t('trigger.afterNone')} />
-          </span>
+          <PickedName t={t} name={picked?.name} className={css.pickerName} />
           <span className={cx(css.last, css.pickerLast)}>
-            {picked === undefined ? '' : <LastText t={t} run={props.runs.get(picked.name)?.[0]} />}
+            <PickedLast
+              t={t}
+              name={picked?.name}
+              run={picked === undefined ? undefined : props.runs.get(picked.name)?.[0]}
+            />
           </span>
           <Icon name="chevronDown" size={13} />
         </button>
@@ -282,16 +293,78 @@ function WorkflowPicker(props: {
   )
 }
 
+/**
+ * 选中的工作流名字：没选时是灰的「选一个工作流」，选上是粗体名字——两层叠在同一格交叉淡（颜色、字重各是各的，不瞬换）；
+ * 换一个工作流时名字原地换字。
+ */
+function PickedName(props: {
+  t: T
+  name: string | undefined
+  className: string
+}): React.JSX.Element {
+  const { t } = props
+  const last = useLatest(props.name)
+  return (
+    <FadeStack
+      at={props.name === undefined ? 'none' : 'picked'}
+      className={cx(css.pickedStack, props.className)}
+      items={[
+        {
+          key: 'none',
+          node: <span className={cx(css.ellipsis, css.placeholder)}>{t('trigger.afterNone')}</span>,
+        },
+        {
+          key: 'picked',
+          node: (
+            <span className={css.ellipsis}>
+              <SwapText text={last ?? ''} />
+            </span>
+          ),
+        },
+      ]}
+    />
+  )
+}
+
+/** 选中的工作流最近一次执行：没选时是空的，选上淡进来（同 {@link PickedName}）。 */
+function PickedLast(props: {
+  t: T
+  name: string | undefined
+  run: RunBrief | undefined
+}): React.JSX.Element {
+  const last = useLatest(props.name)
+  return (
+    <FadeStack
+      at={props.name === undefined ? 'none' : 'picked'}
+      className={css.pickedStack}
+      items={[
+        { key: 'none', node: null },
+        {
+          key: 'picked',
+          node: last === undefined ? null : <LastText t={props.t} run={props.run} />,
+        },
+      ]}
+    />
+  )
+}
+
+/** 最近一次不是 `undefined` 的值：清空之后那一层还拿着旧的淡出去。 */
+function useLatest<V>(value: V | undefined): V | undefined {
+  const kept = useRef(value)
+  if (value !== undefined) kept.current = value
+  return kept.current
+}
+
 /** 最近一次执行：「今天 08:12 完成」；没执行过写「还没执行过」。 */
 function LastText(props: { t: T; run: RunBrief | undefined }): React.JSX.Element {
   const { t, run } = props
-  if (run === undefined) return <>{t('trigger.afterNever')}</>
+  if (run === undefined) return <span className={css.lastLine}>{t('trigger.afterNever')}</span>
   const status = run.status === undefined ? '' : t(`run.status.${run.status}` as LocaleKey)
   return (
-    <>
+    <span className={css.lastLine}>
       <span className={css.dot} data-status={run.status} />
       {`${momentText(t, run.at)} ${status}`.trim()}
-    </>
+    </span>
   )
 }
 
