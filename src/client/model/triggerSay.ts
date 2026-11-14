@@ -53,18 +53,6 @@ export function spanText(t: T, seconds: number): string {
   return t('trigger.say.seconds').replace('{n}', String(seconds))
 }
 
-/**
- * 命令里那个程序的短名字：第一个像脚本文件的词（`watch.mjs`），没有就是命令本身的名字（`git`）。
- * 引号、路径、`{workflow}` 这些去掉。
- */
-export function programName(command: string): string {
-  const words = command.trim().match(/"[^"]*"|'[^']*'|\S+/gu) ?? []
-  const bare = words.map((word) => word.replace(/^["']|["']$/gu, ''))
-  const script = bare.find((word) => /\.(m?js|cjs|ts|py|sh|ps1|bat|cmd|rb|pl)$/iu.test(word))
-  const pick = script ?? bare[0] ?? ''
-  return pick.split(/[\\/]/u).pop() ?? pick
-}
-
 const POLL_WHEN: Record<PollWhen, LocaleKey> = {
   success: 'trigger.say.pollSuccess',
   every: 'trigger.say.pollEvery',
@@ -93,11 +81,9 @@ export function sourceSay(t: T, source: TriggerSource): string {
         every: spanText(t, source.seconds),
         when: t(POLL_WHEN[pollWhen(source)]),
       })
-    case 'listen': {
-      const program = programName(source.command)
-      if (program === '') return t('trigger.say.listenNone')
-      return fillSay(t('trigger.say.listen'), { program })
-    }
+    // 不写命令（下面的工作台里就是命令，长了这里只剩一串省略号）。
+    case 'listen':
+      return t(source.command.trim() === '' ? 'trigger.say.listenNone' : 'trigger.say.listen')
     case 'http':
       return fillSay(t('trigger.say.http'), { method: 'POST' })
     case 'after':

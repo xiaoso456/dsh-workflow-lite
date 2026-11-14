@@ -1,0 +1,189 @@
+/*
+ * 命令工作台的输出台（TrialConsole.tsx）：工作台的深底，顶上页签 + 小结一行，下面是选中那一页（多了在页里滚）。
+ */
+
+/* 编辑区再长也给这里留着：页签一行加三四行输出。按自己的高度排空状态（矮的时候不放图标）。 */
+.console {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-height: 112px;
+  container-type: size;
+}
+
+.bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 12px;
+  min-height: 38px;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--wl-line);
+}
+
+.page {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-height: 0;
+  animation: pageIn 180ms linear backwards;
+}
+
+.page[hidden] {
+  display: none;
+}
+
+@keyframes pageIn {
+  from {
+    opacity: 0;
+  }
+}
+
+/* 页签右边的小结：退出码那枚小签 + 满足没有、用时。 */
+.summary {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-left: auto;
+  padding-right: 4px;
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-meta);
+  animation: pageIn 180ms linear backwards;
+}
+
+.summary[data-tone="ok"] {
+  --tone: var(--wl-ok);
+}
+
+.summary[data-tone="off"] {
+  --tone: var(--wl-text-2);
+}
+
+.summary[data-tone="bad"] {
+  --tone: var(--wl-danger);
+}
+
+/* 小签不跟着后面的字一起缩：放不下时先省略后面的字（悬停看全）；小签本身太长（监听的「几秒内打出几行」）也只占六成。 */
+.badge {
+  flex: none;
+  max-width: 60%;
+  overflow: hidden;
+  padding: 1px 7px;
+  border-radius: calc(5px * var(--wl-round, 1));
+  background: color-mix(in oklab, var(--tone) 14%, transparent);
+  color: var(--tone);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.summaryText {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 没跑过、跑着：页中间一个图标（或转圈）、一句话。 */
+.empty {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px 24px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+  line-height: 1.5;
+  text-align: center;
+  animation: pageIn 180ms linear backwards;
+}
+
+.empty > svg {
+  margin-bottom: 2px;
+  opacity: 0.7;
+}
+
+/* 矮窗口、命令很长时输出台只剩最小高度：图标不放，留两行字。 */
+@container (max-height: 168px) {
+  .empty {
+    gap: 2px;
+    padding-block: 6px;
+  }
+
+  .empty > svg {
+    display: none;
+  }
+}
+
+.emptyTitle {
+  color: var(--wl-text-2);
+  font-weight: 500;
+}
+
+.spinner {
+  box-sizing: border-box;
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid var(--wl-line-strong);
+  border-top-color: var(--wl-kind);
+  border-radius: 50%;
+  animation: spin 800ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.output {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 10px 12px;
+  overflow: auto;
+  color: var(--wl-text-2);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  scrollbar-width: thin;
+  animation: pageIn 180ms linear backwards;
+}
+
+.output[data-tone="bad"] {
+  color: var(--wl-danger);
+}
+
+.output[data-empty="true"] {
+  color: var(--wl-text-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page,
+  .summary,
+  .empty,
+  .output {
+    animation: none;
+  }
+
+  .spinner {
+    animation-duration: 2400ms;
+  }
+}
+
+:global([data-look="swiss"]) .bar {
+  border-bottom-color: var(--wl-line-strong);
+}
+
+:global([data-look="swiss"]) .badge {
+  border-radius: 0;
+}

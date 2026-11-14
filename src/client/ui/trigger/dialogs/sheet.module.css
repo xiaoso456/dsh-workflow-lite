@@ -66,10 +66,14 @@
   font-weight: 600;
 }
 
-/* 头部有 `head` 时标题只占自己的宽，余下的给它。 */
+/*
+ * 头部有 `head` 时标题只占自己的宽，余下的给它。不跟着它一起缩：它那句话很长时省略的是它，
+ * 不是把标题挤成两行（卡片名太长时在 34% 处省略）。
+ */
 .titlesTight {
-  flex: 0 1 auto;
+  flex: none;
   max-width: 34%;
+  white-space: nowrap;
 }
 
 /*

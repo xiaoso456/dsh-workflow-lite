@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { en as enText, type LocaleKey, zh } from '../../src/client/i18n.ts'
 import { LISTEN_TEMPLATES, POLL_TEMPLATES } from '../../src/client/model/commandTemplates.ts'
 import { SAMPLE_BODY, SNIPPET_LANGS, snippetOf } from '../../src/client/model/httpSnippets.ts'
-import { fillSay, programName, sourceSay, spanText } from '../../src/client/model/triggerSay.ts'
+import { fillSay, sourceSay, spanText } from '../../src/client/model/triggerSay.ts'
 import { DAY_DOTS_MAX, WEEK_DAYS, weekOf } from '../../src/client/model/triggerWeek.ts'
 import { INTERVAL_STOPS, isStop } from '../../src/client/ui/trigger/source/IntervalField.tsx'
 import { SCHEDULE_PRESETS } from '../../src/client/ui/trigger/source/SchedulePresets.tsx'
@@ -39,13 +39,6 @@ describe('顶上那句话', () => {
     expect(spanText(en, 90)).toBe('90 s')
   })
 
-  it('程序名取脚本文件，没有就取命令本身', () => {
-    expect(programName('node "{workflow}/watch.mjs" --once')).toBe('watch.mjs')
-    expect(programName('python C:\\tools\\tail.py app.log')).toBe('tail.py')
-    expect(programName('/usr/bin/git ls-remote origin')).toBe('git')
-    expect(programName('   ')).toBe('')
-  })
-
   it('五种触发方式各说一句', () => {
     const poll = sourceSay(t, { kind: 'poll', command: 'git status', seconds: 300, when: 'change' })
     expect(poll).toBe('每 5 分钟跑一次命令，输出和上一次不同时执行')
@@ -57,7 +50,7 @@ describe('顶上那句话', () => {
     )
 
     const listen = sourceSay(en, { kind: 'listen', command: 'node watch.mjs' })
-    expect(listen).toBe('Keeps watch.mjs running and fires on every line it prints')
+    expect(listen).toBe('Keeps a program running and fires on every line it prints')
     expect(sourceSay(t, { kind: 'listen', command: '' })).toBe(t('trigger.say.listenNone'))
 
     expect(sourceSay(t, { kind: 'http' })).toContain('POST')

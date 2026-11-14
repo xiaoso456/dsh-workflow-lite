@@ -16,11 +16,9 @@ import { SNIPPET_LANGS, type SnippetLang, snippetOf } from '../../../model/httpS
 import { useConfirm } from '../../kit/Confirm.tsx'
 import { cx } from '../../kit/cx.ts'
 import { Icon } from '../../kit/Icon.tsx'
-import { FadeText } from '../../motion/marks.tsx'
 import { Staged } from '../../motion/stage.tsx'
-import { PickThumb } from '../../motion/thumb.tsx'
 import type { TriggerEnv } from '../triggerEnv.ts'
-import { Bench, benchButton, benchPrimary } from './Bench.tsx'
+import { Bench, BenchTabs, benchButton, benchPrimary } from './Bench.tsx'
 import { CopyIcon, HttpEndpoint, TOKEN_MASK } from './HttpEndpoint.tsx'
 import css from './http.module.css'
 import { StageRow, StageRows } from './StageRow.tsx'
@@ -129,22 +127,16 @@ function Snippets(props: {
       title={t('trigger.snippets')}
       testId="wl-trigger-snippets"
       middle={
-        <div className={css.tabList} role="tablist" aria-label={t('trigger.snippets')}>
-          <PickThumb layout={lang} item='[aria-selected="true"]' className={css.tabThumb} />
-          {SNIPPET_LANGS.map((item) => (
-            <button
-              key={item}
-              type="button"
-              role="tab"
-              aria-selected={item === lang}
-              className={css.tab}
-              data-testid={`wl-trigger-snippet-${item}`}
-              onClick={() => setLang(item)}
-            >
-              <FadeText text={LANG_NAME[item]} on={item === lang} />
-            </button>
-          ))}
-        </div>
+        <BenchTabs<SnippetLang>
+          label={t('trigger.snippets')}
+          value={lang}
+          options={SNIPPET_LANGS.map((item) => ({
+            value: item,
+            label: LANG_NAME[item],
+            testId: `wl-trigger-snippet-${item}`,
+          }))}
+          onChange={setLang}
+        />
       }
       tools={
         <>

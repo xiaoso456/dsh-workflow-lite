@@ -8,6 +8,8 @@
  */
 
 import { Icon, type IconName } from '../../kit/Icon.tsx'
+import { FadeText } from '../../motion/marks.tsx'
+import { PickThumb } from '../../motion/thumb.tsx'
 import css from './bench.module.css'
 
 export function Bench(props: {
@@ -39,6 +41,40 @@ export function Bench(props: {
       </div>
       {props.foot !== undefined && <footer className={css.foot}>{props.foot}</footer>}
     </section>
+  )
+}
+
+/**
+ * 工作台里的页签：选中那格下面的滑块滑过去，字色交叉淡过去。
+ * `off` 的一页暂时没有内容：点不动，悬停说为什么（不用 `disabled`，不然悬停提示出不来）。
+ */
+export function BenchTabs<V extends string>(props: {
+  label: string
+  value: V
+  options: readonly { value: V; label: string; off?: string; testId?: string }[]
+  onChange(value: V): void
+}): React.JSX.Element {
+  return (
+    <div className={css.tabList} role="tablist" aria-label={props.label}>
+      <PickThumb layout={props.value} item='[aria-selected="true"]' className={css.tabThumb} />
+      {props.options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          role="tab"
+          aria-selected={option.value === props.value}
+          aria-disabled={option.off === undefined ? undefined : true}
+          className={css.tab}
+          data-tip={option.off}
+          data-testid={option.testId}
+          onClick={() => {
+            if (option.off === undefined) props.onChange(option.value)
+          }}
+        >
+          <FadeText text={option.label} on={option.value === props.value} />
+        </button>
+      ))}
+    </div>
   )
 }
 

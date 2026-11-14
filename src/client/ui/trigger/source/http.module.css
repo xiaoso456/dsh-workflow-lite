@@ -1,5 +1,5 @@
 /*
- * HTTP 触发（HttpEndpoint.tsx、HttpStage.tsx）：地址、令牌两行设置的框，调用示例工作台里的页签、代码和测试请求的结果。
+ * HTTP 触发（HttpEndpoint.tsx、HttpStage.tsx）：地址、令牌两行设置的框，调用示例工作台里的代码和测试请求的结果。
  */
 
 /* ── 地址、令牌 ─────────────────────────────────────────────── */
@@ -159,46 +159,6 @@
 
 /* ── 调用示例 ───────────────────────────────────────────────── */
 
-.tabList {
-  position: relative;
-  display: flex;
-  flex: none;
-  gap: 2px;
-  margin-left: 6px;
-}
-
-.tabThumb {
-  border-radius: calc(6px * var(--wl-round, 1));
-  background: var(--wl-panel);
-  box-shadow: var(--wl-shadow-thumb);
-}
-
-.tab {
-  --wl-off: var(--wl-text-3);
-  --wl-on: var(--wl-text);
-
-  position: relative;
-  height: 26px;
-  padding: 0 9px;
-  border: 0;
-  border-radius: calc(6px * var(--wl-round, 1));
-  background: transparent;
-  font: inherit;
-  font-size: var(--wl-fs-meta);
-  font-weight: 500;
-  cursor: pointer;
-  outline: 2px solid transparent;
-  outline-offset: -2px;
-}
-
-.tab:hover {
-  --wl-off: var(--wl-text);
-}
-
-.tab:focus-visible {
-  outline-color: var(--wl-accent);
-}
-
 .code {
   margin: 0;
   padding: 10px 14px;
@@ -259,14 +219,4 @@
   border-color: var(--wl-line-strong);
   border-radius: 0;
   background: transparent;
-}
-
-:global([data-look="swiss"]) .tabThumb {
-  border-radius: 0;
-  box-shadow: none;
-  background: var(--wl-text);
-}
-
-:global([data-look="swiss"]) .tab {
-  --wl-on: var(--wl-panel);
 }

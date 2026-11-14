@@ -1,5 +1,6 @@
 /*
- * 命令工作台（CommandBox.tsx）里面：`$` 加命令、试运行的结果栏和输出、最近的输出（外框、顶栏、底栏是 bench.module.css）。
+ * 命令工作台（CommandBox.tsx）里面的编辑区：和工作台同一个底，`$` 加命令，底边一条换了 shell 的提示；
+ * 试运行按钮上的转圈。外框、顶栏、底栏是 bench.module.css，下半的输出台是 trialConsole.module.css。
  */
 
 .menu {
@@ -11,18 +12,6 @@
 .shellMenu {
   width: 380px;
   padding: 4px;
-}
-
-/* 命令下面一行：换了 shell 要重新确认、挑的程序用不了。 */
-.shellNote {
-  margin: 0;
-  padding: 6px 12px 0;
-  color: var(--wl-text-3);
-  font-size: var(--wl-fs-meta);
-}
-
-.shellNote[data-problem="true"] {
-  color: var(--wl-danger);
 }
 
 /* 底栏里的「变量 {workflow} ?」。 */
@@ -41,12 +30,37 @@
   font-size: var(--wl-fs-micro);
 }
 
+/*
+ * 编辑区：和输出台之间一条实线，输出台顶上是页签，两块靠这个分开；不另铺底色（暗色下面板色铺在深底上是一块灰）。
+ * 高度：命令短时贴着内容；长了最多占工作台中间的六成，再长在 `.code` 里滚，输出台总留着自己的最小高度
+ * （trialConsole.module.css 的 `.console`），不会被挤出框外。最少留两行，矮窗口里也看得见在写什么。
+ * 实例视图里没有输出台，撑满。
+ */
+.editor {
+  display: flex;
+  flex: 0 1 auto;
+  flex-direction: column;
+  min-height: 72px;
+  max-height: 60%;
+  border-bottom: 1px solid var(--wl-line-strong);
+}
+
+.editor[data-alone="true"] {
+  flex: 1 1 auto;
+  max-height: none;
+  border-bottom: 0;
+}
+
+/* 滚的是这一层、不是输入框：输入框跟着内容长高，底边的提示条不跟着滚走。 */
 .code {
   display: flex;
-  flex: none;
+  flex: 0 1 auto;
   align-items: flex-start;
   gap: 8px;
+  min-height: 0;
   padding: 10px 12px;
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 
 .prompt {
@@ -63,14 +77,16 @@
   min-width: 0;
   min-height: 44px;
   padding: 0;
+  overflow: hidden;
   border: 0;
   background: transparent;
   color: var(--wl-text);
   font-family: var(--wl-mono);
   font-size: 13px;
   line-height: 1.7;
-  resize: vertical;
+  resize: none;
   outline: none;
+  /* 跟着内容长高（不要右下角的拖拽角）。 */
   field-sizing: content;
 }
 
@@ -78,53 +94,38 @@
   color: var(--wl-text-3);
 }
 
-/* 试运行的结果栏：一行小结。 */
-.result {
+/* 编辑区底边的提示：换了 shell 要重新确认（黄）、挑的程序用不了（红）。 */
+.notice {
+  --tone: var(--wl-warn);
+
   display: flex;
-  flex: none;
-  align-items: center;
-  gap: 10px;
-  min-height: 34px;
-  padding: 6px 12px;
-  border-top: 1px solid var(--wl-line);
-  color: var(--wl-text-2);
+  align-items: flex-start;
+  gap: 7px;
+  margin: 0 8px 8px;
+  padding: 6px 10px;
+  border-radius: calc(6px * var(--wl-round, 1));
+  background: color-mix(in oklab, var(--tone) 10%, transparent);
+  color: color-mix(in oklab, var(--tone) 70%, var(--wl-text));
   font-size: var(--wl-fs-meta);
+  line-height: 1.5;
 }
 
-.result[data-tone="ok"] {
-  --tone: var(--wl-ok);
-}
-
-.result[data-tone="off"] {
-  --tone: var(--wl-text-2);
-}
-
-.result[data-tone="bad"] {
+.notice[data-problem="true"] {
   --tone: var(--wl-danger);
 }
 
-.badge {
+.notice > svg {
   flex: none;
-  padding: 1px 7px;
-  border-radius: calc(5px * var(--wl-round, 1));
-  background: color-mix(in oklab, var(--tone, var(--wl-text-3)) 14%, transparent);
-  color: var(--tone, var(--wl-text-2));
-  font-family: var(--wl-mono);
-  font-size: var(--wl-fs-micro);
-  font-weight: 600;
+  margin-top: 2px;
+  color: var(--tone);
 }
 
-.resultText {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.spinner {
-  width: 12px;
-  height: 12px;
-  border: 1.5px solid var(--wl-line-strong);
+/* 试运行跑着时按钮上的转圈：和「▶」一样大，按钮宽度不变。 */
+.trySpin {
+  box-sizing: border-box;
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid color-mix(in oklab, var(--wl-kind) 30%, transparent);
   border-top-color: var(--wl-kind);
   border-radius: 50%;
   animation: spin 800ms linear infinite;
@@ -133,64 +134,6 @@
 @keyframes spin {
   to {
     transform: rotate(360deg);
-  }
-}
-
-.output {
-  flex: 1 1 0;
-  min-height: 48px;
-  margin: 0;
-  padding: 8px 12px 10px;
-  overflow: auto;
-  border-top: 1px solid var(--wl-line);
-  color: var(--wl-text-2);
-  font-family: var(--wl-mono);
-  font-size: var(--wl-fs-micro);
-  line-height: 1.6;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  scrollbar-width: thin;
-}
-
-/* 跑着的那条命令最近的输出，接在下面（多了只在这一段里滚，命令框不动）。 */
-.recent {
-  display: flex;
-  flex: 1 1 0;
-  flex-direction: column;
-  min-height: 64px;
-  border-top: 1px solid var(--wl-line);
-}
-
-.recentTitle {
-  margin: 0;
-  padding: 7px 12px 0;
-  color: var(--wl-text-3);
-  font-size: var(--wl-fs-micro);
-  font-weight: 600;
-}
-
-.recentText {
-  flex: 1 1 auto;
-  min-height: 0;
-  margin: 0;
-  padding: 4px 12px 10px;
-  overflow: auto;
-  color: var(--wl-text-2);
-  font-family: var(--wl-mono);
-  font-size: var(--wl-fs-micro);
-  line-height: 1.6;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  scrollbar-width: thin;
-}
-
-.recentText[data-empty="true"] {
-  color: var(--wl-text-3);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .spinner {
-    animation-duration: 2400ms;
   }
 }
 
@@ -217,22 +160,18 @@
   }
 }
 
-/* 试运行的结果栏、输出：换一种状态（正在运行 → 结果）就是新的一块，淡入。 */
-.result,
-.output {
-  animation: resultIn 180ms linear backwards;
-}
-
-@keyframes resultIn {
-  from {
-    opacity: 0;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .code[data-fresh] > .input,
-  .result,
-  .output {
+  .code[data-fresh] > .input {
     animation: none;
   }
+
+  .trySpin {
+    animation-duration: 2400ms;
+  }
+}
+
+:global([data-look="swiss"]) .notice {
+  border-left: 2px solid var(--tone);
+  border-radius: 0;
+  background: transparent;
 }
