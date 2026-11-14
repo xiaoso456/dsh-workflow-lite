@@ -74,7 +74,7 @@ export function TriggerSheet(props: {
           }
         }}
       >
-        <header className={overlay.sheetHead}>
+        <header className={cx(overlay.sheetHead, props.rail !== undefined && css.headRuled)}>
           {props.mark}
           <div className={cx(overlay.sheetTitles, props.head !== undefined && css.titlesTight)}>
             <p className={overlay.sheetTitle}>{props.title}</p>

@@ -74,6 +74,7 @@
 
 /*
  * 带左栏的（「触发方式」）：更宽、高度固定；左栏贴着对话框左边，不跟着右边滚，右边自己滚。
+ * 左栏和对话框同底色，只用一条分隔线（深色主题下画布色太黑，整栏像个洞）。
  * 窄视口时左栏收成一排图标（说明、卡片预览藏起来）。
  */
 .sheet.railed {
@@ -95,7 +96,6 @@
   padding: 12px 10px;
   overflow-y: auto;
   border-right: 1px solid var(--wl-line);
-  background: var(--wl-canvas);
   scrollbar-width: thin;
 }
 
@@ -106,6 +106,12 @@
   overflow-y: auto;
   scrollbar-gutter: stable;
   scrollbar-width: thin;
+}
+
+/* 左栏和对话框同底色，头部下面要一条线才和左栏、右侧分得开（脚部上面本来就有）。 */
+.headRuled {
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--wl-line);
 }
 
 @container (max-width: 640px) {
@@ -120,6 +126,7 @@
 
 /* 瑞士：左右栏的分隔线压黑。 */
 :global([data-look="swiss"]) .aside,
-:global([data-look="swiss"]) .rail {
+:global([data-look="swiss"]) .rail,
+:global([data-look="swiss"]) .headRuled {
   border-color: var(--wl-line-strong);
 }
