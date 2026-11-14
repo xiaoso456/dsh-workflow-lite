@@ -159,6 +159,55 @@ async function run(session) {
   )
   pass('放弃：草稿回到已保存的值')
 
+  // 5b) 默认 shell：下拉列出本机找到的 shell（系统的那个就是「系统默认」），选一个保存，再恢复默认。
+  const { shells, system } = await rpc('trigger/shells', {})
+  const other = shells.find((shell) => shell.path !== system.path)
+  if (other === undefined) {
+    pass('默认 shell：本机只有系统的 shell，跳过')
+  } else {
+    await session.evaluate(
+      `document.querySelector('[data-testid="wl-cfg-triggerShell"]').scrollIntoView({ block: 'center' })`,
+    )
+    await session.evaluate(clickTestId('wl-cfg-triggerShell'))
+    await waitFor(
+      session,
+      `document.querySelectorAll('[data-testid^="wl-cfg-triggerShell-"]').length > 0`,
+    )
+    await sleep(300)
+    await screenshot(session, 'cfg-07-shell.png')
+    const listed = await session.evaluate(
+      `JSON.stringify([...document.querySelectorAll('[data-testid^="wl-cfg-triggerShell-"]')].map((el) => el.textContent))`,
+    )
+    for (const shell of shells) {
+      if (shell.path === system.path) continue
+      check(
+        listed.includes(JSON.stringify(shell.path).slice(1, -1)),
+        `下拉里应有 ${shell.path}：${listed}`,
+      )
+    }
+    await session.evaluate(
+      `[...document.querySelectorAll('[data-testid^="wl-cfg-triggerShell-"]')].find((el) => el.textContent.includes(${JSON.stringify(other.path)}))?.click()`,
+    )
+    await waitFor(session, exists('wl-cfg-bar'))
+    await session.evaluate(clickTestId('wl-cfg-save'))
+    await waitFor(session, gone('wl-cfg-bar'))
+    check((await rpc('config/get', {})).values.triggerShell === other.path, '默认 shell 应已保存')
+    check(
+      (await rpc('trigger/shells', {})).fallback.path === other.path,
+      '「跟随默认」应指向新选的',
+    )
+    await session.evaluate(clickTestId('wl-cfg-triggerShell-reset'))
+    await waitFor(session, exists('wl-cfg-bar'))
+    await session.evaluate(clickTestId('wl-cfg-save'))
+    await waitFor(session, gone('wl-cfg-bar'))
+    const back = await rpc('config/get', {})
+    check(
+      back.values.triggerShell === '' && !back.overridden.includes('triggerShell'),
+      `默认 shell 应已恢复：${JSON.stringify(back.values)}`,
+    )
+    pass('默认 shell：列出本机的 shell，选了保存生效，恢复默认回到系统的')
+  }
+
   // 6) 外观：亮色、暗色各四套，点一下马上换（不进保存条），记在浏览器里，重新打开还在。
   const option = (id) => `[data-testid="wl-theme-option"][data-theme="${id}"]`
   const rootVar = (name) =>

@@ -1,6 +1,6 @@
 /**
  * dsh-workflow-lite — `trigger/*`：触发卡片的状态、开关与本机设置（含确认命令、换令牌）、「立即触发一次」、
- * 触发记录与一次触发的详情、最近的输出、「试运行」命令与 HTTP 测试请求，以及工作流中心「触发」页的全部卡片与「全部暂停」。
+ * 触发记录与一次触发的详情、最近的输出、「试运行」命令与 HTTP 测试请求、本机的 shell，以及工作流中心「触发」页的全部卡片与「全部暂停」。
  *
  * @module @xiaoso/dsh-workflow-lite/host/rpc/trigger
  */
@@ -37,6 +37,11 @@ export async function dispatchTrigger(
     if (typeof input.paused !== 'boolean') throw new Error('paused must be a boolean')
     return ok(await deps.triggers.pause(input.paused))
   }
+  if (endpoint === 'trigger/shells') return ok(await deps.triggers.shells())
+  if (endpoint === 'trigger/shell') {
+    const outcome = await deps.triggers.checkShell(requireString(input, 'path'))
+    return outcome.ok ? ok(outcome.result) : failFrom(outcome.error)
+  }
   if (endpoint === 'trigger/detail')
     return ok(await deps.triggers.detail(requireString(input, 'fire')))
   const workflow = requireString(input, 'workflow')
@@ -58,6 +63,7 @@ export async function dispatchTrigger(
         throw new Error('noToken must be a boolean')
       }
       const workspace = clearableString(input, 'workspace')
+      const shell = clearableString(input, 'shell')
       const session = clearableString(input, 'session')
       const approve = clearableString(input, 'approve')
       // 空串也送进去：由服务说「地址不能为空」，不悄悄当没给。
@@ -68,6 +74,7 @@ export async function dispatchTrigger(
         node: requireString(input, 'node'),
         ...(input.enabled === undefined ? {} : { enabled: input.enabled }),
         ...(workspace === undefined ? {} : { workspace }),
+        ...(shell === undefined ? {} : { shell }),
         ...(session === undefined ? {} : { session }),
         ...(approve === undefined ? {} : { approve }),
         ...(input.resetToken === true ? { resetToken: true as const } : {}),
@@ -102,11 +109,13 @@ export async function dispatchTrigger(
     case 'trigger/try': {
       const kind = input.kind
       if (kind !== 'poll' && kind !== 'listen') throw new Error('kind must be poll or listen')
+      const shell = clearableString(input, 'shell')
       const outcome = await deps.triggers.tryCommand({
         workflow,
         kind,
         command: requireString(input, 'command'),
         workspace: requireString(input, 'workspace'),
+        ...(shell === undefined ? {} : { shell }),
       })
       if (!outcome.ok) return failFrom(outcome.error)
       return ok(outcome.result)

@@ -61,7 +61,7 @@ const CONTENT = `# 工作流的触发卡片（workflow-lite）
 
 - **优先用 Node 写**：DSH 本身跑在 Node 上，各系统都能跑；\`tail\`、\`grep\`、Python 在 Windows 上不一定有。命令写 \`node "{workflow}/triggers/xxx.mjs" 参数…\`。
 - 脚本放进工作流目录：\`read\` 返回的 \`dir\` 就是它（命令里写 \`{workflow}\`，插件运行时换成这个目录；也可以读环境变量 \`WORKFLOW_DIR\`）。放在这里的文件随工作流一起导出。
-- 命令在用户打开卡片时选的工作区里运行，由系统的 shell 执行（Windows 是 cmd，其余是 sh）：路径加双引号；Windows 下别用 \`'单引号'\` 和 \`%\`，sh 下别在双引号里用 \`$\`。
+- 命令在用户打开卡片时选的工作区里运行，由用户选的 shell 执行（没选是系统的：Windows 是 cmd，其余是 sh；也可能是 PowerShell 或 Git Bash，不确定时问用户）：路径加双引号；cmd 下别用 \`'单引号'\` 和 \`%\`，sh、PowerShell 下别在双引号里用 \`$\`。要跨 shell 都能跑，把逻辑写进脚本，命令只写 \`node "{workflow}/triggers/xxx.mjs"\`。
 - 要用第三方库时，在工作流目录里放 \`package.json\` 并装好依赖。
 
 ## 步骤

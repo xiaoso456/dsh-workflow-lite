@@ -1,6 +1,6 @@
 /**
  * dsh-workflow-lite — 打开一张要在本机跑命令（轮询、监听）、命令还没确认过的触发卡片时，在那个开关旁边浮出的确认卡：
- * 列出命令和它在哪个工作区运行，确认后记下这条命令并打开开关。
+ * 列出命令、它在哪个工作区、用哪个 shell 运行，确认后记下这条命令并打开开关。
  *
  * 画布上卡片的开关、面板里的开关、工作流中心「触发」页每行的开关都用它：在哪里点的就在哪里问。
  *
@@ -20,6 +20,8 @@ export interface ApproveOptions {
   workspace: string | undefined
   /** 还没选工作区时的那句话（各处去选工作区的地方不一样）。 */
   noCwd: string
+  /** 用哪个 shell 跑（宿主算好的，见 `TriggerView.runShell`）；还没读到不显示。 */
+  shell?: { path: string; name: string } | undefined
   /** 确认按钮的 `data-testid`；整张卡是 `${testId}-pop`。 */
   testId: string
   onApprove(command: string): void
@@ -59,6 +61,15 @@ export function useApproveConfirm<A extends HTMLElement>(): {
                 ? options.noCwd
                 : options.t('trigger.confirmCwd').replace('{path}', options.workspace)}
             </span>
+            {options.shell !== undefined && (
+              <span
+                className={ins.help}
+                data-tip={options.shell.path}
+                data-testid="wl-trigger-approve-shell"
+              >
+                {options.t('trigger.confirmShell').replace('{name}', options.shell.name)}
+              </span>
+            )}
           </div>
         ),
       }),

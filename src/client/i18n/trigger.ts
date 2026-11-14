@@ -200,7 +200,6 @@ export const zh = {
   'trigger.brief.noCatchUp': '不补发',
   // ── 命令（轮询、监听）──────────────────────────────────────
   'trigger.command': '命令',
-  'trigger.cmd.shell': '由系统的 shell 运行（Windows 是 cmd，其余是 sh）',
   'trigger.cmd.variable': '可用变量',
   'trigger.cmd.variableHelp': '变量说明',
   'trigger.cmd.variableTip':
@@ -306,6 +305,11 @@ export const zh = {
   'trigger.workspaceNone': '选一个工作区',
   'trigger.workspaceHere': '{name}（当前工作区）',
   'trigger.workspaceChanged': '换了工作区：保存后要在面板上重新确认命令，卡片才会继续运行。',
+  'trigger.shell': 'Shell',
+  'trigger.shell.follow': '跟随默认（{name}）',
+  'trigger.shell.system': '系统默认（{name}）',
+  'trigger.shell.pick': '选择其他 shell…',
+  'trigger.shellChanged': '换了 shell：保存后要在面板上重新确认命令，卡片才会继续运行。',
   'trigger.fixed': '固定到',
   'trigger.fixedNone': '选一个会话',
   'trigger.sessionHere': '{name}（当前会话）',
@@ -322,8 +326,9 @@ export const zh = {
   // ── 确认命令 ────────────────────────────────────────────────
   'trigger.confirmTitle': '运行这条命令？',
   'trigger.confirmDesc':
-    '命令以 DSH 的身份在下面的工作区里运行，和在终端里自己跑一样，不进沙箱。命令或工作区改了要重新确认。',
+    '命令以 DSH 的身份在下面的工作区里运行，和在终端里自己跑一样，不进沙箱。命令、工作区或 shell 改了要重新确认。',
   'trigger.confirmCwd': '工作区：{path}',
+  'trigger.confirmShell': 'Shell：{name}',
   'trigger.confirmNoCwd': '先在下面「执行设置」里选命令在哪个工作区运行。',
   'trigger.needWorkspace': '先选命令在哪个工作区里运行',
   'trigger.confirmOk': '确认并打开',
@@ -678,7 +683,6 @@ export const en: Record<keyof typeof zh, string> = {
   'trigger.brief.failures': 'Off after {n} fails',
   'trigger.brief.noCatchUp': 'No catch-up',
   'trigger.command': 'Command',
-  'trigger.cmd.shell': 'Runs in the system shell (cmd on Windows, sh elsewhere)',
   'trigger.cmd.variable': 'Variable',
   'trigger.cmd.variableHelp': 'About the variable',
   'trigger.cmd.variableTip':
@@ -790,6 +794,12 @@ export const en: Record<keyof typeof zh, string> = {
   'trigger.workspaceHere': '{name} (current workspace)',
   'trigger.workspaceChanged':
     'Workspace changed: after saving, confirm the command again on the panel before the card runs.',
+  'trigger.shell': 'Shell',
+  'trigger.shell.follow': 'Default ({name})',
+  'trigger.shell.system': 'System default ({name})',
+  'trigger.shell.pick': 'Choose another shell…',
+  'trigger.shellChanged':
+    'Shell changed: after saving, confirm the command again on the panel before the card runs.',
   'trigger.fixed': 'Pin to',
   'trigger.fixedNone': 'Pick a session',
   'trigger.sessionHere': '{name} (current session)',
@@ -810,8 +820,9 @@ export const en: Record<keyof typeof zh, string> = {
   'trigger.noLimit': 'No limit',
   'trigger.confirmTitle': 'Run this command?',
   'trigger.confirmDesc':
-    'The command runs as DSH in the workspace below, like running it yourself in a terminal, without a sandbox. Changing the command or workspace asks again.',
+    'The command runs as DSH in the workspace below, like running it yourself in a terminal, without a sandbox. Changing the command, workspace or shell asks again.',
   'trigger.confirmCwd': 'Workspace: {path}',
+  'trigger.confirmShell': 'Shell: {name}',
   'trigger.confirmNoCwd':
     'First pick the workspace to run the command in, under Run settings below.',
   'trigger.needWorkspace': 'First pick the workspace to run the command in',

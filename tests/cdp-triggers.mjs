@@ -699,6 +699,7 @@ try {
     pop.includes(WORKSPACE.replace(/\\/gu, '/')) || pop.includes(WORKSPACE),
     pop,
   )
+  check('确认卡写着用哪个 shell 跑', /Shell：\S/u.test(pop), pop)
   check(
     '确认之前没打开',
     (await rpc('trigger/list', { workflow: NAME2 })).triggers[0].enabled === false,
@@ -781,6 +782,71 @@ try {
   await sleep(5500)
   const tailConfirm = await session.evaluate(textOf(TAIL))
   check('卡片写着待确认', /待确认/.test(tailConfirm), tailConfirm)
+
+  // Shell：对话框里列出本机找到的 shell 和「选择其他 shell…」（打开选文件的对话框）；换一个保存，确认的 shell 跟着变。
+  const { shells, fallback } = await rpc('trigger/shells', {})
+  check(
+    '确认卡上写的 shell 就是默认的那个',
+    confirm?.runShell?.path === fallback.path,
+    JSON.stringify({ runShell: confirm?.runShell, fallback }),
+  )
+  await mouseClick(session, await centerOf(session, '[data-testid="wl-trigger-when-edit"]'))
+  await waitFor(session, has('wl-trigger-shell'))
+  await sleep(800)
+  await mouseClick(session, await centerOf(session, '[data-testid="wl-trigger-shell"]'))
+  await waitFor(session, has('wl-trigger-shell-:pick'))
+  await sleep(300)
+  const shellMenu = await session.evaluate(
+    `[...document.querySelectorAll('[data-testid^="wl-trigger-shell-"]:not([data-testid$="-row"]):not([data-testid$="-note"])')].map((el) => el.textContent).join('\\n')`,
+  )
+  check(
+    'Shell 下拉列出跟随默认、本机的 shell、选择其他',
+    shellMenu.includes(`跟随默认（${fallback.name}）`) &&
+      shells.every((shell) => shellMenu.includes(shell.path)) &&
+      shellMenu.includes('选择其他 shell'),
+    shellMenu,
+  )
+  await capture(session, 'listen-shell-menu-light.png')
+  await session.evaluate(clickTestId('wl-trigger-shell-:pick'))
+  await waitFor(session, has('wl-picker'))
+  check('「选择其他 shell…」打开选文件的对话框', true)
+  await session.send('Input.dispatchKeyEvent', {
+    type: 'keyDown',
+    key: 'Escape',
+    code: 'Escape',
+    windowsVirtualKeyCode: 27,
+  })
+  await session.send('Input.dispatchKeyEvent', {
+    type: 'keyUp',
+    key: 'Escape',
+    code: 'Escape',
+    windowsVirtualKeyCode: 27,
+  })
+  await waitFor(session, `${has('wl-trigger-source-dialog')} && !${has('wl-picker')}`)
+  const otherShell = shells.find((shell) => shell.path !== fallback.path)
+  if (otherShell !== undefined) {
+    await mouseClick(session, await centerOf(session, '[data-testid="wl-trigger-shell"]'))
+    await waitFor(session, has('wl-trigger-shell-:pick'))
+    await session.evaluate(
+      `[...document.querySelectorAll('[data-testid^="wl-trigger-shell-"]:not([data-testid$="-row"]):not([data-testid$="-note"])')].find((el) => el.textContent.includes(${JSON.stringify(otherShell.path)}))?.click()`,
+    )
+    await waitFor(session, has('wl-trigger-shell-note'))
+    await session.evaluate(clickTestId('wl-trigger-source-dialog-save'))
+    const switched = await waitTrigger(
+      NAME2,
+      'tail',
+      (view) => view.shell === otherShell.path && view.state === 'confirm',
+    )
+    check(
+      '换了 shell 保存后记在本机，确认卡写着新的 shell',
+      switched?.runShell?.name === otherShell.name && switched.state === 'confirm',
+      JSON.stringify(switched),
+    )
+    await rpc('trigger/set', { workflow: NAME2, node: 'tail', shell: '' })
+  } else {
+    await session.evaluate(clickTestId('wl-trigger-source-dialog-cancel'))
+  }
+  await waitFor(session, `!${has('wl-trigger-source-dialog')}`)
   await rpc('trigger/set', { workflow: NAME2, node: 'tail', enabled: false })
 
   // HTTP：开关直接打开（没有命令），给地址和令牌；地址用设置里的端口。

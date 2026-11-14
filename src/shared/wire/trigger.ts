@@ -98,6 +98,10 @@ export interface TriggerView {
   endpoint?: TriggerEndpoint
   /** 新建会话用的工作区目录。 */
   workspace?: string
+  /** 轮询、监听：这张卡片自己选的 shell（程序的完整路径）；没选是跟着默认（设置里的，没设是系统的）。 */
+  shell?: string
+  /** 轮询、监听：实际用哪个 shell 跑（自己选的，没选是默认的），确认卡上给人看。 */
+  runShell?: { path: string; name: string }
   /** 「固定会话」用的那个会话。 */
   session?: string
   /** 最近一次触发。 */
@@ -155,11 +159,13 @@ export interface TriggerSetRequest {
   node: string
   enabled?: boolean
   workspace?: string
+  /** 轮询、监听用哪个 shell（程序的完整路径）；空串 = 跟着默认。换了要重新确认命令。 */
+  shell?: string
   /** 空串 = 清掉。 */
   session?: string
   /**
    * 确认要运行的命令（轮询、监听）：原样带上用户看到的那条命令，和图里现在的对得上才算数。
-   * 命令以 DSH 进程的身份在工作区里运行、不进沙箱，所以开之前要确认；命令或工作区改了要重新确认。
+   * 命令以 DSH 进程的身份在工作区里运行、不进沙箱，所以开之前要确认；命令、工作区或 shell 改了要重新确认。
    */
   approve?: string
   /** HTTP 触发：换一个随机的新令牌（旧的马上作废）。 */
@@ -238,6 +244,8 @@ export interface TriggerTryRequest {
   command: string
   /** 在哪个工作区里跑（绝对路径）。 */
   workspace: string
+  /** 用哪个 shell（程序的完整路径）；不给或空串 = 跟着默认。 */
+  shell?: string
 }
 
 export interface TriggerTryResponse {
@@ -269,4 +277,31 @@ export interface TriggerPingResponse {
   status: number
   /** 回应的正文（只留开头）。 */
   text: string
+}
+
+/** 跑命令用的 shell 是哪一类：决定命令怎么交给它（cmd、PowerShell、sh 一类）。 */
+export type ShellFamily = 'cmd' | 'powershell' | 'posix'
+
+/** 一个能用来跑触发命令的 shell。 */
+export interface ShellChoice {
+  /** 程序的完整路径。 */
+  path: string
+  /** 给人看的名字（cmd、PowerShell、Git Bash、zsh……）。 */
+  name: string
+  family: ShellFamily
+}
+
+/**
+ * `trigger/shells`：本机找得到的 shell（系统的排第一），系统缺省的那个，
+ * 以及「跟着默认」现在指的那个（设置里选了就是它，没选是系统的）。
+ */
+export interface TriggerShellsResponse {
+  shells: ShellChoice[]
+  system: ShellChoice
+  fallback: ShellChoice
+}
+
+/** `trigger/shell`：认一个自己选的程序能不能当 shell 用。 */
+export interface TriggerShellRequest {
+  path: string
 }

@@ -30,6 +30,8 @@ export interface ConfigDraft {
   installSkill: boolean
   triggerPort: string
   triggerHost: string
+  /** 程序的完整路径；空串 = 系统默认。 */
+  triggerShell: string
 }
 
 export type ConfigErrors = Partial<Record<PluginConfigKey, string>>
@@ -91,6 +93,7 @@ export function toDraft(values: PluginConfigValues): ConfigDraft {
     installSkill: values.installSkill,
     triggerPort: String(values.triggerPort),
     triggerHost: values.triggerHost,
+    triggerShell: values.triggerShell,
   }
 }
 
@@ -104,7 +107,12 @@ export function fromDraft(
   t: T,
 ): { values: PluginConfigValues; errors: ConfigErrors } {
   const errors: ConfigErrors = {}
-  const values: PluginConfigValues = { ...saved, installSkill: draft.installSkill }
+  // 默认 shell 是从下拉里选的（自己挑的程序宿主认过），不用再查。
+  const values: PluginConfigValues = {
+    ...saved,
+    installSkill: draft.installSkill,
+    triggerShell: draft.triggerShell,
+  }
   const dataDir = draft.dataDir.trim()
   if (dataDir === '') errors.dataDir = t('cfg.required')
   else values.dataDir = dataDir
@@ -266,4 +274,5 @@ export const LABEL = {
   installSkill: 'cfg.skill',
   triggerPort: 'cfg.triggerPort',
   triggerHost: 'cfg.triggerHost',
+  triggerShell: 'cfg.triggerShell',
 } as const satisfies Record<PluginConfigKey, LocaleKey>

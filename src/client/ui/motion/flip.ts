@@ -10,7 +10,7 @@
  */
 
 import { type RefObject, useCallback, useEffect, useLayoutEffect, useRef } from 'react'
-import { ghostClone } from '../kit/ghost.ts'
+import { type Ghost, ghostClone } from '../kit/ghost.ts'
 import { EASE, EASE_OUT, fadeAway, leaving, REDUCED, seen } from './shared.ts'
 import { swappedAt } from './swap.tsx'
 
@@ -153,13 +153,30 @@ interface Slot {
 }
 
 const LEAVE_MS = 180
+/**
+ * 一次增删超过这么多项就当成整份换了内容（进了另一个目录、换了一份清单），不逐项放退场 / 入场：
+ * 成百上千项各留一个影子，每插一个都逼整页重算一遍样式（宿主页面有条 `:has` 规则），会卡上好几秒。
+ */
+const BULK_CHANGE = 24
 
 /**
- * 删掉的一项：照它被删前的样子复制一份，按原来的位置绝对定位放回列表，原地淡出、略缩，放完就删。
+ * 删掉的几项：照各自被删前的样子复制一份，按原来的位置绝对定位放回列表，原地淡出、略缩，放完就删。
+ * 影子先都做好、一起挂上，再一起放动画：中间不读样式，浏览器只重算一次。
  * 列表要是定位元素（`position: relative`），不然摆不回原处，就不放。
  */
-function leaveAt(list: HTMLElement, node: HTMLElement, slot: Slot): void {
-  if (getComputedStyle(list).position === 'static') return
+function leaveAll(list: HTMLElement, gone: readonly (readonly [HTMLElement, Slot])[]): void {
+  if (gone.length === 0 || getComputedStyle(list).position === 'static') return
+  const ghosts = gone.map(([node, slot]) => ghostAt(node, slot))
+  for (const ghost of ghosts) ghost.place(list)
+  for (const ghost of ghosts) {
+    const out = fadeAway(ghost.node, { opacity: 1, transform: 'none' }, 'scale(0.97)', LEAVE_MS)
+    const drop = (): void => ghost.node.remove()
+    out.finished.then(drop, drop)
+  }
+}
+
+/** 一项的影子，摆在它原来的位置（还没挂上）。 */
+function ghostAt(node: HTMLElement, slot: Slot): Ghost {
   const ghost = ghostClone(node)
   ghost.node.removeAttribute('data-flip')
   ghost.node.removeAttribute('data-selected')
@@ -175,10 +192,7 @@ function leaveAt(list: HTMLElement, node: HTMLElement, slot: Slot): void {
     zIndex: '0',
   })
   leaving.add(ghost.node)
-  ghost.place(list)
-  const out = fadeAway(ghost.node, { opacity: 1, transform: 'none' }, 'scale(0.97)', LEAVE_MS)
-  const drop = (): void => ghost.node.remove()
-  out.finished.then(drop, drop)
+  return ghost
 }
 
 /** 新加的一项：从左边一点淡入（和 {@link useFlip} 的入场一样）。 */
@@ -270,37 +284,42 @@ export function useResizeFlip(
       sizes.observe(list)
       watch()
       const children = new MutationObserver((records) => {
-        const still = REDUCED?.matches === true || performance.now() - swappedAt < 80
+        const changed = records.reduce(
+          (sum, record) => sum + record.removedNodes.length + record.addedNodes.length,
+          0,
+        )
+        const still =
+          REDUCED?.matches === true || performance.now() - swappedAt < 80 || changed > BULK_CHANGE
         // 还没量过（刚挂上）：没有旧位置可比，不放退场 / 入场。
         if (!still && (exit || enter) && slots !== null) {
           const band = clipBand(list)
           const origin = list.getBoundingClientRect().top - (isScroller(list) ? list.scrollTop : 0)
+          // 先读完（删掉的原来在哪、新来的在不在视野里），再一起放影子、动画：读写不交错。
+          const gone: (readonly [HTMLElement, Slot])[] = []
+          const fresh: HTMLElement[] = []
           for (const record of records) {
             if (exit) {
               for (const node of record.removedNodes) {
                 // 挪了位置（删了又插回来）的不算删。
                 if (!(node instanceof HTMLElement) || node.isConnected || leaving.has(node))
                   continue
-                const slot = slots?.get(node)
+                const slot = slots.get(node)
                 if (slot !== undefined && seen(band, origin + slot.top, slot.height)) {
-                  leaveAt(list, node, slot)
+                  gone.push([node, slot])
                 }
               }
             }
             if (enter) {
               for (const node of record.addedNodes) {
-                if (
-                  node instanceof HTMLElement &&
-                  !leaving.has(node) &&
-                  slots !== null &&
-                  !slots.has(node)
-                ) {
+                if (node instanceof HTMLElement && !leaving.has(node) && !slots.has(node)) {
                   const box = node.getBoundingClientRect()
-                  if (seen(band, box.top, box.height)) enterIn(node)
+                  if (seen(band, box.top, box.height)) fresh.push(node)
                 }
               }
             }
           }
+          leaveAll(list, gone)
+          for (const node of fresh) enterIn(node)
         }
         watch()
         // 删掉一项时其余项的尺寸没变、列表也可能是定高的：ResizeObserver 不一定叫，这里补一次。

@@ -3,7 +3,7 @@
  * 或者带上令牌向一张 HTTP 触发卡片的地址发一条请求（{@link pingHook}）。
  *
  * 只给人看结果：不动开关、不记触发记录（测试请求例外——它和别的程序发来的一样被收下、发进会话）。
- * 命令由用户在界面上确认过才跑，跑法和真正打开开关后一样（系统 shell、工作区、`{workflow}` 换好）。
+ * 命令由用户在界面上确认过才跑，跑法和真正打开开关后一样（选定的 shell、工作区、`{workflow}` 换好）。
  *
  * @module @xiaoso/dsh-workflow-lite/host/triggers/trial
  */

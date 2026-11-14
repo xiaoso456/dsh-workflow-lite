@@ -12,18 +12,12 @@ import type { T } from '../../../i18n.ts'
 import { folderName } from '../../../model/hostPath.ts'
 import { Select } from '../../kit/Select.tsx'
 import type { TriggerEnv } from '../triggerEnv.ts'
+import type { LocalDraft } from './runDraft.ts'
 import { StageRow } from './StageRow.tsx'
 import stage from './sourceStage.module.css'
 
-/** 对话框里工作区的草稿：现在选的、存着的、改它。 */
-export interface WorkspaceDraft {
-  value: string
-  saved: string
-  onChange(path: string): void
-}
-
 /** 命令实际在哪跑：选了的那个，没选是当前会话的。 */
-export function runWorkspace(env: TriggerEnv | null, draft: WorkspaceDraft): string | undefined {
+export function runWorkspace(env: TriggerEnv | null, draft: LocalDraft): string | undefined {
   if (env === null) return undefined
   return draft.value === '' ? env.here.cwd : draft.value
 }

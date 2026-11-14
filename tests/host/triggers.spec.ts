@@ -5,7 +5,7 @@
  * 常驻触发源本身（跑命令、开端口）换成假的，见 `triggerSources.spec.ts`。
  */
 
-import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
@@ -26,7 +26,7 @@ import { OWNER_STALE_MS, OwnerLock } from '../../src/host/triggers/owner.ts'
 import type { LiveRuntime, LiveSpec, RuntimeEvents } from '../../src/host/triggers/runtime.ts'
 import { LATE_MS, TriggerService } from '../../src/host/triggers/service.ts'
 import type { SessionPort } from '../../src/host/triggers/sessions.ts'
-import { ownerFile, TriggerStore } from '../../src/host/triggers/store.ts'
+import { approvalOf, ownerFile, TriggerStore } from '../../src/host/triggers/store.ts'
 import type { InstanceView } from '../../src/shared/runState.ts'
 import type { TriggerData, WorkflowDocument } from '../../src/shared/types.ts'
 import { validateDocument } from '../../src/shared/validate.ts'
@@ -45,6 +45,8 @@ let gone: Set<string>
 let unavailable: string | null
 /** 插件设置里 HTTP 触发的监听地址。 */
 let listenHost = '127.0.0.1'
+/** 设置里的默认 shell（空串 = 系统的）。 */
+let defaultShell = ''
 let openError: string | null
 /** 假的实例：接续触发看的「哪些实例结束了」（按工作流）。 */
 let finished: Map<string, FinishedRun[]>
@@ -87,6 +89,7 @@ function service(pid = 100, alive: (pid: number) => boolean = () => true): Trigg
     sessions,
     now: () => clock,
     listen: () => ({ host: listenHost, port: 3791 }),
+    defaultShell: () => defaultShell,
     runs: watch,
     lock: new OwnerLock({ file: () => ownerFile(dataDir), now: () => clock, pid, alive }),
     runtime: (events): LiveRuntime => {
@@ -139,6 +142,7 @@ async function own(triggers: TriggerService): Promise<void> {
 beforeEach(async () => {
   dataDir = await mkdtemp(join(tmpdir(), 'workflow-lite-triggers-'))
   listenHost = '127.0.0.1'
+  defaultShell = ''
   workspace = join(dataDir, 'ws')
   await mkdir(workspace)
   store = new TriggerStore(() => dataDir)
@@ -739,7 +743,7 @@ describe('常驻触发源', () => {
       enabled: true,
       approved: false,
       state: 'confirm',
-      problem: '要运行的命令或工作区改过了，要重新确认',
+      problem: '要运行的命令、工作区或 shell 改过了，要重新确认',
     })
     await set(triggers, { approve: 'node other.mjs' })
     await triggers.tick()
@@ -751,6 +755,65 @@ describe('常驻触发源', () => {
     await triggers.tick()
     expect(live.specs).toEqual([])
     expect((await triggers.list('patrol')).triggers[0]?.state).toBe('confirm')
+  })
+
+  it('换了 shell（卡片自己选的、或它跟着的默认）：停下来等重新确认；确认后按选的 shell 跑', async () => {
+    const bin = join(dataDir, 'bin')
+    await mkdir(bin)
+    const pwsh = join(bin, 'pwsh.exe')
+    const bash = join(bin, 'bash')
+    await writeFile(pwsh, '')
+    await writeFile(bash, '')
+    // 没选 shell 时确认的样子和以前一样：升级前确认过的卡片不用重新确认。
+    expect(approvalOf(COMMAND, workspace)).toBe(JSON.stringify([COMMAND, workspace]))
+    expect(approvalOf(COMMAND, workspace, '')).toBe(approvalOf(COMMAND, workspace))
+
+    const triggers = await listening()
+    expect(live.specs[0]).not.toHaveProperty('shell')
+    await set(triggers, { shell: pwsh })
+    await triggers.tick()
+    expect(live.specs).toEqual([])
+    expect((await triggers.list('patrol')).triggers[0]).toMatchObject({
+      shell: pwsh,
+      runShell: { path: pwsh, name: 'PowerShell 7' },
+      state: 'confirm',
+    })
+    await set(triggers, { approve: COMMAND })
+    await triggers.tick()
+    expect(live.specs[0]?.shell).toBe(pwsh)
+
+    // 改回跟随默认：确认的是 PowerShell，要再确认一次。
+    await set(triggers, { shell: '' })
+    await triggers.tick()
+    expect((await triggers.list('patrol')).triggers[0]).not.toHaveProperty('shell')
+    expect((await triggers.list('patrol')).triggers[0]?.state).toBe('confirm')
+    await set(triggers, { approve: COMMAND })
+    await triggers.tick()
+    expect(live.specs).toHaveLength(1)
+
+    // 设置里的默认换了：跟着默认的卡片也要重新确认。
+    defaultShell = bash
+    await triggers.tick()
+    expect(live.specs).toEqual([])
+    expect((await triggers.list('patrol')).triggers[0]).toMatchObject({
+      state: 'confirm',
+      runShell: { path: bash, name: 'bash' },
+    })
+    await set(triggers, { approve: COMMAND })
+    await triggers.tick()
+    expect(live.specs[0]?.shell).toBe(bash)
+  })
+
+  it('选的 shell 要是认得的、在的程序', async () => {
+    await saveGraph('patrol', listen())
+    const triggers = service()
+    const relative = await set(triggers, { shell: 'pwsh' })
+    expect(!relative.ok && relative.error.message).toBe('要写 shell 程序的完整路径')
+    const missing = await set(triggers, { shell: join(dataDir, 'nope', 'bash') })
+    expect(!missing.ok && missing.error.message).toBe('找不到这个程序')
+    const unknown = await set(triggers, { shell: join(dataDir, 'notepad.exe') })
+    expect(!unknown.ok && unknown.error.message).toContain('认不出')
+    expect((await triggers.list('patrol')).triggers[0]).not.toHaveProperty('shell')
   })
 
   it('监听程序最近打出的一行跟着状态给到卡片；重启等待中也留着', async () => {

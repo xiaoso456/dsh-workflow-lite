@@ -1,7 +1,8 @@
 /**
  * dsh-workflow-lite — 触发器在本机跑命令：跑一次等它结束（条件轮询），或常驻、一行一行读它的输出（监听程序）。
  *
- * 命令交给系统的 shell（Windows 是 cmd，其余是 sh），以 DSH 进程的身份在选定的工作区里运行，不进沙箱——
+ * 命令交给选定的 shell（没选是系统的：Windows 是 cmd，其余是 sh；怎么交见 `shells.ts`），
+ * 以 DSH 进程的身份在选定的工作区里运行，不进沙箱——
  * 打开开关前用户确认过这条命令（见 `service.ts`）。DSH 自带的 Node 所在目录排在 `PATH` 最前，
  * 脚本写 `node …` 在各系统上都能跑。结束一个命令时连同它拉起的子进程一起结束（`tail -F | grep` 这类管道）。
  *
@@ -10,6 +11,7 @@
 
 import { type ChildProcess, spawn } from 'node:child_process'
 import { basename, delimiter, dirname } from 'node:path'
+import { shellLaunch } from './shells.ts'
 
 /** 一行最长多少字节；再长的截成几段。 */
 export const LINE_MAX_BYTES = 64 * 1024
@@ -23,6 +25,8 @@ export interface CommandSpec {
   cwd: string
   /** 追加的环境变量。 */
   env?: Record<string, string>
+  /** 用哪个 shell 跑（程序的完整路径）；不给是系统的。 */
+  shell?: string
 }
 
 /** 跑命令用的环境变量：本进程的，加上 DSH 自带 Node 的目录、追加的那些。 */
@@ -57,23 +61,26 @@ export function decodeOutput(bytes: Uint8Array): string {
   }
 }
 
-/** cmd 找不到命令时的那句话（中文、英文系统）。 */
-const CMD_NOT_FOUND = /不是内部或外部命令|is not recognized as an internal or external command/u
+/** cmd、PowerShell 找不到命令时的那句话（中文、英文系统）。 */
+const NOT_FOUND =
+  /不是内部或外部命令|is not recognized as an internal or external command|is not recognized as (?:a|the) name of a cmdlet|无法将.+识别为 cmdlet|不会被识别为 cmdlet/u
 
 /**
- * 找不到命令：sh 退出码 127；cmd 直接跑是退出码 1 加一句「不是内部或外部命令」（批处理里是 9009）。
+ * 找不到命令：sh 退出码 127；cmd 直接跑是退出码 1 加一句「不是内部或外部命令」（批处理里是 9009）；
+ * PowerShell 退出码 1 加一句「不是 cmdlet」。
  * @param errors 错误输出的最后一截。
  */
 function notFound(code: number | null, errors: string): boolean {
   if (code === 127 || code === 9009) return true
-  return process.platform === 'win32' && code === 1 && CMD_NOT_FOUND.test(errors)
+  return code === 1 && NOT_FOUND.test(errors)
 }
 
 function launch(spec: CommandSpec): ChildProcess {
-  return spawn(spec.command, {
+  const { file, args, verbatim } = shellLaunch(spec.shell, spec.command)
+  return spawn(file, args, {
     cwd: spec.cwd,
     env: commandEnv(spec.env),
-    shell: true,
+    windowsVerbatimArguments: verbatim,
     windowsHide: true,
     // POSIX 下自成一个进程组，结束时整组一起结束。
     detached: process.platform !== 'win32',

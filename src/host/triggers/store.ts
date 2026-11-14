@@ -89,6 +89,8 @@ export interface TriggerLocal {
   rule?: string
   /** 新建会话用的工作区目录。 */
   workspace?: string
+  /** 轮询、监听：这张卡片自己选的 shell（程序的完整路径）；没有就跟着默认。 */
+  shell?: string
   /** 「固定会话」用的那个会话。 */
   session?: string
   /** 上一次发进去的会话（「接着上一次的会话」用）。 */
@@ -97,7 +99,7 @@ export interface TriggerLocal {
   failures?: number
   /** 被自动停用时的原因（开关同时被关掉）；再打开时清掉。 */
   stopped?: string
-  /** 用户确认过的命令与工作区的记号（{@link approvalOf}）；和现在的对不上就要重新确认。 */
+  /** 用户确认过的命令、工作区与 shell 的记号（{@link approvalOf}）；和现在的对不上就要重新确认。 */
   approved?: string
   /** HTTP 触发：地址（`/trigger/` 后面那一段）与令牌。 */
   hook?: string
@@ -110,9 +112,14 @@ export interface TriggerLocal {
   seen?: string[]
 }
 
-/** 确认过的命令与工作区的记号：两样有一样改了就对不上。 */
-export function approvalOf(command: string, workspace: string | undefined): string {
-  return JSON.stringify([command, workspace ?? ''])
+/**
+ * 确认过的命令、工作区与 shell 的记号：哪一样改了都对不上。
+ * `shell` 是实际要用的那个（卡片自己选的，或设置里的默认）；用系统的（空着）时记号和加 shell 之前一样，
+ * 以前确认过的卡片不用重新确认。
+ */
+export function approvalOf(command: string, workspace: string | undefined, shell?: string): string {
+  const base = [command, workspace ?? '']
+  return JSON.stringify(shell === undefined || shell === '' ? base : [...base, shell])
 }
 
 /** 工作流名 → 卡片 id → 状态。 */
@@ -173,6 +180,7 @@ function readLocal(raw: unknown): TriggerLocal | null {
   for (const key of [
     'rule',
     'workspace',
+    'shell',
     'session',
     'lastSession',
     'stopped',

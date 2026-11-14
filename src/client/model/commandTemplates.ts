@@ -1,7 +1,7 @@
 /**
  * dsh-workflow-lite — 轮询、监听的命令模板：「从模板开始」菜单里的几条常用写法。
  *
- * 命令交给系统的 shell（Windows 是 cmd，其余是 sh），模板只用 `git` 和 `node -e`（DSH 自带 Node），
+ * 命令交给卡片选的 shell（cmd、PowerShell、sh 一类都可能），模板只用 `git` 和 `node -e`（DSH 自带 Node），
  * 双引号里不写 `$`、反引号，两边的 shell 都原样交给程序。挑了模板会连同判定方式一起换（轮询）。
  *
  * @module @xiaoso/dsh-workflow-lite/client/model/commandTemplates

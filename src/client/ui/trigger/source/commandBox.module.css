@@ -7,6 +7,24 @@
   padding: 4px;
 }
 
+/* 「Shell」菜单：名字下面一行完整路径，放宽一点。 */
+.shellMenu {
+  width: 380px;
+  padding: 4px;
+}
+
+/* 命令下面一行：换了 shell 要重新确认、挑的程序用不了。 */
+.shellNote {
+  margin: 0;
+  padding: 6px 12px 0;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+}
+
+.shellNote[data-problem="true"] {
+  color: var(--wl-danger);
+}
+
 /* 底栏里的「变量 {workflow} ?」。 */
 .variable {
   display: inline-flex;

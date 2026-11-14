@@ -61,6 +61,10 @@ export const zh = {
   'cfg.triggerHost': 'HTTP 触发监听地址',
   'cfg.triggerHostDesc':
     '缺省只接受本机的请求。要让别的机器调用，选「所有网卡」或某块网卡的地址；请求是明文 HTTP，只在信得过的网络里用，或放在 HTTPS 代理后面。',
+  'cfg.triggerShell': '默认 shell',
+  'cfg.triggerShellDesc':
+    '轮询、监听卡片没单独选 shell 时用它。改了之后，跟随默认的卡片要重新确认命令才会继续运行。',
+  'cfg.shellSystem': '系统默认',
   'cfg.host.local': '仅本机（127.0.0.1）',
   'cfg.host.any': '所有网卡（0.0.0.0）',
   'cfg.host.missing': '{address}（本机没有这个地址）',
@@ -158,6 +162,10 @@ export const en: Record<keyof typeof zh, string> = {
   'cfg.triggerHost': 'HTTP trigger listen address',
   'cfg.triggerHostDesc':
     'Only requests from this machine are accepted by default. To let other machines call in, pick All interfaces or one interface address; requests are plain HTTP, so use it only on a trusted network or behind an HTTPS proxy.',
+  'cfg.triggerShell': 'Default shell',
+  'cfg.triggerShellDesc':
+    'Used by poll and listen cards that do not pick their own shell. After changing it, cards that follow the default need their command confirmed again before they run.',
+  'cfg.shellSystem': 'System default',
   'cfg.host.local': 'This machine only (127.0.0.1)',
   'cfg.host.any': 'All interfaces (0.0.0.0)',
   'cfg.host.missing': '{address} (not on this machine)',

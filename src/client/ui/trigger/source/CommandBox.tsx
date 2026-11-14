@@ -1,12 +1,13 @@
 /**
- * dsh-workflow-lite — 轮询、监听的工作台（{@link Bench}）：顶上一条是名字、「从模板开始」菜单、「试运行」，
+ * dsh-workflow-lite — 轮询、监听的工作台（{@link Bench}）：顶上一条是名字、「从模板开始」菜单、用哪个 shell、「试运行」，
  * 中间是命令，下面是试运行的结果（退出码、满足没有、用时、输出），再下面是跑着的那条命令最近的输出；
- * 底栏写由什么 shell 运行、命令里能用的变量（「?」里细说）。
+ * 底栏写命令里能用的变量（「?」里细说）。
  *
  * 「从模板开始」和别处的下拉同一个菜单（{@link SelectMenu}：搜索框、名字下面一行说明）。
- * 「试运行」跑的是草稿里的命令，在对话框里选的工作区里（没选就用当前会话的）；
+ * 「试运行」跑的是草稿里的命令，在对话框里选的工作区里（没选就用当前会话的）、用选的 shell；
  * 点了先在按钮旁边问一句（命令以 DSH 进程的身份运行、不进沙箱），确认了才跑。不打开开关、不发进会话。
  * 改了命令，上一次的结果就收起来（那是旧命令的）。
+ * 换了 shell（草稿，跟着对话框「保存」写）、或自己挑的程序用不了，命令下面说一句。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/trigger/source/CommandBox
  */
@@ -23,10 +24,13 @@ import { Popover } from '../../kit/Popover.tsx'
 import { type MenuPlace, menuPlace, TWO_LINE_HEIGHT } from '../../kit/Select.tsx'
 import { SelectMenu } from '../../kit/SelectMenu.tsx'
 import { TextArea } from '../../kit/TextArea.tsx'
+import { Presence } from '../../motion/exits.tsx'
 import { RecentOutput } from '../RecentOutput.tsx'
+import { ShellButton } from '../ShellSelect.tsx'
 import type { TriggerEnv } from '../triggerEnv.ts'
 import { Bench, benchButton, benchPrimary } from './Bench.tsx'
 import css from './commandBox.module.css'
+import type { LocalDraft } from './runDraft.ts'
 
 /** 试运行的样子：没跑过、正在跑、跑完了、请求本身失败。 */
 type Trial =
@@ -54,6 +58,8 @@ export function CommandBox(props: {
   title: string
   /** 命令在哪个工作区跑（对话框里选的，没选是当前会话的）；实例视图里没有。 */
   workspace: string | undefined
+  /** 用哪个 shell 跑（对话框里选的草稿；空串是跟随默认）；实例视图里没有。 */
+  shell: LocalDraft | undefined
 }): React.JSX.Element {
   const { t, env } = props
   const [trial, setTrial] = useState<Trial>({ kind: 'idle' })
@@ -64,12 +70,23 @@ export function CommandBox(props: {
   const confirm = useConfirm<HTMLButtonElement>()
   const workspace = env === null ? undefined : props.workspace
   const empty = props.command.trim() === ''
+  const shell = env === null ? undefined : props.shell
+  /** 自己挑的 shell 程序用不了时的原因。 */
+  const [shellProblem, setShellProblem] = useState<string | null>(null)
+  const shellNote =
+    shellProblem ??
+    (shell !== undefined && shell.value !== shell.saved ? t('trigger.shellChanged') : null)
 
   const run = (): void => {
     if (env === null || workspace === undefined) return
     setTrial({ kind: 'running' })
     void env.triggers
-      .tryCommand({ kind: props.kind, command: props.command, workspace })
+      .tryCommand({
+        kind: props.kind,
+        command: props.command,
+        workspace,
+        ...(shell === undefined || shell.value === '' ? {} : { shell: shell.value }),
+      })
       .then((result) =>
         setTrial(
           typeof result === 'string'
@@ -135,6 +152,20 @@ export function CommandBox(props: {
           }}
         />
       </Popover>
+      {env !== null && shell !== undefined && (
+        <ShellButton
+          t={t}
+          access={env.shells}
+          value={shell.value}
+          mode="card"
+          changed={shell.value !== shell.saved}
+          className={benchButton}
+          menuClassName={css.shellMenu}
+          testId="wl-trigger-shell"
+          onChange={shell.onChange}
+          onProblem={setShellProblem}
+        />
+      )}
       {env !== null && (
         <>
           <button
@@ -194,6 +225,16 @@ export function CommandBox(props: {
           }}
         />
       </div>
+      <Presence show={shellNote !== null}>
+        <p
+          className={css.shellNote}
+          data-problem={shellProblem !== null}
+          role={shellProblem === null ? undefined : 'alert'}
+          data-testid="wl-trigger-shell-note"
+        >
+          {shellNote}
+        </p>
+      </Presence>
       <TrialResult t={t} kind={props.kind} trial={trial} judge={props.judge} />
       {props.recent && env !== null && (
         <section className={css.recent} data-testid="wl-trigger-output">
@@ -205,12 +246,11 @@ export function CommandBox(props: {
   )
 }
 
-/** 底栏：由什么 shell 运行；命令里能写 `{workflow}`，「?」里说它换成什么、怎么用；脚本可以让模型代写。 */
+/** 底栏：命令里能写 `{workflow}`，「?」里说它换成什么、怎么用；脚本可以让模型代写。 */
 function CommandFoot(props: { t: T }): React.JSX.Element {
   const { t } = props
   return (
     <>
-      <span>{t('trigger.cmd.shell')}</span>
       <span className={css.variable}>
         {t('trigger.cmd.variable')}
         <code className={css.token}>{'{workflow}'}</code>

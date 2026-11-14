@@ -9,6 +9,7 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 import { findNode, isTrigger } from '../../../../shared/model.ts'
 import { commandOf, launchMissing } from '../../../../shared/trigger.ts'
 import type { SessionRow } from '../../../app/sessions.ts'
+import { createShellAccess } from '../../../app/shells.ts'
 import { useTriggers } from '../../../app/useTriggers.ts'
 import type { Workflow } from '../../../app/useWorkflow.ts'
 import type { T } from '../../../i18n.ts'
@@ -42,6 +43,7 @@ export function useTriggerScene(input: TriggerSceneInput): TriggerEnv {
   // 图里一张触发卡片都没有就不问状态。
   const active = useMemo(() => state.doc?.nodes.some(isTrigger) === true, [state.doc])
   const triggers = useTriggers(rpc, state.name, active, wf.flush, state.baseHash)
+  const shells = useMemo(() => createShellAccess(rpc), [rpc])
 
   // 工作区：当前会话的排最前，其余按侧栏里会话的顺序，去重。
   const workspaces = useMemo(() => {
@@ -199,6 +201,7 @@ export function useTriggerScene(input: TriggerSceneInput): TriggerEnv {
       workflow: state.name ?? '',
       here: { session, cwd: sessionCwd },
       workspaces,
+      shells,
       sessions,
       workflows,
       recentRuns,
@@ -219,6 +222,7 @@ export function useTriggerScene(input: TriggerSceneInput): TriggerEnv {
       session,
       sessionCwd,
       workspaces,
+      shells,
       sessions,
       workflows,
       toggle,

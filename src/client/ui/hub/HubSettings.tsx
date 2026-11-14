@@ -11,7 +11,9 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/HubSettings
  */
 
+import { useMemo, useState } from 'react'
 import { type PluginConfigKey, RESTART_CONFIG_KEYS } from '../../../shared/wire/config.ts'
+import { createShellAccess } from '../../app/shells.ts'
 import type { ConfigDraft, PluginConfigState } from '../../app/usePluginConfig.ts'
 import {
   LABEL,
@@ -27,6 +29,7 @@ import { Icon, type IconName } from '../kit/Icon.tsx'
 import { Stepper } from '../kit/NumberStep.tsx'
 import { Skeleton } from '../kit/Skeleton.tsx'
 import ui from '../kit/ui.module.css'
+import { ShellSelect } from '../trigger/ShellSelect.tsx'
 import hub from './hub.module.css'
 import css from './hubSettings.module.css'
 import { ListenHostSelect } from './ListenHostSelect.tsx'
@@ -41,6 +44,7 @@ const DESC: Record<PluginConfigKey, LocaleKey> = {
   installSkill: 'cfg.skillDesc',
   triggerPort: 'cfg.triggerPortDesc',
   triggerHost: 'cfg.triggerHostDesc',
+  triggerShell: 'cfg.triggerShellDesc',
 }
 
 const ICON: Record<PluginConfigKey, IconName> = {
@@ -51,6 +55,7 @@ const ICON: Record<PluginConfigKey, IconName> = {
   installSkill: 'bookmark',
   triggerPort: 'bolt',
   triggerHost: 'globe',
+  triggerShell: 'terminal',
 }
 
 export function HubSettings(props: {
@@ -62,6 +67,9 @@ export function HubSettings(props: {
   const { t } = props
   const state = usePluginConfig(props.rpc, t, props.onSaved)
   const { view, draft } = state
+  const shells = useMemo(() => createShellAccess(props.rpc), [props.rpc])
+  /** 自己挑的 shell 程序用不了时的原因（写在那一行的说明处）。 */
+  const [shellProblem, setShellProblem] = useState<string | null>(null)
 
   if (view === null || draft === null) {
     return (
@@ -145,6 +153,19 @@ export function HubSettings(props: {
         </Group>
 
         <Group title={t('cfg.groupTrigger')}>
+          <Row {...field} name="triggerShell" problem={shellProblem}>
+            <ShellSelect
+              t={t}
+              access={shells}
+              value={draft.triggerShell}
+              mode="default"
+              disabled={locked}
+              className={locked ? css.hostLocked : css.host}
+              testId="wl-cfg-triggerShell"
+              onChange={(value) => state.edit('triggerShell', value)}
+              onProblem={setShellProblem}
+            />
+          </Row>
           <Row {...field} name="triggerHost">
             <ListenHostSelect
               t={t}
@@ -219,7 +240,14 @@ interface FieldProps {
 }
 
 /** 一项一行：图标、名字（要重启的带个小标签）、说明、右边的控件；`wide` 的控件放到说明下面整行宽。 */
-function Row(props: FieldProps & { wide?: boolean; children: React.ReactNode }): React.JSX.Element {
+function Row(
+  props: FieldProps & {
+    wide?: boolean
+    /** 有问题时说明处换成这句（标红）。 */
+    problem?: string | null
+    children: React.ReactNode
+  },
+): React.JSX.Element {
   const { t, state, name } = props
   const view = state.view
   const draft = state.draft
@@ -255,7 +283,13 @@ function Row(props: FieldProps & { wide?: boolean; children: React.ReactNode }):
             <span className={css.restart}>{t('cfg.restart')}</span>
           )}
         </span>
-        <span className={hub.itemDesc}>{t(DESC[name])}</span>
+        <span
+          className={cx(hub.itemDesc, css.desc)}
+          data-tone={props.problem == null ? undefined : 'error'}
+          role={props.problem == null ? undefined : 'alert'}
+        >
+          {props.problem ?? t(DESC[name])}
+        </span>
         {props.wide === true && (
           <span className={css.wideControl}>
             {props.children}
@@ -325,6 +359,8 @@ function shown(
       return `${Math.round(values.maxResultBytes / 1024)} ${t('cfg.kb')}`
     case 'saveDebounceMs':
       return `${values.saveDebounceMs} ${t('cfg.ms')}`
+    case 'triggerShell':
+      return values.triggerShell === '' ? t('cfg.shellSystem') : values.triggerShell
     default:
       return String(values[name])
   }

@@ -19,6 +19,7 @@ const SAVED: PluginConfigValues = {
   installSkill: true,
   triggerPort: 3791,
   triggerHost: '127.0.0.1',
+  triggerShell: '',
 }
 
 describe('设置草稿', () => {
@@ -31,6 +32,7 @@ describe('设置草稿', () => {
       installSkill: true,
       triggerPort: '3791',
       triggerHost: '127.0.0.1',
+      triggerShell: '',
     })
   })
 
@@ -56,6 +58,7 @@ describe('设置草稿', () => {
         installSkill: false,
         triggerPort: '80',
         triggerHost: '192.168.1',
+        triggerShell: '',
       },
       SAVED,
       t,

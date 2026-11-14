@@ -1,12 +1,13 @@
 /**
  * dsh-workflow-lite — 配置面。
  *
- * 八个键，默认值全部写在 schema 里（**不硬编码在代码里**）。字段类型是
+ * 九个键，默认值全部写在 schema 里（**不硬编码在代码里**）。字段类型是
  * `Volatile`：设置表单投影的正是这些字段，写入落进当前 profile 的 Cordis patch，
  * 运行中的插件读的是**活引用**——一次配置写入就地更新它，不重挂插件。
  *
  * 部署相关的取值一律走这里：`dataDir`（数据根）、`maxNodes`、`maxResultBytes`
- * （单次返回字节上限）、`saveDebounceMs`、`routePrefix`、`installSkill`、`triggerPort` / `triggerHost`（HTTP 触发的端口与监听地址）。
+ * （单次返回字节上限）、`saveDebounceMs`、`routePrefix`、`installSkill`、`triggerPort` / `triggerHost`（HTTP 触发的端口与监听地址）、
+ * `triggerShell`（轮询、监听默认用的 shell）。
  *
  * @module @xiaoso/dsh-workflow-lite/host/config
  */
@@ -45,6 +46,11 @@ export interface WorkflowLiteSettings {
    * 不是本机时请求是明文 HTTP，令牌在网上能被看到，只该用在信得过的网络里或放在 HTTPS 代理后面。
    */
   triggerHost: Volatile<string>
+  /**
+   * 轮询、监听程序没单独选 shell 时用哪个：程序的完整路径；空串 = 系统的（Windows 是 cmd，其余是 sh）。
+   * 改了以后跟着默认的卡片都要重新确认命令。
+   */
+  triggerShell: Volatile<string>
 }
 
 /**
@@ -64,9 +70,10 @@ export const Config = z.object({
     .pattern(/^\d{1,3}(?:\.\d{1,3}){3}$/u)
     .default('127.0.0.1')
     .volatile(),
+  triggerShell: z.string().default('').volatile(),
 })
 
-/** 八个键的名字（测试与文档用，避免两处各写一遍）。 */
+/** 九个键的名字（测试与文档用，避免两处各写一遍）。 */
 export const CONFIG_KEYS = [
   'dataDir',
   'saveDebounceMs',
@@ -76,4 +83,5 @@ export const CONFIG_KEYS = [
   'installSkill',
   'triggerPort',
   'triggerHost',
+  'triggerShell',
 ] as const

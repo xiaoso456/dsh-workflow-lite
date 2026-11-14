@@ -35,6 +35,9 @@ export type StageDir = -1 | 0 | 1
  * 数据到了、换进新内容的那一刻先 `leave(dir)`（给旧内容留个影子往外走），内容换上之后 `enter(dir)`
  * （新内容从该来的一侧进来）。只放 Web Animation 的 transform / opacity。
  */
+/** 旧内容超过这么多个元素就不留影子往外走，直接换。 */
+const GHOST_MAX_ELEMENTS = 1500
+
 export function useStage(
   options: {
     /** 往里 / 往回走沿哪个方向挪：`x` 横向（缺省，页签、步骤）、`y` 纵向（从竖排的一列里换）。 */
@@ -60,6 +63,8 @@ export function useStage(
       const frame = wrap.current
       const node = body.current
       if (frame === null || node === null || REDUCED?.matches === true) return
+      // 内容太大（几千行的目录）不留影子：复制、挂上它比这一下动效贵得多（宿主页面每插一块都要整页重算样式）。
+      if (node.getElementsByTagName('*').length > GHOST_MAX_ELEMENTS) return
       const box = node.getBoundingClientRect()
       const host = frame.getBoundingClientRect()
       if (box.height === 0) return

@@ -21,6 +21,7 @@ const DEFAULTS: PluginConfigValues = {
   installSkill: true,
   triggerPort: 3791,
   triggerHost: '127.0.0.1',
+  triggerShell: '',
 }
 
 /** 一个最小的设置服务：一行 `workflow-lite`，`user` 层就是改过的那几项。 */
@@ -128,12 +129,25 @@ describe('写设置', () => {
     [{ triggerHost: 'localhost' }],
     [{ triggerHost: '256.1.1.1' }],
     [{ triggerHost: '192.168.1' }],
+    [{ triggerShell: 'pwsh' }],
+    [{ triggerShell: String.raw`C:\Tools\notepad.exe` }],
+    [{ triggerShell: 3 }],
   ])('坏值 %j 在写之前就挡下', async (set) => {
     const { port, calls } = fakePort()
     const outcome = await writePluginConfig(port, live, { revision: 3, set })
     expect(outcome).toMatchObject({ ok: false, error: { code: 'invalid_args' } })
     expect(calls).toEqual([])
   })
+
+  it.each([[String.raw`C:\Program Files\PowerShell\7\pwsh.exe`], ['/usr/bin/zsh'], ['']])(
+    '默认 shell %j 能写',
+    async (triggerShell) => {
+      const { port, calls } = fakePort()
+      const outcome = await writePluginConfig(port, live, { revision: 3, set: { triggerShell } })
+      expect(outcome.ok).toBe(true)
+      expect(calls).toHaveLength(1)
+    },
+  )
 
   it('不能写（没有设置服务 / profile 只读）：unavailable', async () => {
     expect(

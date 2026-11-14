@@ -16,10 +16,10 @@ import { HttpStage } from './HttpStage.tsx'
 import { SOURCE_KINDS } from './kinds.ts'
 import { ListenStage } from './ListenStage.tsx'
 import { PollStage } from './PollStage.tsx'
+import type { RunDrafts } from './runDraft.ts'
 import { ScheduleStage } from './ScheduleStage.tsx'
 import { armedNext } from './SourceSummary.tsx'
 import css from './sourceStage.module.css'
-import type { WorkspaceDraft } from './WorkspaceRow.tsx'
 
 export function SourceStage(props: {
   t: T
@@ -31,8 +31,8 @@ export function SourceStage(props: {
   /** 现场（草稿改过时不给）。 */
   view: TriggerView | undefined
   env: TriggerEnv | null
-  /** 命令在哪个工作区跑（草稿、存着的、改它）。 */
-  workspace: WorkspaceDraft
+  /** 轮询、监听：命令在哪个工作区、用哪个 shell 跑（草稿、存着的、改它）。 */
+  run: RunDrafts
   onChange(source: TriggerSource): void
 }): React.JSX.Element {
   const { t, source, view, env } = props
@@ -71,7 +71,7 @@ export function SourceStage(props: {
             node={props.node}
             source={source}
             env={env}
-            workspace={props.workspace}
+            run={props.run}
             showOutput={showOutput}
             onChange={props.onChange}
           />
@@ -82,7 +82,7 @@ export function SourceStage(props: {
             node={props.node}
             source={source}
             env={env}
-            workspace={props.workspace}
+            run={props.run}
             showOutput={showOutput}
             onChange={props.onChange}
           />

@@ -20,6 +20,7 @@ import {
   type PluginConfigView,
 } from '../shared/wire/config.ts'
 import { WORKFLOW_LITE_ROW_ID } from './config.ts'
+import { familyOf } from './triggers/shells.ts'
 
 /** 用到的那一小截设置服务（`@deepseek-ai/dsh-settings` 的 `SettingsForms`）。 */
 export interface SettingsPort {
@@ -142,7 +143,16 @@ function checkValue(key: PluginConfigKey, value: unknown): string | null {
       return typeof value === 'string' && isListenHost(value)
         ? null
         : '监听地址要是 IPv4 地址，如 127.0.0.1、0.0.0.0'
+    case 'triggerShell':
+      return typeof value === 'string' && (value === '' || shellPath(value))
+        ? null
+        : '默认 shell 要是 cmd、PowerShell、sh / bash / zsh 这类程序的完整路径'
   }
+}
+
+/** 一个 shell 程序的完整路径（在不在由选的时候查过，这里只看样子）。 */
+function shellPath(value: string): boolean {
+  return /^(?:[\\/]|[A-Za-z]:[\\/])/u.test(value) && familyOf(value) !== null
 }
 
 function isInt(value: unknown, min: number): boolean {

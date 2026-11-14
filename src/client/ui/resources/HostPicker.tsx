@@ -44,6 +44,12 @@ import picker from './picker.module.css'
 
 export type PickMode = 'file' | 'folder'
 
+/**
+ * 一次最多摆出多少行（筛选是在全部里找，只是摆出来的最多这么多）：几千行一起挂上要整页重算样式一秒多，
+ * 也没人会一行行翻到底。
+ */
+export const PICK_SHOW_MAX = 500
+
 /** 从 `from` 走到 `to`：往里走（`to` 在 `from` 底下）1、往回走（`to` 是 `from` 的上级）-1，其余 0。 */
 function direction(from: string | undefined, to: string): StageDir {
   if (from === undefined || from === to) return 0
@@ -110,11 +116,10 @@ export function HostPicker(props: {
       void host.list(path).then(
         (next) => {
           if (mine !== seq.current) return
-          // 换目录：旧内容留个影子往外走，整批行换进来时不逐行放退场（见 markSwap）。
+          // 换目录：旧内容留个影子往外走（新内容换上时整批行不逐行放退场，见下面的 markSwap）。
           const dir = direction(shown.current, next.path)
           heading.current = dir
           if (shown.current !== undefined) stage.leave(dir)
-          markSwap()
           shown.current = next.path
           setListing(next)
           setAddress(next.path)
@@ -137,9 +142,12 @@ export function HostPicker(props: {
     go(props.start)
   }, [])
 
-  // 新目录的内容换上了：从该来的一侧进来。
+  // 新目录的内容换上了：从该来的一侧进来。这一下的整批增删是换内容，不逐行放退场入场——
+  // 记在提交之后（列表那边紧接着才看到增删）：几千行的目录渲染要好几百毫秒，记早了就过了时效。
   useLayoutEffect(() => {
-    if (listing !== null) stage.enter(heading.current)
+    if (listing === null) return
+    markSwap()
+    stage.enter(heading.current)
   }, [listing?.path])
 
   // 路径长了：面包屑滚到最右，露出当前这一级（第一次直接到位，之后顺着滑过去）。
@@ -351,7 +359,7 @@ export function HostPicker(props: {
                 </p>
               )}
               {listing !== null &&
-                entries.map((entry) => {
+                entries.slice(0, PICK_SHOW_MAX).map((entry) => {
                   const path = join(listing.path, entry.name)
                   return (
                     <PickRow
@@ -369,6 +377,11 @@ export function HostPicker(props: {
                     />
                   )
                 })}
+              {entries.length > PICK_SHOW_MAX && (
+                <p className={picker.empty} data-testid="wl-picker-more">
+                  {t('pick.more').replace('{n}', String(entries.length - PICK_SHOW_MAX))}
+                </p>
+              )}
               {listing?.truncated === true && <p className={picker.empty}>{t('pick.truncated')}</p>}
             </div>
           </div>

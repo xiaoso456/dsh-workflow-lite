@@ -47,6 +47,7 @@ import {
 import type { TriggerSource } from '../../shared/types.ts'
 import type {
   FireRecord,
+  ShellChoice,
   TriggerAllResponse,
   TriggerDetailResponse,
   TriggerEntry,
@@ -58,6 +59,7 @@ import type {
   TriggerPingRequest,
   TriggerPingResponse,
   TriggerSetRequest,
+  TriggerShellsResponse,
   TriggerTryRequest,
   TriggerTryResponse,
   TriggerView,
@@ -81,6 +83,7 @@ import {
   TriggerRuntime,
 } from './runtime.ts'
 import type { SessionPort } from './sessions.ts'
+import { checkShell, detectShells, familyOf, shellLabel, shellName, systemShell } from './shells.ts'
 import {
   approvalOf,
   HISTORY_MAX,
@@ -111,6 +114,8 @@ export interface TriggerServiceDeps {
   sessions: SessionPort
   /** HTTP 触发的监听地址与端口（插件设置）。 */
   listen: () => HookBind
+  /** 轮询、监听没单独选 shell 时用哪个（插件设置，程序的完整路径）；空串或不给 = 系统的。 */
+  defaultShell?: () => string
   /** 实例那边：接续触发看别的工作流有没有实例结束。不给就当没有这种触发源。 */
   runs?: RunWatch
   now?: () => number
@@ -131,6 +136,7 @@ export class TriggerService {
   private readonly runtime: LiveRuntime
   private readonly dataDir: () => string
   private readonly listen: () => HookBind
+  private readonly defaultShell: () => string
   private readonly now: () => number
   private readonly warn: (message: string) => void
   private timer: ReturnType<typeof setTimeout> | undefined
@@ -151,6 +157,7 @@ export class TriggerService {
     this.runs = deps.runs
     this.dataDir = deps.dataDir
     this.listen = deps.listen
+    this.defaultShell = deps.defaultShell ?? (() => '')
     this.now = deps.now ?? Date.now
     this.warn = deps.warn ?? (() => {})
     this.launcher = new Launcher(deps.sessions, deps.store)
@@ -358,7 +365,8 @@ export class TriggerService {
         if (trigger === undefined) continue
         const { source } = trigger.data
         if (!isFilterKind(source.kind) || sourceProblem(source) !== null) continue
-        if (pendingApproval(trigger, local) !== null) continue
+        const shell = this.shellFor(local)
+        if (pendingApproval(trigger, local, shell) !== null) continue
         const base = { workflow, node, filter: filterOf(trigger.data), cwd: local.workspace ?? '' }
         if (source.kind === 'http') {
           if (local.hook === undefined || local.token === undefined) continue
@@ -373,6 +381,7 @@ export class TriggerService {
           source,
           command: bindWorkflowVar(source.command, dir),
           env: { WORKFLOW_DIR: dir },
+          ...(shell === '' ? {} : { shell }),
           ...(local.probe === undefined ? {} : { probe: local.probe }),
         })
       }
@@ -611,11 +620,16 @@ export class TriggerService {
         node: trigger.node,
         enabled: local.enabled,
         ...(local.workspace === undefined ? {} : { workspace: local.workspace }),
+        ...(local.shell === undefined ? {} : { shell: local.shell }),
         ...(local.session === undefined ? {} : { session: local.session }),
         ...(recent === undefined ? {} : { last: recent }),
         ...(command === undefined
           ? {}
-          : { approved: local.approved === approvalOf(command, local.workspace) }),
+          : {
+              approved:
+                local.approved === approvalOf(command, local.workspace, this.shellFor(local)),
+              runShell: shellLabel(this.shellFor(local)),
+            }),
         // 地址、令牌有了就给（打开前先生成的也给）；只在打开了的 HTTP 卡片上收请求（见 specs）。
         ...(local.hook !== undefined && local.token !== undefined
           ? {
@@ -640,7 +654,7 @@ export class TriggerService {
             ? afterProblem(workflow, source, await this.graphs.read(source.workflow))
             : null)
         if (problem !== null) return { ...base, state: 'invalid', problem }
-        const pending = pendingApproval(trigger, local)
+        const pending = pendingApproval(trigger, local, this.shellFor(local))
         if (pending !== null) return { ...base, state: 'confirm', problem: pending }
         if (paused !== undefined) return { ...base, state: 'paused' }
         if (source.kind === 'schedule') {
@@ -678,7 +692,7 @@ export class TriggerService {
   }
 
   /**
-   * 改一张卡片的本机设置：开关、工作区、固定会话、确认命令、换令牌；给了哪项改哪项。
+   * 改一张卡片的本机设置：开关、工作区、shell、固定会话、确认命令、换令牌；给了哪项改哪项。
    * 回这个工作流各卡片的新样子。
    */
   async set(request: TriggerSetRequest): Promise<Outcome<TriggerListResponse>> {
@@ -689,6 +703,10 @@ export class TriggerService {
     if (request.workspace !== undefined && request.workspace !== '') {
       const directory = await workspaceProblem(request.workspace)
       if (directory !== null) return fail('invalid_args', directory)
+    }
+    if (request.shell !== undefined && request.shell !== '') {
+      const checked = await checkShell(request.shell)
+      if (typeof checked === 'string') return fail('invalid_args', checked)
     }
     const now = this.now()
     // 接续触发等的那个工作流要在、要记运行状态、不能是自己（要看别的图，在写锁外面查好）。
@@ -703,23 +721,27 @@ export class TriggerService {
         if (request.workspace === '') delete local.workspace
         else local.workspace = request.workspace
       }
+      if (request.shell !== undefined) {
+        if (request.shell === '') delete local.shell
+        else local.shell = request.shell
+      }
       if (request.session !== undefined) {
         if (request.session === '') delete local.session
         else local.session = request.session
       }
-      // 确认命令记在工作区改完之后：确认的是「这条命令在这个工作区里跑」。
+      // 确认命令记在工作区、shell 改完之后：确认的是「这条命令在这个工作区里、用这个 shell 跑」。
       if (request.approve !== undefined) {
         const command = commandOf(source)
         if (command === undefined) return '这张触发卡片不用运行命令'
         // 用户看到的和图里现在的不一样（刚被改过）：不算确认。
         if (request.approve !== command) return '要运行的命令刚改过，请重新查看后再确认'
         if (local.workspace === undefined) return '先选命令在哪个工作区里运行'
-        local.approved = approvalOf(command, local.workspace)
+        local.approved = approvalOf(command, local.workspace, this.shellFor(local))
       }
       const endpoint = setEndpoint(request, source, local, locals)
       if (endpoint !== null) return endpoint
       if (request.enabled === true && !local.enabled) {
-        const missing = after ?? enableProblem(trigger, local)
+        const missing = after ?? enableProblem(trigger, local, this.shellFor(local))
         if (missing !== null) return missing
         local.enabled = true
         local.since = now
@@ -793,19 +815,51 @@ export class TriggerService {
     return ok({ ...detail.record, declined: text })
   }
 
+  /** 这张卡片实际用哪个 shell：自己选的，没选是设置里的默认；空串是系统的。 */
+  private shellFor(local: TriggerLocal): string {
+    return local.shell ?? this.defaultShell()
+  }
+
+  /** 本机的 shell、系统缺省的那个、「跟着默认」现在指的那个（设置页、对话框里的下拉用）。 */
+  async shells(): Promise<TriggerShellsResponse> {
+    const shells = await detectShells()
+    const describe = (path: string): ShellChoice =>
+      shells.find((shell) => shell.path.toLowerCase() === path.toLowerCase()) ?? {
+        path,
+        name: shellName(path),
+        family: familyOf(path) ?? (process.platform === 'win32' ? 'cmd' : 'posix'),
+      }
+    const system = describe(systemShell())
+    const chosen = this.defaultShell()
+    return { shells, system, fallback: chosen === '' ? system : describe(chosen) }
+  }
+
+  /** 认一个自己选的程序能不能当 shell 用。 */
+  async checkShell(path: string): Promise<Outcome<ShellChoice>> {
+    const checked = await checkShell(path)
+    return typeof checked === 'string' ? fail('invalid_args', checked) : ok(checked)
+  }
+
   /**
-   * 「试运行」：把对话框里还没保存的命令在 `workspace` 里跑一次（跑法同打开开关之后）。
+   * 「试运行」：把对话框里还没保存的命令在 `workspace` 里、用 `shell`（空着跟默认）跑一次（跑法同打开开关之后）。
    * 不看开关、不记触发记录；界面上用户确认过才会发来。
    */
   async tryCommand(request: TriggerTryRequest): Promise<Outcome<TriggerTryResponse>> {
     if (request.command.trim() === '') return fail('invalid_args', '命令是空的')
     const directory = await workspaceProblem(request.workspace)
     if (directory !== null) return fail('invalid_args', directory)
+    const shell =
+      request.shell === undefined || request.shell === '' ? this.defaultShell() : request.shell
+    if (shell !== '') {
+      const checked = await checkShell(shell)
+      if (typeof checked === 'string') return fail('invalid_args', checked)
+    }
     const dir = assetsDir(this.dataDir(), request.workflow)
     const spec = {
       command: bindWorkflowVar(request.command, dir),
       cwd: request.workspace,
       env: { WORKFLOW_DIR: dir },
+      ...(shell === '' ? {} : { shell }),
     }
     return ok(request.kind === 'listen' ? await tryListen(spec) : await tryPoll(spec))
   }
@@ -946,15 +1000,22 @@ const TOKEN_ISSUE: Record<TokenIssue, string> = {
   long: `令牌最长 ${String(TOKEN_MAX_LENGTH)} 个字`,
 }
 
-/** 要在本机跑的命令还没确认、或确认之后命令和工作区改过：一句原因；不用确认或确认过是 `null`。 */
-function pendingApproval(trigger: TriggerDefinition, local: TriggerLocal): string | null {
+/**
+ * 要在本机跑的命令还没确认、或确认之后命令、工作区、实际用的 shell（`shell`，空串是系统的）改过：一句原因；
+ * 不用确认或确认过是 `null`。
+ */
+function pendingApproval(
+  trigger: TriggerDefinition,
+  local: TriggerLocal,
+  shell: string,
+): string | null {
   const command = commandOf(trigger.data.source)
   if (command === undefined) return null
   if (local.workspace === undefined) return '先选命令在哪个工作区里运行'
   if (local.approved === undefined) return '要先确认将要运行的命令'
-  return local.approved === approvalOf(command, local.workspace)
+  return local.approved === approvalOf(command, local.workspace, shell)
     ? null
-    : '要运行的命令或工作区改过了，要重新确认'
+    : '要运行的命令、工作区或 shell 改过了，要重新确认'
 }
 
 /** 常驻触发源开着、确认过时的状态：按负责的进程写下的运行情况说。 */
@@ -996,13 +1057,17 @@ function liveView(
 }
 
 /** 打开开关之前要先配好的东西；都齐了是 `null`。 */
-function enableProblem(trigger: TriggerDefinition, local: TriggerLocal): string | null {
+function enableProblem(
+  trigger: TriggerDefinition,
+  local: TriggerLocal,
+  shell: string,
+): string | null {
   const { source } = trigger.data
   const problem = sourceProblem(source)
   if (problem !== null) {
     return source.kind === 'schedule' ? `定时规则不对：${problem}` : `触发设置不对：${problem}`
   }
-  const pending = pendingApproval(trigger, local)
+  const pending = pendingApproval(trigger, local, shell)
   if (pending !== null) return pending
   const missing = launchMissing(trigger.data, local)
   if (missing === 'session') return '先选定发进哪个会话'

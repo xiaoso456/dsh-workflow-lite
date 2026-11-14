@@ -108,6 +108,7 @@ export function TriggerStatus(props: {
           t,
           command,
           workspace: view?.workspace,
+          shell: view?.runShell,
           noCwd: t('trigger.confirmNoCwd'),
           testId: 'wl-trigger-approve',
           onApprove: (approved) => env.approve(node, approved),

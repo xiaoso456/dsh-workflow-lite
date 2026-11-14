@@ -256,6 +256,7 @@ function TriggerList(props: {
           t,
           command: askingCommand,
           workspace: askingEntry.view.workspace,
+          shell: askingEntry.view.runShell,
           noCwd: t('hub.trgNoCwd'),
           testId: 'wl-hub-trg-approve',
           onApprove: (command) =>

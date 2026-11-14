@@ -15,6 +15,7 @@ export const PLUGIN_CONFIG_KEYS = [
   'installSkill',
   'triggerPort',
   'triggerHost',
+  'triggerShell',
 ] as const
 export type PluginConfigKey = (typeof PLUGIN_CONFIG_KEYS)[number]
 
@@ -27,6 +28,8 @@ export interface PluginConfigValues {
   triggerPort: number
   /** HTTP 触发的监听地址（IPv4）。 */
   triggerHost: string
+  /** 轮询、监听默认用的 shell（程序的完整路径）；空串 = 系统的。 */
+  triggerShell: string
 }
 
 /** 本机一块网卡的 IPv4 地址（设置页列出来给人选监听地址）。 */

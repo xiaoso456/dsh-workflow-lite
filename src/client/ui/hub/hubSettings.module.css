@@ -51,6 +51,11 @@
   min-width: 0;
 }
 
+/* 说明处换成出错的原因（如自己挑的 shell 用不了）。 */
+.desc[data-tone="error"] {
+  color: var(--wl-danger);
+}
+
 .hostLocked {
   overflow: hidden;
   color: var(--wl-text-2);

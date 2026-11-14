@@ -31,6 +31,8 @@ export const TRIGGER_POLL_MS = 5000
 export interface TriggerChange {
   enabled?: boolean
   workspace?: string
+  /** 用哪个 shell（程序的完整路径）；空串 = 跟随默认。 */
+  shell?: string
   /** 空串 = 清掉。 */
   session?: string
   /** 确认要运行的命令：原样带上用户看到的那条。 */

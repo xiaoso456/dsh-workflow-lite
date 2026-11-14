@@ -16,9 +16,10 @@ import type { TriggerEnv } from '../triggerEnv.ts'
 import { CommandBox } from './CommandBox.tsx'
 import { IntervalField } from './IntervalField.tsx'
 import { JudgeStrip } from './JudgeStrip.tsx'
+import type { RunDrafts } from './runDraft.ts'
 import { StageRow, StageRows } from './StageRow.tsx'
 import css from './sourceStage.module.css'
-import { runWorkspace, type WorkspaceDraft, WorkspaceRow } from './WorkspaceRow.tsx'
+import { runWorkspace, WorkspaceRow } from './WorkspaceRow.tsx'
 
 type Poll = Extract<TriggerSource, { kind: 'poll' }>
 
@@ -39,7 +40,8 @@ export function PollStage(props: {
   node: string
   source: Poll
   env: TriggerEnv | null
-  workspace: WorkspaceDraft
+  /** 工作区、shell 的草稿。 */
+  run: RunDrafts
   /** 放不放最近的输出（草稿的命令和跑着的那条一样才放）。 */
   showOutput: boolean
   onChange(source: TriggerSource): void
@@ -85,9 +87,9 @@ export function PollStage(props: {
           <WorkspaceRow
             t={t}
             env={env}
-            value={props.workspace.value}
-            saved={props.workspace.saved}
-            onChange={props.workspace.onChange}
+            value={props.run.workspace.value}
+            saved={props.run.workspace.saved}
+            onChange={props.run.workspace.onChange}
           />
         )}
       </StageRows>
@@ -100,7 +102,8 @@ export function PollStage(props: {
         placeholder="git ls-remote origin -h refs/heads/main"
         templates={POLL_TEMPLATES}
         env={env}
-        workspace={runWorkspace(env, props.workspace)}
+        workspace={runWorkspace(env, props.run.workspace)}
+        shell={props.run.shell}
         recent={props.showOutput}
         judge={judge}
         onChange={(command) => props.onChange({ ...source, command })}

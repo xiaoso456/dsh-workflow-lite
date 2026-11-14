@@ -127,6 +127,7 @@ import type {
 } from './wire/run.ts'
 import type {
   FireRecord,
+  ShellChoice,
   TriggerAllResponse,
   TriggerDetailRequest,
   TriggerDetailResponse,
@@ -143,6 +144,8 @@ import type {
   TriggerPingRequest,
   TriggerPingResponse,
   TriggerSetRequest,
+  TriggerShellRequest,
+  TriggerShellsResponse,
   TriggerTryRequest,
   TriggerTryResponse,
 } from './wire/trigger.ts'
@@ -208,6 +211,8 @@ export const WORKFLOW_LITE_ENDPOINTS = [
   'trigger/http',
   'trigger/try',
   'trigger/ping',
+  'trigger/shells',
+  'trigger/shell',
   'memory/list',
   'memory/create',
   'memory/update',
@@ -325,6 +330,8 @@ export interface WorkflowLiteRpcMap {
   'trigger/http': { args: Record<string, never>; result: TriggerHttpStatus }
   'trigger/try': { args: TriggerTryRequest; result: TriggerTryResponse }
   'trigger/ping': { args: TriggerPingRequest; result: TriggerPingResponse }
+  'trigger/shells': { args: Record<string, never>; result: TriggerShellsResponse }
+  'trigger/shell': { args: TriggerShellRequest; result: ShellChoice }
   'memory/list': { args: Record<string, never>; result: MemoryListResponse }
   'memory/create': { args: MemoryCreateRequest; result: MemoryEntryResponse }
   'memory/update': { args: MemoryUpdateRequest; result: MemoryEntryResponse }

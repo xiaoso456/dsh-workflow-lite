@@ -8,7 +8,7 @@
  * 换一种方式：这一次对话框开着时那一种填过的先记着，换回来还在；没填过的给常用值，
  * 轮询和监听之间换时带上已经写好的命令（见 `source/kinds.ts`）。
  * 命令改了、保存之后，开着的卡片会停下来等重新确认（宿主比对确认过的命令）——草稿里打字不会中途把它弄成「待确认」。
- * 轮询、监听里选的工作区（本机状态，和面板「执行设置」里的是同一项）也是草稿，「保存」时一起写。
+ * 轮询、监听里选的工作区（本机状态，和面板「执行设置」里的是同一项）、shell 也是草稿，「保存」时一起写。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/trigger/dialogs/SourceDialog
  */
@@ -41,11 +41,14 @@ export function SourceDialog(props: {
   const [draft, setDraft] = useState<TriggerSource>(props.source)
   const savedWorkspace = env?.triggers.view(props.node)?.workspace ?? ''
   const [workspace, setWorkspace] = useState(savedWorkspace)
+  const savedShell = env?.triggers.view(props.node)?.shell ?? ''
+  const [shell, setShell] = useState(savedShell)
   /** 这一次对话框开着时各种方式填过的样子。 */
   const kept = useRef(new Map<TriggerSourceKind, TriggerSource>())
   const sourceDirty = JSON.stringify(draft) !== JSON.stringify(props.source)
   const workspaceDirty = workspace !== savedWorkspace
-  const dirty = sourceDirty || workspaceDirty
+  const shellDirty = shell !== savedShell
+  const dirty = sourceDirty || workspaceDirty || shellDirty
   // 现场（最近一行、地址、状态）是图里那条规则的：草稿改过就只看草稿本身。
   const view = sourceDirty ? undefined : env?.triggers.view(props.node)
   return (
@@ -65,7 +68,12 @@ export function SourceDialog(props: {
       canSave={sourceIssue(draft) === null}
       onSave={() => {
         if (sourceDirty) props.onSave(draft)
-        if (workspaceDirty && env !== null) void env.triggers.set(props.node, { workspace })
+        if ((workspaceDirty || shellDirty) && env !== null) {
+          void env.triggers.set(props.node, {
+            ...(workspaceDirty ? { workspace } : {}),
+            ...(shellDirty ? { shell } : {}),
+          })
+        }
         props.onClose()
       }}
       onClose={props.onClose}
@@ -87,7 +95,10 @@ export function SourceDialog(props: {
         saved={props.source}
         view={view}
         env={env}
-        workspace={{ value: workspace, saved: savedWorkspace, onChange: setWorkspace }}
+        run={{
+          workspace: { value: workspace, saved: savedWorkspace, onChange: setWorkspace },
+          shell: { value: shell, saved: savedShell, onChange: setShell },
+        }}
         onChange={setDraft}
       />
     </TriggerSheet>

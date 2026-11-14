@@ -11,9 +11,10 @@ import { LISTEN_TEMPLATES } from '../../../model/commandTemplates.ts'
 import { Icon } from '../../kit/Icon.tsx'
 import type { TriggerEnv } from '../triggerEnv.ts'
 import { CommandBox } from './CommandBox.tsx'
+import type { RunDrafts } from './runDraft.ts'
 import { StageRow, StageRows } from './StageRow.tsx'
 import css from './sourceStage.module.css'
-import { runWorkspace, type WorkspaceDraft, WorkspaceRow } from './WorkspaceRow.tsx'
+import { runWorkspace, WorkspaceRow } from './WorkspaceRow.tsx'
 
 type Listen = Extract<TriggerSource, { kind: 'listen' }>
 
@@ -22,7 +23,8 @@ export function ListenStage(props: {
   node: string
   source: Listen
   env: TriggerEnv | null
-  workspace: WorkspaceDraft
+  /** 工作区、shell 的草稿。 */
+  run: RunDrafts
   /** 放不放最近的输出（草稿的命令和跑着的那条一样才放）。 */
   showOutput: boolean
   onChange(source: TriggerSource): void
@@ -47,9 +49,9 @@ export function ListenStage(props: {
           <WorkspaceRow
             t={t}
             env={env}
-            value={props.workspace.value}
-            saved={props.workspace.saved}
-            onChange={props.workspace.onChange}
+            value={props.run.workspace.value}
+            saved={props.run.workspace.saved}
+            onChange={props.run.workspace.onChange}
           />
         )}
       </StageRows>
@@ -62,7 +64,8 @@ export function ListenStage(props: {
         placeholder={'node "{workflow}/triggers/watch.mjs"'}
         templates={LISTEN_TEMPLATES}
         env={env}
-        workspace={runWorkspace(env, props.workspace)}
+        workspace={runWorkspace(env, props.run.workspace)}
+        shell={props.run.shell}
         recent={props.showOutput}
         onChange={(command) => props.onChange({ ...source, command })}
         onTemplate={(template) => props.onChange({ ...source, command: template.command })}

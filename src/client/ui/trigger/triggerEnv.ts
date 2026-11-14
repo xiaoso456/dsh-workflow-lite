@@ -9,6 +9,7 @@
 
 import { createContext, useContext } from 'react'
 import type { RunStatus } from '../../../shared/runState.ts'
+import type { ShellAccess } from '../../app/shells.ts'
 import type { Triggers } from '../../app/useTriggers.ts'
 
 /** 可以选的一个会话。 */
@@ -53,6 +54,8 @@ export interface TriggerEnv {
   here: { session?: string | undefined; cwd?: string | undefined }
   /** 已知的工作区目录（侧栏里各会话所在的）。 */
   workspaces: readonly string[]
+  /** 轮询、监听选 shell 用。 */
+  shells: ShellAccess
   /** 可以选作「固定会话」的会话。 */
   sessions: readonly SessionChoice[]
   /** 接续触发能等的工作流（除了这一张之外的全部）。 */

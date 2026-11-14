@@ -34,6 +34,8 @@ export interface LiveSpec {
   command?: string
   /** 命令的追加环境变量。 */
   env?: Record<string, string>
+  /** 用哪个 shell 跑（程序的完整路径）；不给是系统的。 */
+  shell?: string
   /** 条件轮询：上一次检查的结果。 */
   probe?: Probe
   /** HTTP：地址（`/trigger/` 后面那一段）与令牌（`null` = 不校验）。 */
@@ -197,7 +199,12 @@ export class TriggerRuntime implements LiveRuntime {
       this.setStatus(spec, { state: 'running', since: this.now() })
       return { signature, intake, stop: async () => {} }
     }
-    const command = { command: spec.command ?? source.command, cwd: spec.cwd, env: spec.env ?? {} }
+    const command = {
+      command: spec.command ?? source.command,
+      cwd: spec.cwd,
+      env: spec.env ?? {},
+      ...(spec.shell === undefined ? {} : { shell: spec.shell }),
+    }
     if (source.kind === 'poll') {
       const poller = new Poller(
         {
