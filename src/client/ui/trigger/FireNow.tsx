@@ -1,8 +1,12 @@
 /**
  * dsh-workflow-lite — 「立即触发一次」：点按钮在旁边浮出一张小卡，可以写一段这一次附带的背景信息，再点「触发」。
- * 结果写在按钮右边：发出去了几秒后自己消失；没发出去的一直留着，直到下一次。
+ * 结果是一句话：发出去了几秒后自己消失；没发出去的一直留着，直到下一次。
  *
- * 画布上的面板和工作流中心「触发」页共用。背景信息不常驻在面板里：它只在手动触发时用得上。
+ * - {@link useFireNow}：按钮（连同浮出的小卡）和结果分开给，结果写在哪由用的地方定
+ *   （画布面板写进开关那个框的状态行和下面的问题行）；
+ * - {@link FireNow}：按钮右边跟着结果（工作流中心「触发」页）。
+ *
+ * 背景信息不常驻在面板里：它只在手动触发时用得上。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/trigger/FireNow
  */
@@ -23,13 +27,25 @@ const SENT_MS = 4000
 /** 发得慢时，过这么久才说「正在发」（快的时候看不见）。 */
 const SLOW_MS = 300
 
-export function FireNow(props: {
+/** 这一次的结果：`pending` 正在发（发得慢才有）、`ok` 发出去了（几秒后没有）、`bad` 没发出去。 */
+export interface FireNowResult {
+  tone: 'pending' | 'ok' | 'bad'
+  text: string
+}
+
+export interface FireNowProps {
   t: T
   /** 触发一次：回这次的记录；请求本身失败回一句原因。 */
   fire(info: string): Promise<FireRecord | string>
   /** `data-testid` 的前缀：按钮 `-fire`、输入框 `-info`、卡片里的按钮 `-fire-send`、结果 `-fire-result`。 */
   testId: string
-}): React.JSX.Element {
+}
+
+export function useFireNow(props: FireNowProps): {
+  /** 按钮和它浮出的小卡。 */
+  button: React.JSX.Element
+  result: FireNowResult | null
+} {
   const { t, testId } = props
   const float = useFloat<HTMLButtonElement>({
     openMs: 0,
@@ -97,8 +113,13 @@ export function FireNow(props: {
     setResult({ ok: false, text: t('trigger.fireFailed').replace('{reason}', record.reason ?? '') })
   }
 
-  return (
-    <div className={css.fireRow}>
+  const shown: FireNowResult | null = slow
+    ? { tone: 'pending', text: t('trigger.firing') }
+    : result === null
+      ? null
+      : { tone: result.ok ? 'ok' : 'bad', text: result.text }
+  const button = (
+    <>
       <button
         ref={anchorRef}
         type="button"
@@ -112,15 +133,6 @@ export function FireNow(props: {
         <Icon name="bolt" size={13} />
         {t('trigger.fireNow')}
       </button>
-      {/* 一直挂着，只换字。 */}
-      <span
-        className={css.fireResult}
-        data-ok={slow ? undefined : (result?.ok ?? undefined)}
-        data-pending={slow || undefined}
-        data-testid={`${testId}-fire-result`}
-      >
-        {slow ? t('trigger.firing') : (result?.text ?? '')}
-      </span>
       {float.render({
         className: ui.confirmPop,
         role: 'dialog',
@@ -167,6 +179,25 @@ export function FireNow(props: {
           </div>
         ),
       })}
+    </>
+  )
+  return { button, result: shown }
+}
+
+export function FireNow(props: FireNowProps): React.JSX.Element {
+  const { button, result } = useFireNow(props)
+  return (
+    <div className={css.fireRow}>
+      {button}
+      {/* 一直挂着，只换字。 */}
+      <span
+        className={css.fireResult}
+        data-ok={result === null || result.tone === 'pending' ? undefined : result.tone === 'ok'}
+        data-pending={result?.tone === 'pending' || undefined}
+        data-testid={`${props.testId}-fire-result`}
+      >
+        {result?.text ?? ''}
+      </span>
     </div>
   )
 }

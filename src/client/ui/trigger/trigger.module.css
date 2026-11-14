@@ -265,6 +265,84 @@
   outline-offset: 1px;
 }
 
+/*
+ * 面板最上面的框：左边开关 + 状态，右边「立即触发一次」。
+ * 开关的可点范围和悬停底色铺满整个框（`.statusSwitch::before`），不在框里再分出一块；按钮浮在它上面。
+ */
+.statusCard {
+  position: relative;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding-right: 8px;
+  border: 1px solid var(--wl-line);
+  border-radius: var(--wl-r-control);
+  isolation: isolate;
+}
+
+.statusSwitch {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--wl-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.statusSwitch::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  /* 框的圆角减去 1px 边线。 */
+  border-radius: calc(var(--wl-r-control) - 1px);
+  content: "";
+  transition: background-color 120ms linear;
+}
+
+.statusSwitch:hover::before {
+  background: var(--wl-hover);
+}
+
+.statusSwitch:focus-visible {
+  outline: none;
+}
+
+.statusSwitch:focus-visible::before {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+/* 「立即触发一次」：浮在铺满的开关上面，点它不算点开关。 */
+.statusAction {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex: none;
+}
+
+/* 状态行：色点 + 一句话，放不下就省略（颜色见 stateTone.module.css）。 */
+.statusLine {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+  color: var(--tone-text);
+  font-size: var(--wl-fs-micro);
+}
+
+.statusText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* 「立即触发一次」和它的结果。 */
 .fireRow {
   display: flex;
@@ -305,6 +383,7 @@
 }
 
 /* 瑞士：成组的列表只留上下线，圆钮成方的（圆角已经跟着 --wl-round 归零）。 */
+:global([data-look="swiss"]) .statusCard,
 :global([data-look="swiss"]) .endpoint,
 :global([data-look="swiss"]) .output {
   border-width: 1px 0;

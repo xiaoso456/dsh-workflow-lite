@@ -1,7 +1,8 @@
 /**
  * dsh-workflow-lite — 触发卡片面板里「现在怎么样」的两块，只在模板视图里出现（实例里的卡片是快照，没有现场）：
  *
- * - {@link TriggerStatus}（面板最上面）：开关与状态、出了什么问题、「立即触发一次」。
+ * - {@link TriggerStatus}（面板最上面）：一个框里左边是开关和状态（色点和画布卡片、「触发」页同一套），
+ *   右边是「立即触发一次」；刚发出去的那句话几秒内写在状态行上，没发出去的原因和别的问题写在框下面。
  *   要在本机跑命令、还没确认过的卡片，打开前在开关旁边浮出确认卡，列出命令和工作区；
  * - {@link TriggerLog}（面板最下面）：最近几次触发记录，在自己的框里滚（最近的输出在「触发方式」对话框里）。
  *
@@ -12,7 +13,7 @@ import { commandOf } from '../../../shared/trigger.ts'
 import type { TriggerData } from '../../../shared/types.ts'
 import { firesSignal, useFires } from '../../app/useFires.ts'
 import type { T } from '../../i18n.ts'
-import { stateText } from '../../model/triggerText.ts'
+import { stateText, stateTone } from '../../model/triggerText.ts'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import ui from '../kit/ui.module.css'
@@ -20,7 +21,8 @@ import { SwitchTrack } from '../motion/marks.tsx'
 import ins from '../panel/panel.module.css'
 import { useApproveConfirm } from './ApproveConfirm.tsx'
 import { FireList } from './FireList.tsx'
-import { FireNow } from './FireNow.tsx'
+import { useFireNow } from './FireNow.tsx'
+import tone from './stateTone.module.css'
 import css from './trigger.module.css'
 import type { TriggerEnv } from './triggerEnv.ts'
 
@@ -40,6 +42,12 @@ export function TriggerStatus(props: {
   const state = view?.state ?? 'off'
   const command = commandOf(data.source)
   const approve = useApproveConfirm<HTMLButtonElement>()
+  const fireNow = useFireNow({
+    t,
+    testId: 'wl-trigger',
+    fire: (info) => env.triggers.fire(node, info),
+  })
+  const fired = fireNow.result
 
   /** 开关：要跑命令、还没确认的，在开关旁边问一句；别的直接开关。 */
   const onSwitch = (): void => {
@@ -63,26 +71,38 @@ export function TriggerStatus(props: {
 
   return (
     <section className={ins.field} data-testid="wl-trigger-status" data-state={state}>
-      <button
-        ref={approve.anchorRef}
-        type="button"
-        role="switch"
-        aria-checked={on}
-        className={ins.required}
-        data-testid="wl-trigger-enable"
-        onClick={onSwitch}
-      >
-        <SwitchTrack on={on} />
-        <span className={ins.requiredText}>
-          <span className={ins.requiredTitle}>{t('trigger.switch')}</span>
-          <span className={ins.requiredDesc} data-testid="wl-trigger-state-text">
-            {/* 定时规则下面已经写着下一次，这里不再说。 */}
-            {stateText(t, view, data.source.kind, Date.now(), {
-              next: data.source.kind !== 'schedule',
-            })}
+      <div className={css.statusCard}>
+        <button
+          ref={approve.anchorRef}
+          type="button"
+          role="switch"
+          aria-checked={on}
+          className={css.statusSwitch}
+          data-testid="wl-trigger-enable"
+          onClick={onSwitch}
+        >
+          <SwitchTrack on={on} />
+          <span className={ins.requiredText}>
+            <span className={ins.requiredTitle}>{t('trigger.switch')}</span>
+            <span
+              className={cx(css.statusLine, tone.tone)}
+              data-tone={stateTone(state, data.source.kind)}
+            >
+              <span className={tone.dot} aria-hidden="true" />
+              {/* 一直挂着，只换字：刚触发的那句话（正在发 / 已发进会话）先占这一行，过后回到状态。 */}
+              <span className={css.statusText} data-testid="wl-trigger-state-text">
+                {fired !== null && fired.tone !== 'bad'
+                  ? fired.text
+                  : // 定时规则下面已经写着下一次，这里不再说。
+                    stateText(t, view, data.source.kind, Date.now(), {
+                      next: data.source.kind !== 'schedule',
+                    })}
+              </span>
+            </span>
           </span>
-        </span>
-      </button>
+        </button>
+        <span className={css.statusAction}>{fireNow.button}</span>
+      </div>
       {command !== undefined &&
         approve.render({
           t,
@@ -100,6 +120,10 @@ export function TriggerStatus(props: {
       >
         {problem}
       </p>
+      {/* 「立即触发一次」没发出去的原因：留到下一次。 */}
+      <p className={ins.error} data-testid="wl-trigger-fire-result" hidden={fired?.tone !== 'bad'}>
+        {fired?.tone === 'bad' ? fired.text : ''}
+      </p>
       {state === 'confirm' && (
         <button
           type="button"
@@ -110,7 +134,6 @@ export function TriggerStatus(props: {
           {t('trigger.confirmAgain')}
         </button>
       )}
-      <FireNow t={t} testId="wl-trigger" fire={(info) => env.triggers.fire(node, info)} />
     </section>
   )
 }

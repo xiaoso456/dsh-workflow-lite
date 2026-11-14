@@ -361,11 +361,11 @@ try {
       /fire=f-\d{8}-\d{6}-[0-9a-f]{4}/.test(body),
   )
   await sleep(1500)
-  const fireResult = await session.evaluate(textOf('[data-testid="wl-trigger-fire-result"]'))
-  check('面板上写着已发进会话', /已发进会话/.test(fireResult), fireResult)
+  const fireResult = await session.evaluate(textOf('[data-testid="wl-trigger-state-text"]'))
+  check('状态行上写着已发进会话', /已发进会话/.test(fireResult), fireResult)
   await sleep(4000)
-  const fireLater = await session.evaluate(textOf('[data-testid="wl-trigger-fire-result"]'))
-  check('「已发进会话」几秒后自己消失', fireLater === '', fireLater)
+  const fireLater = await session.evaluate(textOf('[data-testid="wl-trigger-state-text"]'))
+  check('「已发进会话」几秒后自己消失，回到状态', /等待中/.test(fireLater), fireLater)
   const history = await rpc('trigger/history', { workflow: NAME, node: 'nightly' })
   check(
     '宿主：触发记录里有一条已发出的',
