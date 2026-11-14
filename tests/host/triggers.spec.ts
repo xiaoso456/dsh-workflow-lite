@@ -1128,6 +1128,27 @@ describe('模型建触发卡片', () => {
         trigger: { source: { kind: 'poll', command: 'x', seconds: 1 } },
       }),
     ).toMatchObject({ error: { code: 'invalid_args' } })
+
+    // 轮询没写判定：按新建的缺省「每次成功」写进图；明说「变为成功」的照旧不写。
+    await run({
+      action: 'write_trigger',
+      workflow: 'patrol',
+      node: 'queue',
+      trigger: { source: { kind: 'poll', command: 'node has-work.mjs', seconds: 60 } },
+    })
+    await run({
+      action: 'write_trigger',
+      workflow: 'patrol',
+      node: 'ready',
+      trigger: { source: { kind: 'poll', command: 'node up.mjs', seconds: 60, when: 'success' } },
+    })
+    const polls = (await repository.load('patrol')).document?.nodes
+    expect(polls?.find((node) => node.id === 'queue')?.data).toMatchObject({
+      source: { when: 'every' },
+    })
+    const ready = polls?.find((node) => node.id === 'ready')?.data as { source: object } | undefined
+    expect(ready?.source).toMatchObject({ kind: 'poll' })
+    expect(ready?.source).not.toHaveProperty('when')
     expect(
       await run({ action: 'write_trigger', workflow: 'patrol', node: 'work', trigger: {} }),
     ).toMatchObject({ error: { code: 'blocked' } })
@@ -1137,7 +1158,7 @@ describe('模型建触发卡片', () => {
       triggers?: { id: string }[]
     }
     expect(index.dir).toBe(assetsDir(dataDir, 'patrol'))
-    expect(index.triggers?.map((item) => item.id)).toEqual(['tick', 'trigger'])
+    expect(index.triggers?.map((item) => item.id)).toEqual(['tick', 'trigger', 'queue', 'ready'])
   })
 
   it('接续触发：触发源里写等哪个工作流、什么结果', async () => {

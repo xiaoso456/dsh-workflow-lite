@@ -948,6 +948,18 @@ try {
       )),
     templated,
   )
+  // 「每次成功」：示意里成功的四次都执行，下面那句话换成每次成功的说法。
+  await session.evaluate(clickTestId('wl-trigger-poll-when-every'))
+  await sleep(400)
+  const everyFires = await session.evaluate(
+    `document.querySelectorAll('[data-testid="wl-trigger-judge"] [data-mark="fire"]').length`,
+  )
+  const everyHint = await session.evaluate(textOf('[data-testid="wl-trigger-poll-hint"]'))
+  check(
+    '判定换成「每次成功」：示意里四次成功都执行，说明跟着换',
+    everyFires === 4 && everyHint.includes('每次成功都执行'),
+    `${everyFires} ${everyHint}`,
+  )
   await session.evaluate(clickTestId('wl-trigger-poll-when-success'))
   await sleep(300)
   // 试运行：先问一句，确认了才在工作区里跑；写出退出码、算成功还是失败、输出。不打开开关。
@@ -984,8 +996,8 @@ try {
   await sleep(1500)
   const hookText = await session.evaluate(textOf(HOOK))
   check(
-    '卡片写着每 5 分钟、执行成功，是主动的',
-    /每 5 分钟/.test(hookText) && /执行成功/.test(hookText) && /主动/.test(hookText),
+    '卡片写着每 5 分钟、变为成功，是主动的',
+    /每 5 分钟/.test(hookText) && /变为成功/.test(hookText) && /主动/.test(hookText),
     hookText,
   )
   await capture(session, 'poll-panel-light.png')

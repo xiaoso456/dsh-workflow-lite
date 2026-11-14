@@ -52,6 +52,9 @@ describe('顶上那句话', () => {
     expect(sourceSay(t, { kind: 'poll', command: 'git status', seconds: 60 })).toBe(
       '每 1 分钟跑一次命令，由失败变为成功时执行',
     )
+    expect(sourceSay(t, { kind: 'poll', command: 'git status', seconds: 60, when: 'every' })).toBe(
+      '每 1 分钟跑一次命令，每次成功时执行',
+    )
 
     const listen = sourceSay(en, { kind: 'listen', command: 'node watch.mjs' })
     expect(listen).toBe('Keeps watch.mjs running and fires on every line it prints')

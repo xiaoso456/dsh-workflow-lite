@@ -54,7 +54,7 @@ describe('触发卡片的速览', () => {
     })
     expect(triggerGlance(t, { kind: 'poll', command: 'x', seconds: 45 })).toMatchObject({
       every: '每 45 秒',
-      when: '执行成功',
+      when: '变为成功',
     })
     expect(triggerGlance(tEn, { kind: 'poll', command: 'x', seconds: 7200 })).toMatchObject({
       every: 'Every 2 h',

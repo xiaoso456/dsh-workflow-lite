@@ -340,8 +340,12 @@ export type TriggerSchedule =
     }
   | { kind: 'cron'; expression: string }
 
-/** 条件轮询什么时候算「满足」：命令成功（退出码 0，只在从不成功变成成功时触发一次）/ 输出变了。 */
-export type PollWhen = 'success' | 'change'
+/**
+ * 条件轮询什么时候触发：每次成功（退出码 0）/ 由失败变为成功（一直成功不重复触发）/ 输出变了。
+ * 新建的卡片用每次成功（`NEW_POLL_WHEN`，见 shared/trigger.ts，写进图里）；图里不写判定的是「由失败变为成功」——
+ * 早先的卡片都这样存，读出来意思不变。
+ */
+export type PollWhen = 'success' | 'every' | 'change'
 
 /** 另一个工作流的实例以什么结果结束才触发：成功（`done`）/ 失败（`failed`）/ 不论结果（含取消）。 */
 export type AfterWhen = 'done' | 'failed' | 'any'
@@ -360,7 +364,7 @@ export type AfterWhen = 'done' | 'failed' | 'any'
  */
 export type TriggerSource =
   | { kind: 'schedule'; schedule: TriggerSchedule }
-  | { kind: 'poll'; command: string; seconds: number; when?: Extract<PollWhen, 'change'> }
+  | { kind: 'poll'; command: string; seconds: number; when?: Exclude<PollWhen, 'success'> }
   | { kind: 'listen'; command: string }
   | { kind: 'http' }
   | { kind: 'after'; workflow: string; when?: Exclude<AfterWhen, 'done'> }

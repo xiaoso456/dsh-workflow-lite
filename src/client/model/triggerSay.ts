@@ -67,6 +67,7 @@ export function programName(command: string): string {
 
 const POLL_WHEN: Record<PollWhen, LocaleKey> = {
   success: 'trigger.say.pollSuccess',
+  every: 'trigger.say.pollEvery',
   change: 'trigger.say.pollChange',
 }
 

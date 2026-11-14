@@ -93,10 +93,13 @@ export function isFilterKind(kind: TriggerSourceKind): kind is FilterKind {
   return kind === 'poll' || kind === 'listen' || kind === 'http'
 }
 
+/** 新建的轮询用哪种判定（写进图里；图里不写的是早先的「由失败变为成功」）。 */
+export const NEW_POLL_WHEN = 'every' satisfies PollWhen
+
 /** 换一种触发源时给的常用值。 */
 export const SOURCE_SEED: Record<TriggerSourceKind, TriggerSource> = {
   schedule: DEFAULT_TRIGGER.source,
-  poll: { kind: 'poll', command: '', seconds: DEFAULT_POLL_SECONDS },
+  poll: { kind: 'poll', command: '', seconds: DEFAULT_POLL_SECONDS, when: NEW_POLL_WHEN },
   listen: { kind: 'listen', command: '' },
   http: { kind: 'http' },
   after: { kind: 'after', workflow: '' },
@@ -164,7 +167,7 @@ function readSource(raw: unknown): TriggerSource {
       kind: 'poll',
       command,
       seconds: typeof input.seconds === 'number' ? input.seconds : DEFAULT_POLL_SECONDS,
-      ...(input.when === 'change' ? { when: 'change' as const } : {}),
+      ...(input.when === 'change' || input.when === 'every' ? { when: input.when } : {}),
     }
   }
   if (input.kind === 'listen') return { kind: 'listen', command }
@@ -380,6 +383,16 @@ export function commandOf(source: TriggerSource): string | undefined {
   return source.kind === 'poll' || source.kind === 'listen' ? source.command : undefined
 }
 
+/**
+ * 模型写的触发卡片：轮询没写判定时按新建的缺省（{@link NEW_POLL_WHEN}）补上，
+ * 不落成「图里不写」（那是早先卡片的「由失败变为成功」）。别的原样。
+ */
+export function withNewPollWhen(trigger: Record<string, unknown>): Record<string, unknown> {
+  const { source } = trigger
+  if (!isPlainObject(source) || source.kind !== 'poll' || source.when !== undefined) return trigger
+  return { ...trigger, source: { ...source, when: NEW_POLL_WHEN } }
+}
+
 /** 条件轮询的判定方式，补上缺省。 */
 export function pollWhen(source: Extract<TriggerSource, { kind: 'poll' }>): PollWhen {
   return source.when ?? 'success'
@@ -452,7 +465,9 @@ export function secondsText(seconds: number): string {
 export function sourceText(source: TriggerSource): string {
   if (source.kind === 'schedule') return `定时（${scheduleText(source.schedule)}）`
   if (source.kind === 'poll') {
-    const when = pollWhen(source) === 'change' ? '输出变了' : '命令成功'
+    const when = { success: '命令由失败变为成功', every: '命令成功', change: '输出变了' }[
+      pollWhen(source)
+    ]
     return `条件轮询（每 ${secondsText(source.seconds)} 跑一次命令，${when}时触发）`
   }
   if (source.kind === 'listen') return '监听程序打出了一行'

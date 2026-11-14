@@ -23,14 +23,15 @@ import { runWorkspace, type WorkspaceDraft, WorkspaceRow } from './WorkspaceRow.
 type Poll = Extract<TriggerSource, { kind: 'poll' }>
 
 const WHENS: readonly { value: PollWhen; label: LocaleKey; hint: LocaleKey }[] = [
+  { value: 'every', label: 'trigger.pollWhen.every', hint: 'trigger.pollHint.every' },
   { value: 'success', label: 'trigger.pollWhen.success', hint: 'trigger.pollHint.success' },
   { value: 'change', label: 'trigger.pollWhen.change', hint: 'trigger.pollHint.change' },
 ]
 
-/** 换判定方式：「执行成功」是缺省，不写进图。 */
+/** 换判定方式：「变为成功」不写进图（早先的卡片都这样存，见 PollWhen），另两种写进去。 */
 function withWhen(source: Poll, when: PollWhen): Poll {
   const { when: _old, ...rest } = source
-  return when === 'change' ? { ...rest, when } : rest
+  return when === 'success' ? rest : { ...rest, when }
 }
 
 export function PollStage(props: {

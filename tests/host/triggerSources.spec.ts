@@ -125,6 +125,16 @@ describe('条件轮询', () => {
     expect(judge('success', { ok: false }, result(0)).met).toBe(true)
   })
 
+  it('每次成功时触发：一直成功就每次都触发，失败的那次不触发', () => {
+    expect(judge('every', {}, result(0))).toEqual({ met: true, probe: { ok: true } })
+    expect(judge('every', { ok: true }, result(0)).met).toBe(true)
+    expect(judge('every', { ok: true }, result(3))).toEqual({
+      met: false,
+      probe: { ok: false },
+      note: '命令返回 3',
+    })
+  })
+
   it('输出变了时触发：第一次只记下；非零的那次不拿来比；首尾空白不算变化', () => {
     const first = judge('change', {}, result(0, 'abc\n'))
     expect(first.met).toBe(false)

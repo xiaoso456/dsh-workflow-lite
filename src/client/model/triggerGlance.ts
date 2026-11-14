@@ -44,6 +44,7 @@ export type TriggerGlance =
 
 const POLL_WHEN: Record<PollWhen, LocaleKey> = {
   success: 'trigger.pollWhen.success',
+  every: 'trigger.pollWhen.every',
   change: 'trigger.pollWhen.change',
 }
 

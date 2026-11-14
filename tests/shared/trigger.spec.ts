@@ -100,6 +100,12 @@ describe('轮询、监听程序、HTTP', () => {
       seconds: 300,
       when: 'change',
     })
+    expect(readTriggerData({ source: { kind: 'poll', when: 'every' } }).source).toMatchObject({
+      when: 'every',
+    })
+    expect(readTriggerData({ source: { kind: 'poll', when: 'often' } }).source).not.toHaveProperty(
+      'when',
+    )
     expect(readTriggerData({ source: { kind: 'listen', command: 1 } }).source).toEqual({
       kind: 'listen',
       command: '',
@@ -151,6 +157,12 @@ describe('轮询、监听程序、HTTP', () => {
     expect(commandOf({ kind: 'listen', command: 'node a.mjs' })).toBe('node a.mjs')
     expect(sourceText({ kind: 'poll', command: 'x', seconds: 300, when: 'change' })).toBe(
       '条件轮询（每 5 分钟 跑一次命令，输出变了时触发）',
+    )
+    expect(sourceText({ kind: 'poll', command: 'x', seconds: 300, when: 'every' })).toBe(
+      '条件轮询（每 5 分钟 跑一次命令，命令成功时触发）',
+    )
+    expect(sourceText({ kind: 'poll', command: 'x', seconds: 300 })).toBe(
+      '条件轮询（每 5 分钟 跑一次命令，命令由失败变为成功时触发）',
     )
     expect(sourceText({ kind: 'http' })).toBe('收到一个 HTTP 请求')
   })

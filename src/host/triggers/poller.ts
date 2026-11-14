@@ -81,10 +81,11 @@ export function judge(
   previous: Probe,
   result: RunResult,
 ): { met: boolean; probe: Probe; note?: string } {
-  if (when === 'success') {
+  if (when === 'success' || when === 'every') {
     const ok = result.code === 0
     return {
-      met: ok && previous.ok !== true,
+      // 由失败变为成功：上一次成功过就不再触发；每次成功：成功就触发。
+      met: ok && (when === 'every' || previous.ok !== true),
       probe: { ok },
       ...(ok ? {} : { note: `命令返回 ${String(result.code)}` }),
     }

@@ -2,7 +2,7 @@
  * dsh-workflow-lite — 轮询「判定」旁边的示意：一排 6 次检查，每次的结果（退出码或输出）、算什么、哪几次执行。
  * 规则看一眼就懂，下面再一句话补齐（背景信息、第一次怎样）。
  *
- * 两种判定都是 6 格，换判定只换字和属性，不插拔元素。
+ * 三种判定都是 6 格，换判定只换字和属性，不插拔元素。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/trigger/source/JudgeStrip
  */
@@ -29,6 +29,14 @@ export const JUDGE_EXAMPLES: Record<PollWhen, readonly Check[]> = {
     { value: '2', caption: 'trigger.judge.failed', mark: 'none' },
     { value: '0', caption: 'trigger.judge.fire', mark: 'fire' },
     { value: '0', caption: 'trigger.judge.still', mark: 'hold' },
+  ],
+  every: [
+    { value: '1', caption: 'trigger.judge.failed', mark: 'none' },
+    { value: '0', caption: 'trigger.judge.fire', mark: 'fire' },
+    { value: '0', caption: 'trigger.judge.fire', mark: 'fire' },
+    { value: '2', caption: 'trigger.judge.failed', mark: 'none' },
+    { value: '0', caption: 'trigger.judge.fire', mark: 'fire' },
+    { value: '0', caption: 'trigger.judge.fire', mark: 'fire' },
   ],
   change: [
     { value: 'A', caption: 'trigger.judge.first', mark: 'none' },

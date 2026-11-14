@@ -598,7 +598,7 @@ async function triggerSourceShots(session) {
       'trigger-poll',
       await session.evaluate(rectOf(`[data-testid="${SOURCE_DIALOG}"]`)),
     )
-    // 试运行：草稿里换成「执行成功」和一条哪都能跑的命令，确认后跑一次，拍命令框和结果。
+    // 试运行：草稿里换成「变为成功」和一条哪都能跑的命令，确认后跑一次，拍命令框和结果。
     if (wants('trigger-try')) {
       await session.evaluate(clickTestId('wl-trigger-poll-when-success'))
       await setReactInput(session, '[data-testid="wl-trigger-command"]', 'git --version')

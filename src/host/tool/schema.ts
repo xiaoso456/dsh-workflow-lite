@@ -426,9 +426,9 @@ export const PARAMETERS = {
           },
           when: {
             type: 'string',
-            enum: ['success', 'change', 'failed', 'any'],
+            enum: ['every', 'success', 'change', 'failed', 'any'],
             description:
-              'poll：success（缺省）命令从不成功变成成功（退出码 0）时触发一次 / change 输出和上一次不一样时触发。after：不给 = 那个工作流成功（done）时触发 / failed 失败时 / any 不论结果（含取消）。',
+              'poll：every（缺省）每次成功（退出码 0）都触发，命令自己判断有没有要处理的事 / success 从不成功变成成功时触发一次（等某件事完成）/ change 输出和上一次不一样时触发。after：不给 = 那个工作流成功（done）时触发 / failed 失败时 / any 不论结果（含取消）。',
           },
           workflow: {
             type: 'string',
