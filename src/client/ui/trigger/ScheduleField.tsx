@@ -24,6 +24,9 @@ import { Icon } from '../kit/Icon.tsx'
 import { Segmented } from '../kit/Segmented.tsx'
 import { Select } from '../kit/Select.tsx'
 import ui from '../kit/ui.module.css'
+import { Presence } from '../motion/exits.tsx'
+import { useResizeFlip } from '../motion/flip.ts'
+import { useRowKeys } from '../motion/stage.tsx'
 import { CronEditor } from './CronEditor.tsx'
 import css from './schedule.module.css'
 import row from './trigger.module.css'
@@ -98,35 +101,48 @@ export function ScheduleField(props: {
           />
         </div>
       </div>
-      {schedule.kind === 'every' && (
-        <EveryRow
-          t={t}
-          minutes={schedule.minutes}
-          onChange={props.onChange}
-          onSeal={props.onSeal}
-        />
-      )}
-      {schedule.kind === 'daily' && (
-        <>
-          <TimesRow t={t} schedule={schedule} onChange={props.onChange} onSeal={props.onSeal} />
-          <DaysRow t={t} schedule={schedule} onChange={props.onChange} />
-        </>
-      )}
-      {schedule.kind === 'cron' && (
-        <div className={cx(row.row, css.top)}>
-          <span className={cx(row.lead, css.leadCron)}>{t('trigger.cronLead')}</span>
-          <div className={css.cron}>
-            <CronEditor
-              t={t}
-              expression={schedule.expression}
-              onChange={(expression, typing) =>
-                props.onChange({ kind: 'cron', expression }, typing)
-              }
-              onSeal={props.onSeal}
-            />
-          </div>
-        </div>
-      )}
+      {/* 三种各一块：换一种时旧的收起、新的长开（高度连续变），下面的东西顺势挪，不是一下跳开。 */}
+      <div className={css.kindRows}>
+        <Presence show={schedule.kind === 'every'}>
+          {schedule.kind === 'every' && (
+            <div className={css.kindBlock}>
+              <EveryRow
+                t={t}
+                minutes={schedule.minutes}
+                onChange={props.onChange}
+                onSeal={props.onSeal}
+              />
+            </div>
+          )}
+        </Presence>
+        <Presence show={schedule.kind === 'daily'}>
+          {schedule.kind === 'daily' && (
+            <div className={css.kindBlock}>
+              <TimesRow t={t} schedule={schedule} onChange={props.onChange} onSeal={props.onSeal} />
+              <DaysRow t={t} schedule={schedule} onChange={props.onChange} />
+            </div>
+          )}
+        </Presence>
+        <Presence show={schedule.kind === 'cron'}>
+          {schedule.kind === 'cron' && (
+            <div className={css.kindBlock}>
+              <div className={cx(row.row, css.top)}>
+                <span className={cx(row.lead, css.leadCron)}>{t('trigger.cronLead')}</span>
+                <div className={css.cron}>
+                  <CronEditor
+                    t={t}
+                    expression={schedule.expression}
+                    onChange={(expression, typing) =>
+                      props.onChange({ kind: 'cron', expression }, typing)
+                    }
+                    onSeal={props.onSeal}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </Presence>
+      </div>
     </>
   )
 }
@@ -140,6 +156,9 @@ function TimesRow(props: {
 }): React.JSX.Element {
   const { t, schedule } = props
   const times = dailyTimes(schedule)
+  // 时刻按位置认，配一串稳定的键：去掉中间一个时，没的是那一个框（留个影子淡掉），后面的滑过来。
+  const rowKeys = useRowKeys(times.length)
+  const flip = useResizeFlip({ exit: true, enter: true })
   const set = (next: readonly string[], typing?: boolean): void =>
     props.onChange(withDailyTimes(schedule, next), typing)
   /** 新加的时刻：最后一个往后一小时（过了半夜就绕回来），和已有的重了再往后挪。 */
@@ -152,11 +171,9 @@ function TimesRow(props: {
   return (
     <div className={cx(row.row, css.top)}>
       <span className={cx(row.lead, css.leadTop)}>{t('trigger.time')}</span>
-      <div className={css.times}>
+      <div ref={flip} className={css.times}>
         {times.map((time, index) => (
-          // 顺序就是身份：改一个时刻时别的框不动。
-          // biome-ignore lint/suspicious/noArrayIndexKey: 时刻会被改写，没有别的稳定标识
-          <span key={index} className={css.timeBox} data-removable={times.length > 1}>
+          <span key={rowKeys.keys[index]} className={css.timeBox} data-removable={times.length > 1}>
             <input
               type="time"
               className={cx(ui.input, css.time)}
@@ -181,7 +198,10 @@ function TimesRow(props: {
                 aria-label={t('trigger.timeRemove')}
                 data-tip={t('trigger.timeRemove')}
                 data-testid={`wl-trigger-time-remove-${String(index)}`}
-                onClick={() => set(times.filter((_, at) => at !== index))}
+                onClick={() => {
+                  rowKeys.drop(index)
+                  set(times.filter((_, at) => at !== index))
+                }}
               >
                 <Icon name="x" size={12} />
               </button>

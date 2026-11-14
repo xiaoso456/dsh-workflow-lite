@@ -8,10 +8,12 @@ import { commandOf } from '../../../../shared/trigger.ts'
 import type { TriggerSource } from '../../../../shared/types.ts'
 import type { TriggerView } from '../../../../shared/wire/trigger.ts'
 import type { T } from '../../../i18n.ts'
+import { Staged } from '../../motion/stage.tsx'
 import { triggerTint } from '../TriggerMark.tsx'
 import type { TriggerEnv } from '../triggerEnv.ts'
 import { AfterStage } from './AfterStage.tsx'
 import { HttpStage } from './HttpStage.tsx'
+import { SOURCE_KINDS } from './kinds.ts'
 import { ListenStage } from './ListenStage.tsx'
 import { PollStage } from './PollStage.tsx'
 import { ScheduleStage } from './ScheduleStage.tsx'
@@ -48,40 +50,48 @@ export function SourceStage(props: {
       data-testid="wl-trigger-when"
       data-kind={source.kind}
     >
-      {source.kind === 'schedule' && (
-        <ScheduleStage
-          t={t}
-          schedule={source.schedule}
-          live={live}
-          onChange={(schedule) => props.onChange({ kind: 'schedule', schedule })}
-        />
-      )}
-      {source.kind === 'poll' && (
-        <PollStage
-          t={t}
-          node={props.node}
-          source={source}
-          env={env}
-          workspace={props.workspace}
-          showOutput={showOutput}
-          onChange={props.onChange}
-        />
-      )}
-      {source.kind === 'listen' && (
-        <ListenStage
-          t={t}
-          node={props.node}
-          source={source}
-          env={env}
-          workspace={props.workspace}
-          showOutput={showOutput}
-          onChange={props.onChange}
-        />
-      )}
-      {source.kind === 'http' && <HttpStage t={t} node={props.node} env={env} />}
-      {source.kind === 'after' && (
-        <AfterStage t={t} source={source} env={env} onChange={props.onChange} />
-      )}
+      {/* 换一种方式：旧的往左栏移动的反方向退、新的从那边进来（左栏往下选，新的从下面上来）。 */}
+      <Staged
+        at={source.kind}
+        order={SOURCE_KINDS.findIndex((kind) => kind.value === source.kind)}
+        axis="y"
+        className={css.staged}
+      >
+        {source.kind === 'schedule' && (
+          <ScheduleStage
+            t={t}
+            schedule={source.schedule}
+            live={live}
+            onChange={(schedule) => props.onChange({ kind: 'schedule', schedule })}
+          />
+        )}
+        {source.kind === 'poll' && (
+          <PollStage
+            t={t}
+            node={props.node}
+            source={source}
+            env={env}
+            workspace={props.workspace}
+            showOutput={showOutput}
+            onChange={props.onChange}
+          />
+        )}
+        {source.kind === 'listen' && (
+          <ListenStage
+            t={t}
+            node={props.node}
+            source={source}
+            env={env}
+            workspace={props.workspace}
+            showOutput={showOutput}
+            onChange={props.onChange}
+          />
+        )}
+        {source.kind === 'http' && <HttpStage t={t} node={props.node} env={env} />}
+        {source.kind === 'after' && (
+          <AfterStage t={t} source={source} env={env} onChange={props.onChange} />
+        )}
+      </Staged>
     </div>
   )
 }

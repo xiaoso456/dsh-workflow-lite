@@ -15,6 +15,15 @@
   overflow: hidden;
 }
 
+/* 不裁的一种（「触发方式」右边：里面有往外伸的下拉）：只在交接的那一下裁。 */
+.stage.loose {
+  overflow: visible;
+}
+
+.stage.loose[data-moving] {
+  overflow: hidden;
+}
+
 .stageBody {
   display: flex;
   flex: 1 1 auto;

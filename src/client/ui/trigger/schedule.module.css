@@ -35,7 +35,40 @@
 }
 
 /* 时刻：一个一个框，放不下就折行，最后是「添加时刻」。 */
+/* 三种规则各一块（Presence 里）：块与块之间没有间距，块里的行和外面一样隔 10px，块的上沿留出和上一行的距离。 */
+.kindRows {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  margin-top: -10px;
+}
+
+.kindBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 10px;
+}
+
+/* 有了第二个时刻，「×」淡入（第一个框同时变宽，后面的框滑过去）。 */
+.timeRemove {
+  animation: timeRemoveIn 160ms linear backwards;
+}
+
+@keyframes timeRemoveIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .timeRemove {
+    animation: none;
+  }
+}
+
 .times {
+  position: relative;
   display: flex;
   flex: 1 1 auto;
   flex-wrap: wrap;

@@ -11,6 +11,7 @@ import type { TriggerTryResponse } from '../../../../shared/wire/trigger.ts'
 import type { LocaleKey, T } from '../../../i18n.ts'
 import { POLL_TEMPLATES } from '../../../model/commandTemplates.ts'
 import { Segmented } from '../../kit/Segmented.tsx'
+import { FadeStack } from '../../motion/stage.tsx'
 import type { TriggerEnv } from '../triggerEnv.ts'
 import { CommandBox } from './CommandBox.tsx'
 import { IntervalField } from './IntervalField.tsx'
@@ -60,7 +61,12 @@ export function PollStage(props: {
         />
         <StageRow
           label={t('trigger.pollWhen')}
-          note={t(WHENS.find((item) => item.value === when)?.hint ?? 'trigger.pollHint.success')}
+          note={
+            <FadeStack
+              at={when}
+              items={WHENS.map((item) => ({ key: item.value, node: t(item.hint) }))}
+            />
+          }
           noteTestId="wl-trigger-poll-hint"
         >
           <div className={css.judge}>

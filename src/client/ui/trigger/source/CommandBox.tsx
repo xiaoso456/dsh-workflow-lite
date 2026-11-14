@@ -58,6 +58,8 @@ export function CommandBox(props: {
   const { t, env } = props
   const [trial, setTrial] = useState<Trial>({ kind: 'idle' })
   const [menu, setMenu] = useState<MenuPlace | null>(null)
+  /** 从模板换进来几次：每次让命令从下面浮上来一下（换属性重放 CSS 动画，不重挂输入框）。 */
+  const [fresh, setFresh] = useState(0)
   const menuButton = useRef<HTMLButtonElement>(null)
   const confirm = useConfirm<HTMLButtonElement>()
   const workspace = env === null ? undefined : props.workspace
@@ -128,6 +130,7 @@ export function CommandBox(props: {
             menuButton.current?.focus()
             if (template === undefined) return
             setTrial({ kind: 'idle' })
+            setFresh((count) => count + 1)
             props.onTemplate(template)
           }}
         />
@@ -172,7 +175,7 @@ export function CommandBox(props: {
       testId="wl-trigger-command-box"
       split
     >
-      <div className={css.code}>
+      <div className={css.code} data-fresh={fresh === 0 ? undefined : fresh % 2 === 1 ? 'a' : 'b'}>
         <span className={css.prompt} aria-hidden="true">
           $
         </span>

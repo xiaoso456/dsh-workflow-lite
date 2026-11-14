@@ -3,6 +3,8 @@
  * 下面一行小字写下一次（定时）或写得不对的原因；贴着 ✕ 一个小标记写现在怎样（等待中、接收中、有改动没保存）。
  *
  * 规则和现状分开放：改设置只换中间的字，状态变了只换右边的标记。一直挂着，只换字、换属性（不插拔元素）。
+ * 换字都是新旧交接（SwapText）；第二行没字时也占着，换种类时第一行不上下跳；
+ * 状态标记的宽度随字变，底面贴着右边滑着伸缩（useGlide），不是一下子变宽。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/trigger/source/SourceSummary
  */
@@ -21,6 +23,8 @@ import {
   stateTone,
 } from '../../../model/triggerText.ts'
 import { cx } from '../../kit/cx.ts'
+import { useGlide } from '../../motion/exits.tsx'
+import { SwapText } from '../../motion/swapText.tsx'
 import tone from '../stateTone.module.css'
 import { triggerTint } from '../TriggerMark.tsx'
 import css from './summary.module.css'
@@ -52,6 +56,7 @@ export function SourceSummary(props: {
   dirty: boolean
 }): React.JSX.Element {
   const { t, source, view } = props
+  const glide = useGlide(undefined, 'right')
   const now = Date.now()
   const say = sourceSay(t, source)
   const problem = draftProblem(t, source)
@@ -77,20 +82,24 @@ export function SourceSummary(props: {
     >
       <div className={css.lines}>
         <p className={css.say} data-tip={say} data-testid="wl-trigger-rule-title">
-          {say}
+          <SwapText text={say} />
         </p>
         <p className={css.sub} data-problem={problem !== null} data-testid="wl-trigger-preview">
-          {sub}
+          <SwapText text={sub} />
         </p>
       </div>
       <span
+        ref={glide}
         className={cx(css.state, tone.tone)}
         data-tone={state?.tone}
         data-shown={state !== null}
         data-testid="wl-trigger-summary-state"
       >
-        <span className={tone.dot} />
-        {state?.text ?? ''}
+        <span className={css.stateSurface} data-glide-surface="" aria-hidden="true" />
+        <span className={tone.dot} data-glide="" />
+        <span className={css.stateText} data-glide="">
+          <SwapText text={state?.text ?? ''} />
+        </span>
       </span>
     </div>
   )

@@ -17,6 +17,7 @@ import { useConfirm } from '../../kit/Confirm.tsx'
 import { cx } from '../../kit/cx.ts'
 import { Icon } from '../../kit/Icon.tsx'
 import { FadeText } from '../../motion/marks.tsx'
+import { Staged } from '../../motion/stage.tsx'
 import { PickThumb } from '../../motion/thumb.tsx'
 import type { TriggerEnv } from '../triggerEnv.ts'
 import { Bench, benchButton, benchPrimary } from './Bench.tsx'
@@ -59,7 +60,7 @@ export function HttpStage(props: {
     return (
       <>
         <StageRows>
-          <StageRow label={t('trigger.url')} top>
+          <StageRow label={t('trigger.url')}>
             <p className={stage.fact} data-testid="wl-trigger-http-pending">
               <span className={css.method}>POST</span>
               {env === null ? t('trigger.httpPending') : (problem ?? t('trigger.httpPreparing'))}
@@ -196,9 +197,16 @@ function Snippets(props: {
         </>
       }
     >
-      <pre className={css.code} data-testid="wl-trigger-snippet">
-        {shown}
-      </pre>
+      {/* 换语言从页签那一侧进来；露出 / 遮住令牌、要不要令牌只淡一下。 */}
+      <Staged
+        at={`${lang}|${token === null}|${props.reveal}`}
+        order={SNIPPET_LANGS.indexOf(lang)}
+        className={css.snippetStage}
+      >
+        <pre className={css.code} data-testid="wl-trigger-snippet">
+          {shown}
+        </pre>
+      </Staged>
     </Bench>
   )
 }

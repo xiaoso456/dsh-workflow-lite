@@ -11,6 +11,11 @@
   min-width: 0;
 }
 
+/* 换种类时交接的那一层：平时不裁（下拉、浮层照常伸出去），只在交接的那一下裁住影子（见 motion/stage.module.css）。 */
+.staged {
+  flex: 1 0 auto;
+}
+
 /* ── 设置行 ─────────────────────────────────────────────────── */
 
 .rows {
@@ -21,13 +26,12 @@
   min-width: 0;
 }
 
-/* 内容不止一行高：标签对着第一行（控件 26–30px 高）。 */
-.rowTop {
-  align-items: flex-start;
-}
-
-.leadTop {
-  line-height: 28px;
+/*
+ * 标签和右边第一行的字对齐（基线），右边多高、下面出不出说明都不动：
+ * 说明出现、收起时标签原地不动（按「居中」「顶对齐」两种排法切，标签会跳）。
+ */
+.rows > .row {
+  align-items: baseline;
 }
 
 /* 标签后面跟着「?」：和标签文字排在一行。 */
@@ -55,15 +59,17 @@
   min-width: 0;
 }
 
+/* 说明的一格（Presence）：上下距离画在里面（收起时连同间距一起收掉），抵掉外面的 gap。 */
+.noteSlot {
+  margin-top: -5px;
+}
+
 .rowNote {
   margin: 0;
+  padding-top: 5px;
   color: var(--wl-text-3);
   font-size: var(--wl-fs-micro);
   line-height: 1.5;
-}
-
-.rowNote:empty {
-  display: none;
 }
 
 .rowNote[data-problem="true"] {
@@ -87,7 +93,7 @@
 .fact {
   display: flex;
   margin: 0;
-  align-items: flex-start;
+  align-items: baseline;
   gap: 8px;
   min-height: 28px;
   padding-top: 5px;
@@ -98,6 +104,7 @@
 
 .fact > svg {
   flex: none;
-  margin-top: 2px;
+  align-self: flex-start;
+  margin-top: 3px;
   color: var(--wl-text-3);
 }

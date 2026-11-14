@@ -37,6 +37,8 @@ export type StageDir = -1 | 0 | 1
  */
 export function useStage(
   options: {
+    /** 往里 / 往回走沿哪个方向挪：`x` 横向（缺省，页签、步骤）、`y` 纵向（从竖排的一列里换）。 */
+    axis?: 'x' | 'y'
     /** 旧内容淡出用多久（默认 150ms）。 */
     outMs?: number
     /** 新内容等多久再进来（默认 40ms；平级跳转不等）。行密、字多的列表把它设得接近 `outMs`，两层文字就不会叠在一起。 */
@@ -52,6 +54,7 @@ export function useStage(
   const body = useRef<HTMLElement | null>(null)
   const outMs = options.outMs ?? STAGE_OUT_MS
   const delayMs = options.delayMs ?? 40
+  const axis = options.axis === 'y' ? 'translateY' : 'translateX'
   const leave = useCallback(
     (dir: StageDir): void => {
       const frame = wrap.current
@@ -61,6 +64,8 @@ export function useStage(
       const host = frame.getBoundingClientRect()
       if (box.height === 0) return
       const ghost = ghostClone(node)
+      // 交接的这一下裁住影子（平时不裁的外层，见 Staged 的 `axis="y"`）。
+      frame.dataset.moving = ''
       Object.assign(ghost.node.style, {
         position: 'absolute',
         top: `${box.top - host.top}px`,
@@ -76,7 +81,7 @@ export function useStage(
       ghost.node.animate(
         [
           { transform: 'none' },
-          { transform: dir === 0 ? 'translateY(-4px)' : `translateX(${-dir * STAGE_SHIFT}px)` },
+          { transform: dir === 0 ? 'translateY(-4px)' : `${axis}(${-dir * STAGE_SHIFT}px)` },
         ],
         { duration: STAGE_IN_MS, easing: EASE_OUT, fill: 'forwards' },
       )
@@ -85,20 +90,26 @@ export function useStage(
         easing: 'linear',
         fill: 'forwards',
       })
-      const drop = (): void => ghost.node.remove()
+      const drop = (): void => {
+        ghost.node.remove()
+        if (frame.querySelector(':scope > [aria-hidden="true"]') === null)
+          delete frame.dataset.moving
+      }
       out.finished.then(drop, drop)
     },
-    [outMs],
+    [outMs, axis],
   )
   const enter = useCallback(
     (dir: StageDir): void => {
       const node = body.current
       if (node === null || REDUCED?.matches === true) return
-      node.animate(
+      const frame = wrap.current
+      if (frame !== null) frame.dataset.moving = ''
+      const anim = node.animate(
         [
           {
             opacity: 0,
-            transform: dir === 0 ? 'translateY(4px)' : `translateX(${dir * STAGE_SHIFT}px)`,
+            transform: dir === 0 ? 'translateY(4px)' : `${axis}(${dir * STAGE_SHIFT}px)`,
           },
           { opacity: 1, transform: 'none' },
         ],
@@ -109,8 +120,14 @@ export function useStage(
           fill: 'backwards',
         },
       )
+      const settle = (): void => {
+        if (frame !== null && frame.querySelector(':scope > [aria-hidden="true"]') === null) {
+          delete frame.dataset.moving
+        }
+      }
+      anim.finished.then(settle, settle)
     },
-    [delayMs],
+    [delayMs, axis],
   )
   return useMemo(() => ({ wrap, body, leave, enter }), [leave, enter])
 }
@@ -118,15 +135,19 @@ export function useStage(
 /**
  * 一块内容按步骤换（导出：选版本 → 资源清单 → Skill 信息；读完了换上结果）：`at` 变了，旧的留个影子往外退，
  * 新的从该来的一侧进来（{@link useStage}）。`order` 是第几步：往后走新的从右边进，往回走从左边进，同一步里换只淡。
+ * `axis="y"`：选项竖着排（「触发方式」的左栏），往下选新的从下面进、往上选从上面进；
+ * 这种用法里面有往外伸的下拉，外层平时不裁，只在交接的那一下裁住影子。
  * 外层定位、裁切（影子摆在里面），里层是内容本身；两层都是纵向 flex、撑满父元素，间距沿用父元素的。
  */
 export function Staged(props: {
   at: string
   order: number
+  axis?: 'x' | 'y'
   className?: string
+  bodyClassName?: string
   children: ReactNode
 }): React.JSX.Element {
-  const stage = useStage()
+  const stage = useStage(props.axis === undefined ? {} : { axis: props.axis })
   const shown = useRef({ at: props.at, order: props.order })
   const heading = useRef<StageDir>(0)
   const bodyRef = useCallback(
@@ -148,8 +169,11 @@ export function Staged(props: {
     mounted.current = true
   }, [props.at, stage])
   return (
-    <div className={cx(css.stage, props.className)} ref={stage.wrap}>
-      <div className={css.stageBody} ref={bodyRef}>
+    <div
+      className={cx(css.stage, props.axis === 'y' && css.loose, props.className)}
+      ref={stage.wrap}
+    >
+      <div className={cx(css.stageBody, props.bodyClassName)} ref={bodyRef}>
         {props.children}
       </div>
     </div>

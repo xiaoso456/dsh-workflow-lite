@@ -175,3 +175,46 @@
     animation-duration: 2400ms;
   }
 }
+
+/* 从模板换进来的命令：从下面一点浮上来、淡入（a / b 两个名字轮换，换一次重放一次）。 */
+.code[data-fresh] > .input {
+  animation: commandIn 220ms var(--wl-ease-out) backwards;
+}
+
+.code[data-fresh="b"] > .input {
+  animation-name: commandInB;
+}
+
+@keyframes commandIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@keyframes commandInB {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+/* 试运行的结果栏、输出：换一种状态（正在运行 → 结果）就是新的一块，淡入。 */
+.result,
+.output {
+  animation: resultIn 180ms linear backwards;
+}
+
+@keyframes resultIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .code[data-fresh] > .input,
+  .result,
+  .output {
+    animation: none;
+  }
+}

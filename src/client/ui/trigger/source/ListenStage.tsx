@@ -31,13 +31,13 @@ export function ListenStage(props: {
   return (
     <>
       <StageRows>
-        <StageRow label={t('trigger.listen.fire')} top>
+        <StageRow label={t('trigger.listen.fire')}>
           <p className={css.fact}>
             <Icon name="bolt" size={13} />
             {t('trigger.listen.fireFact')}
           </p>
         </StageRow>
-        <StageRow label={t('trigger.listen.life')} top>
+        <StageRow label={t('trigger.listen.life')}>
           <p className={css.fact}>
             <Icon name="reload" size={13} />
             {t('trigger.listen.lifeFact')}

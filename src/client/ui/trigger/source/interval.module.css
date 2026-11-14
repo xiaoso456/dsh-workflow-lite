@@ -12,6 +12,24 @@
   display: none;
 }
 
+/* 点「自定义…」：数字框和单位从左边一点淡入（只放出现；点回常用的一档时直接收起）。 */
+.custom:not([hidden]) {
+  animation: customIn 220ms var(--wl-ease-out) backwards;
+}
+
+@keyframes customIn {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .custom:not([hidden]) {
+    animation: none;
+  }
+}
+
 .number {
   width: 64px;
   height: 26px;
@@ -20,6 +38,11 @@
   text-align: center;
 }
 
+/* 和胶囊一样高：展开时这一行不变高（下面的行不跟着跳）。 */
 .unit {
   width: 88px;
+}
+
+.unit button {
+  height: 26px;
 }

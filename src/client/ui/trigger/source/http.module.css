@@ -18,6 +18,23 @@
   flex: none;
 }
 
+/* 值的框 / 不需要令牌的那句话叠在同一格（OffSwap）：占满剩下的宽，两层一样宽。 */
+.offSwap {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.offSwap > * {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+/* 调用示例换语言时交接的一层：撑满工作台中间。 */
+.snippetStage {
+  min-height: 100%;
+}
+
 /* 一行设置里的框：值在左，小按钮在右；改的时候描一圈强调色（写错了红）。 */
 .field {
   display: flex;
@@ -81,6 +98,24 @@
   flex: none;
   gap: 2px;
   margin-left: auto;
+}
+
+/* 进出编辑时右边的小按钮换一套（复制 / 铅笔 ↔ 保存 / 取消）：新的一套淡入、略放大。 */
+.tools > * {
+  animation: toolIn 160ms var(--wl-ease-out) backwards;
+}
+
+@keyframes toolIn {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tools > * {
+    animation: none;
+  }
 }
 
 /* 改地址、令牌：框里就地换成输入框；地址前半（不能改的那截）灰着写在前面。 */

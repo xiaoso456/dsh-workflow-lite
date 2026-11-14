@@ -10,6 +10,7 @@
 import type { PollWhen } from '../../../../shared/types.ts'
 import type { LocaleKey, T } from '../../../i18n.ts'
 import { Icon } from '../../kit/Icon.tsx'
+import { SwapText } from '../../motion/swapText.tsx'
 import css from './judge.module.css'
 
 /** 一次检查：框里写什么（`key` 是要翻译的）、下面写算什么、这次执不执行。 */
@@ -56,9 +57,11 @@ export function JudgeStrip(props: { t: T; when: PollWhen }): React.JSX.Element {
             <Icon name="bolt" size={11} />
           </span>
           <span className={css.value}>
-            {typeof check.value === 'string' ? check.value : t(check.value.key)}
+            <SwapText text={typeof check.value === 'string' ? check.value : t(check.value.key)} />
           </span>
-          <span className={css.caption}>{t(check.caption)}</span>
+          <span className={css.caption}>
+            <SwapText text={t(check.caption)} />
+          </span>
         </li>
       ))}
     </ol>

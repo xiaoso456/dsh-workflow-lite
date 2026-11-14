@@ -23,6 +23,7 @@ import { WHEN_COLOR } from '../../kit/lineColors.ts'
 import { Popover } from '../../kit/Popover.tsx'
 import { Segmented } from '../../kit/Segmented.tsx'
 import { CheckBox } from '../../motion/marks.tsx'
+import { SwapText } from '../../motion/swapText.tsx'
 import { TriggerMark } from '../TriggerMark.tsx'
 import type { RunBrief, TriggerEnv, WorkflowChoice } from '../triggerEnv.ts'
 import css from './after.module.css'
@@ -138,7 +139,9 @@ export function AfterStage(props: {
               </span>
             </div>
             <span className={css.edge} data-empty={picked === undefined}>
-              <span className={css.edgeLabel}>{t(result?.label ?? 'trigger.afterWhen.done')}</span>
+              <span className={css.edgeLabel}>
+                <SwapText text={t(result?.label ?? 'trigger.afterWhen.done')} />
+              </span>
             </span>
             <div className={css.wf} data-self="true">
               <span className={css.wfName}>
@@ -254,7 +257,9 @@ function WorkflowPicker(props: {
           data-testid="wl-trigger-after-pick"
           onClick={() => setOpen(!open)}
         >
-          <span className={css.pickerName}>{picked?.name ?? t('trigger.afterNone')}</span>
+          <span className={css.pickerName}>
+            <SwapText text={picked?.name ?? t('trigger.afterNone')} />
+          </span>
           <span className={cx(css.last, css.pickerLast)}>
             {picked === undefined ? '' : <LastText t={t} run={props.runs.get(picked.name)?.[0]} />}
           </span>

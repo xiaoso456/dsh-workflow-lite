@@ -31,7 +31,8 @@ import { Icon } from '../../kit/Icon.tsx'
 import { Segmented } from '../../kit/Segmented.tsx'
 import ui from '../../kit/ui.module.css'
 import { useCopied } from '../../kit/useCopied.ts'
-import { SwapIcon } from '../../motion/swapText.tsx'
+import { FadeStack } from '../../motion/stage.tsx'
+import { SwapIcon, SwapText } from '../../motion/swapText.tsx'
 import type { TriggerEnv } from '../triggerEnv.ts'
 import css from './http.module.css'
 import { StageRow } from './StageRow.tsx'
@@ -123,13 +124,11 @@ export function HttpEndpoint(props: {
         editLabel={t('trigger.editUrl')}
         testId="wl-trigger-hook"
         onSave={(hook) => env.triggers.set(props.node, { hook })}
+        before={<span className={css.method}>POST</span>}
         shown={
-          <span className={css.value} data-tip={shown}>
-            <span className={css.method}>POST</span>
-            <code className={css.url} data-testid="wl-trigger-url">
-              {shown}
-            </code>
-          </span>
+          <code className={css.url} data-tip={shown} data-testid="wl-trigger-url">
+            {shown}
+          </code>
         }
         tools={<CopyIcon t={t} text={endpoint.url} testId="wl-trigger-copy-url" />}
       />
@@ -142,17 +141,16 @@ export function HttpEndpoint(props: {
         editLabel={t('trigger.editToken')}
         testId="wl-trigger-token-edit"
         lead={need}
+        offShown={noToken}
         off={
-          noToken ? (
-            <span className={stage.fact} data-testid="wl-trigger-no-token">
-              {t('trigger.noTokenNote')}
-            </span>
-          ) : undefined
+          <span className={stage.fact} data-testid="wl-trigger-no-token">
+            {t('trigger.noTokenNote')}
+          </span>
         }
         onSave={(token) => env.triggers.set(props.node, { token })}
         shown={
           <code className={css.token} data-testid="wl-trigger-token" data-masked={!reveal}>
-            {reveal ? endpoint.token : TOKEN_MASK}
+            <SwapText text={reveal ? endpoint.token : TOKEN_MASK} />
           </code>
         }
         tools={
@@ -226,8 +224,11 @@ function EditableRow(props: {
   tools: React.ReactNode
   /** 值的框前面的东西（令牌的「需要 / 不需要」）。 */
   lead?: React.ReactNode
-  /** 给了就不显示值的框，换成它（不需要令牌时的一句话）。 */
-  off?: React.ReactNode | undefined
+  /** 框里、值前面的东西（「POST」）：改的时候也留着，网址的前半截原地不动。 */
+  before?: React.ReactNode
+  /** 换掉值的框的一句话（不需要令牌）；`offShown` 时显示它，两边叠在同一格里交叉淡。 */
+  off?: React.ReactNode
+  offShown?: boolean
 }): React.JSX.Element {
   const { t } = props
   const [text, setText] = useState<string | null>(null)
@@ -276,12 +277,13 @@ function EditableRow(props: {
     >
       <div className={css.line}>
         {props.lead}
-        {props.off ?? (
+        <OffSwap off={props.off} shown={props.offShown === true}>
           <div
             className={css.field}
             data-editing={editing}
             data-invalid={error !== null || undefined}
           >
+            {props.before}
             {editing ? (
               <span className={css.edit}>
                 {props.prefix !== undefined && (
@@ -361,9 +363,28 @@ function EditableRow(props: {
               )}
             </span>
           </div>
-        )}
+        </OffSwap>
       </div>
     </StageRow>
+  )
+}
+
+/** 值的框和换掉它的一句话叠在同一格：换的时候交叉淡，行高、宽度不变；没有那句话就只有框。 */
+function OffSwap(props: {
+  off: React.ReactNode | undefined
+  shown: boolean
+  children: React.ReactNode
+}): React.JSX.Element {
+  if (props.off === undefined) return <>{props.children}</>
+  return (
+    <FadeStack
+      className={css.offSwap}
+      at={props.shown ? 'off' : 'on'}
+      items={[
+        { key: 'on', node: props.children },
+        { key: 'off', node: props.off },
+      ]}
+    />
   )
 }
 

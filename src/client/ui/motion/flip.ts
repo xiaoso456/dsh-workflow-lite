@@ -24,22 +24,34 @@ function topIn(list: HTMLElement, child: HTMLElement): number {
   return child.offsetParent === list ? child.offsetTop : child.offsetTop - list.offsetTop
 }
 
+/** 项在列表里的横向位置（同 {@link topIn}：相对列表本身）。 */
+function leftIn(list: HTMLElement, child: HTMLElement): number {
+  return child.offsetParent === list ? child.offsetLeft : child.offsetLeft - list.offsetLeft
+}
+
 const FLIP_MS = 240
 
 /** 正在滑的项：位置又变了时，从它此刻看上去的地方接着滑，不是先跳回上一次的起点。 */
 const sliding = new WeakMap<HTMLElement, Animation>()
 
-/** 让一项看上去还在 `offset`（新位置之上多少像素）的地方，再滑到新位置。 */
-function slide(child: HTMLElement, offset: number): void {
+/**
+ * 让一项看上去还在 `offset`（新位置之上多少像素）、`across`（新位置左边多少像素）的地方，再滑到新位置。
+ * 纵向列表只有 `offset`；一排会折行的小件（时刻框）两个方向都有。
+ */
+function slide(child: HTMLElement, offset: number, across = 0): void {
   const running = sliding.get(child)
-  let from = offset
+  let fromY = offset
+  let fromX = across
   if (running !== undefined && running.playState === 'running') {
     // 还在半路：把它此刻的位移加上（读的是动画的当前值，不是起点）。
-    from += new DOMMatrixReadOnly(getComputedStyle(child).transform).m42
+    const now = new DOMMatrixReadOnly(getComputedStyle(child).transform)
+    fromX += now.m41
+    fromY += now.m42
     running.cancel()
   }
-  if (Math.abs(from) < 0.5) return
-  const anim = child.animate([{ transform: `translateY(${from}px)` }, { transform: 'none' }], {
+  if (Math.abs(fromY) < 0.5 && Math.abs(fromX) < 0.5) return
+  const from = fromX === 0 ? `translateY(${fromY}px)` : `translate(${fromX}px, ${fromY}px)`
+  const anim = child.animate([{ transform: from }, { transform: 'none' }], {
     duration: FLIP_MS,
     easing: EASE,
   })
@@ -209,7 +221,7 @@ export function useResizeFlip(
             continue
           slots.set(child, {
             top: topIn(list, child),
-            left: child.offsetLeft,
+            left: leftIn(list, child),
             width: child.offsetWidth,
             height: child.offsetHeight,
           })
@@ -235,12 +247,12 @@ export function useResizeFlip(
         let band: ReturnType<typeof clipBand> | null = null
         for (const [child, slot] of next) {
           const was = before.get(child)
-          if (was === undefined || was.top === slot.top) continue
+          if (was === undefined || (was.top === slot.top && was.left === slot.left)) continue
           band ??= clipBand(list)
           const now = child.getBoundingClientRect()
           const offset = was.top - slot.top
           if (seen(band, now.top, now.height) || seen(band, now.top + offset, now.height)) {
-            slide(child, offset)
+            slide(child, offset, was.left - slot.left)
           }
         }
       }

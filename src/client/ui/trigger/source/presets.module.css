@@ -1,5 +1,6 @@
 /*
- * 一排胶囊（定时的「常用」、轮询的间隔）：和现在的规则一样的那颗淡底 + 同色细边，前面的对勾展开（只动 transform / opacity）。
+ * 一排胶囊（定时的「常用」、轮询的间隔）：和现在的规则一样的那颗淡底 + 同色细边，字换成触发方式的颜色（都是交叉淡）。
+ * 选中不改宽度（不加对勾、不加粗）：点一下，旁边的胶囊不挪。
  */
 
 .chip {
@@ -11,13 +12,15 @@
   border: 1px solid var(--wl-line-strong);
   border-radius: calc(99px * var(--wl-round, 1));
   background: transparent;
-  color: var(--wl-text-2);
   font: inherit;
   font-size: var(--wl-fs-meta);
   cursor: pointer;
   outline: 2px solid transparent;
   outline-offset: 1px;
   transition: scale 160ms var(--wl-ease-sheet);
+
+  --wl-off: var(--wl-text-2);
+  --wl-on: var(--wl-kind);
 }
 
 .chip:active {
@@ -45,31 +48,12 @@
 }
 
 .chip:hover:not([aria-pressed="true"]) {
-  color: var(--wl-text);
+  --wl-off: var(--wl-text);
 }
 
-.chip[aria-pressed="true"] {
-  color: var(--wl-kind);
-  font-weight: 600;
-}
-
-/* 对勾：没选中时宽度收成 0、看不见；选中时撑开、淡入。 */
-.check {
+/* 字在选中层上面。 */
+.chip > span {
   position: relative;
-  display: inline-flex;
-  width: 0;
-  overflow: hidden;
-  opacity: 0;
-  transform: scale(0.6);
-  transition:
-    opacity 160ms linear,
-    transform 200ms var(--wl-ease-sheet);
-}
-
-.chip[aria-pressed="true"] .check {
-  width: 15px;
-  opacity: 1;
-  transform: none;
 }
 
 :global([data-look="swiss"]) .chip {

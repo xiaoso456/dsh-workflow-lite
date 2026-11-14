@@ -10,7 +10,8 @@ import type { TriggerSchedule } from '../../../../shared/types.ts'
 import type { LocaleKey, T } from '../../../i18n.ts'
 import { zoneText } from '../../../model/triggerUpcoming.ts'
 import { weekOf } from '../../../model/triggerWeek.ts'
-import { Icon } from '../../kit/Icon.tsx'
+import { FadeText } from '../../motion/marks.tsx'
+import { SwapText } from '../../motion/swapText.tsx'
 import { ScheduleField } from '../ScheduleField.tsx'
 import { Bench, benchAside } from './Bench.tsx'
 import presets from './presets.module.css'
@@ -67,7 +68,7 @@ export function ScheduleStage(props: {
   return (
     <>
       <StageRows>
-        <StageRow label={t('trigger.presets')} top>
+        <StageRow label={t('trigger.presets')}>
           <div className={stage.line}>
             {SCHEDULE_PRESETS.map((preset) => {
               const on = sameSchedule(preset.schedule, schedule)
@@ -80,10 +81,7 @@ export function ScheduleStage(props: {
                   data-testid={`wl-trigger-preset-${preset.id}`}
                   onClick={() => props.onChange(preset.schedule)}
                 >
-                  <span className={presets.check} aria-hidden="true">
-                    <Icon name="check" size={11} />
-                  </span>
-                  {t(preset.label)}
+                  <FadeText text={t(preset.label)} on={on} />
                 </button>
               )
             })}
@@ -96,12 +94,14 @@ export function ScheduleStage(props: {
         title={t('trigger.week')}
         tools={
           <span className={benchAside}>
-            {[
-              valid ? t('trigger.week.total').replace('{n}', String(week.upcoming)) : '',
-              t('trigger.upcoming.zone').replace('{zone}', zoneText(now)),
-            ]
-              .filter((part) => part !== '')
-              .join(' · ')}
+            <SwapText
+              text={[
+                valid ? t('trigger.week.total').replace('{n}', String(week.upcoming)) : '',
+                t('trigger.upcoming.zone').replace('{zone}', zoneText(now)),
+              ]
+                .filter((part) => part !== '')
+                .join(' · ')}
+            />
           </span>
         }
       >

@@ -12,9 +12,9 @@ import { POLL_MAX_SECONDS, POLL_MIN_SECONDS } from '../../../../shared/trigger.t
 import type { LocaleKey, T } from '../../../i18n.ts'
 import { spanText } from '../../../model/triggerSay.ts'
 import { cx } from '../../kit/cx.ts'
-import { Icon } from '../../kit/Icon.tsx'
 import { Select } from '../../kit/Select.tsx'
 import ui from '../../kit/ui.module.css'
+import { FadeText } from '../../motion/marks.tsx'
 import css from './interval.module.css'
 import chips from './presets.module.css'
 import { StageRow } from './StageRow.tsx'
@@ -88,10 +88,7 @@ export function IntervalField(props: {
                 props.onChange(stop)
               }}
             >
-              <span className={chips.check} aria-hidden="true">
-                <Icon name="check" size={11} />
-              </span>
-              {spanText(t, stop)}
+              <FadeText text={spanText(t, stop)} on={on} />
             </button>
           )
         })}
@@ -103,7 +100,7 @@ export function IntervalField(props: {
           data-testid="wl-trigger-poll-custom"
           onClick={() => setOpened(true)}
         >
-          {t('trigger.everyCustom')}
+          <FadeText text={t('trigger.everyCustom')} on={custom} />
         </button>
         <span className={css.custom} hidden={!custom}>
           <input

@@ -188,9 +188,13 @@ const GLIDE_HOLD_MS = 260
  * 宽度一变，底面从旧宽度 `scaleX` 过渡到新宽度，小件从旧位置 `translateX` 滑到新位置；
  * 变宽立刻展开，变窄先停 `hold`（默认 {@link GLIDE_HOLD_MS}）毫秒再收；宽度是被布局挤变的、
  * 没有"等视线落稳"的需要时传 0（缩放条：右面板一开图例就收成按钮）。上一段还没放完就变了，从看上去的地方接着走。
+ * `anchor="right"`：药丸贴着右边（左边随宽度动），底面要 `transform-origin: right`，小件按右边量。
  * 返回回调 ref，挂到药丸上。
  */
-export function useGlide(hold: number = GLIDE_HOLD_MS): (pill: HTMLElement | null) => void {
+export function useGlide(
+  hold: number = GLIDE_HOLD_MS,
+  anchor: 'left' | 'right' = 'left',
+): (pill: HTMLElement | null) => void {
   const stop = useRef<(() => void) | null>(null)
   useEffect(() => () => stop.current?.(), [])
   return useCallback(
@@ -204,11 +208,20 @@ export function useGlide(hold: number = GLIDE_HOLD_MS): (pill: HTMLElement | nul
       const running = new Map<HTMLElement, Animation>()
       const surface = (): HTMLElement | null => pill.querySelector('[data-glide-surface]')
       const items = (): HTMLElement[] => [...pill.querySelectorAll<HTMLElement>('[data-glide]')]
-      const leftOf = (el: HTMLElement, origin: number): number =>
-        el.getBoundingClientRect().left - origin
+      /**
+       * 小件相对药丸的横向位置（贴着右边时从右边量）。按布局量（offsetLeft），不按屏幕上的矩形：
+       * 药丸在正在入场的对话框里时，矩形带着祖先的缩放 / 位移，记下的起点会偏。
+       * 不是药丸直接定位子孙的小件退回按矩形量。
+       */
+      const leftOf = (el: HTMLElement): number => {
+        const left =
+          el.offsetParent === pill
+            ? el.offsetLeft
+            : el.getBoundingClientRect().left - pill.getBoundingClientRect().left
+        return anchor === 'right' ? left - pill.offsetWidth : left
+      }
       const remember = (): void => {
-        const origin = pill.getBoundingClientRect().left
-        spots = new Map(items().map((el) => [el, leftOf(el, origin)]))
+        spots = new Map(items().map((el) => [el, leftOf(el)]))
       }
       remember()
 
@@ -222,7 +235,6 @@ export function useGlide(hold: number = GLIDE_HOLD_MS): (pill: HTMLElement | nul
           remember()
           return
         }
-        const origin = pill.getBoundingClientRect().left
         // 先读旧动画此刻的位移 / 缩放，再清掉它。起点是「旧布局 + 此刻的位移」：
         // 布局已经是新的了，直接量元素现在的位置会把新布局也算进去（宽度会被放大）。
         const shift = (el: HTMLElement): number =>
@@ -256,7 +268,7 @@ export function useGlide(hold: number = GLIDE_HOLD_MS): (pill: HTMLElement | nul
         }
         const fresh = new Map<HTMLElement, number>()
         for (const el of items()) {
-          const now = leftOf(el, origin)
+          const now = leftOf(el)
           fresh.set(el, now)
           const from = seen.get(el) ?? spots.get(el)
           if (from === undefined || Math.abs(from - now) < 0.5) continue
@@ -282,7 +294,7 @@ export function useGlide(hold: number = GLIDE_HOLD_MS): (pill: HTMLElement | nul
         for (const anim of running.values()) anim.cancel()
       }
     },
-    [hold],
+    [hold, anchor],
   )
 }
 
