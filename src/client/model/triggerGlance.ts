@@ -76,7 +76,13 @@ export function triggerGlance(t: T, source: TriggerSource): TriggerGlance {
         label: weekdayChip(t, day),
         on: picked === undefined || picked.includes(day),
       }))
-      return { shape: 'days', days, time: schedule.time }
+      // 卡片上只放得下一个时刻：还有别的就写「+2」。
+      const more = schedule.moreTimes?.length ?? 0
+      return {
+        shape: 'days',
+        days,
+        time: more === 0 ? schedule.time : `${schedule.time} +${String(more)}`,
+      }
     }
     case 'poll':
       return {

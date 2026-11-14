@@ -4,7 +4,7 @@
  * @module @xiaoso/dsh-workflow-lite/client/model/triggerText
  */
 
-import type { CronFieldName, ScheduleIssue } from '../../shared/schedule.ts'
+import { type CronFieldName, dailyTimes, type ScheduleIssue } from '../../shared/schedule.ts'
 import { afterWhen, type SourceIssue } from '../../shared/trigger.ts'
 import type {
   AfterWhen,
@@ -66,17 +66,18 @@ export function ruleText(t: T, schedule: TriggerSchedule): string {
   if (schedule.kind === 'cron') {
     return t('trigger.rule.cron').replace('{expr}', schedule.expression.trim())
   }
-  if (schedule.weekdays === undefined)
-    return t('trigger.rule.daily').replace('{time}', schedule.time)
+  // 一天里几个时刻：挨个列出来。
+  const time = dailyTimes(schedule).join(t('trigger.rule.sep'))
+  if (schedule.weekdays === undefined) return t('trigger.rule.daily').replace('{time}', time)
   // 最常见的两组有自己的说法（卡片上放得下）。
   if (sameDays(schedule.weekdays, [1, 2, 3, 4, 5])) {
-    return t('trigger.rule.workdays').replace('{time}', schedule.time)
+    return t('trigger.rule.workdays').replace('{time}', time)
   }
   if (sameDays(schedule.weekdays, [6, 7])) {
-    return t('trigger.rule.weekend').replace('{time}', schedule.time)
+    return t('trigger.rule.weekend').replace('{time}', time)
   }
   const days = schedule.weekdays.map((day) => weekdayText(t, day)).join(t('trigger.rule.sep'))
-  return t('trigger.rule.weekly').replace('{days}', days).replace('{time}', schedule.time)
+  return t('trigger.rule.weekly').replace('{days}', days).replace('{time}', time)
 }
 
 const AFTER_TEXT: Record<AfterWhen, LocaleKey> = {

@@ -71,12 +71,6 @@
   width: 96px;
 }
 
-.time {
-  flex: none;
-  width: 112px;
-  font-variant-numeric: tabular-nums;
-}
-
 .note,
 .info,
 /* 对话框里的一张表单：各行之间的间距和面板里一节的一样。 */
@@ -223,48 +217,6 @@
 }
 
 /* 星期几：七个小圆钮，选中的填强调色。 */
-.days {
-  display: flex;
-  flex: 1 1 auto;
-  gap: 4px;
-  justify-content: space-between;
-  min-width: 0;
-}
-
-.day {
-  flex: 1 1 0;
-  min-width: 0;
-  height: 26px;
-  padding: 0;
-  border: 1px solid var(--wl-line);
-  border-radius: calc(13px * var(--wl-round, 1));
-  background: transparent;
-  color: var(--wl-text-2);
-  font: inherit;
-  font-size: var(--wl-fs-micro);
-  cursor: pointer;
-  transition:
-    background-color 120ms linear,
-    border-color 120ms linear,
-    color 120ms linear;
-}
-
-.day:hover {
-  background: var(--wl-hover);
-}
-
-.day[aria-checked="true"] {
-  border-color: var(--wl-accent);
-  background: var(--wl-accent-soft);
-  color: var(--wl-accent-text);
-  font-weight: 600;
-}
-
-.day:focus-visible {
-  outline: 2px solid var(--wl-accent);
-  outline-offset: 1px;
-}
-
 /*
  * 面板最上面的框：左边开关 + 状态，右边「立即触发一次」。
  * 开关的可点范围和悬停底色铺满整个框（`.statusSwitch::before`），不在框里再分出一块；按钮浮在它上面。
@@ -388,12 +340,6 @@
 :global([data-look="swiss"]) .output {
   border-width: 1px 0;
   border-color: var(--wl-line-strong);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .day {
-    transition: none;
-  }
 }
 
 /* 触发记录标题右边的「全部记录」：贴着标题行，不把它撑高。 */

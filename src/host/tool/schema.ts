@@ -401,6 +401,11 @@ export const PARAMETERS = {
             properties: {
               kind: { type: 'string', enum: ['daily', 'every', 'cron'], required: true },
               time: { type: 'string', description: 'daily：HH:MM（本机时区）。' },
+              moreTimes: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'daily：同一天里另外几个时刻（HH:MM）；只要一个时刻就不给。',
+              },
               weekdays: {
                 type: 'array',
                 items: { type: 'number' },

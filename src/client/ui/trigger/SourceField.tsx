@@ -117,19 +117,11 @@ export function SourceForm(props: {
   onChange(source: TriggerSource): void
 }): React.JSX.Element {
   const { t, source } = props
-  // 定时的报错与预告由 ScheduleField 自己说；这里只说命令、间隔的问题。
+  // 定时的报错由 ScheduleField 自己说；这里只说命令、间隔的问题。
   const issue = source.kind === 'schedule' ? null : sourceIssue(source)
   const problem = issue === null ? null : sourceIssueText(t, issue)
   /** 这一次对话框开着时各种触发源填过的样子。 */
   const kept = useRef(new Map<TriggerSourceKind, TriggerSource>())
-  const view = props.env?.triggers.view(props.node)
-  // 卡片开着时，「每隔多久」从打开的那一刻起算：下一次以宿主排的为准——只在草稿还是图里那条规则时（宿主是按它排的）。
-  const live =
-    view !== undefined &&
-    (view.state === 'waiting' || view.state === 'elsewhere') &&
-    JSON.stringify(source) === JSON.stringify(props.saved)
-      ? view.next
-      : undefined
   return (
     <div className={css.form} data-testid="wl-trigger-when" data-kind={source.kind}>
       <Segmented<TriggerSourceKind>
@@ -147,7 +139,6 @@ export function SourceForm(props: {
         <ScheduleField
           t={t}
           schedule={source.schedule}
-          live={live}
           onChange={(schedule) => props.onChange({ kind: 'schedule', schedule })}
         />
       )}

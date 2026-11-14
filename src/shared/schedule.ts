@@ -26,6 +26,40 @@ export function parseClock(text: string): number | null {
   return Number(match[1]) * 60 + Number(match[2])
 }
 
+/** 「每天几点」一天里最多几个时刻。 */
+export const DAILY_TIMES_MAX = 12
+
+type DailySchedule = Extract<TriggerSchedule, { kind: 'daily' }>
+
+/** 「每天几点」的各个时刻，照写着的顺序（第一个是 `time`，后面是 `moreTimes`）。 */
+export function dailyTimes(schedule: DailySchedule): string[] {
+  return [schedule.time, ...(schedule.moreTimes ?? [])]
+}
+
+/** 把时刻写回去：第一个进 `time`，其余进 `moreTimes`（没有就不写）；一个都没有时给 9 点。超出上限的丢掉。 */
+export function withDailyTimes(schedule: DailySchedule, times: readonly string[]): DailySchedule {
+  const [first = '09:00', ...rest] = times.slice(0, DAILY_TIMES_MAX)
+  return {
+    kind: 'daily',
+    time: first,
+    ...(rest.length === 0 ? {} : { moreTimes: rest }),
+    ...(schedule.weekdays === undefined ? {} : { weekdays: schedule.weekdays }),
+  }
+}
+
+/** 规范的时刻表：写得对的补成 `HH:mm`、去重、按先后排；写得不对的原样留在后面（由 `scheduleIssue` 报）。 */
+export function tidyTimes(times: readonly string[]): string[] {
+  const good = new Map<number, string>()
+  const bad: string[] = []
+  for (const time of times) {
+    const clock = parseClock(time)
+    if (clock === null) bad.push(time)
+    else good.set(clock, formatClock(clock))
+  }
+  const sorted = [...good.entries()].sort((a, b) => a[0] - b[0]).map(([, text]) => text)
+  return [...sorted, ...bad].slice(0, DAILY_TIMES_MAX)
+}
+
 /** 分钟数 → `HH:mm`。 */
 export function formatClock(minutes: number): string {
   const hours = Math.floor(minutes / 60)
@@ -185,9 +219,10 @@ export function scheduleText(schedule: TriggerSchedule): string {
     return `每 ${String(minutes)} 分钟`
   }
   if (schedule.kind === 'cron') return `cron ${schedule.expression.trim()}`
-  if (schedule.weekdays === undefined) return `每天 ${schedule.time}`
+  const times = dailyTimes(schedule).join('、')
+  if (schedule.weekdays === undefined) return `每天 ${times}`
   const days = schedule.weekdays.map((day) => WEEKDAY_TEXT[day - 1]).join('、')
-  return `每周${days} ${schedule.time}`
+  return `每周${days} ${times}`
 }
 
 /** 规则哪里写得不对；没问题是 `null`。 */
@@ -198,7 +233,8 @@ export function scheduleIssue(schedule: TriggerSchedule): ScheduleIssue | null {
       : null
   }
   if (schedule.kind === 'daily') {
-    return parseClock(schedule.time) === null ? { code: 'time', time: schedule.time } : null
+    const wrong = dailyTimes(schedule).find((time) => parseClock(time) === null)
+    return wrong === undefined ? null : { code: 'time', time: wrong }
   }
   const cron = readCron(schedule.expression)
   if ('code' in cron) return cron
@@ -264,15 +300,80 @@ export function nextFire(
   if (schedule.kind === 'cron') {
     return nextCron(parseCron(schedule.expression) as Cron, after)
   }
-  const clock = parseClock(schedule.time) as number
+  const clocks = dailyTimes(schedule)
+    .map((time) => parseClock(time) as number)
+    .sort((a, b) => a - b)
   const day = new Date(after.getFullYear(), after.getMonth(), after.getDate())
   for (let offset = 0; offset < 8; offset += 1) {
-    const at = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, clock)
     // ISO 星期：周一 1 … 周日 7。
-    const weekday = at.getDay() === 0 ? 7 : at.getDay()
-    const allowed = schedule.weekdays === undefined || schedule.weekdays.includes(weekday)
-    if (allowed && at.getTime() > after.getTime()) return at
+    const weekday = day.getDay() === 0 ? 7 : day.getDay()
+    if (schedule.weekdays === undefined || schedule.weekdays.includes(weekday)) {
+      for (const clock of clocks) {
+        const at = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, clock)
+        if (at.getTime() > after.getTime()) return at
+      }
+    }
     day.setDate(day.getDate() + 1)
   }
   return null
+}
+
+/** 严格晚于 `after` 的接下来 `count` 次（规则写得不对、轮不到时不足 `count` 个）。`anchor` 同 {@link nextFire}。 */
+export function upcomingFires(
+  schedule: TriggerSchedule,
+  after: Date,
+  count: number,
+  anchor: Date = after,
+): Date[] {
+  const fires: Date[] = []
+  let from = after
+  while (fires.length < count) {
+    const next = nextFire(schedule, from, anchor)
+    if (next === null) break
+    fires.push(next)
+    from = next
+  }
+  return fires
+}
+
+/**
+ * 一条 cron 能不能换成「每隔多久」或「每天 / 每周几的几点」来说（只用来给人看一句话，不改规则）。
+ * 日、月两段都是星号才行；说不成是 `null`。
+ */
+export function cronAsSimple(expression: string): TriggerSchedule | null {
+  const cron = readCron(expression)
+  if ('code' in cron) return null
+  const [, , dayPart, monthPart] = expression.trim().split(/\s+/u)
+  if (dayPart !== '*' || monthPart !== '*') return null
+  const minutes = [...cron.minute.values].sort((a, b) => a - b)
+  const hours = [...cron.hour.values].sort((a, b) => a - b)
+  const everyDay = cron.weekday.values.size === 7
+  /** 从 0 起、间隔相等、正好铺满一圈：回间隔。 */
+  const stepOf = (values: number[], size: number): number | null => {
+    const step = values.length === 1 ? size : (values[1] as number) - (values[0] as number)
+    const even = values.every((value, index) => value === index * step)
+    return even && step * values.length === size ? step : null
+  }
+  if (everyDay && hours.length === 24) {
+    const step = stepOf(minutes, 60)
+    return step === null ? null : { kind: 'every', minutes: step }
+  }
+  if (minutes.length !== 1) return null
+  const [minute = 0] = minutes
+  if (everyDay && minute === 0 && hours.length > 1) {
+    const step = stepOf(hours, 24)
+    if (step !== null) return { kind: 'every', minutes: step * 60 }
+  }
+  if (hours.length > DAILY_TIMES_MAX) return null
+  const [first = '09:00', ...rest] = hours.map((hour) => formatClock(hour * 60 + minute))
+  // cron 的周日是 0，这里是 7。
+  const weekdays = [...cron.weekday.values]
+    .map((day) => (day === 0 ? 7 : day))
+    .sort((a, b) => a - b)
+  return {
+    kind: 'daily',
+    time: first,
+    ...(rest.length === 0 ? {} : { moreTimes: rest }),
+    ...(everyDay ? {} : { weekdays }),
+  }
 }

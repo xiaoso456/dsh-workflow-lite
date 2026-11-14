@@ -10,7 +10,13 @@
  * @module @xiaoso/dsh-workflow-lite/shared/trigger
  */
 
-import { type ScheduleIssue, scheduleIssue, scheduleProblem, scheduleText } from './schedule.ts'
+import {
+  type ScheduleIssue,
+  scheduleIssue,
+  scheduleProblem,
+  scheduleText,
+  tidyTimes,
+} from './schedule.ts'
 import type {
   AfterWhen,
   PollWhen,
@@ -130,9 +136,17 @@ function readSchedule(raw: unknown): TriggerSchedule {
       const days = Array.isArray(raw.weekdays)
         ? [...new Set(raw.weekdays.filter((day) => wholeIn(day, 1, 7) !== undefined))].sort()
         : []
+      const more = Array.isArray(raw.moreTimes)
+        ? raw.moreTimes.filter((time): time is string => typeof time === 'string')
+        : []
+      const [time = '09:00', ...moreTimes] = tidyTimes([
+        typeof raw.time === 'string' ? raw.time : '09:00',
+        ...more,
+      ])
       return {
         kind: 'daily',
-        time: typeof raw.time === 'string' ? raw.time : '09:00',
+        time,
+        ...(moreTimes.length === 0 ? {} : { moreTimes }),
         // 七天全选和不写是一回事：不写。
         ...(days.length > 0 && days.length < 7 ? { weekdays: days as number[] } : {}),
       }
@@ -256,6 +270,7 @@ function canonicalSource(source: TriggerSource): TriggerSource {
           : {
               kind: 'daily',
               time: schedule.time,
+              ...(schedule.moreTimes === undefined ? {} : { moreTimes: [...schedule.moreTimes] }),
               ...(schedule.weekdays === undefined ? {} : { weekdays: [...schedule.weekdays] }),
             },
   }

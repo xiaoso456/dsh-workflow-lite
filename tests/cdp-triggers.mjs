@@ -484,6 +484,31 @@ try {
       `document.querySelector('[data-testid="wl-trigger-source-dialog"] [data-testid="wl-trigger-source-preview"] [data-testid="wl-trigger-glance"]') !== null`,
     ),
   )
+  // 每天几点：右栏列出接下来 5 次；加一个时刻后每天两次，预览写「+1」；「周末」一键选好星期。
+  const rowsShown = `[...document.querySelectorAll('[data-testid="wl-trigger-upcoming"] li:not([hidden])')].length`
+  check('右栏列出接下来 5 次', (await session.evaluate(rowsShown)) === 5)
+  await session.evaluate(clickTestId('wl-trigger-time-add'))
+  await sleep(400)
+  check(
+    '加了一个时刻：有两个时间框，预览写 +1',
+    (await session.evaluate(
+      `document.querySelectorAll('[data-testid^="wl-trigger-time"] , input[type=time]').length`,
+    )) >= 2 &&
+      /\+1/.test(
+        await session.evaluate(
+          textOf('[data-testid="wl-trigger-source-preview"] [data-testid="wl-trigger-glance"]'),
+        ),
+      ),
+  )
+  await session.evaluate(clickTestId('wl-trigger-time-remove-1'))
+  await session.evaluate(clickTestId('wl-trigger-days-weekend'))
+  await sleep(400)
+  const weekendOn = await session.evaluate(
+    `['wl-trigger-day-6','wl-trigger-day-7'].every((id) => document.querySelector('[data-testid="' + id + '"]').getAttribute('aria-checked') === 'true') && document.querySelector('[data-testid="wl-trigger-day-1"]').getAttribute('aria-checked') === 'false'`,
+  )
+  check('点「周末」只亮六、日', weekendOn === true)
+  await session.evaluate(clickTestId('wl-trigger-days-work'))
+  await capture(session, 'source-dialog-daily-light.png')
   await session.evaluate(clickTestId('wl-trigger-kind-every'))
   await sleep(600)
   check('草稿没保存时卡片上的字不变', !/每 1 小时/.test(await session.evaluate(textOf(CARD))))

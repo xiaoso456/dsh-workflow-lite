@@ -1,0 +1,166 @@
+/**
+ * dsh-workflow-lite — 定时规则的表单（ScheduleField）：规则种类的小分段、「每天」的时刻框和星期小格。
+ * 行与短标签那一列的排法在 trigger.module.css（`.row`、`.lead`）。
+ */
+
+/* 规则种类：比上面「触发方式」那一排小一号、不占满，看得出是下一级。 */
+.kinds {
+  flex: none;
+  width: 216px;
+}
+
+/* 内容会折成几行的行：标签对着第一行。 */
+.top {
+  align-items: flex-start;
+}
+
+.leadTop {
+  line-height: 30px;
+}
+
+.wrap {
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+
+/* 时刻：一个一个框，放不下就折行，最后是「添加时刻」。 */
+.times {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+}
+
+.timeBox {
+  position: relative;
+  display: flex;
+  flex: none;
+}
+
+.time {
+  width: 76px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 能去掉时给 ✕ 留出位置。 */
+.timeBox[data-removable="true"] .time {
+  width: 94px;
+  padding-right: 26px;
+}
+
+/* 浏览器自带的时钟图标和别处的图标不是一套：不要，直接打字或用上下键。 */
+.time::-webkit-calendar-picker-indicator {
+  display: none;
+}
+
+.timeRemove {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: calc(5px * var(--wl-round, 1));
+  background: transparent;
+  color: var(--wl-text-3);
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+
+.timeRemove:hover {
+  background: var(--wl-hover);
+  color: var(--wl-text);
+}
+
+.timeRemove:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 0;
+}
+
+.timeAdd {
+  color: var(--wl-text-2);
+}
+
+/* 星期：七个小格，和卡片速览里那一排一个样子。 */
+.days {
+  display: flex;
+  flex: none;
+  gap: 4px;
+}
+
+.day {
+  flex: none;
+  width: 30px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--wl-line);
+  border-radius: calc(7px * var(--wl-round, 1));
+  background: transparent;
+  color: var(--wl-text-3);
+  font: inherit;
+  font-size: var(--wl-fs-micro);
+  cursor: pointer;
+  transition:
+    background-color 120ms linear,
+    border-color 120ms linear,
+    color 120ms linear;
+}
+
+.day:hover {
+  background: var(--wl-hover);
+}
+
+.day[aria-checked="true"] {
+  border-color: var(--wl-accent);
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+  font-weight: 600;
+}
+
+.day:focus-visible,
+.daySet:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+/* 三种常用选法：小字链接样，正合上的那一种加重。 */
+.daySets {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.daySet {
+  height: 26px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: calc(7px * var(--wl-round, 1));
+  background: transparent;
+  color: var(--wl-text-3);
+  font: inherit;
+  font-size: var(--wl-fs-micro);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.daySet:hover {
+  background: var(--wl-hover);
+  color: var(--wl-text);
+}
+
+.daySet[aria-pressed="true"] {
+  color: var(--wl-accent-text);
+  font-weight: 600;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .day {
+    transition: none;
+  }
+}

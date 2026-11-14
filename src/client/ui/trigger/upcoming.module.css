@@ -1,0 +1,70 @@
+/**
+ * dsh-workflow-lite — 定时规则「接下来几次」（Upcoming）：一次一行，哪天 · 周几 · 几点，第一行（下一次）加重。
+ */
+
+.upcoming {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--wl-line);
+  border-radius: var(--wl-r-control);
+  list-style: none;
+}
+
+/* `display` 会盖过 `hidden` 属性：没有规则可列时整张表要真的收起来。 */
+.list[hidden],
+.row[hidden] {
+  display: none;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 3.4em minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  height: 28px;
+  padding: 0 10px;
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+.row + .row {
+  border-top: 1px solid var(--wl-line);
+}
+
+.day {
+  white-space: nowrap;
+}
+
+.weekday {
+  color: var(--wl-text-3);
+}
+
+.clock {
+  color: var(--wl-text);
+  font-weight: 600;
+}
+
+/* 下一次：整行加重。 */
+.row[data-first="true"] {
+  color: var(--wl-text);
+}
+
+.row[data-first="true"] .clock {
+  color: var(--wl-accent-text);
+}
+
+/* 瑞士：成组的列表只留上下线。 */
+:global([data-look="swiss"]) .list {
+  border-width: 1px 0;
+  border-color: var(--wl-line-strong);
+}

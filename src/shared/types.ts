@@ -331,7 +331,13 @@ export interface TriggerNode {
 /** 定时规则（时间按本机时区）：每隔多少分钟 / 每天（或每周几）几点 / 五段 cron。 */
 export type TriggerSchedule =
   | { kind: 'every'; minutes: number }
-  | { kind: 'daily'; time: string; weekdays?: number[] }
+  | {
+      kind: 'daily'
+      time: string
+      /** 同一天里另外几个时刻（`HH:mm`）；只有一个时刻时不写。 */
+      moreTimes?: string[]
+      weekdays?: number[]
+    }
   | { kind: 'cron'; expression: string }
 
 /** 条件轮询什么时候算「满足」：命令成功（退出码 0，只在从不成功变成成功时触发一次）/ 输出变了。 */

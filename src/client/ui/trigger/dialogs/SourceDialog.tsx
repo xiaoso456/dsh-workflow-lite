@@ -20,6 +20,7 @@ import { SOURCE_HELP, SourceForm } from '../SourceField.tsx'
 import { TriggerGlanceRow } from '../TriggerGlanceRow.tsx'
 import { TriggerMark, triggerTint } from '../TriggerMark.tsx'
 import type { TriggerEnv } from '../triggerEnv.ts'
+import { Upcoming } from '../Upcoming.tsx'
 import { AsideBlock, TriggerSheet } from './TriggerSheet.tsx'
 
 export function SourceDialog(props: {
@@ -38,6 +39,11 @@ export function SourceDialog(props: {
   const dirty = JSON.stringify(draft) !== JSON.stringify(props.source)
   // 现场（最近一行、地址、轮询进度）是图里那条规则的：草稿改过就只看草稿本身。
   const view = dirty ? undefined : env?.triggers.view(props.node)
+  // 卡片开着时，「每隔多久」从打开的那一刻起算：接下来几次从宿主排的那一次往后数（草稿改过就当现在打开）。
+  const live =
+    view !== undefined && (view.state === 'waiting' || view.state === 'elsewhere')
+      ? view.next
+      : undefined
   const help = SOURCE_HELP[draft.kind]
   // 最近的输出是现在跑着的那条命令的：草稿换了触发方式、改了命令就不放（那是旧命令的输出）。
   const showOutput =
@@ -68,6 +74,11 @@ export function SourceDialog(props: {
               <TriggerGlanceRow glance={triggerGlance(t, draft)} view={view} />
             </div>
           </AsideBlock>
+          {draft.kind === 'schedule' && (
+            <AsideBlock title={t('trigger.upcoming')}>
+              <Upcoming t={t} schedule={draft.schedule} live={live} />
+            </AsideBlock>
+          )}
           {help.length > 0 && (
             <AsideBlock title={t('trigger.about')}>
               {help.map((key) => (
