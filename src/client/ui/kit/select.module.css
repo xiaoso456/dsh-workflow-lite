@@ -28,6 +28,18 @@
   cursor: pointer;
 }
 
+/* 放在已经有框的列表行里：不带自己的框和底，高度跟着那一行，箭头落在行尾图标的位置。 */
+.trigger.plain {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 36px;
+  padding: 0 11px 0 0;
+  border-color: transparent;
+  border-radius: 0;
+  background: transparent;
+  --ring: -2px;
+}
+
 .value {
   flex: 1 1 auto;
   min-width: 0;

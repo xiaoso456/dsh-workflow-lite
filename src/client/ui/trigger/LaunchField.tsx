@@ -1,5 +1,6 @@
 /**
- * dsh-workflow-lite — 触发卡片的「执行设置」：发进哪个会话、在哪个工作区，下面一行「保护」摘要（点开是对话框）。
+ * dsh-workflow-lite — 触发卡片的「执行设置」：一张列表卡，一项一行——会话方式、（固定会话时）固定到哪个会话、工作区是下拉，
+ * 「保护」是一行短摘要（点开是对话框，悬停看完整说法）。
  *
  * 会话方式和工作区留在面板上：打开开关前就要选好。存的地方不同：会话方式、保护写在图里（跟着工作流走）；
  * 选定的工作区和会话只存在这台机器上（见 {@link TriggerEnv}），实例视图里没有现场就不显示。
@@ -14,15 +15,12 @@ import { useEffect, useRef, useState } from 'react'
 import { commandOf, launchOf, readTriggerData } from '../../../shared/trigger.ts'
 import type { TriggerData, TriggerLaunch, TriggerSessionMode } from '../../../shared/types.ts'
 import type { LocaleKey, T } from '../../i18n.ts'
-import { guardSummary } from '../../model/triggerSummary.ts'
-import { cx } from '../kit/cx.ts'
-import { Segmented } from '../kit/Segmented.tsx'
+import { guardBrief, guardSummary } from '../../model/triggerSummary.ts'
 import { Select } from '../kit/Select.tsx'
 import { FieldHead, HelpText } from '../panel/FieldHead.tsx'
 import ins from '../panel/panel.module.css'
 import { GuardDialog } from './dialogs/GuardDialog.tsx'
-import { SummaryList, SummaryRow } from './SummaryRow.tsx'
-import css from './trigger.module.css'
+import { SummaryField, SummaryList, SummaryRow } from './SummaryRow.tsx'
 import type { LaunchField as Missing, TriggerEnv } from './triggerEnv.ts'
 
 const SESSION_MODES: readonly { value: TriggerSessionMode; label: LocaleKey }[] = [
@@ -40,7 +38,7 @@ function folderName(path: string): string {
 /** 这一节接手的「带到眼前」。 */
 const LAUNCH_FIELDS: readonly Missing[] = ['workspace', 'session']
 
-/** 闪一下要补的那一项（和 CSS 里 `.attention` 的动画一样长）。 */
+/** 闪一下要补的那一项（和 summaryRow.module.css 里 `.field` 的 flash 动画一样长）。 */
 const ATTENTION_MS = 1200
 
 /**
@@ -121,82 +119,78 @@ export function LaunchField(props: {
         helpTestId="wl-trigger-launch-help"
         help={env === null ? undefined : <HelpText>{t('trigger.localHint')}</HelpText>}
       />
-      <Segmented<TriggerSessionMode>
-        label={t('trigger.session')}
-        value={launch.session}
-        testId="wl-trigger-session"
-        onChange={(mode) => patch({ session: mode })}
-        options={SESSION_MODES.map((mode) => ({ value: mode.value, label: t(mode.label) }))}
-      />
-      {env !== null && (launch.session !== 'fixed' || runsCommand) && (
-        <div
-          ref={workspaceRow}
-          className={cx(css.row, css.attention)}
-          data-flash={flash === 'workspace' || undefined}
-        >
-          <span className={css.lead}>{t('trigger.workspace')}</span>
-          <Select<string>
-            t={t}
-            label={t('trigger.workspace')}
-            value={workspace}
-            className={css.grow}
-            testId="wl-trigger-workspace"
-            onChange={(path) => void store({ workspace: path })}
-            options={workspaces.map((path) => ({
-              value: path,
-              label:
-                path === ''
-                  ? t('trigger.workspaceNone')
-                  : path === env.here.cwd
-                    ? t('trigger.workspaceHere').replace('{name}', folderName(path))
-                    : `${folderName(path)} · ${path}`,
-            }))}
-          />
-        </div>
-      )}
-      {env !== null && launch.session === 'fixed' && (
-        <div
-          ref={sessionRow}
-          className={cx(css.row, css.attention)}
-          data-flash={flash === 'session' || undefined}
-        >
-          <span className={css.lead}>{t('trigger.fixed')}</span>
-          <Select<string>
-            t={t}
-            label={t('trigger.fixed')}
-            value={session}
-            className={css.grow}
-            testId="wl-trigger-fixed"
-            onChange={(id) => void store({ session: id })}
-            options={[
-              ...(session === '' ? [{ value: '', label: t('trigger.fixedNone') }] : []),
-              ...sessions.map((item) => ({
-                value: item.id,
-                label:
-                  item.id === env.here.session
-                    ? t('trigger.sessionHere').replace('{name}', item.title)
-                    : item.title,
-              })),
-            ]}
-          />
-        </div>
-      )}
-      {env !== null && (
-        <p className={ins.error} hidden={failed === ''} data-testid="wl-trigger-launch-error">
-          {failed}
-        </p>
-      )}
-
       <SummaryList>
+        <SummaryField title={t('trigger.session')}>
+          <Select<TriggerSessionMode>
+            plain
+            label={t('trigger.session')}
+            value={launch.session}
+            testId="wl-trigger-session"
+            onChange={(mode) => patch({ session: mode })}
+            options={SESSION_MODES.map((mode) => ({ value: mode.value, label: t(mode.label) }))}
+          />
+        </SummaryField>
+        {env !== null && launch.session === 'fixed' && (
+          <SummaryField title={t('trigger.fixed')} rowRef={sessionRow} flash={flash === 'session'}>
+            <Select<string>
+              plain
+              t={t}
+              label={t('trigger.fixed')}
+              value={session}
+              testId="wl-trigger-fixed"
+              onChange={(id) => void store({ session: id })}
+              options={[
+                ...(session === '' ? [{ value: '', label: t('trigger.fixedNone') }] : []),
+                ...sessions.map((item) => ({
+                  value: item.id,
+                  label:
+                    item.id === env.here.session
+                      ? t('trigger.sessionHere').replace('{name}', item.title)
+                      : item.title,
+                })),
+              ]}
+            />
+          </SummaryField>
+        )}
+        {env !== null && (launch.session !== 'fixed' || runsCommand) && (
+          <SummaryField
+            title={t('trigger.workspace')}
+            rowRef={workspaceRow}
+            flash={flash === 'workspace'}
+          >
+            <Select<string>
+              plain
+              t={t}
+              label={t('trigger.workspace')}
+              value={workspace}
+              testId="wl-trigger-workspace"
+              onChange={(path) => void store({ workspace: path })}
+              options={workspaces.map((path) => ({
+                value: path,
+                label:
+                  path === ''
+                    ? t('trigger.workspaceNone')
+                    : path === env.here.cwd
+                      ? t('trigger.workspaceHere').replace('{name}', folderName(path))
+                      : `${folderName(path)} · ${path}`,
+              }))}
+            />
+          </SummaryField>
+        )}
         <SummaryRow
           title={t('trigger.guard')}
-          summary={guardSummary(t, launch)}
-          lines={2}
+          summary={guardBrief(t, launch)}
+          tip={guardSummary(t, launch)}
           editLabel={t('trigger.edit')}
           testId="wl-trigger-guard"
           onEdit={() => setGuard(true)}
         />
       </SummaryList>
+      {env !== null && (
+        <p className={ins.error} hidden={failed === ''} data-testid="wl-trigger-launch-error">
+          {failed}
+        </p>
+      )}
       {guard && (
         <GuardDialog
           t={t}

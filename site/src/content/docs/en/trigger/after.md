@@ -31,6 +31,6 @@ Whether a run has finished, and how, is read from the overall status in its run 
 
 - Only runs that finish after the switch is turned on count; earlier ones are not caught up. Each run triggers once.
 - If the workflow being waited for is renamed, deleted, or has **Record run state** turned off, the card shows **Invalid settings**; pick it again or turn the setting back on.
-- Two workflows waiting for each other trigger back and forth, capped by **Max triggers per hour**.
+- Two workflows waiting for each other trigger back and forth, capped by **Hourly trigger limit**.
 - After triggers have no **Filters**; a **Trigger condition** still works.
 - **Trigger once now** does not wait for the other workflow; the background info is only what you type.

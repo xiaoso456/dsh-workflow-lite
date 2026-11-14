@@ -3,7 +3,7 @@
  *
  * - {@link TriggerStatus}（面板最上面）：开关与状态、出了什么问题、「立即触发一次」。
  *   要在本机跑命令、还没确认过的卡片，打开前在开关旁边浮出确认卡，列出命令和工作区；
- * - {@link TriggerLog}（面板最下面）：最近几次触发记录（最近的输出在「触发方式」对话框里）。
+ * - {@link TriggerLog}（面板最下面）：最近几次触发记录，在自己的框里滚（最近的输出在「触发方式」对话框里）。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/trigger/TriggerStatus
  */
@@ -24,8 +24,9 @@ import { FireNow } from './FireNow.tsx'
 import css from './trigger.module.css'
 import type { TriggerEnv } from './triggerEnv.ts'
 
-/** 面板里列几条触发记录（全部的在工作流中心「触发」页）。 */
-const SHOWN = 3
+/** 面板里列最近几条触发记录（全部的在工作流中心「触发」页），框里露出几行。 */
+const SHOWN = 20
+const ROWS = 5
 
 export function TriggerStatus(props: {
   t: T
@@ -118,7 +119,7 @@ export function TriggerStatus(props: {
 export function TriggerLog(props: { t: T; env: TriggerEnv; node: string }): React.JSX.Element {
   const { t, env, node } = props
   const view = env.triggers.view(node)
-  const fires = useFires(node, firesSignal(view?.last), () => env.triggers.history(node))
+  const fires = useFires(node, firesSignal(view?.last), () => env.triggers.history(node, SHOWN))
   return (
     <section className={ins.field} data-testid="wl-trigger-history">
       <div className={ins.label}>
@@ -135,7 +136,13 @@ export function TriggerLog(props: { t: T; env: TriggerEnv; node: string }): Reac
           </button>
         )}
       </div>
-      <FireList t={t} fires={fires?.slice(0, SHOWN) ?? null} onOpenRun={env.openRun} />
+      <FireList
+        t={t}
+        fires={fires?.slice(0, SHOWN) ?? null}
+        rows={ROWS}
+        detail={env.triggers.detail}
+        onOpenRun={env.openRun}
+      />
     </section>
   )
 }

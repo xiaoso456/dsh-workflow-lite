@@ -377,7 +377,7 @@ try {
   )
   await sleep(5500)
   const rows = await session.evaluate(
-    `document.querySelectorAll('[data-testid="wl-trigger-history"] li').length`,
+    `document.querySelectorAll('[data-testid="wl-trigger-history"] li[data-outcome]').length`,
   )
   check('面板的触发记录列出这一条', rows === 1, String(rows))
   await session.evaluate(
@@ -385,6 +385,19 @@ try {
   )
   await sleep(500)
   await capture(session, 'panel-history-light.png')
+
+  // 点一条记录看详情；Esc 关掉。
+  await session.evaluate(
+    `document.querySelector('[data-testid="wl-trigger-history"] [data-testid="wl-trigger-fire"]').click()`,
+  )
+  await waitFor(session, has('wl-trigger-fire-dialog'))
+  await sleep(600)
+  const fireOutcome = await session.evaluate(textOf('[data-testid="wl-trigger-fire-outcome"]'))
+  check('点一条记录打开这次触发的详情', fireOutcome === '已发出', fireOutcome)
+  await capture(session, 'fire-dialog-light.png')
+  await pressKey(session, 'Escape')
+  await waitFor(session, `!(${has('wl-trigger-fire-dialog')})`)
+  await sleep(400)
 
   // 「全部记录」：到工作流中心「触发」页、选中这张卡片；Esc 关掉回到画布。
   await session.evaluate(clickTestId('wl-trigger-history-all'))
@@ -406,7 +419,7 @@ try {
     ),
   )
   const guardBefore = await session.evaluate(textOf('[data-testid="wl-trigger-guard-summary"]'))
-  check('保护的摘要写着缺省的几项', /没跑完时跳过/.test(guardBefore), guardBefore)
+  check('保护的摘要写着缺省的几项', /运行中跳过/.test(guardBefore), guardBefore)
   await mouseClick(session, await centerOf(session, '[data-testid="wl-trigger-guard"]'))
   await waitFor(session, has('wl-trigger-guard-dialog'))
   await sleep(500)
@@ -415,7 +428,7 @@ try {
   await sleep(300)
   check(
     '对话框里改了还没写进图',
-    /没跑完时跳过/.test(await session.evaluate(textOf('[data-testid="wl-trigger-guard-summary"]'))),
+    /运行中跳过/.test(await session.evaluate(textOf('[data-testid="wl-trigger-guard-summary"]'))),
   )
   await session.evaluate(
     `document.querySelector('[data-testid="wl-trigger-guard-dialog"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`,
@@ -429,7 +442,7 @@ try {
   )
   await sleep(400)
   const guardAfter = await session.evaluate(textOf('[data-testid="wl-trigger-guard-summary"]'))
-  check('保存后摘要变成没跑完也触发', /没跑完也触发/.test(guardAfter), guardAfter)
+  check('保存后摘要变成可同时运行', /可同时运行/.test(guardAfter), guardAfter)
 
   // 触发条件：点摘要那一行，对话框打开、焦点落在触发条件上。
   await mouseClick(session, await centerOf(session, '[data-testid="wl-trigger-condition-edit"]'))
@@ -979,7 +992,7 @@ try {
   await session.evaluate(`document.querySelector('${hookRow}').click()`)
   await sleep(800)
   const historyRows = await session.evaluate(
-    `document.querySelectorAll('[data-testid="wl-hub-trg-history"] li').length`,
+    `document.querySelectorAll('[data-testid="wl-hub-trg-history"] li[data-outcome]').length`,
   )
   check('右栏列出选中卡片的触发记录', historyRows >= 1, String(historyRows))
   const facts = await session.evaluate(textOf('[data-testid="wl-hub-trg-facts"]'))
@@ -993,6 +1006,43 @@ try {
     await session.evaluate(`document.querySelector('[data-testid="wl-hub-trg-fire"]') !== null`),
   )
   await capture(session, 'hub-triggers-light.png')
+
+  // 触发记录按结果筛选：这张卡片没有失败的，筛出来是空的；回到「全部」又都在。点一条看详情，Esc 只关详情。
+  const hubHistory = '[data-testid="wl-hub-trg-history"]'
+  await session.evaluate(clickTestId('wl-trigger-fire-filter-failed'))
+  await sleep(500)
+  const failedRows = await session.evaluate(
+    `document.querySelectorAll('${hubHistory} li[data-outcome]').length`,
+  )
+  const failedText = await session.evaluate(textOf(hubHistory))
+  check(
+    '筛「失败」：没有这一类时说没有',
+    failedRows === 0 && /没有这一类的记录/.test(failedText),
+    `${failedRows} ${failedText}`,
+  )
+  await session.evaluate(clickTestId('wl-trigger-fire-filter-all'))
+  await sleep(500)
+  const allRows = await session.evaluate(
+    `document.querySelectorAll('${hubHistory} li[data-outcome]').length`,
+  )
+  check(
+    '回到「全部」记录都在，按天分了组',
+    allRows === historyRows && /今天/.test(await session.evaluate(textOf(hubHistory))),
+    String(allRows),
+  )
+  await session.evaluate(
+    `document.querySelector('${hubHistory} [data-testid="wl-trigger-fire"]').click()`,
+  )
+  await waitFor(session, has('wl-trigger-fire-dialog'))
+  await sleep(600)
+  await capture(session, 'hub-fire-dialog-light.png')
+  await pressKey(session, 'Escape')
+  await waitFor(session, `!(${has('wl-trigger-fire-dialog')})`)
+  check(
+    'Esc 只关掉详情，「触发」页还在',
+    await session.evaluate(`document.querySelector('[data-testid="wl-hub-trg-page"]') !== null`),
+  )
+  await sleep(400)
 
   // 全部暂停：开关不变，开着的卡片写已全部暂停；恢复后回到等待中。
   await session.evaluate(clickTestId('wl-hub-trg-pause'))

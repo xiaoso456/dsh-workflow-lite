@@ -4,7 +4,8 @@
  * - 左栏：每张卡片一行（名字、所在工作流、触发源、现在的状态），行尾的开关和画布上卡片的开关是同一个；
  *   要在本机跑命令、还没确认过的，开之前在开关旁浮出确认卡（和画布上一样列出命令和工作区）。
  *   最下面是「全部暂停 / 恢复」：只是一个总闸，各张卡片自己的开关不变。
- * - 右栏：选中那张的状态、「立即触发一次」、触发方式与执行设置的摘要（只读）、触发记录；
+ * - 右栏：选中那张的状态、「立即触发一次」、触发方式与执行设置的摘要（只读）、触发记录
+ *   （可按结果筛选、按天分组，点一条看详情）；
  *   「在画布上打开」跳到那个工作流、选中这张卡片。全部暂停着时右栏顶上一条说明，状态行不再重复说。
  *
  * 工作区、会话这些只能在画布上那张卡片的面板里改（这里没有工作流的现场）。
@@ -31,7 +32,7 @@ import { SwitchTrack } from '../motion/marks.tsx'
 import { ListThumb } from '../motion/thumb.tsx'
 import ins from '../panel/panel.module.css'
 import { useApproveConfirm } from '../trigger/ApproveConfirm.tsx'
-import { FireList } from '../trigger/FireList.tsx'
+import { FireHistory } from '../trigger/FireHistory.tsx'
 import { FireNow } from '../trigger/FireNow.tsx'
 import tone from '../trigger/stateTone.module.css'
 import { TRIGGER_ICON } from '../trigger/TriggerMark.tsx'
@@ -45,8 +46,8 @@ import { Callout } from './PackRow.tsx'
 const pairKey = (workflow: string, node: string): string => `${workflow}\n${node}`
 const keyOf = (entry: TriggerEntry): string => pairKey(entry.workflow, entry.view.node)
 
-/** 右栏列几条触发记录。 */
-const SHOWN = 20
+/** 右栏最多读几条触发记录（存下的总共也就这么多）。 */
+const SHOWN = 200
 
 const SESSION_TEXT: Record<TriggerSessionMode, LocaleKey> = {
   new: 'trigger.session.new',
@@ -316,7 +317,7 @@ function TriggerDetail(props: {
   const { t, entry, hub: data } = props
   const { view } = entry
   const fires = useFires(keyOf(entry), firesSignal(view.last), () =>
-    data.history(entry.workflow, view.node),
+    data.history(entry.workflow, view.node, SHOWN),
   )
   // 全部暂停着：顶上那条说明已经说了，状态行不再重复。
   const pausedHere = props.paused && view.state === 'paused'
@@ -371,10 +372,10 @@ function TriggerDetail(props: {
         <div className={ins.label}>
           <span>{t('trigger.history')}</span>
           <span className={ins.count}>
-            {fires === null || fires.length === 0 ? '' : Math.min(fires.length, SHOWN)}
+            {fires === null || fires.length === 0 ? '' : fires.length}
           </span>
         </div>
-        <FireList t={t} fires={fires?.slice(0, SHOWN) ?? null} onOpenRun={props.onOpenRun} />
+        <FireHistory t={t} fires={fires} detail={data.detail} onOpenRun={props.onOpenRun} />
       </section>
     </div>
   )

@@ -37,7 +37,7 @@ For filters and trigger conditions see [Filters and conditions](/dsh-workflow-li
 
 - The command runs as DSH in the chosen workspace, just like running it in a terminal yourself, without a sandbox. You confirm the command before switching it on; after the command or workspace changes, the card shows **Needs confirmation** and stops until you click **Confirm command** in the panel.
 - The command should finish quickly and not wait for input. Running longer than the interval (5 minutes at most) is a timeout.
-- A missing command, a failure to start or a timeout counts as a failure; after **Stop after failures in a row** failures the card stops automatically. An unmet condition is not a failure.
+- A missing command, a failure to start or a timeout counts as a failure; after **Failures before auto-off** failures the card stops automatically. An unmet condition is not a failure.
 - The model can write the script for you: describe in a conversation when the workflow should run. The model puts the script in the workflow folder, tries it, and adds a trigger card that is off; review it, choose a workspace and turn it on.
 
 ## Notes

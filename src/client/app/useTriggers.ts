@@ -12,6 +12,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { idKey } from '../../shared/model.ts'
 import type {
   FireRecord,
+  TriggerDetailResponse,
   TriggerListResponse,
   TriggerOwner,
   TriggerView,
@@ -49,7 +50,10 @@ export interface Triggers {
   /** 立即触发一次：回这次的记录；请求本身失败回一句原因。 */
   fire(node: string, info?: string): Promise<FireRecord | string>
   /** 一张卡片的触发记录，新的在前。 */
-  history(node: string): Promise<FireRecord[]>
+  /** 这张卡片最近 `limit` 条触发记录，新的在前。 */
+  history(node: string, limit: number): Promise<FireRecord[]>
+  /** 一次触发那一刻带的触发说明、背景信息；读不到是空的。 */
+  detail(fire: string): Promise<TriggerDetailResponse>
   /** 轮询命令、监听程序最近的输出；读不到是空串。 */
   output(node: string): Promise<string>
 }
@@ -142,15 +146,26 @@ export function useTriggers(
   )
 
   const history = useCallback(
-    async (node: string): Promise<FireRecord[]> => {
+    async (node: string, limit: number): Promise<FireRecord[]> => {
       if (workflow === null) return []
       try {
-        return (await rpc.call('trigger/history', { workflow, node })).fires
+        return (await rpc.call('trigger/history', { workflow, node, limit })).fires
       } catch {
         return []
       }
     },
     [rpc, workflow],
+  )
+
+  const detail = useCallback(
+    async (fire: string): Promise<TriggerDetailResponse> => {
+      try {
+        return await rpc.call('trigger/detail', { fire })
+      } catch {
+        return {}
+      }
+    },
+    [rpc],
   )
 
   const output = useCallback(
@@ -166,7 +181,7 @@ export function useTriggers(
   )
 
   return useMemo(
-    () => ({ view, owner: list.owner, set, fire, history, output }),
-    [view, list.owner, set, fire, history, output],
+    () => ({ view, owner: list.owner, set, fire, history, detail, output }),
+    [view, list.owner, set, fire, history, detail, output],
   )
 }

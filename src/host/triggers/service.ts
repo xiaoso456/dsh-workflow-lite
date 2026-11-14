@@ -29,6 +29,7 @@ import {
   isFilterKind,
   launchMissing,
   launchOf,
+  reachedLimit,
   sourceProblem,
 } from '../../shared/trigger.ts'
 import {
@@ -46,6 +47,7 @@ import type { TriggerSource } from '../../shared/types.ts'
 import type {
   FireRecord,
   TriggerAllResponse,
+  TriggerDetailResponse,
   TriggerEntry,
   TriggerFireRequest,
   TriggerHttpStatus,
@@ -76,6 +78,7 @@ import {
 import type { SessionPort } from './sessions.ts'
 import {
   approvalOf,
+  HISTORY_MAX,
   type LiveFile,
   ownerFile,
   type TriggerLocal,
@@ -89,6 +92,8 @@ export const BEAT_MS = 5_000
 export const LATE_MS = 2 * 60_000
 /** 触发记录一次最多给画布多少条。 */
 const HISTORY_PAGE = 50
+/** 详情里背景信息最多给界面多少字。 */
+const DETAIL_INFO_CHARS = 20_000
 const HOUR_MS = 60 * 60_000
 /** 超过每小时上限的常驻触发源，隔多久才再记一条「跳过」（日志刷屏时别把记录也刷满）。 */
 const CAP_NOTE_MS = 10 * 60_000
@@ -261,7 +266,10 @@ export class TriggerService {
     } else if (due.blocked !== undefined) {
       record = await this.launcher.fail(input, `工作流现在执行不了：${due.blocked}`)
     } else if (
-      (await this.sentWithinHour(due.workflow, due.trigger.node, now)) >= launch.maxPerHour
+      reachedLimit(
+        await this.sentWithinHour(due.workflow, due.trigger.node, now),
+        launch.maxPerHour,
+      )
     ) {
       record = await this.launcher.skip(
         input,
@@ -412,7 +420,10 @@ export class TriggerService {
     if (blocked !== undefined) {
       record = await this.launcher.fail(input, `工作流现在执行不了：${blocked}`)
     } else if (
-      (await this.sentWithinHour(input.workflow, input.trigger.node, input.at)) >= launch.maxPerHour
+      reachedLimit(
+        await this.sentWithinHour(input.workflow, input.trigger.node, input.at),
+        launch.maxPerHour,
+      )
     ) {
       const key = `${input.workflow}\u0000${input.trigger.node}`
       const noted = this.capNoted.get(key)
@@ -458,7 +469,7 @@ export class TriggerService {
     ).length
   }
 
-  /** 一次触发之后：发出去了清掉失败计数、记下会话；连续失败到了次数就自动停用。 */
+  /** 一次触发之后：发出去了清掉失败计数、记下会话；连续失败到了次数就自动停用（不限制的不停用）。 */
   private settle(record: FireRecord, maxFailures: number): Promise<void> {
     return this.store.update((locals) => {
       const local = locals[record.workflow]?.[record.node]
@@ -471,7 +482,7 @@ export class TriggerService {
       if (record.outcome !== 'failed') return
       const failures = (local.failures ?? 0) + 1
       local.failures = failures
-      if (failures < maxFailures) return
+      if (!reachedLimit(failures, maxFailures)) return
       local.enabled = false
       local.stopped = `连续 ${String(failures)} 次失败：${record.reason ?? '原因不明'}`
       delete local.due
@@ -778,13 +789,31 @@ export class TriggerService {
     return (await this.store.output(workflow, node)) ?? ''
   }
 
-  /** 触发记录，新的在前；给了卡片就只看它的。 */
-  async history(workflow: string, node?: string): Promise<FireRecord[]> {
+  /** 触发记录，新的在前；给了卡片就只看它的。`limit` 缺省 {@link HISTORY_PAGE} 条，最多是存下的全部。 */
+  async history(workflow: string, node?: string, limit = HISTORY_PAGE): Promise<FireRecord[]> {
+    const count = Number.isFinite(limit)
+      ? Math.min(Math.max(Math.trunc(limit), 1), HISTORY_MAX)
+      : HISTORY_PAGE
     const fires = await this.store.fires()
     return fires
       .filter((fire) => fire.workflow === workflow && (node === undefined || fire.node === node))
       .reverse()
-      .slice(0, HISTORY_PAGE)
+      .slice(0, count)
+  }
+
+  /** 一次触发那一刻带的触发说明、触发条件、背景信息（给界面看；背景信息太长只给开头）。 */
+  async detail(fire: string): Promise<TriggerDetailResponse> {
+    const detail = await this.store.detail(fire)
+    if (detail === null) return {}
+    const { note, condition, info, merged } = detail
+    const clipped = info !== undefined && info.length > DETAIL_INFO_CHARS
+    return {
+      ...(note === undefined ? {} : { note }),
+      ...(condition === undefined ? {} : { condition }),
+      ...(info === undefined ? {} : { info: clipped ? info.slice(0, DETAIL_INFO_CHARS) : info }),
+      ...(clipped ? { infoClipped: true as const } : {}),
+      ...(merged === undefined ? {} : { merged }),
+    }
   }
 }
 

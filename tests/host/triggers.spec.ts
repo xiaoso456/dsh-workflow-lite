@@ -446,6 +446,25 @@ describe('到点触发', () => {
     })
   })
 
+  it('上限写 0 是不限制：每小时不限次数，失败多少次都不自动停用', async () => {
+    const triggers = await ready({
+      source: { kind: 'schedule', schedule: { kind: 'every', minutes: 1 } },
+      launch: { maxPerHour: 0, maxFailures: 0, overlap: 'parallel' },
+    })
+    for (let round = 0; round < 20; round += 1) {
+      clock += MINUTE
+      await triggers.tick()
+    }
+    expect(sent).toHaveLength(20)
+
+    openError = '工作区不见了'
+    for (let round = 0; round < 5; round += 1) {
+      clock += MINUTE
+      await triggers.tick()
+    }
+    expect((await triggers.list('patrol')).triggers[0]).toMatchObject({ enabled: true })
+  })
+
   it('连续 3 次发不出去自动停用，说出原因；中间发出去一次就重新数', async () => {
     const triggers = await ready()
     openError = '工作区不见了'
@@ -553,6 +572,44 @@ describe('实例记下的来源', () => {
       maxResultBytes: () => 262_144,
       runs,
     })
+  })
+
+  it('触发记录按要的条数给；一次触发的详情带着那一刻的触发说明和背景信息，太长只给开头', async () => {
+    await saveGraph('patrol', { note: '只看 src/', launch: { overlap: 'parallel' } })
+    const triggers = service()
+    await triggers.set({ workflow: 'patrol', node: 'tick', workspace })
+    const ids: string[] = []
+    for (const info of ['磁盘 91%', 'x'.repeat(20_500), undefined]) {
+      const fired = await triggers.fireNow({
+        workflow: 'patrol',
+        node: 'tick',
+        ...(info === undefined ? {} : { info }),
+      })
+      if (!fired.ok) throw new Error('没触发')
+      ids.push(fired.result.id)
+    }
+    const [first = '', long = '', bare = ''] = ids
+
+    // 新的在前；给了条数就只给那么多，乱给的数当成至少一条。
+    expect((await triggers.history('patrol', 'tick')).map((fire) => fire.id)).toEqual([
+      bare,
+      long,
+      first,
+    ])
+    expect((await triggers.history('patrol', 'tick', 2)).map((fire) => fire.id)).toEqual([
+      bare,
+      long,
+    ])
+    expect(await triggers.history('patrol', 'tick', 0)).toHaveLength(1)
+
+    expect(await triggers.detail(first)).toEqual({ note: '只看 src/', info: '磁盘 91%' })
+    const clipped = await triggers.detail(long)
+    expect(clipped.info).toHaveLength(20_000)
+    expect(clipped.infoClipped).toBe(true)
+    expect(await triggers.detail(bare)).toEqual({ note: '只看 src/' })
+    // 编号不对、记录已经不在：什么都没有，不报错。
+    expect(await triggers.detail('f-20260101-000000-0000')).toEqual({})
+    expect(await triggers.detail('../state')).toEqual({})
   })
 
   it('模型带着触发编号编译：实例记下是哪张卡片、什么时候、带了什么；触发记录里有实例', async () => {

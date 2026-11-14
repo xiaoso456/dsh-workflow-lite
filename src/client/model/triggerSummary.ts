@@ -6,7 +6,12 @@
  */
 
 import { nextFire } from '../../shared/schedule.ts'
-import { type FilterSettings, type LaunchSettings, sourceIssue } from '../../shared/trigger.ts'
+import {
+  type FilterSettings,
+  type LaunchSettings,
+  NO_LIMIT,
+  sourceIssue,
+} from '../../shared/trigger.ts'
 import { isLoopbackHost } from '../../shared/triggerHttp.ts'
 import type { TriggerSource } from '../../shared/types.ts'
 import type { LocaleKey, T } from '../i18n.ts'
@@ -30,13 +35,33 @@ export function filterSummary(t: T, filter: FilterSettings): string {
   return parts.length === 0 ? t('trigger.sum.noFilter') : parts.join(SEP)
 }
 
-/** 「没跑完时跳过 · 每小时最多 12 次 · 连续 3 次失败停用」，关了补触发再加「不补错过的」。 */
+/** 「上一次仍在运行时跳过 · 每小时最多 12 次 · 连续 3 次失败停用」，关了补发再加「不补发错过的触发」。 */
 export function guardSummary(t: T, launch: LaunchSettings): string {
   return [
     t(launch.overlap === 'parallel' ? 'trigger.sum.parallel' : 'trigger.sum.skip'),
-    t('trigger.sum.perHour').replace('{n}', String(launch.maxPerHour)),
-    t('trigger.sum.failures').replace('{n}', String(launch.maxFailures)),
+    launch.maxPerHour === NO_LIMIT
+      ? t('trigger.sum.noPerHour')
+      : t('trigger.sum.perHour').replace('{n}', String(launch.maxPerHour)),
+    launch.maxFailures === NO_LIMIT
+      ? t('trigger.sum.noFailures')
+      : t('trigger.sum.failures').replace('{n}', String(launch.maxFailures)),
     launch.catchUp ? '' : t('trigger.sum.noCatchUp'),
+  ]
+    .filter((part) => part !== '')
+    .join(SEP)
+}
+
+/** 面板一行里放得下的短写法：「运行中跳过 · 12 次/时 · 3 次失败停用」；完整说法见 {@link guardSummary}（悬停提示用）。 */
+export function guardBrief(t: T, launch: LaunchSettings): string {
+  return [
+    t(launch.overlap === 'parallel' ? 'trigger.brief.parallel' : 'trigger.brief.skip'),
+    launch.maxPerHour === NO_LIMIT
+      ? t('trigger.brief.noPerHour')
+      : t('trigger.brief.perHour').replace('{n}', String(launch.maxPerHour)),
+    launch.maxFailures === NO_LIMIT
+      ? t('trigger.brief.noFailures')
+      : t('trigger.brief.failures').replace('{n}', String(launch.maxFailures)),
+    launch.catchUp ? '' : t('trigger.brief.noCatchUp'),
   ]
     .filter((part) => part !== '')
     .join(SEP)

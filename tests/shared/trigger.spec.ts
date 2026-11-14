@@ -49,6 +49,17 @@ describe('触发节点的读入', () => {
     })
   })
 
+  it('两个上限写 0 是不限制，留在图里，多大都行；负数、小数丢掉回缺省', () => {
+    const open = readTriggerData({ launch: { maxPerHour: 0, maxFailures: 0 } })
+    expect(open.launch).toEqual({ maxPerHour: 0, maxFailures: 0 })
+    expect(launchOf(open)).toMatchObject({ maxPerHour: 0, maxFailures: 0 })
+    expect(readTriggerData({ launch: { maxPerHour: 50_000 } }).launch).toEqual({
+      maxPerHour: 50_000,
+    })
+    const bad = readTriggerData({ launch: { maxPerHour: -1, maxFailures: 1.5 } })
+    expect(launchOf(bad)).toMatchObject({ maxPerHour: 12, maxFailures: 3 })
+  })
+
   it('七天全选和不写是一回事', () => {
     const data = readTriggerData({
       source: { schedule: { kind: 'daily', time: '08:00', weekdays: [1, 2, 3, 4, 5, 6, 7] } },

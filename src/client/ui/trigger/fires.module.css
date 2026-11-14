@@ -1,0 +1,211 @@
+/**
+ * dsh-workflow-lite — 触发记录的列表（FireList）和一次触发的详情（dialogs/FireDialog）。
+ *
+ * 结果的颜色写在带 `data-outcome` 的元素上：`--fire`（圆点）、`--fire-text`（结果那个词）。
+ * 已发出绿、失败红、跳过灰、模型判断不需要是石板色（它不算出问题）。
+ */
+
+[data-outcome] {
+  --fire: var(--wl-text-3);
+  --fire-text: var(--wl-text-2);
+}
+
+[data-outcome="sent"] {
+  --fire: var(--wl-ok-dot);
+  --fire-text: var(--wl-ok);
+}
+
+[data-outcome="failed"] {
+  --fire: var(--wl-danger);
+  --fire-text: var(--wl-danger);
+}
+
+[data-outcome="declined"] {
+  --fire: var(--wl-c-slate);
+}
+
+.dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--fire);
+}
+
+/* 全部记录：筛选在上，列表在下。 */
+.history {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+/*
+ * 列表：自己一个框，最多露出 `--fire-rows` 行，再多在框里滚（不把外面的面板撑长）。
+ * 每行一样高：色点 · 时刻 · 渠道 · 原因（占剩下的宽度，超出省略）· 结果。
+ */
+.fires {
+  --fire-row: 32px;
+
+  display: flex;
+  flex-direction: column;
+  max-height: calc(var(--fire-rows, 6) * (var(--fire-row) + 1px) + 1px);
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  border: 1px solid var(--wl-line);
+  border-radius: var(--wl-r-control);
+  list-style: none;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.fire {
+  display: flex;
+  flex: none;
+  height: var(--fire-row);
+  font-size: var(--wl-fs-micro);
+}
+
+/* 整行是一个按钮。 */
+.fireMain {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  padding: 0 10px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.fireMain:hover {
+  background: var(--wl-hover);
+}
+
+.fireMain:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: -2px;
+}
+
+.fireTime {
+  flex: none;
+  color: var(--wl-text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.fireChannel {
+  flex: none;
+  color: var(--wl-text-2);
+  white-space: nowrap;
+}
+
+.fireWhy {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 没有原因的行里，结果也靠右。 */
+.fireOutcome {
+  flex: none;
+  margin-left: auto;
+  color: var(--fire-text);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* 行尾「看这次执行」：在行按钮旁边，不套在里面。 */
+.fireOpen {
+  flex: none;
+  align-self: center;
+  margin-right: 4px;
+}
+
+/* 按天分组时一天的小标题：滚动时钉在框顶。 */
+.day {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  flex: none;
+  gap: 6px;
+  align-items: center;
+  height: 26px;
+  padding: 0 10px;
+  background: var(--wl-sunken);
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+}
+
+.dayCount {
+  color: var(--wl-text-3);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 行与行、行与小标题之间一条线。 */
+.fires > li + li {
+  border-top: 1px solid var(--wl-line);
+}
+
+/* 详情的标题：色点 + 结果。 */
+.dialogTitle {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--fire-text);
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.blockTitle {
+  margin: 0;
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-meta);
+  font-weight: 600;
+}
+
+/* 原样分行；路径、报错这类长串可以在任意处折行，太长了自己滚。 */
+.blockText {
+  max-height: 220px;
+  margin: 0;
+  overflow-y: auto;
+  padding: 8px 10px;
+  border: 1px solid var(--wl-line);
+  border-radius: var(--wl-r-control);
+  background: var(--wl-sunken);
+  color: var(--wl-text);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  user-select: text;
+}
+
+/* 瑞士：成组的列表只留上下线，一天的小标题压黑线。 */
+:global([data-look="swiss"]) .fires,
+:global([data-look="swiss"]) .blockText {
+  border-width: 1px 0;
+  border-color: var(--wl-line-strong);
+}
+
+:global([data-look="swiss"]) .day {
+  background: transparent;
+  color: var(--wl-text);
+  letter-spacing: 0.08em;
+}

@@ -182,11 +182,29 @@ export interface TriggerHistoryRequest {
   workflow: string
   /** 只看这张卡片的。 */
   node?: string
+  /** 最多要几条（缺省 50，上限是存下的全部）。 */
+  limit?: number
 }
 
 export interface TriggerHistoryResponse {
   /** 新的在前。 */
   fires: FireRecord[]
+}
+
+export interface TriggerDetailRequest {
+  /** 触发编号（记录的 `id`）。 */
+  fire: string
+}
+
+/** 一次触发那一刻带的东西；记录已经被挤掉、或那次什么都没带时各项都没有。 */
+export interface TriggerDetailResponse {
+  note?: string
+  condition?: string
+  /** 背景信息；太长时只给开头（{@link infoClipped}）。 */
+  info?: string
+  infoClipped?: true
+  /** 合并窗口里并进来了几次（多于一次才有）。 */
+  merged?: number
 }
 
 export interface TriggerOutputRequest {

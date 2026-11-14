@@ -51,6 +51,8 @@ export function Select<V extends string>(props: {
   testId?: string
   /** 带搜索框时要（搜索框的占位字、搜不到时的一行）；不给就不带搜索框。 */
   t?: T
+  /** 不带自己的框和底（放在已经有框的列表行里，见 trigger/SummaryRow 的 SummaryField）。 */
+  plain?: boolean
 }): React.JSX.Element {
   const { t } = props
   const [open, setOpen] = useState(false)
@@ -89,7 +91,7 @@ export function Select<V extends string>(props: {
           <button
             ref={trigger}
             type="button"
-            className={cx(ui.input, css.trigger)}
+            className={cx(ui.input, css.trigger, props.plain === true && css.plain)}
             aria-label={props.label}
             aria-haspopup="menu"
             aria-expanded={open}

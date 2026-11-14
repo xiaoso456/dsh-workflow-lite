@@ -55,6 +55,13 @@ export const DEFAULT_TRIGGER: TriggerData = {
 /** 保护的缺省值：每小时最多触发几次、连续失败几次后自动停用。 */
 export const DEFAULT_MAX_PER_HOUR = 12
 export const DEFAULT_MAX_FAILURES = 3
+/** 上限写成这个数就是不限制（每小时不限次数 / 失败多少次都不自动停用）。 */
+export const NO_LIMIT = 0
+
+/** `count` 到没到上限 `limit`；不限制的永远没到。 */
+export function reachedLimit(count: number, limit: number): boolean {
+  return limit !== NO_LIMIT && count >= limit
+}
 
 /** 条件轮询的间隔（秒）：上下限与缺省。 */
 export const POLL_MIN_SECONDS = 10
@@ -195,9 +202,9 @@ function readLaunch(raw: unknown): TriggerLaunch | undefined {
   const overlap = OVERLAPS.find((mode) => mode === raw.overlap)
   if (overlap !== undefined && overlap !== 'skip') launch.overlap = overlap
   if (raw.catchUp === false) launch.catchUp = false
-  const perHour = wholeIn(raw.maxPerHour, 1, 3600)
+  const perHour = wholeIn(raw.maxPerHour, NO_LIMIT, Number.MAX_SAFE_INTEGER)
   if (perHour !== undefined && perHour !== DEFAULT_MAX_PER_HOUR) launch.maxPerHour = perHour
-  const failures = wholeIn(raw.maxFailures, 1, 100)
+  const failures = wholeIn(raw.maxFailures, NO_LIMIT, Number.MAX_SAFE_INTEGER)
   if (failures !== undefined && failures !== DEFAULT_MAX_FAILURES) launch.maxFailures = failures
   return Object.keys(launch).length > 0 ? launch : undefined
 }

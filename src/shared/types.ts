@@ -387,9 +387,9 @@ export interface TriggerLaunch {
   overlap?: TriggerOverlap
   /** DSH 关着期间错过的定时，启动后不补（缺省补一次）。 */
   catchUp?: false
-  /** 每小时最多触发几次。 */
+  /** 每小时最多触发几次；0 = 不限制。 */
   maxPerHour?: number
-  /** 连续失败几次后自动停用。 */
+  /** 连续失败几次后自动停用；0 = 不自动停用。 */
   maxFailures?: number
 }
 

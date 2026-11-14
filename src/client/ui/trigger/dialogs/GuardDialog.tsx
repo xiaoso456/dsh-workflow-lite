@@ -7,7 +7,7 @@
  */
 
 import { useState } from 'react'
-import { launchOf, readTriggerData } from '../../../../shared/trigger.ts'
+import { launchOf, NO_LIMIT, readTriggerData } from '../../../../shared/trigger.ts'
 import type { TriggerData, TriggerLaunch } from '../../../../shared/types.ts'
 import type { T } from '../../../i18n.ts'
 import { cx } from '../../kit/cx.ts'
@@ -64,22 +64,27 @@ export function GuardDialog(props: {
         onToggle={(on) => patch({ catchUp: on ? undefined : false })}
       />
       <LimitRow
+        none={t('trigger.noLimit')}
         label={t('trigger.maxPerHour')}
+        desc={t('trigger.maxPerHourDesc')}
         value={launch.maxPerHour}
-        max={3600}
         testId="wl-trigger-max-hour"
         onCommit={(maxPerHour) => patch({ maxPerHour })}
       />
       <LimitRow
+        none={t('trigger.noLimit')}
         label={t('trigger.maxFailures')}
+        desc={t('trigger.maxFailuresDesc')}
         value={launch.maxFailures}
-        max={100}
         testId="wl-trigger-max-failures"
         onCommit={(maxFailures) => patch({ maxFailures })}
       />
     </TriggerSheet>
   )
 }
+
+/** 数字框里最多几位（放得下、也远在整数的安全范围里）。 */
+const LIMIT_DIGITS = 7
 
 /** 一行开关：标题加一句说明，整行可点（和面板里别的开关行一样）。 */
 function SwitchRow(props: {
@@ -107,29 +112,38 @@ function SwitchRow(props: {
   )
 }
 
-/** 一个上限（至少 1）：一行说明加一个数字框；打字就交给草稿（夹进范围），失焦时框里显示夹过的数。 */
+/**
+ * 一个上限：名字加一句说明，右边一个数字框（只收数字，多大都行）；留空（或填 0）是不限制，框里浅字写着「不限制」。
+ * 打字就交给草稿，失焦时框里显示存下的数。
+ */
 function LimitRow(props: {
   label: string
+  desc: string
+  /** 不限制时框里的浅字。 */
+  none: string
   value: number
-  max: number
   testId: string
   onCommit(value: number): void
 }): React.JSX.Element {
   const [draft, setDraft] = useState<string | null>(null)
   return (
     <label className={css.row}>
-      <span className={cx(css.rowLabel, css.grow)}>{props.label}</span>
+      <span className={cx(ins.requiredText, css.grow)}>
+        <span className={ins.requiredTitle}>{props.label}</span>
+        <span className={ins.requiredDesc}>{props.desc}</span>
+      </span>
       <input
         className={cx(ui.input, css.number)}
         inputMode="numeric"
-        value={draft ?? String(props.value)}
+        value={draft ?? (props.value === NO_LIMIT ? '' : String(props.value))}
+        placeholder={props.none}
         aria-label={props.label}
         data-testid={props.testId}
         onChange={(event) => {
-          const text = event.currentTarget.value.replace(/[^\d]/gu, '')
+          const text = event.currentTarget.value.replace(/[^\d]/gu, '').slice(0, LIMIT_DIGITS)
           setDraft(text)
-          const value = Number.parseInt(text, 10)
-          if (Number.isFinite(value)) props.onCommit(Math.min(props.max, Math.max(1, value)))
+          const value = text === '' ? NO_LIMIT : Number.parseInt(text, 10)
+          props.onCommit(value)
         }}
         onBlur={() => setDraft(null)}
       />

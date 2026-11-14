@@ -8,7 +8,11 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { FireRecord, TriggerAllResponse } from '../../shared/wire/trigger.ts'
+import type {
+  FireRecord,
+  TriggerAllResponse,
+  TriggerDetailResponse,
+} from '../../shared/wire/trigger.ts'
 import { shareSame } from '../model/samePlain.ts'
 import { errorMessage, type WorkflowLiteRpc } from '../rpc.ts'
 import { useRefresher } from './useRefresher.ts'
@@ -26,7 +30,10 @@ export interface TriggerHub {
   /** 立即触发一次：回这次的记录；请求本身失败回一句原因。 */
   fire(workflow: string, node: string, info: string): Promise<FireRecord | string>
   /** 一张卡片的触发记录，新的在前。 */
-  history(workflow: string, node: string): Promise<FireRecord[]>
+  /** 一张卡片最近 `limit` 条触发记录，新的在前。 */
+  history(workflow: string, node: string, limit: number): Promise<FireRecord[]>
+  /** 一次触发那一刻带的触发说明、背景信息；读不到是空的。 */
+  detail(fire: string): Promise<TriggerDetailResponse>
 }
 
 /**
@@ -107,9 +114,9 @@ export function useTriggerHub(rpc: WorkflowLiteRpc, flush: () => Promise<boolean
   )
 
   const history = useCallback(
-    async (workflow: string, node: string): Promise<FireRecord[]> => {
+    async (workflow: string, node: string, limit: number): Promise<FireRecord[]> => {
       try {
-        return (await rpc.call('trigger/history', { workflow, node })).fires
+        return (await rpc.call('trigger/history', { workflow, node, limit })).fires
       } catch {
         return []
       }
@@ -117,8 +124,19 @@ export function useTriggerHub(rpc: WorkflowLiteRpc, flush: () => Promise<boolean
     [rpc],
   )
 
+  const detail = useCallback(
+    async (fire: string): Promise<TriggerDetailResponse> => {
+      try {
+        return await rpc.call('trigger/detail', { fire })
+      } catch {
+        return {}
+      }
+    },
+    [rpc],
+  )
+
   return useMemo(
-    () => ({ list, error, set, pause, fire, history }),
-    [list, error, set, pause, fire, history],
+    () => ({ list, error, set, pause, fire, history, detail }),
+    [list, error, set, pause, fire, history, detail],
   )
 }

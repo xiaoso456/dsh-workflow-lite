@@ -37,9 +37,9 @@ The model can write the script for you. How commands run and are confirmed is th
 | Restarting | The program exited unexpectedly; followed by the next restart time. The wait starts at 2 seconds and doubles each time, up to 1 minute. |
 | Needs confirmation | The command or workspace changed; click **Confirm command** in the panel to continue. |
 
-A program that exits within 1 minute of starting counts as a failure (a bug in the script, a missing command, missing dependencies); after **Stop after failures in a row** failures the card stops automatically. Once it has run for a full minute, the failure count resets.
+A program that exits within 1 minute of starting counts as a failure (a bug in the script, a missing command, missing dependencies); after **Failures before auto-off** failures the card stops automatically. Once it has run for a full minute, the failure count resets.
 
 ## Notes
 
 - Turning off the switch or closing DSH ends the program along with the child processes it started.
-- Triggers beyond **Max triggers per hour** are dropped, and the history records only one **Skipped** every 10 minutes.
+- Triggers beyond **Hourly trigger limit** are dropped, and the history records only one **Skipped** every 10 minutes.

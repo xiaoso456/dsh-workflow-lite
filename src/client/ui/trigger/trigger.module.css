@@ -39,40 +39,6 @@
   width: auto;
 }
 
-/* 开关打不开、缺的就是这一项：底下闪一下强调色（只动透明度）。 */
-.attention {
-  position: relative;
-}
-
-.attention::before {
-  position: absolute;
-  inset: -4px -6px;
-  border-radius: var(--wl-r-control);
-  background: var(--wl-accent-soft);
-  content: "";
-  opacity: 0;
-  pointer-events: none;
-}
-
-.attention > * {
-  position: relative;
-}
-
-.attention[data-flash="true"]::before {
-  animation: attention 1200ms var(--wl-ease) both;
-}
-
-@keyframes attention {
-  0%,
-  45% {
-    opacity: 1;
-  }
-
-  100% {
-    opacity: 0;
-  }
-}
-
 /* 按钮在一列里不拉满。 */
 .selfStart {
   align-self: flex-start;
@@ -95,7 +61,7 @@
 
 .number {
   flex: none;
-  width: 64px;
+  width: 72px;
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
@@ -338,80 +304,7 @@
   justify-content: flex-end;
 }
 
-/* 触发记录：一条一行，原因另起一行。 */
-.fires {
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-  padding: 0;
-  border: 1px solid var(--wl-line);
-  border-radius: var(--wl-r-control);
-  list-style: none;
-}
-
-.fire {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 6px 8px 6px 10px;
-  font-size: var(--wl-fs-micro);
-}
-
-.fire + .fire {
-  border-top: 1px solid var(--wl-line);
-}
-
-.fireTop {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  min-height: 22px;
-}
-
-.fireTime {
-  color: var(--wl-text);
-  font-variant-numeric: tabular-nums;
-}
-
-.fireChannel {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  color: var(--wl-text-3);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.fireOutcome {
-  flex: none;
-  color: var(--wl-text-2);
-  font-weight: 600;
-}
-
-.fire[data-outcome="sent"] .fireOutcome {
-  color: var(--wl-ok);
-}
-
-.fire[data-outcome="failed"] .fireOutcome {
-  color: var(--wl-danger);
-}
-
-.fire[data-outcome="declined"] .fireOutcome {
-  color: var(--wl-text-2);
-}
-
-.fireOpen {
-  flex: none;
-}
-
-.fireReason {
-  color: var(--wl-text-3);
-  line-height: 1.5;
-  overflow-wrap: anywhere;
-}
-
 /* 瑞士：成组的列表只留上下线，圆钮成方的（圆角已经跟着 --wl-round 归零）。 */
-:global([data-look="swiss"]) .fires,
 :global([data-look="swiss"]) .endpoint,
 :global([data-look="swiss"]) .output {
   border-width: 1px 0;
@@ -421,11 +314,6 @@
 @media (prefers-reduced-motion: reduce) {
   .day {
     transition: none;
-  }
-
-  /* 不闪，只亮一下再退（透明度直接跳）。 */
-  .attention[data-flash="true"]::before {
-    animation: attention 1200ms steps(1, end) both;
   }
 }
 

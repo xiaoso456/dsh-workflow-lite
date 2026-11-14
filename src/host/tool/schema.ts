@@ -476,8 +476,14 @@ export const PARAMETERS = {
             type: 'boolean',
             description: '定时：DSH 没开时错过的，启动后补一次（缺省 true）。',
           },
-          maxPerHour: { type: 'number', description: '每小时最多触发几次（缺省 12）。' },
-          maxFailures: { type: 'number', description: '连续失败几次后自动停用（缺省 3）。' },
+          maxPerHour: {
+            type: 'number',
+            description: '每小时最多触发几次（缺省 12；0 = 不限制，只在用户明说时用）。',
+          },
+          maxFailures: {
+            type: 'number',
+            description: '连续失败几次后自动停用（缺省 3；0 = 不自动停用，只在用户明说时用）。',
+          },
         },
       },
     },

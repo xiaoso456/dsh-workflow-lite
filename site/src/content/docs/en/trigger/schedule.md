@@ -32,10 +32,10 @@ To see it work right away, click **Trigger once now** in the panel, optionally a
 | Trigger note | Text | Empty | Passed to the model as is on every trigger; a good place for the scope and requirements of the run. Shares a dialog with the [trigger condition](/dsh-workflow-lite/en/trigger/filter/#trigger-condition). |
 | Session | New session, Continue last, Fixed session | New session | **Continue last** sends to the session used by the previous trigger, or creates one if it is gone. |
 | Workspace | Workspaces opened before | None | New sessions are created here; with **Fixed session**, choose **Session** instead. |
-| Run even if still running | On, off | Off | When off, a trigger is skipped while the session from the previous trigger is still running. This and the next three settings are in the **Safeguards** dialog. |
-| Catch up | On, off | On | Runs once after startup if a trigger was missed while DSH was closed. |
-| Max triggers per hour | 1 or more | 12 | Triggers beyond the limit are skipped. |
-| Stop after failures in a row | 1 or more | 3 | See **Status** below. |
+| Allow overlapping runs | On, off | Off | When off, a trigger is skipped while the session from the previous trigger is still running. This and the next three settings are in the **Safeguards** dialog. |
+| Run missed triggers | On, off | On | Scheduled triggers missed while DSH was not running fire once after startup. When off, they are skipped. |
+| Hourly trigger limit | 1 or more, empty for no limit | 12 | Triggers beyond the limit within an hour are skipped. |
+| Failures before auto-off | 1 or more, empty to never switch off | 3 | See **Status** below. |
 
 ## Status
 
@@ -53,7 +53,7 @@ To see it work right away, click **Trigger once now** in the panel, optionally a
 
 A failure means the trigger itself did not get through: the workspace or session is missing, the session cannot be created, the workflow has errors and cannot run, or a poll command or listener cannot run. Skipped triggers, unmet conditions, filtered triggers and the outcome of a run after delivery do not count.
 
-**Trigger history** in the panel lists the time and result of the last three triggers; click **All history** to see them all on the [**Triggers** page of the workflow hub](/dsh-workflow-lite/en/trigger/manage/). Once the model starts the run, the arrow on the right of a record opens it. With a [trigger condition](/dsh-workflow-lite/en/trigger/filter/#trigger-condition), a trigger the model decided to skip shows **Not needed** and the reason.
+**Trigger history** in the panel lists the time and result of the last 20 triggers; click **All history** to see them all on the [**Triggers** page of the workflow hub](/dsh-workflow-lite/en/trigger/manage/). Click a record to see the details of that trigger; once the model starts the run, the arrow on the right of a record opens it. With a [trigger condition](/dsh-workflow-lite/en/trigger/filter/#trigger-condition), a trigger the model decided to skip shows **Not needed** and the reason.
 
 ## Questions before running
 
@@ -68,5 +68,5 @@ Every instance records how it was started. See **Origin** in the instance **Over
 - Triggers only fire while DSH is running; nothing runs after it is closed.
 - The switch, workspace and session are stored on this machine only and are not [exported](/dsh-workflow-lite/en/manage/import-export/) with the workflow. After importing, choose them again and turn the switch on.
 - The model can add trigger cards when asked in a conversation. Cards it adds are always off; review them and turn them on yourself.
-- **Trigger once now** ignores the switch, the hourly limit and **Run even if still running**.
+- **Trigger once now** ignores the switch, the hourly limit and **Allow overlapping runs**.
 - Do not open a workflow that has trigger cards with plugin version 0.10.0 or earlier; the trigger settings are lost on save.

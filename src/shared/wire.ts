@@ -128,6 +128,8 @@ import type {
 import type {
   FireRecord,
   TriggerAllResponse,
+  TriggerDetailRequest,
+  TriggerDetailResponse,
   TriggerFireRequest,
   TriggerHistoryRequest,
   TriggerHistoryResponse,
@@ -195,6 +197,7 @@ export const WORKFLOW_LITE_ENDPOINTS = [
   'trigger/set',
   'trigger/fire',
   'trigger/history',
+  'trigger/detail',
   'trigger/output',
   'trigger/all',
   'trigger/pause',
@@ -309,6 +312,7 @@ export interface WorkflowLiteRpcMap {
   'trigger/set': { args: TriggerSetRequest; result: TriggerListResponse }
   'trigger/fire': { args: TriggerFireRequest; result: FireRecord }
   'trigger/history': { args: TriggerHistoryRequest; result: TriggerHistoryResponse }
+  'trigger/detail': { args: TriggerDetailRequest; result: TriggerDetailResponse }
   'trigger/output': { args: TriggerOutputRequest; result: TriggerOutputResponse }
   'trigger/all': { args: Record<string, never>; result: TriggerAllResponse }
   'trigger/pause': { args: TriggerPauseRequest; result: TriggerPauseResponse }
