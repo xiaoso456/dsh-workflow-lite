@@ -2,7 +2,8 @@
  * dsh-workflow-lite — 触发卡片面板里「现在怎么样」的两块，只在模板视图里出现（实例里的卡片是快照，没有现场）：
  *
  * - {@link TriggerStatus}（面板最上面）：一个框里左边是开关和状态（色点和画布卡片、「触发」页同一套），
- *   右边是「立即触发一次」；刚发出去的那句话几秒内写在状态行上，没发出去的原因和别的问题写在框下面。
+ *   右边是「立即触发一次」；刚发出去的那句话几秒内写在状态行上。出了要人处理的事（没发出去、出错、待确认……）
+ *   在按钮前面亮一枚图标（{@link ProblemMark}），悬停看说明、点小卡里的按钮处理——不在框下面另起一段字，不挤动下面的东西。
  *   要在本机跑命令、还没确认过的卡片，打开前在开关旁边浮出确认卡，列出命令和工作区；
  * - {@link TriggerLog}（面板最下面）：最近几次触发记录，在自己的框里滚（最近的输出在「触发方式」对话框里）。
  *
@@ -13,6 +14,7 @@ import { commandOf } from '../../../shared/trigger.ts'
 import type { TriggerData } from '../../../shared/types.ts'
 import { firesSignal, useFires } from '../../app/useFires.ts'
 import type { T } from '../../i18n.ts'
+import { type Problem, problemOf } from '../../model/triggerProblem.ts'
 import { stateText, stateTone } from '../../model/triggerText.ts'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
@@ -22,6 +24,7 @@ import ins from '../panel/panel.module.css'
 import { useApproveConfirm } from './ApproveConfirm.tsx'
 import { FireList } from './FireList.tsx'
 import { useFireNow } from './FireNow.tsx'
+import { ProblemMark } from './ProblemMark.tsx'
 import tone from './stateTone.module.css'
 import css from './trigger.module.css'
 import type { TriggerEnv } from './triggerEnv.ts'
@@ -58,16 +61,20 @@ export function TriggerStatus(props: {
     if (env.toggle(node, !on) === 'confirm') approve.show()
   }
 
-  const problem =
-    state === 'elsewhere' && env.triggers.owner !== undefined
-      ? t('trigger.ownerOther').replace('{pid}', String(env.triggers.owner.pid))
-      : state === 'stopped'
-        ? `${view?.problem ?? ''} ${t('trigger.stoppedHint')}`
-        : state === 'paused'
-          ? t('trigger.pausedHint')
-          : (view?.problem ?? '')
-  const calm =
-    state === 'elsewhere' || state === 'waiting' || state === 'listening' || state === 'paused'
+  /** 小卡里的按钮：确认命令就在开关旁边问；重新打开同点开关（要确认的照样先问）。 */
+  const onFix = (run: 'approve' | 'reopen'): void => {
+    if (run === 'approve' || env.toggle(node, true) === 'confirm') approve.show()
+  }
+
+  // 「立即触发一次」没发出去的原因最要紧（刚点的），留到下一次；全部暂停着时说一句为什么不触发。
+  const problem: Problem | null =
+    fired?.tone === 'bad'
+      ? { text: fired.text, tone: 'bad' }
+      : state === 'paused'
+        ? { text: t('trigger.pausedHint'), tone: 'calm' }
+        : view === undefined
+          ? null
+          : problemOf(t, view, data.source, env.triggers.owner?.pid)
 
   return (
     <section className={ins.field} data-testid="wl-trigger-status" data-state={state}>
@@ -101,7 +108,10 @@ export function TriggerStatus(props: {
             </span>
           </span>
         </button>
-        <span className={css.statusAction}>{fireNow.button}</span>
+        <span className={css.statusAction}>
+          <ProblemMark t={t} problem={problem} testId="wl-trigger-problem" onAction={onFix} />
+          {fireNow.button}
+        </span>
       </div>
       {command !== undefined &&
         approve.render({
@@ -113,28 +123,6 @@ export function TriggerStatus(props: {
           testId: 'wl-trigger-approve',
           onApprove: (approved) => env.approve(node, approved),
         })}
-      {/* 一直挂着：没问题时是空的，出了问题只换字。 */}
-      <p
-        className={calm ? ins.help : ins.error}
-        data-testid="wl-trigger-problem"
-        hidden={problem.trim() === ''}
-      >
-        {problem}
-      </p>
-      {/* 「立即触发一次」没发出去的原因：留到下一次。 */}
-      <p className={ins.error} data-testid="wl-trigger-fire-result" hidden={fired?.tone !== 'bad'}>
-        {fired?.tone === 'bad' ? fired.text : ''}
-      </p>
-      {state === 'confirm' && (
-        <button
-          type="button"
-          className={cx(ui.btn, ui.small, css.selfStart)}
-          data-testid="wl-trigger-confirm-again"
-          onClick={() => approve.show()}
-        >
-          {t('trigger.confirmAgain')}
-        </button>
-      )}
     </section>
   )
 }

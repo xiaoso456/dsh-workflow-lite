@@ -15,22 +15,22 @@
  */
 
 import { useState } from 'react'
-import { commandOf } from '../../../../shared/trigger.ts'
 import type { TriggerEntry } from '../../../../shared/wire/trigger.ts'
 import { useNow } from '../../../app/useNow.ts'
 import type { TriggerHub } from '../../../app/useTriggerHub.ts'
 import type { LocaleKey, T } from '../../../i18n.ts'
 import { triggerMode } from '../../../model/triggerGlance.ts'
 import { statusWhen } from '../../../model/triggerNow.ts'
+import { problemOf } from '../../../model/triggerProblem.ts'
 import { sourceSay } from '../../../model/triggerSay.ts'
 import { stateBadge, stateTone } from '../../../model/triggerText.ts'
 import { cx } from '../../kit/cx.ts'
 import { Icon } from '../../kit/Icon.tsx'
 import ui from '../../kit/ui.module.css'
-import { FLOAT_EXIT_MS, useFloat } from '../../kit/useFloat.tsx'
 import { SwitchTrack } from '../../motion/marks.tsx'
 import { CountdownLine } from '../../trigger/CountdownLine.tsx'
 import { useFireNow } from '../../trigger/FireNow.tsx'
+import { ProblemMark } from '../../trigger/ProblemMark.tsx'
 import tone from '../../trigger/stateTone.module.css'
 import { TriggerMark } from '../../trigger/TriggerMark.tsx'
 import css from './head.module.css'
@@ -147,52 +147,6 @@ function PausedNote(props: {
   )
 }
 
-/** 要人处理的事：一句话、一种颜色、能直接做的那一下（没有就不放按钮）。 */
-interface Problem {
-  text: string
-  tone: 'calm' | 'warn' | 'bad'
-  action?: { label: LocaleKey; run: 'approve' | 'reopen' }
-}
-
-function problemOf(t: T, entry: TriggerEntry, owner: number | undefined): Problem | null {
-  const { view } = entry
-  const command = commandOf(entry.data.source)
-  switch (view.state) {
-    case 'elsewhere':
-      return owner === undefined
-        ? null
-        : { text: t('trigger.ownerOther').replace('{pid}', String(owner)), tone: 'calm' }
-    case 'stopped':
-      return {
-        text: `${view.problem ?? ''} ${t('trigger.stoppedHint')}`.trim(),
-        tone: 'bad',
-        action: { label: 'hub.trgReopen', run: 'reopen' },
-      }
-    case 'confirm':
-      return {
-        text: view.problem ?? t('trigger.confirmHint'),
-        tone: 'warn',
-        action: { label: 'trigger.confirmAgain', run: 'approve' },
-      }
-    case 'error':
-    case 'invalid':
-      return view.problem === undefined ? null : { text: view.problem, tone: 'bad' }
-    case 'restarting':
-    case 'unavailable':
-      return view.problem === undefined ? null : { text: view.problem, tone: 'warn' }
-    case 'off':
-      return command !== undefined && view.approved !== true
-        ? {
-            text: t('hub.trgApproveHint'),
-            tone: 'calm',
-            action: { label: 'hub.trgApproveOpen', run: 'approve' },
-          }
-        : null
-    default:
-      return null
-  }
-}
-
 function StatusBar(props: {
   t: T
   hub: TriggerHub
@@ -217,7 +171,7 @@ function StatusBar(props: {
   })
   const fired = fireNow.result
   const when = statusWhen(t, entry, now)
-  const problem = problemOf(t, entry, props.hub.list?.owner?.pid)
+  const problem = problemOf(t, view, source, props.hub.list?.owner?.pid)
   // 倒计时：轮询按间隔，定时只有「每隔多久」知道这一段多长。
   const span =
     source.kind === 'poll'
@@ -238,7 +192,14 @@ function StatusBar(props: {
           <span className={cx(tone.dot, css.stateDot)} aria-hidden="true" />
           {stateBadge(t, view, source.kind)}
         </span>
-        <ProblemMark t={t} problem={problem} anchorRef={fixer.anchorRef} onAction={fixer.turnOn} />
+        <ProblemMark
+          t={t}
+          problem={problem}
+          testId="wl-hub-trg-problem"
+          anchorRef={fixer.anchorRef}
+          className={css.problemMark}
+          onAction={fixer.turnOn}
+        />
         {fixer.confirm}
         <span className={css.sep} aria-hidden="true" />
         <span className={css.when} data-fired={fired?.tone} data-testid="wl-hub-trg-fire-result">
@@ -255,90 +216,5 @@ function StatusBar(props: {
         <CountdownLine next={counting ? view.next : undefined} seconds={span} />
       </div>
     </div>
-  )
-}
-
-/** 问题小卡：悬停多久才出来、离开多久才收（留出把鼠标移进小卡去点按钮的时间）。 */
-const PROBLEM_OPEN_MS = 120
-const PROBLEM_CLOSE_MS = 220
-const PROBLEM_W = 320
-
-/**
- * 状态后面的问题图标：平时就是一枚小图标（没有问题时藏着，不插拔），颜色跟着要不要紧。
- * 悬停 / 聚焦浮出小卡，点它钉住（触屏也能用）；小卡里的按钮做那一下——要确认命令的，确认卡浮在这枚图标旁边。
- */
-function ProblemMark(props: {
-  t: T
-  problem: Problem | null
-  anchorRef: React.RefObject<HTMLButtonElement>
-  onAction(): void
-}): React.JSX.Element {
-  const { t, problem } = props
-  const float = useFloat<HTMLSpanElement>({
-    openMs: PROBLEM_OPEN_MS,
-    closeMs: PROBLEM_CLOSE_MS,
-    width: PROBLEM_W,
-    exitMs: FLOAT_EXIT_MS,
-  })
-  const { state, setState } = float
-  const open = state !== 'off' && problem !== null
-  return (
-    <span ref={float.anchorRef} className={css.problemMark} hidden={problem === null}>
-      <button
-        ref={props.anchorRef}
-        type="button"
-        className={css.problemButton}
-        data-tone={problem?.tone}
-        data-open={open}
-        aria-label={problem?.text ?? ''}
-        aria-expanded={open}
-        data-testid="wl-hub-trg-problem"
-        {...float.hoverProps}
-        onFocus={() => {
-          if (state === 'off') setState('hover')
-        }}
-        onBlur={(event) => {
-          const next = event.relatedTarget
-          if (
-            state === 'hover' &&
-            !(next instanceof Node && float.panelRef.current?.contains(next))
-          ) {
-            setState('off')
-          }
-        }}
-        onClick={() => {
-          float.cancel()
-          setState((current) => (current === 'pinned' ? 'off' : 'pinned'))
-        }}
-        onKeyDown={float.onKeyDown}
-      >
-        <Icon name={problem?.tone === 'calm' ? 'info' : 'alert'} size={15} />
-      </button>
-      {problem !== null &&
-        float.render({
-          className: ui.hintPanel,
-          testId: 'wl-hub-trg-problem-panel',
-          role: problem.action === undefined ? 'tooltip' : 'dialog',
-          label: problem.text,
-          children: (
-            <div className={css.problemCard} data-tone={problem.tone}>
-              <p className={css.problemText}>{problem.text}</p>
-              {problem.action !== undefined && (
-                <button
-                  type="button"
-                  className={cx(ui.btn, ui.small, ui.soft)}
-                  data-testid="wl-hub-trg-fix"
-                  onClick={() => {
-                    setState('off')
-                    props.onAction()
-                  }}
-                >
-                  {t(problem.action.label)}
-                </button>
-              )}
-            </div>
-          ),
-        })}
-    </span>
   )
 }

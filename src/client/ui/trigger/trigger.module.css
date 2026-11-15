@@ -27,11 +27,6 @@
   overflow-wrap: anywhere;
 }
 
-/* 按钮在一列里不拉满。 */
-.selfStart {
-  align-self: flex-start;
-}
-
 .rowLabel {
   flex: none;
   color: var(--wl-text-2);
@@ -133,6 +128,18 @@
   background: var(--wl-hover);
 }
 
+/*
+ * 通用的按下回弹（0.98 倍）在这里不要：开关一缩就成了底色的定位框，铺满整框的底色当场缩回左半边。
+ * 按下时改成在悬停底色上再叠一层，颜色深一档（同「触发」页时间线的行）。通用规则特指度是 (0,2,0)、又在后面，这里带上标签名压过它。
+ */
+button.statusSwitch:active {
+  scale: none;
+}
+
+.statusSwitch:active::before {
+  background: color-mix(in srgb, var(--wl-hover), var(--wl-text) 6%);
+}
+
 .statusSwitch:focus-visible {
   outline: none;
 }
@@ -142,12 +149,14 @@
   outline-offset: 1px;
 }
 
-/* 「立即触发一次」：浮在铺满的开关上面，点它不算点开关。 */
+/* 问题图标和「立即触发一次」：浮在铺满的开关上面，点它们不算点开关。 */
 .statusAction {
   position: relative;
   z-index: 1;
   display: flex;
   flex: none;
+  gap: 4px;
+  align-items: center;
 }
 
 /* 状态行：色点 + 一句话，放不下就省略（颜色见 stateTone.module.css）。 */

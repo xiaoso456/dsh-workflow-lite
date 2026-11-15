@@ -1,0 +1,72 @@
+/*
+ * dsh-workflow-lite — 问题图标（ProblemMark.tsx）：状态后面一枚，颜色跟着要不要紧（说明 / 提醒 / 出错）；
+ * 悬停、钉住时垫一层底。浮出的小卡里一段说明，右下一个按钮。
+ */
+.mark {
+  display: inline-flex;
+  flex: none;
+}
+
+.mark[hidden] {
+  display: none;
+}
+
+.button {
+  --c: var(--wl-text-3);
+
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: calc(6px * var(--wl-round, 1));
+  background: transparent;
+  color: var(--c);
+  cursor: pointer;
+  transition: background-color 120ms linear;
+}
+
+.button[data-tone="warn"] {
+  --c: var(--wl-warn);
+}
+
+.button[data-tone="bad"] {
+  --c: var(--wl-danger);
+}
+
+.button:hover,
+.button[data-open="true"] {
+  background: color-mix(in srgb, var(--c) 14%, transparent);
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.text {
+  align-self: stretch;
+  margin: 0;
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-meta);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.card[data-tone="bad"] .text {
+  color: var(--wl-danger);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button {
+    transition: none;
+  }
+}
