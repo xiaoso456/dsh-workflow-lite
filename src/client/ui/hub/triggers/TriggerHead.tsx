@@ -6,7 +6,8 @@
  * - 全部暂停着时一条说明，带「恢复」；
  * - 状态条一行：状态 | 下一次（时刻 + 还有多久，定时 / 轮询底边一条倒计时）| 立即触发一次；
  *   刚触发的结果几秒内占「下一次」那一格；
- * - 出了要人处理的事才在状态条下面多一条，带能直接做的事（确认并打开、确认命令、重新打开）。
+ * - 出了要人处理的事，状态后面亮一枚小图标（不另起一行、不挤动版面）：悬停、聚焦、点它浮出一张小卡，
+ *   写着怎么回事，带能直接做的事（确认并打开、确认命令、重新打开）。
  *
  * 会自己走的字（还有多久、已运行多久）每秒换一次，只在状态条这一小块里换，不插拔元素。
  *
@@ -26,6 +27,7 @@ import { stateBadge, stateTone } from '../../../model/triggerText.ts'
 import { cx } from '../../kit/cx.ts'
 import { Icon } from '../../kit/Icon.tsx'
 import ui from '../../kit/ui.module.css'
+import { FLOAT_EXIT_MS, useFloat } from '../../kit/useFloat.tsx'
 import { SwitchTrack } from '../../motion/marks.tsx'
 import { CountdownLine } from '../../trigger/CountdownLine.tsx'
 import { useFireNow } from '../../trigger/FireNow.tsx'
@@ -225,7 +227,7 @@ function StatusBar(props: {
         : 0
   const counting = (view.state === 'waiting' || view.state === 'elsewhere') && span > 0
   return (
-    <div className={css.status} data-problem={problem?.tone}>
+    <div className={css.status}>
       <div className={css.statusMain}>
         <span
           className={cx(css.state, tone.tone)}
@@ -236,6 +238,8 @@ function StatusBar(props: {
           <span className={cx(tone.dot, css.stateDot)} aria-hidden="true" />
           {stateBadge(t, view, source.kind)}
         </span>
+        <ProblemMark t={t} problem={problem} anchorRef={fixer.anchorRef} onAction={fixer.turnOn} />
+        {fixer.confirm}
         <span className={css.sep} aria-hidden="true" />
         <span className={css.when} data-fired={fired?.tone} data-testid="wl-hub-trg-fire-result">
           {fired === null ? (
@@ -250,26 +254,91 @@ function StatusBar(props: {
         <span className={css.fire}>{fireNow.button}</span>
         <CountdownLine next={counting ? view.next : undefined} seconds={span} />
       </div>
-      <div
-        className={css.problem}
-        data-tone={problem?.tone}
-        hidden={problem === null}
-        data-testid="wl-hub-trg-problem"
-      >
-        <Icon name={problem?.tone === 'calm' ? 'info' : 'alert'} size={14} />
-        <span className={css.problemText}>{problem?.text ?? ''}</span>
-        <button
-          ref={fixer.anchorRef}
-          type="button"
-          className={cx(ui.btn, ui.small)}
-          hidden={problem?.action === undefined}
-          data-testid="wl-hub-trg-fix"
-          onClick={fixer.turnOn}
-        >
-          {problem?.action === undefined ? '' : t(problem.action.label)}
-        </button>
-        {fixer.confirm}
-      </div>
     </div>
+  )
+}
+
+/** 问题小卡：悬停多久才出来、离开多久才收（留出把鼠标移进小卡去点按钮的时间）。 */
+const PROBLEM_OPEN_MS = 120
+const PROBLEM_CLOSE_MS = 220
+const PROBLEM_W = 320
+
+/**
+ * 状态后面的问题图标：平时就是一枚小图标（没有问题时藏着，不插拔），颜色跟着要不要紧。
+ * 悬停 / 聚焦浮出小卡，点它钉住（触屏也能用）；小卡里的按钮做那一下——要确认命令的，确认卡浮在这枚图标旁边。
+ */
+function ProblemMark(props: {
+  t: T
+  problem: Problem | null
+  anchorRef: React.RefObject<HTMLButtonElement>
+  onAction(): void
+}): React.JSX.Element {
+  const { t, problem } = props
+  const float = useFloat<HTMLSpanElement>({
+    openMs: PROBLEM_OPEN_MS,
+    closeMs: PROBLEM_CLOSE_MS,
+    width: PROBLEM_W,
+    exitMs: FLOAT_EXIT_MS,
+  })
+  const { state, setState } = float
+  const open = state !== 'off' && problem !== null
+  return (
+    <span ref={float.anchorRef} className={css.problemMark} hidden={problem === null}>
+      <button
+        ref={props.anchorRef}
+        type="button"
+        className={css.problemButton}
+        data-tone={problem?.tone}
+        data-open={open}
+        aria-label={problem?.text ?? ''}
+        aria-expanded={open}
+        data-testid="wl-hub-trg-problem"
+        {...float.hoverProps}
+        onFocus={() => {
+          if (state === 'off') setState('hover')
+        }}
+        onBlur={(event) => {
+          const next = event.relatedTarget
+          if (
+            state === 'hover' &&
+            !(next instanceof Node && float.panelRef.current?.contains(next))
+          ) {
+            setState('off')
+          }
+        }}
+        onClick={() => {
+          float.cancel()
+          setState((current) => (current === 'pinned' ? 'off' : 'pinned'))
+        }}
+        onKeyDown={float.onKeyDown}
+      >
+        <Icon name={problem?.tone === 'calm' ? 'info' : 'alert'} size={15} />
+      </button>
+      {problem !== null &&
+        float.render({
+          className: ui.hintPanel,
+          testId: 'wl-hub-trg-problem-panel',
+          role: problem.action === undefined ? 'tooltip' : 'dialog',
+          label: problem.text,
+          children: (
+            <div className={css.problemCard} data-tone={problem.tone}>
+              <p className={css.problemText}>{problem.text}</p>
+              {problem.action !== undefined && (
+                <button
+                  type="button"
+                  className={cx(ui.btn, ui.small, ui.soft)}
+                  data-testid="wl-hub-trg-fix"
+                  onClick={() => {
+                    setState('off')
+                    props.onAction()
+                  }}
+                >
+                  {t(problem.action.label)}
+                </button>
+              )}
+            </div>
+          ),
+        })}
+    </span>
   )
 }

@@ -138,7 +138,7 @@
   min-width: 0;
 }
 
-/* 状态条：一行状态 | 下一次 | 立即触发；出了问题下面多一条。 */
+/* 状态条：一行状态（出了问题后面一枚小图标）| 下一次 | 立即触发。 */
 .status {
   margin: 0 18px;
   overflow: hidden;
@@ -218,51 +218,70 @@
   flex: none;
 }
 
-/* 问题条：颜色跟着要不要紧（说明 / 提醒 / 出错）。 */
-.problem {
-  --c: var(--wl-text-3);
-
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  min-height: 40px;
-  padding: 6px 8px 6px 14px;
-  border-top: 1px solid color-mix(in srgb, var(--c) 25%, transparent);
-  background: color-mix(in srgb, var(--c) 8%, transparent);
-  color: var(--wl-text-2);
-  font-size: var(--wl-fs-meta);
+/* 问题图标：状态后面一枚，颜色跟着要不要紧（说明 / 提醒 / 出错）；悬停、钉住时垫一层底。 */
+.problemMark {
+  display: inline-flex;
+  flex: none;
+  margin-left: -6px;
 }
 
-.problem[hidden],
-.problem > button[hidden] {
+.problemMark[hidden] {
   display: none;
 }
 
-.problem[data-tone="warn"] {
-  --c: var(--wl-warn-dot);
+.problemButton {
+  --c: var(--wl-text-3);
 
-  color: var(--wl-warn);
-}
-
-.problem[data-tone="bad"] {
-  --c: var(--wl-danger);
-
-  color: var(--wl-danger);
-}
-
-.problem > svg {
-  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: calc(6px * var(--wl-round, 1));
+  background: transparent;
   color: var(--c);
+  cursor: pointer;
+  transition: background-color 120ms linear;
 }
 
-.problem[data-tone="calm"] > svg {
-  color: var(--wl-text-3);
+.problemButton[data-tone="warn"] {
+  --c: var(--wl-warn);
+}
+
+.problemButton[data-tone="bad"] {
+  --c: var(--wl-danger);
+}
+
+.problemButton:hover,
+.problemButton[data-open="true"] {
+  background: color-mix(in srgb, var(--c) 14%, transparent);
+}
+
+.problemButton:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+/* 小卡里：一段说明，右下一个按钮。 */
+.problemCard {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-end;
 }
 
 .problemText {
-  flex: 1 1 auto;
-  min-width: 0;
+  align-self: stretch;
+  margin: 0;
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-meta);
+  line-height: 1.55;
   overflow-wrap: anywhere;
+}
+
+.problemCard[data-tone="bad"] .problemText {
+  color: var(--wl-danger);
 }
 
 @keyframes fadeIn {
@@ -272,7 +291,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .onoff {
+  .onoff,
+  .problemButton {
     transition: none;
   }
 
