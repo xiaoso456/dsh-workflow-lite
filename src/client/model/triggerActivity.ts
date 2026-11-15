@@ -1,7 +1,7 @@
 /**
  * dsh-workflow-lite — 一张触发卡片最近怎样、接下来怎样：工作流中心「触发」页「概览」「时间线」的纯计算。
  *
- * - {@link tallyActivity}：近 7 天的几样数和「节律」（7 天 × 24 小时，每格这一小时里触发过几次、结果怎样），
+ * - {@link tallyActivity}：近 7 天的几样数和「节律」（7 天 × 24 小时，从早到晚一天一行，每格这一小时里触发过几次、结果怎样），
  *   数和格子从宿主数好的同一份近况算（{@link rhythmSince} 起），对得上；模型判断不需要的算「已发出」（确实发进会话了）；
  * - {@link plannedHours}：定时规则今天还要触发的几个钟点（节律里画虚线圈）；
  * - {@link upcomingAt}：时间线「接下来」的几次（定时按规则排，轮询是下一次检查）；
@@ -46,7 +46,7 @@ export interface RhythmCell {
 export interface FireTally {
   total: number
   counts: Record<Outcome, number>
-  /** `days[0]` 是今天，往后一天比一天早；每天 24 格，没触发过的是 `null`。 */
+  /** 一天一行，从早到晚（最后一行是今天，和日历一样往下走）；每天 24 格，没触发过的是 `null`。 */
   cells: (RhythmCell | null)[][]
   /** 各行那天的 0 点（和 `cells` 同序）。 */
   days: number[]
@@ -71,7 +71,9 @@ export function rhythmSince(now: number): number {
  */
 export function tallyActivity(slots: readonly TriggerActivitySlot[], now: number): FireTally {
   const today = dayOf(now)
-  const days = Array.from({ length: RHYTHM_DAYS }, (_, back) => dayBefore(today, back))
+  const days = Array.from({ length: RHYTHM_DAYS }, (_, row) =>
+    dayBefore(today, RHYTHM_DAYS - 1 - row),
+  )
   const cells = days.map(() => Array.from({ length: HOURS }, (): RhythmCell | null => null))
   const counts: Record<Outcome, number> = { sent: 0, skipped: 0, failed: 0 }
   let total = 0

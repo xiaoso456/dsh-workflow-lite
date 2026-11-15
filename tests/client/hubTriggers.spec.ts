@@ -158,14 +158,15 @@ describe('概览：近 7 天的数与节律', () => {
     const tally = tallyActivity(slots, now)
     expect(tally.total).toBe(3)
     expect(tally.counts).toEqual({ sent: 1, skipped: 1, failed: 1 })
-    expect(tally.cells[0]?.[14]).toEqual({ outcome: 'failed', count: 2 })
+    // 从早到晚：最后一行是今天，倒数第二行是昨天。
+    expect(tally.cells[6]?.[14]).toEqual({ outcome: 'failed', count: 2 })
     const yesterday = new Date(now - 25 * hour).getHours()
-    expect(tally.cells[1]?.[yesterday]).toEqual({ outcome: 'skipped', count: 1 })
+    expect(tally.cells[5]?.[yesterday]).toEqual({ outcome: 'skipped', count: 1 })
     expect(tally.days).toHaveLength(7)
     expect(tally.cells.every((row) => row.length === 24)).toBe(true)
     // 一格里几次按次数加。
     expect(tallyActivity([slot(now - 60_000, 'sent', 40)], now).counts.sent).toBe(40)
-    expect(rhythmSince(now)).toBe(tally.days[6])
+    expect(rhythmSince(now)).toBe(tally.days[0])
   })
 
   it('定时今天还要触发的钟点；不是定时、太密的不画', () => {

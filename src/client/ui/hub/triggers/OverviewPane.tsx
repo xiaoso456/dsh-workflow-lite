@@ -24,6 +24,8 @@ import css from './overview.module.css'
 
 /** 「最近」列几条。 */
 const RECENT = 3
+/** 钟点轴上标的几个刻度（0 点到 24 点，每 6 小时一个）。 */
+const AXIS_HOURS = [0, 6, 12, 18, 24]
 
 /** 夜里（22 点到早上 7 点）的格子再淡一点，白天一眼看得出来。 */
 const isNight = (hour: number): boolean => hour < 7 || hour > 21
@@ -51,12 +53,16 @@ export function OverviewPane(props: {
   const live = view.state === 'waiting' && !props.paused
   const planned = live ? plannedHours(entry.data.source, now, view.next) : []
   const hourNow = new Date(now).getHours()
+  const today = tally.days.length - 1
   const dayName = (row: number, start: number): string =>
-    row === 0
+    row === today
       ? t('trigger.fire.today')
-      : row === 1
+      : row === today - 1
         ? t('trigger.fire.yesterday')
-        : weekdayText(t, new Date(start).getDay() === 0 ? 7 : new Date(start).getDay())
+        : t('hub.trgWeekday').replace(
+            '{day}',
+            weekdayText(t, new Date(start).getDay() === 0 ? 7 : new Date(start).getDay()),
+          )
 
   return (
     <div className={css.overview} data-testid="wl-hub-trg-overview">
@@ -70,6 +76,7 @@ export function OverviewPane(props: {
       <section className={css.section}>
         <div className={css.sectionHead}>
           <span className={css.sectionTitle}>{t('hub.trgRhythm')}</span>
+          <span className={css.sectionHint}>{t('hub.trgRhythmHint')}</span>
           <span className={css.legend}>
             <span data-outcome="sent">{t('trigger.outcome.sent')}</span>
             <span data-outcome="skipped">{t('trigger.outcome.skipped')}</span>
@@ -86,13 +93,13 @@ export function OverviewPane(props: {
                 {day}
               </span>,
               ...row.map((cell, hour) => {
-                const plan = index === 0 && cell === null && planned.includes(hour)
+                const plan = index === today && cell === null && planned.includes(hour)
                 return (
                   <span
                     key={`${String(start)}-${String(hour)}`}
                     className={css.cell}
                     data-night={isNight(hour) || undefined}
-                    data-now={(index === 0 && hour === hourNow) || undefined}
+                    data-now={(index === today && hour === hourNow) || undefined}
                     data-tip={
                       cell === null
                         ? undefined
@@ -115,12 +122,19 @@ export function OverviewPane(props: {
               }),
             ]
           })}
-          <span />
-          {Array.from({ length: HOURS }, (_, hour) => (
-            <span key={`axis-${String(hour)}`} className={css.axis}>
-              {hour % 6 === 0 ? String(hour).padStart(2, '0') : ''}
-            </span>
-          ))}
+          {/* 钟点轴：刻度对着格子之间的缝（0 点在最左边、24 点在最右边），写成「06:00」一眼看得出是时刻。 */}
+          <span className={css.axis}>
+            {AXIS_HOURS.map((hour) => (
+              <span
+                key={hour}
+                className={css.tick}
+                style={{ left: `${String((hour / HOURS) * 100)}%` }}
+                data-edge={hour === 0 ? 'start' : hour === HOURS ? 'end' : undefined}
+              >
+                {`${String(hour).padStart(2, '0')}:00`}
+              </span>
+            ))}
+          </span>
         </div>
       </section>
 
