@@ -1,11 +1,12 @@
 /**
- * dsh-workflow-lite — 「触发」页的「设置」：和画布面板同样的几块（触发方式、过滤、触发处理、执行设置），各一张只读的卡片，
- * 右上角铅笔打开面板里同一个对话框，存下来改的是工作流文件里这张卡片（`onPatch`）。
+ * dsh-workflow-lite — 「触发」页的「设置」：和画布面板同样的几块（触发方式、过滤、触发处理、执行设置、保护），一块一张卡片。
  *
- * 两列各自往下排、底边对齐（每列最后一张撑满）：有过滤时左「触发方式、过滤」右「触发处理、执行设置」，
- * 没有过滤时触发处理挪到左边，两列差不多高。
+ * 一张卡片一个规矩：要么右上角铅笔打开面板里同一个对话框（触发方式、过滤、触发处理、保护），存下来改的是工作流文件里
+ * 这张卡片（`onPatch`）；要么就地下拉、选了就生效（执行设置：会话方式、固定的会话、工作区，和面板共用 useLaunchChoice）。
+ * 工作区、固定的会话只存在这台机器上，名字旁标「本机」。
  *
- * 会话方式、工作区在画布面板上选（打开开关前要选好），这里只显示。
+ * 两列各自往下排、底边对齐（每列最后一张撑满）：有过滤时左「触发方式、过滤」右「触发处理、执行设置、保护」，
+ * 没有过滤时触发处理挪到左边。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/triggers/SettingsPane
  */
@@ -19,20 +20,23 @@ import {
   launchOf,
   pollWhen,
 } from '../../../../shared/trigger.ts'
-import type { TriggerData } from '../../../../shared/types.ts'
+import type { TriggerData, TriggerSessionMode } from '../../../../shared/types.ts'
 import type { TriggerEntry } from '../../../../shared/wire/trigger.ts'
 import type { LocaleKey, T } from '../../../i18n.ts'
 import { readableUrl } from '../../../model/triggerGlance.ts'
 import { spanText } from '../../../model/triggerSay.ts'
 import { guardLimits, scheduleNext } from '../../../model/triggerSummary.ts'
 import { momentText, ruleText } from '../../../model/triggerText.ts'
+import { cx } from '../../kit/cx.ts'
 import { Icon, type IconName } from '../../kit/Icon.tsx'
+import { Select } from '../../kit/Select.tsx'
 import { FilterDialog } from '../../trigger/dialogs/FilterDialog.tsx'
 import { GuardDialog } from '../../trigger/dialogs/GuardDialog.tsx'
 import { NotesDialog } from '../../trigger/dialogs/NotesDialog.tsx'
 import { SourceDialog } from '../../trigger/dialogs/SourceDialog.tsx'
 import { TRIGGER_ICON, triggerTint } from '../../trigger/TriggerMark.tsx'
 import type { TriggerEnv } from '../../trigger/triggerEnv.ts'
+import { useLaunchChoice } from '../../trigger/useLaunchChoice.ts'
 import css from './settingsPane.module.css'
 
 type Dialog = 'source' | 'filter' | 'notes' | 'guard'
@@ -97,14 +101,25 @@ export function SettingsPane(props: {
     </Card>
   )
   const runCard = (
+    <Card t={t} icon="play" title={t('trigger.launch')} testId="wl-hub-trg-set-launch">
+      <LaunchRows t={t} entry={entry} env={env} onPatch={onPatch} />
+    </Card>
+  )
+  const launch = launchOf(data)
+  const guardCard = (
     <Card
       t={t}
-      icon="play"
-      title={t('trigger.launch')}
-      testId="wl-hub-trg-set-launch"
+      icon="shield"
+      title={t('trigger.guard')}
+      testId="wl-hub-trg-set-guard"
       onEdit={() => setDialog('guard')}
     >
-      <Rows rows={launchRows(t, entry, env)} />
+      <Rows
+        rows={[
+          [t('hub.trgOverlap'), t(`hub.trgOverlap.${launch.overlap}` as LocaleKey)],
+          [t('hub.trgLimits'), guardLimits(t, launch)],
+        ]}
+      />
     </Card>
   )
 
@@ -117,6 +132,7 @@ export function SettingsPane(props: {
       <div className={css.col}>
         {filterCard !== null && notesCard}
         {runCard}
+        {guardCard}
       </div>
 
       {dialog === 'source' && (
@@ -169,7 +185,8 @@ function Card(props: {
   tint?: string
   title: string
   testId: string
-  onEdit(): void
+  /** 右上角铅笔；就地能改的卡片不给。 */
+  onEdit?(): void
   children: React.ReactNode
 }): React.JSX.Element {
   const style = props.tint === undefined ? undefined : { '--tint': props.tint }
@@ -178,16 +195,18 @@ function Card(props: {
       <div className={css.cardTitle}>
         <Icon name={props.icon} size={12} />
         <span>{props.title}</span>
-        <button
-          type="button"
-          className={css.pen}
-          aria-label={props.t('hub.trgEditCard').replace('{name}', props.title)}
-          data-tip={props.t('hub.trgEditCard').replace('{name}', props.title)}
-          data-testid={`${props.testId}-edit`}
-          onClick={props.onEdit}
-        >
-          <Icon name="pencil" size={13} />
-        </button>
+        {props.onEdit !== undefined && (
+          <button
+            type="button"
+            className={css.pen}
+            aria-label={props.t('hub.trgEditCard').replace('{name}', props.title)}
+            data-tip={props.t('hub.trgEditCard').replace('{name}', props.title)}
+            data-testid={`${props.testId}-edit`}
+            onClick={props.onEdit}
+          >
+            <Icon name="pencil" size={13} />
+          </button>
+        )}
       </div>
       {props.children}
     </section>
@@ -213,15 +232,6 @@ function muted(text: string): React.JSX.Element {
 
 function mono(text: string): React.JSX.Element {
   return <code className={css.mono}>{text}</code>
-}
-
-/** 长路径一行放不下省略，悬停看全。 */
-function path(text: string): React.JSX.Element {
-  return (
-    <span className={css.path} data-tip={text}>
-      {text}
-    </span>
-  )
 }
 
 /** 触发条件、说明：有就引出来，没有写「未设置」。 */
@@ -321,30 +331,89 @@ function filterRows(t: T, data: TriggerData): Row[] {
   ]
 }
 
-function launchRows(t: T, entry: TriggerEntry, env: TriggerEnv): Row[] {
-  const { data, view } = entry
-  const launch = launchOf(data)
-  const fixed = launch.session === 'fixed'
-  const sessionTitle = fixed
-    ? (env.sessions.find((session) => session.id === view.session)?.title ?? view.session)
-    : undefined
-  const needsWorkspace = commandOf(data.source) !== undefined || !fixed
-  return [
-    [
-      t('trigger.session'),
-      fixed && sessionTitle !== undefined
-        ? t('hub.trgFixedAt').replace('{name}', sessionTitle)
-        : t(`trigger.session.${launch.session}` as LocaleKey),
-    ],
-    [
-      t('trigger.workspace'),
-      !needsWorkspace
-        ? muted(t('hub.trgNotNeeded'))
-        : view.workspace === undefined
-          ? muted(t('hub.trgNotChosen'))
-          : path(view.workspace),
-    ],
-    [t('hub.trgOverlap'), t(`hub.trgOverlap.${launch.overlap}` as LocaleKey)],
-    [t('trigger.guard'), guardLimits(t, launch)],
-  ]
+/**
+ * 「执行设置」的几行：会话方式、（固定会话时）固定到哪个会话、工作区，都是就地下拉。
+ * 固定会话又不跑命令时不用工作区，写「不需要」。
+ */
+function LaunchRows(props: {
+  t: T
+  entry: TriggerEntry
+  env: TriggerEnv
+  onPatch(patch: Partial<TriggerData>): void
+}): React.JSX.Element {
+  const { t, entry } = props
+  const choice = useLaunchChoice({
+    t,
+    node: entry.view.node,
+    data: entry.data,
+    env: props.env,
+    onLaunch: (launch) => props.onPatch({ launch }),
+  })
+  const local = (
+    <span className={css.local} data-tip={t('trigger.localHint')}>
+      {t('hub.trgLocal')}
+    </span>
+  )
+  return (
+    <>
+      <dl className={cx(css.kv, css.kvWide)}>
+        <div className={css.kvRow}>
+          <dt>{t('trigger.session')}</dt>
+          <dd className={css.pick}>
+            <Select<TriggerSessionMode>
+              plain
+              label={t('trigger.session')}
+              value={choice.mode.value}
+              testId="wl-hub-trg-session"
+              onChange={choice.mode.set}
+              options={choice.mode.options}
+            />
+          </dd>
+        </div>
+        {choice.fixed !== null && (
+          <div className={css.kvRow}>
+            <dt>
+              {t('trigger.fixed')}
+              {local}
+            </dt>
+            <dd className={css.pick}>
+              <Select<string>
+                plain
+                t={t}
+                label={t('trigger.fixed')}
+                value={choice.fixed.value}
+                testId="wl-hub-trg-fixed"
+                onChange={choice.fixed.set}
+                options={choice.fixed.options}
+              />
+            </dd>
+          </div>
+        )}
+        <div className={css.kvRow}>
+          <dt>
+            {t('trigger.workspace')}
+            {choice.workspace !== null && local}
+          </dt>
+          {choice.workspace === null ? (
+            <dd>{muted(t('hub.trgNotNeeded'))}</dd>
+          ) : (
+            <dd className={css.pick}>
+              <Select<string>
+                plain
+                t={t}
+                label={t('trigger.workspace')}
+                value={choice.workspace.value}
+                testId="wl-hub-trg-workspace"
+                onChange={choice.workspace.set}
+                options={choice.workspace.options}
+              />
+            </dd>
+          )}
+        </div>
+      </dl>
+      <p className={css.error} hidden={choice.failed === ''} data-testid="wl-hub-trg-launch-error">
+        {choice.failed}
+      </p>
+    </>
+  )
 }

@@ -1,6 +1,6 @@
 /**
  * dsh-workflow-lite — 触发卡片面板里的摘要列表（SummaryList / SummaryRow）：
- * 一组一个框，里面一项一行「名字 | 值 | 铅笔」，项之间只隔一条细线；名字一列各行对齐（subgrid）。
+ * 一组一个框，里面一项一行「名字 | 值 | 铅笔」，项之间不画线（行高和悬停的底色就分得开）；名字一列各行对齐（subgrid）。
  * 放控件的行（SummaryField）：值那两列交给控件（不带框的下拉，箭头落在铅笔的位置）。
  */
 
@@ -97,10 +97,6 @@
 
 .field::before {
   border-radius: inherit;
-}
-
-.list > * + * {
-  border-top: 1px solid var(--wl-line);
 }
 
 .row:hover {

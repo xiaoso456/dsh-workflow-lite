@@ -95,7 +95,8 @@
 
 .kvRow {
   display: grid;
-  grid-template-columns: 64px minmax(0, 1fr);
+  /* 名字那一列各卡一样宽（放得下「工作区」加「本机」），同一列上下两张卡的值对齐。 */
+  grid-template-columns: 78px minmax(0, 1fr);
   gap: 0 10px;
 }
 
@@ -119,13 +120,6 @@
 .mono {
   font-family: var(--wl-mono);
   font-size: var(--wl-fs-micro);
-}
-
-.path {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .quote {
@@ -166,4 +160,31 @@
   border-width: 2px 0 1px;
   border-top-color: var(--wl-text);
   border-radius: 0;
+}
+
+/* 「执行设置」：值是就地下拉，行高跟着下拉；名字旁可能有「本机」。 */
+.kvRow > dd.pick {
+  padding: 1px 0;
+}
+
+.kvWide .kvRow > dt {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+
+.local {
+  flex: none;
+  padding: 0 5px;
+  border-radius: calc(8px * var(--wl-round, 1));
+  background: var(--wl-fill);
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  line-height: 16px;
+}
+
+.error {
+  margin: 2px 0 6px;
+  color: var(--wl-danger);
+  font-size: var(--wl-fs-micro);
 }

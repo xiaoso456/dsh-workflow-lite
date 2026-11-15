@@ -1224,7 +1224,7 @@ try {
       (await session.evaluate(has('wl-hub-trg-fire'))),
   )
   await capture(session, 'hub-triggers-light.png')
-  // 「设置」页：和面板同样的几块，只读，铅笔打开同一个对话框。
+  // 「设置」页：和面板同样的几块；执行设置就地下拉，其他铅笔打开同一个对话框。
   await session.evaluate(clickTestId('wl-hub-trg-tab-settings'))
   await waitFor(session, has('wl-hub-trg-settings'))
   const facts = await session.evaluate(textOf('[data-testid="wl-hub-trg-settings"]'))
@@ -1233,7 +1233,13 @@ try {
     facts.includes(NAME) && /新建会话/.test(facts) && /工作区/.test(facts),
     facts,
   )
-  await session.evaluate(clickTestId('wl-hub-trg-set-launch-edit'))
+  check(
+    '「执行设置」就地下拉、没有铅笔；「保护」单独一张',
+    (await session.evaluate(has('wl-hub-trg-session'))) &&
+      !(await session.evaluate(has('wl-hub-trg-set-launch-edit'))) &&
+      (await session.evaluate(has('wl-hub-trg-set-guard'))),
+  )
+  await session.evaluate(clickTestId('wl-hub-trg-set-guard-edit'))
   await waitFor(session, has('wl-trigger-guard-dialog'))
   await pressKey(session, 'Escape')
   await waitFor(session, `!(${has('wl-trigger-guard-dialog')})`)

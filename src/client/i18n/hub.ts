@@ -51,7 +51,6 @@ export const zh = {
   'hub.trgOpen': '在画布上打开',
   'hub.trgOpenTip': '打开这个工作流，选中这张触发卡片',
   'hub.trgNoCwd': '先在画布上这张卡片的「执行设置」里选工作区。',
-  'hub.trgNotChosen': '还没选',
   'hub.trgView': '视图选项',
   'hub.trgGroupBy': '分组方式',
   'hub.trgGroup.workflow': '按工作流',
@@ -140,7 +139,8 @@ export const zh = {
   'hub.trgOverlap.skip': '跳过这一次',
   'hub.trgOverlap.parallel': '照样再开一次',
   'hub.trgNotNeeded': '不需要',
-  'hub.trgFixedAt': '固定会话「{name}」',
+  'hub.trgLocal': '本机',
+  'hub.trgLimits': '限制',
 
   // ── 工作流中心：实例与存储 ──────────────────────────────────
   'hub.search': '搜索工作流、会话、目标',
@@ -251,7 +251,6 @@ export const en: Record<keyof typeof zh, string> = {
   'hub.trgOpen': 'Open on canvas',
   'hub.trgOpenTip': 'Open this workflow and select this trigger',
   'hub.trgNoCwd': 'First pick a workspace under Run settings on this card in the canvas.',
-  'hub.trgNotChosen': 'Not chosen',
   'hub.trgView': 'View options',
   'hub.trgGroupBy': 'Group by',
   'hub.trgGroup.workflow': 'Workflow',
@@ -342,7 +341,8 @@ export const en: Record<keyof typeof zh, string> = {
   'hub.trgOverlap.skip': 'Skip this one',
   'hub.trgOverlap.parallel': 'Start another',
   'hub.trgNotNeeded': 'Not needed',
-  'hub.trgFixedAt': 'Fixed: {name}',
+  'hub.trgLocal': 'This computer',
+  'hub.trgLimits': 'Limits',
 
   // ── 工作流中心：实例与存储 ──────────────────────────────────
   'hub.search': 'Search instances',
