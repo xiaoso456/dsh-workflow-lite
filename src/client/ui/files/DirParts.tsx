@@ -12,6 +12,7 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/files/DirParts
  */
 
+import { tipWhenCut } from '../kit/cutTip.ts'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import ui from '../kit/ui.module.css'
@@ -23,17 +24,6 @@ export interface Crumb {
   key: string
   label: string
   onGo?: () => void
-}
-
-/**
- * 路径栏里放不下、被截成省略号的那一级：指针一进来就量一下，截断了才在名字上挂悬停提示（写全名），没截断就摘掉。
- * 悬停提示（TipLayer）在冒泡阶段读 `data-tip`，这里走捕获阶段，赶在它前面写好。
- */
-function tipWhenCut(unit: HTMLElement, label: string): void {
-  const crumb = unit.querySelector<HTMLElement>(`.${css.crumb}`)
-  if (crumb === null) return
-  if (crumb.scrollWidth > crumb.clientWidth) crumb.dataset.tip = label
-  else delete crumb.dataset.tip
 }
 
 export function PathBar(props: {
@@ -68,7 +58,11 @@ export function PathBar(props: {
               data-first={index === 0}
               data-last={index === all.length - 1}
               data-static={crumb.onGo === undefined || undefined}
-              onPointerOverCapture={(event) => tipWhenCut(event.currentTarget, crumb.label)}
+              onPointerOverCapture={(event) => {
+                // 放不下、被截成省略号的那一级：悬停提示写全名（挂在名字上）。
+                const name = event.currentTarget.querySelector<HTMLElement>(`.${css.crumb}`)
+                if (name !== null) tipWhenCut(name, name, crumb.label)
+              }}
             >
               {index > 0 && (
                 <span className={css.crumbSep} aria-hidden="true">

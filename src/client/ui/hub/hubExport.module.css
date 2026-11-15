@@ -70,7 +70,7 @@
   transition: transform 180ms var(--wl-ease-out);
 }
 
-.catChevron[data-open="true"] {
+.catChevron[data-opened="true"] {
   transform: rotate(90deg);
 }
 

@@ -17,7 +17,10 @@
   margin-bottom: 6px;
 }
 
-/* 自己滚；滚动条贴着右栏的边。换样子时整块淡进来（两种样子各一个动画名，换了才重放）。 */
+/*
+ * 自己滚；滚动条伸进外面那一页留的滚动条位置（往右伸出一条细滚动条的宽度，kit/scrollbarWidth.ts）。
+ * 自己也一直留着位置：记录多少变了（筛选、换卡片）、滚动条出来或没了，内容的宽度都不变，不左右跳。
+ */
 .scroll {
   --fire-time: 46px;
   --time-w: var(--fire-time);
@@ -25,30 +28,15 @@
 
   flex: 1 1 auto;
   min-height: 0;
-  margin-right: -10px;
-  padding-right: 10px;
+  margin-right: calc(-1 * var(--wl-scrollbar, 0px));
   overflow-y: auto;
+  scrollbar-gutter: stable;
   scrollbar-width: thin;
-  animation: list-in 160ms linear;
 }
 
 /* 时间轴的「哪天」写在时刻那一列，要放得下「10月28日」「Yesterday」，比只写钟点宽。 */
 .scroll[data-layout="rail"] {
   --fire-time: 66px;
-
-  animation-name: rail-in;
-}
-
-@keyframes list-in {
-  from {
-    opacity: 0;
-  }
-}
-
-@keyframes rail-in {
-  from {
-    opacity: 0;
-  }
 }
 
 /* ── 组头（两种样子共用一份元素） ─────────────────────── */
@@ -237,12 +225,6 @@
 .scroll[data-layout="rail"] .day:last-child .rows > li:last-child::before,
 .scroll[data-layout="rail"] .day:last-child .rows[data-note] > li:nth-last-child(2)::before {
   bottom: calc(100% - 17px);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .scroll {
-    animation: none;
-  }
 }
 
 :global([data-look="swiss"]) .head {

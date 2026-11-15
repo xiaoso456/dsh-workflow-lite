@@ -117,7 +117,7 @@ export function TimeField(props: {
           className={cx(css.field, props.className)}
           role="group"
           aria-label={props.label}
-          data-open={open || undefined}
+          data-opened={open || undefined}
           data-testid={props.testId}
           onPointerDown={(event) => {
             if (

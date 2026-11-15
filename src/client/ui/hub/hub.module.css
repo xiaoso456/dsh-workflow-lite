@@ -15,6 +15,17 @@
   border-right: 1px solid var(--wl-line);
 }
 
+/*
+ * 搜索那一行外面一层：和下面的列表（一直留着滚动条位置）在右边留同样宽的位置，右边和列表里的行对齐。
+ * 宽度是量出来的（kit/scrollbarWidth.ts）；右边的小按钮会弹不走 portal 的菜单，不能用 overflow 去留。
+ */
+.searchBar {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  padding-right: var(--wl-scrollbar, 0px);
+}
+
 .search {
   display: flex;
   flex: none;
@@ -56,6 +67,31 @@
 .search:focus-within {
   border-color: var(--wl-accent);
   background: var(--wl-panel);
+}
+
+/* 放大镜不跟着输入框挤：清空按钮占着位置时它也是原来那么宽。 */
+.search > svg {
+  flex: none;
+}
+
+/* 清空：没字时藏着（不接点击、Tab 也走不到），有字时淡出来；位置一直占着。 */
+.searchClear {
+  /* 按下回弹（同 .btn）照留。 */
+  transition:
+    scale 160ms var(--wl-ease-sheet),
+    opacity 120ms linear,
+    visibility 0s linear 120ms;
+}
+
+.searchClear[data-on="false"] {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.searchClear[data-on="true"] {
+  transition:
+    scale 160ms var(--wl-ease-sheet),
+    opacity 120ms linear;
 }
 
 .searchInput {

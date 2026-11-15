@@ -30,6 +30,7 @@ import type { HubFocus } from '../hub/HubDialog.tsx'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import { ModalHostProvider } from '../kit/Modal.tsx'
+import { useScrollbarWidth } from '../kit/scrollbarWidth.ts'
 import type { TopSlots } from '../kit/topSlots.ts'
 import ui from '../kit/ui.module.css'
 import { ExitSeat, useViewGhost } from '../motion/exits.tsx'
@@ -191,6 +192,7 @@ function Shell(props: {
   const flow = useReactFlow()
   const rootRef = useRef<HTMLDivElement>(null)
   const { theme, themeVars, look, board } = useViewTheme({ rootRef })
+  useScrollbarWidth(rootRef)
   /** 模态框挂载点（就是视图根）：要等根节点挂上才有，所以放 state。 */
   const [modalHost, setModalHost] = useState<HTMLElement | null>(null)
   const [size, setSize] = useState({ width: 1200, height: 800 })

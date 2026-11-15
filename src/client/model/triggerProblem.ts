@@ -10,8 +10,8 @@ import type { TriggerSource } from '../../shared/types.ts'
 import type { TriggerView } from '../../shared/wire/trigger.ts'
 import type { LocaleKey, T } from '../i18n.ts'
 
-/** 小卡里那个按钮做什么：确认命令（再打开），或重新打开停用了的卡片。 */
-export type ProblemFix = 'approve' | 'reopen'
+/** 小卡里那个按钮做什么：确认命令（再打开）、重新打开停用了的卡片、从全部暂停里恢复。 */
+export type ProblemFix = 'approve' | 'reopen' | 'resume'
 
 export interface Problem {
   text: string
@@ -21,7 +21,8 @@ export interface Problem {
 }
 
 /**
- * 按卡片的状态说：别的进程在负责、自动停用了、命令待确认、出错、重启中、要跑命令还没确认过。
+ * 按卡片的状态说：别的进程在负责、自动停用了、命令待确认、出错、重启中、要跑命令还没确认过、全部暂停着。
+ * 全部暂停着这一条不带按钮（画布面板上恢复不了，「触发」页自己加上「恢复」）。
  * 别的状态（等着、监视着、关着且不用确认……）没事，回 `null`。
  * @param owner - 负责触发的是别的进程时它的 pid（「在别处运行」才用得上）。
  */
@@ -51,6 +52,8 @@ export function problemOf(
     case 'error':
     case 'invalid':
       return view.problem === undefined ? null : { text: view.problem, tone: 'bad' }
+    case 'paused':
+      return { text: t('trigger.pausedHint'), tone: 'calm' }
     case 'restarting':
     case 'unavailable':
       return view.problem === undefined ? null : { text: view.problem, tone: 'warn' }

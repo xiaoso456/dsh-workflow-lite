@@ -192,7 +192,7 @@ button.main {
 }
 
 .row:hover .main::before,
-.row[data-open="true"] .main::before {
+.row[data-opened="true"] .main::before {
   opacity: 1;
 }
 
@@ -220,7 +220,7 @@ button.main {
 }
 
 .main[aria-expanded="true"] .chevron,
-.chevron[data-open="true"],
+.chevron[data-opened="true"],
 .chevron[data-view="true"] {
   transform: rotate(0deg);
 }

@@ -29,7 +29,7 @@
 }
 
 .run:hover,
-.run[data-open="true"] {
+.run[data-opened="true"] {
   background: var(--wl-hover);
 }
 

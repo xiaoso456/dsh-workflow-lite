@@ -85,7 +85,7 @@ export function HistoryBar(props: {
         <span
           className={shared.history}
           data-preview={props.previewing || undefined}
-          data-open={open || undefined}
+          data-opened={open || undefined}
           data-testid="wl-display-history"
         >
           <button

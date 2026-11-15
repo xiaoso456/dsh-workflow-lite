@@ -87,7 +87,7 @@ export function Launch(props: LaunchProps): React.JSX.Element {
         label={t('launch.pick')}
         className={css.picker}
         trigger={
-          <div className={css.run} data-disabled={runDisabled} data-open={open}>
+          <div className={css.run} data-disabled={runDisabled} data-opened={open}>
             <button
               type="button"
               className={css.runMain}

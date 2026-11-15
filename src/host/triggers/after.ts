@@ -74,6 +74,7 @@ export function afterProblem(
   source: AfterSource,
   target: { kind: 'missing' } | { kind: 'broken' } | { kind: 'ok'; runState: boolean },
 ): string | null {
+  if (source.workflow === '') return '还没选等哪个工作流跑完'
   if (source.workflow === self) return '不能等自己跑完（会一直触发自己）'
   if (target.kind === 'missing') return `工作流「${source.workflow}」不存在（改名了的话重新选一下）`
   if (target.kind === 'ok' && !target.runState) {

@@ -37,6 +37,7 @@ import {
   stepCursor,
 } from '../../model/folderBrowse.ts'
 import { shortTime } from '../../model/time.ts'
+import { tipWhenCut } from '../kit/cutTip.ts'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import { Segmented } from '../kit/Segmented.tsx'
@@ -70,21 +71,6 @@ const ROW = 28
 const SKELETON_ROWS = ['58%', '72%', '44%', '66%', '52%', '78%']
 
 type View = 'rendered' | 'source'
-
-/**
- * 名字被截断（出了省略号）才挂悬停提示，写完整的名字：指针一进这一行就量一下，没截断就不挂。
- * 悬停提示（TipLayer）在冒泡阶段读 `data-tip`，这里走捕获阶段，赶在它前面把属性写好。
- */
-function tipWhenCut(row: HTMLElement, name: string): void {
-  const label = row.querySelector<HTMLElement>('[data-label]')
-  if (label !== null && label.scrollWidth > label.clientWidth) {
-    row.dataset.tip = name
-    row.dataset.tipAlign = 'start'
-  } else {
-    delete row.dataset.tip
-    delete row.dataset.tipAlign
-  }
-}
 
 /** 不列 `.` 开头的项（搜索词本身以 `.` 开头、或打开了「隐藏项」时照列）。 */
 function withoutHidden(
@@ -360,7 +346,15 @@ export function FolderBrowser(props: {
               data-cursor={position === at}
               data-testid="wl-folder-entry"
               data-name={entry.name}
-              onPointerOverCapture={(event) => tipWhenCut(event.currentTarget, entry.name)}
+              onPointerOverCapture={(event) =>
+                // 名字被截成省略号：整行悬停提示写全名。
+                tipWhenCut(
+                  event.currentTarget,
+                  event.currentTarget.querySelector<HTMLElement>('[data-label]'),
+                  entry.name,
+                  'start',
+                )
+              }
               onClick={() => open(entry)}
             >
               {entry.dir ? (

@@ -14,7 +14,7 @@ import { commandOf } from '../../../shared/trigger.ts'
 import type { TriggerData } from '../../../shared/types.ts'
 import { firesSignal, useFires } from '../../app/useFires.ts'
 import type { T } from '../../i18n.ts'
-import { type Problem, problemOf } from '../../model/triggerProblem.ts'
+import { type Problem, type ProblemFix, problemOf } from '../../model/triggerProblem.ts'
 import { stateText, stateTone } from '../../model/triggerText.ts'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
@@ -62,19 +62,17 @@ export function TriggerStatus(props: {
   }
 
   /** 小卡里的按钮：确认命令就在开关旁边问；重新打开同点开关（要确认的照样先问）。 */
-  const onFix = (run: 'approve' | 'reopen'): void => {
+  const onFix = (run: ProblemFix): void => {
     if (run === 'approve' || env.toggle(node, true) === 'confirm') approve.show()
   }
 
-  // 「立即触发一次」没发出去的原因最要紧（刚点的），留到下一次；全部暂停着时说一句为什么不触发。
+  // 「立即触发一次」没发出去的原因最要紧（刚点的），留到下一次。
   const problem: Problem | null =
     fired?.tone === 'bad'
       ? { text: fired.text, tone: 'bad' }
-      : state === 'paused'
-        ? { text: t('trigger.pausedHint'), tone: 'calm' }
-        : view === undefined
-          ? null
-          : problemOf(t, view, data.source, env.triggers.owner?.pid)
+      : view === undefined
+        ? null
+        : problemOf(t, view, data.source, env.triggers.owner?.pid)
 
   return (
     <section className={ins.field} data-testid="wl-trigger-status" data-state={state}>

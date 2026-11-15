@@ -144,6 +144,30 @@ describe('CSS 模块文件', () => {
   })
 })
 
+describe('不翻 :has() 盯着的属性（翻一次就整页重算样式，见 src/client/PERFORMANCE.md「开销从哪来」）', () => {
+  it('开合状态写 data-opened：宿主有条 :has() 规则写着 data-open', () => {
+    const hits = files
+      .filter((file) => /\.(tsx?|css)$/.test(file))
+      .flatMap((file) =>
+        readFileSync(file, 'utf8')
+          .split('\n')
+          .flatMap((line, index) =>
+            /data-open(?![\w-])/.test(line) ? [`${show(file)}:${String(index + 1)}`] : [],
+          ),
+      )
+    expect(hits).toEqual([])
+  })
+
+  it('自己的 :has() 里不写会来回翻的开合属性（aria-expanded、aria-selected、data-opened）', () => {
+    const hits = cssFiles.flatMap((file) =>
+      [...readFileSync(file, 'utf8').matchAll(/:has\(([^{]*)/g)]
+        .filter((found) => /aria-expanded|aria-selected|data-opened/.test(found[1] as string))
+        .map((found) => `${show(file)}: ${(found[0] as string).trim()}`),
+    )
+    expect(hits).toEqual([])
+  })
+})
+
 describe('CSS 模块的类引用', () => {
   it("源码抹除器：注释、字符串、模板字符串的字面部分不算；模板插值里的代码和 `名字['类名']` 保留", () => {
     const code = codeOf(

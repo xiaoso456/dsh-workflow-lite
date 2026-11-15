@@ -147,10 +147,14 @@
   transition: opacity 120ms linear;
 }
 
-/* 下拉开着时也完全显出来：半透明会让这一块自成层叠上下文，下拉就被下面几行盖住。 */
+/*
+ * 下拉开着时也完全显出来：半透明会让这一块自成层叠上下文，下拉就被下面几行盖住。
+ * 认浮层本身（开着才挂上），不认按钮的 aria-expanded：`:has()` 里写了哪个属性，整页任何元素翻这个属性都要整页重算样式
+ * （src/client/PERFORMANCE.md「开销从哪来」）。
+ */
 .row:hover .actions,
 .row:focus-within .actions,
-.actions:has([aria-expanded="true"]) {
+.actions:has([role="dialog"]) {
   opacity: 1;
 }
 

@@ -2,13 +2,17 @@
  * dsh-workflow-lite — 「触发」页右栏：上面固定一块（{@link TriggerHead}），下面页签——概览、时间线、按触发方式换名字的
  * 那一页（输出 / 调用 / 日程 / 上游）、设置；每一页自己滚。
  *
- * 选中的页签由页面记着，换卡片不变。换页签时新的一页从点的那一侧淡进来，换卡片时原地淡进来。
+ * 选中的页签由页面记着，换卡片不变。换内容走右栏通用的交接（{@link useSwap}）：旧内容留个影子淡出、新内容同时淡入，
+ * 中间不空一下——换卡片时整栏原地交叉淡（左栏是竖排的，分不出左右）；换页签时头部和页签不动，
+ * 下面那一页从点的那一侧进来。
+ *
+ * 头部和页签包在 `<header>` 里，和下面那一页留同样宽的滚动条位置（`--wl-scrollbar`）：两块的左右边对齐。
  * 点一条触发记录（概览、时间线里）打开它的详情（`FireDialog`）。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/triggers/TriggerDetail
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { TriggerData } from '../../../../shared/types.ts'
 import type { FireRecord, TriggerEntry } from '../../../../shared/wire/trigger.ts'
 import { useFireSeen } from '../../../app/fireSeen.ts'
@@ -17,6 +21,7 @@ import type { TriggerHub } from '../../../app/useTriggerHub.ts'
 import type { T } from '../../../i18n.ts'
 import { rhythmSince } from '../../../model/triggerActivity.ts'
 import type { WorkflowLiteRpc } from '../../../rpc.ts'
+import { useSwap } from '../../motion/swap.tsx'
 import { FireDialog } from '../../trigger/dialogs/FireDialog.tsx'
 import { triggerTint } from '../../trigger/TriggerMark.tsx'
 import type { TriggerEnv } from '../../trigger/triggerEnv.ts'
@@ -35,9 +40,6 @@ import { UpstreamPane } from './UpstreamPane.tsx'
 
 /** 右栏最多读几条触发记录（存下的总共也就这么多）。 */
 const SHOWN = 200
-
-/** 换页签时新的一页从哪边滑进来多远。 */
-const SLIDE = 14
 
 export function TriggerDetail(props: {
   t: T
@@ -85,15 +87,8 @@ export function TriggerDetail(props: {
     [sessions],
   )
 
-  // 新的一页从哪边进来：换页签按前后，换卡片原地。
-  const last = useRef({ key, tab })
-  const step =
-    last.current.key === key ? DETAIL_TABS.indexOf(tab) - DETAIL_TABS.indexOf(last.current.tab) : 0
-  const from = useRef(0)
-  if (last.current.key !== key || last.current.tab !== tab) {
-    from.current = Math.sign(step) * SLIDE
-    last.current = { key, tab }
-  }
+  // 换卡片：同一个横坐标（0），原地交叉淡；换页签：第几个面，按前后从那一侧进来。
+  const swap = useSwap<HTMLDivElement>(key, 0, DETAIL_TABS.indexOf(tab))
 
   const paused = props.paused !== undefined
   const pane = ((): React.ReactNode => {
@@ -165,31 +160,34 @@ export function TriggerDetail(props: {
       style={{ '--wl-kind': triggerTint(kind) } as React.CSSProperties}
       data-testid="wl-hub-trg-detail"
     >
-      <TriggerHead
-        t={t}
-        hub={hub}
-        entry={entry}
-        paused={props.paused}
-        onOpenCard={props.onOpenCard}
-        onNotice={props.onNotice}
-      />
-      <DetailTabs
-        t={t}
-        kind={kind}
-        value={tab}
-        count={fires === null || fires.length === 0 ? undefined : fires.length}
-        failed={unseenFailure}
-        onChange={props.onTab}
-      />
-      <div
-        key={`${key}|${tab}`}
-        className={tabs.pane}
-        role="tabpanel"
-        data-fill={fill}
-        style={{ '--from': `${String(from.current)}px` } as React.CSSProperties}
-        data-testid={`wl-hub-trg-pane-${tab}`}
-      >
-        {pane}
+      <div ref={swap} className={css.body}>
+        <header className={css.top}>
+          <TriggerHead
+            t={t}
+            hub={hub}
+            entry={entry}
+            onOpenCard={props.onOpenCard}
+            onNotice={props.onNotice}
+          />
+          <DetailTabs
+            t={t}
+            kind={kind}
+            value={tab}
+            count={fires === null || fires.length === 0 ? undefined : fires.length}
+            failed={unseenFailure}
+            onChange={props.onTab}
+          />
+        </header>
+        {/* 换卡片、换页签都重新挂一块：滚动位置从顶上开始。 */}
+        <div
+          key={`${key}|${tab}`}
+          className={tabs.pane}
+          role="tabpanel"
+          data-fill={fill}
+          data-testid={`wl-hub-trg-pane-${tab}`}
+        >
+          {pane}
+        </div>
       </div>
       {picked !== null && (
         <FireDialog

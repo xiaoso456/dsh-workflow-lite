@@ -49,7 +49,7 @@ export function KindMenu(props: {
           aria-label={`${t('trigger.pickKind')}: ${name}`}
           aria-haspopup="menu"
           aria-expanded={open}
-          data-open={open || undefined}
+          data-opened={open || undefined}
           data-testid="wl-trigger-pick"
           onClick={() => setOpen(!open)}
         >

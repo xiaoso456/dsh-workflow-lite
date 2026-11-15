@@ -6,11 +6,12 @@
  *
  * 跟着卡片状态刷新时只换字和属性、不插拔元素（宿主页面有条 `:has` 规则，插拔一次就整页重算样式）：
  * 行和行里的每一行都按位置挂着，按 {@link ROW_CHUNK} / {@link LINE_CHUNK} 一档一档多挂几个空的藏起来，
- * 新来一条只是字往下挪一格。
+ * 新来一条只是字往下挪一格；展开着一条在读、或已经往下翻了，眼前的不跟着挪（useKeepReading）。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/trigger/output/OutputList
  */
 
+import { useRef } from 'react'
 import type { OutputEntry, OutputFilter, OutputLine } from '../../../../shared/wire/trigger.ts'
 import type { OutputView } from '../../../app/outputView.ts'
 import { useNow } from '../../../app/useNow.ts'
@@ -32,6 +33,7 @@ import { Icon } from '../../kit/Icon.tsx'
 import { useCopied } from '../../kit/useCopied.ts'
 import { Presence } from '../../motion/exits.tsx'
 import css from './outputLog.module.css'
+import { useKeepReading } from './useKeepReading.ts'
 import type { OutputLogModel } from './useOutputLog.ts'
 
 /** 行按几个一档挂。 */
@@ -56,8 +58,11 @@ export function OutputList(props: {
   const entries = data?.entries ?? []
   const slots = roundUp(entries.length, ROW_CHUNK)
   const empty = data !== null && entries.length === 0
+  const listRef = useRef<HTMLDivElement>(null)
+  useKeepReading(listRef, data?.entries, entries.some(model.isOpen))
   return (
     <div
+      ref={listRef}
       className={props.className === undefined ? css.list : `${css.list} ${props.className}`}
       data-wrap={view.wrap}
       data-err={view.err}
@@ -124,8 +129,9 @@ function Row(props: {
     <div
       className={css.row}
       hidden={entry === undefined}
+      data-id={entry?.id}
       data-v={entry === undefined ? undefined : entryTone(entry)}
-      data-open={open || undefined}
+      data-opened={open || undefined}
     >
       <button
         type="button"
@@ -157,8 +163,15 @@ function Row(props: {
           </span>
         </span>
       </button>
-      {/* 展开、收起：高度连续地长开、收回（Presence）。按条换 key：轮询时这一格换成了别的条，直接按新条开着没开挂上，不放动画。 */}
-      <Presence key={entry?.id ?? 'empty'} show={open}>
+      {/*
+        展开、收起：高度连续地长开、收回（Presence）。按条换 key：轮询时这一格换成了别的条，直接按新条开着没开挂上，不放动画。
+        行是展开了才去读的：读到了再长开（ready），一口气长到整高，不长到一半蹿一截。箭头、底色照样当下就变。
+      */}
+      <Presence
+        key={entry?.id ?? 'empty'}
+        show={open}
+        ready={entry === undefined || model.lines(entry.id) !== undefined}
+      >
         <div className={css.body}>
           {open && entry !== undefined && (
             <Body t={t} entry={entry} model={model} err={props.view.err} testId={props.testId} />

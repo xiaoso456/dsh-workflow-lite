@@ -45,7 +45,7 @@
 }
 
 .mark:hover,
-.mark[data-open="true"] {
+.mark[data-opened="true"] {
   border-color: currentColor;
   transform: scale(1.06);
 }

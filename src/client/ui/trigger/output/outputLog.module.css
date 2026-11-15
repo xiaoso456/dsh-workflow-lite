@@ -101,7 +101,7 @@ button.link:active {
 }
 
 .head:hover,
-.row[data-open] > .head {
+.row[data-opened] > .head {
   background: var(--wl-hover);
 }
 
@@ -116,7 +116,7 @@ button.link:active {
   transition: transform 160ms var(--wl-ease);
 }
 
-.row[data-open] .chev {
+.row[data-opened] .chev {
   transform: rotate(90deg);
 }
 

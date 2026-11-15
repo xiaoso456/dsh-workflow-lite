@@ -100,12 +100,12 @@ export function VersionRow(props: {
   )
 
   return (
-    <div className={v.row} data-open={open} data-busy={busy} data-testid={testId}>
+    <div className={v.row} data-opened={open} data-busy={busy} data-testid={testId}>
       {editing ? (
         <div className={v.main}>
           {head}
           {/* 占住展开箭头的位置：进出编辑态时版本号、说明都不动。 */}
-          <span className={v.chevron} data-open={open} aria-hidden="true">
+          <span className={v.chevron} data-opened={open} aria-hidden="true">
             <Icon name="chevronDown" size={14} />
           </span>
         </div>

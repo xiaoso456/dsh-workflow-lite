@@ -47,7 +47,7 @@ export function ProblemMark(props: {
         type="button"
         className={css.button}
         data-tone={problem?.tone}
-        data-open={open}
+        data-opened={open}
         aria-label={problem?.text ?? ''}
         aria-expanded={open}
         data-testid={testId}

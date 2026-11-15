@@ -661,7 +661,7 @@ function Category(props: {
           data-testid={`${props.testId}-toggle`}
           onClick={() => props.onExpand(!props.expanded)}
         >
-          <span className={css.catChevron} data-open={open}>
+          <span className={css.catChevron} data-opened={open}>
             <Icon name="chevronRight" size={14} />
           </span>
           <span className={css.catIcon} data-on={lit}>

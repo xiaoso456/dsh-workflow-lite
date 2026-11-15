@@ -913,7 +913,7 @@ button.tile:focus-visible {
 }
 
 :global(.react-flow__node.selected) .history,
-.history[data-open],
+.history[data-opened],
 .card[data-display]:hover .history,
 .card[data-display][data-interactive] .history,
 .card[data-display][data-settings] .history {

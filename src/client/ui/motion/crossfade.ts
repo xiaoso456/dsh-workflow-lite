@@ -15,7 +15,18 @@ import { REDUCED } from './shared.ts'
 /** 过渡的类型名：CSS 只按它给这一种过渡定样子（ui.module.css 末尾），不碰宿主页面自己的 view transition。 */
 const CROSSFADE_TYPE = 'wl-crossfade'
 
-type Crossfade = { target: HTMLElement; apply: () => void }
+type Crossfade = { target: HTMLElement; apply: () => void; through: boolean }
+
+/** 先淡出再淡入（{@link CrossfadeOptions.through}）的那几张快照带的类（`view-transition-class`），ui.module.css 按它换节奏。 */
+const THROUGH_CLASS = 'wl-through'
+
+export interface CrossfadeOptions {
+  /**
+   * 先淡出、再淡入，两张几乎不叠（缺省是同时一淡一显）。同一批东西换一种排法（清单 ↔ 时间轴）时用：
+   * 同样的字在新旧两张里位置不同，同时淡会叠出一层重影。
+   */
+  through?: boolean
+}
 const crossfades: Crossfade[] = []
 
 type ViewTransitionStart = (options: { update: () => Promise<void>; types: string[] }) => {
@@ -40,9 +51,13 @@ function runCrossfades(): void {
   }
   batch.forEach((item, index) => {
     item.target.style.viewTransitionName = `wl-crossfade-${index}`
+    if (item.through) item.target.style.setProperty('view-transition-class', THROUGH_CLASS)
   })
   const clear = (): void => {
-    for (const item of batch) item.target.style.viewTransitionName = ''
+    for (const item of batch) {
+      item.target.style.viewTransitionName = ''
+      item.target.style.removeProperty('view-transition-class')
+    }
   }
   try {
     const transition = start({
@@ -69,7 +84,11 @@ function runCrossfades(): void {
  * 这是「只动 transform / opacity」之外登记的一处例外：用的是 View Transitions，只在换外观那一下、约 220ms，
  * 同一帧里好几张卡一起换（改了全局外观）合成一次过渡。开了「减少动态效果」、浏览器不支持、目标不在页面上时直接换。
  */
-export function crossfade(target: HTMLElement | null, apply: () => void): void {
+export function crossfade(
+  target: HTMLElement | null,
+  apply: () => void,
+  options: CrossfadeOptions = {},
+): void {
   if (
     target === null ||
     !target.isConnected ||
@@ -79,18 +98,23 @@ export function crossfade(target: HTMLElement | null, apply: () => void): void {
     apply()
     return
   }
-  crossfades.push({ target, apply })
+  crossfades.push({ target, apply, through: options.through === true })
   if (crossfades.length === 1) queueMicrotask(runCrossfades)
 }
 
 /**
  * 跟着 `value` 走，但换的那一下走 {@link crossfade}：返回此刻该画的值（换之前还是旧的，拍完旧快照才换成新的）。
  */
-export function useCrossfade<V>(value: V, target: RefObject<HTMLElement | null>): V {
+export function useCrossfade<V>(
+  value: V,
+  target: RefObject<HTMLElement | null>,
+  options: CrossfadeOptions = {},
+): V {
   const [shown, setShown] = useState(value)
+  const through = options.through === true
   useLayoutEffect(() => {
     if (Object.is(value, shown)) return
-    crossfade(target.current, () => setShown(value))
-  }, [value, shown, target])
+    crossfade(target.current, () => setShown(value), { through })
+  }, [value, shown, target, through])
   return shown
 }

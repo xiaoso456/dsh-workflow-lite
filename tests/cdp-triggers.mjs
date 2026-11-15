@@ -1312,9 +1312,9 @@ try {
   const pauseText = await session.evaluate(textOf('[data-testid="wl-hub-trg-pause-text"]'))
   check('总闸写着从什么时候起全部暂停', /起全部暂停/u.test(pauseText), pauseText)
   check(
-    '暂停着：右栏顶上一条说明带「恢复」，状态条写已暂停',
+    '暂停着：状态条写已暂停，后面一枚说明图标（悬停看说明、带「恢复」），不另起一条把下面推下去',
     await session.evaluate(
-      `document.querySelector('[data-testid="wl-hub-trg-paused"]')?.hidden === false && document.querySelector('[data-testid="wl-hub-trg-detail-state"]').textContent.includes('已暂停')`,
+      `(() => { const mark = document.querySelector('[data-testid="wl-hub-trg-problem"]'); return mark?.parentElement.hidden === false && mark.dataset.tone === 'calm' && document.querySelector('[data-testid="wl-hub-trg-detail-state"]').textContent.includes('已暂停') })()`,
     ),
   )
   await capture(session, 'hub-triggers-paused-light.png')

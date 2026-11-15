@@ -6,9 +6,14 @@
  */
 
 /* 搜索框下面的列表：边线由外面那一栏（.side）画，列表自己不画，免得出两道。 */
+/*
+ * 工作流中心左栏的列表：一直留着滚动条的位置——筛选、折叠、搜索让行变少，滚动条没了，行也不会一下变宽、
+ * 行尾的开关不左右跳。上面的搜索框（hub.module.css 的 .searchBar）留同样的位置，两边对齐。
+ */
 .sideList {
   flex: 1 1 auto;
   padding-top: 4px;
+  scrollbar-gutter: stable;
 }
 
 /*

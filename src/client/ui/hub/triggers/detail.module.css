@@ -1,12 +1,33 @@
 /*
  * dsh-workflow-lite — 「触发」页右栏的根（TriggerDetail.tsx）：上面固定、页签下面那一页自己滚。
  * `--wl-kind` 写在这里，头部、时间线、输出各处跟着这张卡片的触发方式上色。
+ *
+ * 外面一层是框（换内容时旧内容的影子叠在这里面、铺满），里面一层（.body）是换的那块。
  */
 
 .detail {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+}
+
+.body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/*
+ * 头部和页签：和下面那一页（tabs.module.css 的 .pane，一直留着滚动条位置）在右边留同样宽的位置，左右边对齐。
+ * 宽度是量出来的（kit/scrollbarWidth.ts）；这里有「立即触发一次」的浮层，不能用 overflow 去留。
+ */
+.top {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  padding-right: var(--wl-scrollbar, 0px);
 }

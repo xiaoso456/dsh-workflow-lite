@@ -370,7 +370,7 @@ function RunsMore(props: {
       <span>
         {props.expanded ? t('run.showLess') : t('run.showAll').replace('{n}', String(props.hidden))}
       </span>
-      <span className={css.moreChev} data-open={props.expanded}>
+      <span className={css.moreChev} data-opened={props.expanded}>
         <Icon name="chevronDown" size={13} />
       </span>
     </button>

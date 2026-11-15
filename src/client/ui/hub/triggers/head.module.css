@@ -37,7 +37,9 @@
   min-width: 0;
 }
 
+/* 栏窄时先缩后面两个小签，名字最后才缩（缩的份额按 flex-shrink 分，小签的大得多）。 */
 .name {
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   font-size: var(--wl-fs-title);
@@ -49,9 +51,10 @@
 
 .tag {
   display: inline-flex;
-  flex: none;
+  flex: 0 1000 auto;
   gap: 5px;
   align-items: center;
+  min-width: 0;
   max-width: 40%;
   height: 20px;
   padding: 0 7px;
@@ -62,6 +65,16 @@
   font-size: var(--wl-fs-micro);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.tagText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tag > svg {
+  flex: none;
 }
 
 .kindTag {
@@ -115,29 +128,6 @@
   min-width: 3em;
 }
 
-/* 全部暂停着的说明。 */
-.pausedNote {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  margin: 0 18px 10px;
-  padding: 7px 8px 7px 12px;
-  border-radius: var(--wl-r-control);
-  background: var(--wl-warn-soft);
-  color: var(--wl-warn);
-  font-size: var(--wl-fs-meta);
-  animation: fadeIn 160ms linear;
-}
-
-.pausedNote[hidden] {
-  display: none;
-}
-
-.pausedText {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
 /* 状态条：一行状态（出了问题后面一枚小图标）| 下一次 | 立即触发。 */
 .status {
   margin: 0 18px;
@@ -177,9 +167,13 @@
   background: var(--wl-line-strong);
 }
 
+/*
+ * 「上一次」按内容占宽（不撑满）：状态字、问题图标一变，它整个往旁边滑（TriggerHead 的 useRowSlide 只滑宽度没变的）；
+ * 「立即触发一次」靠 margin-left: auto 贴右。
+ */
 .when {
   display: flex;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   gap: 8px;
   align-items: baseline;
   min-width: 0;
@@ -190,15 +184,20 @@
 }
 
 .whenMain {
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   color: var(--wl-text);
   text-overflow: ellipsis;
 }
 
+/* 后面那句灰字（已运行多久、多久以前）先缩，前面那句最后才缩。 */
 .whenAside {
-  flex: none;
+  flex: 0 1000 auto;
+  min-width: 0;
+  overflow: hidden;
   color: var(--wl-text-3);
+  text-overflow: ellipsis;
 }
 
 .when[data-fired="ok"] .whenMain {
@@ -216,6 +215,7 @@
 .fire {
   display: inline-flex;
   flex: none;
+  margin-left: auto;
 }
 
 /* 问题图标（样子见 trigger/problemMark.module.css）：贴着状态，抵掉状态条的一份间距。 */
@@ -223,19 +223,9 @@
   margin-left: -6px;
 }
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .onoff {
     transition: none;
-  }
-
-  .pausedNote {
-    animation: none;
   }
 }
 
@@ -243,10 +233,5 @@
 :global([data-look="swiss"]) .status {
   border-width: 1px 0;
   border-top-color: var(--wl-text);
-  background: transparent;
-}
-
-:global([data-look="swiss"]) .pausedNote {
-  border-left: 2px solid var(--wl-warn);
   background: transparent;
 }

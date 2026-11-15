@@ -66,7 +66,8 @@ function snapshot(panel: HTMLElement, key: string, at: number, view: number): Sn
 
 /**
  * 旧内容（影子）往外让、快速淡出，新内容从目标那一侧淡入，两层同时起步。
- * 方向：新内容在画布上更靠右，就从右边进来、旧的往左让。
+ * 方向：新内容在画布上更靠右，就从右边进来、旧的往左让；分不出左右（`at` 一样，比如同一列里上下两项、
+ * 一张竖排的清单里换选中）就不挪，原地交叉淡。
  * 影子放完自己删；连点几下时前几个影子各自淡完，不中途拿掉（拿掉会跳一下）。
  */
 function swapIn(
@@ -81,7 +82,7 @@ function swapIn(
   // `sameItem`：还是同一项、只是换看的面（运行 ↔ 编辑）：标题栏原地不动，只换下面的内容；
   // 方向按两个面的先后（往右边那个面切，新内容从右边进来）。
   if (!sameItem) swappedAt = performance.now()
-  const dir = (sameItem ? view >= snap.view : at >= snap.at) ? 1 : -1
+  const dir = sameItem ? (view >= snap.view ? 1 : -1) : Math.sign(at - snap.at)
   const ghost = snap.ghost.node
   // 影子只留内容：栏框、底色、阴影由新面板画，影子叠在它上面。
   Object.assign(ghost.style, {
@@ -141,7 +142,7 @@ const CLOSE_SHIFT = 24
  * 栏框本身已经被 React 摘掉了：照它的样子浅复制一个空框（同样的类、同样的位置）放回原处，影子内容装进去。
  * 页面本身也被卸掉了（换到别的标签页）就不放。
  */
-function closeOut(frame: HTMLElement, host: Node, snap: Snapshot): void {
+function closeOut(frame: HTMLElement, host: Node, box: DOMRect, snap: Snapshot): void {
   if (!host.isConnected || frame.isConnected) return
   const shell = frame.cloneNode(false) as HTMLElement
   shell.removeAttribute('data-testid')
@@ -150,6 +151,7 @@ function closeOut(frame: HTMLElement, host: Node, snap: Snapshot): void {
   shell.setAttribute('aria-hidden', 'true')
   shell.setAttribute('inert', '')
   host.appendChild(shell)
+  pinOver(shell, box)
   snap.ghost.place(shell)
   // 和步骤库收起同一套：位移 200ms 缓出，透明度 160ms 匀速，先淡完再滑完。
   shell.animate([{ transform: 'none' }, { transform: `translateX(${CLOSE_SHIFT}px)` }], {
@@ -165,6 +167,28 @@ function closeOut(frame: HTMLElement, host: Node, snap: Snapshot): void {
   // 透明度先放完，那时已经看不见了，直接拿掉。
   const drop = (): void => shell.remove()
   out.finished.then(drop, drop)
+}
+
+/**
+ * 栏框本来在排版里（工作流中心「触发」页：两栏的 grid 里右边那一格）：空框放回去会占一格、把旁边那栏挤矮。
+ * 改成绝对定位，盖在栏框原来的位置（`box`，摘掉之前量的）上，不占地方。本来就浮着的（画布上的右栏）不动。
+ */
+function pinOver(shell: HTMLElement, box: DOMRect): void {
+  const position = getComputedStyle(shell).position
+  if (position === 'absolute' || position === 'fixed') return
+  Object.assign(shell.style, {
+    position: 'absolute',
+    margin: '0',
+    width: `${String(box.width)}px`,
+    height: `${String(box.height)}px`,
+  })
+  const base = shell.offsetParent
+  const origin = base === null ? { top: 0, left: 0 } : base.getBoundingClientRect()
+  const scroll =
+    base === null ? { top: 0, left: 0 } : { top: base.scrollTop, left: base.scrollLeft }
+  const edge = base === null ? { top: 0, left: 0 } : { top: base.clientTop, left: base.clientLeft }
+  shell.style.top = `${String(box.top - origin.top - edge.top + scroll.top)}px`
+  shell.style.left = `${String(box.left - origin.left - edge.left + scroll.left)}px`
 }
 
 /** 同一项的「编辑」面（属性面板那几块传它）；实例右栏的「运行」面用 {@link useSwap} 默认的 0。 */
@@ -226,6 +250,8 @@ export function useSwap<E extends HTMLElement>(key: string, at: number, view = 0
       const frame = panel.parentElement
       // 栏框的父元素也要现在记下：微任务里栏框已经被摘掉，`parentNode` 是 null 了。
       const host = frame?.parentNode ?? null
+      // 栏框此刻的位置：空框放回去时盖在这里（见 pinOver）。
+      const box = frame?.getBoundingClientRect() ?? null
       const entry = {
         panel,
         snap: snapshot(panel, shown.current.key, shown.current.at, shown.current.view),
@@ -236,7 +262,7 @@ export function useSwap<E extends HTMLElement>(key: string, at: number, view = 0
       queueMicrotask(() => {
         if (gone !== entry) return
         gone = null
-        if (frame !== null && host !== null) closeOut(frame, host, entry.snap)
+        if (frame !== null && host !== null && box !== null) closeOut(frame, host, box, entry.snap)
       })
     }
   }, [])

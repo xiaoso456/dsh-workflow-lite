@@ -97,7 +97,10 @@
   pointer-events: none;
 }
 
-/* 页签下面那一页：自己滚，头部、状态条、页签不跟着走。换页时从点的那一侧淡进来。 */
+/*
+ * 页签下面那一页：自己滚，头部、状态条、页签不跟着走。换页、换卡片的交接由右栏的 useSwap 放（TriggerDetail.tsx），
+ * 这里不再自己淡入——自己淡入是先空一下再冒出来。
+ */
 .pane {
   flex: 1 1 auto;
   min-height: 0;
@@ -105,7 +108,6 @@
   overflow-y: auto;
   scrollbar-gutter: stable;
   scrollbar-width: thin;
-  animation: paneIn 220ms var(--wl-ease) backwards;
 }
 
 /* 自己里面还有一块要滚的（时间线、输出）：这一层不滚，交给里面那块。 */
@@ -115,22 +117,11 @@
   overflow: hidden;
 }
 
-@keyframes paneIn {
-  from {
-    opacity: 0;
-    transform: translateX(var(--from, 0));
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .tab,
   .failed,
   .ink {
     transition: none;
-  }
-
-  .pane {
-    animation: none;
   }
 }
 

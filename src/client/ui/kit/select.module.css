@@ -63,7 +63,7 @@
   transition: transform 180ms var(--wl-ease-out);
 }
 
-.trigger[data-open] .chevron {
+.trigger[data-opened] .chevron {
   transform: rotate(180deg);
 }
 

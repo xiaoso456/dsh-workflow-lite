@@ -194,14 +194,17 @@
   outline-offset: 1px;
 }
 
-/* 底部总闸：暂停着时整条换成提醒色。 */
+/*
+ * 底部总闸：暂停着时整条换成提醒色。右边多留一条滚动条的宽度（同 hub.module.css 的 .searchBar），
+ * 按钮右边和列表里的行对齐；底色、上边线照样铺满整条。
+ */
 .pauseBar {
   display: flex;
   flex: none;
   gap: 8px;
   align-items: center;
   min-height: 46px;
-  padding: 0 8px 0 14px;
+  padding: 0 calc(8px + var(--wl-scrollbar, 0px)) 0 14px;
   border-top: 1px solid var(--wl-line);
   transition: background-color 160ms linear;
 }

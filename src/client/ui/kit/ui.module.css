@@ -1291,3 +1291,20 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
 :global(html:active-view-transition-type(wl-crossfade)::view-transition-new(*)) {
   animation-duration: 220ms;
 }
+
+/*
+ * 先淡出再淡入（crossfade 的 through）：旧的 90ms 先退干净，新的晚 70ms 起、150ms 淡进来，总长仍是 220ms。
+ * 动画本身还是浏览器自带的淡出 / 淡入，只换节奏。
+ */
+:global(html:active-view-transition-type(wl-crossfade)::view-transition-old(*.wl-through)) {
+  animation-duration: 90ms;
+  animation-timing-function: cubic-bezier(0.4, 0, 1, 1);
+  animation-fill-mode: both;
+}
+
+:global(html:active-view-transition-type(wl-crossfade)::view-transition-new(*.wl-through)) {
+  animation-duration: 150ms;
+  animation-delay: 70ms;
+  animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
+  animation-fill-mode: both;
+}

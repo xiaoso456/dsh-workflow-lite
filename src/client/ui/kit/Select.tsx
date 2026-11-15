@@ -86,7 +86,7 @@ export function Select<V extends string>(props: {
             aria-label={props.label}
             aria-haspopup="menu"
             aria-expanded={open}
-            data-open={open || undefined}
+            data-opened={open || undefined}
             data-testid={props.testId}
             onClick={() => {
               if (open) {

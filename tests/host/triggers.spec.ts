@@ -1381,9 +1381,13 @@ describe('接续触发', () => {
     return triggers
   }
 
-  it('等的工作流不在、没开「记录运行状态」、是自己：打不开，说出原因', async () => {
-    await saveGraph('patrol', { source: { kind: 'after', workflow: 'build' } })
+  it('还没选、等的工作流不在、没开「记录运行状态」、是自己：打不开，说出原因', async () => {
+    await saveGraph('patrol', { source: { kind: 'after', workflow: '' } })
     const triggers = service()
+    const none = await enable(triggers)
+    expect(!none.ok && none.error.message).toBe('还没选等哪个工作流跑完')
+
+    await saveGraph('patrol', { source: { kind: 'after', workflow: 'build' } })
     const missing = await enable(triggers)
     expect(!missing.ok && missing.error.message).toContain('不存在')
 

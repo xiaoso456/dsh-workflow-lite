@@ -13,7 +13,7 @@
     opacity 260ms var(--wl-ease);
 }
 
-.presence[data-open="true"] {
+.presence[data-opened="true"] {
   grid-template-rows: 1fr;
   opacity: 1;
   pointer-events: auto;

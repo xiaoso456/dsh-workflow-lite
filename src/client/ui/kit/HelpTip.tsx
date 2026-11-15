@@ -37,7 +37,7 @@ export function HelpTip(props: {
         className={css.hintButton}
         aria-label={props.label}
         aria-expanded={state !== 'off'}
-        data-open={state !== 'off'}
+        data-opened={state !== 'off'}
         data-testid={props.testId}
         {...float.hoverProps}
         onFocus={() => {

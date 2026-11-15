@@ -31,7 +31,7 @@
   outline: none;
 }
 
-.hintButton[data-open="true"] {
+.hintButton[data-opened="true"] {
   background: var(--wl-hover);
   color: var(--wl-accent-text);
 }

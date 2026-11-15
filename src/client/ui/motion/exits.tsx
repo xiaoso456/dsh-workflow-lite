@@ -303,7 +303,8 @@ export function useGlide(
 /**
  * 一排挨着的小按钮（工作台顶栏）：其中一个变宽变窄了（它自己用 {@link useGlide} 展开收起），
  * 被挤动的其余几个从原处滑到新位置，和它的底面同样的时长、同时起步——不跳。
- * 宽度变了的那个不挪（它的底面、小件 useGlide 管着）；整排自己变宽变窄（窗口缩放）时只重新记位置，不滑。
+ * 自己展开收起的那个不挪（它的底面、小件 useGlide 管着）；别的单元被挤动了就滑，哪怕它自己的字也换了长短
+ * （「触发」页状态条：状态字、问题图标一变，后面的「上一次」整段滑过去）。整排自己变宽变窄（窗口缩放）时只重新记位置，不滑。
  * 直接子项是一个单元；动的是 `translate`（{@link slide}），不碰各单元自己的 transform。返回回调 ref，挂到这一排上。
  */
 export function useRowSlide(): (row: HTMLElement | null) => void {
@@ -329,7 +330,11 @@ export function useRowSlide(): (row: HTMLElement | null) => void {
       if (!whole && REDUCED?.matches !== true) {
         for (const [child, now] of next) {
           const was = spots.get(child)
-          if (was === undefined || was.width !== now.width || was.left === now.left) continue
+          if (was === undefined || was.left === now.left) continue
+          // 自己展开收起的（里面有 useGlide 的底面）由 useGlide 管，不挪；按内容占宽的字换了长短照样滑。
+          if (was.width !== now.width && child.querySelector('[data-glide-surface]') !== null) {
+            continue
+          }
           // 往左挪 = 右边有一个变宽了（展开的时长），往右挪 = 变窄了（收的时长）。
           slide(
             child,
@@ -379,6 +384,9 @@ export function useViewGhost(ref: RefObject<HTMLElement | null>): void {
 /** 折叠区展开 / 收起的时长（和 exits.module.css 的 `.presence` 过渡一致；也是 transitionend 没来时的兜底）。 */
 const PRESENCE_MS = 260
 
+/** 要展开的内容还没读到时最多等多久（读得快就看不出等过；读得慢就先开着，读到了再长）。 */
+const READY_WAIT_MS = 180
+
 /**
  * 可以出现、也可以消失的一块（折叠区、行内的提示条 / 错误条）：
  * - 出现：高度从 0 长开、同时淡入，下面的内容被顺势推下去；
@@ -390,13 +398,19 @@ const PRESENCE_MS = 260
  * 把条件放进 `show`，把内容放进 children（`show` 为假时 children 可以是假值）。
  * 高度走 `grid-template-rows: 0fr ↔ 1fr`（布局属性，是「只动 transform / opacity」的例外）：折叠区不知道自己多高，
  * 这是不量高度就能从 0 长到内容那么高的办法；只在动的这段时间里动，内容区同时 `overflow: hidden`，平时不裁（阴影、焦点环照常画出来）。
+ *
+ * 内容要现读（展开一行才去读它的输出）时给 `ready`：没读到先不开，最多等 {@link READY_WAIT_MS}。
+ * 高度是「内容的几分之几」，长到一半内容才到，就会一帧里蹿一大截；等到了再开，一口气从 0 长到整高。
  */
 export function Presence(props: {
   show: boolean
   children: ReactNode
   className?: string
+  /** 内容准备好了没有（缺省是好了）。 */
+  ready?: boolean
 }): React.JSX.Element | null {
-  const { show } = props
+  const ready = useReadyOrWaited(props.show, props.ready !== false)
+  const show = props.show && ready
   const still = REDUCED?.matches === true
   const ref = useRef<HTMLDivElement>(null)
   const [mounted, setMounted] = useState(show)
@@ -434,7 +448,7 @@ export function Presence(props: {
     <div
       ref={ref}
       className={cx(css.presence, props.className)}
-      data-open={open}
+      data-opened={open}
       data-moving={moving ? true : undefined}
       aria-hidden={show ? undefined : true}
       onTransitionEnd={(event) => {
@@ -446,6 +460,18 @@ export function Presence(props: {
       <div className={css.presenceInner}>{show ? props.children : last.current}</div>
     </div>
   )
+}
+
+/** `want` 变真之后：`ready` 了，或者已经等了 {@link READY_WAIT_MS}。`want` 变假就从头来。 */
+function useReadyOrWaited(want: boolean, ready: boolean): boolean {
+  const [waited, setWaited] = useState(false)
+  if (!want && waited) setWaited(false)
+  useEffect(() => {
+    if (!want || ready || waited) return
+    const id = window.setTimeout(() => setWaited(true), READY_WAIT_MS)
+    return () => window.clearTimeout(id)
+  }, [want, ready, waited])
+  return ready || waited
 }
 
 /** CSS 时间（`240ms` 或压缩后的 `.24s`）转毫秒；读不出来用 `fallback`。 */

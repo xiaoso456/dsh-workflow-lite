@@ -115,7 +115,7 @@
   transition: transform 200ms var(--wl-ease);
 }
 
-.moreChev[data-open="true"] {
+.moreChev[data-opened="true"] {
   transform: rotate(180deg);
 }
 

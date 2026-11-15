@@ -78,7 +78,7 @@ export function HandoffMark(props: {
         className={css.mark}
         data-none={handoff.none}
         data-selected={props.selected}
-        data-open={float.state !== 'off'}
+        data-opened={float.state !== 'off'}
         data-testid="wl-handoff-mark"
         data-edge={props.edgeId}
         aria-label={`${t('hand.title')} · ${props.route}`}

@@ -38,7 +38,7 @@
 }
 
 .kind:hover,
-.kind[data-open] {
+.kind[data-opened] {
   background: var(--wl-hover);
 }
 
@@ -53,7 +53,7 @@
   transition: transform 180ms var(--wl-ease-out);
 }
 
-.kind[data-open] .chevron {
+.kind[data-opened] .chevron {
   transform: rotate(180deg);
 }
 

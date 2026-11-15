@@ -143,7 +143,7 @@ export function TopBar(props: TopBarProps): React.JSX.Element {
                 run: {
                   id: props.runId,
                   trigger: (open: boolean) => (
-                    <span ref={props.slotRefs.trigger} className={run.switch} data-open={open} />
+                    <span ref={props.slotRefs.trigger} className={run.switch} data-opened={open} />
                   ),
                 },
               })}

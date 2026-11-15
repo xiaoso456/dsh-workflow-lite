@@ -14,7 +14,7 @@ import { useRef, useState } from 'react'
 import type { TriggerEntry } from '../../../../shared/wire/trigger.ts'
 import type { TriggerHub } from '../../../app/useTriggerHub.ts'
 import type { LocaleKey, T } from '../../../i18n.ts'
-import { shortTime } from '../../../model/time.ts'
+import { fireWhen } from '../../../model/fireView.ts'
 import {
   type ArrangedTriggers,
   groupId,
@@ -24,11 +24,13 @@ import {
 } from '../../../model/triggerList.ts'
 import { rowNote } from '../../../model/triggerNow.ts'
 import { stateBadge, stateTone } from '../../../model/triggerText.ts'
+import { tipWhenCut } from '../../kit/cutTip.ts'
 import { cx } from '../../kit/cx.ts'
 import { Icon } from '../../kit/Icon.tsx'
 import ui from '../../kit/ui.module.css'
 import { useFlip } from '../../motion/flip.ts'
 import { SwitchTrack } from '../../motion/marks.tsx'
+import { SwapText } from '../../motion/swapText.tsx'
 import { ListThumb } from '../../motion/thumb.tsx'
 import tone from '../../trigger/stateTone.module.css'
 import { TRIGGER_ICON, TriggerMark, triggerTint } from '../../trigger/TriggerMark.tsx'
@@ -234,11 +236,22 @@ function TriggerRow(props: {
         className={cx(wf.wfItem, css.item)}
         data-testid="wl-hub-trg"
         data-value={`${entry.workflow}/${entry.view.node}`}
+        onPointerOverCapture={(event) =>
+          // 栏窄，名字、后面那句（哪个工作流、上一次）放不下就截断：悬停写全。
+          tipWhenCut(
+            event.currentTarget,
+            [...event.currentTarget.querySelectorAll<HTMLElement>('[data-cut]')],
+            props.note === '' ? entry.name : `${entry.name} · ${props.note}`,
+            'start',
+          )
+        }
         onClick={props.onPick}
       >
         <TriggerMark kind={kind} size={15} className={css.mark} />
         <span className={wf.wfText}>
-          <span className={wf.wfName}>{entry.name}</span>
+          <span className={wf.wfName} data-cut="">
+            {entry.name}
+          </span>
           <span
             className={cx(css.meta, tone.tone)}
             data-state={entry.view.state}
@@ -247,7 +260,7 @@ function TriggerRow(props: {
           >
             <span className={tone.dot} aria-hidden="true" />
             <span className={css.stateText}>{stateBadge(t, entry.view, kind)}</span>
-            <span className={css.note} hidden={props.note === ''}>
+            <span className={css.note} hidden={props.note === ''} data-cut="">
               {props.note}
             </span>
           </span>
@@ -271,7 +284,10 @@ function TriggerRow(props: {
   )
 }
 
-/** 左栏最下面的总闸：「N 张开着 · 全部暂停」/「几点起全部暂停 · 恢复」。只换字，不插拔元素。 */
+/**
+ * 左栏最下面的总闸：「N 张开着 · 全部暂停」/「几点起全部暂停 · 恢复」。只换字，不插拔元素；字放不下截成省略号，悬停看全；
+ * 按钮上的字按两种里长的那种占宽（SwapText 的 `reserve`），点了换字时按钮不变宽变窄、左边的字不跟着挪。
+ */
 function PauseBar(props: {
   t: T
   hub: TriggerHub
@@ -283,6 +299,10 @@ function PauseBar(props: {
   const { t, paused } = props
   const [busy, setBusy] = useState(false)
   const stopped = paused !== undefined
+  // 时刻照记录的写法：今天只写钟点，栏窄也放得下；再早的带日期，放不下就截断，悬停看全。
+  const text = stopped
+    ? t('hub.trgPausedSince').replace('{time}', fireWhen(t, paused, Date.now()))
+    : t('hub.trgOnCount').replace('{n}', String(props.on))
   const flip = async (): Promise<void> => {
     setBusy(true)
     const problem = await props.hub.pause(!stopped)
@@ -294,10 +314,14 @@ function PauseBar(props: {
       <span className={cx(css.pauseMark, tone.tone)} data-tone={stopped ? 'warn' : 'live'}>
         <span className={tone.dot} aria-hidden="true" />
       </span>
-      <span className={css.pauseText} data-testid="wl-hub-trg-pause-text">
-        {stopped
-          ? t('hub.trgPausedSince').replace('{time}', shortTime(paused))
-          : t('hub.trgOnCount').replace('{n}', String(props.on))}
+      <span
+        className={css.pauseText}
+        data-testid="wl-hub-trg-pause-text"
+        onPointerOverCapture={(event) =>
+          tipWhenCut(event.currentTarget, event.currentTarget, text, 'start')
+        }
+      >
+        {text}
       </span>
       <button
         type="button"
@@ -308,7 +332,10 @@ function PauseBar(props: {
         onClick={() => void flip()}
       >
         <Icon name={stopped ? 'play' : 'pause'} size={13} />
-        {t(stopped ? 'hub.trgResume' : 'hub.trgPause')}
+        <SwapText
+          text={t(stopped ? 'hub.trgResume' : 'hub.trgPause')}
+          reserve={[t('hub.trgResume'), t('hub.trgPause')]}
+        />
       </button>
     </div>
   )

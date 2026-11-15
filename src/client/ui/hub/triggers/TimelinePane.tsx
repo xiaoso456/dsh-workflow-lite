@@ -3,14 +3,16 @@
  * 滚动时钉在顶上；在自己的框里滚。
  *
  * 顶上按结果筛选（全部 / 已发出 / 跳过 / 失败，带条数；模型判断不需要的跟着已发出），右边换样子：清单（一行一条）、
- * 时间轴（左边一根连续的线，今天那组里有个「现在」）。样子记在浏览器里；换样子只换外面的 `data-layout`，不重建行。
+ * 时间轴（左边一根连续的线，今天那组里有个「现在」）。样子记在浏览器里；换样子只换外面的 `data-layout`，不重建行，
+ * 旧样子先淡出、新样子再淡入（{@link useCrossfade} 的 through）：同样的行在两种样子里位置不同，同时淡会叠出重影；
+ * 不是整块先空掉再淡进来，行高也不在眼前一下跳变。
  *
  * 点一条浮出详情；上下键在记录之间走。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/triggers/TimelinePane
  */
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { FireRecord, TriggerEntry } from '../../../../shared/wire/trigger.ts'
 import { type TimelineLayout, useTimelineLayout } from '../../../app/timelineLayout.ts'
 import type { LocaleKey, T } from '../../../i18n.ts'
@@ -35,6 +37,7 @@ import { sourceText, stateBadge, stateTone } from '../../../model/triggerText.ts
 import { Icon } from '../../kit/Icon.tsx'
 import { IconSwitch } from '../../kit/IconSwitch.tsx'
 import { Segmented } from '../../kit/Segmented.tsx'
+import { useCrossfade } from '../../motion/crossfade.ts'
 import { TRIGGER_ICON } from '../../trigger/TriggerMark.tsx'
 import { FireRow, NowRow, PlanRow } from './FireRow.tsx'
 import css from './timeline.module.css'
@@ -79,6 +82,9 @@ export function TimelinePane(props: {
   const { source } = entry.data
   const [filter, setFilter] = useState<OutcomeFilter>('all')
   const [layout, setLayout] = useTimelineLayout()
+  // 切换按钮马上换到新的一格；记录那块拍完旧样子再换（两张快照交叉淡）。
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const shownLayout = useCrossfade(layout, scrollRef, { through: true })
   const now = Date.now()
   const today = dayOf(now)
   const live = !props.paused && (view.state === 'waiting' || view.state === 'listening')
@@ -149,8 +155,9 @@ export function TimelinePane(props: {
       </div>
       {/* biome-ignore lint/a11y/noStaticElementInteractions: 只是接住记录按钮冒上来的上下键 */}
       <div
+        ref={scrollRef}
         className={css.scroll}
-        data-layout={layout}
+        data-layout={shownLayout}
         data-testid="wl-hub-trg-history"
         onKeyDown={walk}
       >
