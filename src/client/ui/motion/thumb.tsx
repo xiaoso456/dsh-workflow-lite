@@ -53,8 +53,9 @@ export function ListThumb(props: {
   }, [])
   // layout / resized 变了才量。
   useLayoutEffect(() => {
+    // 选中的项是列表的直接子项，或分组块（`data-flip-group`，见 flip.ts）里的子项。
     const item = ref.current?.parentElement?.querySelector<HTMLElement>(
-      ':scope > [data-selected="true"]',
+      ':scope > [data-selected="true"], :scope > [data-flip-group] > [data-selected="true"]',
     )
     if (item == null) {
       setPlace((was) => (was === null ? null : { ...was, hidden: true }))

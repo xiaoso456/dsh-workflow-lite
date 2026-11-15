@@ -1364,11 +1364,20 @@ try {
   await waitFor(session, has('wl-hub-trg-page'))
   await sleep(600)
 
-  // 行尾的开关就是卡片的开关。
-  const hookSwitch = `${hookRow} ~ [data-testid="wl-hub-trg-switch"]`
-  await session.evaluate(`document.querySelector('${hookSwitch}').click()`)
+  // 行上不放开关：选中那一行，右栏头部的开关就是卡片的开关；关掉后那一行的图标块变灰。
+  await session.evaluate(`document.querySelector('${hookRow}').click()`)
+  await sleep(500)
+  await session.evaluate(clickTestId('wl-hub-trg-head-switch'))
   const hookOff = await waitTrigger(NAME2, 'hook', (item) => item.enabled === false, 10_000)
   check('「触发」页的开关关掉了这张卡片', hookOff?.enabled === false, JSON.stringify(hookOff))
+  const rowOff = await waitFor(
+    session,
+    `document.querySelector('${hookRow}')?.dataset.off === 'true'`,
+    { timeoutMs: 5_000 },
+  )
+    .then(() => true)
+    .catch(() => false)
+  check('关掉的卡片在左栏标成关着（图标块变灰）', rowOff)
 
   // 在画布上打开：换到夜间巡检，选中夜巡那张。
   await session.evaluate(

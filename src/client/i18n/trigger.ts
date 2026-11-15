@@ -1,7 +1,7 @@
 /**
- * dsh-workflow-lite — 触发卡片文案。
+ * dsh-workflow-lite — 触发器文案。
  *
- * 画布上的触发卡片、它的属性面板（触发方式、过滤、触发条件、触发说明、执行设置、触发记录），以及实例里的「来源」。
+ * 画布上的触发器、它的属性面板（触发方式、过滤、触发条件、触发说明、执行设置、触发记录），以及实例里的「来源」。
  *
  * @module @xiaoso/dsh-workflow-lite/client/i18n/trigger
  */
@@ -19,8 +19,8 @@ export const zh = {
   'trigger.leadWidth': '4em',
   'trigger.name': '名称',
   'trigger.switch': '启用',
-  'trigger.switchOn': '打开这张触发卡片',
-  'trigger.switchOff': '关掉这张触发卡片',
+  'trigger.switchOn': '启用此触发器',
+  'trigger.switchOff': '停用此触发器',
   'trigger.state.off': '已停用',
   'trigger.state.waiting': '等待中',
   'trigger.state.checking': '检查中',
@@ -57,12 +57,12 @@ export const zh = {
   'trigger.span.h': '{n} 小时',
   'trigger.span.m': '{n} 分',
   'trigger.span.s': '{n} 秒',
-  'trigger.confirmHint': '打开开关时确认命令',
+  'trigger.confirmHint': '启用时确认命令',
   'trigger.ownerOther': '同一个数据目录下，进程 {pid} 的 DSH 正在负责触发；它退出后由这里接手。',
-  'trigger.stoppedHint': '修好之后重新打开开关。',
+  'trigger.stoppedHint': '修好之后重新启用。',
   'trigger.pausedHint':
-    '所有触发卡片都暂停着，到工作流中心「触发」页恢复；「立即触发一次」照常可用。',
-  'trigger.snapshot': '这是执行时的快照。开关和状态在工作流模板里看。',
+    '所有触发器都已暂停，到工作流中心「触发」页恢复；「立即触发一次」照常可用。',
+  'trigger.snapshot': '这是执行时的快照。启用状态和运行状态在工作流模板里看。',
   // ── 触发方式 ────────────────────────────────────────────────
   'trigger.when': '触发方式',
   'trigger.afterFire': '触发处理',
@@ -153,7 +153,7 @@ export const zh = {
   'trigger.rule.afterNone': '还没选工作流',
   // 卡片中间的速览与底下的「主动 / 被动」
   'trigger.glance.seconds': '每 {n} 秒',
-  'trigger.glance.httpIdle': '打开开关后给出地址',
+  'trigger.glance.httpIdle': '启用后给出地址',
   'trigger.mode.active': '主动',
   'trigger.mode.passive': '被动',
   'trigger.mode.activeTip': '主动：插件按时间自己去检查、去执行',
@@ -167,8 +167,8 @@ export const zh = {
   'trigger.kindDesc.listen': '常驻程序每打出一行执行一次',
   'trigger.kindDesc.http': '收到本机 POST 请求时执行',
   'trigger.kindDesc.after': '另一个工作流跑完后执行',
-  'trigger.detail.needCommand': '写好命令才能打开开关',
-  'trigger.detail.needWorkflow': '选好要等的工作流才能打开开关',
+  'trigger.detail.needCommand': '写好命令才能启用',
+  'trigger.detail.needWorkflow': '选好要等的工作流才能启用',
   'trigger.detail.listen': '程序每打出一行触发一次',
   'trigger.detail.httpLocal': '只有这台电脑上的程序能访问',
   'trigger.detail.httpLan': '同一网络里的其他机器也能访问',
@@ -236,7 +236,7 @@ export const zh = {
   'trigger.afterResultTip.failed': '结果为失败时接着执行，适合做善后、通知。',
   'trigger.afterResultTip.any': '完成、失败、取消都接着执行。',
   'trigger.afterResultTip.note':
-    '结果读自那次执行的运行状态，所以那个工作流要开着「记录运行状态」；每次执行只接着执行一次。',
+    '结果读自那次执行的运行状态，所以那个工作流要打开「记录运行状态」；每次执行只接着执行一次。',
   'trigger.afterRuns': '最近的执行',
   'trigger.afterRunsAside': '按现在的设置，标出会接着执行的几次',
   'trigger.afterRunsPick': '选好工作流后，这里列出它最近几次执行。',
@@ -250,7 +250,7 @@ export const zh = {
   // ── HTTP ────────────────────────────────────────────────────
   'trigger.httpPending': '地址和令牌是这台机器上的设置，在工作流模板里查看、修改。',
   'trigger.httpPreparing': '正在生成地址和令牌…',
-  'trigger.httpOff': '打开开关后，这个地址才开始接收请求。',
+  'trigger.httpOff': '启用后，这个地址才开始接收请求。',
   'trigger.editUrl': '改地址',
   'trigger.editToken': '自己写令牌',
   'trigger.applyEdit': '保存（Enter）',
@@ -317,7 +317,7 @@ export const zh = {
   'trigger.fixed': '固定到',
   'trigger.fixedNone': '选一个会话',
   'trigger.sessionHere': '{name}（当前会话）',
-  'trigger.localHint': '工作区、会话、开关和 HTTP 令牌只存在这台机器上，不跟着工作流导出。',
+  'trigger.localHint': '工作区、会话、启用状态和 HTTP 令牌只存在这台机器上，不跟着工作流导出。',
   'trigger.overlap': '允许同时运行',
   'trigger.overlapDesc': '关闭时，上一次触发的会话仍在运行，本次触发跳过。',
   'trigger.catchUp': '补发错过的触发',
@@ -335,7 +335,7 @@ export const zh = {
   'trigger.confirmShell': 'Shell：{name}',
   'trigger.confirmNoCwd': '先在下面「执行设置」里选命令在哪个工作区运行。',
   'trigger.needWorkspace': '先选命令在哪个工作区里运行',
-  'trigger.confirmOk': '确认并打开',
+  'trigger.confirmOk': '确认并启用',
   'trigger.confirmAgain': '确认命令',
   // ── 立即触发、输出与记录 ────────────────────────────────────
   'trigger.fireNow': '立即触发一次',
@@ -377,7 +377,7 @@ export const zh = {
   'trigger.fire.merged': '这一次合并了 {count} 次触发',
   'trigger.fire.infoClipped': '背景信息太长，这里只显示开头。',
   'trigger.fire.plain': '这次触发没有带触发说明和背景信息。',
-  'trigger.delete': '删除这张触发卡片',
+  'trigger.delete': '删除此触发器',
   // ── 实例的来源 ──────────────────────────────────────────────
   'origin.title': '来源',
   'origin.manual': '在画布上点「执行」',
@@ -436,23 +436,23 @@ export const zh = {
   'trigger.cmd.try': '试运行',
   'trigger.cmd.trying': '运行中…',
   'trigger.cmd.tryTitle': '在这个工作区里运行一次这条命令？',
-  'trigger.cmd.tryDesc': '{dir}。不打开开关、不发进会话，只看它的输出。',
-  'trigger.cmd.tryListenDesc': '{dir}。跑 5 秒后结束，不打开开关、不发进会话，只看它打出什么。',
+  'trigger.cmd.tryDesc': '{dir}。不启用、不发进会话，只看它的输出。',
+  'trigger.cmd.tryListenDesc': '{dir}。运行 5 秒后结束，不启用、不发进会话，只看它的输出。',
   'trigger.cmd.tryConfirm': '运行',
   'trigger.cmd.tryNoWorkspace': '还不知道在哪个工作区里运行：先在「执行设置」里选工作区。',
   'trigger.try.code': '退出码 {code}',
   'trigger.try.met': '算成功',
   'trigger.try.unmet': '算失败',
-  'trigger.try.changeNote': '开着时第一次检查只记下输出、不执行，之后和上一次比',
+  'trigger.try.changeNote': '启用后第一次检查只记下输出、不执行，之后和上一次比较',
   'trigger.try.took': '用时 {s} 秒',
-  'trigger.try.lines': '{s} 秒内打出 {n} 行，开着时每行触发一次',
-  'trigger.try.exited': '程序自己退出了，开着时会自动重启',
+  'trigger.try.lines': '{s} 秒内输出 {n} 行，启用后每行触发一次',
+  'trigger.try.exited': '程序自行退出了，启用后会自动重启',
   'trigger.try.failed': '失败',
   'trigger.try.noOutput': '没有输出',
   'trigger.try.console': '输出',
   'trigger.try.empty': '还没有试运行',
   'trigger.try.emptyHint':
-    '点「试运行」在选的工作区里跑一次这条命令，只看输出：不打开开关、不发进会话。',
+    '点「试运行」在选的工作区里运行一次这条命令，只看输出：不启用、不发进会话。',
   'trigger.outputStale': '命令在这里改过了：最近的输出是保存着的那条命令的',
   'trigger.tpl.git': 'Git 远端有新提交',
   'trigger.tpl.gitDesc': '远端分支的提交变了时触发',
@@ -475,7 +475,7 @@ export const zh = {
   'trigger.listen.fireFact': '它每打出一行就执行一次，这一行作为背景信息。',
   'trigger.listen.life': '启停',
   'trigger.listen.lifeFact':
-    '打开开关即启动，关掉即结束，意外退出会自动重启；打开前要先确认这条命令，改了命令要重新确认。',
+    '启用即启动，停用即结束，意外退出会自动重启；启用前要先确认这条命令，改了命令要重新确认。',
   'trigger.listen.command': '常驻命令',
   'trigger.snippets': '调用示例',
   'trigger.snippetsPending':
@@ -487,7 +487,7 @@ export const zh = {
   'trigger.pingConfirm': '发送',
   'trigger.pingOk': '收下了，会照常触发一次',
   'trigger.pingBad': '没收下',
-  'trigger.pingOff': '打开开关后才能发测试请求',
+  'trigger.pingOff': '启用后才能发测试请求',
   // ── 接续：选工作流 ────────────────────────────────────────
   'trigger.afterPick': '等哪个工作流',
   'trigger.afterSearch': '搜索工作流',
@@ -514,8 +514,8 @@ export const en: Record<keyof typeof zh, string> = {
   'trigger.leadWidth': '5.75em',
   'trigger.name': 'Name',
   'trigger.switch': 'Enabled',
-  'trigger.switchOn': 'Turn this trigger on',
-  'trigger.switchOff': 'Turn this trigger off',
+  'trigger.switchOn': 'Enable this trigger',
+  'trigger.switchOff': 'Disable this trigger',
   'trigger.state.off': 'Off',
   'trigger.state.waiting': 'Waiting',
   'trigger.state.checking': 'Checking',
@@ -551,14 +551,14 @@ export const en: Record<keyof typeof zh, string> = {
   'trigger.span.h': '{n} h',
   'trigger.span.m': '{n} min',
   'trigger.span.s': '{n} s',
-  'trigger.confirmHint': 'confirm the command when switching on',
+  'trigger.confirmHint': 'confirm the command when enabling',
   'trigger.ownerOther':
     'The DSH with process {pid} is handling triggers for this data folder; this one takes over when it exits.',
-  'trigger.stoppedHint': 'Fix it, then switch it back on.',
+  'trigger.stoppedHint': 'Fix it, then enable it again.',
   'trigger.pausedHint':
     'All triggers are paused; resume them on the Triggers page of the workflow hub. Trigger once now still works.',
   'trigger.snapshot':
-    'This is the snapshot taken at run time. See the switch and status in the workflow.',
+    'This is the snapshot taken at run time. See whether it is enabled and its status in the workflow.',
   'trigger.when': 'Trigger',
   'trigger.afterFire': 'Handling',
   'trigger.source.schedule': 'Schedule',
@@ -651,7 +651,7 @@ export const en: Record<keyof typeof zh, string> = {
   'trigger.rule.afterAny': 'After “{name}” finishes',
   'trigger.rule.afterNone': 'No workflow chosen',
   'trigger.glance.seconds': 'Every {n} s',
-  'trigger.glance.httpIdle': 'Address appears once switched on',
+  'trigger.glance.httpIdle': 'Address appears once enabled',
   'trigger.mode.active': 'Active',
   'trigger.mode.passive': 'Passive',
   'trigger.mode.activeTip': 'Active: the plugin checks and runs on its own schedule',
@@ -664,8 +664,8 @@ export const en: Record<keyof typeof zh, string> = {
   'trigger.kindDesc.listen': 'Fire on each output line',
   'trigger.kindDesc.http': 'Fire on a local POST request',
   'trigger.kindDesc.after': 'Fire when a workflow ends',
-  'trigger.detail.needCommand': 'Write the command before switching it on',
-  'trigger.detail.needWorkflow': 'Pick the workflow to wait for before switching it on',
+  'trigger.detail.needCommand': 'Write the command before enabling it',
+  'trigger.detail.needWorkflow': 'Pick the workflow to wait for before enabling it',
   'trigger.detail.listen': 'Fires once for each line the program prints',
   'trigger.detail.httpLocal': 'Only programs on this computer can reach it',
   'trigger.detail.httpLan': 'Other machines on the same network can reach it too',
@@ -691,7 +691,7 @@ export const en: Record<keyof typeof zh, string> = {
   'trigger.sum.failures': 'Off after {n} failures',
   'trigger.sum.noCatchUp': 'Missed triggers not run',
   'trigger.sum.noPerHour': 'No hourly limit',
-  'trigger.sum.noFailures': 'Never switched off by failures',
+  'trigger.sum.noFailures': 'Never disabled by failures',
   'trigger.brief.noPerHour': 'No hourly limit',
   'trigger.brief.noFailures': 'No auto-off',
   'trigger.brief.skip': 'Skip while running',
@@ -750,7 +750,7 @@ export const en: Record<keyof typeof zh, string> = {
   'trigger.httpPending':
     'The address and token are settings on this machine; view and change them in the workflow template.',
   'trigger.httpPreparing': 'Creating the address and token…',
-  'trigger.httpOff': 'This address starts accepting requests once the switch is on.',
+  'trigger.httpOff': 'This address starts accepting requests once the trigger is enabled.',
   'trigger.editUrl': 'Edit address',
   'trigger.editToken': 'Set your own token',
   'trigger.applyEdit': 'Save (Enter)',
@@ -821,7 +821,7 @@ export const en: Record<keyof typeof zh, string> = {
   'trigger.fixedNone': 'Pick a session',
   'trigger.sessionHere': '{name} (current session)',
   'trigger.localHint':
-    'Workspace, session, the switch and the HTTP token are stored on this machine only and are not exported with the workflow.',
+    'Workspace, session, enabled state and the HTTP token are stored on this machine only and are not exported with the workflow.',
   'trigger.overlap': 'Allow overlapping runs',
   'trigger.overlapDesc':
     'When off, a trigger is skipped while the session from the previous trigger is still running.',
@@ -833,7 +833,7 @@ export const en: Record<keyof typeof zh, string> = {
     'Triggers beyond the limit within an hour are skipped. Leave empty for no limit.',
   'trigger.maxFailures': 'Failures before auto-off',
   'trigger.maxFailuresDesc':
-    'Switches off automatically after this many failures in a row. Leave empty to never switch off.',
+    'Disabled automatically after this many failures in a row. Leave empty to never disable it.',
   'trigger.noLimit': 'No limit',
   'trigger.confirmTitle': 'Run this command?',
   'trigger.confirmDesc':
@@ -843,7 +843,7 @@ export const en: Record<keyof typeof zh, string> = {
   'trigger.confirmNoCwd':
     'First pick the workspace to run the command in, under Run settings below.',
   'trigger.needWorkspace': 'First pick the workspace to run the command in',
-  'trigger.confirmOk': 'Confirm and turn on',
+  'trigger.confirmOk': 'Confirm and enable',
   'trigger.confirmAgain': 'Confirm command',
   'trigger.fireNow': 'Trigger once now',
   'trigger.infoPlaceholder': 'Background info for this run (optional)',
@@ -944,9 +944,9 @@ export const en: Record<keyof typeof zh, string> = {
   'trigger.cmd.trying': 'Running…',
   'trigger.cmd.tryTitle': 'Run this command once in this workspace?',
   'trigger.cmd.tryDesc':
-    '{dir}. The switch stays as it is and nothing goes to a session; you only see the output.',
+    '{dir}. The trigger is not enabled and nothing goes to a session; you only see the output.',
   'trigger.cmd.tryListenDesc':
-    '{dir}. It runs for 5 seconds; the switch stays as it is and nothing goes to a session.',
+    '{dir}. It runs for 5 seconds; the trigger is not enabled and nothing goes to a session.',
   'trigger.cmd.tryConfirm': 'Run',
   'trigger.cmd.tryNoWorkspace':
     'No workspace to run in yet: choose one under “Run settings” first.',
@@ -954,16 +954,16 @@ export const en: Record<keyof typeof zh, string> = {
   'trigger.try.met': 'Counts as success',
   'trigger.try.unmet': 'Counts as failure',
   'trigger.try.changeNote':
-    'While on, the first check only records the output and does not fire; later ones compare',
+    'Once enabled, the first check only records the output and does not fire; later ones compare',
   'trigger.try.took': 'took {s} s',
-  'trigger.try.lines': '{n} lines in {s} s; each fires once while switched on',
-  'trigger.try.exited': 'The program exited on its own; while on it restarts automatically',
+  'trigger.try.lines': '{n} lines in {s} s; once enabled, each line fires once',
+  'trigger.try.exited': 'The program exited on its own; once enabled it restarts automatically',
   'trigger.try.failed': 'Failed',
   'trigger.try.noOutput': 'No output',
   'trigger.try.console': 'Output',
   'trigger.try.empty': 'Not tried yet',
   'trigger.try.emptyHint':
-    'Click “Try it” to run this command once in the chosen workspace and see its output. The card stays off and nothing is sent to the session.',
+    'Click “Try it” to run this command once in the chosen workspace and see its output. The trigger is not enabled and nothing is sent to the session.',
   'trigger.outputStale': 'The command was edited here; recent output belongs to the saved command',
   'trigger.tpl.git': 'New commits on a Git remote',
   'trigger.tpl.gitDesc': 'Fires when the remote branch moves',
@@ -987,7 +987,7 @@ export const en: Record<keyof typeof zh, string> = {
   'trigger.listen.fireFact': 'Once for every line it prints, with that line as background info.',
   'trigger.listen.life': 'Runs',
   'trigger.listen.lifeFact':
-    'Starts when switched on, stops when switched off, and restarts itself if it exits. The command must be confirmed before the switch turns on, and again after it changes.',
+    'Starts when enabled, stops when disabled, and restarts itself if it exits. The command must be confirmed before enabling, and again after it changes.',
   'trigger.listen.command': 'Long-running command',
   'trigger.snippets': 'Examples',
   'trigger.snippetsPending':
@@ -1001,7 +1001,7 @@ export const en: Record<keyof typeof zh, string> = {
   'trigger.pingConfirm': 'Send',
   'trigger.pingOk': 'Accepted; it fires as usual',
   'trigger.pingBad': 'Not accepted',
-  'trigger.pingOff': 'Switch it on to send a test request',
+  'trigger.pingOff': 'Enable it to send a test request',
   // ── After: pick a workflow ────────────────────────────────
   'trigger.afterPick': 'Which workflow',
   'trigger.afterSearch': 'Search workflows',

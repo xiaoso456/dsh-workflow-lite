@@ -72,7 +72,7 @@ describe('触发卡片的速览', () => {
     })
     expect(triggerGlance(t, { kind: 'http' })).toEqual({
       shape: 'http',
-      idle: '打开开关后给出地址',
+      idle: '启用后给出地址',
     })
     expect(triggerGlance(t, { kind: 'after', workflow: '夜间巡检', when: 'failed' })).toEqual({
       shape: 'after',

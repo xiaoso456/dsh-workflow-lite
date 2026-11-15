@@ -260,7 +260,7 @@ describe('触发卡片：卡片上的字', () => {
       '重启中 · 今天 07:55 重启',
     )
     expect(stateText(t, { ...view, state: 'confirm' }, 'listen', now)).toBe(
-      '待确认 · 打开开关时确认命令',
+      '待确认 · 启用时确认命令',
     )
     expect(sourceText(t, { kind: 'poll', command: 'x', seconds: 300 })).toBe('每 5 分钟检查')
     expect(sourceText(t, { kind: 'poll', command: 'x', seconds: 7200 })).toBe('每 2 小时检查')

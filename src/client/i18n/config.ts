@@ -54,10 +54,10 @@ export const zh = {
   'cfg.maxResultDesc': '模型读一张工作流、一份运行状态最多拿这么多；很大的工作流读不出来时调大。',
   'cfg.skill': '给模型的使用指南',
   'cfg.skillDesc':
-    '注册四份模型按需读的指南：怎么设计工作流、怎么记录运行状态、怎么写画布上的看板、怎么加触发卡片。',
+    '注册四份模型按需读的指南：怎么设计工作流、怎么记录运行状态、怎么写画布上的看板、怎么加触发器。',
   'cfg.triggerPort': 'HTTP 触发端口',
   'cfg.triggerPortDesc':
-    'HTTP 触发卡片的地址用这个端口；有打开的 HTTP 触发卡片时才占用。改了之后地址跟着变，要更新调用方。',
+    'HTTP 触发器的地址用这个端口；有已启用的 HTTP 触发器时才占用。改了之后地址跟着变，要更新调用方。',
   'cfg.triggerHost': 'HTTP 触发监听地址',
   'cfg.triggerHostDesc':
     '缺省只接受本机的请求。要让别的机器调用，选「所有网卡」或某块网卡的地址；请求是明文 HTTP，只在信得过的网络里用，或放在 HTTPS 代理后面。',
@@ -101,7 +101,7 @@ export const zh = {
   'cfg.listen.away': '未运行',
   'cfg.listen.openOne': '在 {bind} 上接收请求',
   'cfg.listen.openAny': '在所有网卡上接收请求（{bind}），别的机器用 {url}',
-  'cfg.listen.idleDesc': '没有打开的 HTTP 触发卡片，端口没有占用；打开一张就开始监听。',
+  'cfg.listen.idleDesc': '没有已启用的 HTTP 触发器，端口没有占用；启用一个就开始监听。',
   'cfg.listen.awayDesc': '没有 DSH 进程在负责触发。',
   'cfg.listen.loading': '读取中…',
   'cfg.atLeast': '至少 {min}',
@@ -159,10 +159,10 @@ export const en: Record<keyof typeof zh, string> = {
     'The most the model gets from one read of a workflow or run state; raise it if a big workflow cannot be read.',
   'cfg.skill': 'Guides for the model',
   'cfg.skillDesc':
-    'Registers four on-demand guides: designing workflows, recording run state, writing canvas dashboards, and adding trigger cards.',
+    'Registers four on-demand guides: designing workflows, recording run state, writing canvas dashboards, and adding triggers.',
   'cfg.triggerPort': 'HTTP trigger port',
   'cfg.triggerPortDesc':
-    'Port for HTTP trigger addresses; only taken while an HTTP trigger card is on. Changing it changes the addresses, so update the callers.',
+    'Port for HTTP trigger addresses; only taken while an HTTP trigger is enabled. Changing it changes the addresses, so update the callers.',
   'cfg.triggerHost': 'HTTP trigger listen address',
   'cfg.triggerHostDesc':
     'Only requests from this machine are accepted by default. To let other machines call in, pick All interfaces or one interface address; requests are plain HTTP, so use it only on a trusted network or behind an HTTPS proxy.',
@@ -208,7 +208,7 @@ export const en: Record<keyof typeof zh, string> = {
   'cfg.listen.openOne': 'Receiving requests on {bind}',
   'cfg.listen.openAny': 'Receiving requests on all interfaces ({bind}); other machines use {url}',
   'cfg.listen.idleDesc':
-    'No HTTP trigger card is on, so the port is not taken; it starts listening once one is on.',
+    'No HTTP trigger is enabled, so the port is not taken; it starts listening once one is enabled.',
   'cfg.listen.awayDesc': 'No DSH process is in charge of triggers.',
   'cfg.listen.loading': 'Loading…',
   'cfg.atLeast': 'At least {min}',

@@ -1,9 +1,10 @@
 /**
  * dsh-workflow-lite — 「触发」页左栏：搜索 + 视图选项，按选的方式分组列出卡片，最下面是全部暂停的总闸。
  *
- * - 每行：触发方式的图标块、名字、「状态 · 下一次」（按工作流分组时）或「状态 · 工作流」（别的分法），行尾开关；
- *   开关就是画布上那张卡片的开关，要在本机跑命令、没确认过的先在开关旁问一句（{@link useCardSwitch}）。
- * - 分组标题能折叠，滚动时钉在顶上；不分组时没有标题。
+ * - 每行：触发方式的图标块、名字、「状态 · 下一次」（按工作流分组时）或「状态 · 工作流」（别的分法）。
+ *   行上不放开关（开关在右栏头部）：关着的卡片图标块是灰的，一眼看得出。
+ * - 分组标题能折叠，滚动时钉在顶上；一组（标题 + 它的行）包在一块里，下一组的标题上来时把钉住的那个顶走，
+ *   不叠在一起。不分组时没有标题。
  * - 筛选不是「全部」时列表顶上一条「只看要处理的 · 2 张 ✕」，点 ✕ 清掉。
  * - 选中底色是一块滑块（ListThumb），换选中、筛选、换分法时各行滑到新位置（useFlip）。
  *
@@ -26,10 +27,9 @@ import { rowNote } from '../../../model/triggerNow.ts'
 import { stateBadge, stateTone } from '../../../model/triggerText.ts'
 import { tipWhenCut } from '../../kit/cutTip.ts'
 import { cx } from '../../kit/cx.ts'
-import { Icon } from '../../kit/Icon.tsx'
+import { Icon, type IconName } from '../../kit/Icon.tsx'
 import ui from '../../kit/ui.module.css'
 import { useFlip } from '../../motion/flip.ts'
-import { SwitchTrack } from '../../motion/marks.tsx'
 import { SwapText } from '../../motion/swapText.tsx'
 import { ListThumb } from '../../motion/thumb.tsx'
 import tone from '../../trigger/stateTone.module.css'
@@ -38,17 +38,17 @@ import wf from '../../versions/wfList.module.css'
 import { HubSearch } from '../HubSearch.tsx'
 import hub from '../hub.module.css'
 import css from './side.module.css'
-import { useCardSwitch } from './useCardSwitch.tsx'
 import { SHOW, ViewMenu } from './ViewMenu.tsx'
 
 /** 一张卡片在这一页上的键（不同工作流里的卡片 id 会重）。 */
 export const pairKey = (workflow: string, node: string): string => `${workflow}\n${node}`
 export const keyOf = (entry: TriggerEntry): string => pairKey(entry.workflow, entry.view.node)
 
-const BUCKET: Record<StateBucket, { label: LocaleKey; tone: string }> = {
-  act: { label: 'hub.trgBucket.act', tone: 'warn' },
-  on: { label: 'hub.trgBucket.on', tone: 'live' },
-  off: { label: 'hub.trgBucket.off', tone: 'off' },
+/** 按状态分组的三组：名字、图标（和按触发方式分组时的图标一样大，标题那一格看着一样重）、颜色。 */
+const BUCKET: Record<StateBucket, { label: LocaleKey; icon: IconName; tone: string }> = {
+  act: { label: 'hub.trgBucket.act', icon: 'alert', tone: 'warn' },
+  on: { label: 'hub.trgBucket.on', icon: 'power', tone: 'live' },
+  off: { label: 'hub.trgBucket.off', icon: 'power', tone: 'off' },
 }
 
 export function TriggerSide(props: {
@@ -123,31 +123,29 @@ export function TriggerSide(props: {
         {arranged.groups.map((group) => {
           const id = groupId(group)
           const closed = group.by !== 'none' && folded.has(id)
-          return [
-            group.by === 'none' ? null : (
-              <GroupHead
-                key={`group-${id}`}
-                t={t}
-                group={group}
-                closed={closed}
-                onFold={() => fold(id)}
-              />
-            ),
-            ...(closed
-              ? []
-              : group.entries.map((entry) => (
+          return (
+            <div
+              key={`box-${id}`}
+              className={css.groupBox}
+              data-flip-group=""
+              data-opened={closed ? undefined : 'true'}
+            >
+              {group.by !== 'none' && (
+                <GroupHead t={t} group={group} closed={closed} onFold={() => fold(id)} />
+              )}
+              {!closed &&
+                group.entries.map((entry) => (
                   <TriggerRow
                     key={keyOf(entry)}
                     t={t}
-                    hub={props.hub}
                     entry={entry}
                     note={rowNote(t, entry, view.group === 'workflow', now)}
                     selected={keyOf(entry) === props.selected}
                     onPick={() => props.onPick(keyOf(entry))}
-                    onNotice={props.onNotice}
                   />
-                ))),
-          ]
+                ))}
+            </div>
+          )
         })}
       </nav>
       <PauseBar
@@ -161,7 +159,11 @@ export function TriggerSide(props: {
   )
 }
 
-/** 分组标题：点了折叠 / 展开；按状态分时前面一个状态色点，按触发方式分时是那种方式的图标。 */
+/**
+ * 分组标题：和下面的行同一套格子（三种分法都一样）。前面一格和行里的图标块同宽同列（按触发方式是那种方式的图标，
+ * 按状态是那种状态的图标，按工作流是工作流图标），名字和行里的名字左边对齐；张数靠右、挨着折叠箭头。
+ * 点了折叠 / 展开，悬停底色和行一样。
+ */
 function GroupHead(props: {
   t: T
   group: TriggerGroup
@@ -185,49 +187,41 @@ function GroupHead(props: {
       data-value={groupId(group)}
       onClick={props.onFold}
     >
-      <span className={css.chevron} aria-hidden="true">
-        <Icon name="chevronDown" size={12} />
+      <span className={css.groupLead} aria-hidden="true">
+        {group.by === 'state' ? (
+          <span className={tone.tone} data-tone={BUCKET[group.key].tone}>
+            <span className={css.groupTone}>
+              <Icon name={BUCKET[group.key].icon} size={15} />
+            </span>
+          </span>
+        ) : group.by === 'kind' ? (
+          <span style={{ color: triggerTint(group.key) } as React.CSSProperties}>
+            <Icon name={TRIGGER_ICON[group.key]} size={15} />
+          </span>
+        ) : (
+          <Icon name="hub" size={15} />
+        )}
       </span>
-      {group.by === 'state' && (
-        <span className={cx(css.groupDot, tone.tone)} data-tone={BUCKET[group.key].tone}>
-          <span className={tone.dot} />
-        </span>
-      )}
-      {group.by === 'kind' && (
-        <span
-          className={css.groupMark}
-          style={{ color: triggerTint(group.key) } as React.CSSProperties}
-        >
-          <Icon name={TRIGGER_ICON[group.key]} size={12} />
-        </span>
-      )}
       <span className={css.groupName}>{label}</span>
       <span className={css.groupCount}>{group.entries.length}</span>
+      <span className={css.chevron} aria-hidden="true">
+        <Icon name="chevronDown" size={14} />
+      </span>
     </button>
   )
 }
 
 function TriggerRow(props: {
   t: T
-  hub: TriggerHub
   entry: TriggerEntry
   /** 状态后面那半句；空串不写。 */
   note: string
   selected: boolean
   onPick(): void
-  onNotice(text: string, tone?: 'info' | 'error'): void
 }): React.JSX.Element {
   const { t, entry } = props
   const key = keyOf(entry)
-  const on = entry.view.enabled
   const kind = entry.data.source.kind
-  const toggle = useCardSwitch<HTMLButtonElement>({
-    t,
-    hub: props.hub,
-    entry,
-    testId: 'wl-hub-trg-approve',
-    onNotice: props.onNotice,
-  })
   return (
     <div className={wf.wfRow} data-end="fixed" data-flip={key} data-selected={props.selected}>
       <button
@@ -236,6 +230,7 @@ function TriggerRow(props: {
         className={cx(wf.wfItem, css.item)}
         data-testid="wl-hub-trg"
         data-value={`${entry.workflow}/${entry.view.node}`}
+        data-off={entry.view.enabled ? undefined : 'true'}
         onPointerOverCapture={(event) =>
           // 栏窄，名字、后面那句（哪个工作流、上一次）放不下就截断：悬停写全。
           tipWhenCut(
@@ -266,20 +261,6 @@ function TriggerRow(props: {
           </span>
         </span>
       </button>
-      <button
-        ref={toggle.anchorRef}
-        type="button"
-        role="switch"
-        aria-checked={on}
-        aria-label={`${t('trigger.switch')} ${entry.name}`}
-        data-tip={toggle.asking ? undefined : t(on ? 'trigger.switchOff' : 'trigger.switchOn')}
-        className={css.switch}
-        data-testid="wl-hub-trg-switch"
-        onClick={toggle.flip}
-      >
-        <SwitchTrack on={on} />
-      </button>
-      {toggle.confirm}
     </div>
   )
 }

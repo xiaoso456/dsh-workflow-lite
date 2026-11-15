@@ -100,7 +100,7 @@ describe('触发面板的摘要', () => {
     const now = new Date()
     const noCommand = { kind: 'listen', command: '' } as const
     expect(whenDetail(t, noCommand, {}, now)).toEqual({
-      text: '写好命令才能打开开关',
+      text: '写好命令才能启用',
       tone: 'plain',
     })
     expect(whenActionKey(noCommand)).toBe('trigger.fix.command')

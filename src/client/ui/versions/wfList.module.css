@@ -162,7 +162,7 @@
   opacity: 0;
 }
 
-/* 悬停才浮出来的改名、删除要让位，文字收窄；行尾按钮常驻的行（`data-end="fixed"`，如「触发」页的开关）自己留好了位置，不收。 */
+/* 悬停才浮出来的改名、删除要让位，文字收窄；行尾按钮常驻的行（`data-end="fixed"`，如「触发」页）自己留好了位置，不收。 */
 .wfRow:not([data-end="fixed"]):hover .wfText,
 .wfRow:not([data-end="fixed"]):focus-within .wfText,
 .wfRow[data-busy="true"]:not([data-end="fixed"]) .wfText {

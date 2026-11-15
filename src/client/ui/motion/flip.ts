@@ -75,19 +75,31 @@ const ENTER_MS = 240
 const STAGGER_MS = 22
 const STAGGER_MAX = 12
 
-/** 列表里带 `data-flip` 的直接子项各在哪（按键）。 */
-function flipTops(list: HTMLElement): Map<string, number> {
-  const tops = new Map<string, number>()
+/**
+ * 列表里要跟着滑的项：带 `data-flip` 的直接子项；分组的列表一组包一块（`data-flip-group`，钉住的组标题
+ * 只在自己那一组里钉着，下一组上来时被顶走），块里带 `data-flip` 的子项也算。
+ */
+function* flipItems(list: HTMLElement): Generator<HTMLElement> {
   for (const child of list.children) {
-    if (child instanceof HTMLElement && child.dataset.flip !== undefined) {
-      tops.set(child.dataset.flip, topIn(list, child))
+    if (!(child instanceof HTMLElement)) continue
+    if (child.dataset.flip !== undefined) yield child
+    else if (child.dataset.flipGroup !== undefined) {
+      for (const inner of child.children) {
+        if (inner instanceof HTMLElement && inner.dataset.flip !== undefined) yield inner
+      }
     }
   }
+}
+
+/** 列表里各项（{@link flipItems}）各在哪（按键）。 */
+function flipTops(list: HTMLElement): Map<string, number> {
+  const tops = new Map<string, number>()
+  for (const child of flipItems(list)) tops.set(child.dataset.flip ?? '', topIn(list, child))
   return tops
 }
 
 /**
- * 列表里带 `data-flip`（值是项的键）的直接子项：`layout`（各项的键连起来）变了，
+ * 列表里带 `data-flip`（值是项的键）的项（直接子项，或分组块里的子项，见 {@link flipItems}）：`layout`（各项的键连起来）变了，
  * 留下来的项从旧位置滑到新位置；`enter` 时新出现的项从左边淡入——第一次挂上时依次错开。
  * 键没变的项换了个样子（比如改名时换成输入框行）不算新项，不放入场。
  *
@@ -129,10 +141,8 @@ export function useFlip(
     const still = REDUCED?.matches === true
     const next = flipTops(list)
     let index = 0
-    for (const child of list.children) {
-      if (!(child instanceof HTMLElement)) continue
-      const key = child.dataset.flip
-      if (key === undefined) continue
+    for (const child of flipItems(list)) {
+      const key = child.dataset.flip ?? ''
       const top = next.get(key) ?? 0
       const was = tops.current?.get(key)
       if (still) continue
