@@ -466,7 +466,7 @@ export function sourceProblem(source: TriggerSource): string | null {
   if (issue === null) return null
   if (issue.code === 'noWorkflow') return '还没选等哪个工作流跑完'
   if (issue.code === 'noCommand') return '还没写要运行的命令'
-  return `轮询间隔要是 ${String(POLL_MIN_SECONDS)} 秒到 7 天之间的整数秒`
+  return `检查间隔要是 ${String(POLL_MIN_SECONDS)} 秒到 7 天之间的整数秒`
 }
 
 /** 秒数的一句话说法（「30 秒」「5 分钟」「2 小时」）。 */
@@ -484,9 +484,9 @@ export function sourceText(source: TriggerSource): string {
     const when = { success: '命令由失败变为成功', every: '命令成功', change: '输出变了' }[
       pollWhen(source)
     ]
-    return `条件轮询（每 ${secondsText(source.seconds)} 跑一次命令，${when}时触发）`
+    return `检查（每 ${secondsText(source.seconds)} 跑一次命令，${when}时触发）`
   }
-  if (source.kind === 'listen') return '监听程序打出了一行'
+  if (source.kind === 'listen') return '监视程序打出了一行'
   if (source.kind === 'after') {
     const when = { done: '成功', failed: '失败', any: '结束' }[afterWhen(source)]
     return `工作流「${source.workflow}」的一次执行${when}了`

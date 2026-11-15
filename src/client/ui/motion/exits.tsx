@@ -1,6 +1,7 @@
 /**
  * dsh-workflow-lite — 出现 / 消失的动效：卸掉时留影子放退场（{@link useExit} / {@link ExitSeat}）、
- * 画布上节点和连线被删的影子（{@link useCanvasExits} / {@link useLineExit}）、宽度跟着内容滑（{@link useGlide}）、
+ * 画布上节点和连线被删的影子（{@link useCanvasExits} / {@link useLineExit}）、宽度跟着内容滑（{@link useGlide}，
+ * 同一排里被它挤动的邻居跟着滑：{@link useRowSlide}）、
  * 整张画布换视图（{@link useViewGhost}）、折叠区展开收起（{@link Presence}）。只动 `transform` / `opacity`。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/motion/exits
@@ -18,6 +19,7 @@ import {
 import { cx } from '../kit/cx.ts'
 import { ghostClone, ghostFade } from '../kit/ghost.ts'
 import css from './exits.module.css'
+import { slide } from './flip.ts'
 import { EASE, fadeAway, leaving, REDUCED } from './shared.ts'
 
 /** 退场：往哪边走、走多久（都是入场的反方向）。 */
@@ -296,6 +298,66 @@ export function useGlide(
     },
     [hold, anchor],
   )
+}
+
+/**
+ * 一排挨着的小按钮（工作台顶栏）：其中一个变宽变窄了（它自己用 {@link useGlide} 展开收起），
+ * 被挤动的其余几个从原处滑到新位置，和它的底面同样的时长、同时起步——不跳。
+ * 宽度变了的那个不挪（它的底面、小件 useGlide 管着）；整排自己变宽变窄（窗口缩放）时只重新记位置，不滑。
+ * 直接子项是一个单元；动的是 `translate`（{@link slide}），不碰各单元自己的 transform。返回回调 ref，挂到这一排上。
+ */
+export function useRowSlide(): (row: HTMLElement | null) => void {
+  const stop = useRef<(() => void) | null>(null)
+  useEffect(() => () => stop.current?.(), [])
+  return useCallback((row: HTMLElement | null) => {
+    stop.current?.()
+    stop.current = null
+    if (row === null || typeof ResizeObserver === 'undefined') return
+    const measure = (): Map<HTMLElement, { left: number; width: number }> => {
+      const spots = new Map<HTMLElement, { left: number; width: number }>()
+      for (const child of row.children) {
+        if (child instanceof HTMLElement) {
+          spots.set(child, { left: child.offsetLeft, width: child.offsetWidth })
+        }
+      }
+      return spots
+    }
+    let spots = measure()
+    const sizes = new ResizeObserver((entries) => {
+      const next = measure()
+      const whole = entries.some((entry) => entry.target === row)
+      if (!whole && REDUCED?.matches !== true) {
+        for (const [child, now] of next) {
+          const was = spots.get(child)
+          if (was === undefined || was.width !== now.width || was.left === now.left) continue
+          // 往左挪 = 右边有一个变宽了（展开的时长），往右挪 = 变窄了（收的时长）。
+          slide(
+            child,
+            0,
+            was.left - now.left,
+            now.left < was.left ? GLIDE_GROW_MS : GLIDE_SHRINK_MS,
+          )
+        }
+      }
+      spots = next
+    })
+    const watch = (): void => {
+      sizes.disconnect()
+      sizes.observe(row)
+      for (const child of row.children) sizes.observe(child)
+    }
+    watch()
+    // 单元换了（换了一种触发方式，顶栏里的按钮不一样了）：重新记、重新看，不滑。
+    const kids = new MutationObserver(() => {
+      spots = measure()
+      watch()
+    })
+    kids.observe(row, { childList: true })
+    stop.current = () => {
+      sizes.disconnect()
+      kids.disconnect()
+    }
+  }, [])
 }
 
 /**

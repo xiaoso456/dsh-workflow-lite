@@ -41,8 +41,9 @@ const sliding = new WeakMap<HTMLElement, Animation>()
  *
  * 动的是单独的 `translate` 属性，不是 `transform`：它排在 `scale` / `transform` 外面，
  * 项自己的缩放（下一次的点放大一圈）不会把位移也放大，项自己的 transform（入场的小位移）也不会被盖掉。
+ * `ms`：滑多久，缺省和列表一样；跟着别的动画一起动时（{@link useRowSlide} 跟着 useGlide）给它的时长。
  */
-export function slide(child: HTMLElement, offset: number, across = 0): void {
+export function slide(child: HTMLElement, offset: number, across = 0, ms = FLIP_MS): void {
   const running = sliding.get(child)
   let fromY = offset
   let fromX = across
@@ -57,7 +58,7 @@ export function slide(child: HTMLElement, offset: number, across = 0): void {
   }
   if (Math.abs(fromY) < 0.5 && Math.abs(fromX) < 0.5) return
   const anim = child.animate([{ translate: `${fromX}px ${fromY}px` }, { translate: '0 0' }], {
-    duration: FLIP_MS,
+    duration: ms,
     easing: EASE,
   })
   sliding.set(child, anim)

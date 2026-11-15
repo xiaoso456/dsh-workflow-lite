@@ -4,6 +4,8 @@
  * 「试运行 / 最近的输出」两页）；底栏写命令里能用的变量（「?」里细说）。
  *
  * 「从模板开始」和别处的下拉同一个菜单（{@link SelectMenu}：搜索框、名字下面一行说明）。
+ * 命令和哪个模板一字不差，按钮上就写那个模板的名字；改了命令回到「从模板开始」。
+ * 按钮上的字一换（模板名、shell 名），宽度跟着滑（{@link BenchFace}），不跳。
  * 「试运行」跑的是草稿里的命令，在对话框里选的工作区里（没选就用当前会话的）、用选的 shell；
  * 点了先在按钮旁边问一句（命令以 DSH 进程的身份运行、不进沙箱），确认了才跑。不打开开关、不发进会话。
  * 改了命令，上一次的结果就收起来（那是旧命令的）。跑着时按钮上的字不变、图标换成转圈，宽度不变，左边的按钮不挪。
@@ -26,7 +28,7 @@ import { TextArea } from '../../kit/TextArea.tsx'
 import { Presence } from '../../motion/exits.tsx'
 import { ShellButton } from '../ShellSelect.tsx'
 import type { TriggerEnv } from '../triggerEnv.ts'
-import { Bench, benchButton, benchPrimary } from './Bench.tsx'
+import { Bench, BenchFace, benchButton, benchMenu, benchPrimary } from './Bench.tsx'
 import css from './commandBox.module.css'
 import type { LocalDraft } from './runDraft.ts'
 import { type ConsoleTab, type Trial, TrialConsole, type TrialJudge } from './TrialConsole.tsx'
@@ -64,6 +66,8 @@ export function CommandBox(props: {
   const confirm = useConfirm<HTMLButtonElement>()
   const workspace = env === null ? undefined : props.workspace
   const empty = props.command.trim() === ''
+  /** 命令就是哪个模板（一字不差）；改过就不算。 */
+  const template = props.templates.find((item) => item.command === props.command)
   const shell = env === null ? undefined : props.shell
   /** 自己挑的 shell 程序用不了时的原因。 */
   const [shellProblem, setShellProblem] = useState<string | null>(null)
@@ -107,9 +111,10 @@ export function CommandBox(props: {
           <button
             ref={menuButton}
             type="button"
-            className={benchButton}
+            className={cx(benchButton, benchMenu)}
             aria-haspopup="menu"
             aria-expanded={menu !== null}
+            data-tip={template === undefined ? undefined : t(template.desc)}
             data-testid="wl-trigger-template"
             onClick={() =>
               setMenu(
@@ -119,8 +124,7 @@ export function CommandBox(props: {
               )
             }
           >
-            {t('trigger.cmd.template')}
-            <Icon name="chevronDown" size={12} />
+            <BenchFace text={t(template === undefined ? 'trigger.cmd.template' : template.label)} />
           </button>
         }
       >
@@ -154,7 +158,8 @@ export function CommandBox(props: {
           value={shell.value}
           mode="card"
           changed={shell.value !== shell.saved}
-          className={benchButton}
+          className={cx(benchButton, benchMenu)}
+          face={(name) => <BenchFace icon="terminal" text={name} />}
           menuClassName={css.shellMenu}
           testId="wl-trigger-shell"
           onChange={shell.onChange}

@@ -432,11 +432,11 @@
   border-top: 1px solid var(--wl-line);
 }
 
-/* 选中这一行：淡底（::before，交叉淡），不换边框。 */
+/* 选中这一行：淡底（::before，交叉淡），不换边框。和别处的下拉一样用强调色，和那枚钩同一个颜色。 */
 .row::before {
   position: absolute;
   inset: 0;
-  background: color-mix(in oklab, var(--wl-kind) 8%, transparent);
+  background: var(--wl-accent-soft);
   content: "";
   opacity: 0;
   transition: opacity 180ms linear;

@@ -88,7 +88,10 @@ export function TrialConsole(props: {
   )
 }
 
-/** 页签那一行右边：试运行的小结（没跑过、跑着时没有）。太长时截断，悬停看全。 */
+/**
+ * 页签那一行右边：试运行的小结（没跑过、跑着时没有）。太长时截断，悬停看全。
+ * 没跑成时只有一枚错误图标 + 「失败 · 退出码 N」，原因不铺在这一行上，悬停看（输出页里也有）。
+ */
 function TrialSummary(props: {
   t: T
   kind: 'poll' | 'listen'
@@ -98,7 +101,9 @@ function TrialSummary(props: {
   const { t, trial } = props
   if (trial.kind === 'idle' || trial.kind === 'running') return null
   const verdict = verdictOf(t, props.kind, trial, props.judge)
-  const full = [verdict.badge, verdict.text].filter((part) => part !== '').join(' · ')
+  const full = [verdict.badge, verdict.text, verdict.reason]
+    .filter((part) => part !== undefined && part !== '')
+    .join(' · ')
   return (
     <span
       className={css.summary}
@@ -106,6 +111,7 @@ function TrialSummary(props: {
       data-tip={full}
       data-testid="wl-trigger-try-result"
     >
+      {verdict.tone === 'bad' && <Icon name="alert" size={14} />}
       <span className={css.badge}>{verdict.badge}</span>
       {verdict.text !== '' && <span className={css.summaryText}>{verdict.text}</span>}
     </span>
@@ -117,12 +123,21 @@ function verdictOf(
   kind: 'poll' | 'listen',
   trial: Extract<Trial, { kind: 'done' | 'error' }>,
   judge: TrialJudge | undefined,
-): { tone: 'ok' | 'off' | 'bad'; badge: string; text: string } {
-  if (trial.kind === 'error') return { tone: 'bad', badge: t('trigger.try.failed'), text: '' }
+): { tone: 'ok' | 'off' | 'bad'; badge: string; text: string; reason?: string } {
+  if (trial.kind === 'error') {
+    return { tone: 'bad', badge: t('trigger.try.failed'), text: '', reason: trial.message }
+  }
   const { result } = trial
   const seconds = (result.ms / 1000).toFixed(result.ms < 10_000 ? 1 : 0)
   if (result.failure !== undefined) {
-    return { tone: 'bad', badge: t('trigger.try.failed'), text: result.failure }
+    const code =
+      result.code === null ? '' : t('trigger.try.code').replace('{code}', String(result.code))
+    return {
+      tone: 'bad',
+      badge: [t('trigger.try.failed'), code].filter((part) => part !== '').join(' · '),
+      text: '',
+      reason: result.failure,
+    }
   }
   if (kind === 'listen') {
     return {

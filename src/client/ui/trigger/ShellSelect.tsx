@@ -17,7 +17,6 @@ import { useEffect, useRef, useState } from 'react'
 import type { ShellChoice, TriggerShellsResponse } from '../../../shared/wire/trigger.ts'
 import { programDir, programName, type ShellAccess } from '../../app/shells.ts'
 import type { T } from '../../i18n.ts'
-import { Icon } from '../kit/Icon.tsx'
 import { Popover } from '../kit/Popover.tsx'
 import {
   type MenuPlace,
@@ -179,7 +178,13 @@ export function ShellSelect(
  * 提示里写完整路径；`changed`（和存着的不一样）时换成「保存后要重新确认命令」。
  */
 export function ShellButton(
-  props: ShellProps & { className: string; menuClassName: string; changed: boolean },
+  props: ShellProps & {
+    className: string
+    menuClassName: string
+    changed: boolean
+    /** 按钮里面画什么（拿到的是按钮上写的名字）：工作台顶栏给能跟着字滑宽的那种。 */
+    face(name: string): React.ReactNode
+  },
 ): React.JSX.Element {
   const { t } = props
   const { options, current, pick, picker } = useShellChoices(props)
@@ -224,9 +229,7 @@ export function ShellButton(
               )
             }
           >
-            <Icon name="terminal" size={12} />
-            {name}
-            <Icon name="chevronDown" size={12} />
+            {props.face(name)}
           </button>
         }
       >

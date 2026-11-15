@@ -4,11 +4,17 @@
  *
  * 占满设置行下面剩下的高度：换一种方式，框的位置、大小不变，只换里面的东西。
  *
+ * 顶栏右边的按钮靠右排：哪一个的字换了（选了模板、换了 shell），它贴着右边展开收起（{@link BenchFace}），
+ * 左边被挤动的按钮一起滑过去（useRowSlide），不跳。
+ *
  * @module @xiaoso/dsh-workflow-lite/client/ui/trigger/source/Bench
  */
 
+import { useCallback } from 'react'
 import { Icon, type IconName } from '../../kit/Icon.tsx'
+import { useGlide, useRowSlide } from '../../motion/exits.tsx'
 import { FadeText } from '../../motion/marks.tsx'
+import { SwapText } from '../../motion/swapText.tsx'
 import { PickThumb } from '../../motion/thumb.tsx'
 import css from './bench.module.css'
 
@@ -26,6 +32,7 @@ export function Bench(props: {
   split?: boolean
   children: React.ReactNode
 }): React.JSX.Element {
+  const row = useRowSlide()
   return (
     <section className={css.bench} data-testid={props.testId}>
       <header className={css.head}>
@@ -34,7 +41,9 @@ export function Bench(props: {
           {props.title}
         </span>
         {props.middle}
-        <span className={css.tools}>{props.tools}</span>
+        <span ref={row} className={css.tools}>
+          {props.tools}
+        </span>
       </header>
       <div className={css.body} data-split={props.split === true}>
         {props.children}
@@ -78,8 +87,38 @@ export function BenchTabs<V extends string>(props: {
   )
 }
 
+/**
+ * 顶栏里字会换的下拉按钮（「从模板开始」→ 模板名、shell 名）的里子：底面、图标、字、下拉箭头。
+ * 按钮要带 {@link benchMenu}（边框、底色不画在按钮上，画在底面上）。字一换，按钮贴着右边、
+ * 底面横向展开收起，图标滑到新位置（useGlide，不等：是点了才换的）；字原地换。
+ */
+export function BenchFace(props: { icon?: IconName; text: string }): React.JSX.Element {
+  const glide = useGlide(0, 'right')
+  // 底面挂上时把按钮交给 useGlide：按钮由调用方画（Popover 的触发按钮、ShellButton），这里拿不到它的 ref。
+  const attach = useCallback(
+    (surface: HTMLSpanElement | null) => glide(surface?.parentElement ?? null),
+    [glide],
+  )
+  return (
+    <>
+      <span ref={attach} className={css.surface} data-glide-surface="" aria-hidden="true" />
+      {props.icon !== undefined && (
+        <span className={css.faceIcon} data-glide="">
+          <Icon name={props.icon} size={12} />
+        </span>
+      )}
+      <span className={css.faceText} data-glide="">
+        <SwapText text={props.text} />
+      </span>
+      <Icon name="chevronDown" size={12} />
+    </>
+  )
+}
+
 /** 工作台顶上一条里的按钮：细边小按钮；`primary` 用触发方式的颜色（试运行、发测试请求）。 */
 export const benchButton = css.button
 export const benchPrimary = css.primary
+/** 里子是 {@link BenchFace} 的按钮（和 {@link benchButton} 一起给）。 */
+export const benchMenu = css.menuButton
 /** 顶上一条右边的灰字。 */
 export const benchAside = css.aside

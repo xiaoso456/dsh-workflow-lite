@@ -57,7 +57,7 @@ export function exitText(info: ExitInfo, ranMs: number): string {
   const how =
     info.signal !== null ? `被信号 ${info.signal} 结束` : `退出码 ${String(info.code ?? '未知')}`
   const tail = info.errors === '' ? '' : `：${info.errors.split(/\r?\n/u).slice(-3).join(' ')}`
-  return `监听程序运行 ${String(seconds)} 秒后退出了（${how}）${tail}`
+  return `监视程序运行 ${String(seconds)} 秒后退出了（${how}）${tail}`
 }
 
 export class Listener {

@@ -221,7 +221,7 @@ describe('监听程序', () => {
 
   it('退出的说法：带退出码和错误输出的最后几行', () => {
     const info: ExitInfo = { code: 1, signal: null, errors: 'a\nb\nc\nd' }
-    expect(exitText(info, 2400)).toBe('监听程序运行 2 秒后退出了（退出码 1）：b c d')
+    expect(exitText(info, 2400)).toBe('监视程序运行 2 秒后退出了（退出码 1）：b c d')
     expect(exitText({ ...info, failure: '找不到命令' }, 10)).toBe('找不到命令')
   })
 

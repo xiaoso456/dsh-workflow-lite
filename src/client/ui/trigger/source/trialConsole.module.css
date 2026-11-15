@@ -65,6 +65,13 @@
   --tone: var(--wl-danger);
 }
 
+/* 没跑成时小签前面那枚错误图标。 */
+.summary > svg {
+  flex: none;
+  margin-right: -2px;
+  color: var(--tone);
+}
+
 /* 小签不跟着后面的字一起缩：放不下时先省略后面的字（悬停看全）；小签本身太长（监听的「几秒内打出几行」）也只占六成。 */
 .badge {
   flex: none;
@@ -79,6 +86,11 @@
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* 后面没有字（没跑成：图标 + 小签）时小签不设上限，不然按自己的宽度打六折、把自己截掉。 */
+.badge:last-child {
+  max-width: none;
 }
 
 .summaryText {

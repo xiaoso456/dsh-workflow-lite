@@ -265,7 +265,7 @@ describe('触发卡片：卡片上的字', () => {
     expect(sourceText(t, { kind: 'poll', command: 'x', seconds: 300 })).toBe('每 5 分钟检查')
     expect(sourceText(t, { kind: 'poll', command: 'x', seconds: 7200 })).toBe('每 2 小时检查')
     expect(sourceText(t, { kind: 'poll', command: 'x', seconds: 45 })).toBe('每 45 秒检查')
-    expect(sourceText(t, { kind: 'listen', command: 'x' })).toBe('监听程序')
+    expect(sourceText(t, { kind: 'listen', command: 'x' })).toBe('监视程序')
     expect(sourceText(t, { kind: 'http' })).toBe('HTTP 请求')
   })
 
@@ -307,7 +307,7 @@ describe('触发卡片：卡片上的字', () => {
       '立即触发 · tick',
     )
     expect(originText(t, { channel: 'listen', trigger: { id: 'log', name: '报错' } })).toBe(
-      '监听程序触发 · 报错',
+      '监视程序触发 · 报错',
     )
     expect(originText(t, { channel: 'http', trigger: { id: 'ci', name: 'CI' } })).toBe(
       'HTTP 触发 · CI',

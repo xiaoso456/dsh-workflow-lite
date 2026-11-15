@@ -42,8 +42,10 @@
   opacity: 1;
 }
 
+/* 框盖在连线上面：连线画在后一格里（排在后面），不抬一层会从前一格的框和字上穿过去。 */
 .value {
   position: relative;
+  z-index: 1;
   display: grid;
   place-items: center;
   min-width: 26px;

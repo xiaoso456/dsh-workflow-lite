@@ -392,7 +392,7 @@ export const PARAMETERS = {
             enum: [...SOURCE_KINDS],
             required: true,
             description:
-              'schedule 定时 / poll 条件轮询（每隔一段跑一次命令）/ listen 监听程序（常驻命令，每打一行触发一次）/ http 别的程序来调一个本机地址 / after 另一个工作流的一次执行结束了。',
+              'schedule 定时 / poll 检查（每隔一段跑一次命令）/ listen 监视程序（常驻命令，每打一行触发一次）/ http 别的程序来调一个本机地址 / after 另一个工作流的一次执行结束了。',
           },
           schedule: {
             type: 'object',
@@ -446,7 +446,7 @@ export const PARAMETERS = {
           merge: {
             type: 'number',
             description:
-              '合并窗口（秒）：这么久里进来的几次并成一次。监听、HTTP 缺省 5，轮询缺省 0。',
+              '合并窗口（秒）：这么久里进来的几次并成一次。监视、HTTP 缺省 5，检查缺省 0。',
           },
           dedupe: { type: 'number', description: '去重（分钟）：一样的内容这么久里只触发一次。' },
           include: {

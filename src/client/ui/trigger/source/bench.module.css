@@ -170,6 +170,37 @@
   opacity: 0.5;
 }
 
+/* 里子是 BenchFace 的按钮：边框和底色画在底面上（跟着字横向展开收起），按钮自己不画。 */
+.menuButton {
+  border-color: transparent;
+  background: transparent;
+  isolation: isolate;
+}
+
+.surface {
+  position: absolute;
+  inset: -1px;
+  z-index: -1;
+  border: 1px solid var(--wl-line-strong);
+  border-radius: inherit;
+  background: var(--wl-panel);
+  transform-origin: right center;
+  pointer-events: none;
+}
+
+.faceIcon {
+  display: inline-flex;
+  flex: none;
+}
+
+/* 模板名可能很长：按钮最多这么宽，放不下省略（菜单里看全）。 */
+.faceText {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 15em;
+  overflow: hidden;
+}
+
 .primary {
   border-color: color-mix(in oklab, var(--wl-kind) 40%, transparent);
   background: color-mix(in oklab, var(--wl-kind) 10%, var(--wl-panel));
@@ -181,7 +212,8 @@
   border-bottom-color: var(--wl-line-strong);
 }
 
-:global([data-look="swiss"]) .button {
+:global([data-look="swiss"]) .button,
+:global([data-look="swiss"]) .surface {
   border-radius: 0;
 }
 

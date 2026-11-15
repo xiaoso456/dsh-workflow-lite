@@ -853,7 +853,7 @@ describe('常驻触发源', () => {
     await triggers.settled()
     expect(sent).toHaveLength(1)
     const message = sent[0]?.text ?? ''
-    expect(message).toContain('监听程序打出了一行')
+    expect(message).toContain('监视程序打出了一行')
     expect(message).toContain('## 背景信息')
     expect(message).toContain('这次是 2 次触发合并在一起的')
     expect(message).toContain('> ERROR pay timeout\n> ERROR pay 502')
@@ -904,11 +904,11 @@ describe('常驻触发源', () => {
 
   it('程序一启动就退出算失败，连续几次自动停用；好好跑过一次就重新数', async () => {
     const triggers = await listening()
-    live.events?.failed(ref, '监听程序运行 1 秒后退出了（退出码 1）')
-    live.events?.failed(ref, '监听程序运行 1 秒后退出了（退出码 1）')
+    live.events?.failed(ref, '监视程序运行 1 秒后退出了（退出码 1）')
+    live.events?.failed(ref, '监视程序运行 1 秒后退出了（退出码 1）')
     live.events?.healthy(ref)
-    live.events?.failed(ref, '监听程序运行 1 秒后退出了（退出码 1）')
-    live.events?.failed(ref, '监听程序运行 1 秒后退出了（退出码 1）')
+    live.events?.failed(ref, '监视程序运行 1 秒后退出了（退出码 1）')
+    live.events?.failed(ref, '监视程序运行 1 秒后退出了（退出码 1）')
     await triggers.settled()
     expect((await triggers.list('patrol')).triggers[0]?.enabled).toBe(true)
     live.events?.failed(ref, '找不到命令')

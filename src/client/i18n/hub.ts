@@ -47,7 +47,7 @@ export const zh = {
   'hub.trgResume': '恢复',
   'hub.trgPauseTip': '所有触发卡片都不再自动触发，各自的开关不变；恢复后不补触发',
   'hub.trgPausedNote':
-    '全部暂停着：定时到点不触发，轮询、监听程序、HTTP 都停着，别的工作流跑完也不接续；恢复后不补触发。「立即触发一次」照常可用。',
+    '全部暂停着：定时到点不触发，检查、监视程序、HTTP 都停着，别的工作流跑完也不接续；恢复后不补触发。「立即触发一次」照常可用。',
   'hub.trgOpen': '在画布上打开',
   'hub.trgOpenTip': '打开这个工作流，选中这张触发卡片',
   'hub.trgNoCwd': '先在画布上这张卡片的「执行设置」里选工作区。',
@@ -247,7 +247,7 @@ export const en: Record<keyof typeof zh, string> = {
   'hub.trgPauseTip':
     'No trigger fires on its own; each switch stays as it is, and nothing is caught up on resume',
   'hub.trgPausedNote':
-    'All paused: schedules do not fire, polls, listeners and HTTP are stopped, and finished workflows trigger nothing; nothing is caught up on resume. Trigger once now still works.',
+    'All paused: schedules do not fire, checks, watchers and HTTP are stopped, and finished workflows trigger nothing; nothing is caught up on resume. Trigger once now still works.',
   'hub.trgOpen': 'Open on canvas',
   'hub.trgOpenTip': 'Open this workflow and select this trigger',
   'hub.trgNoCwd': 'First pick a workspace under Run settings on this card in the canvas.',
