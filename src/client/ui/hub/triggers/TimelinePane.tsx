@@ -1,26 +1,42 @@
 /**
- * dsh-workflow-lite — 「触发」页的「时间线」：一条竖线从上往下是「接下来」（虚线圈）→「现在」（状态、立即触发）→ 之前，
- * 之前的按天分段（日子的小标题滚动时钉在顶上），每条一行、行高固定，在自己的框里滚。
+ * dsh-workflow-lite — 「触发」页的「时间线」：从上往下「接下来」→ 今天 → 昨天 …，一天一组，组头（哪天、日期、各种结果几次）
+ * 滚动时钉在顶上；在自己的框里滚。
  *
- * 顶上按结果筛选（全部 / 已发出 / 跳过 / 失败；模型判断不需要的跟着已发出）。点一条浮出详情。
+ * 顶上按结果筛选（全部 / 已发出 / 跳过 / 失败，带条数；模型判断不需要的跟着已发出），右边换样子：清单（一行一条）、
+ * 时间轴（左边一根连续的线，今天那组里有个「现在」）。样子记在浏览器里；换样子只换外面的 `data-layout`，不重建行。
+ *
+ * 点一条浮出详情；上下键在记录之间走。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/triggers/TimelinePane
  */
 
 import { useState } from 'react'
 import type { FireRecord, TriggerEntry } from '../../../../shared/wire/trigger.ts'
-import type { TriggerHub } from '../../../app/useTriggerHub.ts'
+import { type TimelineLayout, useTimelineLayout } from '../../../app/timelineLayout.ts'
 import type { LocaleKey, T } from '../../../i18n.ts'
-import { dayText, groupByDay } from '../../../model/fireView.ts'
+import {
+  countKinds,
+  dayHead,
+  dayOf,
+  FIRE_CHANNEL_TEXT,
+  FIRE_KIND_SHORT,
+  type FireKind,
+  groupByDay,
+} from '../../../model/fireView.ts'
 import { clockTime } from '../../../model/time.ts'
-import { matchesOutcome, type OutcomeFilter, upcomingAt } from '../../../model/triggerActivity.ts'
+import {
+  durationText,
+  matchesOutcome,
+  type OutcomeFilter,
+  upcomingAt,
+} from '../../../model/triggerActivity.ts'
 import { statusWhen } from '../../../model/triggerNow.ts'
-import { momentText, sourceText, stateBadge, stateTone } from '../../../model/triggerText.ts'
-import { cx } from '../../kit/cx.ts'
+import { sourceText, stateBadge, stateTone } from '../../../model/triggerText.ts'
+import { Icon } from '../../kit/Icon.tsx'
+import { IconSwitch } from '../../kit/IconSwitch.tsx'
 import { Segmented } from '../../kit/Segmented.tsx'
-import { FireNow } from '../../trigger/FireNow.tsx'
-import tone from '../../trigger/stateTone.module.css'
-import { FireRow } from './FireRow.tsx'
+import { TRIGGER_ICON } from '../../trigger/TriggerMark.tsx'
+import { FireRow, NowRow, PlanRow } from './FireRow.tsx'
 import css from './timeline.module.css'
 
 /** 「接下来」最多列几次。 */
@@ -33,13 +49,28 @@ const FILTERS: readonly { value: OutcomeFilter; label: LocaleKey }[] = [
   { value: 'failed', label: 'trigger.outcome.failed' },
 ]
 
+/** 组头上各种结果的先后。 */
+const KINDS: readonly FireKind[] = ['sent', 'declined', 'skipped', 'failed']
+
+/** 上下键在记录之间走（每条记录的第一个按钮是看详情）。 */
+function walk(event: React.KeyboardEvent<HTMLElement>): void {
+  if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
+  const items = [
+    ...event.currentTarget.querySelectorAll<HTMLElement>('li[data-pick] > button:first-child'),
+  ]
+  const at = items.indexOf(document.activeElement as HTMLElement)
+  if (at < 0) return
+  event.preventDefault()
+  items[Math.min(items.length - 1, Math.max(0, at + (event.key === 'ArrowDown' ? 1 : -1)))]?.focus()
+}
+
 export function TimelinePane(props: {
   t: T
-  hub: TriggerHub
   entry: TriggerEntry
   fires: readonly FireRecord[] | null
   /** 全部暂停着（接下来的都不会来）。 */
   paused: boolean
+  sessionTitle(id: string): string | undefined
   onPick(record: FireRecord): void
   onOpenRun(instance: string): void
 }): React.JSX.Element {
@@ -47,7 +78,9 @@ export function TimelinePane(props: {
   const { view } = entry
   const { source } = entry.data
   const [filter, setFilter] = useState<OutcomeFilter>('all')
+  const [layout, setLayout] = useTimelineLayout()
   const now = Date.now()
+  const today = dayOf(now)
   const live = !props.paused && (view.state === 'waiting' || view.state === 'listening')
   const ahead = props.paused ? [] : upcomingAt(source, view, now, AHEAD)
   // 被动的（等外面来事、等别的工作流）没有排好的时刻：开着时说一句在等什么。
@@ -60,6 +93,31 @@ export function TimelinePane(props: {
   const fires = props.fires ?? []
   const shown = fires.filter((record) => matchesOutcome(record, filter))
   const days = groupByDay(shown)
+  const todayFires = days[0]?.day === today ? days[0].fires : []
+  const past = days.filter((group) => group.day !== today)
+  const how = t(FIRE_CHANNEL_TEXT[source.kind])
+  const note =
+    props.fires === null
+      ? null
+      : fires.length === 0
+        ? t('trigger.historyEmpty')
+        : shown.length === 0
+          ? t('trigger.fire.noneOfKind')
+          : todayFires.length === 0
+            ? t('hub.trgTodayNone')
+            : null
+
+  const row = (record: FireRecord): React.JSX.Element => (
+    <FireRow
+      key={record.id}
+      t={t}
+      record={record}
+      when={clockTime(record.at)}
+      sessionTitle={props.sessionTitle}
+      onPick={props.onPick}
+      onOpenRun={props.onOpenRun}
+    />
+  )
 
   return (
     <>
@@ -67,77 +125,129 @@ export function TimelinePane(props: {
         <Segmented<OutcomeFilter>
           label={t('trigger.fire.filter')}
           value={filter}
-          options={FILTERS.map((item) => ({ value: item.value, label: t(item.label) }))}
+          options={FILTERS.map((item) => ({
+            value: item.value,
+            label: t(item.label),
+            count:
+              props.fires === null
+                ? undefined
+                : fires.filter((r) => matchesOutcome(r, item.value)).length,
+          }))}
           testId="wl-trigger-fire-filter"
           onChange={setFilter}
         />
-        <span className={css.aside}>{t('hub.trgFireTip')}</span>
+        <IconSwitch<TimelineLayout>
+          label={t('hub.trgLayout')}
+          value={layout}
+          options={[
+            { value: 'list', icon: 'rows', label: t('hub.trgLayout.list') },
+            { value: 'rail', icon: 'timeline', label: t('hub.trgLayout.rail') },
+          ]}
+          testId="wl-hub-trg-layout"
+          onChange={setLayout}
+        />
       </div>
-      <div className={css.scroll} data-testid="wl-hub-trg-history">
-        <div className={css.line}>
-          {(ahead.length > 0 || waitingFor !== null) && (
-            <>
-              <p className={css.label}>{t('hub.trgUpcoming')}</p>
-              {[...ahead].reverse().map((at) => (
-                <div key={at} className={css.future}>
-                  <time className={css.futureTime}>{momentText(t, at, now)}</time>
-                  <span className={css.futureWhat}>
-                    {source.kind === 'poll' ? t('hub.trgNextCheckItem') : ''}
-                  </span>
-                </div>
-              ))}
-              {waitingFor !== null && (
-                <div className={css.future}>
-                  <span className={css.futureWhat}>{waitingFor}</span>
-                </div>
-              )}
-            </>
-          )}
-          <p className={css.label}>{t('hub.trgNow')}</p>
-          <div
-            className={cx(css.now, tone.tone)}
-            data-tone={stateTone(view.state, source.kind)}
-            data-testid="wl-hub-trg-now"
-          >
-            <span className={css.nowState}>
-              <span className={tone.dot} aria-hidden="true" />
-              {stateBadge(t, view, source.kind)}
-            </span>
-            <span className={css.nowWhen}>{statusWhen(t, entry, now).main}</span>
-            <FireNow
-              t={t}
-              testId="wl-hub-trg-tl"
-              fire={(info) => props.hub.fire(entry.workflow, view.node, info)}
-            />
-          </div>
-          {props.fires !== null && fires.length === 0 && (
-            <>
-              <p className={css.label}>{t('hub.trgEarlier')}</p>
-              <p className={css.none}>{t('trigger.historyEmpty')}</p>
-            </>
-          )}
-          {fires.length > 0 && shown.length === 0 && (
-            <p className={css.none}>{t('trigger.fire.noneOfKind')}</p>
-          )}
-          {days.map((group) => (
-            <section key={group.day} className={css.day}>
-              <p className={css.label}>{dayText(t, group.day, now)}</p>
-              <ul className={css.items}>
-                {group.fires.map((record) => (
-                  <FireRow
-                    key={record.id}
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: 只是接住记录按钮冒上来的上下键 */}
+      <div
+        className={css.scroll}
+        data-layout={layout}
+        data-testid="wl-hub-trg-history"
+        onKeyDown={walk}
+      >
+        {(ahead.length > 0 || waitingFor !== null) && (
+          <section className={css.day} data-testid="wl-hub-trg-upcoming">
+            <div className={css.head} data-ahead>
+              <span className={css.fade} aria-hidden="true" />
+              <span className={css.name}>
+                <Icon name={TRIGGER_ICON[source.kind]} size={13} />
+                {t('hub.trgUpcoming')}
+              </span>
+              <span className={css.date}>
+                {source.kind === 'schedule'
+                  ? t('hub.trgByRule')
+                  : source.kind === 'poll'
+                    ? t('hub.trgByInterval')
+                    : ''}
+              </span>
+            </div>
+            <ul className={css.rows}>
+              {[...ahead].reverse().map((at) => {
+                const head = dayHead(t, dayOf(at), now)
+                return (
+                  <PlanRow
+                    key={at}
                     t={t}
-                    record={record}
-                    when={clockTime(record.at)}
-                    onPick={props.onPick}
-                    onOpenRun={props.onOpenRun}
+                    at={at}
+                    title={
+                      source.kind === 'poll'
+                        ? t('hub.trgNextCheckItem')
+                        : `${head.name} ${head.date}`
+                    }
+                    after={t('hub.trgIn').replace('{span}', durationText(t, at - now))}
+                    icon={TRIGGER_ICON[source.kind]}
+                    how={how}
                   />
-                ))}
-              </ul>
-            </section>
-          ))}
-        </div>
+                )
+              })}
+              {waitingFor !== null && (
+                <PlanRow t={t} title={waitingFor} icon={TRIGGER_ICON[source.kind]} how={how} />
+              )}
+            </ul>
+          </section>
+        )}
+        <Day t={t} day={today} now={now} fires={todayFires} note={note !== null}>
+          <NowRow
+            t={t}
+            tone={stateTone(view.state, source.kind)}
+            note={`${stateBadge(t, view, source.kind)} · ${statusWhen(t, entry, now).main}`}
+          />
+          {todayFires.map(row)}
+          {note !== null && (
+            <li className={css.note} data-testid="wl-hub-trg-note">
+              {note}
+            </li>
+          )}
+        </Day>
+        {past.map((group) => (
+          <Day key={group.day} t={t} day={group.day} now={now} fires={group.fires}>
+            {group.fires.map(row)}
+          </Day>
+        ))}
       </div>
     </>
+  )
+}
+
+/** 一天：组头（哪天、日期、各种结果几次）+ 这天的行。 */
+function Day(props: {
+  t: T
+  day: number
+  now: number
+  fires: readonly FireRecord[]
+  /** 最后一行是一句话（没有点）：时间轴的线画到它前面那一行的点为止。 */
+  note?: boolean
+  children: React.ReactNode
+}): React.JSX.Element {
+  const { t } = props
+  const head = dayHead(t, props.day, props.now)
+  const counts = countKinds(props.fires)
+  return (
+    <section className={css.day}>
+      <div className={css.head}>
+        <span className={css.fade} aria-hidden="true" />
+        <span className={css.name}>{head.name}</span>
+        <span className={css.date}>{head.date}</span>
+        <span className={css.sum}>
+          {KINDS.filter((kind) => counts[kind] > 0).map((kind) => (
+            <span key={kind} className={css.count} data-outcome={kind}>
+              {t(FIRE_KIND_SHORT[kind])} {counts[kind]}
+            </span>
+          ))}
+        </span>
+      </div>
+      <ul className={css.rows} data-note={props.note === true || undefined}>
+        {props.children}
+      </ul>
+    </section>
   )
 }

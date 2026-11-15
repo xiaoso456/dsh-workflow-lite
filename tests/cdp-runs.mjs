@@ -960,9 +960,7 @@ try {
     return [box(head), box(head.firstElementChild), box(head.querySelector('[data-testid="wl-run-mode"]')), head.querySelector('input')?.value, head.querySelector('[data-testid="wl-panel-id"]')?.textContent].join('|');
   })()`
   const runHead = await session.evaluate(headShape('wl-run-panel'))
-  await session.evaluate(
-    `document.querySelector('[data-testid="wl-run-mode"] [data-mode="edit"]').click()`,
-  )
+  await session.evaluate(`document.querySelector('[data-testid="wl-run-mode-edit"]').click()`)
   await waitFor(session, `document.querySelector('[data-testid="wl-inspector"]') !== null`)
   const editHead = await session.evaluate(headShape('wl-inspector'))
   check(runHead === editHead, `运行 / 编辑两边的标题栏应一样：${runHead} vs ${editHead}`)

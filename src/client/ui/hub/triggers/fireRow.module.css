@@ -1,22 +1,24 @@
 /*
- * dsh-workflow-lite — 「触发」页里一条触发记录的一行（FireRow.tsx）。行高固定，原因放不下就省略。
- * 结果小签的颜色：已发出绿、跳过灰、失败红、不需要琥珀；`--c` 也给时间线上的圆圈用。
+ * dsh-workflow-lite — 「触发」页时间线上的一行（FireRow.tsx）：一次触发、接下来的一次、「现在」。
+ *
+ * 默认是清单：一行 38px 横排——时刻、结果（色点 + 字）、说明、「实例 →」的位置、方式图标、箭头。
+ * 祖先写着 `data-layout="rail"` 时是时间轴：两行，左边每行画自己那一段线（连起来就是一根，首尾由时间线那边截到点上），
+ * 点在线上；上面结果 + 方式（图标加字），下面说明。
+ *
+ * 颜色：`--c` 是点，`--c-text` 是结果的字。已发出绿、跳过灰、失败红、不需要琥珀，计划是触发方式的淡色，「现在」跟状态。
  */
 
 .row {
   --c: var(--wl-ok-dot);
   --c-text: var(--wl-ok);
+  --time-w: var(--fire-time, 46px);
+  /* 时间轴上线和点的位置：时刻列 + 间距之后那一格（22px）的正中。 */
+  --rail-x: calc(var(--time-w) + 19px);
 
   position: relative;
-  display: flex;
-  align-items: center;
-  height: 36px;
+  list-style: none;
   border-radius: var(--wl-r-control);
   transition: background-color 120ms linear;
-}
-
-.row:hover {
-  background: var(--wl-hover);
 }
 
 .row[data-outcome="skipped"] {
@@ -34,15 +36,36 @@
   --c-text: var(--wl-warn);
 }
 
+.row[data-outcome="plan"] {
+  --c: color-mix(in srgb, var(--wl-kind) 45%, var(--wl-panel));
+  --c-text: var(--wl-text-3);
+}
+
+.row[data-outcome="now"] {
+  --c: var(--tone);
+  --c-text: var(--tone-text);
+}
+
+/* 有实例的行给「实例 →」留出位置。 */
+.row[data-run] {
+  --run-w: 50px;
+}
+
+/* 能点的（一次触发）悬停、选中时铺一层底。 */
+.row[data-pick]:hover,
+.row[data-pick]:focus-within {
+  background: var(--wl-hover);
+}
+
 .main {
   display: grid;
-  flex: 1 1 auto;
-  grid-template-columns: var(--fire-time, 74px) 64px minmax(0, 1fr);
-  gap: 10px;
+  grid-template-areas: "time state what run how chev";
+  grid-template-columns: var(--time-w) 72px minmax(0, 1fr) var(--run-w, 0) 14px 12px;
+  column-gap: 10px;
   align-items: center;
-  min-width: 0;
-  height: 100%;
-  padding: 0 10px 0 12px;
+  width: 100%;
+  height: 38px;
+  padding: 0 8px 0 10px;
   border: 0;
   border-radius: inherit;
   background: transparent;
@@ -50,15 +73,28 @@
   font: inherit;
   font-size: var(--wl-fs-meta);
   text-align: left;
+}
+
+button.main {
   cursor: pointer;
 }
 
-.main:focus-visible {
+/*
+ * 通用的按下回弹（0.98 倍）在这里不要：这一行通栏，按中心缩时左边的点往右挪了好几像素，离开了时间轴的线
+ * （线画在行上，不跟着缩）。按下时改成在悬停底色上再叠一层，颜色深一档。
+ */
+button.main:active {
+  scale: none;
+  background: var(--wl-hover);
+}
+
+button.main:focus-visible {
   outline: 2px solid var(--wl-accent);
   outline-offset: -2px;
 }
 
 .time {
+  grid-area: time;
   overflow: hidden;
   color: var(--wl-text-3);
   font-family: var(--wl-mono);
@@ -68,35 +104,85 @@
   white-space: nowrap;
 }
 
-.chip {
+/* 清单：点和结果的字在同一格，点在字前面。 */
+.dot {
+  grid-area: state;
   justify-self: start;
-  max-width: 100%;
-  height: 20px;
-  padding: 0 7px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--c);
+}
+
+.state {
+  grid-area: state;
+  min-width: 0;
+  padding-left: 12px;
   overflow: hidden;
-  border-radius: calc(6px * var(--wl-round, 1));
-  background: color-mix(in srgb, var(--c) 14%, transparent);
   color: var(--c-text);
-  font-size: var(--wl-fs-micro);
-  line-height: 20px;
+  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .what {
+  grid-area: what;
+  min-width: 0;
   overflow: hidden;
   color: var(--wl-text-2);
+  font-size: var(--wl-fs-body);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.run {
+.row[data-outcome="failed"] .what {
+  color: var(--wl-text);
+}
+
+.row[data-outcome="plan"] .what {
+  color: var(--wl-text-3);
+}
+
+.how {
   display: inline-flex;
-  flex: none;
+  grid-area: how;
+  gap: 4px;
+  align-items: center;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  white-space: nowrap;
+}
+
+/* 清单里方式只留图标，名字悬停看。 */
+.howText {
+  display: none;
+}
+
+.chev {
+  display: grid;
+  grid-area: chev;
+  color: var(--wl-text-3);
+  opacity: 0;
+  transition:
+    opacity 120ms linear,
+    transform 160ms var(--wl-ease);
+}
+
+.row:hover .chev,
+.row:focus-within .chev {
+  opacity: 1;
+  transform: translateX(2px);
+}
+
+/* 「实例 →」：叠在给它留的那一格上，悬停或选中时才显出来。 */
+.run {
+  position: absolute;
+  top: 50%;
+  right: calc(8px + 12px + 10px + 14px + 10px);
+  display: inline-flex;
   gap: 3px;
   align-items: center;
-  height: 26px;
-  margin-right: 6px;
+  height: 24px;
   padding: 0 6px;
   border: 0;
   border-radius: calc(6px * var(--wl-round, 1));
@@ -104,8 +190,18 @@
   color: var(--wl-accent-text);
   font: inherit;
   font-size: var(--wl-fs-micro);
+  white-space: nowrap;
   cursor: pointer;
-  transition: background-color 120ms linear;
+  opacity: 0;
+  transform: translateY(-50%);
+  transition:
+    opacity 120ms linear,
+    background-color 120ms linear;
+}
+
+.row:hover .run,
+.row:focus-within .run {
+  opacity: 1;
 }
 
 .run:hover {
@@ -117,13 +213,133 @@
   outline-offset: -2px;
 }
 
+.railOnly,
+.nowNote {
+  display: none;
+}
+
+/* 「现在」只在时间轴上有：清单里头部状态条已经说了。 */
+.row[data-outcome="now"] {
+  display: none;
+}
+
+/* ── 时间轴 ──────────────────────────────────────── */
+
+:global([data-layout="rail"]) .row::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--rail-x) - 0.75px);
+  width: 1.5px;
+  background: var(--wl-line-strong);
+  content: "";
+}
+
+:global([data-layout="rail"]) .row[data-outcome="now"] {
+  display: block;
+}
+
+:global([data-layout="rail"]) .main {
+  grid-template-areas:
+    "time dot state how . run chev"
+    ". dot what what what run chev";
+  grid-template-rows: 18px auto;
+  grid-template-columns: var(--time-w) 22px auto auto minmax(0, 1fr) var(--run-w, 0) 12px;
+  row-gap: 2px;
+  column-gap: 8px;
+  align-items: center;
+  height: auto;
+  padding: 8px 8px 8px 0;
+}
+
+:global([data-layout="rail"]) .time {
+  align-self: start;
+  line-height: 18px;
+  text-align: right;
+}
+
+/* 点在线上：外面一圈面板色把线断开一点，点看得清。 */
+:global([data-layout="rail"]) .dot {
+  position: relative;
+  z-index: 1;
+  grid-area: dot;
+  align-self: start;
+  justify-self: center;
+  width: 10px;
+  height: 10px;
+  margin-top: 4px;
+  box-shadow: 0 0 0 3px var(--wl-panel);
+}
+
+/* 「现在」：一行，状态色的点外面再一圈淡的；后面写状态和下一次。 */
+:global([data-layout="rail"]) .row[data-outcome="now"] .dot {
+  box-shadow:
+    0 0 0 3px var(--wl-panel),
+    0 0 0 5px color-mix(in srgb, var(--c) 32%, transparent);
+}
+
+:global([data-layout="rail"]) .row[data-pick]:hover .dot,
+:global([data-layout="rail"]) .row[data-pick]:focus-within .dot {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--wl-text) 7%, var(--wl-panel));
+}
+
+:global([data-layout="rail"]) .state {
+  padding-left: 0;
+  font-weight: 600;
+}
+
+:global([data-layout="rail"]) .what {
+  font-size: var(--wl-fs-meta);
+}
+
+:global([data-layout="rail"]) .row[data-outcome="failed"] .what {
+  color: color-mix(in srgb, var(--wl-danger) 82%, var(--wl-text));
+}
+
+:global([data-layout="rail"]) .row[data-outcome="plan"] .state {
+  color: var(--wl-text-2);
+  font-weight: 500;
+}
+
+:global([data-layout="rail"]) .howText,
+:global([data-layout="rail"]) .railOnly {
+  display: inline;
+}
+
+:global([data-layout="rail"]) .listOnly {
+  display: none;
+}
+
+:global([data-layout="rail"]) .run {
+  top: 5px;
+  right: calc(8px + 12px + 8px);
+  transform: none;
+}
+
+:global([data-layout="rail"]) .row[data-outcome="now"] .time {
+  color: var(--c-text);
+  font-weight: 600;
+}
+
+:global([data-layout="rail"]) .nowNote {
+  display: block;
+  grid-area: 1 / 4 / 2 / 8;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .row,
+  .chev,
   .run {
     transition: none;
   }
 }
 
-:global([data-look="swiss"]) .chip {
+:global([data-look="swiss"]) .row {
   border-radius: 0;
 }

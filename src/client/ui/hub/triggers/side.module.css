@@ -132,6 +132,9 @@
   gap: 5px;
   align-items: center;
   min-width: 0;
+  /* 状态点「接收中」时外面一圈放大到 2.6 倍（每边多出约 5px）：左边留出这么多，不被 overflow 切掉，位置不变。 */
+  margin-left: -5px;
+  padding-left: 5px;
   overflow: hidden;
   color: var(--wl-text-3);
   font-size: var(--wl-fs-micro);

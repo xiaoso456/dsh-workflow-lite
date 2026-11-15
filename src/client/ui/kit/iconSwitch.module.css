@@ -1,10 +1,8 @@
 /*
- * 右栏标题栏里「运行 / 编辑」的切换（RunModeSwitch.tsx）。
+ * 图标格的单选（IconSwitch.tsx）：一排小方格，选中格下面一块滑块。
  */
 
-/* ── 右栏标题栏里「运行 / 编辑」的切换：两个图标格 ─────────── */
-
-.mode {
+.switch {
   position: relative;
   display: inline-grid;
   flex: none;
@@ -16,13 +14,13 @@
 }
 
 /* 滑块的位置、大小由 PickThumb 按选中格量出来，这里只管样子。 */
-.modeThumb {
+.thumb {
   border-radius: calc(6px * var(--wl-round, 1));
   background: var(--wl-panel);
   box-shadow: var(--wl-shadow-thumb);
 }
 
-.modeItem {
+.item {
   position: relative;
   display: grid;
   place-items: center;
@@ -37,11 +35,17 @@
   transition: color 120ms linear;
 }
 
-.modeItem:hover {
+.item:hover {
   color: var(--wl-text);
 }
 
-.modeItem:focus-visible {
+.item:focus-visible {
   outline: 2px solid var(--wl-accent);
   outline-offset: -2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .item {
+    transition: none;
+  }
 }

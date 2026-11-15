@@ -1,6 +1,11 @@
 /*
- * dsh-workflow-lite — 「触发」页「时间线」（TimelinePane.tsx）：一条竖线串起接下来、现在、之前。
- * 每条记录左边一个空心圈（颜色跟结果，`--c` 由 FireRow 那一行给），接下来的是触发方式颜色的虚线圈。
+ * dsh-workflow-lite — 「触发」页「时间线」（TimelinePane.tsx）：筛选条 + 一天一组的记录，在自己的框里滚。
+ *
+ * 一行的样子在 fireRow.module.css。框上写着 `data-layout`：清单（list）组头是一条横排；时间轴（rail）组头的「哪天」
+ * 写在时刻那一列、右对齐，日期和统计在内容那一列。
+ *
+ * 时间轴的线：每一行、每个组头在同一个横坐标上各画一段，接起来是一根；最上面那组的组头不画（第一个点之前没有线），
+ * 第一行从点往下画、最后一行画到点为止。组头钉在顶上时自己那一段照样画着，线不断。
  */
 
 .bar {
@@ -8,169 +13,238 @@
   flex: none;
   gap: 8px;
   align-items: center;
-  margin-bottom: 10px;
+  justify-content: space-between;
+  margin-bottom: 6px;
 }
 
-.aside {
-  margin-left: auto;
-  color: var(--wl-text-3);
-  font-size: var(--wl-fs-micro);
-}
-
-/* 自己滚；滚动条贴着右栏的边。 */
+/* 自己滚；滚动条贴着右栏的边。换样子时整块淡进来（两种样子各一个动画名，换了才重放）。 */
 .scroll {
+  --fire-time: 46px;
+  --time-w: var(--fire-time);
+  --rail-x: calc(var(--time-w) + 19px);
+
   flex: 1 1 auto;
   min-height: 0;
   margin-right: -10px;
   padding-right: 10px;
   overflow-y: auto;
   scrollbar-width: thin;
+  animation: list-in 160ms linear;
 }
 
-.line {
-  position: relative;
-  padding-left: 24px;
+/* 时间轴的「哪天」写在时刻那一列，要放得下「10月28日」「Yesterday」，比只写钟点宽。 */
+.scroll[data-layout="rail"] {
+  --fire-time: 66px;
+
+  animation-name: rail-in;
 }
 
-.line::before {
+@keyframes list-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes rail-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* ── 组头（两种样子共用一份元素） ─────────────────────── */
+
+.head {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  height: 38px;
+  padding: 8px 4px 0 10px;
+  border-bottom: 1px solid var(--wl-line);
+  background: var(--wl-panel);
+}
+
+.name {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--wl-text);
+  font-size: var(--wl-fs-meta);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.name > svg {
+  color: var(--wl-kind);
+}
+
+.date {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sum {
+  display: inline-flex;
+  flex: none;
+  gap: 10px;
+  margin-left: auto;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+.count {
+  --c: var(--wl-ok-dot);
+
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.count::before {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--c);
+  content: "";
+}
+
+.count[data-outcome="declined"] {
+  --c: var(--wl-warn-dot);
+}
+
+.count[data-outcome="skipped"] {
+  --c: var(--wl-text-3);
+}
+
+.count[data-outcome="failed"] {
+  --c: var(--wl-danger);
+}
+
+/*
+ * 组头下面一小段从面板色淡到透明：滚上去的行被组头切开时，露在线下面的那一窄条（字的下沿、悬停的底色、点）淡掉，
+ * 不和组头的线粘成一条粗线。时间轴的线在这一段里由它自己接着画（同样淡出，叠上底下那根浓淡不变），线不断。
+ */
+.fade {
   position: absolute;
-  top: 10px;
-  bottom: 10px;
-  left: 8px;
-  width: 2px;
-  border-radius: 2px;
+  top: 100%;
+  right: 0;
+  left: 0;
+  height: 10px;
+  background: linear-gradient(var(--wl-panel), transparent);
+  pointer-events: none;
+}
+
+.rows {
+  margin: 0;
+  padding: 4px 0 8px;
+  list-style: none;
+}
+
+/* 这组里没有记录时的一句（「今天还没有触发」「没有这一类的记录」）：和说明那一列对齐。 */
+.note {
+  position: relative;
+  padding: 10px 0 10px calc(10px + var(--time-w) + 10px);
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+  list-style: none;
+}
+
+/* ── 时间轴 ──────────────────────────────────────── */
+
+/* 线要连着：行之间、组之间不留空。 */
+.scroll[data-layout="rail"] .rows {
+  padding: 0;
+}
+
+.scroll[data-layout="rail"] .head {
+  display: grid;
+  grid-template-columns: var(--time-w) 22px minmax(0, 1fr) auto;
+  column-gap: 8px;
+  padding: 8px 4px 0 0;
+  border-bottom: 0;
+}
+
+/* 组头下面那条细线从内容那一列起，不横穿时间轴。 */
+.scroll[data-layout="rail"] .head::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: calc(var(--rail-x) + 19px);
+  height: 1px;
   background: var(--wl-line);
   content: "";
 }
 
-/* 段的小标题：滚动时钉在顶上，底色同面板盖住滚上去的行。 */
-.label {
-  position: sticky;
+.scroll[data-layout="rail"] .name {
+  justify-content: flex-end;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* 「接下来」带个图标，时刻那一列放不下：整条从内容那一列起。 */
+.scroll[data-layout="rail"] .head[data-ahead] {
+  display: flex;
+  padding-left: calc(var(--rail-x) + 19px);
+}
+
+.scroll[data-layout="rail"] .date {
+  grid-column: 3;
+}
+
+.scroll[data-layout="rail"] .fade::before {
+  position: absolute;
   top: 0;
-  z-index: 2;
-  margin: 0 0 0 -24px;
-  padding: 4px 0 4px 24px;
-  background: var(--wl-panel);
-  color: var(--wl-text-3);
-  font-size: var(--wl-fs-micro);
-}
-
-.day {
-  display: contents;
-}
-
-.items {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.items > li {
-  margin-left: -4px;
-}
-
-.items > li::before,
-.future::before {
-  position: absolute;
-  top: 13px;
-  left: -20px;
-  box-sizing: border-box;
-  width: 10px;
-  height: 10px;
-  border: 2px solid var(--c);
-  border-radius: 50%;
-  background: var(--wl-panel);
+  bottom: 0;
+  left: calc(var(--rail-x) - 0.75px);
+  width: 1.5px;
+  background: linear-gradient(var(--wl-line-strong), transparent);
   content: "";
 }
 
-.future {
-  position: relative;
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  height: 36px;
-  margin-left: -4px;
-  padding: 0 12px;
-  color: var(--wl-text-3);
-  font-size: var(--wl-fs-meta);
-}
-
-/* 还没来的：同一个空心圈，触发方式的颜色压淡（10px 的虚线圈在 1 倍屏上碎成几点）。 */
-.future {
-  --c: color-mix(in srgb, var(--wl-kind) 55%, transparent);
-}
-
-.futureTime {
-  flex: none;
-  min-width: 74px;
-  font-family: var(--wl-mono);
-  font-size: var(--wl-fs-micro);
-  font-variant-numeric: tabular-nums;
-}
-
-.futureWhat {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* 「现在」：一个框，左边实心圈是状态色。 */
-.now {
-  position: relative;
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  min-height: 40px;
-  margin: 4px 0 6px -4px;
-  padding: 0 8px 0 12px;
-  border: 1px solid var(--wl-line-strong);
-  border-radius: var(--wl-r-card);
-  background: var(--wl-canvas);
-  font-size: var(--wl-fs-meta);
-}
-
-.now::before {
+.scroll[data-layout="rail"] .head::before,
+.scroll[data-layout="rail"] .note::before {
   position: absolute;
-  top: 12px;
-  left: -23px;
-  box-sizing: border-box;
-  width: 14px;
-  height: 14px;
-  border: 3px solid var(--wl-panel);
-  border-radius: 50%;
-  background: var(--tone);
-  box-shadow: 0 0 0 1px var(--tone);
+  top: 0;
+  bottom: 0;
+  left: calc(var(--rail-x) - 0.75px);
+  width: 1.5px;
+  background: var(--wl-line-strong);
   content: "";
 }
 
-.nowState {
-  display: inline-flex;
-  flex: none;
-  gap: 6px;
-  align-items: center;
-  color: var(--tone-text);
-  font-weight: 600;
+.scroll[data-layout="rail"] .note {
+  padding-left: calc(var(--time-w) + 8px + 22px + 8px);
 }
 
-.nowWhen {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  color: var(--wl-text-3);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+/* 第一个点之前、最后一个点之后没有线。行里的点在离行顶 17px 处（上边距 8 + 点的上边距 4 + 半径 5）。 */
+.scroll[data-layout="rail"] .day:first-child > .head::before,
+.scroll[data-layout="rail"] .day:first-child .fade::before,
+.scroll[data-layout="rail"] .day:last-child .note::before {
+  display: none;
 }
 
-.none {
-  margin: 0;
-  padding: 8px 10px;
-  color: var(--wl-text-3);
-  font-size: var(--wl-fs-meta);
+.scroll[data-layout="rail"] .day:first-child .rows > li:first-child::before {
+  top: 17px;
 }
 
-:global([data-look="swiss"]) .now {
-  border-width: 1px 0;
-  border-top-color: var(--wl-text);
-  background: transparent;
+.scroll[data-layout="rail"] .day:last-child .rows > li:last-child::before,
+.scroll[data-layout="rail"] .day:last-child .rows[data-note] > li:nth-last-child(2)::before {
+  bottom: calc(100% - 17px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scroll {
+    animation: none;
+  }
+}
+
+:global([data-look="swiss"]) .head {
+  border-bottom-color: var(--wl-text);
 }

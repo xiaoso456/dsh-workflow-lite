@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import type { T } from '../../src/client/i18n.ts'
+import { type LocaleKey, type T, zh } from '../../src/client/i18n.ts'
 import {
-  dayText,
+  countKinds,
+  dayHead,
   fireKind,
   fireWhen,
   fireWhy,
@@ -45,12 +46,31 @@ describe('触发记录的显示', () => {
     expect(fireWhen(t, at(11, 12, 2, 30), now)).toBe('11-12 02:30')
   })
 
-  it('一天的小标题：今天、昨天、月日，不是今年的带年份', () => {
+  it('一天的小标题：今天 / 昨天 / 明天、一周内叫周几、再远叫日期，不是今年的旁边带年份', () => {
+    const zt = ((key: LocaleKey) => zh[key]) as T
+    // 2026-11-14 是周六。
     const now = at(11, 14, 10, 0)
-    expect(dayText(t, at(11, 14, 0, 0), now)).toBe('今天')
-    expect(dayText(t, at(11, 13, 0, 0), now)).toBe('昨天')
-    expect(dayText(t, at(9, 3, 0, 0), now)).toBe('09-03')
-    expect(dayText(t, at(12, 31, 0, 0, 2025), now)).toBe('2025-12-31')
+    expect(dayHead(zt, at(11, 14, 0, 0), now)).toEqual({ name: '今天', date: '11月14日 周六' })
+    expect(dayHead(zt, at(11, 13, 0, 0), now)).toEqual({ name: '昨天', date: '11月13日 周五' })
+    expect(dayHead(zt, at(11, 15, 0, 0), now)).toEqual({ name: '明天', date: '11月15日 周日' })
+    expect(dayHead(zt, at(11, 11, 0, 0), now)).toEqual({ name: '周三', date: '11月11日' })
+    expect(dayHead(zt, at(11, 17, 0, 0), now)).toEqual({ name: '周二', date: '11月17日' })
+    expect(dayHead(zt, at(9, 3, 0, 0), now)).toEqual({ name: '9月3日', date: '周四' })
+    expect(dayHead(zt, at(12, 31, 0, 0, 2025), now)).toEqual({
+      name: '12月31日',
+      date: '2025年 周三',
+    })
+  })
+
+  it('各类结果几条：模型判断不需要的单算', () => {
+    expect(
+      countKinds([
+        { outcome: 'sent' },
+        { outcome: 'sent', declined: 'x' },
+        { outcome: 'failed' },
+        { outcome: 'sent' },
+      ]),
+    ).toEqual({ sent: 2, declined: 1, skipped: 0, failed: 1 })
   })
 
   it('按天分组，组内、组间都保持原来的先后', () => {

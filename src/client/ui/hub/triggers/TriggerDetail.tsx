@@ -8,9 +8,10 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/triggers/TriggerDetail
  */
 
-import { useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { TriggerData } from '../../../../shared/types.ts'
 import type { FireRecord, TriggerEntry } from '../../../../shared/wire/trigger.ts'
+import { useFireSeen } from '../../../app/fireSeen.ts'
 import { firesSignal, useActivity, useFires } from '../../../app/useFires.ts'
 import type { TriggerHub } from '../../../app/useTriggerHub.ts'
 import type { T } from '../../../i18n.ts'
@@ -67,6 +68,20 @@ export function TriggerDetail(props: {
     hub.activity(entry.workflow, view.node, since),
   )
   const [picked, setPicked] = useState<FireRecord | null>(null)
+  // 时间线页签上的红点：有还没看过的失败才亮；看着时间线时新来的也算看过。
+  const [seen, markSeen] = useFireSeen(key)
+  const newest = fires?.[0]?.at
+  useEffect(() => {
+    if (tab === 'timeline' && newest !== undefined) markSeen(newest)
+  }, [tab, newest, markSeen])
+  const unseenFailure =
+    tab !== 'timeline' &&
+    (fires?.some((record) => record.outcome === 'failed' && record.at > seen) ?? false)
+  const sessions = props.env.sessions
+  const sessionTitle = useCallback(
+    (id: string) => sessions.find((session) => session.id === id)?.title,
+    [sessions],
+  )
 
   // 新的一页从哪边进来：换页签按前后，换卡片原地。
   const last = useRef({ key, tab })
@@ -89,6 +104,7 @@ export function TriggerDetail(props: {
             fires={fires}
             activity={activity}
             paused={paused}
+            sessionTitle={sessionTitle}
             onPick={setPicked}
             onTab={props.onTab}
             onOpenRun={props.onOpenRun}
@@ -98,10 +114,10 @@ export function TriggerDetail(props: {
         return (
           <TimelinePane
             t={t}
-            hub={hub}
             entry={entry}
             fires={fires}
             paused={paused}
+            sessionTitle={sessionTitle}
             onPick={setPicked}
             onOpenRun={props.onOpenRun}
           />
@@ -160,7 +176,7 @@ export function TriggerDetail(props: {
         kind={kind}
         value={tab}
         count={fires === null || fires.length === 0 ? undefined : fires.length}
-        failed={fires?.some((record) => record.outcome === 'failed') ?? false}
+        failed={unseenFailure}
         onChange={props.onTab}
       />
       <div

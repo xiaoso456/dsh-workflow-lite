@@ -194,6 +194,9 @@
 }
 
 .recent {
+  /* 时刻写「昨天 02:30」「11-12 02:30」，比时间线里只写钟点宽。 */
+  --fire-time: 84px;
+
   display: flex;
   flex-direction: column;
   margin: 0;

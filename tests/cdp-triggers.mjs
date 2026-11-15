@@ -1243,7 +1243,7 @@ try {
   await waitFor(session, has('wl-hub-trg-history'))
   await sleep(500)
   const historyRows = await session.evaluate(
-    `document.querySelectorAll('[data-testid="wl-hub-trg-history"] li[data-outcome]').length`,
+    `document.querySelectorAll('[data-testid="wl-hub-trg-history"] li[data-pick]').length`,
   )
   check('「时间线」列出选中卡片的触发记录', historyRows >= 1, String(historyRows))
 
@@ -1252,7 +1252,7 @@ try {
   await session.evaluate(clickTestId('wl-trigger-fire-filter-failed'))
   await sleep(500)
   const failedRows = await session.evaluate(
-    `document.querySelectorAll('${hubHistory} li[data-outcome]').length`,
+    `document.querySelectorAll('${hubHistory} li[data-pick]').length`,
   )
   const failedText = await session.evaluate(textOf(hubHistory))
   check(
@@ -1263,7 +1263,7 @@ try {
   await session.evaluate(clickTestId('wl-trigger-fire-filter-all'))
   await sleep(500)
   const allRows = await session.evaluate(
-    `document.querySelectorAll('${hubHistory} li[data-outcome]').length`,
+    `document.querySelectorAll('${hubHistory} li[data-pick]').length`,
   )
   check(
     '回到「全部」记录都在，按天分了组',

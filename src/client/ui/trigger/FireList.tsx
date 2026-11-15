@@ -16,7 +16,7 @@ import { useState } from 'react'
 import type { FireRecord, TriggerDetailResponse } from '../../../shared/wire/trigger.ts'
 import type { T } from '../../i18n.ts'
 import {
-  dayText,
+  dayHead,
   FIRE_CHANNEL_TEXT,
   FIRE_KIND_TEXT,
   fireKind,
@@ -91,7 +91,7 @@ export function FireList(props: {
         {props.days === true
           ? groupByDay(fires).flatMap((group) => [
               <li key={`day-${group.day}`} className={css.day}>
-                <span>{dayText(t, group.day, now)}</span>
+                <span>{dayHead(t, group.day, now).name}</span>
                 <span className={css.dayCount}>{group.fires.length}</span>
               </li>,
               ...group.fires.map((record) => row(record, clockTime(record.at))),

@@ -1,5 +1,5 @@
 /**
- * dsh-workflow-lite — 触发记录怎么看：一条记录算哪一类结果、时刻怎么写、按天分组、各类有几条。
+ * dsh-workflow-lite — 触发记录怎么看：一条记录算哪一类结果、时刻怎么写、按天分组和每天的小标题、各类有几条。
  *
  * 纯计算，面板、工作流中心「触发」页和记录详情共用。
  *
@@ -9,6 +9,7 @@
 import type { FireRecord } from '../../shared/wire/trigger.ts'
 import type { LocaleKey, T } from '../i18n.ts'
 import { clockTime, shortTime } from './time.ts'
+import { weekdayText } from './triggerText.ts'
 
 /** 结果的四类：发出去了但模型判断不需要的，从「已发出」里单独拿出来。 */
 export type FireKind = 'sent' | 'skipped' | 'failed' | 'declined'
@@ -18,6 +19,14 @@ export const FIRE_KIND_TEXT: Record<FireKind, LocaleKey> = {
   skipped: 'trigger.outcome.skipped',
   failed: 'trigger.outcome.failed',
   declined: 'trigger.outcome.declined',
+}
+
+/** 结果的短名（列表里用；「模型判断不需要」写「不需要」）。 */
+export const FIRE_KIND_SHORT: Record<FireKind, LocaleKey> = {
+  sent: 'trigger.outcome.sent',
+  declined: 'trigger.fire.declinedShort',
+  skipped: 'trigger.outcome.skipped',
+  failed: 'trigger.outcome.failed',
 }
 
 export const FIRE_CHANNEL_TEXT: Record<FireRecord['channel'], LocaleKey> = {
@@ -44,21 +53,58 @@ export function dayOf(at: number): number {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
 }
 
-/** `at` 那天在 `now` 的几天前（0 今天、1 昨天；按日历日算，不按 24 小时）。 */
+/** `at` 那天在 `now` 的几天前（0 今天、1 昨天、-1 明天；按日历日算，不按 24 小时）。 */
 function daysAgo(at: number, now: number): number {
   return Math.round((dayOf(now) - dayOf(at)) / 86_400_000)
 }
 
-/** 一天的小标题：今天、昨天，再早是 `11-12`，不是今年的带上年份。 */
-export function dayText(t: T, day: number, now: number): string {
-  const ago = daysAgo(day, now)
-  if (ago === 0) return t('trigger.fire.today')
-  if (ago === 1) return t('trigger.fire.yesterday')
+/** 「11月14日」。 */
+function monthDayText(t: T, day: number): string {
   const date = new Date(day)
-  const monthDay = shortTime(day).slice(0, 5)
-  return date.getFullYear() === new Date(now).getFullYear()
-    ? monthDay
-    : `${date.getFullYear()}-${monthDay}`
+  return t('trigger.fire.monthDay')
+    .replace('{m}', String(date.getMonth() + 1))
+    .replace('{d}', String(date.getDate()))
+}
+
+/** 「周六」。 */
+function weekText(t: T, day: number): string {
+  const week = new Date(day).getDay()
+  return t('trigger.fire.weekday').replace('{d}', weekdayText(t, week === 0 ? 7 : week))
+}
+
+/**
+ * 一天的小标题：叫什么、旁边补一句。今天 / 昨天 / 明天旁边写日期和周几；前后六天里的叫周几、旁边写日期；
+ * 再远的叫日期、旁边写周几（不是今年的再带上年份）。名字不带年份，放得进时间轴的时刻那一列。
+ */
+export function dayHead(t: T, day: number, now: number): { name: string; date: string } {
+  const ago = daysAgo(day, now)
+  const named: Partial<Record<number, LocaleKey>> = {
+    0: 'trigger.fire.today',
+    1: 'trigger.fire.yesterday',
+    [-1]: 'trigger.fire.tomorrow',
+  }
+  const key = named[ago]
+  if (key !== undefined)
+    return { name: t(key), date: `${monthDayText(t, day)} ${weekText(t, day)}` }
+  if (Math.abs(ago) < 7) return { name: weekText(t, day), date: monthDayText(t, day) }
+  const year = new Date(day).getFullYear()
+  const week = weekText(t, day)
+  return {
+    name: monthDayText(t, day),
+    date:
+      year === new Date(now).getFullYear()
+        ? week
+        : `${t('trigger.fire.year').replace('{y}', String(year))} ${week}`,
+  }
+}
+
+/** 各类结果几条（模型判断不需要的单算一类）。 */
+export function countKinds(
+  records: readonly Pick<FireRecord, 'outcome' | 'declined'>[],
+): Record<FireKind, number> {
+  const counts: Record<FireKind, number> = { sent: 0, declined: 0, skipped: 0, failed: 0 }
+  for (const record of records) counts[fireKind(record)] += 1
+  return counts
 }
 
 /** 不分组时一条记录的时刻：今天的只写 `09:22`，昨天写「昨天 02:30」，再早写 `11-12 02:30`。 */

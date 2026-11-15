@@ -37,6 +37,7 @@ export function OverviewPane(props: {
   activity: readonly TriggerActivitySlot[] | null
   /** 全部暂停着（今天还要触发的就不画了）。 */
   paused: boolean
+  sessionTitle(id: string): string | undefined
   onPick(record: FireRecord): void
   onTab(tab: DetailTab): void
   onOpenRun(instance: string): void
@@ -146,6 +147,7 @@ export function OverviewPane(props: {
               t={t}
               record={record}
               when={fireWhen(t, record.at, now)}
+              sessionTitle={props.sessionTitle}
               onPick={props.onPick}
               onOpenRun={props.onOpenRun}
             />

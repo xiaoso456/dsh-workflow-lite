@@ -29,6 +29,7 @@ export function DetailTabs(props: {
   value: DetailTab
   /** 时间线上的记录条数（还没读到不写）。 */
   count: number | undefined
+  /** 有还没看过的失败（时间线页签上亮红点）。 */
   failed: boolean
   onChange(tab: DetailTab): void
 }): React.JSX.Element {
