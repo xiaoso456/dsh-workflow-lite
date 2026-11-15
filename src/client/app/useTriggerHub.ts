@@ -19,6 +19,7 @@ import type {
 } from '../../shared/wire/trigger.ts'
 import { shareSame } from '../model/samePlain.ts'
 import { errorMessage, type WorkflowLiteRpc } from '../rpc.ts'
+import { createOutputAccess, type OutputAccess } from './triggerOutput.ts'
 import { useRefresher } from './useRefresher.ts'
 import { TRIGGER_POLL_MS, type TriggerChange } from './useTriggers.ts'
 
@@ -41,8 +42,8 @@ export interface TriggerHub {
   activity(workflow: string, node: string, since: number): Promise<TriggerActivitySlot[]>
   /** 一次触发那一刻带的触发说明、背景信息；读不到是空的。 */
   detail(fire: string): Promise<TriggerDetailResponse>
-  /** 轮询命令、监听程序最近的输出；读不到是空串。 */
-  output(workflow: string, node: string): Promise<string>
+  /** 一个工作流里轮询命令、监听程序最近的输出（同一个工作流回同一个对象）。 */
+  output(workflow: string): OutputAccess
   /** 「试运行」还没保存的命令；请求本身失败回一句原因。 */
   tryCommand(request: TriggerTryRequest): Promise<TriggerTryResponse | string>
   /** HTTP 触发「发一条测试请求」；发不了回一句原因。 */
@@ -161,15 +162,17 @@ export function useTriggerHub(rpc: WorkflowLiteRpc, flush: () => Promise<boolean
 
   const refresh = useCallback((): Promise<void> => lister.run(undefined), [lister])
 
+  const outputs = useMemo(() => new Map<string, OutputAccess>(), [rpc])
   const output = useCallback(
-    async (workflow: string, node: string): Promise<string> => {
-      try {
-        return (await rpc.call('trigger/output', { workflow, node })).text
-      } catch {
-        return ''
+    (workflow: string): OutputAccess => {
+      let access = outputs.get(workflow)
+      if (access === undefined) {
+        access = createOutputAccess(rpc, workflow)
+        outputs.set(workflow, access)
       }
+      return access
     },
-    [rpc],
+    [rpc, outputs],
   )
 
   const tryCommand = useCallback(

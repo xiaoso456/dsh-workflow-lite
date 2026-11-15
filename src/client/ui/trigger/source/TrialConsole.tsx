@@ -75,7 +75,13 @@ export function TrialConsole(props: {
           hidden={tab !== 'recent'}
           data-testid="wl-trigger-output"
         >
-          <RecentOutput t={t} env={props.env} node={props.node} className={css.output} />
+          <RecentOutput
+            t={t}
+            env={props.env}
+            node={props.node}
+            kind={props.kind}
+            className={css.recent}
+          />
         </div>
       )}
     </section>

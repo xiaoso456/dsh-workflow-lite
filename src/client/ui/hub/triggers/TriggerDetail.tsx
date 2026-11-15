@@ -54,6 +54,8 @@ export function TriggerDetail(props: {
   onOpenCard(): void
   onOpenRun(id: string): void
   onOpenWorkflow(name: string): void
+  /** 到工作流中心的「设置」页（改最近的输出保留几行）。 */
+  onSettings(): void
   onNotice(text: string, tone?: 'info' | 'error'): void
 }): React.JSX.Element {
   const { t, hub, entry, tab } = props
@@ -126,7 +128,7 @@ export function TriggerDetail(props: {
         switch (kind) {
           case 'poll':
           case 'listen':
-            return <OutputPane t={t} hub={hub} entry={entry} />
+            return <OutputPane t={t} hub={hub} entry={entry} onSettings={props.onSettings} />
           case 'http':
             return <CallPane t={t} hub={hub} entry={entry} />
           case 'schedule':

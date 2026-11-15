@@ -139,6 +139,9 @@ import type {
   TriggerHttpStatus,
   TriggerListRequest,
   TriggerListResponse,
+  TriggerOutputClearRequest,
+  TriggerOutputLinesRequest,
+  TriggerOutputLinesResponse,
   TriggerOutputRequest,
   TriggerOutputResponse,
   TriggerPauseRequest,
@@ -209,6 +212,8 @@ export const WORKFLOW_LITE_ENDPOINTS = [
   'trigger/activity',
   'trigger/detail',
   'trigger/output',
+  'trigger/output-lines',
+  'trigger/output-clear',
   'trigger/all',
   'trigger/pause',
   'trigger/http',
@@ -329,6 +334,8 @@ export interface WorkflowLiteRpcMap {
   'trigger/activity': { args: TriggerActivityRequest; result: TriggerActivityResponse }
   'trigger/detail': { args: TriggerDetailRequest; result: TriggerDetailResponse }
   'trigger/output': { args: TriggerOutputRequest; result: TriggerOutputResponse }
+  'trigger/output-lines': { args: TriggerOutputLinesRequest; result: TriggerOutputLinesResponse }
+  'trigger/output-clear': { args: TriggerOutputClearRequest; result: Record<string, never> }
   'trigger/all': { args: Record<string, never>; result: TriggerAllResponse }
   'trigger/pause': { args: TriggerPauseRequest; result: TriggerPauseResponse }
   'trigger/http': { args: Record<string, never>; result: TriggerHttpStatus }

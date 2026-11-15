@@ -23,6 +23,7 @@ import * as inputs from './i18n/inputs.ts'
 import * as inspector from './i18n/inspector.ts'
 import * as library from './i18n/library.ts'
 import * as memory from './i18n/memory.ts'
+import * as output from './i18n/output.ts'
 import * as pack from './i18n/pack.ts'
 import * as plan from './i18n/plan.ts'
 import * as resources from './i18n/resources.ts'
@@ -54,6 +55,7 @@ export const zh = {
   ...memory.zh,
   ...inputs.zh,
   ...trigger.zh,
+  ...output.zh,
 } as const
 
 export type LocaleKey = keyof typeof zh
@@ -90,4 +92,5 @@ export const en: Record<LocaleKey, string> = {
   ...memory.en,
   ...inputs.en,
   ...trigger.en,
+  ...output.en,
 }

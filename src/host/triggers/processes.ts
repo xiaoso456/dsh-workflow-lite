@@ -164,6 +164,8 @@ export interface RunResult {
   output: string
   /** 错误输出的最后一截。 */
   errors: string
+  /** 错误输出（和标准输出一样超过上限的部分丢掉）；测试里的假结果可以不给。 */
+  stderr?: string
   /** 命令没跑成（启动不了、找不到命令、超时）的原因；跑完了（不论退出码）是 `undefined`。 */
   failure?: string
 }
@@ -183,6 +185,8 @@ export function runCommand(
     }
     const chunks: Buffer[] = []
     let size = 0
+    const errChunks: Buffer[] = []
+    let errSize = 0
     const errors = new Tail(TAIL_CHARS)
     let timedOut = false
     let settled = false
@@ -191,7 +195,12 @@ export function runCommand(
       chunks.push(chunk.subarray(0, limits.maxBytes - size))
       size += chunk.length
     })
-    child.stderr?.on('data', (chunk: Buffer) => errors.push(decodeOutput(chunk)))
+    child.stderr?.on('data', (chunk: Buffer) => {
+      errors.push(decodeOutput(chunk))
+      if (errSize >= limits.maxBytes) return
+      errChunks.push(chunk.subarray(0, limits.maxBytes - errSize))
+      errSize += chunk.length
+    })
     const timer = setTimeout(() => {
       timedOut = true
       killTree(child)
@@ -213,19 +222,27 @@ export function runCommand(
     // 等输出读完（close）再算结果；子进程留着管道不放时，超时会把它们一起结束。
     child.on('close', (code) => {
       const output = decodeOutput(Buffer.concat(chunks))
+      const stderr = decodeOutput(Buffer.concat(errChunks))
       const tail = errors.toString()
       if (timedOut) {
         const seconds = Math.round(limits.timeoutMs / 1000)
-        finish({ code: null, output, errors: tail, failure: `超过 ${String(seconds)} 秒没结束` })
+        finish({
+          code: null,
+          output,
+          errors: tail,
+          stderr,
+          failure: `超过 ${String(seconds)} 秒没结束`,
+        })
       } else if (notFound(code, tail)) {
         finish({
           code,
           output,
           errors: tail,
+          stderr,
           failure: `找不到命令${tail === '' ? '' : `：${tail}`}`,
         })
       } else {
-        finish({ code, output, errors: tail })
+        finish({ code, output, errors: tail, stderr })
       }
     })
   })
@@ -248,12 +265,18 @@ export interface LiveProcess {
   stop(): Promise<void>
 }
 
-/** 启动一个常驻命令：标准输出每一行交给 `onLine`；两路输出都交给 `onOutput`（最近的输出）；退出时 `onExit`（自己结束的不报）。 */
+/** 输出的哪一路。 */
+export type OutputStream = 'out' | 'err'
+
+/**
+ * 启动一个常驻命令：标准输出每一行（非空）交给 `onLine`；两路输出都按行交给 `onOutput`（最近的输出）；
+ * 退出时 `onExit`（自己结束的不报）。
+ */
 export function startProcess(
   spec: CommandSpec,
   handlers: {
     onLine(line: string): void
-    onOutput?(text: string): void
+    onOutput?(line: string, stream: OutputStream): void
     onExit(info: ExitInfo): void
   },
 ): LiveProcess {
@@ -277,14 +300,14 @@ export function startProcess(
     return { pid: undefined, stop: async () => {} }
   }
   const lines = new LineSplitter((line) => {
-    handlers.onOutput?.(`${line}\n`)
+    handlers.onOutput?.(line, 'out')
     if (line.trim() !== '') handlers.onLine(line)
   })
+  const errLines = new LineSplitter((line) => handlers.onOutput?.(line, 'err'))
   child.stdout?.on('data', (chunk: Buffer) => lines.push(chunk))
   child.stderr?.on('data', (chunk: Buffer) => {
-    const text = decodeOutput(chunk)
-    errors.push(text)
-    handlers.onOutput?.(text)
+    errors.push(decodeOutput(chunk))
+    errLines.push(chunk)
   })
   child.on('error', (error) => {
     exit({
@@ -296,6 +319,7 @@ export function startProcess(
   })
   child.on('close', (code, signal) => {
     lines.flush()
+    errLines.flush()
     const tail = errors.toString()
     exit({
       code,

@@ -67,7 +67,7 @@ export function useHubTriggerEnv(input: HubEnvInput): TriggerEnv {
       fire: (node, info) => hub.fire(workflow, node, info ?? ''),
       history: (node, limit) => hub.history(workflow, node, limit),
       detail: hub.detail,
-      output: (node) => hub.output(workflow, node),
+      output: hub.output(workflow),
       tryCommand: (request) => hub.tryCommand({ workflow, ...request }),
       ping: (node) => hub.ping(workflow, node),
     }),

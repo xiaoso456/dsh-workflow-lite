@@ -5,8 +5,8 @@
  * 新出现的启动，不再需要的停掉，设置变了（命令、间隔、过滤、工作区、令牌）的停掉重来。
  * 进来的内容先过 `intake.ts` 的过滤，剩下的交回 `service.ts` 发进会话。
  *
- * 运行情况（程序在不在跑、上次检查、端口）写进 `live.json`，最近的输出写进 `output/`，
- * 别的 DSH 进程、画布都读这两处。
+ * 运行情况（程序在不在跑、上次检查、端口）写进 `live.json`，最近的输出写进插件数据库（`outputLog.ts`），
+ * 别的 DSH 进程、画布都读这两处。监听程序的输出攒一会儿成批写。
  *
  * @module @xiaoso/dsh-workflow-lite/host/triggers/runtime
  */
@@ -16,6 +16,7 @@ import type { TriggerSource } from '../../shared/types.ts'
 import { type HookBind, type HookPortState, type HookRoute, HookServer } from './hooks.ts'
 import { Intake, type IntakeBatch } from './intake.ts'
 import { Listener } from './listener.ts'
+import { type LineInput, type OutputLog, type RunEnd, stripAnsi } from './outputLog.ts'
 import { type PollCheck, Poller, type Probe } from './poller.ts'
 import type { LiveFile, LiveStatus, TriggerStore } from './store.ts'
 
@@ -62,6 +63,10 @@ export interface RuntimeEvents {
 
 export interface RuntimeDeps {
   store: TriggerStore
+  /** 最近的输出记在这里。 */
+  outputs: OutputLog
+  /** 每张卡片最近的输出留多少行（插件设置）。 */
+  keep(): number
   events: RuntimeEvents
   /** 插件设置里 HTTP 触发的监听地址与端口。 */
   listen(): HookBind
@@ -78,9 +83,7 @@ export interface LiveRuntime {
   stopAll(): Promise<void>
 }
 
-/** 最近的输出留多少字符。 */
-const OUTPUT_MAX_CHARS = 8000
-/** 运行情况、最近的输出攒一会儿再写盘。 */
+/** 运行情况、监听程序的输出攒一会儿再写盘。 */
 const WRITE_DELAY_MS = 500
 
 interface Running {
@@ -106,16 +109,9 @@ const LINE_MAX_CHARS = 200
 
 /** 一行输出在卡片上怎么显示：去掉终端颜色和首尾空白，太长截短。 */
 export function lastLineText(line: string): string {
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: 要去掉的正是终端颜色的转义序列
-  const plain = line.replace(/\u001b\[[0-9;?]*[A-Za-z]/gu, '').trim()
+  const plain = stripAnsi(line).trim()
   const chars = [...plain]
   return chars.length > LINE_MAX_CHARS ? `${chars.slice(0, LINE_MAX_CHARS).join('')}…` : plain
-}
-
-function clock(at: number): string {
-  const date = new Date(at)
-  const pad = (n: number): string => String(n).padStart(2, '0')
-  return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
 }
 
 export class TriggerRuntime implements LiveRuntime {
@@ -124,10 +120,12 @@ export class TriggerRuntime implements LiveRuntime {
     string,
     { workflow: string; node: string; status: LiveStatus }
   >()
-  private readonly outputs = new Map<string, { workflow: string; node: string; text: string }>()
+  /** 监听程序这一次运行在输出里的编号，和还没写下去的行。 */
+  private readonly runs = new Map<string, { entry: number; pending: LineInput[] }>()
   /** 监听程序最近打出的一行：写 live.json 时并进它的运行情况（重启时不丢）。 */
   private readonly lines = new Map<string, { at: number; text: string }>()
-  private readonly dirtyOutputs = new Set<string>()
+  /** 监听程序最近一次记下输出的时刻（两路都算）：同样并进运行情况，界面据此重读最近的输出。 */
+  private readonly outputAt = new Map<string, number>()
   private readonly hooks: HookServer
   private readonly now: () => number
   private liveDirty = false
@@ -183,9 +181,11 @@ export class TriggerRuntime implements LiveRuntime {
     this.running.delete(key)
     this.statuses.delete(key)
     this.lines.delete(key)
+    this.outputAt.delete(key)
     this.markLive()
     running.intake.dispose()
     await running.stop()
+    this.endRun(key, { at: this.now(), verdict: 'stopped', code: null })
   }
 
   private startOne(spec: LiveSpec): Running {
@@ -228,14 +228,19 @@ export class TriggerRuntime implements LiveRuntime {
         intake.push(line)
         this.noteLine(key, line)
       },
-      output: (text) => this.appendOutput(key, spec, text),
+      output: (line, stream) => this.queueLine(key, { at: this.now(), stream, text: line }),
       running: ({ since, restarts }) => {
-        this.appendOutput(key, spec, `[${clock(since)}] 启动监听程序\n`)
+        this.startRun(key, spec, since)
         this.setStatus(spec, { state: 'running', since, ...(restarts > 0 ? { restarts } : {}) })
       },
       healthy: () => this.deps.events.healthy(ref),
-      exited: ({ reason, counted, retryAt, restarts }) => {
-        this.appendOutput(key, spec, `[${clock(this.now())}] ${reason}\n`)
+      exited: ({ reason, counted, retryAt, restarts, code, failed }) => {
+        this.endRun(key, {
+          at: this.now(),
+          verdict: failed ? 'fail' : 'exited',
+          code,
+          note: reason,
+        })
         this.setStatus(spec, { state: 'restarting', note: reason, next: retryAt, restarts })
         if (counted) this.deps.events.failed(ref, reason)
       },
@@ -247,8 +252,22 @@ export class TriggerRuntime implements LiveRuntime {
   private onChecked(spec: LiveSpec, ref: LiveRef, check: PollCheck): void {
     const key = keyOf(spec.workflow, spec.node)
     if (!this.running.has(key)) return
-    const verdict = check.met ? '触发' : (check.note ?? '条件不满足')
-    this.appendOutput(key, spec, `[${clock(check.at)}] ${verdict}\n${check.output ?? ''}`)
+    this.record(() =>
+      this.deps.outputs.check(
+        spec.workflow,
+        spec.node,
+        {
+          at: check.at,
+          verdict: check.failure !== undefined ? 'fail' : check.met ? 'met' : 'unmet',
+          code: check.code,
+          ...(check.note === undefined ? {} : { note: check.note }),
+          ms: check.ms,
+          out: check.out,
+          err: check.err,
+        },
+        this.deps.keep(),
+      ),
+    )
     this.setStatus(spec, {
       state: 'running',
       next: check.next,
@@ -277,17 +296,52 @@ export class TriggerRuntime implements LiveRuntime {
     this.markLive()
   }
 
-  private appendOutput(key: string, spec: LiveSpec, text: string): void {
-    if (text === '') return
-    const previous = this.outputs.get(key)?.text ?? ''
-    const joined = previous + (text.endsWith('\n') ? text : `${text}\n`)
-    this.outputs.set(key, {
-      workflow: spec.workflow,
-      node: spec.node,
-      text: joined.slice(-OUTPUT_MAX_CHARS),
+  // ── 最近的输出 ───────────────────────────────────────────
+
+  /** 写最近的输出：数据库一时写不进（别的进程长时间占着）就丢掉这一笔，不影响触发。 */
+  private record(write: () => void): void {
+    try {
+      write()
+    } catch {
+      // 只是给人看的输出，丢一笔不要紧。
+    }
+  }
+
+  /** 程序起来了：上一次运行没写完的行先写下去，再开一条新的。 */
+  private startRun(key: string, spec: LiveSpec, since: number): void {
+    this.writeLines(key)
+    this.runs.delete(key)
+    this.record(() => {
+      this.runs.set(key, {
+        entry: this.deps.outputs.runStart(spec.workflow, spec.node, since),
+        pending: [],
+      })
     })
-    this.dirtyOutputs.add(key)
+  }
+
+  private endRun(key: string, end: RunEnd): void {
+    const run = this.runs.get(key)
+    if (run === undefined) return
+    this.writeLines(key)
+    this.runs.delete(key)
+    this.record(() => this.deps.outputs.runEnd(run.entry, end))
+  }
+
+  private queueLine(key: string, line: LineInput): void {
+    const run = this.runs.get(key)
+    if (run === undefined) return
+    run.pending.push(line)
     this.queueFlush()
+  }
+
+  /** 把这张卡片攒着的行写下去。 */
+  private writeLines(key: string): void {
+    const run = this.runs.get(key)
+    if (run === undefined || run.pending.length === 0) return
+    const batch = run.pending.splice(0)
+    this.record(() => this.deps.outputs.append(run.entry, batch, this.deps.keep()))
+    this.outputAt.set(key, batch[batch.length - 1]?.at ?? this.now())
+    this.markLive()
   }
 
   private markLive(): void {
@@ -311,7 +365,12 @@ export class TriggerRuntime implements LiveRuntime {
       for (const [key, { workflow, node, status }] of this.statuses) {
         const group = sources[workflow] ?? {}
         const line = this.lines.get(key)
-        group[node] = line === undefined ? status : { ...status, line }
+        const output = this.outputAt.get(key)
+        group[node] = {
+          ...status,
+          ...(line === undefined ? {} : { line }),
+          ...(output === undefined ? {} : { output }),
+        }
         sources[workflow] = group
       }
       await store.writeLive({
@@ -320,11 +379,6 @@ export class TriggerRuntime implements LiveRuntime {
         port: this.hooks.current(),
       })
     }
-    const keys = [...this.dirtyOutputs]
-    this.dirtyOutputs.clear()
-    for (const key of keys) {
-      const entry = this.outputs.get(key)
-      if (entry !== undefined) await store.writeOutput(entry.workflow, entry.node, entry.text)
-    }
+    for (const key of this.runs.keys()) this.writeLines(key)
   }
 }

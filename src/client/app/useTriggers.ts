@@ -22,6 +22,7 @@ import type {
 } from '../../shared/wire/trigger.ts'
 import { shareSame } from '../model/samePlain.ts'
 import { errorMessage, type WorkflowLiteRpc } from '../rpc.ts'
+import { createOutputAccess, type OutputAccess } from './triggerOutput.ts'
 import { useRefresher } from './useRefresher.ts'
 
 /** 多久问一次。 */
@@ -63,8 +64,8 @@ export interface Triggers {
   history(node: string, limit: number): Promise<FireRecord[]>
   /** 一次触发那一刻带的触发说明、背景信息；读不到是空的。 */
   detail(fire: string): Promise<TriggerDetailResponse>
-  /** 轮询命令、监听程序最近的输出；读不到是空串。 */
-  output(node: string): Promise<string>
+  /** 轮询命令、监听程序最近的输出。 */
+  output: OutputAccess
   /** 「试运行」还没保存的命令；请求本身失败回一句原因。 */
   tryCommand(request: Omit<TriggerTryRequest, 'workflow'>): Promise<TriggerTryResponse | string>
   /** HTTP 触发「发一条测试请求」；发不了回一句原因。 */
@@ -181,17 +182,7 @@ export function useTriggers(
     [rpc],
   )
 
-  const output = useCallback(
-    async (node: string): Promise<string> => {
-      if (workflow === null) return ''
-      try {
-        return (await rpc.call('trigger/output', { workflow, node })).text
-      } catch {
-        return ''
-      }
-    },
-    [rpc, workflow],
-  )
+  const output = useMemo(() => createOutputAccess(rpc, workflow), [rpc, workflow])
 
   const tryCommand = useCallback(
     async (request: Omit<TriggerTryRequest, 'workflow'>): Promise<TriggerTryResponse | string> => {

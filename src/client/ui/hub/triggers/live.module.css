@@ -127,7 +127,6 @@
   padding: 9px 12px;
   overflow-y: auto;
   border-bottom: 1px solid var(--wl-line);
-  background: var(--wl-panel);
   scrollbar-width: thin;
 }
 

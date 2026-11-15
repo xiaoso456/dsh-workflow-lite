@@ -5,10 +5,10 @@
  * - `state.json`：每张卡片的开关、选定的工作区和会话、下一次触发的时刻、连续失败次数；
  * - `fires/<触发编号>.txt`：背景信息太长时另存的全文，发进会话的消息里只放开头和这个文件的路径；
  * - `owner.json`：现在由哪个 DSH 进程负责触发（见 `owner.ts`）；
- * - `live.json`：负责的进程写下的运行情况（程序在不在跑、上次检查、端口开没开），别的进程据此显示状态；
- * - `output/<记号>.log`：轮询命令、监听程序最近的输出。
+ * - `live.json`：负责的进程写下的运行情况（程序在不在跑、上次检查、端口开没开），别的进程据此显示状态。
  *
- * 触发记录（连同每次的触发说明、背景信息）在插件数据库里，见 {@link FireLog}。
+ * 触发记录（连同每次的触发说明、背景信息）与轮询命令、监听程序最近的输出在插件数据库里，
+ * 见 {@link FireLog}、{@link OutputLog}。
  *
  * 同一个数据目录可能有几个 DSH 进程在用：到点触发只有负责的那个做，但开关、「立即触发一次」哪个进程都能改。
  * 所以每次修改都现读现写（进程内排队 + 原子写），不在内存里留副本。
@@ -16,13 +16,14 @@
  * @module @xiaoso/dsh-workflow-lite/host/triggers/store
  */
 
-import { createHash, randomBytes } from 'node:crypto'
+import { randomBytes } from 'node:crypto'
 import { join } from 'node:path'
 import type { FireRecord, TriggerActivitySlot } from '../../shared/wire/trigger.ts'
 import { ensureDir, readFileText, unlinkFile, writeFileAtomic } from '../store/atomic.ts'
 import type { PluginDatabase } from '../store/database.ts'
 import { type FireDetail, FireLog } from './fireLog.ts'
 import type { HookPortState } from './hooks.ts'
+import { OutputLog } from './outputLog.ts'
 import type { Probe } from './poller.ts'
 
 export const TRIGGERS_DIR = 'triggers'
@@ -53,12 +54,6 @@ function liveFile(dataDir: string): string {
 /** 「全部暂停」：文件在就是暂停着，里面记着从什么时候起。 */
 function pausedFile(dataDir: string): string {
   return join(triggersDir(dataDir), 'paused.json')
-}
-
-/** 一张卡片最近的输出：文件名用工作流名 + 卡片 id 的摘要（名字里的字符不进路径）。 */
-function outputFile(dataDir: string, workflow: string, node: string): string {
-  const key = createHash('sha256').update(`${workflow}\u0000${node}`).digest('hex').slice(0, 24)
-  return join(triggersDir(dataDir), 'output', `${key}.log`)
 }
 
 /** 触发编号：`f-<YYYYMMDD>-<HHmmss>-<4 位十六进制>`。 */
@@ -134,6 +129,8 @@ export interface LiveStatus {
   restarts?: number
   /** 监听程序最近打出的一行（画布卡片上显示；去掉了终端颜色、截短）。 */
   line?: { at: number; text: string }
+  /** 监听程序最近一次记下输出（哪一路都算）的时刻：界面据此重读最近的输出。 */
+  output?: number
 }
 
 /** `live.json`：写它的进程、各卡片的运行情况、HTTP 端口。 */
@@ -218,10 +215,13 @@ export class TriggerStore {
   private chain: Promise<unknown> = Promise.resolve()
   private readonly dataDir: () => string
   private readonly log: FireLog
+  /** 轮询命令、监听程序最近的输出（负责的进程写，哪个进程都能读、清空）。 */
+  readonly outputs: OutputLog
 
   constructor(dataDir: () => string, database: PluginDatabase) {
     this.dataDir = dataDir
     this.log = new FireLog(database)
+    this.outputs = new OutputLog(database)
   }
 
   private queued<T>(task: () => Promise<T>): Promise<T> {
@@ -341,15 +341,6 @@ export class TriggerStore {
     await writeFileAtomic(liveFile(this.dataDir()), `${JSON.stringify(file, null, 2)}\n`)
   }
 
-  output(workflow: string, node: string): Promise<string | null> {
-    return readFileText(outputFile(this.dataDir(), workflow, node))
-  }
-
-  async writeOutput(workflow: string, node: string, text: string): Promise<void> {
-    await ensureDir(join(triggersDir(this.dataDir()), 'output'))
-    await writeFileAtomic(outputFile(this.dataDir(), workflow, node), text)
-  }
-
   // ── 全部暂停 ───────────────────────────────────────────────
 
   /** 暂停着时是开始暂停的时刻；没暂停是 `undefined`。 */
@@ -379,9 +370,10 @@ export class TriggerStore {
     })
   }
 
-  /** 工作流改名：开关、设置和触发记录都跟着走。 */
+  /** 工作流改名：开关、设置、触发记录和最近的输出都跟着走。 */
   async rename(from: string, to: string): Promise<void> {
     this.log.rename(from, to)
+    this.outputs.rename(from, to)
     await this.update((locals) => {
       const group = locals[from]
       if (group === undefined) return
@@ -390,8 +382,9 @@ export class TriggerStore {
     })
   }
 
-  /** 工作流删掉了：它的触发记录连同另存的全文一起删（开关与设置由对账清掉）。 */
+  /** 工作流删掉了：它的触发记录连同另存的全文、最近的输出一起删（开关与设置由对账清掉）。 */
   async forget(workflow: string): Promise<void> {
+    this.outputs.forget(workflow)
     const files = this.log.forget(workflow)
     await Promise.all(files.map((id) => unlinkFile(fireInfoFile(this.dataDir(), id))))
   }

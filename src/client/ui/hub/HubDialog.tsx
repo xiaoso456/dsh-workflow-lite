@@ -177,6 +177,7 @@ export function HubDialog(props: {
               props.workflows.onOpen(name)
               props.onClose()
             }}
+            onSettings={() => turn('settings')}
             onOpenCard={(workflow, node) => {
               props.onOpenCard(workflow, node)
               props.onClose()

@@ -14,6 +14,7 @@
 
 import { isListenHost } from '../shared/triggerHttp.ts'
 import {
+  OUTPUT_LINES,
   PLUGIN_CONFIG_KEYS,
   type PluginConfigKey,
   type PluginConfigValues,
@@ -143,6 +144,10 @@ function checkValue(key: PluginConfigKey, value: unknown): string | null {
       return typeof value === 'string' && isListenHost(value)
         ? null
         : '监听地址要是 IPv4 地址，如 127.0.0.1、0.0.0.0'
+    case 'triggerOutputLines':
+      return isInt(value, OUTPUT_LINES.min) && (value as number) <= OUTPUT_LINES.max
+        ? null
+        : `最近的输出保留要是 ${String(OUTPUT_LINES.min)} 到 ${String(OUTPUT_LINES.max)} 之间的整数`
     case 'triggerShell':
       return typeof value === 'string' && (value === '' || shellPath(value))
         ? null

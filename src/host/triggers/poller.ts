@@ -44,16 +44,13 @@ export interface PollCheck {
   note?: string
   /** 命令没跑成的原因（算一次失败）。 */
   failure?: string
-  /** 这次的输出（标准输出 + 错误输出，只留最后一截），给人看最近的输出用。 */
-  output?: string
-}
-
-/** 最近的输出里一次检查留多少字符。 */
-const CHECK_OUTPUT_CHARS = 4000
-
-function outputOf(result: RunResult): string | undefined {
-  const text = [result.output.trim(), result.errors].filter((part) => part !== '').join('\n')
-  return text === '' ? undefined : `${text.slice(-CHECK_OUTPUT_CHARS)}\n`
+  /** 退出码；没跑起来、超时被结束时是 `null`。 */
+  code: number | null
+  /** 这次跑了多久（毫秒）。 */
+  ms: number
+  /** 这次的标准输出、错误输出（给人看最近的输出用）。 */
+  out: string
+  err: string
 }
 
 export interface PollHandlers {
@@ -134,6 +131,7 @@ export class Poller {
   }
 
   private async check(): Promise<void> {
+    const started = this.now()
     const result = await this.run(this.spec, {
       timeoutMs: Math.min(this.spec.seconds * 1000, POLL_TIMEOUT_MAX_MS),
       maxBytes: INFO_MAX_CHARS,
@@ -142,8 +140,12 @@ export class Poller {
     if (this.stopped) return
     const at = this.now()
     const next = at + this.spec.seconds * 1000
-    const output = outputOf(result)
-    const shown = output === undefined ? {} : { output }
+    const shown = {
+      code: result.code,
+      ms: Math.max(0, at - started),
+      out: result.output,
+      err: result.stderr ?? result.errors,
+    }
     if (result.failure !== undefined) {
       this.handlers.fail(result.failure)
       this.handlers.checked({

@@ -753,7 +753,7 @@ try {
   await mouseClick(session, await centerOf(session, '[data-testid="wl-trigger-when-edit"]'))
   await waitFor(session, has('wl-trigger-source-dialog'))
   await sleep(1500)
-  const output = await session.evaluate(textOf('[data-testid="wl-trigger-output-text"]'))
+  const output = await session.evaluate(textOf('[data-testid="wl-trigger-output-list"]'))
   check(
     '最近的输出里有两行',
     /INFO 启动好了/.test(output) && /ERROR pay timeout/.test(output),

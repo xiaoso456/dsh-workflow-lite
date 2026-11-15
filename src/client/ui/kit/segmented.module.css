@@ -32,6 +32,17 @@
   box-shadow: var(--wl-shadow-thumb);
 }
 
+/* 不铺底：只描一圈线，滑块是一块淡淡的底色、不带阴影。 */
+.seg[data-plain] {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--wl-line);
+}
+
+.seg[data-plain] .segThumb {
+  background: var(--wl-hover);
+  box-shadow: none;
+}
+
 .segItem {
   position: relative;
   height: 28px;
@@ -145,4 +156,8 @@
 
 :global([data-look="swiss"]) .segItem[aria-checked="true"] .segCount {
   color: var(--wl-panel);
+}
+
+:global([data-look="swiss"]) .seg[data-plain] .segThumb {
+  background: var(--wl-text);
 }

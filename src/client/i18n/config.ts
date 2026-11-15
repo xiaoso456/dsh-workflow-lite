@@ -65,6 +65,10 @@ export const zh = {
   'cfg.triggerShellDesc':
     '轮询、监听卡片没单独选 shell 时用它。改了之后，跟随默认的卡片要重新确认命令才会继续运行。',
   'cfg.shellSystem': '系统默认',
+  'cfg.triggerOutputLines': '最近的输出保留',
+  'cfg.triggerOutputLinesDesc':
+    '每张轮询、监听卡片最多留这么多行输出，更早的丢掉；一行超过 2000 字的截断。存在本机。',
+  'cfg.lines': '行',
   'cfg.host.local': '仅本机（127.0.0.1）',
   'cfg.host.any': '所有网卡（0.0.0.0）',
   'cfg.host.missing': '{address}（本机没有这个地址）',
@@ -166,6 +170,10 @@ export const en: Record<keyof typeof zh, string> = {
   'cfg.triggerShellDesc':
     'Used by poll and listen cards that do not pick their own shell. After changing it, cards that follow the default need their command confirmed again before they run.',
   'cfg.shellSystem': 'System default',
+  'cfg.triggerOutputLines': 'Recent output kept',
+  'cfg.triggerOutputLinesDesc':
+    'Each poll and listen card keeps at most this many lines of output and drops older ones; lines over 2000 characters are cut. Stored on this computer.',
+  'cfg.lines': 'lines',
   'cfg.host.local': 'This machine only (127.0.0.1)',
   'cfg.host.any': 'All interfaces (0.0.0.0)',
   'cfg.host.missing': '{address} (not on this machine)',

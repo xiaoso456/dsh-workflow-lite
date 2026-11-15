@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { isListenHost } from '../../shared/triggerHttp.ts'
 import {
+  OUTPUT_LINES,
   PLUGIN_CONFIG_KEYS,
   type PluginConfigKey,
   type PluginConfigValues,
@@ -32,6 +33,7 @@ export interface ConfigDraft {
   triggerHost: string
   /** 程序的完整路径；空串 = 系统默认。 */
   triggerShell: string
+  triggerOutputLines: string
 }
 
 export type ConfigErrors = Partial<Record<PluginConfigKey, string>>
@@ -53,16 +55,25 @@ export interface PluginConfigState {
   save(): Promise<void>
 }
 
-export type NumberKey = 'maxNodes' | 'saveDebounceMs' | 'maxResultBytes' | 'triggerPort'
+export type NumberKey =
+  | 'maxNodes'
+  | 'saveDebounceMs'
+  | 'maxResultBytes'
+  | 'triggerPort'
+  | 'triggerOutputLines'
 
 const MIN: Record<NumberKey, number> = {
   maxNodes: 1,
   saveDebounceMs: 0,
   maxResultBytes: 1,
   triggerPort: 1024,
+  triggerOutputLines: OUTPUT_LINES.min,
 }
 
-const MAX: Partial<Record<NumberKey, number>> = { triggerPort: 65535 }
+const MAX: Partial<Record<NumberKey, number>> = {
+  triggerPort: 65535,
+  triggerOutputLines: OUTPUT_LINES.max,
+}
 
 /** 数字框能填的范围（给人看的提示用）。 */
 export function numberRange(key: NumberKey): { min: number; max?: number } {
@@ -76,6 +87,7 @@ const STEP: Record<NumberKey, number> = {
   saveDebounceMs: 50,
   maxResultBytes: 64,
   triggerPort: 1,
+  triggerOutputLines: 50,
 }
 
 /** 走一步到哪：不在整步上的先落到最近的整步（400 → 410，405 往上是 410、往下是 400）。 */
@@ -94,6 +106,7 @@ export function toDraft(values: PluginConfigValues): ConfigDraft {
     triggerPort: String(values.triggerPort),
     triggerHost: values.triggerHost,
     triggerShell: values.triggerShell,
+    triggerOutputLines: String(values.triggerOutputLines),
   }
 }
 
@@ -118,7 +131,13 @@ export function fromDraft(
   else values.dataDir = dataDir
   if (isListenHost(draft.triggerHost)) values.triggerHost = draft.triggerHost
   else errors.triggerHost = t('cfg.host.invalid')
-  for (const key of ['maxNodes', 'saveDebounceMs', 'maxResultBytes', 'triggerPort'] as const) {
+  for (const key of [
+    'maxNodes',
+    'saveDebounceMs',
+    'maxResultBytes',
+    'triggerPort',
+    'triggerOutputLines',
+  ] as const) {
     const text = draft[key].trim()
     if (text === '') {
       errors[key] = t('cfg.required')
@@ -275,4 +294,5 @@ export const LABEL = {
   triggerPort: 'cfg.triggerPort',
   triggerHost: 'cfg.triggerHost',
   triggerShell: 'cfg.triggerShell',
+  triggerOutputLines: 'cfg.triggerOutputLines',
 } as const satisfies Record<PluginConfigKey, LocaleKey>

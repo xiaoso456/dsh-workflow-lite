@@ -45,6 +45,7 @@ const DESC: Record<PluginConfigKey, LocaleKey> = {
   triggerPort: 'cfg.triggerPortDesc',
   triggerHost: 'cfg.triggerHostDesc',
   triggerShell: 'cfg.triggerShellDesc',
+  triggerOutputLines: 'cfg.triggerOutputLinesDesc',
 }
 
 const ICON: Record<PluginConfigKey, IconName> = {
@@ -56,6 +57,7 @@ const ICON: Record<PluginConfigKey, IconName> = {
   triggerPort: 'bolt',
   triggerHost: 'globe',
   triggerShell: 'terminal',
+  triggerOutputLines: 'rows',
 }
 
 export function HubSettings(props: {
@@ -165,6 +167,9 @@ export function HubSettings(props: {
               onChange={(value) => state.edit('triggerShell', value)}
               onProblem={setShellProblem}
             />
+          </Row>
+          <Row {...field} name="triggerOutputLines">
+            <NumberInput {...field} name="triggerOutputLines" unit={t('cfg.lines')} />
           </Row>
           <Row {...field} name="triggerHost">
             <ListenHostSelect

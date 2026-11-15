@@ -8,7 +8,13 @@
  * @module @xiaoso/dsh-workflow-lite/host/triggers/listener
  */
 
-import { type CommandSpec, type ExitInfo, type LiveProcess, startProcess } from './processes.ts'
+import {
+  type CommandSpec,
+  type ExitInfo,
+  type LiveProcess,
+  type OutputStream,
+  startProcess,
+} from './processes.ts'
 
 /** 跑满这么久才算「起来了」。 */
 export const HEALTHY_MS = 60_000
@@ -22,14 +28,24 @@ export function backoff(attempt: number): number {
 
 export interface ListenerHandlers {
   line(text: string): void
-  /** 两路输出（看最近的输出用）。 */
-  output(text: string): void
+  /** 两路输出的每一行（看最近的输出用）。 */
+  output(line: string, stream: OutputStream): void
   /** 程序起来了（`restarts` 是这是第几次重启，第一次启动是 0）。 */
   running(info: { since: number; restarts: number }): void
   /** 程序跑满了 {@link HEALTHY_MS}。 */
   healthy(): void
-  /** 程序退出了，`retryAt` 时重启；`counted` 表示这次算一次失败。 */
-  exited(info: { reason: string; counted: boolean; retryAt: number; restarts: number }): void
+  /**
+   * 程序退出了，`retryAt` 时重启；`counted` 表示这次算一次失败。
+   * `code` 是退出码（被信号结束、没跑起来是 `null`），`failed` 表示根本没跑起来（启动不了、找不到命令）。
+   */
+  exited(info: {
+    reason: string
+    counted: boolean
+    retryAt: number
+    restarts: number
+    code: number | null
+    failed: boolean
+  }): void
 }
 
 type Start = typeof startProcess
@@ -80,7 +96,7 @@ export class Listener {
       onLine: (line) => {
         if (!this.stopped) this.handlers.line(line)
       },
-      onOutput: (text) => this.handlers.output(text),
+      onOutput: (line, stream) => this.handlers.output(line, stream),
       onExit: (info) => this.onExit(info, since),
     })
     this.handlers.running({ since, restarts: this.restarts })
@@ -104,6 +120,8 @@ export class Listener {
       counted: ran < HEALTHY_MS,
       retryAt: this.now() + wait,
       restarts: this.restarts,
+      code: info.signal === null ? info.code : null,
+      failed: info.failure !== undefined,
     })
     this.timer = setTimeout(() => {
       this.timer = undefined

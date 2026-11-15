@@ -120,6 +120,7 @@ export async function apply(ctx: Context, config: WorkflowLiteSettings): Promise
     sessions: createSessionPort(ctx),
     listen: () => ({ host: config.triggerHost.get(), port: config.triggerPort.get() }),
     defaultShell: () => config.triggerShell.get(),
+    outputLines: () => config.triggerOutputLines.get(),
     runs,
     warn: (message) => ctx.logger.warn(`[workflow-lite] ${message}`),
   })
@@ -190,6 +191,7 @@ export async function apply(ctx: Context, config: WorkflowLiteSettings): Promise
     triggerPort: config.triggerPort.get(),
     triggerHost: config.triggerHost.get(),
     triggerShell: config.triggerShell.get(),
+    triggerOutputLines: config.triggerOutputLines.get(),
   })
 
   // 画布 RPC：只在 connection 可用时挂。

@@ -20,6 +20,7 @@ const SAVED: PluginConfigValues = {
   triggerPort: 3791,
   triggerHost: '127.0.0.1',
   triggerShell: '',
+  triggerOutputLines: 300,
 }
 
 describe('设置草稿', () => {
@@ -33,6 +34,7 @@ describe('设置草稿', () => {
       triggerPort: '3791',
       triggerHost: '127.0.0.1',
       triggerShell: '',
+      triggerOutputLines: '300',
     })
   })
 
@@ -59,6 +61,7 @@ describe('设置草稿', () => {
         triggerPort: '80',
         triggerHost: '192.168.1',
         triggerShell: '',
+        triggerOutputLines: '300',
       },
       SAVED,
       t,

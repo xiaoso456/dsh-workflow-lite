@@ -59,8 +59,8 @@ export function tryListen(spec: CommandSpec, ms = TRIAL_LISTEN_MS): Promise<Trig
       onLine: () => {
         lines += 1
       },
-      onOutput: (text) => {
-        output = tail(output + text)
+      onOutput: (line) => {
+        output = tail(`${output}${line}\n`)
       },
       onExit: (info) => {
         finish({

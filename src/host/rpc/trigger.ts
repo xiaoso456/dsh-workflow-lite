@@ -1,6 +1,6 @@
 /**
  * dsh-workflow-lite — `trigger/*`：触发卡片的状态、开关与本机设置（含确认命令、换令牌）、「立即触发一次」、
- * 触发记录与一次触发的详情、一段时间里的次数、最近的输出、「试运行」命令与 HTTP 测试请求、本机的 shell，以及工作流中心「触发」页的全部卡片与「全部暂停」。
+ * 触发记录与一次触发的详情、一段时间里的次数、最近的输出（摘要、几条的行、清空）、「试运行」命令与 HTTP 测试请求、本机的 shell，以及工作流中心「触发」页的全部卡片与「全部暂停」。
  *
  * @module @xiaoso/dsh-workflow-lite/host/rpc/trigger
  */
@@ -133,7 +133,28 @@ export async function dispatchTrigger(
       return ok(outcome.result)
     }
 
-    case 'trigger/output':
-      return ok({ text: await deps.triggers.output(workflow, requireString(input, 'node')) })
+    case 'trigger/output': {
+      const filter = input.filter ?? 'all'
+      if (filter !== 'all' && filter !== 'met' && filter !== 'fail') {
+        throw new Error('filter must be all, met or fail')
+      }
+      if (input.limit !== undefined && typeof input.limit !== 'number') {
+        throw new Error('limit must be a number')
+      }
+      return ok(deps.triggers.output(workflow, requireString(input, 'node'), filter, input.limit))
+    }
+
+    case 'trigger/output-lines': {
+      const { entries, tail } = input
+      if (!Array.isArray(entries) || !entries.every((id) => Number.isInteger(id))) {
+        throw new Error('entries must be a list of integers')
+      }
+      if (tail !== undefined && typeof tail !== 'number') throw new Error('tail must be a number')
+      return ok(deps.triggers.outputLinesOf(workflow, requireString(input, 'node'), entries, tail))
+    }
+
+    case 'trigger/output-clear':
+      deps.triggers.clearOutput(workflow, requireString(input, 'node'))
+      return ok({})
   }
 }

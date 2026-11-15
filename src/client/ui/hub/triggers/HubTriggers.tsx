@@ -51,6 +51,8 @@ export function HubTriggers(props: {
   onOpenCard(workflow: string, node: string): void
   /** 打开一个工作流（接续触发的上游；会关掉工作流中心）。 */
   onOpenWorkflow(name: string): void
+  /** 到工作流中心的「设置」页（改最近的输出保留几行）。 */
+  onSettings(): void
   onOpenRun(id: string): void
   onNotice(text: string, tone?: 'info' | 'error'): void
   /** 打开时先选中的卡片（画布上点了「全部记录」）。 */
@@ -178,6 +180,7 @@ export function HubTriggers(props: {
           onOpenCard={() => props.onOpenCard(selected.workflow, selected.view.node)}
           onOpenRun={props.onOpenRun}
           onOpenWorkflow={props.onOpenWorkflow}
+          onSettings={props.onSettings}
           onNotice={onNotice}
         />
       )}

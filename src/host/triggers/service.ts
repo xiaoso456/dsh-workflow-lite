@@ -45,8 +45,10 @@ import {
   tokenIssue,
 } from '../../shared/triggerHttp.ts'
 import type { TriggerSource } from '../../shared/types.ts'
+import { OUTPUT_LINES } from '../../shared/wire/config.ts'
 import type {
   FireRecord,
+  OutputFilter,
   ShellChoice,
   TriggerActivitySlot,
   TriggerAllResponse,
@@ -55,6 +57,8 @@ import type {
   TriggerFireRequest,
   TriggerHttpStatus,
   TriggerListResponse,
+  TriggerOutputLinesResponse,
+  TriggerOutputResponse,
   TriggerOwner,
   TriggerPauseResponse,
   TriggerPingRequest,
@@ -108,6 +112,9 @@ const ACTIVITY_DAYS = 31
 const DETAIL_INFO_CHARS = 20_000
 const HOUR_MS = 60 * 60_000
 const DAY_MS = 24 * HOUR_MS
+/** 最近的输出一次缺省给多少条、最多给多少条。 */
+const OUTPUT_PAGE = 200
+const OUTPUT_PAGE_MAX = 1000
 /** 超过每小时上限的常驻触发源，隔多久才再记一条「跳过」（日志刷屏时别把记录也刷满）。 */
 const CAP_NOTE_MS = 10 * 60_000
 
@@ -120,6 +127,8 @@ export interface TriggerServiceDeps {
   listen: () => HookBind
   /** 轮询、监听没单独选 shell 时用哪个（插件设置，程序的完整路径）；空串或不给 = 系统的。 */
   defaultShell?: () => string
+  /** 每张轮询、监听卡片最近的输出留多少行（插件设置）；不给是 {@link OUTPUT_LINES} 的缺省值。 */
+  outputLines?: () => number
   /** 实例那边：接续触发看别的工作流有没有实例结束。不给就当没有这种触发源。 */
   runs?: RunWatch
   now?: () => number
@@ -141,6 +150,7 @@ export class TriggerService {
   private readonly dataDir: () => string
   private readonly listen: () => HookBind
   private readonly defaultShell: () => string
+  private readonly outputLines: () => number
   private readonly now: () => number
   private readonly warn: (message: string) => void
   private timer: ReturnType<typeof setTimeout> | undefined
@@ -162,6 +172,7 @@ export class TriggerService {
     this.dataDir = deps.dataDir
     this.listen = deps.listen
     this.defaultShell = deps.defaultShell ?? (() => '')
+    this.outputLines = deps.outputLines ?? (() => OUTPUT_LINES.fallback)
     this.now = deps.now ?? Date.now
     this.warn = deps.warn ?? (() => {})
     this.launcher = new Launcher(deps.sessions, deps.store)
@@ -182,6 +193,8 @@ export class TriggerService {
       deps.runtime?.(events) ??
       new TriggerRuntime({
         store: deps.store,
+        outputs: deps.store.outputs,
+        keep: this.outputLines,
         listen: deps.listen,
         pid: this.lock.pid,
         now: this.now,
@@ -874,9 +887,39 @@ export class TriggerService {
     return 'failure' in result ? fail('blocked', result.failure) : ok(result)
   }
 
-  /** 轮询命令、监听程序最近的输出。 */
-  async output(workflow: string, node: string): Promise<string> {
-    return (await this.store.output(workflow, node)) ?? ''
+  /** 轮询命令、监听程序最近的输出：按筛选最多 `limit` 条摘要，新的在前（每条的输出另读）。 */
+  output(
+    workflow: string,
+    node: string,
+    filter: OutputFilter = 'all',
+    limit = OUTPUT_PAGE,
+  ): TriggerOutputResponse {
+    const count = Number.isFinite(limit)
+      ? Math.min(Math.max(Math.trunc(limit), 1), OUTPUT_PAGE_MAX)
+      : OUTPUT_PAGE
+    return {
+      ...this.store.outputs.list(workflow, node, filter, count),
+      keep: this.outputLines(),
+    }
+  }
+
+  /** 最近的输出里几条的行；`tail` 给了就每条只要最后几行。 */
+  outputLinesOf(
+    workflow: string,
+    node: string,
+    entries: readonly number[],
+    tail?: number,
+  ): TriggerOutputLinesResponse {
+    const last =
+      tail === undefined || !Number.isFinite(tail) ? undefined : Math.max(1, Math.trunc(tail))
+    return {
+      entries: this.store.outputs.lines(workflow, node, entries.slice(0, OUTPUT_PAGE_MAX), last),
+    }
+  }
+
+  /** 清空一张卡片最近的输出（正在跑的那次留着，接着记）。 */
+  clearOutput(workflow: string, node: string): void {
+    this.store.outputs.clear(workflow, node)
   }
 
   /** 触发记录，新的在前；给了卡片就只看它的。`limit` 缺省 {@link HISTORY_PAGE} 条，最多是存下的全部。 */
@@ -1033,7 +1076,10 @@ function liveView(
       ...(status.note === undefined ? {} : { problem: status.note }),
     }
   }
-  const line = status.line === undefined ? {} : { line: status.line }
+  const line = {
+    ...(status.line === undefined ? {} : { line: status.line }),
+    ...(status.output === undefined ? {} : { output: status.output }),
+  }
   if (status.state === 'restarting') {
     return {
       state: 'restarting',

@@ -1,42 +1,42 @@
 /**
- * dsh-workflow-lite — 轮询命令、监听程序最近的输出（「触发方式」对话框里命令框的下面）。
+ * dsh-workflow-lite — 轮询命令、监听程序最近的输出（「触发方式」对话框里输出台的「最近的输出」一页）。
  *
- * 挂上就读；卡片状态一变（又检查了一次、程序重启了、打出新的一行）就再读一次。只换文字，不插拔元素。
+ * 和工作流中心「触发」页的「输出」同一个列表（一次检查或程序的一次运行一行，点开看输出），不带工具条；
+ * 换行、错误输出照那边记下的看法。卡片状态一变就再读一次。只换文字，不插拔元素。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/trigger/RecentOutput
  */
 
-import { useEffect, useState } from 'react'
+import { useOutputView } from '../../app/outputView.ts'
 import type { T } from '../../i18n.ts'
-import css from './trigger.module.css'
+import { OutputList } from './output/OutputList.tsx'
+import { outputStamp } from './output/outputStamp.ts'
+import { useOutputLog } from './output/useOutputLog.ts'
 import type { TriggerEnv } from './triggerEnv.ts'
 
 export function RecentOutput(props: {
   t: T
   env: TriggerEnv
   node: string
+  kind: 'poll' | 'listen'
   className?: string
 }): React.JSX.Element {
   const { t, env, node } = props
-  const [text, setText] = useState<string | null>(null)
-  const view = env.triggers.view(node)
-  const stamp = `${view?.state ?? ''}|${String(view?.checked?.at ?? '')}|${String(view?.since ?? '')}|${String(view?.next ?? '')}|${String(view?.line?.at ?? '')}`
-  useEffect(() => {
-    let alive = true
-    void env.triggers.output(node).then((value) => {
-      if (alive) setText(value)
-    })
-    return () => {
-      alive = false
-    }
-  }, [env.triggers.output, node, stamp])
+  const [view] = useOutputView(props.kind)
+  const model = useOutputLog({
+    access: env.triggers.output,
+    node,
+    stamp: outputStamp(env.triggers.view(node)),
+    filter: 'all',
+  })
   return (
-    <pre
-      className={props.className ?? css.output}
-      data-testid="wl-trigger-output-text"
-      data-empty={text === ''}
-    >
-      {text === null ? '' : text === '' ? t('trigger.outputEmpty') : text}
-    </pre>
+    <OutputList
+      t={t}
+      model={model}
+      view={view}
+      filter="all"
+      {...(props.className === undefined ? {} : { className: props.className })}
+      testId="wl-trigger-output-list"
+    />
   )
 }

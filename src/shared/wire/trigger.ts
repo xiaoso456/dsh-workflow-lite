@@ -92,6 +92,8 @@ export interface TriggerView {
   since?: number
   /** 监听程序最近打出的一行与时刻（画布卡片上显示）。 */
   line?: { at: number; text: string }
+  /** 监听程序最近一次记下输出（标准输出、错误输出都算）的时刻；最近的输出跟着它重读。 */
+  output?: number
   /** 要运行的命令（轮询、监听）已经在本机确认过、而且之后没改过。 */
   approved?: boolean
   /** HTTP 触发：地址与令牌（打开过开关之后才有）。 */
@@ -244,14 +246,94 @@ export interface TriggerDetailResponse {
   merged?: number
 }
 
+/** 最近的输出里一行的长度上限（字符）；再长的截断，记下原来多大。 */
+export const OUTPUT_LINE_MAX_CHARS = 2000
+
+/**
+ * 最近的输出里的一条：轮询的一次检查（连着结果和输出都一样的几次合成一条），或监听程序的一次运行（启动到退出）。
+ * - `met` / `unmet` / `fail`：检查触发了、条件不满足、命令没跑成；
+ * - `running` / `exited` / `stopped`：程序在跑、自己退出了、被停下（关了开关、改了设置、DSH 退出）；
+ *   启动不了、找不到命令的那次是 `fail`。
+ */
+export type OutputVerdict = 'met' | 'unmet' | 'fail' | 'running' | 'exited' | 'stopped'
+
+export interface OutputEntry {
+  /** 编号（读这一条的输出用）。 */
+  id: number
+  kind: 'check' | 'run'
+  /** 检查的时刻（合成的是最早那次）、程序启动的时刻。 */
+  at: number
+  /** 合成的检查：最近那次的时刻（展开看到的是那一次的输出）。 */
+  last?: number
+  /** 程序退出、被停下的时刻。 */
+  end?: number
+  verdict: OutputVerdict
+  /** 退出码；没退出（超时被结束、被信号结束、还在跑）是 `null`。 */
+  code: number | null
+  /** 给人看的一句：没跑成的原因、程序退出的说法、「第一次检查，只记下输出」。 */
+  note?: string
+  /** 检查用了多久（毫秒）。 */
+  ms?: number
+  /** 存着几行输出。 */
+  lines: number
+  /** 合成了几次（多于一次才有）。 */
+  count?: number
+  /** 一眼看的那一行：检查是输出的第一行，运行是最后一行；没有输出是空串。 */
+  preview: string
+}
+
+/** 「全部 / 触发 / 没跑成」三档。 */
+export type OutputFilter = 'all' | 'met' | 'fail'
+
 export interface TriggerOutputRequest {
   workflow: string
   node: string
+  /** 缺省 `all`。 */
+  filter?: OutputFilter
+  /** 最多给几条，缺省、最多见宿主。 */
+  limit?: number
 }
 
-/** 轮询命令、监听程序最近的输出（负责触发的进程写下的）；还没有是空串。 */
+/** 轮询命令、监听程序最近的输出：一条一条，新的在前（只有摘要，每条的输出另读）。 */
 export interface TriggerOutputResponse {
+  entries: OutputEntry[]
+  /** 各档有几次（合成的按次数算），筛选分段上的数。 */
+  counts: Record<OutputFilter, number>
+  /** 按筛选还有更多没给。 */
+  more: boolean
+  /** 更早的输出因为超过保留行数丢掉过（清空之后重新算）。 */
+  dropped: boolean
+  /** 现在每张卡片保留多少行（插件设置）。 */
+  keep: number
+}
+
+export interface OutputLine {
+  at: number
+  stream: 'out' | 'err'
   text: string
+  /** 连着一模一样的这一行打了几次（多于一次才有）。 */
+  repeat?: number
+  /** 截断了：原来这一行多少字节。 */
+  size?: number
+}
+
+export interface TriggerOutputLinesRequest {
+  workflow: string
+  node: string
+  /** 读哪几条（{@link OutputEntry.id}）。 */
+  entries: number[]
+  /** 每条只要最后几行；不给是全部。 */
+  tail?: number
+}
+
+export interface TriggerOutputLinesResponse {
+  /** 按请求的顺序；已经被挤掉、清空了的不给。 */
+  entries: { id: number; total: number; lines: OutputLine[] }[]
+}
+
+export interface TriggerOutputClearRequest {
+  workflow: string
+  node: string
 }
 
 /**

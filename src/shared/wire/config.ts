@@ -16,6 +16,7 @@ export const PLUGIN_CONFIG_KEYS = [
   'triggerPort',
   'triggerHost',
   'triggerShell',
+  'triggerOutputLines',
 ] as const
 export type PluginConfigKey = (typeof PLUGIN_CONFIG_KEYS)[number]
 
@@ -30,7 +31,12 @@ export interface PluginConfigValues {
   triggerHost: string
   /** 轮询、监听默认用的 shell（程序的完整路径）；空串 = 系统的。 */
   triggerShell: string
+  /** 轮询、监听最近的输出每张卡片最多留几行。 */
+  triggerOutputLines: number
 }
+
+/** 最近的输出每张卡片留几行：能填的范围和缺省。 */
+export const OUTPUT_LINES = { min: 20, max: 5000, fallback: 300 } as const
 
 /** 本机一块网卡的 IPv4 地址（设置页列出来给人选监听地址）。 */
 export interface ListenInterface {

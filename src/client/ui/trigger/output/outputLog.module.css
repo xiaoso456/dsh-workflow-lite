@@ -1,0 +1,426 @@
+/*
+ * dsh-workflow-lite — 最近的输出：工具条（OutputTools）与列表（OutputList）。
+ * 一次检查（或程序的一次运行）一行：箭头 | 时刻 | 结果 | 一眼看的那一行 | 合成次数、退出码或时长；展开的输出缩进到「结果」那一列。
+ */
+
+/* ── 工具条 ── */
+.tools {
+  display: inline-flex;
+  flex: none;
+  gap: 2px;
+  align-items: center;
+}
+
+.sep {
+  width: 1px;
+  height: 16px;
+  margin: 0 5px;
+  background: var(--wl-line-strong);
+}
+
+.tool {
+  color: var(--wl-text-3);
+  transition:
+    scale 160ms var(--wl-ease-sheet),
+    color 120ms linear,
+    background-color 120ms linear;
+}
+
+.tool[aria-pressed="true"] {
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+}
+
+/* 「显示错误输出」：开着时琥珀色，和错误输出前的竖条一个颜色。 */
+.tool[data-tone="warn"][aria-pressed="true"] {
+  background: var(--wl-warn-soft);
+  color: var(--wl-warn);
+}
+
+/* ── 列表 ── */
+.list {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 6px 6px 10px;
+  overflow: auto;
+  scrollbar-width: thin;
+}
+
+.row {
+  --c: var(--wl-text-3);
+  border-radius: calc(8px * var(--wl-round, 1));
+}
+
+.row[hidden],
+.body[hidden],
+.line[hidden],
+.empty[hidden],
+.tail[hidden],
+.list [hidden] {
+  display: none;
+}
+
+.row[data-v="met"] {
+  --c: var(--wl-ok);
+}
+
+.row[data-v="fail"] {
+  --c: var(--wl-danger);
+}
+
+.row[data-v="run"] {
+  --c: var(--wl-accent);
+}
+
+.head {
+  display: grid;
+  grid-template-columns: 12px 44px 84px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  height: 30px;
+  padding: 0 8px 0 6px;
+  border: 0;
+  border-radius: calc(8px * var(--wl-round, 1));
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: var(--wl-fs-meta);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms linear;
+}
+
+/*
+ * 行头、文字链接不跟通用按钮一起按下缩小：点了是展开 / 复制，反馈在展开和换字上，一整行缩一下只会让字晃。
+ * 写成 `button.x`：通用规则 `:where(...):not(:disabled, …):active` 的权重是 0,2,0，要比它高一点。
+ */
+button.head:active,
+button.link:active {
+  scale: none;
+}
+
+.head:hover,
+.row[data-open] > .head {
+  background: var(--wl-hover);
+}
+
+.head:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: -2px;
+}
+
+.chev {
+  display: inline-flex;
+  color: var(--wl-text-3);
+  transition: transform 160ms var(--wl-ease);
+}
+
+.row[data-open] .chev {
+  transform: rotate(90deg);
+}
+
+.time {
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+  white-space: nowrap;
+}
+
+.verdict {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text-2);
+  white-space: nowrap;
+}
+
+.verdict::before {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--c);
+  content: "";
+}
+
+.row[data-v="met"] .verdict {
+  color: var(--wl-ok);
+  font-weight: 600;
+}
+
+.row[data-v="fail"] .verdict {
+  color: var(--wl-danger);
+  font-weight: 600;
+}
+
+.row[data-v="run"] .verdict {
+  color: var(--wl-accent-text);
+  font-weight: 600;
+}
+
+.preview {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text-2);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.end {
+  display: inline-flex;
+  gap: 10px;
+  align-items: center;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  white-space: nowrap;
+}
+
+/* 一次运行的时长（「运行 21 分」）。 */
+.span {
+  font-variant-numeric: tabular-nums;
+}
+
+.merged {
+  padding: 0 6px;
+  border-radius: calc(9px * var(--wl-round, 1));
+  background: var(--wl-fill);
+  color: var(--wl-text-2);
+  font-family: var(--wl-mono);
+  line-height: 17px;
+}
+
+/* 退出码：描边小标；非零琥珀色；没退出的不描边。 */
+.code {
+  padding: 0 6px;
+  border-radius: calc(5px * var(--wl-round, 1));
+  box-shadow: inset 0 0 0 1px var(--wl-line-strong);
+  line-height: 17px;
+}
+
+.code[data-tone="bad"] {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--wl-warn) 45%, transparent);
+  color: var(--wl-warn);
+}
+
+.code[data-tone="none"] {
+  padding: 0;
+  box-shadow: none;
+}
+
+/* ── 展开的输出 ── */
+.body {
+  /* 竖线和行头的时刻左对齐（箭头 12 + 间距 8 + 行头左边距 6），省出来的地方给输出。 */
+  margin: 2px 0 6px 26px;
+  padding: 6px 10px 6px 12px;
+  border-left: 1px solid var(--wl-line-strong);
+}
+
+.meta {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  margin-bottom: 4px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+.metaText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.acts {
+  display: inline-flex;
+  flex: none;
+  gap: 12px;
+  align-items: baseline;
+  margin-left: auto;
+}
+
+.count {
+  font-variant-numeric: tabular-nums;
+}
+
+.link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--wl-accent-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+.link:disabled {
+  color: var(--wl-text-3);
+  text-decoration: none;
+  cursor: default;
+}
+
+.link:focus-visible {
+  border-radius: calc(3px * var(--wl-round, 1));
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 2px;
+}
+
+/* 「复制 / 已复制」按宽的那个占位，换字时右边不挪。 */
+.swap {
+  display: inline-grid;
+}
+
+.swap::after {
+  height: 0;
+  overflow: hidden;
+  content: attr(data-text);
+  visibility: hidden;
+}
+
+.lines {
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+  line-height: 19px;
+}
+
+.line {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  color: var(--wl-text);
+}
+
+.ts {
+  flex: none;
+  color: var(--wl-text-3);
+}
+
+.text {
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.cut,
+.repeat {
+  flex: none;
+  color: var(--wl-text-3);
+  white-space: nowrap;
+}
+
+.repeat {
+  padding: 0 6px;
+  border-radius: calc(9px * var(--wl-round, 1));
+  background: var(--wl-fill);
+  line-height: 17px;
+}
+
+/* 不换行：一行一行好扫，超长的省略（展开的那块左右不滚）。 */
+.list[data-wrap="false"] .text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: pre;
+}
+
+/* 错误输出：淡色，前面一道琥珀色竖条；关掉「显示错误输出」就藏起来。 */
+.line[data-s="err"] {
+  color: var(--wl-text-3);
+}
+
+.line[data-s="err"]::before {
+  flex: none;
+  /* 换行时停在第一行（行高 19、竖条 11，上下各空 4）。 */
+  align-self: flex-start;
+  margin-top: 4px;
+  width: 2px;
+  height: 11px;
+  margin-right: -3px;
+  background: var(--wl-warn);
+  content: "";
+  opacity: 0.6;
+}
+
+.list[data-err="false"] .line[data-s="err"] {
+  display: none;
+}
+
+/* ── 空、底下的说明 ── */
+.empty {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  padding: 16px 24px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+  text-align: center;
+}
+
+.empty > svg {
+  margin-bottom: 4px;
+  opacity: 0.7;
+}
+
+.emptyTitle {
+  color: var(--wl-text-2);
+  font-weight: 600;
+}
+
+.tail {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 8px 8px 0;
+  padding: 6px 10px;
+  border-radius: calc(7px * var(--wl-round, 1));
+  background: var(--wl-fill);
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+.tail > svg {
+  flex: none;
+}
+
+.tail > .link {
+  margin-left: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chev,
+  .head,
+  .tool {
+    transition: none;
+  }
+}
+
+/* 瑞士：行只留底线，小标去圆角（圆角已乘 --wl-round），说明条去底色压上线。 */
+:global([data-look="swiss"]) .head {
+  border-bottom: 1px solid var(--wl-line);
+}
+
+:global([data-look="swiss"]) .tail {
+  border-top: 1px solid var(--wl-text);
+  background: transparent;
+}
+
+:global([data-look="swiss"]) .tool[aria-pressed="true"] {
+  background: var(--wl-text);
+  color: var(--wl-panel);
+}
+
+:global([data-look="swiss"]) .tool[data-tone="warn"][aria-pressed="true"] {
+  background: var(--wl-warn);
+  color: var(--wl-panel);
+}

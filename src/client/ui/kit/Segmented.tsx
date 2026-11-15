@@ -21,10 +21,13 @@ export function Segmented<V extends string>(props: {
   disabled?: boolean
   /** 每格的 `data-testid` 是 `${testId}-${value}`。 */
   testId?: string
+  /** 不铺底、只描一圈线（放在深色的输出台这类底子上，灰底太跳）。 */
+  plain?: boolean
 }): React.JSX.Element {
   return (
     <div
       className={css.seg}
+      data-plain={props.plain === true || undefined}
       role="radiogroup"
       aria-label={props.label}
       aria-disabled={props.disabled === true ? true : undefined}

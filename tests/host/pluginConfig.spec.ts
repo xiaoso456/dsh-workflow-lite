@@ -22,6 +22,7 @@ const DEFAULTS: PluginConfigValues = {
   triggerPort: 3791,
   triggerHost: '127.0.0.1',
   triggerShell: '',
+  triggerOutputLines: 300,
 }
 
 /** 一个最小的设置服务：一行 `workflow-lite`，`user` 层就是改过的那几项。 */

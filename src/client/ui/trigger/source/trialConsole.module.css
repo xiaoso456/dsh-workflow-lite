@@ -187,3 +187,8 @@
 :global([data-look="swiss"]) .badge {
   border-radius: 0;
 }
+
+/* 「最近的输出」：列表自带滚动，这里只收一点边。 */
+.recent {
+  padding: 4px 4px 8px;
+}
