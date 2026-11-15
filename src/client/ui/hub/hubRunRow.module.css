@@ -74,8 +74,10 @@
   min-width: 0;
 }
 
+/* 和工作流中心各页左栏的条目名同号（12px）。 */
 .name {
   overflow: hidden;
+  font-size: var(--wl-fs-meta);
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;

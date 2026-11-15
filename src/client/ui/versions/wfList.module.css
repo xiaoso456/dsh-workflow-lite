@@ -103,8 +103,10 @@
   min-width: 0;
 }
 
+/* 条目名和分组标题同号（12px），靠字重、字色和下面 11px 的灰字分层次。 */
 .wfName {
   overflow: hidden;
+  font-size: var(--wl-fs-meta);
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;

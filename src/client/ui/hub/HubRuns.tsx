@@ -271,7 +271,7 @@ function WorkspaceRuns(props: {
       <div className={hub.wfHead}>
         <div className={hub.wfHeadText}>
           <p className={cx(hub.wfTitle, css.wsTitle)}>
-            <span className={wf.wfName}>
+            <span className={css.wsTitleName}>
               {workspace.path === undefined ? t('hub.noWorkspace') : workspace.name}
             </span>
             {workspace.here && <span className={hub.tag}>{t('hub.here')}</span>}
