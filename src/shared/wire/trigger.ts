@@ -207,6 +207,27 @@ export interface TriggerHistoryResponse {
   fires: FireRecord[]
 }
 
+/** 一张卡片一段时间里触发了多少次（「触发」页概览的数和节律）。 */
+export interface TriggerActivityRequest {
+  workflow: string
+  node: string
+  /** 从什么时候起（epoch 毫秒）；到现在为止。 */
+  since: number
+}
+
+/** 一格时间（15 分钟）里某种结果的次数。 */
+export interface TriggerActivitySlot {
+  /** 这一格的开始（epoch 毫秒）。 */
+  at: number
+  outcome: FireOutcome
+  count: number
+}
+
+export interface TriggerActivityResponse {
+  /** 从早到晚；一次都没有的格子不给。 */
+  slots: TriggerActivitySlot[]
+}
+
 export interface TriggerDetailRequest {
   /** 触发编号（记录的 `id`）。 */
   fire: string

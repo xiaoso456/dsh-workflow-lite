@@ -314,6 +314,22 @@ export function cloneTriggerData(data: TriggerData): TriggerData {
   return canonicalTrigger(data)
 }
 
+/**
+ * 改触发卡片的几项：给了的键换掉，值为 `undefined` 的键清掉；改完和原来一样回 `null`。
+ * 不在这里规范化（正在打的名称、说明里的空格要留着），写盘时再取形。画布的编辑、工作流中心「触发」页的改动共用。
+ */
+export function patchTriggerData(
+  data: TriggerData,
+  patch: Partial<TriggerData>,
+): TriggerData | null {
+  const merged: Record<string, unknown> = { ...data, ...patch }
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === undefined) delete merged[key]
+  }
+  const next = merged as unknown as TriggerData
+  return JSON.stringify(next) === JSON.stringify(data) ? null : next
+}
+
 // ─────────────────────────────────────────────────────────────
 // 补上缺省值
 // ─────────────────────────────────────────────────────────────

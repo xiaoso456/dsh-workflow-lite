@@ -13,9 +13,10 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
-import { afterMatches, afterWhen, type FinishedStatus } from '../../../../shared/trigger.ts'
+import { afterWhen } from '../../../../shared/trigger.ts'
 import type { AfterWhen, TriggerSource } from '../../../../shared/types.ts'
 import type { LocaleKey, T } from '../../../i18n.ts'
+import { AFTER_VERDICT_TEXT, afterVerdict } from '../../../model/afterRuns.ts'
 import { momentText } from '../../../model/triggerText.ts'
 import { useConfirm } from '../../kit/Confirm.tsx'
 import { cx } from '../../kit/cx.ts'
@@ -41,11 +42,6 @@ const RESULTS: readonly { value: AfterWhen; label: LocaleKey; line: 'pass' | 'fa
     { value: 'failed', label: 'trigger.afterWhen.failed', line: 'fail' },
     { value: 'any', label: 'trigger.afterWhen.any', line: 'always' },
   ]
-
-const FINISHED: readonly string[] = ['done', 'failed', 'cancelled'] satisfies FinishedStatus[]
-
-const finishedOf = (run: RunBrief): FinishedStatus | null =>
-  run.status !== undefined && FINISHED.includes(run.status) ? (run.status as FinishedStatus) : null
 
 /** 换结果：「成功时」是缺省，不写进图。 */
 function withWhen(source: After, when: AfterWhen): After {
@@ -206,14 +202,8 @@ function RunList(props: {
   return (
     <ul className={css.runs} data-testid="wl-trigger-after-runs">
       {runs.map((run) => {
-        const finished = finishedOf(run)
-        const fires = finished !== null && afterMatches(source, finished)
-        const verdict: LocaleKey =
-          finished === null
-            ? 'trigger.afterRunOpen'
-            : fires
-              ? 'trigger.afterRunFires'
-              : 'trigger.afterRunSkips'
+        const verdict = afterVerdict(source, run)
+        const fires = verdict === 'fires'
         return (
           <li key={run.id} className={css.run} data-fires={fires}>
             <span className={css.dot} data-status={run.status} />
@@ -223,7 +213,7 @@ function RunList(props: {
             </span>
             <span className={css.runVerdict}>
               {fires && <Icon name="bolt" size={11} />}
-              {t(verdict)}
+              {t(AFTER_VERDICT_TEXT[verdict])}
             </span>
           </li>
         )

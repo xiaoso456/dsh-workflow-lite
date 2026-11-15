@@ -8,9 +8,13 @@
  */
 
 import { createContext, useContext } from 'react'
-import type { RunStatus } from '../../../shared/runState.ts'
+import type { GraphListResponse } from '../../../shared/wire/graph.ts'
+import type { SessionRow } from '../../app/sessions.ts'
 import type { ShellAccess } from '../../app/shells.ts'
 import type { Triggers } from '../../app/useTriggers.ts'
+import type { RunBrief } from '../../app/workflowRuns.ts'
+
+export type { RunBrief } from '../../app/workflowRuns.ts'
 
 /** 可以选的一个会话。 */
 export interface SessionChoice {
@@ -25,19 +29,6 @@ export interface WorkflowChoice {
   runState: boolean
   /** 图里有几张卡片。 */
   nodes: number
-}
-
-/** 每个工作流最多列几次执行。 */
-export const RECENT_RUNS = 6
-
-/** 一个工作流的一次执行（一个实例）。 */
-export interface RunBrief {
-  /** 实例 id。 */
-  id: string
-  /** 状态文件里写的；读不出来是 `undefined`。 */
-  status?: RunStatus
-  /** 最后一次更新的时刻。 */
-  at: number
 }
 
 /** 面板里打开开关前要补的一项。 */
@@ -60,7 +51,7 @@ export interface TriggerEnv {
   sessions: readonly SessionChoice[]
   /** 接续触发能等的工作流（除了这一张之外的全部）。 */
   workflows: readonly WorkflowChoice[]
-  /** 各工作流最近的几次执行（按工作流名，新的在前，每个最多 {@link RECENT_RUNS} 个）；读不到是空的。 */
+  /** 各工作流最近的几次执行（按工作流名，新的在前，每个最多几个，见 `app/workflowRuns.ts`）；读不到是空的。 */
   recentRuns(): Promise<ReadonlyMap<string, readonly RunBrief[]>>
   /** 在另一个工作流的设置里打开「记录运行状态」（接续触发要靠它）；打不开回一句原因。 */
   enableRunState(workflow: string): Promise<string | null>
@@ -82,6 +73,38 @@ export interface TriggerEnv {
   openRun(instance: string): void
   /** 到工作流中心「触发」页看这张卡片的全部触发记录。 */
   openHistory(node: string): void
+}
+
+/** 已知的工作区：这个会话的排最前，其余按侧栏里会话的顺序，去重。 */
+export function knownWorkspaces(rows: readonly SessionRow[], cwd: string | undefined): string[] {
+  const seen = new Set<string>()
+  if (cwd !== undefined && cwd !== '') seen.add(cwd)
+  for (const row of rows) {
+    if (!row.subagent && row.cwd !== undefined && row.cwd !== '') seen.add(row.cwd)
+  }
+  return [...seen]
+}
+
+/** 可以选作「固定会话」的会话（子代理的不算）。 */
+export function sessionChoices(rows: readonly SessionRow[]): SessionChoice[] {
+  return rows
+    .filter((row) => !row.subagent)
+    .map((row) => ({ id: row.id, title: row.title === '' ? row.id : row.title }))
+}
+
+/** 接续触发能等的工作流：不含 `self`（等自己跑完会一直触发自己），按名称排。 */
+export function workflowChoices(
+  catalog: GraphListResponse | null,
+  self: string | null,
+): WorkflowChoice[] {
+  return (catalog?.workflows ?? [])
+    .filter((entry) => entry.name !== self)
+    .map((entry) => ({
+      name: entry.name,
+      runState: entry.runState === true,
+      nodes: entry.nodeCount,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name))
 }
 
 export const TriggerContext = createContext<TriggerEnv | null>(null)

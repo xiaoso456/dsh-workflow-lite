@@ -3,12 +3,12 @@
  *
  * 触发卡片的定义在图里（跟着工作流导出、进版本）；这里放的是这台机器上的事，都在 `<dataDir>/triggers/` 下：
  * - `state.json`：每张卡片的开关、选定的工作区和会话、下一次触发的时刻、连续失败次数；
- * - `history.json`：触发记录（最近 {@link HISTORY_MAX} 条）；
- * - `fires/<触发编号>.json`：一次触发的全部（触发说明、背景信息的原文），模型开始执行时实例据此记下来源；
- *   背景信息太长时另存一份 `fires/<触发编号>.txt`，消息里只放开头和这个文件的路径；
+ * - `fires/<触发编号>.txt`：背景信息太长时另存的全文，发进会话的消息里只放开头和这个文件的路径；
  * - `owner.json`：现在由哪个 DSH 进程负责触发（见 `owner.ts`）；
  * - `live.json`：负责的进程写下的运行情况（程序在不在跑、上次检查、端口开没开），别的进程据此显示状态；
  * - `output/<记号>.log`：轮询命令、监听程序最近的输出。
+ *
+ * 触发记录（连同每次的触发说明、背景信息）在插件数据库里，见 {@link FireLog}。
  *
  * 同一个数据目录可能有几个 DSH 进程在用：到点触发只有负责的那个做，但开关、「立即触发一次」哪个进程都能改。
  * 所以每次修改都现读现写（进程内排队 + 原子写），不在内存里留副本。
@@ -18,15 +18,14 @@
 
 import { createHash, randomBytes } from 'node:crypto'
 import { join } from 'node:path'
-import { FIRE_CHANNELS, isFireId } from '../../shared/trigger.ts'
-import type { FireOutcome, FireRecord } from '../../shared/wire/trigger.ts'
+import type { FireRecord, TriggerActivitySlot } from '../../shared/wire/trigger.ts'
 import { ensureDir, readFileText, unlinkFile, writeFileAtomic } from '../store/atomic.ts'
+import type { PluginDatabase } from '../store/database.ts'
+import { type FireDetail, FireLog } from './fireLog.ts'
 import type { HookPortState } from './hooks.ts'
 import type { Probe } from './poller.ts'
 
 export const TRIGGERS_DIR = 'triggers'
-/** 触发记录留多少条。 */
-export const HISTORY_MAX = 200
 /** 背景信息超过这么多字符就另存成文本文件，消息里只放开头。 */
 export const INFO_INLINE_CHARS = 4000
 
@@ -40,14 +39,6 @@ export function ownerFile(dataDir: string): string {
 
 function stateFile(dataDir: string): string {
   return join(triggersDir(dataDir), 'state.json')
-}
-
-function historyFile(dataDir: string): string {
-  return join(triggersDir(dataDir), 'history.json')
-}
-
-function fireFile(dataDir: string, id: string): string {
-  return join(triggersDir(dataDir), 'fires', `${id}.json`)
 }
 
 /** 一次触发的背景信息全文（太长时才有）。 */
@@ -125,15 +116,7 @@ export function approvalOf(command: string, workspace: string | undefined, shell
 /** 工作流名 → 卡片 id → 状态。 */
 export type TriggerLocals = Record<string, Record<string, TriggerLocal>>
 
-/** 一次触发的全部：记录 + 那一刻的触发说明、触发条件与背景信息。 */
-export interface FireDetail {
-  record: FireRecord
-  note?: string
-  condition?: string
-  info?: string
-  /** 合并窗口里并进来了几次（多于一次才写）。 */
-  merged?: number
-}
+export type { FireDetail }
 
 /** 负责的进程写下的一张卡片的运行情况。 */
 export interface LiveStatus {
@@ -230,61 +213,15 @@ function readLocals(source: string | null): TriggerLocals {
   return locals
 }
 
-const OUTCOMES: readonly FireOutcome[] = ['sent', 'skipped', 'failed']
-
-function readFire(raw: unknown): FireRecord | null {
-  if (!isRecord(raw)) return null
-  const channel = FIRE_CHANNELS.find((candidate) => candidate === raw.channel)
-  const outcome = OUTCOMES.find((candidate) => candidate === raw.outcome)
-  const { id, workflow, node, name, at } = raw
-  if (
-    !isFireId(id) ||
-    typeof workflow !== 'string' ||
-    typeof node !== 'string' ||
-    typeof name !== 'string' ||
-    typeof at !== 'number' ||
-    channel === undefined ||
-    outcome === undefined
-  ) {
-    return null
-  }
-  const reason = text(raw.reason)
-  const session = text(raw.session)
-  const instance = text(raw.instance)
-  const declined = text(raw.declined)
-  return {
-    id,
-    workflow,
-    node,
-    name,
-    channel,
-    at,
-    outcome,
-    ...(reason === undefined ? {} : { reason }),
-    ...(session === undefined ? {} : { session }),
-    ...(instance === undefined ? {} : { instance }),
-    ...(declined === undefined ? {} : { declined }),
-  }
-}
-
-function readFires(source: string | null): FireRecord[] {
-  if (source === null) return []
-  try {
-    const raw: unknown = JSON.parse(source)
-    if (!isRecord(raw) || !Array.isArray(raw.fires)) return []
-    return raw.fires.map(readFire).filter((fire): fire is FireRecord => fire !== null)
-  } catch {
-    return []
-  }
-}
-
 /** 触发器本机状态的读写。写一律现读现改现写，进程内排队。 */
 export class TriggerStore {
   private chain: Promise<unknown> = Promise.resolve()
   private readonly dataDir: () => string
+  private readonly log: FireLog
 
-  constructor(dataDir: () => string) {
+  constructor(dataDir: () => string, database: PluginDatabase) {
     this.dataDir = dataDir
+    this.log = new FireLog(database)
   }
 
   private queued<T>(task: () => Promise<T>): Promise<T> {
@@ -318,38 +255,51 @@ export class TriggerStore {
     })
   }
 
-  // ── 触发记录 ───────────────────────────────────────────────
+  // ── 触发记录（插件数据库里，见 FireLog）────────────────────
 
-  /** 触发记录，旧的在前。 */
-  async fires(): Promise<FireRecord[]> {
-    return readFires(await readFileText(historyFile(this.dataDir())))
+  /** 记一次触发（连同那一刻的触发说明与背景信息）；背景信息太长时另存全文。 */
+  async record(detail: FireDetail): Promise<void> {
+    const dataDir = this.dataDir()
+    const long = detail.info !== undefined && detail.info.length > INFO_INLINE_CHARS
+    if (long) {
+      await ensureDir(join(triggersDir(dataDir), 'fires'))
+      await writeFileAtomic(fireInfoFile(dataDir, detail.record.id), detail.info ?? '')
+    }
+    this.log.record(detail, long)
   }
 
-  /** 记一次触发（连同那一刻的触发说明与背景信息）；超出条数的旧记录连同它们的文件一起删。 */
-  record(detail: FireDetail): Promise<void> {
-    return this.queued(async () => {
-      const dataDir = this.dataDir()
-      await ensureDir(join(triggersDir(dataDir), 'fires'))
-      await writeFileAtomic(
-        fireFile(dataDir, detail.record.id),
-        `${JSON.stringify(detail, null, 2)}\n`,
-      )
-      if (detail.info !== undefined && detail.info.length > INFO_INLINE_CHARS) {
-        await writeFileAtomic(fireInfoFile(dataDir, detail.record.id), detail.info)
-      }
-      const fires = [...readFires(await readFileText(historyFile(dataDir))), detail.record]
-      const dropped = fires.splice(0, Math.max(0, fires.length - HISTORY_MAX))
-      await writeFileAtomic(
-        historyFile(dataDir),
-        `${JSON.stringify({ format: 1, fires }, null, 2)}\n`,
-      )
-      await Promise.all(
-        dropped.flatMap((fire) => [
-          unlinkFile(fireFile(dataDir, fire.id)),
-          unlinkFile(fireInfoFile(dataDir, fire.id)),
-        ]),
-      )
-    })
+  /** 一张卡片最近一次触发。 */
+  async last(workflow: string, node: string): Promise<FireRecord | undefined> {
+    return this.log.last(workflow, node)
+  }
+
+  /** 最近 `limit` 次，新的在前；不给卡片就是这个工作流所有卡片的。 */
+  async history(workflow: string, node: string | undefined, limit: number): Promise<FireRecord[]> {
+    return this.log.recent(workflow, node, limit)
+  }
+
+  /** `since` 之后这张卡片发出去了几次。 */
+  async sentSince(workflow: string, node: string, since: number): Promise<number> {
+    return this.log.sentSince(workflow, node, since)
+  }
+
+  /** 这个会话里、`since` 以来发进去了还没对上实例的最早一次。 */
+  async unclaimed(
+    workflow: string,
+    session: string,
+    since: number,
+  ): Promise<FireRecord | undefined> {
+    return this.log.unclaimed(workflow, session, since)
+  }
+
+  /** 这张卡片 `since` 到 `until` 每一小格各种结果几次。 */
+  async activity(
+    workflow: string,
+    node: string,
+    since: number,
+    until: number,
+  ): Promise<TriggerActivitySlot[]> {
+    return this.log.activity(workflow, node, since, until)
   }
 
   /** 一次触发的背景信息全文另存在哪（太长时才写这个文件）。 */
@@ -357,64 +307,19 @@ export class TriggerStore {
     return fireInfoFile(this.dataDir(), id)
   }
 
-  /** 一次触发的全部；编号不对、文件不在是 `null`。 */
+  /** 一次触发的全部；编号不对、记录不在是 `null`。 */
   async detail(id: string): Promise<FireDetail | null> {
-    if (!isFireId(id)) return null
-    const source = await readFileText(fireFile(this.dataDir(), id))
-    if (source === null) return null
-    try {
-      const raw: unknown = JSON.parse(source)
-      if (!isRecord(raw)) return null
-      const record = readFire(raw.record)
-      if (record === null) return null
-      const note = text(raw.note)
-      const condition = text(raw.condition)
-      const info = text(raw.info)
-      const merged = whole(raw.merged)
-      return {
-        record,
-        ...(note === undefined ? {} : { note }),
-        ...(condition === undefined ? {} : { condition }),
-        ...(info === undefined ? {} : { info }),
-        ...(merged === undefined || merged < 2 ? {} : { merged }),
-      }
-    } catch {
-      return null
-    }
+    return this.log.detail(id)
   }
 
-  /** 这次触发建出了哪个实例：记进触发记录和它自己的文件。 */
-  bind(id: string, instance: string): Promise<void> {
-    return this.amend(id, { instance })
+  /** 这次触发建出了哪个实例。 */
+  async bind(id: string, instance: string): Promise<void> {
+    this.log.amend(id, { instance })
   }
 
   /** 模型按触发条件判断这次不需要执行：记下它给的原因。 */
-  decline(id: string, reason: string): Promise<void> {
-    return this.amend(id, { declined: reason })
-  }
-
-  /** 给一条触发记录补上后来才知道的事（触发记录和它自己的文件两处都改）。 */
-  private amend(id: string, patch: Pick<FireRecord, 'instance' | 'declined'>): Promise<void> {
-    const differs = (record: FireRecord): boolean =>
-      (patch.instance !== undefined && record.instance !== patch.instance) ||
-      (patch.declined !== undefined && record.declined !== patch.declined)
-    return this.queued(async () => {
-      const dataDir = this.dataDir()
-      const fires = readFires(await readFileText(historyFile(dataDir)))
-      const found = fires.find((fire) => fire.id === id)
-      if (found !== undefined && differs(found)) {
-        Object.assign(found, patch)
-        await writeFileAtomic(
-          historyFile(dataDir),
-          `${JSON.stringify({ format: 1, fires }, null, 2)}\n`,
-        )
-      }
-      const detail = await this.detail(id)
-      if (detail !== null && differs(detail.record)) {
-        Object.assign(detail.record, patch)
-        await writeFileAtomic(fireFile(dataDir, id), `${JSON.stringify(detail, null, 2)}\n`)
-      }
-    })
+  async decline(id: string, reason: string): Promise<void> {
+    this.log.amend(id, { declined: reason })
   }
 
   // ── 运行情况与最近的输出（负责的进程写，谁都能读）─────────────────
@@ -474,13 +379,20 @@ export class TriggerStore {
     })
   }
 
-  /** 工作流改名：开关与设置跟着走。 */
-  rename(from: string, to: string): Promise<void> {
-    return this.update((locals) => {
+  /** 工作流改名：开关、设置和触发记录都跟着走。 */
+  async rename(from: string, to: string): Promise<void> {
+    this.log.rename(from, to)
+    await this.update((locals) => {
       const group = locals[from]
       if (group === undefined) return
       delete locals[from]
       locals[to] = group
     })
+  }
+
+  /** 工作流删掉了：它的触发记录连同另存的全文一起删（开关与设置由对账清掉）。 */
+  async forget(workflow: string): Promise<void> {
+    const files = this.log.forget(workflow)
+    await Promise.all(files.map((id) => unlinkFile(fireInfoFile(this.dataDir(), id))))
   }
 }

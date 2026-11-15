@@ -13,7 +13,7 @@ import {
   sourceIssue,
 } from '../../shared/trigger.ts'
 import { isLoopbackHost } from '../../shared/triggerHttp.ts'
-import type { TriggerSource } from '../../shared/types.ts'
+import type { TriggerSchedule, TriggerSource } from '../../shared/types.ts'
 import type { LocaleKey, T } from '../i18n.ts'
 import { momentText, sourceIssueText } from './triggerText.ts'
 
@@ -39,6 +39,13 @@ export function filterSummary(t: T, filter: FilterSettings): string {
 export function guardSummary(t: T, launch: LaunchSettings): string {
   return [
     t(launch.overlap === 'parallel' ? 'trigger.sum.parallel' : 'trigger.sum.skip'),
+    guardLimits(t, launch),
+  ].join(SEP)
+}
+
+/** 保护里除了「上一次没完怎么办」之外的几项：「每小时最多 12 次 · 连续 3 次失败停用」。 */
+export function guardLimits(t: T, launch: LaunchSettings): string {
+  return [
     launch.maxPerHour === NO_LIMIT
       ? t('trigger.sum.noPerHour')
       : t('trigger.sum.perHour').replace('{n}', String(launch.maxPerHour)),
@@ -93,10 +100,7 @@ export function whenDetail(
   if (issue !== null) return { text: sourceIssueText(t, issue), tone: 'problem' }
   switch (source.kind) {
     case 'schedule': {
-      const at =
-        source.schedule.kind === 'every' && live.next !== undefined
-          ? live.next
-          : nextFire(source.schedule, now)?.getTime()
+      const at = scheduleNext(source.schedule, live.next, now)
       return at === undefined
         ? { text: '', tone: 'plain' }
         : {
@@ -115,6 +119,15 @@ export function whenDetail(
     case 'after':
       return { text: '', tone: 'plain' }
   }
+}
+
+/** 定时下一次在什么时候：「每隔」开着时以宿主排的为准（`live`），别的按规则从 `now` 往后算；排不出来是 `undefined`。 */
+export function scheduleNext(
+  schedule: TriggerSchedule,
+  live: number | undefined,
+  now: Date,
+): number | undefined {
+  return schedule.kind === 'every' && live !== undefined ? live : nextFire(schedule, now)?.getTime()
 }
 
 /** HTTP 触发的地址谁能访问。 */

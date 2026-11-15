@@ -2,7 +2,7 @@
  * dsh-workflow-lite — 工作流中心「触发」页的数据：所有工作流里的触发卡片、全部暂停，以及改开关、立即触发、读触发记录。
  *
  * 和画布上的 `useTriggers.ts` 是同一组开关：这里改了，画布那边下一轮轮询就跟上，反过来也一样。
- * 每隔几秒问一次；页面不可见时停下，回来马上补问一次。读回来的内容没变就交回同一个对象。
+ * 每隔几秒问一次（右栏对话框里要的现场也从这里读，不另起一路轮询）；页面不可见时停下，回来马上补问一次。读回来的内容没变就交回同一个对象。
  *
  * @module @xiaoso/dsh-workflow-lite/client/app/useTriggerHub
  */
@@ -10,8 +10,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type {
   FireRecord,
+  TriggerActivitySlot,
   TriggerAllResponse,
   TriggerDetailResponse,
+  TriggerPingResponse,
+  TriggerTryRequest,
+  TriggerTryResponse,
 } from '../../shared/wire/trigger.ts'
 import { shareSame } from '../model/samePlain.ts'
 import { errorMessage, type WorkflowLiteRpc } from '../rpc.ts'
@@ -23,17 +27,26 @@ export interface TriggerHub {
   list: TriggerAllResponse | null
   /** 最近一次读失败的原因；读成功了就清掉。 */
   error: string | null
+  /** 马上再读一次（改了图里的卡片之后）。 */
+  refresh(): Promise<void>
   /** 改一张卡片的开关、确认命令。改不成回一句原因，改成了回 `null`。 */
   set(workflow: string, node: string, change: TriggerChange): Promise<string | null>
   /** 全部暂停（`true`）或恢复。改不成回一句原因。 */
   pause(paused: boolean): Promise<string | null>
   /** 立即触发一次：回这次的记录；请求本身失败回一句原因。 */
   fire(workflow: string, node: string, info: string): Promise<FireRecord | string>
-  /** 一张卡片的触发记录，新的在前。 */
   /** 一张卡片最近 `limit` 条触发记录，新的在前。 */
   history(workflow: string, node: string, limit: number): Promise<FireRecord[]>
+  /** 一张卡片 `since` 以来每一小格各种结果几次；读不到是空的。 */
+  activity(workflow: string, node: string, since: number): Promise<TriggerActivitySlot[]>
   /** 一次触发那一刻带的触发说明、背景信息；读不到是空的。 */
   detail(fire: string): Promise<TriggerDetailResponse>
+  /** 轮询命令、监听程序最近的输出；读不到是空串。 */
+  output(workflow: string, node: string): Promise<string>
+  /** 「试运行」还没保存的命令；请求本身失败回一句原因。 */
+  tryCommand(request: TriggerTryRequest): Promise<TriggerTryResponse | string>
+  /** HTTP 触发「发一条测试请求」；发不了回一句原因。 */
+  ping(workflow: string, node: string): Promise<TriggerPingResponse | string>
 }
 
 /**
@@ -124,6 +137,17 @@ export function useTriggerHub(rpc: WorkflowLiteRpc, flush: () => Promise<boolean
     [rpc],
   )
 
+  const activity = useCallback(
+    async (workflow: string, node: string, since: number): Promise<TriggerActivitySlot[]> => {
+      try {
+        return (await rpc.call('trigger/activity', { workflow, node, since })).slots
+      } catch {
+        return []
+      }
+    },
+    [rpc],
+  )
+
   const detail = useCallback(
     async (fire: string): Promise<TriggerDetailResponse> => {
       try {
@@ -135,8 +159,59 @@ export function useTriggerHub(rpc: WorkflowLiteRpc, flush: () => Promise<boolean
     [rpc],
   )
 
+  const refresh = useCallback((): Promise<void> => lister.run(undefined), [lister])
+
+  const output = useCallback(
+    async (workflow: string, node: string): Promise<string> => {
+      try {
+        return (await rpc.call('trigger/output', { workflow, node })).text
+      } catch {
+        return ''
+      }
+    },
+    [rpc],
+  )
+
+  const tryCommand = useCallback(
+    async (request: TriggerTryRequest): Promise<TriggerTryResponse | string> => {
+      try {
+        return await rpc.call('trigger/try', request)
+      } catch (reason) {
+        return errorMessage(reason)
+      }
+    },
+    [rpc],
+  )
+
+  const ping = useCallback(
+    async (workflow: string, node: string): Promise<TriggerPingResponse | string> => {
+      try {
+        const response = await rpc.call('trigger/ping', { workflow, node })
+        // 收下了会马上记进触发记录：最近一次跟着变。
+        await lister.run(undefined)
+        return response
+      } catch (reason) {
+        return errorMessage(reason)
+      }
+    },
+    [rpc, lister],
+  )
+
   return useMemo(
-    () => ({ list, error, set, pause, fire, history, detail }),
-    [list, error, set, pause, fire, history, detail],
+    () => ({
+      list,
+      error,
+      refresh,
+      set,
+      pause,
+      fire,
+      history,
+      activity,
+      detail,
+      output,
+      tryCommand,
+      ping,
+    }),
+    [list, error, refresh, set, pause, fire, history, activity, detail, output, tryCommand, ping],
   )
 }

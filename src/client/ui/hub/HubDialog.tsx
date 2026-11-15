@@ -6,7 +6,8 @@
  *   查看、改整体状态、移到本会话、删除记录（状态文件另外问要不要一起删）；
  * - **工作流**（`HubWorkflows.tsx`）：全部工作流，每一行能就地改名、删除；选一张看它的版本——存、切换、改说明、删除，不用先打开它；
  *   导入、导出工作流包也在这一页；
- * - **触发**（`HubTriggers.tsx`）：所有工作流里的触发卡片，行尾开关、触发记录，以及「全部暂停」；
+ * - **触发**（`triggers/HubTriggers.tsx`）：所有工作流里的触发卡片——左栏分组、筛选、行尾开关和「全部暂停」，
+ *   右栏选中那张的状态、概览、时间线、按触发方式的那一页和设置（铅笔打开和画布面板同一个对话框）；
  * - **记忆**（`HubMemories.tsx`）：记忆库里的每一条——名称、描述、在用的工作流、文件和版本，删掉不用的；
  * - **存储**（`HubStorage.tsx`）：数据目录、各样东西的占用，清理已结束的实例与旧版本遗留文件；
  * - **设置**（`HubSettings.tsx`）：插件自己的几项设置（数据目录、步骤上限、自动保存等待……）。
@@ -32,9 +33,9 @@ import { HubMemories } from './HubMemories.tsx'
 import { HubRuns } from './HubRuns.tsx'
 import { HubSettings } from './HubSettings.tsx'
 import { HubStorage } from './HubStorage.tsx'
-import { HubTriggers } from './HubTriggers.tsx'
 import { HubWorkflows } from './HubWorkflows.tsx'
 import css from './hubDialog.module.css'
+import { HubTriggers } from './triggers/HubTriggers.tsx'
 
 type HubPage = 'runs' | 'workflows' | 'triggers' | 'memories' | 'storage' | 'settings'
 const PAGES: readonly HubPage[] = [
@@ -165,7 +166,17 @@ export function HubDialog(props: {
               ? { start: { workflow: props.focus.workflow, node: props.focus.node } }
               : {})}
             flush={props.workflows.flush}
+            current={props.workflows.current}
+            onReload={props.workflows.onReload}
+            onChanged={props.workflows.onChanged}
+            session={props.session}
+            cwd={props.workflows.scope.cwd}
+            sessionRows={props.sessionRows}
             onNotice={props.onNotice}
+            onOpenWorkflow={(name) => {
+              props.workflows.onOpen(name)
+              props.onClose()
+            }}
             onOpenCard={(workflow, node) => {
               props.onOpenCard(workflow, node)
               props.onClose()

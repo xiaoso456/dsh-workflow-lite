@@ -8,16 +8,10 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/trigger/TriggerGlanceRow
  */
 
-import { useMemo } from 'react'
 import type { TriggerView } from '../../../shared/wire/trigger.ts'
-import {
-  endpointPath,
-  pollProgress,
-  readableUrl,
-  type TriggerGlance,
-} from '../../model/triggerGlance.ts'
+import { endpointPath, readableUrl, type TriggerGlance } from '../../model/triggerGlance.ts'
 import { Icon } from '../kit/Icon.tsx'
-import { useLast } from '../motion/swapText.tsx'
+import { CountdownLine } from './CountdownLine.tsx'
 import css from './triggerGlance.module.css'
 
 export function TriggerGlanceRow(props: {
@@ -113,30 +107,13 @@ function PollGlance(props: {
 }): React.JSX.Element {
   const { glance, view } = props
   const next = view?.state === 'waiting' ? view.next : undefined
-  // 只在换了一段（下一次检查变了）时重算起点和时长：中途别的字段变了也不打断动画。
-  const progress = useMemo(
-    () => pollProgress(next, glance.seconds, Date.now()),
-    [next, glance.seconds],
-  )
-  const { n } = useLast(next, 0)
   return (
     <>
       <span className={css.strong}>{glance.every}</span>
       <span className={css.soft} data-push="true">
         {glance.when}
       </span>
-      <span className={css.track} data-run={progress !== null} aria-hidden="true">
-        <span
-          className={css.fill}
-          data-cycle={n % 2 === 0 ? 'a' : 'b'}
-          style={
-            {
-              '--from': progress?.from ?? 0,
-              '--left': `${String(progress?.left ?? 0)}ms`,
-            } as React.CSSProperties
-          }
-        />
-      </span>
+      <CountdownLine next={next} seconds={glance.seconds} />
     </>
   )
 }

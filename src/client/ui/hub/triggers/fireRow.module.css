@@ -1,0 +1,129 @@
+/*
+ * dsh-workflow-lite — 「触发」页里一条触发记录的一行（FireRow.tsx）。行高固定，原因放不下就省略。
+ * 结果小签的颜色：已发出绿、跳过灰、失败红、不需要琥珀；`--c` 也给时间线上的圆圈用。
+ */
+
+.row {
+  --c: var(--wl-ok-dot);
+  --c-text: var(--wl-ok);
+
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 36px;
+  border-radius: var(--wl-r-control);
+  transition: background-color 120ms linear;
+}
+
+.row:hover {
+  background: var(--wl-hover);
+}
+
+.row[data-outcome="skipped"] {
+  --c: var(--wl-text-3);
+  --c-text: var(--wl-text-2);
+}
+
+.row[data-outcome="failed"] {
+  --c: var(--wl-danger);
+  --c-text: var(--wl-danger);
+}
+
+.row[data-outcome="declined"] {
+  --c: var(--wl-warn-dot);
+  --c-text: var(--wl-warn);
+}
+
+.main {
+  display: grid;
+  flex: 1 1 auto;
+  grid-template-columns: var(--fire-time, 74px) 64px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+  height: 100%;
+  padding: 0 10px 0 12px;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: var(--wl-fs-meta);
+  text-align: left;
+  cursor: pointer;
+}
+
+.main:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: -2px;
+}
+
+.time {
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chip {
+  justify-self: start;
+  max-width: 100%;
+  height: 20px;
+  padding: 0 7px;
+  overflow: hidden;
+  border-radius: calc(6px * var(--wl-round, 1));
+  background: color-mix(in srgb, var(--c) 14%, transparent);
+  color: var(--c-text);
+  font-size: var(--wl-fs-micro);
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.what {
+  overflow: hidden;
+  color: var(--wl-text-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.run {
+  display: inline-flex;
+  flex: none;
+  gap: 3px;
+  align-items: center;
+  height: 26px;
+  margin-right: 6px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: calc(6px * var(--wl-round, 1));
+  background: transparent;
+  color: var(--wl-accent-text);
+  font: inherit;
+  font-size: var(--wl-fs-micro);
+  cursor: pointer;
+  transition: background-color 120ms linear;
+}
+
+.run:hover {
+  background: var(--wl-accent-soft);
+}
+
+.run:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: -2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row,
+  .run {
+    transition: none;
+  }
+}
+
+:global([data-look="swiss"]) .chip {
+  border-radius: 0;
+}

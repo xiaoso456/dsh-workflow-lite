@@ -1,0 +1,241 @@
+/*
+ * dsh-workflow-lite — 「触发」页「概览」（OverviewPane.tsx）：四格数、节律、最近几次，以及一次都没触发过时的空状态。
+ * 结果颜色：已发出绿、跳过灰、失败红；定时今天还要触发的是触发方式颜色的虚线圈（`--wl-kind`）。
+ */
+
+.overview {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border: 1px solid var(--wl-line);
+  border-radius: var(--wl-r-card);
+}
+
+.stat {
+  --c: transparent;
+
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  padding: 9px 12px;
+  border-left: 1px solid var(--wl-line);
+}
+
+.stat:first-child {
+  border-left: 0;
+}
+
+.stat[data-outcome="sent"] {
+  --c: var(--wl-ok-dot);
+}
+
+.stat[data-outcome="skipped"] {
+  --c: var(--wl-text-3);
+}
+
+.stat[data-outcome="failed"] {
+  --c: var(--wl-danger);
+}
+
+.statValue {
+  font-size: 18px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+}
+
+.stat[data-outcome="failed"]:not([data-zero]) .statValue {
+  color: var(--wl-danger);
+}
+
+.statLabel {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stat[data-outcome] .statLabel::before {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--c);
+  content: "";
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sectionHead {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 22px;
+}
+
+.sectionTitle {
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-meta);
+  font-weight: 600;
+}
+
+.sectionHead > :last-child:not(:first-child) {
+  margin-left: auto;
+}
+
+.legend {
+  display: flex;
+  gap: 12px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+.legend > span {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+}
+
+.legend > span::before {
+  box-sizing: border-box;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--c);
+  content: "";
+}
+
+/* 节律：左边一列日子，右边 24 格；最下面一行钟点。 */
+.rhythm {
+  display: grid;
+  grid-template-columns: 40px repeat(24, minmax(0, 1fr));
+  gap: 3px 2px;
+  align-items: center;
+  padding: 10px 12px 8px;
+  border: 1px solid var(--wl-line);
+  border-radius: var(--wl-r-card);
+}
+
+.day {
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  white-space: nowrap;
+}
+
+.cell {
+  display: grid;
+  place-items: center;
+  height: 14px;
+  border-radius: calc(3px * var(--wl-round, 1));
+  background: color-mix(in srgb, var(--wl-text) 5%, transparent);
+}
+
+.cell[data-night] {
+  background: color-mix(in srgb, var(--wl-text) 2.5%, transparent);
+}
+
+.cell[data-now] {
+  box-shadow: inset 0 0 0 1px var(--wl-accent);
+}
+
+.mark,
+.legend > span {
+  --c: var(--wl-ok-dot);
+}
+
+.mark {
+  box-sizing: border-box;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--c);
+}
+
+.mark[data-many] {
+  width: 10px;
+  height: 10px;
+}
+
+[data-outcome="skipped"].mark,
+.legend > [data-outcome="skipped"] {
+  --c: var(--wl-text-3);
+}
+
+[data-outcome="failed"].mark,
+.legend > [data-outcome="failed"] {
+  --c: var(--wl-danger);
+}
+
+[data-outcome="plan"].mark,
+.legend > [data-outcome="plan"]::before {
+  border: 1.5px dashed var(--wl-kind);
+  background: transparent;
+}
+
+.axis {
+  color: var(--wl-text-3);
+  font-family: var(--wl-mono);
+  font-size: 10px;
+}
+
+.recent {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 2px;
+  list-style: none;
+  border: 1px solid var(--wl-line);
+  border-radius: var(--wl-r-card);
+}
+
+.link {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--wl-accent-text);
+  font: inherit;
+  font-size: var(--wl-fs-micro);
+  cursor: pointer;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+.link:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 2px;
+}
+
+/* 一次都没触发过：「最近」框里一句话。 */
+.none {
+  padding: 8px 10px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+}
+
+/* 瑞士：格子、框去圆角，框只留上下线。 */
+:global([data-look="swiss"]) .stats,
+:global([data-look="swiss"]) .rhythm,
+:global([data-look="swiss"]) .recent {
+  border-width: 1px 0;
+  border-top-color: var(--wl-text);
+}

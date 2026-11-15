@@ -12,7 +12,12 @@
 import { useEffect, useState } from 'react'
 import type { TriggerEndpoint, TriggerPingResponse } from '../../../../shared/wire/trigger.ts'
 import type { T } from '../../../i18n.ts'
-import { SNIPPET_LANGS, type SnippetLang, snippetOf } from '../../../model/httpSnippets.ts'
+import {
+  SNIPPET_LANGS,
+  SNIPPET_NAME,
+  type SnippetLang,
+  snippetOf,
+} from '../../../model/httpSnippets.ts'
 import { useConfirm } from '../../kit/Confirm.tsx'
 import { cx } from '../../kit/cx.ts'
 import { Icon } from '../../kit/Icon.tsx'
@@ -23,13 +28,6 @@ import { CopyIcon, HttpEndpoint, TOKEN_MASK } from './HttpEndpoint.tsx'
 import css from './http.module.css'
 import { StageRow, StageRows } from './StageRow.tsx'
 import stage from './sourceStage.module.css'
-
-const LANG_NAME: Record<SnippetLang, string> = {
-  curl: 'curl',
-  powershell: 'PowerShell',
-  javascript: 'JavaScript',
-  python: 'Python',
-}
 
 export function HttpStage(props: {
   t: T
@@ -132,7 +130,7 @@ function Snippets(props: {
           value={lang}
           options={SNIPPET_LANGS.map((item) => ({
             value: item,
-            label: LANG_NAME[item],
+            label: SNIPPET_NAME[item],
             testId: `wl-trigger-snippet-${item}`,
           }))}
           onChange={setLang}

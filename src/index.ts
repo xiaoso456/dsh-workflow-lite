@@ -38,12 +38,13 @@ import { createNotify } from './host/runs/notice.ts'
 import { RunService } from './host/runs/service.ts'
 import { registerRunStateSkill } from './host/runs/skill.ts'
 import { createSkillViewer } from './host/skillView.ts'
+import { DATABASE_FILE, PluginDatabase } from './host/store/database.ts'
 import { memoryMetaFile } from './host/store/paths.ts'
 import { createRepository, type Repository, reportProblems } from './host/store/repository.ts'
 import { registerWorkflowLiteTool } from './host/tool/tool.ts'
 import { registerTriggerSkill } from './host/triggerSkill.ts'
 import { createFireClaims } from './host/triggers/claims.ts'
-import { createTriggerGraphs, followRenames } from './host/triggers/graphs.ts'
+import { createTriggerGraphs, followWorkflows } from './host/triggers/graphs.ts'
 import { TriggerService } from './host/triggers/service.ts'
 import { createSessionPort } from './host/triggers/sessions.ts'
 import { TriggerStore } from './host/triggers/store.ts'
@@ -85,9 +86,12 @@ export async function apply(ctx: Context, config: WorkflowLiteSettings): Promise
       }),
     )
   const dataDir = (): string => dataDirAtStart
+  // 插件共用的 SQLite 数据库（各功能自己建表；第一次用到时才打开），插件停下时关掉。
+  const database = new PluginDatabase(() => join(dataDirAtStart, DATABASE_FILE))
+  ctx.effect(() => () => database.close(), 'workflow-lite: database')
   // 触发卡片在这台机器上的状态（开关、工作区、触发记录）；工作流改名时跟着走。
-  const triggerStore = new TriggerStore(dataDir)
-  const repository: Repository = followRenames(
+  const triggerStore = new TriggerStore(dataDir, database)
+  const repository: Repository = followWorkflows(
     createRepository({ dataDir: dataDirAtStart, validate }),
     triggerStore,
   )

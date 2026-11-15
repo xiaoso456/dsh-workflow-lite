@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { T } from '../../src/client/i18n.ts'
 import {
-  countFires,
   dayText,
   fireKind,
   fireWhen,
@@ -36,17 +35,6 @@ describe('触发记录的显示', () => {
     expect(fireWhy(declined)).toBe('没有新提交')
     expect(fireKind(fire(at(11, 14), { outcome: 'failed', reason: '没选工作区' }))).toBe('failed')
     expect(fireWhy(fire(at(11, 14)))).toBeUndefined()
-  })
-
-  it('各类各数各的', () => {
-    const counts = countFires([
-      fire(1),
-      fire(2, { declined: 'x' }),
-      fire(3, { outcome: 'skipped' }),
-      fire(4, { outcome: 'skipped' }),
-      fire(5, { outcome: 'failed' }),
-    ])
-    expect(counts).toEqual({ sent: 1, declined: 1, skipped: 2, failed: 1 })
   })
 
   it('时刻：今天只写钟点，昨天带「昨天」，再早写月日', () => {

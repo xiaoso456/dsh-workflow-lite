@@ -12,14 +12,19 @@ import type { SessionRow } from '../../../app/sessions.ts'
 import { createShellAccess } from '../../../app/shells.ts'
 import { useTriggers } from '../../../app/useTriggers.ts'
 import type { Workflow } from '../../../app/useWorkflow.ts'
+import {
+  recentRuns as readRecentRuns,
+  enableRunState as turnOnRunState,
+} from '../../../app/workflowRuns.ts'
 import type { T } from '../../../i18n.ts'
 import type { Selection } from '../../../model/editor.ts'
-import { errorMessage, type WorkflowLiteRpc } from '../../../rpc.ts'
+import type { WorkflowLiteRpc } from '../../../rpc.ts'
 import {
-  RECENT_RUNS,
+  knownWorkspaces,
   type RevealField,
-  type RunBrief,
+  sessionChoices,
   type TriggerEnv,
+  workflowChoices,
 } from '../../trigger/triggerEnv.ts'
 
 export interface TriggerSceneInput {
@@ -45,87 +50,22 @@ export function useTriggerScene(input: TriggerSceneInput): TriggerEnv {
   const triggers = useTriggers(rpc, state.name, active, wf.flush, state.baseHash)
   const shells = useMemo(() => createShellAccess(rpc), [rpc])
 
-  // 工作区：当前会话的排最前，其余按侧栏里会话的顺序，去重。
-  const workspaces = useMemo(() => {
-    const seen = new Set<string>()
-    if (sessionCwd !== undefined && sessionCwd !== '') seen.add(sessionCwd)
-    for (const row of sessionRows) {
-      if (!row.subagent && row.cwd !== undefined && row.cwd !== '') seen.add(row.cwd)
-    }
-    return [...seen]
-  }, [sessionRows, sessionCwd])
-
-  const sessions = useMemo(
-    () =>
-      sessionRows
-        .filter((row) => !row.subagent)
-        .map((row) => ({ id: row.id, title: row.title === '' ? row.id : row.title })),
-    [sessionRows],
+  const workspaces = useMemo(
+    () => knownWorkspaces(sessionRows, sessionCwd),
+    [sessionRows, sessionCwd],
   )
-
-  // 接续触发能等的工作流：不含正在编辑的这一张（等自己跑完会一直触发自己）。
+  const sessions = useMemo(() => sessionChoices(sessionRows), [sessionRows])
   const catalog = wf.catalog
-  const workflows = useMemo(
-    () =>
-      (catalog?.workflows ?? [])
-        .filter((entry) => entry.name !== state.name)
-        .map((entry) => ({
-          name: entry.name,
-          runState: entry.runState === true,
-          nodes: entry.nodeCount,
-        }))
-        .sort((a, b) => a.name.localeCompare(b.name)),
-    [catalog, state.name],
-  )
+  const workflows = useMemo(() => workflowChoices(catalog, state.name), [catalog, state.name])
 
-  const recentRuns = useCallback(async (): Promise<ReadonlyMap<string, readonly RunBrief[]>> => {
-    const byWorkflow = new Map<string, (RunBrief & { created: number })[]>()
-    try {
-      const { instances } = await rpc.call('run/list', { all: true })
-      for (const run of instances) {
-        const updated = run.updatedAt === undefined ? Number.NaN : Date.parse(run.updatedAt)
-        const list = byWorkflow.get(run.workflow) ?? []
-        list.push({
-          id: run.id,
-          created: run.createdAt,
-          at: Number.isFinite(updated) ? updated : run.createdAt,
-          ...(run.status === undefined ? {} : { status: run.status }),
-        })
-        byWorkflow.set(run.workflow, list)
-      }
-    } catch {
-      // 读不到就不显示最近的执行。
-    }
-    const recent = new Map<string, readonly RunBrief[]>()
-    for (const [workflow, list] of byWorkflow) {
-      recent.set(
-        workflow,
-        list
-          .sort((a, b) => b.created - a.created)
-          .slice(0, RECENT_RUNS)
-          .map(({ created: _created, ...run }) => run),
-      )
-    }
-    return recent
-  }, [rpc])
+  const recentRuns = useCallback(() => readRecentRuns(rpc), [rpc])
 
   const refreshCatalog = wf.refreshCatalog
   const enableRunState = useCallback(
     async (workflow: string): Promise<string | null> => {
-      try {
-        const loaded = await rpc.call('graph/load', { name: workflow })
-        if (loaded.problems.length > 0) return loaded.problems[0]?.message ?? ''
-        const { document } = loaded
-        await rpc.call('graph/save', {
-          name: workflow,
-          document: { ...document, settings: { ...document.settings, runState: true } },
-          baseHash: loaded.hash,
-        })
-        await refreshCatalog()
-        return null
-      } catch (error) {
-        return errorMessage(error)
-      }
+      const problem = await turnOnRunState(rpc, workflow)
+      if (problem === null) await refreshCatalog()
+      return problem
     },
     [rpc, refreshCatalog],
   )

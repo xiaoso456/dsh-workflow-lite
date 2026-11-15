@@ -48,6 +48,7 @@ import type { TriggerSource } from '../../shared/types.ts'
 import type {
   FireRecord,
   ShellChoice,
+  TriggerActivitySlot,
   TriggerAllResponse,
   TriggerDetailResponse,
   TriggerEntry,
@@ -86,7 +87,6 @@ import type { SessionPort } from './sessions.ts'
 import { checkShell, detectShells, familyOf, shellLabel, shellName, systemShell } from './shells.ts'
 import {
   approvalOf,
-  HISTORY_MAX,
   type LiveFile,
   ownerFile,
   type TriggerLocal,
@@ -99,11 +99,15 @@ import { pingHook, tryListen, tryPoll } from './trial.ts'
 export const BEAT_MS = 5_000
 /** 晚了这么久还没触发，就算「错过了」（DSH 当时没在运行）。 */
 export const LATE_MS = 2 * 60_000
-/** 触发记录一次最多给画布多少条。 */
+/** 触发记录一次缺省给画布多少条、最多给多少条。 */
 const HISTORY_PAGE = 50
+const HISTORY_MAX = 200
+/** 近况最多往前看几天。 */
+const ACTIVITY_DAYS = 31
 /** 详情里背景信息最多给界面多少字。 */
 const DETAIL_INFO_CHARS = 20_000
 const HOUR_MS = 60 * 60_000
+const DAY_MS = 24 * HOUR_MS
 /** 超过每小时上限的常驻触发源，隔多久才再记一条「跳过」（日志刷屏时别把记录也刷满）。 */
 const CAP_NOTE_MS = 10 * 60_000
 
@@ -474,15 +478,8 @@ export class TriggerService {
 
   // ── 共用 ───────────────────────────────────────────────────
 
-  private async sentWithinHour(workflow: string, node: string, now: number): Promise<number> {
-    const fires = await this.store.fires()
-    return fires.filter(
-      (fire) =>
-        fire.workflow === workflow &&
-        fire.node === node &&
-        fire.outcome === 'sent' &&
-        now - fire.at < HOUR_MS,
-    ).length
+  private sentWithinHour(workflow: string, node: string, now: number): Promise<number> {
+    return this.store.sentSince(workflow, node, now - HOUR_MS)
   }
 
   /** 一次触发之后：发出去了清掉失败计数、记下会话；连续失败到了次数就自动停用（不限制的不停用）。 */
@@ -586,13 +583,9 @@ export class TriggerService {
   /** 列卡片要用的、与具体工作流无关的那些（一次读好，「触发」页列很多工作流时不重复读）。 */
   private async scene(): Promise<Scene> {
     const owner = await this.lock.current()
-    const last = new Map<string, FireRecord>()
-    for (const fire of await this.store.fires())
-      last.set(`${fire.workflow}\u0000${fire.node}`, fire)
     return {
       owner,
       locals: await this.store.locals(),
-      last,
       live: await this.ownerLive(owner),
       unavailable: this.sessions.unavailable(),
       paused: await this.store.paused(),
@@ -613,7 +606,7 @@ export class TriggerService {
     const cards: { trigger: TriggerDefinition; view: TriggerView }[] = []
     for (const trigger of graph.triggers) {
       const local = locals[trigger.node] ?? { enabled: false }
-      const recent = scene.last.get(`${workflow}\u0000${trigger.node}`)
+      const recent = await this.store.last(workflow, trigger.node)
       const { source } = trigger.data
       const command = commandOf(source)
       const base = {
@@ -891,11 +884,13 @@ export class TriggerService {
     const count = Number.isFinite(limit)
       ? Math.min(Math.max(Math.trunc(limit), 1), HISTORY_MAX)
       : HISTORY_PAGE
-    const fires = await this.store.fires()
-    return fires
-      .filter((fire) => fire.workflow === workflow && (node === undefined || fire.node === node))
-      .reverse()
-      .slice(0, count)
+    return this.store.history(workflow, node, count)
+  }
+
+  /** 一张卡片 `since` 以来（最多往前 {@link ACTIVITY_DAYS} 天）每一小格各种结果几次。 */
+  activity(workflow: string, node: string, since: number): Promise<TriggerActivitySlot[]> {
+    const now = this.now()
+    return this.store.activity(workflow, node, Math.max(since, now - ACTIVITY_DAYS * DAY_MS), now)
   }
 
   /** 一次触发那一刻带的触发说明、触发条件、背景信息（给界面看；背景信息太长只给开头）。 */
@@ -918,8 +913,6 @@ export class TriggerService {
 interface Scene {
   owner: TriggerOwner | undefined
   locals: TriggerLocals
-  /** 工作流 + 卡片 → 最近一次触发。 */
-  last: Map<string, FireRecord>
   live: LiveFile | null
   unavailable: string | null
   paused: number | undefined

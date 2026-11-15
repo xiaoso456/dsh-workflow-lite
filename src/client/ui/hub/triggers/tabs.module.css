@@ -1,0 +1,144 @@
+/*
+ * dsh-workflow-lite — 「触发」页右栏的页签（DetailTabs.tsx）与页签下面那一页的滚动区（TriggerDetail.tsx）。
+ */
+
+.tabs {
+  position: relative;
+  display: flex;
+  flex: none;
+  gap: 22px;
+  margin: 12px 18px 0;
+  border-bottom: 1px solid var(--wl-line);
+}
+
+.tab {
+  position: relative;
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--wl-text-3);
+  font: inherit;
+  font-size: var(--wl-fs-meta);
+  cursor: pointer;
+  transition: color 140ms linear;
+}
+
+.tab:hover,
+.tab[aria-selected="true"] {
+  color: var(--wl-text);
+}
+
+.tab:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 2px;
+  border-radius: calc(4px * var(--wl-round, 1));
+}
+
+/* 字的宽度按粗体占好（隐形的一份粗体撑开），选中变粗时不挤动旁边；没选中的细字在这格里居中。 */
+.tabText {
+  display: inline-grid;
+  justify-items: center;
+}
+
+.tabText::after {
+  height: 0;
+  overflow: hidden;
+  font-weight: 600;
+  content: attr(data-text);
+  visibility: hidden;
+}
+
+.tab[aria-selected="true"] .tabText {
+  font-weight: 600;
+}
+
+.count {
+  color: var(--wl-text-3);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 失败的红点挂在右上角，不占宽度：没有时页签不多出一段空白，有没有都不挤动下划线。 */
+.failed {
+  position: absolute;
+  top: 7px;
+  right: -7px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--wl-danger);
+  opacity: 0;
+  transform: scale(0.4);
+  transition:
+    opacity 140ms linear,
+    transform 180ms var(--wl-ease);
+}
+
+.failed[data-on="true"] {
+  opacity: 1;
+  transform: none;
+}
+
+/* 下划线：100px 宽，位置和宽度都在 transform 里（DetailTabs 量好写上）。 */
+.ink {
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: 100px;
+  height: 2px;
+  background: var(--wl-accent);
+  transform-origin: left;
+  transition: transform 260ms var(--wl-ease);
+  pointer-events: none;
+}
+
+/* 页签下面那一页：自己滚，头部、状态条、页签不跟着走。换页时从点的那一侧淡进来。 */
+.pane {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 14px 18px 16px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  animation: paneIn 220ms var(--wl-ease) backwards;
+}
+
+/* 自己里面还有一块要滚的（时间线、输出）：这一层不滚，交给里面那块。 */
+.pane[data-fill="true"] {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+@keyframes paneIn {
+  from {
+    opacity: 0;
+    transform: translateX(var(--from, 0));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab,
+  .failed,
+  .ink {
+    transition: none;
+  }
+
+  .pane {
+    animation: none;
+  }
+}
+
+:global([data-look="swiss"]) .tabs {
+  border-bottom-color: var(--wl-text);
+}
+
+:global([data-look="swiss"]) .ink {
+  height: 3px;
+  background: var(--wl-text);
+}

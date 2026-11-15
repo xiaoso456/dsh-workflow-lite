@@ -1,0 +1,294 @@
+/*
+ * dsh-workflow-lite — 「触发」页右栏上面固定的一块（TriggerHead.tsx）：头部、全部暂停的说明、状态条与问题条。
+ * `--wl-kind`（这张卡片触发方式的颜色：图标块、方式小签、倒计时）由右栏的根写上。
+ */
+
+.fixed {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+}
+
+.head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 18px 12px;
+}
+
+.mark {
+  width: 38px;
+  height: 38px;
+  border-radius: calc(10px * var(--wl-round, 1));
+}
+
+.titles {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.nameLine {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+.name {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--wl-fs-title);
+  font-weight: 600;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tag {
+  display: inline-flex;
+  flex: none;
+  gap: 5px;
+  align-items: center;
+  max-width: 40%;
+  height: 20px;
+  padding: 0 7px;
+  overflow: hidden;
+  border-radius: calc(6px * var(--wl-round, 1));
+  background: var(--wl-fill);
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kindTag {
+  background: color-mix(in srgb, var(--wl-kind) 12%, transparent);
+  color: var(--wl-kind);
+}
+
+.say {
+  margin: 0;
+  overflow: hidden;
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-meta);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.actions {
+  display: flex;
+  flex: none;
+  gap: 6px;
+  align-items: center;
+}
+
+/* 开关连着一句「已打开 / 已关闭」，整块是一个按钮。 */
+.onoff {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  height: 30px;
+  padding: 0 8px 0 10px;
+  border: 0;
+  border-radius: var(--wl-r-control);
+  background: transparent;
+  color: var(--wl-text-2);
+  font: inherit;
+  font-size: var(--wl-fs-meta);
+  cursor: pointer;
+  transition: background-color 120ms linear;
+}
+
+.onoff:hover {
+  background: var(--wl-hover);
+}
+
+.onoff:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+.onoffText {
+  min-width: 3em;
+}
+
+/* 全部暂停着的说明。 */
+.pausedNote {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 0 18px 10px;
+  padding: 7px 8px 7px 12px;
+  border-radius: var(--wl-r-control);
+  background: var(--wl-warn-soft);
+  color: var(--wl-warn);
+  font-size: var(--wl-fs-meta);
+  animation: fadeIn 160ms linear;
+}
+
+.pausedNote[hidden] {
+  display: none;
+}
+
+.pausedText {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* 状态条：一行状态 | 下一次 | 立即触发；出了问题下面多一条。 */
+.status {
+  margin: 0 18px;
+  overflow: hidden;
+  border: 1px solid var(--wl-line-strong);
+  border-radius: var(--wl-r-card);
+  background: var(--wl-canvas);
+}
+
+.statusMain {
+  position: relative;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  min-height: 46px;
+  padding: 0 8px 0 14px;
+}
+
+.state {
+  display: inline-flex;
+  flex: none;
+  gap: 7px;
+  align-items: center;
+  color: var(--tone-text);
+  font-weight: 600;
+}
+
+.stateDot {
+  width: 8px;
+  height: 8px;
+}
+
+.sep {
+  flex: none;
+  width: 1px;
+  height: 18px;
+  background: var(--wl-line-strong);
+}
+
+.when {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 8px;
+  align-items: baseline;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--wl-fs-meta);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.whenMain {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text);
+  text-overflow: ellipsis;
+}
+
+.whenAside {
+  flex: none;
+  color: var(--wl-text-3);
+}
+
+.when[data-fired="ok"] .whenMain {
+  color: var(--wl-ok);
+}
+
+.when[data-fired="bad"] .whenMain {
+  color: var(--wl-danger);
+}
+
+.when[data-fired="pending"] .whenMain {
+  color: var(--wl-text-2);
+}
+
+.fire {
+  display: inline-flex;
+  flex: none;
+}
+
+/* 问题条：颜色跟着要不要紧（说明 / 提醒 / 出错）。 */
+.problem {
+  --c: var(--wl-text-3);
+
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-height: 40px;
+  padding: 6px 8px 6px 14px;
+  border-top: 1px solid color-mix(in srgb, var(--c) 25%, transparent);
+  background: color-mix(in srgb, var(--c) 8%, transparent);
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-meta);
+}
+
+.problem[hidden],
+.problem > button[hidden] {
+  display: none;
+}
+
+.problem[data-tone="warn"] {
+  --c: var(--wl-warn-dot);
+
+  color: var(--wl-warn);
+}
+
+.problem[data-tone="bad"] {
+  --c: var(--wl-danger);
+
+  color: var(--wl-danger);
+}
+
+.problem > svg {
+  flex: none;
+  color: var(--c);
+}
+
+.problem[data-tone="calm"] > svg {
+  color: var(--wl-text-3);
+}
+
+.problemText {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .onoff {
+    transition: none;
+  }
+
+  .pausedNote {
+    animation: none;
+  }
+}
+
+/* 瑞士：状态条不是圆角色块，只留上下两道线（上面一道黑线）；小签、开关按钮去圆角。 */
+:global([data-look="swiss"]) .status {
+  border-width: 1px 0;
+  border-top-color: var(--wl-text);
+  background: transparent;
+}
+
+:global([data-look="swiss"]) .pausedNote {
+  border-left: 2px solid var(--wl-warn);
+  background: transparent;
+}

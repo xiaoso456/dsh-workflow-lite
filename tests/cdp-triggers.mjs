@@ -1218,21 +1218,34 @@ try {
   const hookRow = `[data-testid="wl-hub-trg"][data-value="${NAME2}/hook"]`
   await session.evaluate(`document.querySelector('${hookRow}').click()`)
   await sleep(800)
+  check(
+    '右栏先是「概览」，能立即触发一次',
+    (await session.evaluate(has('wl-hub-trg-overview'))) &&
+      (await session.evaluate(has('wl-hub-trg-fire'))),
+  )
+  await capture(session, 'hub-triggers-light.png')
+  // 「设置」页：和面板同样的几块，只读，铅笔打开同一个对话框。
+  await session.evaluate(clickTestId('wl-hub-trg-tab-settings'))
+  await waitFor(session, has('wl-hub-trg-settings'))
+  const facts = await session.evaluate(textOf('[data-testid="wl-hub-trg-settings"]'))
+  check(
+    '「设置」页有触发方式、会话、工作区',
+    facts.includes(NAME) && /新建会话/.test(facts) && /工作区/.test(facts),
+    facts,
+  )
+  await session.evaluate(clickTestId('wl-hub-trg-set-launch-edit'))
+  await waitFor(session, has('wl-trigger-guard-dialog'))
+  await pressKey(session, 'Escape')
+  await waitFor(session, `!(${has('wl-trigger-guard-dialog')})`)
+  check('铅笔打开「保护」对话框，Esc 关掉', await session.evaluate(has('wl-hub-trg-settings')))
+  // 「时间线」页：触发记录在这里。
+  await session.evaluate(clickTestId('wl-hub-trg-tab-timeline'))
+  await waitFor(session, has('wl-hub-trg-history'))
+  await sleep(500)
   const historyRows = await session.evaluate(
     `document.querySelectorAll('[data-testid="wl-hub-trg-history"] li[data-outcome]').length`,
   )
-  check('右栏列出选中卡片的触发记录', historyRows >= 1, String(historyRows))
-  const facts = await session.evaluate(textOf('[data-testid="wl-hub-trg-facts"]'))
-  check(
-    '右栏有触发方式、会话、工作区的摘要',
-    /跑完后/.test(facts) && /新建会话/.test(facts) && /工作区/.test(facts),
-    facts,
-  )
-  check(
-    '右栏能立即触发一次',
-    await session.evaluate(`document.querySelector('[data-testid="wl-hub-trg-fire"]') !== null`),
-  )
-  await capture(session, 'hub-triggers-light.png')
+  check('「时间线」列出选中卡片的触发记录', historyRows >= 1, String(historyRows))
 
   // 触发记录按结果筛选：这张卡片没有失败的，筛出来是空的；回到「全部」又都在。点一条看详情，Esc 只关详情。
   const hubHistory = '[data-testid="wl-hub-trg-history"]'
@@ -1271,7 +1284,7 @@ try {
   )
   await sleep(400)
 
-  // 全部暂停：开关不变，开着的卡片写已全部暂停；恢复后回到等待中。
+  // 全部暂停：开关不变，开着的卡片写已暂停；恢复后回到等待中。
   await session.evaluate(clickTestId('wl-hub-trg-pause'))
   await waitFor(
     session,
@@ -1280,7 +1293,7 @@ try {
   const pausedAll = await rpc('trigger/all', {})
   const hookPaused = pausedAll.triggers.find((item) => item.view.node === 'hook')
   check(
-    '全部暂停：宿主记下暂停，开着的卡片是已全部暂停、开关不变',
+    '全部暂停：宿主记下暂停，开着的卡片是暂停着、开关不变',
     typeof pausedAll.paused === 'number' &&
       hookPaused?.view.state === 'paused' &&
       hookPaused.view.enabled === true,
@@ -1288,14 +1301,14 @@ try {
   )
   await waitFor(
     session,
-    `[...document.querySelectorAll('[data-testid="wl-hub-trg-state"]')].some((el) => el.textContent.includes('已全部暂停'))`,
+    `[...document.querySelectorAll('[data-testid="wl-hub-trg-state"]')].some((el) => el.textContent.includes('已暂停'))`,
   )
   const pauseText = await session.evaluate(textOf('[data-testid="wl-hub-trg-pause-text"]'))
   check('总闸写着从什么时候起全部暂停', /起全部暂停/u.test(pauseText), pauseText)
   check(
-    '暂停着：右栏只在顶上说一次，状态行不重复',
+    '暂停着：右栏顶上一条说明带「恢复」，状态条写已暂停',
     await session.evaluate(
-      `getComputedStyle(document.querySelector('[data-testid="wl-hub-trg-detail-state"]')).display === 'none' && document.querySelector('[data-testid="wl-hub-trg-paused"]') !== null`,
+      `document.querySelector('[data-testid="wl-hub-trg-paused"]')?.hidden === false && document.querySelector('[data-testid="wl-hub-trg-detail-state"]').textContent.includes('已暂停')`,
     ),
   )
   await capture(session, 'hub-triggers-paused-light.png')

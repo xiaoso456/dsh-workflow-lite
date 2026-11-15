@@ -25,14 +25,7 @@ export function createFireClaims(store: TriggerStore, now: () => number = Date.n
         }
       }
       if (session === undefined) return undefined
-      const pending = (await store.fires()).find(
-        (record) =>
-          record.outcome === 'sent' &&
-          record.instance === undefined &&
-          record.session === session &&
-          record.workflow === workflow &&
-          now() - record.at <= CLAIM_WINDOW_MS,
-      )
+      const pending = await store.unclaimed(workflow, session, now() - CLAIM_WINDOW_MS)
       if (pending === undefined) return undefined
       const detail = await store.detail(pending.id)
       return detail === null ? undefined : { fire: pending.id, origin: originOfFire(detail) }

@@ -1,0 +1,239 @@
+/*
+ * dsh-workflow-lite — 「触发」页左栏（TriggerSide.tsx）：筛选条、分组标题、卡片行、底部总闸。
+ * 行的底子沿用 versions/wfList.module.css（滑块式选中、悬停渐显），这里只补图标块、状态行和行尾开关。
+ */
+
+/* 筛选不是「全部」时列表顶上的一条。 */
+.showing {
+  display: flex;
+  flex: none;
+  gap: 6px;
+  align-items: center;
+  height: 26px;
+  margin: 4px 8px 0;
+  padding: 0 3px 0 10px;
+  border-radius: var(--wl-r-control);
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+  font-size: var(--wl-fs-micro);
+}
+
+.showingText {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.showingClear {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: calc(5px * var(--wl-round, 1));
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  transition: background-color 120ms linear;
+}
+
+.showingClear:hover {
+  background: color-mix(in srgb, var(--wl-accent) 14%, transparent);
+}
+
+.list {
+  padding-top: 6px;
+}
+
+/* 分组标题：钉在列表顶上（底色同面板，盖住滚上去的行）。 */
+.group {
+  position: sticky;
+  top: -10px;
+  z-index: 2;
+  display: flex;
+  flex: none;
+  gap: 6px;
+  align-items: center;
+  height: 28px;
+  margin-top: 6px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--wl-r-control);
+  background: var(--wl-panel);
+  color: var(--wl-text-3);
+  font: inherit;
+  font-size: var(--wl-fs-micro);
+  text-align: left;
+  cursor: pointer;
+}
+
+.group:first-of-type {
+  margin-top: 0;
+}
+
+.group:hover {
+  color: var(--wl-text-2);
+}
+
+.group:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: -2px;
+}
+
+.chevron {
+  display: inline-flex;
+  flex: none;
+  transition: transform 180ms var(--wl-ease);
+}
+
+.group[aria-expanded="false"] .chevron {
+  transform: rotate(-90deg);
+}
+
+.groupDot,
+.groupMark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+}
+
+.groupName {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text-2);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.groupCount {
+  flex: none;
+  font-family: var(--wl-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 行：图标块 + 两行字，行尾给开关让出位置（开关常驻）。 */
+.item {
+  min-height: 52px;
+  padding-right: 52px;
+}
+
+.mark {
+  width: 30px;
+  height: 30px;
+}
+
+.meta {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  white-space: nowrap;
+}
+
+.stateText {
+  flex: none;
+  color: var(--tone-text);
+}
+
+.note {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.note::before {
+  margin-right: 5px;
+  content: "·";
+}
+
+.switch {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: calc(8px * var(--wl-round, 1));
+  background: transparent;
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+
+.switch:hover {
+  background: var(--wl-hover);
+}
+
+.switch:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+/* 底部总闸：暂停着时整条换成提醒色。 */
+.pauseBar {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  align-items: center;
+  min-height: 46px;
+  padding: 0 8px 0 14px;
+  border-top: 1px solid var(--wl-line);
+  transition: background-color 160ms linear;
+}
+
+.pauseBar[data-paused="true"] {
+  background: var(--wl-warn-soft);
+}
+
+.pauseMark {
+  display: inline-flex;
+  flex: none;
+}
+
+.pauseText {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pauseBar[data-paused="true"] .pauseText {
+  color: var(--wl-warn);
+  font-weight: 600;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chevron,
+  .pauseBar,
+  .showingClear {
+    transition: none;
+  }
+}
+
+/* 瑞士：筛选条去底色只留下线；总闸上面压黑线；分组标题压一道细黑线。 */
+:global([data-look="swiss"]) .showing {
+  border-bottom: 1px solid var(--wl-accent);
+  background: transparent;
+}
+
+:global([data-look="swiss"]) .pauseBar {
+  border-top-color: var(--wl-text);
+  background: transparent;
+}
+
+:global([data-look="swiss"]) .group {
+  border-bottom: 1px solid var(--wl-text);
+}

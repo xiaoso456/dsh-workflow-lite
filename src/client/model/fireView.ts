@@ -13,8 +13,6 @@ import { clockTime, shortTime } from './time.ts'
 /** 结果的四类：发出去了但模型判断不需要的，从「已发出」里单独拿出来。 */
 export type FireKind = 'sent' | 'skipped' | 'failed' | 'declined'
 
-export const FIRE_KINDS: readonly FireKind[] = ['sent', 'skipped', 'failed', 'declined']
-
 export const FIRE_KIND_TEXT: Record<FireKind, LocaleKey> = {
   sent: 'trigger.outcome.sent',
   skipped: 'trigger.outcome.skipped',
@@ -38,13 +36,6 @@ export function fireKind(record: Pick<FireRecord, 'outcome' | 'declined'>): Fire
 /** 跳过、失败、不需要的原因；顺利发出去的没有。 */
 export function fireWhy(record: Pick<FireRecord, 'reason' | 'declined'>): string | undefined {
   return record.declined ?? record.reason
-}
-
-/** 各类各有几条。 */
-export function countFires(fires: readonly FireRecord[]): Record<FireKind, number> {
-  const counts: Record<FireKind, number> = { sent: 0, skipped: 0, failed: 0, declined: 0 }
-  for (const record of fires) counts[fireKind(record)] += 1
-  return counts
 }
 
 /** 那一天零点（本地时间）。 */

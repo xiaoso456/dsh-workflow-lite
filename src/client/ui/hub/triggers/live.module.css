@@ -1,0 +1,491 @@
+/*
+ * dsh-workflow-lite — 「触发」页按触发方式换名字的那一页：输出（OutputPane）、调用（CallPane）、日程（SchedulePane）、
+ * 上游（UpstreamPane），以及「复制」小按钮（CopyButton）。`--wl-kind` 是触发方式的颜色。
+ */
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sectionHead {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 24px;
+}
+
+.sectionTitle {
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-meta);
+  font-weight: 600;
+}
+
+.sectionHead > :last-child:not(:first-child) {
+  margin-left: auto;
+}
+
+.aside {
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+.muted {
+  margin: 0;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+}
+
+/* 无边框的小按钮（复制、显示令牌）。 */
+.ghost {
+  border-color: transparent;
+  background: transparent;
+}
+
+/* 「复制 / 已复制」按两者里宽的那个占位，换字时按钮不变宽。 */
+.copyText {
+  display: inline-grid;
+}
+
+.copyText::after {
+  height: 0;
+  overflow: hidden;
+  content: attr(data-text);
+  visibility: hidden;
+}
+
+/* 一组字段：一个框，行间细线。 */
+.box {
+  overflow: hidden;
+  border: 1px solid var(--wl-line);
+  border-radius: var(--wl-r-card);
+}
+
+.field {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 8px 0 12px;
+  border-top: 1px solid var(--wl-line);
+  font-size: var(--wl-fs-meta);
+}
+
+.field:first-child {
+  border-top: 0;
+}
+
+.key {
+  color: var(--wl-text-3);
+}
+
+.value {
+  overflow: hidden;
+  color: var(--wl-text);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plain {
+  grid-column: span 2;
+  color: var(--wl-text);
+}
+
+.fieldTools {
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
+}
+
+/* ── 输出 ── */
+.console {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--wl-line-strong);
+  border-radius: var(--wl-r-card);
+  background: var(--wl-canvas);
+}
+
+.cmdline {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  max-height: 96px;
+  padding: 9px 12px;
+  overflow-y: auto;
+  border-bottom: 1px solid var(--wl-line);
+  background: var(--wl-panel);
+  scrollbar-width: thin;
+}
+
+.cmdline::before {
+  color: var(--wl-kind);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-meta);
+  line-height: 1.6;
+  content: "$";
+}
+
+.cmd {
+  min-width: 0;
+  color: var(--wl-text);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-meta);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.consoleBar {
+  display: flex;
+  flex: none;
+  gap: 10px;
+  align-items: center;
+  min-height: 38px;
+  padding: 0 6px 0 12px;
+  border-bottom: 1px solid var(--wl-line);
+  font-size: var(--wl-fs-meta);
+}
+
+.barLead {
+  flex: none;
+  color: var(--wl-text-2);
+}
+
+.barText {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.consoleBar > button {
+  margin-left: auto;
+}
+
+.output {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 10px 12px;
+  overflow: auto;
+  color: var(--wl-text-2);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  scrollbar-width: thin;
+}
+
+.consoleEmpty {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 24px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+  text-align: center;
+}
+
+.consoleEmpty > svg {
+  margin-bottom: 4px;
+  opacity: 0.7;
+}
+
+.output[hidden],
+.consoleEmpty[hidden],
+.barText[hidden] {
+  display: none;
+}
+
+/* ── 调用 ── */
+.snippet {
+  margin: 0;
+  padding: 10px 12px;
+  background: var(--wl-canvas);
+  color: var(--wl-text);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.snippetFoot {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.pingResult {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pingResult[data-ok="true"] {
+  color: var(--wl-ok);
+}
+
+/* ── 日程 ── */
+.week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.wday {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  min-height: 120px;
+  padding: 8px 6px 10px;
+  border: 1px solid var(--wl-line);
+  border-radius: var(--wl-r-card);
+}
+
+.wday[data-today] {
+  border-color: color-mix(in srgb, var(--wl-kind) 45%, transparent);
+  background: color-mix(in srgb, var(--wl-kind) 5%, transparent);
+}
+
+.wday[data-off] {
+  opacity: 0.6;
+}
+
+.wdayHead {
+  display: flex;
+  gap: 4px;
+  justify-content: space-between;
+  margin-bottom: 2px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  white-space: nowrap;
+}
+
+.wdayHead > b {
+  color: var(--wl-text);
+  font-weight: 600;
+}
+
+.wtime {
+  padding: 2px 6px;
+  overflow: hidden;
+  border-radius: calc(5px * var(--wl-round, 1));
+  background: color-mix(in srgb, var(--wl-kind) 12%, transparent);
+  color: var(--wl-kind);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wtime[data-past] {
+  background: var(--wl-fill);
+  color: var(--wl-text-3);
+  text-decoration: line-through;
+}
+
+.wnone {
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+/* ── 上游 ── */
+.upCard {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--wl-line);
+  border-radius: var(--wl-r-card);
+}
+
+.upMark {
+  width: 32px;
+  height: 32px;
+}
+
+.upText {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.upName {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upDesc {
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+.runs {
+  margin: 0;
+  padding: 2px;
+  list-style: none;
+  border: 1px solid var(--wl-line);
+  border-radius: var(--wl-r-card);
+}
+
+.run {
+  --c: var(--wl-text-3);
+}
+
+.run[data-status="done"] {
+  --c: var(--wl-ok);
+}
+
+.run[data-status="failed"] {
+  --c: var(--wl-danger);
+}
+
+.runMain {
+  display: grid;
+  grid-template-columns: 90px 64px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  height: 36px;
+  padding: 0 10px 0 12px;
+  border: 0;
+  border-radius: var(--wl-r-control);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: var(--wl-fs-meta);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms linear;
+}
+
+.runMain:hover {
+  background: var(--wl-hover);
+}
+
+.runMain:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: -2px;
+}
+
+.runAt,
+.runId {
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.runStatus {
+  justify-self: start;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: calc(6px * var(--wl-round, 1));
+  background: color-mix(in srgb, var(--c) 13%, transparent);
+  color: var(--c);
+  font-size: var(--wl-fs-micro);
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+.runVerdict {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  white-space: nowrap;
+}
+
+.runVerdict[data-verdict="fires"] {
+  color: var(--wl-kind);
+  font-weight: 600;
+}
+
+/* 空状态（还没有地址、还没选上游）。 */
+.empty {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+  padding: 48px 24px 24px;
+  text-align: center;
+}
+
+.emptyIcon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin-bottom: 4px;
+  border-radius: calc(12px * var(--wl-round, 1));
+  background: var(--wl-fill);
+  color: var(--wl-text-3);
+}
+
+.emptyTitle {
+  margin: 0;
+  color: var(--wl-text-2);
+  font-weight: 600;
+}
+
+.emptyText {
+  max-width: 360px;
+  margin: 0;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+  line-height: 1.55;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .runMain {
+    transition: none;
+  }
+}
+
+/* 瑞士：框只留上下线，小块去圆角。 */
+:global([data-look="swiss"]) .box,
+:global([data-look="swiss"]) .runs,
+:global([data-look="swiss"]) .upCard,
+:global([data-look="swiss"]) .console {
+  border-width: 1px 0;
+  border-top-color: var(--wl-text);
+}
+
+:global([data-look="swiss"]) .wday {
+  border-width: 2px 0 0;
+  border-top-color: var(--wl-line-strong);
+}
+
+:global([data-look="swiss"]) .wday[data-today] {
+  border-top-color: var(--wl-text);
+}

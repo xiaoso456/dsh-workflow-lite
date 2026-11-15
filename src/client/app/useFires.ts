@@ -1,19 +1,25 @@
 /**
- * dsh-workflow-lite — 一张触发卡片的触发记录：读回来留一份，换卡片再换回来时先拿留下的显示，不先闪「还没有触发过」。
+ * dsh-workflow-lite — 一张触发卡片的触发记录与近况：读回来留一份，换卡片再换回来时先拿留下的显示，不先闪「还没有触发过」。
  *
- * 画布上的面板和工作流中心「触发」页共用。什么时候重读看 `signal`（最近一次触发的编号、它对上的实例、
- * 模型的判断）：和留下的那份一样就不再问。还没读到时是 `null`——界面上什么都不说，读到了再说有几条、或者一条都没有。
+ * - {@link useFires}：最近几次的记录（画布上的面板和工作流中心「触发」页共用）；
+ * - {@link useActivity}：一段时间里每一小格各种结果几次（「触发」页概览的数和节律，触发得再勤也数得全）。
+ *
+ * 什么时候重读看 `signal`（最近一次触发的编号、它对上的实例、模型的判断）：和留下的那份一样就不再问。
+ * 还没读到时是 `null`——界面上什么都不说，读到了再说有几条、或者一条都没有。
  *
  * @module @xiaoso/dsh-workflow-lite/client/app/useFires
  */
 
 import { useEffect, useRef, useState } from 'react'
-import type { FireRecord } from '../../shared/wire/trigger.ts'
-import { readCache } from './readCache.ts'
+import type { FireRecord, TriggerActivitySlot } from '../../shared/wire/trigger.ts'
+import { type ReadCache, readCache } from './readCache.ts'
 
-/** 留下的记录不过期（`signal` 自己带着），缓存里的信号用一个常量。 */
-const KEPT = 'fires'
-const kept = readCache<{ signal: string; fires: FireRecord[] }>({ entries: 64 })
+/** 留下的不过期（`signal` 自己带着），缓存里的信号用一个常量。 */
+const KEPT = 'kept'
+type Kept<V> = ReadCache<{ signal: string; value: V }>
+
+const fires: Kept<FireRecord[]> = readCache({ entries: 64 })
+const activity: Kept<TriggerActivitySlot[]> = readCache({ entries: 64 })
 
 /**
  * @param key - 哪一张卡片（工作流 + 卡片 id）。
@@ -25,30 +31,55 @@ export function useFires(
   signal: string,
   read: () => Promise<FireRecord[]>,
 ): FireRecord[] | null {
-  const [state, setState] = useState(() => ({ key, fires: kept.get(key, KEPT)?.fires ?? null }))
+  return useKept(fires, key, signal, read)
+}
+
+/**
+ * @param key - 哪一张卡片。
+ * @param signal - 记录变没变的记号，再带上从哪天起（过了零点要重读）。
+ * @param read - 读一次（读不到回空列表）。
+ */
+export function useActivity(
+  key: string,
+  signal: string,
+  read: () => Promise<TriggerActivitySlot[]>,
+): TriggerActivitySlot[] | null {
+  return useKept(activity, key, signal, read)
+}
+
+function useKept<V extends object>(
+  cache: Kept<V>,
+  key: string,
+  signal: string,
+  read: () => Promise<V>,
+): V | null {
+  const [state, setState] = useState<{ key: string; value: V | null }>(() => ({
+    key,
+    value: cache.get(key, KEPT)?.value ?? null,
+  }))
   const reader = useRef(read)
   reader.current = read
 
   useEffect(() => {
-    const hit = kept.get(key, KEPT)
+    const hit = cache.get(key, KEPT)
     if (hit !== undefined)
       setState((now) =>
-        now.key === key && now.fires === hit.fires ? now : { key, fires: hit.fires },
+        now.key === key && now.value === hit.value ? now : { key, value: hit.value },
       )
     if (hit?.signal === signal) return
     let alive = true
-    void reader.current().then((fires) => {
+    void reader.current().then((value) => {
       if (!alive) return
-      kept.put(key, KEPT, { signal, fires })
-      setState({ key, fires })
+      cache.put(key, KEPT, { signal, value })
+      setState({ key, value })
     })
     return () => {
       alive = false
     }
-  }, [key, signal])
+  }, [cache, key, signal])
 
   // 换了卡片、新的还没读到：先用留下的那份（没有就是 `null`），不拿上一张的冒充。
-  return state.key === key ? state.fires : (kept.get(key, KEPT)?.fires ?? null)
+  return state.key === key ? state.value : (cache.get(key, KEPT)?.value ?? null)
 }
 
 /** 最近一次触发的记号：编号、对上的实例、模型的判断，任一样变了记录就要重读。 */

@@ -87,13 +87,18 @@ export function createTriggerGraphs(repository: Repository): TriggerGraphs {
   }
 }
 
-/** 工作流改名时，触发卡片的开关与设置跟着走。 */
-export function followRenames(repository: Repository, store: TriggerStore): Repository {
+/** 工作流改名时，触发卡片的开关、设置和触发记录跟着走；删掉时触发记录一起删。 */
+export function followWorkflows(repository: Repository, store: TriggerStore): Repository {
   return {
     ...repository,
     rename: async (workflow, to) => {
       const outcome = await repository.rename(workflow, to)
       if (outcome.ok) await store.rename(workflow, to).catch(() => {})
+      return outcome
+    },
+    remove: async (workflow) => {
+      const outcome = await repository.remove(workflow)
+      if (outcome.ok) await store.forget(workflow).catch(() => {})
       return outcome
     },
   }

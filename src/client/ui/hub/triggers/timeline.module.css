@@ -1,0 +1,176 @@
+/*
+ * dsh-workflow-lite — 「触发」页「时间线」（TimelinePane.tsx）：一条竖线串起接下来、现在、之前。
+ * 每条记录左边一个空心圈（颜色跟结果，`--c` 由 FireRow 那一行给），接下来的是触发方式颜色的虚线圈。
+ */
+
+.bar {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.aside {
+  margin-left: auto;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+/* 自己滚；滚动条贴着右栏的边。 */
+.scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-right: -10px;
+  padding-right: 10px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.line {
+  position: relative;
+  padding-left: 24px;
+}
+
+.line::before {
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  left: 8px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--wl-line);
+  content: "";
+}
+
+/* 段的小标题：滚动时钉在顶上，底色同面板盖住滚上去的行。 */
+.label {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  margin: 0 0 0 -24px;
+  padding: 4px 0 4px 24px;
+  background: var(--wl-panel);
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+.day {
+  display: contents;
+}
+
+.items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.items > li {
+  margin-left: -4px;
+}
+
+.items > li::before,
+.future::before {
+  position: absolute;
+  top: 13px;
+  left: -20px;
+  box-sizing: border-box;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--c);
+  border-radius: 50%;
+  background: var(--wl-panel);
+  content: "";
+}
+
+.future {
+  position: relative;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  height: 36px;
+  margin-left: -4px;
+  padding: 0 12px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+}
+
+/* 还没来的：同一个空心圈，触发方式的颜色压淡（10px 的虚线圈在 1 倍屏上碎成几点）。 */
+.future {
+  --c: color-mix(in srgb, var(--wl-kind) 55%, transparent);
+}
+
+.futureTime {
+  flex: none;
+  min-width: 74px;
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+.futureWhat {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 「现在」：一个框，左边实心圈是状态色。 */
+.now {
+  position: relative;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-height: 40px;
+  margin: 4px 0 6px -4px;
+  padding: 0 8px 0 12px;
+  border: 1px solid var(--wl-line-strong);
+  border-radius: var(--wl-r-card);
+  background: var(--wl-canvas);
+  font-size: var(--wl-fs-meta);
+}
+
+.now::before {
+  position: absolute;
+  top: 12px;
+  left: -23px;
+  box-sizing: border-box;
+  width: 14px;
+  height: 14px;
+  border: 3px solid var(--wl-panel);
+  border-radius: 50%;
+  background: var(--tone);
+  box-shadow: 0 0 0 1px var(--tone);
+  content: "";
+}
+
+.nowState {
+  display: inline-flex;
+  flex: none;
+  gap: 6px;
+  align-items: center;
+  color: var(--tone-text);
+  font-weight: 600;
+}
+
+.nowWhen {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.none {
+  margin: 0;
+  padding: 8px 10px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+}
+
+:global([data-look="swiss"]) .now {
+  border-width: 1px 0;
+  border-top-color: var(--wl-text);
+  background: transparent;
+}

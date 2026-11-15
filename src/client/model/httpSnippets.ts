@@ -10,6 +10,14 @@ import type { TriggerEndpoint } from '../../shared/wire/trigger.ts'
 export const SNIPPET_LANGS = ['curl', 'powershell', 'javascript', 'python'] as const
 export type SnippetLang = (typeof SNIPPET_LANGS)[number]
 
+/** 页签上各写法的名字（专有名词，不分语言）。 */
+export const SNIPPET_NAME: Record<SnippetLang, string> = {
+  curl: 'curl',
+  powershell: 'PowerShell',
+  javascript: 'JavaScript',
+  python: 'Python',
+}
+
 /** 示例里的正文：随便一个 JSON，收到的会话把它当背景信息。 */
 export const SAMPLE_BODY = '{"event":"deploy","ref":"main"}'
 

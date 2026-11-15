@@ -11,6 +11,7 @@ import { join } from 'node:path'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { RunService } from '../../src/host/runs/service.ts'
+import { DATABASE_FILE, PluginDatabase } from '../../src/host/store/database.ts'
 import { assetsDir } from '../../src/host/store/paths.ts'
 import {
   createRepository,
@@ -21,7 +22,7 @@ import type { WorkflowLiteArgs } from '../../src/host/tool/args.ts'
 import { createWorkflowLiteHandler, type ToolExecView } from '../../src/host/tool/tool.ts'
 import type { FinishedRun, RunWatch } from '../../src/host/triggers/after.ts'
 import { createFireClaims } from '../../src/host/triggers/claims.ts'
-import { createTriggerGraphs, followRenames } from '../../src/host/triggers/graphs.ts'
+import { createTriggerGraphs, followWorkflows } from '../../src/host/triggers/graphs.ts'
 import { OWNER_STALE_MS, OwnerLock } from '../../src/host/triggers/owner.ts'
 import type { LiveRuntime, LiveSpec, RuntimeEvents } from '../../src/host/triggers/runtime.ts'
 import { LATE_MS, TriggerService } from '../../src/host/triggers/service.ts'
@@ -37,6 +38,7 @@ let dataDir: string
 let workspace: string
 let repository: Repository
 let store: TriggerStore
+let database: PluginDatabase
 let clock: number
 let sent: { session: string; text: string; summary: string }[]
 let opened: { cwd: string; title: string }[]
@@ -145,8 +147,9 @@ beforeEach(async () => {
   defaultShell = ''
   workspace = join(dataDir, 'ws')
   await mkdir(workspace)
-  store = new TriggerStore(() => dataDir)
-  repository = followRenames(createRepository({ dataDir, validate }), store)
+  database = new PluginDatabase(() => join(dataDir, DATABASE_FILE))
+  store = new TriggerStore(() => dataDir, database)
+  repository = followWorkflows(createRepository({ dataDir, validate }), store)
   await repository.ensureLayout()
   clock = new Date(2026, 10, 12, 9, 0).getTime()
   sent = []
@@ -160,6 +163,7 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
+  database.close()
   await rm(dataDir, { recursive: true, force: true })
 })
 
@@ -306,16 +310,24 @@ describe('开关与状态', () => {
     expect((await here.list('patrol')).triggers[0]?.state).toBe('waiting')
   })
 
-  it('卡片从图里删掉、工作流删掉：开关跟着清掉；改名时跟着走', async () => {
+  it('卡片从图里删掉、工作流删掉：开关跟着清掉、触发记录一起删；改名时开关和触发记录跟着走', async () => {
     await saveGraph('patrol')
     const triggers = service()
     await triggers.set({ workflow: 'patrol', node: 'tick', enabled: true, workspace })
+    const fired = await triggers.fireNow({ workflow: 'patrol', node: 'tick' })
+    if (!fired.ok) throw new Error('没触发')
     expect((await repository.rename('patrol', 'watch')).ok).toBe(true)
     expect(Object.keys(await store.locals())).toEqual(['watch'])
+    expect((await triggers.history('watch', 'tick')).map((fire) => fire.id)).toEqual([
+      fired.result.id,
+    ])
+    expect(await triggers.history('patrol', 'tick')).toEqual([])
+    expect((await triggers.list('watch')).triggers[0]?.last?.workflow).toBe('watch')
     await own(triggers)
     expect((await triggers.list('watch')).triggers[0]?.state).toBe('waiting')
 
     await repository.remove('watch')
+    expect(await triggers.history('watch', 'tick')).toEqual([])
     await triggers.tick()
     expect(await store.locals()).toEqual({})
   })

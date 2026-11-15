@@ -1,0 +1,66 @@
+/*
+ * dsh-workflow-lite — 沿底边的一条倒计时（CountdownLine.tsx）：从这一段已走过的位置走到下一次。
+ * 颜色跟着 `--wl-kind`（触发方式的颜色）。挂在有 `position: relative` 的盒子里，贴着它的底边。
+ */
+
+.track {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  background: color-mix(in srgb, var(--wl-kind) 14%, transparent);
+  opacity: 0;
+  transition: opacity 160ms linear;
+  pointer-events: none;
+}
+
+.track[data-run="true"] {
+  opacity: 1;
+}
+
+.fill {
+  position: absolute;
+  inset: 0;
+  background: var(--wl-kind);
+  transform: scaleX(var(--from, 0));
+  transform-origin: left;
+}
+
+/* 换一段时动画名在 a / b 间切，浏览器才会从头再放（同名改属性不会重放）。 */
+.track[data-run="true"] .fill[data-cycle="a"] {
+  animation: fillA var(--left) linear forwards;
+}
+
+.track[data-run="true"] .fill[data-cycle="b"] {
+  animation: fillB var(--left) linear forwards;
+}
+
+@keyframes fillA {
+  from {
+    transform: scaleX(var(--from));
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes fillB {
+  from {
+    transform: scaleX(var(--from));
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* 不走：停在这一段开始时的位置，下一次到了再跳。 */
+  .track[data-run="true"] .fill[data-cycle] {
+    animation: none;
+  }
+
+  .track {
+    transition: none;
+  }
+}

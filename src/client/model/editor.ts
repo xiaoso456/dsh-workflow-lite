@@ -44,7 +44,7 @@ import {
   setPreset,
 } from '../../shared/presets.ts'
 import { newResourceNode, setStepOutputs, splitOutputs } from '../../shared/resources.ts'
-import { canonicalTrigger, cloneTriggerData } from '../../shared/trigger.ts'
+import { canonicalTrigger, cloneTriggerData, patchTriggerData } from '../../shared/trigger.ts'
 import {
   type EdgeData,
   type Handoff,
@@ -481,13 +481,8 @@ function applyEdit(doc: WorkflowDocument, selection: Selection, edit: Edit): App
     case 'patchTrigger': {
       const node = findNode(doc, edit.id)
       if (node === undefined || !isTrigger(node)) return null
-      const merged: Record<string, unknown> = { ...node.data, ...edit.patch }
-      for (const [key, value] of Object.entries(edit.patch)) {
-        if (value === undefined) delete merged[key]
-      }
-      // 不在这里规范化：正在打的名称、说明里的空格要留着；写盘时（canonical writer）再取形。
-      const data = merged as unknown as TriggerData
-      if (JSON.stringify(data) === JSON.stringify(node.data)) return null
+      const data = patchTriggerData(node.data, edit.patch)
+      if (data === null) return null
       return {
         doc: {
           ...doc,

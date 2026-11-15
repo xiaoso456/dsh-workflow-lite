@@ -1,0 +1,12 @@
+/*
+ * dsh-workflow-lite — 「触发」页右栏的根（TriggerDetail.tsx）：上面固定、页签下面那一页自己滚。
+ * `--wl-kind` 写在这里，头部、时间线、输出各处跟着这张卡片的触发方式上色。
+ */
+
+.detail {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
