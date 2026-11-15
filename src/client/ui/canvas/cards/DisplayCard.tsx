@@ -34,6 +34,7 @@ import ui from '../../kit/ui.module.css'
 import { useCanvasMoving } from '../../motion/canvasMoving.ts'
 import { useCrossfade } from '../../motion/crossfade.ts'
 import css from '../canvas.module.css'
+import { useHandlesMeasured } from '../hooks/useHandlesMeasured.ts'
 import type { CardDisplay, ResourceFlowNode } from '../types.ts'
 import { tintStyle } from './cardParts.ts'
 import own from './displayCard.module.css'
@@ -55,6 +56,7 @@ export function DisplayCard(
   props: NodeProps<ResourceFlowNode> & { display: CardDisplay },
 ): React.JSX.Element {
   const { data, id, selected, display } = props
+  const measured = useHandlesMeasured(id)
   const env = useContext(DisplayContext)
   const flow = useReactFlow()
   // 拖动中的临时样子：改大小时是排版尺寸，按住 Ctrl 缩放时多一个 `zoom`（尺寸不变）。
@@ -211,6 +213,7 @@ export function DisplayCard(
     <div
       ref={cardRef}
       className={cx(css.resCard, dcss.card, selected && css.cardSelected)}
+      data-measured={measured}
       data-display={display.info.kind}
       data-board-look={look === 'card' ? undefined : look}
       // 「隐藏标题」：还没内容（显示草图、读不了的说明）时不藏，不然认不出是哪张。

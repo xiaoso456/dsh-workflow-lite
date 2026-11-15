@@ -70,6 +70,18 @@
     border-color 120ms linear;
 }
 
+/*
+ * 连接点量好之前（卡片根元素还没有 data-measured，见 useHandlesMeasured）：不放入场、不露出来。
+ * 缩着的时候让 React Flow 量连接点会量偏，线头扎进卡里；量完同一帧就带上 data-measured，动画从头放。
+ * 用 visibility 藏：不影响量，也不像 opacity 那样跟着过渡慢慢出来。三种卡片同一条。
+ */
+.card:not([data-measured]),
+.resCard:not([data-measured]),
+.inputCard:not([data-measured]) {
+  visibility: hidden;
+  animation: none;
+}
+
 /* 拖起来时的「悬浮」阴影：画在伪元素上，渐显只动它的 opacity（外阴影不会盖到卡片里面）。 */
 .card::before {
   position: absolute;

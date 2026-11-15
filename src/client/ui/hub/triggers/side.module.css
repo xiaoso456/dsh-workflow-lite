@@ -75,6 +75,18 @@
   margin-top: 0;
 }
 
+/*
+ * 钉住时的遮挡：标题本身是圆角、比列表窄（列表左右各有 8px 内边距），滚上去的行和选中底块会从两边、
+ * 圆角处露出来。垫一块方的同色底，左右铺满到列表边（-8px 对应 .wfList 的左右内边距），压在字底下。
+ */
+.group::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0 -8px;
+  background: var(--wl-panel);
+  content: "";
+}
+
 .group:hover {
   color: var(--wl-text-2);
 }

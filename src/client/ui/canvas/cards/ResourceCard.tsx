@@ -12,6 +12,7 @@ import { cx } from '../../kit/cx.ts'
 import { Icon } from '../../kit/Icon.tsx'
 import { KIND_ICON } from '../../kit/resourceUi.ts'
 import shared from '../canvas.module.css'
+import { useHandlesMeasured } from '../hooks/useHandlesMeasured.ts'
 import type { ResourceFlowNode } from '../types.ts'
 import { tintStyle } from './cardParts.ts'
 import { DisplayCard } from './DisplayCard.tsx'
@@ -74,11 +75,13 @@ export const ResourceCard = memo(function ResourceCard(
   props: NodeProps<ResourceFlowNode>,
 ): React.JSX.Element {
   const { data, id, selected } = props
+  const measured = useHandlesMeasured(id)
   if (data.display !== null) return <DisplayCard {...props} display={data.display} />
   const madeAll = data.compact && data.items[0]?.made === true
   return (
     <div
       className={cx(shared.resCard, selected && shared.cardSelected)}
+      data-measured={measured}
       data-compact={data.compact}
       data-memory={data.memory ?? undefined}
       data-focused={data.focused}

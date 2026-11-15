@@ -9,6 +9,7 @@ import { memo } from 'react'
 import { cx } from '../../kit/cx.ts'
 import { Icon } from '../../kit/Icon.tsx'
 import shared from '../canvas.module.css'
+import { useHandlesMeasured } from '../hooks/useHandlesMeasured.ts'
 import type { InputFlowNode } from '../types.ts'
 import css from './inputCard.module.css'
 
@@ -27,11 +28,13 @@ const INPUT_ICON = {
 export const InputCard = memo(function InputCard(
   props: NodeProps<InputFlowNode>,
 ): React.JSX.Element {
-  const { data, selected } = props
+  const { data, id, selected } = props
+  const measured = useHandlesMeasured(id)
   const empty = data.question === ''
   return (
     <div
       className={cx(shared.inputCard, selected && shared.cardSelected)}
+      data-measured={measured}
       data-tone={data.tone}
       data-dim={data.dim}
       data-testid="wl-input"

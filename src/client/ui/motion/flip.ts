@@ -75,10 +75,25 @@ const ENTER_MS = 240
 const STAGGER_MS = 22
 const STAGGER_MAX = 12
 
+/** 列表里带 `data-flip` 的直接子项各在哪（按键）。 */
+function flipTops(list: HTMLElement): Map<string, number> {
+  const tops = new Map<string, number>()
+  for (const child of list.children) {
+    if (child instanceof HTMLElement && child.dataset.flip !== undefined) {
+      tops.set(child.dataset.flip, topIn(list, child))
+    }
+  }
+  return tops
+}
+
 /**
  * 列表里带 `data-flip`（值是项的键）的直接子项：`layout`（各项的键连起来）变了，
  * 留下来的项从旧位置滑到新位置；`enter` 时新出现的项从左边淡入——第一次挂上时依次错开。
  * 键没变的项换了个样子（比如改名时换成输入框行）不算新项，不放入场。
+ *
+ * 钉在顶上的项（`position: sticky` 的分组标题）位置跟着滚动变：列表（或外面的滚动层）一滚，
+ * 下一帧把各项的位置重新记一遍。不然拿滚动前记的位置比，点一下别的项（`layout` 变了、其实没挪），
+ * 钉住的标题会被当成「挪了」从老远滑回来，滑的那一下顶上还露出底下的行。
  */
 export function useFlip(
   ref: RefObject<HTMLElement | null>,
@@ -87,20 +102,38 @@ export function useFlip(
 ): void {
   const tops = useRef<Map<string, number> | null>(null)
   const enter = options.enter === true
+  useEffect(() => {
+    const list = ref.current
+    if (list === null) return
+    let frame = 0
+    const remember = (): void => {
+      frame = 0
+      if (tops.current !== null) tops.current = flipTops(list)
+    }
+    const onScroll = (event: Event): void => {
+      // 滚的是列表自己或它外面的哪一层（文档本身也算）。
+      if (frame !== 0 || !(event.target instanceof Node) || !event.target.contains(list)) return
+      frame = requestAnimationFrame(remember)
+    }
+    document.addEventListener('scroll', onScroll, { capture: true, passive: true })
+    return () => {
+      document.removeEventListener('scroll', onScroll, true)
+      cancelAnimationFrame(frame)
+    }
+  }, [ref])
   // 只在列表内容变了时量（layout 就是为这个给的）。
   useLayoutEffect(() => {
     const list = ref.current
     if (list === null) return
     const first = tops.current === null
     const still = REDUCED?.matches === true
-    const next = new Map<string, number>()
+    const next = flipTops(list)
     let index = 0
     for (const child of list.children) {
       if (!(child instanceof HTMLElement)) continue
       const key = child.dataset.flip
       if (key === undefined) continue
-      const top = topIn(list, child)
-      next.set(key, top)
+      const top = next.get(key) ?? 0
       const was = tops.current?.get(key)
       if (still) continue
       if (was === undefined) {

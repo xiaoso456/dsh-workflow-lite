@@ -15,6 +15,7 @@ import { StepMark } from '../../kit/StepMark.tsx'
 import { FadeRing } from '../../motion/marks.tsx'
 import { SwapIcon, SwapText } from '../../motion/swapText.tsx'
 import shared from '../canvas.module.css'
+import { useHandlesMeasured } from '../hooks/useHandlesMeasured.ts'
 import type { StepData, StepFlowNode } from '../types.ts'
 import css from './stepCard.module.css'
 
@@ -44,9 +45,11 @@ function ringOf(data: StepData): string | undefined {
 
 export const StepCard = memo(function StepCard(props: NodeProps<StepFlowNode>): React.JSX.Element {
   const { data, id, selected } = props
+  const measured = useHandlesMeasured(id)
   return (
     <div
       className={cx(shared.card, selected && shared.cardSelected)}
+      data-measured={measured}
       data-tone={data.tone}
       data-dim={data.dim}
       data-role={data.role ?? undefined}

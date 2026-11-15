@@ -53,7 +53,6 @@ import { useCardSizes } from './hooks/useCanvasGeometry.ts'
 import { useConnectionDrag } from './hooks/useConnectionDrag.ts'
 import { useCulledFlow } from './hooks/useCulling.ts'
 import { useNodeChanges } from './hooks/useNodeChanges.ts'
-import { useSettledHandles } from './hooks/useSettledHandles.ts'
 import { useStepDrop } from './hooks/useStepDrop.ts'
 import { useViewportRestore } from './hooks/useViewportRestore.ts'
 import { MAX_ZOOM, MIN_ZOOM, useWheelZoom } from './hooks/useWheelZoom.ts'
@@ -429,7 +428,6 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
   const focusCanvas = useCallback((): void => wrapRef.current?.focus(), [])
 
   useWheelZoom({ wrapRef, flow })
-  useSettledHandles({ wrapRef })
 
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: 画布是自定义复合控件（拖放落点 + 键盘入口）

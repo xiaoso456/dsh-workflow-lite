@@ -25,6 +25,7 @@ import { TriggerGlanceRow } from '../../trigger/TriggerGlanceRow.tsx'
 import { ModeChip, TriggerMark, triggerTint } from '../../trigger/TriggerMark.tsx'
 import { useTriggerEnv } from '../../trigger/triggerEnv.ts'
 import shared from '../canvas.module.css'
+import { useHandlesMeasured } from '../hooks/useHandlesMeasured.ts'
 import type { TriggerFlowNode } from '../types.ts'
 import css from './triggerCard.module.css'
 
@@ -32,12 +33,14 @@ export const TriggerCard = memo(function TriggerCard(
   props: NodeProps<TriggerFlowNode>,
 ): React.JSX.Element {
   const { data, selected, id } = props
+  const measured = useHandlesMeasured(id)
   const env = useTriggerEnv()
   const view = env?.triggers.view(id)
   const note = env === null ? '' : stateNote(data.t, view, data.kind)
   return (
     <div
       className={cx(shared.card, css.card, selected && shared.cardSelected)}
+      data-measured={measured}
       style={{ '--wl-kind': triggerTint(data.kind) } as React.CSSProperties}
       data-state={env === null ? undefined : (view?.state ?? 'off')}
       data-kind={data.kind}
