@@ -63,11 +63,11 @@
 }
 
 .list[data-density="compact"] {
-  --row-h: 32px;
+  --row-h: 28px;
   --row-mark: 20px;
   --row-mark-r: 6px;
   --row-icon: 12px;
-  --group-h: 28px;
+  --group-h: 26px;
   --group-gap: 6px;
 }
 
