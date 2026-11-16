@@ -1,6 +1,6 @@
 /**
  * dsh-workflow-lite — 定时规则「接下来 7 天」：从今天起每天一行，一条 0–24 点的细线，每次执行一个点；
- * 今天已经过去的那一截打斜纹、现在画一条竖线，下一次那个点大一圈；到点先跑命令检查的点是空心的（`checks`）。太密的一天（每 5 分钟这类）画成一条，旁边写几次。
+ * 今天已经过去的那一截打斜纹、现在画一条竖线，下一次那个点大一圈。太密的一天（每 5 分钟这类）画成一条，旁边写几次。
  * 底下一行刻度。名字、时区、下一次在外面的工作台上（见 `ScheduleStage.tsx`）。
  *
  * 行数固定、一直挂着。改规则时一天里的点按先后认（第几次），时刻变了的点从旧位置滑过去，
@@ -119,18 +119,11 @@ export function WeekStrip(props: {
   week: Week
   /** 规则写对了没有（写错时不画）。 */
   valid: boolean
-  /** 到点先跑命令检查：点画成空心。 */
-  checks?: boolean
 }): React.JSX.Element {
   const { t, week } = props
   const { next } = week
   return (
-    <div
-      className={css.week}
-      data-valid={props.valid}
-      data-checks={props.checks === true}
-      data-testid="wl-trigger-upcoming"
-    >
+    <div className={css.week} data-valid={props.valid} data-testid="wl-trigger-upcoming">
       {week.days.map((day) => {
         const label =
           day.ahead === 0

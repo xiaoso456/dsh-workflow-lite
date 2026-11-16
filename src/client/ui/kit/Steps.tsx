@@ -47,13 +47,13 @@ export function Steps(props: {
           <>
             {index > 0 && <span className={css.stepGap} />}
             {/* 暗、亮各一份叠着，换的是透明度。 */}
-            <span className={css.stepNum}>
+            <span className={css.stepNum} data-icon={step.icon !== undefined}>
               <span className={css.stepFill} />
               <span className={css.numDim} aria-hidden="true">
-                {step.icon === undefined ? index + 1 : <Icon name={step.icon} size={11} />}
+                {step.icon === undefined ? index + 1 : <Icon name={step.icon} size={13} />}
               </span>
               <span className={css.numLit} aria-hidden={step.icon !== undefined || undefined}>
-                {step.icon === undefined ? index + 1 : <Icon name={step.icon} size={11} />}
+                {step.icon === undefined ? index + 1 : <Icon name={step.icon} size={13} />}
               </span>
             </span>
             <span className={css.stepLabel}>

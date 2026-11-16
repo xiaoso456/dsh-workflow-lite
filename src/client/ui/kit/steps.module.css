@@ -53,6 +53,12 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* 圆圈里是图标的：大一圈，图标看得清（写数字的照导出那样小）。 */
+.stepNum[data-icon="true"] {
+  width: 22px;
+  height: 22px;
+}
+
 .stepFill {
   position: absolute;
   inset: 0;
@@ -119,7 +125,7 @@
   transition-duration: var(--step-in);
 }
 
-/* 连线：底色一条，上面盖一条主色，从左往右伸（退回去时从右往左缩）。 */
+/* 连线：底色一条，上面盖一条主色，从左往右伸；退回去时原路从右往左缩回前一步（两头都钉在左端）。 */
 .stepGap {
   position: relative;
   width: 18px;
@@ -133,14 +139,13 @@
   inset: 0;
   background: var(--wl-accent);
   transform: scaleX(0);
-  transform-origin: right;
+  transform-origin: left;
   transition: transform var(--step-lag) var(--step-ease);
   content: "";
 }
 
 .step[data-reached="true"] .stepGap::after {
   transform: none;
-  transform-origin: left;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -30,11 +30,13 @@ export function Bench(props: {
   testId?: string
   /** 中间不整块滚：内容自己分好哪一段在框里滚（命令框不动、输出滚）。 */
   split?: boolean
+  /** 中间不滚：内容铺满、自己按剩下的高度伸缩（接下来 7 天），框最矮到内容压到最紧时的高度。 */
+  fill?: boolean
   children: React.ReactNode
 }): React.JSX.Element {
   const row = useRowSlide()
   return (
-    <section className={css.bench} data-testid={props.testId}>
+    <section className={css.bench} data-fill={props.fill === true} data-testid={props.testId}>
       <header className={css.head}>
         <span className={css.title}>
           <Icon name={props.icon} size={13} />
@@ -45,7 +47,7 @@ export function Bench(props: {
           {props.tools}
         </span>
       </header>
-      <div className={css.body} data-split={props.split === true}>
+      <div className={css.body} data-split={props.split === true} data-fill={props.fill === true}>
         {props.children}
       </div>
       {props.foot !== undefined && <footer className={css.foot}>{props.foot}</footer>}

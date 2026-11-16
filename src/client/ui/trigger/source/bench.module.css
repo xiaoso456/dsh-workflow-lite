@@ -14,17 +14,13 @@
   background: var(--wl-canvas);
 }
 
-.bench:focus-within {
-  border-color: color-mix(in oklab, var(--wl-kind) 55%, var(--wl-line-strong));
-}
-
 .head {
   display: flex;
   flex: none;
   align-items: center;
   gap: 8px;
-  min-height: 38px;
-  padding: 5px 6px 5px 12px;
+  min-height: 34px;
+  padding: 3px 4px 3px 12px;
   border-bottom: 1px solid var(--wl-line);
 }
 
@@ -64,6 +60,18 @@
   min-height: 0;
   overflow-y: auto;
   scrollbar-width: thin;
+}
+
+/* 铺满（接下来 7 天）：中间不是滚动框，框的最矮高度由内容的 min-height 定；内容自己按剩下的高度伸缩。 */
+.bench[data-fill="true"] {
+  min-height: auto;
+}
+
+.body[data-fill="true"] {
+  display: flex;
+  flex-direction: column;
+  min-height: auto;
+  overflow: visible;
 }
 
 .body[data-split="true"] {

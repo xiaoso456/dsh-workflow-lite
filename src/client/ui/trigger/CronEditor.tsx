@@ -68,6 +68,7 @@ export function CronEditor(props: {
     props.onChange(next.join(' ').trim(), typing)
   }
 
+  const help = focus === null ? t('trigger.cronHint') : t(FIELDS[focus]?.help ?? 'trigger.cronHint')
   return (
     <div className={css.editor} data-testid="wl-trigger-cron-editor">
       <div className={css.fields}>
@@ -112,8 +113,8 @@ export function CronEditor(props: {
         ))}
       </div>
       {/* 一直挂着，只换字：光标在哪一格就说那一格，否则说五段是什么、可以直接粘贴整条。 */}
-      <p className={ins.help} data-testid="wl-trigger-cron-help">
-        {focus === null ? t('trigger.cronHint') : t(FIELDS[focus]?.help ?? 'trigger.cronHint')}
+      <p className={ins.help} data-tip={help} data-testid="wl-trigger-cron-help">
+        {help}
       </p>
     </div>
   )

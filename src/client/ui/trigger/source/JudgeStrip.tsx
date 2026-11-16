@@ -2,7 +2,8 @@
  * dsh-workflow-lite — 定时检查「判定」旁边的示意：一排 6 次检查，每次的结果（退出码或输出）、算什么、哪几次执行。
  * 规则看一眼就懂，下面再一句话补齐（背景信息、第一次怎样）。
  *
- * 三种判定都是 6 格，换判定只换字和属性，不插拔元素。
+ * 三种判定都是 6 格，换判定只换字和属性，不插拔元素。换到「到点就执行」时一直挂着、淡掉（`off`），
+ * 这一行和分段控件一样高，换判定时判定这一行和下面的东西都不动。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/trigger/source/JudgeStrip
  */
@@ -48,12 +49,20 @@ export const JUDGE_EXAMPLES: Record<CheckWhen, readonly Check[]> = {
   ],
 }
 
-export function JudgeStrip(props: { t: T; when: CheckWhen }): React.JSX.Element {
+export function JudgeStrip(props: {
+  t: T
+  when: CheckWhen
+  /** 到点就执行：不跑命令，示意淡掉（还占着位置）。 */
+  off?: boolean
+}): React.JSX.Element {
   const { t } = props
+  const off = props.off === true
   return (
     <ol
       className={css.strip}
       aria-label={t('trigger.judge.example')}
+      aria-hidden={off || undefined}
+      data-off={off}
       data-when={props.when}
       data-testid="wl-trigger-judge"
     >
@@ -61,13 +70,13 @@ export function JudgeStrip(props: { t: T; when: CheckWhen }): React.JSX.Element 
         // 6 格位置固定，换判定只换字。
         // biome-ignore lint/suspicious/noArrayIndexKey: 格子没有别的标识
         <li key={index} className={css.check} data-mark={check.mark}>
-          <span className={css.bolt} aria-hidden="true">
-            <Icon name="bolt" size={11} />
-          </span>
           <span className={css.value}>
             <SwapText text={typeof check.value === 'string' ? check.value : t(check.value.key)} />
           </span>
           <span className={css.caption}>
+            <span className={css.bolt} aria-hidden="true">
+              <Icon name="bolt" size={9} />
+            </span>
             <SwapText text={t(check.caption)} />
           </span>
         </li>

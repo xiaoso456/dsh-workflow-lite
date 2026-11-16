@@ -2,7 +2,7 @@
  * dsh-workflow-lite — 「触发方式」对话框里定时的设置，分两步（{@link SchedulePage}）：
  *
  * - 触发时间：规则表单（`ScheduleField`：规则、这种规则自己的几行、常用），判定（到点就执行 / 每次成功 / 变为成功 / 输出变化，
- *   带命令的旁边一排示意、下面一句说明），工作台是接下来 7 天（带命令的画成空心的检查点）；
+ *   带命令的旁边一排示意、下面一句说明），工作台是接下来 7 天；
  * - 检查命令（判定要跑命令时才有）：工作区，工作台是命令（模板、试运行、最近的输出），占满剩下的高度。
  *
  * 顶上一条步骤条（{@link Steps}），两步都能直接点；换成到点就执行时第二步收回第一步背后，步骤条留着。
@@ -150,7 +150,11 @@ export function ScheduleStage(props: {
                     onChange={setJudge}
                     options={JUDGES.map((item) => ({ value: item.value, label: t(item.label) }))}
                   />
-                  {check !== undefined && <JudgeStrip t={t} when={check.when} />}
+                  <JudgeStrip
+                    t={t}
+                    when={check?.when ?? kept.current?.when ?? 'every'}
+                    off={check === undefined}
+                  />
                 </div>
               </StageRow>
             </StageRows>
@@ -212,12 +216,12 @@ function trialJudge(
         : { tone: 'off', text: t('trigger.try.unmet') }
 }
 
-/** 接下来 7 天的时间轴，底栏写 7 天内还要执行（检查）几次、按哪个时区；带命令的点画成空心。 */
+/** 接下来 7 天的时间轴，顶栏右边写 7 天内还要执行（检查）几次、按哪个时区。 */
 function WeekBench(props: {
   t: T
   schedule: TriggerSchedule
   live?: number | undefined
-  /** 到点先跑命令检查。 */
+  /** 到点先跑命令检查（次数写成「检查」）。 */
   checks: boolean
 }): React.JSX.Element {
   const { t } = props
@@ -230,6 +234,7 @@ function WeekBench(props: {
     <Bench
       icon="clock"
       title={t('trigger.week')}
+      fill
       tools={
         <span className={benchAside}>
           <SwapText
@@ -248,7 +253,7 @@ function WeekBench(props: {
         </span>
       }
     >
-      <WeekStrip t={t} week={week} valid={valid} checks={props.checks} />
+      <WeekStrip t={t} week={week} valid={valid} />
     </Bench>
   )
 }

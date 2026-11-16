@@ -5,7 +5,7 @@
 .editor {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
 }
 
@@ -36,7 +36,9 @@
   border-color: var(--wl-danger);
 }
 
-/* 说明那一行高度固定（两行），光标换格子时下面的东西不跳。 */
+/* 说明那一行高度固定（一行），光标换格子时下面的东西不跳；窄到放不下时省略，整句在提示里。 */
 .editor > p {
-  min-height: calc(2 * 1.5em);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

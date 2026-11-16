@@ -4,11 +4,19 @@
  * 改规则时只动 transform / opacity：点从旧位置按 translateX 补回来（WeekStrip 的 DayDots），空心、太密的一条、虚线是叠层换透明度。
  */
 
+/*
+ * 一天一行：地方够时 18px，不够时压到 14px（工作台铺满，见 Bench 的 `fill`），对话框矮的时候不出滚动条。
+ * 高度从 0 按剩下的地方长（行高才有得分），最矮是 7 行压到最紧 + 刻度 + 上下留白。
+ */
 .week {
   display: grid;
+  flex: 1 1 0;
+  min-height: calc(7 * 14px + 15px + 10px);
+  grid-template-rows: repeat(7, minmax(14px, 18px)) 15px;
   grid-template-columns: 76px minmax(0, 1fr) 64px;
+  align-content: start;
   row-gap: 0;
-  padding: 10px 12px 8px;
+  padding: 6px 12px 4px;
 }
 
 .day,
@@ -17,11 +25,7 @@
   grid-column: 1 / -1;
   grid-template-columns: subgrid;
   align-items: center;
-  height: 21px;
-}
-
-.axis {
-  height: 16px;
+  min-height: 0;
 }
 
 .label {
@@ -58,8 +62,8 @@
 
 .past {
   position: absolute;
-  top: 5px;
-  bottom: 5px;
+  top: 3px;
+  bottom: 3px;
   left: 0;
   border-radius: 3px;
   background: repeating-linear-gradient(135deg, var(--wl-hover) 0 4px, transparent 4px 8px);
@@ -115,21 +119,6 @@
 }
 
 .day[data-ahead="0"] .fire[data-past="true"]::after {
-  opacity: 1;
-}
-
-/* 到点先跑命令检查：点的中间盖一层底色，看着是空心的（换判定时交叉淡，不换元素）。 */
-.fire::before {
-  position: absolute;
-  inset: 1.5px;
-  border-radius: 50%;
-  background: var(--wl-canvas);
-  content: "";
-  opacity: 0;
-  transition: opacity 180ms linear;
-}
-
-.week[data-checks="true"] .fire::before {
   opacity: 1;
 }
 

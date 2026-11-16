@@ -104,9 +104,9 @@
 }
 
 .railed .main {
-  gap: 14px;
+  gap: 12px;
   min-height: 0;
-  padding: 14px 18px 16px;
+  padding: 12px 18px 14px;
   overflow-y: auto;
   scrollbar-gutter: stable;
   scrollbar-width: thin;
