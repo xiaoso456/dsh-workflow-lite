@@ -19,8 +19,6 @@
 
 /* 图标块跟状态色走（ui.kind 读 --wl-kind）。 */
 .mark {
-  --wl-kind: var(--wl-run);
-
   width: 38px;
   height: 38px;
   border-radius: calc(10px * var(--wl-round, 1));

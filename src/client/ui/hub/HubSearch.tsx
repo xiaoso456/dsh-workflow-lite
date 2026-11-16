@@ -30,6 +30,26 @@ export interface SearchFilter {
   onClear(): void
 }
 
+/** 生效着的筛选的小片：写筛法，悬停看「筛法 · 几个」，点它回到「全部」。 */
+export function FilterChip(props: { t: T; filter: SearchFilter }): React.JSX.Element {
+  const { t, filter } = props
+  return (
+    <button
+      type="button"
+      className={cx(hub.filterChip, ui.fade)}
+      aria-label={`${filter.label} · ${t('hub.clearShow')}`}
+      data-tip={t('hub.showing')
+        .replace('{label}', filter.label)
+        .replace('{n}', String(filter.count))}
+      data-testid={filter.testId}
+      onClick={filter.onClear}
+    >
+      <span className={hub.filterLabel}>{filter.label}</span>
+      <Icon name="x" size={10} />
+    </button>
+  )
+}
+
 export function HubSearch(props: {
   t: T
   value: string
@@ -79,21 +99,7 @@ export function HubSearch(props: {
       >
         <Icon name="x" size={12} />
       </button>
-      {filter !== undefined && (
-        <button
-          type="button"
-          className={cx(hub.filterChip, ui.fade)}
-          aria-label={`${filter.label} · ${t('hub.clearShow')}`}
-          data-tip={t('hub.showing')
-            .replace('{label}', filter.label)
-            .replace('{n}', String(filter.count))}
-          data-testid={filter.testId}
-          onClick={filter.onClear}
-        >
-          <span className={hub.filterLabel}>{filter.label}</span>
-          <Icon name="x" size={10} />
-        </button>
-      )}
+      {filter !== undefined && <FilterChip t={t} filter={filter} />}
       {props.view}
     </div>
   )

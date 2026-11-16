@@ -11,9 +11,7 @@
 
 import type { WorkflowEntry } from '../../../../shared/types.ts'
 import type { T } from '../../../i18n.ts'
-import { cx } from '../../kit/cx.ts'
-import { Icon } from '../../kit/Icon.tsx'
-import ui from '../../kit/ui.module.css'
+import { WorkflowKindMark } from '../../chrome/KindMark.tsx'
 import hub from '../hub.module.css'
 import { HubRow, rowMark } from '../list/HubRow.tsx'
 import type { TagColors } from './TagMark.tsx'
@@ -52,12 +50,7 @@ export function WorkflowRow(props: WorkflowRowProps): React.JSX.Element {
       current={props.selected || props.also}
       testId="wl-hub-wf"
       value={entry.name}
-      // 读不出来的是珊瑚色的警示。
-      mark={
-        <span className={cx(ui.kind, rowMark)} data-color={invalid ? 'coral' : 'blue'}>
-          <Icon name={invalid ? 'alert' : 'hub'} size={15} />
-        </span>
-      }
+      mark={<WorkflowKindMark invalid={invalid} className={rowMark} />}
       name={entry.name}
       // 画布上正开着的那张：名字后面「当前」（和「运行实例」页本会话当前的实例同一个签）。
       badge={

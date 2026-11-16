@@ -19,13 +19,14 @@ import type { StepLine } from '../../../model/runSteps.ts'
 import { shortTime } from '../../../model/time.ts'
 import { RUN_TEXT } from '../../canvas/cards/cardParts.ts'
 import { HubRunStatus } from '../../chrome/HubRunStatus.tsx'
+import { RunKindMark, runTone } from '../../chrome/KindMark.tsx'
 import { cx } from '../../kit/cx.ts'
 import { Icon } from '../../kit/Icon.tsx'
 import ui from '../../kit/ui.module.css'
 import { SwapText } from '../../motion/swapText.tsx'
 import hub from '../hub.module.css'
 import { RunDelete } from './RunDelete.tsx'
-import { runIcon, runStatusText, runTone } from './runFace.ts'
+import { runStatusText } from './runFace.ts'
 import css from './runHead.module.css'
 
 export function RunHead(props: {
@@ -55,9 +56,7 @@ export function RunHead(props: {
   return (
     <div className={css.fixed}>
       <div className={css.head}>
-        <span className={cx(ui.kind, css.mark)} data-run-status={tone}>
-          <Icon name={runIcon(item)} size={18} />
-        </span>
+        <RunKindMark item={item} size={18} className={css.mark} />
         <div className={css.titles}>
           <p className={css.title}>
             <span className={css.titleName} data-testid="wl-hub-run-title">

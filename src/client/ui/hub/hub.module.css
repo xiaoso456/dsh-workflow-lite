@@ -76,10 +76,9 @@
   background: var(--wl-fill-strong);
 }
 
-/* 只看输入框自己有没有焦点：视图菜单也在框里，焦点进了菜单不算。 */
+/* 只看输入框自己有没有焦点：视图菜单也在框里，焦点进了菜单不算。不描蓝边，只是底深一档（和悬停一样）。 */
 .search:has(.searchInput:focus) {
-  border-color: var(--wl-accent);
-  background: var(--wl-panel);
+  background: var(--wl-fill-strong);
 }
 
 /* 放大镜加输入框：占满剩下的地方（从 0 起算，筛选小片先拿够自己的宽），点哪都聚焦输入框。 */

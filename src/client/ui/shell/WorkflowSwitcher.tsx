@@ -4,9 +4,12 @@
  * 改名和删除挂在列表的每一行上（见 {@link WorkflowRow}），哪张都能直接改，不用先切过去；
  * 底下只留跟「正开着的这张」有关的「从磁盘重新加载」和「新建」。
  *
- * 搜索框和工作流中心「工作流」页同款（{@link HubSearch}）：框里是视图选项和筛选小片；工作流按同一份视图选项
- * 分组（{@link GroupHead}，可折叠）、排序、筛选——分组、排序、筛选两边是同一份选择（app/listView.ts），
- * 按标签筛只在这个下拉里、不记。一张打了几个标签就在几组里各出现一次。
+ * 搜索框（和工作流中心同款的 {@link HubSearch}）只管搜，实例和工作流一起搜。视图选项和筛选小片挂在「工作流」那一段的标题上，
+ * 只管工作流：分组、排序、筛选、行高和工作流中心是同一份选择（app/listView.ts、app/listDensity.ts），按标签筛只在这个下拉里、不记。
+ * 行高两段都跟着变。搜到了、但被筛选藏起来的工作流，在那一段里写一行「筛选隐藏了 N 个」，旁边可以清除筛选。
+ * 工作流按分组列出（{@link GroupHead}，可折叠，和工作流中心同款；一张打了几个标签就在几组里各出现一次），
+ * 一行写什么和工作流中心的行一个规矩（见 switcherFace.tsx）。
+ * 图标块和工作流中心同一套（chrome/KindMark.tsx）。
  * 双击顶栏上的名字、或刚新建好时，名字就地变成输入框改正开着的这张。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/shell/WorkflowSwitcher
@@ -14,6 +17,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { WorkflowEntry } from '../../../shared/types.ts'
+import { useListDensity } from '../../app/listDensity.ts'
 import { useListView } from '../../app/listView.ts'
 import type { Runs } from '../../app/useRuns.ts'
 import type { Workflow } from '../../app/useWorkflow.ts'
@@ -31,7 +35,7 @@ import {
 import { WORKFLOW_VIEW } from '../../model/workflowList.ts'
 import shared from '../chrome/topbar.module.css'
 import { deleteDesc, WorkflowRow } from '../chrome/WorkflowRow.tsx'
-import { HubSearch } from '../hub/HubSearch.tsx'
+import { FilterChip, HubSearch } from '../hub/HubSearch.tsx'
 import { GroupHead } from '../hub/list/GroupedList.tsx'
 import { ViewMenu } from '../hub/list/ViewMenu.tsx'
 import {
@@ -54,6 +58,7 @@ import { SwapIcon, SwapText } from '../motion/swapText.tsx'
 import { ListThumb } from '../motion/thumb.tsx'
 import { RunMenuRow, runSearchTexts } from '../run/RunTopBar.tsx'
 import run from '../run/run.module.css'
+import { workflowFace } from './switcherFace.tsx'
 import css from './workflowSwitcher.module.css'
 
 export interface WorkflowSwitcherProps {
@@ -133,16 +138,17 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
   const [tagFilter, setTagFilter] = useState<string[]>([])
   /** 收起的分组。 */
   const [folded, setFolded] = useState<ReadonlySet<string>>(new Set())
+  const standard = useListDensity() === 'standard'
   const tagColors = catalog?.tagColors ?? {}
+  const matched = useMemo(() => filterWorkflows(workflows, needle), [workflows, needle])
   const {
     catalog: tagUses,
     tags,
     arranged,
   } = useMemo(
-    () => arrangeWorkflows(workflows, filterWorkflows(workflows, needle), view, tagFilter),
-    [workflows, needle, view, tagFilter],
+    () => arrangeWorkflows(workflows, matched, view, tagFilter),
+    [workflows, matched, view, tagFilter],
   )
-  const viewFiltered = view.show !== 'all' || tags.length > 0
   const rows = switchRows(arranged.groups, folded, rowKeys.current)
   const fold = (id: string): void => {
     setFolded((current) => {
@@ -150,6 +156,14 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
       if (!next.delete(id)) next.add(id)
       return next
     })
+  }
+  const now = Date.now()
+  const viewFiltered = view.show !== 'all' || tags.length > 0
+  /** 搜到了、但被筛选藏起来的工作流有几张（只在搜着的时候说）。 */
+  const hiddenByFilter = searching ? matched.length - arranged.shown : 0
+  const clearFilter = (): void => {
+    changeView({ show: 'all' })
+    setTagFilter([])
   }
   const matchedRuns = useMemo(
     () =>
@@ -173,6 +187,7 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
     activeRun ?? '',
     shownRuns.map((item) => item.id).join(','),
     rows.map((row) => row.key).join(','),
+    standard ? 'standard' : 'compact',
   ].join('|')
   const doomedEntry = workflows.find((entry) => entry.name === doomed?.name)
 
@@ -240,35 +255,15 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
         autoFocus
         flush
         onChange={setQuery}
-        filter={
-          viewFiltered
-            ? {
-                label: filterLabel(t, view.show, tags),
-                count: arranged.shown,
-                testId: 'wl-switch-showing',
-                onClear: () => {
-                  changeView({ show: 'all' })
-                  setTagFilter([])
-                },
-              }
-            : undefined
-        }
-        view={
-          <ViewMenu
-            t={t}
-            density={false}
-            align="end"
-            sections={workflowSections(t, view, arranged.counts, tagUses, tagColors, tags, {
-              onView: changeView,
-              onTag: (tag) => setTagFilter((list) => toggleTag(list, tag)),
-            })}
-            testId="wl-switch-view"
-          />
-        }
       />
       {/* 实例与工作流共用一个滚动区：直接子项是平铺的（选中底块、滑动、依次浮出都按直接子项算）。 */}
       <div className={cx(css.scroll, ui.scrollFade)}>
-        <div ref={flip} className={cx(css.listBody, ui.stagger)} data-testid="wl-switch-list">
+        <div
+          ref={flip}
+          className={cx(css.listBody, ui.stagger)}
+          data-density={standard ? 'standard' : 'compact'}
+          data-testid="wl-switch-list"
+        >
           <ListThumb layout={thumbLayout} carry="switcher" />
           {grouped && shownRuns.length > 0 && (
             <p className={cx(ui.menuTitle, css.groupTitle)} data-testid="wl-run-head">
@@ -284,6 +279,7 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
               active={item.id === activeRun}
               current={item.id === props.runs.current}
               needle={needle}
+              standard={standard}
               onOpen={(event) => {
                 choose(event)
                 props.onOpenRun(item.id)
@@ -299,15 +295,50 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
               onToggle={() => setRunsExpanded(!runsExpanded)}
             />
           )}
-          {grouped && arranged.shown > 0 && (
-            <p className={cx(ui.menuTitle, css.groupTitle)} data-testid="wl-wf-head">
+          {workflows.length > 0 && (arranged.shown > 0 || viewFiltered) && (
+            <div
+              className={cx(ui.menuTitle, css.groupTitle, css.wfHead)}
+              data-later={shownRuns.length > 0}
+              data-testid="wl-wf-head"
+            >
               {t('run.workflows')}
               <span className={css.groupCount}>{arranged.shown}</span>
+              <span className={css.headTools}>
+                {viewFiltered && (
+                  <FilterChip
+                    t={t}
+                    filter={{
+                      label: filterLabel(t, view.show, tags),
+                      count: arranged.shown,
+                      testId: 'wl-switch-showing',
+                      onClear: clearFilter,
+                    }}
+                  />
+                )}
+                <ViewMenu
+                  t={t}
+                  beside
+                  sections={workflowSections(t, view, arranged.counts, tagUses, tagColors, tags, {
+                    onView: changeView,
+                    onTag: (tag) => setTagFilter((list) => toggleTag(list, tag)),
+                  })}
+                  testId="wl-switch-view"
+                />
+              </span>
+            </div>
+          )}
+          {hiddenByFilter > 0 && (
+            <p className={css.hiddenNote} data-testid="wl-switch-hidden">
+              {t('wf.filterHidden').replace('{n}', String(hiddenByFilter))}
+              <button type="button" className={css.hiddenClear} onClick={clearFilter}>
+                {t('hub.clearShow')}
+              </button>
             </p>
           )}
-          {arranged.shown === 0 && shownRuns.length === 0 && (workflows.length > 0 || grouped) && (
-            <p className={ui.menuEmpty}>{t('wf.none')}</p>
-          )}
+          {arranged.shown === 0 &&
+            hiddenByFilter === 0 &&
+            shownRuns.length === 0 &&
+            (workflows.length > 0 || grouped) && <p className={ui.menuEmpty}>{t('wf.none')}</p>}
           {rows.map((row) => {
             if (row.kind === 'head') {
               const id = groupId(row.group)
@@ -318,12 +349,19 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
                   face={workflowGroupFace(t, row.group, tagColors)}
                   count={row.group.entries.length}
                   closed={row.closed}
+                  pinned={false}
                   testId="wl-switch-group"
                   onFold={() => fold(id)}
                 />
               )
             }
             const { entry } = row
+            const face = workflowFace(t, entry, {
+              sort: view.sort,
+              standard,
+              colors: tagColors,
+              now,
+            })
             return (
               <WorkflowRow
                 key={row.key}
@@ -332,6 +370,8 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
                 active={row.first && entry.name === current}
                 editing={editing === row.key}
                 needle={needle}
+                sub={face.sub}
+                end={face.end}
                 busy={remove.open && doomed?.key === row.key}
                 deleteRef={doomed?.key === row.key ? remove.anchorRef : undefined}
                 onOpen={(event) => {
@@ -430,8 +470,9 @@ type SwitchRow =
   | { kind: 'row'; key: string; entry: WorkflowEntry; first: boolean }
 
 /**
- * 按分组摊平成一项一项：收起的组只留标题。行的键沿用改名前的（`keys`，见 model/rowKeys.ts）；
- * 同一张第二次出现时键前面带上组，`first` 只给第一次出现的那一行（选中底块落在它上面）。
+ * 按分组摊平成一项一项（选中底块、行的滑动都按列表的直接子项算，不能一组包一块）：收起的组只留标题。
+ * 行的键沿用改名前的（`keys`，见 model/rowKeys.ts）；同一张第二次出现时键前面带上组，
+ * `first` 只给第一次出现的那一行（选中底块落在它上面）。
  */
 function switchRows(
   groups: readonly ListGroup<WorkflowEntry, WorkflowGroupKey>[],

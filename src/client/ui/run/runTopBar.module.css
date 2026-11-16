@@ -29,14 +29,13 @@
 /* ── 实例列表（顶栏下拉里的一行）──────────────────── */
 
 /*
- * 骨架和工作流那一行是同一个（topbar.module.css 的 .row / .rowMain / .rowActions）：
- * 状态点占图标的位置（同宽，和下面工作流的文件夹图标上下对齐），名字，右端小字。
+ * 骨架和工作流那一行是同一个（topbar.module.css 的 .row / .rowMain / .rowActions / .rowMark）：
+ * 状态图标块（和下面工作流的图标块上下对齐），名字，右端小字；标准行高时右端小字挪到名字下面一行。
  */
-.rowDot {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 15px;
+
+/* 标准行高第二行的状态字：状态色（--wl-run 来自 chrome/runStatus.module.css 的 [data-run-status]）。 */
+.subState {
+  color: var(--wl-run);
 }
 
 /* 名字不撑满：「当前」小标紧跟在名字后面，右端小字靠 margin-left: auto 推到最右。 */

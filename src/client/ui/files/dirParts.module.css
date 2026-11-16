@@ -213,8 +213,9 @@
   color: var(--wl-text-3);
 }
 
+/* 有焦点不描蓝边，线深一档。 */
 .filterBox:focus-within {
-  border-color: var(--wl-accent);
+  border-color: var(--wl-line-strong);
 }
 
 .filter {
@@ -358,7 +359,8 @@ button.hiddenToggle::after {
 }
 
 .tools[data-plain="true"] .filterBox:focus-within {
-  border-color: var(--wl-accent);
+  border-color: transparent;
+  background: var(--wl-fill-strong);
 }
 
 .tools[data-plain="true"] .hiddenToggle {

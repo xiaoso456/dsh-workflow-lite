@@ -74,9 +74,24 @@
   scrollbar-width: thin;
 }
 
-/* 分组标题（GroupHead，和工作流中心同款）的高度。 */
-.listBody {
+/*
+ * 行高（标准 / 紧凑，和工作流中心共用一个选择）：一行多高、图标块多大写成变量，行（chrome/topbar.module.css 的
+ * .rowMain / .rowMark）和改名时的输入行照着取。标准两行字，和工作流中心的标准行一样大；紧凑比菜单项矮一点。
+ */
+.listBody[data-density="standard"] {
   --group-h: 28px;
+  --switch-row-h: 40px;
+  --row-mark: 24px;
+  --row-mark-r: 7px;
+  --row-icon: 13px;
+}
+
+.listBody {
+  --group-h: 26px;
+  --switch-row-h: 30px;
+  --row-mark: 20px;
+  --row-mark-r: 6px;
+  --row-icon: 12px;
 
   position: relative;
   display: flex;
@@ -85,21 +100,71 @@
   overflow: clip;
 }
 
-/* 分组标题（实例 / 工作流）：右端是这一组的条数。 */
+/* 两段的标题（实例 / 工作流）：名字后面跟着条数（和工作流中心的分组标题一样）。 */
 .groupTitle {
   display: flex;
   flex: none;
+  gap: 6px;
   align-items: center;
-  justify-content: space-between;
 }
 
-.groupTitle:not(:first-of-type) {
+/* 「工作流」那一段排在实例后面时和上面隔开一点。 */
+.groupTitle[data-later="true"] {
   margin-top: 4px;
 }
 
 .groupCount {
   font-variant-numeric: tabular-nums;
+  font-weight: 400;
   letter-spacing: 0;
+}
+
+/*
+ * 「工作流」那一段的标题右端：筛选小片、视图选项（只管这一段）。按钮 24 高，标题压紧上下内边距，
+ * 整行和不带按钮时差不多高；右边留 2px，按钮右沿和下面行里的字对齐。
+ */
+.wfHead {
+  padding-block: 4px 2px;
+  padding-right: 2px;
+}
+
+.headTools {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 4px;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+/* 搜到了、被筛选藏起来的那几张：一行灰字，后面「清除筛选」。 */
+.hiddenNote {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  align-items: center;
+  margin: 0;
+  padding: 4px 8px 6px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+.hiddenClear {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--wl-accent-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.hiddenClear:hover {
+  text-decoration: underline;
+}
+
+.hiddenClear:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
 }
 
 /* 实例这一组的尾巴：「显示全部 N 个」/「收起」，小一号、居中，不抢实例行。 */

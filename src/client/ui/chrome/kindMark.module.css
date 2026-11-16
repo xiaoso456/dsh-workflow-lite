@@ -1,0 +1,8 @@
+/*
+ * dsh-workflow-lite — 工作流、实例的图标块（KindMark.tsx）。
+ * 实例的块跟状态色走：ui.kind 读 --wl-kind，状态色（--wl-run）来自 runStatus.module.css 的 [data-run-status]。
+ */
+
+.run[data-run-status] {
+  --wl-kind: var(--wl-run);
+}

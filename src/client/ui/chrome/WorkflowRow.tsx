@@ -1,7 +1,8 @@
 /**
  * dsh-workflow-lite — 工作流下拉里的一行：点名字打开；改名、删除就在这一行上，不用先切过去。
  *
- * - 「改名 / 删除」两个小按钮平时藏着，悬停或键盘移到这一行时浮在右端，和步骤数换着显示
+ * - 图标块和工作流中心同一套（{@link WorkflowKindMark}）；标准行高时名字下面多一行（`sub`），行尾写什么由下拉给（`end`）。
+ * - 「改名 / 删除」两个小按钮平时藏着，悬停或键盘移到这一行时浮在右端，和行尾那一格换着显示
  *   （同一个位置淡入淡出，名字不挪）；触屏没有悬停，一直显示。
  * - 改名在原行换成输入框，高度不变：回车或点开确认，Esc 取消。
  * - 删除的确认卡挂在这一行的删除按钮上（由下拉统一管，见 `WorkflowSwitcher`）。
@@ -18,6 +19,7 @@ import { Highlight } from '../kit/Highlight.tsx'
 import { Icon } from '../kit/Icon.tsx'
 import ui from '../kit/ui.module.css'
 import { useLineExit } from '../motion/exits.tsx'
+import { WorkflowKindMark } from './KindMark.tsx'
 import shared from './topbar.module.css'
 import css from './workflowRow.module.css'
 
@@ -29,6 +31,10 @@ export interface WorkflowRowProps {
   editing: boolean
   /** 搜索词（已归一）：名字里命中的字加粗；空 = 不标。 */
   needle?: string
+  /** 标准行高的第二行；紧凑时不给（只有一行）。 */
+  sub?: React.ReactNode
+  /** 行尾那一格。 */
+  end: React.ReactNode
   /** 这一行的确认卡开着：按钮保持显示。 */
   busy: boolean
   /** 删除按钮的 ref：确认卡挂在它上面（只有确认卡指着这一行时才给）。 */
@@ -63,13 +69,20 @@ export function WorkflowRow(props: WorkflowRowProps): React.JSX.Element {
             data-value={name}
             onClick={props.onOpen}
           >
-            <Icon name={entry.invalid === true ? 'alert' : 'folder'} size={15} />
-            <span className={ui.menuLabel}>
-              <Highlight text={name} needle={props.needle ?? ''} />
-            </span>
-            <span className={cx(ui.menuMeta, shared.rowMeta)}>
-              {entry.invalid === true ? t('wf.broken') : `${entry.nodeCount} ${t('wf.steps')}`}
-            </span>
+            <WorkflowKindMark invalid={entry.invalid === true} className={shared.rowMark} />
+            {props.sub === undefined ? (
+              <span className={ui.menuLabel}>
+                <Highlight text={name} needle={props.needle ?? ''} />
+              </span>
+            ) : (
+              <span className={shared.rowText}>
+                <span className={cx(ui.menuLabel, shared.rowLine)}>
+                  <Highlight text={name} needle={props.needle ?? ''} />
+                </span>
+                <span className={shared.rowSub}>{props.sub}</span>
+              </span>
+            )}
+            <span className={cx(ui.menuMeta, shared.rowMeta)}>{props.end}</span>
           </button>
           <span className={shared.rowActions}>
             <button
@@ -138,7 +151,7 @@ function RenameFields(props: WorkflowRowProps): React.JSX.Element {
 
   return (
     <>
-      <Icon name={entry.invalid === true ? 'alert' : 'folder'} size={15} />
+      <WorkflowKindMark invalid={entry.invalid === true} className={shared.rowMark} />
       <span className={cx(ui.editRow, css.rowField)}>
         <span ref={lineRef} className={ui.lineField}>
           <input

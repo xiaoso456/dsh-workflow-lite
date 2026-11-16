@@ -17,11 +17,12 @@ import {
 import type { ValidationProblem } from '../../../shared/types.ts'
 import type { RunHistory } from '../../app/useRunHistory.ts'
 import type { T } from '../../i18n.ts'
-import { shortTime } from '../../model/time.ts'
+import { isActive } from '../../model/runList.ts'
+import { pastTime, shortTime } from '../../model/time.ts'
 import { HubRunStatus } from '../chrome/HubRunStatus.tsx'
 import { Issues } from '../chrome/Issues.tsx'
+import { RunKindMark, runTone } from '../chrome/KindMark.tsx'
 import { RUN_STATUS_TEXT, RunStatusBadge } from '../chrome/RunStatusBadge.tsx'
-import badge from '../chrome/runStatus.module.css'
 import top from '../chrome/topbar.module.css'
 import { copyText } from '../kit/clipboard.ts'
 import { cx } from '../kit/cx.ts'
@@ -218,18 +219,38 @@ export function RunTopBar(
 }
 
 /**
- * 实例在下拉里的右端小字：创建时间、进度、状态（没有状态文件的写「未跟踪」）。
+ * 实例在下拉里的右端小字（紧凑行高）：创建时间（和工作流中心一样越近写得越短）、进度、状态（没有状态文件的写「未跟踪」）。
  * 同名的实例很常见，时间是认它们的主要依据，所以放在行里，不放悬停提示。
  */
 function runMeta(t: T, item: InstanceSummary): string {
   return [
-    shortTime(item.createdAt),
+    pastTime(t, item.createdAt, Date.now()),
     item.total !== undefined ? `${item.done}/${item.total}` : '',
     item.status !== undefined ? t(RUN_STATUS_TEXT[item.status]) : '',
     item.statePath === undefined ? t('run.untracked') : '',
   ]
     .filter((part) => part !== '')
     .join(' · ')
+}
+
+/** 标准行高的第二行：状态（带状态色）、进度（只给还在进行的）、创建时间——和工作流中心「运行实例」页的行一样写。 */
+function runSub(t: T, item: InstanceSummary): React.JSX.Element {
+  const status =
+    item.statePath === undefined ? t('run.untracked') : t(RUN_STATUS_TEXT[item.status ?? 'pending'])
+  const rest = [
+    isActive(item) && item.total !== undefined ? `${item.done}/${item.total}` : '',
+    pastTime(t, item.createdAt, Date.now()),
+  ].filter((part) => part !== '')
+  return (
+    <>
+      <span className={css.subState} data-run-status={runTone(item)}>
+        {status}
+      </span>
+      {rest.map((part) => (
+        <span key={part}>· {part}</span>
+      ))}
+    </>
+  )
 }
 
 /** 搜索实例时可以搜的几段字：工作流名、状态、进度、创建时间。 */
@@ -251,10 +272,24 @@ export function RunMenuRow(props: {
   current: boolean
   /** 搜索词（已归一）。 */
   needle: string
+  /** 标准行高：名字下面一行写状态、进度、时间；紧凑时都挤在行尾。 */
+  standard: boolean
   onOpen(event: React.MouseEvent): void
   onBind(): void
 }): React.JSX.Element {
   const { t, item } = props
+  const name = (
+    <>
+      <span className={css.rowName}>
+        <Highlight text={item.workflow} needle={props.needle} />
+      </span>
+      {props.current && (
+        <span className={css.currentTag} data-tip={t('run.current')} data-testid="wl-run-current">
+          {t('hub.current')}
+        </span>
+      )}
+    </>
+  )
   return (
     <div className={top.row} data-selected={props.active}>
       <button
@@ -265,21 +300,18 @@ export function RunMenuRow(props: {
         data-id={item.id}
         onClick={props.onOpen}
       >
-        <span
-          className={css.rowDot}
-          data-run-status={item.statePath === undefined ? 'untracked' : (item.status ?? 'failed')}
-        >
-          <span className={badge.dot} style={{ opacity: props.current ? 1 : 0.45 }} />
-        </span>
-        <span className={css.rowName}>
-          <Highlight text={item.workflow} needle={props.needle} />
-        </span>
-        {props.current && (
-          <span className={css.currentTag} data-tip={t('run.current')} data-testid="wl-run-current">
-            {t('hub.current')}
+        <RunKindMark item={item} className={top.rowMark} />
+        {props.standard ? (
+          <span className={top.rowText}>
+            <span className={top.rowLine}>{name}</span>
+            <span className={top.rowSub}>{runSub(t, item)}</span>
           </span>
+        ) : (
+          <>
+            {name}
+            <span className={cx(ui.menuMeta, top.rowMeta, css.rowMeta)}>{runMeta(t, item)}</span>
+          </>
         )}
-        <span className={cx(ui.menuMeta, top.rowMeta, css.rowMeta)}>{runMeta(t, item)}</span>
       </button>
       {!props.current && (
         <span className={top.rowActions}>

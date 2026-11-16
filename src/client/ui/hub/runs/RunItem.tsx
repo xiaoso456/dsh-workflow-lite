@@ -10,12 +10,10 @@
 import type { InstanceSummary } from '../../../../shared/runState.ts'
 import type { T } from '../../../i18n.ts'
 import { isActive } from '../../../model/runList.ts'
-import { cx } from '../../kit/cx.ts'
-import { Icon } from '../../kit/Icon.tsx'
-import ui from '../../kit/ui.module.css'
+import { RunKindMark, runTone } from '../../chrome/KindMark.tsx'
 import hub from '../hub.module.css'
 import { HubRow, rowMark } from '../list/HubRow.tsx'
-import { runIcon, runProgress, runStatusText, runTone } from './runFace.ts'
+import { runProgress, runStatusText } from './runFace.ts'
 import css from './runs.module.css'
 
 export function RunItem(props: {
@@ -42,11 +40,7 @@ export function RunItem(props: {
       testId="wl-hub-run"
       rowTestId="wl-hub-row"
       value={item.id}
-      mark={
-        <span className={cx(ui.kind, rowMark, css.mark)} data-run-status={runTone(item)}>
-          <Icon name={runIcon(item)} size={15} />
-        </span>
-      }
+      mark={<RunKindMark item={item} className={rowMark} />}
       name={item.workflow}
       badge={
         item.current && (

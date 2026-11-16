@@ -158,8 +158,9 @@ export function GroupedList<E, G extends string = string>(props: {
 }
 
 /**
- * 一条分组标题（可折叠）。列表里用；顶栏切换工作流的下拉自己排行，也拿它当分组标题（标题同款）。
- * 放在别的列表里时，那个列表要给 `--group-h`（标题高）。
+ * 一条分组标题（可折叠）。列表里用；顶栏切换工作流的下拉也拿它当分组标题（和工作流中心同款）。
+ * 放在别的列表里时，那个列表要给 `--group-h`（标题高）；那边的行是平铺的（没有一组一块），给 `pinned={false}`
+ * 不钉顶——不然往下滚时几条标题全叠在顶上。
  */
 export function GroupHead(props: {
   id: string
@@ -167,12 +168,15 @@ export function GroupHead(props: {
   count: number
   closed: boolean
   testId: string
+  /** 滚动时钉在列表顶上（缺省钉）。 */
+  pinned?: boolean
   onFold(): void
 }): React.JSX.Element {
   const { face } = props
   return (
     <div
       className={css.group}
+      data-pinned={props.pinned === false ? 'false' : undefined}
       data-flip={`group-${props.id}`}
       data-acts={face.actions === undefined || face.edit !== undefined ? undefined : 'true'}
       data-busy={face.busy === true ? 'true' : undefined}

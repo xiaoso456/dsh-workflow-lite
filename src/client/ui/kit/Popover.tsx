@@ -5,6 +5,7 @@
  */
 
 import { type RefObject, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { cx } from './cx.ts'
 import css from './popover.module.css'
 import { FLOAT_EXIT_MS } from './useFloat.tsx'
@@ -19,6 +20,8 @@ export function useDismiss(
   open: boolean,
   ref: RefObject<HTMLElement | null>,
   onClose: () => void,
+  /** 不在 `ref` 里面、但点在上面也不算「外面」的（挂到别处的浮层）。 */
+  also?: RefObject<HTMLElement | null>,
 ): void {
   const close = useRef(onClose)
   close.current = onClose
@@ -27,15 +30,18 @@ export function useDismiss(
     const onPointerDown = (event: PointerEvent): void => {
       const element = ref.current
       if (element === null || !(event.target instanceof Node)) return
-      if (!element.contains(event.target)) close.current()
+      if (element.contains(event.target)) return
+      if (also?.current?.contains(event.target) === true) return
+      close.current()
     }
     document.addEventListener('pointerdown', onPointerDown, true)
     return () => document.removeEventListener('pointerdown', onPointerDown, true)
-  }, [open, ref])
+  }, [open, ref, also])
 }
 
 /**
  * 触发器 + 浮层。浮层不走 portal：留在视图根的子树里，设计令牌照常继承。
+ * 触发器在会裁内容的滚动框里、浮层又要伸出框外时，给 `layer`（框外的某一层，仍在视图根里）挂到那里，位置由 `style` 给。
  * `Esc` 在这里消化掉（不再冒到视图根去取消画布上的选中）。
  *
  * `hold`：浮层里正有一件事没做完（行内改名、挂在某一行上的确认卡）——点外面先只结束那件事，
@@ -50,6 +56,10 @@ export function Popover(props: {
   align?: 'start' | 'end'
   up?: boolean
   className?: string
+  /** 浮层挂到这一层上（不挂在触发器旁边）；位置相对这一层，由 `style` 给。 */
+  layer?: HTMLElement | null
+  /** 写在浮层上的样式（挂到 `layer` 上时的位置）。 */
+  style?: React.CSSProperties
   label: string
   hold?: boolean
   /** 触发块占满一行（像下拉框），浮层和它一样宽。 */
@@ -58,7 +68,8 @@ export function Popover(props: {
   onLeave?: () => void
 }): React.JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
-  useDismiss(props.open && props.hold !== true, ref, props.onClose)
+  const floatRef = useRef<HTMLDivElement>(null)
+  useDismiss(props.open && props.hold !== true, ref, props.onClose, floatRef)
   // 收起后再挂一会儿放退场动画（同 useFloat：在渲染时就判断，不先卸掉再挂一个新的）。
   const [mounted, setMounted] = useState(false)
   const [round, setRound] = useState(0)
@@ -89,25 +100,34 @@ export function Popover(props: {
       }}
     >
       {props.trigger}
-      {(props.open || leaving) && (
-        <div
-          key={round}
-          className={cx(
-            css.popover,
-            props.align === 'end' && css.popoverEnd,
-            props.up === true && css.popoverUp,
-            props.wide === true && css.popoverWide,
-            props.className,
-          )}
-          role="dialog"
-          aria-label={props.label}
-          aria-hidden={leaving ? true : undefined}
-          data-leaving={leaving ? true : undefined}
-          tabIndex={-1}
-        >
-          {props.children}
-        </div>
-      )}
+      {(props.open || leaving) &&
+        place(
+          props.layer,
+          <div
+            ref={floatRef}
+            key={round}
+            className={cx(
+              css.popover,
+              props.align === 'end' && css.popoverEnd,
+              props.up === true && css.popoverUp,
+              props.wide === true && css.popoverWide,
+              props.className,
+            )}
+            role="dialog"
+            aria-label={props.label}
+            style={props.style}
+            aria-hidden={leaving ? true : undefined}
+            data-leaving={leaving ? true : undefined}
+            tabIndex={-1}
+          >
+            {props.children}
+          </div>,
+        )}
     </div>
   )
+}
+
+/** 浮层挂在哪：给了别的层就 portal 过去（React 的事件照旧冒到触发器这一层，Esc 照样在这里消化）。 */
+function place(layer: HTMLElement | null | undefined, float: React.ReactNode): React.ReactNode {
+  return layer === undefined || layer === null ? float : createPortal(float, layer)
 }

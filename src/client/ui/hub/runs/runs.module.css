@@ -6,11 +6,6 @@
 
 /* ── 左栏 ─────────────────────────────────────────────────── */
 
-/* 图标块跟状态色走（ui.kind 读 --wl-kind）。 */
-.mark[data-run-status] {
-  --wl-kind: var(--wl-run);
-}
-
 .meta {
   display: flex;
   gap: 5px;

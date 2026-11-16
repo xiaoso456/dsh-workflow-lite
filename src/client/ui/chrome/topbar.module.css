@@ -136,9 +136,60 @@
   flex: none;
 }
 
+/* 一行的高跟着行高（标准 / 紧凑）走：变量由下拉的列表给（shell/workflowSwitcher.module.css 的 .listBody）。 */
+.row > .rowMain {
+  min-height: var(--switch-row-h, 34px);
+  padding-block: 3px;
+}
+
+/* 图标块（chrome/KindMark.tsx）：大小跟着行高。 */
+.rowMark {
+  width: var(--row-mark, 20px);
+  height: var(--row-mark, 20px);
+  border-radius: calc(var(--row-mark-r, 6px) * var(--wl-round, 1));
+}
+
+.rowMark svg {
+  width: var(--row-icon, 12px);
+  height: var(--row-icon, 12px);
+}
+
+/* 标准行高：名字一行、下面一行灰色小字，各 16 高（和工作流中心的标准行一样）。 */
+.rowText {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.rowLine {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  height: 16px;
+  min-width: 0;
+}
+
+.rowSub {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  height: 16px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  white-space: nowrap;
+}
+
+/* 行尾那一格：字、标签色块、闪电都靠右，几行对成一列。 */
 .rowMeta {
+  display: inline-flex;
+  justify-content: flex-end;
+  align-items: center;
   min-width: 58px;
-  text-align: right;
+  font-variant-numeric: tabular-nums;
   transition: opacity 120ms linear;
 }
 

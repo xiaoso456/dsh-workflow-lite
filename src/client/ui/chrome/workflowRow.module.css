@@ -8,7 +8,7 @@
   flex: none;
   gap: 8px;
   align-items: center;
-  height: 34px;
+  height: var(--switch-row-h, 34px);
   padding: 0 8px;
   border-radius: var(--wl-r-control);
   background: var(--wl-hover);
