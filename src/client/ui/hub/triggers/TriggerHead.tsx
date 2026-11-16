@@ -35,6 +35,7 @@ import { useFireNow } from '../../trigger/FireNow.tsx'
 import { ProblemMark } from '../../trigger/ProblemMark.tsx'
 import tone from '../../trigger/stateTone.module.css'
 import { TriggerMark } from '../../trigger/TriggerMark.tsx'
+import hub from '../hub.module.css'
 import { TitleEdit } from '../TitleEdit.tsx'
 import css from './head.module.css'
 import { useCardSwitch } from './useCardSwitch.tsx'
@@ -99,7 +100,7 @@ export function TriggerHead(props: {
             {sourceSay(t, source)}
           </p>
         </div>
-        <div className={css.actions}>
+        <div className={hub.headActions}>
           <button
             ref={toggle.anchorRef}
             type="button"
@@ -114,15 +115,16 @@ export function TriggerHead(props: {
             <SwitchTrack on={on} />
           </button>
           {toggle.confirm}
+          <span className={hub.headDivider} aria-hidden="true" />
           <button
             type="button"
-            className={cx(ui.btn, ui.icon, ui.small)}
-            aria-label={t('hub.trgOpen')}
+            className={cx(ui.btn, ui.small, ui.soft)}
             data-tip={t('hub.trgOpenTip')}
             data-testid="wl-hub-trg-open"
             onClick={props.onOpenCard}
           >
             <Icon name="external" size={14} />
+            {t('hub.trgOpen')}
           </button>
         </div>
       </div>

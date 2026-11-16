@@ -9,6 +9,7 @@
  *
  * 不记运行状态的实例、状态文件读不出来的实例不能在这里改（小标照旧，不是按钮）。
  * 实例视图顶栏也用它（`confirm={false}`）：挑好就改进草稿，不弹确认卡。
+ * 工作流中心「运行实例」页右栏的状态条也用它，按钮里画状态条自己的样子（`children`，圆点 + 状态字），不画小标。
  *
  * 动效（都只动 transform / opacity）：菜单从小标那一角展开、各项依次浮出，收起时淡出；状态真的变了小标弹一下。
  *
@@ -37,6 +38,10 @@ export function HubRunStatus(props: {
    * （实例视图顶栏：只是改进草稿，由底部草稿栏确认保存）。
    */
   confirm?: boolean
+  /** 按钮里画什么；缺省是状态小标（状态变了弹一下）。给了就照画，换字的动效由调用方管。 */
+  children?: React.ReactNode
+  /** 按钮上再加的样式。 */
+  className?: string
   onChange(to: RunStatus, options: { notify: boolean; note: string }): void
 }): React.JSX.Element {
   const { t, status } = props
@@ -83,7 +88,7 @@ export function HubRunStatus(props: {
       <button
         ref={menu.anchorRef}
         type="button"
-        className={css.statusButton}
+        className={cx(css.statusButton, props.className)}
         aria-haspopup="menu"
         aria-expanded={open || confirm.open}
         aria-label={`${t('hub.setStatus')}：${t(RUN_STATUS_TEXT[status])}`}
@@ -95,9 +100,11 @@ export function HubRunStatus(props: {
         }}
         onKeyDown={menu.onKeyDown}
       >
-        <span key={changes} className={changes > 0 ? css.statusPop : undefined}>
-          <RunStatusBadge t={t} status={status} />
-        </span>
+        {props.children ?? (
+          <span key={changes} className={changes > 0 ? css.statusPop : undefined}>
+            <RunStatusBadge t={t} status={status} />
+          </span>
+        )}
         <span className={css.statusCaret}>
           <Icon name="chevronDown" size={12} />
         </span>

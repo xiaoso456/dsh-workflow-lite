@@ -26,29 +26,30 @@
   padding-right: var(--wl-scrollbar, 0px);
 }
 
+/* 28 高的框：放大镜 + 输入框（label）、清空、筛选小片、视图选项都在里面，比下面的行轻。 */
 .search {
   display: flex;
   flex: none;
-  gap: 6px;
+  gap: 2px;
   align-items: center;
   min-width: 0;
-  height: 32px;
-  margin: 10px 8px 4px;
-  padding: 0 3px 0 10px;
+  height: 28px;
+  margin: 8px 8px 2px;
+  padding: 0 2px 0 9px;
   border: 1px solid transparent;
-  border-radius: var(--wl-r-control);
+  border-radius: calc(7px * var(--wl-round, 1));
   background: var(--wl-fill);
   color: var(--wl-text-3);
   transition: background-color 120ms linear;
 }
 
-/* 搜索框右边还有个小按钮：两个并成一行，边距挪到这一行上。 */
+/* 框外右边还有个小按钮：两个并成一行，边距挪到这一行上。 */
 .searchRow {
   display: flex;
   flex: none;
-  gap: 6px;
+  gap: 4px;
   align-items: center;
-  margin: 10px 8px 4px;
+  margin: 8px 8px 2px;
 }
 
 .searchRow > .search {
@@ -60,22 +61,37 @@
   flex: none;
 }
 
-.search:hover {
+/* 悬停只算输入框那一截：视图菜单挂在框里，鼠标在菜单上时框不跟着变深。 */
+.search:has(> .searchField:hover) {
   background: var(--wl-fill-strong);
 }
 
-.search:focus-within {
+/* 只看输入框自己有没有焦点：视图菜单也在框里，焦点进了菜单不算。 */
+.search:has(.searchInput:focus) {
   border-color: var(--wl-accent);
   background: var(--wl-panel);
 }
 
-/* 放大镜不跟着输入框挤：清空按钮占着位置时它也是原来那么宽。 */
-.search > svg {
+/* 放大镜加输入框：占满剩下的地方（从 0 起算，筛选小片先拿够自己的宽），点哪都聚焦输入框。 */
+.searchField {
+  display: flex;
+  flex: 1 1 0;
+  gap: 6px;
+  align-items: center;
+  align-self: stretch;
+  min-width: 0;
+  cursor: text;
+}
+
+/* 放大镜不跟着输入框挤。 */
+.searchField > svg {
   flex: none;
 }
 
 /* 清空：没字时藏着（不接点击、Tab 也走不到），有字时淡出来；位置一直占着。 */
 .searchClear {
+  width: 22px;
+  height: 22px;
   /* 按下回弹（同 .btn）照留。 */
   transition:
     scale 160ms var(--wl-ease-sheet),
@@ -103,12 +119,54 @@
   background: transparent;
   color: var(--wl-text);
   font: inherit;
+  font-size: var(--wl-fs-meta);
   outline: none;
 }
 
 .searchInput::placeholder {
   color: var(--wl-text-3);
   opacity: 0.8;
+}
+
+/* 生效着的筛选：框里一个浅蓝小片，太长省略；整片是按钮，点了回到「全部」。 */
+.filterChip {
+  display: inline-flex;
+  flex: 0 1 auto;
+  gap: 4px;
+  align-items: center;
+  min-width: 0;
+  max-width: 60%;
+  height: 20px;
+  margin-right: 2px;
+  padding: 0 5px 0 7px;
+  border: 0;
+  border-radius: calc(5px * var(--wl-round, 1));
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+  font: inherit;
+  font-size: var(--wl-fs-micro);
+  cursor: pointer;
+  transition: background-color 120ms linear;
+}
+
+.filterChip:hover {
+  background: color-mix(in srgb, var(--wl-accent) 22%, transparent);
+}
+
+.filterChip:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+.filterChip > svg {
+  flex: none;
+}
+
+.filterLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sideEmpty {
@@ -523,6 +581,25 @@
   .paneIn > * {
     animation: none;
   }
+}
+
+/*
+ * 右栏标题栏右边的一排（四页共用）：次要动作是灰的图标按钮（导出、删除），最右一个带字的灰底主按钮
+ * （查看 / 打开）；触发页是开关 + 一道竖线 + 主按钮。
+ */
+.headActions {
+  display: flex;
+  flex: none;
+  gap: 4px;
+  align-items: center;
+}
+
+.headDivider {
+  flex: none;
+  width: 1px;
+  height: 16px;
+  margin: 0 4px;
+  background: var(--wl-line-strong);
 }
 
 .wfHead {

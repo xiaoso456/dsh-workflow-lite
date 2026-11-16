@@ -1,49 +1,7 @@
 /*
- * dsh-workflow-lite — 工作流中心各页左栏的分组列表（GroupedList.tsx）：筛选条、分组块、钉顶的分组标题。
+ * dsh-workflow-lite — 工作流中心各页左栏的分组列表（GroupedList.tsx）：分组块、钉顶的分组标题。
  * 一行长什么样在 hubRow.module.css；行的底子沿用 versions/wfList.module.css（滑块式选中、悬停渐显）。
  */
-
-/* 筛选生效时列表顶上的一条。 */
-.showing {
-  display: flex;
-  flex: none;
-  gap: 6px;
-  align-items: center;
-  height: 26px;
-  margin: 4px 8px 0;
-  padding: 0 3px 0 10px;
-  border-radius: var(--wl-r-control);
-  background: var(--wl-accent-soft);
-  color: var(--wl-accent-text);
-  font-size: var(--wl-fs-micro);
-}
-
-.showingText {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.showingClear {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  border: 0;
-  border-radius: calc(5px * var(--wl-round, 1));
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-  transition: background-color 120ms linear;
-}
-
-.showingClear:hover {
-  background: color-mix(in srgb, var(--wl-accent) 14%, transparent);
-}
 
 /*
  * 列表上沿的内边距写成变量：钉住的分组标题要按它往上抵（见 .group 的 top）。
@@ -87,9 +45,8 @@
 }
 
 /*
- * 分组标题：钉在列表顶上。里面的按钮和下面的行同一套格子（左右内边距 10、间距 10）：
- * 前面一格和行里的图标块同宽同列（宽度跟着行高，见 .list），名字和行里的名字左边对齐；项数靠右、挨着折叠箭头，
- * 箭头的右边和行的右边（内边距 10）对齐。
+ * 分组标题：钉在列表顶上。一行 11 号灰色小字，左右内边距和行一样（10）：名字的左边和行里图标块的左边对齐，
+ * 项数跟在名字后面，折叠箭头靠右（右边和行的右边对齐），悬停或收起时才出来。
  */
 .group {
   --group-rule: transparent;
@@ -141,9 +98,11 @@
 }
 
 .groupFold {
+  --tag-h: 16px;
+
   display: flex;
   flex: 1 1 auto;
-  gap: 10px;
+  gap: 6px;
   align-items: center;
   min-width: 0;
   padding: 0 10px;
@@ -161,7 +120,7 @@
 .groupEdit {
   display: flex;
   flex: 1 1 auto;
-  gap: 10px;
+  gap: 6px;
   align-items: center;
   min-width: 0;
   padding: 0 10px;
@@ -173,42 +132,55 @@
   outline-offset: -2px;
 }
 
-.groupLead {
-  display: grid;
+/* 名字前面的小圆点（颜色带信息的分法才有）。 */
+.groupDot {
   flex: none;
-  place-items: center;
-  width: var(--row-mark);
-}
-
-.groupLead > span {
-  display: inline-flex;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--group-dot, var(--wl-text-3));
 }
 
 .groupName {
   flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
-  color: var(--wl-text);
-  font-size: var(--wl-fs-meta);
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
   font-weight: 600;
+  letter-spacing: 0.02em;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* 项数：靠右，灰色等宽数字，不加底。带按钮的标题悬停时让位给按钮。 */
+/* 带按钮的标题：名字给悬停时浮出来的按钮让出地方。 */
+.group[data-acts="true"] .groupName {
+  max-width: calc(100% - 96px);
+}
+
+/* 项数：跟在名字后面，再淡一档的等宽数字。 */
 .groupCount {
   flex: none;
-  margin-left: auto;
   color: var(--wl-text-3);
   font-family: var(--wl-mono);
   font-variant-numeric: tabular-nums;
-  transition: opacity 120ms linear;
+  opacity: 0.75;
 }
 
+/* 折叠箭头：靠右，平时藏着；悬停、键盘移进来、收起着时出来（收起着要看得出来）。 */
 .chevron {
   display: inline-flex;
   flex: none;
-  transition: transform 180ms var(--wl-ease);
+  margin-left: auto;
+  opacity: 0;
+  transition:
+    opacity 120ms linear,
+    transform 180ms var(--wl-ease);
+}
+
+.group:is(:hover, :focus-within) .chevron,
+.groupFold[aria-expanded="false"] .chevron {
+  opacity: 1;
 }
 
 .groupFold[aria-expanded="false"] .chevron {
@@ -234,37 +206,26 @@
   pointer-events: auto;
 }
 
-.group[data-acts="true"]:is(:hover, :focus-within, [data-busy]) .groupCount {
-  opacity: 0;
-}
-
 @media (hover: none) {
-  .groupActions {
+  .groupActions,
+  .chevron {
     opacity: 1;
-    pointer-events: auto;
   }
 
-  .group[data-acts="true"] .groupCount {
-    opacity: 0;
+  .groupActions {
+    pointer-events: auto;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .chevron,
   .group::after,
-  .groupActions,
-  .groupCount,
-  .showingClear {
+  .groupActions {
     transition: none;
   }
 }
 
-/* 瑞士：筛选条去底色只留下线；分组标题压一道细黑线。 */
-:global([data-look="swiss"]) .showing {
-  border-bottom: 1px solid var(--wl-accent);
-  background: transparent;
-}
-
+/* 瑞士：分组标题压一道细黑线。 */
 :global([data-look="swiss"]) .group {
   --group-rule: var(--wl-text);
 }

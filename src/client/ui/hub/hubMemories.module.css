@@ -53,13 +53,6 @@
 }
 
 /* 标题栏末尾：查看文件、删除。 */
-.hubActions {
-  display: flex;
-  flex: none;
-  gap: 6px;
-  align-items: center;
-}
-
 /* 详情正文：左边这条记忆的信息（数、描述、谁在用），右边是它的版本，版本占满剩下的高度。 */
 .hubBody {
   display: grid;
@@ -179,14 +172,4 @@
 :global([data-look="swiss"]) .usedChip {
   border-width: 0 0 1px;
   border-color: var(--wl-line-strong);
-}
-
-/* 按使用分组时标题前面的图标：在用是绿的，未使用是灰的。 */
-.groupLead {
-  display: inline-flex;
-  color: var(--wl-text-3);
-}
-
-.groupLead[data-on="true"] {
-  color: var(--wl-ok);
 }

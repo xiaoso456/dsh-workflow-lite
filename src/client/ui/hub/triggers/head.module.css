@@ -80,13 +80,6 @@
   white-space: nowrap;
 }
 
-.actions {
-  display: flex;
-  flex: none;
-  gap: 6px;
-  align-items: center;
-}
-
 /* 开关连着一句「已打开 / 已关闭」，整块是一个按钮。 */
 .onoff {
   display: inline-flex;

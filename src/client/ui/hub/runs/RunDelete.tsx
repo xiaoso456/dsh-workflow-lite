@@ -1,6 +1,6 @@
 /**
  * dsh-workflow-lite — 删除一个实例：{@link DeleteButton}，确认卡里问要不要连工作区里的状态文件一起删。
- * 在右栏标题栏末尾。
+ * 在右栏标题栏，「查看」左边。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/runs/RunDelete
  */
@@ -14,7 +14,6 @@ import { DeleteButton } from '../DeleteButton.tsx'
 export function RunDelete(props: {
   t: T
   item: InstanceSummary
-  className: string
   testId: string
   onDelete(withState: boolean): void
 }): React.JSX.Element {
@@ -23,7 +22,6 @@ export function RunDelete(props: {
   return (
     <DeleteButton
       t={t}
-      className={props.className}
       testId={props.testId}
       confirmTestId="wl-hub-delete-confirm"
       title={t('hub.deleteConfirm')}

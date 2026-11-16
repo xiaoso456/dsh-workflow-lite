@@ -45,12 +45,12 @@
   min-width: 0;
 }
 
-/* 条目名和分组标题同号（12px），靠字重、字色和下面 11px 的灰字分层次。 */
+/* 条目名 12.5 号 500：比分组标题（11 号灰字）大一档、颜色亮，比下面 11 号的灰字重。 */
 .name {
   min-width: 0;
   overflow: hidden;
-  font-size: var(--wl-fs-meta);
-  font-weight: 600;
+  font-size: calc(var(--wl-fs-meta) + 0.5px);
+  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

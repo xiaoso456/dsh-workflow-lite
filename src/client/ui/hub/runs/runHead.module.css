@@ -52,10 +52,12 @@
   white-space: nowrap;
 }
 
-/* 来源 · 工作区 · 会话：窄时各自省略，来源先缩。 */
+/* 来源 / 工作区 / 会话 + 值：名字灰、值亮一档，几段之间空 14；窄时各自省略，来源先缩。 */
 .sub {
+  --tag-h: 16px;
+
   display: flex;
-  gap: 12px;
+  gap: 14px;
   align-items: center;
   min-width: 0;
   margin: 0;
@@ -66,7 +68,7 @@
 .subPart {
   display: inline-flex;
   flex: 0 1 auto;
-  gap: 4px;
+  gap: 5px;
   align-items: center;
   min-width: 0;
   white-space: nowrap;
@@ -76,26 +78,15 @@
   flex-shrink: 3;
 }
 
-.subPart > svg {
+.subKey {
   flex: none;
 }
 
 .subText {
   min-width: 0;
   overflow: hidden;
+  color: var(--wl-text-2);
   text-overflow: ellipsis;
-}
-
-/* 状态小标、查看、删除：一排靠右，状态小标和按钮之间稍宽一点。 */
-.actions {
-  display: flex;
-  flex: none;
-  gap: 6px;
-  align-items: center;
-}
-
-.actions > :first-child {
-  margin-right: 4px;
 }
 
 /* 状态条：状态 | 停在哪一步 + 进度 | 建立、更新。 */
@@ -114,10 +105,29 @@
 .state {
   display: inline-flex;
   flex: none;
+}
+
+/* 圆点 + 状态字。 */
+.stateFace {
+  display: inline-flex;
   gap: 7px;
   align-items: center;
   color: var(--wl-run);
   font-weight: 600;
+}
+
+/*
+ * 能改状态时那一格是按钮（HubRunStatus）：悬停底往左、上下多出一圈，圆点和字还在不能改时的位置；
+ * 箭头跟在字后面。
+ */
+/* 写成两级：盖过 HubRunStatus 自己按钮（胶囊、撑满）的样子。悬停底在 ::before（z-index -1），这里自成一层免得沉到状态条底色下面。 */
+.status .statePick {
+  flex: none;
+  isolation: isolate;
+  gap: 4px;
+  margin-left: -8px;
+  padding: 3px 4px 3px 8px;
+  border-radius: calc(7px * var(--wl-round, 1));
 }
 
 .stateDot {

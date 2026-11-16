@@ -42,7 +42,7 @@ import { Skeleton } from '../../kit/Skeleton.tsx'
 import ui from '../../kit/ui.module.css'
 import { HubSearch } from '../HubSearch.tsx'
 import hub from '../hub.module.css'
-import { GroupedList, type GroupFace, ShowingBar } from '../list/GroupedList.tsx'
+import { GroupedList, type GroupFace, groupDot } from '../list/GroupedList.tsx'
 import { keepShown } from '../list/keepShown.ts'
 import { type MenuSection, ViewMenu } from '../list/ViewMenu.tsx'
 import { RunDetail, type RunTab } from './RunDetail.tsx'
@@ -250,7 +250,6 @@ export function HubRuns(props: {
       return {
         label: ws === undefined || ws.path === undefined ? t('hub.noWorkspace') : ws.name,
         tip: ws?.path,
-        lead: <Icon name="folder" size={15} />,
         badge: ws?.here === true ? <span className={hub.tag}>{t('hub.here')}</span> : undefined,
       }
     }
@@ -258,18 +257,13 @@ export function HubRuns(props: {
       const bucket = BUCKET_FACE[group.key as RunBucket]
       return {
         label: t(bucket.label),
-        lead: (
-          <span className={css.groupTone} data-run-status={bucket.tone}>
-            <Icon name={bucket.icon} size={15} />
-          </span>
-        ),
+        mark: <span className={cx(groupDot, css.groupTone)} data-run-status={bucket.tone} />,
       }
     }
     if (group.by === 'session') {
       const label = sessionLabel(group.key === '' ? undefined : group.key)
       return {
         label: label.text,
-        lead: <Icon name="chat" size={15} />,
         badge: label.mine ? (
           <span className={hub.tag} data-tone="plain">
             {t('hub.thisSession')}
@@ -277,7 +271,7 @@ export function HubRuns(props: {
         ) : undefined,
       }
     }
-    return { label: group.key, lead: <Icon name="hub" size={15} /> }
+    return { label: group.key }
   }
 
   if (error !== null) return <Empty icon="alert" title={error} />
@@ -291,24 +285,29 @@ export function HubRuns(props: {
   return (
     <div className={hub.wfPage}>
       <div className={hub.side}>
-        <HubSearch t={t} value={query} placeholder={t('hub.search')} onChange={setQuery}>
-          <ViewMenu
-            t={t}
-            sections={menuSections(t, view, arranged.counts, onView)}
-            filtered={view.show !== 'all'}
-            testId="wl-hub-run-view"
-          />
-        </HubSearch>
-        {view.show !== 'all' && (
-          <ShowingBar
-            text={t('hub.showing')
-              .replace('{label}', t(SHOW[view.show].label))
-              .replace('{n}', String(arranged.shown))}
-            clearLabel={t('hub.clearShow')}
-            testId="wl-hub-run-showing"
-            onClear={() => onView({ show: 'all' })}
-          />
-        )}
+        <HubSearch
+          t={t}
+          value={query}
+          placeholder={t('hub.search')}
+          onChange={setQuery}
+          filter={
+            view.show === 'all'
+              ? undefined
+              : {
+                  label: t(SHOW[view.show].label),
+                  count: arranged.shown,
+                  testId: 'wl-hub-run-showing',
+                  onClear: () => onView({ show: 'all' }),
+                }
+          }
+          view={
+            <ViewMenu
+              t={t}
+              sections={menuSections(t, view, arranged.counts, onView)}
+              testId="wl-hub-run-view"
+            />
+          }
+        />
         <GroupedList
           label={t('hub.runs')}
           groups={arranged.groups}

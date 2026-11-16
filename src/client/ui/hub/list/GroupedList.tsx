@@ -3,8 +3,9 @@
  *
  * - 一组（标题 + 它的行）包在一块里：钉住的标题只在自己这块里钉着，下一组的标题上来时把它顶走，不叠在一起。
  *   不分组时（`by` 是 `none`）没有标题。
- * - 标题和下面的行同一套格子：前面一格和行里的图标块同宽同列，名字左边对齐，项数靠右挨着折叠箭头。
- *   标题可以带几个按钮（标签的改名、删除）：悬停时浮在项数的位置上；改名时名字那一格换成输入框（`edit`）。
+ * - 标题是一行灰色小字（名字、项数），和下面 12.5 号的行一眼分开；左边和行里的图标块对齐。颜色带信息的分法
+ *   （标签、状态、触发方式）名字前面一个小圆点（{@link groupDot}），别的不带。折叠箭头悬停或收起时才出来。
+ *   标题可以带几个按钮（标签的改名、删除）：悬停时浮在箭头左边；改名时名字那一格换成输入框（`edit`）。
  * - 一项可以出现在几组里（工作流打了几个标签）：选中底块落在点的那一组（`selectedGroup`），别处的同一项
  *   标成「也选着」（`also`），各行的动画键第一次出现用项的键，再出现加上组的键。
  * - 选中底色是一块滑块（ListThumb），换选中、筛选、换分法、折叠时各行滑到新位置（useFlip）。
@@ -27,10 +28,13 @@ import wf from '../../versions/wfList.module.css'
 import hub from '../hub.module.css'
 import css from './groupedList.module.css'
 
+/** 分组标题名字前面的小圆点：带上它，颜色写在 `--group-dot` 上。 */
+export const groupDot = css.groupDot
+
 /** 分组标题上画什么。 */
 export interface GroupFace {
-  /** 前面那一格（和行里的图标块同列）。 */
-  lead: React.ReactNode
+  /** 名字前面的小圆点（{@link groupDot}）：只在颜色带信息时给（标签色、状态色、触发方式色）。 */
+  mark?: React.ReactNode
   label: string
   /** 悬停名字看的（比如工作区的完整路径）。 */
   tip?: string
@@ -171,9 +175,7 @@ function GroupHead(props: {
     >
       {face.edit !== undefined ? (
         <div className={css.groupEdit}>
-          <span className={css.groupLead} aria-hidden="true">
-            {face.lead}
-          </span>
+          {face.mark}
           {face.edit}
         </div>
       ) : (
@@ -185,9 +187,7 @@ function GroupHead(props: {
           data-value={props.id}
           onClick={props.onFold}
         >
-          <span className={css.groupLead} aria-hidden="true">
-            {face.lead}
-          </span>
+          {face.mark}
           <span className={css.groupName} data-tip={face.tip} data-tip-align="start">
             {face.label}
           </span>
@@ -201,29 +201,6 @@ function GroupHead(props: {
       {face.actions !== undefined && face.edit === undefined && (
         <span className={css.groupActions}>{face.actions}</span>
       )}
-    </div>
-  )
-}
-
-/** 筛选生效时列表顶上的一条：「仅显示待处理 · 2 个 ✕」，点 ✕ 清掉。 */
-export function ShowingBar(props: {
-  text: string
-  clearLabel: string
-  testId: string
-  onClear(): void
-}): React.JSX.Element {
-  return (
-    <div className={cx(css.showing, ui.fade)} data-testid={props.testId}>
-      <span className={css.showingText}>{props.text}</span>
-      <button
-        type="button"
-        className={css.showingClear}
-        aria-label={props.clearLabel}
-        data-tip={props.clearLabel}
-        onClick={props.onClear}
-      >
-        <Icon name="x" size={12} />
-      </button>
     </div>
   )
 }

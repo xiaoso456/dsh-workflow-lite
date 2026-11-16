@@ -54,14 +54,14 @@ export function runProgress(item: InstanceSummary): string | undefined {
   return item.total !== undefined && item.total > 0 ? `${item.done ?? 0}/${item.total}` : undefined
 }
 
-/** 按状态分组时各档的名字、图标、颜色档。 */
-export const BUCKET_FACE: Record<RunBucket, { label: LocaleKey; icon: IconName; tone: RunTone }> = {
-  running: { label: 'hub.runBucket.running', icon: 'play', tone: 'running' },
-  waiting: { label: 'run.overall.waiting', icon: 'hourglass', tone: 'waiting' },
-  failed: { label: 'run.overall.failed', icon: 'alert', tone: 'failed' },
-  done: { label: 'run.overall.done', icon: 'check', tone: 'done' },
-  cancelled: { label: 'run.overall.cancelled', icon: 'stop', tone: 'cancelled' },
-  untracked: { label: 'run.untracked', icon: 'runs', tone: 'untracked' },
+/** 按状态分组时各档的名字、颜色档。 */
+export const BUCKET_FACE: Record<RunBucket, { label: LocaleKey; tone: RunTone }> = {
+  running: { label: 'hub.runBucket.running', tone: 'running' },
+  waiting: { label: 'run.overall.waiting', tone: 'waiting' },
+  failed: { label: 'run.overall.failed', tone: 'failed' },
+  done: { label: 'run.overall.done', tone: 'done' },
+  cancelled: { label: 'run.overall.cancelled', tone: 'cancelled' },
+  untracked: { label: 'run.untracked', tone: 'untracked' },
 }
 
 /** 来源的图标：画布上点的、对话里发起的，触发器发起的跟触发方式走。 */

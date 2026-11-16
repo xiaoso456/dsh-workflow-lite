@@ -53,8 +53,7 @@
   content: "·";
 }
 
-/* 按状态分组时标题前面的图标用状态色。 */
+/* 按状态分组时标题前面的小圆点用状态色。 */
 .groupTone {
-  display: inline-flex;
-  color: var(--wl-run);
+  --group-dot: var(--wl-run-fill);
 }

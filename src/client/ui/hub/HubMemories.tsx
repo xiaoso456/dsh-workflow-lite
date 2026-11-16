@@ -47,7 +47,7 @@ import { DeleteButton } from './DeleteButton.tsx'
 import { HubSearch } from './HubSearch.tsx'
 import hub from './hub.module.css'
 import css from './hubMemories.module.css'
-import { GroupedList, type GroupFace, ShowingBar } from './list/GroupedList.tsx'
+import { GroupedList, type GroupFace } from './list/GroupedList.tsx'
 import { HubRow, rowMark } from './list/HubRow.tsx'
 import { keepShown } from './list/keepShown.ts'
 import { type MenuSection, ViewMenu } from './list/ViewMenu.tsx'
@@ -109,24 +109,24 @@ export function HubMemories(props: {
           placeholder={t('hub.memSearch')}
           testId="wl-hub-mem-search"
           onChange={setQuery}
-        >
-          <ViewMenu
-            t={t}
-            sections={memorySections(t, view, arranged.counts, onView)}
-            filtered={view.show !== 'all'}
-            testId="wl-hub-mem-view"
-          />
-        </HubSearch>
-        {view.show !== 'all' && (
-          <ShowingBar
-            text={t('hub.showing')
-              .replace('{label}', t(SHOW[view.show].label))
-              .replace('{n}', String(arranged.shown))}
-            clearLabel={t('hub.clearShow')}
-            testId="wl-hub-mem-showing"
-            onClear={() => onView({ show: 'all' })}
-          />
-        )}
+          filter={
+            view.show === 'all'
+              ? undefined
+              : {
+                  label: t(SHOW[view.show].label),
+                  count: arranged.shown,
+                  testId: 'wl-hub-mem-showing',
+                  onClear: () => onView({ show: 'all' }),
+                }
+          }
+          view={
+            <ViewMenu
+              t={t}
+              sections={memorySections(t, view, arranged.counts, onView)}
+              testId="wl-hub-mem-view"
+            />
+          }
+        />
         <MemoryList
           t={t}
           groups={arranged.groups}
@@ -360,30 +360,22 @@ function memorySections(
   ]
 }
 
-/** 分组标题：按类型是工作流记忆 / 步骤记忆，按使用是在用 / 未使用（未使用是灰的），按工作流是工作流名。 */
+/** 分组标题：按类型是工作流记忆 / 步骤记忆，按使用是在用 / 未使用，按工作流是工作流名。 */
 function memoryGroupFace(t: T, group: ListGroup<MemoryEntry, MemoryGroupKey>): GroupFace {
   if (group.by === 'type') {
     const type = group.key === 'workflow' ? 'workflow' : 'step'
     return {
       label: t(type === 'workflow' ? 'mem.type.workflow' : 'mem.type.step'),
-      lead: <Icon name={type === 'workflow' ? 'hub' : 'rows'} size={15} />,
     }
   }
   if (group.by === 'use') {
     const inUse = group.key === 'used'
-    return {
-      label: t(inUse ? 'hub.memBucket.used' : 'hub.memBucket.unused'),
-      lead: (
-        <span className={css.groupLead} data-on={inUse}>
-          <Icon name={inUse ? 'check' : 'circle'} size={15} />
-        </span>
-      ),
-    }
+    return { label: t(inUse ? 'hub.memBucket.used' : 'hub.memBucket.unused') }
   }
   if (group.by === 'workflow' && group.key === NO_WORKFLOW) {
-    return { label: t('hub.memNoWorkflow'), lead: <Icon name="circle" size={15} /> }
+    return { label: t('hub.memNoWorkflow') }
   }
-  return { label: group.key, lead: <Icon name="hub" size={15} /> }
+  return { label: group.key }
 }
 
 /** 删除确认卡上那句：谁在用、几个版本一起删。 */
@@ -451,7 +443,16 @@ function MemoryDetail(props: {
             <code>{entry.id}</code>
           </p>
         </div>
-        <div className={css.hubActions}>
+        <div className={hub.headActions}>
+          <DeleteButton
+            t={t}
+            label={`${t('common.delete')} ${memoryTitle(entry)}`}
+            testId="wl-hub-mem-delete"
+            confirmTestId="wl-hub-mem-delete-confirm"
+            title={t('hub.memDeleteTitle').replace('{name}', memoryTitle(entry))}
+            desc={deleteText(t, entry)}
+            onConfirm={() => void props.onRemove()}
+          />
           <button
             type="button"
             className={cx(ui.btn, ui.small, ui.soft)}
@@ -462,16 +463,6 @@ function MemoryDetail(props: {
             <Icon name="eye" size={14} />
             {t('mem.view')}
           </button>
-          <DeleteButton
-            t={t}
-            className={cx(ui.btn, ui.icon, ui.small, ui.danger)}
-            label={`${t('common.delete')} ${memoryTitle(entry)}`}
-            testId="wl-hub-mem-delete"
-            confirmTestId="wl-hub-mem-delete-confirm"
-            title={t('hub.memDeleteTitle').replace('{name}', memoryTitle(entry))}
-            desc={deleteText(t, entry)}
-            onConfirm={() => void props.onRemove()}
-          />
         </div>
       </div>
 

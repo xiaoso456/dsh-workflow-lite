@@ -53,7 +53,6 @@ import { HubExport, type PackScope } from '../HubExport.tsx'
 import { HubImport } from '../HubImport.tsx'
 import { HubSearch } from '../HubSearch.tsx'
 import hub from '../hub.module.css'
-import { ShowingBar } from '../list/GroupedList.tsx'
 import { keepShown } from '../list/keepShown.ts'
 import { type MenuSection, ViewMenu } from '../list/ViewMenu.tsx'
 import { Callout } from '../PackRow.tsx'
@@ -301,21 +300,35 @@ export function HubWorkflows(props: {
           placeholder={t('hub.wfSearch')}
           testId="wl-hub-wf-search"
           onChange={setQuery}
+          filter={
+            filtered
+              ? {
+                  label: filterLabel(t, view.show, filterTags),
+                  count: arranged.shown,
+                  testId: 'wl-hub-wf-showing',
+                  onClear: () => {
+                    onView({ show: 'all' })
+                    setTagFilter([])
+                  },
+                }
+              : undefined
+          }
+          view={
+            <ViewMenu
+              t={t}
+              sections={workflowSections(t, view, arranged.counts, catalog, tagColors, filterTags, {
+                onView,
+                onTag: (tag) =>
+                  setTagFilter((list) =>
+                    list.some((known) => sameTag(known, tag))
+                      ? list.filter((known) => !sameTag(known, tag))
+                      : [...list, tag],
+                  ),
+              })}
+              testId="wl-hub-wf-view"
+            />
+          }
         >
-          <ViewMenu
-            t={t}
-            sections={workflowSections(t, view, arranged.counts, catalog, tagColors, filterTags, {
-              onView,
-              onTag: (tag) =>
-                setTagFilter((list) =>
-                  list.some((known) => sameTag(known, tag))
-                    ? list.filter((known) => !sameTag(known, tag))
-                    : [...list, tag],
-                ),
-            })}
-            filtered={filtered}
-            testId="wl-hub-wf-view"
-          />
           <button
             type="button"
             className={cx(ui.btn, ui.icon, ui.small)}
@@ -328,17 +341,6 @@ export function HubWorkflows(props: {
             <Icon name="upload" size={15} />
           </button>
         </HubSearch>
-        {filtered && (
-          <ShowingBar
-            text={showingText(t, view.show, filterTags, arranged.shown)}
-            clearLabel={t('hub.clearShow')}
-            testId="wl-hub-wf-showing"
-            onClear={() => {
-              onView({ show: 'all' })
-              setTagFilter([])
-            }}
-          />
-        )}
         <WorkflowList
           t={t}
           groups={arranged.groups}
@@ -448,49 +450,50 @@ export function HubWorkflows(props: {
                 </span>
               </p>
             </div>
-            <button
-              type="button"
-              className={cx(ui.btn, ui.small)}
-              data-tip={t('pack.exportTip')}
-              data-testid="wl-hub-wf-export"
-              onClick={() => {
-                setNotice(null)
-                setPane('export')
-              }}
-            >
-              <Icon name="download" size={14} />
-              {t('pack.export')}
-            </button>
-            {/* 正开着的那张也留着：点了回到画布。 */}
-            <button
-              type="button"
-              className={cx(ui.btn, ui.small, ui.soft)}
-              data-tip={t('hub.wfOpenTip')}
-              data-testid="wl-hub-wf-open"
-              onClick={() => props.onOpen(selected.name)}
-            >
-              <Icon name="external" size={14} />
-              {t('hub.wfOpen')}
-            </button>
-            <DeleteButton
-              t={t}
-              className={cx(ui.btn, ui.icon, ui.small, ui.danger)}
-              label={`${t('common.delete')} ${selected.name}`}
-              testId="wl-hub-wf-delete"
-              confirmTestId="wl-hub-wf-delete-confirm"
-              title={t('wf.deleteTitle').replace('{name}', selected.name)}
-              desc={deleteDesc(t, selected, editing)}
-              onConfirm={() => {
-                // 删掉之后选中挪到它下面一张（最后一张就挪到上面）。
-                const name = selected.name
-                const index = visible.indexOf(selected)
-                const next = visible[index + 1] ?? visible[index - 1]
-                void props.remove(name).then(async (ok) => {
-                  if (ok) setPicked(next?.name ?? null)
-                  await load()
-                })
-              }}
-            />
+            <div className={hub.headActions}>
+              <button
+                type="button"
+                className={cx(ui.btn, ui.icon, ui.small)}
+                aria-label={t('pack.export')}
+                data-tip={`${t('pack.export')} · ${t('pack.exportTip')}`}
+                data-testid="wl-hub-wf-export"
+                onClick={() => {
+                  setNotice(null)
+                  setPane('export')
+                }}
+              >
+                <Icon name="download" size={14} />
+              </button>
+              <DeleteButton
+                t={t}
+                label={`${t('common.delete')} ${selected.name}`}
+                testId="wl-hub-wf-delete"
+                confirmTestId="wl-hub-wf-delete-confirm"
+                title={t('wf.deleteTitle').replace('{name}', selected.name)}
+                desc={deleteDesc(t, selected, editing)}
+                onConfirm={() => {
+                  // 删掉之后选中挪到它下面一张（最后一张就挪到上面）。
+                  const name = selected.name
+                  const index = visible.indexOf(selected)
+                  const next = visible[index + 1] ?? visible[index - 1]
+                  void props.remove(name).then(async (ok) => {
+                    if (ok) setPicked(next?.name ?? null)
+                    await load()
+                  })
+                }}
+              />
+              {/* 正开着的那张也留着：点了回到画布。 */}
+              <button
+                type="button"
+                className={cx(ui.btn, ui.small, ui.soft)}
+                data-tip={t('hub.wfOpenTip')}
+                data-testid="wl-hub-wf-open"
+                onClick={() => props.onOpen(selected.name)}
+              >
+                <Icon name="external" size={14} />
+                {t('hub.wfOpen')}
+              </button>
+            </div>
           </div>
           {notice !== null && (
             <Callout
@@ -543,13 +546,13 @@ const SHOW: Record<WorkflowShow, { label: LocaleKey; icon: IconName }> = {
   invalid: { label: 'hub.wfShow.invalid', icon: 'alert' },
 }
 
-/** 筛选条上那句：筛法、挑的标签，和剩几个。 */
-function showingText(t: T, show: WorkflowShow, tags: readonly string[], n: number): string {
+/** 搜索框里筛选小片上那句：筛法和挑的标签。 */
+function filterLabel(t: T, show: WorkflowShow, tags: readonly string[]): string {
   const parts = [
     ...(show === 'all' ? [] : [t(SHOW[show].label)]),
     ...(tags.length === 0 ? [] : [t('hub.tagFilterShowing').replace('{tags}', tags.join('、'))]),
   ]
-  return t('hub.showing').replace('{label}', parts.join(' · ')).replace('{n}', String(n))
+  return parts.join(' · ')
 }
 
 function workflowSections(

@@ -1,12 +1,11 @@
 /*
  * dsh-workflow-lite — 「触发」页左栏（TriggerSide.tsx）：卡片行、底部总闸。
- * 分组、筛选条在 list/groupedList.module.css；行的底子沿用 versions/wfList.module.css。
+ * 分组在 list/groupedList.module.css，筛选小片在搜索框里（HubSearch）；行的底子沿用 versions/wfList.module.css。
  */
 
-/* 按状态分组时标题前面的图标用状态的字色（stateTone 的 --tone-text）。 */
+/* 按状态分组时标题前面的小圆点用状态色（stateTone 的 --tone）。 */
 .groupTone {
-  display: inline-flex;
-  color: var(--tone-text);
+  --group-dot: var(--tone);
 }
 
 .meta {

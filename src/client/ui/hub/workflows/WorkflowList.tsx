@@ -22,10 +22,10 @@ import {
   type WorkflowSortBy,
 } from '../../../model/workflowList.ts'
 import { useConfirm } from '../../kit/Confirm.tsx'
-import { Icon, type IconName } from '../../kit/Icon.tsx'
+import { Icon } from '../../kit/Icon.tsx'
 import hub from '../hub.module.css'
-import { GroupedList, type GroupFace } from '../list/GroupedList.tsx'
-import { type TagColors, TagMark } from './TagMark.tsx'
+import { GroupedList, type GroupFace, groupDot } from '../list/GroupedList.tsx'
+import type { TagColors } from './TagMark.tsx'
 import { TagRename } from './TagRename.tsx'
 import { WorkflowRow } from './WorkflowRow.tsx'
 
@@ -159,24 +159,26 @@ function groupFace(
   colors: TagColors,
   actions: TagActions,
 ): GroupFace {
-  const lead = (icon: IconName): React.ReactNode => <Icon name={icon} size={15} />
   if (group.by === 'trigger') {
-    const has = group.key === 'with'
     return {
-      lead: lead(has ? 'bolt' : 'circle'),
-      label: t(has ? 'hub.wfBucket.withTrigger' : 'hub.wfBucket.noTrigger'),
+      label: t(group.key === 'with' ? 'hub.wfBucket.withTrigger' : 'hub.wfBucket.noTrigger'),
     }
   }
   if (group.by === 'updated') {
-    return { lead: lead('clock'), label: t(UPDATED_TEXT[group.key] ?? 'hub.wfBucket.older') }
+    return { label: t(UPDATED_TEXT[group.key] ?? 'hub.wfBucket.older') }
   }
-  if (group.by !== 'tag') return { lead: null, label: '' }
-  if (group.key === NO_TAG) return { lead: lead('circle'), label: t('hub.noTag') }
+  if (group.by !== 'tag') return { label: '' }
+  if (group.key === NO_TAG) return { label: t('hub.noTag') }
   const tag = group.key
-  const tagLead = <TagMark color={tagColorOf(colors, tag)} size={15} />
+  const tagLead = (
+    <span
+      className={groupDot}
+      style={{ '--group-dot': `var(--wl-c-${tagColorOf(colors, tag)})` } as React.CSSProperties}
+    />
+  )
   if (actions.renaming === tag) {
     return {
-      lead: tagLead,
+      mark: tagLead,
       label: tag,
       edit: (
         <TagRename
@@ -190,7 +192,7 @@ function groupFace(
   }
   const doomed = actions.doomed === tag
   return {
-    lead: tagLead,
+    mark: tagLead,
     label: tag,
     busy: doomed && actions.confirming,
     actions: (

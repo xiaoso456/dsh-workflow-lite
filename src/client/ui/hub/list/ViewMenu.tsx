@@ -6,7 +6,7 @@
  * 执行方式同一种）；按标签筛是多选，选中的各自淡入标签自己的颜色。一眼看到各段选了什么，菜单也矮。
  *
  * 点一项即生效，菜单留着（可以接着换别的一段）；Esc、点外面收起。单选段是 `menuitemradio`，多选段（按标签筛）
- * 是 `menuitemcheckbox`；上下左右键在各项之间走。有筛选生效时按钮右上角一个蓝点。
+ * 是 `menuitemcheckbox`；上下左右键在各项之间走。按钮挂在搜索框里（HubSearch 的 `view`），生效着的筛选由框里的小片写出来。
  *
  * 菜单不走 portal：打开时量按钮下面还有多少地方（窗口、工作流中心的框，见 `roomAround`），菜单最高到那里，
  * 放不下的自己滚，最后几段不会被框切掉。
@@ -83,8 +83,6 @@ function densitySection(t: T, density: ListDensity): MenuSection {
 export function ViewMenu(props: {
   t: T
   sections: readonly MenuSection[]
-  /** 有筛选生效（按钮上挂蓝点）。 */
-  filtered: boolean
   testId: string
 }): React.JSX.Element {
   const { t } = props
@@ -126,7 +124,6 @@ export function ViewMenu(props: {
           aria-haspopup="menu"
           aria-expanded={open}
           data-tip={open ? undefined : t('hub.viewOptions')}
-          data-filtered={props.filtered || undefined}
           data-testid={props.testId}
           onClick={() => {
             if (open) return close()
@@ -136,7 +133,7 @@ export function ViewMenu(props: {
             setOpen(true)
           }}
         >
-          <Icon name="sliders" size={15} />
+          <Icon name="sliders" size={14} />
         </button>
       }
     >

@@ -35,10 +35,10 @@ import { Icon, type IconName } from '../../kit/Icon.tsx'
 import ui from '../../kit/ui.module.css'
 import { SwapText } from '../../motion/swapText.tsx'
 import tone from '../../trigger/stateTone.module.css'
-import { TRIGGER_ICON, TriggerMark, triggerTint } from '../../trigger/TriggerMark.tsx'
+import { TriggerMark, triggerTint } from '../../trigger/TriggerMark.tsx'
 import { HubSearch } from '../HubSearch.tsx'
 import hub from '../hub.module.css'
-import { GroupedList, type GroupFace, ShowingBar } from '../list/GroupedList.tsx'
+import { GroupedList, type GroupFace, groupDot } from '../list/GroupedList.tsx'
 import { HubRow, rowMark } from '../list/HubRow.tsx'
 import { type MenuSection, ViewMenu } from '../list/ViewMenu.tsx'
 import css from './side.module.css'
@@ -47,11 +47,11 @@ import css from './side.module.css'
 export const pairKey = (workflow: string, node: string): string => `${workflow}\n${node}`
 export const keyOf = (entry: TriggerEntry): string => pairKey(entry.workflow, entry.view.node)
 
-/** 按状态分组的三组：名字、图标（和按触发方式分组时的图标一样大，标题那一格看着一样重）、颜色。 */
-const BUCKET: Record<StateBucket, { label: LocaleKey; icon: IconName; tone: string }> = {
-  act: { label: 'hub.trgBucket.act', icon: 'alert', tone: 'warn' },
-  on: { label: 'hub.trgBucket.on', icon: 'power', tone: 'live' },
-  off: { label: 'hub.trgBucket.off', icon: 'power', tone: 'off' },
+/** 按状态分组的三组：名字、颜色（标题前面的小圆点）。 */
+const BUCKET: Record<StateBucket, { label: LocaleKey; tone: string }> = {
+  act: { label: 'hub.trgBucket.act', tone: 'warn' },
+  on: { label: 'hub.trgBucket.on', tone: 'live' },
+  off: { label: 'hub.trgBucket.off', tone: 'off' },
 }
 
 const GROUP: Record<TriggerGroupBy, { label: LocaleKey; icon: IconName }> = {
@@ -141,24 +141,24 @@ export function TriggerSide(props: {
         placeholder={t('hub.trgSearch')}
         testId="wl-hub-trg-search"
         onChange={props.onQuery}
-      >
-        <ViewMenu
-          t={t}
-          sections={menuSections(t, view, arranged.counts, props.onView)}
-          filtered={view.show !== 'all'}
-          testId="wl-hub-trg-view"
-        />
-      </HubSearch>
-      {view.show !== 'all' && (
-        <ShowingBar
-          text={t('hub.showing')
-            .replace('{label}', t(SHOW[view.show].label))
-            .replace('{n}', String(arranged.shown))}
-          clearLabel={t('hub.clearShow')}
-          testId="wl-hub-trg-showing"
-          onClear={() => props.onView({ show: 'all' })}
-        />
-      )}
+        filter={
+          view.show === 'all'
+            ? undefined
+            : {
+                label: t(SHOW[view.show].label),
+                count: arranged.shown,
+                testId: 'wl-hub-trg-showing',
+                onClear: () => props.onView({ show: 'all' }),
+              }
+        }
+        view={
+          <ViewMenu
+            t={t}
+            sections={menuSections(t, view, arranged.counts, props.onView)}
+            testId="wl-hub-trg-view"
+          />
+        }
+      />
       <GroupedList
         label={t('hub.trgPage')}
         groups={arranged.groups}
@@ -190,33 +190,28 @@ export function TriggerSide(props: {
   )
 }
 
-/** 分组标题：按触发方式是那种方式的图标，按状态是那种状态的图标（状态色），按工作流是工作流图标。 */
+/** 分组标题：按触发方式、按状态的名字前面一个小圆点（触发方式的颜色、状态色），按工作流的不带。 */
 function groupFace(t: T, group: TriggerGroup): GroupFace {
   if (group.by === 'state') {
     const bucket = BUCKET[group.key as StateBucket]
     return {
       label: t(bucket.label),
-      lead: (
-        <span className={tone.tone} data-tone={bucket.tone}>
-          <span className={css.groupTone}>
-            <Icon name={bucket.icon} size={15} />
-          </span>
-        </span>
-      ),
+      mark: <span className={cx(groupDot, tone.tone, css.groupTone)} data-tone={bucket.tone} />,
     }
   }
   if (group.by === 'kind') {
     const kind = group.key as TriggerSourceKind
     return {
       label: t(`trigger.source.${kind}` as LocaleKey),
-      lead: (
-        <span style={{ color: triggerTint(kind) } as React.CSSProperties}>
-          <Icon name={TRIGGER_ICON[kind]} size={15} />
-        </span>
+      mark: (
+        <span
+          className={groupDot}
+          style={{ '--group-dot': triggerTint(kind) } as React.CSSProperties}
+        />
       ),
     }
   }
-  return { label: group.key, lead: <Icon name="hub" size={15} /> }
+  return { label: group.key }
 }
 
 function TriggerRow(props: {

@@ -166,6 +166,22 @@
   color: var(--wl-danger);
 }
 
+/* 不抢眼的删除：平时和别的图标按钮一样灰，悬停、确认卡开着时才变红。 */
+.dangerQuiet {
+  --btn-hover: var(--wl-danger-soft);
+
+  transition: color 120ms linear;
+}
+
+.dangerQuiet:hover,
+.dangerQuiet[aria-expanded="true"] {
+  color: var(--wl-danger);
+}
+
+.dangerQuiet[aria-expanded="true"]::before {
+  opacity: 1;
+}
+
 .dangerSolid {
   background: var(--wl-danger);
   color: var(--wl-accent-on);
