@@ -49,18 +49,6 @@
   background: transparent;
 }
 
-/* 「复制 / 已复制」按两者里宽的那个占位，换字时按钮不变宽。 */
-.copyText {
-  display: inline-grid;
-}
-
-.copyText::after {
-  height: 0;
-  overflow: hidden;
-  content: attr(data-text);
-  visibility: hidden;
-}
-
 /* 一组字段：一个框，行间细线。 */
 .box {
   overflow: hidden;

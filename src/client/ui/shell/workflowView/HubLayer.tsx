@@ -35,7 +35,8 @@ export function HubLayer({
   sessionRows: readonly SessionRow[]
   sessionsReady: boolean
   runs: Runs
-  openRun(id: string): void
+  /** 打开实例；给了 `node` 就选中那一步。 */
+  openRun(id: string, node?: string): void
   wf: Workflow
   sessionCwd: string | undefined
   /** 打开时停在哪（导出、某张触发卡片）；`null` = 从头。 */

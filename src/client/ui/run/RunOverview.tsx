@@ -12,7 +12,6 @@ import {
   type OriginDetail,
   progressOf,
   RUN_STATUSES,
-  type RunLogEntry,
   type RunState,
 } from '../../../shared/runState.ts'
 import type { WorkflowDocument } from '../../../shared/types.ts'
@@ -26,6 +25,7 @@ import { TextArea } from '../kit/TextArea.tsx'
 import ui from '../kit/ui.module.css'
 import { SwapText } from '../motion/swapText.tsx'
 import css from '../panel/panel.module.css'
+import { EventList, RunEvent } from './RunEvent.tsx'
 import { Choices, EditedDot, isEdited } from './RunNodeState.tsx'
 import { OriginRows } from './RunOrigin.tsx'
 import { RunPosition } from './RunPosition.tsx'
@@ -177,9 +177,9 @@ export function Overview(props: {
         {log.length === 0 ? (
           <p className={css.help}>{t('run.noEvents')}</p>
         ) : (
-          <ul className={cx(own.timeline, own.timelineScroll)} data-testid="wl-run-timeline">
+          <EventList className={own.timelineScroll} testId="wl-run-timeline">
             {log.map((entry, index) => (
-              <TimelineItem
+              <RunEvent
                 // biome-ignore lint/suspicious/noArrayIndexKey: 流水只追加，倒序后的下标就是稳定身份
                 key={`${entry.at}-${index}`}
                 t={t}
@@ -188,51 +188,9 @@ export function Overview(props: {
                 onSelect={props.onSelect}
               />
             ))}
-          </ul>
+          </EventList>
         )}
       </section>
     </>
-  )
-}
-
-const EVENT_TEXT: Record<RunLogEntry['event'], LocaleKey> = {
-  start: 'run.event.start',
-  done: 'run.event.done',
-  failed: 'run.event.failed',
-  waiting: 'run.event.waiting',
-  skipped: 'run.event.skipped',
-  resume: 'run.event.resume',
-  transfer: 'run.event.transfer',
-  edit: 'run.event.edit',
-  next: 'run.event.next',
-  note: 'run.event.note',
-}
-
-function TimelineItem(props: {
-  t: T
-  entry: RunLogEntry
-  labelOf(id: string): string
-  onSelect(id: string | null): void
-}): React.JSX.Element {
-  const { t, entry } = props
-  const time = new Date(entry.at)
-  const clock = Number.isNaN(time.getTime())
-    ? entry.at
-    : `${String(time.getHours()).padStart(2, '0')}:${String(time.getMinutes()).padStart(2, '0')}`
-  return (
-    // biome-ignore lint/a11y/useKeyWithClickEvents: 时间线行的键盘入口是右栏里的状态控件；点一下只是顺手定位
-    <li className={own.event} onClick={() => props.onSelect(entry.node ?? null)}>
-      <span className={own.eventTime}>{clock}</span>
-      <span className={own.eventText}>
-        {entry.by === 'user' && <span className={own.eventUser}>{t('run.byUser')} </span>}
-        {entry.node !== undefined && <b>{props.labelOf(entry.node)} </b>}
-        {t(EVENT_TEXT[entry.event])}
-        {entry.round !== undefined &&
-          entry.round > 1 &&
-          ` · ${t('run.round').replace('{n}', String(entry.round))}`}
-        {entry.verdict !== undefined && ` · ${entry.verdict}`}
-        {entry.detail !== undefined && ` — ${entry.detail}`}
-      </span>
-    </li>
   )
 }

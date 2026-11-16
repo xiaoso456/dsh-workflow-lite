@@ -59,7 +59,15 @@ function pinRoot(document: WorkflowDocument, id: string): WorkflowDocument {
 
 type SetupCore = Pick<
   RunCore,
-  'store' | 'deps' | 'answersOf' | 'readState' | 'planOf' | 'snapshot' | 'summarize' | 'appendLog'
+  | 'store'
+  | 'deps'
+  | 'answersOf'
+  | 'readState'
+  | 'planOf'
+  | 'snapshot'
+  | 'summarize'
+  | 'appendLog'
+  | 'joinFires'
 >
 
 /** 建实例、画布上的「执行」、归属与删除、恢复。 */
@@ -361,6 +369,7 @@ export class RunSetup {
     const document = await this.core.snapshot(record)
     if (document === null) return fail('not_found', `实例 ${target} 的图快照不见了`)
     if (session.id !== undefined) await this.bind(record.id, session.id)
+    await this.core.joinFires(record, session.id)
     const compiled = await this.core.planOf(record, document, session.cwd)
     if (!compiled.ok) return compiled
     const read = await this.core.readState(record, document)

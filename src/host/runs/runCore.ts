@@ -59,6 +59,11 @@ export interface OriginSource {
   }): Promise<{ fire: string; origin: OriginDetail } | undefined>
   /** 这次触发建出了哪个实例。 */
   bind(fire: string, instance: string): Promise<void>
+  /**
+   * 模型在实例里接着做（恢复它、改它的状态）：这个实例建立以来发进它的会话、还没对上实例的同一个工作流的触发，
+   * 记成接进了这个实例（实例那边不记，要看就按实例编号查触发记录）。
+   */
+  join(input: { workflow: string; session: string; instance: string; since: number }): Promise<void>
 }
 
 export interface RunServiceDeps {
@@ -313,6 +318,14 @@ export class RunCore {
       total: progress.total,
       updatedAt: read.state.updatedAt,
     }
+  }
+
+  /** 模型在会话 `session` 里接着做这个实例：这期间发进来的触发记到它上面（{@link OriginSource.join}）。 */
+  async joinFires(record: InstanceRecord, session: string | undefined): Promise<void> {
+    if (session === undefined) return
+    await this.deps.origins
+      ?.join({ workflow: record.workflow, session, instance: record.id, since: record.createdAt })
+      .catch(() => {})
   }
 
   /** 插件替用户 / 自己往状态文件追加一条流水（转移、恢复）。文件不合法就不动它。 */

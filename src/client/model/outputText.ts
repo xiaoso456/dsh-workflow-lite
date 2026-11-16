@@ -9,8 +9,7 @@
 import type { OutputEntry, OutputLine } from '../../shared/wire/trigger.ts'
 import type { T } from '../i18n.ts'
 import { formatBytes } from './fileKind.ts'
-import { clockTime } from './time.ts'
-import { durationText } from './triggerActivity.ts'
+import { clockTime, durationText } from './time.ts'
 
 /** 行头的颜色归哪一类：触发、条件不满足、没跑成、在跑、结束了。 */
 export type EntryTone = 'met' | 'unmet' | 'fail' | 'run' | 'exit'

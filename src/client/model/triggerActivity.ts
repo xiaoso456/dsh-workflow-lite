@@ -5,8 +5,7 @@
  *   数和格子从宿主数好的同一份近况算（{@link rhythmSince} 起），对得上；模型判断不需要的算「已发出」（确实发进会话了）；
  * - {@link plannedHours}：定时规则今天还要触发的几个钟点（节律里画虚线圈）；
  * - {@link upcomingAt}：时间线「接下来」的几次（定时按规则排，轮询是下一次检查）；
- * - {@link matchesOutcome}：时间线按结果筛选；
- * - {@link durationText}：「3 小时 12 分」「2 分 10 秒」这样的一段时长。
+ * - {@link matchesOutcome}：时间线按结果筛选。
  *
  * @module @xiaoso/dsh-workflow-lite/client/model/triggerActivity
  */
@@ -14,7 +13,6 @@
 import { nextFire } from '../../shared/schedule.ts'
 import type { TriggerSource } from '../../shared/types.ts'
 import type { FireRecord, TriggerActivitySlot, TriggerView } from '../../shared/wire/trigger.ts'
-import type { LocaleKey, T } from '../i18n.ts'
 import { dayOf } from './fireView.ts'
 import { weekOf } from './triggerWeek.ts'
 
@@ -134,26 +132,4 @@ export function upcomingAt(
     list.push(after.getTime())
   }
   return list
-}
-
-/**
- * 一段时长：一天以上「2 天 3 小时」，一小时以上「3 小时 12 分」，一分钟以上「2 分 10 秒」，再短「45 秒」。
- * 只写最大的两个单位，第二个是 0 时不写。
- */
-export function durationText(t: T, ms: number): string {
-  const seconds = Math.max(0, Math.round(ms / 1000))
-  const units: [number, LocaleKey][] = [
-    [86_400, 'trigger.span.d'],
-    [3600, 'trigger.span.h'],
-    [60, 'trigger.span.m'],
-    [1, 'trigger.span.s'],
-  ]
-  const at = units.findIndex(([size]) => seconds >= size)
-  if (at < 0) return t('trigger.span.s').replace('{n}', '0')
-  const [size, key] = units[at] as [number, LocaleKey]
-  const head = t(key).replace('{n}', String(Math.floor(seconds / size)))
-  const next = units[at + 1]
-  if (next === undefined) return head
-  const rest = Math.floor((seconds % size) / next[0])
-  return rest === 0 ? head : `${head} ${t(next[1]).replace('{n}', String(rest))}`
 }

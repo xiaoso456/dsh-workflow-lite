@@ -1,6 +1,6 @@
 /**
  * dsh-workflow-lite — 一次触发的详情（只读）：结果、时刻与渠道，跳过 / 失败 / 不需要的原因全文，
- * 那一刻带的触发条件、触发说明、背景信息，建出了实例的可以点过去看。
+ * 那一刻带的触发条件、触发说明、背景信息，记到了实例上的可以点过去看。
  *
  * 原因在记录里就有，打开就显示；触发说明这些要另读一次，读到了再接在下面。
  *
@@ -24,7 +24,8 @@ export function FireDialog(props: {
   t: T
   record: FireRecord
   detail(fire: string): Promise<TriggerDetailResponse>
-  onOpenRun(instance: string): void
+  /** 打开它建出的实例；不给就不放这个按钮（已经在看这个实例了）。 */
+  onOpenRun?(instance: string): void
   onClose(): void
 }): React.JSX.Element {
   const { t, record } = props
@@ -44,6 +45,7 @@ export function FireDialog(props: {
   }, [record.id])
 
   const { instance } = record
+  const openRun = props.onOpenRun
   const plain =
     detail !== null &&
     detail.note === undefined &&
@@ -104,7 +106,7 @@ export function FireDialog(props: {
         )}
         {plain && why === undefined && <p className={ins.help}>{t('trigger.fire.plain')}</p>}
       </div>
-      {instance !== undefined && (
+      {instance !== undefined && openRun !== undefined && (
         <footer className={overlay.sheetFoot}>
           <span className={ui.grow} />
           <button
@@ -113,7 +115,7 @@ export function FireDialog(props: {
             data-testid="wl-trigger-fire-open-run"
             onClick={() => {
               props.onClose()
-              props.onOpenRun(instance)
+              openRun(instance)
             }}
           >
             {t('trigger.openRun')}

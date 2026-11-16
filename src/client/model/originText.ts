@@ -18,8 +18,13 @@ const CHANNEL_TEXT: Record<OriginChannel, LocaleKey> = {
   now: 'origin.now',
 }
 
+/** 渠道本身的说法（「定时触发」「在对话里发起」）。 */
+export function originChannelText(t: T, channel: OriginChannel): string {
+  return t(CHANNEL_TEXT[channel])
+}
+
 export function originText(t: T, origin: InstanceOrigin): string {
-  const channel = t(CHANNEL_TEXT[origin.channel])
+  const channel = originChannelText(t, origin.channel)
   return origin.trigger === undefined
     ? channel
     : t('origin.by').replace('{channel}', channel).replace('{name}', origin.trigger.name)

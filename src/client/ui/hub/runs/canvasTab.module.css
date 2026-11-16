@@ -1,0 +1,265 @@
+/*
+ * dsh-workflow-lite — 「运行实例」页「画布」页签（CanvasTab.tsx）：只读的小图和选中那一步的卡片。
+ * 卡片位置在 style 的 transform 里（runMap 算好）；整张小图（.stage）不缩放，拖着平移。
+ * 状态色（--wl-run / --wl-run-fill）来自 chrome/runStatus.module.css 的 [data-run-status]。
+ */
+
+.tab {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* 小图：画布的点阵底，高度按图算（上边留了一行给计数和按钮）；按住拖着看。 */
+.map {
+  position: relative;
+  min-height: 80px;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  border: 1px solid var(--wl-line);
+  border-radius: var(--wl-r-card);
+  background-color: var(--wl-canvas);
+  background-image: radial-gradient(
+    color-mix(in srgb, var(--wl-text) 9%, transparent) 1px,
+    transparent 1px
+  );
+  background-size: 14px 14px;
+}
+
+.map:active {
+  cursor: grabbing;
+}
+
+.mapBar {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  left: 10px;
+  z-index: 2;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  pointer-events: none;
+}
+
+.mapBar > * {
+  pointer-events: auto;
+}
+
+.count {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  white-space: nowrap;
+}
+
+.count::before {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--wl-run-fill);
+  content: "";
+}
+
+.open {
+  margin-left: auto;
+  border: 1px solid var(--wl-line);
+  background: var(--wl-panel);
+}
+
+/* 挪动的那一层：按小图自己的坐标摆，平移写在 transform 上（useMapPan）。 */
+.stage {
+  position: absolute;
+  top: 0;
+  left: 0;
+  will-change: transform;
+}
+
+.lines {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+
+.line {
+  fill: none;
+  stroke: var(--wl-line-strong);
+  stroke-width: 1.5;
+}
+
+/* 没走过的分支画虚线；走过的是绿色实线。 */
+.line[data-branch]:not([data-taken]) {
+  stroke-dasharray: 3 4;
+}
+
+.line[data-taken] {
+  stroke: var(--wl-ok-dot);
+  stroke-width: 2;
+}
+
+.when {
+  position: absolute;
+  z-index: 1;
+  padding: 0 4px;
+  border: 1px solid var(--wl-line);
+  border-radius: calc(4px * var(--wl-round, 1));
+  background: var(--wl-canvas);
+  color: var(--wl-text-3);
+  max-width: 64px;
+  overflow: hidden;
+  font-size: 10px;
+  line-height: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
+}
+
+.when[data-taken] {
+  color: var(--wl-ok);
+}
+
+/* 一张卡片（小，84×28）：状态图标块 + 名字；没到的、跳过的淡一点、虚线框；正在做、等你、失败的描一圈状态色。 */
+.card {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  padding: 0 7px 0 5px;
+  border: 1px solid var(--wl-line);
+  border-radius: calc(7px * var(--wl-round, 1));
+  background: var(--wl-panel);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 14%);
+  color: var(--wl-text);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.card:hover {
+  border-color: var(--wl-line-strong);
+}
+
+.card:is([data-run-status="pending"], [data-run-status="skipped"]) {
+  border-style: dashed;
+  background: color-mix(in srgb, var(--wl-panel) 60%, transparent);
+  box-shadow: none;
+  color: var(--wl-text-3);
+}
+
+.card:is([data-run-status="running"], [data-run-status="waiting"], [data-run-status="failed"]) {
+  border-color: var(--wl-run);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--wl-run) 16%, transparent);
+}
+
+.card[aria-pressed="true"] {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 2px;
+}
+
+.card:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 2px;
+}
+
+.cardMark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: calc(4px * var(--wl-round, 1));
+  background: color-mix(in srgb, var(--wl-run) 15%, transparent);
+  color: var(--wl-run);
+}
+
+.cardName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 选中那一步。 */
+.focus {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 11px 14px 12px;
+  border: 1px solid var(--wl-line);
+  border-radius: var(--wl-r-card);
+}
+
+.focusHead {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  min-width: 0;
+}
+
+.focusMark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: calc(8px * var(--wl-round, 1));
+  background: color-mix(in srgb, var(--wl-run) 15%, transparent);
+  color: var(--wl-run);
+}
+
+.focusName {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--wl-fs-body);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chip {
+  flex: none;
+  padding: 0 7px;
+  border-radius: calc(999px * var(--wl-round, 1));
+  background: color-mix(in srgb, var(--wl-run) 13%, transparent);
+  color: var(--wl-run);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+  line-height: 19px;
+}
+
+.flip {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  align-items: center;
+  margin-left: auto;
+}
+
+.flipText {
+  margin-right: 6px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+.quiet {
+  margin: 0;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+}
+
+/* 瑞士：小图和下面那张卡只留上下线、卡片不圆。 */
+:global([data-look="swiss"]) :is(.map, .focus) {
+  border-width: 2px 0 1px;
+  border-top-color: var(--wl-text);
+  border-radius: 0;
+}

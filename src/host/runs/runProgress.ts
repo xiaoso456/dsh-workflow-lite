@@ -94,7 +94,10 @@ const NODE_EVENT: Record<NodeStatus, LogEvent> = {
   skipped: 'skipped',
 }
 
-type ProgressCore = Pick<RunCore, 'store' | 'deps' | 'serial' | 'snapshot' | 'keepHistory'>
+type ProgressCore = Pick<
+  RunCore,
+  'store' | 'deps' | 'serial' | 'snapshot' | 'keepHistory' | 'joinFires'
+>
 
 /** 模型经 `state` 动作看或改一个实例的运行状态。 */
 export class RunProgress {
@@ -110,7 +113,8 @@ export class RunProgress {
    * - 不带改动 = 只看；
    * - 改步骤状态时插件补上轮次、开始 / 结束时间（{@link statusFields}），每处状态变化记一条流水，更新 `updatedAt`；
    * - 改完整份校验，不合法就整次拒绝、回问题清单（文件不动）；
-   * - 实例原本不记状态（或状态文件不见了）时，按初始状态新建再改。
+   * - 实例原本不记状态（或状态文件不见了）时，按初始状态新建再改；
+   * - 改了就是模型在这个实例里接着做：这期间发进会话的触发记到它上面（`joinFires`）。
    */
   async state(
     id: string | undefined,
@@ -223,6 +227,7 @@ export class RunProgress {
           (raw as { nodes?: unknown }).nodes,
           check.state.nodes,
         )
+        await this.core.joinFires(record, session.id ?? record.session)
       }
       const state = check.state
       const p = progressOf(state)

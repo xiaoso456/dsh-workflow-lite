@@ -930,6 +930,11 @@ export class TriggerService {
     return this.store.history(workflow, node, count)
   }
 
+  /** 记到这个实例上的触发（建出它的那次、接着它做的几次），从早到晚。 */
+  ofInstance(instance: string): Promise<FireRecord[]> {
+    return this.store.ofInstance(instance)
+  }
+
   /** 一张卡片 `since` 以来（最多往前 {@link ACTIVITY_DAYS} 天）每一小格各种结果几次。 */
   activity(workflow: string, node: string, since: number): Promise<TriggerActivitySlot[]> {
     const now = this.now()

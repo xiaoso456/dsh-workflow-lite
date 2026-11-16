@@ -26,8 +26,10 @@ export interface FireRecord {
   reason?: string
   /** 发进了哪个会话。 */
   session?: string
-  /** 模型开始执行后建出来的实例；还没开始就没有。 */
+  /** 这次触发记到了哪个实例上：模型为它建的，或者（{@link joined}）它发进来时模型接着做的；还没开始就没有。 */
   instance?: string
+  /** 没有另建实例，模型在会话里原来的实例 {@link instance} 里接着做了。 */
+  joined?: true
   /** 卡片有触发条件、模型判断这次不需要执行时，它给的原因（发出去了，但没开始工作流）。 */
   declined?: string
 }
@@ -228,6 +230,16 @@ export interface TriggerActivitySlot {
 export interface TriggerActivityResponse {
   /** 从早到晚；一次都没有的格子不给。 */
   slots: TriggerActivitySlot[]
+}
+
+/** 记到一个实例上的触发：建出它的那次（`joined` 没有），接着它做的几次（`joined`）。 */
+export interface TriggerOfInstanceRequest {
+  instance: string
+}
+
+export interface TriggerOfInstanceResponse {
+  /** 从早到晚。 */
+  fires: FireRecord[]
 }
 
 export interface TriggerDetailRequest {

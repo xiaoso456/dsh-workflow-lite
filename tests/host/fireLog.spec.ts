@@ -117,6 +117,42 @@ describe('触发记录', () => {
     expect(earlier?.instance).toBe('run-1')
   })
 
+  it('接着实例做：会话里还没对上实例的记成接进去，后来另建了实例就改记过去；按实例查从早到晚', async () => {
+    const store = open()
+    const sent = (session: string, outcome: FireOutcome = 'sent'): FireDetail => {
+      const detail = fire('tick', outcome)
+      detail.record.session = session
+      clock += MINUTE
+      return detail
+    }
+    const origin = sent('s1')
+    const before = sent('s1')
+    const during = sent('s1')
+    const declined = sent('s1')
+    const skipped = sent('s1', 'skipped')
+    const elsewhere = sent('s2')
+    for (const detail of [origin, before, during, declined, skipped, elsewhere]) {
+      await store.record(detail)
+    }
+    await store.bind(origin.record.id, 'run-1')
+    await store.decline(declined.record.id, '没变化')
+
+    // 实例在 `during` 那一刻之后才算：之前那次不接进来；没发出去的、判断为不需要的、别的会话的也不接。
+    await store.join('wf', 's1', during.record.at, 'run-1')
+    expect((await store.ofInstance('run-1')).map((record) => [record.id, record.joined])).toEqual([
+      [origin.record.id, undefined],
+      [during.record.id, true],
+    ])
+    expect((await store.unclaimed('wf', 's1', 0))?.id).toBe(before.record.id)
+
+    // 模型后来为它另建了实例：改记到新实例上，不再算接进去的。
+    await store.bind(during.record.id, 'run-2')
+    expect((await store.ofInstance('run-2')).map((record) => [record.id, record.joined])).toEqual([
+      [during.record.id, undefined],
+    ])
+    expect((await store.ofInstance('run-1')).map((record) => record.id)).toEqual([origin.record.id])
+  })
+
   it('两个进程同时写同一个库：一条不丢', async () => {
     const a = open()
     const b = open()

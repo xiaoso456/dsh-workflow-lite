@@ -1,0 +1,19 @@
+/*
+ * dsh-workflow-lite — 「复制」小按钮（CopyButton.tsx）：不带底色，字按「复制 / 已复制」里宽的那个占位，换字时按钮不变宽。
+ */
+
+.ghost {
+  border-color: transparent;
+  background: transparent;
+}
+
+.copyText {
+  display: inline-grid;
+}
+
+.copyText::after {
+  height: 0;
+  overflow: hidden;
+  content: attr(data-text);
+  visibility: hidden;
+}

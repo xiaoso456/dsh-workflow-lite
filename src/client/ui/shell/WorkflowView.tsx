@@ -35,7 +35,7 @@ import type { TopSlots } from '../kit/topSlots.ts'
 import ui from '../kit/ui.module.css'
 import { ExitSeat, useViewGhost } from '../motion/exits.tsx'
 import { SWITCH_HOLD_MS, useSwapHold } from '../motion/swap.tsx'
-import { RunView } from '../run/RunView.tsx'
+import { type RunStepFocus, RunView } from '../run/RunView.tsx'
 import { TriggerContext } from '../trigger/triggerEnv.ts'
 import css from './shell.module.css'
 import { TipLayer } from './TipLayer.tsx'
@@ -130,6 +130,8 @@ function Shell(props: {
   const runs = useRuns(props.rpc, props.session)
   /** 正在看的工作流实例；`null` = 模板编辑。 */
   const [runId, setRunId] = useState<string | null>(null)
+  /** 打开实例时要选中的那一步（工作流中心「在画布上看这一步」）；每次请求一个新对象。 */
+  const [runStep, setRunStep] = useState<RunStepFocus | null>(null)
   const [hubOpen, setHubOpen] = useState(false)
   /**
    * 工作流中心打开时停在哪：顶栏「导出」进来停在「工作流」页、右栏是导出；
@@ -140,9 +142,10 @@ function Shell(props: {
   const { booting, setBooting, setTemplateSettled } = useBooting({ state, runs })
   const matchesVersion = useMatchesVersion({ rpc: props.rpc, state, versionsOpen })
   const { freshRun, setFreshRun, seenCurrent } = useFreshRun({ runs, runId, setRunId })
-  const openRun = useCallback((id: string): void => {
+  const openRun = useCallback((id: string, node?: string): void => {
     setFreshRun(null)
     setRunId(id)
+    setRunStep(node === undefined ? null : { run: id, node })
   }, [])
   const openTemplate = useCallback(
     (name: string): void => {
@@ -368,6 +371,7 @@ function Shell(props: {
                 rpc={props.rpc}
                 session={props.session}
                 id={runId}
+                focusStep={runStep}
                 runs={runs}
                 workflows={wf.catalog?.workflows ?? []}
                 templates={wf.catalog?.templates.nodes ?? []}

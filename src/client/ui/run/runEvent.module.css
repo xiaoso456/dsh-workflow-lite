@@ -1,0 +1,73 @@
+/*
+ * dsh-workflow-lite — 实例时间线的行（RunEvent.tsx）：时间 | 字；带圆点的多一列，圆点按 data-run-status 着色。
+ */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.event {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 8px;
+  align-items: baseline;
+  padding: 6px 4px;
+  border-radius: calc(6px * var(--wl-round, 1));
+  font-size: var(--wl-fs-micro);
+  cursor: pointer;
+  transition: background-color 120ms linear;
+}
+
+.event[data-dot] {
+  grid-template-columns: 44px 12px minmax(0, 1fr);
+}
+
+.event:hover {
+  background: var(--wl-hover);
+}
+
+.time {
+  color: var(--wl-text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.dot {
+  align-self: center;
+  justify-self: center;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--wl-run-fill);
+}
+
+.mark {
+  display: grid;
+  align-self: center;
+  place-items: center;
+  color: var(--wl-accent);
+}
+
+.text {
+  color: var(--wl-text-2);
+  overflow-wrap: anywhere;
+}
+
+.text b {
+  color: var(--wl-text);
+  font-weight: 600;
+}
+
+.user {
+  color: var(--wl-accent-text);
+  font-weight: 600;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .event {
+    transition: none;
+  }
+}

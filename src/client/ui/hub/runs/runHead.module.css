@@ -1,0 +1,244 @@
+/*
+ * dsh-workflow-lite — 「运行实例」页右栏上面固定的一块（RunHead.tsx）：头部与状态条。
+ * 尺寸和「触发」页那块（triggers/head.module.css）一样，换页时头部、状态条落在同一个位置。
+ * 状态色（--wl-run / --wl-run-fill）来自 chrome/runStatus.module.css 的 [data-run-status]。
+ */
+
+.fixed {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+}
+
+.head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 18px 12px;
+}
+
+/* 图标块跟状态色走（ui.kind 读 --wl-kind）。 */
+.mark {
+  --wl-kind: var(--wl-run);
+
+  width: 38px;
+  height: 38px;
+  border-radius: calc(10px * var(--wl-round, 1));
+}
+
+.titles {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.title {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  height: 26px;
+  margin: 0;
+  font-size: var(--wl-fs-title);
+  font-weight: 600;
+}
+
+.titleName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 来源 · 工作区 · 会话：窄时各自省略，来源先缩。 */
+.sub {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+  margin: 0;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+.subPart {
+  display: inline-flex;
+  flex: 0 1 auto;
+  gap: 4px;
+  align-items: center;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.subPart:first-child {
+  flex-shrink: 3;
+}
+
+.subPart > svg {
+  flex: none;
+}
+
+.subText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 状态小标、查看、删除：一排靠右，状态小标和按钮之间稍宽一点。 */
+.actions {
+  display: flex;
+  flex: none;
+  gap: 6px;
+  align-items: center;
+}
+
+.actions > :first-child {
+  margin-right: 4px;
+}
+
+/* 状态条：状态 | 停在哪一步 + 进度 | 建立、更新。 */
+.status {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  min-height: 52px;
+  margin: 0 18px;
+  padding: 8px 14px;
+  border: 1px solid var(--wl-line-strong);
+  border-radius: var(--wl-r-card);
+  background: var(--wl-canvas);
+}
+
+.state {
+  display: inline-flex;
+  flex: none;
+  gap: 7px;
+  align-items: center;
+  color: var(--wl-run);
+  font-weight: 600;
+}
+
+.stateDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--wl-run-fill);
+}
+
+/* 还在执行：圆点慢慢明暗（只动 opacity）。 */
+.stateDot[data-live] {
+  animation: breathe 1.6s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.sep {
+  flex: none;
+  align-self: stretch;
+  width: 1px;
+  margin: 2px 0;
+  background: var(--wl-line-strong);
+}
+
+.where {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+
+.whereLine {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  min-width: 0;
+  font-size: var(--wl-fs-meta);
+  white-space: nowrap;
+}
+
+.whereMain {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text-2);
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+
+.whereName {
+  color: var(--wl-text);
+  font-weight: 600;
+}
+
+.whereAside {
+  flex: none;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+.whereQuiet {
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+}
+
+/* 一步一段：做过的填状态色，还在做的填一半，没到的灰。 */
+.segbar {
+  display: flex;
+  gap: 3px;
+  height: 5px;
+}
+
+.seg {
+  flex: 1 1 0;
+  border-radius: calc(3px * var(--wl-round, 1));
+  background: var(--wl-fill-strong);
+}
+
+.seg:is([data-run-status="done"], [data-run-status="failed"], [data-run-status="waiting"]) {
+  background: var(--wl-run-fill);
+}
+
+.seg[data-run-status="running"] {
+  background: linear-gradient(
+    90deg,
+    var(--wl-run-fill) 0 55%,
+    color-mix(in srgb, var(--wl-run-fill) 28%, transparent) 55%
+  );
+}
+
+.when {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 1px;
+  align-items: flex-end;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.when b {
+  color: var(--wl-text-2);
+  font-weight: 500;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stateDot[data-live] {
+    animation: none;
+  }
+}
+
+/* 瑞士：状态条只留上下两道线（上面一道黑线），进度段不圆。 */
+:global([data-look="swiss"]) .status {
+  border-width: 1px 0;
+  border-top-color: var(--wl-text);
+  border-radius: 0;
+  background: transparent;
+}

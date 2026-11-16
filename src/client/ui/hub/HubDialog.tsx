@@ -64,7 +64,8 @@ export function HubDialog(props: {
   /** 会话服务接上了没有（没接上就不说"会话已不在"，只说"其他会话"）。 */
   sessionsReady: boolean
   runs: Runs
-  onOpenRun(id: string): void
+  /** 打开实例；给了 `node` 就选中那一步。 */
+  onOpenRun(id: string, node?: string): void
   /** 打开一个工作流、选中里面的一张卡片（「触发」页的「在画布上打开」）。 */
   onOpenCard(workflow: string, node: string): void
   /** 一句结果提示（改完实例状态之后）。 */
@@ -146,8 +147,8 @@ export function HubDialog(props: {
             sessionsReady={props.sessionsReady}
             runs={runs}
             onNotice={props.onNotice}
-            onOpenRun={(id) => {
-              props.onOpenRun(id)
+            onOpenRun={(id, node) => {
+              props.onOpenRun(id, node)
               props.onClose()
             }}
           />

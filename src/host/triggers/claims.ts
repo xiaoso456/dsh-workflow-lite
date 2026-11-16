@@ -5,6 +5,9 @@
  * 有没有刚发过、还没对上实例的同一个工作流的触发，取最早的那次。太久以前的不算——
  * 那多半是用户后来在同一个会话里自己发起的。
  *
+ * 触发发进会话时模型没另建实例、而是在原来的实例里接着做（恢复它、改它的状态），这次触发记成接进了那个实例
+ * （`joined`）；之后模型又为它编译了新实例，就改记到新实例上。这些都只记在触发记录里。
+ *
  * @module @xiaoso/dsh-workflow-lite/host/triggers/claims
  */
 
@@ -32,5 +35,9 @@ export function createFireClaims(store: TriggerStore, now: () => number = Date.n
     },
 
     bind: (fire, instance) => store.bind(fire, instance),
+
+    // 太久以前的同样不算（和认领一个窗口）。
+    join: ({ workflow, session, instance, since }) =>
+      store.join(workflow, session, Math.max(since, now() - CLAIM_WINDOW_MS), instance),
   }
 }

@@ -5,8 +5,8 @@
 
 import { describe, expect, it } from 'vitest'
 import { type LocaleKey, zh } from '../../src/client/i18n.ts'
+import { durationText } from '../../src/client/model/time.ts'
 import {
-  durationText,
   matchesOutcome,
   plannedHours,
   rhythmSince,

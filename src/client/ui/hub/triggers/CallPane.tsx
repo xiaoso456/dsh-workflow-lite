@@ -24,7 +24,7 @@ import { Segmented } from '../../kit/Segmented.tsx'
 import ui from '../../kit/ui.module.css'
 import { SwapIcon } from '../../motion/swapText.tsx'
 import { TOKEN_MASK } from '../../trigger/source/HttpEndpoint.tsx'
-import { CopyButton } from './CopyButton.tsx'
+import { CopyButton } from '../pane/CopyButton.tsx'
 import css from './live.module.css'
 
 export function CallPane(props: { t: T; hub: TriggerHub; entry: TriggerEntry }): React.JSX.Element {

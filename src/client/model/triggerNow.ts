@@ -8,7 +8,7 @@
 import type { TriggerEntry } from '../../shared/wire/trigger.ts'
 import type { LocaleKey, T } from '../i18n.ts'
 import { fireWhen } from './fireView.ts'
-import { durationText } from './triggerActivity.ts'
+import { durationText } from './time.ts'
 import { endpointPath, readableUrl } from './triggerGlance.ts'
 import { momentText, sourceText } from './triggerText.ts'
 

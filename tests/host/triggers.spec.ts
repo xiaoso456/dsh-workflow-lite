@@ -676,6 +676,31 @@ describe('实例记下的来源', () => {
     expect((await view(late)).origin).toEqual({ channel: 'session' })
   })
 
+  it('实例还在跑时又触发了、模型接着这个实例做：那次触发记到这个实例上；按实例编号查得到', async () => {
+    await saveGraph('patrol', { launch: { session: 'last', overlap: 'parallel' } })
+    const triggers = service()
+    await triggers.set({ workflow: 'patrol', node: 'tick', workspace })
+    const first = await triggers.fireNow({ workflow: 'patrol', node: 'tick' })
+    if (!first.ok) throw new Error('没触发')
+    const id = instanceOf(
+      await run({ action: 'compile', workflow: 'patrol', fire: first.result.id }, exec('s1')),
+    )
+    // 实例的建立时刻是真钟点：第二次触发在它之后。
+    clock = Date.now() + MINUTE
+    const again = await triggers.fireNow({ workflow: 'patrol', node: 'tick' })
+    if (!again.ok) throw new Error('没触发')
+    // 只看不算接着做。
+    await run({ action: 'state' }, exec('s1'))
+    expect((await triggers.ofInstance(id)).map((fire) => fire.id)).toEqual([first.result.id])
+
+    await run({ action: 'state', status: 'running' }, exec('s1'))
+    expect((await triggers.ofInstance(id)).map((fire) => [fire.id, fire.joined === true])).toEqual([
+      [first.result.id, false],
+      [again.result.id, true],
+    ])
+    expect((await triggers.history('patrol'))[0]).toMatchObject({ instance: id, joined: true })
+  })
+
   it('画布上点「执行」的记成手动', async () => {
     await saveGraph('patrol')
     const load = await repository.load('patrol')

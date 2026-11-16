@@ -314,12 +314,22 @@ export class TriggerStore {
 
   /** 这次触发建出了哪个实例。 */
   async bind(id: string, instance: string): Promise<void> {
-    this.log.amend(id, { instance })
+    this.log.bind(id, instance)
+  }
+
+  /** 这个会话里 `since` 以来还没对上实例的同一个工作流的触发，都记成接进了实例 `instance`。 */
+  async join(workflow: string, session: string, since: number, instance: string): Promise<void> {
+    this.log.join(workflow, session, since, instance)
+  }
+
+  /** 记到这个实例上的触发，从早到晚。 */
+  async ofInstance(instance: string): Promise<FireRecord[]> {
+    return this.log.ofInstance(instance)
   }
 
   /** 模型按触发条件判断这次不需要执行：记下它给的原因。 */
   async decline(id: string, reason: string): Promise<void> {
-    this.log.amend(id, { declined: reason })
+    this.log.decline(id, reason)
   }
 
   // ── 运行情况与最近的输出（负责的进程写，谁都能读）─────────────────

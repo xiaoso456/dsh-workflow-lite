@@ -10,7 +10,7 @@
 
 import { useState } from 'react'
 import { isStep } from '../../../shared/model.ts'
-import type { NextStep, RunCursor } from '../../../shared/runCursor.ts'
+import type { RunCursor } from '../../../shared/runCursor.ts'
 import type { RunState } from '../../../shared/runState.ts'
 import type { WorkflowDocument } from '../../../shared/types.ts'
 import type { T } from '../../i18n.ts'
@@ -26,6 +26,7 @@ import ui from '../kit/ui.module.css'
 import row from '../panel/linkrow.module.css'
 import ins from '../panel/panel.module.css'
 import { EndIcon } from '../resources/EndIcon.tsx'
+import { NextWhy } from './NextWhy.tsx'
 import { EditedDot, StatusChip } from './RunNodeState.tsx'
 import run from './run.module.css'
 import desc from './runres.module.css'
@@ -70,28 +71,6 @@ export function RunPosition(props: {
     </button>
   )
 
-  const why = (step: NextStep): React.ReactNode => {
-    if (step.reason === 'start') return t('run.nextStart')
-    if (step.reason === 'reset') return t('run.nextReset')
-    if (step.reason === 'pinned') {
-      return (
-        <>
-          <Icon name="flag" size={12} />
-          {t('run.nextPinned')}
-        </>
-      )
-    }
-    const from = nameOf(step.from ?? '')
-    return step.loop === true ? (
-      <>
-        <Icon name="loop" size={12} />
-        {t('run.nextLoop').replace('{step}', from)}
-      </>
-    ) : (
-      t('run.nextFrom').replace('{step}', from)
-    )
-  }
-
   const groups: { kind: Kind; title: string; rows: React.JSX.Element[] }[] = [
     {
       kind: 'running',
@@ -129,7 +108,12 @@ export function RunPosition(props: {
       kind: 'next',
       title: t('run.nextUp'),
       rows: cursor.next.map((step) =>
-        line('next', step.node, <span className={desc.hint}>{round(step.round)}</span>, why(step)),
+        line(
+          'next',
+          step.node,
+          <span className={desc.hint}>{round(step.round)}</span>,
+          <NextWhy t={t} step={step} nameOf={nameOf} />,
+        ),
       ),
     },
   ]

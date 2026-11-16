@@ -1,15 +1,21 @@
 /**
  * dsh-workflow-lite — 一个实例在工作流中心里怎么认：状态的图标、颜色档（`data-run-status`，见 chrome/runStatus.module.css）、
- * 状态的字；按状态分组时每一档的名字。左栏的行、分组标题、右栏头部共用。
+ * 状态的字；按状态分组时每一档的名字；来源的图标。左栏的行、分组标题、右栏共用。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/runs/runFace
  */
 
-import type { InstanceSummary, RunStatus } from '../../../../shared/runState.ts'
+import type {
+  InstanceSummary,
+  NodeStatus,
+  OriginChannel,
+  RunStatus,
+} from '../../../../shared/runState.ts'
 import type { LocaleKey, T } from '../../../i18n.ts'
 import type { RunBucket } from '../../../model/runList.ts'
 import { RUN_STATUS_TEXT } from '../../chrome/RunStatusBadge.tsx'
 import type { IconName } from '../../kit/Icon.tsx'
+import { TRIGGER_ICON } from '../../trigger/TriggerMark.tsx'
 
 /** 颜色档：整体状态，另加不记进度（灰）、状态文件读不出来（按失败上色）。 */
 export type RunTone = RunStatus | 'untracked'
@@ -56,4 +62,22 @@ export const BUCKET_FACE: Record<RunBucket, { label: LocaleKey; icon: IconName; 
   done: { label: 'run.overall.done', icon: 'check', tone: 'done' },
   cancelled: { label: 'run.overall.cancelled', icon: 'stop', tone: 'cancelled' },
   untracked: { label: 'run.untracked', icon: 'runs', tone: 'untracked' },
+}
+
+/** 来源的图标：画布上点的、对话里发起的，触发器发起的跟触发方式走。 */
+export const ORIGIN_ICON: Record<OriginChannel, IconName> = {
+  manual: 'pointer',
+  session: 'chat',
+  ...TRIGGER_ICON,
+  now: 'bolt',
+}
+
+/** 一步的状态图标（和左栏、头部的状态图标同一套）。 */
+export const STEP_ICON: Record<NodeStatus, IconName> = {
+  pending: 'circle',
+  running: 'play',
+  waiting: 'hourglass',
+  done: 'check',
+  failed: 'alert',
+  skipped: 'skip',
 }

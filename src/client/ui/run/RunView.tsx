@@ -105,6 +105,8 @@ export interface RunViewProps {
   panelOpen: boolean
   onPanel(open: boolean): void
   onOpenRun(id: string): void
+  /** 读到这个实例后选中这一步、打开右栏（整张图照常看全）。 */
+  focusStep?: RunStepFocus | null
   onOpenTemplate(name: string): void
   /** 工作流（下拉里改名、删除、新建用）。 */
   onOpenHub(): void
@@ -116,6 +118,12 @@ export interface RunViewProps {
   desktop?: Desktop
   /** 记忆库（记忆卡上显示它的名称）；还没读回来是 `null`。 */
   memories?: readonly MemoryEntry[] | null
+}
+
+/** 打开实例时要选中的一步：哪个实例、哪一步。 */
+export interface RunStepFocus {
+  run: string
+  node: string
 }
 
 const TYPING = new Set(['INPUT', 'TEXTAREA', 'SELECT'])
@@ -345,6 +353,19 @@ export function RunView(props: RunViewProps): React.JSX.Element {
     },
     [doc, select, onPanel, narrow, inspectorW, flow],
   )
+
+  // 工作流中心「在画布上看这一步」：这个实例读到以后选中那一步、打开右栏；同一次请求只做一次。
+  const focusStep = props.focusStep
+  const focusedStep = useRef<RunStepFocus | null>(null)
+  const loadedId = current.view?.summary.id
+  useEffect(() => {
+    if (focusStep == null || focusedStep.current === focusStep) return
+    if (doc === null || loadedId !== focusStep.run) return
+    focusedStep.current = focusStep
+    if (findNode(doc, focusStep.node) === undefined) return
+    select({ kind: 'node', id: focusStep.node })
+    onPanel(true)
+  }, [focusStep, doc, loadedId, select, onPanel])
 
   const pickStatus = (nodeId: string, status: NodeStatus): void => {
     const verdicts = facts?.verdicts[nodeId]

@@ -44,6 +44,8 @@ export async function dispatchTrigger(
   }
   if (endpoint === 'trigger/detail')
     return ok(await deps.triggers.detail(requireString(input, 'fire')))
+  if (endpoint === 'trigger/of-instance')
+    return ok({ fires: await deps.triggers.ofInstance(requireString(input, 'instance')) })
   const workflow = requireString(input, 'workflow')
   switch (endpoint) {
     case 'trigger/list':

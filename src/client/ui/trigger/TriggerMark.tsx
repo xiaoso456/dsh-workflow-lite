@@ -8,6 +8,7 @@
  */
 
 import type { StepColor } from '../../../shared/appearance.ts'
+import type { FireChannel } from '../../../shared/trigger.ts'
 import type { TriggerSourceKind } from '../../../shared/types.ts'
 import type { T } from '../../i18n.ts'
 import { triggerMode } from '../../model/triggerGlance.ts'
@@ -24,6 +25,9 @@ export const TRIGGER_ICON: Record<TriggerSourceKind, IconName> = {
   http: 'globe',
   after: 'after',
 }
+
+/** 每种触发渠道的图标：五种触发源用各自的，「立即触发一次」是闪电。 */
+export const FIRE_ICON: Record<FireChannel, IconName> = { ...TRIGGER_ICON, now: 'bolt' }
 
 const TRIGGER_COLOR: Record<TriggerSourceKind, StepColor> = {
   schedule: 'blue',

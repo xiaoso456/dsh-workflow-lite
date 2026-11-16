@@ -1,5 +1,5 @@
 /*
- * dsh-workflow-lite — 「触发」页右栏的页签（DetailTabs.tsx）与页签下面那一页的滚动区（TriggerDetail.tsx）。
+ * dsh-workflow-lite — 工作流中心右栏的页签（PaneTabs.tsx）与页签下面那一页的滚动区（.pane）。「触发」「运行实例」两页共用。
  */
 
 .tabs {
@@ -64,7 +64,7 @@
 }
 
 /* 失败的红点挂在右上角，不占宽度：没有时页签不多出一段空白，有没有都不挤动下划线。 */
-.failed {
+.dot {
   position: absolute;
   top: 7px;
   right: -7px;
@@ -79,12 +79,12 @@
     transform 180ms var(--wl-ease);
 }
 
-.failed[data-on="true"] {
+.dot[data-on="true"] {
   opacity: 1;
   transform: none;
 }
 
-/* 下划线：100px 宽，位置和宽度都在 transform 里（DetailTabs 量好写上）。 */
+/* 下划线：100px 宽，位置和宽度都在 transform 里（PaneTabs 量好写上）。 */
 .ink {
   position: absolute;
   bottom: -1px;
@@ -98,7 +98,7 @@
 }
 
 /*
- * 页签下面那一页：自己滚，头部、状态条、页签不跟着走。换页、换卡片的交接由右栏的 useSwap 放（TriggerDetail.tsx），
+ * 页签下面那一页：自己滚，头部、状态条、页签不跟着走。换页、换选中的交接由右栏的 useSwap 放（TriggerDetail、RunDetail），
  * 这里不再自己淡入——自己淡入是先空一下再冒出来。
  */
 .pane {
@@ -119,7 +119,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .tab,
-  .failed,
+  .dot,
   .ink {
     transition: none;
   }

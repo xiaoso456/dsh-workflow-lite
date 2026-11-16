@@ -25,13 +25,8 @@ import {
   type FireKind,
   groupByDay,
 } from '../../../model/fireView.ts'
-import { clockTime } from '../../../model/time.ts'
-import {
-  durationText,
-  matchesOutcome,
-  type OutcomeFilter,
-  upcomingAt,
-} from '../../../model/triggerActivity.ts'
+import { clockTime, durationText } from '../../../model/time.ts'
+import { matchesOutcome, type OutcomeFilter, upcomingAt } from '../../../model/triggerActivity.ts'
 import { statusWhen } from '../../../model/triggerNow.ts'
 import { sourceText, stateBadge, stateTone } from '../../../model/triggerText.ts'
 import { Icon } from '../../kit/Icon.tsx'

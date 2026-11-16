@@ -1,0 +1,65 @@
+/*
+ * dsh-workflow-lite — 「运行实例」页「时间线」（TimelineTab.tsx）：一天一组，组头钉在顶上，在自己的框里滚。
+ * 一行的样子在 run/runEvent.module.css。组头和「触发」页时间线（triggers/timeline.module.css）同一种。
+ */
+
+/* 自己滚；滚动条伸进外面那一页留的滚动条位置，内容宽度不随滚动条有没有变。 */
+.scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-right: calc(-1 * var(--wl-scrollbar, 0px));
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  height: 34px;
+  padding: 4px 4px 0;
+  border-bottom: 1px solid var(--wl-line);
+  background: var(--wl-panel);
+}
+
+.name {
+  color: var(--wl-text);
+  font-size: var(--wl-fs-meta);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.date {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.count {
+  flex: none;
+  margin-left: auto;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+.rows {
+  padding: 4px 0 10px;
+}
+
+.empty {
+  margin: 0;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+}
+
+:global([data-look="swiss"]) .head {
+  border-bottom-color: var(--wl-text);
+}

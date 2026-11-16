@@ -1,0 +1,490 @@
+/*
+ * dsh-workflow-lite — 「运行实例」页「概览」（OverviewTab.tsx）：四格数、进程、现在；状态文件读不出来时的原因。
+ * 四格数、小节标题、图例和「触发」页概览（triggers/overview.module.css）同一套尺寸。
+ * 状态色（--wl-run / --wl-run-fill）来自 chrome/runStatus.module.css 的 [data-run-status]。
+ */
+
+.overview {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── 四格数 ───────────────────────────────────────────────── */
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border: 1px solid var(--wl-line);
+  border-radius: var(--wl-r-card);
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  padding: 9px 12px;
+  border-left: 1px solid var(--wl-line);
+}
+
+.stat:first-child {
+  border-left: 0;
+}
+
+.statValue {
+  overflow: hidden;
+  font-size: 18px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.statValue small {
+  margin-left: 2px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+  font-weight: 500;
+}
+
+.stat[data-zero] .statValue {
+  color: var(--wl-text-3);
+}
+
+.stat[data-run-status="failed"]:not([data-zero]) .statValue {
+  color: var(--wl-danger);
+}
+
+.statLabel {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stat[data-run-status] .statLabel::before {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--wl-run-fill);
+  content: "";
+}
+
+/* ── 小节 ─────────────────────────────────────────────────── */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sectionHead {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 22px;
+}
+
+.sectionTitle {
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-meta);
+  font-weight: 600;
+}
+
+.sectionHint {
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sectionHead > :last-child:not(:first-child) {
+  margin-left: auto;
+}
+
+.legend {
+  display: flex;
+  flex: none;
+  gap: 12px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+.legend > span {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+}
+
+.legend > span::before {
+  width: 7px;
+  height: 7px;
+  border-radius: calc(2px * var(--wl-round, 1));
+  background: var(--wl-run-fill);
+  content: "";
+}
+
+.legend > [data-run-status="waiting"]::before {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--wl-run-fill) 0 2px,
+    color-mix(in srgb, var(--wl-run-fill) 45%, transparent) 2px 4px
+  );
+}
+
+.link {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--wl-accent-text);
+  font: inherit;
+  font-size: var(--wl-fs-micro);
+  cursor: pointer;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+.link:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 2px;
+  border-radius: calc(4px * var(--wl-round, 1));
+}
+
+/* ── 进程：左边一列步骤名，右边横轴；最下面一行时刻 ─────────── */
+
+.gantt {
+  display: grid;
+  grid-template-columns: minmax(64px, 96px) minmax(0, 1fr);
+  gap: 4px 10px;
+  align-items: center;
+  padding: 10px 12px 8px;
+  border: 1px solid var(--wl-line);
+  border-radius: var(--wl-r-card);
+}
+
+.ganttName {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  min-width: 0;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--wl-text-2);
+  font: inherit;
+  font-size: var(--wl-fs-micro);
+  text-align: left;
+  cursor: pointer;
+}
+
+.ganttName > svg {
+  flex: none;
+  color: var(--wl-run);
+}
+
+.ganttName:is([data-run-status="pending"], [data-run-status="skipped"]) {
+  color: var(--wl-text-3);
+}
+
+.ganttName:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+  border-radius: calc(4px * var(--wl-round, 1));
+}
+
+.ganttText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ganttName:hover .ganttText {
+  color: var(--wl-text);
+}
+
+.track {
+  position: relative;
+  height: 16px;
+  border-radius: calc(4px * var(--wl-round, 1));
+  background: color-mix(in srgb, var(--wl-text) 4%, transparent);
+}
+
+.empty {
+  position: absolute;
+  top: 0;
+  left: 6px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  line-height: 16px;
+}
+
+/* 一段：位置和宽度按时间比例（left / width 在 style 里）；太短也至少看得见一小截。 */
+.bar {
+  position: absolute;
+  top: 3px;
+  min-width: 4px;
+  height: 10px;
+  padding: 0;
+  border: 0;
+  border-radius: calc(3px * var(--wl-round, 1));
+  background: var(--wl-run-fill);
+  cursor: pointer;
+  transition: opacity 120ms linear;
+}
+
+.bar:hover {
+  opacity: 0.8;
+}
+
+.bar:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+/* 停下等用户：斜纹。 */
+.bar[data-run-status="waiting"] {
+  background: repeating-linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--wl-run-fill) 75%, transparent) 0 4px,
+    color-mix(in srgb, var(--wl-run-fill) 35%, transparent) 4px 8px
+  );
+}
+
+/* 还在做：往右淡下去，右端一道竖线慢慢明暗（只动 opacity）。 */
+.bar[data-run-status="running"] {
+  background: linear-gradient(
+    90deg,
+    var(--wl-run-fill),
+    color-mix(in srgb, var(--wl-run-fill) 55%, transparent)
+  );
+}
+
+.bar[data-live]::after {
+  position: absolute;
+  top: -2px;
+  right: -1px;
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--wl-run-fill);
+  animation: breathe 1.6s ease-in-out infinite;
+  content: "";
+}
+
+@keyframes breathe {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.axis {
+  position: relative;
+  grid-column: 2;
+  height: 16px;
+  margin-top: 2px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+.tick {
+  position: absolute;
+  top: 0;
+  left: 0;
+  white-space: nowrap;
+}
+
+.tick[data-mid] {
+  transform: translateX(-50%);
+}
+
+.tick[data-end] {
+  right: 0;
+  left: auto;
+}
+
+.tick[data-now] {
+  color: var(--wl-accent-text);
+}
+
+/* ── 现在：一行一项，左边一列标签 ──────────────────────────── */
+
+.pos {
+  overflow: hidden;
+  border: 1px solid var(--wl-line);
+  border-radius: var(--wl-r-card);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 8px;
+  align-items: baseline;
+  padding: 7px 12px;
+}
+
+.row + .row {
+  border-top: 1px solid var(--wl-line);
+}
+
+.rowLabel {
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+.rowMain {
+  min-width: 0;
+}
+
+.text {
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-meta);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  user-select: text;
+}
+
+.quietText {
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+}
+
+.step {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.stepName {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: center;
+  font-size: var(--wl-fs-meta);
+}
+
+.stepName > svg {
+  flex: none;
+  color: var(--wl-run);
+}
+
+.stepName b {
+  font-weight: 600;
+}
+
+.chip {
+  padding: 0 7px;
+  border-radius: calc(999px * var(--wl-round, 1));
+  background: color-mix(in srgb, var(--wl-run) 13%, transparent);
+  color: var(--wl-run);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+  line-height: 18px;
+}
+
+.nexts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.next {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: calc(6px * var(--wl-round, 1));
+  background: var(--wl-fill);
+  color: var(--wl-text);
+  font-size: var(--wl-fs-micro);
+  white-space: nowrap;
+}
+
+.why {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+  color: var(--wl-text-3);
+}
+
+/* ── 不记进度 / 状态文件读不出来 ──────────────────────────── */
+
+.quiet {
+  margin: 0;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+}
+
+.reason {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 12px;
+  border-radius: calc(8px * var(--wl-round, 1));
+  background: var(--wl-danger-soft);
+  color: var(--wl-text);
+  font-size: var(--wl-fs-meta);
+  line-height: 1.55;
+  user-select: text;
+}
+
+.reasonPath,
+.reasonList code {
+  color: var(--wl-danger);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+  overflow-wrap: anywhere;
+}
+
+.reasonList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--wl-text-2);
+}
+
+.reasonList code {
+  margin-right: 6px;
+}
+
+.reasonMore {
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar {
+    transition: none;
+  }
+
+  .bar[data-live]::after {
+    animation: none;
+  }
+}
+
+/* 瑞士：四格、进程、现在只留上下线。 */
+:global([data-look="swiss"]) :is(.stats, .gantt, .pos) {
+  border-width: 2px 0 1px;
+  border-top-color: var(--wl-text);
+  border-radius: 0;
+}

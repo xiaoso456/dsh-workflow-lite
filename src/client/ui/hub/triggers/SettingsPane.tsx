@@ -28,7 +28,6 @@ import { spanText } from '../../../model/triggerSay.ts'
 import { guardLimits, scheduleNext } from '../../../model/triggerSummary.ts'
 import { momentText, ruleText } from '../../../model/triggerText.ts'
 import { cx } from '../../kit/cx.ts'
-import { Icon, type IconName } from '../../kit/Icon.tsx'
 import { Select } from '../../kit/Select.tsx'
 import { FilterDialog } from '../../trigger/dialogs/FilterDialog.tsx'
 import { GuardDialog } from '../../trigger/dialogs/GuardDialog.tsx'
@@ -37,12 +36,21 @@ import { SourceDialog } from '../../trigger/dialogs/SourceDialog.tsx'
 import { TRIGGER_ICON, triggerTint } from '../../trigger/TriggerMark.tsx'
 import type { TriggerEnv } from '../../trigger/triggerEnv.ts'
 import { useLaunchChoice } from '../../trigger/useLaunchChoice.ts'
+import {
+  InfoCard,
+  InfoColumns,
+  type InfoRow,
+  InfoRows,
+  Mono,
+  Muted,
+  Quote,
+} from '../pane/InfoCard.tsx'
+import cards from '../pane/infoCard.module.css'
 import css from './settingsPane.module.css'
 
 type Dialog = 'source' | 'filter' | 'notes' | 'guard'
 
-/** 一行：名字和值。 */
-type Row = readonly [label: string, value: React.ReactNode]
+type Row = InfoRow
 
 export function SettingsPane(props: {
   t: T
@@ -59,7 +67,7 @@ export function SettingsPane(props: {
   const close = (): void => setDialog(null)
 
   const sourceCard = (
-    <Card
+    <InfoCard
       t={t}
       icon={TRIGGER_ICON[kind]}
       tint={triggerTint(kind)}
@@ -70,71 +78,76 @@ export function SettingsPane(props: {
       {commandOf(data.source) !== undefined && (
         <code className={css.cmd}>{commandOf(data.source)}</code>
       )}
-      <Rows rows={sourceRows(t, entry)} />
-    </Card>
+      <InfoRows rows={sourceRows(t, entry)} />
+    </InfoCard>
   )
   const filterCard = isFilterKind(kind) ? (
-    <Card
+    <InfoCard
       t={t}
       icon="sliders"
       title={t('trigger.filter')}
       testId="wl-hub-trg-set-filter"
       onEdit={() => setDialog('filter')}
     >
-      <Rows rows={filterRows(t, data)} />
-    </Card>
+      <InfoRows rows={filterRows(t, data)} />
+    </InfoCard>
   ) : null
   const notesCard = (
-    <Card
+    <InfoCard
       t={t}
       icon="note"
       title={t('trigger.afterFire')}
       testId="wl-hub-trg-set-notes"
       onEdit={() => setDialog('notes')}
     >
-      <Rows
+      <InfoRows
         rows={[
           [t('trigger.condition'), quote(t, data.condition)],
           [t('trigger.note'), quote(t, data.note)],
         ]}
       />
-    </Card>
+    </InfoCard>
   )
   const runCard = (
-    <Card t={t} icon="play" title={t('trigger.launch')} testId="wl-hub-trg-set-launch">
+    <InfoCard t={t} icon="play" title={t('trigger.launch')} testId="wl-hub-trg-set-launch">
       <LaunchRows t={t} entry={entry} env={env} onPatch={onPatch} />
-    </Card>
+    </InfoCard>
   )
   const launch = launchOf(data)
   const guardCard = (
-    <Card
+    <InfoCard
       t={t}
       icon="shield"
       title={t('trigger.guard')}
       testId="wl-hub-trg-set-guard"
       onEdit={() => setDialog('guard')}
     >
-      <Rows
+      <InfoRows
         rows={[
           [t('hub.trgOverlap'), t(`hub.trgOverlap.${launch.overlap}` as LocaleKey)],
           [t('hub.trgLimits'), guardLimits(t, launch)],
         ]}
       />
-    </Card>
+    </InfoCard>
   )
 
   return (
-    <div className={css.masonry} data-testid="wl-hub-trg-settings">
-      <div className={css.col}>
-        {sourceCard}
-        {filterCard ?? notesCard}
-      </div>
-      <div className={css.col}>
-        {filterCard !== null && notesCard}
-        {runCard}
-        {guardCard}
-      </div>
-
+    <InfoColumns
+      testId="wl-hub-trg-settings"
+      left={
+        <>
+          {sourceCard}
+          {filterCard ?? notesCard}
+        </>
+      }
+      right={
+        <>
+          {filterCard !== null && notesCard}
+          {runCard}
+          {guardCard}
+        </>
+      }
+    >
       {dialog === 'source' && (
         <SourceDialog
           t={t}
@@ -174,64 +187,16 @@ export function SettingsPane(props: {
           onClose={close}
         />
       )}
-    </div>
-  )
-}
-
-/** 一张卡片：小图标 + 标题，右上角铅笔。 */
-function Card(props: {
-  t: T
-  icon: IconName
-  tint?: string
-  title: string
-  testId: string
-  /** 右上角铅笔；就地能改的卡片不给。 */
-  onEdit?(): void
-  children: React.ReactNode
-}): React.JSX.Element {
-  const style = props.tint === undefined ? undefined : { '--tint': props.tint }
-  return (
-    <section className={css.card} style={style as React.CSSProperties} data-testid={props.testId}>
-      <div className={css.cardTitle}>
-        <Icon name={props.icon} size={12} />
-        <span>{props.title}</span>
-        {props.onEdit !== undefined && (
-          <button
-            type="button"
-            className={css.pen}
-            aria-label={props.t('hub.trgEditCard').replace('{name}', props.title)}
-            data-tip={props.t('hub.trgEditCard').replace('{name}', props.title)}
-            data-testid={`${props.testId}-edit`}
-            onClick={props.onEdit}
-          >
-            <Icon name="pencil" size={13} />
-          </button>
-        )}
-      </div>
-      {props.children}
-    </section>
-  )
-}
-
-function Rows(props: { rows: readonly Row[] }): React.JSX.Element {
-  return (
-    <dl className={css.kv}>
-      {props.rows.map(([label, value]) => (
-        <div key={label} className={css.kvRow}>
-          <dt>{label}</dt>
-          <dd>{value}</dd>
-        </div>
-      ))}
-    </dl>
+    </InfoColumns>
   )
 }
 
 function muted(text: string): React.JSX.Element {
-  return <span className={css.muted}>{text}</span>
+  return <Muted>{text}</Muted>
 }
 
 function mono(text: string): React.JSX.Element {
-  return <code className={css.mono}>{text}</code>
+  return <Mono>{text}</Mono>
 }
 
 /** 触发条件、说明：有就引出来，没有写「未设置」。 */
@@ -239,7 +204,7 @@ function quote(t: T, text: string | undefined): React.ReactNode {
   return text === undefined || text.trim() === '' ? (
     muted(t('trigger.conditionEmpty'))
   ) : (
-    <div className={css.quote}>{text}</div>
+    <Quote>{text}</Quote>
   )
 }
 
@@ -356,10 +321,10 @@ function LaunchRows(props: {
   )
   return (
     <>
-      <dl className={cx(css.kv, css.kvWide)}>
-        <div className={css.kvRow}>
+      <dl className={cx(cards.kv, cards.kvWide)}>
+        <div className={cards.kvRow}>
           <dt>{t('trigger.session')}</dt>
-          <dd className={css.pick}>
+          <dd className={cards.pick}>
             <Select<TriggerSessionMode>
               plain
               label={t('trigger.session')}
@@ -371,12 +336,12 @@ function LaunchRows(props: {
           </dd>
         </div>
         {choice.fixed !== null && (
-          <div className={css.kvRow}>
+          <div className={cards.kvRow}>
             <dt>
               {t('trigger.fixed')}
               {local}
             </dt>
-            <dd className={css.pick}>
+            <dd className={cards.pick}>
               <Select<string>
                 plain
                 t={t}
@@ -389,7 +354,7 @@ function LaunchRows(props: {
             </dd>
           </div>
         )}
-        <div className={css.kvRow}>
+        <div className={cards.kvRow}>
           <dt>
             {t('trigger.workspace')}
             {choice.workspace !== null && local}
@@ -397,7 +362,7 @@ function LaunchRows(props: {
           {choice.workspace === null ? (
             <dd>{muted(t('hub.trgNotNeeded'))}</dd>
           ) : (
-            <dd className={css.pick}>
+            <dd className={cards.pick}>
               <Select<string>
                 plain
                 t={t}

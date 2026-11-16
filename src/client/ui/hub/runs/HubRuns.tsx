@@ -4,7 +4,7 @@
  *
  * - 左栏：搜索 + 视图选项（按工作区 / 工作流 / 状态 / 会话分组，排序，只看进行中 / 失败），分组标题能折叠、钉在顶上
  *   （{@link GroupedList}）。每行悬停时浮出「查看」「删除」。
- * - 右栏：改状态、查看、移到本会话、删除；每一步的状态。
+ * - 右栏：标题、操作和状态条，下面概览、画布、时间线、信息四个页签（{@link RunDetail}）；选中的页签换实例不变。
  * - 搜索跨所有实例；选中的那个被筛掉了就换到排在最前的那个。删掉选中的那个时选它下一个。
  *
  * 打开时拉一次全部会话的实例；移动、删除、改状态之后再拉一次。不跟着外面的重绘重拉——会话列表一有动静
@@ -43,7 +43,7 @@ import { HubSearch } from '../HubSearch.tsx'
 import hub from '../hub.module.css'
 import { GroupedList, type GroupFace, ShowingBar } from '../list/GroupedList.tsx'
 import { type MenuSection, ViewMenu } from '../list/ViewMenu.tsx'
-import { RunDetail } from './RunDetail.tsx'
+import { RunDetail, type RunTab } from './RunDetail.tsx'
 import { RunItem } from './RunItem.tsx'
 import { BUCKET_FACE } from './runFace.ts'
 import css from './runs.module.css'
@@ -121,7 +121,8 @@ export function HubRuns(props: {
   sessionRows: readonly SessionRow[]
   sessionsReady: boolean
   runs: Runs
-  onOpenRun(id: string): void
+  /** 打开实例；给了 `node` 就选中那一步。 */
+  onOpenRun(id: string, node?: string): void
   onNotice(text: string, tone?: 'info' | 'error'): void
 }): React.JSX.Element {
   const { t, session, sessionRows } = props
@@ -131,6 +132,7 @@ export function HubRuns(props: {
   const [view, changeView] = useListView(RUN_VIEW)
   /** 点过的实例；没点过 = 排在最前的那个。 */
   const [picked, setPicked] = useState<string | null>(null)
+  const [tab, setTab] = useState<RunTab>('overview')
 
   // `runs` 每次重绘都是新对象：放进 ref，免得 load 跟着变、effect 跟着重跑。
   const runsRef = useRef(props.runs)
@@ -329,15 +331,15 @@ export function HubRuns(props: {
         </Empty>
       ) : (
         <RunDetail
-          // 换了实例就换一整块：标题、各节重新入场；同一个实例刷新时不重放。
-          key={selected.id}
           t={t}
           rpc={props.rpc}
           item={selected}
           workspace={workspaceOf(selected)}
           session={sessionLabel(selected.session)}
+          tab={tab}
+          onTab={setTab}
           canMove={session !== undefined && selected.session !== session}
-          onView={() => props.onOpenRun(selected.id)}
+          onView={(node) => props.onOpenRun(selected.id, node)}
           onMove={() => void runsRef.current.bind(selected.id).then(load)}
           onDelete={(withState) => void remove(selected, withState)}
           onSetStatus={(to, options) => void setStatus(selected, to, options)}

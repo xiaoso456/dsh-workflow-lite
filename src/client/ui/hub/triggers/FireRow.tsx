@@ -18,11 +18,8 @@ import { clockTime } from '../../../model/time.ts'
 import { cx } from '../../kit/cx.ts'
 import { Icon, type IconName } from '../../kit/Icon.tsx'
 import tone from '../../trigger/stateTone.module.css'
-import { TRIGGER_ICON } from '../../trigger/TriggerMark.tsx'
+import { FIRE_ICON } from '../../trigger/TriggerMark.tsx'
 import css from './fireRow.module.css'
-
-/** 每种渠道的图标：五种触发源用各自的，「立即触发一次」是闪电。 */
-const CHANNEL_ICON: Record<FireRecord['channel'], IconName> = { ...TRIGGER_ICON, now: 'bolt' }
 
 /** 方式：图标 + 名字（清单里名字收起来，悬停看）。 */
 function How(props: { icon: IconName; text: string }): React.JSX.Element {
@@ -64,7 +61,7 @@ export function FireRow(props: {
         <time className={css.time}>{props.when}</time>
         <span className={css.dot} aria-hidden="true" />
         <span className={css.state}>{t(FIRE_KIND_SHORT[kind])}</span>
-        <How icon={CHANNEL_ICON[record.channel]} text={channel} />
+        <How icon={FIRE_ICON[record.channel]} text={channel} />
         <span className={css.what}>{what}</span>
         <span className={css.chev} aria-hidden="true">
           <Icon name="chevronRight" size={12} />

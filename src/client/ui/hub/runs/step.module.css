@@ -1,0 +1,94 @@
+/*
+ * dsh-workflow-lite — 「运行实例」页右栏里一步的情况（StepFacts.tsx）：一行灰字，下面失败原因、摘要、判定和产出。
+ */
+
+.meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  align-items: center;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-weight: 400;
+}
+
+.metaPart {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.error {
+  margin: 0;
+  padding: 5px 9px;
+  border: 1px solid color-mix(in srgb, var(--wl-danger) 28%, transparent);
+  border-radius: calc(8px * var(--wl-round, 1));
+  background: var(--wl-danger-soft);
+  color: var(--wl-danger);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  user-select: text;
+}
+
+.summary {
+  margin: 0;
+  color: var(--wl-text);
+  font-size: var(--wl-fs-meta);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  user-select: text;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.verdict,
+.file {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: calc(6px * var(--wl-round, 1));
+  font-size: var(--wl-fs-micro);
+  white-space: nowrap;
+}
+
+.verdict {
+  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
+}
+
+.file {
+  background: var(--wl-fill);
+  color: var(--wl-text-2);
+  font-family: var(--wl-mono);
+}
+
+.file > svg {
+  flex: none;
+}
+
+.fileText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

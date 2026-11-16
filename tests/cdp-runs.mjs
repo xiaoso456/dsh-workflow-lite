@@ -227,14 +227,14 @@ try {
     `路径提示应贴着组名、左对齐、不越出工作流中心（${JSON.stringify(tipSide)}）`,
   )
   await revealHubRow(session, instance)
-  // 进度条的填充要有宽度（按比例 scaleX 缩），不然永远是空的。
-  check(
-    await session.evaluate(`(() => {
-      const bar = document.querySelector('[data-testid="wl-hub-run-detail"] [data-testid="wl-hub-progress"]');
-      return bar !== null && bar.firstElementChild.offsetWidth === bar.offsetWidth && bar.offsetWidth > 0;
-    })()`),
-    '进度条的填充应占满整条再按比例缩',
-  )
+  // 状态条上一步一段：段数和图里的步骤一样多，每段都有宽度。
+  await waitFor(session, `document.querySelector('[data-testid="wl-hub-run-gantt"]') !== null`)
+  const segs = await session.evaluate(`(() => {
+    const strip = document.querySelector('[data-testid="wl-hub-run-detail"] [data-testid="wl-hub-run-strip"]');
+    const parts = [...(strip?.querySelectorAll('[data-run-status][data-tip]') ?? [])];
+    return { n: parts.length, zero: parts.filter((part) => part.offsetWidth === 0).length };
+  })()`)
+  check(segs.n > 0 && segs.zero === 0, `状态条应一步一段、每段有宽度：${JSON.stringify(segs)}`)
   // 左栏各行同一套格子：图标块、名字上下对齐。
   const columns = await session.evaluate(`(() => {
     const rows = [...document.querySelectorAll('[data-testid="wl-hub-run"]')];
@@ -247,15 +247,14 @@ try {
   )
   // 动效：选中底块滑到选中的那一行、和它严丝合缝；动完之后工作流中心里没有还在跑（或停在半路）的动画
   //（放完、停在末帧的 `fill: both` 淡入不算：getAnimations 里还有它，playState 是 finished）。
-  // 每一步的状态是选中后才去读的，读到了才淡入：等它出来再算。
-  await waitFor(session, `document.querySelector('[data-testid="wl-hub-steps"]') !== null`)
+  // 进程图上还开着的那一段一直在呼吸（无限次），不算。
   await sleep(900)
   const motion = await session.evaluate(`(() => {
     const thumb = document.querySelector('[data-testid="wl-list-thumb"]').getBoundingClientRect();
     const item = document.querySelector('[data-testid="wl-hub-run"][aria-current="true"]').getBoundingClientRect();
     return {
       offset: [thumb.top - item.top, thumb.left - item.left, thumb.width - item.width, thumb.height - item.height].map(Math.round),
-      running: document.querySelector('[data-testid="wl-hub"]').getAnimations({ subtree: true }).filter((a) => a.playState === 'running').map((a) => (a.animationName ?? a.constructor.name) + '@' + (a.effect?.target?.className ?? '') + ':' + a.effect?.getComputedTiming().iterations),
+      running: document.querySelector('[data-testid="wl-hub"]').getAnimations({ subtree: true }).filter((a) => a.playState === 'running' && a.effect?.getComputedTiming().iterations !== Infinity).map((a) => (a.animationName ?? a.constructor.name) + '@' + (a.effect?.target?.className ?? '') + ':' + a.effect?.getComputedTiming().iterations),
     };
   })()`)
   check(
@@ -1174,6 +1173,9 @@ try {
   )
   await session.evaluate(`document.querySelector('[data-testid="wl-hub-open"]').click()`)
   await revealHubRow(session, instance)
+  // 「移到本会话」在「信息」页签里。
+  await waitFor(session, `document.querySelector('[data-testid="wl-hub-run-tab-info"]') !== null`)
+  await session.evaluate(`document.querySelector('[data-testid="wl-hub-run-tab-info"]').click()`)
   await waitFor(
     session,
     `document.querySelector('[data-testid="wl-hub-run-detail"] [data-testid="wl-hub-move"]') !== null`,
@@ -1198,6 +1200,9 @@ try {
   )
   await screenshot(session, 'runs-09-hub-tip.png')
   await session.evaluate(`${moveButton}.click()`)
+  // 确认卡浮出来，确认了才移。
+  await waitFor(session, `document.querySelector('[data-testid="wl-hub-move-confirm"]') !== null`)
+  await session.evaluate(`document.querySelector('[data-testid="wl-hub-move-confirm"]').click()`)
   await waitFor(
     session,
     `document.querySelector('[data-testid="wl-hub-run-detail"] [data-testid="wl-hub-move"]') === null`,
