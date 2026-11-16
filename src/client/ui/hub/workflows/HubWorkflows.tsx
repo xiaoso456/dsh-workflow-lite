@@ -336,6 +336,7 @@ export function HubWorkflows(props: {
         <WorkflowList
           t={t}
           groups={arranged.groups}
+          sort={view.sort}
           names={visible.map((entry) => entry.name)}
           rowKeys={rowKeys.current}
           selected={selected?.name ?? ''}

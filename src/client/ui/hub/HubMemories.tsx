@@ -31,7 +31,7 @@ import {
   NO_WORKFLOW,
 } from '../../model/memoryList.ts'
 import { matchesWords, searchWords } from '../../model/search.ts'
-import { shortTime } from '../../model/time.ts'
+import { pastTime, shortTime } from '../../model/time.ts'
 import { errorMessage, type WorkflowLiteRpc } from '../../rpc.ts'
 import { FolderDialog } from '../files/FolderDialog.tsx'
 import { cx } from '../kit/cx.ts'
@@ -124,6 +124,7 @@ export function HubMemories(props: {
         <MemoryList
           t={t}
           groups={arranged.groups}
+          sort={view.sort}
           selected={selected?.id ?? ''}
           selectedGroup={pickedGroup}
           onPick={(id, group) => {
@@ -229,11 +230,14 @@ function MemoryMeta(props: { t: T; entry: MemoryEntry }): React.JSX.Element {
 function MemoryList(props: {
   t: T
   groups: readonly ListGroup<MemoryEntry, MemoryGroupKey>[]
+  /** 怎么排的：按修改时间排时紧凑的行尾写修改时间，别的写几个工作流在用。 */
+  sort: MemorySortBy
   selected: string
   selectedGroup: string | undefined
   onPick(id: string, group: string): void
 }): React.JSX.Element {
   const { t } = props
+  const now = Date.now()
   return (
     <GroupedList
       label={t('hub.memories')}
@@ -268,9 +272,11 @@ function MemoryList(props: {
             end={
               entry.invalid === true
                 ? t('hub.memInvalidShort')
-                : used === 0
-                  ? t('mem.unused')
-                  : t('hub.memUsedShort').replace('{n}', String(used))
+                : props.sort === 'recent'
+                  ? pastTime(t, entry.updatedAt, now)
+                  : used === 0
+                    ? t('mem.unused')
+                    : t('hub.memUsedShort').replace('{n}', String(used))
             }
             // 起了名字的记忆悬停看编号（卡片上引用的是编号）。
             tip={title === entry.id ? title : [title, entry.id].join('\n')}

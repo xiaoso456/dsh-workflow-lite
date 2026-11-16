@@ -29,6 +29,21 @@ export function shortTime(value: number | string | undefined): string {
 }
 
 /**
+ * 过去的一个时刻，越近写得越短：今天的只写 `09:22`，昨天写「昨天 02:30」，再早写 `11-12 02:30`（按本地的日历日算）。
+ * 触发记录、左栏按时间排时的行尾都这么写。
+ */
+export function pastTime(t: T, at: number, now: number): string {
+  const day = (value: number): number => {
+    const date = new Date(value)
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
+  }
+  const ago = Math.round((day(now) - day(at)) / 86_400_000)
+  if (ago === 0) return clockTime(at)
+  if (ago === 1) return `${t('common.yesterday')} ${clockTime(at)}`
+  return shortTime(at)
+}
+
+/**
  * 一段时长：一天以上「2 天 3 小时」，一小时以上「3 小时 12 分」，一分钟以上「2 分 10 秒」，再短「45 秒」。
  * 只写最大的两个单位，第二个是 0 时不写。
  */

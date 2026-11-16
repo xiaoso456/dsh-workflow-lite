@@ -14,7 +14,7 @@ import type {
   TriggerEntry,
 } from '../../../../shared/wire/trigger.ts'
 import type { T } from '../../../i18n.ts'
-import { fireWhen } from '../../../model/fireView.ts'
+import { pastTime } from '../../../model/time.ts'
 import { HOURS, plannedHours, tallyActivity } from '../../../model/triggerActivity.ts'
 import { weekdayText } from '../../../model/triggerText.ts'
 import { Icon } from '../../kit/Icon.tsx'
@@ -160,7 +160,7 @@ export function OverviewPane(props: {
               key={record.id}
               t={t}
               record={record}
-              when={fireWhen(t, record.at, now)}
+              when={pastTime(t, record.at, now)}
               sessionTitle={props.sessionTitle}
               onPick={props.onPick}
               onOpenRun={props.onOpenRun}

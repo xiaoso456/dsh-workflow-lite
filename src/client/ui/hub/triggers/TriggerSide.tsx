@@ -14,7 +14,7 @@ import type { TriggerSourceKind } from '../../../../shared/types.ts'
 import type { TriggerEntry } from '../../../../shared/wire/trigger.ts'
 import type { TriggerHub } from '../../../app/useTriggerHub.ts'
 import type { LocaleKey, T } from '../../../i18n.ts'
-import { fireWhen } from '../../../model/fireView.ts'
+import { pastTime } from '../../../model/time.ts'
 import {
   type ArrangedTriggers,
   type StateBucket,
@@ -27,7 +27,7 @@ import {
   type TriggerShow,
   type TriggerSortBy,
 } from '../../../model/triggerList.ts'
-import { rowNote } from '../../../model/triggerNow.ts'
+import { rowNote, sortWhen } from '../../../model/triggerNow.ts'
 import { stateBadge, stateTone } from '../../../model/triggerText.ts'
 import { tipWhenCut } from '../../kit/cutTip.ts'
 import { cx } from '../../kit/cx.ts'
@@ -173,6 +173,7 @@ export function TriggerSide(props: {
             entry={entry}
             flip={at.flip}
             note={rowNote(t, entry, view.group === 'workflow', now)}
+            when={sortWhen(t, entry, view.sort, now)}
             selected={at.selected}
             onPick={() => props.onPick(keyOf(entry))}
           />
@@ -225,6 +226,8 @@ function TriggerRow(props: {
   flip: string
   /** 状态后面那半句；空串不写。 */
   note: string
+  /** 按时间排着时排序用的那个时刻（上一次 / 下一次触发）：紧凑时行尾写它，不写状态。 */
+  when: string | undefined
   selected: boolean
   onPick(): void
 }): React.JSX.Element {
@@ -255,11 +258,13 @@ function TriggerRow(props: {
           </span>
         </span>
       }
-      // 紧凑时行尾只写状态（状态色）；哪个工作流、下一次几点在悬停提示里。
+      // 紧凑时行尾：按时间排写那个时刻，别的写状态（状态色）；哪个工作流、下一次几点在悬停提示里。
       end={
-        <span className={tone.tone} {...toneOf}>
-          <span className={css.stateText}>{badge}</span>
-        </span>
+        props.when ?? (
+          <span className={tone.tone} {...toneOf}>
+            <span className={css.stateText}>{badge}</span>
+          </span>
+        )
       }
       // 栏窄，名字、后面那句（哪个工作流、上一次）放不下就截断：悬停写全。
       tip={[entry.name, badge, props.note].filter((part) => part !== '').join(' · ')}
@@ -285,7 +290,7 @@ function PauseBar(props: {
   const stopped = paused !== undefined
   // 时刻照记录的写法：今天只写钟点，栏窄也放得下；再早的带日期，放不下就截断，悬停看全。
   const text = stopped
-    ? t('hub.trgPausedSince').replace('{time}', fireWhen(t, paused, Date.now()))
+    ? t('hub.trgPausedSince').replace('{time}', pastTime(t, paused, Date.now()))
     : t('hub.trgOnCount').replace('{n}', String(props.on))
   const flip = async (): Promise<void> => {
     setBusy(true)

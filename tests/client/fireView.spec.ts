@@ -4,14 +4,18 @@ import {
   countKinds,
   dayHead,
   fireKind,
-  fireWhen,
   fireWhy,
   groupByDay,
 } from '../../src/client/model/fireView.ts'
+import { pastTime } from '../../src/client/model/time.ts'
 import type { FireRecord } from '../../src/shared/wire/trigger.ts'
 
 const t = ((key: string) =>
-  key === 'trigger.fire.today' ? '今天' : key === 'trigger.fire.yesterday' ? '昨天' : key) as T
+  key === 'trigger.fire.today'
+    ? '今天'
+    : key === 'trigger.fire.yesterday' || key === 'common.yesterday'
+      ? '昨天'
+      : key) as T
 
 const at = (month: number, day: number, hour = 9, minute = 0, year = 2026): number =>
   new Date(year, month - 1, day, hour, minute).getTime()
@@ -40,10 +44,10 @@ describe('触发记录的显示', () => {
 
   it('时刻：今天只写钟点，昨天带「昨天」，再早写月日', () => {
     const now = at(11, 14, 10, 0)
-    expect(fireWhen(t, at(11, 14, 9, 22), now)).toBe('09:22')
+    expect(pastTime(t, at(11, 14, 9, 22), now)).toBe('09:22')
     // 按日历日算：昨天 23:50 离现在不到 24 小时，也是昨天。
-    expect(fireWhen(t, at(11, 13, 23, 50), now)).toBe('昨天 23:50')
-    expect(fireWhen(t, at(11, 12, 2, 30), now)).toBe('11-12 02:30')
+    expect(pastTime(t, at(11, 13, 23, 50), now)).toBe('昨天 23:50')
+    expect(pastTime(t, at(11, 12, 2, 30), now)).toBe('11-12 02:30')
   })
 
   it('一天的小标题：今天 / 昨天 / 明天、一周内叫周几、再远叫日期，不是今年的旁边带年份', () => {

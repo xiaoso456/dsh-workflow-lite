@@ -20,11 +20,10 @@ import {
   FIRE_CHANNEL_TEXT,
   FIRE_KIND_TEXT,
   fireKind,
-  fireWhen,
   fireWhy,
   groupByDay,
 } from '../../model/fireView.ts'
-import { clockTime } from '../../model/time.ts'
+import { clockTime, pastTime } from '../../model/time.ts'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import ui from '../kit/ui.module.css'
@@ -96,7 +95,7 @@ export function FireList(props: {
               </li>,
               ...group.fires.map((record) => row(record, clockTime(record.at))),
             ])
-          : fires.map((record) => row(record, fireWhen(t, record.at, now)))}
+          : fires.map((record) => row(record, pastTime(t, record.at, now)))}
       </ul>
       {picked !== null && (
         <FireDialog

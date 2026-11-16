@@ -32,8 +32,9 @@ import {
   type RunShow,
   type RunSortBy,
   runListSpec,
+  updatedOf,
 } from '../../../model/runList.ts'
-import { shortTime } from '../../../model/time.ts'
+import { pastTime } from '../../../model/time.ts'
 import { errorCode, errorMessage, type WorkflowLiteRpc } from '../../../rpc.ts'
 import { cx } from '../../kit/cx.ts'
 import { Icon, type IconName } from '../../kit/Icon.tsx'
@@ -232,7 +233,10 @@ export function HubRuns(props: {
   }
   /** 行里状态后面那半句：按工作区分时写会话，别的分法写工作区；都带建立时间。 */
   /** 左栏一行状态后面只写建立时间：会话、工作区在右栏标题下面（左栏写不下，同名的实例靠时间分）。 */
-  const noteOf = (item: InstanceSummary): string => shortTime(item.createdAt)
+  // 状态后面那半句写排序用的那个时间（按最近更新排就写更新时间）；紧凑时按时间排的行尾也写它。
+  const now = Date.now()
+  const noteOf = (item: InstanceSummary): string =>
+    pastTime(t, view.sort === 'updated' ? updatedOf(item) : item.createdAt, now)
 
   const face = (group: ListGroup<InstanceSummary, GroupKey>): GroupFace => {
     if (group.by === 'workspace') {
@@ -314,6 +318,7 @@ export function HubRuns(props: {
               flip={at.flip}
               selected={at.selected}
               note={noteOf(item)}
+              sortedByTime={view.sort !== 'name'}
               onPick={() => setPicked(item.id)}
             />
           )}

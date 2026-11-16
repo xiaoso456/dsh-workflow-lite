@@ -19,6 +19,7 @@ import {
   groupId,
   needsAction,
 } from '../../src/client/model/triggerList.ts'
+import { sortWhen } from '../../src/client/model/triggerNow.ts'
 import { patchTriggerData } from '../../src/shared/trigger.ts'
 import type { TriggerData, TriggerSource } from '../../src/shared/types.ts'
 import type {
@@ -130,6 +131,21 @@ describe('左栏：分组、排序、只看哪些', () => {
       'main push',
       'morning check',
     ])
+  })
+
+  it('按时间排时紧凑行尾写那个时刻：上一次（没有就说没触发过）、下一次（没有就照常写状态），按名称排不写', () => {
+    const [push, morning, stock, hook] = list as [
+      TriggerEntry,
+      TriggerEntry,
+      TriggerEntry,
+      TriggerEntry,
+    ]
+    expect(sortWhen(t, push, 'recent', now)).toBe('13:30')
+    expect(sortWhen(t, stock, 'recent', now)).toBe('昨天 18:30')
+    expect(sortWhen(t, hook, 'recent', now)).toBe('没触发过')
+    expect(sortWhen(t, morning, 'next', now)).toBe('今天 17:30')
+    expect(sortWhen(t, stock, 'next', now)).toBeUndefined()
+    expect(sortWhen(t, push, 'name', now)).toBeUndefined()
   })
 
   it('只看开着的、只看要处理的', () => {

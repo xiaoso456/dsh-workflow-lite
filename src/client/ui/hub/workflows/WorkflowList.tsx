@@ -14,7 +14,13 @@ import type { WorkflowEntry } from '../../../../shared/types.ts'
 import type { LocaleKey, T } from '../../../i18n.ts'
 import { groupId, type ListGroup } from '../../../model/listView.ts'
 import { type RowKeys, rowKey } from '../../../model/rowKeys.ts'
-import { NO_TAG, type TagUse, type WorkflowGroupBy } from '../../../model/workflowList.ts'
+import { pastTime } from '../../../model/time.ts'
+import {
+  NO_TAG,
+  type TagUse,
+  type WorkflowGroupBy,
+  type WorkflowSortBy,
+} from '../../../model/workflowList.ts'
 import { useConfirm } from '../../kit/Confirm.tsx'
 import { Icon, type IconName } from '../../kit/Icon.tsx'
 import hub from '../hub.module.css'
@@ -28,6 +34,8 @@ export type WorkflowGroupKey = Exclude<WorkflowGroupBy, 'none'>
 export function WorkflowList(props: {
   t: T
   groups: readonly ListGroup<WorkflowEntry, WorkflowGroupKey>[]
+  /** 怎么排的：按修改时间排时紧凑的行尾写修改时间。 */
+  sort: WorkflowSortBy
   /** 列表里全部工作流的名字（按左栏从上到下）：改过名的行沿用旧键要看它。 */
   names: readonly string[]
   /** 新名字 → 这一行一直在用的键（见 model/rowKeys.ts）。 */
@@ -45,6 +53,7 @@ export function WorkflowList(props: {
   deleteTag(tag: string): void
 }): React.JSX.Element {
   const { t } = props
+  const now = Date.now()
   /** 正在改名的标签。 */
   const [renamingTag, setRenamingTag] = useState<string | null>(null)
   /** 删除确认卡指着哪个标签。 */
@@ -102,6 +111,7 @@ export function WorkflowList(props: {
             selected={at.selected}
             also={at.also}
             open={entry.name === props.current}
+            when={props.sort === 'recent' ? pastTime(t, entry.updatedAt, now) : undefined}
             onPick={() => props.onPick(entry.name, groupId(at.group))}
           />
         )}

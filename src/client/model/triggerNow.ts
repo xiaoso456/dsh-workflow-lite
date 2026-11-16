@@ -1,15 +1,15 @@
 /**
  * dsh-workflow-lite — 工作流中心「触发」页上「现在怎样」的几句话：状态条里状态后面那一段（下一次、还有多久），
- * 左栏每行状态后面的那半句。纯函数，不碰界面。
+ * 左栏每行状态后面的那半句、按时间排时紧凑行尾写的时刻。纯函数，不碰界面。
  *
  * @module @xiaoso/dsh-workflow-lite/client/model/triggerNow
  */
 
 import type { TriggerEntry } from '../../shared/wire/trigger.ts'
 import type { LocaleKey, T } from '../i18n.ts'
-import { fireWhen } from './fireView.ts'
-import { durationText } from './time.ts'
+import { durationText, pastTime } from './time.ts'
 import { endpointPath, readableUrl } from './triggerGlance.ts'
+import { nextOf, type TriggerSortBy } from './triggerList.ts'
 import { momentText, sourceText } from './triggerText.ts'
 
 /** 状态条里状态后面那一段：一句主话（时刻），一句淡的（还有多久、跑了多久、地址）。 */
@@ -57,7 +57,7 @@ export function statusWhen(t: T, entry: TriggerEntry, now: number): StatusWhen {
   const last = view.last
   if (last === undefined) return { main: t('trigger.historyEmpty'), aside: '' }
   return {
-    main: t('hub.trgLast').replace('{time}', fireWhen(t, last.at, now)),
+    main: t('hub.trgLast').replace('{time}', pastTime(t, last.at, now)),
     aside: t('hub.trgAgo').replace('{span}', durationText(t, now - last.at)),
   }
 }
@@ -78,4 +78,25 @@ export function rowNote(t: T, entry: TriggerEntry, byWorkflow: boolean, now: num
   }
   if (view.state === 'waiting' && kind === 'after') return sourceText(t, data.source)
   return ''
+}
+
+/**
+ * 按时间排时紧凑的行尾写的时刻（跟着排序走）：按最近触发排写上一次触发的时刻（没触发过就这么说），
+ * 按下一次触发排写下一次的时刻。没有下一次（关着、被动等着）、按名称排是 `undefined`，行尾照常写状态。
+ */
+export function sortWhen(
+  t: T,
+  entry: TriggerEntry,
+  sort: TriggerSortBy,
+  now: number,
+): string | undefined {
+  if (sort === 'recent') {
+    const last = entry.view.last
+    return last === undefined ? t('hub.trgNeverFired') : pastTime(t, last.at, now)
+  }
+  if (sort === 'next') {
+    const next = nextOf(entry)
+    return next === undefined ? undefined : momentText(t, next, now)
+  }
+  return undefined
 }

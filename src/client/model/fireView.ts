@@ -8,7 +8,6 @@
 
 import type { FireRecord } from '../../shared/wire/trigger.ts'
 import type { LocaleKey, T } from '../i18n.ts'
-import { clockTime, shortTime } from './time.ts'
 import { weekdayText } from './triggerText.ts'
 
 /** 结果的四类：发出去了但模型判断不需要的，从「已发出」里单独拿出来。 */
@@ -105,14 +104,6 @@ export function countKinds(
   const counts: Record<FireKind, number> = { sent: 0, declined: 0, skipped: 0, failed: 0 }
   for (const record of records) counts[fireKind(record)] += 1
   return counts
-}
-
-/** 不分组时一条记录的时刻：今天的只写 `09:22`，昨天写「昨天 02:30」，再早写 `11-12 02:30`。 */
-export function fireWhen(t: T, at: number, now: number): string {
-  const ago = daysAgo(at, now)
-  if (ago === 0) return clockTime(at)
-  if (ago === 1) return `${t('trigger.fire.yesterday')} ${clockTime(at)}`
-  return shortTime(at)
 }
 
 /** 按天分组，保持原来的先后（记录本来新的在前，分出来的天也是新的在前）。 */

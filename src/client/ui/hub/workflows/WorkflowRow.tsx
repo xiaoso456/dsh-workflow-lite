@@ -2,7 +2,8 @@
  * dsh-workflow-lite — 工作流中心「工作流」页左边的一行：点它在右栏看这张（标签、版本、改名、删除都在右栏）。
  *
  * 一行是 {@link HubRow}：名字；第二行有标签就只写标签（最多两个和「+N」），没有标签才写步数、版本数
- * （步数、版本数、修改时间都在右栏标题下面，左栏不挤）；紧凑时行尾是标签的色块，没有标签写步数。
+ * （步数、版本数、修改时间都在右栏标题下面，左栏不挤）；紧凑时行尾跟着排序：按修改时间排写修改时间，
+ * 按名称排是标签的色块（没有标签写步数）。
  * 画布上正开着的那张名字后面写「当前」。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/workflows/WorkflowRow
@@ -31,6 +32,8 @@ export interface WorkflowRowProps {
   also: boolean
   /** 编辑页正开着这张。 */
   open: boolean
+  /** 按时间排着时排序用的那个时间（修改时间）：紧凑时行尾写它，不画标签色块。 */
+  when?: string
   onPick(): void
 }
 
@@ -72,7 +75,9 @@ export function WorkflowRow(props: WorkflowRowProps): React.JSX.Element {
         )
       }
       end={
-        tags.length > 0 ? (
+        props.when !== undefined ? (
+          props.when
+        ) : tags.length > 0 ? (
           <RowTagDots tags={tags} colors={props.colors} />
         ) : (
           t('ver.steps').replace('{n}', String(entry.nodeCount))

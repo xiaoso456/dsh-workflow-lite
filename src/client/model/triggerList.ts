@@ -79,7 +79,7 @@ const byName = (a: TriggerEntry, b: TriggerEntry): number =>
   a.name.localeCompare(b.name) || a.workflow.localeCompare(b.workflow)
 
 /** 下一次触发的时刻：只有开着、在等的才算（关着、出错的没有下一次）。 */
-function nextOf(entry: TriggerEntry): number | undefined {
+export function nextOf(entry: TriggerEntry): number | undefined {
   const { state, next } = entry.view
   return state === 'waiting' || state === 'elsewhere' ? next : undefined
 }

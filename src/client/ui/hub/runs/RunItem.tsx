@@ -1,6 +1,6 @@
 /**
  * dsh-workflow-lite — 「运行实例」页左栏的一行（{@link HubRow}）：状态图标块（颜色跟状态走）、工作流名（本会话当前的实例带「当前」）、
- * 「状态 · 进度 · 建立时间」；紧凑时行尾写进度（还在进行的）或建立时间。会话、工作区写在右栏标题下面，左栏不挤。
+ * 「状态 · 进度 · 时间」；紧凑时行尾跟着排序：按时间排写那个时间，按名字排写进度（还在进行的）或时间。会话、工作区写在右栏标题下面，左栏不挤。
  *
  * 点它在右栏看这个实例；查看、移到本会话、删除都在右栏（和「工作流」「记忆」页一样，左栏只是列表）。
  *
@@ -24,8 +24,10 @@ export function RunItem(props: {
   /** 动画键（见 GroupedList 的 RowAt）。 */
   flip: string
   selected: boolean
-  /** 状态后面那半句（建立时间）。 */
+  /** 状态后面那半句（排序用的那个时间：建立或最近更新）。 */
   note: string
+  /** 按时间排着：紧凑时行尾就写那个时间（不写进度）。 */
+  sortedByTime: boolean
   onPick(): void
 }): React.JSX.Element {
   const { t, item } = props
@@ -63,7 +65,13 @@ export function RunItem(props: {
           </span>
         </span>
       }
-      end={progress === undefined ? props.note : <span className={css.count}>{progress}</span>}
+      end={
+        props.sortedByTime || progress === undefined ? (
+          props.note
+        ) : (
+          <span className={css.count}>{progress}</span>
+        )
+      }
       tip={[item.workflow, status, progress, props.note].filter(Boolean).join(' · ')}
       onPick={props.onPick}
     />
