@@ -15,11 +15,13 @@ import {
   scheduleIssue,
   scheduleProblem,
   scheduleText,
+  secondsText,
   tidyTimes,
 } from './schedule.ts'
 import type {
   AfterWhen,
-  PollWhen,
+  CheckWhen,
+  TriggerCheck,
   TriggerData,
   TriggerFilter,
   TriggerLaunch,
@@ -34,13 +36,7 @@ import type {
 /** 一次触发是怎么来的：哪一种触发源，或用户点了「立即触发一次」。 */
 export type FireChannel = TriggerSourceKind | 'now'
 
-export const SOURCE_KINDS: readonly TriggerSourceKind[] = [
-  'schedule',
-  'poll',
-  'listen',
-  'http',
-  'after',
-]
+export const SOURCE_KINDS: readonly TriggerSourceKind[] = ['schedule', 'listen', 'http', 'after']
 export const FIRE_CHANNELS: readonly FireChannel[] = [...SOURCE_KINDS, 'now']
 
 /** 触发编号的形状（拿去拼路径之前先过这一道）。 */
@@ -69,37 +65,73 @@ export function reachedLimit(count: number, limit: number): boolean {
   return limit !== NO_LIMIT && count >= limit
 }
 
-/** 条件轮询的间隔（秒）：上下限与缺省。 */
-export const POLL_MIN_SECONDS = 10
-export const POLL_MAX_SECONDS = 7 * 24 * 3600
-export const DEFAULT_POLL_SECONDS = 300
+/** 到点直接执行的「每隔」最短多少秒（带检查命令的按规则本身的下限，见 schedule.ts 的 `EVERY_MIN`）。 */
+export const PLAIN_EVERY_MIN = 60
+
+/** 定时的判定：到点就执行（不跑命令），或带命令的三种。 */
+export type ScheduleJudge = 'always' | CheckWhen
+
+/** 换到带命令的判定时给的检查（命令还空着，由用户写）。 */
+export const NEW_CHECK: TriggerCheck = { command: '', when: 'every' }
 
 /** 合并窗口（秒）、去重时长（分钟）的上限；关键字最多几个。 */
 export const MERGE_MAX_SECONDS = 3600
 export const DEDUPE_MAX_MINUTES = 7 * 24 * 60
 export const KEYWORDS_MAX = 20
 
-/** 合并窗口的缺省（秒）：一下子来一串的（监听、HTTP）并成一次；轮询本来就隔一段才跑一次。 */
+/** 合并窗口的缺省（秒）：一下子来一串的（监听、HTTP）并成一次；定时的检查本来就隔一段才跑一次。 */
 const DEFAULT_MERGE: Record<FilterKind, number> = {
-  poll: 0,
+  schedule: 0,
   listen: 5,
   http: 5,
 }
 
-/** 有过滤的触发源：带来外面的内容（命令输出、程序打出的行、请求体）。 */
-export type FilterKind = Extract<TriggerSourceKind, 'poll' | 'listen' | 'http'>
+/** 有过滤的触发源：带来外面的内容（检查命令的输出、程序打出的行、请求体）。 */
+export type FilterKind = Extract<TriggerSourceKind, 'schedule' | 'listen' | 'http'>
 
-export function isFilterKind(kind: TriggerSourceKind): kind is FilterKind {
-  return kind === 'poll' || kind === 'listen' || kind === 'http'
+/** 带检查命令的定时。 */
+export type CheckedSchedule = Extract<TriggerSource, { kind: 'schedule' }> & { check: TriggerCheck }
+
+/** 常驻在负责的进程里跑的触发源：带检查命令的定时、监听程序、HTTP（到点直接执行的定时由对账排）。 */
+export type LiveSource = CheckedSchedule | Extract<TriggerSource, { kind: 'listen' | 'http' }>
+
+/** 这个触发源带不带外来内容（有就有过滤、常驻着跑）；带的话是哪一种。 */
+export function filterKindOf(source: TriggerSource): FilterKind | null {
+  if (source.kind === 'schedule') return source.check === undefined ? null : 'schedule'
+  return source.kind === 'listen' || source.kind === 'http' ? source.kind : null
 }
 
-/** 新建的轮询用哪种判定（写进图里；图里不写的是早先的「由失败变为成功」）。 */
-export const NEW_POLL_WHEN = 'every' satisfies PollWhen
+/** 常驻着跑的触发源（见 {@link LiveSource}）。 */
+export function isLiveSource(source: TriggerSource): source is LiveSource {
+  return filterKindOf(source) !== null
+}
+
+/** 定时的判定（没有检查命令就是到点就执行）。 */
+export function scheduleJudge(source: Extract<TriggerSource, { kind: 'schedule' }>): ScheduleJudge {
+  return source.check?.when ?? 'always'
+}
+
+/**
+ * 换定时的判定：到点就执行去掉检查；换到带命令的保留已写的命令。
+ * 去掉检查时「每隔」短于 {@link PLAIN_EVERY_MIN} 的拉到 1 分钟（到点直接执行不能更密）。
+ */
+export function withScheduleJudge(
+  source: Extract<TriggerSource, { kind: 'schedule' }>,
+  judge: ScheduleJudge,
+): Extract<TriggerSource, { kind: 'schedule' }> {
+  if (judge === 'always') {
+    const { check: _check, ...rest } = source
+    const { schedule } = rest
+    return schedule.kind === 'every' && schedule.seconds < PLAIN_EVERY_MIN
+      ? { ...rest, schedule: { kind: 'every', seconds: PLAIN_EVERY_MIN } }
+      : rest
+  }
+  return { ...source, check: { command: source.check?.command ?? NEW_CHECK.command, when: judge } }
+}
 
 /** 换一种触发源时给的常用值。 */
 export const SOURCE_SEED: Record<TriggerSourceKind, TriggerSource> = {
   schedule: DEFAULT_TRIGGER.source,
-  poll: { kind: 'poll', command: '', seconds: DEFAULT_POLL_SECONDS, when: NEW_POLL_WHEN },
   listen: { kind: 'listen', command: '' },
   http: { kind: 'http' },
   after: { kind: 'after', workflow: '' },
@@ -130,7 +162,7 @@ function wholeIn(value: unknown, min: number, max: number): number | undefined {
 function readSchedule(raw: unknown): TriggerSchedule {
   if (isPlainObject(raw)) {
     if (raw.kind === 'every') {
-      return { kind: 'every', minutes: typeof raw.minutes === 'number' ? raw.minutes : 60 }
+      return { kind: 'every', seconds: typeof raw.seconds === 'number' ? raw.seconds : 3600 }
     }
     if (raw.kind === 'cron') {
       return { kind: 'cron', expression: typeof raw.expression === 'string' ? raw.expression : '' }
@@ -158,18 +190,21 @@ function readSchedule(raw: unknown): TriggerSchedule {
   return { kind: 'daily', time: '09:00' }
 }
 
+const CHECK_WHENS: readonly CheckWhen[] = ['every', 'success', 'change']
+
+/** 定时的检查按形状读入：不是对象就是没有检查；判定认不出时按每次成功。 */
+function readCheck(raw: unknown): TriggerCheck | undefined {
+  if (!isPlainObject(raw)) return undefined
+  return {
+    command: typeof raw.command === 'string' ? raw.command : '',
+    when: CHECK_WHENS.find((when) => when === raw.when) ?? NEW_CHECK.when,
+  }
+}
+
 /** 触发源按形状读入；命令原样保留（空的由 {@link sourceProblem} 报），认不出的回落到定时。 */
 function readSource(raw: unknown): TriggerSource {
   const input = isPlainObject(raw) ? raw : {}
   const command = typeof input.command === 'string' ? input.command : ''
-  if (input.kind === 'poll') {
-    return {
-      kind: 'poll',
-      command,
-      seconds: typeof input.seconds === 'number' ? input.seconds : DEFAULT_POLL_SECONDS,
-      ...(input.when === 'change' || input.when === 'every' ? { when: input.when } : {}),
-    }
-  }
   if (input.kind === 'listen') return { kind: 'listen', command }
   if (input.kind === 'http') return { kind: 'http' }
   if (input.kind === 'after') {
@@ -179,7 +214,12 @@ function readSource(raw: unknown): TriggerSource {
       ...(input.when === 'failed' || input.when === 'any' ? { when: input.when } : {}),
     }
   }
-  return { kind: 'schedule', schedule: readSchedule(input.schedule) }
+  const check = readCheck(input.check)
+  return {
+    kind: 'schedule',
+    schedule: readSchedule(input.schedule),
+    ...(check === undefined ? {} : { check }),
+  }
 }
 
 /** 一组关键字：去空白、去重、去空，最多 {@link KEYWORDS_MAX} 个。 */
@@ -196,9 +236,10 @@ function readKeywords(raw: unknown): string[] | undefined {
   return words.length > 0 ? words : undefined
 }
 
-/** 过滤按形状读入：等于这种触发源的缺省值的项不留；定时没有背景信息，整个不要。 */
-function readFilter(raw: unknown, kind: TriggerSourceKind): TriggerFilter | undefined {
-  if (!isPlainObject(raw) || !isFilterKind(kind)) return undefined
+/** 过滤按形状读入：等于这种触发源的缺省值的项不留；没有外来内容的（到点直接执行、接续）整个不要。 */
+function readFilter(raw: unknown, source: TriggerSource): TriggerFilter | undefined {
+  const kind = filterKindOf(source)
+  if (!isPlainObject(raw) || kind === null) return undefined
   const filter: TriggerFilter = {}
   const merge = wholeIn(raw.merge, 0, MERGE_MAX_SECONDS)
   if (merge !== undefined && merge !== DEFAULT_MERGE[kind]) filter.merge = merge
@@ -237,7 +278,7 @@ export function readTriggerData(raw: unknown): TriggerData {
   if (note !== undefined) data.note = note
   const condition = filled(input.condition)
   if (condition !== undefined) data.condition = condition
-  const filter = readFilter(input.filter, source.kind)
+  const filter = readFilter(input.filter, source)
   if (filter !== undefined) data.filter = filter
   const launch = readLaunch(input.launch)
   if (launch !== undefined) data.launch = launch
@@ -245,14 +286,6 @@ export function readTriggerData(raw: unknown): TriggerData {
 }
 
 function canonicalSource(source: TriggerSource): TriggerSource {
-  if (source.kind === 'poll') {
-    return {
-      kind: 'poll',
-      command: source.command,
-      seconds: source.seconds,
-      ...(source.when === undefined ? {} : { when: source.when }),
-    }
-  }
   if (source.kind === 'listen') return { kind: 'listen', command: source.command }
   if (source.kind === 'http') return { kind: 'http' }
   if (source.kind === 'after') {
@@ -262,12 +295,12 @@ function canonicalSource(source: TriggerSource): TriggerSource {
       ...(source.when === undefined ? {} : { when: source.when }),
     }
   }
-  const { schedule } = source
+  const { schedule, check } = source
   return {
     kind: 'schedule',
     schedule:
       schedule.kind === 'every'
-        ? { kind: 'every', minutes: schedule.minutes }
+        ? { kind: 'every', seconds: schedule.seconds }
         : schedule.kind === 'cron'
           ? { kind: 'cron', expression: schedule.expression }
           : {
@@ -276,6 +309,7 @@ function canonicalSource(source: TriggerSource): TriggerSource {
               ...(schedule.moreTimes === undefined ? {} : { moreTimes: [...schedule.moreTimes] }),
               ...(schedule.weekdays === undefined ? {} : { weekdays: [...schedule.weekdays] }),
             },
+    ...(check === undefined ? {} : { check: { command: check.command, when: check.when } }),
   }
 }
 
@@ -355,7 +389,7 @@ export function launchOf(data: TriggerData): LaunchSettings {
 }
 
 /**
- * 打开开关之前，这张卡片在本机还缺哪一样：要跑命令的（轮询、监听）和新建 / 接着上一次会话的要工作区，
+ * 打开开关之前，这张卡片在本机还缺哪一样：要跑命令的（带检查的定时、监听）和新建 / 接着上一次会话的要工作区，
  * 发进固定会话的要选会话；都齐了是 `null`。
  */
 export function launchMissing(
@@ -378,10 +412,10 @@ export interface FilterSettings {
   exclude: readonly string[]
 }
 
-/** 过滤里的各项，按触发源补上缺省值（定时、接续全是关的）。 */
+/** 过滤里的各项，按触发源补上缺省值（到点直接执行的定时、接续全是关的）。 */
 export function filterOf(data: TriggerData): FilterSettings {
-  const kind = data.source.kind
-  if (!isFilterKind(kind)) return { merge: 0, dedupe: 0, include: [], exclude: [] }
+  const kind = filterKindOf(data.source)
+  if (kind === null) return { merge: 0, dedupe: 0, include: [], exclude: [] }
   return {
     merge: data.filter?.merge ?? DEFAULT_MERGE[kind],
     dedupe: data.filter?.dedupe ?? 0,
@@ -394,24 +428,10 @@ export function filterOf(data: TriggerData): FilterSettings {
 // 触发源
 // ─────────────────────────────────────────────────────────────
 
-/** 要在本机跑的命令（轮询、监听）；别的触发源没有。 */
+/** 要在本机跑的命令（定时的检查、监听）；别的触发源没有。 */
 export function commandOf(source: TriggerSource): string | undefined {
-  return source.kind === 'poll' || source.kind === 'listen' ? source.command : undefined
-}
-
-/**
- * 模型写的触发卡片：轮询没写判定时按新建的缺省（{@link NEW_POLL_WHEN}）补上，
- * 不落成「图里不写」（那是早先卡片的「由失败变为成功」）。别的原样。
- */
-export function withNewPollWhen(trigger: Record<string, unknown>): Record<string, unknown> {
-  const { source } = trigger
-  if (!isPlainObject(source) || source.kind !== 'poll' || source.when !== undefined) return trigger
-  return { ...trigger, source: { ...source, when: NEW_POLL_WHEN } }
-}
-
-/** 条件轮询的判定方式，补上缺省。 */
-export function pollWhen(source: Extract<TriggerSource, { kind: 'poll' }>): PollWhen {
-  return source.when ?? 'success'
+  if (source.kind === 'schedule') return source.check?.command
+  return source.kind === 'listen' ? source.command : undefined
 }
 
 /** 接续触发的结果条件，补上缺省（成功时）。 */
@@ -436,7 +456,8 @@ export type SourceIssue =
   | { code: 'schedule'; issue: ScheduleIssue }
   | { code: 'noWorkflow' }
   | { code: 'noCommand' }
-  | { code: 'interval'; min: number; max: number }
+  /** 到点直接执行的「每隔」太密（要带检查命令才能更短）。 */
+  | { code: 'tooOften'; min: number }
 
 /**
  * 触发源哪里写得不对；没问题是 `null`。
@@ -445,46 +466,49 @@ export type SourceIssue =
 export function sourceIssue(source: TriggerSource): SourceIssue | null {
   if (source.kind === 'schedule') {
     const issue = scheduleIssue(source.schedule)
-    return issue === null ? null : { code: 'schedule', issue }
+    if (issue !== null) return { code: 'schedule', issue }
+    const { schedule, check } = source
+    if (check === undefined) {
+      return schedule.kind === 'every' && schedule.seconds < PLAIN_EVERY_MIN
+        ? { code: 'tooOften', min: PLAIN_EVERY_MIN }
+        : null
+    }
+    return check.command.trim() === '' ? { code: 'noCommand' } : null
   }
   if (source.kind === 'http') return null
   if (source.kind === 'after') return source.workflow === '' ? { code: 'noWorkflow' } : null
-  if (source.command.trim() === '') return { code: 'noCommand' }
-  if (
-    source.kind === 'poll' &&
-    wholeIn(source.seconds, POLL_MIN_SECONDS, POLL_MAX_SECONDS) === undefined
-  ) {
-    return { code: 'interval', min: POLL_MIN_SECONDS, max: POLL_MAX_SECONDS }
-  }
-  return null
+  return source.command.trim() === '' ? { code: 'noCommand' } : null
 }
 
 /** 触发源写得不对时的一句原因（中文）；没问题是 `null`。 */
 export function sourceProblem(source: TriggerSource): string | null {
-  if (source.kind === 'schedule') return scheduleProblem(source.schedule)
   const issue = sourceIssue(source)
   if (issue === null) return null
+  if (issue.code === 'schedule' && source.kind === 'schedule') {
+    return scheduleProblem(source.schedule)
+  }
   if (issue.code === 'noWorkflow') return '还没选等哪个工作流跑完'
   if (issue.code === 'noCommand') return '还没写要运行的命令'
-  return `检查间隔要是 ${String(POLL_MIN_SECONDS)} 秒到 7 天之间的整数秒`
+  if (issue.code === 'tooOften') {
+    return `到点直接执行的间隔最短 ${secondsText(issue.min)}；要更密得先跑命令检查`
+  }
+  return null
 }
 
-/** 秒数的一句话说法（「30 秒」「5 分钟」「2 小时」）。 */
-export function secondsText(seconds: number): string {
-  if (seconds % 86_400 === 0) return `${String(seconds / 86_400)} 天`
-  if (seconds % 3600 === 0) return `${String(seconds / 3600)} 小时`
-  if (seconds % 60 === 0) return `${String(seconds / 60)} 分钟`
-  return `${String(seconds)} 秒`
+/** 检查命令的判定的一句话说法。 */
+const CHECK_WHEN_TEXT: Record<CheckWhen, string> = {
+  every: '命令成功',
+  success: '命令由失败变为成功',
+  change: '命令的输出变了',
 }
 
 /** 触发源的一句话说法（写进发给模型的话里）。 */
 export function sourceText(source: TriggerSource): string {
-  if (source.kind === 'schedule') return `定时（${scheduleText(source.schedule)}）`
-  if (source.kind === 'poll') {
-    const when = { success: '命令由失败变为成功', every: '命令成功', change: '输出变了' }[
-      pollWhen(source)
-    ]
-    return `检查（每 ${secondsText(source.seconds)} 跑一次命令，${when}时触发）`
+  if (source.kind === 'schedule') {
+    const when = scheduleText(source.schedule)
+    return source.check === undefined
+      ? `定时（${when}）`
+      : `定时检查（${when}跑一次命令，${CHECK_WHEN_TEXT[source.check.when]}时触发）`
   }
   if (source.kind === 'listen') return '监视程序打出了一行'
   if (source.kind === 'after') {

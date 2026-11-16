@@ -42,7 +42,7 @@ function fire(
   serial += 1
   const id = `${newFireId(new Date(clock)).slice(0, -4)}${serial.toString(16).padStart(4, '0')}`
   return {
-    record: { id, workflow: 'wf', node, name: node, channel: 'poll', at: clock, outcome },
+    record: { id, workflow: 'wf', node, name: node, channel: 'schedule', at: clock, outcome },
     note: '看一眼',
     ...extra,
   }

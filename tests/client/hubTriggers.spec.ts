@@ -66,7 +66,13 @@ describe('左栏：分组、排序、只看哪些', () => {
     entry(
       'deploy',
       'main push',
-      { source: { kind: 'poll', command: 'git', seconds: 300 } },
+      {
+        source: {
+          kind: 'schedule',
+          schedule: { kind: 'every', seconds: 300 },
+          check: { command: 'git', when: 'every' },
+        },
+      },
       {
         enabled: true,
         state: 'waiting',
@@ -83,7 +89,13 @@ describe('左栏：分组、排序、只看哪些', () => {
     entry(
       'warehouse',
       'stock sync',
-      { source: { kind: 'poll', command: 'py', seconds: 900 } },
+      {
+        source: {
+          kind: 'schedule',
+          schedule: { kind: 'every', seconds: 900 },
+          check: { command: 'py', when: 'every' },
+        },
+      },
       {
         enabled: false,
         state: 'stopped',
@@ -113,9 +125,9 @@ describe('左栏：分组、排序、只看哪些', () => {
     expect(arranged.groups.map(groupId)).toEqual(['state:act', 'state:on', 'state:off'])
   })
 
-  it('按触发方式分：按五种方式的固定顺序', () => {
+  it('按触发方式分：按四种方式的固定顺序（带检查的定时也归定时）', () => {
     const arranged = arrangeTriggers(list, { ...DEFAULT_LIST_VIEW, group: 'kind' })
-    expect(arranged.groups.map((group) => group.key)).toEqual(['schedule', 'poll', 'http'])
+    expect(arranged.groups.map((group) => group.key)).toEqual(['schedule', 'http'])
   })
 
   it('最近触发的在前、下一次早的在前，没有的排最后', () => {
@@ -192,7 +204,7 @@ describe('概览：近 7 天的数与节律', () => {
     }
     expect(plannedHours(source, now)).toEqual([18, 21])
     expect(
-      plannedHours({ kind: 'schedule', schedule: { kind: 'every', minutes: 5 } }, now),
+      plannedHours({ kind: 'schedule', schedule: { kind: 'every', seconds: 300 } }, now),
     ).toEqual([])
     expect(plannedHours({ kind: 'http' }, now)).toEqual([])
   })
@@ -214,13 +226,13 @@ describe('时间线', () => {
       new Date(2026, 10, 13, 9, 0).getTime(),
       new Date(2026, 10, 14, 9, 0).getTime(),
     ])
-    const every = { kind: 'schedule', schedule: { kind: 'every', minutes: 30 } } as const
+    const every = { kind: 'schedule', schedule: { kind: 'every', seconds: 1800 } } as const
     expect(upcomingAt(every, { state: 'waiting', next: now + 600_000 }, now, 2)).toEqual([
       now + 600_000,
       now + 600_000 + 1_800_000,
     ])
-    const poll = { kind: 'poll', command: 'x', seconds: 60 } as const
-    expect(upcomingAt(poll, { state: 'waiting', next: now + 5000 }, now, 3)).toEqual([now + 5000])
+    const check = { ...every, check: { command: 'x', when: 'every' } } as const
+    expect(upcomingAt(check, { state: 'waiting', next: now + 5000 }, now, 3)).toEqual([now + 5000])
     expect(upcomingAt({ kind: 'http' }, { state: 'listening' }, now, 3)).toEqual([])
     expect(upcomingAt(daily, { state: 'off' }, now, 3)).toEqual([])
   })

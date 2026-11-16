@@ -7,7 +7,7 @@
  *
  * 部署相关的取值一律走这里：`dataDir`（数据根）、`maxNodes`、`maxResultBytes`
  * （单次返回字节上限）、`saveDebounceMs`、`routePrefix`、`installSkill`、`triggerPort` / `triggerHost`（HTTP 触发的端口与监听地址）、
- * `triggerShell`（轮询、监听默认用的 shell）、`triggerOutputLines`（轮询、监听最近的输出每张卡片留几行）。
+ * `triggerShell`（定时检查、监听默认用的 shell）、`triggerOutputLines`（定时检查、监听最近的输出每张卡片留几行）。
  *
  * @module @xiaoso/dsh-workflow-lite/host/config
  */
@@ -48,11 +48,11 @@ export interface WorkflowLiteSettings {
    */
   triggerHost: Volatile<string>
   /**
-   * 轮询、监听程序没单独选 shell 时用哪个：程序的完整路径；空串 = 系统的（Windows 是 cmd，其余是 sh）。
+   * 定时检查、监听程序没单独选 shell 时用哪个：程序的完整路径；空串 = 系统的（Windows 是 cmd，其余是 sh）。
    * 改了以后跟着默认的卡片都要重新确认命令。
    */
   triggerShell: Volatile<string>
-  /** 轮询、监听最近的输出每张卡片最多留几行，更早的丢掉（存在插件的数据库里）。 */
+  /** 定时检查、监听最近的输出每张卡片最多留几行，更早的丢掉（存在插件的数据库里）。 */
   triggerOutputLines: Volatile<number>
 }
 

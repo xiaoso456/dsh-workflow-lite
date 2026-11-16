@@ -1,8 +1,8 @@
 /**
- * dsh-workflow-lite — 常驻的触发源：条件轮询、监听程序、HTTP 地址。只在负责触发的那个进程里跑。
+ * dsh-workflow-lite — 常驻的触发源：带检查命令的定时、监听程序、HTTP 地址。只在负责触发的那个进程里跑。
  *
  * `service.ts` 每一轮算出「现在该开着哪些」（{@link LiveSpec}），交给 {@link TriggerRuntime.sync}：
- * 新出现的启动，不再需要的停掉，设置变了（命令、间隔、过滤、工作区、令牌）的停掉重来。
+ * 新出现的启动，不再需要的停掉，设置变了（命令、规则、判定、过滤、工作区、令牌）的停掉重来。
  * 进来的内容先过 `intake.ts` 的过滤，剩下的交回 `service.ts` 发进会话。
  *
  * 运行情况（程序在不在跑、上次检查、端口）写进 `live.json`，最近的输出写进插件数据库（`outputLog.ts`），
@@ -11,8 +11,7 @@
  * @module @xiaoso/dsh-workflow-lite/host/triggers/runtime
  */
 
-import type { FilterKind, FilterSettings } from '../../shared/trigger.ts'
-import type { TriggerSource } from '../../shared/types.ts'
+import type { FilterKind, FilterSettings, LiveSource } from '../../shared/trigger.ts'
 import { type HookBind, type HookPortState, type HookRoute, HookServer } from './hooks.ts'
 import { Intake, type IntakeBatch } from './intake.ts'
 import { Listener } from './listener.ts'
@@ -20,25 +19,24 @@ import { type LineInput, type OutputLog, type RunEnd, stripAnsi } from './output
 import { type PollCheck, Poller, type Probe } from './poller.ts'
 import type { LiveFile, LiveStatus, TriggerStore } from './store.ts'
 
-/** 常驻的那几种触发源（轮询、监听程序、HTTP）。 */
-export type LiveSource = Extract<TriggerSource, { kind: FilterKind }>
-
 /** 一张该开着的卡片。 */
 export interface LiveSpec {
   workflow: string
   node: string
   source: LiveSource
   filter: FilterSettings
-  /** 命令在哪个目录里跑（轮询、监听程序）。 */
+  /** 命令在哪个目录里跑（定时的检查、监听程序）。 */
   cwd: string
-  /** 命令里 `{workflow}` 已经换好了的那条（轮询、监听程序）。 */
+  /** 命令里 `{workflow}` 已经换好了的那条（定时的检查、监听程序）。 */
   command?: string
   /** 命令的追加环境变量。 */
   env?: Record<string, string>
   /** 用哪个 shell 跑（程序的完整路径）；不给是系统的。 */
   shell?: string
-  /** 条件轮询：上一次检查的结果。 */
+  /** 定时的检查：上一次检查的结果、下一次该查的时刻。 */
   probe?: Probe
+  /** 定时的检查：DSH 关着时错过的那一次补不补（启动方式里的「补」）。 */
+  catchUp?: boolean
   /** HTTP：地址（`/trigger/` 后面那一段）与令牌（`null` = 不校验）。 */
   hook?: { id: string; token: string | null }
 }
@@ -57,7 +55,7 @@ export interface RuntimeEvents {
   failed(ref: LiveRef, reason: string): void
   /** 触发源好好地工作了一次（清掉失败计数）。 */
   healthy(ref: LiveRef): void
-  /** 条件轮询检查完一次：存下这次的结果。 */
+  /** 定时的检查查完一次：存下这次的结果和下一次的时刻。 */
   probed(ref: LiveRef, probe: Probe): void
 }
 
@@ -96,6 +94,17 @@ const keyOf = (workflow: string, node: string): string => `${workflow}\u0000${no
 
 function refOf(spec: LiveSpec): LiveRef {
   return { workflow: spec.workflow, node: spec.node, kind: spec.source.kind }
+}
+
+/** 命令要跑的那条：调用方换好 `{workflow}` 的，没给就是图里写的。 */
+function commandText(spec: LiveSpec): string {
+  if (spec.command !== undefined) return spec.command
+  const { source } = spec
+  return source.kind === 'schedule'
+    ? source.check.command
+    : source.kind === 'listen'
+      ? source.command
+      : ''
 }
 
 /** 设置的记号：变了就停掉重来（上一次检查的结果不算设置）。 */
@@ -200,17 +209,18 @@ export class TriggerRuntime implements LiveRuntime {
       return { signature, intake, stop: async () => {} }
     }
     const command = {
-      command: spec.command ?? source.command,
+      command: commandText(spec),
       cwd: spec.cwd,
       env: spec.env ?? {},
       ...(spec.shell === undefined ? {} : { shell: spec.shell }),
     }
-    if (source.kind === 'poll') {
+    if (source.kind === 'schedule') {
       const poller = new Poller(
         {
           ...command,
-          seconds: source.seconds,
-          when: source.when ?? 'success',
+          schedule: source.schedule,
+          when: source.check.when,
+          catchUp: spec.catchUp ?? true,
           ...(spec.probe === undefined ? {} : { probe: spec.probe }),
         },
         {
@@ -219,7 +229,8 @@ export class TriggerRuntime implements LiveRuntime {
           checked: (check) => this.onChecked(spec, ref, check),
         },
       )
-      this.setStatus(spec, { state: 'running', next: this.now() })
+      const first = poller.firstAt()
+      this.setStatus(spec, { state: 'running', ...(first === undefined ? {} : { next: first }) })
       poller.start()
       return { signature, intake, stop: async () => poller.stop() }
     }
@@ -270,7 +281,7 @@ export class TriggerRuntime implements LiveRuntime {
     )
     this.setStatus(spec, {
       state: 'running',
-      next: check.next,
+      ...(check.next === undefined ? {} : { next: check.next }),
       checked: { at: check.at, met: check.met },
       ...(check.note === undefined ? {} : { note: check.note }),
     })

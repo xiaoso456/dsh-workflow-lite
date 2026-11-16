@@ -20,18 +20,16 @@ import css from './triggerMark.module.css'
 /** 每种触发源的图标。 */
 export const TRIGGER_ICON: Record<TriggerSourceKind, IconName> = {
   schedule: 'clock',
-  poll: 'poll',
   listen: 'terminal',
   http: 'globe',
   after: 'after',
 }
 
-/** 每种触发渠道的图标：五种触发源用各自的，「立即触发一次」是闪电。 */
+/** 每种触发渠道的图标：四种触发源用各自的，「立即触发一次」是闪电。 */
 export const FIRE_ICON: Record<FireChannel, IconName> = { ...TRIGGER_ICON, now: 'bolt' }
 
 const TRIGGER_COLOR: Record<TriggerSourceKind, StepColor> = {
   schedule: 'blue',
-  poll: 'teal',
   listen: 'amber',
   http: 'violet',
   after: 'green',

@@ -9,14 +9,25 @@
 
 import type { TriggerSchedule } from './types.ts'
 
-/** 「每隔多久」的上下限（分钟）。 */
-export const EVERY_MIN = 1
-export const EVERY_MAX = 7 * 24 * 60
+/**
+ * 「每隔多久」的上下限（秒）。这是规则本身的界限（带检查命令的定时最短 10 秒）；
+ * 到点直接执行的最短 1 分钟，由 shared/trigger.ts 的 `sourceIssue` 另外管。
+ */
+export const EVERY_MIN = 10
+export const EVERY_MAX = 7 * 24 * 3600
 
 function wholeIn(value: unknown, min: number, max: number): number | undefined {
   return typeof value === 'number' && Number.isInteger(value) && value >= min && value <= max
     ? value
     : undefined
+}
+
+/** 秒数的一句话说法（「30 秒」「5 分钟」「2 小时」「1 天」）。 */
+export function secondsText(seconds: number): string {
+  if (seconds > 0 && seconds % 86_400 === 0) return `${String(seconds / 86_400)} 天`
+  if (seconds > 0 && seconds % 3600 === 0) return `${String(seconds / 3600)} 小时`
+  if (seconds > 0 && seconds % 60 === 0) return `${String(seconds / 60)} 分钟`
+  return `${String(seconds)} 秒`
 }
 
 /** `HH:mm`（24 小时制）→ 分钟数；写得不对是 `null`。 */
@@ -98,7 +109,7 @@ const CRON_RANGES: readonly [name: CronFieldName, min: number, max: number][] = 
 
 /**
  * 定时规则哪里写得不对。结构化的：界面按语言说，校验结果、发给模型的话用 {@link scheduleProblem} 的中文。
- * - `every`：间隔不在 `min`–`max` 分钟之间；`time`：钟点不是 `HH:mm`；
+ * - `every`：间隔不在 `min`–`max` 秒之间；`time`：钟点不是 `HH:mm`；
  * - `cronEmpty` / `cronParts`：cron 是空的、不是五段；
  * - `cronSyntax` / `cronStep` / `cronRange`：某一段写得不对、步长不大于 0、超出范围；
  * - `cronNever`：永远轮不到。
@@ -212,12 +223,7 @@ const WEEKDAY_TEXT = ['一', '二', '三', '四', '五', '六', '日']
 
 /** 定时规则的一句话说法（写进发给模型的话、触发记录里）。 */
 export function scheduleText(schedule: TriggerSchedule): string {
-  if (schedule.kind === 'every') {
-    const { minutes } = schedule
-    if (minutes % 1440 === 0) return `每 ${String(minutes / 1440)} 天`
-    if (minutes % 60 === 0) return `每 ${String(minutes / 60)} 小时`
-    return `每 ${String(minutes)} 分钟`
-  }
+  if (schedule.kind === 'every') return `每 ${secondsText(schedule.seconds)}`
   if (schedule.kind === 'cron') return `cron ${schedule.expression.trim()}`
   const times = dailyTimes(schedule).join('、')
   if (schedule.weekdays === undefined) return `每天 ${times}`
@@ -228,7 +234,7 @@ export function scheduleText(schedule: TriggerSchedule): string {
 /** 规则哪里写得不对；没问题是 `null`。 */
 export function scheduleIssue(schedule: TriggerSchedule): ScheduleIssue | null {
   if (schedule.kind === 'every') {
-    return wholeIn(schedule.minutes, EVERY_MIN, EVERY_MAX) === undefined
+    return wholeIn(schedule.seconds, EVERY_MIN, EVERY_MAX) === undefined
       ? { code: 'every', min: EVERY_MIN, max: EVERY_MAX }
       : null
   }
@@ -253,7 +259,7 @@ const CRON_FIELD_TEXT: Record<CronFieldName, string> = {
 function issueText(issue: ScheduleIssue): string {
   switch (issue.code) {
     case 'every':
-      return `间隔要是 ${String(issue.min)}–${String(issue.max)} 之间的整数分钟`
+      return `间隔要是 ${secondsText(issue.min)}到 ${secondsText(issue.max)}之间的整数秒`
     case 'time':
       return `时间要写成 HH:mm：${issue.time}`
     case 'cronEmpty':
@@ -291,7 +297,7 @@ export function nextFire(
 ): Date | null {
   if (scheduleProblem(schedule) !== null) return null
   if (schedule.kind === 'every') {
-    const step = schedule.minutes * 60_000
+    const step = schedule.seconds * 1000
     const start = anchor.getTime()
     if (after.getTime() < start) return new Date(start + step)
     const passed = Math.floor((after.getTime() - start) / step)
@@ -356,13 +362,13 @@ export function cronAsSimple(expression: string): TriggerSchedule | null {
   }
   if (everyDay && hours.length === 24) {
     const step = stepOf(minutes, 60)
-    return step === null ? null : { kind: 'every', minutes: step }
+    return step === null ? null : { kind: 'every', seconds: step * 60 }
   }
   if (minutes.length !== 1) return null
   const [minute = 0] = minutes
   if (everyDay && minute === 0 && hours.length > 1) {
     const step = stepOf(hours, 24)
-    if (step !== null) return { kind: 'every', minutes: step * 60 }
+    if (step !== null) return { kind: 'every', seconds: step * 3600 }
   }
   if (hours.length > DAILY_TIMES_MAX) return null
   const [first = '09:00', ...rest] = hours.map((hour) => formatClock(hour * 60 + minute))

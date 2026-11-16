@@ -16,6 +16,33 @@
   flex: 1 0 auto;
 }
 
+/* ── 步骤条（定时：触发时间 → 检查命令） ─────────────────────── */
+
+/* 一行：左边步骤，右边在第二步时写这次的节奏（淡入淡出，这一行高度不变）。 */
+.stepBar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  min-height: 22px;
+}
+
+.recap {
+  margin-left: auto;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 160ms linear;
+}
+
+.recap[data-on="true"] {
+  opacity: 1;
+}
+
 /* ── 设置行 ─────────────────────────────────────────────────── */
 
 .rows {

@@ -1,13 +1,13 @@
 /**
- * dsh-workflow-lite — 轮询、监听的命令模板：「从模板开始」菜单里的几条常用写法。
+ * dsh-workflow-lite — 定时检查、监听的命令模板：「从模板开始」菜单里的几条常用写法。
  *
  * 命令交给卡片选的 shell（cmd、PowerShell、sh 一类都可能），模板只用 `git` 和 `node -e`（DSH 自带 Node），
- * 双引号里不写 `$`、反引号，两边的 shell 都原样交给程序。挑了模板会连同判定方式一起换（轮询）。
+ * 双引号里不写 `$`、反引号，两边的 shell 都原样交给程序。挑了模板会连同判定方式一起换（定时检查）。
  *
  * @module @xiaoso/dsh-workflow-lite/client/model/commandTemplates
  */
 
-import type { PollWhen } from '../../shared/types.ts'
+import type { CheckWhen } from '../../shared/types.ts'
 import type { LocaleKey } from '../i18n.ts'
 
 export interface CommandTemplate {
@@ -17,11 +17,11 @@ export interface CommandTemplate {
   /** 一句说明。 */
   desc: LocaleKey
   command: string
-  /** 轮询：配哪种判定。 */
-  when?: PollWhen
+  /** 定时检查：配哪种判定。 */
+  when?: CheckWhen
 }
 
-export const POLL_TEMPLATES: readonly CommandTemplate[] = [
+export const CHECK_TEMPLATES: readonly CommandTemplate[] = [
   {
     id: 'git',
     label: 'trigger.tpl.git',

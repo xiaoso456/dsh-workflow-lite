@@ -2,7 +2,7 @@
  * dsh-workflow-lite — 触发卡片的「速览」：卡片中间那一行，按触发源换样子，一眼看出怎么触发。
  *
  * - 定时：一周七天的小格（选中的上色）+ 几点；每隔多久、cron 各说一句；
- * - 轮询：每隔多久 + 什么时候算满足，底边一条进度到下一次检查；
+ * - 定时检查：规则 + 什么时候算满足，「每隔」的底边一条进度到下一次检查；
  * - 监听：要跑的命令，跑起来之后换成它最近打出的一行；
  * - HTTP：`POST` + 地址（打开过开关才有）；
  * - 接续：等哪个工作流 → 什么结果。
@@ -13,16 +13,16 @@
  * @module @xiaoso/dsh-workflow-lite/client/model/triggerGlance
  */
 
-import { afterWhen, pollWhen } from '../../shared/trigger.ts'
-import type { AfterWhen, PollWhen, TriggerSource, TriggerSourceKind } from '../../shared/types.ts'
+import { afterWhen } from '../../shared/trigger.ts'
+import type { AfterWhen, CheckWhen, TriggerSource, TriggerSourceKind } from '../../shared/types.ts'
 import type { LocaleKey, T } from '../i18n.ts'
 import { ruleText, weekdayChip } from './triggerText.ts'
 
-/** 主动：插件按时间自己去做（定时、轮询）；被动：等外面的事发生（监听、HTTP、接续）。 */
+/** 主动：插件按时间自己去做（定时，带不带检查）；被动：等外面的事发生（监听、HTTP、接续）。 */
 export type TriggerMode = 'active' | 'passive'
 
 export function triggerMode(kind: TriggerSourceKind): TriggerMode {
-  return kind === 'schedule' || kind === 'poll' ? 'active' : 'passive'
+  return kind === 'schedule' ? 'active' : 'passive'
 }
 
 /** 速览那一行画什么（`shape` 是样子，不是触发源：定时有三种样子）。 */
@@ -32,8 +32,8 @@ export type TriggerGlance =
   /** 每隔多久（定时）。 */
   | { shape: 'every'; text: string }
   | { shape: 'cron'; expression: string }
-  /** 轮询：每隔多久、什么时候算满足；`seconds` 给进度条算起点。 */
-  | { shape: 'poll'; every: string; when: string; seconds: number }
+  /** 定时检查：规则、什么时候算满足；`seconds` 是「每隔」的间隔（给进度条算起点），按钟点的没有。 */
+  | { shape: 'check'; rule: string; when: string; seconds?: number }
   /** 监听：要跑的命令（跑起来之后卡片换成最近一行）。 */
   | { shape: 'listen'; command: string }
   /** HTTP：还没有地址时说的话（有了地址卡片自己换）。 */
@@ -42,10 +42,10 @@ export type TriggerGlance =
   /** 还没填好（没选工作流、没写命令）：只说缺什么。 */
   | { shape: 'empty'; text: string }
 
-const POLL_WHEN: Record<PollWhen, LocaleKey> = {
-  success: 'trigger.pollWhen.success',
-  every: 'trigger.pollWhen.every',
-  change: 'trigger.pollWhen.change',
+const CHECK_WHEN: Record<CheckWhen, LocaleKey> = {
+  success: 'trigger.checkWhen.success',
+  every: 'trigger.checkWhen.every',
+  change: 'trigger.checkWhen.change',
 }
 
 const AFTER_WHEN: Record<AfterWhen, LocaleKey> = {
@@ -54,22 +54,22 @@ const AFTER_WHEN: Record<AfterWhen, LocaleKey> = {
   any: 'trigger.afterWhen.any',
 }
 
-/** 每隔多少秒的短说法：「每 30 秒」「每 5 分钟」「每 2 小时」。 */
-function everySeconds(t: T, seconds: number): string {
-  if (seconds > 0 && seconds % 3600 === 0) {
-    return t('trigger.rule.hours').replace('{n}', String(seconds / 3600))
-  }
-  if (seconds > 0 && seconds % 60 === 0) {
-    return t('trigger.rule.minutes').replace('{n}', String(seconds / 60))
-  }
-  return t('trigger.glance.seconds').replace('{n}', String(seconds))
-}
-
 /** 卡片上的速览（只看图里写的）。 */
 export function triggerGlance(t: T, source: TriggerSource): TriggerGlance {
   switch (source.kind) {
     case 'schedule': {
-      const { schedule } = source
+      const { schedule, check } = source
+      if (check !== undefined) {
+        if (check.command.trim() === '') {
+          return { shape: 'empty', text: t('trigger.issue.noCommand') }
+        }
+        return {
+          shape: 'check',
+          rule: ruleText(t, schedule),
+          when: t(CHECK_WHEN[check.when]),
+          ...(schedule.kind === 'every' ? { seconds: schedule.seconds } : {}),
+        }
+      }
       if (schedule.kind === 'every') return { shape: 'every', text: ruleText(t, schedule) }
       if (schedule.kind === 'cron') return { shape: 'cron', expression: schedule.expression.trim() }
       const picked = schedule.weekdays
@@ -85,13 +85,6 @@ export function triggerGlance(t: T, source: TriggerSource): TriggerGlance {
         time: more === 0 ? schedule.time : `${schedule.time} +${String(more)}`,
       }
     }
-    case 'poll':
-      return {
-        shape: 'poll',
-        every: everySeconds(t, source.seconds),
-        when: t(POLL_WHEN[pollWhen(source)]),
-        seconds: source.seconds,
-      }
     case 'listen': {
       const command = source.command.trim()
       if (command === '') return { shape: 'empty', text: t('trigger.issue.noCommand') }
@@ -121,10 +114,10 @@ export function endpointPath(url: string): string {
 }
 
 /**
- * 轮询到下一次检查走了多少（0–1）以及还剩多少毫秒：下一次检查减去间隔就是这一段的起点。
+ * 到下一次检查走了多少（0–1）以及还剩多少毫秒：下一次检查减去间隔就是这一段的起点。
  * 没有下一次（关着、出错）时 `null`。
  */
-export function pollProgress(
+export function checkProgress(
   next: number | undefined,
   seconds: number,
   now: number,

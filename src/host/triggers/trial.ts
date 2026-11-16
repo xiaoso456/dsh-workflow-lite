@@ -11,7 +11,7 @@
 import type { TriggerPingResponse, TriggerTryResponse } from '../../shared/wire/trigger.ts'
 import { type CommandSpec, runCommand, startProcess } from './processes.ts'
 
-/** 轮询的试运行最长等多久。 */
+/** 检查的试运行最长等多久。 */
 export const TRIAL_TIMEOUT_MS = 60_000
 /** 监听的试运行跑多久。 */
 export const TRIAL_LISTEN_MS = 5_000
@@ -26,8 +26,8 @@ export const PING_BODY = '{"test":true,"from":"workflow-lite"}'
 
 const tail = (text: string): string => text.slice(-TRIAL_OUTPUT_CHARS)
 
-/** 轮询：跑一次、等它结束。 */
-export async function tryPoll(
+/** 定时检查：跑一次、等它结束。 */
+export async function tryCheck(
   spec: CommandSpec,
   timeoutMs = TRIAL_TIMEOUT_MS,
 ): Promise<TriggerTryResponse> {

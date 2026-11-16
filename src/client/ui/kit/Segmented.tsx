@@ -5,6 +5,7 @@
  * 不是瞬间变色；选项前的小色点（`color`）只在选中、悬停时亮起；`icon` 是字前面的小图标（灰 → 强调色同样交叉淡过去；
  * 给了 `tint` 就一直是那个颜色：没选中时淡一些、悬停和选中满色）；
  * `count` 是字后面一个小数字标；`tip` 是悬停说明。`fit` 时各格按自己的字宽排，不等分。
+ * `off` 是这一格暂时选不了的原因（悬停时说；格子用 `aria-disabled` 而不是 `disabled`，好让悬停提示照常出来）。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/kit/Segmented
  */
@@ -28,6 +29,8 @@ export function Segmented<V extends string>(props: {
     tint?: string
     count?: number
     tip?: string
+    /** 这一格选不了的原因（给了就选不了）。 */
+    off?: string
   }[]
   onChange: (value: V) => void
   disabled?: boolean
@@ -59,10 +62,13 @@ export function Segmented<V extends string>(props: {
           aria-checked={option.value === props.value}
           className={css.segItem}
           disabled={props.disabled}
-          data-tip={option.tip}
+          aria-disabled={option.off === undefined ? undefined : true}
+          data-tip={option.off ?? option.tip}
           aria-label={option.tip}
           data-testid={props.testId === undefined ? undefined : `${props.testId}-${option.value}`}
-          onClick={() => props.onChange(option.value)}
+          onClick={() => {
+            if (option.off === undefined) props.onChange(option.value)
+          }}
         >
           {option.color !== undefined && (
             <span className={css.segDot} style={{ background: option.color }} />

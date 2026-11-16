@@ -1,6 +1,6 @@
 /**
- * dsh-workflow-lite — 最近的输出的工具条（右边那一串）：轮询有筛选（全部 / 触发 / 没跑成，带次数）；
- * 再是几枚图标——自动换行、显示错误输出（开关，记在本机浏览器里）、全部展开（轮询）、复制全部、清空。名字在悬停提示里。
+ * dsh-workflow-lite — 最近的输出的工具条（右边那一串）：定时检查有筛选（全部 / 触发 / 没跑成，带次数）；
+ * 再是几枚图标——自动换行、显示错误输出（开关，记在本机浏览器里）、全部展开（定时检查）、复制全部、清空。名字在悬停提示里。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/trigger/output/OutputTools
  */
@@ -42,7 +42,7 @@ export function OutputTools(props: {
   const [copied, setCopied] = useCopied(String(data?.entries[0]?.id ?? ''))
   return (
     <div className={css.tools}>
-      {props.kind === 'poll' && (
+      {props.kind === 'check' && (
         <>
           <Segmented<OutputFilter>
             label={t('out.filter')}
@@ -74,7 +74,7 @@ export function OutputTools(props: {
         testId={`${props.testId}-err`}
         onClick={() => props.onView({ err: !view.err })}
       />
-      {props.kind === 'poll' && (
+      {props.kind === 'check' && (
         <Tool
           icon={model.allOpen ? 'fold' : 'unfold'}
           label={t(model.allOpen ? 'out.collapseAll' : 'out.expandAll')}

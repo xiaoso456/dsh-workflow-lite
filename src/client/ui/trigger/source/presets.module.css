@@ -1,9 +1,9 @@
 /*
- * 一排胶囊（定时的「常用」、轮询的间隔）：和现在的规则一样的那颗淡底 + 同色细边，字换成触发方式的颜色（都是交叉淡）。
+ * 一排胶囊（定时规则下面的常用）：和现在的规则一样的那颗淡底 + 同色细边，字换成触发方式的颜色（都是交叉淡）。
  * 选中不改宽度（不加对勾、不加粗）：点一下，旁边的胶囊不挪。
  */
 
-/* 定时的「常用」：三种规则各一排叠在同一格（SchedulePresets）。 */
+/* 定时规则下面的常用（SchedulePresets）：占满标签右边。 */
 .stack {
   flex: 1 1 auto;
   min-width: 0;
@@ -62,18 +62,8 @@
   opacity: 1;
 }
 
-.chip:hover:not([aria-pressed="true"], .tag) {
+.chip:hover:not([aria-pressed="true"]) {
   --wl-off: var(--wl-text);
-}
-
-/* 「自定义」：只是个标记（规则对不上任何一条常用时亮），虚边、点不了。 */
-.tag {
-  border-style: dashed;
-  cursor: default;
-}
-
-.tag:active {
-  scale: none;
 }
 
 /* 字在选中层上面。 */

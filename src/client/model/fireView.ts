@@ -30,7 +30,6 @@ export const FIRE_KIND_SHORT: Record<FireKind, LocaleKey> = {
 
 export const FIRE_CHANNEL_TEXT: Record<FireRecord['channel'], LocaleKey> = {
   schedule: 'trigger.channel.schedule',
-  poll: 'trigger.channel.poll',
   listen: 'trigger.channel.listen',
   http: 'trigger.channel.http',
   after: 'trigger.channel.after',

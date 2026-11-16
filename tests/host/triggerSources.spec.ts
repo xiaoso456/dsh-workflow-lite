@@ -14,7 +14,15 @@ import {
   Listener,
   type ListenerHandlers,
 } from '../../src/host/triggers/listener.ts'
-import { FRESH_PROBE, judge, type PollCheck, Poller } from '../../src/host/triggers/poller.ts'
+import {
+  FRESH_PROBE,
+  firstCheck,
+  judge,
+  nextCheck,
+  type PollCheck,
+  Poller,
+  ruleKey,
+} from '../../src/host/triggers/poller.ts'
 import {
   type ExitInfo,
   type RunResult,
@@ -22,7 +30,7 @@ import {
   startProcess,
 } from '../../src/host/triggers/processes.ts'
 import { lastLineText } from '../../src/host/triggers/runtime.ts'
-import { PING_BODY, pingHook, tryListen, tryPoll } from '../../src/host/triggers/trial.ts'
+import { PING_BODY, pingHook, tryCheck, tryListen } from '../../src/host/triggers/trial.ts'
 import { filterOf, keywordMiss } from '../../src/shared/trigger.ts'
 
 const NO_FILTER = { merge: 0, dedupe: 0, include: [], exclude: [] }
@@ -101,17 +109,25 @@ describe('过滤', () => {
     expect(batches).toHaveLength(2)
   })
 
-  it('缺省：监听程序、HTTP 合并 5 秒，轮询、定时不合并', () => {
+  it('缺省：监听程序、HTTP 合并 5 秒，定时检查不合并', () => {
     expect(filterOf({ source: { kind: 'listen', command: 'x' } }).merge).toBe(5)
     expect(filterOf({ source: { kind: 'http' } }).merge).toBe(5)
-    expect(filterOf({ source: { kind: 'poll', command: 'x', seconds: 60 } }).merge).toBe(0)
+    expect(
+      filterOf({
+        source: {
+          kind: 'schedule',
+          schedule: { kind: 'every', seconds: 60 },
+          check: { command: 'x', when: 'every' },
+        },
+      }).merge,
+    ).toBe(0)
     expect(
       filterOf({ source: { kind: 'listen', command: 'x' }, filter: { merge: 0, include: ['E'] } }),
     ).toEqual({ merge: 0, dedupe: 0, include: ['E'], exclude: [] })
   })
 })
 
-describe('条件轮询', () => {
+describe('定时检查', () => {
   const result = (code: number | null, output = ''): RunResult => ({ code, output, errors: '' })
 
   it('成功时触发：只在「上次不成功、这次成功」时触发', () => {
@@ -172,7 +188,14 @@ describe('条件轮询', () => {
       const failed: string[] = []
       const checks: PollCheck[] = []
       const poller = new Poller(
-        { command: 'x', cwd: '.', seconds: 60, when: 'change', probe: {} },
+        {
+          command: 'x',
+          cwd: '.',
+          schedule: { kind: 'every', seconds: 60 },
+          when: 'change',
+          probe: {},
+          catchUp: true,
+        },
         {
           fire: (output) => fired.push(output),
           fail: (reason) => failed.push(reason),
@@ -193,7 +216,47 @@ describe('条件轮询', () => {
       expect(checks.map((check) => check.met)).toEqual([false, false, false, true])
       expect(fired).toEqual(['two'])
       expect(failed).toEqual(['找不到命令'])
-      expect(checks[2]).toMatchObject({ failure: '找不到命令', probe: checks[1]?.probe })
+      // 跑不起来的那次：上一次的结果留着接着比，下一次的时刻照常往后排。
+      expect(checks[2]).toMatchObject({
+        failure: '找不到命令',
+        probe: { digest: checks[1]?.probe.digest },
+      })
+      expect(checks[2]?.probe.next?.at).toBe((checks[2]?.at ?? 0) + 60_000)
+      // 每次都存下一次该查的时刻（按哪条规则排的一起存）。
+      expect(checks[3]?.probe.next).toEqual({
+        at: (checks[3]?.at ?? 0) + 60_000,
+        rule: ruleKey({ kind: 'every', seconds: 60 }),
+      })
+    })
+  })
+
+  describe('第一次什么时候查', () => {
+    const daily = { kind: 'daily', time: '09:00' } as const
+    const every = { kind: 'every', seconds: 600 } as const
+    // 2026-11-16 10:00（本机时区）。
+    const now = new Date(2026, 10, 16, 10, 0).getTime()
+    const nine = (day: number): number => new Date(2026, 10, day, 9, 0).getTime()
+
+    it('没存过：每隔的马上查，按钟点的等下一个钟点', () => {
+      expect(firstCheck(every, {}, now, true)).toBe(now)
+      expect(firstCheck(daily, {}, now, true)).toBe(nine(17))
+    })
+
+    it('存着的下一次还没到就等它；过了（DSH 关着时错过）补查一次，不补就跳到下一次', () => {
+      const rule = ruleKey(daily)
+      expect(firstCheck(daily, { next: { at: nine(17), rule } }, now, true)).toBe(nine(17))
+      expect(firstCheck(daily, { next: { at: nine(16), rule } }, now, true)).toBe(now)
+      expect(firstCheck(daily, { next: { at: nine(16), rule } }, now, false)).toBe(nine(17))
+    })
+
+    it('规则改过：存着的下一次不作数', () => {
+      const stale = { next: { at: nine(16), rule: ruleKey(every) } }
+      expect(firstCheck(daily, stale, now, true)).toBe(nine(17))
+    })
+
+    it('查完之后：每隔的从这一次起算，按钟点的排到下一个钟点', () => {
+      expect(nextCheck(every, now)).toBe(now + 600_000)
+      expect(nextCheck(daily, now)).toBe(nine(17))
     })
   })
 })
@@ -454,8 +517,8 @@ const ownLines = (text: string): string[] =>
 describe('试一试（「触发方式」对话框）', () => {
   const cwd = process.cwd()
 
-  it('轮询试运行：退出码、输出（标准输出 + 错误输出）、用时；找不到命令给原因', async () => {
-    const ok = await tryPoll({
+  it('检查试运行：退出码、输出（标准输出 + 错误输出）、用时；找不到命令给原因', async () => {
+    const ok = await tryCheck({
       command: `node -e "console.log('up');console.error('warn');process.exit(2)"`,
       cwd,
     })
@@ -464,10 +527,10 @@ describe('试一试（「触发方式」对话框）', () => {
     expect(ok.ms).toBeGreaterThanOrEqual(0)
     expect(ok.failure).toBeUndefined()
 
-    const missing = await tryPoll({ command: 'no-such-command-wl-test', cwd })
+    const missing = await tryCheck({ command: 'no-such-command-wl-test', cwd })
     expect(missing.failure).toContain('找不到命令')
 
-    const slow = await tryPoll({ command: 'node -e "setTimeout(() => {}, 30000)"', cwd }, 500)
+    const slow = await tryCheck({ command: 'node -e "setTimeout(() => {}, 30000)"', cwd }, 500)
     expect(slow).toMatchObject({ code: null })
     expect(slow.failure).toContain('没结束')
   }, 30_000)

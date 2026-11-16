@@ -1,7 +1,7 @@
 /**
- * dsh-workflow-lite — 轮询命令、监听程序最近的输出：插件数据库里的 `trigger_output*` 几张表。
+ * dsh-workflow-lite — 检查命令、监听程序最近的输出：插件数据库里的 `trigger_output*` 几张表。
  *
- * 一条（`trigger_output`）是轮询的一次检查或监听程序的一次运行（启动到退出），输出按行另存（`trigger_output_lines`）：
+ * 一条（`trigger_output`）是检查的一次检查或监听程序的一次运行（启动到退出），输出按行另存（`trigger_output_lines`）：
  * - 检查：连着几次结果和输出都一模一样（触发了的除外）就合成一条，记下次数和最近那次的时刻；
  * - 运行：负责触发的进程攒一会儿成批写（{@link OutputLog.append}），连着一模一样的行只记一次加次数；
  * - 一行超过 {@link OUTPUT_LINE_MAX_CHARS} 字截断，记下原来多大；终端颜色去掉。

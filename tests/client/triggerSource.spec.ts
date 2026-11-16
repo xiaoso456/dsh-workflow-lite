@@ -1,20 +1,37 @@
 /**
- * 「触发方式」对话框背后的纯计算：顶上那句话、接下来 7 天、调用示例、命令模板、间隔滑条、常用规则。
+ * 「触发方式」对话框背后的纯计算：顶上那句话、接下来 7 天、调用示例、命令模板、常用规则、定时分两步。
  */
 
 import { describe, expect, it } from 'vitest'
 import { en as enText, type LocaleKey, zh } from '../../src/client/i18n.ts'
-import { LISTEN_TEMPLATES, POLL_TEMPLATES } from '../../src/client/model/commandTemplates.ts'
+import { CHECK_TEMPLATES, LISTEN_TEMPLATES } from '../../src/client/model/commandTemplates.ts'
 import { SAMPLE_BODY, SNIPPET_LANGS, snippetOf } from '../../src/client/model/httpSnippets.ts'
-import { fillSay, sourceSay, spanText } from '../../src/client/model/triggerSay.ts'
+import { sourceSay } from '../../src/client/model/triggerSay.ts'
+import { fillSay, spanText } from '../../src/client/model/triggerText.ts'
 import { DAY_DOTS_MAX, WEEK_DAYS, weekOf } from '../../src/client/model/triggerWeek.ts'
-import { INTERVAL_STOPS, isStop } from '../../src/client/ui/trigger/source/IntervalField.tsx'
-import { SCHEDULE_PRESETS } from '../../src/client/ui/trigger/source/SchedulePresets.tsx'
-import { scheduleIssue } from '../../src/shared/schedule.ts'
-import { POLL_MAX_SECONDS, POLL_MIN_SECONDS } from '../../src/shared/trigger.ts'
+import {
+  EVERY_PRESETS,
+  SCHEDULE_PRESETS,
+  sameSchedule,
+} from '../../src/client/ui/trigger/source/SchedulePresets.tsx'
+import { hasCommandPage, pageOf } from '../../src/client/ui/trigger/source/schedulePages.ts'
+import { EVERY_MAX, scheduleIssue } from '../../src/shared/schedule.ts'
+import { PLAIN_EVERY_MIN } from '../../src/shared/trigger.ts'
 
 const t = (key: LocaleKey): string => zh[key]
 const en = (key: LocaleKey): string => enText[key]
+
+/** 带检查命令的定时。 */
+const checked = (
+  seconds: number,
+  when: 'every' | 'success' | 'change' = 'every',
+  command = 'git status',
+) =>
+  ({
+    kind: 'schedule',
+    schedule: { kind: 'every', seconds },
+    check: { command, when },
+  }) as const
 
 describe('顶上那句话', () => {
   it('占位换成值，没给值的原样留着', () => {
@@ -39,15 +56,17 @@ describe('顶上那句话', () => {
     expect(spanText(en, 90)).toBe('90 s')
   })
 
-  it('五种触发方式各说一句', () => {
-    const poll = sourceSay(t, { kind: 'poll', command: 'git status', seconds: 300, when: 'change' })
-    expect(poll).toBe('每 5 分钟跑一次命令，输出和上一次不同时执行')
-    expect(sourceSay(t, { kind: 'poll', command: 'git status', seconds: 60 })).toBe(
-      '每 1 分钟跑一次命令，由失败变为成功时执行',
-    )
-    expect(sourceSay(t, { kind: 'poll', command: 'git status', seconds: 60, when: 'every' })).toBe(
-      '每 1 分钟跑一次命令，每次成功时执行',
-    )
+  it('各种触发方式各说一句；定时带检查的说先跑命令', () => {
+    expect(sourceSay(t, checked(300, 'change'))).toBe('每 5 分钟跑一次命令，输出和上一次不同时执行')
+    expect(sourceSay(t, checked(60, 'success'))).toBe('每 1 分钟跑一次命令，由失败变为成功时执行')
+    expect(sourceSay(t, checked(30))).toBe('每 30 秒跑一次命令，成功时执行')
+    expect(
+      sourceSay(t, {
+        kind: 'schedule',
+        schedule: { kind: 'daily', time: '09:00' },
+        check: { command: 'x', when: 'every' },
+      }),
+    ).toBe('每天 09:00 跑一次命令，成功时执行')
 
     const listen = sourceSay(en, { kind: 'listen', command: 'node watch.mjs' })
     expect(listen).toBe('Keeps a program running and fires on every line it prints')
@@ -92,16 +111,26 @@ describe('接下来 7 天', () => {
   })
 
   it('一天里次数太多画成一条，次数照数', () => {
-    const week = weekOf({ kind: 'every', minutes: 5 }, now)
+    const week = weekOf({ kind: 'every', seconds: 300 }, now)
     const tomorrow = week.days[1]
     expect(tomorrow?.dense).toBe(true)
     expect(tomorrow?.fires).toEqual([])
     expect(tomorrow?.count).toBeGreaterThan(DAY_DOTS_MAX)
   })
 
+  it('按秒的间隔也排满 7 天，次数按间隔数', () => {
+    const now = new Date(2026, 10, 16, 20, 0).getTime()
+    const week = weekOf({ kind: 'every', seconds: 30 }, now)
+    expect(week.days.every((day) => day.dense)).toBe(true)
+    expect(week.days[6]?.count).toBe(2880)
+    expect(week.days[0]?.count).toBe(4 * 120 - 1)
+    expect(week.upcoming).toBe(week.days.reduce((sum, day) => sum + day.count, 0))
+    expect(week.next?.at).toBe(now + 30_000)
+  })
+
   it('「每隔多久」开着时从宿主排好的那次往后排', () => {
     const live = now + 20 * 60_000
-    const week = weekOf({ kind: 'every', minutes: 60 }, now, live)
+    const week = weekOf({ kind: 'every', seconds: 3600 }, now, live)
     expect(week.next?.at).toBe(live)
     // 今天早些时候的说不准，不画。
     expect(week.days[0]?.past).toEqual([])
@@ -135,7 +164,7 @@ describe('调用示例与命令模板', () => {
   })
 
   it('模板的 id 不重复，说明两种语言都有', () => {
-    for (const list of [POLL_TEMPLATES, LISTEN_TEMPLATES]) {
+    for (const list of [CHECK_TEMPLATES, LISTEN_TEMPLATES]) {
       const ids = list.map((item) => item.id)
       expect(new Set(ids).size).toBe(ids.length)
       for (const item of list) {
@@ -147,20 +176,30 @@ describe('调用示例与命令模板', () => {
   })
 })
 
-describe('间隔的常用档与常用规则', () => {
-  it('只有正好落在一档上的间隔算常用档，别的走「自定义」', () => {
-    expect(isStop(300)).toBe(true)
-    expect(isStop(86_400)).toBe(true)
-    expect(isStop(30)).toBe(false)
-    expect(isStop(301)).toBe(false)
-    expect(isStop(45)).toBe(false)
+describe('常用规则', () => {
+  it('间隔的常用档到点就执行也能用（不短于 1 分钟），名字按秒数说', () => {
+    for (const seconds of EVERY_PRESETS) {
+      expect(seconds).toBeGreaterThanOrEqual(PLAIN_EVERY_MIN)
+      expect(seconds).toBeLessThanOrEqual(EVERY_MAX)
+    }
+    expect(EVERY_PRESETS.map((seconds) => spanText(t, seconds))).toEqual([
+      '1 分钟',
+      '15 分钟',
+      '1 小时',
+      '1 天',
+    ])
   })
 
-  it('常用档都在允许的间隔里', () => {
-    for (const stop of INTERVAL_STOPS) {
-      expect(stop).toBeGreaterThanOrEqual(POLL_MIN_SECONDS)
-      expect(stop).toBeLessThanOrEqual(POLL_MAX_SECONDS)
-    }
+  it('和上面的规则一样才亮：键的先后不算', () => {
+    expect(
+      sameSchedule(
+        { kind: 'daily', time: '09:00', weekdays: [1, 2, 3, 4, 5] },
+        { weekdays: [1, 2, 3, 4, 5], time: '09:00', kind: 'daily' },
+      ),
+    ).toBe(true)
+    expect(sameSchedule({ kind: 'every', seconds: 900 }, { kind: 'every', seconds: 901 })).toBe(
+      false,
+    )
   })
 
   it('常用规则都写得对、归在自己那种规则下，id 不重复', () => {
@@ -173,5 +212,21 @@ describe('间隔的常用档与常用规则', () => {
     }
     const ids = all.map(({ preset }) => preset.id)
     expect(new Set(ids).size).toBe(ids.length)
+  })
+})
+
+describe('定时分两步', () => {
+  const plain = { kind: 'schedule', schedule: { kind: 'every', seconds: 3600 } } as const
+
+  it('判定要跑命令才有第二步', () => {
+    expect(hasCommandPage(checked(60))).toBe(true)
+    expect(hasCommandPage(plain)).toBe(false)
+    expect(hasCommandPage({ kind: 'http' })).toBe(false)
+  })
+
+  it('没有第二步时总停在第一步，换回带命令的判定回到想去的那一步', () => {
+    expect(pageOf(checked(60), 'command')).toBe('command')
+    expect(pageOf(checked(60), 'time')).toBe('time')
+    expect(pageOf(plain, 'command')).toBe('time')
   })
 })

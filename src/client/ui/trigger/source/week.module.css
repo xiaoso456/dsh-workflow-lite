@@ -118,6 +118,21 @@
   opacity: 1;
 }
 
+/* 到点先跑命令检查：点的中间盖一层底色，看着是空心的（换判定时交叉淡，不换元素）。 */
+.fire::before {
+  position: absolute;
+  inset: 1.5px;
+  border-radius: 50%;
+  background: var(--wl-canvas);
+  content: "";
+  opacity: 0;
+  transition: opacity 180ms linear;
+}
+
+.week[data-checks="true"] .fire::before {
+  opacity: 1;
+}
+
 .fire[data-gone] {
   animation: dotOut 180ms linear forwards;
 }

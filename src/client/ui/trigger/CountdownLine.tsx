@@ -8,7 +8,7 @@
  */
 
 import { useMemo } from 'react'
-import { pollProgress } from '../../model/triggerGlance.ts'
+import { checkProgress } from '../../model/triggerGlance.ts'
 import { cx } from '../kit/cx.ts'
 import { useLast } from '../motion/swapText.tsx'
 import css from './countdown.module.css'
@@ -21,7 +21,7 @@ export function CountdownLine(props: {
   className?: string
 }): React.JSX.Element {
   const { next, seconds } = props
-  const progress = useMemo(() => pollProgress(next, seconds, Date.now()), [next, seconds])
+  const progress = useMemo(() => checkProgress(next, seconds, Date.now()), [next, seconds])
   const { n } = useLast(next, 0)
   return (
     <span

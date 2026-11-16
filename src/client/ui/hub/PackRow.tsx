@@ -8,7 +8,6 @@
 
 import { cx } from '../kit/cx.ts'
 import { Icon, type IconName } from '../kit/Icon.tsx'
-import { useTrail } from '../motion/flip.ts'
 import { Checkbox } from '../motion/marks.tsx'
 import { SwapText } from '../motion/swapText.tsx'
 import hub from './hub.module.css'
@@ -165,48 +164,6 @@ export function PackSection(props: {
       {props.hint !== undefined && <p className={pack.sectionHint}>{props.hint}</p>}
       {props.box === false ? props.children : <div className={hub.box}>{props.children}</div>}
     </section>
-  )
-}
-
-/**
- * 步骤指示：1 选版本 — 2 资源清单（导出成 Skill 时多一步「Skill 信息」）。
- * 步数变了和路径栏一个做法（{@link useTrail}）：多出的一步从前一步背后展开，少了的收回去；
- * 所以按位置认（键是第几步），换了名字原地换字。
- */
-export function PackSteps(props: { steps: readonly string[]; at: number }): React.JSX.Element {
-  const trail = useTrail()
-  return (
-    <div className={css.steps} ref={trail}>
-      {props.steps.map((label, index, all) => (
-        <span
-          // biome-ignore lint/suspicious/noArrayIndexKey: 步骤按位置认，名字会换（工作流包 / Skill 的第一步）
-          key={index}
-          className={css.step}
-          style={{ zIndex: all.length - index }}
-          data-on={index === props.at}
-          data-reached={index <= props.at}
-          aria-current={index === props.at ? 'step' : undefined}
-        >
-          {index > 0 && <span className={css.stepGap} />}
-          {/* 暗、亮各一份叠着，换的是透明度（见 packRow.module.css 的步骤切换）。 */}
-          <span className={css.stepNum}>
-            <span className={css.stepFill} />
-            <span className={css.numDim} aria-hidden="true">
-              {index + 1}
-            </span>
-            <span className={css.numLit}>{index + 1}</span>
-          </span>
-          <span className={css.stepLabel}>
-            <span className={css.labelDim} aria-hidden="true">
-              <SwapText text={label} />
-            </span>
-            <span className={css.labelLit}>
-              <SwapText text={label} />
-            </span>
-          </span>
-        </span>
-      ))}
-    </div>
   )
 }
 

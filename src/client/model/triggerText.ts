@@ -1,6 +1,8 @@
 /**
  * dsh-workflow-lite — 触发卡片上的字：触发源的一句话、下一次的时刻、状态。纯函数，不碰界面。
  *
+ * 状态按 {@link SourceFace} 说：带检查命令的定时叫「检查中」、先说上一次检查的结果，别的按触发源。
+ *
  * @module @xiaoso/dsh-workflow-lite/client/model/triggerText
  */
 
@@ -15,6 +17,45 @@ import type {
 import type { TriggerState, TriggerView } from '../../shared/wire/trigger.ts'
 import type { LocaleKey, T } from '../i18n.ts'
 import { shortTime } from './time.ts'
+
+/**
+ * 卡片上按什么样子说状态：带检查命令的定时是 `check`（检查中、上次检查的结果、下一次检查），别的就是触发源本身。
+ * 类型名、图标、颜色仍按触发源（带不带检查都叫「定时」）。
+ */
+export type SourceFace = TriggerSourceKind | 'check'
+
+export function sourceFace(source: TriggerSource): SourceFace {
+  return source.kind === 'schedule' && source.check !== undefined ? 'check' : source.kind
+}
+
+const HAN = /\p{Script=Han}/u
+const LATIN = /[A-Za-z0-9]/u
+
+/** 两个字一个是汉字、一个是字母或数字。 */
+const needsSpace = (left: string, right: string): boolean =>
+  (HAN.test(left) && LATIN.test(right)) || (LATIN.test(left) && HAN.test(right))
+
+/**
+ * 把 `{name}` 换成值，没给值的占位原样留着（写错了看得出来）。
+ * 换进去的值和两边的汉字、字母、数字挨着时补一个空格（「发 POST 请求」「18:00 执行」）。
+ */
+export function fillSay(template: string, values: Readonly<Record<string, string>>): string {
+  let out = ''
+  let from = 0
+  for (const match of template.matchAll(/\{(\w+)\}/gu)) {
+    const at = match.index ?? 0
+    const end = at + match[0].length
+    out += template.slice(from, at)
+    const value = values[match[1] ?? '']
+    if (value === undefined) out += match[0]
+    else {
+      out += needsSpace(out.slice(-1), value.slice(0, 1)) ? ` ${value}` : value
+      if (needsSpace(value.slice(-1), template.slice(end, end + 1))) out += ' '
+    }
+    from = end
+  }
+  return out + template.slice(from)
+}
 
 const DAY_KEYS: readonly LocaleKey[] = [
   'trigger.day.1',
@@ -51,17 +92,34 @@ function sameDays(days: readonly number[], wanted: readonly number[]): boolean {
   return days.length === wanted.length && wanted.every((day) => days.includes(day))
 }
 
-/** 定时规则的一句话：「每 30 分钟」「每天 09:00」「工作日 09:00」「每周一、五 09:00」「cron 0 9 * * *」。 */
+/** 间隔的短写法：「5 分钟」「30 秒」「2 小时」「1 天」。 */
+export function spanText(t: T, seconds: number): string {
+  if (seconds > 0 && seconds % 86_400 === 0) {
+    return t('trigger.say.days').replace('{n}', String(seconds / 86_400))
+  }
+  if (seconds > 0 && seconds % 3600 === 0) {
+    return t('trigger.say.hours').replace('{n}', String(seconds / 3600))
+  }
+  if (seconds > 0 && seconds % 60 === 0) {
+    return t('trigger.say.minutes').replace('{n}', String(seconds / 60))
+  }
+  return t('trigger.say.seconds').replace('{n}', String(seconds))
+}
+
+/** 定时规则的一句话：「每 30 秒」「每 30 分钟」「每天 09:00」「工作日 09:00」「每周一、五 09:00」「cron 0 9 * * *」。 */
 export function ruleText(t: T, schedule: TriggerSchedule): string {
   if (schedule.kind === 'every') {
-    const { minutes } = schedule
-    if (minutes > 0 && minutes % 1440 === 0) {
-      return t('trigger.rule.days').replace('{n}', String(minutes / 1440))
+    const { seconds } = schedule
+    if (seconds > 0 && seconds % 86_400 === 0) {
+      return t('trigger.rule.days').replace('{n}', String(seconds / 86_400))
     }
-    if (minutes > 0 && minutes % 60 === 0) {
-      return t('trigger.rule.hours').replace('{n}', String(minutes / 60))
+    if (seconds > 0 && seconds % 3600 === 0) {
+      return t('trigger.rule.hours').replace('{n}', String(seconds / 3600))
     }
-    return t('trigger.rule.minutes').replace('{n}', String(minutes))
+    if (seconds > 0 && seconds % 60 === 0) {
+      return t('trigger.rule.minutes').replace('{n}', String(seconds / 60))
+    }
+    return t('trigger.rule.seconds').replace('{n}', String(seconds))
   }
   if (schedule.kind === 'cron') {
     return t('trigger.rule.cron').replace('{expr}', schedule.expression.trim())
@@ -86,23 +144,19 @@ const AFTER_TEXT: Record<AfterWhen, LocaleKey> = {
   any: 'trigger.rule.afterAny',
 }
 
-/** 触发源的一句话（卡片上的第二行）：定时说规则，轮询说间隔，监听、HTTP 说是什么，接续说等谁。 */
+/** 触发源的一句话（卡片上的第二行）：定时说规则（带检查的说「…检查」），监听、HTTP 说是什么，接续说等谁。 */
 export function sourceText(t: T, source: TriggerSource): string {
-  if (source.kind === 'schedule') return ruleText(t, source.schedule)
+  if (source.kind === 'schedule') {
+    const rule = ruleText(t, source.schedule)
+    return source.check === undefined ? rule : fillSay(t('trigger.rule.check'), { rule })
+  }
   if (source.kind === 'listen') return t('trigger.rule.listen')
   if (source.kind === 'http') return t('trigger.rule.http')
   if (source.kind === 'after') {
     if (source.workflow === '') return t('trigger.rule.afterNone')
     return t(AFTER_TEXT[afterWhen(source)]).replace('{name}', source.workflow)
   }
-  const { seconds } = source
-  if (seconds > 0 && seconds % 3600 === 0) {
-    return t('trigger.rule.pollHours').replace('{n}', String(seconds / 3600))
-  }
-  if (seconds > 0 && seconds % 60 === 0) {
-    return t('trigger.rule.pollMinutes').replace('{n}', String(seconds / 60))
-  }
-  return t('trigger.rule.pollSeconds').replace('{n}', String(seconds))
+  return ''
 }
 
 /** 一个时刻怎么说：今天、明天只说钟点，再远的带上月日。 */
@@ -149,7 +203,10 @@ export function scheduleIssueText(t: T, issue: ScheduleIssue): string {
     )
   switch (issue.code) {
     case 'every':
-      return fill('trigger.issue.every', { min: issue.min, max: issue.max })
+      return fill('trigger.issue.every', {
+        min: spanText(t, issue.min),
+        max: spanText(t, issue.max),
+      })
     case 'time':
       return fill('trigger.issue.time', { time: issue.time })
     case 'cronEmpty':
@@ -186,8 +243,8 @@ export function sourceIssueText(t: T, issue: SourceIssue): string {
       return t('trigger.issue.noWorkflow')
     case 'noCommand':
       return t('trigger.issue.noCommand')
-    case 'interval':
-      return t('trigger.issue.interval').replace('{min}', String(issue.min))
+    case 'tooOften':
+      return t('trigger.issue.tooOften')
   }
 }
 
@@ -195,7 +252,7 @@ export function sourceIssueText(t: T, issue: SourceIssue): string {
 function stateDetail(
   t: T,
   view: TriggerView,
-  kind: TriggerSourceKind,
+  face: SourceFace,
   now: number,
   next: boolean,
 ): string {
@@ -203,8 +260,8 @@ function stateDetail(
     t(key).replace('{time}', momentText(t, moment, now))
   switch (view.state) {
     case 'waiting':
-      // 轮询：先说上一次检查的结果，还没检查过就说下一次。
-      if (kind === 'poll' && view.checked !== undefined) {
+      // 定时检查：先说上一次检查的结果，还没检查过就说下一次。
+      if (face === 'check' && view.checked !== undefined) {
         return at(view.checked.met ? 'trigger.checkedMet' : 'trigger.checkedUnmet', view.checked.at)
       }
       return view.next === undefined || !next ? '' : at('trigger.next', view.next)
@@ -229,17 +286,17 @@ function stateDetail(
 export function stateText(
   t: T,
   view: TriggerView | undefined,
-  kind: TriggerSourceKind = 'schedule',
+  face: SourceFace = 'schedule',
   now: number = Date.now(),
   options: { next?: boolean } = {},
 ): string {
   if (view === undefined) return t(STATE_TEXT.off)
-  // 轮询开着时叫「检查中」，别的都叫「等待中」。
+  // 定时检查开着时叫「检查中」，别的都叫「等待中」。
   const label =
-    view.state === 'waiting' && kind === 'poll'
+    view.state === 'waiting' && face === 'check'
       ? t('trigger.state.checking')
       : t(STATE_TEXT[view.state])
-  const detail = stateDetail(t, view, kind, now, options.next !== false)
+  const detail = stateDetail(t, view, face, now, options.next !== false)
   return detail === '' ? label : `${label} · ${detail}`
 }
 
@@ -259,15 +316,15 @@ const BADGE_TEXT: Record<TriggerState, LocaleKey> = {
 
 /**
  * 画布卡片标题右边的状态小标：两三个字（「已停用」「等待中」「别处负责」）。
- * 还没读到状态时按关着算；轮询开着时叫「检查中」。
+ * 还没读到状态时按关着算；定时检查开着时叫「检查中」。
  */
 export function stateBadge(
   t: T,
   view: TriggerView | undefined,
-  kind: TriggerSourceKind = 'schedule',
+  face: SourceFace = 'schedule',
 ): string {
   if (view === undefined) return t(BADGE_TEXT.off)
-  if (view.state === 'waiting' && kind === 'poll') return t('trigger.badge.checking')
+  if (view.state === 'waiting' && face === 'check') return t('trigger.badge.checking')
   return t(BADGE_TEXT[view.state])
 }
 
@@ -278,11 +335,11 @@ export function stateBadge(
 export function stateNote(
   t: T,
   view: TriggerView | undefined,
-  kind: TriggerSourceKind = 'schedule',
+  face: SourceFace = 'schedule',
   now: number = Date.now(),
 ): string {
   if (view === undefined) return ''
-  const detail = stateDetail(t, view, kind, now, true)
+  const detail = stateDetail(t, view, face, now, true)
   if (detail !== '') return detail
   // 小标缩短了的几种，底行补全说法。
   if (view.state === 'elsewhere' || view.state === 'unavailable' || view.state === 'paused') {
@@ -295,19 +352,19 @@ export function stateNote(
  * 状态的颜色分组（卡片的状态小标、「触发」页的圆点共用）：
  * - `off` 关着（灰）；
  * - `armed` 开着、等时间或等别的工作流（强调色）：定时、接续的等待中；
- * - `live` 正在盯着外面（绿，圆点一呼一吸）：监听、HTTP 的接收中，轮询的检查中；
+ * - `live` 正在盯着外面（绿，圆点一呼一吸）：监听、HTTP 的接收中，定时检查的检查中；
  * - `other` 开着但不归这里管（石板灰）：由另一个 DSH 负责；
  * - `warn` 停着等人处理（琥珀）：待确认、已全部暂停、重启中、这里无法触发；
  * - `bad` 出了问题（红）：出错、设置不对、已自动停用。
  */
 export type TriggerTone = 'off' | 'armed' | 'live' | 'other' | 'warn' | 'bad'
 
-export function stateTone(state: TriggerState, kind: TriggerSourceKind): TriggerTone {
+export function stateTone(state: TriggerState, face: SourceFace): TriggerTone {
   switch (state) {
     case 'off':
       return 'off'
     case 'waiting':
-      return kind === 'poll' ? 'live' : 'armed'
+      return face === 'check' ? 'live' : 'armed'
     case 'listening':
       return 'live'
     case 'elsewhere':

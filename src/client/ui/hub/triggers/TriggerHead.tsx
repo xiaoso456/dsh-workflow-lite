@@ -4,7 +4,7 @@
  * - 头部：触发方式的图标块、名字（点名字或后面的铅笔就地改名，见 {@link TitleEdit}）、所在工作流和
  *   「方式 · 主动 / 被动」两枚小签，下面一句什么时候执行；
  *   右边开关（和左栏同一个）、在画布上打开；
- * - 状态条一行：状态 | 下一次（时刻 + 还有多久，定时 / 轮询底边一条倒计时）| 立即触发一次；
+ * - 状态条一行：状态 | 下一次（时刻 + 还有多久，「每隔」的底边一条倒计时）| 立即触发一次；
  *   刚触发的结果几秒内占「下一次」那一格；
  * - 出了要人处理的事，状态后面亮一枚小图标（不另起一行、不挤动版面）：悬停、聚焦、点它浮出一张小卡，
  *   写着怎么回事，带能直接做的事（确认并打开、确认命令、重新打开）。全部暂停着也走这里（说明带「恢复」），
@@ -23,7 +23,7 @@ import { triggerMode } from '../../../model/triggerGlance.ts'
 import { statusWhen } from '../../../model/triggerNow.ts'
 import { type Problem, type ProblemFix, problemOf } from '../../../model/triggerProblem.ts'
 import { sourceSay } from '../../../model/triggerSay.ts'
-import { stateBadge, stateTone } from '../../../model/triggerText.ts'
+import { sourceFace, stateBadge, stateTone } from '../../../model/triggerText.ts'
 import { tipWhenCut } from '../../kit/cutTip.ts'
 import { cx } from '../../kit/cx.ts'
 import { Icon } from '../../kit/Icon.tsx'
@@ -176,13 +176,10 @@ function StatusBar(props: {
       if (failed !== null) props.onNotice(failed, 'error')
     })
   }
-  // 倒计时：轮询按间隔，定时只有「每隔多久」知道这一段多长。
+  // 倒计时：只有「每隔多久」知道这一段多长（带不带检查都一样）。
   const span =
-    source.kind === 'poll'
-      ? source.seconds
-      : source.kind === 'schedule' && source.schedule.kind === 'every'
-        ? source.schedule.minutes * 60
-        : 0
+    source.kind === 'schedule' && source.schedule.kind === 'every' ? source.schedule.seconds : 0
+  const face = sourceFace(source)
   const counting = (view.state === 'waiting' || view.state === 'elsewhere') && span > 0
   // 状态字换了长短、问题图标亮了 / 灭了：后面的「上一次」从原处滑过去，不跳。
   const row = useRowSlide()
@@ -192,11 +189,11 @@ function StatusBar(props: {
         <span
           className={cx(css.state, tone.tone)}
           data-state={view.state}
-          data-tone={stateTone(view.state, source.kind)}
+          data-tone={stateTone(view.state, face)}
           data-testid="wl-hub-trg-detail-state"
         >
           <span className={cx(tone.dot, css.stateDot)} aria-hidden="true" />
-          {stateBadge(t, view, source.kind)}
+          {stateBadge(t, view, face)}
         </span>
         <ProblemMark
           t={t}

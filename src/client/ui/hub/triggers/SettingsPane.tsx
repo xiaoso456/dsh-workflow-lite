@@ -15,16 +15,14 @@ import { useState } from 'react'
 import {
   afterWhen,
   commandOf,
+  filterKindOf,
   filterOf,
-  isFilterKind,
   launchOf,
-  pollWhen,
 } from '../../../../shared/trigger.ts'
 import type { TriggerData, TriggerSessionMode } from '../../../../shared/types.ts'
 import type { TriggerEntry } from '../../../../shared/wire/trigger.ts'
 import type { LocaleKey, T } from '../../../i18n.ts'
 import { readableUrl } from '../../../model/triggerGlance.ts'
-import { spanText } from '../../../model/triggerSay.ts'
 import { guardLimits, scheduleNext } from '../../../model/triggerSummary.ts'
 import { momentText, ruleText } from '../../../model/triggerText.ts'
 import { cx } from '../../kit/cx.ts'
@@ -81,17 +79,18 @@ export function SettingsPane(props: {
       <InfoRows rows={sourceRows(t, entry)} />
     </InfoCard>
   )
-  const filterCard = isFilterKind(kind) ? (
-    <InfoCard
-      t={t}
-      icon="sliders"
-      title={t('trigger.filter')}
-      testId="wl-hub-trg-set-filter"
-      onEdit={() => setDialog('filter')}
-    >
-      <InfoRows rows={filterRows(t, data)} />
-    </InfoCard>
-  ) : null
+  const filterCard =
+    filterKindOf(data.source) !== null ? (
+      <InfoCard
+        t={t}
+        icon="sliders"
+        title={t('trigger.filter')}
+        testId="wl-hub-trg-set-filter"
+        onEdit={() => setDialog('filter')}
+      >
+        <InfoRows rows={filterRows(t, data)} />
+      </InfoCard>
+    ) : null
   const notesCard = (
     <InfoCard
       t={t}
@@ -215,17 +214,16 @@ function sourceRows(t: T, entry: TriggerEntry): Row[] {
   switch (source.kind) {
     case 'schedule': {
       const next = scheduleNext(source.schedule, view.next, new Date())
-      return [
-        [t('trigger.rule'), ruleText(t, source.schedule)],
-        [t('hub.trgNextRow'), next === undefined ? muted('—') : momentText(t, next)],
-      ]
+      const rule: Row = [t('trigger.rule'), ruleText(t, source.schedule)]
+      if (source.check !== undefined) {
+        return [
+          rule,
+          [t('trigger.checkWhen'), t(`trigger.checkWhen.${source.check.when}` as LocaleKey)],
+          [t('trigger.shell'), shellText(t, entry)],
+        ]
+      }
+      return [rule, [t('hub.trgNextRow'), next === undefined ? muted('—') : momentText(t, next)]]
     }
-    case 'poll':
-      return [
-        [t('trigger.every'), spanText(t, source.seconds)],
-        [t('trigger.pollWhen'), t(`trigger.pollWhen.${pollWhen(source)}` as LocaleKey)],
-        [t('trigger.shell'), shellText(t, entry)],
-      ]
     case 'listen':
       return [[t('trigger.shell'), shellText(t, entry)]]
     case 'http': {

@@ -18,6 +18,7 @@ import { sourceSay } from '../../../model/triggerSay.ts'
 import {
   momentText,
   scheduleIssueText,
+  sourceFace,
   sourceIssueText,
   stateText,
   stateTone,
@@ -73,8 +74,8 @@ export function SourceSummary(props: {
     : view === undefined
       ? null
       : {
-          tone: stateTone(view.state, source.kind),
-          text: stateText(t, view, source.kind, now, { next: false }),
+          tone: stateTone(view.state, sourceFace(source)),
+          text: stateText(t, view, sourceFace(source), now, { next: false }),
         }
   return (
     <div

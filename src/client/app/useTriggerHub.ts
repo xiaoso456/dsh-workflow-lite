@@ -42,7 +42,7 @@ export interface TriggerHub {
   activity(workflow: string, node: string, since: number): Promise<TriggerActivitySlot[]>
   /** 一次触发那一刻带的触发说明、背景信息；读不到是空的。 */
   detail(fire: string): Promise<TriggerDetailResponse>
-  /** 一个工作流里轮询命令、监听程序最近的输出（同一个工作流回同一个对象）。 */
+  /** 一个工作流里定时检查命令、监听程序最近的输出（同一个工作流回同一个对象）。 */
   output(workflow: string): OutputAccess
   /** 「试运行」还没保存的命令；请求本身失败回一句原因。 */
   tryCommand(request: TriggerTryRequest): Promise<TriggerTryResponse | string>

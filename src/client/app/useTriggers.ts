@@ -64,7 +64,7 @@ export interface Triggers {
   history(node: string, limit: number): Promise<FireRecord[]>
   /** 一次触发那一刻带的触发说明、背景信息；读不到是空的。 */
   detail(fire: string): Promise<TriggerDetailResponse>
-  /** 轮询命令、监听程序最近的输出。 */
+  /** 定时检查命令、监听程序最近的输出。 */
   output: OutputAccess
   /** 「试运行」还没保存的命令；请求本身失败回一句原因。 */
   tryCommand(request: Omit<TriggerTryRequest, 'workflow'>): Promise<TriggerTryResponse | string>

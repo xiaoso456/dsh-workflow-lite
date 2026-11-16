@@ -91,6 +91,11 @@
   --wl-off: var(--wl-text);
 }
 
+/* 暂时选不了的一格：悬停不变深（提示照常出来）。 */
+.segItem[aria-disabled="true"]:hover {
+  --wl-off: var(--wl-text-3);
+}
+
 .segItem:focus-visible {
   --ring: -2px;
 
@@ -102,7 +107,8 @@
   opacity: 0.5;
 }
 
-.segItem:disabled {
+.segItem:disabled,
+.segItem[aria-disabled="true"] {
   color: var(--wl-text-3);
   cursor: default;
 }

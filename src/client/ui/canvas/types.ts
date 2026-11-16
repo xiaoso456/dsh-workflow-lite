@@ -22,6 +22,7 @@ import type { T } from '../../i18n.ts'
 import type { Display } from '../../model/display.ts'
 import type { FocusFile } from '../../model/editor.ts'
 import type { TriggerGlance } from '../../model/triggerGlance.ts'
+import type { SourceFace } from '../../model/triggerText.ts'
 import type { WhenKind } from '../../model/whenKind.ts'
 import type { Access } from '../kit/lineColors.ts'
 
@@ -205,6 +206,8 @@ export interface TriggerCardData extends Record<string, unknown> {
   /** 中间那一行按触发源画什么（图里写着的部分）。 */
   glance: TriggerGlance
   kind: TriggerSourceKind
+  /** 状态按什么样子说（带检查命令的定时说「检查中」）。 */
+  face: SourceFace
   tone: Tone
   note: string
   /** 悬停某个资源时它跟着淡下去。 */

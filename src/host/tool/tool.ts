@@ -22,7 +22,6 @@ import type { DisplaySpec } from '../../shared/display.ts'
 import { compareByCodepoint } from '../../shared/graph.ts'
 import { idKey, isInput, isResource, isStep, isTrigger } from '../../shared/model.ts'
 import { memoryOf } from '../../shared/presets.ts'
-import { withNewPollWhen } from '../../shared/trigger.ts'
 import type {
   MemoryIndexEntry,
   ReadIndexResult,
@@ -576,7 +575,7 @@ export function createWorkflowLiteHandler(
         }
         const outcome = await repository.writeTrigger(name, {
           ...(args.node === undefined || args.node === '' ? {} : { id: args.node }),
-          ...withNewPollWhen(trigger as Record<string, unknown>),
+          ...(trigger as Record<string, unknown>),
         })
         if (!outcome.ok) return errorValue(outcome)
         return finish({

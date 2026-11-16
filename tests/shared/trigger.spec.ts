@@ -87,25 +87,34 @@ describe('触发节点的读入', () => {
   })
 })
 
-describe('轮询、监听程序、HTTP', () => {
-  it('触发源按形状读入：命令原样保留，判定方式缺省不写，认不出的回落到定时', () => {
+describe('定时检查、监听程序、HTTP', () => {
+  it('触发源按形状读入：命令原样保留，判定认不出按每次成功，认不出的回落到定时', () => {
+    const every = { kind: 'every', seconds: 60 }
     expect(
       readTriggerData({
-        source: { kind: 'poll', command: ' git ls-remote ', seconds: 60, when: 'success' },
+        source: {
+          kind: 'schedule',
+          schedule: every,
+          check: { command: ' git ls-remote ', when: 'success' },
+        },
       }).source,
-    ).toEqual({ kind: 'poll', command: ' git ls-remote ', seconds: 60 })
-    expect(readTriggerData({ source: { kind: 'poll', when: 'change' } }).source).toEqual({
-      kind: 'poll',
-      command: '',
-      seconds: 300,
-      when: 'change',
+    ).toEqual({
+      kind: 'schedule',
+      schedule: every,
+      check: { command: ' git ls-remote ', when: 'success' },
     })
-    expect(readTriggerData({ source: { kind: 'poll', when: 'every' } }).source).toMatchObject({
-      when: 'every',
-    })
-    expect(readTriggerData({ source: { kind: 'poll', when: 'often' } }).source).not.toHaveProperty(
-      'when',
-    )
+    expect(
+      readTriggerData({ source: { kind: 'schedule', schedule: every, check: { when: 'change' } } })
+        .source,
+    ).toEqual({ kind: 'schedule', schedule: every, check: { command: '', when: 'change' } })
+    expect(
+      readTriggerData({ source: { kind: 'schedule', schedule: every, check: { when: 'often' } } })
+        .source,
+    ).toMatchObject({ check: { when: 'every' } })
+    expect(
+      readTriggerData({ source: { kind: 'schedule', schedule: every, check: 'x' } }).source,
+    ).not.toHaveProperty('check')
+    expect(readTriggerData({ source: { kind: 'poll', command: 'x' } }).source.kind).toBe('schedule')
     expect(readTriggerData({ source: { kind: 'listen', command: 1 } }).source).toEqual({
       kind: 'listen',
       command: '',
@@ -128,8 +137,21 @@ describe('轮询、监听程序、HTTP', () => {
       filter: { include: ['ERROR'] },
     })
     expect(
-      readTriggerData({ source: { kind: 'poll', command: 'x' }, filter: { merge: 5 } }).filter,
+      readTriggerData({
+        source: {
+          kind: 'schedule',
+          schedule: { kind: 'every', seconds: 300 },
+          check: { command: 'x', when: 'every' },
+        },
+        filter: { merge: 5 },
+      }).filter,
     ).toEqual({ merge: 5 })
+    expect(
+      readTriggerData({
+        source: { kind: 'schedule', schedule: { kind: 'every', seconds: 300 } },
+        filter: { merge: 5 },
+      }),
+    ).not.toHaveProperty('filter')
     expect(readTriggerData({ filter: { include: ['ERROR'] } })).not.toHaveProperty('filter')
     expect(
       readTriggerData({ source: { kind: 'http' }, filter: { merge: 99_999, dedupe: -1 } }),
@@ -140,39 +162,65 @@ describe('轮询、监听程序、HTTP', () => {
     const data = canonicalTrigger({
       filter: { exclude: ['health'], merge: 0 },
       condition: '只管支付',
-      source: { when: 'change', seconds: 600, command: 'node check.mjs', kind: 'poll' },
+      source: {
+        check: { when: 'change', command: 'node check.mjs' },
+        schedule: { seconds: 600, kind: 'every' },
+        kind: 'schedule',
+      },
       label: '网页变了',
     })
     expect(Object.keys(data)).toEqual(['label', 'source', 'condition', 'filter'])
-    expect(Object.keys(data.source)).toEqual(['kind', 'command', 'seconds', 'when'])
+    expect(Object.keys(data.source)).toEqual(['kind', 'schedule', 'check'])
+    expect(data.source).toMatchObject({ check: { command: 'node check.mjs', when: 'change' } })
     expect(canonicalTrigger(readTriggerData(JSON.parse(JSON.stringify(data))))).toEqual(data)
   })
 
   it('设置不对的说出来；要跑的命令与一句话说法', () => {
     expect(sourceProblem({ kind: 'listen', command: '  ' })).toBe('还没写要运行的命令')
-    expect(sourceProblem({ kind: 'poll', command: 'x', seconds: 5 })).toContain('10 秒')
-    expect(sourceProblem({ kind: 'poll', command: 'x', seconds: 10 })).toBeNull()
+    const checked = (seconds: number, command = 'x') =>
+      ({
+        kind: 'schedule',
+        schedule: { kind: 'every', seconds },
+        check: { command, when: 'every' },
+      }) as const
+    expect(sourceProblem(checked(5))).toContain('10 秒')
+    expect(sourceProblem(checked(10))).toBeNull()
+    expect(sourceProblem(checked(60, ' '))).toBe('还没写要运行的命令')
+    expect(sourceProblem({ kind: 'schedule', schedule: { kind: 'every', seconds: 30 } })).toContain(
+      '1 分钟',
+    )
+    expect(commandOf(checked(60, 'node a.mjs'))).toBe('node a.mjs')
     expect(sourceProblem({ kind: 'http' })).toBeNull()
     expect(commandOf({ kind: 'http' })).toBeUndefined()
     expect(commandOf({ kind: 'listen', command: 'node a.mjs' })).toBe('node a.mjs')
-    expect(sourceText({ kind: 'poll', command: 'x', seconds: 300, when: 'change' })).toBe(
-      '检查（每 5 分钟 跑一次命令，输出变了时触发）',
+    const check = (when: 'every' | 'success' | 'change') =>
+      ({
+        kind: 'schedule',
+        schedule: { kind: 'every', seconds: 300 },
+        check: { command: 'x', when },
+      }) as const
+    expect(sourceText(check('change'))).toBe(
+      '定时检查（每 5 分钟跑一次命令，命令的输出变了时触发）',
     )
-    expect(sourceText({ kind: 'poll', command: 'x', seconds: 300, when: 'every' })).toBe(
-      '检查（每 5 分钟 跑一次命令，命令成功时触发）',
-    )
-    expect(sourceText({ kind: 'poll', command: 'x', seconds: 300 })).toBe(
-      '检查（每 5 分钟 跑一次命令，命令由失败变为成功时触发）',
+    expect(sourceText(check('every'))).toBe('定时检查（每 5 分钟跑一次命令，命令成功时触发）')
+    expect(sourceText(check('success'))).toBe(
+      '定时检查（每 5 分钟跑一次命令，命令由失败变为成功时触发）',
     )
     expect(sourceText({ kind: 'http' })).toBe('收到一个 HTTP 请求')
   })
 
   it('哪里不对也给出处（界面按语言说）', () => {
     expect(sourceIssue({ kind: 'listen', command: '' })).toEqual({ code: 'noCommand' })
-    expect(sourceIssue({ kind: 'poll', command: 'x', seconds: 5 })).toEqual({
-      code: 'interval',
-      min: 10,
-      max: 7 * 24 * 3600,
+    expect(
+      sourceIssue({
+        kind: 'schedule',
+        schedule: { kind: 'every', seconds: 5 },
+        check: { command: 'x', when: 'every' },
+      }),
+    ).toEqual({ code: 'schedule', issue: { code: 'every', min: 10, max: 7 * 24 * 3600 } })
+    expect(sourceIssue({ kind: 'schedule', schedule: { kind: 'every', seconds: 30 } })).toEqual({
+      code: 'tooOften',
+      min: 60,
     })
     expect(sourceIssue({ kind: 'after', workflow: '' })).toEqual({ code: 'noWorkflow' })
     expect(sourceIssue({ kind: 'schedule', schedule: { kind: 'daily', time: '25:00' } })).toEqual({
@@ -281,13 +329,13 @@ describe('图里的触发节点', () => {
 
 describe('定时规则', () => {
   it('每隔多久：从起算的时刻往后数，严格晚于现在', () => {
-    const rule = { kind: 'every', minutes: 30 } as const
+    const rule = { kind: 'every', seconds: 1800 } as const
     const start = at(2026, 11, 12, 9, 10)
     expect(nextFire(rule, start, start)).toEqual(at(2026, 11, 12, 9, 40))
     expect(nextFire(rule, at(2026, 11, 12, 9, 40), start)).toEqual(at(2026, 11, 12, 10, 10))
     expect(nextFire(rule, at(2026, 11, 12, 11, 5), start)).toEqual(at(2026, 11, 12, 11, 10))
-    expect(scheduleProblem({ kind: 'every', minutes: 0 })).not.toBeNull()
-    expect(nextFire({ kind: 'every', minutes: 0 }, start)).toBeNull()
+    expect(scheduleProblem({ kind: 'every', seconds: 0 })).not.toBeNull()
+    expect(nextFire({ kind: 'every', seconds: 0 }, start)).toBeNull()
   })
 
   it('每天几点：过了就是明天；限定星期几时跳到下一个允许的日子', () => {

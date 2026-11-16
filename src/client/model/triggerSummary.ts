@@ -83,7 +83,7 @@ export interface WhenDetail {
 /**
  * 「触发方式」卡片速览下面那一行，补速览没说的：
  * - 定时：下一次什么时候（「每隔」开着时以宿主排的为准，`live.next`）；
- * - 轮询：要跑的命令；监听：速览在显示程序打出的行时写命令，否则一句怎么触发；
+ * - 定时检查：要跑的命令；监听：速览在显示程序打出的行时写命令，否则一句怎么触发；
  * - HTTP：有了地址之后写谁能访问（只有这台电脑 / 同一网络里的机器也行）；怎么触发在换方式的菜单里说过，不重复；
  * - 接续：速览已经说全了，不写；
  * - 没写命令、没选工作流：速览已经红着说了，这里说「补上才能打开」；别的写错（规则、间隔）在这里用红字说。
@@ -100,6 +100,7 @@ export function whenDetail(
   if (issue !== null) return { text: sourceIssueText(t, issue), tone: 'problem' }
   switch (source.kind) {
     case 'schedule': {
+      if (source.check !== undefined) return { text: source.check.command, tone: 'code' }
       const at = scheduleNext(source.schedule, live.next, now)
       return at === undefined
         ? { text: '', tone: 'plain' }
@@ -108,8 +109,6 @@ export function whenDetail(
             tone: 'plain',
           }
     }
-    case 'poll':
-      return { text: source.command, tone: 'code' }
     case 'listen':
       return live.line === undefined
         ? { text: t('trigger.detail.listen'), tone: 'plain' }

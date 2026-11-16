@@ -28,7 +28,7 @@ import {
   type TriggerSortBy,
 } from '../../../model/triggerList.ts'
 import { rowNote, sortWhen } from '../../../model/triggerNow.ts'
-import { stateBadge, stateTone } from '../../../model/triggerText.ts'
+import { sourceFace, stateBadge, stateTone } from '../../../model/triggerText.ts'
 import { tipWhenCut } from '../../kit/cutTip.ts'
 import { cx } from '../../kit/cx.ts'
 import { Icon, type IconName } from '../../kit/Icon.tsx'
@@ -227,11 +227,11 @@ function TriggerRow(props: {
   onPick(): void
 }): React.JSX.Element {
   const { t, entry } = props
-  const kind = entry.data.source.kind
-  const badge = stateBadge(t, entry.view, kind)
+  const face = sourceFace(entry.data.source)
+  const badge = stateBadge(t, entry.view, face)
   const toneOf = {
     'data-state': entry.view.state,
-    'data-tone': stateTone(entry.view.state, kind),
+    'data-tone': stateTone(entry.view.state, face),
     'data-testid': 'wl-hub-trg-state',
   }
   return (
@@ -242,7 +242,7 @@ function TriggerRow(props: {
       testId="wl-hub-trg"
       value={`${entry.workflow}/${entry.view.node}`}
       off={!entry.view.enabled}
-      mark={<TriggerMark kind={kind} size={15} className={rowMark} />}
+      mark={<TriggerMark kind={entry.data.source.kind} size={15} className={rowMark} />}
       name={entry.name}
       meta={
         <span className={cx(css.meta, tone.tone)} {...toneOf}>

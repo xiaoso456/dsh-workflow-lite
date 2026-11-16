@@ -20,6 +20,7 @@ import { firesSignal, useActivity, useFires } from '../../../app/useFires.ts'
 import type { TriggerHub } from '../../../app/useTriggerHub.ts'
 import type { T } from '../../../i18n.ts'
 import { rhythmSince } from '../../../model/triggerActivity.ts'
+import { sourceFace } from '../../../model/triggerText.ts'
 import type { WorkflowLiteRpc } from '../../../rpc.ts'
 import { useSwap } from '../../motion/swap.tsx'
 import { FireDialog } from '../../trigger/dialogs/FireDialog.tsx'
@@ -65,6 +66,7 @@ export function TriggerDetail(props: {
   const { t, hub, entry, tab } = props
   const { view } = entry
   const kind = entry.data.source.kind
+  const face = sourceFace(entry.data.source)
   const key = keyOf(entry)
   const signal = firesSignal(view.last)
   const fires = useFires(key, signal, () => hub.history(entry.workflow, view.node, SHOWN))
@@ -122,8 +124,8 @@ export function TriggerDetail(props: {
           />
         )
       case 'live':
-        switch (kind) {
-          case 'poll':
+        switch (face) {
+          case 'check':
           case 'listen':
             return <OutputPane t={t} hub={hub} entry={entry} onSettings={props.onSettings} />
           case 'http':
@@ -154,7 +156,7 @@ export function TriggerDetail(props: {
         )
     }
   })()
-  const fill = tab === 'timeline' || (tab === 'live' && (kind === 'poll' || kind === 'listen'))
+  const fill = tab === 'timeline' || (tab === 'live' && (face === 'check' || face === 'listen'))
 
   return (
     <div
@@ -174,7 +176,7 @@ export function TriggerDetail(props: {
           />
           <DetailTabs
             t={t}
-            kind={kind}
+            face={face}
             value={tab}
             count={fires === null || fires.length === 0 ? undefined : fires.length}
             failed={unseenFailure}

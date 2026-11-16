@@ -27,14 +27,14 @@ export type Trial =
 
 export type ConsoleTab = 'try' | 'recent'
 
-/** 轮询怎么读试运行的结果（满足没有）。 */
+/** 定时检查怎么读试运行的结果（满足没有）。 */
 export type TrialJudge = (result: TriggerTryResponse) => { tone: 'ok' | 'off'; text: string }
 
 export function TrialConsole(props: {
   t: T
   env: TriggerEnv
   node: string
-  kind: 'poll' | 'listen'
+  kind: 'check' | 'listen'
   trial: Trial
   judge: TrialJudge | undefined
   /** 「最近的输出」这一页有没有内容（草稿的命令和保存着的一样才有）。 */
@@ -94,7 +94,7 @@ export function TrialConsole(props: {
  */
 function TrialSummary(props: {
   t: T
-  kind: 'poll' | 'listen'
+  kind: 'check' | 'listen'
   trial: Trial
   judge: TrialJudge | undefined
 }): React.JSX.Element | null {
@@ -120,7 +120,7 @@ function TrialSummary(props: {
 
 function verdictOf(
   t: T,
-  kind: 'poll' | 'listen',
+  kind: 'check' | 'listen',
   trial: Extract<Trial, { kind: 'done' | 'error' }>,
   judge: TrialJudge | undefined,
 ): { tone: 'ok' | 'off' | 'bad'; badge: string; text: string; reason?: string } {

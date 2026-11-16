@@ -19,7 +19,7 @@ export interface StatusWhen {
 }
 
 /**
- * - 等下一次（定时、轮询）：「下一次 今天 18:00」「3 小时 12 分后」；
+ * - 等下一次（定时，带检查的说下一次检查）：「下一次 今天 18:00」「3 小时 12 分后」；
  * - 监听程序在跑：「09:12 启动」「已运行 5 小时 3 分」；HTTP 开着：「地址开着」和地址；
  * - 接续在等：等谁、什么结果；监听程序在重启：什么时候重启；
  * - 别的（关着、出了问题、全部暂停）：上一次触发是什么时候，还没触发过就这么说。
@@ -27,13 +27,14 @@ export interface StatusWhen {
 export function statusWhen(t: T, entry: TriggerEntry, now: number): StatusWhen {
   const { view, data } = entry
   const kind = data.source.kind
+  const checks = data.source.kind === 'schedule' && data.source.check !== undefined
   const ahead = (at: number): string => t('hub.trgIn').replace('{span}', durationText(t, at - now))
   const time = (key: LocaleKey, at: number): string =>
     t(key).replace('{time}', momentText(t, at, now))
   const waiting = view.state === 'waiting' || view.state === 'elsewhere'
-  if (waiting && view.next !== undefined && (kind === 'schedule' || kind === 'poll')) {
+  if (waiting && view.next !== undefined && kind === 'schedule') {
     return {
-      main: time(kind === 'poll' ? 'hub.trgNextCheck' : 'trigger.next', view.next),
+      main: time(checks ? 'hub.trgNextCheck' : 'trigger.next', view.next),
       aside: ahead(view.next),
     }
   }

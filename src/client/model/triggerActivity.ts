@@ -4,7 +4,7 @@
  * - {@link tallyActivity}：近 7 天的几样数和「节律」（7 天 × 24 小时，从早到晚一天一行，每格这一小时里触发过几次、结果怎样），
  *   数和格子从宿主数好的同一份近况算（{@link rhythmSince} 起），对得上；模型判断不需要的算「已发出」（确实发进会话了）；
  * - {@link plannedHours}：定时规则今天还要触发的几个钟点（节律里画虚线圈）；
- * - {@link upcomingAt}：时间线「接下来」的几次（定时按规则排，轮询是下一次检查）；
+ * - {@link upcomingAt}：时间线「接下来」的几次（到点就执行的按规则排，带检查的是下一次检查）；
  * - {@link matchesOutcome}：时间线按结果筛选。
  *
  * @module @xiaoso/dsh-workflow-lite/client/model/triggerActivity
@@ -109,7 +109,7 @@ export function plannedHours(source: TriggerSource, now: number, live?: number):
 
 /**
  * 时间线「接下来」的几次（从早到晚，最多 `max` 次）：定时按规则排（开着时从宿主排好的下一次起），
- * 轮询是下一次检查；被动的（监听、HTTP、接续）没有。关着、出了问题时没有。
+ * 带检查的是下一次检查；被动的（监听、HTTP、接续）没有。关着、出了问题时没有。
  */
 export function upcomingAt(
   source: TriggerSource,
@@ -118,8 +118,8 @@ export function upcomingAt(
   max: number,
 ): number[] {
   if (view === undefined || (view.state !== 'waiting' && view.state !== 'elsewhere')) return []
-  if (source.kind === 'poll') return view.next === undefined ? [] : [view.next]
   if (source.kind !== 'schedule') return []
+  if (source.check !== undefined) return view.next === undefined ? [] : [view.next]
   const { schedule } = source
   const first = view.next ?? nextFire(schedule, new Date(now))?.getTime()
   if (first === undefined) return []

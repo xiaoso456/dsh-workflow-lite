@@ -36,7 +36,7 @@ export const TriggerCard = memo(function TriggerCard(
   const measured = useHandlesMeasured(id)
   const env = useTriggerEnv()
   const view = env?.triggers.view(id)
-  const note = env === null ? '' : stateNote(data.t, view, data.kind)
+  const note = env === null ? '' : stateNote(data.t, view, data.face)
   return (
     <div
       className={cx(shared.card, css.card, selected && shared.cardSelected)}
@@ -63,11 +63,11 @@ export const TriggerCard = memo(function TriggerCard(
         {env !== null && (
           <span
             className={cx(css.pill, tone.tone)}
-            data-tone={stateTone(view?.state ?? 'off', data.kind)}
+            data-tone={stateTone(view?.state ?? 'off', data.face)}
             data-testid="wl-trigger-state"
           >
             <span className={tone.dot} aria-hidden="true" />
-            {stateBadge(data.t, view, data.kind)}
+            {stateBadge(data.t, view, data.face)}
           </span>
         )}
       </div>

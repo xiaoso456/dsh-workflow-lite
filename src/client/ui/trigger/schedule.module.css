@@ -9,6 +9,15 @@
   width: 216px;
 }
 
+/* 每隔：数字框 + 单位分段，放不下折行。 */
+.every {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
 /* 内容会折成几行的行：标签对着第一行。 */
 .top {
   align-items: flex-start;

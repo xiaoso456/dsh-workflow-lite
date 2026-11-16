@@ -392,7 +392,7 @@ export const PARAMETERS = {
             enum: [...SOURCE_KINDS],
             required: true,
             description:
-              'schedule 定时 / poll 检查（每隔一段跑一次命令）/ listen 监视程序（常驻命令，每打一行触发一次）/ http 别的程序来调一个本机地址 / after 另一个工作流的一次执行结束了。',
+              'schedule 定时（到点直接执行；带 check 时到点先跑一次命令，满足判定才执行）/ listen 监视程序（常驻命令，每打一行触发一次）/ http 别的程序来调一个本机地址 / after 另一个工作流的一次执行结束了。',
           },
           schedule: {
             type: 'object',
@@ -411,24 +411,44 @@ export const PARAMETERS = {
                 items: { type: 'number' },
                 description: 'daily：只在星期几（1 = 周一 … 7 = 周日）；不给 = 每天。',
               },
-              minutes: { type: 'number', description: 'every：间隔分钟（1 到 10080）。' },
+              seconds: {
+                type: 'number',
+                description:
+                  'every：间隔秒数（到 604800）；到点直接执行的最短 60，带 check 的最短 10。带 check 时打开就先查一次，之后每次查完隔这么久。',
+              },
               expression: { type: 'string', description: 'cron：五段表达式（本机时区）。' },
+            },
+          },
+          check: {
+            type: 'object',
+            description:
+              'schedule：到点先在用户选的工作区里跑这条命令，按判定决定执行不执行，命令的标准输出是背景信息；不给 = 到点直接执行。',
+            additionalProperties: false,
+            properties: {
+              command: {
+                type: 'string',
+                required: true,
+                description:
+                  '要运行的命令（由系统 shell 运行）；{workflow} 换成工作流目录，脚本放那里。',
+              },
+              when: {
+                type: 'string',
+                enum: ['every', 'success', 'change'],
+                description:
+                  'every（缺省）每次成功（退出码 0）都触发，命令自己判断有没有要处理的事 / success 从不成功变成成功时触发一次（等某件事完成）/ change 输出和上一次不一样时触发。',
+              },
             },
           },
           command: {
             type: 'string',
             description:
-              'poll / listen：要运行的命令（在用户选的工作区里、由系统 shell 运行）；{workflow} 换成工作流目录，脚本放那里。',
-          },
-          seconds: {
-            type: 'number',
-            description: 'poll：多久检查一次（秒，10 到 604800），缺省 300。',
+              'listen：要常驻运行的命令（在用户选的工作区里、由系统 shell 运行）；{workflow} 换成工作流目录，脚本放那里。',
           },
           when: {
             type: 'string',
-            enum: ['every', 'success', 'change', 'failed', 'any'],
+            enum: ['failed', 'any'],
             description:
-              'poll：every（缺省）每次成功（退出码 0）都触发，命令自己判断有没有要处理的事 / success 从不成功变成成功时触发一次（等某件事完成）/ change 输出和上一次不一样时触发。after：不给 = 那个工作流成功（done）时触发 / failed 失败时 / any 不论结果（含取消）。',
+              'after：不给 = 那个工作流成功（done）时触发 / failed 失败时 / any 不论结果（含取消）。',
           },
           workflow: {
             type: 'string',
@@ -440,7 +460,7 @@ export const PARAMETERS = {
       filter: {
         type: 'object',
         description:
-          '不花模型调用的过滤（定时不用；整项替换，null = 清除）：先按关键字、再去重、最后合并。',
+          '不花模型调用的过滤（到点直接执行的定时、after 不用；整项替换，null = 清除）：先按关键字、再去重、最后合并。',
         additionalProperties: false,
         properties: {
           merge: {

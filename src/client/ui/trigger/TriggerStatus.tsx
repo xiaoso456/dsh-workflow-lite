@@ -15,7 +15,7 @@ import type { TriggerData } from '../../../shared/types.ts'
 import { firesSignal, useFires } from '../../app/useFires.ts'
 import type { T } from '../../i18n.ts'
 import { type Problem, type ProblemFix, problemOf } from '../../model/triggerProblem.ts'
-import { stateText, stateTone } from '../../model/triggerText.ts'
+import { sourceFace, stateText, stateTone } from '../../model/triggerText.ts'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import ui from '../kit/ui.module.css'
@@ -91,7 +91,7 @@ export function TriggerStatus(props: {
             <span className={ins.requiredTitle}>{t('trigger.switch')}</span>
             <span
               className={cx(css.statusLine, tone.tone)}
-              data-tone={stateTone(state, data.source.kind)}
+              data-tone={stateTone(state, sourceFace(data.source))}
             >
               <span className={tone.dot} aria-hidden="true" />
               {/* 一直挂着，只换字：刚触发的那句话（正在发 / 已发进会话）先占这一行，过后回到状态。 */}
@@ -99,7 +99,7 @@ export function TriggerStatus(props: {
                 {fired !== null && fired.tone !== 'bad'
                   ? fired.text
                   : // 定时规则下面已经写着下一次，这里不再说。
-                    stateText(t, view, data.source.kind, Date.now(), {
+                    stateText(t, view, sourceFace(data.source), Date.now(), {
                       next: data.source.kind !== 'schedule',
                     })}
               </span>

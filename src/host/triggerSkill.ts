@@ -31,23 +31,25 @@ const CONTENT = `# 工作流的触发卡片（workflow-lite）
 | 想要 | 用 | 要写的 |
 |---|---|---|
 | 每天几点、每隔多久、cron | \`schedule\` | 规则 |
-| 隔一段查一次某个状态（远端有新提交、网页变了、文件出现了） | \`poll\` 检查 | 一条很快结束的命令 |
+| 隔一段、或每天几点查一次某个状态（远端有新提交、网页变了、文件出现了） | \`schedule\` 加 \`check\` | 规则 + 一条很快结束的命令 |
 | 一直盯着、事情一来就触发（日志、文件夹、消息队列、端口） | \`listen\` 监视程序 | 一条常驻命令 |
 | 别的程序（CI、脚本、别的工具的回调）来通知 | \`http\` | 不用写；卡片上给出地址、令牌和 curl |
 | 另一个工作流跑完了接着跑这一个（串成流水线、失败后善后） | \`after\` | 不用写；选那个工作流和结果 |
 
-能用检查就别写监视程序：检查的命令短、好试、出错好查。
+能用定时检查就别写监视程序：检查的命令短、好试、出错好查。
 
 ## 两个约定
 
-**条件轮询**（\`poll\`）：插件每隔 \`seconds\` 秒在用户选的工作区里跑一次命令。
+**定时检查**（\`schedule\` 的 \`check\`）：插件按定时规则到点在用户选的工作区里跑一次命令（「每隔」打开就先查一次，之后每次查完隔一个间隔；每天几点、cron 按钟点）。
+
 
 - 退出码 0 = 条件满足，非 0 = 不满足（这是正常结果，不算失败）；
 - 标准输出就是这次的背景信息，原样交给执行的模型；错误输出只给人排查用；
 - \`when: "every"\`（缺省）：每次成功都触发，适合「命令自己判断有没有要处理的事」（队列里有未处理的、有没回复的消息）或「定时、但要满足前提才做」；处理完让命令下一次返回非 0，否则每个间隔都会触发（执行设置的 \`maxPerHour\`、\`overlap: "skip"\` 会挡住刷屏，别为它关掉）；
 - \`when: "success"\`：只在「上一次不满足、这一次满足」时触发一次，条件一直成立不会反复触发，适合「等某件事完成」（部署好了、服务起来了）；
 - \`when: "change"\`：输出和上一次不一样就触发（第一次只记下），适合「网页变了」「有新提交」——命令只要打出当前的状态；
-- 命令要很快结束（最长 5 分钟，再长按超时算失败）、不要等输入；找不到命令、超时算一次失败，连续几次会自动停用。
+- 命令要很快结束（最长 5 分钟，「每隔」的不超过间隔，再长按超时算失败）、不要等输入；找不到命令、超时算一次失败，连续几次会自动停用；
+- 到点直接执行的「每隔」最短 60 秒，带检查的最短 10 秒。
 
 **监听程序**（\`listen\`）：打开时插件启动这个命令，关掉时结束它，意外退出按退避重启。
 
@@ -82,16 +84,22 @@ const CONTENT = `# 工作流的触发卡片（workflow-lite）
 
 ## 样板
 
-**远端有新提交**（轮询，输出变了时触发，在仓库所在的工作区里运行）：
+**远端有新提交**（每 5 分钟检查，输出变了时触发，在仓库所在的工作区里运行）：
 
 \`\`\`json
-{ "kind": "poll", "command": "git ls-remote origin -h refs/heads/main", "seconds": 300, "when": "change" }
+{ "kind": "schedule", "schedule": { "kind": "every", "seconds": 300 }, "check": { "command": "git ls-remote origin -h refs/heads/main", "when": "change" } }
 \`\`\`
 
-**网页内容变了**（轮询，输出变了时触发）：
+**网页内容变了**（每 10 分钟检查，输出变了时触发）：
 
 \`\`\`json
-{ "kind": "poll", "command": "node -e \\"fetch(process.argv[1]).then(r=>r.text()).then(t=>process.stdout.write(t),e=>{console.error(e.message);process.exit(2)})\\" https://example.com/status", "seconds": 600, "when": "change" }
+{ "kind": "schedule", "schedule": { "kind": "every", "seconds": 600 }, "check": { "command": "node -e \\"fetch(process.argv[1]).then(r=>r.text()).then(t=>process.stdout.write(t),e=>{console.error(e.message);process.exit(2)})\\" https://example.com/status", "when": "change" } }
+\`\`\`
+
+**工作日早上 9 点、有待处理的才做**（每天几点检查，每次成功触发）：
+
+\`\`\`json
+{ "kind": "schedule", "schedule": { "kind": "daily", "time": "09:00", "weekdays": [1, 2, 3, 4, 5] }, "check": { "command": "node \\"{workflow}/triggers/pending.mjs\\"", "when": "every" } }
 \`\`\`
 
 只关心页面里的一部分时，写个脚本取出那一部分再打出来，免得页面上的时间戳一变就触发。

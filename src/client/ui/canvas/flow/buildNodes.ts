@@ -26,6 +26,7 @@ import type { Selection } from '../../../model/editor.ts'
 import { isCompactResource, RES_SHOWN } from '../../../model/layout.ts'
 import { samePlain } from '../../../model/samePlain.ts'
 import { triggerGlance } from '../../../model/triggerGlance.ts'
+import { sourceFace } from '../../../model/triggerText.ts'
 import { itemText } from '../../kit/resourceUi.ts'
 import { lookOf } from '../../kit/StepMark.tsx'
 import { resourceTint } from '../../resources/ResourcePresets.tsx'
@@ -184,7 +185,8 @@ export function buildNodes({
       const title = node.data.label?.trim() || node.id
       const glance = triggerGlance(t, node.data.source)
       const kind = node.data.source.kind
-      signature = `${selected}|${tone}|${note}|${dim}|${title}|${JSON.stringify(glance)}|${kind}`
+      const face = sourceFace(node.data.source)
+      signature = `${selected}|${tone}|${note}|${dim}|${title}|${JSON.stringify(glance)}|${face}`
       build = () => ({
         id: node.id,
         type: 'wfTrigger',
@@ -194,6 +196,7 @@ export function buildNodes({
           title,
           glance,
           kind,
+          face,
           tone,
           note,
           dim,

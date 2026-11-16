@@ -11,6 +11,7 @@ import {
   momentText,
   ruleText,
   scheduleIssueText,
+  sourceFace,
   sourceIssueText,
   sourceText,
   stateText,
@@ -25,6 +26,7 @@ import type {
   StepNode,
   TriggerData,
   TriggerNode,
+  TriggerSchedule,
   WorkflowDocument,
 } from '../../src/shared/types.ts'
 
@@ -145,7 +147,7 @@ describe('触发卡片：从步骤库加进来、复制', () => {
   it('复制出来是另一张触发卡片（规则照抄）', () => {
     const data: TriggerData = {
       label: '夜巡',
-      source: { kind: 'schedule', schedule: { kind: 'every', minutes: 30 } },
+      source: { kind: 'schedule', schedule: { kind: 'every', seconds: 1800 } },
     }
     const edit = duplicateEdit(doc({ nodes: [trigger('tick', data)] }), 'tick', '副本')
     expect(edit?.type).toBe('addTrigger')
@@ -204,10 +206,10 @@ describe('触发卡片：摆放', () => {
 
 describe('触发卡片：卡片上的字', () => {
   it('规则的一句话', () => {
-    expect(ruleText(t, { kind: 'every', minutes: 30 })).toBe('每 30 分钟')
-    expect(ruleText(t, { kind: 'every', minutes: 120 })).toBe('每 2 小时')
-    expect(ruleText(t, { kind: 'every', minutes: 2880 })).toBe('每 2 天')
-    expect(ruleText(t, { kind: 'every', minutes: 90 })).toBe('每 90 分钟')
+    expect(ruleText(t, { kind: 'every', seconds: 1800 })).toBe('每 30 分钟')
+    expect(ruleText(t, { kind: 'every', seconds: 7200 })).toBe('每 2 小时')
+    expect(ruleText(t, { kind: 'every', seconds: 172800 })).toBe('每 2 天')
+    expect(ruleText(t, { kind: 'every', seconds: 5400 })).toBe('每 90 分钟')
     expect(ruleText(t, { kind: 'daily', time: '09:00' })).toBe('每天 09:00')
     expect(ruleText(t, { kind: 'daily', time: '09:00', weekdays: [1, 5] })).toBe('每周一、五 09:00')
     expect(ruleText(t, { kind: 'daily', time: '09:00', weekdays: [1, 2, 3, 4, 5] })).toBe(
@@ -243,15 +245,15 @@ describe('触发卡片：卡片上的字', () => {
     )
   })
 
-  it('轮询、监听程序、HTTP 的状态与触发源一句话', () => {
+  it('定时检查、监听程序、HTTP 的状态与触发源一句话', () => {
     const now = new Date(2026, 10, 12, 8, 0).getTime()
     const at = new Date(2026, 10, 12, 7, 55).getTime()
     const view = { node: 'tick', enabled: true } as const
-    expect(stateText(t, { ...view, state: 'waiting', next: at }, 'poll', now)).toBe(
+    expect(stateText(t, { ...view, state: 'waiting', next: at }, 'check', now)).toBe(
       '检查中 · 下一次 今天 07:55',
     )
     expect(
-      stateText(t, { ...view, state: 'waiting', checked: { at, met: false } }, 'poll', now),
+      stateText(t, { ...view, state: 'waiting', checked: { at, met: false } }, 'check', now),
     ).toBe('检查中 · 上次 今天 07:55 未满足')
     expect(stateText(t, { ...view, state: 'listening', since: at }, 'listen', now)).toBe(
       '接收中 · 今天 07:55 启动',
@@ -262,9 +264,17 @@ describe('触发卡片：卡片上的字', () => {
     expect(stateText(t, { ...view, state: 'confirm' }, 'listen', now)).toBe(
       '待确认 · 启用时确认命令',
     )
-    expect(sourceText(t, { kind: 'poll', command: 'x', seconds: 300 })).toBe('每 5 分钟检查')
-    expect(sourceText(t, { kind: 'poll', command: 'x', seconds: 7200 })).toBe('每 2 小时检查')
-    expect(sourceText(t, { kind: 'poll', command: 'x', seconds: 45 })).toBe('每 45 秒检查')
+    const checked = (schedule: TriggerSchedule) =>
+      ({ kind: 'schedule', schedule, check: { command: 'x', when: 'every' } }) as const
+    expect(sourceText(t, checked({ kind: 'every', seconds: 300 }))).toBe('每 5 分钟检查')
+    expect(sourceText(t, checked({ kind: 'every', seconds: 7200 }))).toBe('每 2 小时检查')
+    expect(sourceText(t, checked({ kind: 'every', seconds: 45 }))).toBe('每 45 秒检查')
+    expect(sourceText(t, checked({ kind: 'daily', time: '09:00' }))).toBe('每天 09:00 检查')
+    expect(sourceText(en, checked({ kind: 'every', seconds: 300 }))).toBe('Every 5 min · check')
+    expect(sourceFace(checked({ kind: 'every', seconds: 300 }))).toBe('check')
+    expect(sourceFace({ kind: 'schedule', schedule: { kind: 'every', seconds: 300 } })).toBe(
+      'schedule',
+    )
     expect(sourceText(t, { kind: 'listen', command: 'x' })).toBe('监视程序')
     expect(sourceText(t, { kind: 'http' })).toBe('HTTP 请求')
   })
@@ -330,9 +340,17 @@ describe('触发卡片：写得不对的说法按界面语言', () => {
     const command = sourceIssue({ kind: 'listen', command: ' ' })
     if (command === null) throw new Error('应当报没写命令')
     expect(sourceIssueText(en, command)).toBe('Write the command to run')
-    const interval = sourceIssue({ kind: 'poll', command: 'x', seconds: 5 })
+    const interval = sourceIssue({
+      kind: 'schedule',
+      schedule: { kind: 'every', seconds: 5 },
+      check: { command: 'x', when: 'every' },
+    })
     if (interval === null) throw new Error('应当报间隔')
-    expect(sourceIssueText(en, interval)).toBe('The interval must be between 10 seconds and 7 days')
+    expect(sourceIssueText(en, interval)).toBe('The interval must be between 10 s and 7 d')
+    expect(sourceIssueText(t, interval)).toBe('间隔要在 10 秒 到 7 天 之间')
+    const often = sourceIssue({ kind: 'schedule', schedule: { kind: 'every', seconds: 30 } })
+    if (often === null) throw new Error('应当报太密')
+    expect(sourceIssueText(t, often)).toBe(t('trigger.issue.tooOften'))
     const after = sourceIssue({ kind: 'after', workflow: '' })
     if (after === null) throw new Error('应当报没选工作流')
     expect(sourceIssueText(t, after)).toBe('还没选等哪个工作流跑完')
@@ -354,27 +372,27 @@ describe('触发卡片：写得不对的说法按界面语言', () => {
 })
 
 describe('触发卡片：换触发源', () => {
+  const check = (command: string) =>
+    ({
+      kind: 'schedule',
+      schedule: { kind: 'every', seconds: 60 },
+      check: { command, when: 'every' },
+    }) as const
+
   it('换走再换回来，填过的还在；没填过的给常用值', () => {
-    const poll = { kind: 'poll', command: 'git status', seconds: 60 } as const
-    const kept = new Map([['poll', poll]] as const)
-    expect(switchSource({ kind: 'http' }, 'poll', kept)).toBe(poll)
+    const schedule = check('git status')
+    const kept = new Map([['schedule', schedule]] as const)
+    expect(switchSource({ kind: 'http' }, 'schedule', kept)).toBe(schedule)
     expect(switchSource({ kind: 'http' }, 'after', kept)).toEqual(SOURCE_SEED.after)
   })
 
-  it('轮询、监听之间换：那边还没写命令就带上这边的', () => {
-    const fromPoll = switchSource(
-      { kind: 'poll', command: 'tail -f log', seconds: 60 },
-      'listen',
-      new Map(),
-    )
-    expect(fromPoll).toEqual({ kind: 'listen', command: 'tail -f log' })
+  it('定时检查换到监听：监听还没写命令就带上检查的那条；反过来不带', () => {
+    expect(switchSource(check('tail -f log'), 'listen', new Map())).toEqual({
+      kind: 'listen',
+      command: 'tail -f log',
+    })
     const written = { kind: 'listen', command: 'node watch.mjs' } as const
-    expect(
-      switchSource(
-        { kind: 'poll', command: 'x', seconds: 60 },
-        'listen',
-        new Map([['listen', written]]),
-      ),
-    ).toBe(written)
+    expect(switchSource(check('x'), 'listen', new Map([['listen', written]]))).toBe(written)
+    expect(switchSource(written, 'schedule', new Map())).toEqual(SOURCE_SEED.schedule)
   })
 })

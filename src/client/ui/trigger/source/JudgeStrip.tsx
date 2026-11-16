@@ -1,5 +1,5 @@
 /**
- * dsh-workflow-lite — 轮询「判定」旁边的示意：一排 6 次检查，每次的结果（退出码或输出）、算什么、哪几次执行。
+ * dsh-workflow-lite — 定时检查「判定」旁边的示意：一排 6 次检查，每次的结果（退出码或输出）、算什么、哪几次执行。
  * 规则看一眼就懂，下面再一句话补齐（背景信息、第一次怎样）。
  *
  * 三种判定都是 6 格，换判定只换字和属性，不插拔元素。
@@ -7,7 +7,7 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/trigger/source/JudgeStrip
  */
 
-import type { PollWhen } from '../../../../shared/types.ts'
+import type { CheckWhen } from '../../../../shared/types.ts'
 import type { LocaleKey, T } from '../../../i18n.ts'
 import { Icon } from '../../kit/Icon.tsx'
 import { SwapText } from '../../motion/swapText.tsx'
@@ -21,7 +21,7 @@ interface Check {
   mark: 'fire' | 'hold' | 'none'
 }
 
-export const JUDGE_EXAMPLES: Record<PollWhen, readonly Check[]> = {
+export const JUDGE_EXAMPLES: Record<CheckWhen, readonly Check[]> = {
   success: [
     { value: '1', caption: 'trigger.judge.failed', mark: 'none' },
     { value: '0', caption: 'trigger.judge.fire', mark: 'fire' },
@@ -48,7 +48,7 @@ export const JUDGE_EXAMPLES: Record<PollWhen, readonly Check[]> = {
   ],
 }
 
-export function JudgeStrip(props: { t: T; when: PollWhen }): React.JSX.Element {
+export function JudgeStrip(props: { t: T; when: CheckWhen }): React.JSX.Element {
   const { t } = props
   return (
     <ol

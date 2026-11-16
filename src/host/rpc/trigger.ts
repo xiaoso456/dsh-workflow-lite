@@ -116,7 +116,7 @@ export async function dispatchTrigger(
 
     case 'trigger/try': {
       const kind = input.kind
-      if (kind !== 'poll' && kind !== 'listen') throw new Error('kind must be poll or listen')
+      if (kind !== 'check' && kind !== 'listen') throw new Error('kind must be check or listen')
       const shell = clearableString(input, 'shell')
       const outcome = await deps.triggers.tryCommand({
         workflow,

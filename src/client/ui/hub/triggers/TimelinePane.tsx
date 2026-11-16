@@ -28,7 +28,7 @@ import {
 import { clockTime, durationText } from '../../../model/time.ts'
 import { matchesOutcome, type OutcomeFilter, upcomingAt } from '../../../model/triggerActivity.ts'
 import { statusWhen } from '../../../model/triggerNow.ts'
-import { sourceText, stateBadge, stateTone } from '../../../model/triggerText.ts'
+import { sourceFace, sourceText, stateBadge, stateTone } from '../../../model/triggerText.ts'
 import { Icon } from '../../kit/Icon.tsx'
 import { IconSwitch } from '../../kit/IconSwitch.tsx'
 import { Segmented } from '../../kit/Segmented.tsx'
@@ -75,6 +75,7 @@ export function TimelinePane(props: {
   const { t, entry } = props
   const { view } = entry
   const { source } = entry.data
+  const face = sourceFace(source)
   const [filter, setFilter] = useState<OutcomeFilter>('all')
   const [layout, setLayout] = useTimelineLayout()
   // 切换按钮马上换到新的一格；记录那块拍完旧样子再换（两张快照交叉淡）。
@@ -165,11 +166,7 @@ export function TimelinePane(props: {
                 {t('hub.trgUpcoming')}
               </span>
               <span className={css.date}>
-                {source.kind === 'schedule'
-                  ? t('hub.trgByRule')
-                  : source.kind === 'poll'
-                    ? t('hub.trgByInterval')
-                    : ''}
+                {source.kind === 'schedule' ? t('hub.trgByRule') : ''}
               </span>
             </div>
             <ul className={css.rows}>
@@ -181,9 +178,7 @@ export function TimelinePane(props: {
                     t={t}
                     at={at}
                     title={
-                      source.kind === 'poll'
-                        ? t('hub.trgNextCheckItem')
-                        : `${head.name} ${head.date}`
+                      face === 'check' ? t('hub.trgNextCheckItem') : `${head.name} ${head.date}`
                     }
                     after={t('hub.trgIn').replace('{span}', durationText(t, at - now))}
                     icon={TRIGGER_ICON[source.kind]}
@@ -200,8 +195,8 @@ export function TimelinePane(props: {
         <Day t={t} day={today} now={now} fires={todayFires} note={note !== null}>
           <NowRow
             t={t}
-            tone={stateTone(view.state, source.kind)}
-            note={`${stateBadge(t, view, source.kind)} · ${statusWhen(t, entry, now).main}`}
+            tone={stateTone(view.state, face)}
+            note={`${stateBadge(t, view, face)} · ${statusWhen(t, entry, now).main}`}
           />
           {todayFires.map(row)}
           {note !== null && (

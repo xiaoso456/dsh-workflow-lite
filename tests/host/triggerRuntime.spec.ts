@@ -87,11 +87,16 @@ describe('常驻触发源记下最近的输出', () => {
     })
   }, 30_000)
 
-  it('轮询：一次检查一条，带退出码、用时和两路输出', async () => {
+  it('定时检查：一次检查一条，带退出码、用时和两路输出', async () => {
     const outputs = new OutputLog(database)
     const { runtime } = runtimeWith(outputs)
     const command = `node -e "console.log('up');console.error('warn');process.exit(3)"`
-    await runtime.sync([spec('p', { kind: 'poll', command, seconds: 60 }, command)])
+    const source = {
+      kind: 'schedule',
+      schedule: { kind: 'every', seconds: 60 },
+      check: { command, when: 'success' },
+    } as const
+    await runtime.sync([spec('p', source, command)])
     await until(() => outputs.list('wf', 'p', 'all', 5).entries.length > 0)
     await runtime.stopAll()
     const [entry] = outputs.list('wf', 'p', 'all', 5).entries

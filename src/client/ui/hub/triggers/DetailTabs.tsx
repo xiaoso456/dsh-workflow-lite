@@ -6,17 +6,17 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/triggers/DetailTabs
  */
 
-import type { TriggerSourceKind } from '../../../../shared/types.ts'
 import type { LocaleKey, T } from '../../../i18n.ts'
+import type { SourceFace } from '../../../model/triggerText.ts'
 import { PaneTabs } from '../pane/PaneTabs.tsx'
 
 export type DetailTab = 'overview' | 'timeline' | 'live' | 'settings'
 export const DETAIL_TABS: readonly DetailTab[] = ['overview', 'timeline', 'live', 'settings']
 
 /** 第三页按触发方式叫什么。 */
-const LIVE_NAME: Record<TriggerSourceKind, LocaleKey> = {
+const LIVE_NAME: Record<SourceFace, LocaleKey> = {
   schedule: 'hub.trgTab.schedule',
-  poll: 'hub.trgTab.output',
+  check: 'hub.trgTab.output',
   listen: 'hub.trgTab.output',
   http: 'hub.trgTab.call',
   after: 'hub.trgTab.upstream',
@@ -24,7 +24,7 @@ const LIVE_NAME: Record<TriggerSourceKind, LocaleKey> = {
 
 export function DetailTabs(props: {
   t: T
-  kind: TriggerSourceKind
+  face: SourceFace
   value: DetailTab
   /** 时间线上的记录条数（还没读到不写）。 */
   count: number | undefined
@@ -50,7 +50,7 @@ export function DetailTabs(props: {
           : {
               id: tab,
               label:
-                tab === 'live' ? t(LIVE_NAME[props.kind]) : t(`hub.trgTab.${tab}` as LocaleKey),
+                tab === 'live' ? t(LIVE_NAME[props.face]) : t(`hub.trgTab.${tab}` as LocaleKey),
             },
       )}
     />

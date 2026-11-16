@@ -2,18 +2,18 @@
  * dsh-workflow-lite — 触发器的业务面：到点触发、常驻的触发源、开关与本机设置、「立即触发一次」、状态与触发记录。
  *
  * 触发只由负责的那个 DSH 进程做（见 `owner.ts`）：每隔几秒报到一次、对一遍账（`reconcile.ts`），
- * 到点的交给 `launcher.ts` 发进会话；条件轮询、监听程序、HTTP 地址按本机状态开着或停下（`runtime.ts`），
+ * 到点的交给 `launcher.ts` 发进会话；定时检查、监听程序、HTTP 地址按本机状态开着或停下（`runtime.ts`），
  * 它们进来的内容过了过滤也交给 `launcher.ts`；接续触发每一轮看一眼等的那个工作流有没有实例刚结束（`after.ts`）。
  * 开关、设置、「立即触发一次」「全部暂停」哪个进程都能做，都落在 `<dataDir>/triggers/` 里，负责的进程下一轮就看到。
  *
  * 「全部暂停」不动各卡片的开关：暂停着时定时照样往后排、接续触发照样记下处理过的实例，只是都不触发，
  * 常驻的全停下；恢复后接着跑，暂停期间错过的不补。
  *
- * 要在本机跑命令的（轮询、监听程序）打开前要用户确认那条命令，记下命令与工作区的记号；
+ * 要在本机跑命令的（定时检查、监听程序）打开前要用户确认那条命令，记下命令与工作区的记号；
  * 两样有一样改了就停下、等重新确认（`confirm`）。模型能建、改触发卡片，但开关只在用户手里。
  *
  * 「连续几次失败就自动停用」里的「失败」只指触发器自己干不了活：工作区或会话不在了、会话建不出来、
- * 图编译不出计划、监听程序一启动就退出、轮询的命令跑不起来。跳过（上一次还在跑、超过每小时上限、错过了）、
+ * 图编译不出计划、监听程序一启动就退出、检查的命令跑不起来。跳过（上一次还在跑、超过每小时上限、错过了）、
  * 条件不满足、过滤掉的都不算，消息发进去之后工作流执行得怎么样更不算。
  * 端口被占用也不算：那是「出错」，端口空出来或换一个就恢复。
  *
@@ -26,8 +26,9 @@ import { bindWorkflowVar } from '../../shared/pathVars.ts'
 import {
   afterMatches,
   commandOf,
+  type FilterKind,
   filterOf,
-  isFilterKind,
+  isLiveSource,
   launchMissing,
   launchOf,
   reachedLimit,
@@ -97,7 +98,7 @@ import {
   type TriggerLocals,
   type TriggerStore,
 } from './store.ts'
-import { pingHook, tryListen, tryPoll } from './trial.ts'
+import { pingHook, tryCheck, tryListen } from './trial.ts'
 
 /** 多久报到、对一次账。 */
 export const BEAT_MS = 5_000
@@ -125,9 +126,9 @@ export interface TriggerServiceDeps {
   sessions: SessionPort
   /** HTTP 触发的监听地址与端口（插件设置）。 */
   listen: () => HookBind
-  /** 轮询、监听没单独选 shell 时用哪个（插件设置，程序的完整路径）；空串或不给 = 系统的。 */
+  /** 定时检查、监听没单独选 shell 时用哪个（插件设置，程序的完整路径）；空串或不给 = 系统的。 */
   defaultShell?: () => string
-  /** 每张轮询、监听卡片最近的输出留多少行（插件设置）；不给是 {@link OUTPUT_LINES} 的缺省值。 */
+  /** 每张定时检查、监听卡片最近的输出留多少行（插件设置）；不给是 {@link OUTPUT_LINES} 的缺省值。 */
   outputLines?: () => number
   /** 实例那边：接续触发看别的工作流有没有实例结束。不给就当没有这种触发源。 */
   runs?: RunWatch
@@ -369,7 +370,7 @@ export class TriggerService {
 
   // ── 常驻触发源 ─────────────────────────────────────────────
 
-  /** 本机状态里开着、确认过、设置得对的常驻触发源（轮询、监听程序、HTTP）。 */
+  /** 本机状态里开着、确认过、设置得对的常驻触发源（带检查命令的定时、监听程序、HTTP）。 */
   private async liveSpecs(locals: TriggerLocals): Promise<LiveSpec[]> {
     const specs: LiveSpec[] = []
     for (const [workflow, nodes] of Object.entries(locals)) {
@@ -381,7 +382,7 @@ export class TriggerService {
         const trigger = graph.triggers.find((candidate) => candidate.node === node)
         if (trigger === undefined) continue
         const { source } = trigger.data
-        if (!isFilterKind(source.kind) || sourceProblem(source) !== null) continue
+        if (!isLiveSource(source) || sourceProblem(source) !== null) continue
         const shell = this.shellFor(local)
         if (pendingApproval(trigger, local, shell) !== null) continue
         const base = { workflow, node, filter: filterOf(trigger.data), cwd: local.workspace ?? '' }
@@ -391,15 +392,21 @@ export class TriggerService {
           specs.push({ ...base, source, hook: { id: local.hook, token } })
           continue
         }
-        if (source.kind !== 'poll' && source.kind !== 'listen') continue
+        const command = commandOf(source)
+        if (command === undefined) continue
         const dir = assetsDir(this.dataDir(), workflow)
         specs.push({
           ...base,
           source,
-          command: bindWorkflowVar(source.command, dir),
+          command: bindWorkflowVar(command, dir),
           env: { WORKFLOW_DIR: dir },
           ...(shell === '' ? {} : { shell }),
-          ...(local.probe === undefined ? {} : { probe: local.probe }),
+          ...(source.kind === 'schedule'
+            ? {
+                catchUp: launchOf(trigger.data).catchUp,
+                ...(local.probe === undefined ? {} : { probe: local.probe }),
+              }
+            : {}),
         })
       }
     }
@@ -564,29 +571,37 @@ export class TriggerService {
 
   /** 全部暂停（`true`）或恢复（`false`）。各卡片的开关不动；恢复后暂停期间的变化不补。 */
   async pause(paused: boolean): Promise<TriggerPauseResponse> {
-    if (!paused && (await this.store.paused()) !== undefined) await this.freshPolls()
+    if (!paused && (await this.store.paused()) !== undefined) await this.freshChecks()
     await this.store.setPaused(paused ? this.now() : null)
     if (this.running) this.schedule(0)
     const since = await this.store.paused()
     return since === undefined ? {} : { paused: since }
   }
 
-  /** 开着的条件轮询从现在起算：恢复后第一次检查只记下，暂停期间条件变了不算一次触发。 */
-  private async freshPolls(): Promise<void> {
-    const polls: { workflow: string; node: string }[] = []
+  /**
+   * 开着的定时检查从现在起算：恢复后第一次检查只记下，暂停期间条件变了不算一次触发；
+   * 存着的下一次也丢掉（暂停期间错过的不补，「每隔」恢复就查、别的等下一个钟点）。
+   */
+  private async freshChecks(): Promise<void> {
+    const checks: { workflow: string; node: string }[] = []
     for (const [workflow, nodes] of Object.entries(await this.store.locals())) {
       if (!Object.values(nodes).some((local) => local.enabled)) continue
       const graph = await this.graphs.read(workflow)
       if (graph.kind !== 'ok') continue
       for (const trigger of graph.triggers) {
-        if (trigger.data.source.kind === 'poll' && nodes[trigger.node]?.enabled === true) {
-          polls.push({ workflow, node: trigger.node })
+        const { source } = trigger.data
+        if (
+          source.kind === 'schedule' &&
+          source.check !== undefined &&
+          nodes[trigger.node]?.enabled === true
+        ) {
+          checks.push({ workflow, node: trigger.node })
         }
       }
     }
-    if (polls.length === 0) return
+    if (checks.length === 0) return
     await this.store.update((locals) => {
-      for (const { workflow, node } of polls) {
+      for (const { workflow, node } of checks) {
         const local = locals[workflow]?.[node]
         if (local !== undefined) local.probe = { ...FRESH_PROBE }
       }
@@ -663,7 +678,7 @@ export class TriggerService {
         const pending = pendingApproval(trigger, local, this.shellFor(local))
         if (pending !== null) return { ...base, state: 'confirm', problem: pending }
         if (paused !== undefined) return { ...base, state: 'paused' }
-        if (source.kind === 'schedule') {
+        if (source.kind === 'schedule' && source.check === undefined) {
           const next = upcoming(local, source.schedule, now)
           const when = next === undefined ? {} : { next }
           if (owner !== undefined && !owner.mine) return { ...base, ...when, state: 'elsewhere' }
@@ -867,7 +882,7 @@ export class TriggerService {
       env: { WORKFLOW_DIR: dir },
       ...(shell === '' ? {} : { shell }),
     }
-    return ok(request.kind === 'listen' ? await tryListen(spec) : await tryPoll(spec))
+    return ok(request.kind === 'listen' ? await tryListen(spec) : await tryCheck(spec))
   }
 
   /** 「发一条测试请求」：带上令牌向这张 HTTP 触发卡片的地址发一条 POST，和别的程序发来的一样被收下。 */
@@ -887,7 +902,7 @@ export class TriggerService {
     return 'failure' in result ? fail('blocked', result.failure) : ok(result)
   }
 
-  /** 轮询命令、监听程序最近的输出：按筛选最多 `limit` 条摘要，新的在前（每条的输出另读）。 */
+  /** 检查命令、监听程序最近的输出：按筛选最多 `limit` 条摘要，新的在前（每条的输出另读）。 */
   output(
     workflow: string,
     node: string,
@@ -1061,7 +1076,7 @@ function pendingApproval(
 
 /** 常驻触发源开着、确认过时的状态：按负责的进程写下的运行情况说。 */
 function liveView(
-  kind: 'poll' | 'listen' | 'http',
+  kind: FilterKind,
   status: LiveFile['sources'][string][string] | undefined,
   live: LiveFile | null,
 ): Pick<TriggerView, 'state' | 'next' | 'problem' | 'checked' | 'since' | 'line'> {
@@ -1073,7 +1088,7 @@ function liveView(
   }
   // 负责的进程还没开起来（刚打开开关、刚接手）。
   if (status === undefined) return { state: 'waiting' }
-  if (kind === 'poll') {
+  if (kind === 'schedule') {
     return {
       state: 'waiting',
       ...(status.next === undefined ? {} : { next: status.next }),

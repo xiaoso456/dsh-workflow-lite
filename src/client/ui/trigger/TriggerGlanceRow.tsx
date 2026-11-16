@@ -54,8 +54,8 @@ function renderShape(glance: TriggerGlance, view: TriggerView | undefined): Reac
           </span>
         </>
       )
-    case 'poll':
-      return <PollGlance glance={glance} view={view} />
+    case 'check':
+      return <CheckGlance glance={glance} view={view} />
     case 'listen': {
       const line = view?.line?.text
       return (
@@ -100,20 +100,20 @@ function renderShape(glance: TriggerGlance, view: TriggerView | undefined): Reac
   }
 }
 
-/** 轮询：每隔多久、什么时候算满足；开着时底边一条进度走到下一次检查。 */
-function PollGlance(props: {
-  glance: Extract<TriggerGlance, { shape: 'poll' }>
+/** 定时检查：规则、什么时候算满足；「每隔」的开着时底边一条进度走到下一次检查。 */
+function CheckGlance(props: {
+  glance: Extract<TriggerGlance, { shape: 'check' }>
   view: TriggerView | undefined
 }): React.JSX.Element {
   const { glance, view } = props
   const next = view?.state === 'waiting' ? view.next : undefined
   return (
     <>
-      <span className={css.strong}>{glance.every}</span>
+      <span className={css.strong}>{glance.rule}</span>
       <span className={css.soft} data-push="true">
         {glance.when}
       </span>
-      <CountdownLine next={next} seconds={glance.seconds} />
+      {glance.seconds !== undefined && <CountdownLine next={next} seconds={glance.seconds} />}
     </>
   )
 }

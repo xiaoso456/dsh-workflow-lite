@@ -328,9 +328,12 @@ export interface TriggerNode {
   data: TriggerData
 }
 
-/** 定时规则（时间按本机时区）：每隔多少分钟 / 每天（或每周几）几点 / 五段 cron。 */
+/**
+ * 定时规则（时间按本机时区）：每隔多少秒 / 每天（或每周几）几点 / 五段 cron。
+ * 「每隔」按秒存：到点直接执行的最短 1 分钟，带检查命令的最短 10 秒（见 shared/trigger.ts 的 `sourceIssue`）。
+ */
 export type TriggerSchedule =
-  | { kind: 'every'; minutes: number }
+  | { kind: 'every'; seconds: number }
   | {
       kind: 'daily'
       time: string
@@ -340,20 +343,21 @@ export type TriggerSchedule =
     }
   | { kind: 'cron'; expression: string }
 
-/**
- * 条件轮询什么时候触发：每次成功（退出码 0）/ 由失败变为成功（一直成功不重复触发）/ 输出变了。
- * 新建的卡片用每次成功（`NEW_POLL_WHEN`，见 shared/trigger.ts，写进图里）；图里不写判定的是「由失败变为成功」——
- * 早先的卡片都这样存，读出来意思不变。
- */
-export type PollWhen = 'success' | 'every' | 'change'
+/** 定时到点先跑命令时，按命令的结果怎么判定：每次成功（退出码 0）/ 由失败变为成功（一直成功不重复触发）/ 输出变了。 */
+export type CheckWhen = 'every' | 'success' | 'change'
+
+/** 定时到点先在本机跑的命令和判定；满足判定才执行，命令的输出是背景信息。 */
+export interface TriggerCheck {
+  command: string
+  when: CheckWhen
+}
 
 /** 另一个工作流的实例以什么结果结束才触发：成功（`done`）/ 失败（`failed`）/ 不论结果（含取消）。 */
 export type AfterWhen = 'done' | 'failed' | 'any'
 
 /**
  * 触发源：什么时候触发。
- * - `schedule` 定时；
- * - `poll` 条件轮询：每隔 `seconds` 秒在工作区里跑一次 `command`，输出是背景信息；
+ * - `schedule` 定时：到点直接执行；带 `check` 的到点先在工作区里跑一次命令，满足判定才执行，输出是背景信息；
  * - `listen` 监听程序：常驻的 `command`，往标准输出每打一行就是一次触发，那一行是背景信息；
  * - `http` 别的程序向插件的触发端口发请求，请求体是背景信息（地址、令牌是本机状态）；
  * - `after` 另一个工作流（`workflow`）的一次执行结束了：那个实例的结果是背景信息。
@@ -363,8 +367,7 @@ export type AfterWhen = 'done' | 'failed' | 'any'
  * 所以要用户在本机确认过才跑，命令或工作区改了要重新确认。
  */
 export type TriggerSource =
-  | { kind: 'schedule'; schedule: TriggerSchedule }
-  | { kind: 'poll'; command: string; seconds: number; when?: Exclude<PollWhen, 'success'> }
+  | { kind: 'schedule'; schedule: TriggerSchedule; check?: TriggerCheck }
   | { kind: 'listen'; command: string }
   | { kind: 'http' }
   | { kind: 'after'; workflow: string; when?: Exclude<AfterWhen, 'done'> }
@@ -372,7 +375,7 @@ export type TriggerSource =
 export type TriggerSourceKind = TriggerSource['kind']
 
 /**
- * 不花模型调用的过滤（只给带外来内容的轮询、监听、HTTP；定时、接续没有可筛的）。缺省值不写盘，见 `shared/trigger.ts` 的 `filterOf`。
+ * 不花模型调用的过滤（只给带外来内容的：带检查命令的定时、监听、HTTP；到点直接执行的定时、接续没有可筛的）。缺省值不写盘，见 `shared/trigger.ts` 的 `filterOf`。
  */
 export interface TriggerFilter {
   /** 合并：这么多秒内的几次触发并成一次，背景信息拼在一起；0 = 不合并。缺省监听、HTTP 5 秒，轮询 0。 */

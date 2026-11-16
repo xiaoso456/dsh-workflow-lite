@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { en, type LocaleKey, zh } from '../../src/client/i18n.ts'
 import {
+  checkProgress,
   endpointPath,
-  pollProgress,
   triggerGlance,
   triggerMode,
 } from '../../src/client/model/triggerGlance.ts'
 import { stateTone } from '../../src/client/model/triggerText.ts'
+import type { TriggerSchedule } from '../../src/shared/types.ts'
 
 const t = (key: LocaleKey): string => zh[key]
 const tEn = (key: LocaleKey): string => en[key]
@@ -36,28 +37,40 @@ describe('触发卡片的速览', () => {
 
   it('定时每隔多久、cron 各说各的', () => {
     expect(
-      triggerGlance(t, { kind: 'schedule', schedule: { kind: 'every', minutes: 120 } }),
+      triggerGlance(t, { kind: 'schedule', schedule: { kind: 'every', seconds: 7200 } }),
     ).toEqual({ shape: 'every', text: '每 2 小时' })
     expect(
       triggerGlance(t, { kind: 'schedule', schedule: { kind: 'cron', expression: ' 0 9 * * 1 ' } }),
     ).toEqual({ shape: 'cron', expression: '0 9 * * 1' })
   })
 
-  it('轮询：间隔按秒、分、时说，带上什么时候算满足', () => {
-    expect(
-      triggerGlance(t, { kind: 'poll', command: 'git fetch', seconds: 300, when: 'change' }),
-    ).toEqual({
-      shape: 'poll',
-      every: '每 5 分钟',
+  it('定时检查：规则 + 什么时候算满足；「每隔」的带上间隔给进度条，没写命令只说缺什么', () => {
+    const checked = (
+      schedule: TriggerSchedule,
+      when: 'every' | 'success' | 'change' = 'every',
+      command = 'x',
+    ) => ({ kind: 'schedule', schedule, check: { command, when } }) as const
+    expect(triggerGlance(t, checked({ kind: 'every', seconds: 300 }, 'change'))).toEqual({
+      shape: 'check',
+      rule: '每 5 分钟',
       when: '输出变化',
       seconds: 300,
     })
-    expect(triggerGlance(t, { kind: 'poll', command: 'x', seconds: 45 })).toMatchObject({
-      every: '每 45 秒',
+    expect(triggerGlance(t, checked({ kind: 'every', seconds: 45 }, 'success'))).toMatchObject({
+      rule: '每 45 秒',
       when: '变为成功',
     })
-    expect(triggerGlance(tEn, { kind: 'poll', command: 'x', seconds: 7200 })).toMatchObject({
-      every: 'Every 2 h',
+    expect(triggerGlance(tEn, checked({ kind: 'every', seconds: 7200 }))).toMatchObject({
+      rule: 'Every 2 h',
+    })
+    expect(triggerGlance(t, checked({ kind: 'daily', time: '09:00' }))).toEqual({
+      shape: 'check',
+      rule: '每天 09:00',
+      when: '每次成功',
+    })
+    expect(triggerGlance(t, checked({ kind: 'every', seconds: 60 }, 'every', ' '))).toEqual({
+      shape: 'empty',
+      text: '还没写要运行的命令',
     })
   })
 
@@ -85,10 +98,10 @@ describe('触发卡片的速览', () => {
     })
   })
 
-  it('主动：定时、轮询；被动：监听、HTTP、接续', () => {
+  it('主动：定时（带不带检查）；被动：监听、HTTP、接续', () => {
     expect(
-      ['schedule', 'poll', 'listen', 'http', 'after'].map((kind) => triggerMode(kind as never)),
-    ).toEqual(['active', 'active', 'passive', 'passive', 'passive'])
+      ['schedule', 'listen', 'http', 'after'].map((kind) => triggerMode(kind as never)),
+    ).toEqual(['active', 'passive', 'passive', 'passive'])
   })
 
   it('地址只留端口和路径', () => {
@@ -96,23 +109,23 @@ describe('触发卡片的速览', () => {
     expect(endpointPath('not a url')).toBe('not a url')
   })
 
-  it('轮询进度：从这一段的起点算起，越界夹住；没有下一次就没有进度', () => {
-    expect(pollProgress(10_000 + 60_000, 120, 10_000)).toEqual({ from: 0.5, left: 60_000 })
-    expect(pollProgress(5_000, 60, 10_000)).toEqual({ from: 1, left: 0 })
-    expect(pollProgress(10_000 + 999_000, 60, 10_000)).toEqual({ from: 0, left: 999_000 })
-    expect(pollProgress(undefined, 60, 10_000)).toBeNull()
-    expect(pollProgress(20_000, 0, 10_000)).toBeNull()
+  it('检查进度：从这一段的起点算起，越界夹住；没有下一次就没有进度', () => {
+    expect(checkProgress(10_000 + 60_000, 120, 10_000)).toEqual({ from: 0.5, left: 60_000 })
+    expect(checkProgress(5_000, 60, 10_000)).toEqual({ from: 1, left: 0 })
+    expect(checkProgress(10_000 + 999_000, 60, 10_000)).toEqual({ from: 0, left: 999_000 })
+    expect(checkProgress(undefined, 60, 10_000)).toBeNull()
+    expect(checkProgress(20_000, 0, 10_000)).toBeNull()
   })
 })
 
 describe('触发状态的颜色分组', () => {
-  it('等时间的等待中和盯着外面的接收中分开；轮询开着算盯着外面', () => {
+  it('等时间的等待中和盯着外面的接收中分开；定时检查开着算盯着外面', () => {
     expect(stateTone('waiting', 'schedule')).toBe('armed')
     expect(stateTone('waiting', 'after')).toBe('armed')
-    expect(stateTone('waiting', 'poll')).toBe('live')
+    expect(stateTone('waiting', 'check')).toBe('live')
     expect(stateTone('listening', 'listen')).toBe('live')
     expect(stateTone('listening', 'http')).toBe('live')
-    expect(stateTone('off', 'poll')).toBe('off')
+    expect(stateTone('off', 'check')).toBe('off')
     expect(stateTone('elsewhere', 'schedule')).toBe('other')
     expect(
       ['confirm', 'paused', 'restarting', 'unavailable'].map((s) =>

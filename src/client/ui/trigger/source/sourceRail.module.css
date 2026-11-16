@@ -55,10 +55,6 @@
   --k: var(--wl-c-blue);
 }
 
-.thumb > [data-kind="poll"] {
-  --k: var(--wl-c-teal);
-}
-
 .thumb > [data-kind="listen"] {
   --k: var(--wl-c-amber);
 }

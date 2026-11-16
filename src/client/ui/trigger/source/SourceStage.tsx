@@ -15,10 +15,10 @@ import { AfterStage } from './AfterStage.tsx'
 import { HttpStage } from './HttpStage.tsx'
 import { SOURCE_KINDS } from './kinds.ts'
 import { ListenStage } from './ListenStage.tsx'
-import { PollStage } from './PollStage.tsx'
 import type { RunDrafts } from './runDraft.ts'
 import { ScheduleStage } from './ScheduleStage.tsx'
 import { armedNext } from './SourceSummary.tsx'
+import type { SchedulePage } from './schedulePages.ts'
 import css from './sourceStage.module.css'
 
 export function SourceStage(props: {
@@ -31,8 +31,11 @@ export function SourceStage(props: {
   /** 现场（草稿改过时不给）。 */
   view: TriggerView | undefined
   env: TriggerEnv | null
-  /** 轮询、监听：命令在哪个工作区、用哪个 shell 跑（草稿、存着的、改它）。 */
+  /** 定时检查、监听：命令在哪个工作区、用哪个 shell 跑（草稿、存着的、改它）。 */
   run: RunDrafts
+  /** 定时停在哪一步。 */
+  page: SchedulePage
+  onPage(page: SchedulePage): void
   onChange(source: TriggerSource): void
 }): React.JSX.Element {
   const { t, source, view, env } = props
@@ -60,19 +63,14 @@ export function SourceStage(props: {
         {source.kind === 'schedule' && (
           <ScheduleStage
             t={t}
-            schedule={source.schedule}
-            live={live}
-            onChange={(schedule) => props.onChange({ kind: 'schedule', schedule })}
-          />
-        )}
-        {source.kind === 'poll' && (
-          <PollStage
-            t={t}
             node={props.node}
             source={source}
             env={env}
             run={props.run}
             showOutput={showOutput}
+            live={live}
+            page={props.page}
+            onPage={props.onPage}
             onChange={props.onChange}
           />
         )}

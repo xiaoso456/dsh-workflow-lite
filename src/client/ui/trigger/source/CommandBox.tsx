@@ -1,5 +1,5 @@
 /**
- * dsh-workflow-lite — 轮询、监听的工作台（{@link Bench}）：顶上一条是名字、「从模板开始」菜单、用哪个 shell、「试运行」；
+ * dsh-workflow-lite — 定时检查、监听的工作台（{@link Bench}）：顶上一条是名字、「从模板开始」菜单、用哪个 shell、「试运行」；
  * 中间上半是编辑区（亮一档的底：`$` 加命令，换了 shell 时底边一条提示），下半是输出台（{@link TrialConsole}：
  * 「试运行 / 最近的输出」两页）；底栏写命令里能用的变量（「?」里细说）。
  *
@@ -36,13 +36,13 @@ import { type ConsoleTab, type Trial, TrialConsole, type TrialJudge } from './Tr
 export function CommandBox(props: {
   t: T
   node: string
-  kind: 'poll' | 'listen'
+  kind: 'check' | 'listen'
   command: string
   placeholder: string
   templates: readonly CommandTemplate[]
   /** 模板视图的现场；实例视图是 `null`（不能试运行）。 */
   env: TriggerEnv | null
-  /** 轮询：怎么读试运行的结果（满足没有）。 */
+  /** 定时检查：怎么读试运行的结果（满足没有）。 */
   judge?: TrialJudge
   onChange(command: string): void
   onTemplate(template: CommandTemplate): void

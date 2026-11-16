@@ -119,7 +119,7 @@ async function saveGraph(name: string, data: Partial<TriggerData> = {}): Promise
         position: { x: 0, y: 0 },
         data: {
           label: '巡检',
-          source: { kind: 'schedule', schedule: { kind: 'every', minutes: 30 } },
+          source: { kind: 'schedule', schedule: { kind: 'every', seconds: 1800 } },
           ...data,
         },
       },
@@ -261,7 +261,7 @@ describe('开关与状态', () => {
     expect((await triggers.list('patrol')).triggers[0]?.next).toBe(clock + 20 * MINUTE)
 
     await saveGraph('patrol', {
-      source: { kind: 'schedule', schedule: { kind: 'every', minutes: 120 } },
+      source: { kind: 'schedule', schedule: { kind: 'every', seconds: 7200 } },
     })
     expect((await triggers.list('patrol')).triggers[0]?.next).toBe(clock + 120 * MINUTE)
     // 对过账之后还是这个时刻。
@@ -446,7 +446,7 @@ describe('到点触发', () => {
 
   it('每小时的上限：超过的跳过，不算失败、不停用', async () => {
     const triggers = await ready({
-      source: { kind: 'schedule', schedule: { kind: 'every', minutes: 10 } },
+      source: { kind: 'schedule', schedule: { kind: 'every', seconds: 600 } },
       launch: { maxPerHour: 2, overlap: 'parallel' },
     })
     for (let round = 0; round < 4; round += 1) {
@@ -464,7 +464,7 @@ describe('到点触发', () => {
 
   it('上限写 0 是不限制：每小时不限次数，失败多少次都不自动停用', async () => {
     const triggers = await ready({
-      source: { kind: 'schedule', schedule: { kind: 'every', minutes: 1 } },
+      source: { kind: 'schedule', schedule: { kind: 'every', seconds: 60 } },
       launch: { maxPerHour: 0, maxFailures: 0, overlap: 'parallel' },
     })
     for (let round = 0; round < 20; round += 1) {
@@ -1225,30 +1225,43 @@ describe('模型建触发卡片', () => {
       await run({
         action: 'write_trigger',
         workflow: 'patrol',
-        trigger: { source: { kind: 'poll', command: 'x', seconds: 1 } },
+        trigger: {
+          source: {
+            kind: 'schedule',
+            schedule: { kind: 'every', seconds: 1 },
+            check: { command: 'x' },
+          },
+        },
       }),
     ).toMatchObject({ error: { code: 'invalid_args' } })
 
-    // 轮询没写判定：按新建的缺省「每次成功」写进图；明说「变为成功」的照旧不写。
+    // 检查没写判定：按「每次成功」写进图；明说了的照写。
+    const checked = (command: string, when?: string) => ({
+      source: {
+        kind: 'schedule',
+        schedule: { kind: 'every', seconds: 60 },
+        check: when === undefined ? { command } : { command, when },
+      },
+    })
     await run({
       action: 'write_trigger',
       workflow: 'patrol',
       node: 'queue',
-      trigger: { source: { kind: 'poll', command: 'node has-work.mjs', seconds: 60 } },
+      trigger: checked('node has-work.mjs'),
     })
     await run({
       action: 'write_trigger',
       workflow: 'patrol',
       node: 'ready',
-      trigger: { source: { kind: 'poll', command: 'node up.mjs', seconds: 60, when: 'success' } },
+      trigger: checked('node up.mjs', 'success'),
     })
-    const polls = (await repository.load('patrol')).document?.nodes
-    expect(polls?.find((node) => node.id === 'queue')?.data).toMatchObject({
-      source: { when: 'every' },
+    const checks = (await repository.load('patrol')).document?.nodes
+    expect(checks?.find((node) => node.id === 'queue')?.data).toMatchObject({
+      source: { check: { command: 'node has-work.mjs', when: 'every' } },
     })
-    const ready = polls?.find((node) => node.id === 'ready')?.data as { source: object } | undefined
-    expect(ready?.source).toMatchObject({ kind: 'poll' })
-    expect(ready?.source).not.toHaveProperty('when')
+    expect(checks?.find((node) => node.id === 'ready')?.data).toMatchObject({
+      source: { kind: 'schedule', check: { when: 'success' } },
+    })
     expect(
       await run({ action: 'write_trigger', workflow: 'patrol', node: 'work', trigger: {} }),
     ).toMatchObject({ error: { code: 'blocked' } })
@@ -1337,9 +1350,15 @@ describe('全部暂停', () => {
     expect(live.specs).toHaveLength(1)
   })
 
-  it('恢复后条件轮询从现在起算：暂停前记下的结果不拿来比', async () => {
+  it('恢复后定时检查从现在起算：暂停前记下的结果不拿来比', async () => {
     const command = 'git ls-remote origin'
-    await saveGraph('patrol', { source: { kind: 'poll', command, seconds: 60, when: 'change' } })
+    await saveGraph('patrol', {
+      source: {
+        kind: 'schedule',
+        schedule: { kind: 'every', seconds: 60 },
+        check: { command, when: 'change' },
+      },
+    })
     const triggers = service()
     await triggers.set({
       workflow: 'patrol',
@@ -1349,7 +1368,10 @@ describe('全部暂停', () => {
       enabled: true,
     })
     await own(triggers)
-    live.events?.probed({ workflow: 'patrol', node: 'tick', kind: 'poll' }, { digest: 'before' })
+    live.events?.probed(
+      { workflow: 'patrol', node: 'tick', kind: 'schedule' },
+      { digest: 'before' },
+    )
     await triggers.settled()
     expect((await store.locals()).patrol?.tick?.probe).toEqual({ digest: 'before' })
 
@@ -1526,7 +1548,7 @@ describe('「触发」页的总表', () => {
     ])
     expect(all.triggers[0]?.data.source).toEqual({
       kind: 'schedule',
-      schedule: { kind: 'every', minutes: 30 },
+      schedule: { kind: 'every', seconds: 1800 },
     })
   })
 })

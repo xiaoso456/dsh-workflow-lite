@@ -85,11 +85,11 @@ export function weekOf(schedule: TriggerSchedule, now: number, live?: number): W
   }
   // 「每隔多久」从打开那一刻起算，今天早些时候的说不准：只排往后的。别的规则把今天已经过去的也画出来。
   const every = schedule.kind === 'every'
-  const anchor = every && live !== undefined && live > now ? live - schedule.minutes * 60_000 : now
+  const anchor = every && live !== undefined && live > now ? live - schedule.seconds * 1000 : now
   let from = new Date(every ? now : today - 1)
   let next: Week['next']
   let upcoming = 0
-  // 最多走这么多步（一天最密也就 1440 次）。
+  // 最多走这么多步：时刻、Cron 一天最密 1440 次；「每隔」画成一条的那天不一个个走（见下）。
   for (let step = 0; step < WEEK_DAYS * 1440 + 1; step += 1) {
     const fire = nextFire(schedule, from, new Date(anchor))
     if (fire === null || fire.getTime() >= end) break
@@ -102,6 +102,18 @@ export function weekOf(schedule: TriggerSchedule, now: number, live?: number): W
     }
     add(at, past)
     from = fire
+    // 「每隔」最密 10 秒一次（一天 8640 次）：这一天已经画成一条了，剩下的几次按间隔数出来，直接跳到这一天最后一次。
+    // 「每隔」只排往后的，跳过的都不是过去的。
+    if (every) {
+      const day = place(at)?.day
+      if (day?.dense === true) {
+        const stepMs = schedule.seconds * 1000
+        const rest = Math.floor(((days[day.ahead + 1]?.start ?? end) - 1 - at) / stepMs)
+        day.count += rest
+        upcoming += rest
+        from = new Date(at + rest * stepMs)
+      }
+    }
   }
   const length = dayAfter(today, 1) - today
   return { days, now: (now - today) / length, next, upcoming }

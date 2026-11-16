@@ -7,7 +7,7 @@
  * - `owner.json`：现在由哪个 DSH 进程负责触发（见 `owner.ts`）；
  * - `live.json`：负责的进程写下的运行情况（程序在不在跑、上次检查、端口开没开），别的进程据此显示状态。
  *
- * 触发记录（连同每次的触发说明、背景信息）与轮询命令、监听程序最近的输出在插件数据库里，
+ * 触发记录（连同每次的触发说明、背景信息）与检查命令、监听程序最近的输出在插件数据库里，
  * 见 {@link FireLog}、{@link OutputLog}。
  *
  * 同一个数据目录可能有几个 DSH 进程在用：到点触发只有负责的那个做，但开关、「立即触发一次」哪个进程都能改。
@@ -75,7 +75,7 @@ export interface TriggerLocal {
   rule?: string
   /** 新建会话用的工作区目录。 */
   workspace?: string
-  /** 轮询、监听：这张卡片自己选的 shell（程序的完整路径）；没有就跟着默认。 */
+  /** 定时检查、监听：这张卡片自己选的 shell（程序的完整路径）；没有就跟着默认。 */
   shell?: string
   /** 「固定会话」用的那个会话。 */
   session?: string
@@ -92,7 +92,7 @@ export interface TriggerLocal {
   token?: string
   /** HTTP 触发：不校验令牌（令牌照样留着，再打开校验还用它）。 */
   noToken?: true
-  /** 条件轮询：上一次检查的结果。 */
+  /** 定时检查：上一次检查的结果。 */
   probe?: Probe
   /** 接续触发：那个工作流里已经处理过（触发过或判过不用触发）的、已结束的实例。 */
   seen?: string[]
@@ -123,7 +123,7 @@ export interface LiveStatus {
   since?: number
   /** 下一次检查、下一次重启的时刻。 */
   next?: number
-  /** 条件轮询上一次检查。 */
+  /** 定时检查上一次检查。 */
   checked?: { at: number; met: boolean }
   /** 连着重启了几次。 */
   restarts?: number
@@ -215,7 +215,7 @@ export class TriggerStore {
   private chain: Promise<unknown> = Promise.resolve()
   private readonly dataDir: () => string
   private readonly log: FireLog
-  /** 轮询命令、监听程序最近的输出（负责的进程写，哪个进程都能读、清空）。 */
+  /** 检查命令、监听程序最近的输出（负责的进程写，哪个进程都能读、清空）。 */
   readonly outputs: OutputLog
 
   constructor(dataDir: () => string, database: PluginDatabase) {

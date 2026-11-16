@@ -1,8 +1,9 @@
 /**
- * dsh-workflow-lite — 定时触发的规则：每隔多久 / 每天几点（可以几个时刻、可限定星期几）/ 五段 cron。
+ * dsh-workflow-lite — 定时触发的规则：间隔（每隔多久）/ 时刻（每天几点，可以几个时刻、可限定星期几）/ 五段 cron。
  *
- * 先选规则，下面一行是这种规则的常用值（`source/SchedulePresets.tsx`），再下面是这种规则自己的几行。
+ * 先选规则，下面是这种规则自己的几行，最后一排不带标题的常用值（`source/SchedulePresets.tsx`），点了直接改上面几行。
  * 换一种：这一张面板开着时那一种填过的先记着，换回来还在，没填过的给常用值。
+ * 到点就执行的（`plain`）间隔最短 1 分钟，「秒」选不了；先跑命令判定的最短 {@link EVERY_MIN} 秒。
  * 规则的一句人话、写得不对的原因、接下来 7 天都不在这里：对话框顶上的一句话和时间轴（见 `source/ScheduleStage.tsx`）。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/trigger/ScheduleField
@@ -13,18 +14,19 @@ import {
   DAILY_TIMES_MAX,
   dailyTimes,
   EVERY_MAX,
+  EVERY_MIN,
   formatClock,
   parseClock,
   withDailyTimes,
 } from '../../../shared/schedule.ts'
+import { PLAIN_EVERY_MIN } from '../../../shared/trigger.ts'
 import type { TriggerSchedule } from '../../../shared/types.ts'
 import type { LocaleKey, T } from '../../i18n.ts'
-import { weekdayChip, weekdayText } from '../../model/triggerText.ts'
+import { scheduleIssueText, weekdayChip, weekdayText } from '../../model/triggerText.ts'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import { Stepper } from '../kit/NumberStep.tsx'
 import { Segmented } from '../kit/Segmented.tsx'
-import { Select } from '../kit/Select.tsx'
 import { TimeField } from '../kit/TimeField.tsx'
 import ui from '../kit/ui.module.css'
 import { Presence } from '../motion/exits.tsx'
@@ -33,11 +35,12 @@ import { useRowKeys } from '../motion/stage.tsx'
 import { CronEditor } from './CronEditor.tsx'
 import css from './schedule.module.css'
 import { SchedulePresets } from './source/SchedulePresets.tsx'
+import { StageRow } from './source/StageRow.tsx'
 import row from './trigger.module.css'
 
 type Kind = TriggerSchedule['kind']
 type Daily = Extract<TriggerSchedule, { kind: 'daily' }>
-type Unit = 'minute' | 'hour' | 'day'
+type Unit = 'second' | 'minute' | 'hour'
 
 const KINDS: readonly { value: Kind; label: LocaleKey }[] = [
   { value: 'every', label: 'trigger.kind.every' },
@@ -45,15 +48,15 @@ const KINDS: readonly { value: Kind; label: LocaleKey }[] = [
   { value: 'cron', label: 'trigger.kind.cron' },
 ]
 
-const UNITS: readonly { value: Unit; label: LocaleKey; minutes: number }[] = [
-  { value: 'minute', label: 'trigger.unit.minute', minutes: 1 },
-  { value: 'hour', label: 'trigger.unit.hour', minutes: 60 },
-  { value: 'day', label: 'trigger.unit.day', minutes: 1440 },
+const UNITS: readonly { value: Unit; label: LocaleKey; seconds: number }[] = [
+  { value: 'second', label: 'trigger.unit.second', seconds: 1 },
+  { value: 'minute', label: 'trigger.unit.minute', seconds: 60 },
+  { value: 'hour', label: 'trigger.unit.hour', seconds: 3600 },
 ]
 
 /** 换一种规则时给的常用值。 */
 const SEED: Record<Kind, TriggerSchedule> = {
-  every: { kind: 'every', minutes: 60 },
+  every: { kind: 'every', seconds: 3600 },
   daily: { kind: 'daily', time: '09:00' },
   cron: { kind: 'cron', expression: '0 9 * * 1-5' },
 }
@@ -67,18 +70,20 @@ const DAY_SETS: readonly { id: string; label: LocaleKey; days: readonly number[]
   { id: 'weekend', label: 'trigger.days.weekend', days: [6, 7] },
 ]
 
-/** 分钟数按哪个单位显示最顺：整天按天、整小时按小时，否则按分钟。 */
-function unitOf(minutes: number): Unit {
-  if (minutes > 0 && minutes % 1440 === 0) return 'day'
-  if (minutes > 0 && minutes % 60 === 0) return 'hour'
-  return 'minute'
+/** 秒数按哪个单位显示最顺：整小时按小时（一天写 24 小时）、整分钟按分钟，否则按秒。 */
+function unitOf(seconds: number): Unit {
+  if (seconds > 0 && seconds % 3600 === 0) return 'hour'
+  if (seconds > 0 && seconds % 60 === 0) return 'minute'
+  return 'second'
 }
 
-const sizeOf = (unit: Unit): number => UNITS.find((item) => item.value === unit)?.minutes ?? 1
+const sizeOf = (unit: Unit): number => UNITS.find((item) => item.value === unit)?.seconds ?? 1
 
 export function ScheduleField(props: {
   t: T
   schedule: TriggerSchedule
+  /** 到点就执行（不跑命令）：间隔最短 1 分钟，「秒」选不了。 */
+  plain: boolean
   /** `typing` = 正在连续输入（在对话框里改的是草稿，用不上）。 */
   onChange(schedule: TriggerSchedule, typing?: boolean): void
   /** 一段连续输入结束（失焦）；草稿里用不上。 */
@@ -105,10 +110,6 @@ export function ScheduleField(props: {
           />
         </div>
       </div>
-      <div className={row.row}>
-        <span className={row.lead}>{t('trigger.presets')}</span>
-        <SchedulePresets t={t} schedule={schedule} onChange={props.onChange} />
-      </div>
       {/* 三种各一块：换一种时旧的收起、新的长开（高度连续变），下面的东西顺势挪，不是一下跳开。 */}
       <div className={css.kindRows}>
         <Presence show={schedule.kind === 'every'}>
@@ -116,10 +117,12 @@ export function ScheduleField(props: {
             <div className={css.kindBlock}>
               <EveryRow
                 t={t}
-                minutes={schedule.minutes}
+                seconds={schedule.seconds}
+                plain={props.plain}
                 onChange={props.onChange}
                 onSeal={props.onSeal}
               />
+              <SchedulePresets t={t} schedule={schedule} onChange={props.onChange} />
             </div>
           )}
         </Presence>
@@ -128,6 +131,7 @@ export function ScheduleField(props: {
             <div className={css.kindBlock}>
               <TimesRow t={t} schedule={schedule} onChange={props.onChange} onSeal={props.onSeal} />
               <DaysRow t={t} schedule={schedule} onChange={props.onChange} />
+              <SchedulePresets t={t} schedule={schedule} onChange={props.onChange} />
             </div>
           )}
         </Presence>
@@ -147,6 +151,7 @@ export function ScheduleField(props: {
                   />
                 </div>
               </div>
+              <SchedulePresets t={t} schedule={schedule} onChange={props.onChange} />
             </div>
           )}
         </Presence>
@@ -286,51 +291,69 @@ function DaysRow(props: {
   )
 }
 
-/** 「每隔多久」：一个数（「− 数 +」）加一个单位。打出范围内的数当场写进草稿。 */
+/**
+ * 「每隔多久」：一个数（「− 数 +」）加一个单位（秒 / 分钟 / 小时）。打出范围内的数当场写进草稿；
+ * 超出范围的在下面说一句、不写，失焦时夹进范围（框里的数跟着变）。
+ */
 function EveryRow(props: {
   t: T
-  minutes: number
+  seconds: number
+  plain: boolean
   onChange(schedule: TriggerSchedule, typing?: boolean): void
   onSeal?(): void
 }): React.JSX.Element {
-  const { t, minutes } = props
-  const [unit, setUnit] = useState<Unit>(() => unitOf(minutes))
-  // 图里的数按现在的单位除不尽（别处改过）：退回按分钟显示。
-  const shown = minutes % sizeOf(unit) === 0 ? unit : 'minute'
-  const amount = minutes / sizeOf(shown)
+  const { t, seconds, plain } = props
+  const [unit, setUnit] = useState<Unit>(() => unitOf(seconds))
+  /** 正在打的数（还没生效）：超出范围时下面说一句。 */
+  const [typed, setTyped] = useState<number | null>(null)
+  const min = plain ? PLAIN_EVERY_MIN : EVERY_MIN
+  // 图里的数按现在的单位除不尽（点了常用、别处改过），或到点就执行时还停在「秒」：换成最顺的单位。
+  const fits = seconds % sizeOf(unit) === 0 && !(plain && unit === 'second')
+  const shown = fits ? unit : unitOf(seconds)
+  const size = sizeOf(shown)
+  const amount = seconds / size
+  const clamp = (value: number): number => Math.min(EVERY_MAX, Math.max(min, value))
+  const typedSeconds = typed === null ? null : typed * size
+  const note =
+    typedSeconds === null || clamp(typedSeconds) === typedSeconds
+      ? ''
+      : plain && typedSeconds < PLAIN_EVERY_MIN && typedSeconds >= EVERY_MIN
+        ? t('trigger.issue.tooOften')
+        : scheduleIssueText(t, { code: 'every', min, max: EVERY_MAX })
   return (
-    <div className={row.row}>
-      <span className={row.lead}>{t('trigger.every')}</span>
-      <Stepper
-        label={t('trigger.every')}
-        value={amount}
-        min={1}
-        max={Math.floor(EVERY_MAX / sizeOf(shown))}
-        lessLabel={t('common.decrease')}
-        moreLabel={t('common.increase')}
-        testId="wl-trigger-every"
-        onChange={(value) =>
-          props.onChange({ kind: 'every', minutes: value * sizeOf(shown) }, true)
-        }
-        onTyped={(value) => {
-          if (value === null) props.onSeal?.()
-        }}
-      />
-      <Select<Unit>
-        t={t}
-        label={t('trigger.every')}
-        value={shown}
-        className={row.unit}
-        testId="wl-trigger-unit"
-        onChange={(nextUnit) => {
-          setUnit(nextUnit)
-          props.onChange({
-            kind: 'every',
-            minutes: Math.min(EVERY_MAX, amount * sizeOf(nextUnit)),
-          })
-        }}
-        options={UNITS.map((item) => ({ value: item.value, label: t(item.label) }))}
-      />
-    </div>
+    <StageRow label={t('trigger.every')} note={note} problem testId="wl-trigger-every-row">
+      <div className={css.every}>
+        <Stepper
+          label={t('trigger.every')}
+          value={amount}
+          min={Math.ceil(min / size)}
+          max={Math.floor(EVERY_MAX / size)}
+          lessLabel={t('common.decrease')}
+          moreLabel={t('common.increase')}
+          testId="wl-trigger-every"
+          onChange={(value) => props.onChange({ kind: 'every', seconds: value * size }, true)}
+          onTyped={(value) => {
+            setTyped(value)
+            if (value === null) props.onSeal?.()
+          }}
+        />
+        <Segmented<Unit>
+          label={t('trigger.every')}
+          value={shown}
+          testId="wl-trigger-unit"
+          fit
+          onChange={(next) => {
+            if (next === shown) return
+            setUnit(next)
+            props.onChange({ kind: 'every', seconds: clamp(amount * sizeOf(next)) })
+          }}
+          options={UNITS.map((item) => ({
+            value: item.value,
+            label: t(item.label),
+            ...(plain && item.value === 'second' ? { off: t('trigger.everyPlainMin') } : {}),
+          }))}
+        />
+      </div>
+    </StageRow>
   )
 }

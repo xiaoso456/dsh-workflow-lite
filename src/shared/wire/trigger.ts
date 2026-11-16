@@ -354,8 +354,8 @@ export interface TriggerOutputClearRequest {
  */
 export interface TriggerTryRequest {
   workflow: string
-  /** 轮询：跑完为止；监听：跑几秒、收下这几秒打出的行就结束。 */
-  kind: 'poll' | 'listen'
+  /** 定时的检查命令：跑完为止；监听：跑几秒、收下这几秒打出的行就结束。 */
+  kind: 'check' | 'listen'
   command: string
   /** 在哪个工作区里跑（绝对路径）。 */
   workspace: string

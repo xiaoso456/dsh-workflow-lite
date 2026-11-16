@@ -18,7 +18,7 @@
 
 import { useState } from 'react'
 import { idKey } from '../../../shared/model.ts'
-import { filterOf, isFilterKind, triggerName } from '../../../shared/trigger.ts'
+import { filterKindOf, filterOf, triggerName } from '../../../shared/trigger.ts'
 import type { TriggerData, TriggerNode } from '../../../shared/types.ts'
 import type { T } from '../../i18n.ts'
 import type { Edit, Selection } from '../../model/editor.ts'
@@ -123,7 +123,7 @@ export function TriggerPanel(props: TriggerPanelProps): React.JSX.Element {
         <section className={ins.field} data-testid="wl-trigger-notes">
           <FieldHead title={t('trigger.afterFire')} />
           <SummaryList>
-            {isFilterKind(data.source.kind) && (
+            {filterKindOf(data.source) !== null && (
               <SummaryRow
                 title={t('trigger.filter')}
                 summary={filterSummary(t, filterOf(data))}

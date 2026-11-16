@@ -1,5 +1,5 @@
 /**
- * dsh-workflow-lite — 读、清空一张轮询或监听卡片最近的输出（宿主那边见 `host/triggers/outputLog.ts`）。
+ * dsh-workflow-lite — 读、清空一张定时检查或监听卡片最近的输出（宿主那边见 `host/triggers/outputLog.ts`）。
  *
  * 工作流中心「触发」页的「输出」、「触发方式」对话框里的「最近的输出」共用。读不到时回 `null`，界面照旧显示上一次的。
  *

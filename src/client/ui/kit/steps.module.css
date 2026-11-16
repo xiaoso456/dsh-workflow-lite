@@ -1,0 +1,196 @@
+/*
+ * 步骤指示（Steps.tsx）：一步一个圆圈 + 名字，中间一段线；导出、「触发方式」的定时检查共用。
+ * 圆圈里写第几步，或一枚图标（给了 icon 时）。能点的步是按钮：悬停时名字变深。
+ */
+
+/*
+ * 步数会变（导出成 Skill 多一步）：多出的一步从前一步背后展开、少了的收回去（useTrail）。
+ * 靠前一步盖住后一步做出来，所以每步有不透明的底、前面的 z-index 高（JSX 里给），整排自己裁切；
+ * 步与步之间的空也算进后一步（内边距），展开时不会从缝里露出半截字。
+ */
+.steps {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+/*
+ * 步骤切换：高亮色从左往右走——前一步的图标、文字先褪下去，连线从左填到右，后一步的图标、文字再亮起来；
+ * 往回退时反过来。全部只动 transform / opacity（合成层，不触发布局和重绘）：
+ * 圆点和文字各叠一份"暗"和一份"亮"，换的是两层的透明度，不换颜色、不换字重，宽度也就不会变。
+ * 过渡写在"亮起来"那一态上，所以亮起的一方等连线走完（延时 --step-lag）才出现，褪下的一方立刻开始。
+ */
+.step {
+  --step-lag: 200ms;
+  --step-out: 140ms;
+  --step-in: 200ms;
+  --step-ease: var(--wl-ease-out, cubic-bezier(0.2, 0, 0, 1));
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  gap: 6px;
+  align-items: center;
+  background: var(--wl-panel);
+}
+
+.step + .step {
+  padding-left: 6px;
+}
+
+.stepNum {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--wl-circle, 50%);
+  background: var(--wl-fill-strong);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.stepFill {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--wl-circle, 50%);
+  background: var(--wl-accent);
+  opacity: 0;
+  transform: scale(0.6);
+  transition:
+    opacity var(--step-out) linear,
+    transform var(--step-out) var(--step-ease);
+}
+
+.numDim,
+.numLit,
+.labelDim,
+.labelLit {
+  grid-area: 1 / 1;
+  transition: opacity var(--step-out) linear;
+}
+
+.numDim {
+  position: relative;
+  color: var(--wl-text-2);
+}
+
+.numLit {
+  position: relative;
+  color: var(--wl-panel);
+  opacity: 0;
+}
+
+.stepLabel {
+  display: grid;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.labelDim {
+  color: var(--wl-text-3);
+}
+
+.labelLit {
+  color: var(--wl-text);
+  opacity: 0;
+}
+
+.step[data-on="true"] .stepFill {
+  opacity: 1;
+  transform: none;
+  transition-delay: var(--step-lag);
+  transition-duration: var(--step-in);
+}
+
+.step[data-on="true"] .numDim,
+.step[data-on="true"] .labelDim {
+  opacity: 0;
+  transition-delay: var(--step-lag);
+}
+
+.step[data-on="true"] .numLit,
+.step[data-on="true"] .labelLit {
+  opacity: 1;
+  transition-delay: var(--step-lag);
+  transition-duration: var(--step-in);
+}
+
+/* 连线：底色一条，上面盖一条主色，从左往右伸（退回去时从右往左缩）。 */
+.stepGap {
+  position: relative;
+  width: 18px;
+  height: 1px;
+  overflow: hidden;
+  background: var(--wl-line-strong);
+}
+
+.stepGap::after {
+  position: absolute;
+  inset: 0;
+  background: var(--wl-accent);
+  transform: scaleX(0);
+  transform-origin: right;
+  transition: transform var(--step-lag) var(--step-ease);
+  content: "";
+}
+
+.step[data-reached="true"] .stepGap::after {
+  transform: none;
+  transform-origin: left;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .step {
+    --step-lag: 0ms;
+    --step-out: 0ms;
+    --step-in: 0ms;
+  }
+}
+
+/* 能点的一步：按钮去掉默认样子，悬停时暗的那层名字变深。 */
+button.step {
+  margin: 0;
+  border: 0;
+  border-radius: calc(4px * var(--wl-round, 1));
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+}
+
+button.step:focus-visible {
+  outline-color: var(--wl-accent);
+}
+
+button.step:disabled {
+  cursor: default;
+}
+
+button.step:not([aria-current="step"]):hover .labelDim {
+  color: var(--wl-text-2);
+}
+
+/* 图标：暗、亮各一枚叠着（同数字），居中。 */
+.numDim > svg,
+.numLit > svg {
+  display: block;
+}
+
+/* 这一步还缺东西：名字后面一个小黄点（淡入淡出）。 */
+.alert {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--wl-circle, 50%);
+  background: var(--wl-warn);
+  opacity: 0;
+  transition: opacity 160ms linear;
+}
+
+.step[data-alert="true"] .alert {
+  opacity: 1;
+}

@@ -61,7 +61,7 @@ describe('触发面板的摘要', () => {
     const live = new Date(2026, 10, 13, 10, 42).getTime()
     const every = whenDetail(
       t,
-      { kind: 'schedule', schedule: { kind: 'every', minutes: 60 } },
+      { kind: 'schedule', schedule: { kind: 'every', seconds: 3600 } },
       { next: live },
       now,
     )
@@ -70,8 +70,12 @@ describe('触发面板的摘要', () => {
 
   it('触发方式的第二行：轮询写命令；监听在速览显示程序的行时才写命令', () => {
     const now = new Date()
-    const poll = { kind: 'poll', command: 'git ls-remote', seconds: 300, when: 'change' } as const
-    expect(whenDetail(t, poll, {}, now)).toEqual({ text: 'git ls-remote', tone: 'code' })
+    const check = {
+      kind: 'schedule',
+      schedule: { kind: 'every', seconds: 300 },
+      check: { command: 'git ls-remote', when: 'change' },
+    } as const
+    expect(whenDetail(t, check, {}, now)).toEqual({ text: 'git ls-remote', tone: 'code' })
     const listen = { kind: 'listen', command: 'node tail.mjs' } as const
     expect(whenDetail(t, listen, {}, now)).toEqual({
       text: '程序每打出一行触发一次',

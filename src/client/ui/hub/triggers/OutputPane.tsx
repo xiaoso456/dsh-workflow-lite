@@ -1,5 +1,5 @@
 /**
- * dsh-workflow-lite — 「触发」页轮询、监听的「输出」：要跑的命令；一条工具条（左边上一次检查或最近一行、共几次，
+ * dsh-workflow-lite — 「触发」页定时检查、监听的「输出」：要跑的命令；一条工具条（左边上一次检查或最近一行、共几次，
  * 右边筛选与几枚图标）；下面是最近的输出——一次检查（或程序的一次运行）一行，点开看输出（见 `trigger/output/`）。
  *
  * 卡片状态一变（又检查了一次、程序重启了、打出新的一行）再读一次。只换文字，不插拔元素。
@@ -29,7 +29,7 @@ export function OutputPane(props: {
 }): React.JSX.Element {
   const { t, hub, entry } = props
   const { view: state } = entry
-  const kind = entry.data.source.kind === 'listen' ? 'listen' : 'poll'
+  const kind = entry.data.source.kind === 'listen' ? 'listen' : 'check'
   const command = commandOf(entry.data.source) ?? ''
   const [filter, setFilter] = useState<OutputFilter>('all')
   const [view, setView] = useOutputView(kind)
@@ -37,12 +37,12 @@ export function OutputPane(props: {
     access: hub.output(entry.workflow),
     node: state.node,
     stamp: outputStamp(state),
-    filter: kind === 'poll' ? filter : 'all',
+    filter: kind === 'check' ? filter : 'all',
   })
 
   const now = Date.now()
   const lead =
-    kind === 'poll'
+    kind === 'check'
       ? state.checked === undefined
         ? ''
         : t(state.checked.met ? 'trigger.checkedMet' : 'trigger.checkedUnmet').replace(
@@ -54,7 +54,7 @@ export function OutputPane(props: {
         : `${t('hub.trgLastLine')} ${momentText(t, state.line.at, now)}`
   const total = model.data?.counts.all ?? 0
   const count =
-    total === 0 ? '' : t(kind === 'poll' ? 'out.checks' : 'out.runs').replace('{n}', String(total))
+    total === 0 ? '' : t(kind === 'check' ? 'out.checks' : 'out.runs').replace('{n}', String(total))
 
   return (
     <div className={css.console} data-testid="wl-hub-trg-output">
@@ -81,7 +81,7 @@ export function OutputPane(props: {
         t={t}
         model={model}
         view={view}
-        filter={kind === 'poll' ? filter : 'all'}
+        filter={kind === 'check' ? filter : 'all'}
         {...(props.onSettings === undefined ? {} : { onSettings: props.onSettings })}
         testId="wl-hub-trg-output-list"
       />

@@ -101,9 +101,9 @@ describe('cron 换成人话', () => {
   })
 
   it('等间隔的说成每隔多久', () => {
-    expect(cronAsSimple('*/15 * * * *')).toEqual({ kind: 'every', minutes: 15 })
-    expect(cronAsSimple('0 */2 * * *')).toEqual({ kind: 'every', minutes: 120 })
-    expect(cronAsSimple('* * * * *')).toEqual({ kind: 'every', minutes: 1 })
+    expect(cronAsSimple('*/15 * * * *')).toEqual({ kind: 'every', seconds: 900 })
+    expect(cronAsSimple('0 */2 * * *')).toEqual({ kind: 'every', seconds: 7200 })
+    expect(cronAsSimple('* * * * *')).toEqual({ kind: 'every', seconds: 60 })
   })
 
   it('说不成一句话的、写得不对的是 null', () => {

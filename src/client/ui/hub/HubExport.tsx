@@ -41,6 +41,7 @@ import { cx } from '../kit/cx.ts'
 import { Icon, type IconName } from '../kit/Icon.tsx'
 import { KIND_ICON, KIND_LABEL } from '../kit/resourceUi.ts'
 import { Segmented } from '../kit/Segmented.tsx'
+import { Steps } from '../kit/Steps.tsx'
 import ui from '../kit/ui.module.css'
 import { Presence } from '../motion/exits.tsx'
 import { useResizeFlip } from '../motion/flip.ts'
@@ -50,7 +51,7 @@ import { memoryTypeText } from '../resources/ResourcePresets.tsx'
 import { HubSkillInfo, type SkillDraft } from './HubSkillInfo.tsx'
 import hub from './hub.module.css'
 import css from './hubExport.module.css'
-import { Callout, PackRow, PackSection, PackSteps } from './PackRow.tsx'
+import { Callout, PackRow, PackSection } from './PackRow.tsx'
 import pack from './pack.module.css'
 
 /** 导出成什么：工作流包（`.wflite.zip`，导回 workflow-lite）或 skill（不装插件也能用）。 */
@@ -229,12 +230,11 @@ export function HubExport(props: {
           ]}
         />
       </div>
-      <PackSteps
-        steps={
-          skill
-            ? [t('pack.stepVersion'), t('pack.stepResources'), t('skillExport.step')]
-            : [t('pack.stepVersions'), t('pack.stepResources')]
-        }
+      <Steps
+        steps={(skill
+          ? [t('pack.stepVersion'), t('pack.stepResources'), t('skillExport.step')]
+          : [t('pack.stepVersions'), t('pack.stepResources')]
+        ).map((label) => ({ label }))}
         at={step}
       />
       <Presence show={error !== null}>

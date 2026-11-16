@@ -5,6 +5,9 @@
  * 带左栏的（「触发方式」）高度固定：左栏里换一种，对话框不跟着变高变矮，只有右边的内容在框里滚。
  * 头部标题和 ✕ 之间可以放一块（`head`）：「触发方式」在这里写它什么时候执行、现在怎样。
  *
+ * 分几步填的（定时检查：触发时间 → 检查命令）：底栏左边放「上一步」（`footLead`），没到最后一步时主按钮换成「下一步」（`advance`）；
+ * Ctrl+Enter 不管在哪一步，设置齐了就保存。
+ *
  * 里面改的都是草稿：点「保存」（或 Ctrl+Enter）才一次写进图（一次改动 = 一条撤销步）；
  * 有没保存的改动时，Esc、点遮罩不关（和「工作流设置」一样），要点「取消」。
  *
@@ -40,6 +43,10 @@ export function TriggerSheet(props: {
   rail?: React.ReactNode
   /** 宽的（左右两栏）还是窄的（只有表单）。 */
   wide?: boolean
+  /** 底栏左边（分步填时的「上一步」）。 */
+  footLead?: React.ReactNode
+  /** 还没到最后一步：主按钮写这个、点了往下走，不保存。 */
+  advance?: { label: string; testId: string; onAdvance(): void }
   children: React.ReactNode
 }): React.JSX.Element {
   const { t } = props
@@ -98,6 +105,7 @@ export function TriggerSheet(props: {
         </div>
 
         <footer className={overlay.sheetFoot}>
+          {props.footLead}
           <span className={ui.grow} />
           <span className={overlay.sheetKeys}>{t('trigger.sheetKeys')}</span>
           <button
@@ -108,16 +116,28 @@ export function TriggerSheet(props: {
           >
             {t('common.cancel')}
           </button>
-          <button
-            type="submit"
-            className={cx(ui.btn, ui.small, ui.primary)}
-            disabled={!props.canSave}
-            data-testid={`${props.testId}-save`}
-            onClick={save}
-          >
-            <Icon name="check" size={14} />
-            {t('trigger.sheetSave')}
-          </button>
+          {props.advance === undefined ? (
+            <button
+              type="submit"
+              className={cx(ui.btn, ui.small, ui.primary)}
+              disabled={!props.canSave}
+              data-testid={`${props.testId}-save`}
+              onClick={save}
+            >
+              <Icon name="check" size={14} />
+              {t('trigger.sheetSave')}
+            </button>
+          ) : (
+            <button
+              type="button"
+              className={cx(ui.btn, ui.small, ui.primary)}
+              data-testid={props.advance.testId}
+              onClick={props.advance.onAdvance}
+            >
+              {props.advance.label}
+              <Icon name="chevronRight" size={14} />
+            </button>
+          )}
         </footer>
       </form>
     </Modal>
