@@ -20,13 +20,14 @@ import { patchTriggerOnDisk } from '../../../app/triggerEdit.ts'
 import { useTriggerHub } from '../../../app/useTriggerHub.ts'
 import type { T } from '../../../i18n.ts'
 import { matchesWords, searchWords } from '../../../model/search.ts'
-import { arrangeTriggers, TRIGGER_VIEW } from '../../../model/triggerList.ts'
+import { arrangeTriggers, TRIGGER_VIEW, type TriggerListView } from '../../../model/triggerList.ts'
 import { sourceText } from '../../../model/triggerText.ts'
 import type { WorkflowLiteRpc } from '../../../rpc.ts'
 import { cx } from '../../kit/cx.ts'
 import { Icon } from '../../kit/Icon.tsx'
 import ui from '../../kit/ui.module.css'
 import hub from '../hub.module.css'
+import { keepShown } from '../list/keepShown.ts'
 import type { DetailTab } from './DetailTabs.tsx'
 import { TriggerDetail } from './TriggerDetail.tsx'
 import { keyOf, pairKey, TriggerSide } from './TriggerSide.tsx'
@@ -79,6 +80,11 @@ export function HubTriggers(props: {
   const arranged = useMemo(() => arrangeTriggers(visible, view), [visible, view])
   const shown = arranged.groups.flatMap((group) => group.entries)
   const selected = shown.find((entry) => keyOf(entry) === picked) ?? shown[0]
+  // 换排法时右栏还看着原来那一项（没点过时它是第一项）。
+  const onView = (change: Partial<TriggerListView>): void => {
+    keepShown(picked, selected === undefined ? undefined : keyOf(selected), setPicked)
+    changeView(change)
+  }
 
   const reloadCatalog = catalog.reload
   const onChanged = props.onChanged
@@ -143,7 +149,7 @@ export function HubTriggers(props: {
         hub={hubData}
         arranged={arranged}
         view={view}
-        onView={changeView}
+        onView={onView}
         query={query}
         onQuery={setQuery}
         selected={selected === undefined ? '' : keyOf(selected)}
@@ -162,7 +168,7 @@ export function HubTriggers(props: {
             className={cx(ui.btn, ui.small, ui.soft)}
             onClick={() => {
               setQuery('')
-              changeView({ show: 'all' })
+              onView({ show: 'all' })
             }}
           >
             {t('hub.clearSearch')}

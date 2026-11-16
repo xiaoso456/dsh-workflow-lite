@@ -2,8 +2,10 @@
  * dsh-workflow-lite — 工作流中心各页左栏搜索框右边的「视图选项」：一张菜单分几段（分组方式、排序方式、筛选……），
  * 每页给自己的几段（{@link MenuSection}）。
  *
- * 每段的选项排成一排小胶囊（放不下折行），选中的浅蓝底（不描边）；按标签筛的选中时是标签自己的颜色。一眼看到各段选了什么，
- * 菜单也矮。点一项即生效，菜单留着（可以接着换别的一段）；Esc、点外面收起。单选段是 `menuitemradio`，多选段（按标签筛）
+ * 每段的选项排成一排小胶囊（放不下折行）。单选段选中的浅蓝底（不描边）是一块在胶囊之间滑的选中块（和「工作流设置」的
+ * 执行方式同一种）；按标签筛是多选，选中的各自淡入标签自己的颜色。一眼看到各段选了什么，菜单也矮。
+ *
+ * 点一项即生效，菜单留着（可以接着换别的一段）；Esc、点外面收起。单选段是 `menuitemradio`，多选段（按标签筛）
  * 是 `menuitemcheckbox`；上下左右键在各项之间走。有筛选生效时按钮右上角一个蓝点。
  *
  * 菜单不走 portal：打开时量按钮下面还有多少地方（窗口、工作流中心的框，见 `roomAround`），菜单最高到那里，
@@ -27,6 +29,7 @@ import { Icon, type IconName } from '../../kit/Icon.tsx'
 import { Popover } from '../../kit/Popover.tsx'
 import { roomAround } from '../../kit/Select.tsx'
 import { useRadioMenu } from '../../kit/useRadioMenu.ts'
+import { PickThumb } from '../../motion/thumb.tsx'
 import css from './viewMenu.module.css'
 
 export interface MenuChoice {
@@ -149,6 +152,15 @@ export function ViewMenu(props: {
           <div key={section.id} role="group" aria-label={section.title} className={css.section}>
             <p className={css.title}>{section.title}</p>
             <div className={css.pills}>
+              {/* 单选段：选中底是一块滑块，换选中时从旧的那个滑到新的那个。多选段每个自己淡入。 */}
+              {section.multi !== true && (
+                <PickThumb
+                  layout={section.choices
+                    .map((choice) => `${choice.value}:${section.checked(choice.value)}`)
+                    .join('|')}
+                  className={css.thumb}
+                />
+              )}
               {section.choices.map((choice) => {
                 const on = section.checked(choice.value)
                 const shared = {
@@ -163,6 +175,7 @@ export function ViewMenu(props: {
                 }
                 const face = (
                   <>
+                    {section.multi === true && <span className={css.wash} aria-hidden="true" />}
                     <Icon name={choice.icon} size={13} />
                     <span className={css.label}>{choice.label}</span>
                     {choice.count !== undefined && (

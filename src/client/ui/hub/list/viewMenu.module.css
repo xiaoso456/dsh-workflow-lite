@@ -89,9 +89,15 @@
   gap: 4px;
 }
 
+.pills {
+  position: relative;
+}
+
 /*
- * 一个选项：灰底小胶囊。悬停底色画在 ::before、选中的浅蓝底画在 ::after（不描边，和列表里的选中块一样只靠底色和字色），
- * 都只渐显渐隐（换选中时旧的淡出、新的淡入）。按标签筛的项（`data-tinted`）图标是标签的颜色，选中时底色、字也换成标签的颜色。
+ * 一个选项：小胶囊，底下三层都只渐显渐隐——灰底（::before，选中时淡掉）、选中的颜色（.wash，只有多选段有）、
+ * 悬停（::after）。单选段的选中底是一块在胶囊之间滑的选中块（.thumb，motion/thumb.tsx 的 PickThumb，
+ * 和「工作流设置」的执行方式同一种）：灰底淡掉，下面滑过来的选中块露出来。不描边，只靠底色和字色。
+ * 按标签筛的项（`data-tinted`）图标是标签的颜色，选中时底色、字也换成标签的颜色。
  */
 .pill {
   --pill-tone: var(--wl-accent);
@@ -107,7 +113,7 @@
   padding: 0 8px 0 6px;
   border: 0;
   border-radius: calc(999px * var(--wl-round, 1));
-  background: var(--wl-fill);
+  background: transparent;
   color: var(--wl-text-2);
   font: inherit;
   font-size: var(--wl-fs-meta);
@@ -121,31 +127,55 @@
 }
 
 .pill::before,
-.pill::after {
+.pill::after,
+.wash {
   position: absolute;
   inset: 0;
   z-index: -1;
   border-radius: inherit;
-  content: "";
-  opacity: 0;
   transition: opacity 120ms linear;
   pointer-events: none;
 }
 
+.pill::before,
+.pill::after {
+  content: "";
+}
+
 .pill::before {
-  background: var(--wl-hover);
+  background: var(--wl-fill);
+}
+
+.pill[aria-checked="true"]::before {
+  opacity: 0;
+}
+
+.wash {
+  background: color-mix(in srgb, var(--pill-tone) 20%, var(--wl-panel));
+  opacity: 0;
+}
+
+.pill[aria-checked="true"] > .wash {
+  opacity: 1;
 }
 
 .pill::after {
-  background: color-mix(in srgb, var(--pill-tone) 20%, var(--wl-panel));
+  background: var(--wl-hover);
+  opacity: 0;
+}
+
+.pill:hover::after {
+  opacity: 1;
+}
+
+/* 单选段的选中块：位置、大小由 PickThumb 量，这里只管样子。 */
+.thumb {
+  border-radius: calc(999px * var(--wl-round, 1));
+  background: color-mix(in srgb, var(--wl-accent) 20%, var(--wl-panel));
 }
 
 .pill:hover {
   color: var(--wl-text);
-}
-
-.pill:hover::before {
-  opacity: 1;
 }
 
 .pill[aria-checked="true"] {
@@ -154,10 +184,6 @@
 
 .pill[data-tinted="true"][aria-checked="true"] {
   color: var(--wl-choice);
-}
-
-.pill[aria-checked="true"]::after {
-  opacity: 1;
 }
 
 .pill:focus-visible {
@@ -196,13 +222,15 @@
   .pill,
   .pill::before,
   .pill::after,
+  .wash,
   .pill > svg {
     transition: none;
   }
 }
 
 /* 瑞士的「形」：胶囊成方块，选中的反白。 */
-:global([data-look="swiss"]) .pill::after {
+:global([data-look="swiss"]) .wash,
+:global([data-look="swiss"]) .thumb {
   background: var(--wl-text);
 }
 

@@ -54,6 +54,7 @@ import { HubImport } from '../HubImport.tsx'
 import { HubSearch } from '../HubSearch.tsx'
 import hub from '../hub.module.css'
 import { ShowingBar } from '../list/GroupedList.tsx'
+import { keepShown } from '../list/keepShown.ts'
 import { type MenuSection, ViewMenu } from '../list/ViewMenu.tsx'
 import { Callout } from '../PackRow.tsx'
 import css from '../pack.module.css'
@@ -278,6 +279,11 @@ export function HubWorkflows(props: {
   /** 左栏从上到下的顺序（一张在几组里出现只算第一次）：默认选中第一张、删掉后选它下一张。 */
   const visible = [...new Set(arranged.groups.flatMap((group) => group.entries))]
   const selected = visible.find((entry) => entry.name === picked) ?? visible[0]
+  // 换排法时右栏还看着原来那一项（没点过时它是第一项）。
+  const onView = (change: Partial<WorkflowListView>): void => {
+    keepShown(picked, selected?.name, setPicked)
+    changeView(change)
+  }
   const filtered = view.show !== 'all' || filterTags.length > 0
   // 画布上正开着的还没落盘（没在列表里）：不拿别的一张顶替去导出，停在版本。
   const shown = pane === 'export' && selected?.name !== picked ? 'versions' : pane
@@ -299,7 +305,7 @@ export function HubWorkflows(props: {
           <ViewMenu
             t={t}
             sections={workflowSections(t, view, arranged.counts, catalog, tagColors, filterTags, {
-              onView: changeView,
+              onView,
               onTag: (tag) =>
                 setTagFilter((list) =>
                   list.some((known) => sameTag(known, tag))
@@ -328,7 +334,7 @@ export function HubWorkflows(props: {
             clearLabel={t('hub.clearShow')}
             testId="wl-hub-wf-showing"
             onClear={() => {
-              changeView({ show: 'all' })
+              onView({ show: 'all' })
               setTagFilter([])
             }}
           />

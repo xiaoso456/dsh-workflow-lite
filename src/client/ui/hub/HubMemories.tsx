@@ -49,6 +49,7 @@ import hub from './hub.module.css'
 import css from './hubMemories.module.css'
 import { GroupedList, type GroupFace, ShowingBar } from './list/GroupedList.tsx'
 import { HubRow, rowMark } from './list/HubRow.tsx'
+import { keepShown } from './list/keepShown.ts'
 import { type MenuSection, ViewMenu } from './list/ViewMenu.tsx'
 import { TitleEdit } from './TitleEdit.tsx'
 
@@ -94,6 +95,11 @@ export function HubMemories(props: {
   const ordered = [...new Set(arranged.groups.flatMap((group) => group.entries))]
   const selected =
     ordered.find((entry) => picked !== null && idKey(entry.id) === idKey(picked)) ?? ordered[0]
+  // 换排法时右栏还看着原来那一项（没点过时它是第一项）。
+  const onView = (change: Partial<MemoryListView>): void => {
+    keepShown(picked, selected?.id, setPicked)
+    changeView(change)
+  }
   return (
     <div className={hub.wfPage}>
       <div className={hub.side}>
@@ -106,7 +112,7 @@ export function HubMemories(props: {
         >
           <ViewMenu
             t={t}
-            sections={memorySections(t, view, arranged.counts, changeView)}
+            sections={memorySections(t, view, arranged.counts, onView)}
             filtered={view.show !== 'all'}
             testId="wl-hub-mem-view"
           />
@@ -118,7 +124,7 @@ export function HubMemories(props: {
               .replace('{n}', String(arranged.shown))}
             clearLabel={t('hub.clearShow')}
             testId="wl-hub-mem-showing"
-            onClear={() => changeView({ show: 'all' })}
+            onClear={() => onView({ show: 'all' })}
           />
         )}
         <MemoryList

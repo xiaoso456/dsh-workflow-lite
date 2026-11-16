@@ -43,6 +43,7 @@ import ui from '../../kit/ui.module.css'
 import { HubSearch } from '../HubSearch.tsx'
 import hub from '../hub.module.css'
 import { GroupedList, type GroupFace, ShowingBar } from '../list/GroupedList.tsx'
+import { keepShown } from '../list/keepShown.ts'
 import { type MenuSection, ViewMenu } from '../list/ViewMenu.tsx'
 import { RunDetail, type RunTab } from './RunDetail.tsx'
 import { RunItem } from './RunItem.tsx'
@@ -197,6 +198,11 @@ export function HubRuns(props: {
   }, [items, titles, query, view, spec])
   const ordered = arranged.groups.flatMap((group) => group.entries)
   const selected = ordered.find((item) => item.id === picked) ?? ordered[0]
+  // 换排法时右栏还看着原来那一项（没点过时它是第一项）。
+  const onView = (change: Partial<RunListView>): void => {
+    keepShown(picked, selected?.id, setPicked)
+    changeView(change)
+  }
   // 会话列表到了（「本工作区」是哪个已经定下来）就把默认选中的那个记成点过的：
   // 之后列表刷新、换了次序（删了、移了、模型改了状态），右栏不会自己跳到别的实例。
   const selectedId = selected?.id
@@ -288,7 +294,7 @@ export function HubRuns(props: {
         <HubSearch t={t} value={query} placeholder={t('hub.search')} onChange={setQuery}>
           <ViewMenu
             t={t}
-            sections={menuSections(t, view, arranged.counts, changeView)}
+            sections={menuSections(t, view, arranged.counts, onView)}
             filtered={view.show !== 'all'}
             testId="wl-hub-run-view"
           />
@@ -300,7 +306,7 @@ export function HubRuns(props: {
               .replace('{n}', String(arranged.shown))}
             clearLabel={t('hub.clearShow')}
             testId="wl-hub-run-showing"
-            onClear={() => changeView({ show: 'all' })}
+            onClear={() => onView({ show: 'all' })}
           />
         )}
         <GroupedList
