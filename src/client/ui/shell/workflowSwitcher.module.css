@@ -74,7 +74,10 @@
   scrollbar-width: thin;
 }
 
+/* 分组标题（GroupHead，和工作流中心同款）的高度。 */
 .listBody {
+  --group-h: 28px;
+
   position: relative;
   display: flex;
   flex-direction: column;

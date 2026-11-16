@@ -42,9 +42,17 @@ export function FadeMark(props: {
   on: boolean
   children: React.ReactNode
   className?: string
+  style?: React.CSSProperties
+  /** 外面按它挑样式（比如分段选择里带颜色的图标）。 */
+  tinted?: boolean
 }): React.JSX.Element {
   return (
-    <span className={cx(css.fadeMark, props.className)} data-on={props.on}>
+    <span
+      className={cx(css.fadeMark, props.className)}
+      style={props.style}
+      data-on={props.on}
+      data-tinted={props.tinted === true || undefined}
+    >
       <span className={css.fadeMarkOff}>{props.children}</span>
       <span className={css.fadeMarkOn} data-pick-pop="">
         {props.children}

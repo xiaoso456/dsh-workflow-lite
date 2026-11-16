@@ -2,7 +2,8 @@
  * dsh-workflow-lite — 分段选择（单选）。
  *
  * 选中格下面那块滑块滑到新的一格（见 motion/thumb.tsx 的 PickThumb），字色灰 → 深是两层字交叉淡过去（FadeText），
- * 不是瞬间变色；选项前的小色点（`color`）只在选中、悬停时亮起；`icon` 是字前面的小图标（灰 → 强调色同样交叉淡过去）；
+ * 不是瞬间变色；选项前的小色点（`color`）只在选中、悬停时亮起；`icon` 是字前面的小图标（灰 → 强调色同样交叉淡过去；
+ * 给了 `tint` 就一直是那个颜色：没选中时淡一些、悬停和选中满色）；
  * `count` 是字后面一个小数字标；`tip` 是悬停说明。`fit` 时各格按自己的字宽排，不等分。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/kit/Segmented
@@ -23,6 +24,8 @@ export function Segmented<V extends string>(props: {
     label: string
     color?: string
     icon?: IconName
+    /** 图标的颜色（CSS 颜色）：没选中时淡一些，选中、悬停满色。 */
+    tint?: string
     count?: number
     tip?: string
   }[]
@@ -65,7 +68,16 @@ export function Segmented<V extends string>(props: {
             <span className={css.segDot} style={{ background: option.color }} />
           )}
           {option.icon !== undefined && (
-            <FadeMark on={option.value === props.value} className={css.segIcon}>
+            <FadeMark
+              on={option.value === props.value}
+              className={css.segIcon}
+              tinted={option.tint !== undefined}
+              style={
+                option.tint === undefined
+                  ? undefined
+                  : ({ '--seg-tint': option.tint } as React.CSSProperties)
+              }
+            >
               <Icon name={option.icon} size={13} />
             </FadeMark>
           )}

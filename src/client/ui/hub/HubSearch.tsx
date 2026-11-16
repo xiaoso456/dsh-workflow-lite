@@ -41,6 +41,10 @@ export function HubSearch(props: {
   filter?: SearchFilter
   /** 框外右边同一行的小按钮（比如工作流页的「导入」）。 */
   children?: React.ReactNode
+  /** 挂上就把焦点放进框里（下拉一打开就是为了找）。 */
+  autoFocus?: boolean
+  /** 放在菜单里：不留四周的空和滚动条的位置，和菜单里的行对齐。 */
+  flush?: boolean
   onChange(value: string): void
 }): React.JSX.Element {
   const { t, value, filter } = props
@@ -54,6 +58,8 @@ export function HubSearch(props: {
           placeholder={props.placeholder}
           aria-label={props.placeholder}
           data-testid={props.testId ?? 'wl-hub-search'}
+          // biome-ignore lint/a11y/noAutofocus: 只在下拉里给（打开下拉就是为了找）
+          autoFocus={props.autoFocus}
           onChange={(event) => props.onChange(event.currentTarget.value)}
           onKeyDown={(event) => {
             // 有搜索词时 Esc 先清掉它，不让它冒上去把工作流中心关了；没有就不拦。
@@ -92,7 +98,7 @@ export function HubSearch(props: {
     </div>
   )
   return (
-    <div className={hub.searchBar}>
+    <div className={hub.searchBar} data-flush={props.flush === true || undefined}>
       {props.children === undefined ? (
         box
       ) : (

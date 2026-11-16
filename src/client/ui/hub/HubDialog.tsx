@@ -22,6 +22,7 @@
  */
 
 import { useState } from 'react'
+import type { StepColor } from '../../../shared/appearance.ts'
 import type { HostAccess } from '../../app/host.ts'
 import type { SessionRow } from '../../app/sessions.ts'
 import type { Runs } from '../../app/useRuns.ts'
@@ -53,11 +54,15 @@ const PAGES: readonly HubPage[] = [
 ]
 
 /** 分段里的四页（各带图标）、关闭旁边的两页（只有图标）。 */
-const MAIN: readonly { page: HubPage; label: LocaleKey; icon: IconName }[] = [
-  { page: 'runs', label: 'hub.runs', icon: 'runs' },
-  { page: 'workflows', label: 'hub.wfPage', icon: 'hub' },
-  { page: 'triggers', label: 'hub.trgPage', icon: 'bolt' },
-  { page: 'memories', label: 'hub.memories', icon: 'memory' },
+/**
+ * 前四页：各带一个颜色（页签上的图标一直是这个色，没选中时淡一些），扫一眼按颜色认页。
+ * 记忆和步骤库里的记忆卡同色（琥珀），工作流是主色蓝，实例绿（在跑、跑完），触发珊瑚（和前三个都分得开）。
+ */
+const MAIN: readonly { page: HubPage; label: LocaleKey; icon: IconName; tint: StepColor }[] = [
+  { page: 'runs', label: 'hub.runs', icon: 'runs', tint: 'green' },
+  { page: 'workflows', label: 'hub.wfPage', icon: 'hub', tint: 'blue' },
+  { page: 'triggers', label: 'hub.trgPage', icon: 'bolt', tint: 'coral' },
+  { page: 'memories', label: 'hub.memories', icon: 'memory', tint: 'amber' },
 ]
 const SIDE: readonly { page: HubPage; label: LocaleKey; icon: IconName }[] = [
   { page: 'storage', label: 'hub.storage', icon: 'storage' },
@@ -137,6 +142,7 @@ export function HubDialog(props: {
               value: item.page,
               label: t(item.label),
               icon: item.icon,
+              tint: `var(--wl-c-${item.tint})`,
             }))}
           />
         </div>

@@ -61,6 +61,16 @@
   flex: none;
 }
 
+/* 放在菜单里（顶栏切换工作流的下拉）：不留四周的空，和菜单里的行对齐。 */
+.searchBar[data-flush] {
+  padding-right: 0;
+}
+
+.searchBar[data-flush] > .search,
+.searchBar[data-flush] > .searchRow {
+  margin: 0 0 4px;
+}
+
 /* 悬停只算输入框那一截：视图菜单挂在框里，鼠标在菜单上时框不跟着变深。 */
 .search:has(> .searchField:hover) {
   background: var(--wl-fill-strong);
@@ -482,10 +492,11 @@
 
 /* ── 工作流页：左边全部工作流，右边选中那张的版本 ─────────── */
 
+/* 左栏跟着工作流中心变宽一点（236 起、最宽 300），搜索框里挂着筛选小片时也还有地方打字。 */
 .wfPage {
   display: grid;
   flex: 1 1 auto;
-  grid-template-columns: 236px minmax(0, 1fr);
+  grid-template-columns: clamp(236px, 24%, 300px) minmax(0, 1fr);
   min-height: 0;
 }
 

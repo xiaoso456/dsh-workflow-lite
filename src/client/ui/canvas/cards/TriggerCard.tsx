@@ -83,7 +83,7 @@ export const TriggerCard = memo(function TriggerCard(
         </GlanceButton>
       )}
       <div className={css.foot}>
-        <ModeChip t={data.t} kind={data.kind} testId="wl-trigger-mode" />
+        <ModeChip t={data.t} kind={data.kind} named testId="wl-trigger-mode" />
         {/* 一直挂着（没话说时是空的）：状态变了只换字。 */}
         <span
           className={css.note}

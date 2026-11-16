@@ -157,7 +157,11 @@ export function GroupedList<E, G extends string = string>(props: {
   )
 }
 
-function GroupHead(props: {
+/**
+ * 一条分组标题（可折叠）。列表里用；顶栏切换工作流的下拉自己排行，也拿它当分组标题（标题同款）。
+ * 放在别的列表里时，那个列表要给 `--group-h`（标题高）。
+ */
+export function GroupHead(props: {
   id: string
   face: GroupFace
   count: number

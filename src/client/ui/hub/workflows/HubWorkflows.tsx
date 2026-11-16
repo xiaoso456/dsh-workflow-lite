@@ -17,33 +17,18 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { normalizeName } from '../../../../shared/naming.ts'
-import { normalizeTags, sameTag, type TagColor, tagColorOf } from '../../../../shared/tags.ts'
+import { normalizeTags, sameTag, type TagColor } from '../../../../shared/tags.ts'
 import type { WorkflowEntry } from '../../../../shared/types.ts'
 import { useListView } from '../../../app/listView.ts'
-import type { LocaleKey, T } from '../../../i18n.ts'
-import { arrangeList } from '../../../model/listView.ts'
+import type { T } from '../../../i18n.ts'
 import { claimRowKey, forgetRowKey, type RowKeys } from '../../../model/rowKeys.ts'
 import { matchesWords, searchWords } from '../../../model/search.ts'
 import { shortTime } from '../../../model/time.ts'
-import {
-  effectiveGroup,
-  type TagUse,
-  tagCatalog,
-  WORKFLOW_GROUPS,
-  WORKFLOW_SHOWS,
-  WORKFLOW_SORTS,
-  WORKFLOW_VIEW,
-  type WorkflowGroupBy,
-  type WorkflowListView,
-  type WorkflowShow,
-  type WorkflowSortBy,
-  withTags,
-  workflowListSpec,
-} from '../../../model/workflowList.ts'
+import { WORKFLOW_VIEW, type WorkflowListView } from '../../../model/workflowList.ts'
 import { errorMessage, type WorkflowLiteRpc } from '../../../rpc.ts'
 import { deleteDesc } from '../../chrome/WorkflowRow.tsx'
 import { cx } from '../../kit/cx.ts'
-import { Icon, type IconName } from '../../kit/Icon.tsx'
+import { Icon } from '../../kit/Icon.tsx'
 import { Skeleton } from '../../kit/Skeleton.tsx'
 import ui from '../../kit/ui.module.css'
 import { useResizeFlip } from '../../motion/flip.ts'
@@ -54,7 +39,7 @@ import { HubImport } from '../HubImport.tsx'
 import { HubSearch } from '../HubSearch.tsx'
 import hub from '../hub.module.css'
 import { keepShown } from '../list/keepShown.ts'
-import { type MenuSection, ViewMenu } from '../list/ViewMenu.tsx'
+import { ViewMenu } from '../list/ViewMenu.tsx'
 import { Callout } from '../PackRow.tsx'
 import css from '../pack.module.css'
 import { TitleEdit } from '../TitleEdit.tsx'
@@ -62,6 +47,7 @@ import { useFileDrop } from '../useFileDrop.ts'
 import type { TagColors } from './TagMark.tsx'
 import { TagRow } from './Tags.tsx'
 import { WorkflowList } from './WorkflowList.tsx'
+import { arrangeWorkflows, filterLabel, toggleTag, workflowSections } from './workflowView.tsx'
 
 /** 右栏现在是什么：版本（缺省）、导出选中那张、导入。 */
 type Pane = 'versions' | 'export' | 'import'
@@ -263,17 +249,15 @@ export function HubWorkflows(props: {
   }
 
   const words = searchWords(query)
-  const catalog = tagCatalog(workflows)
-  // 挑过的标签被删掉、改名了：不再拿它筛。
-  const filterTags = tagFilter.filter((tag) => catalog.some((use) => sameTag(use.tag, tag)))
-  const matched = withTags(
+  const {
+    catalog,
+    tags: filterTags,
+    arranged,
+  } = arrangeWorkflows(
+    workflows,
     workflows.filter((entry) => matchesWords(words, [entry.name, ...(entry.tags ?? [])])),
-    filterTags,
-  )
-  const arranged = arrangeList(
-    matched,
-    { ...view, group: effectiveGroup(view.group, workflows) },
-    workflowListSpec(Date.now()),
+    view,
+    tagFilter,
   )
   /** 左栏从上到下的顺序（一张在几组里出现只算第一次）：默认选中第一张、删掉后选它下一张。 */
   const visible = [...new Set(arranged.groups.flatMap((group) => group.entries))]
@@ -318,12 +302,7 @@ export function HubWorkflows(props: {
               t={t}
               sections={workflowSections(t, view, arranged.counts, catalog, tagColors, filterTags, {
                 onView,
-                onTag: (tag) =>
-                  setTagFilter((list) =>
-                    list.some((known) => sameTag(known, tag))
-                      ? list.filter((known) => !sameTag(known, tag))
-                      : [...list, tag],
-                  ),
+                onTag: (tag) => setTagFilter((list) => toggleTag(list, tag)),
               })}
               testId="wl-hub-wf-view"
             />
@@ -525,98 +504,6 @@ export function HubWorkflows(props: {
       )}
     </div>
   )
-}
-
-const GROUP: Record<WorkflowGroupBy, { label: LocaleKey; icon: IconName }> = {
-  tag: { label: 'hub.wfGroup.tag', icon: 'tag' },
-  trigger: { label: 'hub.wfGroup.trigger', icon: 'bolt' },
-  updated: { label: 'hub.wfGroup.updated', icon: 'clock' },
-  none: { label: 'hub.group.none', icon: 'overview' },
-}
-
-const SORT: Record<WorkflowSortBy, { label: LocaleKey; icon: IconName }> = {
-  recent: { label: 'hub.wfSort.recent', icon: 'history' },
-  name: { label: 'hub.sort.name', icon: 'font' },
-}
-
-const SHOW: Record<WorkflowShow, { label: LocaleKey; icon: IconName }> = {
-  all: { label: 'hub.wfShow.all', icon: 'overview' },
-  triggers: { label: 'hub.wfShow.triggers', icon: 'bolt' },
-  versions: { label: 'hub.wfShow.versions', icon: 'history' },
-  invalid: { label: 'hub.wfShow.invalid', icon: 'alert' },
-}
-
-/** 搜索框里筛选小片上那句：筛法和挑的标签。 */
-function filterLabel(t: T, show: WorkflowShow, tags: readonly string[]): string {
-  const parts = [
-    ...(show === 'all' ? [] : [t(SHOW[show].label)]),
-    ...(tags.length === 0 ? [] : [t('hub.tagFilterShowing').replace('{tags}', tags.join('、'))]),
-  ]
-  return parts.join(' · ')
-}
-
-function workflowSections(
-  t: T,
-  view: WorkflowListView,
-  counts: Record<WorkflowShow, number>,
-  catalog: readonly TagUse[],
-  colors: TagColors,
-  tagFilter: readonly string[],
-  on: { onView(change: Partial<WorkflowListView>): void; onTag(tag: string): void },
-): MenuSection[] {
-  const sections: MenuSection[] = [
-    {
-      id: 'group',
-      title: t('hub.groupBy'),
-      choices: WORKFLOW_GROUPS.map((value) => ({
-        value,
-        label: t(GROUP[value].label),
-        icon: GROUP[value].icon,
-      })),
-      checked: (value) => view.group === value,
-      onPick: (value) => on.onView({ group: value as WorkflowGroupBy }),
-    },
-    {
-      id: 'sort',
-      title: t('hub.sortBy'),
-      choices: WORKFLOW_SORTS.map((value) => ({
-        value,
-        label: t(SORT[value].label),
-        icon: SORT[value].icon,
-      })),
-      checked: (value) => view.sort === value,
-      onPick: (value) => on.onView({ sort: value as WorkflowSortBy }),
-    },
-    {
-      id: 'show',
-      title: t('hub.showBy'),
-      choices: WORKFLOW_SHOWS.map((value) => ({
-        value,
-        label: t(SHOW[value].label),
-        icon: SHOW[value].icon,
-        count: counts[value],
-      })),
-      checked: (value) => view.show === value,
-      onPick: (value) => on.onView({ show: value as WorkflowShow }),
-    },
-  ]
-  if (catalog.length > 0) {
-    sections.push({
-      id: 'tag',
-      title: t('hub.tagFilter'),
-      multi: true,
-      choices: catalog.map((use) => ({
-        value: use.tag,
-        label: use.tag,
-        icon: 'tag',
-        tint: tagColorOf(colors, use.tag),
-        count: use.count,
-      })),
-      checked: (value) => tagFilter.some((tag) => sameTag(tag, value)),
-      onPick: on.onTag,
-    })
-  }
-  return sections
 }
 
 /** 颜色表里换掉这个标签的颜色（`null` = 去掉，回到按名字算的）。 */

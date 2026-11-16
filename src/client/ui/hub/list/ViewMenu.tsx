@@ -11,7 +11,8 @@
  * 菜单不走 portal：打开时量按钮下面还有多少地方（窗口、工作流中心的框，见 `roomAround`），菜单最高到那里，
  * 放不下的自己滚，最后几段不会被框切掉。
  *
- * 最后一段「行高」（标准 / 紧凑）各页都有、四页共用一个选择（{@link useListDensity}），这里自己加，不用页给。
+ * 最后一段「行高」（标准 / 紧凑）各页都有、四页共用一个选择（{@link useListDensity}），这里自己加，不用页给；
+ * 行高不归它管的地方（顶栏切换工作流的下拉）给 `density={false}` 不加。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/list/ViewMenu
  */
@@ -84,6 +85,10 @@ export function ViewMenu(props: {
   t: T
   sections: readonly MenuSection[]
   testId: string
+  /** 加不加「行高」一段（缺省加）。 */
+  density?: boolean
+  /** 菜单和按钮哪边对齐（缺省左边，往右展开；按钮在窄浮层右边时给 `end`，往左展开）。 */
+  align?: 'start' | 'end'
 }): React.JSX.Element {
   const { t } = props
   const [open, setOpen] = useState(false)
@@ -103,7 +108,8 @@ export function ViewMenu(props: {
   }
   const onKeyDown = useRadioMenu(open, list, true, true)
   const density = useListDensity()
-  const sections = [...props.sections, densitySection(t, density)]
+  const sections =
+    props.density === false ? props.sections : [...props.sections, densitySection(t, density)]
   const close = (): void => {
     setOpen(false)
     button.current?.focus({ preventScroll: true })
@@ -111,7 +117,7 @@ export function ViewMenu(props: {
   return (
     <Popover
       open={open}
-      align="start"
+      align={props.align ?? 'start'}
       onClose={close}
       label={t('hub.viewOptions')}
       className={css.menu}

@@ -9,27 +9,20 @@
  */
 
 import { useState } from 'react'
-import { tagColorOf } from '../../../../shared/tags.ts'
 import type { WorkflowEntry } from '../../../../shared/types.ts'
-import type { LocaleKey, T } from '../../../i18n.ts'
+import type { T } from '../../../i18n.ts'
 import { groupId, type ListGroup } from '../../../model/listView.ts'
 import { type RowKeys, rowKey } from '../../../model/rowKeys.ts'
 import { pastTime } from '../../../model/time.ts'
-import {
-  NO_TAG,
-  type TagUse,
-  type WorkflowGroupBy,
-  type WorkflowSortBy,
-} from '../../../model/workflowList.ts'
+import { NO_TAG, type TagUse, type WorkflowSortBy } from '../../../model/workflowList.ts'
 import { useConfirm } from '../../kit/Confirm.tsx'
 import { Icon } from '../../kit/Icon.tsx'
 import hub from '../hub.module.css'
-import { GroupedList, type GroupFace, groupDot } from '../list/GroupedList.tsx'
+import { GroupedList, type GroupFace } from '../list/GroupedList.tsx'
 import type { TagColors } from './TagMark.tsx'
 import { TagRename } from './TagRename.tsx'
 import { WorkflowRow } from './WorkflowRow.tsx'
-
-export type WorkflowGroupKey = Exclude<WorkflowGroupBy, 'none'>
+import { type WorkflowGroupKey, workflowGroupFace } from './workflowView.tsx'
 
 export function WorkflowList(props: {
   t: T
@@ -143,15 +136,9 @@ interface TagActions {
   onDelete(tag: string): void
 }
 
-const UPDATED_TEXT: Record<string, LocaleKey> = {
-  today: 'hub.wfBucket.today',
-  week: 'hub.wfBucket.week',
-  older: 'hub.wfBucket.older',
-}
-
 /**
- * 分组标题：按标签是标签名（前面标签的颜色，悬停露出改名、删除；无标签一组没有按钮、排在最后），
- * 按触发是有 / 没有触发器，按修改时间是今天 / 近 7 天 / 更早。
+ * 分组标题：写什么见 {@link workflowGroupFace}（顶栏下拉也用它）；这里给标签的组加上改名、删除（悬停露出），
+ * 无标签一组没有按钮。
  */
 function groupFace(
   t: T,
@@ -159,27 +146,12 @@ function groupFace(
   colors: TagColors,
   actions: TagActions,
 ): GroupFace {
-  if (group.by === 'trigger') {
-    return {
-      label: t(group.key === 'with' ? 'hub.wfBucket.withTrigger' : 'hub.wfBucket.noTrigger'),
-    }
-  }
-  if (group.by === 'updated') {
-    return { label: t(UPDATED_TEXT[group.key] ?? 'hub.wfBucket.older') }
-  }
-  if (group.by !== 'tag') return { label: '' }
-  if (group.key === NO_TAG) return { label: t('hub.noTag') }
+  const base = workflowGroupFace(t, group, colors)
+  if (group.by !== 'tag' || group.key === NO_TAG) return base
   const tag = group.key
-  const tagLead = (
-    <span
-      className={groupDot}
-      style={{ '--group-dot': `var(--wl-c-${tagColorOf(colors, tag)})` } as React.CSSProperties}
-    />
-  )
   if (actions.renaming === tag) {
     return {
-      mark: tagLead,
-      label: tag,
+      ...base,
       edit: (
         <TagRename
           t={t}
@@ -192,8 +164,7 @@ function groupFace(
   }
   const doomed = actions.doomed === tag
   return {
-    mark: tagLead,
-    label: tag,
+    ...base,
     busy: doomed && actions.confirming,
     actions: (
       <>

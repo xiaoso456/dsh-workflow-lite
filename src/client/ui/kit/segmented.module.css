@@ -139,9 +139,22 @@
   vertical-align: -2px;
 }
 
+/* 带颜色的图标（`tint`）：没选中那层是六成的颜色，悬停满色；选中那层满色。 */
+.segIcon[data-tinted] {
+  --wl-on: var(--seg-tint);
+
+  color: color-mix(in srgb, var(--seg-tint) 62%, transparent);
+  transition: color 120ms linear;
+}
+
+.segItem:hover .segIcon[data-tinted] {
+  color: var(--seg-tint);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .segItem,
-  .segThumb {
+  .segThumb,
+  .segIcon[data-tinted] {
     transition: none;
   }
 }
@@ -157,7 +170,8 @@
   box-shadow: none;
 }
 
-:global([data-look="swiss"]) .segItem {
+:global([data-look="swiss"]) .segItem,
+:global([data-look="swiss"]) .segIcon[data-tinted] {
   --wl-on: var(--wl-panel);
 }
 

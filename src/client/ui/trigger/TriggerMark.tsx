@@ -2,7 +2,7 @@
  * dsh-workflow-lite — 触发源的图标块：画布上的触发卡片、工作流中心「触发」页里认一种触发源的那个小色块。
  *
  * 和步骤的图标块（kit/StepMark）同一种样子（`ui.kind`）：每种触发源一个图标、一种颜色。
- * 「主动 ↗ / 被动 ↙」小标（{@link ModeChip}）也在这里：画布卡片的底行、面板「触发方式」的卡头共用。
+ * 「↗ 主动 / ↙ 被动」小标（{@link ModeChip}）也在这里：画布卡片的底行（写触发源名字）、面板「触发方式」的卡头共用。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/trigger/TriggerMark
  */
@@ -10,7 +10,7 @@
 import type { StepColor } from '../../../shared/appearance.ts'
 import type { FireChannel } from '../../../shared/trigger.ts'
 import type { TriggerSourceKind } from '../../../shared/types.ts'
-import type { T } from '../../i18n.ts'
+import type { LocaleKey, T } from '../../i18n.ts'
 import { triggerMode } from '../../model/triggerGlance.ts'
 import { cx } from '../kit/cx.ts'
 import { Icon, type IconName } from '../kit/Icon.tsx'
@@ -58,24 +58,33 @@ export function TriggerMark(props: {
   )
 }
 
-/** 「主动 ↗」/「被动 ↙」小标：主动往外（插件自己去做），被动往里（等外面的事进来）。颜色跟着触发源。 */
+/**
+ * 「↗ 主动」/「↙ 被动」小标：主动往外（插件自己去做），被动往里（等外面的事进来）。颜色跟着触发源。
+ * `named`：字换成触发源的名字（「↗ 定时」「↙ 监视」），箭头照旧标主动 / 被动，悬停的说明写全——
+ * 画布卡片上用（卡上没有别处写触发源）；面板「触发方式」卡头旁边已经写着触发源，那里写主动 / 被动。
+ */
 export function ModeChip(props: {
   t: T
   kind: TriggerSourceKind
+  named?: boolean
   testId?: string
 }): React.JSX.Element {
   const { t } = props
   const mode = triggerMode(props.kind)
+  const say = t(mode === 'active' ? 'trigger.mode.activeTip' : 'trigger.mode.passiveTip')
+  const kindName = t(`trigger.source.${props.kind}` as LocaleKey)
   return (
     <span
       className={css.mode}
       style={{ '--wl-kind': triggerTint(props.kind) } as React.CSSProperties}
       data-mode={mode}
-      data-tip={t(mode === 'active' ? 'trigger.mode.activeTip' : 'trigger.mode.passiveTip')}
+      data-tip={props.named === true ? `${kindName} · ${say}` : say}
       data-testid={props.testId}
     >
       <Icon name={mode === 'active' ? 'arrowOut' : 'arrowIn'} size={10} />
-      {t(mode === 'active' ? 'trigger.mode.active' : 'trigger.mode.passive')}
+      {props.named === true
+        ? kindName
+        : t(mode === 'active' ? 'trigger.mode.active' : 'trigger.mode.passive')}
     </span>
   )
 }

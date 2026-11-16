@@ -3,16 +3,23 @@
  *
  * 改名和删除挂在列表的每一行上（见 {@link WorkflowRow}），哪张都能直接改，不用先切过去；
  * 底下只留跟「正开着的这张」有关的「从磁盘重新加载」和「新建」。
+ *
+ * 搜索框和工作流中心「工作流」页同款（{@link HubSearch}）：框里是视图选项和筛选小片；工作流按同一份视图选项
+ * 分组（{@link GroupHead}，可折叠）、排序、筛选——分组、排序、筛选两边是同一份选择（app/listView.ts），
+ * 按标签筛只在这个下拉里、不记。一张打了几个标签就在几组里各出现一次。
  * 双击顶栏上的名字、或刚新建好时，名字就地变成输入框改正开着的这张。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/shell/WorkflowSwitcher
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import type { WorkflowEntry } from '../../../shared/types.ts'
+import { useListView } from '../../app/listView.ts'
 import type { Runs } from '../../app/useRuns.ts'
 import type { Workflow } from '../../app/useWorkflow.ts'
 import type { T } from '../../i18n.ts'
-import { claimRowKey, forgetRowKey, rowKey } from '../../model/rowKeys.ts'
+import { groupId, type ListGroup } from '../../model/listView.ts'
+import { claimRowKey, forgetRowKey, type RowKeys, rowKey } from '../../model/rowKeys.ts'
 import {
   currentFirst,
   filterRuns,
@@ -21,8 +28,20 @@ import {
   RUNS_SHOWN,
   visibleRuns,
 } from '../../model/switcherSearch.ts'
+import { WORKFLOW_VIEW } from '../../model/workflowList.ts'
 import shared from '../chrome/topbar.module.css'
 import { deleteDesc, WorkflowRow } from '../chrome/WorkflowRow.tsx'
+import { HubSearch } from '../hub/HubSearch.tsx'
+import { GroupHead } from '../hub/list/GroupedList.tsx'
+import { ViewMenu } from '../hub/list/ViewMenu.tsx'
+import {
+  arrangeWorkflows,
+  filterLabel,
+  toggleTag,
+  type WorkflowGroupKey,
+  workflowGroupFace,
+  workflowSections,
+} from '../hub/workflows/workflowView.tsx'
 import { useConfirm } from '../kit/Confirm.tsx'
 import { cx } from '../kit/cx.ts'
 import { EditActions } from '../kit/EditActions.tsx'
@@ -65,15 +84,15 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
   const [runsExpanded, setRunsExpanded] = useState(false)
   /** 顶栏上的名字正在改（只改正开着的这张）。 */
   const [renaming, setRenaming] = useState(false)
-  /** 下拉里正在改名的那一行。 */
+  /** 下拉里正在改名的那一行（行的键：一张在几组里出现时只改点的那一行）。 */
   const [editing, setEditing] = useState<string | null>(null)
   /**
    * 改过名的行沿用旧名字当 React 的键（新名字 → 旧键）：行是同一个元素，改完原地换回文字、顺着新排位滑过去，
    * 不会被当成新挂上的一项重放「依次浮出」（那是名字一闪的来源）。
    */
   const rowKeys = useRef(new Map<string, string>())
-  /** 删除确认卡指着哪一行；卡片挂在那一行的删除按钮上，下拉不收。 */
-  const [doomed, setDoomed] = useState<string | null>(null)
+  /** 删除确认卡指着哪一张、挂在哪一行（行的键）的删除按钮上；下拉不收。 */
+  const [doomed, setDoomed] = useState<{ name: string; key: string } | null>(null)
   const remove = useConfirm<HTMLButtonElement>()
   /** 用鼠标点开了一张：下拉先不收，让人看到「已切过去」，鼠标移出去再收。 */
   const [lingering, setLingering] = useState(false)
@@ -109,14 +128,29 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
   const workflows = catalog?.workflows ?? []
   const needle = normalizeNeedle(query)
   const searching = needle !== ''
-  const filtered = useMemo(
-    () =>
-      filterWorkflows(
-        [...workflows].sort((a, b) => b.updatedAt - a.updatedAt),
-        needle,
-      ),
-    [workflows, needle],
+  const [view, changeView] = useListView(WORKFLOW_VIEW)
+  /** 按标签筛（多选）：只在这个下拉里，不记。 */
+  const [tagFilter, setTagFilter] = useState<string[]>([])
+  /** 收起的分组。 */
+  const [folded, setFolded] = useState<ReadonlySet<string>>(new Set())
+  const tagColors = catalog?.tagColors ?? {}
+  const {
+    catalog: tagUses,
+    tags,
+    arranged,
+  } = useMemo(
+    () => arrangeWorkflows(workflows, filterWorkflows(workflows, needle), view, tagFilter),
+    [workflows, needle, view, tagFilter],
   )
+  const viewFiltered = view.show !== 'all' || tags.length > 0
+  const rows = switchRows(arranged.groups, folded, rowKeys.current)
+  const fold = (id: string): void => {
+    setFolded((current) => {
+      const next = new Set(current)
+      if (!next.delete(id)) next.add(id)
+      return next
+    })
+  }
   const matchedRuns = useMemo(
     () =>
       filterRuns(currentFirst(props.runs.list, props.runs.current), needle, (item) =>
@@ -138,9 +172,9 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
     current ?? '',
     activeRun ?? '',
     shownRuns.map((item) => item.id).join(','),
-    filtered.map((entry) => entry.name).join(','),
+    rows.map((row) => row.key).join(','),
   ].join('|')
-  const doomedEntry = workflows.find((entry) => entry.name === doomed)
+  const doomedEntry = workflows.find((entry) => entry.name === doomed?.name)
 
   return (
     <Popover
@@ -198,19 +232,40 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
         )
       }
     >
-      <div className={ui.menuSearch}>
-        <Icon name="search" size={14} />
-        <input
-          className={ui.menuSearchInput}
-          value={query}
-          placeholder={t('wf.search')}
-          aria-label={t('wf.search')}
-          data-testid="wl-search"
-          // biome-ignore lint/a11y/noAutofocus: 打开下拉就是为了找一张
-          autoFocus
-          onChange={(event) => setQuery(event.currentTarget.value)}
-        />
-      </div>
+      <HubSearch
+        t={t}
+        value={query}
+        placeholder={t('wf.search')}
+        testId="wl-search"
+        autoFocus
+        flush
+        onChange={setQuery}
+        filter={
+          viewFiltered
+            ? {
+                label: filterLabel(t, view.show, tags),
+                count: arranged.shown,
+                testId: 'wl-switch-showing',
+                onClear: () => {
+                  changeView({ show: 'all' })
+                  setTagFilter([])
+                },
+              }
+            : undefined
+        }
+        view={
+          <ViewMenu
+            t={t}
+            density={false}
+            align="end"
+            sections={workflowSections(t, view, arranged.counts, tagUses, tagColors, tags, {
+              onView: changeView,
+              onTag: (tag) => setTagFilter((list) => toggleTag(list, tag)),
+            })}
+            testId="wl-switch-view"
+          />
+        }
+      />
       {/* 实例与工作流共用一个滚动区：直接子项是平铺的（选中底块、滑动、依次浮出都按直接子项算）。 */}
       <div className={cx(css.scroll, ui.scrollFade)}>
         <div ref={flip} className={cx(css.listBody, ui.stagger)} data-testid="wl-switch-list">
@@ -244,61 +299,74 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
               onToggle={() => setRunsExpanded(!runsExpanded)}
             />
           )}
-          {grouped && filtered.length > 0 && (
+          {grouped && arranged.shown > 0 && (
             <p className={cx(ui.menuTitle, css.groupTitle)} data-testid="wl-wf-head">
               {t('run.workflows')}
-              <span className={css.groupCount}>{filtered.length}</span>
+              <span className={css.groupCount}>{arranged.shown}</span>
             </p>
           )}
-          {filtered.length === 0 && shownRuns.length === 0 && (workflows.length > 0 || grouped) && (
+          {arranged.shown === 0 && shownRuns.length === 0 && (workflows.length > 0 || grouped) && (
             <p className={ui.menuEmpty}>{t('wf.none')}</p>
           )}
-          {filtered.map((entry, index) => (
-            <WorkflowRow
-              key={rowKey(
-                rowKeys.current,
-                filtered.map((row) => row.name),
-                index,
-              )}
-              t={t}
-              entry={entry}
-              active={entry.name === current}
-              editing={editing === entry.name}
-              needle={needle}
-              busy={remove.open && doomed === entry.name}
-              deleteRef={doomed === entry.name ? remove.anchorRef : undefined}
-              onOpen={(event) => {
-                choose(event)
-                if (entry.name !== current) props.onOpenWorkflow(entry.name)
-              }}
-              onEdit={() => {
-                if (remove.open) remove.hide()
-                setEditing(entry.name)
-              }}
-              onRename={async (value) => {
-                // 先记下再等：目录一更新这一行就要拿新名字渲染，那时键已经得是旧的。
-                const claimed = claimRowKey(
-                  rowKeys.current,
-                  workflows.map((w) => w.name),
-                  entry.name,
-                  value,
-                )
-                const ok = await wf.rename(entry.name, value)
-                if (!ok && claimed) forgetRowKey(rowKeys.current, value)
-                if (ok) setEditing(null)
-                return ok
-              }}
-              onCancelEdit={() => setEditing(null)}
-              onDelete={() => {
-                if (remove.open && doomed === entry.name) {
-                  remove.hide()
-                  return
-                }
-                setDoomed(entry.name)
-                remove.show()
-              }}
-            />
-          ))}
+          {rows.map((row) => {
+            if (row.kind === 'head') {
+              const id = groupId(row.group)
+              return (
+                <GroupHead
+                  key={row.key}
+                  id={id}
+                  face={workflowGroupFace(t, row.group, tagColors)}
+                  count={row.group.entries.length}
+                  closed={row.closed}
+                  testId="wl-switch-group"
+                  onFold={() => fold(id)}
+                />
+              )
+            }
+            const { entry } = row
+            return (
+              <WorkflowRow
+                key={row.key}
+                t={t}
+                entry={entry}
+                active={row.first && entry.name === current}
+                editing={editing === row.key}
+                needle={needle}
+                busy={remove.open && doomed?.key === row.key}
+                deleteRef={doomed?.key === row.key ? remove.anchorRef : undefined}
+                onOpen={(event) => {
+                  choose(event)
+                  if (entry.name !== current) props.onOpenWorkflow(entry.name)
+                }}
+                onEdit={() => {
+                  if (remove.open) remove.hide()
+                  setEditing(row.key)
+                }}
+                onRename={async (value) => {
+                  // 先记下再等：目录一更新这一行就要拿新名字渲染，那时键已经得是旧的。
+                  const claimed = claimRowKey(
+                    rowKeys.current,
+                    workflows.map((w) => w.name),
+                    entry.name,
+                    value,
+                  )
+                  const ok = await wf.rename(entry.name, value)
+                  if (!ok && claimed) forgetRowKey(rowKeys.current, value)
+                  if (ok) setEditing(null)
+                  return ok
+                }}
+                onCancelEdit={() => setEditing(null)}
+                onDelete={() => {
+                  if (remove.open && doomed?.key === row.key) {
+                    remove.hide()
+                    return
+                  }
+                  setDoomed({ name: entry.name, key: row.key })
+                  remove.show()
+                }}
+              />
+            )
+          })}
         </div>
       </div>
       {doomedEntry !== undefined &&
@@ -349,6 +417,43 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
       </button>
     </Popover>
   )
+}
+
+/** 下拉里工作流那一段的一项：分组标题，或一行工作流。 */
+type SwitchRow =
+  | {
+      kind: 'head'
+      key: string
+      group: ListGroup<WorkflowEntry, WorkflowGroupKey>
+      closed: boolean
+    }
+  | { kind: 'row'; key: string; entry: WorkflowEntry; first: boolean }
+
+/**
+ * 按分组摊平成一项一项：收起的组只留标题。行的键沿用改名前的（`keys`，见 model/rowKeys.ts）；
+ * 同一张第二次出现时键前面带上组，`first` 只给第一次出现的那一行（选中底块落在它上面）。
+ */
+function switchRows(
+  groups: readonly ListGroup<WorkflowEntry, WorkflowGroupKey>[],
+  folded: ReadonlySet<string>,
+  keys: RowKeys,
+): SwitchRow[] {
+  const names = [...new Set(groups.flatMap((group) => group.entries.map((entry) => entry.name)))]
+  const seen = new Set<string>()
+  const rows: SwitchRow[] = []
+  for (const group of groups) {
+    const id = groupId(group)
+    const closed = group.by !== 'none' && folded.has(id)
+    if (group.by !== 'none') rows.push({ kind: 'head', key: `group\n${id}`, group, closed })
+    if (closed) continue
+    for (const entry of group.entries) {
+      const first = !seen.has(entry.name)
+      seen.add(entry.name)
+      const own = rowKey(keys, names, names.indexOf(entry.name))
+      rows.push({ kind: 'row', key: first ? own : `${id}\n${own}`, entry, first })
+    }
+  }
+  return rows
 }
 
 /** 实例那一组的尾巴：折叠时「显示全部 N 个」，展开后「收起」；箭头转个向（只动 transform）。 */
