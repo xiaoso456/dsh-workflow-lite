@@ -138,13 +138,16 @@ export interface MenuPlace {
   list: number
 }
 
-/** 触发块在所在滚动区（没有就是窗口）里上下各有多少地方（别的浮层定往哪边开也用）。 */
+/**
+ * 触发块在所在滚动区或裁切区（没有就是窗口）里上下各有多少地方（别的浮层定往哪边开、最高多少也用）。
+ * 浮层不走 portal，超出外面一层 `overflow: hidden` 的部分会被切掉，所以裁切的那层也算边界。
+ */
 export function roomAround(element: HTMLElement): { above: number; below: number } {
   let top = 0
   let bottom = window.innerHeight
   for (let node = element.parentElement; node !== null; node = node.parentElement) {
     const { overflowY } = getComputedStyle(node)
-    if (overflowY === 'auto' || overflowY === 'scroll') {
+    if (overflowY !== 'visible') {
       const box = node.getBoundingClientRect()
       top = Math.max(top, box.top)
       bottom = Math.min(bottom, box.bottom)

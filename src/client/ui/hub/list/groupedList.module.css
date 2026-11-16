@@ -1,6 +1,6 @@
 /*
  * dsh-workflow-lite — 工作流中心各页左栏的分组列表（GroupedList.tsx）：筛选条、分组块、钉顶的分组标题。
- * 行的底子沿用 versions/wfList.module.css（滑块式选中、悬停渐显）。
+ * 一行长什么样在 hubRow.module.css；行的底子沿用 versions/wfList.module.css（滑块式选中、悬停渐显）。
  */
 
 /* 筛选生效时列表顶上的一条。 */
@@ -45,11 +45,30 @@
   background: color-mix(in srgb, var(--wl-accent) 14%, transparent);
 }
 
-/* 列表上沿的内边距写成变量：钉住的分组标题要按它往上抵（见 .group 的 top）。 */
+/*
+ * 列表上沿的内边距写成变量：钉住的分组标题要按它往上抵（见 .group 的 top）。
+ * 行高（HubRow.tsx）也写成变量放在这里：行、图标块、分组标题、分组之间的空当按标准 / 紧凑换一套，
+ * 标题前面那一格和行里的图标块同宽，名字始终对成一列。
+ */
 .list {
   --list-pad-top: 6px;
+  --row-h: 40px;
+  --row-mark: 24px;
+  --row-mark-r: 7px;
+  --row-icon: 13px;
+  --group-h: 30px;
+  --group-gap: 10px;
 
   padding-top: var(--list-pad-top);
+}
+
+.list[data-density="compact"] {
+  --row-h: 32px;
+  --row-mark: 20px;
+  --row-mark-r: 6px;
+  --row-icon: 12px;
+  --group-h: 28px;
+  --group-gap: 6px;
 }
 
 /*
@@ -64,12 +83,12 @@
 }
 
 .groupBox[data-opened="true"]:not(:last-child) {
-  padding-bottom: 10px;
+  padding-bottom: var(--group-gap);
 }
 
 /*
  * 分组标题：钉在列表顶上。里面的按钮和下面的行同一套格子（左右内边距 10、间距 10）：
- * 前面一格和行里的图标块（30 宽）同列，名字和行里的名字左边对齐；项数靠右、挨着折叠箭头，
+ * 前面一格和行里的图标块同宽同列（宽度跟着行高，见 .list），名字和行里的名字左边对齐；项数靠右、挨着折叠箭头，
  * 箭头的右边和行的右边（内边距 10）对齐。
  */
 .group {
@@ -84,7 +103,7 @@
   z-index: 2;
   display: flex;
   flex: none;
-  height: 34px;
+  height: var(--group-h);
   border-radius: var(--wl-r-control);
 }
 
@@ -158,7 +177,7 @@
   display: grid;
   flex: none;
   place-items: center;
-  width: 30px;
+  width: var(--row-mark);
 }
 
 .groupLead > span {
@@ -217,23 +236,6 @@
 
 .group[data-acts="true"]:is(:hover, :focus-within, [data-busy]) .groupCount {
   opacity: 0;
-}
-
-/*
- * 行：图标块 + 两行字。各页的行都用它（行的底子是 wfList 的 .wfItem），图标块和分组标题前面那一格同宽同列。
- * 停用的触发器、没被用的记忆：图标块变灰。
- */
-.item {
-  min-height: 52px;
-}
-
-.mark {
-  width: 30px;
-  height: 30px;
-}
-
-.item[data-off="true"] .mark {
-  --wl-kind: var(--wl-text-3);
 }
 
 @media (hover: none) {

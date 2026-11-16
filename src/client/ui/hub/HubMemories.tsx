@@ -43,13 +43,12 @@ import ui from '../kit/ui.module.css'
 import ins from '../panel/panel.module.css'
 import { memoryTypeText } from '../resources/ResourcePresets.tsx'
 import { MemoryVersionList } from '../versions/VersionList.tsx'
-import wf from '../versions/wfList.module.css'
 import { DeleteButton } from './DeleteButton.tsx'
 import { HubSearch } from './HubSearch.tsx'
 import hub from './hub.module.css'
 import css from './hubMemories.module.css'
 import { GroupedList, type GroupFace, ShowingBar } from './list/GroupedList.tsx'
-import list from './list/groupedList.module.css'
+import { HubRow, rowMark } from './list/HubRow.tsx'
 import { type MenuSection, ViewMenu } from './list/ViewMenu.tsx'
 import { TitleEdit } from './TitleEdit.tsx'
 
@@ -246,34 +245,38 @@ function MemoryList(props: {
       empty={t('hub.memNoMatch')}
       testId="wl-hub-mem-group"
       row={(entry, at) => {
+        const title = memoryTitle(entry)
+        const used = entry.usedBy.length
         return (
-          <div className={wf.wfRow} data-end="none" data-flip={at.flip} data-selected={at.selected}>
-            <button
-              type="button"
-              aria-current={at.selected || at.also ? 'true' : undefined}
-              className={cx(wf.wfItem, list.item)}
-              data-testid="wl-hub-mem"
-              data-value={entry.id}
-              data-off={entry.usedBy.length === 0 ? 'true' : undefined}
-              {...(memoryTitle(entry) === entry.id
-                ? {}
-                : {
-                    'data-tip': [memoryTitle(entry), entry.id].join('\n'),
-                  })}
-              onClick={() => props.onPick(entry.id, groupId(at.group))}
-            >
+          <HubRow
+            flip={at.flip}
+            selected={at.selected}
+            current={at.selected || at.also}
+            testId="wl-hub-mem"
+            value={entry.id}
+            off={used === 0}
+            mark={
               <span
-                className={cx(ui.kind, list.mark)}
+                className={cx(ui.kind, rowMark)}
                 data-color={entry.invalid === true ? 'coral' : 'amber'}
               >
                 <Icon name={entry.invalid === true ? 'alert' : 'memory'} size={15} />
               </span>
-              <span className={wf.wfText}>
-                <span className={wf.wfName}>{memoryTitle(entry)}</span>
-                <MemoryMeta t={t} entry={entry} />
-              </span>
-            </button>
-          </div>
+            }
+            name={title}
+            meta={<MemoryMeta t={t} entry={entry} />}
+            end={
+              entry.invalid === true
+                ? t('hub.memInvalidShort')
+                : used === 0
+                  ? t('mem.unused')
+                  : t('hub.memUsedShort').replace('{n}', String(used))
+            }
+            // 起了名字的记忆悬停看编号（卡片上引用的是编号）。
+            tip={title === entry.id ? title : [title, entry.id].join('\n')}
+            tipAlways={title !== entry.id}
+            onPick={() => props.onPick(entry.id, groupId(at.group))}
+          />
         )
       }}
     />

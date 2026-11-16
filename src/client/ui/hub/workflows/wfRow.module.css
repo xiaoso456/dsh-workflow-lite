@@ -1,23 +1,8 @@
 /**
- * dsh-workflow-lite — 「工作流」页左栏一行的名字那一行、第二行（`WorkflowRow.tsx`），组标题上给标签改名的输入框（`TagRename.tsx`）。
+ * dsh-workflow-lite — 「工作流」页左栏一行的第二行（`WorkflowRow.tsx`），组标题上给标签改名的输入框（`TagRename.tsx`）。
  */
 
-/* 第一行：名字，画布上正开着的那张后面跟「当前」（名字太长先截名字）。 */
-.nameLine {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  min-width: 0;
-}
-
-/* 第二行：有标签写标签（最多两个和「+N」），没有写步数、版本数；有没有标签行都一样高。 */
-.meta {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  height: 16px;
-}
-
+/* 第二行没有标签时那句「几个步骤 · 几个版本」：放不下省略。 */
 .metaText {
   flex: 1 1 auto;
   min-width: 0;

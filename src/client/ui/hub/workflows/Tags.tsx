@@ -2,7 +2,7 @@
  * dsh-workflow-lite — 工作流标签的样子：左栏一行里的小标签（{@link RowTags}），右栏标题行里名字后面的一排（{@link TagRow}）。
  *
  * 每个标签一种颜色（步骤的色板）：浅一层的底，字和标签图标同色；没挑过的按名字算（`autoTagColor`）。
- * - 左栏最多写两个，多的写成「+N」，悬停看全部。
+ * - 左栏最多写两个，多的写成「+N」，悬停看全部；紧凑行高时行尾只画色块（{@link RowTagDots}），最多四个。
  * - 右栏点一个标签开它的小菜单（{@link TagChip}）：换颜色（对所有工作流上的这个标签都生效）、从这个工作流去掉。
  *   ✕ 平时不占位，悬停（或键盘移进来、菜单开着）时标签变宽、✕ 淡入，点了直接去掉；
  *   变宽只靠 transform（底面 `useGlide` 展开，后面的标签 `useRowSlide` 滑开），宽度不逐帧变。
@@ -30,6 +30,8 @@ import css from './tags.module.css'
 
 /** 左栏一行里最多写几个标签。 */
 const ROW_TAGS = 2
+/** 紧凑行高时行尾最多画几个色块。 */
+const ROW_DOTS = 4
 const MENU_W = 236
 
 export function RowTags(props: {
@@ -51,6 +53,20 @@ export function RowTags(props: {
         />
       ))}
       {rest > 0 && <span className={css.more}>+{rest}</span>}
+    </span>
+  )
+}
+
+/** 紧凑行高时行尾的标签：每个一个小色块（名字在悬停提示里）。 */
+export function RowTagDots(props: {
+  tags: readonly string[]
+  colors: TagColors
+}): React.JSX.Element {
+  return (
+    <span className={css.dots} aria-hidden="true">
+      {props.tags.slice(0, ROW_DOTS).map((tag) => (
+        <span key={tag} className={css.dot} style={tagStyle(tagColorOf(props.colors, tag))} />
+      ))}
     </span>
   )
 }

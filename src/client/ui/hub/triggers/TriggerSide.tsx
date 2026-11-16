@@ -36,11 +36,10 @@ import ui from '../../kit/ui.module.css'
 import { SwapText } from '../../motion/swapText.tsx'
 import tone from '../../trigger/stateTone.module.css'
 import { TRIGGER_ICON, TriggerMark, triggerTint } from '../../trigger/TriggerMark.tsx'
-import wf from '../../versions/wfList.module.css'
 import { HubSearch } from '../HubSearch.tsx'
 import hub from '../hub.module.css'
 import { GroupedList, type GroupFace, ShowingBar } from '../list/GroupedList.tsx'
-import list from '../list/groupedList.module.css'
+import { HubRow, rowMark } from '../list/HubRow.tsx'
 import { type MenuSection, ViewMenu } from '../list/ViewMenu.tsx'
 import css from './side.module.css'
 
@@ -231,51 +230,41 @@ function TriggerRow(props: {
 }): React.JSX.Element {
   const { t, entry } = props
   const kind = entry.data.source.kind
+  const badge = stateBadge(t, entry.view, kind)
+  const toneOf = {
+    'data-state': entry.view.state,
+    'data-tone': stateTone(entry.view.state, kind),
+    'data-testid': 'wl-hub-trg-state',
+  }
   return (
-    <div
-      className={wf.wfRow}
-      data-end="fixed"
-      data-flip={props.flip}
-      data-selected={props.selected}
-    >
-      <button
-        type="button"
-        aria-current={props.selected ? 'true' : undefined}
-        className={cx(wf.wfItem, list.item)}
-        data-testid="wl-hub-trg"
-        data-value={`${entry.workflow}/${entry.view.node}`}
-        data-off={entry.view.enabled ? undefined : 'true'}
-        onPointerOverCapture={(event) =>
-          // 栏窄，名字、后面那句（哪个工作流、上一次）放不下就截断：悬停写全。
-          tipWhenCut(
-            event.currentTarget,
-            [...event.currentTarget.querySelectorAll<HTMLElement>('[data-cut]')],
-            props.note === '' ? entry.name : `${entry.name} · ${props.note}`,
-            'start',
-          )
-        }
-        onClick={props.onPick}
-      >
-        <TriggerMark kind={kind} size={15} className={list.mark} />
-        <span className={wf.wfText}>
-          <span className={wf.wfName} data-cut="">
-            {entry.name}
-          </span>
-          <span
-            className={cx(css.meta, tone.tone)}
-            data-state={entry.view.state}
-            data-tone={stateTone(entry.view.state, kind)}
-            data-testid="wl-hub-trg-state"
-          >
-            <span className={tone.dot} aria-hidden="true" />
-            <span className={css.stateText}>{stateBadge(t, entry.view, kind)}</span>
-            <span className={css.note} hidden={props.note === ''} data-cut="">
-              {props.note}
-            </span>
+    <HubRow
+      flip={props.flip}
+      selected={props.selected}
+      current={props.selected}
+      testId="wl-hub-trg"
+      value={`${entry.workflow}/${entry.view.node}`}
+      off={!entry.view.enabled}
+      mark={<TriggerMark kind={kind} size={15} className={rowMark} />}
+      name={entry.name}
+      meta={
+        <span className={cx(css.meta, tone.tone)} {...toneOf}>
+          <span className={tone.dot} aria-hidden="true" />
+          <span className={css.stateText}>{badge}</span>
+          <span className={css.note} hidden={props.note === ''} data-cut="">
+            {props.note}
           </span>
         </span>
-      </button>
-    </div>
+      }
+      // 紧凑时行尾只写状态（状态色）；哪个工作流、下一次几点在悬停提示里。
+      end={
+        <span className={tone.tone} {...toneOf}>
+          <span className={css.stateText}>{badge}</span>
+        </span>
+      }
+      // 栏窄，名字、后面那句（哪个工作流、上一次）放不下就截断：悬停写全。
+      tip={[entry.name, badge, props.note].filter((part) => part !== '').join(' · ')}
+      onPick={props.onPick}
+    />
   )
 }
 

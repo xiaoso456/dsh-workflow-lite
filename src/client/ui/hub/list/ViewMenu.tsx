@@ -5,15 +5,27 @@
  * 点一项即生效，菜单留着（可以接着换别的一段）；Esc、点外面收起。单选段是 `menuitemradio`，多选段（按标签筛）
  * 是 `menuitemcheckbox`。有筛选生效时按钮右上角一个蓝点。
  *
+ * 菜单不走 portal：打开时量按钮下面还有多少地方（窗口、工作流中心的框，见 `roomAround`），菜单最高到那里，
+ * 放不下的自己滚，最后几段不会被框切掉。
+ *
+ * 最后一段「行高」（标准 / 紧凑）各页都有、四页共用一个选择（{@link useListDensity}），这里自己加，不用页给。
+ *
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/list/ViewMenu
  */
 
 import { useRef, useState } from 'react'
 import type { StepColor } from '../../../../shared/appearance.ts'
+import {
+  LIST_DENSITIES,
+  type ListDensity,
+  setListDensity,
+  useListDensity,
+} from '../../../app/listDensity.ts'
 import type { T } from '../../../i18n.ts'
 import { cx } from '../../kit/cx.ts'
 import { Icon, type IconName } from '../../kit/Icon.tsx'
 import { Popover } from '../../kit/Popover.tsx'
+import { roomAround } from '../../kit/Select.tsx'
 import ui from '../../kit/ui.module.css'
 import { useRadioMenu } from '../../kit/useRadioMenu.ts'
 import css from './viewMenu.module.css'
@@ -40,6 +52,32 @@ export interface MenuSection {
   onPick(value: string): void
 }
 
+/** 菜单最高多少（地方再大也不更高）、最矮多少。 */
+const MENU_MAX = 560
+const MENU_MIN = 160
+/** 菜单本身占的高度（离按钮 8、上下内边距和边框）加上离框底留的一点。 */
+const MENU_CHROME = 8 + 10 + 10
+
+const DENSITY_ICON: Record<ListDensity, IconName> = { standard: 'unfold', compact: 'fold' }
+
+/** 「行高」一段：四页共用。 */
+function densitySection(t: T, density: ListDensity): MenuSection {
+  return {
+    id: 'density',
+    title: t('hub.density'),
+    choices: LIST_DENSITIES.map((value) => ({
+      value,
+      label: t(`hub.density.${value}`),
+      icon: DENSITY_ICON[value],
+    })),
+    checked: (value) => value === density,
+    onPick: (value) => {
+      const hit = LIST_DENSITIES.find((one) => one === value)
+      if (hit !== undefined) setListDensity(hit)
+    },
+  }
+}
+
 export function ViewMenu(props: {
   t: T
   sections: readonly MenuSection[]
@@ -49,9 +87,13 @@ export function ViewMenu(props: {
 }): React.JSX.Element {
   const { t } = props
   const [open, setOpen] = useState(false)
+  /** 菜单最高多少（打开时按按钮下面的地方量）。 */
+  const [room, setRoom] = useState(MENU_MAX)
   const button = useRef<HTMLButtonElement>(null)
   const list = useRef<HTMLDivElement>(null)
   const onKeyDown = useRadioMenu(open, list)
+  const density = useListDensity()
+  const sections = [...props.sections, densitySection(t, density)]
   const close = (): void => {
     setOpen(false)
     button.current?.focus({ preventScroll: true })
@@ -74,7 +116,12 @@ export function ViewMenu(props: {
           data-tip={open ? undefined : t('hub.viewOptions')}
           data-filtered={props.filtered || undefined}
           data-testid={props.testId}
-          onClick={() => (open ? close() : setOpen(true))}
+          onClick={() => {
+            if (open) return close()
+            const below = button.current === null ? MENU_MAX : roomAround(button.current).below
+            setRoom(Math.max(MENU_MIN, Math.min(MENU_MAX, below - MENU_CHROME)))
+            setOpen(true)
+          }}
         >
           <Icon name="sliders" size={15} />
         </button>
@@ -85,9 +132,10 @@ export function ViewMenu(props: {
         role="menu"
         aria-label={t('hub.viewOptions')}
         className={css.body}
+        style={{ maxHeight: `${String(room)}px` }}
         onKeyDown={onKeyDown}
       >
-        {props.sections.map((section, index) => (
+        {sections.map((section, index) => (
           <div key={section.id} role="group" aria-label={section.title}>
             {index > 0 && <div className={ui.menuSep} />}
             <p className={ui.menuTitle}>{section.title}</p>

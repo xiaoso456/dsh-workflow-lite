@@ -1,0 +1,79 @@
+/*
+ * dsh-workflow-lite — 工作流中心各页左栏的一行（HubRow.tsx）。
+ * 尺寸变量（--row-*）写在列表上（groupedList.module.css 的 .list），按行高换一套；这里的缺省值是标准行高。
+ * 选中底块、悬停底色在 versions/wfList.module.css 的 wfRow / wfItem。
+ */
+
+.item {
+  min-height: var(--row-h, 40px);
+  padding-block: 3px;
+}
+
+/* 图标块：大小、圆角、里面图标的大小都跟着行高。 */
+.mark {
+  width: var(--row-mark, 24px);
+  height: var(--row-mark, 24px);
+  border-radius: calc(var(--row-mark-r, 7px) * var(--wl-round, 1));
+}
+
+.mark svg {
+  width: var(--row-icon, 13px);
+  height: var(--row-icon, 13px);
+}
+
+.item[data-off="true"] .mark {
+  --wl-kind: var(--wl-text-3);
+}
+
+.text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* 名字和「当前」小标一行：名字太长先省略，小标不挤掉；行高固定，小标高出的那点不撑高这一行。 */
+.nameLine {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  height: 16px;
+  min-width: 0;
+}
+
+/* 条目名和分组标题同号（12px），靠字重、字色和下面 11px 的灰字分层次。 */
+.name {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--wl-fs-meta);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 第二行：页给什么画什么，固定一行高（有没有标签片都一样高）。 */
+.meta {
+  display: flex;
+  align-items: center;
+  height: 16px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  white-space: nowrap;
+}
+
+/* 紧凑时行尾那一格：靠右，几行对成一列；太长省略。 */
+.end {
+  display: inline-flex;
+  flex: none;
+  gap: 4px;
+  align-items: center;
+  max-width: 45%;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

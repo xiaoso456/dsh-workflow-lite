@@ -9,12 +9,14 @@
  *   标成「也选着」（`also`），各行的动画键第一次出现用项的键，再出现加上组的键。
  * - 选中底色是一块滑块（ListThumb），换选中、筛选、换分法、折叠时各行滑到新位置（useFlip）。
  *
- * 行长什么样由页自己画（`row`），这里只管分组、折叠和动效。
+ * 行长什么样由页自己画（`row`，一般是 `HubRow`），这里只管分组、折叠、动效和行高（标准 / 紧凑，见
+ * {@link useListDensity}：尺寸变量挂在列表上，换行高时各行滑到新位置）。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/list/GroupedList
  */
 
 import { Fragment, useRef, useState } from 'react'
+import { useListDensity } from '../../../app/listDensity.ts'
 import { groupId, type ListGroup } from '../../../model/listView.ts'
 import { cx } from '../../kit/cx.ts'
 import { Icon } from '../../kit/Icon.tsx'
@@ -85,7 +87,8 @@ export function GroupedList<E, G extends string = string>(props: {
   const shown = groups.flatMap((group) =>
     closed(group) ? [groupId(group)] : group.entries.map((entry) => keyOf(entry)),
   )
-  const layout = `${props.selected}|${homeId}|${groups[0]?.by ?? ''}|${shown.join('|')}|${props.layout ?? ''}`
+  const density = useListDensity()
+  const layout = `${props.selected}|${homeId}|${groups[0]?.by ?? ''}|${density}|${shown.join('|')}|${props.layout ?? ''}`
   useFlip(listRef, layout, { enter: true })
 
   const fold = (id: string): void => {
@@ -101,6 +104,7 @@ export function GroupedList<E, G extends string = string>(props: {
     <nav
       ref={listRef}
       className={cx(wf.wfList, wf.sideList, css.list, props.className)}
+      data-density={density}
       aria-label={props.label}
     >
       <ListThumb layout={layout} />

@@ -59,9 +59,8 @@
   padding: 4px;
 }
 
-/* 标签多了菜单会很长：菜单自己滚，不顶出窗口。 */
+/* 标签多了菜单会很长：菜单自己滚，不顶出窗口（最高多少打开时按按钮下面的地方量，写在元素上）。 */
 .body {
-  max-height: min(70vh, 560px);
   overflow-y: auto;
   scrollbar-width: thin;
 }

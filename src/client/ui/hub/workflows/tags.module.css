@@ -20,6 +20,21 @@
   min-width: 0;
 }
 
+/* 紧凑行高时行尾的标签色块。 */
+.dots {
+  display: inline-flex;
+  flex: none;
+  gap: 4px;
+  align-items: center;
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: calc(2px * var(--wl-round, 1));
+  background: var(--wl-tag);
+}
+
 .more {
   flex: none;
   color: var(--wl-text-3);

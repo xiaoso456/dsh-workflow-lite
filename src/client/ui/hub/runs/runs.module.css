@@ -11,14 +11,6 @@
   --wl-kind: var(--wl-run);
 }
 
-/* 名字和「当前」小标一行：名字太长先省略，小标不挤掉。 */
-.nameLine {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  min-width: 0;
-}
-
 .meta {
   display: flex;
   gap: 5px;
