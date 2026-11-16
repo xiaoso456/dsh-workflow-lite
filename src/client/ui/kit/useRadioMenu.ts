@@ -7,7 +7,7 @@
 
 import { type RefObject, useEffect } from 'react'
 
-const ITEM = '[role="menuitemradio"], [role="menuitem"]'
+const ITEM = '[role="menuitemradio"], [role="menuitemcheckbox"], [role="menuitem"]'
 
 /**
  * 返回挂在菜单（或连同菜单顶上的搜索框）外层的 `onKeyDown`：焦点在搜索框里时，下键进第一项、上键进最后一项。

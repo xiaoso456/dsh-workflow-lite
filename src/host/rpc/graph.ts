@@ -4,6 +4,7 @@
  * @module @xiaoso/dsh-workflow-lite/host/rpc/graph
  */
 
+import { isStepColor } from '../../shared/appearance.ts'
 import type { MemoryVersionEntry } from '../../shared/memoryLib.ts'
 import { normalizeDocument, readNodeData as readDataFields } from '../../shared/model.ts'
 import { memoryRefs } from '../../shared/presets.ts'
@@ -67,7 +68,7 @@ export async function dispatchGraph(
   switch (endpoint) {
     case 'graph/list': {
       const list = await deps.repository.list()
-      return ok({ ...list, limits: deps.limits() })
+      return ok({ ...list, tagColors: await deps.repository.tagColors(), limits: deps.limits() })
     }
 
     case 'graph/load': {
@@ -136,6 +137,38 @@ export async function dispatchGraph(
       const outcome = await deps.repository.remove(name)
       if (!outcome.ok) return failFrom(outcome.error)
       return ok({ warnings: outcome.result.warnings })
+    }
+
+    case 'graph/tags': {
+      const input = asRecord(payload)
+      if (!Array.isArray(input.tags)) return fail('invalid_args', 'tags 要是一组字符串')
+      const outcome = await deps.repository.setTags(requireString(input, 'name'), input.tags)
+      if (!outcome.ok) return failFrom(outcome.error)
+      return ok({ tags: outcome.result })
+    }
+
+    case 'graph/tagRename': {
+      const input = asRecord(payload)
+      const outcome = await deps.repository.renameTag(
+        requireString(input, 'from'),
+        requireString(input, 'to'),
+      )
+      return outcome.ok ? ok(outcome.result) : failFrom(outcome.error)
+    }
+
+    case 'graph/tagColor': {
+      const input = asRecord(payload)
+      const color = input.color
+      if (color !== null && !isStepColor(color))
+        return fail('invalid_args', 'color 要是色板里的一种或 null')
+      const outcome = await deps.repository.setTagColor(requireString(input, 'tag'), color)
+      return outcome.ok ? ok(outcome.result) : failFrom(outcome.error)
+    }
+
+    case 'graph/tagDelete': {
+      const input = asRecord(payload)
+      const outcome = await deps.repository.deleteTag(requireString(input, 'tag'))
+      return outcome.ok ? ok(outcome.result) : failFrom(outcome.error)
     }
 
     case 'graph/versions': {

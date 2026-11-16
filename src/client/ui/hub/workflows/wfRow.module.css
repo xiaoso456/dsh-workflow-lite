@@ -1,0 +1,40 @@
+/**
+ * dsh-workflow-lite — 「工作流」页左栏一行的名字那一行、第二行（`WorkflowRow.tsx`），组标题上给标签改名的输入框（`TagRename.tsx`）。
+ */
+
+/* 第一行：名字，画布上正开着的那张后面跟「当前」（名字太长先截名字）。 */
+.nameLine {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+}
+
+/* 第二行：有标签写标签（最多两个和「+N」），没有写步数、版本数；有没有标签行都一样高。 */
+.meta {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  height: 16px;
+}
+
+.metaText {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 组标题上给标签改名：输入框的字对齐原来的标签名（外面 -6px、里面 6px 内边距），高度不超过标题。 */
+.tagField {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-left: -6px;
+}
+
+.tagInput {
+  height: 24px;
+  color: var(--wl-text);
+  font-size: var(--wl-fs-meta);
+  font-weight: 600;
+}

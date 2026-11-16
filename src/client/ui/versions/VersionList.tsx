@@ -32,6 +32,8 @@ export function VersionList(props: {
   t: T
   rpc: WorkflowLiteRpc
   name: string
+  /** 改名前后不变的身份：给了，改名时列表留着、不闪加载。 */
+  subject?: string
   before?: () => Promise<boolean>
   onRestored?: () => void
   onChanged?: () => void

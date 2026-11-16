@@ -1,0 +1,319 @@
+/*
+ * dsh-workflow-lite — 工作流标签（Tags.tsx、TagMark.tsx、TagPicker.tsx）：左栏一行里的小标签、右栏标签那一排、
+ * 标签的小菜单、打标签的下拉。
+ * 每个标签一种颜色（`--wl-tag`，步骤的色板）：底是这个颜色淡一层，字和标签图标同色；「+ 标签」用虚线框表示能点。
+ */
+
+/* 带颜色的标签图标（菜单项、组标题前面）。 */
+.mark {
+  display: inline-flex;
+  flex: none;
+  color: var(--wl-tag, var(--wl-text-3));
+}
+
+/* 左栏一行里的小标签：最多两个和「+N」（RowTags，每个是 kit/TintChip）。 */
+.chips {
+  display: inline-flex;
+  flex: none;
+  gap: 3px;
+  align-items: center;
+  min-width: 0;
+}
+
+.more {
+  flex: none;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * ── 右栏：名字后面一排标签，末尾「+N」「+ 标签」 ─────────────────────
+ * 名字占它要的宽，这一排拿剩下的（至少放得下「+N」「+ 标签」，再窄就先截名字）。
+ * 平时一行不折，放不下的标签挪出排版藏起来（tagFit.ts）；点「+N」展开时整排折行。
+ * 上下各让 3px：第一行标签（22px）和名字（28px）居中对齐，折行时往下长。
+ */
+.row {
+  position: relative;
+  display: flex;
+  flex: 1 1 0;
+  flex-wrap: nowrap;
+  gap: 6px;
+  align-items: center;
+  min-width: 112px;
+  padding: 3px 0;
+}
+
+.row[data-expanded="true"] {
+  flex-wrap: wrap;
+}
+
+.row > * {
+  flex: none;
+}
+
+.row > [data-row-hidden="true"] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* 「+N」：收起了几个；展开时换成向上的箭头（收起）。 */
+.moreTags {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 22px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: calc(6px * var(--wl-round, 1));
+  background: var(--wl-fill);
+  color: var(--wl-text-2);
+  font: inherit;
+  font-size: var(--wl-fs-micro);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition:
+    background-color 120ms linear,
+    color 120ms linear;
+}
+
+.moreTags:hover {
+  background: var(--wl-hover);
+  color: var(--wl-text);
+}
+
+.moreTags:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+/*
+ * 一个标签：点名字开小菜单；✕ 平时不占位，悬停、键盘移进来、菜单开着时标签变宽、✕ 淡入。
+ * 宽度是一下子变的，看着的展开靠 transform：底色画在 `.tagSurface` 上（Tags.tsx 的 useGlide 从旧宽度 scaleX 过去），
+ * ✕ 带 `data-glide` 跟着滑，后面的标签由 useRowSlide 滑开。
+ */
+.tag {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  max-width: 180px;
+  height: 22px;
+  color: var(--wl-tag);
+  font-size: var(--wl-fs-micro);
+  isolation: isolate;
+  animation: tagIn 220ms var(--wl-ease-out) both;
+}
+
+.tagSurface {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: calc(6px * var(--wl-round, 1));
+  background: color-mix(in srgb, var(--wl-tag) 15%, transparent);
+  transform-origin: left center;
+  pointer-events: none;
+}
+
+/* 悬停、菜单开着：底色再深一层（只动透明度）。 */
+.tagSurface::after {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--wl-tag) 12%, transparent);
+  content: "";
+  opacity: 0;
+  transition: opacity 120ms linear;
+}
+
+.tag:hover .tagSurface::after,
+.tag[data-opened="true"] .tagSurface::after {
+  opacity: 1;
+}
+
+.tagName {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  min-width: 0;
+  height: 100%;
+  padding: 0 8px 0 7px;
+  border: 0;
+  border-radius: calc(6px * var(--wl-round, 1));
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.tagName > svg {
+  flex: none;
+}
+
+.tagName:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: -2px;
+}
+
+.tagText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tagRemove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: calc(4px * var(--wl-round, 1));
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms linear;
+}
+
+/*
+ * 展开：名字右边多让出 14px，✕（贴着右端，不占布局）淡入。✕ 不靠宽度藏起来，收起时不会被一下裁掉：
+ * 它跟着底面滑回去（useGlide 的 `data-glide`，只动 transform，所以这里定位不用 transform），一边淡出。
+ * ✕ 稍晚一点淡入，等底色先展开。
+ */
+.tag:hover .tagName,
+.tag:focus-within .tagName,
+.tag[data-opened="true"] .tagName {
+  padding-right: 22px;
+}
+
+.tag:hover .tagRemove,
+.tag:focus-within .tagRemove,
+.tag[data-opened="true"] .tagRemove {
+  opacity: 0.75;
+  pointer-events: auto;
+  transition-delay: 60ms;
+}
+
+/* 指到 ✕ 上：只是更清楚，不再叠一层底色（标签自己已经亮着）。 */
+.tag .tagRemove:hover {
+  opacity: 1;
+}
+
+.tagRemove:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: -2px;
+}
+
+/* 「+ 标签」：虚线框，和标签一样高。 */
+.add {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px 0 6px;
+  border: 1px dashed var(--wl-line-strong, var(--wl-line));
+  border-radius: calc(6px * var(--wl-round, 1));
+  background: transparent;
+  color: var(--wl-text-3);
+  font: inherit;
+  font-size: var(--wl-fs-micro);
+  cursor: pointer;
+  transition:
+    color 120ms linear,
+    border-color 120ms linear;
+}
+
+.add:hover,
+.add[aria-expanded="true"] {
+  border-color: var(--wl-accent);
+  color: var(--wl-accent-text);
+}
+
+.add:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+/* 标签的小菜单：上面颜色一排，下面「从这个工作流去掉」。 */
+div.tagMenu {
+  padding: 10px 8px 6px;
+}
+
+.tagMenuHead {
+  margin: 0 4px;
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+}
+
+.tagMenuHint {
+  margin: 1px 4px 8px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+.tagMenu [role="radiogroup"] {
+  margin: 0 4px;
+}
+
+.tagMenuSep {
+  height: 1px;
+  margin: 10px 0 4px;
+  background: var(--wl-line);
+}
+
+/* 打标签的下拉：比确认卡的内边距小，列表贴边。 */
+div.picker {
+  padding: 6px;
+}
+
+@keyframes tagIn {
+  from {
+    opacity: 0;
+    transform: scale(0.86);
+  }
+}
+
+/* 触屏没有悬停：✕ 一直在。 */
+@media (hover: none) {
+  .tag .tagName {
+    padding-right: 22px;
+  }
+
+  .tag .tagRemove {
+    opacity: 0.75;
+    pointer-events: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tag {
+    animation: none;
+  }
+
+  .tagSurface::after,
+  .tagRemove,
+  .add {
+    transition: none;
+  }
+}
+
+/* 瑞士：标签去底色只留同色细框，「+ 标签」实线。 */
+:global([data-look="swiss"]) .tagSurface {
+  border: 1px solid color-mix(in srgb, var(--wl-tag) 60%, transparent);
+  background: transparent;
+}
+
+:global([data-look="swiss"]) .add {
+  border-style: solid;
+}

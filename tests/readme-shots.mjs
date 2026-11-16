@@ -24,7 +24,7 @@ import { parse, stringify } from 'yaml'
 import { BOARD_SCRIPT, BOARD_STYLE } from '../src/host/boardSkill.ts'
 import { RunService } from '../src/host/runs/service.ts'
 import { addGlobalMemory } from '../src/shared/presets.ts'
-import { bootToCanvas, mouseClick, mouseMove, revealHubRow } from './lib/canvas-harness.mjs'
+import { bootToCanvas, mouseClick, mouseMove, viewHubRun } from './lib/canvas-harness.mjs'
 import { openPage, waitFor } from './lib/cdp-session.mjs'
 import { rpc } from './lib/web-session.mjs'
 import { installShotsCookie, SHOTS_SESSION_TITLE, startShotsEnv } from './support/shots-env.mjs'
@@ -649,11 +649,8 @@ async function shoot(session, lang) {
     await mkdir(produced, { recursive: true })
     await writeFile(join(produced, 'dashboard.html'), boardHtml(copy.board))
 
-    const view = `[data-testid="wl-hub-row"][data-id="${instance}"] [data-testid="wl-hub-view"]`
     await session.evaluate(clickTestId('wl-hub-open'))
-    await revealHubRow(session, instance, WORKSPACE)
-    await waitFor(session, `document.querySelector('${view}') !== null`)
-    await session.evaluate(`document.querySelector('${view}').click()`)
+    await viewHubRun(session, instance)
     await waitFor(
       session,
       `document.querySelector('[data-testid="wl-root"]').dataset.mode === 'run'`,

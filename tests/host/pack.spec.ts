@@ -229,6 +229,8 @@ describe('导出盘点', () => {
 describe('导出 → 导入（新工作流）', () => {
   it('来回一趟：版本号、资料、skill 都在，图里改成 {workflow}，计划里是绝对路径', async () => {
     const { from } = await sourceSide()
+    expectOk(await from.repository.setTags('review', ['周报', '写作']))
+    expectOk(await from.repository.setTagColor('写作', 'teal'))
     const scan = expectOk(await scanPack(from.deps, { name: 'review', versions: [1, 2] }))
     const pack = scan.items.filter((item) => item.state === 'pack').map((item) => item.key)
     const exported = expectOk(
@@ -249,6 +251,9 @@ describe('导出 → 导入（新工作流）', () => {
       plugin: '9.9.9',
       current: 2,
       workflow: { name: 'review' },
+      tags: ['周报', '写作'],
+      // 只带挑过的颜色（没挑过的按名字算，两边一样）。
+      tagColors: { 写作: 'teal' },
     })
     expect(opened.manifest.versions.map((version) => version.note)).toEqual(['第 1 版', '第 2 版'])
     expect(opened.manifest.assets.map((file) => file.path).sort()).toEqual([
@@ -284,6 +289,8 @@ describe('导出 → 导入（新工作流）', () => {
     const applied = expectOk(await applyPack(to.deps, { token, mode: 'new', name: 'review' }))
     expect(applied).toMatchObject({ name: 'review', versions: [1, 2], duplicates: [], assets: 3 })
     expect(applied.skills).toEqual([{ name: 'my-skill', as: 'my-skill', action: 'install' }])
+    expect(await to.repository.tagsOf('review')).toEqual(['周报', '写作'])
+    expect(await to.repository.tagColors()).toEqual({ 写作: 'teal' })
 
     const versions = expectOk(await to.repository.listVersions('review'))
     expect(versions.map((version) => [version.n, version.note, version.current])).toEqual([
@@ -328,6 +335,9 @@ describe('导出 → 导入（新工作流）', () => {
 describe('并入已有工作流', () => {
   it('内容一样的版本不再存，其余接着编号；不自动存本机现在的内容', async () => {
     const { from } = await sourceSide()
+    expectOk(await from.repository.setTags('review', ['周报', '本机']))
+    expectOk(await from.repository.setTagColor('周报', 'pink'))
+    expectOk(await from.repository.setTagColor('本机', 'olive'))
     const exported = expectOk(
       await exportPack(from.deps, { name: 'review', versions: [1, 2], pack: [] }),
     )
@@ -335,6 +345,8 @@ describe('并入已有工作流', () => {
 
     const to = await side('to')
     await makeWorkflow(to.repository, 'review', [graph([], '本机的一版')])
+    expectOk(await to.repository.setTags('review', ['本机']))
+    expectOk(await to.repository.setTagColor('本机', 'slate'))
     // 本机现在的内容没存成版本。
     expectOk(await to.repository.save('review', graph([], '没存的改动'), { baseHash: null }))
     await mkdir(assetsDir(to.dataDir, 'review'), { recursive: true })
@@ -351,6 +363,10 @@ describe('并入已有工作流', () => {
     expect(listed.map((version) => version.n)).toEqual([3, 2, 1])
     expect(listed[0]?.current).toBe(true)
     expect(JSON.stringify(listed)).not.toContain('没存的改动')
+    // 并入：包里的标签添在本机已有的后面。
+    expect(await to.repository.tagsOf('review')).toEqual(['本机', '周报'])
+    // 颜色：本机挑过的为准，本机没挑过的用包里的。
+    expect(await to.repository.tagColors()).toEqual({ 本机: 'slate', 周报: 'pink' })
     expect(await readFile(join(assetsDir(to.dataDir, 'review'), 'notes.md'), 'utf8')).toBe(
       '本机的笔记',
     )

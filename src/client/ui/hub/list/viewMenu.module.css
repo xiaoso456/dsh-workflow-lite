@@ -1,5 +1,5 @@
 /*
- * dsh-workflow-lite — 「触发」页的「视图选项」按钮与菜单（ViewMenu.tsx）。
+ * dsh-workflow-lite — 工作流中心各页左栏的「视图选项」按钮与菜单（ViewMenu.tsx）。
  * 菜单项沿用 kit 的 menuItem（悬停、选中底色都是渐显）；这里只补图标色、张数和钩。
  */
 
@@ -59,13 +59,21 @@
   padding: 4px;
 }
 
+/* 标签多了菜单会很长：菜单自己滚，不顶出窗口。 */
+.body {
+  max-height: min(70vh, 560px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
 .item {
   min-height: 32px;
 }
 
+/* 项前面的图标：灰的；按标签筛的项是标签的颜色（`--wl-choice`）。 */
 .item > svg:first-child {
   flex: none;
-  color: var(--wl-text-3);
+  color: var(--wl-choice, var(--wl-text-3));
 }
 
 .count {

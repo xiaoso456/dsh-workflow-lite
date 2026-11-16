@@ -607,14 +607,14 @@ try {
   })
   if (!prepared.ok) throw new Error(JSON.stringify(prepared))
   const instance = prepared.result.id
-  const view = `[data-testid="wl-hub-row"][data-id="${instance}"] [data-testid="wl-hub-view"]`
+  const view = '[data-testid="wl-hub-detail-view"]'
   await session.evaluate(clickTestId('wl-hub-open'))
-  await revealHubRow(session, instance, WORKSPACE)
+  await revealHubRow(session, instance)
   await waitFor(session, `document.querySelector('${view}') !== null`)
   const marker = await session.evaluate(
-    textOf(`[data-testid="wl-hub-row"][data-id="${instance}"] [data-testid="wl-hub-origin"]`),
+    textOf(`[data-testid="wl-hub-run-detail"] [data-testid="wl-hub-origin"]`),
   )
-  check('工作流中心的实例行标出触发卡片', marker === '夜巡', marker)
+  check('工作流中心的实例详情写出来源的触发器', marker.includes('夜巡'), marker)
   await capture(session, 'hub-light.png')
   await session.evaluate(`document.querySelector('${view}').click()`)
   await waitFor(session, `document.querySelector('[data-testid="wl-root"]').dataset.mode === 'run'`)
@@ -1244,6 +1244,33 @@ try {
   await pressKey(session, 'Escape')
   await waitFor(session, `!(${has('wl-trigger-guard-dialog')})`)
   check('铅笔打开「保护」对话框，Esc 关掉', await session.evaluate(has('wl-hub-trg-settings')))
+  // 右栏标题就地改名：写进图里那张卡片的名字，左栏跟着换；清空就显示卡片编号。
+  const hookName = async () =>
+    (await rpc('trigger/all', {})).triggers.find(
+      (item) => item.workflow === NAME2 && item.view.node === 'hook',
+    )?.name
+  const renameHub = async (value) => {
+    await session.evaluate(clickTestId('wl-hub-trg-name-rename'))
+    await waitFor(session, has('wl-hub-trg-name-input'))
+    await session.evaluate(
+      `(() => { const el = document.querySelector('[data-testid="wl-hub-trg-name-input"]'); el.value = ${JSON.stringify(value)}; el.focus() })()`,
+    )
+    await pressKey(session, 'Enter')
+    await waitFor(session, has('wl-hub-trg-name'))
+  }
+  const hookBefore = await hookName()
+  await renameHub('改名验收')
+  check(
+    '右栏标题改名：宿主、标题、左栏都换成新名字',
+    (await hookName()) === '改名验收' &&
+      (await session.evaluate(textOf('[data-testid="wl-hub-trg-name"]'))) === '改名验收' &&
+      (await session.evaluate(textOf(hookRow))).includes('改名验收'),
+    String(await hookName()),
+  )
+  await renameHub('')
+  check('清空名字就显示卡片编号', (await hookName()) === 'hook', String(await hookName()))
+  await renameHub(hookBefore)
+  check('改回原来的名字', (await hookName()) === hookBefore, String(await hookName()))
   // 「时间线」页：触发记录在这里。
   await session.evaluate(clickTestId('wl-hub-trg-tab-timeline'))
   await waitFor(session, has('wl-hub-trg-history'))

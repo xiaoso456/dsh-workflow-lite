@@ -31,6 +31,7 @@ import {
 import type { RepoCore } from './repoCore.ts'
 import { describeProblems, onlyLevel, saveProblem } from './repoResult.ts'
 import { parseNodeData, templateProblems } from './repoTemplates.ts'
+import { TagStore } from './tags.ts'
 import { countVersions } from './versions.ts'
 
 /** 列举部分用到的核心能力。 */
@@ -80,8 +81,11 @@ export class WorkflowLister {
   /** 图名 → 上次读到的文件身份与结论。 */
   private readonly facts = new Map<string, { stamp: string; facts: FileFacts }>()
 
-  constructor(core: ListCore) {
+  private readonly tags: TagStore
+
+  constructor(core: ListCore, tags: TagStore) {
     this.core = core
+    this.tags = tags
   }
 
   async list(): Promise<ListResult> {
@@ -103,12 +107,18 @@ export class WorkflowLister {
     this.reportIgnored(scan, 'workflows/', warnings)
     this.reportIgnored(templateNodes, 'templates/nodes/', warnings)
 
+    const tagData = await this.tags.read()
     const workflows = await mapLimited(scan.names, READ_AHEAD, async (name) => {
       const [entry, versions] = await Promise.all([
         this.describeWorkflow(name, scan),
         countVersions(this.core.dataDir, name),
       ])
-      return versions > 0 ? { ...entry, versions } : entry
+      const tags = TagStore.tagsOf(tagData, name)
+      return {
+        ...entry,
+        ...(versions > 0 ? { versions } : {}),
+        ...(tags.length > 0 ? { tags } : {}),
+      }
     })
     // 不在了的图，记着的结论也不留。
     const present = new Set(scan.names)

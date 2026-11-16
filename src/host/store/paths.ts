@@ -125,6 +125,11 @@ export function assetsRoot(dataDir: string): string {
   return join(dataDir, ASSETS_DIR)
 }
 
+/** `<dataDir>/tags.json`：工作流的标签（本机整理用，见 `shared/tags.ts`）。 */
+export function tagsFile(dataDir: string): string {
+  return join(dataDir, 'tags.json')
+}
+
 /** `<dataDir>/.pack/`：导入导出的暂存区。 */
 export function packRoot(dataDir: string): string {
   return join(dataDir, PACK_DIR)

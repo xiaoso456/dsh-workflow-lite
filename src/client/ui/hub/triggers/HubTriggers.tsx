@@ -14,13 +14,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { TriggerData } from '../../../../shared/types.ts'
 import type { GraphListResponse } from '../../../../shared/wire/graph.ts'
 import type { TriggerEntry } from '../../../../shared/wire/trigger.ts'
+import { useListView } from '../../../app/listView.ts'
 import type { SessionRow } from '../../../app/sessions.ts'
 import { patchTriggerOnDisk } from '../../../app/triggerEdit.ts'
-import { useTriggerListView } from '../../../app/triggerListView.ts'
 import { useTriggerHub } from '../../../app/useTriggerHub.ts'
 import type { T } from '../../../i18n.ts'
 import { matchesWords, searchWords } from '../../../model/search.ts'
-import { arrangeTriggers } from '../../../model/triggerList.ts'
+import { arrangeTriggers, TRIGGER_VIEW } from '../../../model/triggerList.ts'
 import { sourceText } from '../../../model/triggerText.ts'
 import type { WorkflowLiteRpc } from '../../../rpc.ts'
 import { cx } from '../../kit/cx.ts'
@@ -60,7 +60,7 @@ export function HubTriggers(props: {
 }): React.JSX.Element {
   const { t, rpc, onNotice } = props
   const hubData = useTriggerHub(rpc, props.flush)
-  const [view, changeView] = useTriggerListView()
+  const [view, changeView] = useListView(TRIGGER_VIEW)
   const [query, setQuery] = useState('')
   const [picked, setPicked] = useState<string | null>(
     props.start === undefined ? null : pairKey(props.start.workflow, props.start.node),
@@ -99,20 +99,22 @@ export function HubTriggers(props: {
     openRun: props.onOpenRun,
   })
 
-  const edit = async (entry: TriggerEntry, patch: Partial<TriggerData>): Promise<void> => {
+  /** 改这张卡片写在图里的设置；回有没有存成（没成已经提示过）。 */
+  const edit = async (entry: TriggerEntry, patch: Partial<TriggerData>): Promise<boolean> => {
     const open = entry.workflow === props.current
     if (open && !(await props.flush())) {
       onNotice(t('ver.flushFailed'), 'error')
-      return
+      return false
     }
     const problem = await patchTriggerOnDisk(rpc, entry.workflow, entry.view.node, patch)
     if (problem !== null) {
       onNotice(problem, 'error')
-      return
+      return false
     }
     if (open) props.onReload()
     props.onChanged()
     await hubData.refresh()
+    return true
   }
 
   if (list === null) {
@@ -177,6 +179,8 @@ export function HubTriggers(props: {
           onTab={setTab}
           env={env}
           onPatch={(patch) => void edit(selected, patch)}
+          // 名字写在卡片上（`label`）；清空就回到卡片的 id。
+          onRename={(name) => edit(selected, { label: name === '' ? undefined : name })}
           onOpenCard={() => props.onOpenCard(selected.workflow, selected.view.node)}
           onOpenRun={props.onOpenRun}
           onOpenWorkflow={props.onOpenWorkflow}

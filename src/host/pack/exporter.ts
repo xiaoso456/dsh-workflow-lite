@@ -464,6 +464,7 @@ export async function exportPack(
       ),
     )
   }
+  const tags = await deps.repository.tagsOf(request.name)
   const manifest: PackManifest = {
     format: PACK_FORMAT,
     kind: PACK_KIND,
@@ -481,6 +482,8 @@ export async function exportPack(
     skills,
     memories,
     external,
+    tags,
+    tagColors: await deps.repository.tagColors(tags),
   }
   put(PACK_PATHS.manifest, encoder.encode(`${JSON.stringify(manifest, null, 2)}\n`))
 

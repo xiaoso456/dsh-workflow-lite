@@ -397,23 +397,33 @@ export async function pressShortcut(session, key, mods = ['ctrl']) {
 
 /* ── 工作流中心 ───────────────────────────────────────────── */
 
-/** 「运行实例」页左栏里某个工作区那一项（表达式；找不到是 undefined）。 */
+/**
+ * 「运行实例」页左栏按工作区分组（默认）时某个工作区的组标题（表达式；找不到是 undefined）。
+ * 组标题的名字悬停看完整路径，按它认。
+ */
 export const hubWorkspaceExpr = (workspacePath) =>
-  `[...document.querySelectorAll('[data-testid="wl-hub-ws"]')].find((item) => item.dataset.path === ${JSON.stringify(workspacePath)})`
+  `[...document.querySelectorAll('[data-testid="wl-hub-run-group"]')].find((head) => head.dataset.value?.startsWith('workspace:') && head.querySelector('[data-tip]')?.dataset.tip === ${JSON.stringify(workspacePath)})`
 
 /**
- * 「运行实例」页里让某个实例的行露出来：右栏只列选中的那个工作区，在左栏点它。
+ * 「运行实例」页里选中某个实例：点左栏它那一行，等右栏换成它。
  * 调用前工作流中心要开着、停在「运行实例」页。
  */
-export async function revealHubRow(session, instanceId, workspacePath) {
-  const item = hubWorkspaceExpr(workspacePath)
-  await waitFor(session, `(${item}) != null`)
-  // 已经选中也点一下：点过就钉住，不怕会话列表晚到、默认选中换到别的工作区。
-  await session.evaluate(`(${item}).click()`)
+export async function revealHubRow(session, instanceId) {
+  const button = `document.querySelector('[data-testid="wl-hub-run"][data-value="${instanceId}"]')`
+  await waitFor(session, `${button} !== null`)
+  // 已经选中也点一下：点过就钉住，不怕列表晚到、默认选中换到别的实例。
+  await session.evaluate(`(${button}.scrollIntoView({ block: 'nearest' }), ${button}.click())`)
   await waitFor(
     session,
-    `document.querySelector('[data-testid="wl-hub-row"][data-id="${instanceId}"]') !== null`,
+    `document.querySelector('[data-testid="wl-hub-run-detail"]')?.dataset.id === ${JSON.stringify(instanceId)}`,
   )
+}
+
+/** 在工作流中心「运行实例」页选中这个实例，点右栏的「查看」（左栏一行没有按钮，操作都在右栏）。 */
+export async function viewHubRun(session, instanceId) {
+  await revealHubRow(session, instanceId)
+  await waitFor(session, `document.querySelector('[data-testid="wl-hub-detail-view"]') !== null`)
+  await session.evaluate(`document.querySelector('[data-testid="wl-hub-detail-view"]').click()`)
 }
 
 /* ── 截图 ─────────────────────────────────────────────────── */

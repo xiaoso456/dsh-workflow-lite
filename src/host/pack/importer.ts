@@ -610,6 +610,17 @@ export async function applyPack(
     },
   })
   if (!outcome.ok) return outcome
+  // 标签：新建的照包里的打上，并入的在原有的上添；颜色只给本机没挑过的标签
+  // （打不上不算导入失败，工作流已经进来了）。
+  if (manifest.tags.length > 0) {
+    const name = outcome.result.name
+    await (request.mode === 'merge'
+      ? deps.repository.addTags(name, manifest.tags)
+      : deps.repository.setTags(name, manifest.tags))
+    if (Object.keys(manifest.tagColors).length > 0) {
+      await deps.repository.adoptTagColors(manifest.tagColors)
+    }
+  }
   await discard(deps.dataDir, request.token)
   return {
     ok: true,

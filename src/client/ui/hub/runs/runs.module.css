@@ -1,0 +1,328 @@
+/*
+ * dsh-workflow-lite — 「运行实例」页（runs/）：左栏一行的状态图标块与状态行，右栏头部、信息、进度与每一步。
+ * 状态色（--wl-run）来自 chrome/runStatus.module.css 的 [data-run-status]。
+ */
+
+/* ── 左栏 ─────────────────────────────────────────────────── */
+
+/* 图标块跟状态色走（ui.kind 读 --wl-kind）。 */
+.mark[data-run-status],
+.headMark[data-run-status] {
+  --wl-kind: var(--wl-run);
+}
+
+/* 名字和「当前」小标一行：名字太长先省略，小标不挤掉。 */
+.nameLine {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+}
+
+.meta {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  white-space: nowrap;
+}
+
+.dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--wl-run-fill, var(--wl-run));
+}
+
+.stateText {
+  flex: none;
+  color: var(--wl-run);
+}
+
+.count {
+  flex: none;
+  color: var(--wl-text-2);
+  font-family: var(--wl-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.note {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.note::before {
+  margin-right: 5px;
+  content: "·";
+}
+
+/* 按状态分组时标题前面的图标用状态色。 */
+.groupTone {
+  display: inline-flex;
+  color: var(--wl-run);
+}
+
+/* ── 右栏头部 ──────────────────────────────────────────────── */
+
+.head {
+  display: flex;
+  flex: none;
+  gap: 12px;
+  align-items: center;
+}
+
+.headMark {
+  width: 38px;
+  height: 38px;
+  border-radius: calc(10px * var(--wl-round, 1));
+}
+
+.headText {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.title {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--wl-fs-title);
+  font-weight: 600;
+}
+
+.titleName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sub {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+  margin: 0;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+.subPart {
+  display: inline-flex;
+  flex: 0 1 auto;
+  gap: 4px;
+  align-items: center;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.subPart > svg {
+  flex: none;
+}
+
+.subText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 状态小标、查看、移到本会话、删除：一排靠右，状态小标和按钮之间稍宽一点。 */
+.headActions {
+  display: flex;
+  flex: none;
+  gap: 4px;
+  align-items: center;
+}
+
+.headActions > :first-child {
+  margin-right: 6px;
+}
+
+/* ── 右栏正文：左边信息，右边进度与每一步 ───────────────────── */
+
+.body {
+  display: grid;
+  flex: 1 1 auto;
+  grid-template-columns: 252px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.col {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.goal {
+  margin: 0;
+  color: var(--wl-text);
+  font-size: var(--wl-fs-meta);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  user-select: text;
+}
+
+.progressHead {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.progressText {
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+}
+
+.progressBar {
+  display: block;
+  flex: none;
+  height: 4px;
+  overflow: hidden;
+  border-radius: calc(999px * var(--wl-round, 1));
+  background: var(--wl-fill-strong);
+}
+
+/*
+ * 填满整条再按比例 scaleX 缩：是 span，不写 display: block 宽度就是 0，怎么缩都是空的。
+ * 挂上时从 0 长到当前进度，之后进度变了滑过去。
+ */
+.progressFill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--wl-run-fill, var(--wl-run));
+  transform-origin: left center;
+  transition: transform 420ms var(--wl-ease);
+  animation: barIn 620ms var(--wl-ease) 120ms backwards;
+}
+
+@keyframes barIn {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+.quiet {
+  margin: 0;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+}
+
+/* 每一步一行：状态点、名字、状态字；行间细线，整块一张卡。 */
+.steps {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--wl-line);
+  border-radius: calc(10px * var(--wl-round, 1));
+  background: var(--wl-panel);
+  list-style: none;
+}
+
+.step {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  padding: 7px 12px;
+  font-size: var(--wl-fs-meta);
+}
+
+.step + .step {
+  border-top: 1px solid var(--wl-line);
+}
+
+.stepName {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stepStatus {
+  flex: none;
+  color: var(--wl-run);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+}
+
+/* 状态文件读不出来的原因：路径或问题清单，等宽字写字段路径。 */
+.reason {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 12px;
+  border-radius: calc(8px * var(--wl-round, 1));
+  background: var(--wl-danger-soft);
+  color: var(--wl-text);
+  font-size: var(--wl-fs-meta);
+  line-height: 1.55;
+  user-select: text;
+}
+
+.reasonPath,
+.reasonList code {
+  color: var(--wl-danger);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+  overflow-wrap: anywhere;
+}
+
+.reasonList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--wl-text-2);
+}
+
+.reasonList code {
+  margin-right: 6px;
+}
+
+.reasonMore {
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+/* 右栏窄：上下叠着。 */
+@container (max-width: 680px) {
+  .body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progressFill {
+    transition: none;
+    animation: none;
+  }
+}
+
+/* 瑞士：每一步的卡只留上下线。 */
+:global([data-look="swiss"]) .steps {
+  border-width: 1px 0;
+  border-radius: 0;
+  background: transparent;
+}

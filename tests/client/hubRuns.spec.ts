@@ -1,12 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import {
-  groupRuns,
   matchesQuery,
-  pickGroup,
   workspaceKey,
   workspaceName,
   workspacesOf,
 } from '../../src/client/model/hubRuns.ts'
+import { arrangeList } from '../../src/client/model/listView.ts'
+import {
+  isActive,
+  RUN_VIEW,
+  type RunListView,
+  runBucket,
+  runListSpec,
+  updatedOf,
+} from '../../src/client/model/runList.ts'
 import type { InstanceSummary } from '../../src/shared/runState.ts'
 
 let seq = 0
@@ -78,52 +85,85 @@ describe('搜索', () => {
   })
 })
 
-describe('搜索 + 分组', () => {
-  const mine = run({ workflow: 'a', session: 's1', cwd: 'D:\\x', status: 'done', goal: '只在 x' })
-  const other = run({ workflow: 'b', session: 's2', cwd: 'D:\\y', status: 'waiting' })
-  const otherSameDir = run({ workflow: 'c', session: 's2', cwd: 'D:\\x', status: 'running' })
-  const items = [otherSameDir, other, mine]
-  const base = {
-    hereCwd: 'D:\\x',
-    titleOf: (id: string | undefined) => (id === 's2' ? '别的会话' : undefined),
-  }
+describe('左栏的分组、排序、筛选', () => {
+  const mine = run({
+    workflow: 'a',
+    session: 's1',
+    cwd: 'D:\\x',
+    statePath: 'x/state.yaml',
+    status: 'done',
+    createdAt: 30,
+  })
+  const other = run({
+    workflow: 'b',
+    session: 's2',
+    cwd: 'D:\\y',
+    statePath: 'y/state.yaml',
+    status: 'waiting',
+    createdAt: 50,
+  })
+  const otherSameDir = run({
+    workflow: 'c',
+    session: 's2',
+    cwd: 'd:/X/',
+    statePath: 'x/state2.yaml',
+    status: 'running',
+    createdAt: 40,
+    updatedAt: '2026-11-15T10:00:00Z',
+  })
+  const broken = run({
+    workflow: 'a',
+    session: 's1',
+    cwd: 'D:\\x',
+    statePath: 'x/gone.yaml',
+    stateProblem: 'missing',
+    createdAt: 20,
+  })
+  const loose = run({ workflow: 'd', createdAt: 10 })
+  const items = [mine, other, otherSameDir, broken, loose]
+  const spec = runListSpec(items, { cwd: 'D:\\x', session: 's1' })
+  const view = (over: Partial<RunListView>): RunListView => ({ ...RUN_VIEW.defaults, ...over })
+  const shape = (over: Partial<RunListView>) =>
+    arrangeList(items, view(over), spec).groups.map((group) => [
+      group.key,
+      group.entries.map((item) => item.workflow),
+    ])
 
-  it('按工作区分组，本工作区在最前，组内保持原顺序；数出执行中和等待用户的', () => {
-    const groups = groupRuns(items, { ...base, query: '' })
-    expect(
-      groups.map((group) => [
-        group.workspace.name,
-        group.items.map((i) => i.workflow),
-        group.active,
-      ]),
-    ).toEqual([
-      ['x', ['c', 'a'], 1],
-      ['y', ['b'], 1],
+  it('按工作区：本工作区在最前（写法不同算同一个），其余按最近建实例；组内新的在前', () => {
+    expect(shape({})).toEqual([
+      [workspaceKey('D:\\x'), ['c', 'a', 'a']],
+      [workspaceKey('D:\\y'), ['b']],
+      ['', ['d']],
     ])
   })
 
-  it('搜索跨工作区：只留有命中的组，组里只留命中的实例，计数跟着变', () => {
-    const byTitle = groupRuns(items, { ...base, query: '别的' })
-    expect(
-      byTitle.map((group) => [
-        group.workspace.name,
-        group.workspace.count,
-        group.items.map((i) => i.workflow),
-      ]),
-    ).toEqual([
-      ['x', 1, ['c']],
-      ['y', 1, ['b']],
+  it('按状态：进行中、等待用户、失败（含状态文件读不出来）、完成、不记进度', () => {
+    expect(shape({ group: 'status' })).toEqual([
+      ['running', ['c']],
+      ['waiting', ['b']],
+      ['failed', ['a']],
+      ['done', ['a']],
+      ['untracked', ['d']],
     ])
-    expect(groupRuns(items, { ...base, query: 'zzz' })).toEqual([])
+    expect(runBucket(broken)).toBe('failed')
+    expect(runBucket(loose)).toBe('untracked')
+    expect(runBucket(run({ statePath: 's', status: 'pending' }))).toBe('running')
   })
 
-  it('右边显示哪组：点过的还在就是它，否则排在最前的（本工作区）', () => {
-    const groups = groupRuns(items, { ...base, query: '' })
-    expect(pickGroup(groups, workspaceKey('D:\\y'))?.workspace.name).toBe('y')
-    expect(pickGroup(groups, null)?.workspace.name).toBe('x')
-    // 搜索把点过的那组筛掉了：回到最前的一组。
-    const onlyX = groupRuns(items, { ...base, query: '只在 x' })
-    expect(pickGroup(onlyX, workspaceKey('D:\\y'))?.workspace.name).toBe('x')
-    expect(pickGroup([], null)).toBeUndefined()
+  it('按会话：本会话在最前；没有会话的一组键是空串', () => {
+    expect(shape({ group: 'session' }).map(([key]) => key)).toEqual(['s1', 's2', ''])
+  })
+
+  it('排序：最近更新按状态文件的时间，没有就按建立时间；按工作流名', () => {
+    expect(updatedOf(otherSameDir)).toBe(Date.parse('2026-11-15T10:00:00Z'))
+    expect(updatedOf(mine)).toBe(30)
+    expect(shape({ group: 'none', sort: 'name' })).toEqual([['', ['a', 'a', 'b', 'c', 'd']]])
+  })
+
+  it('筛选：进行中是执行中 + 等待用户；失败含读不出来的；数出每种有几个', () => {
+    const active = arrangeList(items, view({ show: 'active', group: 'none' }), spec)
+    expect(active.groups[0]?.entries.map((item) => item.workflow)).toEqual(['b', 'c'])
+    expect(active.counts).toEqual({ all: 5, active: 2, failed: 1 })
+    expect(isActive(mine)).toBe(false)
   })
 })

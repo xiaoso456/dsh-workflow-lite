@@ -99,6 +99,19 @@
   opacity: 1;
 }
 
+/* 项右边的数（标签：几个工作流在用）。 */
+.count {
+  flex: none;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 搜不到时的「新建……」：强调色，和已有的项分开。 */
+.create {
+  color: var(--wl-accent-text);
+}
+
 /* 带一行说明的项：名字加粗，下面一行灰字。 */
 .twoLine {
   min-height: 44px;

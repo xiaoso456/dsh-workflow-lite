@@ -610,6 +610,7 @@ export type ValidationCode =
   | 'memory_misplaced'
   | 'unknown_node_type'
   | 'unknown_fields_dropped'
+  | 'tags_not_updated'
   // 提示
   | 'branch_not_exhaustive'
   | 'freeform_when'
@@ -718,6 +719,8 @@ export interface WorkflowEntry {
   triggers?: number
   /** 开着「记录运行状态」（接续触发要靠它看出什么时候跑完；开着才给）。 */
   runState?: true
+  /** 本机给它打的标签（有才给；存在 `tags.json`，不在工作流文件里，见 `shared/tags.ts`）。 */
+  tags?: string[]
 }
 
 /** 工作流的一个版本（`versions/<图名>/<序号>.json`）。 */

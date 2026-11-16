@@ -37,18 +37,7 @@
   min-width: 0;
 }
 
-/* 栏窄时先缩后面两个小签，名字最后才缩（缩的份额按 flex-shrink 分，小签的大得多）。 */
-.name {
-  flex: 0 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  font-size: var(--wl-fs-title);
-  font-weight: 600;
-  line-height: 1.35;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
+/* 栏窄时先缩后面两个小签，名字（TitleEdit）最后才缩（缩的份额按 flex-shrink 分，小签的大得多）。 */
 .tag {
   display: inline-flex;
   flex: 0 1000 auto;

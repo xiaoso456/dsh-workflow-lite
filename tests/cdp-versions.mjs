@@ -75,24 +75,40 @@ async function hoverSel(session, selector) {
   await mouseMove(session, box)
 }
 
-/** 行内改名框：填上新名字、回车，等输入框收起。给了 `shot` 就先截一张刚打开时的样子。 */
-async function renameTo(session, name, shot) {
-  await waitFor(session, exists('wl-hub-wf-rename-input'))
+/** 右栏标题那一块（标题、灰字、标签）的高度：改名时不该变。 */
+const headHeight = (testId) =>
+  `document.querySelector('[data-testid="${testId}"]').closest('div').getBoundingClientRect().height`
+
+/**
+ * 在左栏选中 `from`，点右栏标题后面的铅笔改名：填上新名字、回车，等输入框收起。
+ * 给了 `shot` 就先截一张刚打开时的样子。
+ */
+async function renameTo(session, from, name, shot) {
+  await session.evaluate(`document.querySelector(${JSON.stringify(hubRow(from))}).click()`)
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-hub-wf-title"]')?.textContent === ${JSON.stringify(from)}`,
+  )
+  const before = await session.evaluate(headHeight('wl-hub-wf-title'))
+  await session.evaluate(clickTestId('wl-hub-wf-title-rename'))
+  await waitFor(session, exists('wl-hub-wf-title-input'))
+  const editing = await session.evaluate(headHeight('wl-hub-wf-title-input'))
+  check(Math.abs(editing - before) < 1, `改名时标题栏不该变高：${before} → ${editing}`)
   check(
     await session.evaluate(
-      `document.querySelector('[data-testid="wl-hub-wf-rename-input"]').closest('div').getBoundingClientRect().height < 50`,
+      `(() => { const el = document.querySelector('[data-testid="wl-hub-wf-title-input"]'); return document.activeElement === el && el.selectionEnd - el.selectionStart === el.value.length })()`,
     ),
-    '改名时这一行不该变高',
+    '改名框打开时聚焦、全选',
   )
   if (shot !== undefined) {
     await sleep(150)
     await screenshot(session, shot)
   }
   await session.evaluate(
-    `(() => { const el = document.querySelector('[data-testid="wl-hub-wf-rename-input"]'); el.value = ${JSON.stringify(name)}; el.focus(); })()`,
+    `(() => { const el = document.querySelector('[data-testid="wl-hub-wf-title-input"]'); el.value = ${JSON.stringify(name)}; el.focus(); })()`,
   )
   await pressKey(session, 'Enter', { code: 'Enter', text: '\r' })
-  await waitFor(session, gone('wl-hub-wf-rename-input'))
+  await waitFor(session, gone('wl-hub-wf-title-input'))
 }
 
 async function run(session) {
@@ -218,7 +234,8 @@ async function run(session) {
     '列表里应写着 1 个版本',
   )
   await session.evaluate(`document.querySelector(${JSON.stringify(otherSel)}).click()`)
-  await waitFor(session, exists('wl-hub-wf-open'))
+  // 「打开」正开着的那张也有，按标题认选中了哪张。
+  await waitFor(session, `${textOf('wl-hub-wf-title')} === ${JSON.stringify(OTHER)}`)
   await waitFor(session, `${textOf('wl-ver-state')}.includes('还没存成版本')`)
   await setReactInput(session, '[data-testid="wl-ver-note"]', '另一张的起点')
   await session.evaluate(clickTestId('wl-ver-save'))
@@ -234,12 +251,18 @@ async function run(session) {
   await screenshot(session, 'ver-04-hub.png')
   pass('工作流中心：给没打开的工作流存版本')
 
-  // 9) 在左边那一行上给没打开的那张改名：版本跟着走，右边跟着换成新名字。
+  // 9) 在右栏标题上给没打开的那张改名：版本跟着走，左边那一行跟着换成新名字。
+  //    左栏一行悬停时不浮出按钮（操作都在右栏）。
   await hoverSel(session, hubRow(OTHER))
   await sleep(200)
   await screenshot(session, 'ver-05-hub-row-hover.png')
-  await session.evaluate(clickTestId(`wl-hub-wf-rename-${OTHER}`))
-  await renameTo(session, RENAMED, 'ver-05b-hub-rename.png')
+  check(
+    await session.evaluate(
+      `document.querySelector(${JSON.stringify(hubRow(OTHER))}).parentElement.querySelectorAll('button').length === 1`,
+    ),
+    '左栏一行只有它自己一个按钮',
+  )
+  await renameTo(session, OTHER, RENAMED, 'ver-05b-hub-rename.png')
   await waitFor(session, `document.querySelector(${JSON.stringify(hubRow(RENAMED))}) !== null`)
   const names = (await rpc('graph/list', {})).workflows.map((entry) => entry.name)
   check(names.includes(RENAMED) && !names.includes(OTHER), '磁盘上应换成新名字')
@@ -255,8 +278,7 @@ async function run(session) {
   pass('工作流中心：给没打开的工作流改名，版本跟着走')
 
   // 10) 给正开着的那张改名：编辑页顶栏跟着换。
-  await session.evaluate(clickTestId(`wl-hub-wf-rename-${NAME}`))
-  await renameTo(session, NAME2)
+  await renameTo(session, NAME, NAME2)
   await waitFor(
     session,
     `(document.querySelector('[data-testid="wl-switcher"]')?.textContent || '').trim() === ${JSON.stringify(NAME2)}`,
@@ -265,7 +287,12 @@ async function run(session) {
   pass('工作流中心：给正开着的工作流改名，编辑页跟上')
 
   // 11) 删掉正开着的那张：确认卡说编辑页会空出来、版本一起删；删完列表里没了，编辑页关上。
-  await session.evaluate(clickTestId(`wl-hub-wf-delete-${NAME2}`))
+  //     删除在右栏标题栏末尾。
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-hub-wf-title"]')?.textContent === ${JSON.stringify(NAME2)}`,
+  )
+  await session.evaluate(clickTestId('wl-hub-wf-delete'))
   await waitFor(session, exists('wl-hub-wf-delete-confirm-pop'))
   const warn = await session.evaluate(textOf('wl-hub-wf-delete-confirm-pop'))
   check(warn.includes('正开着') && warn.includes('1 个版本'), `确认卡应说清后果：${warn}`)
@@ -292,7 +319,7 @@ async function run(session) {
 
   // 12) 从那里打开改过名的那张：中心关掉，编辑页换成这张。
   await session.evaluate(`document.querySelector(${JSON.stringify(hubRow(RENAMED))}).click()`)
-  await waitFor(session, exists('wl-hub-wf-open'))
+  await waitFor(session, `${textOf('wl-hub-wf-title')} === ${JSON.stringify(RENAMED)}`)
   await session.evaluate(clickTestId('wl-hub-wf-open'))
   await waitFor(session, gone('wl-hub'))
   await waitFor(

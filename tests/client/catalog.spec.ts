@@ -10,6 +10,7 @@ const list = (): GraphListResponse => ({
   ],
   templates: { nodes: [] },
   warnings: [],
+  tagColors: {},
   limits: { maxNodes: 400, saveDebounceMs: 800 },
 })
 

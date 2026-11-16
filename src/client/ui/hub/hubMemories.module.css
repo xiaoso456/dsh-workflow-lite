@@ -15,16 +15,6 @@
   white-space: nowrap;
 }
 
-.listTag {
-  flex: none;
-  padding: 0 5px;
-  border: 1px solid var(--wl-line);
-  border-radius: calc(4px * var(--wl-round, 1));
-  color: var(--wl-text-3);
-  font-size: 10px;
-  line-height: 14px;
-}
-
 .listUsed {
   min-width: 0;
   overflow: hidden;
@@ -62,98 +52,12 @@
   min-width: 0;
 }
 
-/* 眼睛在名称右边；名称只占文字那么宽，悬停的底色和提示都贴着字。 */
-.hubNameRow {
+/* 标题栏末尾：查看文件、删除。 */
+.hubActions {
   display: flex;
+  flex: none;
   gap: 6px;
   align-items: center;
-  min-width: 0;
-}
-
-.hubNameRow > button {
-  flex: none;
-}
-
-.hubName {
-  box-sizing: border-box;
-  flex: 0 1 auto;
-  field-sizing: content;
-  min-width: 4ch;
-  max-width: 100%;
-  height: 28px;
-  margin: 0 0 0 -6px;
-  padding: 0 6px;
-  border: 0;
-  border-radius: calc(6px * var(--wl-round, 1));
-  outline: 2px solid transparent;
-  background: transparent;
-  color: var(--wl-text);
-  font: inherit;
-  font-size: var(--wl-fs-title);
-  font-weight: 600;
-  text-overflow: ellipsis;
-  transition: background-color 120ms linear;
-}
-
-.hubName:hover {
-  background: var(--wl-hover);
-}
-
-.hubName:focus-visible {
-  outline-color: var(--wl-accent);
-  background: var(--wl-fill);
-}
-
-.hubName::placeholder {
-  color: var(--wl-text-3);
-}
-
-.hubTag {
-  display: inline-flex;
-  margin-right: 8px;
-  padding: 0 7px;
-  border-radius: calc(5px * var(--wl-round, 1));
-  background: var(--wl-fill);
-  color: var(--wl-text-2);
-  line-height: 17px;
-}
-
-/* 三个数：一张卡里三行，左边名、右边值，行间细线。 */
-.stats {
-  display: flex;
-  flex: none;
-  flex-direction: column;
-  border: 1px solid var(--wl-line);
-  border-radius: calc(10px * var(--wl-round, 1));
-  background: var(--wl-panel);
-}
-
-.stat {
-  display: flex;
-  gap: 12px;
-  align-items: baseline;
-  justify-content: space-between;
-  min-width: 0;
-  padding: 7px 12px;
-}
-
-.stat + .stat {
-  border-top: 1px solid var(--wl-line);
-}
-
-.statLabel {
-  flex: none;
-  color: var(--wl-text-3);
-  font-size: var(--wl-fs-micro);
-}
-
-.statValue {
-  overflow: hidden;
-  font-size: var(--wl-fs-meta);
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* 详情正文：左边这条记忆的信息（数、描述、谁在用），右边是它的版本，版本占满剩下的高度。 */
@@ -277,11 +181,12 @@
   border-color: var(--wl-line-strong);
 }
 
-:global([data-look="swiss"]) .stats {
-  border-width: 1px 0;
-  background: transparent;
+/* 按使用分组时标题前面的图标：在用是绿的，未使用是灰的。 */
+.groupLead {
+  display: inline-flex;
+  color: var(--wl-text-3);
 }
 
-:global([data-look="swiss"]) .hubTag {
-  border-radius: 0;
+.groupLead[data-on="true"] {
+  color: var(--wl-ok);
 }

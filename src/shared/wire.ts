@@ -59,6 +59,14 @@ import type {
   GraphRenameResponse,
   GraphSaveRequest,
   GraphSaveResponse,
+  GraphTagColorRequest,
+  GraphTagColorResponse,
+  GraphTagDeleteRequest,
+  GraphTagDeleteResponse,
+  GraphTagRenameRequest,
+  GraphTagRenameResponse,
+  GraphTagsRequest,
+  GraphTagsResponse,
   GraphTemplatesRequest,
   GraphTemplatesResponse,
   GraphVersionDeleteRequest,
@@ -178,6 +186,10 @@ export const WORKFLOW_LITE_ENDPOINTS = [
   'graph/create',
   'graph/rename',
   'graph/delete',
+  'graph/tags',
+  'graph/tagRename',
+  'graph/tagDelete',
+  'graph/tagColor',
   'graph/versions',
   'graph/versionSave',
   'graph/versionLoad',
@@ -288,6 +300,10 @@ export interface WorkflowLiteRpcMap {
   'graph/create': { args: GraphCreateRequest; result: GraphCreateResponse }
   'graph/rename': { args: GraphRenameRequest; result: GraphRenameResponse }
   'graph/delete': { args: GraphDeleteRequest; result: GraphDeleteResponse }
+  'graph/tags': { args: GraphTagsRequest; result: GraphTagsResponse }
+  'graph/tagRename': { args: GraphTagRenameRequest; result: GraphTagRenameResponse }
+  'graph/tagDelete': { args: GraphTagDeleteRequest; result: GraphTagDeleteResponse }
+  'graph/tagColor': { args: GraphTagColorRequest; result: GraphTagColorResponse }
   'graph/versions': { args: GraphVersionsRequest; result: GraphVersionsResponse }
   'graph/versionSave': { args: GraphVersionSaveRequest; result: GraphVersionSaveResponse }
   'graph/versionLoad': { args: GraphVersionLoadRequest; result: GraphVersionLoadResponse }

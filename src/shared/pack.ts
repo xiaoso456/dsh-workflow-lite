@@ -21,6 +21,7 @@
  */
 
 import { checkName } from './naming.ts'
+import { normalizeTagColors, normalizeTags, type TagColor } from './tags.ts'
 import { MEMORY_TYPES, type MemoryType, type ResourceKind } from './types.ts'
 
 /** 包格式的版本号（和插件版本分开算）。读到比它新的直接拒绝，叫用户先升级插件。 */
@@ -103,6 +104,10 @@ export interface PackManifest {
   /** 早先的包没有（当成空的）。 */
   memories: PackMemory[]
   external: PackExternal[]
+  /** 导出时本机给它打的标签，导入时打回去。早先的包没有（当成空的）。 */
+  tags: string[]
+  /** 这些标签里挑过颜色的（本机没挑过的才用）。早先的包没有（当成空的）。 */
+  tagColors: Record<string, TagColor>
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -234,6 +239,8 @@ export function readManifest(raw: unknown): ManifestRead {
       skills,
       memories,
       external,
+      tags: normalizeTags(raw.tags),
+      tagColors: normalizeTagColors(raw.tagColors),
     },
   }
 }

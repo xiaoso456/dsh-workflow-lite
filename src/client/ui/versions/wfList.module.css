@@ -1,5 +1,5 @@
 /**
- * dsh-workflow-lite — 左栏里「一项一行」的列表：滑块式的选中底色、悬停底色、行尾浮出的按钮、编辑中的小绿点。
+ * dsh-workflow-lite — 左栏里「一项一行」的列表：滑块式的选中底色、悬停底色、行尾浮出的按钮。
  *
  * 版本对话框里记忆那一栏（VersionsDialog.tsx）、工作流中心的「工作流」「记忆」「实例」页（hub/）用的是同一套，
  * 所以放在这里，hub 从这里取。
@@ -120,19 +120,10 @@
   white-space: nowrap;
 }
 
-/* 正在编辑的那张：名字右边一个小绿点。 */
-.wfDot {
-  flex: none;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--wl-ok-dot);
-  transition: opacity 120ms linear;
-}
-
 /*
- * 一行：「改名 / 删除」浮在右端，和小绿点占同一个位置。
- * 平时按钮透明；悬停、键盘移进来、确认卡开着时浮出来，小绿点淡掉，名字让出按钮那一截。
+ * 一行：「改名 / 删除」浮在右端。
+ * 平时按钮透明；悬停、键盘移进来、确认卡开着时浮出来，名字让出按钮那一截。
+ * 没有行尾按钮的行（`data-end="none"`，如「工作流」「记忆」页，操作都在右栏）：什么都不让。
  */
 .wfRow {
   position: relative;
@@ -158,16 +149,13 @@
   pointer-events: auto;
 }
 
-.wfRow:hover .wfDot,
-.wfRow:focus-within .wfDot,
-.wfRow[data-busy="true"] .wfDot {
-  opacity: 0;
-}
-
-/* 悬停才浮出来的改名、删除要让位，文字收窄；行尾按钮常驻的行（`data-end="fixed"`，如「触发」页）自己留好了位置，不收。 */
-.wfRow:not([data-end="fixed"]):hover .wfText,
-.wfRow:not([data-end="fixed"]):focus-within .wfText,
-.wfRow[data-busy="true"]:not([data-end="fixed"]) .wfText {
+/*
+ * 悬停才浮出来的两个按钮要让位，文字收窄 52px；行尾按钮常驻的行（`data-end="fixed"`，如「触发」页）自己留好了位置，
+ * 没有按钮的行（`data-end="none"`）不用让，都不收。
+ */
+.wfRow:not([data-end]):hover .wfText,
+.wfRow:not([data-end]):focus-within .wfText,
+.wfRow[data-busy="true"]:not([data-end]) .wfText {
   padding-right: 52px;
 }
 
@@ -177,11 +165,7 @@
     pointer-events: auto;
   }
 
-  .wfDot {
-    opacity: 0;
-  }
-
-  .wfRow:not([data-end="fixed"]) .wfText {
+  .wfRow:not([data-end]) .wfText {
     padding-right: 52px;
   }
 }

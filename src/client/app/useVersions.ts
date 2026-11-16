@@ -62,12 +62,15 @@ export interface VersionCore<E> {
 }
 
 /**
- * 版本列表的底子：`load` 换了（换了一张工作流、一条记忆）就清空重读，上一份的回包不要；
+ * 版本列表的底子：`load` 换了就重读，上一份的回包不要；换了一张工作流、一条记忆（`subject` 变了）还先清空，
+ * 只是改了名（`subject` 没变）就留着旧的列表等新的回来，不闪一下加载。
  * 成功的提示过一会儿自己淡掉，出错的留着。
  */
 export function useVersionCore<E>(options: {
   t: T
   load: () => Promise<E[]>
+  /** 列的是谁：改名前后不变的那个身份。不给就当 `load` 一换就是换了一个。 */
+  subject?: string | undefined
   before?: (() => Promise<boolean>) | undefined
   onChanged?: (() => void) | undefined
 }): VersionCore<E> {
@@ -79,6 +82,8 @@ export function useVersionCore<E>(options: {
   outer.current = options
   /** 换了工作流之后，上一张的回包不要了。 */
   const ticket = useRef(0)
+  /** 上一次列的是谁（见 `subject`）。 */
+  const listed = useRef<string | undefined>(undefined)
   const seq = useRef(0)
 
   const say = useCallback((tone: VersionNotice['tone'], text: string): void => {
@@ -107,8 +112,12 @@ export function useVersionCore<E>(options: {
 
   useEffect(() => {
     ticket.current += 1
-    setList(null)
-    setNotice(null)
+    const { subject } = outer.current
+    if (subject === undefined || subject !== listed.current) {
+      setList(null)
+      setNotice(null)
+    }
+    listed.current = subject
     void (async () => {
       // 先把编辑页的改动写下去，「当前」才比得准。
       await outer.current.before?.()
@@ -147,6 +156,8 @@ export function useVersions(options: {
   t: T
   rpc: WorkflowLiteRpc
   name: string
+  /** 改名前后不变的身份（见 `useVersionCore`）：给了，改名时列表不清空。 */
+  subject?: string
   /** 动手前（存掉编辑页还没写下去的改动）；回 `false` 就不做了。 */
   before?: () => Promise<boolean>
   /** 切换写回了工作流之后。 */
@@ -166,6 +177,7 @@ export function useVersions(options: {
   const { list, setList, busy, notice, say, refresh, act } = useVersionCore({
     t: options.t,
     load,
+    subject: options.subject,
     before: options.before,
     onChanged: options.onChanged,
   })

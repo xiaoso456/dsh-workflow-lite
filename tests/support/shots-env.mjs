@@ -57,10 +57,11 @@ export function prepareShotsProfile(options) {
   const dir = join(dshHome(), 'profiles', name)
   mkdirSync(join(dir, 'node_modules', '@xiaoso'), { recursive: true })
 
-  // 把本仓库链进 profile：Windows 用 junction（不需要管理员），其它平台用普通目录符号链接
+  // 把本仓库（或给定的插件目录，比如解开的已发布包）链进 profile：Windows 用 junction（不需要管理员），其它平台用普通目录符号链接
+  const plugin = options.pluginRoot ?? REPO_ROOT
   const link = join(dir, 'node_modules', '@xiaoso', 'dsh-workflow-lite')
   rmSync(link, { recursive: true, force: true })
-  symlinkSync(REPO_ROOT, link, process.platform === 'win32' ? 'junction' : 'dir')
+  symlinkSync(plugin, link, process.platform === 'win32' ? 'junction' : 'dir')
 
   writeFileSync(
     join(dir, 'package.json'),
@@ -68,7 +69,7 @@ export function prepareShotsProfile(options) {
       {
         name: `dsh-profile-${name}`,
         private: true,
-        dependencies: { '@xiaoso/dsh-workflow-lite': `link:${REPO_ROOT.replaceAll('\\', '/')}` },
+        dependencies: { '@xiaoso/dsh-workflow-lite': `link:${plugin.replaceAll('\\', '/')}` },
         dsh: { profile: { bundles: SHOTS_BUNDLES, patchReload: 'startup' } },
       },
       null,
@@ -459,6 +460,7 @@ export async function startShotsEnv(options) {
       mockUrl: mock.url,
       dataDir: options.dataDir,
       ...(options.theme === undefined ? {} : { theme: options.theme }),
+      ...(options.pluginRoot === undefined ? {} : { pluginRoot: options.pluginRoot }),
     })
     mkdirSync(options.workspaceDir, { recursive: true })
     instance = await startShotsInstance({

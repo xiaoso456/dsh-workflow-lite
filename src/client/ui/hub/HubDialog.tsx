@@ -2,13 +2,16 @@
  * dsh-workflow-lite — 工作流中心：放所有**跨工作流、跨会话**的东西。
  *
  * 标题栏和「工作流设置」同一种样子，几页的切换放在标题栏里：
- * - **运行实例**（`HubRuns.tsx`）：所有会话的实例，左边工作区（能搜）、右边它的实例；
+ * 前四页左栏同一个样子（`list/`）：搜索框旁「视图选项」（分组、排序、筛选，记在本机浏览器里），
+ * 分组标题可折叠、滚动时钉在顶上，一项可以出现在几组里。
+ * - **运行实例**（`runs/HubRuns.tsx`）：所有会话的实例，左边按工作区 / 工作流 / 状态 / 会话分组，右边选中那个的全貌；
  *   查看、改整体状态、移到本会话、删除记录（状态文件另外问要不要一起删）；
- * - **工作流**（`HubWorkflows.tsx`）：全部工作流，每一行能就地改名、删除；选一张看它的版本——存、切换、改说明、删除，不用先打开它；
+ * - **工作流**（`workflows/HubWorkflows.tsx`）：全部工作流，按标签 / 触发 / 修改时间分组；每一行能打标签、就地改名、删除，
+ *   标签的改名、删除在组标题上；选一张看它的标签和版本——存、切换、改说明、删除，不用先打开它；
  *   导入、导出工作流包也在这一页；
- * - **触发**（`triggers/HubTriggers.tsx`）：所有工作流里的触发卡片——左栏分组、筛选、行尾开关和「全部暂停」，
- *   右栏选中那张的状态、概览、时间线、按触发方式的那一页和设置（铅笔打开和画布面板同一个对话框）；
- * - **记忆**（`HubMemories.tsx`）：记忆库里的每一条——名称、描述、在用的工作流、文件和版本，删掉不用的；
+ * - **触发**（`triggers/HubTriggers.tsx`）：所有工作流里的触发器——左栏分组、筛选和「全部暂停」，
+ *   右栏选中那个的状态、概览、时间线、按触发方式的那一页和设置（铅笔打开和画布面板同一个对话框）；
+ * - **记忆**（`HubMemories.tsx`）：记忆库里的每一条——按类型 / 使用 / 工作流分组；名称、描述、在用的工作流、文件和版本，删掉不用的；
  * - **存储**（`HubStorage.tsx`）：数据目录、各样东西的占用，清理已结束的实例与旧版本遗留文件；
  * - **设置**（`HubSettings.tsx`）：插件自己的几项设置（数据目录、步骤上限、自动保存等待……）。
  *
@@ -30,12 +33,12 @@ import overlay from '../kit/overlay.module.css'
 import { Segmented } from '../kit/Segmented.tsx'
 import ui from '../kit/ui.module.css'
 import { HubMemories } from './HubMemories.tsx'
-import { HubRuns } from './HubRuns.tsx'
 import { HubSettings } from './HubSettings.tsx'
 import { HubStorage } from './HubStorage.tsx'
-import { HubWorkflows } from './HubWorkflows.tsx'
 import css from './hubDialog.module.css'
+import { HubRuns } from './runs/HubRuns.tsx'
 import { HubTriggers } from './triggers/HubTriggers.tsx'
+import { HubWorkflows } from './workflows/HubWorkflows.tsx'
 
 type HubPage = 'runs' | 'workflows' | 'triggers' | 'memories' | 'storage' | 'settings'
 const PAGES: readonly HubPage[] = [
@@ -137,6 +140,7 @@ export function HubDialog(props: {
         {page === 'runs' ? (
           <HubRuns
             t={t}
+            rpc={props.rpc}
             session={props.session}
             sessionRows={props.sessionRows}
             sessionsReady={props.sessionsReady}
@@ -153,6 +157,7 @@ export function HubDialog(props: {
             rpc={props.rpc}
             {...props.workflows}
             startExport={props.focus?.kind === 'export'}
+            onNotice={props.onNotice}
             onOpen={(name) => {
               props.workflows.onOpen(name)
               props.onClose()

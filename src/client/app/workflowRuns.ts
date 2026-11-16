@@ -7,7 +7,8 @@
  */
 
 import type { RunStatus } from '../../shared/runState.ts'
-import { errorMessage, type WorkflowLiteRpc } from '../rpc.ts'
+import type { WorkflowLiteRpc } from '../rpc.ts'
+import { patchWorkflowOnDisk } from './diskPatch.ts'
 
 /** 每个工作流最多列几次执行。 */
 export const RECENT_RUNS = 6
@@ -57,21 +58,9 @@ export async function recentRuns(
 }
 
 /** 在 `workflow` 的设置里打开「记录运行状态」（接续触发要靠它看出什么时候跑完）；打不开回一句原因。 */
-export async function enableRunState(
-  rpc: WorkflowLiteRpc,
-  workflow: string,
-): Promise<string | null> {
-  try {
-    const loaded = await rpc.call('graph/load', { name: workflow })
-    if (loaded.problems.length > 0) return loaded.problems[0]?.message ?? ''
-    const { document } = loaded
-    await rpc.call('graph/save', {
-      name: workflow,
-      document: { ...document, settings: { ...document.settings, runState: true } },
-      baseHash: loaded.hash,
-    })
-    return null
-  } catch (error) {
-    return errorMessage(error)
-  }
+export function enableRunState(rpc: WorkflowLiteRpc, workflow: string): Promise<string | null> {
+  return patchWorkflowOnDisk(rpc, workflow, (document) => ({
+    ...document,
+    settings: { ...document.settings, runState: true },
+  }))
 }

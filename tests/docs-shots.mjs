@@ -24,6 +24,7 @@ import {
   mouseMove,
   revealHubRow,
   setReactInput,
+  viewHubRun,
 } from './lib/canvas-harness.mjs'
 import { openPage, waitFor } from './lib/cdp-session.mjs'
 import { rpc } from './lib/web-session.mjs'
@@ -1041,7 +1042,7 @@ async function main(session) {
   await step('hub-runs', async () => {
     await session.evaluate(clickTestId('wl-hub-open'))
     await waitFor(session, has('wl-hub'))
-    await revealHubRow(session, instance, WORKSPACE)
+    await revealHubRow(session, instance)
     await sleep(1000)
     await snap(
       session,
@@ -1050,9 +1051,7 @@ async function main(session) {
     )
   })
   await step('run-graph', async () => {
-    const view = `[data-testid="wl-hub-row"][data-id="${instance}"] [data-testid="wl-hub-view"]`
-    await waitFor(session, `document.querySelector('${view}') !== null`)
-    await session.evaluate(`document.querySelector('${view}').click()`)
+    await viewHubRun(session, instance)
     await waitFor(
       session,
       `document.querySelector('[data-testid="wl-root"]').dataset.mode === 'run'`,
@@ -1330,10 +1329,7 @@ async function main(session) {
     await session.evaluate(clickTestId('wl-hub-open'))
     await waitFor(session, has('wl-hub'))
     await session.evaluate(clickTestId('wl-hub-runs'))
-    await revealHubRow(session, instance2, WORKSPACE)
-    const view = `[data-testid="wl-hub-row"][data-id="${instance2}"] [data-testid="wl-hub-view"]`
-    await waitFor(session, `document.querySelector('${view}') !== null`)
-    await session.evaluate(`document.querySelector('${view}').click()`)
+    await viewHubRun(session, instance2)
     await waitFor(
       session,
       `document.querySelector('[data-testid="wl-root"]').dataset.mode === 'run'`,
@@ -1581,10 +1577,7 @@ async function main(session) {
       await waitFor(session, has('wl-hub'))
     }
     await session.evaluate(clickTestId('wl-hub-runs'))
-    await revealHubRow(session, id, WORKSPACE)
-    const view = `[data-testid="wl-hub-row"][data-id="${id}"] [data-testid="wl-hub-view"]`
-    await waitFor(session, `document.querySelector('${view}') !== null`)
-    await session.evaluate(`document.querySelector('${view}').click()`)
+    await viewHubRun(session, id)
     await waitFor(
       session,
       `document.querySelector('[data-testid="wl-root"]').dataset.mode === 'run'`,

@@ -29,6 +29,7 @@ import {
   revealHubRow,
   screenshot,
   setReactInput,
+  viewHubRun,
 } from './lib/canvas-harness.mjs'
 import { openPage, waitFor } from './lib/cdp-session.mjs'
 import { rpc } from './lib/web-session.mjs'
@@ -184,38 +185,26 @@ try {
   // `DSH_SESSION_TITLE`：一次性实例里按标题找会话（新建的会话行显示「刚刚」，按相对时间找不到）。
   await bootToCanvas(session, NAME, { sessionTitle: process.env.DSH_SESSION_TITLE })
   await session.evaluate(`document.querySelector('[data-testid="wl-hub-open"]').click()`)
-  // 两栏：左边工作区（排在最前的默认选中），右边选中那个工作区的实例。
+  // 两栏：左边全部实例（默认按工作区分组），右边选中那个实例的全貌。
   const wsItem = hubWorkspaceExpr(WORKSPACE)
   await waitFor(session, `(${wsItem}) != null`)
   const side = await session.evaluate(`(() => {
-    const items = [...document.querySelectorAll('[data-testid="wl-hub-ws"]')];
-    const mine = ${wsItem};
-    return {
-      firstSelected: items[0]?.getAttribute('aria-current') === 'true',
-      selected: items.filter((item) => item.getAttribute('aria-current') === 'true').length,
-      text: mine.textContent,
-      tip: mine.querySelector('[data-testid="wl-hub-ws-name"]').dataset.tip,
-    };
+    const head = ${wsItem};
+    return { text: head.textContent, tip: head.querySelector('[data-tip]').dataset.tip };
   })()`)
   check(
-    side.firstSelected && side.selected === 1,
-    `左栏默认选中排在最前的工作区：${JSON.stringify(side)}`,
+    side.text.includes(basename(WORKSPACE)) && /1$/.test(side.text.trim()),
+    `工作区的组标题写目录名和实例数：${side.text}`,
   )
-  check(
-    side.text.includes(basename(WORKSPACE)) && side.text.includes('1 个实例'),
-    `左栏一项写目录名和实例数：${side.text}`,
-  )
-  check(side.tip === WORKSPACE, `悬停名字看完整路径：${side.tip}`)
-  // 真悬停：提示贴着名字出来（不是整项下面隔一截），没选中的项亮一层。
-  const wsBackground = `getComputedStyle(${wsItem}).backgroundColor`
-  const mineSelected = await session.evaluate(`(${wsItem}).getAttribute('aria-current') === 'true'`)
+  check(side.tip === WORKSPACE, `悬停组名看完整路径：${side.tip}`)
+  // 真悬停：提示贴着名字出来，和名字左对齐、不越出工作流中心。
+  const wsName = `(${wsItem}).querySelector('[data-tip]')`
   // 先挪开再移过去：上一跑停下的指针可能正好就在这个点上，原地"移动"不会触发悬停。
   await mouseMove(session, { x: 2, y: 2 })
-  const idleBackground = await session.evaluate(wsBackground)
   await mouseMove(
     session,
     await session.evaluate(`(() => {
-      const r = (${wsItem}).querySelector('[data-testid="wl-hub-ws-name"]').getBoundingClientRect();
+      const r = ${wsName}.getBoundingClientRect();
       return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
     })()`),
   )
@@ -223,80 +212,77 @@ try {
     session,
     `document.querySelector('[data-testid="wl-tip"]')?.textContent === ${JSON.stringify(WORKSPACE)}`,
   )
-  const tipGap = await session.evaluate(`(() => {
-    const tip = document.querySelector('[data-testid="wl-tip"]').getBoundingClientRect();
-    const name = (${wsItem}).querySelector('[data-testid="wl-hub-ws-name"]').getBoundingClientRect();
-    return Math.round(Math.min(Math.abs(tip.top - name.bottom), Math.abs(name.top - tip.bottom)));
-  })()`)
-  check(tipGap <= 12, `路径提示应贴着名字（隔 ${tipGap}px）`)
   const tipSide = await session.evaluate(`(() => {
     const tip = document.querySelector('[data-testid="wl-tip"]').getBoundingClientRect();
-    const name = (${wsItem}).querySelector('[data-testid="wl-hub-ws-name"]').getBoundingClientRect();
+    const name = ${wsName}.getBoundingClientRect();
     const dialog = document.querySelector('[data-testid="wl-hub"]').getBoundingClientRect();
-    return { dx: Math.round(tip.left - name.left), inside: tip.left >= dialog.left && tip.right <= dialog.right };
+    return {
+      gap: Math.round(Math.min(Math.abs(tip.top - name.bottom), Math.abs(name.top - tip.bottom))),
+      dx: Math.round(tip.left - name.left),
+      inside: tip.left >= dialog.left && tip.right <= dialog.right,
+    };
   })()`)
   check(
-    tipSide.dx === 0 && tipSide.inside,
-    `路径提示应和名字左对齐、不越出工作流中心（${JSON.stringify(tipSide)}）`,
+    tipSide.gap <= 12 && tipSide.dx === 0 && tipSide.inside,
+    `路径提示应贴着组名、左对齐、不越出工作流中心（${JSON.stringify(tipSide)}）`,
   )
-  // 只有它没被选中时才看得出悬停那一层（选中的保持选中色）。
-  if (!mineSelected) {
-    check((await session.evaluate(wsBackground)) !== idleBackground, '没选中的工作区悬停时应亮一层')
-  }
-  await revealHubRow(session, instance, WORKSPACE)
+  await revealHubRow(session, instance)
   // 进度条的填充要有宽度（按比例 scaleX 缩），不然永远是空的。
   check(
     await session.evaluate(`(() => {
-      const bar = document.querySelector('[data-testid="wl-hub-row"][data-id="${instance}"] [data-testid="wl-hub-progress"] > span:last-child');
+      const bar = document.querySelector('[data-testid="wl-hub-run-detail"] [data-testid="wl-hub-progress"]');
       return bar !== null && bar.firstElementChild.offsetWidth === bar.offsetWidth && bar.offsetWidth > 0;
     })()`),
     '进度条的填充应占满整条再按比例缩',
   )
-  check(
-    (await session.evaluate(
-      `document.querySelector('[data-testid="wl-hub-runs-of"]').dataset.path`,
-    )) === WORKSPACE,
-    '点了左栏的工作区，右栏换成它的实例',
-  )
-  // 所有行共用一套列：状态小标宽窄不一、有没有「移到本会话」，进度条、「查看」、删除都上下对齐。
+  // 左栏各行同一套格子：图标块、名字上下对齐。
   const columns = await session.evaluate(`(() => {
-    const rows = [...document.querySelectorAll('[data-testid="wl-hub-row"]')];
+    const rows = [...document.querySelectorAll('[data-testid="wl-hub-run"]')];
     const lefts = (selector) => new Set(rows.map((row) => Math.round(row.querySelector(selector)?.getBoundingClientRect().left ?? -1)));
-    return { rows: rows.length, bars: lefts('[data-testid="wl-hub-progress"]').size, views: lefts('[data-testid="wl-hub-view"]').size, deletes: lefts('[data-testid="wl-hub-delete"]').size };
+    return { rows: rows.length, marks: lefts(':scope > span:first-child').size };
   })()`)
   check(
-    columns.bars === 1 && columns.views === 1 && columns.deletes === 1,
-    `各行的进度一栏、「查看」和删除应上下对齐：${JSON.stringify(columns)}`,
+    columns.rows > 0 && columns.marks === 1,
+    `左栏各行的图标块应上下对齐：${JSON.stringify(columns)}`,
   )
-  // 动效：选中底块滑到选中的工作区、和它严丝合缝；动完之后工作流中心里没有还在跑（或停在半路）的动画。
+  // 动效：选中底块滑到选中的那一行、和它严丝合缝；动完之后工作流中心里没有还在跑（或停在半路）的动画
+  //（放完、停在末帧的 `fill: both` 淡入不算：getAnimations 里还有它，playState 是 finished）。
+  // 每一步的状态是选中后才去读的，读到了才淡入：等它出来再算。
+  await waitFor(session, `document.querySelector('[data-testid="wl-hub-steps"]') !== null`)
   await sleep(900)
   const motion = await session.evaluate(`(() => {
     const thumb = document.querySelector('[data-testid="wl-list-thumb"]').getBoundingClientRect();
-    const item = document.querySelector('[data-testid="wl-hub-ws"][aria-current="true"]').getBoundingClientRect();
+    const item = document.querySelector('[data-testid="wl-hub-run"][aria-current="true"]').getBoundingClientRect();
     return {
       offset: [thumb.top - item.top, thumb.left - item.left, thumb.width - item.width, thumb.height - item.height].map(Math.round),
-      running: document.querySelector('[data-testid="wl-hub"]').getAnimations({ subtree: true }).length,
+      running: document.querySelector('[data-testid="wl-hub"]').getAnimations({ subtree: true }).filter((a) => a.playState === 'running').map((a) => (a.animationName ?? a.constructor.name) + '@' + (a.effect?.target?.className ?? '') + ':' + a.effect?.getComputedTiming().iterations),
     };
   })()`)
   check(
-    motion.offset.every((value) => value === 0) && motion.running === 0,
+    motion.offset.every((value) => value === 0) && motion.running.length === 0,
     `选中底块应贴着选中项、动完不留动画：${JSON.stringify(motion)}`,
   )
   await screenshot(session, 'runs-01-hub.png')
 
-  // 1a) 工作流中心：右栏标题是工作区、会话一栏、跨工作区搜索；存储页统计一次就不再闪。
+  // 1a) 右栏：工作区、会话、目标；搜索；存储页统计一次就不再闪。
   const rowSel = `[data-testid="wl-hub-row"][data-id="${instance}"]`
-  const hubFacts = await session.evaluate(`(() => {
-    const row = document.querySelector('${rowSel}')
-    const pane = row.closest('[data-testid="wl-hub-runs-of"]')
-    return { pane: pane.textContent, row: row.textContent }
+  const detail = await session.evaluate(`(() => {
+    const pane = document.querySelector('[data-testid="wl-hub-run-detail"]')
+    return {
+      text: pane.textContent,
+      path: [...pane.querySelectorAll('[data-tip]')].some((e) => e.dataset.tip === ${JSON.stringify(WORKSPACE)}),
+      row: document.querySelector('${rowSel}').textContent,
+    }
   })()`)
-  check(hubFacts.pane.includes(WORKSPACE), `右栏标题应是实例所在的工作区：${hubFacts.pane}`)
   check(
-    hubFacts.row.includes('会话已不在') || hubFacts.row.includes('其他会话'),
-    `假会话应标成「会话已不在」：${hubFacts.row}`,
+    detail.text.includes(basename(WORKSPACE)) && detail.path,
+    `右栏应写实例所在的工作区、悬停看完整路径：${detail.text}`,
   )
-  check(hubFacts.row.includes(NAME) && hubFacts.row.includes('验收'), '行里应有工作流名和目标')
+  check(
+    detail.text.includes('会话已不在') || detail.text.includes('其他会话'),
+    `假会话应标成「会话已不在」：${detail.text}`,
+  )
+  check(detail.row.includes(NAME) && detail.text.includes('验收'), '行里应有工作流名、右栏有目标')
   const typeSearch = async (text) => {
     await session.evaluate(`(() => {
       const input = document.querySelector('[data-testid="wl-hub-search"]')
@@ -308,7 +294,7 @@ try {
   await typeSearch('zz-no-such-thing')
   await waitFor(
     session,
-    `document.querySelectorAll('[data-testid="wl-hub-row"], [data-testid="wl-hub-ws"]').length === 0`,
+    `document.querySelectorAll('[data-testid="wl-hub-row"], [data-testid="wl-hub-run-group"]').length === 0`,
   )
   check(
     await session.evaluate(
@@ -316,25 +302,16 @@ try {
     ),
     '搜不到时应说没有符合条件的实例',
   )
-  // 搜索跨工作区：先在左栏选别的再搜，选中的被筛掉了就换到有命中的那个。
-  await typeSearch('')
-  await waitFor(session, `(${wsItem}) != null`)
-  await session.evaluate(`(() => {
-    const other = [...document.querySelectorAll('[data-testid="wl-hub-ws"]')].find((item) => item !== ${wsItem});
-    other?.click();
-  })()`)
   await typeSearch(`${NAME} 验收`)
   await waitFor(session, `document.querySelector('${rowSel}') !== null`)
   check(
     await session.evaluate(
-      `document.querySelectorAll('[data-testid="wl-hub-ws"]').length === 1 && (${wsItem}).getAttribute('aria-current') === 'true'`,
+      `[...document.querySelectorAll('[data-testid="wl-hub-row"]')].every((row) => row.textContent.includes(${JSON.stringify(NAME)}))`,
     ),
-    '搜索后左栏只留有命中的工作区，右栏跟着换过去',
+    '搜索后左栏只留命中的实例',
   )
   await typeSearch('')
-  // 清空搜索后左栏回到上面点过的那个工作区（点过的记着，搜索只是临时换过去）；
-  // 实例里不止一个工作区时右栏就不是我们的了，点回来再往下。
-  await revealHubRow(session, instance, WORKSPACE)
+  await revealHubRow(session, instance)
   await session.evaluate(`document.querySelector('[data-testid="wl-hub-storage"]').click()`)
   await waitFor(session, `document.querySelector('[data-testid="wl-hub-stats"]') !== null`)
   const flips = await session.evaluate(`new Promise((resolve) => {
@@ -360,12 +337,12 @@ try {
   )
   await screenshot(session, 'runs-01c-hub-storage.png')
   await session.evaluate(`document.querySelector('[data-testid="wl-hub-runs"]').click()`)
-  await revealHubRow(session, instance, WORKSPACE)
-  pass('工作流中心：左栏工作区、右栏它的实例，各列对齐；跨工作区搜索；存储页不闪、没有「派发缓存」')
-
-  await session.evaluate(
-    `document.querySelector('[data-testid="wl-hub-row"][data-id="${instance}"] [data-testid="wl-hub-view"]').click()`,
+  await revealHubRow(session, instance)
+  pass(
+    '工作流中心：左栏按工作区分组、右栏选中实例的全貌，各行对齐；搜索；存储页不闪、没有「派发缓存」',
   )
+
+  await viewHubRun(session, instance)
   await waitFor(session, `document.querySelector('[data-testid="wl-root"]').dataset.mode === 'run'`)
   await waitFor(session, `document.querySelectorAll('[data-testid="wl-run-chip"]').length === 4`)
   check((await session.evaluate(chipOf('scan'))) === 'pending', 'scan 一开始应是待执行')
@@ -627,16 +604,9 @@ try {
   )
   check((await session.evaluate(chipOf('review'))) === 'running', '写坏时画布保留上一次合法的状态')
   await screenshot(session, 'runs-03-invalid.png')
-  // 工作流中心里同一个实例标「状态文件有误」，点小标展开原因。
+  // 工作流中心里同一个实例标「状态文件有误」，选中后右栏写原因。
   await session.evaluate(`document.querySelector('[data-testid="wl-hub-open"]').click()`)
-  await revealHubRow(session, instance, WORKSPACE)
-  await waitFor(
-    session,
-    `document.querySelector('[data-testid="wl-hub-row"][data-id="${instance}"] [data-testid="wl-hub-why"]') !== null`,
-  )
-  await session.evaluate(
-    `document.querySelector('[data-testid="wl-hub-row"][data-id="${instance}"] [data-testid="wl-hub-why"]').click()`,
-  )
+  await revealHubRow(session, instance)
   await waitFor(session, `document.querySelector('[data-testid="wl-hub-reason"]') !== null`)
   const reason = await session.evaluate(
     `document.querySelector('[data-testid="wl-hub-reason"]').textContent`,
@@ -1128,8 +1098,8 @@ try {
       (item) => item.id === instance,
     )
   await session.evaluate(`document.querySelector('[data-testid="wl-hub-open"]').click()`)
-  await revealHubRow(session, instance, WORKSPACE)
-  const statusSel = `[data-testid="wl-hub-row"][data-id="${instance}"] [data-testid="wl-hub-status"]`
+  await revealHubRow(session, instance)
+  const statusSel = `[data-testid="wl-hub-run-detail"] [data-testid="wl-hub-status"]`
   const pickStatus = async (value) => {
     await mouseClick(session, await centerOf(session, statusSel))
     await waitFor(session, `document.querySelector('[data-testid="wl-hub-status-menu"]') !== null`)
@@ -1203,19 +1173,16 @@ try {
     `document.querySelector('[data-testid="wl-root"]').dataset.session`,
   )
   await session.evaluate(`document.querySelector('[data-testid="wl-hub-open"]').click()`)
-  await revealHubRow(session, instance, WORKSPACE)
+  await revealHubRow(session, instance)
   await waitFor(
     session,
-    `document.querySelector('[data-testid="wl-hub-row"][data-id="${instance}"] [data-testid="wl-hub-move"]') !== null`,
+    `document.querySelector('[data-testid="wl-hub-run-detail"] [data-testid="wl-hub-move"]') !== null`,
   )
-  // 列表里的按钮也走共用提示：不被滚动区裁掉，长说明折行、整个在视图里。
-  const moveButton = `document.querySelector('[data-testid="wl-hub-row"][data-id="${instance}"] [data-testid="wl-hub-move"]')`
+  // 右栏的按钮也走共用提示：长说明折行、整个在视图里。
+  const moveButton = `document.querySelector('[data-testid="wl-hub-run-detail"] [data-testid="wl-hub-move"]')`
   await mouseMove(
     session,
-    await centerOf(
-      session,
-      `[data-testid="wl-hub-row"][data-id="${instance}"] [data-testid="wl-hub-move"]`,
-    ),
+    await centerOf(session, `[data-testid="wl-hub-run-detail"] [data-testid="wl-hub-move"]`),
   )
   await waitFor(
     session,
@@ -1233,7 +1200,7 @@ try {
   await session.evaluate(`${moveButton}.click()`)
   await waitFor(
     session,
-    `document.querySelector('[data-testid="wl-hub-row"][data-id="${instance}"] [data-testid="wl-hub-move"]') === null`,
+    `document.querySelector('[data-testid="wl-hub-run-detail"] [data-testid="wl-hub-move"]') === null`,
   )
   const moved = JSON.parse(await readFile(join(DATA_DIR, 'instances.json'), 'utf8'))
   check(
@@ -1247,17 +1214,12 @@ try {
   )
   pass('工作流中心「移到本会话」→ 只属于本会话、成为当前实例、流水记 transfer')
 
-  // 10) 删除：记录、快照、状态文件都没了。
+  // 10) 删除（右栏标题栏末尾）：记录、快照、状态文件都没了。
   // 确认卡浮在删除按钮旁边：列表里的行不挪位。
+  await revealHubRow(session, instance)
   const rowsLayout = `[...document.querySelectorAll('[data-testid="wl-hub-row"]')].map((el) => { const r = el.getBoundingClientRect(); return Math.round(r.top) + ':' + Math.round(r.height) }).join(' ')`
   const rowsBefore = await session.evaluate(rowsLayout)
-  await mouseClick(
-    session,
-    await centerOf(
-      session,
-      `[data-testid="wl-hub-row"][data-id="${instance}"] [data-testid="wl-hub-delete"]`,
-    ),
-  )
+  await mouseClick(session, await centerOf(session, '[data-testid="wl-hub-detail-delete"]'))
   await waitFor(
     session,
     `document.querySelector('[data-testid="wl-hub-delete-confirm-pop"]') !== null`,
@@ -1267,10 +1229,13 @@ try {
   check(
     await session.evaluate(`(() => {
       const pop = document.querySelector('[data-testid="wl-hub-delete-confirm-pop"]').getBoundingClientRect();
-      const button = document.querySelector('[data-testid="wl-hub-row"][data-id="${instance}"] [data-testid="wl-hub-delete"]').getBoundingClientRect();
-      return Math.abs(pop.right - button.right) < 2;
+      const button = document.querySelector('[data-testid="wl-hub-detail-delete"]').getBoundingClientRect();
+      // 同 useFloat 的 'auto'：按钮在视图右半边就和它右边对齐，在左半边就从它左边往外 8px 起。
+      const root = document.querySelector('[data-testid="wl-root"]').getBoundingClientRect();
+      const right = button.left + button.width / 2 - root.left > root.width / 2;
+      return right ? Math.abs(pop.right - button.right) < 2 : Math.abs(pop.left - (button.left - 8)) < 2;
     })()`),
-    '删除按钮在右边：确认卡应和它右边对齐',
+    '确认卡应按删除按钮所在的半边贴着它对齐',
   )
   await session.evaluate(`document.querySelector('[data-testid="wl-hub-delete-state"]').click()`)
   await screenshot(session, 'runs-10-hub-delete-confirm.png')
@@ -1438,10 +1403,7 @@ try {
   check(untracked.ok && untracked.result.instance.statePath === undefined, '应建出不记状态的实例')
   instance = untracked.result.instance.id
   await session.evaluate(`document.querySelector('[data-testid="wl-hub-open"]').click()`)
-  await revealHubRow(session, instance, WORKSPACE)
-  await session.evaluate(
-    `document.querySelector('[data-testid="wl-hub-row"][data-id="${instance}"] [data-testid="wl-hub-view"]').click()`,
-  )
+  await viewHubRun(session, instance)
   await waitFor(session, `document.querySelector('[data-testid="wl-run-untracked"]') !== null`)
   check(
     await session.evaluate(`document.querySelectorAll('[data-testid="wl-run-chip"]').length === 0`),

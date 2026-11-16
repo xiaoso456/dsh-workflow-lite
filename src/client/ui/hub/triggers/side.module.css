@@ -1,201 +1,12 @@
 /*
- * dsh-workflow-lite — 「触发」页左栏（TriggerSide.tsx）：筛选条、分组标题、卡片行、底部总闸。
- * 行的底子沿用 versions/wfList.module.css（滑块式选中、悬停渐显），这里只补图标块、状态行和行尾开关。
+ * dsh-workflow-lite — 「触发」页左栏（TriggerSide.tsx）：卡片行、底部总闸。
+ * 分组、筛选条在 list/groupedList.module.css；行的底子沿用 versions/wfList.module.css。
  */
 
-/* 筛选不是「全部」时列表顶上的一条。 */
-.showing {
-  display: flex;
-  flex: none;
-  gap: 6px;
-  align-items: center;
-  height: 26px;
-  margin: 4px 8px 0;
-  padding: 0 3px 0 10px;
-  border-radius: var(--wl-r-control);
-  background: var(--wl-accent-soft);
-  color: var(--wl-accent-text);
-  font-size: var(--wl-fs-micro);
-}
-
-.showingText {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.showingClear {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  border: 0;
-  border-radius: calc(5px * var(--wl-round, 1));
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-  transition: background-color 120ms linear;
-}
-
-.showingClear:hover {
-  background: color-mix(in srgb, var(--wl-accent) 14%, transparent);
-}
-
-/* 列表上沿的内边距写成变量：钉住的分组标题要按它往上抵（见 .group 的 top）。 */
-.list {
-  --list-pad-top: 6px;
-
-  padding-top: var(--list-pad-top);
-}
-
-/*
- * 一组（标题 + 它的行）包一块：标题只在自己这一块里钉着，下一组的标题上来时把它顶走，不叠在一起、不漏出半截。
- * 收起的块和行一样只隔 1px，几条标题的底色连成一列；展开的块在自己的行后面留一段，再接下一组。
- */
-.groupBox {
-  display: flex;
-  flex: none;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.groupBox[data-opened="true"]:not(:last-child) {
-  padding-bottom: 10px;
-}
-
-/*
- * 分组标题：和下面的行同一套格子（左右内边距 10、间距 10），钉在列表顶上。
- * 前面一格和行里的图标块（.mark，30 宽）同列，名字和行里的名字左边对齐；张数靠右、挨着折叠箭头，
- * 箭头的右边和行的右边（内边距 10）对齐。
- */
-.group {
-  --group-rule: transparent;
-
-  position: sticky;
-  /*
-   * 钉住的位置从列表的内容框算起（滚动框的上内边距不算在里面）：写 0 会钉在可见区上沿往下一个内边距处，
-   * 滚上去的行从这条缝里露出来。往上抵掉内边距，标题上沿贴着可见区上沿。
-   */
-  top: calc(-1 * var(--list-pad-top, 0px));
-  z-index: 2;
-  display: flex;
-  flex: none;
-  gap: 10px;
-  align-items: center;
-  height: 34px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: var(--wl-r-control);
-  background: transparent;
-  color: var(--wl-text-3);
-  font: inherit;
-  font-size: var(--wl-fs-micro);
-  text-align: left;
-  cursor: pointer;
-}
-
-/*
- * 钉住时的遮挡：标题是圆角、比列表窄（列表左右各有 8px 内边距），滚上去的行和选中底块会从两边、
- * 圆角处露出来。垫一块方的同色底，左右铺满到列表边（-8px 对应 .wfList 的左右内边距），压在字底下。
- * 瑞士的「形」底边压一道黑线（--group-rule），和标题的字一样左右各缩进 10px（加上铺出去的 8px 就是 18px）。
- */
-.group::before {
-  position: absolute;
-  z-index: -1;
-  inset: 0 -8px;
-  background:
-    linear-gradient(var(--group-rule), var(--group-rule)) bottom center / calc(100% - 36px) 1px
-    no-repeat,
-    var(--wl-panel);
-  content: "";
-}
-
-/* 悬停底色：和行一样的圆角、一样的颜色，渐显。 */
-.group::after {
-  position: absolute;
-  z-index: -1;
-  inset: 0;
-  border-radius: inherit;
-  background: var(--wl-hover);
-  content: "";
-  opacity: 0;
-  transition: opacity 140ms linear;
-  pointer-events: none;
-}
-
-.group:hover::after {
-  opacity: 1;
-}
-
-.group:focus-visible {
-  outline: 2px solid var(--wl-accent);
-  outline-offset: -2px;
-}
-
-.groupLead {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 30px;
-}
-
-.groupLead > span {
-  display: inline-flex;
-}
-
-/* 按状态分组时的图标用状态的字色（stateTone 的 --tone-text）。 */
+/* 按状态分组时标题前面的图标用状态的字色（stateTone 的 --tone-text）。 */
 .groupTone {
   display: inline-flex;
   color: var(--tone-text);
-}
-
-.groupName {
-  flex: 0 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  color: var(--wl-text);
-  font-size: var(--wl-fs-meta);
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* 张数：靠右，灰色等宽数字，不加底。 */
-.groupCount {
-  flex: none;
-  margin-left: auto;
-  color: var(--wl-text-3);
-  font-family: var(--wl-mono);
-  font-variant-numeric: tabular-nums;
-}
-
-.chevron {
-  display: inline-flex;
-  flex: none;
-  transition: transform 180ms var(--wl-ease);
-}
-
-.group[aria-expanded="false"] .chevron {
-  transform: rotate(-90deg);
-}
-
-/* 行：图标块 + 两行字。 */
-.item {
-  min-height: 52px;
-}
-
-.mark {
-  width: 30px;
-  height: 30px;
-}
-
-/* 关着的卡片：图标块变灰（行上不放开关，靠这个看出开没开）。 */
-.item[data-off="true"] .mark {
-  --wl-kind: var(--wl-text-3);
 }
 
 .meta {
@@ -268,25 +79,13 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .chevron,
-  .group::after,
-  .pauseBar,
-  .showingClear {
+  .pauseBar {
     transition: none;
   }
 }
 
-/* 瑞士：筛选条去底色只留下线；总闸上面压黑线；分组标题压一道细黑线。 */
-:global([data-look="swiss"]) .showing {
-  border-bottom: 1px solid var(--wl-accent);
-  background: transparent;
-}
-
+/* 瑞士：总闸上面压黑线。 */
 :global([data-look="swiss"]) .pauseBar {
   border-top-color: var(--wl-text);
   background: transparent;
-}
-
-:global([data-look="swiss"]) .group {
-  --group-rule: var(--wl-text);
 }

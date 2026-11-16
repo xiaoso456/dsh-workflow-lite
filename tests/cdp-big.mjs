@@ -26,7 +26,7 @@ import {
   viewportExpr,
   wheel,
 } from './lib/big-canvas.mjs'
-import { bootToCanvas, revealHubRow, selectGraph } from './lib/canvas-harness.mjs'
+import { bootToCanvas, selectGraph, viewHubRun } from './lib/canvas-harness.mjs'
 import { openPage, waitFor } from './lib/cdp-session.mjs'
 import { rpc } from './lib/web-session.mjs'
 import { installShotsCookie, SHOTS_SESSION_TITLE, startShotsEnv } from './support/shots-env.mjs'
@@ -285,10 +285,7 @@ try {
     '# 展示卡\n\n挪出去再挪回来，内容直接在，不闪「读取中」。\n',
   )
   await session.evaluate(`document.querySelector('[data-testid="wl-hub-open"]').click()`)
-  await revealHubRow(session, instance, env.workspaceDir)
-  await session.evaluate(
-    `document.querySelector('[data-testid="wl-hub-row"][data-id="${instance}"] [data-testid="wl-hub-view"]').click()`,
-  )
+  await viewHubRun(session, instance)
   await waitFor(session, `document.querySelectorAll('.react-flow__node').length > 0`, {
     timeoutMs: 30_000,
   })

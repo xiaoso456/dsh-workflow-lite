@@ -306,6 +306,8 @@ export function useGlide(
  * 自己展开收起的那个不挪（它的底面、小件 useGlide 管着）；别的单元被挤动了就滑，哪怕它自己的字也换了长短
  * （「触发」页状态条：状态字、问题图标一变，后面的「上一次」整段滑过去）。整排自己变宽变窄（窗口缩放）时只重新记位置，不滑。
  * 直接子项是一个单元；动的是 `translate`（{@link slide}），不碰各单元自己的 transform。返回回调 ref，挂到这一排上。
+ * 单元带 `data-row-hidden="true"` 是挪出排版藏起来了（标题行里放不下的标签），不算一个位置；它藏起、露出时
+ * 别的单元一下子换了位置却没人变宽，这时只重新记、不滑。
  */
 export function useRowSlide(): (row: HTMLElement | null) => void {
   const stop = useRef<(() => void) | null>(null)
@@ -314,11 +316,14 @@ export function useRowSlide(): (row: HTMLElement | null) => void {
     stop.current?.()
     stop.current = null
     if (row === null || typeof ResizeObserver === 'undefined') return
+    // 位置按这一排自己算，不按 offsetParent：外面哪一层定位变了（右栏入场完了收掉定位），各单元
+    // offsetLeft 整体跟着变，可谁也没变宽、ResizeObserver 不报；按旧数比，下一次一挤整排都跳一下。
     const measure = (): Map<HTMLElement, { left: number; width: number }> => {
       const spots = new Map<HTMLElement, { left: number; width: number }>()
       for (const child of row.children) {
-        if (child instanceof HTMLElement) {
-          spots.set(child, { left: child.offsetLeft, width: child.offsetWidth })
+        if (child instanceof HTMLElement && child.dataset.rowHidden !== 'true') {
+          const base = child.offsetParent === row ? 0 : row.offsetLeft
+          spots.set(child, { left: child.offsetLeft - base, width: child.offsetWidth })
         }
       }
       return spots
@@ -352,15 +357,20 @@ export function useRowSlide(): (row: HTMLElement | null) => void {
       for (const child of row.children) sizes.observe(child)
     }
     watch()
-    // 单元换了（换了一种触发方式，顶栏里的按钮不一样了）：重新记、重新看，不滑。
-    const kids = new MutationObserver(() => {
+    // 单元换了（换了一种触发方式，顶栏里的按钮不一样了）、有单元藏起露出：重新记、重新看，不滑。
+    // 只看直接子项增删（单元里面换字不算，那是要滑的）；藏起露出看子项上的那个属性。
+    const remeasure = (): void => {
       spots = measure()
       watch()
-    })
+    }
+    const kids = new MutationObserver(remeasure)
     kids.observe(row, { childList: true })
+    const hidden = new MutationObserver(remeasure)
+    hidden.observe(row, { subtree: true, attributeFilter: ['data-row-hidden'] })
     stop.current = () => {
       sizes.disconnect()
       kids.disconnect()
+      hidden.disconnect()
     }
   }, [])
 }

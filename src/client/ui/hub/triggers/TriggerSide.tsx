@@ -2,26 +2,30 @@
  * dsh-workflow-lite — 「触发」页左栏：搜索 + 视图选项，按选的方式分组列出卡片，最下面是全部暂停的总闸。
  *
  * - 每行：触发方式的图标块、名字、「状态 · 下一次」（按工作流分组时）或「状态 · 工作流」（别的分法）。
- *   行上不放开关（开关在右栏头部）：关着的卡片图标块是灰的，一眼看得出。
- * - 分组标题能折叠，滚动时钉在顶上；一组（标题 + 它的行）包在一块里，下一组的标题上来时把钉住的那个顶走，
- *   不叠在一起。不分组时没有标题。
- * - 筛选不是「全部」时列表顶上一条「只看要处理的 · 2 张 ✕」，点 ✕ 清掉。
- * - 选中底色是一块滑块（ListThumb），换选中、筛选、换分法时各行滑到新位置（useFlip）。
+ *   行上不放开关（开关在右栏头部）：停用的触发器图标块是灰的，一眼看得出。
+ * - 分组、折叠、钉顶的分组标题、选中滑块都是 {@link GroupedList}（工作流中心各页共用）；视图菜单是 {@link ViewMenu}。
+ * - 筛选不是「全部」时列表顶上一条「仅显示待处理 · 2 个 ✕」，点 ✕ 清掉。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/triggers/TriggerSide
  */
 
-import { useRef, useState } from 'react'
+import { useState } from 'react'
+import type { TriggerSourceKind } from '../../../../shared/types.ts'
 import type { TriggerEntry } from '../../../../shared/wire/trigger.ts'
 import type { TriggerHub } from '../../../app/useTriggerHub.ts'
 import type { LocaleKey, T } from '../../../i18n.ts'
 import { fireWhen } from '../../../model/fireView.ts'
 import {
   type ArrangedTriggers,
-  groupId,
   type StateBucket,
+  TRIGGER_GROUPS,
+  TRIGGER_SHOWS,
+  TRIGGER_SORTS,
   type TriggerGroup,
+  type TriggerGroupBy,
   type TriggerListView,
+  type TriggerShow,
+  type TriggerSortBy,
 } from '../../../model/triggerList.ts'
 import { rowNote } from '../../../model/triggerNow.ts'
 import { stateBadge, stateTone } from '../../../model/triggerText.ts'
@@ -29,16 +33,16 @@ import { tipWhenCut } from '../../kit/cutTip.ts'
 import { cx } from '../../kit/cx.ts'
 import { Icon, type IconName } from '../../kit/Icon.tsx'
 import ui from '../../kit/ui.module.css'
-import { useFlip } from '../../motion/flip.ts'
 import { SwapText } from '../../motion/swapText.tsx'
-import { ListThumb } from '../../motion/thumb.tsx'
 import tone from '../../trigger/stateTone.module.css'
 import { TRIGGER_ICON, TriggerMark, triggerTint } from '../../trigger/TriggerMark.tsx'
 import wf from '../../versions/wfList.module.css'
 import { HubSearch } from '../HubSearch.tsx'
 import hub from '../hub.module.css'
+import { GroupedList, type GroupFace, ShowingBar } from '../list/GroupedList.tsx'
+import list from '../list/groupedList.module.css'
+import { type MenuSection, ViewMenu } from '../list/ViewMenu.tsx'
 import css from './side.module.css'
-import { SHOW, ViewMenu } from './ViewMenu.tsx'
 
 /** 一张卡片在这一页上的键（不同工作流里的卡片 id 会重）。 */
 export const pairKey = (workflow: string, node: string): string => `${workflow}\n${node}`
@@ -49,6 +53,70 @@ const BUCKET: Record<StateBucket, { label: LocaleKey; icon: IconName; tone: stri
   act: { label: 'hub.trgBucket.act', icon: 'alert', tone: 'warn' },
   on: { label: 'hub.trgBucket.on', icon: 'power', tone: 'live' },
   off: { label: 'hub.trgBucket.off', icon: 'power', tone: 'off' },
+}
+
+const GROUP: Record<TriggerGroupBy, { label: LocaleKey; icon: IconName }> = {
+  workflow: { label: 'hub.trgGroup.workflow', icon: 'hub' },
+  state: { label: 'hub.trgGroup.state', icon: 'activity' },
+  kind: { label: 'hub.trgGroup.kind', icon: 'bolt' },
+  none: { label: 'hub.group.none', icon: 'overview' },
+}
+
+const SORT: Record<TriggerSortBy, { label: LocaleKey; icon: IconName }> = {
+  name: { label: 'hub.sort.name', icon: 'font' },
+  recent: { label: 'hub.trgSort.recent', icon: 'history' },
+  next: { label: 'hub.trgSort.next', icon: 'clock' },
+}
+
+const SHOW: Record<TriggerShow, { label: LocaleKey; icon: IconName }> = {
+  all: { label: 'hub.trgShow.all', icon: 'overview' },
+  on: { label: 'hub.trgShow.on', icon: 'play' },
+  act: { label: 'hub.trgShow.act', icon: 'alert' },
+}
+
+/** 视图菜单的三段：分组、排序、筛选（筛选每项带张数）。 */
+function menuSections(
+  t: T,
+  view: TriggerListView,
+  counts: Record<TriggerShow, number>,
+  onView: (change: Partial<TriggerListView>) => void,
+): MenuSection[] {
+  return [
+    {
+      id: 'group',
+      title: t('hub.groupBy'),
+      choices: TRIGGER_GROUPS.map((value) => ({
+        value,
+        label: t(GROUP[value].label),
+        icon: GROUP[value].icon,
+      })),
+      checked: (value) => view.group === value,
+      onPick: (value) => onView({ group: value as TriggerGroupBy }),
+    },
+    {
+      id: 'sort',
+      title: t('hub.sortBy'),
+      choices: TRIGGER_SORTS.map((value) => ({
+        value,
+        label: t(SORT[value].label),
+        icon: SORT[value].icon,
+      })),
+      checked: (value) => view.sort === value,
+      onPick: (value) => onView({ sort: value as TriggerSortBy }),
+    },
+    {
+      id: 'show',
+      title: t('hub.showBy'),
+      choices: TRIGGER_SHOWS.map((value) => ({
+        value,
+        label: t(SHOW[value].label),
+        icon: SHOW[value].icon,
+        count: counts[value],
+      })),
+      checked: (value) => view.show === value,
+      onPick: (value) => onView({ show: value as TriggerShow }),
+    },
+  ]
 }
 
 export function TriggerSide(props: {
@@ -65,23 +133,7 @@ export function TriggerSide(props: {
   onNotice(text: string, tone?: 'info' | 'error'): void
 }): React.JSX.Element {
   const { t, arranged, view } = props
-  const [folded, setFolded] = useState<ReadonlySet<string>>(new Set())
-  const listRef = useRef<HTMLElement>(null)
   const now = Date.now()
-  const shownKeys = arranged.groups.flatMap((group) =>
-    folded.has(groupId(group)) && group.by !== 'none' ? [groupId(group)] : group.entries.map(keyOf),
-  )
-  const layout = `${props.selected}|${view.group}|${shownKeys.join('|')}`
-  useFlip(listRef, layout, { enter: true })
-
-  const fold = (id: string): void => {
-    setFolded((current) => {
-      const next = new Set(current)
-      if (!next.delete(id)) next.add(id)
-      return next
-    })
-  }
-
   return (
     <div className={hub.side}>
       <HubSearch
@@ -91,63 +143,42 @@ export function TriggerSide(props: {
         testId="wl-hub-trg-search"
         onChange={props.onQuery}
       >
-        <ViewMenu t={t} view={view} counts={arranged.counts} onChange={props.onView} />
+        <ViewMenu
+          t={t}
+          sections={menuSections(t, view, arranged.counts, props.onView)}
+          filtered={view.show !== 'all'}
+          testId="wl-hub-trg-view"
+        />
       </HubSearch>
       {view.show !== 'all' && (
-        <div className={cx(css.showing, ui.fade)} data-testid="wl-hub-trg-showing">
-          <span className={css.showingText}>
-            {t('hub.trgShowing')
-              .replace('{label}', t(SHOW[view.show].label))
-              .replace('{n}', String(arranged.shown))}
-          </span>
-          <button
-            type="button"
-            className={css.showingClear}
-            aria-label={t('hub.trgClearShow')}
-            data-tip={t('hub.trgClearShow')}
-            onClick={() => props.onView({ show: 'all' })}
-          >
-            <Icon name="x" size={12} />
-          </button>
-        </div>
+        <ShowingBar
+          text={t('hub.showing')
+            .replace('{label}', t(SHOW[view.show].label))
+            .replace('{n}', String(arranged.shown))}
+          clearLabel={t('hub.clearShow')}
+          testId="wl-hub-trg-showing"
+          onClear={() => props.onView({ show: 'all' })}
+        />
       )}
-      <nav
-        ref={listRef}
-        className={cx(wf.wfList, wf.sideList, css.list)}
-        aria-label={t('hub.trgPage')}
-      >
-        <ListThumb layout={layout} />
-        {arranged.groups.length === 0 && (
-          <p className={cx(hub.sideEmpty, ui.fade)}>{t('hub.trgNoMatch')}</p>
+      <GroupedList
+        label={t('hub.trgPage')}
+        groups={arranged.groups}
+        keyOf={keyOf}
+        selected={props.selected}
+        face={(group) => groupFace(t, group)}
+        empty={t('hub.trgNoMatch')}
+        testId="wl-hub-trg-group"
+        row={(entry, at) => (
+          <TriggerRow
+            t={t}
+            entry={entry}
+            flip={at.flip}
+            note={rowNote(t, entry, view.group === 'workflow', now)}
+            selected={at.selected}
+            onPick={() => props.onPick(keyOf(entry))}
+          />
         )}
-        {arranged.groups.map((group) => {
-          const id = groupId(group)
-          const closed = group.by !== 'none' && folded.has(id)
-          return (
-            <div
-              key={`box-${id}`}
-              className={css.groupBox}
-              data-flip-group=""
-              data-opened={closed ? undefined : 'true'}
-            >
-              {group.by !== 'none' && (
-                <GroupHead t={t} group={group} closed={closed} onFold={() => fold(id)} />
-              )}
-              {!closed &&
-                group.entries.map((entry) => (
-                  <TriggerRow
-                    key={keyOf(entry)}
-                    t={t}
-                    entry={entry}
-                    note={rowNote(t, entry, view.group === 'workflow', now)}
-                    selected={keyOf(entry) === props.selected}
-                    onPick={() => props.onPick(keyOf(entry))}
-                  />
-                ))}
-            </div>
-          )
-        })}
-      </nav>
+      />
       <PauseBar
         t={t}
         hub={props.hub}
@@ -159,75 +190,58 @@ export function TriggerSide(props: {
   )
 }
 
-/**
- * 分组标题：和下面的行同一套格子（三种分法都一样）。前面一格和行里的图标块同宽同列（按触发方式是那种方式的图标，
- * 按状态是那种状态的图标，按工作流是工作流图标），名字和行里的名字左边对齐；张数靠右、挨着折叠箭头。
- * 点了折叠 / 展开，悬停底色和行一样。
- */
-function GroupHead(props: {
-  t: T
-  group: TriggerGroup
-  closed: boolean
-  onFold(): void
-}): React.JSX.Element {
-  const { t, group } = props
-  const label =
-    group.by === 'state'
-      ? t(BUCKET[group.key].label)
-      : group.by === 'kind'
-        ? t(`trigger.source.${group.key}` as LocaleKey)
-        : group.key
-  return (
-    <button
-      type="button"
-      className={css.group}
-      aria-expanded={!props.closed}
-      data-flip={`group-${groupId(group)}`}
-      data-testid="wl-hub-trg-group"
-      data-value={groupId(group)}
-      onClick={props.onFold}
-    >
-      <span className={css.groupLead} aria-hidden="true">
-        {group.by === 'state' ? (
-          <span className={tone.tone} data-tone={BUCKET[group.key].tone}>
-            <span className={css.groupTone}>
-              <Icon name={BUCKET[group.key].icon} size={15} />
-            </span>
+/** 分组标题：按触发方式是那种方式的图标，按状态是那种状态的图标（状态色），按工作流是工作流图标。 */
+function groupFace(t: T, group: TriggerGroup): GroupFace {
+  if (group.by === 'state') {
+    const bucket = BUCKET[group.key as StateBucket]
+    return {
+      label: t(bucket.label),
+      lead: (
+        <span className={tone.tone} data-tone={bucket.tone}>
+          <span className={css.groupTone}>
+            <Icon name={bucket.icon} size={15} />
           </span>
-        ) : group.by === 'kind' ? (
-          <span style={{ color: triggerTint(group.key) } as React.CSSProperties}>
-            <Icon name={TRIGGER_ICON[group.key]} size={15} />
-          </span>
-        ) : (
-          <Icon name="hub" size={15} />
-        )}
-      </span>
-      <span className={css.groupName}>{label}</span>
-      <span className={css.groupCount}>{group.entries.length}</span>
-      <span className={css.chevron} aria-hidden="true">
-        <Icon name="chevronDown" size={14} />
-      </span>
-    </button>
-  )
+        </span>
+      ),
+    }
+  }
+  if (group.by === 'kind') {
+    const kind = group.key as TriggerSourceKind
+    return {
+      label: t(`trigger.source.${kind}` as LocaleKey),
+      lead: (
+        <span style={{ color: triggerTint(kind) } as React.CSSProperties}>
+          <Icon name={TRIGGER_ICON[kind]} size={15} />
+        </span>
+      ),
+    }
+  }
+  return { label: group.key, lead: <Icon name="hub" size={15} /> }
 }
 
 function TriggerRow(props: {
   t: T
   entry: TriggerEntry
+  /** 动画键（见 GroupedList 的 RowAt）。 */
+  flip: string
   /** 状态后面那半句；空串不写。 */
   note: string
   selected: boolean
   onPick(): void
 }): React.JSX.Element {
   const { t, entry } = props
-  const key = keyOf(entry)
   const kind = entry.data.source.kind
   return (
-    <div className={wf.wfRow} data-end="fixed" data-flip={key} data-selected={props.selected}>
+    <div
+      className={wf.wfRow}
+      data-end="fixed"
+      data-flip={props.flip}
+      data-selected={props.selected}
+    >
       <button
         type="button"
         aria-current={props.selected ? 'true' : undefined}
-        className={cx(wf.wfItem, css.item)}
+        className={cx(wf.wfItem, list.item)}
         data-testid="wl-hub-trg"
         data-value={`${entry.workflow}/${entry.view.node}`}
         data-off={entry.view.enabled ? undefined : 'true'}
@@ -242,7 +256,7 @@ function TriggerRow(props: {
         }
         onClick={props.onPick}
       >
-        <TriggerMark kind={kind} size={15} className={css.mark} />
+        <TriggerMark kind={kind} size={15} className={list.mark} />
         <span className={wf.wfText}>
           <span className={wf.wfName} data-cut="">
             {entry.name}

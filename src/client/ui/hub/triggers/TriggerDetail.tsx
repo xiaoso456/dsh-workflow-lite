@@ -53,6 +53,8 @@ export function TriggerDetail(props: {
   env: TriggerEnv
   /** 改这张卡片写在图里的设置（存进工作流文件）。 */
   onPatch(patch: Partial<TriggerData>): void
+  /** 改名（回有没有存成）。 */
+  onRename(name: string): Promise<boolean>
   onOpenCard(): void
   onOpenRun(id: string): void
   onOpenWorkflow(name: string): void
@@ -167,6 +169,7 @@ export function TriggerDetail(props: {
             hub={hub}
             entry={entry}
             onOpenCard={props.onOpenCard}
+            onRename={props.onRename}
             onNotice={props.onNotice}
           />
           <DetailTabs

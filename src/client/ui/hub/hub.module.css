@@ -191,6 +191,44 @@
   text-overflow: ellipsis;
 }
 
+/* 信息表：一张卡里几行，左边名、右边值，行间细线（记忆、实例的详情共用）。 */
+.stats {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  border: 1px solid var(--wl-line);
+  border-radius: calc(10px * var(--wl-round, 1));
+  background: var(--wl-panel);
+}
+
+.stat {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 7px 12px;
+}
+
+.stat + .stat {
+  border-top: 1px solid var(--wl-line);
+}
+
+.statLabel {
+  flex: none;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+.statValue {
+  overflow: hidden;
+  font-size: var(--wl-fs-meta);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ── 空状态 ────────────────────────────────────────────────── */
 
 .empty {
@@ -436,21 +474,6 @@
   outline-offset: -1px;
 }
 
-/*
- * 改名：行的样子不变，只有名字那一行换成一条细输入框（字的位置对齐原来的名字），
- * 下面一行换成按键提示。整行高度、图标位置都不变。
- */
-.wfEditing {
-  display: flex;
-  flex: none;
-  gap: 10px;
-  align-items: center;
-  min-height: 46px;
-  padding: 6px 10px;
-  border-radius: var(--wl-r-control);
-  background: var(--wl-hover);
-}
-
 .wfDetail {
   position: relative;
   display: flex;
@@ -516,6 +539,55 @@
   min-width: 0;
 }
 
+/* 头部左边的图标块（「工作流」页；和「触发」「记忆」页的同样大）。 */
+.headMark {
+  width: 38px;
+  height: 38px;
+  border-radius: calc(10px * var(--wl-round, 1));
+}
+
+/* 名字那一行（28px 高）里的「当前」：和名字、标签居中对齐。 */
+.nameTag {
+  margin-top: 5px;
+}
+
+/* 名字和后面那排标签（标签拿剩下的宽，放不下的收成「+N」）。 */
+.nameLine {
+  display: flex;
+  gap: 0 8px;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.nameLine > :first-child {
+  flex: 0 1 auto;
+}
+
+/* 点「+N」展开：整排标签挪到名字下面，占满这一栏再折行（不挤在名字旁边窄窄一条）。 */
+.nameLine:has(> [data-expanded="true"]) {
+  flex-wrap: wrap;
+}
+
+.nameLine > [data-expanded="true"] {
+  flex-basis: 100%;
+}
+
+/*
+ * 「工作流」页的头会往下长（标签展开）：上沿对齐，图标块、按钮各自往下让一点，
+ * 平时两行时和「触发」「记忆」页一样居中，展开了也不跟着往下漂。
+ */
+.wfHeadTop {
+  align-items: flex-start;
+}
+
+.wfHeadTop > .headMark {
+  margin-top: 4px;
+}
+
+.wfHeadTop > :not(.headMark, .wfHeadText) {
+  margin-top: 10px;
+}
+
 .wfTitle {
   margin: 0;
   overflow: hidden;
@@ -530,6 +602,26 @@
   color: var(--wl-text-3);
   font-size: var(--wl-fs-micro);
   font-variant-numeric: tabular-nums;
+}
+
+/* 标题下面一行说明：一项一个小图标（步数、版本数、修改时间），项与项之间空开，不用点隔。 */
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  align-items: center;
+}
+
+.fact {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.fact > svg {
+  flex: none;
+  opacity: 0.8;
 }
 
 @container (max-width: 640px) {
@@ -564,4 +656,9 @@
 :global([data-look="swiss"]) .sectionTitle {
   font-size: var(--wl-fs-body);
   letter-spacing: 0.02em;
+}
+
+:global([data-look="swiss"]) .stats {
+  border-width: 1px 0;
+  background: transparent;
 }

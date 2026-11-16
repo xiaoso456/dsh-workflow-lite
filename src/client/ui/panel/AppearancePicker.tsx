@@ -18,7 +18,7 @@ import {
   type StepColor,
   type StepIcon,
 } from '../../../shared/appearance.ts'
-import type { LocaleKey, T } from '../../i18n.ts'
+import type { T } from '../../i18n.ts'
 import { cx } from '../kit/cx.ts'
 import { Icon, type IconName } from '../kit/Icon.tsx'
 import { Popover } from '../kit/Popover.tsx'
@@ -26,6 +26,7 @@ import { StepMark } from '../kit/StepMark.tsx'
 import ui from '../kit/ui.module.css'
 import { PickThumb } from '../motion/thumb.tsx'
 import css from './appearance.module.css'
+import { ColorSwatches } from './ColorSwatches.tsx'
 
 /** 下面一格：一个值、画哪个图标；`tip` 是悬停的字，`disabled` 是点不了（`tip` 里写原因）。 */
 export interface LookIcon<V extends string> {
@@ -93,30 +94,12 @@ export function LookPicker<V extends string>(props: {
         )}
       </div>
       <p className={css.group}>{t('look.color')}</p>
-      <div className={css.colors} role="radiogroup" aria-label={t('look.color')}>
-        {/* 选中的一圈环：滑到新选的颜色，环的颜色跟着交叉淡过去。 */}
-        <PickThumb
-          layout={props.color}
-          className={css.ring}
-          tone={{ list: STEP_COLORS, on: props.color, attr: 'data-color', className: css.ringTone }}
-        />
-        {STEP_COLORS.map((color) => (
-          <button
-            key={color}
-            type="button"
-            role="radio"
-            aria-checked={props.color === color}
-            className={css.swatch}
-            data-color={color}
-            data-tip={t(`look.c.${color}` as LocaleKey)}
-            aria-label={t(`look.c.${color}` as LocaleKey)}
-            data-testid={`${props.testId}-color-${color}`}
-            onClick={() => props.onColor(color)}
-          >
-            <Icon name="check" size={12} />
-          </button>
-        ))}
-      </div>
+      <ColorSwatches
+        t={t}
+        value={props.color}
+        testId={`${props.testId}-color`}
+        onPick={props.onColor}
+      />
       <p className={css.group}>{props.iconTitle}</p>
       <div
         className={css.icons}

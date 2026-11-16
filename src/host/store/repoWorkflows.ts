@@ -43,6 +43,7 @@ import {
 } from './paths.ts'
 import type { RepoCore } from './repoCore.ts'
 import { fail, hasLevel, mapWriteFailure, type Outcome, ok, saveProblem } from './repoResult.ts'
+import type { TagStore } from './tags.ts'
 
 export interface LoadResult {
   /** 名字归一后的图名（`not_found` 时也给出，便于上层报错）。 */
@@ -144,11 +145,19 @@ type WorkflowsCore = Pick<
   | 'dropBaselines'
 >
 
+/** 工作流本身改好了、标签没跟上：不算失败，告诉一声。 */
+function tagWarning(message: string): ToolWarning {
+  return { level: 'warning', code: 'tags_not_updated', message: `标签没能跟着改：${message}` }
+}
+
 export class WorkflowStore {
   private readonly core: WorkflowsCore
+  /** 工作流的标签：改名、删除时在锁内跟着挪走、去掉。 */
+  private readonly tags: TagStore
 
-  constructor(core: WorkflowsCore) {
+  constructor(core: WorkflowsCore, tags: TagStore) {
     this.core = core
+    this.tags = tags
   }
 
   // ── 读 ──────────────────────────────────────────────────
@@ -383,6 +392,7 @@ export class WorkflowStore {
         return mapWriteFailure(error, toAssets)
       }
       this.core.dropBaselines(from)
+      const tags = await this.tags.moveWorkflow(from, target)
       return ok({
         changed: [
           {
@@ -392,7 +402,7 @@ export class WorkflowStore {
             detail: { from, dispatchRemoved: true },
           },
         ],
-        warnings: [],
+        warnings: tags.ok ? [] : [tagWarning(tags.error.message)],
       })
     })
   }
@@ -415,9 +425,10 @@ export class WorkflowStore {
         return mapWriteFailure(error, file)
       }
       this.core.dropBaselines(name)
+      const tags = await this.tags.dropWorkflow(name)
       return ok({
         changed: [{ kind: 'workflow', op: 'delete', id: name, detail: { dispatchRemoved: true } }],
-        warnings: [],
+        warnings: tags.ok ? [] : [tagWarning(tags.error.message)],
       })
     })
   }

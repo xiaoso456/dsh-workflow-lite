@@ -24,6 +24,7 @@
  * @module @xiaoso/dsh-workflow-lite/host/store/repository
  */
 
+import type { TagColor } from '../../shared/tags.ts'
 import type {
   Handoff,
   ListResult,
@@ -55,6 +56,7 @@ import {
   type SaveResult,
   WorkflowStore,
 } from './repoWorkflows.ts'
+import { TagStore } from './tags.ts'
 
 export interface RepositoryOptions {
   /** 数据根目录（Config 的 `dataDir`，默认 `~/.dsh/workflow-lite`）。 */
@@ -73,6 +75,22 @@ export interface Repository {
   create(workflow: string): Promise<Outcome<WriteResult>>
   rename(workflow: string, to: string): Promise<Outcome<WriteResult>>
   remove(workflow: string): Promise<Outcome<WriteResult>>
+  /** 这个工作流的标签（没有是空数组）。 */
+  tagsOf(workflow: string): Promise<string[]>
+  /** 换掉这个工作流的标签（存在 `tags.json`，见 `store/tags.ts`）；给回实际存下的。 */
+  setTags(workflow: string, tags: unknown): Promise<Outcome<string[]>>
+  /** 给这个工作流添上几个标签（导入并入时用）。 */
+  addTags(workflow: string, tags: unknown): Promise<Outcome<string[]>>
+  /** 给标签改名（新名字已有就合成一个）；给回改了几个工作流。 */
+  renameTag(from: string, to: string): Promise<Outcome<{ changed: number; tag: string }>>
+  /** 从每个工作流上去掉这个标签。 */
+  deleteTag(tag: string): Promise<Outcome<{ changed: number }>>
+  /** 挑过颜色的标签（标签 → 颜色），给了 `tags` 就只要这几个的。 */
+  tagColors(tags?: readonly string[]): Promise<Record<string, TagColor>>
+  /** 给标签挑颜色（`null` = 回到按名字算的）。 */
+  setTagColor(tag: string, color: TagColor | null): Promise<Outcome<{ changed: boolean }>>
+  /** 导入带来的颜色：本机没挑过的标签才用。 */
+  adoptTagColors(colors: Readonly<Record<string, TagColor>>): Promise<Outcome<null>>
   /** 列一个工作流存下的版本（新的在前），标出哪个和磁盘上现在的内容一样。 */
   listVersions(workflow: string): Promise<Outcome<VersionEntry[]>>
   /** 把磁盘上现在的样子存成新版本。和已有的某个版本内容一样就不存（`invalid_args`，`detail.same`）。 */
@@ -168,8 +186,9 @@ export function reportProblems(report: ValidationReport): ValidationProblem[] {
 /** 建一个仓储。`validate` 由 host 在装配时接上 `shared/validate.ts`。 */
 export function createRepository(options: RepositoryOptions): Repository {
   const core = new RepoCore(options.dataDir, options.validate)
-  const workflows = new WorkflowStore(core)
-  const lister = new WorkflowLister(core)
+  const tags = new TagStore(core)
+  const workflows = new WorkflowStore(core, tags)
+  const lister = new WorkflowLister(core, tags)
   const versions = new VersionStore(core)
   const templates = new TemplateStore(core)
   const nodes = new NodeWriter(core, templates)
@@ -182,6 +201,14 @@ export function createRepository(options: RepositoryOptions): Repository {
     create: (workflow) => workflows.create(workflow),
     rename: (workflow, to) => workflows.rename(workflow, to),
     remove: (workflow) => workflows.remove(workflow),
+    tagsOf: async (workflow) => TagStore.tagsOf(await tags.read(), workflow),
+    setTags: (workflow, list) => tags.set(workflow, list),
+    addTags: (workflow, list) => tags.add(workflow, list),
+    renameTag: (from, to) => tags.rename(from, to),
+    deleteTag: (tag) => tags.remove(tag),
+    tagColors: async (list) => TagStore.colorsOf(await tags.read(), list),
+    setTagColor: (tag, color) => tags.setColor(tag, color),
+    adoptTagColors: (colors) => tags.adoptColors(colors),
     listVersions: (workflow) => versions.listVersions(workflow),
     saveVersion: (workflow, note) => versions.saveVersion(workflow, note),
     readVersion: (workflow, n) => versions.readVersion(workflow, n),

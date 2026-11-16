@@ -5,6 +5,7 @@
  */
 
 import type { MemoryVersionEntry } from '../memoryLib.ts'
+import type { TagColor } from '../tags.ts'
 import type {
   ListResult,
   NodeData,
@@ -27,6 +28,8 @@ export interface GraphListRequest {
  * 不跑自动布局」，而那条判据是活配置，只有 host 知道。
  */
 export interface GraphListResponse extends ListResult {
+  /** 挑过颜色的标签（标签 → 颜色）；没挑过的按名字算（`autoTagColor`）。 */
+  tagColors: Record<string, TagColor>
   limits: {
     maxNodes: number
     saveDebounceMs: number
@@ -91,6 +94,47 @@ export interface GraphDeleteRequest {
 }
 export interface GraphDeleteResponse {
   warnings: WireWarning[]
+}
+
+// ── 标签（本机，存在 tags.json，见 shared/tags.ts）─────────────────────
+
+/** `graph/tags` —— 换掉一个工作流的标签。 */
+export interface GraphTagsRequest {
+  name: string
+  tags: string[]
+}
+export interface GraphTagsResponse {
+  /** 实际存下的（去空、去重、截长之后）。 */
+  tags: string[]
+}
+
+/** `graph/tagRename` —— 给标签改名：用着它的工作流都换成新名字（新名字已有就合成一个）。 */
+export interface GraphTagRenameRequest {
+  from: string
+  to: string
+}
+export interface GraphTagRenameResponse {
+  /** 改了几个工作流。 */
+  changed: number
+  /** 归一后的新名字。 */
+  tag: string
+}
+
+/** `graph/tagDelete` —— 从每个工作流上去掉这个标签。 */
+export interface GraphTagDeleteRequest {
+  tag: string
+}
+export interface GraphTagDeleteResponse {
+  changed: number
+}
+
+/** `graph/tagColor` —— 给标签挑颜色；`null` 回到按名字算的。 */
+export interface GraphTagColorRequest {
+  tag: string
+  color: TagColor | null
+}
+export interface GraphTagColorResponse {
+  changed: boolean
 }
 
 // ── 工作流版本 ─────────────────────

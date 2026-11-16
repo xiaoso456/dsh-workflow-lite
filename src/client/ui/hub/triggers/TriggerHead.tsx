@@ -1,7 +1,8 @@
 /**
  * dsh-workflow-lite — 「触发」页右栏上面固定的一块（换页签不动）：
  *
- * - 头部：触发方式的图标块、名字、所在工作流和「方式 · 主动 / 被动」两枚小签，下面一句什么时候执行；
+ * - 头部：触发方式的图标块、名字（点名字或后面的铅笔就地改名，见 {@link TitleEdit}）、所在工作流和
+ *   「方式 · 主动 / 被动」两枚小签，下面一句什么时候执行；
  *   右边开关（和左栏同一个）、在画布上打开；
  * - 状态条一行：状态 | 下一次（时刻 + 还有多久，定时 / 轮询底边一条倒计时）| 立即触发一次；
  *   刚触发的结果几秒内占「下一次」那一格；
@@ -34,6 +35,7 @@ import { useFireNow } from '../../trigger/FireNow.tsx'
 import { ProblemMark } from '../../trigger/ProblemMark.tsx'
 import tone from '../../trigger/stateTone.module.css'
 import { TriggerMark } from '../../trigger/TriggerMark.tsx'
+import { TitleEdit } from '../TitleEdit.tsx'
 import css from './head.module.css'
 import { useCardSwitch } from './useCardSwitch.tsx'
 
@@ -42,6 +44,7 @@ export function TriggerHead(props: {
   hub: TriggerHub
   entry: TriggerEntry
   onOpenCard(): void
+  onRename(name: string): Promise<boolean>
   onNotice(text: string, tone?: 'info' | 'error'): void
 }): React.JSX.Element {
   const { t, entry } = props
@@ -62,15 +65,16 @@ export function TriggerHead(props: {
         <TriggerMark kind={kind} size={18} className={css.mark} />
         <div className={css.titles}>
           <div className={css.nameLine}>
-            <span
-              className={css.name}
-              data-testid="wl-hub-trg-name"
-              onPointerOverCapture={(event) =>
-                tipWhenCut(event.currentTarget, event.currentTarget, entry.name, 'start')
-              }
-            >
-              {entry.name}
-            </span>
+            <TitleEdit
+              t={t}
+              value={entry.data.label ?? ''}
+              display={entry.name}
+              placeholder={entry.view.node}
+              maxLength={80}
+              label={t('wf.rename')}
+              testId="wl-hub-trg-name"
+              onCommit={props.onRename}
+            />
             <span
               className={css.tag}
               onPointerOverCapture={(event) =>

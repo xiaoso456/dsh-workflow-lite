@@ -1,0 +1,49 @@
+/*
+ * dsh-workflow-lite — 带颜色的小块（TintChip.tsx）：底是 `--wl-chip` 淡一层，字和小图标同色；不缩，名字太长省略。
+ */
+
+.chip {
+  display: inline-flex;
+  flex: none;
+  gap: 2px;
+  align-items: center;
+  max-width: 72px;
+  height: 16px;
+  padding: 0 5px 0 4px;
+  border-radius: calc(4px * var(--wl-round, 1));
+  background: color-mix(in srgb, var(--wl-chip) 15%, transparent);
+  color: var(--wl-chip);
+  font-size: var(--wl-fs-micro);
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+.chip[data-size="md"] {
+  gap: 4px;
+  max-width: 160px;
+  height: 20px;
+  padding: 0 7px 0 6px;
+  border-radius: calc(5px * var(--wl-round, 1));
+  line-height: 20px;
+}
+
+.chip > svg {
+  flex: none;
+}
+
+.label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 瑞士：去底色只留同色细框。 */
+:global([data-look="swiss"]) .chip {
+  border: 1px solid color-mix(in srgb, var(--wl-chip) 60%, transparent);
+  background: transparent;
+  line-height: 14px;
+}
+
+:global([data-look="swiss"]) .chip[data-size="md"] {
+  line-height: 18px;
+}
