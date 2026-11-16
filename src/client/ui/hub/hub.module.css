@@ -123,7 +123,8 @@
   display: inline-flex;
   flex: none;
   align-items: center;
-  height: 18px;
+  /* 放进矮的地方（左栏的名字那一行）时由外面压矮：--tag-h。 */
+  height: var(--tag-h, 18px);
   padding: 0 6px;
   border-radius: calc(999px * var(--wl-round, 1));
   background: var(--wl-accent-soft);

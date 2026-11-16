@@ -25,15 +25,19 @@
   --wl-kind: var(--wl-text-3);
 }
 
+/* 两行字中间留 2px：名字后面的「当前」和第二行的标签片都是 16 高的小块，贴着就挨在一起了。 */
 .text {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
+  gap: 2px;
   min-width: 0;
 }
 
-/* 名字和「当前」小标一行：名字太长先省略，小标不挤掉；行高固定，小标高出的那点不撑高这一行。 */
+/* 名字和「当前」小标一行：名字太长先省略，小标不挤掉；小标压到和这一行一样高（16）。 */
 .nameLine {
+  --tag-h: 16px;
+
   display: flex;
   gap: 6px;
   align-items: center;

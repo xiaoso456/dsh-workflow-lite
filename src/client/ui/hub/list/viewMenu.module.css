@@ -1,6 +1,6 @@
 /*
  * dsh-workflow-lite — 工作流中心各页左栏的「视图选项」按钮与菜单（ViewMenu.tsx）。
- * 菜单项沿用 kit 的 menuItem（悬停、选中底色都是渐显）；这里只补图标色、张数和钩。
+ * 菜单里每段一排胶囊（.pill）：悬停、选中的底色都是渐显；按标签筛的项带标签的颜色（--wl-choice）。
  */
 
 .button {
@@ -55,24 +55,131 @@
 }
 
 .menu {
-  width: 220px;
+  width: 252px;
   padding: 4px;
 }
 
-/* 标签多了菜单会很长：菜单自己滚，不顶出窗口（最高多少打开时按按钮下面的地方量，写在元素上）。 */
+/* 段多了、标签多了菜单会长：菜单自己滚，不顶出窗口（最高多少打开时按按钮下面的地方量，写在元素上）。 */
 .body {
   overflow-y: auto;
   scrollbar-width: thin;
 }
 
-.item {
-  min-height: 32px;
+/* 一段：标题 + 一排胶囊；段和段之间一条线。 */
+.section {
+  padding: 0 6px 7px;
 }
 
-/* 项前面的图标：灰的；按标签筛的项是标签的颜色（`--wl-choice`）。 */
-.item > svg:first-child {
+.section + .section {
+  border-top: 1px solid var(--wl-line);
+}
+
+.title {
+  margin: 0;
+  padding: 7px 2px 5px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/*
+ * 一个选项：灰底小胶囊。悬停底色画在 ::before、选中的浅蓝底画在 ::after（不描边，和列表里的选中块一样只靠底色和字色），
+ * 都只渐显渐隐（换选中时旧的淡出、新的淡入）。按标签筛的项（`data-tinted`）图标是标签的颜色，选中时底色、字也换成标签的颜色。
+ */
+.pill {
+  --pill-tone: var(--wl-accent);
+
+  position: relative;
+  z-index: 0;
+  display: inline-flex;
+  flex: none;
+  gap: 4px;
+  align-items: center;
+  max-width: 100%;
+  height: 24px;
+  padding: 0 8px 0 6px;
+  border: 0;
+  border-radius: calc(999px * var(--wl-round, 1));
+  background: var(--wl-fill);
+  color: var(--wl-text-2);
+  font: inherit;
+  font-size: var(--wl-fs-meta);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 120ms linear;
+}
+
+.pill[data-tinted="true"] {
+  --pill-tone: var(--wl-choice);
+}
+
+.pill::before,
+.pill::after {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  content: "";
+  opacity: 0;
+  transition: opacity 120ms linear;
+  pointer-events: none;
+}
+
+.pill::before {
+  background: var(--wl-hover);
+}
+
+.pill::after {
+  background: color-mix(in srgb, var(--pill-tone) 20%, var(--wl-panel));
+}
+
+.pill:hover {
+  color: var(--wl-text);
+}
+
+.pill:hover::before {
+  opacity: 1;
+}
+
+.pill[aria-checked="true"] {
+  color: var(--wl-accent-text);
+}
+
+.pill[data-tinted="true"][aria-checked="true"] {
+  color: var(--wl-choice);
+}
+
+.pill[aria-checked="true"]::after {
+  opacity: 1;
+}
+
+.pill:focus-visible {
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 1px;
+}
+
+/* 图标：灰的；按标签筛的是标签的颜色；选中时跟字同色。 */
+.pill > svg {
   flex: none;
   color: var(--wl-choice, var(--wl-text-3));
+  transition: color 120ms linear;
+}
+
+.pill[aria-checked="true"] > svg {
+  color: currentColor;
+}
+
+.label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .count {
@@ -83,22 +190,28 @@
   font-variant-numeric: tabular-nums;
 }
 
-.check {
-  display: inline-flex;
-  flex: none;
-  color: var(--wl-accent-text);
-  opacity: 0;
-  transition: opacity 120ms linear;
-}
-
-.item[aria-checked="true"] .check {
-  opacity: 1;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .button,
   .button::after,
-  .check {
+  .pill,
+  .pill::before,
+  .pill::after,
+  .pill > svg {
     transition: none;
   }
+}
+
+/* 瑞士的「形」：胶囊成方块，选中的反白。 */
+:global([data-look="swiss"]) .pill::after {
+  background: var(--wl-text);
+}
+
+:global([data-look="swiss"]) .pill[aria-checked="true"],
+:global([data-look="swiss"]) .pill[data-tinted="true"][aria-checked="true"],
+:global([data-look="swiss"]) .pill[aria-checked="true"] > svg {
+  color: var(--wl-panel);
+}
+
+:global([data-look="swiss"]) .section + .section {
+  border-top-color: var(--wl-text);
 }

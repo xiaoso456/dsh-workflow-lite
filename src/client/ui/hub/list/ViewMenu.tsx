@@ -2,8 +2,9 @@
  * dsh-workflow-lite — 工作流中心各页左栏搜索框右边的「视图选项」：一张菜单分几段（分组方式、排序方式、筛选……），
  * 每页给自己的几段（{@link MenuSection}）。
  *
- * 点一项即生效，菜单留着（可以接着换别的一段）；Esc、点外面收起。单选段是 `menuitemradio`，多选段（按标签筛）
- * 是 `menuitemcheckbox`。有筛选生效时按钮右上角一个蓝点。
+ * 每段的选项排成一排小胶囊（放不下折行），选中的浅蓝底（不描边）；按标签筛的选中时是标签自己的颜色。一眼看到各段选了什么，
+ * 菜单也矮。点一项即生效，菜单留着（可以接着换别的一段）；Esc、点外面收起。单选段是 `menuitemradio`，多选段（按标签筛）
+ * 是 `menuitemcheckbox`；上下左右键在各项之间走。有筛选生效时按钮右上角一个蓝点。
  *
  * 菜单不走 portal：打开时量按钮下面还有多少地方（窗口、工作流中心的框，见 `roomAround`），菜单最高到那里，
  * 放不下的自己滚，最后几段不会被框切掉。
@@ -22,11 +23,9 @@ import {
   useListDensity,
 } from '../../../app/listDensity.ts'
 import type { T } from '../../../i18n.ts'
-import { cx } from '../../kit/cx.ts'
 import { Icon, type IconName } from '../../kit/Icon.tsx'
 import { Popover } from '../../kit/Popover.tsx'
 import { roomAround } from '../../kit/Select.tsx'
-import ui from '../../kit/ui.module.css'
 import { useRadioMenu } from '../../kit/useRadioMenu.ts'
 import css from './viewMenu.module.css'
 
@@ -91,7 +90,17 @@ export function ViewMenu(props: {
   const [room, setRoom] = useState(MENU_MAX)
   const button = useRef<HTMLButtonElement>(null)
   const list = useRef<HTMLDivElement>(null)
-  const onKeyDown = useRadioMenu(open, list)
+  /**
+   * 菜单开着时每个数字最宽到过几位：数字只往宽里占位、不缩回去。按标签筛会让上面「筛选」的数字变（14 → 4），
+   * 胶囊一窄就可能折行方式变了、整段矮一行，手底下的标签跟着往上跳；占着位就不跳。下次打开重新量。
+   */
+  const digits = useRef(new Map<string, number>())
+  const reserve = (key: string, count: number): string => {
+    const width = Math.max(digits.current.get(key) ?? 0, String(count).length)
+    digits.current.set(key, width)
+    return `${String(width)}ch`
+  }
+  const onKeyDown = useRadioMenu(open, list, true, true)
   const density = useListDensity()
   const sections = [...props.sections, densitySection(t, density)]
   const close = (): void => {
@@ -120,6 +129,7 @@ export function ViewMenu(props: {
             if (open) return close()
             const below = button.current === null ? MENU_MAX : roomAround(button.current).below
             setRoom(Math.max(MENU_MIN, Math.min(MENU_MAX, below - MENU_CHROME)))
+            digits.current.clear()
             setOpen(true)
           }}
         >
@@ -135,53 +145,59 @@ export function ViewMenu(props: {
         style={{ maxHeight: `${String(room)}px` }}
         onKeyDown={onKeyDown}
       >
-        {sections.map((section, index) => (
-          <div key={section.id} role="group" aria-label={section.title}>
-            {index > 0 && <div className={ui.menuSep} />}
-            <p className={ui.menuTitle}>{section.title}</p>
-            {section.choices.map((choice) => {
-              const shared = {
-                className: cx(ui.menuItem, css.item),
-                'data-active': section.checked(choice.value),
-                'data-testid': `${props.testId}-${section.id}-${choice.value}`,
-                style:
-                  choice.tint === undefined
-                    ? undefined
-                    : ({ '--wl-choice': `var(--wl-c-${choice.tint})` } as React.CSSProperties),
-                onClick: () => section.onPick(choice.value),
-              }
-              const face = (
-                <>
-                  <Icon name={choice.icon} size={14} />
-                  <span className={ui.menuLabel}>{choice.label}</span>
-                  {choice.count !== undefined && <span className={css.count}>{choice.count}</span>}
-                  <span className={css.check} aria-hidden="true">
-                    <Icon name="check" size={13} />
-                  </span>
-                </>
-              )
-              return section.multi === true ? (
-                <button
-                  key={choice.value}
-                  type="button"
-                  role="menuitemcheckbox"
-                  aria-checked={section.checked(choice.value)}
-                  {...shared}
-                >
-                  {face}
-                </button>
-              ) : (
-                <button
-                  key={choice.value}
-                  type="button"
-                  role="menuitemradio"
-                  aria-checked={section.checked(choice.value)}
-                  {...shared}
-                >
-                  {face}
-                </button>
-              )
-            })}
+        {sections.map((section) => (
+          <div key={section.id} role="group" aria-label={section.title} className={css.section}>
+            <p className={css.title}>{section.title}</p>
+            <div className={css.pills}>
+              {section.choices.map((choice) => {
+                const on = section.checked(choice.value)
+                const shared = {
+                  className: css.pill,
+                  'data-tinted': choice.tint === undefined ? undefined : 'true',
+                  'data-testid': `${props.testId}-${section.id}-${choice.value}`,
+                  style:
+                    choice.tint === undefined
+                      ? undefined
+                      : ({ '--wl-choice': `var(--wl-c-${choice.tint})` } as React.CSSProperties),
+                  onClick: () => section.onPick(choice.value),
+                }
+                const face = (
+                  <>
+                    <Icon name={choice.icon} size={13} />
+                    <span className={css.label}>{choice.label}</span>
+                    {choice.count !== undefined && (
+                      <span
+                        className={css.count}
+                        style={{ minWidth: reserve(`${section.id}|${choice.value}`, choice.count) }}
+                      >
+                        {choice.count}
+                      </span>
+                    )}
+                  </>
+                )
+                return section.multi === true ? (
+                  <button
+                    key={choice.value}
+                    type="button"
+                    role="menuitemcheckbox"
+                    aria-checked={on}
+                    {...shared}
+                  >
+                    {face}
+                  </button>
+                ) : (
+                  <button
+                    key={choice.value}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={on}
+                    {...shared}
+                  >
+                    {face}
+                  </button>
+                )
+              })}
+            </div>
           </div>
         ))}
       </div>

@@ -12,11 +12,13 @@ const ITEM = '[role="menuitemradio"], [role="menuitemcheckbox"], [role="menuitem
 /**
  * 返回挂在菜单（或连同菜单顶上的搜索框）外层的 `onKeyDown`：焦点在搜索框里时，下键进第一项、上键进最后一项。
  * @param focusPicked - 打开时把焦点放到选中项上；`false`（菜单带搜索框，焦点在框里）只把选中项滚进视野。
+ * @param sideways - 项是一排一排横着放的（胶囊）：左右键也走（左同上、右同下）。带搜索框的菜单别开，左右键要留给框里挪光标。
  */
 export function useRadioMenu(
   open: boolean,
   list: RefObject<HTMLElement | null>,
   focusPicked = true,
+  sideways = false,
 ): (event: React.KeyboardEvent) => void {
   useEffect(() => {
     if (!open) return
@@ -27,11 +29,13 @@ export function useRadioMenu(
   }, [open, list, focusPicked])
 
   return (event) => {
-    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
+    const forward = event.key === 'ArrowDown' || (sideways && event.key === 'ArrowRight')
+    const back = event.key === 'ArrowUp' || (sideways && event.key === 'ArrowLeft')
+    if (!forward && !back) return
     event.preventDefault()
     const items = [...(list.current?.querySelectorAll<HTMLElement>(ITEM) ?? [])]
     const at = items.indexOf(document.activeElement as HTMLElement)
-    const step = event.key === 'ArrowDown' ? 1 : -1
+    const step = forward ? 1 : -1
     if (at < 0) items[step > 0 ? 0 : items.length - 1]?.focus()
     else items[(at + step + items.length) % items.length]?.focus()
   }
