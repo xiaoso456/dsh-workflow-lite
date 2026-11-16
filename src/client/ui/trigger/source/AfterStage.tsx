@@ -3,10 +3,16 @@
  * 工作台上面两张工作流卡片连一条线（线色和画布上同一套：成功绿、失败红、不论结果蓝），
  * 下面列那个工作流最近几次执行，按现在选的结果标出哪几次会接着执行。
  *
+ * - 点一行：选中的淡底先从旧行淡到新行（{@link PICK_HOLD_MS}），淡完才收起列表、下拉框里整行滚动换成新的
+ *   （{@link SwapRoll}，新旧两行不叠成残影）——先让人看到点中了哪一行。等着的时候按 Esc、点外面、再点下拉框都是立刻选上并收起；
+ *   点的就是已选的那一行、或开着「减少动态效果」，不等。行是整行的按钮，不要按下缩一下的手感；选中只靠淡底，不画勾选圈
+ *   （下拉框里本来就写着选的是哪个）。
  * - 列表每行写最近一次执行的结果和几张卡片；没开「记录运行状态」的看不出什么时候跑完，
- *   那一行选不了，行尾「去打开」问一句后替它打开（改的是那个工作流的设置）。
+ *   那一行选不了，行尾「去打开」问一句后替它打开（改的是那个工作流的设置），打开了就直接选上它、收起列表
+ *   ——在这里替它打开就是为了选它。问着、打开着的时候列表不收（确认卡在列表外面，点它不算点外面）；
+ *   打开着时按钮写「正在打开…」，打不开就留在列表里，那一行写原因。
  * - 选中的那一个不在列表里（改了名、删了，或者在实例视图里）也照样列出来。
- * - 从没选到选上（或换一个）：名字、最近一次是叠在同一格的两层交叉淡，左边卡片的虚框、线的虚线也是叠层换透明度，
+ * - 从没选到选上：名字、最近一次是叠在同一格的两层交叉淡；换一个是整行滚动换。左边卡片的虚框、线的虚线是叠层换透明度，
  *   下面的执行列表整块交接（{@link Staged}）——没有哪一块瞬换。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/trigger/source/AfterStage
@@ -25,9 +31,9 @@ import { Icon } from '../../kit/Icon.tsx'
 import { WHEN_COLOR } from '../../kit/lineColors.ts'
 import { Popover } from '../../kit/Popover.tsx'
 import { Segmented } from '../../kit/Segmented.tsx'
-import { CheckBox } from '../../motion/marks.tsx'
+import { REDUCED } from '../../motion/shared.ts'
 import { FadeStack, Staged } from '../../motion/stage.tsx'
-import { SwapText } from '../../motion/swapText.tsx'
+import { SwapRoll, SwapText } from '../../motion/swapText.tsx'
 import { TriggerMark } from '../TriggerMark.tsx'
 import type { RunBrief, TriggerEnv, WorkflowChoice } from '../triggerEnv.ts'
 import css from './after.module.css'
@@ -35,6 +41,9 @@ import { Bench, benchAside } from './Bench.tsx'
 import { StageRow, StageRows } from './StageRow.tsx'
 
 type After = Extract<TriggerSource, { kind: 'after' }>
+
+/** 点了一行之后等多久再收起列表：选中的淡底从旧行淡到新行的时长（同 after.module.css 的 `.row::before`）。 */
+const PICK_HOLD_MS = 140
 
 const RESULTS: readonly { value: AfterWhen; label: LocaleKey; line: 'pass' | 'fail' | 'always' }[] =
   [
@@ -134,7 +143,7 @@ export function AfterStage(props: {
                 <PickedName t={t} name={picked?.name} className={css.wfNameText} />
               </span>
               <span className={css.wfSub}>
-                <PickedLast t={t} name={picked?.name} run={pickedRuns?.[0]} />
+                <PickedLast t={t} name={picked?.name} runs={runs} />
               </span>
             </div>
             <span className={css.edge} data-empty={picked === undefined}>
@@ -231,61 +240,177 @@ function WorkflowPicker(props: {
   value: string
   onPick(workflow: string): void
 }): React.JSX.Element {
-  const { t } = props
+  const { t, env } = props
   const [open, setOpen] = useState(false)
   const button = useRef<HTMLButtonElement>(null)
   const picked = props.choices.find((item) => item.name === props.value)
-  return (
-    <Popover
-      open={open}
-      wide
-      onClose={() => {
-        setOpen(false)
-        button.current?.focus({ preventScroll: true })
-      }}
-      label={t('trigger.afterPick')}
-      className={css.pop}
-      trigger={
-        <button
-          ref={button}
-          type="button"
-          className={css.picker}
-          aria-haspopup="dialog"
-          aria-expanded={open}
-          data-empty={picked === undefined}
-          data-testid="wl-trigger-after-pick"
-          onClick={() => setOpen(!open)}
-        >
-          <PickedName t={t} name={picked?.name} className={css.pickerName} />
-          <span className={cx(css.last, css.pickerLast)}>
-            <PickedLast
-              t={t}
-              name={picked?.name}
-              run={picked === undefined ? undefined : props.runs.get(picked.name)?.[0]}
-            />
-          </span>
-          <Icon name="chevronDown" size={13} />
-        </button>
+  // 「去打开」：一张确认卡，挂在问着的那一行的按钮上。
+  const enable = useConfirm<HTMLButtonElement>()
+  const [asking, setAsking] = useState<string | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
+  const [problems, setProblems] = useState<ReadonlyMap<string, string>>(new Map())
+  // 点了、还在等淡底走完的那一行：列表先按它画选中，到点（或提前收起）才真的选上。
+  const [pending, setPending] = useState<string | null>(null)
+  const hold = useRef<number | null>(null)
+  const onPick = useRef(props.onPick)
+  onPick.current = props.onPick
+  useEffect(
+    () => () => {
+      if (hold.current !== null) window.clearTimeout(hold.current)
+    },
+    [],
+  )
+  const commit = (workflow: string): void => {
+    if (hold.current !== null) window.clearTimeout(hold.current)
+    hold.current = null
+    setPending(null)
+    setOpen(false)
+    onPick.current(workflow)
+  }
+  const pick = (workflow: string): void => {
+    if (workflow === props.value || REDUCED?.matches === true) {
+      commit(workflow)
+      return
+    }
+    setPending(workflow)
+    if (hold.current !== null) window.clearTimeout(hold.current)
+    hold.current = window.setTimeout(() => commit(workflow), PICK_HOLD_MS)
+  }
+  const close = (): void => {
+    if (pending !== null) commit(pending)
+    else setOpen(false)
+  }
+  const turnOn = (name: string): void => {
+    if (env === null) return
+    setBusy(name)
+    void env.enableRunState(name).then((problem) => {
+      setBusy(null)
+      if (problem === null) {
+        pick(name)
+        return
       }
-    >
-      <WorkflowList
-        t={t}
-        env={props.env}
-        choices={props.choices}
-        runs={props.runs}
-        value={props.value}
-        onPick={(workflow) => {
-          setOpen(false)
-          props.onPick(workflow)
+      setProblems((current) => new Map(current).set(name, problem))
+    })
+  }
+  const enabling: EnableState = {
+    busy,
+    problems,
+    anchorFor: (name) => (asking === name ? enable.anchorRef : undefined),
+    onAsk: (name) => {
+      if (enable.open && asking === name) {
+        enable.hide()
+        return
+      }
+      setAsking(name)
+      enable.show()
+    },
+  }
+  return (
+    <>
+      <Popover
+        open={open}
+        wide
+        hold={enable.open || busy !== null}
+        onClose={() => {
+          close()
+          button.current?.focus({ preventScroll: true })
         }}
-      />
-    </Popover>
+        label={t('trigger.afterPick')}
+        className={css.pop}
+        trigger={
+          <button
+            ref={button}
+            type="button"
+            className={css.picker}
+            aria-haspopup="dialog"
+            aria-expanded={open}
+            data-empty={picked === undefined}
+            data-testid="wl-trigger-after-pick"
+            onClick={() => (open ? close() : setOpen(true))}
+          >
+            <PickedLine t={t} name={picked?.name} runs={props.runs} />
+            <Icon name="chevronDown" size={13} />
+          </button>
+        }
+      >
+        <WorkflowList
+          t={t}
+          env={props.env}
+          choices={props.choices}
+          runs={props.runs}
+          value={pending ?? props.value}
+          enabling={enabling}
+          onPick={pick}
+        />
+      </Popover>
+      {asking !== null &&
+        enable.render({
+          t,
+          title: t('trigger.afterEnableTitle').replace('{name}', asking),
+          desc: t('trigger.afterEnableDesc'),
+          confirmText: t('trigger.afterEnableConfirm'),
+          danger: false,
+          testId: `wl-trigger-after-enable-confirm-${asking}`,
+          onConfirm: () => turnOn(asking),
+        })}
+    </>
+  )
+}
+
+/** 「去打开」的进度：问着哪一行（确认卡挂在它的按钮上）、正在替哪一张打开、哪几张打不开（原因）。 */
+interface EnableState {
+  busy: string | null
+  problems: ReadonlyMap<string, string>
+  anchorFor(name: string): React.RefObject<HTMLButtonElement> | undefined
+  onAsk(name: string): void
+}
+
+/**
+ * 下拉框里那一行（名字 + 最近一次）：没选时是灰的「选一个工作流」，和选上的那一行叠在同一格交叉淡；
+ * 换一个工作流时名字和最近一次当一整行滚动换（{@link SwapRoll}），附注不会被宽窄不同的名字先推一下。
+ */
+function PickedLine(props: {
+  t: T
+  name: string | undefined
+  runs: ReadonlyMap<string, readonly RunBrief[]>
+}): React.JSX.Element {
+  const { t } = props
+  const last = useLatest(props.name)
+  return (
+    <FadeStack
+      at={props.name === undefined ? 'none' : 'picked'}
+      className={css.pickedLine}
+      items={[
+        {
+          key: 'none',
+          node: <span className={cx(css.ellipsis, css.placeholder)}>{t('trigger.afterNone')}</span>,
+        },
+        {
+          key: 'picked',
+          node:
+            last === undefined ? null : (
+              <SwapRoll
+                id={last}
+                className={css.pickedRow}
+                render={(name) => (
+                  <>
+                    <span className={css.pickerName}>{name}</span>
+                    <span className={cx(css.last, css.pickerLast)}>
+                      <LastText t={t} run={props.runs.get(name)?.[0]} />
+                    </span>
+                  </>
+                )}
+              />
+            ),
+        },
+      ]}
+    />
   )
 }
 
 /**
- * 选中的工作流名字：没选时是灰的「选一个工作流」，选上是粗体名字——两层叠在同一格交叉淡（颜色、字重各是各的，不瞬换）；
- * 换一个工作流时名字原地换字。
+ * 工作台卡片上的名字：没选时是灰的「选一个工作流」，选上是粗体名字——两层叠在同一格交叉淡（颜色、字重各是各的，不瞬换）；
+ * 换一个工作流时整行滚动换（同下拉框，见 {@link PickedLine}）。
  */
 function PickedName(props: {
   t: T
@@ -305,22 +430,18 @@ function PickedName(props: {
         },
         {
           key: 'picked',
-          node: (
-            <span className={css.ellipsis}>
-              <SwapText text={last ?? ''} />
-            </span>
-          ),
+          node: <SwapRoll id={last ?? ''} className={css.ellipsis} render={(name) => name} />,
         },
       ]}
     />
   )
 }
 
-/** 选中的工作流最近一次执行：没选时是空的，选上淡进来（同 {@link PickedName}）。 */
+/** 工作台卡片上那个工作流最近一次执行：没选时是空的，选上淡进来、换一个滚动换（同 {@link PickedName}）。 */
 function PickedLast(props: {
   t: T
   name: string | undefined
-  run: RunBrief | undefined
+  runs: ReadonlyMap<string, readonly RunBrief[]>
 }): React.JSX.Element {
   const last = useLatest(props.name)
   return (
@@ -331,7 +452,13 @@ function PickedLast(props: {
         { key: 'none', node: null },
         {
           key: 'picked',
-          node: last === undefined ? null : <LastText t={props.t} run={props.run} />,
+          node:
+            last === undefined ? null : (
+              <SwapRoll
+                id={last}
+                render={(name) => <LastText t={props.t} run={props.runs.get(name)?.[0]} />}
+              />
+            ),
         },
       ]}
     />
@@ -358,13 +485,14 @@ function LastText(props: { t: T; run: RunBrief | undefined }): React.JSX.Element
   )
 }
 
-/** 工作流列表：搜索框 + 一行一个（勾选圈、名字、最近一次、几张卡片 / 「去打开」）。 */
+/** 工作流列表：搜索框 + 一行一个（名字、最近一次、几张卡片 / 「去打开」；选中的那行带淡底）。 */
 function WorkflowList(props: {
   t: T
   env: TriggerEnv | null
   choices: readonly WorkflowChoice[]
   runs: ReadonlyMap<string, readonly RunBrief[]>
   value: string
+  enabling: EnableState
   onPick(workflow: string): void
 }): React.JSX.Element {
   const { t, choices } = props
@@ -394,6 +522,7 @@ function WorkflowList(props: {
             item={item}
             run={props.runs.get(item.name)?.[0]}
             on={item.name === props.value}
+            enabling={props.enabling}
             onPick={() => props.onPick(item.name)}
           />
         ))}
@@ -411,11 +540,12 @@ function WorkflowRow(props: {
   item: WorkflowChoice
   run: RunBrief | undefined
   on: boolean
+  enabling: EnableState
   onPick(): void
 }): React.JSX.Element {
-  const { t, item, env } = props
-  const confirm = useConfirm<HTMLButtonElement>()
-  const [problem, setProblem] = useState<string | null>(null)
+  const { t, item, env, enabling } = props
+  const problem = enabling.problems.get(item.name)
+  const busy = enabling.busy === item.name
   const usable = item.runState || props.on
   return (
     <div className={css.row} data-on={props.on} data-off={!item.runState || undefined}>
@@ -428,13 +558,14 @@ function WorkflowRow(props: {
         data-testid={`wl-trigger-after-${item.name}`}
         onClick={props.onPick}
       >
-        <CheckBox on={props.on} className={css.check} />
         <span className={css.name}>{item.name}</span>
         <span className={css.last}>
           {item.runState ? (
             <LastText t={t} run={props.run} />
           ) : (
-            (problem ?? t('trigger.afterStateOff'))
+            <span className={css.lastLine} data-problem={problem !== undefined || undefined}>
+              {problem ?? t('trigger.afterStateOff')}
+            </span>
           )}
         </span>
       </button>
@@ -443,28 +574,20 @@ function WorkflowRow(props: {
           {item.nodes > 0 ? t('trigger.afterNodes').replace('{n}', String(item.nodes)) : ''}
         </span>
       ) : (
-        <>
-          <button
-            ref={confirm.anchorRef}
-            type="button"
-            className={css.enable}
-            data-testid={`wl-trigger-after-enable-${item.name}`}
-            onClick={confirm.toggle}
-          >
-            {t('trigger.afterEnable')}
-          </button>
-          {confirm.render({
-            t,
-            title: t('trigger.afterEnableTitle').replace('{name}', item.name),
-            desc: t('trigger.afterEnableDesc'),
-            confirmText: t('trigger.afterEnableConfirm'),
-            danger: false,
-            testId: `wl-trigger-after-enable-confirm-${item.name}`,
-            onConfirm: () => {
-              void env.enableRunState(item.name).then(setProblem)
-            },
-          })}
-        </>
+        <button
+          ref={enabling.anchorFor(item.name)}
+          type="button"
+          className={css.enable}
+          disabled={busy}
+          aria-busy={busy || undefined}
+          data-testid={`wl-trigger-after-enable-${item.name}`}
+          onClick={() => enabling.onAsk(item.name)}
+        >
+          <SwapText
+            text={t(busy ? 'trigger.afterEnabling' : 'trigger.afterEnable')}
+            reserve={[t('trigger.afterEnabling'), t('trigger.afterEnable')]}
+          />
+        </button>
       )}
     </div>
   )

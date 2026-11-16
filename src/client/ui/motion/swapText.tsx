@@ -1,17 +1,20 @@
 /**
- * dsh-workflow-lite — 一小段字、一枚图标、一小块内容换了的时候，新旧两份滚动交接（{@link SwapText} / {@link SwapIcon} / {@link SwapNode}）。
+ * dsh-workflow-lite — 一小段字、一枚图标、一小块内容换了的时候，新旧两份滚动交接（{@link SwapText} / {@link SwapIcon} / {@link SwapNode} / {@link SwapRoll}）。
  * {@link useLast} 记着上一次的值，{@link useTrend} 判断数字是涨是跌。只动 `transform` / `opacity`。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/motion/swapText
  */
 
 import { useEffect, useState } from 'react'
+import { cx } from '../kit/cx.ts'
 import { Icon, type IconName } from '../kit/Icon.tsx'
 import css from './swapText.module.css'
 
 /** 换字、换图标时旧的留多久（和 swapText.module.css 的 swapOut / iconOut 一致）。 */
 export const SWAP_TEXT_MS = 160
 const SWAP_ICON_MS = 240
+/** 整行滚动换的时长（同 swapText.module.css 的 rollIn / rollOut）。 */
+const SWAP_ROLL_MS = 220
 
 /** 记住上一个值：变了的那次渲染里把旧值、换了几次一起记下，过一会儿把旧值清掉。 */
 export function useLast<V>(value: V, ms: number): { was: V | null; n: number } {
@@ -111,6 +114,35 @@ export function SwapNode(props: {
         </span>
       )}
       <span key={`in-${n}`} className={n > 0 ? css.nodeIn : undefined}>
+        {props.render(props.id)}
+      </span>
+    </span>
+  )
+}
+
+/**
+ * 整行换一行（下拉框里选中的那一项：名字 + 旁边的附注）：旧的一整行往上滚出去，新的一行从下面滚进来，上下裁着——
+ * 两行从不叠在一起，不像 {@link SwapText} 那样中间几帧两份字叠成残影；名字和附注当一块换，附注不会被宽窄不同的名字先推一下。
+ * `id` 变了才换，`render` 按 `id` 画出那一行。外面给 `className` 定排版（每一行都按它排）。
+ */
+export function SwapRoll(props: {
+  id: string
+  render(id: string): React.ReactNode
+  className?: string
+}): React.JSX.Element {
+  const { was, n } = useLast(props.id, SWAP_ROLL_MS)
+  return (
+    <span className={css.roll}>
+      {was !== null && (
+        <span
+          key={`out-${n}`}
+          className={cx(css.rollLine, css.rollOut, props.className)}
+          aria-hidden="true"
+        >
+          {props.render(was)}
+        </span>
+      )}
+      <span key={`in-${n}`} className={cx(css.rollLine, n > 0 && css.rollIn, props.className)}>
         {props.render(props.id)}
       </span>
     </span>

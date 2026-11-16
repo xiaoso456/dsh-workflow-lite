@@ -50,6 +50,26 @@
   font-weight: 400;
 }
 
+/* 下拉框里那一行：「选一个工作流」和选上的那一行两层叠在一格，占满按钮里除箭头外的宽度。 */
+.pickedLine {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.pickedLine > * {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+/* 选上的那一行（名字 + 最近一次）：滚动换时整行当一块。 */
+.pickedRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
 /* 名字 / 最近一次两层叠在一格：在横排里能缩、超长省略。 */
 .pickedStack {
   flex: 0 1 auto;
@@ -439,7 +459,7 @@
   background: var(--wl-accent-soft);
   content: "";
   opacity: 0;
-  transition: opacity 180ms linear;
+  transition: opacity 140ms linear;
   pointer-events: none;
 }
 
@@ -451,7 +471,7 @@
   position: relative;
   display: grid;
   flex: 1 1 auto;
-  grid-template-columns: 18px minmax(0, 1fr) minmax(0, auto);
+  grid-template-columns: minmax(0, 1fr) minmax(0, auto);
   gap: 10px;
   align-items: center;
   min-width: 0;
@@ -475,8 +495,9 @@
   cursor: default;
 }
 
-.check {
-  border-radius: 50%;
+/* 整行的按钮：点下去不缩（全局按钮按下缩到 0.98，整行宽的缩起来像往里陷了一下）。 */
+.row .pick:active {
+  scale: none;
 }
 
 .name {
@@ -514,6 +535,11 @@
   text-align: right;
 }
 
+/* 替它打开没成功：那一行写原因（危险色）。 */
+.lastLine[data-problem="true"] {
+  color: var(--wl-danger);
+}
+
 .enable {
   position: relative;
   flex: none;
@@ -527,8 +553,14 @@
   cursor: pointer;
 }
 
-.enable:hover {
+.enable:hover:not(:disabled) {
   text-decoration: underline;
+}
+
+/* 正在替它打开：字换成「正在打开…」，灰下来、点不了。 */
+.enable:disabled {
+  color: var(--wl-text-3);
+  cursor: default;
 }
 
 .empty {

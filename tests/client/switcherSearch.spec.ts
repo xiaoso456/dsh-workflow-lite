@@ -3,6 +3,7 @@ import {
   currentFirst,
   filterRuns,
   filterWorkflows,
+  holdTimes,
   matchRange,
   normalizeNeedle,
   visibleRuns,
@@ -60,5 +61,28 @@ describe('switcherSearch', () => {
     expect(visibleRuns(runs, { expanded: true, active: null }).hidden).toBe(0)
     const four = runs.slice(0, 4)
     expect(visibleRuns(four, { expanded: false, active: null })).toEqual({ shown: four, hidden: 0 })
+  })
+})
+
+describe('holdTimes', () => {
+  const list = [
+    { name: 'a', updatedAt: 30 },
+    { name: 'b', updatedAt: 20 },
+    { name: 'new', updatedAt: 40 },
+  ]
+
+  it('passes the list through while the menu is closed', () => {
+    expect(holdTimes(list, null)).toBe(list)
+  })
+
+  it('keeps the times seen when the menu opened, and real times for workflows that came later', () => {
+    const seen = new Map([
+      ['a', 10],
+      ['b', 20],
+    ])
+    const held = holdTimes(list, seen)
+    expect(held.map((entry) => entry.updatedAt)).toEqual([10, 20, 40])
+    // 没变的那张原样复用（不多造对象）。
+    expect(held[1]).toBe(list[1])
   })
 })

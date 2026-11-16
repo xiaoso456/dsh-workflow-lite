@@ -20,6 +20,21 @@ export function matchRange(text: string, needle: string): readonly [number, numb
   return at < 0 ? null : [at, at + needle.length]
 }
 
+/**
+ * 开着的下拉里，各张的修改时间按打开那一刻的算（打开之后才有的照实）：开着时存盘、换图（换之前先存上一张）
+ * 改了修改时间，按最近修改排的列表也不在用户手底下挪，选中块不追着跑；收起再打开才按新的排。
+ */
+export function holdTimes<T extends { name: string; updatedAt: number }>(
+  list: readonly T[],
+  seen: ReadonlyMap<string, number> | null,
+): readonly T[] {
+  if (seen === null) return list
+  return list.map((entry) => {
+    const at = seen.get(entry.name)
+    return at === undefined || at === entry.updatedAt ? entry : { ...entry, updatedAt: at }
+  })
+}
+
 /** 工作流按名字过滤（保持传入顺序）。 */
 export function filterWorkflows<T extends { name: string }>(
   list: readonly T[],

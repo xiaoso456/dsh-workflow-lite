@@ -28,6 +28,7 @@ import {
   currentFirst,
   filterRuns,
   filterWorkflows,
+  holdTimes,
   normalizeNeedle,
   RUNS_SHOWN,
   visibleRuns,
@@ -115,6 +116,7 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
 
   const close = (): void => {
     setOpen(false)
+    setSeenTimes(null)
     setQuery('')
     setRunsExpanded(false)
     setEditing(null)
@@ -130,7 +132,12 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
     else close()
   }
 
-  const workflows = catalog?.workflows ?? []
+  /** 打开下拉那一刻各张的修改时间：开着时按它排（见 `holdTimes`），存盘、换图不让行在手底下挪。 */
+  const [seenTimes, setSeenTimes] = useState<ReadonlyMap<string, number> | null>(null)
+  const workflows = useMemo(
+    () => holdTimes(catalog?.workflows ?? [], seenTimes),
+    [catalog?.workflows, seenTimes],
+  )
   const needle = normalizeNeedle(query)
   const searching = needle !== ''
   const [view, changeView] = useListView(WORKFLOW_VIEW)
@@ -222,6 +229,7 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
                 return
               }
               setOpen(true)
+              setSeenTimes(new Map(workflows.map((entry) => [entry.name, entry.updatedAt])))
               void wf.refreshCatalog()
               void props.runs.refresh()
             }}

@@ -493,10 +493,11 @@ export const zh = {
   'trigger.afterNoMatch': '没有对得上的工作流',
   'trigger.afterStateOff': '没记录运行状态',
   'trigger.afterEnable': '去打开',
+  'trigger.afterEnabling': '正在打开…',
   'trigger.afterEnableTitle': '在「{name}」里打开「记录运行状态」？',
   'trigger.afterEnableDesc':
     '改的是那个工作流的设置；之后它每次执行都会记下运行状态，这里才看得出它什么时候跑完。',
-  'trigger.afterEnableConfirm': '打开',
+  'trigger.afterEnableConfirm': '打开并选用',
   'trigger.afterNodes': '{n} 张卡片',
 } as const
 
@@ -1003,9 +1004,10 @@ export const en: Record<keyof typeof zh, string> = {
   'trigger.afterNoMatch': 'No matching workflow',
   'trigger.afterStateOff': 'Run state not recorded',
   'trigger.afterEnable': 'Turn on',
+  'trigger.afterEnabling': 'Turning on…',
   'trigger.afterEnableTitle': 'Turn on “Record run state” in “{name}”?',
   'trigger.afterEnableDesc':
     'This changes that workflow’s settings; from then on each run records its state, so this card can tell when it finishes.',
-  'trigger.afterEnableConfirm': 'Turn on',
+  'trigger.afterEnableConfirm': 'Turn on and use',
   'trigger.afterNodes': 'Cards: {n}',
 }

@@ -259,6 +259,45 @@
   }
 }
 
+/*
+ * 整行滚动换（SwapRoll）：新旧两行叠在同一格，框把上下裁掉（留 2px 给字的上下沿），
+ * 旧行整行往上滚出、新行从下面滚进来——两行从不叠着露出来。
+ */
+.roll {
+  display: grid;
+  min-width: 0;
+  overflow: clip;
+  overflow-clip-margin: 2px;
+}
+
+.rollLine {
+  grid-area: 1 / 1;
+  min-width: 0;
+}
+
+.rollIn {
+  animation: rollIn 220ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.rollOut {
+  pointer-events: none;
+  animation: rollOut 220ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes rollIn {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+}
+
+@keyframes rollOut {
+  to {
+    opacity: 0;
+    transform: translateY(-100%);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .swapIcon > [data-ok].iconIn {
     animation: none;
@@ -269,13 +308,15 @@
   .swapText[data-dir][data-fresh] > .swapNow,
   .swapText[data-pop][data-dir][data-fresh] > .swapNow,
   .iconIn,
-  .nodeIn {
+  .nodeIn,
+  .rollIn {
     animation: none;
   }
 
   .swapText[data-was]::after,
   .iconOut,
-  .nodeOut {
+  .nodeOut,
+  .rollOut {
     display: none;
   }
 }
