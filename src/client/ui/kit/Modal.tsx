@@ -16,6 +16,7 @@ import { createPortal } from 'react-dom'
 import { cx } from './cx.ts'
 import { ghostOut, REDUCED_MOTION } from './ghost.ts'
 import overlay from './overlay.module.css'
+import { snapToPixels } from './pixelSnap.ts'
 import ui from './ui.module.css'
 
 /**
@@ -208,23 +209,49 @@ export function useSheetMotion(
   useLayoutEffect(() => {
     const dialog = dialogRef.current
     const scrim = scrimRef.current
-    // 合成层一直留着：放大动画一结束浏览器就把弹窗内容按真实大小重画一遍，里面的文字、图标会整体错位一两个像素（缩放不是整数的屏幕上最明显）。
-    if (dialog !== null) dialog.style.willChange = 'transform'
-    const source = openSource()
-    if (dialog === null || scrim === null || source === null || REDUCED_MOTION?.matches === true) {
-      return
-    }
-    const from = foldedTransform(source, dialog, scrim)
-    folded.current = from
-    // 样式里那条 dialogIn 让位：这一条是按触发控件量出来的。
+    if (dialog === null || scrim === null) return
+    /*
+     * 弹窗落在整像素上（kit/pixelSnap）：居中时剩下的宽是奇数就落在半像素上，里面的图标在合成层里发虚、
+     * 出了合成层又被吸到整像素（放大动画一结束整体跳一下）。先关掉样式里的入场动画量好位置、挪好，再开始放。
+     */
     dialog.style.animation = 'none'
-    dialog.animate(
-      [
-        { transform: from, opacity: 0 },
-        { opacity: 1, offset: 0.3 },
-        { transform: 'none', opacity: 1 },
-      ],
-      { duration: 560, easing: springOf(dialog), fill: 'backwards' },
+    snapToPixels(dialog)
+    const source = openSource()
+    const grow = source !== null && REDUCED_MOTION?.matches !== true
+    if (grow) {
+      const from = foldedTransform(source, dialog, scrim)
+      folded.current = from
+      // 样式里那条 dialogIn 让位：这一条是按触发控件量出来的。
+      dialog.animate(
+        [
+          { transform: from, opacity: 0 },
+          { opacity: 1, offset: 0.3 },
+          { transform: 'none', opacity: 1 },
+        ],
+        { duration: 560, easing: springOf(dialog), fill: 'backwards' },
+      )
+    } else {
+      dialog.style.animation = ''
+    }
+    // 只在动画期间留合成层：之后切页签、换内容都按真实大小画，不沿用放大时的那一份（过冲时比 1 大，缩回来发虚）。
+    dialog.style.willChange = 'transform'
+    let alive = true
+    void Promise.allSettled(dialog.getAnimations().map((animation) => animation.finished)).then(
+      () => {
+        if (!alive) return
+        dialog.style.willChange = ''
+        snapToPixels(dialog)
+      },
     )
+    // 窗口、弹窗大小变了（内容撑高、拖窗口）再挪一次；动画放着时位置带着变换，不量。
+    const observer = new ResizeObserver(() => {
+      if (dialog.getAnimations().length === 0) snapToPixels(dialog)
+    })
+    observer.observe(scrim)
+    observer.observe(dialog)
+    return () => {
+      alive = false
+      observer.disconnect()
+    }
   }, [scrimRef, dialogRef])
 }
