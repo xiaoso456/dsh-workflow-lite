@@ -1,7 +1,8 @@
 /**
  * dsh-workflow-lite — 工作流中心：放所有**跨工作流、跨会话**的东西。
  *
- * 标题栏和「工作流设置」同一种样子，几页的切换放在标题栏里：
+ * 标题栏和「工作流设置」同一种样子，几页的切换放在标题栏里：前四页是一组分段（按字宽排、带图标），
+ * 「存储」「设置」用得少，是右边关闭旁的两个图标按钮（悬停有名字）：
  * 前四页左栏同一个样子（`list/`）：搜索框旁「视图选项」（分组、排序、筛选，记在本机浏览器里），
  * 分组标题可折叠、滚动时钉在顶上，一项可以出现在几组里。
  * - **运行实例**（`runs/HubRuns.tsx`）：所有会话的实例，左边按工作区 / 工作流 / 状态 / 会话分组，右边选中那个的全貌；
@@ -24,14 +25,15 @@ import { useState } from 'react'
 import type { HostAccess } from '../../app/host.ts'
 import type { SessionRow } from '../../app/sessions.ts'
 import type { Runs } from '../../app/useRuns.ts'
-import type { T } from '../../i18n.ts'
+import type { LocaleKey, T } from '../../i18n.ts'
 import type { WorkflowLiteRpc } from '../../rpc.ts'
 import { cx } from '../kit/cx.ts'
-import { Icon } from '../kit/Icon.tsx'
+import { Icon, type IconName } from '../kit/Icon.tsx'
 import { Modal } from '../kit/Modal.tsx'
 import overlay from '../kit/overlay.module.css'
 import { Segmented } from '../kit/Segmented.tsx'
 import ui from '../kit/ui.module.css'
+import { FadeMark } from '../motion/marks.tsx'
 import { HubMemories } from './HubMemories.tsx'
 import { HubSettings } from './HubSettings.tsx'
 import { HubStorage } from './HubStorage.tsx'
@@ -48,6 +50,18 @@ const PAGES: readonly HubPage[] = [
   'memories',
   'storage',
   'settings',
+]
+
+/** 分段里的四页（各带图标）、关闭旁边的两页（只有图标）。 */
+const MAIN: readonly { page: HubPage; label: LocaleKey; icon: IconName }[] = [
+  { page: 'runs', label: 'hub.runs', icon: 'runs' },
+  { page: 'workflows', label: 'hub.wfPage', icon: 'hub' },
+  { page: 'triggers', label: 'hub.trgPage', icon: 'bolt' },
+  { page: 'memories', label: 'hub.memories', icon: 'memory' },
+]
+const SIDE: readonly { page: HubPage; label: LocaleKey; icon: IconName }[] = [
+  { page: 'storage', label: 'hub.storage', icon: 'storage' },
+  { page: 'settings', label: 'hub.settings', icon: 'gear' },
 ]
 
 /** 工作流中心打开时停在哪。 */
@@ -112,29 +126,47 @@ export function HubDialog(props: {
           <p className={overlay.sheetSub}>{t('hub.sub')}</p>
         </div>
         <div className={css.tabs}>
+          {/* 在「存储」「设置」页时分段里没有选中的，滑块原地淡掉。 */}
           <Segmented<HubPage>
             label={t('hub.title')}
             value={page}
             onChange={turn}
             testId="wl-hub"
-            options={[
-              { value: 'runs', label: t('hub.runs') },
-              { value: 'workflows', label: t('hub.wfPage') },
-              { value: 'triggers', label: t('hub.trgPage') },
-              { value: 'memories', label: t('hub.memories') },
-              { value: 'storage', label: t('hub.storage') },
-              { value: 'settings', label: t('hub.settings') },
-            ]}
+            fit
+            options={MAIN.map((item) => ({
+              value: item.page,
+              label: t(item.label),
+              icon: item.icon,
+            }))}
           />
         </div>
-        <button
-          type="button"
-          className={cx(ui.btn, ui.icon, ui.small)}
-          aria-label={t('common.close')}
-          onClick={props.onClose}
-        >
-          <Icon name="x" size={15} />
-        </button>
+        <span className={css.divider} aria-hidden="true" />
+        <div className={css.tools}>
+          {SIDE.map((item) => (
+            <button
+              key={item.page}
+              type="button"
+              className={cx(ui.btn, ui.icon, ui.small, css.sidePage)}
+              aria-pressed={page === item.page}
+              aria-label={t(item.label)}
+              data-tip={t(item.label)}
+              data-testid={`wl-hub-${item.page}`}
+              onClick={() => turn(item.page)}
+            >
+              <FadeMark on={page === item.page}>
+                <Icon name={item.icon} size={15} />
+              </FadeMark>
+            </button>
+          ))}
+          <button
+            type="button"
+            className={cx(ui.btn, ui.icon, ui.small)}
+            aria-label={t('common.close')}
+            onClick={props.onClose}
+          >
+            <Icon name="x" size={15} />
+          </button>
+        </div>
       </header>
       {/* 换页：整页换一块，从点的那一侧滑进来。 */}
       <div key={page} className={css.pane} data-from={from}>

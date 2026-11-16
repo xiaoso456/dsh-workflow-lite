@@ -19,10 +19,52 @@ div.dialog {
   border-bottom: 1px solid var(--wl-line);
 }
 
-/* 六页，每页 80px（英文的「Workflows」「Instances」放得下）；标题、副标题放不下时截断。 */
+/* 前四页一组分段，按字宽排；标题、副标题放不下时截断。 */
 .tabs {
   flex: none;
-  width: 480px;
+  margin-left: auto;
+}
+
+/* 分段和右边几个图标按钮之间一道短竖线。 */
+.divider {
+  flex: none;
+  width: 1px;
+  height: 16px;
+  margin: 0 -4px;
+  background: var(--wl-line);
+}
+
+/* 「存储」「设置」：在那一页时铺一层浅强调色底（::after，渐显），图标交叉淡成强调色（FadeMark）。 */
+.sidePage::after {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--wl-accent-soft);
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms linear;
+}
+
+.sidePage[aria-pressed="true"]::after {
+  opacity: 1;
+}
+
+/* 「存储」「设置」和关闭挨着排成一组。 */
+.tools {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  align-items: center;
+}
+
+:global([data-look="swiss"]) .sidePage::after {
+  background: var(--wl-text);
+}
+
+:global([data-look="swiss"]) .sidePage[aria-pressed="true"] {
+  --wl-on: var(--wl-panel);
 }
 
 /*

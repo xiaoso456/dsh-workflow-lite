@@ -124,6 +124,21 @@
   opacity: 1;
 }
 
+/* 按字宽排：各格只占自己那么宽，左右多留一点。 */
+.seg[data-fit] {
+  grid-auto-columns: auto;
+}
+
+.seg[data-fit] .segItem {
+  padding: 0 10px;
+}
+
+/* 字前面的小图标：和字之间留 5px，往下压一点和字的中线对齐。 */
+.segIcon {
+  margin-right: 5px;
+  vertical-align: -2px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .segItem,
   .segThumb {
