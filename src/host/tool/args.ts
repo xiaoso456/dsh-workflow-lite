@@ -52,7 +52,25 @@ export interface WorkflowLiteArgs {
   resource?: ResourceArgs
   memory?: MemoryArgs
   trigger?: TriggerArgs
+  local?: TriggerLocalArgs
+  include?: string[]
+  limit?: number
+  workspace?: string
+  seconds?: number
+  poke?: string
+  body?: string
+  queue?: string
   reason?: string
+}
+
+/** write_trigger 的 local：这台机器上的设置（与参数声明同构；开关、命令确认不在这里）。 */
+export interface TriggerLocalArgs {
+  workspace?: string
+  shell?: string
+  session?: string
+  hook?: string
+  token?: string
+  noToken?: boolean
 }
 
 /** write_trigger 的 trigger（与参数声明同构；形状由仓储按触发卡片的规矩读入）。 */

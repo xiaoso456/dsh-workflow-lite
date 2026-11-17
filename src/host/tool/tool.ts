@@ -38,7 +38,6 @@ import type { RunService } from '../runs/service.ts'
 import { hasMemory, listMemories, type MemoryDeps } from '../store/memories.ts'
 import { assetsDir } from '../store/paths.ts'
 import type { NodeUpsert } from '../store/repoNodes.ts'
-import type { Outcome } from '../store/repoResult.ts'
 import { problemsToWarnings } from '../store/repoResult.ts'
 import type { Repository } from '../store/repository.ts'
 import {
@@ -54,6 +53,16 @@ import { writeMemoryCard } from './memoryCard.ts'
 import { saveNodeAsTemplate } from './nodeTemplate.ts'
 import { displaySpecOf, resourceUpsertOf } from './resourceArgs.ts'
 import { DESCRIPTION, PARAMETERS } from './schema.ts'
+import {
+  applyLocal,
+  localRequest,
+  queueAction,
+  readTrigger,
+  type TriggerPort,
+  testTrigger,
+  triggerIndex,
+  triggerOverview,
+} from './triggerActions.ts'
 
 /** 工具需要的三个活依赖（`dataDir` / `maxResultBytes` 是活配置，所以取函数而不是值）。 */
 export interface ToolDeps {
@@ -62,13 +71,11 @@ export interface ToolDeps {
   maxResultBytes: () => number
   /** 工作流实例（运行状态）；不给就当没有这块能力（`runs` / `resume` 报错，编译不建实例）。 */
   runs?: RunService
-  /** 触发卡片：模型按触发条件判断不需要执行时回报（`decline`）。不给就当没有这块能力。 */
+  /**
+   * 触发卡片的本机那一面：读状态与记录、改本机设置、试一张卡片、排队、模型判断不需要（`decline`）。
+   * 不给就当没有这块能力（只能读、写图里的定义）。
+   */
   triggers?: TriggerPort
-}
-
-/** 工具用到的触发器那一面。 */
-export interface TriggerPort {
-  decline(fire: string, reason: string): Promise<Outcome<unknown>>
 }
 
 /** 参数与返回值里的 `{ error }` 形状（工具返回它，不抛）。 */
@@ -185,11 +192,15 @@ export function createWorkflowLiteHandler(
     }
 
     switch (action) {
-      case 'list':
+      case 'list': {
+        const triggers =
+          deps.triggers === undefined ? undefined : await triggerOverview(deps.triggers)
         return finish({
           ...(await repository.list()),
           memories: await memoryIndex({ dataDir: deps.dataDir(), repository }),
+          ...(triggers === undefined ? {} : { triggers }),
         })
+      }
 
       case 'read': {
         const name = requireWorkflow(args.workflow)
@@ -232,9 +243,11 @@ export function createWorkflowLiteHandler(
             ...(load.document.nodes.some(isInput) ? { inputs: inputEntries(load.document) } : {}),
             ...(load.document.nodes.some(isTrigger)
               ? {
-                  triggers: load.document.nodes
-                    .filter(isTrigger)
-                    .map((node) => ({ id: node.id, ...node.data })),
+                  triggers: await triggerIndex(
+                    deps.triggers,
+                    name,
+                    load.document.nodes.filter(isTrigger),
+                  ),
                 }
               : {}),
             // 索引就是自检的入口：阻塞编译的问题也在这里给，不必为了看问题去编译（编译会建实例）。
@@ -248,6 +261,12 @@ export function createWorkflowLiteHandler(
           return errorValue({
             error: { code: 'not_found', message: `图 ${name} 里没有节点 ${nodeId}` },
           })
+        }
+        if (isTrigger(node) && deps.triggers !== undefined) {
+          return finish(
+            await readTrigger(deps.triggers, deps.dataDir(), name, node, args, Date.now()),
+            warnings,
+          )
         }
         const result: ReadNodeResult = {
           workflow: name,
@@ -567,22 +586,84 @@ export function createWorkflowLiteHandler(
       case 'write_trigger': {
         const name = requireWorkflow(args.workflow)
         if (name === null) return missingWorkflow()
+        const given = args.node === undefined || args.node === '' ? undefined : args.node
+        // 只改本机设置：不碰图里的定义。
+        const localOnly = args.trigger === undefined && args.local !== undefined
         const trigger = args.trigger ?? {}
         if (typeof trigger !== 'object' || trigger === null) {
           return errorValue({
             error: { code: 'invalid_args', message: 'trigger 要写成 { source, note, … }' },
           })
         }
-        const outcome = await repository.writeTrigger(name, {
-          ...(args.node === undefined || args.node === '' ? {} : { id: args.node }),
-          ...(trigger as Record<string, unknown>),
-        })
-        if (!outcome.ok) return errorValue(outcome)
+        if (localOnly && given === undefined) {
+          return errorValue({
+            error: { code: 'invalid_args', message: '只改 local 时要给 node（哪张触发卡片）' },
+          })
+        }
+        const written = localOnly
+          ? undefined
+          : await repository.writeTrigger(name, {
+              ...(given === undefined ? {} : { id: given }),
+              ...(trigger as Record<string, unknown>),
+            })
+        if (written !== undefined && !written.ok) return errorValue(written)
+        const id = written?.result.changed.find((entry) => entry.kind === 'node')?.id ?? given ?? ''
+        const load = await repository.load(name)
+        const card = load.document?.nodes.find(
+          (candidate) => isTrigger(candidate) && idKey(candidate.id) === idKey(id),
+        )
+        if (card === undefined || !isTrigger(card)) {
+          return errorValue({
+            error: { code: 'not_found', message: `图 ${name} 里没有触发卡片 ${id}` },
+          })
+        }
+        let local: Record<string, unknown> | undefined
+        if (args.local !== undefined) {
+          if (deps.triggers === undefined) {
+            return errorValue({
+              error: {
+                code: 'invalid_args',
+                message: '触发卡片的本机设置不可用（插件没有装配触发器）',
+              },
+            })
+          }
+          const request = localRequest(name, card.id, args.local, session.id)
+          if (typeof request === 'string') {
+            return errorValue({ error: { code: 'invalid_args', message: request } })
+          }
+          const applied = await applyLocal(deps.triggers, deps.dataDir(), card, request, Date.now())
+          if (!applied.ok) return errorValue(applied)
+          local = applied.result
+        }
         return finish({
-          ...outcome.result,
-          // 写在返回值里，模型照着告诉用户。
-          next: '触发卡片是关着的：请用户在画布上选好工作区、确认要运行的命令（如果有）后打开开关。',
+          ...(written === undefined ? {} : written.result),
+          trigger: { id: card.id, ...card.data },
+          ...(local === undefined ? {} : { local }),
+          // 写在返回值里，模型照着做、照着告诉用户。
+          next: '卡片是关着的：先用 test_trigger 试一遍，再请用户在画布上打开开关（要跑命令的还要用户确认命令）。',
         })
+      }
+
+      case 'test_trigger':
+      case 'trigger_queue': {
+        const name = requireWorkflow(args.workflow)
+        if (name === null) return missingWorkflow()
+        if (deps.triggers === undefined) {
+          return errorValue({
+            error: { code: 'invalid_args', message: '触发卡片不可用（插件没有装配触发器）' },
+          })
+        }
+        if (args.node === undefined || args.node === '') {
+          return errorValue({
+            error: { code: 'invalid_args', message: `${action} 要给 node（哪张触发卡片）` },
+          })
+        }
+        const outcome =
+          action === 'test_trigger'
+            ? await testTrigger(deps.triggers, name, args.node, args)
+            : await queueAction(deps.triggers, name, args.node, args.queue, args.fire)
+        if (!outcome.ok) return errorValue(outcome)
+        return finish(outcome.result)
       }
 
       case 'decline': {

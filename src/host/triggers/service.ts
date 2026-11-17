@@ -70,9 +70,11 @@ import type {
   TriggerTryResponse,
   TriggerView,
 } from '../../shared/wire/trigger.ts'
+import { ensureDir } from '../store/atomic.ts'
 import { assetsDir } from '../store/paths.ts'
 import { fail, type Outcome, ok } from '../store/repoResult.ts'
 import { afterInfo, afterProblem, type RunWatch } from './after.ts'
+import { type CardTestOptions, type CardTestResult, testCard } from './cardTest.ts'
 import type { TriggerDefinition, TriggerGraphs } from './graphs.ts'
 import { type HookBind, hookUrl, newHookId, newHookToken } from './hooks.ts'
 import type { IntakeBatch } from './intake.ts'
@@ -80,6 +82,7 @@ import { type FireInput, Launcher, SKIP_UNFINISHED } from './launcher.ts'
 import { advertisedHost } from './netAddress.ts'
 import { OwnerLock } from './owner.ts'
 import { FRESH_PROBE } from './poller.ts'
+import type { CommandSpec } from './processes.ts'
 import { type DueFire, planRound, upcoming } from './reconcile.ts'
 import { endProblem, RunEnds } from './runEnd.ts'
 import {
@@ -93,6 +96,8 @@ import type { SessionPort } from './sessions.ts'
 import { checkShell, detectShells, familyOf, shellLabel, shellName, systemShell } from './shells.ts'
 import {
   approvalOf,
+  CARD_DATA_ENV,
+  cardDataDir,
   type LiveFile,
   ownerFile,
   type TriggerLocal,
@@ -169,6 +174,8 @@ export class TriggerService {
   private delivering: Promise<void> = Promise.resolve()
   /** 每张卡片上一次记「到上限了」的时刻。 */
   private readonly capNoted = new Map<string, number>()
+  /** 建过的数据目录（每一轮都要组一遍命令，别每次都去碰磁盘）。 */
+  private readonly madeDirs = new Set<string>()
 
   constructor(deps: TriggerServiceDeps) {
     this.store = deps.store
@@ -489,13 +496,17 @@ export class TriggerService {
         }
         const command = commandOf(source)
         if (command === undefined) continue
-        const dir = assetsDir(this.dataDir(), workflow)
+        const { cwd: _cwd, ...run } = await this.commandSpec(
+          workflow,
+          node,
+          command,
+          base.cwd,
+          shell,
+        )
         specs.push({
           ...base,
           source,
-          command: bindWorkflowVar(command, dir),
-          env: { WORKFLOW_DIR: dir },
-          ...(shell === '' ? {} : { shell }),
+          ...run,
           ...(source.kind === 'schedule'
             ? {
                 catchUp: launchOf(trigger.data).catchUp,
@@ -982,14 +993,146 @@ export class TriggerService {
       const checked = await checkShell(shell)
       if (typeof checked === 'string') return fail('invalid_args', checked)
     }
-    const dir = assetsDir(this.dataDir(), request.workflow)
-    const spec = {
-      command: bindWorkflowVar(request.command, dir),
-      cwd: request.workspace,
-      env: { WORKFLOW_DIR: dir },
+    const spec = await this.commandSpec(
+      request.workflow,
+      request.node,
+      request.command,
+      request.workspace,
+      shell,
+      true,
+    )
+    return ok(request.kind === 'listen' ? await tryListen(spec) : await tryCheck(spec))
+  }
+
+  /**
+   * 跑一张卡片的命令的样子：`{workflow}` 换成工作流目录，环境变量给工作流目录和这张卡片的数据目录
+   * （`trial` = 试运行那份）；数据目录先建好。
+   */
+  private async commandSpec(
+    workflow: string,
+    node: string,
+    command: string,
+    cwd: string,
+    shell: string,
+    trial = false,
+  ): Promise<CommandSpec> {
+    const dir = assetsDir(this.dataDir(), workflow)
+    const data = cardDataDir(this.dataDir(), workflow, node, trial)
+    if (!this.madeDirs.has(data)) {
+      await ensureDir(data)
+      this.madeDirs.add(data)
+    }
+    return {
+      command: bindWorkflowVar(command, dir),
+      cwd,
+      env: { WORKFLOW_DIR: dir, [CARD_DATA_ENV]: data },
       ...(shell === '' ? {} : { shell }),
     }
-    return ok(request.kind === 'listen' ? await tryListen(spec) : await tryCheck(spec))
+  }
+
+  /**
+   * 模型试一张卡片（`test_trigger`，见 `cardTest.ts`）：按图里存着的定义、跑法同打开之后，
+   * 数据目录用试运行那份；不动开关、不记触发记录。`workspace` 给了就在它里面跑，没给用卡片上选的。
+   */
+  async test(request: {
+    workflow: string
+    node: string
+    workspace?: string
+    options?: CardTestOptions
+  }): Promise<Outcome<CardTestResult>> {
+    const found = await this.definition(request.workflow, request.node)
+    if (!found.ok) return found
+    const { trigger } = found.result
+    const { source } = trigger.data
+    const problem = sourceProblem(source)
+    if (problem !== null) return fail('invalid_args', `触发设置不对：${problem}`)
+    const local = (await this.store.locals())[request.workflow]?.[request.node] ?? {
+      enabled: false,
+    }
+    const command = commandOf(source)
+    let spec: CommandSpec | undefined
+    if (command !== undefined) {
+      const workspace = request.workspace ?? local.workspace
+      if (workspace === undefined) {
+        return fail(
+          'invalid_args',
+          '这张卡片还没选工作区：给 workspace（命令在哪个目录里跑，绝对路径）',
+        )
+      }
+      const directory = await workspaceProblem(workspace)
+      if (directory !== null) return fail('invalid_args', directory)
+      spec = await this.commandSpec(
+        request.workflow,
+        request.node,
+        command,
+        workspace,
+        this.shellFor(local),
+        true,
+      )
+    }
+    const after =
+      source.kind === 'after'
+        ? {
+            problem: afterProblem(
+              request.workflow,
+              source,
+              await this.graphs.read(source.workflow),
+            ),
+            runs:
+              source.workflow === ''
+                ? []
+                : (await this.runs.finished(source.workflow, 0, new Set())).runs,
+          }
+        : undefined
+    return ok(
+      await testCard({
+        workflow: request.workflow,
+        trigger,
+        now: this.now(),
+        ...(spec === undefined ? {} : { spec }),
+        ...(local.probe === undefined ? {} : { probe: local.probe }),
+        ...(after === undefined ? {} : { after }),
+        infoFile: this.store.infoPath('f-<触发编号>'),
+        options: request.options ?? {},
+      }),
+    )
+  }
+
+  /**
+   * 打开这张卡片之前还差的（都列出来，不只第一样）；都齐了是空的。
+   * 开着的卡片也照算：给模型看「用户还要做什么」。
+   */
+  async readiness(workflow: string, node: string): Promise<string[]> {
+    const found = await this.definition(workflow, node)
+    if (!found.ok) return [found.error.message]
+    const { trigger, blocked } = found.result
+    const { source } = trigger.data
+    const local = (await this.store.locals())[workflow]?.[node] ?? { enabled: false }
+    const missing: string[] = []
+    if (blocked !== undefined) {
+      missing.push(`工作流现在执行不了（${blocked}）：先改好图，不然每次触发都算失败`)
+    }
+    if (local.stopped !== undefined) {
+      missing.push(
+        `已自动停用（${local.stopped}）：修好、用 test_trigger 试过之后，请用户在卡片上重新打开开关`,
+      )
+    }
+    const problem = sourceProblem(source)
+    if (problem !== null) missing.push(`触发设置不对：${problem}`)
+    if (source.kind === 'after') {
+      const after = afterProblem(workflow, source, await this.graphs.read(source.workflow))
+      if (after !== null) missing.push(after)
+    }
+    const unjudged = endProblem(trigger.data, trigger.runState)
+    if (unjudged !== null) missing.push(unjudged)
+    const pending = pendingApproval(trigger, local, this.shellFor(local))
+    if (pending !== null) missing.push(pending)
+    const launch = launchMissing(trigger.data, local)
+    if (launch === 'session') missing.push('先选定发进哪个会话')
+    // 要跑命令的卡片选的工作区也是新建会话的工作区，上面已经说过了。
+    if (launch === 'workspace' && commandOf(source) === undefined)
+      missing.push('先选在哪个工作区里新建会话')
+    return missing
   }
 
   /** 「发一条测试请求」：带上令牌向这张 HTTP 触发卡片的地址发一条 POST，和别的程序发来的一样被收下。 */

@@ -416,6 +416,8 @@ export interface TriggerOutputClearRequest {
  */
 export interface TriggerTryRequest {
   workflow: string
+  /** 哪张卡片（脚本的数据目录按它给，用试运行那份）。 */
+  node: string
   /** 定时的检查命令：跑完为止；监听：跑几秒、收下这几秒打出的行就结束。 */
   kind: 'check' | 'listen'
   command: string

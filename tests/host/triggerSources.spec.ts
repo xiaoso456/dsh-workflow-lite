@@ -3,8 +3,13 @@
  * HTTP 地址（令牌、202、端口被占用），以及在本机真的跑一次命令。
  */
 
+import { mkdtemp, rm } from 'node:fs/promises'
 import { createServer as createNetServer, type Server } from 'node:net'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { type CardTestInput, testCard } from '../../src/host/triggers/cardTest.ts'
+import type { TriggerDefinition } from '../../src/host/triggers/graphs.ts'
 import { type HookRoute, HookServer, hookUrl } from '../../src/host/triggers/hooks.ts'
 import { Intake, type IntakeBatch, type IntakeClock } from '../../src/host/triggers/intake.ts'
 import {
@@ -32,6 +37,7 @@ import {
 import { lastLineText } from '../../src/host/triggers/runtime.ts'
 import { PING_BODY, pingHook, tryCheck, tryListen } from '../../src/host/triggers/trial.ts'
 import { filterOf, keywordMiss } from '../../src/shared/trigger.ts'
+import type { TriggerData } from '../../src/shared/types.ts'
 
 const NO_FILTER = { merge: 0, dedupe: 0, include: [], exclude: [] }
 
@@ -575,4 +581,162 @@ describe('试一试（「触发方式」对话框）', () => {
       await hooks.close()
     }
   }, 30_000)
+})
+
+/** 一张卡片的定义（试的时候只看图里存着的这些）。 */
+function card(data: TriggerData): TriggerDefinition {
+  return { node: 'tick', name: '巡检', data, runState: true }
+}
+
+describe('模型试一张卡片（test_trigger）', () => {
+  let cwd: string
+  const now = new Date(2026, 10, 17, 8, 0).getTime()
+  const base = (data: TriggerData, extra: Partial<CardTestInput> = {}): CardTestInput => ({
+    workflow: 'patrol',
+    trigger: card(data),
+    now,
+    infoFile: 'fires/f.txt',
+    options: {},
+    ...extra,
+  })
+  const check = (command: string, when: 'every' | 'success' | 'change' = 'every'): TriggerData => ({
+    source: {
+      kind: 'schedule',
+      schedule: { kind: 'every', seconds: 60 },
+      check: { command, when },
+    },
+    note: '处理新任务',
+  })
+
+  beforeEach(async () => {
+    cwd = await mkdtemp(join(tmpdir(), 'workflow-lite-cardtest-'))
+  })
+  afterEach(async () => {
+    await rm(cwd, { recursive: true, force: true })
+  })
+
+  it('到点直接执行：给出接下来 5 次，附上发进会话的消息', async () => {
+    const result = await testCard(
+      base({ source: { kind: 'schedule', schedule: { kind: 'daily', time: '09:00' } } }),
+    )
+    expect(result.verdict).toBe('fire')
+    expect(result.next).toHaveLength(5)
+    expect(result.next?.[0]).toBe(new Date(2026, 10, 17, 9, 0).getTime())
+    expect(result.message).toContain('触发卡片「巡检」')
+  })
+
+  it('检查命令：退出码 0 会触发，输出就是背景信息；非 0 不触发不算失败；找不到命令是出错', async () => {
+    const ok = await testCard(
+      base(check(`node -e "console.log('job-1');console.error('debug')"`), {
+        spec: { command: `node -e "console.log('job-1');console.error('debug')"`, cwd },
+      }),
+    )
+    expect(ok).toMatchObject({ verdict: 'fire', run: { code: 0, stdout: 'job-1' } })
+    expect(ownLines(ok.run?.stderr ?? '')).toEqual(['debug'])
+    expect(ok.message).toContain('## 触发说明')
+    expect(ok.message).toContain('> job-1')
+
+    const unmet = await testCard(
+      base(check('x'), { spec: { command: 'node -e "process.exit(2)"', cwd } }),
+    )
+    expect(unmet.verdict).toBe('skip')
+    expect(unmet.summary).toContain('返回 2')
+    expect(unmet.message).toBeUndefined()
+
+    const missing = await testCard(
+      base(check('x'), { spec: { command: 'no-such-command-wl-test', cwd } }),
+    )
+    expect(missing.verdict).toBe('error')
+    expect(missing.run?.failure).toContain('找不到命令')
+  }, 30_000)
+
+  it('检查命令：按判定对照真的上一次结果，关键字挡掉的说出原因', async () => {
+    const spec = { command: `node -e "console.log('abc')"`, cwd }
+    const first = await testCard(base(check('x', 'change'), { spec }))
+    expect(first.verdict).toBe('skip')
+    expect(first.summary).toContain('第一次')
+    const changed = await testCard(base(check('x', 'change'), { spec, probe: { digest: 'old' } }))
+    expect(changed.verdict).toBe('fire')
+
+    const still = await testCard(base(check('x', 'success'), { spec, probe: { ok: true } }))
+    expect(still.verdict).toBe('skip')
+    const became = await testCard(base(check('x', 'success'), { spec, probe: { ok: false } }))
+    expect(became.verdict).toBe('fire')
+
+    const blocked = await testCard(
+      base({ ...check('x'), filter: { include: ['ERROR'] } }, { spec }),
+    )
+    expect(blocked.verdict).toBe('skip')
+    expect(blocked.summary).toContain('ERROR')
+  }, 30_000)
+
+  it('监听：启动后跑 poke 制造事件，列出每一行的过滤结果、合并后几次', async () => {
+    const listener = `node -e "console.log('ready');setInterval(()=>{try{const fs=require('fs');const t=fs.readFileSync('poke.txt','utf8');fs.unlinkSync('poke.txt');console.log(t.trim())}catch{}},100)"`
+    const result = await testCard(
+      base(
+        { source: { kind: 'listen', command: listener }, filter: { include: ['ERROR'], merge: 0 } },
+        {
+          spec: { command: listener, cwd },
+          options: {
+            seconds: 3,
+            poke: `node -e "require('fs').writeFileSync('poke.txt','ERROR in pay')"`,
+          },
+        },
+      ),
+    )
+    expect(result.verdict).toBe('fire')
+    expect(result.poke).toMatchObject({ code: 0 })
+    expect(result.lines?.map((line) => [line.text, line.result])).toEqual([
+      ['ready', 'keyword: 不含 「ERROR」 中的任何一个'],
+      ['ERROR in pay', 'pass'],
+    ])
+    expect(result.fires).toBe(1)
+    expect(result.message).toContain('> ERROR in pay')
+    expect(result.run?.exited).toBeUndefined()
+  }, 30_000)
+
+  it('监听：自己退出的是出错（真打开后会算失败）；合并窗口里的几行并成一次', async () => {
+    const quick = `node -e "console.log('a');console.log('b');process.exit(3)"`
+    const result = await testCard(
+      base({ source: { kind: 'listen', command: quick } }, { spec: { command: quick, cwd } }),
+    )
+    expect(result.verdict).toBe('error')
+    expect(result.run).toMatchObject({ code: 3, exited: true })
+    expect(result.fires).toBe(1)
+    expect(result.message).toContain('a\n> b')
+  }, 30_000)
+
+  it('HTTP：拿请求体过一遍过滤，不真的发', async () => {
+    const data: TriggerData = { source: { kind: 'http' }, filter: { exclude: ['"draft":true'] } }
+    const pass = await testCard(base(data, { options: { body: '{"action":"opened"}' } }))
+    expect(pass.verdict).toBe('fire')
+    expect(pass.message).toContain('"action":"opened"')
+    const blocked = await testCard(base(data, { options: { body: '{"draft":true}' } }))
+    expect(blocked.verdict).toBe('skip')
+  })
+
+  it('接续：等的那个工作流不能等时说原因；能等时看它最近结束的实例', async () => {
+    const data: TriggerData = { source: { kind: 'after', workflow: '构建', when: 'failed' } }
+    const missing = await testCard(
+      base(data, { after: { problem: '工作流「构建」不存在', runs: [] } }),
+    )
+    expect(missing.verdict).toBe('error')
+    const result = await testCard(
+      base(data, {
+        after: {
+          problem: null,
+          runs: [
+            { id: 'r1', status: 'failed', at: now - 2000 },
+            { id: 'r2', status: 'done', at: now - 1000 },
+          ],
+        },
+      }),
+    )
+    expect(result.verdict).toBe('fire')
+    expect(result.runs?.map((run) => [run.id, run.fires])).toEqual([
+      ['r2', false],
+      ['r1', true],
+    ])
+    expect(result.message).toContain('实例 r1 结束了')
+  })
 })

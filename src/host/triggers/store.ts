@@ -5,7 +5,9 @@
  * - `state.json`：每张卡片的开关、选定的工作区和会话、下一次触发的时刻、连续失败次数；
  * - `fires/<触发编号>.txt`：背景信息太长时另存的全文，发进会话的消息里只放开头和这个文件的路径；
  * - `owner.json`：现在由哪个 DSH 进程负责触发（见 `owner.ts`）；
- * - `live.json`：负责的进程写下的运行情况（程序在不在跑、上次检查、端口开没开），别的进程据此显示状态。
+ * - `live.json`：负责的进程写下的运行情况（程序在不在跑、上次检查、端口开没开），别的进程据此显示状态；
+ * - `data/<工作流>/<卡片>/`：给这张卡片的脚本自己记东西（上次看到的提交、处理过的文件），
+ *   运行时经环境变量 `TRIGGER_DATA_DIR` 告诉脚本；试运行用 `data-test/` 下同样的位置，不弄乱真的那份。
  *
  * 触发记录（连同每次的触发说明、背景信息）与检查命令、监听程序最近的输出在插件数据库里，
  * 见 {@link FireLog}、{@link OutputLog}。
@@ -17,10 +19,18 @@
  */
 
 import { randomBytes } from 'node:crypto'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import type { FireRecord, FireSettled, TriggerActivitySlot } from '../../shared/wire/trigger.ts'
-import { ensureDir, readFileText, unlinkFile, writeFileAtomic } from '../store/atomic.ts'
+import {
+  ensureDir,
+  readFileText,
+  removeTree,
+  renameDir,
+  unlinkFile,
+  writeFileAtomic,
+} from '../store/atomic.ts'
 import type { PluginDatabase } from '../store/database.ts'
+import { pathKind } from '../store/paths.ts'
 import { type FireDetail, FireLog, type QueuedCount } from './fireLog.ts'
 import type { HookPortState } from './hooks.ts'
 import { OutputLog } from './outputLog.ts'
@@ -45,6 +55,25 @@ function stateFile(dataDir: string): string {
 /** 一次触发的背景信息全文（太长时才有）。 */
 export function fireInfoFile(dataDir: string, id: string): string {
   return join(triggersDir(dataDir), 'fires', `${id}.txt`)
+}
+
+/** 脚本自己记东西的目录在哪两处：真打开后用的、试运行用的。 */
+const CARD_DATA = { live: 'data', trial: 'data-test' } as const
+
+/** 运行时给命令的环境变量：卡片的数据目录。 */
+export const CARD_DATA_ENV = 'TRIGGER_DATA_DIR'
+
+/**
+ * 一张卡片给脚本记东西的目录（不随工作流导出）。`trial` = 试运行用的那份，和真的分开：
+ * 试的时候脚本记下「看过了」，真打开后不会因此漏掉。
+ */
+export function cardDataDir(
+  dataDir: string,
+  workflow: string,
+  node: string,
+  trial = false,
+): string {
+  return join(triggersDir(dataDir), trial ? CARD_DATA.trial : CARD_DATA.live, workflow, node)
 }
 
 function liveFile(dataDir: string): string {
@@ -421,10 +450,14 @@ export class TriggerStore {
     })
   }
 
-  /** 工作流改名：开关、设置、触发记录和最近的输出都跟着走。 */
+  /** 工作流改名：开关、设置、触发记录、最近的输出和脚本的数据目录都跟着走。 */
   async rename(from: string, to: string): Promise<void> {
     this.log.rename(from, to)
     this.outputs.rename(from, to)
+    for (const area of Object.values(CARD_DATA)) {
+      const base = join(triggersDir(this.dataDir()), area)
+      await moveIfThere(join(base, from), join(base, to))
+    }
     await this.update((locals) => {
       const group = locals[from]
       if (group === undefined) return
@@ -433,10 +466,20 @@ export class TriggerStore {
     })
   }
 
-  /** 工作流删掉了：它的触发记录连同另存的全文、最近的输出一起删（开关与设置由对账清掉）。 */
+  /** 工作流删掉了：它的触发记录连同另存的全文、最近的输出、脚本的数据目录一起删（开关与设置由对账清掉）。 */
   async forget(workflow: string): Promise<void> {
     this.outputs.forget(workflow)
+    for (const area of Object.values(CARD_DATA)) {
+      await removeTree(join(triggersDir(this.dataDir()), area, workflow))
+    }
     const files = this.log.forget(workflow)
     await Promise.all(files.map((id) => unlinkFile(fireInfoFile(this.dataDir(), id))))
   }
+}
+
+/** 目录在就挪过去（目标的上一级没有就先建）；不在就算了。 */
+async function moveIfThere(from: string, to: string): Promise<void> {
+  if ((await pathKind(from)) !== 'dir') return
+  await ensureDir(dirname(to))
+  await renameDir(from, to)
 }

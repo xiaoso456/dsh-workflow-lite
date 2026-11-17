@@ -14,6 +14,11 @@ import { type FilterSettings, keywordMiss } from '../../shared/trigger.ts'
 /** 一次触发最多带多少背景信息（字符）；合并时超出的段不放进去，只计数。 */
 export const INFO_MAX_CHARS = 256 * 1024
 
+/** 合并时几段之间用什么隔开：监听程序的一行一行用换行，别的（请求体、检查的输出）用分隔线。 */
+export function joinerOf(kind: 'schedule' | 'listen' | 'http'): string {
+  return kind === 'listen' ? '\n' : '\n\n---\n\n'
+}
+
 /** 交出去的一批。 */
 export interface IntakeBatch {
   /** 背景信息（几段按到达顺序拼在一起）；定时、空输出时没有。 */

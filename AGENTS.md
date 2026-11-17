@@ -71,8 +71,8 @@ gh release create workflow-lite-v<ver> --title "v<ver>" --notes-file <notes 文�
 
 `wfTrigger` 节点让工作流在某件事发生时自动执行：定时、条件轮询、监听程序、HTTP、另一个工作流跑完（设计、分期与各期落地情况见 `docs/触发器设计.md`）。工作流中心「触发」页集中列出各工作流的卡片，「全部暂停」也在那里。
 
-- 写在图里的只有定义（触发源、过滤、触发条件、触发说明、会话方式、保护）；开关、工作区、固定会话、命令确认、HTTP 令牌、轮询的上一次结果、接续触发看过的实例、全部暂停、触发记录是本机状态，存 `<数据目录>/triggers/`，不进工作流 JSON、不随导出。往卡片上加东西先分清是哪一类。
-- 宿主侧在 `src/host/triggers/`，各管一件事：`store`（本机状态）、`owner`（同一个数据目录只有一个进程负责）、`reconcile`（定时对账，只算不做）、`runtime`（常驻触发源的启停，只在负责的进程里）、`poller` / `listener` / `hooks`（三种常驻触发源）、`processes`（在本机跑命令）、`intake`（过滤）、`launcher`（发进会话）、`message`（发进去的那段话）、`claims`（实例认领来源）、`after`（接续触发的判定与说法；哪些实例结束了经 `RunWatch` 问实例那边，不 import runs）、`service`（串起来）。宿主的会话接口没有类型，只在 `sessions.ts` 里按结构取用。
+- 写在图里的只有定义（触发源、过滤、触发条件、触发说明、会话方式、保护）；开关、工作区、固定会话、命令确认、HTTP 令牌、轮询的上一次结果、接续触发看过的实例、全部暂停、触发记录、给脚本记东西的数据目录（运行时经 `TRIGGER_DATA_DIR` 告诉脚本，试运行用另一份）是本机状态，存 `<数据目录>/triggers/`，不进工作流 JSON、不随导出。往卡片上加东西先分清是哪一类。
+- 宿主侧在 `src/host/triggers/`，各管一件事：`store`（本机状态）、`owner`（同一个数据目录只有一个进程负责）、`reconcile`（定时对账，只算不做）、`runtime`（常驻触发源的启停，只在负责的进程里）、`poller` / `listener` / `hooks`（三种常驻触发源）、`processes`（在本机跑命令）、`intake`（过滤）、`launcher`（发进会话）、`message`（发进去的那段话）、`claims`（实例认领来源）、`after`（接续触发的判定与说法；哪些实例结束了经 `RunWatch` 问实例那边，不 import runs）、`trial`（对话框里的试运行）、`cardTest`（模型试一张卡片）、`service`（串起来）。宿主的会话接口没有类型，只在 `sessions.ts` 里按结构取用。
 - 「失败」只算触发器自己干不了活（工作区或会话不在、会话建不出来、图编译不出计划、命令跑不起来、监听程序一启动就退出）；跳过的、条件不满足的、过滤掉的、端口被占用、发出去之后的事都不算，不计入自动停用。
 - 要在本机跑命令的卡片，开关只在用户确认过「这条命令在这个工作区」之后才打开（`approvalOf`）；两样改了任一样就回到「待确认」。不要加绕过确认的路径，模型建的卡片也一律关着。
 - 触发卡片不是步骤：`isStep` 不含它，不连线；模型只能经 `write_trigger` 建、改它，`write_node` 拒绝。按节点类型分支的地方新加一种节点时要逐处看（`grep isInput(`）。
@@ -80,6 +80,8 @@ gh release create workflow-lite-v<ver> --title "v<ver>" --notes-file <notes 文�
 - 卡片中间的速览按触发源换样子（`model/triggerGlance.ts` 算图里写着的部分，`ui/trigger/TriggerGlanceRow` 再读现场；画布卡片、面板、「何时触发」对话框共用的最近一行、地址、轮询进度）；每种触发源的图标、颜色在 `ui/trigger/TriggerMark.tsx`，主动 / 被动按 `triggerMode`。新加触发源三处都要补。
 - 全部暂停是一个总闸（`paused.json`），不动各卡片的开关：暂停着定时照常往后排但不发、常驻触发源全停、接续触发只记下看过的实例，恢复后都不补；「立即触发一次」不受它管。新加触发源时同样要想清楚暂停期间怎么办。
 - 测常驻触发源时 `TriggerService` 的 `runtime` 换成假的（拿到事件口自己喂），测接续触发时 `runs` 换成假的 `RunWatch`；跑命令、开端口的放在 `tests/host/triggerSources.spec.ts`。
+- 模型那一面：`workflow_lite` 的 `write_trigger`（`trigger` 写定义、`local` 写本机设置，没有开关和确认）、`read` 带 node（`include` 再带记录、输出、排队）、`list`（所有卡片的状态与问题）、`test_trigger`、`trigger_queue`、`decline`，本机那一面在 `host/tool/triggerActions.ts`。工具说明只写参数怎么填，怎么选、怎么写脚本、怎么验证、怎么排查、各平台的写法都在 skill `workflow-trigger`。
+- 这份 skill 是随包发布的目录 `skills/workflow-trigger/`（`package.json` 的 `files` 收着）：`SKILL.md` 是每次都读的正文（流程、选触发方式、背景信息、验证、排查、自检），各触发方式的细则、`scripts.md`、`examples/` 下一个场景一份，经 `resourceBase` 按需读；文件之间的路径都相对这个目录，新加文件要在 `SKILL.md` 里点到（`tests/host/triggerSkill.spec.ts` 查）。这种触发方式叫「监视」，和界面一致。给示例加样板脚本要真跑一遍（`node --experimental-transform-types tests/trigger-skill-samples.mts`）。
 - 改了界面跑 `tests/cdp-triggers.mjs` 在一次性实例上走一遍；文档站的图是 `docs:shots trigger-card trigger-panel trigger-poll trigger-confirm trigger-filter trigger-http trigger-after trigger-hub`。
 
 ## 配色主题

@@ -140,7 +140,7 @@ export function judge(
 }
 
 /** 一次最长跑多久：「每隔」不超过间隔，都不超过 {@link POLL_TIMEOUT_MAX_MS}。 */
-function timeoutOf(schedule: TriggerSchedule): number {
+export function checkTimeoutOf(schedule: TriggerSchedule): number {
   return schedule.kind === 'every'
     ? Math.min(schedule.seconds * 1000, POLL_TIMEOUT_MAX_MS)
     : POLL_TIMEOUT_MAX_MS
@@ -194,7 +194,7 @@ export class Poller {
   private async check(): Promise<void> {
     const started = this.now()
     const result = await this.run(this.spec, {
-      timeoutMs: timeoutOf(this.spec.schedule),
+      timeoutMs: checkTimeoutOf(this.spec.schedule),
       maxBytes: INFO_MAX_CHARS,
     })
     // 跑的时候被停了：结果不作数。

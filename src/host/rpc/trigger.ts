@@ -124,6 +124,7 @@ export async function dispatchTrigger(
       const shell = clearableString(input, 'shell')
       const outcome = await deps.triggers.tryCommand({
         workflow,
+        node: requireString(input, 'node'),
         kind,
         command: requireString(input, 'command'),
         workspace: requireString(input, 'workspace'),

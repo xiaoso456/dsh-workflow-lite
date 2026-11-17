@@ -5,7 +5,7 @@
  * 常驻触发源本身（跑命令、开端口）换成假的，见 `triggerSources.spec.ts`。
  */
 
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
@@ -27,7 +27,7 @@ import { OWNER_STALE_MS, OwnerLock } from '../../src/host/triggers/owner.ts'
 import type { LiveRuntime, LiveSpec, RuntimeEvents } from '../../src/host/triggers/runtime.ts'
 import { LATE_MS, TriggerService } from '../../src/host/triggers/service.ts'
 import type { SessionPort } from '../../src/host/triggers/sessions.ts'
-import { approvalOf, ownerFile, TriggerStore } from '../../src/host/triggers/store.ts'
+import { approvalOf, cardDataDir, ownerFile, TriggerStore } from '../../src/host/triggers/store.ts'
 import type { InstanceView, RunStatus } from '../../src/shared/runState.ts'
 import type { TriggerData, WorkflowDocument } from '../../src/shared/types.ts'
 import { validateDocument } from '../../src/shared/validate.ts'
@@ -949,8 +949,10 @@ describe('常驻触发源', () => {
       state: 'waiting',
     })
     await own(triggers)
-    // 命令里的 {workflow} 换成工作流目录，环境变量里也有。
+    // 命令里的 {workflow} 换成工作流目录，环境变量里也有；另给这张卡片的数据目录（已经建好）。
     const dir = assetsDir(dataDir, 'patrol')
+    const data = cardDataDir(dataDir, 'patrol', 'tick')
+    expect((await stat(data)).isDirectory()).toBe(true)
     expect(live.specs).toEqual([
       {
         workflow: 'patrol',
@@ -959,7 +961,7 @@ describe('常驻触发源', () => {
         filter: { merge: 5, dedupe: 0, include: [], exclude: [] },
         cwd: workspace,
         command: COMMAND.replace('{workflow}', dir.replace(/\\/gu, '/')),
-        env: { WORKFLOW_DIR: dir },
+        env: { WORKFLOW_DIR: dir, TRIGGER_DATA_DIR: data },
       },
     ])
   })
@@ -1480,6 +1482,245 @@ describe('模型建触发卡片', () => {
     expect(load.document?.nodes.find((node) => node.id === 'tick')?.data).toMatchObject({
       source: { kind: 'after', workflow: '构建', when: 'failed' },
     })
+  })
+})
+
+describe('模型读、改、试触发卡片', () => {
+  let triggers: TriggerService
+  let run: (args: WorkflowLiteArgs, exec?: ToolExecView) => Promise<JsonValue>
+  const exec: ToolExecView = { agent: { session: { header: { id: 'sess-1' } } } }
+
+  beforeEach(() => {
+    triggers = service()
+    run = createWorkflowLiteHandler({
+      repository,
+      dataDir: () => dataDir,
+      maxResultBytes: () => 262_144,
+      triggers,
+    })
+  })
+
+  it('读一张卡片：定义连缺省值、本机情况、打开前还差什么；图的索引带开没开', async () => {
+    await saveGraph('patrol', {
+      source: { kind: 'listen', command: 'node "{workflow}/triggers/w.mjs"' },
+    })
+    const read = (await run({ action: 'read', workflow: 'patrol', node: 'tick' })) as Record<
+      string,
+      unknown
+    >
+    expect(read).toMatchObject({
+      node: { id: 'tick', type: 'wfTrigger' },
+      effective: {
+        filter: { merge: 5, dedupe: 0 },
+        launch: { session: 'new', overlap: 'skip', maxPerHour: 60 },
+      },
+      local: {
+        enabled: false,
+        state: 'off',
+        toEnable: ['先选命令在哪个工作区里运行'],
+        dataDir: cardDataDir(dataDir, 'patrol', 'tick'),
+      },
+    })
+    const index = (await run({ action: 'read', workflow: 'patrol' })) as {
+      triggers?: unknown[]
+    }
+    expect(index.triggers).toEqual([
+      expect.objectContaining({ id: 'tick', enabled: false, state: 'off' }),
+    ])
+  })
+
+  it('改本机设置：只给 local 不碰定义；工作区改了回到待确认；HTTP 地址、令牌、当前会话', async () => {
+    await saveGraph('patrol', {
+      source: { kind: 'listen', command: 'node w.mjs' },
+    })
+    const set = (await run(
+      { action: 'write_trigger', workflow: 'patrol', node: 'tick', local: { workspace } },
+      exec,
+    )) as Record<string, unknown>
+    expect(set).toMatchObject({
+      trigger: { id: 'tick', source: { kind: 'listen' } },
+      local: { workspace, approved: false, toEnable: ['要先确认将要运行的命令'] },
+    })
+    expect(set).not.toHaveProperty('changed')
+    // 开关、确认仍只在用户手里：local 里没有这两样。
+    expect(
+      await run({ action: 'write_trigger', workflow: 'patrol', local: { workspace } }),
+    ).toMatchObject({ error: { code: 'invalid_args' } })
+
+    await saveGraph('patrol', {
+      source: { kind: 'http' },
+      launch: { session: 'fixed' },
+    })
+    const http = (await run(
+      {
+        action: 'write_trigger',
+        workflow: 'patrol',
+        node: 'tick',
+        local: { hook: 'ci-done', token: 'a-very-long-token-123', session: 'current' },
+      },
+      exec,
+    )) as { local?: Record<string, unknown> }
+    expect(http.local).toMatchObject({
+      session: 'sess-1',
+      endpoint: { hook: 'ci-done', token: 'a-very-long-token-123' },
+    })
+    expect(
+      await run({
+        action: 'write_trigger',
+        workflow: 'patrol',
+        node: 'tick',
+        local: { token: 'short' },
+      }),
+    ).toMatchObject({ error: { code: 'blocked' } })
+  })
+
+  it('读带上触发记录、排队和一次触发的全文；trigger_queue 视为已结束、清空', async () => {
+    await saveGraph('patrol', { launch: { overlap: 'queue' }, note: '只看 src/' })
+    await triggers.set({ workflow: 'patrol', node: 'tick', enabled: true, workspace })
+    await own(triggers)
+    clock += 30 * MINUTE
+    await triggers.tick()
+    const fire = (await triggers.history('patrol'))[0]?.id ?? ''
+    await claim(fire, 'r1', 'running')
+    for (let i = 0; i < 2; i += 1) {
+      clock += 30 * MINUTE
+      await triggers.tick()
+    }
+    const read = (await run({
+      action: 'read',
+      workflow: 'patrol',
+      node: 'tick',
+      include: ['history', 'queue'],
+      fire,
+    })) as Record<string, unknown>
+    expect(read).toMatchObject({
+      local: { enabled: true, queued: 2, waiting: { fire, instance: 'r1', status: 'running' } },
+      fire: { id: fire, note: '只看 src/' },
+    })
+    expect((read.history as unknown[]).length).toBe(3)
+    expect((read.queue as { outcome: string }[]).map((item) => item.outcome)).toEqual([
+      'queued',
+      'queued',
+    ])
+    expect(typeof (read.local as { next?: string[] }).next?.[0]).toBe('string')
+
+    expect(
+      await run({ action: 'trigger_queue', workflow: 'patrol', node: 'tick', queue: 'waive' }),
+    ).toEqual({ waived: true })
+    await triggers.tick()
+    expect(sent).toHaveLength(2)
+    expect(
+      await run({ action: 'trigger_queue', workflow: 'patrol', node: 'tick', queue: 'clear' }),
+    ).toEqual({ cleared: 1 })
+    expect(
+      await run({ action: 'trigger_queue', workflow: 'patrol', node: 'tick', queue: 'nope' }),
+    ).toMatchObject({ error: { code: 'invalid_args' } })
+  })
+
+  it('试一张卡片：定时给出接下来几次；要跑命令的没工作区说清楚；不动开关、不记触发记录', async () => {
+    await saveGraph('patrol')
+    const plain = (await run({ action: 'test_trigger', workflow: 'patrol', node: 'tick' })) as {
+      verdict?: string
+      next?: string[]
+    }
+    expect(plain.verdict).toBe('fire')
+    expect(plain.next).toHaveLength(5)
+
+    await saveGraph('patrol', { source: { kind: 'listen', command: 'node w.mjs' } })
+    expect(await run({ action: 'test_trigger', workflow: 'patrol', node: 'tick' })).toMatchObject({
+      error: { code: 'invalid_args', message: expect.stringContaining('workspace') },
+    })
+
+    await saveGraph('patrol', { source: { kind: 'http' }, filter: { include: ['push'] } })
+    expect(
+      await run({
+        action: 'test_trigger',
+        workflow: 'patrol',
+        node: 'tick',
+        body: '{"event":"tag"}',
+      }),
+    ).toMatchObject({ verdict: 'skip' })
+    expect(await triggers.history('patrol')).toEqual([])
+    expect((await triggers.list('patrol')).triggers[0]?.enabled).toBe(false)
+  })
+
+  it('list 带上所有卡片的状态与问题；被自动停用的，打开前还差的里说清楚要用户重新打开', async () => {
+    expect(await run({ action: 'list' })).not.toHaveProperty('triggers')
+    await saveGraph('patrol', { launch: { overlap: 'parallel' } })
+    await triggers.set({ workflow: 'patrol', node: 'tick', enabled: true, workspace })
+    await own(triggers)
+    openError = '工作区不见了'
+    for (let round = 0; round < 3; round += 1) {
+      clock += 30 * MINUTE
+      await triggers.tick()
+    }
+    const listed = (await run({ action: 'list' })) as {
+      triggers?: { cards: Record<string, unknown>[] }
+    }
+    expect(listed.triggers?.cards).toEqual([
+      {
+        workflow: 'patrol',
+        node: 'tick',
+        name: expect.any(String),
+        kind: 'schedule',
+        enabled: false,
+        state: 'stopped',
+        problem: expect.stringContaining('连续 3 次失败：'),
+      },
+    ])
+    const read = (await run({ action: 'read', workflow: 'patrol', node: 'tick' })) as {
+      local: { toEnable?: string[] }
+    }
+    expect(read.local.toEnable?.[0]).toMatch(/^已自动停用（连续 3 次失败：.*工作区不见了.*）/u)
+  })
+
+  it('图编译不出计划时，打开前还差的里说清楚', async () => {
+    await saveGraph('patrol')
+    const load = await repository.load('patrol')
+    const document = load.document as WorkflowDocument
+    const saved = await repository.save(
+      'patrol',
+      { ...document, nodes: document.nodes.filter((node) => node.type === 'wfTrigger') },
+      { baseHash: load.hash as string },
+    )
+    expect(saved.ok).toBe(true)
+    const tried = (await run({ action: 'test_trigger', workflow: 'patrol', node: 'tick' })) as {
+      toEnable?: string[]
+    }
+    expect(tried.toEnable?.[0]).toMatch(/^工作流现在执行不了（.+）：先改好图/u)
+  })
+
+  it('试一张卡片：背景信息太长时报出长度并提醒只放开头', async () => {
+    await saveGraph('patrol', { source: { kind: 'http' } })
+    const short = (await run({
+      action: 'test_trigger',
+      workflow: 'patrol',
+      node: 'tick',
+      body: '{"status":"failed"}',
+    })) as { infoChars?: number; notes?: string[] }
+    expect(short.infoChars).toBe(19)
+    expect(short.notes?.join('')).not.toContain('个字符')
+    const long = (await run({
+      action: 'test_trigger',
+      workflow: 'patrol',
+      node: 'tick',
+      body: 'x'.repeat(5000),
+    })) as { infoChars?: number; notes?: string[] }
+    expect(long.infoChars).toBe(5000)
+    expect(long.notes?.at(-1)).toContain('背景信息有 5000 个字符')
+  })
+
+  it('工作流改名、删除：脚本的数据目录跟着走、一起删', async () => {
+    await saveGraph('patrol')
+    const data = cardDataDir(dataDir, 'patrol', 'tick')
+    await mkdir(data, { recursive: true })
+    await writeFile(join(data, 'seen.json'), '[]')
+    expect((await repository.rename('patrol', 'guard')).ok).toBe(true)
+    expect(await readFile(join(cardDataDir(dataDir, 'guard', 'tick'), 'seen.json'), 'utf8')).toBe(
+      '[]',
+    )
+    expect((await repository.remove('guard')).ok).toBe(true)
+    await expect(stat(cardDataDir(dataDir, 'guard', 'tick'))).rejects.toThrow()
   })
 })
 

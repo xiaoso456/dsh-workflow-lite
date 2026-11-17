@@ -15,7 +15,7 @@ import { TOOL_NAME, type TriggerData } from '../../shared/types.ts'
 import { type FireDetail, INFO_INLINE_CHARS } from './store.ts'
 
 /** 背景信息太长时消息里放多少开头。 */
-const INFO_HEAD_CHARS = 2000
+export const INFO_HEAD_CHARS = 2000
 
 /** 一段原文按引用块写（多行、带标题符号的内容不会和消息本身的结构混在一起）。 */
 function quoted(text: string): string {

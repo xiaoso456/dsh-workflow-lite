@@ -659,6 +659,8 @@ export const ACTIONS = [
   'configure',
   'write_resource',
   'write_trigger',
+  'test_trigger',
+  'trigger_queue',
   'runs',
   'resume',
   'state',
@@ -817,8 +819,8 @@ export interface ReadIndexResult {
   resources?: ResourceIndexEntry[]
   /** 输入节点（有才给），按画布上从上到下的顺序。 */
   inputs?: InputIndexEntry[]
-  /** 触发卡片的定义（有才给）；开没开、在哪个工作区是用户本机的事，不在这里。 */
-  triggers?: ({ id: string } & TriggerData)[]
+  /** 触发卡片的定义（有才给），带上本机的开没开、现在的状态；工作区、记录等读那张卡片才给。 */
+  triggers?: TriggerIndexEntry[]
   /** 阻塞编译的问题（有才给）。 */
   problems?: ValidationProblem[]
   warnings: ToolWarning[]
@@ -832,6 +834,13 @@ export interface ReadNodeResult {
   edges: WorkflowEdge[]
   warnings: ToolWarning[]
 }
+
+/** 图索引里的一张触发卡片：定义，加上这台机器上开没开、现在的状态（触发器不可用时没有）。 */
+export type TriggerIndexEntry = { id: string } & TriggerData & {
+    enabled?: boolean
+    state?: string
+    problem?: string
+  }
 
 export interface WriteResult {
   changed: ChangedEntry[]

@@ -13,7 +13,7 @@
 
 import type { FilterKind, FilterSettings, LiveSource } from '../../shared/trigger.ts'
 import { type HookBind, type HookPortState, type HookRoute, HookServer } from './hooks.ts'
-import { Intake, type IntakeBatch } from './intake.ts'
+import { Intake, type IntakeBatch, joinerOf } from './intake.ts'
 import { Listener } from './listener.ts'
 import { type LineInput, type OutputLog, type RunEnd, stripAnsi } from './outputLog.ts'
 import { type PollCheck, Poller, type Probe } from './poller.ts'
@@ -200,7 +200,7 @@ export class TriggerRuntime implements LiveRuntime {
   private startOne(spec: LiveSpec): Running {
     const ref = refOf(spec)
     const key = keyOf(spec.workflow, spec.node)
-    const joiner = spec.source.kind === 'listen' ? '\n' : '\n\n---\n\n'
+    const joiner = joinerOf(spec.source.kind)
     const intake = new Intake(spec.filter, joiner, (batch) => this.deps.events.deliver(ref, batch))
     const signature = signatureOf(spec)
     const source = spec.source

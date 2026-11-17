@@ -81,6 +81,7 @@ export function CommandBox(props: {
     setTab('try')
     void env.triggers
       .tryCommand({
+        node: props.node,
         kind: props.kind,
         command: props.command,
         workspace,

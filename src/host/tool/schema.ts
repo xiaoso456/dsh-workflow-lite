@@ -26,7 +26,7 @@ import {
 export const DESCRIPTION = [
   '管理轻量工作流的图文件：一张图 = 一个 JSON（React Flow 原生 nodes/edges/viewport），',
   '每个节点的提示词内联在 node.data.prompt 里。用 action 选动作：',
-  'list 列出图与节点模板 / read 读图（不给 node 只回索引与 problems / warnings、绝不含正文；给 node 才回那一个节点的正文）/ ',
+  'list 列出图与节点模板（有触发卡片时带上各卡片的状态与问题）/ read 读图（不给 node 只回索引与 problems / warnings、绝不含正文；给 node 才回那一个节点的正文）/ ',
   'compile 编译成派发计划：建一个工作流实例，各步骤的任务描述写进工作区的 .workflow-lite/runs/<实例>/tasks/，只在真要执行时用（模型据此自己组织执行）；full=true 是整卷预览，不建实例、不写文件。',
   '检查图有没有问题用 read 和 compile full=true，不要用不带 full 的 compile——每调一次就多一个实例 / ',
   'create 新建一张空图 / write_node 新建或覆盖一个节点 / set_label 改显示名（id 不可改）/ ',
@@ -43,7 +43,9 @@ export const DESCRIPTION = [
   '资源卡可以在画布上直接展示其中一项：write_resource 或 write_node 的 outputs 带 display（什么适合展示、各项怎么配见 skill workflow-authoring 的「在画布上展示」）。',
   '输入节点是执行前问用户的问题：write_node 带 input 新建或修改，connect 输入 → 步骤 = 把回答交给它。',
   '图里有输入节点时，compile 带 answers 给出用户的回答（没给的用默认值）；必填的没回答会回 problems，先问用户再编译。',
-  'write_trigger 新建或修改触发卡片（让工作流到点、条件满足、收到通知时自动执行）：模型建的卡片一律是关着的，开关只由用户在画布上打开；写之前读 skill workflow-trigger。',
+  '触发卡片让工作流到点、条件满足、收到通知时自动执行：write_trigger 写定义（trigger）和本机设置（local）/ ',
+  'read 带 node 看一张卡片的定义与本机情况（include 再带触发记录、最近的输出、排队）/ test_trigger 试一张卡片（跑一次脚本、看会不会触发）/ trigger_queue 处理排着的。',
+  '开关和命令确认只由用户在画布上做。动手前读 skill workflow-trigger。',
   '收到触发卡片发来的消息、消息里有「触发条件」时，先判断要不要执行：不需要就用 decline 带 fire 和 reason 回报，然后结束。',
   '节点定位一律用 id。',
   '新建或修改图之前先读 skill workflow-authoring（步骤怎么拆、产物怎么传、资源说明怎么写、建完怎么自检）。',
@@ -131,7 +133,7 @@ export const PARAMETERS = {
   node: {
     type: 'string',
     description:
-      '节点 id（read / write_node / set_label / delete_node / save_as_template / write_trigger）。',
+      '节点 id（read / write_node / set_label / delete_node / save_as_template / write_trigger / test_trigger / trigger_queue）。',
   },
   content: {
     type: 'string',
@@ -359,7 +361,7 @@ export const PARAMETERS = {
   fire: {
     type: 'string',
     description:
-      'compile / decline：触发编号。只在收到触发卡片发来的消息时照消息里写的填，别的时候不给。',
+      'compile / decline：触发编号，只在收到触发卡片发来的消息时照消息里写的填 / read：看这次触发的全文 / trigger_queue 的 cancel：排着的那一次。',
   },
   reason: {
     type: 'string',
@@ -368,19 +370,17 @@ export const PARAMETERS = {
   trigger: {
     type: 'object',
     description:
-      'write_trigger：触发卡片的定义（给了 node 且是已有的触发卡片就是修改，给了的字段才改；否则新建）。详见 skill workflow-trigger。',
+      'write_trigger：触发卡片的定义，存在工作流里（给了 node 且是已有的触发卡片就是修改，给了的字段才改；否则新建）。各项怎么配见 skill workflow-trigger。',
     additionalProperties: false,
     properties: {
       label: { type: 'string', description: '名字；空串 = 清除。' },
       note: {
         type: 'string',
-        description:
-          '触发说明：每次触发原样交给执行的模型（这次要处理的范围和要求）；空串 = 清除。',
+        description: '触发说明：每次触发原样交给执行的模型；空串 = 清除。',
       },
       condition: {
         type: 'string',
-        description:
-          '触发条件：有它时每次触发先由模型判断要不要执行，不需要就不开始工作流；空串 = 清除。只放读一下背景信息就能判断的条件。',
+        description: '触发条件：每次先由模型判断要不要执行；空串 = 清除。',
       },
       source: {
         type: 'object',
@@ -391,8 +391,7 @@ export const PARAMETERS = {
             type: 'string',
             enum: [...SOURCE_KINDS],
             required: true,
-            description:
-              'schedule 定时（到点直接执行；带 check 时到点先跑一次命令，满足判定才执行）/ listen 监视程序（常驻命令，每打一行触发一次）/ http 别的程序来调一个本机地址 / after 另一个工作流的一次执行结束了。',
+            description: 'schedule 定时（可带 check）/ listen 监视程序 / http / after 接续。',
           },
           schedule: {
             type: 'object',
@@ -400,84 +399,66 @@ export const PARAMETERS = {
             additionalProperties: false,
             properties: {
               kind: { type: 'string', enum: ['daily', 'every', 'cron'], required: true },
-              time: { type: 'string', description: 'daily：HH:MM（本机时区）。' },
+              time: { type: 'string', description: 'daily：HH:MM。' },
               moreTimes: {
                 type: 'array',
                 items: { type: 'string' },
-                description: 'daily：同一天里另外几个时刻（HH:MM）；只要一个时刻就不给。',
+                description: 'daily：同一天另外的时刻。',
               },
               weekdays: {
                 type: 'array',
                 items: { type: 'number' },
-                description: 'daily：只在星期几（1 = 周一 … 7 = 周日）；不给 = 每天。',
+                description: 'daily：1 = 周一 … 7 = 周日；不给 = 每天。',
               },
-              seconds: {
-                type: 'number',
-                description:
-                  'every：间隔秒数（到 604800）；到点直接执行的最短 60，带 check 的最短 10。带 check 时打开就先查一次，之后每次查完隔这么久。',
-              },
-              expression: { type: 'string', description: 'cron：五段表达式（本机时区）。' },
+              seconds: { type: 'number', description: 'every：间隔秒数。' },
+              expression: { type: 'string', description: 'cron：五段表达式。' },
             },
           },
           check: {
             type: 'object',
-            description:
-              'schedule：到点先在用户选的工作区里跑这条命令，按判定决定执行不执行，命令的标准输出是背景信息；不给 = 到点直接执行。',
+            description: 'schedule：到点先跑的命令；不给 = 到点直接执行。',
             additionalProperties: false,
             properties: {
               command: {
                 type: 'string',
                 required: true,
-                description:
-                  '要运行的命令（由系统 shell 运行）；{workflow} 换成工作流目录，脚本放那里。',
+                description: '命令；{workflow} = 工作流目录。',
               },
               when: {
                 type: 'string',
                 enum: ['every', 'success', 'change'],
-                description:
-                  'every（缺省）每次成功（退出码 0）都触发，命令自己判断有没有要处理的事 / success 从不成功变成成功时触发一次（等某件事完成）/ change 输出和上一次不一样时触发。',
+                description: '每次成功 / 由失败变为成功 / 输出变了时触发（缺省 every）。',
               },
             },
           },
           command: {
             type: 'string',
-            description:
-              'listen：要常驻运行的命令（在用户选的工作区里、由系统 shell 运行）；{workflow} 换成工作流目录，脚本放那里。',
+            description: 'listen：常驻运行的命令；{workflow} = 工作流目录。',
           },
           when: {
             type: 'string',
             enum: ['failed', 'any'],
-            description:
-              'after：不给 = 那个工作流成功（done）时触发 / failed 失败时 / any 不论结果（含取消）。',
+            description: 'after：不给 = 成功时 / failed 失败时 / any 不论结果。',
           },
-          workflow: {
-            type: 'string',
-            description:
-              'after：等哪个工作流跑完（工作流名，不能是自己）。那个工作流要开着记录运行状态（configure 的 run_state），插件才看得出它什么时候结束。',
-          },
+          workflow: { type: 'string', description: 'after：等哪个工作流跑完。' },
         },
       },
       filter: {
         type: 'object',
-        description:
-          '不花模型调用的过滤（到点直接执行的定时、after 不用；整项替换，null = 清除）：先按关键字、再去重、最后合并。',
+        description: '过滤（定时检查、listen、http 才有；整项替换，null = 清除）。',
         additionalProperties: false,
         properties: {
-          merge: {
-            type: 'number',
-            description:
-              '合并窗口（秒）：这么久里进来的几次并成一次。监视、HTTP 缺省 5，检查缺省 0。',
-          },
-          dedupe: { type: 'number', description: '去重（分钟）：一样的内容这么久里只触发一次。' },
+          merge: { type: 'number', description: '合并窗口（秒）。' },
+          dedupe: { type: 'number', description: '去重时长（分钟）。' },
           include: {
             type: 'array',
             items: { type: 'string' },
-            description: '背景信息要含其中一个才触发（不分大小写）。',
+            description: '含其中一个才触发。',
           },
           exclude: {
             type: 'array',
             items: { type: 'string' },
-            description: '背景信息含其中任何一个就不触发。',
+            description: '含其中任何一个就不触发。',
           },
         },
       },
@@ -489,34 +470,66 @@ export const PARAMETERS = {
           session: {
             type: 'string',
             enum: ['new', 'last', 'fixed'],
-            description:
-              'new 每次新建会话（缺省）/ last 接着上一次的会话 / fixed 发进用户选定的会话。',
+            description: '每次新建 / 接着上一次的 / 固定一个会话（缺省 new）。',
           },
           overlap: {
             type: 'string',
             enum: ['skip', 'queue', 'parallel'],
-            description:
-              '上一次触发的执行还没结束（运行状态没改成 done / failed / cancelled）时：skip 跳过（缺省）/ queue 排队，结束一个再开下一个（会改工作区文件的工作流用它）/ parallel 照样触发。skip、queue 要工作流开着「记录运行状态」。',
+            description: '上次执行未结束时：跳过 / 排队 / 同时运行（缺省 skip）。',
           },
-          queueMax: {
-            type: 'number',
-            description: 'overlap 为 queue 时最多排几个，排满了再来的跳过（缺省 10；0 = 不限制）。',
-          },
-          catchUp: {
-            type: 'boolean',
-            description: '定时：DSH 没开时错过的，启动后补一次（缺省 true）。',
-          },
-          maxPerHour: {
-            type: 'number',
-            description: '每小时最多触发几次（缺省 60；0 = 不限制，只在用户明说时用）。',
-          },
+          queueMax: { type: 'number', description: '最多排几个（缺省 10，0 = 不限）。' },
+          catchUp: { type: 'boolean', description: '定时：DSH 没开时错过的补一次（缺省 true）。' },
+          maxPerHour: { type: 'number', description: '每小时最多几次（缺省 60，0 = 不限）。' },
           maxFailures: {
             type: 'number',
-            description: '连续失败几次后自动停用（缺省 3；0 = 不自动停用，只在用户明说时用）。',
+            description: '连续失败几次自动停用（缺省 3，0 = 不停用）。',
           },
         },
       },
     },
+  },
+  local: {
+    type: 'object',
+    description:
+      'write_trigger：这台机器上的设置（不进工作流文件；不给 trigger 时只改它）。改了要跑命令的工作区或 shell，用户要重新确认命令。',
+    additionalProperties: false,
+    properties: {
+      workspace: {
+        type: 'string',
+        description: '命令在哪里运行、新会话建在哪（绝对路径）；空串 = 清除。',
+      },
+      shell: { type: 'string', description: '跑命令的 shell（程序完整路径）；空串 = 跟默认。' },
+      session: {
+        type: 'string',
+        description: 'launch.session 为 fixed 时发进的会话 id；current = 当前会话。',
+      },
+      hook: { type: 'string', description: 'http：地址的最后一段（字母、数字、中文、- _）。' },
+      token: { type: 'string', description: 'http：令牌（至少 16 位）。' },
+      noToken: { type: 'boolean', description: 'http：true = 不校验令牌。' },
+    },
+  },
+  include: {
+    type: 'array',
+    items: { type: 'string', enum: ['history', 'output', 'queue'] },
+    description:
+      'read 触发卡片时多带：history 触发记录 / output 检查命令、监视程序最近的输出 / queue 排着的。',
+  },
+  limit: { type: 'number', description: 'read 的 history / output 带几条（缺省 10，最多 50）。' },
+  workspace: {
+    type: 'string',
+    description: 'test_trigger：命令在哪个目录里试（绝对路径）；不给用卡片上选的。',
+  },
+  seconds: { type: 'number', description: 'test_trigger（listen）：跑几秒（缺省 10，最多 60）。' },
+  poke: {
+    type: 'string',
+    description: 'test_trigger（listen）：启动 1 秒后跑这条命令制造一次事件。',
+  },
+  body: { type: 'string', description: 'test_trigger（http）：拿来试的请求体。' },
+  queue: {
+    type: 'string',
+    enum: ['waive', 'clear', 'cancel'],
+    description:
+      'trigger_queue：waive 视为上次执行已结束（放行排着的下一个）/ clear 清空排着的 / cancel 取消排着的一个（带 fire）。',
   },
   all: { type: 'boolean', description: 'runs：true = 列所有会话的实例（缺省只列本会话的）。' },
   mode: {

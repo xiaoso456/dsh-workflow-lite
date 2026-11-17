@@ -149,7 +149,12 @@ export async function apply(ctx: Context, config: WorkflowLiteSettings): Promise
       'workflow-lite: workflow-run-state skill',
     )
     skillsCtx.effect(() => registerBoardSkill(skillsCtx), 'workflow-lite: workflow-board skill')
-    skillsCtx.effect(() => registerTriggerSkill(skillsCtx), 'workflow-lite: workflow-trigger skill')
+    skillsCtx.effect(() => {
+      const registered = registerTriggerSkill(skillsCtx)
+      if (typeof registered === 'function') return registered
+      ctx.logger.warn(`[workflow-lite] ${registered}`)
+      return () => {}
+    }, 'workflow-lite: workflow-trigger skill')
   })
 
   // 唯一的工具：**始终注册**，没有 `off`/`read`/`readwrite` 那套档位——
