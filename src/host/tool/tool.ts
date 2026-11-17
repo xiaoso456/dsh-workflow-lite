@@ -55,7 +55,9 @@ import { displaySpecOf, resourceUpsertOf } from './resourceArgs.ts'
 import { DESCRIPTION, PARAMETERS } from './schema.ts'
 import {
   applyLocal,
+  localNow,
   localRequest,
+  nextStep,
   queueAction,
   readTrigger,
   type TriggerPort,
@@ -627,20 +629,21 @@ export function createWorkflowLiteHandler(
               },
             })
           }
-          const request = localRequest(name, card.id, args.local, session.id)
+          const request = localRequest(name, card, args.local, session.id)
           if (typeof request === 'string') {
             return errorValue({ error: { code: 'invalid_args', message: request } })
           }
           const applied = await applyLocal(deps.triggers, deps.dataDir(), card, request, Date.now())
           if (!applied.ok) return errorValue(applied)
           local = applied.result
+        } else if (deps.triggers !== undefined) {
+          local = await localNow(deps.triggers, deps.dataDir(), name, card, Date.now())
         }
         return finish({
           ...(written === undefined ? {} : written.result),
           trigger: { id: card.id, ...card.data },
           ...(local === undefined ? {} : { local }),
-          // 写在返回值里，模型照着做、照着告诉用户。
-          next: '卡片是关着的：先用 test_trigger 试一遍，再请用户在画布上打开开关（要跑命令的还要用户确认命令）。',
+          next: nextStep(local),
         })
       }
 

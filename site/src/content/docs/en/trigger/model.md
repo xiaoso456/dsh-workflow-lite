@@ -5,20 +5,22 @@ sidebar:
   order: 9
 ---
 
-Triggers can be left to the model: say in the conversation when which workflow should run, and the model picks the trigger type, writes the script it needs, tries it, and adds a trigger to the workflow. Triggers built by the model are always off; the user checks them and enables them.
+Triggers can be left to the model: say in the conversation when which workflow should run, and the model picks the trigger type, writes the script it needs, tries it, and adds a trigger to the workflow and enables it.
 
 ## Use
 
 1. Describe what is wanted in the conversation, for example "run the workflow Log check whenever ERROR shows up in `logs/app.log`; write the script and make sure it works".
 2. The model puts the script in `triggers/` in the workflow folder, tries it and looks at the output, then adds the trigger and fills in the trigger note and run settings.
-3. At the end, the model says what is left for the user: usually selecting the trigger on the canvas, checking the command and workspace, turning on **Enabled** and clicking **Confirm and enable**.
-4. If the workflow does not have **Record run state** turned on, or the graph itself still has problems, the model points that out as well.
+3. Once the test passes, the model enables the trigger and says when it will fire, what command it runs and in which workspace. To check it before it is enabled, say "don't enable it yet" in the request.
+4. If the workflow does not have **Record run state** turned on, or the graph itself still has problems, the model points that out or fixes it.
+
+Disabling or re-enabling a trigger can also be asked for in the conversation.
 
 The script lives in the workflow folder and the command points to it with `{workflow}`, so it keeps working after changing the workspace and travels with the workflow when exported.
 
 ## Troubleshooting
 
-When a trigger shows **Error** or **Stopped automatically**, or does not fire when it should, ask the model to look into it, for example "the trigger of Log check stopped; find out why". The model can read every trigger's state, history, recent output and queue, fix the problem, try it again, and then ask the user to enable it again.
+When a trigger shows **Error** or **Stopped automatically**, or does not fire when it should, ask the model to look into it, for example "the trigger of Log check stopped; find out why". The model can read every trigger's state, history, recent output and queue, fix the problem, try it again, and then enable it again.
 
 ## Settings
 
@@ -26,6 +28,6 @@ The guides the model reads on demand are controlled by **Guides for the model** 
 
 ## Notes
 
-- The model cannot enable a trigger or confirm a command on the user's behalf; a command runs on this machine only after the user has confirmed it.
+- When the model enables a trigger that runs a command, it is the same as clicking **Confirm and enable** on the canvas; if the command, workspace or shell changes afterwards, it has to be confirmed again before it runs.
 - When the plugin's data directory is outside the current workspace, writing a script into the workflow folder asks for approval.
-- Commands run as DSH with no sandbox: read the model's script before enabling the trigger.
+- Commands run as DSH with no sandbox: it is worth reading the model's script and command; if in doubt, ask the model not to enable the trigger yet.

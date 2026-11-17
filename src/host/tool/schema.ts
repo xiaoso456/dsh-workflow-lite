@@ -45,7 +45,7 @@ export const DESCRIPTION = [
   '图里有输入节点时，compile 带 answers 给出用户的回答（没给的用默认值）；必填的没回答会回 problems，先问用户再编译。',
   '触发卡片让工作流到点、条件满足、收到通知时自动执行：write_trigger 写定义（trigger）和本机设置（local）/ ',
   'read 带 node 看一张卡片的定义与本机情况（include 再带触发记录、最近的输出、排队）/ test_trigger 试一张卡片（跑一次脚本、看会不会触发）/ trigger_queue 处理排着的。',
-  '开关和命令确认只由用户在画布上做。动手前读 skill workflow-trigger。',
+  '试好之后用 local.enabled 打开；动手前读 skill workflow-trigger。',
   '收到触发卡片发来的消息、消息里有「触发条件」时，先判断要不要执行：不需要就用 decline 带 fire 和 reason 回报，然后结束。',
   '节点定位一律用 id。',
   '新建或修改图之前先读 skill workflow-authoring（步骤怎么拆、产物怎么传、资源说明怎么写、建完怎么自检）。',
@@ -490,10 +490,14 @@ export const PARAMETERS = {
   },
   local: {
     type: 'object',
-    description:
-      'write_trigger：这台机器上的设置（不进工作流文件；不给 trigger 时只改它）。改了要跑命令的工作区或 shell，用户要重新确认命令。',
+    description: 'write_trigger：这台机器上的设置与开关（不进工作流文件；不给 trigger 时只改它）。',
     additionalProperties: false,
     properties: {
+      enabled: {
+        type: 'boolean',
+        description:
+          'true = 打开（要跑命令的同时确认这条命令在这个工作区、用这个 shell 运行；命令、工作区、shell 改过后再给一次 true）/ false = 关掉。',
+      },
       workspace: {
         type: 'string',
         description: '命令在哪里运行、新会话建在哪（绝对路径）；空串 = 清除。',

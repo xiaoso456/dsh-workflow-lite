@@ -5,9 +5,9 @@
 一张卡片分两部分：
 
 - 定义：存在工作流里，随工作流导出、存版本。包括触发方式、触发说明、触发条件、过滤、执行设置。用 `write_trigger` 的 `trigger` 写。
-- 本机设置：只在这台机器上，不导出。包括工作区、shell、固定会话、HTTP 的地址和令牌。用 `write_trigger` 的 `local` 写。
+- 本机设置：只在这台机器上，不导出。包括开关、工作区、shell、固定会话、HTTP 的地址和令牌。用 `write_trigger` 的 `local` 写。
 
-开关和命令确认只在用户手里：你建、改的卡片都是关着的；要跑命令的卡片，命令、工作区、shell 改了任何一样，都要用户重新确认。
+新建的卡片是关着的，试好之后用 `local.enabled: true` 打开，`false` 关掉。要跑命令的卡片，打开就是确认「这条命令在这个工作区、用这个 shell 运行」：命令以 DSH 的身份运行、不进沙箱，开之前把命令和脚本再读一遍。命令、工作区、shell 改了任何一样，卡片会停在 `confirm`，同一次或下一次再给 `local.enabled: true` 确认。
 
 细节在这份 skill 目录下的几份文件里（路径都相对这个目录），用到哪种读哪份：
 
@@ -30,10 +30,11 @@
 3. 要脚本就写进 `dir/triggers/`（读 `scripts.md`）。新工作流的 `dir` 可能还不存在，直接建。
 4. `write_trigger` 写定义；知道命令在哪个工作区跑的话，同一次带上 `local.workspace`。
 5. `test_trigger` 试（见「验证」）。结果不对就改脚本或定义，再试，直到对为止。
-6. 看返回的 `toEnable`（打开前还差的）：
+6. 看返回的 `toEnable`（打开前还差的），补齐：
    - 说要开「记录运行状态」的：工作流会多次执行、会改文件的，用 `configure` 的 `run_state` 打开；只读、只发消息的，也可以把 `launch.overlap` 改成 `parallel`。拿不准就问用户。
-   - 选工作区、确认命令、选会话、打开开关只能用户做：告诉用户去画布上点开这张卡片。
-7. 对一遍文末的「交付前自检」，再告诉用户做好了。
+   - 缺工作区的给 `local.workspace`（一般是当前工作区）；`launch.session` 是 `fixed` 的给 `local.session`（`current` 是当前会话）。
+7. `write_trigger` 给 `node` 和 `local: { enabled: true }` 打开；用户说了先别开的不开。返回的 `local.state` 不是 `off`、`confirm`、`invalid` 才算开好了。
+8. 对一遍文末的「交付前自检」，再告诉用户做好了。
 
 ## 选触发方式
 
@@ -121,7 +122,7 @@
 - 只改本机设置：`write_trigger` 给 `node` 和 `local`，不给 `trigger`。
 - 排队：`trigger_queue` 的 `queue`：`waive` 把上次执行视为已结束、放行下一个；`clear` 清空排着的；`cancel` 带 `fire` 取消排着的一个。用户要求时才做。
 
-`state` 的取值：off 关着 / waiting 等着到点 / listening 在跑 / restarting 程序退出了等重启 / error 出错（如端口被占用）/ invalid 设置不对 / confirm 等用户确认命令 / stopped 连续失败被自动停用 / paused 全部暂停中 / elsewhere 另一个 DSH 进程在负责 / unavailable 这里发不了会话。
+`state` 的取值：off 关着 / waiting 等着到点 / listening 在跑 / restarting 程序退出了等重启 / error 出错（如端口被占用）/ invalid 设置不对 / confirm 命令、工作区或 shell 改过、等确认 / stopped 连续失败被自动停用 / paused 全部暂停中 / elsewhere 另一个 DSH 进程在负责 / unavailable 这里发不了会话。
 
 ## 排查
 
@@ -130,7 +131,8 @@
 1. `list`，看 `triggers.cards` 里 `state`、`problem` 不对的卡片；`triggers.paused` 有值是全部暂停着，请用户在工作流中心「触发」页恢复。
 2. `read` 那张卡片，带 `include: ["history", "output"]`。
 3. 按下表找原因、改好，`test_trigger` 试到对。
-4. 告诉用户原因和改了什么。改了脚本内容要说清楚改了哪里：用户确认的是命令，脚本内容变了不会再让他确认。停用了的卡片、命令或工作区改过要重新确认的卡片，请用户到卡片上确认、打开。
+4. 自动停用的、停在 `confirm` 的，修好、试过之后用 `local.enabled: true` 重新打开。
+5. 告诉用户原因和改了什么。改了脚本内容要说清楚改了哪里：确认的只是命令，脚本内容变了不会再要求确认。
 
 | 看到 | 多半是 | 怎么办 |
 |---|---|---|
@@ -142,7 +144,7 @@
 | `error`，端口被占用 | 别的程序占了端口 | HTTP 的请用户在插件设置里换端口；监视程序自己开的端口改命令参数 |
 | `invalid` | 定义不对 | 按 `problem` 改 |
 | 「工作流现在执行不了」 | 图有问题，编译不出计划 | `read` 这个工作流看 `problems`，改好图 |
-| `confirm` | 在等用户确认命令 | 请用户确认 |
+| `confirm` | 命令、工作区或 shell 改过，还没确认 | 核对后给 `local.enabled: true` |
 | `elsewhere` / `unavailable` | 另一个 DSH 进程在负责 / 这里发不了会话 | 告诉用户，到负责的那个 DSH 里看 |
 | 开着、状态正常，却一直没触发 | 关键字太严、去重太长、脚本没打出行、检查一直返回 1、`change` 第一次只记下 | 看 `history` 里 `skipped` 的原因和 `output` 里最近的结果，拿真实样本 `test_trigger` |
 | 触发得太频繁 | `every` 处理完下一次还返回 0；`change` 的输出里带时间戳；关键字太宽 | 改脚本或过滤 |
@@ -157,7 +159,8 @@
 - [ ] 关键字放在过滤里、判断放在触发条件里，没写死在脚本里。
 - [ ] 密钥、令牌不在脚本、命令、触发说明里。
 - [ ] `maxPerHour`、`maxFailures` 没写成 0（用户明说的除外）。
-- [ ] 告诉了用户：卡片在哪个工作流、会在什么时候触发、打开前还要他做什么（`toEnable`）。
+- [ ] 卡片打开了（用户说先别开的除外），`local.state` 正常。
+- [ ] 告诉了用户：卡片在哪个工作流、会在什么时候触发、开没开；要跑命令的说清楚跑什么命令、在哪个工作区。
 
 ## 场景示例
 

@@ -3,14 +3,15 @@
  * 最近的输出、排队）、改本机设置、试一张卡片、处理排队。
  *
  * 定义在图里（`write_trigger` 的 `trigger` 由仓储写），这里只管本机那一面，经 {@link TriggerPort} 找触发器服务。
- * 开关和命令确认不在这里：只由用户在画布上做（见 AGENTS「触发卡片」）。
+ * 模型能自己开关：`local.enabled = true` 打开要跑命令的卡片时，同时确认「这条命令在这个工作区、用这个 shell 运行」
+ * （和用户在画布上确认一样，命令、工作区、shell 改了要再确认）。
  * 时刻一律写成本机时间的「YYYY-MM-DD HH:mm:ss」，模型照着念给用户。
  *
  * @module @xiaoso/dsh-workflow-lite/host/tool/triggerActions
  */
 
 import { upcomingFires } from '../../shared/schedule.ts'
-import { filterOf, launchOf, sourceText } from '../../shared/trigger.ts'
+import { commandOf, filterOf, launchOf, sourceText } from '../../shared/trigger.ts'
 import type { TriggerIndexEntry, TriggerNode } from '../../shared/types.ts'
 import type { FireRecord, TriggerSetRequest, TriggerView } from '../../shared/wire/trigger.ts'
 import type { Outcome } from '../store/repoResult.ts'
@@ -252,15 +253,24 @@ export async function triggerIndex(
   })
 }
 
-/** write_trigger 的 local → 服务的设置请求；形状不对回一句原因。 */
+/**
+ * write_trigger 的 local → 服务的设置请求；形状不对回一句原因。
+ * 打开要跑命令的卡片时带上图里现在的命令作确认（服务按改完的工作区、shell 记下）。
+ */
 export function localRequest(
   workflow: string,
-  node: string,
+  node: TriggerNode,
   local: TriggerLocalArgs,
   currentSession: string | undefined,
 ): TriggerSetRequest | string {
   if (typeof local !== 'object' || local === null) return 'local 要写成 { workspace, shell, … }'
-  const request: TriggerSetRequest = { workflow, node }
+  const request: TriggerSetRequest = { workflow, node: node.id }
+  const command = commandOf(node.data.source)
+  if (local.enabled !== undefined) {
+    if (typeof local.enabled !== 'boolean') return 'local.enabled 要是 true / false'
+    request.enabled = local.enabled
+    if (local.enabled && command !== undefined) request.approve = command
+  }
   for (const key of ['workspace', 'shell', 'hook', 'token'] as const) {
     const value = local[key]
     if (value === undefined) continue
@@ -279,6 +289,32 @@ export function localRequest(
     request.noToken = local.noToken
   }
   return request
+}
+
+/** 一张卡片现在在本机的情况（写了定义、没改本机设置时也回给模型）。 */
+export async function localNow(
+  port: TriggerPort,
+  dataDir: string,
+  workflow: string,
+  node: TriggerNode,
+  now: number,
+): Promise<Record<string, unknown>> {
+  const view = (await port.list(workflow)).triggers.find((candidate) => candidate.node === node.id)
+  return localOf(port, dataDir, workflow, node, view, now)
+}
+
+/** 写完卡片后接下来做什么（写在返回值里，模型照着做）。 */
+export function nextStep(local: Record<string, unknown> | undefined): string {
+  if (local === undefined) return '先用 test_trigger 试一遍，再用 local.enabled 打开。'
+  const toEnable = Array.isArray(local.toEnable) && local.toEnable.length > 0
+  if (local.enabled === true) {
+    return toEnable
+      ? '卡片开着但还不能触发：按 toEnable 补齐（命令、工作区、shell 改过的再给一次 local.enabled = true）。'
+      : '卡片开着。'
+  }
+  return toEnable
+    ? '卡片关着：先用 test_trigger 试一遍，按 toEnable 补齐后用 local.enabled 打开。'
+    : '卡片关着：先用 test_trigger 试一遍，再用 local.enabled 打开。'
 }
 
 /** 改完本机设置后回这张卡片的本机情况。 */

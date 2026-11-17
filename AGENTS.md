@@ -74,7 +74,7 @@ gh release create workflow-lite-v<ver> --title "v<ver>" --notes-file <notes 文�
 - 写在图里的只有定义（触发源、过滤、触发条件、触发说明、会话方式、保护）；开关、工作区、固定会话、命令确认、HTTP 令牌、轮询的上一次结果、接续触发看过的实例、全部暂停、触发记录是本机状态，存 `<数据目录>/triggers/`，不进工作流 JSON、不随导出。往卡片上加东西先分清是哪一类。
 - 宿主侧在 `src/host/triggers/`，各管一件事：`store`（本机状态）、`owner`（同一个数据目录只有一个进程负责）、`reconcile`（定时对账，只算不做）、`runtime`（常驻触发源的启停，只在负责的进程里）、`poller` / `listener` / `hooks`（三种常驻触发源）、`processes`（在本机跑命令）、`intake`（过滤）、`launcher`（发进会话）、`message`（发进去的那段话）、`claims`（实例认领来源）、`after`（接续触发的判定与说法；哪些实例结束了经 `RunWatch` 问实例那边，不 import runs）、`service`（串起来）。宿主的会话接口没有类型，只在 `sessions.ts` 里按结构取用。
 - 「失败」只算触发器自己干不了活（工作区或会话不在、会话建不出来、图编译不出计划、命令跑不起来、监听程序一启动就退出）；跳过的、条件不满足的、过滤掉的、端口被占用、发出去之后的事都不算，不计入自动停用。
-- 要在本机跑命令的卡片，开关只在用户确认过「这条命令在这个工作区」之后才打开（`approvalOf`）；两样改了任一样就回到「待确认」。不要加绕过确认的路径，模型建的卡片也一律关着。
+- 要在本机跑命令的卡片，开关只在确认过「这条命令在这个工作区」之后才打开（`approvalOf`）；两样改了任一样就回到「待确认」。确认只有两条路：用户在画布上确认，或模型经 `write_trigger` 的 `local.enabled` 打开；不要加别的绕过路径，新建的卡片缺省关着。
 - 触发卡片不是步骤：`isStep` 不含它，不连线；模型只能经 `write_trigger` 建、改它，`write_node` 拒绝。按节点类型分支的地方新加一种节点时要逐处看（`grep isInput(`）。
 - 卡片上的状态走 `ui/trigger/triggerEnv.ts` 的上下文，不进画布节点数据：轮询只换字和属性，不重建节点。
 - 卡片中间的速览按触发源换样子（`model/triggerGlance.ts` 算图里写着的部分，`ui/trigger/TriggerGlanceRow` 再读现场；画布卡片、面板、「何时触发」对话框共用的最近一行、地址、轮询进度）；每种触发源的图标、颜色在 `ui/trigger/TriggerMark.tsx`，主动 / 被动按 `triggerMode`。新加触发源三处都要补。

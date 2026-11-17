@@ -1,6 +1,6 @@
 # 指定时刻只跑一次（定时检查）
 
-每天 15:00 检查，脚本只在指定那天返回 0，并在数据目录记下「跑过了」。跑完后请用户关掉卡片。
+每天 15:00 检查，脚本只在指定那天返回 0，并在数据目录记下「跑过了」。跑完后用 `local.enabled: false` 关掉卡片。
 
 ```js
 import { existsSync, writeFileSync } from 'node:fs'

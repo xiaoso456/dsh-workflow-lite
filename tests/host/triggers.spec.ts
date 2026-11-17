@@ -1393,7 +1393,7 @@ describe('模型建触发卡片', () => {
       },
     })
     expect(created).toMatchObject({ changed: [{ id: 'trigger', op: 'add' }] })
-    expect((created as { next?: string }).next).toContain('关着')
+    expect((created as { next?: string }).next).toContain('local.enabled')
 
     const edited = await run({
       action: 'write_trigger',
@@ -1542,7 +1542,7 @@ describe('模型读、改、试触发卡片', () => {
       local: { workspace, approved: false, toEnable: ['要先确认将要运行的命令'] },
     })
     expect(set).not.toHaveProperty('changed')
-    // 开关、确认仍只在用户手里：local 里没有这两样。
+    // 只改本机设置时要说是哪张卡片。
     expect(
       await run({ action: 'write_trigger', workflow: 'patrol', local: { workspace } }),
     ).toMatchObject({ error: { code: 'invalid_args' } })
@@ -1572,6 +1572,80 @@ describe('模型读、改、试触发卡片', () => {
         local: { token: 'short' },
       }),
     ).toMatchObject({ error: { code: 'blocked' } })
+  })
+
+  it('模型自己开关：打开要跑命令的卡片就是确认命令；改了命令停在待确认，再打开一次；关掉', async () => {
+    await saveGraph('patrol')
+    const created = (await run({
+      action: 'write_trigger',
+      workflow: 'patrol',
+      node: 'watch',
+      trigger: { source: { kind: 'listen', command: 'node w.mjs' } },
+      local: { workspace, enabled: true },
+    })) as { local?: Record<string, unknown>; next?: string }
+    expect(created.local).toMatchObject({ enabled: true, approved: true, workspace })
+    expect(created.local).not.toHaveProperty('toEnable')
+    expect(created.next).toBe('卡片开着。')
+
+    // 只改定义：命令变了，卡片还开着但停在待确认，返回里说要再打开一次。
+    const edited = (await run({
+      action: 'write_trigger',
+      workflow: 'patrol',
+      node: 'watch',
+      trigger: { source: { kind: 'listen', command: 'node w2.mjs' } },
+    })) as { local?: Record<string, unknown>; next?: string }
+    expect(edited.local).toMatchObject({ enabled: true, state: 'confirm', approved: false })
+    expect(edited.next).toContain('local.enabled = true')
+
+    const again = (await run({
+      action: 'write_trigger',
+      workflow: 'patrol',
+      node: 'watch',
+      local: { enabled: true },
+    })) as { local?: Record<string, unknown> }
+    expect(again.local).toMatchObject({ enabled: true, approved: true })
+
+    const off = (await run({
+      action: 'write_trigger',
+      workflow: 'patrol',
+      node: 'watch',
+      local: { enabled: false },
+    })) as { local?: Record<string, unknown> }
+    expect(off.local).toMatchObject({ enabled: false, state: 'off' })
+    // 关掉不撤确认：同一条命令下次直接打开。
+    expect(off.local?.approved).toBe(true)
+
+    // 不跑命令的照样能开；缺工作区的打不开，回原因。
+    expect(
+      await run({
+        action: 'write_trigger',
+        workflow: 'patrol',
+        node: 'tick',
+        local: { workspace, enabled: true },
+      }),
+    ).toMatchObject({ local: { enabled: true } })
+    await run({
+      action: 'write_trigger',
+      workflow: 'patrol',
+      node: 'bare',
+      trigger: { source: { kind: 'listen', command: 'node w.mjs' } },
+    })
+    expect(
+      await run({
+        action: 'write_trigger',
+        workflow: 'patrol',
+        node: 'bare',
+        local: { enabled: true },
+      }),
+    ).toMatchObject({ error: { code: 'blocked', message: '先选命令在哪个工作区里运行' } })
+    expect(
+      await run({
+        action: 'write_trigger',
+        workflow: 'patrol',
+        node: 'bare',
+        local: { enabled: 'yes' as unknown as boolean },
+      }),
+    ).toMatchObject({ error: { code: 'invalid_args' } })
   })
 
   it('读带上触发记录、排队和一次触发的全文；trigger_queue 视为已结束、清空', async () => {

@@ -63,8 +63,9 @@ export interface WorkflowLiteArgs {
   reason?: string
 }
 
-/** write_trigger 的 local：这台机器上的设置（与参数声明同构；开关、命令确认不在这里）。 */
+/** write_trigger 的 local：这台机器上的设置与开关（与参数声明同构）。 */
 export interface TriggerLocalArgs {
+  enabled?: boolean
   workspace?: string
   shell?: string
   session?: string
