@@ -4,6 +4,7 @@
  * @module @xiaoso/dsh-workflow-lite/shared/wire/trigger
  */
 
+import type { RunStatus } from '../runState.ts'
 import type { FireChannel } from '../trigger.ts'
 import type { TriggerData } from '../types.ts'
 
@@ -122,8 +123,32 @@ export interface TriggerView {
   last?: FireRecord
   /** 排着队的有几个（没有不给）。 */
   queued?: number
-  /** 排着的在等哪个会话跑完（上一次触发发进去的那个；有排着的才给）。 */
-  waiting?: string
+  /**
+   * 在等哪一次跑完：有排着的、或选了跳过而最近一次因为上一次没结束被跳过了，且上一次还没结束时才给
+   * （「视为已结束」就是对它说的）。
+   */
+  waiting?: TriggerWaiting
+  /** 所在工作流开着「记录运行状态」（跳过、排队靠它判断上一次结束没有）。 */
+  runState?: true
+}
+
+/**
+ * 排着的在等的那一次：上一次触发发起的执行。按运行状态算结束（见 `host/triggers/runEnd.ts`），
+ * 所以还没对上实例（模型还没编译）、或模型还没把状态改成结束，都算没跑完。
+ */
+export interface TriggerWaiting {
+  /** 上一次触发的编号。 */
+  fire: string
+  /** 上一次触发的时刻（时间线上那一行写的钟点）。 */
+  at: number
+  /** 发进去的会话。 */
+  session?: string
+  /** 对上的实例；还没对上不给。 */
+  instance?: string
+  /** 实例运行状态里的整体状态；还没对上实例、实例没有状态文件时不给。 */
+  status?: RunStatus
+  /** 从什么时候起没动静：状态文件最后改动的时刻；还没对上实例时是发出去的时刻。 */
+  since: number
 }
 
 export interface TriggerListResponse {
@@ -265,6 +290,12 @@ export interface TriggerDetailRequest {
 export interface TriggerCancelRequest {
   /** 触发编号（记录的 `id`）。 */
   fire: string
+}
+
+/** 视为已结束：把上一次发起的那次执行当作已经结束（跳过的下一次照常触发，排着的下一个接着发）。 */
+export interface TriggerWaiveRequest {
+  workflow: string
+  node: string
 }
 
 /** 清空一张卡片排着的（都记成跳过）。 */

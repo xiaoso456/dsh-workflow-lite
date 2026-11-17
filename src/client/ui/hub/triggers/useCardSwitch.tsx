@@ -4,15 +4,17 @@
  * 要在本机跑命令、还没确认过（或命令、工作区、shell 改过）的，开之前在点的那个按钮旁边浮出确认卡，
  * 列出命令、工作区和 shell，确认了才记下这条命令并打开（和画布上一样，不绕过确认）。
  * 还有排着的，关之前同样问一句（关掉后它们不再执行、记成跳过）。
+ * 选了跳过、排队却没开「记录运行状态」的打不开：交给外面（`onBlocked`，把问题小卡钉开）。
+ * 问题小卡里的「去打开」「视为已结束」也在这里先问一句再做。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/triggers/useCardSwitch
  */
 
-import { commandOf } from '../../../../shared/trigger.ts'
+import { commandOf, needsRunState } from '../../../../shared/trigger.ts'
 import type { TriggerEntry } from '../../../../shared/wire/trigger.ts'
 import type { TriggerHub } from '../../../app/useTriggerHub.ts'
 import type { T } from '../../../i18n.ts'
-import { useSwitchConfirm } from '../../trigger/SwitchConfirm.tsx'
+import { type SwitchQuestion, useSwitchConfirm } from '../../trigger/SwitchConfirm.tsx'
 
 export interface CardSwitch<A extends HTMLElement> {
   /** 挂到点的那个按钮上（确认卡浮在它旁边）。 */
@@ -23,6 +25,8 @@ export interface CardSwitch<A extends HTMLElement> {
   flip(): void
   /** 打开：要确认的先问（问题条上的「确认并打开」「确认命令」「重新打开」）。 */
   turnOn(): void
+  /** 问一句再做：去打开「记录运行状态」、视为已结束（问题小卡里的按钮）。 */
+  ask(question: Extract<SwitchQuestion, 'runState' | 'waive'>): void
   /** 确认卡（没在问时什么都没有）。 */
   confirm: React.ReactNode
 }
@@ -34,6 +38,10 @@ export function useCardSwitch<A extends HTMLElement>(props: {
   /** 确认按钮的 `data-testid`。 */
   testId: string
   onNotice(text: string, tone?: 'info' | 'error'): void
+  /** 在这个工作流里开启「记录运行状态」；做不了回一句原因。 */
+  enableRunState(workflow: string): Promise<string | null>
+  /** 打不开（没开「记录运行状态」）时：把问题小卡钉开。 */
+  onBlocked(): void
 }): CardSwitch<A> {
   const { t, hub, entry } = props
   const approve = useSwitchConfirm<A>()
@@ -53,8 +61,15 @@ export function useCardSwitch<A extends HTMLElement>(props: {
       approve.hide()
       return
     }
-    if (needsApproval) approve.askApprove()
+    if (needsRunState(entry.data, entry.view.runState === true)) props.onBlocked()
+    else if (needsApproval) approve.ask('approve')
     else set(true)
+  }
+
+  const report = (task: Promise<string | null>): void => {
+    void task.then((problem) => {
+      if (problem !== null) props.onNotice(problem, 'error')
+    })
   }
 
   const turnOff = (): void => {
@@ -62,7 +77,7 @@ export function useCardSwitch<A extends HTMLElement>(props: {
       approve.hide()
       return
     }
-    if ((entry.view.queued ?? 0) > 0) approve.askOff()
+    if ((entry.view.queued ?? 0) > 0) approve.ask('off')
     else set(false)
   }
 
@@ -71,12 +86,22 @@ export function useCardSwitch<A extends HTMLElement>(props: {
     asking: approve.open,
     flip: () => (entry.view.enabled ? turnOff() : turnOn()),
     turnOn,
-    confirm: approve.render({
+    ask: approve.ask,
+    confirm: approve.render(t, {
       off: {
-        t,
         queued: entry.view.queued ?? 0,
         testId: `${props.testId}-off`,
-        onOff: () => set(false),
+        onConfirm: () => set(false),
+      },
+      runState: {
+        workflow: entry.workflow,
+        testId: `${props.testId}-run-state`,
+        onConfirm: () => report(props.enableRunState(entry.workflow)),
+      },
+      waive: {
+        queued: (entry.view.queued ?? 0) > 0,
+        testId: `${props.testId}-waive`,
+        onConfirm: () => report(hub.waive(entry.workflow, entry.view.node)),
       },
       approve:
         command === undefined

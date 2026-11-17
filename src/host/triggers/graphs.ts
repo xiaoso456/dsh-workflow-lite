@@ -20,6 +20,8 @@ export interface TriggerDefinition {
   node: string
   name: string
   data: TriggerData
+  /** 所在工作流开着「记录运行状态」（跳过、排队靠它看上一次跑完没有，见 `runEnd.ts`）。 */
+  runState: boolean
 }
 
 export type WorkflowTriggers =
@@ -63,15 +65,19 @@ export function createTriggerGraphs(repository: Repository): TriggerGraphs {
         value = { kind: 'broken', reason: '工作流有保存级问题，读不出来' }
       } else {
         const blocking = load.problems.filter((problem) => problem.level === 'compile')
+        const runState = load.document.settings?.runState === true
         value = {
           kind: 'ok',
-          triggers: load.document.nodes
-            .filter(isTrigger)
-            .map((node) => ({ node: node.id, name: triggerName(node), data: node.data })),
+          triggers: load.document.nodes.filter(isTrigger).map((node) => ({
+            node: node.id,
+            name: triggerName(node),
+            data: node.data,
+            runState,
+          })),
           ...(blocking.length === 0
             ? {}
             : { blocked: blocking.map((problem) => problem.message).join('；') }),
-          runState: load.document.settings?.runState === true,
+          runState,
         }
       }
       cache.set(workflow, { stamp, value })

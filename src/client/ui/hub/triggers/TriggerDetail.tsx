@@ -26,7 +26,7 @@ import type { WorkflowLiteRpc } from '../../../rpc.ts'
 import { useSwap } from '../../motion/swap.tsx'
 import { FireDialog } from '../../trigger/dialogs/FireDialog.tsx'
 import { triggerTint } from '../../trigger/TriggerMark.tsx'
-import { type TriggerEnv, waitingSession } from '../../trigger/triggerEnv.ts'
+import { prevRunView, type TriggerEnv } from '../../trigger/triggerEnv.ts'
 import css from '../pane/detail.module.css'
 import tabs from '../pane/paneTabs.module.css'
 import { CallPane } from './CallPane.tsx'
@@ -93,7 +93,7 @@ export function TriggerDetail(props: {
   )
   // 页签上的条数同筛选的「全部」：排着的不算。
   const settled = fires === null ? 0 : settledFires(fires).length
-  const waiting = waitingSession(t, props.env, view.waiting)
+  const waiting = prevRunView(t, props.env, view.waiting, Date.now())
   // 详情开着时那一次轮到了：换成新读到的那一条。
   const live = picked === null ? null : (fires?.find((record) => record.id === picked.id) ?? picked)
   const onNotice = props.onNotice
@@ -102,6 +102,7 @@ export function TriggerDetail(props: {
       if (problem !== null) onNotice(problem, 'error')
     })
   }
+  const waive = (): Promise<string | null> => hub.waive(entry.workflow, view.node)
 
   // 换卡片：同一个横坐标（0），原地交叉淡；换页签：第几个面，按前后从那一侧进来。
   const swap = useSwap<HTMLDivElement>(key, 0, DETAIL_TABS.indexOf(tab))
@@ -133,6 +134,8 @@ export function TriggerDetail(props: {
             sessionTitle={sessionTitle}
             waiting={waiting}
             onClearQueue={clearQueue}
+            onWaive={waive}
+            onNotice={onNotice}
             onPick={setPicked}
             onOpenRun={props.onOpenRun}
           />
@@ -187,6 +190,7 @@ export function TriggerDetail(props: {
             onOpenCard={props.onOpenCard}
             onRename={props.onRename}
             onNotice={props.onNotice}
+            onEnableRunState={props.env.enableRunState}
           />
           <DetailTabs
             t={t}
@@ -217,6 +221,7 @@ export function TriggerDetail(props: {
           place={fires === null ? undefined : queuePlace(fires, live.id)}
           waiting={waiting}
           onCancel={hub.cancel}
+          onWaive={waive}
           onClose={() => setPicked(null)}
         />
       )}

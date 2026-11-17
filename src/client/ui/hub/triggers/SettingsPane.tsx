@@ -188,6 +188,11 @@ export function SettingsPane(props: {
           t={t}
           name={name}
           data={data}
+          runState={{
+            workflow: entry.workflow,
+            on: view.runState === true,
+            enable: () => env.enableRunState(entry.workflow),
+          }}
           onSave={(launch) => onPatch({ launch })}
           onClose={close}
         />

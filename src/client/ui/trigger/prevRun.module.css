@@ -1,0 +1,68 @@
+/*
+ * dsh-workflow-lite — 在等的上次执行（PrevRunNote.tsx）：那半句（等回复时提醒色、加粗），后面链接样的「会话：名字 ↗」
+ * （名字太长截断）；会话不在了是一句浅字。字号、颜色跟着所在的那一行。
+ */
+.text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.text[data-tone="warn"] {
+  color: var(--wl-warn);
+  font-weight: 600;
+}
+
+.link {
+  display: inline-flex;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  gap: 2px;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--wl-accent-text);
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.linkText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sessionLine {
+  display: flex;
+  flex-basis: 100%;
+  min-width: 0;
+}
+
+/* 「视为已结束」在时间线那一行的行尾：一圈细线、带勾。 */
+.outline {
+  gap: 4px;
+  box-shadow: inset 0 0 0 1px var(--wl-line-strong);
+  color: var(--wl-text);
+}
+
+.gone {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.link:hover .linkText {
+  text-decoration: underline;
+}
+
+.link:focus-visible {
+  border-radius: calc(4px * var(--wl-round, 1));
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 2px;
+}

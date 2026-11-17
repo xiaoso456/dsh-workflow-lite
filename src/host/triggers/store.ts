@@ -81,6 +81,10 @@ export interface TriggerLocal {
   session?: string
   /** 上一次发进去的会话（「接着上一次的会话」用）。 */
   lastSession?: string
+  /** 上一次发出去的那次触发的编号（跳过、排队看它跑完没有，见 `runEnd.ts`）。 */
+  lastFire?: string
+  /** 用户点了「视为已结束」的那一次触发的编号（当它已经结束）。 */
+  waived?: string
   /** 连续没发出去的次数。 */
   failures?: number
   /** 被自动停用时的原因（开关同时被关掉）；再打开时清掉。 */
@@ -163,6 +167,8 @@ function readLocal(raw: unknown): TriggerLocal | null {
     'shell',
     'session',
     'lastSession',
+    'lastFire',
+    'waived',
     'stopped',
     'approved',
     'hook',

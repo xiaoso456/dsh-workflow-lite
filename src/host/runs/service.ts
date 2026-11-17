@@ -94,6 +94,11 @@ export class RunService {
     return this.reader.finished(workflow, since, skip)
   }
 
+  /** 一个实例的整体状态（触发器看上一次跑完没有，见 {@link RunReader.stateOf}）。 */
+  stateOf(id: string): ReturnType<RunReader['stateOf']> {
+    return this.reader.stateOf(id)
+  }
+
   /** 会话的当前实例 id（没有就 `undefined`）。 */
   currentOf(session: string): Promise<string | undefined> {
     return this.reader.currentOf(session)

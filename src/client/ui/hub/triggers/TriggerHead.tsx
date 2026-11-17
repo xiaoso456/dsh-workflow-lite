@@ -15,6 +15,7 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/triggers/TriggerHead
  */
 
+import { useState } from 'react'
 import type { TriggerEntry } from '../../../../shared/wire/trigger.ts'
 import { useNow } from '../../../app/useNow.ts'
 import type { TriggerHub } from '../../../app/useTriggerHub.ts'
@@ -48,16 +49,22 @@ export function TriggerHead(props: {
   onOpenCard(): void
   onRename(name: string): Promise<boolean>
   onNotice(text: string, tone?: 'info' | 'error'): void
+  /** 在这个工作流里开启「记录运行状态」；做不了回一句原因。 */
+  onEnableRunState(workflow: string): Promise<string | null>
 }): React.JSX.Element {
   const { t, entry } = props
   const { source } = entry.data
   const kind = source.kind
+  // 头部开关打不开（没开「记录运行状态」）：递给状态条，把问题小卡钉开。
+  const [pin, setPin] = useState(0)
   const toggle = useCardSwitch<HTMLButtonElement>({
     t,
     hub: props.hub,
     entry,
     testId: 'wl-hub-trg-approve',
     onNotice: props.onNotice,
+    enableRunState: props.onEnableRunState,
+    onBlocked: () => setPin((count) => count + 1),
   })
   const on = entry.view.enabled
   const mode = triggerMode(kind)
@@ -129,7 +136,14 @@ export function TriggerHead(props: {
           </button>
         </div>
       </div>
-      <StatusBar t={t} hub={props.hub} entry={entry} onNotice={props.onNotice} />
+      <StatusBar
+        t={t}
+        hub={props.hub}
+        entry={entry}
+        pin={pin}
+        onNotice={props.onNotice}
+        onEnableRunState={props.onEnableRunState}
+      />
     </div>
   )
 }
@@ -138,7 +152,10 @@ function StatusBar(props: {
   t: T
   hub: TriggerHub
   entry: TriggerEntry
+  /** 头部开关打不开时递过来：把问题小卡钉开。 */
+  pin: number
   onNotice(text: string, tone?: 'info' | 'error'): void
+  onEnableRunState(workflow: string): Promise<string | null>
 }): React.JSX.Element {
   const { t, entry } = props
   const { view } = entry
@@ -149,17 +166,21 @@ function StatusBar(props: {
     testId: 'wl-hub-trg',
     fire: (info) => props.hub.fire(entry.workflow, view.node, info),
   })
+  // 问题条上的「重新打开」也打不开时，同样把小卡钉开（和头部开关递来的叠在一起）。
+  const [ownPin, setPin] = useState(0)
   const fixer = useCardSwitch<HTMLButtonElement>({
     t,
     hub: props.hub,
     entry,
     testId: 'wl-hub-trg-fix-approve',
     onNotice: props.onNotice,
+    enableRunState: props.onEnableRunState,
+    onBlocked: () => setPin((count) => count + 1),
   })
   const fired = fireNow.result
   const when = statusWhen(t, entry, now)
   // 全部暂停着：这里说清楚停了哪些、恢复后补不补，带「恢复」（画布面板那句只说到哪里去恢复）。
-  const found = problemOf(t, view, source, props.hub.list?.owner?.pid)
+  const found = problemOf(t, view, entry.data, props.hub.list?.owner?.pid, now)
   const problem: Problem | null =
     view.state === 'paused'
       ? {
@@ -169,6 +190,10 @@ function StatusBar(props: {
         }
       : found
   const onFix = (run: ProblemFix): void => {
+    if (run === 'runState' || run === 'waive') {
+      fixer.ask(run)
+      return
+    }
     if (run !== 'resume') {
       fixer.turnOn()
       return
@@ -202,6 +227,7 @@ function StatusBar(props: {
           testId="wl-hub-trg-problem"
           anchorRef={fixer.anchorRef}
           className={css.problemMark}
+          pin={props.pin + ownPin}
           onAction={onFix}
         />
         {fixer.confirm}

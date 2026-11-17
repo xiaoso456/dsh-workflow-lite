@@ -159,6 +159,11 @@ export async function dispatchTrigger(
       return ok(deps.triggers.outputLinesOf(workflow, requireString(input, 'node'), entries, tail))
     }
 
+    case 'trigger/waive': {
+      const outcome = await deps.triggers.waive(workflow, requireString(input, 'node'))
+      return outcome.ok ? ok(outcome.result) : failFrom(outcome.error)
+    }
+
     case 'trigger/clear-queue': {
       const outcome = await deps.triggers.clearQueue(workflow, requireString(input, 'node'))
       return outcome.ok ? ok(outcome.result) : failFrom(outcome.error)

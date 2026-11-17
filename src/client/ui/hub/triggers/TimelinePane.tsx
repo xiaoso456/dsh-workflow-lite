@@ -2,8 +2,8 @@
  * dsh-workflow-lite — 「触发」页的「时间线」：从上往下「排队中」→「接下来」→ 今天 → 昨天 …，一天一组，
  * 组头（哪天、日期、各种结果几次）滚动时钉在顶上；在自己的框里滚。
  *
- * 「排队中」一组只在有排着的时候有：组头写几个、在等哪个会话（点了跳过去），右边「清空」（浮出确认卡）；
- * 先收到的在上、第一个底色浅一档（下一个就是它）。它们一定比新来的先跑，所以放在「接下来」上面；
+ * 「排队中」一组只在有排着的时候有：组头写几个，右边「清空」（浮出确认卡）；最上面一行是挡着它们的上次执行
+ * （现在怎样、所在的会话、行尾「视为已结束」），下面排着的先收到的在上。它们一定比新来的先跑，所以放在「接下来」上面；
  * 筛选和条数都不算排着的，这一组不管筛哪种都在顶上。
  *
  * 顶上按结果筛选（全部 / 已发出 / 跳过 / 失败，带条数；模型判断不需要的跟着已发出），右边换样子：清单（一行一条）、
@@ -43,7 +43,9 @@ import { Segmented } from '../../kit/Segmented.tsx'
 import ui from '../../kit/ui.module.css'
 import { useCrossfade } from '../../motion/crossfade.ts'
 import { TRIGGER_ICON } from '../../trigger/TriggerMark.tsx'
-import { FireRow, NowRow, PlanRow } from './FireRow.tsx'
+import type { PrevRunView } from '../../trigger/triggerEnv.ts'
+import { WaiveButton } from '../../trigger/WaiveButton.tsx'
+import { FireRow, NowRow, PlanRow, PrevRow } from './FireRow.tsx'
 import css from './timeline.module.css'
 
 /** 「接下来」最多列几次。 */
@@ -78,10 +80,13 @@ export function TimelinePane(props: {
   /** 全部暂停着（接下来的都不会来）。 */
   paused: boolean
   sessionTitle(id: string): string | undefined
-  /** 排着的在等的那个会话（「排队中」组头写）。 */
-  waiting: { title: string; open?: () => void } | undefined
+  /** 排着的在等的上次执行（「排队中」最上面那一行；上次已经结束、正在放行时没有）。 */
+  waiting: PrevRunView | undefined
   /** 清空排着的。 */
   onClearQueue(): void
+  /** 把上次执行视为已结束；做不了回一句原因。 */
+  onWaive(): Promise<string | null>
+  onNotice(text: string, tone: 'error'): void
   onPick(record: FireRecord): void
   onOpenRun(instance: string): void
 }): React.JSX.Element {
@@ -179,6 +184,8 @@ export function TimelinePane(props: {
             count={queue.length}
             waiting={props.waiting}
             onClear={props.onClearQueue}
+            onWaive={props.onWaive}
+            onNotice={props.onNotice}
           >
             {queue.map((record, index) => row(record, index + 1))}
           </QueueGroup>
@@ -241,15 +248,20 @@ export function TimelinePane(props: {
   )
 }
 
-/** 「排队中」一组：组头写几个、在等哪个会话，右边「清空」（浮出确认卡再清）。 */
+/**
+ * 「排队中」一组：组头写几个、右边「清空」（管的是整组）；最上面一行是挡着它们的上次执行，
+ * 行尾「视为已结束」（管的是那一行，上次还没结束时才有）。两个按钮都浮出确认卡再做。
+ */
 function QueueGroup(props: {
   t: T
   count: number
-  waiting: { title: string; open?: () => void } | undefined
+  waiting: PrevRunView | undefined
   onClear(): void
+  onWaive(): Promise<string | null>
+  onNotice(text: string, tone: 'error'): void
   children: React.ReactNode
 }): React.JSX.Element {
-  const { t, waiting } = props
+  const { t, waiting, onNotice } = props
   const clear = useConfirm<HTMLButtonElement>()
   return (
     <section className={css.day} data-testid="wl-hub-trg-queue">
@@ -260,46 +272,50 @@ function QueueGroup(props: {
           <span className={css.queueCount}>
             {t('hub.trgQueueHead').replace('{n}', String(props.count))}
           </span>
-          {waiting !== undefined && (
-            <>
-              <span aria-hidden="true">·</span>
-              <span>{t('trigger.fire.running')}</span>
-              {waiting.open === undefined ? (
-                <span className={css.queueSession}>{waiting.title}</span>
-              ) : (
-                <button
-                  type="button"
-                  className={css.queueLink}
-                  data-testid="wl-hub-trg-queue-session"
-                  onClick={waiting.open}
-                >
-                  <span className={css.queueSession}>{waiting.title}</span>
-                  <Icon name="external" size={12} />
-                </button>
-              )}
-            </>
-          )}
         </span>
-        <button
-          ref={clear.anchorRef}
-          type="button"
-          className={cx(ui.btn, ui.small, ui.dangerQuiet, css.queueClear)}
-          aria-expanded={clear.open}
-          data-testid="wl-hub-trg-queue-clear"
-          onClick={clear.toggle}
-        >
-          {t('hub.trgQueueClear')}
-        </button>
-        {clear.render({
-          t,
-          title: t('hub.trgQueueClearTitle').replace('{n}', String(props.count)),
-          desc: t('hub.trgQueueClearDesc'),
-          confirmText: t('hub.trgQueueClear'),
-          testId: 'wl-hub-trg-queue-clear-ok',
-          onConfirm: props.onClear,
-        })}
+        <span className={css.queueActs}>
+          <button
+            ref={clear.anchorRef}
+            type="button"
+            className={cx(ui.btn, ui.small, ui.dangerQuiet)}
+            aria-expanded={clear.open}
+            data-testid="wl-hub-trg-queue-clear"
+            onClick={clear.toggle}
+          >
+            <Icon name="trash" size={13} />
+            {t('hub.trgQueueClear')}
+          </button>
+          {clear.render({
+            t,
+            title: t('hub.trgQueueClearTitle').replace('{n}', String(props.count)),
+            desc: t('hub.trgQueueClearDesc'),
+            confirmText: t('hub.trgQueueClear'),
+            testId: 'wl-hub-trg-queue-clear-ok',
+            onConfirm: props.onClear,
+          })}
+        </span>
       </div>
-      <ul className={css.rows}>{props.children}</ul>
+      <ul className={css.rows}>
+        {waiting !== undefined && (
+          <PrevRow
+            t={t}
+            prev={waiting}
+            action={
+              <WaiveButton
+                t={t}
+                queued
+                look="outline"
+                testId="wl-hub-trg-queue-waive"
+                onWaive={props.onWaive}
+                onProblem={(reason) => {
+                  if (reason !== null) onNotice(reason, 'error')
+                }}
+              />
+            }
+          />
+        )}
+        {props.children}
+      </ul>
     </section>
   )
 }

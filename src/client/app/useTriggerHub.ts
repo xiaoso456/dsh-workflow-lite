@@ -46,6 +46,8 @@ export interface TriggerHub {
   cancel(fire: string): Promise<string | null>
   /** 清空一张卡片排着的（都记成跳过）。清不了回一句原因。 */
   clearQueue(workflow: string, node: string): Promise<string | null>
+  /** 把这张卡片上一次发起的执行视为已结束（跳过的照常触发、排着的放行下一个）。做不了回一句原因。 */
+  waive(workflow: string, node: string): Promise<string | null>
   /** 一个工作流里定时检查命令、监听程序最近的输出（同一个工作流回同一个对象）。 */
   output(workflow: string): OutputAccess
   /** 「试运行」还没保存的命令；请求本身失败回一句原因。 */
@@ -190,6 +192,19 @@ export function useTriggerHub(rpc: WorkflowLiteRpc, flush: () => Promise<boolean
     [rpc, lister],
   )
 
+  const waive = useCallback(
+    async (workflow: string, node: string): Promise<string | null> => {
+      try {
+        await rpc.call('trigger/waive', { workflow, node })
+        await lister.run(undefined)
+        return null
+      } catch (reason) {
+        return errorMessage(reason)
+      }
+    },
+    [rpc, lister],
+  )
+
   const refresh = useCallback((): Promise<void> => lister.run(undefined), [lister])
 
   const outputs = useMemo(() => new Map<string, OutputAccess>(), [rpc])
@@ -243,6 +258,7 @@ export function useTriggerHub(rpc: WorkflowLiteRpc, flush: () => Promise<boolean
       detail,
       cancel,
       clearQueue,
+      waive,
       output,
       tryCommand,
       ping,
@@ -259,6 +275,7 @@ export function useTriggerHub(rpc: WorkflowLiteRpc, flush: () => Promise<boolean
       detail,
       cancel,
       clearQueue,
+      waive,
       output,
       tryCommand,
       ping,

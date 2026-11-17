@@ -4,6 +4,7 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/kit/HelpTip
  */
 
+import type { LocaleKey, T } from '../../i18n.ts'
 import css from './helpTip.module.css'
 import shared from './ui.module.css'
 import { FLOAT_EXIT_MS, useFloat } from './useFloat.tsx'
@@ -12,6 +13,17 @@ import { FLOAT_EXIT_MS, useFloat } from './useFloat.tsx'
 const HINT_OPEN_MS = 120
 const HINT_CLOSE_MS = 220
 const HINT_W = 320
+
+/** 「?」浮层里的一串要点（一条一句）。 */
+export function HelpList(props: { t: T; keys: readonly LocaleKey[] }): React.JSX.Element {
+  return (
+    <ul className={shared.hintList}>
+      {props.keys.map((key) => (
+        <li key={key}>{props.t(key)}</li>
+      ))}
+    </ul>
+  )
+}
 
 /**
  * 「?」说明：平时只占一个小图标，悬停 / 聚焦 / 点击时浮出一段说明（浮层行为见 {@link useFloat}）。

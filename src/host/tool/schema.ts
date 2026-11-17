@@ -496,7 +496,7 @@ export const PARAMETERS = {
             type: 'string',
             enum: ['skip', 'queue', 'parallel'],
             description:
-              '上一次还在跑时：skip 跳过（缺省）/ queue 排队，跑完一个再开下一个（会改工作区文件的工作流用它）/ parallel 照样触发。',
+              '上一次触发的执行还没结束（运行状态没改成 done / failed / cancelled）时：skip 跳过（缺省）/ queue 排队，结束一个再开下一个（会改工作区文件的工作流用它）/ parallel 照样触发。skip、queue 要工作流开着「记录运行状态」。',
           },
           queueMax: {
             type: 'number',

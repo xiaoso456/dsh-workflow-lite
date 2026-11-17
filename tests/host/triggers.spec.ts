@@ -28,7 +28,7 @@ import type { LiveRuntime, LiveSpec, RuntimeEvents } from '../../src/host/trigge
 import { LATE_MS, TriggerService } from '../../src/host/triggers/service.ts'
 import type { SessionPort } from '../../src/host/triggers/sessions.ts'
 import { approvalOf, ownerFile, TriggerStore } from '../../src/host/triggers/store.ts'
-import type { InstanceView } from '../../src/shared/runState.ts'
+import type { InstanceView, RunStatus } from '../../src/shared/runState.ts'
 import type { TriggerData, WorkflowDocument } from '../../src/shared/types.ts'
 import { validateDocument } from '../../src/shared/validate.ts'
 
@@ -42,7 +42,8 @@ let database: PluginDatabase
 let clock: number
 let sent: { session: string; text: string; summary: string }[]
 let opened: { cwd: string; title: string }[]
-let busy: Set<string>
+/** 假的实例运行状态：实例 → 整体状态（`null` = 实例不在了）。 */
+let states: Map<string, { status?: RunStatus; at?: number } | null>
 let gone: Set<string>
 let unavailable: string | null
 /** 插件设置里 HTTP 触发的监听地址。 */
@@ -69,7 +70,6 @@ const sessions: SessionPort = {
     if (gone.has(session)) throw new Error('会话不存在')
     sent.push({ session, text, summary })
   },
-  busy: (session) => busy.has(session),
 }
 
 /** 按 `RunReader.finished` 的约定从 {@link finished} 里挑。 */
@@ -81,6 +81,17 @@ const watch: RunWatch = {
       ids: all.map((run) => run.id),
     }
   },
+  stateOf: async (instance) => states.get(instance) ?? null,
+}
+
+/** 模型为这次触发建了实例、运行状态写着 `status`（不给就是没有状态文件）。 */
+async function claim(
+  fire: string | undefined,
+  instance: string,
+  status?: RunStatus,
+): Promise<void> {
+  await store.bind(fire ?? '', instance)
+  states.set(instance, status === undefined ? {} : { status, at: clock })
 }
 
 function service(pid = 100, alive: (pid: number) => boolean = () => true): TriggerService {
@@ -110,8 +121,13 @@ function service(pid = 100, alive: (pid: number) => boolean = () => true): Trigg
 }
 
 /** 存一张图：一张每 30 分钟的触发卡片（可改 `data`）加一个步骤。 */
-async function saveGraph(name: string, data: Partial<TriggerData> = {}): Promise<void> {
+async function saveGraph(
+  name: string,
+  data: Partial<TriggerData> = {},
+  runState = true,
+): Promise<void> {
   const document: WorkflowDocument = {
+    ...(runState ? { settings: { runState: true } } : {}),
     nodes: [
       {
         id: 'tick',
@@ -154,7 +170,7 @@ beforeEach(async () => {
   clock = new Date(2026, 10, 12, 9, 0).getTime()
   sent = []
   opened = []
-  busy = new Set()
+  states = new Map()
   gone = new Set()
   unavailable = null
   openError = null
@@ -230,7 +246,7 @@ describe('开关与状态', () => {
     await saveGraph('patrol')
     const triggers = service()
     expect((await triggers.list('patrol')).triggers).toEqual([
-      { node: 'tick', enabled: false, state: 'off' },
+      { node: 'tick', enabled: false, runState: true, state: 'off' },
     ])
     const refused = await triggers.set({ workflow: 'patrol', node: 'tick', enabled: true })
     expect(refused.ok).toBe(false)
@@ -392,32 +408,101 @@ describe('到点触发', () => {
     expect(sent).toHaveLength(1)
   })
 
-  it('上一次的会话还在跑就跳过；选了「并行」照样触发', async () => {
+  /** 最近一次发出去的那条。 */
+  async function lastSent(triggers: TriggerService): Promise<string | undefined> {
+    return (await triggers.history('patrol')).find((record) => record.outcome === 'sent')?.id
+  }
+
+  it('上一次没跑完（运行状态没写结束）就跳过；写了结束、模型说不做、点了「视为已结束」、实例删了都算跑完；「并行」照发', async () => {
     const triggers = await ready()
     clock += 30 * MINUTE
     await triggers.tick()
-    busy.add('s1')
+    expect(sent).toHaveLength(1)
+
+    // 发进去了、还没对上实例：算没跑完。
     clock += 30 * MINUTE
     await triggers.tick()
     expect(sent).toHaveLength(1)
     expect((await triggers.history('patrol'))[0]).toMatchObject({
       outcome: 'skipped',
-      reason: '上一次触发的会话还在运行',
+      reason: '上次执行未结束（运行状态尚未改为结束）',
     })
+    // 被跳过了：卡片上写着在等哪一次（「视为已结束」对它说）；工作流开着「记录运行状态」。
+    const first = await lastSent(triggers)
+    expect((await triggers.list('patrol')).triggers[0]).toMatchObject({
+      runState: true,
+      waiting: { fire: first, session: 's1' },
+    })
+    expect((await triggers.list('patrol')).triggers[0]?.queued).toBeUndefined()
+
+    // 对上了实例，模型停下来等用户回答（会话已经不在跑了）：还是没跑完。
+    await claim(await lastSent(triggers), 'r1', 'waiting')
+    clock += 30 * MINUTE
+    await triggers.tick()
+    expect(sent).toHaveLength(1)
+
+    // 模型把状态改成完成：跑完了。
+    states.set('r1', { status: 'done', at: clock })
+    clock += 30 * MINUTE
+    await triggers.tick()
+    expect(sent).toHaveLength(2)
+
+    // 模型说这次不用做：算跑完。
+    await store.decline((await lastSent(triggers)) ?? '', '没有新提交')
+    clock += 30 * MINUTE
+    await triggers.tick()
+    expect(sent).toHaveLength(3)
+
+    // 一直卡着：点「视为已结束」。
+    await claim(await lastSent(triggers), 'r3', 'running')
+    expect((await triggers.waive('patrol', 'tick')).ok).toBe(true)
+    clock += 30 * MINUTE
+    await triggers.tick()
+    expect(sent).toHaveLength(4)
+
+    // 实例被删了：没东西可等。
+    await claim(await lastSent(triggers), 'r4', 'running')
+    states.set('r4', null)
+    clock += 30 * MINUTE
+    await triggers.tick()
+    expect(sent).toHaveLength(5)
 
     await saveGraph('patrol', { launch: { overlap: 'parallel' } })
     clock += 30 * MINUTE
     await triggers.tick()
-    expect(sent).toHaveLength(2)
-    expect(opened).toHaveLength(2)
+    expect(sent).toHaveLength(6)
   })
 
-  it('排队：上一次还在跑就排着，排满了跳过；不忙了每一轮放行最早的一个，刚发进去的那一会儿也算忙', async () => {
+  it('选了跳过、排队却没开「记录运行状态」：卡片说明原因、打不开；已经开着的只记跳过；「并行」不受影响', async () => {
+    const triggers = await ready()
+    await saveGraph('patrol', {}, false)
+    expect((await triggers.list('patrol')).triggers[0]).toMatchObject({
+      state: 'invalid',
+      problem: expect.stringContaining('记录运行状态'),
+    })
+    clock += 30 * MINUTE
+    await triggers.tick()
+    expect(sent).toHaveLength(0)
+    expect((await triggers.history('patrol'))[0]).toMatchObject({
+      outcome: 'skipped',
+      reason: expect.stringContaining('记录运行状态'),
+    })
+
+    await triggers.set({ workflow: 'patrol', node: 'tick', enabled: false })
+    const refused = await triggers.set({ workflow: 'patrol', node: 'tick', enabled: true })
+    expect(!refused.ok && refused.error.message).toContain('记录运行状态')
+
+    await saveGraph('patrol', { launch: { overlap: 'parallel' } }, false)
+    expect((await triggers.set({ workflow: 'patrol', node: 'tick', enabled: true })).ok).toBe(true)
+  })
+
+  it('排队：上一次没跑完就排着，排满了跳过；跑完了每一轮放行最早的一个，刚放出去的那个还没对上实例也算没跑完', async () => {
     const triggers = await ready({ launch: { overlap: 'queue', queueMax: 2 } })
     clock += 30 * MINUTE
     await triggers.tick()
     expect(sent).toHaveLength(1)
-    busy.add('s1')
+    const previous = await lastSent(triggers)
+    await claim(previous, 'r1', 'running')
     for (let i = 0; i < 3; i += 1) {
       clock += 30 * MINUTE
       await triggers.tick()
@@ -427,10 +512,19 @@ describe('到点触发', () => {
     expect(full).toMatchObject({ outcome: 'skipped', reason: '已经排了 2 个，排满了' })
     expect(second?.outcome).toBe('queued')
     expect(first?.outcome).toBe('queued')
-    expect((await triggers.list('patrol')).triggers[0]).toMatchObject({ queued: 2, waiting: 's1' })
+    expect((await triggers.list('patrol')).triggers[0]).toMatchObject({
+      queued: 2,
+      waiting: {
+        fire: previous,
+        session: 's1',
+        instance: 'r1',
+        status: 'running',
+        since: clock - 90 * MINUTE,
+      },
+    })
 
-    // 不忙了：放行先来的那个，新建会话发进去，原来那一条改成发出去、记下轮到的时刻。
-    busy.delete('s1')
+    // 跑完了：放行先来的那个，新建会话发进去，原来那一条改成发出去、记下轮到的时刻。
+    states.set('r1', { status: 'done', at: clock })
     await triggers.tick()
     expect(sent).toHaveLength(2)
     expect(sent[1]?.session).toBe('s2')
@@ -442,26 +536,28 @@ describe('到点触发', () => {
       session: 's2',
       sentAt: clock,
     })
-    // 刚发进 s2、DSH 还没报运行中：同一轮里不再放行。
+    // 刚放出去、模型还没建实例：不再放行，在等的换成它。
     await triggers.tick()
     expect(sent).toHaveLength(2)
-    // 报过运行中、又跑完了：放行下一个。
-    busy.add('s2')
-    await triggers.tick()
-    busy.delete('s2')
+    expect((await triggers.list('patrol')).triggers[0]).toMatchObject({
+      queued: 1,
+      waiting: { fire: first?.id, session: 's2', since: clock },
+    })
+    // 视为已结束：放行下一个。
+    await triggers.waive('patrol', 'tick')
     await triggers.tick()
     expect(sent).toHaveLength(3)
     expect((await triggers.list('patrol')).triggers[0]?.queued).toBeUndefined()
   })
 
-  it('排队：已经有排着的，不忙时新来的也排在后面；关掉卡片、取消、清空都记成跳过；全部暂停时留着不发', async () => {
+  it('排队：已经有排着的，上一次跑完了新来的也排在后面；关掉卡片、取消、清空都记成跳过；全部暂停时留着不发', async () => {
     const triggers = await ready({ launch: { overlap: 'queue' } })
     clock += 30 * MINUTE
     await triggers.tick()
-    busy.add('s1')
+    await claim(await lastSent(triggers), 'r1', 'running')
     clock += 30 * MINUTE
     await triggers.tick()
-    busy.delete('s1')
+    states.set('r1', { status: 'done', at: clock })
     await triggers.pause(true)
     clock += 30 * MINUTE
     await triggers.tick()
@@ -479,14 +575,19 @@ describe('到点触发', () => {
     })
     expect((await triggers.cancelQueued(queued?.id ?? '')).ok).toBe(false)
 
-    // 有排着的时候新来的排在后面（不插队）：s1 不忙，但前面还有一个。
-    busy.add('s1')
+    // 排一个；上一次跑完了，同一轮里到点的新来的排在它后面，先放行的是早来的那个。
+    states.set('r1', { status: 'running', at: clock })
     clock += 30 * MINUTE
     await triggers.tick()
-    busy.delete('s1')
-    await triggers.fireNow({ workflow: 'patrol', node: 'tick' })
+    const [early] = await triggers.history('patrol')
+    expect(early?.outcome).toBe('queued')
+    states.set('r1', { status: 'done', at: clock })
+    clock += 30 * MINUTE
+    await triggers.tick()
     expect(sent).toHaveLength(2)
-    busy.add('s2')
+    expect(sent[1]?.text).toContain(`fire=${early?.id ?? ''}`)
+    expect((await triggers.list('patrol')).triggers[0]?.queued).toBe(1)
+
     clock += 30 * MINUTE
     await triggers.tick()
     expect((await triggers.list('patrol')).triggers[0]?.queued).toBe(2)
@@ -505,7 +606,7 @@ describe('到点触发', () => {
   })
 
   it('「接着上一次的会话」：发进上一次的会话，它不在了就新建', async () => {
-    const triggers = await ready({ launch: { session: 'last' } })
+    const triggers = await ready({ launch: { session: 'last', overlap: 'parallel' } })
     clock += 30 * MINUTE
     await triggers.tick()
     clock += 30 * MINUTE
@@ -574,7 +675,7 @@ describe('到点触发', () => {
   })
 
   it('连续 3 次发不出去自动停用，说出原因；中间发出去一次就重新数', async () => {
-    const triggers = await ready()
+    const triggers = await ready({ launch: { overlap: 'parallel' } })
     openError = '工作区不见了'
     for (let round = 0; round < 2; round += 1) {
       clock += 30 * MINUTE
@@ -1577,14 +1678,20 @@ describe('接续触发', () => {
   })
 
   it('「失败时」「不论结果」按结果挑', async () => {
-    const triggers = await ready({ source: { kind: 'after', workflow: 'build', when: 'failed' } })
+    const triggers = await ready({
+      source: { kind: 'after', workflow: 'build', when: 'failed' },
+      launch: { overlap: 'parallel' },
+    })
     finished.set('build', [run('r1', 'done', clock + 1), run('r2', 'failed', clock + 2)])
     clock += MINUTE
     await triggers.tick()
     expect(sent).toHaveLength(1)
     expect(sent[0]?.text).toContain('实例 r2 结束了')
 
-    await saveGraph('patrol', { source: { kind: 'after', workflow: 'build', when: 'any' } })
+    await saveGraph('patrol', {
+      source: { kind: 'after', workflow: 'build', when: 'any' },
+      launch: { overlap: 'parallel' },
+    })
     finished.set('build', [
       run('r1', 'done', clock - 1),
       run('r2', 'failed', clock - 1),

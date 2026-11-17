@@ -184,38 +184,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-.queueSession {
-  min-width: 0;
-  max-width: 260px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.queueLink {
-  display: inline-flex;
-  gap: 2px;
-  align-items: center;
-  min-width: 0;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--wl-accent-text);
-  font: inherit;
-  cursor: pointer;
-}
-
-.queueLink:hover .queueSession {
-  text-decoration: underline;
-}
-
-.queueLink:focus-visible {
-  border-radius: calc(4px * var(--wl-round, 1));
-  outline: 2px solid var(--wl-accent);
-  outline-offset: 2px;
-}
-
-/* 取消不成时的原因：在底栏左边，不另起一行。 */
+/* 取消、视为已结束不成时的原因：跟在「取消这一次」后面，不另起一行。 */
 .footProblem {
   min-width: 0;
   overflow: hidden;

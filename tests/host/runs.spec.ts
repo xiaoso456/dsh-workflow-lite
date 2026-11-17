@@ -1381,4 +1381,20 @@ describe('结束了的实例（接续触发看的）', () => {
     expect((await runs.finished('cr', 0, new Set([id]))).runs).toEqual([])
     expect(await runs.finished('other', 0, new Set())).toEqual({ runs: [], ids: [] })
   })
+
+  it('一个实例的整体状态（跳过、排队看上一次跑完没有）：模型改的状态、状态文件的修改时刻；实例不在是 null', async () => {
+    const compiled = await compileWithRuns()
+    const id = String(compiled.instance)
+    const fresh = await runs.stateOf(id)
+    expect(fresh?.status).toBe('pending')
+    expect(fresh?.at).toBeGreaterThan(0)
+    await run(
+      { action: 'state', instance: id, status: 'waiting', note: '等用户选方案' },
+      exec('s1'),
+    )
+    expect((await runs.stateOf(id))?.status).toBe('waiting')
+    await run({ action: 'state', instance: id, status: 'done' }, exec('s1'))
+    expect((await runs.stateOf(id))?.status).toBe('done')
+    expect(await runs.stateOf('i-nope')).toBeNull()
+  })
 })

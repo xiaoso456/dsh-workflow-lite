@@ -384,6 +384,14 @@ export interface LaunchSettings {
   maxFailures: number
 }
 
+/**
+ * 选了跳过、排队却看不出上一次执行结束没有：它们按运行状态判断（`host/triggers/runEnd.ts`），
+ * 所在工作流没开「记录运行状态」就判断不了，卡片打不开。
+ */
+export function needsRunState(data: TriggerData, runState: boolean): boolean {
+  return !runState && launchOf(data).overlap !== 'parallel'
+}
+
 /** 启动方式里的各项，补上缺省值。 */
 export function launchOf(data: TriggerData): LaunchSettings {
   return {
@@ -449,6 +457,13 @@ export function afterWhen(source: Extract<TriggerSource, { kind: 'after' }>): Af
 
 /** 一次执行结束时的结果（状态文件里的 done / failed / cancelled）。 */
 export type FinishedStatus = 'done' | 'failed' | 'cancelled'
+
+/** 算作结束了的整体状态（接续触发、「上次执行未结束时」都按它）。 */
+export const FINISHED_STATUSES: ReadonlySet<string> = new Set<FinishedStatus>([
+  'done',
+  'failed',
+  'cancelled',
+])
 
 /** 那个工作流的一次执行以这个结果结束时，接续触发要不要触发（「不论结果」连取消的也算）。 */
 export function afterMatches(

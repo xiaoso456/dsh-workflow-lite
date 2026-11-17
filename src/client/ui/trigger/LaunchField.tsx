@@ -149,6 +149,15 @@ export function LaunchField(props: {
           t={t}
           name={props.name}
           data={props.data}
+          runState={
+            env === null
+              ? undefined
+              : {
+                  workflow: env.workflow,
+                  on: env.triggers.view(props.node)?.runState === true,
+                  enable: () => env.enableRunState(env.workflow),
+                }
+          }
           onSave={props.onLaunch}
           onClose={() => setGuard(false)}
         />

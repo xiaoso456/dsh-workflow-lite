@@ -4,8 +4,9 @@
  *
  * 原因在记录里就有，打开就显示；触发说明这些要另读一次，读到了再接在下面。
  *
- * 排着的：标题写「排队中」，时刻写「收到」，第一行写排第几、在等哪个会话（点了跳过去），底下可以「取消这一次」
- * （浮出确认卡再取消，记成跳过）。排过队才发出去的多一行「排队 4 分钟后发出（时刻）」。
+ * 排着的：标题写「排队中」，时刻写「收到」，第一行写排第几、在等的上次执行现在怎样（后面「打开会话 ↗」），
+ * 底下左边「取消这一次」（浮出确认卡再取消，记成跳过），右边「上次执行视为已结束」（同样先问）。
+ * 排过队才发出去的多一行「排队 4 分钟后发出（时刻）」。
  * 详情开着时这一次轮到了，外面换上新的记录，这里跟着变成「已发出」。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/trigger/dialogs/FireDialog
@@ -30,6 +31,9 @@ import overlay from '../../kit/overlay.module.css'
 import ui from '../../kit/ui.module.css'
 import ins from '../../panel/panel.module.css'
 import css from '../fires.module.css'
+import { PrevRunNote } from '../PrevRunNote.tsx'
+import type { PrevRunView } from '../triggerEnv.ts'
+import { WaiveButton } from '../WaiveButton.tsx'
 
 export function FireDialog(props: {
   t: T
@@ -39,10 +43,12 @@ export function FireDialog(props: {
   onOpenRun?(instance: string): void
   /** 排着的：排第几个（从 1 数）。 */
   place?: number | undefined
-  /** 排着的在等的那个会话：标题，跳得过去时给 `open`。 */
-  waiting?: { title: string; open?: (() => void) | undefined } | undefined
+  /** 排着的在等的上次执行（还没结束时才有）。 */
+  waiting?: PrevRunView | undefined
   /** 取消排着的这一次；取消不了回一句原因。不给就不放这个按钮。 */
   onCancel?(fire: string): Promise<string | null>
+  /** 把上次执行视为已结束；做不了回一句原因。不给（或上次已经结束）就不放这个按钮。 */
+  onWaive?(): Promise<string | null>
   onClose(): void
 }): React.JSX.Element {
   const { t, record } = props
@@ -114,8 +120,12 @@ export function FireDialog(props: {
             {props.waiting !== undefined && (
               <>
                 <span aria-hidden="true">·</span>
-                <span>{t('trigger.fire.running')}</span>
-                <SessionLink waiting={props.waiting} />
+                <PrevRunNote
+                  t={t}
+                  prev={props.waiting}
+                  testId="wl-trigger-fire-prev"
+                  sessionTestId="wl-trigger-fire-session"
+                />
               </>
             )}
           </p>
@@ -157,8 +167,6 @@ export function FireDialog(props: {
       </div>
       {queued && props.onCancel !== undefined && (
         <footer className={overlay.sheetFoot}>
-          {problem !== null && <span className={css.footProblem}>{problem}</span>}
-          <span className={ui.grow} />
           <button
             ref={cancel.anchorRef}
             type="button"
@@ -188,6 +196,18 @@ export function FireDialog(props: {
               })
             },
           })}
+          {problem !== null && <span className={css.footProblem}>{problem}</span>}
+          <span className={ui.grow} />
+          {props.waiting !== undefined && props.onWaive !== undefined && (
+            <WaiveButton
+              t={t}
+              long
+              queued
+              testId="wl-trigger-fire-waive"
+              onWaive={props.onWaive}
+              onProblem={setProblem}
+            />
+          )}
         </footer>
       )}
       {!queued && instance !== undefined && openRun !== undefined && (
@@ -208,25 +228,6 @@ export function FireDialog(props: {
         </footer>
       )}
     </Modal>
-  )
-}
-
-/** 在等的那个会话：跳得过去是一个链接样的按钮，跳不过去只写标题。 */
-function SessionLink(props: {
-  waiting: { title: string; open?: (() => void) | undefined }
-}): React.JSX.Element {
-  const { title, open } = props.waiting
-  if (open === undefined) return <span className={css.queueSession}>{title}</span>
-  return (
-    <button
-      type="button"
-      className={css.queueLink}
-      data-testid="wl-trigger-fire-session"
-      onClick={open}
-    >
-      <span className={css.queueSession}>{title}</span>
-      <Icon name="external" size={12} />
-    </button>
   )
 }
 

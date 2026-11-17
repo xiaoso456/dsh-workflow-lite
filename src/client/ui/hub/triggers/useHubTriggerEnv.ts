@@ -69,6 +69,7 @@ export function useHubTriggerEnv(input: HubEnvInput): TriggerEnv {
       history: (node, limit) => hub.history(workflow, node, limit),
       detail: hub.detail,
       cancel: hub.cancel,
+      waive: (node) => hub.waive(workflow, node),
       output: hub.output(workflow),
       tryCommand: (request) => hub.tryCommand({ workflow, ...request }),
       ping: (node) => hub.ping(workflow, node),

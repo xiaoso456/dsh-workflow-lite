@@ -166,6 +166,7 @@ import type {
   TriggerShellsResponse,
   TriggerTryRequest,
   TriggerTryResponse,
+  TriggerWaiveRequest,
 } from './wire/trigger.ts'
 
 /**
@@ -230,6 +231,7 @@ export const WORKFLOW_LITE_ENDPOINTS = [
   'trigger/detail',
   'trigger/cancel',
   'trigger/clear-queue',
+  'trigger/waive',
   'trigger/of-instance',
   'trigger/output',
   'trigger/output-lines',
@@ -359,6 +361,7 @@ export interface WorkflowLiteRpcMap {
   'trigger/detail': { args: TriggerDetailRequest; result: TriggerDetailResponse }
   'trigger/cancel': { args: TriggerCancelRequest; result: FireRecord }
   'trigger/clear-queue': { args: TriggerClearQueueRequest; result: TriggerClearQueueResponse }
+  'trigger/waive': { args: TriggerWaiveRequest; result: Record<string, never> }
   'trigger/of-instance': { args: TriggerOfInstanceRequest; result: TriggerOfInstanceResponse }
   'trigger/output': { args: TriggerOutputRequest; result: TriggerOutputResponse }
   'trigger/output-lines': { args: TriggerOutputLinesRequest; result: TriggerOutputLinesResponse }

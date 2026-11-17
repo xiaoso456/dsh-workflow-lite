@@ -1,6 +1,6 @@
 /*
  * dsh-workflow-lite — 问题图标（ProblemMark.tsx）：状态后面一枚，颜色跟着要不要紧（说明 / 提醒 / 出错）；
- * 悬停、钉住时垫一层底。浮出的小卡里一段说明，右下一个按钮。
+ * 只有图标、不垫底色，悬停、钉住时颜色深一档。浮出的小卡里一段说明，右下一个按钮。
  */
 /* 亮起来（从藏着到显示）时淡入、略放大；跟在后面的字由所在的那一排自己滑（TriggerHead 的 useRowSlide）。 */
 .mark {
@@ -31,9 +31,9 @@
   border: 0;
   border-radius: calc(6px * var(--wl-round, 1));
   background: transparent;
-  color: var(--c);
+  color: color-mix(in srgb, var(--c) 82%, transparent);
   cursor: pointer;
-  transition: background-color 120ms linear;
+  transition: color 120ms linear;
 }
 
 .button[data-tone="warn"] {
@@ -46,7 +46,7 @@
 
 .button:hover,
 .button[data-opened="true"] {
-  background: color-mix(in srgb, var(--c) 14%, transparent);
+  color: var(--c);
 }
 
 .button:focus-visible {

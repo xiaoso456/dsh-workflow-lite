@@ -74,13 +74,23 @@ export function useTriggerScene(input: TriggerSceneInput): TriggerEnv {
   const recentRuns = useCallback(() => readRecentRuns(rpc), [rpc])
 
   const refreshCatalog = wf.refreshCatalog
+  const { edit, flush } = wf
+  const settings = state.doc?.settings
+  const current = state.name
+  // 正开着的这个工作流（跳过、排队要它）走编辑器自己的设置、存下去，别的工作流（接续要它）直接改磁盘上的图。
   const enableRunState = useCallback(
     async (workflow: string): Promise<string | null> => {
+      if (workflow === current) {
+        edit({ type: 'setSettings', settings: { ...settings, runState: true } })
+        if (!(await flush())) return t('trigger.runStateSaveFailed')
+        await refreshCatalog()
+        return null
+      }
       const problem = await turnOnRunState(rpc, workflow)
       if (problem === null) await refreshCatalog()
       return problem
     },
-    [rpc, refreshCatalog],
+    [t, rpc, current, settings, edit, flush, refreshCatalog],
   )
 
   const [reveal, setReveal] = useState<TriggerEnv['reveal']>(null)

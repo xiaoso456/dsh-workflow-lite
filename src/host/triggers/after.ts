@@ -11,6 +11,7 @@
  * @module @xiaoso/dsh-workflow-lite/host/triggers/after
  */
 
+import type { RunStatus } from '../../shared/runState.ts'
 import type { FinishedStatus } from '../../shared/trigger.ts'
 import type { TriggerSource } from '../../shared/types.ts'
 
@@ -39,6 +40,11 @@ export interface RunWatch {
     since: number,
     skip: ReadonlySet<string>,
   ): Promise<{ runs: FinishedRun[]; ids: string[] }>
+  /**
+   * 一个实例的运行状态：整体状态（没有状态文件、读不出来不给）和状态文件最后改动的时刻。
+   * 实例不在了是 `null`。「上次执行未结束时」靠它（见 `runEnd.ts`）。
+   */
+  stateOf(instance: string): Promise<{ status?: RunStatus; at?: number } | null>
 }
 
 type AfterSource = Extract<TriggerSource, { kind: 'after' }>

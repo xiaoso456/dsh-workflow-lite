@@ -1,12 +1,12 @@
 /**
  * dsh-workflow-lite — 「触发」页时间线上的一行：一次触发（{@link FireRow}，概览的「最近」也用）、接下来的一次（{@link PlanRow}）、
- * 时间轴上的「现在」（{@link NowRow}）。
+ * 时间轴上的「现在」（{@link NowRow}）、「排队中」最上面挡着它们的上次执行（{@link PrevRow}）。
  *
  * 同一份元素两种排法，由外面的 `data-layout` 定（见 fireRow.module.css）：清单一行横排（时刻、结果、说明、方式图标）；
  * 时间轴两行，左边一根连续的线、结果色的点，上面结果 + 方式、下面说明。换样子只换属性，不重建行。
  *
  * 点一行看这次触发的详情；悬停或键盘选中时露出「实例 →」（直接打开那次执行）和箭头。
- * 排着的一行：空心的点、写「排队中」，说明那一格是「第 N 个 · 背景信息的开头」；第一个底色浅一档。
+ * 排着的一行：空心的点、写「排队中」，说明那一格是「第 N 个 · 背景信息的开头」。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/triggers/FireRow
  */
@@ -24,8 +24,10 @@ import {
 import { clockTime, durationText } from '../../../model/time.ts'
 import { cx } from '../../kit/cx.ts'
 import { Icon, type IconName } from '../../kit/Icon.tsx'
+import { PrevSessionLink } from '../../trigger/PrevRunNote.tsx'
 import tone from '../../trigger/stateTone.module.css'
 import { FIRE_ICON } from '../../trigger/TriggerMark.tsx'
+import type { PrevRunView } from '../../trigger/triggerEnv.ts'
 import css from './fireRow.module.css'
 
 /** 方式：图标 + 名字（清单里名字收起来，悬停看）。 */
@@ -75,7 +77,7 @@ export function FireRow(props: {
       data-outcome={kind}
       data-pick
       data-run={run !== undefined || undefined}
-      data-next={props.place === 1 || undefined}
+      data-hollow={kind === 'queued' || undefined}
     >
       <button
         type="button"
@@ -145,6 +147,53 @@ export function PlanRow(props: {
         <How icon={props.icon} text={props.how} />
         <span className={cx(css.what, css.listOnly)}>{listText}</span>
         <span className={cx(css.what, css.railOnly)}>{props.after ?? ''}</span>
+      </div>
+    </li>
+  )
+}
+
+/**
+ * 「排队中」最上面那一行：挡着排队的上次执行。时刻是它触发的钟点；点跟着它到了哪一步（还没开始、没有运行状态是灰色空心，
+ * 执行中实心强调色，等回复提醒色）。清单里一行：「上次执行」、现在怎样、所在的会话；时间轴上会话挪到第二行。
+ * 行尾是外面给的按钮（「视为已结束」）。它不是一条触发记录：不能点开看详情，上下键也不走到它。
+ */
+export function PrevRow(props: {
+  t: T
+  prev: PrevRunView
+  /** 行尾的按钮。 */
+  action: React.ReactNode
+}): React.JSX.Element {
+  const { t, prev } = props
+  const hollow = prev.phase === 'unstarted' || prev.phase === 'noState' || undefined
+  return (
+    <li
+      className={css.row}
+      data-outcome="prev"
+      data-phase={prev.phase}
+      data-hollow={hollow}
+      data-testid="wl-hub-trg-prev"
+    >
+      <div className={css.main}>
+        <time className={css.time}>{clockTime(prev.at)}</time>
+        <span
+          className={cx(css.dot, css.prevDot)}
+          data-phase={prev.phase}
+          data-hollow={hollow}
+          aria-hidden="true"
+        />
+        <span className={css.state}>{t('trigger.prev.title')}</span>
+        <span className={css.prevNote} data-tone={prev.tone} data-testid="wl-hub-trg-queue-prev">
+          {prev.text}
+        </span>
+        {prev.session !== undefined && (
+          <PrevSessionLink
+            t={t}
+            session={prev.session}
+            className={css.prevSession}
+            testId="wl-hub-trg-queue-session"
+          />
+        )}
+        <span className={css.prevAct}>{props.action}</span>
       </div>
     </li>
   )

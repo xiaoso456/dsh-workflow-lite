@@ -5,7 +5,8 @@
  * 祖先写着 `data-layout="rail"` 时是时间轴：两行，左边每行画自己那一段线（连起来就是一根，首尾由时间线那边截到点上），
  * 点在线上；上面结果 + 方式（图标加字），下面说明。
  *
- * 颜色：`--c` 是点，`--c-text` 是结果的字。已发出绿、跳过灰、失败红、不需要琥珀，计划是触发方式的淡色，「现在」跟状态。
+ * 颜色：`--c` 是点，`--c-text` 是结果的字。已发出绿、跳过灰、失败红、不需要琥珀，计划是触发方式的淡色，「现在」跟状态，
+ * 上次执行跟着它到了哪一步。
  */
 
 .row {
@@ -46,14 +47,26 @@
   --c-text: var(--tone-text);
 }
 
-/* 排队中：强调色的字、空心的点；第一个（下一个就轮到它）底色浅一档。 */
+/* 排队中：强调色的字、空心的点（底色只给挡着它们的上次执行那一行，排着的不再分档）。 */
 .row[data-outcome="queued"] {
   --c: var(--wl-accent-text);
   --c-text: var(--wl-accent-text);
 }
 
-.row[data-next] {
-  background: color-mix(in srgb, var(--wl-accent) 7%, transparent);
+/* 上次执行：还没开始、没有运行状态是灰色空心的点；执行中实心强调色，等回复提醒色。底色浅一层（挡着下面排着的）。 */
+.row[data-outcome="prev"] {
+  --c: var(--wl-text-3);
+  --c-text: var(--wl-text);
+
+  background: color-mix(in srgb, var(--wl-fill) 70%, transparent);
+}
+
+.row[data-outcome="prev"][data-phase="running"] {
+  --c: var(--wl-accent);
+}
+
+.row[data-outcome="prev"][data-phase="waiting"] {
+  --c: var(--wl-warn-dot);
 }
 
 /* 有实例的行给「实例 →」留出位置。 */
@@ -124,8 +137,8 @@ button.main:focus-visible {
   background: var(--c);
 }
 
-/* 排着的：空心的点（里面填面板色，时间轴的线不从点里穿过去）。 */
-.row[data-outcome="queued"] .dot {
+/* 空心的点（排着的、还没开始的上次执行）：里面填面板色，时间轴的线不从点里穿过去。 */
+.row[data-hollow] .dot {
   box-sizing: border-box;
   border: 1.5px solid var(--c);
   background: var(--wl-panel);
@@ -235,6 +248,37 @@ button.main:focus-visible {
   display: none;
 }
 
+/* 上次执行：清单里一行，时刻、「上次执行」、现在怎样、会话、行尾按钮。 */
+.row[data-outcome="prev"] .main {
+  grid-template-areas: "time state note session act";
+  grid-template-columns: var(--time-w) 72px auto minmax(0, 1fr) auto;
+}
+
+.prevNote {
+  grid-area: note;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prevNote[data-tone="warn"] {
+  color: var(--wl-warn);
+  font-weight: 600;
+}
+
+.prevSession {
+  grid-area: session;
+  justify-self: start;
+}
+
+.prevAct {
+  display: flex;
+  grid-area: act;
+  align-items: center;
+}
+
 /* 「现在」只在时间轴上有：清单里头部状态条已经说了。 */
 .row[data-outcome="now"] {
   display: none;
@@ -295,16 +339,26 @@ button.main:focus-visible {
     0 0 0 5px color-mix(in srgb, var(--c) 32%, transparent);
 }
 
-:global([data-layout="rail"]) .row[data-outcome="queued"] .dot {
+:global([data-layout="rail"]) .row[data-outcome="queued"] .dot,
+:global([data-layout="rail"]) .row[data-outcome="prev"] .dot {
   border-width: 2px;
 }
 
-/* 第一个排着的底色浅一档：点外面那圈、空心的里面跟着底色，不露出一圈面板色。 */
-:global([data-layout="rail"]) .row[data-next] .dot {
-  --next-bg: color-mix(in srgb, var(--wl-accent) 7%, var(--wl-panel));
+/* 时间轴：上面「上次执行」+ 现在怎样，下面会话；按钮竖着居中。 */
+:global([data-layout="rail"]) .row[data-outcome="prev"] .main {
+  grid-template-areas:
+    "time dot state note act"
+    ". dot session session act";
+  grid-template-columns: var(--time-w) 22px auto minmax(0, 1fr) auto;
+}
 
-  background: var(--next-bg);
-  box-shadow: 0 0 0 3px var(--next-bg);
+:global([data-layout="rail"]) .prevNote {
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-meta);
+}
+
+:global([data-layout="rail"]) .prevSession {
+  font-size: var(--wl-fs-meta);
 }
 
 :global([data-layout="rail"]) .row[data-pick]:hover .dot,
@@ -316,6 +370,23 @@ button.main:focus-visible {
 :global([data-layout="rail"]) .row[data-outcome="queued"][data-pick]:hover .dot,
 :global([data-layout="rail"]) .row[data-outcome="queued"][data-pick]:focus-within .dot {
   background: color-mix(in srgb, var(--wl-text) 7%, var(--wl-panel));
+}
+
+/* 上次执行的点：外面那圈（空心的连里面）跟着这一行的底色；执行中再加一圈淡的（和「现在」一样，说明它在动）。 */
+:global([data-layout="rail"]) .prevDot {
+  --prev-bg: color-mix(in srgb, var(--wl-fill) 70%, var(--wl-panel));
+
+  box-shadow: 0 0 0 3px var(--prev-bg);
+}
+
+:global([data-layout="rail"]) .prevDot[data-hollow] {
+  background: var(--prev-bg);
+}
+
+:global([data-layout="rail"]) .prevDot[data-phase="running"] {
+  box-shadow:
+    0 0 0 3px var(--prev-bg),
+    0 0 0 5px color-mix(in srgb, var(--c) 32%, transparent);
 }
 
 :global([data-layout="rail"]) .state {

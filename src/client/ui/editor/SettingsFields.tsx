@@ -21,7 +21,7 @@ import {
 } from '../../../shared/types.ts'
 import type { LocaleKey, T } from '../../i18n.ts'
 import { cx } from '../kit/cx.ts'
-import { HelpTip } from '../kit/HelpTip.tsx'
+import { HelpList, HelpTip } from '../kit/HelpTip.tsx'
 import { Icon, type IconName } from '../kit/Icon.tsx'
 import { Segmented } from '../kit/Segmented.tsx'
 import ui from '../kit/ui.module.css'
@@ -48,16 +48,6 @@ const REUSE_TEXT: Record<ReusePolicy, { title: LocaleKey; desc: LocaleKey }> = {
   fresh: { title: 'settings.reuse.fresh', desc: 'settings.reuse.freshDesc' },
 }
 
-function Tips(props: { t: T; keys: readonly LocaleKey[] }): React.JSX.Element {
-  return (
-    <ul className={ui.hintList}>
-      {props.keys.map((key) => (
-        <li key={key}>{props.t(key)}</li>
-      ))}
-    </ul>
-  )
-}
-
 // ─────────────────────────────────────────────────────────────
 // 执行方式 + 复用执行者
 // ─────────────────────────────────────────────────────────────
@@ -78,7 +68,7 @@ export function ModeGroup(props: {
         title={t('settings.mode')}
         helpTestId="wl-settings-mode-help"
         help={
-          <Tips
+          <HelpList
             t={t}
             keys={['settings.modeTipPlan', 'settings.leaderNote', 'settings.modeTipTools']}
           />
@@ -120,7 +110,7 @@ export function ModeGroup(props: {
               {t('settings.reuse')}
               <HelpTip label={t('settings.reuse')} testId="wl-settings-reuse-help">
                 <p className={ui.hintTitle}>{t('settings.reuse')}</p>
-                <Tips
+                <HelpList
                   t={t}
                   keys={[
                     'settings.reuseTipWhen',
@@ -219,7 +209,7 @@ export function DuringGroup(props: {
           desc={t('settings.goalDesc')}
           helpTestId="wl-settings-goal-help"
           help={
-            <Tips
+            <HelpList
               t={t}
               keys={['settings.goalTipPlan', 'settings.goalTipWhy', 'settings.goalTipSkip']}
             />
@@ -234,7 +224,7 @@ export function DuringGroup(props: {
           desc={t('settings.runStateDesc')}
           helpTestId="wl-settings-run-help"
           help={
-            <Tips
+            <HelpList
               t={t}
               keys={[
                 'settings.runStateTipInstance',
@@ -288,7 +278,7 @@ export function RootGroup(props: {
         helpTestId="wl-settings-root-help"
         help={
           <>
-            <Tips
+            <HelpList
               t={t}
               keys={[
                 'settings.rootTipJoin',

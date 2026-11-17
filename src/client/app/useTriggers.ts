@@ -65,6 +65,8 @@ export interface Triggers {
   detail(fire: string): Promise<TriggerDetailResponse>
   /** 取消排着的一次（记成跳过）。取消不了回一句原因。 */
   cancel(fire: string): Promise<string | null>
+  /** 把这张卡片上一次发起的执行视为已结束（跳过的照常触发、排着的放行下一个）。做不了回一句原因。 */
+  waive(node: string): Promise<string | null>
   /** 定时检查命令、监听程序最近的输出。 */
   output: OutputAccess
   /** 「试运行」还没保存的命令；请求本身失败回一句原因。 */
@@ -196,6 +198,20 @@ export function useTriggers(
     [rpc, workflow, lister],
   )
 
+  const waive = useCallback(
+    async (node: string): Promise<string | null> => {
+      if (workflow === null) return null
+      try {
+        await rpc.call('trigger/waive', { workflow, node })
+        await lister.run(workflow)
+        return null
+      } catch (error) {
+        return errorMessage(error)
+      }
+    },
+    [rpc, workflow, lister],
+  )
+
   const output = useMemo(() => createOutputAccess(rpc, workflow), [rpc, workflow])
 
   const tryCommand = useCallback(
@@ -234,10 +250,11 @@ export function useTriggers(
       history,
       detail,
       cancel,
+      waive,
       output,
       tryCommand,
       ping,
     }),
-    [view, list.owner, set, fire, history, detail, cancel, output, tryCommand, ping],
+    [view, list.owner, set, fire, history, detail, cancel, waive, output, tryCommand, ping],
   )
 }

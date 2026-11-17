@@ -9,11 +9,13 @@
 
 import { createContext, useContext } from 'react'
 import type { GraphListResponse } from '../../../shared/wire/graph.ts'
+import type { TriggerWaiting } from '../../../shared/wire/trigger.ts'
 import type { SessionRow } from '../../app/sessions.ts'
 import type { ShellAccess } from '../../app/shells.ts'
 import type { Triggers } from '../../app/useTriggers.ts'
 import type { RunBrief } from '../../app/workflowRuns.ts'
 import type { T } from '../../i18n.ts'
+import { type PrevRunText, prevRunText } from '../../model/prevRun.ts'
 
 export type { RunBrief } from '../../app/workflowRuns.ts'
 
@@ -110,22 +112,44 @@ export function workflowChoices(
     .sort((a, b) => a.name.localeCompare(b.name))
 }
 
-/**
- * 排着的在等的那个会话：标题（侧栏里找不到就说「上一次触发的会话」），跳得过去时带上 `open`。
- * 没有在等的（没有排着的）是 `undefined`。
- */
-export function waitingSession(
+/** 上次执行所在的会话：会话列表里找得到就有名字、点了打开；找不到（会话删了）两样都没有。 */
+export interface PrevSession {
+  title?: string | undefined
+  open?: (() => void) | undefined
+}
+
+/** 在等的上次执行：什么时候触发的、现在怎样（{@link prevRunText}）、在哪个会话（发进去了才有）。 */
+export interface PrevRunView extends PrevRunText {
+  at: number
+  session?: PrevSession | undefined
+}
+
+/** 在等的上次执行（`TriggerView.waiting`）怎么写；没有在等的是 `undefined`。 */
+export function prevRunView(
   t: T,
-  env: Pick<TriggerEnv, 'sessions' | 'openSession'>,
-  session: string | undefined,
-): { title: string; open: () => void } | undefined {
-  if (session === undefined) return undefined
-  const title = env.sessions.find((choice) => choice.id === session)?.title
+  env: Pick<TriggerEnv, 'openSession' | 'sessions'>,
+  waiting: TriggerWaiting | undefined,
+  now: number,
+): PrevRunView | undefined {
+  if (waiting === undefined) return undefined
+  const id = waiting.session
+  const title = id === undefined ? undefined : env.sessions.find((row) => row.id === id)?.title
   return {
-    title: title ?? t('trigger.fire.prevSession'),
-    open: () => {
-      env.openSession(session)
-    },
+    ...prevRunText(t, waiting, now),
+    at: waiting.at,
+    ...(id === undefined
+      ? {}
+      : {
+          session:
+            title === undefined
+              ? {}
+              : {
+                  title,
+                  open: () => {
+                    env.openSession(id)
+                  },
+                },
+        }),
   }
 }
 

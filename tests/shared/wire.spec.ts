@@ -103,6 +103,6 @@ describe('RPC 目标', () => {
     // 七条导入导出（pack/scan · export · read · upload · inspect · apply · discard）、
     // 五条导出成 skill（skillPreview · skillExport · skillDir · skillFile · skillImage）、
     // 十九条触发（trigger/list · set · fire · history · activity · detail · cancel · clear-queue · of-instance · output · output-lines · output-clear · all · pause · http · try · ping · shells · shell）。
-    expect(names).toHaveLength(85)
+    expect(names).toHaveLength(86)
   })
 })

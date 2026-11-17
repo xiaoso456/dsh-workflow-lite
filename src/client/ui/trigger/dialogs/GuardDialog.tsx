@@ -1,6 +1,9 @@
 /**
- * dsh-workflow-lite — 「保护」对话框：上一次没跑完怎么办（跳过 / 排队 / 同时运行，排队再问最多排几个）、错过的补不补、
+ * dsh-workflow-lite — 「保护」对话框：上次执行未结束时怎么办（跳过 / 排队 / 同时运行，排队再问排队上限）、错过的补不补、
  * 每小时上限、连续失败几次停用（草稿，「保存」才写进图）。
+ *
+ * 「上次执行未结束时」标题后面一个「?」说怎么算结束；选了跳过、排队而工作流没开「记录运行状态」时再亮一枚 ⚠
+ * （和面板状态行上的是同一个问题图标），小卡里「去打开」先问一句再开。不拦保存：存进图里照样存，只是开关打不开。
  *
  * 和会话方式同存在图里的启动方式（`launch`）下；缺省值不留在图里，借读入的规范化去掉。
  *
@@ -11,20 +14,34 @@ import { useState } from 'react'
 import { launchOf, NO_LIMIT, OVERLAPS, readTriggerData } from '../../../../shared/trigger.ts'
 import type { TriggerData, TriggerLaunch, TriggerOverlap } from '../../../../shared/types.ts'
 import type { LocaleKey, T } from '../../../i18n.ts'
+import type { Problem } from '../../../model/triggerProblem.ts'
+import { useConfirm } from '../../kit/Confirm.tsx'
 import { cx } from '../../kit/cx.ts'
+import { HelpList, HelpTip } from '../../kit/HelpTip.tsx'
 import { Stepper } from '../../kit/NumberStep.tsx'
 import { Segmented } from '../../kit/Segmented.tsx'
+import ui from '../../kit/ui.module.css'
 import { Presence } from '../../motion/exits.tsx'
 import { SwitchTrack } from '../../motion/marks.tsx'
 import ins from '../../panel/panel.module.css'
+import { ProblemMark } from '../ProblemMark.tsx'
 import { TriggerMark } from '../TriggerMark.tsx'
 import css from '../trigger.module.css'
 import { TriggerSheet } from './TriggerSheet.tsx'
+
+/** 卡片所在的工作流开没开「记录运行状态」，和怎么去打开（做不了回一句原因）。 */
+export interface RunStateLink {
+  workflow: string
+  on: boolean
+  enable(): Promise<string | null>
+}
 
 export function GuardDialog(props: {
   t: T
   name: string
   data: TriggerData
+  /** 看不出来（实例视图）就不给：不亮 ⚠。 */
+  runState?: RunStateLink | undefined
   onSave(launch: TriggerLaunch | undefined): void
   onClose(): void
 }): React.JSX.Element {
@@ -56,6 +73,7 @@ export function GuardDialog(props: {
         t={t}
         value={launch.overlap}
         queueMax={launch.queueMax}
+        runState={props.runState}
         onChange={(overlap) => patch({ overlap })}
         onQueueMax={(queueMax) => patch({ queueMax })}
       />
@@ -98,13 +116,15 @@ const OVERLAP_TEXT: Record<TriggerOverlap, { label: LocaleKey; desc: LocaleKey }
 }
 
 /**
- * 上一次没跑完怎么办：标题右边三选一，下面一句跟着选的换；选了「排队」再展开一行「最多排几个」。
+ * 上次执行未结束时怎么办：标题右边三选一，下面一句跟着选的换；选了「排队」再展开一行「排队上限」。
+ * 标题后面「?」说怎么算结束，要开「记录运行状态」而没开时再亮 ⚠（一直挂着、没事时藏着，亮起藏起都不挪东西）。
  * 三句说明叠在同一格里、只露选中的那句（交叉淡），框按最长的那句占高，换选项时下面的东西不跳。
  */
 function OverlapBox(props: {
   t: T
   value: TriggerOverlap
   queueMax: number
+  runState: RunStateLink | undefined
   onChange(value: TriggerOverlap): void
   onQueueMax(value: number): void
 }): React.JSX.Element {
@@ -112,7 +132,16 @@ function OverlapBox(props: {
   return (
     <div className={css.overlap} data-testid="wl-trigger-overlap">
       <div className={css.row}>
-        <span className={cx(ins.requiredTitle, css.grow)}>{t('trigger.overlap')}</span>
+        <span className={cx(ins.requiredTitle, css.grow, css.overlapTitle)}>
+          {t('trigger.overlap')}
+          <HelpTip label={t('trigger.overlapHelp')} testId="wl-trigger-overlap-help">
+            <p className={ui.hintTitle}>{t('trigger.overlapHelp')}</p>
+            <HelpList t={t} keys={OVERLAP_HELP} />
+          </HelpTip>
+          {props.runState !== undefined && (
+            <RunStateMark t={t} overlap={props.value} link={props.runState} />
+          )}
+        </span>
         <Segmented<TriggerOverlap>
           label={t('trigger.overlap')}
           value={props.value}
@@ -148,6 +177,73 @@ function OverlapBox(props: {
         </div>
       </Presence>
     </div>
+  )
+}
+
+const OVERLAP_HELP: readonly LocaleKey[] = [
+  'trigger.overlapHelp.state',
+  'trigger.overlapHelp.open',
+  'trigger.overlapHelp.waive',
+  'trigger.overlapHelp.needs',
+]
+
+/**
+ * 选了跳过、排队而工作流没开「记录运行状态」：一枚提醒色的 ⚠，小卡里「去打开」，点了在图标旁边问一句再开。
+ * 开成了就藏起来（不等外面重读）；没开成在小卡里写原因、钉开。
+ */
+function RunStateMark(props: {
+  t: T
+  overlap: TriggerOverlap
+  link: RunStateLink
+}): React.JSX.Element {
+  const { t, link } = props
+  const confirm = useConfirm<HTMLButtonElement>()
+  const [done, setDone] = useState(false)
+  const [failed, setFailed] = useState<string | null>(null)
+  const [pin, setPin] = useState(0)
+  const needs = props.overlap !== 'parallel' && !link.on && !done
+  const problem: Problem | null = !needs
+    ? null
+    : failed !== null
+      ? { text: failed, tone: 'bad' }
+      : {
+          text: t('trigger.needsRunState'),
+          tone: 'warn',
+          action: { label: 'trigger.afterEnable', run: 'runState' },
+        }
+  const enable = (): void => {
+    void link.enable().then((reason) => {
+      if (reason === null) {
+        setDone(true)
+        return
+      }
+      setFailed(reason)
+      setPin((count) => count + 1)
+    })
+  }
+  return (
+    <>
+      <ProblemMark
+        t={t}
+        problem={problem}
+        testId="wl-trigger-overlap-problem"
+        anchorRef={confirm.anchorRef}
+        pin={pin}
+        onAction={() => {
+          setFailed(null)
+          confirm.show()
+        }}
+      />
+      {confirm.render({
+        t,
+        title: t('trigger.runStateTitle').replace('{name}', link.workflow),
+        desc: t('trigger.runStateDesc'),
+        confirmText: t('trigger.runStateOk'),
+        testId: 'wl-trigger-overlap-run-state',
+        danger: false,
+        onConfirm: enable,
+      })}
+    </>
   )
 }
 

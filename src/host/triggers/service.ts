@@ -73,15 +73,15 @@ import type {
 import { assetsDir } from '../store/paths.ts'
 import { fail, type Outcome, ok } from '../store/repoResult.ts'
 import { afterInfo, afterProblem, type RunWatch } from './after.ts'
-import { SessionBusy } from './busy.ts'
 import type { TriggerDefinition, TriggerGraphs } from './graphs.ts'
 import { type HookBind, hookUrl, newHookId, newHookToken } from './hooks.ts'
 import type { IntakeBatch } from './intake.ts'
-import { type FireInput, Launcher, previousSession } from './launcher.ts'
+import { type FireInput, Launcher, SKIP_UNFINISHED } from './launcher.ts'
 import { advertisedHost } from './netAddress.ts'
 import { OwnerLock } from './owner.ts'
 import { FRESH_PROBE } from './poller.ts'
 import { type DueFire, planRound, upcoming } from './reconcile.ts'
+import { endProblem, RunEnds } from './runEnd.ts'
 import {
   type LiveRef,
   type LiveRuntime,
@@ -133,8 +133,8 @@ export interface TriggerServiceDeps {
   defaultShell?: () => string
   /** 每张定时检查、监听卡片最近的输出留多少行（插件设置）；不给是 {@link OUTPUT_LINES} 的缺省值。 */
   outputLines?: () => number
-  /** 实例那边：接续触发看别的工作流有没有实例结束。不给就当没有这种触发源。 */
-  runs?: RunWatch
+  /** 实例那边：接续触发看别的工作流有没有实例结束，跳过、排队看上一次跑完没有。 */
+  runs: RunWatch
   now?: () => number
   /** 测试里换掉（假的进程号、假的存活判断）。 */
   lock?: OwnerLock
@@ -147,10 +147,10 @@ export class TriggerService {
   private readonly store: TriggerStore
   private readonly graphs: TriggerGraphs
   private readonly sessions: SessionPort
-  private readonly runs: RunWatch | undefined
+  private readonly runs: RunWatch
   private readonly launcher: Launcher
-  /** 触发发进去的会话忙不忙（跳过、排队都按它；刚发进去的那一会儿也算忙）。 */
-  private readonly busy: SessionBusy
+  /** 上一次触发发起的执行结束了没有（跳过、排队、放行排着的都按它）。 */
+  private readonly ends: RunEnds
   private readonly lock: OwnerLock
   private readonly runtime: LiveRuntime
   private readonly dataDir: () => string
@@ -181,8 +181,8 @@ export class TriggerService {
     this.outputLines = deps.outputLines ?? (() => OUTPUT_LINES.fallback)
     this.now = deps.now ?? Date.now
     this.warn = deps.warn ?? (() => {})
-    this.busy = new SessionBusy(deps.sessions, this.now)
-    this.launcher = new Launcher(deps.sessions, deps.store, this.busy)
+    this.ends = new RunEnds(deps.store, deps.runs)
+    this.launcher = new Launcher(deps.sessions, deps.store, this.ends)
     this.lock = deps.lock ?? new OwnerLock({ file: () => ownerFile(deps.dataDir()), now: this.now })
     const events: RuntimeEvents = {
       deliver: (ref, batch) => this.enqueue(() => this.deliver(ref, batch)),
@@ -291,7 +291,8 @@ export class TriggerService {
 
   /**
    * 排着的轮到没有：每一轮先问一次「哪些卡片有排着的」（只碰排着的那几行，平时是空的就到此为止），
-   * 再一张一张看上一次触发的会话还忙不忙，不忙了发最早的那一个（一轮每张卡片最多一个）。
+   * 再一张一张看上一次触发发起的执行结束了没有（按运行状态，见 `runEnd.ts`），结束了发最早的那一个（一轮每张卡片最多一个）。
+   * 看不出上一次跑完没有的（工作流没开「记录运行状态」）先留着。
    * 卡片关掉了、删掉了的排着的都记成跳过；全部暂停时留着不发。
    */
   private async releaseQueued(locals: TriggerLocals, now: number, paused: boolean): Promise<void> {
@@ -310,8 +311,8 @@ export class TriggerService {
       }
       if (paused) continue
       const { trigger, blocked } = found.result
-      const previous = previousSession(trigger.data, local)
-      if (previous !== undefined && this.busy.busy(previous)) continue
+      if (endProblem(trigger.data, trigger.runState) !== null) continue
+      if (!(await this.ends.previous(local)).ended) continue
       const [first] = await this.store.queuedFires(workflow, node)
       const detail = first === undefined ? null : await this.store.detail(first.id)
       if (detail === null) continue
@@ -330,6 +331,44 @@ export class TriggerService {
     }
     const detail = await this.store.detail(fire)
     return detail === null ? fail('not_found', `没有这次触发：${fire}`) : ok(detail.record)
+  }
+
+  /**
+   * 视为已结束：把上一次发起的那次执行当作已经结束（模型没把运行状态改成结束、一直卡着时用），
+   * 下一轮放行排着的下一个。
+   */
+  async waive(workflow: string, node: string): Promise<Outcome<Record<string, never>>> {
+    const refused = await this.store.update((locals): string | null => {
+      const local = locals[workflow]?.[node]
+      if (local?.lastFire === undefined) return '这张卡片还没有发出去过'
+      local.waived = local.lastFire
+      return null
+    })
+    if (refused !== null) return fail('blocked', refused)
+    if (this.running) this.schedule(0)
+    return ok({})
+  }
+
+  /**
+   * 这张卡片排着几个、在等哪一次跑完。在等的只在有排着的、或选了跳过而最近一次因为上一次没结束被跳过时才看
+   * （平时不去读实例的运行状态）。
+   */
+  private async queuedOf(
+    scene: Scene,
+    workflow: string,
+    trigger: TriggerDefinition,
+    local: TriggerLocal,
+    recent: FireRecord | undefined,
+  ): Promise<Pick<TriggerView, 'queued' | 'waiting'>> {
+    const queued = scene.queued.get(`${workflow}\u0000${trigger.node}`)
+    const skipping =
+      launchOf(trigger.data).overlap === 'skip' &&
+      recent?.outcome === 'skipped' &&
+      recent.reason === SKIP_UNFINISHED
+    const counted = queued === undefined ? {} : { queued }
+    if (queued === undefined && !skipping) return counted
+    const previous = await this.ends.previous(local)
+    return previous.ended ? counted : { ...counted, waiting: previous.waiting }
   }
 
   /** 清空一张卡片排着的（都记成跳过），回清掉了几个。 */
@@ -377,7 +416,6 @@ export class TriggerService {
    */
   private async fireAfter(locals: TriggerLocals, now: number, paused: boolean): Promise<void> {
     const runs = this.runs
-    if (runs === undefined) return
     for (const [workflow, nodes] of Object.entries(locals)) {
       const cards = Object.entries(nodes).filter(([, local]) => local.enabled)
       if (cards.length === 0) continue
@@ -566,7 +604,7 @@ export class TriggerService {
       if (local === undefined) return
       if (record.outcome === 'sent') {
         delete local.failures
-        if (record.session !== undefined) local.lastSession = record.session
+        sentOn(local, record)
         return
       }
       if (record.outcome !== 'failed') return
@@ -707,7 +745,8 @@ export class TriggerService {
         ...(local.shell === undefined ? {} : { shell: local.shell }),
         ...(local.session === undefined ? {} : { session: local.session }),
         ...(recent === undefined ? {} : { last: recent }),
-        ...queuedOf(scene, workflow, trigger, local),
+        ...(await this.queuedOf(scene, workflow, trigger, local, recent)),
+        ...(trigger.runState ? { runState: true as const } : {}),
         ...(command === undefined
           ? {}
           : {
@@ -737,7 +776,8 @@ export class TriggerService {
           sourceProblem(source) ??
           (source.kind === 'after'
             ? afterProblem(workflow, source, await this.graphs.read(source.workflow))
-            : null)
+            : null) ??
+          endProblem(trigger.data, trigger.runState)
         if (problem !== null) return { ...base, state: 'invalid', problem }
         const pending = pendingApproval(trigger, local, this.shellFor(local))
         if (pending !== null) return { ...base, state: 'confirm', problem: pending }
@@ -799,6 +839,7 @@ export class TriggerService {
       source.kind === 'after' && request.enabled === true
         ? afterProblem(request.workflow, source, await this.graphs.read(source.workflow))
         : null
+    const unjudged = request.enabled === true ? endProblem(trigger.data, trigger.runState) : null
     const refused = await this.store.update((locals): string | null => {
       const group = locals[request.workflow] ?? {}
       const local: TriggerLocal = group[request.node] ?? { enabled: false }
@@ -826,7 +867,7 @@ export class TriggerService {
       const endpoint = setEndpoint(request, source, local, locals)
       if (endpoint !== null) return endpoint
       if (request.enabled === true && !local.enabled) {
-        const missing = after ?? enableProblem(trigger, local, this.shellFor(local))
+        const missing = after ?? unjudged ?? enableProblem(trigger, local, this.shellFor(local))
         if (missing !== null) return missing
         local.enabled = true
         local.since = now
@@ -875,11 +916,10 @@ export class TriggerService {
       blocked === undefined
         ? await this.launcher.fire(input)
         : await this.launcher.fail(input, `工作流现在执行不了：${blocked}`)
-    if (record.outcome === 'sent' && record.session !== undefined) {
-      const { session } = record
+    if (record.outcome === 'sent') {
       await this.store.update((locals) => {
         const current = locals[request.workflow]?.[request.node]
-        if (current !== undefined) current.lastSession = session
+        if (current !== undefined) sentOn(current, record)
       })
     }
     return ok(record)
@@ -1053,17 +1093,11 @@ interface Scene {
   now: number
 }
 
-/** 这张卡片排着几个、在等哪个会话（没有排着的都不给）。 */
-function queuedOf(
-  scene: Scene,
-  workflow: string,
-  trigger: TriggerDefinition,
-  local: TriggerLocal,
-): { queued?: number; waiting?: string } {
-  const count = scene.queued.get(`${workflow}\u0000${trigger.node}`)
-  if (count === undefined) return {}
-  const waiting = previousSession(trigger.data, local)
-  return waiting === undefined ? { queued: count } : { queued: count, waiting }
+/** 发出去了一次：记下发进去的会话和这次的编号（下一次看它跑完没有），之前点过的「视为已结束」作废。 */
+function sentOn(local: TriggerLocal, record: FireRecord): void {
+  if (record.session !== undefined) local.lastSession = record.session
+  local.lastFire = record.id
+  delete local.waived
 }
 
 /** 列表回答里与具体卡片无关的那两样。 */

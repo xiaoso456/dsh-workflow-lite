@@ -6,12 +6,15 @@
  *   在按钮前面亮一枚图标（{@link ProblemMark}），悬停看说明、点小卡里的按钮处理——不在框下面另起一段字，不挤动下面的东西。
  *   要在本机跑命令、还没确认过的卡片，打开前在开关旁边浮出确认卡，列出命令和工作区；还有排着的，关之前问一句；
  *   有排着的时候状态行后半句写「排队 3 个」（比下一次、启动时刻要紧）；
+ *   选了跳过、排队却没开「记录运行状态」的打不开：点开关时把那枚图标的小卡钉开，在那里说原因、带「去打开」；
+ *   跳过的上次执行一直没结束，小卡里带「视为已结束」。两样都先在开关旁边问一句再做；
  * - {@link TriggerLog}（面板最下面）：最近几次触发记录，在自己的框里滚（最近的输出在「触发方式」对话框里）。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/trigger/TriggerStatus
  */
 
-import { commandOf } from '../../../shared/trigger.ts'
+import { useState } from 'react'
+import { commandOf, needsRunState } from '../../../shared/trigger.ts'
 import type { TriggerData } from '../../../shared/types.ts'
 import { firesSignal, useFires } from '../../app/useFires.ts'
 import type { T } from '../../i18n.ts'
@@ -30,7 +33,7 @@ import { QueueMark } from './QueueMark.tsx'
 import { useSwitchConfirm } from './SwitchConfirm.tsx'
 import tone from './stateTone.module.css'
 import css from './trigger.module.css'
-import { type TriggerEnv, waitingSession } from './triggerEnv.ts'
+import { prevRunView, type TriggerEnv } from './triggerEnv.ts'
 
 /** 面板里列最近几条触发记录（全部的在工作流中心「触发」页），框里露出几行。 */
 const SHOWN = 20
@@ -49,6 +52,10 @@ export function TriggerStatus(props: {
   const command = commandOf(data.source)
   const approve = useSwitchConfirm<HTMLButtonElement>()
   const queued = view?.queued ?? 0
+  // 打不开（没开「记录运行状态」）时点开关：递一下，把问题小卡钉开。
+  const [pin, setPin] = useState(0)
+  // 去打开「记录运行状态」、视为已结束没做成的原因（写在问题小卡里，下次点再清掉）。
+  const [failed, setFailed] = useState<string | null>(null)
   const fireNow = useFireNow({
     t,
     testId: 'wl-trigger',
@@ -65,24 +72,41 @@ export function TriggerStatus(props: {
       return
     }
     if (on && queued > 0) {
-      approve.askOff()
+      approve.ask('off')
       return
     }
-    if (env.toggle(node, !on) === 'confirm') approve.askApprove()
+    if (!on && needsRunState(data, view?.runState === true)) {
+      setPin((count) => count + 1)
+      return
+    }
+    if (env.toggle(node, !on) === 'confirm') approve.ask('approve')
   }
 
-  /** 小卡里的按钮：确认命令就在开关旁边问；重新打开同点开关（要确认的照样先问）。 */
+  /**
+   * 小卡里的按钮：确认命令、去打开「记录运行状态」、视为已结束都在开关旁边问；
+   * 重新打开同点开关（要确认的照样先问）。
+   */
   const onFix = (run: ProblemFix): void => {
-    if (run === 'approve' || env.toggle(node, true) === 'confirm') approve.askApprove()
+    setFailed(null)
+    if (run === 'runState' || run === 'waive') approve.ask(run)
+    else if (run === 'approve' || env.toggle(node, true) === 'confirm') approve.ask('approve')
+  }
+  const settle = (task: Promise<string | null>): void => {
+    void task.then((reason) => {
+      setFailed(reason)
+      if (reason !== null) setPin((count) => count + 1)
+    })
   }
 
   // 「立即触发一次」没发出去的原因最要紧（刚点的），留到下一次。
   const problem: Problem | null =
     fired?.tone === 'bad'
       ? { text: fired.text, tone: 'bad' }
-      : view === undefined
-        ? null
-        : problemOf(t, view, data.source, env.triggers.owner?.pid)
+      : failed !== null
+        ? { text: failed, tone: 'bad' }
+        : view === undefined
+          ? null
+          : problemOf(t, view, data, env.triggers.owner?.pid)
 
   return (
     <section className={ins.field} data-testid="wl-trigger-status" data-state={state}>
@@ -124,18 +148,33 @@ export function TriggerStatus(props: {
           </span>
         </button>
         <span className={css.statusAction}>
-          <ProblemMark t={t} problem={problem} testId="wl-trigger-problem" onAction={onFix} />
+          <ProblemMark
+            t={t}
+            problem={problem}
+            testId="wl-trigger-problem"
+            pin={pin}
+            onAction={onFix}
+          />
           {fireNow.button}
         </span>
       </div>
-      {approve.render({
+      {approve.render(t, {
         off: {
-          t,
           queued,
           testId: 'wl-trigger-off',
-          onOff: () => {
+          onConfirm: () => {
             env.toggle(node, false)
           },
+        },
+        runState: {
+          workflow: env.workflow,
+          testId: 'wl-trigger-run-state',
+          onConfirm: () => settle(env.enableRunState(env.workflow)),
+        },
+        waive: {
+          queued: queued > 0,
+          testId: 'wl-trigger-waive',
+          onConfirm: () => settle(env.triggers.waive(node)),
         },
         approve:
           command === undefined
@@ -183,8 +222,9 @@ export function TriggerLog(props: { t: T; env: TriggerEnv; node: string }): Reac
         rows={ROWS}
         detail={env.triggers.detail}
         onOpenRun={env.openRun}
-        waiting={waitingSession(t, env, view?.waiting)}
+        waiting={prevRunView(t, env, view?.waiting, Date.now())}
         onCancel={env.triggers.cancel}
+        onWaive={() => env.triggers.waive(node)}
       />
     </section>
   )

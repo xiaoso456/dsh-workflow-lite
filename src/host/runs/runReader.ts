@@ -7,7 +7,12 @@
 import { stat } from 'node:fs/promises'
 import { isAbsolute, join } from 'node:path'
 import { idKey, isResource } from '../../shared/model.ts'
-import type { InstanceRecord, InstanceSummary, InstanceView } from '../../shared/runState.ts'
+import type {
+  InstanceRecord,
+  InstanceSummary,
+  InstanceView,
+  RunStatus,
+} from '../../shared/runState.ts'
 import type { WorkflowDocument } from '../../shared/types.ts'
 import {
   RUN_LATEST_SCAN,
@@ -140,6 +145,22 @@ export class RunReader {
     }
     runs.sort((a, b) => a.at - b.at)
     return { runs, ids: records.map((record) => record.id) }
+  }
+
+  /** 一个实例的整体状态与状态文件的修改时刻（触发器看上一次跑完没有）；实例不在是 `null`。 */
+  async stateOf(id: string): Promise<{ status?: RunStatus; at?: number } | null> {
+    const index = await this.core.store.read()
+    const record = index.instances.find((candidate) => candidate.id === id)
+    if (record === undefined) return null
+    if (record.statePath === undefined) return {}
+    let at: number
+    try {
+      at = (await stat(record.statePath)).mtimeMs
+    } catch {
+      return {}
+    }
+    const { status } = await this.core.summarize(record, index, undefined)
+    return status === undefined ? { at } : { status, at }
   }
 
   /** 会话的当前实例 id（没有就 `undefined`）。 */

@@ -231,6 +231,13 @@ button.statusSwitch:active {
 }
 
 /* 三句说明叠在同一格：按最长的占高，只露选中的那句。 */
+/* 标题后面跟着「?」和 ⚠（⚠ 没事时藏着，不占地方）。 */
+.overlapTitle {
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
+}
+
 .overlapDescs {
   display: grid;
 }

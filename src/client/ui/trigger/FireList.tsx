@@ -35,6 +35,7 @@ import ui from '../kit/ui.module.css'
 import ins from '../panel/panel.module.css'
 import { FireDialog } from './dialogs/FireDialog.tsx'
 import css from './fires.module.css'
+import type { PrevRunView } from './triggerEnv.ts'
 
 export function FireList(props: {
   t: T
@@ -49,10 +50,12 @@ export function FireList(props: {
   /** 读一次触发那一刻带的触发说明、背景信息（详情里用）。 */
   detail(fire: string): Promise<TriggerDetailResponse>
   onOpenRun(instance: string): void
-  /** 排着的在等的那个会话（详情里写）。 */
-  waiting?: { title: string; open?: () => void } | undefined
+  /** 排着的在等的上次执行（详情里写）。 */
+  waiting?: PrevRunView | undefined
   /** 取消排着的一次；取消不了回一句原因。 */
   onCancel?(fire: string): Promise<string | null>
+  /** 把上次执行视为已结束；做不了回一句原因。 */
+  onWaive?(): Promise<string | null>
 }): React.JSX.Element | null {
   const { t, fires } = props
   const [picked, setPicked] = useState<FireRecord | null>(null)
@@ -120,6 +123,7 @@ export function FireList(props: {
           place={queuePlace(fires, live.id)}
           waiting={props.waiting}
           {...(props.onCancel === undefined ? {} : { onCancel: props.onCancel })}
+          {...(props.onWaive === undefined ? {} : { onWaive: props.onWaive })}
           onClose={() => setPicked(null)}
         />
       )}
