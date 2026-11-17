@@ -7,7 +7,7 @@
 import { afterWhen } from '../../shared/trigger.ts'
 import type { AfterWhen, CheckWhen, TriggerSource } from '../../shared/types.ts'
 import type { LocaleKey, T } from '../i18n.ts'
-import { fillSay, ruleText } from './triggerText.ts'
+import { fillSay, rulePhrase } from './triggerText.ts'
 import { cronPhrase } from './triggerUpcoming.ts'
 
 const CHECK_WHEN: Record<CheckWhen, LocaleKey> = {
@@ -29,8 +29,8 @@ export function sourceSay(t: T, source: TriggerSource): string {
       const { schedule } = source
       const rule =
         schedule.kind === 'cron'
-          ? (cronPhrase(t, schedule.expression) ?? ruleText(t, schedule))
-          : ruleText(t, schedule)
+          ? (cronPhrase(t, schedule.expression) ?? rulePhrase(t, schedule))
+          : rulePhrase(t, schedule)
       if (source.check === undefined) return fillSay(t('trigger.say.schedule'), { rule })
       return fillSay(t('trigger.say.check'), { rule, when: t(CHECK_WHEN[source.check.when]) })
     }

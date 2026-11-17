@@ -1,78 +1,57 @@
 ---
 title: Scheduled triggers
-description: Use a trigger card to run a workflow on a schedule instead of clicking Run each time.
+description: Use a trigger to run a workflow on a schedule instead of clicking Run each time.
 sidebar:
   order: 1
 ---
 
-A trigger card runs a workflow on a schedule: when the time comes, the plugin sends the workflow to a session and the model runs it as usual. This feature is experimental.
+A trigger runs a workflow when something happens: the plugin sends the workflow to a session and the model runs it as usual. This feature is experimental.
 
-Besides schedules, a trigger card can [poll a command](/dsh-workflow-lite/en/trigger/poll/), run a [listener](/dsh-workflow-lite/en/trigger/listen/), receive [HTTP requests](/dsh-workflow-lite/en/trigger/http/), or run [after another workflow](/dsh-workflow-lite/en/trigger/after/) finishes. Session modes, safeguards, status and origin are shared by all of them and described on this page.
+| Trigger type | Runs when | See |
+|---|---|---|
+| Schedule | The time comes | This page |
+| Schedule + check command | The time comes and a command's result says so | [Scheduled checks](/dsh-workflow-lite/en/trigger/check/) |
+| Watch | A long-running program prints a line | [Watch](/dsh-workflow-lite/en/trigger/listen/) |
+| HTTP | Another program sends a request | [HTTP triggers](/dsh-workflow-lite/en/trigger/http/) |
+| After | Another workflow finishes | [After triggers](/dsh-workflow-lite/en/trigger/after/) |
 
-![A schedule trigger card on the canvas: icon, name and status, the chosen weekdays and time in the middle, Active and the next trigger time at the bottom](../../../../assets/shots/en/trigger-card.webp)
+Sessions, workspaces, what happens while the last run is still going, safeguards and states are shared by all types; see [Run settings and safeguards](/dsh-workflow-lite/en/trigger/launch/).
+
+![A schedule trigger on the canvas: icon, name and status, the chosen weekdays and time in the middle, Active and the next trigger time at the bottom](../../../../assets/shots/en/trigger-card.webp)
 
 ## Use
 
-1. Drag **Trigger** from **Basics** in the step library, or right-click an empty spot on the canvas to add one. A trigger card takes no lines; it triggers the whole workflow.
-2. New cards use **Schedule**. Under **Trigger** in the right panel, click **Edit**, set the rule, and click **Save**.
+1. Drag **Trigger** from **Basics** in the step library, or right-click an empty spot on the canvas to add one. A trigger takes no lines; it triggers the whole workflow.
+2. A new trigger uses **Schedule**, daily at 09:00. Under **Trigger** in the right panel, click **Edit**, set the rule, and click **Save**.
 3. Choose the session mode and workspace under **Run settings**.
-4. Turn on the switch at the top of the panel. The card shows **Waiting** next to its name and the next trigger time at the bottom.
+4. Turn on **Enabled** at the top of the panel. The card shows **Waiting** next to its name and the next trigger time at the bottom.
 
 To see it work right away, click **Trigger once now** in the panel, optionally add background info for that run in the small card that opens, and click **Trigger**.
 
-![The settings panel of a trigger card: one summary row each for Trigger, Trigger condition, Trigger note and Safeguards](../../../../assets/shots/en/trigger-panel.webp)
+![The trigger's settings panel: one summary row each for Trigger, Handling and Run settings, with the trigger history below](../../../../assets/shots/en/trigger-panel.webp)
 
-**Trigger** is a card that looks like the one on the canvas: click the trigger type in its header (such as **Schedule ▾**) to pick another from the menu, which takes effect right away and can be undone; click **Edit** to change the details in a dialog. When the new type still needs something, **Edit** becomes **Write command** or **Pick workflow**. **Handling** (filters, trigger condition, trigger note) and the safeguards under **Run settings** each show one summary row; click a row to open a dialog and change it.
+**Trigger** is a card that looks like the one on the canvas: click the trigger type in its header to pick another from the menu, which takes effect right away and can be undone; click **Edit** to change the details in a dialog. When the new type still needs something, **Edit** becomes **Write command** or **Pick workflow**.
 
-The left side of the **Trigger** dialog lists the five trigger types; click a type to switch to it. Next to the title, one sentence says when this card runs, and the top right corner shows its current state, or **Takes effect once saved** while there are unsaved changes. For a schedule, a click on an item under **Presets** replaces the whole rule, and **Next 7 days** draws every trigger time in local time, with the next one drawn larger, so a wrong rule shows at a glance.
+## The Trigger dialog
 
-![The Trigger dialog: the five trigger types on the left, the sentence next to the title, and presets, rule form and the next 7 days on the right](../../../../assets/shots/en/trigger-source.webp)
+The left side lists the four trigger types, split into **Active** (the plugin does it) and **Passive** (waits for something); click one to switch to it. Next to the title, one sentence says when this trigger runs, or **Takes effect once saved** while there are unsaved changes.
 
-Changes in a dialog take effect when you click **Save** (Ctrl+Enter); while there are unsaved changes, Esc or a click outside does not close it, so click **Cancel** instead. Once the card is selected, clicking its middle row also opens the **Trigger** dialog.
+![The Trigger dialog: the four trigger types on the left, and the rule, presets, Fire when and the next 7 days on the right](../../../../assets/shots/en/trigger-source.webp)
+
+The top of the **Schedule** page holds the rule; with **Fire when** set to **On time** it is the plain schedule described here. **Next 7 days** below draws every trigger time in local time, so a wrong rule shows at a glance.
+
+Changes take effect only after **Save** (Ctrl+Enter); while there are unsaved changes, Esc or a click outside does not close the dialog; click **Cancel**. With the trigger selected on the canvas, a click on the middle row of the card also opens this dialog.
 
 ## Settings
 
-| Setting | Values | Default | Description |
-|---|---|---|---|
-| Trigger | Every, Daily, Cron | Daily 09:00 | **Every** ranges from 1 minute to 7 days, counted from the moment the switch is turned on; **Daily** can have several times (up to 12) and can be limited to certain weekdays (with **Every day**, **Weekdays** and **Weekends** shortcuts); **Cron** is split into minute, hour, day, month and weekday boxes: click a box to see how to write it, only the wrong box is marked, and a whole expression can be pasted into any box; times are local. **Presets** at the top of the dialog offers **Hourly**, **Daily 09:00**, **Weekdays 09:00**, **Weekdays, twice**, **Mondays 09:00** and **Nightly 23:00**. |
-| Trigger note | Text | Empty | Passed to the model as is on every trigger; a good place for the scope and requirements of the run. Shares a dialog with the [trigger condition](/dsh-workflow-lite/en/trigger/filter/#trigger-condition). |
-| Session | New session, Continue last, Fixed session | New session | **Continue last** sends to the session used by the previous trigger, or creates one if it is gone. |
-| Workspace | Workspaces opened before | None | New sessions are created here; with **Fixed session**, choose **Session** instead. |
-| Allow overlapping runs | On, off | Off | When off, a trigger is skipped while the session from the previous trigger is still running. This and the next three settings are in the **Safeguards** dialog. |
-| Run missed triggers | On, off | On | Scheduled triggers missed while DSH was not running fire once after startup. When off, they are skipped. |
-| Hourly trigger limit | 1 or more, empty for no limit | 12 | Triggers beyond the limit within an hour are skipped. |
-| Failures before auto-off | 1 or more, empty to never switch off | 3 | See **Status** below. |
-
-## Status
-
-**Active** at the bottom of a card means the plugin starts it on its own timer (schedule, poll); **Passive** means it waits for something outside to happen (listener, HTTP, after another workflow).
-
-| Status | Meaning |
-|---|---|
-| Off | The switch is off. |
-| Waiting | On; followed by the next trigger time. |
-| Invalid settings | The rule or command is wrong; the panel says why. |
-| Stopped automatically | Several failures in a row. Fix the cause, then switch it back on. |
-| All paused | Paused on the [Triggers page of the workflow hub](/dsh-workflow-lite/en/trigger/manage/); the switch stays on. |
-| Handled by another DSH | When several DSH instances share one data folder, only one handles triggers; this one takes over when it exits. |
-| Can't trigger here | This environment cannot create sessions or send messages. |
-
-A failure means the trigger itself did not get through: the workspace or session is missing, the session cannot be created, the workflow has errors and cannot run, or a poll command or listener cannot run. Skipped triggers, unmet conditions, filtered triggers and the outcome of a run after delivery do not count.
-
-**Trigger history** in the panel lists the time and result of the last 20 triggers; click **All history** to see them all on the [**Triggers** page of the workflow hub](/dsh-workflow-lite/en/trigger/manage/). Click a record to see the details of that trigger; once the model starts the run, the arrow on the right of a record opens it. With a [trigger condition](/dsh-workflow-lite/en/trigger/filter/#trigger-condition), a trigger the model decided to skip shows **Not needed** and the reason.
-
-## Questions before running
-
-When the workflow has [user inputs](/dsh-workflow-lite/en/materials/inputs/), a trigger does not open the form. The model answers from the **Trigger note** and the background info, and only asks in the session when a required question cannot be answered.
-
-## Origin
-
-Every instance records how it was started. See **Origin** in the instance **Overview**: started from the canvas, started in the conversation, or triggered by a trigger card, along with the note and background info that came with the trigger. In the [workflow hub](/dsh-workflow-lite/en/manage/hub/), instances started by a trigger card show the card's name.
+| Rule | Values | Presets |
+|---|---|---|
+| Interval | 1 minute to 7 days, counted from when it is enabled | 1 minute, 15 minutes, 1 hour, 1 day |
+| Times | Several times of day (up to 12), optionally only on some weekdays, with **Every day**, **Weekdays** and **Weekends** shortcuts | Daily 09:00, Weekdays 09:00, Weekdays, twice, Mondays 09:00, Nightly 23:00 |
+| Cron | Five fields (minute, hour, day, month, weekday) in the local time zone; clicking a field explains how to write it, a mistake marks only that field, and a whole expression can be pasted into any field | Weekdays 09:00, Work hours, every 15 min, Monthly, 1st 09:00 |
 
 ## Notes
 
-- Triggers only fire while DSH is running; nothing runs after it is closed.
-- The switch, workspace and session are stored on this machine only and are not [exported](/dsh-workflow-lite/en/manage/import-export/) with the workflow. After importing, choose them again and turn the switch on.
-- The model can add trigger cards when asked in a conversation. Cards it adds are always off; review them and turn them on yourself.
-- **Trigger once now** ignores the switch, the hourly limit and **Allow overlapping runs**.
-- Do not open a workflow that has trigger cards with plugin version 0.10.0 or earlier; the trigger settings are lost on save.
+- Triggers fire only while DSH is running. Whether a time missed while DSH was closed fires once after startup depends on **Run missed triggers**; see [Safeguards](/dsh-workflow-lite/en/trigger/launch/#safeguards).
+- The enabled state, workspace and session are stored only on this machine and are not [exported](/dsh-workflow-lite/en/manage/import-export/) with the workflow; after importing, choose them again and enable the trigger.
+- Do not open a workflow with triggers in plugin version 0.10.0 or earlier; saving there drops the trigger settings.

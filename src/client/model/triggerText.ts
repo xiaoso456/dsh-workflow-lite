@@ -108,34 +108,83 @@ export function spanText(t: T, seconds: number): string {
 
 /** 定时规则的一句话：「每 30 秒」「每 30 分钟」「每天 09:00」「工作日 09:00」「每周一、五 09:00」「cron 0 9 * * *」。 */
 export function ruleText(t: T, schedule: TriggerSchedule): string {
+  return describeRule(t, schedule, LABEL)
+}
+
+/**
+ * 定时规则放进一句话里的说法（「触发方式」对话框顶上那句）：中文和 {@link ruleText} 一样，
+ * 英文小写开头、带介词（「every 5 min」「daily at 09:00」「on weekdays at 09:00」）。
+ */
+export function rulePhrase(t: T, schedule: TriggerSchedule): string {
+  return describeRule(t, schedule, PHRASE)
+}
+
+/** 一种说法里各种规则用哪条文案。 */
+interface RuleKeys {
+  seconds: LocaleKey
+  minutes: LocaleKey
+  hours: LocaleKey
+  days: LocaleKey
+  daily: LocaleKey
+  workdays: LocaleKey
+  weekend: LocaleKey
+  weekly: LocaleKey
+  cron: LocaleKey
+}
+
+const LABEL: RuleKeys = {
+  seconds: 'trigger.rule.seconds',
+  minutes: 'trigger.rule.minutes',
+  hours: 'trigger.rule.hours',
+  days: 'trigger.rule.days',
+  daily: 'trigger.rule.daily',
+  workdays: 'trigger.rule.workdays',
+  weekend: 'trigger.rule.weekend',
+  weekly: 'trigger.rule.weekly',
+  cron: 'trigger.rule.cron',
+}
+
+const PHRASE: RuleKeys = {
+  seconds: 'trigger.phrase.seconds',
+  minutes: 'trigger.phrase.minutes',
+  hours: 'trigger.phrase.hours',
+  days: 'trigger.phrase.days',
+  daily: 'trigger.phrase.daily',
+  workdays: 'trigger.phrase.workdays',
+  weekend: 'trigger.phrase.weekend',
+  weekly: 'trigger.phrase.weekly',
+  cron: 'trigger.phrase.cron',
+}
+
+function describeRule(t: T, schedule: TriggerSchedule, keys: RuleKeys): string {
   if (schedule.kind === 'every') {
     const { seconds } = schedule
     if (seconds > 0 && seconds % 86_400 === 0) {
-      return t('trigger.rule.days').replace('{n}', String(seconds / 86_400))
+      return t(keys.days).replace('{n}', String(seconds / 86_400))
     }
     if (seconds > 0 && seconds % 3600 === 0) {
-      return t('trigger.rule.hours').replace('{n}', String(seconds / 3600))
+      return t(keys.hours).replace('{n}', String(seconds / 3600))
     }
     if (seconds > 0 && seconds % 60 === 0) {
-      return t('trigger.rule.minutes').replace('{n}', String(seconds / 60))
+      return t(keys.minutes).replace('{n}', String(seconds / 60))
     }
-    return t('trigger.rule.seconds').replace('{n}', String(seconds))
+    return t(keys.seconds).replace('{n}', String(seconds))
   }
   if (schedule.kind === 'cron') {
-    return t('trigger.rule.cron').replace('{expr}', schedule.expression.trim())
+    return t(keys.cron).replace('{expr}', schedule.expression.trim())
   }
   // 一天里几个时刻：挨个列出来。
   const time = dailyTimes(schedule).join(t('trigger.rule.sep'))
-  if (schedule.weekdays === undefined) return t('trigger.rule.daily').replace('{time}', time)
+  if (schedule.weekdays === undefined) return t(keys.daily).replace('{time}', time)
   // 最常见的两组有自己的说法（卡片上放得下）。
   if (sameDays(schedule.weekdays, [1, 2, 3, 4, 5])) {
-    return t('trigger.rule.workdays').replace('{time}', time)
+    return t(keys.workdays).replace('{time}', time)
   }
   if (sameDays(schedule.weekdays, [6, 7])) {
-    return t('trigger.rule.weekend').replace('{time}', time)
+    return t(keys.weekend).replace('{time}', time)
   }
   const days = schedule.weekdays.map((day) => weekdayText(t, day)).join(t('trigger.rule.sep'))
-  return t('trigger.rule.weekly').replace('{days}', days).replace('{time}', time)
+  return t(keys.weekly).replace('{days}', days).replace('{time}', time)
 }
 
 const AFTER_TEXT: Record<AfterWhen, LocaleKey> = {

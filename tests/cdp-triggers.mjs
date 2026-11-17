@@ -2,11 +2,11 @@
  * 触发卡片的浏览器验收：自备一次性实例（假模型、一次性的家、随机端口，不用 `DSH_WEB_TOKEN`），
  * 建一张带触发卡片的工作流，在真浏览器里走一遍：卡片与面板、没选工作区时开不了、开关与下一次时间、
  * 立即触发（新建会话、消息到达模型）、触发记录、改规则（时间轴、常用规则）、从步骤库拖入、实例概览与工作流中心里的来源；
- * 第二张图走常驻触发源：监听程序（开关旁确认命令 → 程序打出一行 → 过关键字发进会话 → 最近的输出
+ * 第二张图走常驻触发源：监视（开关旁确认命令 → 程序打出一行 → 过关键字发进会话 → 最近的输出
  * → 改了命令要重新确认）、HTTP（改触发端口、地址与令牌、令牌不对 401、请求到达模型、发一条测试请求）、
- * 换触发源（命令模板、试运行）；
+ * 换成定时检查（判定、分两步、命令模板、试运行）；
  * 接续触发（在列表里选等哪个工作流、搜索、那边一个实例结束后消息到达模型），以及工作流中心「触发」页
- * （列出各工作流的卡片、触发记录、全部暂停与恢复、行尾开关、在画布上打开并选中）。
+ * （列出各工作流的卡片、触发记录、全部暂停与恢复、右栏头部的开关、在画布上打开并选中）。
  * 结论以磁盘 / RPC 为准；截图落在 `tests/runs/trigger/`，给人看一眼样子。
  *
  * 假模型不调工具，所以「模型带着触发编号编译 → 实例认领来源」这一段不在这里（见 `tests/host/triggers.spec.ts`）；
@@ -117,12 +117,12 @@ const boxOf = (selector, pad = 24) => `(() => {
 
 const CARD = '.react-flow__node[data-id="nightly"]'
 
-/** 第二张图：一张监听程序、一张 HTTP。 */
+/** 第二张图：一张监视、一张 HTTP。 */
 const NAME2 = '日志报警'
 const TAIL = '.react-flow__node[data-id="tail"]'
 const HOOK = '.react-flow__node[data-id="hook"]'
 const COMMAND = 'node "{workflow}/triggers/emit.mjs"'
-/** 监听程序：先打一行不含关键字的，再打一行报错，然后一直等着。 */
+/** 监视程序：先打一行不含关键字的，再打一行报错，然后一直等着。 */
 const EMIT = `console.log('INFO 启动好了')
 setTimeout(() => console.log('ERROR pay timeout'), 1500)
 setInterval(() => {}, 1000)
@@ -156,6 +156,18 @@ const DOC2 = {
 }
 
 /** 一个这会儿没人用的端口。 */
+/**
+ * 点面板顶上的「启用」开关。面板换卡片时新旧两块交叉淡入，那一会儿有两个开关：
+ * 等旧的那块摘掉、只剩一个再点，免得点到上一张卡片的开关。
+ */
+async function clickEnable(session) {
+  await waitFor(
+    session,
+    `document.querySelectorAll('[data-testid="wl-trigger-enable"]').length === 1`,
+  )
+  await session.evaluate(clickTestId('wl-trigger-enable'))
+}
+
 async function freePort() {
   const server = createServer()
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
@@ -268,7 +280,7 @@ try {
     `((el) => (el?.value ?? el?.textContent))(document.querySelector('[data-testid="wl-trigger-name"]')) === '夜巡' && document.querySelector('[data-testid="wl-trigger-enable"]') !== null`,
   )
   await sleep(500)
-  await session.evaluate(clickTestId('wl-trigger-enable'))
+  await clickEnable(session)
   await sleep(1500)
   const toast = await session.evaluate(textOf('[role="status"]'))
   const afterRefuse = await rpc('trigger/list', { workflow: NAME })
@@ -311,7 +323,7 @@ try {
   await sleep(5500)
 
   // 再开：等待中，卡片上写下一次。
-  await session.evaluate(clickTestId('wl-trigger-enable'))
+  await clickEnable(session)
   await sleep(1500)
   const on = await rpc('trigger/list', { workflow: NAME })
   check('这个进程在负责触发', on.owner?.mine === true, JSON.stringify(on.owner))
@@ -729,7 +741,7 @@ try {
     '取消后再选中卡片，确认卡不再自己弹出',
     await session.evaluate(`document.querySelector('[data-testid$="approve-pop"]') === null`),
   )
-  await session.evaluate(clickTestId('wl-trigger-enable'))
+  await clickEnable(session)
   await waitFor(
     session,
     `document.querySelector('[data-testid="wl-trigger-approve-pop"]') !== null`,
@@ -739,7 +751,7 @@ try {
   await session.evaluate(clickTestId('wl-trigger-approve'))
   const listening = await waitTrigger(NAME2, 'tail', (view) => view.state === 'listening')
   check(
-    '确认后打开，监听程序在跑',
+    '确认后打开，监视程序在跑',
     listening?.enabled === true && listening.approved === true && listening.state === 'listening',
     JSON.stringify(listening),
   )
@@ -748,7 +760,7 @@ try {
   check('不含关键字的那行被过滤掉', !/INFO 启动好了/u.test(body2))
   const tailHistory = await rpc('trigger/history', { workflow: NAME2, node: 'tail' })
   check(
-    '触发记录：监听程序、已发出',
+    '触发记录：监视程序、已发出',
     tailHistory.fires.length === 1 &&
       tailHistory.fires[0].channel === 'listen' &&
       tailHistory.fires[0].outcome === 'sent',
@@ -866,7 +878,7 @@ try {
     `((el) => (el?.value ?? el?.textContent))(document.querySelector('[data-testid="wl-trigger-name"]')) === 'CI 通知' && document.querySelector('[data-testid="wl-trigger-enable"]') !== null`,
   )
   await sleep(500)
-  await session.evaluate(clickTestId('wl-trigger-enable'))
+  await clickEnable(session)
   const hook = await waitTrigger(NAME2, 'hook', (view) => view.state === 'listening')
   const url = hook?.endpoint?.url ?? ''
   check(
@@ -995,20 +1007,47 @@ try {
   check('测试请求的请求体发到了模型', /test\W{0,6}true/u.test(body4), body4.slice(0, 200))
   await capture(session, 'http-ping-light.png')
 
-  // 换触发源：对话框里 HTTP 换成条件轮询，出现命令框；保存后卡片上的字跟着变。
-  await session.evaluate(clickTestId('wl-trigger-source-poll'))
-  await sleep(800)
-  const commandBox = await session.evaluate(
-    `document.querySelector('[data-testid="wl-trigger-command"]') !== null`,
-  )
-  check('换成条件轮询后出现命令框', commandBox)
+  // 换触发源：对话框里 HTTP 换成定时，规则换成每 15 分钟；判定选「每次成功」才带检查命令，对话框分成两步。
+  await session.evaluate(clickTestId('wl-trigger-source-schedule'))
+  await waitFor(session, has('wl-trigger-kind-every'))
+  await sleep(600)
+  await session.evaluate(clickTestId('wl-trigger-kind-every'))
+  await waitFor(session, has('wl-trigger-preset-every-900'))
+  await session.evaluate(clickTestId('wl-trigger-preset-every-900'))
+  await sleep(300)
   check(
-    '没写命令时「保存」按不了',
+    '换成定时、到点就执行：没有「检查命令」一步',
+    !(await session.evaluate(has('wl-trigger-step-command'))),
+  )
+  // 「每次成功」：示意里成功的四次都执行，下面那句说明跟着换；多出「检查命令」一步。
+  await session.evaluate(clickTestId('wl-trigger-check-when-every'))
+  await sleep(600)
+  const everyFires = await session.evaluate(
+    `document.querySelectorAll('[data-testid="wl-trigger-judge"] [data-mark="fire"]').length`,
+  )
+  const everyHint = await session.evaluate(textOf('[data-testid="wl-trigger-check-hint"]'))
+  check(
+    '判定换成「每次成功」：示意里四次成功都执行，说明跟着换',
+    everyFires === 4 && everyHint.includes('退出码 0 就执行'),
+    `${everyFires} ${everyHint}`,
+  )
+  check(
+    '带检查命令时分成两步，第一步底下是「下一步：检查命令」，不是「保存」',
+    (await session.evaluate(has('wl-trigger-step-command'))) &&
+      (await session.evaluate(has('wl-trigger-step-next'))) &&
+      !(await session.evaluate(has('wl-trigger-source-dialog-save'))),
+  )
+  // 下一步：检查命令，出现命令框。
+  await session.evaluate(clickTestId('wl-trigger-step-next'))
+  await waitFor(session, has('wl-trigger-command'))
+  await sleep(800)
+  check(
+    '点「下一步：检查命令」出现命令框，命令还空着「保存」按不了',
     await session.evaluate(
-      `document.querySelector('[data-testid="wl-trigger-source-dialog-save"]').disabled === true`,
+      `document.querySelector('[data-testid="wl-trigger-source-dialog-save"]')?.disabled === true`,
     ),
   )
-  // 从模板开始：点一项填好命令。
+  // 从模板开始：点一项填好命令，判定跟着换成输出变化（回到第一步看）。
   await session.evaluate(clickTestId('wl-trigger-template'))
   await waitFor(session, has('wl-trigger-template-git'))
   await session.evaluate(clickTestId('wl-trigger-template-git'))
@@ -1016,28 +1055,22 @@ try {
   const templated = await session.evaluate(
     `document.querySelector('[data-testid="wl-trigger-command"]').value`,
   )
+  await session.evaluate(clickTestId('wl-trigger-step-back'))
+  await waitFor(session, has('wl-trigger-check-when-change'))
+  await sleep(600)
   check(
     '点模板「Git 远端有新提交」填好命令、判定换成输出变化',
     /^git /u.test(templated) &&
       (await session.evaluate(
-        `document.querySelector('[data-testid="wl-trigger-poll-when-change"]').getAttribute('aria-checked') === 'true'`,
+        `document.querySelector('[data-testid="wl-trigger-check-when-change"]').getAttribute('aria-checked') === 'true'`,
       )),
     templated,
   )
-  // 「每次成功」：示意里成功的四次都执行，下面那句话换成每次成功的说法。
-  await session.evaluate(clickTestId('wl-trigger-poll-when-every'))
-  await sleep(400)
-  const everyFires = await session.evaluate(
-    `document.querySelectorAll('[data-testid="wl-trigger-judge"] [data-mark="fire"]').length`,
-  )
-  const everyHint = await session.evaluate(textOf('[data-testid="wl-trigger-poll-hint"]'))
-  check(
-    '判定换成「每次成功」：示意里四次成功都执行，说明跟着换',
-    everyFires === 4 && everyHint.includes('每次成功都执行'),
-    `${everyFires} ${everyHint}`,
-  )
-  await session.evaluate(clickTestId('wl-trigger-poll-when-success'))
+  await session.evaluate(clickTestId('wl-trigger-check-when-success'))
   await sleep(300)
+  await session.evaluate(clickTestId('wl-trigger-step-next'))
+  await waitFor(session, has('wl-trigger-command'))
+  await sleep(800)
   // 试运行：先问一句，确认了才在工作区里跑；写出退出码、算成功还是失败、输出。不打开开关。
   await setReactInput(session, '[data-testid="wl-trigger-command"]', 'node -e "console.log(4242)"')
   await sleep(300)
@@ -1056,7 +1089,7 @@ try {
     /算成功/.test(tried) && /4242/.test(triedOut),
     `${tried} | ${triedOut}`,
   )
-  await capture(session, 'poll-try-light.png')
+  await capture(session, 'check-try-light.png')
   await setReactInput(session, '[data-testid="wl-trigger-command"]', 'git ls-remote origin main')
   await sleep(300)
   check(
@@ -1071,12 +1104,13 @@ try {
   )
   await sleep(1500)
   const hookText = await session.evaluate(textOf(HOOK))
+  // 这张原来开着（HTTP），换成要跑命令的定时检查后停下来等确认命令。
   check(
-    '卡片写着每 5 分钟、变为成功，是主动的',
-    /每 5 分钟/.test(hookText) && /变为成功/.test(hookText) && /主动/.test(hookText),
+    '卡片写着每 15 分钟、变为成功；原来开着，换成跑命令的要先确认',
+    /每 15 分钟/.test(hookText) && /变为成功/.test(hookText) && /待确认/.test(hookText),
     hookText,
   )
-  await capture(session, 'poll-panel-light.png')
+  await capture(session, 'check-panel-light.png')
 
   // ── 接续触发：hook 换成「等夜间巡检跑完」────────────────────
   const upstream = await rpc('graph/load', { name: NAME })
@@ -1088,7 +1122,7 @@ try {
     },
     baseHash: upstream.hash,
   })
-  // 卡头「轮询 ▾」换成「接续」：直接换、不弹对话框；还没选工作流，「编辑」变成「选工作流」。
+  // 卡头「定时 ▾」换成「接续」：直接换、不弹对话框；还没选工作流，「编辑」变成「选工作流」。
   await mouseClick(session, await centerOf(session, '[data-testid="wl-trigger-pick"]'))
   await waitFor(session, has('wl-trigger-pick-after'))
   await sleep(500)

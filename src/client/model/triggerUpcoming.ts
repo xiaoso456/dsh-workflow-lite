@@ -7,7 +7,7 @@
 
 import { cronAsSimple } from '../../shared/schedule.ts'
 import type { T } from '../i18n.ts'
-import { ruleText } from './triggerText.ts'
+import { rulePhrase } from './triggerText.ts'
 
 /** 本机时区的写法：`UTC+8`、`UTC-3:30`、`UTC`。 */
 export function zoneText(now: number): string {
@@ -21,8 +21,8 @@ export function zoneText(now: number): string {
   }`
 }
 
-/** 一条 cron 换成人话（「工作日 09:00」「每 15 分钟」）；说不成一句话的是 `null`。 */
+/** 一条 cron 换成句子里的说法（「工作日 09:00」「每 15 分钟」，见 {@link rulePhrase}）；说不成的是 `null`。 */
 export function cronPhrase(t: T, expression: string): string | null {
   const simple = cronAsSimple(expression)
-  return simple === null ? null : ruleText(t, simple)
+  return simple === null ? null : rulePhrase(t, simple)
 }

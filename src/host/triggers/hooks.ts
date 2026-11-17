@@ -187,7 +187,7 @@ export class HookServer {
     if (route === undefined) {
       reply(response, 404, {
         error: 'not_found',
-        message: '没有这个触发地址，或这张触发卡片没打开',
+        message: '没有这个触发地址，或这个触发器没启用',
       })
       request.resume()
       return

@@ -37,12 +37,14 @@ const sidebar = [
   ]),
   group('自动触发', 'Triggers', [
     'trigger/schedule',
-    'trigger/poll',
+    'trigger/check',
     'trigger/listen',
     'trigger/http',
     'trigger/after',
     'trigger/filter',
+    'trigger/launch',
     'trigger/manage',
+    'trigger/model',
   ]),
   group('进阶', 'Advanced', [
     'materials/inputs',

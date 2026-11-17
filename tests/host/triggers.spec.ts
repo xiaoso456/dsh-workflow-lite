@@ -600,7 +600,7 @@ describe('到点触发', () => {
     await triggers.set({ workflow: 'patrol', node: 'tick', enabled: false })
     expect((await triggers.history('patrol'))[0]).toMatchObject({
       outcome: 'skipped',
-      reason: '卡片关掉了，排着的不再执行',
+      reason: '触发器停用了，排着的不再执行',
     })
     expect((await triggers.list('patrol')).triggers[0]?.queued).toBeUndefined()
   })

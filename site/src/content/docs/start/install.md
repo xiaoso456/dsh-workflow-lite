@@ -9,7 +9,7 @@ sidebar:
 
 ## 网页版
 
-需要 Node.js 22 及以上。
+需要 Node.js 24.9 及以上。
 
 ```bash
 dsh plugin --profile web add @xiaoso/dsh-workflow-lite

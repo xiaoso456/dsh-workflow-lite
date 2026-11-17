@@ -1,47 +1,47 @@
 ---
-title: Listener
-description: Let a long-running program watch logs, folders or messages and run the workflow for every line it prints.
+title: Watch
+description: Let a long-running program keep an eye on a log, a folder or messages, and run the workflow once for each line it prints.
 sidebar:
   order: 3
 ---
 
-A listener is a command that keeps running: it starts when the switch is turned on and stops when it is turned off. Every line it prints to standard output is one trigger, with that line as background info. It suits things that need constant watching, such as errors in a log, new files in a folder or messages on a queue. This feature is experimental.
+A watch runs a command that never exits: it starts when the trigger is enabled and stops when it is disabled. Each line it prints to standard output fires the trigger once, with that line as background info. It suits things that need constant watching, such as errors appearing in a log, new files in a folder, or messages arriving on a queue. This feature is experimental.
 
-![The confirmation card before a listener starts: the command and the workspace](../../../../assets/shots/en/trigger-confirm.webp)
+![The confirmation card before enabling a watch: the command, workspace and shell](../../../../assets/shots/en/trigger-confirm.webp)
 
 ## Use
 
-1. Add a trigger card, click **Schedule ▾** in the header of **Trigger**, and choose **Listen**; click **Write command**.
-2. Choose the **Workspace** the program runs in, fill in **Command** or click **Start from a template**, search, pick one and edit it, and click **Save**.
-3. Turn on the switch, check the command and workspace in the confirmation card, and click **Confirm and turn on**.
+1. Add a trigger, switch it to **Watch** from the menu in the header of **Trigger**, and click **Write command**.
+2. Choose the **Workspace** and type the command, or pick one under **Start from a template** and adjust it; click **Save**.
+3. Turn on **Enabled**, check the command, workspace and shell in the confirmation card, and click **Confirm and enable**.
 
-The card shows **Receiving** and when the program started, and its middle row changes to the last line the program printed. Click **Edit** under **Trigger**; the program's recent output, including its error output, is shown below the command box.
+The card shows **Receiving** and when the program started, and its middle row shows the line the program printed last. In the **Trigger** dialog, **Recent output** below the command box includes error output.
 
-Before saving, you can click **Try it** at the top right of the command box: once confirmed, the program runs in the chosen workspace for 5 seconds, and the result bar shows how many lines it printed in that time, with the output below. Trying it does not switch the card on or trigger the workflow.
+The templates are **New files in a folder**, **New lines in a log** and **A script in the workflow** (runs `triggers/watch.mjs` in the workflow folder). Before saving, click **Try it**: after confirming, the program runs in the chosen workspace for 5 seconds, and the result says how many lines it printed, with the output below. A trial run does not enable the trigger or send anything to a session.
 
-When a log prints many lines at once, use [filters](/dsh-workflow-lite/en/trigger/filter/) to merge them, drop duplicates or keep only lines with certain words. By default, lines within 5 seconds are merged into one trigger.
+When a log prints many lines at once, use [filters](/dsh-workflow-lite/en/trigger/filter/) to merge, deduplicate or drop them by keyword; by default, lines within 5 seconds are merged into one trigger.
 
 ## Writing the program
 
 - Print one line per event; when an event has several lines of content, print it as one line of JSON.
 - Flush after each line, for example `print(..., flush=True)` in Python, or `--line-buffered` for `grep` in a pipe.
-- Write debug messages to error output, not standard output.
-- Keep running and do not move itself to the background (no `&`, `nohup` or `start`).
-- Prefer Node for scripts so they run on every system; write the command as `node "{workflow}/triggers/xxx.mjs"`, where `{workflow}` becomes the workflow folder.
+- Write debug output to standard error, not standard output.
+- Keep running in the foreground; do not put itself in the background (no `&`, `nohup` or `start`).
+- Prefer Node scripts, which run on every system; write the command as `node "{workflow}/triggers/watch.mjs"`, where `{workflow}` becomes the workflow folder.
 
-The model can write the script for you. How commands run and are confirmed is the same as for [polls](/dsh-workflow-lite/en/trigger/poll/#running-commands).
+The script can be [written by the model](/dsh-workflow-lite/en/trigger/model/). How commands run, are confirmed and pick a shell is the same as for [scheduled checks](/dsh-workflow-lite/en/trigger/check/#running-commands).
 
-## Status
+## States
 
-| Status | Meaning |
+| State | Meaning |
 |---|---|
 | Receiving | The program is running. |
-| Restarting | The program exited unexpectedly; followed by the next restart time. The wait starts at 2 seconds and doubles each time, up to 1 minute. |
-| Needs confirmation | The command or workspace changed; click **Confirm command** in the panel to continue. |
+| Restarting | The program exited unexpectedly; the time of the next restart follows. The wait starts at 2 seconds and doubles each time, up to 1 minute. |
+| Needs confirmation | The command, workspace or shell changed; click **Confirm command** in the panel to continue. |
 
-A program that exits within 1 minute of starting counts as a failure (a bug in the script, a missing command, missing dependencies); after **Failures before auto-off** failures the card stops automatically. Once it has run for a full minute, the failure count resets.
+A program that exits within 1 minute of starting counts as a failure (a script error, a missing command, missing dependencies); after **Failures before auto-off** failures in a row, the trigger turns itself off. After running for a full minute, the failure count resets.
 
 ## Notes
 
-- Turning off the switch or closing DSH ends the program along with the child processes it started.
-- Triggers beyond **Hourly trigger limit** are dropped, and the history records only one **Skipped** every 10 minutes.
+- Disabling the trigger or closing DSH ends the program together with the processes it started.
+- Lines beyond **Hourly trigger limit** are dropped, and the trigger history records only one **Skipped** entry every 10 minutes.

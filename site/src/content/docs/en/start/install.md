@@ -9,7 +9,7 @@ Supports DeepSeek Harness 0.2.x.
 
 ## Web version
 
-Requires Node.js 22 or later.
+Requires Node.js 24.9 or later.
 
 ```bash
 dsh plugin --profile web add @xiaoso/dsh-workflow-lite

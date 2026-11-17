@@ -36,7 +36,7 @@ A package is at most 200 MB and 5000 files, excluding `.git`, `node_modules` and
 
 ## Import
 
-On the **Workflows** page, click **Import** and choose a file, or drag a `.wflite.zip` onto the page. A list is shown first, and nothing is written until you confirm.
+On the **Workflows** page, click the **Import** button next to the search box and choose a file, or drag a `.wflite.zip` onto the page. A list is shown first, and nothing is written until you confirm.
 
 | Part | Content |
 |---|---|

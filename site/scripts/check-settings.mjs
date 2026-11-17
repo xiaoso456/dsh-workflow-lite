@@ -20,6 +20,8 @@ const LABEL_KEY = {
   installSkill: 'cfg.skill',
   triggerPort: 'cfg.triggerPort',
   triggerHost: 'cfg.triggerHost',
+  triggerShell: 'cfg.triggerShell',
+  triggerOutputLines: 'cfg.triggerOutputLines',
 }
 
 const PAGE = '../src/content/docs/settings/plugin.md'

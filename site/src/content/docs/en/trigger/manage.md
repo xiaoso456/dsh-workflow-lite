@@ -1,37 +1,48 @@
 ---
-title: Managing and pausing
-description: See and switch the trigger cards of every workflow on the Triggers page of the workflow hub, and pause them all at once.
+title: The Triggers page and Pause all
+description: See the triggers of every workflow on the Workflow hub Triggers page, with rhythm, timeline and output, and pause them all at once.
 sidebar:
-  order: 7
+  order: 8
 ---
 
-The **Triggers** page of the workflow hub lists the trigger cards of every workflow, so their status, switches and trigger history are in one place, and all of them can be paused at once.
+The **Triggers** page of the Workflow hub lists the triggers of every workflow, so their states, enabling and trigger history are in one place, together with **Pause all**.
 
-![Triggers page of the workflow hub: every trigger card on the left, status and trigger history of the selected one on the right](../../../../assets/shots/en/trigger-hub.webp)
+![The Workflow hub Triggers page: triggers grouped by workflow on the left, the overview of the selected trigger on the right](../../../../assets/shots/en/trigger-hub.webp)
 
 ## Use
 
-1. Click **Workflow hub** at the top left of the canvas and switch to **Triggers**. **All history** in a trigger card's settings panel opens this page with that card selected.
-2. Each row on the left is one card: name, workflow, when it triggers and status. The switch at the end of the row is the same switch as in the card's settings panel.
-3. Click a row to see its status, the reason for any error, when it triggers, its session, workspace and trigger history on the right. **Trigger once now** is there too.
-4. Trigger history is grouped by day and can be filtered by result (**Sent**, **Skipped**, **Failed**, **Not needed**); click a record to see the full reason and the trigger note and background info that came with it, or the arrow on a record to open that run.
-5. Click **Open on canvas** to switch to that workflow with the card selected, where the workspace, session and other settings are changed.
+1. Click **Workflow hub** at the top left of the canvas and switch to **Triggers**. **All history** in a trigger's panel opens this page with that trigger selected.
+2. Each row on the left is a trigger: its type icon, name and state, an hourglass with a count when triggers are queued, and dimmed when it is off. **View options** changes the grouping (Workflow, Status, Trigger type, No grouping), sorting (Name, Last fired, Next fire), what is shown (All triggers, Enabled, Needs attention) and the row height.
+3. Click a row. The top right shows its name, trigger type and a one-sentence description, with the **Enabled** switch and **Open on canvas** beside them; the bar below shows the current state and next time, with **Trigger once now**.
+4. When something is wrong, the bar explains it and offers a fix, such as **Confirm and enable**, **Enable again** or **Mark as ended**.
+5. Click **Open on canvas** to switch to that workflow with the trigger selected, and change its settings there.
 
-The first time a card that runs a command (poll, listener) is switched on, the command and workspace appear beside the switch and need confirming, just like in the settings panel.
+## Tabs
+
+| Tab | Contents |
+|---|---|
+| Overview | Fires and outcomes over the last 7 days, **Rhythm** drawing every fire of the last 7 days by hour, plus what is still due today and the latest records. |
+| Timeline | The full trigger history, filterable by outcome, shown as **List** or **Timeline**; queued and upcoming triggers come first. |
+| Schedule / Output / Calls / Upstream | Depends on the trigger type: the next 7 days for schedules, recent output for scheduled checks and watches, address, token and examples for HTTP, and the watched workflow with its recent runs for after triggers. |
+| Settings | The trigger's type, handling, run settings and local settings, read-only; change them on the canvas. |
+
+![Timeline: trigger records by day, with queued and upcoming triggers on top](../../../../assets/shots/en/trigger-timeline.webp)
+
+Click a record to see the full reason and the trigger note and background info it carried; click **View this run** at its right to open that run.
 
 ## Pause all
 
-**Pause all** at the bottom of the left column stops every trigger card from firing on its own; each card's own switch stays as it is.
+**Pause all** at the bottom of the left column stops every trigger from firing on its own for now; each one keeps its enabled state.
 
-| Trigger | While paused |
+| Trigger type | While paused |
 |---|---|
 | Schedule | Does not fire when the time comes. |
-| Poll, listener, HTTP | Stopped; the HTTP port is released. |
-| After another workflow | Runs that finish meanwhile do not trigger. |
+| Scheduled checks, watches, HTTP | Stopped; the HTTP port is released. |
+| After | Runs that end in the other workflow fire nothing. |
 
-Cards that are on show **All paused**. Click **Resume** to carry on; nothing missed while paused is caught up. **Trigger once now** is not affected by pausing.
+Enabled triggers show **All paused**, and queued ones wait too. Click **Resume** to carry on; nothing missed during the pause is caught up. **Trigger once now** works while paused.
 
 ## Notes
 
-- Pausing applies to every DSH using the same data folder and stays in effect after a restart.
-- To stop just one card, switch that card off.
+- The pause applies to every DSH instance on the same data directory and survives restarts.
+- To stop a single trigger, just disable it.

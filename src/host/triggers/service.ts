@@ -109,7 +109,7 @@ import { pingHook, tryCheck, tryListen } from './trial.ts'
 /** 多久报到、对一次账。 */
 export const BEAT_MS = 5_000
 /** 卡片关掉（含连续失败被停用）时排着的记成跳过的原因。 */
-const DROPPED_OFF = '卡片关掉了，排着的不再执行'
+const DROPPED_OFF = '触发器停用了，排着的不再执行'
 /** 晚了这么久还没触发，就算「错过了」（DSH 当时没在运行）。 */
 export const LATE_MS = 2 * 60_000
 /** 触发记录一次缺省给画布多少条、最多给多少条。 */
@@ -312,7 +312,7 @@ export class TriggerService {
       const found = await this.definition(workflow, node)
       if (!found.ok) {
         if (found.error.code === 'not_found') {
-          await this.store.drop(workflow, node, '卡片不在了，排着的不再执行')
+          await this.store.drop(workflow, node, '触发器删掉了，排着的不再执行')
         }
         continue
       }
@@ -1114,7 +1114,7 @@ export class TriggerService {
     }
     if (local.stopped !== undefined) {
       missing.push(
-        `已自动停用（${local.stopped}）：修好、用 test_trigger 试过之后，请用户在卡片上重新打开开关`,
+        `已自动停用（${local.stopped}）：修好、用 test_trigger 试过之后，请用户在触发器上重新启用`,
       )
     }
     const problem = sourceProblem(source)
@@ -1144,7 +1144,7 @@ export class TriggerService {
     }
     const local = (await this.store.locals())[request.workflow]?.[request.node]
     if (local?.enabled !== true || local.hook === undefined || local.token === undefined) {
-      return fail('blocked', '先打开这张卡片的开关，地址才收请求')
+      return fail('blocked', '先启用这个触发器，地址才收请求')
     }
     const listen = this.listen()
     const url = hookUrl(advertisedHost(listen.host), listen.port, local.hook)
@@ -1287,7 +1287,7 @@ function setEndpoint(
     const hook = request.hook.normalize('NFC')
     const issue = hookIssue(hook)
     if (issue !== null) return HOOK_ISSUE[issue]
-    if (taken.has(hook)) return `地址「${hook}」已经被别的 HTTP 触发卡片用了`
+    if (taken.has(hook)) return `地址「${hook}」已经被别的 HTTP 触发器用了`
     local.hook = hook
   }
   local.hook ??= hookFromName(request.workflow, taken) ?? newHookId()

@@ -17,6 +17,8 @@ import { fileURLToPath } from 'node:url'
 import { parse, stringify } from 'yaml'
 import { RunHistory } from '../src/host/runs/history.ts'
 import { RunService } from '../src/host/runs/service.ts'
+import { DATABASE_FILE, PluginDatabase } from '../src/host/store/database.ts'
+import { newFireId, TriggerStore } from '../src/host/triggers/store.ts'
 import { addGlobalMemory } from '../src/shared/presets.ts'
 import {
   bootToCanvas,
@@ -427,6 +429,8 @@ function triggerDocument() {
     ],
     edges: [edge('scan', 'check'), edge('check', 'report')],
     viewport: { x: 0, y: 0, zoom: 1 },
+    // 「上次执行未结束时」缺省跳过，按运行状态判断：没开「记录运行状态」启用不了。
+    settings: { runState: true },
   }
 }
 
@@ -483,7 +487,7 @@ async function triggerShots(session) {
       await session.evaluate(rectOf('[data-testid="wl-inspector"]', 8)),
     )
 
-    // 「触发方式」对话框：左边五种方式，右边一句话、常用规则、规则表单和接下来 7 天。
+    // 「触发方式」对话框：左边四种方式，右边规则、常用值、判定和接下来 7 天。
     await openSheet(session, 'wl-trigger-when-edit', SOURCE_DIALOG)
     await snap(
       session,
@@ -498,13 +502,14 @@ async function triggerShots(session) {
   }
 }
 
-/** 常驻触发源那几张图用的工作流：一张条件轮询、一张监听程序（带过滤和触发条件）、一张 HTTP。 */
+/** 带命令、常驻的触发器那几张图用的工作流：一张定时检查、一张监视（带过滤和触发条件）、一张 HTTP。 */
 const SOURCES_NAME = t('线上告警', 'alerts')
 const SOURCE_SHOTS = [
-  'trigger-poll',
+  'trigger-check',
   'trigger-try',
   'trigger-confirm',
   'trigger-filter',
+  'trigger-guard',
   'trigger-http',
 ]
 function sourcesDocument() {
@@ -523,10 +528,9 @@ function sourcesDocument() {
       card('remote', 80, {
         label: t('远端有新提交', 'New commits'),
         source: {
-          kind: 'poll',
-          command: 'git ls-remote origin -h refs/heads/main',
-          seconds: 300,
-          when: 'change',
+          kind: 'schedule',
+          schedule: { kind: 'every', seconds: 300 },
+          check: { command: 'git ls-remote origin -h refs/heads/main', when: 'change' },
         },
       }),
       card('errors', 420, {
@@ -542,6 +546,7 @@ function sourcesDocument() {
     ],
     edges: [],
     viewport: { x: 0, y: 0, zoom: 1 },
+    settings: { runState: true },
   }
 }
 
@@ -559,9 +564,9 @@ const unionOf = (selectors, pad = 8) => `(() => {
 })()`
 
 /**
- * 常驻触发源：条件轮询的设置与试运行、监听程序打开前的命令确认、过滤与触发条件、HTTP 的地址与令牌。
- * 只有 HTTP 那张真的打开（不用确认命令）；监听程序停在确认卡上，不真的跑命令。
- * 试运行在草稿里换一条哪都能跑的命令（`git --version`），不保存。
+ * 带命令、常驻的触发器：定时检查的「检查命令」一步与试运行、监视启用前的命令确认、过滤、保护、HTTP 的地址与令牌。
+ * 只有 HTTP 那张真的启用（不用确认命令）；监视停在确认卡上，不真的跑命令。
+ * 试运行在草稿里换成「变为成功」和一条哪都能跑的命令（`git --version`），不保存。
  */
 async function triggerSourceShots(session) {
   if (!SOURCE_SHOTS.some(wants)) return
@@ -589,19 +594,31 @@ async function triggerSourceShots(session) {
     await session.evaluate(clickTestId('wl-fit'))
     await sleep(1200)
 
-    // 条件轮询：「触发方式」对话框。
+    // 定时检查：「触发方式」对话框翻到第二步「检查命令」。
     await session.evaluate(nodeClick('remote'))
     await waitFor(session, has('wl-trigger-when-edit'))
     await sleep(800)
     await openSheet(session, 'wl-trigger-when-edit', SOURCE_DIALOG)
+    const commandStep = async () => {
+      await session.evaluate(clickTestId('wl-trigger-step-command'))
+      await waitFor(session, has('wl-trigger-command'))
+      await sleep(900)
+      await mouseMove(session, { x: 8, y: 8 })
+    }
+    await commandStep()
     await snap(
       session,
-      'trigger-poll',
+      'trigger-check',
       await session.evaluate(rectOf(`[data-testid="${SOURCE_DIALOG}"]`)),
     )
     // 试运行：草稿里换成「变为成功」和一条哪都能跑的命令，确认后跑一次，拍命令框和结果。
     if (wants('trigger-try')) {
-      await session.evaluate(clickTestId('wl-trigger-poll-when-success'))
+      await session.evaluate(clickTestId('wl-trigger-step-time'))
+      await waitFor(session, has('wl-trigger-check-when-success'))
+      await sleep(600)
+      await session.evaluate(clickTestId('wl-trigger-check-when-success'))
+      await sleep(300)
+      await commandStep()
       await setReactInput(session, '[data-testid="wl-trigger-command"]', 'git --version')
       await sleep(300)
       await session.evaluate(clickTestId('wl-trigger-try'))
@@ -654,7 +671,21 @@ async function triggerSourceShots(session) {
     )
     await closeSheet(session, 'wl-trigger-filter-dialog')
 
-    // HTTP：开着，对话框里有地址、令牌（遮住）、调用示例和「发一条测试请求」（不发）。
+    // 保护：选「排队」，带出排队上限（不保存）。
+    if (wants('trigger-guard')) {
+      await openSheet(session, 'wl-trigger-guard', 'wl-trigger-guard-dialog')
+      await session.evaluate(clickTestId('wl-trigger-overlap-queue'))
+      await sleep(900)
+      await mouseMove(session, { x: 8, y: 8 })
+      await snap(
+        session,
+        'trigger-guard',
+        await session.evaluate(rectOf('[data-testid="wl-trigger-guard-dialog"]')),
+      )
+      await closeSheet(session, 'wl-trigger-guard-dialog')
+    }
+
+    // HTTP：启用着，对话框里有地址、令牌（遮住）、调用示例和「发一条测试请求」（不发）。
     await session.evaluate(nodeClick('ci'))
     await waitFor(session, has('wl-trigger-when-edit'))
     await sleep(1200)
@@ -677,7 +708,7 @@ async function triggerSourceShots(session) {
 /** 接续触发与「触发」页用的两张图：「夜间构建」跑完接着跑「发布检查」。 */
 const CHAIN_UP = t('夜间构建', 'nightly-build')
 const CHAIN_DOWN = t('发布检查', 'release-check')
-const CHAIN_SHOTS = ['trigger-after', 'trigger-hub']
+const CHAIN_SHOTS = ['trigger-after', 'trigger-hub', 'trigger-timeline']
 function chainDocuments() {
   const work = (id, label, prompt) => ({
     id,
@@ -701,6 +732,7 @@ function chainDocuments() {
     },
     [CHAIN_DOWN]: {
       ...base,
+      settings: { runState: true },
       nodes: [
         work(
           'check',
@@ -721,10 +753,50 @@ function chainDocuments() {
   }
 }
 
-/** 接续触发：「触发方式」一节；工作流中心「触发」页：两个工作流里的三张卡片。不点「立即触发一次」。 */
+/**
+ * 「构建完成后」近几天的触发记录（发出、模型判断不需要、跳过），「触发」页的概览和时间线才有东西：
+ * 直接写进截图专用数据目录的数据库（和实例一样，只有这里在写），不点「立即触发一次」，免得侧栏多出会话。
+ */
+async function chainFires(store) {
+  const now = Date.now()
+  const hour = 3600_000
+  const base = {
+    workflow: CHAIN_DOWN,
+    node: 'after',
+    name: t('构建完成后', 'After build'),
+    channel: 'after',
+  }
+  const plan = [
+    [50 * 60_000, 'sent', {}],
+    [
+      26 * hour,
+      'sent',
+      {
+        declined: t(
+          '这次构建只改了文档，不需要检查发布包。',
+          'This build only touched docs; the package needs no check.',
+        ),
+      },
+    ],
+    [27 * hour, 'skipped', { reason: t('上次执行未结束', 'The last run has not ended') }],
+    [50 * hour, 'sent', {}],
+    [74 * hour, 'sent', {}],
+  ]
+  for (const [ago, outcome, extra] of plan) {
+    const at = now - ago
+    await store.record({
+      record: { ...base, id: newFireId(new Date(at)), at, outcome, ...extra },
+      info: t('「夜间构建」的一次执行结束：成功。', 'A run of nightly-build ended: done.'),
+    })
+  }
+}
+
+/** 接续触发：「触发方式」一节；工作流中心「触发」页：两个工作流里的三张卡片，概览和时间线。不点「立即触发一次」。 */
 async function triggerChainShots(session) {
   if (!CHAIN_SHOTS.some(wants)) return
   const chainIds = []
+  const database = new PluginDatabase(() => join(DATA_DIR, DATABASE_FILE))
+  const store = new TriggerStore(() => DATA_DIR, database)
   try {
     for (const [name, document] of Object.entries(chainDocuments())) {
       await rpc('graph/delete', { name }).catch(() => {})
@@ -733,6 +805,7 @@ async function triggerChainShots(session) {
       await rpc('graph/save', { name, document, baseHash: disk.hash })
     }
     await chainRuns(chainIds)
+    await chainFires(store)
     for (const [workflow, node] of [
       [CHAIN_UP, 'nightly'],
       [CHAIN_DOWN, 'after'],
@@ -776,6 +849,16 @@ async function triggerChainShots(session) {
       'trigger-hub',
       await session.evaluate(rectOf('[data-testid="wl-hub"]', 0, 560)),
     )
+    if (wants('trigger-timeline')) {
+      await session.evaluate(clickTestId('wl-hub-trg-tab-timeline'))
+      await sleep(1500)
+      await mouseMove(session, { x: 8, y: 8 })
+      await snap(
+        session,
+        'trigger-timeline',
+        await session.evaluate(rectOf('[data-testid="wl-hub"]', 0, 560)),
+      )
+    }
     await pressEscape(session)
     await sleep(600)
   } catch (error) {
@@ -784,7 +867,9 @@ async function triggerChainShots(session) {
     for (const id of chainIds) await rpc('run/delete', { id, withState: true }).catch(() => {})
     for (const name of [CHAIN_UP, CHAIN_DOWN]) {
       await rpc('graph/delete', { name }).catch(() => {})
+      await store.forget(name).catch(() => {})
     }
+    database.close()
   }
 }
 
@@ -1767,7 +1852,21 @@ async function main(session) {
     await snap(session, 'display-looks', await session.evaluate(graphBox))
   })
 
-  // 工作流中心各页。
+  // 工作流中心各页。「工作流」页缺省按标签分组：给示例工作流打上标签；另一种语言跑剩下的示例删掉，免得混在列表里。
+  if (wants('hub-workflows')) {
+    const examples = [
+      ['代码审查循环', 'code-review-loop', [t('代码审查', 'review'), t('示例', 'example')]],
+      ['展示示例', 'display-demo', [t('画布展示', 'display'), t('示例', 'example')]],
+      ['展示类型', 'display-types', [t('画布展示', 'display')]],
+      ['展示外观', 'display-looks', [t('画布展示', 'display')]],
+    ]
+    for (const [zh, en, tags] of examples) {
+      await rpc('graph/delete', { name: LANG === 'en' ? zh : en }).catch(() => {})
+      await rpc('graph/tags', { name: t(zh, en), tags }).catch(() => {})
+    }
+    await rpc('graph/tagColor', { tag: t('画布展示', 'display'), color: 'green' }).catch(() => {})
+    await rpc('graph/tagColor', { tag: t('代码审查', 'review'), color: 'amber' }).catch(() => {})
+  }
   for (const [page, name] of [
     ['workflows', 'hub-workflows'],
     ['memories', 'hub-memories'],

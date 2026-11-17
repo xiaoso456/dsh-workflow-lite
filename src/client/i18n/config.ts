@@ -63,11 +63,11 @@ export const zh = {
     '缺省只接受本机的请求。要让别的机器调用，选「所有网卡」或某块网卡的地址；请求是明文 HTTP，只在信得过的网络里用，或放在 HTTPS 代理后面。',
   'cfg.triggerShell': '默认 shell',
   'cfg.triggerShellDesc':
-    '检查、监视卡片没单独选 shell 时用它。改了之后，跟随默认的卡片要重新确认命令才会继续运行。',
+    '带命令的触发器（定时检查、监视）没单独选 shell 时用它。改了之后，跟随默认的触发器要重新确认命令才会继续运行。',
   'cfg.shellSystem': '系统默认',
   'cfg.triggerOutputLines': '最近的输出保留',
   'cfg.triggerOutputLinesDesc':
-    '每张检查、监视卡片最多留这么多行输出，更早的丢掉；一行超过 2000 字的截断。存在本机。',
+    '每个带命令的触发器最多留这么多行输出，更早的丢掉；一行超过 2000 字的截断。存在本机。',
   'cfg.lines': '行',
   'cfg.host.local': '仅本机（127.0.0.1）',
   'cfg.host.any': '所有网卡（0.0.0.0）',
@@ -168,11 +168,11 @@ export const en: Record<keyof typeof zh, string> = {
     'Only requests from this machine are accepted by default. To let other machines call in, pick All interfaces or one interface address; requests are plain HTTP, so use it only on a trusted network or behind an HTTPS proxy.',
   'cfg.triggerShell': 'Default shell',
   'cfg.triggerShellDesc':
-    'Used by check and watch cards that do not pick their own shell. After changing it, cards that follow the default need their command confirmed again before they run.',
+    'Used by triggers that run a command (scheduled checks, watch) and do not pick their own shell. After changing it, triggers that follow the default need their command confirmed again before they run.',
   'cfg.shellSystem': 'System default',
   'cfg.triggerOutputLines': 'Recent output kept',
   'cfg.triggerOutputLinesDesc':
-    'Each check and watch card keeps at most this many lines of output and drops older ones; lines over 2000 characters are cut. Stored on this computer.',
+    'Each trigger that runs a command keeps at most this many lines of output and drops older ones; lines over 2000 characters are cut. Stored on this computer.',
   'cfg.lines': 'lines',
   'cfg.host.local': 'This machine only (127.0.0.1)',
   'cfg.host.any': 'All interfaces (0.0.0.0)',

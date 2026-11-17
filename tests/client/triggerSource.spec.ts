@@ -80,6 +80,24 @@ describe('顶上那句话', () => {
     const daily = sourceSay(t, { kind: 'schedule', schedule: { kind: 'daily', time: '09:00' } })
     expect(daily).toContain('09:00')
   })
+
+  it('英文里规则放在句中：小写开头、带介词，不照搬卡片上的短标签', () => {
+    expect(sourceSay(en, checked(300, 'change'))).toBe(
+      'Runs the command every 5 min and fires when its output differs from the last check',
+    )
+    expect(sourceSay(en, { kind: 'schedule', schedule: { kind: 'daily', time: '09:00' } })).toBe(
+      'Runs daily at 09:00',
+    )
+    expect(
+      sourceSay(en, {
+        kind: 'schedule',
+        schedule: { kind: 'daily', time: '09:00', weekdays: [1, 2, 3, 4, 5] },
+      }),
+    ).toBe('Runs on weekdays at 09:00')
+    expect(
+      sourceSay(en, { kind: 'schedule', schedule: { kind: 'cron', expression: '0 9 * * 1-5' } }),
+    ).toBe('Runs on weekdays at 09:00')
+  })
 })
 
 describe('接下来 7 天', () => {
