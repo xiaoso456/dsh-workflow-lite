@@ -10,10 +10,16 @@ import type { FireRecord } from '../../shared/wire/trigger.ts'
 import type { LocaleKey, T } from '../i18n.ts'
 import { weekdayText } from './triggerText.ts'
 
-/** 结果的四类：发出去了但模型判断不需要的，从「已发出」里单独拿出来。 */
-export type FireKind = 'sent' | 'skipped' | 'failed' | 'declined'
+/**
+ * 结果的几类：发出去了但模型判断不需要的，从「已发出」里单独拿出来；排队中的还没有结果。
+ */
+export type FireKind = 'queued' | 'sent' | 'skipped' | 'failed' | 'declined'
+
+/** 有了结果的几类（近况、筛选只数这些）。 */
+export type SettledKind = Exclude<FireKind, 'queued'>
 
 export const FIRE_KIND_TEXT: Record<FireKind, LocaleKey> = {
+  queued: 'trigger.outcome.queued',
   sent: 'trigger.outcome.sent',
   skipped: 'trigger.outcome.skipped',
   failed: 'trigger.outcome.failed',
@@ -22,6 +28,7 @@ export const FIRE_KIND_TEXT: Record<FireKind, LocaleKey> = {
 
 /** 结果的短名（列表里用；「模型判断不需要」写「不需要」）。 */
 export const FIRE_KIND_SHORT: Record<FireKind, LocaleKey> = {
+  queued: 'trigger.outcome.queued',
   sent: 'trigger.outcome.sent',
   declined: 'trigger.fire.declinedShort',
   skipped: 'trigger.outcome.skipped',
@@ -96,13 +103,21 @@ export function dayHead(t: T, day: number, now: number): { name: string; date: s
   }
 }
 
-/** 各类结果几条（模型判断不需要的单算一类）。 */
+/** 各类结果几条（模型判断不需要的单算一类；排队中的还没有结果，不数）。 */
 export function countKinds(
   records: readonly Pick<FireRecord, 'outcome' | 'declined'>[],
-): Record<FireKind, number> {
-  const counts: Record<FireKind, number> = { sent: 0, declined: 0, skipped: 0, failed: 0 }
-  for (const record of records) counts[fireKind(record)] += 1
+): Record<SettledKind, number> {
+  const counts: Record<SettledKind, number> = { sent: 0, declined: 0, skipped: 0, failed: 0 }
+  for (const record of records) {
+    const kind = fireKind(record)
+    if (kind !== 'queued') counts[kind] += 1
+  }
   return counts
+}
+
+/** 排队等了多久才发出去（毫秒）；没排过队的 `undefined`。 */
+export function waited(record: Pick<FireRecord, 'at' | 'sentAt'>): number | undefined {
+  return record.sentAt === undefined ? undefined : Math.max(0, record.sentAt - record.at)
 }
 
 /** 按天分组，保持原来的先后（记录本来新的在前，分出来的天也是新的在前）。 */
@@ -115,4 +130,20 @@ export function groupByDay(fires: readonly FireRecord[]): { day: number; fires: 
     else groups.push({ day, fires: [record] })
   }
   return groups
+}
+
+/** 排着的（记录本来新的在前，这里倒过来：先收到的在前，就是轮到的先后）。 */
+export function queuedFires(fires: readonly FireRecord[]): FireRecord[] {
+  return fires.filter((record) => record.outcome === 'queued').reverse()
+}
+
+/** 有了结果的（排着的不算），保持原来的先后。 */
+export function settledFires(fires: readonly FireRecord[]): FireRecord[] {
+  return fires.filter((record) => record.outcome !== 'queued')
+}
+
+/** 排着的这一次排第几个（从 1 数）；不是排着的 `undefined`。 */
+export function queuePlace(fires: readonly FireRecord[], id: string): number | undefined {
+  const at = queuedFires(fires).findIndex((record) => record.id === id)
+  return at < 0 ? undefined : at + 1
 }

@@ -4,7 +4,8 @@
  * 和步骤卡同一副外壳，上沿挂一个闪电圆标（开着时强调色）。三层：
  * - 标题行：触发源的图标块（每种一个图标、一种颜色）、名字、状态小标（已停用 / 等待中 / 接收中…）；
  * - 速览：按触发源换样子，一眼看出怎么触发（见 {@link TriggerGlanceRow}）；
- * - 底行：「主动 ↗」/「被动 ↙」小标（触发源的颜色）+ 状态的后半句（下一次什么时候、上次检查的结果、出了什么错）。
+ * - 底行：「主动 ↗」/「被动 ↙」小标（触发源的颜色）+ 状态的后半句（下一次什么时候、上次检查的结果、出了什么错）；
+ *   有排着的时候后半句换成「⏳ 排队 3 个」（排队不是一种状态，状态小标照旧）。
  *
  * 卡片上不放开关：开关在属性面板和工作流中心「触发」页里（要确认命令的也在那里问）。
  * 卡片选中之后再点速览，打开「触发方式」对话框（面板接手）；没选中时点它只是选中卡片（速览占着卡片中间，
@@ -20,6 +21,7 @@ import { memo, useRef } from 'react'
 import { stateBadge, stateNote, stateTone } from '../../../model/triggerText.ts'
 import { cx } from '../../kit/cx.ts'
 import { Icon } from '../../kit/Icon.tsx'
+import { QueueMark } from '../../trigger/QueueMark.tsx'
 import tone from '../../trigger/stateTone.module.css'
 import { TriggerGlanceRow } from '../../trigger/TriggerGlanceRow.tsx'
 import { ModeChip, TriggerMark, triggerTint } from '../../trigger/TriggerMark.tsx'
@@ -36,7 +38,8 @@ export const TriggerCard = memo(function TriggerCard(
   const measured = useHandlesMeasured(id)
   const env = useTriggerEnv()
   const view = env?.triggers.view(id)
-  const note = env === null ? '' : stateNote(data.t, view, data.face)
+  const queued = view?.queued ?? 0
+  const note = env === null || queued > 0 ? '' : stateNote(data.t, view, data.face)
   return (
     <div
       className={cx(shared.card, css.card, selected && shared.cardSelected)}
@@ -84,6 +87,7 @@ export const TriggerCard = memo(function TriggerCard(
       )}
       <div className={css.foot}>
         <ModeChip t={data.t} kind={data.kind} named testId="wl-trigger-mode" />
+        <QueueMark t={data.t} count={queued} label testId="wl-trigger-queued" />
         {/* 一直挂着（没话说时是空的）：状态变了只换字。 */}
         <span
           className={css.note}

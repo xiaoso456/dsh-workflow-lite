@@ -139,6 +139,9 @@ import type {
   TriggerActivityRequest,
   TriggerActivityResponse,
   TriggerAllResponse,
+  TriggerCancelRequest,
+  TriggerClearQueueRequest,
+  TriggerClearQueueResponse,
   TriggerDetailRequest,
   TriggerDetailResponse,
   TriggerFireRequest,
@@ -225,6 +228,8 @@ export const WORKFLOW_LITE_ENDPOINTS = [
   'trigger/history',
   'trigger/activity',
   'trigger/detail',
+  'trigger/cancel',
+  'trigger/clear-queue',
   'trigger/of-instance',
   'trigger/output',
   'trigger/output-lines',
@@ -352,6 +357,8 @@ export interface WorkflowLiteRpcMap {
   'trigger/history': { args: TriggerHistoryRequest; result: TriggerHistoryResponse }
   'trigger/activity': { args: TriggerActivityRequest; result: TriggerActivityResponse }
   'trigger/detail': { args: TriggerDetailRequest; result: TriggerDetailResponse }
+  'trigger/cancel': { args: TriggerCancelRequest; result: FireRecord }
+  'trigger/clear-queue': { args: TriggerClearQueueRequest; result: TriggerClearQueueResponse }
   'trigger/of-instance': { args: TriggerOfInstanceRequest; result: TriggerOfInstanceResponse }
   'trigger/output': { args: TriggerOutputRequest; result: TriggerOutputResponse }
   'trigger/output-lines': { args: TriggerOutputLinesRequest; result: TriggerOutputLinesResponse }

@@ -6,6 +6,10 @@ import {
   fireKind,
   fireWhy,
   groupByDay,
+  queuedFires,
+  queuePlace,
+  settledFires,
+  waited,
 } from '../../src/client/model/fireView.ts'
 import { pastTime } from '../../src/client/model/time.ts'
 import type { FireRecord } from '../../src/shared/wire/trigger.ts'
@@ -75,6 +79,30 @@ describe('触发记录的显示', () => {
         { outcome: 'sent' },
       ]),
     ).toEqual({ sent: 2, declined: 1, skipped: 0, failed: 1 })
+    // 排队中的还没有结果，哪一类都不算。
+    expect(countKinds([{ outcome: 'queued' }, { outcome: 'skipped' }])).toEqual({
+      sent: 0,
+      declined: 0,
+      skipped: 1,
+      failed: 0,
+    })
+  })
+
+  it('排着的：先收到的排在前面、第几个从 1 数；有了结果的保持原来的先后；排过队的等了多久', () => {
+    // 记录本来新的在前。
+    const fires = [
+      fire(at(11, 14, 9, 30), { id: 'q2', outcome: 'queued' }),
+      fire(at(11, 14, 9, 20), { id: 's1' }),
+      fire(at(11, 14, 9, 10), { id: 'q1', outcome: 'queued' }),
+      fire(at(11, 14, 9, 0), { id: 's0', sentAt: at(11, 14, 9, 4) }),
+    ]
+    expect(queuedFires(fires).map((record) => record.id)).toEqual(['q1', 'q2'])
+    expect(settledFires(fires).map((record) => record.id)).toEqual(['s1', 's0'])
+    expect(queuePlace(fires, 'q1')).toBe(1)
+    expect(queuePlace(fires, 'q2')).toBe(2)
+    expect(queuePlace(fires, 's1')).toBeUndefined()
+    expect(waited(fires[3] as FireRecord)).toBe(4 * 60_000)
+    expect(waited(fires[1] as FireRecord)).toBeUndefined()
   })
 
   it('按天分组，组内、组间都保持原来的先后', () => {

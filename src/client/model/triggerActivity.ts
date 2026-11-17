@@ -27,11 +27,12 @@ export const OUTCOMES: readonly Outcome[] = ['sent', 'skipped', 'failed']
 /** 时间线的筛选：全部，或三类结果之一。 */
 export type OutcomeFilter = 'all' | Outcome
 
-/** 按结果筛选（模型判断不需要的发进会话了，记录上本来就是已发出）。 */
+/** 按结果筛选（模型判断不需要的发进会话了，记录上本来就是已发出；排队中的还没有结果，哪一类都不算）。 */
 export function matchesOutcome(
   record: Pick<FireRecord, 'outcome'>,
   filter: OutcomeFilter,
 ): boolean {
+  if (record.outcome === 'queued') return false
   return filter === 'all' || record.outcome === filter
 }
 

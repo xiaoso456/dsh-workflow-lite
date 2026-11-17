@@ -32,12 +32,22 @@ describe('触发面板的摘要', () => {
       catchUp: true,
       maxPerHour: 12,
       maxFailures: 3,
+      queueMax: 10,
     }
     expect(guardSummary(t, base)).toBe(
       '上一次仍在运行时跳过 · 每小时最多 12 次 · 连续 3 次失败停用',
     )
     expect(guardSummary(tEn, { ...base, overlap: 'parallel', catchUp: false })).toBe(
       'Overlapping runs allowed · Max 12 per hour · Off after 3 failures · Missed triggers not run',
+    )
+    expect(guardSummary(t, { ...base, overlap: 'queue' })).toBe(
+      '上一次仍在运行时排队，最多 10 个 · 每小时最多 12 次 · 连续 3 次失败停用',
+    )
+    expect(guardSummary(t, { ...base, overlap: 'queue', queueMax: 0 })).toMatch(
+      /^上一次仍在运行时排队 · /u,
+    )
+    expect(guardBrief(t, { ...base, overlap: 'queue' })).toBe(
+      '运行中排队 · 12 次/时 · 3 次失败停用',
     )
     const open = { ...base, maxPerHour: 0, maxFailures: 0 }
     expect(guardSummary(t, open)).toBe('上一次仍在运行时跳过 · 每小时不限次数 · 失败不自动停用')

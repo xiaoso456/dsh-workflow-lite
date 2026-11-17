@@ -34,6 +34,7 @@ import { cx } from '../../kit/cx.ts'
 import { Icon, type IconName } from '../../kit/Icon.tsx'
 import ui from '../../kit/ui.module.css'
 import { SwapText } from '../../motion/swapText.tsx'
+import { QueueMark } from '../../trigger/QueueMark.tsx'
 import tone from '../../trigger/stateTone.module.css'
 import { TriggerMark, triggerTint } from '../../trigger/TriggerMark.tsx'
 import { HubSearch } from '../HubSearch.tsx'
@@ -229,6 +230,7 @@ function TriggerRow(props: {
   const { t, entry } = props
   const face = sourceFace(entry.data.source)
   const badge = stateBadge(t, entry.view, face)
+  const queued = entry.view.queued ?? 0
   const toneOf = {
     'data-state': entry.view.state,
     'data-tone': stateTone(entry.view.state, face),
@@ -247,6 +249,7 @@ function TriggerRow(props: {
       meta={
         <span className={cx(css.meta, tone.tone)} {...toneOf}>
           <span className={tone.dot} aria-hidden="true" />
+          <QueueMark t={t} count={queued} testId="wl-hub-trg-queued" />
           <span className={css.stateText}>{badge}</span>
           <span className={css.note} hidden={props.note === ''} data-cut="">
             {props.note}
@@ -256,13 +259,21 @@ function TriggerRow(props: {
       // 紧凑时行尾：按时间排写那个时刻，别的写状态（状态色）；哪个工作流、下一次几点在悬停提示里。
       end={
         props.when ?? (
-          <span className={tone.tone} {...toneOf}>
+          <span className={cx(css.end, tone.tone)} {...toneOf}>
+            <QueueMark t={t} count={queued} />
             <span className={css.stateText}>{badge}</span>
           </span>
         )
       }
       // 栏窄，名字、后面那句（哪个工作流、上一次）放不下就截断：悬停写全。
-      tip={[entry.name, badge, props.note].filter((part) => part !== '').join(' · ')}
+      tip={[
+        entry.name,
+        badge,
+        queued > 0 ? t('trigger.queued').replace('{n}', String(queued)) : '',
+        props.note,
+      ]
+        .filter((part) => part !== '')
+        .join(' · ')}
       onPick={props.onPick}
     />
   )

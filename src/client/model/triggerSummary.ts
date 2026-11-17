@@ -35,15 +35,32 @@ export function filterSummary(t: T, filter: FilterSettings): string {
   return parts.length === 0 ? t('trigger.sum.noFilter') : parts.join(SEP)
 }
 
-/** 「上一次仍在运行时跳过 · 每小时最多 12 次 · 连续 3 次失败停用」，关了补发再加「不补发错过的触发」。 */
+/** 「上一次仍在运行时跳过 · 每小时最多 60 次 · 连续 3 次失败停用」，关了补发再加「不补发错过的触发」。 */
 export function guardSummary(t: T, launch: LaunchSettings): string {
-  return [
-    t(launch.overlap === 'parallel' ? 'trigger.sum.parallel' : 'trigger.sum.skip'),
-    guardLimits(t, launch),
-  ].join(SEP)
+  return [overlapSummary(t, launch), guardLimits(t, launch)].join(SEP)
 }
 
-/** 保护里除了「上一次没完怎么办」之外的几项：「每小时最多 12 次 · 连续 3 次失败停用」。 */
+/** 上一次没完怎么办：「上一次仍在运行时跳过」「…排队，最多 10 个」「允许同时运行」。 */
+function overlapSummary(t: T, launch: LaunchSettings): string {
+  switch (launch.overlap) {
+    case 'skip':
+      return t('trigger.sum.skip')
+    case 'parallel':
+      return t('trigger.sum.parallel')
+    case 'queue':
+      return launch.queueMax === NO_LIMIT
+        ? t('trigger.sum.queueAny')
+        : t('trigger.sum.queue').replace('{n}', String(launch.queueMax))
+  }
+}
+
+const OVERLAP_BRIEF: Record<LaunchSettings['overlap'], LocaleKey> = {
+  skip: 'trigger.brief.skip',
+  queue: 'trigger.brief.queue',
+  parallel: 'trigger.brief.parallel',
+}
+
+/** 保护里除了「上一次没完怎么办」之外的几项：「每小时最多 60 次 · 连续 3 次失败停用」。 */
 export function guardLimits(t: T, launch: LaunchSettings): string {
   return [
     launch.maxPerHour === NO_LIMIT
@@ -58,10 +75,10 @@ export function guardLimits(t: T, launch: LaunchSettings): string {
     .join(SEP)
 }
 
-/** 面板一行里放得下的短写法：「运行中跳过 · 12 次/时 · 3 次失败停用」；完整说法见 {@link guardSummary}（悬停提示用）。 */
+/** 面板一行里放得下的短写法：「运行中跳过 · 60 次/时 · 3 次失败停用」；完整说法见 {@link guardSummary}（悬停提示用）。 */
 export function guardBrief(t: T, launch: LaunchSettings): string {
   return [
-    t(launch.overlap === 'parallel' ? 'trigger.brief.parallel' : 'trigger.brief.skip'),
+    t(OVERLAP_BRIEF[launch.overlap]),
     launch.maxPerHour === NO_LIMIT
       ? t('trigger.brief.noPerHour')
       : t('trigger.brief.perHour').replace('{n}', String(launch.maxPerHour)),

@@ -18,6 +18,7 @@ import {
   filterKindOf,
   filterOf,
   launchOf,
+  NO_LIMIT,
 } from '../../../../shared/trigger.ts'
 import type { TriggerData, TriggerSessionMode } from '../../../../shared/types.ts'
 import type { TriggerEntry } from '../../../../shared/wire/trigger.ts'
@@ -123,7 +124,12 @@ export function SettingsPane(props: {
     >
       <InfoRows
         rows={[
-          [t('hub.trgOverlap'), t(`hub.trgOverlap.${launch.overlap}` as LocaleKey)],
+          [
+            t('hub.trgOverlap'),
+            launch.overlap === 'queue' && launch.queueMax !== NO_LIMIT
+              ? t('hub.trgOverlap.queueMax').replace('{n}', String(launch.queueMax))
+              : t(`hub.trgOverlap.${launch.overlap}` as LocaleKey),
+          ],
           [t('hub.trgLimits'), guardLimits(t, launch)],
         ]}
       />

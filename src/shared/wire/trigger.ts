@@ -7,8 +7,14 @@
 import type { FireChannel } from '../trigger.ts'
 import type { TriggerData } from '../types.ts'
 
-/** 一次触发的结果：消息发进会话了 / 被跳过（没轮到它）/ 没发出去。 */
-export type FireOutcome = 'sent' | 'skipped' | 'failed'
+/**
+ * 一次触发的结果：消息发进会话了 / 被跳过（没轮到它）/ 没发出去 / 排着队（上一次还没跑完，轮到了再发）。
+ * 排着的轮到时原地改成发出去或没发出去；关掉卡片、取消的改成跳过。
+ */
+export type FireOutcome = 'sent' | 'skipped' | 'failed' | 'queued'
+
+/** 已经有结果的那几种（近况只数这些）。 */
+export type FireSettled = Exclude<FireOutcome, 'queued'>
 
 /** 触发记录里的一条。 */
 export interface FireRecord {
@@ -19,9 +25,11 @@ export interface FireRecord {
   node: string
   name: string
   channel: FireChannel
-  /** 触发时刻（epoch 毫秒）。 */
+  /** 触发时刻（epoch 毫秒）；排过队的是收到的时刻。 */
   at: number
   outcome: FireOutcome
+  /** 排过队的：轮到、发出去（或没发出去）的时刻。 */
+  sentAt?: number
   /** 跳过、没发出去的原因。 */
   reason?: string
   /** 发进了哪个会话。 */
@@ -32,6 +40,8 @@ export interface FireRecord {
   joined?: true
   /** 卡片有触发条件、模型判断这次不需要执行时，它给的原因（发出去了，但没开始工作流）。 */
   declined?: string
+  /** 排队中的：背景信息开头的一行（列表里看得出排着的是哪一件事）。 */
+  preview?: string
 }
 
 /**
@@ -110,6 +120,10 @@ export interface TriggerView {
   session?: string
   /** 最近一次触发。 */
   last?: FireRecord
+  /** 排着队的有几个（没有不给）。 */
+  queued?: number
+  /** 排着的在等哪个会话跑完（上一次触发发进去的那个；有排着的才给）。 */
+  waiting?: string
 }
 
 export interface TriggerListResponse {
@@ -223,7 +237,7 @@ export interface TriggerActivityRequest {
 export interface TriggerActivitySlot {
   /** 这一格的开始（epoch 毫秒）。 */
   at: number
-  outcome: FireOutcome
+  outcome: FireSettled
   count: number
 }
 
@@ -245,6 +259,23 @@ export interface TriggerOfInstanceResponse {
 export interface TriggerDetailRequest {
   /** 触发编号（记录的 `id`）。 */
   fire: string
+}
+
+/** 取消排着的一次（记成跳过）。 */
+export interface TriggerCancelRequest {
+  /** 触发编号（记录的 `id`）。 */
+  fire: string
+}
+
+/** 清空一张卡片排着的（都记成跳过）。 */
+export interface TriggerClearQueueRequest {
+  workflow: string
+  node: string
+}
+
+export interface TriggerClearQueueResponse {
+  /** 清掉了几个。 */
+  cleared: number
 }
 
 /** 一次触发那一刻带的东西；记录已经被挤掉、或那次什么都没带时各项都没有。 */

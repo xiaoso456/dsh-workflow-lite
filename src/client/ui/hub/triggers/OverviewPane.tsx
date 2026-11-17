@@ -14,6 +14,7 @@ import type {
   TriggerEntry,
 } from '../../../../shared/wire/trigger.ts'
 import type { T } from '../../../i18n.ts'
+import { settledFires } from '../../../model/fireView.ts'
 import { pastTime } from '../../../model/time.ts'
 import { HOURS, plannedHours, tallyActivity } from '../../../model/triggerActivity.ts'
 import { weekdayText } from '../../../model/triggerText.ts'
@@ -44,10 +45,12 @@ export function OverviewPane(props: {
   onTab(tab: DetailTab): void
   onOpenRun(instance: string): void
 }): React.JSX.Element | null {
-  const { t, entry, fires } = props
+  const { t, entry } = props
   const { view } = entry
   const { activity } = props
-  if (fires === null || activity === null) return null
+  if (props.fires === null || activity === null) return null
+  // 「最近」只列有了结果的；排着的在头部状态条和时间线里看。
+  const fires = settledFires(props.fires)
   const now = Date.now()
   const tally = tallyActivity(activity, now)
   const live = view.state === 'waiting' && !props.paused

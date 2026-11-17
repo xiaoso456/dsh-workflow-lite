@@ -24,12 +24,21 @@
   --fire: var(--wl-c-slate);
 }
 
+/* 排队中：强调色的字、空心的点（还没有结果）。 */
+[data-outcome="queued"] {
+  --fire: var(--wl-accent-text);
+  --fire-text: var(--wl-accent-text);
+  --fire-fill: transparent;
+}
+
 .dot {
+  box-sizing: border-box;
   flex: none;
   width: 6px;
   height: 6px;
+  border: 1.5px solid var(--fire);
   border-radius: 50%;
-  background: var(--fire);
+  background: var(--fire-fill, var(--fire));
 }
 
 /* 全部记录：筛选在上，列表在下。 */
@@ -156,6 +165,64 @@
 /* 行与行、行与小标题之间一条线。 */
 .fires > li + li {
   border-top: 1px solid var(--wl-line);
+}
+
+/* 排着的详情第一行：排第几个 · 等上一次跑完 · 正在跑「会话」↗。 */
+.queueLine {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin: 0;
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-meta);
+}
+
+.queuePlace {
+  color: var(--fire-text, var(--wl-accent-text));
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.queueSession {
+  min-width: 0;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.queueLink {
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--wl-accent-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.queueLink:hover .queueSession {
+  text-decoration: underline;
+}
+
+.queueLink:focus-visible {
+  border-radius: calc(4px * var(--wl-round, 1));
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 2px;
+}
+
+/* 取消不成时的原因：在底栏左边，不另起一行。 */
+.footProblem {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-danger);
+  font-size: var(--wl-fs-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* 详情的标题：色点 + 结果。 */

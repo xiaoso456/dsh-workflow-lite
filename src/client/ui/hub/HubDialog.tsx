@@ -85,6 +85,8 @@ export function HubDialog(props: {
   runs: Runs
   /** 打开实例；给了 `node` 就选中那一步。 */
   onOpenRun(id: string, node?: string): void
+  /** 跳到一个会话；跳不了回 `false`。 */
+  onOpenSession(id: string): boolean
   /** 打开一个工作流、选中里面的一张卡片（「触发」页的「在画布上打开」）。 */
   onOpenCard(workflow: string, node: string): void
   /** 一句结果提示（改完实例状态之后）。 */
@@ -229,6 +231,11 @@ export function HubDialog(props: {
             onOpenRun={(id) => {
               props.onOpenRun(id)
               props.onClose()
+            }}
+            onOpenSession={(id) => {
+              if (!props.onOpenSession(id)) return false
+              props.onClose()
+              return true
             }}
           />
         ) : page === 'memories' ? (

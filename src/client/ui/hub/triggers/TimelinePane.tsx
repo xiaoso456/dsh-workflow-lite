@@ -1,6 +1,10 @@
 /**
- * dsh-workflow-lite — 「触发」页的「时间线」：从上往下「接下来」→ 今天 → 昨天 …，一天一组，组头（哪天、日期、各种结果几次）
- * 滚动时钉在顶上；在自己的框里滚。
+ * dsh-workflow-lite — 「触发」页的「时间线」：从上往下「排队中」→「接下来」→ 今天 → 昨天 …，一天一组，
+ * 组头（哪天、日期、各种结果几次）滚动时钉在顶上；在自己的框里滚。
+ *
+ * 「排队中」一组只在有排着的时候有：组头写几个、在等哪个会话（点了跳过去），右边「清空」（浮出确认卡）；
+ * 先收到的在上、第一个底色浅一档（下一个就是它）。它们一定比新来的先跑，所以放在「接下来」上面；
+ * 筛选和条数都不算排着的，这一组不管筛哪种都在顶上。
  *
  * 顶上按结果筛选（全部 / 已发出 / 跳过 / 失败，带条数；模型判断不需要的跟着已发出），右边换样子：清单（一行一条）、
  * 时间轴（左边一根连续的线，今天那组里有个「现在」）。样子记在浏览器里；换样子只换外面的 `data-layout`，不重建行，
@@ -22,16 +26,21 @@ import {
   dayOf,
   FIRE_CHANNEL_TEXT,
   FIRE_KIND_SHORT,
-  type FireKind,
   groupByDay,
+  queuedFires,
+  type SettledKind,
+  settledFires,
 } from '../../../model/fireView.ts'
 import { clockTime, durationText } from '../../../model/time.ts'
 import { matchesOutcome, type OutcomeFilter, upcomingAt } from '../../../model/triggerActivity.ts'
 import { statusWhen } from '../../../model/triggerNow.ts'
 import { sourceFace, sourceText, stateBadge, stateTone } from '../../../model/triggerText.ts'
+import { useConfirm } from '../../kit/Confirm.tsx'
+import { cx } from '../../kit/cx.ts'
 import { Icon } from '../../kit/Icon.tsx'
 import { IconSwitch } from '../../kit/IconSwitch.tsx'
 import { Segmented } from '../../kit/Segmented.tsx'
+import ui from '../../kit/ui.module.css'
 import { useCrossfade } from '../../motion/crossfade.ts'
 import { TRIGGER_ICON } from '../../trigger/TriggerMark.tsx'
 import { FireRow, NowRow, PlanRow } from './FireRow.tsx'
@@ -48,7 +57,7 @@ const FILTERS: readonly { value: OutcomeFilter; label: LocaleKey }[] = [
 ]
 
 /** 组头上各种结果的先后。 */
-const KINDS: readonly FireKind[] = ['sent', 'declined', 'skipped', 'failed']
+const KINDS: readonly SettledKind[] = ['sent', 'declined', 'skipped', 'failed']
 
 /** 上下键在记录之间走（每条记录的第一个按钮是看详情）。 */
 function walk(event: React.KeyboardEvent<HTMLElement>): void {
@@ -69,6 +78,10 @@ export function TimelinePane(props: {
   /** 全部暂停着（接下来的都不会来）。 */
   paused: boolean
   sessionTitle(id: string): string | undefined
+  /** 排着的在等的那个会话（「排队中」组头写）。 */
+  waiting: { title: string; open?: () => void } | undefined
+  /** 清空排着的。 */
+  onClearQueue(): void
   onPick(record: FireRecord): void
   onOpenRun(instance: string): void
 }): React.JSX.Element {
@@ -92,7 +105,9 @@ export function TimelinePane(props: {
         ? sourceText(t, source)
         : t('hub.trgWaitOutside')
       : null
-  const fires = props.fires ?? []
+  const all = props.fires ?? []
+  const queue = queuedFires(all)
+  const fires = settledFires(all)
   const shown = fires.filter((record) => matchesOutcome(record, filter))
   const days = groupByDay(shown)
   const todayFires = days[0]?.day === today ? days[0].fires : []
@@ -109,12 +124,13 @@ export function TimelinePane(props: {
             ? t('hub.trgTodayNone')
             : null
 
-  const row = (record: FireRecord): React.JSX.Element => (
+  const row = (record: FireRecord, place?: number): React.JSX.Element => (
     <FireRow
       key={record.id}
       t={t}
       record={record}
       when={clockTime(record.at)}
+      {...(place === undefined ? {} : { place })}
       sessionTitle={props.sessionTitle}
       onPick={props.onPick}
       onOpenRun={props.onOpenRun}
@@ -157,6 +173,16 @@ export function TimelinePane(props: {
         data-testid="wl-hub-trg-history"
         onKeyDown={walk}
       >
+        {queue.length > 0 && (
+          <QueueGroup
+            t={t}
+            count={queue.length}
+            waiting={props.waiting}
+            onClear={props.onClearQueue}
+          >
+            {queue.map((record, index) => row(record, index + 1))}
+          </QueueGroup>
+        )}
         {(ahead.length > 0 || waitingFor !== null) && (
           <section className={css.day} data-testid="wl-hub-trg-upcoming">
             <div className={css.head} data-ahead>
@@ -212,6 +238,69 @@ export function TimelinePane(props: {
         ))}
       </div>
     </>
+  )
+}
+
+/** 「排队中」一组：组头写几个、在等哪个会话，右边「清空」（浮出确认卡再清）。 */
+function QueueGroup(props: {
+  t: T
+  count: number
+  waiting: { title: string; open?: () => void } | undefined
+  onClear(): void
+  children: React.ReactNode
+}): React.JSX.Element {
+  const { t, waiting } = props
+  const clear = useConfirm<HTMLButtonElement>()
+  return (
+    <section className={css.day} data-testid="wl-hub-trg-queue">
+      <div className={css.head} data-queue>
+        <span className={css.fade} aria-hidden="true" />
+        <span className={css.name}>{t('hub.trgQueue')}</span>
+        <span className={css.queueNote}>
+          <span className={css.queueCount}>
+            {t('hub.trgQueueHead').replace('{n}', String(props.count))}
+          </span>
+          {waiting !== undefined && (
+            <>
+              <span aria-hidden="true">·</span>
+              <span>{t('trigger.fire.running')}</span>
+              {waiting.open === undefined ? (
+                <span className={css.queueSession}>{waiting.title}</span>
+              ) : (
+                <button
+                  type="button"
+                  className={css.queueLink}
+                  data-testid="wl-hub-trg-queue-session"
+                  onClick={waiting.open}
+                >
+                  <span className={css.queueSession}>{waiting.title}</span>
+                  <Icon name="external" size={12} />
+                </button>
+              )}
+            </>
+          )}
+        </span>
+        <button
+          ref={clear.anchorRef}
+          type="button"
+          className={cx(ui.btn, ui.small, ui.dangerQuiet, css.queueClear)}
+          aria-expanded={clear.open}
+          data-testid="wl-hub-trg-queue-clear"
+          onClick={clear.toggle}
+        >
+          {t('hub.trgQueueClear')}
+        </button>
+        {clear.render({
+          t,
+          title: t('hub.trgQueueClearTitle').replace('{n}', String(props.count)),
+          desc: t('hub.trgQueueClearDesc'),
+          confirmText: t('hub.trgQueueClear'),
+          testId: 'wl-hub-trg-queue-clear-ok',
+          onConfirm: props.onClear,
+        })}
+      </div>
+      <ul className={css.rows}>{props.children}</ul>
+    </section>
   )
 }
 

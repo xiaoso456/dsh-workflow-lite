@@ -6,6 +6,7 @@
  * 时间轴两行，左边一根连续的线、结果色的点，上面结果 + 方式、下面说明。换样子只换属性，不重建行。
  *
  * 点一行看这次触发的详情；悬停或键盘选中时露出「实例 →」（直接打开那次执行）和箭头。
+ * 排着的一行：空心的点、写「排队中」，说明那一格是「第 N 个 · 背景信息的开头」；第一个底色浅一档。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/triggers/FireRow
  */
@@ -13,8 +14,14 @@
 import type { FireRecord } from '../../../../shared/wire/trigger.ts'
 import { useNow } from '../../../app/useNow.ts'
 import type { T } from '../../../i18n.ts'
-import { FIRE_CHANNEL_TEXT, FIRE_KIND_SHORT, fireKind, fireWhy } from '../../../model/fireView.ts'
-import { clockTime } from '../../../model/time.ts'
+import {
+  FIRE_CHANNEL_TEXT,
+  FIRE_KIND_SHORT,
+  fireKind,
+  fireWhy,
+  waited,
+} from '../../../model/fireView.ts'
+import { clockTime, durationText } from '../../../model/time.ts'
 import { cx } from '../../kit/cx.ts'
 import { Icon, type IconName } from '../../kit/Icon.tsx'
 import tone from '../../trigger/stateTone.module.css'
@@ -36,6 +43,8 @@ export function FireRow(props: {
   record: FireRecord
   /** 时刻怎么写（按天分组时只写钟点）。 */
   when: string
+  /** 排着的：排第几个（从 1 数）。 */
+  place?: number
   /** 会话的标题（发出去了的写「发进会话「…」」）；不知道的不给。 */
   sessionTitle?: (id: string) => string | undefined
   onPick(record: FireRecord): void
@@ -45,12 +54,29 @@ export function FireRow(props: {
   const kind = fireKind(record)
   const channel = t(FIRE_CHANNEL_TEXT[record.channel])
   const title = record.session === undefined ? undefined : props.sessionTitle?.(record.session)
+  const wait = waited(record)
   const what =
-    fireWhy(record) ??
-    (title === undefined ? t('hub.trgSentAny') : t('hub.trgSentTo').replace('{name}', title))
+    kind === 'queued'
+      ? queuedWhat(t, record, props.place)
+      : [
+          fireWhy(record) ??
+            (title === undefined
+              ? t('hub.trgSentAny')
+              : t('hub.trgSentTo').replace('{name}', title)),
+          // 排过队才发出去的：等了多久。
+          wait === undefined ? '' : t('hub.trgWaited').replace('{span}', durationText(t, wait)),
+        ]
+          .filter((part) => part !== '')
+          .join(' · ')
   const run = record.instance
   return (
-    <li className={css.row} data-outcome={kind} data-pick data-run={run !== undefined || undefined}>
+    <li
+      className={css.row}
+      data-outcome={kind}
+      data-pick
+      data-run={run !== undefined || undefined}
+      data-next={props.place === 1 || undefined}
+    >
       <button
         type="button"
         className={css.main}
@@ -81,6 +107,14 @@ export function FireRow(props: {
       )}
     </li>
   )
+}
+
+/** 排着的一行的说明：「第 1 个 · ERROR payment timeout」，没带背景信息时「第 1 个 · 等上一次跑完」。 */
+function queuedWhat(t: T, record: FireRecord, place: number | undefined): string {
+  const text = record.preview ?? t('trigger.fire.waitPrev')
+  return place === undefined
+    ? text
+    : `${t('trigger.fire.place').replace('{n}', String(place))} · ${text}`
 }
 
 /**

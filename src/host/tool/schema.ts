@@ -494,8 +494,13 @@ export const PARAMETERS = {
           },
           overlap: {
             type: 'string',
-            enum: ['skip', 'parallel'],
-            description: '上一次还在跑时：skip 跳过（缺省）/ parallel 照样触发。',
+            enum: ['skip', 'queue', 'parallel'],
+            description:
+              '上一次还在跑时：skip 跳过（缺省）/ queue 排队，跑完一个再开下一个（会改工作区文件的工作流用它）/ parallel 照样触发。',
+          },
+          queueMax: {
+            type: 'number',
+            description: 'overlap 为 queue 时最多排几个，排满了再来的跳过（缺省 10；0 = 不限制）。',
           },
           catchUp: {
             type: 'boolean',
@@ -503,7 +508,7 @@ export const PARAMETERS = {
           },
           maxPerHour: {
             type: 'number',
-            description: '每小时最多触发几次（缺省 12；0 = 不限制，只在用户明说时用）。',
+            description: '每小时最多触发几次（缺省 60；0 = 不限制，只在用户明说时用）。',
           },
           maxFailures: {
             type: 'number',

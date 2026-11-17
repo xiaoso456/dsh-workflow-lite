@@ -18,10 +18,10 @@
 
 import { randomBytes } from 'node:crypto'
 import { join } from 'node:path'
-import type { FireRecord, TriggerActivitySlot } from '../../shared/wire/trigger.ts'
+import type { FireRecord, FireSettled, TriggerActivitySlot } from '../../shared/wire/trigger.ts'
 import { ensureDir, readFileText, unlinkFile, writeFileAtomic } from '../store/atomic.ts'
 import type { PluginDatabase } from '../store/database.ts'
-import { type FireDetail, FireLog } from './fireLog.ts'
+import { type FireDetail, FireLog, type QueuedCount } from './fireLog.ts'
 import type { HookPortState } from './hooks.ts'
 import { OutputLog } from './outputLog.ts'
 import type { Probe } from './poller.ts'
@@ -278,9 +278,44 @@ export class TriggerStore {
     return this.log.recent(workflow, node, limit)
   }
 
-  /** `since` 之后这张卡片发出去了几次。 */
+  /** `since` 之后这张卡片收下了几次（发出去的、排着的）。 */
   async sentSince(workflow: string, node: string, since: number): Promise<number> {
     return this.log.sentSince(workflow, node, since)
+  }
+
+  /** 有排着的那些卡片、各几个。 */
+  async queuedCounts(): Promise<QueuedCount[]> {
+    return this.log.queuedCounts()
+  }
+
+  /** 这张卡片排着几个。 */
+  async queuedCount(workflow: string, node: string): Promise<number> {
+    return this.log.queuedCount(workflow, node)
+  }
+
+  /** 这张卡片排着的，先来的在前。 */
+  async queuedFires(workflow: string, node: string): Promise<FireRecord[]> {
+    return this.log.queued(workflow, node)
+  }
+
+  /** 排着的这一次轮到了，记下结果；已经不是排着的回 `false`。 */
+  async release(
+    id: string,
+    outcome: FireSettled,
+    extra: { reason?: string; session?: string },
+    sentAt: number,
+  ): Promise<boolean> {
+    return this.log.release(id, outcome, extra, sentAt)
+  }
+
+  /** 排着的这一次不再执行（记成跳过）；已经不是排着的回 `false`。 */
+  async cancel(id: string, reason: string): Promise<boolean> {
+    return this.log.cancel(id, reason)
+  }
+
+  /** 这张卡片排着的都不再执行（记成跳过），回几个。 */
+  async drop(workflow: string, node: string, reason: string): Promise<number> {
+    return this.log.drop(workflow, node, reason)
   }
 
   /** 这个会话里、`since` 以来发进去了还没对上实例的最早一次。 */

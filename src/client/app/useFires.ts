@@ -84,7 +84,8 @@ function useKept<V extends object>(
 
 /** 最近一次触发的记号：编号、对上的实例、模型的判断，任一样变了记录就要重读。 */
 export function firesSignal(
-  last: { id?: string; instance?: string; declined?: string } | undefined,
+  last: { id?: string; outcome?: string; instance?: string; declined?: string } | undefined,
+  queued?: number,
 ): string {
-  return `${last?.id ?? ''}|${last?.instance ?? ''}|${last?.declined ?? ''}`
+  return `${last?.id ?? ''}|${last?.outcome ?? ''}|${last?.instance ?? ''}|${last?.declined ?? ''}|${String(queued ?? 0)}`
 }

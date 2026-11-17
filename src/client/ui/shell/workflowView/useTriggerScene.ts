@@ -38,12 +38,25 @@ export interface TriggerSceneInput {
   sessionCwd: string | undefined
   select(selection: Selection): void
   openRun(id: string): void
+  /** 跳到一个会话；跳不了回 `false`。 */
+  openSession(session: string): boolean
   /** 打开工作流中心「触发」页、选中这个工作流里的这张卡片。 */
   openHistory(node: string): void
 }
 
 export function useTriggerScene(input: TriggerSceneInput): TriggerEnv {
-  const { t, rpc, wf, session, sessionRows, sessionCwd, select, openRun, openHistory } = input
+  const {
+    t,
+    rpc,
+    wf,
+    session,
+    sessionRows,
+    sessionCwd,
+    select,
+    openRun,
+    openSession,
+    openHistory,
+  } = input
   const { state } = wf
   // 图里一张触发卡片都没有就不问状态。
   const active = useMemo(() => state.doc?.nodes.some(isTrigger) === true, [state.doc])
@@ -152,6 +165,7 @@ export function useTriggerScene(input: TriggerSceneInput): TriggerEnv {
       takeReveal,
       editSource,
       openRun,
+      openSession,
       openHistory,
     }),
     [
@@ -171,6 +185,7 @@ export function useTriggerScene(input: TriggerSceneInput): TriggerEnv {
       takeReveal,
       editSource,
       openRun,
+      openSession,
       openHistory,
     ],
   )

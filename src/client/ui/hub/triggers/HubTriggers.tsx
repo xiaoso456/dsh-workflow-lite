@@ -55,6 +55,8 @@ export function HubTriggers(props: {
   /** 到工作流中心的「设置」页（改最近的输出保留几行）。 */
   onSettings(): void
   onOpenRun(id: string): void
+  /** 跳到一个会话；跳不了回 `false`。 */
+  onOpenSession(id: string): boolean
   onNotice(text: string, tone?: 'info' | 'error'): void
   /** 打开时先选中的卡片（画布上点了「全部记录」）。 */
   start?: { workflow: string; node: string }
@@ -103,6 +105,7 @@ export function HubTriggers(props: {
     onCatalogChanged: catalogChanged,
     onNotice,
     openRun: props.onOpenRun,
+    openSession: props.onOpenSession,
   })
 
   /** 改这张卡片写在图里的设置；回有没有存成（没成已经提示过）。 */

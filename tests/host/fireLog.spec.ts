@@ -1,6 +1,6 @@
 /**
  * 触发记录存在插件数据库里：每张卡片各记各的；列记录不带原文、详情才带；工作流改名跟着走、删掉一起删；
- * 几个连接同时写不丢。
+ * 几个连接同时写不丢；排着的（排队中）单独数得出、轮到了原地改结果。
  */
 
 import { existsSync } from 'node:fs'
@@ -161,5 +161,57 @@ describe('触发记录', () => {
     )
     expect(await a.history('wf', 'tick', 100)).toHaveLength(40)
     expect(await b.history('wf', 'tick', 100)).toHaveLength(40)
+  })
+
+  it('排着的：单独数得出；收下了就占每小时的次数；轮到时原地改结果、认领按轮到的时刻算；近况不数排着的', async () => {
+    const store = open()
+    await store.record(fire('a'))
+    const first = fire('a', 'queued', { info: '第一条' })
+    await store.record(first)
+    clock += MINUTE
+    const second = fire('a', 'queued')
+    await store.record(second)
+    await store.record(fire('b', 'queued'))
+    expect(await store.queuedCounts()).toEqual([
+      { workflow: 'wf', node: 'a', count: 2 },
+      { workflow: 'wf', node: 'b', count: 1 },
+    ])
+    expect(await store.queuedCount('wf', 'a')).toBe(2)
+    expect((await store.queuedFires('wf', 'a')).map((record) => record.id)).toEqual([
+      first.record.id,
+      second.record.id,
+    ])
+    // 排着的带上背景信息开头的一行（列表里看得出是哪一件事）；有了结果的不带。
+    expect((await store.queuedFires('wf', 'a'))[0]?.preview).toBe('第一条')
+    expect(
+      (await store.history('wf', 'a', 10)).find((r) => r.outcome === 'sent')?.preview,
+    ).toBeUndefined()
+    expect(await store.sentSince('wf', 'a', clock - 60 * MINUTE)).toBe(3)
+    expect(
+      (await store.activity('wf', 'a', clock - 60 * MINUTE, clock)).reduce(
+        (sum, slot) => sum + slot.count,
+        0,
+      ),
+    ).toBe(1)
+
+    // 轮到了：原地改成发出去，记下轮到的时刻；同一条不会再轮到一次。
+    const sentAt = clock + 2 * 60 * MINUTE
+    expect(await store.release(first.record.id, 'sent', { session: 's9' }, sentAt)).toBe(true)
+    expect(await store.release(first.record.id, 'sent', { session: 's9' }, sentAt)).toBe(false)
+    const released = await store.detail(first.record.id)
+    expect(released?.record).toMatchObject({ outcome: 'sent', session: 's9', sentAt })
+    expect(released?.info).toBe('第一条')
+    // 收到是两小时前，按轮到的时刻还在认领的窗口里。
+    expect((await store.unclaimed('wf', 's9', sentAt - 60 * MINUTE))?.id).toBe(first.record.id)
+
+    // 取消一条、清空一张卡片：都改成跳过，带上原因。
+    expect(await store.cancel(second.record.id, '手动取消')).toBe(true)
+    expect(await store.cancel(second.record.id, '手动取消')).toBe(false)
+    expect((await store.detail(second.record.id))?.record).toMatchObject({
+      outcome: 'skipped',
+      reason: '手动取消',
+    })
+    expect(await store.drop('wf', 'b', '卡片关掉了')).toBe(1)
+    expect(await store.queuedCounts()).toEqual([])
   })
 })

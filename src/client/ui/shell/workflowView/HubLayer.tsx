@@ -21,6 +21,7 @@ export function HubLayer({
   sessionsReady,
   runs,
   openRun,
+  openSession,
   wf,
   sessionCwd,
   hubFocus,
@@ -37,6 +38,8 @@ export function HubLayer({
   runs: Runs
   /** 打开实例；给了 `node` 就选中那一步。 */
   openRun(id: string, node?: string): void
+  /** 跳到一个会话；跳不了回 `false`。 */
+  openSession(id: string): boolean
   wf: Workflow
   sessionCwd: string | undefined
   /** 打开时停在哪（导出、某张触发卡片）；`null` = 从头。 */
@@ -57,6 +60,7 @@ export function HubLayer({
       sessionsReady={sessionsReady}
       runs={runs}
       onOpenRun={openRun}
+      onOpenSession={openSession}
       onOpenCard={openCard}
       onNotice={wf.notify}
       workflows={{

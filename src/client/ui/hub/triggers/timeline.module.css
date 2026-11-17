@@ -144,6 +144,59 @@
   list-style: none;
 }
 
+/* 「排队中」组头：几个 · 等上一次跑完 · 正在跑「会话」↗，右边「清空」。 */
+.queueNote {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  white-space: nowrap;
+}
+
+.queueCount {
+  color: var(--wl-accent-text);
+  font-weight: 600;
+}
+
+.queueSession {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.queueLink {
+  display: inline-flex;
+  flex: 0 1 auto;
+  gap: 2px;
+  align-items: center;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--wl-accent-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.queueLink:hover .queueSession {
+  text-decoration: underline;
+}
+
+.queueLink:focus-visible {
+  border-radius: calc(4px * var(--wl-round, 1));
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 2px;
+}
+
+.queueClear {
+  flex: none;
+  margin-left: auto;
+}
+
 /* ── 时间轴 ──────────────────────────────────────── */
 
 /* 线要连着：行之间、组之间不留空。 */
@@ -182,8 +235,13 @@
   padding-left: calc(var(--rail-x) + 19px);
 }
 
-.scroll[data-layout="rail"] .date {
+.scroll[data-layout="rail"] .date,
+.scroll[data-layout="rail"] .queueNote {
   grid-column: 3;
+}
+
+.scroll[data-layout="rail"] .queueClear {
+  grid-column: 4;
 }
 
 .scroll[data-layout="rail"] .fade::before {

@@ -391,13 +391,15 @@ export interface TriggerFilter {
 /** 触发后用哪个会话：每次新建 / 沿用这个触发器上一次的 / 固定某一个（哪一个存本机）。 */
 export type TriggerSessionMode = 'new' | 'last' | 'fixed'
 
-/** 上一次还没跑完时：跳过这一次 / 照样再开一次。 */
-export type TriggerOverlap = 'skip' | 'parallel'
+/** 上一次还没跑完时：跳过这一次 / 排队等上一次跑完再开 / 照样再开一次。 */
+export type TriggerOverlap = 'skip' | 'queue' | 'parallel'
 
 /** 启动方式（缺省值不写盘，见 `shared/trigger.ts` 的 `launchOf`）。 */
 export interface TriggerLaunch {
   session?: TriggerSessionMode
   overlap?: TriggerOverlap
+  /** 排队（`overlap: 'queue'`）时最多排几个，满了再来的跳过；0 = 不限制。 */
+  queueMax?: number
   /** DSH 关着期间错过的定时，启动后不补（缺省补一次）。 */
   catchUp?: false
   /** 每小时最多触发几次；0 = 不限制。 */

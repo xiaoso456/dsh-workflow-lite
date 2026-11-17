@@ -412,6 +412,98 @@ describe('到点触发', () => {
     expect(opened).toHaveLength(2)
   })
 
+  it('排队：上一次还在跑就排着，排满了跳过；不忙了每一轮放行最早的一个，刚发进去的那一会儿也算忙', async () => {
+    const triggers = await ready({ launch: { overlap: 'queue', queueMax: 2 } })
+    clock += 30 * MINUTE
+    await triggers.tick()
+    expect(sent).toHaveLength(1)
+    busy.add('s1')
+    for (let i = 0; i < 3; i += 1) {
+      clock += 30 * MINUTE
+      await triggers.tick()
+    }
+    expect(sent).toHaveLength(1)
+    const [full, second, first] = await triggers.history('patrol')
+    expect(full).toMatchObject({ outcome: 'skipped', reason: '已经排了 2 个，排满了' })
+    expect(second?.outcome).toBe('queued')
+    expect(first?.outcome).toBe('queued')
+    expect((await triggers.list('patrol')).triggers[0]).toMatchObject({ queued: 2, waiting: 's1' })
+
+    // 不忙了：放行先来的那个，新建会话发进去，原来那一条改成发出去、记下轮到的时刻。
+    busy.delete('s1')
+    await triggers.tick()
+    expect(sent).toHaveLength(2)
+    expect(sent[1]?.session).toBe('s2')
+    expect(sent[1]?.text).toContain(`fire=${first?.id ?? ''}`)
+    expect(
+      (await triggers.history('patrol')).find((record) => record.id === first?.id),
+    ).toMatchObject({
+      outcome: 'sent',
+      session: 's2',
+      sentAt: clock,
+    })
+    // 刚发进 s2、DSH 还没报运行中：同一轮里不再放行。
+    await triggers.tick()
+    expect(sent).toHaveLength(2)
+    // 报过运行中、又跑完了：放行下一个。
+    busy.add('s2')
+    await triggers.tick()
+    busy.delete('s2')
+    await triggers.tick()
+    expect(sent).toHaveLength(3)
+    expect((await triggers.list('patrol')).triggers[0]?.queued).toBeUndefined()
+  })
+
+  it('排队：已经有排着的，不忙时新来的也排在后面；关掉卡片、取消、清空都记成跳过；全部暂停时留着不发', async () => {
+    const triggers = await ready({ launch: { overlap: 'queue' } })
+    clock += 30 * MINUTE
+    await triggers.tick()
+    busy.add('s1')
+    clock += 30 * MINUTE
+    await triggers.tick()
+    busy.delete('s1')
+    await triggers.pause(true)
+    clock += 30 * MINUTE
+    await triggers.tick()
+    expect(sent).toHaveLength(1)
+    expect((await triggers.list('patrol')).triggers[0]?.queued).toBe(1)
+    await triggers.pause(false)
+
+    // 取消排着的那一个；再取消一次说它已经不在排队了。
+    const [queued] = await triggers.history('patrol')
+    expect(queued?.outcome).toBe('queued')
+    const cancelled = await triggers.cancelQueued(queued?.id ?? '')
+    expect(cancelled.ok && cancelled.result).toMatchObject({
+      outcome: 'skipped',
+      reason: '手动取消',
+    })
+    expect((await triggers.cancelQueued(queued?.id ?? '')).ok).toBe(false)
+
+    // 有排着的时候新来的排在后面（不插队）：s1 不忙，但前面还有一个。
+    busy.add('s1')
+    clock += 30 * MINUTE
+    await triggers.tick()
+    busy.delete('s1')
+    await triggers.fireNow({ workflow: 'patrol', node: 'tick' })
+    expect(sent).toHaveLength(2)
+    busy.add('s2')
+    clock += 30 * MINUTE
+    await triggers.tick()
+    expect((await triggers.list('patrol')).triggers[0]?.queued).toBe(2)
+    const cleared = await triggers.clearQueue('patrol', 'tick')
+    expect(cleared.ok && cleared.result).toEqual({ cleared: 2 })
+
+    clock += 30 * MINUTE
+    await triggers.tick()
+    expect((await triggers.list('patrol')).triggers[0]?.queued).toBe(1)
+    await triggers.set({ workflow: 'patrol', node: 'tick', enabled: false })
+    expect((await triggers.history('patrol'))[0]).toMatchObject({
+      outcome: 'skipped',
+      reason: '卡片关掉了，排着的不再执行',
+    })
+    expect((await triggers.list('patrol')).triggers[0]?.queued).toBeUndefined()
+  })
+
   it('「接着上一次的会话」：发进上一次的会话，它不在了就新建', async () => {
     const triggers = await ready({ launch: { session: 'last' } })
     clock += 30 * MINUTE

@@ -46,6 +46,16 @@
   --c-text: var(--tone-text);
 }
 
+/* 排队中：强调色的字、空心的点；第一个（下一个就轮到它）底色浅一档。 */
+.row[data-outcome="queued"] {
+  --c: var(--wl-accent-text);
+  --c-text: var(--wl-accent-text);
+}
+
+.row[data-next] {
+  background: color-mix(in srgb, var(--wl-accent) 7%, transparent);
+}
+
 /* 有实例的行给「实例 →」留出位置。 */
 .row[data-run] {
   --run-w: 50px;
@@ -112,6 +122,13 @@ button.main:focus-visible {
   height: 6px;
   border-radius: 50%;
   background: var(--c);
+}
+
+/* 排着的：空心的点（里面填面板色，时间轴的线不从点里穿过去）。 */
+.row[data-outcome="queued"] .dot {
+  box-sizing: border-box;
+  border: 1.5px solid var(--c);
+  background: var(--wl-panel);
 }
 
 .state {
@@ -278,9 +295,27 @@ button.main:focus-visible {
     0 0 0 5px color-mix(in srgb, var(--c) 32%, transparent);
 }
 
+:global([data-layout="rail"]) .row[data-outcome="queued"] .dot {
+  border-width: 2px;
+}
+
+/* 第一个排着的底色浅一档：点外面那圈、空心的里面跟着底色，不露出一圈面板色。 */
+:global([data-layout="rail"]) .row[data-next] .dot {
+  --next-bg: color-mix(in srgb, var(--wl-accent) 7%, var(--wl-panel));
+
+  background: var(--next-bg);
+  box-shadow: 0 0 0 3px var(--next-bg);
+}
+
 :global([data-layout="rail"]) .row[data-pick]:hover .dot,
 :global([data-layout="rail"]) .row[data-pick]:focus-within .dot {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--wl-text) 7%, var(--wl-panel));
+}
+
+/* 悬停时空心点的里面也跟着悬停的底色。 */
+:global([data-layout="rail"]) .row[data-outcome="queued"][data-pick]:hover .dot,
+:global([data-layout="rail"]) .row[data-outcome="queued"][data-pick]:focus-within .dot {
+  background: color-mix(in srgb, var(--wl-text) 7%, var(--wl-panel));
 }
 
 :global([data-layout="rail"]) .state {

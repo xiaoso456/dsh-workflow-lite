@@ -1,6 +1,6 @@
 /**
  * dsh-workflow-lite — `trigger/*`：触发卡片的状态、开关与本机设置（含确认命令、换令牌）、「立即触发一次」、
- * 触发记录与一次触发的详情、一段时间里的次数、最近的输出（摘要、几条的行、清空）、「试运行」命令与 HTTP 测试请求、本机的 shell，以及工作流中心「触发」页的全部卡片与「全部暂停」。
+ * 触发记录与一次触发的详情、取消排着的一次或清空一张卡片排着的、一段时间里的次数、最近的输出（摘要、几条的行、清空）、「试运行」命令与 HTTP 测试请求、本机的 shell，以及工作流中心「触发」页的全部卡片与「全部暂停」。
  *
  * @module @xiaoso/dsh-workflow-lite/host/rpc/trigger
  */
@@ -44,6 +44,10 @@ export async function dispatchTrigger(
   }
   if (endpoint === 'trigger/detail')
     return ok(await deps.triggers.detail(requireString(input, 'fire')))
+  if (endpoint === 'trigger/cancel') {
+    const outcome = await deps.triggers.cancelQueued(requireString(input, 'fire'))
+    return outcome.ok ? ok(outcome.result) : failFrom(outcome.error)
+  }
   if (endpoint === 'trigger/of-instance')
     return ok({ fires: await deps.triggers.ofInstance(requireString(input, 'instance')) })
   const workflow = requireString(input, 'workflow')
@@ -153,6 +157,11 @@ export async function dispatchTrigger(
       }
       if (tail !== undefined && typeof tail !== 'number') throw new Error('tail must be a number')
       return ok(deps.triggers.outputLinesOf(workflow, requireString(input, 'node'), entries, tail))
+    }
+
+    case 'trigger/clear-queue': {
+      const outcome = await deps.triggers.clearQueue(workflow, requireString(input, 'node'))
+      return outcome.ok ? ok(outcome.result) : failFrom(outcome.error)
     }
 
     case 'trigger/output-clear':

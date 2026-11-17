@@ -41,6 +41,7 @@ export interface HubEnvInput {
   onCatalogChanged(): void
   onNotice(text: string, tone?: 'info' | 'error'): void
   openRun(id: string): void
+  openSession(id: string): boolean
 }
 
 const NO_REVEAL = (): null => null
@@ -67,6 +68,7 @@ export function useHubTriggerEnv(input: HubEnvInput): TriggerEnv {
       fire: (node, info) => hub.fire(workflow, node, info ?? ''),
       history: (node, limit) => hub.history(workflow, node, limit),
       detail: hub.detail,
+      cancel: hub.cancel,
       output: hub.output(workflow),
       tryCommand: (request) => hub.tryCommand({ workflow, ...request }),
       ping: (node) => hub.ping(workflow, node),
@@ -130,6 +132,7 @@ export function useHubTriggerEnv(input: HubEnvInput): TriggerEnv {
       takeReveal: NO_REVEAL,
       editSource: NOTHING,
       openRun: input.openRun,
+      openSession: input.openSession,
       openHistory: NOTHING,
     }),
     [

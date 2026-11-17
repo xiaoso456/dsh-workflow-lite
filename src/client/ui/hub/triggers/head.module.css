@@ -194,6 +194,18 @@
   color: var(--wl-text-2);
 }
 
+/* 有排着的时候：一道竖线 + 「⏳ 排队 3 个」，跟在「上一次」后面。 */
+.queued {
+  display: inline-flex;
+  flex: none;
+  gap: 12px;
+  align-items: center;
+}
+
+.queued[hidden] {
+  display: none;
+}
+
 .fire {
   display: inline-flex;
   flex: none;

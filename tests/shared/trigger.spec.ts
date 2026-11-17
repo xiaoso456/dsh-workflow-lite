@@ -33,7 +33,7 @@ describe('触发节点的读入', () => {
         kind: 'schedule',
         schedule: { kind: 'daily', time: '18:30', weekdays: [5, 1, 1, 9] },
       },
-      launch: { session: 'new', overlap: 'skip', catchUp: true, maxPerHour: 12, maxFailures: 5 },
+      launch: { session: 'new', overlap: 'skip', catchUp: true, maxPerHour: 60, maxFailures: 5 },
     })
     expect(data).toEqual({
       note: '分支用 main',
@@ -43,10 +43,22 @@ describe('触发节点的读入', () => {
     expect(launchOf(data)).toEqual({
       session: 'new',
       overlap: 'skip',
+      queueMax: 10,
       catchUp: true,
-      maxPerHour: 12,
+      maxPerHour: 60,
       maxFailures: 5,
     })
+  })
+
+  it('排队：选项和最多排几个都留在图里（缺省 10 不写），0 是不限制', () => {
+    const data = readTriggerData({ launch: { overlap: 'queue', queueMax: 10 } })
+    expect(data.launch).toEqual({ overlap: 'queue' })
+    expect(launchOf(data)).toMatchObject({ overlap: 'queue', queueMax: 10 })
+    expect(readTriggerData({ launch: { overlap: 'queue', queueMax: 0 } }).launch).toEqual({
+      overlap: 'queue',
+      queueMax: 0,
+    })
+    expect(readTriggerData({ launch: { overlap: 'wait', queueMax: -2 } }).launch).toBeUndefined()
   })
 
   it('两个上限写 0 是不限制，留在图里，多大都行；负数、小数丢掉回缺省', () => {
@@ -57,7 +69,7 @@ describe('触发节点的读入', () => {
       maxPerHour: 50_000,
     })
     const bad = readTriggerData({ launch: { maxPerHour: -1, maxFailures: 1.5 } })
-    expect(launchOf(bad)).toMatchObject({ maxPerHour: 12, maxFailures: 3 })
+    expect(launchOf(bad)).toMatchObject({ maxPerHour: 60, maxFailures: 3 })
   })
 
   it('七天全选和不写是一回事', () => {

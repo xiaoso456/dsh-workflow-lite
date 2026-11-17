@@ -59,11 +59,12 @@ export interface Triggers {
   set(node: string, change: TriggerChange): Promise<string | null>
   /** 立即触发一次：回这次的记录；请求本身失败回一句原因。 */
   fire(node: string, info?: string): Promise<FireRecord | string>
-  /** 一张卡片的触发记录，新的在前。 */
   /** 这张卡片最近 `limit` 条触发记录，新的在前。 */
   history(node: string, limit: number): Promise<FireRecord[]>
   /** 一次触发那一刻带的触发说明、背景信息；读不到是空的。 */
   detail(fire: string): Promise<TriggerDetailResponse>
+  /** 取消排着的一次（记成跳过）。取消不了回一句原因。 */
+  cancel(fire: string): Promise<string | null>
   /** 定时检查命令、监听程序最近的输出。 */
   output: OutputAccess
   /** 「试运行」还没保存的命令；请求本身失败回一句原因。 */
@@ -182,6 +183,19 @@ export function useTriggers(
     [rpc],
   )
 
+  const cancel = useCallback(
+    async (fire: string): Promise<string | null> => {
+      try {
+        await rpc.call('trigger/cancel', { fire })
+        if (workflow !== null) await lister.run(workflow)
+        return null
+      } catch (error) {
+        return errorMessage(error)
+      }
+    },
+    [rpc, workflow, lister],
+  )
+
   const output = useMemo(() => createOutputAccess(rpc, workflow), [rpc, workflow])
 
   const tryCommand = useCallback(
@@ -212,7 +226,18 @@ export function useTriggers(
   )
 
   return useMemo(
-    () => ({ view, owner: list.owner, set, fire, history, detail, output, tryCommand, ping }),
-    [view, list.owner, set, fire, history, detail, output, tryCommand, ping],
+    () => ({
+      view,
+      owner: list.owner,
+      set,
+      fire,
+      history,
+      detail,
+      cancel,
+      output,
+      tryCommand,
+      ping,
+    }),
+    [view, list.owner, set, fire, history, detail, cancel, output, tryCommand, ping],
   )
 }

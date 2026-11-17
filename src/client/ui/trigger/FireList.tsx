@@ -3,6 +3,9 @@
  * 跳过 / 失败 / 不需要的原因写在同一行里、放不下就省略；点一行打开这次触发的详情（`dialogs/FireDialog`），
  * 建出了实例的行尾可以直接点过去看。
  *
+ * 排着的（排队中）放在最上面：空心的点，原因那一格写背景信息的开头；详情里能取消。详情开着时那一次轮到了，
+ * 详情跟着换成新读到的那一条。
+ *
  * 列表自己一个框：最多露出 `rows` 行，再多在框里滚，不把外面撑长。
  *
  * `days` 时按天分组、每天一个小标题，行里只写钟点；不分组时今天的只写钟点、昨天写「昨天」、再早写月日。
@@ -22,6 +25,8 @@ import {
   fireKind,
   fireWhy,
   groupByDay,
+  queuePlace,
+  settledFires,
 } from '../../model/fireView.ts'
 import { clockTime, pastTime } from '../../model/time.ts'
 import { cx } from '../kit/cx.ts'
@@ -44,6 +49,10 @@ export function FireList(props: {
   /** 读一次触发那一刻带的触发说明、背景信息（详情里用）。 */
   detail(fire: string): Promise<TriggerDetailResponse>
   onOpenRun(instance: string): void
+  /** 排着的在等的那个会话（详情里写）。 */
+  waiting?: { title: string; open?: () => void } | undefined
+  /** 取消排着的一次；取消不了回一句原因。 */
+  onCancel?(fire: string): Promise<string | null>
 }): React.JSX.Element | null {
   const { t, fires } = props
   const [picked, setPicked] = useState<FireRecord | null>(null)
@@ -52,8 +61,12 @@ export function FireList(props: {
     return <p className={ins.help}>{props.empty ?? t('trigger.historyEmpty')}</p>
   }
   const now = Date.now()
+  // 排着的在最上面（新收到的在上），其余照旧。
+  const queued = fires.filter((record) => record.outcome === 'queued')
+  const settled = settledFires(fires)
+  const live = picked === null ? null : (fires.find((record) => record.id === picked.id) ?? picked)
   const row = (record: FireRecord, when: string): React.JSX.Element => {
-    const why = fireWhy(record)
+    const why = fireWhy(record) ?? record.preview
     return (
       <li key={record.id} className={css.fire} data-outcome={fireKind(record)}>
         <button
@@ -87,22 +100,26 @@ export function FireList(props: {
   return (
     <>
       <ul className={css.fires} style={{ '--fire-rows': props.rows } as React.CSSProperties}>
+        {queued.map((record) => row(record, pastTime(t, record.at, now)))}
         {props.days === true
-          ? groupByDay(fires).flatMap((group) => [
+          ? groupByDay(settled).flatMap((group) => [
               <li key={`day-${group.day}`} className={css.day}>
                 <span>{dayHead(t, group.day, now).name}</span>
                 <span className={css.dayCount}>{group.fires.length}</span>
               </li>,
               ...group.fires.map((record) => row(record, clockTime(record.at))),
             ])
-          : fires.map((record) => row(record, pastTime(t, record.at, now)))}
+          : settled.map((record) => row(record, pastTime(t, record.at, now)))}
       </ul>
-      {picked !== null && (
+      {live !== null && (
         <FireDialog
           t={t}
-          record={picked}
+          record={live}
           detail={props.detail}
           onOpenRun={props.onOpenRun}
+          place={queuePlace(fires, live.id)}
+          waiting={props.waiting}
+          {...(props.onCancel === undefined ? {} : { onCancel: props.onCancel })}
           onClose={() => setPicked(null)}
         />
       )}

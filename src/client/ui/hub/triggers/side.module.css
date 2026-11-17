@@ -27,6 +27,13 @@
   color: var(--tone-text);
 }
 
+/* 紧凑时的行尾：排队的沙漏 + 数字在状态前面。 */
+.end {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+}
+
 .note {
   min-width: 0;
   overflow: hidden;

@@ -1,0 +1,19 @@
+/*
+ * dsh-workflow-lite — 排队的记号（QueueMark.tsx）：沙漏 + 数字，强调色的字，不加底色块。
+ */
+
+.queue {
+  display: inline-flex;
+  flex: none;
+  gap: 3px;
+  align-items: center;
+  color: var(--wl-accent-text);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.queue[hidden] {
+  display: none;
+}

@@ -1,8 +1,12 @@
 /**
- * dsh-workflow-lite — 一次触发的详情（只读）：结果、时刻与渠道，跳过 / 失败 / 不需要的原因全文，
+ * dsh-workflow-lite — 一次触发的详情：结果、时刻与渠道，跳过 / 失败 / 不需要的原因全文，
  * 那一刻带的触发条件、触发说明、背景信息，记到了实例上的可以点过去看。
  *
  * 原因在记录里就有，打开就显示；触发说明这些要另读一次，读到了再接在下面。
+ *
+ * 排着的：标题写「排队中」，时刻写「收到」，第一行写排第几、在等哪个会话（点了跳过去），底下可以「取消这一次」
+ * （浮出确认卡再取消，记成跳过）。排过队才发出去的多一行「排队 4 分钟后发出（时刻）」。
+ * 详情开着时这一次轮到了，外面换上新的记录，这里跟着变成「已发出」。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/trigger/dialogs/FireDialog
  */
@@ -10,8 +14,15 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FireRecord, TriggerDetailResponse } from '../../../../shared/wire/trigger.ts'
 import type { T } from '../../../i18n.ts'
-import { FIRE_CHANNEL_TEXT, FIRE_KIND_TEXT, fireKind, fireWhy } from '../../../model/fireView.ts'
-import { fullTime } from '../../../model/time.ts'
+import {
+  FIRE_CHANNEL_TEXT,
+  FIRE_KIND_TEXT,
+  fireKind,
+  fireWhy,
+  waited,
+} from '../../../model/fireView.ts'
+import { durationText, fullTime } from '../../../model/time.ts'
+import { useConfirm } from '../../kit/Confirm.tsx'
 import { cx } from '../../kit/cx.ts'
 import { Icon } from '../../kit/Icon.tsx'
 import { Modal } from '../../kit/Modal.tsx'
@@ -26,11 +37,22 @@ export function FireDialog(props: {
   detail(fire: string): Promise<TriggerDetailResponse>
   /** 打开它建出的实例；不给就不放这个按钮（已经在看这个实例了）。 */
   onOpenRun?(instance: string): void
+  /** 排着的：排第几个（从 1 数）。 */
+  place?: number | undefined
+  /** 排着的在等的那个会话：标题，跳得过去时给 `open`。 */
+  waiting?: { title: string; open?: (() => void) | undefined } | undefined
+  /** 取消排着的这一次；取消不了回一句原因。不给就不放这个按钮。 */
+  onCancel?(fire: string): Promise<string | null>
   onClose(): void
 }): React.JSX.Element {
   const { t, record } = props
   const kind = fireKind(record)
   const why = fireWhy(record)
+  const queued = kind === 'queued'
+  const wait = waited(record)
+  const cancel = useConfirm<HTMLButtonElement>()
+  const [cancelling, setCancelling] = useState(false)
+  const [problem, setProblem] = useState<string | null>(null)
   const [detail, setDetail] = useState<TriggerDetailResponse | null>(null)
   const read = useRef(props.detail)
   read.current = props.detail
@@ -65,7 +87,10 @@ export function FireDialog(props: {
             <span data-testid="wl-trigger-fire-outcome">{t(FIRE_KIND_TEXT[kind])}</span>
           </p>
           <p className={overlay.sheetSub}>
-            {record.name} · {t(FIRE_CHANNEL_TEXT[record.channel])} · {fullTime(record.at)}
+            {record.name} · {t(FIRE_CHANNEL_TEXT[record.channel])} ·{' '}
+            {queued
+              ? t('trigger.fire.received').replace('{time}', fullTime(record.at))
+              : fullTime(record.at)}
           </p>
         </div>
         <button
@@ -78,6 +103,30 @@ export function FireDialog(props: {
         </button>
       </header>
       <div className={overlay.sheetBody}>
+        {queued && (
+          <p className={css.queueLine} data-testid="wl-trigger-fire-queue">
+            {props.place !== undefined && (
+              <span className={css.queuePlace}>
+                {t('trigger.fire.place').replace('{n}', String(props.place))}
+              </span>
+            )}
+            <span>{t('trigger.fire.waitPrev')}</span>
+            {props.waiting !== undefined && (
+              <>
+                <span aria-hidden="true">·</span>
+                <span>{t('trigger.fire.running')}</span>
+                <SessionLink waiting={props.waiting} />
+              </>
+            )}
+          </p>
+        )}
+        {wait !== undefined && record.sentAt !== undefined && (
+          <p className={ins.help} data-testid="wl-trigger-fire-waited">
+            {t('trigger.fire.waited')
+              .replace('{span}', durationText(t, wait))
+              .replace('{time}', fullTime(record.sentAt))}
+          </p>
+        )}
         {why !== undefined && (
           <Block
             title={t(kind === 'declined' ? 'trigger.fire.declinedReason' : 'trigger.fire.reason')}
@@ -106,7 +155,42 @@ export function FireDialog(props: {
         )}
         {plain && why === undefined && <p className={ins.help}>{t('trigger.fire.plain')}</p>}
       </div>
-      {instance !== undefined && openRun !== undefined && (
+      {queued && props.onCancel !== undefined && (
+        <footer className={overlay.sheetFoot}>
+          {problem !== null && <span className={css.footProblem}>{problem}</span>}
+          <span className={ui.grow} />
+          <button
+            ref={cancel.anchorRef}
+            type="button"
+            className={cx(ui.btn, ui.small, ui.danger)}
+            aria-expanded={cancel.open}
+            disabled={cancelling}
+            data-testid="wl-trigger-fire-cancel"
+            onClick={cancel.toggle}
+          >
+            {t('trigger.fire.cancel')}
+          </button>
+          {cancel.render({
+            t,
+            title: t('trigger.fire.cancelTitle'),
+            desc: t('trigger.fire.cancelDesc'),
+            confirmText: t('trigger.fire.cancel'),
+            testId: 'wl-trigger-fire-cancel-ok',
+            onConfirm: () => {
+              const run = props.onCancel
+              if (run === undefined) return
+              setCancelling(true)
+              setProblem(null)
+              void run(record.id).then((reason) => {
+                setCancelling(false)
+                if (reason === null) props.onClose()
+                else setProblem(reason)
+              })
+            },
+          })}
+        </footer>
+      )}
+      {!queued && instance !== undefined && openRun !== undefined && (
         <footer className={overlay.sheetFoot}>
           <span className={ui.grow} />
           <button
@@ -124,6 +208,25 @@ export function FireDialog(props: {
         </footer>
       )}
     </Modal>
+  )
+}
+
+/** 在等的那个会话：跳得过去是一个链接样的按钮，跳不过去只写标题。 */
+function SessionLink(props: {
+  waiting: { title: string; open?: (() => void) | undefined }
+}): React.JSX.Element {
+  const { title, open } = props.waiting
+  if (open === undefined) return <span className={css.queueSession}>{title}</span>
+  return (
+    <button
+      type="button"
+      className={css.queueLink}
+      data-testid="wl-trigger-fire-session"
+      onClick={open}
+    >
+      <span className={css.queueSession}>{title}</span>
+      <Icon name="external" size={12} />
+    </button>
   )
 }
 

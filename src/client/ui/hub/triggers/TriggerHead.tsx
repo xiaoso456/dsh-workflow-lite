@@ -4,7 +4,7 @@
  * - 头部：触发方式的图标块、名字（点名字或后面的铅笔就地改名，见 {@link TitleEdit}）、所在工作流和
  *   「方式 · 主动 / 被动」两枚小签，下面一句什么时候执行；
  *   右边开关（和左栏同一个）、在画布上打开；
- * - 状态条一行：状态 | 下一次（时刻 + 还有多久，「每隔」的底边一条倒计时）| 立即触发一次；
+ * - 状态条一行：状态 | 下一次（时刻 + 还有多久，「每隔」的底边一条倒计时）|（有排着的）排队 3 个 | 立即触发一次；
  *   刚触发的结果几秒内占「下一次」那一格；
  * - 出了要人处理的事，状态后面亮一枚小图标（不另起一行、不挤动版面）：悬停、聚焦、点它浮出一张小卡，
  *   写着怎么回事，带能直接做的事（确认并打开、确认命令、重新打开）。全部暂停着也走这里（说明带「恢复」），
@@ -33,6 +33,7 @@ import { SwitchTrack } from '../../motion/marks.tsx'
 import { CountdownLine } from '../../trigger/CountdownLine.tsx'
 import { useFireNow } from '../../trigger/FireNow.tsx'
 import { ProblemMark } from '../../trigger/ProblemMark.tsx'
+import { QueueMark } from '../../trigger/QueueMark.tsx'
 import tone from '../../trigger/stateTone.module.css'
 import { TriggerMark } from '../../trigger/TriggerMark.tsx'
 import hub from '../hub.module.css'
@@ -214,6 +215,10 @@ function StatusBar(props: {
           ) : (
             <span className={css.whenMain}>{fired.text}</span>
           )}
+        </span>
+        <span className={css.queued} hidden={(view.queued ?? 0) === 0}>
+          <span className={css.sep} aria-hidden="true" />
+          <QueueMark t={t} count={view.queued ?? 0} label testId="wl-hub-trg-queued" />
         </span>
         <span className={css.fire}>{fireNow.button}</span>
         <CountdownLine next={counting ? view.next : undefined} seconds={span} />

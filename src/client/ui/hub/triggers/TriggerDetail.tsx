@@ -19,13 +19,14 @@ import { useFireSeen } from '../../../app/fireSeen.ts'
 import { firesSignal, useActivity, useFires } from '../../../app/useFires.ts'
 import type { TriggerHub } from '../../../app/useTriggerHub.ts'
 import type { T } from '../../../i18n.ts'
+import { queuePlace, settledFires } from '../../../model/fireView.ts'
 import { rhythmSince } from '../../../model/triggerActivity.ts'
 import { sourceFace } from '../../../model/triggerText.ts'
 import type { WorkflowLiteRpc } from '../../../rpc.ts'
 import { useSwap } from '../../motion/swap.tsx'
 import { FireDialog } from '../../trigger/dialogs/FireDialog.tsx'
 import { triggerTint } from '../../trigger/TriggerMark.tsx'
-import type { TriggerEnv } from '../../trigger/triggerEnv.ts'
+import { type TriggerEnv, waitingSession } from '../../trigger/triggerEnv.ts'
 import css from '../pane/detail.module.css'
 import tabs from '../pane/paneTabs.module.css'
 import { CallPane } from './CallPane.tsx'
@@ -68,7 +69,7 @@ export function TriggerDetail(props: {
   const kind = entry.data.source.kind
   const face = sourceFace(entry.data.source)
   const key = keyOf(entry)
-  const signal = firesSignal(view.last)
+  const signal = firesSignal(view.last, view.queued)
   const fires = useFires(key, signal, () => hub.history(entry.workflow, view.node, SHOWN))
   // 近况从节律最早那天的 0 点起；过了零点换一天，跟着重读。
   const since = rhythmSince(Date.now())
@@ -90,6 +91,17 @@ export function TriggerDetail(props: {
     (id: string) => sessions.find((session) => session.id === id)?.title,
     [sessions],
   )
+  // 页签上的条数同筛选的「全部」：排着的不算。
+  const settled = fires === null ? 0 : settledFires(fires).length
+  const waiting = waitingSession(t, props.env, view.waiting)
+  // 详情开着时那一次轮到了：换成新读到的那一条。
+  const live = picked === null ? null : (fires?.find((record) => record.id === picked.id) ?? picked)
+  const onNotice = props.onNotice
+  const clearQueue = (): void => {
+    void hub.clearQueue(entry.workflow, view.node).then((problem) => {
+      if (problem !== null) onNotice(problem, 'error')
+    })
+  }
 
   // 换卡片：同一个横坐标（0），原地交叉淡；换页签：第几个面，按前后从那一侧进来。
   const swap = useSwap<HTMLDivElement>(key, 0, DETAIL_TABS.indexOf(tab))
@@ -119,6 +131,8 @@ export function TriggerDetail(props: {
             fires={fires}
             paused={paused}
             sessionTitle={sessionTitle}
+            waiting={waiting}
+            onClearQueue={clearQueue}
             onPick={setPicked}
             onOpenRun={props.onOpenRun}
           />
@@ -178,7 +192,7 @@ export function TriggerDetail(props: {
             t={t}
             face={face}
             value={tab}
-            count={fires === null || fires.length === 0 ? undefined : fires.length}
+            count={settled === 0 ? undefined : settled}
             failed={unseenFailure}
             onChange={props.onTab}
           />
@@ -194,12 +208,15 @@ export function TriggerDetail(props: {
           {pane}
         </div>
       </div>
-      {picked !== null && (
+      {live !== null && (
         <FireDialog
           t={t}
-          record={picked}
+          record={live}
           detail={hub.detail}
           onOpenRun={props.onOpenRun}
+          place={fires === null ? undefined : queuePlace(fires, live.id)}
+          waiting={waiting}
+          onCancel={hub.cancel}
           onClose={() => setPicked(null)}
         />
       )}

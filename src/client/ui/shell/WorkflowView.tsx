@@ -278,6 +278,13 @@ function Shell(props: {
     [workflowName],
   )
 
+  // 跳到一个会话（排着的触发在等的那个）。
+  const sessionBridge = props.sessions
+  const openSession = useCallback(
+    (id: string): boolean => sessionBridge?.open(id) === true,
+    [sessionBridge],
+  )
+
   // 触发卡片的现场：画布上的卡片和右栏的面板读同一份。
   const triggerScene = useTriggerScene({
     t,
@@ -288,6 +295,7 @@ function Shell(props: {
     sessionCwd,
     select,
     openRun,
+    openSession,
     openHistory,
   })
 
@@ -335,6 +343,7 @@ function Shell(props: {
       sessionsReady={props.sessions?.available() === true}
       runs={runs}
       openRun={openRun}
+      openSession={openSession}
       wf={wf}
       sessionCwd={sessionCwd}
       hubFocus={hubFocus}

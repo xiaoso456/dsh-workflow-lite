@@ -216,6 +216,8 @@ describe('时间线', () => {
     expect(matchesOutcome(declined, 'sent')).toBe(true)
     expect(matchesOutcome(declined, 'skipped')).toBe(false)
     expect(matchesOutcome(fire(now, 'failed'), 'all')).toBe(true)
+    // 排队中的还没有结果：筛哪一类（含「全部」）都不算。
+    expect(matchesOutcome({ outcome: 'queued' }, 'all')).toBe(false)
   })
 
   it('接下来：定时从排好的下一次往后排，轮询是下一次检查，被动的、关着的没有', () => {

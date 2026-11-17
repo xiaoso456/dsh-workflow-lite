@@ -13,6 +13,7 @@ import type { SessionRow } from '../../app/sessions.ts'
 import type { ShellAccess } from '../../app/shells.ts'
 import type { Triggers } from '../../app/useTriggers.ts'
 import type { RunBrief } from '../../app/workflowRuns.ts'
+import type { T } from '../../i18n.ts'
 
 export type { RunBrief } from '../../app/workflowRuns.ts'
 
@@ -71,6 +72,8 @@ export interface TriggerEnv {
   editSource(node: string): void
   /** 打开一次触发建出来的实例。 */
   openRun(instance: string): void
+  /** 跳到一个会话（和点侧栏一样；排着的在等的那个）。跳不了（会话服务没接上）回 `false`。 */
+  openSession(session: string): boolean
   /** 到工作流中心「触发」页看这张卡片的全部触发记录。 */
   openHistory(node: string): void
 }
@@ -105,6 +108,25 @@ export function workflowChoices(
       nodes: entry.nodeCount,
     }))
     .sort((a, b) => a.name.localeCompare(b.name))
+}
+
+/**
+ * 排着的在等的那个会话：标题（侧栏里找不到就说「上一次触发的会话」），跳得过去时带上 `open`。
+ * 没有在等的（没有排着的）是 `undefined`。
+ */
+export function waitingSession(
+  t: T,
+  env: Pick<TriggerEnv, 'sessions' | 'openSession'>,
+  session: string | undefined,
+): { title: string; open: () => void } | undefined {
+  if (session === undefined) return undefined
+  const title = env.sessions.find((choice) => choice.id === session)?.title
+  return {
+    title: title ?? t('trigger.fire.prevSession'),
+    open: () => {
+      env.openSession(session)
+    },
+  }
 }
 
 export const TriggerContext = createContext<TriggerEnv | null>(null)

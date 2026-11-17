@@ -55,8 +55,10 @@ export const DEFAULT_TRIGGER: TriggerData = {
 }
 
 /** 保护的缺省值：每小时最多触发几次、连续失败几次后自动停用。 */
-export const DEFAULT_MAX_PER_HOUR = 12
+export const DEFAULT_MAX_PER_HOUR = 60
 export const DEFAULT_MAX_FAILURES = 3
+/** 排队时缺省最多排几个。 */
+export const DEFAULT_QUEUE_MAX = 10
 /** 上限写成这个数就是不限制（每小时不限次数 / 失败多少次都不自动停用）。 */
 export const NO_LIMIT = 0
 
@@ -138,7 +140,8 @@ export const SOURCE_SEED: Record<TriggerSourceKind, TriggerSource> = {
 }
 
 const SESSION_MODES: readonly TriggerSessionMode[] = ['new', 'last', 'fixed']
-const OVERLAPS: readonly TriggerOverlap[] = ['skip', 'parallel']
+/** 上一次没跑完时的几种办法（「保护」里按这个先后排）。 */
+export const OVERLAPS: readonly TriggerOverlap[] = ['skip', 'queue', 'parallel']
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -259,6 +262,8 @@ function readLaunch(raw: unknown): TriggerLaunch | undefined {
   if (session !== undefined && session !== 'new') launch.session = session
   const overlap = OVERLAPS.find((mode) => mode === raw.overlap)
   if (overlap !== undefined && overlap !== 'skip') launch.overlap = overlap
+  const queueMax = wholeIn(raw.queueMax, NO_LIMIT, Number.MAX_SAFE_INTEGER)
+  if (queueMax !== undefined && queueMax !== DEFAULT_QUEUE_MAX) launch.queueMax = queueMax
   if (raw.catchUp === false) launch.catchUp = false
   const perHour = wholeIn(raw.maxPerHour, NO_LIMIT, Number.MAX_SAFE_INTEGER)
   if (perHour !== undefined && perHour !== DEFAULT_MAX_PER_HOUR) launch.maxPerHour = perHour
@@ -336,6 +341,7 @@ export function canonicalTrigger(data: TriggerData): TriggerData {
     out.launch = {
       ...(launch.session === undefined ? {} : { session: launch.session }),
       ...(launch.overlap === undefined ? {} : { overlap: launch.overlap }),
+      ...(launch.queueMax === undefined ? {} : { queueMax: launch.queueMax }),
       ...(launch.catchUp === undefined ? {} : { catchUp: launch.catchUp }),
       ...(launch.maxPerHour === undefined ? {} : { maxPerHour: launch.maxPerHour }),
       ...(launch.maxFailures === undefined ? {} : { maxFailures: launch.maxFailures }),
@@ -372,6 +378,7 @@ export function patchTriggerData(
 export interface LaunchSettings {
   session: TriggerSessionMode
   overlap: TriggerOverlap
+  queueMax: number
   catchUp: boolean
   maxPerHour: number
   maxFailures: number
@@ -382,6 +389,7 @@ export function launchOf(data: TriggerData): LaunchSettings {
   return {
     session: data.launch?.session ?? 'new',
     overlap: data.launch?.overlap ?? 'skip',
+    queueMax: data.launch?.queueMax ?? DEFAULT_QUEUE_MAX,
     catchUp: data.launch?.catchUp ?? true,
     maxPerHour: data.launch?.maxPerHour ?? DEFAULT_MAX_PER_HOUR,
     maxFailures: data.launch?.maxFailures ?? DEFAULT_MAX_FAILURES,

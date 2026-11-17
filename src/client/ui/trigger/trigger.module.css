@@ -176,6 +176,11 @@ button.statusSwitch:active {
   white-space: nowrap;
 }
 
+/* 有排着的时候只写状态的前半句（后面跟「排队 3 个」）：短，不让它被挤成省略号。 */
+.statusText[data-short] {
+  flex: none;
+}
+
 /* 「立即触发一次」和它的结果。 */
 .fireRow {
   display: flex;
@@ -215,9 +220,45 @@ button.statusSwitch:active {
   justify-content: flex-end;
 }
 
+/* 「保护」里「上一次还没跑完时」：标题 + 三选一，下面一句说明，排队时再展开「最多排几个」。 */
+.overlap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--wl-line);
+  border-radius: var(--wl-r-control);
+}
+
+/* 三句说明叠在同一格：按最长的占高，只露选中的那句。 */
+.overlapDescs {
+  display: grid;
+}
+
+.overlapDescs > span {
+  grid-area: 1 / 1;
+  opacity: 0;
+  transition: opacity 160ms linear;
+}
+
+.overlapDescs > span[data-on] {
+  opacity: 1;
+}
+
+.overlapSub {
+  margin-top: 6px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--wl-line);
+}
+
 /* 瑞士：成组的列表只留上下线，圆钮成方的（圆角已经跟着 --wl-round 归零）。 */
 :global([data-look="swiss"]) .statusCard {
   border-width: 1px 0;
+  border-color: var(--wl-line-strong);
+}
+
+:global([data-look="swiss"]) .overlap {
+  border-width: 0 0 1px;
   border-color: var(--wl-line-strong);
 }
 

@@ -224,10 +224,10 @@ try {
   check('画布上有触发卡片', await session.evaluate(`document.querySelector('${CARD}') !== null`))
   const cardText = await session.evaluate(textOf(CARD))
   check(
-    '卡片写着名字、几点、主动、状态',
+    '卡片写着名字、几点、触发方式、状态',
     /夜巡/.test(cardText) &&
       /02:30/.test(cardText) &&
-      /主动/.test(cardText) &&
+      /定时/.test(cardText) &&
       /已停用/.test(cardText),
     cardText,
   )
@@ -428,8 +428,15 @@ try {
   await waitFor(session, has('wl-trigger-guard-dialog'))
   await sleep(500)
   await capture(session, 'guard-dialog-light.png')
-  await session.evaluate(clickTestId('wl-trigger-overlap'))
-  await sleep(300)
+  check(
+    '「上一次还没跑完时」缺省是跳过，「最多排几个」收着',
+    await session.evaluate(
+      `document.querySelector('[data-testid="wl-trigger-overlap-skip"]')?.getAttribute('aria-checked') === 'true' && document.querySelector('[data-testid="wl-trigger-queue-max"]') === null`,
+    ),
+  )
+  await session.evaluate(clickTestId('wl-trigger-overlap-queue'))
+  await sleep(500)
+  check('选了排队，展开「最多排几个」', await session.evaluate(has('wl-trigger-queue-max')))
   check(
     '对话框里改了还没写进图',
     /运行中跳过/.test(await session.evaluate(textOf('[data-testid="wl-trigger-guard-summary"]'))),
@@ -446,7 +453,7 @@ try {
   )
   await sleep(400)
   const guardAfter = await session.evaluate(textOf('[data-testid="wl-trigger-guard-summary"]'))
-  check('保存后摘要变成可同时运行', /可同时运行/.test(guardAfter), guardAfter)
+  check('保存后摘要变成运行中排队', /运行中排队/.test(guardAfter), guardAfter)
 
   // 触发条件：点摘要那一行，对话框打开、焦点落在触发条件上。
   await mouseClick(session, await centerOf(session, '[data-testid="wl-trigger-condition-edit"]'))
@@ -509,8 +516,12 @@ try {
     `['wl-trigger-day-6','wl-trigger-day-7'].every((id) => document.querySelector('[data-testid="' + id + '"]').getAttribute('aria-checked') === 'true') && document.querySelector('[data-testid="wl-trigger-day-1"]').getAttribute('aria-checked') === 'false'`,
   )
   check('点「周末」只亮六、日', weekendOn === true)
-  const customOf = `document.querySelector('[data-testid="wl-trigger-preset-custom-daily"]').dataset.on`
-  check('对不上任何常用规则时「自定义」亮着', (await session.evaluate(customOf)) === 'true')
+  check(
+    '对不上任何常用规则时一颗都不亮（没有「自定义」）',
+    await session.evaluate(
+      `document.querySelector('[data-testid="wl-trigger-presets"] [aria-pressed="true"]') === null`,
+    ),
+  )
   // 常用规则：点「工作日 09:00」整条换掉，那一项按下去、星期只亮一到五。
   await session.evaluate(clickTestId('wl-trigger-preset-workdays'))
   await sleep(400)
@@ -518,7 +529,6 @@ try {
     `document.querySelector('[data-testid="wl-trigger-preset-workdays"]').getAttribute('aria-pressed') === 'true' && document.querySelector('[data-testid="wl-trigger-day-1"]').getAttribute('aria-checked') === 'true' && document.querySelector('[data-testid="wl-trigger-day-6"]').getAttribute('aria-checked') === 'false'`,
   )
   check('点常用规则「工作日 09:00」：按下去、只亮一到五', presetOn === true)
-  check('选了常用规则后「自定义」灭了', (await session.evaluate(customOf)) === 'false')
   await capture(session, 'source-dialog-daily-light.png')
   // Cron：整条粘贴进一格就拆进五格、头部说人话；写错一格只那一格标红。
   await session.evaluate(clickTestId('wl-trigger-kind-cron'))
@@ -655,8 +665,8 @@ try {
   await sleep(1200)
   const tailText = await session.evaluate(textOf(TAIL))
   check(
-    '监听卡片写着要跑的命令，是被动的',
-    /日志报错/.test(tailText) && tailText.includes('emit.mjs') && /被动/.test(tailText),
+    '监听卡片写着要跑的命令和触发方式',
+    /日志报错/.test(tailText) && tailText.includes('emit.mjs') && /监视/.test(tailText),
     tailText,
   )
 
@@ -1137,8 +1147,8 @@ try {
   await sleep(800)
   const afterCard = await session.evaluate(textOf(HOOK))
   check(
-    '卡片写着等「夜间巡检」、不论结果，是被动的',
-    afterCard.includes(NAME) && afterCard.includes('不论结果') && afterCard.includes('被动'),
+    '卡片写着等「夜间巡检」、不论结果和触发方式',
+    afterCard.includes(NAME) && afterCard.includes('不论结果') && afterCard.includes('接续'),
     afterCard,
   )
   const filterGone = await session.evaluate(
