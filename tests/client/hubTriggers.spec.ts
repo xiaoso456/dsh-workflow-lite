@@ -20,6 +20,12 @@ import {
   needsAction,
 } from '../../src/client/model/triggerList.ts'
 import { sortWhen } from '../../src/client/model/triggerNow.ts'
+import {
+  EMPTY_RHYTHM,
+  type RhythmDot,
+  reconcileRhythm,
+} from '../../src/client/ui/hub/triggers/rhythmMotion.ts'
+import { EMPTY_ROLL, reconcileRoll, settleRoll } from '../../src/client/ui/motion/rollingNumber.ts'
 import { patchTriggerData } from '../../src/shared/trigger.ts'
 import type { TriggerData, TriggerSource } from '../../src/shared/types.ts'
 import type {
@@ -212,6 +218,103 @@ describe('概览：近 7 天的数与节律', () => {
       plannedHours({ kind: 'schedule', schedule: { kind: 'every', seconds: 300 } }, now),
     ).toEqual([])
     expect(plannedHours({ kind: 'http' }, now)).toEqual([])
+  })
+})
+
+describe('统计数字滚动', () => {
+  it('只滚变化的位，大幅增减也只显示起点和终点', () => {
+    const initial = reconcileRoll(EMPTY_ROLL, 128)
+    const raised = reconcileRoll(initial, 129)
+    expect(raised.direction).toBe(1)
+    expect(raised.places[1]).toBe(initial.places[1])
+    expect(raised.places[2]).toBe(initial.places[2])
+    expect(raised.places[0]?.glyphs).toEqual([
+      { digit: '8', exit: 1 },
+      { digit: '9', exit: null },
+    ])
+    const lowered = reconcileRoll(settleRoll(raised), 2)
+    expect(lowered.direction).toBe(-1)
+    expect(lowered.places[0]?.glyphs).toEqual([
+      { digit: '9', exit: -1 },
+      { digit: '2', exit: null },
+    ])
+  })
+
+  it('进退位时复用未变的个位，高位退场后再移除', () => {
+    const initial = reconcileRoll(EMPTY_ROLL, 8)
+    const raised = reconcileRoll(initial, 18)
+    expect(raised.places[0]).toBe(initial.places[0])
+    expect(raised.places.map(({ power, digit }) => [power, digit])).toEqual([
+      [0, '8'],
+      [1, '1'],
+    ])
+    const lowered = reconcileRoll(raised, 8)
+    expect(lowered.places[0]).toBe(initial.places[0])
+    expect(lowered.places[1]).toMatchObject({ power: 1, digit: null })
+    expect(settleRoll(lowered).places).toHaveLength(1)
+  })
+
+  it('快切回之前的读数时，沿用还在退场的字形', () => {
+    const initial = reconcileRoll(EMPTY_ROLL, 99)
+    const raised = reconcileRoll(initial, 100)
+    const lowered = reconcileRoll(raised, 99)
+    expect(lowered.places[0]?.glyphs).toEqual([
+      { digit: '9', exit: null },
+      { digit: '0', exit: -1 },
+    ])
+  })
+
+  it('加载时保持最后一次读数，只在收到真实的零后才滚到零', () => {
+    const initial = reconcileRoll(EMPTY_ROLL, 37)
+    expect(reconcileRoll(initial, null)).toBe(initial)
+    expect(reconcileRoll(initial, 37)).toBe(initial)
+    expect(reconcileRoll(initial, 0).value).toBe(0)
+  })
+})
+
+describe('节律点的切换', () => {
+  const dot = (hour: number, outcome: RhythmDot['outcome'] = 'sent', day = 1): RhythmDot => ({
+    day,
+    hour,
+    outcome,
+    many: false,
+  })
+
+  it('先保留原地的点，再配对同一天同结果的相邻点', () => {
+    const before = reconcileRhythm(EMPTY_RHYTHM, 'old', [dot(8), dot(9), dot(21, 'plan')])
+    const after = reconcileRhythm(before, 'new', [dot(9), dot(10), dot(22, 'plan')])
+    expect(after.marks.map(({ id, hour, leaving }) => [id, hour, leaving])).toEqual([
+      [before.marks[0]?.id, 8, true],
+      [before.marks[1]?.id, 9, false],
+      [before.marks[2]?.id, 22, false],
+      [expect.any(Number), 10, false],
+    ])
+    expect(after.marks[3]?.id).not.toBe(before.marks[0]?.id)
+  })
+
+  it('不跨日、跨结果、或拉远距离；同一触发器更新不挪动历史', () => {
+    const before = reconcileRhythm(EMPTY_RHYTHM, 'old', [dot(8), dot(12), dot(18)])
+    const after = reconcileRhythm(before, 'new', [dot(9, 'sent', 2), dot(13, 'failed'), dot(22)])
+    expect(after.marks.map(({ leaving }) => leaving)).toEqual([
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+    ])
+    const refreshed = reconcileRhythm(before, 'old', [dot(9), dot(12), dot(18)])
+    expect(refreshed.marks[0]?.leaving).toBe(true)
+    expect(refreshed.marks.at(-1)?.id).not.toBe(before.marks[0]?.id)
+  })
+
+  it('未读到时留住上一张，快速切回可复用尚未退完的点', () => {
+    const before = reconcileRhythm(EMPTY_RHYTHM, 'old', [dot(10)])
+    expect(reconcileRhythm(before, 'new', null)).toBe(before)
+    expect(reconcileRhythm(before, 'old', [dot(10)])).toBe(before)
+    const after = reconcileRhythm(before, 'new', [])
+    expect(after.marks[0]?.leaving).toBe(true)
+    expect(reconcileRhythm(after, 'old', [dot(10)]).marks).toEqual(before.marks)
   })
 })
 

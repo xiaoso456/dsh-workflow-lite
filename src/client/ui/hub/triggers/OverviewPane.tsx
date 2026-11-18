@@ -16,24 +16,20 @@ import type {
 import type { T } from '../../../i18n.ts'
 import { settledFires } from '../../../model/fireView.ts'
 import { pastTime } from '../../../model/time.ts'
-import { HOURS, plannedHours, tallyActivity } from '../../../model/triggerActivity.ts'
-import { weekdayText } from '../../../model/triggerText.ts'
+import { plannedHours, tallyActivity } from '../../../model/triggerActivity.ts'
 import { Icon } from '../../kit/Icon.tsx'
+import { RollingNumber } from '../../motion/RollingNumber.tsx'
 import type { DetailTab } from './DetailTabs.tsx'
 import { FireRow } from './FireRow.tsx'
 import css from './overview.module.css'
+import { RhythmGrid } from './RhythmGrid.tsx'
 
 /** 「最近」列几条。 */
 const RECENT = 3
-/** 钟点轴上标的几个刻度（0 点到 24 点，每 6 小时一个）。 */
-const AXIS_HOURS = [0, 6, 12, 18, 24]
-
-/** 夜里（22 点到早上 7 点）的格子再淡一点，白天一眼看得出来。 */
-const isNight = (hour: number): boolean => hour < 7 || hour > 21
-
 export function OverviewPane(props: {
   t: T
   entry: TriggerEntry
+  selection: string
   /** 还没读到是 `null`。 */
   fires: readonly FireRecord[] | null
   /** 近 7 天每一小格的次数；还没读到是 `null`。 */
@@ -54,17 +50,6 @@ export function OverviewPane(props: {
   const tally = tallyActivity(activity ?? [], now)
   const live = view.state === 'waiting' && !props.paused
   const planned = live ? plannedHours(entry.data.source, now, view.next) : []
-  const hourNow = new Date(now).getHours()
-  const today = tally.days.length - 1
-  const dayName = (row: number, start: number): string =>
-    row === today
-      ? t('trigger.fire.today')
-      : row === today - 1
-        ? t('trigger.fire.yesterday')
-        : t('hub.trgWeekday').replace(
-            '{day}',
-            weekdayText(t, new Date(start).getDay() === 0 ? 7 : new Date(start).getDay()),
-          )
 
   return (
     <div
@@ -102,51 +87,14 @@ export function OverviewPane(props: {
             {planned.length > 0 && <span data-outcome="plan">{t('hub.trgPlanned')}</span>}
           </span>
         </div>
-        <div className={css.rhythm} data-testid="wl-hub-trg-rhythm">
-          {tally.cells.map((row, index) => {
-            const start = tally.days[index] as number
-            const day = dayName(index, start)
-            return [
-              <span key={`day-${String(start)}`} className={css.day}>
-                {day}
-              </span>,
-              ...row.map((cell, hour) => {
-                const plan = index === today && cell === null && planned.includes(hour)
-                return (
-                  <span
-                    key={`${String(start)}-${String(hour)}`}
-                    className={css.cell}
-                    data-night={isNight(hour) || undefined}
-                    data-now={(index === today && hour === hourNow) || undefined}
-                    data-outcome={cell?.outcome ?? (plan ? 'plan' : undefined)}
-                    data-many={(cell?.count ?? 0) > 1 || undefined}
-                    data-tip={
-                      cell === null
-                        ? undefined
-                        : t('hub.trgCellTip')
-                            .replace('{day}', day)
-                            .replace('{hour}', String(hour).padStart(2, '0'))
-                            .replace('{n}', String(cell.count))
-                    }
-                  />
-                )
-              }),
-            ]
-          })}
-          {/* 钟点轴：刻度对着格子之间的缝（0 点在最左边、24 点在最右边），写成「06:00」一眼看得出是时刻。 */}
-          <span className={css.axis}>
-            {AXIS_HOURS.map((hour) => (
-              <span
-                key={hour}
-                className={css.tick}
-                style={{ left: `${String((hour / HOURS) * 100)}%` }}
-                data-edge={hour === 0 ? 'start' : hour === HOURS ? 'end' : undefined}
-              >
-                {`${String(hour).padStart(2, '0')}:00`}
-              </span>
-            ))}
-          </span>
-        </div>
+        <RhythmGrid
+          t={t}
+          selection={props.selection}
+          tally={tally}
+          planned={planned}
+          hourNow={new Date(now).getHours()}
+          loading={activity === null}
+        />
       </section>
 
       <section className={css.section}>
@@ -193,9 +141,11 @@ function Stat(props: {
   tone?: 'sent' | 'skipped' | 'failed'
 }): React.JSX.Element {
   return (
-    <div className={css.stat} data-outcome={props.tone} data-zero={props.value === 0 || undefined}>
-      <span className={css.statValue}>{props.value}</span>
-      <span className={css.statLabel}>{props.label}</span>
+    <div className={css.stat} data-outcome={props.tone}>
+      <span className={css.statLabel}>
+        <span className={css.statLabelText}>{props.label}</span>
+      </span>
+      <RollingNumber value={props.value} className={css.statValue} />
     </div>
   )
 }

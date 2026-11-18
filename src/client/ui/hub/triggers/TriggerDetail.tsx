@@ -116,6 +116,7 @@ export function TriggerDetail(props: {
           <OverviewPane
             t={t}
             entry={entry}
+            selection={key}
             fires={fires}
             activity={activity}
             paused={paused}

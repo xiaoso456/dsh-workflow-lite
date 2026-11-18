@@ -13,6 +13,7 @@
 | `pnpm install` | 安装依赖 |
 | `pnpm run build` | 构建 `lib/`（只改前端：构建后刷新页面即可；改了主机代码，测试实例要重启才看得到） |
 | `pnpm run typecheck` / `lint` / `pnpm test` | 类型检查 / biome / vitest |
+| `pnpm run demo [端口]` | 构建并启动独立演示环境，生成触发器、工作流、运行实例和记忆；打开 `READY` 打印的地址 |
 | `pnpm run hero` | 重做 README 封面图 |
 | `pnpm run timeline` | 重做 README 版本线 |
 | `pnpm run release-card [版本] [zh\|en]` | 出版本更新卡片 |
@@ -91,6 +92,8 @@ gh release create workflow-lite-v<ver> --title "v<ver>" --notes-file <notes 文�
 - 改色要过 `tests/client/themes.spec.ts`：文字和语义色在面板上 4.5:1，线色在画布上 3:1，七种线两两 OKLab ΔE ≥ 8（默认两套 ≥ 13）。
 
 ## 浏览器验收（CDP）
+
+给人看的演示用 `pnpm run demo [端口]` 启动；每次在 `tests/runs/demo-*` 新建独立数据目录和 DSH 家目录，不动日常环境。等打印 `READY` 再打开；「触发器一览」里的「工作日夜巡」有失败记录，「每两小时看看」没有记录，可用来检查时间线红点切换。
 
 `tests/cdp-*.mjs` 在真浏览器里走一遍，结论以磁盘 / RPC 为准。要一个装了本插件的 dsh 网页实例（默认 3190，取它打印的 `?token=`）和 DevTools Chrome：
 

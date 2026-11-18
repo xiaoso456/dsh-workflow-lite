@@ -7,7 +7,9 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/pane/PaneTabs
  */
 
-import { useLayoutEffect, useRef } from 'react'
+import { useCallback, useLayoutEffect, useRef, useState } from 'react'
+import { slide } from '../../motion/flip.ts'
+import { REDUCED } from '../../motion/shared.ts'
 import css from './paneTabs.module.css'
 
 export interface PaneTab<K extends string> {
@@ -17,6 +19,88 @@ export interface PaneTab<K extends string> {
   count?: number | undefined
   /** 右上角的红点：`on` 时亮，`label` 是读屏念的。 */
   dot?: { on: boolean; label: string }
+}
+
+function PaneTabButton<K extends string>({
+  tab,
+  selected,
+  testId,
+  onSelect,
+  updateLayout,
+}: {
+  tab: PaneTab<K>
+  selected: boolean
+  testId: string
+  onSelect(tab: K): void
+  updateLayout(): void
+}): React.JSX.Element {
+  const count = tab.count !== undefined && tab.count > 0 ? String(tab.count) : undefined
+  const dotOn = tab.dot?.on
+  const dot = useRef<HTMLSpanElement>(null)
+  const [heldCount, setHeldCount] = useState(count)
+  const countSize = dotOn === undefined ? count : heldCount
+  const visibleCount =
+    count !== undefined && count.length <= (countSize?.length ?? 0) ? count : null
+
+  useLayoutEffect(() => {
+    if (dotOn === undefined || heldCount === count) return
+    const fade =
+      dotOn === false && REDUCED?.matches !== true
+        ? dot.current
+            ?.getAnimations()
+            .find(
+              (animation) =>
+                animation instanceof CSSTransition && animation.transitionProperty === 'opacity',
+            )
+        : undefined
+    if (fade === undefined) {
+      setHeldCount(count)
+      return
+    }
+    let active = true
+    const release = (): void => {
+      if (active) setHeldCount(count)
+    }
+    void fade.finished.then(release, release)
+    return () => {
+      active = false
+    }
+  }, [count, dotOn, heldCount])
+
+  useLayoutEffect(updateLayout, [countSize, updateLayout])
+
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={selected}
+      tabIndex={selected ? 0 : -1}
+      className={css.tab}
+      data-tab={tab.id}
+      data-testid={testId}
+      onClick={() => onSelect(tab.id)}
+    >
+      {/* 选中时字变粗：先按粗体占好宽度，换选中时不挤动旁边的页签。 */}
+      <span className={css.tabText} data-text={tab.label}>
+        {tab.label}
+      </span>
+      {(tab.dot !== undefined || countSize !== undefined) && (
+        <span className={css.count} data-count-size={countSize}>
+          <span className={css.countValue}>{visibleCount}</span>
+        </span>
+      )}
+      {tab.dot !== undefined && (
+        <span
+          ref={dot}
+          className={css.dot}
+          data-on={tab.dot.on}
+          role="img"
+          aria-label={tab.dot.label}
+          aria-hidden={!tab.dot.on}
+        />
+      )}
+    </button>
+  )
 }
 
 export function PaneTabs<K extends string>(props: {
@@ -31,15 +115,29 @@ export function PaneTabs<K extends string>(props: {
   const { tabs, value } = props
   const bar = useRef<HTMLDivElement>(null)
   const ink = useRef<HTMLSpanElement>(null)
+  const positions = useRef(new WeakMap<HTMLElement, number>())
 
   // 下划线挪到选中那一格：位置、宽度都写成 transform（宽度用 scaleX，下划线本身 100px 宽）。
   // 刚挂上时直接摆到位，不从最左边滑过来。
   const placed = useRef(false)
-  useLayoutEffect(() => {
-    const on = bar.current?.querySelector<HTMLElement>('[aria-selected="true"]')
+  const updateLayout = useCallback(() => {
+    const list = bar.current
     const line = ink.current
-    if (on === null || on === undefined || line === null) return
+    if (list === null || line === null) return
+    const on = list.querySelector<HTMLElement>('[aria-selected="true"]')
+    if (on === null) return
     const transform = `translateX(${String(on.offsetLeft)}px) scaleX(${String(on.offsetWidth / 100)})`
+    const slots = Array.from(list.querySelectorAll<HTMLElement>('[data-tab]'), (button) => ({
+      button,
+      left: button.offsetLeft,
+    }))
+    for (const { button, left } of slots) {
+      const previous = positions.current.get(button)
+      positions.current.set(button, left)
+      if (previous !== undefined && previous !== left && REDUCED?.matches !== true) {
+        slide(button, 0, previous - left, 260)
+      }
+    }
     if (line.style.transform === transform) return
     if (!placed.current) {
       placed.current = true
@@ -50,7 +148,8 @@ export function PaneTabs<K extends string>(props: {
       return
     }
     line.style.transform = transform
-  })
+  }, [])
+  useLayoutEffect(updateLayout)
 
   const move = (step: 1 | -1): void => {
     const at = tabs.findIndex((tab) => tab.id === value)
@@ -74,34 +173,14 @@ export function PaneTabs<K extends string>(props: {
       }}
     >
       {tabs.map((tab) => (
-        <button
+        <PaneTabButton
           key={tab.id}
-          type="button"
-          role="tab"
-          aria-selected={tab.id === value}
-          tabIndex={tab.id === value ? 0 : -1}
-          className={css.tab}
-          data-tab={tab.id}
-          data-testid={`${props.testId}-${tab.id}`}
-          onClick={() => props.onChange(tab.id)}
-        >
-          {/* 选中时字变粗：先按粗体占好宽度，换选中时不挤动旁边的页签。 */}
-          <span className={css.tabText} data-text={tab.label}>
-            {tab.label}
-          </span>
-          {tab.count !== undefined && tab.count > 0 && (
-            <span className={css.count}>{tab.count}</span>
-          )}
-          {tab.dot !== undefined && (
-            <span
-              className={css.dot}
-              data-on={tab.dot.on}
-              role="img"
-              aria-label={tab.dot.label}
-              aria-hidden={!tab.dot.on}
-            />
-          )}
-        </button>
+          tab={tab}
+          selected={tab.id === value}
+          testId={`${props.testId}-${tab.id}`}
+          onSelect={props.onChange}
+          updateLayout={updateLayout}
+        />
       ))}
       <span ref={ink} className={css.ink} aria-hidden="true" />
     </div>

@@ -20,7 +20,9 @@ import { createServer } from 'node:net'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { RunService } from '../src/host/runs/service.ts'
+import { DATABASE_FILE, PluginDatabase } from '../src/host/store/database.ts'
 import { assetsDir } from '../src/host/store/paths.ts'
+import { newFireId, TriggerStore } from '../src/host/triggers/store.ts'
 import {
   bootToCanvas,
   centerOf,
@@ -1322,6 +1324,40 @@ try {
   )
 
   // ── 工作流中心「触发」页 ─────────────────────────────────────
+  const statsDatabase = new PluginDatabase(() => join(DATA_DIR, DATABASE_FILE))
+  try {
+    const store = new TriggerStore(() => DATA_DIR, statsDatabase)
+    const older = Date.now() - 2 * 60 * 60_000
+    const failedAt = Date.now()
+    await store.record({
+      record: {
+        id: newFireId(new Date(failedAt)),
+        workflow: NAME,
+        node: 'nightly',
+        name: '夜巡',
+        channel: 'schedule',
+        at: failedAt,
+        outcome: 'failed',
+        reason: '演示用失败',
+      },
+    })
+    for (let index = 0; index < 10; index++) {
+      const at = older + index
+      await store.record({
+        record: {
+          id: newFireId(new Date(at)),
+          workflow: NAME2,
+          node: 'hook',
+          name: afterFired?.last?.name ?? '接续',
+          channel: 'after',
+          at,
+          outcome: 'skipped',
+        },
+      })
+    }
+  } finally {
+    statsDatabase.close()
+  }
   const httpFixture = await rpc('graph/load', { name: NAME2 })
   await rpc('graph/save', {
     name: NAME2,
@@ -1368,6 +1404,10 @@ try {
     `document.querySelector('${hookRow}').getAttribute('aria-current') !== 'true'`,
   )
   await waitFor(session, has('wl-hub-trg-rhythm'))
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-hub-trg-overview"] > section [data-place="0"]') !== null`,
+  )
   await session.evaluate(
     `void (window.hubOverviewBeforePick = document.querySelector('${overview}')); void (window.hubRhythmBeforePick = document.querySelector('${rhythm}'))`,
   )
@@ -1384,21 +1424,41 @@ try {
     const face = tag.querySelector('[data-tag-face]');
     const oldText = tag.innerText;
     const oldColor = ink && getComputedStyle(ink).color;
+    const stats = detail.querySelector('[data-testid="wl-hub-trg-overview"]').firstElementChild;
+    const totalCell = stats.firstElementChild;
+    const total = totalCell.querySelector('[data-value]');
+    const units = total.querySelector('[data-place="0"]');
+    const rightGap = () => totalCell.getBoundingClientRect().right - units.getBoundingClientRect().right;
+    const oldRightGap = rightGap();
+    const oldValue = Number(total.dataset.value);
     const start = performance.now();
     const row = document.querySelector('${hookRow}');
     row.click();
     const sample = () => {
       if (row.getAttribute('aria-current') === 'true') {
-        const stats = detail.querySelector('[data-testid="wl-hub-trg-overview"]')?.firstElementChild;
-        resolve({
+        const nextValue = Number(total.dataset.value);
+        const outgoing = total.querySelector('[data-place="0"] [data-exit]');
+        const roll = outgoing?.getAnimations().find((anim) => anim.transitionProperty === 'translate');
+        const reading = {
           sameHeader: detail.querySelector('[data-testid="wl-hub-trg-name"]') === name &&
             detail.querySelector('[data-testid="wl-hub-trg-morph-tag"]') === tag,
           steadyLabel: ink !== null && face !== null && !face.contains(ink) &&
             tag.querySelector('[data-tag-label]') === ink && tag.innerText !== oldText &&
             tag.innerText === ink.textContent && getComputedStyle(ink).color !== oldColor &&
             ink.getAnimations().length === 0 && getComputedStyle(ink).opacity === '1',
-          total: stats?.firstElementChild?.firstElementChild?.textContent,
-        });
+          total: total.textContent,
+          rolling: total === totalCell.querySelector('[data-value]') &&
+            nextValue !== oldValue && Number(total.dataset.roll) === Math.sign(nextValue - oldValue) &&
+            roll?.effect?.getKeyframes().at(-1)?.translate === (nextValue > oldValue ? '0px -100%' : '0px 100%'),
+        };
+        const pinned = () => String(nextValue).length > String(oldValue).length &&
+            total.contains(units) && Math.abs(rightGap() - oldRightGap) < 1 &&
+            totalCell.firstElementChild.getBoundingClientRect().right <= total.getBoundingClientRect().left;
+        const pinnedAtStart = pinned();
+        setTimeout(() => resolve({
+          ...reading, pinned: pinnedAtStart && pinned(),
+          positions: { oldValue, nextValue, oldRightGap, rightGap: rightGap() },
+        }), 350);
       } else if (performance.now() - start > 750) {
         resolve(null);
       } else {
@@ -1412,6 +1472,12 @@ try {
   check('换触发器时保留标题控件和标签，不截取整块标题', wordSwap?.sameHeader === true)
   check('方式标签换字和字色不翻动，底板不裁字', wordSwap?.steadyLabel === true)
   check('换到有触发记录的卡片时先读到统计，再交接详情', Number(wordSwap?.total) > 0)
+  check('触发统计复用同一控件，个位按增减方向滚出', wordSwap?.rolling === true)
+  check(
+    '触发统计标签在左，进位时个位贴在原位',
+    wordSwap?.pinned === true,
+    JSON.stringify(wordSwap?.positions),
+  )
   await waitFor(
     session,
     `document.querySelector('${hookRow}').getAttribute('aria-current') === 'true'`,
@@ -1426,6 +1492,25 @@ try {
   check(
     '换触发器期间不卸载节律网格',
     await session.evaluate(`window.hubRhythmBeforePick === document.querySelector('${rhythm}')`),
+  )
+  check(
+    '换好后的节律点都落在对应格子正中',
+    await session.evaluate(`(() => {
+      const grid = document.querySelector('${rhythm}');
+      const cellClass = grid.querySelector('[data-night]').className;
+      const cells = [...grid.children].filter((element) => element.className === cellClass);
+      const marks = [...grid.querySelectorAll('[data-hour]')];
+      const center = (element) => {
+        const { x, y, width, height } = element.getBoundingClientRect();
+        return [x + width / 2, y + height / 2];
+      };
+      return marks.length > 0 && marks.every((mark) => {
+        const row = Number(mark.parentElement.style.gridRowStart) - 1;
+        const cell = cells[row * 24 + Number(mark.dataset.hour)];
+        const point = center(mark);
+        return cell && center(cell).every((value, index) => Math.abs(value - point[index]) < 1);
+      });
+    })()`),
   )
   await session.evaluate('delete window.hubRhythmBeforePick')
   const nightlyRow = `'[data-testid="wl-hub-trg"][data-value="${NAME}/nightly"]'`
@@ -1461,6 +1546,82 @@ try {
     }
   })()`)
   check('倒计时进度条沿底边伸长、退回，复用同一条线', countdown)
+  const timelineTab = '[data-testid="wl-hub-trg-tab-timeline"]'
+  await session.evaluate(`document.querySelector(${nightlyRow}).click()`)
+  await waitFor(
+    session,
+    `(() => {
+      const dot = document.querySelector('${timelineTab} [role="img"]');
+      return dot?.dataset.on === 'true' && getComputedStyle(dot).opacity === '1';
+    })()`,
+  )
+  const dotExit = await session.evaluate(`(async () => {
+    const tab = document.querySelector('${timelineTab}');
+    const dot = tab.querySelector('[role="img"]');
+    const neighbor = tab.nextElementSibling;
+    const edge = () => neighbor.getBoundingClientRect().left;
+    const anchor = () => {
+      const rect = dot.getBoundingClientRect();
+      return rect.left + rect.width / 2;
+    };
+    const before = anchor();
+    const oldEdge = edge();
+    const empty = document.querySelector('[data-testid="wl-hub-trg"][data-value="${NAME2}/morph-http"]');
+    empty.click();
+    let fading = false;
+    let drift = 0;
+    let earlyMove = 0;
+    const afterFade = [];
+    const deadline = performance.now() + 1200;
+    while (performance.now() < deadline) {
+      await new Promise(requestAnimationFrame);
+      if (dot.dataset.on !== 'false') continue;
+      const opacity = Number(getComputedStyle(dot).opacity);
+      if (opacity > 0) {
+        fading ||= opacity < 1;
+        drift = Math.max(drift, Math.abs(anchor() - before));
+        earlyMove = Math.max(earlyMove, Math.abs(edge() - oldEdge));
+        continue;
+      }
+      afterFade.push(edge());
+    }
+    const emptySpace = tab.getBoundingClientRect().width - tab.firstElementChild.getBoundingClientRect().width;
+    const newEdge = edge();
+    const smooth = afterFade.some(left => left > newEdge + 0.5 && left < oldEdge - 0.5);
+    return { fading, drift, hidden: dot.getAttribute('aria-hidden') === 'true', text: tab.textContent, emptySpace, earlyMove, smooth };
+  })()`)
+  check(
+    '切到没有记录的触发器时，时间线计数清空、红点原地退场',
+    dotExit.fading && dotExit.drift < 0.1 && dotExit.hidden && !/\d/u.test(dotExit.text),
+    JSON.stringify(dotExit),
+  )
+  check('没有数字时，时间线页签不留空位', dotExit.emptySpace < 0.1, String(dotExit.emptySpace))
+  check(
+    '红点退完才收拢右侧页签，收拢时经过中间位置',
+    dotExit.earlyMove < 0.1 && dotExit.smooth,
+    JSON.stringify(dotExit),
+  )
+  const tabExpansion = await session.evaluate(`(async () => {
+    const tab = document.querySelector('${timelineTab}');
+    const neighbor = tab.nextElementSibling;
+    const edge = () => neighbor.getBoundingClientRect().left;
+    const oldEdge = edge();
+    document.querySelector(${nightlyRow}).click();
+    const samples = [];
+    const deadline = performance.now() + 1200;
+    while (performance.now() < deadline) {
+      await new Promise(requestAnimationFrame);
+      samples.push(edge());
+    }
+    const newEdge = edge();
+    return samples.some(left => left > oldEdge + 0.5 && left < newEdge - 0.5);
+  })()`)
+  check('数字出现时，右侧页签平滑展开', tabExpansion)
+  await session.evaluate(`document.querySelector('${hookRow}').click()`)
+  await waitFor(
+    session,
+    `document.querySelector('${hookRow}').getAttribute('aria-current') === 'true'`,
+  )
   const kindMorph = await session.evaluate(`(async () => {
     const row = (value) => [...document.querySelectorAll('[data-testid="wl-hub-trg"]')]
       .find((element) => element.dataset.value === value);

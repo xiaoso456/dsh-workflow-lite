@@ -1,0 +1,83 @@
+.number {
+  position: relative;
+  display: inline-block;
+  inline-size: calc(var(--roll-places) * 1ch);
+  min-height: 1lh;
+  font-variant-numeric: tabular-nums;
+}
+
+.number[data-roll="1"] {
+  --roll-enter: 100%;
+}
+
+.number[data-roll="-1"] {
+  --roll-enter: -100%;
+}
+
+.readout {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.place {
+  position: absolute;
+  inset: 0 calc(var(--roll-power) * 1ch) 0 auto;
+  width: 1ch;
+  overflow: hidden;
+  opacity: 1;
+  transition: opacity 130ms ease-out;
+}
+
+.place[data-retiring] {
+  opacity: 0;
+  transition: opacity 95ms linear;
+}
+
+.glyph {
+  position: absolute;
+  inset: 0;
+  text-align: center;
+  opacity: 1;
+  translate: 0 0;
+  transition:
+    translate 280ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 235ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.glyph::before {
+  content: attr(data-digit);
+}
+
+.glyph[data-exit] {
+  opacity: 0;
+}
+
+.glyph[data-exit="1"] {
+  translate: 0 -100%;
+}
+
+.glyph[data-exit="-1"] {
+  translate: 0 100%;
+}
+
+@starting-style {
+  .number[data-roll] .place:not([data-retiring]) {
+    opacity: 0;
+  }
+
+  .place:not([data-retiring]) .glyph:not(:only-child):not([data-exit]) {
+    translate: 0 var(--roll-enter, 0%);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .number .place,
+  .number .glyph {
+    transition: none;
+  }
+}

@@ -57,10 +57,25 @@
 }
 
 .count {
+  position: relative;
   color: var(--wl-text-3);
   font-family: var(--wl-mono);
   font-size: var(--wl-fs-micro);
   font-variant-numeric: tabular-nums;
+}
+
+.count:not([data-count-size]) {
+  display: none;
+}
+
+.count::before {
+  visibility: hidden;
+  content: attr(data-count-size);
+}
+
+.countValue {
+  position: absolute;
+  inset: 0 auto auto 0;
 }
 
 /* 失败的红点挂在右上角，不占宽度：没有时页签不多出一段空白，有没有都不挤动下划线。 */
