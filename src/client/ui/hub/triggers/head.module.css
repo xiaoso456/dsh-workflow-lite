@@ -47,27 +47,14 @@
   max-width: 40%;
   height: 20px;
   padding: 0 7px;
-  overflow: hidden;
-  border-radius: calc(6px * var(--wl-round, 1));
-  background: var(--wl-fill);
   color: var(--wl-text-2);
   font-size: var(--wl-fs-micro);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.tagText {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.tag > svg {
-  flex: none;
-}
-
 .kindTag {
-  background: color-mix(in srgb, var(--wl-kind) 12%, transparent);
+  --wl-tag-fill: color-mix(in srgb, var(--wl-kind) 12%, transparent);
   color: var(--wl-kind);
 }
 
@@ -206,21 +193,25 @@
   flex: none;
   gap: 12px;
   align-items: center;
+  clip-path: inset(0 0 0 0);
 }
 
 .queued[hidden] {
   display: none;
+  clip-path: inset(0 100% 0 0);
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .queued:not([hidden]) {
-    animation: queueIn 140ms var(--wl-ease-out) both;
+  .queued {
+    transition:
+      clip-path 180ms var(--wl-ease),
+      display 180ms allow-discrete;
   }
-}
 
-@keyframes queueIn {
-  from {
-    opacity: 0;
+  @starting-style {
+    .queued:not([hidden]) {
+      clip-path: inset(0 100% 0 0);
+    }
   }
 }
 

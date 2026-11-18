@@ -57,6 +57,7 @@
   align-items: center;
   min-width: 112px;
   padding: 3px 0;
+  isolation: isolate;
 }
 
 .row[data-expanded="true"] {
@@ -72,6 +73,13 @@
   top: 0;
   left: 0;
   visibility: hidden;
+  pointer-events: none;
+}
+
+.tagGhosts {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
   pointer-events: none;
 }
 
@@ -121,7 +129,6 @@
   color: var(--wl-tag);
   font-size: var(--wl-fs-micro);
   isolation: isolate;
-  animation: tagIn 220ms var(--wl-ease-out) both;
 }
 
 .tagSurface {
@@ -132,6 +139,7 @@
   background: color-mix(in srgb, var(--wl-tag) 15%, transparent);
   transform-origin: left center;
   pointer-events: none;
+  transition: background-color 150ms linear;
 }
 
 /* 悬停、菜单开着：底色再深一层（只动透明度）。 */
@@ -292,13 +300,6 @@ div.picker {
   padding: 6px;
 }
 
-@keyframes tagIn {
-  from {
-    opacity: 0;
-    transform: scale(0.86);
-  }
-}
-
 /* 触屏没有悬停：✕ 一直在。 */
 @media (hover: none) {
   .tag .tagName {
@@ -312,10 +313,7 @@ div.picker {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .tag {
-    animation: none;
-  }
-
+  .tagSurface,
   .tagSurface::after,
   .tagRemove,
   .add {

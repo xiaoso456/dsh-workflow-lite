@@ -19,13 +19,13 @@ import type { StepLine } from '../../../model/runSteps.ts'
 import { shortTime } from '../../../model/time.ts'
 import { RUN_TEXT } from '../../canvas/cards/cardParts.ts'
 import { HubRunStatus } from '../../chrome/HubRunStatus.tsx'
-import { RunKindMark, runTone } from '../../chrome/KindMark.tsx'
+import { runTone } from '../../chrome/KindMark.tsx'
 import { cx } from '../../kit/cx.ts'
 import { Icon } from '../../kit/Icon.tsx'
 import ui from '../../kit/ui.module.css'
-import { SwapText } from '../../motion/swapText.tsx'
 import hub from '../hub.module.css'
 import { RunDelete } from './RunDelete.tsx'
+import { RunDetailMark } from './RunDetailMark.tsx'
 import { runStatusText } from './runFace.ts'
 import css from './runHead.module.css'
 
@@ -46,17 +46,17 @@ export function RunHead(props: {
   const tone = runTone(item)
   const tracked = item.statePath !== undefined && item.stateProblem === undefined
   const origin = item.origin
-  // 状态条最左那格：圆点 + 状态字（换状态时字换着进来）。能改状态时外面包一层按钮。
+  // 状态条最左那格：圆点 + 状态字。能改状态时外面包一层按钮。
   const state = (
     <span className={css.stateFace}>
       <span className={css.stateDot} data-live={tone === 'running' || undefined} />
-      <SwapText text={runStatusText(t, item)} />
+      {runStatusText(t, item)}
     </span>
   )
   return (
     <div className={css.fixed}>
       <div className={css.head}>
-        <RunKindMark item={item} size={18} className={css.mark} />
+        <RunDetailMark item={item} />
         <div className={css.titles}>
           <p className={css.title}>
             <span className={css.titleName} data-testid="wl-hub-run-title">

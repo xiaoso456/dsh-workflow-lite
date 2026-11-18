@@ -115,6 +115,8 @@ async function run(session) {
   console.log(`# 工作流版本验收：${NAME}`)
   await rpc('graph/create', { name: NAME })
   await rpc('graph/create', { name: OTHER })
+  await rpc('graph/tags', { name: NAME, tags: ['旧标签', '共同标签'] })
+  await rpc('graph/tags', { name: OTHER, tags: ['共同标签', '新标签'] })
   await writeGraph(NAME, [stepNode('a', '第一步', 0)])
   await writeGraph(OTHER, [stepNode('b', '别的', 0)])
   // `DSH_SESSION_TITLE`：一次性实例里按标题找会话（新建的会话行显示「刚刚」，按相对时间找不到）。
@@ -227,17 +229,55 @@ async function run(session) {
   await session.evaluate(clickTestId('wl-hub-workflows'))
   const otherSel = `[data-testid="wl-hub-wf"][data-value=${JSON.stringify(OTHER)}]`
   await waitFor(session, `document.querySelector(${JSON.stringify(otherSel)}) !== null`)
+  await session.evaluate(`document.querySelector(${JSON.stringify(hubRow(NAME))}).click()`)
+  await waitFor(session, `${textOf('wl-hub-wf-title')} === ${JSON.stringify(NAME)}`)
   check(
     await session.evaluate(
-      `document.querySelector('[data-testid="wl-hub-wf"][data-value=${JSON.stringify(NAME)}]').textContent.includes('1 个版本')`,
+      `document.querySelector('[data-testid="wl-hub-wf-title"]').closest('div').parentElement.textContent.includes('1 个版本')`,
     ),
-    '列表里应写着 1 个版本',
+    '详情里应写着 1 个版本',
   )
   const workflowTitle = '[data-testid="wl-hub-wf-title"]'
   await session.evaluate(
-    `void (window.workflowHeadBeforePick = document.querySelector('${workflowTitle}').closest('div'))`,
+    `void (window.workflowHeadBeforePick = document.querySelector('${workflowTitle}').closest('div'));
+     void (window.commonTagBeforePick = document.querySelector('[data-fit="chip"][data-value="共同标签"]'))`,
   )
-  await session.evaluate(`document.querySelector(${JSON.stringify(otherSel)}).click()`)
+  const tagHandoff = await session.evaluate(`new Promise((resolve) => {
+    const row = document.querySelector('[data-testid="wl-hub-wf-tags"]');
+    const old = row.querySelector('[data-value="旧标签"]');
+    if (!old) { resolve(null); return; }
+    const oldBox = old.getBoundingClientRect();
+    const started = performance.now();
+    let faded = false;
+    let overlap = false;
+    const sample = () => {
+      const ghost = row.querySelector('[data-fit="ghosts"] [data-value="旧标签"]');
+      const incoming = row.querySelector(':scope > [data-value="新标签"]');
+      if (ghost) {
+        const box = ghost.getBoundingClientRect();
+        faded ||= ghost.getAnimations().some((animation) =>
+          animation.effect.getKeyframes().some((frame) => frame.opacity === '0')) &&
+          getComputedStyle(ghost).clipPath === 'none' && Math.abs(oldBox.left - box.left) < 1;
+      }
+      const visible = [...row.querySelectorAll('[data-fit="chip"]')].filter((item) =>
+        item.dataset.rowHidden !== 'true' && Number(getComputedStyle(item).opacity) > 0.02);
+      overlap ||= visible.some((item, index) => visible.slice(index + 1).some((other) => {
+        const a = item.getBoundingClientRect();
+        const b = other.getBoundingClientRect();
+        return a.right > b.left + 1 && b.right > a.left + 1 &&
+          a.bottom > b.top + 1 && b.bottom > a.top + 1;
+      }));
+      const settled = incoming !== null && !ghost && getComputedStyle(incoming).opacity === '1';
+      if ((faded && settled) || performance.now() - started > 1500) resolve({ faded, overlap, settled });
+      else requestAnimationFrame(sample);
+    };
+    document.querySelector(${JSON.stringify(otherSel)}).click();
+    sample();
+  })`)
+  check(
+    tagHandoff?.faded === true && !tagHandoff.overlap && tagHandoff.settled,
+    `退出标签要原地淡出，换位的标签不能互相盖住：${JSON.stringify(tagHandoff)}`,
+  )
   // 「打开」正开着的那张也有，按标题认选中了哪张。
   await waitFor(session, `${textOf('wl-hub-wf-title')} === ${JSON.stringify(OTHER)}`)
   check(
@@ -247,6 +287,14 @@ async function run(session) {
     '换工作流时复用右栏表头',
   )
   await session.evaluate('delete window.workflowHeadBeforePick')
+  check(
+    await session.evaluate(`window.commonTagBeforePick !== null &&
+      window.commonTagBeforePick === document.querySelector('[data-fit="chip"][data-value="共同标签"]') &&
+      document.querySelector('[data-fit="chip"][data-value="新标签"]') !== null &&
+      document.querySelector('[data-testid="wl-hub-wf-tags"] > [data-fit="chip"][data-value="旧标签"]') === null`),
+    '换工作流时保留共有标签，增删各自的标签',
+  )
+  await session.evaluate('delete window.commonTagBeforePick')
   await waitFor(session, `${textOf('wl-ver-state')}.includes('还没存成版本')`)
   await setReactInput(session, '[data-testid="wl-ver-note"]', '另一张的起点')
   await session.evaluate(clickTestId('wl-ver-save'))

@@ -8,6 +8,7 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/chrome/KindMark
  */
 
+import type { ReactNode } from 'react'
 import type { InstanceSummary, RunStatus } from '../../../shared/runState.ts'
 import { cx } from '../kit/cx.ts'
 import { Icon, type IconName } from '../kit/Icon.tsx'
@@ -52,10 +53,11 @@ export function RunKindMark(props: {
   item: InstanceSummary
   className?: string
   size?: number
+  glyph?: ReactNode
 }): React.JSX.Element {
   return (
     <span className={cx(ui.kind, css.run, props.className)} data-run-status={runTone(props.item)}>
-      <Icon name={runIcon(props.item)} size={props.size ?? 15} />
+      {props.glyph ?? <Icon name={runIcon(props.item)} size={props.size ?? 15} />}
     </span>
   )
 }

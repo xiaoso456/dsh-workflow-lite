@@ -7,6 +7,7 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/trigger/TriggerMark
  */
 
+import type { ReactNode } from 'react'
 import type { StepColor } from '../../../shared/appearance.ts'
 import type { FireChannel } from '../../../shared/trigger.ts'
 import type { TriggerSourceKind } from '../../../shared/types.ts'
@@ -44,6 +45,7 @@ export function TriggerMark(props: {
   kind: TriggerSourceKind
   size?: number
   className?: string
+  glyph?: ReactNode
 }): React.JSX.Element {
   return (
     <span
@@ -51,7 +53,7 @@ export function TriggerMark(props: {
       data-color={TRIGGER_COLOR[props.kind]}
       data-trigger-kind={props.kind}
     >
-      <Icon name={TRIGGER_ICON[props.kind]} size={props.size ?? 15} />
+      {props.glyph ?? <Icon name={TRIGGER_ICON[props.kind]} size={props.size ?? 15} />}
     </span>
   )
 }

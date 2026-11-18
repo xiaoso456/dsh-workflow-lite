@@ -17,6 +17,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { InstanceSummary, RunStatus } from '../../../../shared/runState.ts'
 import { useListView } from '../../../app/listView.ts'
 import type { SessionRow } from '../../../app/sessions.ts'
+import { primeHubRun } from '../../../app/useHubRun.ts'
 import type { Runs } from '../../../app/useRuns.ts'
 import type { LocaleKey, T } from '../../../i18n.ts'
 import { matchesQuery, workspaceKey, workspacesOf } from '../../../model/hubRuns.ts'
@@ -40,7 +41,6 @@ import { cx } from '../../kit/cx.ts'
 import { Icon, type IconName } from '../../kit/Icon.tsx'
 import { Skeleton } from '../../kit/Skeleton.tsx'
 import ui from '../../kit/ui.module.css'
-import { usePaneTransition } from '../../motion/paneTransition.ts'
 import { HubSearch } from '../HubSearch.tsx'
 import hub from '../hub.module.css'
 import { GroupedList, type GroupFace, groupDot } from '../list/GroupedList.tsx'
@@ -136,7 +136,18 @@ export function HubRuns(props: {
   /** 点过的实例；没点过 = 排在最前的那个。 */
   const [picked, setPicked] = useState<string | null>(null)
   const [tab, setTab] = useState<RunTab>('overview')
-  const detailMotion = usePaneTransition()
+  const [loading, setLoading] = useState(false)
+  const selection = useRef(0)
+  const cancelSelection = (): void => {
+    selection.current += 1
+    setLoading(false)
+  }
+  useEffect(
+    () => () => {
+      selection.current += 1
+    },
+    [],
+  )
 
   // `runs` 每次重绘都是新对象：放进 ref，免得 load 跟着变、effect 跟着重跑。
   const runsRef = useRef(props.runs)
@@ -200,8 +211,23 @@ export function HubRuns(props: {
   }, [items, titles, query, view, spec])
   const ordered = arranged.groups.flatMap((group) => group.entries)
   const selected = ordered.find((item) => item.id === picked) ?? ordered[0]
+  const pick = (item: InstanceSummary): void => {
+    const request = ++selection.current
+    const reading = item.id === selected?.id ? null : primeHubRun(props.rpc, item)
+    const show = (): void => {
+      if (request !== selection.current) return
+      setPicked(item.id)
+      setLoading(false)
+    }
+    if (reading === null) show()
+    else {
+      setLoading(true)
+      void reading.then(show)
+    }
+  }
   // 换排法时右栏还看着原来那一项（没点过时它是第一项）。
   const onView = (change: Partial<RunListView>): void => {
+    cancelSelection()
     keepShown(picked, selected?.id, setPicked)
     changeView(change)
   }
@@ -214,6 +240,7 @@ export function HubRuns(props: {
 
   /** 删掉一个：选中的是它就先换到下一个，删完重拉（没删成时它回来）。 */
   const remove = async (item: InstanceSummary, withState: boolean): Promise<void> => {
+    cancelSelection()
     if (item.id === selectedId) {
       const index = ordered.indexOf(item)
       setPicked((ordered[index + 1] ?? ordered[index - 1])?.id ?? null)
@@ -291,7 +318,10 @@ export function HubRuns(props: {
           t={t}
           value={query}
           placeholder={t('hub.search')}
-          onChange={setQuery}
+          onChange={(next) => {
+            cancelSelection()
+            setQuery(next)
+          }}
           filter={
             view.show === 'all'
               ? undefined
@@ -326,9 +356,7 @@ export function HubRuns(props: {
               selected={at.selected}
               note={noteOf(item)}
               sortedByTime={view.sort !== 'name'}
-              onPick={() =>
-                detailMotion.change(() => setPicked(item.id), item.id === selected?.id ? null : 0)
-              }
+              onPick={() => pick(item)}
             />
           )}
         />
@@ -345,7 +373,7 @@ export function HubRuns(props: {
         </Empty>
       ) : (
         <RunDetail
-          detailRef={detailMotion.scope}
+          loading={loading}
           t={t}
           rpc={props.rpc}
           item={selected}

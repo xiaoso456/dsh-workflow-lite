@@ -1,0 +1,39 @@
+.glyph {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+}
+
+.shape {
+  display: none;
+}
+
+@supports (clip-path: path("M0 0L1 0L1 1Z")) {
+  .glyph > svg {
+    display: none;
+  }
+
+  .shape {
+    position: absolute;
+    inset: -3px;
+    display: block;
+    background: currentColor;
+    transform: scale(0.75);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .shape {
+      transition: clip-path 250ms cubic-bezier(0.25, 0.6, 0.35, 1);
+    }
+
+    .glyph[data-motion="quick"] .shape {
+      transition-duration: 180ms;
+    }
+
+    .glyph[data-motion="emphasized"] .shape {
+      transition-duration: 270ms;
+    }
+  }
+}

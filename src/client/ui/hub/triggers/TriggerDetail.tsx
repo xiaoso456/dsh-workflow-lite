@@ -2,7 +2,7 @@
  * dsh-workflow-lite — 「触发」页右栏：上面固定一块（{@link TriggerHead}），下面页签——概览、时间线、按触发方式换名字的
  * 那一页（输出 / 调用 / 日程 / 上游）、设置；每一页自己滚。
  *
- * 选中的页签由页面记着，换卡片不变。换卡片时只淡换标题区；换页签时头部不动，只交接滚动区。
+ * 选中的页签由页面记着，换卡片不变。换卡片时复用头部；换页签时头部不动，只交接滚动区。
  *
  * 头部和页签包在 `<header>` 里，和下面那一页留同样宽的滚动条位置（`--wl-scrollbar`）：两块的左右边对齐。
  * 点一条触发记录（概览、时间线里）打开它的详情（`FireDialog`）。
@@ -10,7 +10,7 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/triggers/TriggerDetail
  */
 
-import { type RefObject, useCallback, useEffect, useLayoutEffect, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useState } from 'react'
 import type { TriggerData } from '../../../../shared/types.ts'
 import type { FireRecord, TriggerEntry } from '../../../../shared/wire/trigger.ts'
 import { useFireSeen } from '../../../app/fireSeen.ts'
@@ -43,7 +43,6 @@ import { UpstreamPane } from './UpstreamPane.tsx'
 const SHOWN = 200
 
 export function TriggerDetail(props: {
-  titleRef: RefObject<HTMLDivElement>
   t: T
   rpc: WorkflowLiteRpc
   hub: TriggerHub
@@ -191,7 +190,6 @@ export function TriggerDetail(props: {
       <div className={css.body}>
         <header className={css.top}>
           <TriggerHead
-            titleRef={props.titleRef}
             t={t}
             hub={hub}
             entry={entry}

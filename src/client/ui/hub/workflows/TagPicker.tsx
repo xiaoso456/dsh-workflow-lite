@@ -66,6 +66,7 @@ export function TagPicker(props: {
         ref={menu.anchorRef}
         type="button"
         className={css.add}
+        data-fit="add"
         aria-label={props.label}
         aria-haspopup="dialog"
         aria-expanded={open}

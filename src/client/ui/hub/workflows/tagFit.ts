@@ -61,7 +61,7 @@ export function useTagFit(
       if (!(child instanceof HTMLElement)) continue
       if (child.dataset.fit === 'chip') chips.push(child.offsetWidth)
       else if (child.dataset.fit === 'more') more = child.offsetWidth
-      else tail.push(child.offsetWidth)
+      else if (child.dataset.fit !== 'ghosts') tail.push(child.offsetWidth)
     }
     const lead = line.firstElementChild
     const name = lead instanceof HTMLElement && lead !== el ? lead.offsetWidth : 0

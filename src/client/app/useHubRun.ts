@@ -1,80 +1,100 @@
-/**
- * dsh-workflow-lite — 「运行实例」页右栏要读的两样：实例本身（图快照、状态、来源，`run/load`），
- * 和记到它上面的触发（建出它的那次、接着它做的几次，`trigger/of-instance`）。
- *
- * 状态、进度、更新时间变了（`stamp`）再读一次；列表刷新时摘要换了新对象但内容没变，不读。
- * 换了实例时先拿上次读到的那份（{@link seen}）顶着、再读新的：回到看过的实例不先空一下；没看过的是空的，
- * 不把上一个实例的东西显示在新实例下面。
- *
- * @module @xiaoso/dsh-workflow-lite/client/app/useHubRun
- */
-
 import { useEffect, useState } from 'react'
 import type { InstanceSummary, InstanceView } from '../../shared/runState.ts'
 import type { FireRecord } from '../../shared/wire/trigger.ts'
-import type { WorkflowLiteRpc } from '../rpc.ts'
+import { errorMessage, type WorkflowLiteRpc } from '../rpc.ts'
+import { useStable } from './useStable.ts'
 
-export interface HubRun {
-  /** 还没读到是 `null`。 */
+interface HubRun {
   view: InstanceView | null
-  /** 记到这个实例上的触发，从早到晚；还没读到是空的。 */
   fires: readonly FireRecord[]
+  error: string | null
 }
 
-/** 看过的实例最后读到的样子（最近的 {@link SEEN_MAX} 个）。 */
-const seen = new Map<string, HubRun>()
+const EMPTY: HubRun = { view: null, fires: [], error: null }
 const SEEN_MAX = 40
 
-function remember(id: string, run: HubRun): void {
-  seen.delete(id)
-  seen.set(id, run)
-  if (seen.size > SEEN_MAX) seen.delete(seen.keys().next().value as string)
+function stampOf(item: InstanceSummary): string {
+  return `${item.status}|${item.done}|${item.updatedAt}|${item.stateProblem}`
 }
 
-const EMPTY: HubRun = { view: null, fires: [] }
+export function createHubRunReader(rpc: WorkflowLiteRpc) {
+  const seen = new Map<string, { stamp: string; run: HubRun }>()
+  const pending = new Map<string, { stamp: string; reading: Promise<HubRun> }>()
 
-export function useHubRun(rpc: WorkflowLiteRpc, item: InstanceSummary): HubRun {
-  const [read, setRead] = useState<{ id: string } & HubRun>(() => ({
-    id: item.id,
-    ...(seen.get(item.id) ?? EMPTY),
-  }))
-  const stamp = `${item.id}|${item.status}|${item.done}|${item.updatedAt}`
+  const peek = ({ id }: InstanceSummary): HubRun => seen.get(id)?.run ?? EMPTY
+
+  const read = (item: InstanceSummary, refresh = false): Promise<HubRun> => {
+    const { id } = item
+    const stamp = stampOf(item)
+    const active = pending.get(id)
+    if (active?.stamp === stamp) return active.reading
+    const cached = seen.get(id)
+    if (!refresh && cached?.stamp === stamp) {
+      seen.delete(id)
+      seen.set(id, cached)
+      return Promise.resolve(cached.run)
+    }
+    const reading = Promise.allSettled([
+      rpc.call('run/load', { id }),
+      rpc.call('trigger/of-instance', { instance: id }),
+    ]).then(([loaded, related]) => {
+      const view =
+        loaded.status === 'fulfilled' && !('unchanged' in loaded.value)
+          ? loaded.value
+          : (cached?.run.view ?? null)
+      const run: HubRun = {
+        view,
+        fires: related.status === 'fulfilled' ? related.value.fires : (cached?.run.fires ?? []),
+        error: loaded.status === 'rejected' ? errorMessage(loaded.reason) : null,
+      }
+      if (pending.get(id)?.reading === reading) {
+        pending.delete(id)
+        seen.delete(id)
+        seen.set(id, { stamp, run })
+        const oldest = seen.keys().next().value
+        if (seen.size > SEEN_MAX && oldest !== undefined) seen.delete(oldest)
+      }
+      return run
+    })
+    pending.set(id, { stamp, reading })
+    return reading
+  }
+  return { peek, read }
+}
+
+const readers = new WeakMap<WorkflowLiteRpc, ReturnType<typeof createHubRunReader>>()
+
+function readerOf(rpc: WorkflowLiteRpc): ReturnType<typeof createHubRunReader> {
+  const known = readers.get(rpc)
+  if (known !== undefined) return known
+  const reader = createHubRunReader(rpc)
+  readers.set(rpc, reader)
+  return reader
+}
+
+export function primeHubRun(rpc: WorkflowLiteRpc, item: InstanceSummary): Promise<HubRun> | null {
+  const reader = readerOf(rpc)
+  const reading = reader.read(item, true)
+  return reader.peek(item).view === null ? reading : null
+}
+
+export function useHubRun(rpc: WorkflowLiteRpc, item: InstanceSummary): HubRun & { retry(): void } {
+  const reader = readerOf(rpc)
+  const [read, setRead] = useState({ reader, id: item.id, run: reader.peek(item) })
+  const [attempt, setAttempt] = useState(0)
+  const current = useStable(
+    item,
+    (old, next) => old.id === next.id && stampOf(old) === stampOf(next),
+  )
   useEffect(() => {
     let live = true
-    const id = item.id
-    void rpc
-      .call('run/load', { id })
-      .then((result) => {
-        if (!live || 'unchanged' in result) return
-        setRead((old) => {
-          const next = {
-            id,
-            view: result,
-            fires: old.id === id ? old.fires : (seen.get(id)?.fires ?? []),
-          }
-          remember(id, next)
-          return next
-        })
-      })
-      .catch(() => {})
-    void rpc
-      .call('trigger/of-instance', { instance: id })
-      .then((result) => {
-        if (!live) return
-        setRead((old) => {
-          const next = {
-            id,
-            view: old.id === id ? old.view : (seen.get(id)?.view ?? null),
-            fires: result.fires,
-          }
-          remember(id, next)
-          return next
-        })
-      })
-      .catch(() => {})
+    void reader.read(current, attempt > 0 && reader.peek(current).error !== null).then((run) => {
+      if (live) setRead({ reader, id: current.id, run })
+    })
     return () => {
       live = false
     }
-  }, [rpc, item.id, stamp])
-  return read.id === item.id ? read : (seen.get(item.id) ?? EMPTY)
+  }, [reader, current, attempt])
+  const run = read.reader === reader && read.id === item.id ? read.run : reader.peek(item)
+  return { ...run, retry: () => setAttempt((value) => value + 1) }
 }

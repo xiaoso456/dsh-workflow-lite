@@ -34,6 +34,12 @@ const FLIP_MS = 240
 /** 正在滑的项：位置又变了时，从它此刻看上去的地方接着滑，不是先跳回上一次的起点。 */
 const sliding = new WeakMap<HTMLElement, Animation>()
 
+export function slideOffset(child: HTMLElement): readonly [number, number] {
+  if (sliding.get(child)?.playState !== 'running') return [0, 0]
+  const [across = 0, down = 0] = getComputedStyle(child).translate.split(' ').map(Number.parseFloat)
+  return [across || 0, down || 0]
+}
+
 /**
  * 让一项看上去还在 `offset`（新位置之上多少像素）、`across`（新位置左边多少像素）的地方，再滑到新位置。
  * 纵向列表只有 `offset`；一排会折行的小件（时刻框）两个方向都有；图上的点（定时的「接下来 7 天」）只有 `across`。
@@ -44,22 +50,30 @@ const sliding = new WeakMap<HTMLElement, Animation>()
  * `ms`：滑多久，缺省和列表一样；跟着别的动画一起动时（{@link useRowSlide} 跟着 useGlide）给它的时长。
  */
 export function slide(child: HTMLElement, offset: number, across = 0, ms = FLIP_MS): void {
+  const [currentX, currentY] = slideOffset(child)
+  const fromX = across + currentX
+  const fromY = offset + currentY
+  slideFrom(child, fromY, fromX, ms)
+}
+
+export function slideFrom(
+  child: HTMLElement,
+  fromY: number,
+  fromX: number,
+  ms: number,
+  delay = 0,
+): void {
   const running = sliding.get(child)
-  let fromY = offset
-  let fromX = across
-  if (running !== undefined && running.playState === 'running') {
-    // 还在半路：把它此刻的位移加上（读的是动画的当前值，不是起点）。
-    const [x = 0, y = 0] = getComputedStyle(child)
-      .translate.split(' ')
-      .map((part) => Number.parseFloat(part) || 0)
-    fromX += x
-    fromY += y
+  if (running !== undefined) {
     running.cancel()
+    child.style.removeProperty('z-index')
   }
   if (Math.abs(fromY) < 0.5 && Math.abs(fromX) < 0.5) return
   const anim = child.animate([{ translate: `${fromX}px ${fromY}px` }, { translate: '0 0' }], {
     duration: ms,
     easing: EASE,
+    delay,
+    fill: 'backwards',
   })
   sliding.set(child, anim)
   // 滑动的项盖在新出现 / 正在淡出的项上面（项有不透明底色时像帘子一样把它们盖住再露出来）：

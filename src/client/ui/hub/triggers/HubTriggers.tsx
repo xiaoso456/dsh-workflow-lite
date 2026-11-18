@@ -27,7 +27,6 @@ import type { WorkflowLiteRpc } from '../../../rpc.ts'
 import { cx } from '../../kit/cx.ts'
 import { Icon } from '../../kit/Icon.tsx'
 import ui from '../../kit/ui.module.css'
-import { usePaneTransition } from '../../motion/paneTransition.ts'
 import hub from '../hub.module.css'
 import { keepShown } from '../list/keepShown.ts'
 import type { DetailTab } from './DetailTabs.tsx'
@@ -72,7 +71,6 @@ export function HubTriggers(props: {
   )
   // 从「全部记录」进来直接看时间线。
   const [tab, setTab] = useState<DetailTab>(props.start === undefined ? 'overview' : 'timeline')
-  const titleMotion = usePaneTransition('text')
   const pickRevision = useRef(0)
   const catalog = useCatalog(rpc)
   const list = hubData.list
@@ -89,18 +87,14 @@ export function HubTriggers(props: {
   const pick = (id: string): void => {
     const revision = ++pickRevision.current
     const changed = selected !== undefined && keyOf(selected) !== id
+    const target = changed ? shown.find((entry) => keyOf(entry) === id) : undefined
     const apply = (): void => {
-      if (revision !== pickRevision.current) return
-      titleMotion.change(
-        () => {
-          if (revision === pickRevision.current) setPicked(id)
-        },
-        changed ? 0 : null,
-      )
+      if (revision === pickRevision.current) setPicked(id)
     }
-    const target =
-      changed && tab === 'overview' ? shown.find((entry) => keyOf(entry) === id) : undefined
-    const reading = target === undefined ? undefined : primeActivity(target, hubData.activity)
+    const reading =
+      target === undefined || tab !== 'overview'
+        ? undefined
+        : primeActivity(target, hubData.activity)
     if (reading === undefined) {
       apply()
       return
@@ -212,7 +206,6 @@ export function HubTriggers(props: {
         </div>
       ) : (
         <TriggerDetail
-          titleRef={titleMotion.scope}
           t={t}
           rpc={rpc}
           hub={hubData}

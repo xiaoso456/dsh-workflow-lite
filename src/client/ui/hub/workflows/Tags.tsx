@@ -12,7 +12,7 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/workflows/Tags
  */
 
-import { useState } from 'react'
+import { useCallback, useLayoutEffect, useState } from 'react'
 import { type TagColor, tagColorOf } from '../../../../shared/tags.ts'
 import type { T } from '../../../i18n.ts'
 import type { TagUse } from '../../../model/workflowList.ts'
@@ -26,6 +26,7 @@ import { ColorSwatches } from '../../panel/ColorSwatches.tsx'
 import { type TagColors, tagStyle } from './TagMark.tsx'
 import { TagPicker, toggleTag } from './TagPicker.tsx'
 import { useTagFit } from './tagFit.ts'
+import { useTagMotion } from './tagMotion.ts'
 import css from './tags.module.css'
 
 /** 左栏一行里最多写几个标签。 */
@@ -83,20 +84,30 @@ export function TagRow(props: {
   const { t, tags } = props
   const slide = useRowSlide()
   const fit = useTagFit(tags.join('\n'), tags.length, slide)
-  const [expanded, setExpanded] = useState(false)
+  const [expandedFor, setExpandedFor] = useState<string | null>(null)
   /** 一行放不下、收起来的几个。 */
   const folded = tags.length - fit.shown
-  const open = expanded && folded > 0
+  const open = expandedFor === props.name && folded > 0
+  const motion = useTagMotion(`${props.name}\n${tags.join('\n')}\n${fit.shown}:${String(open)}`)
+  const fitRef = fit.ref
+  const attach = useCallback(
+    (node: HTMLDivElement | null) => {
+      fitRef(node)
+      motion.current = node
+    },
+    [fitRef, motion],
+  )
   const moreTip = open
     ? t('hub.tagsLess')
     : t('hub.tagsMore').replace('{tags}', tags.slice(fit.shown).join('、'))
   return (
-    <div ref={fit.ref} className={css.row} data-expanded={open} data-testid="wl-hub-wf-tags">
+    <div ref={attach} className={css.row} data-expanded={open} data-testid="wl-hub-wf-tags">
       {tags.map((tag, index) => (
         <TagChip
-          key={tag}
+          key={tag.toLocaleLowerCase()}
           t={t}
           tag={tag}
+          workflow={props.name}
           hidden={!open && index >= fit.shown}
           color={tagColorOf(props.colors, tag)}
           onColor={(color) => props.onColor(tag, color)}
@@ -113,11 +124,12 @@ export function TagRow(props: {
         aria-label={moreTip}
         data-tip={moreTip}
         data-testid="wl-hub-wf-tags-more"
-        onClick={() => setExpanded(!open)}
+        onClick={() => setExpandedFor(open ? null : props.name)}
       >
         {open ? <Icon name="chevronUp" size={12} /> : `+${folded}`}
       </button>
       <TagPicker
+        key={props.name}
         t={t}
         catalog={props.catalog}
         colors={props.colors}
@@ -126,6 +138,7 @@ export function TagRow(props: {
         testId="wl-hub-wf-tag-add"
         onChange={props.onChange}
       />
+      <span className={css.tagGhosts} data-fit="ghosts" aria-hidden="true" />
     </div>
   )
 }
@@ -134,6 +147,7 @@ export function TagRow(props: {
 function TagChip(props: {
   t: T
   tag: string
+  workflow: string
   /** 一行放不下、收在「+N」里：挪出排版藏起来（不卸掉，宽度照样量得到）。 */
   hidden: boolean
   color: TagColor
@@ -151,6 +165,8 @@ function TagChip(props: {
     initialFocus: '[aria-checked="true"]',
   })
   const open = menu.state !== 'off'
+  const close = menu.setState
+  useLayoutEffect(() => close('off'), [close, props.workflow])
   const glide = useGlide(0)
   const remove = t('hub.tagRemove').replace('{tag}', tag)
   return (

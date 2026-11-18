@@ -616,9 +616,16 @@ try {
 
   // 实例来源：直接在同一个数据目录里建一个带来源的实例，看概览和工作流中心。
   const runs = new RunService({ dataDir: () => DATA_DIR, validate: () => [] })
+  const runDocument = (await rpc('graph/load', { name: NAME })).document
+  const otherRun = await runs.prepare({
+    workflow: NAME,
+    document: runDocument,
+    session: { id: 'trigger-session', cwd: WORKSPACE },
+  })
+  if (!otherRun.ok) throw new Error(JSON.stringify(otherRun))
   const prepared = await runs.prepare({
     workflow: NAME,
-    document: (await rpc('graph/load', { name: NAME })).document,
+    document: runDocument,
     session: { id: 'trigger-session', cwd: WORKSPACE },
     origin: {
       channel: 'schedule',
@@ -639,6 +646,39 @@ try {
   )
   check('工作流中心的实例详情写出来源的触发器', marker.includes('夜巡'), marker)
   await capture(session, 'hub-light.png')
+
+  const runDetail = '[data-testid="wl-hub-run-detail"]'
+  const otherRow = `[data-testid="wl-hub-run"][data-value="${otherRun.result.id}"]`
+  await session.send('Fetch.enable', { patterns: [{ urlPattern: '*/api/workflow-lite/run/load' }] })
+  let waitingRead
+  const trackRead = session.on('Fetch.requestPaused', ({ requestId }) => {
+    waitingRead = requestId
+  })
+  try {
+    await session.evaluate(`document.querySelector('${otherRow}').click()`)
+    await waitFor(
+      session,
+      `document.querySelector('${runDetail}')?.getAttribute('aria-busy') === 'true'`,
+    )
+    check(
+      '实例冷读时右栏还是原实例，不提前挂骨架屏',
+      await session.evaluate(`document.querySelector('${runDetail}')?.dataset.id === '${instance}' &&
+        !document.querySelector('${runDetail} [data-shape="form"]')`),
+    )
+  } finally {
+    trackRead()
+    if (waitingRead) await session.send('Fetch.continueRequest', { requestId: waitingRead })
+    await session.send('Fetch.disable')
+  }
+  await waitFor(
+    session,
+    `document.querySelector('${runDetail}')?.dataset.id === '${otherRun.result.id}'`,
+  )
+  check(
+    '目标实例首次显示就是已读好的详情',
+    await session.evaluate(`!document.querySelector('${runDetail} [data-shape="form"]')`),
+  )
+  await revealHubRow(session, instance)
   await session.evaluate(`document.querySelector('${view}').click()`)
   await waitFor(session, `document.querySelector('[data-testid="wl-root"]').dataset.mode === 'run'`)
   await sleep(2500)
@@ -1282,18 +1322,35 @@ try {
   )
 
   // ── 工作流中心「触发」页 ─────────────────────────────────────
+  const httpFixture = await rpc('graph/load', { name: NAME2 })
+  await rpc('graph/save', {
+    name: NAME2,
+    baseHash: httpFixture.hash,
+    document: {
+      ...httpFixture.document,
+      nodes: [
+        ...httpFixture.document.nodes,
+        {
+          id: 'morph-http',
+          type: 'wfTrigger',
+          position: { x: 0, y: 600 },
+          data: { label: 'HTTP 图标验收', source: { kind: 'http' } },
+        },
+      ],
+    },
+  })
   await session.evaluate(clickTestId('wl-hub-open'))
   await waitFor(session, `document.querySelector('[data-testid="wl-hub-triggers"]') !== null`)
   await session.evaluate(clickTestId('wl-hub-triggers'))
   await waitFor(session, `document.querySelector('[data-testid="wl-hub-trg-page"]') !== null`)
-  await waitFor(session, `document.querySelectorAll('[data-testid="wl-hub-trg"]').length >= 3`)
+  await waitFor(session, `document.querySelectorAll('[data-testid="wl-hub-trg"]').length === 5`)
   const rowsHub = await session.evaluate(
     `[...document.querySelectorAll('[data-testid="wl-hub-trg"]')].map((el) => el.dataset.value)`,
   )
   check(
     // 夜间巡检里还有前面从步骤库拖进来的那一张。
     '「触发」页列出两个工作流里的卡片',
-    rowsHub.length === 4 &&
+    rowsHub.length === 5 &&
       rowsHub.includes(`${NAME}/nightly`) &&
       rowsHub.includes(`${NAME2}/hook`) &&
       rowsHub.includes(`${NAME2}/tail`),
@@ -1322,16 +1379,24 @@ try {
   const wordSwap = await session.evaluate(`new Promise((resolve) => {
     const detail = document.querySelector('${hubDetail}');
     const name = detail.querySelector('[data-testid="wl-hub-trg-name"]');
+    const tag = detail.querySelector('[data-testid="wl-hub-trg-morph-tag"]');
+    const ink = tag.querySelector('[data-tag-label]');
+    const face = tag.querySelector('[data-tag-face]');
+    const oldText = tag.innerText;
+    const oldColor = ink && getComputedStyle(ink).color;
     const start = performance.now();
     const row = document.querySelector('${hookRow}');
     row.click();
     const sample = () => {
-      const text = detail.querySelector(':active-view-transition-type(wl-text)');
-      if (row.getAttribute('aria-current') === 'true' && text?.contains(name)) {
+      if (row.getAttribute('aria-current') === 'true') {
         const stats = detail.querySelector('[data-testid="wl-hub-trg-overview"]')?.firstElementChild;
         resolve({
-          textOnly: !detail.matches(':active-view-transition-type(wl-pane)') &&
-            text.querySelector('[data-testid="wl-hub-trg-name"]') === name,
+          sameHeader: detail.querySelector('[data-testid="wl-hub-trg-name"]') === name &&
+            detail.querySelector('[data-testid="wl-hub-trg-morph-tag"]') === tag,
+          steadyLabel: ink !== null && face !== null && !face.contains(ink) &&
+            tag.querySelector('[data-tag-label]') === ink && tag.innerText !== oldText &&
+            tag.innerText === ink.textContent && getComputedStyle(ink).color !== oldColor &&
+            ink.getAnimations().length === 0 && getComputedStyle(ink).opacity === '1',
           total: stats?.firstElementChild?.firstElementChild?.textContent,
         });
       } else if (performance.now() - start > 750) {
@@ -1344,7 +1409,8 @@ try {
   })`)
   finishActivity()
   await session.send('Fetch.disable')
-  check('换触发器时只淡换标题区，名字控件不重建', wordSwap?.textOnly === true)
+  check('换触发器时保留标题控件和标签，不截取整块标题', wordSwap?.sameHeader === true)
+  check('方式标签换字和字色不翻动，底板不裁字', wordSwap?.steadyLabel === true)
   check('换到有触发记录的卡片时先读到统计，再交接详情', Number(wordSwap?.total) > 0)
   await waitFor(
     session,
@@ -1395,6 +1461,72 @@ try {
     }
   })()`)
   check('倒计时进度条沿底边伸长、退回，复用同一条线', countdown)
+  const kindMorph = await session.evaluate(`(async () => {
+    const row = (value) => [...document.querySelectorAll('[data-testid="wl-hub-trg"]')]
+      .find((element) => element.dataset.value === value);
+    const tail = row(${JSON.stringify(`${NAME2}/tail`)});
+    const nightly = row(${JSON.stringify(`${NAME}/nightly`)});
+    const hook = row(${JSON.stringify(`${NAME2}/hook`)});
+    const http = row(${JSON.stringify(`${NAME2}/morph-http`)});
+    const find = (part) => document.querySelector('[data-testid="wl-hub-trg-' + part + '"]');
+    const select = async (target) => {
+      if (!target) return false;
+      target.click();
+      const end = performance.now() + 1500;
+      while (target.getAttribute('aria-current') !== 'true' && performance.now() < end) {
+        await new Promise(requestAnimationFrame);
+      }
+      return target.getAttribute('aria-current') === 'true';
+    };
+    try {
+      if (!await select(nightly)) return false;
+      const outline = find('morph-outline');
+      const tag = find('morph-tag');
+      if (!outline || !tag) return false;
+      const workflow = find('workflow-tag');
+      const all = [nightly, tail, http, hook];
+      const motion = () => outline.getAnimations().find((entry) => entry.transitionProperty === 'clip-path');
+      for (const from of all) {
+        for (const to of all) {
+          if (from === to) continue;
+          if (!await select(from)) return { stage: 'source', from: from?.dataset.value };
+          motion()?.finish();
+          const before = getComputedStyle(outline).clipPath;
+          if (!await select(to)) return { stage: 'target', to: to?.dataset.value };
+          const animation = motion();
+          if (!animation || find('morph-outline') !== outline || find('morph-tag') !== tag ||
+              find('workflow-tag') !== workflow) {
+            return { stage: 'reuse', from: from.dataset.value, to: to.dataset.value };
+          }
+          animation.pause();
+          animation.currentTime = animation.effect.getTiming().duration / 2;
+          const middle = getComputedStyle(outline).clipPath;
+          animation.finish();
+          const after = getComputedStyle(outline).clipPath;
+          if (middle === before || middle === after || before === after) {
+            return { stage: 'interpolation', from: from.dataset.value, to: to.dataset.value };
+          }
+        }
+      }
+      if (!await select(nightly)) return { stage: 'interrupt-source' };
+      motion()?.finish();
+      if (!await select(tail)) return { stage: 'interrupt-target' };
+      const interrupted = motion();
+      if (!interrupted) return { stage: 'interrupt-motion' };
+      interrupted.pause();
+      interrupted.currentTime = 80;
+      const inFlight = getComputedStyle(outline).clipPath;
+      if (!await select(hook)) return { stage: 'retarget' };
+      const retargeted = motion();
+      if (!retargeted) return { stage: 'retarget-motion' };
+      retargeted.pause();
+      retargeted.currentTime = 0;
+      return { ok: getComputedStyle(outline).clipPath === inFlight, stage: 'retarget-start' };
+    } finally {
+      await select(hook);
+    }
+  })()`)
+  check('四种触发源两两切换都变形，快速改选继承当前轮廓', kindMorph.ok, JSON.stringify(kindMorph))
   check(
     '右栏先是「概览」，能立即触发一次',
     (await session.evaluate(has('wl-hub-trg-overview'))) &&

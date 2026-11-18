@@ -19,7 +19,7 @@ import {
 import { cx } from '../kit/cx.ts'
 import { ghostClone, ghostFade } from '../kit/ghost.ts'
 import css from './exits.module.css'
-import { slide } from './flip.ts'
+import { slide, slideFrom, slideOffset } from './flip.ts'
 import { EASE, fadeAway, leaving, REDUCED } from './shared.ts'
 
 /** 退场：往哪边走、走多久（都是入场的反方向）。 */
@@ -309,70 +309,90 @@ export function useGlide(
  * 单元带 `data-row-hidden="true"` 是挪出排版藏起来了（标题行里放不下的标签），不算一个位置；它藏起、露出时
  * 别的单元一下子换了位置却没人变宽，这时只重新记、不滑。
  */
-export function useRowSlide(): (row: HTMLElement | null) => void {
+export function useRowSlide(
+  duration?: number,
+  keepApart = false,
+): (row: HTMLElement | null) => void {
   const stop = useRef<(() => void) | null>(null)
   useEffect(() => () => stop.current?.(), [])
-  return useCallback((row: HTMLElement | null) => {
-    stop.current?.()
-    stop.current = null
-    if (row === null || typeof ResizeObserver === 'undefined') return
-    // 位置按这一排自己算，不按 offsetParent：外面哪一层定位变了（右栏入场完了收掉定位），各单元
-    // offsetLeft 整体跟着变，可谁也没变宽、ResizeObserver 不报；按旧数比，下一次一挤整排都跳一下。
-    const measure = (): Map<HTMLElement, { left: number; width: number }> => {
-      const spots = new Map<HTMLElement, { left: number; width: number }>()
-      for (const child of row.children) {
-        if (child instanceof HTMLElement && child.dataset.rowHidden !== 'true') {
-          const base = child.offsetParent === row ? 0 : row.offsetLeft
-          spots.set(child, { left: child.offsetLeft - base, width: child.offsetWidth })
-        }
-      }
-      return spots
-    }
-    let spots = measure()
-    const sizes = new ResizeObserver((entries) => {
-      const next = measure()
-      const whole = entries.some((entry) => entry.target === row)
-      if (!whole && REDUCED?.matches !== true) {
-        for (const [child, now] of next) {
-          const was = spots.get(child)
-          if (was === undefined || was.left === now.left) continue
-          // 自己展开收起的（里面有 useGlide 的底面）由 useGlide 管，不挪；按内容占宽的字换了长短照样滑。
-          if (was.width !== now.width && child.querySelector('[data-glide-surface]') !== null) {
-            continue
+  return useCallback(
+    (row: HTMLElement | null) => {
+      stop.current?.()
+      stop.current = null
+      if (row === null || typeof ResizeObserver === 'undefined') return
+      // 位置按这一排自己算，不按 offsetParent：外面哪一层定位变了（右栏入场完了收掉定位），各单元
+      // offsetLeft 整体跟着变，可谁也没变宽、ResizeObserver 不报；按旧数比，下一次一挤整排都跳一下。
+      const measure = (): Map<HTMLElement, { left: number; width: number }> => {
+        const spots = new Map<HTMLElement, { left: number; width: number }>()
+        for (const child of row.children) {
+          if (child instanceof HTMLElement && child.dataset.rowHidden !== 'true') {
+            const base = child.offsetParent === row ? 0 : row.offsetLeft
+            spots.set(child, { left: child.offsetLeft - base, width: child.offsetWidth })
           }
-          // 往左挪 = 右边有一个变宽了（展开的时长），往右挪 = 变窄了（收的时长）。
-          slide(
-            child,
-            0,
-            was.left - now.left,
-            now.left < was.left ? GLIDE_GROW_MS : GLIDE_SHRINK_MS,
-          )
         }
+        return spots
       }
-      spots = next
-    })
-    const watch = (): void => {
-      sizes.disconnect()
-      sizes.observe(row)
-      for (const child of row.children) sizes.observe(child)
-    }
-    watch()
-    // 单元换了（换了一种触发方式，顶栏里的按钮不一样了）、有单元藏起露出：重新记、重新看，不滑。
-    // 只看直接子项增删（单元里面换字不算，那是要滑的）；藏起露出看子项上的那个属性。
-    const remeasure = (): void => {
-      spots = measure()
+      let spots = measure()
+      const sizes = new ResizeObserver((entries) => {
+        const next = measure()
+        const whole = entries.some((entry) => entry.target === row)
+        if (!whole && REDUCED?.matches !== true && keepApart) {
+          if ([...next].some(([child, now]) => spots.get(child)?.left !== now.left)) {
+            let leastShift = 0
+            const shifts = Array.from(next, ([child, now]) => {
+              const [current] = slideOffset(child)
+              const shift = (spots.get(child)?.left ?? now.left) - now.left + current
+              leastShift = Math.max(leastShift, shift)
+              return { child, current, shift: leastShift }
+            })
+            for (const { child, current, shift } of shifts) {
+              if (shift !== 0 || current !== 0)
+                slideFrom(child, 0, shift, duration ?? GLIDE_SHRINK_MS)
+            }
+          }
+        } else if (!whole && REDUCED?.matches !== true) {
+          for (const [child, now] of next) {
+            const was = spots.get(child)
+            if (was === undefined || was.left === now.left) continue
+            // 自己展开收起的（里面有 useGlide 的底面）由 useGlide 管，不挪；按内容占宽的字换了长短照样滑。
+            if (was.width !== now.width && child.querySelector('[data-glide-surface]') !== null) {
+              continue
+            }
+            // 往左挪 = 右边有一个变宽了（展开的时长），往右挪 = 变窄了（收的时长）。
+            slide(
+              child,
+              0,
+              was.left - now.left,
+              duration ?? (now.left < was.left ? GLIDE_GROW_MS : GLIDE_SHRINK_MS),
+            )
+          }
+        }
+        spots = next
+      })
+      const watch = (): void => {
+        sizes.disconnect()
+        sizes.observe(row)
+        for (const child of row.children) sizes.observe(child)
+      }
       watch()
-    }
-    const kids = new MutationObserver(remeasure)
-    kids.observe(row, { childList: true })
-    const hidden = new MutationObserver(remeasure)
-    hidden.observe(row, { subtree: true, attributeFilter: ['data-row-hidden'] })
-    stop.current = () => {
-      sizes.disconnect()
-      kids.disconnect()
-      hidden.disconnect()
-    }
-  }, [])
+      // 单元换了（换了一种触发方式，顶栏里的按钮不一样了）、有单元藏起露出：重新记、重新看，不滑。
+      // 只看直接子项增删（单元里面换字不算，那是要滑的）；藏起露出看子项上的那个属性。
+      const remeasure = (): void => {
+        spots = measure()
+        watch()
+      }
+      const kids = new MutationObserver(remeasure)
+      kids.observe(row, { childList: true })
+      const hidden = new MutationObserver(remeasure)
+      hidden.observe(row, { subtree: true, attributeFilter: ['data-row-hidden'] })
+      stop.current = () => {
+        sizes.disconnect()
+        kids.disconnect()
+        hidden.disconnect()
+      }
+    },
+    [duration, keepApart],
+  )
 }
 
 /**

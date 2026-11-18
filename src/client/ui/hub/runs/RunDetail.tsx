@@ -11,7 +11,7 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/runs/RunDetail
  */
 
-import { type RefObject, useCallback, useLayoutEffect, useMemo, useState } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useState } from 'react'
 import { runCursor } from '../../../../shared/runCursor.ts'
 import type { InstanceSummary, RunStatus } from '../../../../shared/runState.ts'
 import type { FireRecord } from '../../../../shared/wire/trigger.ts'
@@ -21,6 +21,7 @@ import { keyStep, stepLines } from '../../../model/runSteps.ts'
 import type { WorkflowLiteRpc } from '../../../rpc.ts'
 import { cx } from '../../kit/cx.ts'
 import { Skeleton } from '../../kit/Skeleton.tsx'
+import ui from '../../kit/ui.module.css'
 import motion from '../../motion/paneTransition.module.css'
 import { tabDirection, usePaneTransition } from '../../motion/paneTransition.ts'
 import { FireDialog } from '../../trigger/dialogs/FireDialog.tsx'
@@ -37,7 +38,7 @@ export type RunTab = 'overview' | 'canvas' | 'timeline' | 'info'
 export const RUN_TABS: readonly RunTab[] = ['overview', 'canvas', 'timeline', 'info']
 
 export function RunDetail(props: {
-  detailRef: RefObject<HTMLDivElement>
+  loading: boolean
   t: T
   rpc: WorkflowLiteRpc
   item: InstanceSummary
@@ -54,7 +55,7 @@ export function RunDetail(props: {
   onSetStatus(to: RunStatus, options: { notify: boolean; note: string }): void
 }): React.JSX.Element {
   const { t, rpc, item, tab } = props
-  const { view, fires } = useHubRun(rpc, item)
+  const { view, fires, error, retry } = useHubRun(rpc, item)
   const steps = useMemo(() => (view === null ? null : stepLines(view.document, view.state)), [view])
   const cursor = useMemo(
     () => (view === null || view.state === null ? null : runCursor(view.document, view.state)),
@@ -101,7 +102,17 @@ export function RunDetail(props: {
         />
       )
     }
-    if (view === null || steps === null) return <Skeleton label={t('hub.loading')} shape="form" />
+    if (view === null || steps === null) {
+      if (error === null) return <Skeleton label={t('hub.loading')} shape="form" />
+      return (
+        <div role="alert">
+          <p>{error}</p>
+          <button type="button" className={cx(ui.btn, ui.small, ui.soft)} onClick={retry}>
+            {t('common.retry')}
+          </button>
+        </div>
+      )
+    }
     switch (tab) {
       case 'overview':
         return (
@@ -133,8 +144,8 @@ export function RunDetail(props: {
 
   return (
     <div
-      ref={props.detailRef}
-      className={cx(css.detail, motion.scope)}
+      className={css.detail}
+      aria-busy={props.loading || undefined}
       data-testid="wl-hub-run-detail"
       data-id={item.id}
     >

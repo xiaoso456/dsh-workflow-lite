@@ -15,36 +15,36 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/triggers/TriggerHead
  */
 
-import { type RefObject, useState } from 'react'
+import { useState } from 'react'
 import type { TriggerEntry } from '../../../../shared/wire/trigger.ts'
 import { useNow } from '../../../app/useNow.ts'
 import type { TriggerHub } from '../../../app/useTriggerHub.ts'
-import type { LocaleKey, T } from '../../../i18n.ts'
+import type { T } from '../../../i18n.ts'
 import { triggerMode } from '../../../model/triggerGlance.ts'
 import { statusWhen } from '../../../model/triggerNow.ts'
 import { type Problem, type ProblemFix, problemOf } from '../../../model/triggerProblem.ts'
 import { sourceSay } from '../../../model/triggerSay.ts'
 import { sourceFace, stateBadge, stateTone } from '../../../model/triggerText.ts'
-import { tipWhenCut } from '../../kit/cutTip.ts'
 import { cx } from '../../kit/cx.ts'
 import { Icon } from '../../kit/Icon.tsx'
 import ui from '../../kit/ui.module.css'
 import { useRowSlide } from '../../motion/exits.tsx'
+import { MorphGlyph } from '../../motion/MorphGlyph.tsx'
+import { MorphTag, TAG_MOTION_MS } from '../../motion/MorphTag.tsx'
 import { SwitchTrack } from '../../motion/marks.tsx'
-import motion from '../../motion/paneTransition.module.css'
 import { CountdownLine } from '../../trigger/CountdownLine.tsx'
 import { useFireNow } from '../../trigger/FireNow.tsx'
 import { ProblemMark } from '../../trigger/ProblemMark.tsx'
 import { QueueMark } from '../../trigger/QueueMark.tsx'
 import tone from '../../trigger/stateTone.module.css'
-import { TriggerMark } from '../../trigger/TriggerMark.tsx'
+import { TRIGGER_ICON, TriggerMark } from '../../trigger/TriggerMark.tsx'
 import hub from '../hub.module.css'
 import { TitleEdit } from '../TitleEdit.tsx'
 import css from './head.module.css'
+import { TRIGGER_GLYPH } from './triggerGlyphs.ts'
 import { useCardSwitch } from './useCardSwitch.tsx'
 
 export function TriggerHead(props: {
-  titleRef: RefObject<HTMLDivElement>
   t: T
   hub: TriggerHub
   entry: TriggerEntry
@@ -69,13 +69,24 @@ export function TriggerHead(props: {
     onBlocked: () => setPin((count) => count + 1),
   })
   const on = entry.view.enabled
-  const mode = triggerMode(kind)
+  const mode = t(triggerMode(kind) === 'active' ? 'trigger.mode.active' : 'trigger.mode.passive')
+  const tags = useRowSlide(TAG_MOTION_MS, true)
   return (
     <div className={css.fixed}>
       <div className={css.head}>
-        <TriggerMark kind={kind} size={18} className={css.mark} />
-        <div ref={props.titleRef} className={cx(css.titles, motion.scope)}>
-          <div className={css.nameLine}>
+        <TriggerMark
+          kind={kind}
+          className={css.mark}
+          glyph={
+            <MorphGlyph
+              icon={TRIGGER_ICON[kind]}
+              clipPath={TRIGGER_GLYPH[kind]}
+              testId="wl-hub-trg-morph-outline"
+            />
+          }
+        />
+        <div className={css.titles}>
+          <div ref={tags} className={css.nameLine}>
             <TitleEdit
               t={t}
               value={entry.data.label ?? ''}
@@ -86,25 +97,17 @@ export function TriggerHead(props: {
               testId="wl-hub-trg-name"
               onCommit={props.onRename}
             />
-            <span
+            <MorphTag
               className={css.tag}
-              onPointerOverCapture={(event) =>
-                tipWhenCut(
-                  event.currentTarget,
-                  event.currentTarget.lastElementChild as HTMLElement | null,
-                  entry.workflow,
-                )
-              }
-            >
-              <Icon name="hub" size={11} />
-              <span className={css.tagText}>{entry.workflow}</span>
-            </span>
-            <span className={cx(css.tag, css.kindTag)}>
-              <span className={css.tagText}>
-                {t(`trigger.source.${kind}` as LocaleKey)} ·{' '}
-                {t(mode === 'active' ? 'trigger.mode.active' : 'trigger.mode.passive')}
-              </span>
-            </span>
+              text={entry.workflow}
+              icon={<Icon name="hub" size={11} />}
+              testId="wl-hub-trg-workflow-tag"
+            />
+            <MorphTag
+              className={cx(css.tag, css.kindTag)}
+              text={`${t(`trigger.source.${kind}`)} · ${mode}`}
+              testId="wl-hub-trg-morph-tag"
+            />
           </div>
           <p className={css.say} data-tip={sourceSay(t, source)}>
             {sourceSay(t, source)}
@@ -245,14 +248,22 @@ function StatusBar(props: {
               <span className={css.whenMain}>{fired.text}</span>
             )}
           </span>
-          <span className={css.queued} hidden={(view.queued ?? 0) === 0}>
-            <span className={css.sep} aria-hidden="true" />
-            <QueueMark t={t} count={view.queued ?? 0} label testId="wl-hub-trg-queued" />
-          </span>
+          <QueueTag t={t} count={view.queued ?? 0} />
         </span>
         <span className={css.fire}>{fireNow.button}</span>
         <CountdownLine next={counting ? view.next : undefined} seconds={span} smooth />
       </div>
     </div>
+  )
+}
+
+function QueueTag({ t, count }: { t: T; count: number }): React.JSX.Element {
+  const [last, setLast] = useState(count)
+  if (count > 0 && count !== last) setLast(count)
+  return (
+    <span className={css.queued} hidden={count === 0} aria-hidden={count === 0 || undefined}>
+      <span className={css.sep} aria-hidden="true" />
+      <QueueMark t={t} count={count || last} label testId="wl-hub-trg-queued" />
+    </span>
   )
 }

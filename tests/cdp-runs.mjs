@@ -137,6 +137,7 @@ const DOC = {
 const runs = new RunService({ dataDir: () => DATA_DIR, validate: () => [] })
 const session = await openPage()
 let instance = null
+let alternateInstance = null
 let statePath = null
 
 /** 模拟模型改状态文件：读 → 改 → 写回。 */
@@ -170,6 +171,14 @@ try {
   await rpc('graph/create', { name: NAME })
   const disk = await rpc('graph/load', { name: NAME })
   await rpc('graph/save', { name: NAME, document: DOC, baseHash: disk.hash })
+  const alternate = await runs.prepare({
+    workflow: NAME,
+    document: DOC,
+    session: { id: `${FAKE_SESSION}-alternate`, cwd: WORKSPACE },
+    goal: '切换实例时的图标验收',
+  })
+  check(alternate.ok, `建对照实例失败：${JSON.stringify(alternate)}`)
+  alternateInstance = alternate.result.id
   const prepared = await runs.prepare({
     workflow: NAME,
     document: (await rpc('graph/load', { name: NAME })).document,
@@ -193,7 +202,7 @@ try {
     return { text: head.textContent, tip: head.querySelector('[data-tip]').dataset.tip };
   })()`)
   check(
-    side.text.includes(basename(WORKSPACE)) && /1$/.test(side.text.trim()),
+    side.text.includes(basename(WORKSPACE)) && /2$/.test(side.text.trim()),
     `工作区的组标题写目录名和实例数：${side.text}`,
   )
   check(side.tip === WORKSPACE, `悬停组名看完整路径：${side.tip}`)
@@ -1162,6 +1171,53 @@ try {
   pass(
     '工作流中心改整体状态：点小标挑状态 → 二次确认（通知模型默认关）；取消不改；确认落盘，开通知时带说明',
   )
+  await pickStatus('done')
+  const morphed = await session.evaluate(`new Promise((resolve) => {
+    const glyph = document.querySelector('[data-testid="wl-hub-run-status-glyph"]');
+    const from = glyph.style.clipPath;
+    const timer = setTimeout(() => { observer.disconnect(); resolve(false); }, 8000);
+    const observer = new MutationObserver(() => {
+      if (glyph.style.clipPath === from) return;
+      clearTimeout(timer);
+      observer.disconnect();
+      const animation = glyph.getAnimations().find((entry) => entry.effect.getKeyframes()[0].clipPath);
+      if (!animation) { resolve(false); return; }
+      animation.pause();
+      animation.currentTime = animation.effect.getTiming().duration / 2;
+      const middle = getComputedStyle(glyph).clipPath;
+      animation.finish();
+      resolve(glyph === document.querySelector('[data-testid="wl-hub-run-status-glyph"]') &&
+        middle !== from && middle !== getComputedStyle(glyph).clipPath);
+    });
+    observer.observe(glyph, { attributes: true, attributeFilter: ['style'] });
+    document.querySelector('[data-testid="wl-hub-status-confirm"]').click();
+  })`)
+  check(morphed, '同一个实例从执行中变成完成时，同一枚图标连续变形')
+  const navigated = await session.evaluate(`new Promise((resolve) => {
+    const selector = '[data-testid="wl-hub-run-status-glyph"]';
+    const glyph = document.querySelector(selector);
+    const detail = document.querySelector('[data-testid="wl-hub-run-detail"]');
+    const before = getComputedStyle(glyph).clipPath;
+    const timer = setTimeout(() => { observer.disconnect(); resolve(false); }, 8000);
+    const observer = new MutationObserver(() => {
+      if (detail.dataset.id !== ${JSON.stringify(alternateInstance)}) return;
+      clearTimeout(timer);
+      observer.disconnect();
+      if (glyph !== document.querySelector(selector)) { resolve(false); return; }
+      const animation = glyph.getAnimations().find((entry) => entry.transitionProperty === 'clip-path');
+      if (!animation) { resolve(false); return; }
+      const duration = animation.effect.getTiming().duration;
+      animation.pause();
+      animation.currentTime = duration / 2;
+      const middle = getComputedStyle(glyph).clipPath;
+      animation.finish();
+      resolve(duration < 200 && middle !== before && middle !== getComputedStyle(glyph).clipPath);
+    });
+    observer.observe(detail, { attributes: true, attributeFilter: ['data-id'] });
+    document.querySelector('[data-testid="wl-hub-run"][data-value="${alternateInstance}"]').click();
+  })`)
+  check(navigated, '首次切换到状态不同的实例复用图标、用更短的连续形变')
+  await revealHubRow(session, instance)
   await session.evaluate(
     `document.querySelector('[data-testid="wl-hub"] [aria-label="关闭"]')?.click()`,
   )
@@ -2058,6 +2114,7 @@ window.addEventListener('load', () => {
   )
   process.exitCode = 1
 } finally {
+  if (alternateInstance !== null) await runs.remove(alternateInstance, true).catch(() => {})
   if (instance !== null) await runs.remove(instance, true).catch(() => {})
   await rpc('graph/delete', { name: NAME }).catch(() => {})
   await rm(WORKSPACE, { recursive: true, force: true }).catch(() => {})
