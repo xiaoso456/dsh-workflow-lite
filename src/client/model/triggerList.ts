@@ -35,7 +35,7 @@ export interface TriggerListView {
   show: TriggerShow
 }
 
-export const DEFAULT_LIST_VIEW: TriggerListView = { group: 'workflow', sort: 'name', show: 'all' }
+export const DEFAULT_LIST_VIEW: TriggerListView = { group: 'state', sort: 'name', show: 'all' }
 
 export const TRIGGER_VIEW: StoredView<TriggerListView> = {
   key: 'workflow-lite.hubTriggers',

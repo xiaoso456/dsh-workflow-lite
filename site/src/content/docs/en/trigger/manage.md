@@ -12,7 +12,7 @@ The **Triggers** page of the Workflow hub lists the triggers of every workflow, 
 ## Use
 
 1. Click **Workflow hub** at the top left of the canvas and switch to **Triggers**. **All history** in a trigger's panel opens this page with that trigger selected.
-2. Each row on the left is a trigger: its type icon, name and state, an hourglass with a count when triggers are queued, and dimmed when it is off. **View options** changes the grouping (Workflow, Status, Trigger type, No grouping), sorting (Name, Last fired, Next fire), what is shown (All triggers, Enabled, Needs attention) and the row height.
+2. The left list is grouped by status by default, with **Needs attention** first and triggers sorted by name within each group. Use **View options** to change grouping, sorting, filters and row height.
 3. Click a row. The top right shows its name, trigger type and a one-sentence description, with the **Enabled** switch and **Open on canvas** beside them; the bar below shows the current state and next time, with **Trigger once now**.
 4. When something is wrong, the bar explains it and offers a fix, such as **Confirm and enable**, **Enable again** or **Mark as ended**.
 5. Click **Open on canvas** to switch to that workflow with the trigger selected, and change its settings there.

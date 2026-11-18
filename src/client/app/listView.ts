@@ -1,7 +1,7 @@
 /**
  * dsh-workflow-lite — 工作流中心各页左栏「视图选项」的选择（分组、排序、只看哪些）：记在本机浏览器里，下次打开照旧。
  *
- * 和配色主题一样只是看的样子，不进工作流、不进 profile。每页一个键（工作流的那个顶栏下拉也用）；记坏了、存不下都按默认（坏掉的那一项单独按默认）。
+ * 和配色主题一样只是看的样子，不进工作流、不进 profile。各页和画布快搜分别存；记坏了、存不下都按默认（坏掉的那一项单独按默认）。
  *
  * @module @xiaoso/dsh-workflow-lite/client/app/listView
  */
@@ -40,7 +40,6 @@ function saveView<V extends Record<keyof V, string>>(stored: StoredView<V>, view
 
 /**
  * 同一个键在这一页里只有一份：第一次用到时从浏览器里读，之后改都改这一份，再通知用着它的各处。
- * 「工作流」页和顶栏切换工作流的下拉共用工作流的那份，一边改了另一边立刻跟上。
  */
 const views = new Map<string, unknown>()
 const listeners = new Map<string, Set<() => void>>()

@@ -2,7 +2,7 @@
  * dsh-workflow-lite — 工作流列表的视图选项怎么摆：分好组（{@link arrangeWorkflows}）、视图菜单的几段（{@link workflowSections}）、
  * 搜索框里筛选小片那句（{@link filterLabel}）、分组标题写什么（{@link workflowGroupFace}）。
  *
- * 工作流中心「工作流」页的左栏和顶栏切换工作流的下拉共用（两边的分组、排序、筛选是同一份选择，见 app/listView.ts）。
+ * 工作流中心「工作流」页和顶栏切换工作流的下拉共用菜单和列表规则，视图选择分别保存。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/workflows/workflowView
  */

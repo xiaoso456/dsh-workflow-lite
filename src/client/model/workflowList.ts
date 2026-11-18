@@ -33,6 +33,12 @@ export const WORKFLOW_VIEW: StoredView<WorkflowListView> = {
   choices: { group: WORKFLOW_GROUPS, sort: WORKFLOW_SORTS, show: WORKFLOW_SHOWS },
 }
 
+export const WORKFLOW_SWITCHER_VIEW: StoredView<WorkflowListView> = {
+  key: 'workflow-lite.workflowSwitcher',
+  defaults: { group: 'none', sort: 'recent', show: 'all' },
+  choices: WORKFLOW_VIEW.choices,
+}
+
 /** 按标签分组时「无标签」那一组的键。 */
 export const NO_TAG = ''
 

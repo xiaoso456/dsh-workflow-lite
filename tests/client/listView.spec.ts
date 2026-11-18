@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import { readView } from '../../src/client/app/listView.ts'
 import { arrangeList, fixedOrder, groupId, type ListSpec } from '../../src/client/model/listView.ts'
 import { MEMORY_LIST, MEMORY_VIEW, NO_WORKFLOW } from '../../src/client/model/memoryList.ts'
 import {
@@ -6,6 +7,7 @@ import {
   NO_TAG,
   tagCatalog,
   updatedBucket,
+  WORKFLOW_SWITCHER_VIEW,
   WORKFLOW_VIEW,
   withTags,
   workflowListSpec,
@@ -106,7 +108,7 @@ function workflow(over: Partial<WorkflowEntry>): WorkflowEntry {
   return { name: 'w', nodeCount: 1, updatedAt: 0, ...over }
 }
 
-describe('工作流页', () => {
+describe('工作流页与画布快搜', () => {
   const now = new Date(2026, 10, 15, 15, 0).getTime()
   const day = 24 * 60 * 60 * 1000
   const weekly = workflow({ name: '周报', tags: ['写作', '每周'], updatedAt: now - 60_000 })
@@ -116,7 +118,10 @@ describe('工作流页', () => {
   const spec = workflowListSpec(now)
 
   it('按标签：打了几个就在几组里；无标签排在最后；一个标签都没有时就是不分组', () => {
-    const view = { ...WORKFLOW_VIEW.defaults, group: effectiveGroup('tag', all) }
+    const view = {
+      ...WORKFLOW_VIEW.defaults,
+      group: effectiveGroup(WORKFLOW_VIEW.defaults.group, all),
+    }
     const groups = arrangeList(all, view, spec).groups
     expect(groups.map((group) => [group.key, group.entries.map((w) => w.name)])).toEqual([
       ['每周', ['周报', '巡检']],
@@ -125,6 +130,22 @@ describe('工作流页', () => {
     ])
     expect(effectiveGroup('tag', [loose])).toBe('none')
     expect(effectiveGroup('trigger', [loose])).toBe('trigger')
+  })
+
+  it('画布快搜不继承工作流页的筛选，默认不分组、按最近修改找到所有工作流', () => {
+    const savedHubView = { group: 'tag', sort: 'name', show: 'versions' }
+    vi.stubGlobal('window', {
+      localStorage: {
+        getItem: (key: string) => (key === WORKFLOW_VIEW.key ? JSON.stringify(savedHubView) : null),
+      },
+    })
+    try {
+      expect(readView(WORKFLOW_VIEW)).toEqual(savedHubView)
+      const arranged = arrangeList(all, readView(WORKFLOW_SWITCHER_VIEW), spec)
+      expect(arranged.groups).toEqual([{ by: 'none', key: '', entries: [weekly, patrol, loose] }])
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 
   it('按修改时间分今天、近 7 天、更早；按触发有的在前', () => {

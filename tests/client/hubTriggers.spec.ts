@@ -112,17 +112,22 @@ describe('左栏：分组、排序、只看哪些', () => {
   })
 
   it('按工作流分组：组按名称排，组里按名称排；三种只看各有几张', () => {
-    const arranged = arrangeTriggers(list, DEFAULT_LIST_VIEW)
+    const arranged = arrangeTriggers(list, { ...DEFAULT_LIST_VIEW, group: 'workflow' })
     expect(arranged.groups.map((group) => group.key)).toEqual(['deploy', 'nightly', 'warehouse'])
     expect(arranged.groups[0]?.entries.map((item) => item.name)).toEqual(['ci hook', 'main push'])
     expect(arranged.counts).toEqual({ all: 4, on: 2, act: 1 })
     expect(arranged.shown).toBe(4)
   })
 
-  it('按状态分：要处理、开着、已关闭，空的组不列', () => {
-    const arranged = arrangeTriggers(list, { ...DEFAULT_LIST_VIEW, group: 'state' })
+  it('默认按状态分：待处理、已启用、已停用，组内按名称排，全部显示', () => {
+    const arranged = arrangeTriggers(list, DEFAULT_LIST_VIEW)
     expect(arranged.groups.map((group) => group.key)).toEqual(['act', 'on', 'off'])
     expect(arranged.groups.map(groupId)).toEqual(['state:act', 'state:on', 'state:off'])
+    expect(arranged.groups[1]?.entries.map((item) => item.name)).toEqual([
+      'main push',
+      'morning check',
+    ])
+    expect(arranged.shown).toBe(list.length)
   })
 
   it('按触发方式分：按四种方式的固定顺序（带检查的定时也归定时）', () => {

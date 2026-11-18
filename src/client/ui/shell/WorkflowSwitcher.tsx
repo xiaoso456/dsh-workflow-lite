@@ -33,7 +33,7 @@ import {
   RUNS_SHOWN,
   visibleRuns,
 } from '../../model/switcherSearch.ts'
-import { WORKFLOW_VIEW } from '../../model/workflowList.ts'
+import { WORKFLOW_SWITCHER_VIEW } from '../../model/workflowList.ts'
 import shared from '../chrome/topbar.module.css'
 import { deleteDesc, WorkflowRow } from '../chrome/WorkflowRow.tsx'
 import { FilterChip, HubSearch } from '../hub/HubSearch.tsx'
@@ -140,7 +140,7 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
   )
   const needle = normalizeNeedle(query)
   const searching = needle !== ''
-  const [view, changeView] = useListView(WORKFLOW_VIEW)
+  const [view, changeView] = useListView(WORKFLOW_SWITCHER_VIEW)
   /** 按标签筛（多选）：只在这个下拉里，不记。 */
   const [tagFilter, setTagFilter] = useState<string[]>([])
   /** 收起的分组。 */

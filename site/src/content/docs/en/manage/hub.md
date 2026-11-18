@@ -25,7 +25,7 @@ The left side of every page is the same kind of list: a search box on top and gr
 | Group by | Differs per page; instances, for example, group by workspace, workflow, status or session. Grouping can also be turned off. |
 | Sort by | By name, last modified, newest first and so on. |
 | Show | Only part of the list, such as instances in progress or failed; the top of the list says so, and **Clear filter** shows everything again. |
-| Row height | **Standard** or **Compact**; a compact row shows only the name, with the state or time at its end. |
+| Row height | **Compact** by default; can be switched to **Standard**. This setting is shared by the Workflow hub and the canvas search. |
 
 ## Instances
 
@@ -59,6 +59,8 @@ Workflows are on the left and can be grouped by tag, trigger or last modified, o
 2. Tag: click **Tag**, then search existing tags or type a name to create one.
 3. Manage tags: click a tag on a workflow to change its color (for every workflow with that tag), remove it from this workflow, rename it or delete it.
 4. Filter by tag: tick tags under **Filter by tag** in **View options**.
+
+**Search workflows or instances** at the top of the canvas lists all workflows by last modified, without grouping by default. Grouping, sorting and filters are saved separately from the **Workflows** page.
 
 For versions see [Versions](/dsh-workflow-lite/en/manage/versions/); for export and import see [Import and export](/dsh-workflow-lite/en/manage/import-export/).
 
