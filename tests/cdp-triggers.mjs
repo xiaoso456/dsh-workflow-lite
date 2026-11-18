@@ -1314,7 +1314,38 @@ try {
   await session.evaluate(
     `void (window.hubOverviewBeforePick = document.querySelector('${overview}')); void (window.hubRhythmBeforePick = document.querySelector('${rhythm}'))`,
   )
-  await session.evaluate(`document.querySelector('${hookRow}').click()`)
+  const activityPattern = { urlPattern: '*/api/workflow-lite/trigger/activity' }
+  await session.send('Fetch.enable', { patterns: [activityPattern] })
+  const finishActivity = session.on('Fetch.requestPaused', ({ requestId }) => {
+    setTimeout(() => void session.send('Fetch.continueRequest', { requestId }).catch(() => {}), 75)
+  })
+  const wordSwap = await session.evaluate(`new Promise((resolve) => {
+    const detail = document.querySelector('${hubDetail}');
+    const name = detail.querySelector('[data-testid="wl-hub-trg-name"]');
+    const start = performance.now();
+    const row = document.querySelector('${hookRow}');
+    row.click();
+    const sample = () => {
+      const text = detail.querySelector(':active-view-transition-type(wl-text)');
+      if (row.getAttribute('aria-current') === 'true' && text?.contains(name)) {
+        const stats = detail.querySelector('[data-testid="wl-hub-trg-overview"]')?.firstElementChild;
+        resolve({
+          textOnly: !detail.matches(':active-view-transition-type(wl-pane)') &&
+            text.querySelector('[data-testid="wl-hub-trg-name"]') === name,
+          total: stats?.firstElementChild?.firstElementChild?.textContent,
+        });
+      } else if (performance.now() - start > 750) {
+        resolve(null);
+      } else {
+        requestAnimationFrame(sample);
+      }
+    };
+    requestAnimationFrame(sample);
+  })`)
+  finishActivity()
+  await session.send('Fetch.disable')
+  check('换触发器时只淡换标题区，名字控件不重建', wordSwap?.textOnly === true)
+  check('换到有触发记录的卡片时先读到统计，再交接详情', Number(wordSwap?.total) > 0)
   await waitFor(
     session,
     `document.querySelector('${hookRow}').getAttribute('aria-current') === 'true'`,
@@ -1331,6 +1362,39 @@ try {
     await session.evaluate(`window.hubRhythmBeforePick === document.querySelector('${rhythm}')`),
   )
   await session.evaluate('delete window.hubRhythmBeforePick')
+  const nightlyRow = `'[data-testid="wl-hub-trg"][data-value="${NAME}/nightly"]'`
+  const countdown = await session.evaluate(`(async () => {
+    const track = document.querySelector('${hubDetail} [data-smooth]');
+    if (!track) return false;
+    const fill = track.firstElementChild;
+    const scale = () => new DOMMatrixReadOnly(getComputedStyle(fill).transform).m11;
+    const read = (row) => new Promise((resolve) => {
+      const from = scale();
+      const start = performance.now();
+      const samples = [];
+      row.click();
+      const frame = () => {
+        if (row.getAttribute('aria-current') === 'true') samples.push(scale());
+        if (performance.now() - start < 480) requestAnimationFrame(frame);
+        else {
+          const to = samples.at(-1);
+          const middle = samples.some((value) => value > Math.min(from, to) + 0.01 && value < Math.max(from, to) - 0.01);
+          resolve({ from, to, middle });
+        }
+      };
+      requestAnimationFrame(frame);
+    });
+    const clock = Date.now;
+    Date.now = () => clock() + 20 * 60_000;
+    try {
+      const grow = await read(document.querySelector(${nightlyRow}));
+      const shrink = await read(document.querySelector('${hookRow}'));
+      return track.isConnected && grow.middle && grow.to > grow.from && shrink.middle && shrink.to === 0;
+    } finally {
+      Date.now = clock;
+    }
+  })()`)
+  check('倒计时进度条沿底边伸长、退回，复用同一条线', countdown)
   check(
     '右栏先是「概览」，能立即触发一次',
     (await session.evaluate(has('wl-hub-trg-overview'))) &&

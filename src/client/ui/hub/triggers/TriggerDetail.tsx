@@ -2,7 +2,7 @@
  * dsh-workflow-lite — 「触发」页右栏：上面固定一块（{@link TriggerHead}），下面页签——概览、时间线、按触发方式换名字的
  * 那一页（输出 / 调用 / 日程 / 上游）、设置；每一页自己滚。
  *
- * 选中的页签由页面记着，换卡片不变。换卡片时右栏原地交叉淡；换页签时头部不动，只交接滚动区。
+ * 选中的页签由页面记着，换卡片不变。换卡片时只淡换标题区；换页签时头部不动，只交接滚动区。
  *
  * 头部和页签包在 `<header>` 里，和下面那一页留同样宽的滚动条位置（`--wl-scrollbar`）：两块的左右边对齐。
  * 点一条触发记录（概览、时间线里）打开它的详情（`FireDialog`）。
@@ -18,7 +18,6 @@ import { firesSignal, useActivity, useFires } from '../../../app/useFires.ts'
 import type { TriggerHub } from '../../../app/useTriggerHub.ts'
 import type { T } from '../../../i18n.ts'
 import { queuePlace, settledFires } from '../../../model/fireView.ts'
-import { rhythmSince } from '../../../model/triggerActivity.ts'
 import { sourceFace } from '../../../model/triggerText.ts'
 import type { WorkflowLiteRpc } from '../../../rpc.ts'
 import { cx } from '../../kit/cx.ts'
@@ -44,7 +43,7 @@ import { UpstreamPane } from './UpstreamPane.tsx'
 const SHOWN = 200
 
 export function TriggerDetail(props: {
-  detailRef: RefObject<HTMLDivElement>
+  titleRef: RefObject<HTMLDivElement>
   t: T
   rpc: WorkflowLiteRpc
   hub: TriggerHub
@@ -72,11 +71,7 @@ export function TriggerDetail(props: {
   const key = keyOf(entry)
   const signal = firesSignal(view.last, view.queued)
   const fires = useFires(key, signal, () => hub.history(entry.workflow, view.node, SHOWN))
-  // 近况从节律最早那天的 0 点起；过了零点换一天，跟着重读。
-  const since = rhythmSince(Date.now())
-  const activity = useActivity(key, `${signal}|${String(since)}`, () =>
-    hub.activity(entry.workflow, view.node, since),
-  )
+  const activity = useActivity(entry, hub.activity)
   const [picked, setPicked] = useState<FireRecord | null>(null)
   // 时间线页签上的红点：有还没看过的失败才亮；看着时间线时新来的也算看过。
   const [seen, markSeen] = useFireSeen(key)
@@ -189,14 +184,14 @@ export function TriggerDetail(props: {
 
   return (
     <div
-      ref={props.detailRef}
-      className={cx(css.detail, motion.scope)}
+      className={css.detail}
       style={{ '--wl-kind': triggerTint(kind) } as React.CSSProperties}
       data-testid="wl-hub-trg-detail"
     >
       <div className={css.body}>
         <header className={css.top}>
           <TriggerHead
+            titleRef={props.titleRef}
             t={t}
             hub={hub}
             entry={entry}

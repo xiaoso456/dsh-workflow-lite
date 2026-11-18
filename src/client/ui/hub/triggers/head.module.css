@@ -150,9 +150,15 @@
 }
 
 /*
- * 「上一次」按内容占宽（不撑满）：状态字、问题图标一变，它整个往旁边滑（TriggerHead 的 useRowSlide 只滑宽度没变的）；
- * 「立即触发一次」靠 margin-left: auto 贴右。
+ * 时间或地址跟排队记号是一组，整组一起滑，排队记号不会掠过前面的字。「立即触发一次」仍靠右。
  */
+.statusInfo {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+}
+
 .when {
   display: flex;
   flex: 0 1 auto;
@@ -204,6 +210,18 @@
 
 .queued[hidden] {
   display: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .queued:not([hidden]) {
+    animation: queueIn 140ms var(--wl-ease-out) both;
+  }
+}
+
+@keyframes queueIn {
+  from {
+    opacity: 0;
+  }
 }
 
 .fire {

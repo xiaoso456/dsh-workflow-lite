@@ -19,6 +19,10 @@
   opacity: 1;
 }
 
+.track[data-smooth][data-run="false"] {
+  transition-delay: 120ms;
+}
+
 .fill {
   position: absolute;
   inset: 0;
@@ -60,7 +64,8 @@
     animation: none;
   }
 
-  .track {
+  .track,
+  .track[data-smooth][data-run="false"] {
     transition: none;
   }
 }

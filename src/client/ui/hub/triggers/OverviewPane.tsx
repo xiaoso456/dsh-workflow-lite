@@ -194,7 +194,7 @@ function Stat(props: {
 }): React.JSX.Element {
   return (
     <div className={css.stat} data-outcome={props.tone} data-zero={props.value === 0 || undefined}>
-      <span className={css.statValue}>{props.value ?? '—'}</span>
+      <span className={css.statValue}>{props.value}</span>
       <span className={css.statLabel}>{props.label}</span>
     </div>
   )

@@ -15,7 +15,7 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/triggers/TriggerHead
  */
 
-import { useState } from 'react'
+import { type RefObject, useState } from 'react'
 import type { TriggerEntry } from '../../../../shared/wire/trigger.ts'
 import { useNow } from '../../../app/useNow.ts'
 import type { TriggerHub } from '../../../app/useTriggerHub.ts'
@@ -31,6 +31,7 @@ import { Icon } from '../../kit/Icon.tsx'
 import ui from '../../kit/ui.module.css'
 import { useRowSlide } from '../../motion/exits.tsx'
 import { SwitchTrack } from '../../motion/marks.tsx'
+import motion from '../../motion/paneTransition.module.css'
 import { CountdownLine } from '../../trigger/CountdownLine.tsx'
 import { useFireNow } from '../../trigger/FireNow.tsx'
 import { ProblemMark } from '../../trigger/ProblemMark.tsx'
@@ -43,6 +44,7 @@ import css from './head.module.css'
 import { useCardSwitch } from './useCardSwitch.tsx'
 
 export function TriggerHead(props: {
+  titleRef: RefObject<HTMLDivElement>
   t: T
   hub: TriggerHub
   entry: TriggerEntry
@@ -72,7 +74,7 @@ export function TriggerHead(props: {
     <div className={css.fixed}>
       <div className={css.head}>
         <TriggerMark kind={kind} size={18} className={css.mark} />
-        <div className={css.titles}>
+        <div ref={props.titleRef} className={cx(css.titles, motion.scope)}>
           <div className={css.nameLine}>
             <TitleEdit
               t={t}
@@ -207,7 +209,7 @@ function StatusBar(props: {
     source.kind === 'schedule' && source.schedule.kind === 'every' ? source.schedule.seconds : 0
   const face = sourceFace(source)
   const counting = (view.state === 'waiting' || view.state === 'elsewhere') && span > 0
-  // 状态字换了长短、问题图标亮了 / 灭了：后面的「上一次」从原处滑过去，不跳。
+  // 状态字换了长短、问题图标亮了 / 灭了：后面的时间或地址连同排队记号一起滑。
   const row = useRowSlide()
   return (
     <div className={css.status}>
@@ -232,22 +234,24 @@ function StatusBar(props: {
         />
         {fixer.confirm}
         <span className={css.sep} aria-hidden="true" />
-        <span className={css.when} data-fired={fired?.tone} data-testid="wl-hub-trg-fire-result">
-          {fired === null ? (
-            <>
-              <span className={css.whenMain}>{when.main}</span>
-              <span className={css.whenAside}>{when.aside}</span>
-            </>
-          ) : (
-            <span className={css.whenMain}>{fired.text}</span>
-          )}
-        </span>
-        <span className={css.queued} hidden={(view.queued ?? 0) === 0}>
-          <span className={css.sep} aria-hidden="true" />
-          <QueueMark t={t} count={view.queued ?? 0} label testId="wl-hub-trg-queued" />
+        <span className={css.statusInfo}>
+          <span className={css.when} data-fired={fired?.tone} data-testid="wl-hub-trg-fire-result">
+            {fired === null ? (
+              <>
+                <span className={css.whenMain}>{when.main}</span>
+                <span className={css.whenAside}>{when.aside}</span>
+              </>
+            ) : (
+              <span className={css.whenMain}>{fired.text}</span>
+            )}
+          </span>
+          <span className={css.queued} hidden={(view.queued ?? 0) === 0}>
+            <span className={css.sep} aria-hidden="true" />
+            <QueueMark t={t} count={view.queued ?? 0} label testId="wl-hub-trg-queued" />
+          </span>
         </span>
         <span className={css.fire}>{fireNow.button}</span>
-        <CountdownLine next={counting ? view.next : undefined} seconds={span} />
+        <CountdownLine next={counting ? view.next : undefined} seconds={span} smooth />
       </div>
     </div>
   )

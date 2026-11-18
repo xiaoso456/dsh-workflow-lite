@@ -12,7 +12,7 @@ export function tabDirection<T>(tabs: readonly T[], current: T, next: T): Direct
   return tabs.indexOf(next) > tabs.indexOf(current) ? 1 : -1
 }
 
-export function usePaneTransition(): {
+export function usePaneTransition(mode: 'pane' | 'text' = 'pane'): {
   scope: MutableRefObject<HTMLDivElement | null>
   change(update: () => void, direction?: Direction | null): void
 } {
@@ -35,8 +35,8 @@ export function usePaneTransition(): {
       update()
       return
     }
-    const types = ['wl-pane']
-    if (direction !== 0) types.push(direction > 0 ? 'wl-forward' : 'wl-backward')
+    const types = [`wl-${mode}`]
+    if (mode === 'pane' && direction !== 0) types.push(direction > 0 ? 'wl-forward' : 'wl-backward')
     const apply = (): void => {
       if (revision.current === request && target === scope.current && target.isConnected) {
         flushSync(update)

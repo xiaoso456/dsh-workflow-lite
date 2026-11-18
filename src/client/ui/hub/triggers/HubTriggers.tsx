@@ -10,13 +10,14 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/triggers/HubTriggers
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { TriggerData } from '../../../../shared/types.ts'
 import type { GraphListResponse } from '../../../../shared/wire/graph.ts'
 import type { TriggerEntry } from '../../../../shared/wire/trigger.ts'
 import { useListView } from '../../../app/listView.ts'
 import type { SessionRow } from '../../../app/sessions.ts'
 import { patchTriggerOnDisk } from '../../../app/triggerEdit.ts'
+import { primeActivity } from '../../../app/useFires.ts'
 import { useTriggerHub } from '../../../app/useTriggerHub.ts'
 import type { T } from '../../../i18n.ts'
 import { matchesWords, searchWords } from '../../../model/search.ts'
@@ -71,7 +72,8 @@ export function HubTriggers(props: {
   )
   // 从「全部记录」进来直接看时间线。
   const [tab, setTab] = useState<DetailTab>(props.start === undefined ? 'overview' : 'timeline')
-  const detailMotion = usePaneTransition()
+  const titleMotion = usePaneTransition('text')
+  const pickRevision = useRef(0)
   const catalog = useCatalog(rpc)
   const list = hubData.list
 
@@ -84,6 +86,35 @@ export function HubTriggers(props: {
   const arranged = useMemo(() => arrangeTriggers(visible, view), [visible, view])
   const shown = arranged.groups.flatMap((group) => group.entries)
   const selected = shown.find((entry) => keyOf(entry) === picked) ?? shown[0]
+  const pick = (id: string): void => {
+    const revision = ++pickRevision.current
+    const changed = selected !== undefined && keyOf(selected) !== id
+    const apply = (): void => {
+      if (revision !== pickRevision.current) return
+      titleMotion.change(
+        () => {
+          if (revision === pickRevision.current) setPicked(id)
+        },
+        changed ? 0 : null,
+      )
+    }
+    const target =
+      changed && tab === 'overview' ? shown.find((entry) => keyOf(entry) === id) : undefined
+    const reading = target === undefined ? undefined : primeActivity(target, hubData.activity)
+    if (reading === undefined) {
+      apply()
+      return
+    }
+    let pending = true
+    const finish = (): void => {
+      if (!pending) return
+      pending = false
+      window.clearTimeout(deadline)
+      apply()
+    }
+    const deadline = window.setTimeout(finish, 160)
+    void reading.then(finish, finish)
+  }
   // 换排法时右栏还看着原来那一项（没点过时它是第一项）。
   const onView = (change: Partial<TriggerListView>): void => {
     keepShown(picked, selected === undefined ? undefined : keyOf(selected), setPicked)
@@ -158,12 +189,7 @@ export function HubTriggers(props: {
         query={query}
         onQuery={setQuery}
         selected={selected === undefined ? '' : keyOf(selected)}
-        onPick={(id) =>
-          detailMotion.change(
-            () => setPicked(id),
-            selected !== undefined && keyOf(selected) === id ? null : 0,
-          )
-        }
+        onPick={pick}
         paused={list.paused}
         onNotice={onNotice}
       />
@@ -186,7 +212,7 @@ export function HubTriggers(props: {
         </div>
       ) : (
         <TriggerDetail
-          detailRef={detailMotion.scope}
+          titleRef={titleMotion.scope}
           t={t}
           rpc={rpc}
           hub={hubData}

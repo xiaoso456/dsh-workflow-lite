@@ -44,6 +44,7 @@
 }
 
 .statValue {
+  min-height: 1.25em;
   font-size: 18px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;

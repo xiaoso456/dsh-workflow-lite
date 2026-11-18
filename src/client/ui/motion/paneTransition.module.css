@@ -1,8 +1,10 @@
-.scope:global(:active-view-transition-type(wl-pane))::view-transition {
+.scope:global(:active-view-transition-type(wl-pane))::view-transition,
+.scope:global(:active-view-transition-type(wl-text))::view-transition {
   pointer-events: none;
 }
 
-.scope:global(:active-view-transition-type(wl-pane)::view-transition-group(root)) {
+.scope:global(:active-view-transition-type(wl-pane)::view-transition-group(root)),
+.scope:global(:active-view-transition-type(wl-text)::view-transition-group(root)) {
   animation: none;
 }
 
@@ -28,6 +30,26 @@
 
 .scope:global(:active-view-transition-type(wl-pane)::view-transition-new(root)) {
   animation-name: paneIn;
+}
+
+.scope:global(:active-view-transition-type(wl-text)::view-transition-old(root)) {
+  animation: textOut 55ms linear both;
+}
+
+.scope:global(:active-view-transition-type(wl-text)::view-transition-new(root)) {
+  animation: textIn 110ms var(--wl-ease-out) 30ms both;
+}
+
+@keyframes textOut {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes textIn {
+  from {
+    opacity: 0;
+  }
 }
 
 @keyframes paneOut {
