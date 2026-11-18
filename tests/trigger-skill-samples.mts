@@ -91,7 +91,7 @@ async function check(
   const problem = result.error ? result.error.message : expect(result)
   if (problem !== null) failed += 1
   console.log(
-    `${problem === null ? '✓' : '✗'} ${name}: ${result.verdict ?? ''} ${result.summary ?? ''}${problem === null ? '' : `\n    → ${problem}\n    ${JSON.stringify({ run: result.run, poke: result.poke, lines: result.lines }).slice(0, 800)}`}`,
+    `${problem === null ? '✓' : '✗'} ${name}: ${result.verdict ?? ''} ${result.summary ?? ''}${problem === null ? '' : `\n    → ${problem}\n    ${JSON.stringify({ run: result.run, poke: result.poke, events: result.events, logs: result.logs, notes: result.notes }).slice(0, 800)}`}`,
   )
   return result
 }
@@ -117,12 +117,12 @@ await check(
     poke: nodeEval(`require('fs').writeFileSync('${inbox}/new-' + Date.now() + '.txt', 'x')`),
   },
   (r) =>
-    r.verdict === 'fire' && r.lines?.length === 1 && r.lines[0].text.includes('new-')
+    r.verdict === 'fire' && r.events?.length === 1 && r.events[0].text.includes('new-')
       ? null
       : '要只收到新文件那一行',
 )
 
-// 日志里出现关键字：INFO 被挡；ERROR 连同缩进的堆栈是一件、带 more；合并 0 时各算各的。
+// 日志里出现关键字：INFO 被挡；ERROR 连同缩进的堆栈是一件、堆栈在末尾的 JSON 里；合并 0 时各算各的。
 const log = join(workspace, 'app.log').replace(/\\/g, '/')
 await writeFile(log, 'old ERROR before start\n')
 await writeFile(join(dir, 'triggers', 'tail-log.mjs'), await block('log'))
@@ -137,25 +137,22 @@ await check(
     ),
   },
   (r) => {
-    const results = r.lines?.map((l: any) => l.result)
+    const results = r.events?.map((l: any) => l.result)
     if (
       JSON.stringify(results) !== JSON.stringify(['keyword: 不含 「ERROR」 中的任何一个', 'pass'])
     )
       return '要 INFO 被挡、ERROR 通过（旧日志不算）'
-    const event = JSON.parse(r.lines[1].text)
     if (
-      event.file !== 'app.log' ||
-      event.line !== 'ERROR pay failed' ||
-      event.more?.[0] !== 'at Pay.charge(Pay.java:42)'
+      r.events[1].text !== 'app.log 出现：ERROR pay failed {"stack":["at Pay.charge(Pay.java:42)"]}'
     )
-      return '堆栈要并进同一件'
+      return `堆栈要并进同一件：${r.events[1].text}`
     return r.fires === 1 ? null : '要触发 1 次'
   },
 )
 // 程序没在跑时写进去的：下次启动接着读。
 await writeFile(log, `${await readFile(log, 'utf8')}ERROR while off\n`)
 await check('log', listen(tail, { include: ['ERROR'], merge: 0 }), { seconds: 4 }, (r) =>
-  r.lines?.length === 1 && r.lines[0].text.includes('while off')
+  r.events?.length === 1 && r.events[0].text.includes('while off')
     ? null
     : '要补上没在跑时写进去的那一件',
 )
@@ -168,7 +165,7 @@ await check(
     poke: nodeEval(`require('fs').appendFileSync('${log}', 'ERROR one\\nERROR two\\n')`),
   },
   (r) =>
-    r.lines?.length === 2 && r.fires === 1 && r.message.includes('2 次触发合并')
+    r.events?.length === 2 && r.fires === 1 && r.message.includes('2 次触发合并')
       ? null
       : '两件要并成一次',
 )
@@ -265,13 +262,13 @@ for (const trial of [false, true]) {
 await check(
   'github',
   listen(`node "{workflow}/triggers/github-hook.mjs" 3801`, {
-    include: ['"event":"pull_request"'],
+    include: ['来了 pull_request'],
   }),
   { seconds: 6, poke: `node "${pokeScript.replace(/\\/g, '/')}"` },
   (r) =>
     r.fires === 1 &&
-    r.lines?.length === 1 &&
-    r.lines[0].text.includes('"number":7') &&
+    r.events?.length === 1 &&
+    r.events[0].text.startsWith('a/b 来了 pull_request（opened）：#7 Fix') &&
     /pull_request 202/.test(r.poke?.output ?? '') &&
     /401/.test(r.poke?.output ?? '')
       ? null

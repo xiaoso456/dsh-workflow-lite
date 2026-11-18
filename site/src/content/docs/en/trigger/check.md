@@ -24,6 +24,8 @@ The card shows **Checking** and the result of the last check, and the progress b
 | Becomes OK | Once when it goes from failing to succeeding; not again while it keeps succeeding. | The command's standard output |
 | Output changes | When standard output differs from last time. The first check only records it; failed runs are not compared. | The new standard output |
 
+When standard output contains lines starting with `::trigger::`, only those lines (without the marker) become the background info, and **Output changes** compares only them; the rest is log, shown only in **Recent output**.
+
 The sketch next to **Fire when** shows which of a series of checks would run the workflow, and changes with the option.
 
 ## Command
@@ -39,7 +41,7 @@ The bar above the command box holds **Start from a template**, the shell in use 
 
 A command can contain `{workflow}`, which is replaced with this workflow's folder before it runs. With a script kept there, write `node "{workflow}/triggers/check.mjs"` and it is found even after changing the workspace. The script can be [written by the model](/dsh-workflow-lite/en/trigger/model/).
 
-Click **Try it** and confirm, and the command runs once in the chosen workspace with the chosen shell; below it are the exit code, whether it counts as success under the current option, the time taken and the output. A trial run does not enable the trigger or send anything to a session. Once enabled, the same place shows **Recent output**.
+Click **Try it** and confirm, and the command runs once in the chosen workspace with the chosen shell; below it are the exit code, whether it counts as success under the current option, the time taken and the output, plus how many `::trigger::` lines become the background info when there are any. A trial run does not enable the trigger or send anything to a session. Once enabled, the same place shows **Recent output**.
 
 ![The result of a trial run: exit code 0, counts as success, time taken, and the command's output below](../../../../assets/shots/en/trigger-try.webp)
 
@@ -61,4 +63,4 @@ Click **Try it** and confirm, and the command runs once in the chosen workspace 
 ## Notes
 
 - After DSH restarts, checks continue from the last result, so a restart does not cause an extra run.
-- **Output changes** compares the whole output: if it contains something that changes every time, such as a timestamp, every check fires. Have the script print only what matters.
+- **Output changes** compares the whole output: if it contains something that changes every time, such as a timestamp, every check fires. Print what matters as `::trigger::` lines, or have the script print only that.

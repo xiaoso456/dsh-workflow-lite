@@ -17,6 +17,7 @@ import {
 import { hasCommandPage, pageOf } from '../../src/client/ui/trigger/source/schedulePages.ts'
 import { EVERY_MAX, scheduleIssue } from '../../src/shared/schedule.ts'
 import { PLAIN_EVERY_MIN } from '../../src/shared/trigger.ts'
+import { TRIGGER_MARK } from '../../src/shared/triggerMark.ts'
 
 const t = (key: LocaleKey): string => zh[key]
 const en = (key: LocaleKey): string => enText[key]
@@ -69,7 +70,7 @@ describe('顶上那句话', () => {
     ).toBe('每天 09:00 跑一次命令，成功时执行')
 
     const listen = sourceSay(en, { kind: 'listen', command: 'node watch.mjs' })
-    expect(listen).toBe('Keeps a program running and fires on every line it prints')
+    expect(listen).toBe('Keeps a program running and fires on every ::trigger:: line it prints')
     expect(sourceSay(t, { kind: 'listen', command: '' })).toBe(t('trigger.say.listenNone'))
 
     expect(sourceSay(t, { kind: 'http' })).toContain('POST')
@@ -190,6 +191,12 @@ describe('调用示例与命令模板', () => {
         expect(zh[item.label] && enText[item.label]).toBeTruthy()
         expect(zh[item.desc] && enText[item.desc]).toBeTruthy()
       }
+    }
+  })
+
+  it('监视的模板打出的事件行带 ::trigger::（跑工作流里脚本的那条除外）', () => {
+    for (const item of LISTEN_TEMPLATES.filter((template) => template.id !== 'script')) {
+      expect(item.command).toContain(`console.log('${TRIGGER_MARK} '`)
     }
   })
 })

@@ -12,7 +12,8 @@
 
 import { upcomingFires } from '../../shared/schedule.ts'
 import { commandOf, filterOf, launchOf, sourceText } from '../../shared/trigger.ts'
-import type { TriggerIndexEntry, TriggerNode } from '../../shared/types.ts'
+import { TRIGGER_MARK } from '../../shared/triggerMark.ts'
+import type { TriggerIndexEntry, TriggerNode, TriggerSource } from '../../shared/types.ts'
 import type { FireRecord, TriggerSetRequest, TriggerView } from '../../shared/wire/trigger.ts'
 import type { Outcome } from '../store/repoResult.ts'
 import { fail, ok } from '../store/repoResult.ts'
@@ -28,6 +29,7 @@ export type TriggerPort = Pick<
   | 'list'
   | 'all'
   | 'readiness'
+  | 'untested'
   | 'set'
   | 'history'
   | 'output'
@@ -52,6 +54,20 @@ const OUTPUT_WITH_LINES = 3
 const OUTPUT_TAIL = 20
 /** 定时给接下来几次。 */
 const UPCOMING = 3
+
+/**
+ * 要跑命令的卡片，命令的输出怎么算：每次读、写这张卡片都带上，模型不用回去翻 skill 也记得住
+ * （对话被压缩后 skill 的细则常常就不在了）。不跑命令的是 `undefined`。
+ */
+export function outputRule(source: TriggerSource): string | undefined {
+  if (source.kind === 'listen') {
+    return `只有标准输出里 ${TRIGGER_MARK} 开头的行会触发，标记后面是背景信息；别的输出都是日志、不触发，启动时不要打事件。改了脚本要再 test_trigger。`
+  }
+  if (source.kind === 'schedule' && source.check !== undefined) {
+    return `退出码 0 算满足；标准输出里有 ${TRIGGER_MARK} 开头的行时只有它们是背景信息、拿来比较，没有时整段标准输出都是。改了脚本要再 test_trigger。`
+  }
+  return undefined
+}
 
 /** 本机时间的「YYYY-MM-DD HH:mm:ss」。 */
 export function stamp(ms: number): string {
@@ -97,11 +113,13 @@ async function localOf(
         ].slice(0, UPCOMING)
       : []
   const toEnable = await port.readiness(workflow, node.id)
+  const retest = await port.untested(workflow, node.id)
   return {
     enabled: local.enabled,
     state: local.state,
     ...(local.problem === undefined ? {} : { problem: local.problem }),
     ...(toEnable.length === 0 ? {} : { toEnable }),
+    ...(retest === null ? {} : { retest }),
     ...(local.workspace === undefined ? {} : { workspace: local.workspace }),
     ...(local.runShell === undefined ? {} : { shell: local.runShell }),
     ...(local.approved === undefined ? {} : { approved: local.approved }),
@@ -150,6 +168,7 @@ export async function readTrigger(
     node,
     effective: {
       text: sourceText(node.data.source),
+      ...withRule(node.data.source),
       filter: filterOf(node.data),
       launch: launchOf(node.data),
     },
@@ -303,14 +322,28 @@ export async function localNow(
   return localOf(port, dataDir, workflow, node, view, now)
 }
 
+/** 带上 {@link outputRule}（有的话）。 */
+export function withRule(source: TriggerSource): { output?: string } {
+  const rule = outputRule(source)
+  return rule === undefined ? {} : { output: rule }
+}
+
 /** 写完卡片后接下来做什么（写在返回值里，模型照着做）。 */
 export function nextStep(local: Record<string, unknown> | undefined): string {
   if (local === undefined) return '先用 test_trigger 试一遍，再用 local.enabled 打开。'
   const toEnable = Array.isArray(local.toEnable) && local.toEnable.length > 0
+  // 要再试的提醒放在最前，后面照常说开关的情况（它不算打开前还差的）。
+  const retest = typeof local.retest === 'string' ? `${local.retest}。` : ''
   if (local.enabled === true) {
+    if (toEnable) {
+      return `${retest}卡片开着但还不能触发：按 toEnable 补齐（命令、工作区、shell 改过的再给一次 local.enabled = true）。`
+    }
+    return retest === '' ? '卡片开着。' : `${retest}卡片已经开着，按现在的脚本在跑。`
+  }
+  if (retest !== '') {
     return toEnable
-      ? '卡片开着但还不能触发：按 toEnable 补齐（命令、工作区、shell 改过的再给一次 local.enabled = true）。'
-      : '卡片开着。'
+      ? `${retest}卡片关着：按 toEnable 补齐后用 local.enabled 打开。`
+      : `${retest}卡片关着：过了再用 local.enabled 打开。`
   }
   return toEnable
     ? '卡片关着：先用 test_trigger 试一遍，按 toEnable 补齐后用 local.enabled 打开。'

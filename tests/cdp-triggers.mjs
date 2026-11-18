@@ -2,7 +2,7 @@
  * 触发卡片的浏览器验收：自备一次性实例（假模型、一次性的家、随机端口，不用 `DSH_WEB_TOKEN`），
  * 建一张带触发卡片的工作流，在真浏览器里走一遍：卡片与面板、没选工作区时开不了、开关与下一次时间、
  * 立即触发（新建会话、消息到达模型）、触发记录、改规则（时间轴、常用规则）、从步骤库拖入、实例概览与工作流中心里的来源；
- * 第二张图走常驻触发源：监视（开关旁确认命令 → 程序打出一行 → 过关键字发进会话 → 最近的输出
+ * 第二张图走常驻触发源：监视（开关旁确认命令 → 程序打出一行 ::trigger:: → 过关键字发进会话 → 最近的输出
  * → 改了命令要重新确认）、HTTP（改触发端口、地址与令牌、令牌不对 401、请求到达模型、发一条测试请求）、
  * 换成定时检查（判定、分两步、命令模板、试运行）；
  * 接续触发（在列表里选等哪个工作流、搜索、那边一个实例结束后消息到达模型），以及工作流中心「触发」页
@@ -122,9 +122,10 @@ const NAME2 = '日志报警'
 const TAIL = '.react-flow__node[data-id="tail"]'
 const HOOK = '.react-flow__node[data-id="hook"]'
 const COMMAND = 'node "{workflow}/triggers/emit.mjs"'
-/** 监视程序：先打一行不含关键字的，再打一行报错，然后一直等着。 */
+/** 监视程序：先打两行日志（一行带关键字也不触发），再打一行 ::trigger:: 事件，然后一直等着。 */
 const EMIT = `console.log('INFO 启动好了')
-setTimeout(() => console.log('ERROR pay timeout'), 1500)
+console.log('ERROR 只是日志')
+setTimeout(() => console.log('::trigger:: ERROR pay timeout'), 1500)
 setInterval(() => {}, 1000)
 process.on('SIGTERM', () => process.exit(0))
 `
@@ -757,7 +758,9 @@ try {
   )
   const body2 = await waitModel(env.mock, served2, /ERROR pay timeout/u)
   check('程序打出的报错发到了模型', /ERROR pay timeout/u.test(body2))
-  check('不含关键字的那行被过滤掉', !/INFO 启动好了/u.test(body2))
+  check('不带 ::trigger:: 的日志不发，带关键字的也不发', !/INFO 启动好了|只是日志/u.test(body2))
+  // 发进去的背景信息去掉了标记（触发源那句「打出了一行 ::trigger::」里本来就有它，只看紧挨着内容的）。
+  check('背景信息去掉了标记', !/::trigger::\s*ERROR pay timeout/u.test(body2))
   const tailHistory = await rpc('trigger/history', { workflow: NAME2, node: 'tail' })
   check(
     '触发记录：监视程序、已发出',
@@ -769,7 +772,7 @@ try {
   await sleep(5500)
   const tailOn = await session.evaluate(textOf(TAIL))
   check('卡片写着接收中', /接收中/.test(tailOn), tailOn)
-  check('卡片速览换成程序最近打出的一行', /ERROR pay timeout/.test(tailOn), tailOn)
+  check('卡片速览换成最近的事件（去掉标记）', /ERROR pay timeout/.test(tailOn), tailOn)
   await capture(session, 'listen-on-light.png')
   // 最近的输出在「触发方式」对话框的右栏（点面板里的速览那一行打开）。
   await mouseClick(session, await centerOf(session, '[data-testid="wl-trigger-when-edit"]'))
@@ -777,9 +780,20 @@ try {
   await sleep(1500)
   const output = await session.evaluate(textOf('[data-testid="wl-trigger-output-list"]'))
   check(
-    '最近的输出里有两行',
-    /INFO 启动好了/.test(output) && /ERROR pay timeout/.test(output),
+    '最近的输出里日志、事件都在',
+    /INFO 启动好了/.test(output) && /只是日志/.test(output) && /ERROR pay timeout/.test(output),
     output.slice(0, 300),
+  )
+  // 事件行前面挂着 ::trigger:: 的签，日志行的签藏着。
+  const marks = await session.evaluate(`(() => {
+    const list = document.querySelector('[data-testid="wl-trigger-output-list"]')
+    const shown = [...list.querySelectorAll('span[data-s] > span:not([hidden])')]
+    return shown.map((mark) => mark.parentElement.textContent)
+  })()`)
+  check(
+    '只有事件行带 ::trigger:: 的签',
+    marks.length > 0 && marks.every((text) => /^::trigger::\s*ERROR pay timeout/u.test(text)),
+    JSON.stringify(marks),
   )
   await capture(session, 'listen-dialog-light.png')
   await session.evaluate(clickTestId('wl-trigger-source-dialog-cancel'))
@@ -1090,6 +1104,32 @@ try {
     `${tried} | ${triedOut}`,
   )
   await capture(session, 'check-try-light.png')
+  check('一件事没断开时不提醒', !(await session.evaluate(has('wl-trigger-try-broken'))))
+  // 事件里拼进了带换行的报错：后面那截没带标记、只算日志，输出上面提醒，那一截标出来。
+  await setReactInput(
+    session,
+    '[data-testid="wl-trigger-command"]',
+    `node -e "console.log('::trigger:: 支付失败 Error: timeout\\n    at pay (a.js:1:1)')"`,
+  )
+  await sleep(300)
+  await session.evaluate(clickTestId('wl-trigger-try'))
+  await sleep(600)
+  if (await session.evaluate(has('wl-trigger-try-confirm'))) {
+    await session.evaluate(clickTestId('wl-trigger-try-confirm'))
+  }
+  await waitFor(session, has('wl-trigger-try-broken'), { timeoutMs: 20_000 })
+  const cut = await session.evaluate(`(() => {
+    const out = document.querySelector('[data-testid="wl-trigger-try-output"]')
+    const lines = [...out.children]
+    const marked = lines.filter((line) => getComputedStyle(line).borderLeftStyle === 'solid')
+    return marked.map((line) => line.textContent)
+  })()`)
+  check(
+    '事件被换行断开：提醒、只标出没带标记的那一截',
+    cut.length === 1 && /at pay/.test(cut[0] ?? ''),
+    JSON.stringify(cut),
+  )
+  await capture(session, 'check-try-broken-light.png')
   await setReactInput(session, '[data-testid="wl-trigger-command"]', 'git ls-remote origin main')
   await sleep(300)
   check(

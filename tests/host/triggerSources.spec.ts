@@ -3,6 +3,7 @@
  * HTTP 地址（令牌、202、端口被占用），以及在本机真的跑一次命令。
  */
 
+import { createHash } from 'node:crypto'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { createServer as createNetServer, type Server } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -299,7 +300,7 @@ describe('监听程序', () => {
     const lines: string[] = []
     const events: string[] = []
     const handlers: ListenerHandlers = {
-      line: (text) => lines.push(text),
+      event: (info) => lines.push(info),
       output: () => {},
       running: ({ restarts }) => events.push(`run ${String(restarts)}`),
       healthy: () => events.push('healthy'),
@@ -315,7 +316,10 @@ describe('监听程序', () => {
       return { pid: 1, stop: async () => {} }
     })
     listener.start()
-    emit('第一行')
+    // 只有 ::trigger:: 开头的是事件（交出去的是标记后面的内容）；别的行是日志。
+    emit('[watch] 启动了')
+    emit('  ::trigger::   第一行  ')
+    emit('::trigger::')
     await vi.advanceTimersByTimeAsync(1000)
     exits[0]?.({ code: 1, signal: null, errors: '' })
     await vi.advanceTimersByTimeAsync(2000)
@@ -325,7 +329,7 @@ describe('监听程序', () => {
     exits[2]?.({ code: 0, signal: null, errors: '' })
     await vi.advanceTimersByTimeAsync(2000)
     await listener.stop()
-    expect(lines).toEqual(['第一行'])
+    expect(lines).toEqual(['第一行', ''])
     expect(events).toEqual([
       'run 0',
       'exit true +2000 #1',
@@ -516,20 +520,23 @@ describe('在本机跑命令', () => {
   }, 30_000)
 })
 
-/** 输出按行切开；本机的 node 可能往错误输出打警告（代理之类），只留命令自己打的。 */
-const ownLines = (text: string): string[] =>
-  text.split(/\r?\n/u).filter((line) => !line.startsWith('(node:') && !line.startsWith('(Use '))
+/** 试运行的行写成「流 文字」；本机的 node 可能往错误输出打警告（代理之类），只留命令自己打的。 */
+const ownLines = (lines: readonly { stream: string; text: string }[]): string[] =>
+  lines
+    .filter((line) => !line.text.startsWith('(node:') && !line.text.startsWith('(Use '))
+    .map((line) => `${line.stream} ${line.text}`)
 
 describe('试一试（「触发方式」对话框）', () => {
   const cwd = process.cwd()
 
   it('检查试运行：退出码、输出（标准输出 + 错误输出）、用时；找不到命令给原因', async () => {
     const ok = await tryCheck({
-      command: `node -e "console.log('up');console.error('warn');process.exit(2)"`,
+      command: `node -e "console.log('up');console.log('::trigger:: x');console.error('warn');process.exit(2)"`,
       cwd,
     })
     expect(ok.code).toBe(2)
-    expect(ownLines(ok.output)).toEqual(['up', 'warn'])
+    expect(ownLines(ok.lines)).toEqual(['out up', 'out ::trigger:: x', 'err warn'])
+    expect(ok.events).toBe(1)
     expect(ok.ms).toBeGreaterThanOrEqual(0)
     expect(ok.failure).toBeUndefined()
 
@@ -541,23 +548,25 @@ describe('试一试（「触发方式」对话框）', () => {
     expect(slow.failure).toContain('没结束')
   }, 30_000)
 
-  it('监听试运行：到点结束程序、数出打了几行；自己先退出的记下退出码', async () => {
+  it('监视试运行：到点结束程序、数出几行事件（::trigger:: 开头），别的行照列；自己先退出的记下退出码', async () => {
     const running = await tryListen(
       {
         command:
-          "node -e \"console.log('a');console.log('');console.log('b');setInterval(() => {}, 1000)\"",
+          "node -e \"console.log('ready');console.log('');console.log('::trigger:: b');console.error('oops');setInterval(() => {}, 1000)\"",
         cwd,
       },
       1500,
     )
-    expect(running).toMatchObject({ code: null, stopped: true, lines: 2 })
-    expect(ownLines(running.output)).toEqual(['a', '', 'b'])
+    expect(running).toMatchObject({ code: null, stopped: true, events: 1 })
+    expect(ownLines(running.lines)).toEqual(
+      expect.arrayContaining(['out ready', 'out ', 'out ::trigger:: b', 'err oops']),
+    )
 
     const quick = await tryListen(
       { command: 'node -e "console.log(\'x\');process.exit(4)"', cwd },
       5000,
     )
-    expect(quick).toMatchObject({ code: 4, lines: 1 })
+    expect(quick).toMatchObject({ code: 4, events: 0 })
     expect(quick.stopped).toBeUndefined()
   }, 30_000)
 
@@ -632,7 +641,7 @@ describe('模型试一张卡片（test_trigger）', () => {
       }),
     )
     expect(ok).toMatchObject({ verdict: 'fire', run: { code: 0, stdout: 'job-1' } })
-    expect(ownLines(ok.run?.stderr ?? '')).toEqual(['debug'])
+    expect(ok.run?.stderr).toContain('debug')
     expect(ok.message).toContain('## 触发说明')
     expect(ok.message).toContain('> job-1')
 
@@ -671,7 +680,7 @@ describe('模型试一张卡片（test_trigger）', () => {
   }, 30_000)
 
   it('监听：启动后跑 poke 制造事件，列出每一行的过滤结果、合并后几次', async () => {
-    const listener = `node -e "console.log('ready');setInterval(()=>{try{const fs=require('fs');const t=fs.readFileSync('poke.txt','utf8');fs.unlinkSync('poke.txt');console.log(t.trim())}catch{}},100)"`
+    const listener = `node -e "console.log('ready');setInterval(()=>{try{const fs=require('fs');const t=fs.readFileSync('poke.txt','utf8');fs.unlinkSync('poke.txt');console.log('::trigger:: '+t.trim());console.log('::trigger:: INFO done')}catch{}},100)"`
     const result = await testCard(
       base(
         { source: { kind: 'listen', command: listener }, filter: { include: ['ERROR'], merge: 0 } },
@@ -686,17 +695,20 @@ describe('模型试一张卡片（test_trigger）', () => {
     )
     expect(result.verdict).toBe('fire')
     expect(result.poke).toMatchObject({ code: 0 })
-    expect(result.lines?.map((line) => [line.text, line.result])).toEqual([
-      ['ready', 'keyword: 不含 「ERROR」 中的任何一个'],
+    expect(result.events?.map((line) => [line.text, line.result])).toEqual([
       ['ERROR in pay', 'pass'],
+      ['INFO done', 'keyword: 不含 「ERROR」 中的任何一个'],
     ])
+    expect(result.logs).toMatchObject({ count: 1, first: [{ text: 'ready' }] })
+    expect(result.summary).toContain('另有 1 行不是 ::trigger:: 开头')
+    expect(result.notes).toBeUndefined()
     expect(result.fires).toBe(1)
     expect(result.message).toContain('> ERROR in pay')
     expect(result.run?.exited).toBeUndefined()
   }, 30_000)
 
   it('监听：自己退出的是出错（真打开后会算失败）；合并窗口里的几行并成一次', async () => {
-    const quick = `node -e "console.log('a');console.log('b');process.exit(3)"`
+    const quick = `node -e "console.log('::trigger:: a');console.log('::trigger:: b');process.exit(3)"`
     const result = await testCard(
       base({ source: { kind: 'listen', command: quick } }, { spec: { command: quick, cwd } }),
     )
@@ -704,6 +716,51 @@ describe('模型试一张卡片（test_trigger）', () => {
     expect(result.run).toMatchObject({ code: 3, exited: true })
     expect(result.fires).toBe(1)
     expect(result.message).toContain('a\n> b')
+    // 没带 poke 时程序一启动就打出的事件：真打开后每次启动都会再触发。
+    expect(result.notes?.join('')).toContain('程序一启动就打出了 2 行事件')
+  }, 30_000)
+
+  it('监视：标准输出只有日志、没有 ::trigger:: 行时不触发，说清楚怎么写', async () => {
+    const chatty = `node -e "console.log('[watch] 首次运行，已记录 20 条现状');setInterval(()=>{},1000)"`
+    const result = await testCard(
+      base(
+        { source: { kind: 'listen', command: chatty } },
+        { spec: { command: chatty, cwd }, options: { seconds: 2 } },
+      ),
+    )
+    expect(result.verdict).toBe('skip')
+    expect(result.fires).toBe(0)
+    expect(result.events).toEqual([])
+    expect(result.logs?.count).toBe(1)
+    expect(result.summary).toContain('没有一行以 ::trigger:: 开头')
+    expect(result.message).toBeUndefined()
+  }, 30_000)
+
+  it('检查命令：有 ::trigger:: 行时只有它们是背景信息、拿来比较，日志里的时间戳不算「变了」', async () => {
+    const at = (time: string) => ({
+      command: `node -e "console.log('checked at ${time}');console.log('::trigger:: {\\"id\\":7}')"`,
+      cwd,
+    })
+    const first = await testCard(base(check('x', 'change'), { spec: at('10:00') }))
+    expect(first.info).toBe('{"id":7}')
+    expect(first.notes?.join('')).toContain('只有它们（去掉标记）是背景信息')
+    expect(first.notes?.join('')).not.toContain('下一截')
+    // 上一次记下的是同一行事件的摘要：日志变了，事件没变，不触发。
+    const digest = createHash('sha256').update('{"id":7}').digest('hex')
+    const again = await testCard(
+      base(check('x', 'change'), { spec: at('10:05'), probe: { digest } }),
+    )
+    expect(again.verdict).toBe('skip')
+    expect(again.summary).toContain('一样')
+  }, 30_000)
+
+  it('检查命令：拼进事件的内容带了换行，提醒后面几截只算日志', async () => {
+    const command = `node -e "console.log('::trigger:: 支付失败 Error: timeout\\n    at pay (a.js:1:1)')"`
+    const result = await testCard(base(check('x', 'every'), { spec: { command, cwd } }))
+    expect(result.info).toBe('支付失败 Error: timeout')
+    expect(result.notes?.join('')).toContain(
+      '1 行事件后面紧跟着像是同一件事的下一截（如「at pay (a.js:1:1)」）',
+    )
   }, 30_000)
 
   it('HTTP：拿请求体过一遍过滤，不真的发', async () => {

@@ -60,14 +60,14 @@ export const LISTEN_TEMPLATES: readonly CommandTemplate[] = [
     label: 'trigger.tpl.watch',
     desc: 'trigger.tpl.watchDesc',
     command:
-      "node -e \"require('fs').watch('inbox', (event, name) => name && console.log(event + ' ' + name))\"",
+      "node -e \"require('fs').watch('inbox', (event, name) => name && console.log('::trigger:: ' + event + ' ' + name))\"",
   },
   {
     id: 'tail',
     label: 'trigger.tpl.tail',
     desc: 'trigger.tpl.tailDesc',
     command:
-      "node -e \"const fs = require('fs'); let at = fs.statSync('app.log').size; fs.watchFile('app.log', { interval: 1000 }, (s) => { if (s.size > at) process.stdout.write(fs.readFileSync('app.log').subarray(at)); at = s.size })\"",
+      "node -e \"const fs = require('fs'); let at = fs.statSync('app.log').size; fs.watchFile('app.log', { interval: 1000 }, (s) => { if (s.size > at) for (const line of fs.readFileSync('app.log').subarray(at).toString().split('\\n')) if (line.trim()) console.log('::trigger:: ' + line.trim()); at = s.size })\"",
   },
   {
     id: 'script',

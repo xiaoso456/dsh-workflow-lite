@@ -11,7 +11,7 @@ A trigger runs a workflow when something happens: the plugin sends the workflow 
 |---|---|---|
 | Schedule | The time comes | This page |
 | Schedule + check command | The time comes and a command's result says so | [Scheduled checks](/dsh-workflow-lite/en/trigger/check/) |
-| Watch | A long-running program prints a line | [Watch](/dsh-workflow-lite/en/trigger/listen/) |
+| Watch | A long-running program prints a `::trigger::` line | [Watch](/dsh-workflow-lite/en/trigger/listen/) |
 | HTTP | Another program sends a request | [HTTP triggers](/dsh-workflow-lite/en/trigger/http/) |
 | After | Another workflow finishes | [After triggers](/dsh-workflow-lite/en/trigger/after/) |
 

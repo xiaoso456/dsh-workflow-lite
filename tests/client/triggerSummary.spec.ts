@@ -88,7 +88,7 @@ describe('触发面板的摘要', () => {
     expect(whenDetail(t, check, {}, now)).toEqual({ text: 'git ls-remote', tone: 'code' })
     const listen = { kind: 'listen', command: 'node tail.mjs' } as const
     expect(whenDetail(t, listen, {}, now)).toEqual({
-      text: '程序每打出一行触发一次',
+      text: '程序每打出一行 ::trigger:: 触发一次',
       tone: 'plain',
     })
     expect(whenDetail(t, listen, { line: 'ERROR x' }, now)).toEqual({

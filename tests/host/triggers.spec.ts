@@ -5,7 +5,7 @@
  * 常驻触发源本身（跑命令、开端口）换成假的，见 `triggerSources.spec.ts`。
  */
 
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
@@ -1073,7 +1073,7 @@ describe('常驻触发源', () => {
     await triggers.settled()
     expect(sent).toHaveLength(1)
     const message = sent[0]?.text ?? ''
-    expect(message).toContain('监视程序打出了一行')
+    expect(message).toContain('监视程序打出了一行 ::trigger::')
     expect(message).toContain('## 背景信息')
     expect(message).toContain('这次是 2 次触发合并在一起的')
     expect(message).toContain('> ERROR pay timeout\n> ERROR pay 502')
@@ -1585,7 +1585,10 @@ describe('模型读、改、试触发卡片', () => {
     })) as { local?: Record<string, unknown>; next?: string }
     expect(created.local).toMatchObject({ enabled: true, approved: true, workspace })
     expect(created.local).not.toHaveProperty('toEnable')
-    expect(created.next).toBe('卡片开着。')
+    // 没试过就打开了：照开，但提醒先试（不算「打开前还差的」）；带上输出怎么算。
+    expect(created.local?.retest).toContain('还没用 test_trigger 试过')
+    expect(created.next).toContain('卡片已经开着')
+    expect((created as { output?: string }).output).toContain('::trigger::')
 
     // 只改定义：命令变了，卡片还开着但停在待确认，返回里说要再打开一次。
     const edited = (await run({
@@ -1646,6 +1649,45 @@ describe('模型读、改、试触发卡片', () => {
         local: { enabled: 'yes' as unknown as boolean },
       }),
     ).toMatchObject({ error: { code: 'invalid_args' } })
+  })
+
+  it('test_trigger 记下试过的时刻；之后改了 triggers/ 里的脚本，读的结果点名要再试', async () => {
+    const scripts = join(assetsDir(dataDir, 'patrol'), 'triggers')
+    await saveGraph('patrol', {
+      source: {
+        kind: 'schedule',
+        schedule: { kind: 'every', seconds: 1800 },
+        check: { command: 'node "{workflow}/triggers/check.mjs"', when: 'every' },
+      },
+    })
+    await mkdir(scripts, { recursive: true })
+    const script = join(scripts, 'check.mjs')
+    await writeFile(script, "console.log('[check] 日志')\nconsole.log('::trigger:: 有新提交')\n")
+    const readCard = async () =>
+      (await run({ action: 'read', workflow: 'patrol', node: 'tick' })) as {
+        local: { retest?: string }
+        effective?: { output?: string }
+      }
+    expect((await readCard()).local.retest).toContain('还没用 test_trigger 试过')
+
+    const tried = (await run({
+      action: 'test_trigger',
+      workflow: 'patrol',
+      node: 'tick',
+      workspace,
+    })) as { info?: string }
+    // 有 ::trigger:: 行时只有它交出去，日志不算。
+    expect(tried.info).toBe('有新提交')
+    const fresh = await readCard()
+    expect(fresh.local).not.toHaveProperty('retest')
+    expect(fresh.effective?.output).toContain('::trigger::')
+
+    // mtime 精度因文件系统而异：往后拨一点，免得和试的时刻落在同一毫秒里。
+    const later = new Date(Date.now() + 5000)
+    await utimes(script, later, later)
+    expect((await readCard()).local.retest).toBe(
+      'triggers/ 里的 check.mjs 在上次 test_trigger 之后改过：再试一遍，过了再打开',
+    )
   })
 
   it('读带上触发记录、排队和一次触发的全文；trigger_queue 视为已结束、清空', async () => {

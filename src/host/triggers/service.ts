@@ -92,6 +92,7 @@ import {
   type RuntimeEvents,
   TriggerRuntime,
 } from './runtime.ts'
+import { changedScripts, SCRIPTS_DIR } from './scriptAge.ts'
 import type { SessionPort } from './sessions.ts'
 import { checkShell, detectShells, familyOf, shellLabel, shellName, systemShell } from './shells.ts'
 import {
@@ -1084,18 +1085,28 @@ export class TriggerService {
                 : (await this.runs.finished(source.workflow, 0, new Set())).runs,
           }
         : undefined
-    return ok(
-      await testCard({
-        workflow: request.workflow,
-        trigger,
-        now: this.now(),
-        ...(spec === undefined ? {} : { spec }),
-        ...(local.probe === undefined ? {} : { probe: local.probe }),
-        ...(after === undefined ? {} : { after }),
-        infoFile: this.store.infoPath('f-<触发编号>'),
-        options: request.options ?? {},
-      }),
-    )
+    // 和脚本文件的修改时刻比，用真的钟（不用注入的 now）；记开始的时刻，试的时候改的也算没试过。
+    const started = Date.now()
+    const result = await testCard({
+      workflow: request.workflow,
+      trigger,
+      now: this.now(),
+      ...(spec === undefined ? {} : { spec }),
+      ...(local.probe === undefined ? {} : { probe: local.probe }),
+      ...(after === undefined ? {} : { after }),
+      infoFile: this.store.infoPath('f-<触发编号>'),
+      options: request.options ?? {},
+    })
+    if (command !== undefined) {
+      await this.store.update((locals) => {
+        const group = locals[request.workflow] ?? {}
+        const current = group[request.node] ?? { enabled: false }
+        current.tested = started
+        group[request.node] = current
+        locals[request.workflow] = group
+      })
+    }
+    return ok(result)
   }
 
   /**
@@ -1133,6 +1144,21 @@ export class TriggerService {
     if (launch === 'workspace' && commandOf(source) === undefined)
       missing.push('先选在哪个工作区里新建会话')
     return missing
+  }
+
+  /**
+   * 要跑命令的卡片还没用 `test_trigger` 试过，或 `triggers/` 里的脚本在那之后改过：一句提醒；不用提醒是 `null`。
+   * 不算「打开前还差的」（不试也能触发），单给模型看。
+   */
+  async untested(workflow: string, node: string): Promise<string | null> {
+    const found = await this.definition(workflow, node)
+    if (!found.ok || commandOf(found.result.trigger.data.source) === undefined) return null
+    const local = (await this.store.locals())[workflow]?.[node] ?? { enabled: false }
+    if (local.tested === undefined)
+      return '还没用 test_trigger 试过：先试一遍，看事件行、背景信息对不对'
+    const changed = await changedScripts(assetsDir(this.dataDir(), workflow), local.tested)
+    if (changed.length === 0) return null
+    return `${SCRIPTS_DIR}/ 里的 ${changed.join('、')} 在上次 test_trigger 之后改过：再试一遍，过了再打开`
   }
 
   /** 「发一条测试请求」：带上令牌向这张 HTTP 触发卡片的地址发一条 POST，和别的程序发来的一样被收下。 */

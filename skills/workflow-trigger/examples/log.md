@@ -2,7 +2,7 @@
 
 命令 `node "{workflow}/triggers/tail-log.mjs" "D:/app/logs/app.log"`，关键字写在 `filter.include`（如 `["ERROR", "FATAL"]`）。
 
-脚本每件事打一行 JSON：`file` 是日志文件名，`line` 是那一行，`more` 是跟在它后面的报错堆栈（以空白开头、`Caused by`、`... N more` 的行），堆栈并进同一件事，不会拆成好几次执行。读到哪记在数据目录里：程序重启、DSH 没开时写进日志的，启动后接着读；第一次从文件末尾开始，之前的旧日志不算。
+脚本每件事打一行事件：「文件名 出现：那一行日志」，后面跟着的报错堆栈（以空白开头、`Caused by`、`... N more` 的行）放进 `{"stack":[…]}`，堆栈并进同一件事，不会拆成好几次执行。触发说明里写一句「背景信息末尾的 stack 是报错堆栈」。读到哪记在数据目录里：程序重启、DSH 没开时写进日志的，启动后接着读；第一次从文件末尾开始，之前的旧日志不算。
 
 ```js
 import { closeSync, existsSync, openSync, readFileSync, readSync, statSync, watchFile, writeFileSync } from 'node:fs'
@@ -11,7 +11,12 @@ import { basename, join } from 'node:path'
 const file = process.argv[2]
 const stateFile = join(process.env.TRIGGER_DATA_DIR ?? '.', 'offset.txt')
 const sizeOf = () => (existsSync(file) ? statSync(file).size : 0)
-const emit = (event) => process.stdout.write(`${JSON.stringify(event)}\n`)
+// text：一句话说清这件事，动态拿到的文字直接拼进来；data：要原样给出的字段（可选，跟在后面成一段 JSON）。
+// 换行一律换掉：一件事只能占一行，不然后面几截没带标记，只算日志。
+const emit = (text, data) => {
+  const line = data === undefined ? String(text) : `${text} ${JSON.stringify(data)}`
+  console.log(`::trigger:: ${line.replace(/\r?\n/g, ' ⏎ ')}`)
+}
 process.on('SIGTERM', () => process.exit(0))
 
 let offset = existsSync(stateFile) ? Number(readFileSync(stateFile, 'utf8')) : sizeOf()
@@ -21,7 +26,7 @@ let quiet
 
 function flush() {
   clearTimeout(quiet)
-  if (event !== null) emit(event.more.length > 0 ? event : { file: event.file, line: event.line })
+  if (event !== null) emit(`${event.file} 出现：${event.line}`, event.more.length > 0 ? { stack: event.more } : undefined)
   event = null
 }
 
@@ -58,7 +63,7 @@ read()
 watchFile(file, { interval: 1000 }, read)
 ```
 
-- 关键字按整行 JSON 找：日志文件名本身带关键字（如 `error.log`）时每一件都会过，这时把关键字写得更具体（如 `] ERROR`），或去掉 `file` 字段。
+- 关键字按整行文字找：日志文件名本身带关键字（如 `error.log`）时每一件都会过，这时把关键字写得更具体（如 `] ERROR`），或在 `emit` 里不带文件名。
 - 日志一下刷出很多报错时，把 `filter.merge` 调到 30 到 60，一段时间里的报错并成一次处理。
 
-试：`poke` 往日志追加一行不带关键字的、一行带关键字的再跟一行缩进的堆栈，如 `node -e "require('fs').appendFileSync('D:/app/logs/app.log', 'INFO ok\nERROR pay failed\n  at Pay.charge(Pay.java:42)\n')"`。看 `lines`：第一件被关键字挡掉，第二件是 `pass` 且带着 `more`；`message` 里的背景信息够不够执行的模型找原因。
+试：`poke` 往日志追加一行不带关键字的、一行带关键字的再跟一行缩进的堆栈，如 `node -e "require('fs').appendFileSync('D:/app/logs/app.log', 'INFO ok\nERROR pay failed\n  at Pay.charge(Pay.java:42)\n')"`。看 `events`：第一件被关键字挡掉，第二件是 `pass` 且末尾带着 `{"stack":[…]}`；`message` 里的背景信息够不够执行的模型找原因。

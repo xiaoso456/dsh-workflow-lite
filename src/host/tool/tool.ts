@@ -64,6 +64,7 @@ import {
   testTrigger,
   triggerIndex,
   triggerOverview,
+  withRule,
 } from './triggerActions.ts'
 
 /** 工具需要的三个活依赖（`dataDir` / `maxResultBytes` 是活配置，所以取函数而不是值）。 */
@@ -642,6 +643,7 @@ export function createWorkflowLiteHandler(
         return finish({
           ...(written === undefined ? {} : written.result),
           trigger: { id: card.id, ...card.data },
+          ...withRule(card.data.source),
           ...(local === undefined ? {} : { local }),
           next: nextStep(local),
         })

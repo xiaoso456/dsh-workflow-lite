@@ -1,5 +1,6 @@
 /**
- * dsh-workflow-lite — 监听程序：拉起用户的常驻命令，它往标准输出打一行就是一次触发。
+ * dsh-workflow-lite — 监视程序：拉起用户的常驻命令，它往标准输出打一行 `::trigger::` 开头的事件就是一次触发
+ * （见 `shared/triggerMark.ts`）；别的行都是日志，只进「最近的输出」。
  *
  * 意外退出按退避重启（2 秒起，翻倍，最长 1 分钟；跑满 1 分钟后退避从头算）。
  * 启动后不到 1 分钟就退出算一次失败（脚本有错、命令不存在、依赖没装），交给调用方计数；
@@ -8,6 +9,7 @@
  * @module @xiaoso/dsh-workflow-lite/host/triggers/listener
  */
 
+import { eventOf } from '../../shared/triggerMark.ts'
 import {
   type CommandSpec,
   type ExitInfo,
@@ -27,7 +29,8 @@ export function backoff(attempt: number): number {
 }
 
 export interface ListenerHandlers {
-  line(text: string): void
+  /** 打出了一行事件：`info` 是标记后面的背景信息（可以是空串）。 */
+  event(info: string): void
   /** 两路输出的每一行（看最近的输出用）。 */
   output(line: string, stream: OutputStream): void
   /** 程序起来了（`restarts` 是这是第几次重启，第一次启动是 0）。 */
@@ -94,7 +97,9 @@ export class Listener {
     const since = this.now()
     this.current = this.start_(this.spec, {
       onLine: (line) => {
-        if (!this.stopped) this.handlers.line(line)
+        if (this.stopped) return
+        const info = eventOf(line)
+        if (info !== null) this.handlers.event(info)
       },
       onOutput: (line, stream) => this.handlers.output(line, stream),
       onExit: (info) => this.onExit(info, since),

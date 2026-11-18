@@ -32,6 +32,7 @@ import { copyText } from '../../kit/clipboard.ts'
 import { Icon } from '../../kit/Icon.tsx'
 import { useCopied } from '../../kit/useCopied.ts'
 import { Presence } from '../../motion/exits.tsx'
+import { EventText } from './EventText.tsx'
 import css from './outputLog.module.css'
 import { useKeepReading } from './useKeepReading.ts'
 import type { OutputLogModel } from './useOutputLog.ts'
@@ -150,7 +151,12 @@ function Row(props: {
           {entry === undefined ? '' : clockTime(entry.at)}
         </span>
         <span className={css.verdict}>{entry === undefined ? '' : verdictText(t, entry)}</span>
-        <span className={css.preview}>{entry === undefined ? '' : previewText(t, entry)}</span>
+        <EventText
+          t={t}
+          stream="out"
+          text={entry === undefined ? '' : previewText(t, entry)}
+          className={css.preview}
+        />
         <span className={css.end}>
           <span className={css.merged} hidden={merged === ''} data-tip={tipOf(t, entry)}>
             {merged}
@@ -237,7 +243,7 @@ function Line(props: { t: T; line: OutputLine | undefined; stamped: boolean }): 
       <span className={css.ts} hidden={!props.stamped}>
         {line === undefined ? '' : secondsTime(line.at)}
       </span>
-      <span className={css.text}>{line?.text ?? ''}</span>
+      <EventText t={t} stream={line?.stream} text={line?.text ?? ''} className={css.text} />
       <span className={css.cut} hidden={line?.size === undefined}>
         {line?.size === undefined ? '' : cutText(t, line.size)}
       </span>

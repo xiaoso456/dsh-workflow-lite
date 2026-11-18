@@ -1,5 +1,5 @@
 /**
- * dsh-workflow-lite — 「触发方式」对话框里监听的设置。监听没有要选的规则：设置行写两句它怎么运作（每打一行执行一次；
+ * dsh-workflow-lite — 「触发方式」对话框里监听的设置。监听没有要选的规则：设置行写两句它怎么运作（每打一行 `::trigger::` 执行一次；
  * 打开即启动、关掉即结束、意外退出自动重启、命令要先确认）和工作区，工作台是常驻的命令（模板、试运行 5 秒、最近的输出）。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/trigger/source/ListenStage

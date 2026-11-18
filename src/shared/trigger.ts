@@ -533,7 +533,7 @@ export function sourceText(source: TriggerSource): string {
       ? `定时（${when}）`
       : `定时检查（${when}跑一次命令，${CHECK_WHEN_TEXT[source.check.when]}时触发）`
   }
-  if (source.kind === 'listen') return '监视程序打出了一行'
+  if (source.kind === 'listen') return '监视程序打出了一行 ::trigger::'
   if (source.kind === 'after') {
     const when = { done: '成功', failed: '失败', any: '结束' }[afterWhen(source)]
     return `工作流「${source.workflow}」的一次执行${when}了`

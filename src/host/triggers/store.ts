@@ -129,6 +129,8 @@ export interface TriggerLocal {
   probe?: Probe
   /** 接续触发：那个工作流里已经处理过（触发过或判过不用触发）的、已结束的实例。 */
   seen?: string[]
+  /** 模型上一次 `test_trigger` 的时刻：之后改过 `triggers/` 里的脚本就提醒它再试（见 `scriptAge.ts`）。 */
+  tested?: number
 }
 
 /**
@@ -190,6 +192,8 @@ function readLocal(raw: unknown): TriggerLocal | null {
   if (since !== undefined) local.since = since
   const due = whole(raw.due)
   if (due !== undefined) local.due = due
+  const tested = whole(raw.tested)
+  if (tested !== undefined) local.tested = tested
   for (const key of [
     'rule',
     'workspace',

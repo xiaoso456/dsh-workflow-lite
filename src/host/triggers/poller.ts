@@ -5,6 +5,8 @@
  * - 由失败变为成功：只在「上一次不成功、这一次成功」时触发，条件一直成立不反复触发；
  * - 输出变了：和上一次的输出不一样就触发，第一次只记下不触发；命令返回非零的那次不拿来比。
  *
+ * 背景信息、「输出变了」比较的都是 {@link checkInfo}：标准输出里有 `::trigger::` 事件行时只算这几行，没有时算整段。
+ *
  * 什么时候检查：「每隔」打开就先查一次，之后每次跑完隔一个间隔（跑得久不会叠着跑）；每天几点、cron 按钟点排。
  * DSH 关着时错过的那一次，启动后补查一次（启动方式里关了「补」就跳到下一次）。
  *
@@ -16,6 +18,7 @@
 
 import { createHash } from 'node:crypto'
 import { nextFire } from '../../shared/schedule.ts'
+import { checkInfo } from '../../shared/triggerMark.ts'
 import type { CheckWhen, TriggerSchedule } from '../../shared/types.ts'
 import { INFO_MAX_CHARS } from './intake.ts'
 import { type CommandSpec, type RunResult, runCommand } from './processes.ts'
@@ -222,9 +225,10 @@ export class Poller {
         ...shown,
       })
     } else {
-      const verdict = judge(this.spec.when, this.probe, result)
+      const info = checkInfo(result.output)
+      const verdict = judge(this.spec.when, this.probe, { ...result, output: info })
       this.probe = { ...verdict.probe, ...due }
-      if (verdict.met) this.handlers.fire(result.output)
+      if (verdict.met) this.handlers.fire(info)
       this.handlers.checked({
         at,
         met: verdict.met,

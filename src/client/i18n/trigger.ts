@@ -166,12 +166,12 @@ export const zh = {
   'trigger.editWhen': '编辑触发方式',
   'trigger.pickKind': '换触发方式',
   'trigger.kindDesc.schedule': '到点执行，或先跑命令判定',
-  'trigger.kindDesc.listen': '常驻程序每打出一行执行一次',
+  'trigger.kindDesc.listen': '常驻程序打出 ::trigger:: 行就执行一次',
   'trigger.kindDesc.http': '收到本机 POST 请求时执行',
   'trigger.kindDesc.after': '另一个工作流跑完后执行',
   'trigger.detail.needCommand': '写好命令才能启用',
   'trigger.detail.needWorkflow': '选好要等的工作流才能启用',
-  'trigger.detail.listen': '程序每打出一行触发一次',
+  'trigger.detail.listen': '程序每打出一行 ::trigger:: 触发一次',
   'trigger.detail.httpLocal': '只有这台电脑上的程序能访问',
   'trigger.detail.httpLan': '同一网络里的其他机器也能访问',
   'trigger.fix.command': '写命令',
@@ -222,9 +222,10 @@ export const zh = {
   'trigger.checkHint.always': '到点直接执行这个工作流，不跑命令。',
   'trigger.checkHint.success':
     '到点跑一次命令，退出码 0 即成功；由失败变为成功时执行一次，一直成功不重复执行。',
-  'trigger.checkHint.every': '到点跑一次命令，退出码 0 就执行；标准输出作为背景信息。',
+  'trigger.checkHint.every':
+    '到点跑一次命令，退出码 0 就执行；标准输出作为背景信息，有 ::trigger:: 行时只用这几行。',
   'trigger.checkHint.change':
-    '到点跑一次命令，输出和上一次不同就执行；第一次只记下，失败的那次不比较。',
+    '到点跑一次命令，输出和上一次不同就执行（有 ::trigger:: 行时只比这几行）；第一次只记下，失败的那次不比较。',
   'trigger.judge.example': '示意',
   'trigger.judge.failed': '失败',
   'trigger.judge.fire': '执行',
@@ -456,8 +457,8 @@ export const zh = {
   'trigger.say.checkSuccess': '由失败变为成功',
   'trigger.say.checkEvery': '成功',
   'trigger.say.checkChange': '输出和上一次不同',
-  'trigger.say.listen': '常驻运行一个程序，它每打出一行就执行一次',
-  'trigger.say.listenNone': '写好要常驻运行的命令，它每打出一行就执行一次',
+  'trigger.say.listen': '常驻运行一个程序，它每打出一行 ::trigger:: 就执行一次',
+  'trigger.say.listenNone': '写好要常驻运行的命令，它每打出一行 ::trigger:: 就执行一次',
   'trigger.say.http': '别的程序向这个地址发{method}请求时执行，请求体作为背景信息',
   'trigger.say.after': '{name}执行{result}之后，接着执行这个工作流',
   'trigger.say.afterDone': '成功',
@@ -497,14 +498,20 @@ export const zh = {
   'trigger.try.unmet': '算失败',
   'trigger.try.changeNote': '启用后第一次检查只记下输出、不执行，之后和上一次比较',
   'trigger.try.took': '用时 {s} 秒',
-  'trigger.try.lines': '{s} 秒内输出 {n} 行，启用后每行触发一次',
+  'trigger.try.events': '{s} 秒内有 {n} 行 ::trigger::，启用后每行触发一次',
+  'trigger.try.noEvents': '{s} 秒内没有 ::trigger:: 开头的行，启用后不会触发',
+  'trigger.try.checkEvents': '{n} 行 ::trigger:: 是背景信息',
+  'trigger.try.broken':
+    '{n} 行事件后面紧跟着像是同一件事的下一截（标黄的几行）：它们没带 ::trigger::，只算日志、不进背景信息。拼进事件的内容要先去掉换行。',
   'trigger.try.exited': '程序自行退出了，启用后会自动重启',
   'trigger.try.failed': '失败',
   'trigger.try.noOutput': '没有输出',
   'trigger.try.console': '输出',
   'trigger.try.empty': '还没有试运行',
   'trigger.try.emptyHint':
-    '点「试运行」在选的工作区里运行一次这条命令，只看输出：不启用、不发进会话。',
+    '点「试运行」在选的工作区里运行一次这条命令，只看输出：不启用、不发进会话。输出里有 ::trigger:: 开头的行时，只有这几行是背景信息。',
+  'trigger.try.emptyHintListen':
+    '点「试运行」运行这条命令 5 秒，只看输出：不启用、不发进会话。只有 ::trigger:: 开头的行会触发，其余输出都是日志。',
   'trigger.outputStale': '命令在这里改过了：最近的输出是保存着的那条命令的',
   'trigger.tpl.git': 'Git 远端有新提交',
   'trigger.tpl.gitDesc': '远端分支的提交变了时触发',
@@ -515,15 +522,16 @@ export const zh = {
   'trigger.tpl.port': '端口能连上了',
   'trigger.tpl.portDesc': '端口从连不上变成能连上时触发',
   'trigger.tpl.watch': '文件夹里有新文件',
-  'trigger.tpl.watchDesc': '文件夹里每有文件新建、改动就打一行',
+  'trigger.tpl.watchDesc': '文件夹里有文件新建、改动就打一行 ::trigger::',
   'trigger.tpl.tail': '日志有新的一行',
-  'trigger.tpl.tailDesc': '日志文件每追加一行就打出来',
+  'trigger.tpl.tailDesc': '日志文件每追加一行，就打一行 ::trigger:: 带上它',
   'trigger.tpl.script': '工作流里的脚本',
   'trigger.tpl.scriptDesc': '运行工作流目录里的 triggers/watch.mjs（可让模型代写）',
   // ── 监听：怎么运作 ────────────────────────────────────────
   // ── HTTP：调用示例、测试请求 ──────────────────────────────
   'trigger.listen.fire': '触发',
-  'trigger.listen.fireFact': '它每打出一行就执行一次，这一行作为背景信息。',
+  'trigger.listen.fireFact':
+    '它每打出一行以 ::trigger:: 开头的就执行一次，标记后面的内容作为背景信息；别的输出都是日志。',
   'trigger.listen.life': '启停',
   'trigger.listen.lifeFact':
     '启用即启动，停用即结束，意外退出会自动重启；启用前要先确认这条命令，改了命令要重新确认。',
@@ -715,12 +723,12 @@ export const en: Record<keyof typeof zh, string> = {
   'trigger.editWhen': 'Edit trigger',
   'trigger.pickKind': 'Change how it fires',
   'trigger.kindDesc.schedule': 'Fire on time, or after a command check',
-  'trigger.kindDesc.listen': 'Fire on each output line',
+  'trigger.kindDesc.listen': 'Fire on each ::trigger:: line',
   'trigger.kindDesc.http': 'Fire on a local POST request',
   'trigger.kindDesc.after': 'Fire when a workflow ends',
   'trigger.detail.needCommand': 'Write the command before enabling it',
   'trigger.detail.needWorkflow': 'Pick the workflow to wait for before enabling it',
-  'trigger.detail.listen': 'Fires once for each line the program prints',
+  'trigger.detail.listen': 'Fires once for each ::trigger:: line the program prints',
   'trigger.detail.httpLocal': 'Only programs on this computer can reach it',
   'trigger.detail.httpLan': 'Other machines on the same network can reach it too',
   'trigger.fix.command': 'Write command',
@@ -771,9 +779,9 @@ export const en: Record<keyof typeof zh, string> = {
   'trigger.checkHint.success':
     'Runs a command on time; exit code 0 is success. Fires once when failing turns into success.',
   'trigger.checkHint.every':
-    'Runs a command on time and fires on exit code 0, with stdout as background.',
+    'Runs a command on time and fires on exit code 0, with stdout as background (only the ::trigger:: lines, if there are any).',
   'trigger.checkHint.change':
-    'Runs a command on time and fires when stdout differs from last time; the first check only records it.',
+    'Runs a command on time and fires when stdout differs from last time (only the ::trigger:: lines are compared, if there are any); the first check only records it.',
   'trigger.judge.example': 'Example',
   'trigger.judge.failed': 'Failed',
   'trigger.judge.fire': 'Fires',
@@ -1022,8 +1030,9 @@ export const en: Record<keyof typeof zh, string> = {
   'trigger.say.checkSuccess': 'it goes from failing to succeeding',
   'trigger.say.checkEvery': 'it succeeds',
   'trigger.say.checkChange': 'its output differs from the last check',
-  'trigger.say.listen': 'Keeps a program running and fires on every line it prints',
-  'trigger.say.listenNone': 'Write the command to keep running; it fires on every line it prints',
+  'trigger.say.listen': 'Keeps a program running and fires on every ::trigger:: line it prints',
+  'trigger.say.listenNone':
+    'Write the command to keep running; it fires on every ::trigger:: line it prints',
   'trigger.say.http':
     'Fires when another program sends a {method} request here; the body becomes background info',
   'trigger.say.after': 'Runs after {name} {result}',
@@ -1068,14 +1077,20 @@ export const en: Record<keyof typeof zh, string> = {
   'trigger.try.changeNote':
     'Once enabled, the first check only records the output and does not fire; later ones compare',
   'trigger.try.took': 'took {s} s',
-  'trigger.try.lines': '{n} lines in {s} s; once enabled, each line fires once',
+  'trigger.try.events': '{n} ::trigger:: lines in {s} s; once enabled, each one fires',
+  'trigger.try.noEvents': 'No line starting with ::trigger:: in {s} s; it would never fire',
+  'trigger.try.checkEvents': '{n} ::trigger:: lines are the background info',
+  'trigger.try.broken':
+    '{n} event line(s) are followed by what looks like the rest of the same event (highlighted): those lines have no ::trigger::, so they count only as log and are left out of the background info. Remove newlines from the content before printing it.',
   'trigger.try.exited': 'The program exited on its own; once enabled it restarts automatically',
   'trigger.try.failed': 'Failed',
   'trigger.try.noOutput': 'No output',
   'trigger.try.console': 'Output',
   'trigger.try.empty': 'Not tried yet',
   'trigger.try.emptyHint':
-    'Click “Try it” to run this command once in the chosen workspace and see its output. The trigger is not enabled and nothing is sent to the session.',
+    'Click “Try it” to run this command once in the chosen workspace and see its output. The trigger is not enabled and nothing is sent to the session. If the output has lines starting with ::trigger::, only those are the background info.',
+  'trigger.try.emptyHintListen':
+    'Click “Try it” to run this command for 5 s and see its output. The trigger is not enabled and nothing is sent to the session. Only lines starting with ::trigger:: fire; any other output is just log.',
   'trigger.outputStale': 'The command was edited here; recent output belongs to the saved command',
   'trigger.tpl.git': 'New commits on a Git remote',
   'trigger.tpl.gitDesc': 'Fires when the remote branch moves',
@@ -1086,16 +1101,17 @@ export const en: Record<keyof typeof zh, string> = {
   'trigger.tpl.port': 'A port opens',
   'trigger.tpl.portDesc': 'Fires when a port starts accepting connections',
   'trigger.tpl.watch': 'New files in a folder',
-  'trigger.tpl.watchDesc': 'Prints a line whenever a file is created or changed',
+  'trigger.tpl.watchDesc': 'Prints a ::trigger:: line whenever a file is created or changed',
   'trigger.tpl.tail': 'New lines in a log',
-  'trigger.tpl.tailDesc': 'Prints each line appended to a log file',
+  'trigger.tpl.tailDesc': 'Prints a ::trigger:: line for each line appended to a log file',
   'trigger.tpl.script': 'A script in the workflow',
   'trigger.tpl.scriptDesc':
     'Runs triggers/watch.mjs in the workflow folder (the model can write it)',
   // ── Listen: how it works ──────────────────────────────────
   // ── HTTP: examples, test request ──────────────────────────
   'trigger.listen.fire': 'Fires',
-  'trigger.listen.fireFact': 'Once for every line it prints, with that line as background info.',
+  'trigger.listen.fireFact':
+    'Once for every line it prints that starts with ::trigger::, with the rest of that line as background info; any other output is just log.',
   'trigger.listen.life': 'Runs',
   'trigger.listen.lifeFact':
     'Starts when enabled, stops when disabled, and restarts itself if it exits. The command must be confirmed before enabling, and again after it changes.',

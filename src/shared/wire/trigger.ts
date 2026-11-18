@@ -427,13 +427,22 @@ export interface TriggerTryRequest {
   shell?: string
 }
 
+/** 试运行打出的一行。 */
+export interface TryLine {
+  stream: 'out' | 'err'
+  text: string
+}
+
 export interface TriggerTryResponse {
-  /** 退出码；没跑起来、超时、监听到点被结束时是 `null`。 */
+  /** 退出码；没跑起来、超时、监视到点被结束时是 `null`。 */
   code: number | null
-  /** 标准输出与错误输出（只留最后一截）。 */
-  output: string
-  /** 监听：这几秒里打出的非空行数（每一行会触发一次）。 */
-  lines?: number
+  /** 两路输出的行（检查是标准输出在前、错误输出在后，监视按打出的先后；只留最后一截）。 */
+  lines: TryLine[]
+  /**
+   * 标准输出里 `::trigger::` 开头的行数（见 `shared/triggerMark.ts`）：监视的每一行启用后触发一次；
+   * 定时检查有它们时只有这几行是背景信息。
+   */
+  events: number
   /** 跑了多久（毫秒）。 */
   ms: number
   /** 监听：到点时程序还在跑，是试运行结束了它。 */

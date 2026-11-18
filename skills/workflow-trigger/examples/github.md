@@ -12,7 +12,12 @@ import { join } from 'node:path'
 
 const port = Number(process.argv[2] ?? 3801)
 const secret = readFileSync(join(process.env.TRIGGER_DATA_DIR ?? '.', 'github-secret.txt'), 'utf8').trim()
-const emit = (event) => process.stdout.write(`${JSON.stringify(event)}\n`)
+// text：一句话说清这件事，动态拿到的文字直接拼进来；data：要原样给出的字段（可选，跟在后面成一段 JSON）。
+// 换行一律换掉：一件事只能占一行，不然后面几截没带标记，只算日志。
+const emit = (text, data) => {
+  const line = data === undefined ? String(text) : `${text} ${JSON.stringify(data)}`
+  console.log(`::trigger:: ${line.replace(/\r?\n/g, ' ⏎ ')}`)
+}
 process.on('SIGTERM', () => process.exit(0))
 
 createServer((request, response) => {
@@ -28,17 +33,16 @@ createServer((request, response) => {
     const event = String(request.headers['x-github-event'] ?? '')
     const payload = JSON.parse(body.toString('utf8'))
     if (event === 'ping') return
-    emit({
+    const pr = payload.pull_request
+    emit(`${payload.repository?.full_name} 来了 ${event}${payload.action ? `（${payload.action}）` : ''}${pr ? `：#${pr.number} ${pr.title}` : ''}`, {
       event,
-      action: payload.action,
-      repo: payload.repository?.full_name,
       ref: payload.ref,
-      pr: payload.pull_request && { number: payload.pull_request.number, title: payload.pull_request.title, url: payload.pull_request.html_url },
+      url: pr?.html_url,
     })
   })
 }).listen(port, '0.0.0.0')
 ```
 
-- 过滤写 `filter.include: ["\"event\":\"pull_request\""]` 之类；GitHub.com 连不到本机时要用户配隧道。
+- 过滤写 `filter.include: ["来了 pull_request"]` 之类（按整行文字找）；GitHub.com 连不到本机时要用户配隧道。
 - 连不进来又想看新 PR：改用定时检查，`gh pr list --json number,title,updatedAt` 配 `when: "change"`。
 - 试：先用 `test_trigger` 带 `poke`，poke 写一条 `node` 命令按同样的密钥算出签名、往 `http://127.0.0.1:3801/` 发一段样例请求体。

@@ -11,7 +11,7 @@ sidebar:
 |---|---|---|
 | 定时 | 到点执行 | 本页 |
 | 定时 + 检查命令 | 到点先跑一条命令，按结果决定 | [定时检查](/dsh-workflow-lite/trigger/check/) |
-| 监视 | 常驻程序每打出一行 | [监视](/dsh-workflow-lite/trigger/listen/) |
+| 监视 | 常驻程序打出一行 `::trigger::` | [监视](/dsh-workflow-lite/trigger/listen/) |
 | HTTP | 别的程序发来请求 | [HTTP 触发](/dsh-workflow-lite/trigger/http/) |
 | 接续 | 另一个工作流跑完 | [接续触发](/dsh-workflow-lite/trigger/after/) |
 

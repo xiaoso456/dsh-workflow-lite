@@ -5,7 +5,9 @@
  * 不动开关、不记触发记录、不发进会话、不改真的检查结果；过滤按卡片上的关键字、去重、合并原样过一遍。
  *
  * - 定时：接下来几次的时刻；带检查命令的跑一次，按判定（对照真的上一次结果）和关键字说这次触不触发；
- * - 监听：跑几秒，可在启动后跑一条命令制造事件；收到的每一行过不过得了过滤、合并后算几次；提前退出的标出来；
+ *   背景信息按 `::trigger::` 的规矩取（见 `shared/triggerMark.ts`），用了标记的说清楚哪几行是背景信息；
+ * - 监视：跑几秒，可在启动后跑一条命令制造事件；`::trigger::` 开头的事件行各过不过得了过滤、合并后算几次，
+ *   别的行按日志列出来、说明不会触发；没制造事件就打出的事件（每次启动都会再打一遍）单独提醒；提前退出的标出来；
  * - HTTP：拿一段请求体过一遍过滤（不真的发请求）；
  * - 接续：等的那个工作流能不能等、它最近结束的几个实例各会不会触发。
  *
@@ -24,6 +26,13 @@ import {
   scheduleJudge,
   sourceText,
 } from '../../shared/trigger.ts'
+import {
+  brokenEvents,
+  checkInfo,
+  eventOf,
+  eventsOf,
+  TRIGGER_MARK,
+} from '../../shared/triggerMark.ts'
 import type { TriggerSource } from '../../shared/types.ts'
 import { afterInfo, type FinishedRun } from './after.ts'
 import type { TriggerDefinition } from './graphs.ts'
@@ -47,6 +56,8 @@ const UPCOMING = 5
 const OUTPUT_CHARS = 4000
 const LINE_CHARS = 300
 const LINES_MAX = 50
+/** 日志列几行。 */
+const LOGS_MAX = 10
 /** 接续看等的那个工作流最近几个结束的实例。 */
 const AFTER_RUNS = 5
 
@@ -74,7 +85,7 @@ export interface CardTestInput {
   options: CardTestOptions
 }
 
-/** 一行收到的输出过过滤的结果。 */
+/** 一行事件过过滤的结果。 */
 export type LineResult = 'pass' | 'duplicate' | `keyword: ${string}`
 
 export interface CardTestResult {
@@ -88,7 +99,7 @@ export interface CardTestResult {
   run?: {
     code: number | null
     ms: number
-    /** 检查命令的标准输出（就是背景信息）；监听的看 `lines`。 */
+    /** 检查命令的标准输出；监视的看 `events`、`logs`。 */
     stdout?: string
     stderr: string
     failure?: string
@@ -97,9 +108,13 @@ export interface CardTestResult {
   }
   /** 监听：制造事件的那条命令跑得怎样。 */
   poke?: { code: number | null; output: string; failure?: string }
-  /** 监听：收到的每一行（`at` 是启动后多少毫秒）和过滤结果。 */
-  lines?: { at: number; text: string; result: LineResult }[]
-  /** 监听：合并之后算几次触发。 */
+  /** 检查：真打开后交出去的背景信息（有 `::trigger::` 行时只是这几行）。 */
+  info?: string
+  /** 监视：收到的每一行事件（`at` 是启动后多少毫秒，`text` 是标记后面的背景信息）和过滤结果。 */
+  events?: { at: number; text: string; result: LineResult }[]
+  /** 监视：标准输出里不是事件的行（日志，不触发）：一共几行，列出前几行。 */
+  logs?: { count: number; first: { at: number; text: string }[] }
+  /** 监视：合并之后算几次触发。 */
   fires?: number
   /** 接续：等的那个工作流最近结束的实例各会不会触发。 */
   runs?: { id: string; status: string; at: number; fires: boolean }[]
@@ -178,19 +193,30 @@ async function testCheck(input: CardTestInput, source: ScheduleSource): Promise<
     }
   }
   const when = scheduleJudge(source)
-  const judged = judge(when === 'always' ? 'every' : when, input.probe ?? {}, result)
+  const info = checkInfo(result.output)
+  const judged = judge(when === 'always' ? 'every' : when, input.probe ?? {}, {
+    ...result,
+    output: info,
+  })
+  const marked = [markNote(result.output), ...brokenNote(result.output.split(/\r?\n/u))]
   if (result.code !== 0) {
     return {
       verdict: 'skip',
       summary: `命令返回 ${String(result.code)}：条件不满足，这次不触发（不算失败）。`,
       next,
       run,
+      notes: marked,
     }
   }
-  const info = result.output.trim()
   const filter = filterOf(input.trigger.data)
   const blocked = filterMiss(filter, info)
-  const base = { next, run, ...(blocked === null ? preview(input, 'schedule', info) : {}) }
+  const base = {
+    next,
+    run,
+    info: clip(info, OUTPUT_CHARS),
+    notes: marked,
+    ...(blocked === null ? preview(input, 'schedule', info) : {}),
+  }
   if (blocked !== null) {
     return { ...base, verdict: 'skip', summary: `命令成功，但输出被过滤挡掉：${blocked}。` }
   }
@@ -281,8 +307,15 @@ async function testListen(input: CardTestInput): Promise<CardTestResult> {
     }, seconds * 1000)
   })
   const filter = filterOf(input.trigger.data)
-  const lines = judgeLines(filter, received)
-  const batches = mergeLines(filter, received)
+  const events: { at: number; text: string }[] = []
+  const logs: { at: number; text: string }[] = []
+  for (const line of received) {
+    const info = eventOf(line.text)
+    if (info === null) logs.push(line)
+    else events.push({ at: line.at, text: info })
+  }
+  const judged = judgeLines(filter, events)
+  const batches = mergeLines(filter, events)
   const run = {
     code: ran.code,
     ms: Date.now() - started,
@@ -290,17 +323,36 @@ async function testListen(input: CardTestInput): Promise<CardTestResult> {
     ...(ran.failure === undefined ? {} : { failure: ran.failure }),
     ...(ran.exited ? { exited: true } : {}),
   }
+  const notes = [
+    ...(judged.length > LINES_MAX
+      ? [`共收到 ${String(judged.length)} 行事件，只列前 ${String(LINES_MAX)} 行。`]
+      : []),
+    ...earlyNote(events, input.options.poke),
+    ...brokenNote(received.map((line) => line.text)),
+  ]
   const first = batches[0]
   const base: Omit<CardTestResult, 'verdict' | 'summary'> = {
     run,
     ...(ran.poke === undefined ? {} : { poke: ran.poke }),
-    lines: lines.slice(0, LINES_MAX),
+    events: judged.slice(0, LINES_MAX),
+    ...(logs.length === 0
+      ? {}
+      : {
+          logs: {
+            count: logs.length,
+            first: logs
+              .slice(0, LOGS_MAX)
+              .map(({ at, text }) => ({ at, text: clip(text, LINE_CHARS) })),
+          },
+        }),
     fires: batches.length,
     ...(first === undefined ? {} : preview(input, 'listen', first.info, first.count)),
-    ...(lines.length > LINES_MAX
-      ? { notes: [`共收到 ${String(lines.length)} 行，只列前 ${String(LINES_MAX)} 行。`] }
-      : {}),
+    ...(notes.length === 0 ? {} : { notes }),
   }
+  const logged =
+    logs.length === 0
+      ? ''
+      : `另有 ${String(logs.length)} 行不是 ${TRIGGER_MARK} 开头，按日志处理、不触发。`
   if (ran.exited) {
     const why = ran.failure ?? `退出码 ${String(ran.code)}`
     return {
@@ -309,25 +361,55 @@ async function testListen(input: CardTestInput): Promise<CardTestResult> {
       summary: `程序 ${secondsOf(run.ms)} 秒就自己退出了（${why}）。监视程序要一直运行；真打开后启动 ${String(HEALTHY_MS / 1000)} 秒内退出算一次失败。`,
     }
   }
-  if (received.length === 0) {
+  if (events.length === 0) {
+    const hint =
+      input.options.poke === undefined
+        ? '可以带 poke 在运行中制造一次事件。'
+        : '看看 poke 有没有真的制造出事件、脚本有没有及时刷新输出。'
     return {
       ...base,
       verdict: 'skip',
-      summary: `${String(seconds)} 秒里标准输出没有打出一行。${input.options.poke === undefined ? '可以带 poke 在运行中制造一次事件。' : '看看 poke 有没有真的制造出事件、脚本有没有及时刷新输出。'}`,
+      summary:
+        logs.length === 0
+          ? `${String(seconds)} 秒里标准输出什么都没打。${hint}`
+          : `${String(seconds)} 秒里标准输出打了 ${String(logs.length)} 行，但没有一行以 ${TRIGGER_MARK} 开头：只有 ${TRIGGER_MARK} 开头的行会触发，其余都是日志。要触发的那一行写成「${TRIGGER_MARK} {...}」。${hint}`,
     }
   }
   if (batches.length === 0) {
     return {
       ...base,
       verdict: 'skip',
-      summary: `收到 ${String(received.length)} 行，都被过滤挡掉了。`,
+      summary: `收到 ${String(events.length)} 行事件，都被过滤挡掉了。${logged}`,
     }
   }
   return {
     ...base,
     verdict: 'fire',
-    summary: `收到 ${String(received.length)} 行，过滤、合并之后会触发 ${String(batches.length)} 次。`,
+    summary: `收到 ${String(events.length)} 行事件（${TRIGGER_MARK} 开头），过滤、合并之后会触发 ${String(batches.length)} 次。${logged}`,
   }
+}
+
+/**
+ * 还没制造事件就打出的事件：真打开后每次启动（DSH 重启、程序退出后重启、改了设置）都会再打一遍、再触发一遍。
+ * 带了 poke 时说 poke 之前的；没带时这些都是程序一启动自己打的。
+ */
+function earlyNote(events: readonly { at: number }[], poke: string | undefined): string[] {
+  const poked = poke !== undefined && poke.trim() !== ''
+  const early = poked ? events.filter((event) => event.at < POKE_DELAY_MS).length : events.length
+  if (early === 0) return []
+  const when = poked ? '还没 poke 就' : '没制造事件，程序一启动就'
+  return [
+    `${when}打出了 ${String(early)} 行事件：真打开后每次启动（DSH 重启、程序重启、改了设置）都会再触发一遍。启动时只该记下现状、打日志；确实要这样的话不用改。`,
+  ]
+}
+
+/** 被换行断开的事件（见 `brokenEvents`）：后面几截只算日志，背景信息缺了一块还不报错。 */
+function brokenNote(lines: readonly string[]): string[] {
+  const broken = brokenEvents(lines)
+  if (broken === null) return []
+  return [
+    `有 ${String(broken.count)} 行事件后面紧跟着像是同一件事的下一截（如「${clip(broken.sample, 80)}」）：那几行没带 ${TRIGGER_MARK}，只算日志、不进背景信息。拼进事件的内容先去掉换行（如 text.replace(/\\r?\\n/g, ' ⏎ ')），或整个用 JSON.stringify。`,
+  ]
 }
 
 function clampSeconds(value: number | undefined): number {
@@ -335,11 +417,11 @@ function clampSeconds(value: number | undefined): number {
   return Math.min(Math.max(Math.round(value), 1), LISTEN_TEST_MAX)
 }
 
-/** 每一行过关键字、去重的结果（试运行只有几十秒，去重时长内见过的就是重复）。 */
+/** 每一行事件过关键字、去重的结果（试运行只有几十秒，去重时长内见过的就是重复）。 */
 function judgeLines(
   filter: FilterSettings,
   received: readonly { at: number; text: string }[],
-): NonNullable<CardTestResult['lines']> {
+): NonNullable<CardTestResult['events']> {
   const seen = new Set<string>()
   return received.map(({ at, text }) => {
     const trimmed = text.trim()
@@ -352,7 +434,7 @@ function judgeLines(
   })
 }
 
-/** 按收到的先后把这些行喂给真的过滤（时钟换成假的），看合并之后交出去几次。 */
+/** 按收到的先后把这些事件喂给真的过滤（时钟换成假的），看合并之后交出去几次。 */
 function mergeLines(
   filter: FilterSettings,
   received: readonly { at: number; text: string }[],
@@ -447,6 +529,17 @@ function testAfter(
 }
 
 // ── 共用 ───────────────────────────────────────────────────────
+
+/** 检查命令的输出里有没有用 `::trigger::`：用了的说哪几行是背景信息，没用的说整段都是。 */
+function markNote(output: string): string {
+  const events = eventsOf(output).length
+  if (events === 0) {
+    return `标准输出里没有 ${TRIGGER_MARK} 开头的行：整段标准输出都是背景信息、拿来比较。要在输出里打日志，就把交出去的那几行写成「${TRIGGER_MARK} 内容」。`
+  }
+  const total = output.split(/\r?\n/u).filter((line) => line.trim() !== '').length
+  const rest = total > events ? `；另外 ${String(total - events)} 行是日志` : ''
+  return `标准输出里有 ${String(events)} 行 ${TRIGGER_MARK}：只有它们（去掉标记）是背景信息、拿来比较${rest}。`
+}
 
 /** 关键字（以及有关键字时的空内容）挡不挡；不挡是 `null`。 */
 function filterMiss(filter: FilterSettings, text: string): string | null {

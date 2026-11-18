@@ -8,7 +8,8 @@
  * @module @xiaoso/dsh-workflow-lite/host/triggers/trial
  */
 
-import type { TriggerPingResponse, TriggerTryResponse } from '../../shared/wire/trigger.ts'
+import { eventOf } from '../../shared/triggerMark.ts'
+import type { TriggerPingResponse, TriggerTryResponse, TryLine } from '../../shared/wire/trigger.ts'
 import { type CommandSpec, runCommand, startProcess } from './processes.ts'
 
 /** 检查的试运行最长等多久。 */
@@ -24,7 +25,29 @@ const PING_TEXT_CHARS = 500
 /** 测试请求带的正文：收到的会话里看得出这是一条测试。 */
 export const PING_BODY = '{"test":true,"from":"workflow-lite"}'
 
-const tail = (text: string): string => text.slice(-TRIAL_OUTPUT_CHARS)
+/** 只留最后 {@link TRIAL_OUTPUT_CHARS} 个字以内的行。 */
+function tail(lines: readonly TryLine[]): TryLine[] {
+  let size = 0
+  let from = lines.length
+  while (from > 0) {
+    const next = (lines[from - 1]?.text.length ?? 0) + 1
+    if (size + next > TRIAL_OUTPUT_CHARS) break
+    size += next
+    from -= 1
+  }
+  return lines.slice(from)
+}
+
+/** 一段输出切成行（去掉末尾那个空行）。 */
+function split(text: string, stream: TryLine['stream']): TryLine[] {
+  const lines = text.replace(/\r?\n$/u, '').split(/\r?\n/u)
+  return text === '' ? [] : lines.map((line) => ({ stream, text: line }))
+}
+
+/** 标准输出里有几行事件。 */
+function eventCount(lines: readonly TryLine[]): number {
+  return lines.filter((line) => line.stream === 'out' && eventOf(line.text) !== null).length
+}
 
 /** 定时检查：跑一次、等它结束。 */
 export async function tryCheck(
@@ -33,34 +56,35 @@ export async function tryCheck(
 ): Promise<TriggerTryResponse> {
   const started = Date.now()
   const result = await runCommand(spec, { timeoutMs, maxBytes: TRIAL_OUTPUT_CHARS * 4 })
-  const output = [result.output.trim(), result.errors].filter((part) => part !== '').join('\n')
+  const lines = [...split(result.output, 'out'), ...split(result.errors, 'err')]
   return {
     code: result.code,
-    output: tail(output),
+    lines: tail(lines),
+    events: eventCount(lines),
     ms: Date.now() - started,
     ...(result.failure === undefined ? {} : { failure: result.failure }),
   }
 }
 
-/** 监听：跑 `ms` 毫秒，收下这段时间打出的行；先退出了就记下退出码。 */
+/** 监视：跑 `ms` 毫秒，收下这段时间打出的行、数出几行事件；先退出了就记下退出码。 */
 export function tryListen(spec: CommandSpec, ms = TRIAL_LISTEN_MS): Promise<TriggerTryResponse> {
   const started = Date.now()
   return new Promise((resolve) => {
-    let output = ''
-    let lines = 0
+    let lines: TryLine[] = []
+    let events = 0
     let done = false
-    const finish = (result: Omit<TriggerTryResponse, 'output' | 'lines' | 'ms'>): void => {
+    const finish = (result: Omit<TriggerTryResponse, 'lines' | 'events' | 'ms'>): void => {
       if (done) return
       done = true
       clearTimeout(timer)
-      resolve({ ...result, output: tail(output).trim(), lines, ms: Date.now() - started })
+      resolve({ ...result, lines, events, ms: Date.now() - started })
     }
     const live = startProcess(spec, {
-      onLine: () => {
-        lines += 1
+      onLine: (line) => {
+        if (eventOf(line) !== null) events += 1
       },
-      onOutput: (line) => {
-        output = tail(`${output}${line}\n`)
+      onOutput: (line, stream) => {
+        lines = tail([...lines, { stream, text: line }])
       },
       onExit: (info) => {
         finish({

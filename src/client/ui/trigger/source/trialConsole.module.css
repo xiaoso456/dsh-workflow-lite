@@ -171,6 +171,45 @@
   animation: pageIn 180ms linear backwards;
 }
 
+.line {
+  display: block;
+}
+
+/* 错误输出淡一档；事件行的 ::trigger:: 小签见 EventText。 */
+.line[data-s="err"] {
+  color: var(--wl-text-3);
+}
+
+/* 一件事被换行断开时，输出上面的提醒：没带标记的那几截标黄（.cut）。 */
+.warn {
+  display: flex;
+  flex: none;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--wl-line);
+  background: color-mix(in oklab, var(--wl-warn) 10%, transparent);
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-meta);
+  line-height: 1.5;
+  animation: pageIn 180ms linear backwards;
+}
+
+.warn > svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--wl-warn);
+}
+
+/* 通栏的一条：左边一道黄线 + 淡黄底，字和别的行对齐（2 + 10 = 输出框的 12 内边距）。 */
+.cut {
+  margin-inline: -12px;
+  padding-inline: 10px 12px;
+  border-left: 2px solid var(--wl-warn);
+  background: color-mix(in oklab, var(--wl-warn) 14%, transparent);
+}
+
 .output[data-tone="bad"] {
   color: var(--wl-danger);
 }
@@ -183,6 +222,7 @@
   .page,
   .summary,
   .empty,
+  .warn,
   .output {
     animation: none;
   }
@@ -193,6 +233,10 @@
 }
 
 :global([data-look="swiss"]) .bar {
+  border-bottom-color: var(--wl-line-strong);
+}
+
+:global([data-look="swiss"]) .warn {
   border-bottom-color: var(--wl-line-strong);
 }
 

@@ -235,9 +235,9 @@ export class TriggerRuntime implements LiveRuntime {
       return { signature, intake, stop: async () => poller.stop() }
     }
     const listener = new Listener(command, {
-      line: (line) => {
-        intake.push(line)
-        this.noteLine(key, line)
+      event: (info) => {
+        intake.push(info)
+        this.noteLine(key, info)
       },
       output: (line, stream) => this.queueLine(key, { at: this.now(), stream, text: line }),
       running: ({ since, restarts }) => {

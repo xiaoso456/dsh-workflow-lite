@@ -2,7 +2,9 @@
  * dsh-workflow-lite — 命令工作台的下半：输出台。顶上两个页签「试运行 / 最近的输出」，右边是试运行的小结
  * （退出码、满足没有、用时）；下面是选中那一页的输出，多了在框里滚。
  *
- * - 试运行：没跑过时说点「试运行」会怎样；跑着时一个转圈；跑完是输出（请求本身失败时是原因）。
+ * - 试运行：没跑过时说点「试运行」会怎样、哪几行会触发；跑着时一个转圈；跑完是输出（请求本身失败时是原因），
+ *   标准输出里 `::trigger::` 开头的行标出来（监视的这种行启用后每行触发一次，检查有它们时只有它们是背景信息）；
+ *   一件事被换行断开时（`model/trialLines.ts`），输出上面一条提醒，没带标记的那几截标黄。
  * - 最近的输出：保存着的那条命令跑出来的；草稿里改过命令（或换了方式）时这一页点不动，悬停说为什么。
  *
  * 两页都挂着、只切 `hidden`：切页签不重挂「最近的输出」（它挂上就读一次）；露出来的那一页淡入。
@@ -12,7 +14,9 @@
 
 import type { TriggerTryResponse } from '../../../../shared/wire/trigger.ts'
 import type { T } from '../../../i18n.ts'
+import { brokenLines } from '../../../model/trialLines.ts'
 import { Icon } from '../../kit/Icon.tsx'
+import { EventText } from '../output/EventText.tsx'
 import { RecentOutput } from '../RecentOutput.tsx'
 import type { TriggerEnv } from '../triggerEnv.ts'
 import { BenchTabs } from './Bench.tsx'
@@ -66,7 +70,7 @@ export function TrialConsole(props: {
         )}
       </div>
       <div className={css.page} role="tabpanel" hidden={tab !== 'try'}>
-        <TrialBody t={t} trial={trial} />
+        <TrialBody t={t} kind={props.kind} trial={trial} />
       </div>
       {props.recent && (
         <div
@@ -140,33 +144,40 @@ function verdictOf(
     }
   }
   if (kind === 'listen') {
+    const events = result.events > 0
     return {
-      tone: 'ok',
-      badge: t('trigger.try.lines')
-        .replace('{n}', String(result.lines ?? 0))
+      tone: events ? 'ok' : 'off',
+      badge: t(events ? 'trigger.try.events' : 'trigger.try.noEvents')
+        .replace('{n}', String(result.events))
         .replace('{s}', seconds),
       text: result.stopped === true ? '' : t('trigger.try.exited'),
     }
   }
   const judged = judge?.(result)
+  const marked =
+    result.events > 0
+      ? t('trigger.try.checkEvents').replace('{n}', String(result.events))
+      : undefined
   return {
     tone: judged?.tone ?? 'ok',
     badge: t('trigger.try.code').replace('{code}', String(result.code)),
-    text: [judged?.text, t('trigger.try.took').replace('{s}', seconds)]
+    text: [judged?.text, marked, t('trigger.try.took').replace('{s}', seconds)]
       .filter((part) => part !== undefined && part !== '')
       .join(' · '),
   }
 }
 
 /** 试运行这一页的内容：说明、转圈、输出、或请求失败的原因。 */
-function TrialBody(props: { t: T; trial: Trial }): React.JSX.Element {
+function TrialBody(props: { t: T; kind: 'check' | 'listen'; trial: Trial }): React.JSX.Element {
   const { t, trial } = props
   if (trial.kind === 'idle') {
     return (
       <div className={css.empty}>
         <Icon name="terminal" size={20} />
         <span className={css.emptyTitle}>{t('trigger.try.empty')}</span>
-        <span>{t('trigger.try.emptyHint')}</span>
+        <span>
+          {t(props.kind === 'listen' ? 'trigger.try.emptyHintListen' : 'trigger.try.emptyHint')}
+        </span>
       </div>
     )
   }
@@ -185,9 +196,35 @@ function TrialBody(props: { t: T; trial: Trial }): React.JSX.Element {
       </pre>
     )
   }
+  const { lines } = trial.result
+  if (lines.length === 0) {
+    return (
+      <pre className={css.output} data-empty="true" data-testid="wl-trigger-try-output">
+        {t('trigger.try.noOutput')}
+      </pre>
+    )
+  }
+  const broken = brokenLines(lines)
   return (
-    <pre className={css.output} data-testid="wl-trigger-try-output">
-      {trial.result.output === '' ? t('trigger.try.noOutput') : trial.result.output}
-    </pre>
+    <>
+      {broken !== null && (
+        <p className={css.warn} role="note" data-testid="wl-trigger-try-broken">
+          <Icon name="alert" size={13} />
+          <span>{t('trigger.try.broken').replace('{n}', String(broken.count))}</span>
+        </p>
+      )}
+      <pre className={css.output} data-testid="wl-trigger-try-output">
+        {lines.map((line, index) => (
+          <EventText
+            // biome-ignore lint/suspicious/noArrayIndexKey: 一次试运行的结果，跑完不再变
+            key={index}
+            t={t}
+            stream={line.stream}
+            text={line.text}
+            className={broken?.cut.has(index) === true ? `${css.line} ${css.cut}` : css.line}
+          />
+        ))}
+      </pre>
+    </>
   )
 }
