@@ -40,6 +40,7 @@ import { cx } from '../../kit/cx.ts'
 import { Icon, type IconName } from '../../kit/Icon.tsx'
 import { Skeleton } from '../../kit/Skeleton.tsx'
 import ui from '../../kit/ui.module.css'
+import { usePaneTransition } from '../../motion/paneTransition.ts'
 import { HubSearch } from '../HubSearch.tsx'
 import hub from '../hub.module.css'
 import { GroupedList, type GroupFace, groupDot } from '../list/GroupedList.tsx'
@@ -135,6 +136,7 @@ export function HubRuns(props: {
   /** 点过的实例；没点过 = 排在最前的那个。 */
   const [picked, setPicked] = useState<string | null>(null)
   const [tab, setTab] = useState<RunTab>('overview')
+  const detailMotion = usePaneTransition()
 
   // `runs` 每次重绘都是新对象：放进 ref，免得 load 跟着变、effect 跟着重跑。
   const runsRef = useRef(props.runs)
@@ -324,7 +326,9 @@ export function HubRuns(props: {
               selected={at.selected}
               note={noteOf(item)}
               sortedByTime={view.sort !== 'name'}
-              onPick={() => setPicked(item.id)}
+              onPick={() =>
+                detailMotion.change(() => setPicked(item.id), item.id === selected?.id ? null : 0)
+              }
             />
           )}
         />
@@ -341,6 +345,7 @@ export function HubRuns(props: {
         </Empty>
       ) : (
         <RunDetail
+          detailRef={detailMotion.scope}
           t={t}
           rpc={props.rpc}
           item={selected}

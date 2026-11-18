@@ -44,15 +44,14 @@ export function OverviewPane(props: {
   onPick(record: FireRecord): void
   onTab(tab: DetailTab): void
   onOpenRun(instance: string): void
-}): React.JSX.Element | null {
+}): React.JSX.Element {
   const { t, entry } = props
   const { view } = entry
   const { activity } = props
-  if (props.fires === null || activity === null) return null
   // 「最近」只列有了结果的；排着的在头部状态条和时间线里看。
-  const fires = settledFires(props.fires)
+  const fires = settledFires(props.fires ?? [])
   const now = Date.now()
-  const tally = tallyActivity(activity, now)
+  const tally = tallyActivity(activity ?? [], now)
   const live = view.state === 'waiting' && !props.paused
   const planned = live ? plannedHours(entry.data.source, now, view.next) : []
   const hourNow = new Date(now).getHours()
@@ -68,12 +67,28 @@ export function OverviewPane(props: {
           )
 
   return (
-    <div className={css.overview} data-testid="wl-hub-trg-overview">
+    <div
+      className={css.overview}
+      data-testid="wl-hub-trg-overview"
+      aria-busy={activity === null || props.fires === null || undefined}
+    >
       <section className={css.stats}>
-        <Stat label={t('hub.trgStatTotal')} value={tally.total} />
-        <Stat label={t('trigger.outcome.sent')} value={tally.counts.sent} tone="sent" />
-        <Stat label={t('trigger.outcome.skipped')} value={tally.counts.skipped} tone="skipped" />
-        <Stat label={t('trigger.outcome.failed')} value={tally.counts.failed} tone="failed" />
+        <Stat label={t('hub.trgStatTotal')} value={activity === null ? null : tally.total} />
+        <Stat
+          label={t('trigger.outcome.sent')}
+          value={activity === null ? null : tally.counts.sent}
+          tone="sent"
+        />
+        <Stat
+          label={t('trigger.outcome.skipped')}
+          value={activity === null ? null : tally.counts.skipped}
+          tone="skipped"
+        />
+        <Stat
+          label={t('trigger.outcome.failed')}
+          value={activity === null ? null : tally.counts.failed}
+          tone="failed"
+        />
       </section>
 
       <section className={css.section}>
@@ -103,6 +118,8 @@ export function OverviewPane(props: {
                     className={css.cell}
                     data-night={isNight(hour) || undefined}
                     data-now={(index === today && hour === hourNow) || undefined}
+                    data-outcome={cell?.outcome ?? (plan ? 'plan' : undefined)}
+                    data-many={(cell?.count ?? 0) > 1 || undefined}
                     data-tip={
                       cell === null
                         ? undefined
@@ -111,16 +128,7 @@ export function OverviewPane(props: {
                             .replace('{hour}', String(hour).padStart(2, '0'))
                             .replace('{n}', String(cell.count))
                     }
-                  >
-                    {cell !== null && (
-                      <b
-                        className={css.mark}
-                        data-outcome={cell.outcome}
-                        data-many={cell.count > 1 || undefined}
-                      />
-                    )}
-                    {plan && <b className={css.mark} data-outcome="plan" />}
-                  </span>
+                  />
                 )
               }),
             ]
@@ -157,7 +165,11 @@ export function OverviewPane(props: {
           )}
         </div>
         <ul className={css.recent}>
-          {fires.length === 0 && <li className={css.none}>{t('trigger.historyEmpty')}</li>}
+          {fires.length === 0 && (
+            <li className={css.none}>
+              {t(props.fires === null ? 'hub.loading' : 'trigger.historyEmpty')}
+            </li>
+          )}
           {fires.slice(0, RECENT).map((record) => (
             <FireRow
               key={record.id}
@@ -177,12 +189,12 @@ export function OverviewPane(props: {
 
 function Stat(props: {
   label: string
-  value: number
+  value: number | null
   tone?: 'sent' | 'skipped' | 'failed'
 }): React.JSX.Element {
   return (
     <div className={css.stat} data-outcome={props.tone} data-zero={props.value === 0 || undefined}>
-      <span className={css.statValue}>{props.value}</span>
+      <span className={css.statValue}>{props.value ?? '—'}</span>
       <span className={css.statLabel}>{props.label}</span>
     </div>
   )

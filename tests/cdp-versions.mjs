@@ -233,9 +233,20 @@ async function run(session) {
     ),
     '列表里应写着 1 个版本',
   )
+  const workflowTitle = '[data-testid="wl-hub-wf-title"]'
+  await session.evaluate(
+    `void (window.workflowHeadBeforePick = document.querySelector('${workflowTitle}').closest('div'))`,
+  )
   await session.evaluate(`document.querySelector(${JSON.stringify(otherSel)}).click()`)
   // 「打开」正开着的那张也有，按标题认选中了哪张。
   await waitFor(session, `${textOf('wl-hub-wf-title')} === ${JSON.stringify(OTHER)}`)
+  check(
+    await session.evaluate(
+      `window.workflowHeadBeforePick === document.querySelector('${workflowTitle}').closest('div')`,
+    ),
+    '换工作流时复用右栏表头',
+  )
+  await session.evaluate('delete window.workflowHeadBeforePick')
   await waitFor(session, `${textOf('wl-ver-state')}.includes('还没存成版本')`)
   await setReactInput(session, '[data-testid="wl-ver-note"]', '另一张的起点')
   await session.evaluate(clickTestId('wl-ver-save'))

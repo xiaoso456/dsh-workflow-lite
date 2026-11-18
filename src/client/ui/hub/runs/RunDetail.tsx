@@ -6,12 +6,12 @@
  * - 「概览」里点一步、时间线里点一行：选中那一步、到「画布」页签。「画布」里「在画布上看这一步」打开实例并选中它。
  * - 时间线里点一条触发看它的详情（`FireDialog`，不放「看这次执行」——已经在看了）。
  *
- * 实例本身和记到它上面的触发由 {@link useHubRun} 读；还没读到时概览、画布、时间线是空的，「信息」照常。
+ * 实例本身和记到它上面的触发由 {@link useHubRun} 读；还没读到时显示占位，「信息」照常。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/runs/RunDetail
  */
 
-import { useCallback, useMemo, useState } from 'react'
+import { type RefObject, useCallback, useLayoutEffect, useMemo, useState } from 'react'
 import { runCursor } from '../../../../shared/runCursor.ts'
 import type { InstanceSummary, RunStatus } from '../../../../shared/runState.ts'
 import type { FireRecord } from '../../../../shared/wire/trigger.ts'
@@ -19,7 +19,10 @@ import { useHubRun } from '../../../app/useHubRun.ts'
 import type { T } from '../../../i18n.ts'
 import { keyStep, stepLines } from '../../../model/runSteps.ts'
 import type { WorkflowLiteRpc } from '../../../rpc.ts'
-import { useSwap } from '../../motion/swap.tsx'
+import { cx } from '../../kit/cx.ts'
+import { Skeleton } from '../../kit/Skeleton.tsx'
+import motion from '../../motion/paneTransition.module.css'
+import { tabDirection, usePaneTransition } from '../../motion/paneTransition.ts'
 import { FireDialog } from '../../trigger/dialogs/FireDialog.tsx'
 import css from '../pane/detail.module.css'
 import { PaneTabs } from '../pane/PaneTabs.tsx'
@@ -34,6 +37,7 @@ export type RunTab = 'overview' | 'canvas' | 'timeline' | 'info'
 export const RUN_TABS: readonly RunTab[] = ['overview', 'canvas', 'timeline', 'info']
 
 export function RunDetail(props: {
+  detailRef: RefObject<HTMLDivElement>
   t: T
   rpc: WorkflowLiteRpc
   item: InstanceSummary
@@ -61,18 +65,25 @@ export function RunDetail(props: {
   const [picked, setPicked] = useState<{ id: string; step: string } | null>(null)
   const focus = picked?.id === item.id ? picked.step : at
   const [fire, setFire] = useState<FireRecord | null>(null)
-  const { onTab } = props
-  const toStep = useCallback(
-    (step: string): void => {
-      setPicked({ id: item.id, step })
-      onTab('canvas')
-    },
-    [item.id, onTab],
-  )
+  const paneMotion = usePaneTransition()
+  const scroll = paneMotion.scope
+  useLayoutEffect(() => {
+    if (scroll.current !== null) scroll.current.scrollTop = 0
+  }, [item.id, tab, scroll])
+  const turn = (next: RunTab): void => {
+    paneMotion.change(() => props.onTab(next), tabDirection(RUN_TABS, tab, next))
+  }
+  const toStep = (step: string): void => {
+    paneMotion.change(
+      () => {
+        setPicked({ id: item.id, step })
+        props.onTab('canvas')
+      },
+      tabDirection(RUN_TABS, tab, 'canvas'),
+    )
+  }
   const detail = useCallback((id: string) => rpc.call('trigger/detail', { fire: id }), [rpc])
 
-  // 换实例：同一个横坐标（0），原地交叉淡；换页签：第几个面，按前后从那一侧进来。
-  const swap = useSwap<HTMLDivElement>(item.id, 0, RUN_TABS.indexOf(tab))
   const events = (view?.state?.log.length ?? 0) + fires.length
 
   const pane = ((): React.ReactNode => {
@@ -90,7 +101,7 @@ export function RunDetail(props: {
         />
       )
     }
-    if (view === null || steps === null) return null
+    if (view === null || steps === null) return <Skeleton label={t('hub.loading')} shape="form" />
     switch (tab) {
       case 'overview':
         return (
@@ -106,6 +117,7 @@ export function RunDetail(props: {
       case 'canvas':
         return (
           <CanvasTab
+            key={item.id}
             t={t}
             view={view}
             steps={steps}
@@ -120,8 +132,13 @@ export function RunDetail(props: {
   })()
 
   return (
-    <div className={css.detail} data-testid="wl-hub-run-detail" data-id={item.id}>
-      <div ref={swap} className={css.body}>
+    <div
+      ref={props.detailRef}
+      className={cx(css.detail, motion.scope)}
+      data-testid="wl-hub-run-detail"
+      data-id={item.id}
+    >
+      <div className={css.body}>
         <header className={css.top}>
           <RunHead
             t={t}
@@ -138,7 +155,7 @@ export function RunDetail(props: {
             label={t('hub.runTabs')}
             testId="wl-hub-run-tab"
             value={tab}
-            onChange={props.onTab}
+            onChange={turn}
             tabs={RUN_TABS.map((id) => ({
               id,
               label: t(`hub.runTab.${id}`),
@@ -146,10 +163,9 @@ export function RunDetail(props: {
             }))}
           />
         </header>
-        {/* 换实例、换页签都重新挂一块：滚动位置从顶上开始。 */}
         <div
-          key={`${item.id}|${tab}`}
-          className={tabs.pane}
+          ref={scroll}
+          className={cx(tabs.pane, motion.scope)}
           role="tabpanel"
           data-fill={tab === 'timeline' && events > 0}
           data-testid={`wl-hub-run-pane-${tab}`}

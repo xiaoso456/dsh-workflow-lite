@@ -1300,8 +1300,37 @@ try {
     JSON.stringify(rowsHub),
   )
   const hookRow = `[data-testid="wl-hub-trg"][data-value="${NAME2}/hook"]`
+  const hubDetail = '[data-testid="wl-hub-trg-detail"]'
+  const overview = `${hubDetail} [role="tabpanel"]`
+  const rhythm = '[data-testid="wl-hub-trg-rhythm"]'
+  await session.evaluate(
+    `document.querySelector('[data-testid="wl-hub-trg"][data-value="${NAME}/nightly"]').click()`,
+  )
+  await waitFor(
+    session,
+    `document.querySelector('${hookRow}').getAttribute('aria-current') !== 'true'`,
+  )
+  await waitFor(session, has('wl-hub-trg-rhythm'))
+  await session.evaluate(
+    `void (window.hubOverviewBeforePick = document.querySelector('${overview}')); void (window.hubRhythmBeforePick = document.querySelector('${rhythm}'))`,
+  )
   await session.evaluate(`document.querySelector('${hookRow}').click()`)
+  await waitFor(
+    session,
+    `document.querySelector('${hookRow}').getAttribute('aria-current') === 'true'`,
+  )
+  check(
+    '换触发器时复用右栏的滚动区域，不插入旧面板副本',
+    await session.evaluate(
+      `window.hubOverviewBeforePick === document.querySelector('${overview}') && !document.querySelector('${hubDetail} > [inert][aria-hidden="true"]')`,
+    ),
+  )
   await sleep(800)
+  check(
+    '换触发器期间不卸载节律网格',
+    await session.evaluate(`window.hubRhythmBeforePick === document.querySelector('${rhythm}')`),
+  )
+  await session.evaluate('delete window.hubRhythmBeforePick')
   check(
     '右栏先是「概览」，能立即触发一次',
     (await session.evaluate(has('wl-hub-trg-overview'))) &&
@@ -1311,6 +1340,13 @@ try {
   // 「设置」页：和面板同样的几块；执行设置就地下拉，其他铅笔打开同一个对话框。
   await session.evaluate(clickTestId('wl-hub-trg-tab-settings'))
   await waitFor(session, has('wl-hub-trg-settings'))
+  check(
+    '换详情页签时保留同一个滚动区域',
+    await session.evaluate(
+      `window.hubOverviewBeforePick === document.querySelector('${overview}')`,
+    ),
+  )
+  await session.evaluate('delete window.hubOverviewBeforePick')
   const facts = await session.evaluate(textOf('[data-testid="wl-hub-trg-settings"]'))
   check(
     '「设置」页有触发方式、会话、工作区',

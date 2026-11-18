@@ -8,7 +8,7 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/HubMemories
  */
 
-import { useEffect, useState } from 'react'
+import { type RefObject, useEffect, useLayoutEffect, useState } from 'react'
 import type { StepColor } from '../../../shared/appearance.ts'
 import { type MemoryEntry, memoryTitle } from '../../../shared/memoryLib.ts'
 import { idKey } from '../../../shared/model.ts'
@@ -40,6 +40,8 @@ import { Skeleton } from '../kit/Skeleton.tsx'
 import { TextArea } from '../kit/TextArea.tsx'
 import { TintChip } from '../kit/TintChip.tsx'
 import ui from '../kit/ui.module.css'
+import motion from '../motion/paneTransition.module.css'
+import { usePaneTransition } from '../motion/paneTransition.ts'
 import ins from '../panel/panel.module.css'
 import { memoryTypeText } from '../resources/ResourcePresets.tsx'
 import { MemoryVersionList } from '../versions/VersionList.tsx'
@@ -69,6 +71,7 @@ export function HubMemories(props: {
   const [pickedGroup, setPickedGroup] = useState<string | undefined>(undefined)
   const [query, setQuery] = useState('')
   const [view, changeView] = useListView(MEMORY_VIEW)
+  const detailMotion = usePaneTransition()
   // 一进这一页重读一遍：在用的工作流、大小可能刚变。
   useEffect(() => {
     void store.refresh()
@@ -133,10 +136,15 @@ export function HubMemories(props: {
           sort={view.sort}
           selected={selected?.id ?? ''}
           selectedGroup={pickedGroup}
-          onPick={(id, group) => {
-            setPicked(id)
-            setPickedGroup(group)
-          }}
+          onPick={(id, group) =>
+            detailMotion.change(
+              () => {
+                setPicked(id)
+                setPickedGroup(group)
+              },
+              id === selected?.id ? null : 0,
+            )
+          }
         />
       </div>
       {selected === undefined ? (
@@ -155,7 +163,7 @@ export function HubMemories(props: {
         </div>
       ) : (
         <MemoryDetail
-          key={selected.id}
+          detailRef={detailMotion.scope}
           {...props}
           entry={selected}
           onRemove={async () => {
@@ -392,6 +400,7 @@ function deleteText(t: T, entry: MemoryEntry): string {
 }
 
 function MemoryDetail(props: {
+  detailRef: RefObject<HTMLDivElement>
   t: T
   rpc: WorkflowLiteRpc
   store: MemoryStore
@@ -402,8 +411,13 @@ function MemoryDetail(props: {
   onRemove(): Promise<void>
 }): React.JSX.Element {
   const { t, entry, store } = props
-  const [description, setDescription] = useState<string | null>(null)
-  const [viewing, setViewing] = useState(false)
+  const [draft, setDraft] = useState<{ id: string; text: string } | null>(null)
+  const [viewing, setViewing] = useState<string | null>(null)
+  const description = draft?.id === entry.id ? draft.text : null
+  const { detailRef } = props
+  useLayoutEffect(() => {
+    if (detailRef.current !== null) detailRef.current.scrollTop = 0
+  }, [entry.id, detailRef])
   /** 存下（回有没有存成，没成已经提示过）。 */
   const save = (patch: { name?: string; description?: string }): Promise<boolean> =>
     store.update({ id: entry.id, ...patch }).then(
@@ -421,7 +435,7 @@ function MemoryDetail(props: {
   ]
 
   return (
-    <div className={cx(hub.wfDetail, hub.paneIn)} data-testid="wl-hub-mem-detail">
+    <div ref={detailRef} className={cx(hub.wfDetail, motion.scope)} data-testid="wl-hub-mem-detail">
       <div className={css.hubHead}>
         <span className={css.hubIcon}>
           <Icon name="memory" size={18} />
@@ -429,6 +443,7 @@ function MemoryDetail(props: {
         <div className={css.hubHeadText}>
           {/* 名称是空的时候标题写 id；改名时输入框里是存着的名称（空的就空着，占位写 id）。 */}
           <TitleEdit
+            key={entry.id}
             t={t}
             value={entry.name}
             display={memoryTitle(entry)}
@@ -458,7 +473,7 @@ function MemoryDetail(props: {
             className={cx(ui.btn, ui.small, ui.soft)}
             data-tip={t('mem.viewTip')}
             data-testid="wl-hub-mem-view"
-            onClick={() => setViewing(true)}
+            onClick={() => setViewing(entry.id)}
           >
             <Icon name="eye" size={14} />
             {t('mem.view')}
@@ -487,12 +502,12 @@ function MemoryDetail(props: {
               maxLength={500}
               rows={4}
               data-testid="wl-hub-mem-desc"
-              onChange={(event) => setDescription(event.currentTarget.value)}
+              onChange={(event) => setDraft({ id: entry.id, text: event.currentTarget.value })}
               onBlur={() => {
                 if (description !== null && description !== entry.description) {
                   save({ description })
                 }
-                setDescription(null)
+                setDraft(null)
               }}
             />
           </label>
@@ -531,6 +546,7 @@ function MemoryDetail(props: {
               {entry.versions > 0 && <span className={ins.count}>{entry.versions}</span>}
             </span>
             <MemoryVersionList
+              key={entry.id}
               t={t}
               rpc={props.rpc}
               store={store}
@@ -541,14 +557,14 @@ function MemoryDetail(props: {
         )}
       </div>
 
-      {viewing && (
+      {viewing === entry.id && (
         <FolderDialog
           t={t}
           source={store.source(entry.id)}
           item={{ kind: 'folder', value: entry.id }}
           desktop={props.desktop}
           missing={t('mem.viewEmpty')}
-          onClose={() => setViewing(false)}
+          onClose={() => setViewing(null)}
         />
       )}
     </div>

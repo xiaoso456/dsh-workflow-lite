@@ -1,0 +1,45 @@
+.scope:global(:active-view-transition-type(wl-pane))::view-transition {
+  pointer-events: none;
+}
+
+.scope:global(:active-view-transition-type(wl-pane)::view-transition-group(root)) {
+  animation: none;
+}
+
+.scope:global(:active-view-transition-type(wl-forward)) {
+  --wl-pane-shift: 8px;
+}
+
+.scope:global(:active-view-transition-type(wl-backward)) {
+  --wl-pane-shift: -8px;
+}
+
+.scope:global(:active-view-transition-type(wl-pane)::view-transition-old(root)),
+.scope:global(:active-view-transition-type(wl-pane)::view-transition-new(root)) {
+  animation-duration: 180ms;
+  animation-timing-function: var(--wl-ease-out);
+  animation-fill-mode: both;
+  mix-blend-mode: plus-lighter;
+}
+
+.scope:global(:active-view-transition-type(wl-pane)::view-transition-old(root)) {
+  animation-name: paneOut;
+}
+
+.scope:global(:active-view-transition-type(wl-pane)::view-transition-new(root)) {
+  animation-name: paneIn;
+}
+
+@keyframes paneOut {
+  to {
+    opacity: 0;
+    transform: translateX(calc(var(--wl-pane-shift, 0px) * -0.5));
+  }
+}
+
+@keyframes paneIn {
+  from {
+    opacity: 0;
+    transform: translateX(var(--wl-pane-shift, 0px));
+  }
+}

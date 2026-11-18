@@ -71,41 +71,10 @@ div.dialog {
   --wl-on: var(--wl-panel);
 }
 
-/*
- * 工作流中心换页：新的一页从点的那一侧滑进来（往右边的页点 → 从右边进）。
- * 刚打开时不滑（对话框自己有入场）。
- */
 .pane {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
   min-height: 0;
-}
-
-.pane[data-from="right"] {
-  animation: paneFromRight 260ms var(--wl-ease) backwards;
-}
-
-.pane[data-from="left"] {
-  animation: paneFromLeft 260ms var(--wl-ease) backwards;
-}
-
-@keyframes paneFromRight {
-  from {
-    opacity: 0;
-    transform: translateX(18px);
-  }
-}
-
-@keyframes paneFromLeft {
-  from {
-    opacity: 0;
-    transform: translateX(-18px);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .pane[data-from] {
-    animation: none;
-  }
+  overflow: clip;
 }

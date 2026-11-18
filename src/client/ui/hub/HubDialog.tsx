@@ -16,7 +16,7 @@
  * - **存储**（`HubStorage.tsx`）：数据目录、各样东西的占用，清理已结束的实例与旧版本遗留文件；
  * - **设置**（`HubSettings.tsx`）：插件自己的几项设置（数据目录、步骤上限、自动保存等待……）。
  *
- * 换页时新的一页从点的那一侧滑进来（动效都只动 transform / opacity，见 `motion/` 里的各文件与 hubDialog.module.css）。
+ * 换页时标题栏不动，内容区沿页签方向轻移交接。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/HubDialog
  */
@@ -35,6 +35,8 @@ import overlay from '../kit/overlay.module.css'
 import { Segmented } from '../kit/Segmented.tsx'
 import ui from '../kit/ui.module.css'
 import { FadeMark } from '../motion/marks.tsx'
+import motion from '../motion/paneTransition.module.css'
+import { tabDirection, usePaneTransition } from '../motion/paneTransition.ts'
 import { HubMemories } from './HubMemories.tsx'
 import { HubSettings } from './HubSettings.tsx'
 import { HubStorage } from './HubStorage.tsx'
@@ -115,12 +117,9 @@ export function HubDialog(props: {
         ? 'triggers'
         : 'runs',
   )
-  /** 新的一页从哪一侧进来：点了右边的页就从右边进；刚打开时不滑。 */
-  const [from, setFrom] = useState<'left' | 'right' | undefined>(undefined)
+  const pane = usePaneTransition()
   const turn = (next: HubPage): void => {
-    if (next === page) return
-    setFrom(PAGES.indexOf(next) > PAGES.indexOf(page) ? 'right' : 'left')
-    setPage(next)
+    pane.change(() => setPage(next), tabDirection(PAGES, page, next))
   }
   return (
     <Modal label={t('hub.title')} onDismiss={props.onClose} className={css.dialog} testId="wl-hub">
@@ -176,8 +175,7 @@ export function HubDialog(props: {
           </button>
         </div>
       </header>
-      {/* 换页：整页换一块，从点的那一侧滑进来。 */}
-      <div key={page} className={css.pane} data-from={from}>
+      <div ref={pane.scope} className={cx(css.pane, motion.scope)}>
         {page === 'runs' ? (
           <HubRuns
             t={t}

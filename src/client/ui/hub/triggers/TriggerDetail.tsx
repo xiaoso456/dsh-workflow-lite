@@ -2,9 +2,7 @@
  * dsh-workflow-lite — 「触发」页右栏：上面固定一块（{@link TriggerHead}），下面页签——概览、时间线、按触发方式换名字的
  * 那一页（输出 / 调用 / 日程 / 上游）、设置；每一页自己滚。
  *
- * 选中的页签由页面记着，换卡片不变。换内容走右栏通用的交接（{@link useSwap}）：旧内容留个影子淡出、新内容同时淡入，
- * 中间不空一下——换卡片时整栏原地交叉淡（左栏是竖排的，分不出左右）；换页签时头部和页签不动，
- * 下面那一页从点的那一侧进来。
+ * 选中的页签由页面记着，换卡片不变。换卡片时右栏原地交叉淡；换页签时头部不动，只交接滚动区。
  *
  * 头部和页签包在 `<header>` 里，和下面那一页留同样宽的滚动条位置（`--wl-scrollbar`）：两块的左右边对齐。
  * 点一条触发记录（概览、时间线里）打开它的详情（`FireDialog`）。
@@ -12,7 +10,7 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/triggers/TriggerDetail
  */
 
-import { useCallback, useEffect, useState } from 'react'
+import { type RefObject, useCallback, useEffect, useLayoutEffect, useState } from 'react'
 import type { TriggerData } from '../../../../shared/types.ts'
 import type { FireRecord, TriggerEntry } from '../../../../shared/wire/trigger.ts'
 import { useFireSeen } from '../../../app/fireSeen.ts'
@@ -23,7 +21,9 @@ import { queuePlace, settledFires } from '../../../model/fireView.ts'
 import { rhythmSince } from '../../../model/triggerActivity.ts'
 import { sourceFace } from '../../../model/triggerText.ts'
 import type { WorkflowLiteRpc } from '../../../rpc.ts'
-import { useSwap } from '../../motion/swap.tsx'
+import { cx } from '../../kit/cx.ts'
+import motion from '../../motion/paneTransition.module.css'
+import { tabDirection, usePaneTransition } from '../../motion/paneTransition.ts'
 import { FireDialog } from '../../trigger/dialogs/FireDialog.tsx'
 import { triggerTint } from '../../trigger/TriggerMark.tsx'
 import { prevRunView, type TriggerEnv } from '../../trigger/triggerEnv.ts'
@@ -44,6 +44,7 @@ import { UpstreamPane } from './UpstreamPane.tsx'
 const SHOWN = 200
 
 export function TriggerDetail(props: {
+  detailRef: RefObject<HTMLDivElement>
   t: T
   rpc: WorkflowLiteRpc
   hub: TriggerHub
@@ -104,8 +105,14 @@ export function TriggerDetail(props: {
   }
   const waive = (): Promise<string | null> => hub.waive(entry.workflow, view.node)
 
-  // 换卡片：同一个横坐标（0），原地交叉淡；换页签：第几个面，按前后从那一侧进来。
-  const swap = useSwap<HTMLDivElement>(key, 0, DETAIL_TABS.indexOf(tab))
+  const paneMotion = usePaneTransition()
+  const scroll = paneMotion.scope
+  useLayoutEffect(() => {
+    if (scroll.current !== null) scroll.current.scrollTop = 0
+  }, [key, tab, scroll])
+  const turn = (next: DetailTab): void => {
+    paneMotion.change(() => props.onTab(next), tabDirection(DETAIL_TABS, tab, next))
+  }
 
   const paused = props.paused !== undefined
   const pane = ((): React.ReactNode => {
@@ -120,13 +127,14 @@ export function TriggerDetail(props: {
             paused={paused}
             sessionTitle={sessionTitle}
             onPick={setPicked}
-            onTab={props.onTab}
+            onTab={turn}
             onOpenRun={props.onOpenRun}
           />
         )
       case 'timeline':
         return (
           <TimelinePane
+            key={key}
             t={t}
             entry={entry}
             fires={fires}
@@ -144,14 +152,17 @@ export function TriggerDetail(props: {
         switch (face) {
           case 'check':
           case 'listen':
-            return <OutputPane t={t} hub={hub} entry={entry} onSettings={props.onSettings} />
+            return (
+              <OutputPane key={key} t={t} hub={hub} entry={entry} onSettings={props.onSettings} />
+            )
           case 'http':
-            return <CallPane t={t} hub={hub} entry={entry} />
+            return <CallPane key={key} t={t} hub={hub} entry={entry} />
           case 'schedule':
             return <SchedulePane t={t} entry={entry} />
           case 'after':
             return (
               <UpstreamPane
+                key={key}
                 t={t}
                 rpc={props.rpc}
                 entry={entry}
@@ -164,6 +175,7 @@ export function TriggerDetail(props: {
       case 'settings':
         return (
           <SettingsPane
+            key={key}
             t={t}
             entry={entry}
             name={entry.name}
@@ -177,11 +189,12 @@ export function TriggerDetail(props: {
 
   return (
     <div
-      className={css.detail}
+      ref={props.detailRef}
+      className={cx(css.detail, motion.scope)}
       style={{ '--wl-kind': triggerTint(kind) } as React.CSSProperties}
       data-testid="wl-hub-trg-detail"
     >
-      <div ref={swap} className={css.body}>
+      <div className={css.body}>
         <header className={css.top}>
           <TriggerHead
             t={t}
@@ -198,13 +211,12 @@ export function TriggerDetail(props: {
             value={tab}
             count={settled === 0 ? undefined : settled}
             failed={unseenFailure}
-            onChange={props.onTab}
+            onChange={turn}
           />
         </header>
-        {/* 换卡片、换页签都重新挂一块：滚动位置从顶上开始。 */}
         <div
-          key={`${key}|${tab}`}
-          className={tabs.pane}
+          ref={scroll}
+          className={cx(tabs.pane, motion.scope)}
           role="tabpanel"
           data-fill={fill}
           data-testid={`wl-hub-trg-pane-${tab}`}

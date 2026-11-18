@@ -32,6 +32,9 @@ import { Icon } from '../../kit/Icon.tsx'
 import { Skeleton } from '../../kit/Skeleton.tsx'
 import ui from '../../kit/ui.module.css'
 import { useResizeFlip } from '../../motion/flip.ts'
+import motion from '../../motion/paneTransition.module.css'
+import { usePaneTransition } from '../../motion/paneTransition.ts'
+import { markSwap } from '../../motion/swap.tsx'
 import { VersionList } from '../../versions/VersionList.tsx'
 import { DeleteButton } from '../DeleteButton.tsx'
 import { HubExport, type PackScope } from '../HubExport.tsx'
@@ -188,6 +191,15 @@ export function HubWorkflows(props: {
   const dragging = useFileDrop(openImport)
   // 顶上的结果条收掉：条在原地淡出，下面的版本列表滑上来；新出现的从左边浮入。
   const detailRef = useResizeFlip({ exit: true, enter: true })
+  const detailMotion = usePaneTransition()
+  const detailScope = detailMotion.scope
+  const attachDetail = useCallback(
+    (node: HTMLDivElement | null) => {
+      detailScope.current = node
+      detailRef(node)
+    },
+    [detailScope, detailRef],
+  )
 
   if (workflows === null) {
     return <Skeleton label={t('hub.loading')} />
@@ -333,13 +345,19 @@ export function HubWorkflows(props: {
           colors={tagColors}
           renameTag={renameTag}
           deleteTag={deleteTag}
-          onPick={(name, group) => {
-            setPicked(name)
-            setPickedGroup(group)
-            setNotice(null)
-            setDropped(null)
-            setPane('versions')
-          }}
+          onPick={(name, group) =>
+            detailMotion.change(
+              () => {
+                markSwap()
+                setPicked(name)
+                setPickedGroup(group)
+                setNotice(null)
+                setDropped(null)
+                setPane('versions')
+              },
+              name === selected?.name && shown === 'versions' ? null : 0,
+            )
+          }
         />
       </div>
       {shown === 'import' ? (
@@ -372,9 +390,8 @@ export function HubWorkflows(props: {
           }}
         />
       ) : (
-        /* 换了一张就换一整块：标题、版本列表重新入场。 */
         /* 标题、存版本那一栏钉在上面，版本多了只在版本框里滚（见 VersionList）。 */
-        <div key={detailKey} ref={detailRef} className={cx(hub.wfDetail, hub.pinned, hub.paneIn)}>
+        <div ref={attachDetail} className={cx(hub.wfDetail, hub.pinned, motion.scope)}>
           {/* 和「触发」「记忆」页同一种头：图标块、名字后面跟标签、下面一行信息，操作靠右。 */}
           <div className={cx(hub.wfHead, hub.wfHeadTop)}>
             <span
@@ -386,6 +403,7 @@ export function HubWorkflows(props: {
             <div className={hub.wfHeadText}>
               <div className={hub.nameLine}>
                 <TitleEdit
+                  key={`title:${detailKey}`}
                   t={t}
                   value={selected.name}
                   label={t('wf.rename')}
@@ -403,6 +421,7 @@ export function HubWorkflows(props: {
                   </span>
                 )}
                 <TagRow
+                  key={`tags:${detailKey}`}
                   t={t}
                   name={selected.name}
                   tags={selected.tags ?? []}

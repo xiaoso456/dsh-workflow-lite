@@ -26,6 +26,7 @@ import type { WorkflowLiteRpc } from '../../../rpc.ts'
 import { cx } from '../../kit/cx.ts'
 import { Icon } from '../../kit/Icon.tsx'
 import ui from '../../kit/ui.module.css'
+import { usePaneTransition } from '../../motion/paneTransition.ts'
 import hub from '../hub.module.css'
 import { keepShown } from '../list/keepShown.ts'
 import type { DetailTab } from './DetailTabs.tsx'
@@ -70,6 +71,7 @@ export function HubTriggers(props: {
   )
   // 从「全部记录」进来直接看时间线。
   const [tab, setTab] = useState<DetailTab>(props.start === undefined ? 'overview' : 'timeline')
+  const detailMotion = usePaneTransition()
   const catalog = useCatalog(rpc)
   const list = hubData.list
 
@@ -156,7 +158,12 @@ export function HubTriggers(props: {
         query={query}
         onQuery={setQuery}
         selected={selected === undefined ? '' : keyOf(selected)}
-        onPick={setPicked}
+        onPick={(id) =>
+          detailMotion.change(
+            () => setPicked(id),
+            selected !== undefined && keyOf(selected) === id ? null : 0,
+          )
+        }
         paused={list.paused}
         onNotice={onNotice}
       />
@@ -179,6 +186,7 @@ export function HubTriggers(props: {
         </div>
       ) : (
         <TriggerDetail
+          detailRef={detailMotion.scope}
           t={t}
           rpc={rpc}
           hub={hubData}
