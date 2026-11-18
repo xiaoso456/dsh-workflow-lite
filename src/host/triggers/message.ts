@@ -30,11 +30,6 @@ function channelText(channel: FireChannel, data: TriggerData): string {
   return channel === 'now' ? '用户点了「立即触发一次」' : sourceText(data.source)
 }
 
-/** 对话里显示的那一行摘要。 */
-export function fireSummary(detail: FireDetail): string {
-  return `触发工作流「${detail.record.workflow}」· ${detail.record.name}`
-}
-
 function infoSection(detail: FireDetail, infoFile: string | undefined): string[] {
   const { info } = detail
   if (info === undefined) return []

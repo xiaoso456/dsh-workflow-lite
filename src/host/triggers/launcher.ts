@@ -22,7 +22,7 @@ import {
 import type { TriggerData } from '../../shared/types.ts'
 import type { FireOutcome, FireRecord, FireSettled } from '../../shared/wire/trigger.ts'
 import type { TriggerDefinition } from './graphs.ts'
-import { fireMessage, fireSummary } from './message.ts'
+import { fireMessage } from './message.ts'
 import { endProblem, type RunEnds } from './runEnd.ts'
 import type { SessionPort } from './sessions.ts'
 import { type FireDetail, newFireId, type TriggerLocal, type TriggerStore } from './store.ts'
@@ -183,10 +183,9 @@ export class Launcher {
       return { outcome: 'failed', reason: '还没选定发进哪个会话' }
     }
     const text = fireMessage(detail, data, this.store.infoPath(detail.record.id))
-    const summary = fireSummary(detail)
     if (target !== undefined) {
       try {
-        await this.sessions.send(target, text, summary)
+        await this.sessions.send(target, text)
         return { outcome: 'sent', session: target }
       } catch (error) {
         if (launch.session === 'fixed') {
@@ -211,7 +210,7 @@ export class Launcher {
       }
     }
     try {
-      await this.sessions.send(session, text, summary)
+      await this.sessions.send(session, text)
     } catch (error) {
       return { outcome: 'failed', reason: `新建的会话发不进去：${reasonOf(error)}`, session }
     }

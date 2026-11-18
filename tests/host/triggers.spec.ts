@@ -40,7 +40,7 @@ let repository: Repository
 let store: TriggerStore
 let database: PluginDatabase
 let clock: number
-let sent: { session: string; text: string; summary: string }[]
+let sent: { session: string; text: string }[]
 let opened: { cwd: string; title: string }[]
 /** 假的实例运行状态：实例 → 整体状态（`null` = 实例不在了）。 */
 let states: Map<string, { status?: RunStatus; at?: number } | null>
@@ -66,9 +66,9 @@ const sessions: SessionPort = {
     opened.push(input)
     return `s${String(opened.length)}`
   },
-  send: async (session, text, summary) => {
+  send: async (session, text) => {
     if (gone.has(session)) throw new Error('会话不存在')
-    sent.push({ session, text, summary })
+    sent.push({ session, text })
   },
 }
 
