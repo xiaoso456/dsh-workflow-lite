@@ -18,7 +18,8 @@ import { cx } from '../kit/cx.ts'
 import { EditActions } from '../kit/EditActions.tsx'
 import { Icon } from '../kit/Icon.tsx'
 import ui from '../kit/ui.module.css'
-import { useLineExit } from '../motion/exits.tsx'
+import { useLineExit, useRowSlide } from '../motion/exits.tsx'
+import { SwapText } from '../motion/swapText.tsx'
 import css from './titleEdit.module.css'
 
 export function TitleEdit(props: {
@@ -37,6 +38,12 @@ export function TitleEdit(props: {
   onCommit(value: string): Promise<boolean>
 }): React.JSX.Element {
   const [editing, setEditing] = useState(false)
+  // 名字换了（换了一项）：改到一半的收起来。不按项重挂整个标题——名字要原地滚着换（SwapText）。
+  const [named, setNamed] = useState(props.value)
+  if (props.value !== named) {
+    setNamed(props.value)
+    if (editing) setEditing(false)
+  }
   const nameRef = useRef<HTMLButtonElement>(null)
   /** 改名是用键盘或按钮收的：回到标题上，Esc、Tab 接着能用（点别处失焦收的不抢焦点）。 */
   const refocus = useRef(false)
@@ -46,6 +53,8 @@ export function TitleEdit(props: {
     nameRef.current?.focus({ preventScroll: true })
   }, [editing])
   const shown = props.display ?? props.value
+  // 名字换了长短（换了一项、改了名）：后面的铅笔滑过去，不跳。
+  const row = useRowSlide()
   if (editing) {
     return (
       <TitleInput
@@ -58,7 +67,7 @@ export function TitleEdit(props: {
     )
   }
   return (
-    <span className={css.title}>
+    <span ref={row} className={css.title}>
       <button
         ref={nameRef}
         type="button"
@@ -66,11 +75,15 @@ export function TitleEdit(props: {
         aria-label={`${props.label}：${shown}`}
         data-testid={props.testId}
         onPointerOverCapture={(event) =>
-          tipWhenCut(event.currentTarget, event.currentTarget, shown)
+          tipWhenCut(
+            event.currentTarget,
+            event.currentTarget.querySelector<HTMLElement>('[data-swap-now]'),
+            shown,
+          )
         }
         onClick={() => setEditing(true)}
       >
-        {shown}
+        <SwapText text={shown} lead />
       </button>
       <button
         type="button"

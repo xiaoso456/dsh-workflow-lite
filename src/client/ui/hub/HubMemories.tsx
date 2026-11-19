@@ -8,7 +8,7 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/HubMemories
  */
 
-import { type RefObject, useEffect, useLayoutEffect, useState } from 'react'
+import { type RefObject, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { StepColor } from '../../../shared/appearance.ts'
 import { type MemoryEntry, memoryTitle } from '../../../shared/memoryLib.ts'
 import { idKey } from '../../../shared/model.ts'
@@ -40,8 +40,8 @@ import { Skeleton } from '../kit/Skeleton.tsx'
 import { TextArea } from '../kit/TextArea.tsx'
 import { TintChip } from '../kit/TintChip.tsx'
 import ui from '../kit/ui.module.css'
-import motion from '../motion/paneTransition.module.css'
-import { usePaneTransition } from '../motion/paneTransition.ts'
+import { SwapScope } from '../motion/swapScope.tsx'
+import { SwapText, useSwapBlock } from '../motion/swapText.tsx'
 import ins from '../panel/panel.module.css'
 import { memoryTypeText } from '../resources/ResourcePresets.tsx'
 import { MemoryVersionList } from '../versions/VersionList.tsx'
@@ -71,7 +71,7 @@ export function HubMemories(props: {
   const [pickedGroup, setPickedGroup] = useState<string | undefined>(undefined)
   const [query, setQuery] = useState('')
   const [view, changeView] = useListView(MEMORY_VIEW)
-  const detailMotion = usePaneTransition()
+  const detailRef = useRef<HTMLDivElement>(null)
   // 一进这一页重读一遍：在用的工作流、大小可能刚变。
   useEffect(() => {
     void store.refresh()
@@ -136,15 +136,10 @@ export function HubMemories(props: {
           sort={view.sort}
           selected={selected?.id ?? ''}
           selectedGroup={pickedGroup}
-          onPick={(id, group) =>
-            detailMotion.change(
-              () => {
-                setPicked(id)
-                setPickedGroup(group)
-              },
-              id === selected?.id ? null : 0,
-            )
-          }
+          onPick={(id, group) => {
+            setPicked(id)
+            setPickedGroup(group)
+          }}
         />
       </div>
       {selected === undefined ? (
@@ -162,23 +157,25 @@ export function HubMemories(props: {
           </button>
         </div>
       ) : (
-        <MemoryDetail
-          detailRef={detailMotion.scope}
-          {...props}
-          entry={selected}
-          onRemove={async () => {
-            // 删掉之后选中挪到它下面一条（最后一条就挪到上面）。
-            const index = ordered.indexOf(selected)
-            const next = ordered[index + 1] ?? ordered[index - 1]
-            try {
-              await store.remove(selected.id)
-              setPicked(next?.id ?? null)
-              props.onNotice(t('hub.memDeleted').replace('{name}', memoryTitle(selected)))
-            } catch (caught) {
-              props.onNotice(errorMessage(caught), 'error')
-            }
-          }}
-        />
+        <SwapScope id={selected.id} order={ordered.indexOf(selected)}>
+          <MemoryDetail
+            detailRef={detailRef}
+            {...props}
+            entry={selected}
+            onRemove={async () => {
+              // 删掉之后选中挪到它下面一条（最后一条就挪到上面）。
+              const index = ordered.indexOf(selected)
+              const next = ordered[index + 1] ?? ordered[index - 1]
+              try {
+                await store.remove(selected.id)
+                setPicked(next?.id ?? null)
+                props.onNotice(t('hub.memDeleted').replace('{name}', memoryTitle(selected)))
+              } catch (caught) {
+                props.onNotice(errorMessage(caught), 'error')
+              }
+            }}
+          />
+        </SwapScope>
       )}
     </div>
   )
@@ -415,6 +412,8 @@ function MemoryDetail(props: {
   const [viewing, setViewing] = useState<string | null>(null)
   const description = draft?.id === entry.id ? draft.text : null
   const { detailRef } = props
+  // 换了一条：下面的说明、用到它的、文件整块跟着浮上来（标题、数字在上面逐字换）。
+  const body = useSwapBlock()
   useLayoutEffect(() => {
     if (detailRef.current !== null) detailRef.current.scrollTop = 0
   }, [entry.id, detailRef])
@@ -435,15 +434,14 @@ function MemoryDetail(props: {
   ]
 
   return (
-    <div ref={detailRef} className={cx(hub.wfDetail, motion.scope)} data-testid="wl-hub-mem-detail">
-      <div className={css.hubHead}>
+    <div ref={detailRef} className={hub.wfDetail} data-testid="wl-hub-mem-detail">
+      <div className={css.hubHead} data-swap-tier="0">
         <span className={css.hubIcon}>
           <Icon name="memory" size={18} />
         </span>
         <div className={css.hubHeadText}>
           {/* 名称是空的时候标题写 id；改名时输入框里是存着的名称（空的就空着，占位写 id）。 */}
           <TitleEdit
-            key={entry.id}
             t={t}
             value={entry.name}
             display={memoryTitle(entry)}
@@ -455,7 +453,9 @@ function MemoryDetail(props: {
           />
           <p className={cx(hub.wfSub, hub.facts)}>
             <TypeChip t={t} type={entry.type} size="md" />
-            <code>{entry.id}</code>
+            <code>
+              <SwapText text={entry.id} />
+            </code>
           </p>
         </div>
         <div className={hub.headActions}>
@@ -481,14 +481,16 @@ function MemoryDetail(props: {
         </div>
       </div>
 
-      <div className={css.hubBody}>
+      <div {...body} className={cx(css.hubBody, body.className)} data-swap-tier="1">
         <div className={css.hubInfo}>
           <span className={css.secHead}>{t('hub.memInfo')}</span>
           <div className={hub.stats} data-testid="wl-hub-mem-stats">
             {stats.map(([label, value]) => (
               <div key={label} className={hub.stat}>
                 <span className={hub.statLabel}>{label}</span>
-                <span className={hub.statValue}>{value}</span>
+                <span className={hub.statValue}>
+                  <SwapText text={value} />
+                </span>
               </div>
             ))}
           </div>

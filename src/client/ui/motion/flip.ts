@@ -62,6 +62,7 @@ export function slideFrom(
   fromX: number,
   ms: number,
   delay = 0,
+  easing = EASE,
 ): void {
   const running = sliding.get(child)
   if (running !== undefined) {
@@ -71,7 +72,7 @@ export function slideFrom(
   if (Math.abs(fromY) < 0.5 && Math.abs(fromX) < 0.5) return
   const anim = child.animate([{ translate: `${fromX}px ${fromY}px` }, { translate: '0 0' }], {
     duration: ms,
-    easing: EASE,
+    easing,
     delay,
     fill: 'backwards',
   })

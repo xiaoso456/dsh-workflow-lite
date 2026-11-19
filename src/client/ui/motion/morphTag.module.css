@@ -24,6 +24,11 @@
   flex: none;
 }
 
+/* 名字（SwapText）按标签宽度截：省略号打在里面那层上。 */
+.label > * {
+  max-width: 100%;
+}
+
 .label {
   min-width: 0;
   overflow: hidden;

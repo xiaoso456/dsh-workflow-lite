@@ -179,6 +179,7 @@ export function RunDetail(props: {
           className={cx(tabs.pane, motion.scope)}
           role="tabpanel"
           data-fill={tab === 'timeline' && events > 0}
+          data-swap-tier="2"
           data-testid={`wl-hub-run-pane-${tab}`}
         >
           {pane}

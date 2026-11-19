@@ -32,6 +32,7 @@ import { useRowSlide } from '../../motion/exits.tsx'
 import { MorphGlyph } from '../../motion/MorphGlyph.tsx'
 import { MorphTag, TAG_MOTION_MS } from '../../motion/MorphTag.tsx'
 import { SwitchTrack } from '../../motion/marks.tsx'
+import { SwapText } from '../../motion/swapText.tsx'
 import { CountdownLine } from '../../trigger/CountdownLine.tsx'
 import { useFireNow } from '../../trigger/FireNow.tsx'
 import { ProblemMark } from '../../trigger/ProblemMark.tsx'
@@ -73,7 +74,7 @@ export function TriggerHead(props: {
   const tags = useRowSlide(TAG_MOTION_MS, true)
   return (
     <div className={css.fixed}>
-      <div className={css.head}>
+      <div className={css.head} data-swap-tier="0">
         <TriggerMark
           kind={kind}
           className={css.mark}
@@ -110,7 +111,7 @@ export function TriggerHead(props: {
             />
           </div>
           <p className={css.say} data-tip={sourceSay(t, source)}>
-            {sourceSay(t, source)}
+            <SwapText text={sourceSay(t, source)} />
           </p>
         </div>
         <div className={hub.headActions}>
@@ -124,7 +125,9 @@ export function TriggerHead(props: {
             data-testid="wl-hub-trg-head-switch"
             onClick={toggle.flip}
           >
-            <span className={css.onoffText}>{t(on ? 'hub.trgIsOn' : 'hub.trgIsOff')}</span>
+            <span className={css.onoffText}>
+              <SwapText text={t(on ? 'hub.trgIsOn' : 'hub.trgIsOff')} />
+            </span>
             <SwitchTrack on={on} />
           </button>
           {toggle.confirm}
@@ -215,7 +218,7 @@ function StatusBar(props: {
   // 状态字换了长短、问题图标亮了 / 灭了：后面的时间或地址连同排队记号一起滑。
   const row = useRowSlide()
   return (
-    <div className={css.status}>
+    <div className={css.status} data-swap-tier="1">
       <div ref={row} className={css.statusMain}>
         <span
           className={cx(css.state, tone.tone)}
@@ -224,7 +227,7 @@ function StatusBar(props: {
           data-testid="wl-hub-trg-detail-state"
         >
           <span className={cx(tone.dot, css.stateDot)} aria-hidden="true" />
-          {stateBadge(t, view, face)}
+          <SwapText text={stateBadge(t, view, face)} />
         </span>
         <ProblemMark
           t={t}
@@ -241,8 +244,12 @@ function StatusBar(props: {
           <span className={css.when} data-fired={fired?.tone} data-testid="wl-hub-trg-fire-result">
             {fired === null ? (
               <>
-                <span className={css.whenMain}>{when.main}</span>
-                <span className={css.whenAside}>{when.aside}</span>
+                <span className={css.whenMain}>
+                  <SwapText text={when.main} quiet />
+                </span>
+                <span className={css.whenAside}>
+                  <SwapText text={when.aside} quiet />
+                </span>
               </>
             ) : (
               <span className={css.whenMain}>{fired.text}</span>

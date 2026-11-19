@@ -5,16 +5,20 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/motion/swapText
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { cx } from '../kit/cx.ts'
 import { Icon, type IconName } from '../kit/Icon.tsx'
+import { switching, useSwapSwitch } from './swapScope.tsx'
 import css from './swapText.module.css'
+import { diffText, type TextPart } from './textDiff.ts'
 
 /** 换字、换图标时旧的留多久（和 swapText.module.css 的 swapOut / iconOut 一致）。 */
 export const SWAP_TEXT_MS = 160
 const SWAP_ICON_MS = 240
 /** 整行滚动换的时长（同 swapText.module.css 的 rollIn / rollOut）。 */
 const SWAP_ROLL_MS = 220
+/** 切换时旧字留多久：最晚一层晚 130ms 开始、退 90ms，再留点余量。 */
+const SWITCH_HOLD_MS = 420
 
 /** 记住上一个值：变了的那次渲染里把旧值、换了几次一起记下，过一会儿把旧值清掉。 */
 export function useLast<V>(value: V, ms: number): { was: V | null; n: number } {
@@ -40,6 +44,19 @@ export function useTrend(value: number): 'up' | 'down' {
   return state.dir
 }
 
+/** 换字的现状：现在的字、上一份（还在退场时）、换了几次、这次怎么换。 */
+interface Swapping {
+  value: string
+  was: string | null
+  n: number
+  /** 切换时滚着换（方向）；平时 `null`。 */
+  roll: 'up' | 'down' | null
+  /** 切换时只换变了的那几段；整段换是 `null`。 */
+  parts: readonly TextPart[] | null
+  /** 最近一次是第几次切换时换的（{@link useRowSlide} 认这次换了的字）；平常换的是 `null`。 */
+  serial: number | null
+}
+
 /**
  * 原地换一段字（「保存中… → 已保存」「没有问题 → 3 个问题」、数字）：旧字往上让开淡掉，新字从下面浮上来。
  * 旧字画在 `::after` 里（`content: attr(data-was)`），不进 DOM 文本——读 `innerText` 的地方只看到新字。
@@ -49,28 +66,132 @@ export function useTrend(value: number): 'up' | 'down' {
  * `pop`：数字用，新数字带一点回弹。
  * `dir`：`down` = 反方向——新字从上面落下来、旧字往下沉（数字减小时用，配 {@link useTrend}）；缺省 = 往上走。
  * `reserve`：会换到的所有字。给了就按最长的那段占宽，换字时外面的按钮不变宽变窄（点一下就换字的按钮要给）。
+ *
+ * 在 {@link SwapScope} 里、列表换了一项时：整行滚着换（上下裁着，方向跟着列表），只滚变了的那几个字
+ * （{@link diffText}），各区块按 `data-swap-tier` 错开。`quiet`：平时变了直接换、不动（每秒走的倒计时），只在切换时滚。
+ * `lead`：后面跟着东西（铅笔、小签）——字变长时，新字随着它们滑开一点点露出来（{@link revealText}）。
  */
 export function SwapText(props: {
   text: string
   pop?: boolean
   dir?: 'up' | 'down'
   reserve?: readonly string[]
+  quiet?: boolean
+  lead?: boolean
 }): React.JSX.Element {
-  const { was, n } = useLast(props.text, SWAP_TEXT_MS)
+  const swap = useSwapSwitch()
+  const [state, setState] = useState<Swapping>({
+    value: props.text,
+    was: null,
+    n: 0,
+    roll: null,
+    parts: null,
+    serial: null,
+  })
+  if (props.text !== state.value) {
+    const roll = switching(swap)
+    setState(
+      props.quiet === true && !roll
+        ? { value: props.text, was: null, n: state.n, roll: null, parts: null, serial: null }
+        : {
+            value: props.text,
+            was: state.value,
+            n: state.n + 1,
+            roll: roll ? (props.dir ?? swap.dir) : null,
+            parts: roll ? diffText(state.value, props.text) : null,
+            serial: roll ? swap.serial : null,
+          },
+    )
+  }
+  const { was, n, roll, parts } = state
+  const hold = roll === null ? SWAP_TEXT_MS : SWITCH_HOLD_MS
+  useEffect(() => {
+    if (was === null) return
+    const id = setTimeout(() => setState((s) => (s.n === n ? { ...s, was: null } : s)), hold)
+    return () => clearTimeout(id)
+  }, [was, n, hold])
+  // 上一次切换时跟着横滑、只淡入淡出的（{@link useRowSlide} 标的）：这次换字先回到平常的换法。
+  const ref = useRef<HTMLSpanElement>(null)
+  useLayoutEffect(() => {
+    if (n > 0) ref.current?.removeAttribute('data-swap-fade')
+  }, [n])
+  const dir = roll ?? props.dir
   return (
     <span
+      ref={ref}
       className={css.swapText}
-      data-was={was ?? undefined}
+      data-swap-text=""
+      data-swap-lead={props.lead === true || undefined}
+      data-scoped={swap !== null || undefined}
+      data-was={parts === null ? (was ?? undefined) : undefined}
       data-fresh={n === 0 ? undefined : n % 2 === 1 ? 'a' : 'b'}
       data-pop={props.pop === true || undefined}
-      data-dir={props.dir === 'down' ? 'down' : undefined}
+      data-dir={dir === 'down' ? 'down' : undefined}
+      data-roll={roll === null ? undefined : ''}
+      data-swap-serial={state.serial ?? undefined}
+      data-parts={parts === null ? undefined : ''}
     >
       {props.reserve?.map((text) => (
         <span key={text} className={css.swapSizer} data-text={text} aria-hidden="true" />
       ))}
-      <span className={css.swapNow}>{props.text}</span>
+      <span className={css.swapNow} data-swap-now="">
+        {parts === null
+          ? props.text
+          : parts.map((part, i) =>
+              part.was === undefined ? (
+                part.text
+              ) : (
+                <span
+                  // biome-ignore lint/suspicious/noArrayIndexKey: 段只按位置对应，换字时整组重排
+                  key={i}
+                  className={css.swapPart}
+                  data-was={was === null || part.was === '' ? undefined : part.was}
+                >
+                  <span className={css.partNow}>{part.text}</span>
+                </span>
+              ),
+            )}
+      </span>
     </span>
   )
+}
+
+/**
+ * 列表换了一项时，下面整块内容（列表、输入框，没法逐字换的）跟着方向从下面（往上换时从上面）浮上来，按 `data-swap-tier` 错开。
+ * 不重挂、不留旧的影子：换属性重放 CSS 动画。返回的几样属性摊到那一块上（`className` 用 cx 合进去）。
+ * 只在切换的那一下给动画名（a / b 轮换，连着两次切换也从头放）；别的时候挂上的不放。
+ */
+export function useSwapBlock(): {
+  className: string
+  'data-swap-block'?: 'a' | 'b'
+  'data-dir'?: 'down'
+} {
+  const swap = useSwapSwitch()
+  if (!switching(swap)) return { className: css.swapBlock }
+  return {
+    className: css.swapBlock,
+    'data-swap-block': swap.serial % 2 === 1 ? 'a' : 'b',
+    ...(swap.dir === 'down' ? { 'data-dir': 'down' as const } : {}),
+  }
+}
+
+/**
+ * 字变长、后面的东西正从原处滑开时，新字跟着露出来（不和还没让开的东西叠在一起）：
+ * 外层往左挪 `by` 再回来、里层反着挪——字本身不动，外层的裁切右边缘正好跟着后面的东西走。
+ * 只动 `translate`（不碰两层自己换字用的 `transform`）；`text` 是 {@link SwapText} 的根。
+ */
+export function revealText(text: HTMLElement, by: number, timing: KeyframeAnimationOptions): void {
+  const now = text.querySelector<HTMLElement>(':scope > [data-swap-now]')
+  const shift = (el: HTMLElement, from: number, pseudoElement?: string): void => {
+    el.animate([{ translate: `${from}px 0` }, { translate: '0 0' }], {
+      ...timing,
+      fill: 'backwards',
+      pseudoElement,
+    })
+  }
+  shift(text, -by)
+  if (now !== null) shift(now, by)
+  shift(text, by, '::after')
 }
 
 /**

@@ -21,6 +21,15 @@ import { ghostClone, ghostFade } from '../kit/ghost.ts'
 import css from './exits.module.css'
 import { slide, slideFrom, slideOffset } from './flip.ts'
 import { EASE, fadeAway, leaving, REDUCED } from './shared.ts'
+import {
+  EASE_GLIDE,
+  SWITCH,
+  type SwapSwitch,
+  swapDelay,
+  switching,
+  useSwapSwitch,
+} from './swapScope.tsx'
+import { revealText } from './swapText.tsx'
 
 /** 退场：往哪边走、走多久（都是入场的反方向）。 */
 const EXITS = {
@@ -308,6 +317,9 @@ export function useGlide(
  * 直接子项是一个单元；动的是 `translate`（{@link slide}），不碰各单元自己的 transform。返回回调 ref，挂到这一排上。
  * 单元带 `data-row-hidden="true"` 是挪出排版藏起来了（标题行里放不下的标签），不算一个位置；它藏起、露出时
  * 别的单元一下子换了位置却没人变宽，这时只重新记、不滑。
+ *
+ * 在 {@link SwapScope} 里列表换了一项时（{@link slideOnSwitch}）：等前面的字先换（按这一排的 `data-swap-tier` 晚一点），
+ * 各单元按同一条缓动从原处滑到新处；前面的字变长了，新字跟着露出来；被挤动的单元里刚换的字只淡入淡出。
  */
 export function useRowSlide(
   duration?: number,
@@ -315,6 +327,8 @@ export function useRowSlide(
 ): (row: HTMLElement | null) => void {
   const stop = useRef<(() => void) | null>(null)
   useEffect(() => () => stop.current?.(), [])
+  const swap = useRef<SwapSwitch | null>(null)
+  swap.current = useSwapSwitch()
   return useCallback(
     (row: HTMLElement | null) => {
       stop.current?.()
@@ -336,7 +350,11 @@ export function useRowSlide(
       const sizes = new ResizeObserver((entries) => {
         const next = measure()
         const whole = entries.some((entry) => entry.target === row)
-        if (!whole && REDUCED?.matches !== true && keepApart) {
+        const switched = swap.current
+        // 切换时不看整排变没变宽：排是按内容占宽的（标题加铅笔），字一长整排跟着变宽，照样要滑。
+        if (REDUCED?.matches !== true && switching(switched)) {
+          slideOnSwitch(row, spots, next, switched)
+        } else if (!whole && REDUCED?.matches !== true && keepApart) {
           if ([...next].some(([child, now]) => spots.get(child)?.left !== now.left)) {
             let leastShift = 0
             const shifts = Array.from(next, ([child, now]) => {
@@ -393,6 +411,56 @@ export function useRowSlide(
     },
     [duration, keepApart],
   )
+}
+
+/** 这次切换里各段字已经跟着露出过多少（同一段字在里外两排里都是「前面的那个」，只露一次）。 */
+const revealed = new WeakMap<HTMLElement, number>()
+
+/**
+ * 切换时一排里被挤动的单元：照切换的节奏滑（{@link useRowSlide}）。
+ * - 往右挪（前面的字变长了）：和新字一起起步，前面那个单元里带 `data-swap-lead` 的字跟着露出来（{@link revealText}）；
+ * - 往左挪（前面的字变短了）：等旧字退完再滑，不压在旧字上；
+ * - 单元里这次换了的字（`data-swap-serial` 是这一次）只淡入淡出，不再上下滚——同一时刻只朝一个方向动。
+ */
+function slideOnSwitch(
+  row: HTMLElement,
+  spots: ReadonlyMap<HTMLElement, { left: number; width: number }>,
+  next: ReadonlyMap<HTMLElement, { left: number; width: number }>,
+  swap: SwapSwitch,
+): void {
+  const base = swapDelay(row)
+  const serial = String(swap.serial)
+  let leader: { child: HTMLElement; grew: number } | null = null
+  for (const [child, now] of next) {
+    const was = spots.get(child)
+    if (was === undefined) continue
+    const moved = now.left - was.left
+    if (Math.abs(moved) >= 0.5) {
+      const grow = moved > 0
+      const timing = {
+        duration: SWITCH.glide,
+        delay: base + (grow ? SWITCH.enterAt : SWITCH.out),
+        easing: EASE_GLIDE,
+      }
+      const [current] = slideOffset(child)
+      slideFrom(child, 0, current - moved, timing.duration, timing.delay, timing.easing)
+      for (const text of swappedTexts(child, serial)) text.dataset.swapFade = ''
+      if (grow && leader !== null) {
+        for (const text of leader.child.querySelectorAll<HTMLElement>('[data-swap-lead]')) {
+          if (text.dataset.swapSerial !== serial || revealed.get(text) === swap.serial) continue
+          revealed.set(text, swap.serial)
+          revealText(text, leader.grew, timing)
+        }
+      }
+    }
+    if (now.width > was.width + 0.5) leader = { child, grew: now.width - was.width }
+  }
+}
+
+/** 单元里（含它自己）这次切换换了的字。 */
+function swappedTexts(child: HTMLElement, serial: string): HTMLElement[] {
+  const all = [child, ...child.querySelectorAll<HTMLElement>('[data-swap-text]')]
+  return all.filter((el) => el.dataset.swapText !== undefined && el.dataset.swapSerial === serial)
 }
 
 /**

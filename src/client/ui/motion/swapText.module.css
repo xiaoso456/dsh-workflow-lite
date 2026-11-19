@@ -184,6 +184,247 @@
   }
 }
 
+/*
+ * 列表换了一项（SwapScope 里的切换）：整行滚着换，上下裁着——旧字往上滚出、新字从下面滚进来，
+ * 方向跟着列表（往上换就反过来）。旧字先退（90ms，越来越快），退到六成新字开始进（200ms，干脆落位）。
+ * 各区块按 `data-swap-tier` 晚一点开始（`--wl-swap-delay`）。
+ * `data-parts`：只滚变了的那几段（`.swapPart`），留着的字不动；数字按等宽排，换了的数字不挤动后面的字。
+ */
+:global([data-swap-tier="0"]) {
+  --wl-swap-delay: 0ms;
+}
+
+:global([data-swap-tier="1"]) {
+  --wl-swap-delay: 26ms;
+}
+
+:global([data-swap-tier="2"]) {
+  --wl-swap-delay: 52ms;
+}
+
+:global([data-swap-tier="3"]) {
+  --wl-swap-delay: 78ms;
+}
+
+:global([data-swap-tier="4"]) {
+  --wl-swap-delay: 104ms;
+}
+
+:global([data-swap-tier="5"]) {
+  --wl-swap-delay: 130ms;
+}
+
+.swapText[data-scoped] {
+  max-width: 100%;
+  font-variant-numeric: tabular-nums;
+}
+
+.swapText[data-roll] {
+  overflow: clip;
+  overflow-clip-margin: 2px;
+}
+
+.swapPart {
+  position: relative;
+  display: inline-block;
+  white-space: pre;
+}
+
+/* 新字单独一层：滚进来的是它，旧字（`::after`）不跟着它一起淡。 */
+.partNow {
+  display: inline-block;
+}
+
+.swapPart[data-was]::after {
+  position: absolute;
+  top: 0;
+  left: 0;
+  content: attr(data-was);
+  white-space: pre;
+  pointer-events: none;
+}
+
+/* 只滚几段时，整行那层不动（盖掉上面平常换字时整行浮上来的那段）。 */
+.swapText[data-roll][data-parts][data-fresh] > .swapNow {
+  animation: none;
+}
+
+/* 动画只在没要求「减少动态效果」时放（这几条比上面平常换字的选择器更具体，不能靠后面的覆盖关掉）。 */
+@media (prefers-reduced-motion: no-preference) {
+  .swapText[data-roll][data-fresh]:not([data-parts]) > .swapNow,
+  .swapText[data-roll][data-fresh] .swapPart > .partNow {
+    animation: rollTextIn 200ms cubic-bezier(0.16, 1, 0.3, 1) calc(var(--wl-swap-delay, 0ms) + 54ms)
+      backwards;
+  }
+
+  .swapText[data-roll][data-fresh="b"]:not([data-parts]) > .swapNow,
+  .swapText[data-roll][data-fresh="b"] .swapPart > .partNow {
+    animation-name: rollTextInB;
+  }
+
+  .swapText[data-roll][data-was]::after,
+  .swapText[data-roll] .swapPart[data-was]::after {
+    animation: rollTextOut 90ms cubic-bezier(0.4, 0, 1, 1) var(--wl-swap-delay, 0ms) forwards;
+  }
+
+  .swapText[data-roll][data-fresh="b"][data-was]::after,
+  .swapText[data-roll][data-fresh="b"] .swapPart[data-was]::after {
+    animation-name: rollTextOutB;
+  }
+
+  .swapText[data-roll][data-dir="down"][data-fresh]:not([data-parts]) > .swapNow,
+  .swapText[data-roll][data-dir="down"][data-fresh] .swapPart > .partNow {
+    animation-name: rollTextInDown;
+  }
+
+  .swapText[data-roll][data-dir="down"][data-fresh="b"]:not([data-parts]) > .swapNow,
+  .swapText[data-roll][data-dir="down"][data-fresh="b"] .swapPart > .partNow {
+    animation-name: rollTextInDownB;
+  }
+
+  .swapText[data-roll][data-dir="down"][data-was]::after,
+  .swapText[data-roll][data-dir="down"] .swapPart[data-was]::after {
+    animation-name: rollTextOutDown;
+  }
+
+  .swapText[data-roll][data-dir="down"][data-fresh="b"][data-was]::after,
+  .swapText[data-roll][data-dir="down"][data-fresh="b"] .swapPart[data-was]::after {
+    animation-name: rollTextOutDownB;
+  }
+
+  /*
+   * 切换时这段字连同它所在的那一块正在横着滑（useRowSlide 标上 `data-swap-fade`）：只淡出淡入、不上下滚——
+   * 同一样东西同一时刻只朝一个方向动。只剩淡入淡出，新旧不叠着放（会重影）：旧的淡完新的再出来。
+   */
+  .swapText[data-roll][data-swap-fade][data-fresh]:not([data-parts]) > .swapNow,
+  .swapText[data-roll][data-swap-fade][data-fresh] .swapPart > .partNow {
+    animation: rollFadeIn 200ms ease-out calc(var(--wl-swap-delay, 0ms) + 90ms) backwards;
+  }
+
+  .swapText[data-roll][data-swap-fade][data-fresh][data-was]::after,
+  .swapText[data-roll][data-swap-fade][data-fresh] .swapPart[data-was]::after {
+    animation: rollFadeOut 90ms ease-in var(--wl-swap-delay, 0ms) forwards;
+  }
+}
+
+@keyframes rollTextIn {
+  from {
+    opacity: 0;
+    transform: translateY(0.7em);
+  }
+}
+
+@keyframes rollTextInB {
+  from {
+    opacity: 0;
+    transform: translateY(0.7em);
+  }
+}
+
+@keyframes rollTextOut {
+  to {
+    opacity: 0;
+    transform: translateY(-0.7em);
+  }
+}
+
+@keyframes rollTextOutB {
+  to {
+    opacity: 0;
+    transform: translateY(-0.7em);
+  }
+}
+
+@keyframes rollTextInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-0.7em);
+  }
+}
+
+@keyframes rollTextInDownB {
+  from {
+    opacity: 0;
+    transform: translateY(-0.7em);
+  }
+}
+
+@keyframes rollTextOutDown {
+  to {
+    opacity: 0;
+    transform: translateY(0.7em);
+  }
+}
+
+@keyframes rollTextOutDownB {
+  to {
+    opacity: 0;
+    transform: translateY(0.7em);
+  }
+}
+
+@keyframes rollFadeIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes rollFadeOut {
+  to {
+    opacity: 0;
+  }
+}
+
+/*
+ * 列表换了一项时下面整块内容浮上来（useSwapBlock）：只动 `translate` / `opacity`，不碰那一块自己的 transform。
+ * 旧内容没有影子、一换就没了，所以不像字那样等旧的退一段：只按层错开就开始，不空着等。
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .swapBlock[data-swap-block] {
+    animation: blockIn 260ms cubic-bezier(0.16, 1, 0.3, 1) var(--wl-swap-delay, 0ms) backwards;
+  }
+
+  .swapBlock[data-swap-block="b"] {
+    animation-name: blockInB;
+  }
+
+  .swapBlock[data-swap-block][data-dir="down"] {
+    animation-name: blockInDown;
+  }
+
+  .swapBlock[data-swap-block="b"][data-dir="down"] {
+    animation-name: blockInDownB;
+  }
+}
+
+@keyframes blockIn {
+  from {
+    opacity: 0;
+    translate: 0 8px;
+  }
+}
+
+@keyframes blockInB {
+  from {
+    opacity: 0;
+    translate: 0 8px;
+  }
+}
+
+@keyframes blockInDown {
+  from {
+    opacity: 0;
+    translate: 0 -8px;
+  }
+}
+
+@keyframes blockInDownB {
+  from {
+    opacity: 0;
+    translate: 0 -8px;
+  }
+}
+
 /* 原地换图标（SwapIcon）：两枚叠在同一格，新的从 1/4 大放大淡入，旧的缩回去淡出。 */
 .swapIcon {
   position: relative;
@@ -314,6 +555,7 @@
   }
 
   .swapText[data-was]::after,
+  .swapPart[data-was]::after,
   .iconOut,
   .nodeOut,
   .rollOut {

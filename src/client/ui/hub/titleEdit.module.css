@@ -32,6 +32,11 @@
   transition: background-color 120ms linear;
 }
 
+/* 名字（SwapText）按按钮宽度截：省略号打在里面那层上。 */
+.name > * {
+  max-width: 100%;
+}
+
 .name:hover {
   background: var(--wl-hover);
 }

@@ -31,8 +31,11 @@ import { cx } from '../../kit/cx.ts'
 import { Icon } from '../../kit/Icon.tsx'
 import { Skeleton } from '../../kit/Skeleton.tsx'
 import ui from '../../kit/ui.module.css'
+import { useRowSlide } from '../../motion/exits.tsx'
 import { useResizeFlip } from '../../motion/flip.ts'
 import { markSwap } from '../../motion/swap.tsx'
+import { SwapScope } from '../../motion/swapScope.tsx'
+import { SwapText } from '../../motion/swapText.tsx'
 import { VersionList } from '../../versions/VersionList.tsx'
 import { DeleteButton } from '../DeleteButton.tsx'
 import { HubExport, type PackScope } from '../HubExport.tsx'
@@ -189,6 +192,8 @@ export function HubWorkflows(props: {
   const dragging = useFileDrop(openImport)
   // 顶上的结果条收掉：条在原地淡出，下面的版本列表滑上来；新出现的从左边浮入。
   const detailRef = useResizeFlip({ exit: true, enter: true })
+  // 换了一张：几样数字换了长短，后面那几样滑过去。
+  const factRow = useRowSlide()
 
   if (workflows === null) {
     return <Skeleton label={t('hub.loading')} />
@@ -375,134 +380,141 @@ export function HubWorkflows(props: {
         />
       ) : (
         /* 标题、存版本那一栏钉在上面，版本多了只在版本框里滚（见 VersionList）。 */
-        <div ref={detailRef} className={cx(hub.wfDetail, hub.pinned)}>
-          {/* 和「触发」「记忆」页同一种头：图标块、名字后面跟标签、下面一行信息，操作靠右。 */}
-          <div className={cx(hub.wfHead, hub.wfHeadTop)}>
-            <span
-              className={cx(ui.kind, hub.headMark)}
-              data-color={selected.invalid === true ? 'coral' : 'blue'}
-            >
-              <Icon name={selected.invalid === true ? 'alert' : 'hub'} size={18} />
-            </span>
-            <div className={hub.wfHeadText}>
-              <div className={hub.nameLine}>
-                <TitleEdit
-                  key={`title:${detailKey}`}
-                  t={t}
-                  value={selected.name}
-                  label={t('wf.rename')}
-                  testId="wl-hub-wf-title"
-                  onCommit={(to) => rename(selected.name, to)}
-                />
-                {/* 画布上正开着的这张：铅笔后面「当前」，和左栏那行一样。 */}
-                {editing && (
-                  <span
-                    className={cx(hub.tag, hub.nameTag)}
-                    data-tip={t('hub.wfEditing')}
-                    data-testid="wl-hub-wf-current"
-                  >
-                    {t('hub.current')}
-                  </span>
-                )}
-                <TagRow
-                  t={t}
-                  name={selected.name}
-                  tags={selected.tags ?? []}
-                  catalog={catalog}
-                  colors={tagColors}
-                  onChange={(next) => setTags(selected.name, next)}
-                  onColor={setTagColor}
-                />
-              </div>
-              <p className={cx(hub.wfSub, hub.facts)}>
-                <span className={hub.fact}>
-                  <Icon name="rows" size={12} />
-                  {t('ver.steps').replace('{n}', String(selected.nodeCount))}
-                </span>
-                {(selected.versions ?? 0) > 0 && (
+        <SwapScope id={detailKey} order={visible.indexOf(selected)}>
+          <div ref={detailRef} className={cx(hub.wfDetail, hub.pinned)}>
+            {/* 和「触发」「记忆」页同一种头：图标块、名字后面跟标签、下面一行信息，操作靠右。 */}
+            <div className={cx(hub.wfHead, hub.wfHeadTop)} data-swap-tier="0">
+              <span
+                className={cx(ui.kind, hub.headMark)}
+                data-color={selected.invalid === true ? 'coral' : 'blue'}
+              >
+                <Icon name={selected.invalid === true ? 'alert' : 'hub'} size={18} />
+              </span>
+              <div className={hub.wfHeadText}>
+                <div className={hub.nameLine}>
+                  <TitleEdit
+                    t={t}
+                    value={selected.name}
+                    label={t('wf.rename')}
+                    testId="wl-hub-wf-title"
+                    onCommit={(to) => rename(selected.name, to)}
+                  />
+                  {/* 画布上正开着的这张：铅笔后面「当前」，和左栏那行一样。 */}
+                  {editing && (
+                    <span
+                      className={cx(hub.tag, hub.nameTag)}
+                      data-tip={t('hub.wfEditing')}
+                      data-testid="wl-hub-wf-current"
+                    >
+                      {t('hub.current')}
+                    </span>
+                  )}
+                  <TagRow
+                    t={t}
+                    name={selected.name}
+                    tags={selected.tags ?? []}
+                    catalog={catalog}
+                    colors={tagColors}
+                    onChange={(next) => setTags(selected.name, next)}
+                    onColor={setTagColor}
+                  />
+                </div>
+                <p ref={factRow} className={cx(hub.wfSub, hub.facts)}>
                   <span className={hub.fact}>
-                    <Icon name="history" size={12} />
-                    {t('ver.count').replace('{n}', String(selected.versions))}
+                    <Icon name="rows" size={12} />
+                    <SwapText
+                      text={t('ver.steps').replace('{n}', String(selected.nodeCount))}
+                      lead
+                    />
                   </span>
-                )}
-                <span className={hub.fact} data-tip={t('hub.wfUpdated')}>
-                  <Icon name="clock" size={12} />
-                  {shortTime(selected.updatedAt)}
-                </span>
-              </p>
+                  {(selected.versions ?? 0) > 0 && (
+                    <span className={hub.fact}>
+                      <Icon name="history" size={12} />
+                      <SwapText
+                        text={t('ver.count').replace('{n}', String(selected.versions))}
+                        lead
+                      />
+                    </span>
+                  )}
+                  <span className={hub.fact} data-tip={t('hub.wfUpdated')}>
+                    <Icon name="clock" size={12} />
+                    <SwapText text={shortTime(selected.updatedAt)} />
+                  </span>
+                </p>
+              </div>
+              <div className={hub.headActions}>
+                <button
+                  type="button"
+                  className={cx(ui.btn, ui.icon, ui.small)}
+                  aria-label={t('pack.export')}
+                  data-tip={`${t('pack.export')} · ${t('pack.exportTip')}`}
+                  data-testid="wl-hub-wf-export"
+                  onClick={() => {
+                    setNotice(null)
+                    setPane('export')
+                  }}
+                >
+                  <Icon name="download" size={14} />
+                </button>
+                <DeleteButton
+                  t={t}
+                  label={`${t('common.delete')} ${selected.name}`}
+                  testId="wl-hub-wf-delete"
+                  confirmTestId="wl-hub-wf-delete-confirm"
+                  title={t('wf.deleteTitle').replace('{name}', selected.name)}
+                  desc={deleteDesc(t, selected, editing)}
+                  onConfirm={() => {
+                    // 删掉之后选中挪到它下面一张（最后一张就挪到上面）。
+                    const name = selected.name
+                    const index = visible.indexOf(selected)
+                    const next = visible[index + 1] ?? visible[index - 1]
+                    void props.remove(name).then(async (ok) => {
+                      if (ok) setPicked(next?.name ?? null)
+                      await load()
+                    })
+                  }}
+                />
+                {/* 正开着的那张也留着：点了回到画布。 */}
+                <button
+                  type="button"
+                  className={cx(ui.btn, ui.small, ui.soft)}
+                  data-tip={t('hub.wfOpenTip')}
+                  data-testid="wl-hub-wf-open"
+                  onClick={() => props.onOpen(selected.name)}
+                >
+                  <Icon name="external" size={14} />
+                  {t('hub.wfOpen')}
+                </button>
+              </div>
             </div>
-            <div className={hub.headActions}>
-              <button
-                type="button"
-                className={cx(ui.btn, ui.icon, ui.small)}
-                aria-label={t('pack.export')}
-                data-tip={`${t('pack.export')} · ${t('pack.exportTip')}`}
-                data-testid="wl-hub-wf-export"
-                onClick={() => {
-                  setNotice(null)
-                  setPane('export')
-                }}
+            {notice !== null && (
+              <Callout
+                tone="ok"
+                testId="wl-pack-notice"
+                closeLabel={t('common.close')}
+                onClose={() => setNotice(null)}
               >
-                <Icon name="download" size={14} />
-              </button>
-              <DeleteButton
-                t={t}
-                label={`${t('common.delete')} ${selected.name}`}
-                testId="wl-hub-wf-delete"
-                confirmTestId="wl-hub-wf-delete-confirm"
-                title={t('wf.deleteTitle').replace('{name}', selected.name)}
-                desc={deleteDesc(t, selected, editing)}
-                onConfirm={() => {
-                  // 删掉之后选中挪到它下面一张（最后一张就挪到上面）。
-                  const name = selected.name
-                  const index = visible.indexOf(selected)
-                  const next = visible[index + 1] ?? visible[index - 1]
-                  void props.remove(name).then(async (ok) => {
-                    if (ok) setPicked(next?.name ?? null)
-                    await load()
-                  })
-                }}
-              />
-              {/* 正开着的那张也留着：点了回到画布。 */}
-              <button
-                type="button"
-                className={cx(ui.btn, ui.small, ui.soft)}
-                data-tip={t('hub.wfOpenTip')}
-                data-testid="wl-hub-wf-open"
-                onClick={() => props.onOpen(selected.name)}
-              >
-                <Icon name="external" size={14} />
-                {t('hub.wfOpen')}
-              </button>
-            </div>
+                {notice}
+              </Callout>
+            )}
+            <VersionList
+              key={detailKey}
+              t={t}
+              rpc={rpc}
+              name={selected.name}
+              subject={detailKey}
+              {...(editing ? { before: props.flush } : {})}
+              onRestored={() => {
+                if (editing) props.onReload()
+                void load()
+              }}
+              onChanged={() => {
+                void load()
+                props.onChanged()
+              }}
+            />
           </div>
-          {notice !== null && (
-            <Callout
-              tone="ok"
-              testId="wl-pack-notice"
-              closeLabel={t('common.close')}
-              onClose={() => setNotice(null)}
-            >
-              {notice}
-            </Callout>
-          )}
-          <VersionList
-            key={detailKey}
-            t={t}
-            rpc={rpc}
-            name={selected.name}
-            subject={detailKey}
-            {...(editing ? { before: props.flush } : {})}
-            onRestored={() => {
-              if (editing) props.onReload()
-              void load()
-            }}
-            onChanged={() => {
-              void load()
-              props.onChanged()
-            }}
-          />
-        </div>
+        </SwapScope>
       )}
     </div>
   )

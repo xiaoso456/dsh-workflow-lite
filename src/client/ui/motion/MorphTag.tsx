@@ -3,6 +3,15 @@ import { tipWhenCut } from '../kit/cutTip.ts'
 import { cx } from '../kit/cx.ts'
 import css from './morphTag.module.css'
 import { EASE, REDUCED } from './shared.ts'
+import {
+  EASE_GLIDE,
+  SWITCH,
+  type SwapSwitch,
+  swapDelay,
+  switching,
+  useSwapSwitch,
+} from './swapScope.tsx'
+import { revealText, SwapText } from './swapText.tsx'
 
 export const TAG_MOTION_MS = 220
 
@@ -15,6 +24,8 @@ export function MorphTag(props: {
   const face = useRef<HTMLSpanElement>(null)
   const label = useRef<HTMLSpanElement>(null)
   const stop = useRef<(() => void) | null>(null)
+  const swap = useRef<SwapSwitch | null>(null)
+  swap.current = useSwapSwitch()
   const attach = useCallback((tag: HTMLSpanElement | null) => {
     stop.current?.()
     stop.current = null
@@ -39,10 +50,20 @@ export function MorphTag(props: {
         `inset(0 ${span - edge}px 0 0 round calc(6px * var(--wl-round, 1)))`
       surface.style.clipPath = clip(next)
       if (Math.abs(before - next) < 0.5 || REDUCED?.matches === true) return
-      animation = surface.animate([{ clipPath: clip(before) }, { clipPath: clip(next) }], {
-        duration: TAG_MOTION_MS,
-        easing: EASE,
-      })
+      // 列表换了一项（SwapScope）：等字先换、按切换的节奏伸缩；变宽时新字跟着底色露出来。
+      const onSwitch = switching(swap.current)
+      const grow = next > before
+      const timing: KeyframeAnimationOptions = onSwitch
+        ? {
+            duration: SWITCH.glide,
+            delay: swapDelay(tag) + (grow ? SWITCH.enterAt : SWITCH.out),
+            easing: EASE_GLIDE,
+            fill: 'backwards',
+          }
+        : { duration: TAG_MOTION_MS, easing: EASE }
+      animation = surface.animate([{ clipPath: clip(before) }, { clipPath: clip(next) }], timing)
+      const text = label.current?.firstElementChild
+      if (onSwitch && grow && text instanceof HTMLElement) revealText(text, next - before, timing)
     })
     observer.observe(tag, { box: 'border-box' })
     stop.current = () => {
@@ -56,13 +77,19 @@ export function MorphTag(props: {
       ref={attach}
       className={cx(props.className, css.tag)}
       data-testid={props.testId}
-      onPointerOverCapture={(event) => tipWhenCut(event.currentTarget, label.current, props.text)}
+      onPointerOverCapture={(event) =>
+        tipWhenCut(
+          event.currentTarget,
+          label.current?.querySelector<HTMLElement>('[data-swap-now]') ?? label.current,
+          props.text,
+        )
+      }
     >
       <span ref={face} className={css.face} data-tag-face="" aria-hidden="true" />
       <span className={css.content}>
         {props.icon}
         <span ref={label} className={css.label} data-tag-label="">
-          {props.text}
+          <SwapText text={props.text} />
         </span>
       </span>
     </span>

@@ -27,6 +27,7 @@ import type { WorkflowLiteRpc } from '../../../rpc.ts'
 import { cx } from '../../kit/cx.ts'
 import { Icon } from '../../kit/Icon.tsx'
 import ui from '../../kit/ui.module.css'
+import { SwapScope } from '../../motion/swapScope.tsx'
 import hub from '../hub.module.css'
 import { keepShown } from '../list/keepShown.ts'
 import type { DetailTab } from './DetailTabs.tsx'
@@ -205,24 +206,26 @@ export function HubTriggers(props: {
           </button>
         </div>
       ) : (
-        <TriggerDetail
-          t={t}
-          rpc={rpc}
-          hub={hubData}
-          entry={selected}
-          paused={list.paused}
-          tab={tab}
-          onTab={setTab}
-          env={env}
-          onPatch={(patch) => void edit(selected, patch)}
-          // 名字写在卡片上（`label`）；清空就回到卡片的 id。
-          onRename={(name) => edit(selected, { label: name === '' ? undefined : name })}
-          onOpenCard={() => props.onOpenCard(selected.workflow, selected.view.node)}
-          onOpenRun={props.onOpenRun}
-          onOpenWorkflow={props.onOpenWorkflow}
-          onSettings={props.onSettings}
-          onNotice={onNotice}
-        />
+        <SwapScope id={keyOf(selected)} order={shown.indexOf(selected)}>
+          <TriggerDetail
+            t={t}
+            rpc={rpc}
+            hub={hubData}
+            entry={selected}
+            paused={list.paused}
+            tab={tab}
+            onTab={setTab}
+            env={env}
+            onPatch={(patch) => void edit(selected, patch)}
+            // 名字写在卡片上（`label`）；清空就回到卡片的 id。
+            onRename={(name) => edit(selected, { label: name === '' ? undefined : name })}
+            onOpenCard={() => props.onOpenCard(selected.workflow, selected.view.node)}
+            onOpenRun={props.onOpenRun}
+            onOpenWorkflow={props.onOpenWorkflow}
+            onSettings={props.onSettings}
+            onNotice={onNotice}
+          />
+        </SwapScope>
       )}
     </div>
   )

@@ -23,6 +23,8 @@ import { runTone } from '../../chrome/KindMark.tsx'
 import { cx } from '../../kit/cx.ts'
 import { Icon } from '../../kit/Icon.tsx'
 import ui from '../../kit/ui.module.css'
+import { useRowSlide } from '../../motion/exits.tsx'
+import { SwapText } from '../../motion/swapText.tsx'
 import hub from '../hub.module.css'
 import { RunDelete } from './RunDelete.tsx'
 import { RunDetailMark } from './RunDetailMark.tsx'
@@ -46,21 +48,24 @@ export function RunHead(props: {
   const tone = runTone(item)
   const tracked = item.statePath !== undefined && item.stateProblem === undefined
   const origin = item.origin
+  // 换了一个实例：名字、来源这几段换了长短，后面跟着的小签、下一段滑过去。
+  const titleRow = useRowSlide()
+  const subRow = useRowSlide()
   // 状态条最左那格：圆点 + 状态字。能改状态时外面包一层按钮。
   const state = (
     <span className={css.stateFace}>
       <span className={css.stateDot} data-live={tone === 'running' || undefined} />
-      {runStatusText(t, item)}
+      <SwapText text={runStatusText(t, item)} />
     </span>
   )
   return (
     <div className={css.fixed}>
-      <div className={css.head}>
+      <div className={css.head} data-swap-tier="0">
         <RunDetailMark item={item} />
         <div className={css.titles}>
-          <p className={css.title}>
+          <p ref={titleRow} className={css.title}>
             <span className={css.titleName} data-testid="wl-hub-run-title">
-              {item.workflow}
+              <SwapText text={item.workflow} lead />
             </span>
             {item.current && (
               <span className={hub.tag} data-tip={t('run.current')}>
@@ -68,22 +73,31 @@ export function RunHead(props: {
               </span>
             )}
           </p>
-          <p className={css.sub}>
+          <p ref={subRow} className={css.sub}>
             {origin !== undefined && (
               <span className={css.subPart} data-testid="wl-hub-origin">
                 <span className={css.subKey}>{t('hub.runOrigin')}</span>
-                <span className={css.subText}>{originText(t, origin)}</span>
+                <span className={css.subText}>
+                  <SwapText text={originText(t, origin)} lead />
+                </span>
               </span>
             )}
             <span className={css.subPart} data-tip={props.workspace.path}>
               <span className={css.subKey}>{t('hub.runWorkspace')}</span>
               <span className={css.subText}>
-                {props.workspace.path === undefined ? t('hub.noWorkspace') : props.workspace.name}
+                <SwapText
+                  text={
+                    props.workspace.path === undefined ? t('hub.noWorkspace') : props.workspace.name
+                  }
+                  lead
+                />
               </span>
             </span>
             <span className={css.subPart} data-tip={props.session.text}>
               <span className={css.subKey}>{t('hub.runSession')}</span>
-              <span className={css.subText}>{props.session.text}</span>
+              <span className={css.subText}>
+                <SwapText text={props.session.text} lead />
+              </span>
               {props.session.mine && (
                 <span className={hub.tag} data-tone="plain">
                   {t('hub.thisSession')}
@@ -106,7 +120,12 @@ export function RunHead(props: {
         </div>
       </div>
 
-      <div className={css.status} data-run-status={tone} data-testid="wl-hub-run-strip">
+      <div
+        className={css.status}
+        data-run-status={tone}
+        data-swap-tier="1"
+        data-testid="wl-hub-run-strip"
+      >
         {tracked && item.status !== undefined ? (
           <HubRunStatus
             t={t}
@@ -124,11 +143,17 @@ export function RunHead(props: {
         <span className={css.sep} />
         <span className={css.when}>
           <span>
-            {t('hub.runCreated')} <b>{shortTime(item.createdAt)}</b>
+            {t('hub.runCreated')}{' '}
+            <b>
+              <SwapText text={shortTime(item.createdAt)} />
+            </b>
           </span>
           {item.updatedAt !== undefined && (
             <span>
-              {t('hub.runUpdatedShort')} <b>{shortTime(Date.parse(item.updatedAt))}</b>
+              {t('hub.runUpdatedShort')}{' '}
+              <b>
+                <SwapText text={shortTime(Date.parse(item.updatedAt))} />
+              </b>
             </span>
           )}
         </span>
@@ -168,17 +193,24 @@ function Where(props: {
       <span className={css.whereLine}>
         {finished || current === undefined ? (
           <span className={css.whereMain}>
-            {t(finished ? 'hub.runAllDone' : 'hub.runNotStarted')}
+            <SwapText text={t(finished ? 'hub.runAllDone' : 'hub.runNotStarted')} />
           </span>
         ) : (
           <span className={css.whereMain}>
-            {t('hub.runStepOf')
-              .replace('{n}', String(index + 1))
-              .replace('{total}', String(total))}
-            <span className={css.whereName}> · {current.name}</span>
+            <SwapText
+              text={t('hub.runStepOf')
+                .replace('{n}', String(index + 1))
+                .replace('{total}', String(total))}
+            />
+            <span className={css.whereName}>
+              {' · '}
+              <SwapText text={current.name} />
+            </span>
           </span>
         )}
-        <span className={css.whereAside}>{t('hub.runDoneCount').replace('{n}', String(done))}</span>
+        <span className={css.whereAside}>
+          <SwapText text={t('hub.runDoneCount').replace('{n}', String(done))} />
+        </span>
       </span>
       <span className={css.segbar} aria-hidden="true">
         {(steps ?? []).map((step) => (

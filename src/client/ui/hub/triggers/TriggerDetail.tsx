@@ -2,7 +2,8 @@
  * dsh-workflow-lite — 「触发」页右栏：上面固定一块（{@link TriggerHead}），下面页签——概览、时间线、按触发方式换名字的
  * 那一页（输出 / 调用 / 日程 / 上游）、设置；每一页自己滚。
  *
- * 选中的页签由页面记着，换卡片不变。换卡片时复用头部；换页签时头部不动，只交接滚动区。
+ * 选中的页签由页面记着，换卡片不变。换卡片时复用头部，字按列表的方向滚着换（外面的 `SwapScope`），
+ * 头部、状态条、下面那一页一层层晚一点（`data-swap-tier`）；换页签时头部不动，只交接滚动区。
  *
  * 头部和页签包在 `<header>` 里，和下面那一页留同样宽的滚动条位置（`--wl-scrollbar`）：两块的左右边对齐。
  * 点一条触发记录（概览、时间线里）打开它的详情（`FireDialog`）。
@@ -213,6 +214,7 @@ export function TriggerDetail(props: {
           className={cx(tabs.pane, motion.scope)}
           role="tabpanel"
           data-fill={fill}
+          data-swap-tier="2"
           data-testid={`wl-hub-trg-pane-${tab}`}
         >
           {pane}

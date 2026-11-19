@@ -41,6 +41,7 @@ import { cx } from '../../kit/cx.ts'
 import { Icon, type IconName } from '../../kit/Icon.tsx'
 import { Skeleton } from '../../kit/Skeleton.tsx'
 import ui from '../../kit/ui.module.css'
+import { SwapScope } from '../../motion/swapScope.tsx'
 import { HubSearch } from '../HubSearch.tsx'
 import hub from '../hub.module.css'
 import { GroupedList, type GroupFace, groupDot } from '../list/GroupedList.tsx'
@@ -372,21 +373,23 @@ export function HubRuns(props: {
           </button>
         </Empty>
       ) : (
-        <RunDetail
-          loading={loading}
-          t={t}
-          rpc={props.rpc}
-          item={selected}
-          workspace={workspaceOf(selected)}
-          session={sessionLabel(selected.session)}
-          tab={tab}
-          onTab={setTab}
-          canMove={session !== undefined && selected.session !== session}
-          onView={(node) => props.onOpenRun(selected.id, node)}
-          onMove={() => void runsRef.current.bind(selected.id).then(load)}
-          onDelete={(withState) => void remove(selected, withState)}
-          onSetStatus={(to, options) => void setStatus(selected, to, options)}
-        />
+        <SwapScope id={selected.id} order={ordered.indexOf(selected)}>
+          <RunDetail
+            loading={loading}
+            t={t}
+            rpc={props.rpc}
+            item={selected}
+            workspace={workspaceOf(selected)}
+            session={sessionLabel(selected.session)}
+            tab={tab}
+            onTab={setTab}
+            canMove={session !== undefined && selected.session !== session}
+            onView={(node) => props.onOpenRun(selected.id, node)}
+            onMove={() => void runsRef.current.bind(selected.id).then(load)}
+            onDelete={(withState) => void remove(selected, withState)}
+            onSetStatus={(to, options) => void setStatus(selected, to, options)}
+          />
+        </SwapScope>
       )}
     </div>
   )
