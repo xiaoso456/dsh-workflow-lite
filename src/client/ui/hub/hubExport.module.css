@@ -144,3 +144,15 @@
     transition: none;
   }
 }
+
+/* 「模型和预设」展开后的两句：开关现在对应的那句深一档。 */
+.choiceLine {
+  margin: 2px 0;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.55;
+}
+
+.choiceLine[data-on] {
+  color: var(--wl-text);
+}

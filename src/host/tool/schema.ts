@@ -478,7 +478,7 @@ export const PARAMETERS = {
             description: '上次执行未结束时：跳过 / 排队 / 同时运行（缺省 skip）。',
           },
           queueMax: { type: 'number', description: '最多排几个（缺省 10，0 = 不限）。' },
-          catchUp: { type: 'boolean', description: '定时：DSH 没开时错过的补一次（缺省 true）。' },
+          catchUp: { type: 'boolean', description: '定时：DSH 没开时错过的补一次（缺省不补）。' },
           maxPerHour: { type: 'number', description: '每小时最多几次（缺省 60，0 = 不限）。' },
           maxFailures: {
             type: 'number',

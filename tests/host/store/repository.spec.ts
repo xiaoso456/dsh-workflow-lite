@@ -117,7 +117,13 @@ describe('create', () => {
     const loaded = await repo.load('code-review')
     expect(loaded.loadable).toBe(true)
     expect(loaded.exists).toBe(true)
-    expect(loaded.document).toEqual({ nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } })
+    // 新建的默认记录运行状态。
+    expect(loaded.document).toEqual({
+      nodes: [],
+      edges: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      settings: { runState: true },
+    })
     const text = await readFileText(workflowFile(root, 'code-review'))
     expect(loaded.hash).toBe(await hashOf(text ?? ''))
   })

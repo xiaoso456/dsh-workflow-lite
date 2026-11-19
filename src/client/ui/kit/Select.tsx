@@ -52,12 +52,15 @@ export function Select<V extends string>(props: {
   plain?: boolean
   /** 项少也带搜索框（要 `t`）。 */
   search?: boolean
+  /** 名字后面的灰字不用等宽字（缺省等宽：多是路径）。 */
+  proseDesc?: boolean
 }): React.JSX.Element {
   const { t } = props
   const [open, setOpen] = useState(false)
   const [place, setPlace] = useState<MenuPlace>({ up: false, list: LIST_MAX })
   const trigger = useRef<HTMLButtonElement>(null)
   const current = props.options.find((option) => option.value === props.value)
+  const valueDesc = current?.valueDesc ?? current?.desc
   const searchable =
     t !== undefined && (props.search === true || props.options.length >= SEARCH_FROM)
 
@@ -108,7 +111,11 @@ export function Select<V extends string>(props: {
           >
             <span className={css.value}>
               {current?.label ?? ''}
-              {current?.desc !== undefined && <span className={css.valueDesc}>{current.desc}</span>}
+              {valueDesc !== undefined && valueDesc !== '' && (
+                <span className={css.valueDesc} data-prose={props.proseDesc === true || undefined}>
+                  {valueDesc}
+                </span>
+              )}
             </span>
             <span className={css.chevron} aria-hidden="true">
               <Icon name="chevronDown" size={14} />

@@ -639,6 +639,9 @@ export class NodeWriter {
         reuse: patch.reuse ?? before?.reuse,
         setGoal: patch.setGoal ?? before?.setGoal,
         runState: patch.runState ?? before?.runState,
+        // 新建会话用的预设、模型只在画布上改，这里原样留着。
+        preset: before?.preset,
+        model: before?.model,
       })
       if (sameSettings(before, next)) return { ok: true, document, changed: [], warnings: [] }
       if (next === undefined) delete document.settings

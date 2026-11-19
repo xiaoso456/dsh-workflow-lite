@@ -1,0 +1,62 @@
+/*
+ * 触发卡片上方的小工具条（TriggerToolbar.tsx）：一个带字的主按钮（强调色字）+ 竖线 + ⚡ 图标。
+ * 挂上时淡入、从下往上浮 4px（只动 opacity、transform）；外层的定位由画布给，动的是这一层。
+ */
+.bar {
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
+  padding: 3px;
+  border: 1px solid var(--wl-line-strong);
+  border-radius: calc(10px * var(--wl-round, 1));
+  background: var(--wl-panel);
+  box-shadow: var(--wl-shadow-2);
+  animation: barIn 180ms var(--wl-ease-out) both;
+}
+
+@keyframes barIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+.main {
+  color: var(--wl-accent-text);
+  --btn-hover: var(--wl-accent-soft);
+}
+
+.sep {
+  width: 1px;
+  height: 16px;
+  margin: 0 2px;
+  background: var(--wl-line-strong);
+}
+
+.icon {
+  color: var(--wl-text-3);
+}
+
+.icon:hover {
+  color: var(--wl-text);
+}
+
+/* 结果写在图标上：发出去了是绿的 ✓，没发出去是红的 ⚠（悬停提示是那句话）。 */
+.icon[data-tone="ok"] {
+  color: var(--wl-ok);
+}
+
+.icon[data-tone="bad"] {
+  color: var(--wl-danger);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar {
+    animation: none;
+  }
+}
+
+/* 瑞士：去阴影，只留一道线。 */
+:global([data-look="swiss"]) .bar {
+  box-shadow: none;
+}

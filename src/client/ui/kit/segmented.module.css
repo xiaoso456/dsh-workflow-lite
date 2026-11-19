@@ -60,6 +60,30 @@
   cursor: pointer;
 }
 
+/* 要留意的格：右上角一个黄点。一直挂着，有事时弹出来，没事了缩回去淡掉（只动 opacity / transform）。 */
+.segWarn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--wl-warn-dot);
+  opacity: 0;
+  transform: scale(0.2);
+  transition:
+    opacity 140ms linear,
+    transform 180ms var(--wl-ease);
+}
+
+.segWarn[data-on] {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 120ms linear,
+    transform 360ms var(--wl-spring);
+}
+
 /* 字后面的小数字标：灰底小胶囊，选中那格里换成强调色。 */
 .segCount {
   display: inline-block;
@@ -160,7 +184,9 @@
 @media (prefers-reduced-motion: reduce) {
   .segItem,
   .segThumb,
-  .segIcon[data-tinted] {
+  .segIcon[data-tinted],
+  .segWarn,
+  .segWarn[data-on] {
     transition: none;
   }
 }

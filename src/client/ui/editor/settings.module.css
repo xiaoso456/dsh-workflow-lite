@@ -1,4 +1,39 @@
-/* 工作流设置对话框：三块（执行方式 / 执行时 / 产出根目录），开关与单选一律做成一行一项。 */
+/* 工作流设置对话框：三页（执行 / 会话 / 产出），开关与单选一律做成一行一项。 */
+
+/* ── 页签与页 ─────────────────────────────────────────────── */
+
+.tabs {
+  flex: none;
+  width: 196px;
+}
+
+/*
+ * 三页叠在同一格里，一样高（按最高的那页），换页不跳；不在看的那页只是看不见（也摸不到），
+ * 填了的东西都留着，「完成」一次存三页。换页是两页交叉淡（只动 opacity）。
+ */
+.pages {
+  display: grid;
+  flex: 1 1 auto;
+}
+
+.page {
+  display: flex;
+  grid-area: 1 / 1;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+  transition:
+    opacity 160ms linear,
+    visibility 0s linear 0s;
+}
+
+.page[data-hidden] {
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 160ms linear,
+    visibility 0s linear 160ms;
+}
 
 /* 一块：标题行 + 内容。 */
 .group {
@@ -215,6 +250,38 @@ label.row:hover {
   opacity: 0.55;
 }
 
+/* 放下拉的几行：下拉的浮层要伸出框外，框不裁切，首尾两行自己跟着框的圆角。 */
+.rows.loose {
+  overflow: visible;
+}
+
+.rows.loose > .row:first-child {
+  border-top-left-radius: inherit;
+  border-top-right-radius: inherit;
+}
+
+.rows.loose > .row:last-child {
+  border-bottom-right-radius: inherit;
+  border-bottom-left-radius: inherit;
+}
+
+/* 会话页的下拉：定宽，名字长了省略。 */
+.rowPick {
+  display: flex;
+  justify-content: flex-end;
+  width: 250px;
+  min-width: 0;
+}
+
+.rowPick > * {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.rowPick > [role="radiogroup"] {
+  flex: 0 1 auto;
+}
+
 /* 复用执行者的三格单选：定宽，切换时说明换字、行不跳。 */
 .rowSeg {
   width: 168px;
@@ -248,6 +315,8 @@ label.row:hover {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .page,
+  .page[data-hidden],
   .mode,
   .mode::before,
   .modeIcon::before {

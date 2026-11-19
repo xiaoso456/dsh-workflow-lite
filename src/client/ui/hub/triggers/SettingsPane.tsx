@@ -28,13 +28,14 @@ import { guardLimits, scheduleNext } from '../../../model/triggerSummary.ts'
 import { momentText, ruleText } from '../../../model/triggerText.ts'
 import { cx } from '../../kit/cx.ts'
 import { Select } from '../../kit/Select.tsx'
+import { WarnMark } from '../../kit/WarnMark.tsx'
 import { FilterDialog } from '../../trigger/dialogs/FilterDialog.tsx'
 import { GuardDialog } from '../../trigger/dialogs/GuardDialog.tsx'
 import { NotesDialog } from '../../trigger/dialogs/NotesDialog.tsx'
 import { SourceDialog } from '../../trigger/dialogs/SourceDialog.tsx'
 import { TRIGGER_ICON, triggerTint } from '../../trigger/TriggerMark.tsx'
 import type { TriggerEnv } from '../../trigger/triggerEnv.ts'
-import { useLaunchChoice } from '../../trigger/useLaunchChoice.ts'
+import { type AgentChoices, useLaunchChoice } from '../../trigger/useLaunchChoice.ts'
 import {
   InfoCard,
   InfoColumns,
@@ -201,6 +202,51 @@ export function SettingsPane(props: {
   )
 }
 
+/** 新建会话用的预设、模型（、思考强度）：和画布面板同一份选项（useLaunchChoice）。 */
+function AgentKv(props: { t: T; agent: AgentChoices }): React.JSX.Element {
+  const { t, agent } = props
+  const dim = agent.existing || undefined
+  const row = (
+    title: string,
+    choice: AgentChoices['preset'],
+    testId: string,
+    issue: string[] | undefined,
+  ): React.JSX.Element => (
+    <div className={cx(cards.kvRow, css.agentRow)} data-dim={dim}>
+      <dt>
+        {title}
+        <WarnMark title={title} lines={issue} testId={`${testId}-warn`} />
+      </dt>
+      <dd className={cards.pick}>
+        <Select<string>
+          plain
+          t={t}
+          label={title}
+          value={choice.value}
+          proseDesc
+          testId={testId}
+          onChange={choice.set}
+          options={choice.options}
+        />
+      </dd>
+    </div>
+  )
+  return (
+    <>
+      {row(t('session.presetShort'), agent.preset, 'wl-hub-trg-preset', agent.issues.preset)}
+      {row(t('session.model'), agent.model, 'wl-hub-trg-model', agent.issues.model)}
+      {agent.effort !== null &&
+        row(t('session.effortShort'), agent.effort, 'wl-hub-trg-effort', undefined)}
+      {agent.existing && (
+        <div className={cards.kvRow}>
+          <dt />
+          <dd className={css.agentNote}>{t('session.existingNote')}</dd>
+        </div>
+      )}
+    </>
+  )
+}
+
 function muted(text: string): React.JSX.Element {
   return <Muted>{text}</Muted>
 }
@@ -306,8 +352,8 @@ function filterRows(t: T, data: TriggerData): Row[] {
 }
 
 /**
- * 「执行设置」的几行：会话方式、（固定会话时）固定到哪个会话、工作区，都是就地下拉。
- * 固定会话又不跑命令时不用工作区，写「不需要」。
+ * 「执行设置」的几行：会话方式、（固定会话时）固定到哪个会话、工作区、新建会话用的预设和模型，都是就地下拉。
+ * 固定会话又不跑命令时不用工作区，写「不需要」；发进现成的会话时预设、模型淡下去、下面说一句。
  */
 function LaunchRows(props: {
   t: T
@@ -384,6 +430,7 @@ function LaunchRows(props: {
             </dd>
           )}
         </div>
+        <AgentKv t={t} agent={choice.agent} />
       </dl>
       <p className={css.error} hidden={choice.failed === ''} data-testid="wl-hub-trg-launch-error">
         {choice.failed}

@@ -1,0 +1,32 @@
+/*
+ * 名字旁边的告警图标（WarnMark.tsx）：一直挂着，有事时淡入、弹一下，没事了缩回淡掉（只动 opacity / transform）；
+ * 藏着时 `visibility: hidden`，键盘走不到、读屏也不念，等缩完才藏。
+ */
+.mark {
+  display: inline-flex;
+  flex: none;
+  visibility: hidden;
+  opacity: 0;
+  transform: scale(0.4);
+  transition:
+    opacity 140ms linear,
+    transform 180ms var(--wl-ease),
+    visibility 0s linear 180ms;
+}
+
+.mark[data-on] {
+  visibility: visible;
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 120ms linear,
+    transform 360ms var(--wl-spring),
+    visibility 0s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mark,
+  .mark[data-on] {
+    transition: none;
+  }
+}

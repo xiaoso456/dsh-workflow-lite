@@ -329,7 +329,8 @@ describe('workflow_lite —— configure（工作流设置）', () => {
     )
     expect(done.changed).toBeDefined()
     const index = record(await run({ action: 'read', workflow: 'cfg' }))
-    expect(index.settings).toEqual({ outputRoot: 'out/run', mode: 'subagent' })
+    // 新建的工作流默认记录运行状态。
+    expect(index.settings).toEqual({ outputRoot: 'out/run', mode: 'subagent', runState: true })
     const compiled = record(await run({ action: 'compile', workflow: 'cfg' }, EXEC))
     expect(String(compiled.plan)).toContain('out/run/a.md')
     expect(String(compiled.plan)).toContain('`subagent`')
@@ -341,12 +342,13 @@ describe('workflow_lite —— configure（工作流设置）', () => {
       mode: 'subagent',
       reuse: 'reuse',
       setGoal: false,
+      runState: true,
     })
     const tuned = String(record(await run({ action: 'compile', workflow: 'cfg' }, EXEC)).plan)
     expect(tuned).toContain('- **复用执行者**：优先复用。')
     expect(tuned).not.toContain('create_goal')
 
-    // 空串清根目录、auto 清执行方式与复用、打开设定目标（缺省）：设置整键消失。
+    // 空串清根目录、auto 清执行方式与复用、打开设定目标（缺省）、关掉运行状态（缺省）：设置整键消失。
     await run({
       action: 'configure',
       workflow: 'cfg',
@@ -354,6 +356,7 @@ describe('workflow_lite —— configure（工作流设置）', () => {
       mode: 'auto',
       reuse: 'auto',
       set_goal: true,
+      run_state: false,
     })
     expect(record(await run({ action: 'read', workflow: 'cfg' })).settings).toBeUndefined()
   })

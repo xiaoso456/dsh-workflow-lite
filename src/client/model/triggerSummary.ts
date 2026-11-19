@@ -35,7 +35,7 @@ export function filterSummary(t: T, filter: FilterSettings): string {
   return parts.length === 0 ? t('trigger.sum.noFilter') : parts.join(SEP)
 }
 
-/** 「上次执行未结束时跳过 · 每小时最多 60 次 · 连续 3 次失败停用」，关了补发再加「不补发错过的触发」。 */
+/** 「上次执行未结束时跳过 · 每小时最多 60 次 · 连续 3 次失败停用」，开了补发再加「补发错过的触发」。 */
 export function guardSummary(t: T, launch: LaunchSettings): string {
   return [overlapSummary(t, launch), guardLimits(t, launch)].join(SEP)
 }
@@ -69,7 +69,7 @@ export function guardLimits(t: T, launch: LaunchSettings): string {
     launch.maxFailures === NO_LIMIT
       ? t('trigger.sum.noFailures')
       : t('trigger.sum.failures').replace('{n}', String(launch.maxFailures)),
-    launch.catchUp ? '' : t('trigger.sum.noCatchUp'),
+    launch.catchUp ? t('trigger.sum.catchUp') : '',
   ]
     .filter((part) => part !== '')
     .join(SEP)
@@ -85,7 +85,7 @@ export function guardBrief(t: T, launch: LaunchSettings): string {
     launch.maxFailures === NO_LIMIT
       ? t('trigger.brief.noFailures')
       : t('trigger.brief.failures').replace('{n}', String(launch.maxFailures)),
-    launch.catchUp ? '' : t('trigger.brief.noCatchUp'),
+    launch.catchUp ? t('trigger.brief.catchUp') : '',
   ]
     .filter((part) => part !== '')
     .join(SEP)

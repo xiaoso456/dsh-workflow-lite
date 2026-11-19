@@ -74,7 +74,7 @@ export function TriggerDetail(props: {
   const activity = useActivity(entry, hub.activity)
   const [picked, setPicked] = useState<FireRecord | null>(null)
   // 时间线页签上的红点：有还没看过的失败才亮；看着时间线时新来的也算看过。
-  const [seen, markSeen] = useFireSeen(key)
+  const [seen, markSeen] = useFireSeen(entry.workflow, view.node)
   const newest = fires?.[0]?.at
   useEffect(() => {
     if (tab === 'timeline' && newest !== undefined) markSeen(newest)

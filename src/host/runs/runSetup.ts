@@ -22,6 +22,7 @@ import {
 import type {
   ExecutionMode,
   InputAnswer,
+  SessionAgent,
   ValidationProblem,
   WorkflowDocument,
 } from '../../shared/types.ts'
@@ -253,6 +254,8 @@ export class RunSetup {
     session: SessionRef & { id: string }
     /** 用户在「执行」前填的回答（输入 id → 回答）。 */
     answers?: unknown
+    /** 为这次执行新建的会话设了什么、哪几项没用上（记进来源）；发进现成的会话时没有。 */
+    agent?: SessionAgent | undefined
   }): Promise<Outcome<{ instance: InstanceSummary; prompt: string }>> {
     const answers = checkAnswers(input.document, input.answers)
     if (answers.errors.length > 0) {
@@ -278,7 +281,7 @@ export class RunSetup {
       session: input.session,
       answers: answers.answers,
       reuse: false,
-      origin: { channel: 'manual' },
+      origin: { channel: 'manual', ...(input.agent === undefined ? {} : { agent: input.agent }) },
     })
     if (!prepared.ok) return prepared
     const id = prepared.result.id

@@ -18,6 +18,7 @@ import type { T } from '../../../i18n.ts'
 import {
   FIRE_CHANNEL_TEXT,
   FIRE_KIND_TEXT,
+  fireFallback,
   fireKind,
   fireWhy,
   waited,
@@ -54,6 +55,7 @@ export function FireDialog(props: {
   const { t, record } = props
   const kind = fireKind(record)
   const why = fireWhy(record)
+  const fallback = fireFallback(t, record)
   const queued = kind === 'queued'
   const wait = waited(record)
   const cancel = useConfirm<HTMLButtonElement>()
@@ -142,6 +144,13 @@ export function FireDialog(props: {
             title={t(kind === 'declined' ? 'trigger.fire.declinedReason' : 'trigger.fire.reason')}
             text={why}
             testId="wl-trigger-fire-why"
+          />
+        )}
+        {fallback !== undefined && (
+          <Block
+            title={t('trigger.fire.fallback')}
+            text={fallback}
+            testId="wl-trigger-fire-fallback"
           />
         )}
         {detail?.merged !== undefined && (

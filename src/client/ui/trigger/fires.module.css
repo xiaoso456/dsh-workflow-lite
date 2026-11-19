@@ -123,6 +123,11 @@
   white-space: nowrap;
 }
 
+/* 发出去了、但设的预设或模型回退了默认。 */
+.fireWhy[data-warn] {
+  color: var(--wl-warn);
+}
+
 /* 没有原因的行里，结果也靠右。 */
 .fireOutcome {
   flex: none;

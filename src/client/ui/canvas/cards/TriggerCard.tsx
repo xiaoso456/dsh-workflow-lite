@@ -7,6 +7,9 @@
  * - 底行：「主动 ↗」/「被动 ↙」小标（触发源的颜色）+ 状态的后半句（下一次什么时候、上次检查的结果、出了什么错）；
  *   有排着的时候后半句换成「⏳ 排队 3 个」（排队不是一种状态，状态小标照旧）。
  *
+ * 状态小标上有还没看过的失败时亮一个红点，悬停看是哪几次（{@link UnseenFailures}）。
+ * 选中时卡片上方浮出一条小工具条：去工作流中心看这张卡片、立即触发一次（{@link TriggerToolbar}）。
+ *
  * 卡片上不放开关：开关在属性面板和工作流中心「触发」页里（要确认命令的也在那里问）。
  * 卡片选中之后再点速览，打开「触发方式」对话框（面板接手）；没选中时点它只是选中卡片（速览占着卡片中间，
  * 一点就弹框太冒失）。按着速览拖动卡片不算点。
@@ -25,7 +28,9 @@ import { QueueMark } from '../../trigger/QueueMark.tsx'
 import tone from '../../trigger/stateTone.module.css'
 import { TriggerGlanceRow } from '../../trigger/TriggerGlanceRow.tsx'
 import { ModeChip, TriggerMark, triggerTint } from '../../trigger/TriggerMark.tsx'
+import { TriggerToolbar } from '../../trigger/TriggerToolbar.tsx'
 import { useTriggerEnv } from '../../trigger/triggerEnv.ts'
+import { UnseenFailures } from '../../trigger/UnseenFailures.tsx'
 import shared from '../canvas.module.css'
 import { useHandlesMeasured } from '../hooks/useHandlesMeasured.ts'
 import type { TriggerFlowNode } from '../types.ts'
@@ -64,14 +69,16 @@ export const TriggerCard = memo(function TriggerCard(
           </span>
         )}
         {env !== null && (
-          <span
-            className={cx(css.pill, tone.tone)}
-            data-tone={stateTone(view?.state ?? 'off', data.face)}
-            data-testid="wl-trigger-state"
-          >
-            <span className={tone.dot} aria-hidden="true" />
-            {stateBadge(data.t, view, data.face)}
-          </span>
+          <UnseenFailures t={data.t} env={env} node={id} lastFailure={view?.lastFailure}>
+            <span
+              className={cx(css.pill, tone.tone)}
+              data-tone={stateTone(view?.state ?? 'off', data.face)}
+              data-testid="wl-trigger-state"
+            >
+              <span className={tone.dot} aria-hidden="true" />
+              {stateBadge(data.t, view, data.face)}
+            </span>
+          </UnseenFailures>
         )}
       </div>
       {env === null ? (
@@ -85,6 +92,7 @@ export const TriggerCard = memo(function TriggerCard(
           <TriggerGlanceRow glance={data.glance} view={view} />
         </GlanceButton>
       )}
+      {selected && env !== null && <TriggerToolbar t={data.t} env={env} node={id} />}
       <div className={css.foot}>
         <ModeChip t={data.t} kind={data.kind} named testId="wl-trigger-mode" />
         <QueueMark t={data.t} count={queued} label testId="wl-trigger-queued" />

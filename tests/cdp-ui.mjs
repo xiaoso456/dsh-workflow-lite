@@ -244,15 +244,14 @@ async function run(session) {
   await waitFor(session, `document.querySelector('.react-flow__node[data-id="step"]') !== null`)
   await waitFor(session, `document.activeElement?.getAttribute('data-testid') === 'wl-ins-prompt'`)
   await session.send('Input.insertText', { text: '检查所有测试是否通过。' })
+  // 弹窗里改的是草稿：点「保存」才交出去。
+  await session.evaluate(clickTestId('wl-ins-prompt-card-viewer-save'))
   await onDisk(
     NAME,
     (doc) => doc.nodes.find((node) => node.id === 'step')?.data.prompt === '检查所有测试是否通过。',
     'step 的提示词',
   )
-  // 提示词在弹窗里写：Esc 关上，右栏那一截是写好的内容。
-  await session.evaluate(
-    `document.querySelector('[data-testid="wl-ins-prompt-card-viewer"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`,
-  )
+  // 提示词在弹窗里写，「保存」后弹窗关上，右栏那一截是写好的内容。
   await waitFor(
     session,
     `document.querySelector('[data-testid="wl-ins-prompt-card-viewer"]') === null`,
@@ -1063,7 +1062,7 @@ async function run(session) {
   await session.evaluate(clickTestId('wl-step-prompt-card-card'))
   await waitFor(session, exists('wl-step-prompt'))
   await setReactInput(session, 'textarea[data-testid="wl-step-prompt"]', '全新的步骤')
-  await pressKey(session, 'Escape')
+  await session.evaluate(clickTestId('wl-step-prompt-card-viewer-save'))
   await waitFor(
     session,
     `document.querySelector('[data-testid="wl-step-prompt-card-viewer"]') === null`,

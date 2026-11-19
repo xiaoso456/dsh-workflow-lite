@@ -14,6 +14,7 @@ import type { RunService } from '../runs/service.ts'
 import type { DocumentValidator } from '../store/repoCore.ts'
 import type { Repository } from '../store/repository.ts'
 import type { TriggerService } from '../triggers/service.ts'
+import type { SessionPort } from '../triggers/sessions.ts'
 
 /** 路由需要的活依赖。 */
 export interface RpcDeps {
@@ -25,6 +26,8 @@ export interface RpcDeps {
   runs: RunService
   /** 触发卡片（`trigger/*`）。 */
   triggers: TriggerService
+  /** 进会话：能选的预设与模型、给新建的会话装模型（`host/agents`、`host/prepareSession`）。 */
+  sessions: SessionPort
   /** 看 DSH 的 skill（选 Skill、预览 SKILL.md 用）；没给就当没装 skill 服务。 */
   skills?: SkillViewer
   /** 「设置」页：DSH 的设置服务（不在时回 `undefined`，页面只读）与活配置的现值。 */

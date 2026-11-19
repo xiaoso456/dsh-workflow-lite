@@ -8,6 +8,7 @@
 
 import type { FireRecord } from '../../shared/wire/trigger.ts'
 import type { LocaleKey, T } from '../i18n.ts'
+import { fallbackNote } from './sessionChoice.ts'
 import { weekdayText } from './triggerText.ts'
 
 /**
@@ -50,6 +51,17 @@ export function fireKind(record: Pick<FireRecord, 'outcome' | 'declined'>): Fire
 /** 跳过、失败、不需要的原因；顺利发出去的没有。 */
 export function fireWhy(record: Pick<FireRecord, 'reason' | 'declined'>): string | undefined {
   return record.declined ?? record.reason
+}
+
+/** 发出去了、但设的预设或模型没用上（回退了默认）时的那句；其余没有。 */
+export function fireFallback(
+  t: T,
+  record: Pick<FireRecord, 'outcome' | 'agent'>,
+): string | undefined {
+  const fallbacks = record.agent?.fallbacks ?? []
+  return record.outcome === 'sent' && fallbacks.length > 0
+    ? fallbackNote(t, null, fallbacks)
+    : undefined
 }
 
 /** 那一天零点（本地时间）。 */

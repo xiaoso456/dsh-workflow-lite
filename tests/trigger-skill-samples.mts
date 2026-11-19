@@ -49,7 +49,13 @@ const triggers = new TriggerService({
   dataDir: () => dataDir,
   store,
   graphs: createTriggerGraphs(repository),
-  sessions: { unavailable: () => null, open: async () => 's', send: async () => {} },
+  sessions: {
+    unavailable: () => null,
+    open: async () => ({ session: 's', fallbacks: [] }),
+    send: async () => {},
+    prepare: async () => [],
+    catalog: async () => ({ presets: [], providers: [], failures: [], modelSelectable: null }),
+  },
   listen: () => ({ host: '127.0.0.1', port: 3999 }),
   runs: { finished: async () => ({ runs: [], ids: [] }), stateOf: async () => null },
 })

@@ -6,13 +6,16 @@
 
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { isInput } from '../../../../shared/model.ts'
+import { resolveSessionChoice } from '../../../../shared/sessionChoice.ts'
 import type { InputAnswer } from '../../../../shared/types.ts'
+import { openChosenSession } from '../../../app/agents.ts'
 import type { Desktop } from '../../../app/desktop.ts'
 import { createHostAccess, type HostAccess } from '../../../app/host.ts'
 import { type SessionBridge, type SessionRow, useSessionRows } from '../../../app/sessions.ts'
 import type { Runs } from '../../../app/useRuns.ts'
 import type { Workflow } from '../../../app/useWorkflow.ts'
 import type { LocaleKey, T } from '../../../i18n.ts'
+import { fallbackNote } from '../../../model/sessionChoice.ts'
 import { errorMessage, type WorkflowLiteRpc } from '../../../rpc.ts'
 
 export interface LaunchInput {
@@ -75,6 +78,8 @@ export function useLaunch({ props, t, wf, runs, openRun, seenCurrent }: LaunchIn
   /**
    * 执行：先把没存的改动存下去（实例拿磁盘上的那份做快照），要新建会话就先建好，建实例，
    * 再往目标会话发那句话，然后跳过去看它跑。发不出去就把刚建的实例删掉，不留一个没人认领的实例。
+   * 新建的会话按画布上这张工作流的设置带上预设、装上模型（发进现成的会话不动它的）；
+   * 用不上的回退默认、照常执行，发完提示一句。
    *
    * @param target - 会话 id；`null` = 在本工作区新建一个会话。
    * @param answers - 用户在「执行前填写」里的回答（图里有输入节点时）。
@@ -87,7 +92,17 @@ export function useLaunch({ props, t, wf, runs, openRun, seenCurrent }: LaunchIn
       setStarting(true)
       try {
         if (!(await wf.flush())) throw new Error(t('launch.unsaved'))
-        const session = target ?? (await bridge.create(props.session, sessionCwd))
+        const here = props.session
+        const opened =
+          target === null
+            ? await openChosenSession(
+                props.rpc,
+                here,
+                resolveSessionChoice(undefined, state.doc?.settings),
+                (preset) => bridge.create(here, sessionCwd, preset),
+              )
+            : { session: target, fallbacks: [], agent: undefined, catalog: null }
+        const { session } = opened
         const row = sessionRows.find((candidate) => candidate.id === session)
         const cwd = row?.cwd ?? (target === null ? sessionCwd : undefined)
         const started = await props.rpc.call('run/start', {
@@ -95,6 +110,7 @@ export function useLaunch({ props, t, wf, runs, openRun, seenCurrent }: LaunchIn
           session,
           ...(cwd === undefined ? {} : { cwd }),
           ...(answers === undefined ? {} : { answers }),
+          ...(opened.agent === undefined ? {} : { agent: opened.agent }),
         })
         try {
           await bridge.deliver(session, started.prompt)
@@ -105,6 +121,9 @@ export function useLaunch({ props, t, wf, runs, openRun, seenCurrent }: LaunchIn
           throw error
         }
         await runs.refresh()
+        if (opened.fallbacks.length > 0) {
+          wf.notify(fallbackNote(t, opened.catalog, opened.fallbacks))
+        }
         if (session === props.session) {
           // 本会话：切到对话 tab 看它跑（回到工作流 tab 时显示的就是这个实例）。
           seenCurrent.current = started.instance.id
@@ -121,6 +140,7 @@ export function useLaunch({ props, t, wf, runs, openRun, seenCurrent }: LaunchIn
     },
     [
       state.name,
+      state.doc?.settings,
       props.sessions,
       props.rpc,
       props.session,

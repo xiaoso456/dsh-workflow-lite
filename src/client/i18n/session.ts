@@ -1,0 +1,113 @@
+/**
+ * dsh-workflow-lite — 新建会话时用什么跑（agent 预设、模型、思考强度）的文案。
+ *
+ * 工作流设置「会话」页、触发卡片「执行设置」里的两行、「执行」小箭头里「新建会话」下面那行、
+ * 回退了默认时的提示。内置预设的名字和 DSH 自己的叫法一致。
+ *
+ * @module @xiaoso/dsh-workflow-lite/client/i18n/session
+ */
+
+/** 中文（默认）。 */
+export const zh = {
+  'settings.tab.run': '执行',
+  'settings.tab.session': '会话',
+  'settings.tab.output': '产出',
+  'settings.tab.warn': '这一页有设置在这台机器上用不了',
+  'session.group': '新会话配置',
+  'session.groupTip1': '触发器每次新建会话、画布上「执行」新建会话时按这里来；触发卡片可以单独改。',
+  'session.groupTip2':
+    '发进现成的会话（固定会话、接着上一次、执行时挑的会话）时沿用那个会话自己的。',
+  'session.groupTip3': '只存名字，不存服务商地址和密钥；这台机器上没有的执行时用默认的。',
+  'session.preset': 'agent 预设',
+  'session.presetShort': '预设',
+  'session.presetDesc': '新会话用哪套 agent 组合。',
+  'session.model': '模型',
+  'session.modelDesc': '新会话第一轮起就用它。',
+  'session.effort': '思考强度',
+  'session.effortShort': '思考',
+  'session.effortDesc': '档位按这个模型给。',
+  'session.effortDefault': '默认',
+  'session.followDefault': '跟随默认',
+  'session.followWorkflow': '跟随工作流',
+  'session.nowIs': '现在是 {name}',
+  'session.dshDefault': 'DSH 的默认',
+  'session.efforts': '思考：{list}',
+  'session.effortOf': '思考 {name}',
+  'session.missing': '这台机器上没有',
+  'session.broken': '用不了',
+  'session.providerFailed': '读不出模型列表',
+  'session.loading': '正在读取…',
+  'session.issue.preset': '预设「{name}」在这台机器上用不了，执行时会用默认预设。',
+  'session.issue.model': '模型 {name} 在这台机器上没有，执行时会用默认模型。',
+  'session.issue.effort': '{model} 没有「{effort}」这一档，执行时用它的默认档。',
+  'session.issue.unsupported': '这个 DSH 版本不能按工作流选模型，执行时用默认模型；预设照常生效。',
+  'session.issue.version': '按工作流选模型要 DSH 0.2.2 或更新。',
+  'session.existingNote': '发进现成的会话时沿用它的模型和预设；只在要新建会话时用这两项。',
+  'session.launchNote': '发进现成的会话时沿用它的模型和预设。',
+  'session.fallback.preset': '预设 {name} 不可用，用了默认预设',
+  'session.fallback.model': '模型 {name} 不可用，用了默认模型',
+  'session.fallback.effort': '{model} 没有「{effort}」这一档，用了它的默认档',
+  'session.fallback.unsupported': '这个 DSH 版本不能按工作流选模型，用了默认模型',
+  'session.fallback.failed': '没能装上设的模型，用了默认模型',
+  'session.wanted': '设的 {name} 没用上',
+  'session.wantedEffort': '没有「{effort}」这一档，用了默认档',
+  'session.preset.standard': '标准模式',
+  'session.preset.ptc': 'PTC 模式',
+  'session.preset.minimal': '极简模式',
+  'session.preset.cordis': '创造模式',
+} as const
+
+export const en: Record<keyof typeof zh, string> = {
+  'settings.tab.run': 'Run',
+  'settings.tab.session': 'Session',
+  'settings.tab.output': 'Output',
+  'settings.tab.warn': "Some settings on this page can't be used on this machine",
+  'session.group': 'New session setup',
+  'session.groupTip1':
+    'Used when a trigger starts a new session or Run on the canvas starts one; a trigger card can override them.',
+  'session.groupTip2':
+    'Sending into an existing session (fixed session, continue the last one, a session picked at run time) keeps that session’s own.',
+  'session.groupTip3':
+    "Only names are saved, never provider URLs or keys; anything this machine doesn't have falls back to the default.",
+  'session.preset': 'Agent preset',
+  'session.presetShort': 'Preset',
+  'session.presetDesc': 'Which agent setup a new session uses.',
+  'session.model': 'Model',
+  'session.modelDesc': 'Used from the first turn of a new session.',
+  'session.effort': 'Reasoning effort',
+  'session.effortShort': 'Effort',
+  'session.effortDesc': 'Levels come from the chosen model.',
+  'session.effortDefault': 'Default',
+  'session.followDefault': 'Follow default',
+  'session.followWorkflow': 'Follow workflow',
+  'session.nowIs': 'Now {name}',
+  'session.dshDefault': 'DSH default',
+  'session.efforts': 'Effort: {list}',
+  'session.effortOf': 'effort {name}',
+  'session.missing': 'Not on this machine',
+  'session.broken': 'Unusable',
+  'session.providerFailed': "Couldn't list models",
+  'session.loading': 'Loading…',
+  'session.issue.preset':
+    "Preset “{name}” can't be used on this machine; the default preset will be used.",
+  'session.issue.model': "Model {name} isn't on this machine; the default model will be used.",
+  'session.issue.effort': '{model} has no “{effort}” level; its default level will be used.',
+  'session.issue.unsupported':
+    "This DSH version can't pick a model per workflow, so the default model is used; the preset still applies.",
+  'session.issue.version': 'Picking a model per workflow needs DSH 0.2.2 or later.',
+  'session.existingNote':
+    'An existing session keeps its own model and preset; these two only apply when a new session is started.',
+  'session.launchNote': 'An existing session keeps its own model and preset.',
+  'session.fallback.preset': 'Preset {name} unavailable, used the default preset',
+  'session.fallback.model': 'Model {name} unavailable, used the default model',
+  'session.fallback.effort': '{model} has no “{effort}” level, used its default level',
+  'session.fallback.unsupported':
+    "This DSH version can't pick a model per workflow, used the default model",
+  'session.fallback.failed': "Couldn't set the chosen model, used the default model",
+  'session.wanted': 'Set to {name}, not applied',
+  'session.wantedEffort': 'No “{effort}” level, used the default level',
+  'session.preset.standard': 'Standard mode',
+  'session.preset.ptc': 'PTC mode',
+  'session.preset.minimal': 'Minimal mode',
+  'session.preset.cordis': 'Creator mode',
+}

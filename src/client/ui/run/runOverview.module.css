@@ -17,6 +17,13 @@
 }
 
 /* 来源里的触发说明、背景信息：原样分行，太长了自己滚。 */
+/* 来源里的预设、模型回退了默认：旁边黄字写设的是什么。 */
+.originWanted {
+  margin-left: 8px;
+  color: var(--wl-warn);
+  font-size: var(--wl-fs-micro);
+}
+
 .originText {
   max-height: 132px;
   overflow-y: auto;

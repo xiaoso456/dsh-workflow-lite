@@ -6,6 +6,8 @@
  * 给了 `tint` 就一直是那个颜色：没选中时淡一些、悬停和选中满色）；
  * `count` 是字后面一个小数字标；`tip` 是悬停说明。`fit` 时各格按自己的字宽排，不等分。
  * `off` 是这一格暂时选不了的原因（悬停时说；格子用 `aria-disabled` 而不是 `disabled`，好让悬停提示照常出来）。
+ * `warn` 是这一格背后有要留意的事（右上角一个黄点，悬停时说）；给 `null` 是现在没有、但随时可能有：
+ * 黄点一直挂着，有没有只换属性（淡入弹出 / 缩回淡出），不插拔。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/kit/Segmented
  */
@@ -31,6 +33,8 @@ export function Segmented<V extends string>(props: {
     tip?: string
     /** 这一格选不了的原因（给了就选不了）。 */
     off?: string
+    /** 要留意的事（右上角一个黄点，悬停说明换成它）；`null` = 眼下没有，黄点藏着等它来。 */
+    warn?: string | null
   }[]
   onChange: (value: V) => void
   disabled?: boolean
@@ -63,7 +67,7 @@ export function Segmented<V extends string>(props: {
           className={css.segItem}
           disabled={props.disabled}
           aria-disabled={option.off === undefined ? undefined : true}
-          data-tip={option.off ?? option.tip}
+          data-tip={option.off ?? option.warn ?? option.tip}
           aria-label={option.tip}
           data-testid={props.testId === undefined ? undefined : `${props.testId}-${option.value}`}
           onClick={() => {
@@ -89,6 +93,14 @@ export function Segmented<V extends string>(props: {
           )}
           <FadeText text={option.label} on={option.value === props.value} />
           {option.count !== undefined && <span className={css.segCount}>{option.count}</span>}
+          {option.warn !== undefined && (
+            <span
+              className={css.segWarn}
+              data-on={option.warn !== null || undefined}
+              data-testid="wl-seg-warn"
+              aria-hidden="true"
+            />
+          )}
         </button>
       ))}
     </div>

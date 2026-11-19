@@ -56,11 +56,25 @@
   font-size: var(--wl-fs-micro);
 }
 
+.valueDesc[data-prose] {
+  font-family: inherit;
+}
+
 .chevron {
   display: inline-flex;
   flex: none;
   color: var(--wl-text-3);
   transition: transform 180ms var(--wl-ease-out);
+}
+
+/* 用鼠标选完、焦点回到触发块上时不描强调色的框（和输入框不同，它不是在打字）；键盘走到这里照样有焦点环。 */
+.trigger:focus:not(:focus-visible) {
+  border-color: transparent;
+  background: var(--wl-fill);
+}
+
+.trigger.plain:focus:not(:focus-visible) {
+  background: transparent;
 }
 
 .trigger[data-opened] .chevron {
@@ -110,6 +124,18 @@
 /* 搜不到时的「新建……」：强调色，和已有的项分开。 */
 .create {
   color: var(--wl-accent-text);
+}
+
+/* 分组名（模型下拉里的服务商）：小号灰字，不能点。 */
+.group {
+  margin: 6px 0 2px;
+  padding: 0 10px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+.group:first-child {
+  margin-top: 2px;
 }
 
 /* 带一行说明的项：名字加粗，下面一行灰字。 */

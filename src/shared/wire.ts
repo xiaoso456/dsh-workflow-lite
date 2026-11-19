@@ -82,8 +82,12 @@ import type {
   GraphVersionsResponse,
 } from './wire/graph.ts'
 import type {
+  HostAgentsRequest,
+  HostAgentsResponse,
   HostListRequest,
   HostListResponse,
+  HostPrepareSessionRequest,
+  HostPrepareSessionResponse,
   HostSkillRequest,
   HostSkillResponse,
   HostSkillsRequest,
@@ -258,6 +262,8 @@ export const WORKFLOW_LITE_ENDPOINTS = [
   'host/list',
   'host/skills',
   'host/skill',
+  'host/agents',
+  'host/prepareSession',
   'config/get',
   'config/set',
   'pack/scan',
@@ -388,6 +394,8 @@ export interface WorkflowLiteRpcMap {
   'host/list': { args: HostListRequest; result: HostListResponse }
   'host/skills': { args: HostSkillsRequest; result: HostSkillsResponse }
   'host/skill': { args: HostSkillRequest; result: HostSkillResponse }
+  'host/agents': { args: HostAgentsRequest; result: HostAgentsResponse }
+  'host/prepareSession': { args: HostPrepareSessionRequest; result: HostPrepareSessionResponse }
   'config/get': { args: Record<string, never>; result: PluginConfigView }
   'config/set': { args: PluginConfigWrite; result: PluginConfigView }
   'pack/scan': { args: PackScanRequest; result: PackScanResponse }

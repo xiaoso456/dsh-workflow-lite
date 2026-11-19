@@ -1,18 +1,39 @@
 /**
- * dsh-workflow-lite — 触发卡片「在哪执行」的几样选择：会话方式、（固定会话时）固定到哪个会话、工作区。
+ * dsh-workflow-lite — 触发卡片「在哪执行」的几样选择：会话方式、（固定会话时）固定到哪个会话、工作区，
+ * 以及新建会话时用的 agent 预设、模型、思考强度（不写 = 跟随工作流设置）。
  *
  * 画布面板（LaunchField）和工作流中心「触发」页的设置（SettingsPane）各按自己的样子摆，选项和存法都从这里拿：
  * 会话方式写在图里（`onLaunch`，缺省值不留）；工作区、固定的会话只存在这台机器上（`env.triggers.set`），
  * 存不下时 `failed` 是原因。要跑命令的卡片换了工作区，宿主让它回到「待确认」（这里不管、也不绕过）。
+ * 预设、模型写在图里；能选什么从 DSH 读（`env.agents`），实例视图没有现场时只列「跟随工作流」和已经设了的。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/trigger/useLaunchChoice
  */
 
 import { useState } from 'react'
 import { commandOf, launchOf, readTriggerData } from '../../../shared/trigger.ts'
-import type { TriggerData, TriggerLaunch, TriggerSessionMode } from '../../../shared/types.ts'
+import type {
+  ModelChoice,
+  TriggerData,
+  TriggerLaunch,
+  TriggerSessionMode,
+} from '../../../shared/types.ts'
+import { useAgentCatalog } from '../../app/agents.ts'
 import type { LocaleKey, T } from '../../i18n.ts'
 import { folderName } from '../../model/hostPath.ts'
+import {
+  type ChoiceIssue,
+  choiceIssues,
+  effortOptions,
+  FOLLOW,
+  issueLines,
+  modelKey,
+  modelOptions,
+  pickModel,
+  presetOptions,
+  withEffort,
+} from '../../model/sessionChoice.ts'
+import type { SelectOption } from '../kit/Select.tsx'
 import type { TriggerEnv } from './triggerEnv.ts'
 
 const SESSION_MODES: readonly { value: TriggerSessionMode; label: LocaleKey }[] = [
@@ -23,8 +44,20 @@ const SESSION_MODES: readonly { value: TriggerSessionMode; label: LocaleKey }[] 
 
 export interface Choice<V extends string> {
   value: V
-  options: { value: V; label: string }[]
+  options: SelectOption<V>[]
   set(value: V): void
+}
+
+/** 新建会话时用什么跑：卡片上没写的项跟随工作流设置。 */
+export interface AgentChoices {
+  preset: Choice<string>
+  model: Choice<string>
+  /** 思考强度：只在卡片自己选了分档的模型时有。 */
+  effort: Choice<string> | null
+  /** 卡片上设的在这台机器上用不了时的提醒（预设、模型各一句）；都能用是空的。 */
+  issues: { preset?: string[]; model?: string[] }
+  /** 发进现成的会话（固定会话、接着上一次）：这几项只在那个会话不在了、要新建时才用。 */
+  existing: boolean
 }
 
 export interface LaunchChoice {
@@ -38,6 +71,7 @@ export interface LaunchChoice {
   noWorkspace: boolean
   /** 工作区、会话没存下去时的原因；没有是空串。 */
   failed: string
+  agent: AgentChoices
 }
 
 export function useLaunchChoice(props: {
@@ -71,6 +105,50 @@ export function useLaunchChoice(props: {
 
   const workspace = view?.workspace ?? ''
   const workspaces = env === null ? [] : [...new Set([...env.workspaces, workspace])]
+
+  const catalog = useAgentCatalog(env?.agents)
+  const inherited = env?.workflowChoice
+  const setLaunch = (change: Partial<TriggerLaunch>): void =>
+    props.onLaunch(readTriggerData({ ...data, launch: { ...data.launch, ...change } }).launch)
+  const ownModel = data.launch?.model
+  const ownPreset = data.launch?.preset
+  const issues = choiceIssues(catalog, {
+    ...(ownPreset === undefined ? {} : { preset: ownPreset }),
+    ...(ownModel === undefined ? {} : { model: ownModel }),
+  })
+  const issueOf = (kinds: ChoiceIssue['kind'][]): string[] | undefined => {
+    const found = issues.find((issue) => kinds.includes(issue.kind))
+    return found === undefined ? undefined : issueLines(t, catalog, found)
+  }
+  const presetIssue = issueOf(['preset'])
+  const modelIssue = issueOf(['model', 'unsupported', 'effort'])
+  const efforts = ownModel === undefined ? [] : effortOptions(t, catalog, ownModel)
+  const setModel = (model: ModelChoice | undefined): void => setLaunch({ model })
+  const agent: AgentChoices = {
+    preset: {
+      value: ownPreset ?? FOLLOW,
+      options: presetOptions(t, catalog, ownPreset, 'workflow', inherited?.preset),
+      set: (value) => setLaunch({ preset: value === FOLLOW ? undefined : value }),
+    },
+    model: {
+      value: modelKey(ownModel),
+      options: modelOptions(t, catalog, ownModel, 'workflow', inherited?.model),
+      set: (value) => setModel(pickModel(catalog, value, ownModel)),
+    },
+    effort:
+      ownModel === undefined || efforts.length === 0
+        ? null
+        : {
+            value: ownModel.effort ?? FOLLOW,
+            options: efforts,
+            set: (value) => setModel(withEffort(ownModel, value)),
+          },
+    issues: {
+      ...(presetIssue === undefined ? {} : { preset: presetIssue }),
+      ...(modelIssue === undefined ? {} : { model: modelIssue }),
+    },
+    existing: launch.session !== 'new',
+  }
 
   return {
     launch,
@@ -118,5 +196,6 @@ export function useLaunchChoice(props: {
           },
     noWorkspace,
     failed,
+    agent,
   }
 }

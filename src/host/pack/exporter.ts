@@ -47,6 +47,10 @@ import {
 } from '../../shared/pathVars.ts'
 import { memoryOf } from '../../shared/presets.ts'
 import { resourceGraph } from '../../shared/resources.ts'
+import {
+  documentHasSessionChoice,
+  documentWithoutSessionChoice,
+} from '../../shared/sessionChoice.ts'
 import { type VersionEntry, type WorkflowDocument, WRITABLE_KINDS } from '../../shared/types.ts'
 import type { HostSkillEntry } from '../../shared/wire/host.ts'
 import { listSkills, type SkillViewer } from '../hostFs.ts'
@@ -296,6 +300,7 @@ export async function scanState(
               },
         roots: [...roots],
         limit: PACK_MAX_BYTES,
+        sessionChoice: versions.some(({ document }) => documentHasSessionChoice(document)),
       },
       versions,
       trees,
@@ -459,7 +464,10 @@ export async function exportPack(
           n: entry.n,
           createdAt: entry.createdAt,
           note: entry.note,
-          document: rewriteForPack(document, renames),
+          document: rewriteForPack(
+            request.sessionChoice === true ? document : documentWithoutSessionChoice(document),
+            renames,
+          ),
         }),
       ),
     )

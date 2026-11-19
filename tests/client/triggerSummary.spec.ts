@@ -25,11 +25,11 @@ describe('触发面板的摘要', () => {
     )
   })
 
-  it('保护：缺省值也写出来（让人知道有这几样）；关了补触发才多一句', () => {
+  it('保护：缺省值也写出来（让人知道有这几样）；开了补发才多一句', () => {
     const base = {
       session: 'new' as const,
       overlap: 'skip' as const,
-      catchUp: true,
+      catchUp: false,
       maxPerHour: 12,
       maxFailures: 3,
       queueMax: 10,
@@ -37,8 +37,8 @@ describe('触发面板的摘要', () => {
     expect(guardSummary(t, base)).toBe(
       '上次执行未结束时跳过 · 每小时最多 12 次 · 连续 3 次失败停用',
     )
-    expect(guardSummary(tEn, { ...base, overlap: 'parallel', catchUp: false })).toBe(
-      'Overlapping runs allowed · Max 12 per hour · Off after 3 failures · Missed triggers not run',
+    expect(guardSummary(tEn, { ...base, overlap: 'parallel', catchUp: true })).toBe(
+      'Overlapping runs allowed · Max 12 per hour · Off after 3 failures · Missed triggers caught up',
     )
     expect(guardSummary(t, { ...base, overlap: 'queue' })).toBe(
       '上次执行未结束时排队，最多 10 个 · 每小时最多 12 次 · 连续 3 次失败停用',
@@ -53,8 +53,8 @@ describe('触发面板的摘要', () => {
     expect(guardSummary(t, open)).toBe('上次执行未结束时跳过 · 每小时不限次数 · 失败不自动停用')
     expect(guardBrief(t, open)).toBe('运行中跳过 · 不限次数 · 失败不停用')
     expect(guardBrief(t, base)).toBe('运行中跳过 · 12 次/时 · 3 次失败停用')
-    expect(guardBrief(t, { ...base, overlap: 'parallel', catchUp: false })).toBe(
-      '可同时运行 · 12 次/时 · 3 次失败停用 · 不补发',
+    expect(guardBrief(t, { ...base, overlap: 'parallel', catchUp: true })).toBe(
+      '可同时运行 · 12 次/时 · 3 次失败停用 · 补发错过的',
     )
   })
 

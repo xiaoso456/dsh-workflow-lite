@@ -4,6 +4,10 @@
  * @module @xiaoso/dsh-workflow-lite/shared/wire/host
  */
 
+import type { ChoiceFallback } from '../types.ts'
+
+export type { ChoiceFallback } from '../types.ts'
+
 // ── 主机上的东西（资源节点选文件、文件夹、skill 用）─────────
 
 /**
@@ -66,4 +70,68 @@ export interface HostSkillResponse extends HostSkillEntry {
   metadata?: Record<string, unknown>
   /** 正文（Markdown，已去掉头部元数据）。 */
   content: string
+}
+
+// ── 新建会话用什么跑（agent 预设、模型）─────────
+
+/** 一个 agent 预设。内置的几个不带 `name`（界面按 id 译名）。 */
+export interface AgentPresetEntry {
+  id: string
+  name?: string
+  description?: string
+  /** 不指定预设时 DSH 用的就是它。 */
+  isDefault: boolean
+  /** 组不起来的原因（坏了）；能用就没有。 */
+  broken?: string
+}
+
+/** 一档思考强度（模型自己的档位）。 */
+export interface ModelEffortEntry {
+  id: string
+  name: string
+}
+
+export interface ModelEntry {
+  id: string
+  name: string
+  description?: string
+  /** 能选的档位；空 = 这个模型不分档。 */
+  efforts: ModelEffortEntry[]
+  defaultEffort?: string
+}
+
+export interface ModelProviderEntry {
+  id: string
+  name: string
+  models: ModelEntry[]
+}
+
+/**
+ * `host/agents`：能选的预设、模型，以及这个 DSH 能不能只给一个会话换模型。
+ * 给了 `session`（画布所在的会话）就拿它试一下能不能换；没给、或那个会话不在时按上一次知道的算。
+ */
+export interface HostAgentsRequest {
+  session?: string
+}
+export interface HostAgentsResponse {
+  presets: AgentPresetEntry[]
+  providers: ModelProviderEntry[]
+  /** 读不出模型列表的服务商。 */
+  failures: { id: string; name: string; message: string }[]
+  /** DSH 现在的默认模型（「跟随默认」后面写的那个）。 */
+  defaultModel?: { provider: string; model: string; effort?: string }
+  /** 只给一个会话换模型：能（`true`）/ 这个 DSH 不能，模型一律用默认（`false`）/ 还不知道（`null`）。 */
+  modelSelectable: boolean | null
+  /** 这个 DSH 里没有会话服务（列不出来）。 */
+  unavailable?: string
+}
+
+/** `host/prepareSession`：给刚建好、还没发消息的会话装上模型（画布「执行」新建会话后、发消息前）。 */
+export interface HostPrepareSessionRequest {
+  session: string
+  model: { provider: string; model: string; effort?: string }
+}
+export interface HostPrepareSessionResponse {
+  /** 没用上的那几项；全用上了是空的。 */
+  fallbacks: ChoiceFallback[]
 }

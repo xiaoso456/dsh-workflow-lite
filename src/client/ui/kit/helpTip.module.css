@@ -35,3 +35,8 @@
   background: var(--wl-hover);
   color: var(--wl-accent-text);
 }
+
+/* 告警：悬停、点开时也保持黄色，只铺底色。 */
+.hintButton[data-tone="warn"] {
+  color: var(--wl-warn);
+}

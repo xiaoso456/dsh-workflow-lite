@@ -35,6 +35,7 @@ function item(key: string, state: PackScanItem['state'], extra: Partial<PackScan
 
 const scan: PackScanResponse = {
   name: 'w',
+  sessionChoice: false,
   items: [
     item('a', 'pack', { bytes: 100 }),
     item('b', 'pack', { bytes: 50 }),

@@ -594,7 +594,7 @@ describe('试一试（「触发方式」对话框）', () => {
 
 /** 一张卡片的定义（试的时候只看图里存着的这些）。 */
 function card(data: TriggerData): TriggerDefinition {
-  return { node: 'tick', name: '巡检', data, runState: true }
+  return { node: 'tick', name: '巡检', data, runState: true, choice: {}, workflowChoice: {} }
 }
 
 describe('模型试一张卡片（test_trigger）', () => {

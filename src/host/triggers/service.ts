@@ -23,6 +23,7 @@
 import { stat } from 'node:fs/promises'
 import { isAbsolute } from 'node:path'
 import { bindWorkflowVar } from '../../shared/pathVars.ts'
+import { hasSessionChoice } from '../../shared/sessionChoice.ts'
 import {
   afterMatches,
   commandOf,
@@ -748,6 +749,7 @@ export class TriggerService {
     for (const trigger of graph.triggers) {
       const local = locals[trigger.node] ?? { enabled: false }
       const recent = await this.store.last(workflow, trigger.node)
+      const lastFailure = await this.store.lastFailure(workflow, trigger.node)
       const { source } = trigger.data
       const command = commandOf(source)
       const base = {
@@ -757,8 +759,12 @@ export class TriggerService {
         ...(local.shell === undefined ? {} : { shell: local.shell }),
         ...(local.session === undefined ? {} : { session: local.session }),
         ...(recent === undefined ? {} : { last: recent }),
+        ...(lastFailure === undefined ? {} : { lastFailure }),
         ...(await this.queuedOf(scene, workflow, trigger, local, recent)),
         ...(trigger.runState ? { runState: true as const } : {}),
+        ...(hasSessionChoice(trigger.workflowChoice)
+          ? { workflowChoice: trigger.workflowChoice }
+          : {}),
         ...(command === undefined
           ? {}
           : {

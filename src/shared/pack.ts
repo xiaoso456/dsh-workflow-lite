@@ -349,11 +349,15 @@ export interface PackScanResponse {
   roots: string[]
   /** 总大小上限。 */
   limit: number
+  /** 选中的版本里写了新建会话用的预设、模型（工作流上的或触发卡片上的）：导出时问要不要带上。 */
+  sessionChoice: boolean
 }
 
 export interface PackExportRequest extends PackScanRequest {
   /** 要打包的项（`PackScanItem.key`）。 */
   pack: string[]
+  /** 带上预设、模型（缺省不带：包里各版本都去掉，导入的人按自己的默认跑）。 */
+  sessionChoice?: boolean
 }
 
 export interface PackExportResponse {

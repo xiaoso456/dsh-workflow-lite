@@ -18,6 +18,7 @@ import {
   secondsText,
   tidyTimes,
 } from './schedule.ts'
+import { readSessionChoice } from './sessionChoice.ts'
 import type {
   AfterWhen,
   CheckWhen,
@@ -264,11 +265,12 @@ function readLaunch(raw: unknown): TriggerLaunch | undefined {
   if (overlap !== undefined && overlap !== 'skip') launch.overlap = overlap
   const queueMax = wholeIn(raw.queueMax, NO_LIMIT, Number.MAX_SAFE_INTEGER)
   if (queueMax !== undefined && queueMax !== DEFAULT_QUEUE_MAX) launch.queueMax = queueMax
-  if (raw.catchUp === false) launch.catchUp = false
+  if (raw.catchUp === true) launch.catchUp = true
   const perHour = wholeIn(raw.maxPerHour, NO_LIMIT, Number.MAX_SAFE_INTEGER)
   if (perHour !== undefined && perHour !== DEFAULT_MAX_PER_HOUR) launch.maxPerHour = perHour
   const failures = wholeIn(raw.maxFailures, NO_LIMIT, Number.MAX_SAFE_INTEGER)
   if (failures !== undefined && failures !== DEFAULT_MAX_FAILURES) launch.maxFailures = failures
+  Object.assign(launch, readSessionChoice(raw))
   return Object.keys(launch).length > 0 ? launch : undefined
 }
 
@@ -345,6 +347,8 @@ export function canonicalTrigger(data: TriggerData): TriggerData {
       ...(launch.catchUp === undefined ? {} : { catchUp: launch.catchUp }),
       ...(launch.maxPerHour === undefined ? {} : { maxPerHour: launch.maxPerHour }),
       ...(launch.maxFailures === undefined ? {} : { maxFailures: launch.maxFailures }),
+      ...(launch.preset === undefined ? {} : { preset: launch.preset }),
+      ...(launch.model === undefined ? {} : { model: { ...launch.model } }),
     }
   }
   return out
@@ -398,7 +402,7 @@ export function launchOf(data: TriggerData): LaunchSettings {
     session: data.launch?.session ?? 'new',
     overlap: data.launch?.overlap ?? 'skip',
     queueMax: data.launch?.queueMax ?? DEFAULT_QUEUE_MAX,
-    catchUp: data.launch?.catchUp ?? true,
+    catchUp: data.launch?.catchUp ?? false,
     maxPerHour: data.launch?.maxPerHour ?? DEFAULT_MAX_PER_HOUR,
     maxFailures: data.launch?.maxFailures ?? DEFAULT_MAX_FAILURES,
   }

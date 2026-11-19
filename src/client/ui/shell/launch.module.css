@@ -127,6 +127,29 @@
   color: var(--wl-accent-text);
 }
 
+/* 名字 + 下面一行小字（这次新建会用的模型、预设；都跟随默认时不写）。 */
+.newText {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.newChoice {
+  overflow: hidden;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 搜索框下面一句：挑现成的会话时不换它的模型和预设。 */
+.keepNote {
+  margin: 2px 10px 4px;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
 .sessionDot {
   flex: none;
   width: 7px;

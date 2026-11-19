@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { DEMO_WORKFLOW, seedDemo } from './support/demo-data.mjs'
 import { REPO_ROOT, startShotsEnv } from './support/shots-env.mjs'
@@ -6,6 +6,10 @@ import { REPO_ROOT, startShotsEnv } from './support/shots-env.mjs'
 const port = Number(process.argv[2] ?? 0)
 if (!Number.isInteger(port) || port < 0 || port > 65535)
   throw new Error('端口必须是 0 至 65535 的整数')
+
+// 想在演示里选真模型：`DEMO_PROVIDERS=<yaml>` 另加服务商（密钥按各自的 `apiKeyEnv` 从环境变量读）；默认模型仍是假模型。
+const providersFile = process.env.DEMO_PROVIDERS
+const providers = providersFile === undefined ? undefined : await readFile(providersFile, 'utf8')
 
 const runs = join(REPO_ROOT, 'tests', 'runs')
 await mkdir(runs, { recursive: true })
@@ -16,6 +20,7 @@ const env = await startShotsEnv({
   home: join(root, 'home'),
   workspaceDir: join(root, 'ws'),
   port,
+  ...(providers === undefined ? {} : { providers }),
 })
 const stopping = new Promise((resolve) => {
   process.once('SIGINT', resolve)

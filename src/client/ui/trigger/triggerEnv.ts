@@ -8,7 +8,9 @@
  */
 
 import { createContext, useContext } from 'react'
+import type { SessionChoice as AgentChoice } from '../../../shared/types.ts'
 import type { GraphListResponse } from '../../../shared/wire/graph.ts'
+import type { HostAgentsResponse } from '../../../shared/wire/host.ts'
 import type { TriggerWaiting } from '../../../shared/wire/trigger.ts'
 import type { SessionRow } from '../../app/sessions.ts'
 import type { ShellAccess } from '../../app/shells.ts'
@@ -54,6 +56,10 @@ export interface TriggerEnv {
   sessions: readonly SessionChoice[]
   /** 接续触发能等的工作流（除了这一张之外的全部）。 */
   workflows: readonly WorkflowChoice[]
+  /** 读 DSH 里能选的 agent 预设、模型（执行设置里的下拉打开前读，一页里只问一次）。 */
+  agents(): Promise<HostAgentsResponse>
+  /** 这个工作流设置里写的预设、模型（卡片上「跟随工作流」时用的就是它）。 */
+  workflowChoice: AgentChoice
   /** 各工作流最近的几次执行（按工作流名，新的在前，每个最多几个，见 `app/workflowRuns.ts`）；读不到是空的。 */
   recentRuns(): Promise<ReadonlyMap<string, readonly RunBrief[]>>
   /** 在另一个工作流的设置里打开「记录运行状态」（接续触发要靠它）；打不开回一句原因。 */
@@ -76,8 +82,8 @@ export interface TriggerEnv {
   openRun(instance: string): void
   /** 跳到一个会话（和点侧栏一样；排着的在等的那个）。跳不了（会话服务没接上）回 `false`。 */
   openSession(session: string): boolean
-  /** 到工作流中心「触发」页看这张卡片的全部触发记录。 */
-  openHistory(node: string): void
+  /** 打开工作流中心「触发」页、选中这张卡片（面板的「全部记录」、画布卡片上的工具条和失败小卡）。 */
+  openInHub(node: string): void
 }
 
 /** 已知的工作区：这个会话的排最前，其余按侧栏里会话的顺序，去重。 */

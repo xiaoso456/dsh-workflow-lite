@@ -9,8 +9,9 @@
 
 import { stat } from 'node:fs/promises'
 import { isTrigger } from '../../shared/model.ts'
+import { resolveSessionChoice } from '../../shared/sessionChoice.ts'
 import { triggerName } from '../../shared/trigger.ts'
-import type { TriggerData } from '../../shared/types.ts'
+import type { SessionChoice, TriggerData } from '../../shared/types.ts'
 import { workflowFile } from '../store/paths.ts'
 import type { Repository } from '../store/repository.ts'
 import type { TriggerStore } from './store.ts'
@@ -22,6 +23,10 @@ export interface TriggerDefinition {
   data: TriggerData
   /** 所在工作流开着「记录运行状态」（跳过、排队靠它看上一次跑完没有，见 `runEnd.ts`）。 */
   runState: boolean
+  /** 新建会话时用什么跑：卡片上写了的项用卡片的，否则用工作流的（都没写 = 跟随 DSH）。 */
+  choice: SessionChoice
+  /** 工作流设置里写的那一份（卡片上「跟随工作流」后面写的就是它）。 */
+  workflowChoice: SessionChoice
 }
 
 export type WorkflowTriggers =
@@ -65,7 +70,9 @@ export function createTriggerGraphs(repository: Repository): TriggerGraphs {
         value = { kind: 'broken', reason: '工作流有保存级问题，读不出来' }
       } else {
         const blocking = load.problems.filter((problem) => problem.level === 'compile')
-        const runState = load.document.settings?.runState === true
+        const settings = load.document.settings
+        const runState = settings?.runState === true
+        const workflowChoice = resolveSessionChoice(undefined, settings)
         value = {
           kind: 'ok',
           triggers: load.document.nodes.filter(isTrigger).map((node) => ({
@@ -73,6 +80,8 @@ export function createTriggerGraphs(repository: Repository): TriggerGraphs {
             name: triggerName(node),
             data: node.data,
             runState,
+            choice: resolveSessionChoice(node.data.launch, settings),
+            workflowChoice,
           })),
           ...(blocking.length === 0
             ? {}

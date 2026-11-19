@@ -1,6 +1,8 @@
 /**
- * dsh-workflow-lite — 触发卡片的「执行设置」：一张列表卡，一项一行——会话方式、（固定会话时）固定到哪个会话、工作区是下拉，
+ * dsh-workflow-lite — 触发卡片的「执行设置」：一张列表卡，一项一行——会话方式、（固定会话时）固定到哪个会话、工作区、
+ * 新建会话用的预设和模型（缺省跟随工作流；选了分档的模型再多一行思考强度）是下拉，
  * 「保护」是一行短摘要（点开是对话框，悬停看完整说法）。
+ * 发进现成的会话（固定会话、接着上一次）时预设、模型两行淡下去、下面说一句：只在要新建会话时用。
  *
  * 会话方式和工作区留在面板上：打开开关前就要选好。选项和存法在 useLaunchChoice（工作流中心「触发」页的设置共用）：
  * 会话方式、保护写在图里（跟着工作流走）；选定的工作区和会话只存在这台机器上，实例视图里没有现场就不显示。
@@ -21,7 +23,7 @@ import ins from '../panel/panel.module.css'
 import { GuardDialog } from './dialogs/GuardDialog.tsx'
 import { SummaryField, SummaryList, SummaryRow } from './SummaryRow.tsx'
 import type { LaunchField as Missing, TriggerEnv } from './triggerEnv.ts'
-import { useLaunchChoice } from './useLaunchChoice.ts'
+import { type AgentChoices, useLaunchChoice } from './useLaunchChoice.ts'
 
 /** 这一节接手的「带到眼前」。 */
 const LAUNCH_FIELDS: readonly Missing[] = ['workspace', 'session']
@@ -126,6 +128,7 @@ export function LaunchField(props: {
             />
           </SummaryField>
         )}
+        <AgentRows t={t} agent={choice.agent} />
         <SummaryRow
           title={t('trigger.guard')}
           summary={guardBrief(t, launch)}
@@ -163,6 +166,69 @@ export function LaunchField(props: {
         />
       )}
     </section>
+  )
+}
+
+/** 新建会话用的预设、模型（、思考强度）三行。 */
+function AgentRows(props: { t: T; agent: AgentChoices }): React.JSX.Element {
+  const { t, agent } = props
+  const dim = agent.existing
+  return (
+    <>
+      <SummaryField
+        title={t('session.presetShort')}
+        dim={dim}
+        warn={agent.issues.preset ?? null}
+        testId="wl-trigger-row-preset"
+      >
+        <Select<string>
+          plain
+          t={t}
+          label={t('session.preset')}
+          value={agent.preset.value}
+          proseDesc
+          testId="wl-trigger-preset"
+          onChange={agent.preset.set}
+          options={agent.preset.options}
+        />
+      </SummaryField>
+      <SummaryField
+        title={t('session.model')}
+        dim={dim}
+        note={dim && agent.effort === null ? t('session.existingNote') : undefined}
+        warn={agent.issues.model ?? null}
+        testId="wl-trigger-row-model"
+      >
+        <Select<string>
+          plain
+          t={t}
+          search
+          label={t('session.model')}
+          value={agent.model.value}
+          proseDesc
+          testId="wl-trigger-model"
+          onChange={agent.model.set}
+          options={agent.model.options}
+        />
+      </SummaryField>
+      {agent.effort !== null && (
+        <SummaryField
+          title={t('session.effortShort')}
+          dim={dim}
+          note={dim ? t('session.existingNote') : undefined}
+          testId="wl-trigger-row-effort"
+        >
+          <Select<string>
+            plain
+            label={t('session.effort')}
+            value={agent.effort.value}
+            testId="wl-trigger-effort"
+            onChange={agent.effort.set}
+            options={agent.effort.options}
+          />
+        </SummaryField>
+      )}
+    </>
   )
 }
 

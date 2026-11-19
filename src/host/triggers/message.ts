@@ -101,5 +101,6 @@ export function originOfFire(detail: FireDetail): OriginDetail {
     firedAt: record.at,
     ...(detail.note === undefined ? {} : { note: detail.note }),
     ...(detail.info === undefined ? {} : { info: detail.info }),
+    ...(record.agent === undefined ? {} : { agent: record.agent }),
   }
 }

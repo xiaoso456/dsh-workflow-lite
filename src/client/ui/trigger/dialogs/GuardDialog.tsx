@@ -82,7 +82,7 @@ export function GuardDialog(props: {
         title={t('trigger.catchUp')}
         desc={t('trigger.catchUpDesc')}
         testId="wl-trigger-catchup"
-        onToggle={(on) => patch({ catchUp: on ? undefined : false })}
+        onToggle={(on) => patch({ catchUp: on ? true : undefined })}
       />
       <LimitRow
         t={t}

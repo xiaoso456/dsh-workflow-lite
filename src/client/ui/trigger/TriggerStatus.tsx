@@ -209,7 +209,7 @@ export function TriggerLog(props: { t: T; env: TriggerEnv; node: string }): Reac
             type="button"
             className={cx(ui.btn, ui.small, css.historyAll)}
             data-testid="wl-trigger-history-all"
-            onClick={() => env.openHistory(node)}
+            onClick={() => env.openInHub(node)}
           >
             {t('trigger.historyAll')}
             <Icon name="arrowRight" size={13} />

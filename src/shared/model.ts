@@ -16,6 +16,7 @@ import { isStepColor, isStepIcon } from './appearance.ts'
 import { COORD_DECIMALS } from './limits.ts'
 import { normalizeRoot, WORKSPACE_ROOT } from './outputPaths.ts'
 import { memoryPath, upgradeWorkflowPath } from './pathVars.ts'
+import { readSessionChoice, sameSessionChoice } from './sessionChoice.ts'
 import { canonicalTrigger, cloneTriggerData, readTriggerData } from './trigger.ts'
 import {
   type EdgeData,
@@ -261,6 +262,7 @@ export function readSettings(raw: unknown): WorkflowSettings | undefined {
   if (reuse !== undefined && reuse !== 'auto') settings.reuse = reuse
   if (raw.setGoal === false) settings.setGoal = false
   if (raw.runState === true) settings.runState = true
+  Object.assign(settings, readSessionChoice(raw))
   return Object.keys(settings).length > 0 ? settings : undefined
 }
 
@@ -277,7 +279,8 @@ export function sameSettings(
     (a?.mode ?? 'auto') === (b?.mode ?? 'auto') &&
     (a?.reuse ?? 'auto') === (b?.reuse ?? 'auto') &&
     a?.setGoal === b?.setGoal &&
-    a?.runState === b?.runState
+    a?.runState === b?.runState &&
+    sameSessionChoice(a, b)
   )
 }
 
@@ -961,6 +964,8 @@ export function writeDocument(document: WorkflowDocument): string {
             ...(settings.reuse === undefined ? {} : { reuse: settings.reuse }),
             ...(settings.setGoal === undefined ? {} : { setGoal: settings.setGoal }),
             ...(settings.runState === undefined ? {} : { runState: settings.runState }),
+            ...(settings.preset === undefined ? {} : { preset: settings.preset }),
+            ...(settings.model === undefined ? {} : { model: { ...settings.model } }),
           },
         }),
   }

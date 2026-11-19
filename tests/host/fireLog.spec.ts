@@ -153,6 +153,20 @@ describe('触发记录', () => {
     expect((await store.ofInstance('run-1')).map((record) => record.id)).toEqual([origin.record.id])
   })
 
+  it('最近一次失败的时刻：只看失败的，各卡片各算；没失败过是空的', async () => {
+    const store = open()
+    await store.record(fire('tick', 'failed'))
+    const failedAt = clock
+    clock += MINUTE
+    await store.record(fire('tick', 'sent'))
+    await store.record(fire('other', 'skipped'))
+    expect(await store.lastFailure('wf', 'tick')).toBe(failedAt)
+    expect(await store.lastFailure('wf', 'other')).toBeUndefined()
+    clock += MINUTE
+    await store.record(fire('tick', 'failed'))
+    expect(await store.lastFailure('wf', 'tick')).toBe(clock)
+  })
+
   it('两个进程同时写同一个库：一条不丢', async () => {
     const a = open()
     const b = open()
@@ -214,4 +228,50 @@ describe('触发记录', () => {
     expect(await store.drop('wf', 'b', '卡片关掉了')).toBe(1)
     expect(await store.queuedCounts()).toEqual([])
   })
+
+  /** 把库退回旧版的样子：第 3 版没有 `agent`，第 4 版（开发中）是一列 `fallback` 说明文字。 */
+  function downgrade(version: 3 | 4): void {
+    for (const database of opened.splice(0)) database.close()
+    const raw = new (process.getBuiltinModule('node:sqlite').DatabaseSync)(
+      join(dataDir, DATABASE_FILE),
+    )
+    raw.exec('ALTER TABLE trigger_fires DROP COLUMN agent')
+    if (version === 4) raw.exec('ALTER TABLE trigger_fires ADD COLUMN fallback TEXT')
+    raw.prepare('UPDATE schema_parts SET version = ? WHERE name = ?').run(version, 'trigger_fires')
+    raw.close()
+  }
+
+  const AGENT = {
+    preset: 'ptc',
+    model: { provider: 'acme', model: 'big' },
+    fallbacks: [{ kind: 'unsupported' as const }],
+  }
+
+  it.each([3, 4] as const)(
+    '新建会话设的预设、模型跟着记录走；第 %i 版的库升上来只改这一列，旧记录都在',
+    async (version) => {
+      const store = open()
+      await store.record(fire('old'))
+      downgrade(version)
+
+      const upgraded = open()
+      expect((await upgraded.history('wf', 'old', 10)).map((record) => record.node)).toEqual([
+        'old',
+      ])
+      clock += MINUTE
+      await upgraded.record(fire('direct', 'sent', {}))
+      const sent = fire('direct')
+      await upgraded.record({ ...sent, record: { ...sent.record, agent: AGENT } })
+      clock += MINUTE
+      const queued = fire('later', 'queued')
+      await upgraded.record(queued)
+      await upgraded.release(queued.record.id, 'sent', { session: 's1', agent: AGENT }, clock)
+
+      const [later] = await upgraded.history('wf', 'later', 10)
+      expect(later).toMatchObject({ outcome: 'sent', agent: AGENT })
+      const direct = await upgraded.history('wf', 'direct', 10)
+      expect(direct.map((record) => record.agent)).toEqual([AGENT, undefined])
+      expect((await upgraded.history('wf', 'old', 10))[0]?.agent).toBeUndefined()
+    },
+  )
 })

@@ -13,13 +13,15 @@
  * @module @xiaoso/dsh-workflow-lite/host/triggers/launcher
  */
 
+import { sessionAgent } from '../../shared/sessionChoice.ts'
 import {
   type FireChannel,
   type LaunchSettings,
   launchOf,
   reachedLimit,
 } from '../../shared/trigger.ts'
-import type { TriggerData } from '../../shared/types.ts'
+import type { SessionAgent } from '../../shared/types.ts'
+import type { ChoiceFallback } from '../../shared/wire/host.ts'
 import type { FireOutcome, FireRecord, FireSettled } from '../../shared/wire/trigger.ts'
 import type { TriggerDefinition } from './graphs.ts'
 import { fireMessage } from './message.ts'
@@ -49,6 +51,8 @@ interface Delivery {
   outcome: FireSettled
   reason?: string
   session?: string
+  /** 新建了会话：设的预设、模型和没用上的那几项。 */
+  agent?: SessionAgent
 }
 
 const reasonOf = (error: unknown): string =>
@@ -96,7 +100,7 @@ export class Launcher {
   private async close(
     detail: FireDetail,
     outcome: FireOutcome,
-    extra: { reason?: string; session?: string },
+    extra: { reason?: string; session?: string; agent?: SessionAgent },
   ): Promise<FireRecord> {
     const record: FireRecord = { ...detail.record, outcome, ...extra }
     await this.store.record({ ...detail, record })
@@ -136,8 +140,9 @@ export class Launcher {
         }
       }
     }
-    const delivery = await this.deliver(detail, input.trigger.data, input.local, launch)
-    return this.close(detail, delivery.outcome, delivery)
+    const delivery = await this.deliver(detail, input.trigger, input.local, launch)
+    const { outcome, ...extra } = delivery
+    return this.close(detail, outcome, extra)
   }
 
   /**
@@ -150,7 +155,7 @@ export class Launcher {
     local: TriggerLocal,
     at: number,
   ): Promise<FireRecord | null> {
-    const delivery = await this.deliver(detail, trigger.data, local, launchOf(trigger.data))
+    const delivery = await this.deliver(detail, trigger, local, launchOf(trigger.data))
     return this.settleQueued(detail, delivery, at)
   }
 
@@ -169,10 +174,13 @@ export class Launcher {
     return { ...detail.record, outcome, ...extra, sentAt: at }
   }
 
-  /** 选会话、发消息：发进现成的会话（固定的、上一次的），不在了（上一次的）就在工作区里新建一个。 */
+  /**
+   * 选会话、发消息：发进现成的会话（固定的、上一次的），不在了（上一次的）就在工作区里新建一个。
+   * 新建时按卡片和工作流设的预设、模型建（{@link TriggerDefinition.choice}）；发进现成的会话时沿用那个会话的。
+   */
   private async deliver(
     detail: FireDetail,
-    data: TriggerData,
+    trigger: TriggerDefinition,
     local: TriggerLocal,
     launch: LaunchSettings,
   ): Promise<Delivery> {
@@ -182,7 +190,7 @@ export class Launcher {
     if (launch.session === 'fixed' && target === undefined) {
       return { outcome: 'failed', reason: '还没选定发进哪个会话' }
     }
-    const text = fireMessage(detail, data, this.store.infoPath(detail.record.id))
+    const text = fireMessage(detail, trigger.data, this.store.infoPath(detail.record.id))
     if (target !== undefined) {
       try {
         await this.sessions.send(target, text)
@@ -198,11 +206,13 @@ export class Launcher {
       return { outcome: 'failed', reason: '还没选在哪个工作区里新建会话' }
     }
     let session: string
+    let fallbacks: ChoiceFallback[]
     try {
-      session = await this.sessions.open({
+      ;({ session, fallbacks } = await this.sessions.open({
         cwd: local.workspace,
         title: `${detail.record.workflow} · ${detail.record.name}`,
-      })
+        choice: trigger.choice,
+      }))
     } catch (error) {
       return {
         outcome: 'failed',
@@ -214,6 +224,11 @@ export class Launcher {
     } catch (error) {
       return { outcome: 'failed', reason: `新建的会话发不进去：${reasonOf(error)}`, session }
     }
-    return { outcome: 'sent', session }
+    const agent = sessionAgent(trigger.choice, fallbacks)
+    return {
+      outcome: 'sent',
+      session,
+      ...(agent === undefined ? {} : { agent }),
+    }
   }
 }

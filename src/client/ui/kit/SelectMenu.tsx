@@ -13,7 +13,7 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/kit/SelectMenu
  */
 
-import { useRef, useState } from 'react'
+import { Fragment, useRef, useState } from 'react'
 import type { T } from '../../i18n.ts'
 import { matchRange, normalizeNeedle } from '../../model/switcherSearch.ts'
 import { cx } from './cx.ts'
@@ -32,6 +32,10 @@ export interface MenuOption<V extends string> {
   count?: number
   /** 名字前面的记号（标签：带颜色的标签图标）。 */
   lead?: React.ReactNode
+  /** 分组名（模型：服务商）：相邻的同组项上面写一次组名，搜索也认它。 */
+  group?: string
+  /** 收起时触发块上名字后面写的灰字；缺省用 {@link desc}。 */
+  valueDesc?: string
 }
 
 /** 搜索框里的字不是已有的一项时，末尾多出来的那一项。 */
@@ -89,7 +93,8 @@ export function SelectMenu<V extends string>(props: {
       : props.options.filter(
           (option) =>
             matchRange(option.label, needle) !== null ||
-            (option.desc !== undefined && matchRange(option.desc, needle) !== null),
+            (option.desc !== undefined && matchRange(option.desc, needle) !== null) ||
+            (option.group !== undefined && matchRange(option.group, needle) !== null),
         )
   const onKeyDown = useRadioMenu(props.open, list, !searchable)
   return (
@@ -124,42 +129,52 @@ export function SelectMenu<V extends string>(props: {
         className={css.list}
         style={{ maxHeight: props.listMax }}
       >
-        {shown.map((option) => {
+        {shown.map((option, index) => {
           const on = checked?.has(option.value) ?? option.value === props.value
+          const head =
+            option.group !== undefined && option.group !== shown[index - 1]?.group
+              ? option.group
+              : undefined
           return (
-            <button
-              key={option.value}
-              type="button"
-              {...(checked !== undefined
-                ? { role: 'menuitemcheckbox', 'aria-checked': on }
-                : radio
-                  ? { role: 'menuitemradio', 'aria-checked': on }
-                  : { role: 'menuitem' })}
-              className={cx(ui.menuItem, option.desc !== undefined && css.twoLine)}
-              data-active={(radio || checked !== undefined) && on}
-              data-testid={
-                props.testId === undefined ? undefined : `${props.testId}-${option.value}`
-              }
-              onClick={() => props.onPick(option.value)}
-            >
-              {option.lead}
-              <span className={css.text}>
-                <span className={cx(ui.menuLabel, option.desc !== undefined && css.name)}>
-                  <Highlight text={option.label} needle={needle} />
+            <Fragment key={option.value}>
+              {head !== undefined && (
+                <p className={css.group} role="presentation">
+                  {head}
+                </p>
+              )}
+              <button
+                type="button"
+                {...(checked !== undefined
+                  ? { role: 'menuitemcheckbox', 'aria-checked': on }
+                  : radio
+                    ? { role: 'menuitemradio', 'aria-checked': on }
+                    : { role: 'menuitem' })}
+                className={cx(ui.menuItem, option.desc !== undefined && css.twoLine)}
+                data-active={(radio || checked !== undefined) && on}
+                data-testid={
+                  props.testId === undefined ? undefined : `${props.testId}-${option.value}`
+                }
+                onClick={() => props.onPick(option.value)}
+              >
+                {option.lead}
+                <span className={css.text}>
+                  <span className={cx(ui.menuLabel, option.desc !== undefined && css.name)}>
+                    <Highlight text={option.label} needle={needle} />
+                  </span>
+                  {option.desc !== undefined && (
+                    <span className={css.desc}>
+                      <Highlight text={option.desc} needle={needle} />
+                    </span>
+                  )}
                 </span>
-                {option.desc !== undefined && (
-                  <span className={css.desc}>
-                    <Highlight text={option.desc} needle={needle} />
+                {option.count !== undefined && <span className={css.count}>{option.count}</span>}
+                {(radio || checked !== undefined) && (
+                  <span className={css.check} aria-hidden="true">
+                    <Icon name="check" size={13} />
                   </span>
                 )}
-              </span>
-              {option.count !== undefined && <span className={css.count}>{option.count}</span>}
-              {(radio || checked !== undefined) && (
-                <span className={css.check} aria-hidden="true">
-                  <Icon name="check" size={13} />
-                </span>
-              )}
-            </button>
+              </button>
+            </Fragment>
           )
         })}
         {create !== undefined && (

@@ -89,6 +89,8 @@ export function HubExport(props: {
     folder: true,
     memory: true,
   })
+  /** 带上工作流、触发卡片上设的模型和预设（缺省不带：导入的人按自己的默认跑）。 */
+  const [withChoice, setWithChoice] = useState(false)
   const [error, setError] = useState<string | null>(null)
   /** 打包 / 下载中的那句进度；`null` = 没在忙。 */
   const [busy, setBusy] = useState<string | null>(null)
@@ -136,6 +138,7 @@ export function HubExport(props: {
         name,
         versions: [...picked],
         pack: [...(scan === null ? [] : effectivePack(scan, packed, switches))],
+        ...(withChoice ? { sessionChoice: true } : {}),
         ...props.scope,
       })
       const bytes = await downloadPack(rpc, out.token, out.bytes, (done, total) =>
@@ -381,6 +384,8 @@ export function HubExport(props: {
             switches={switches}
             multi={multi}
             skill={skill}
+            withChoice={withChoice}
+            onChoice={setWithChoice}
             onSwitch={(kind, on) => setSwitches({ ...switches, [kind]: on })}
             onToggle={(key, on) => {
               const next = new Set(packed)
@@ -418,6 +423,9 @@ function Resources(props: {
   multi: boolean
   /** 导出成 skill：打包的放在 skill 里的位置不同，底下的按钮是「下一步」。 */
   skill: boolean
+  /** 带上模型和预设（只在图里设了、又不是导出成 skill 时问）。 */
+  withChoice: boolean
+  onChoice(on: boolean): void
   onToggle(key: string, on: boolean): void
   onSwitch(kind: PackSwitch, on: boolean): void
   onPrev(): void
@@ -446,6 +454,7 @@ function Resources(props: {
     else next.delete(key)
     setExpanded(next)
   }
+  const [choiceOpen, setChoiceOpen] = useState(false)
   const used = (item: PackScanItem): string | null =>
     multi ? t('pack.inVersions').replace('{list}', versionList(item)) : null
 
@@ -573,6 +582,25 @@ function Resources(props: {
               </Category>
             )
           })}
+          {!skill && scan.sessionChoice && (
+            <Category
+              icon="cube"
+              title={t('pack.choice')}
+              stats={t('pack.choiceStats')}
+              empty={false}
+              expanded={choiceOpen}
+              onExpand={setChoiceOpen}
+              switch={{ on: props.withChoice, disabled: false, onChange: props.onChoice }}
+              testId="wl-pack-cat-choice"
+            >
+              <p className={css.choiceLine} data-on={!props.withChoice || undefined}>
+                {t('pack.choiceOff')}
+              </p>
+              <p className={css.choiceLine} data-on={props.withChoice || undefined}>
+                {t('pack.choiceOn')}
+              </p>
+            </Category>
+          )}
         </div>
       </div>
       <div className={pack.foot}>

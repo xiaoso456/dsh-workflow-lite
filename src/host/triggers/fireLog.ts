@@ -11,7 +11,9 @@
  */
 
 import type { DatabaseSync, SQLOutputValue } from 'node:sqlite'
+import { readSessionAgent } from '../../shared/sessionChoice.ts'
 import { FIRE_CHANNELS, isFireId } from '../../shared/trigger.ts'
+import type { SessionAgent } from '../../shared/types.ts'
 import type {
   FireOutcome,
   FireRecord,
@@ -33,11 +35,20 @@ export interface FireDetail {
   merged?: number
 }
 
-/** 表的样子。`seq` 是记下的先后（同一时刻的按它排）；`info_file` 是背景信息全文另存过文件。 */
+/**
+ * 表的样子。`seq` 是记下的先后（同一时刻的按它排）；`info_file` 是背景信息全文另存过文件；
+ * `agent` 是新建了会话时设的预设、模型和没用上的那几项（JSON；第 5 版加的，从第 3、4 版升上来只改这一列，记录不丢）。
+ */
 const FIRES_PART: DatabasePart = {
   name: 'trigger_fires',
-  version: 3,
-  migrate(db) {
+  version: 5,
+  migrate(db, from) {
+    if (from === 3 || from === 4) {
+      db.exec('ALTER TABLE trigger_fires ADD COLUMN agent TEXT')
+      // 第 4 版的开发中试过一列说明文字，换成了 `agent`。
+      if (from === 4) db.exec('ALTER TABLE trigger_fires DROP COLUMN fallback')
+      return
+    }
     db.exec(`
       DROP TABLE IF EXISTS trigger_fires;
       CREATE TABLE trigger_fires (
@@ -50,6 +61,7 @@ const FIRES_PART: DatabasePart = {
         at INTEGER NOT NULL,
         outcome TEXT NOT NULL,
         reason TEXT,
+        agent TEXT,
         session TEXT,
         instance TEXT,
         joined INTEGER NOT NULL DEFAULT 0,
@@ -72,7 +84,7 @@ const FIRES_PART: DatabasePart = {
 /** 记录本身那几列（列记录时只读这些，不带原文）。 */
 /** 一条记录写进去的那几列。 */
 const COLUMNS =
-  'id, workflow, node, name, channel, at, outcome, reason, session, instance, joined, declined, sent_at'
+  'id, workflow, node, name, channel, at, outcome, reason, agent, session, instance, joined, declined, sent_at'
 /** 排着的在列表里露出背景信息的开头几个字（看得出排着的是哪一件事）。 */
 const PREVIEW_CHARS = 160
 /** 读一条记录：写进去的那几列，排着的再带上背景信息的开头。 */
@@ -99,6 +111,17 @@ const text = (value: SQLOutputValue | undefined): string | undefined =>
 const count = (value: SQLOutputValue | undefined): number =>
   typeof value === 'number' ? value : typeof value === 'bigint' ? Number(value) : 0
 
+/** `agent` 列：JSON，读不出来当没有。 */
+function readAgent(value: SQLOutputValue | undefined): SessionAgent | undefined {
+  const raw = text(value)
+  if (raw === undefined) return undefined
+  try {
+    return readSessionAgent(JSON.parse(raw))
+  } catch {
+    return undefined
+  }
+}
+
 /** 一行 → 记录；别的版本写进来的认不出的渠道、结果不要。 */
 function toRecord(row: Row): FireRecord | null {
   const channel = FIRE_CHANNELS.find((candidate) => candidate === row.channel)
@@ -115,6 +138,7 @@ function toRecord(row: Row): FireRecord | null {
     return null
   }
   const reason = text(row.reason)
+  const agent = readAgent(row.agent)
   const session = text(row.session)
   const instance = text(row.instance)
   const declined = text(row.declined)
@@ -132,6 +156,7 @@ function toRecord(row: Row): FireRecord | null {
     at: count(row.at),
     outcome,
     ...(reason === undefined ? {} : { reason }),
+    ...(agent === undefined ? {} : { agent }),
     ...(session === undefined ? {} : { session }),
     ...(instance === undefined ? {} : { instance }),
     ...(instance !== undefined && count(row.joined) === 1 ? { joined: true as const } : {}),
@@ -162,7 +187,7 @@ export class FireLog {
     this.db
       .prepare(
         `INSERT INTO trigger_fires (${COLUMNS}, note, condition, info, merged, info_file)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         record.id,
@@ -173,6 +198,7 @@ export class FireLog {
         record.at,
         record.outcome,
         record.reason ?? null,
+        record.agent === undefined ? null : JSON.stringify(record.agent),
         record.session ?? null,
         record.instance ?? null,
         record.joined === true ? 1 : 0,
@@ -194,6 +220,16 @@ export class FireLog {
       )
       .get(workflow, node)
     return row === undefined ? undefined : (toRecord(row) ?? undefined)
+  }
+
+  /** 一张卡片最近一次失败的时刻（画布、工作流中心拿它和本机看到哪儿了比，亮不亮红点）。 */
+  lastFailure(workflow: string, node: string): number | undefined {
+    const row = this.db
+      .prepare(
+        `SELECT at FROM trigger_fires WHERE workflow = ? AND node = ? AND outcome = 'failed' ${NEWEST} LIMIT 1`,
+      )
+      .get(workflow, node) as { at?: unknown } | undefined
+    return typeof row?.at === 'number' ? row.at : undefined
   }
 
   /** 最近 `limit` 次，新的在前；不给卡片就是这个工作流所有卡片的。 */
@@ -266,15 +302,16 @@ export class FireLog {
   release(
     id: string,
     outcome: FireSettled,
-    extra: { reason?: string; session?: string },
+    extra: { reason?: string; session?: string; agent?: SessionAgent },
     sentAt: number,
   ): boolean {
+    const agent = extra.agent === undefined ? null : JSON.stringify(extra.agent)
     const result = this.db
       .prepare(
-        `UPDATE trigger_fires SET outcome = ?, reason = ?, session = ?, sent_at = ?
+        `UPDATE trigger_fires SET outcome = ?, reason = ?, session = ?, agent = ?, sent_at = ?
          WHERE id = ? AND outcome = 'queued'`,
       )
-      .run(outcome, extra.reason ?? null, extra.session ?? null, sentAt, id)
+      .run(outcome, extra.reason ?? null, extra.session ?? null, agent, sentAt, id)
     return Number(result.changes) > 0
   }
 

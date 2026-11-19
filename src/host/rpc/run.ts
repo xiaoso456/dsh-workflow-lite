@@ -6,6 +6,7 @@
 
 import { normalizeDocument } from '../../shared/model.ts'
 import type { StateEdit } from '../../shared/runState.ts'
+import { readSessionAgent } from '../../shared/sessionChoice.ts'
 import type { LineFilter } from '../../shared/types.ts'
 import { RUN_STAT_MAX } from '../../shared/wire/run.ts'
 import type { WorkflowLiteEndpoint } from '../../shared/wire.ts'
@@ -189,6 +190,7 @@ export async function dispatchRun(
         problems: load.problems,
         session: { id: session, ...(cwd === undefined ? {} : { cwd }) },
         answers: input.answers,
+        agent: readSessionAgent(input.agent),
       })
       if (!outcome.ok) return failFrom(outcome.error)
       return ok(outcome.result)

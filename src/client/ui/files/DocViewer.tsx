@@ -8,6 +8,9 @@
  * 有说明（`note`）时标题行多一个「说明」开关，点开从右边滑出一栏，不占正文的地方。
  * 调用方可以在正文前插一段（`lead`），在底部放操作条（`footer`）。
  * 给了 `edit` 就多一个「编辑」：整块文字在这里改（提示词、摘要这类大段文字都在弹窗里改）。
+ * 改的是弹窗自己的草稿（预览、源码看的也是草稿），右下角「保存」才交出去，「取消」、✕ 不留；
+ * 有没保存的改动时点遮罩、按 Esc 不关，免得一下丢掉；Ctrl+Enter 保存。
+ * Ctrl+S 先把草稿交出去、弹窗不关，再照旧往外传（「我的步骤」在弹窗里按 Ctrl+S 也能存，存的是改好的）。
  * 调用方还能在标题行加按钮（`tools`），在正文右边放一栏（`side`：产出的各轮版本），框子大小不变、正文让出位置。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/files/DocViewer
@@ -23,6 +26,7 @@ import { cx } from '../kit/cx.ts'
 import { DataTable } from '../kit/DataTable.tsx'
 import { Icon, type IconName } from '../kit/Icon.tsx'
 import { Modal } from '../kit/Modal.tsx'
+import overlay from '../kit/overlay.module.css'
 import { Segmented } from '../kit/Segmented.tsx'
 import { TextArea } from '../kit/TextArea.tsx'
 import ui from '../kit/ui.module.css'
@@ -39,6 +43,7 @@ const SKELETON = ['42%', '92%', '86%', '95%', '64%', '0', '88%', '78%', '52%']
 
 /** 弹窗里能改的那段文字怎么交出去。 */
 export interface DocEdit {
+  /** 点「保存」时交出改好的整段（没点保存就关的不交）。 */
   onChange(text: string): void
   placeholder?: string
   maxLength?: number
@@ -238,7 +243,7 @@ export function DocViewer(props: {
   note?: string
   footer?: React.ReactNode
   className?: string
-  /** 能改：正文就是这段文字，「编辑」里改了直接交出去。 */
+  /** 能改：正文就是这段文字，「编辑」里改草稿，「保存」才交出去。 */
   edit?: DocEdit
   /** Markdown 里相对路径的图片怎么读（文件查看框按文档所在目录读）；不给就只显示替代文字。 */
   image?: ImageSource
@@ -250,8 +255,32 @@ export function DocViewer(props: {
   startAtEnd?: boolean
   onClose(): void
 }): React.JSX.Element {
-  const { t, body, edit } = props
+  const { t, edit } = props
   const [view, setView] = useState<View>(edit?.start === true ? 'edit' : 'rendered')
+  // 能改时正文看的是草稿：打开那一刻的文字起头，「保存」才交出去。
+  const original = props.body.kind === 'text' ? props.body.text : ''
+  const [draft, setDraft] = useState(original)
+  const editing = edit !== undefined && props.body.kind === 'text'
+  const body: DocBody =
+    editing && props.body.kind === 'text' ? { ...props.body, text: draft } : props.body
+  const dirty = editing && draft !== original
+  const commit = (): void => {
+    if (dirty) edit?.onChange(draft)
+  }
+  const save = (): void => {
+    commit()
+    props.onClose()
+  }
+  const onKeys = (event: React.KeyboardEvent): void => {
+    if (!editing || !(event.ctrlKey || event.metaKey)) return
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      save()
+    } else if (event.key.toLowerCase() === 's') {
+      event.preventDefault()
+      commit()
+    }
+  }
   const [failure, setFailure] = useState<string | null>(null)
   const [noteOpen, setNoteOpen] = useState(false)
   const [broken, setBroken] = useState(0)
@@ -261,17 +290,17 @@ export function DocViewer(props: {
   const formatted = format !== 'plain'
 
   const content: React.ReactNode =
-    view === 'edit' && edit !== undefined && body.kind === 'text' ? (
+    view === 'edit' && edit !== undefined && editing ? (
       <TextArea
         className={cx(ui.textarea, css.viewerEdit)}
-        value={body.text}
+        value={draft}
         placeholder={edit.placeholder}
         aria-label={props.name}
         maxLength={edit.maxLength}
         spellCheck={false}
         data-testid={edit.testId}
         autoFocus
-        onChange={(event) => edit.onChange(event.currentTarget.value)}
+        onChange={(event) => setDraft(event.currentTarget.value)}
       />
     ) : (
       <DocContent
@@ -287,9 +316,12 @@ export function DocViewer(props: {
   return (
     <Modal
       label={props.name}
-      onDismiss={props.onClose}
+      onDismiss={() => {
+        if (!dirty) props.onClose()
+      }}
       className={cx(css.viewer, props.className)}
       testId={props.testId}
+      onKeyDown={onKeys}
     >
       <header className={css.viewerHead}>
         {props.badge}
@@ -356,6 +388,24 @@ export function DocViewer(props: {
         )}
       </div>
       {props.footer}
+      {editing && (
+        <footer className={overlay.sheetFoot}>
+          <span className={ui.grow} />
+          <span className={overlay.sheetKeys}>{t('file.saveKeys')}</span>
+          <button type="button" className={cx(ui.btn, ui.small)} onClick={props.onClose}>
+            {t('common.cancel')}
+          </button>
+          <button
+            type="button"
+            className={cx(ui.btn, ui.small, ui.primary)}
+            data-testid={`${props.testId}-save`}
+            onClick={save}
+          >
+            <Icon name="check" size={14} />
+            {t('file.save')}
+          </button>
+        </footer>
+      )}
     </Modal>
   )
 }

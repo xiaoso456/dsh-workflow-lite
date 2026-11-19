@@ -29,6 +29,7 @@ import * as plan from './i18n/plan.ts'
 import * as resources from './i18n/resources.ts'
 import * as run from './i18n/run.ts'
 import * as runState from './i18n/runState.ts'
+import * as session from './i18n/session.ts'
 import * as settings from './i18n/settings.ts'
 import * as shell from './i18n/shell.ts'
 import * as trigger from './i18n/trigger.ts'
@@ -40,6 +41,7 @@ export const zh = {
   ...common.zh,
   ...shell.zh,
   ...settings.zh,
+  ...session.zh,
   ...library.zh,
   ...canvas.zh,
   ...inspector.zh,
@@ -77,6 +79,7 @@ export const en: Record<LocaleKey, string> = {
   ...common.en,
   ...shell.en,
   ...settings.en,
+  ...session.en,
   ...library.en,
   ...canvas.en,
   ...inspector.en,

@@ -137,6 +137,8 @@ export function ShellDialogs({
           name={state.name}
           settings={doc.settings}
           sample={sampleOutput(doc)}
+          rpc={rpc}
+          session={session}
           onSave={(settings) => {
             setSettingsOpen(false)
             wf.edit({ type: 'setSettings', settings })

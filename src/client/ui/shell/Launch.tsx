@@ -5,13 +5,19 @@
  * 「▶ 执行」缺省在同一工作区**新建一个会话**执行；旁边的小箭头打开选择：第一项就是新建会话，
  * 下面可以搜同一工作区的会话、挑一个执行。
  * 执行 = 用模板现在的样子建一个实例，往那个会话发一句话，然后跳过去看它跑。
+ * 工作流设了新建会话用的模型、预设时，「新建会话」下面一行写出来，搜索框下面说一句：挑现成的会话时不换它的。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/shell/Launch
  */
 
 import { useMemo, useState } from 'react'
+import { hasSessionChoice } from '../../../shared/sessionChoice.ts'
+import type { SessionChoice } from '../../../shared/types.ts'
+import type { HostAgentsResponse } from '../../../shared/wire/host.ts'
+import { useAgentCatalog } from '../../app/agents.ts'
 import { pickable, type SessionRow } from '../../app/sessions.ts'
 import type { LocaleKey, T } from '../../i18n.ts'
+import { choiceSummary } from '../../model/sessionChoice.ts'
 import { shortTime } from '../../model/time.ts'
 import shared from '../chrome/topbar.module.css'
 import { cx } from '../kit/cx.ts'
@@ -34,6 +40,10 @@ export interface LaunchProps {
   rows: readonly SessionRow[]
   /** 能在同一工作区新建会话（缺省的执行方式）；不能时主按钮退回本会话。 */
   canCreate: boolean
+  /** 新建会话时用的预设、模型（画布上这张工作流的设置）；没设是空的。 */
+  newChoice: SessionChoice
+  /** 读 DSH 里的预设、模型清单（写名字用；打开选择、又设了东西时才读）。 */
+  agents(): Promise<HostAgentsResponse>
   onPreview(): void
   /** `null` = 新建会话执行。 */
   onRun(session: string | null): void
@@ -61,6 +71,9 @@ export function Launch(props: LaunchProps): React.JSX.Element {
         ? t('launch.runNew')
         : t('launch.runHere')
   const runDisabled = props.empty || props.blocked !== null || props.starting
+  const chosen = hasSessionChoice(props.newChoice)
+  const catalog = useAgentCatalog(open && chosen ? props.agents : undefined)
+  const summary = chosen ? choiceSummary(t, catalog, props.newChoice) : ''
   const run = (target: string | null): void => {
     close()
     props.onRun(target)
@@ -135,7 +148,14 @@ export function Launch(props: LaunchProps): React.JSX.Element {
               onClick={() => run(null)}
             >
               <Icon name="plus" size={15} />
-              <span className={ui.menuLabel}>{t('launch.newSession')}</span>
+              <span className={css.newText}>
+                <span className={ui.menuLabel}>{t('launch.newSession')}</span>
+                {summary !== '' && (
+                  <span className={css.newChoice} data-testid="wl-run-new-choice">
+                    {summary}
+                  </span>
+                )}
+              </span>
               <span className={ui.menuMeta}>{t('launch.default')}</span>
             </button>
             <div className={ui.menuSep} />
@@ -154,6 +174,7 @@ export function Launch(props: LaunchProps): React.JSX.Element {
             onChange={(event) => setQuery(event.currentTarget.value)}
           />
         </div>
+        {chosen && <p className={css.keepNote}>{t('session.launchNote')}</p>}
         <div className={css.list} role="listbox" aria-label={t('launch.pick')}>
           {filtered.length === 0 && <p className={ui.menuEmpty}>{t('launch.none')}</p>}
           {filtered.map((row) => (

@@ -17,6 +17,7 @@ import type { T } from '../../../i18n.ts'
 import {
   FIRE_CHANNEL_TEXT,
   FIRE_KIND_SHORT,
+  fireFallback,
   fireKind,
   fireWhy,
   waited,
@@ -71,6 +72,7 @@ export function FireRow(props: {
           .filter((part) => part !== '')
           .join(' · ')
   const run = record.instance
+  const fallback = fireFallback(t, record)
   return (
     <li
       className={css.row}
@@ -90,7 +92,14 @@ export function FireRow(props: {
         <span className={css.dot} aria-hidden="true" />
         <span className={css.state}>{t(FIRE_KIND_SHORT[kind])}</span>
         <How icon={FIRE_ICON[record.channel]} text={channel} />
-        <span className={css.what}>{what}</span>
+        <span className={css.what}>
+          {what}
+          {fallback !== undefined && (
+            <span className={css.fallback} data-testid="wl-trigger-fire-fallback">
+              {` · ${fallback}`}
+            </span>
+          )}
+        </span>
         <span className={css.chev} aria-hidden="true">
           <Icon name="chevronRight" size={12} />
         </span>

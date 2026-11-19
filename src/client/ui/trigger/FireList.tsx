@@ -22,6 +22,7 @@ import {
   dayHead,
   FIRE_CHANNEL_TEXT,
   FIRE_KIND_TEXT,
+  fireFallback,
   fireKind,
   fireWhy,
   groupByDay,
@@ -69,7 +70,8 @@ export function FireList(props: {
   const settled = settledFires(fires)
   const live = picked === null ? null : (fires.find((record) => record.id === picked.id) ?? picked)
   const row = (record: FireRecord, when: string): React.JSX.Element => {
-    const why = fireWhy(record) ?? record.preview
+    const fallback = fireFallback(t, record)
+    const why = fireWhy(record) ?? fallback ?? record.preview
     return (
       <li key={record.id} className={css.fire} data-outcome={fireKind(record)}>
         <button
@@ -82,7 +84,11 @@ export function FireList(props: {
           <span className={css.dot} aria-hidden="true" />
           <span className={css.fireTime}>{when}</span>
           <span className={css.fireChannel}>{t(FIRE_CHANNEL_TEXT[record.channel])}</span>
-          {why !== undefined && <span className={css.fireWhy}>{why}</span>}
+          {why !== undefined && (
+            <span className={css.fireWhy} data-warn={why === fallback || undefined}>
+              {why}
+            </span>
+          )}
           <span className={css.fireOutcome}>{t(FIRE_KIND_TEXT[fireKind(record)])}</span>
         </button>
         {record.instance !== undefined && (

@@ -1,13 +1,15 @@
 /**
- * dsh-workflow-lite — 工作流中心「触发」页每张卡片的时间线看到了哪一条：记在本机浏览器里。
+ * dsh-workflow-lite — 每张触发卡片的失败看到了哪一条：记在本机浏览器里。
  *
- * 「时间线」页签上的红点只提醒还没看过的失败：打开过这张卡片的时间线，那之前的失败就算看过了，红点消掉，
- * 之后再有失败才又亮。按「工作流/节点」记那次看到的最新一条的时刻；只记最近看过的若干张，记坏了、存不下当没看过。
+ * 红点只提醒还没看过的失败（工作流中心「时间线」页签上、画布卡片的状态小标上是同一个）：
+ * 打开过这张卡片的时间线、或在画布卡片的小卡里点「知道了」，那之前的失败就算看过了，红点消掉，
+ * 之后再有失败才又亮。按「工作流/节点」记看到的最新一条的时刻；只记最近看过的若干张，记坏了、存不下当没看过。
+ * 一页里只有一份：哪儿记了一笔，别处的红点跟着变。
  *
  * @module @xiaoso/dsh-workflow-lite/client/app/fireSeen
  */
 
-import { useCallback, useState } from 'react'
+import { useCallback, useSyncExternalStore } from 'react'
 
 const KEY = 'workflow-lite.hubFiresSeen'
 
@@ -39,19 +41,43 @@ function save(seen: Seen): void {
   }
 }
 
+/** 这一页里的那一份（第一次用时从浏览器读），和等着它变的。 */
+let shared: Seen | null = null
+const listeners = new Set<() => void>()
+
+function current(): Seen {
+  shared ??= read()
+  return shared
+}
+
+function subscribe(listener: () => void): () => void {
+  listeners.add(listener)
+  return () => listeners.delete(listener)
+}
+
+/** 按哪一项记（和存过的一致：工作流名、换行、节点）。 */
+const keyOf = (workflow: string, node: string): string => `${workflow}
+${node}`
+
+/** 记下「这张卡片看到了 `at` 这一条」；比已记的旧就不动。 */
+export function markFireSeen(workflow: string, node: string, at: number): void {
+  const key = keyOf(workflow, node)
+  const seen = current()
+  if ((seen[key] ?? 0) >= at) return
+  shared = { ...seen, [key]: at }
+  save(shared)
+  for (const listener of listeners) listener()
+}
+
 /** 这张卡片看到哪儿了（没看过是 0），和「看到了这一条」。 */
-export function useFireSeen(key: string): [number, (at: number) => void] {
-  const [seen, setSeen] = useState(read)
-  const mark = useCallback(
-    (at: number) => {
-      setSeen((current) => {
-        if ((current[key] ?? 0) >= at) return current
-        const next = { ...current, [key]: at }
-        save(next)
-        return next
-      })
-    },
-    [key],
-  )
-  return [seen[key] ?? 0, mark]
+export function useFireSeen(workflow: string, node: string): [number, (at: number) => void] {
+  const key = keyOf(workflow, node)
+  const seen = useSyncExternalStore(subscribe, () => current()[key] ?? 0)
+  const mark = useCallback((at: number) => markFireSeen(workflow, node, at), [workflow, node])
+  return [seen, mark]
+}
+
+/** 有没有还没看过的失败：最近一次失败比看到的那一条新。 */
+export function hasUnseenFailure(lastFailure: number | undefined, seen: number): boolean {
+  return lastFailure !== undefined && lastFailure > seen
 }

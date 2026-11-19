@@ -20,6 +20,7 @@
 
 import { randomBytes } from 'node:crypto'
 import { dirname, join } from 'node:path'
+import type { SessionAgent } from '../../shared/types.ts'
 import type { FireRecord, FireSettled, TriggerActivitySlot } from '../../shared/wire/trigger.ts'
 import {
   ensureDir,
@@ -312,6 +313,11 @@ export class TriggerStore {
     return this.log.last(workflow, node)
   }
 
+  /** 一张卡片最近一次失败的时刻；没失败过是 `undefined`。 */
+  async lastFailure(workflow: string, node: string): Promise<number | undefined> {
+    return this.log.lastFailure(workflow, node)
+  }
+
   /** 最近 `limit` 次，新的在前；不给卡片就是这个工作流所有卡片的。 */
   async history(workflow: string, node: string | undefined, limit: number): Promise<FireRecord[]> {
     return this.log.recent(workflow, node, limit)
@@ -341,7 +347,7 @@ export class TriggerStore {
   async release(
     id: string,
     outcome: FireSettled,
-    extra: { reason?: string; session?: string },
+    extra: { reason?: string; session?: string; agent?: SessionAgent },
     sentAt: number,
   ): Promise<boolean> {
     return this.log.release(id, outcome, extra, sentAt)

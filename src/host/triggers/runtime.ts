@@ -220,7 +220,7 @@ export class TriggerRuntime implements LiveRuntime {
           ...command,
           schedule: source.schedule,
           when: source.check.when,
-          catchUp: spec.catchUp ?? true,
+          catchUp: spec.catchUp ?? false,
           ...(spec.probe === undefined ? {} : { probe: spec.probe }),
         },
         {

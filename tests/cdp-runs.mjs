@@ -975,8 +975,9 @@ try {
   })()`)
   await sleep(400)
   await screenshot(session, 'runs-07a-edit-prompt.png')
+  // 弹窗里改的是草稿：点「保存」才交出去。
   await session.evaluate(
-    `document.querySelector('[data-testid="wl-ins-prompt-card-viewer"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`,
+    `document.querySelector('[data-testid="wl-ins-prompt-card-viewer-save"]').click()`,
   )
   await waitFor(
     session,

@@ -109,6 +109,9 @@
 }
 
 .title {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
   color: var(--wl-text-2);
   font-size: var(--wl-fs-meta);
   overflow-wrap: anywhere;
@@ -120,6 +123,22 @@
   line-height: 1.5;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* 眼下用不上的一行（发进现成的会话时的预设、模型）：名字和控件淡一些，照样能改。 */
+.field[data-dim] > .title,
+.field[data-dim] > .control {
+  opacity: 0.55;
+}
+
+/* 控件下面的一行小字：说明（灰）或用不了的提醒（黄）。 */
+.note {
+  grid-column: 2 / -1;
+  margin: -6px 0 0;
+  padding: 0 11px 8px 0;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  line-height: 1.5;
 }
 
 /* 两行的（触发条件、触发说明、保护）：多出来的省略掉。 */

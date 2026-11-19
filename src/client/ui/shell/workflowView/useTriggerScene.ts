@@ -7,7 +7,9 @@
 
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { findNode, isTrigger } from '../../../../shared/model.ts'
+import { resolveSessionChoice } from '../../../../shared/sessionChoice.ts'
 import { commandOf, launchMissing } from '../../../../shared/trigger.ts'
+import { agentCatalog } from '../../../app/agents.ts'
 import type { SessionRow } from '../../../app/sessions.ts'
 import { createShellAccess } from '../../../app/shells.ts'
 import { useTriggers } from '../../../app/useTriggers.ts'
@@ -41,22 +43,12 @@ export interface TriggerSceneInput {
   /** 跳到一个会话；跳不了回 `false`。 */
   openSession(session: string): boolean
   /** 打开工作流中心「触发」页、选中这个工作流里的这张卡片。 */
-  openHistory(node: string): void
+  openInHub(node: string): void
 }
 
 export function useTriggerScene(input: TriggerSceneInput): TriggerEnv {
-  const {
-    t,
-    rpc,
-    wf,
-    session,
-    sessionRows,
-    sessionCwd,
-    select,
-    openRun,
-    openSession,
-    openHistory,
-  } = input
+  const { t, rpc, wf, session, sessionRows, sessionCwd, select, openRun, openSession, openInHub } =
+    input
   const { state } = wf
   // 图里一张触发卡片都没有就不问状态。
   const active = useMemo(() => state.doc?.nodes.some(isTrigger) === true, [state.doc])
@@ -72,11 +64,14 @@ export function useTriggerScene(input: TriggerSceneInput): TriggerEnv {
   const workflows = useMemo(() => workflowChoices(catalog, state.name), [catalog, state.name])
 
   const recentRuns = useCallback(() => readRecentRuns(rpc), [rpc])
+  const agents = useCallback(() => agentCatalog(rpc, session), [rpc, session])
 
   const refreshCatalog = wf.refreshCatalog
   const { edit, flush } = wf
   const settings = state.doc?.settings
   const current = state.name
+  // 卡片上「跟随工作流」写的是画布上这份设置（改了马上跟上，不等存盘后的轮询）。
+  const workflowChoice = useMemo(() => resolveSessionChoice(undefined, settings), [settings])
   // 正开着的这个工作流（跳过、排队要它）走编辑器自己的设置、存下去，别的工作流（接续要它）直接改磁盘上的图。
   const enableRunState = useCallback(
     async (workflow: string): Promise<string | null> => {
@@ -168,6 +163,8 @@ export function useTriggerScene(input: TriggerSceneInput): TriggerEnv {
       sessions,
       workflows,
       recentRuns,
+      agents,
+      workflowChoice,
       enableRunState,
       toggle,
       approve,
@@ -176,11 +173,13 @@ export function useTriggerScene(input: TriggerSceneInput): TriggerEnv {
       editSource,
       openRun,
       openSession,
-      openHistory,
+      openInHub,
     }),
     [
       state.name,
       recentRuns,
+      agents,
+      workflowChoice,
       enableRunState,
       triggers,
       session,
@@ -196,7 +195,7 @@ export function useTriggerScene(input: TriggerSceneInput): TriggerEnv {
       editSource,
       openRun,
       openSession,
-      openHistory,
+      openInHub,
     ],
   )
 }

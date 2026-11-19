@@ -1,0 +1,95 @@
+/*
+ * 状态小标上的红点与悬停小卡（UnseenFailures.tsx）。红点同工作流中心「时间线」页签上的那个：
+ * 一直挂着，亮起时弹出来、看过了缩回去淡掉（只动 opacity、transform）。
+ */
+.anchor {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+
+.anchor[data-on] {
+  cursor: help;
+}
+
+.dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--wl-danger);
+  box-shadow: 0 0 0 2px var(--wl-panel);
+  opacity: 0;
+  transform: scale(0.2);
+  pointer-events: none;
+  transition:
+    opacity 140ms linear,
+    transform 180ms var(--wl-ease);
+}
+
+.anchor[data-on] .dot {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 120ms linear,
+    transform 360ms var(--wl-spring);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+}
+
+.rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  padding: 5px 0;
+}
+
+.row + .row {
+  border-top: 1px solid var(--wl-line);
+}
+
+.time {
+  color: var(--wl-text-3);
+  font-family: var(--wl-mono);
+  font-size: var(--wl-fs-micro);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.why {
+  overflow: hidden;
+  color: var(--wl-text-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.more {
+  margin: 2px 0 0;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+}
+
+.actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dot,
+  .anchor[data-on] .dot {
+    transition: none;
+  }
+}

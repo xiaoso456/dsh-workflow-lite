@@ -21,6 +21,7 @@ import {
   sameEdgeContent,
   sameNodeContent,
 } from '../../shared/model.ts'
+import { sameModelChoice } from '../../shared/sessionChoice.ts'
 import type {
   Point,
   WorkflowDocument,
@@ -64,15 +65,18 @@ function mergeSettings(
   theirs: WorkflowDocument,
   conflicts: Set<string>,
 ): WorkflowSettings | undefined {
-  const pick = <K extends keyof WorkflowSettings>(key: K): WorkflowSettings[K] => {
+  const pick = <K extends keyof WorkflowSettings>(
+    key: K,
+    same: (a: WorkflowSettings[K], b: WorkflowSettings[K]) => boolean = (a, b) => a === b,
+  ): WorkflowSettings[K] => {
     const origin = base.settings?.[key]
     const local = mine.settings?.[key]
     const other = theirs.settings?.[key]
-    if (local !== origin && other !== origin && local !== other) {
+    if (!same(local, origin) && !same(other, origin) && !same(local, other)) {
       conflicts.add(SETTINGS_CONFLICT_ID)
       return local
     }
-    return local === origin ? other : local
+    return same(local, origin) ? other : local
   }
   return readSettings({
     outputRoot: pick('outputRoot'),
@@ -80,6 +84,8 @@ function mergeSettings(
     reuse: pick('reuse'),
     setGoal: pick('setGoal'),
     runState: pick('runState'),
+    preset: pick('preset'),
+    model: pick('model', sameModelChoice),
   })
 }
 

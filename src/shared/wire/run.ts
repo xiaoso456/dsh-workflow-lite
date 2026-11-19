@@ -5,7 +5,7 @@
  */
 
 import type { InstanceSummary, InstanceView, StateEdit } from '../runState.ts'
-import type { InputAnswer, LineFilter, WorkflowDocument } from '../types.ts'
+import type { InputAnswer, LineFilter, SessionAgent, WorkflowDocument } from '../types.ts'
 
 // ── 工作流实例 ─────────────────────
 
@@ -97,6 +97,8 @@ export interface RunStartRequest {
   cwd?: string
   /** 用户在「执行」前对输入节点的回答（输入 id → 回答）；没回答的用默认值。 */
   answers?: Record<string, InputAnswer>
+  /** 为这次执行新建的会话设了什么、哪几项没用上（记进实例的来源）；发进现成的会话时不给。 */
+  agent?: SessionAgent
 }
 export interface RunStartResponse {
   instance: InstanceSummary

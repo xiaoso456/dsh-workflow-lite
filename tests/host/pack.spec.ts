@@ -332,6 +332,49 @@ describe('导出 → 导入（新工作流）', () => {
   })
 })
 
+describe('导出时的模型和预设', () => {
+  /** 一张设了新建会话用的预设、模型的图，导出、再导入成 `name`，回导入后的第 1 版。 */
+  async function roundTrip(sessionChoice: boolean | undefined, name: string) {
+    const from = await side(`choice-${name}`)
+    const document: WorkflowDocument = {
+      ...graph([]),
+      settings: {
+        runState: true,
+        preset: 'ptc',
+        model: { provider: 'deepseek', model: 'deepseek-v4', effort: 'high' },
+      },
+    }
+    await makeWorkflow(from.repository, 'review', [document])
+    const scan = expectOk(await scanPack(from.deps, { name: 'review', versions: [1] }))
+    expect(scan.sessionChoice).toBe(true)
+    const exported = expectOk(
+      await exportPack(from.deps, {
+        name: 'review',
+        versions: [1],
+        pack: [],
+        ...(sessionChoice === undefined ? {} : { sessionChoice }),
+      }),
+    )
+    const token = await upload(from.dataDir, await download(from.dataDir, exported.token))
+    expectOk(await applyPack(from.deps, { token, mode: 'new', name }))
+    return expectOk(await from.repository.readVersion(name, 1)).document
+  }
+
+  it('缺省不带：导入后跟随默认，别的设置照旧', async () => {
+    const imported = await roundTrip(undefined, 'plain')
+    expect(imported.settings).toEqual({ runState: true })
+  })
+
+  it('勾上才带：只有名字', async () => {
+    const imported = await roundTrip(true, 'kept')
+    expect(imported.settings).toEqual({
+      runState: true,
+      preset: 'ptc',
+      model: { provider: 'deepseek', model: 'deepseek-v4', effort: 'high' },
+    })
+  })
+})
+
 describe('并入已有工作流', () => {
   it('内容一样的版本不再存，其余接着编号；不自动存本机现在的内容', async () => {
     const { from } = await sourceSide()

@@ -12,11 +12,13 @@
 import { edgeWhen } from './graph.ts'
 import { isStep } from './model.ts'
 import { flowEdges } from './resources.ts'
+import { readSessionAgent } from './sessionChoice.ts'
 import { FIRE_CHANNELS, type FireChannel } from './trigger.ts'
 import {
   EXECUTION_MODES,
   type ExecutionMode,
   type InputAnswer,
+  type SessionAgent,
   type WorkflowDocument,
 } from './types.ts'
 
@@ -618,6 +620,8 @@ export interface OriginDetail extends InstanceOrigin {
   note?: string
   /** 触发时带来的背景信息（外部输入的原文）。 */
   info?: string
+  /** 插件为它新建会话时设的预设、模型，和没用上的那几项（发进现成的会话、什么都没设时没有）。 */
+  agent?: SessionAgent
 }
 
 /** 进索引的那部分。 */
@@ -652,12 +656,14 @@ export function readOrigin(raw: unknown): OriginDetail | undefined {
     typeof trigger.name === 'string'
       ? { id: trigger.id, name: trigger.name }
       : undefined
+  const agent = readSessionAgent(input.agent)
   return {
     channel,
     ...(named === undefined ? {} : { trigger: named }),
     ...(typeof input.firedAt === 'number' ? { firedAt: input.firedAt } : {}),
     ...(typeof input.note === 'string' && input.note !== '' ? { note: input.note } : {}),
     ...(typeof input.info === 'string' && input.info !== '' ? { info: input.info } : {}),
+    ...(agent === undefined ? {} : { agent }),
   }
 }
 

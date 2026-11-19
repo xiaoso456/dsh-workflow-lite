@@ -4,7 +4,9 @@
  *
  * - {@link useFireNow}：按钮（连同浮出的小卡）和结果分开给，结果写在哪由用的地方定
  *   （画布面板写进开关那个框的状态行和下面的问题行）；
- * - {@link FireNow}：按钮右边跟着结果（工作流中心「触发」页）。
+ * - {@link FireNow}：按钮右边跟着结果（工作流中心「触发」页）；
+ * - `look: 'icon'`：只有一个 ⚡ 图标（画布卡片上的工具条），结果就写在它身上：发出去了换成 ✓、没发出去换成 ⚠，
+ *   悬停提示换成那句话。
  *
  * 背景信息不常驻在面板里：它只在手动触发时用得上。
  *
@@ -19,6 +21,7 @@ import { Icon } from '../kit/Icon.tsx'
 import { TextArea } from '../kit/TextArea.tsx'
 import ui from '../kit/ui.module.css'
 import { FLOAT_EXIT_MS, useFloat } from '../kit/useFloat.tsx'
+import { SwapIcon } from '../motion/swapText.tsx'
 import ins from '../panel/panel.module.css'
 import css from './trigger.module.css'
 
@@ -39,6 +42,10 @@ export interface FireNowProps {
   fire(info: string): Promise<FireRecord | string>
   /** `data-testid` 的前缀：按钮 `-fire`、输入框 `-info`、卡片里的按钮 `-fire-send`、结果 `-fire-result`。 */
   testId: string
+  /** 按钮的样子：缺省带字；`'icon'` 只有图标，结果写在图标和悬停提示上。 */
+  look?: 'text' | 'icon'
+  /** 按钮外加的类（工具条里的按钮样子）。 */
+  className?: string
 }
 
 export function useFireNow(props: FireNowProps): {
@@ -118,20 +125,33 @@ export function useFireNow(props: FireNowProps): {
     : result === null
       ? null
       : { tone: result.ok ? 'ok' : 'bad', text: result.text }
+  const iconOnly = props.look === 'icon'
   const button = (
     <>
       <button
         ref={anchorRef}
         type="button"
-        className={cx(ui.btn, ui.small, ui.soft)}
+        className={cx(ui.btn, ui.small, iconOnly ? ui.icon : ui.soft, props.className)}
         disabled={firing}
         aria-expanded={open}
         aria-haspopup="dialog"
+        aria-label={iconOnly ? t('trigger.fireNow') : undefined}
+        data-tip={iconOnly ? (shown?.text ?? t('trigger.fireNow')) : undefined}
+        data-tone={iconOnly ? shown?.tone : undefined}
         data-testid={`${testId}-fire`}
         onClick={() => (open ? close() : setState('pinned'))}
       >
-        <Icon name="bolt" size={13} />
-        {t('trigger.fireNow')}
+        {iconOnly ? (
+          <SwapIcon
+            name={shown?.tone === 'ok' ? 'check' : shown?.tone === 'bad' ? 'alert' : 'bolt'}
+            size={14}
+          />
+        ) : (
+          <>
+            <Icon name="bolt" size={13} />
+            {t('trigger.fireNow')}
+          </>
+        )}
       </button>
       {float.render({
         className: ui.confirmPop,

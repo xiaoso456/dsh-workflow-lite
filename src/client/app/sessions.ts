@@ -65,7 +65,7 @@ interface SessionSummary {
 /** `ctx.sessions` 用到的部分。 */
 export interface SessionsService {
   list: Observable<{ ids: readonly string[]; byId: Readonly<Record<string, SessionSummary>> }>
-  create(opts?: { workspaceId?: string; cwd?: string }): Promise<string>
+  create(opts?: { workspaceId?: string; cwd?: string; agentPreset?: string }): Promise<string>
   using<T>(
     target: string,
     options: { source: string },
@@ -98,8 +98,11 @@ export interface SessionBridge {
   deliver(session: string, text: string): Promise<void>
   /** 能不能新建会话。 */
   canCreate(): boolean
-  /** 在 `from` 所在的工作区新建一个会话（拿不到工作区就按 `cwd` 建），回新会话的 id。 */
-  create(from: string, cwd: string | undefined): Promise<string>
+  /**
+   * 在 `from` 所在的工作区新建一个会话（拿不到工作区就按 `cwd` 建），回新会话的 id。
+   * `preset` 是新会话用的 agent 预设；不给用 DSH 的默认。
+   */
+  create(from: string, cwd: string | undefined, preset?: string): Promise<string>
   /** 跳到一个会话（宿主没有导航能力时什么也不做，回 `false`）。 */
   open(session: string): boolean
 }
@@ -169,17 +172,18 @@ export function createSessionBridge(): SessionBridge & {
       emit()
     },
     canCreate: () => services !== null,
-    async create(from, cwd) {
+    async create(from, cwd, preset) {
       const current = services
       if (current === null) throw new Error('会话服务没有就绪')
       const items = workspaces?.list.getSnapshot().items ?? []
       const workspace =
         items.find((item) => item.sessionIds.includes(from)) ??
         items.find((item) => sameDir(item.path, cwd))
+      const agent = preset === undefined ? {} : { agentPreset: preset }
       if (workspace !== undefined)
-        return current.sessions.create({ workspaceId: workspace.workspaceId })
+        return current.sessions.create({ workspaceId: workspace.workspaceId, ...agent })
       if (cwd === undefined) throw new Error('不知道本会话在哪个工作区，没法新建会话')
-      return current.sessions.create({ cwd })
+      return current.sessions.create({ cwd, ...agent })
     },
     open(session) {
       if (navigation === undefined) return false

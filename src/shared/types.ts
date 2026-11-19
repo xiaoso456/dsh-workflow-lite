@@ -59,7 +59,44 @@ export type ExecutionMode = (typeof EXECUTION_MODES)[number]
 export const REUSE_POLICIES = ['auto', 'reuse', 'fresh'] as const
 export type ReusePolicy = (typeof REUSE_POLICIES)[number]
 
-export interface WorkflowSettings {
+/**
+ * 新建会话用的模型：DSH 里的服务商 id 与模型 id（只存标识，不存地址、密钥），可再带一档思考强度
+ * （这个模型自己的档位 id；缺省 = 模型的默认档）。
+ */
+export interface ModelChoice {
+  provider: string
+  model: string
+  effort?: string
+}
+
+/**
+ * 新建会话时用什么跑：agent 预设 id、模型。缺省 = 跟随（触发卡片跟随工作流，工作流跟随 DSH 的默认）。
+ * 只在插件新建会话时用（触发器新建、画布「执行」新建），发进现成的会话时沿用那个会话的。
+ */
+export interface SessionChoice {
+  preset?: string
+  model?: ModelChoice
+}
+
+/**
+ * 设了的东西没用上、回退了默认：
+ * `preset` 预设不在了或坏了；`model` 模型不在了；`effort` 这个模型没有这一档（用模型的默认档）；
+ * `unsupported` 这个 DSH 不能只给一个会话换模型；`failed` 装的时候出了错。
+ */
+export type ChoiceFallback =
+  | { kind: 'preset'; preset: string }
+  | { kind: 'model'; provider: string; model: string }
+  | { kind: 'effort'; model: string; effort: string }
+  | { kind: 'unsupported' }
+  | { kind: 'failed'; message: string }
+
+/** 插件新建的一个会话设了什么、哪几项没用上（实例的来源、触发记录里记的）。 */
+export interface SessionAgent extends SessionChoice {
+  /** 没用上、回退了默认的那几项；都用上了没有这个键。 */
+  fallbacks?: ChoiceFallback[]
+}
+
+export interface WorkflowSettings extends SessionChoice {
   /**
    * 产出根目录：相对路径（相对工作区）或绝对路径，存规范化后的写法（`shared/outputPaths.ts`）。
    * 编译时每个产出文件都拼在它下面。缺省 = 工作区根。
@@ -394,14 +431,17 @@ export type TriggerSessionMode = 'new' | 'last' | 'fixed'
 /** 上一次还没跑完时：跳过这一次 / 排队等上一次跑完再开 / 照样再开一次。 */
 export type TriggerOverlap = 'skip' | 'queue' | 'parallel'
 
-/** 启动方式（缺省值不写盘，见 `shared/trigger.ts` 的 `launchOf`）。 */
-export interface TriggerLaunch {
+/**
+ * 启动方式（缺省值不写盘，见 `shared/trigger.ts` 的 `launchOf`）。
+ * `preset` / `model` 覆盖工作流的（{@link SessionChoice}），缺省跟随工作流。
+ */
+export interface TriggerLaunch extends SessionChoice {
   session?: TriggerSessionMode
   overlap?: TriggerOverlap
   /** 排队（`overlap: 'queue'`）时最多排几个，满了再来的跳过；0 = 不限制。 */
   queueMax?: number
-  /** DSH 关着期间错过的定时，启动后不补（缺省补一次）。 */
-  catchUp?: false
+  /** DSH 关着期间错过的定时，启动后补一次（缺省不补）。 */
+  catchUp?: true
   /** 每小时最多触发几次；0 = 不限制。 */
   maxPerHour?: number
   /** 连续失败几次后自动停用；0 = 不自动停用。 */

@@ -76,8 +76,12 @@ export interface SaveResult {
   warnings: ToolWarning[]
 }
 
+/**
+ * 新建的工作流：空图，「记录运行状态」默认开（直接写进文件）。
+ * 以前存下的、没写这一项的照旧是关——缺省仍是关，不会被悄悄打开。
+ */
 function emptyDocument(): WorkflowDocument {
-  return { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } }
+  return { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 }, settings: { runState: true } }
 }
 
 function sameData(a: WorkflowNode, b: WorkflowNode): boolean {

@@ -212,6 +212,13 @@ function MineEditor(
   // 离开时还有没保存的改动：顺手存一次（只对已存在的那份；新建的半成品不偷偷落盘）。
   const leaving = useRef({ dirty, canSave, save, original })
   leaving.current = { dirty, canSave, save, original }
+  // Ctrl+S：等这一下按键带来的改动（提示词弹窗同时交出的草稿）落进 draft 再存，存的是最新的。
+  const [saveAsked, setSaveAsked] = useState(0)
+  useEffect(() => {
+    if (saveAsked === 0) return
+    const last = leaving.current
+    if (last.canSave) void last.save()
+  }, [saveAsked])
   useEffect(
     () => () => {
       const last = leaving.current
@@ -248,7 +255,7 @@ function MineEditor(
       onKeyDown={(event) => {
         if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
           event.preventDefault()
-          if (canSave) void save()
+          setSaveAsked((n) => n + 1)
         }
       }}
     >

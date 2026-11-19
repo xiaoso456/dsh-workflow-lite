@@ -6,7 +6,7 @@
 
 import type { RunStatus } from '../runState.ts'
 import type { FireChannel } from '../trigger.ts'
-import type { TriggerData } from '../types.ts'
+import type { SessionAgent, SessionChoice, TriggerData } from '../types.ts'
 
 /**
  * 一次触发的结果：消息发进会话了 / 被跳过（没轮到它）/ 没发出去 / 排着队（上一次还没跑完，轮到了再发）。
@@ -33,6 +33,8 @@ export interface FireRecord {
   sentAt?: number
   /** 跳过、没发出去的原因。 */
   reason?: string
+  /** 新建了会话时设的预设、模型和没用上、回退了默认的那几项（发进现成的会话、什么都没设时没有）。 */
+  agent?: SessionAgent
   /** 发进了哪个会话。 */
   session?: string
   /** 这次触发记到了哪个实例上：模型为它建的，或者（{@link joined}）它发进来时模型接着做的；还没开始就没有。 */
@@ -121,6 +123,8 @@ export interface TriggerView {
   session?: string
   /** 最近一次触发。 */
   last?: FireRecord
+  /** 最近一次失败的时刻（没失败过不给）：界面拿它和本机记的「看到哪儿了」比，有没看过的失败就亮红点。 */
+  lastFailure?: number
   /** 排着队的有几个（没有不给）。 */
   queued?: number
   /**
@@ -130,6 +134,8 @@ export interface TriggerView {
   waiting?: TriggerWaiting
   /** 所在工作流开着「记录运行状态」（跳过、排队靠它判断上一次结束没有）。 */
   runState?: true
+  /** 所在工作流设置里写的预设、模型（卡片上「跟随工作流」时用的就是它）；都没写不给。 */
+  workflowChoice?: SessionChoice
 }
 
 /**

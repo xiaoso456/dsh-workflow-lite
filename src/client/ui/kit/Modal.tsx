@@ -47,6 +47,8 @@ export function Modal(props: {
   children: React.ReactNode
   className?: string
   testId?: string
+  /** 框里的按键先给它（保存键这类），再照常处理。 */
+  onKeyDown?(event: React.KeyboardEvent<HTMLDivElement>): void
 }): React.JSX.Element {
   const host = useContext(ModalHost)
   const ref = useRef<HTMLDivElement>(null)
@@ -64,6 +66,7 @@ export function Modal(props: {
   }, [])
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void => {
+    props.onKeyDown?.(event)
     // Ctrl / ⌘ + S 留给打开它的那块（「我的步骤」在弹窗里改提示词时照样能存）。
     const save = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's'
     if (!save) event.stopPropagation()

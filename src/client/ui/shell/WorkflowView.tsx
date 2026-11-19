@@ -11,7 +11,9 @@
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { ReactFlowProvider, useReactFlow } from '@xyflow/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { resolveSessionChoice } from '../../../shared/sessionChoice.ts'
 import type { Point } from '../../../shared/types.ts'
+import { agentCatalog } from '../../app/agents.ts'
 import type { Desktop } from '../../app/desktop.ts'
 import type { SessionBridge } from '../../app/sessions.ts'
 import { useRuns } from '../../app/useRuns.ts'
@@ -267,9 +269,9 @@ function Shell(props: {
     select,
   } = useStepEdit({ t, host, rootRef, wf, state, focusCanvas, setFocusPrompt, setQuick, setFocus })
 
-  // 触发卡片的「全部记录」：到工作流中心「触发」页、选中这张卡片（回调要稳，卡片的现场按它算）。
+  // 到工作流中心「触发」页、选中这张卡片（面板的「全部记录」、卡片上的工具条；回调要稳，卡片的现场按它算）。
   const workflowName = state.name
-  const openHistory = useCallback(
+  const openInHub = useCallback(
     (node: string): void => {
       if (workflowName === null) return
       setHubFocus({ kind: 'trigger', workflow: workflowName, node })
@@ -296,7 +298,7 @@ function Shell(props: {
     select,
     openRun,
     openSession,
-    openHistory,
+    openInHub,
   })
 
   const openCard = useOpenCard({ state, openTemplate, locate })
@@ -319,6 +321,11 @@ function Shell(props: {
     })
 
   const doc = state.doc
+  const newChoice = useMemo(() => resolveSessionChoice(undefined, doc?.settings), [doc?.settings])
+  const agents = useCallback(
+    () => agentCatalog(props.rpc, props.session),
+    [props.rpc, props.session],
+  )
   // 切换工作流：加载这一小段旧图留着（压暗），新图到了再换，画布不卸载重建。
   const live = state.phase === 'ready' || state.phase === 'loading'
   const canvasLive =
@@ -561,6 +568,8 @@ function Shell(props: {
                 session: props.session,
                 rows: sessionRows,
                 canCreate,
+                newChoice,
+                agents,
                 onRun: launch,
               }}
               onSettings={() => setSettingsOpen(true)}

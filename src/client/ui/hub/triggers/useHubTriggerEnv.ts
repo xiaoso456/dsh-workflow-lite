@@ -13,6 +13,7 @@ import { useCallback, useMemo } from 'react'
 import { idKey } from '../../../../shared/model.ts'
 import { commandOf } from '../../../../shared/trigger.ts'
 import type { GraphListResponse } from '../../../../shared/wire/graph.ts'
+import { agentCatalog } from '../../../app/agents.ts'
 import type { SessionRow } from '../../../app/sessions.ts'
 import { createShellAccess } from '../../../app/shells.ts'
 import type { TriggerHub } from '../../../app/useTriggerHub.ts'
@@ -45,6 +46,7 @@ export interface HubEnvInput {
 }
 
 const NO_REVEAL = (): null => null
+const NO_CHOICE = {}
 const NOTHING = (): void => {}
 
 export function useHubTriggerEnv(input: HubEnvInput): TriggerEnv {
@@ -83,6 +85,12 @@ export function useHubTriggerEnv(input: HubEnvInput): TriggerEnv {
   const workflows = useMemo(() => workflowChoices(catalog, workflow), [catalog, workflow])
 
   const readRuns = useCallback(() => recentRuns(rpc), [rpc])
+  const agents = useCallback(() => agentCatalog(rpc, session), [rpc, session])
+  // 同一个工作流里的卡片带的工作流设置是同一份，取哪张的都一样。
+  const workflowChoice = useMemo(
+    () => [...views.values()][0]?.view.workflowChoice ?? NO_CHOICE,
+    [views],
+  )
   const onCatalogChanged = input.onCatalogChanged
   const turnOnRunState = useCallback(
     async (name: string): Promise<string | null> => {
@@ -126,6 +134,8 @@ export function useHubTriggerEnv(input: HubEnvInput): TriggerEnv {
       sessions,
       workflows,
       recentRuns: readRuns,
+      agents,
+      workflowChoice,
       enableRunState: turnOnRunState,
       toggle,
       approve,
@@ -134,7 +144,7 @@ export function useHubTriggerEnv(input: HubEnvInput): TriggerEnv {
       editSource: NOTHING,
       openRun: input.openRun,
       openSession: input.openSession,
-      openHistory: NOTHING,
+      openInHub: NOTHING,
     }),
     [
       triggers,
@@ -146,6 +156,8 @@ export function useHubTriggerEnv(input: HubEnvInput): TriggerEnv {
       sessions,
       workflows,
       readRuns,
+      agents,
+      workflowChoice,
       turnOnRunState,
       toggle,
       approve,

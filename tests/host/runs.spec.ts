@@ -70,6 +70,8 @@ beforeEach(async () => {
   })
   // scan → review；review 通过去 report、未通过去 fix，fix 回 review。
   await run({ action: 'create', workflow: 'cr' })
+  // 这一组从「不记运行状态」起（新建的默认开），要记的用例自己打开。
+  await run({ action: 'configure', workflow: 'cr', run_state: false })
   for (const id of ['scan', 'review', 'fix', 'report']) {
     await run({
       action: 'write_node',
@@ -219,6 +221,25 @@ describe('画布上的执行', () => {
     const resumed = record(await run({ action: 'resume', instance: second.id }, exec('s1')))
     expect(String(resumed.plan)).toContain('## 运行状态')
     expect((await view(second.id)).state?.log).toEqual([])
+  })
+
+  it('为这次执行新建的会话设了什么、哪几项没用上，记进实例的来源', async () => {
+    const load = await repository.load('cr')
+    if (load.document === null) throw new Error('load failed')
+    const agent = {
+      preset: 'ptc',
+      model: { provider: 'acme', model: 'big', effort: 'high' },
+      fallbacks: [{ kind: 'effort' as const, model: 'big', effort: 'high' }],
+    }
+    const outcome = await runs.start({
+      workflow: 'cr',
+      document: load.document,
+      problems: load.problems,
+      session: { id: 's1', cwd: workspace },
+      agent,
+    })
+    if (!outcome.ok) throw new Error(outcome.error.message)
+    expect((await view(outcome.result.instance.id)).origin).toEqual({ channel: 'manual', agent })
   })
 
   it('图有编译级问题：不建实例', async () => {

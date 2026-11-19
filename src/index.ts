@@ -113,11 +113,13 @@ export async function apply(ctx: Context, config: WorkflowLiteSettings): Promise
 
   // 触发卡片：到点、条件满足、收到通知时在会话里发起一次执行。
   // 同一个数据目录只有一个 DSH 进程负责（命令、端口都在它那里），它退出后别的接手。
+  // 进会话（新建、发消息、预设与模型）：触发器和画布「执行」共用这一个。
+  const sessions = createSessionPort(ctx)
   const triggers = new TriggerService({
     dataDir,
     store: triggerStore,
     graphs: createTriggerGraphs(repository),
-    sessions: createSessionPort(ctx),
+    sessions,
     listen: () => ({ host: config.triggerHost.get(), port: config.triggerPort.get() }),
     defaultShell: () => config.triggerShell.get(),
     outputLines: () => config.triggerOutputLines.get(),
@@ -210,6 +212,7 @@ export async function apply(ctx: Context, config: WorkflowLiteSettings): Promise
       }),
       runs,
       triggers,
+      sessions,
       skills: createSkillViewer(ctx, () => skills),
       config: { port: () => settings, live: liveConfig },
       // 导入的 skill 装进各家 agent 通用的那个目录（DSH 也从这里发现 skill）。

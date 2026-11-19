@@ -33,7 +33,7 @@ describe('触发节点的读入', () => {
         kind: 'schedule',
         schedule: { kind: 'daily', time: '18:30', weekdays: [5, 1, 1, 9] },
       },
-      launch: { session: 'new', overlap: 'skip', catchUp: true, maxPerHour: 60, maxFailures: 5 },
+      launch: { session: 'new', overlap: 'skip', catchUp: false, maxPerHour: 60, maxFailures: 5 },
     })
     expect(data).toEqual({
       note: '分支用 main',
@@ -44,7 +44,7 @@ describe('触发节点的读入', () => {
       session: 'new',
       overlap: 'skip',
       queueMax: 10,
-      catchUp: true,
+      catchUp: false,
       maxPerHour: 60,
       maxFailures: 5,
     })
@@ -81,7 +81,7 @@ describe('触发节点的读入', () => {
 
   it('写盘再读回来不变，键序固定', () => {
     const data = canonicalTrigger({
-      launch: { catchUp: false, session: 'fixed' },
+      launch: { catchUp: true, session: 'fixed' },
       note: '只看 src/',
       source: { kind: 'schedule', schedule: { kind: 'cron', expression: '*/15 9-17 * * 1-5' } },
       label: '工作时间巡检',

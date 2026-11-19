@@ -29,8 +29,9 @@ import { LATE_MS, TriggerService } from '../../src/host/triggers/service.ts'
 import type { SessionPort } from '../../src/host/triggers/sessions.ts'
 import { approvalOf, cardDataDir, ownerFile, TriggerStore } from '../../src/host/triggers/store.ts'
 import type { InstanceView, RunStatus } from '../../src/shared/runState.ts'
-import type { TriggerData, WorkflowDocument } from '../../src/shared/types.ts'
+import type { SessionChoice, TriggerData, WorkflowDocument } from '../../src/shared/types.ts'
 import { validateDocument } from '../../src/shared/validate.ts'
+import type { ChoiceFallback } from '../../src/shared/wire/host.ts'
 
 const MINUTE = 60_000
 
@@ -41,7 +42,9 @@ let store: TriggerStore
 let database: PluginDatabase
 let clock: number
 let sent: { session: string; text: string }[]
-let opened: { cwd: string; title: string }[]
+let opened: { cwd: string; title: string; choice?: SessionChoice }[]
+/** 假会话新建时回的回退（设了的预设、模型没用上）。 */
+let openFallbacks: ChoiceFallback[]
 /** 假的实例运行状态：实例 → 整体状态（`null` = 实例不在了）。 */
 let states: Map<string, { status?: RunStatus; at?: number } | null>
 let gone: Set<string>
@@ -64,12 +67,14 @@ const sessions: SessionPort = {
   open: async (input) => {
     if (openError !== null) throw new Error(openError)
     opened.push(input)
-    return `s${String(opened.length)}`
+    return { session: `s${String(opened.length)}`, fallbacks: openFallbacks }
   },
   send: async (session, text) => {
     if (gone.has(session)) throw new Error('会话不存在')
     sent.push({ session, text })
   },
+  prepare: async () => [],
+  catalog: async () => ({ presets: [], providers: [], failures: [], modelSelectable: null }),
 }
 
 /** 按 `RunReader.finished` 的约定从 {@link finished} 里挑。 */
@@ -125,9 +130,11 @@ async function saveGraph(
   name: string,
   data: Partial<TriggerData> = {},
   runState = true,
+  choice: SessionChoice = {},
 ): Promise<void> {
+  const settings = { ...(runState ? { runState: true as const } : {}), ...choice }
   const document: WorkflowDocument = {
-    ...(runState ? { settings: { runState: true } } : {}),
+    ...(Object.keys(settings).length > 0 ? { settings } : {}),
     nodes: [
       {
         id: 'tick',
@@ -170,6 +177,7 @@ beforeEach(async () => {
   clock = new Date(2026, 10, 12, 9, 0).getTime()
   sent = []
   opened = []
+  openFallbacks = []
   states = new Map()
   gone = new Set()
   unavailable = null
@@ -381,7 +389,7 @@ describe('到点触发', () => {
 
     clock = start + 30 * MINUTE
     await triggers.tick()
-    expect(opened).toEqual([{ cwd: workspace, title: 'patrol · 巡检' }])
+    expect(opened).toEqual([{ cwd: workspace, title: 'patrol · 巡检', choice: {} }])
     expect(sent).toHaveLength(1)
     const [fire] = await triggers.history('patrol')
     expect(fire).toMatchObject({
@@ -406,6 +414,37 @@ describe('到点触发', () => {
     // 同一刻再对一遍账不会重复触发。
     await triggers.tick()
     expect(sent).toHaveLength(1)
+  })
+
+  it('新建会话按卡片和工作流设的预设、模型（卡片的项优先）；没用上的写进触发记录', async () => {
+    await saveGraph('patrol', { launch: { model: { provider: 'acme', model: 'small' } } }, true, {
+      preset: 'minimal',
+      model: { provider: 'acme', model: 'big', effort: 'high' },
+    })
+    const triggers = service()
+    await triggers.set({ workflow: 'patrol', node: 'tick', enabled: true, workspace })
+    await own(triggers)
+    openFallbacks = [{ kind: 'unsupported' }]
+    clock += 30 * MINUTE
+    await triggers.tick()
+    expect(opened[0]?.choice).toEqual({
+      preset: 'minimal',
+      model: { provider: 'acme', model: 'small' },
+    })
+    const [fire] = await triggers.history('patrol')
+    expect(fire).toMatchObject({
+      outcome: 'sent',
+      agent: {
+        preset: 'minimal',
+        model: { provider: 'acme', model: 'small' },
+        fallbacks: [{ kind: 'unsupported' }],
+      },
+    })
+    // 卡片上「跟随工作流」要写的那一份跟着卡片的状态给出去。
+    expect((await triggers.list('patrol')).triggers[0]?.workflowChoice).toEqual({
+      preset: 'minimal',
+      model: { provider: 'acme', model: 'big', effort: 'high' },
+    })
   })
 
   /** 最近一次发出去的那条。 */
@@ -618,8 +657,8 @@ describe('到点触发', () => {
     expect(sent.map((item) => item.session)).toEqual(['s1', 's1', 's2'])
   })
 
-  it('错过的只补一次；关掉「补触发」就只记一条跳过', async () => {
-    const triggers = await ready()
+  it('打开「补触发」时错过的只补一次；缺省不补，只记一条跳过', async () => {
+    const triggers = await ready({ launch: { catchUp: true } })
     await triggers.stop()
     clock += 10 * 60 * MINUTE
     const later = service(101)
@@ -629,7 +668,7 @@ describe('到点触发', () => {
     expect(sent).toHaveLength(1)
 
     await later.stop()
-    await saveGraph('patrol', { launch: { catchUp: false } })
+    await saveGraph('patrol', { launch: {} })
     clock += 10 * 60 * MINUTE + LATE_MS
     const last = service(102)
     await own(last)
@@ -849,6 +888,22 @@ describe('实例记下的来源', () => {
       instances: { origin?: unknown }[]
     }
     expect(index.instances[0]?.origin).toEqual(instance.summary.origin)
+  })
+
+  it('新建会话设的预设、模型和没用上的，跟着认领记进实例的来源', async () => {
+    await saveGraph('patrol', {}, false, { model: { provider: 'acme', model: 'big' } })
+    const triggers = service()
+    await triggers.set({ workflow: 'patrol', node: 'tick', workspace })
+    openFallbacks = [{ kind: 'model', provider: 'acme', model: 'big' }]
+    const fired = await triggers.fireNow({ workflow: 'patrol', node: 'tick' })
+    if (!fired.ok) throw new Error('没触发')
+    const id = instanceOf(
+      await run({ action: 'compile', workflow: 'patrol', fire: fired.result.id }, exec('s1')),
+    )
+    expect((await view(id)).origin?.agent).toEqual({
+      model: { provider: 'acme', model: 'big' },
+      fallbacks: [{ kind: 'model', provider: 'acme', model: 'big' }],
+    })
   })
 
   it('模型漏了触发编号：按会话对上刚发的那次；别的会话、太久以前的不算', async () => {

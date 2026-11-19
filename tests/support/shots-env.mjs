@@ -49,7 +49,8 @@ export const SHOTS_BUNDLES = [
 
 /**
  * 生成（或重写）截图专用 profile：幂等，重复跑结果一致。
- * @param {{ mockUrl: string, dataDir: string, theme?: 'light' | 'dark', profile?: string }} options
+ * `providers`：另加的服务商（YAML，顶层键是服务商 id，写法同 `llm-pi-ai` 的 `providers`）；默认模型照旧是假模型。
+ * @param {{ mockUrl: string, dataDir: string, theme?: 'light' | 'dark', profile?: string, providers?: string }} options
  * @returns {string} profile 目录
  */
 export function prepareShotsProfile(options) {
@@ -87,12 +88,20 @@ export function prepareShotsProfile(options) {
 /**
  * profile 补丁：画布数据根、暗色、假供应商、默认模型与 preset。
  * 全文件由脚本生成——别手改，改了下次跑会被覆盖。
- * @param {{ mockUrl: string, dataDir: string, theme?: 'light' | 'dark' }} options
+ * @param {{ mockUrl: string, dataDir: string, theme?: 'light' | 'dark', providers?: string }} options
  * @returns {string} YAML
  */
 function generatedPatch(options) {
+  const extra =
+    options.providers === undefined
+      ? ''
+      : options.providers
+          .trimEnd()
+          .split(/\r?\n/u)
+          .map((line) => (line.trim() === '' ? '' : `      ${line}`))
+          .join('\n')
   return `# 由 tests/support/shots-env.mjs 生成，请勿手改：README 封面截图专用的接线。
-# 模型接到 tests/support/mock-llm.mjs，全程不发真实模型请求。
+# 默认模型接到 tests/support/mock-llm.mjs，不发真实模型请求；只有另加的服务商（在会话里选了它）才会。
 
 - id: workflow-lite
   config:
@@ -118,6 +127,7 @@ function generatedPatch(options) {
             contextWindow: 100000
             input:
               - text
+${extra}
 
 - id: agent-default-model
   name: "@deepseek-ai/dsh-agent-default-model"
@@ -436,7 +446,7 @@ export async function waitForShotsHost(rpc, timeoutMs = 60_000) {
  * **假模型必须在 try 之内关**：它是个监听中的 HTTP server，会让 Node 的事件循环一直活着。
  * 建完它之后的任何一步抛（profile 写不进去、实例起不来）如果不收，调用方就**永久挂住**——
  * 连报错都看不到。
- * @param {{ dataDir: string, workspaceDir: string, home: string, theme?: 'light' | 'dark', port?: number }} options
+ * @param {{ dataDir: string, workspaceDir: string, home: string, theme?: 'light' | 'dark', port?: number, providers?: string }} options
  * @returns {Promise<{ base: string, cookie: string, workspaceId: string, workspaceDir: string, adoptedWorkspace: boolean, sessionId: string, title: string, mock: object, stop: () => Promise<void> }>}
  */
 export async function startShotsEnv(options) {
@@ -461,6 +471,7 @@ export async function startShotsEnv(options) {
       dataDir: options.dataDir,
       ...(options.theme === undefined ? {} : { theme: options.theme }),
       ...(options.pluginRoot === undefined ? {} : { pluginRoot: options.pluginRoot }),
+      ...(options.providers === undefined ? {} : { providers: options.providers }),
     })
     mkdirSync(options.workspaceDir, { recursive: true })
     instance = await startShotsInstance({
