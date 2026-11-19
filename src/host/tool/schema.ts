@@ -48,14 +48,27 @@ export const DESCRIPTION = [
   '试好之后用 local.enabled 打开；动手前读 skill workflow-trigger。',
   '收到触发卡片发来的消息、消息里有「触发条件」时，先判断要不要执行：不需要就用 decline 带 fire 和 reason 回报，然后结束。',
   '节点定位一律用 id。',
+  '写入（write_node / write_resource / write_trigger / configure）：新建时没给的用缺省，修改时没给的不动；对象按字段合并，数组整份替换，对象给 null 恢复缺省，文字给空串清除。',
   '新建或修改图之前先读 skill workflow-authoring（步骤怎么拆、产物怎么传、资源说明怎么写、建完怎么自检）。',
 ].join('')
 
+/**
+ * 对象字段也收 `null`（统一规则：对象给 null 恢复缺省）。DSH 按参数声明严格校验，不写成「对象或 null」模型给的 null 到不了插件。
+ * 说明挂在外层，两支里不重复。
+ */
+function orNull<const S extends { type: 'object'; description?: string }>(spec: S) {
+  const { description, ...shape } = spec
+  return {
+    oneOf: [shape, { type: 'null' }] as const,
+    ...(description === undefined ? {} : { description }),
+  }
+}
+
 /** `display`（write_resource 的 resource 里、write_node 的 outputs 每项里）：在画布上展示资源里的一项。 */
-const DISPLAY_PARAMETER = {
+const DISPLAY_SHAPE = {
   type: 'object',
   description:
-    '在画布上展示这个资源里的一项（图片、HTML、Markdown、文本、文件夹），给了的字段才改。详见 skill workflow-authoring 的「在画布上展示」。',
+    '在画布上展示这个资源里的一项（图片、HTML、Markdown、文本、文件夹）；null = 不展示。详见 skill workflow-authoring 的「在画布上展示」。',
   additionalProperties: false,
   properties: {
     show: { type: 'boolean', description: 'false = 关掉展示。' },
@@ -72,7 +85,7 @@ const DISPLAY_PARAMETER = {
     adapt: { type: 'boolean', description: '写它的步骤按卡片适配产出，缺省 true。' },
     look: { type: 'string', enum: [...LOOK_CHOICES], description: '卡片外观，不写跟着用户设置。' },
     hideTitle: { type: 'boolean', description: '不选中、不悬停时藏起标题。' },
-    lines: {
+    lines: orNull({
       type: 'object',
       description: '日志、纯文本怎么看。',
       additionalProperties: false,
@@ -86,8 +99,8 @@ const DISPLAY_PARAMETER = {
         regex: { type: 'boolean', description: 'filter 按正则。' },
         context: { type: 'number', description: '匹配前后各带几行。' },
       },
-    },
-    table: {
+    }),
+    table: orNull({
       type: 'object',
       description: 'CSV / TSV 怎么看。',
       additionalProperties: false,
@@ -102,8 +115,8 @@ const DISPLAY_PARAMETER = {
         desc: { type: 'boolean', description: '从大到小。' },
         bars: { type: 'boolean', description: '数字列画浅条。' },
       },
-    },
-    folder: {
+    }),
+    folder: orNull({
       type: 'object',
       description: '文件夹怎么展示。',
       additionalProperties: false,
@@ -117,9 +130,11 @@ const DISPLAY_PARAMETER = {
         },
         match: { type: 'string', description: '只看名字对得上的，如 *.png。' },
       },
-    },
+    }),
   },
 } as const
+
+const DISPLAY_PARAMETER = orNull(DISPLAY_SHAPE)
 
 /** 工具的参数声明（隐式开放对象根；`required` 内联写）。导出供测试直接编译成 JSON Schema 校验。 */
 export const PARAMETERS = {
@@ -224,8 +239,7 @@ export const PARAMETERS = {
   },
   resource: {
     type: 'object',
-    description:
-      'write_resource：资源的内容（给了 node 就是修改那个资源，给了的字段才改；没给 node 就是新建）。',
+    description: 'write_resource：资源的内容（给了 node 就是修改那个资源；没给 node 就是新建）。',
     additionalProperties: false,
     properties: {
       label: { type: 'string', description: '名字（计划里称呼它）；空串 = 清除。' },
@@ -233,7 +247,7 @@ export const PARAMETERS = {
       items: {
         type: 'array',
         description:
-          '全部内容（整份替换），按顺序。同类、读写关系相同的资料放进同一个资源的多项里，不要一项建一个资源。',
+          '全部内容，按顺序。同类、读写关系相同的资料放进同一个资源的多项里，不要一项建一个资源。',
         items: {
           type: 'object',
           additionalProperties: false,
@@ -370,7 +384,7 @@ export const PARAMETERS = {
   trigger: {
     type: 'object',
     description:
-      'write_trigger：触发卡片的定义，存在工作流里（给了 node 且是已有的触发卡片就是修改，给了的字段才改；否则新建）。各项怎么配见 skill workflow-trigger。',
+      'write_trigger：触发卡片的定义，存在工作流里（给了 node 且是已有的触发卡片就是修改；否则新建）。各项怎么配见 skill workflow-trigger。',
     additionalProperties: false,
     properties: {
       label: { type: 'string', description: '名字；空串 = 清除。' },
@@ -382,23 +396,27 @@ export const PARAMETERS = {
         type: 'string',
         description: '触发条件：每次先由模型判断要不要执行；空串 = 清除。',
       },
-      source: {
+      source: orNull({
         type: 'object',
-        description: '触发方式（整项替换）。',
+        description: '触发方式。',
         additionalProperties: false,
         properties: {
           kind: {
             type: 'string',
             enum: [...SOURCE_KINDS],
-            required: true,
-            description: 'schedule 定时（可带 check）/ listen 监视程序 / http / after 接续。',
+            description:
+              'schedule 定时（可带 check）/ listen 监视程序 / http / after 接续；换类型时给，旧类型的设置不带过去。',
           },
-          schedule: {
+          schedule: orNull({
             type: 'object',
             description: 'schedule：定时规则。',
             additionalProperties: false,
             properties: {
-              kind: { type: 'string', enum: ['daily', 'every', 'cron'], required: true },
+              kind: {
+                type: 'string',
+                enum: ['daily', 'every', 'cron'],
+                description: '换规则类型时给。',
+              },
               time: { type: 'string', description: 'daily：HH:MM。' },
               moreTimes: {
                 type: 'array',
@@ -408,15 +426,15 @@ export const PARAMETERS = {
               weekdays: {
                 type: 'array',
                 items: { type: 'number' },
-                description: 'daily：1 = 周一 … 7 = 周日；不给 = 每天。',
+                description: 'daily：1 = 周一 … 7 = 周日；[] = 每天（缺省）。',
               },
               seconds: { type: 'number', description: 'every：间隔秒数。' },
               expression: { type: 'string', description: 'cron：五段表达式。' },
             },
-          },
-          check: {
+          }),
+          check: orNull({
             type: 'object',
-            description: 'schedule：到点先跑的命令；不给 = 到点直接执行。',
+            description: 'schedule：到点先跑的命令；缺省没有，到点直接执行。',
             additionalProperties: false,
             properties: {
               command: {
@@ -430,26 +448,26 @@ export const PARAMETERS = {
                 description: '每次成功 / 由失败变为成功 / 输出变了时触发（缺省 every）。',
               },
             },
-          },
+          }),
           command: {
             type: 'string',
             description: 'listen：常驻运行的命令；{workflow} = 工作流目录。',
           },
           when: {
             type: 'string',
-            enum: ['failed', 'any'],
-            description: 'after：不给 = 成功时 / failed 失败时 / any 不论结果。',
+            enum: ['done', 'failed', 'any'],
+            description: 'after：done 成功时（缺省）/ failed 失败时 / any 不论结果。',
           },
           workflow: { type: 'string', description: 'after：等哪个工作流跑完。' },
         },
-      },
-      filter: {
+      }),
+      filter: orNull({
         type: 'object',
-        description: '过滤（定时检查、listen、http 才有；整项替换，null = 清除）。',
+        description: '过滤（定时检查、listen、http 才有）。',
         additionalProperties: false,
         properties: {
-          merge: { type: 'number', description: '合并窗口（秒）。' },
-          dedupe: { type: 'number', description: '去重时长（分钟）。' },
+          merge: { type: 'number', description: '合并窗口（秒，0 = 不合并）。' },
+          dedupe: { type: 'number', description: '去重时长（分钟，0 = 不去重）。' },
           include: {
             type: 'array',
             items: { type: 'string' },
@@ -461,10 +479,10 @@ export const PARAMETERS = {
             description: '含其中任何一个就不触发。',
           },
         },
-      },
-      launch: {
+      }),
+      launch: orNull({
         type: 'object',
-        description: '执行设置（整项替换，null = 清除）。',
+        description: '执行设置。',
         additionalProperties: false,
         properties: {
           session: {
@@ -485,7 +503,7 @@ export const PARAMETERS = {
             description: '连续失败几次自动停用（缺省 3，0 = 不停用）。',
           },
         },
-      },
+      }),
     },
   },
   local: {

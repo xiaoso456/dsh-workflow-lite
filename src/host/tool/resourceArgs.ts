@@ -66,7 +66,9 @@ export function resourceUpsertOf(
 
 /** `display` 参数 → 展示设置的改动。形状不对就回一句给模型看的错（取值范围由 `applyDisplay` 再把关）。 */
 export function displaySpecOf(raw: unknown, where: string): DisplaySpec | string {
-  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+  // 整个 display 给 null：回到缺省，即不展示。
+  if (raw === null) return { show: false }
+  if (typeof raw !== 'object' || Array.isArray(raw)) {
     return `${where} 要写成 { size, width, height, zoom, fit, item, adapt, look, hideTitle, lines, table, folder } 或 { show: false }`
   }
   const input = raw as Record<string, unknown>
@@ -106,6 +108,10 @@ export function displaySpecOf(raw: unknown, where: string): DisplaySpec | string
   }
   for (const key of ['lines', 'table', 'folder'] as const) {
     if (input[key] === undefined) continue
+    if (input[key] === null) {
+      spec[key] = null
+      continue
+    }
     const group = displayGroupOf(input[key], DISPLAY_GROUPS[key], `${where}.${key}`)
     if (typeof group === 'string') return group
     spec[key] = group

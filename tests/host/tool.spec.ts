@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { parameterSchemaSpecToJsonSchema } from '@deepseek-ai/dsh-tools'
+import { parameterSchemaSpecToJsonSchema, validateArgs } from '@deepseek-ai/dsh-tools'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { deleteMemory, readMemoryMeta } from '../../src/host/store/memories.ts'
@@ -60,6 +60,21 @@ describe('workflow_lite —— 参数 schema 能编成合法的 JSON Schema（DS
     expect(action).toBeDefined()
     expect(action?.enum).toEqual([...ACTIONS])
     expect(schema.required).toEqual(['action'])
+  })
+
+  it('DSH 按参数声明校验：对象字段收 null（恢复缺省），文字、数字等单值不收；改触发方式可以不给 kind', () => {
+    const ok = [
+      { action: 'write_trigger', trigger: { launch: null, filter: null } },
+      { action: 'write_trigger', trigger: { source: { schedule: { time: '09:30' } } } },
+      { action: 'write_trigger', trigger: { source: { check: null, when: 'done' } } },
+      { action: 'write_resource', resource: { display: null } },
+      { action: 'write_resource', resource: { display: { lines: null, zoom: 120 } } },
+      { action: 'write_node', outputs: [{ path: 'a.md', display: null }] },
+    ]
+    for (const args of ok) expect(validateArgs(PARAMETERS, args), JSON.stringify(args)).toEqual([])
+    expect(
+      validateArgs(PARAMETERS, { action: 'write_trigger', trigger: { label: null } }),
+    ).toHaveLength(1)
   })
 
   it('工具名不与 DSH 内置的 `workflow` 工具相撞', () => {
@@ -884,6 +899,34 @@ describe('workflow_lite —— 画布展示（display）', () => {
       resource: { display: { show: false } },
     })
     expect(await viewOf('d', 'res-board')).toBeUndefined()
+  })
+
+  it('display 给 null 关掉展示；里面的一组给 null 回到缺省', async () => {
+    await run({ action: 'create', workflow: 'd' })
+    await run({
+      action: 'write_resource',
+      workflow: 'd',
+      node: 'res-log',
+      resource: {
+        items: [{ kind: 'file', value: 'run.log' }],
+        display: { lines: { from: 'end', filter: 'ERROR' } },
+      },
+    })
+    expect(await viewOf('d', 'res-log')).toHaveProperty('lines')
+    await run({
+      action: 'write_resource',
+      workflow: 'd',
+      node: 'res-log',
+      resource: { display: { lines: null } },
+    })
+    expect(await viewOf('d', 'res-log')).not.toHaveProperty('lines')
+    await run({
+      action: 'write_resource',
+      workflow: 'd',
+      node: 'res-log',
+      resource: { display: null },
+    })
+    expect(await viewOf('d', 'res-log')).toBeUndefined()
   })
 
   it('write_node 的 outputs 带 display：产出资源建好就开着展示', async () => {

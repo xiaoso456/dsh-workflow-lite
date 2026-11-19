@@ -34,6 +34,7 @@ import {
   normalizeName,
 } from '../../shared/naming.ts'
 import { checkOutputRoot } from '../../shared/outputPaths.ts'
+import { mergePatch } from '../../shared/patch.ts'
 import {
   addGlobalMemory,
   addStepMemory,
@@ -85,11 +86,13 @@ import type { RepoCore } from './repoCore.ts'
 import { fail, type Outcome } from './repoResult.ts'
 import type { TemplateStore } from './repoTemplates.ts'
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 /** 是对象就原样给，不是（`null`、数组、别的）当空对象。 */
 function recordOf(value: unknown): Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {}
+  return isPlainObject(value) ? value : {}
 }
 
 /** `write_node` 的语义入参——`undefined` 一律表示"不改这一项"。 */
@@ -145,9 +148,10 @@ export interface InputUpsert {
 }
 
 /**
- * `write_trigger`：新建或修改一张触发卡片的定义（图里的那部分）。给了的字段才改：
- * `label` / `note` / `condition` 空串 = 清除；`source` / `filter` / `launch` 给了就整项替换（`null` = 清除）；
- * `launch` 里新建会话用的预设、模型、权限例外：只由用户在画布上设，替换、清除时原样留着。
+ * `write_trigger`：新建或修改一张触发卡片的定义（图里的那部分），按统一的合并规则（`shared/patch.ts`）：
+ * 新建从缺省卡片起、修改从现在的起，给了的字段才改，`source` / `filter` / `launch` 按字段合并，对象给 `null` 恢复缺省；
+ * `label` / `note` / `condition` 空串 = 清除。
+ * `launch` 里新建会话用的预设、模型、权限只由用户在画布上设，模型写的这几项不认。
  * 开关、工作区、命令的确认是本机状态，不在这里——模型建的卡片一律是关着的，由用户打开。
  */
 export interface TriggerUpsert {
@@ -164,7 +168,7 @@ export interface TriggerUpsert {
 /** 新建触发卡片缺省的 id。 */
 const TRIGGER_ID = 'trigger'
 
-/** `write_resource`：新建或修改一个资源节点。给了的字段才改；`items` 给了就整份替换。 */
+/** `write_resource`：新建或修改一个资源节点。给了的字段才改；`items` 给了就整份替换；`display` 按字段合并。 */
 export interface ResourceUpsert {
   /** 资源节点 id；缺省 = 新建，按名字或第一项起一个。 */
   id?: string
@@ -427,17 +431,21 @@ export class NodeWriter {
           id = `${wanted}-${String(n)}`
         }
       }
-      const source = upsert.source as { kind?: unknown } | null | undefined
-      if (
-        source !== undefined &&
-        (typeof source !== 'object' ||
-          source === null ||
-          !SOURCE_KINDS.some((kind) => kind === source.kind))
-      ) {
+      for (const key of ['source', 'filter', 'launch'] as const) {
+        const value = upsert[key]
+        if (value !== undefined && value !== null && !isPlainObject(value)) {
+          return fail('invalid_args', `${key} 要写成对象（null = 恢复缺省）`, {
+            code: 'trigger_invalid',
+          })
+        }
+      }
+      const kind = isPlainObject(upsert.source) ? upsert.source.kind : undefined
+      if (kind !== undefined && !SOURCE_KINDS.some((candidate) => candidate === kind)) {
         return fail('invalid_args', `source.kind 要是 ${SOURCE_KINDS.join(' / ')} 之一`, {
           code: 'trigger_invalid',
         })
       }
+      // 新建从缺省卡片起、修改从现在的起，再按统一规则叠上给了的。
       const base: Record<string, unknown> =
         found === undefined ? { ...DEFAULT_TRIGGER } : { ...found.data }
       for (const key of ['label', 'note', 'condition'] as const) {
@@ -446,22 +454,18 @@ export class NodeWriter {
         if (value.trim() === '') delete base[key]
         else base[key] = value
       }
-      for (const key of ['source', 'filter'] as const) {
-        const value = upsert[key]
-        if (value === undefined) continue
-        if (value === null) delete base[key]
-        else base[key] = value
+      // 预设、模型、权限只由用户在画布上设：模型写的不认，`launch: null` 也不清它们。
+      const kept = readSessionChoice(recordOf(base.launch))
+      const patch = {
+        source: upsert.source,
+        filter: upsert.filter,
+        launch: isPlainObject(upsert.launch)
+          ? withoutSessionChoice({ ...upsert.launch })
+          : upsert.launch,
       }
-      if (upsert.launch !== undefined) {
-        // 新建会话用的预设、模型、权限只由用户在画布上设：模型整项替换、清除执行设置时都原样留着（新卡片留的是缺省的完全权限），
-        // 模型写进来的这几项不认。
-        const kept = readSessionChoice(recordOf(base.launch))
-        const written = withoutSessionChoice({ ...recordOf(upsert.launch) })
-        const launch = { ...written, ...kept }
-        if (Object.keys(launch).length === 0) delete base.launch
-        else base.launch = launch
-      }
-      const data = canonicalTrigger(readTriggerData(base))
+      const merged = recordOf(mergePatch(base, patch))
+      merged.launch = { ...recordOf(merged.launch), ...kept }
+      const data = canonicalTrigger(readTriggerData(merged))
       const problem = sourceProblem(data.source)
       if (problem !== null) {
         return fail('invalid_args', `触发设置不对：${problem}`, { code: 'trigger_invalid' })

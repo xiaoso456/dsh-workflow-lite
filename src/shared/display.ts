@@ -498,7 +498,7 @@ function galleryHero(
 
 // ── 工具的 display 参数 ─────────────────────────────────────
 
-/** 工具 `write_resource` 的 `display`（与参数声明同构）：给了的字段才改。 */
+/** 工具 `write_resource` 的 `display`（与参数声明同构）：给了的字段才改；`lines` / `table` / `folder` 给 `null` = 回到缺省。 */
 export interface DisplaySpec {
   /** `false` = 关掉展示（其余字段不看）。 */
   show?: boolean
@@ -517,11 +517,11 @@ export interface DisplaySpec {
   /** 不选中、不悬停时藏起标题行。 */
   hideTitle?: boolean
   /** 日志、纯文本：看哪一段、只看哪些行。 */
-  lines?: DisplayLinesSpec
+  lines?: DisplayLinesSpec | null
   /** CSV / TSV：看哪一段、藏哪几列、按哪列排、数字列画浅条。 */
-  table?: DisplayTableSpec
+  table?: DisplayTableSpec | null
   /** 文件夹：展示什么、怎么排、按什么排、只看哪些名字。 */
-  folder?: DisplayFolderSpec
+  folder?: DisplayFolderSpec | null
 }
 
 export interface DisplayLinesSpec {
@@ -613,18 +613,22 @@ export function applyDisplay(
   const content = contentKindOf(kind, (data.items[item] as ResourceItem).value)
   for (const key of ['lines', 'table', 'folder'] as const) {
     const group = CONTENT_GROUPS[key]
-    if (spec[key] !== undefined && content !== group.kind) {
+    if (spec[key] !== undefined && spec[key] !== null && content !== group.kind) {
       return { error: `display.${key} 只用于${group.label}；展示的这一项用不上` }
     }
   }
-  if (spec.lines !== undefined) {
+  // 一组给 null：回到缺省（去掉这一组）。
+  if (spec.lines === null) delete raw.lines
+  else if (spec.lines !== undefined) {
     const lines = mergeLines(raw.lines as LineView | undefined, spec.lines)
     if (typeof lines === 'string') return { error: lines }
     raw.lines = lines
   }
-  if (spec.table !== undefined)
+  if (spec.table === null) delete raw.table
+  else if (spec.table !== undefined)
     raw.table = mergeTable(raw.table as TableView | undefined, spec.table)
-  if (spec.folder !== undefined) {
+  if (spec.folder === null) delete raw.gallery
+  else if (spec.folder !== undefined) {
     raw.gallery = mergeFolder(raw.gallery as GalleryView | undefined, spec.folder)
   }
   // 只有一项能展示时不记 item：以后加了项，展示的还是「第一个能展示的」。

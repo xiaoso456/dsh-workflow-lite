@@ -1463,7 +1463,14 @@ describe('模型建触发卡片', () => {
     })
   })
 
-  it('新卡片的权限缺省写成完全权限；预设、模型、权限只认画布上设的，模型替换、清除执行设置都留着', async () => {
+  /** 图里这张卡片现在的定义。 */
+  async function cardData(id: string): Promise<Record<string, unknown> | undefined> {
+    return (await repository.load('patrol')).document?.nodes.find((node) => node.id === id)?.data as
+      | Record<string, unknown>
+      | undefined
+  }
+
+  it('新卡片从缺省起（权限是完全权限）；修改时没给的不动，对象按字段合并，对象给 null 恢复缺省', async () => {
     await saveGraph('patrol')
     await run({
       action: 'write_trigger',
@@ -1471,23 +1478,30 @@ describe('模型建触发卡片', () => {
       node: 'fresh',
       trigger: { source: { kind: 'http' }, launch: { session: 'last' } },
     })
-    const launchOfCard = async (id: string): Promise<unknown> =>
-      (
-        (await repository.load('patrol')).document?.nodes.find((node) => node.id === id)?.data as {
-          launch?: unknown
-        }
-      )?.launch
-    expect(await launchOfCard('fresh')).toEqual({
+    expect((await cardData('fresh'))?.launch).toEqual({
       session: 'last',
       permission: 'danger-full-access',
     })
+    // 只改一项：会话方式留着；模型写的预设、权限不认。
     await run({
       action: 'write_trigger',
       workflow: 'patrol',
       node: 'fresh',
       trigger: { launch: { overlap: 'queue', permission: 'read-only', preset: 'x' } },
     })
-    expect(await launchOfCard('fresh')).toEqual({
+    expect((await cardData('fresh'))?.launch).toEqual({
+      session: 'last',
+      overlap: 'queue',
+      permission: 'danger-full-access',
+    })
+    // 某项写回缺省值；整个 launch 给 null：模型管的几项都回缺省，画布上设的权限留着。
+    await run({
+      action: 'write_trigger',
+      workflow: 'patrol',
+      node: 'fresh',
+      trigger: { launch: { session: 'new' } },
+    })
+    expect((await cardData('fresh'))?.launch).toEqual({
       overlap: 'queue',
       permission: 'danger-full-access',
     })
@@ -1497,7 +1511,49 @@ describe('模型建触发卡片', () => {
       node: 'fresh',
       trigger: { launch: null },
     })
-    expect(await launchOfCard('fresh')).toEqual({ permission: 'danger-full-access' })
+    expect((await cardData('fresh'))?.launch).toEqual({ permission: 'danger-full-access' })
+  })
+
+  it('触发方式同类型按字段合并、换了类型从新类型起；过滤按字段合并', async () => {
+    await saveGraph('patrol')
+    await run({
+      action: 'write_trigger',
+      workflow: 'patrol',
+      node: 'tail',
+      trigger: {
+        source: { kind: 'listen', command: 'node tail.mjs' },
+        filter: { include: ['ERROR'], merge: 5 },
+        note: '看日志',
+      },
+    })
+    // 只改合并秒数：关键字还在；没给的 note、source 不动。
+    await run({
+      action: 'write_trigger',
+      workflow: 'patrol',
+      node: 'tail',
+      trigger: { filter: { merge: 30 } },
+    })
+    expect(await cardData('tail')).toMatchObject({
+      source: { kind: 'listen', command: 'node tail.mjs' },
+      filter: { include: ['ERROR'], merge: 30 },
+      note: '看日志',
+    })
+    // 换成定时：listen 的命令不带过去；定时规则同类型时只改时间。
+    await run({
+      action: 'write_trigger',
+      workflow: 'patrol',
+      node: 'tail',
+      trigger: { source: { kind: 'schedule', schedule: { kind: 'daily', time: '08:00' } } },
+    })
+    await run({
+      action: 'write_trigger',
+      workflow: 'patrol',
+      node: 'tail',
+      trigger: { source: { schedule: { time: '09:30' } }, note: '' },
+    })
+    const data = await cardData('tail')
+    expect(data?.source).toEqual({ kind: 'schedule', schedule: { kind: 'daily', time: '09:30' } })
+    expect(data).not.toHaveProperty('note')
   })
 
   it('建一张关着的卡片；同一个 id 再写是修改；设置不对的拒绝；读的时候列出卡片和目录', async () => {

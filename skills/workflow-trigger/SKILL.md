@@ -136,7 +136,12 @@ const emit = (text, data) => {
 
 - 查：`read` 给 `node`，返回定义（`effective` 是连缺省值的过滤和执行设置）和本机情况 `local`：开没开、状态 `state`、问题 `problem`、下一次 `next`、最近一次 `last`、排着几个 `queued`、在等的上次执行 `waiting`、脚本的数据目录 `dataDir`。`include: ["history"]` 再带触发记录（跳过、失败的原因都在里面），`["output"]` 带检查命令、监视程序最近的输出，`["queue"]` 带排着的；`fire` 给一个触发编号看那次的全文。
 - 所有工作流的卡片一览：`list` 的 `triggers.cards`。
-- 改定义：`write_trigger` 给 `node`，只写要改的字段；`source`、`filter`、`launch` 是整项替换，`filter`、`launch` 写 `null` 清除。返回的 `trigger` 是存下来的样子，超出范围的值会被丢掉，和你写的对一下。
+- 改定义：`write_trigger` 给 `node`，只写要改的字段，没写的保持原样；`source`、`filter`、`launch` 也只写里面要改的那几项：
+  - 只改时间：`{ "source": { "schedule": { "time": "09:30" } } }`，规则类型、星期都不动；
+  - 只改排队：`{ "launch": { "overlap": "queue" } }`，次数上限、失败停用都不动；
+  - 换触发方式要给 `kind`，旧方式的设置不带过去：`{ "source": { "kind": "listen", "command": "…" } }`；
+  - 数组整份替换（`include`、`exclude`、`weekdays`）；对象写 `null` 回到缺省（`"filter": null` 去掉过滤、`"check": null` 去掉检查命令）；单项回到缺省就写缺省值（各项的缺省见参数说明）。
+  返回的 `trigger` 是存下来的样子，超出范围的值会被丢掉，和你写的对一下。
 - 只改本机设置：`write_trigger` 给 `node` 和 `local`，不给 `trigger`。
 - 排队：`trigger_queue` 的 `queue`：`waive` 把上次执行视为已结束、放行下一个；`clear` 清空排着的；`cancel` 带 `fire` 取消排着的一个。用户要求时才做。
 

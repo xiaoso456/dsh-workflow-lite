@@ -22,7 +22,7 @@ export interface WorkflowLiteArgs {
   content?: string
   label?: string
   output?: string
-  outputs?: { path: string; rule?: string; display?: DisplaySpec }[]
+  outputs?: { path: string; rule?: string; display?: DisplaySpec | null }[]
   description?: string
   no_output?: boolean
   from_template?: string
@@ -98,7 +98,7 @@ export interface ResourceArgs {
   label?: string
   description?: string
   items?: { kind: string; value: string; note?: string }[]
-  display?: DisplaySpec
+  display?: DisplaySpec | null
 }
 
 /** write_node 的 input（与参数声明同构）。 */
