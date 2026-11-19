@@ -966,6 +966,7 @@ export function writeDocument(document: WorkflowDocument): string {
             ...(settings.runState === undefined ? {} : { runState: settings.runState }),
             ...(settings.preset === undefined ? {} : { preset: settings.preset }),
             ...(settings.model === undefined ? {} : { model: { ...settings.model } }),
+            ...(settings.permission === undefined ? {} : { permission: settings.permission }),
           },
         }),
   }

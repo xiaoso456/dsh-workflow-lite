@@ -9,7 +9,7 @@
 
 import { stat } from 'node:fs/promises'
 import { isTrigger } from '../../shared/model.ts'
-import { resolveSessionChoice } from '../../shared/sessionChoice.ts'
+import { resolveSessionChoice, resolveTriggerChoice } from '../../shared/sessionChoice.ts'
 import { triggerName } from '../../shared/trigger.ts'
 import type { SessionChoice, TriggerData } from '../../shared/types.ts'
 import { workflowFile } from '../store/paths.ts'
@@ -80,7 +80,7 @@ export function createTriggerGraphs(repository: Repository): TriggerGraphs {
             name: triggerName(node),
             data: node.data,
             runState,
-            choice: resolveSessionChoice(node.data.launch, settings),
+            choice: resolveTriggerChoice(node.data.launch, settings),
             workflowChoice,
           })),
           ...(blocking.length === 0

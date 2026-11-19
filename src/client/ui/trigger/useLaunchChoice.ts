@@ -1,6 +1,6 @@
 /**
  * dsh-workflow-lite — 触发卡片「在哪执行」的几样选择：会话方式、（固定会话时）固定到哪个会话、工作区，
- * 以及新建会话时用的 agent 预设、模型、思考强度（不写 = 跟随工作流设置）。
+ * 以及新建会话时用的 agent 预设、模型、思考强度、运行权限（不写 = 跟随工作流设置；权限工作流也没写时用完全权限）。
  *
  * 画布面板（LaunchField）和工作流中心「触发」页的设置（SettingsPane）各按自己的样子摆，选项和存法都从这里拿：
  * 会话方式写在图里（`onLaunch`，缺省值不留）；工作区、固定的会话只存在这台机器上（`env.triggers.set`），
@@ -29,8 +29,10 @@ import {
   issueLines,
   modelKey,
   modelOptions,
+  permissionOptions,
   pickModel,
   presetOptions,
+  triggerInheritedPermission,
   withEffort,
 } from '../../model/sessionChoice.ts'
 import type { SelectOption } from '../kit/Select.tsx'
@@ -54,8 +56,9 @@ export interface AgentChoices {
   model: Choice<string>
   /** 思考强度：只在卡片自己选了分档的模型时有。 */
   effort: Choice<string> | null
-  /** 卡片上设的在这台机器上用不了时的提醒（预设、模型各一句）；都能用是空的。 */
-  issues: { preset?: string[]; model?: string[] }
+  permission: Choice<string>
+  /** 卡片上设的（权限连同跟随来的）在这台机器上用不了时的提醒（预设、模型、权限各一句）；都能用是空的。 */
+  issues: { preset?: string[]; model?: string[]; permission?: string[] }
   /** 发进现成的会话（固定会话、接着上一次）：这几项只在那个会话不在了、要新建时才用。 */
   existing: boolean
 }
@@ -112,9 +115,15 @@ export function useLaunchChoice(props: {
     props.onLaunch(readTriggerData({ ...data, launch: { ...data.launch, ...change } }).launch)
   const ownModel = data.launch?.model
   const ownPreset = data.launch?.preset
+  const ownPermission = data.launch?.permission
+  const inheritedPermission = triggerInheritedPermission(inherited)
+  // 权限跟随来的也看：工作流没写时用的完全权限，这台机器上设不上也要提醒（工作流设的由工作流设置那边提醒）。
+  const checkedPermission =
+    ownPermission ?? (inherited?.permission === undefined ? inheritedPermission : undefined)
   const issues = choiceIssues(catalog, {
     ...(ownPreset === undefined ? {} : { preset: ownPreset }),
     ...(ownModel === undefined ? {} : { model: ownModel }),
+    ...(checkedPermission === undefined ? {} : { permission: checkedPermission }),
   })
   const issueOf = (kinds: ChoiceIssue['kind'][]): string[] | undefined => {
     const found = issues.find((issue) => kinds.includes(issue.kind))
@@ -122,6 +131,7 @@ export function useLaunchChoice(props: {
   }
   const presetIssue = issueOf(['preset'])
   const modelIssue = issueOf(['model', 'unsupported', 'effort'])
+  const permissionIssue = issueOf(['permission', 'permissionUnsupported'])
   const efforts = ownModel === undefined ? [] : effortOptions(t, catalog, ownModel)
   const setModel = (model: ModelChoice | undefined): void => setLaunch({ model })
   const agent: AgentChoices = {
@@ -143,9 +153,15 @@ export function useLaunchChoice(props: {
             options: efforts,
             set: (value) => setModel(withEffort(ownModel, value)),
           },
+    permission: {
+      value: ownPermission ?? FOLLOW,
+      options: permissionOptions(t, catalog, ownPermission, 'workflow', inheritedPermission),
+      set: (value) => setLaunch({ permission: value === FOLLOW ? undefined : value }),
+    },
     issues: {
       ...(presetIssue === undefined ? {} : { preset: presetIssue }),
       ...(modelIssue === undefined ? {} : { model: modelIssue }),
+      ...(permissionIssue === undefined ? {} : { permission: permissionIssue }),
     },
     existing: launch.session !== 'new',
   }

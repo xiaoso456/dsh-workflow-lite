@@ -1,5 +1,5 @@
 /**
- * dsh-workflow-lite — 画布看 DSH 里能选的 agent 预设、模型（`host/agents`），以及给刚建好的会话装上模型（`host/prepareSession`）。
+ * dsh-workflow-lite — 画布看 DSH 里能选的 agent 预设、模型、权限（`host/agents`），以及给刚建好的会话装上模型、设好权限（`host/prepareSession`）。
  *
  * 清单按「会话」记一份，一页里只问一次：工作流设置、触发卡片、「执行」的小箭头都要读它，
  * 模型列表要问各服务商，不该每打开一次都等一趟。失败了不记，下次再问。
@@ -56,23 +56,29 @@ export function useAgentCatalog(
 }
 
 /**
- * 给刚建好、还没发消息的会话装上模型；回没用上的那几项。
+ * 给刚建好、还没发消息的会话装上模型、设好权限；回没用上的那几项。
  * 调用本身出错（插件旧、连接断了）也不挡发消息：当作没装上，照默认发。
  */
 export async function prepareSession(
   rpc: WorkflowLiteRpc,
   session: string,
-  model: ModelChoice,
+  choice: { model?: ModelChoice; permission?: string },
 ): Promise<ChoiceFallback[]> {
+  const { model, permission } = choice
+  if (model === undefined && permission === undefined) return []
   try {
-    return (await rpc.call('host/prepareSession', { session, model })).fallbacks
+    return (await rpc.call('host/prepareSession', { session, ...choice })).fallbacks
   } catch (error) {
-    return [{ kind: 'failed', message: error instanceof Error ? error.message : String(error) }]
+    const message = error instanceof Error ? error.message : String(error)
+    return [
+      ...(model === undefined ? [] : [{ kind: 'failed' as const, message }]),
+      ...(permission === undefined ? [] : [{ kind: 'permission' as const, permission }]),
+    ]
   }
 }
 
 /**
- * 「执行」新建会话：带上工作流设的预设建会话（这台机器上用不了就不带、记一条），建好后、发消息前装上模型。
+ * 「执行」新建会话：带上工作流设的预设建会话（这台机器上用不了就不带、记一条），建好后、发消息前装上模型、设好权限。
  * 回新会话、没用上的那几项、要记进实例来源的那份（什么都没设时没有），和读到的清单（拼提示时写名字用；
  * 没读到是 `null`）。什么都没设时不读清单。
  */
@@ -95,7 +101,11 @@ export async function openChosenSession(
     preset = undefined
   }
   const session = await create(preset)
-  if (choice.model !== undefined)
-    fallbacks.push(...(await prepareSession(rpc, session, choice.model)))
+  fallbacks.push(
+    ...(await prepareSession(rpc, session, {
+      ...(choice.model === undefined ? {} : { model: choice.model }),
+      ...(choice.permission === undefined ? {} : { permission: choice.permission }),
+    })),
+  )
   return { session, fallbacks, agent: sessionAgent(choice, fallbacks), catalog }
 }

@@ -86,6 +86,7 @@ function mergeSettings(
     runState: pick('runState'),
     preset: pick('preset'),
     model: pick('model', sameModelChoice),
+    permission: pick('permission'),
   })
 }
 

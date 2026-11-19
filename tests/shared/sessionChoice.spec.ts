@@ -12,9 +12,10 @@ import {
   readSessionAgent,
   readSessionChoice,
   resolveSessionChoice,
+  resolveTriggerChoice,
   sessionAgent,
 } from '../../src/shared/sessionChoice.ts'
-import { readTriggerData } from '../../src/shared/trigger.ts'
+import { DEFAULT_TRIGGER, readTriggerData } from '../../src/shared/trigger.ts'
 import {
   NODE_TYPE,
   TRIGGER_TYPE,
@@ -98,6 +99,65 @@ describe('按项合并', () => {
       ),
     ).toEqual({ preset: 'ptc', model: { provider: 'p', model: 'cheap' } })
     expect(resolveSessionChoice({ preset: 'minimal' }, undefined)).toEqual({ preset: 'minimal' })
+  })
+})
+
+describe('运行权限', () => {
+  it('工作流设置、触发卡片都认，存盘来回不丢；按项合并时卡片优先', () => {
+    const document = doc({
+      nodes: [trigger({ permission: 'read-only' })],
+      settings: { permission: 'workspace-write' },
+    })
+    const back = readDocument(writeDocument(document)).document
+    if (back === null) throw new Error('读不回来')
+    expect(back.settings).toEqual({ permission: 'workspace-write' })
+    expect(readTriggerData(back.nodes[0]?.data).launch).toEqual({ permission: 'read-only' })
+    expect(resolveSessionChoice({ permission: 'read-only' }, { permission: 'x' })).toEqual({
+      permission: 'read-only',
+    })
+    expect(resolveSessionChoice(undefined, { permission: 'x' })).toEqual({ permission: 'x' })
+  })
+
+  it('新拖出来的触发卡片直接写着完全权限，不跟随工作流', () => {
+    expect(DEFAULT_TRIGGER.launch).toEqual({ permission: 'danger-full-access' })
+    expect(readTriggerData(DEFAULT_TRIGGER).launch).toEqual({ permission: 'danger-full-access' })
+  })
+
+  it('触发器新建的会话：卡片、工作流都没写时用完全权限；手动执行照旧跟随 DSH', () => {
+    expect(resolveTriggerChoice(undefined, undefined)).toEqual({
+      permission: 'danger-full-access',
+    })
+    expect(resolveTriggerChoice({}, { permission: 'read-only' })).toEqual({
+      permission: 'read-only',
+    })
+    expect(resolveTriggerChoice({ permission: 'workspace-write' }, undefined)).toEqual({
+      permission: 'workspace-write',
+    })
+    expect(resolveSessionChoice(undefined, undefined)).toEqual({})
+  })
+
+  it('导出不带模型和预设时一起去掉；回退项读得回来', () => {
+    const stripped = documentWithoutSessionChoice(
+      doc({ nodes: [trigger({ permission: 'read-only' })], settings: { permission: 'x' } }),
+    )
+    expect(stripped.settings).toBeUndefined()
+    expect(stripped.nodes.map((node) => (node.data as TriggerData).launch)).toEqual([undefined])
+    expect(
+      readSessionAgent({
+        permission: 'read-only',
+        fallbacks: [
+          { kind: 'permission', permission: 'read-only' },
+          { kind: 'permissionUnsupported', permission: 'read-only' },
+          { kind: 'permission' },
+        ],
+      }),
+    ).toEqual({
+      permission: 'read-only',
+      fallbacks: [
+        { kind: 'permission', permission: 'read-only' },
+        { kind: 'permissionUnsupported', permission: 'read-only' },
+      ],
+    })
   })
 })
 

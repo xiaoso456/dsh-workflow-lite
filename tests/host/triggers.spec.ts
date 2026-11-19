@@ -393,7 +393,10 @@ describe('到点触发', () => {
 
     clock = start + 30 * MINUTE
     await triggers.tick()
-    expect(opened).toEqual([{ cwd: workspace, title: 'patrol · 巡检', choice: {} }])
+    // 卡片、工作流都没设权限：触发器新建的会话用完全权限。
+    expect(opened).toEqual([
+      { cwd: workspace, title: 'patrol · 巡检', choice: { permission: 'danger-full-access' } },
+    ])
     expect(sent).toHaveLength(1)
     const [fire] = await triggers.history('patrol')
     expect(fire).toMatchObject({
@@ -420,11 +423,17 @@ describe('到点触发', () => {
     expect(sent).toHaveLength(1)
   })
 
-  it('新建会话按卡片和工作流设的预设、模型（卡片的项优先）；没用上的写进触发记录', async () => {
-    await saveGraph('patrol', { launch: { model: { provider: 'acme', model: 'small' } } }, true, {
-      preset: 'minimal',
-      model: { provider: 'acme', model: 'big', effort: 'high' },
-    })
+  it('新建会话按卡片和工作流设的预设、模型、权限（卡片的项优先）；没用上的写进触发记录', async () => {
+    await saveGraph(
+      'patrol',
+      { launch: { model: { provider: 'acme', model: 'small' }, permission: 'read-only' } },
+      true,
+      {
+        preset: 'minimal',
+        model: { provider: 'acme', model: 'big', effort: 'high' },
+        permission: 'workspace-write',
+      },
+    )
     const triggers = service()
     await triggers.set({ workflow: 'patrol', node: 'tick', enabled: true, workspace })
     await own(triggers)
@@ -434,6 +443,7 @@ describe('到点触发', () => {
     expect(opened[0]?.choice).toEqual({
       preset: 'minimal',
       model: { provider: 'acme', model: 'small' },
+      permission: 'read-only',
     })
     const [fire] = await triggers.history('patrol')
     expect(fire).toMatchObject({
@@ -441,14 +451,26 @@ describe('到点触发', () => {
       agent: {
         preset: 'minimal',
         model: { provider: 'acme', model: 'small' },
+        permission: 'read-only',
         fallbacks: [{ kind: 'unsupported' }],
       },
     })
-    // 卡片上「跟随工作流」要写的那一份跟着卡片的状态给出去。
+    // 卡片上「跟随工作流」要写的那一份跟着卡片的状态给出去（工作流设的，不掺触发器的缺省）。
     expect((await triggers.list('patrol')).triggers[0]?.workflowChoice).toEqual({
       preset: 'minimal',
       model: { provider: 'acme', model: 'big', effort: 'high' },
+      permission: 'workspace-write',
     })
+  })
+
+  it('卡片没设权限时跟随工作流设的，不用触发器的缺省', async () => {
+    await saveGraph('patrol', {}, true, { permission: 'read-only' })
+    const triggers = service()
+    await triggers.set({ workflow: 'patrol', node: 'tick', enabled: true, workspace })
+    await own(triggers)
+    clock += 30 * MINUTE
+    await triggers.tick()
+    expect(opened[0]?.choice).toEqual({ permission: 'read-only' })
   })
 
   /** 最近一次发出去的那条。 */
@@ -879,6 +901,7 @@ describe('实例记下的来源', () => {
       channel: 'now',
       trigger: { id: 'tick', name: '巡检' },
       firedAt: fire.at,
+      agent: { permission: 'danger-full-access' },
       note: '只看 src/',
       info: '磁盘 91%',
     })
@@ -906,6 +929,7 @@ describe('实例记下的来源', () => {
     )
     expect((await view(id)).origin?.agent).toEqual({
       model: { provider: 'acme', model: 'big' },
+      permission: 'danger-full-access',
       fallbacks: [{ kind: 'model', provider: 'acme', model: 'big' }],
     })
   })
@@ -1437,6 +1461,43 @@ describe('模型建触发卡片', () => {
       dataDir: () => dataDir,
       maxResultBytes: () => 262_144,
     })
+  })
+
+  it('新卡片的权限缺省写成完全权限；预设、模型、权限只认画布上设的，模型替换、清除执行设置都留着', async () => {
+    await saveGraph('patrol')
+    await run({
+      action: 'write_trigger',
+      workflow: 'patrol',
+      node: 'fresh',
+      trigger: { source: { kind: 'http' }, launch: { session: 'last' } },
+    })
+    const launchOfCard = async (id: string): Promise<unknown> =>
+      (
+        (await repository.load('patrol')).document?.nodes.find((node) => node.id === id)?.data as {
+          launch?: unknown
+        }
+      )?.launch
+    expect(await launchOfCard('fresh')).toEqual({
+      session: 'last',
+      permission: 'danger-full-access',
+    })
+    await run({
+      action: 'write_trigger',
+      workflow: 'patrol',
+      node: 'fresh',
+      trigger: { launch: { overlap: 'queue', permission: 'read-only', preset: 'x' } },
+    })
+    expect(await launchOfCard('fresh')).toEqual({
+      overlap: 'queue',
+      permission: 'danger-full-access',
+    })
+    await run({
+      action: 'write_trigger',
+      workflow: 'patrol',
+      node: 'fresh',
+      trigger: { launch: null },
+    })
+    expect(await launchOfCard('fresh')).toEqual({ permission: 'danger-full-access' })
   })
 
   it('建一张关着的卡片；同一个 id 再写是修改；设置不对的拒绝；读的时候列出卡片和目录', async () => {

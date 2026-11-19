@@ -1,7 +1,7 @@
 /**
- * dsh-workflow-lite — 「工作流设置」的「会话」页：新建会话时用哪个 agent 预设、哪个模型、哪档思考强度。
+ * dsh-workflow-lite — 「工作流设置」的「会话」页：新建会话时用哪个 agent 预设、哪个模型、哪档思考强度、什么运行权限。
  *
- * 和「复用执行者」同样的行：左图标、中间名字加一句说明、右边控件。两个下拉第一项都是「跟随默认」，
+ * 和「复用执行者」同样的行：左图标、中间名字加一句说明、右边控件。几个下拉第一项都是「跟随默认」，
  * 后面小字写现在跟随的是什么；模型按服务商分组、可搜索。思考强度只在选了分档的模型时出现，档位按这个模型给。
  * 设了但这台机器上用不了的：名字后面一个告警图标，和「?」同样的浮层写原因和支持的 DSH 版本（执行时回退默认，不挡保存）。
  * 状态在对话框里，这里只画。
@@ -20,6 +20,7 @@ import {
   issueLines,
   modelKey,
   modelOptions,
+  permissionOptions,
   pickModel,
   presetOptions,
   withEffort,
@@ -64,13 +65,16 @@ export function SessionGroup(props: {
   catalog: HostAgentsResponse | null
   preset: string | undefined
   model: ModelChoice | undefined
+  permission: string | undefined
   onPreset(preset: string | undefined): void
   onModel(model: ModelChoice | undefined): void
+  onPermission(permission: string | undefined): void
 }): React.JSX.Element {
-  const { t, catalog, model } = props
+  const { t, catalog, model, permission } = props
   const choice: SessionChoice = {
     ...(props.preset === undefined ? {} : { preset: props.preset }),
     ...(model === undefined ? {} : { model }),
+    ...(permission === undefined ? {} : { permission }),
   }
   const issues = choiceIssues(catalog, choice)
   const issueOf = (kind: ChoiceIssue['kind']): string[] | undefined => {
@@ -142,6 +146,23 @@ export function SessionGroup(props: {
             />
           </ChoiceRow>
         )}
+        <ChoiceRow
+          icon="shield"
+          title={t('session.permission')}
+          desc={t('session.permissionDesc')}
+          issue={issueOf('permission') ?? issueOf('permissionUnsupported')}
+          testId="wl-settings-row-permission"
+        >
+          <Select<string>
+            t={t}
+            label={t('session.permission')}
+            value={permission ?? FOLLOW}
+            proseDesc
+            testId="wl-settings-permission"
+            options={permissionOptions(t, catalog, permission, 'default', undefined)}
+            onChange={(value) => props.onPermission(value === FOLLOW ? undefined : value)}
+          />
+        </ChoiceRow>
       </div>
     </section>
   )

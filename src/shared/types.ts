@@ -70,18 +70,27 @@ export interface ModelChoice {
 }
 
 /**
- * 新建会话时用什么跑：agent 预设 id、模型。缺省 = 跟随（触发卡片跟随工作流，工作流跟随 DSH 的默认）。
+ * 新建会话时用什么跑：agent 预设 id、模型、运行权限（DSH 的权限预设名，如 `workspace-write`）。
+ * 缺省 = 跟随（触发卡片跟随工作流，工作流跟随 DSH 的默认；触发器新建的会话权限另有缺省，见 `TRIGGER_PERMISSION`）。
  * 只在插件新建会话时用（触发器新建、画布「执行」新建），发进现成的会话时沿用那个会话的。
  */
 export interface SessionChoice {
   preset?: string
   model?: ModelChoice
+  permission?: string
 }
+
+/**
+ * 触发器的权限缺省：完全权限。没人守着回答授权请求，要授权的那一步会一直等下去。
+ * 新建的触发卡片直接写上它（`DEFAULT_TRIGGER`）；没写权限的旧卡片在工作流也没设时同样用它。
+ */
+export const TRIGGER_PERMISSION = 'danger-full-access'
 
 /**
  * 设了的东西没用上、回退了默认：
  * `preset` 预设不在了或坏了；`model` 模型不在了；`effort` 这个模型没有这一档（用模型的默认档）；
- * `unsupported` 这个 DSH 不能只给一个会话换模型；`failed` 装的时候出了错。
+ * `unsupported` 这个 DSH 不能只给一个会话换模型；`failed` 装的时候出了错；
+ * `permission` 这个权限 DSH 里没有或设不上；`permissionUnsupported` 这个 DSH 不能给会话设权限。
  */
 export type ChoiceFallback =
   | { kind: 'preset'; preset: string }
@@ -89,6 +98,8 @@ export type ChoiceFallback =
   | { kind: 'effort'; model: string; effort: string }
   | { kind: 'unsupported' }
   | { kind: 'failed'; message: string }
+  | { kind: 'permission'; permission: string }
+  | { kind: 'permissionUnsupported'; permission: string }
 
 /** 插件新建的一个会话设了什么、哪几项没用上（实例的来源、触发记录里记的）。 */
 export interface SessionAgent extends SessionChoice {

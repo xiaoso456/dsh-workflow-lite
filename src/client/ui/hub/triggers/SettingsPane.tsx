@@ -5,8 +5,8 @@
  * 这张卡片（`onPatch`）；要么就地下拉、选了就生效（执行设置：会话方式、固定的会话、工作区，和面板共用 useLaunchChoice）。
  * 工作区、固定的会话只存在这台机器上，名字旁标「本机」。
  *
- * 两列各自往下排、底边对齐（每列最后一张撑满）：有过滤时左「触发方式、过滤」右「触发处理、执行设置、保护」，
- * 没有过滤时触发处理挪到左边。
+ * 两列各自往下排、底边对齐（每列最后一张撑满）：左「触发方式、（有就放）过滤、保护」管什么时候发、拦不拦，
+ * 右「触发处理、执行设置」管发出去之后怎么跑。执行设置行数最多，独占右边下半截，两列高度差不多。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/triggers/SettingsPane
  */
@@ -143,14 +143,14 @@ export function SettingsPane(props: {
       left={
         <>
           {sourceCard}
-          {filterCard ?? notesCard}
+          {filterCard}
+          {guardCard}
         </>
       }
       right={
         <>
-          {filterCard !== null && notesCard}
+          {notesCard}
           {runCard}
-          {guardCard}
         </>
       }
     >
@@ -202,7 +202,7 @@ export function SettingsPane(props: {
   )
 }
 
-/** 新建会话用的预设、模型（、思考强度）：和画布面板同一份选项（useLaunchChoice）。 */
+/** 新建会话用的预设、模型（、思考强度）、权限：和画布面板同一份选项（useLaunchChoice）。 */
 function AgentKv(props: { t: T; agent: AgentChoices }): React.JSX.Element {
   const { t, agent } = props
   const dim = agent.existing || undefined
@@ -237,6 +237,12 @@ function AgentKv(props: { t: T; agent: AgentChoices }): React.JSX.Element {
       {row(t('session.model'), agent.model, 'wl-hub-trg-model', agent.issues.model)}
       {agent.effort !== null &&
         row(t('session.effortShort'), agent.effort, 'wl-hub-trg-effort', undefined)}
+      {row(
+        t('session.permissionShort'),
+        agent.permission,
+        'wl-hub-trg-permission',
+        agent.issues.permission,
+      )}
       {agent.existing && (
         <div className={cards.kvRow}>
           <dt />

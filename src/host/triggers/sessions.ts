@@ -1,6 +1,6 @@
 /**
- * dsh-workflow-lite — 插件怎么进会话：在工作区里新建一个会话（带上预设、装上模型）、把一条消息发进会话、
- * 列出能选的预设和模型。触发器和画布「执行」都只认 {@link SessionPort}；怎么用 DSH 的服务做到，在 {@link createSessionPort} 里。
+ * dsh-workflow-lite — 插件怎么进会话：在工作区里新建一个会话（带上预设、装上模型、设好权限）、把一条消息发进会话、
+ * 列出能选的预设、模型和权限。触发器和画布「执行」都只认 {@link SessionPort}；怎么用 DSH 的服务做到，在 {@link createSessionPort} 里。
  * 用到的服务（`sessionController`、`workspaceRegistry`、`agentPresets`、`agents`）都是现取的：哪个不在，
  * 这个进程就做不了对应的事（`unavailable` 说出原因），触发器不在这个进程里负责触发。
  *
@@ -11,6 +11,10 @@
  * 模型：DSH 公开的 `selectModel` 换完会把选择存成用户的默认模型，不能用。这里先按模型目录校验，
  * 再调会话 agent 的 `model.select`（0.2.2 起有，只改这个会话），在发第一条消息之前装上。
  * 没有这个方法（0.2.1）、或装的时候出错，就不装、用默认模型照常发，`logger.warn` 一次，回退记在结果里。
+ *
+ * 权限：DSH 的权限预设服务（`permissionPresets`，0.2.2 起有）给会话换一套沙箱 + 授权方式，`set` 只改这个会话；
+ * 新会话建好时 DSH 已按用户的默认钉好一套，这里在发第一条消息之前换掉。能选的只列可作为新会话默认的那几套
+ * （`defaultOptions`：不含只能在会话里临时切的 `auto`）。没有这个服务、或设的那套不在，照默认发，回退记在结果里。
  *
  * @module @xiaoso/dsh-workflow-lite/host/triggers/sessions
  */
@@ -24,6 +28,22 @@ import type {
   HostAgentsResponse,
   ModelProviderEntry,
 } from '../../shared/wire/host.ts'
+
+/** 给刚建好、还没发消息的会话装上的：模型、权限（都可缺）。 */
+export interface PrepareChoice {
+  model?: ModelChoice
+  permission?: string
+}
+
+/** 取不到会话 agent 时，设了的几项各记一条回退。 */
+function unreached(choice: PrepareChoice, message: string): ChoiceFallback[] {
+  return [
+    ...(choice.model === undefined ? [] : [{ kind: 'failed' as const, message }]),
+    ...(choice.permission === undefined
+      ? []
+      : [{ kind: 'permission' as const, permission: choice.permission }]),
+  ]
+}
 
 export interface SessionPort {
   /** 这个进程里发不了会话时的原因；能发是 `null`。 */
@@ -39,16 +59,17 @@ export interface SessionPort {
   }): Promise<{ session: string; fallbacks: ChoiceFallback[] }>
   /** 把一条用户消息发进会话：空闲就开一轮，正在跑就排在后面。会话不在就抛错。 */
   send(session: string, text: string): Promise<void>
-  /** 给刚建好、还没发消息的会话装上模型（画布「执行」：会话在前端建）。用不上的回退默认，不抛。 */
-  prepare(session: string, model: ModelChoice): Promise<ChoiceFallback[]>
-  /** 能选的预设、模型；给了 `session` 就拿它试一下能不能只给一个会话换模型。 */
+  /** 给刚建好、还没发消息的会话装上模型、设好权限（画布「执行」：会话在前端建）。用不上的回退默认，不抛。 */
+  prepare(session: string, choice: PrepareChoice): Promise<ChoiceFallback[]>
+  /** 能选的预设、模型、权限；给了 `session` 就拿它试一下能不能只给一个会话换模型。 */
   catalog(session?: string): Promise<HostAgentsResponse>
 }
 
-/** 会话的 agent 上用到的：发消息，以及（0.2.2 起）只给这个会话换模型。 */
+/** 会话的 agent 上用到的：发消息、它的会话（设权限用），以及（0.2.2 起）只给这个会话换模型。 */
 interface AgentLike {
   followup(message: UserMessage): void
   model?: { select?: unknown }
+  session?: unknown
 }
 
 /** 用到的 `sessionController` 的那几个方法（DSH 没有随包给出它的类型）。 */
@@ -86,6 +107,15 @@ interface AgentPresetsLike {
   remoteExportList(): Promise<{ presets: readonly AgentPresetEntry[] }>
 }
 
+/** 用到的 `permissionPresets`（0.2.2 起）：列能选的几套、给一个会话换一套（名字不在就抛）。 */
+interface PermissionPresetsLike {
+  catalog(): {
+    defaultOptions: readonly { value: string; name: string; description?: string }[]
+    defaultPreset: string
+  }
+  set(session: unknown, name: string): void
+}
+
 /** `agents` 服务：按会话 id 取正活着的 agent（不唤醒）。 */
 interface AgentsLike {
   get(session: string): AgentLike | undefined
@@ -110,10 +140,17 @@ export function createSessionPort(ctx: Context): SessionPort {
   const workspaces = (): WorkspaceRegistryLike | undefined => get('workspaceRegistry')
   const presets = (): AgentPresetsLike | undefined => get('agentPresets')
   const agents = (): AgentsLike | undefined => get('agents')
+  const permissions = (): PermissionPresetsLike | undefined => {
+    const service = get<Partial<PermissionPresetsLike>>('permissionPresets')
+    return typeof service?.set === 'function' && typeof service.catalog === 'function'
+      ? (service as PermissionPresetsLike)
+      : undefined
+  }
 
   /** 上一次看到的「能不能只给一个会话换模型」（还没看过是 `null`）。 */
   let selectable: boolean | null = null
   let warnedUnsupported = false
+  let warnedPermission = false
   const noteSelectable = (agent: AgentLike | undefined): void => {
     if (agent !== undefined) selectable = selectorOf(agent) !== undefined
   }
@@ -180,20 +217,11 @@ export function createSessionPort(ctx: Context): SessionPort {
   }
 
   /** 装模型：按目录校验后调 `model.select`；做不到就回退（不抛），并告警。 */
-  async function install(
+  async function installModel(
     sessions: SessionControllerLike,
-    session: string,
+    agent: AgentLike,
     model: ModelChoice,
   ): Promise<ChoiceFallback[]> {
-    let agent: AgentLike | undefined
-    try {
-      const found = await sessions.resolveAgent(session)
-      if (found.agent === undefined) throw found.error ?? new Error('会话不在')
-      agent = found.agent
-    } catch (error) {
-      warn(`给会话装模型时取不到 agent，用默认模型：${messageOf(error)}`)
-      return [{ kind: 'failed', message: messageOf(error) }]
-    }
     noteSelectable(agent)
     const select = selectorOf(agent)
     if (select === undefined) {
@@ -220,6 +248,74 @@ export function createSessionPort(ctx: Context): SessionPort {
       warn(`模型 ${model.model} 没有 ${model.effort ?? ''} 这一档，用模型的默认档`)
     }
     return checked.fallbacks
+  }
+
+  /** 设权限：这个 DSH 没有权限服务、那一套不在、设的时候出错，都照默认（不抛），并告警。 */
+  function installPermission(agent: AgentLike, permission: string): ChoiceFallback[] {
+    const service = permissions()
+    if (service === undefined) {
+      if (!warnedPermission) {
+        warnedPermission = true
+        warn('这个 DSH 不能给会话设权限（没有 permissionPresets），按工作流设权限失效，用默认权限')
+      }
+      return [{ kind: 'permissionUnsupported', permission }]
+    }
+    try {
+      const known = service.catalog().defaultOptions.some((option) => option.value === permission)
+      if (!known) throw new Error(`没有「${permission}」这一套权限`)
+      if (agent.session === undefined) throw new Error('会话 agent 上没有 session')
+      service.set(agent.session, permission)
+      return []
+    } catch (error) {
+      warn(`给会话设权限 ${permission} 没成，用默认权限：${messageOf(error)}`)
+      return [{ kind: 'permission', permission }]
+    }
+  }
+
+  /** 给刚建好的会话装上模型、设好权限；取不到 agent 时设了的几项都回退。 */
+  async function install(
+    sessions: SessionControllerLike,
+    session: string,
+    choice: PrepareChoice,
+  ): Promise<ChoiceFallback[]> {
+    const { model, permission } = choice
+    if (model === undefined && permission === undefined) return []
+    let agent: AgentLike
+    try {
+      const found = await sessions.resolveAgent(session)
+      if (found.agent === undefined) throw found.error ?? new Error('会话不在')
+      agent = found.agent
+    } catch (error) {
+      warn(`给会话装模型、设权限时取不到 agent，用默认的：${messageOf(error)}`)
+      return unreached(choice, messageOf(error))
+    }
+    return [
+      ...(model === undefined ? [] : await installModel(sessions, agent, model)),
+      ...(permission === undefined ? [] : installPermission(agent, permission)),
+    ]
+  }
+
+  /** 能选的权限；这个 DSH 没有权限服务、读不出来时不给。 */
+  function permissionList(): Pick<HostAgentsResponse, 'permissions'> {
+    const service = permissions()
+    if (service === undefined) return {}
+    try {
+      const catalog = service.catalog()
+      return {
+        permissions: {
+          options: catalog.defaultOptions.map((option) => ({
+            id: option.value,
+            name: option.name,
+            ...(option.description === undefined || option.description === ''
+              ? {}
+              : { description: option.description }),
+          })),
+          defaultId: catalog.defaultPreset,
+        },
+      }
+    } catch {
+      return {}
+    }
   }
 
   return {
@@ -249,9 +345,12 @@ export function createSessionPort(ctx: Context): SessionPort {
       })
       // 标题只是给人认的，改不成不影响触发。
       await sessions.rename({ sessionId, title }).catch(() => {})
-      if (choice?.model !== undefined) {
-        fallbacks.push(...(await install(sessions, sessionId, choice.model)))
-      }
+      fallbacks.push(
+        ...(await install(sessions, sessionId, {
+          ...(choice?.model === undefined ? {} : { model: choice.model }),
+          ...(choice?.permission === undefined ? {} : { permission: choice.permission }),
+        })),
+      )
       return { session: sessionId, fallbacks }
     },
 
@@ -268,10 +367,10 @@ export function createSessionPort(ctx: Context): SessionPort {
       )
     },
 
-    async prepare(session, model) {
+    async prepare(session, choice) {
       const sessions = controller()
-      if (sessions === undefined) return [{ kind: 'failed', message: '会话服务不在' }]
-      return install(sessions, session, model)
+      if (sessions === undefined) return unreached(choice, '会话服务不在')
+      return install(sessions, session, choice)
     },
 
     async catalog(session) {
@@ -282,6 +381,7 @@ export function createSessionPort(ctx: Context): SessionPort {
           providers: [],
           failures: [],
           modelSelectable: selectable,
+          ...permissionList(),
           unavailable: '这个 DSH 里没有会话服务',
         }
       }
@@ -336,6 +436,7 @@ export function createSessionPort(ctx: Context): SessionPort {
               },
             }),
         modelSelectable: selectable,
+        ...permissionList(),
       }
     },
   }

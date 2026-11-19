@@ -69,8 +69,15 @@ export async function dispatchHost(
     case 'host/prepareSession': {
       const input = asRecord(payload)
       const model = readModelChoice(input.model)
-      if (model === undefined) return fail('invalid_args', 'model 要有 provider 和 model')
-      return ok({ fallbacks: await deps.sessions.prepare(requireString(input, 'session'), model) })
+      if (input.model !== undefined && model === undefined)
+        return fail('invalid_args', 'model 要有 provider 和 model')
+      const permission = optionalString(input, 'permission')
+      return ok({
+        fallbacks: await deps.sessions.prepare(requireString(input, 'session'), {
+          ...(model === undefined ? {} : { model }),
+          ...(permission === undefined || permission === '' ? {} : { permission }),
+        }),
+      })
     }
 
     default: {

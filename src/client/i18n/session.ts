@@ -1,8 +1,8 @@
 /**
- * dsh-workflow-lite — 新建会话时用什么跑（agent 预设、模型、思考强度）的文案。
+ * dsh-workflow-lite — 新建会话时用什么跑（agent 预设、模型、思考强度、运行权限）的文案。
  *
  * 工作流设置「会话」页、触发卡片「执行设置」里的两行、「执行」小箭头里「新建会话」下面那行、
- * 回退了默认时的提示。内置预设的名字和 DSH 自己的叫法一致。
+ * 回退了默认时的提示。内置预设、内置权限的名字和 DSH 自己的叫法一致。
  *
  * @module @xiaoso/dsh-workflow-lite/client/i18n/session
  */
@@ -42,8 +42,8 @@ export const zh = {
   'session.issue.effort': '{model} 没有「{effort}」这一档，执行时用它的默认档。',
   'session.issue.unsupported': '这个 DSH 版本不能按工作流选模型，执行时用默认模型；预设照常生效。',
   'session.issue.version': '按工作流选模型要 DSH 0.2.2 或更新。',
-  'session.existingNote': '发进现成的会话时沿用它的模型和预设；只在要新建会话时用这两项。',
-  'session.launchNote': '发进现成的会话时沿用它的模型和预设。',
+  'session.existingNote': '发进现成的会话时沿用它的模型、预设和权限；只在要新建会话时用这几项。',
+  'session.launchNote': '发进现成的会话时沿用它的模型、预设和权限。',
   'session.fallback.preset': '预设 {name} 不可用，用了默认预设',
   'session.fallback.model': '模型 {name} 不可用，用了默认模型',
   'session.fallback.effort': '{model} 没有「{effort}」这一档，用了它的默认档',
@@ -55,6 +55,17 @@ export const zh = {
   'session.preset.ptc': 'PTC 模式',
   'session.preset.minimal': '极简模式',
   'session.preset.cordis': '创造模式',
+  'session.permission': '运行权限',
+  'session.permissionShort': '权限',
+  'session.permissionDesc': '新会话能改哪些文件、要不要先问你。',
+  'session.permission.readOnly': '仅可查看',
+  'session.permission.workspaceWrite': '工作区内修改',
+  'session.permission.fullAccess': '完全权限',
+  'session.issue.permission': '权限「{name}」在这台机器上没有，执行时用默认权限。',
+  'session.issue.permissionUnsupported': '这个 DSH 版本不能给会话设权限，执行时用默认权限。',
+  'session.issue.permissionVersion': '给会话设权限要 DSH 0.2.2 或更新。',
+  'session.fallback.permission': '权限 {name} 没设上，用了默认权限',
+  'session.fallback.permissionUnsupported': '这个 DSH 版本不能给会话设权限，用了默认权限',
 } as const
 
 export const en: Record<keyof typeof zh, string> = {
@@ -96,8 +107,8 @@ export const en: Record<keyof typeof zh, string> = {
     "This DSH version can't pick a model per workflow, so the default model is used; the preset still applies.",
   'session.issue.version': 'Picking a model per workflow needs DSH 0.2.2 or later.',
   'session.existingNote':
-    'An existing session keeps its own model and preset; these two only apply when a new session is started.',
-  'session.launchNote': 'An existing session keeps its own model and preset.',
+    'An existing session keeps its own model, preset and permissions; these only apply when a new session is started.',
+  'session.launchNote': 'An existing session keeps its own model, preset and permissions.',
   'session.fallback.preset': 'Preset {name} unavailable, used the default preset',
   'session.fallback.model': 'Model {name} unavailable, used the default model',
   'session.fallback.effort': '{model} has no “{effort}” level, used its default level',
@@ -110,4 +121,18 @@ export const en: Record<keyof typeof zh, string> = {
   'session.preset.ptc': 'PTC mode',
   'session.preset.minimal': 'Minimal mode',
   'session.preset.cordis': 'Creator mode',
+  'session.permission': 'Permissions',
+  'session.permissionShort': 'Permissions',
+  'session.permissionDesc': 'Which files a new session may change and whether it asks first.',
+  'session.permission.readOnly': 'Read Only',
+  'session.permission.workspaceWrite': 'Workspace Write',
+  'session.permission.fullAccess': 'Full access',
+  'session.issue.permission':
+    "Permission “{name}” isn't on this machine; the default permission will be used.",
+  'session.issue.permissionUnsupported':
+    "This DSH version can't set permissions per session, so the default permission is used.",
+  'session.issue.permissionVersion': 'Setting permissions per session needs DSH 0.2.2 or later.',
+  'session.fallback.permission': 'Permission {name} not applied, used the default permission',
+  'session.fallback.permissionUnsupported':
+    "This DSH version can't set permissions per session, used the default permission",
 }

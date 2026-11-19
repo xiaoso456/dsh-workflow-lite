@@ -33,6 +33,7 @@ import type {
   TriggerSource,
   TriggerSourceKind,
 } from './types.ts'
+import { TRIGGER_PERMISSION } from './types.ts'
 
 /** 一次触发是怎么来的：哪一种触发源，或用户点了「立即触发一次」。 */
 export type FireChannel = TriggerSourceKind | 'now'
@@ -53,6 +54,8 @@ export function triggerName(node: Pick<TriggerNode, 'id' | 'data'>): string {
 /** 新拖出来的触发卡片：每天 9 点。 */
 export const DEFAULT_TRIGGER: TriggerData = {
   source: { kind: 'schedule', schedule: { kind: 'daily', time: '09:00' } },
+  // 新卡片的权限写成完全权限，不跟随工作流：没人守着回答授权请求。要跟随工作流在卡片上改。
+  launch: { permission: TRIGGER_PERMISSION },
 }
 
 /** 保护的缺省值：每小时最多触发几次、连续失败几次后自动停用。 */
@@ -349,6 +352,7 @@ export function canonicalTrigger(data: TriggerData): TriggerData {
       ...(launch.maxFailures === undefined ? {} : { maxFailures: launch.maxFailures }),
       ...(launch.preset === undefined ? {} : { preset: launch.preset }),
       ...(launch.model === undefined ? {} : { model: { ...launch.model } }),
+      ...(launch.permission === undefined ? {} : { permission: launch.permission }),
     }
   }
   return out

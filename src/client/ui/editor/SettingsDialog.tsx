@@ -63,6 +63,7 @@ export function SettingsDialog(props: {
     runState: boolean
     preset: string | undefined
     model: ModelChoice | undefined
+    permission: string | undefined
   } = {
     root: rootOf(props.settings),
     mode: props.settings?.mode ?? 'auto',
@@ -71,6 +72,7 @@ export function SettingsDialog(props: {
     runState: props.settings?.runState === true,
     preset: props.settings?.preset,
     model: props.settings?.model,
+    permission: props.settings?.permission,
   }
   const [tab, setTab] = useState<Tab>('run')
   const [root, setRoot] = useState(initial.root)
@@ -80,6 +82,7 @@ export function SettingsDialog(props: {
   const [runState, setRunState] = useState(initial.runState)
   const [preset, setPreset] = useState(initial.preset)
   const [model, setModel] = useState(initial.model)
+  const [permission, setPermission] = useState(initial.permission)
   const rootRef = useRef<HTMLInputElement>(null)
   const { rpc, session } = props
   const catalog = useAgentCatalog(
@@ -98,6 +101,7 @@ export function SettingsDialog(props: {
   const sessionIssues = choiceIssues(catalog, {
     ...(preset === undefined ? {} : { preset }),
     ...(model === undefined ? {} : { model }),
+    ...(permission === undefined ? {} : { permission }),
   })
   const dirty =
     root !== initial.root ||
@@ -106,7 +110,8 @@ export function SettingsDialog(props: {
     setGoal !== initial.setGoal ||
     runState !== initial.runState ||
     preset !== initial.preset ||
-    !sameModelChoice(model, initial.model)
+    !sameModelChoice(model, initial.model) ||
+    permission !== initial.permission
 
   const submit = (): void => {
     if (problem !== null) {
@@ -123,6 +128,7 @@ export function SettingsDialog(props: {
         runState,
         preset,
         model,
+        permission,
       }),
     )
   }
@@ -214,8 +220,10 @@ export function SettingsDialog(props: {
                 catalog={catalog}
                 preset={preset}
                 model={model}
+                permission={permission}
                 onPreset={setPreset}
                 onModel={setModel}
+                onPermission={setPermission}
               />
             </div>
             <div className={s.page} data-hidden={tab !== 'output' || undefined}>

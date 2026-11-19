@@ -49,6 +49,7 @@ import {
   setStepOutputs,
   splitOutputs,
 } from '../../shared/resources.ts'
+import { readSessionChoice, withoutSessionChoice } from '../../shared/sessionChoice.ts'
 import {
   canonicalTrigger,
   DEFAULT_TRIGGER,
@@ -83,6 +84,13 @@ import { resourceProblem } from '../../shared/validate.ts'
 import type { RepoCore } from './repoCore.ts'
 import { fail, type Outcome } from './repoResult.ts'
 import type { TemplateStore } from './repoTemplates.ts'
+
+/** 是对象就原样给，不是（`null`、数组、别的）当空对象。 */
+function recordOf(value: unknown): Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {}
+}
 
 /** `write_node` 的语义入参——`undefined` 一律表示"不改这一项"。 */
 export interface NodeUpsert {
@@ -138,7 +146,8 @@ export interface InputUpsert {
 
 /**
  * `write_trigger`：新建或修改一张触发卡片的定义（图里的那部分）。给了的字段才改：
- * `label` / `note` / `condition` 空串 = 清除；`source` / `filter` / `launch` 给了就整项替换（`null` = 清除）。
+ * `label` / `note` / `condition` 空串 = 清除；`source` / `filter` / `launch` 给了就整项替换（`null` = 清除）；
+ * `launch` 里新建会话用的预设、模型、权限例外：只由用户在画布上设，替换、清除时原样留着。
  * 开关、工作区、命令的确认是本机状态，不在这里——模型建的卡片一律是关着的，由用户打开。
  */
 export interface TriggerUpsert {
@@ -437,11 +446,20 @@ export class NodeWriter {
         if (value.trim() === '') delete base[key]
         else base[key] = value
       }
-      for (const key of ['source', 'filter', 'launch'] as const) {
+      for (const key of ['source', 'filter'] as const) {
         const value = upsert[key]
         if (value === undefined) continue
         if (value === null) delete base[key]
         else base[key] = value
+      }
+      if (upsert.launch !== undefined) {
+        // 新建会话用的预设、模型、权限只由用户在画布上设：模型整项替换、清除执行设置时都原样留着（新卡片留的是缺省的完全权限），
+        // 模型写进来的这几项不认。
+        const kept = readSessionChoice(recordOf(base.launch))
+        const written = withoutSessionChoice({ ...recordOf(upsert.launch) })
+        const launch = { ...written, ...kept }
+        if (Object.keys(launch).length === 0) delete base.launch
+        else base.launch = launch
       }
       const data = canonicalTrigger(readTriggerData(base))
       const problem = sourceProblem(data.source)

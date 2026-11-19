@@ -1,5 +1,5 @@
 /**
- * dsh-workflow-lite — 新建会话时用什么跑，在界面上怎么写：下拉的几项、名字、这台机器上用不了的提醒、一行摘要。
+ * dsh-workflow-lite — 新建会话时用什么跑（预设、模型、权限），在界面上怎么写：下拉的几项、名字、这台机器上用不了的提醒、一行摘要。
  *
  * 纯计算：工作流设置「会话」页、触发卡片「执行设置」、「执行」小箭头共用。
  * 清单（`HostAgentsResponse`）还没读到时是 `null`：下拉里只列「跟随」和已经设了的那一项，不报用不了。
@@ -8,7 +8,12 @@
  * @module @xiaoso/dsh-workflow-lite/client/model/sessionChoice
  */
 
-import type { ModelChoice, SessionAgent, SessionChoice } from '../../shared/types.ts'
+import {
+  type ModelChoice,
+  type SessionAgent,
+  type SessionChoice,
+  TRIGGER_PERMISSION,
+} from '../../shared/types.ts'
 import type {
   ChoiceFallback,
   HostAgentsResponse,
@@ -23,6 +28,13 @@ const BUILTIN_PRESETS: Record<string, LocaleKey> = {
   ptc: 'session.preset.ptc',
   minimal: 'session.preset.minimal',
   cordis: 'session.preset.cordis',
+}
+
+/** DSH 内置的几套权限：没配显示名时，按 DSH 界面上的叫法写。 */
+const BUILTIN_PERMISSIONS: Record<string, LocaleKey> = {
+  'read-only': 'session.permission.readOnly',
+  'workspace-write': 'session.permission.workspaceWrite',
+  'danger-full-access': 'session.permission.fullAccess',
 }
 
 /** 下拉的一项（和界面下拉的选项同形：名字下面一行灰字、分组名、收起时名字后面的灰字）。 */
@@ -62,6 +74,14 @@ function defaultPresetName(t: T, catalog: HostAgentsResponse | null): string | u
   return entry === undefined ? undefined : presetName(t, catalog, entry.id)
 }
 
+/** 权限的名字：配了显示名用显示名，内置的几套按 DSH 的叫法，其余写名字本身。 */
+export function permissionName(t: T, catalog: HostAgentsResponse | null, id: string): string {
+  const entry = catalog?.permissions?.options.find((option) => option.id === id)
+  if (entry !== undefined && entry.name !== '' && entry.name !== id) return entry.name
+  const builtin = BUILTIN_PERMISSIONS[id]
+  return builtin === undefined ? id : t(builtin)
+}
+
 function findProvider(
   catalog: HostAgentsResponse | null,
   provider: string,
@@ -96,7 +116,7 @@ export function modelText(t: T, catalog: HostAgentsResponse | null, choice: Mode
 }
 
 /**
- * 一行摘要：「DeepSeek V4 · 思考 高 · 标准模式」（「执行」小箭头里「新建会话」下面那行）。
+ * 一行摘要：「DeepSeek V4 · 思考 高 · 标准模式 · 完全权限」（「执行」小箭头里「新建会话」下面那行）。
  * 什么都没设回空串：照默认跑，不写。
  */
 export function choiceSummary(
@@ -107,6 +127,7 @@ export function choiceSummary(
   return [
     choice.model === undefined ? '' : modelText(t, catalog, choice.model),
     choice.preset === undefined ? '' : presetName(t, catalog, choice.preset),
+    choice.permission === undefined ? '' : permissionName(t, catalog, choice.permission),
   ]
     .filter((part) => part !== '')
     .join(' · ')
@@ -169,6 +190,47 @@ export function presetOptions(
     })
   }
   return options
+}
+
+/**
+ * 权限的几项：跟随 + 这台机器上能设成新会话默认的几套 + 设了但没有的那一个。
+ * `inherited` 是跟随时实际用的那套（触发卡片上：工作流设的，没有就是触发器的缺省完全权限）；没有就写 DSH 的默认。
+ */
+export function permissionOptions(
+  t: T,
+  catalog: HostAgentsResponse | null,
+  current: string | undefined,
+  follow: FollowKind,
+  inherited: string | undefined,
+): ChoiceOption[] {
+  const fallback = catalog?.permissions?.defaultId
+  const now =
+    inherited !== undefined
+      ? permissionName(t, catalog, inherited)
+      : fallback === undefined
+        ? undefined
+        : permissionName(t, catalog, fallback)
+  const options: ChoiceOption[] = [followOption(t, follow, now)]
+  for (const entry of catalog?.permissions?.options ?? []) {
+    options.push({
+      value: entry.id,
+      label: permissionName(t, catalog, entry.id),
+      ...(entry.description === undefined ? {} : { desc: entry.description, valueDesc: '' }),
+    })
+  }
+  if (current !== undefined && !options.some((option) => option.value === current)) {
+    options.push({
+      value: current,
+      label: permissionName(t, catalog, current),
+      ...(catalog === null ? {} : { desc: t('session.missing') }),
+    })
+  }
+  return options
+}
+
+/** 触发卡片上「跟随工作流」时实际用的权限：工作流设的，没有就是触发器的缺省（完全权限）。 */
+export function triggerInheritedPermission(workflow: SessionChoice | undefined): string {
+  return workflow?.permission ?? TRIGGER_PERMISSION
 }
 
 /**
@@ -274,6 +336,8 @@ export type ChoiceIssue =
   | { kind: 'model'; model: ModelChoice }
   | { kind: 'effort'; model: ModelChoice }
   | { kind: 'unsupported' }
+  | { kind: 'permission'; permission: string }
+  | { kind: 'permissionUnsupported' }
 
 /**
  * 看一份设置在这台机器上能不能用。清单没读到、DSH 里没有会话服务、服务商读不出列表时不算用不了（不知道）。
@@ -284,7 +348,7 @@ export function choiceIssues(
 ): ChoiceIssue[] {
   if (catalog === null || catalog.unavailable !== undefined) return []
   const issues: ChoiceIssue[] = []
-  const { preset, model } = choice
+  const { preset, model, permission } = choice
   if (preset !== undefined && catalog.presets.length > 0) {
     const entry = catalog.presets.find((item) => item.id === preset)
     if (entry === undefined || entry.broken !== undefined) issues.push({ kind: 'preset', preset })
@@ -300,6 +364,12 @@ export function choiceIssues(
       )
         issues.push({ kind: 'effort', model })
     }
+  }
+  if (permission !== undefined) {
+    const list = catalog.permissions
+    if (list === undefined) issues.push({ kind: 'permissionUnsupported' })
+    else if (!list.options.some((option) => option.id === permission))
+      issues.push({ kind: 'permission', permission })
   }
   return issues
 }
@@ -318,6 +388,15 @@ export function issueLines(t: T, catalog: HostAgentsResponse | null, issue: Choi
       ]
     case 'unsupported':
       return [t('session.issue.unsupported'), t('session.issue.version')]
+    case 'permission':
+      return [
+        t('session.issue.permission').replace(
+          '{name}',
+          permissionName(t, catalog, issue.permission),
+        ),
+      ]
+    case 'permissionUnsupported':
+      return [t('session.issue.permissionUnsupported'), t('session.issue.permissionVersion')]
   }
 }
 
@@ -336,6 +415,13 @@ function fallbackLine(t: T, catalog: HostAgentsResponse | null, fallback: Choice
       return t('session.fallback.unsupported')
     case 'failed':
       return t('session.fallback.failed')
+    case 'permission':
+      return t('session.fallback.permission').replace(
+        '{name}',
+        permissionName(t, catalog, fallback.permission),
+      )
+    case 'permissionUnsupported':
+      return t('session.fallback.permissionUnsupported')
   }
 }
 
@@ -355,10 +441,13 @@ export interface AgentLine {
 }
 
 /**
- * 实例来源里的预设、模型两行（插件为它新建会话时设了的才有）：用上了写设的；回退了写「DSH 的默认」，旁边写设的是什么。
+ * 实例来源里的预设、模型、权限几行（插件为它新建会话时设了的才有）：用上了写设的；回退了写「DSH 的默认」，旁边写设的是什么。
  * 不读清单（看实例时不必问 DSH），名字按内置预设的叫法和模型 id 写。
  */
-export function agentLines(t: T, agent: SessionAgent): { preset?: AgentLine; model?: AgentLine } {
+export function agentLines(
+  t: T,
+  agent: SessionAgent,
+): { preset?: AgentLine; model?: AgentLine; permission?: AgentLine } {
   const kinds = new Set((agent.fallbacks ?? []).map((fallback) => fallback.kind))
   const wanted = (name: string): string => t('session.wanted').replace('{name}', name)
   const fallen = t('session.dshDefault')
@@ -380,8 +469,16 @@ export function agentLines(t: T, agent: SessionAgent): { preset?: AgentLine; mod
               wanted: t('session.wantedEffort').replace('{effort}', model.effort ?? ''),
             }
           : { text: modelText(t, null, model) }
+  const { permission } = agent
+  const permissionLine: AgentLine | undefined =
+    permission === undefined
+      ? undefined
+      : kinds.has('permission') || kinds.has('permissionUnsupported')
+        ? { text: fallen, wanted: wanted(permissionName(t, null, permission)) }
+        : { text: permissionName(t, null, permission) }
   return {
     ...(preset === undefined ? {} : { preset }),
     ...(modelLine === undefined ? {} : { model: modelLine }),
+    ...(permissionLine === undefined ? {} : { permission: permissionLine }),
   }
 }

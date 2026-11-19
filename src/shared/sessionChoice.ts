@@ -1,9 +1,10 @@
 /**
- * dsh-workflow-lite — 新建会话时用什么跑（agent 预设、模型、思考强度）：读、比、合并、去掉。
+ * dsh-workflow-lite — 新建会话时用什么跑（agent 预设、模型、思考强度、运行权限）：读、比、合并、去掉。
  *
  * 工作流设置和触发卡片的启动方式各能写一份（{@link SessionChoice}），按项往上找：
  * 触发卡片写了用它的，否则用工作流的，再没有就不传、跟随 DSH 的默认（{@link resolveSessionChoice}）。
- * 只存标识：服务商 id、模型 id、档位 id、预设 id，不存地址和密钥；这台机器上没有的照样留着，执行时回退默认。
+ * 只有一处例外：触发器新建的会话，权限两边都没写时用完全权限（{@link resolveTriggerChoice}）。
+ * 只存标识：服务商 id、模型 id、档位 id、预设 id、权限预设名，不存地址和密钥；这台机器上没有的照样留着，执行时回退默认。
  *
  * @module @xiaoso/dsh-workflow-lite/shared/sessionChoice
  */
@@ -13,6 +14,7 @@ import {
   type ModelChoice,
   type SessionAgent,
   type SessionChoice,
+  TRIGGER_PERMISSION,
   TRIGGER_TYPE,
   type TriggerNode,
   type WorkflowDocument,
@@ -42,13 +44,21 @@ export function readModelChoice(raw: unknown): ModelChoice | undefined {
   return { provider, model, ...(effort === undefined ? {} : { effort }) }
 }
 
-/** 从一个对象里读出 `preset` / `model`（固定键序）；都没有回空对象。 */
+/** 从一个对象里读出 `preset` / `model` / `permission`（固定键序）；都没有回空对象。 */
 export function readSessionChoice(raw: Record<string, unknown>): SessionChoice {
-  const preset = readId(raw.preset)
-  const model = readModelChoice(raw.model)
+  return pickChoice(readId(raw.preset), readModelChoice(raw.model), readId(raw.permission))
+}
+
+/** 按固定键序拼一份，没有的项不出现。 */
+function pickChoice(
+  preset: string | undefined,
+  model: ModelChoice | undefined,
+  permission: string | undefined,
+): SessionChoice {
   return {
     ...(preset === undefined ? {} : { preset }),
-    ...(model === undefined ? {} : { model }),
+    ...(model === undefined ? {} : { model: { ...model } }),
+    ...(permission === undefined ? {} : { permission }),
   }
 }
 
@@ -77,6 +87,11 @@ function readFallback(raw: unknown): ChoiceFallback | undefined {
       return { kind: 'unsupported' }
     case 'failed':
       return { kind: 'failed', message: typeof raw.message === 'string' ? raw.message : '' }
+    case 'permission':
+    case 'permissionUnsupported': {
+      const permission = readId(raw.permission)
+      return permission === undefined ? undefined : { kind: raw.kind, permission }
+    }
     default:
       return undefined
   }
@@ -113,12 +128,18 @@ export function sameSessionChoice(
   a: SessionChoice | undefined,
   b: SessionChoice | undefined,
 ): boolean {
-  return a?.preset === b?.preset && sameModelChoice(a?.model, b?.model)
+  return (
+    a?.preset === b?.preset &&
+    sameModelChoice(a?.model, b?.model) &&
+    a?.permission === b?.permission
+  )
 }
 
 /** 有没有写任何一项。 */
 export function hasSessionChoice(choice: SessionChoice | undefined): boolean {
-  return choice?.preset !== undefined || choice?.model !== undefined
+  return (
+    choice?.preset !== undefined || choice?.model !== undefined || choice?.permission !== undefined
+  )
 }
 
 /**
@@ -129,22 +150,30 @@ export function resolveSessionChoice(
   trigger: SessionChoice | undefined,
   workflow: SessionChoice | undefined,
 ): SessionChoice {
-  const preset = trigger?.preset ?? workflow?.preset
-  const model = trigger?.model ?? workflow?.model
-  return {
-    ...(preset === undefined ? {} : { preset }),
-    ...(model === undefined ? {} : { model: { ...model } }),
-  }
+  return pickChoice(
+    trigger?.preset ?? workflow?.preset,
+    trigger?.model ?? workflow?.model,
+    trigger?.permission ?? workflow?.permission,
+  )
 }
 
-/** 去掉 `preset` / `model`（导出时不带上用）；本来就没有原样返回。 */
+/** 触发器这一次新建会话实际要的：同 {@link resolveSessionChoice}，只是权限两边都没写时用 {@link TRIGGER_PERMISSION}。 */
+export function resolveTriggerChoice(
+  trigger: SessionChoice | undefined,
+  workflow: SessionChoice | undefined,
+): SessionChoice {
+  const choice = resolveSessionChoice(trigger, workflow)
+  return choice.permission === undefined ? { ...choice, permission: TRIGGER_PERMISSION } : choice
+}
+
+/** 去掉 `preset` / `model` / `permission`（导出时不带上用）；本来就没有原样返回。 */
 export function withoutSessionChoice<T extends SessionChoice>(value: T): T {
   if (!hasSessionChoice(value)) return value
-  const { preset: _preset, model: _model, ...rest } = value
+  const { preset: _preset, model: _model, permission: _permission, ...rest } = value
   return rest as T
 }
 
-/** 一张图里有没有写任何预设、模型（工作流设置上的、触发卡片上的）。 */
+/** 一张图里有没有写任何预设、模型、权限（工作流设置上的、触发卡片上的）。 */
 export function documentHasSessionChoice(document: WorkflowDocument): boolean {
   return (
     hasSessionChoice(document.settings) ||
@@ -154,7 +183,7 @@ export function documentHasSessionChoice(document: WorkflowDocument): boolean {
   )
 }
 
-/** 去掉一张图里所有的预设、模型（导出时不带上）：工作流设置上的、各触发卡片上的。没有就原样返回。 */
+/** 去掉一张图里所有的预设、模型、权限（导出时不带上）：工作流设置上的、各触发卡片上的。没有就原样返回。 */
 export function documentWithoutSessionChoice(document: WorkflowDocument): WorkflowDocument {
   if (!documentHasSessionChoice(document)) return document
   const settings =

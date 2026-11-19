@@ -122,14 +122,24 @@ export interface HostAgentsResponse {
   defaultModel?: { provider: string; model: string; effort?: string }
   /** 只给一个会话换模型：能（`true`）/ 这个 DSH 不能，模型一律用默认（`false`）/ 还不知道（`null`）。 */
   modelSelectable: boolean | null
+  /** 能给新会话设的权限（DSH 的权限预设）；这个 DSH 不能给会话设权限时没有这个键。 */
+  permissions?: { options: PermissionEntry[]; defaultId: string }
   /** 这个 DSH 里没有会话服务（列不出来）。 */
   unavailable?: string
 }
 
-/** `host/prepareSession`：给刚建好、还没发消息的会话装上模型（画布「执行」新建会话后、发消息前）。 */
+/** 一套权限：DSH 权限预设的名字（如 `workspace-write`）、显示名（没配时就是名字本身）、一句说明。 */
+export interface PermissionEntry {
+  id: string
+  name: string
+  description?: string
+}
+
+/** `host/prepareSession`：给刚建好、还没发消息的会话装上模型、设好权限（画布「执行」新建会话后、发消息前）。 */
 export interface HostPrepareSessionRequest {
   session: string
-  model: { provider: string; model: string; effort?: string }
+  model?: { provider: string; model: string; effort?: string }
+  permission?: string
 }
 export interface HostPrepareSessionResponse {
   /** 没用上的那几项；全用上了是空的。 */

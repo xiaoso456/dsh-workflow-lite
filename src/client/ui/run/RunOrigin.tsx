@@ -1,6 +1,6 @@
 /**
  * dsh-workflow-lite — 实例概览里的「来源」：这个实例是怎么发起的（画布上点的、对话里发起的、
- * 哪张触发卡片触发的），触发时带过来的触发说明和背景信息，以及插件为它新建会话时用的预设、模型
+ * 哪张触发卡片触发的），触发时带过来的触发说明和背景信息，以及插件为它新建会话时用的预设、模型、权限
  * （回退了默认时旁边黄字写设的是什么）。
  *
  * 是几行 `<dt>/<dd>`，放进概览的那张基本信息表里。
@@ -37,6 +37,13 @@ export function OriginRows(props: {
       )}
       {agent.model !== undefined && (
         <AgentRow title={t('session.model')} line={agent.model} testId="wl-run-origin-model" />
+      )}
+      {agent.permission !== undefined && (
+        <AgentRow
+          title={t('session.permissionShort')}
+          line={agent.permission}
+          testId="wl-run-origin-permission"
+        />
       )}
       {origin.note !== undefined && origin.note !== '' && (
         <>

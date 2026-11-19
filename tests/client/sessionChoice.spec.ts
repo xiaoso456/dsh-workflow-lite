@@ -16,6 +16,8 @@ import {
   issueLines,
   modelKey,
   modelOptions,
+  permissionName,
+  permissionOptions,
   pickModel,
   presetOptions,
   readModelKey,
@@ -54,6 +56,14 @@ const CATALOG: HostAgentsResponse = {
   failures: [{ id: 'moon', name: 'Moonshot', message: 'timeout' }],
   defaultModel: { provider: 'deepseek', model: 'v4-flash' },
   modelSelectable: true,
+  permissions: {
+    options: [
+      { id: 'workspace-write', name: 'workspace-write' },
+      { id: 'danger-full-access', name: 'danger-full-access' },
+      { id: 'team', name: '团队只读', description: '只看不改' },
+    ],
+    defaultId: 'workspace-write',
+  },
 }
 
 describe('下拉', () => {
@@ -121,6 +131,57 @@ describe('下拉', () => {
     })
     expect(pickModel(CATALOG, 'deepseek/v4', { ...v4, model: 'other' })).toEqual(v4)
     expect(pickModel(CATALOG, FOLLOW, v4)).toBeUndefined()
+  })
+})
+
+describe('运行权限', () => {
+  it('下拉：跟随（写现在是什么）+ 能选的（内置的按 DSH 的叫法）+ 设了但没有的', () => {
+    expect(permissionOptions(t, CATALOG, 'gone', 'default', undefined)).toEqual([
+      { value: FOLLOW, label: '跟随默认', desc: '现在是 工作区内修改', valueDesc: '工作区内修改' },
+      { value: 'workspace-write', label: '工作区内修改' },
+      { value: 'danger-full-access', label: '完全权限' },
+      { value: 'team', label: '团队只读', desc: '只看不改', valueDesc: '' },
+      { value: 'gone', label: 'gone', desc: '这台机器上没有' },
+    ])
+    // 触发卡片上跟随工作流：写的是跟随来的那一套（工作流没写时是完全权限）。
+    expect(
+      permissionOptions(t, CATALOG, undefined, 'workflow', 'danger-full-access')[0],
+    ).toMatchObject({ label: '跟随工作流', valueDesc: '完全权限' })
+    expect(permissionName(t, null, 'read-only')).toBe('仅可查看')
+  })
+
+  it('用不了：DSH 里没有那一套、这个 DSH 不能设权限（另起一条写版本）；清单没读到不算', () => {
+    expect(choiceIssues(CATALOG, { permission: 'team' })).toEqual([])
+    expect(choiceIssues(CATALOG, { permission: 'gone' })).toEqual([
+      { kind: 'permission', permission: 'gone' },
+    ])
+    const { permissions: _drop, ...old } = CATALOG
+    expect(choiceIssues(old, { permission: 'read-only' })).toEqual([
+      { kind: 'permissionUnsupported' },
+    ])
+    expect(issueLines(t, old, { kind: 'permissionUnsupported' })).toEqual([
+      zh['session.issue.permissionUnsupported'],
+      zh['session.issue.permissionVersion'],
+    ])
+    expect(choiceIssues(null, { permission: 'gone' })).toEqual([])
+  })
+
+  it('摘要、提示、实例来源里都写权限的名字', () => {
+    expect(choiceSummary(t, CATALOG, { preset: 'ptc', permission: 'danger-full-access' })).toBe(
+      'PTC 模式 · 完全权限',
+    )
+    expect(fallbackNote(t, CATALOG, [{ kind: 'permission', permission: 'team' }])).toBe(
+      '权限 团队只读 没设上，用了默认权限',
+    )
+    expect(agentLines(t, { permission: 'danger-full-access' })).toEqual({
+      permission: { text: '完全权限' },
+    })
+    expect(
+      agentLines(t, {
+        permission: 'read-only',
+        fallbacks: [{ kind: 'permissionUnsupported', permission: 'read-only' }],
+      }),
+    ).toEqual({ permission: { text: 'DSH 的默认', wanted: '设的 仅可查看 没用上' } })
   })
 })
 
@@ -208,6 +269,21 @@ describe('「执行」新建会话', () => {
       'new-2',
     )
     expect(quiet.calls).toEqual([])
+  })
+
+  it('设了权限：建好后连同模型一起交给 host/prepareSession；调用出错记成没设上', async () => {
+    const { rpc, calls } = fakeRpc(CATALOG, async () => ({ fallbacks: [] }))
+    await openChosenSession(rpc, 'here-4', { permission: 'team' }, async () => 'new-4')
+    expect(calls[1]).toBe('host/prepareSession {"session":"new-4","permission":"team"}')
+
+    const broken = fakeRpc(CATALOG, () => Promise.reject(new Error('连接断了')))
+    const opened = await openChosenSession(
+      broken.rpc,
+      'here-5',
+      { permission: 'team' },
+      async () => 'new-5',
+    )
+    expect(opened.fallbacks).toEqual([{ kind: 'permission', permission: 'team' }])
   })
 
   it('预设用不了就不带、记一条；装模型出错也照常建好，当作回退默认', async () => {

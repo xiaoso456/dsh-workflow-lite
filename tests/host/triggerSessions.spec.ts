@@ -28,17 +28,42 @@ describe('触发器发进会话的消息', () => {
   })
 })
 
-/** 一个假 DSH：记下建会话的入参、装上的模型、告警。`select` 不给 = 0.2.1（agent 上没有 `model.select`）。 */
+/**
+ * 一个假 DSH：记下建会话的入参、装上的模型、设的权限、告警。`select` 不给 = 0.2.1（agent 上没有 `model.select`）；
+ * `permissions` 不给 = 没有权限服务（0.2.1）。
+ */
 function fakeDsh(options: {
   select?: boolean
   throws?: boolean
   presets?: { id: string; isDefault: boolean; broken?: string }[]
+  permissions?: boolean
 }) {
   const created: Record<string, unknown>[] = []
   const selected: unknown[] = []
+  const permitted: { session: unknown; name: string }[] = []
   const warnings: string[] = []
+  const session = { id: 's1' }
+  const permissionPresets = {
+    catalog: () => ({
+      options: [
+        { value: 'workspace-write', name: 'workspace-write' },
+        { value: 'danger-full-access', name: 'danger-full-access' },
+        { value: 'auto', name: 'Auto' },
+      ],
+      defaultOptions: [
+        { value: 'read-only', name: '只读', description: '只能看' },
+        { value: 'workspace-write', name: 'workspace-write' },
+        { value: 'danger-full-access', name: 'danger-full-access' },
+      ],
+      defaultPreset: 'workspace-write',
+    }),
+    set: (target: unknown, name: string) => {
+      permitted.push({ session: target, name })
+    },
+  }
   const agent = {
     followup: () => {},
+    session,
     ...(options.select === true
       ? {
           model: {
@@ -54,6 +79,7 @@ function fakeDsh(options: {
     get: (name: string) =>
       ({
         workspaceRegistry: { create: async () => ({ id: 'w1' }) },
+        ...(options.permissions === true ? { permissionPresets } : {}),
         agentPresets: {
           remoteExportList: async () => ({
             presets: options.presets ?? [
@@ -98,7 +124,7 @@ function fakeDsh(options: {
       })[name],
     logger: { warn: (message: string) => warnings.push(message) },
   } as unknown as Context
-  return { port: createSessionPort(ctx), created, selected, warnings }
+  return { port: createSessionPort(ctx), created, selected, permitted, session, warnings }
 }
 
 describe('新建会话时的预设与模型', () => {
@@ -172,6 +198,48 @@ describe('新建会话时的预设与模型', () => {
       choice: { model: { provider: 'acme', model: 'big' } },
     })
     expect(result).toEqual({ session: 's1', fallbacks: [{ kind: 'failed', message: '炸了' }] })
+  })
+
+  it('设了权限：建好后、发消息前给这个会话换上那一套', async () => {
+    const dsh = fakeDsh({ permissions: true })
+    const result = await dsh.port.open({ ...open, choice: { permission: 'read-only' } })
+    expect(result.fallbacks).toEqual([])
+    expect(dsh.permitted).toEqual([{ session: dsh.session, name: 'read-only' }])
+    expect(await dsh.port.prepare('s1', { permission: 'danger-full-access' })).toEqual([])
+    expect(dsh.permitted[1]?.name).toBe('danger-full-access')
+  })
+
+  it('权限不在能选的里（含只能在会话里切的 auto）：不设，记一条回退', async () => {
+    for (const permission of ['gone', 'auto']) {
+      const dsh = fakeDsh({ permissions: true })
+      const result = await dsh.port.open({ ...open, choice: { permission } })
+      expect(dsh.permitted).toEqual([])
+      expect(result.fallbacks).toEqual([{ kind: 'permission', permission }])
+    }
+  })
+
+  it('DSH 没有权限服务（0.2.1）：照常建、用默认权限，告警只打一次；清单里没有权限', async () => {
+    const dsh = fakeDsh({ select: true })
+    const choice = { permission: 'danger-full-access' }
+    const first = await dsh.port.open({ ...open, choice })
+    await dsh.port.open({ ...open, choice })
+    expect(first.fallbacks).toEqual([
+      { kind: 'permissionUnsupported', permission: 'danger-full-access' },
+    ])
+    expect(dsh.warnings).toHaveLength(1)
+    expect((await dsh.port.catalog()).permissions).toBeUndefined()
+  })
+
+  it('列出能设成新会话默认的几套权限和 DSH 的默认', async () => {
+    const dsh = fakeDsh({ permissions: true })
+    expect((await dsh.port.catalog()).permissions).toEqual({
+      options: [
+        { id: 'read-only', name: '只读', description: '只能看' },
+        { id: 'workspace-write', name: 'workspace-write' },
+        { id: 'danger-full-access', name: 'danger-full-access' },
+      ],
+      defaultId: 'workspace-write',
+    })
   })
 
   it('列出预设、按服务商分组的模型（带档位）和默认模型', async () => {
