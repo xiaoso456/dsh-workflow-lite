@@ -3,9 +3,11 @@ import { ghostClone } from '../../kit/ghost.ts'
 import { slideFrom, slideOffset } from '../../motion/flip.ts'
 import { REDUCED } from '../../motion/shared.ts'
 
-const EXIT_MS = 90
+const EXIT_MS = 120
 const MOVE_MS = 160
-const ENTER_MS = 100
+/** 新标签长出来：从六成大、透明，带一点回弹到原样（只动 `scale` / `opacity`）。 */
+const ENTER_MS = 280
+const ENTER_EASE = 'cubic-bezier(0.34, 1.45, 0.64, 1)'
 
 interface Box {
   left: number
@@ -55,14 +57,21 @@ function staysApart(first: TagMove, second: TagMove): boolean {
   )
 }
 
-export function useTagMotion(layout: string): MutableRefObject<HTMLDivElement | null> {
+/**
+ * `ready = false`：这一次排出来的样子还不作数（标签刚换、放得下几个还没重量）——不量、不动，
+ * 等重量完那一次再拿上一次真正排好的样子比，新标签才从对的地方长出来、后面的从原处滑开。
+ */
+export function useTagMotion(
+  layout: string,
+  ready = true,
+): MutableRefObject<HTMLDivElement | null> {
   const ref = useRef<HTMLDivElement | null>(null)
   const previous = useRef<Map<string, TagSpot> | null>(null)
   const arrivals = useRef(new WeakMap<HTMLElement, Animation>())
   useLayoutEffect(() => {
     const row = ref.current
     const layer = row?.querySelector('[data-fit="ghosts"]')
-    if (row === null || layer == null) return
+    if (!ready || row === null || layer == null) return
     const box = (element: HTMLElement): Box => ({
       left: row.offsetLeft + element.offsetLeft,
       top: row.offsetTop + element.offsetTop,
@@ -101,9 +110,12 @@ export function useTagMotion(layout: string): MutableRefObject<HTMLDivElement | 
         if (!to.visible) continue
         const before = prior.get(key)
         const arrival = arrivals.current.get(to.tag)
+        // 刚出现、或上一次还藏着（换了一张工作流时先按旧的条数排，这一次才放得下）的标签：长出来。
         if (
           to.chip &&
-          (before === undefined || arrival?.effect?.getComputedTiming().progress === 0)
+          (before === undefined ||
+            !before.visible ||
+            arrival?.effect?.getComputedTiming().progress === 0)
         ) {
           arrival?.cancel()
           entering.push(to)
@@ -163,10 +175,13 @@ export function useTagMotion(layout: string): MutableRefObject<HTMLDivElement | 
           height: `${before.height}px`,
         })
         ghost.place(layer)
-        const exit = ghost.node.animate([{ opacity: 1 }, { opacity: 0 }], {
-          duration: EXIT_MS,
-          fill: 'forwards',
-        })
+        const exit = ghost.node.animate(
+          [
+            { opacity: 1, scale: '1' },
+            { opacity: 0, scale: '0.7' },
+          ],
+          { duration: EXIT_MS, easing: 'cubic-bezier(0.4, 0, 1, 1)', fill: 'forwards' },
+        )
         const drop = (): void => ghost.node.remove()
         void exit.finished.then(drop, drop)
       }
@@ -181,11 +196,19 @@ export function useTagMotion(layout: string): MutableRefObject<HTMLDivElement | 
         const waitsForExit = leaving.some((before) => overlaps(before, spot))
         arrivals.current.set(
           spot.tag,
-          spot.tag.animate([{ opacity: 0 }, { opacity: 1 }], {
-            duration: ENTER_MS,
-            delay: waitsForMove ? delay + MOVE_MS : waitsForExit ? EXIT_MS : 0,
-            fill: 'backwards',
-          }),
+          spot.tag.animate(
+            [
+              { opacity: 0, scale: '0.6' },
+              { opacity: 1, scale: '1' },
+            ],
+            {
+              duration: ENTER_MS,
+              easing: ENTER_EASE,
+              // 让位的标签滑到一半就开始长：空当一边打开一边被填上，不先空一下。
+              delay: waitsForMove ? delay + MOVE_MS / 2 : waitsForExit ? EXIT_MS : 0,
+              fill: 'backwards',
+            },
+          ),
         )
       }
     }
@@ -196,6 +219,6 @@ export function useTagMotion(layout: string): MutableRefObject<HTMLDivElement | 
     sizes.observe(row)
     for (const spot of next.values()) sizes.observe(spot.tag)
     return () => sizes.disconnect()
-  }, [layout])
+  }, [layout, ready])
   return ref
 }

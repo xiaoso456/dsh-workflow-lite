@@ -20,6 +20,8 @@ import { normalizeName } from '../../../../shared/naming.ts'
 import { normalizeTags, sameTag, type TagColor } from '../../../../shared/tags.ts'
 import type { WorkflowEntry } from '../../../../shared/types.ts'
 import { useListView } from '../../../app/listView.ts'
+import { primeVersions } from '../../../app/useVersions.ts'
+import { whenPrimed } from '../../../app/whenPrimed.ts'
 import type { T } from '../../../i18n.ts'
 import { claimRowKey, forgetRowKey, type RowKeys } from '../../../model/rowKeys.ts'
 import { matchesWords, searchWords } from '../../../model/search.ts'
@@ -85,6 +87,8 @@ export function HubWorkflows(props: {
   const rowKeys = useRef<RowKeys>(new Map())
   const [error, setError] = useState<string | null>(null)
   const [picked, setPicked] = useState<string | null>(current)
+  /** 第几次点左栏：读版本时又点了别的，先前那次读完不再换过去。 */
+  const pickRevision = useRef(0)
   /** 点的那一行在哪一组（一张在几个标签组里都有时，选中底块落在这一组）。 */
   const [pickedGroup, setPickedGroup] = useState<string | undefined>(undefined)
   const [query, setQuery] = useState('')
@@ -340,12 +344,22 @@ export function HubWorkflows(props: {
           renameTag={renameTag}
           deleteTag={deleteTag}
           onPick={(name, group) => {
-            markSwap()
-            setPicked(name)
-            setPickedGroup(group)
-            setNotice(null)
-            setDropped(null)
-            setPane('versions')
+            // 先把那张的版本读好再换：右栏不先空一下（最多等一小会儿）。
+            const revision = ++pickRevision.current
+            const target = visible.find((entry) => entry.name === name)
+            const reading =
+              target === undefined || target === selected
+                ? null
+                : primeVersions(rpc, name, versionSignal(target))
+            whenPrimed(reading, () => {
+              if (revision !== pickRevision.current) return
+              markSwap()
+              setPicked(name)
+              setPickedGroup(group)
+              setNotice(null)
+              setDropped(null)
+              setPane('versions')
+            })
           }}
         />
       </div>
@@ -503,6 +517,7 @@ export function HubWorkflows(props: {
               rpc={rpc}
               name={selected.name}
               subject={detailKey}
+              signal={versionSignal(selected)}
               {...(editing ? { before: props.flush } : {})}
               onRestored={() => {
                 if (editing) props.onReload()
@@ -524,4 +539,9 @@ export function HubWorkflows(props: {
 function withColor(colors: TagColors, tag: string, color: TagColor | null): TagColors {
   const next = Object.fromEntries(Object.entries(colors).filter(([known]) => !sameTag(known, tag)))
   return color === null ? next : { ...next, [tag]: color }
+}
+
+/** 这张工作流的版本列表什么时候算「还是那一份」：修改时间、版本数都没变。 */
+function versionSignal(entry: { updatedAt: number | string; versions?: number }): string {
+  return `${entry.updatedAt}:${entry.versions ?? 0}`
 }

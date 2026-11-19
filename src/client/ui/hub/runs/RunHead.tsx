@@ -51,11 +51,13 @@ export function RunHead(props: {
   // 换了一个实例：名字、来源这几段换了长短，后面跟着的小签、下一段滑过去。
   const titleRow = useRowSlide()
   const subRow = useRowSlide()
+  // 状态字换了长短：分隔线滑过去，中间那格（停在哪 + 进度条）左边跟着收放、右边不动。
+  const statusRow = useRowSlide()
   // 状态条最左那格：圆点 + 状态字。能改状态时外面包一层按钮。
   const state = (
     <span className={css.stateFace}>
       <span className={css.stateDot} data-live={tone === 'running' || undefined} />
-      <SwapText text={runStatusText(t, item)} />
+      <SwapText text={runStatusText(t, item)} lead />
     </span>
   )
   return (
@@ -121,6 +123,7 @@ export function RunHead(props: {
       </div>
 
       <div
+        ref={statusRow}
         className={css.status}
         data-run-status={tone}
         data-swap-tier="1"
@@ -172,7 +175,7 @@ function Where(props: {
   const { t, item, steps } = props
   if (item.statePath === undefined || item.stateProblem !== undefined) {
     return (
-      <span className={css.where}>
+      <span className={css.where} data-row-fill="">
         <span className={css.whereQuiet}>
           {item.statePath === undefined
             ? t('hub.runUntrackedWhere')
@@ -189,7 +192,7 @@ function Where(props: {
   const total = steps?.length ?? item.total ?? 0
   const finished = item.status === 'done'
   return (
-    <span className={css.where}>
+    <span className={css.where} data-row-fill="">
       <span className={css.whereLine}>
         {finished || current === undefined ? (
           <span className={css.whereMain}>
@@ -212,7 +215,7 @@ function Where(props: {
           <SwapText text={t('hub.runDoneCount').replace('{n}', String(done))} />
         </span>
       </span>
-      <span className={css.segbar} aria-hidden="true">
+      <span className={css.segbar} aria-hidden="true" data-row-fill-bar="">
         {(steps ?? []).map((step) => (
           <span
             key={step.id}

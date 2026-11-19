@@ -4,7 +4,15 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/kit/useFloat
  */
 
-import { type RefObject, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import {
+  type MutableRefObject,
+  type RefObject,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
 import { createPortal } from 'react-dom'
 import { ModalHost } from './Modal.tsx'
 
@@ -57,7 +65,8 @@ export function useFloat<A extends HTMLElement>(options: {
 }): {
   state: FloatState
   setState: (next: FloatState | ((current: FloatState) => FloatState)) => void
-  anchorRef: RefObject<A>
+  /** 可写：要和别的 ref 一起挂到同一个元素上时，在回调 ref 里自己填。 */
+  anchorRef: MutableRefObject<A | null>
   panelRef: RefObject<HTMLDivElement>
   /** 取消还没生效的悬停开 / 关。 */
   cancel: () => void
@@ -75,7 +84,7 @@ export function useFloat<A extends HTMLElement>(options: {
   }) => React.ReactNode
 } {
   const host = useContext(ModalHost)
-  const anchorRef = useRef<A>(null)
+  const anchorRef = useRef<A | null>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const [state, setState] = useState<FloatState>('off')
   const [place, setPlace] = useState<{

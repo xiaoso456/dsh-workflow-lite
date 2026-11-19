@@ -16,7 +16,7 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/chrome/HubRunStatus
  */
 
-import { useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { RUN_STATUSES, type RunStatus } from '../../../shared/runState.ts'
 import type { LocaleKey, T } from '../../i18n.ts'
 import { useConfirm } from '../kit/Confirm.tsx'
@@ -24,6 +24,7 @@ import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import ui from '../kit/ui.module.css'
 import { FLOAT_EXIT_MS, useFloat } from '../kit/useFloat.tsx'
+import { useRowSlide } from '../motion/exits.tsx'
 import css from './hubRunStatus.module.css'
 import { RUN_STATUS_TEXT, RunStatusBadge } from './RunStatusBadge.tsx'
 import badge from './runStatus.module.css'
@@ -60,6 +61,16 @@ export function HubRunStatus(props: {
   const [note, setNote] = useState('')
   const notifyId = useId()
   const items = useRef<(HTMLButtonElement | null)[]>([])
+  // 状态字换了长短：后面的小箭头滑过去，和外面被挤动的东西同一个节奏（不先跳到新位置压在别人身上）。
+  const slide = useRowSlide()
+  const anchorRef = menu.anchorRef
+  const attach = useCallback(
+    (button: HTMLButtonElement | null) => {
+      anchorRef.current = button
+      slide(button)
+    },
+    [anchorRef, slide],
+  )
   const open = menu.state !== 'off'
   // 状态真的变了（改成功、或模型那边改了）小标弹一下；刚挂上时不弹。
   const [changes, setChanges] = useState(0)
@@ -86,7 +97,7 @@ export function HubRunStatus(props: {
   return (
     <span ref={confirm.anchorRef} className={badge.state}>
       <button
-        ref={menu.anchorRef}
+        ref={attach}
         type="button"
         className={cx(css.statusButton, props.className)}
         aria-haspopup="menu"

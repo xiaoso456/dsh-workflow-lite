@@ -166,13 +166,22 @@ export function useSwapBlock(): {
   'data-swap-block'?: 'a' | 'b'
   'data-dir'?: 'down'
 } {
-  const swap = useSwapSwitch()
-  if (!switching(swap)) return { className: css.swapBlock }
+  const fresh = useSwapFresh()
   return {
     className: css.swapBlock,
-    'data-swap-block': swap.serial % 2 === 1 ? 'a' : 'b',
-    ...(swap.dir === 'down' ? { 'data-dir': 'down' as const } : {}),
+    ...(fresh === null ? {} : { 'data-swap-block': fresh.name }),
+    ...(fresh?.dir === 'down' ? { 'data-dir': 'down' as const } : {}),
   }
+}
+
+/**
+ * 正在切换时，这一次的动画名（a / b 轮换）和方向；不在切换是 `null`。
+ * 自己写进场动画的块（进程图：一行行出来、条从左边长出来）挂上它，CSS 按它放。
+ */
+export function useSwapFresh(): { name: 'a' | 'b'; dir: 'up' | 'down' } | null {
+  const swap = useSwapSwitch()
+  if (!switching(swap)) return null
+  return { name: swap.serial % 2 === 1 ? 'a' : 'b', dir: swap.dir }
 }
 
 /**

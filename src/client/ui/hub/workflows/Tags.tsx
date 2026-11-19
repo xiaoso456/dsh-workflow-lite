@@ -82,13 +82,17 @@ export function TagRow(props: {
   onColor(tag: string, color: TagColor): void
 }): React.JSX.Element {
   const { t, tags } = props
-  const slide = useRowSlide()
+  // 标签自己的进场、退场、换位在 tagMotion 里；这里只管名字变宽变窄时被挤动的那一下。
+  const slide = useRowSlide(undefined, false, true)
   const fit = useTagFit(tags.join('\n'), tags.length, slide)
   const [expandedFor, setExpandedFor] = useState<string | null>(null)
   /** 一行放不下、收起来的几个。 */
   const folded = tags.length - fit.shown
   const open = expandedFor === props.name && folded > 0
-  const motion = useTagMotion(`${props.name}\n${tags.join('\n')}\n${fit.shown}:${String(open)}`)
+  const motion = useTagMotion(
+    `${props.name}\n${tags.join('\n')}\n${fit.shown}:${String(open)}`,
+    fit.fresh,
+  )
   const fitRef = fit.ref
   const attach = useCallback(
     (node: HTMLDivElement | null) => {

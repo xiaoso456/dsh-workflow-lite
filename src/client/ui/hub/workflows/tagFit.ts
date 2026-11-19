@@ -41,13 +41,17 @@ export function fitTags(
  * 不按这一排眼下的宽——展开时它挪到名字下面占满一行，按那个宽算就成了「都放得下」，一收又放不下，来回跳。
  * 返回一行放得下几个标签；`key` 变了（标签换了）当场重量，那一行、名字变宽变窄（改名时输入框跟着字长）跟着重量。
  * `also` 是同一排上别的回调 ref（useRowSlide），一起挂上。
+ * `fresh`：放得下几个是按眼下这组标签量的（标签刚换、还没重量的那一次是 `false`，这时排出来的样子不作数）。
  */
 export function useTagFit(
   key: string,
   count: number,
   also: (row: HTMLElement | null) => void,
-): { ref: (row: HTMLElement | null) => void; shown: number } {
-  const [shown, setShown] = useState(count)
+): { ref: (row: HTMLElement | null) => void; shown: number; fresh: boolean } {
+  const [fitted, setFitted] = useState({ key, shown: count })
+  const shown = fitted.shown
+  const keyRef = useRef(key)
+  keyRef.current = key
   const row = useRef<HTMLElement | null>(null)
   const stop = useRef<(() => void) | null>(null)
   const measure = useCallback((): void => {
@@ -70,7 +74,7 @@ export function useTagFit(
     const floor = Number.parseFloat(getComputedStyle(el).minWidth) || 0
     const avail = Math.max(line.clientWidth - name - lineGap, floor)
     const gap = Number.parseFloat(getComputedStyle(el).columnGap) || 0
-    setShown(fitTags(chips, tail, more, gap, avail))
+    setFitted({ key: keyRef.current, shown: fitTags(chips, tail, more, gap, avail) })
   }, [])
   // 标签换了（key）就重量，画出来之前定下来。
   useLayoutEffect(measure, [key, measure])
@@ -105,5 +109,5 @@ export function useTagFit(
     },
     [also, measure],
   )
-  return { ref, shown: Math.min(shown, count) }
+  return { ref, shown: Math.min(shown, count), fresh: fitted.key === key }
 }

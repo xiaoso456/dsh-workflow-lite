@@ -14,6 +14,7 @@ import { sameSettings } from '../../shared/model.ts'
 import type { VersionEntry, WorkflowDocument } from '../../shared/types.ts'
 import type { T } from '../i18n.ts'
 import { errorMessage, type WorkflowLiteRpc } from '../rpc.ts'
+import { type ReadSignal, readCache } from './readCache.ts'
 
 export interface VersionNotice {
   tone: 'ok' | 'error'
@@ -71,19 +72,23 @@ export function useVersionCore<E>(options: {
   load: () => Promise<E[]>
   /** 列的是谁：改名前后不变的那个身份。不给就当 `load` 一换就是换了一个。 */
   subject?: string | undefined
+  /** 挂上时已经有的一份（读过、缓存着）：先拿它显示，后台照常再读一遍，不闪「读取中」。 */
+  initial?: E[] | undefined
   before?: (() => Promise<boolean>) | undefined
   onChanged?: (() => void) | undefined
 }): VersionCore<E> {
   const { load } = options
-  const [list, setList] = useState<E[] | null>(null)
+  const [list, setList] = useState<E[] | null>(options.initial ?? null)
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState<VersionNotice | null>(null)
   const outer = useRef(options)
   outer.current = options
   /** 换了工作流之后，上一张的回包不要了。 */
   const ticket = useRef(0)
-  /** 上一次列的是谁（见 `subject`）。 */
-  const listed = useRef<string | undefined>(undefined)
+  /** 上一次列的是谁（见 `subject`）。挂上时就有一份的，算已经列着它了。 */
+  const listed = useRef<string | undefined>(
+    options.initial === undefined ? undefined : options.subject,
+  )
   const seq = useRef(0)
 
   const say = useCallback((tone: VersionNotice['tone'], text: string): void => {
@@ -152,12 +157,33 @@ export function useVersionCore<E>(options: {
   return { list, setList, busy, notice, say, refresh, act }
 }
 
+/**
+ * 各工作流读回来的版本列表，按「工作流 + 信号」（修改时间、版本数）留一份：工作流中心换到读过的那张时直接用，
+ * 换之前也能先读好（{@link primeVersions}），右栏「现在的内容还没存成版本」这一行不会先没了再出来。
+ */
+const versionsRead = readCache<VersionEntry[]>({ entries: 40 })
+
+/** 换到这张工作流之前先把版本读好；已经有了回 `null`。读不出来也算读完（换过去照常读、报错）。 */
+export function primeVersions(
+  rpc: WorkflowLiteRpc,
+  name: string,
+  signal: ReadSignal,
+): Promise<void> | null {
+  if (versionsRead.get(name, signal) !== undefined) return null
+  return rpc.call('graph/versions', { name }).then(
+    (result) => versionsRead.put(name, signal, result.versions),
+    () => undefined,
+  )
+}
+
 export function useVersions(options: {
   t: T
   rpc: WorkflowLiteRpc
   name: string
   /** 改名前后不变的身份（见 `useVersionCore`）：给了，改名时列表不清空。 */
   subject?: string
+  /** 这张工作流的信号（修改时间、版本数）：给了，读过的那份先拿来用（见 {@link primeVersions}）。 */
+  signal?: ReadSignal
   /** 动手前（存掉编辑页还没写下去的改动）；回 `false` 就不做了。 */
   before?: () => Promise<boolean>
   /** 切换写回了工作流之后。 */
@@ -170,14 +196,17 @@ export function useVersions(options: {
   const { name } = options
   const outer = useRef(options)
   outer.current = options
-  const load = useCallback(
-    async () => (await outer.current.rpc.call('graph/versions', { name })).versions,
-    [name],
-  )
+  const load = useCallback(async () => {
+    const { versions } = await outer.current.rpc.call('graph/versions', { name })
+    const { signal } = outer.current
+    if (signal !== undefined) versionsRead.put(name, signal, versions)
+    return versions
+  }, [name])
   const { list, setList, busy, notice, say, refresh, act } = useVersionCore({
     t: options.t,
     load,
     subject: options.subject,
+    initial: options.signal === undefined ? undefined : versionsRead.get(name, options.signal),
     before: options.before,
     onChanged: options.onChanged,
   })

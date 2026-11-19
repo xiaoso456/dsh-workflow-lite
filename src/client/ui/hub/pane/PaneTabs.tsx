@@ -3,6 +3,8 @@
  *
  * 下划线滑到新的一页（只动 transform）；←/→ 在页签之间走。页签可以带一个数（时间线有几条），
  * 也可以在右上角亮一个红点（有还没看过的失败），红点不占宽度，有没有都不挤动下划线。
+ * 数变了原地滚着换（和别处的数字一样，变大往上、变小往下）；从没有到有淡入长出来，没了缩小淡出，
+ * 页签跟着变宽变窄时后面的页签、下划线滑过去。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/pane/PaneTabs
  */
@@ -10,6 +12,7 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { slide } from '../../motion/flip.ts'
 import { REDUCED } from '../../motion/shared.ts'
+import { SwapText, useTrend } from '../../motion/swapText.tsx'
 import css from './paneTabs.module.css'
 
 export interface PaneTab<K extends string> {
@@ -35,42 +38,47 @@ function PaneTabButton<K extends string>({
   updateLayout(): void
 }): React.JSX.Element {
   const count = tab.count !== undefined && tab.count > 0 ? String(tab.count) : undefined
-  const dotOn = tab.dot?.on
-  const dot = useRef<HTMLSpanElement>(null)
-  const [heldCount, setHeldCount] = useState(count)
-  const countSize = dotOn === undefined ? count : heldCount
-  const visibleCount =
-    count !== undefined && count.length <= (countSize?.length ?? 0) ? count : null
+  const self = useRef<HTMLButtonElement>(null)
+  const trend = useTrend(tab.count ?? 0)
+  // 数没了的时候还写着最后那个数（淡出时看得见）；数从没有变成有（不是刚挂上）时放一次进场。
+  const [seen, setSeen] = useState({ count, last: count, arrive: false })
+  if (count !== seen.count) {
+    setSeen({
+      count,
+      last: count ?? seen.last,
+      arrive: seen.arrive || (seen.count === undefined && count !== undefined),
+    })
+  }
+  // 占的宽度：变宽立刻让开（后面的页签、下划线滑过去，数再淡入）；
+  // 变窄、没了先留着，等字和红点退完再收——收的时候后面的页签再滑回来，不压在还没退完的字上。
+  const [held, setHeld] = useState(count)
+  const grows = count !== undefined && (held === undefined || count.length >= held.length)
+  if (grows && held !== count) setHeld(count)
+  const countSize = grows ? count : held
 
   useLayoutEffect(() => {
-    if (dotOn === undefined || heldCount === count) return
-    const fade =
-      dotOn === false && REDUCED?.matches !== true
-        ? dot.current
-            ?.getAnimations()
-            .find(
-              (animation) =>
-                animation instanceof CSSTransition && animation.transitionProperty === 'opacity',
-            )
-        : undefined
-    if (fade === undefined) {
-      setHeldCount(count)
+    if (held === count) return
+    const leaving =
+      REDUCED?.matches === true ? [] : (self.current?.getAnimations({ subtree: true }) ?? [])
+    if (leaving.length === 0) {
+      setHeld(count)
       return
     }
     let active = true
     const release = (): void => {
-      if (active) setHeldCount(count)
+      if (active) setHeld(count)
     }
-    void fade.finished.then(release, release)
+    void Promise.all(leaving.map((animation) => animation.finished)).then(release, release)
     return () => {
       active = false
     }
-  }, [count, dotOn, heldCount])
+  }, [count, held])
 
   useLayoutEffect(updateLayout, [countSize, updateLayout])
 
   return (
     <button
+      ref={self}
       type="button"
       role="tab"
       aria-selected={selected}
@@ -85,13 +93,19 @@ function PaneTabButton<K extends string>({
         {tab.label}
       </span>
       {(tab.dot !== undefined || countSize !== undefined) && (
-        <span className={css.count} data-count-size={countSize}>
-          <span className={css.countValue}>{visibleCount}</span>
+        <span
+          className={css.count}
+          data-count-size={countSize}
+          data-gone={count === undefined || undefined}
+          data-arrive={seen.arrive || undefined}
+        >
+          <span className={css.countValue}>
+            <SwapText text={count ?? seen.last ?? ''} pop dir={trend} />
+          </span>
         </span>
       )}
       {tab.dot !== undefined && (
         <span
-          ref={dot}
           className={css.dot}
           data-on={tab.dot.on}
           role="img"
@@ -149,7 +163,10 @@ export function PaneTabs<K extends string>(props: {
     }
     line.style.transform = transform
   }, [])
-  useLayoutEffect(updateLayout)
+  // 只在选中换了、页签上的字换了时量（每个页签的数变宽变窄时它自己量）：右栏切换一项要重渲染好几次，
+  // 每次都量一遍位置，就每次都逼整页样式当场重算。
+  const labels = tabs.map((tab) => tab.label).join('|')
+  useLayoutEffect(updateLayout, [value, labels, updateLayout])
 
   const move = (step: 1 | -1): void => {
     const at = tabs.findIndex((tab) => tab.id === value)

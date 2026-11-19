@@ -309,6 +309,48 @@ export function useGlide(
   )
 }
 
+type RowReact = (entries: readonly ResizeObserverEntry[]) => (() => void)[]
+
+/**
+ * 所有 {@link useRowSlide} 共用一个 ResizeObserver：同一帧里几排一起变了宽窄（换一项时标题行、来源行、状态条、
+ * 状态按钮里那一排一起变），先把每一排要读的位置都读完，再一起放动画。各排各用一个观察器的话，
+ * 每一排都是「读了就放」，下一排一读就得把上一排刚放的动画连同整页样式当场重算一遍（宿主页面的 `:has` 让这一下很贵）。
+ */
+const rowSizes = (() => {
+  const reacts = new Map<Element, Set<RowReact>>()
+  let sizes: ResizeObserver | null = null
+  const deliver = (entries: ResizeObserverEntry[]): void => {
+    const byRow = new Map<RowReact, ResizeObserverEntry[]>()
+    for (const entry of entries) {
+      for (const react of reacts.get(entry.target) ?? []) {
+        const list = byRow.get(react)
+        if (list === undefined) byRow.set(react, [entry])
+        else list.push(entry)
+      }
+    }
+    const writes = Array.from(byRow, ([react, list]) => react(list)).flat()
+    for (const write of writes) write()
+  }
+  return {
+    watch(el: Element, react: RowReact): void {
+      sizes ??= new ResizeObserver(deliver)
+      const set = reacts.get(el)
+      if (set === undefined) {
+        reacts.set(el, new Set([react]))
+        sizes.observe(el)
+      } else set.add(react)
+    },
+    unwatch(el: Element, react: RowReact): void {
+      const set = reacts.get(el)
+      if (set === undefined) return
+      set.delete(react)
+      if (set.size > 0) return
+      reacts.delete(el)
+      sizes?.unobserve(el)
+    },
+  }
+})()
+
 /**
  * 一排挨着的小按钮（工作台顶栏）：其中一个变宽变窄了（它自己用 {@link useGlide} 展开收起），
  * 被挤动的其余几个从原处滑到新位置，和它的底面同样的时长、同时起步——不跳。
@@ -320,10 +362,16 @@ export function useGlide(
  *
  * 在 {@link SwapScope} 里列表换了一项时（{@link slideOnSwitch}）：等前面的字先换（按这一排的 `data-swap-tier` 晚一点），
  * 各单元按同一条缓动从原处滑到新处；前面的字变长了，新字跟着露出来；被挤动的单元里刚换的字只淡入淡出。
+ *
+ * 藏着（`hidden`、`display: none`）的单元不算位置：露出来时从左边长出来（{@link growIn}），后面的同时让开，
+ * 长出来的正好填上让出来的空当，不先压在别人身上。占满剩下宽度的那格（`data-row-fill`）左边被推动时右边不动：
+ * 里面的字滑、带 `data-row-fill-bar` 的条从右边伸缩（{@link stretch}），不整格横移。
+ * `plain`：单元自己管进场、切换（工作流的标签有自己的一套，见 tagMotion）——只在挤动时滑，不跟切换的节奏、不放长出来。
  */
 export function useRowSlide(
   duration?: number,
   keepApart = false,
+  plain = false,
 ): (row: HTMLElement | null) => void {
   const stop = useRef<(() => void) | null>(null)
   useEffect(() => () => stop.current?.(), [])
@@ -339,7 +387,11 @@ export function useRowSlide(
       const measure = (): Map<HTMLElement, { left: number; width: number }> => {
         const spots = new Map<HTMLElement, { left: number; width: number }>()
         for (const child of row.children) {
-          if (child instanceof HTMLElement && child.dataset.rowHidden !== 'true') {
+          if (
+            child instanceof HTMLElement &&
+            child.dataset.rowHidden !== 'true' &&
+            child.offsetParent !== null
+          ) {
             const base = child.offsetParent === row ? 0 : row.offsetLeft
             spots.set(child, { left: child.offsetLeft - base, width: child.offsetWidth })
           }
@@ -347,13 +399,20 @@ export function useRowSlide(
         return spots
       }
       let spots = measure()
-      const sizes = new ResizeObserver((entries) => {
+      /** 这一排有单元变了宽窄：现在就把要读的读完，返回之后再放的动画（{@link rowSizes} 把各排的读写分开批着做）。 */
+      const react = (entries: readonly ResizeObserverEntry[]): (() => void)[] => {
+        const writes: (() => void)[] = []
         const next = measure()
         const whole = entries.some((entry) => entry.target === row)
-        const switched = swap.current
+        const switched = plain ? null : swap.current
         // 切换时不看整排变没变宽：排是按内容占宽的（标题加铅笔），字一长整排跟着变宽，照样要滑。
         if (REDUCED?.matches !== true && switching(switched)) {
-          slideOnSwitch(row, spots, next, switched)
+          writes.push(slideOnSwitch(row, spots, next, switched))
+          const base = swapDelay(row) + SWITCH.enterAt
+          const was = spots
+          writes.push(() =>
+            growIn(was, next, { duration: SWITCH.glide, delay: base, easing: EASE_GLIDE }),
+          )
         } else if (!whole && REDUCED?.matches !== true && keepApart) {
           if ([...next].some(([child, now]) => spots.get(child)?.left !== now.left)) {
             let leastShift = 0
@@ -365,8 +424,14 @@ export function useRowSlide(
             })
             for (const { child, current, shift } of shifts) {
               if (shift !== 0 || current !== 0)
-                slideFrom(child, 0, shift, duration ?? GLIDE_SHRINK_MS)
+                writes.push(() => slideFrom(child, 0, shift, duration ?? GLIDE_SHRINK_MS))
             }
+          }
+          if (!plain) {
+            const was = spots
+            writes.push(() =>
+              growIn(was, next, { duration: duration ?? GLIDE_SHRINK_MS, delay: 0, easing: EASE }),
+            )
           }
         } else if (!whole && REDUCED?.matches !== true) {
           for (const [child, now] of next) {
@@ -377,20 +442,34 @@ export function useRowSlide(
               continue
             }
             // 往左挪 = 右边有一个变宽了（展开的时长），往右挪 = 变窄了（收的时长）。
-            slide(
-              child,
-              0,
-              was.left - now.left,
-              duration ?? (now.left < was.left ? GLIDE_GROW_MS : GLIDE_SHRINK_MS),
+            const ms = duration ?? (now.left < was.left ? GLIDE_GROW_MS : GLIDE_SHRINK_MS)
+            if (child.dataset.rowFill !== undefined) {
+              writes.push(
+                stretch(child, now.left - was.left, { duration: ms, delay: 0, easing: EASE }),
+              )
+            } else {
+              const [currentX, currentY] = slideOffset(child)
+              const fromX = was.left - now.left + currentX
+              writes.push(() => slideFrom(child, currentY, fromX, ms))
+            }
+          }
+          if (!plain) {
+            const was = spots
+            writes.push(() =>
+              growIn(was, next, { duration: duration ?? GLIDE_GROW_MS, delay: 0, easing: EASE }),
             )
           }
         }
         spots = next
-      })
+        return writes
+      }
+      const watched = new Set<Element>()
       const watch = (): void => {
-        sizes.disconnect()
-        sizes.observe(row)
-        for (const child of row.children) sizes.observe(child)
+        const want = new Set<Element>([row, ...row.children])
+        for (const el of watched) if (!want.has(el)) rowSizes.unwatch(el, react)
+        for (const el of want) if (!watched.has(el)) rowSizes.watch(el, react)
+        watched.clear()
+        for (const el of want) watched.add(el)
       }
       watch()
       // 单元换了（换了一种触发方式，顶栏里的按钮不一样了）、有单元藏起露出：重新记、重新看，不滑。
@@ -404,12 +483,13 @@ export function useRowSlide(
       const hidden = new MutationObserver(remeasure)
       hidden.observe(row, { subtree: true, attributeFilter: ['data-row-hidden'] })
       stop.current = () => {
-        sizes.disconnect()
+        for (const el of watched) rowSizes.unwatch(el, react)
+        watched.clear()
         kids.disconnect()
         hidden.disconnect()
       }
     },
-    [duration, keepApart],
+    [duration, keepApart, plain],
   )
 }
 
@@ -427,9 +507,13 @@ function slideOnSwitch(
   spots: ReadonlyMap<HTMLElement, { left: number; width: number }>,
   next: ReadonlyMap<HTMLElement, { left: number; width: number }>,
   swap: SwapSwitch,
-): void {
+): () => void {
   const base = swapDelay(row)
   const serial = String(swap.serial)
+  // 先把要读的都读完（此刻的位移、条的宽度），再一起放动画、改属性：读写交错的话，
+  // 每放一个动画之后的下一次读都要整页重算一遍样式。
+  const plans: (() => void)[] = []
+  const fades: HTMLElement[] = []
   let leader: { child: HTMLElement; grew: number } | null = null
   for (const [child, now] of next) {
     const was = spots.get(child)
@@ -442,18 +526,89 @@ function slideOnSwitch(
         delay: base + (grow ? SWITCH.enterAt : SWITCH.out),
         easing: EASE_GLIDE,
       }
-      const [current] = slideOffset(child)
-      slideFrom(child, 0, current - moved, timing.duration, timing.delay, timing.easing)
-      for (const text of swappedTexts(child, serial)) text.dataset.swapFade = ''
+      if (child.dataset.rowFill !== undefined) plans.push(stretch(child, moved, timing))
+      else {
+        const [current] = slideOffset(child)
+        plans.push(() =>
+          slideFrom(child, 0, current - moved, timing.duration, timing.delay, timing.easing),
+        )
+      }
+      fades.push(...swappedTexts(child, serial))
       if (grow && leader !== null) {
+        const by = leader.grew
         for (const text of leader.child.querySelectorAll<HTMLElement>('[data-swap-lead]')) {
           if (text.dataset.swapSerial !== serial || revealed.get(text) === swap.serial) continue
           revealed.set(text, swap.serial)
-          revealText(text, leader.grew, timing)
+          plans.push(() => revealText(text, by, timing))
         }
       }
     }
     if (now.width > was.width + 0.5) leader = { child, grew: now.width - was.width }
+  }
+  return () => {
+    for (const run of plans) run()
+    for (const text of fades) text.dataset.swapFade = ''
+  }
+}
+
+interface RowTiming {
+  duration: number
+  delay: number
+  easing: string
+}
+
+/**
+ * 刚露出来的单元（上一次量的时候藏着）：从左边长出来、同时淡入，和后面让开的单元同样的时长、缓动——
+ * 它的右边缘正好跟着让开的那个走，长的过程中不压在别人身上。只动 `scale` / `opacity`。
+ */
+function growIn(
+  spots: ReadonlyMap<HTMLElement, unknown>,
+  next: ReadonlyMap<HTMLElement, unknown>,
+  timing: RowTiming,
+): void {
+  if (spots.size === 0) return
+  for (const child of next.keys()) {
+    if (spots.has(child)) continue
+    child.animate(
+      [
+        { opacity: 0, scale: '0', transformOrigin: 'left center' },
+        { opacity: 1, scale: '1', transformOrigin: 'left center' },
+      ],
+      { ...timing, fill: 'backwards' },
+    )
+  }
+}
+
+/**
+ * 占满剩下宽度的那格被前面推了 `moved`（往右为正）、右边不动：里面的字从原处滑过来，
+ * 带 `data-row-fill-bar` 的条按右边为原点从原来的宽度伸缩到现在的宽度——看上去是这一格在收、在放，不是整格横移。
+ */
+function stretch(cell: HTMLElement, moved: number, timing: RowTiming): () => void {
+  // 先读（条的宽度、字此刻的位移），返回一个之后再放动画的函数：调用方把一排的读都做完再一起放。
+  const plans: (() => void)[] = []
+  for (const part of cell.children) {
+    if (!(part instanceof HTMLElement)) continue
+    if (part.dataset.rowFillBar !== undefined) {
+      const width = part.offsetWidth
+      if (width <= 0) continue
+      plans.push(() =>
+        part.animate(
+          [
+            { scale: `${(width + moved) / width} 1`, transformOrigin: 'right center' },
+            { scale: '1 1', transformOrigin: 'right center' },
+          ],
+          { ...timing, fill: 'backwards' },
+        ),
+      )
+    } else {
+      const [current] = slideOffset(part)
+      plans.push(() =>
+        slideFrom(part, 0, current - moved, timing.duration, timing.delay, timing.easing),
+      )
+    }
+  }
+  return () => {
+    for (const run of plans) run()
   }
 }
 

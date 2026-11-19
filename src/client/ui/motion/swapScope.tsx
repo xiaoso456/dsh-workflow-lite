@@ -73,7 +73,14 @@ export function switching(swap: SwapSwitch | null): swap is SwapSwitch {
   return swap !== null && performance.now() - swap.at < SWITCH_WINDOW_MS
 }
 
-/** 这一块在第几层晚多少开始（`data-swap-tier` 换算出的 `--wl-swap-delay`，毫秒）。 */
+/** 每往下一层晚多少开始（毫秒），和 swapText.module.css 里各层的 `--wl-swap-delay` 一致。 */
+export const TIER_STEP_MS = 26
+
+/**
+ * 这一块在第几层晚多少开始（最近的 `data-swap-tier` 换算，毫秒）。
+ * 按属性算，不读 `--wl-swap-delay` 的计算值：切换时一排排挨个放动画，每读一次计算样式就逼整页样式重算一遍。
+ */
 export function swapDelay(el: Element): number {
-  return Number.parseFloat(getComputedStyle(el).getPropertyValue('--wl-swap-delay')) || 0
+  const tier = Number(el.closest<HTMLElement>('[data-swap-tier]')?.dataset.swapTier ?? 0)
+  return Number.isFinite(tier) ? tier * TIER_STEP_MS : 0
 }

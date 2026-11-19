@@ -76,6 +76,28 @@
 .countValue {
   position: absolute;
   inset: 0 auto auto 0;
+  transition:
+    opacity 140ms linear,
+    scale 180ms var(--wl-ease);
+}
+
+/* 数没了：缩小淡出（宽度等它退完再收，见 PaneTabs）；从没有到有：长出来淡入。只动 opacity / scale。 */
+.count[data-gone] > .countValue {
+  opacity: 0;
+  scale: 0.6;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .count[data-arrive]:not([data-gone]) > .countValue {
+    animation: countIn 260ms cubic-bezier(0.34, 1.45, 0.64, 1) backwards;
+  }
+}
+
+@keyframes countIn {
+  from {
+    opacity: 0;
+    scale: 0.6;
+  }
 }
 
 /* 失败的红点挂在右上角，不占宽度：没有时页签不多出一段空白，有没有都不挤动下划线。 */
@@ -134,7 +156,8 @@
 @media (prefers-reduced-motion: reduce) {
   .tab,
   .dot,
-  .ink {
+  .ink,
+  .countValue {
     transition: none;
   }
 }

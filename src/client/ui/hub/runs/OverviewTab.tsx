@@ -11,18 +11,22 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/runs/OverviewTab
  */
 
+import { useEffect, useState } from 'react'
 import { findNode } from '../../../../shared/model.ts'
 import type { RunCursor } from '../../../../shared/runCursor.ts'
 import type { InstanceSummary, InstanceView, NodeStatus } from '../../../../shared/runState.ts'
 import { useNow } from '../../../app/useNow.ts'
 import type { T } from '../../../i18n.ts'
 import { nodeTitle } from '../../../model/nodeName.ts'
-import { runSpans, type SpanStatus, spanTicks } from '../../../model/runSpans.ts'
+import { runSpans, type SpanStatus, type StepSpan, spanTicks } from '../../../model/runSpans.ts'
 import { type StepLine, stepCounts } from '../../../model/runSteps.ts'
 import { clockTime, durationText, shortTime } from '../../../model/time.ts'
 import { RUN_TEXT } from '../../canvas/cards/cardParts.ts'
 import { Icon } from '../../kit/Icon.tsx'
+import { Presence } from '../../motion/exits.tsx'
+import { SwapText } from '../../motion/swapText.tsx'
 import { NextWhy } from '../../run/NextWhy.tsx'
+import { useGanttSpot } from './ganttMotion.ts'
 import css from './overviewTab.module.css'
 import { STEP_ICON } from './runFace.ts'
 import { StateProblem } from './StateProblem.tsx'
@@ -96,11 +100,18 @@ function Progress(props: {
 }): React.JSX.Element | null {
   const { t, view, steps, counts } = props
   const now = useNow(30_000)
+  // 图已经在了之后新冒出来的条、刻度才放进场（刚挂上时整张图一起出来，不一段段长）。
+  const [ready, setReady] = useState(false)
+  useEffect(() => setReady(true), [])
+  // 行数只增不减：少了的行留着位置放完收起（Presence 收完自己卸掉）。
+  const [rows, setRows] = useState(steps.length)
+  if (steps.length > rows) setRows(steps.length)
   const state = view.state
   if (state === null) return null
   const spans = runSpans(state, props.item.createdAt, now)
   const span = Math.max(1, spans.end - spans.start)
-  const pct = (at: number): string => `${String(((at - spans.start) / span) * 100)}%`
+  /** 某个时刻在横轴上的位置（百分比）。 */
+  const pct = (at: number): number => ((at - spans.start) / span) * 100
   const label = (at: number): string => (span >= 86_400_000 ? shortTime(at) : clockTime(at))
   const shown = new Set([...spans.steps.values()].flat().map((part) => part.status))
 
@@ -112,24 +123,29 @@ function Progress(props: {
           tone="done"
           value={
             <>
-              {counts.done}
-              <small>/ {steps.length}</small>
+              <SwapText text={String(counts.done)} />
+              <small>
+                / <SwapText text={String(steps.length)} />
+              </small>
             </>
           }
         />
         <Stat
           label={t(RUN_TEXT.failed)}
           tone="failed"
-          value={counts.failed}
+          value={<SwapText text={String(counts.failed)} />}
           zero={counts.failed === 0}
         />
         <Stat
           label={t(RUN_TEXT.skipped)}
           tone="skipped"
-          value={counts.skipped}
+          value={<SwapText text={String(counts.skipped)} />}
           zero={counts.skipped === 0}
         />
-        <Stat label={t('hub.runSpent')} value={durationText(t, spans.end - spans.start)} />
+        <Stat
+          label={t('hub.runSpent')}
+          value={<SwapText text={durationText(t, spans.end - spans.start)} quiet />}
+        />
       </section>
 
       <section className={css.section}>
@@ -147,66 +163,136 @@ function Progress(props: {
           </span>
         </div>
         <div className={css.gantt} data-testid="wl-hub-run-gantt">
-          {steps.map((step) => {
-            const parts = spans.steps.get(step.id) ?? []
-            return [
-              <button
-                key={`name-${step.id}`}
-                type="button"
-                className={css.ganttName}
-                data-run-status={step.status}
-                data-tip={step.name}
-                onClick={() => props.onFocus(step.id)}
-              >
-                <Icon name={STEP_ICON[step.status]} size={12} />
-                <span className={css.ganttText}>{step.name}</span>
-              </button>,
-              <span key={`track-${step.id}`} className={css.track}>
-                {parts.map((part) => (
-                  <button
-                    key={part.from}
-                    type="button"
-                    className={css.bar}
-                    data-run-status={SPAN_TONE[part.status]}
-                    data-live={part.open}
-                    aria-label={step.name}
-                    data-tip={[
-                      step.name,
-                      t(RUN_TEXT[SPAN_TONE[part.status]]),
-                      `${clockTime(part.from)}–${part.open === true ? t('hub.runNow') : clockTime(part.to)}`,
-                      ...(part.round !== undefined && part.round > 1
-                        ? [t('run.round').replace('{n}', String(part.round))]
-                        : []),
-                    ].join(' · ')}
-                    style={{
-                      left: pct(part.from),
-                      width: `calc(${pct(part.to)} - ${pct(part.from)})`,
-                    }}
-                    onClick={() => props.onFocus(step.id)}
+          {Array.from({ length: rows }, (_, index) => {
+            const step = steps[index]
+            return (
+              // 按第几行认：换了实例、步骤名不一样也在原行里换字，多出来的行展开，少了的收起来。
+              // biome-ignore lint/suspicious/noArrayIndexKey: 行按位置认，原地换内容
+              <Presence key={index} show={step !== undefined}>
+                {step !== undefined && (
+                  <GanttRow
+                    t={t}
+                    step={step}
+                    parts={spans.steps.get(step.id) ?? []}
+                    pct={pct}
+                    enter={ready}
+                    onFocus={props.onFocus}
                   />
-                ))}
-                {parts.length === 0 && (
-                  <span className={css.empty}>
-                    {t(step.status === 'skipped' ? 'run.status.skipped' : 'hub.runNotYet')}
-                  </span>
                 )}
-              </span>,
-            ]
+              </Presence>
+            )
           })}
-          <span className={css.axis}>
-            <span className={css.tick}>{label(spans.start)}</span>
-            {spanTicks(spans.start, spans.end).map((at) => (
-              <span key={at} className={css.tick} style={{ left: pct(at) }} data-mid="">
-                {label(at)}
+          <div className={css.ganttRow}>
+            <span className={css.axis}>
+              <span className={css.tick}>
+                <SwapText text={label(spans.start)} />
               </span>
-            ))}
-            <span className={css.tick} data-end="" data-now={spans.live || undefined}>
-              {spans.live ? t('hub.runNow') : label(spans.end)}
+              {spanTicks(spans.start, spans.end).map((at, index) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: 刻度按位置认，换了时刻滑过去
+                <Tick key={index} left={pct(at)} enter={ready} text={label(at)} />
+              ))}
+              <span className={css.tick} data-end="" data-now={spans.live || undefined}>
+                <SwapText text={spans.live ? t('hub.runNow') : label(spans.end)} />
+              </span>
             </span>
-          </span>
+          </div>
         </div>
       </section>
     </>
+  )
+}
+
+/** 进程图的一行：步骤名，右边一次执行一段条（还没做、跳过的写一句）。 */
+function GanttRow(props: {
+  t: T
+  step: StepLine
+  parts: readonly StepSpan[]
+  pct(at: number): number
+  enter: boolean
+  onFocus(step: string): void
+}): React.JSX.Element {
+  const { t, step, parts } = props
+  return (
+    <div className={css.ganttRow}>
+      <button
+        type="button"
+        className={css.ganttName}
+        data-run-status={step.status}
+        data-tip={step.name}
+        onClick={() => props.onFocus(step.id)}
+      >
+        <Icon name={STEP_ICON[step.status]} size={12} />
+        <span className={css.ganttText}>
+          <SwapText text={step.name} />
+        </span>
+      </button>
+      <span className={css.track}>
+        {parts.map((part, index) => (
+          <GanttBar
+            // biome-ignore lint/suspicious/noArrayIndexKey: 一行里的第几段按位置认，换了时间滑过去
+            key={index}
+            t={t}
+            step={step}
+            part={part}
+            left={props.pct(part.from)}
+            width={props.pct(part.to) - props.pct(part.from)}
+            enter={props.enter}
+            onFocus={props.onFocus}
+          />
+        ))}
+        {parts.length === 0 && (
+          <span className={css.empty}>
+            <SwapText
+              text={t(step.status === 'skipped' ? 'run.status.skipped' : 'hub.runNotYet')}
+            />
+          </span>
+        )}
+      </span>
+    </div>
+  )
+}
+
+/** 一段条：位置和宽度按时间比例；换了位置滑过去，新冒出来的从左端长出来（{@link useGanttSpot}）。 */
+function GanttBar(props: {
+  t: T
+  step: StepLine
+  part: StepSpan
+  left: number
+  width: number
+  enter: boolean
+  onFocus(step: string): void
+}): React.JSX.Element {
+  const { t, step, part } = props
+  const motion = useGanttSpot({ left: props.left, width: props.width }, props.enter)
+  return (
+    <button
+      type="button"
+      className={css.bar}
+      {...motion.attrs}
+      data-run-status={SPAN_TONE[part.status]}
+      data-live={part.open}
+      aria-label={step.name}
+      data-tip={[
+        step.name,
+        t(RUN_TEXT[SPAN_TONE[part.status]]),
+        `${clockTime(part.from)}–${part.open === true ? t('hub.runNow') : clockTime(part.to)}`,
+        ...(part.round !== undefined && part.round > 1
+          ? [t('run.round').replace('{n}', String(part.round))]
+          : []),
+      ].join(' · ')}
+      style={motion.style}
+      onClick={() => props.onFocus(step.id)}
+    />
+  )
+}
+
+/** 横轴中间的一个时刻：换了时刻滑过去、字滚着换。 */
+function Tick(props: { left: number; enter: boolean; text: string }): React.JSX.Element {
+  const motion = useGanttSpot({ left: props.left }, props.enter)
+  return (
+    <span className={css.tick} style={motion.style} data-mid="" {...motion.attrs}>
+      <SwapText text={props.text} />
+    </span>
   )
 }
 

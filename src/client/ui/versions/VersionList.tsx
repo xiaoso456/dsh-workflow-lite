@@ -34,6 +34,8 @@ export function VersionList(props: {
   name: string
   /** 改名前后不变的身份：给了，改名时列表留着、不闪加载。 */
   subject?: string
+  /** 工作流的信号（修改时间、版本数）：给了，读过的那份先拿来显示（见 `primeVersions`）。 */
+  signal?: string
   before?: () => Promise<boolean>
   onRestored?: () => void
   onChanged?: () => void

@@ -19,6 +19,7 @@ import type { SessionRow } from '../../../app/sessions.ts'
 import { patchTriggerOnDisk } from '../../../app/triggerEdit.ts'
 import { primeActivity } from '../../../app/useFires.ts'
 import { useTriggerHub } from '../../../app/useTriggerHub.ts'
+import { whenPrimed } from '../../../app/whenPrimed.ts'
 import type { T } from '../../../i18n.ts'
 import { matchesWords, searchWords } from '../../../model/search.ts'
 import { arrangeTriggers, TRIGGER_VIEW, type TriggerListView } from '../../../model/triggerList.ts'
@@ -96,19 +97,7 @@ export function HubTriggers(props: {
       target === undefined || tab !== 'overview'
         ? undefined
         : primeActivity(target, hubData.activity)
-    if (reading === undefined) {
-      apply()
-      return
-    }
-    let pending = true
-    const finish = (): void => {
-      if (!pending) return
-      pending = false
-      window.clearTimeout(deadline)
-      apply()
-    }
-    const deadline = window.setTimeout(finish, 160)
-    void reading.then(finish, finish)
+    whenPrimed(reading ?? null, apply)
   }
   // 换排法时右栏还看着原来那一项（没点过时它是第一项）。
   const onView = (change: Partial<TriggerListView>): void => {

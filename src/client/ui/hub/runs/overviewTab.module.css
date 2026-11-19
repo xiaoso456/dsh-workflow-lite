@@ -165,14 +165,24 @@
 
 /* ── 进程：左边一列步骤名，右边横轴；最下面一行时刻 ─────────── */
 
+/*
+ * 一步一行，每行自己一个两列的格子（列宽是定死的，各行对得齐）：行能单独展开收起（Presence），
+ * 行间距算在行里（`padding-bottom`），收起时连空当一起收，框跟着变高变矮。
+ */
 .gantt {
-  display: grid;
-  grid-template-columns: minmax(64px, 96px) minmax(0, 1fr);
-  gap: 4px 10px;
-  align-items: center;
-  padding: 10px 12px 8px;
+  display: flex;
+  flex-direction: column;
+  padding: 10px 12px 4px;
   border: 1px solid var(--wl-line);
   border-radius: var(--wl-r-card);
+}
+
+.ganttRow {
+  display: grid;
+  grid-template-columns: minmax(64px, 96px) minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding-bottom: 4px;
 }
 
 .ganttName {
@@ -219,6 +229,7 @@
 
 .track {
   position: relative;
+  container-type: inline-size; /* 条挪动的距离按它的宽度算（cqw），见 ganttMotion.ts */
   height: 16px;
   border-radius: calc(4px * var(--wl-round, 1));
   background: color-mix(in srgb, var(--wl-text) 4%, transparent);
@@ -244,6 +255,7 @@
   border-radius: calc(3px * var(--wl-round, 1));
   background: var(--wl-run-fill);
   cursor: pointer;
+  transform-origin: left center;
   transition: opacity 120ms linear;
 }
 
@@ -294,6 +306,7 @@
 
 .axis {
   position: relative;
+  container-type: inline-size;
   grid-column: 2;
   height: 16px;
   margin-top: 2px;
@@ -470,6 +483,63 @@
 .reasonMore {
   color: var(--wl-text-3);
   font-size: var(--wl-fs-micro);
+}
+
+/*
+ * 条、时刻换了位置（ganttMotion.ts 算好起点：`--gx` 是挪了几个百分点，`--gs` 是旧宽度 / 新宽度）：
+ * 从旧的样子滑到新的样子，`data-move` 在 a / b 之间换着从头放；列表换了一项时照切换的节奏，和右栏的字一起。
+ * 图在了之后新冒出来的（`data-born`）：条从左端长出来，时刻淡入。只动 opacity / translate / scale。
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .bar[data-born] {
+    animation: ganttBarIn 320ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  }
+
+  .tick[data-born] {
+    animation: ganttTickIn 320ms ease-out backwards;
+  }
+
+  .bar[data-move],
+  .tick[data-move] {
+    animation: ganttMove 280ms var(--wl-ease) backwards;
+  }
+
+  :is(.bar, .tick)[data-move="b"] {
+    animation-name: ganttMoveB;
+  }
+
+  :is(.bar, .tick)[data-move-switch] {
+    animation-duration: 320ms;
+    animation-timing-function: cubic-bezier(0.25, 0.8, 0.25, 1);
+    animation-delay: calc(var(--wl-swap-delay, 0ms) + 54ms);
+  }
+}
+
+@keyframes ganttMove {
+  from {
+    translate: calc(var(--gx, 0) * 1cqw) 0;
+    scale: var(--gs, 1) 1;
+  }
+}
+
+@keyframes ganttMoveB {
+  from {
+    translate: calc(var(--gx, 0) * 1cqw) 0;
+    scale: var(--gs, 1) 1;
+  }
+}
+
+@keyframes ganttBarIn {
+  from {
+    opacity: 0;
+    scale: 0 1;
+  }
+}
+
+@keyframes ganttTickIn {
+  from {
+    opacity: 0;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
