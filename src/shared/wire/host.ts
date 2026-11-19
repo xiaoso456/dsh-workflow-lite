@@ -135,9 +135,10 @@ export interface PermissionEntry {
   description?: string
 }
 
-/** `host/prepareSession`：给刚建好、还没发消息的会话装上模型、设好权限（画布「执行」新建会话后、发消息前）。 */
+/** `host/prepareSession`：给刚建好、还没发消息的会话起标题、装上模型、设好权限（画布「执行」新建会话后、发消息前）。 */
 export interface HostPrepareSessionRequest {
   session: string
+  title?: string
   model?: { provider: string; model: string; effort?: string }
   permission?: string
 }

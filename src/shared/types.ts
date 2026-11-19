@@ -71,7 +71,7 @@ export interface ModelChoice {
 
 /**
  * 新建会话时用什么跑：agent 预设 id、模型、运行权限（DSH 的权限预设名，如 `workspace-write`）。
- * 缺省 = 跟随（触发卡片跟随工作流，工作流跟随 DSH 的默认；触发器新建的会话权限另有缺省，见 `TRIGGER_PERMISSION`）。
+ * 缺省 = 跟随（触发卡片跟随工作流，工作流跟随 DSH 的默认）。新建的触发卡片权限直接写成 `TRIGGER_PERMISSION`。
  * 只在插件新建会话时用（触发器新建、画布「执行」新建），发进现成的会话时沿用那个会话的。
  */
 export interface SessionChoice {
@@ -81,8 +81,8 @@ export interface SessionChoice {
 }
 
 /**
- * 触发器的权限缺省：完全权限。没人守着回答授权请求，要授权的那一步会一直等下去。
- * 新建的触发卡片直接写上它（`DEFAULT_TRIGGER`）；没写权限的旧卡片在工作流也没设时同样用它。
+ * 新建触发卡片写上的权限：完全权限。没人守着回答授权请求，要授权的那一步会一直等下去。
+ * 写在卡片上（`DEFAULT_TRIGGER`），不是执行时的兜底：没写权限的卡片照样跟随工作流，「跟随工作流」说的就是工作流那边的。
  */
 export const TRIGGER_PERMISSION = 'danger-full-access'
 

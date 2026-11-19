@@ -1,6 +1,6 @@
 /**
  * dsh-workflow-lite — 触发卡片「在哪执行」的几样选择：会话方式、（固定会话时）固定到哪个会话、工作区，
- * 以及新建会话时用的 agent 预设、模型、思考强度、运行权限（不写 = 跟随工作流设置；权限工作流也没写时用完全权限）。
+ * 以及新建会话时用的 agent 预设、模型、思考强度、运行权限（不写 = 跟随工作流设置；新建的卡片权限写着完全权限）。
  *
  * 画布面板（LaunchField）和工作流中心「触发」页的设置（SettingsPane）各按自己的样子摆，选项和存法都从这里拿：
  * 会话方式写在图里（`onLaunch`，缺省值不留）；工作区、固定的会话只存在这台机器上（`env.triggers.set`），
@@ -32,7 +32,6 @@ import {
   permissionOptions,
   pickModel,
   presetOptions,
-  triggerInheritedPermission,
   withEffort,
 } from '../../model/sessionChoice.ts'
 import type { SelectOption } from '../kit/Select.tsx'
@@ -116,14 +115,10 @@ export function useLaunchChoice(props: {
   const ownModel = data.launch?.model
   const ownPreset = data.launch?.preset
   const ownPermission = data.launch?.permission
-  const inheritedPermission = triggerInheritedPermission(inherited)
-  // 权限跟随来的也看：工作流没写时用的完全权限，这台机器上设不上也要提醒（工作流设的由工作流设置那边提醒）。
-  const checkedPermission =
-    ownPermission ?? (inherited?.permission === undefined ? inheritedPermission : undefined)
   const issues = choiceIssues(catalog, {
     ...(ownPreset === undefined ? {} : { preset: ownPreset }),
     ...(ownModel === undefined ? {} : { model: ownModel }),
-    ...(checkedPermission === undefined ? {} : { permission: checkedPermission }),
+    ...(ownPermission === undefined ? {} : { permission: ownPermission }),
   })
   const issueOf = (kinds: ChoiceIssue['kind'][]): string[] | undefined => {
     const found = issues.find((issue) => kinds.includes(issue.kind))
@@ -155,7 +150,7 @@ export function useLaunchChoice(props: {
           },
     permission: {
       value: ownPermission ?? FOLLOW,
-      options: permissionOptions(t, catalog, ownPermission, 'workflow', inheritedPermission),
+      options: permissionOptions(t, catalog, ownPermission, 'workflow', inherited?.permission),
       set: (value) => setLaunch({ permission: value === FOLLOW ? undefined : value }),
     },
     issues: {

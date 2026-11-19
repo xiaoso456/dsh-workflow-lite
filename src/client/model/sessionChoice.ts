@@ -8,12 +8,7 @@
  * @module @xiaoso/dsh-workflow-lite/client/model/sessionChoice
  */
 
-import {
-  type ModelChoice,
-  type SessionAgent,
-  type SessionChoice,
-  TRIGGER_PERMISSION,
-} from '../../shared/types.ts'
+import type { ModelChoice, SessionAgent, SessionChoice } from '../../shared/types.ts'
 import type {
   ChoiceFallback,
   HostAgentsResponse,
@@ -194,7 +189,7 @@ export function presetOptions(
 
 /**
  * 权限的几项：跟随 + 这台机器上能设成新会话默认的几套 + 设了但没有的那一个。
- * `inherited` 是跟随时实际用的那套（触发卡片上：工作流设的，没有就是触发器的缺省完全权限）；没有就写 DSH 的默认。
+ * `inherited` 是跟随时实际用的那套（触发卡片上是工作流设的）；没有就写 DSH 的默认。
  */
 export function permissionOptions(
   t: T,
@@ -226,11 +221,6 @@ export function permissionOptions(
     })
   }
   return options
-}
-
-/** 触发卡片上「跟随工作流」时实际用的权限：工作流设的，没有就是触发器的缺省（完全权限）。 */
-export function triggerInheritedPermission(workflow: SessionChoice | undefined): string {
-  return workflow?.permission ?? TRIGGER_PERMISSION
 }
 
 /**

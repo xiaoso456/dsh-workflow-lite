@@ -7,6 +7,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { isInput } from '../../../../shared/model.ts'
 import { resolveSessionChoice } from '../../../../shared/sessionChoice.ts'
+import { sessionTitle } from '../../../../shared/sessionTitle.ts'
 import type { InputAnswer } from '../../../../shared/types.ts'
 import { openChosenSession } from '../../../app/agents.ts'
 import type { Desktop } from '../../../app/desktop.ts'
@@ -100,6 +101,7 @@ export function useLaunch({ props, t, wf, runs, openRun, seenCurrent }: LaunchIn
                 here,
                 resolveSessionChoice(undefined, state.doc?.settings),
                 (preset) => bridge.create(here, sessionCwd, preset),
+                sessionTitle(name, t('launch.titleManual'), new Date()),
               )
             : { session: target, fallbacks: [], agent: undefined, catalog: null }
         const { session } = opened

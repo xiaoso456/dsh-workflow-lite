@@ -3,7 +3,6 @@
  *
  * 工作流设置和触发卡片的启动方式各能写一份（{@link SessionChoice}），按项往上找：
  * 触发卡片写了用它的，否则用工作流的，再没有就不传、跟随 DSH 的默认（{@link resolveSessionChoice}）。
- * 只有一处例外：触发器新建的会话，权限两边都没写时用完全权限（{@link resolveTriggerChoice}）。
  * 只存标识：服务商 id、模型 id、档位 id、预设 id、权限预设名，不存地址和密钥；这台机器上没有的照样留着，执行时回退默认。
  *
  * @module @xiaoso/dsh-workflow-lite/shared/sessionChoice
@@ -14,7 +13,6 @@ import {
   type ModelChoice,
   type SessionAgent,
   type SessionChoice,
-  TRIGGER_PERMISSION,
   TRIGGER_TYPE,
   type TriggerNode,
   type WorkflowDocument,
@@ -155,15 +153,6 @@ export function resolveSessionChoice(
     trigger?.model ?? workflow?.model,
     trigger?.permission ?? workflow?.permission,
   )
-}
-
-/** 触发器这一次新建会话实际要的：同 {@link resolveSessionChoice}，只是权限两边都没写时用 {@link TRIGGER_PERMISSION}。 */
-export function resolveTriggerChoice(
-  trigger: SessionChoice | undefined,
-  workflow: SessionChoice | undefined,
-): SessionChoice {
-  const choice = resolveSessionChoice(trigger, workflow)
-  return choice.permission === undefined ? { ...choice, permission: TRIGGER_PERMISSION } : choice
 }
 
 /** 去掉 `preset` / `model` / `permission`（导出时不带上用）；本来就没有原样返回。 */

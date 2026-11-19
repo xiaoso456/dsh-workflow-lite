@@ -26,6 +26,11 @@
   --btn-hover: var(--wl-accent-soft);
 }
 
+/* 通用按钮悬停时字换成正文色；这里的字色是语义色，悬停只垫浅底、字色不变（多一层 .bar 压过它）。 */
+.bar .main:hover {
+  color: var(--wl-accent-text);
+}
+
 .sep {
   width: 1px;
   height: 16px;
@@ -40,11 +45,15 @@
 }
 
 /* 结果写在图标上：发出去了是绿的 ✓，没发出去是红的 ⚠（悬停提示是那句话）。 */
-.icon[data-tone="ok"] {
+.bar .icon:hover {
+  color: var(--wl-trigger);
+}
+
+.bar .icon[data-tone="ok"] {
   color: var(--wl-ok);
 }
 
-.icon[data-tone="bad"] {
+.bar .icon[data-tone="bad"] {
   color: var(--wl-danger);
 }
 

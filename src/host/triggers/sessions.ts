@@ -29,8 +29,9 @@ import type {
   ModelProviderEntry,
 } from '../../shared/wire/host.ts'
 
-/** 给刚建好、还没发消息的会话装上的：模型、权限（都可缺）。 */
+/** 给刚建好、还没发消息的会话装上的：标题、模型、权限（都可缺）。 */
 export interface PrepareChoice {
+  title?: string
   model?: ModelChoice
   permission?: string
 }
@@ -59,7 +60,7 @@ export interface SessionPort {
   }): Promise<{ session: string; fallbacks: ChoiceFallback[] }>
   /** 把一条用户消息发进会话：空闲就开一轮，正在跑就排在后面。会话不在就抛错。 */
   send(session: string, text: string): Promise<void>
-  /** 给刚建好、还没发消息的会话装上模型、设好权限（画布「执行」：会话在前端建）。用不上的回退默认，不抛。 */
+  /** 给刚建好、还没发消息的会话起标题、装上模型、设好权限（画布「执行」：会话在前端建）。用不上的回退默认，不抛。 */
   prepare(session: string, choice: PrepareChoice): Promise<ChoiceFallback[]>
   /** 能选的预设、模型、权限；给了 `session` 就拿它试一下能不能只给一个会话换模型。 */
   catalog(session?: string): Promise<HostAgentsResponse>
@@ -370,6 +371,10 @@ export function createSessionPort(ctx: Context): SessionPort {
     async prepare(session, choice) {
       const sessions = controller()
       if (sessions === undefined) return unreached(choice, '会话服务不在')
+      // 标题只是给人认的，改不成不影响执行。
+      if (choice.title !== undefined) {
+        await sessions.rename({ sessionId: session, title: choice.title }).catch(() => {})
+      }
       return install(sessions, session, choice)
     },
 

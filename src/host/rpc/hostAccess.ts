@@ -72,8 +72,10 @@ export async function dispatchHost(
       if (input.model !== undefined && model === undefined)
         return fail('invalid_args', 'model 要有 provider 和 model')
       const permission = optionalString(input, 'permission')
+      const title = optionalString(input, 'title')
       return ok({
         fallbacks: await deps.sessions.prepare(requireString(input, 'session'), {
+          ...(title === undefined || title.trim() === '' ? {} : { title }),
           ...(model === undefined ? {} : { model }),
           ...(permission === undefined || permission === '' ? {} : { permission }),
         }),

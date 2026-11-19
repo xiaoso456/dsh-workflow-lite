@@ -56,16 +56,16 @@ export function useAgentCatalog(
 }
 
 /**
- * 给刚建好、还没发消息的会话装上模型、设好权限；回没用上的那几项。
- * 调用本身出错（插件旧、连接断了）也不挡发消息：当作没装上，照默认发。
+ * 给刚建好、还没发消息的会话起标题、装上模型、设好权限；回没用上的那几项。
+ * 调用本身出错（插件旧、连接断了）也不挡发消息：当作没装上，照默认发（标题没改成不算回退）。
  */
 export async function prepareSession(
   rpc: WorkflowLiteRpc,
   session: string,
-  choice: { model?: ModelChoice; permission?: string },
+  choice: { title?: string; model?: ModelChoice; permission?: string },
 ): Promise<ChoiceFallback[]> {
-  const { model, permission } = choice
-  if (model === undefined && permission === undefined) return []
+  const { title, model, permission } = choice
+  if (title === undefined && model === undefined && permission === undefined) return []
   try {
     return (await rpc.call('host/prepareSession', { session, ...choice })).fallbacks
   } catch (error) {
@@ -78,7 +78,8 @@ export async function prepareSession(
 }
 
 /**
- * 「执行」新建会话：带上工作流设的预设建会话（这台机器上用不了就不带、记一条），建好后、发消息前装上模型、设好权限。
+ * 「执行」新建会话：带上工作流设的预设建会话（这台机器上用不了就不带、记一条），建好后、发消息前起好标题
+ * （`title`，给了才改；不改 DSH 会拿第一条消息自动起）、装上模型、设好权限。
  * 回新会话、没用上的那几项、要记进实例来源的那份（什么都没设时没有），和读到的清单（拼提示时写名字用；
  * 没读到是 `null`）。什么都没设时不读清单。
  */
@@ -87,6 +88,7 @@ export async function openChosenSession(
   here: string | undefined,
   choice: SessionChoice,
   create: (preset: string | undefined) => Promise<string>,
+  title?: string,
 ): Promise<{
   session: string
   fallbacks: ChoiceFallback[]
@@ -103,6 +105,7 @@ export async function openChosenSession(
   const session = await create(preset)
   fallbacks.push(
     ...(await prepareSession(rpc, session, {
+      ...(title === undefined ? {} : { title }),
       ...(choice.model === undefined ? {} : { model: choice.model }),
       ...(choice.permission === undefined ? {} : { permission: choice.permission }),
     })),

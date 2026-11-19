@@ -3,7 +3,7 @@
  * 中间一条线（`--line`，和画布同色），下面是最近几次执行。选中的卡片、行只有同色细边和淡底，不发光。
  */
 
-/* ── 设置行：像下拉框的按钮 ─────────────────────────────────── */
+/* ── 设置行：下拉框（框、悬停、焦点和别处的下拉同一套：ui.input，箭头打开时转半圈） ── */
 
 .picker {
   display: flex;
@@ -11,26 +11,19 @@
   align-items: center;
   gap: 10px;
   min-width: 0;
-  height: 32px;
-  padding: 0 10px 0 11px;
-  border: 1px solid var(--wl-line-strong);
-  border-radius: var(--wl-r-control);
-  background: var(--wl-fill);
   color: var(--wl-text-3);
-  font: inherit;
   text-align: left;
   cursor: pointer;
-  transition: border-color 120ms linear;
 }
 
-.picker:hover,
-.picker[aria-expanded="true"] {
-  border-color: color-mix(in oklab, var(--wl-kind) 55%, var(--wl-line-strong));
+/* 用鼠标点开、选完焦点回来时不描强调色的框（同 Select）；键盘走到这里照样有焦点环。 */
+.picker:focus:not(:focus-visible) {
+  border-color: transparent;
+  background: var(--wl-fill);
 }
 
-.picker:focus-visible {
-  outline: 2px solid var(--wl-accent);
-  outline-offset: 1px;
+.picker:hover:focus:not(:focus-visible) {
+  background: var(--wl-fill-strong);
 }
 
 .pickerName {
@@ -98,10 +91,18 @@
 .picker > svg {
   flex: none;
   margin-left: auto;
+  color: var(--wl-text-3);
+  transition: transform 180ms var(--wl-ease-out);
 }
 
+.picker[aria-expanded="true"] > svg {
+  transform: rotate(180deg);
+}
+
+/* 浮层和下拉菜单一样贴近、留一圈小内边距（行是圆角的，不贴边）。 */
 .pop {
-  padding: 0;
+  top: calc(100% + 4px);
+  padding: 4px;
 }
 
 /* 「结果」旁「?」里的说明：一项一行，选项名一列对齐。 */
@@ -403,7 +404,7 @@
   font-size: var(--wl-fs-meta);
 }
 
-/* ── 工作流列表（下拉里） ───────────────────────────────────── */
+/* ── 工作流列表（下拉里）：搜索框、空行用菜单的那套（ui.menuSearch / menuEmpty），行照 ui.menuItem 画 ── */
 
 .list {
   display: flex;
@@ -411,59 +412,56 @@
   overflow: hidden;
 }
 
-.search {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 36px;
-  padding: 0 12px;
-  border-bottom: 1px solid var(--wl-line);
-  color: var(--wl-text-3);
-}
-
-.searchInput {
-  flex: 1 1 auto;
-  min-width: 0;
-  padding: 0;
-  border: 0;
-  outline: none;
-  background: transparent;
-  color: var(--wl-text);
-  font: inherit;
-  font-size: var(--wl-fs-meta);
-}
-
 .rows {
-  max-height: 200px;
+  max-height: 210px;
   overflow-y: auto;
+  overscroll-behavior: contain;
   scrollbar-width: thin;
 }
 
+/*
+ * 一行 = 选它的整行按钮 + 行尾的卡片数或「去打开」，所以底色画在行上（按钮里不能再套按钮），和菜单项同样子：
+ * 圆角、悬停垫一层（::before），选中是强调色淡底（::after，换选中时交叉淡）。选不了的行悬停不垫。
+ */
 .row {
   position: relative;
   display: flex;
   align-items: center;
   gap: 6px;
-  height: 38px;
-  padding-right: 12px;
+  height: 34px;
+  padding-right: 8px;
+  border-radius: var(--wl-r-control);
 }
 
-.row + .row {
-  border-top: 1px solid var(--wl-line);
-}
-
-/* 选中这一行：淡底（::before，交叉淡），不换边框。和别处的下拉一样用强调色，和那枚钩同一个颜色。 */
-.row::before {
+.row::before,
+.row::after {
   position: absolute;
   inset: 0;
-  background: var(--wl-accent-soft);
+  border-radius: inherit;
   content: "";
   opacity: 0;
-  transition: opacity 140ms linear;
   pointer-events: none;
 }
 
+.row::before {
+  background: var(--wl-hover);
+  transition: opacity 120ms linear;
+}
+
+.row[data-usable="true"]:hover::before {
+  opacity: 1;
+}
+
 .row[data-on="true"]::before {
+  display: none;
+}
+
+.row::after {
+  background: var(--wl-accent-soft);
+  transition: opacity 140ms linear;
+}
+
+.row[data-on="true"]::after {
   opacity: 1;
 }
 
@@ -476,13 +474,14 @@
   align-items: center;
   min-width: 0;
   height: 100%;
-  padding: 0 0 0 12px;
+  padding: 0 0 0 8px;
   border: 0;
   background: transparent;
   color: inherit;
   font: inherit;
   text-align: left;
   cursor: pointer;
+  border-radius: inherit;
   outline: 2px solid transparent;
   outline-offset: -2px;
 }
@@ -553,6 +552,12 @@
   cursor: pointer;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .picker > svg {
+    transition: none;
+  }
+}
+
 .enable:hover:not(:disabled) {
   text-decoration: underline;
 }
@@ -561,19 +566,6 @@
 .enable:disabled {
   color: var(--wl-text-3);
   cursor: default;
-}
-
-.empty {
-  margin: 0;
-  padding: 12px;
-  color: var(--wl-text-3);
-  font-size: var(--wl-fs-meta);
-}
-
-:global([data-look="swiss"]) .picker {
-  border-width: 0 0 1px;
-  border-radius: 0;
-  background: transparent;
 }
 
 :global([data-look="swiss"]) .run + .run {

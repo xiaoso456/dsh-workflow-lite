@@ -31,6 +31,7 @@ import { Icon } from '../../kit/Icon.tsx'
 import { WHEN_COLOR } from '../../kit/lineColors.ts'
 import { Popover } from '../../kit/Popover.tsx'
 import { Segmented } from '../../kit/Segmented.tsx'
+import ui from '../../kit/ui.module.css'
 import { REDUCED } from '../../motion/shared.ts'
 import { FadeStack, Staged } from '../../motion/stage.tsx'
 import { SwapRoll, SwapText } from '../../motion/swapText.tsx'
@@ -42,7 +43,7 @@ import { StageRow, StageRows } from './StageRow.tsx'
 
 type After = Extract<TriggerSource, { kind: 'after' }>
 
-/** 点了一行之后等多久再收起列表：选中的淡底从旧行淡到新行的时长（同 after.module.css 的 `.row::before`）。 */
+/** 点了一行之后等多久再收起列表：选中的淡底从旧行淡到新行的时长（同 after.module.css 的 `.row::after`）。 */
 const PICK_HOLD_MS = 140
 
 const RESULTS: readonly { value: AfterWhen; label: LocaleKey; line: 'pass' | 'fail' | 'always' }[] =
@@ -321,7 +322,7 @@ function WorkflowPicker(props: {
           <button
             ref={button}
             type="button"
-            className={css.picker}
+            className={cx(ui.input, css.picker)}
             aria-haspopup="dialog"
             aria-expanded={open}
             data-empty={picked === undefined}
@@ -502,10 +503,10 @@ function WorkflowList(props: {
     needle === '' ? choices : choices.filter((item) => item.name.toLowerCase().includes(needle))
   return (
     <div className={css.list} data-testid="wl-trigger-after">
-      <label className={css.search}>
+      <label className={ui.menuSearch}>
         <Icon name="search" size={13} />
         <input
-          className={css.searchInput}
+          className={ui.menuSearchInput}
           value={query}
           placeholder={t('trigger.afterSearch')}
           aria-label={t('trigger.afterSearch')}
@@ -526,7 +527,7 @@ function WorkflowList(props: {
             onPick={() => props.onPick(item.name)}
           />
         ))}
-        <p className={css.empty} hidden={shown.length > 0}>
+        <p className={ui.menuEmpty} hidden={shown.length > 0}>
           {choices.length === 0 ? t('trigger.afterEmpty') : t('trigger.afterNoMatch')}
         </p>
       </div>
@@ -548,7 +549,12 @@ function WorkflowRow(props: {
   const busy = enabling.busy === item.name
   const usable = item.runState || props.on
   return (
-    <div className={css.row} data-on={props.on} data-off={!item.runState || undefined}>
+    <div
+      className={css.row}
+      data-on={props.on}
+      data-off={!item.runState || undefined}
+      data-usable={usable}
+    >
       <button
         type="button"
         role="radio"

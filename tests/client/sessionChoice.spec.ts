@@ -271,6 +271,17 @@ describe('「执行」新建会话', () => {
     expect(quiet.calls).toEqual([])
   })
 
+  it('给了标题：什么都没设也交给 host/prepareSession 起好标题，不读清单；改不成不算回退', async () => {
+    const { rpc, calls } = fakeRpc(CATALOG, async () => ({ fallbacks: [] }))
+    await openChosenSession(rpc, 'here-6', {}, async () => 'new-6', '日报 · 手动 · 11-19 20:20')
+    expect(calls).toEqual([
+      'host/prepareSession {"session":"new-6","title":"日报 · 手动 · 11-19 20:20"}',
+    ])
+    const broken = fakeRpc(CATALOG, () => Promise.reject(new Error('连接断了')))
+    const opened = await openChosenSession(broken.rpc, 'here-7', {}, async () => 'new-7', 't')
+    expect(opened.fallbacks).toEqual([])
+  })
+
   it('设了权限：建好后连同模型一起交给 host/prepareSession；调用出错记成没设上', async () => {
     const { rpc, calls } = fakeRpc(CATALOG, async () => ({ fallbacks: [] }))
     await openChosenSession(rpc, 'here-4', { permission: 'team' }, async () => 'new-4')

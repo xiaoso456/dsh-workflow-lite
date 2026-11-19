@@ -41,6 +41,7 @@ function fakeDsh(options: {
   const created: Record<string, unknown>[] = []
   const selected: unknown[] = []
   const permitted: { session: unknown; name: string }[] = []
+  const renamed: { sessionId: string; title: string }[] = []
   const warnings: string[] = []
   const session = { id: 's1' }
   const permissionPresets = {
@@ -94,7 +95,9 @@ function fakeDsh(options: {
             created.push(input)
             return { sessionId: 's1' }
           },
-          rename: async () => undefined,
+          rename: async (input: { sessionId: string; title: string }) => {
+            renamed.push(input)
+          },
           resolveAgent: async () => ({ agent }),
           modelCatalog: async () => ({
             default: { provider: 'acme', model: 'small' },
@@ -124,7 +127,7 @@ function fakeDsh(options: {
       })[name],
     logger: { warn: (message: string) => warnings.push(message) },
   } as unknown as Context
-  return { port: createSessionPort(ctx), created, selected, permitted, session, warnings }
+  return { port: createSessionPort(ctx), created, selected, permitted, renamed, session, warnings }
 }
 
 describe('新建会话时的预设与模型', () => {
@@ -207,6 +210,12 @@ describe('新建会话时的预设与模型', () => {
     expect(dsh.permitted).toEqual([{ session: dsh.session, name: 'read-only' }])
     expect(await dsh.port.prepare('s1', { permission: 'danger-full-access' })).toEqual([])
     expect(dsh.permitted[1]?.name).toBe('danger-full-access')
+  })
+
+  it('给刚建好的会话起标题：画布「执行」新建会话后改成插件定的标题', async () => {
+    const dsh = fakeDsh({})
+    expect(await dsh.port.prepare('s9', { title: '日报 · 手动 · 11-19 20:20' })).toEqual([])
+    expect(dsh.renamed).toEqual([{ sessionId: 's9', title: '日报 · 手动 · 11-19 20:20' }])
   })
 
   it('权限不在能选的里（含只能在会话里切的 auto）：不设，记一条回退', async () => {

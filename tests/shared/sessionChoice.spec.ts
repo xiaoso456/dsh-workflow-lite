@@ -12,7 +12,6 @@ import {
   readSessionAgent,
   readSessionChoice,
   resolveSessionChoice,
-  resolveTriggerChoice,
   sessionAgent,
 } from '../../src/shared/sessionChoice.ts'
 import { DEFAULT_TRIGGER, readTriggerData } from '../../src/shared/trigger.ts'
@@ -123,17 +122,11 @@ describe('运行权限', () => {
     expect(readTriggerData(DEFAULT_TRIGGER).launch).toEqual({ permission: 'danger-full-access' })
   })
 
-  it('触发器新建的会话：卡片、工作流都没写时用完全权限；手动执行照旧跟随 DSH', () => {
-    expect(resolveTriggerChoice(undefined, undefined)).toEqual({
-      permission: 'danger-full-access',
-    })
-    expect(resolveTriggerChoice({}, { permission: 'read-only' })).toEqual({
+  it('卡片没写权限就跟随工作流，工作流也没设就跟随 DSH（不另外兜底成完全权限）', () => {
+    expect(resolveSessionChoice({}, { permission: 'read-only' })).toEqual({
       permission: 'read-only',
     })
-    expect(resolveTriggerChoice({ permission: 'workspace-write' }, undefined)).toEqual({
-      permission: 'workspace-write',
-    })
-    expect(resolveSessionChoice(undefined, undefined)).toEqual({})
+    expect(resolveSessionChoice({}, undefined)).toEqual({})
   })
 
   it('导出不带模型和预设时一起去掉；回退项读得回来', () => {

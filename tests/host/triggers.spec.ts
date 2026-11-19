@@ -29,6 +29,7 @@ import { LATE_MS, TriggerService } from '../../src/host/triggers/service.ts'
 import type { SessionPort } from '../../src/host/triggers/sessions.ts'
 import { approvalOf, cardDataDir, ownerFile, TriggerStore } from '../../src/host/triggers/store.ts'
 import type { InstanceView, RunStatus } from '../../src/shared/runState.ts'
+import { sessionTitle } from '../../src/shared/sessionTitle.ts'
 import type { SessionChoice, TriggerData, WorkflowDocument } from '../../src/shared/types.ts'
 import { validateDocument } from '../../src/shared/validate.ts'
 import type { ChoiceFallback } from '../../src/shared/wire/host.ts'
@@ -393,9 +394,9 @@ describe('到点触发', () => {
 
     clock = start + 30 * MINUTE
     await triggers.tick()
-    // 卡片、工作流都没设权限：触发器新建的会话用完全权限。
+    // 标题是「工作流 · 卡片名 · 触发时刻」；卡片、工作流都没设什么：跟随 DSH 的默认。
     expect(opened).toEqual([
-      { cwd: workspace, title: 'patrol · 巡检', choice: { permission: 'danger-full-access' } },
+      { cwd: workspace, title: sessionTitle('patrol', '巡检', new Date(clock)), choice: {} },
     ])
     expect(sent).toHaveLength(1)
     const [fire] = await triggers.history('patrol')
@@ -463,7 +464,7 @@ describe('到点触发', () => {
     })
   })
 
-  it('卡片没设权限时跟随工作流设的，不用触发器的缺省', async () => {
+  it('卡片没设权限时跟随工作流设的', async () => {
     await saveGraph('patrol', {}, true, { permission: 'read-only' })
     const triggers = service()
     await triggers.set({ workflow: 'patrol', node: 'tick', enabled: true, workspace })
@@ -901,7 +902,6 @@ describe('实例记下的来源', () => {
       channel: 'now',
       trigger: { id: 'tick', name: '巡检' },
       firedAt: fire.at,
-      agent: { permission: 'danger-full-access' },
       note: '只看 src/',
       info: '磁盘 91%',
     })
@@ -929,7 +929,6 @@ describe('实例记下的来源', () => {
     )
     expect((await view(id)).origin?.agent).toEqual({
       model: { provider: 'acme', model: 'big' },
-      permission: 'danger-full-access',
       fallbacks: [{ kind: 'model', provider: 'acme', model: 'big' }],
     })
   })

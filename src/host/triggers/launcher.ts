@@ -14,11 +14,13 @@
  */
 
 import { sessionAgent } from '../../shared/sessionChoice.ts'
+import { sessionTitle } from '../../shared/sessionTitle.ts'
 import {
   type FireChannel,
   type LaunchSettings,
   launchOf,
   reachedLimit,
+  sourceBrief,
 } from '../../shared/trigger.ts'
 import type { SessionAgent } from '../../shared/types.ts'
 import type { ChoiceFallback } from '../../shared/wire/host.ts'
@@ -210,7 +212,11 @@ export class Launcher {
     try {
       ;({ session, fallbacks } = await this.sessions.open({
         cwd: local.workspace,
-        title: `${detail.record.workflow} · ${detail.record.name}`,
+        title: sessionTitle(
+          detail.record.workflow,
+          trigger.data.label ?? sourceBrief(trigger.data.source),
+          new Date(detail.record.at),
+        ),
         choice: trigger.choice,
       }))
     } catch (error) {

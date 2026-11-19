@@ -549,6 +549,19 @@ export function sourceText(source: TriggerSource): string {
   return '收到一个 HTTP 请求'
 }
 
+/** 触发方式的简述（卡片没起名时放进新会话的标题）：「每天 09:00」「监视程序」「「夜间巡检」失败后」。 */
+export function sourceBrief(source: TriggerSource): string {
+  if (source.kind === 'schedule') {
+    return source.check === undefined ? scheduleText(source.schedule) : '定时检查'
+  }
+  if (source.kind === 'listen') return '监视程序'
+  if (source.kind === 'after') {
+    const when = { done: '成功', failed: '失败', any: '结束' }[afterWhen(source)]
+    return `「${source.workflow}」${when}后`
+  }
+  return '收到 HTTP 请求'
+}
+
 /**
  * 关键字这一关：有「包含」时要命中其中一个，命中任何一个「不包含」就不触发。大小写不敏感。
  * @returns 过不去的原因；过得去是 `null`。
