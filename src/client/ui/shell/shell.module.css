@@ -119,8 +119,26 @@
   --wl-c-olive: light-dark(var(--wl-l-c-olive), var(--wl-d-c-olive));
   --wl-c-violet: light-dark(var(--wl-l-c-violet), var(--wl-d-c-violet));
   --wl-c-slate: light-dark(var(--wl-l-c-slate), var(--wl-d-c-slate));
-  /* 记忆（步骤卡上的开关、记忆卡的签）：借色板里的琥珀，和七种线色都不撞。 */
-  --wl-memory: var(--wl-c-amber);
+  /*
+   * 记忆（步骤卡上的开关、记忆卡、工作流中心的「记忆」页）：借色板里的青。记忆是被步骤读进去的，和青色的「读取」线同一族；
+   * 暖色留给触发（闪电配金色是现实里就有的联想），两样不同的东西不共用一个颜色。
+   */
+  --wl-memory: var(--wl-c-teal);
+
+  /*
+   * 触发（各处的闪电：画布卡片的角标、步骤库、工作流中心「触发」页、立即触发一次、切换下拉里的小闪电）：借色板里的琥珀。
+   * - `--wl-trigger` 当字、线条图标的颜色（和色板一样在面板上过 4.5:1）；
+   * - `--wl-trigger-fill` 是实心圆标的底：亮色档的琥珀为文字压成了棕，做实心发闷，提亮一档（同 --wl-warn-dot 的做法）；
+   * - `--wl-trigger-on` 是实心底上的闪电：深色（琥珀底上白色看不清）。
+   * 触发卡片自己的状态小标（等待中、监听中）不跟着变，仍是状态色。
+   */
+  --wl-trigger: var(--wl-c-amber);
+  --wl-trigger-fill: light-dark(#e9a21c, var(--wl-d-c-amber));
+  --wl-trigger-on: light-dark(#2e1d00, #241700);
+  --wl-trigger-soft: light-dark(
+    color-mix(in srgb, var(--wl-l-c-amber) 12%, transparent),
+    color-mix(in srgb, var(--wl-d-c-amber) 16%, transparent)
+  );
 
   /* 输入节点：用户的话，用一档中性的墨色（和七种线色都不撞，见 lines.ts）。 */
   --wl-io-ask: light-dark(var(--wl-l-ask), var(--wl-d-ask));
@@ -278,6 +296,10 @@
   .root {
     --wl-warn-dot: light-dark(oklch(from var(--wl-l-warn) 0.74 calc(c * 1.3) h), var(--wl-d-warn));
     --wl-ok-dot: light-dark(oklch(from var(--wl-l-ok) 0.68 calc(c * 1.3) h), var(--wl-d-ok));
+    --wl-trigger-fill: light-dark(
+      oklch(from var(--wl-l-c-amber) 0.78 calc(c * 1.3) h),
+      var(--wl-d-c-amber)
+    );
   }
 }
 

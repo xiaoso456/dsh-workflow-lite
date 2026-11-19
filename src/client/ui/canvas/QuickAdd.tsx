@@ -191,7 +191,7 @@ export function QuickAdd(props: {
           data-testid="wl-quick-trigger"
           onClick={() => props.onPick({ kind: 'trigger' })}
         >
-          <span className={cx(ui.kind, css.quickKind)} data-color="blue">
+          <span className={cx(ui.kind, css.quickKind)} data-color="amber">
             <Icon name="bolt" size={13} />
           </span>
           <span className={cx(ui.menuLabel, css.quickLabel)}>{t('quick.trigger')}</span>

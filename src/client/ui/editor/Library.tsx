@@ -272,7 +272,7 @@ export function Library(props: {
             <DragOnly
               source={{ kind: 'memory' }}
               mark={
-                <span className={ui.kind} data-color="amber">
+                <span className={ui.kind} data-color="teal">
                   <Icon name="memory" size={15} />
                 </span>
               }
@@ -286,7 +286,7 @@ export function Library(props: {
             <DragOnly
               source={{ kind: 'trigger' }}
               mark={
-                <span className={ui.kind} data-color="blue">
+                <span className={ui.kind} data-color="amber">
                   <Icon name="bolt" size={15} />
                 </span>
               }

@@ -273,7 +273,7 @@ function MemoryList(props: {
             mark={
               <span
                 className={cx(ui.kind, rowMark)}
-                data-color={entry.invalid === true ? 'coral' : 'amber'}
+                data-color={entry.invalid === true ? 'coral' : 'teal'}
               >
                 <Icon name={entry.invalid === true ? 'alert' : 'memory'} size={15} />
               </span>

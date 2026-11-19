@@ -357,7 +357,7 @@
   color: var(--wl-io-ask);
 }
 
-/* 触发卡片的小图标：强调色的闪电。 */
+/* 触发卡片的小图标：触发色的闪电。 */
 .triggerIcon {
   display: grid;
   flex: none;
@@ -365,8 +365,8 @@
   width: 26px;
   height: 26px;
   border-radius: calc(7px * var(--wl-round, 1));
-  background: var(--wl-accent-soft);
-  color: var(--wl-accent-text);
+  background: var(--wl-trigger-soft);
+  color: var(--wl-trigger);
 }
 
 /* 瑞士：分组小标题改成加粗、加宽字距的大写小字（见 shell.module.css 的 data-look）。 */

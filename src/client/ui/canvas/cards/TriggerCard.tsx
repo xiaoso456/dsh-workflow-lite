@@ -56,7 +56,7 @@ export const TriggerCard = memo(function TriggerCard(
       data-testid="wl-trigger"
       data-tip={data.note === '' ? undefined : data.note}
     >
-      {/* 挂在上沿的圆标：开着（等着触发）时是强调色，关着是灰的。 */}
+      {/* 挂在上沿的圆标：开着是琥珀实心，全部暂停是空心描边，关着是灰的。 */}
       <span className={css.badge} aria-hidden="true">
         <Icon name="bolt" size={11} />
       </span>

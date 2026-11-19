@@ -88,7 +88,7 @@ const PLAIN_UI: TypeUi = {
 export const PRESET_UI: Record<ResourcePresetKind, PresetUi> = {
   memory: {
     label: 'preset.memory',
-    color: 'amber',
+    color: 'teal',
     desc: 'preset.memoryDesc',
     icon: 'memory',
     head: (props) => <MemoryInfoField {...props} />,
@@ -114,7 +114,7 @@ export function resourceColor(data: ResourceData): StepColor {
 }
 
 /**
- * 画布上卡片要不要染色：选了颜色、或者是预设（记忆是琥珀色）才染；普通资源没选颜色保持资源卡本来的灰。
+ * 画布上卡片要不要染色：选了颜色、或者是预设（记忆是青色）才染；普通资源没选颜色保持资源卡本来的灰。
  */
 export function resourceTint(data: ResourceData): StepColor | null {
   return isStepColor(data.color) || data.preset !== undefined ? resourceColor(data) : null

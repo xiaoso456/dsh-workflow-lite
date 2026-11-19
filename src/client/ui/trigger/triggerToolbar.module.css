@@ -33,12 +33,10 @@
   background: var(--wl-line-strong);
 }
 
+/* 立即触发：触发色的闪电，悬停垫一层同色的浅底。 */
 .icon {
-  color: var(--wl-text-3);
-}
-
-.icon:hover {
-  color: var(--wl-text);
+  --btn-hover: var(--wl-trigger-soft);
+  color: var(--wl-trigger);
 }
 
 /* 结果写在图标上：发出去了是绿的 ✓，没发出去是红的 ⚠（悬停提示是那句话）。 */

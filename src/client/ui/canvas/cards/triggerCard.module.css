@@ -14,7 +14,10 @@
 
 /*
  * 闪电圆标：和资源卡上沿「交给整个工作流」的小圆标同一种（18px、画布色描边），同样挂在右上。
- * 底是灰的；开着时强调色那层淡进来（只动 opacity）。
+ * 三种样子，叠两层、只动 opacity 换：
+ * - 关着：灰底、浅色闪电；
+ * - 开着：触发色（琥珀）实心底那层淡进来，闪电换深色；
+ * - 全部暂停（开关还开着）：空心，一圈触发色描边、里面是卡片底色，闪电是触发色。
  */
 .badge {
   position: absolute;
@@ -29,20 +32,37 @@
   border-radius: 50%;
   background: var(--wl-text-3);
   color: var(--wl-panel);
+  transition: color 180ms linear;
 }
 
-.badge::before {
+.badge::before,
+.badge::after {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: var(--wl-accent);
   content: "";
   opacity: 0;
   transition: opacity 180ms linear;
 }
 
+.badge::before {
+  background: var(--wl-trigger-fill);
+}
+
+.badge::after {
+  background: var(--wl-panel);
+  box-shadow: inset 0 0 0 1.5px var(--wl-trigger);
+}
+
 .badge > * {
   position: relative;
+  z-index: 1;
+}
+
+.card[data-state="waiting"] .badge,
+.card[data-state="listening"] .badge,
+.card[data-state="elsewhere"] .badge {
+  color: var(--wl-trigger-on);
 }
 
 .card[data-state="waiting"] .badge::before,
@@ -51,7 +71,19 @@
   opacity: 1;
 }
 
-/* 实例视图没有现场：圆标保持强调色，表示「这是一张触发卡片」，不表示开着。 */
+.card[data-state="paused"] .badge {
+  color: var(--wl-trigger);
+}
+
+.card[data-state="paused"] .badge::after {
+  opacity: 1;
+}
+
+/* 实例视图没有现场：圆标保持触发色，表示「这是一张触发卡片」，不表示开着。 */
+.card:not([data-state]) .badge {
+  color: var(--wl-trigger-on);
+}
+
 .card:not([data-state]) .badge::before {
   opacity: 1;
 }
@@ -139,7 +171,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .badge::before {
+  .badge,
+  .badge::before,
+  .badge::after {
     transition: none;
   }
 }

@@ -1,7 +1,7 @@
 /**
  * dsh-workflow-lite — 工作流名字后面的小闪电（WorkflowTriggerMark）。
  *
- * 开着是强调色；全部暂停着、只剩没看过的失败时是浅灰。红点和画布卡片状态小标上的同一个样子。
+ * 开着是触发色（琥珀）；全部暂停着、只剩没看过的失败时是浅灰。红点和画布卡片状态小标上的同一个样子。
  */
 
 .mark {
@@ -12,7 +12,7 @@
   align-items: center;
   /* 红点挂在右上角外面：留出位置，不和后面的东西挨着。 */
   padding-right: 4px;
-  color: var(--wl-accent-text);
+  color: var(--wl-trigger);
   font-size: var(--wl-fs-micro);
   font-weight: 700;
   font-variant-numeric: tabular-nums;

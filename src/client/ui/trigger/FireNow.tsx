@@ -131,7 +131,12 @@ export function useFireNow(props: FireNowProps): {
       <button
         ref={anchorRef}
         type="button"
-        className={cx(ui.btn, ui.small, iconOnly ? ui.icon : ui.soft, props.className)}
+        className={cx(
+          ui.btn,
+          ui.small,
+          iconOnly ? ui.icon : cx(ui.soft, css.fireText),
+          props.className,
+        )}
         disabled={firing}
         aria-expanded={open}
         aria-haspopup="dialog"

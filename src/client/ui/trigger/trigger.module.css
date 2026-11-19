@@ -182,6 +182,11 @@ button.statusSwitch:active {
 }
 
 /* 「立即触发一次」和它的结果。 */
+/* 「立即触发一次」带字的按钮：闪电用触发色，字照旧。 */
+.fireText > svg {
+  color: var(--wl-trigger);
+}
+
 .fireRow {
   display: flex;
   gap: 8px;
