@@ -99,6 +99,11 @@ export class RunService {
     return this.reader.stateOf(id)
   }
 
+  /** 一个工作流最新的实例（接续触发的卡片上看，见 {@link RunReader.newest}）。 */
+  newest(workflow: string): ReturnType<RunReader['newest']> {
+    return this.reader.newest(workflow)
+  }
+
   /** 会话的当前实例 id（没有就 `undefined`）。 */
   currentOf(session: string): Promise<string | undefined> {
     return this.reader.currentOf(session)

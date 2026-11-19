@@ -56,6 +56,8 @@ let defaultShell = ''
 let openError: string | null
 /** 假的实例：接续触发看的「哪些实例结束了」（按工作流）。 */
 let finished: Map<string, FinishedRun[]>
+/** 假的实例：接续触发卡片上看的「等的那个工作流最新的实例」（按工作流）。 */
+let newest: Map<string, { id: string; status?: RunStatus; at: number }>
 /** 假的常驻触发源：记下每一轮该开着的，事件口留给测试自己喂。 */
 let live: { specs: LiveSpec[]; events: RuntimeEvents | undefined; stopped: number }
 
@@ -87,6 +89,7 @@ const watch: RunWatch = {
     }
   },
   stateOf: async (instance) => states.get(instance) ?? null,
+  newest: async (workflow) => newest.get(workflow) ?? null,
 }
 
 /** 模型为这次触发建了实例、运行状态写着 `status`（不给就是没有状态文件）。 */
@@ -184,6 +187,7 @@ beforeEach(async () => {
   openError = null
   live = { specs: [], events: undefined, stopped: 0 }
   finished = new Map()
+  newest = new Map()
 })
 
 afterEach(async () => {
@@ -2050,6 +2054,16 @@ describe('接续触发', () => {
     await saveGraph('patrol', { source: { kind: 'after', workflow: 'patrol' } })
     const self = await enable(triggers)
     expect(!self.ok && self.error.message).toContain('不能等自己')
+  })
+
+  it('卡片上带着等的那个工作流最新的实例；没有实例、没选工作流时不带', async () => {
+    const triggers = await ready()
+    const view = async () => (await triggers.list('patrol')).triggers[0]
+    expect((await view())?.upstream).toBeUndefined()
+    newest.set('build', { id: 'r9', status: 'running', at: clock })
+    expect((await view())?.upstream).toEqual({ id: 'r9', status: 'running', at: clock })
+    await saveGraph('patrol', { source: { kind: 'after', workflow: '' } })
+    expect((await view())?.upstream).toBeUndefined()
   })
 
   it('开着之后等的工作流关了「记录运行状态」：显示设置不对，不触发', async () => {

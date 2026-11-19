@@ -18,6 +18,7 @@ import type { Desktop } from '../../app/desktop.ts'
 import type { SessionBridge } from '../../app/sessions.ts'
 import { useRuns } from '../../app/useRuns.ts'
 import { useWorkflow, type Workflow } from '../../app/useWorkflow.ts'
+import { useWorkflowTriggerMarks } from '../../app/useWorkflowTriggerMarks.ts'
 import type { NS, T } from '../../i18n.ts'
 import { isDirty } from '../../model/editor.ts'
 import { starterGraph } from '../../model/library.ts'
@@ -130,6 +131,7 @@ function Shell(props: {
   const wf = useWorkflow(props.rpc, t)
   const { state, analysis } = wf
   const runs = useRuns(props.rpc, props.session)
+  const triggerMarks = useWorkflowTriggerMarks(props.rpc)
   /** 正在看的工作流实例；`null` = 模板编辑。 */
   const [runId, setRunId] = useState<string | null>(null)
   /** 打开实例时要选中的那一步（工作流中心「在画布上看这一步」）；每次请求一个新对象。 */
@@ -575,6 +577,7 @@ function Shell(props: {
               onSettings={() => setSettingsOpen(true)}
               onVersions={() => setVersionsOpen(true)}
               runs={runs}
+              triggerMarks={triggerMarks}
               onOpenRun={openRun}
               onOpenHub={() => {
                 setHubFocus(null)

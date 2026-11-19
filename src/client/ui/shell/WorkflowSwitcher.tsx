@@ -10,6 +10,7 @@
  * 工作流按分组列出（{@link GroupHead}，可折叠，和工作流中心同款；一张打了几个标签就在几组里各出现一次），
  * 一行写什么和工作流中心的行一个规矩（见 switcherFace.tsx）。
  * 图标块和工作流中心同一套（chrome/KindMark.tsx）。
+ * 有触发卡片开着的工作流，名字后面挂一个小闪电（{@link WorkflowTriggerMark}；开着几张、全部暂停、没看过的失败），打开下拉时重读。
  * 双击顶栏上的名字、或刚新建好时，名字就地变成输入框改正开着的这张。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/shell/WorkflowSwitcher
@@ -21,6 +22,7 @@ import { useListDensity } from '../../app/listDensity.ts'
 import { useListView } from '../../app/listView.ts'
 import type { Runs } from '../../app/useRuns.ts'
 import type { Workflow } from '../../app/useWorkflow.ts'
+import type { WorkflowTriggerMarks } from '../../app/useWorkflowTriggerMarks.ts'
 import type { T } from '../../i18n.ts'
 import { groupId, type ListGroup } from '../../model/listView.ts'
 import { claimRowKey, forgetRowKey, type RowKeys, rowKey } from '../../model/rowKeys.ts'
@@ -34,8 +36,10 @@ import {
   visibleRuns,
 } from '../../model/switcherSearch.ts'
 import { WORKFLOW_SWITCHER_VIEW } from '../../model/workflowList.ts'
+import type { WorkflowTriggerMark as TriggerMark } from '../../model/workflowTriggerMarks.ts'
 import shared from '../chrome/topbar.module.css'
 import { deleteDesc, WorkflowRow } from '../chrome/WorkflowRow.tsx'
+import { WorkflowTriggerMark } from '../chrome/WorkflowTriggerMark.tsx'
 import { FilterChip, HubSearch } from '../hub/HubSearch.tsx'
 import { GroupHead } from '../hub/list/GroupedList.tsx'
 import { ViewMenu } from '../hub/list/ViewMenu.tsx'
@@ -67,6 +71,8 @@ export interface WorkflowSwitcherProps {
   wf: Workflow
   /** 本会话的工作流实例（下拉里「本会话的实例」那一段）。 */
   runs: Runs
+  /** 哪几张工作流有触发开着（名字后面的小闪电）。 */
+  triggerMarks: WorkflowTriggerMarks
   onOpenRun(id: string): void
   /** 打开一张工作流：模板编辑里切图，实例视图里先回到模板编辑再切。 */
   onOpenWorkflow(name: string): void
@@ -232,6 +238,7 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
               setSeenTimes(new Map(workflows.map((entry) => [entry.name, entry.updatedAt])))
               void wf.refreshCatalog()
               void props.runs.refresh()
+              props.triggerMarks.refresh()
             }}
             onDoubleClick={() => {
               if (inRun || state.name === null) return
@@ -380,6 +387,7 @@ export function WorkflowSwitcher(props: WorkflowSwitcherProps): React.JSX.Elemen
                 needle={needle}
                 sub={face.sub}
                 end={face.end}
+                mark={triggerMark(t, props.triggerMarks.marks.get(entry.name))}
                 busy={remove.open && doomed?.key === row.key}
                 deleteRef={doomed?.key === row.key ? remove.anchorRef : undefined}
                 onOpen={(event) => {
@@ -587,4 +595,9 @@ function NameInput(props: {
       />
     </span>
   )
+}
+
+/** 名字后面的小闪电；不用标是 `undefined`。 */
+function triggerMark(t: T, mark: TriggerMark | undefined): React.ReactNode {
+  return mark === undefined ? undefined : <WorkflowTriggerMark t={t} mark={mark} />
 }

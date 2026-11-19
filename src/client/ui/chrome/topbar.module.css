@@ -154,6 +154,20 @@
   height: var(--row-icon, 12px);
 }
 
+/* 名字和贴在后面的小记号：名字先省略，记号不被挤掉。 */
+.rowName {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.rowNameText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* 标准行高：名字一行、下面一行灰色小字，各 16 高（和工作流中心的标准行一样）。 */
 .rowText {
   display: flex;

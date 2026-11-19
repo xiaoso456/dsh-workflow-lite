@@ -82,14 +82,14 @@ export const TriggerCard = memo(function TriggerCard(
         )}
       </div>
       {env === null ? (
-        <TriggerGlanceRow glance={data.glance} view={view} />
+        <TriggerGlanceRow t={data.t} glance={data.glance} view={view} />
       ) : (
         <GlanceButton
           label={data.t('trigger.editWhen')}
           armed={selected}
           onPress={() => env.editSource(id)}
         >
-          <TriggerGlanceRow glance={data.glance} view={view} />
+          <TriggerGlanceRow t={data.t} glance={data.glance} view={view} />
         </GlanceButton>
       )}
       {selected && env !== null && <TriggerToolbar t={data.t} env={env} node={id} />}

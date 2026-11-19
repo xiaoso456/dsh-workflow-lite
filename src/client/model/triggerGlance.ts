@@ -5,7 +5,7 @@
  * - 定时检查：规则 + 什么时候算满足，「每隔」的底边一条进度到下一次检查；
  * - 监听：要跑的命令，跑起来之后换成它最近打出的一行；
  * - HTTP：`POST` + 地址（打开过开关才有）；
- * - 接续：等哪个工作流 → 什么结果。
+ * - 接续：等哪个工作流（前面一颗点是它最新的实例的状态）┈┈→ 什么结果之后。
  *
  * 这里只算图里写着的那部分（字已按语言取好）；本机现场（最近一行、地址、下一次检查）由卡片从现场读。
  * 纯函数，不碰界面。
@@ -38,7 +38,8 @@ export type TriggerGlance =
   | { shape: 'listen'; command: string }
   /** HTTP：还没有地址时说的话（有了地址卡片自己换）。 */
   | { shape: 'http'; idle: string }
-  | { shape: 'after'; workflow: string; when: string }
+  /** 接续：等的工作流、哪种结果之后（`outcome` 给线和字上色）。 */
+  | { shape: 'after'; workflow: string; outcome: AfterWhen; when: string }
   /** 还没填好（没选工作流、没写命令）：只说缺什么。 */
   | { shape: 'empty'; text: string }
 
@@ -49,9 +50,9 @@ const CHECK_WHEN: Record<CheckWhen, LocaleKey> = {
 }
 
 const AFTER_WHEN: Record<AfterWhen, LocaleKey> = {
-  done: 'trigger.afterWhen.done',
-  failed: 'trigger.afterWhen.failed',
-  any: 'trigger.afterWhen.any',
+  done: 'trigger.afterGlance.done',
+  failed: 'trigger.afterGlance.failed',
+  any: 'trigger.afterGlance.any',
 }
 
 /** 卡片上的速览（只看图里写的）。 */
@@ -92,9 +93,11 @@ export function triggerGlance(t: T, source: TriggerSource): TriggerGlance {
     }
     case 'http':
       return { shape: 'http', idle: t('trigger.glance.httpIdle') }
-    case 'after':
+    case 'after': {
       if (source.workflow === '') return { shape: 'empty', text: t('trigger.rule.afterNone') }
-      return { shape: 'after', workflow: source.workflow, when: t(AFTER_WHEN[afterWhen(source)]) }
+      const outcome = afterWhen(source)
+      return { shape: 'after', workflow: source.workflow, outcome, when: t(AFTER_WHEN[outcome]) }
+    }
   }
 }
 

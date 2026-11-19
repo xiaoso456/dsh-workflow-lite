@@ -77,6 +77,18 @@ export function useFireSeen(workflow: string, node: string): [number, (at: numbe
   return [seen, mark]
 }
 
+/** 所有卡片看到哪儿了（一页一份；按 {@link seenOf} 查）：要同时看很多张时用，哪张记了一笔都会换一份。 */
+export type FiresSeen = Readonly<Record<string, number>>
+
+export function useFiresSeen(): FiresSeen {
+  return useSyncExternalStore(subscribe, current)
+}
+
+/** 在 {@link useFiresSeen} 那一份里查这张卡片看到哪儿了（没看过是 0）。 */
+export function seenOf(seen: FiresSeen, workflow: string, node: string): number {
+  return seen[keyOf(workflow, node)] ?? 0
+}
+
 /** 有没有还没看过的失败：最近一次失败比看到的那一条新。 */
 export function hasUnseenFailure(lastFailure: number | undefined, seen: number): boolean {
   return lastFailure !== undefined && lastFailure > seen

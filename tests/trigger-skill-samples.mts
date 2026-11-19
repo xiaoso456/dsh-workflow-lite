@@ -57,7 +57,11 @@ const triggers = new TriggerService({
     catalog: async () => ({ presets: [], providers: [], failures: [], modelSelectable: null }),
   },
   listen: () => ({ host: '127.0.0.1', port: 3999 }),
-  runs: { finished: async () => ({ runs: [], ids: [] }), stateOf: async () => null },
+  runs: {
+    finished: async () => ({ runs: [], ids: [] }),
+    stateOf: async () => null,
+    newest: async () => null,
+  },
 })
 const run = createWorkflowLiteHandler({
   repository,

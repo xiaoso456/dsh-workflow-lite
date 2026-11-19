@@ -136,6 +136,17 @@ export interface TriggerView {
   runState?: true
   /** 所在工作流设置里写的预设、模型（卡片上「跟随工作流」时用的就是它）；都没写不给。 */
   workflowChoice?: SessionChoice
+  /** 接续触发：等的那个工作流最新的实例现在怎样（选了工作流、它有实例时才给）。 */
+  upstream?: TriggerUpstream
+}
+
+/** 接续触发等的那个工作流最新的实例。 */
+export interface TriggerUpstream {
+  id: string
+  /** 整体状态；没记运行状态、读不出来不给。 */
+  status?: RunStatus
+  /** 最近一次动静的时刻（状态文件最后改动的时刻，没有就是建的时刻）。 */
+  at: number
 }
 
 /**

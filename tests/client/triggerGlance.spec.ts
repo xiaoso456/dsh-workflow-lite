@@ -90,7 +90,8 @@ describe('触发卡片的速览', () => {
     expect(triggerGlance(t, { kind: 'after', workflow: '夜间巡检', when: 'failed' })).toEqual({
       shape: 'after',
       workflow: '夜间巡检',
-      when: '失败时',
+      outcome: 'failed',
+      when: '失败',
     })
     expect(triggerGlance(t, { kind: 'after', workflow: '' })).toEqual({
       shape: 'empty',

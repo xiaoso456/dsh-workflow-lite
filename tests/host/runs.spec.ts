@@ -1418,4 +1418,15 @@ describe('结束了的实例（接续触发看的）', () => {
     expect((await runs.stateOf(id))?.status).toBe('done')
     expect(await runs.stateOf('i-nope')).toBeNull()
   })
+
+  it('一个工作流最新的实例：整体状态和最近一次动静的时刻；没有实例是 null', async () => {
+    const compiled = await compileWithRuns()
+    const id = String(compiled.instance)
+    const fresh = await runs.newest('cr')
+    expect(fresh).toMatchObject({ id, status: 'pending' })
+    expect(fresh?.at).toBeGreaterThan(0)
+    await run({ action: 'state', instance: id, status: 'done' }, exec('s1'))
+    expect((await runs.newest('cr'))?.status).toBe('done')
+    expect(await runs.newest('other')).toBeNull()
+  })
 })

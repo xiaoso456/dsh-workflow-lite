@@ -1,0 +1,73 @@
+/**
+ * dsh-workflow-lite — 工作流名字后面的小闪电（WorkflowTriggerMark）。
+ *
+ * 开着是强调色；全部暂停着、只剩没看过的失败时是浅灰。红点和画布卡片状态小标上的同一个样子。
+ */
+
+.mark {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  gap: 1px;
+  align-items: center;
+  /* 红点挂在右上角外面：留出位置，不和后面的东西挨着。 */
+  padding-right: 4px;
+  color: var(--wl-accent-text);
+  font-size: var(--wl-fs-micro);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  animation: markIn 160ms ease-out;
+  transition: color 160ms linear;
+}
+
+.mark[data-tone="quiet"] {
+  color: var(--wl-text-3);
+}
+
+.mark svg {
+  stroke-width: 2.2;
+}
+
+.count {
+  font-family: var(--wl-mono);
+}
+
+.dot {
+  position: absolute;
+  top: -2px;
+  right: -7px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--wl-danger);
+  font-style: normal;
+  opacity: 0;
+  transform: scale(0.4);
+  transition:
+    opacity 140ms linear,
+    transform 140ms ease-in;
+}
+
+.dot[data-on="true"] {
+  opacity: 1;
+  transform: scale(1);
+  transition:
+    opacity 160ms linear,
+    transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes markIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mark,
+  .dot,
+  .dot[data-on="true"] {
+    animation: none;
+    transition: none;
+  }
+}

@@ -163,6 +163,27 @@ export class RunReader {
     return status === undefined ? { at } : { status, at }
   }
 
+  /** 工作流 `workflow` 最新建的那个实例的整体状态与最近一次动静的时刻；没有实例是 `null`。 */
+  async newest(workflow: string): Promise<{ id: string; status?: RunStatus; at: number } | null> {
+    const index = await this.core.store.read()
+    let record: (typeof index.instances)[number] | undefined
+    for (const candidate of index.instances) {
+      if (candidate.workflow !== workflow) continue
+      if (record === undefined || candidate.createdAt > record.createdAt) record = candidate
+    }
+    if (record === undefined) return null
+    let at = record.createdAt
+    if (record.statePath !== undefined) {
+      try {
+        at = (await stat(record.statePath)).mtimeMs
+      } catch {
+        return { id: record.id, at }
+      }
+    }
+    const { status } = await this.core.summarize(record, index, undefined)
+    return status === undefined ? { id: record.id, at } : { id: record.id, status, at }
+  }
+
   /** 会话的当前实例 id（没有就 `undefined`）。 */
   async currentOf(session: string): Promise<string | undefined> {
     return (await this.core.store.read()).current[session]

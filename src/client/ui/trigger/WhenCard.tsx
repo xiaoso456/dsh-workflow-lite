@@ -106,7 +106,7 @@ export function WhenCard(props: {
               data-testid="wl-trigger-when-glance"
               onClick={() => setEditing(true)}
             >
-              <TriggerGlanceRow glance={triggerGlance(t, source)} view={view} />
+              <TriggerGlanceRow t={t} glance={triggerGlance(t, source)} view={view} />
             </button>
             {source.kind === 'http' && (
               <button

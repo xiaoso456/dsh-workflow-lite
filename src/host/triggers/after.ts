@@ -45,6 +45,11 @@ export interface RunWatch {
    * 实例不在了是 `null`。「上次执行未结束时」靠它（见 `runEnd.ts`）。
    */
   stateOf(instance: string): Promise<{ status?: RunStatus; at?: number } | null>
+  /**
+   * 工作流 `workflow` 最新建的那个实例：整体状态（没有状态文件、读不出来不给）和最近一次动静的时刻
+   * （状态文件最后改动的时刻，没有就是建的时刻）。没有实例是 `null`。卡片上「等的那个工作流现在怎样」靠它。
+   */
+  newest(workflow: string): Promise<{ id: string; status?: RunStatus; at: number } | null>
 }
 
 type AfterSource = Extract<TriggerSource, { kind: 'after' }>

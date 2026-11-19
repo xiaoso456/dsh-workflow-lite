@@ -11,6 +11,7 @@
 import { useRef } from 'react'
 import type { Runs } from '../../app/useRuns.ts'
 import type { Workflow } from '../../app/useWorkflow.ts'
+import type { WorkflowTriggerMarks } from '../../app/useWorkflowTriggerMarks.ts'
 import type { LocaleKey, T } from '../../i18n.ts'
 import { isDirty } from '../../model/editor.ts'
 import { Issues } from '../chrome/Issues.tsx'
@@ -54,6 +55,8 @@ export interface TopBarProps {
   onExport(): void
   /** 本会话的工作流实例（下拉里「本会话的实例」那一段）。 */
   runs: Runs
+  /** 哪几张工作流有触发开着（名字下拉里的小闪电）。 */
+  triggerMarks: WorkflowTriggerMarks
   onOpenRun(id: string): void
   onOpenHub(): void
   onOpenWorkflow(name: string): void
@@ -136,6 +139,7 @@ export function TopBar(props: TopBarProps): React.JSX.Element {
           t={t}
           wf={wf}
           runs={props.runs}
+          triggerMarks={props.triggerMarks}
           onOpenRun={props.onOpenRun}
           onOpenWorkflow={props.onOpenWorkflow}
           onNewWorkflow={props.onNewWorkflow}

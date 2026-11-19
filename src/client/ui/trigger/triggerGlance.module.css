@@ -112,23 +112,111 @@
   letter-spacing: 0.02em;
 }
 
-/* 接续：等的那个工作流的名字。 */
-.pill {
+/* 接续：● 名字 ┈┈→ 结果。点用实例的状态色（[data-run-status] 给 --wl-run-fill），没有实例是灰的。 */
+.upstream {
+  position: relative;
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--wl-run-fill, var(--wl-text-3));
+  font-style: normal;
+  transition: background-color 160ms linear;
+}
+
+/* 执行中：一圈往外扩、淡掉（只动 transform / opacity）。 */
+.upstream::after {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--wl-run-fill, var(--wl-text-3));
+  opacity: 0;
+  content: "";
+}
+
+.upstream[data-run-status="running"]::after {
+  animation: upstreamPulse 1.6s ease-out infinite;
+}
+
+@keyframes upstreamPulse {
+  from {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(2.6);
+  }
+}
+
+.flowName {
   flex: 0 1 auto;
   min-width: 0;
-  padding: 1px 6px;
   overflow: hidden;
-  border-radius: calc(5px * var(--wl-round, 1));
-  background: var(--wl-panel);
   color: var(--wl-text);
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.arrow {
+/* 虚线：结果两边各一段，后一段带箭头；按结果上色（成功绿、失败红、结束灰）。 */
+.flowLine {
+  --flow: var(--wl-text-3);
+  position: relative;
+  flex: 1 1 8px;
+  min-width: 8px;
+  height: 0;
+  border-top: 1.5px dashed color-mix(in srgb, var(--flow) 70%, transparent);
+}
+
+.flowLine[data-arrow="true"] {
+  margin-right: 1px;
+}
+
+.flowLine[data-arrow="true"]::after {
+  position: absolute;
+  top: -4.25px;
+  right: -1px;
+  width: 6px;
+  height: 6px;
+  border-top: 1.5px solid var(--flow);
+  border-right: 1.5px solid var(--flow);
+  transform: rotate(45deg);
+  content: "";
+}
+
+/* 线上的结果：只有图标和字，不垫底。 */
+.flowWhen {
+  display: inline-flex;
+  flex: none;
+  gap: 2px;
+  align-items: center;
+  margin-inline: -2px;
+  color: var(--wl-text-2);
+  font-size: var(--wl-fs-micro);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* 箭头的终点：这个工作流（和工作流列表里的工作流图标同一个，不垫底）。 */
+.flowTarget {
   display: grid;
   flex: none;
-  color: var(--wl-text-3);
+  place-items: center;
+  margin-left: -2px;
+  color: var(--wl-accent-text);
+}
+
+.flowLine[data-outcome="done"],
+.flowWhen[data-outcome="done"] {
+  --flow: var(--wl-ok);
+  color: var(--wl-ok);
+}
+
+.flowLine[data-outcome="failed"],
+.flowWhen[data-outcome="failed"] {
+  --flow: var(--wl-danger);
+  color: var(--wl-danger);
 }
 
 /* 监听：收到过输出才亮的小绿点（一直挂着，按属性显隐）。 */
@@ -154,8 +242,13 @@
 
 @media (prefers-reduced-motion: reduce) {
   .glance,
-  .live {
+  .live,
+  .upstream {
     transition: none;
+  }
+
+  .upstream[data-run-status="running"]::after {
+    animation: none;
   }
 }
 
@@ -163,8 +256,4 @@
 :global([data-look="swiss"]) .glance {
   border-block: 1px solid var(--wl-line-strong);
   background: var(--wl-glance-bg, none);
-}
-
-:global([data-look="swiss"]) .pill {
-  box-shadow: 0 0 0 1px var(--wl-line-strong);
 }

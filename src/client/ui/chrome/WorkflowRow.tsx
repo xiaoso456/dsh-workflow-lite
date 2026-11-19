@@ -2,6 +2,7 @@
  * dsh-workflow-lite — 工作流下拉里的一行：点名字打开；改名、删除就在这一行上，不用先切过去。
  *
  * - 图标块和工作流中心同一套（{@link WorkflowKindMark}）；标准行高时名字下面多一行（`sub`），行尾写什么由下拉给（`end`）。
+ * - 名字后面可以跟一个小记号（`mark`，如开着触发的小闪电）：贴着名字，名字太长时名字先省略、记号不挤掉。
  * - 「改名 / 删除」两个小按钮平时藏着，悬停或键盘移到这一行时浮在右端，和行尾那一格换着显示
  *   （同一个位置淡入淡出，名字不挪）；触屏没有悬停，一直显示。
  * - 改名在原行换成输入框，高度不变：回车或点开确认，Esc 取消。
@@ -35,6 +36,8 @@ export interface WorkflowRowProps {
   sub?: React.ReactNode
   /** 行尾那一格。 */
   end: React.ReactNode
+  /** 贴在名字后面的小记号；没有不给。 */
+  mark?: React.ReactNode
   /** 这一行的确认卡开着：按钮保持显示。 */
   busy: boolean
   /** 删除按钮的 ref：确认卡挂在它上面（只有确认卡指着这一行时才给）。 */
@@ -71,13 +74,19 @@ export function WorkflowRow(props: WorkflowRowProps): React.JSX.Element {
           >
             <WorkflowKindMark invalid={entry.invalid === true} className={shared.rowMark} />
             {props.sub === undefined ? (
-              <span className={ui.menuLabel}>
-                <Highlight text={name} needle={props.needle ?? ''} />
+              <span className={cx(ui.menuLabel, shared.rowName)}>
+                <span className={shared.rowNameText}>
+                  <Highlight text={name} needle={props.needle ?? ''} />
+                </span>
+                {props.mark}
               </span>
             ) : (
               <span className={shared.rowText}>
                 <span className={cx(ui.menuLabel, shared.rowLine)}>
-                  <Highlight text={name} needle={props.needle ?? ''} />
+                  <span className={shared.rowNameText}>
+                    <Highlight text={name} needle={props.needle ?? ''} />
+                  </span>
+                  {props.mark}
                 </span>
                 <span className={shared.rowSub}>{props.sub}</span>
               </span>

@@ -69,6 +69,7 @@ import type {
   TriggerShellsResponse,
   TriggerTryRequest,
   TriggerTryResponse,
+  TriggerUpstream,
   TriggerView,
 } from '../../shared/wire/trigger.ts'
 import { ensureDir } from '../store/atomic.ts'
@@ -356,6 +357,17 @@ export class TriggerService {
     if (refused !== null) return fail('blocked', refused)
     if (this.running) this.schedule(0)
     return ok({})
+  }
+
+  /** 接续触发：等的那个工作流最新的实例（卡片上那颗点）。读不到当没有，不耽误卡片别的部分。 */
+  private async upstreamOf(source: TriggerSource): Promise<{ upstream?: TriggerUpstream }> {
+    if (source.kind !== 'after' || source.workflow === '') return {}
+    try {
+      const newest = await this.runs.newest(source.workflow)
+      return newest === null ? {} : { upstream: newest }
+    } catch {
+      return {}
+    }
   }
 
   /**
@@ -765,6 +777,7 @@ export class TriggerService {
         ...(hasSessionChoice(trigger.workflowChoice)
           ? { workflowChoice: trigger.workflowChoice }
           : {}),
+        ...(await this.upstreamOf(source)),
         ...(command === undefined
           ? {}
           : {
