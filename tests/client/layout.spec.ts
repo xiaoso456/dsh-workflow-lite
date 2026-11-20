@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { busPoints, findBuses } from '../../src/client/model/bus.ts'
 import {
   COL_STEP,
   freeSpot,
@@ -10,11 +11,21 @@ import {
   RES_DX,
   RES_H,
   RES_W,
+  TRIGGER_H,
+  TRIGGER_W,
   tidy,
 } from '../../src/client/model/layout.ts'
-import { routeFileLink, STEP_SPOTS, spotOf, writePoints } from '../../src/client/model/route.ts'
+import {
+  FILE_SPOTS,
+  routeFileLink,
+  STEP_SPOTS,
+  spotOf,
+  writePoints,
+} from '../../src/client/model/route.ts'
 import { analyzeGraph } from '../../src/shared/graph.ts'
-import type { Point, WorkflowDocument, WorkflowNode } from '../../src/shared/types.ts'
+import { edgeKind, nodeIndex } from '../../src/shared/resources.ts'
+import { DEFAULT_TRIGGER } from '../../src/shared/trigger.ts'
+import type { Point, WorkflowDocument, WorkflowEdge, WorkflowNode } from '../../src/shared/types.ts'
 
 function graph(
   ids: string[],
@@ -97,6 +108,49 @@ function crosses(a: [number, number], b: [number, number], box: Box): boolean {
     maxY > box.y + pad &&
     minY < box.y + box.h - pad
   )
+}
+
+/** 整理后走总线的读写线（见 model/bus.ts）：线的 id 和它的折线。 */
+function busLines(
+  doc: WorkflowDocument,
+  placed: Record<string, Point>,
+): { id: string; step: string; file: string; points: [number, number][] }[] {
+  const rects = new Map(boxes(doc, placed).map((box) => [box.id, box]))
+  const index = nodeIndex(doc)
+  const buses = findBuses(doc, index, rects)
+  const lines: { id: string; step: string; file: string; points: [number, number][] }[] = []
+  for (const edge of doc.edges) {
+    const kind = edgeKind(index, edge)
+    if (kind !== 'read' && kind !== 'write') continue
+    const [step, file] = kind === 'write' ? [edge.source, edge.target] : [edge.target, edge.source]
+    const bus = buses.get(file)
+    if (bus === undefined || !(kind === 'write' ? bus.writes : bus.reads).has(step)) continue
+    const stepEnd = spotOf(
+      rects.get(step) as Box,
+      STEP_SPOTS[kind === 'write' ? 'fileUp' : 'readTop'],
+    )
+    const fileEnd = spotOf(
+      rects.get(file) as Box,
+      FILE_SPOTS[kind === 'write' ? 'inBus' : 'outBus'],
+    )
+    lines.push({ id: edge.id, step, file, points: busPoints(fileEnd, stepEnd, bus.trunk) })
+  }
+  return lines.sort((a, b) => a.id.localeCompare(b.id))
+}
+
+/** 每条总线都不穿过两头以外的卡片。 */
+function expectClear(doc: WorkflowDocument, placed: Record<string, Point>): void {
+  const all = boxes(doc, placed)
+  for (const line of busLines(doc, placed)) {
+    for (let i = 1; i < line.points.length; i += 1) {
+      for (const box of all.filter((item) => item.id !== line.step && item.id !== line.file)) {
+        expect(
+          crosses(line.points[i - 1] as [number, number], line.points[i] as [number, number], box),
+          `${line.id} 穿过 ${box.id}`,
+        ).toBe(false)
+      }
+    }
+  }
 }
 
 describe('tidy', () => {
@@ -201,29 +255,153 @@ describe('tidy', () => {
     expect((placed.input?.x ?? 0) + RES_W).toBeLessThan(placed.a?.x ?? 0)
   })
 
-  it('只被后面的步骤更新、却被前面的步骤读的（共享台账）：算输入，放在第一个读它的步骤前一列', async () => {
-    const doc = withFiles(
-      ['a', 'b', 'c'],
-      [
-        ['a', 'b'],
-        ['b', 'c'],
-      ],
-      [['ledger', null, 'a']],
-    )
-    doc.edges.push({
-      id: 'c->ledger',
-      source: 'c',
-      target: 'ledger',
+  it('贯穿好几步的文档放在主线上方、第一个用到它的步骤正上方，读写线走总线', async () => {
+    const update = (step: string, file: string): WorkflowEdge => ({
+      id: `${step}->${file}`,
+      source: step,
+      target: file,
       sourceHandle: null,
       targetHandle: null,
       data: { update: true },
     })
+    const chain: [string, string][] = [
+      ['a', 'b'],
+      ['b', 'c'],
+    ]
+    // 更新之前就被读的状态文档。
+    const doc = withFiles(['a', 'b', 'c'], chain, [['ledger', null, 'a']])
+    doc.edges.push(update('c', 'ledger'))
     const placed = await tidy(doc, analyzeGraph(doc))
-    expect((placed.ledger?.x ?? 0) + RES_W).toBeLessThan(placed.a?.x ?? 0)
+    expect(placed.ledger?.x).toBe(placed.a?.x)
+    expect((placed.ledger?.y ?? 0) + RES_H).toBeLessThan(placed.a?.y ?? 0)
+    expect(busLines(doc, placed).map((line) => line.id)).toEqual(['c->ledger', 'ledger->a'])
+    expectClear(doc, placed)
+    // 先产出、后面又有别的步骤更新的档案。
+    const archive = withFiles(['a', 'b', 'c'], chain, [['notes', 'a', 'b']])
+    archive.edges.push(update('c', 'notes'))
+    const laidArchive = await tidy(archive, analyzeGraph(archive))
+    expect((laidArchive.notes?.y ?? 0) + RES_H).toBeLessThan(laidArchive.a?.y ?? 0)
+    expect(busLines(archive, laidArchive)).toHaveLength(3)
+    expectClear(archive, laidArchive)
+    // 没人写、三步都读的规范。
+    const spec = withFiles(['a', 'b', 'c'], chain, [['spec', null, 'a', 'b', 'c']])
+    const laidSpec = await tidy(spec, analyzeGraph(spec))
+    expect((laidSpec.spec?.y ?? 0) + RES_H).toBeLessThan(laidSpec.a?.y ?? 0)
+    expect(busLines(spec, laidSpec)).toHaveLength(3)
     // 后面整份产出它的另算：照旧挂在产出它的步骤下面。
     const made = withFiles(['a', 'b'], [['a', 'b']], [['out', 'b', 'a']])
     const laid = await tidy(made, analyzeGraph(made))
     expect(laid.out?.x).toBe((laid.b?.x ?? 0) + RES_DX)
+    // 只被一步更新、之后才读的：还是挂在那一步下面；只有两步读的：照旧放在前一列。
+    const once = withFiles(['a', 'b'], [['a', 'b']], [['log', null, 'b']])
+    once.edges.push(update('a', 'log'))
+    const kept = await tidy(once, analyzeGraph(once))
+    expect(kept.log?.x).toBe((kept.a?.x ?? 0) + RES_DX)
+    expect(kept.log?.y).toBeGreaterThan(kept.a?.y ?? 0)
+    const pair = withFiles(['a', 'b'], [['a', 'b']], [['ref', null, 'a', 'b']])
+    const laidPair = await tidy(pair, analyzeGraph(pair))
+    expect(laidPair.ref?.x).toBe((laidPair.a?.x ?? 0) - COL_STEP + RES_DX)
+  })
+
+  it('几份贯穿好几步的文档并排一排、底边对齐，不往上叠；各自的总线不穿过别的卡', async () => {
+    const doc = withFiles(
+      ['a', 'b', 'c', 'd'],
+      [
+        ['a', 'b'],
+        ['b', 'c'],
+        ['c', 'd'],
+      ],
+      [
+        ['queue', null, 'a', 'd'],
+        ['archive', null, 'd'],
+      ],
+    )
+    for (const [step, file] of [
+      ['a', 'queue'],
+      ['c', 'queue'],
+      ['b', 'archive'],
+      ['c', 'archive'],
+    ] as const) {
+      doc.edges.push({
+        id: `${step}->${file}`,
+        source: step,
+        target: file,
+        sourceHandle: null,
+        targetHandle: null,
+        data: { update: true },
+      })
+    }
+    const placed = await tidy(doc, analyzeGraph(doc))
+    const queue = placed.queue as Point
+    const archive = placed.archive as Point
+    expect(queue.y).toBe(archive.y)
+    expect(queue.x + RES_W).toBeLessThan(archive.x)
+    expect(busLines(doc, placed)).toHaveLength(7)
+    expectClear(doc, placed)
+  })
+
+  it('主线（最长的一条路）摆成一条直线，跳过几步的分支从旁边绕', async () => {
+    const doc = graph(
+      ['a', 'b', 'c', 'd', 'e'],
+      [
+        ['a', 'b'],
+        ['b', 'c'],
+        ['c', 'd'],
+        ['d', 'e'],
+        ['a', 'e'],
+        ['b', 'e'],
+        ['c', 'e'],
+      ],
+    )
+    const placed = await tidy(doc, analyzeGraph(doc))
+    for (const id of ['b', 'c', 'd', 'e']) expect(placed[id]?.y, id).toBe(placed.a?.y)
+  })
+
+  it('触发卡片放在主线头一个步骤左边、和它摆在一条线上；多了排成几列', async () => {
+    const doc = graph(['a', 'b'], [['a', 'b']])
+    doc.nodes.push({
+      id: 'when',
+      type: 'wfTrigger',
+      position: { x: 0, y: 0 },
+      data: DEFAULT_TRIGGER,
+    })
+    const placed = await tidy(doc, analyzeGraph(doc))
+    const a = placed.a as Point
+    const when = placed.when as Point
+    expect(when.x + TRIGGER_W).toBeLessThan(a.x)
+    expect(Math.abs(when.y + TRIGGER_H / 2 - (a.y + NODE_H / 2))).toBeLessThanOrEqual(1)
+
+    // 十张：往下排、往左开列，不摞成一根长条，也不往主线上面伸。
+    const many = graph(['a', 'b'], [['a', 'b']])
+    for (let i = 0; i < 10; i += 1) {
+      many.nodes.push({
+        id: `t${i}`,
+        type: 'wfTrigger',
+        position: { x: 0, y: 0 },
+        data: DEFAULT_TRIGGER,
+      })
+    }
+    const laid = await tidy(many, analyzeGraph(many))
+    const cards = many.nodes
+      .filter((node) => node.type === 'wfTrigger')
+      .map((node) => laid[node.id] as Point)
+    const columns = new Map<number, number>()
+    for (const card of cards) {
+      expect(card.x + TRIGGER_W).toBeLessThan(laid.a?.x ?? 0)
+      expect(card.y).toBeGreaterThanOrEqual((laid.a?.y ?? 0) - TRIGGER_H)
+      columns.set(card.x, (columns.get(card.x) ?? 0) + 1)
+    }
+    expect(Math.max(...columns.values())).toBe(4)
+    for (const [i, p] of cards.entries()) {
+      for (const q of cards.slice(i + 1)) {
+        expect(
+          overlap(
+            { id: '', x: p.x, y: p.y, w: TRIGGER_W, h: TRIGGER_H },
+            { id: '', x: q.x, y: q.y, w: TRIGGER_W, h: TRIGGER_H },
+          ),
+        ).toBe(false)
+      }
+    }
   })
 
   it('跨好几列的读线不把主线挤歪：一条链仍摆在同一条水平线上', async () => {
@@ -319,7 +497,7 @@ describe('freeSpot / nextTo', () => {
 })
 
 describe('输入卡的位置', () => {
-  it('整图重排：输入卡放在第一个用到它的步骤的前一列；没连的放到版面下方', async () => {
+  it('整图重排：输入卡放在第一个用到它的步骤的前一列；没连的放到左上角', async () => {
     const doc = graph(['a', 'b'], [['a', 'b']])
     doc.nodes.push(
       { id: 'q', type: 'wfInput', position: { x: 0, y: 0 }, data: { question: '问' } },
@@ -332,7 +510,10 @@ describe('输入卡的位置', () => {
     const q = placed.q as Point
     expect(q.x).toBeLessThan(b.x)
     expect(q.x).toBeGreaterThanOrEqual(a.x)
-    expect((placed.loose as Point).y).toBeGreaterThan(Math.max(a.y, b.y, q.y))
+    // 谁都不连的：左上角一排，在整张图上面。
+    const loose = placed.loose as Point
+    expect(loose.x).toBe(Math.min(...Object.values(placed).map((point) => point.x)))
+    expect(loose.y + 56).toBeLessThan(Math.min(a.y, b.y, q.y))
   })
 
   it('补位：模型新加的输入卡挨着读它的步骤、放在左边', async () => {

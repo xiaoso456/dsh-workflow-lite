@@ -36,6 +36,7 @@ import { useCrossfade } from '../../motion/crossfade.ts'
 import css from '../canvas.module.css'
 import { useHandlesMeasured } from '../hooks/useHandlesMeasured.ts'
 import type { CardDisplay, ResourceFlowNode } from '../types.ts'
+import { BusHandles } from './BusHandles.tsx'
 import { tintStyle } from './cardParts.ts'
 import own from './displayCard.module.css'
 
@@ -421,6 +422,7 @@ export function DisplayCard(
         className={cx(css.handle, css.handleOut, css.handleRead)}
         data-tip={data.readText}
       />
+      <BusHandles used={data.used} />
     </div>
   )
 }

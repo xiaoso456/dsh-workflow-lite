@@ -1,6 +1,6 @@
 /**
  * dsh-workflow-lite — 画布上各条线的走法：每条线挂在哪两个连接点上、绕不绕行、并排的线怎么分道、牌子怎么错开，
- * 同一对卡片之间的几条直连流程线怎么拱开。
+ * 同一对卡片之间的几条直连流程线的牌子怎么叠开。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/canvas/flow/buildRoutes
  */
@@ -8,9 +8,10 @@
 import { idKey } from '../../../../shared/model.ts'
 import { edgeKind, nodeIndex } from '../../../../shared/resources.ts'
 import type { Point, WorkflowDocument, WorkflowNode } from '../../../../shared/types.ts'
+import { findBuses } from '../../../model/bus.ts'
 import { cardRect, type SizeTable } from '../../../model/canvasGeometry.ts'
 import { type Chip, nudge, placeChips, type Track } from '../../../model/nudge.ts'
-import { fanBows, type Rect } from '../../../model/route.ts'
+import { type Rect, stackChips } from '../../../model/route.ts'
 import { type Corridor, type EdgeRoute, routeEdge } from '../lines/route.ts'
 import type { LaneShift } from '../types.ts'
 
@@ -46,11 +47,14 @@ export function buildRoutes({ doc, dragging, sized, sizes, routeBase }: RoutesIn
   const bends = new Map<string, [number, number][]>()
   const rects = new Map(doc.nodes.map((node) => [idKey(node.id), rectFor(node)]))
   const boxes = [...rects.values()]
+  // 摆在用到它的几个步骤上方的卡：读写线走总线（见 model/bus.ts）。
+  const buses = findBuses(doc, index, rects)
   /** 直角走的线（走廊线、绕行折线、写线的树干）：挑完路之后统一分道，不同颜色的不叠在一条道上。 */
   const tracks: Track[] = []
   const corridors = new Map<string, Corridor>()
-  /** 直连的流程线按两头的那对卡片归拢：一对之间不止一条的要拱开。 */
+  /** 直连的流程线按两头的那对卡片归拢：一对之间不止一条的画成一条线，牌子叠开。 */
   const bundles = new Map<string, { id: string; rows: number }[]>()
+  const directs = new Map<string, NonNullable<EdgeRoute['direct']>>()
   // 拖卡片时只给碰到的线重新挑路：两头有被拖的卡、或被拖的卡压到了它松手前的走法。
   // 其余的线沿用松手前那一份（被拖的卡离开后它们可能有更短的走法，松手时整张图重挑一次）。
   const movedIds = new Set(Object.keys(dragging).map(idKey))
@@ -69,7 +73,7 @@ export function buildRoutes({ doc, dragging, sized, sizes, routeBase }: RoutesIn
       !movedIds.has(idKey(edge.target)) &&
       (cached === null || !cached.hitBy(moved))
         ? cached
-        : routeEdge(edge, edgeKind(index, edge), rects, boxes)
+        : routeEdge(edge, edgeKind(index, edge), rects, boxes, buses)
     picked.set(edge.id, route)
     if (route === null) continue
     if (route.lane !== undefined) lanes.set(edge.id, route.lane)
@@ -77,6 +81,7 @@ export function buildRoutes({ doc, dragging, sized, sizes, routeBase }: RoutesIn
     if (route.bend !== undefined) bends.set(edge.id, route.bend)
     if (route.track !== undefined) tracks.push(route.track)
     if (route.direct !== undefined) {
+      directs.set(edge.id, route.direct)
       const bundle = bundles.get(route.direct.pair)
       if (bundle === undefined)
         bundles.set(route.direct.pair, [{ id: edge.id, rows: route.direct.rows }])
@@ -120,15 +125,27 @@ export function buildRoutes({ doc, dragging, sized, sizes, routeBase }: RoutesIn
     })
   }
   const labels = placeChips(chips)
-  const bows = new Map<string, number>()
+  // 走廊线从上下拐进一张卡时竖着落下来的那段：两头齐平的直连线，牌子挪到它左边那截空当的正中，不压在竖段上。
+  const legs = new Map<string, number>()
+  for (const [id, corridor] of corridors) {
+    if (corridor.back) continue
+    const x = corridor.left + (shifts.get(id)?.in ?? 0)
+    legs.set(corridor.target, Math.min(legs.get(corridor.target) ?? Infinity, x))
+  }
+  for (const [id, direct] of directs) {
+    const leg = legs.get(direct.target)
+    if (direct.rows === 0 || !direct.flat || leg === undefined) continue
+    if (leg > direct.sx && leg < direct.tx) labels.set(id, (direct.sx + leg) / 2)
+  }
+  const chipShifts = new Map<string, number>()
   for (const bundle of bundles.values()) {
     if (bundle.length < 2) continue
-    const offsets = fanBows(bundle.map((line) => line.rows))
+    const offsets = stackChips(bundle.map((line) => line.rows))
     bundle.forEach((line, at) => {
-      bows.set(line.id, offsets[at] as number)
+      chipShifts.set(line.id, offsets[at] as number)
     })
   }
-  return { handles, used, lanes, bends, shifts, labels, bows }
+  return { handles, used, lanes, bends, shifts, labels, chipShifts }
 }
 
 export type CanvasRoutes = ReturnType<typeof buildRoutes>

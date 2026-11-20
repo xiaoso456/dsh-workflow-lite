@@ -11,12 +11,15 @@ import { edgeWhen } from '../../../../shared/graph.ts'
 import { idKey } from '../../../../shared/model.ts'
 import { type edgeKind, resolveHandoff } from '../../../../shared/resources.ts'
 import type { WorkflowEdge } from '../../../../shared/types.ts'
+import { type Bus, busPoints } from '../../../model/bus.ts'
 import type { HandleLink } from '../../../model/connect.ts'
 import { NODE_H, RES_H } from '../../../model/layout.ts'
 import type { Track } from '../../../model/nudge.ts'
 import {
   bezierBlocked,
+  chipReach,
   FILE_SPOTS,
+  type FileHandle,
   flowBlocked,
   freeLane,
   LOOP_REACH,
@@ -181,6 +184,8 @@ export interface Corridor {
   right: number
   left: number
   back: boolean
+  /** 终点卡片（idKey）。 */
+  target: string
   chip: number | null
 }
 
@@ -193,8 +198,11 @@ export interface EdgeRoute {
   bend?: [number, number][]
   /** 参与分道的直角线。 */
   track?: Track
-  /** 直连的贝塞尔流程线：两头是哪一对卡片（同一对的几条要拱开）、线上挂了几行牌子。 */
-  direct?: { pair: string; rows: number }
+  /**
+   * 直连的贝塞尔流程线：两头是哪一对卡片（同一对的几条画成一条、牌子叠开）、线上挂了几行牌子，
+   * 终点卡片（idKey）和两头的坐标（两头齐平时牌子可以横着挪，让开从上下拐进同一张卡的走廊线）。
+   */
+  direct?: { pair: string; rows: number; target: string; sx: number; tx: number; flat: boolean }
   /** 读写线挂在哪两个连接点上，以及两张卡上各占了哪个点。 */
   handles?: { source: string; target: string }
   marks?: [string, string][]
@@ -202,12 +210,16 @@ export interface EdgeRoute {
   hitBy: (moved: readonly Rect[]) => boolean
 }
 
-/** 挑一条线的走法；两头的卡不在 `rects` 里、或不是要挑路的线时返回 `null`。 */
+/**
+ * 挑一条线的走法；两头的卡不在 `rects` 里、或不是要挑路的线时返回 `null`。
+ * @param buses - 走总线的卡片（idKey）→ 它的干线（见 model/bus.ts 的 `findBuses`）。
+ */
 export function routeEdge(
   edge: WorkflowEdge,
   kind: ReturnType<typeof edgeKind>,
   rects: ReadonlyMap<string, Rect>,
   boxes: readonly Rect[],
+  buses: ReadonlyMap<string, Bus> = NO_BUSES,
 ): EdgeRoute | null {
   if (kind === 'flow') {
     // 往回走的线（终点在出口左边）：挑一条不压到任何卡片的走廊。
@@ -217,21 +229,29 @@ export function routeEdge(
     const sx = from.x + from.w
     const sy = from.y + from.h / 2
     const ty = to.y + to.h / 2
+    const back = to.x < sx + 8
+    const chip = chipWidth(edge, back)
+    // 走廊上挂着牌子：走廊离卡片要远到牌子（连同下面的交接标记）碰不到卡片。
+    const reach = chipReach(chip === null ? 0 : Math.max(1, chipRows(edge)))
     let lane: number | undefined
-    if (to.x >= sx + 8) {
+    if (!back) {
       // 往右走：贝塞尔压到中间的卡片（跨列时常见）才改走直角，挑离终点那一行最近的走廊。
       const ends = [from, to]
       if (flowBlocked(boxes, sx, sy, to.x, ty, ends)) {
-        lane = nearestLane(boxes, sx + LOOP_REACH, to.x - ROUTE_PAD, ty, ends)
+        lane = nearestLane(boxes, sx + LOOP_REACH, to.x - ROUTE_PAD, ty, ends, reach)
       }
     } else {
-      lane = freeLane(boxes, to.x - ROUTE_PAD, sx + LOOP_REACH, laneStart(sy, ty))
+      lane = freeLane(boxes, to.x - ROUTE_PAD, sx + LOOP_REACH, laneStart(sy, ty), reach)
     }
     if (lane === undefined) {
       return {
         direct: {
           pair: JSON.stringify([idKey(edge.source), idKey(edge.target)]),
           rows: chipRows(edge),
+          target: idKey(edge.target),
+          sx,
+          tx: to.x,
+          flat: Math.abs(ty - sy) < 1,
         },
         hitBy: (moved) => flowBlocked(moved, sx, sy, to.x, ty),
       }
@@ -248,8 +268,13 @@ export function routeEdge(
     ]
     return {
       lane,
-      corridor: { right, left, back: to.x < sx + 8, chip: chipWidth(edge, to.x < sx + 8) },
-      track: { id: edge.id, group: `when:${whenKind(edgeWhen(edge))}`, points },
+      corridor: { right, left, back, chip, target: idKey(edge.target) },
+      track: {
+        id: edge.id,
+        group: `when:${whenKind(edgeWhen(edge))}`,
+        points,
+        thick: reach,
+      },
       hitBy: (moved) => pointsBlocked(points, moved, []),
     }
   }
@@ -261,6 +286,18 @@ export function routeEdge(
   const stepBox = rects.get(idKey(stepId))
   const fileBox = rects.get(idKey(fileId))
   if (stepBox === undefined || fileBox === undefined) return null
+  const access =
+    kind === 'ask'
+      ? 'ask'
+      : kind === 'read'
+        ? 'read'
+        : edge.data?.update === true
+          ? 'update'
+          : 'produce'
+  const bus = buses.get(idKey(fileId))
+  if (bus !== undefined && (way === 'write' ? bus.writes : bus.reads).has(idKey(stepId))) {
+    return busRoute(edge.id, way, access, stepId, fileId, stepBox, fileBox, bus.trunk)
+  }
   const route = routeFileLink(way, stepBox, fileBox)
   let stepHandle: StepFileHandle = route.step
   // 平时的走法（写 = 树干直角，读 = 贝塞尔）压到别的卡片时，改走绕开卡片的直角折线；
@@ -294,14 +331,6 @@ export function routeEdge(
     }
   }
   const drawn = bend ?? (blocked ? null : simple)
-  const access =
-    kind === 'ask'
-      ? 'ask'
-      : kind === 'read'
-        ? 'read'
-        : edge.data?.update === true
-          ? 'update'
-          : 'produce'
   return {
     ...(bend === undefined ? {} : { bend }),
     ...(drawn === null ? {} : { track: { id: edge.id, group: `access:${access}`, points: drawn } }),
@@ -315,6 +344,43 @@ export function routeEdge(
     ],
     hitBy: (moved) =>
       drawn !== null ? pointsBlocked(drawn, moved, []) : bezierBlocked(fileEnd, stepEnd, moved, []),
+  }
+}
+
+const NO_BUSES: ReadonlyMap<string, Bus> = new Map()
+
+/**
+ * 总线上的一条读写线：卡片底边的点 ↔ 干线 ↔ 步骤上边的点（见 model/bus.ts）。
+ * 同一张卡、同一种写法的线归成一类（分道时合在一条干线上），别的卡、别的写法的干线分到旁边的道上。
+ */
+function busRoute(
+  id: string,
+  way: 'write' | 'read',
+  access: 'produce' | 'update' | 'read' | 'ask',
+  stepId: string,
+  fileId: string,
+  stepBox: Rect,
+  fileBox: Rect,
+  trunk: number,
+): EdgeRoute {
+  const stepHandle: StepFileHandle = way === 'write' ? 'fileUp' : 'readTop'
+  const fileHandle: FileHandle = way === 'write' ? 'inBus' : 'outBus'
+  const stepEnd = spotOf(stepBox, STEP_SPOTS[stepHandle])
+  const fileEnd = spotOf(fileBox, FILE_SPOTS[fileHandle])
+  const points =
+    way === 'write' ? busPoints(stepEnd, fileEnd, trunk) : busPoints(fileEnd, stepEnd, trunk)
+  return {
+    bend: points,
+    track: { id, group: `bus:${idKey(fileId)}:${access}`, points },
+    handles:
+      way === 'write'
+        ? { source: stepHandle, target: fileHandle }
+        : { source: fileHandle, target: stepHandle },
+    marks: [
+      [stepId, stepHandle],
+      [fileId, fileHandle],
+    ],
+    hitBy: (moved) => pointsBlocked(points, moved, []),
   }
 }
 

@@ -7,10 +7,15 @@
  * - **资源挂在写它的步骤下面**：一个步骤和它写的资源在 ELK 眼里是一整块（步骤卡 + 下面竖着一串
  *   资源卡），块的高度随资源卡的高度变，ELK 按真实高度排，谁也压不到谁；资源卡往右缩进，写线从步骤的
  *   写点竖着落下来、分叉进每张资源卡的左边（见 route.ts），不会穿过任何卡片；
- * - 没人写、只被读的资源单独成块，放在第一个读它的步骤的前一列；只被后面的步骤在原文件上更新、
- *   却被前面的步骤读的（共享的状态文档、台账）也一样——它本来就在，是输入；
+ * - **主线拉直**：沿流程线最长的一条路是主线，ELK 优先把它摆成一条水平线，跳过几步的分支从上下绕；
+ * - 没人写、只被读的资源单独成块，放在第一个读它的步骤的前一列；
+ * - **贯穿好几步的文档**（好几步写它、更新之前就被读、三步以上都读它；三步以上都要的提问也算）
+ *   放在主线上方一排，挨着第一个用到它的步骤：读写线走总线（见 bus.ts），从卡片底边落到一条横线上，
+ *   再竖着落进每个步骤的上边，不会有线从画布另一头绕回来；
  * - 读线只拉相邻一列的（或者读它的步骤没别的线拉着）：跨好几列的读线不参与排版，免得把主线挤歪；
- * - 流程线的进出口固定在步骤卡（不是整块）的半高处，ELK 才会把一条链摆成一条直线。
+ * - 流程线的进出口固定在步骤卡（不是整块）的半高处，ELK 才会把一条链摆成一条直线；
+ * - **触发卡片**放在主线头一个步骤左边、和它对齐，多了排成几列；**谁都不连的卡**（背景资料、
+ *   整个工作流的记忆）放在左上角一排；
  * - 列距整齐划一；只有相邻两列之间的线上挂着条件牌子 / 交接标记时，把那一处拉开到放得下牌子。
  *
  * 补位（只给个别新节点找地方）仍是同步的就近规则：已经摆好的版面一律不动。
@@ -318,7 +323,7 @@ const ELK_OPTIONS: Record<string, string> = {
   // 列 = 执行批次：按我们给的横坐标分层，而不是让 ELK 自己挪。
   'elk.layered.layering.strategy': 'INTERACTIVE',
   'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
-  'elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
+  'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
   'elk.layered.nodePlacement.bk.fixedAlignment': 'BALANCED',
   // 线由画布自己画；折线路由不会为了竖段占道把列距撑开，列距才是恒定的。
   'elk.edgeRouting': 'POLYLINE',
@@ -330,6 +335,161 @@ const ELK_OPTIONS: Record<string, string> = {
   // 不连通的几块也排在同一套列里（分开排各自从第 0 列起，列就对不齐了）。
   'elk.separateConnectedComponents': 'false',
 }
+
+/** 主线上的线：ELK 摆坐标时优先把它们拉直。 */
+const SPINE_EDGE: Record<string, string> = {
+  'elk.layered.priority.straightness': '100',
+}
+
+/** 两张卡之间一条线的键（ELK 里去重、认主线用）。 */
+function pairKey(source: string, target: string): string {
+  return `${idKey(source)}\u0000${idKey(target)}`
+}
+
+/**
+ * 主线：沿往前走的流程线能走的最长一条路（按经过的步骤数），平手按 id 挑，同一张图总是同一条。
+ * `start` 是它的头一个步骤（没有步骤时为 `undefined`），`edges` 是路上每一段的 {@link pairKey}。
+ */
+function spineOf(
+  doc: WorkflowDocument,
+  analysis: GraphAnalysis,
+  index: ReturnType<typeof nodeIndex>,
+  columnOf: (id: string) => number,
+): { start: string | undefined; edges: Set<string> } {
+  const next = new Map<string, string[]>()
+  for (const edge of doc.edges) {
+    if (analysis.backEdges.has(edge.id) || edgeKind(index, edge) !== 'flow') continue
+    if (columnOf(edge.target) <= columnOf(edge.source)) continue
+    const list = next.get(idKey(edge.source)) ?? []
+    if (!list.includes(idKey(edge.target))) list.push(idKey(edge.target))
+    next.set(idKey(edge.source), list)
+  }
+  // 从每个步骤往后最长能走几步（从后往前算）。
+  const keys = doc.nodes.filter(isStep).map((node) => idKey(node.id))
+  keys.sort((a, b) => columnOf(b) - columnOf(a) || byId(b, a))
+  const reach = new Map<string, { length: number; via: string | undefined }>()
+  for (const key of keys) {
+    let best: { length: number; via: string | undefined } = { length: 0, via: undefined }
+    for (const target of [...(next.get(key) ?? [])].sort(byId)) {
+      const length = (reach.get(target)?.length ?? 0) + 1
+      if (length > best.length) best = { length, via: target }
+    }
+    reach.set(key, best)
+  }
+  let start: string | undefined
+  for (const key of [...keys].reverse()) {
+    if (start === undefined || (reach.get(key)?.length ?? 0) > (reach.get(start)?.length ?? 0)) {
+      start = key
+    }
+  }
+  const edges = new Set<string>()
+  for (let at = start; at !== undefined; ) {
+    const via: string | undefined = reach.get(at)?.via
+    if (via !== undefined) edges.add(pairKey(at, via))
+    at = via
+  }
+  return { start: start === undefined ? undefined : index.get(start)?.id, edges }
+}
+
+/** 整理时每张卡归到哪儿（步骤自己成块，不在这里）。 */
+interface Sorted {
+  /** 挂在步骤下面的资源（键是步骤的 idKey）：它产出的在上，它只是更新的在下。 */
+  owned: Map<string, WorkflowNode[]>
+  /** 单独成块、放进某一列的卡：输入、只被读的资源。 */
+  aside: { node: WorkflowNode; column: number }[]
+  /** 触发卡片（图里有步骤时）：放在主线头一个步骤左边。 */
+  triggers: WorkflowNode[]
+  /** 贯穿好几步的文档：主线上方的一排；`first` 是第一个用到它的步骤在第几列，`trunks` 是它要几条干线（读、产出、更新各一条）。 */
+  shared: { node: WorkflowNode; first: number; trunks: number }[]
+  /** 不和任何步骤相连的卡（背景资料、整个工作流的记忆）：左上角的一排。 */
+  background: WorkflowNode[]
+}
+
+/**
+ * 给每张不是步骤的卡分个去处：
+ * - 贯穿好几步的：不止一列的步骤写它（先产出、后面又更新的档案，几步轮流更新的台账、队列），
+ *   只被原地更新、又在更新之前就被读的（状态文档），没人写、却有三步以上都读的（规范、清单），
+ *   三步以上都要回答的提问——挂在哪一步下面、放在哪一列前面，都会有线从老远绕回来：
+ *   放到主线上方，用到它的步骤都在它下面，读写线走总线；
+ * - 有步骤整份产出它：挂在最早产出它的步骤下面；只被一个步骤在原文件上更新、之后才被读的也挂在那个步骤下面；
+ * - 没人写、只被一两个步骤读的资源和输入：单独成块，放在第一个读它的步骤的前一列；
+ * - 触发卡片：放在主线头一个步骤左边（它就是整条线的起点），见 {@link tidy}；
+ * - 谁都不连的：左上角一排。
+ */
+function sortCards(
+  doc: WorkflowDocument,
+  columnOf: (id: string) => number,
+  start: string | undefined,
+): Sorted {
+  const resources = resourceGraph(doc)
+  const sorted: Sorted = { owned: new Map(), aside: [], triggers: [], shared: [], background: [] }
+  for (const node of doc.nodes) {
+    if (isTrigger(node)) {
+      if (start === undefined) sorted.background.push(node)
+      else sorted.triggers.push(node)
+      continue
+    }
+    if (isInput(node)) {
+      const readers = inputReaders(doc, node.id)
+      const first = Math.min(...readers.map(columnOf))
+      if (readers.length === 0) sorted.background.push(node)
+      else if (readers.length >= LANE_READERS) sorted.shared.push({ node, first, trunks: 1 })
+      else sorted.aside.push({ node, column: first - 1 })
+      continue
+    }
+    if (!isResource(node)) continue
+    const info = resources.get(node.id)
+    const readers = info?.readers ?? []
+    const writers = info?.writers ?? []
+    const producers = writers.filter((writer) => !writer.update)
+    const firstRead = readers.length === 0 ? Infinity : Math.min(...readers.map(columnOf))
+    const writeColumns = new Set(writers.map((writer) => columnOf(writer.id)))
+    const shared =
+      writeColumns.size > 1 ||
+      (producers.length === 0 && writers.length > 0 && firstRead < Math.min(...writeColumns)) ||
+      (writers.length === 0 && readers.length >= LANE_READERS)
+    if (shared) {
+      const updates = writers.length - producers.length
+      sorted.shared.push({
+        node,
+        first: Math.min(firstRead, ...writeColumns),
+        trunks: [producers.length, updates, readers.length].filter((count) => count > 0).length,
+      })
+      continue
+    }
+    if (writers.length > 0) {
+      const owner = [...(producers.length > 0 ? producers : writers)].sort(
+        (a, b) => columnOf(a.id) - columnOf(b.id),
+      )[0]?.id as string
+      const list = sorted.owned.get(idKey(owner)) ?? []
+      list.push(node)
+      sorted.owned.set(idKey(owner), list)
+      continue
+    }
+    if (readers.length === 0) sorted.background.push(node)
+    else sorted.aside.push({ node, column: firstRead - 1 })
+  }
+  for (const [owner, list] of sorted.owned) {
+    const updates = (card: WorkflowNode): number =>
+      resources.get(card.id)?.writers.some((writer) => idKey(writer.id) === owner && !writer.update)
+        ? 0
+        : 1
+    list.sort((a, b) => updates(a) - updates(b))
+  }
+  return sorted
+}
+
+/** 没人写的文档 / 提问有几步读它就放到主线上方。 */
+const LANE_READERS = 3
+/**
+ * 主线上方那一排的底边离主线多远：总线的干线都在这道缝里（一条干线占一道），跨列的流程线也从这里绕。
+ * 干线多了跟着加宽。
+ */
+const LANE_GAP = 96
+const LANE_GAP_PER_TRUNK = 8
+/** 左上角那一排（背景资料）和下面隔多远、同一排里卡与卡隔多远。 */
+const BAND_GAP = 48
+const ROW_GAP = 24
 
 /**
  * 整图重排：每个节点都重算，同一张图必然摆成同一版式。
@@ -359,60 +519,8 @@ export async function tidy(
     if (!column.has(idKey(node.id))) column.set(idKey(node.id), analysis.batches.length)
   }
   const columnOf = (id: string): number => column.get(idKey(id)) ?? 0
-
-  // ── 资源归谁：最早那一列写它的步骤；没人写就单独成块 ──
-  const resources = resourceGraph(doc)
-  const owned = new Map<string, WorkflowNode[]>()
-  const inputs: { node: WorkflowNode; column: number }[] = []
-  const loose: WorkflowNode[] = []
-  for (const node of doc.nodes) {
-    // 触发卡片不连线：和没连线的资源一起排在版面下方。
-    if (isTrigger(node)) {
-      loose.push(node)
-      continue
-    }
-    // 输入节点和没人写的资源一样：单独成块，放在第一个用到它的步骤的前一列。
-    if (isInput(node)) {
-      const readers = inputReaders(doc, node.id)
-      if (readers.length === 0) loose.push(node)
-      else inputs.push({ node, column: Math.min(...readers.map(columnOf)) - 1 })
-      continue
-    }
-    if (!isResource(node)) continue
-    const info = resources.get(node.id)
-    const readers = info?.readers ?? []
-    const firstRead = readers.length === 0 ? Infinity : Math.min(...readers.map(columnOf))
-    const writers = info?.writers ?? []
-    const producers = writers.filter((writer) => !writer.update)
-    // 只在原文件上更新、又被更早的步骤读的（共享的状态文档、台账）：它本来就在，算输入；
-    // 挂到后面更新它的步骤下面，前面读它的线就全得往回绕。
-    const updatedLater =
-      producers.length === 0 &&
-      writers.length > 0 &&
-      firstRead < Math.min(...writers.map((writer) => columnOf(writer.id)))
-    if (writers.length > 0 && !updatedLater) {
-      const owner = [...(producers.length > 0 ? producers : writers)].sort(
-        (a, b) => columnOf(a.id) - columnOf(b.id),
-      )[0]?.id as string
-      const list = owned.get(idKey(owner)) ?? []
-      list.push(node)
-      owned.set(idKey(owner), list)
-      continue
-    }
-    if (readers.length === 0) {
-      loose.push(node)
-      continue
-    }
-    inputs.push({ node, column: firstRead - 1 })
-  }
-  // 挂在同一个步骤下面的：它产出的在上，它只是更新的在下。
-  for (const [owner, list] of owned) {
-    const updates = (card: WorkflowNode): number =>
-      resources.get(card.id)?.writers.some((writer) => idKey(writer.id) === owner && !writer.update)
-        ? 0
-        : 1
-    list.sort((a, b) => updates(a) - updates(b))
-  }
+  const spine = spineOf(doc, analysis, index, columnOf)
+  const { owned, aside, triggers, shared, background } = sortCards(doc, columnOf, spine.start)
 
   // ── 喂给 ELK 的图 ──
   const children: ElkNode[] = []
@@ -445,34 +553,35 @@ export async function tidy(
       ],
     })
   }
-  for (const input of inputs) {
-    const width = blockWidth([input.node])
-    blockW.set(input.node.id, width)
+  for (const card of aside) {
+    const width = blockWidth([card.node])
+    blockW.set(card.node.id, width)
     children.push({
-      id: input.node.id,
-      x: input.column * COL_STEP,
+      id: card.node.id,
+      x: card.column * COL_STEP,
       y: 0,
       width,
-      height: heightOf(input.node),
+      height: heightOf(card.node),
       layoutOptions: { 'elk.portConstraints': 'FIXED_POS' },
       ports: [
         {
-          id: `${input.node.id}\u0000out`,
+          id: `${card.node.id}\u0000out`,
           x: width,
-          y: heightOf(input.node) / 2,
+          y: heightOf(card.node) / 2,
           width: 0,
           height: 0,
         },
       ],
     })
   }
+  const inElk = new Set(children.map((child) => idKey(child.id)))
 
   const edges: ElkExtendedEdge[] = []
   const linked = new Set<string>()
   /** 已经有线拉着的块（线的终点）。 */
   const pulled = new Set<string>()
   const link = (source: string, target: string): void => {
-    const key = `${idKey(source)}\u0000${idKey(target)}`
+    const key = pairKey(source, target)
     if (linked.has(key)) return
     linked.add(key)
     pulled.add(idKey(target))
@@ -480,6 +589,7 @@ export async function tidy(
       id: `e${edges.length}`,
       sources: [`${source}\u0000out`],
       targets: [`${target}\u0000in`],
+      ...(spine.edges.has(key) ? { layoutOptions: SPINE_EDGE } : {}),
     })
   }
   // 相邻两列之间的线上挂着牌子时，把这两列拉开到放得下牌子（不压到两头的步骤卡）。
@@ -489,7 +599,7 @@ export async function tidy(
     for (const file of list) ownerOf.set(idKey(file.id), owner)
   }
   const stepId = (key: string): string | undefined => index.get(key)?.id
-  const inputColumn = new Map(inputs.map((input) => [idKey(input.node.id), input.column]))
+  const asideColumn = new Map(aside.map((card) => [idKey(card.node.id), card.column]))
   const reads: { from: string; reader: string; span: number }[] = []
   for (const edge of doc.edges) {
     const kind = edgeKind(index, edge)
@@ -510,10 +620,11 @@ export async function tidy(
       if (reader === undefined) continue
       const owner = ownerOf.get(idKey(edge.source))
       const from = owner === undefined ? stepId(idKey(edge.source)) : stepId(owner)
-      if (from === undefined) continue
+      // 不在 ELK 里的卡（主线上方那一排）的读线不拉。
+      if (from === undefined || !inElk.has(idKey(from))) continue
       const fromColumn =
         owner === undefined
-          ? (inputColumn.get(idKey(edge.source)) ?? columnOf(reader) - 1)
+          ? (asideColumn.get(idKey(edge.source)) ?? columnOf(reader) - 1)
           : columnOf(from)
       if (fromColumn < columnOf(reader)) {
         reads.push({ from, reader, span: columnOf(reader) - fromColumn })
@@ -530,18 +641,26 @@ export async function tidy(
     link(read.from, read.reader)
   }
 
-  const laid = await (await elk()).layout({
-    id: 'root',
-    layoutOptions: ELK_OPTIONS,
-    children,
-    edges,
-  })
+  const laid =
+    children.length === 0
+      ? { children: [] }
+      : await (await elk()).layout({ id: 'root', layoutOptions: ELK_OPTIONS, children, edges })
 
   // ── 从块的位置还原每张卡的位置 ──
   // 横坐标按列直接给（ELK 会为线留出不等的列距，我们要的是整齐的列，只为牌子让位）；纵坐标用 ELK 的。
   const blocks = laid.children ?? []
-  const blockColumn = (id: string): number => inputColumn.get(idKey(id)) ?? columnOf(id)
-  const firstColumn = Math.min(...blocks.map((block) => blockColumn(block.id)))
+  const blockColumn = (id: string): number => asideColumn.get(idKey(id)) ?? columnOf(id)
+  const firstBlock = Math.min(0, ...blocks.map((block) => blockColumn(block.id)))
+  /*
+   * 触发卡片在最左边那一列再往左：一列放 √n 张，多了往左再开一列（十来张也不会摞成一根长条）。
+   * 挨着图的那一列和图隔一个列距，再往左的几列只隔一道缝（它们之间没有线）。
+   */
+  const perColumn = Math.max(1, Math.ceil(Math.sqrt(triggers.length)))
+  const triggerColumns = Math.ceil(triggers.length / perColumn)
+  const triggerX = (at: number): number =>
+    ORIGIN.x + (triggerColumns - 1 - at) * (TRIGGER_W + BLOCK_GAP)
+  const graphLeft =
+    triggerColumns === 0 ? ORIGIN.x : triggerX(0) + Math.max(COL_STEP, TRIGGER_W + LAYER_GAP)
   // 有展示卡撑宽了块的列：列距跟着拉开（和挂牌子要的列距取大的）。
   for (const block of blocks) {
     const width = blockW.get(block.id) ?? BLOCK_W
@@ -550,38 +669,70 @@ export async function tidy(
     pitch.set(at, Math.max(pitch.get(at) ?? COL_STEP, width + LAYER_GAP))
   }
   const columnX = (target: number): number => {
-    let x = ORIGIN.x
-    for (let at = firstColumn; at < target; at += 1) x += pitch.get(at) ?? COL_STEP
+    let x = graphLeft
+    for (let at = firstBlock; at < target; at += 1) x += pitch.get(at) ?? COL_STEP
     return x
   }
-  const minY = Math.min(...blocks.map((block) => block.y ?? 0))
-  const placed: Record<string, Point> = {}
-  let bottom = ORIGIN.y
-  const put = (node: WorkflowNode, x: number, y: number): void => {
-    placed[node.id] = { x, y: Math.round(y) }
-    bottom = Math.max(bottom, Math.round(y) + heightOf(node))
+  /*
+   * 贯穿好几步的文档：主线上方并排一排，底边对齐，各自摆在第一个用到它的步骤正上方，碰上了往右让。
+   * 读写线都从卡片底边落到下面的干线上、再落进步骤（总线），所以往左往右都一样短；
+   * 只摆一排、不往上叠：叠起来的话，上面那张的竖线要穿过下面那张。
+   */
+  const lane: { node: WorkflowNode; x: number; h: number }[] = []
+  let laneRight = -Infinity
+  for (const card of [...shared].sort((a, b) => a.first - b.first || byId(a.node.id, b.node.id))) {
+    const x = Math.max(columnX(card.first), laneRight + ROW_GAP)
+    lane.push({ node: card.node, x, h: heightOf(card.node) })
+    laneRight = x + widthOf(card.node)
   }
+  const trunks = shared.reduce((sum, card) => sum + card.trunks, 0)
+  // 从上往下三层：左上角的背景资料、主线上方贯穿好几步的文档、ELK 排好的步骤和它们的资源。
+  const backgroundH = Math.max(0, ...background.map((card) => heightOf(card)))
+  const laneH = Math.max(0, ...lane.map((card) => card.h))
+  const laneBottom = ORIGIN.y + (backgroundH === 0 ? 0 : backgroundH + BAND_GAP) + laneH
+  const graphTop =
+    laneBottom + (laneH === 0 ? 0 : Math.max(LANE_GAP, 56 + trunks * LANE_GAP_PER_TRUNK))
+
+  const placed: Record<string, Point> = {}
+  const put = (node: WorkflowNode, x: number, y: number): void => {
+    placed[node.id] = { x: Math.round(x), y: Math.round(y) }
+  }
+  let x = ORIGIN.x
+  for (const node of background) {
+    put(node, x, ORIGIN.y)
+    x += widthOf(node) + ROW_GAP
+  }
+  for (const card of lane) put(card.node, card.x, laneBottom - card.h)
+  const minY = Math.min(...blocks.map((block) => block.y ?? 0))
   for (const block of blocks) {
     const node = index.get(idKey(block.id))
     if (node === undefined) continue
-    const x = columnX(blockColumn(block.id))
-    const y = (block.y ?? 0) - minY + ORIGIN.y
+    const blockX = columnX(blockColumn(block.id))
+    const y = (block.y ?? 0) - minY + graphTop
     if (isResource(node) || isInput(node)) {
-      put(node, x + RES_DX, y)
+      put(node, blockX + RES_DX, y)
       continue
     }
-    put(node, x, y)
+    put(node, blockX, y)
     let top = y + (stepHeight.get(node.id) ?? NODE_H) + RES_DY
     for (const card of owned.get(idKey(node.id)) ?? []) {
-      put(card, x + RES_DX, top)
+      put(card, blockX + RES_DX, top)
       top += heightOf(card) + RES_GAP
     }
   }
-  // 谁都不连的资源与输入：在版面下方排成一行。
-  let looseX = ORIGIN.x
-  for (const node of loose) {
-    placed[node.id] = { x: looseX, y: bottom + 48 }
-    looseX += widthOf(node) + 24
+  /*
+   * 触发卡片：头一张和主线头一个步骤摆在一条线上（中线对齐），其余的往下排、往左开列；
+   * 只往下不往上，碰不到上面的背景资料和共享文档。
+   */
+  const start = spine.start === undefined ? undefined : placed[spine.start]
+  if (start !== undefined) {
+    const center = start.y + (stepHeight.get(spine.start as string) ?? NODE_H) / 2
+    let top = 0
+    triggers.forEach((node, at) => {
+      if (at % perColumn === 0) top = center - heightOf(node) / 2
+      put(node, triggerX(Math.floor(at / perColumn)), top)
+      top += heightOf(node) + BLOCK_GAP
+    })
   }
   return placed
 }

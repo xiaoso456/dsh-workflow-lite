@@ -8,7 +8,9 @@
  * - 不同颜色的分到相邻的平行道上，道距 `GAP`，在这一簇所在的空当（上下 / 左右最近的卡片之间）里
  *   尽量居中摆开，空当窄就把道距压小；
  * - 只挪中间的段：接在连接点上的头尾两段不动，挪一段只是让它两头相邻的段变长 / 变短，线还是直角的；
- * - 道的先后按线从哪边来、往哪边去排（从上面来的走上面那条道），尽量不因为分道再多出交叉。
+ * - 道的先后按线从哪边来、往哪边去排（从上面来的走上面那条道），尽量不因为分道再多出交叉；
+ * - 挂着牌子的横段占一条宽道（`thick`）：牌子比线粗得多，旁边另一种颜色的线离得不到半块牌子高，
+ *   看着就像牌子挂在那条线上，所以这样的线也算挨着、要让到牌子外面去。
  *
  * 纯计算，不碰 DOM。
  * @module @xiaoso/dsh-workflow-lite/client/model/nudge
@@ -22,6 +24,8 @@ export interface Track {
   group: string
   /** 折点（含两头）。 */
   points: readonly [number, number][]
+  /** 横段上挂着牌子时，牌子从线往上下各伸出多少（分道时别的颜色的线要让出这么宽）；不挂是 0。 */
+  thick?: number
 }
 
 /** 平行道之间的距离、道离卡片边的最小距离、空当再窄时道距的下限。 */
@@ -43,6 +47,8 @@ interface Segment {
   fixed: boolean
   /** 这段两头接着的点在垂直方向上的平均位置（排道的先后用）。 */
   side: number
+  /** 这段线往两边各占多宽（挂着牌子的横段；别的是 0）。 */
+  thick: number
 }
 
 /**
@@ -57,7 +63,11 @@ export function nudge(
   const moved = new Set<number>()
   const groupOf = (segment: Segment): string => tracks[segment.track]?.group ?? ''
   for (const axis of ['h', 'v'] as const) {
-    const segments = collect(points, axis)
+    const segments = collect(
+      points,
+      axis,
+      tracks.map((track) => (axis === 'h' ? (track.thick ?? 0) : 0)),
+    )
     for (const cluster of clusters(segments, groupOf)) {
       spread(cluster, groupOf, points, boxes, axis, moved)
     }
@@ -70,7 +80,11 @@ export function nudge(
   return result
 }
 
-function collect(points: [number, number][][], axis: 'h' | 'v'): Segment[] {
+function collect(
+  points: [number, number][][],
+  axis: 'h' | 'v',
+  thick: readonly number[],
+): Segment[] {
   const along = axis === 'h' ? 0 : 1
   const across = 1 - along
   const segments: Segment[] = []
@@ -89,6 +103,7 @@ function collect(points: [number, number][][], axis: 'h' | 'v'): Segment[] {
         lo: Math.min(a[along], b[along]),
         hi: Math.max(a[along], b[along]),
         fixed: index === 0 || index + 1 === line.length - 1,
+        thick: index === 0 || index + 1 === line.length - 1 ? 0 : (thick[track] ?? 0),
         side:
           ends.length === 0
             ? a[across]
@@ -99,8 +114,13 @@ function collect(points: [number, number][][], axis: 'h' | 'v'): Segment[] {
   return segments
 }
 
+/** 两段不同颜色的线至少隔多远：一个道距，挂着牌子的还要让出牌子。 */
+function apart(a: Segment, b: Segment): number {
+  return Math.max(GAP, a.thick + b.thick)
+}
+
 /**
- * 挨得太近又重叠的段连成簇（并查集）：同色的只有共线才连，不同颜色的离得不到一个道距就连
+ * 挨得太近又重叠的段连成簇（并查集）：同色的只有共线才连，不同颜色的离得不到 {@link apart} 就连
  * （否则分道时把一条线挪到旁边另一种颜色的线身上）。只留至少两种颜色的簇。
  */
 function clusters(segments: Segment[], groupOf: (segment: Segment) => string): Segment[][] {
@@ -111,6 +131,7 @@ function clusters(segments: Segment[], groupOf: (segment: Segment) => string): S
       const right = segments[b] as Segment
       return left.at - right.at
     })
+  const reach = GAP + 2 * Math.max(0, ...segments.map((segment) => segment.thick))
   const parent = segments.map((_, index) => index)
   const find = (index: number): number => {
     let root = index
@@ -123,9 +144,10 @@ function clusters(segments: Segment[], groupOf: (segment: Segment) => string): S
     for (let j = i + 1; j < order.length; j += 1) {
       const b = segments[order[j] as number] as Segment
       const distance = b.at - a.at
-      if (distance > GAP - 0.5) break
+      if (distance > reach - 0.5) break
       if (a.track === b.track) continue
       if (distance > SAME && groupOf(a) === groupOf(b)) continue
+      if (distance > apart(a, b) - 0.5) continue
       if (Math.min(a.hi, b.hi) - Math.max(a.lo, b.lo) < OVERLAP) continue
       parent[find(order[i] as number)] = find(order[j] as number)
     }
@@ -159,23 +181,33 @@ function spread(
   }
   names.sort((a, b) => sideOf(a) - sideOf(b) || (a < b ? -1 : a > b ? 1 : 0))
 
-  // 这一簇能摆开的空当：每一段上下（左右）最近的卡片之间，取交集。
+  // 这一簇能摆开的空当：每一段上下（左右）最近的卡片之间，取交集；挂着牌子的段还要让牌子碰不到卡片。
   let low = -Infinity
   let high = Infinity
   for (const segment of cluster) {
     const [from, to] = channel(segment, boxes, axis)
-    low = Math.max(low, from + MARGIN)
-    high = Math.min(high, to - MARGIN)
+    low = Math.max(low, from + Math.max(MARGIN, segment.thick))
+    high = Math.min(high, to - Math.max(MARGIN, segment.thick))
   }
   const count = names.length
-  let gap = GAP
-  if (Number.isFinite(low) && Number.isFinite(high) && high - low < gap * (count - 1)) {
-    gap = Math.max(MIN_GAP, (high - low) / (count - 1))
+  // 相邻两条道隔多远：一个道距，挂着牌子的让出牌子；空当不够就整体按比例压小（不小于下限）。
+  const thickOf = (name: string): number =>
+    Math.max(0, ...cluster.filter((s) => groupOf(s) === name).map((s) => s.thick))
+  const steps = names
+    .slice(1)
+    .map((name, index) => Math.max(GAP, thickOf(names[index] as string) + thickOf(name)))
+  const span = steps.reduce((sum, step) => sum + step, 0)
+  if (Number.isFinite(low) && Number.isFinite(high) && high - low < span) {
+    const scale = (high - low) / span
+    for (const [index, step] of steps.entries()) steps[index] = Math.max(MIN_GAP, step * scale)
   }
   // 每种颜色一条道：以这一簇的中线为准摆开；有定住的颜色就以它的位置为准。
   const fixedAt = cluster.find((s) => s.fixed)?.at
   const middle = cluster.reduce((sum, s) => sum + s.at, 0) / cluster.length
-  let lanes = names.map((_, index) => middle + (index - (count - 1) / 2) * gap)
+  const offsets = [0]
+  for (const step of steps) offsets.push((offsets.at(-1) as number) + step)
+  const half = (offsets.at(-1) as number) / 2
+  let lanes = offsets.map((offset) => middle + offset - half)
   if (fixedAt !== undefined) {
     const shift = fixedAt - (lanes[names.indexOf(pinned[0] as string)] as number)
     lanes = lanes.map((lane) => lane + shift)

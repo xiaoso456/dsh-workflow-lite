@@ -108,6 +108,8 @@ export interface ResourceCardData extends Record<string, unknown> {
   readText: string
   onFocusFile: FocusFile
   generatedText: string
+  /** 用着的连接点（底边的总线点只在有线时显出来）。 */
+  used: readonly string[]
   /** 开着画布展示：整张卡换成标题行 + 展示区；没开（或没有能展示的项）是 `null`。 */
   display: CardDisplay | null
   /** 拖完右下角：把新的展示设置写进文档。 */
@@ -151,10 +153,10 @@ export interface LinkData extends Record<string, unknown> {
   lane: number | null
   /** 走廊线两条竖段被分道挪开的距离（和别的颜色的线叠在一起时，见 model/nudge.ts）。 */
   shift: LaneShift | null
-  /** 走廊线上牌子中心的 x（和并排的线错开过，见 model/nudge.ts 的 `placeChips`）。 */
+  /** 牌子中心的 x：走廊线上和并排的线错开过（见 model/nudge.ts 的 `placeChips`），两头齐平的直连线让开拐进同一张卡的走廊线；`null` 按线自己的正中。 */
   labelX: number | null
-  /** 直连的线正中往下拱多少（同一对卡片之间不止一条时拱开，见 model/route.ts 的 `fanBows`）；只有一条是 0。 */
-  bow: number
+  /** 直连的线上牌子往下挪多少（同一对卡片之间不止一条时画成一条线、牌子叠开，见 model/route.ts 的 `stackChips`）；只有一条是 0。 */
+  chipShift: number
   t: T
   onPick: (id: string) => void
   /** 线上交接卡片里就地改说明。 */
@@ -198,6 +200,8 @@ export interface InputCardData extends Record<string, unknown> {
   connectText: string
   /** 悬停某个资源时它跟着淡下去（它不是资源的读写方）。 */
   dim: boolean
+  /** 用着的连接点（底边的总线点只在有线时显出来）。 */
+  used: readonly string[]
 }
 
 /** 触发卡片：名字 + 速览（状态、开关和本机现场卡片自己从现场读，见 `trigger/triggerEnv.ts`）。 */

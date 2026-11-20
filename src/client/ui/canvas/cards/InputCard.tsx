@@ -11,6 +11,7 @@ import { Icon } from '../../kit/Icon.tsx'
 import shared from '../canvas.module.css'
 import { useHandlesMeasured } from '../hooks/useHandlesMeasured.ts'
 import type { InputFlowNode } from '../types.ts'
+import { BusHandles } from './BusHandles.tsx'
 import css from './inputCard.module.css'
 
 /** 输入卡左侧签上的图标：按交互方式。 */
@@ -61,6 +62,7 @@ export const InputCard = memo(function InputCard(
         className={cx(shared.handle, shared.handleOut, shared.handleRead, shared.handleAsk)}
         data-tip={data.connectText}
       />
+      <BusHandles used={data.used} ask />
     </div>
   )
 })

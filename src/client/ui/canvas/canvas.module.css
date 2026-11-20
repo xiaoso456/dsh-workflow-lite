@@ -266,13 +266,15 @@ span.memToggle {
 
 .handleFile,
 .handleFileUp,
-.hResIn {
+.hResIn,
+.hBusIn {
   --wl-h: var(--wl-io-produce);
 }
 
 .handleRead,
 .hRead,
-.hReadTop {
+.hReadTop,
+.hBusOut {
   --wl-h: var(--wl-io-read);
 }
 
@@ -750,8 +752,9 @@ span.memToggle {
   margin-right: 14px;
 }
 
-/* 输入卡右边的点：墨色（交回答的线也是这个色）。 */
-.handleRead.handleAsk {
+/* 输入卡右边的点（和底边的总线点）：墨色（交回答的线也是这个色）。 */
+.handleRead.handleAsk,
+.hBusOut.handleAsk {
   --wl-h: var(--wl-io-ask);
 }
 

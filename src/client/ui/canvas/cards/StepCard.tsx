@@ -8,7 +8,7 @@ import { Handle, type NodeProps, Position } from '@xyflow/react'
 import { memo } from 'react'
 import type { ResourceRole } from '../../../../shared/resources.ts'
 import type { NodeStatus } from '../../../../shared/runState.ts'
-import { type Spot, STEP_SPOTS } from '../../../model/route.ts'
+import { STEP_SPOTS } from '../../../model/route.ts'
 import { cx } from '../../kit/cx.ts'
 import { Icon, type IconName } from '../../kit/Icon.tsx'
 import { StepMark } from '../../kit/StepMark.tsx'
@@ -17,6 +17,7 @@ import { SwapIcon, SwapText } from '../../motion/swapText.tsx'
 import shared from '../canvas.module.css'
 import { useHandlesMeasured } from '../hooks/useHandlesMeasured.ts'
 import type { StepData, StepFlowNode } from '../types.ts'
+import { spotVar } from './BusHandles.tsx'
 import css from './stepCard.module.css'
 
 const ROLES = ['producer', 'updater', 'reader'] as const satisfies readonly ResourceRole[]
@@ -29,11 +30,6 @@ const RUN_ICON: Record<NodeStatus, IconName> = {
   done: 'check',
   failed: 'alert',
   skipped: 'skip',
-}
-
-/** 上下边上的连接点沿边摆在几成处：交给 CSS 变量，样式表据此定位（拖线时也要用它放回圆点）。 */
-function spotVar(spot: Spot): React.CSSProperties {
-  return { '--wl-at': spot.at } as React.CSSProperties
 }
 
 /** 卡片描边是哪一层：运行中 / 失败 / 等待优先，其次是悬停资源时的读写角色。 */

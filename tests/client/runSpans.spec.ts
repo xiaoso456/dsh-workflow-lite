@@ -143,10 +143,11 @@ describe('画布页签的小图', () => {
       expect(card.y).toBeGreaterThanOrEqual(0)
       expect(card.y + MAP_CARD.h).toBeLessThanOrEqual(map.height)
     }
+    // 走过的线排在最后画（同一对卡片之间的几条是同一条路径，走过的要盖在上面）。
     expect(map.lines.map((line) => [line.id, line.when, line.taken])).toEqual([
-      ['ab', undefined, true],
       ['bc', 'pass', false],
       ['ba', 'fail', false],
+      ['ab', undefined, true],
     ])
     // 往回走的那条是绕到走廊上的折线，牌子在走廊上、卡片下面。
     const back = map.lines.find((line) => line.id === 'ba')

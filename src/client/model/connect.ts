@@ -32,10 +32,10 @@ export type DragKind = 'flow' | 'write' | 'read' | 'ask' | 'back' | 'writeBack' 
 export type CardKind = 'step' | 'resource' | 'input'
 
 export function dragKindOf(from: CardKind, handleId: string | null | undefined): DragKind | null {
-  if (from === 'input') return handleId === 'out' ? 'ask' : null
+  if (from === 'input') return handleId === 'out' || handleId === 'outBus' ? 'ask' : null
   if (from === 'resource') {
-    if (handleId === 'out') return 'read'
-    if (handleId === 'in') return 'writeBack'
+    if (handleId === 'out' || handleId === 'outBus') return 'read'
+    if (handleId === 'in' || handleId === 'inBus') return 'writeBack'
     return null
   }
   if (handleId === 'out') return 'flow'
@@ -47,8 +47,9 @@ export function dragKindOf(from: CardKind, handleId: string | null | undefined):
 
 const STEP_WRITE = new Set(['file', 'fileUp'])
 const STEP_READ = new Set(['in', 'read', 'readTop'])
-const FILE_IN = new Set(['in'])
-const FILE_OUT = new Set(['out'])
+// 文件卡底边那对接总线的点（见 bus.ts）和左右两点是同一个意思。
+const FILE_IN = new Set(['in', 'inBus'])
+const FILE_OUT = new Set(['out', 'outBus'])
 
 /** React Flow 交过来的连接（已按 source → target 摆正）。 */
 export interface HandleLink {

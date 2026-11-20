@@ -39,6 +39,10 @@ describe('起点的种类', () => {
     expect(dragKindOf('step', 'readTop')).toBe('readBack')
     expect(dragKindOf('input', 'out')).toBe('ask')
     expect(dragKindOf('input', 'in')).toBeNull()
+    // 底边接总线的点：和左右两点同一个意思。
+    expect(dragKindOf('resource', 'outBus')).toBe('read')
+    expect(dragKindOf('resource', 'inBus')).toBe('writeBack')
+    expect(dragKindOf('input', 'outBus')).toBe('ask')
   })
 })
 
@@ -61,6 +65,9 @@ describe('能不能连', () => {
     expect(raw('f', 'in', 'fix', 'read')).toBe(false)
     expect(raw('review', 'out', 'fix', 'read')).toBe(false)
     expect(raw('fix', 'file', 'f', 'out')).toBe(false)
+    expect(raw('f', 'outBus', 'fix', 'readTop')).toBe(true)
+    expect(raw('fix', 'fileUp', 'g', 'inBus')).toBe(true)
+    expect(raw('fix', 'file', 'f', 'outBus')).toBe(false)
     expect(
       linkAllowed(doc, {
         source: 'review',

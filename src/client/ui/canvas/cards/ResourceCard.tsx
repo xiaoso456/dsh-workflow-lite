@@ -14,6 +14,7 @@ import { KIND_ICON } from '../../kit/resourceUi.ts'
 import shared from '../canvas.module.css'
 import { useHandlesMeasured } from '../hooks/useHandlesMeasured.ts'
 import type { ResourceFlowNode } from '../types.ts'
+import { BusHandles } from './BusHandles.tsx'
 import { tintStyle } from './cardParts.ts'
 import { DisplayCard } from './DisplayCard.tsx'
 import css from './resourceCard.module.css'
@@ -200,6 +201,7 @@ export const ResourceCard = memo(function ResourceCard(
         className={cx(shared.handle, shared.handleOut, shared.handleRead)}
         data-tip={data.readText}
       />
+      <BusHandles used={data.used} />
     </div>
   )
 })

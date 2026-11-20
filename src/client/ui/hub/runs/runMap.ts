@@ -3,7 +3,7 @@
  *
  * - 排版：把图里的步骤和流程线单拿出来，交给画布「整理」用的 {@link tidy}（ELK，列 = 执行批次），
  *   卡片按小图的尺寸喂进去；列距换成小图的列距（为判定牌子多拉开的那一截照留），行距本来就按卡片高度排，不用再收。
- * - 走线：画布的 {@link routeEdge} 挑走法——往右的贝塞尔（{@link flowPath}，同一对卡片之间几条各自拱开），
+ * - 走线：画布的 {@link routeEdge} 挑走法——往右的贝塞尔（{@link flowPath}，同一对卡片之间几条画成一条、判定叠开），
  *   压到卡片的改走直角（{@link bypass}），往回走的循环绕到走廊上（{@link detour}）。
  *
  * 卡片、判定的坐标是小图自己的（左上角留了边），连线的路径整体挪 `shift`；框宽变了外面整体缩放，不重排。分支上写判定，走过的线（`takenEdges`）标出来。
@@ -16,7 +16,7 @@ import { idKey, isStep } from '../../../../shared/model.ts'
 import { edgeKind, nodeIndex } from '../../../../shared/resources.ts'
 import type { WorkflowDocument } from '../../../../shared/types.ts'
 import { COL_STEP, tidy } from '../../../model/layout.ts'
-import { fanBows, flowPath, type Rect } from '../../../model/route.ts'
+import { flowPath, type Rect, stackChips } from '../../../model/route.ts'
 import { bypass, detour, laneStart, routeEdge } from '../../canvas/lines/route.ts'
 
 /** 小图上一张卡片多大：只放状态图标和名字（放不下就截断，悬停看全名）。 */
@@ -87,7 +87,7 @@ export async function runMap(doc: WorkflowDocument, taken: ReadonlySet<string>):
   }
   const boxes = [...rects.values()]
 
-  // 先挑走法：同一对卡片之间的几条直连线要一起算拱开多少。
+  // 先挑走法：同一对卡片之间的几条直连线画成一条，要一起算判定牌子怎么叠开。
   const routes = flows.map((edge) => ({ edge, route: routeEdge(edge, 'flow', rects, boxes) }))
   const pairs = new Map<string, { id: string; rows: number }[]>()
   for (const { edge, route } of routes) {
@@ -96,10 +96,10 @@ export async function runMap(doc: WorkflowDocument, taken: ReadonlySet<string>):
     list.push({ id: edge.id, rows: route.direct.rows })
     pairs.set(route.direct.pair, list)
   }
-  const bows = new Map<string, number>()
+  const chipShifts = new Map<string, number>()
   for (const list of pairs.values()) {
-    const at = fanBows(list.map((item) => item.rows))
-    for (const [i, item] of list.entries()) bows.set(item.id, at[i] ?? 0)
+    const at = stackChips(list.map((item) => item.rows))
+    for (const [i, item] of list.entries()) chipShifts.set(item.id, at[i] ?? 0)
   }
 
   const drawn = routes.flatMap(({ edge, route }) => {
@@ -114,13 +114,12 @@ export async function runMap(doc: WorkflowDocument, taken: ReadonlySet<string>):
     const [path, mx, my] = back
       ? detour(sx, sy, tx, ty, route.lane ?? laneStart(sy, ty))
       : route.lane === undefined
-        ? flowPath(sx, sy, tx, ty, bows.get(edge.id) ?? 0)
+        ? flowPath(sx, sy, tx, ty)
         : bypass(sx, sy, tx, ty, route.lane)
     // 直连的线：牌子放在两列正中（小图的列间比画布窄，画布那个偏向终点的位置会压到下一张卡片）。
     const direct = !back && route.lane === undefined
-    return [
-      { edge, path, mid: { x: direct ? (sx + tx) / 2 : mx, y: my }, lane: route.lane, back, sx },
-    ]
+    const y = my + (direct ? (chipShifts.get(edge.id) ?? 0) : 0)
+    return [{ edge, path, mid: { x: direct ? (sx + tx) / 2 : mx, y }, lane: route.lane, back, sx }]
   })
 
   // 外框：卡片、走廊、往回走的线伸到出口右边的那一截、判定牌子。
@@ -143,17 +142,20 @@ export async function runMap(doc: WorkflowDocument, taken: ReadonlySet<string>):
       const rect = rects.get(idKey(node.id))
       return rect === undefined ? [] : [{ id: node.id, x: rect.x + dx, y: rect.y + dy }]
     }),
-    lines: drawn.map(({ edge, path, mid }) => {
-      const when = edgeWhen(edge)
-      return {
-        id: edge.id,
-        source: edge.source,
-        target: edge.target,
-        path,
-        mid: { x: mid.x + dx, y: mid.y + dy },
-        taken: taken.has(edge.id),
-        ...(when === undefined ? {} : { when }),
-      }
-    }),
+    // 走过的线排在后面画：同一对卡片之间的几条是同一条路径，走过的那条要盖在上面看得见。
+    lines: [...drawn]
+      .sort((a, b) => Number(taken.has(a.edge.id)) - Number(taken.has(b.edge.id)))
+      .map(({ edge, path, mid }) => {
+        const when = edgeWhen(edge)
+        return {
+          id: edge.id,
+          source: edge.source,
+          target: edge.target,
+          path,
+          mid: { x: mid.x + dx, y: mid.y + dy },
+          taken: taken.has(edge.id),
+          ...(when === undefined ? {} : { when }),
+        }
+      }),
   }
 }

@@ -39,8 +39,11 @@ export interface Spot {
 
 /** 步骤上挂读写线的连接点（左 `in` / 右 `out` 是流程线的，不在这里）。 */
 export type StepFileHandle = 'file' | 'fileUp' | 'read' | 'readTop'
-/** 文件卡上的连接点：左进（被写）右出（被读）。 */
-export type FileHandle = 'in' | 'out'
+/**
+ * 文件卡上的连接点：左进（被写）右出（被读）；底边还有一对接总线的（`inBus` 被写、`outBus` 被读，
+ * 卡片摆在用到它的几个步骤上方时用，见 bus.ts）。
+ */
+export type FileHandle = 'in' | 'out' | 'inBus' | 'outBus'
 
 /**
  * 读点贴着左下角（读的文件多半来自左边的上游，从左边进来不用跨过自己的文件树），
@@ -58,6 +61,8 @@ export const STEP_SPOTS: Record<StepFileHandle, Spot> = {
 export const FILE_SPOTS: Record<FileHandle, Spot> = {
   in: { side: 'left', at: 0.5 },
   out: { side: 'right', at: 0.5 },
+  inBus: { side: 'bottom', at: 0.18 },
+  outBus: { side: 'bottom', at: 0.36 },
 }
 
 /** 两张卡上下"挨着"的容差：差这么点也算上下关系。 */
@@ -161,66 +166,49 @@ export function writePoints(
  * 走到两列之间的空当里再拐下去（上来），不会斜着擦过出口下面挂着的那串文件卡（它们比步骤卡
  * 往右多伸出一截）。
  *
- * 同一对卡片之间不止一条时各自拱开 `bow`（见 {@link fanBows}）：像一片叶子的两条边，从同一个点横着出去，
- * 一道连续的弧拱到正中最高（牌子挂在那儿），再弧回来、横着进同一个入口——出入口的方向和别的流程线一样，中间没有平段。
- * @param bow - 正中比两头连线的中点往下（负数往上）拱出去多少；0 就是原来那条贝塞尔。
+ * 同一对卡片之间不止一条时画成同一条线，牌子在正中竖着叠开（见 {@link stackChips}）。
  * @returns `[路径, 标签 x, 标签 y]`（曲线正中）。
  */
-export function flowPath(
-  sx: number,
-  sy: number,
-  tx: number,
-  ty: number,
-  bow = 0,
-): [string, number, number] {
-  if (bow === 0) {
-    const [c1x, c2x] = flowControls(sx, tx)
-    return [
-      `M ${sx} ${sy} C ${c1x} ${sy} ${c2x} ${ty} ${tx} ${ty}`,
-      (sx + 3 * c1x + 3 * c2x + tx) / 8,
-      (sy + ty) / 2,
-    ]
-  }
-  // 两段贝塞尔在正中相接，四个控制柄都是横的、一样长：两头横着出入，正中的切线也是横的，接得上。
-  const mx = (sx + tx) / 2
-  const y = (sy + ty) / 2 + bow
-  const reach = Math.max(0, tx - sx) * BOW_REACH
+export function flowPath(sx: number, sy: number, tx: number, ty: number): [string, number, number] {
+  const [c1x, c2x] = flowControls(sx, tx)
   return [
-    `M ${sx} ${sy} C ${sx + reach} ${sy} ${mx - reach} ${y} ${mx} ${y}` +
-      ` C ${mx + reach} ${y} ${tx - reach} ${ty} ${tx} ${ty}`,
-    mx,
-    y,
+    `M ${sx} ${sy} C ${c1x} ${sy} ${c2x} ${ty} ${tx} ${ty}`,
+    (sx + 3 * c1x + 3 * c2x + tx) / 8,
+    (sy + ty) / 2,
   ]
 }
 
-/** 拱开的线每个控制柄伸多长（占两张卡间距的几成）：再长正中就成了平段，再短两头拐得急。 */
-const BOW_REACH = 0.3
-
-/** 牌子一行多高（条件牌子、交接标记各一行，竖着叠）、行与行之间隔多少、相邻两条线的牌子之间留多少。 */
+/** 牌子一行多高（条件牌子、交接标记各一行，竖着叠）、行与行之间隔多少、同一条线上相邻两叠牌子之间留多少。 */
 const CHIP_ROW = 22
 const CHIP_ROW_GAP = 3
 const CHIP_CLEAR = 4
-/** 什么都不挂的线之间也拱开这么多。 */
-const BOW_MIN = 14
+
+/** 一叠 `rows` 行的牌子从线往上下各伸出多少（再留一道缝）；不挂牌子是 0。 */
+export function chipReach(rows: number): number {
+  return rows === 0 ? 0 : (rows * CHIP_ROW + (rows - 1) * CHIP_ROW_GAP) / 2 + CHIP_CLEAR
+}
 
 /**
- * 同一对卡片之间的几条直连流程线（比如「通过」和另一个条件都去同一步）各往上下拱多少：不分开就叠成一根，牌子也压在一起。
- * 按给的次序从上到下排，整束以原来那条曲线为中心；相邻两条隔的距离够放下它们挂的牌子。只有一条时不拱。
+ * 同一对卡片之间的几条直连流程线（比如「完成」「卡住」都去同一步）画成同一条线，各自的牌子在线的正中
+ * 上下叠开：每条的牌子往下挪多少。按给的次序从上到下排，整叠以线的正中为中心；只有一条时不挪。
  * @param rows - 每条线上挂了几行牌子（0–2）。
  */
-export function fanBows(rows: readonly number[]): number[] {
+export function stackChips(rows: readonly number[]): number[] {
   const tall = (count: number): number =>
     count === 0 ? 0 : count * CHIP_ROW + (count - 1) * CHIP_ROW_GAP
   const at: number[] = []
   let y = 0
-  rows.forEach((count, index) => {
-    const before = rows[index - 1]
-    if (before !== undefined) {
-      y += Math.max(BOW_MIN, (tall(before) + tall(count)) / 2 + CHIP_CLEAR)
+  let last: number | undefined
+  for (const count of rows) {
+    if (count === 0) {
+      at.push(Number.NaN)
+      continue
     }
+    if (last !== undefined) y += (tall(last) + tall(count)) / 2 + CHIP_CLEAR
     at.push(y)
-  })
-  return at.map((value) => value - y / 2)
+    last = count
+  }
+  return at.map((value) => (Number.isNaN(value) ? 0 : value - y / 2))
 }
 
 const NONE: readonly Rect[] = []
@@ -252,12 +240,21 @@ function flowControls(sx: number, tx: number): [number, number] {
 /** 往回走的线：右边那条竖段离出口多远（要让过出口下面那串文件卡多伸出来的一截）。 */
 export const LOOP_REACH = 64
 
+/** 走廊离卡片至少多远；线上挂着牌子时再远到牌子碰不到卡片（`reach`，见 {@link chipReach}）。 */
+const LANE_CLEAR = 18
+
 /**
  * 往回走的线横着走回来的"走廊"放在哪：从 `from` 往下找第一条横穿 `[x1, x2]` 时不压到任何卡片的 y。
  * @param boxes 画布上的卡片（含文件卡）。
  */
-export function freeLane(boxes: readonly Rect[], x1: number, x2: number, from: number): number {
-  const gap = 18
+export function freeLane(
+  boxes: readonly Rect[],
+  x1: number,
+  x2: number,
+  from: number,
+  reach = 0,
+): number {
+  const gap = Math.max(LANE_CLEAR, reach)
   const [left, right] = x1 <= x2 ? [x1, x2] : [x2, x1]
   const across = boxes.filter((box) => box.x < right && box.x + box.w > left)
   let lane = from
@@ -324,8 +321,9 @@ export function nearestLane(
   x2: number,
   around: number,
   skip: readonly Rect[] = NONE,
+  reach = 0,
 ): number {
-  const gap = 18
+  const gap = Math.max(LANE_CLEAR, reach)
   const [left, right] = x1 <= x2 ? [x1, x2] : [x2, x1]
   const across = boxes.filter((box) => box.x < right && box.x + box.w > left && !skip.includes(box))
   const clear = (y: number): boolean =>

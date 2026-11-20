@@ -161,7 +161,7 @@ export function buildNodes({
           ? [texts.otherTag]
           : []),
       ].join(' · ')
-      signature = `${selected}|${tone}|${note}|${dim}|${texts.askText}|${meta}`
+      signature = `${selected}|${tone}|${note}|${dim}|${texts.askText}|${meta}|${used.join(',')}`
       build = () => ({
         id: node.id,
         type: 'wfInput',
@@ -176,6 +176,7 @@ export function buildNodes({
           emptyText: texts.emptyQuestion,
           connectText: texts.askText,
           dim,
+          used,
         },
       })
     } else if (isTrigger(node)) {
@@ -298,8 +299,9 @@ export function buildNodes({
         generatedText: texts.generated,
         display,
         onView,
+        used,
       }
-      signature = [selected, used, data]
+      signature = [selected, data]
       build = () => ({
         id: node.id,
         type: 'wfResource',
