@@ -196,11 +196,49 @@
   box-shadow: inset 0 0 0 1px var(--wl-accent);
 }
 
-.track {
+/*
+ * 点画在格子上面的几层（盖住 24 格那几列、上面几行日子），里面每天一条轨道，和格子的行一样高、一样隔开。
+ * 换卡片时只有两层在动（不是几十个点各自动）：上一张独有的点先退（out），退完这一张独有的点再进（after）；
+ * 两张都有的点在不动的那层（still）。
+ */
+.dots {
   position: absolute;
   inset: 0;
+  display: grid;
+  grid-row: 1 / span var(--rhythm-rows);
   grid-column: 2 / -1;
+  grid-template-rows: repeat(var(--rhythm-rows), 1fr);
+  row-gap: 3px;
   pointer-events: none;
+}
+
+.dots[data-motion="out"] {
+  opacity: 0;
+  transition: opacity 100ms cubic-bezier(0.4, 0, 1, 1);
+}
+
+.dots[data-motion="in"],
+.dots[data-motion="after"] {
+  transition: opacity 200ms ease-out;
+}
+
+.dots[data-motion="after"] {
+  transition-delay: 100ms;
+}
+
+@starting-style {
+  .dots[data-motion="out"] {
+    opacity: 1;
+  }
+
+  .dots[data-motion="in"],
+  .dots[data-motion="after"] {
+    opacity: 0;
+  }
+}
+
+.track {
+  position: relative;
 }
 
 .mark,
@@ -234,14 +272,16 @@
   transition-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1), ease-in, linear;
 }
 
+/* 同一张卡片里后来进来的点自己放大淡入；整层换进来的不各自动。 */
 @starting-style {
-  .mark:not([data-leaving]) {
+  .mark[data-enter]:not([data-leaving]) {
     scale: 0.55;
     opacity: 0;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .dots[data-motion],
   .mark,
   .mark[data-leaving] {
     transition: none;

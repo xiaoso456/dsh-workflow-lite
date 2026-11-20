@@ -14,6 +14,93 @@
   --roll-enter: -100%;
 }
 
+/* 各位叠在这一层里（列表换项时整层滚进来）。 */
+.digits {
+  position: absolute;
+  inset: 0;
+}
+
+/*
+ * 列表换项：整个数一起换。旧数画在 `::after`（`data-was`）里退场，新数整层进场，方向跟着列表（`data-swap-dir`）；
+ * 跟 SwapText 的切换同一个节奏（旧的 90ms 退、退到六成新的 200ms 进），也按外面的 `--wl-swap-delay` 错峰。
+ * `data-swap` 在 a / b 之间切，动画换个名字从头放；放完不用收。
+ */
+.number[data-swap] {
+  --swap-in: 100%;
+  --swap-out: -100%;
+
+  overflow-y: clip;
+}
+
+.number[data-swap-dir="down"] {
+  --swap-in: -100%;
+  --swap-out: 100%;
+}
+
+.number[data-was]::after {
+  position: absolute;
+  inset: 0 0 0 auto;
+  white-space: nowrap;
+  content: attr(data-was);
+  opacity: 0;
+}
+
+.number[data-swap="a"]::after {
+  animation: wholeOut 90ms cubic-bezier(0.4, 0, 1, 1) var(--wl-swap-delay, 0ms) backwards;
+}
+
+.number[data-swap="b"]::after {
+  animation: wholeOutB 90ms cubic-bezier(0.4, 0, 1, 1) var(--wl-swap-delay, 0ms) backwards;
+}
+
+.number[data-swap="a"] > .digits {
+  animation: wholeIn 200ms cubic-bezier(0.16, 1, 0.3, 1) calc(var(--wl-swap-delay, 0ms) + 54ms)
+    backwards;
+}
+
+.number[data-swap="b"] > .digits {
+  animation: wholeInB 200ms cubic-bezier(0.16, 1, 0.3, 1) calc(var(--wl-swap-delay, 0ms) + 54ms)
+    backwards;
+}
+
+@keyframes wholeIn {
+  from {
+    translate: 0 var(--swap-in);
+    opacity: 0;
+  }
+}
+
+@keyframes wholeInB {
+  from {
+    translate: 0 var(--swap-in);
+    opacity: 0;
+  }
+}
+
+@keyframes wholeOut {
+  from {
+    translate: 0 0;
+    opacity: 1;
+  }
+
+  to {
+    translate: 0 var(--swap-out);
+    opacity: 0;
+  }
+}
+
+@keyframes wholeOutB {
+  from {
+    translate: 0 0;
+    opacity: 1;
+  }
+
+  to {
+    translate: 0 var(--swap-out);
+    opacity: 0;
+  }
+}
+
 .readout {
   position: absolute;
   width: 1px;
@@ -79,5 +166,10 @@
   .number .place,
   .number .glyph {
     transition: none;
+  }
+
+  .number > .digits,
+  .number::after {
+    animation: none;
   }
 }

@@ -1437,8 +1437,6 @@ try {
     const sample = () => {
       if (row.getAttribute('aria-current') === 'true') {
         const nextValue = Number(total.dataset.value);
-        const outgoing = total.querySelector('[data-place="0"] [data-exit]');
-        const roll = outgoing?.getAnimations().find((anim) => anim.transitionProperty === 'translate');
         const reading = {
           sameHeader: detail.querySelector('[data-testid="wl-hub-trg-name"]') === name &&
             detail.querySelector('[data-testid="wl-hub-trg-morph-tag"]') === tag,
@@ -1448,8 +1446,8 @@ try {
             ink.getAnimations().length === 0 && getComputedStyle(ink).opacity === '1',
           total: total.textContent,
           rolling: total === totalCell.querySelector('[data-value]') &&
-            nextValue !== oldValue && Number(total.dataset.roll) === Math.sign(nextValue - oldValue) &&
-            roll?.effect?.getKeyframes().at(-1)?.translate === (nextValue > oldValue ? '0px -100%' : '0px 100%'),
+            nextValue !== oldValue && total.dataset.was === String(oldValue) &&
+            total.dataset.swap !== undefined && total.dataset.roll === undefined,
         };
         const pinned = () => String(nextValue).length > String(oldValue).length &&
             total.contains(units) && Math.abs(rightGap() - oldRightGap) < 1 &&
@@ -1472,7 +1470,7 @@ try {
   check('换触发器时保留标题控件和标签，不截取整块标题', wordSwap?.sameHeader === true)
   check('方式标签换字和字色不翻动，底板不裁字', wordSwap?.steadyLabel === true)
   check('换到有触发记录的卡片时先读到统计，再交接详情', Number(wordSwap?.total) > 0)
-  check('触发统计复用同一控件，个位按增减方向滚出', wordSwap?.rolling === true)
+  check('触发统计复用同一控件，换卡片时整个数滚动交接（不逐位滚）', wordSwap?.rolling === true)
   check(
     '触发统计标签在左，进位时个位贴在原位',
     wordSwap?.pinned === true,

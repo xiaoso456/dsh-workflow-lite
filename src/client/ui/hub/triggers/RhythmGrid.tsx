@@ -3,7 +3,14 @@ import type { T } from '../../../i18n.ts'
 import { type FireTally, HOURS } from '../../../model/triggerActivity.ts'
 import { weekdayText } from '../../../model/triggerText.ts'
 import css from './overview.module.css'
-import { EMPTY_RHYTHM, type RhythmDot, reconcileRhythm } from './rhythmMotion.ts'
+import {
+  EMPTY_RHYTHM,
+  type RhythmDot,
+  type RhythmMark,
+  reconcileRhythm,
+  rhythmLeaving,
+  settleRhythm,
+} from './rhythmMotion.ts'
 
 const AXIS_HOURS = [0, 6, 12, 18, 24]
 const HOUR_SLOTS = Array.from({ length: HOURS }, (_, hour) => hour)
@@ -35,13 +42,9 @@ export function RhythmGrid(props: {
   if (next !== frame) setFrame(next)
 
   useEffect(() => {
-    if (!frame.marks.some((mark) => mark.leaving)) return
+    if (!rhythmLeaving(frame)) return
     const timer = window.setTimeout(() => {
-      setFrame((current) =>
-        current === frame
-          ? { ...current, marks: current.marks.filter((mark) => !mark.leaving) }
-          : current,
-      )
+      setFrame((current) => (current === frame ? settleRhythm(current) : current))
     }, EXIT_MS + 50)
     return () => window.clearTimeout(timer)
   }, [frame])
@@ -84,28 +87,27 @@ export function RhythmGrid(props: {
               />
             )
           }),
-          <span
-            key={`track-${start}`}
-            className={css.track}
-            style={{ gridRow: `${row + 1} / span 1` }}
-            aria-hidden
-          >
-            {next.marks
-              .filter((mark) => mark.day === start)
-              .map((mark) => (
-                <span
-                  key={mark.id}
-                  className={css.mark}
-                  data-hour={mark.hour}
-                  data-outcome={mark.outcome}
-                  data-many={mark.many || undefined}
-                  data-leaving={mark.leaving || undefined}
-                  style={{ '--rhythm-hour': mark.hour } as CSSProperties}
-                />
-              ))}
-          </span>,
         ]
       })}
+      {/*
+       * 点画在格子上面的几层里（见 rhythmMotion.ts）：不动的一层一直留着；换卡片时上一张独有的点
+       * 新起一层从不透明退到透明，退完这一张独有的点再新起一层淡入。
+       */}
+      <Dots
+        key="still"
+        days={tally.days}
+        marks={next.marks.filter((mark) => mark.layer === 'still')}
+        motion="still"
+      />
+      {next.outgoing.length > 0 && (
+        <Dots key={`out-${next.generation}`} days={tally.days} marks={next.outgoing} motion="out" />
+      )}
+      <Dots
+        key={`in-${next.generation}`}
+        days={tally.days}
+        marks={next.marks.filter((mark) => mark.layer === 'fresh')}
+        motion={next.outgoing.length > 0 ? 'after' : 'in'}
+      />
       <span className={css.axis}>
         {AXIS_HOURS.map((hour) => (
           <span
@@ -119,5 +121,43 @@ export function RhythmGrid(props: {
         ))}
       </span>
     </div>
+  )
+}
+
+/**
+ * 一层点：每天一条轨道，点按钟点横着摆。
+ * `motion`：`still` 不动；`out` 挂上就从不透明退到透明；`in` 挂上就淡入；`after` 等 `out` 退完再淡入。
+ */
+function Dots(props: {
+  days: readonly number[]
+  marks: readonly RhythmMark[]
+  motion: 'still' | 'out' | 'in' | 'after'
+}): React.JSX.Element {
+  return (
+    <span
+      className={css.dots}
+      data-motion={props.motion}
+      style={{ '--rhythm-rows': props.days.length } as CSSProperties}
+      aria-hidden
+    >
+      {props.days.map((start) => (
+        <span key={start} className={css.track}>
+          {props.marks
+            .filter((mark) => mark.day === start)
+            .map((mark) => (
+              <span
+                key={mark.id}
+                className={css.mark}
+                data-hour={mark.hour}
+                data-outcome={mark.outcome}
+                data-many={mark.many || undefined}
+                data-leaving={mark.leaving || undefined}
+                data-enter={mark.enter || undefined}
+                style={{ '--rhythm-hour': mark.hour } as CSSProperties}
+              />
+            ))}
+        </span>
+      ))}
+    </span>
   )
 }
