@@ -244,6 +244,11 @@
   line-height: 16px;
 }
 
+/* 这一步有段时「还没开始」藏着（一直挂着，换实例时只换属性）。 */
+.empty[data-hide] {
+  opacity: 0;
+}
+
 /* 一段：位置和宽度按时间比例（left / width 在 style 里）；太短也至少看得见一小截。 */
 .bar {
   position: absolute;
@@ -512,6 +517,68 @@
     animation-duration: 320ms;
     animation-timing-function: cubic-bezier(0.25, 0.8, 0.25, 1);
     animation-delay: calc(var(--wl-swap-delay, 0ms) + 54ms);
+  }
+
+  /* 没了：条缩回左端、时刻淡出（照切换的节奏，和旧字一起退）；又用上：和新冒出来的一样长出来。 */
+  .bar[data-gone] {
+    animation: ganttBarOut 160ms cubic-bezier(0.4, 0, 1, 1) both;
+  }
+
+  .tick[data-gone] {
+    animation: ganttTickOut 120ms linear both;
+  }
+
+  :is(.bar, .tick)[data-gone][data-move-switch] {
+    animation-delay: var(--wl-swap-delay, 0ms);
+  }
+
+  .bar[data-back] {
+    animation: ganttBarIn 320ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  }
+
+  .tick[data-back] {
+    animation: ganttTickIn 320ms ease-out backwards;
+  }
+
+  :is(.bar, .tick)[data-back][data-move-switch] {
+    animation-delay: calc(var(--wl-swap-delay, 0ms) + 54ms);
+  }
+
+  /* 「还没开始」和条错开：条要长出来时先退（54ms 退完，条正好开始长），条缩回去（160ms）之后才淡入。 */
+  .empty[data-toggled][data-hide] {
+    animation: ganttTickOut 54ms linear var(--wl-swap-delay, 0ms) both;
+  }
+
+  .empty[data-toggled]:not([data-hide]) {
+    animation: ganttTickIn 200ms ease-out calc(var(--wl-swap-delay, 0ms) + 160ms) backwards;
+  }
+}
+
+/* 没了的条、时刻透明地留着，不挡点击（ganttMotion.ts）。 */
+:is(.bar, .tick)[data-gone] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+@keyframes ganttBarOut {
+  from {
+    opacity: 1;
+    scale: 1 1;
+  }
+
+  to {
+    opacity: 0;
+    scale: 0 1;
+  }
+}
+
+@keyframes ganttTickOut {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
   }
 }
 

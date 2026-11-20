@@ -26,7 +26,7 @@ import { Icon } from '../../kit/Icon.tsx'
 import { Presence } from '../../motion/exits.tsx'
 import { SwapText } from '../../motion/swapText.tsx'
 import { NextWhy } from '../../run/NextWhy.tsx'
-import { useGanttSpot } from './ganttMotion.ts'
+import { useGanttSpot, useLast, useSlots, useToggled } from './ganttMotion.ts'
 import css from './overviewTab.module.css'
 import { STEP_ICON } from './runFace.ts'
 import { StateProblem } from './StateProblem.tsx'
@@ -114,6 +114,7 @@ function Progress(props: {
   const pct = (at: number): number => ((at - spans.start) / span) * 100
   const label = (at: number): string => (span >= 86_400_000 ? shortTime(at) : clockTime(at))
   const shown = new Set([...spans.steps.values()].flat().map((part) => part.status))
+  const ticks = spanTicks(spans.start, spans.end)
 
   return (
     <>
@@ -187,10 +188,7 @@ function Progress(props: {
               <span className={css.tick}>
                 <SwapText text={label(spans.start)} />
               </span>
-              {spanTicks(spans.start, spans.end).map((at, index) => (
-                // biome-ignore lint/suspicious/noArrayIndexKey: 刻度按位置认，换了时刻滑过去
-                <Tick key={index} left={pct(at)} enter={ready} text={label(at)} />
-              ))}
+              <Ticks ticks={ticks} pct={pct} label={label} enter={ready} />
               <span className={css.tick} data-end="" data-now={spans.live || undefined}>
                 <SwapText text={spans.live ? t('hub.runNow') : label(spans.end)} />
               </span>
@@ -212,6 +210,11 @@ function GanttRow(props: {
   onFocus(step: string): void
 }): React.JSX.Element {
   const { t, step, parts } = props
+  // 段数只增不减：换到段少的实例，多出来的段原地缩回去、透明地留着（ganttMotion.ts）。
+  const slots = useSlots(parts.length)
+  // 「还没开始」一直挂着、按属性显隐：和条错开，条缩回去之后才出来，条长出来之前先退。
+  const empty = parts.length === 0
+  const emptyToggled = useToggled(empty)
   return (
     <div className={css.ganttRow}>
       <button
@@ -227,49 +230,75 @@ function GanttRow(props: {
         </span>
       </button>
       <span className={css.track}>
-        {parts.map((part, index) => (
-          <GanttBar
-            // biome-ignore lint/suspicious/noArrayIndexKey: 一行里的第几段按位置认，换了时间滑过去
-            key={index}
-            t={t}
-            step={step}
-            part={part}
-            left={props.pct(part.from)}
-            width={props.pct(part.to) - props.pct(part.from)}
-            enter={props.enter}
-            onFocus={props.onFocus}
-          />
-        ))}
-        {parts.length === 0 && (
-          <span className={css.empty}>
-            <SwapText
-              text={t(step.status === 'skipped' ? 'run.status.skipped' : 'hub.runNotYet')}
+        {Array.from({ length: slots }, (_, index) => {
+          const part = parts[index]
+          return (
+            <GanttBar
+              // biome-ignore lint/suspicious/noArrayIndexKey: 一行里的第几段按位置认，换了时间滑过去
+              key={index}
+              t={t}
+              step={step}
+              part={part}
+              spot={
+                part === undefined
+                  ? null
+                  : {
+                      left: props.pct(part.from),
+                      width: props.pct(part.to) - props.pct(part.from),
+                    }
+              }
+              enter={props.enter}
+              onFocus={props.onFocus}
             />
-          </span>
-        )}
+          )
+        })}
+        <span
+          className={css.empty}
+          data-hide={empty ? undefined : ''}
+          data-toggled={emptyToggled ? '' : undefined}
+          aria-hidden={empty ? undefined : true}
+        >
+          <SwapText text={t(step.status === 'skipped' ? 'run.status.skipped' : 'hub.runNotYet')} />
+        </span>
       </span>
     </div>
   )
 }
 
-/** 一段条：位置和宽度按时间比例；换了位置滑过去，新冒出来的从左端长出来（{@link useGanttSpot}）。 */
+/**
+ * 一段条：位置和宽度按时间比例；换了位置滑过去，新冒出来的从左端长出来，没了（`part` 缺省）缩回左端
+ * 透明地留着，颜色停在最后那样（{@link useGanttSpot}）。
+ */
 function GanttBar(props: {
   t: T
   step: StepLine
-  part: StepSpan
-  left: number
-  width: number
+  part: StepSpan | undefined
+  spot: { left: number; width: number } | null
   enter: boolean
   onFocus(step: string): void
 }): React.JSX.Element {
   const { t, step, part } = props
-  const motion = useGanttSpot({ left: props.left, width: props.width }, props.enter)
+  const motion = useGanttSpot(props.spot, props.enter)
+  const tone = useLast(part === undefined ? undefined : SPAN_TONE[part.status], 'done')
+  if (part === undefined || motion.gone) {
+    return (
+      <button
+        type="button"
+        className={css.bar}
+        {...motion.attrs}
+        data-run-status={tone}
+        tabIndex={-1}
+        aria-hidden
+        style={motion.style}
+      />
+    )
+  }
   return (
     <button
       type="button"
       className={css.bar}
       {...motion.attrs}
-      data-run-status={SPAN_TONE[part.status]}
+      data-run-status={tone}
       data-live={part.open}
       aria-label={step.name}
       data-tip={[
@@ -286,12 +315,49 @@ function GanttBar(props: {
   )
 }
 
-/** 横轴中间的一个时刻：换了时刻滑过去、字滚着换。 */
-function Tick(props: { left: number; enter: boolean; text: string }): React.JSX.Element {
-  const motion = useGanttSpot({ left: props.left }, props.enter)
+/** 横轴中间的几个时刻：个数只增不减，少了的淡出、透明地留着。 */
+function Ticks(props: {
+  ticks: readonly number[]
+  pct(at: number): number
+  label(at: number): string
+  enter: boolean
+}): React.JSX.Element {
+  const slots = useSlots(props.ticks.length)
   return (
-    <span className={css.tick} style={motion.style} data-mid="" {...motion.attrs}>
-      <SwapText text={props.text} />
+    <>
+      {Array.from({ length: slots }, (_, index) => {
+        const at = props.ticks[index]
+        return (
+          <Tick
+            // biome-ignore lint/suspicious/noArrayIndexKey: 刻度按位置认，换了时刻滑过去
+            key={index}
+            left={at === undefined ? null : props.pct(at)}
+            enter={props.enter}
+            text={at === undefined ? undefined : props.label(at)}
+          />
+        )
+      })}
+    </>
+  )
+}
+
+/** 横轴中间的一个时刻：换了时刻滑过去、字滚着换；没了（`left` 为 `null`）淡出，字停在最后那样。 */
+function Tick(props: {
+  left: number | null
+  enter: boolean
+  text: string | undefined
+}): React.JSX.Element {
+  const motion = useGanttSpot(props.left === null ? null : { left: props.left }, props.enter)
+  const text = useLast(props.text, '')
+  return (
+    <span
+      className={css.tick}
+      style={motion.style}
+      data-mid=""
+      aria-hidden={motion.gone || undefined}
+      {...motion.attrs}
+    >
+      <SwapText text={text} />
     </span>
   )
 }
