@@ -41,6 +41,7 @@ import { ExitSeat, useViewGhost } from '../motion/exits.tsx'
 import { SWITCH_HOLD_MS, useSwapHold } from '../motion/swap.tsx'
 import { type RunStepFocus, RunView } from '../run/RunView.tsx'
 import { TriggerContext } from '../trigger/triggerEnv.ts'
+import { useModalLayer } from './modalLayer.ts'
 import css from './shell.module.css'
 import { TipLayer } from './TipLayer.tsx'
 import { NO_SLOTS, TopBar } from './TopBar.tsx'
@@ -64,6 +65,9 @@ import { useStepEdit } from './workflowView/useStepEdit.ts'
 import { useTriggerScene } from './workflowView/useTriggerScene.ts'
 import { useViewport } from './workflowView/useViewport.ts'
 import { useViewTheme } from './workflowView/useViewTheme.ts'
+
+/** 弹窗层的类：视图根的类（主题变量、通用规则）加上贴着视图根的定位。 */
+const LAYER_CLASS = cx(css.root, css.layer)
 
 /** 客户端入口注入的业务面。 */
 export interface WorkflowViewInjected {
@@ -222,8 +226,10 @@ function Shell(props: {
   const rootRef = useRef<HTMLDivElement>(null)
   const { theme, themeVars, look, board } = useViewTheme({ rootRef })
   useScrollbarWidth(rootRef)
-  /** 模态框挂载点（就是视图根）：要等根节点挂上才有，所以放 state。 */
-  const [modalHost, setModalHost] = useState<HTMLElement | null>(null)
+  /** 视图根（悬停提示要在它上面听指针）：要等根节点挂上才有，所以放 state。 */
+  const [viewRoot, setViewRoot] = useState<HTMLElement | null>(null)
+  /** 弹窗、浮层、悬停提示挂在视图外面的这一层（为什么见 modalLayer.ts）。 */
+  const layer = useModalLayer(rootRef, LAYER_CLASS)
   const [size, setSize] = useState({ width: 1200, height: 800 })
   const narrow = size.width <= NARROW
   const inspectorW = inspectorWidth(size.width)
@@ -249,7 +255,7 @@ function Shell(props: {
 
   useEffect(() => {
     const element = rootRef.current
-    setModalHost(element)
+    setViewRoot(element)
     if (element === null || typeof ResizeObserver === 'undefined') return
     const observer = new ResizeObserver(() => {
       setSize({ width: element.clientWidth, height: element.clientHeight })
@@ -409,7 +415,7 @@ function Shell(props: {
         aria-label={t('tab.label')}
         onKeyDown={onKeyDown}
       >
-        <ModalHostProvider value={modalHost}>
+        <ModalHostProvider value={layer?.root ?? null}>
           {runId !== null ? (
             <>
               <RunView
@@ -621,7 +627,7 @@ function Shell(props: {
             />
           </div>
         </ModalHostProvider>
-        <TipLayer root={modalHost} />
+        <TipLayer root={viewRoot} layer={layer} />
       </div>
     </BoardThemeContext.Provider>
   )

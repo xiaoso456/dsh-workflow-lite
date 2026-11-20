@@ -4,7 +4,8 @@
  * 元素上写 `data-tip="…"` 就有提示，不用包组件、也不用加类名（不用原生 `title`：
  * 浏览器自带的提示样子、延迟都和插件对不上）。
  *
- * - 浮层挂在视图根上：不被滚动区、对话框裁掉；画布缩放时字号也不跟着变。
+ * - 视图里、弹窗层里（modalLayer.ts）带 `data-tip` 的都算；浮层挂在弹窗层上，位置按它（和视图根一样大）算：
+ *   不被滚动区、对话框裁掉，画布缩放时字号也不跟着变，弹出收起也不触发整页样式重算。
  * - 悬停一会儿或键盘聚焦才出来；刚收起一个又指向下一个时立刻出来，扫一排按钮不用每个都等。
  * - 文字比窗口还高、上下都放不下：放在空处大的一边，截到放得下为止，末尾淡出。
  * - 默认在元素正下方居中，下面放不下翻到上方，左右夹在视图里；长文字折行，`\n` 换行。
@@ -19,6 +20,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import type { ModalLayer } from './modalLayer.ts'
 import css from './tipLayer.module.css'
 
 /** 悬停多久才出来。 */
@@ -60,15 +62,22 @@ interface Shown {
 }
 
 /** 指针 / 焦点所在处最近的、带非空提示的元素。 */
-function tipOf(node: EventTarget | null, root: HTMLElement): HTMLElement | null {
+function tipOf(node: EventTarget | null, areas: readonly HTMLElement[]): HTMLElement | null {
   if (!(node instanceof Element)) return null
   const element = node.closest<HTMLElement>('[data-tip]')
-  if (element === null || !root.contains(element)) return null
+  if (element === null || !areas.some((area) => area.contains(element))) return null
   return (element.dataset.tip ?? '') === '' ? null : element
 }
 
-export function TipLayer(props: { root: HTMLElement | null }): React.ReactNode {
+export function TipLayer(props: {
+  /** 视图根。 */
+  root: HTMLElement | null
+  /** 弹窗层：弹窗里的提示也归这里管，提示本身挂在它给提示的格子里。 */
+  layer: ModalLayer | null
+}): React.ReactNode {
   const { root } = props
+  const layer = props.layer?.root ?? null
+  const tips = props.layer?.tips ?? null
   const [shown, setShown] = useState<Shown | null>(null)
   /** 按下收起的提示直接消失、不留淡出的影子（点击常常紧跟着弹出别的东西，影子会晚一拍冒出来闪一下）。 */
   const pressed = useRef(false)
@@ -81,8 +90,8 @@ export function TipLayer(props: { root: HTMLElement | null }): React.ReactNode {
   const tipRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (root === null) return
-    const host = root
+    if (root === null || layer === null) return
+    const areas = [root, layer]
     let timer = 0
     let seq = 0
     /** 正显示或等着显示的元素。 */
@@ -112,12 +121,14 @@ export function TipLayer(props: { root: HTMLElement | null }): React.ReactNode {
       visible = true
       seq += 1
       setShown({ seq, target, text: target.dataset.tip ?? '' })
-      watch.observe(host, {
-        subtree: true,
-        childList: true,
-        attributes: true,
-        attributeFilter: ['data-tip'],
-      })
+      for (const area of areas) {
+        watch.observe(area, {
+          subtree: true,
+          childList: true,
+          attributes: true,
+          attributeFilter: ['data-tip'],
+        })
+      }
     }
     function aim(target: HTMLElement | null): void {
       if (target === current) return
@@ -139,24 +150,24 @@ export function TipLayer(props: { root: HTMLElement | null }): React.ReactNode {
 
     const onOver = (event: PointerEvent): void => {
       if (event.pointerType === 'touch') return
-      const target = tipOf(event.target, root)
+      const target = tipOf(event.target, areas)
       if (target !== muted) muted = null
       aim(target === muted ? null : target)
     }
     const onOut = (event: PointerEvent): void => {
       const next = event.relatedTarget
-      if (!(next instanceof Node) || !root.contains(next)) {
+      if (!(next instanceof Node) || !areas.some((area) => area.contains(next))) {
         muted = null
         aim(null)
       }
     }
     const onDown = (event: PointerEvent): void => {
-      muted = tipOf(event.target, root)
+      muted = tipOf(event.target, areas)
       pressed.current = true
       hide()
     }
     const onFocusIn = (event: FocusEvent): void => {
-      const target = tipOf(event.target, root)
+      const target = tipOf(event.target, areas)
       if (target !== null && target === event.target && target !== muted) {
         if (target.matches(':focus-visible')) aim(target)
       }
@@ -168,38 +179,42 @@ export function TipLayer(props: { root: HTMLElement | null }): React.ReactNode {
       if (event.key === 'Escape') hide()
     }
 
-    root.addEventListener('pointerover', onOver)
-    root.addEventListener('pointerout', onOut)
-    root.addEventListener('pointerdown', onDown, true)
-    root.addEventListener('focusin', onFocusIn)
-    root.addEventListener('focusout', onFocusOut)
-    root.addEventListener('keydown', onKey, true)
-    root.addEventListener('scroll', hide, true)
-    root.addEventListener('wheel', hide, { capture: true, passive: true })
+    for (const area of areas) {
+      area.addEventListener('pointerover', onOver)
+      area.addEventListener('pointerout', onOut)
+      area.addEventListener('pointerdown', onDown, true)
+      area.addEventListener('focusin', onFocusIn)
+      area.addEventListener('focusout', onFocusOut)
+      area.addEventListener('keydown', onKey, true)
+      area.addEventListener('scroll', hide, true)
+      area.addEventListener('wheel', hide, { capture: true, passive: true })
+    }
     window.addEventListener('blur', hide)
     return () => {
       window.clearTimeout(timer)
       watch.disconnect()
-      root.removeEventListener('pointerover', onOver)
-      root.removeEventListener('pointerout', onOut)
-      root.removeEventListener('pointerdown', onDown, true)
-      root.removeEventListener('focusin', onFocusIn)
-      root.removeEventListener('focusout', onFocusOut)
-      root.removeEventListener('keydown', onKey, true)
-      root.removeEventListener('scroll', hide, true)
-      root.removeEventListener('wheel', hide, { capture: true })
+      for (const area of areas) {
+        area.removeEventListener('pointerover', onOver)
+        area.removeEventListener('pointerout', onOut)
+        area.removeEventListener('pointerdown', onDown, true)
+        area.removeEventListener('focusin', onFocusIn)
+        area.removeEventListener('focusout', onFocusOut)
+        area.removeEventListener('keydown', onKey, true)
+        area.removeEventListener('scroll', hide, true)
+        area.removeEventListener('wheel', hide, { capture: true })
+      }
       window.removeEventListener('blur', hide)
     }
-  }, [root])
+  }, [root, layer])
 
   useLayoutEffect(() => {
     const tip = tipRef.current
-    if (shown === null || root === null || tip === null) {
+    if (shown === null || layer === null || tip === null) {
       setPlace(null)
       return
     }
     const box = shown.target.getBoundingClientRect()
-    const area = root.getBoundingClientRect()
+    const area = layer.getBoundingClientRect()
     const width = tip.offsetWidth
     // `scrollHeight`：上一次截过的话 `offsetHeight` 是截后的，这里要量全文有多高。
     const height = tip.scrollHeight
@@ -218,7 +233,7 @@ export function TipLayer(props: { root: HTMLElement | null }): React.ReactNode {
     const top = up ? box.top - area.top - GAP - (clip ?? height) : below
     const seq = shown.seq
     setPlace((was) => ({ seq, left, top, up, clip, glide: was?.seq === seq }))
-  }, [shown, root])
+  }, [shown, layer])
 
   // 收起：留一个不接指针、没有 testid 的影子原地淡出（和出来时对称），弹出新的提示就立刻收掉影子。
   const resting = useRef<Leaving | null>(null)
@@ -242,8 +257,8 @@ export function TipLayer(props: { root: HTMLElement | null }): React.ReactNode {
     return () => window.clearTimeout(id)
   }, [gone])
 
-  if (shown === null || root === null) {
-    if (leaving === null || root === null) return null
+  if (shown === null || tips === null) {
+    if (leaving === null || tips === null) return null
     return createPortal(
       <div
         className={css.tipSeat}
@@ -260,7 +275,7 @@ export function TipLayer(props: { root: HTMLElement | null }): React.ReactNode {
           {leaving.text}
         </div>
       </div>,
-      root,
+      tips,
     )
   }
   // 只有给这一次量过的位置才算数：新弹出时（换了 seq）先藏着量，量好直接出现在原地；
@@ -298,6 +313,6 @@ export function TipLayer(props: { root: HTMLElement | null }): React.ReactNode {
         {shown.text}
       </div>
     </div>,
-    root,
+    tips,
   )
 }

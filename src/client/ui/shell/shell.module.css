@@ -335,6 +335,22 @@
   letter-spacing: -0.005em;
 }
 
+/*
+ * 弹窗层（modalLayer.ts）：挂在 body 下、同时带着 `.root`，主题变量和视图根上的通用规则照样生效；
+ * 这里只把它改成贴着视图根的一层（位置、大小由脚本写）：透明、不接指针，挂上来的东西才接。
+ */
+.root.layer {
+  position: fixed;
+  flex: none;
+  min-height: 0;
+  background: transparent;
+  pointer-events: none;
+}
+
+:where(.layer) > * {
+  pointer-events: auto;
+}
+
 /* 第一次加载完成之前先藏着（不占掉点击），加载完淡入；只动透明度。 */
 .root {
   transition: opacity 140ms linear;

@@ -26,7 +26,7 @@ export type FloatState = 'off' | 'hover' | 'pinned'
 /**
  * 悬停浮层的状态与摆位（「?」说明、画布连线上的交接卡片共用）。
  *
- * - 浮层挂到视图根（和模态框同一个挂载点）：不被滚动区裁掉，也不会把滚动区撑出滚动条；
+ * - 浮层挂到弹窗层（和模态框同一个挂载点，贴着视图根，见 shell/modalLayer.ts）：不被滚动区裁掉，也不会把滚动区撑出滚动条；
  *   画布缩放时字号也不跟着变小。
  * - 鼠标可以从触发器移进浮层：离开触发器后稍等一下再收，进了浮层就不收；浮层接住指针，
  *   里面的文字能选中复制，点击不会穿透到后面。
@@ -73,7 +73,7 @@ export function useFloat<A extends HTMLElement>(options: {
   /** 悬停触发：挂到触发器上。 */
   hoverProps: { onPointerEnter: () => void; onPointerLeave: () => void }
   onKeyDown: (event: React.KeyboardEvent) => void
-  /** 把浮层内容包一层定位壳，挂到视图根。 */
+  /** 把浮层内容包一层定位壳，挂到弹窗层。 */
   render: (props: {
     className: string
     testId?: string | undefined

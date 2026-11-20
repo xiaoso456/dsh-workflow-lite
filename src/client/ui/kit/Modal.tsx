@@ -20,11 +20,12 @@ import { snapToPixels } from './pixelSnap.ts'
 import ui from './ui.module.css'
 
 /**
- * 模态框挂到哪里：视图根节点。
+ * 模态框、浮层挂到哪里：贴着视图根的弹窗层（shell/modalLayer.ts）。
  *
  * 面板里打开的模态框不能就地渲染——面板自己带着入场动画（`transform`），会变成里面
- * `position: absolute` 的定位参照，遮罩就只盖住面板那一条。挂回视图根，遮罩盖住整个视图，
- * 设计令牌照常继承，也不会跑出视图去盖宿主页面。
+ * `position: absolute` 的定位参照，遮罩就只盖住面板那一条。挂到弹窗层，遮罩盖住整个视图，
+ * 主题照常（弹窗层抄着视图根的主题），也不会跑出视图去盖宿主页面；弹窗层在视图外面，
+ * 弹窗里插拔元素也不会让整页样式重算。
  */
 export const ModalHost = createContext<HTMLElement | null>(null)
 export const ModalHostProvider = ModalHost.Provider
