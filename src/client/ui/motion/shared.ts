@@ -42,5 +42,72 @@ export function fadeAway(
   })
 }
 
+const EASE_OUT_CURVE = [0.22, 1, 0.36, 1] as const
+
 /** 「平滑减速」：一开始就走得快，尾巴轻轻落定。 */
-export const EASE_OUT = 'cubic-bezier(0.22, 1, 0.36, 1)'
+export const EASE_OUT = `cubic-bezier(${EASE_OUT_CURVE.join(', ')})`
+
+/** {@link EASE_OUT} 在时间进度 `t`（0…1）上的值：要知道动画此刻走到哪、又不想让浏览器当场算样式时自己算。 */
+export const easeOutAt = bezierAt(...EASE_OUT_CURVE)
+
+/** `cubic-bezier(x1, y1, x2, y2)` 在时间进度上的值（先解出 x = t 的参数，再取 y）。 */
+export function bezierAt(x1: number, y1: number, x2: number, y2: number): (t: number) => number {
+  const axis = (a: number, b: number, s: number): number =>
+    3 * a * s * (1 - s) ** 2 + 3 * b * s ** 2 * (1 - s) + s ** 3
+  return (t) => {
+    if (t <= 0) return 0
+    if (t >= 1) return 1
+    let low = 0
+    let high = 1
+    let s = t
+    for (let i = 0; i < 30; i++) {
+      const x = axis(x1, x2, s)
+      if (Math.abs(x - t) < 1e-6) break
+      if (x < t) low = s
+      else high = s
+      s = (low + high) / 2
+    }
+    return axis(y1, y2, s)
+  }
+}
+
+/**
+ * 这一帧画完之后再跑（下一帧开始前的一个任务里）：这时版面已经算好，读位置、尺寸、`getAnimations()` 是现成的，
+ * 不逼浏览器当场重算。提交里（layout effect、回调 ref、紧跟着的 MutationObserver）读版面，
+ * 碰上右栏整块换了内容，就是当场把整页样式、排版算一遍（控制台报 Forced reflow）。返回取消函数。
+ */
+export function afterPaint(run: () => void): () => void {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const frame = requestAnimationFrame(() => {
+    timer = setTimeout(run, 0)
+  })
+  return () => {
+    cancelAnimationFrame(frame)
+    if (timer !== undefined) clearTimeout(timer)
+  }
+}
+
+/**
+ * 这一帧排完版之后、画出来之前跑（一次性的 ResizeObserver：开始观察时它在这一帧排完版后回调一次）：
+ * 读位置是现成的，放的动画、改的东西这一帧就画出来，不晚一帧。`el` 量不到大小（没显示、0×0）时不回调，
+ * 退到画完之后（{@link afterPaint}）。返回取消函数。
+ */
+export function afterLayout(el: Element, run: () => void): () => void {
+  if (typeof ResizeObserver === 'undefined') return afterPaint(run)
+  let done = false
+  const once = (): void => {
+    if (done) return
+    done = true
+    sizes.disconnect()
+    late()
+    run()
+  }
+  const sizes = new ResizeObserver(once)
+  sizes.observe(el)
+  const late = afterPaint(once)
+  return () => {
+    done = true
+    sizes.disconnect()
+    late()
+  }
+}

@@ -20,7 +20,7 @@ import { cx } from '../kit/cx.ts'
 import { ghostClone, ghostFade } from '../kit/ghost.ts'
 import css from './exits.module.css'
 import { slide, slideFrom, slideOffset } from './flip.ts'
-import { EASE, fadeAway, leaving, REDUCED } from './shared.ts'
+import { afterPaint, EASE, fadeAway, leaving, REDUCED } from './shared.ts'
 import {
   EASE_GLIDE,
   SWITCH,
@@ -213,7 +213,8 @@ export function useGlide(
       stop.current?.()
       stop.current = null
       if (pill === null || typeof ResizeObserver === 'undefined') return
-      let width = pill.offsetWidth
+      // 起点在观察器第一次回调里记（版面已经算好）：挂上时当场量，碰上右栏整块换内容就逼整页重排。
+      let width: number | null = null
       /** 各小件上次落定的位置（相对药丸左边）。 */
       let spots = new Map<HTMLElement, number>()
       const running = new Map<HTMLElement, Animation>()
@@ -234,10 +235,14 @@ export function useGlide(
       const remember = (): void => {
         spots = new Map(items().map((el) => [el, leftOf(el)]))
       }
-      remember()
 
       const sizes = new ResizeObserver(() => {
         const next = pill.offsetWidth
+        if (width === null) {
+          width = next
+          remember()
+          return
+        }
         if (next === width) return
         const was = width
         width = next
@@ -384,7 +389,8 @@ export function useRowSlide(
       if (row === null || typeof ResizeObserver === 'undefined') return
       // 位置按这一排自己算，不按 offsetParent：外面哪一层定位变了（右栏入场完了收掉定位），各单元
       // offsetLeft 整体跟着变，可谁也没变宽、ResizeObserver 不报；按旧数比，下一次一挤整排都跳一下。
-      const measure = (): Map<HTMLElement, { left: number; width: number }> => {
+      type Spots = Map<HTMLElement, { left: number; width: number }>
+      const measure = (): Spots => {
         const spots = new Map<HTMLElement, { left: number; width: number }>()
         for (const child of row.children) {
           if (
@@ -398,11 +404,22 @@ export function useRowSlide(
         }
         return spots
       }
-      let spots = measure()
+      /**
+       * 各单元上次落定的位置；`null` = 还没记（刚挂上、单元换了）：下一次回调只记不滑。
+       * 不在挂上、单元增删的那一刻当场量：那是在提交里，碰上右栏整块换内容就逼整页样式、排版当场算一遍；
+       * 观察器的回调在版面算好之后，读是现成的（刚开始观察时它自己会回调一次）。
+       */
+      let spots: Spots | null = null
+      let settle: (() => void) | null = null
       /** 这一排有单元变了宽窄：现在就把要读的读完，返回之后再放的动画（{@link rowSizes} 把各排的读写分开批着做）。 */
       const react = (entries: readonly ResizeObserverEntry[]): (() => void)[] => {
         const writes: (() => void)[] = []
         const next = measure()
+        if (spots === null) {
+          spots = next
+          return writes
+        }
+        const before = spots
         const whole = entries.some((entry) => entry.target === row)
         const switched = plain ? null : swap.current
         // 切换时不看整排变没变宽：排是按内容占宽的（标题加铅笔），字一长整排跟着变宽，照样要滑。
@@ -414,11 +431,11 @@ export function useRowSlide(
             growIn(was, next, { duration: SWITCH.glide, delay: base, easing: EASE_GLIDE }),
           )
         } else if (!whole && REDUCED?.matches !== true && keepApart) {
-          if ([...next].some(([child, now]) => spots.get(child)?.left !== now.left)) {
+          if ([...next].some(([child, now]) => before.get(child)?.left !== now.left)) {
             let leastShift = 0
             const shifts = Array.from(next, ([child, now]) => {
               const [current] = slideOffset(child)
-              const shift = (spots.get(child)?.left ?? now.left) - now.left + current
+              const shift = (before.get(child)?.left ?? now.left) - now.left + current
               leastShift = Math.max(leastShift, shift)
               return { child, current, shift: leastShift }
             })
@@ -474,15 +491,22 @@ export function useRowSlide(
       watch()
       // 单元换了（换了一种触发方式，顶栏里的按钮不一样了）、有单元藏起露出：重新记、重新看，不滑。
       // 只看直接子项增删（单元里面换字不算，那是要滑的）；藏起露出看子项上的那个属性。
+      // 下一次回调只记不滑；没有回调（谁都没变宽窄）就画完之后记。
       const remeasure = (): void => {
-        spots = measure()
+        spots = null
         watch()
+        settle?.()
+        settle = afterPaint(() => {
+          settle = null
+          if (spots === null) spots = measure()
+        })
       }
       const kids = new MutationObserver(remeasure)
       kids.observe(row, { childList: true })
       const hidden = new MutationObserver(remeasure)
       hidden.observe(row, { subtree: true, attributeFilter: ['data-row-hidden'] })
       stop.current = () => {
+        settle?.()
         for (const el of watched) rowSizes.unwatch(el, react)
         watched.clear()
         kids.disconnect()

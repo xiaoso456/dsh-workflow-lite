@@ -11,7 +11,7 @@
 
 import { type RefObject, useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 import { type Ghost, ghostClone } from '../kit/ghost.ts'
-import { EASE, EASE_OUT, fadeAway, leaving, REDUCED, seen } from './shared.ts'
+import { afterLayout, EASE, EASE_OUT, fadeAway, leaving, REDUCED, seen } from './shared.ts'
 import { swappedAt } from './swap.tsx'
 
 /**
@@ -335,6 +335,7 @@ export function useResizeFlip(
         }
       }
       const sizes = new ResizeObserver(settle)
+      let soon: (() => void) | null = null
       const watch = (): void => {
         for (const child of list.children) {
           if (!leaving.has(child) && !child.hasAttribute('data-no-flip')) sizes.observe(child)
@@ -381,11 +382,17 @@ export function useResizeFlip(
           for (const node of fresh) enterIn(node)
         }
         watch()
-        // 删掉一项时其余项的尺寸没变、列表也可能是定高的：ResizeObserver 不一定叫，这里补一次。
-        settle()
+        // 删掉一项时其余项的尺寸没变、列表也可能是定高的：ResizeObserver 不一定叫，这里补一次——
+        // 排完版再量（这时还在提交后的微任务里，当场量会逼整页重排），这一帧照样画出来。
+        soon?.()
+        soon = afterLayout(list, () => {
+          soon = null
+          settle()
+        })
       })
       children.observe(list, { childList: true })
       stop.current = () => {
+        soon?.()
         sizes.disconnect()
         children.disconnect()
       }

@@ -11,7 +11,7 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/runs/RunDetail
  */
 
-import { useCallback, useLayoutEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { runCursor } from '../../../../shared/runCursor.ts'
 import type { InstanceSummary, RunStatus } from '../../../../shared/runState.ts'
 import type { FireRecord } from '../../../../shared/wire/trigger.ts'
@@ -22,6 +22,7 @@ import type { WorkflowLiteRpc } from '../../../rpc.ts'
 import { cx } from '../../kit/cx.ts'
 import { Skeleton } from '../../kit/Skeleton.tsx'
 import ui from '../../kit/ui.module.css'
+import { useScrollReset } from '../../kit/useScrollReset.ts'
 import motion from '../../motion/paneTransition.module.css'
 import { tabDirection, usePaneTransition } from '../../motion/paneTransition.ts'
 import { FireDialog } from '../../trigger/dialogs/FireDialog.tsx'
@@ -68,9 +69,11 @@ export function RunDetail(props: {
   const [fire, setFire] = useState<FireRecord | null>(null)
   const paneMotion = usePaneTransition()
   const scroll = paneMotion.scope
-  useLayoutEffect(() => {
-    if (scroll.current !== null) scroll.current.scrollTop = 0
-  }, [item.id, tab, scroll])
+  useScrollReset(
+    scroll,
+    `${item.id}
+${tab}`,
+  )
   const turn = (next: RunTab): void => {
     paneMotion.change(() => props.onTab(next), tabDirection(RUN_TABS, tab, next))
   }

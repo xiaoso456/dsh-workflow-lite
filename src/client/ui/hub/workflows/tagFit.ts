@@ -9,6 +9,8 @@
  */
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
+import { afterLayout } from '../../motion/shared.ts'
 
 /** 悬停时标签多出来的宽（tags.module.css 里名字右边多让出的 14px）。 */
 export const HOVER_GROW = 14
@@ -42,6 +44,9 @@ export function fitTags(
  * 返回一行放得下几个标签；`key` 变了（标签换了）当场重量，那一行、名字变宽变窄（改名时输入框跟着字长）跟着重量。
  * `also` 是同一排上别的回调 ref（useRowSlide），一起挂上。
  * `fresh`：放得下几个是按眼下这组标签量的（标签刚换、还没重量的那一次是 `false`，这时排出来的样子不作数）。
+ *
+ * 标签换了的重量放在这一帧排完版之后、画出来之前（{@link afterLayout}），在那里同步提交（`flushSync`），
+ * 画出来的第一帧就是对的条数。不在提交里当场量：换一张工作流时右栏整块换了内容，一读宽度就逼整页样式、排版当场算一遍。
  */
 export function useTagFit(
   key: string,
@@ -77,7 +82,11 @@ export function useTagFit(
     setFitted({ key: keyRef.current, shown: fitTags(chips, tail, more, gap, avail) })
   }, [])
   // 标签换了（key）就重量，画出来之前定下来。
-  useLayoutEffect(measure, [key, measure])
+  useLayoutEffect(() => {
+    const el = row.current
+    if (el === null) return
+    return afterLayout(el, () => flushSync(measure))
+  }, [key, measure])
   useEffect(() => () => stop.current?.(), [])
   const ref = useCallback(
     (el: HTMLElement | null): void => {
@@ -97,12 +106,18 @@ export function useTagFit(
         if (lead !== null && lead !== el) sizes.observe(lead)
       }
       watch()
+      let soon: (() => void) | null = null
       const swaps = new MutationObserver(() => {
         watch()
-        measure()
+        soon?.()
+        soon = afterLayout(el, () => {
+          soon = null
+          measure()
+        })
       })
       swaps.observe(line, { childList: true })
       stop.current = () => {
+        soon?.()
         sizes.disconnect()
         swaps.disconnect()
       }

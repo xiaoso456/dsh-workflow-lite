@@ -92,7 +92,8 @@ export function GroupedList<E, G extends string = string>(props: {
     closed(group) ? [groupId(group)] : group.entries.map((entry) => keyOf(entry)),
   )
   const density = useListDensity()
-  const layout = `${props.selected}|${homeId}|${groups[0]?.by ?? ''}|${density}|${shown.join('|')}|${props.layout ?? ''}`
+  // 各行怎么排（换选中不算：行不挪，不用量）；选中底块另外知道选中了哪一项。
+  const layout = `${groups[0]?.by ?? ''}|${density}|${shown.join('|')}|${props.layout ?? ''}`
   useFlip(listRef, layout, { enter: true })
 
   const fold = (id: string): void => {
@@ -111,7 +112,7 @@ export function GroupedList<E, G extends string = string>(props: {
       data-density={density}
       aria-label={props.label}
     >
-      <ListThumb layout={layout} />
+      <ListThumb layout={layout} pick={`${props.selected}|${homeId}`} />
       {groups.length === 0 && <p className={cx(hub.sideEmpty, ui.fade)}>{props.empty}</p>}
       {groups.map((group) => {
         const id = groupId(group)

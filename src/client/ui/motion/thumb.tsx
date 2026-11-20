@@ -8,7 +8,7 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { cx } from '../kit/cx.ts'
 import shared from '../kit/ui.module.css'
-import { EASE_OUT, REDUCED } from './shared.ts'
+import { afterPaint, EASE_OUT, REDUCED } from './shared.ts'
 import { swappedAt } from './swap.tsx'
 import css from './thumb.module.css'
 
@@ -30,9 +30,16 @@ interface Place {
  *
  * `carry`：列表会整个卸掉又挂上（下拉每次打开都是新的一份）时，给个名字，
  * 新挂上的这块从上次停的地方滑到现在选中的那一项（没变就原地淡入），不是凭空出现在新位置。
+ *
+ * `pick`：选中的是哪一项，和 `layout`（各项怎么排）分开给时，只换选中不当场量：
+ * 换选中的那次渲染里右栏整块换了内容，这时读 `offsetTop` 会逼浏览器当场把整页样式、排版算一遍（几十毫秒，
+ * 控制台报 Forced reflow）。各项的位置在每次画完之后（版面已经算好，读是现成的）记一份，换选中时直接拿；
+ * 画完再对一次，记的不对就挪过去。`layout` 变了、列表变宽变窄时照旧当场量。
  */
 export function ListThumb(props: {
   layout: string
+  /** 选中的是哪一项（见上）；不给 = 选中算在 `layout` 里，变了就当场量。 */
+  pick?: string
   className?: string
   carry?: string
 }): React.JSX.Element {
@@ -51,23 +58,23 @@ export function ListThumb(props: {
     observer.observe(list)
     return () => observer.disconnect()
   }, [])
-  // layout / resized 变了才量。
+  /** 画完之后记下的各项位置（{@link spotsOf}）；`null` = 排法变了，还没重记。 */
+  const spots = useRef<WeakMap<Element, Place> | null>(null)
+  /** 上一次量的时候各项怎么排（只有选中变了时不当场量）。 */
+  const measured = useRef<string | null>(null)
+  // layout / pick / resized 变了才量。
   useLayoutEffect(() => {
-    // 选中的项是列表的直接子项，或分组块（`data-flip-group`，见 flip.ts）里的子项。
-    const item = ref.current?.parentElement?.querySelector<HTMLElement>(
-      ':scope > [data-selected="true"], :scope > [data-flip-group] > [data-selected="true"]',
-    )
-    if (item == null) {
+    const list = ref.current?.parentElement
+    if (list == null) return
+    const shape = `${props.layout}|${String(resized)}|${props.carry ?? ''}`
+    if (measured.current !== shape) spots.current = null
+    measured.current = shape
+    const item = list.querySelector<HTMLElement>(SELECTED)
+    if (item === null) {
       setPlace((was) => (was === null ? null : { ...was, hidden: true }))
       return
     }
-    const next: Place = {
-      top: item.offsetTop,
-      left: item.offsetLeft,
-      width: item.offsetWidth,
-      height: item.offsetHeight,
-      hidden: false,
-    }
+    const next = spots.current?.get(item) ?? placeOf(item)
     const from = props.carry === undefined ? undefined : thumbCarry.get(props.carry)
     if (props.carry !== undefined) thumbCarry.set(props.carry, next)
     setPlace((was) => {
@@ -77,9 +84,19 @@ export function ListThumb(props: {
         return { ...next, top: from.top }
       }
       glideTo.current = null
-      return Object.entries(next).every(([k, v]) => was[k as keyof Place] === v) ? was : next
+      return samePlace(was, next) ? was : next
     })
-  }, [props.layout, resized, props.carry])
+    if (props.pick === undefined) return
+    // 画完再记一遍各项的位置（下次换选中用），顺便对一下这次摆的对不对。
+    return afterPaint(() => {
+      if (!item.isConnected) return
+      spots.current = spotsOf(list)
+      const real = spots.current.get(item)
+      if (real === undefined) return
+      if (props.carry !== undefined) thumbCarry.set(props.carry, real)
+      setPlace((was) => (was === null || was.hidden || samePlace(was, real) ? was : real))
+    })
+  }, [props.layout, props.pick, resized, props.carry])
   useLayoutEffect(() => {
     if (place === null || live) return
     const frame = requestAnimationFrame(() => {
@@ -111,6 +128,39 @@ export function ListThumb(props: {
       }}
     />
   )
+}
+
+/** 选中的项：列表的直接子项，或分组块（`data-flip-group`，见 flip.ts）里的子项。 */
+const SELECTED =
+  ':scope > [data-selected="true"], :scope > [data-flip-group] > [data-selected="true"]'
+/** 能选中的各项（带 `data-selected`，选没选中都算）。 */
+const ITEMS = ':scope > [data-selected], :scope > [data-flip-group] > [data-selected]'
+
+function placeOf(item: HTMLElement): Place {
+  return {
+    top: item.offsetTop,
+    left: item.offsetLeft,
+    width: item.offsetWidth,
+    height: item.offsetHeight,
+    hidden: false,
+  }
+}
+
+function samePlace(a: Place, b: Place): boolean {
+  return (
+    a.top === b.top &&
+    a.left === b.left &&
+    a.width === b.width &&
+    a.height === b.height &&
+    a.hidden === b.hidden
+  )
+}
+
+/** 列表里各项此刻的位置（画完之后调：版面已经算好，读不逼重排）。 */
+function spotsOf(list: HTMLElement): WeakMap<Element, Place> {
+  const spots = new WeakMap<Element, Place>()
+  for (const item of list.querySelectorAll<HTMLElement>(ITEMS)) spots.set(item, placeOf(item))
+  return spots
 }
 
 /** 各列表的选中底块上次停在哪儿（见 {@link ListThumb} 的 `carry`）。 */

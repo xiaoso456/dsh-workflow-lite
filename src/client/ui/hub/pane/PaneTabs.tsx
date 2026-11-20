@@ -6,12 +6,15 @@
  * 数变了原地滚着换（和别处的数字一样，变大往上、变小往下）；从没有到有淡入长出来，没了缩小淡出，
  * 页签跟着变宽变窄时后面的页签、下划线滑过去。
  *
+ * 各页签的位置在版面算好之后量（ResizeObserver 的回调里，读是现成的），记下来；换选中时下划线直接用记下的。
+ * 不在提交里量：左栏换一项时右栏整块换了内容，这时一读位置就逼整页样式、排版当场算一遍。
+ *
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/pane/PaneTabs
  */
 
-import { useCallback, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { slide } from '../../motion/flip.ts'
-import { REDUCED } from '../../motion/shared.ts'
+import { afterPaint, REDUCED } from '../../motion/shared.ts'
 import { SwapText, useTrend } from '../../motion/swapText.tsx'
 import css from './paneTabs.module.css'
 
@@ -29,13 +32,11 @@ function PaneTabButton<K extends string>({
   selected,
   testId,
   onSelect,
-  updateLayout,
 }: {
   tab: PaneTab<K>
   selected: boolean
   testId: string
   onSelect(tab: K): void
-  updateLayout(): void
 }): React.JSX.Element {
   const count = tab.count !== undefined && tab.count > 0 ? String(tab.count) : undefined
   const self = useRef<HTMLButtonElement>(null)
@@ -56,11 +57,10 @@ function PaneTabButton<K extends string>({
   if (grows && held !== count) setHeld(count)
   const countSize = grows ? count : held
 
-  useLayoutEffect(() => {
+  // 画完再看在退的动画（这时读是现成的；提交里调 getAnimations 会逼整页样式当场重算），等它们放完再收。
+  useEffect(() => {
     if (held === count) return
-    const leaving =
-      REDUCED?.matches === true ? [] : (self.current?.getAnimations({ subtree: true }) ?? [])
-    if (leaving.length === 0) {
+    if (REDUCED?.matches === true) {
       setHeld(count)
       return
     }
@@ -68,13 +68,15 @@ function PaneTabButton<K extends string>({
     const release = (): void => {
       if (active) setHeld(count)
     }
-    void Promise.all(leaving.map((animation) => animation.finished)).then(release, release)
+    const cancel = afterPaint(() => {
+      const leaving = self.current?.getAnimations({ subtree: true }) ?? []
+      void Promise.all(leaving.map((animation) => animation.finished)).then(release, release)
+    })
     return () => {
       active = false
+      cancel()
     }
   }, [count, held])
-
-  useLayoutEffect(updateLayout, [countSize, updateLayout])
 
   return (
     <button
@@ -129,44 +131,59 @@ export function PaneTabs<K extends string>(props: {
   const { tabs, value } = props
   const bar = useRef<HTMLDivElement>(null)
   const ink = useRef<HTMLSpanElement>(null)
-  const positions = useRef(new WeakMap<HTMLElement, number>())
+  /** 各页签上次量到的位置、宽度。 */
+  const boxes = useRef(new WeakMap<HTMLElement, { left: number; width: number }>())
 
   // 下划线挪到选中那一格：位置、宽度都写成 transform（宽度用 scaleX，下划线本身 100px 宽）。
-  // 刚挂上时直接摆到位，不从最左边滑过来。
+  // 刚挂上时直接摆到位，不从最左边滑过来（这一帧不带过渡，画完再开）。
   const placed = useRef(false)
-  const updateLayout = useCallback(() => {
-    const list = bar.current
+  const placeInk = useCallback((box: { left: number; width: number }) => {
     const line = ink.current
-    if (list === null || line === null) return
-    const on = list.querySelector<HTMLElement>('[aria-selected="true"]')
-    if (on === null) return
-    const transform = `translateX(${String(on.offsetLeft)}px) scaleX(${String(on.offsetWidth / 100)})`
-    const slots = Array.from(list.querySelectorAll<HTMLElement>('[data-tab]'), (button) => ({
-      button,
-      left: button.offsetLeft,
-    }))
-    for (const { button, left } of slots) {
-      const previous = positions.current.get(button)
-      positions.current.set(button, left)
-      if (previous !== undefined && previous !== left && REDUCED?.matches !== true) {
-        slide(button, 0, previous - left, 260)
+    if (line === null) return
+    const transform = `translateX(${String(box.left)}px) scaleX(${String(box.width / 100)})`
+    if (line.style.transform === transform) return
+    line.style.transform = transform
+    if (placed.current) return
+    placed.current = true
+    line.style.transition = 'none'
+    afterPaint(() => {
+      line.style.transition = ''
+    })
+  }, [])
+  const selected = (): HTMLElement | null =>
+    bar.current?.querySelector<HTMLElement>('[aria-selected="true"]') ?? null
+  /** 量各页签（挪了的从原处滑过去）、摆下划线。 */
+  const measure = useCallback(() => {
+    const list = bar.current
+    if (list === null) return
+    for (const button of list.querySelectorAll<HTMLElement>('[data-tab]')) {
+      const box = { left: button.offsetLeft, width: button.offsetWidth }
+      const previous = boxes.current.get(button)
+      boxes.current.set(button, box)
+      if (previous !== undefined && previous.left !== box.left && REDUCED?.matches !== true) {
+        slide(button, 0, previous.left - box.left, 260)
       }
     }
-    if (line.style.transform === transform) return
-    if (!placed.current) {
-      placed.current = true
-      line.style.transition = 'none'
-      line.style.transform = transform
-      void line.offsetWidth
-      line.style.transition = ''
-      return
-    }
-    line.style.transform = transform
-  }, [])
-  // 只在选中换了、页签上的字换了时量（每个页签的数变宽变窄时它自己量）：右栏切换一项要重渲染好几次，
-  // 每次都量一遍位置，就每次都逼整页样式当场重算。
-  const labels = tabs.map((tab) => tab.label).join('|')
-  useLayoutEffect(updateLayout, [value, labels, updateLayout])
+    const on = list.querySelector<HTMLElement>('[aria-selected="true"]')
+    const box = on === null ? undefined : boxes.current.get(on)
+    if (box !== undefined) placeInk(box)
+  }, [placeInk])
+  // 页签变宽变窄（数变了、字换了、整排变宽）：版面算好之后量。
+  useEffect(() => {
+    const list = bar.current
+    if (list === null || typeof ResizeObserver === 'undefined') return
+    const sizes = new ResizeObserver(measure)
+    sizes.observe(list)
+    for (const button of list.querySelectorAll('[data-tab]')) sizes.observe(button)
+    return () => sizes.disconnect()
+  }, [measure, tabs.length])
+  // 换了选中：下划线用记下的位置（页签不会因为选中挪动：选中的粗体先占好了宽度）；还没量过就当场量。
+  useLayoutEffect(() => {
+    const on = selected()
+    const box = on === null ? undefined : boxes.current.get(on)
+    if (box !== undefined) placeInk(box)
+    else measure()
+  }, [value, measure, placeInk])
 
   const move = (step: 1 | -1): void => {
     const at = tabs.findIndex((tab) => tab.id === value)
@@ -196,7 +213,6 @@ export function PaneTabs<K extends string>(props: {
           selected={tab.id === value}
           testId={`${props.testId}-${tab.id}`}
           onSelect={props.onChange}
-          updateLayout={updateLayout}
         />
       ))}
       <span ref={ink} className={css.ink} aria-hidden="true" />

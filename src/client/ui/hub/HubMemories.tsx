@@ -8,7 +8,7 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/HubMemories
  */
 
-import { type RefObject, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { type RefObject, useEffect, useRef, useState } from 'react'
 import type { StepColor } from '../../../shared/appearance.ts'
 import { type MemoryEntry, memoryTitle } from '../../../shared/memoryLib.ts'
 import { idKey } from '../../../shared/model.ts'
@@ -42,6 +42,7 @@ import { Skeleton } from '../kit/Skeleton.tsx'
 import { TextArea } from '../kit/TextArea.tsx'
 import { TintChip } from '../kit/TintChip.tsx'
 import ui from '../kit/ui.module.css'
+import { useScrollReset } from '../kit/useScrollReset.ts'
 import { markSwap } from '../motion/swap.tsx'
 import { SwapScope } from '../motion/swapScope.tsx'
 import { SwapText } from '../motion/swapText.tsx'
@@ -432,9 +433,7 @@ function MemoryDetail(props: {
   const [viewing, setViewing] = useState<string | null>(null)
   const description = draft?.id === entry.id ? draft.text : null
   const { detailRef } = props
-  useLayoutEffect(() => {
-    if (detailRef.current !== null) detailRef.current.scrollTop = 0
-  }, [entry.id, detailRef])
+  useScrollReset(detailRef, entry.id)
   /** 存下（回有没有存成，没成已经提示过）。 */
   const save = (patch: { name?: string; description?: string }): Promise<boolean> =>
     store.update({ id: entry.id, ...patch }).then(

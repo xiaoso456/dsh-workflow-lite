@@ -11,7 +11,7 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/triggers/TriggerDetail
  */
 
-import { useCallback, useEffect, useLayoutEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { TriggerData } from '../../../../shared/types.ts'
 import type { FireRecord, TriggerEntry } from '../../../../shared/wire/trigger.ts'
 import { useFireSeen } from '../../../app/fireSeen.ts'
@@ -22,6 +22,7 @@ import { queuePlace, settledFires } from '../../../model/fireView.ts'
 import { sourceFace } from '../../../model/triggerText.ts'
 import type { WorkflowLiteRpc } from '../../../rpc.ts'
 import { cx } from '../../kit/cx.ts'
+import { useScrollReset } from '../../kit/useScrollReset.ts'
 import motion from '../../motion/paneTransition.module.css'
 import { tabDirection, usePaneTransition } from '../../motion/paneTransition.ts'
 import { FireDialog } from '../../trigger/dialogs/FireDialog.tsx'
@@ -102,9 +103,11 @@ export function TriggerDetail(props: {
 
   const paneMotion = usePaneTransition()
   const scroll = paneMotion.scope
-  useLayoutEffect(() => {
-    if (scroll.current !== null) scroll.current.scrollTop = 0
-  }, [key, tab, scroll])
+  useScrollReset(
+    scroll,
+    `${key}
+${tab}`,
+  )
   const turn = (next: DetailTab): void => {
     paneMotion.change(() => props.onTab(next), tabDirection(DETAIL_TABS, tab, next))
   }
