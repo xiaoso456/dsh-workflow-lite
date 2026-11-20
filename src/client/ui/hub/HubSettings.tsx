@@ -365,7 +365,8 @@ function NumberInput(
         testId={`wl-cfg-${name}`}
         onChange={(value) => state.edit(name, String(value))}
       />
-      <span className={css.unit}>{props.unit}</span>
+      {/* 没有单位（端口）就不留那一格：数字框和别的控件一样靠右。 */}
+      {props.unit !== undefined && <span className={css.unit}>{props.unit}</span>}
     </span>
   )
 }

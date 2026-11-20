@@ -121,7 +121,10 @@ function conflictIds(error: unknown): string[] {
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 
-export function useWorkflow(rpc: WorkflowLiteRpc, t: T): Workflow {
+/**
+ * @param prefer - 进来时先开哪张（这个会话上次看的，见 `sessionPick.ts`）；不在了就照常开上次那张、最近改过的。
+ */
+export function useWorkflow(rpc: WorkflowLiteRpc, t: T, prefer?: string): Workflow {
   const [state, setState] = useState<EditorState>(initialState)
   const stateRef = useRef(state)
   const [catalog, setCatalog] = useState<GraphListResponse | null>(null)
@@ -555,15 +558,20 @@ export function useWorkflow(rpc: WorkflowLiteRpc, t: T): Workflow {
     void refreshCatalog()
   }, [refreshCatalog])
 
-  /** 进来时自动打开：上次那张还在就开它，否则开最近改过的。 */
+  /** 进来时自动打开：这个会话上次看的那张还在就开它，否则上次（不分会话）那张，再否则最近改过的。 */
   const autoOpened = useRef(false)
+  const preferred = useRef(prefer)
   useEffect(() => {
     if (autoOpened.current || catalog === null) return
     autoOpened.current = true
     if (stateRef.current.name !== null || catalog.workflows.length === 0) return
-    const last = readLast()
+    const named = (name: string | null | undefined) =>
+      name === null || name === undefined
+        ? undefined
+        : catalog.workflows.find((entry) => entry.name === name)
     const target =
-      catalog.workflows.find((entry) => entry.name === last) ??
+      named(preferred.current) ??
+      named(readLast()) ??
       [...catalog.workflows].sort((a, b) => b.updatedAt - a.updatedAt)[0]
     if (target !== undefined) void open(target.name)
   }, [catalog, open])

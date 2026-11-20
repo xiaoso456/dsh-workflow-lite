@@ -15,6 +15,7 @@ import { resolveSessionChoice } from '../../../shared/sessionChoice.ts'
 import type { Point } from '../../../shared/types.ts'
 import { agentCatalog } from '../../app/agents.ts'
 import type { Desktop } from '../../app/desktop.ts'
+import { readSessionPick, writeSessionPick } from '../../app/sessionPick.ts'
 import type { SessionBridge } from '../../app/sessions.ts'
 import { useRuns } from '../../app/useRuns.ts'
 import { useWorkflow, type Workflow } from '../../app/useWorkflow.ts'
@@ -128,7 +129,9 @@ function Shell(props: {
   desktop?: Desktop
 }): React.JSX.Element {
   const { t } = props
-  const wf = useWorkflow(props.rpc, t)
+  /** 这个会话上次在这个 tab 里看的（进来时接着看，见 sessionPick.ts）。 */
+  const [pick] = useState(() => readSessionPick(props.session))
+  const wf = useWorkflow(props.rpc, t, pick?.workflow)
   const { state, analysis } = wf
   const runs = useRuns(props.rpc, props.session)
   const triggerMarks = useWorkflowTriggerMarks(props.rpc)
@@ -145,7 +148,26 @@ function Shell(props: {
   const [versionsOpen, setVersionsOpen] = useState(false)
   const { booting, setBooting, setTemplateSettled } = useBooting({ state, runs })
   const matchesVersion = useMatchesVersion({ rpc: props.rpc, state, versionsOpen })
-  const { freshRun, setFreshRun, seenCurrent } = useFreshRun({ runs, runId, setRunId })
+  const workflowNames = useMemo(
+    () => wf.catalog?.workflows.map((entry) => entry.name) ?? null,
+    [wf.catalog],
+  )
+  const { freshRun, setFreshRun, seenCurrent, restored } = useFreshRun({
+    runs,
+    runId,
+    setRunId,
+    pick,
+    workflows: workflowNames,
+  })
+  // 记下这个会话在看什么（下次进来接着看）；恢复完之前不记。工作流还没开出来时留着上次记的那张。
+  useEffect(() => {
+    if (!restored) return
+    const workflow = state.name ?? readSessionPick(props.session)?.workflow
+    writeSessionPick(props.session, {
+      ...(workflow === undefined ? {} : { workflow }),
+      ...(runId === null ? {} : { run: runId }),
+    })
+  }, [restored, props.session, state.name, runId])
   const openRun = useCallback((id: string, node?: string): void => {
     setFreshRun(null)
     setRunId(id)
