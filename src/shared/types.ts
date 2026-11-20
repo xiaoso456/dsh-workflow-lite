@@ -660,6 +660,7 @@ export type ValidationCode =
   | 'shared_output'
   | 'resource_overwritten'
   | 'file_looks_folder'
+  | 'read_and_update'
   | 'input_default_invalid'
   | 'input_options_placeholder'
   | 'memory_missing'

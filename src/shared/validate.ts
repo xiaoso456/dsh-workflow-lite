@@ -516,6 +516,25 @@ export function validateDocument(
         ),
       )
     }
+    // 同一步既读它又更新它：「更新」本来就是先读再在原文件上改，那条读线是重复的，画布上也多一根线。
+    for (const writer of info.writers) {
+      if (!writer.update) continue
+      const read = document.edges.find(
+        (edge) =>
+          idKey(edge.source) === idKey(info.resource.id) &&
+          idKey(edge.target) === idKey(writer.id) &&
+          edgeKind(nodes, edge) === 'read',
+      )
+      if (read === undefined) continue
+      warning.push(
+        mk(
+          'warning',
+          'read_and_update',
+          `${writer.id} 既读取又更新资源 ${resourceTitle(info.resource)}——「更新」已经包含先读，删掉那条读线就行`,
+          { node: writer.id, edge: read.id },
+        ),
+      )
+    }
     // 种类是「文件」、路径却以 / 结尾：计划里会写成「文件：…/」，执行者拿不准它是文件还是目录。
     for (const item of info.resource.data.items) {
       const value = item.value.trim()

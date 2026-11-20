@@ -600,6 +600,22 @@ describe('资源节点的校验', () => {
     expect(updated.warning.map((problem) => problem.code)).not.toContain('resource_overwritten')
   })
 
+  it('同一步既读又更新同一个资源：警告 read_and_update，指着那条读线；整份写入或别的步骤读不算', () => {
+    const both = check(
+      base({
+        edges: [line('a', 'b'), line('a', 'f'), line('f', 'b'), line('b', 'f', { update: true })],
+      }),
+    )
+    const found = both.warning.find((problem) => problem.code === 'read_and_update')
+    expect(found).toMatchObject({ node: 'b', edge: 'f->b' })
+    const produced = check(base({ edges: [line('a', 'b'), line('f', 'a'), line('a', 'f')] }))
+    expect(produced.warning.map((problem) => problem.code)).not.toContain('read_and_update')
+    const other = check(
+      base({ edges: [line('a', 'b'), line('f', 'a'), line('b', 'f', { update: true })] }),
+    )
+    expect(other.warning.map((problem) => problem.code)).not.toContain('read_and_update')
+  })
+
   it('提示：写出来没人读 resource_unread；写它的步骤是终点（成品）就不提示', () => {
     const unread = check(base({ edges: [line('a', 'b'), line('a', 'f')] }))
     expect(unread.hint.find((problem) => problem.code === 'resource_unread')?.node).toBe('f')
