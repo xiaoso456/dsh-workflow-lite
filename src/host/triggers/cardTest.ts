@@ -16,6 +16,7 @@
  * @module @xiaoso/dsh-workflow-lite/host/triggers/cardTest
  */
 
+import { bindWorkflowVar } from '../../shared/pathVars.ts'
 import { upcomingFires } from '../../shared/schedule.ts'
 import type { FireChannel } from '../../shared/trigger.ts'
 import {
@@ -288,8 +289,14 @@ async function testListen(input: CardTestInput): Promise<CardTestResult> {
     const pokeCommand = input.options.poke?.trim()
     const pokeTimer = setTimeout(() => {
       if (pokeCommand === undefined || pokeCommand === '' || done) return
+      // 和卡片上的命令一样认 `{workflow}`（脚本里带的样本、注入事件的小工具都在工作流目录里）。
+      const workflowDir = spec.env?.WORKFLOW_DIR
       poking = runCommand(
-        { ...spec, command: pokeCommand },
+        {
+          ...spec,
+          command:
+            workflowDir === undefined ? pokeCommand : bindWorkflowVar(pokeCommand, workflowDir),
+        },
         { timeoutMs: POKE_TIMEOUT_MS, maxBytes: OUTPUT_CHARS * 4 },
       ).then((result) => {
         poke = {

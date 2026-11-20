@@ -1,45 +1,45 @@
 # 文件夹里有新文件（监视）
 
-命令 `node "{workflow}/triggers/watch-folder.mjs" "D:/inbox"`。看过的文件名记在数据目录里，DSH 重启、程序重启时不会漏掉期间进来的文件；第一次运行只记下已有的。
+命令 `node "{workflow}/triggers/watch-folder.mjs" "D:/inbox"`。系统一通知就看，等文件写完再报；每分钟再扫一遍，补上没收到通知的（网络盘常这样）和 DSH 没开时进来的。第一次运行只记下已有的。
 
 ```js
-import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { readdirSync, watch } from 'node:fs'
 import { join, resolve } from 'node:path'
+import { emit, heartbeat, poll, seenIds, settle } from './watch.mjs'
 
-const dir = resolve(process.argv[2] ?? '.')
-const stateFile = join(process.env.TRIGGER_DATA_DIR ?? '.', 'seen.json')
-const first = !existsSync(stateFile)
-const seen = new Set(first ? [] : JSON.parse(readFileSync(stateFile, 'utf8')))
-// text：一句话说清这件事，动态拿到的文字直接拼进来；data：要原样给出的字段（可选，跟在后面成一段 JSON）。
-// 换行一律换掉：一件事只能占一行，不然后面几截没带标记，只算日志。
-const emit = (text, data) => {
-  const line = data === undefined ? String(text) : `${text} ${JSON.stringify(data)}`
-  console.log(`::trigger:: ${line.replace(/\r?\n/g, ' ⏎ ')}`)
+const dir = resolve(process.argv[2])
+const seen = seenIds('seen.json', 20000)
+const waiting = new Set()
+
+async function arrive(name) {
+  if (seen.has(name) || waiting.has(name)) return
+  waiting.add(name)
+  const done = await settle(join(dir, name)) // 两秒不再变才算写完；文件没了就不报
+  waiting.delete(name)
+  if (!done || !seen.add(name)) return
+  seen.save()
+  emit(`${dir} 进了新文件 ${name}`, { path: join(dir, name) })
 }
-process.on('SIGTERM', () => process.exit(0))
 
 function scan(report) {
-  let names
-  try {
-    names = readdirSync(dir)
-  } catch (error) {
-    console.error(String(error))
-    return
+  const fresh = readdirSync(dir).filter((name) => !seen.has(name))
+  for (const name of fresh) {
+    if (report) void arrive(name)
+    else seen.add(name)
   }
-  let changed = false
-  for (const name of names) {
-    if (seen.has(name)) continue
-    seen.add(name)
-    changed = true
-    if (report) emit(`${dir} 进了新文件 ${name}`, { path: join(dir, name) })
-  }
-  if (changed) writeFileSync(stateFile, JSON.stringify([...seen]))
+  seen.save()
+  return fresh.length > 0
 }
-scan(!first)
-setInterval(() => scan(true), 5000)
+
+scan(!seen.first) // 第一次只记下已有的
+watch(dir, (_event, name) => {
+  if (name) void arrive(String(name))
+})
+heartbeat()
+await poll(() => scan(true), { every: 60_000 })
 ```
 
-- 新文件一出现就报：大文件复制要一会儿，工作流可能读到一半。要等写完，在脚本里等它的大小几秒不变再打这一行事件。
-- 子文件夹不看；要看的话换成递归列出。
+- 一次拷进来一批：`filter.merge` 调到 30 左右，一批并成一次处理。
+- 子文件夹也要看：`watch` 加 `{ recursive: true }`，`readdirSync` 加 `{ recursive: true }`。
 
 试：`poke` 写 `node -e "require('fs').writeFileSync('D:/inbox/test-' + Date.now() + '.txt', 'x')"`，`seconds` 写 10。

@@ -7,7 +7,9 @@
  * - `owner.json`：现在由哪个 DSH 进程负责触发（见 `owner.ts`）；
  * - `live.json`：负责的进程写下的运行情况（程序在不在跑、上次检查、端口开没开），别的进程据此显示状态；
  * - `data/<工作流>/<卡片>/`：给这张卡片的脚本自己记东西（上次看到的提交、处理过的文件），
- *   运行时经环境变量 `TRIGGER_DATA_DIR` 告诉脚本；试运行用 `data-test/` 下同样的位置，不弄乱真的那份。
+ *   运行时经环境变量 `TRIGGER_DATA_DIR` 告诉脚本；试运行用 `data-test/` 下同样的位置，不弄乱真的那份；
+ * - `secrets/<工作流>/<卡片>/`：用户给这张卡片的脚本放的令牌、密钥、连接串，经 `TRIGGER_SECRETS_DIR` 告诉脚本；
+ *   真打开和试运行读同一份（试的时候也要连得上），不随工作流导出。
  *
  * 触发记录（连同每次的触发说明、背景信息）与检查命令、监听程序最近的输出在插件数据库里，
  * 见 {@link FireLog}、{@link OutputLog}。
@@ -64,6 +66,15 @@ const CARD_DATA = { live: 'data', trial: 'data-test' } as const
 /** 运行时给命令的环境变量：卡片的数据目录。 */
 export const CARD_DATA_ENV = 'TRIGGER_DATA_DIR'
 
+/** 用户放令牌、密钥的那一处：不分真打开和试运行。 */
+const CARD_SECRETS = 'secrets'
+
+/** 运行时给命令的环境变量：卡片的密钥目录。 */
+export const CARD_SECRETS_ENV = 'TRIGGER_SECRETS_DIR'
+
+/** 跟着工作流改名、删除一起挪走、删掉的几处（脚本的数据、密钥）。 */
+const CARD_AREAS = [...Object.values(CARD_DATA), CARD_SECRETS]
+
 /**
  * 一张卡片给脚本记东西的目录（不随工作流导出）。`trial` = 试运行用的那份，和真的分开：
  * 试的时候脚本记下「看过了」，真打开后不会因此漏掉。
@@ -75,6 +86,11 @@ export function cardDataDir(
   trial = false,
 ): string {
   return join(triggersDir(dataDir), trial ? CARD_DATA.trial : CARD_DATA.live, workflow, node)
+}
+
+/** 一张卡片的密钥目录：用户把令牌、密钥、连接串放这里，脚本去读；真打开和试运行是同一处，不随工作流导出。 */
+export function cardSecretsDir(dataDir: string, workflow: string, node: string): string {
+  return join(triggersDir(dataDir), CARD_SECRETS, workflow, node)
 }
 
 function liveFile(dataDir: string): string {
@@ -464,7 +480,7 @@ export class TriggerStore {
   async rename(from: string, to: string): Promise<void> {
     this.log.rename(from, to)
     this.outputs.rename(from, to)
-    for (const area of Object.values(CARD_DATA)) {
+    for (const area of CARD_AREAS) {
       const base = join(triggersDir(this.dataDir()), area)
       await moveIfThere(join(base, from), join(base, to))
     }
@@ -476,10 +492,10 @@ export class TriggerStore {
     })
   }
 
-  /** 工作流删掉了：它的触发记录连同另存的全文、最近的输出、脚本的数据目录一起删（开关与设置由对账清掉）。 */
+  /** 工作流删掉了：它的触发记录连同另存的全文、最近的输出、脚本的数据与密钥目录一起删（开关与设置由对账清掉）。 */
   async forget(workflow: string): Promise<void> {
     this.outputs.forget(workflow)
-    for (const area of Object.values(CARD_DATA)) {
+    for (const area of CARD_AREAS) {
       await removeTree(join(triggersDir(this.dataDir()), area, workflow))
     }
     const files = this.log.forget(workflow)

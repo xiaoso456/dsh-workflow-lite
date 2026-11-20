@@ -8,6 +8,7 @@
 import { mkdir, mkdtemp, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { RunService } from '../../src/host/runs/service.ts'
@@ -27,7 +28,13 @@ import { OWNER_STALE_MS, OwnerLock } from '../../src/host/triggers/owner.ts'
 import type { LiveRuntime, LiveSpec, RuntimeEvents } from '../../src/host/triggers/runtime.ts'
 import { LATE_MS, TriggerService } from '../../src/host/triggers/service.ts'
 import type { SessionPort } from '../../src/host/triggers/sessions.ts'
-import { approvalOf, cardDataDir, ownerFile, TriggerStore } from '../../src/host/triggers/store.ts'
+import {
+  approvalOf,
+  cardDataDir,
+  cardSecretsDir,
+  ownerFile,
+  TriggerStore,
+} from '../../src/host/triggers/store.ts'
 import type { InstanceView, RunStatus } from '../../src/shared/runState.ts'
 import { sessionTitle } from '../../src/shared/sessionTitle.ts'
 import type { SessionChoice, TriggerData, WorkflowDocument } from '../../src/shared/types.ts'
@@ -1031,10 +1038,12 @@ describe('常驻触发源', () => {
       state: 'waiting',
     })
     await own(triggers)
-    // 命令里的 {workflow} 换成工作流目录，环境变量里也有；另给这张卡片的数据目录（已经建好）。
+    // 命令里的 {workflow} 换成工作流目录，环境变量里也有；另给这张卡片的数据目录、密钥目录（都已经建好）。
     const dir = assetsDir(dataDir, 'patrol')
     const data = cardDataDir(dataDir, 'patrol', 'tick')
+    const secrets = cardSecretsDir(dataDir, 'patrol', 'tick')
     expect((await stat(data)).isDirectory()).toBe(true)
+    expect((await stat(secrets)).isDirectory()).toBe(true)
     expect(live.specs).toEqual([
       {
         workflow: 'patrol',
@@ -1043,7 +1052,7 @@ describe('常驻触发源', () => {
         filter: { merge: 5, dedupe: 0, include: [], exclude: [] },
         cwd: workspace,
         command: COMMAND.replace('{workflow}', dir.replace(/\\/gu, '/')),
-        env: { WORKFLOW_DIR: dir, TRIGGER_DATA_DIR: data },
+        env: { WORKFLOW_DIR: dir, TRIGGER_DATA_DIR: data, TRIGGER_SECRETS_DIR: secrets },
       },
     ])
   })
@@ -1469,6 +1478,37 @@ describe('模型建触发卡片', () => {
       | undefined
   }
 
+  it('写要跑命令的卡片：插件把监视的底子放进 triggers/watch.mjs；HTTP 卡片不放；被改过的换回随包的', async () => {
+    await saveGraph('patrol')
+    const kit = join(assetsDir(dataDir, 'patrol'), 'triggers', 'watch.mjs')
+    const shipped = await readFile(
+      fileURLToPath(new URL('../../skills/workflow-trigger/kit/watch.mjs', import.meta.url)),
+      'utf8',
+    )
+    await run({
+      action: 'write_trigger',
+      workflow: 'patrol',
+      node: 'hook',
+      trigger: { source: { kind: 'http' } },
+    })
+    await expect(stat(kit)).rejects.toThrow()
+    await run({
+      action: 'write_trigger',
+      workflow: 'patrol',
+      node: 'watch',
+      trigger: { source: { kind: 'listen', command: 'node "{workflow}/triggers/w.mjs"' } },
+    })
+    expect(await readFile(kit, 'utf8')).toBe(shipped)
+    await writeFile(kit, '// 手改的')
+    await run({
+      action: 'write_trigger',
+      workflow: 'patrol',
+      node: 'watch',
+      trigger: { note: '再改一下' },
+    })
+    expect(await readFile(kit, 'utf8')).toBe(shipped)
+  })
+
   it('新卡片从缺省起（权限是完全权限）；修改时没给的不动，对象按字段合并，对象给 null 恢复缺省', async () => {
     await saveGraph('patrol')
     await run({
@@ -1694,6 +1734,7 @@ describe('模型读、改、试触发卡片', () => {
         state: 'off',
         toEnable: ['先选命令在哪个工作区里运行'],
         dataDir: cardDataDir(dataDir, 'patrol', 'tick'),
+        secretsDir: cardSecretsDir(dataDir, 'patrol', 'tick'),
       },
     })
     const index = (await run({ action: 'read', workflow: 'patrol' })) as {
@@ -2001,17 +2042,24 @@ describe('模型读、改、试触发卡片', () => {
     expect(long.notes?.at(-1)).toContain('背景信息有 5000 个字符')
   })
 
-  it('工作流改名、删除：脚本的数据目录跟着走、一起删', async () => {
+  it('工作流改名、删除：脚本的数据目录、密钥目录跟着走、一起删', async () => {
     await saveGraph('patrol')
     const data = cardDataDir(dataDir, 'patrol', 'tick')
+    const secrets = cardSecretsDir(dataDir, 'patrol', 'tick')
     await mkdir(data, { recursive: true })
+    await mkdir(secrets, { recursive: true })
     await writeFile(join(data, 'seen.json'), '[]')
+    await writeFile(join(secrets, 'token.txt'), 't0k')
     expect((await repository.rename('patrol', 'guard')).ok).toBe(true)
     expect(await readFile(join(cardDataDir(dataDir, 'guard', 'tick'), 'seen.json'), 'utf8')).toBe(
       '[]',
     )
+    expect(
+      await readFile(join(cardSecretsDir(dataDir, 'guard', 'tick'), 'token.txt'), 'utf8'),
+    ).toBe('t0k')
     expect((await repository.remove('guard')).ok).toBe(true)
     await expect(stat(cardDataDir(dataDir, 'guard', 'tick'))).rejects.toThrow()
+    await expect(stat(cardSecretsDir(dataDir, 'guard', 'tick'))).rejects.toThrow()
   })
 })
 

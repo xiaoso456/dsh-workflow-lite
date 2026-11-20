@@ -1,5 +1,7 @@
 # 定时 `schedule`
 
+写之前先按 SKILL.md 的「找示例」挑一份照着改：带检查的看 `examples/pending.md`（有待办才做）、`examples/web-change.md`（变了才做）、`examples/git-commits.md`（接着上次看到的往后看），特殊日子看 `examples/last-workday.md`、`examples/once.md`。
+
 `schedule` 三种写法，都按这台机器的时区：
 
 | 写法 | 字段 | 说明 |

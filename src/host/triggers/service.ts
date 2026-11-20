@@ -80,6 +80,7 @@ import { type CardTestOptions, type CardTestResult, testCard } from './cardTest.
 import type { TriggerDefinition, TriggerGraphs } from './graphs.ts'
 import { type HookBind, hookUrl, newHookId, newHookToken } from './hooks.ts'
 import type { IntakeBatch } from './intake.ts'
+import { placeKit } from './kit.ts'
 import { type FireInput, Launcher, SKIP_UNFINISHED } from './launcher.ts'
 import { advertisedHost } from './netAddress.ts'
 import { OwnerLock } from './owner.ts'
@@ -100,7 +101,9 @@ import { checkShell, detectShells, familyOf, shellLabel, shellName, systemShell 
 import {
   approvalOf,
   CARD_DATA_ENV,
+  CARD_SECRETS_ENV,
   cardDataDir,
+  cardSecretsDir,
   type LiveFile,
   ownerFile,
   type TriggerLocal,
@@ -1025,8 +1028,8 @@ export class TriggerService {
   }
 
   /**
-   * 跑一张卡片的命令的样子：`{workflow}` 换成工作流目录，环境变量给工作流目录和这张卡片的数据目录
-   * （`trial` = 试运行那份）；数据目录先建好。
+   * 跑一张卡片的命令的样子：`{workflow}` 换成工作流目录，环境变量给工作流目录、这张卡片的数据目录
+   * （`trial` = 试运行那份）和密钥目录；这两个目录先建好，监视的底子放进 `triggers/`。
    */
   private async commandSpec(
     workflow: string,
@@ -1038,14 +1041,17 @@ export class TriggerService {
   ): Promise<CommandSpec> {
     const dir = assetsDir(this.dataDir(), workflow)
     const data = cardDataDir(this.dataDir(), workflow, node, trial)
-    if (!this.madeDirs.has(data)) {
-      await ensureDir(data)
-      this.madeDirs.add(data)
+    const secrets = cardSecretsDir(this.dataDir(), workflow, node)
+    for (const made of [data, secrets]) {
+      if (this.madeDirs.has(made)) continue
+      await ensureDir(made)
+      this.madeDirs.add(made)
     }
+    await placeKit(dir)
     return {
       command: bindWorkflowVar(command, dir),
       cwd,
-      env: { WORKFLOW_DIR: dir, [CARD_DATA_ENV]: data },
+      env: { WORKFLOW_DIR: dir, [CARD_DATA_ENV]: data, [CARD_SECRETS_ENV]: secrets },
       ...(shell === '' ? {} : { shell }),
     }
   }

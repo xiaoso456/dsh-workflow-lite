@@ -1,6 +1,6 @@
 /**
  * skill `workflow-trigger` 随包发布的那个目录：注册时正文取 `SKILL.md`、参考文件经 `resourceBase` 交给 DSH；
- * 正文点到的文件都在、目录里的文件都被点到；示例脚本至少语法对（真跑一遍在 tests/runs/_skill_samples.mts）。
+ * 正文点到的文件都在、目录里的文件都被点到；示例脚本至少语法对（监视的例子照文档原样跑一遍在 triggerExamples.spec.ts）。
  */
 
 import { execFileSync } from 'node:child_process'
@@ -77,6 +77,63 @@ describe('skill workflow-trigger', () => {
       files: string[]
     }
     expect(manifest.files).toContain(`${TRIGGER_SKILL_PATH.replaceAll('\\', '/')}/**/*.md`)
+    expect(manifest.files).toContain(`${TRIGGER_SKILL_PATH.replaceAll('\\', '/')}/kit/*.mjs`)
+  })
+
+  it('监视的底子 kit/watch.mjs：在、能过 node --check；kit.md 讲的是它，正文点到 kit.md；示例 import 的名字它都导出了', () => {
+    expect(() =>
+      execFileSync(process.execPath, ['--check', join(DIR, 'kit', 'watch.mjs')], { stdio: 'pipe' }),
+    ).not.toThrow()
+    expect(read('kit.md')).toContain('`kit/watch.mjs`')
+    expect(main).toContain('`kit.md`')
+    const kit = read('kit/watch.mjs')
+    let imports = 0
+    for (const file of files()) {
+      for (const match of read(file).matchAll(/import \{([^}]+)\} from '\.\/watch\.mjs'/gu)) {
+        for (const name of (match[1] as string)
+          .split(',')
+          .map((item) => item.trim())
+          .filter((name) => /^[A-Za-z_$][\w$]*$/u.test(name))) {
+          imports += 1
+          expect(kit, `${file} 用到的 ${name}`).toMatch(
+            new RegExp(`export (async )?(function|const) ${name}\\b`, 'u'),
+          )
+        }
+      }
+    }
+    expect(imports).toBeGreaterThan(10)
+  })
+
+  it('找示例：「找示例」一节列全了所有示例，流程和自检都指向它；各参考文件也点到要照着改的示例', () => {
+    const section = main.slice(main.indexOf('## 找示例'), main.indexOf('## 背景信息'))
+    expect(section.startsWith('## 找示例')).toBe(true)
+    for (const file of files().filter((file) => file.startsWith('examples/'))) {
+      expect(section, `「找示例」没列 ${file}`).toContain(`\`${file}\``)
+    }
+    const steps = main.slice(main.indexOf('## 流程'), main.indexOf('## 选触发方式'))
+    expect(steps).toContain('「找示例」')
+    expect(main.slice(main.indexOf('## 交付前自检'))).toContain('「找示例」')
+    const guides = [
+      'listen.md',
+      'schedule.md',
+      'http.md',
+      'after.md',
+      'scripts.md',
+      'kit.md',
+      'fast.md',
+    ]
+    for (const file of guides)
+      expect(read(file), `${file} 没点到示例`).toMatch(/`examples\/[\w-]+\.md`|「找示例」/u)
+  })
+
+  it('监视的示例都用底子：import 自 ./watch.mjs，不自己再写一份 emit', () => {
+    for (const file of files().filter((file) => file.startsWith('examples/'))) {
+      const text = read(file)
+      expect(text, `${file} 自己写了 emit`).not.toMatch(/const emit =|console\.log\(`::trigger::/u)
+      if (/^# .*（监视/u.test(text) && text.includes('```js')) {
+        expect(text, `${file} 没用底子`).toContain("from './watch.mjs'")
+      }
+    }
   })
 
   it('这种触发方式叫「监视」（和界面一致）；「监听」只用在 HTTP 的监听地址', () => {

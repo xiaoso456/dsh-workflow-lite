@@ -19,7 +19,7 @@ import type { Outcome } from '../store/repoResult.ts'
 import { fail, ok } from '../store/repoResult.ts'
 import type { CardTestResult } from '../triggers/cardTest.ts'
 import type { TriggerService } from '../triggers/service.ts'
-import { cardDataDir } from '../triggers/store.ts'
+import { cardDataDir, cardSecretsDir } from '../triggers/store.ts'
 import type { TriggerLocalArgs, WorkflowLiteArgs } from './args.ts'
 
 /** 工具用到的触发器服务那一面。 */
@@ -146,6 +146,7 @@ async function localOf(
           },
         }),
     dataDir: cardDataDir(dataDir, workflow, node.id),
+    secretsDir: cardSecretsDir(dataDir, workflow, node.id),
   }
 }
 

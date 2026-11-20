@@ -22,6 +22,7 @@ import type { DisplaySpec } from '../../shared/display.ts'
 import { compareByCodepoint } from '../../shared/graph.ts'
 import { idKey, isInput, isResource, isStep, isTrigger } from '../../shared/model.ts'
 import { memoryOf } from '../../shared/presets.ts'
+import { commandOf } from '../../shared/trigger.ts'
 import type {
   MemoryIndexEntry,
   ReadIndexResult,
@@ -40,6 +41,7 @@ import { assetsDir } from '../store/paths.ts'
 import type { NodeUpsert } from '../store/repoNodes.ts'
 import { problemsToWarnings } from '../store/repoResult.ts'
 import type { Repository } from '../store/repository.ts'
+import { placeKit } from '../triggers/kit.ts'
 import {
   answersOf,
   handoffOf,
@@ -620,6 +622,9 @@ export function createWorkflowLiteHandler(
             error: { code: 'not_found', message: `图 ${name} 里没有触发卡片 ${id}` },
           })
         }
+        // 要跑命令的卡片：把监视的底子放进 triggers/，脚本 import './watch.mjs' 现在就能用。
+        if (commandOf(card.data.source) !== undefined)
+          await placeKit(assetsDir(deps.dataDir(), name))
         let local: Record<string, unknown> | undefined
         if (args.local !== undefined) {
           if (deps.triggers === undefined) {

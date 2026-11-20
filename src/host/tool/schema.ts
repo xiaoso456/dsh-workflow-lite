@@ -544,7 +544,8 @@ export const PARAMETERS = {
   seconds: { type: 'number', description: 'test_trigger（listen）：跑几秒（缺省 10，最多 60）。' },
   poke: {
     type: 'string',
-    description: 'test_trigger（listen）：启动 1 秒后跑这条命令制造一次事件。',
+    description:
+      'test_trigger（listen）：启动 1 秒后跑这条命令制造一次事件；和卡片上的命令一样在同一个工作区、同样的环境变量里跑，认 {workflow}。',
   },
   body: { type: 'string', description: 'test_trigger（http）：拿来试的请求体。' },
   queue: {

@@ -707,6 +707,24 @@ describe('模型试一张卡片（test_trigger）', () => {
     expect(result.run?.exited).toBeUndefined()
   }, 30_000)
 
+  it('监听：poke 里的 {workflow} 换成工作流目录，环境变量和卡片上的命令一样', async () => {
+    const listener = `node -e "setInterval(()=>{try{const fs=require('fs');const t=fs.readFileSync('poke.txt','utf8');fs.unlinkSync('poke.txt');console.log('::trigger:: '+t.trim())}catch{}},100)"`
+    const result = await testCard(
+      base(
+        { source: { kind: 'listen', command: listener }, filter: { merge: 0 } },
+        {
+          spec: { command: listener, cwd, env: { WORKFLOW_DIR: cwd, TRIGGER_DATA_DIR: cwd } },
+          options: {
+            seconds: 3,
+            poke: `node -e "require('fs').writeFileSync('{workflow}/poke.txt', String(process.env.TRIGGER_DATA_DIR === '{workflow}'.replaceAll('/', require('path').sep)))"`,
+          },
+        },
+      ),
+    )
+    expect(result.poke).toMatchObject({ code: 0 })
+    expect(result.events?.map((line) => line.text)).toEqual(['true'])
+  }, 30_000)
+
   it('监听：自己退出的是出错（真打开后会算失败）；合并窗口里的几行并成一次', async () => {
     const quick = `node -e "console.log('::trigger:: a');console.log('::trigger:: b');process.exit(3)"`
     const result = await testCard(
