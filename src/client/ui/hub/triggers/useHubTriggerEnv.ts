@@ -145,6 +145,7 @@ export function useHubTriggerEnv(input: HubEnvInput): TriggerEnv {
       openRun: input.openRun,
       openSession: input.openSession,
       openInHub: NOTHING,
+      openSettings: null,
     }),
     [
       triggers,

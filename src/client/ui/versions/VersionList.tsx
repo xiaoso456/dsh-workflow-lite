@@ -13,6 +13,7 @@ import { useState } from 'react'
 import type { MemoryVersionEntry } from '../../../shared/memoryLib.ts'
 import type { Desktop } from '../../app/desktop.ts'
 import type { MemoryStore } from '../../app/memories.ts'
+import type { ReadSignal } from '../../app/readCache.ts'
 import { useMemoryVersions } from '../../app/useMemoryVersions.ts'
 import { useVersions, type VersionNotice } from '../../app/useVersions.ts'
 import type { T } from '../../i18n.ts'
@@ -90,6 +91,8 @@ export function MemoryVersionList(props: {
   rpc: WorkflowLiteRpc
   store: MemoryStore
   id: string
+  /** 这条记忆的信号（修改时间、版本数）：给了，读过的那份先拿来显示。 */
+  signal?: ReadSignal
   desktop: Desktop | undefined
 }): React.JSX.Element {
   const { t, store } = props

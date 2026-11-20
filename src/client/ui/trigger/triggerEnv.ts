@@ -84,6 +84,11 @@ export interface TriggerEnv {
   openSession(session: string): boolean
   /** 打开工作流中心「触发」页、选中这张卡片（面板的「全部记录」、画布卡片上的工具条和失败小卡）。 */
   openInHub(node: string): void
+  /**
+   * 打开工作流中心「设置」页（HTTP 的监听地址、端口在那里改），叠在开着的对话框上面，关掉回来改动还在。
+   * 工作流中心里是 `null`：换页会把开着的对话框连同没存的改动一起关掉，那里顶栏点一下就到。
+   */
+  openSettings: (() => void) | null
 }
 
 /** 已知的工作区：这个会话的排最前，其余按侧栏里会话的顺序，去重。 */

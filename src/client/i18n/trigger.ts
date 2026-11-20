@@ -555,7 +555,7 @@ export const zh = {
   'trigger.snippets': '调用示例',
   'trigger.snippetsPending':
     '有了地址和令牌之后，这里给出 curl、PowerShell、JavaScript、Python 四种调用示例。',
-  'trigger.httpFoot': '缺省只接受本机的请求，监听地址和端口在工作流中心「设置」里改。',
+  'trigger.httpFoot': '缺省只接受本机的请求，监听地址和端口在工作流中心「{settings}」里改。',
   'trigger.ping': '发一条测试请求',
   'trigger.pingTitle': '向这个地址发一条测试请求？',
   'trigger.pingDesc': '和别的程序发来的一样，会触发一次、发进会话，并记进触发记录。',
@@ -1152,7 +1152,7 @@ export const en: Record<keyof typeof zh, string> = {
   'trigger.snippetsPending':
     'Once there is an address and token, curl, PowerShell, JavaScript and Python examples appear here.',
   'trigger.httpFoot':
-    'Only accepts requests from this machine by default; change the listen address and port under Settings in the workflow hub.',
+    'Only accepts requests from this machine by default; change the listen address and port under {settings} in the workflow hub.',
   'trigger.ping': 'Send a test request',
   'trigger.pingTitle': 'Send a test request to this address?',
   'trigger.pingDesc':

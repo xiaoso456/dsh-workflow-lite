@@ -7,11 +7,12 @@
  * - 和默认值不一样的项，右边有个「恢复默认」的小按钮（提示里写着默认是多少）。
  * - 要重启才生效的项标一个小标签；保存后的提示也会再说一遍。
  * - 没有设置服务、或 profile 不让改：照样显示现值，控件都禁用，顶上说明为什么。
+ * - 从别处的「设置」链接进来（HTTP 的监听地址、命令输出的保留行数）给 `jump`：读好后直接滚到那一组。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/HubSettings
  */
 
-import { useMemo, useState } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { type PluginConfigKey, RESTART_CONFIG_KEYS } from '../../../shared/wire/config.ts'
 import { createShellAccess } from '../../app/shells.ts'
 import type { ConfigDraft, PluginConfigState } from '../../app/usePluginConfig.ts'
@@ -60,20 +61,34 @@ const ICON: Record<PluginConfigKey, IconName> = {
   triggerOutputLines: 'rows',
 }
 
+/** 从链接进来时直接滚到的那一组。 */
+export type SettingsJump = 'trigger'
+
 export function HubSettings(props: {
   t: T
   rpc: WorkflowLiteRpc
+  /** 打开后滚到哪一组（缺省停在顶上）。 */
+  jump?: SettingsJump
   /** 保存成功：画布要用的上限、自动保存等待跟着换。 */
   onSaved(): void
 }): React.JSX.Element {
   const { t } = props
   const state = usePluginConfig(props.rpc, t, props.onSaved)
   const { view, draft } = state
+  const triggerGroup = useRef<HTMLElement>(null)
+  const loaded = view !== null && draft !== null
+  // 设置读回来、那一组画出来之后滚一次（只滚这一次，之后用户自己滚）。
+  const jumped = useRef(false)
+  useLayoutEffect(() => {
+    if (!loaded || jumped.current || props.jump !== 'trigger') return
+    jumped.current = true
+    triggerGroup.current?.scrollIntoView({ block: 'start' })
+  }, [loaded, props.jump])
   const shells = useMemo(() => createShellAccess(props.rpc), [props.rpc])
   /** 自己挑的 shell 程序用不了时的原因（写在那一行的说明处）。 */
   const [shellProblem, setShellProblem] = useState<string | null>(null)
 
-  if (view === null || draft === null) {
+  if (!loaded) {
     return (
       <div className={hub.page}>
         <ThemePicker t={t} />
@@ -154,7 +169,7 @@ export function HubSettings(props: {
           </Row>
         </Group>
 
-        <Group title={t('cfg.groupTrigger')}>
+        <Group title={t('cfg.groupTrigger')} sectionRef={triggerGroup}>
           <Row {...field} name="triggerShell" problem={shellProblem}>
             <ShellSelect
               t={t}
@@ -228,9 +243,13 @@ export function HubSettings(props: {
   )
 }
 
-function Group(props: { title: string; children: React.ReactNode }): React.JSX.Element {
+function Group(props: {
+  title: string
+  sectionRef?: React.RefObject<HTMLElement>
+  children: React.ReactNode
+}): React.JSX.Element {
   return (
-    <section className={hub.section}>
+    <section ref={props.sectionRef} className={hub.section}>
       <h3 className={hub.sectionTitle}>{props.title}</h3>
       <div className={hub.box}>{props.children}</div>
     </section>

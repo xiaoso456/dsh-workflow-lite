@@ -157,34 +157,6 @@ export function SwapText(props: {
 }
 
 /**
- * 列表换了一项时，下面整块内容（列表、输入框，没法逐字换的）跟着方向从下面（往上换时从上面）浮上来，按 `data-swap-tier` 错开。
- * 不重挂、不留旧的影子：换属性重放 CSS 动画。返回的几样属性摊到那一块上（`className` 用 cx 合进去）。
- * 只在切换的那一下给动画名（a / b 轮换，连着两次切换也从头放）；别的时候挂上的不放。
- */
-export function useSwapBlock(): {
-  className: string
-  'data-swap-block'?: 'a' | 'b'
-  'data-dir'?: 'down'
-} {
-  const fresh = useSwapFresh()
-  return {
-    className: css.swapBlock,
-    ...(fresh === null ? {} : { 'data-swap-block': fresh.name }),
-    ...(fresh?.dir === 'down' ? { 'data-dir': 'down' as const } : {}),
-  }
-}
-
-/**
- * 正在切换时，这一次的动画名（a / b 轮换）和方向；不在切换是 `null`。
- * 自己写进场动画的块（进程图：一行行出来、条从左边长出来）挂上它，CSS 按它放。
- */
-export function useSwapFresh(): { name: 'a' | 'b'; dir: 'up' | 'down' } | null {
-  const swap = useSwapSwitch()
-  if (!switching(swap)) return null
-  return { name: swap.serial % 2 === 1 ? 'a' : 'b', dir: swap.dir }
-}
-
-/**
  * 字变长、后面的东西正从原处滑开时，新字跟着露出来（不和还没让开的东西叠在一起）：
  * 外层往左挪 `by` 再回来、里层反着挪——字本身不动，外层的裁切右边缘正好跟着后面的东西走。
  * 只动 `translate`（不碰两层自己换字用的 `transform`）；`text` 是 {@link SwapText} 的根。

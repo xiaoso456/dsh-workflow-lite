@@ -63,7 +63,7 @@ export function HttpStage(props: {
             </p>
           </StageRow>
         </StageRows>
-        <Bench icon="braces" title={t('trigger.snippets')} foot={t('trigger.httpFoot')}>
+        <Bench icon="braces" title={t('trigger.snippets')} foot={<ListenNote t={t} env={env} />}>
           <p className={css.empty}>{t('trigger.snippetsPending')}</p>
         </Bench>
       </>
@@ -90,6 +90,32 @@ export function HttpStage(props: {
         live={view?.state === 'listening'}
       />
     </>
+  )
+}
+
+/** 底栏监听地址那句：画布上「设置」能点，点了在对话框上面打开工作流中心的「设置」页。 */
+function ListenNote(props: { t: T; env: TriggerEnv | null }): React.JSX.Element {
+  const { t } = props
+  const open = props.env?.openSettings ?? null
+  const [before = '', after = ''] = t('trigger.httpFoot').split('{settings}')
+  const label = t('hub.settings')
+  return (
+    <span className={css.footNote}>
+      {before}
+      {open === null ? (
+        label
+      ) : (
+        <button
+          type="button"
+          className={css.footLink}
+          data-testid="wl-trigger-http-settings"
+          onClick={open}
+        >
+          {label}
+        </button>
+      )}
+      {after}
+    </span>
   )
 }
 
@@ -183,7 +209,7 @@ function Snippets(props: {
           <span className={css.offNote} hidden={props.live} data-testid="wl-trigger-http-off">
             {t('trigger.httpOff')}
           </span>
-          <span className={css.footNote}>{t('trigger.httpFoot')}</span>
+          <ListenNote t={t} env={env} />
         </>
       }
     >

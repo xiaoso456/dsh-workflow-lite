@@ -195,6 +195,30 @@
   margin-left: auto;
 }
 
+/* 「设置」两个字：正文里的链接，不跟通用按钮一起按下缩小。 */
+button.footLink {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--wl-accent-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+button.footLink:hover {
+  text-decoration: underline;
+}
+
+button.footLink:active {
+  scale: none;
+}
+
+button.footLink:focus-visible {
+  border-radius: calc(3px * var(--wl-round, 1));
+  outline: 2px solid var(--wl-accent);
+  outline-offset: 2px;
+}
+
 .pingResult[data-ok="true"] {
   color: var(--wl-text-2);
 }

@@ -38,7 +38,7 @@ import { FadeMark } from '../motion/marks.tsx'
 import motion from '../motion/paneTransition.module.css'
 import { tabDirection, usePaneTransition } from '../motion/paneTransition.ts'
 import { HubMemories } from './HubMemories.tsx'
-import { HubSettings } from './HubSettings.tsx'
+import { HubSettings, type SettingsJump } from './HubSettings.tsx'
 import { HubStorage } from './HubStorage.tsx'
 import css from './hubDialog.module.css'
 import { HubRuns } from './runs/HubRuns.tsx'
@@ -71,8 +71,19 @@ const SIDE: readonly { page: HubPage; label: LocaleKey; icon: IconName }[] = [
   { page: 'settings', label: 'hub.settings', icon: 'gear' },
 ]
 
+/** 打开时停在哪一页：没给 `focus` 是「运行实例」。 */
+const FOCUS_PAGE: Record<HubFocus['kind'] | 'none', HubPage> = {
+  export: 'workflows',
+  trigger: 'triggers',
+  settings: 'settings',
+  none: 'runs',
+}
+
 /** 工作流中心打开时停在哪。 */
-export type HubFocus = { kind: 'export' } | { kind: 'trigger'; workflow: string; node: string }
+export type HubFocus =
+  | { kind: 'export' }
+  | { kind: 'trigger'; workflow: string; node: string }
+  | { kind: 'settings'; jump?: SettingsJump }
 
 export function HubDialog(props: {
   t: T
@@ -110,16 +121,20 @@ export function HubDialog(props: {
   onClose(): void
 }): React.JSX.Element {
   const { t, runs } = props
-  const [page, setPage] = useState<HubPage>(
-    props.focus?.kind === 'export'
-      ? 'workflows'
-      : props.focus?.kind === 'trigger'
-        ? 'triggers'
-        : 'runs',
+  const [page, setPage] = useState<HubPage>(FOCUS_PAGE[props.focus?.kind ?? 'none'])
+  /** 「设置」页打开后滚到哪一组：从链接进来时给，自己点顶栏的齿轮不给。 */
+  const [jump, setJump] = useState<SettingsJump | undefined>(
+    props.focus?.kind === 'settings' ? props.focus.jump : undefined,
   )
   const pane = usePaneTransition()
-  const turn = (next: HubPage): void => {
-    pane.change(() => setPage(next), tabDirection(PAGES, page, next))
+  const turn = (next: HubPage, to?: SettingsJump): void => {
+    pane.change(
+      () => {
+        setPage(next)
+        setJump(to)
+      },
+      tabDirection(PAGES, page, next),
+    )
   }
   return (
     <Modal label={t('hub.title')} onDismiss={props.onClose} className={css.dialog} testId="wl-hub">
@@ -221,7 +236,7 @@ export function HubDialog(props: {
               props.workflows.onOpen(name)
               props.onClose()
             }}
-            onSettings={() => turn('settings')}
+            onSettings={() => turn('settings', 'trigger')}
             onOpenCard={(workflow, node) => {
               props.onOpenCard(workflow, node)
               props.onClose()
@@ -251,7 +266,12 @@ export function HubDialog(props: {
         ) : page === 'storage' ? (
           <HubStorage t={t} rpc={props.rpc} onChanged={runs.refresh} />
         ) : (
-          <HubSettings t={t} rpc={props.rpc} onSaved={props.workflows.onChanged} />
+          <HubSettings
+            t={t}
+            rpc={props.rpc}
+            {...(jump === undefined ? {} : { jump })}
+            onSaved={props.workflows.onChanged}
+          />
         )}
       </div>
     </Modal>

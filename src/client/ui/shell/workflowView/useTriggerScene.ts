@@ -44,11 +44,24 @@ export interface TriggerSceneInput {
   openSession(session: string): boolean
   /** 打开工作流中心「触发」页、选中这个工作流里的这张卡片。 */
   openInHub(node: string): void
+  /** 打开工作流中心「设置」页。 */
+  openSettings(): void
 }
 
 export function useTriggerScene(input: TriggerSceneInput): TriggerEnv {
-  const { t, rpc, wf, session, sessionRows, sessionCwd, select, openRun, openSession, openInHub } =
-    input
+  const {
+    t,
+    rpc,
+    wf,
+    session,
+    sessionRows,
+    sessionCwd,
+    select,
+    openRun,
+    openSession,
+    openInHub,
+    openSettings,
+  } = input
   const { state } = wf
   // 图里一张触发卡片都没有就不问状态。
   const active = useMemo(() => state.doc?.nodes.some(isTrigger) === true, [state.doc])
@@ -174,6 +187,7 @@ export function useTriggerScene(input: TriggerSceneInput): TriggerEnv {
       openRun,
       openSession,
       openInHub,
+      openSettings,
     }),
     [
       state.name,
@@ -196,6 +210,7 @@ export function useTriggerScene(input: TriggerSceneInput): TriggerEnv {
       openRun,
       openSession,
       openInHub,
+      openSettings,
     ],
   )
 }

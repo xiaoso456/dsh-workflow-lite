@@ -281,6 +281,11 @@ function Shell(props: {
     },
     [workflowName],
   )
+  // 到工作流中心「设置」页（「触发方式」对话框里 HTTP 监听地址那句的「设置」）：叠在对话框上面开。
+  const openSettings = useCallback((): void => {
+    setHubFocus({ kind: 'settings', jump: 'trigger' })
+    setHubOpen(true)
+  }, [])
 
   // 跳到一个会话（排着的触发在等的那个）。
   const sessionBridge = props.sessions
@@ -301,6 +306,7 @@ function Shell(props: {
     openRun,
     openSession,
     openInHub,
+    openSettings,
   })
 
   const openCard = useOpenCard({ state, openTemplate, locate })

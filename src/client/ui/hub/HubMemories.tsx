@@ -15,6 +15,8 @@ import { idKey } from '../../../shared/model.ts'
 import type { Desktop } from '../../app/desktop.ts'
 import { useListView } from '../../app/listView.ts'
 import { type MemoryStore, useMemories } from '../../app/memories.ts'
+import { primeMemoryVersions } from '../../app/useMemoryVersions.ts'
+import { whenPrimed } from '../../app/whenPrimed.ts'
 import type { LocaleKey, T } from '../../i18n.ts'
 import { formatBytes } from '../../model/fileKind.ts'
 import { arrangeList, groupId, type ListGroup } from '../../model/listView.ts'
@@ -40,8 +42,9 @@ import { Skeleton } from '../kit/Skeleton.tsx'
 import { TextArea } from '../kit/TextArea.tsx'
 import { TintChip } from '../kit/TintChip.tsx'
 import ui from '../kit/ui.module.css'
+import { markSwap } from '../motion/swap.tsx'
 import { SwapScope } from '../motion/swapScope.tsx'
-import { SwapText, useSwapBlock } from '../motion/swapText.tsx'
+import { SwapText } from '../motion/swapText.tsx'
 import ins from '../panel/panel.module.css'
 import { memoryTypeText } from '../resources/ResourcePresets.tsx'
 import { MemoryVersionList } from '../versions/VersionList.tsx'
@@ -72,6 +75,7 @@ export function HubMemories(props: {
   const [query, setQuery] = useState('')
   const [view, changeView] = useListView(MEMORY_VIEW)
   const detailRef = useRef<HTMLDivElement>(null)
+  const pickRevision = useRef(0)
   // 一进这一页重读一遍：在用的工作流、大小可能刚变。
   useEffect(() => {
     void store.refresh()
@@ -137,8 +141,19 @@ export function HubMemories(props: {
           selected={selected?.id ?? ''}
           selectedGroup={pickedGroup}
           onPick={(id, group) => {
-            setPicked(id)
-            setPickedGroup(group)
+            // 先把那条的版本读好再换：右栏的版本不先空一下（最多等一小会儿）。
+            const revision = ++pickRevision.current
+            const target = ordered.find((entry) => entry.id === id)
+            const reading =
+              target === undefined || target === selected
+                ? null
+                : primeMemoryVersions(props.rpc, id, versionSignal(target))
+            whenPrimed(reading, () => {
+              if (revision !== pickRevision.current) return
+              markSwap()
+              setPicked(id)
+              setPickedGroup(group)
+            })
           }}
         />
       </div>
@@ -383,6 +398,11 @@ function memoryGroupFace(t: T, group: ListGroup<MemoryEntry, MemoryGroupKey>): G
   return { label: group.key }
 }
 
+/** 记忆的版本按它读：修改时间、版本数变了就重读。 */
+function versionSignal(entry: MemoryEntry): string {
+  return `${entry.updatedAt}:${entry.versions}`
+}
+
 /** 删除确认卡上那句：谁在用、几个版本一起删。 */
 function deleteText(t: T, entry: MemoryEntry): string {
   const parts = [
@@ -412,8 +432,6 @@ function MemoryDetail(props: {
   const [viewing, setViewing] = useState<string | null>(null)
   const description = draft?.id === entry.id ? draft.text : null
   const { detailRef } = props
-  // 换了一条：下面的说明、用到它的、文件整块跟着浮上来（标题、数字在上面逐字换）。
-  const body = useSwapBlock()
   useLayoutEffect(() => {
     if (detailRef.current !== null) detailRef.current.scrollTop = 0
   }, [entry.id, detailRef])
@@ -481,7 +499,8 @@ function MemoryDetail(props: {
         </div>
       </div>
 
-      <div {...body} className={cx(css.hubBody, body.className)} data-swap-tier="1">
+      {/* 换了一条：标题、数字逐字换，下面的内容原地换掉（和「工作流」「触发」页一样，不整块淡出淡入）。 */}
+      <div className={css.hubBody}>
         <div className={css.hubInfo}>
           <span className={css.secHead}>{t('hub.memInfo')}</span>
           <div className={hub.stats} data-testid="wl-hub-mem-stats">
@@ -553,6 +572,7 @@ function MemoryDetail(props: {
               rpc={props.rpc}
               store={store}
               id={entry.id}
+              signal={versionSignal(entry)}
               desktop={props.desktop}
             />
           </section>
