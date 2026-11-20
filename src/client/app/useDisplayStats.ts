@@ -47,6 +47,7 @@ export function displayTargets(
 
 /**
  * 隔一会儿调一次 `ask`；页面藏起来时不调，回到前台立刻调一次。
+ * 视图被弹窗盖着时调用方不开始轮询（`quiet`），揭开后重新开始，开始时立刻调一次。
  * `ask` 拿到 `alive`：停掉之后（换了实例、换了一批项）还在路上的回包不要了。
  * @returns 停掉。
  */
@@ -79,6 +80,8 @@ export function useDisplayStats(
   instance: string,
   doc: WorkflowDocument | null,
   interval: number = RUN_POLL_MS,
+  /** 视图被弹窗盖着：先不问。 */
+  quiet = false,
 ): Readonly<Record<string, DisplayStat>> {
   const targets = displayTargets(doc).slice(0, RUN_STAT_MAX)
   // `signature` 就是 targets 的身份：targets 每次渲染都是新数组，不拿它当依赖。
@@ -87,7 +90,7 @@ export function useDisplayStats(
 
   useEffect(() => {
     const asked = JSON.parse(signature) as { node: string; item: number }[]
-    if (asked.length === 0) return
+    if (asked.length === 0 || quiet) return
     return startPoll((alive) => {
       rpc
         .call('run/stat', { id: instance, targets: asked })
@@ -102,7 +105,7 @@ export function useDisplayStats(
         })
         .catch(() => {})
     }, interval)
-  }, [rpc, instance, signature, interval])
+  }, [rpc, instance, signature, interval, quiet])
 
   return stats
 }
@@ -118,6 +121,8 @@ export function useLatestOutputs(
   rpc: WorkflowLiteRpc,
   workflow: string | null,
   doc: WorkflowDocument | null,
+  /** 视图被弹窗盖着：先不问。 */
+  quiet = false,
 ): Readonly<Record<string, RunLatestOutput>> {
   const targets = displayTargets(doc).slice(0, RUN_STAT_MAX)
   const signature = JSON.stringify(targets)
@@ -128,7 +133,7 @@ export function useLatestOutputs(
 
   useEffect(() => {
     const asked = JSON.parse(signature) as { node: string; item: number; value: string }[]
-    if (workflow === null || asked.length === 0) return
+    if (workflow === null || asked.length === 0 || quiet) return
     return startPoll((alive) => {
       rpc
         .call('run/latest', {
@@ -148,7 +153,7 @@ export function useLatestOutputs(
         })
         .catch(() => {})
     }, LATEST_POLL_MS)
-  }, [rpc, workflow, signature])
+  }, [rpc, workflow, signature, quiet])
 
   // 换了工作流：上一张图的结果不算（新的回来之前先当没有）。
   return latest.workflow === workflow ? latest.outputs : NONE

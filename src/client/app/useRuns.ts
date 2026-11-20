@@ -265,6 +265,8 @@ export function useRun(
   session: string | undefined,
   t: T,
   onSaved?: () => void,
+  /** 视图被弹窗盖着：不轮询，揭开时整份重读一次。 */
+  quiet = false,
 ): Run {
   const [view, setView] = useState<InstanceView | null>(null)
   const [lastGood, setLastGood] = useState<RunState | null>(null)
@@ -398,7 +400,14 @@ export function useRun(
   // 产出文件生成没有不会改状态文件的修改时间（尤其是不记进度的实例），靠它跟上。
   // 结束了的实例问得慢一些（见 runPollMs）。
   const interval = runPollMs(view !== null && view.summary.id === id ? view : null)
+  const wasQuiet = useRef(quiet)
   useEffect(() => {
+    if (quiet) {
+      wasQuiet.current = true
+      return
+    }
+    if (wasQuiet.current) void load(true)
+    wasQuiet.current = false
     let tick = 0
     const timer = window.setInterval(() => {
       if (document.visibilityState !== 'visible') return
@@ -406,7 +415,7 @@ export function useRun(
       void load(tick % RUN_FULL_EVERY === 0)
     }, interval)
     return () => window.clearInterval(timer)
-  }, [load, interval])
+  }, [load, interval, quiet])
 
   // 换实例的那一帧，上一个实例的视图还在 state 里（清理在渲染之后的 effect 里）：不认它，免得把别人的图与状态当成这个实例的。
   const mine = view !== null && view.summary.id === id ? view : null

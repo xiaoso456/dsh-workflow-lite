@@ -40,6 +40,7 @@ import {
 } from 'react'
 import { afterPaint } from '../../../app/reveal.ts'
 import { type MeasuredPath, measurePath } from '../../../model/pathSample.ts'
+import { useViewCovered } from '../../kit/viewCover.ts'
 import { useCanvasMoving } from '../../motion/canvasMoving.ts'
 import css from './flowStreaks.module.css'
 import { OnLabels } from './LabelLayer.tsx'
@@ -75,7 +76,7 @@ function reducedMotion(): boolean {
 }
 
 /**
- * 光带怎么样：`run` 照常走；`pause` 停在原地（平移、缩放画布时）；
+ * 光带怎么样：`run` 照常走；`pause` 停在原地（平移、缩放画布时，视图被弹窗盖着时）；
  * `hold` 藏起来停着，松手后再按最终的线铺（拖卡片时）。
  */
 type StreakMode = 'run' | 'pause' | 'hold'
@@ -85,7 +86,9 @@ export const StreaksMode = createContext<'run' | 'hold'>('run')
 function useStreakMode(): StreakMode {
   const mode = useContext(StreaksMode)
   const moving = useCanvasMoving()
-  return mode === 'run' && moving ? 'pause' : mode
+  // 视图被弹窗盖着也停在原地：看不见，不用一帧帧地走。
+  const covered = useViewCovered()
+  return mode === 'run' && (moving || covered) ? 'pause' : mode
 }
 
 /** 这么长的线放几道光带。 */

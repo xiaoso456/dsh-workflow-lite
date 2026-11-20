@@ -22,9 +22,11 @@ export interface FreshRunInput {
   pick: SessionPick | null
   /** 现有的工作流（目录还没回来是 `null`）。 */
   workflows: readonly string[] | null
+  /** 视图被弹窗盖着：不定时刷新，揭开时补刷一次。 */
+  quiet: boolean
 }
 
-export function useFreshRun({ runs, runId, setRunId, pick, workflows }: FreshRunInput): {
+export function useFreshRun({ runs, runId, setRunId, pick, workflows, quiet }: FreshRunInput): {
   freshRun: string | null
   setFreshRun: React.Dispatch<React.SetStateAction<string | null>>
   seenCurrent: React.MutableRefObject<string | undefined | null>
@@ -62,12 +64,20 @@ export function useFreshRun({ runs, runId, setRunId, pick, workflows }: FreshRun
     }
     seenCurrent.current = runs.current
   }, [runs, runId, setRunId, pick, workflows, catalogReady])
+  const covered = useRef(quiet)
   useEffect(() => {
+    if (quiet) {
+      covered.current = true
+      return
+    }
+    // 刚揭开：盖着的时候没刷，先补一次。
+    if (covered.current) void runs.refresh()
+    covered.current = false
     const timer = window.setInterval(() => {
       if (document.visibilityState === 'visible') void runs.refresh()
     }, RUNS_REFRESH_MS)
     return () => window.clearInterval(timer)
-  }, [runs.refresh])
+  }, [runs.refresh, quiet])
   return { freshRun, setFreshRun, seenCurrent, restored }
 }
 

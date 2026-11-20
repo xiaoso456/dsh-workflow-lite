@@ -58,6 +58,7 @@ import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
 import type { TopSlots } from '../kit/topSlots.ts'
 import ui from '../kit/ui.module.css'
+import { useViewCovered } from '../kit/viewCover.ts'
 import { expectCanvasMove } from '../motion/canvasMoving.ts'
 import { ExitSeat, useViewGhost } from '../motion/exits.tsx'
 import { SWITCH_HOLD_MS, useSwap, useSwapHold } from '../motion/swap.tsx'
@@ -152,7 +153,9 @@ export function RunView(props: RunViewProps): React.JSX.Element {
   const { t, id, narrow, inspectorW, panelOpen, onPanel } = props
   const canvasRef = useRef<HTMLDivElement>(null)
   useViewGhost(canvasRef)
-  const current = useRun(props.rpc, id, props.session, t, () => void props.runs.refresh())
+  /** 开着弹窗时背后不轮询，揭开再接着（见 kit/viewCover.ts）。 */
+  const covered = useViewCovered()
+  const current = useRun(props.rpc, id, props.session, t, () => void props.runs.refresh(), covered)
   const summary = current.view?.summary
   const reloadNow = current.reload
   useEffect(() => {
@@ -224,7 +227,7 @@ export function RunView(props: RunViewProps): React.JSX.Element {
     setFolderView,
     stepNames,
     display,
-  } = useDisplayCards({ rpc: props.rpc, id, doc, current })
+  } = useDisplayCards({ rpc: props.rpc, id, doc, current, quiet: covered })
   /** 看实例工作区里的文件夹、Skill（相对路径按实例的工作区，Skill 按实例所属的会话）。 */
   const cwd = summary?.cwd
   const host = useMemo(

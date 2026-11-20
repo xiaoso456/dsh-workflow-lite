@@ -16,9 +16,11 @@ export interface CanvasDisplayInput {
   state: Workflow['state']
   runId: string | null
   openRun(id: string): void
+  /** 视图被弹窗盖着：「上次执行」先不问。 */
+  quiet: boolean
 }
 
-export function useCanvasDisplay({ rpc, state, runId, openRun }: CanvasDisplayInput) {
+export function useCanvasDisplay({ rpc, state, runId, openRun, quiet }: CanvasDisplayInput) {
   /** 当前的图（异步排版回来时据此判断图是不是已经变了）。 */
   const docRef = useRef(state.doc)
   docRef.current = state.doc
@@ -29,6 +31,7 @@ export function useCanvasDisplay({ rpc, state, runId, openRun }: CanvasDisplayIn
     rpc,
     runId === null ? (state.name ?? null) : null,
     state.doc,
+    quiet,
   )
   const canvasDisplay = useMemo(
     () => ({

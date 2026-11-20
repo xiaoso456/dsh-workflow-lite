@@ -42,15 +42,17 @@ export interface DisplayCardsInput {
   id: string
   doc: WorkflowDocument | null
   current: Run
+  /** 视图被弹窗盖着：展示着的文件先不看。 */
+  quiet: boolean
 }
 
-export function useDisplayCards({ rpc, id, doc, current }: DisplayCardsInput) {
+export function useDisplayCards({ rpc, id, doc, current, quiet }: DisplayCardsInput) {
   const [viewer, setViewer] = useState<RunViewer | null>(null)
   /** 展示卡上打开的自定义文字（文件走上面的查看框）。 */
   const [textView, setTextView] = useState<ResourceItem | null>(null)
   const [folderView, setFolderView] = useState<RunFolderView | null>(null)
   /** 画布上展示着的文件：隔一会儿看一眼在不在、改没改。 */
-  const displayStats = useDisplayStats(rpc, id, doc, runPollMs(current.view))
+  const displayStats = useDisplayStats(rpc, id, doc, runPollMs(current.view), quiet)
   /** 步骤 id → 名字：展示卡上各轮的点写「改稿 · 第 2 轮」。 */
   const stepNames = useMemo(
     () =>

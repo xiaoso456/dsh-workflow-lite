@@ -37,6 +37,7 @@ import { ModalHostProvider } from '../kit/Modal.tsx'
 import { useScrollbarWidth } from '../kit/scrollbarWidth.ts'
 import type { TopSlots } from '../kit/topSlots.ts'
 import ui from '../kit/ui.module.css'
+import { CoverHost, useCoverCount, ViewCovered } from '../kit/viewCover.ts'
 import { ExitSeat, useViewGhost } from '../motion/exits.tsx'
 import { SWITCH_HOLD_MS, useSwapHold } from '../motion/swap.tsx'
 import { type RunStepFocus, RunView } from '../run/RunView.tsx'
@@ -133,6 +134,8 @@ function Shell(props: {
   desktop?: Desktop
 }): React.JSX.Element {
   const { t } = props
+  /** 开着弹窗时视图被盖住：背后的动画停下、轮询不问（见 kit/viewCover.ts）。 */
+  const [covered, cover] = useCoverCount()
   /** 这个会话上次在这个 tab 里看的（进来时接着看，见 sessionPick.ts）。 */
   const [pick] = useState(() => readSessionPick(props.session))
   const wf = useWorkflow(props.rpc, t, pick?.workflow)
@@ -162,6 +165,7 @@ function Shell(props: {
     setRunId,
     pick,
     workflows: workflowNames,
+    quiet: covered,
   })
   // 记下这个会话在看什么（下次进来接着看）；恢复完之前不记。工作流还没开出来时留着上次记的那张。
   useEffect(() => {
@@ -221,6 +225,7 @@ function Shell(props: {
     state,
     runId,
     openRun,
+    quiet: covered,
   })
   const flow = useReactFlow()
   const rootRef = useRef<HTMLDivElement>(null)
@@ -411,222 +416,231 @@ function Shell(props: {
         data-mode={runId === null ? 'template' : 'run'}
         data-booting={booting ? 'true' : undefined}
         data-session={props.session}
+        data-covered={covered ? '' : undefined}
         role="region"
         aria-label={t('tab.label')}
         onKeyDown={onKeyDown}
       >
-        <ModalHostProvider value={layer?.root ?? null}>
-          {runId !== null ? (
-            <>
-              <RunView
-                t={t}
-                rpc={props.rpc}
-                session={props.session}
-                id={runId}
-                focusStep={runStep}
-                runs={runs}
-                workflows={wf.catalog?.workflows ?? []}
-                templates={wf.catalog?.templates.nodes ?? []}
-                loadTemplate={wf.loadTemplate}
-                onSaveTemplate={wf.saveTemplate}
-                narrow={narrow}
-                inspectorW={inspectorW}
-                panelOpen={runPanel}
-                onPanel={setRunPanel}
-                onOpenRun={openRun}
-                onOpenTemplate={openTemplate}
-                slots={slots}
-                memories={memories.entries}
-                reloadRef={reloadRun}
-                onOpenHub={() => {
-                  setHubFocus(null)
-                  setHubOpen(true)
-                }}
-                onSettled={() => setBooting(false)}
-                {...(props.desktop === undefined ? {} : { desktop: props.desktop })}
-              />
-              {hub}
-            </>
-          ) : (
-            <TriggerContext.Provider value={triggerScene}>
-              <CanvasLayer
-                hidden={state.phase === 'loading' && shown === null}
-                dim={canvasHold.dim}
-              >
-                {shown !== null && (
-                  <Canvas
+        <CoverHost.Provider value={cover}>
+          <ViewCovered.Provider value={covered}>
+            <ModalHostProvider value={layer?.root ?? null}>
+              {runId !== null ? (
+                <>
+                  <RunView
                     t={t}
-                    doc={shown.doc}
-                    analysis={shown.analysis}
-                    loadKey={shown.key}
-                    {...(shown.name === null ? {} : { viewKey: shown.name })}
-                    selection={state.selection}
-                    problems={state.problems}
-                    insets={insets}
-                    onEdit={wf.edit}
-                    onSeal={wf.seal}
-                    onSelect={select}
-                    onRequestAdd={requestAdd}
-                    onDropSource={(source, at) => void addStep(source, at)}
-                    onSettled={() => setTemplateSettled(true)}
-                    onStarter={() => {
-                      wf.edit({ type: 'addGraph', ...starterGraph(t) })
-                      fitSoon()
-                    }}
-                    focusFile={focusFile}
-                    onFocusFile={onFocusFile}
-                    onMemory={toggleMemory}
+                    rpc={props.rpc}
+                    session={props.session}
+                    id={runId}
+                    focusStep={runStep}
+                    runs={runs}
+                    workflows={wf.catalog?.workflows ?? []}
+                    templates={wf.catalog?.templates.nodes ?? []}
+                    loadTemplate={wf.loadTemplate}
+                    onSaveTemplate={wf.saveTemplate}
+                    narrow={narrow}
+                    inspectorW={inspectorW}
+                    panelOpen={runPanel}
+                    onPanel={setRunPanel}
+                    onOpenRun={openRun}
+                    onOpenTemplate={openTemplate}
+                    slots={slots}
                     memories={memories.entries}
-                    workflow={state.name}
-                    display={canvasDisplay}
+                    reloadRef={reloadRun}
+                    onOpenHub={() => {
+                      setHubFocus(null)
+                      setHubOpen(true)
+                    }}
+                    onSettled={() => setBooting(false)}
+                    {...(props.desktop === undefined ? {} : { desktop: props.desktop })}
                   />
-                )}
-              </CanvasLayer>
-
-              {state.phase === 'idle' && wf.catalog !== null && <Welcome t={t} wf={wf} />}
-              {state.phase === 'broken' && <Broken t={t} wf={wf} />}
-
-              <InspectorPanes
-                t={t}
-                wf={wf}
-                live={live}
-                focus={focus}
-                focusPrompt={focusPrompt}
-                focusLibrary={focusLibrary}
-                addToCanvas={addToCanvas}
-                freshTemplateLook={freshTemplateLook}
-                freeStepName={freeStepName}
-                select={select}
-                duplicate={duplicate}
-                removeNode={removeNode}
-                focusCanvas={focusCanvas}
-                onFocusFile={onFocusFile}
-                host={host}
-                openMemoryPick={openMemoryPick}
-              />
-
-              {live && (
-                <ZoomDock
-                  t={t}
-                  keysOpen={keysOpen}
-                  setKeysOpen={setKeysOpen}
-                  onFit={() => fitAll()}
-                />
-              )}
-
-              <Banners
-                t={t}
-                wf={wf}
-                freshRun={freshRun}
-                openRun={openRun}
-                setFreshRun={setFreshRun}
-              />
-
-              <ShellDialogs
-                t={t}
-                rpc={props.rpc}
-                desktop={props.desktop}
-                session={props.session}
-                wf={wf}
-                host={host}
-                memoryPick={memoryPick}
-                textView={textView}
-                setTextView={setTextView}
-                quick={quick}
-                setQuick={setQuick}
-                size={size}
-                addStep={addStep}
-                settingsOpen={settingsOpen}
-                setSettingsOpen={setSettingsOpen}
-                versionsOpen={versionsOpen}
-                setVersionsOpen={setVersionsOpen}
-                asking={asking}
-                setAsking={setAsking}
-                lastAnswers={lastAnswers}
-                sessionRows={sessionRows}
-                startRun={startRun}
-                planOpen={planOpen}
-                setPlanOpen={setPlanOpen}
-                sessionCwd={sessionCwd}
-                locate={locate}
-                focusCanvas={focusCanvas}
-              />
-
-              {hub}
-
-              {wf.toast !== null && (
-                <ExitSeat className={frame.toastSeat} exit="down" key={wf.toast.id}>
-                  <div className={cx(frame.toast, ui.rise)} data-tone={wf.toast.tone} role="status">
-                    {wf.toast.tone === 'error' ? (
-                      <Icon name="alert" size={14} />
-                    ) : (
-                      <Icon name="check" size={14} />
+                  {hub}
+                </>
+              ) : (
+                <TriggerContext.Provider value={triggerScene}>
+                  <CanvasLayer
+                    hidden={state.phase === 'loading' && shown === null}
+                    dim={canvasHold.dim}
+                  >
+                    {shown !== null && (
+                      <Canvas
+                        t={t}
+                        doc={shown.doc}
+                        analysis={shown.analysis}
+                        loadKey={shown.key}
+                        {...(shown.name === null ? {} : { viewKey: shown.name })}
+                        selection={state.selection}
+                        problems={state.problems}
+                        insets={insets}
+                        onEdit={wf.edit}
+                        onSeal={wf.seal}
+                        onSelect={select}
+                        onRequestAdd={requestAdd}
+                        onDropSource={(source, at) => void addStep(source, at)}
+                        onSettled={() => setTemplateSettled(true)}
+                        onStarter={() => {
+                          wf.edit({ type: 'addGraph', ...starterGraph(t) })
+                          fitSoon()
+                        }}
+                        focusFile={focusFile}
+                        onFocusFile={onFocusFile}
+                        onMemory={toggleMemory}
+                        memories={memories.entries}
+                        workflow={state.name}
+                        display={canvasDisplay}
+                      />
                     )}
-                    <span>{wf.toast.text}</span>
-                  </div>
-                </ExitSeat>
+                  </CanvasLayer>
+
+                  {state.phase === 'idle' && wf.catalog !== null && <Welcome t={t} wf={wf} />}
+                  {state.phase === 'broken' && <Broken t={t} wf={wf} />}
+
+                  <InspectorPanes
+                    t={t}
+                    wf={wf}
+                    live={live}
+                    focus={focus}
+                    focusPrompt={focusPrompt}
+                    focusLibrary={focusLibrary}
+                    addToCanvas={addToCanvas}
+                    freshTemplateLook={freshTemplateLook}
+                    freeStepName={freeStepName}
+                    select={select}
+                    duplicate={duplicate}
+                    removeNode={removeNode}
+                    focusCanvas={focusCanvas}
+                    onFocusFile={onFocusFile}
+                    host={host}
+                    openMemoryPick={openMemoryPick}
+                  />
+
+                  {live && (
+                    <ZoomDock
+                      t={t}
+                      keysOpen={keysOpen}
+                      setKeysOpen={setKeysOpen}
+                      onFit={() => fitAll()}
+                    />
+                  )}
+
+                  <Banners
+                    t={t}
+                    wf={wf}
+                    freshRun={freshRun}
+                    openRun={openRun}
+                    setFreshRun={setFreshRun}
+                  />
+
+                  <ShellDialogs
+                    t={t}
+                    rpc={props.rpc}
+                    desktop={props.desktop}
+                    session={props.session}
+                    wf={wf}
+                    host={host}
+                    memoryPick={memoryPick}
+                    textView={textView}
+                    setTextView={setTextView}
+                    quick={quick}
+                    setQuick={setQuick}
+                    size={size}
+                    addStep={addStep}
+                    settingsOpen={settingsOpen}
+                    setSettingsOpen={setSettingsOpen}
+                    versionsOpen={versionsOpen}
+                    setVersionsOpen={setVersionsOpen}
+                    asking={asking}
+                    setAsking={setAsking}
+                    lastAnswers={lastAnswers}
+                    sessionRows={sessionRows}
+                    startRun={startRun}
+                    planOpen={planOpen}
+                    setPlanOpen={setPlanOpen}
+                    sessionCwd={sessionCwd}
+                    locate={locate}
+                    focusCanvas={focusCanvas}
+                  />
+
+                  {hub}
+
+                  {wf.toast !== null && (
+                    <ExitSeat className={frame.toastSeat} exit="down" key={wf.toast.id}>
+                      <div
+                        className={cx(frame.toast, ui.rise)}
+                        data-tone={wf.toast.tone}
+                        role="status"
+                      >
+                        {wf.toast.tone === 'error' ? (
+                          <Icon name="alert" size={14} />
+                        ) : (
+                          <Icon name="check" size={14} />
+                        )}
+                        <span>{wf.toast.text}</span>
+                      </div>
+                    </ExitSeat>
+                  )}
+                </TriggerContext.Provider>
               )}
-            </TriggerContext.Provider>
-          )}
-          {live && (
-            <div className={css.library} aria-hidden={!libraryOpen}>
-              <Library
-                t={t}
-                templates={wf.catalog?.templates.nodes ?? []}
-                focus={focus}
-                onFocus={focusLibrary}
-                onNewStep={() =>
-                  focusLibrary({
-                    kind: 'new',
-                    seed: { prompt: '', ...freshTemplateLook() },
-                    name: freeStepName('my-step'),
-                  })
-                }
-                onClose={toggleLibrary}
-              />
-            </div>
-          )}
-          <div className={css.top}>
-            <TopBar
-              t={t}
-              runId={runId}
-              slotRefs={slotRefs}
-              versionsPending={matchesVersion !== null && (!matchesVersion || isDirty(state))}
-              wf={wf}
-              libraryOpen={libraryOpen}
-              onToggleLibrary={toggleLibrary}
-              onTidy={relayout}
-              onLocate={locate}
-              onPreview={() => setPlanOpen(true)}
-              launch={{
-                blocked: launchBlocked,
-                starting,
-                session: props.session,
-                rows: sessionRows,
-                canCreate,
-                newChoice,
-                agents,
-                onRun: launch,
-              }}
-              onSettings={() => setSettingsOpen(true)}
-              onVersions={() => setVersionsOpen(true)}
-              runs={runs}
-              triggerMarks={triggerMarks}
-              onOpenRun={openRun}
-              onOpenHub={() => {
-                setHubFocus(null)
-                setHubOpen(true)
-              }}
-              onExport={() => {
-                setHubFocus({ kind: 'export' })
-                setHubOpen(true)
-              }}
-              onOpenWorkflow={openTemplate}
-              onNewWorkflow={newWorkflow}
-              onReloadRun={() => reloadRun.current?.()}
-            />
-          </div>
-        </ModalHostProvider>
+              {live && (
+                <div className={css.library} aria-hidden={!libraryOpen}>
+                  <Library
+                    t={t}
+                    templates={wf.catalog?.templates.nodes ?? []}
+                    focus={focus}
+                    onFocus={focusLibrary}
+                    onNewStep={() =>
+                      focusLibrary({
+                        kind: 'new',
+                        seed: { prompt: '', ...freshTemplateLook() },
+                        name: freeStepName('my-step'),
+                      })
+                    }
+                    onClose={toggleLibrary}
+                  />
+                </div>
+              )}
+              <div className={css.top}>
+                <TopBar
+                  t={t}
+                  runId={runId}
+                  slotRefs={slotRefs}
+                  versionsPending={matchesVersion !== null && (!matchesVersion || isDirty(state))}
+                  wf={wf}
+                  libraryOpen={libraryOpen}
+                  onToggleLibrary={toggleLibrary}
+                  onTidy={relayout}
+                  onLocate={locate}
+                  onPreview={() => setPlanOpen(true)}
+                  launch={{
+                    blocked: launchBlocked,
+                    starting,
+                    session: props.session,
+                    rows: sessionRows,
+                    canCreate,
+                    newChoice,
+                    agents,
+                    onRun: launch,
+                  }}
+                  onSettings={() => setSettingsOpen(true)}
+                  onVersions={() => setVersionsOpen(true)}
+                  runs={runs}
+                  triggerMarks={triggerMarks}
+                  onOpenRun={openRun}
+                  onOpenHub={() => {
+                    setHubFocus(null)
+                    setHubOpen(true)
+                  }}
+                  onExport={() => {
+                    setHubFocus({ kind: 'export' })
+                    setHubOpen(true)
+                  }}
+                  onOpenWorkflow={openTemplate}
+                  onNewWorkflow={newWorkflow}
+                  onReloadRun={() => reloadRun.current?.()}
+                />
+              </div>
+            </ModalHostProvider>
+          </ViewCovered.Provider>
+        </CoverHost.Provider>
         <TipLayer root={viewRoot} layer={layer} />
       </div>
     </BoardThemeContext.Provider>

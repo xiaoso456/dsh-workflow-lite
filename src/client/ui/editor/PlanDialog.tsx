@@ -8,7 +8,8 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/editor/PlanDialog
  */
 
-import { useEffect, useRef, useState } from 'react'
+import { useContext, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { PlanBuildResponse } from '../../../shared/wire/plan.ts'
 import type { T } from '../../i18n.ts'
 import { errorMessage } from '../../rpc.ts'
@@ -16,10 +17,11 @@ import { Markdown } from '../files/Markdown.tsx'
 import { copyText } from '../kit/clipboard.ts'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
-import { useSheetMotion } from '../kit/Modal.tsx'
+import { ModalHost, useSheetMotion } from '../kit/Modal.tsx'
 import css from '../kit/overlay.module.css'
 import { Segmented } from '../kit/Segmented.tsx'
 import ui from '../kit/ui.module.css'
+import { useCoverView } from '../kit/viewCover.ts'
 import { SwapIcon, SwapText } from '../motion/swapText.tsx'
 
 type Version = 'model' | 'human'
@@ -62,6 +64,9 @@ export function PlanDialog(props: {
 
   const scrimRef = useRef<HTMLDivElement>(null)
   useSheetMotion(scrimRef, dialogRef)
+  useCoverView()
+  // 和模态框一样挂到弹窗层（视图外面），盖住整个视图。
+  const host = useContext(ModalHost)
 
   useEffect(() => {
     dialogRef.current?.focus()
@@ -80,7 +85,7 @@ export function PlanDialog(props: {
     setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
 
-  return (
+  const tree = (
     // biome-ignore lint/a11y/noStaticElementInteractions: 点遮罩关闭；键盘走对话框自己的 Esc
     // biome-ignore lint/a11y/useKeyWithClickEvents: 同上
     <div
@@ -215,4 +220,5 @@ export function PlanDialog(props: {
       </div>
     </div>
   )
+  return host === null ? tree : createPortal(tree, host)
 }

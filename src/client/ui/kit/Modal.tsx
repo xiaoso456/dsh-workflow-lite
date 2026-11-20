@@ -18,6 +18,7 @@ import { ghostOut, REDUCED_MOTION } from './ghost.ts'
 import overlay from './overlay.module.css'
 import { snapToPixels } from './pixelSnap.ts'
 import ui from './ui.module.css'
+import { useCoverView, ViewCovered } from './viewCover.ts'
 
 /**
  * 模态框、浮层挂到哪里：贴着视图根的弹窗层（shell/modalLayer.ts）。
@@ -56,6 +57,8 @@ export function Modal(props: {
   const downOnScrim = useRef(false)
   const scrimRef = useRef<HTMLDivElement>(null)
   useSheetMotion(scrimRef, ref)
+  // 开着就算盖住了视图：背后的动画、轮询停下来。
+  useCoverView()
 
   useEffect(() => {
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
@@ -112,7 +115,8 @@ export function Modal(props: {
         data-testid={props.testId}
         onKeyDown={onKeyDown}
       >
-        {props.children}
+        {/* 弹窗里面不算被盖住：自己的轮询、动画照常。 */}
+        <ViewCovered.Provider value={false}>{props.children}</ViewCovered.Provider>
       </div>
     </div>
   )

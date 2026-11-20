@@ -686,3 +686,14 @@
   /* biome-ignore lint/complexity/noImportantStyles: 要压过各处自己写的过渡 */
   transition: none !important;
 }
+
+/*
+ * 开着弹窗时视图被盖住（`data-covered`，见 kit/viewCover.ts）：里面一直在放的动画（运行中的线、转圈、呼吸点）原地停下，
+ * 揭开后接着放。弹窗层不带这个属性，弹窗里的动画照常。
+ */
+.root[data-covered] *,
+.root[data-covered] *::before,
+.root[data-covered] *::after {
+  /* biome-ignore lint/complexity/noImportantStyles: 各处动画写在自己的类上，权重高低不一，这里要一律压住 */
+  animation-play-state: paused !important;
+}
