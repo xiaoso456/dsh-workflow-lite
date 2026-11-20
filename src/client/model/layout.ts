@@ -38,6 +38,7 @@ import type {
   WorkflowEdge,
   WorkflowNode,
 } from '../../shared/types.ts'
+import { BUS_DROP } from './bus.ts'
 import { displayCardSize, displayOf } from './display.ts'
 import { STEP_SPOTS } from './route.ts'
 
@@ -482,11 +483,17 @@ function sortCards(
 /** 没人写的文档 / 提问有几步读它就放到主线上方。 */
 const LANE_READERS = 3
 /**
- * 主线上方那一排的底边离主线多远：总线的干线都在这道缝里（一条干线占一道），跨列的流程线也从这里绕。
- * 干线多了跟着加宽。
+ * 主线上方那一排的底边离主线多远。这道缝分上下两条带：
+ * - 上面贴着卡片的是总线的干线（{@link BUS_DROP} 起、一条干线占一道）；
+ * - 下面贴着步骤的是跳过几步的流程线（它们挑离步骤最近的走廊），挂着牌子的一条要让出牌子高。
+ * 两条带之间再空一截，看得出是两类线。
  */
 const LANE_GAP = 96
-const LANE_GAP_PER_TRUNK = 8
+const TRUNK_STEP = 6
+const BAND_SPLIT = 24
+const SKIP_BASE = 32
+const SKIP_PLAIN = 8
+const SKIP_CHIP = 24
 /** 左上角那一排（背景资料）和下面隔多远、同一排里卡与卡隔多远。 */
 const BAND_GAP = 48
 const ROW_GAP = 24
@@ -690,8 +697,15 @@ export async function tidy(
   const backgroundH = Math.max(0, ...background.map((card) => heightOf(card)))
   const laneH = Math.max(0, ...lane.map((card) => card.h))
   const laneBottom = ORIGIN.y + (backgroundH === 0 ? 0 : backgroundH + BAND_GAP) + laneH
-  const graphTop =
-    laneBottom + (laneH === 0 ? 0 : Math.max(LANE_GAP, 56 + trunks * LANE_GAP_PER_TRUNK))
+  // 跳过几步、要从主线上方绕的流程线（回边另走，不算）。
+  const skipRoom = doc.edges.reduce((sum, edge) => {
+    if (edgeKind(index, edge) !== 'flow' || analysis.backEdges.has(edge.id)) return sum
+    if (columnOf(edge.target) - columnOf(edge.source) < 2) return sum
+    return sum + (labelWidth(edge, false) > 0 ? SKIP_CHIP : SKIP_PLAIN)
+  }, 0)
+  const bandGap =
+    BUS_DROP + trunks * TRUNK_STEP + BAND_SPLIT + (skipRoom === 0 ? 0 : SKIP_BASE + skipRoom)
+  const graphTop = laneBottom + (laneH === 0 ? 0 : Math.max(LANE_GAP, bandGap))
 
   const placed: Record<string, Point> = {}
   const put = (node: WorkflowNode, x: number, y: number): void => {

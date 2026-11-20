@@ -114,6 +114,56 @@ describe('nudge', () => {
   })
 })
 
+describe('nudge：总线干线', () => {
+  /** 一条总线：卡片底边 (cx, 100) 落到干线 y = 200，横着到步骤上方 (sx, 300) 落下去。 */
+  const bus = (id: string, card: string, access: string, cx: number, sx: number): Track => ({
+    id,
+    group: `bus:${card}:${access}`,
+    family: `bus:${card}`,
+    points: [
+      [cx, 100],
+      [cx, 200],
+      [sx, 200],
+      [sx, 300],
+    ],
+  })
+  const laneOf = (moved: Map<string, [number, number][]>, track: Track): number =>
+    ((moved.get(track.id) ?? track.points)[1] as [number, number])[1]
+
+  it('同一张卡的几条干线挨着摆成一束，卡与卡之间留宽一点', () => {
+    const tracks = [
+      bus('a-read', 'a', 'read', 40, 900),
+      bus('a-update', 'a', 'update', 60, 880),
+      bus('b-read', 'b', 'read', 300, 860),
+      bus('b-update', 'b', 'update', 320, 840),
+    ]
+    const moved = nudge(tracks, [])
+    const lanes = tracks.map((track) => laneOf(moved, track))
+    const gap = (x: number, y: number): number =>
+      Math.abs((lanes[x] as number) - (lanes[y] as number))
+    expect(gap(0, 1)).toBe(3)
+    expect(gap(2, 3)).toBe(3)
+    // 两束之间：比束里宽。
+    const between = Math.min(gap(0, 2), gap(0, 3), gap(1, 2), gap(1, 3))
+    expect(between).toBeGreaterThanOrEqual(10)
+  })
+
+  it('干线上下的次序取交叉最少的：右边那张卡的竖线落下来时不穿过左边那张的干线', () => {
+    // a 从左边通到 x=900；b 的卡片在中间（x=500），连的步骤在 a 的右边（x=1000）。
+    // b 的干线在下面：b 从卡片落下来的竖线穿过 a 的干线，a 落进步骤的竖线（x=900）又穿过 b 的，两处；
+    // 摆在上面：b 落进步骤的那根在 a 的右边，一处交叉都没有。
+    const a = bus('a', 'a', 'read', 40, 900)
+    const b = bus('b', 'b', 'read', 500, 1000)
+    for (const order of [
+      [a, b],
+      [b, a],
+    ]) {
+      const moved = nudge(order, [])
+      expect(laneOf(moved, b), order.map((t) => t.id).join(',')).toBeLessThan(laneOf(moved, a))
+    }
+  })
+})
+
 describe('placeChips', () => {
   it('并排走同一段走廊的两块牌子：一块原地，另一块沿走廊挪开、不压住它', () => {
     const placed = placeChips([

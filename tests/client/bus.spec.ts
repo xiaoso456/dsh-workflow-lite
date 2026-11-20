@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { BUS_ROOM, busPoints, findBuses } from '../../src/client/model/bus.ts'
+import { BUS_DROP, BUS_ROOM, busPoints, findBuses } from '../../src/client/model/bus.ts'
 import type { Rect } from '../../src/client/model/route.ts'
 import { nodeIndex } from '../../src/shared/resources.ts'
 import type { WorkflowDocument } from '../../src/shared/types.ts'
@@ -38,7 +38,7 @@ const doc: WorkflowDocument = {
 const step = (x: number, y = 300): Rect => ({ x, y, w: 216, h: 96 })
 
 describe('总线', () => {
-  it('卡片底边比它连着的每个步骤都高出一截才走总线，干线在两头正中', () => {
+  it('卡片底边比它连着的每个步骤都高出一截才走总线，干线贴着卡片底边走', () => {
     const rects = new Map<string, Rect>([
       ['spec', { x: 0, y: 100, w: 200, h: 56 }],
       ['a', step(0)],
@@ -46,12 +46,12 @@ describe('总线', () => {
       ['c', step(600)],
     ])
     const bus = findBuses(doc, nodeIndex(doc), rects).get('spec')
-    expect(bus?.trunk).toBe((156 + 300) / 2)
+    expect(bus?.trunk).toBe(156 + BUS_DROP)
     expect([...(bus?.reads ?? [])].sort()).toEqual(['a', 'b'])
     expect([...(bus?.writes ?? [])]).toEqual(['c'])
-    // 干线横跨的那一段里卡片下面还有别的卡：干线在它上面。
-    rects.set('x', { x: 450, y: 220, w: 200, h: 56 })
-    expect(findBuses(doc, nodeIndex(doc), rects).get('spec')?.trunk).toBe((156 + 220) / 2)
+    // 干线横跨的那一段里卡片下面压着别的卡、空当不够：不走总线。
+    rects.set('x', { x: 450, y: 156 + BUS_ROOM - 1, w: 200, h: 56 })
+    expect(findBuses(doc, nodeIndex(doc), rects).has('spec')).toBe(false)
     rects.delete('x')
     // 有一个步骤挨得太近（或在它上面）：整张卡回到平常的走法。
     rects.set('b', step(300, 156 + BUS_ROOM - 1))

@@ -8,7 +8,11 @@
  * - 不同颜色的分到相邻的平行道上，道距 `GAP`，在这一簇所在的空当（上下 / 左右最近的卡片之间）里
  *   尽量居中摆开，空当窄就把道距压小；
  * - 只挪中间的段：接在连接点上的头尾两段不动，挪一段只是让它两头相邻的段变长 / 变短，线还是直角的；
- * - 道的先后按线从哪边来、往哪边去排（从上面来的走上面那条道），尽量不因为分道再多出交叉；
+ * - 道的先后取交叉最少的那种：一条道两头拐出去的竖段，往上拐的会穿过摆在它上面、又横跨这个位置的道，
+ *   往下拐的穿过摆在它下面的；先按线从哪边来、往哪边去排（从上面来的走上面那条道），再两两换位，
+ *   换了交叉变少才换；
+ * - 同一家（`family`，比如同一张卡上的几条总线干线）的几种颜色挨着摆、道距收窄，家与家之间留宽一点，
+ *   一眼看得出哪几条线是一起的；
  * - 挂着牌子的横段占一条宽道（`thick`）：牌子比线粗得多，旁边另一种颜色的线离得不到半块牌子高，
  *   看着就像牌子挂在那条线上，所以这样的线也算挨着、要让到牌子外面去。
  *
@@ -26,10 +30,15 @@ export interface Track {
   points: readonly [number, number][]
   /** 横段上挂着牌子时，牌子从线往上下各伸出多少（分道时别的颜色的线要让出这么宽）；不挂是 0。 */
   thick?: number
+  /** 同一家的几种颜色分道时挨着摆成一束（同一张卡的总线干线）；不给就各自一家。 */
+  family?: string
 }
 
 /** 平行道之间的距离、道离卡片边的最小距离、空当再窄时道距的下限。 */
 const GAP = 7
+/** 同一家的几条道之间、成束的家和别的道之间的距离。 */
+const BUNDLE_GAP = 3
+const FAMILY_GAP = 10
 const MARGIN = 4
 const MIN_GAP = 3
 /** 两段算"同一条道"的容差、算"重叠"要叠过的最短长度。 */
@@ -62,6 +71,10 @@ export function nudge(
   const points = tracks.map((track) => track.points.map((point) => [...point] as [number, number]))
   const moved = new Set<number>()
   const groupOf = (segment: Segment): string => tracks[segment.track]?.group ?? ''
+  const familyOf = new Map<string, string>()
+  for (const track of tracks) {
+    if (track.family !== undefined) familyOf.set(track.group, track.family)
+  }
   for (const axis of ['h', 'v'] as const) {
     const segments = collect(
       points,
@@ -69,7 +82,7 @@ export function nudge(
       tracks.map((track) => (axis === 'h' ? (track.thick ?? 0) : 0)),
     )
     for (const cluster of clusters(segments, groupOf)) {
-      spread(cluster, groupOf, points, boxes, axis, moved)
+      spread(cluster, groupOf, familyOf, points, boxes, axis, moved)
     }
   }
   const result = new Map<string, [number, number][]>()
@@ -165,6 +178,7 @@ function clusters(segments: Segment[], groupOf: (segment: Segment) => string): S
 function spread(
   cluster: Segment[],
   groupOf: (segment: Segment) => string,
+  familyOf: ReadonlyMap<string, string>,
   points: [number, number][][],
   boxes: readonly Rect[],
   axis: 'h' | 'v',
@@ -180,6 +194,11 @@ function spread(
     return own.reduce((sum, s) => sum + s.side, 0) / own.length
   }
   names.sort((a, b) => sideOf(a) - sideOf(b) || (a < b ? -1 : a > b ? 1 : 0))
+  const order = arrange(names, cluster, groupOf, familyOf, points, axis)
+  names.splice(0, names.length, ...order)
+  const family = (name: string): string => familyOf.get(name) ?? name
+  const bundled = (name: string): boolean =>
+    names.some((other) => other !== name && family(other) === family(name))
 
   // 这一簇能摆开的空当：每一段上下（左右）最近的卡片之间，取交集；挂着牌子的段还要让牌子碰不到卡片。
   let low = -Infinity
@@ -193,9 +212,16 @@ function spread(
   // 相邻两条道隔多远：一个道距，挂着牌子的让出牌子；空当不够就整体按比例压小（不小于下限）。
   const thickOf = (name: string): number =>
     Math.max(0, ...cluster.filter((s) => groupOf(s) === name).map((s) => s.thick))
-  const steps = names
-    .slice(1)
-    .map((name, index) => Math.max(GAP, thickOf(names[index] as string) + thickOf(name)))
+  const steps = names.slice(1).map((name, index) => {
+    const before = names[index] as string
+    const gap =
+      family(before) === family(name)
+        ? BUNDLE_GAP
+        : bundled(before) || bundled(name)
+          ? FAMILY_GAP
+          : GAP
+    return Math.max(gap, thickOf(before) + thickOf(name))
+  })
   const span = steps.reduce((sum, step) => sum + step, 0)
   if (Number.isFinite(low) && Number.isFinite(high) && high - low < span) {
     const scale = (high - low) / span
@@ -228,6 +254,76 @@ function spread(
     ;(line[segment.index + 1] as [number, number])[across] = target
     moved.add(segment.track)
   }
+}
+
+/**
+ * 一簇里各种颜色的道从上到下（从左到右）的次序：交叉最少。
+ * 每段两头拐出去的竖段（横）：往上拐的穿过摆在它上面、横跨这个位置的道，往下拐的穿过摆在它下面的。
+ * 两条道之间的交叉只看它俩谁在上，所以总数是两两之和；同一家的先排成一块，块与块、块里的道各自
+ * 从给的次序起两两换位，换了严格变少才换（相等就不动：没有可省的交叉时次序和原来一样）。
+ */
+function arrange(
+  names: readonly string[],
+  cluster: readonly Segment[],
+  groupOf: (segment: Segment) => string,
+  familyOf: ReadonlyMap<string, string>,
+  points: [number, number][][],
+  axis: 'h' | 'v',
+): string[] {
+  const along = axis === 'h' ? 0 : 1
+  const across = 1 - along
+  /** 每种颜色：它占的几段（横跨的范围）和拐出去的竖段（位置、往哪边）。 */
+  const shape = new Map<string, { spans: [number, number][]; legs: [number, -1 | 1][] }>()
+  for (const name of names) shape.set(name, { spans: [], legs: [] })
+  for (const segment of cluster) {
+    const own = shape.get(groupOf(segment))
+    if (own === undefined) continue
+    own.spans.push([segment.lo, segment.hi])
+    const line = points[segment.track] as [number, number][]
+    for (const [end, next] of [
+      [segment.index, segment.index - 1],
+      [segment.index + 1, segment.index + 2],
+    ] as const) {
+      const point = line[end]
+      const beyond = line[next]
+      if (point === undefined || beyond === undefined) continue
+      const way = Math.sign(beyond[across] - segment.at)
+      if (way !== 0) own.legs.push([point[along], way as -1 | 1])
+    }
+  }
+  const covers = (name: string, x: number): boolean =>
+    (shape.get(name)?.spans ?? []).some(([lo, hi]) => x > lo + 0.5 && x < hi - 0.5)
+  /** `upper` 摆在 `lower` 前面（上面 / 左边）时两者之间有几处交叉。 */
+  const cost = (upper: string, lower: string): number =>
+    (shape.get(upper)?.legs ?? []).filter(([x, way]) => way > 0 && covers(lower, x)).length +
+    (shape.get(lower)?.legs ?? []).filter(([x, way]) => way < 0 && covers(upper, x)).length
+  const settle = <T>(list: T[], pair: (a: T, b: T) => number): T[] => {
+    for (let pass = 0; pass < list.length * list.length; pass += 1) {
+      let swapped = false
+      for (let i = 0; i + 1 < list.length; i += 1) {
+        const a = list[i] as T
+        const b = list[i + 1] as T
+        if (pair(b, a) < pair(a, b)) {
+          list[i] = b
+          list[i + 1] = a
+          swapped = true
+        }
+      }
+      if (!swapped) break
+    }
+    return list
+  }
+  const blocks: string[][] = []
+  for (const name of names) {
+    const family = familyOf.get(name)
+    const block =
+      family === undefined ? undefined : blocks.find((b) => familyOf.get(b[0] as string) === family)
+    if (block === undefined) blocks.push([name])
+    else block.push(name)
+  }
+  const blockCost = (a: string[], b: string[]): number =>
+    a.reduce((sum, x) => sum + b.reduce((inner, y) => inner + cost(x, y), 0), 0)
+  return settle(blocks, blockCost).flatMap((block) => settle(block, cost))
 }
 
 /** 一段横（竖）线上下（左右）最近的卡片边：它能在这中间挪。压在卡片里的不算（本来就不该有）。 */

@@ -371,7 +371,7 @@ function busRoute(
     way === 'write' ? busPoints(stepEnd, fileEnd, trunk) : busPoints(fileEnd, stepEnd, trunk)
   return {
     bend: points,
-    track: { id, group: `bus:${idKey(fileId)}:${access}`, points },
+    track: { id, group: `bus:${idKey(fileId)}:${access}`, family: `bus:${idKey(fileId)}`, points },
     handles:
       way === 'write'
         ? { source: stepHandle, target: fileHandle }
