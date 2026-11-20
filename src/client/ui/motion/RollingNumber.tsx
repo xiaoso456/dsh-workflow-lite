@@ -1,7 +1,7 @@
 import { type CSSProperties, useEffect, useState } from 'react'
 import { cx } from '../kit/cx.ts'
 import css from './rollingNumber.module.css'
-import { EMPTY_ROLL, reconcileRoll, settleRoll } from './rollingNumber.ts'
+import { EMPTY_ROLL, reconcileRoll, settleRoll } from './rollState.ts'
 import { switching, useSwapSwitch } from './swapScope.tsx'
 
 export function RollingNumber(props: {

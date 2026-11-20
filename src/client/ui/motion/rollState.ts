@@ -3,7 +3,7 @@
  * 列表换了一项时整个数一起滚（旧数从 `::after` 退场、新数进场，方向跟着列表），不逐位动——
  * 一屏几个数各自逐位滚，切换那一下要同时起十几个小动画。
  *
- * @module @xiaoso/dsh-workflow-lite/client/ui/motion/rollingNumber
+ * @module @xiaoso/dsh-workflow-lite/client/ui/motion/rollState
  */
 
 interface Glyph {

@@ -27,7 +27,7 @@ import {
   rhythmLeaving,
   settleRhythm,
 } from '../../src/client/ui/hub/triggers/rhythmMotion.ts'
-import { EMPTY_ROLL, reconcileRoll, settleRoll } from '../../src/client/ui/motion/rollingNumber.ts'
+import { EMPTY_ROLL, reconcileRoll, settleRoll } from '../../src/client/ui/motion/rollState.ts'
 import { patchTriggerData } from '../../src/shared/trigger.ts'
 import type { TriggerData, TriggerSource } from '../../src/shared/types.ts'
 import type {

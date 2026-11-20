@@ -1,5 +1,12 @@
 import { spawnSync } from 'node:child_process'
-import { existsSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs'
 import { dirname, extname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -51,6 +58,34 @@ function coveredByFiles(relPath: string, files: readonly string[]): boolean {
   }
   return files.some((glob) => asRegExp(glob).test(relPath))
 }
+
+describe('源文件名', () => {
+  /*
+   * prepare 里的 tsc 给每个 .ts / .tsx 出一份同名的 .d.ts：同一目录下两个文件名只差大小写
+   * （RollingNumber.tsx 与 rollingNumber.ts）在 Windows / macOS 上会写到同一个文件，打包直接报 TS5056。
+   */
+  it('同一目录下没有只差大小写的 .ts / .tsx（出的 .d.ts 不会撞名）', () => {
+    const clashes: string[] = []
+    const walk = (dir: string): void => {
+      const seen = new Map<string, string>()
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = join(dir, entry.name)
+        if (entry.isDirectory()) {
+          walk(path)
+          continue
+        }
+        if (!/\.tsx?$/u.test(entry.name) || entry.name.endsWith('.d.ts')) continue
+        const emitted = entry.name.replace(/\.tsx?$/u, '').toLowerCase()
+        const other = seen.get(emitted)
+        if (other !== undefined) clashes.push(`${relative(root, dir)}: ${other} / ${entry.name}`)
+        else seen.set(emitted, entry.name)
+      }
+    }
+    const root = fileURLToPath(new URL('..', import.meta.url))
+    walk(join(root, 'src'))
+    expect(clashes).toEqual([])
+  })
+})
 
 describe('插件图标', () => {
   const manifest = JSON.parse(read('package.json')) as { icon?: string; files?: string[] }
