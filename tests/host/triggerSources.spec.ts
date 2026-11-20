@@ -814,4 +814,21 @@ describe('模型试一张卡片（test_trigger）', () => {
     ])
     expect(result.message).toContain('实例 r1 结束了')
   })
+
+  it('接续：没有对得上的实例时不会触发，消息拿示例实例拼', async () => {
+    const data: TriggerData = { source: { kind: 'after', workflow: '构建', when: 'failed' } }
+    const none = await testCard(base(data, { after: { problem: null, runs: [] } }))
+    expect(none.verdict).toBe('skip')
+    expect(none.summary).toContain('还没有结束过的实例')
+    expect(none.summary).toContain('示例实例')
+    expect(none.message).toContain('工作流「构建」的实例 <实例编号> 结束了：失败（failed）。')
+    expect(none.message).toContain('<它的运行状态文件>')
+
+    const unmatched = await testCard(
+      base(data, { after: { problem: null, runs: [{ id: 'r1', status: 'done', at: now }] } }),
+    )
+    expect(unmatched.verdict).toBe('skip')
+    expect(unmatched.summary).toContain('结果都对不上')
+    expect(unmatched.message).toContain('<实例编号>')
+  })
 })

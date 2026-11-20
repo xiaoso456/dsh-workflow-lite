@@ -516,22 +516,37 @@ function testAfter(
     fires: afterMatches(source, run.status),
   }))
   const hit = recent.find((run) => afterMatches(source, run.status))
-  const shown = hit === undefined ? {} : preview(input, 'after', afterInfo(source.workflow, hit))
-  if (recent.length === 0) {
+  // 没有对得上的实例时用一个示例实例拼消息：触发说明、背景信息照样能看，不用为了试去造实例。
+  const shown = preview(input, 'after', afterInfo(source.workflow, hit ?? sampleRun(source)))
+  if (hit !== undefined) {
     return {
-      verdict: 'skip',
-      summary: `「${source.workflow}」还没有结束过的实例；它有实例结束、结果对得上时会触发。`,
+      verdict: 'fire',
+      summary: `「${source.workflow}」的实例 ${hit.id} 这样结束时会触发（打开开关之后结束的才算，之前的不补）。`,
       runs,
+      ...shown,
     }
   }
+  const why =
+    recent.length === 0
+      ? `「${source.workflow}」还没有结束过的实例`
+      : `「${source.workflow}」最近结束的实例结果都对不上`
   return {
-    verdict: hit === undefined ? 'skip' : 'fire',
-    summary:
-      hit === undefined
-        ? `「${source.workflow}」最近结束的实例结果都对不上，不会触发。`
-        : `「${source.workflow}」的实例 ${hit.id} 这样结束时会触发（打开开关之后结束的才算，之前的不补）。`,
+    verdict: 'skip',
+    summary: `${why}，现在不会触发；它有实例结束、结果对得上时会触发。message 是拿示例实例拼的，看触发说明和背景信息对不对就够了。`,
     runs,
     ...shown,
+  }
+}
+
+/** 试接续时没有对得上的实例：拿一个占位的实例拼消息，结果取卡片等的那种。 */
+function sampleRun(source: Extract<TriggerSource, { kind: 'after' }>): FinishedRun {
+  return {
+    id: '<实例编号>',
+    status: source.when === 'failed' ? 'failed' : 'done',
+    at: 0,
+    goal: '<它的目标>',
+    cwd: '<它的工作区>',
+    statePath: '<它的运行状态文件>',
   }
 }
 

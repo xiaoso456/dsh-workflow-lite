@@ -8,10 +8,10 @@
 | `log(...)` / `warn(...)` | 日志打到标准输出，不触发 / 真出错打到错误输出 |
 | `remember(name, initial)` | 数据目录里的一份 JSON 状态：`first` 是不是第一次运行，`value` 当前值，`save(next?)` 存 |
 | `seenIds(name?, limit?)` | 处理过的编号：`add(id)` 是新的回 `true`，`has(id)`，`save()` 存 |
-| `edges(name?, { confirm })` | 状态变化：`update(key, value)` 变了才回 `{ from, to }`，连着 `confirm` 次一样才认，第一次见只记下；`value(key)` 是现在认下的值 |
-| `poll(check, { every, idle })` | 隔 `every` 毫秒查一次，`check` 回真表示有事；连着几轮没事放慢到 `idle`；出错退避重试 |
+| `edges(name?, { confirm })` | 状态变化：`update(key, value)` 变了才回 `{ from, to }`，否则 `null`；连着 `confirm`（缺省 1）次一样才认，第一次见只记下；`value(key)` 是现在认下的值；`save()` 存 |
+| `poll(check, { every, idle })` | 隔 `every`（缺省 5000）毫秒查一次，`check` 回真表示有事；连着 3 轮没事放慢到 `idle`（缺省同 `every`）；出错退避重试；一直运行 |
 | `stream(connect)` | 长连接：`connect()` 连上、等到断开才返回；断了退避重连 |
-| `getJson(url, { headers, etag })` | GET 一个 JSON 接口，15 秒超时；不是 2xx 抛错；给了上次的 `etag`、没变时回 `{ notModified: true }` |
+| `getJson(url, { headers, etag })` | GET 一个 JSON 接口，15 秒超时；回 `{ data, etag, notModified }`，`data` 是解析好的返回体；不是 2xx 抛错；给了上次的 `etag`、没变时 `notModified` 为真 |
 | `settle(path)` | 等文件写完（两秒不变）回 `true`，文件没了回 `false` |
 | `secret(name, what?)` | 读用户放在密钥目录里的令牌、密钥、连接串；没放就写清楚缺什么、放哪，退出 |
 | `heartbeat(describe?)` | 每 10 分钟打一句「还在运行」 |
