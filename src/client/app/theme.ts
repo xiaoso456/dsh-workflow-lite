@@ -139,7 +139,11 @@ function subscribeScheme(listener: () => void): () => void {
   schemeListeners.add(listener)
   if (stopWatching === null) {
     const observer = new MutationObserver(queueReread)
-    observer.observe(document.documentElement, { attributes: true })
+    // 只看会改亮暗的属性：宿主每次按键、点鼠标都重写 `data-input-modality`，跟着重读就是每次都读一遍计算样式。
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['style', 'class', 'data-ds-theme-source', 'data-theme'],
+    })
     const media = globalThis.matchMedia?.('(prefers-color-scheme: dark)')
     media?.addEventListener('change', queueReread)
     stopWatching = () => {

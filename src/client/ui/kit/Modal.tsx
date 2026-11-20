@@ -13,6 +13,7 @@ import {
   useRef,
 } from 'react'
 import { createPortal } from 'react-dom'
+import { afterPaint } from '../motion/shared.ts'
 import { cx } from './cx.ts'
 import { ghostOut, REDUCED_MOTION } from './ghost.ts'
 import overlay from './overlay.module.css'
@@ -65,7 +66,15 @@ export function Modal(props: {
     const dialog = ref.current
     if (dialog !== null && !dialog.contains(document.activeElement)) dialog.focus()
     return () => {
-      if (opener?.isConnected === true) opener.focus({ preventScroll: true })
+      // 焦点只在用键盘关的时候还给打开它的控件（接着用键盘的人要从那里接着走）；用鼠标关的下一下点哪是哪。
+      // 挪焦点很贵：宿主页面有按焦点状态挑的样式，一挪大半页样式重算（几十毫秒，控制台报 Forced reflow）。
+      // 也是画完再还：关的那次提交里样式正脏着。这一会儿里焦点已经落到别处（又开了一个框）就不抢。
+      if (lastInput !== 'keyboard') return
+      afterPaint(() => {
+        const now = document.activeElement
+        const loose = now === null || now === document.body || !now.isConnected
+        if (loose && opener?.isConnected === true) opener.focus({ preventScroll: true })
+      })
     }
   }, [])
 
@@ -133,10 +142,20 @@ interface Source {
 
 /** 最近一次按下指针：落在哪个控件上（记下当时的矩形——点完菜单会收起，之后就量不到了）。 */
 let lastPress: { box: Source; at: number } | null = null
+/** 最近一次操作是键盘还是指针（关模态框时决定要不要把焦点还回去）。 */
+let lastInput: 'keyboard' | 'pointer' = 'pointer'
 if (typeof document !== 'undefined') {
+  document.addEventListener(
+    'keydown',
+    () => {
+      lastInput = 'keyboard'
+    },
+    true,
+  )
   document.addEventListener(
     'pointerdown',
     (event) => {
+      lastInput = 'pointer'
       const target = event.target instanceof Element ? event.target : null
       const control =
         target?.closest('button, a, [role="button"], [role="menuitem"], [role="option"]') ?? null
@@ -206,11 +225,13 @@ export function useSheetMotion(
   dialogRef: RefObject<HTMLElement | null>,
 ): void {
   const folded = useRef<string | null>(null)
+  /** 入场（遮罩淡入、弹窗长出来）放完了：关的时候影子从满尺寸收，不用读样式。 */
+  const settled = useRef(false)
   useLayoutEffect(() => {
     const scrim = scrimRef.current
     const parent = scrim?.parentNode ?? null
     return () => {
-      if (scrim !== null) ghostOut(scrim, parent, folded.current)
+      if (scrim !== null) ghostOut(scrim, parent, folded.current, settled.current)
     }
   }, [scrimRef])
 
@@ -244,13 +265,13 @@ export function useSheetMotion(
     // 只在动画期间留合成层：之后切页签、换内容都按真实大小画，不沿用放大时的那一份（过冲时比 1 大，缩回来发虚）。
     dialog.style.willChange = 'transform'
     let alive = true
-    void Promise.allSettled(dialog.getAnimations().map((animation) => animation.finished)).then(
-      () => {
-        if (!alive) return
-        dialog.style.willChange = ''
-        snapToPixels(dialog)
-      },
-    )
+    const entering = [...dialog.getAnimations(), ...scrim.getAnimations()]
+    void Promise.allSettled(entering.map((animation) => animation.finished)).then(() => {
+      if (!alive) return
+      settled.current = true
+      dialog.style.willChange = ''
+      snapToPixels(dialog)
+    })
     // 窗口、弹窗大小变了（内容撑高、拖窗口）再挪一次；动画放着时位置带着变换，不量。
     const observer = new ResizeObserver(() => {
       if (dialog.getAnimations().length === 0) snapToPixels(dialog)
