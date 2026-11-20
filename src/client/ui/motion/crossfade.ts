@@ -20,6 +20,14 @@ type Crossfade = { target: HTMLElement; apply: () => void; through: boolean }
 /** 先淡出再淡入（{@link CrossfadeOptions.through}）的那几张快照带的类（`view-transition-class`），ui.module.css 按它换节奏。 */
 const THROUGH_CLASS = 'wl-through'
 
+/**
+ * 盖在页面上面的那几层（弹窗层：浮层、下拉、提示）带这个属性。
+ * 过渡期间换样子的快照画在整页最上面，浮层要是不跟着拍，卡片就会在这 220ms 里盖住它、过完了又退回去；
+ * 所以它们也起个名字一起拍进去（排在后面，照旧在上），只显示活的那张、不淡（ui.module.css 的 `wl-above`）。
+ */
+export const CROSSFADE_ABOVE = 'data-wl-crossfade-above'
+const ABOVE_CLASS = 'wl-above'
+
 export interface CrossfadeOptions {
   /**
    * 先淡出、再淡入，两张几乎不叠（缺省是同时一淡一显）。同一批东西换一种排法（清单 ↔ 时间轴）时用：
@@ -53,10 +61,15 @@ function runCrossfades(): void {
     item.target.style.viewTransitionName = `wl-crossfade-${index}`
     if (item.through) item.target.style.setProperty('view-transition-class', THROUGH_CLASS)
   })
+  const above = [...document.querySelectorAll<HTMLElement>(`[${CROSSFADE_ABOVE}]:not([hidden])`)]
+  above.forEach((layer, index) => {
+    layer.style.viewTransitionName = `wl-crossfade-above-${index}`
+    layer.style.setProperty('view-transition-class', ABOVE_CLASS)
+  })
   const clear = (): void => {
-    for (const item of batch) {
-      item.target.style.viewTransitionName = ''
-      item.target.style.removeProperty('view-transition-class')
+    for (const el of [...batch.map((item) => item.target), ...above]) {
+      el.style.viewTransitionName = ''
+      el.style.removeProperty('view-transition-class')
     }
   }
   try {

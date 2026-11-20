@@ -18,6 +18,7 @@
  */
 
 import { type RefObject, useLayoutEffect, useState } from 'react'
+import { CROSSFADE_ABOVE } from '../motion/crossfade.ts'
 
 /** 弹窗层和它里面给悬停提示的格子。 */
 export interface ModalLayer {
@@ -46,6 +47,8 @@ export function useModalLayer(
     el.className = rootClass
     el.dataset.workflowLiteView = ''
     el.dataset.testid = 'wl-layer'
+    // 画布上的卡片换样子交叉淡时，这一层跟着拍进去，照旧盖在卡片上面。
+    el.setAttribute(CROSSFADE_ABOVE, '')
     const tips = document.createElement('div')
     tips.style.display = 'contents'
     el.append(tips)

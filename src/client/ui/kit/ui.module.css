@@ -1303,6 +1303,16 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
   animation-duration: 220ms;
 }
 
+/* 跟着拍进去的弹窗层（crossfade.ts 的 CROSSFADE_ABOVE）：只显示活的那张，不淡、不挪，照旧盖在卡片上面。 */
+:global(html:active-view-transition-type(wl-crossfade)::view-transition-group(*.wl-above)),
+:global(html:active-view-transition-type(wl-crossfade)::view-transition-new(*.wl-above)) {
+  animation: none;
+}
+
+:global(html:active-view-transition-type(wl-crossfade)::view-transition-old(*.wl-above)) {
+  display: none;
+}
+
 :global(html:active-view-transition-type(wl-crossfade)::view-transition-old(*)),
 :global(html:active-view-transition-type(wl-crossfade)::view-transition-new(*)) {
   animation-duration: 220ms;
