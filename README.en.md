@@ -19,7 +19,7 @@
 
 </div>
 
-A soft-workflow plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), built on prompt orchestration: design a flow on a canvas, compile it into a plan prompt, and let the model carry it out. Edges can carry **any condition**, and flows can be sequential, parallel, joined, conditionally branched, looped or rolled back, with no extra execution engine required.
+A soft-workflow plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) that turns the way a model works into a workflow you can see and edit. Design it on the canvas yourself or let the model draw it; then run it, run it automatically on a schedule, or export it as a procedural skill to share. Edges can carry **any condition**, and flows can be sequential, parallel, joined, conditionally branched, looped or rolled back, with no extra execution engine required.
 
 > **Experimental**: features and data formats are still changing, and any release may include breaking changes.
 
@@ -50,25 +50,39 @@ dsh web
 
 Once installed, a **Workflow** tab appears at the top of the session page.
 
+## Use cases
+
+### Make procedural skills visible
+
+Many procedural skills are written by a model after it works through a task once, and a person can hardly tell how many steps they have, where they branch or loop, or what each step reads and writes. Built as a workflow, the process is drawn on the canvas: easy to follow, editable in place, and runnable as is. Once it runs smoothly, export it as a skill that works without the plugin, or pack it with the files it uses and share it.
+
+### Automated tasks (experimental)
+
+> Every morning at 9, check whether main has new commits; if so, review them and write the report to reports/.
+
+The model builds the workflow and a trigger card, writes the check script, test-runs it to confirm it fires, and then switches it on. Trigger history and output are on the **Triggers** page of the Workflow hub. Triggers are still experimental and may break in future versions; see [Experimental features](#experimental-features).
+
+### Loops with conditions in plain language
+
+A condition on an edge is just a sentence, judged by the model at run time, with no expressions or code to write. When to go back, which step to go back to, and when to stop all follow that sentence.
+
+> Create a workflow: design an approach, then write the code and review it; if the review fails, go back and fix it, and if the same problem is still there after two fixes, go back to the design step and try another approach. At most five rounds.
+
+### Follow long tasks
+
+Turn on **Record run state** in **Workflow settings** and progress shows on the canvas as it happens. With canvas display (beta), dashboards, logs and tables update during the run, and every round of a loop can be reviewed and compared. Run records are managed in the **Workflow hub**, opened from the top-left corner of the canvas.
+
 ## Usage
 
 ### Ask the model
 
-Describe the flow in one sentence in the conversation, for example:
-
-> Create a workflow: write the code, then review it; if the review fails, go back and fix it, at most three rounds.
-
-The model creates the workflow and the canvas shows it as it is built. When it looks right, click **Run** in the top-right corner, or ask the model to run it.
+Describe the flow in one sentence in the conversation (see the use cases above for examples). The model creates the workflow and the canvas shows it as it is built. When it looks right, click **Run** in the top-right corner, or ask the model to run it.
 
 ### Edit by hand
 
 1. Open the **Workflow** tab and create a workflow.
 2. Drag steps from the library on the left onto the canvas, fill in their prompts, and connect them.
 3. Click **Run** in the top-right corner, or ask the model in the conversation to run the workflow.
-
-### Follow progress
-
-Turn on **Record run state** in **Workflow settings**. Every run then leaves a record and the canvas updates as the model works. Run records, workflows and versions are managed in the **Workflow hub**, opened from the top-left corner of the canvas.
 
 ## Features
 
@@ -100,19 +114,6 @@ Resource paths and the output root accept two variables, replaced with real loca
 
 Paths written as `{assets}/…` by earlier versions still work and become `{workflow}/…` when the workflow is opened.
 
-## Workflow memory
-
-Lets a workflow keep what worked and follow it on the next run, with the aim of speeding up complex workflows.
-
-- **Use it**: turn it on for a step, or drag **Memory** from **Basics** in the step library onto the canvas as one shared by the whole workflow; pick an existing entry or create a new one when you add it.
-- **Content**: an entry is a skill folder, and the "Quick path" at its top is the cheapest way to do the task next time. Each step reports what it learned in its reply, and when the workflow ends the model folds that in.
-- **Manage it**: view and version entries on the **Memory** page in the workflow hub; choose whether to include them when you export.
-- **Limits**: instances running at the same time that change the same memory are not locked, so the later write overwrites the earlier one; re-exporting a Skill over an installed copy overwrites the memory it has built up.
-
-Memory is only a configuration shortcut. For anything more elaborate, build it yourself with a resource plus prompts.
-
-**We are still checking whether it helps, and we'd like your feedback.** In early trials that repeated one workflow, we saw no steady speedup; the "Quick path" was added afterwards, and whether it helps needs more real workflows to tell.
-
 ## Experimental features
 
 These features are still being tried out, and their behavior and data formats may change. **Canvas display** in the feature table above is in beta: mostly stable, with details still being polished.
@@ -123,7 +124,7 @@ Run a workflow automatically when something happens, instead of clicking **Run**
 
 > **Likely to break in future versions.** Trigger cards and their settings will still change; after updating the plugin you may need to set up or rebuild your triggers again. Don't rely on them for automation you can't do without.
 
-- **Use**: drag **Trigger** from **Basics** in the step library onto the canvas and pick how it fires: Schedule (optionally running a check command first), Watch, HTTP or After. You can also ask the model; it writes the script, tests it, and hands it to you to enable.
+- **Use**: drag **Trigger** from **Basics** in the step library onto the canvas and pick how it fires: Schedule (optionally running a check command first), Watch, HTTP or After. You can also ask the model; it writes the script, test-runs it, and switches it on once it works.
 - **Manage**: the **Triggers** page in the Workflow hub shows every trigger's state, trigger history and recent output, and can pause them all.
 - **Export**: trigger cards travel with the workflow and are always saved switched off; secrets used by scripts are left out unless you tick them, and then go into the pack as plain text.
 - **Limits**: triggers only fire while DSH is running. Check commands and watchers run on this machine as the DSH process, outside the sandbox, and start as soon as you switch the card on, so only enable commands you trust.
