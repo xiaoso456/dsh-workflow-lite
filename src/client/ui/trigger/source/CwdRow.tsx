@@ -27,7 +27,7 @@ export function CwdRow(props: {
   node: string
   /** 草稿（`''` = 卡片目录）。 */
   draft: LocalDraft
-  /** 会话工作区的草稿（选文件夹时从它开始翻）。 */
+  /** 卡片上存着的会话工作区（`''` 是还没选；选文件夹时从它开始翻）。 */
   workspace: string
 }): React.JSX.Element {
   const { t, env, draft } = props

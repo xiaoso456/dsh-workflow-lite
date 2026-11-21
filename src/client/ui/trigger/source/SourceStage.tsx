@@ -31,7 +31,7 @@ export function SourceStage(props: {
   /** 现场（草稿改过时不给）。 */
   view: TriggerView | undefined
   env: TriggerEnv | null
-  /** 定时检查、监听：命令在哪个工作区、用哪个 shell 跑（草稿、存着的、改它）。 */
+  /** 定时检查、监视：脚本目录、用哪个 shell 跑（草稿），卡片上存着的会话工作区。 */
   run: RunDrafts
   /** 定时停在哪一步。 */
   page: SchedulePage

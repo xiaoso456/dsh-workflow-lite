@@ -7,7 +7,7 @@
  *
  * 换一种方式：这一次对话框开着时那一种填过的先记着，换回来还在；没填过的给常用值，
  * 定时检查换到监听时带上已经写好的命令（见 `source/kinds.ts`）。
- * 定时检查、监听里选的工作区（和面板「执行设置」里的是同一项，经环境变量交给脚本）、脚本目录、shell 也是草稿，「保存」时一起写进图；
+ * 定时检查、监视里选的脚本目录、shell 也是草稿，「保存」时一起写进图；会话工作区只在面板「执行设置」里选。
  * HTTP 的地址、令牌同样是草稿（写在触发源里）。
  * 定时检查分两步填（`source/schedulePages.ts`）：第一步底栏主按钮是「下一步」，第二步左边多一个「上一步」。
  *
@@ -39,15 +39,13 @@ export function SourceDialog(props: {
   /** 图里现在的这张卡片。 */
   data: TriggerData
   env: TriggerEnv | null
-  /** 保存：改了的几项（触发源、工作区、脚本目录、shell）。 */
+  /** 保存：改了的几项（触发源、脚本目录、shell）。 */
   onSave(patch: Partial<TriggerData>): void
   onClose(): void
 }): React.JSX.Element {
   const { t, env } = props
   const saved = props.data.source
   const [draft, setDraft] = useState<TriggerSource>(saved)
-  const savedWorkspace = props.data.workspace ?? ''
-  const [workspace, setWorkspace] = useState(savedWorkspace)
   const savedCwd = props.data.cwd ?? ''
   const [cwd, setCwd] = useState(savedCwd)
   const savedShell = props.data.shell ?? ''
@@ -59,10 +57,9 @@ export function SourceDialog(props: {
   const page = pageOf(draft, wanted)
   const steps = hasCommandPage(draft)
   const sourceDirty = JSON.stringify(draft) !== JSON.stringify(saved)
-  const workspaceDirty = workspace !== savedWorkspace
   const cwdDirty = cwd !== savedCwd
   const shellDirty = shell !== savedShell
-  const dirty = sourceDirty || workspaceDirty || cwdDirty || shellDirty
+  const dirty = sourceDirty || cwdDirty || shellDirty
   // 现场（最近一行、地址、状态）是图里那条规则的：草稿改过就只看草稿本身。
   const view = sourceDirty ? undefined : env?.triggers.view(props.node)
   return (
@@ -105,7 +102,6 @@ export function SourceDialog(props: {
       onSave={() => {
         props.onSave({
           ...(sourceDirty ? { source: draft } : {}),
-          ...(workspaceDirty ? { workspace: workspace === '' ? undefined : workspace } : {}),
           ...(cwdDirty ? { cwd: cwd === '' ? undefined : cwd } : {}),
           ...(shellDirty ? { shell: shell === '' ? undefined : shell } : {}),
         })
@@ -132,7 +128,7 @@ export function SourceDialog(props: {
         view={view}
         env={env}
         run={{
-          workspace: { value: workspace, saved: savedWorkspace, onChange: setWorkspace },
+          workspace: props.data.workspace ?? '',
           cwd: { value: cwd, saved: savedCwd, onChange: setCwd },
           shell: { value: shell, saved: savedShell, onChange: setShell },
         }}

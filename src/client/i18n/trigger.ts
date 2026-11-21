@@ -545,7 +545,7 @@ export const zh = {
     '它每打出一行以 ::trigger:: 开头的就执行一次，标记后面的内容作为背景信息；别的输出都是日志。',
   'trigger.listen.life': '启停',
   'trigger.listen.lifeFact':
-    '启用即启动，停用即结束，意外退出会自动重启；启用前要先确认这条命令，改了命令要重新确认。',
+    '启用即启动，停用即结束，意外退出会自动重启；开着时改了命令，保存后照新命令重启。',
   'trigger.listen.command': '常驻命令',
   'trigger.snippets': '调用示例',
   'trigger.snippetsPending':
@@ -1131,7 +1131,7 @@ export const en: Record<keyof typeof zh, string> = {
     'Once for every line it prints that starts with ::trigger::, with the rest of that line as background info; any other output is just log.',
   'trigger.listen.life': 'Runs',
   'trigger.listen.lifeFact':
-    'Starts when enabled, stops when disabled, and restarts itself if it exits. The command must be confirmed before enabling, and again after it changes.',
+    'Starts when enabled, stops when disabled, and restarts itself if it exits. Changing the command while enabled restarts it with the new one on save.',
   'trigger.listen.command': 'Long-running command',
   'trigger.snippets': 'Examples',
   'trigger.snippetsPending':

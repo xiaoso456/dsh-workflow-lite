@@ -94,7 +94,7 @@
   color: var(--wl-text-3);
 }
 
-/* 编辑区底边的提示：换了 shell 要重新确认（黄）、挑的程序用不了（红）。 */
+/* 编辑区底边的提示：挑的 shell 程序用不了（红）。 */
 .notice {
   --tone: var(--wl-warn);
 

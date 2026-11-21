@@ -1,6 +1,6 @@
 /**
  * dsh-workflow-lite — 「触发方式」对话框里监听的设置。监听没有要选的规则：设置行写两句它怎么运作（每打一行 `::trigger::` 执行一次；
- * 打开即启动、关掉即结束、意外退出自动重启）、工作区和脚本目录，工作台是常驻的命令（模板、试运行 5 秒、最近的输出）。
+ * 打开即启动、关掉即结束、意外退出自动重启）和脚本目录，工作台是常驻的命令（模板、试运行 5 秒、最近的输出）。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/trigger/source/ListenStage
  */
@@ -12,10 +12,9 @@ import { Icon } from '../../kit/Icon.tsx'
 import type { TriggerEnv } from '../triggerEnv.ts'
 import { CommandBox } from './CommandBox.tsx'
 import { CwdRow } from './CwdRow.tsx'
-import type { RunDrafts } from './runDraft.ts'
+import { type RunDrafts, runWorkspace } from './runDraft.ts'
 import { StageRow, StageRows } from './StageRow.tsx'
 import css from './sourceStage.module.css'
-import { runWorkspace, WorkspaceRow } from './WorkspaceRow.tsx'
 
 type Listen = Extract<TriggerSource, { kind: 'listen' }>
 
@@ -24,7 +23,7 @@ export function ListenStage(props: {
   node: string
   source: Listen
   env: TriggerEnv | null
-  /** 工作区、脚本目录、shell 的草稿。 */
+  /** 脚本目录、shell 的草稿，存着的会话工作区。 */
   run: RunDrafts
   /** 放不放最近的输出（草稿的命令和跑着的那条一样才放）。 */
   showOutput: boolean
@@ -47,22 +46,13 @@ export function ListenStage(props: {
           </p>
         </StageRow>
         {env !== null && (
-          <>
-            <WorkspaceRow
-              t={t}
-              env={env}
-              value={props.run.workspace.value}
-              saved={props.run.workspace.saved}
-              onChange={props.run.workspace.onChange}
-            />
-            <CwdRow
-              t={t}
-              env={env}
-              node={props.node}
-              draft={props.run.cwd}
-              workspace={props.run.workspace.value}
-            />
-          </>
+          <CwdRow
+            t={t}
+            env={env}
+            node={props.node}
+            draft={props.run.cwd}
+            workspace={props.run.workspace}
+          />
         )}
       </StageRows>
       <CommandBox

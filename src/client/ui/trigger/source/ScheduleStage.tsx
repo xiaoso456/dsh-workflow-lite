@@ -37,12 +37,11 @@ import { Bench, benchAside } from './Bench.tsx'
 import { CommandBox } from './CommandBox.tsx'
 import { CwdRow } from './CwdRow.tsx'
 import { JudgeStrip } from './JudgeStrip.tsx'
-import type { RunDrafts } from './runDraft.ts'
+import { type RunDrafts, runWorkspace } from './runDraft.ts'
 import { StageRow, StageRows } from './StageRow.tsx'
 import type { SchedulePage } from './schedulePages.ts'
 import css from './sourceStage.module.css'
 import { WeekStrip } from './WeekStrip.tsx'
-import { runWorkspace, WorkspaceRow } from './WorkspaceRow.tsx'
 
 type Schedule = Extract<TriggerSource, { kind: 'schedule' }>
 
@@ -90,7 +89,6 @@ export function ScheduleStage(props: {
   const setCheck = (patch: Partial<TriggerCheck>): void => {
     if (check !== undefined) props.onChange({ ...source, check: { ...check, ...patch } })
   }
-  const workspace = props.run.workspace.value
   const judgeLabel = JUDGES.find((item) => item.value === judge)?.label
   return (
     <>
@@ -105,7 +103,7 @@ export function ScheduleStage(props: {
                   {
                     label: t('trigger.step.command'),
                     icon: 'terminal' as const,
-                    alert: check.command.trim() === '' || (env !== null && workspace === ''),
+                    alert: check.command.trim() === '',
                     testId: 'wl-trigger-step-command',
                   },
                 ]),
@@ -170,19 +168,12 @@ export function ScheduleStage(props: {
           <>
             {env !== null && (
               <StageRows>
-                <WorkspaceRow
-                  t={t}
-                  env={env}
-                  value={workspace}
-                  saved={props.run.workspace.saved}
-                  onChange={props.run.workspace.onChange}
-                />
                 <CwdRow
                   t={t}
                   env={env}
                   node={props.node}
                   draft={props.run.cwd}
-                  workspace={workspace}
+                  workspace={props.run.workspace}
                 />
               </StageRows>
             )}
