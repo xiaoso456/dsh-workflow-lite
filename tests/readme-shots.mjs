@@ -74,6 +74,7 @@ const COPY = {
     name: '代码审查循环',
     browser: ['zh-CN', 'zh'],
     ask: { question: '这次要改哪个模块？', placeholder: '例如 auth/' },
+    trigger: { label: '远端新提交', note: '审查远端新进的提交。' },
     spec: { label: '需求与规范', description: '实现和审查都要对照' },
     steps: {
       implement: ['实现', '按需求改代码、补测试', '按需求与规范实现这次改动，并补测试。'],
@@ -130,6 +131,7 @@ const COPY = {
     name: 'code-review-loop',
     browser: ['en-US', 'en'],
     ask: { question: 'Which module should change?', placeholder: 'e.g. auth/' },
+    trigger: { label: 'Upstream', note: 'Review commits that landed upstream.' },
     spec: { label: 'Spec & guidelines', description: 'Checked by implement and review' },
     steps: {
       implement: [
@@ -212,7 +214,7 @@ const edge = (s, t, when) => ({
   ...(when === undefined ? {} : { data: { when } }),
 })
 
-/** 示例只留四步：图越窄，封面里的字越大。 */
+/** 示例只留四步：图越窄，封面里的字越大。触发卡片（定时检查）开着，整理后挪进左边那一列的最上面。 */
 function documentFor(copy) {
   const step = (id) => {
     const [label, description, prompt] = copy.steps[id]
@@ -222,6 +224,21 @@ function documentFor(copy) {
   const file = (value, note) => ({ items: [{ kind: 'file', value, note }] })
   const base = {
     nodes: [
+      {
+        id: 'nightly',
+        type: 'wfTrigger',
+        position: { x: 0, y: 0 },
+        data: {
+          ...copy.trigger,
+          source: {
+            kind: 'schedule',
+            schedule: { kind: 'daily', time: '02:00' },
+            check: { command: 'git ls-remote origin main', when: 'change' },
+          },
+          workspace: WORKSPACE,
+          enabled: true,
+        },
+      },
       {
         id: 'ask-module',
         type: 'wfInput',
@@ -520,7 +537,8 @@ async function shoot(session, lang) {
     await sleep(600)
     await session.evaluate(clickAria(copy.aria.collapseLibrary))
     await sleep(400)
-    // 整理版面：整理会把没连任何步骤的全局记忆卡排在版面下方、比别的卡更靠左，拖到「需求与规范」正下面，和它左对齐。
+    // 整理版面：整理会把没连任何步骤的全局记忆卡排在版面下方、比别的卡更靠左，拖到「需求与规范」正下面，和它左对齐；
+    // 触发卡片挪到左边那一列最上面。
     const tidy = async () => {
       await session.evaluate(clickTestId('wl-tidy'))
       await sleep(1500)
@@ -534,6 +552,15 @@ async function shoot(session, lang) {
         'mem-global',
         spec.handle - memory.handle,
         spec.top + spec.height + 28 - memory.top,
+      )
+      await sleep(800)
+      // 触发卡片：整理把它排在图左边单独一列（图变宽、字变小），挪到左边那一列最上面、「这次要改哪个模块？」上方。
+      const [ask, trigger] = await session.evaluate(cardRects('ask-module', 'nightly'))
+      await dragCard(
+        session,
+        'nightly',
+        ask.left - trigger.left,
+        ask.top - 28 - trigger.height - trigger.top,
       )
       await sleep(800)
       // 拖完这张卡是选中的、右栏也开了：点卡片下面的空白处，选中和右栏一起收起。

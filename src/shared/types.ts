@@ -367,7 +367,7 @@ export interface InputNode {
 
 /**
  * 触发节点：什么时候替用户发起一次执行。`id` 与步骤、资源、输入共用一个命名空间，不产生载荷文件，不进计划。
- * 开关、选定的工作区和会话是本机状态，不在这里。
+ * 开关、会话工作区、固定会话、脚本目录、shell 也写在这里；触发记录、全部暂停在插件数据库里。
  */
 export interface TriggerNode {
   id: string

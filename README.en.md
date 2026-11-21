@@ -84,8 +84,8 @@ Turn on **Record run state** in **Workflow settings**. Every run then leaves a r
 | Versions | Save versions with notes, compare differences, switch back at any time |
 | Import / export | Pack a workflow and the versions you pick into one `.wflite.zip`, optionally with the files and Skills it uses; before importing, see where each item will go |
 | Export as a Skill | Compile one version into a skill (SKILL.md, a task description per step, plus the files and Skills you pack) that works without the plugin; download a zip or install it straight into `~/.agents/skills` |
-| Memory (beta) | A workflow keeps what worked and its pitfalls as a skill and follows it on the next run; manage and version it on the **Memory** page, and export it with a workflow pack |
-| Triggers (beta) | Run a workflow automatically on a schedule, when a check command succeeds, when a long-running program prints a `::trigger::` line, on an HTTP request, or after another workflow finishes; the model can set one up and test it for you |
+| Memory | A workflow keeps what worked and its pitfalls as a skill and follows it on the next run; manage and version it on the **Memory** page, and export it with a workflow pack |
+| Triggers (experimental) | Run a workflow automatically on a schedule, when a check command succeeds, when a long-running program prints a `::trigger::` line, on an HTTP request, or after another workflow finishes; the model can set one up and test it for you |
 | Workflow hub | One place for run records across sessions, all workflows and their versions, triggers, and plugin settings; tag workflows and group or filter by tag |
 | Interface | Four light and four dark color themes that follow DSH light or dark mode; English / 中文 |
 
@@ -100,19 +100,7 @@ Resource paths and the output root accept two variables, replaced with real loca
 
 Paths written as `{assets}/…` by earlier versions still work and become `{workflow}/…` when the workflow is opened.
 
-## Experimental features
-
-These features are still being tried out, and their behavior and data formats may change. Besides triggers and workflow memory, there is **Canvas display** in the feature table above.
-
-### Triggers
-
-Run a workflow automatically when something happens, instead of clicking **Run** each time.
-
-- **Use**: drag **Trigger** from **Basics** in the step library onto the canvas and pick how it fires: Schedule (optionally running a check command first), Watch, HTTP or After. You can also ask the model; it writes the script, tests it, and hands it to you to enable.
-- **Manage**: the **Triggers** page in the Workflow hub shows every trigger's state, trigger history and recent output, and can pause them all.
-- **Limits**: triggers only fire while DSH is running. Check commands and watchers run on this machine as the DSH process; you confirm the command and workspace before enabling, and again after they change.
-
-### Workflow memory
+## Workflow memory
 
 Lets a workflow keep what worked and follow it on the next run, with the aim of speeding up complex workflows.
 
@@ -124,6 +112,21 @@ Lets a workflow keep what worked and follow it on the next run, with the aim of 
 Memory is only a configuration shortcut. For anything more elaborate, build it yourself with a resource plus prompts.
 
 **We are still checking whether it helps, and we'd like your feedback.** In early trials that repeated one workflow, we saw no steady speedup; the "Quick path" was added afterwards, and whether it helps needs more real workflows to tell.
+
+## Experimental features
+
+These features are still being tried out, and their behavior and data formats may change. **Canvas display** in the feature table above is in beta: mostly stable, with details still being polished.
+
+### Triggers
+
+Run a workflow automatically when something happens, instead of clicking **Run** each time.
+
+> **Likely to break in future versions.** Trigger cards and their settings will still change; after updating the plugin you may need to set up or rebuild your triggers again. Don't rely on them for automation you can't do without.
+
+- **Use**: drag **Trigger** from **Basics** in the step library onto the canvas and pick how it fires: Schedule (optionally running a check command first), Watch, HTTP or After. You can also ask the model; it writes the script, tests it, and hands it to you to enable.
+- **Manage**: the **Triggers** page in the Workflow hub shows every trigger's state, trigger history and recent output, and can pause them all.
+- **Export**: trigger cards travel with the workflow and are always saved switched off; secrets used by scripts are left out unless you tick them, and then go into the pack as plain text.
+- **Limits**: triggers only fire while DSH is running. Check commands and watchers run on this machine as the DSH process, outside the sandbox, and start as soon as you switch the card on, so only enable commands you trust.
 
 ## How it works
 

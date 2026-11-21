@@ -84,12 +84,16 @@
   .stop[data-state="next"] .chip { background: rgb(245 181 68 / 14%); color: var(--amber); }
   .stop[data-state="planned"] .chip { background: rgb(140 170 220 / 10%); color: var(--text-2); }
 
-  h3 { margin: 0 0 6px; font-size: 16px; font-weight: 650; color: var(--text-2); }
+  /* 标题和小签排一行，放不下时小签换到下一行、靠左。 */
+  h3 {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px;
+    margin: 0 0 6px; font-size: 16px; font-weight: 650; color: var(--text-2);
+  }
   /* 标题旁的小签（「实验性」）：描边、不铺底，比上面的版本小签淡一档，不抢标题。 */
   .tag {
-    display: inline-block; margin-left: 8px; padding: 0 7px; border: 1px solid rgb(245 181 68 / 45%);
+    padding: 0 7px; border: 1px solid rgb(245 181 68 / 45%);
     border-radius: 999px; color: var(--amber); font-size: 11px; font-weight: 600; line-height: 18px;
-    vertical-align: 2px; white-space: nowrap;
+    white-space: nowrap;
   }
   .stop[data-state="current"] h3, .stop[data-state="next"] h3 { color: var(--text); }
   p { margin: 0; color: var(--text-3); font-size: 13px; line-height: 1.65; }
