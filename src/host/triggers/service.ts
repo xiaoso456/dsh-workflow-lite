@@ -83,7 +83,12 @@ import {
   cardSecretsDir,
 } from './cardDirs.ts'
 import { type CardTestOptions, type CardTestResult, testCard } from './cardTest.ts'
-import type { TriggerDefinition, TriggerGraphs } from './graphs.ts'
+import {
+  enabledTriggerCards,
+  groupHttpHooks,
+  type TriggerDefinition,
+  type TriggerGraphs,
+} from './graphs.ts'
 import { type HookBind, hookUrl, newHookId, newHookToken } from './hooks.ts'
 import type { IntakeBatch } from './intake.ts'
 import { type FireInput, Launcher, SKIP_UNFINISHED } from './launcher.ts'
@@ -705,7 +710,7 @@ export class TriggerService {
    */
   private async freshChecks(): Promise<void> {
     const checks: { workflow: string; node: string }[] = []
-    for (const { workflow, trigger } of await this.enabledCards()) {
+    for (const { workflow, trigger } of await enabledTriggerCards(this.graphs)) {
       const { source } = trigger.data
       if (source.kind === 'schedule' && source.check !== undefined) {
         checks.push({ workflow, node: trigger.node })
@@ -720,26 +725,13 @@ export class TriggerService {
     })
   }
 
-  /** 所有工作流里图上开着的卡片（不管停没停用、设置对不对）。 */
-  private async enabledCards(): Promise<ActiveCard[]> {
-    const cards: ActiveCard[] = []
-    for (const workflow of await this.graphs.names()) {
-      const graph = await this.graphs.read(workflow)
-      if (graph.kind !== 'ok') continue
-      for (const trigger of graph.triggers) {
-        if (trigger.data.enabled === true) cards.push({ workflow, trigger })
-      }
-    }
-    return cards
-  }
-
   /** 列卡片要用的、与具体工作流无关的那些（一次读好，「触发」页列很多工作流时不重复读）。 */
   private async scene(): Promise<Scene> {
     const owner = await this.lock.current()
     return {
       owner,
       runs: this.store.runs.all(),
-      clashes: hookClashes(await this.enabledCards()),
+      clashes: hookClashes(await enabledTriggerCards(this.graphs)),
       live: await this.ownerLive(owner),
       unavailable: this.sessions.unavailable(),
       paused: this.store.runs.paused(),
@@ -1337,13 +1329,11 @@ function cardKey(workflow: string, node: string): string {
 
 /** 开着的 HTTP 卡片里地址和别的重了的那些（{@link cardKey}）：都不收请求，卡片上说重了。 */
 function hookClashes(cards: readonly Pick<ActiveCard, 'workflow' | 'trigger'>[]): Set<string> {
-  const byHook = new Map<string, string[]>()
-  for (const { workflow, trigger } of cards) {
-    const { source } = trigger.data
-    if (source.kind !== 'http' || source.hook === undefined) continue
-    byHook.set(source.hook, [...(byHook.get(source.hook) ?? []), cardKey(workflow, trigger.node)])
-  }
-  return new Set([...byHook.values()].filter((keys) => keys.length > 1).flat())
+  return new Set(
+    [...groupHttpHooks(cards).values()]
+      .filter((group) => group.length > 1)
+      .flatMap((group) => group.map(({ workflow, trigger }) => cardKey(workflow, trigger.node))),
+  )
 }
 
 /** 发出去了一次：记下发进去的会话和这次的编号（下一次看它跑完没有），之前点过的「视为已结束」作废。 */

@@ -566,6 +566,83 @@ describe('触发卡片', () => {
     ])
     const cards = opened.versions[0]?.document.nodes.filter(isTrigger) ?? []
     expect(cards.map((node) => node.id)).toEqual(['hook'])
+    expect(opened.manifest.versions[0]?.nodeCount).toBe(opened.versions[0]?.document.nodes.length)
+  })
+
+  it('导入旧包：节点数以实际入包的图为准', async () => {
+    const from = await triggerSide()
+    const opened = await packed(from, { name: 'review', versions: [1], pack: [], triggers: [] })
+    const stale = {
+      ...opened.manifest,
+      versions: opened.manifest.versions.map((version) => ({ ...version, nodeCount: 5 })),
+    }
+    const bytes = zipSync({
+      ...Object.fromEntries(opened.entries),
+      [PACK_PATHS.manifest]: strToU8(JSON.stringify(stale)),
+    })
+    const token = await upload(from.dataDir, bytes)
+    const preview = expectOk(await inspectPack(from.deps, { token }))
+    expect(preview.versions[0]?.nodeCount).toBe(3)
+  })
+
+  it('另存时避开本机已开启的 HTTP 地址，同名并入可以保留原地址', async () => {
+    const from = await side('occupied-hook')
+    const workspace = slash(from.dataDir)
+    const base = graph([])
+    const data: TriggerData = {
+      source: { kind: 'http', hook: 'review', token: 'synthetic-test-token' },
+      workspace,
+    }
+    await makeWorkflow(from.repository, 'review', [
+      { ...base, nodes: [...base.nodes, card('hook', { ...data, enabled: true })] },
+    ])
+    await makeWorkflow(from.repository, 'off', [
+      { ...base, nodes: [...base.nodes, card('hook', data)] },
+    ])
+    const exported = expectOk(
+      await exportPack(from.deps, { name: 'review', versions: [1], pack: [] }),
+    )
+    const zip = await download(from.dataDir, exported.token)
+    const token = await upload(from.dataDir, zip)
+    const preview = expectOk(await inspectPack(from.deps, { token }))
+    expect(preview.triggers?.cards[0]?.gaps).toEqual([
+      { kind: 'hook', hook: 'review', workflow: 'review' },
+    ])
+    const enabled = async (name: string) =>
+      (await from.repository.load(name)).document?.nodes.find(isTrigger)?.data.enabled
+    expectOk(await applyPack(from.deps, { token, mode: 'new', name: 'copy', enable: ['hook'] }))
+    expect(await enabled('copy')).toBeUndefined()
+    expect(await enabled('review')).toBe(true)
+
+    const again = await upload(from.dataDir, zip)
+    expectOk(await applyPack(from.deps, { token: again, mode: 'merge', name: 'review' }))
+    expect(await enabled('review')).toBe(true)
+  })
+
+  it('确认导入时重新检查预览之后被占用的 HTTP 地址', async () => {
+    const from = await side('hook-export')
+    const to = await side('hook-import')
+    const base = graph([])
+    const data: TriggerData = {
+      source: { kind: 'http', hook: 'review', token: 'synthetic-test-token' },
+      workspace: slash(to.dataDir),
+      enabled: true,
+    }
+    const document = { ...base, nodes: [...base.nodes, card('hook', data)] }
+    await makeWorkflow(from.repository, 'review', [document])
+    const exported = expectOk(
+      await exportPack(from.deps, { name: 'review', versions: [1], pack: [] }),
+    )
+    const token = await upload(to.dataDir, await download(from.dataDir, exported.token))
+    const preview = expectOk(await inspectPack(to.deps, { token }))
+    expect(preview.triggers?.cards[0]?.gaps).toEqual([])
+
+    await makeWorkflow(to.repository, 'local', [document])
+    expectOk(await applyPack(to.deps, { token, mode: 'new', name: 'review', enable: ['hook'] }))
+    const imported = await to.repository.load('review')
+    expect(imported.document?.nodes.find(isTrigger)?.data.enabled).toBeUndefined()
+    const local = await to.repository.load('local')
+    expect(local.document?.nodes.find(isTrigger)?.data.enabled).toBe(true)
   })
 
   it('导入预览：逐张列出卡片和这台机器上打不开的原因、带了几个密钥文件；密钥落进卡片目录', async () => {
@@ -574,8 +651,9 @@ describe('触发卡片', () => {
       await exportPack(from.deps, { name: 'review', versions: [1], pack: [], secrets: ['tick'] }),
     )
     const zip = await download(from.dataDir, exported.token)
-    const token = await upload(from.dataDir, zip)
-    const preview = expectOk(await inspectPack(from.deps, { token }))
+    const to = await side('triggers-to')
+    const token = await upload(to.dataDir, zip)
+    const preview = expectOk(await inspectPack(to.deps, { token }))
     expect(preview.triggers).toEqual({
       cards: [
         { node: 'tick', label: '', kind: 'schedule', enabled: true, gaps: [{ kind: 'session' }] },
@@ -583,9 +661,7 @@ describe('触发卡片', () => {
       ],
       secrets: 1,
     })
-    const to = await side('triggers-to')
-    const into = await upload(to.dataDir, zip)
-    expectOk(await applyPack(to.deps, { token: into, mode: 'new', name: 'review' }))
+    expectOk(await applyPack(to.deps, { token, mode: 'new', name: 'review' }))
     const secret = join(assetsDir(to.dataDir, 'review'), 'triggers', 'tick', 'secrets', 'key.txt')
     expect(await readFile(secret, 'utf8')).toBe('k1')
   })
@@ -611,25 +687,27 @@ describe('触发卡片', () => {
       await exportPack(from.deps, { name: 'nightly', versions: [1], pack: [] }),
     )
     const zip = await download(from.dataDir, exported.token)
-    const token = await upload(from.dataDir, zip)
-    const preview = expectOk(await inspectPack(from.deps, { token }))
+    const to = await side('switch-overrides')
+    const token = await upload(to.dataDir, zip)
+    const preview = expectOk(await inspectPack(to.deps, { token }))
     expect(preview.triggers?.cards.map((entry) => entry.gaps)).toEqual([
       [],
       [],
       [{ kind: 'workspace' }],
     ])
-    expectOk(await applyPack(from.deps, { token, mode: 'new', name: 'copy', enable: ['a', 'c'] }))
+    expectOk(await applyPack(to.deps, { token, mode: 'new', name: 'copy', enable: ['a', 'c'] }))
     const switches = (doc: WorkflowDocument): (boolean | undefined)[] =>
       doc.nodes.filter(isTrigger).map((node) => node.data.enabled)
-    const loaded = await from.repository.load('copy')
+    const loaded = await to.repository.load('copy')
     expect(switches(loaded.document ?? graph([]))).toEqual([true, undefined, undefined])
-    const saved = expectOk(await from.repository.readVersion('copy', 1))
+    const saved = expectOk(await to.repository.readVersion('copy', 1))
     expect(switches(saved.document)).toEqual([true, undefined, undefined])
 
     // 不给：照导出时的开关，打不开的关掉。
-    const again = await upload(from.dataDir, zip)
-    expectOk(await applyPack(from.deps, { token: again, mode: 'new', name: 'copy-2' }))
-    const kept = await from.repository.load('copy-2')
+    const other = await side('switch-defaults')
+    const again = await upload(other.dataDir, zip)
+    expectOk(await applyPack(other.deps, { token: again, mode: 'new', name: 'copy-2' }))
+    const kept = await other.repository.load('copy-2')
     expect(switches(kept.document ?? graph([]))).toEqual([true, true, undefined])
   })
 
@@ -671,9 +749,10 @@ describe('触发卡片', () => {
       }),
     )
     const zip = await download(from.dataDir, exported.token)
+    const to = await side('trigger-gap-catalog')
     let asked = 0
     const host = {
-      ...from.deps,
+      ...to.deps,
       catalog: async () => {
         asked += 1
         return {
@@ -690,7 +769,7 @@ describe('触发卡片', () => {
         }
       },
     } satisfies typeof from.deps
-    const preview = expectOk(await inspectPack(host, { token: await upload(from.dataDir, zip) }))
+    const preview = expectOk(await inspectPack(host, { token: await upload(to.dataDir, zip) }))
     expect(asked).toBe(1)
     expect(preview.triggers?.cards.map((entry) => entry.gaps)).toEqual([
       [
@@ -703,19 +782,19 @@ describe('触发卡片', () => {
     ])
     // 开着导出、却缺东西的，导入后关着。
     expectOk(
-      await applyPack(host, { token: await upload(from.dataDir, zip), mode: 'new', name: 'copy' }),
+      await applyPack(host, { token: await upload(to.dataDir, zip), mode: 'new', name: 'copy' }),
     )
-    const loaded = await from.repository.load('copy')
+    const loaded = await to.repository.load('copy')
     expect(
       (loaded.document ?? graph([])).nodes.filter(isTrigger).map((n) => n.data.enabled),
     ).toEqual([undefined, undefined])
 
     // 取不到这台机器上的列表：只查 shell 这类地方。
     const broken = {
-      ...from.deps,
+      ...to.deps,
       catalog: () => Promise.reject(new Error('down')),
     } satisfies typeof from.deps
-    const blind = expectOk(await inspectPack(broken, { token: await upload(from.dataDir, zip) }))
+    const blind = expectOk(await inspectPack(broken, { token: await upload(to.dataDir, zip) }))
     expect(blind.triggers?.cards.map((entry) => entry.gaps.map((gap) => gap.kind))).toEqual([
       ['shell'],
       [],

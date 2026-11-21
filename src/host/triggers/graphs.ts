@@ -56,6 +56,39 @@ export interface TriggerGraphs {
   ): Promise<Outcome<unknown>>
 }
 
+interface WorkflowTriggerCard {
+  workflow: string
+  trigger: TriggerDefinition
+}
+
+/** 所有工作流里图上开着的卡片。 */
+export async function enabledTriggerCards(graphs: TriggerGraphs): Promise<WorkflowTriggerCard[]> {
+  const cards: WorkflowTriggerCard[] = []
+  for (const workflow of await graphs.names()) {
+    const graph = await graphs.read(workflow)
+    if (graph.kind !== 'ok') continue
+    for (const trigger of graph.triggers) {
+      if (trigger.data.enabled === true) cards.push({ workflow, trigger })
+    }
+  }
+  return cards
+}
+
+/** 按运行时的 HTTP 路由键分组。 */
+export function groupHttpHooks(
+  cards: readonly WorkflowTriggerCard[],
+): Map<string, WorkflowTriggerCard[]> {
+  const groups = new Map<string, WorkflowTriggerCard[]>()
+  for (const card of cards) {
+    const { source } = card.trigger.data
+    if (source.kind !== 'http' || source.hook === undefined) continue
+    const group = groups.get(source.hook)
+    if (group === undefined) groups.set(source.hook, [card])
+    else group.push(card)
+  }
+  return groups
+}
+
 export function createTriggerGraphs(repository: Repository): TriggerGraphs {
   const cache = new Map<string, { stamp: string; value: WorkflowTriggers }>()
   return {

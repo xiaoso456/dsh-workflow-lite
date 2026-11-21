@@ -22,8 +22,15 @@ import {
 import { resolveSessionChoice } from '../../shared/sessionChoice.ts'
 import { commandOf, launchMissing, launchOf, usesWorkspace } from '../../shared/trigger.ts'
 import { triggerArea } from '../../shared/triggerDirs.ts'
-import type { SessionChoice, TriggerData, WorkflowDocument } from '../../shared/types.ts'
+import type {
+  SessionChoice,
+  TriggerData,
+  TriggerNode,
+  WorkflowDocument,
+} from '../../shared/types.ts'
 import type { HostAgentsResponse } from '../../shared/wire/host.ts'
+import type { Repository } from '../store/repository.ts'
+import { createTriggerGraphs, enabledTriggerCards, groupHttpHooks } from '../triggers/graphs.ts'
 import type { Tree, TreeFile } from './tree.ts'
 
 /** 工作流目录分成两块：触发器那一块（`triggers/` 下）和别的。 */
@@ -133,9 +140,11 @@ export async function previewTriggers(
   assets: readonly string[],
   exists: (path: string) => Promise<boolean>,
   catalog: () => Promise<HostAgentsResponse | undefined>,
+  repository: Repository,
 ): Promise<PackTriggerPreview | null> {
   const nodes = document.nodes.filter(isTrigger)
   if (nodes.length === 0) return null
+  const hooks = await occupiedHttpHooks(repository, nodes)
   let host: Promise<HostAgentsResponse | undefined> | undefined
   const cards: PackImportTrigger[] = []
   for (const node of nodes) {
@@ -149,11 +158,38 @@ export async function previewTriggers(
       label: data.label ?? '',
       kind: data.source.kind,
       enabled: data.enabled === true,
-      gaps: [...(await placeGaps(data, exists)), ...(used ? choiceGaps(choice, await host) : [])],
+      gaps: [
+        ...(await placeGaps(data, exists)),
+        ...(used ? choiceGaps(choice, await host) : []),
+        ...hookGaps(data, hooks),
+      ],
     })
   }
   const secrets = assets.filter((path) => triggerArea(path)?.area === 'secrets').length
   return { cards, secrets }
+}
+
+type HookOwners = ReadonlyMap<string, readonly string[]>
+
+/** 本机开启的卡片中，哪些工作流占着入包卡片要用的地址。 */
+export async function occupiedHttpHooks(
+  repository: Repository,
+  nodes: readonly TriggerNode[],
+): Promise<HookOwners> {
+  if (!nodes.some(({ data }) => data.source.kind === 'http' && data.source.hook !== undefined)) {
+    return new Map()
+  }
+  const groups = groupHttpHooks(await enabledTriggerCards(createTriggerGraphs(repository)))
+  return new Map(
+    [...groups].map(([hook, group]) => [hook, [...new Set(group.map(({ workflow }) => workflow))]]),
+  )
+}
+
+export function hookGaps(data: TriggerData, hooks: HookOwners): PackTriggerGap[] {
+  const { source } = data
+  if (source.kind !== 'http' || source.hook === undefined) return []
+  const hook = source.hook
+  return (hooks.get(hook) ?? []).map((workflow) => ({ kind: 'hook', hook, workflow }))
 }
 
 /** 本机上的地方：固定会话是导出那台机器上的，这台一定要重新选；用到的工作区、选的 shell 要在这台机器上真有。 */

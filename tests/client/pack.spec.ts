@@ -197,6 +197,27 @@ describe('导入', () => {
     expect(applyRequest({ ...preview, triggers: null }, choice, {}).enable).toBeUndefined()
   })
 
+  it('HTTP 地址被并入目标占用时，仅另存需要关掉导入的卡片', () => {
+    const conflict: PackImportPreview = {
+      ...preview,
+      triggers: {
+        cards: [
+          {
+            node: 'hook',
+            label: '',
+            kind: 'http',
+            enabled: true,
+            gaps: [{ kind: 'hook', hook: 'review', workflow: preview.name }],
+          },
+        ],
+        secrets: 0,
+      },
+    }
+    const choice = defaultImportChoice(conflict)
+    expect(applyRequest(conflict, choice, {}).enable).toEqual([])
+    expect(applyRequest(conflict, { ...choice, mode: 'merge' }, {}).enable).toEqual(['hook'])
+  })
+
   it('触发卡片缺的东西一样一句：预设、权限用显示名，模型带上服务商', () => {
     const t = (key: string): string => key
     expect(

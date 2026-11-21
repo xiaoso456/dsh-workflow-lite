@@ -16,12 +16,13 @@ import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { unzipSync } from 'fflate'
 import { normalize } from 'pathe'
-import { idKey, isResource } from '../../shared/model.ts'
+import { idKey, isResource, isTrigger } from '../../shared/model.ts'
 import { checkName, normalizeName } from '../../shared/naming.ts'
 import { isAbsoluteRoot } from '../../shared/outputPaths.ts'
 import {
   defaultMemoryAction,
   freeName,
+  importTriggerGaps,
   isSafeRelative,
   PACK_MAX_BYTES,
   PACK_MAX_FILES,
@@ -57,7 +58,7 @@ import { parseVersion } from '../store/versions.ts'
 import type { PackDeps } from './exporter.ts'
 import { discard, readIn } from './staging.ts'
 import { fingerprint, readTree, sha256, walkTree } from './tree.ts'
-import { previewTriggers, setSwitches } from './triggerPack.ts'
+import { hookGaps, occupiedHttpHooks, previewTriggers, setSwitches } from './triggerPack.ts'
 
 /** 解开、校验过的包。 */
 export interface OpenedPack {
@@ -368,6 +369,7 @@ export async function inspectPack(
           manifest.assets.map((file) => file.path),
           exists,
           () => hostCatalog(deps),
+          deps.repository,
         )
 
   return {
@@ -379,7 +381,10 @@ export async function inspectPack(
       exportedAt: manifest.exportedAt,
       name,
       current: manifest.current,
-      versions: manifest.versions,
+      versions: opened.result.versions.map(({ document, ...version }) => ({
+        ...version,
+        nodeCount: document.nodes.length,
+      })),
       exists: present,
       unsaved,
       suggested,
@@ -540,7 +545,12 @@ export async function applyPack(
   // 触发卡片的开关：当前那一版（和工作流现在的内容）照导入的人定的写，没给就照导出时的；
   // 这台机器上打不开的（预览里写了原因）一律关掉。别的版本照包里的。
   const cards = preview.result.triggers?.cards ?? []
-  const openable = new Set(cards.filter((card) => card.gaps.length === 0).map((card) => card.node))
+  const replacing = request.mode === 'merge' ? preview.result.name : undefined
+  const openable = new Set(
+    cards
+      .filter((card) => importTriggerGaps(card.gaps, replacing).length === 0)
+      .map((card) => card.node),
+  )
   const wanted = request.enable ?? cards.filter((card) => card.enabled).map((card) => card.node)
   const enable = new Set(wanted.filter((node) => openable.has(node)))
   const imported = versions.map((version) => {
@@ -561,6 +571,19 @@ export async function applyPack(
     current: current.document,
     prepare: async (name) => {
       try {
+        // 仓储写锁内复核，避免两个导入都看见地址空着、再先后开启。
+        const enabled = current.document.nodes.filter(isTrigger).filter((node) => node.data.enabled)
+        const hooks = await occupiedHttpHooks(deps.repository, enabled)
+        for (const { data } of enabled) {
+          const gap = importTriggerGaps(hookGaps(data, hooks), replacing)[0]
+          if (gap?.kind === 'hook') {
+            return fail(
+              'conflict',
+              `HTTP 地址「${gap.hook}」已被「${gap.workflow}」占用，请重新打开导入预览`,
+            )
+          }
+        }
+
         // 资料目录。
         const dir = assetsDir(deps.dataDir, name)
         if (request.mode === 'new') await rm(dir, { recursive: true, force: true })

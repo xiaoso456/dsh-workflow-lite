@@ -502,7 +502,15 @@ export async function exportPack(
     versions.find((version) => version.entry.current)?.entry.n ??
     Math.max(...versions.map((version) => version.entry.n))
   const encoder = new TextEncoder()
-  for (const { entry, document } of versions) {
+  const packedVersions = versions.map(({ entry, document }) => {
+    const packed = rewriteForPack(
+      documentWithChoice(
+        packTriggers(document, keep),
+        request.choice ?? DEFAULT_CHOICE_KEEP,
+        triggerChoices,
+      ),
+      renames,
+    )
     put(
       PACK_PATHS.version(entry.n),
       encoder.encode(
@@ -510,18 +518,17 @@ export async function exportPack(
           n: entry.n,
           createdAt: entry.createdAt,
           note: entry.note,
-          document: rewriteForPack(
-            documentWithChoice(
-              packTriggers(document, keep),
-              request.choice ?? DEFAULT_CHOICE_KEEP,
-              triggerChoices,
-            ),
-            renames,
-          ),
+          document: packed,
         }),
       ),
     )
-  }
+    return {
+      n: entry.n,
+      createdAt: entry.createdAt,
+      note: entry.note,
+      nodeCount: packed.nodes.length,
+    }
+  })
   const tags = await deps.repository.tagsOf(request.name)
   const manifest: PackManifest = {
     format: PACK_FORMAT,
@@ -530,12 +537,7 @@ export async function exportPack(
     exportedAt: new Date(deps.now?.() ?? Date.now()).toISOString(),
     workflow: { name: top },
     current,
-    versions: versions.map(({ entry }) => ({
-      n: entry.n,
-      createdAt: entry.createdAt,
-      note: entry.note,
-      nodeCount: entry.nodeCount,
-    })),
+    versions: packedVersions,
     assets,
     skills,
     memories,

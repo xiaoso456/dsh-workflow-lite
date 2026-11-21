@@ -15,8 +15,9 @@ import type {
   PackSkillAction,
   PackSkillPreview,
   PackTriggerGap,
+  PackTriggerPreview,
 } from '../../shared/pack.ts'
-import { defaultMemoryAction } from '../../shared/pack.ts'
+import { defaultMemoryAction, importTriggerGaps } from '../../shared/pack.ts'
 import { isMemoryPath } from '../../shared/pathVars.ts'
 import type { SkillExisting, SkillPreviewResponse } from '../../shared/skillPack.ts'
 import type { ResourceKind, VersionEntry } from '../../shared/types.ts'
@@ -175,7 +176,7 @@ export interface ImportChoice {
   skills: Record<string, PackSkillAction>
   /** 本机已有同 id 的记忆：用本机的，还是另存一份。 */
   memories: Record<string, PackMemoryAction>
-  /** 导入后开着的触发卡片（缺省照导出时的开关，这台机器上打不开的不算）。 */
+  /** 用户想打开的卡片；HTTP 地址是否可用随导入方式变化。 */
   enable: readonly string[]
 }
 
@@ -189,9 +190,21 @@ export function defaultImportChoice(preview: PackImportPreview): ImportChoice {
     ),
     memories: {},
     enable: (preview.triggers?.cards ?? [])
-      .filter((card) => card.enabled && card.gaps.length === 0)
+      .filter((card) => card.enabled && card.gaps.every((gap) => gap.kind === 'hook'))
       .map((card) => card.node),
   }
+}
+
+export function importTriggerRows(
+  triggers: PackTriggerPreview,
+  enable: readonly string[],
+  replacing?: string,
+) {
+  const wanted = new Set(enable)
+  return triggers.cards.map((card) => {
+    const gaps = importTriggerGaps(card.gaps, replacing)
+    return { card, gaps, checked: gaps.length === 0 && wanted.has(card.node) }
+  })
 }
 
 /** 触发卡片这台机器上缺的东西，一样一句（导入预览里说为什么打不开）。 */
@@ -215,6 +228,8 @@ function gapLine(t: T, gap: PackTriggerGap): string {
       return t('pack.trg.gap.preset').replace('{name}', presetName(t, null, gap.preset))
     case 'permission':
       return t('pack.trg.gap.permission').replace('{name}', permissionName(t, null, gap.permission))
+    case 'hook':
+      return t('pack.trg.gap.hook').replace('{hook}', gap.hook).replace('{name}', gap.workflow)
   }
 }
 
@@ -279,7 +294,17 @@ export function applyRequest(
         .filter((memory) => memory.exists)
         .map((memory) => [memory.id, choice.memories[memory.id] ?? defaultMemoryAction(memory)]),
     ),
-    ...(preview.triggers === null ? {} : { enable: [...choice.enable] }),
+    ...(preview.triggers === null
+      ? {}
+      : {
+          enable: importTriggerRows(
+            preview.triggers,
+            choice.enable,
+            choice.mode === 'merge' ? preview.name : undefined,
+          )
+            .filter((row) => row.checked)
+            .map(({ card }) => card.node),
+        }),
     ...scope,
   }
 }

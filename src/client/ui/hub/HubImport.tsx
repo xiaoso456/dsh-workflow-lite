@@ -8,7 +8,7 @@
  * （skill 里的脚本会被 agent 执行）。名字撞了：另存为新名字（缺省），或并入已有的那张——
  * 并入**不自动存**本机现在的内容，没存成版本就提醒一句。
  *
- * 带了触发卡片的包另有一段：几张卡片（导入后都关着）、哪些要重新选工作区或会话、带了几个密钥文件；
+ * 带了触发卡片的包另有一段：每张卡片导入后的开关、打不开的原因、带了几个密钥文件；
  * 密钥、脚本数据和别的资料文件一样落进工作流目录，并入时撞了的照「保留本机的 / 用包里的」处理。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/HubImport
@@ -33,6 +33,7 @@ import {
   gapLines,
   type ImportChoice,
   importSummary,
+  importTriggerRows,
   memoryActionOf,
   skillChoices,
   skillDestination,
@@ -585,6 +586,7 @@ function Preview(props: {
             t={t}
             triggers={preview.triggers}
             enable={choice.enable}
+            replacing={choice.mode === 'merge' ? preview.name : undefined}
             onEnable={(enable) => setChoice({ ...choice, enable })}
           />
         )}
@@ -677,7 +679,7 @@ function Preview(props: {
 
 /**
  * 包里的触发卡片：一张一行，右端一个开关决定导入后开不开（照导出时的开关预选）。
- * 这台机器上缺东西的（工作区、会话、shell、服务商、模型、预设、权限）打不开：开关灰掉，悬停说缺什么；
+ * 本机缺少依赖或 HTTP 地址被占用时，开关灰掉，悬停说原因；
  * 导出时开着的，名字后面再挂一个告警图标，说导入后先关着、配好再打开。
  * 带了密钥的，末尾一行说几个、放到哪。
  */
@@ -685,22 +687,22 @@ function ImportTriggers(props: {
   t: T
   triggers: PackTriggerPreview
   enable: readonly string[]
+  replacing: string | undefined
   onEnable(enable: string[]): void
 }): React.JSX.Element {
   const { t, triggers, enable } = props
-  const on = new Set(enable)
+  const rows = importTriggerRows(triggers, enable, props.replacing)
   return (
     <PackSection
       title={t('pack.sectionTriggers')}
       note={t('pack.trg.cards')
         .replace('{n}', String(triggers.cards.length))
-        .replace('{m}', String(enable.length))}
+        .replace('{m}', String(rows.filter((row) => row.checked).length))}
       testId="wl-pack-triggers"
     >
-      {triggers.cards.map((card) => {
+      {rows.map(({ card, checked, gaps: missing }) => {
         const name = card.label === '' ? t('pack.trg.unnamed') : card.label
-        const checked = on.has(card.node)
-        const gaps = gapLines(t, card.gaps)
+        const gaps = gapLines(t, missing)
         const blocked = gaps.length > 0
         return (
           <PackRow

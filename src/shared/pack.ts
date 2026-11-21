@@ -498,14 +498,14 @@ export interface PackImportTrigger {
   kind: TriggerSource['kind']
   /** 导出时开着（导入预览按这个预选）。 */
   enabled: boolean
-  /** 卡片要用、这台机器上却没有的东西；有一样就打不开，导入后在卡片上配好再开。空的 = 打得开。 */
+  /** 本机缺少的依赖或已占用的地址。 */
   gaps: PackTriggerGap[]
 }
 
 /**
- * 触发卡片依赖、这台机器上没有的一样东西：
+ * 触发卡片在这台机器上缺的依赖，或已经被占用的地址：
  * `workspace` 会话工作区；`session` 发进的固定会话（是导出那台机器上的）；`shell` 跑命令用的 shell；
- * `provider` / `model` 新建会话用的服务商、模型；`preset` Agent 预设；`permission` 运行权限。
+ * `provider` / `model` 新建会话用的服务商、模型；`preset` Agent 预设；`permission` 运行权限；`hook` HTTP 地址。
  */
 export type PackTriggerGap =
   | { kind: 'workspace' }
@@ -515,6 +515,17 @@ export type PackTriggerGap =
   | { kind: 'model'; provider: string; model: string }
   | { kind: 'preset'; preset: string }
   | { kind: 'permission'; permission: string }
+  | { kind: 'hook'; hook: string; workflow: string }
+
+/** 并入会替换目标的当前图，所以目标原有的 HTTP 地址不算占用。 */
+export function importTriggerGaps(
+  gaps: readonly PackTriggerGap[],
+  replacing?: string,
+): readonly PackTriggerGap[] {
+  const target = replacing?.toLowerCase()
+  if (target === undefined) return gaps
+  return gaps.filter((gap) => gap.kind !== 'hook' || gap.workflow.toLowerCase() !== target)
+}
 
 /** 包里的一条记忆，和本机记忆库比。 */
 export interface PackMemoryPreview {
