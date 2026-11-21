@@ -147,7 +147,7 @@
 .rowDisclosure {
   grid-column: 2 / -1;
   display: grid;
-  grid-template-columns: 12px minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto 14px;
   gap: 8px;
   align-items: center;
   min-height: 26px;

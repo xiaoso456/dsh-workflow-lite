@@ -12,8 +12,7 @@ import css from './hubExport.module.css'
 import pack from './pack.module.css'
 
 /**
- * 一类资源。标题行左边是一个按钮「[›] [图标] 名称 统计」，点它展开 / 收起下面的清单；
- * 右端是这类的打包开关（只有 Skill、文件、文件夹有），开关只管打不打包，不管展开。
+ * 点击标题或最右的箭头展开 / 收起清单，箭头左边的打包开关单独操作。
  * 这类一项都没有时也照样摆出来，写「无」，不能展开。
  */
 export function ExportCategory(props: {
@@ -41,14 +40,18 @@ export function ExportCategory(props: {
           data-testid={`${props.testId}-toggle`}
           onClick={() => props.onExpand(!props.expanded)}
         >
-          <span className={css.catChevron} data-opened={open}>
-            <Icon name="chevronRight" size={14} />
+          <span className={css.catLabel}>
+            <span className={css.catIcon} data-on={lit}>
+              <Icon name={props.icon} size={14} />
+            </span>
+            <span className={css.catTitle}>{props.title}</span>
+            <span className={css.catStats}>{props.stats}</span>
           </span>
-          <span className={css.catIcon} data-on={lit}>
-            <Icon name={props.icon} size={14} />
-          </span>
-          <span className={css.catTitle}>{props.title}</span>
-          <span className={css.catStats}>{props.stats}</span>
+          {!props.empty && (
+            <span className={css.catChevron} data-opened={open} aria-hidden="true">
+              <Icon name="chevronRight" size={14} />
+            </span>
+          )}
         </button>
         {props.switch !== undefined && (
           <button

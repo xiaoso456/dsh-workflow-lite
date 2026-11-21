@@ -10,7 +10,7 @@
 }
 
 /*
- * 左边一个按钮（点它展开 / 收起），右端是打包开关；两者互不相干。
+ * 标题和最右的箭头共用一个按钮，打包开关在箭头左边，单独操作。
  * 钉在滚动框顶上：滚到哪一类，那一类的标题留在上面，下一类的标题上来时把它顶走（钉的范围是自己这一节）。
  * 左右各伸出 6px 盖住行的悬停底色（行往右伸了 6px），内容用同样的内边距推回原位。
  */
@@ -18,7 +18,8 @@
   position: sticky;
   top: 0;
   z-index: 2;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 14px;
   gap: 8px;
   align-items: center;
   min-height: 32px;
@@ -47,13 +48,14 @@
 .catToggle {
   position: relative;
   isolation: isolate;
-  display: flex;
-  flex: 1 1 auto;
-  gap: 8px;
+  display: grid;
+  grid-column: 1 / -1;
+  grid-row: 1;
+  grid-template-columns: subgrid;
   align-items: center;
   min-width: 0;
   margin: 0 0 0 -6px;
-  padding: 4px 6px;
+  padding: 4px 0 4px 6px;
   border: 0;
   border-radius: calc(8px * var(--wl-round, 1));
   background: none;
@@ -88,21 +90,24 @@
   cursor: default;
 }
 
+.catLabel {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  padding-inline-start: 22px;
+}
+
 .catChevron {
   display: grid;
-  flex: none;
+  grid-column: 3;
   place-items: center;
-  width: 14px;
   color: var(--wl-text-3);
   transition: transform 180ms var(--wl-ease-out);
 }
 
 .catChevron[data-opened="true"] {
   transform: rotate(90deg);
-}
-
-.catToggle:disabled .catChevron {
-  opacity: 0.35;
 }
 
 .catIcon {
@@ -144,34 +149,23 @@
 }
 
 .catSwitch {
-  flex: none;
-  margin-left: auto;
+  z-index: 1;
+  grid-column: 2;
+  grid-row: 1;
 }
 
-/*
- * 触发卡片的附带项：一条竖线从展开箭头下来，每行一道短横接上。
- * 竖线画在各行自己身上（不是一整条）：最后一行只画到自己的中线，第一行往上伸进卡片那一行。
- */
 .trgKids {
   display: flex;
   flex-direction: column;
-  /* 紧凑行的勾选列 24px + 间距 8px + 半个箭头 6px。 */
-  margin-left: 38px;
-  padding-left: 21px;
+  /* 标题起点 32px，扣掉 16px 方框在 24px 勾选列里的左留白 4px。 */
+  padding-inline-start: 28px;
   animation: trgKidsIn 240ms var(--wl-ease) backwards;
   animation-delay: 84ms;
 }
 
-.trgKids > * {
-  position: relative;
-}
-
-.trgKids > *::before,
-.trgKids > *::after {
-  position: absolute;
-  left: -21px;
-  content: "";
-  pointer-events: none;
+/* 卡片没有展开箭头时，摘要仍和有箭头的卡片对齐。 */
+.trgSummaryWithoutArrow {
+  margin-inline-end: 22px;
 }
 
 .trgState {
@@ -184,26 +178,6 @@
 
 .trgState[data-on="true"] {
   color: var(--wl-ok);
-}
-
-.trgKids > *::before {
-  top: 0;
-  bottom: 0;
-  border-left: 1.5px solid var(--wl-line-strong);
-}
-
-.trgKids > *:first-child::before {
-  top: -10px;
-}
-
-.trgKids > *:last-child::before {
-  bottom: 50%;
-}
-
-.trgKids > *::after {
-  top: 50%;
-  width: 14px;
-  border-top: 1.5px solid var(--wl-line-strong);
 }
 
 @keyframes trgKidsIn {

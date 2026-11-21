@@ -106,11 +106,11 @@ export function PackRow(props: {
           data-testid={props.testId === undefined ? undefined : `${props.testId}-toggle`}
           onClick={props.disclosure.onToggle}
         >
-          <span className={css.rowChevron}>
-            <Icon name="chevronRight" size={12} />
-          </span>
           {text}
           {end}
+          <span className={css.rowChevron} aria-hidden="true">
+            <Icon name="chevronRight" size={12} />
+          </span>
         </button>
       </div>
     )

@@ -145,7 +145,11 @@ export function TriggerCategory(props: {
             .filter((line) => line !== null)
             .join('\n')}
           end={
-            on ? t('pack.trg.attached').replace('{n}', String(attached)) : t('pack.trg.excluded')
+            <span className={hasDetails ? undefined : css.trgSummaryWithoutArrow}>
+              {on
+                ? t('pack.trg.attached').replace('{n}', String(attached))
+                : t('pack.trg.excluded')}
+            </span>
           }
           checked={keep}
           disabled={!enabled}
