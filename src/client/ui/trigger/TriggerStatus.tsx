@@ -64,6 +64,10 @@ export function TriggerStatus(props: {
   const fired = fireNow.result
   const firing = fired !== null && fired.tone !== 'bad'
   const face = sourceFace(data.source)
+  // 定时规则下面已经写着下一次，这里不再说。
+  const status = firing
+    ? fired.text
+    : stateText(t, view, face, Date.now(), { next: data.source.kind !== 'schedule' })
 
   const settle = (task: Promise<string | null>): void => {
     void task.then((reason) => {
@@ -121,7 +125,11 @@ export function TriggerStatus(props: {
           <SwitchTrack on={on} />
           <span className={ins.requiredText}>
             <span className={ins.requiredTitle}>{t('trigger.switch')}</span>
-            <span className={cx(css.statusLine, tone.tone)} data-tone={stateTone(state, face)}>
+            <span
+              className={cx(css.statusLine, tone.tone)}
+              data-tone={stateTone(state, face)}
+              data-tip={status}
+            >
               <span className={tone.dot} aria-hidden="true" />
               {/*
                * 一直挂着，只换字：刚触发的那句话（正在发 / 已发进会话）先占这一行，过后回到状态；
@@ -132,14 +140,7 @@ export function TriggerStatus(props: {
                 data-short={(!firing && queued > 0) || undefined}
                 data-testid="wl-trigger-state-text"
               >
-                {firing
-                  ? fired.text
-                  : queued > 0
-                    ? `${stateBadge(t, view, face)} ·`
-                    : // 定时规则下面已经写着下一次，这里不再说。
-                      stateText(t, view, face, Date.now(), {
-                        next: data.source.kind !== 'schedule',
-                      })}
+                {!firing && queued > 0 ? `${stateBadge(t, view, face)} ·` : status}
               </span>
               <QueueMark t={t} count={firing ? 0 : queued} label testId="wl-trigger-queued" />
             </span>
