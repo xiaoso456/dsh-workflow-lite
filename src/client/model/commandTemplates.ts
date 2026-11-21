@@ -3,6 +3,7 @@
  *
  * 命令交给卡片选的 shell（cmd、PowerShell、sh 一类都可能），模板只用 `git` 和 `node -e`（DSH 自带 Node），
  * 双引号里不写 `$`、反引号，两边的 shell 都原样交给程序。挑了模板会连同判定方式一起换（定时检查）。
+ * 命令缺省在卡片目录里跑：要看用户仓库、文件夹的写 `{workspace}`（插件跑之前换成卡片选的会话工作区，正斜杠）。
  *
  * @module @xiaoso/dsh-workflow-lite/client/model/commandTemplates
  */
@@ -26,7 +27,7 @@ export const CHECK_TEMPLATES: readonly CommandTemplate[] = [
     id: 'git',
     label: 'trigger.tpl.git',
     desc: 'trigger.tpl.gitDesc',
-    command: 'git ls-remote origin -h refs/heads/main',
+    command: 'git -C "{workspace}" ls-remote origin -h refs/heads/main',
     when: 'change',
   },
   {
@@ -41,7 +42,8 @@ export const CHECK_TEMPLATES: readonly CommandTemplate[] = [
     id: 'files',
     label: 'trigger.tpl.files',
     desc: 'trigger.tpl.filesDesc',
-    command: "node -e \"console.log(require('fs').readdirSync('inbox').sort().join('\\n'))\"",
+    command:
+      "node -e \"console.log(require('fs').readdirSync('{workspace}/inbox').sort().join('\\n'))\"",
     when: 'change',
   },
   {
@@ -60,19 +62,19 @@ export const LISTEN_TEMPLATES: readonly CommandTemplate[] = [
     label: 'trigger.tpl.watch',
     desc: 'trigger.tpl.watchDesc',
     command:
-      "node -e \"require('fs').watch('inbox', (event, name) => name && console.log('::trigger:: ' + event + ' ' + name))\"",
+      "node -e \"require('fs').watch('{workspace}/inbox', (event, name) => name && console.log('::trigger:: ' + event + ' ' + name))\"",
   },
   {
     id: 'tail',
     label: 'trigger.tpl.tail',
     desc: 'trigger.tpl.tailDesc',
     command:
-      "node -e \"const fs = require('fs'); let at = fs.statSync('app.log').size; fs.watchFile('app.log', { interval: 1000 }, (s) => { if (s.size > at) for (const line of fs.readFileSync('app.log').subarray(at).toString().split('\\n')) if (line.trim()) console.log('::trigger:: ' + line.trim()); at = s.size })\"",
+      "node -e \"const fs = require('fs'); const f = '{workspace}/app.log'; let at = fs.statSync(f).size; fs.watchFile(f, { interval: 1000 }, (s) => { if (s.size > at) for (const line of fs.readFileSync(f).subarray(at).toString().split('\\n')) if (line.trim()) console.log('::trigger:: ' + line.trim()); at = s.size })\"",
   },
   {
     id: 'script',
     label: 'trigger.tpl.script',
     desc: 'trigger.tpl.scriptDesc',
-    command: 'node "{workflow}/triggers/watch.mjs"',
+    command: 'node watch-events.mjs',
   },
 ]

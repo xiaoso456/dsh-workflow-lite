@@ -148,6 +148,8 @@ import type {
   TriggerClearQueueResponse,
   TriggerDetailRequest,
   TriggerDetailResponse,
+  TriggerEndpointRequest,
+  TriggerEndpointResponse,
   TriggerFireRequest,
   TriggerHistoryRequest,
   TriggerHistoryResponse,
@@ -165,7 +167,7 @@ import type {
   TriggerPauseResponse,
   TriggerPingRequest,
   TriggerPingResponse,
-  TriggerSetRequest,
+  TriggerReopenRequest,
   TriggerShellRequest,
   TriggerShellsResponse,
   TriggerTryRequest,
@@ -228,7 +230,8 @@ export const WORKFLOW_LITE_ENDPOINTS = [
   'run/history',
   'run/latest',
   'trigger/list',
-  'trigger/set',
+  'trigger/reopen',
+  'trigger/endpoint',
   'trigger/fire',
   'trigger/history',
   'trigger/activity',
@@ -360,7 +363,8 @@ export interface WorkflowLiteRpcMap {
   'run/history': { args: RunHistoryRequest; result: RunHistoryResponse }
   'run/latest': { args: RunLatestRequest; result: RunLatestResponse }
   'trigger/list': { args: TriggerListRequest; result: TriggerListResponse }
-  'trigger/set': { args: TriggerSetRequest; result: TriggerListResponse }
+  'trigger/reopen': { args: TriggerReopenRequest; result: TriggerListResponse }
+  'trigger/endpoint': { args: TriggerEndpointRequest; result: TriggerEndpointResponse }
   'trigger/fire': { args: TriggerFireRequest; result: FireRecord }
   'trigger/history': { args: TriggerHistoryRequest; result: TriggerHistoryResponse }
   'trigger/activity': { args: TriggerActivityRequest; result: TriggerActivityResponse }

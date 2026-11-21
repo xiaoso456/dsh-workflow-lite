@@ -4,49 +4,47 @@
  * 触发只由负责的那个 DSH 进程做（见 `owner.ts`）：每隔几秒报到一次、对一遍账（`reconcile.ts`），
  * 到点的交给 `launcher.ts` 发进会话；定时检查、监听程序、HTTP 地址按本机状态开着或停下（`runtime.ts`），
  * 它们进来的内容过了过滤也交给 `launcher.ts`；接续触发每一轮看一眼等的那个工作流有没有实例刚结束（`after.ts`）。
- * 开关、设置、「立即触发一次」「全部暂停」哪个进程都能做，都落在 `<dataDir>/triggers/` 里，负责的进程下一轮就看到。
+ * 卡片的开关和设置都在图里（画布上直接改，模型经 `write_trigger` 的 `local` 改、先在 `settings.ts` 核对）；
+ * 跑起来之后的记录在插件数据库里（`runRecords.ts`）。「立即触发一次」「全部暂停」哪个进程都能做，负责的进程下一轮就看到。
+ * 开着的卡片设置有误（触发源写得不对、缺工作区、地址和别的卡片重了…）时不跑，卡片上显示「设置有误」和原因。
  *
  * 「全部暂停」不动各卡片的开关：暂停着时定时照样往后排、接续触发照样记下处理过的实例，只是都不触发，
  * 常驻的全停下；恢复后接着跑，暂停期间错过的不补。
- *
- * 要在本机跑命令的（定时检查、监听程序）打开前要确认那条命令（用户在画布上，或模型经 `write_trigger` 打开时），
- * 记下命令、工作区与 shell 的记号；有一样改了就停下、等重新确认（`confirm`）。
  *
  * 「连续几次失败就自动停用」里的「失败」只指触发器自己干不了活：工作区或会话不在了、会话建不出来、
  * 图编译不出计划、监听程序一启动就退出、检查的命令跑不起来。跳过（上一次还在跑、超过每小时上限、错过了）、
  * 条件不满足、过滤掉的都不算，消息发进去之后工作流执行得怎么样更不算。
  * 端口被占用也不算：那是「出错」，端口空出来或换一个就恢复。
+ * 自动停用不动图里的开关，只在运行记录里记下；用户「重新启用」、或关了再开时清掉。
  *
  * @module @xiaoso/dsh-workflow-lite/host/triggers/service
  */
 
-import { stat } from 'node:fs/promises'
-import { isAbsolute } from 'node:path'
-import { bindWorkflowVar } from '../../shared/pathVars.ts'
+import {
+  bindWorkflowPath,
+  bindWorkflowVar,
+  bindWorkspacePath,
+  bindWorkspaceVar,
+  isWorkspacePath,
+  WORKSPACE_VAR,
+} from '../../shared/pathVars.ts'
 import { hasSessionChoice } from '../../shared/sessionChoice.ts'
 import {
   afterMatches,
   commandOf,
+  endpointMissing,
   type FilterKind,
   filterOf,
   isLiveSource,
   launchMissing,
   launchOf,
   reachedLimit,
+  settingsOf,
   sourceProblem,
 } from '../../shared/trigger.ts'
-import {
-  HOOK_MAX_LENGTH,
-  type HookIssue,
-  hookFromName,
-  hookIssue,
-  LOCAL_HOST,
-  TOKEN_MAX_LENGTH,
-  TOKEN_MIN_LENGTH,
-  type TokenIssue,
-  tokenIssue,
-} from '../../shared/triggerHttp.ts'
-import type { TriggerSource } from '../../shared/types.ts'
+import { SCRIPTS_DIR } from '../../shared/triggerDirs.ts'
+import { hookFromName, LOCAL_HOST } from '../../shared/triggerHttp.ts'
+import type { TriggerData, TriggerSource } from '../../shared/types.ts'
 import { OUTPUT_LINES } from '../../shared/wire/config.ts'
 import type {
   FireRecord,
@@ -55,6 +53,7 @@ import type {
   TriggerActivitySlot,
   TriggerAllResponse,
   TriggerDetailResponse,
+  TriggerEndpointResponse,
   TriggerEntry,
   TriggerFireRequest,
   TriggerHttpStatus,
@@ -65,7 +64,6 @@ import type {
   TriggerPauseResponse,
   TriggerPingRequest,
   TriggerPingResponse,
-  TriggerSetRequest,
   TriggerShellsResponse,
   TriggerTryRequest,
   TriggerTryResponse,
@@ -76,18 +74,33 @@ import { ensureDir } from '../store/atomic.ts'
 import { assetsDir } from '../store/paths.ts'
 import { fail, type Outcome, ok } from '../store/repoResult.ts'
 import { afterInfo, afterProblem, type RunWatch } from './after.ts'
+import {
+  CARD_DATA_ENV,
+  CARD_SECRETS_ENV,
+  CARD_WORKSPACE_ENV,
+  cardDataDir,
+  cardDir,
+  cardSecretsDir,
+} from './cardDirs.ts'
 import { type CardTestOptions, type CardTestResult, testCard } from './cardTest.ts'
 import type { TriggerDefinition, TriggerGraphs } from './graphs.ts'
 import { type HookBind, hookUrl, newHookId, newHookToken } from './hooks.ts'
 import type { IntakeBatch } from './intake.ts'
-import { placeKit } from './kit.ts'
 import { type FireInput, Launcher, SKIP_UNFINISHED } from './launcher.ts'
 import { advertisedHost } from './netAddress.ts'
-import { OwnerLock } from './owner.ts'
+import type { OwnerLock } from './owner.ts'
 import { FRESH_PROBE } from './poller.ts'
 import type { CommandSpec } from './processes.ts'
-import { type DueFire, planRound, upcoming } from './reconcile.ts'
+import {
+  type ActiveCard,
+  type DueFire,
+  isActive,
+  planRound,
+  startRun,
+  upcoming,
+} from './reconcile.ts'
 import { endProblem, RunEnds } from './runEnd.ts'
+import type { LiveFile, TriggerRun, TriggerRuns } from './runRecords.ts'
 import {
   type LiveRef,
   type LiveRuntime,
@@ -95,21 +108,11 @@ import {
   type RuntimeEvents,
   TriggerRuntime,
 } from './runtime.ts'
-import { changedScripts, SCRIPTS_DIR } from './scriptAge.ts'
+import { changedScripts } from './scriptAge.ts'
 import type { SessionPort } from './sessions.ts'
+import { changeSettings, directoryProblem, type SettingsChange } from './settings.ts'
 import { checkShell, detectShells, familyOf, shellLabel, shellName, systemShell } from './shells.ts'
-import {
-  approvalOf,
-  CARD_DATA_ENV,
-  CARD_SECRETS_ENV,
-  cardDataDir,
-  cardSecretsDir,
-  type LiveFile,
-  ownerFile,
-  type TriggerLocal,
-  type TriggerLocals,
-  type TriggerStore,
-} from './store.ts'
+import type { TriggerStore } from './store.ts'
 import { pingHook, tryCheck, tryListen } from './trial.ts'
 
 /** 多久报到、对一次账。 */
@@ -147,8 +150,8 @@ export interface TriggerServiceDeps {
   /** 实例那边：接续触发看别的工作流有没有实例结束，跳过、排队看上一次跑完没有。 */
   runs: RunWatch
   now?: () => number
-  /** 测试里换掉（假的进程号、假的存活判断）。 */
-  lock?: OwnerLock
+  /** 谁负责触发（插件数据库里的一行）；测试里给假的进程号、假的存活判断。 */
+  lock: OwnerLock
   /** 测试里换掉（不真的跑命令、开端口；拿到事件口自己喂）。 */
   runtime?: (events: RuntimeEvents) => LiveRuntime
   warn?: (message: string) => void
@@ -181,7 +184,6 @@ export class TriggerService {
   /** 每张卡片上一次记「到上限了」的时刻。 */
   private readonly capNoted = new Map<string, number>()
   /** 建过的数据目录（每一轮都要组一遍命令，别每次都去碰磁盘）。 */
-  private readonly madeDirs = new Set<string>()
 
   constructor(deps: TriggerServiceDeps) {
     this.store = deps.store
@@ -196,23 +198,22 @@ export class TriggerService {
     this.warn = deps.warn ?? (() => {})
     this.ends = new RunEnds(deps.store, deps.runs)
     this.launcher = new Launcher(deps.sessions, deps.store, this.ends)
-    this.lock = deps.lock ?? new OwnerLock({ file: () => ownerFile(deps.dataDir()), now: this.now })
+    this.lock = deps.lock
     const events: RuntimeEvents = {
       deliver: (ref, batch) => this.enqueue(() => this.deliver(ref, batch)),
       failed: (ref, reason) => this.enqueue(() => this.sourceFailed(ref, reason)),
       healthy: (ref) => this.enqueue(() => this.clearFailures(ref)),
       probed: (ref, probe) =>
-        this.enqueue(() =>
-          this.store.update((locals) => {
-            const local = locals[ref.workflow]?.[ref.node]
-            if (local?.enabled === true) local.probe = probe
+        this.enqueue(async () =>
+          this.store.runs.updateOne(ref.workflow, ref.node, (run) => {
+            if (run.since !== undefined) run.probe = probe
           }),
         ),
     }
     this.runtime =
       deps.runtime?.(events) ??
       new TriggerRuntime({
-        store: deps.store,
+        live: deps.store.runs,
         outputs: deps.store.outputs,
         keep: this.outputLines,
         listen: deps.listen,
@@ -281,23 +282,31 @@ export class TriggerService {
       return
     }
     const now = this.now()
-    const paused = (await this.store.paused()) !== undefined
-    const plan = await planRound(await this.store.locals(), this.graphs, now)
-    const fresh = await this.store.update((locals) => {
-      plan.apply(locals)
-      return structuredClone(locals)
+    const paused = this.store.runs.paused() !== undefined
+    const plan = await planRound(this.store.runs.all(), this.graphs, now)
+    const runs = this.store.runs.update((current) => {
+      plan.apply(current)
+      return structuredClone(current)
     })
     this.nextDue = plan.next
+    const clashes = hookClashes(plan.active)
+    // 设置有误的不跑（卡片上显示原因）。
+    const ready: ActiveCard[] = []
+    for (const card of plan.active) {
+      if ((await this.cardProblem(card, clashes)) === null) ready.push(card)
+    }
+    const isReady = new Set(ready.map((card) => cardKey(card.workflow, card.trigger.node)))
     // 暂停着：定时照样往后排（上面已经写回），到点的不触发。
     for (const due of paused ? [] : plan.fires) {
-      // 写回之前别的进程把开关关了：不触发。
-      const local = fresh[due.workflow]?.[due.trigger.node]
-      if (local?.enabled !== true) continue
-      await this.fireDue({ ...due, local }, now)
+      const run = runs[due.workflow]?.[due.trigger.node]
+      // 写回之前被自动停用了、设置有误：不触发。
+      if (run === undefined || !isActive(due.trigger.data, run)) continue
+      if (!isReady.has(cardKey(due.workflow, due.trigger.node))) continue
+      await this.fireDue(due, run, now)
     }
-    await this.fireAfter(fresh, now, paused)
-    await this.releaseQueued(fresh, now, paused)
-    await this.runtime.sync(paused ? [] : await this.liveSpecs(fresh))
+    await this.fireAfter(ready, runs, now, paused)
+    await this.releaseQueued(runs, now, paused)
+    await this.runtime.sync(paused ? [] : await this.liveSpecs(ready, runs))
   }
 
   // ── 排队 ───────────────────────────────────────────────────
@@ -308,13 +317,8 @@ export class TriggerService {
    * 看不出上一次跑完没有的（工作流没开「记录运行状态」）先留着。
    * 卡片关掉了、删掉了的排着的都记成跳过；全部暂停时留着不发。
    */
-  private async releaseQueued(locals: TriggerLocals, now: number, paused: boolean): Promise<void> {
+  private async releaseQueued(runs: TriggerRuns, now: number, paused: boolean): Promise<void> {
     for (const { workflow, node } of await this.store.queuedCounts()) {
-      const local = locals[workflow]?.[node]
-      if (local?.enabled !== true) {
-        await this.store.drop(workflow, node, DROPPED_OFF)
-        continue
-      }
       const found = await this.definition(workflow, node)
       if (!found.ok) {
         if (found.error.code === 'not_found') {
@@ -322,16 +326,22 @@ export class TriggerService {
         }
         continue
       }
-      if (paused) continue
       const { trigger, blocked } = found.result
+      const run = runs[workflow]?.[node] ?? {}
+      if (!isActive(trigger.data, run)) {
+        await this.store.drop(workflow, node, DROPPED_OFF)
+        continue
+      }
+      if (paused) continue
       if (endProblem(trigger.data, trigger.runState) !== null) continue
-      if (!(await this.ends.previous(local)).ended) continue
+      if (!(await this.ends.previous(run)).ended) continue
       const [first] = await this.store.queuedFires(workflow, node)
       const detail = first === undefined ? null : await this.store.detail(first.id)
       if (detail === null) continue
+      if (!(await this.lock.holds())) return
       const record =
         blocked === undefined
-          ? await this.launcher.release(detail, trigger, local, now)
+          ? await this.launcher.release(detail, trigger, run, now)
           : await this.launcher.releaseFailed(detail, `工作流现在执行不了：${blocked}`, now)
       if (record !== null) await this.settle(record, launchOf(trigger.data).maxFailures)
     }
@@ -351,10 +361,9 @@ export class TriggerService {
    * 下一轮放行排着的下一个。
    */
   async waive(workflow: string, node: string): Promise<Outcome<Record<string, never>>> {
-    const refused = await this.store.update((locals): string | null => {
-      const local = locals[workflow]?.[node]
-      if (local?.lastFire === undefined) return '这张卡片还没有发出去过'
-      local.waived = local.lastFire
+    const refused = this.store.runs.updateOne(workflow, node, (run): string | null => {
+      if (run.lastFire === undefined) return '这张卡片还没有发出去过'
+      run.waived = run.lastFire
       return null
     })
     if (refused !== null) return fail('blocked', refused)
@@ -381,17 +390,17 @@ export class TriggerService {
     scene: Scene,
     workflow: string,
     trigger: TriggerDefinition,
-    local: TriggerLocal,
+    run: TriggerRun,
     recent: FireRecord | undefined,
   ): Promise<Pick<TriggerView, 'queued' | 'waiting'>> {
-    const queued = scene.queued.get(`${workflow}\u0000${trigger.node}`)
+    const queued = scene.queued.get(cardKey(workflow, trigger.node))
     const skipping =
       launchOf(trigger.data).overlap === 'skip' &&
       recent?.outcome === 'skipped' &&
       recent.reason === SKIP_UNFINISHED
     const counted = queued === undefined ? {} : { queued }
     if (queued === undefined && !skipping) return counted
-    const previous = await this.ends.previous(local)
+    const previous = await this.ends.previous(run)
     return previous.ended ? counted : { ...counted, waiting: previous.waiting }
   }
 
@@ -402,12 +411,13 @@ export class TriggerService {
 
   // ── 定时 ───────────────────────────────────────────────────
 
-  private async fireDue(due: DueFire, now: number): Promise<void> {
+  private async fireDue(due: DueFire, run: TriggerRun, now: number): Promise<void> {
+    if (!(await this.lock.holds())) return
     const launch = launchOf(due.trigger.data)
     const input: FireInput = {
       workflow: due.workflow,
       trigger: due.trigger,
-      local: due.local,
+      run,
       channel: 'schedule',
       at: now,
     }
@@ -438,100 +448,78 @@ export class TriggerService {
    * 接续触发：等的那个工作流有实例新近结束了就触发。结束了的实例不论触发没有都记进 `seen`；
    * 暂停着时只记、不触发（恢复后不补）。
    */
-  private async fireAfter(locals: TriggerLocals, now: number, paused: boolean): Promise<void> {
-    const runs = this.runs
-    for (const [workflow, nodes] of Object.entries(locals)) {
-      const cards = Object.entries(nodes).filter(([, local]) => local.enabled)
-      if (cards.length === 0) continue
-      const graph = await this.graphs.read(workflow)
-      if (graph.kind !== 'ok') continue
-      for (const [node, local] of cards) {
-        const trigger = graph.triggers.find((candidate) => candidate.node === node)
-        const source = trigger?.data.source
-        if (trigger === undefined || source?.kind !== 'after') continue
-        if (sourceProblem(source) !== null) continue
-        if (afterProblem(workflow, source, await this.graphs.read(source.workflow)) !== null)
-          continue
-        const seen = local.seen ?? []
-        const found = await runs.finished(source.workflow, local.since ?? now, new Set(seen))
-        const present = new Set(found.ids)
-        const kept = seen.filter((id) => present.has(id))
-        if (found.runs.length === 0 && kept.length === seen.length) continue
-        const next = [...kept, ...found.runs.map((run) => run.id)]
-        const still = await this.store.update((current) => {
-          const entry = current[workflow]?.[node]
-          if (entry?.enabled !== true) return false
-          if (next.length > 0) entry.seen = next
-          else delete entry.seen
-          return true
-        })
-        if (!still || paused) continue
-        for (const run of found.runs) {
-          if (!afterMatches(source, run.status)) continue
-          // 一次一次地发：每次都按现读的本机状态（上一次的会话、开关）。
-          const current = (await this.store.locals())[workflow]?.[node]
-          if (current?.enabled !== true) break
-          await this.launchCounted(
-            {
-              workflow,
-              trigger,
-              local: current,
-              channel: 'after',
-              at: now,
-              info: afterInfo(source.workflow, run),
-            },
-            graph.blocked,
-          )
-        }
+  private async fireAfter(
+    cards: readonly ActiveCard[],
+    runs: TriggerRuns,
+    now: number,
+    paused: boolean,
+  ): Promise<void> {
+    for (const { workflow, trigger, blocked } of cards) {
+      const { source } = trigger.data
+      if (source.kind !== 'after') continue
+      const { node } = trigger
+      const run = runs[workflow]?.[node] ?? {}
+      const seen = run.seen ?? []
+      const found = await this.runs.finished(source.workflow, run.since ?? now, new Set(seen))
+      const present = new Set(found.ids)
+      const kept = seen.filter((id) => present.has(id))
+      if (found.runs.length === 0 && kept.length === seen.length) continue
+      const next = [...kept, ...found.runs.map((one) => one.id)]
+      const still = this.store.runs.updateOne(workflow, node, (current) => {
+        if (current.since === undefined || current.stopped !== undefined) return false
+        if (next.length > 0) current.seen = next
+        else delete current.seen
+        return true
+      })
+      if (!still || paused) continue
+      for (const finished of found.runs) {
+        if (!afterMatches(source, finished.status)) continue
+        // 一次一次地发：每次都按现读的运行记录（上一次的会话、停没停用）。
+        const current = this.store.runs.get(workflow, node)
+        if (current.since === undefined || current.stopped !== undefined) break
+        await this.launchCounted(
+          {
+            workflow,
+            trigger,
+            run: current,
+            channel: 'after',
+            at: now,
+            info: afterInfo(source.workflow, finished),
+          },
+          blocked,
+        )
       }
     }
   }
 
   // ── 常驻触发源 ─────────────────────────────────────────────
 
-  /** 本机状态里开着、确认过、设置得对的常驻触发源（带检查命令的定时、监听程序、HTTP）。 */
-  private async liveSpecs(locals: TriggerLocals): Promise<LiveSpec[]> {
+  /** 在跑、设置没问题的常驻触发源（带检查命令的定时、监听程序、HTTP）。 */
+  private async liveSpecs(cards: readonly ActiveCard[], runs: TriggerRuns): Promise<LiveSpec[]> {
     const specs: LiveSpec[] = []
-    for (const [workflow, nodes] of Object.entries(locals)) {
-      const enabled = Object.entries(nodes).filter(([, local]) => local.enabled)
-      if (enabled.length === 0) continue
-      const graph = await this.graphs.read(workflow)
-      if (graph.kind !== 'ok') continue
-      for (const [node, local] of enabled) {
-        const trigger = graph.triggers.find((candidate) => candidate.node === node)
-        if (trigger === undefined) continue
-        const { source } = trigger.data
-        if (!isLiveSource(source) || sourceProblem(source) !== null) continue
-        const shell = this.shellFor(local)
-        if (pendingApproval(trigger, local, shell) !== null) continue
-        const base = { workflow, node, filter: filterOf(trigger.data), cwd: local.workspace ?? '' }
-        if (source.kind === 'http') {
-          if (local.hook === undefined || local.token === undefined) continue
-          const token = local.noToken === true ? null : local.token
-          specs.push({ ...base, source, hook: { id: local.hook, token } })
-          continue
-        }
-        const command = commandOf(source)
-        if (command === undefined) continue
-        const { cwd: _cwd, ...run } = await this.commandSpec(
-          workflow,
-          node,
-          command,
-          base.cwd,
-          shell,
-        )
-        specs.push({
-          ...base,
-          source,
-          ...run,
-          ...(source.kind === 'schedule'
-            ? {
-                catchUp: launchOf(trigger.data).catchUp,
-                ...(local.probe === undefined ? {} : { probe: local.probe }),
-              }
-            : {}),
-        })
+    for (const { workflow, trigger } of cards) {
+      const { node, data } = trigger
+      const { source } = data
+      if (!isLiveSource(source)) continue
+      const base = { workflow, node, filter: filterOf(data) }
+      if (source.kind === 'http') {
+        if (source.hook === undefined) continue
+        const token = source.noToken === true ? null : source.token
+        if (token === undefined) continue
+        specs.push({ ...base, cwd: '', source, hook: { id: source.hook, token } })
+        continue
       }
+      const command = commandOf(source)
+      if (command === undefined) continue
+      const probe = runs[workflow]?.[node]?.probe
+      specs.push({
+        ...base,
+        source,
+        ...(await this.commandSpec(workflow, node, command, data, this.shellFor(data))),
+        ...(source.kind === 'schedule'
+          ? { catchUp: launchOf(data).catchUp, ...(probe === undefined ? {} : { probe }) }
+          : {}),
+      })
     }
     return specs
   }
@@ -548,15 +536,15 @@ export class TriggerService {
     )
   }
 
-  /** 一张常驻的卡片现在的定义与本机设置；关掉了、删掉了是 `null`。 */
+  /** 一张常驻的卡片现在的定义与运行记录；关掉了、停用了、删掉了是 `null`。 */
   private async liveInput(ref: LiveRef): Promise<{ input: FireInput; blocked?: string } | null> {
     const found = await this.definition(ref.workflow, ref.node)
     if (!found.ok) return null
-    const local = (await this.store.locals())[ref.workflow]?.[ref.node]
-    if (local?.enabled !== true) return null
     const { trigger, blocked } = found.result
+    const run = this.store.runs.get(ref.workflow, ref.node)
+    if (!isActive(trigger.data, run)) return null
     return {
-      input: { workflow: ref.workflow, trigger, local, channel: ref.kind, at: this.now() },
+      input: { workflow: ref.workflow, trigger, run, channel: ref.kind, at: this.now() },
       ...(blocked === undefined ? {} : { blocked }),
     }
   }
@@ -578,6 +566,8 @@ export class TriggerService {
    * 否则发进会话；然后记账。
    */
   private async launchCounted(input: FireInput, blocked: string | undefined): Promise<void> {
+    // 常驻触发源的事件可能在负责权刚被接手、还没停下时到：不归自己负责就不发。
+    if (!(await this.lock.holds())) return
     const launch = launchOf(input.trigger.data)
     let record: FireRecord
     if (blocked !== undefined) {
@@ -588,7 +578,7 @@ export class TriggerService {
         launch.maxPerHour,
       )
     ) {
-      const key = `${input.workflow}\u0000${input.trigger.node}`
+      const key = cardKey(input.workflow, input.trigger.node)
       const noted = this.capNoted.get(key)
       if (noted !== undefined && input.at - noted < CAP_NOTE_MS) return
       this.capNoted.set(key, input.at)
@@ -604,6 +594,7 @@ export class TriggerService {
 
   /** 触发源自己出了问题（程序一启动就退出、命令跑不起来）：记一条、计一次失败。 */
   private async sourceFailed(ref: LiveRef, reason: string): Promise<void> {
+    if (!(await this.lock.holds())) return
     const found = await this.liveInput(ref)
     if (found === null) return
     const record = await this.launcher.fail(found.input, reason)
@@ -612,10 +603,9 @@ export class TriggerService {
     if (this.running) this.schedule(0)
   }
 
-  private clearFailures(ref: LiveRef): Promise<void> {
-    return this.store.update((locals) => {
-      const local = locals[ref.workflow]?.[ref.node]
-      if (local?.failures !== undefined) delete local.failures
+  private async clearFailures(ref: LiveRef): Promise<void> {
+    this.store.runs.updateOne(ref.workflow, ref.node, (run) => {
+      delete run.failures
     })
   }
 
@@ -625,24 +615,24 @@ export class TriggerService {
     return this.store.sentSince(workflow, node, now - HOUR_MS)
   }
 
-  /** 一次触发之后：发出去了清掉失败计数、记下会话；连续失败到了次数就自动停用（不限制的不停用）。 */
-  private settle(record: FireRecord, maxFailures: number): Promise<void> {
-    return this.store.update((locals) => {
-      const local = locals[record.workflow]?.[record.node]
-      if (local === undefined) return
+  /**
+   * 一次触发之后：发出去了清掉失败计数、记下会话；连续失败到了次数就自动停用（不限制的不停用）。
+   * 停用只记在运行记录里，图里的开关不动。
+   */
+  private async settle(record: FireRecord, maxFailures: number): Promise<void> {
+    this.store.runs.updateOne(record.workflow, record.node, (run) => {
       if (record.outcome === 'sent') {
-        delete local.failures
-        sentOn(local, record)
+        delete run.failures
+        sentOn(run, record)
         return
       }
       if (record.outcome !== 'failed') return
-      const failures = (local.failures ?? 0) + 1
-      local.failures = failures
+      const failures = (run.failures ?? 0) + 1
+      run.failures = failures
       if (!reachedLimit(failures, maxFailures)) return
-      local.enabled = false
-      local.stopped = `连续 ${String(failures)} 次失败：${record.reason ?? '原因不明'}`
-      delete local.due
-      delete local.failures
+      run.stopped = `连续 ${String(failures)} 次失败：${record.reason ?? '原因不明'}`
+      delete run.due
+      delete run.failures
     })
   }
 
@@ -688,16 +678,16 @@ export class TriggerService {
   /** 负责的进程写下的运行情况；写它的不是现在负责的进程就不作数。 */
   private async ownerLive(owner: TriggerOwner | undefined): Promise<LiveFile | null> {
     if (owner === undefined) return null
-    const liveFile = await this.store.live()
+    const liveFile = this.store.runs.live()
     return liveFile?.pid === owner.pid ? liveFile : null
   }
 
   /** 全部暂停（`true`）或恢复（`false`）。各卡片的开关不动；恢复后暂停期间的变化不补。 */
   async pause(paused: boolean): Promise<TriggerPauseResponse> {
-    if (!paused && (await this.store.paused()) !== undefined) await this.freshChecks()
-    await this.store.setPaused(paused ? this.now() : null)
+    if (!paused && this.store.runs.paused() !== undefined) await this.freshChecks()
+    this.store.runs.setPaused(paused ? this.now() : null)
     if (this.running) this.schedule(0)
-    const since = await this.store.paused()
+    const since = this.store.runs.paused()
     return since === undefined ? {} : { paused: since }
   }
 
@@ -707,28 +697,32 @@ export class TriggerService {
    */
   private async freshChecks(): Promise<void> {
     const checks: { workflow: string; node: string }[] = []
-    for (const [workflow, nodes] of Object.entries(await this.store.locals())) {
-      if (!Object.values(nodes).some((local) => local.enabled)) continue
-      const graph = await this.graphs.read(workflow)
-      if (graph.kind !== 'ok') continue
-      for (const trigger of graph.triggers) {
-        const { source } = trigger.data
-        if (
-          source.kind === 'schedule' &&
-          source.check !== undefined &&
-          nodes[trigger.node]?.enabled === true
-        ) {
-          checks.push({ workflow, node: trigger.node })
-        }
+    for (const { workflow, trigger } of await this.enabledCards()) {
+      const { source } = trigger.data
+      if (source.kind === 'schedule' && source.check !== undefined) {
+        checks.push({ workflow, node: trigger.node })
       }
     }
     if (checks.length === 0) return
-    await this.store.update((locals) => {
+    this.store.runs.update((runs) => {
       for (const { workflow, node } of checks) {
-        const local = locals[workflow]?.[node]
-        if (local !== undefined) local.probe = { ...FRESH_PROBE }
+        const run = runs[workflow]?.[node]
+        if (run?.since !== undefined) run.probe = { ...FRESH_PROBE }
       }
     })
+  }
+
+  /** 所有工作流里图上开着的卡片（不管停没停用、设置对不对）。 */
+  private async enabledCards(): Promise<ActiveCard[]> {
+    const cards: ActiveCard[] = []
+    for (const workflow of await this.graphs.names()) {
+      const graph = await this.graphs.read(workflow)
+      if (graph.kind !== 'ok') continue
+      for (const trigger of graph.triggers) {
+        if (trigger.data.enabled === true) cards.push({ workflow, trigger })
+      }
+    }
+    return cards
   }
 
   /** 列卡片要用的、与具体工作流无关的那些（一次读好，「触发」页列很多工作流时不重复读）。 */
@@ -736,13 +730,14 @@ export class TriggerService {
     const owner = await this.lock.current()
     return {
       owner,
-      locals: await this.store.locals(),
+      runs: this.store.runs.all(),
+      clashes: hookClashes(await this.enabledCards()),
       live: await this.ownerLive(owner),
       unavailable: this.sessions.unavailable(),
-      paused: await this.store.paused(),
+      paused: this.store.runs.paused(),
       queued: new Map(
         (await this.store.queuedCounts()).map((row) => [
-          `${row.workflow}\u0000${row.node}`,
+          cardKey(row.workflow, row.node),
           row.count,
         ]),
       ),
@@ -757,67 +752,39 @@ export class TriggerService {
   ): Promise<{ trigger: TriggerDefinition; view: TriggerView }[]> {
     const graph = await this.graphs.read(workflow)
     if (graph.kind !== 'ok') return []
-    const locals = scene.locals[workflow] ?? {}
-    const { owner, live, unavailable, paused, listen, now } = scene
-    const host = advertisedHost(listen.host)
+    const runs = scene.runs[workflow] ?? {}
+    const { owner, live, unavailable, paused, now } = scene
     const cards: { trigger: TriggerDefinition; view: TriggerView }[] = []
     for (const trigger of graph.triggers) {
-      const local = locals[trigger.node] ?? { enabled: false }
+      const { data } = trigger
+      const run = runs[trigger.node] ?? {}
       const recent = await this.store.last(workflow, trigger.node)
       const lastFailure = await this.store.lastFailure(workflow, trigger.node)
-      const { source } = trigger.data
-      const command = commandOf(source)
+      const { source } = data
       const base = {
         node: trigger.node,
-        enabled: local.enabled,
-        ...(local.workspace === undefined ? {} : { workspace: local.workspace }),
-        ...(local.shell === undefined ? {} : { shell: local.shell }),
-        ...(local.session === undefined ? {} : { session: local.session }),
+        enabled: data.enabled === true,
         ...(recent === undefined ? {} : { last: recent }),
         ...(lastFailure === undefined ? {} : { lastFailure }),
-        ...(await this.queuedOf(scene, workflow, trigger, local, recent)),
+        ...(await this.queuedOf(scene, workflow, trigger, run, recent)),
         ...(trigger.runState ? { runState: true as const } : {}),
         ...(hasSessionChoice(trigger.workflowChoice)
           ? { workflowChoice: trigger.workflowChoice }
           : {}),
         ...(await this.upstreamOf(source)),
-        ...(command === undefined
-          ? {}
-          : {
-              approved:
-                local.approved === approvalOf(command, local.workspace, this.shellFor(local)),
-              runShell: shellLabel(this.shellFor(local)),
-            }),
-        // 地址、令牌有了就给（打开前先生成的也给）；只在打开了的 HTTP 卡片上收请求（见 specs）。
-        ...(local.hook !== undefined && local.token !== undefined
-          ? {
-              endpoint: {
-                url: hookUrl(host, listen.port, local.hook),
-                hook: local.hook,
-                token: local.token,
-                ...(local.noToken === true ? { noToken: true as const } : {}),
-              },
-            }
+        ...(commandOf(source) === undefined ? {} : { runShell: shellLabel(this.shellFor(data)) }),
+        ...(source.kind === 'http' && source.hook !== undefined
+          ? { url: hookUrl(advertisedHost(scene.listen.host), scene.listen.port, source.hook) }
           : {}),
       }
       const view = await (async (): Promise<TriggerView> => {
-        if (!local.enabled) {
-          return local.stopped === undefined
-            ? { ...base, state: 'off' }
-            : { ...base, state: 'stopped', problem: local.stopped }
-        }
-        const problem =
-          sourceProblem(source) ??
-          (source.kind === 'after'
-            ? afterProblem(workflow, source, await this.graphs.read(source.workflow))
-            : null) ??
-          endProblem(trigger.data, trigger.runState)
+        if (data.enabled !== true) return { ...base, state: 'off' }
+        if (run.stopped !== undefined) return { ...base, state: 'stopped', problem: run.stopped }
+        const problem = await this.cardProblem({ workflow, trigger }, scene.clashes)
         if (problem !== null) return { ...base, state: 'invalid', problem }
-        const pending = pendingApproval(trigger, local, this.shellFor(local))
-        if (pending !== null) return { ...base, state: 'confirm', problem: pending }
         if (paused !== undefined) return { ...base, state: 'paused' }
         if (source.kind === 'schedule' && source.check === undefined) {
-          const next = upcoming(local, source.schedule, now)
+          const next = upcoming(run, source.schedule, now)
           const when = next === undefined ? {} : { next }
           if (owner !== undefined && !owner.mine) return { ...base, ...when, state: 'elsewhere' }
           if (unavailable !== null) return { ...base, state: 'unavailable', problem: unavailable }
@@ -836,6 +803,34 @@ export class TriggerService {
     return cards
   }
 
+  /**
+   * 开着的卡片哪里设置有误、跑不了（卡片上「设置有误」写的就是它）；没问题是 `null`。
+   * 只看图里写的（不碰磁盘）：工作区目录不在了这类，到触发时发不出去、记一次失败。
+   */
+  private async cardProblem(
+    card: Pick<ActiveCard, 'workflow' | 'trigger'>,
+    clashes: ReadonlySet<string>,
+  ): Promise<string | null> {
+    const { workflow, trigger } = card
+    const { source } = trigger.data
+    const problem = sourceProblem(source)
+    if (problem !== null) return problem
+    if (source.kind === 'after') {
+      const after = afterProblem(workflow, source, await this.graphs.read(source.workflow))
+      if (after !== null) return after
+    }
+    const unjudged = endProblem(trigger.data, trigger.runState)
+    if (unjudged !== null) return unjudged
+    const missing = launchMissing(trigger.data)
+    if (missing === 'session') return '还没选定发进哪个会话'
+    if (missing === 'workspace') return '还没选在哪个工作区里新建会话'
+    if (endpointMissing(source)) return '还没有地址或令牌：在「触发方式」里打开一次 HTTP 的设置'
+    if (source.kind === 'http' && clashes.has(cardKey(workflow, trigger.node))) {
+      return `地址「${source.hook ?? ''}」和别的 HTTP 触发器重了，改掉其中一个`
+    }
+    return null
+  }
+
   private async definition(
     workflow: string,
     node: string,
@@ -851,83 +846,91 @@ export class TriggerService {
   }
 
   /**
-   * 改一张卡片的本机设置：开关、工作区、shell、固定会话、确认命令、换令牌；给了哪项改哪项。
-   * 回这个工作流各卡片的新样子。
+   * 改一张卡片的设置（模型经 `write_trigger` 的 `local`）：核对过写回图里；给了哪项改哪项。
+   * HTTP 卡片还没有地址、令牌时顺手生成，所以写了 HTTP 卡片后不带改动也调一次。
+   * 打开（原来关着、或被自动停用了）时从现在起算。回这个工作流各卡片的新样子。
    */
-  async set(request: TriggerSetRequest): Promise<Outcome<TriggerListResponse>> {
-    const found = await this.definition(request.workflow, request.node)
+  async set(
+    workflow: string,
+    node: string,
+    change: SettingsChange,
+  ): Promise<Outcome<TriggerListResponse>> {
+    const found = await this.definition(workflow, node)
     if (!found.ok) return found
     const { trigger } = found.result
     const { source } = trigger.data
-    if (request.workspace !== undefined && request.workspace !== '') {
-      const directory = await workspaceProblem(request.workspace)
-      if (directory !== null) return fail('invalid_args', directory)
-    }
-    if (request.shell !== undefined && request.shell !== '') {
-      const checked = await checkShell(request.shell)
-      if (typeof checked === 'string') return fail('invalid_args', checked)
-    }
-    const now = this.now()
-    // 接续触发等的那个工作流要在、要记运行状态、不能是自己（要看别的图，在写锁外面查好）。
-    const after =
-      source.kind === 'after' && request.enabled === true
-        ? afterProblem(request.workflow, source, await this.graphs.read(source.workflow))
-        : null
-    const unjudged = request.enabled === true ? endProblem(trigger.data, trigger.runState) : null
-    const refused = await this.store.update((locals): string | null => {
-      const group = locals[request.workflow] ?? {}
-      const local: TriggerLocal = group[request.node] ?? { enabled: false }
-      if (request.workspace !== undefined) {
-        if (request.workspace === '') delete local.workspace
-        else local.workspace = request.workspace
-      }
-      if (request.shell !== undefined) {
-        if (request.shell === '') delete local.shell
-        else local.shell = request.shell
-      }
-      if (request.session !== undefined) {
-        if (request.session === '') delete local.session
-        else local.session = request.session
-      }
-      // 确认命令记在工作区、shell 改完之后：确认的是「这条命令在这个工作区里、用这个 shell 跑」。
-      if (request.approve !== undefined) {
-        const command = commandOf(source)
-        if (command === undefined) return '这张触发卡片不用运行命令'
-        // 用户看到的和图里现在的不一样（刚被改过）：不算确认。
-        if (request.approve !== command) return '要运行的命令刚改过，请重新查看后再确认'
-        if (local.workspace === undefined) return '先选命令在哪个工作区里运行'
-        local.approved = approvalOf(command, local.workspace, this.shellFor(local))
-      }
-      const endpoint = setEndpoint(request, source, local, locals)
-      if (endpoint !== null) return endpoint
-      if (request.enabled === true && !local.enabled) {
-        const missing = after ?? unjudged ?? enableProblem(trigger, local, this.shellFor(local))
-        if (missing !== null) return missing
-        local.enabled = true
-        local.since = now
-        delete local.due
-        delete local.rule
-        delete local.failures
-        delete local.stopped
-        delete local.seen
-      }
-      if (request.enabled === false) {
-        local.enabled = false
-        delete local.due
-        delete local.stopped
-        delete local.failures
-      }
-      group[request.node] = local
-      locals[request.workflow] = group
-      return null
+    const blocked =
+      (source.kind === 'after'
+        ? afterProblem(workflow, source, await this.graphs.read(source.workflow))
+        : null) ?? endProblem(trigger.data, trigger.runState)
+    const settings = await changeSettings(change, {
+      workflow,
+      data: trigger.data,
+      taken: await this.hooksTaken(workflow, node),
+      blocked,
+      shellProblem: async (path) => {
+        const checked = await checkShell(path)
+        return typeof checked === 'string' ? checked : null
+      },
     })
-    if (refused !== null) return fail('blocked', refused)
-    // 关掉了：排着的当场记成跳过（不等下一轮，界面上马上看得到）。
-    if (request.enabled === false)
-      await this.store.drop(request.workflow, request.node, DROPPED_OFF)
-    // 负责触发的是本进程时马上对一遍账（新打开的卡片立刻有「下一次」、程序马上起来）。
+    if (!settings.ok) return settings
+    if (JSON.stringify(settings.result) !== JSON.stringify(settingsOf(trigger.data))) {
+      const written = await this.graphs.writeSettings(workflow, node, settings.result)
+      if (!written.ok) return written
+    }
+    if (change.enabled === true) this.startNow(workflow, node, trigger.data.enabled !== true)
     if (this.running) this.schedule(0)
-    return ok(await this.list(request.workflow))
+    return ok(await this.list(workflow))
+  }
+
+  /** 图存下了（画布、工具、导入、切版本）：马上对一遍账，开关和设置当场生效、不用等下一轮。 */
+  graphsChanged(): void {
+    if (this.running) this.schedule(0)
+  }
+
+  /** 「重新启用」自动停用了的卡片：清掉停用，从现在重新开始跑（图里的开关本来就开着）。 */
+  async reopen(workflow: string, node: string): Promise<Outcome<TriggerListResponse>> {
+    const found = await this.definition(workflow, node)
+    if (!found.ok) return found
+    this.startNow(workflow, node, false)
+    if (this.running) this.schedule(0)
+    return ok(await this.list(workflow))
+  }
+
+  /**
+   * 从现在起重新跑：刚打开的（`wasOff`）、被自动停用了的清掉这一回的记录、从此刻排；本来就开着在跑的不动。
+   * 不在这里起算的（画布上直接改了图里的开关），负责的进程下一轮对账时起算。
+   */
+  private startNow(workflow: string, node: string, wasOff: boolean): void {
+    const now = this.now()
+    this.store.runs.updateOne(workflow, node, (run) => {
+      if (wasOff || run.stopped !== undefined) startRun(run, now)
+    })
+  }
+
+  /** HTTP 触发：一个没被别的卡片用的地址（缺省用工作流名）和一个随机令牌，连同已经被用了的地址。 */
+  async endpoint(workflow: string, node: string): Promise<TriggerEndpointResponse> {
+    const taken = await this.hooksTaken(workflow, node)
+    return {
+      hook: hookFromName(workflow, taken) ?? newHookId(),
+      token: newHookToken(),
+      taken: [...taken].sort(),
+    }
+  }
+
+  /** 别的卡片（所有工作流里）已经用了的 HTTP 地址。 */
+  private async hooksTaken(workflow: string, node: string): Promise<Set<string>> {
+    const taken = new Set<string>()
+    for (const name of await this.graphs.names()) {
+      const graph = await this.graphs.read(name)
+      if (graph.kind !== 'ok') continue
+      for (const trigger of graph.triggers) {
+        if (name === workflow && trigger.node === node) continue
+        const { source } = trigger.data
+        if (source.kind === 'http' && source.hook !== undefined) taken.add(source.hook)
+      }
+    }
+    return taken
   }
 
   /** 「立即触发一次」：不看开关、不占每小时的次数，在收到请求的这个进程里发。 */
@@ -935,13 +938,10 @@ export class TriggerService {
     const found = await this.definition(request.workflow, request.node)
     if (!found.ok) return found
     const { trigger, blocked } = found.result
-    const local = (await this.store.locals())[request.workflow]?.[request.node] ?? {
-      enabled: false,
-    }
     const input: FireInput = {
       workflow: request.workflow,
       trigger,
-      local,
+      run: this.store.runs.get(request.workflow, request.node),
       channel: 'now',
       at: this.now(),
       ...(request.info === undefined ? {} : { info: request.info }),
@@ -951,10 +951,7 @@ export class TriggerService {
         ? await this.launcher.fire(input)
         : await this.launcher.fail(input, `工作流现在执行不了：${blocked}`)
     if (record.outcome === 'sent') {
-      await this.store.update((locals) => {
-        const current = locals[request.workflow]?.[request.node]
-        if (current !== undefined) sentOn(current, record)
-      })
+      this.store.runs.updateOne(request.workflow, request.node, (run) => sentOn(run, record))
     }
     return ok(record)
   }
@@ -978,8 +975,8 @@ export class TriggerService {
   }
 
   /** 这张卡片实际用哪个 shell：自己选的，没选是设置里的默认；空串是系统的。 */
-  private shellFor(local: TriggerLocal): string {
-    return local.shell ?? this.defaultShell()
+  private shellFor(data: Pick<TriggerData, 'shell'>): string {
+    return data.shell ?? this.defaultShell()
   }
 
   /** 本机的 shell、系统缺省的那个、「跟着默认」现在指的那个（设置页、对话框里的下拉用）。 */
@@ -1003,62 +1000,82 @@ export class TriggerService {
   }
 
   /**
-   * 「试运行」：把对话框里还没保存的命令在 `workspace` 里、用 `shell`（空着跟默认）跑一次（跑法同打开开关之后）。
-   * 不看开关、不记触发记录；界面上用户确认过才会发来。
+   * 「试运行」：把对话框里还没保存的命令照打开之后的跑法跑一次（在 `cwd` 里，没给是卡片目录；
+   * 用 `shell`，空着跟默认）。不看开关、不记触发记录。
    */
   async tryCommand(request: TriggerTryRequest): Promise<Outcome<TriggerTryResponse>> {
     if (request.command.trim() === '') return fail('invalid_args', '命令是空的')
-    const directory = await workspaceProblem(request.workspace)
-    if (directory !== null) return fail('invalid_args', directory)
     const shell =
       request.shell === undefined || request.shell === '' ? this.defaultShell() : request.shell
     if (shell !== '') {
       const checked = await checkShell(shell)
       if (typeof checked === 'string') return fail('invalid_args', checked)
     }
+    const place = {
+      ...(request.cwd === undefined || request.cwd === '' ? {} : { cwd: request.cwd }),
+      ...(request.workspace === undefined || request.workspace === ''
+        ? {}
+        : { workspace: request.workspace }),
+    }
+    const unbound = workspaceUnbound(request.command, place)
+    if (unbound !== null) return fail('invalid_args', unbound)
     const spec = await this.commandSpec(
       request.workflow,
       request.node,
       request.command,
-      request.workspace,
+      place,
       shell,
       true,
     )
+    const where = await directoryProblem(spec.cwd, '脚本的工作目录')
+    if (where !== null) return fail('invalid_args', where)
     return ok(request.kind === 'listen' ? await tryListen(spec) : await tryCheck(spec))
   }
 
   /**
-   * 跑一张卡片的命令的样子：`{workflow}` 换成工作流目录，环境变量给工作流目录、这张卡片的数据目录
-   * （`trial` = 试运行那份）和密钥目录；这两个目录先建好，监视的底子放进 `triggers/`。
+   * 跑一张卡片的命令的样子：在卡片设的工作目录里跑（没设是卡片目录 `triggers/<卡片>/`）；
+   * 命令和工作目录里的 `{workflow}` 换成工作流目录、`{workspace}` 换成会话工作区（没选时由调用方先拦下）；
+   * 环境变量给工作流目录、会话工作区（选了的话）、这张卡片的数据目录（`trial` = 试运行那份）和密钥目录。
+   * 卡片目录、数据目录、密钥目录先建好。
    */
   private async commandSpec(
     workflow: string,
     node: string,
     command: string,
-    cwd: string,
+    place: Pick<TriggerData, 'cwd' | 'workspace'>,
     shell: string,
     trial = false,
   ): Promise<CommandSpec> {
     const dir = assetsDir(this.dataDir(), workflow)
-    const data = cardDataDir(this.dataDir(), workflow, node, trial)
-    const secrets = cardSecretsDir(this.dataDir(), workflow, node)
-    for (const made of [data, secrets]) {
-      if (this.madeDirs.has(made)) continue
-      await ensureDir(made)
-      this.madeDirs.add(made)
-    }
-    await placeKit(dir)
+    const { workspace } = place
+    const bind = (text: string): string =>
+      workspace === undefined ? text : bindWorkspaceVar(text, workspace)
+    const home = cardDir(dir, node)
+    const cwd =
+      place.cwd === undefined
+        ? home
+        : workspace !== undefined && isWorkspacePath(place.cwd)
+          ? bindWorkspacePath(place.cwd, workspace)
+          : bindWorkflowPath(place.cwd, dir)
+    const data = cardDataDir(dir, node, trial)
+    const secrets = cardSecretsDir(dir, node)
+    for (const made of [home, data, secrets]) await ensureDir(made)
     return {
-      command: bindWorkflowVar(command, dir),
+      command: bind(bindWorkflowVar(command, dir)),
       cwd,
-      env: { WORKFLOW_DIR: dir, [CARD_DATA_ENV]: data, [CARD_SECRETS_ENV]: secrets },
+      env: {
+        WORKFLOW_DIR: dir,
+        ...(workspace === undefined ? {} : { [CARD_WORKSPACE_ENV]: workspace }),
+        [CARD_DATA_ENV]: data,
+        [CARD_SECRETS_ENV]: secrets,
+      },
       ...(shell === '' ? {} : { shell }),
     }
   }
 
   /**
    * 模型试一张卡片（`test_trigger`，见 `cardTest.ts`）：按图里存着的定义、跑法同打开之后，
-   * 数据目录用试运行那份；不动开关、不记触发记录。`workspace` 给了就在它里面跑，没给用卡片上选的。
+   * 数据目录用试运行那份；不动开关、不记触发记录。`workspace` 给了就当会话工作区交给脚本，没给用卡片上选的。
    */
   async test(request: {
     workflow: string
@@ -1069,32 +1086,35 @@ export class TriggerService {
     const found = await this.definition(request.workflow, request.node)
     if (!found.ok) return found
     const { trigger } = found.result
-    const { source } = trigger.data
+    const { data } = trigger
+    const { source } = data
     const problem = sourceProblem(source)
     if (problem !== null) return fail('invalid_args', `触发设置不对：${problem}`)
-    const local = (await this.store.locals())[request.workflow]?.[request.node] ?? {
-      enabled: false,
-    }
+    const run = this.store.runs.get(request.workflow, request.node)
     const command = commandOf(source)
     let spec: CommandSpec | undefined
     if (command !== undefined) {
-      const workspace = request.workspace ?? local.workspace
-      if (workspace === undefined) {
-        return fail(
-          'invalid_args',
-          '这张卡片还没选工作区：给 workspace（命令在哪个目录里跑，绝对路径）',
-        )
+      const workspace = request.workspace ?? data.workspace
+      if (workspace !== undefined) {
+        const directory = await directoryProblem(workspace, '工作区')
+        if (directory !== null) return fail('invalid_args', directory)
       }
-      const directory = await workspaceProblem(workspace)
-      if (directory !== null) return fail('invalid_args', directory)
+      const place = {
+        ...(data.cwd === undefined ? {} : { cwd: data.cwd }),
+        ...(workspace === undefined ? {} : { workspace }),
+      }
+      const unbound = workspaceUnbound(command, place)
+      if (unbound !== null) return fail('invalid_args', `${unbound}（或用参数 workspace 指定）`)
       spec = await this.commandSpec(
         request.workflow,
         request.node,
         command,
-        workspace,
-        this.shellFor(local),
+        place,
+        this.shellFor(data),
         true,
       )
+      const where = await directoryProblem(spec.cwd, '脚本的工作目录')
+      if (where !== null) return fail('invalid_args', where)
     }
     const after =
       source.kind === 'after'
@@ -1117,40 +1137,37 @@ export class TriggerService {
       trigger,
       now: this.now(),
       ...(spec === undefined ? {} : { spec }),
-      ...(local.probe === undefined ? {} : { probe: local.probe }),
+      ...(run.probe === undefined ? {} : { probe: run.probe }),
       ...(after === undefined ? {} : { after }),
       infoFile: this.store.infoPath('f-<触发编号>'),
       options: request.options ?? {},
     })
     if (command !== undefined) {
-      await this.store.update((locals) => {
-        const group = locals[request.workflow] ?? {}
-        const current = group[request.node] ?? { enabled: false }
+      this.store.runs.updateOne(request.workflow, request.node, (current) => {
         current.tested = started
-        group[request.node] = current
-        locals[request.workflow] = group
       })
     }
     return ok(result)
   }
 
   /**
-   * 打开这张卡片之前还差的（都列出来，不只第一样）；都齐了是空的。
+   * 这张卡片要跑起来还差的（都列出来，不只第一样）；都齐了是空的。
    * 开着的卡片也照算：给模型看「用户还要做什么」。
    */
   async readiness(workflow: string, node: string): Promise<string[]> {
     const found = await this.definition(workflow, node)
     if (!found.ok) return [found.error.message]
     const { trigger, blocked } = found.result
-    const { source } = trigger.data
-    const local = (await this.store.locals())[workflow]?.[node] ?? { enabled: false }
+    const { data } = trigger
+    const { source } = data
+    const run = this.store.runs.get(workflow, node)
     const missing: string[] = []
     if (blocked !== undefined) {
       missing.push(`工作流现在执行不了（${blocked}）：先改好图，不然每次触发都算失败`)
     }
-    if (local.stopped !== undefined) {
+    if (run.stopped !== undefined) {
       missing.push(
-        `已自动停用（${local.stopped}）：修好、用 test_trigger 试过之后用 local.enabled 重新打开`,
+        `已自动停用（${run.stopped}）：修好、用 test_trigger 试过之后用 local.enabled 重新打开`,
       )
     }
     const problem = sourceProblem(source)
@@ -1159,15 +1176,15 @@ export class TriggerService {
       const after = afterProblem(workflow, source, await this.graphs.read(source.workflow))
       if (after !== null) missing.push(after)
     }
-    const unjudged = endProblem(trigger.data, trigger.runState)
+    const unjudged = endProblem(data, trigger.runState)
     if (unjudged !== null) missing.push(unjudged)
-    const pending = pendingApproval(trigger, local, this.shellFor(local))
-    if (pending !== null) missing.push(pending)
-    const launch = launchMissing(trigger.data, local)
+    const launch = launchMissing(data)
     if (launch === 'session') missing.push('先选定发进哪个会话')
-    // 要跑命令的卡片选的工作区也是新建会话的工作区，上面已经说过了。
-    if (launch === 'workspace' && commandOf(source) === undefined)
-      missing.push('先选在哪个工作区里新建会话')
+    if (launch === 'workspace') missing.push('先选在哪个工作区里新建会话')
+    if (source.kind === 'http' && source.hook !== undefined) {
+      const clash = (await this.hooksTaken(workflow, node)).has(source.hook)
+      if (clash) missing.push(`地址「${source.hook}」和别的 HTTP 触发器重了：用 local.hook 换一个`)
+    }
     return missing
   }
 
@@ -1178,10 +1195,9 @@ export class TriggerService {
   async untested(workflow: string, node: string): Promise<string | null> {
     const found = await this.definition(workflow, node)
     if (!found.ok || commandOf(found.result.trigger.data.source) === undefined) return null
-    const local = (await this.store.locals())[workflow]?.[node] ?? { enabled: false }
-    if (local.tested === undefined)
-      return '还没用 test_trigger 试过：先试一遍，看事件行、背景信息对不对'
-    const changed = await changedScripts(assetsDir(this.dataDir(), workflow), local.tested)
+    const { tested } = this.store.runs.get(workflow, node)
+    if (tested === undefined) return '还没用 test_trigger 试过：先试一遍，看事件行、背景信息对不对'
+    const changed = await changedScripts(assetsDir(this.dataDir(), workflow), node, tested)
     if (changed.length === 0) return null
     return `${SCRIPTS_DIR}/ 里的 ${changed.join('、')} 在上次 test_trigger 之后改过：再试一遍，过了再打开`
   }
@@ -1190,16 +1206,15 @@ export class TriggerService {
   async ping(request: TriggerPingRequest): Promise<Outcome<TriggerPingResponse>> {
     const found = await this.definition(request.workflow, request.node)
     if (!found.ok) return found
-    if (found.result.trigger.data.source.kind !== 'http') {
-      return fail('invalid_args', '这张触发卡片不是 HTTP 触发')
-    }
-    const local = (await this.store.locals())[request.workflow]?.[request.node]
-    if (local?.enabled !== true || local.hook === undefined || local.token === undefined) {
+    const { data } = found.result.trigger
+    const { source } = data
+    if (source.kind !== 'http') return fail('invalid_args', '这张触发卡片不是 HTTP 触发')
+    if (data.enabled !== true || source.hook === undefined || source.token === undefined) {
       return fail('blocked', '先启用这个触发器，地址才收请求')
     }
     const listen = this.listen()
-    const url = hookUrl(advertisedHost(listen.host), listen.port, local.hook)
-    const result = await pingHook(url, local.noToken === true ? null : local.token)
+    const url = hookUrl(advertisedHost(listen.host), listen.port, source.hook)
+    const result = await pingHook(url, source.noToken === true ? null : source.token)
     return 'failure' in result ? fail('blocked', result.failure) : ok(result)
   }
 
@@ -1276,128 +1291,64 @@ export class TriggerService {
 /** 列卡片时一次读好的东西。 */
 interface Scene {
   owner: TriggerOwner | undefined
-  locals: TriggerLocals
+  runs: TriggerRuns
+  /** 地址和别的开着的卡片重了的 HTTP 卡片（{@link cardKey}）。 */
+  clashes: ReadonlySet<string>
   live: LiveFile | null
   unavailable: string | null
   paused: number | undefined
-  /** 各卡片排着几个（「工作流\u0000卡片」→ 个数，没有排着的不在里面）。 */
+  /** 各卡片排着几个（{@link cardKey} → 个数，没有排着的不在里面）。 */
   queued: Map<string, number>
   /** HTTP 触发的监听地址与端口。 */
   listen: HookBind
   now: number
 }
 
-/** 发出去了一次：记下发进去的会话和这次的编号（下一次看它跑完没有），之前点过的「视为已结束」作废。 */
-function sentOn(local: TriggerLocal, record: FireRecord): void {
-  if (record.session !== undefined) local.lastSession = record.session
-  local.lastFire = record.id
-  delete local.waived
+function cardKey(workflow: string, node: string): string {
+  return `${workflow}\u0000${node}`
 }
 
-/** 列表回答里与具体卡片无关的那两样。 */
-function sceneHead(scene: Scene): { owner?: TriggerOwner; paused?: number } {
+/** 开着的 HTTP 卡片里地址和别的重了的那些（{@link cardKey}）：都不收请求，卡片上说重了。 */
+function hookClashes(cards: readonly Pick<ActiveCard, 'workflow' | 'trigger'>[]): Set<string> {
+  const byHook = new Map<string, string[]>()
+  for (const { workflow, trigger } of cards) {
+    const { source } = trigger.data
+    if (source.kind !== 'http' || source.hook === undefined) continue
+    byHook.set(source.hook, [...(byHook.get(source.hook) ?? []), cardKey(workflow, trigger.node)])
+  }
+  return new Set([...byHook.values()].filter((keys) => keys.length > 1).flat())
+}
+
+/** 发出去了一次：记下发进去的会话和这次的编号（下一次看它跑完没有），之前点过的「视为已结束」作废。 */
+function sentOn(run: TriggerRun, record: FireRecord): void {
+  if (record.session !== undefined) run.lastSession = record.session
+  run.lastFire = record.id
+  delete run.waived
+}
+
+/** 列表回答里与具体卡片无关的那几样。 */
+function sceneHead(scene: Scene): Omit<TriggerListResponse, 'triggers'> {
+  const { listen } = scene
   return {
     ...(scene.owner === undefined ? {} : { owner: scene.owner }),
     ...(scene.paused === undefined ? {} : { paused: scene.paused }),
+    hookOrigin: `http://${advertisedHost(listen.host)}:${String(listen.port)}`,
   }
 }
 
-/**
- * HTTP 触发的地址与令牌：自己写的先核对（地址不能和别的卡片重），没有的补上缺省
- * （地址用工作流名、令牌随机）。先生成（`prepareEndpoint`）、打开开关、换令牌、改地址或令牌时才补。
- *
- * 先生成的不看图里是不是 HTTP（对话框里刚换到 HTTP、还没保存）；先生成过的卡片之后也能改地址、令牌。
- * 不校验令牌（`noToken`）只是一个记号，令牌照样留着：再打开校验还是原来那个。
- * @returns 改不成的原因；改成了（或这次不涉及）是 `null`。
- */
-function setEndpoint(
-  request: TriggerSetRequest,
-  source: TriggerSource,
-  local: TriggerLocal,
-  locals: TriggerLocals,
-): string | null {
-  const touched =
-    request.hook !== undefined || request.token !== undefined || request.noToken !== undefined
-  const prepare = request.prepareEndpoint === true
-  if (source.kind !== 'http' && !prepare && local.hook === undefined) {
-    if (touched || request.resetToken === true) return '只有 HTTP 触发有地址和令牌'
-    return null
-  }
-  const enabling = request.enabled === true && source.kind === 'http'
-  if (!touched && request.resetToken !== true && !enabling && !prepare) return null
-  if (request.token !== undefined && request.resetToken === true)
-    return '自己写令牌和换一个令牌只能选一样'
-  const taken = new Set<string>()
-  for (const [workflow, group] of Object.entries(locals)) {
-    for (const [node, other] of Object.entries(group)) {
-      if (workflow === request.workflow && node === request.node) continue
-      if (other.hook !== undefined) taken.add(other.hook)
-    }
-  }
-  if (request.hook !== undefined) {
-    const hook = request.hook.normalize('NFC')
-    const issue = hookIssue(hook)
-    if (issue !== null) return HOOK_ISSUE[issue]
-    if (taken.has(hook)) return `地址「${hook}」已经被别的 HTTP 触发器用了`
-    local.hook = hook
-  }
-  local.hook ??= hookFromName(request.workflow, taken) ?? newHookId()
-  if (request.token !== undefined) {
-    const issue = tokenIssue(request.token)
-    if (issue !== null) return TOKEN_ISSUE[issue]
-    local.token = request.token
-  } else if (request.resetToken === true || local.token === undefined) {
-    local.token = newHookToken()
-  }
-  if (request.noToken === true) local.noToken = true
-  else if (request.noToken === false) delete local.noToken
-  return null
-}
-
-const HOOK_ISSUE: Record<HookIssue, string> = {
-  empty: '地址不能为空',
-  chars: '地址只能用字母、数字、中文和 - _',
-  long: `地址最长 ${String(HOOK_MAX_LENGTH)} 个字`,
-}
-
-const TOKEN_ISSUE: Record<TokenIssue, string> = {
-  short: `令牌至少 ${String(TOKEN_MIN_LENGTH)} 个字`,
-  chars: '令牌只能用字母、数字和 - _ . ~',
-  long: `令牌最长 ${String(TOKEN_MAX_LENGTH)} 个字`,
-}
-
-/**
- * 要在本机跑的命令还没确认、或确认之后命令、工作区、实际用的 shell（`shell`，空串是系统的）改过：一句原因；
- * 不用确认或确认过是 `null`。
- */
-function pendingApproval(
-  trigger: TriggerDefinition,
-  local: TriggerLocal,
-  shell: string,
-): string | null {
-  const command = commandOf(trigger.data.source)
-  if (command === undefined) return null
-  if (local.workspace === undefined) return '先选命令在哪个工作区里运行'
-  if (local.approved === undefined) return '要先确认将要运行的命令'
-  return local.approved === approvalOf(command, local.workspace, shell)
-    ? null
-    : '要运行的命令、工作区或 shell 改过了，要重新确认'
-}
-
-/** 常驻触发源开着、确认过时的状态：按负责的进程写下的运行情况说。 */
+/** 常驻触发源开着、设置没问题时的状态：按负责的进程写下的运行情况说。 */
 function liveView(
   kind: FilterKind,
   status: LiveFile['sources'][string][string] | undefined,
   live: LiveFile | null,
 ): Pick<TriggerView, 'state' | 'next' | 'problem' | 'checked' | 'since' | 'line'> {
-  if (kind === 'http') {
-    const port = live?.port
-    return port?.kind === 'error'
-      ? { state: 'error', problem: port.problem }
-      : { state: 'listening' }
+  const port = live?.port
+  if (kind === 'http' && port?.kind === 'error') return { state: 'error', problem: port.problem }
+  // 负责的进程还没开起来（刚打开开关、刚接手）；HTTP 还要等端口真的开了，才收得到请求。
+  if (status === undefined || (kind === 'http' && port?.kind !== 'open')) {
+    return { state: 'waiting' }
   }
-  // 负责的进程还没开起来（刚打开开关、刚接手）。
-  if (status === undefined) return { state: 'waiting' }
+  if (kind === 'http') return { state: 'listening' }
   if (kind === 'schedule') {
     return {
       state: 'waiting',
@@ -1425,34 +1376,16 @@ function liveView(
   }
 }
 
-/** 打开开关之前要先配好的东西；都齐了是 `null`。 */
-function enableProblem(
-  trigger: TriggerDefinition,
-  local: TriggerLocal,
-  shell: string,
-): string | null {
-  const { source } = trigger.data
-  const problem = sourceProblem(source)
-  if (problem !== null) {
-    return source.kind === 'schedule' ? `定时规则不对：${problem}` : `触发设置不对：${problem}`
-  }
-  const pending = pendingApproval(trigger, local, shell)
-  if (pending !== null) return pending
-  const missing = launchMissing(trigger.data, local)
-  if (missing === 'session') return '先选定发进哪个会话'
-  return missing === 'workspace' ? '先选在哪个工作区里新建会话' : null
-}
-
-/** 工作区要是一个已有目录的绝对路径；没问题是 `null`。 */
-async function workspaceProblem(path: string): Promise<string | null> {
-  if (!isAbsolute(path)) return `工作区要写绝对路径：${path}`
-  try {
-    return (await stat(path)).isDirectory() ? null : `工作区不是文件夹：${path}`
-  } catch {
-    return `工作区目录不存在：${path}`
-  }
-}
-
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+/** 命令或脚本目录里用了 `{workspace}` 却没选工作区：一句原因；没问题是 `null`。 */
+function workspaceUnbound(
+  command: string,
+  place: Pick<TriggerData, 'cwd' | 'workspace'>,
+): string | null {
+  if (place.workspace !== undefined) return null
+  const used = command.includes(WORKSPACE_VAR) || (place.cwd?.includes(WORKSPACE_VAR) ?? false)
+  return used ? `命令或脚本目录里用了 ${WORKSPACE_VAR}，先选会话工作区` : null
 }

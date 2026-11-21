@@ -2,17 +2,17 @@
 
 打开开关时插件启动这条命令，关掉时结束它；意外退出按 2 秒起翻倍、最长 1 分钟的间隔重启。
 
-先按 SKILL.md 的「找示例」挑最像的一份示例照着改，别从头写。脚本放进 `dir/triggers/`，用底子 `./watch.mjs`（插件放好了，`kit.md`）。
+先按 SKILL.md 的「找示例」挑最像的一份示例照着改，别从头写。脚本放进卡片目录（`local.cardDir`），用底子 `../watch.mjs`（插件放好了，`kit.md`）。
 
 ## 从头到尾一个例子
 
 工作区里有一份别的程序会往里加任务的清单 `tasks.json`（`[{"id": 1, "title": "…"}]`），多了新任务就执行一次工作流。下面原样能跑。
 
-1. 脚本写进 `dir/triggers/new-tasks.mjs`：
+1. 脚本写进卡片目录的 `new-tasks.mjs`：
 
 ```js
 import { existsSync, readFileSync } from 'node:fs'
-import { emit, log, poll, seenIds } from './watch.mjs'
+import { emit, log, poll, seenIds } from '../watch.mjs'
 
 const file = process.argv[2]
 const read = () => (existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : [])
@@ -37,13 +37,13 @@ await poll(
 2. `write_trigger` 写定义：
 
 ```json
-{ "source": { "kind": "listen", "command": "node \"{workflow}/triggers/new-tasks.mjs\" tasks.json" }, "note": "处理背景信息里的新任务", "filter": { "merge": 0 } }
+{ "source": { "kind": "listen", "command": "node new-tasks.mjs \"{workspace}/tasks.json\"" }, "note": "处理背景信息里的新任务", "filter": { "merge": 0 } }
 ```
 
-3. `test_trigger` 带 `poke` 往清单里加一个任务，`seconds` 写 6：
+3. `test_trigger` 带 `poke` 往清单里加一个任务，`seconds` 写 6（`poke` 也认 `{workspace}`）：
 
 ```text
-node -e "const fs=require('fs');const t=fs.existsSync('tasks.json')?JSON.parse(fs.readFileSync('tasks.json','utf8')):[];t.push({id:Date.now(),title:'试一下'});fs.writeFileSync('tasks.json',JSON.stringify(t))"
+node -e "const fs=require('fs');const f=process.argv[1];const t=fs.existsSync(f)?JSON.parse(fs.readFileSync(f,'utf8')):[];t.push({id:Date.now(),title:'试一下'});fs.writeFileSync(f,JSON.stringify(t))" "{workspace}/tasks.json"
 ```
 
 4. 看返回：`events` 里正好一行「任务清单里来了新任务 #…：试一下」、`result` 是 `pass`；没有 `run.exited`，`run.stderr` 是空的。
@@ -73,7 +73,7 @@ const emit = (text, data) => {
 ## 启动和运行
 
 - 每次启动（打开开关、DSH 重启、退出后重启、改了设置）都从头跑：启动时只记下现状，别把已有的东西当成新事件打出来，否则每次重启都会触发一遍。读到哪记在数据目录，启动时接着读，DSH 没开时漏的就补上了。
-- 卡片开着时改了脚本，跑着的还是旧的：插件不看脚本内容，`write_trigger` 先给 `local.enabled: false` 再给 `true`，重新启动才换成新脚本（命令没变就不用再确认）。
+- 卡片开着时改了脚本，跑着的还是旧的：插件不看脚本内容，`write_trigger` 先给 `local.enabled: false` 再给 `true`，重新启动才换成新脚本。改了命令、目录、shell 时插件自己重启它。
 - 一直运行，收到结束信号就退出；别自己转后台（`&`、`nohup`、`start`），插件管不到它。
 - 启动后 1 分钟内就退出算一次失败（脚本有错、依赖没装、缺密钥）；跑满 1 分钟之后再退出只重启、不算失败。
 - 打完一行马上刷新输出（Node 的 `console.log` 就是；Python 要 `flush=True`）；别打终端颜色码。

@@ -49,7 +49,6 @@ const STATE_BUCKETS: readonly StateBucket[] = ['act', 'on', 'off']
 
 /** 停着等人处理的几种状态（全部暂停不算：那是总闸，不是这张卡片的事）。 */
 const ACT_STATES: ReadonlySet<TriggerState> = new Set([
-  'confirm',
   'stopped',
   'error',
   'invalid',
@@ -57,7 +56,7 @@ const ACT_STATES: ReadonlySet<TriggerState> = new Set([
   'unavailable',
 ])
 
-/** 这张卡片要人来处理（重新确认命令、重新打开、改设置…）。 */
+/** 这张卡片要人来处理（重新启用、改设置…）。 */
 export function needsAction(entry: TriggerEntry): boolean {
   return ACT_STATES.has(entry.view.state)
 }

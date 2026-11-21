@@ -407,17 +407,17 @@ export type AfterWhen = 'done' | 'failed' | 'any'
  * 触发源：什么时候触发。
  * - `schedule` 定时：到点直接执行；带 `check` 的到点先在工作区里跑一次命令，满足判定才执行，输出是背景信息（有 `::trigger::` 行时只算这几行）；
  * - `listen` 监听程序：常驻的 `command`，往标准输出每打一行 `::trigger::` 就是一次触发，标记后面的是背景信息，别的输出都是日志（见 `triggerMark.ts`）；
- * - `http` 别的程序向插件的触发端口发请求，请求体是背景信息（地址、令牌是本机状态）；
+ * - `http` 别的程序向插件的触发端口发请求，请求体是背景信息；`hook` 是地址里 `/trigger/` 后面那一段（缺省用工作流名），
+ *   `token` 是别的程序调用时带上、插件拿来核对的令牌，`noToken` 不核对；
  * - `after` 另一个工作流（`workflow`）的一次执行结束了：那个实例的结果是背景信息。
  *   那个工作流要开着「记录运行状态」，插件才看得出它什么时候结束。
  *
- * 命令里可以写 `{workflow}`（工作流目录，脚本放这里随工作流导出）；以 DSH 进程的身份运行，不进沙箱，
- * 所以要用户在本机确认过才跑，命令或工作区改了要重新确认。
+ * 命令里可以写 `{workflow}`（工作流目录，脚本放这里随工作流导出）；以 DSH 进程的身份运行，不进沙箱。
  */
 export type TriggerSource =
   | { kind: 'schedule'; schedule: TriggerSchedule; check?: TriggerCheck }
   | { kind: 'listen'; command: string }
-  | { kind: 'http' }
+  | { kind: 'http'; hook?: string; token?: string; noToken?: true }
   | { kind: 'after'; workflow: string; when?: Exclude<AfterWhen, 'done'> }
 
 export type TriggerSourceKind = TriggerSource['kind']
@@ -436,7 +436,7 @@ export interface TriggerFilter {
   exclude?: string[]
 }
 
-/** 触发后用哪个会话：每次新建 / 沿用这个触发器上一次的 / 固定某一个（哪一个存本机）。 */
+/** 触发后用哪个会话：每次新建 / 沿用这个触发器上一次的 / 固定某一个（{@link TriggerLaunch.sessionId}）。 */
 export type TriggerSessionMode = 'new' | 'last' | 'fixed'
 
 /** 上一次还没跑完时：跳过这一次 / 排队等上一次跑完再开 / 照样再开一次。 */
@@ -448,6 +448,8 @@ export type TriggerOverlap = 'skip' | 'queue' | 'parallel'
  */
 export interface TriggerLaunch extends SessionChoice {
   session?: TriggerSessionMode
+  /** 「固定会话」用的那个会话的 id。 */
+  sessionId?: string
   overlap?: TriggerOverlap
   /** 排队（`overlap: 'queue'`）时最多排几个，满了再来的跳过；0 = 不限制。 */
   queueMax?: number
@@ -469,6 +471,14 @@ export interface TriggerData {
   condition?: string
   filter?: TriggerFilter
   launch?: TriggerLaunch
+  /** 开着（缺省关着；导出时一律存成关）。 */
+  enabled?: true
+  /** 触发时在哪个工作区里新建会话（绝对路径）。 */
+  workspace?: string
+  /** 检查命令、监视程序用哪个 shell（程序的完整路径）；缺省跟着插件设置里的默认。 */
+  shell?: string
+  /** 检查命令、监视程序在哪个目录里跑；缺省是这张卡片的目录 `{workflow}/triggers/<卡片 id>`。可以写 `{workflow}`。 */
+  cwd?: string
 }
 
 /** 输入的交互方式：单行文字 / 多行文字 / 单选 / 多选。 */
@@ -783,6 +793,9 @@ export interface WorkflowEntry {
 }
 
 /** 工作流的一个版本（`versions/<图名>/<序号>.json`）。 */
+/** 切换版本时触发卡片的开关：恢复成那一版的，或全部关掉。 */
+export type VersionSwitches = 'keep' | 'off'
+
 export interface VersionEntry {
   /** 序号：v1、v2……新存的接着现有最大的往上数。 */
   n: number
@@ -793,6 +806,8 @@ export interface VersionEntry {
   /** 切换到别的版本之前自动存的那份：切到的是哪个版本。 */
   autoBefore?: number
   nodeCount: number
+  /** 这一版里开着的触发卡片数（没有不给）：切换时问恢复当时的开关还是全部关掉。 */
+  switchedOn?: number
   /** 内容和磁盘上现在的工作流一样。 */
   current: boolean
   /** 文件坏了读不出来（只能删）。 */
@@ -871,7 +886,7 @@ export interface ReadIndexResult {
   resources?: ResourceIndexEntry[]
   /** 输入节点（有才给），按画布上从上到下的顺序。 */
   inputs?: InputIndexEntry[]
-  /** 触发卡片的定义（有才给），带上本机的开没开、现在的状态；工作区、记录等读那张卡片才给。 */
+  /** 触发卡片的定义和设置（有才给），带上现在的状态；触发记录等读那张卡片才给。 */
   triggers?: TriggerIndexEntry[]
   /** 阻塞编译的问题（有才给）。 */
   problems?: ValidationProblem[]
@@ -887,9 +902,8 @@ export interface ReadNodeResult {
   warnings: ToolWarning[]
 }
 
-/** 图索引里的一张触发卡片：定义，加上这台机器上开没开、现在的状态（触发器不可用时没有）。 */
+/** 图索引里的一张触发卡片：定义和设置，加上现在的状态（触发器不可用时没有）。 */
 export type TriggerIndexEntry = { id: string } & TriggerData & {
-    enabled?: boolean
     state?: string
     problem?: string
   }

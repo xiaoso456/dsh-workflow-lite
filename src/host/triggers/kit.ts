@@ -1,19 +1,20 @@
 /**
  * dsh-workflow-lite — 监视的底子：skill `workflow-trigger` 随附的 `kit/watch.mjs`。
  *
- * 由插件放进工作流目录的 `triggers/watch.mjs`，模型写的脚本直接 `import { … } from './watch.mjs'`，不用自己抄一遍。
- * 写要跑命令的触发卡片时、每次跑命令前都对一下：不在、或和随包的不一样（插件升级了、被手改了）就换成随包的。
- * 它随工作流导出；导到别的机器上，那边的插件下次跑命令时同样换成它自己的那份。
+ * 模型写第一张要跑命令的触发卡片时，插件放一份到工作流目录的 `triggers/watch.mjs`，
+ * 各卡片目录里的脚本 `import { … } from '../watch.mjs'`。放下之后归工作流自己管：
+ * 已经有了就不动（不检查、不换回，插件升级也不动），随工作流导出、导入。
  *
  * @module @xiaoso/dsh-workflow-lite/host/triggers/kit
  */
 
 import { join } from 'node:path'
 import { ensureDir, readFileText, writeFileAtomic } from '../store/atomic.ts'
+import { pathKind } from '../store/paths.ts'
 import { triggerSkillDir } from '../triggerSkill.ts'
-import { SCRIPTS_DIR } from './scriptAge.ts'
+import { scriptsDir } from './cardDirs.ts'
 
-/** 放进 `triggers/` 的文件名（脚本里 `import './watch.mjs'`）。 */
+/** 放进 `triggers/` 的文件名。 */
 export const KIT_FILE = 'watch.mjs'
 
 let source: Promise<string | null> | undefined
@@ -28,15 +29,15 @@ function kitSource(): Promise<string | null> {
 }
 
 /**
- * 让 `workflowDir/triggers/watch.mjs` 和随包的一样；本来就一样时不写（不动修改时刻，「改过要再试」不会误报）。
- * @returns 这次写了没有。
+ * `workflowDir/triggers/watch.mjs` 还没有就放一份随包的；已经有了不动。
+ * @returns 这次放了没有。
  */
 export async function placeKit(workflowDir: string): Promise<boolean> {
+  const target = join(scriptsDir(workflowDir), KIT_FILE)
+  if ((await pathKind(target)) !== 'missing') return false
   const text = await kitSource()
   if (text === null) return false
-  const target = join(workflowDir, SCRIPTS_DIR, KIT_FILE)
-  if ((await readFileText(target)) === text) return false
-  await ensureDir(join(workflowDir, SCRIPTS_DIR))
+  await ensureDir(scriptsDir(workflowDir))
   await writeFileAtomic(target, text)
   return true
 }

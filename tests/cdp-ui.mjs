@@ -605,7 +605,13 @@ async function run(session) {
     '工作流设置打开时不该出现滚动条',
   )
   await screenshot(session, 'ui-02e-settings.png')
-  // 说明与拼接示例收在「?」里：平时不在，悬停才浮出。
+  // 说明与拼接示例收在「?」里：平时不在，悬停才浮出（产出目录在「产出」页签里）。
+  await session.evaluate(clickTestId('wl-settings-tab-output'))
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-settings-root-help"]')?.getBoundingClientRect().width > 0`,
+  )
+  await sleep(300)
   check(!(await session.evaluate(exists('wl-settings-root-help-panel'))), '说明平时应收起')
   await mouseMove(session, await centerOf(session, '[data-testid="wl-settings-root-help"]'))
   await waitFor(session, exists('wl-settings-root-help-panel'))

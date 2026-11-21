@@ -35,6 +35,7 @@ import { ScheduleField } from '../ScheduleField.tsx'
 import type { TriggerEnv } from '../triggerEnv.ts'
 import { Bench, benchAside } from './Bench.tsx'
 import { CommandBox } from './CommandBox.tsx'
+import { CwdRow } from './CwdRow.tsx'
 import { JudgeStrip } from './JudgeStrip.tsx'
 import type { RunDrafts } from './runDraft.ts'
 import { StageRow, StageRows } from './StageRow.tsx'
@@ -176,6 +177,13 @@ export function ScheduleStage(props: {
                   saved={props.run.workspace.saved}
                   onChange={props.run.workspace.onChange}
                 />
+                <CwdRow
+                  t={t}
+                  env={env}
+                  node={props.node}
+                  draft={props.run.cwd}
+                  workspace={workspace}
+                />
               </StageRows>
             )}
             <CommandBox
@@ -184,10 +192,11 @@ export function ScheduleStage(props: {
               kind="check"
               title={t('trigger.command')}
               command={check.command}
-              placeholder="git ls-remote origin -h refs/heads/main"
+              placeholder="node check.mjs"
               templates={CHECK_TEMPLATES}
               env={env}
               workspace={runWorkspace(env, props.run.workspace)}
+              cwd={props.run.cwd.value}
               shell={props.run.shell}
               recent={props.showOutput}
               judge={trialJudge(t, check)}

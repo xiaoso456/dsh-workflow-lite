@@ -11,7 +11,7 @@
 import { type Dispatch, type SetStateAction, useCallback, useEffect, useRef, useState } from 'react'
 import { type GraphChange, graphChanges } from '../../shared/graphDiff.ts'
 import { sameSettings } from '../../shared/model.ts'
-import type { VersionEntry, WorkflowDocument } from '../../shared/types.ts'
+import type { VersionEntry, VersionSwitches, WorkflowDocument } from '../../shared/types.ts'
 import type { T } from '../i18n.ts'
 import { errorMessage, type WorkflowLiteRpc } from '../rpc.ts'
 import { type ReadSignal, readCache } from './readCache.ts'
@@ -39,7 +39,8 @@ export interface VersionActions<E> {
   busy: boolean
   notice: VersionNotice | null
   refresh(): Promise<void>
-  restore(n: number): Promise<boolean>
+  /** `switches`：工作流版本里触发卡片的开关恢复成当时的（缺省）还是全部关掉；记忆的版本不管。 */
+  restore(n: number, switches?: VersionSwitches): Promise<boolean>
   setNote(n: number, note: string): Promise<boolean>
   remove(n: number): Promise<boolean>
 }
@@ -232,9 +233,13 @@ export function useVersions(options: {
         outer.current.onMemoriesSaved?.()
         return `${text}${memoriesSavedText(t, result.memories)}`
       }),
-    restore: (n) =>
+    restore: (n, switches) =>
       act(async () => {
-        const { saved } = await outer.current.rpc.call('graph/versionRestore', { name, n })
+        const { saved } = await outer.current.rpc.call('graph/versionRestore', {
+          name,
+          n,
+          ...(switches === undefined ? {} : { switches }),
+        })
         outer.current.onRestored?.()
         return saved === null
           ? t('ver.restored').replace('{n}', String(n))

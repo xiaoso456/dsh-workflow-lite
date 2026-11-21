@@ -10,6 +10,7 @@ import { useState } from 'react'
 import type { TriggerEntry, TriggerPingResponse } from '../../../../shared/wire/trigger.ts'
 import type { TriggerHub } from '../../../app/useTriggerHub.ts'
 import type { T } from '../../../i18n.ts'
+import { endpointOf } from '../../../model/httpEndpoint.ts'
 import {
   SNIPPET_LANGS,
   SNIPPET_NAME,
@@ -30,7 +31,7 @@ import css from './live.module.css'
 export function CallPane(props: { t: T; hub: TriggerHub; entry: TriggerEntry }): React.JSX.Element {
   const { t, hub, entry } = props
   const { view } = entry
-  const endpoint = view.endpoint
+  const endpoint = endpointOf(entry.data.source, hub.list?.hookOrigin ?? '')
   const [lang, setLang] = useState<SnippetLang>('curl')
   const [reveal, setReveal] = useState(false)
   const [ping, setPing] = useState<TriggerPingResponse | string | 'sending' | null>(null)
@@ -46,7 +47,7 @@ export function CallPane(props: { t: T; hub: TriggerHub; entry: TriggerEntry }):
       </div>
     )
   }
-  const token = endpoint.noToken === true ? null : endpoint.token
+  const token = endpoint.noToken ? null : endpoint.token
   const code = snippetOf(lang, { url: endpoint.url, token })
   const shown =
     reveal || token === null ? code : snippetOf(lang, { url: endpoint.url, token: TOKEN_MASK })

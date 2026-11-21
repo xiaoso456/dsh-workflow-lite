@@ -7,6 +7,7 @@
 
 import { nextFire } from '../../shared/schedule.ts'
 import {
+  endpointMissing,
   type FilterSettings,
   type LaunchSettings,
   NO_LIMIT,
@@ -131,6 +132,7 @@ export function whenDetail(
         ? { text: t('trigger.detail.listen'), tone: 'plain' }
         : { text: source.command, tone: 'code' }
     case 'http':
+      if (endpointMissing(source)) return { text: t('trigger.detail.httpLater'), tone: 'plain' }
       return { text: live.url === undefined ? '' : reachText(t, live.url), tone: 'plain' }
     case 'after':
       return { text: '', tone: 'plain' }

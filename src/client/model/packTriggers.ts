@@ -1,0 +1,92 @@
+/**
+ * dsh-workflow-lite — 导出页上触发卡片和新建会话设置那两块的算账：缺省怎么勾、勾了之后多出多少字节、
+ * 交给宿主的几项、每个总开关管着图里哪几处。纯函数，不碰 RPC。
+ *
+ * @module @xiaoso/dsh-workflow-lite/client/model/packTriggers
+ */
+
+import {
+  type PackExportRequest,
+  type PackScanResponse,
+  type PackTrigger,
+  packsScripts,
+} from '../../shared/pack.ts'
+import type { ChoiceKeep, ChoiceSpot } from '../../shared/sessionChoice.ts'
+import type { SessionChoice } from '../../shared/types.ts'
+
+/** 导出时各张卡片怎么带：留不留、带不带密钥、带不带脚本数据（都是卡片 id）。 */
+export interface TriggerPick {
+  keep: ReadonlySet<string>
+  secrets: ReadonlySet<string>
+  data: ReadonlySet<string>
+}
+
+/** 缺省：卡片全留；密钥、脚本数据都不带。 */
+export function defaultTriggerPick(scan: PackScanResponse): TriggerPick {
+  return {
+    keep: new Set(scan.triggers.map((card) => card.node)),
+    secrets: new Set(),
+    data: new Set(),
+  }
+}
+
+/** 换一张卡片的一项勾选。 */
+export function toggleTrigger(
+  pick: TriggerPick,
+  part: keyof TriggerPick,
+  node: string,
+  on: boolean,
+): TriggerPick {
+  const next = new Set(pick[part])
+  if (on) next.add(node)
+  else next.delete(node)
+  return { ...pick, [part]: next }
+}
+
+/** 这张卡片的密钥真的带进包（留下了、又勾了）。 */
+export function packsSecrets(pick: TriggerPick, card: PackTrigger): boolean {
+  return card.secrets !== undefined && pick.keep.has(card.node) && pick.secrets.has(card.node)
+}
+
+/** 这张卡片的脚本数据真的带进包。 */
+export function packsData(pick: TriggerPick, card: PackTrigger): boolean {
+  return card.data !== undefined && pick.keep.has(card.node) && pick.data.has(card.node)
+}
+
+/** 触发器那一块带进包的字节数。 */
+export function triggerBytes(scan: PackScanResponse, pick: TriggerPick): number {
+  let total =
+    scan.triggerScripts !== null && packsScripts(scan.triggers, pick.keep)
+      ? scan.triggerScripts.bytes
+      : 0
+  for (const card of scan.triggers) {
+    if (packsSecrets(pick, card)) total += card.secrets?.bytes ?? 0
+    if (packsData(pick, card)) total += card.data?.bytes ?? 0
+  }
+  return total
+}
+
+/** 交给宿主的几项（只说图里有的卡片）。 */
+export function triggerRequest(
+  scan: PackScanResponse,
+  pick: TriggerPick,
+): Pick<PackExportRequest, 'triggers' | 'secrets' | 'triggerData'> {
+  return {
+    triggers: scan.triggers.filter((card) => pick.keep.has(card.node)).map((card) => card.node),
+    secrets: scan.triggers.filter((card) => packsSecrets(pick, card)).map((card) => card.node),
+    triggerData: scan.triggers.filter((card) => packsData(pick, card)).map((card) => card.node),
+  }
+}
+
+/** 三个总开关（呈现顺序）。 */
+export const CHOICE_PARTS: readonly (keyof ChoiceKeep)[] = ['model', 'preset', 'permission']
+
+/** 一个总开关管着的几处：图里设了这一项的地方和它的值。 */
+export function choicePlaces(
+  spots: readonly ChoiceSpot[],
+  part: keyof ChoiceKeep,
+): { spot: ChoiceSpot; choice: SessionChoice }[] {
+  return spots
+    .filter((spot) => spot.choice[part] !== undefined)
+    .map((spot) => ({ spot, choice: { [part]: spot.choice[part] } }))
+}

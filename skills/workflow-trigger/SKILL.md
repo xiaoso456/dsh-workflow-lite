@@ -2,17 +2,22 @@
 
 触发卡片让一个工作流在某件事发生时自动执行。插件把这次触发发进一个会话，那边的模型照常编译、执行工作流。卡片不是步骤，也不连线，触发的是整个工作流。
 
-一张卡片的东西放在这几处，按用途放：
+一张卡片的东西都在工作流里（画布上的卡片和工作流目录 `dir`），随工作流导出、存版本，按用途放：
 
-| 哪里 | 放什么、给谁用 | 随工作流导出 | 怎么写 |
+| 哪里 | 放什么、给谁用 | 导出时 | 怎么写 |
 |---|---|---|---|
-| 定义 | 什么时候、怎么触发：触发方式、触发说明、触发条件、过滤、执行设置 | 是（也存版本） | `write_trigger` 的 `trigger` |
-| 脚本 `dir/triggers/` | 检查命令、监视程序跑的脚本，和插件放好的底子 `watch.mjs` | 是 | 照示例写文件 |
-| 本机设置 `local` | 这台机器上怎么跑：开关、工作区、shell、固定会话；HTTP 卡片的地址和令牌（别的程序来调插件时带上令牌，插件拿它核对；`read` 拿到后告诉用户配到发送方） | 否 | `write_trigger` 的 `local` |
-| 数据目录 `local.dataDir` | 脚本自己的记性：上次看到哪、处理过哪些。试运行另有一份 | 否 | 脚本经底子读写 |
-| 密钥目录 `local.secretsDir` | 脚本要用的凭据：调接口的 API Key、连接串、验签名的 secret。用户放、脚本用底子的 `secret` 读；试运行读的也是它 | 否 | 写成文件 |
+| 定义 `trigger` | 什么时候、怎么触发：触发方式、触发说明、触发条件、过滤、执行设置 | 带上 | `write_trigger` 的 `trigger` |
+| 开关和运行设置 `local` | 开关、会话工作区、shell、命令在哪个目录跑、固定会话；HTTP 卡片的地址和令牌（别的程序来调插件时带上令牌，插件拿它核对；`read` 拿到后告诉用户配到发送方） | 带上，开关存成关 | `write_trigger` 的 `local` |
+| 卡片目录 `local.cardDir` | 这张卡片的脚本、投样本用的 `samples/`；命令缺省在这里跑 | 有要跑命令的卡片时带上 | 照示例写文件 |
+| 底子 `dir/triggers/watch.mjs` | 监视程序共用的函数；插件在建第一张要跑命令的卡片时放好 | 同上 | 不改 |
+| 数据目录 `local.dataDir` | 脚本自己的记性：上次看到的编号、处理过哪些、上一次的值。试运行另有一份 | 用户勾了才带 | 脚本经底子读写 |
+| 密钥目录 `local.secretsDir` | 脚本要用的凭据：调接口的 API Key、连接串、验签名的 secret。用户放、脚本用底子的 `secret` 读；试运行读的也是它 | 用户勾了才带 | 写成文件 |
 
-新建的卡片是关着的，试好之后用 `local.enabled: true` 打开，`false` 关掉。要跑命令的卡片，打开就是确认「这条命令在这个工作区、用这个 shell 运行」：命令以 DSH 的身份运行、不进沙箱，开之前把命令和脚本再读一遍。命令、工作区、shell 改了任何一样，卡片会停在 `confirm`，同一次或下一次再给 `local.enabled: true` 确认。
+数据目录只记和这台机器无关的东西（编号、游标、值），不记本机路径、进程号、本机时刻：带到别的机器上也能接着用。
+
+新建的卡片是关着的，试好之后用 `local.enabled: true` 打开，`false` 关掉。命令以 DSH 的身份运行、不进沙箱，打开前把命令和脚本再读一遍。卡片开着时改了定义、设置，下一次照新的跑。
+
+命令缺省在卡片目录里跑，脚本就放在那里，命令写成 `node check.mjs 参数…`。要用到工作区里的东西时写 `{workspace}`（换成会话工作区，例 `node tail-log.mjs "{workspace}/logs/app.log"`），脚本里也能读环境变量 `TRIGGER_WORKSPACE`；`{workflow}`、`WORKFLOW_DIR` 是工作流目录。要在别的目录跑，设 `local.cwd`（`{workspace}`、`{workflow}/…` 或绝对路径）。
 
 命令打出的东西里，只有 `::trigger::` 开头的行是事件：监视每打出一行这种行触发一次，定时检查有这种行时只有它们是背景信息。别的输出都是日志，用户在「最近的输出」里看得到，不触发。脚本里统一用这个函数打事件（写法见「背景信息」），日志照常 `console.log`：
 
@@ -35,7 +40,7 @@ const emit = (text, data) => {
 | `after.md` | 接续另一个工作流 |
 | `settings.md` | 过滤与执行设置的全部字段 |
 | `scripts.md` | 写检查命令、监视程序的脚本 |
-| `kit.md` | 监视程序的底子 `kit/watch.mjs`（插件放进 `triggers/`）：有哪些函数、试的时候怎么投样本 |
+| `kit.md` | 监视程序的底子 `kit/watch.mjs`（插件放在 `dir/triggers/`，脚本 `import '../watch.mjs'`）：有哪些函数、试的时候怎么投样本 |
 | `fast.md` | 要快（准实时）：延迟怎么算、设置怎么配 |
 | `examples/*.md` | 场景示例：按「找示例」一节挑，照着改 |
 
@@ -45,13 +50,13 @@ const emit = (text, data) => {
 
 1. `read` 这个工作流：拿到工作流目录 `dir`，看 `triggers` 里是不是已经有卡片（有就改它，别重复建）。
 2. 选触发方式（见「选触发方式」），读对应的文件；再按「找示例」挑一份示例，后面照着它改，别从头写。拿不准用户要什么时先问：多久一次、等什么事、事情来了要做什么；监视还要问「多快算快」「能不能漏」，答案直接定了合并、排队、去重怎么配（`fast.md`）。
-3. `write_trigger` 写定义（新卡片是关着的）；知道命令在哪个工作区跑的话，同一次带上 `local.workspace`。返回的 `local` 里有脚本的数据目录 `dataDir`、密钥目录 `secretsDir`；要跑命令的卡片，插件同时把底子 `watch.mjs` 放进了 `dir/triggers/`。
-4. 要脚本就照示例写进 `dir/triggers/`（读 `scripts.md`），监视程序 import 底子（`kit.md`）。脚本要用的凭据：用户在对话里给了就写进 `secretsDir` 下的文件，没给就告诉用户放哪个文件。
+3. `write_trigger` 写定义（新卡片是关着的）；知道会话工作区的话，同一次带上 `local.workspace`。返回的 `local` 里有卡片目录 `cardDir`、数据目录 `dataDir`、密钥目录 `secretsDir`；要跑命令的卡片，`dir/triggers/` 里已经有底子 `watch.mjs`（第一次时插件放好，之后不换）。
+4. 要脚本就照示例写进卡片目录 `cardDir`（读 `scripts.md`），监视程序 `import … from '../watch.mjs'`（`kit.md`）。脚本要用的凭据：用户在对话里给了就写进 `secretsDir` 下的文件，没给就告诉用户放哪个文件。
 5. `test_trigger` 试（见「验证」）。结果不对就改脚本或定义，再试，直到对为止。之后每改一次脚本或命令，都要再试一次；卡片开着时改了监视程序的脚本，关掉再打开才换成新脚本（`listen.md`）。
 6. 看返回的 `toEnable`（打开前还差的），补齐：
    - 说要开「记录运行状态」的：工作流会多次执行、会改文件的，用 `configure` 的 `run_state` 打开；只读、只发消息的，也可以把 `launch.overlap` 改成 `parallel`。拿不准就问用户。
-   - 缺工作区的给 `local.workspace`（一般是当前工作区）；`launch.session` 是 `fixed` 的给 `local.session`（`current` 是当前会话）。
-7. `write_trigger` 给 `node` 和 `local: { enabled: true }` 打开；用户说了先别开的不开。返回的 `local.state` 不是 `off`、`confirm`、`invalid` 才算开好了。
+   - 缺工作区的给 `local.workspace`（一般是当前工作区；新建会话、命令里用了 `{workspace}` 都要它）；`launch.session` 是 `fixed` 的给 `local.session`（`current` 是当前会话）。
+7. `write_trigger` 给 `node` 和 `local: { enabled: true }` 打开；用户说了先别开的不开。返回的 `local.state` 不是 `off`、`invalid` 才算开好了。
 8. 对一遍文末的「交付前自检」，再告诉用户做好了。
 
 ## 选触发方式
@@ -140,7 +145,7 @@ const emit = (text, data) => {
 
 ## 验证
 
-建好、改好都要用 `test_trigger` 试。它按存着的卡片、用和真打开后一样的工作区、shell、`{workflow}`、环境变量跑，不动开关、不记触发记录、不发进会话。它只试触发这一层（跑命令、过滤、拼消息），不编译工作流；图本身有问题时 `toEnable` 会说。卡片还没选工作区时给 `workspace`（绝对路径，一般是当前工作区）。
+建好、改好都要用 `test_trigger` 试。它按存着的卡片、用和真打开后一样的目录、shell、`{workflow}`、`{workspace}`、环境变量跑（数据目录用试运行那份），不动开关、不记触发记录、不发进会话。它只试触发这一层（跑命令、过滤、拼消息），不编译工作流；图本身有问题时 `toEnable` 会说。命令用了 `{workspace}`、卡片还没选工作区时给 `workspace`（绝对路径，一般是当前工作区）。
 
 返回的 `verdict`：`fire` 这样会触发，`skip` 这次不会触发（不算失败），`error` 跑不起来或真打开后会算失败。`message` 是对面会话会收到的消息。`toEnable` 是打开前还差的事。
 
@@ -160,7 +165,7 @@ const emit = (text, data) => {
 
 ## 查看、修改、排队
 
-- 查：`read` 给 `node`，返回定义（`effective` 是连缺省值的过滤和执行设置）和本机情况 `local`：开没开、状态 `state`、问题 `problem`、下一次 `next`、最近一次 `last`、排着几个 `queued`、在等的上次执行 `waiting`、脚本的数据目录 `dataDir`、用户放令牌和密钥的密钥目录 `secretsDir`（真打开和试运行读的都是它）。`include: ["history"]` 再带触发记录（跳过、失败的原因都在里面），`["output"]` 带检查命令、监视程序最近的输出，`["queue"]` 带排着的；`fire` 给一个触发编号看那次的全文。
+- 查：`read` 给 `node`，返回定义（`effective` 是连缺省值的过滤和执行设置）和 `local`：开没开、状态 `state`、问题 `problem`、下一次 `next`、最近一次 `last`、排着几个 `queued`、在等的上次执行 `waiting`，设置（`workspace`、`shell`、`cwd`、`session`、HTTP 的 `endpoint`），卡片目录 `cardDir`、脚本的数据目录 `dataDir`、用户放令牌和密钥的密钥目录 `secretsDir`（真打开和试运行读的都是它）。`include: ["history"]` 再带触发记录（跳过、失败的原因都在里面），`["output"]` 带检查命令、监视程序最近的输出，`["queue"]` 带排着的；`fire` 给一个触发编号看那次的全文。
 - 所有工作流的卡片一览：`list` 的 `triggers.cards`。
 - 改定义：`write_trigger` 给 `node`，只写要改的字段，没写的保持原样；`source`、`filter`、`launch` 也只写里面要改的那几项：
   - 只改时间：`{ "source": { "schedule": { "time": "09:30" } } }`，规则类型、星期都不动；
@@ -168,10 +173,10 @@ const emit = (text, data) => {
   - 换触发方式要给 `kind`，旧方式的设置不带过去：`{ "source": { "kind": "listen", "command": "…" } }`；
   - 数组整份替换（`include`、`exclude`、`weekdays`）；对象写 `null` 回到缺省（`"filter": null` 去掉过滤、`"check": null` 去掉检查命令）；单项回到缺省就写缺省值（各项的缺省见参数说明）。
   返回的 `trigger` 是存下来的样子，超出范围的值会被丢掉，和你写的对一下。
-- 只改本机设置：`write_trigger` 给 `node` 和 `local`，不给 `trigger`。
+- 只改开关和运行设置：`write_trigger` 给 `node` 和 `local`，不给 `trigger`。HTTP 换令牌给 `local.resetToken: true`，或 `local.token` 指定一个。
 - 排队：`trigger_queue` 的 `queue`：`waive` 把上次执行视为已结束、放行下一个；`clear` 清空排着的；`cancel` 带 `fire` 取消排着的一个。用户要求时才做。
 
-`state` 的取值：off 关着 / waiting 等着到点 / listening 在跑 / restarting 程序退出了等重启 / error 出错（如端口被占用）/ invalid 设置不对 / confirm 命令、工作区或 shell 改过、等确认 / stopped 连续失败被自动停用 / paused 全部暂停中 / elsewhere 另一个 DSH 进程在负责 / unavailable 这里发不了会话。
+`state` 的取值：off 关着 / waiting 等着到点 / listening 在跑 / restarting 程序退出了等重启 / error 出错（如端口被占用）/ invalid 设置不对 / stopped 连续失败被自动停用 / paused 全部暂停中 / elsewhere 另一个 DSH 进程在负责 / unavailable 这里发不了会话。
 
 ## 排查
 
@@ -180,20 +185,19 @@ const emit = (text, data) => {
 1. `list`，看 `triggers.cards` 里 `state`、`problem` 不对的卡片；`triggers.paused` 有值是全部暂停着，请用户在工作流中心「触发」页恢复。
 2. `read` 那张卡片，带 `include: ["history", "output"]`。
 3. 按下表找原因、改好，`test_trigger` 试到对。
-4. 自动停用的、停在 `confirm` 的，修好、试过之后用 `local.enabled: true` 重新打开。
-5. 告诉用户原因和改了什么。改了脚本内容要说清楚改了哪里：确认的只是命令，脚本内容变了不会再要求确认。
+4. 自动停用的，修好、试过之后用 `local.enabled: true` 重新打开。
+5. 告诉用户原因和改了什么；改了脚本要说清楚改了哪里。
 
 | 看到 | 多半是 | 怎么办 |
 |---|---|---|
 | 原因里有「找不到命令」 | 没装脚本用的解释器（Node、Python），或命令、路径写错 | 核对命令；没装就请用户装，或换成装了的 |
-| 「启动不了」 | shell 或工作区不对 | 看 `local.shell`、`local.workspace` |
+| 「启动不了」 | shell 或命令的目录不对 | 看 `local.shell`、`local.cwd`、`local.workspace` |
 | 「超过 N 秒没结束」 | 检查命令太慢、卡在网络上 | 给网络请求设超时；间隔太短就加长 |
 | 「监视程序运行 N 秒后退出了」，或 `restarting` 反复出现 | 脚本报错、依赖没装、连不上、读不到密钥 | 看 `output` 里带 `[err]` 的行，用 `test_trigger` 复现 |
 | 「新建不了会话」「发不进去」「还没选……」 | 工作区被删了、选定的会话没了 | 改 `local.workspace` 或请用户重新选会话 |
 | `error`，端口被占用 | 别的程序占了端口 | HTTP 的请用户在插件设置里换端口；监视程序自己开的端口改命令参数 |
 | `invalid` | 定义不对 | 按 `problem` 改 |
 | 「工作流现在执行不了」 | 图有问题，编译不出计划 | `read` 这个工作流看 `problems`，改好图 |
-| `confirm` | 命令、工作区或 shell 改过，还没确认 | 核对后给 `local.enabled: true` |
 | `elsewhere` / `unavailable` | 另一个 DSH 进程在负责 / 这里发不了会话 | 告诉用户，到负责的那个 DSH 里看 |
 | 开着、状态正常，却一直没触发 | 事件行没带 `::trigger::`、关键字太严、去重太长、检查一直返回 1、`change` 第一次只记下 | 看 `history` 里 `skipped` 的原因和 `output` 里最近的行，拿真实样本 `test_trigger` |
 | 没出什么事却触发了 | 启动时把已有的东西当新事件打了出来（每次重启都会再触发）；不该触发的行也带了 `::trigger::` | 看 `output` 里带标记的行，改脚本：启动时只记下现状、打日志 |
@@ -213,4 +217,4 @@ const emit = (text, data) => {
 - [ ] 密钥、令牌不在脚本、命令、触发说明里：脚本要用的在密钥目录（`secretsDir`），告诉了用户放哪个文件；HTTP 的令牌告诉了用户配到发送方。
 - [ ] `maxPerHour`、`maxFailures` 没写成 0（用户明说的除外）。
 - [ ] 卡片打开了（用户说先别开的除外），`local.state` 正常。
-- [ ] 告诉了用户：卡片在哪个工作流、会在什么时候触发、开没开；要跑命令的说清楚跑什么命令、在哪个工作区；要快的说清从事件发生到开始处理大约多久。
+- [ ] 告诉了用户：卡片在哪个工作流、会在什么时候触发、开没开；要跑命令的说清楚跑什么命令；要快的说清从事件发生到开始处理大约多久。

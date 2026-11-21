@@ -114,6 +114,12 @@ async function fixture(document?: (items: ResourceItem[]) => WorkflowDocument): 
   const repository = createRepository({ dataDir })
   await mkdir(assetsDir(dataDir, 'review'), { recursive: true })
   await writeFile(join(assetsDir(dataDir, 'review'), 'notes.md'), '笔记')
+  // 触发器那一块：导出成 skill 时不带。
+  await mkdir(join(assetsDir(dataDir, 'review'), 'triggers', 'tick', 'secrets'), {
+    recursive: true,
+  })
+  await writeFile(join(assetsDir(dataDir, 'review'), 'triggers', 'watch.mjs'), 'export {}')
+  await writeFile(join(assetsDir(dataDir, 'review'), 'triggers', 'tick', 'secrets', 'k'), 'k')
   const items: ResourceItem[] = [
     { kind: 'file', value: slash(join(ext, 'spec.md')) },
     { kind: 'file', value: slash(join(ext, 'style.md')) },
@@ -257,7 +263,7 @@ describe('导出成 skill', () => {
     }
   })
 
-  it('zip：<名>/SKILL.md + steps + assets + skills，路径都在包里', async () => {
+  it('zip：<名>/SKILL.md + steps + assets + skills，路径都在包里；触发器那一块不带', async () => {
     const { deps } = await fixture()
     const out = expectOk(
       await exportSkill(deps, {

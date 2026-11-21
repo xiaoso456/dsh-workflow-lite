@@ -2,7 +2,7 @@
  * dsh-workflow-lite — 触发卡片的属性面板：只放摘要，长的设置都在对话框里（`dialogs/`，草稿，「保存」才写进图）。
  *
  * 从上到下：
- * - **现在怎么样**（只在模板视图）：开关与状态、确认命令、「立即触发一次」；
+ * - **现在怎么样**（只在模板视图）：开关与状态、「立即触发一次」；
  * - **触发方式**：五种触发方式的分段 + 和画布卡片一样的速览，点开是「触发方式」对话框；
  * - **过滤**（轮询、监听、HTTP 才有）：一行摘要，点开是「过滤」对话框；
  * - **触发条件、触发说明**：各两行预览，点开是同一个对话框，焦点落在点的那一段；
@@ -113,9 +113,9 @@ export function TriggerPanel(props: TriggerPanelProps): React.JSX.Element {
           t={t}
           node={node.id}
           name={name}
-          source={data.source}
+          data={data}
           env={env}
-          onChange={(source) => patch({ source })}
+          onPatch={(change) => patch(change)}
         />
 
         {/* 触发之后依次经过的几关：过滤（不花模型调用）→ 触发条件（模型判断）→ 触发说明（交给模型的话）。

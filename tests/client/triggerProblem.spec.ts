@@ -25,9 +25,7 @@ describe('problemOf', () => {
     expect(problemOf(t, view({ state: 'waiting' }), listen, undefined)).toBeNull()
     expect(problemOf(t, view({ state: 'listening' }), listen, undefined)).toBeNull()
     expect(problemOf(t, view({ state: 'off', enabled: false }), http, undefined)).toBeNull()
-    expect(
-      problemOf(t, view({ state: 'off', enabled: false, approved: true }), listen, undefined),
-    ).toBeNull()
+    expect(problemOf(t, view({ state: 'off', enabled: false }), listen, undefined)).toBeNull()
   })
 
   it('出错、重启中按宿主给的原因说，颜色分得开', () => {
@@ -47,13 +45,6 @@ describe('problemOf', () => {
     expect(got?.tone).toBe('bad')
     expect(got?.text.startsWith('连续失败 ')).toBe(true)
     expect(got?.action?.run).toBe('reopen')
-  })
-
-  it('命令待确认、要跑命令还没确认过：带确认的按钮', () => {
-    expect(problemOf(t, view({ state: 'confirm' }), listen, undefined)?.action?.run).toBe('approve')
-    const off = problemOf(t, view({ state: 'off', enabled: false }), listen, undefined)
-    expect(off?.tone).toBe('calm')
-    expect(off?.action?.run).toBe('approve')
   })
 
   it('别的进程在负责：知道是谁才说', () => {

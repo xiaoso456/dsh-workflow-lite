@@ -111,7 +111,24 @@ export function HubTriggers(props: {
     reloadCatalog()
     onChanged()
   }, [reloadCatalog, onChanged])
+  const { flush, onReload, current } = props
+  const refreshHub = hubData.refresh
+  /** 改一张卡片写在图里的设置（磁盘上的图；编辑页正开着它就先存、改完重读）。改不成回一句原因。 */
+  const patchCard = useCallback(
+    async (workflow: string, node: string, patch: Partial<TriggerData>): Promise<string | null> => {
+      const open = workflow === current
+      if (open && !(await flush())) return t('ver.flushFailed')
+      const problem = await patchTriggerOnDisk(rpc, workflow, node, patch)
+      if (problem !== null) return problem
+      if (open) onReload()
+      onChanged()
+      await refreshHub()
+      return null
+    },
+    [t, rpc, current, flush, onReload, onChanged, refreshHub],
+  )
   const env = useHubTriggerEnv({
+    t,
     rpc,
     hub: hubData,
     workflow: selected?.workflow ?? '',
@@ -121,26 +138,16 @@ export function HubTriggers(props: {
     catalog: catalog.list,
     onCatalogChanged: catalogChanged,
     onNotice,
+    patch: patchCard,
     openRun: props.onOpenRun,
     openSession: props.onOpenSession,
   })
 
   /** 改这张卡片写在图里的设置；回有没有存成（没成已经提示过）。 */
   const edit = async (entry: TriggerEntry, patch: Partial<TriggerData>): Promise<boolean> => {
-    const open = entry.workflow === props.current
-    if (open && !(await props.flush())) {
-      onNotice(t('ver.flushFailed'), 'error')
-      return false
-    }
-    const problem = await patchTriggerOnDisk(rpc, entry.workflow, entry.view.node, patch)
-    if (problem !== null) {
-      onNotice(problem, 'error')
-      return false
-    }
-    if (open) props.onReload()
-    props.onChanged()
-    await hubData.refresh()
-    return true
+    const problem = await patchCard(entry.workflow, entry.view.node, patch)
+    if (problem !== null) onNotice(problem, 'error')
+    return problem === null
   }
 
   if (list === null) {

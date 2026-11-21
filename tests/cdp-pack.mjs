@@ -5,6 +5,9 @@
  * 导出：选版本 → 资源清单（文件缺省勾上）→ 下载 zip →
  * 导入同一个包：名字撞了，另存为新名字（预览里写明资料放到哪、skill 内容一样跳过）→ 确认卡 → 落盘、图里改成 {workflow}/… →
  * 再导入一次，选并入：版本全都重复，不再存。
+ * 图里另有两张触发卡片（一张跑命令、关着；一张定时、开着），卡片目录里有脚本、密钥、脚本数据：
+ * 导出清单里卡片缺省都带、密钥和数据缺省不带、去掉跑命令的那张脚本就不带；包里的开关都是关的；
+ * 导入预览写出几张卡片、带了密钥；导入后脚本、密钥落进新工作流的卡片目录。
  * 另外导出成 skill：换到「Skill」→ 单选版本 → 资源 → Skill 信息（名字、预填的描述、SKILL.md 预览）→
  * 下载 zip（看包里的布局）→ 装到本机 → 再装一次要先确认覆盖。
  *
@@ -15,9 +18,10 @@
  */
 
 import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { strFromU8, unzipSync } from 'fflate'
+import { assetsDir } from '../src/host/store/paths.ts'
 import { bootToCanvas, screenshot, setReactInput } from './lib/canvas-harness.mjs'
 import { openPage, waitFor } from './lib/cdp-session.mjs'
 import { rpc } from './lib/web-session.mjs'
@@ -48,6 +52,22 @@ const clickTestId = (testId) =>
 const textOf = (testId) =>
   `(document.querySelector('[data-testid="${testId}"]')?.textContent || '')`
 const hubRow = (name) => `[data-testid="wl-hub-wf"][data-value=${JSON.stringify(name)}]`
+
+/** 插件现在用的数据目录（`~` 开头的换成家目录）。 */
+async function dataDir() {
+  const dir = (await rpc('config/get', {})).values.dataDir
+  return dir.startsWith('~') ? join(homedir(), dir.slice(1)) : dir
+}
+
+/** 一个工作流里一张触发卡片的目录。 */
+const cardHome = (data, workflow, node) => join(assetsDir(data, workflow), 'triggers', node)
+
+/** 文件在不在。 */
+const present = (path) =>
+  stat(path).then(
+    () => true,
+    () => false,
+  )
 
 /** 本机已经装在 ~/.agents/skills 里、模型能用的一个 skill（没有就不带 skill）。 */
 async function installedSkill() {
@@ -96,6 +116,14 @@ async function run(session) {
   const skill = await installedSkill()
 
   await rpc('graph/create', { name: NAME })
+  const data = await dataDir()
+  // 跑命令那张卡片的目录：脚本、密钥、脚本自己记的东西。
+  const inbox = cardHome(data, NAME, 'inbox')
+  await mkdir(join(inbox, 'secrets'), { recursive: true })
+  await mkdir(join(inbox, 'data'), { recursive: true })
+  await writeFile(join(inbox, 'tick.mjs'), 'setInterval(() => {}, 60_000)\n')
+  await writeFile(join(inbox, 'secrets', 'token.txt'), 'example-token\n')
+  await writeFile(join(inbox, 'data', 'seen.json'), '[]\n')
   const loaded = await rpc('graph/load', { name: NAME })
   const items = [{ kind: 'file', value: SPEC }]
   if (skill !== undefined) items.push({ kind: 'skill', value: skill })
@@ -106,6 +134,27 @@ async function run(session) {
       nodes: [
         { id: 'docs', type: 'wfResource', position: { x: 0, y: 0 }, data: { items } },
         { id: 'a', type: 'wfNode', position: { x: 480, y: 0 }, data: { prompt: '读需求' } },
+        {
+          id: 'inbox',
+          type: 'wfTrigger',
+          position: { x: 0, y: -320 },
+          data: {
+            label: '收件',
+            source: { kind: 'listen', command: 'node tick.mjs' },
+            workspace: EXT,
+          },
+        },
+        {
+          id: 'nightly',
+          type: 'wfTrigger',
+          position: { x: 480, y: -320 },
+          data: {
+            label: '夜巡',
+            source: { kind: 'schedule', schedule: { kind: 'daily', time: '03:00' } },
+            workspace: EXT,
+            enabled: true,
+          },
+        },
       ],
       edges: [
         { id: 'docs->a', source: 'docs', target: 'a', sourceHandle: null, targetHandle: null },
@@ -208,6 +257,43 @@ async function run(session) {
   )
   await session.evaluate(clickTestId('wl-pack-cat-file-toggle'))
   await waitFor(session, `${attr('wl-pack-cat-file-toggle', 'aria-expanded')} === 'true'`)
+
+  // 触发器：两张卡片缺省都带，密钥、脚本数据缺省不带；有跑命令的卡片，触发脚本整个带上。
+  await waitFor(session, exists('wl-pack-cat-triggers'))
+  const cardRow = (label) =>
+    `[...document.querySelectorAll('[data-testid="wl-pack-trigger"]')].find((el) => el.textContent.includes(${JSON.stringify(label)}))`
+  const secretsRow = `document.querySelector('[data-testid="wl-pack-trigger-secrets"]')`
+  const dataRow = `document.querySelector('[data-testid="wl-pack-trigger-data"]')`
+  const box = (row) => `(${row})?.querySelector('input')`
+  const scriptsText = textOf('wl-pack-trigger-scripts')
+  check(
+    (await session.evaluate(
+      `document.querySelectorAll('[data-testid="wl-pack-trigger"]').length`,
+    )) === 2,
+    '两张触发卡片各占一行',
+  )
+  check(
+    (await session.evaluate(
+      `${box(cardRow('收件'))}?.checked && ${box(cardRow('夜巡'))}?.checked`,
+    )) === true,
+    '触发卡片缺省都带',
+  )
+  check((await session.evaluate(`${box(secretsRow)}?.checked`)) === false, '密钥缺省不带')
+  check((await session.evaluate(`${box(dataRow)}?.checked`)) === false, '脚本数据缺省不带')
+  check(
+    (await session.evaluate(scriptsText)).includes('整个带上'),
+    '有跑命令的卡片，触发脚本应带上',
+  )
+  // 不带跑命令的那张：触发脚本跟着不带，它的密钥也勾不了；再带回来。
+  await session.evaluate(`${box(cardRow('收件'))}.click()`)
+  await waitFor(session, `${scriptsText}.includes('不带')`)
+  check((await session.evaluate(`${box(secretsRow)}.disabled`)) === true, '卡片不带时密钥勾不了')
+  await session.evaluate(`${box(cardRow('收件'))}.click()`)
+  await waitFor(session, `${scriptsText}.includes('整个带上')`)
+  // 勾上密钥：写明是明文进包。
+  await session.evaluate(`${box(secretsRow)}.click()`)
+  await waitFor(session, `(${secretsRow}).textContent.includes('明文')`)
+  pass('导出：触发器一类（卡片缺省都带，密钥、数据缺省不带，脚本跟着跑命令的卡片走）')
   await screenshot(session, 'pack-02-resources.png')
   pass(
     `导出：外部资源清单（文件${skill === undefined ? '' : ` + skill ${skill}`}，分类展开收起、开关独立）`,
@@ -219,7 +305,27 @@ async function run(session) {
   const zip = await waitDownload()
   check((await stat(zip)).size > 0, '下载的包不该是空的')
   check((await session.evaluate(textOf('wl-pack-notice'))).includes('.wflite.zip'), '应说导出了')
-  pass('导出：浏览器下载到 .wflite.zip')
+  const packed = unzipSync(new Uint8Array(await readFile(zip)))
+  // 包里整个放在以工作流名命名的一层目录下。
+  const packedNames = Object.keys(packed).map((name) => name.slice(NAME.length + 1))
+  for (const want of [
+    'assets/triggers/inbox/tick.mjs',
+    'assets/triggers/inbox/secrets/token.txt',
+  ]) {
+    check(packedNames.includes(want), `包里应有 ${want}：${packedNames.join(', ')}`)
+  }
+  check(
+    !packedNames.some((name) => name.startsWith('assets/triggers/inbox/data/')),
+    `没勾脚本数据，包里不该有：${packedNames.join(', ')}`,
+  )
+  const packedCards = JSON.parse(
+    strFromU8(packed[`${NAME}/versions/1.json`]),
+  ).document.nodes.filter((node) => node.type === 'wfTrigger')
+  check(
+    packedCards.length === 2 && packedCards.every((node) => node.data.enabled === undefined),
+    `包里两张触发卡片都该是关着的：${JSON.stringify(packedCards.map((node) => node.data))}`,
+  )
+  pass('导出：浏览器下载到 .wflite.zip（触发脚本、勾上的密钥在包里，数据不在，开关都关着）')
 
   // 结果条右边的 ✕：点了不是一下消失，条在原地淡出（影子没有 testid，带 aria-hidden），放完才没。
   const ghosts = `[...document.querySelectorAll('[aria-hidden="true"][inert]')].filter((el) => el.textContent.includes('.wflite.zip')).length`
@@ -246,6 +352,11 @@ async function run(session) {
   check(
     (await session.evaluate(textOf('wl-pack-do-export'))).includes('下一步'),
     'skill：资源清单底下应是「下一步」',
+  )
+  check(
+    (await session.evaluate(exists('wl-pack-skill-triggers'))) &&
+      (await session.evaluate(gone('wl-pack-cat-triggers'))),
+    'skill：触发卡片不进 skill，应提醒一句、不列触发器一类',
   )
   await session.evaluate(clickTestId('wl-pack-do-export'))
   await waitFor(session, exists('wl-skill-name'), { timeoutMs: 30_000 })
@@ -317,6 +428,10 @@ async function run(session) {
   const doc = strFromU8(entries[`${SKILL}/SKILL.md`])
   check(doc.startsWith(`---\nname: ${SKILL}\n`), 'SKILL.md 头部应是填的名字')
   check(doc.includes('`{skill}/steps/a.md`') && !doc.includes(SPEC), '包里的路径应写成 {skill}/…')
+  check(
+    !paths.some((path) => path.includes('/triggers/')),
+    `skill 包里不该有触发脚本：${paths.join(', ')}`,
+  )
   pass('导出成 skill：下载 zip（SKILL.md + steps + assets，路径都在包里）')
 
   // 装到本机，再装一次要先确认覆盖。
@@ -382,8 +497,12 @@ async function run(session) {
     check(skills.includes('内容一样'), `本机已装的 skill 应是内容一样：${skills}`)
     check(await session.evaluate(gone('wl-pack-trust')), '不装 skill 就不用勾确认')
   }
+  const triggerPreview = await session.evaluate(textOf('wl-pack-triggers'))
+  check(triggerPreview.includes('2 张触发卡片'), `应写出几张触发卡片：${triggerPreview}`)
+  check(await session.evaluate(exists('wl-pack-triggers-secrets')), '带了密钥应写出来')
+  check(await session.evaluate(gone('wl-pack-triggers-workspace')), '工作区本机有，不该提醒重选')
   await screenshot(session, 'pack-04-preview.png')
-  pass('导入：预览（另存为新名字、资料目标路径、skill 状态）')
+  pass('导入：预览（另存为新名字、资料目标路径、skill 状态、触发卡片与密钥）')
 
   await confirmImport(session)
   const copied = await rpc('graph/load', { name: COPY })
@@ -403,10 +522,22 @@ async function run(session) {
     ),
     '导入后应选中新的那张',
   )
+  const copiedCards = copied.document.nodes.filter((node) => node.type === 'wfTrigger')
+  check(
+    copiedCards.length === 2 && copiedCards.every((node) => node.data.enabled === undefined),
+    '导入的触发卡片都该是关着的',
+  )
+  const copiedInbox = cardHome(data, COPY, 'inbox')
+  check(
+    (await present(join(copiedInbox, 'tick.mjs'))) &&
+      (await present(join(copiedInbox, 'secrets', 'token.txt'))) &&
+      !(await present(join(copiedInbox, 'data'))),
+    '脚本、密钥应落进新工作流的卡片目录，脚本数据不带',
+  )
   const plan = await rpc('plan/build', { name: COPY })
   check(plan.plan.includes(`/assets/${COPY}/spec.md`), '计划里应是资料目录下的绝对路径')
   await screenshot(session, 'pack-06-done.png')
-  pass('导入：落盘，版本号保留，图里是 {workflow}/…，计划里是绝对路径')
+  pass('导入：落盘，版本号保留，图里是 {workflow}/…，计划里是绝对路径，触发卡片关着、脚本密钥到位')
 
   // 5) 并入原来那张（编辑页正开着它）：包里的 v1 路径改成了 {workflow}/…，和本机 v1 不一样，存成 v2；
   //    编辑页按磁盘重新加载，不拿旧图覆盖回去。

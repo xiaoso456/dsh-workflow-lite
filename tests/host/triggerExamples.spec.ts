@@ -1,7 +1,7 @@
 /**
  * skill `workflow-trigger` 里监视的例子照文档原样跑一遍：脚本取自文档里的代码块，命令、`poke`、样本、`seconds`
- * 取自文档的原话，走 `test_trigger` 同一条路（{@link testCard}），`{workflow}`、环境变量和插件给的一样。
- * 只换掉文档里指向用户机器的那几样（`D:/inbox` 这类路径、对方的地址、端口），文档改坏了这里会红。
+ * 取自文档的原话，走 `test_trigger` 同一条路（{@link testCard}）：在卡片目录里跑，`{workflow}`、`{workspace}`、
+ * 环境变量和插件给的一样。只换掉文档里指向别人机器的那几样（对方的地址、端口），文档改坏了这里会红。
  */
 
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -11,9 +11,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterAll, describe, expect, it } from 'vitest'
+import { cardDataDir, cardDir, cardSecretsDir } from '../../src/host/triggers/cardDirs.ts'
 import { type CardTestResult, testCard } from '../../src/host/triggers/cardTest.ts'
 import { placeKit } from '../../src/host/triggers/kit.ts'
-import { bindWorkflowVar } from '../../src/shared/pathVars.ts'
+import { bindWorkflowVar, bindWorkspaceVar } from '../../src/shared/pathVars.ts'
 import type { TriggerData, TriggerFilter } from '../../src/shared/types.ts'
 
 const SKILL = fileURLToPath(new URL('../../skills/workflow-trigger/', import.meta.url))
@@ -39,9 +40,9 @@ const secondsOf = (text: string): number | undefined => {
   const found = /`seconds` 写 (\d+)/u.exec(text)?.[1]
   return found === undefined ? undefined : Number(found)
 }
-/** 「存 `dir/triggers/samples/x.json`：`{…}`」：样本的文件名和内容。 */
+/** 「存卡片目录的 `samples/x.json`：`{…}`」：样本的文件名和内容。 */
 function sampleOf(text: string): { name: string; body: string } {
-  const match = /`dir\/triggers\/samples\/([\w-]+\.json)`：`([^`]+)`/u.exec(text)
+  const match = /卡片目录的 `samples\/([\w-]+\.json)`：`([^`]+)`/u.exec(text)
   if (match === null) throw new Error('文档里找不到样本')
   JSON.parse(match[2] as string)
   return { name: match[1] as string, body: match[2] as string }
@@ -54,41 +55,31 @@ afterAll(() => {
   rmSync(scratch, { recursive: true, force: true })
 })
 
-/** 一个工作流目录（插件放好了底子）、工作区、数据目录、密钥目录。 */
+/** 一个工作流目录（插件放好了底子）、这张卡片的目录（命令在这里跑）、会话工作区、试运行的数据目录、密钥目录。 */
 async function setup(name: string) {
   const root = join(scratch, name)
   const workflow = join(root, 'workflow').replaceAll('\\', '/')
+  const home = cardDir(workflow, 'tick')
   const paths = {
     workflow,
-    workspace: join(root, 'workspace'),
-    data: join(root, 'data'),
-    secrets: join(root, 'secrets'),
+    home,
+    workspace: join(root, 'workspace').replaceAll('\\', '/'),
+    data: cardDataDir(workflow, 'tick', true),
+    secrets: cardSecretsDir(workflow, 'tick'),
   }
-  for (const dir of [
-    join(workflow, 'triggers', 'samples'),
-    paths.workspace,
-    paths.data,
-    paths.secrets,
-  ]) {
+  for (const dir of [join(home, 'samples'), paths.workspace, paths.data, paths.secrets]) {
     mkdirSync(dir, { recursive: true })
   }
-  await placeKit(workflow) // 和插件写卡片、跑命令前一样放好底子
+  await placeKit(workflow) // 和插件写要跑命令的卡片时一样放好底子
   return {
     ...paths,
-    /** 把脚本写进 `{workflow}/triggers/`，文件名取自命令。 */
+    /** 把脚本写进卡片目录，文件名取自命令（`node xxx.mjs …`）。 */
     script(command: string, code: string): void {
-      writeFileSync(
-        join(
-          workflow,
-          'triggers',
-          pick(command, /\{workflow\}\/triggers\/([\w-]+\.mjs)/u, '脚本名'),
-        ),
-        code,
-      )
+      writeFileSync(join(home, pick(command, /^node ([\w-]+\.mjs)/u, '脚本名')), code)
     },
     sample(text: string): void {
       const { name: file, body } = sampleOf(text)
-      writeFileSync(join(workflow, 'triggers', 'samples', file), body)
+      writeFileSync(join(home, 'samples', file), body)
     },
     /** 和 `test_trigger` 一样试一次。 */
     run(
@@ -106,10 +97,11 @@ async function setup(name: string) {
         trigger: { node: 'tick', name: '试', data, runState: true, choice: {}, workflowChoice: {} },
         now: Date.now(),
         spec: {
-          command: bindWorkflowVar(command, workflow),
-          cwd: paths.workspace,
+          command: bindWorkspaceVar(bindWorkflowVar(command, workflow), paths.workspace),
+          cwd: home,
           env: {
             WORKFLOW_DIR: workflow,
+            TRIGGER_WORKSPACE: paths.workspace,
             TRIGGER_DATA_DIR: paths.data,
             TRIGGER_SECRETS_DIR: paths.secrets,
           },
@@ -174,15 +166,12 @@ describe.concurrent('skill 里的监视例子照文档原样能跑', () => {
   it('examples/folder.md：已有的文件不报，poke 放进来的写完才报', async () => {
     const text = doc('examples/folder.md')
     const box = await setup('folder')
-    const inbox = join(box.workspace, 'inbox').replaceAll('\\', '/')
+    const inbox = join(box.workspace, 'inbox')
     mkdirSync(inbox)
     writeFileSync(join(inbox, 'old.txt'), 'x')
-    const command = commandOf(text).replace('D:/inbox', inbox)
+    const command = commandOf(text)
     box.script(command, blocks(text, 'js')[0] as string)
-    const result = await box.run(command, {
-      poke: pokeOf(text).replace('D:/inbox', inbox),
-      seconds: secondsOf(text),
-    })
+    const result = await box.run(command, { poke: pokeOf(text), seconds: secondsOf(text) })
     expect(result.poke?.code).toBe(0)
     expect(passed(result)).toHaveLength(1)
     expect(passed(result)[0]).toContain('test-')
@@ -193,17 +182,14 @@ describe.concurrent('skill 里的监视例子照文档原样能跑', () => {
   it('examples/log.md：旧日志不报；追加的按关键字过，堆栈并进同一件', async () => {
     const text = doc('examples/log.md')
     const box = await setup('log')
-    const file = join(box.workspace, 'app.log').replaceAll('\\', '/')
-    writeFileSync(file, 'ERROR old one\n')
-    const command = commandOf(text).replace('D:/app/logs/app.log', file)
+    mkdirSync(join(box.workspace, 'logs'))
+    writeFileSync(join(box.workspace, 'logs', 'app.log'), 'ERROR old one\n')
+    const command = commandOf(text)
     box.script(command, blocks(text, 'js')[0] as string)
     const include = JSON.parse(
       pick(text, /`filter\.include`（如 `([^`]+)`）/u, '关键字'),
     ) as string[]
-    const poke = pick(text, /`poke` [^`]*如 `([^`]+)`/u, ' poke').replace(
-      'D:/app/logs/app.log',
-      file,
-    )
+    const poke = pick(text, /`poke` [^`]*如 `([^`]+)`/u, ' poke')
     const result = await box.run(command, { poke }, { include })
     expect(result.poke?.code).toBe(0)
     expect(result.events?.map((event) => event.result)).toEqual([

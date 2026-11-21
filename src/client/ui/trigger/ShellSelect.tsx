@@ -175,7 +175,7 @@ export function ShellSelect(
 
 /**
  * 工作台顶上一条里的小按钮：终端图标 + 现在用的 shell 的名字，点开是同样的菜单（带完整路径）。
- * 提示里写完整路径；`changed`（和存着的不一样）时换成「保存后要重新确认命令」。
+ * 提示里写完整路径；`changed`（和存着的不一样）时按钮标出来。
  */
 export function ShellButton(
   props: ShellProps & {
@@ -219,7 +219,7 @@ export function ShellButton(
             aria-expanded={menu !== null}
             aria-label={`${t('trigger.shell')}：${current?.label ?? name}`}
             data-changed={props.changed || undefined}
-            data-tip={props.changed ? t('trigger.shellChanged') : current?.label}
+            data-tip={current?.label}
             data-testid={props.testId}
             onClick={() =>
               setMenu(

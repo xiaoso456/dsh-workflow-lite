@@ -85,7 +85,16 @@ export function SourceStage(props: {
             onChange={props.onChange}
           />
         )}
-        {source.kind === 'http' && <HttpStage t={t} node={props.node} env={env} />}
+        {source.kind === 'http' && (
+          <HttpStage
+            t={t}
+            node={props.node}
+            env={env}
+            source={source}
+            live={props.view?.state === 'listening'}
+            onChange={props.onChange}
+          />
+        )}
         {source.kind === 'after' && (
           <AfterStage t={t} source={source} env={env} onChange={props.onChange} />
         )}

@@ -1,6 +1,6 @@
 /**
  * dsh-workflow-lite — 触发卡片属性面板里自己的样子：一行一项的小表单、星期几的一排圆钮、
- * 确认命令、最近的输出、触发记录。
+ * 最近的输出、触发记录。
  *
  * 面板外壳、分组标题、说明文字、开关行都用 panel/panel.module.css 的。
  */
@@ -59,28 +59,6 @@
   flex-direction: column;
   gap: 4px;
   min-width: 0;
-}
-
-/* 确认命令：命令原样等宽显示，可以换行，太长就在框里滚。 */
-.confirmCommand {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 8px;
-}
-
-.confirmCode {
-  max-height: 120px;
-  overflow: auto;
-  padding: 6px 8px;
-  border: 1px solid var(--wl-line);
-  border-radius: calc(4px * var(--wl-round, 1));
-  background: var(--wl-sunken);
-  color: var(--wl-text);
-  font-family: var(--wl-font-mono);
-  font-size: var(--wl-fs-micro);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
 }
 
 /* 星期几：七个小圆钮，选中的填强调色。 */

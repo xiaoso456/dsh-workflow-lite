@@ -52,11 +52,13 @@ import {
 } from '../../shared/resources.ts'
 import { readSessionChoice, withoutSessionChoice } from '../../shared/sessionChoice.ts'
 import {
-  canonicalTrigger,
   DEFAULT_TRIGGER,
   readTriggerData,
   SOURCE_KINDS,
+  settingsOf,
   sourceProblem,
+  type TriggerSettings,
+  withSettings,
 } from '../../shared/trigger.ts'
 import {
   type ExecutionMode,
@@ -465,7 +467,11 @@ export class NodeWriter {
       }
       const merged = recordOf(mergePatch(base, patch))
       merged.launch = { ...recordOf(merged.launch), ...kept }
-      const data = canonicalTrigger(readTriggerData(merged))
+      // 开关、工作区、地址和令牌这些设置要核对，只经触发器服务改（writeTriggerSettings）：模型在这里写的不认。
+      const data = withSettings(
+        readTriggerData(merged),
+        found === undefined ? {} : settingsOf(found.data),
+      )
       const problem = sourceProblem(data.source)
       if (problem !== null) {
         return fail('invalid_args', `触发设置不对：${problem}`, { code: 'trigger_invalid' })
@@ -488,6 +494,29 @@ export class NodeWriter {
         ok: true,
         document,
         changed: [{ kind: 'node', op: found === undefined ? 'add' : 'update', id }],
+        warnings: [],
+      }
+    })
+  }
+
+  /** 换一张触发卡片的设置（触发器服务核对过的）。 */
+  async writeTriggerSettings(
+    workflow: string,
+    id: string,
+    settings: TriggerSettings,
+  ): Promise<Outcome<WriteResult>> {
+    return this.core.mutate(workflow, async (document) => {
+      const found = findNode(document, id)
+      if (found === undefined || !isTrigger(found)) {
+        return fail('not_found', `工作流 ${workflow} 里没有触发卡片 ${id}`, { id })
+      }
+      const node: TriggerNode = { ...found, data: withSettings(found.data, settings) }
+      if (sameNodeContent(found, node)) return { ok: true, document, changed: [], warnings: [] }
+      document.nodes = document.nodes.map((current) => (current === found ? node : current))
+      return {
+        ok: true,
+        document,
+        changed: [{ kind: 'node', op: 'update', id: found.id }],
         warnings: [],
       }
     })

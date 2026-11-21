@@ -5,9 +5,11 @@
  * - 绝对路径的文件、文件夹（只被读的）：可以打包，打进 `assets/`，包里那几个版本的图改写成 `{workflow}/…`
  *   （本机的工作流不动）；重名的依次加 `-2`、`-3`；
  * - 有目录的 skill：可以打包，整个目录进 `skills/<名>/`；内置或插件注册的没有目录，只能原样引用；
- * - 工作流目录（`{workflow}/…`）：总是整个打进去；
+ * - 工作流目录（`{workflow}/…`）：总是整个打进去；触发器那一块（`triggers/`）另算，见 `triggerPack.ts`；
  * - 记忆（`{memory}/<id>`）：元数据总是写进清单，内容（那份 skill 文件夹）勾了才打进 `memories/<id>/`，缺省勾上；
  * - 相对路径、产出、网址、自定义文本：原样留在图里。
+ *
+ * 新建会话用的设置（模型、预设、权限）按三个总开关带或不带；触发卡片一律存成关着的。
  *
  * @module @xiaoso/dsh-workflow-lite/host/pack/exporter
  */
@@ -48,8 +50,9 @@ import {
 import { memoryOf } from '../../shared/presets.ts'
 import { resourceGraph } from '../../shared/resources.ts'
 import {
-  documentHasSessionChoice,
-  documentWithoutSessionChoice,
+  DEFAULT_CHOICE_KEEP,
+  documentChoices,
+  documentWithChoice,
 } from '../../shared/sessionChoice.ts'
 import { type VersionEntry, type WorkflowDocument, WRITABLE_KINDS } from '../../shared/types.ts'
 import type { HostSkillEntry } from '../../shared/wire/host.ts'
@@ -61,7 +64,8 @@ import { fail, type Outcome } from '../store/repoResult.ts'
 import type { Repository } from '../store/repository.ts'
 import { versionText } from '../store/versions.ts'
 import { newStage, writeOut } from './staging.ts'
-import { readTree, type Tree, walkTree } from './tree.ts'
+import { readTree, type Tree, type TreeFile, walkTree } from './tree.ts'
+import { packTriggers, pickTriggerFiles, scanTriggers, splitAssets } from './triggerPack.ts'
 
 export interface PackDeps {
   dataDir: string
@@ -87,7 +91,10 @@ export interface ScanState {
   response: PackScanResponse
   versions: PickedVersion[]
   trees: Map<string, Tree>
+  /** 工作流目录里除了触发器那一块（`triggers/`）以外的。 */
   assetsTree: Tree | null
+  /** 工作流目录里 `triggers/` 下的文件（导出成 skill 时不带）。 */
+  triggerFiles: TreeFile[]
   skills: Map<string, HostSkillEntry>
   /** 记忆项（`PackScanItem.key`）→ 库里那条的元数据。 */
   memories: Map<string, MemoryMeta>
@@ -257,10 +264,19 @@ export async function scanState(
     }
   }
 
-  // 资料目录：在就整个打包。
+  // 资料目录：在就整个打包；触发器那一块另算。
   const assetsLocation = assetsDir(deps.dataDir, request.name)
   const assetsTree = await walkTree(assetsLocation)
-  const assets = assetsTree?.dir === true ? assetsTree : null
+  const split = assetsTree?.dir === true ? splitAssets(assetsTree) : null
+  const assets = split === null || split.rest.files.length === 0 ? null : split.rest
+  const triggerFiles = split?.triggers ?? []
+  const cards = scanTriggers(
+    versions.map(({ entry, document }) => ({ n: entry.n, document })),
+    triggerFiles,
+  )
+  const newest = versions.reduce((best, version) =>
+    version.entry.n > best.entry.n ? version : best,
+  )
 
   // 要打包的文件、文件夹在资料目录里叫什么：用原来的名字，和资料目录里已有的、彼此之间撞了就加序号。
   const taken = new Set<string>()
@@ -300,11 +316,14 @@ export async function scanState(
               },
         roots: [...roots],
         limit: PACK_MAX_BYTES,
-        sessionChoice: versions.some(({ document }) => documentHasSessionChoice(document)),
+        choices: documentChoices(newest.document),
+        triggers: cards.triggers,
+        triggerScripts: cards.scripts,
       },
       versions,
       trees,
       assetsTree: assets,
+      triggerFiles,
       skills,
       memories,
     },
@@ -351,7 +370,14 @@ export async function exportPack(
 ): Promise<Outcome<PackExportResponse>> {
   const scanned = await scanState(deps, request)
   if (!scanned.ok) return scanned
-  const { response, versions, trees, assetsTree, memories: memoryMetas } = scanned.result
+  const {
+    response,
+    versions,
+    trees,
+    assetsTree,
+    triggerFiles,
+    memories: memoryMetas,
+  } = scanned.result
   const wanted = new Set(request.pack)
   const top = response.name
   const entries: Record<string, Uint8Array> = {}
@@ -365,10 +391,23 @@ export async function exportPack(
     count += 1
   }
 
-  // 资料目录 + 要打包的文件、文件夹 → assets/
+  // 资料目录 + 触发器那一块里要带的 + 要打包的文件、文件夹 → assets/
+  const keep = new Set(request.triggers ?? response.triggers.map((card) => card.node))
+  const picked = pickTriggerFiles(triggerFiles, response.triggers, {
+    keep,
+    secrets: new Set(request.secrets ?? []),
+    data: new Set(request.triggerData ?? []),
+  })
   const assets: PackFile[] = []
-  if (assetsTree !== null) {
-    const read = await readTree(assetsTree)
+  const assetFiles = [...(assetsTree?.files ?? []), ...picked]
+  if (assetFiles.length > 0) {
+    const read = await readTree({
+      dir: true,
+      files: assetFiles,
+      bytes: 0,
+      skipped: 0,
+      over: false,
+    })
     for (const file of read.files) {
       assets.push(file)
       put(PACK_PATHS.asset(file.path), read.data.get(file.path) as Uint8Array)
@@ -465,7 +504,7 @@ export async function exportPack(
           createdAt: entry.createdAt,
           note: entry.note,
           document: rewriteForPack(
-            request.sessionChoice === true ? document : documentWithoutSessionChoice(document),
+            packTriggers(documentWithChoice(document, request.choice ?? DEFAULT_CHOICE_KEEP), keep),
             renames,
           ),
         }),

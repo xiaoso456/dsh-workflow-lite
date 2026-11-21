@@ -11,7 +11,7 @@
 
 import { useCallback, useMemo } from 'react'
 import { idKey } from '../../../../shared/model.ts'
-import { commandOf } from '../../../../shared/trigger.ts'
+import type { TriggerData } from '../../../../shared/types.ts'
 import type { GraphListResponse } from '../../../../shared/wire/graph.ts'
 import { agentCatalog } from '../../../app/agents.ts'
 import type { SessionRow } from '../../../app/sessions.ts'
@@ -19,6 +19,8 @@ import { createShellAccess } from '../../../app/shells.ts'
 import type { TriggerHub } from '../../../app/useTriggerHub.ts'
 import type { Triggers } from '../../../app/useTriggers.ts'
 import { enableRunState, recentRuns } from '../../../app/workflowRuns.ts'
+import type { T } from '../../../i18n.ts'
+import { switchPatch } from '../../../model/triggerSwitch.ts'
 import type { WorkflowLiteRpc } from '../../../rpc.ts'
 import {
   knownWorkspaces,
@@ -28,6 +30,7 @@ import {
 } from '../../trigger/triggerEnv.ts'
 
 export interface HubEnvInput {
+  t: T
   rpc: WorkflowLiteRpc
   hub: TriggerHub
   /** 选中的卡片所在的工作流。 */
@@ -41,6 +44,8 @@ export interface HubEnvInput {
   /** 改了另一个工作流的设置（打开「记录运行状态」）之后重读工作流列表。 */
   onCatalogChanged(): void
   onNotice(text: string, tone?: 'info' | 'error'): void
+  /** 改一张卡片写在图里的几项（磁盘上的图）；改不成回一句原因。 */
+  patch(workflow: string, node: string, patch: Partial<TriggerData>): Promise<string | null>
   openRun(id: string): void
   openSession(id: string): boolean
 }
@@ -50,7 +55,7 @@ const NO_CHOICE = {}
 const NOTHING = (): void => {}
 
 export function useHubTriggerEnv(input: HubEnvInput): TriggerEnv {
-  const { rpc, hub, workflow, session, cwd, sessionRows, catalog, onNotice } = input
+  const { t, rpc, hub, workflow, session, cwd, sessionRows, catalog, onNotice } = input
   const entries = hub.list?.triggers
   const views = useMemo(
     () =>
@@ -66,7 +71,9 @@ export function useHubTriggerEnv(input: HubEnvInput): TriggerEnv {
     () => ({
       view: (node) => views.get(idKey(node))?.view,
       owner: hub.list?.owner,
-      set: (node, change) => hub.set(workflow, node, change),
+      hookOrigin: hub.list?.hookOrigin ?? '',
+      reopen: (node) => hub.reopen(workflow, node),
+      endpoint: (node) => hub.endpoint(workflow, node),
       fire: (node, info) => hub.fire(workflow, node, info ?? ''),
       history: (node, limit) => hub.history(workflow, node, limit),
       detail: hub.detail,
@@ -101,27 +108,24 @@ export function useHubTriggerEnv(input: HubEnvInput): TriggerEnv {
     [rpc, onCatalogChanged],
   )
 
-  const toggle = useCallback(
-    (node: string, on: boolean): 'confirm' | 'done' => {
-      const entry = views.get(idKey(node))
-      if (on && entry !== undefined && commandOf(entry.data.source) !== undefined) {
-        if (entry.view.approved !== true) return 'confirm'
-      }
-      void triggers.set(node, { enabled: on }).then((problem) => {
-        if (problem !== null) onNotice(problem, 'error')
-      })
-      return 'done'
-    },
-    [views, triggers, onNotice],
+  const patchCard = input.patch
+  const patch = useCallback(
+    (node: string, change: Partial<TriggerData>): Promise<string | null> =>
+      patchCard(workflow, node, change),
+    [patchCard, workflow],
   )
 
-  const approve = useCallback(
-    (node: string, command: string): void => {
-      void triggers.set(node, { approve: command, enabled: true }).then((problem) => {
-        if (problem !== null) onNotice(problem, 'error')
-      })
+  const toggle = useCallback(
+    (node: string, on: boolean): void => {
+      const entry = views.get(idKey(node))
+      if (entry === undefined) return
+      void switchPatch(t, entry.data, on, () => hub.endpoint(workflow, node))
+        .then((change) => (typeof change === 'string' ? change : patch(node, change)))
+        .then((problem) => {
+          if (problem !== null) onNotice(problem, 'error')
+        })
     },
-    [triggers, onNotice],
+    [t, views, hub.endpoint, workflow, patch, onNotice],
   )
 
   return useMemo(
@@ -137,8 +141,8 @@ export function useHubTriggerEnv(input: HubEnvInput): TriggerEnv {
       agents,
       workflowChoice,
       enableRunState: turnOnRunState,
+      patch,
       toggle,
-      approve,
       reveal: null,
       takeReveal: NO_REVEAL,
       editSource: NOTHING,
@@ -160,8 +164,8 @@ export function useHubTriggerEnv(input: HubEnvInput): TriggerEnv {
       agents,
       workflowChoice,
       turnOnRunState,
+      patch,
       toggle,
-      approve,
       input.openRun,
     ],
   )

@@ -4,7 +4,7 @@
  */
 
 import { createHash } from 'node:crypto'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { createServer as createNetServer, type Server } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -36,6 +36,7 @@ import {
   startProcess,
 } from '../../src/host/triggers/processes.ts'
 import { lastLineText } from '../../src/host/triggers/runtime.ts'
+import { windowsPowerShell } from '../../src/host/triggers/shells.ts'
 import { PING_BODY, pingHook, tryCheck, tryListen } from '../../src/host/triggers/trial.ts'
 import { filterOf, keywordMiss } from '../../src/shared/trigger.ts'
 import type { TriggerData } from '../../src/shared/types.ts'
@@ -518,7 +519,46 @@ describe('在本机跑命令', () => {
     await live.stop()
     expect(exits).toEqual([])
   }, 30_000)
+
+  it('刚启动就结束：shell 正拉起的程序也一起结束，不留在后台', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'wl-tree-'))
+    try {
+      // 程序起来后先记下自己的 pid；Windows 上用 PowerShell（启动慢，最容易在它拉起程序的那一下被结束）。
+      await writeFile(
+        join(dir, 'hold.mjs'),
+        "import { writeFileSync } from 'node:fs'\nwriteFileSync('pid.txt', String(process.pid))\nsetInterval(() => {}, 1000)\n",
+      )
+      const shell = process.platform === 'win32' ? windowsPowerShell(process.env) : undefined
+      for (let round = 0; round < 3; round += 1) {
+        await rm(join(dir, 'pid.txt'), { force: true })
+        const live = startProcess(
+          { command: 'node hold.mjs', cwd: dir, ...(shell === undefined ? {} : { shell }) },
+          { onLine: () => {}, onExit: () => {} },
+        )
+        await live.stop()
+        // 漏掉的程序还会接着起来、写下 pid：等一会儿再看。
+        await new Promise((resolve) => setTimeout(resolve, 2000))
+        const pid = await readFile(join(dir, 'pid.txt'), 'utf8').then(Number, () => undefined)
+        expect(
+          pid === undefined || !alive(pid),
+          `第 ${String(round + 1)} 次留下了 ${String(pid)}`,
+        ).toBe(true)
+      }
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  }, 60_000)
 })
+
+/** 这个 pid 的进程还在不在。 */
+function alive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
 
 /** 试运行的行写成「流 文字」；本机的 node 可能往错误输出打警告（代理之类），只留命令自己打的。 */
 const ownLines = (lines: readonly { stream: string; text: string }[]): string[] =>

@@ -1,9 +1,9 @@
 /**
  * dsh-workflow-lite — HTTP 触发的地址与令牌（「触发方式」对话框的两行设置）：一行「POST + 地址」，一行令牌。
  *
- * - 打开过开关才有地址和令牌（缺省地址用工作流名，令牌随机）；令牌默认遮住，遮不遮由外面管（调用示例跟着一起）。
- * - 地址、令牌都能点铅笔改：就地换成输入框，Enter 保存、Esc 取消，写得不对当场说；
- *   改的是本机设置，保存即生效，不等对话框的「保存」，旧地址 / 旧令牌马上失效。
+ * - 地址和令牌写在触发源里，是对话框的草稿：「保存」才写进图，那之后旧地址 / 旧令牌失效。
+ *   换到 HTTP 时先补上缺省的（地址用工作流名，令牌随机）；令牌默认遮住，遮不遮由外面管（调用示例跟着一起）。
+ * - 地址、令牌都能点铅笔改：就地换成输入框，Enter 收下、Esc 取消，写得不对、地址和别的卡片重了当场说。
  * - 令牌那一行的「换一个令牌」换成随机的，先问一句。
  * - 令牌可以设成「不需要」（先问一句，监听地址对局域网开放时多说一句）；令牌照样留着，换回「需要」还是它。
  *
@@ -13,17 +13,11 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
-import {
-  HOOK_MAX_LENGTH,
-  hookIssue,
-  isLoopbackHost,
-  TOKEN_MAX_LENGTH,
-  TOKEN_MIN_LENGTH,
-  tokenIssue,
-} from '../../../../shared/triggerHttp.ts'
-import type { TriggerEndpoint } from '../../../../shared/wire/trigger.ts'
-import type { LocaleKey, T } from '../../../i18n.ts'
+import { hookIssue, isLoopbackHost, tokenIssue } from '../../../../shared/triggerHttp.ts'
+import type { T } from '../../../i18n.ts'
+import { type Endpoint, randomToken } from '../../../model/httpEndpoint.ts'
 import { readableUrl } from '../../../model/triggerGlance.ts'
+import { hookIssueText, tokenIssueText } from '../../../model/triggerText.ts'
 import { useConfirm } from '../../kit/Confirm.tsx'
 import { copyText } from '../../kit/clipboard.ts'
 import { cx } from '../../kit/cx.ts'
@@ -33,35 +27,15 @@ import ui from '../../kit/ui.module.css'
 import { useCopied } from '../../kit/useCopied.ts'
 import { FadeStack } from '../../motion/stage.tsx'
 import { SwapIcon, SwapText } from '../../motion/swapText.tsx'
-import type { TriggerEnv } from '../triggerEnv.ts'
 import css from './http.module.css'
 import { StageRow } from './StageRow.tsx'
 import stage from './sourceStage.module.css'
 
-const HOOK_ISSUE = {
-  empty: 'trigger.hookIssue.empty',
-  chars: 'trigger.hookIssue.chars',
-  long: 'trigger.hookIssue.long',
-} as const satisfies Record<NonNullable<ReturnType<typeof hookIssue>>, LocaleKey>
-
-const TOKEN_ISSUE = {
-  short: 'trigger.tokenIssue.short',
-  chars: 'trigger.tokenIssue.chars',
-  long: 'trigger.tokenIssue.long',
-} as const satisfies Record<NonNullable<ReturnType<typeof tokenIssue>>, LocaleKey>
-
-/** 地址写得不对的一句话（界面语言）；能用是 `null`。 */
-export function hookIssueText(t: T, hook: string): string | null {
-  const issue = hookIssue(hook)
-  return issue === null ? null : t(HOOK_ISSUE[issue]).replace('{n}', String(HOOK_MAX_LENGTH))
-}
-
-/** 令牌写得不对的一句话（界面语言）；能用是 `null`。 */
-export function tokenIssueText(t: T, token: string): string | null {
-  const issue = tokenIssue(token)
-  if (issue === null) return null
-  const n = issue === 'long' ? TOKEN_MAX_LENGTH : TOKEN_MIN_LENGTH
-  return t(TOKEN_ISSUE[issue]).replace('{n}', String(n))
+/** 对话框里改地址、令牌：给了哪项改哪项。 */
+export interface EndpointChange {
+  hook?: string
+  token?: string
+  noToken?: boolean
 }
 
 /** 遮住时令牌显示成这个。 */
@@ -69,20 +43,21 @@ export const TOKEN_MASK = '•'.repeat(16)
 
 export function HttpEndpoint(props: {
   t: T
-  node: string
-  env: TriggerEnv
-  endpoint: TriggerEndpoint
+  endpoint: Endpoint
+  /** 别的卡片已经用了的地址。 */
+  taken: ReadonlySet<string>
   /** 令牌露不露出来。 */
   reveal: boolean
   onReveal(reveal: boolean): void
+  onChange(change: EndpointChange): void
 }): React.JSX.Element {
-  const { t, env, endpoint, reveal } = props
+  const { t, endpoint, reveal, onChange } = props
   const reset = useConfirm<HTMLButtonElement>()
   const open = useConfirm<HTMLSpanElement>()
   const shown = readableUrl(endpoint.url)
   const base = shown.slice(0, shown.length - endpoint.hook.length)
   const split = endpoint.hook !== '' && shown.endsWith(endpoint.hook)
-  const noToken = endpoint.noToken === true
+  const noToken = endpoint.noToken
   const lan = !isLoopbackHost(urlHost(endpoint.url))
   const need = (
     <span ref={open.anchorRef} className={css.need}>
@@ -96,7 +71,7 @@ export function HttpEndpoint(props: {
         ]}
         onChange={(next) => {
           // 换回「需要」收得紧，直接改；放开要先问一句。
-          if (next === 'on') void env.triggers.set(props.node, { noToken: false })
+          if (next === 'on') onChange({ noToken: false })
           else open.show()
         }}
       />
@@ -106,9 +81,7 @@ export function HttpEndpoint(props: {
         desc: `${t('trigger.noTokenDesc')}${lan ? t('trigger.noTokenLan') : ''}`,
         confirmText: t('trigger.noTokenConfirm'),
         testId: 'wl-trigger-no-token-confirm',
-        onConfirm: () => {
-          void env.triggers.set(props.node, { noToken: true })
-        },
+        onConfirm: () => onChange({ noToken: true }),
       })}
     </span>
   )
@@ -120,10 +93,16 @@ export function HttpEndpoint(props: {
         value={endpoint.hook}
         prefix={split ? base : undefined}
         help={t('trigger.hookHelp')}
-        check={(text) => hookIssueText(t, text)}
+        check={(text) => {
+          const issue = hookIssue(text.normalize('NFC'))
+          if (issue !== null) return hookIssueText(t, issue)
+          return props.taken.has(text.normalize('NFC'))
+            ? t('trigger.hookTaken').replace('{hook}', text)
+            : null
+        }}
         editLabel={t('trigger.editUrl')}
         testId="wl-trigger-hook"
-        onSave={(hook) => env.triggers.set(props.node, { hook })}
+        onSave={(hook) => onChange({ hook: hook.normalize('NFC') })}
         before={<span className={css.method}>POST</span>}
         shown={
           <code className={css.url} data-tip={shown} data-testid="wl-trigger-url">
@@ -137,7 +116,10 @@ export function HttpEndpoint(props: {
         label={t('trigger.token')}
         value={endpoint.token}
         help={t('trigger.tokenHelp')}
-        check={(text) => tokenIssueText(t, text)}
+        check={(text) => {
+          const issue = tokenIssue(text)
+          return issue === null ? null : tokenIssueText(t, issue)
+        }}
         editLabel={t('trigger.editToken')}
         testId="wl-trigger-token-edit"
         lead={need}
@@ -147,7 +129,7 @@ export function HttpEndpoint(props: {
             {t('trigger.noTokenNote')}
           </span>
         }
-        onSave={(token) => env.triggers.set(props.node, { token })}
+        onSave={(token) => onChange({ token })}
         shown={
           <code className={css.token} data-testid="wl-trigger-token" data-masked={!reveal}>
             <SwapText text={reveal ? endpoint.token : TOKEN_MASK} />
@@ -182,9 +164,7 @@ export function HttpEndpoint(props: {
               desc: t('trigger.resetTokenDesc'),
               confirmText: t('trigger.resetTokenConfirm'),
               testId: 'wl-trigger-reset-confirm',
-              onConfirm: () => {
-                void env.triggers.set(props.node, { resetToken: true })
-              },
+              onConfirm: () => onChange({ token: randomToken() }),
             })}
             <CopyIcon t={t} text={endpoint.token} testId="wl-trigger-copy-token" />
           </>
@@ -218,8 +198,8 @@ function EditableRow(props: {
   check(text: string): string | null
   editLabel: string
   testId: string
-  /** 改不成回一句原因。 */
-  onSave(text: string): Promise<string | null>
+  /** 收下这一项（已经过了 `check`）。 */
+  onSave(text: string): void
   shown: React.ReactNode
   tools: React.ReactNode
   /** 值的框前面的东西（令牌的「需要 / 不需要」）。 */
@@ -233,7 +213,6 @@ function EditableRow(props: {
   const { t } = props
   const [text, setText] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
   const input = useRef<HTMLInputElement>(null)
   const pencil = useRef<HTMLButtonElement>(null)
   const editing = text !== null
@@ -248,23 +227,16 @@ function EditableRow(props: {
     // 等铅笔挂回来再还焦点。
     requestAnimationFrame(() => pencil.current?.focus({ preventScroll: true }))
   }
-  const save = async (): Promise<void> => {
-    if (text === null || busy) return
+  const save = (): void => {
+    if (text === null) return
     const value = text.trim()
     const issue = props.check(value)
     if (issue !== null) {
       setError(issue)
       return
     }
-    if (value === props.value) {
-      close()
-      return
-    }
-    setBusy(true)
-    const refused = await props.onSave(value)
-    setBusy(false)
-    if (refused === null) close()
-    else setError(refused)
+    if (value !== props.value) props.onSave(value)
+    close()
   }
 
   return (
@@ -299,7 +271,6 @@ function EditableRow(props: {
                   autoComplete="off"
                   aria-label={props.label}
                   aria-invalid={error !== null}
-                  disabled={busy}
                   data-testid={`${props.testId}-input`}
                   onChange={(event) => {
                     setText(event.currentTarget.value)
@@ -308,7 +279,7 @@ function EditableRow(props: {
                   onKeyDown={(event) => {
                     if (event.key === 'Enter') {
                       event.preventDefault()
-                      void save()
+                      save()
                     } else if (event.key === 'Escape') {
                       event.preventDefault()
                       event.stopPropagation()
@@ -328,9 +299,8 @@ function EditableRow(props: {
                     className={cx(ui.btn, ui.icon, ui.small)}
                     aria-label={t('trigger.applyEdit')}
                     data-tip={t('trigger.applyEdit')}
-                    disabled={busy}
                     data-testid={`${props.testId}-save`}
-                    onClick={() => void save()}
+                    onClick={save}
                   >
                     <Icon name="check" size={13} />
                   </button>

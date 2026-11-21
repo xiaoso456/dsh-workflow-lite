@@ -62,8 +62,7 @@ export const zh = {
   'cfg.triggerHostDesc':
     '缺省只接受本机的请求。要让别的机器调用，选「所有网卡」或某块网卡的地址；请求是明文 HTTP，只在信得过的网络里用，或放在 HTTPS 代理后面。',
   'cfg.triggerShell': '默认 shell',
-  'cfg.triggerShellDesc':
-    '带命令的触发器（定时检查、监视）没单独选 shell 时用它。改了之后，跟随默认的触发器要重新确认命令才会继续运行。',
+  'cfg.triggerShellDesc': '带命令的触发器（定时检查、监视）没单独选 shell 时用它。',
   'cfg.shellSystem': '系统默认',
   'cfg.triggerOutputLines': '最近的输出保留',
   'cfg.triggerOutputLinesDesc':
@@ -168,7 +167,7 @@ export const en: Record<keyof typeof zh, string> = {
     'Only requests from this machine are accepted by default. To let other machines call in, pick All interfaces or one interface address; requests are plain HTTP, so use it only on a trusted network or behind an HTTPS proxy.',
   'cfg.triggerShell': 'Default shell',
   'cfg.triggerShellDesc':
-    'Used by triggers that run a command (scheduled checks, watch) and do not pick their own shell. After changing it, triggers that follow the default need their command confirmed again before they run.',
+    'Used by triggers that run a command (scheduled checks, watch) and do not pick their own shell.',
   'cfg.shellSystem': 'System default',
   'cfg.triggerOutputLines': 'Recent output kept',
   'cfg.triggerOutputLinesDesc':

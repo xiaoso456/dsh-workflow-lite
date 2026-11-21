@@ -7,12 +7,14 @@
  * <图名>/
  * ├─ manifest.json        包格式版本、导出时的插件版本、清单（见 {@link PackManifest}）
  * ├─ versions/<n>.json    选中的版本，和 `versions/<图名>/<n>.json` 同一个格式
- * ├─ assets/…             工作流资料目录（图里写成 `{workflow}/…` 的文件），导入时解压到 `<dataDir>/assets/<图名>/`
+ * ├─ assets/…             工作流资料目录（图里写成 `{workflow}/…` 的文件），导入时解压到 `<dataDir>/assets/<图名>/`；
+ * │                       触发脚本 `assets/triggers/` 只在留下的卡片里有要跑命令的时带上，各卡片的密钥、脚本数据勾了才带
  * ├─ skills/<名>/…        打进来的 skill 整个目录，导入时装到 `~/.agents/skills/<名>/`
  * └─ memories/<id>/…      引用的记忆里勾了带内容的那几条（元数据都在清单里），导入时放进记忆库
  * ```
  *
  * 只导出**存成了版本的**内容：版本有编号、有说明，导入之后照样认得出是哪一版。
+ * 包里各版本的触发卡片一律是关着的；没勾的卡片从各版本里去掉。
  * 清单不记打包文件原来的绝对路径（会带出本机用户名和目录结构）。
  *
  * 纯类型与纯函数，不碰磁盘、不 import DSH 包。
@@ -21,8 +23,9 @@
  */
 
 import { checkName } from './naming.ts'
+import type { ChoiceKeep, ChoiceSpot } from './sessionChoice.ts'
 import { normalizeTagColors, normalizeTags, type TagColor } from './tags.ts'
-import { MEMORY_TYPES, type MemoryType, type ResourceKind } from './types.ts'
+import { MEMORY_TYPES, type MemoryType, type ResourceKind, type TriggerSource } from './types.ts'
 
 /** 包格式的版本号（和插件版本分开算）。读到比它新的直接拒绝，叫用户先升级插件。 */
 export const PACK_FORMAT = 1
@@ -349,15 +352,46 @@ export interface PackScanResponse {
   roots: string[]
   /** 总大小上限。 */
   limit: number
-  /** 选中的版本里写了新建会话用的预设、模型（工作流上的或触发卡片上的）：导出时问要不要带上。 */
-  sessionChoice: boolean
+  /** 新建会话用的设置在哪几处设了什么（按选中的最新版本；工作流设置、各触发卡片）：导出时三个总开关管带不带。 */
+  choices: ChoiceSpot[]
+  /** 选中的版本里的触发卡片（按 id 合并，取最新版本里的样子）。 */
+  triggers: PackTrigger[]
+  /** 触发脚本（`triggers/` 下除各卡片的密钥、脚本数据以外的）：留下的卡片里有要跑命令的才带。 */
+  triggerScripts: { files: number; bytes: number } | null
+}
+
+/** 导出清单里的一张触发卡片。 */
+export interface PackTrigger {
+  node: string
+  /** 卡片名（没起名是空串）。 */
+  label: string
+  source: TriggerSource
+  /** 要跑命令（定时检查、监听）。 */
+  command: boolean
+  /** 出现在哪几个版本里。 */
+  versions: number[]
+  /** 卡片目录里的密钥（`secrets/`）：有文件才给，列文件名。 */
+  secrets?: { names: string[]; bytes: number }
+  /** 脚本自己记的东西（`data/`）：有文件才给。 */
+  data?: { files: number; bytes: number }
+}
+
+/** 留下的卡片里有要跑命令的：触发脚本整个带上。 */
+export function packsScripts(triggers: readonly PackTrigger[], keep: ReadonlySet<string>): boolean {
+  return triggers.some((card) => card.command && keep.has(card.node))
 }
 
 export interface PackExportRequest extends PackScanRequest {
   /** 要打包的项（`PackScanItem.key`）。 */
   pack: string[]
-  /** 带上预设、模型（缺省不带：包里各版本都去掉，导入的人按自己的默认跑）。 */
-  sessionChoice?: boolean
+  /** 新建会话用的设置带哪几项（缺省：模型、预设不带，权限带上）。 */
+  choice?: ChoiceKeep
+  /** 留下的触发卡片（id）；不给 = 全留。没留的从包里各版本去掉。 */
+  triggers?: string[]
+  /** 带上密钥（`secrets/`）的卡片。 */
+  secrets?: string[]
+  /** 带上脚本数据（`data/`）的卡片。 */
+  triggerData?: string[]
 }
 
 export interface PackExportResponse {
@@ -442,6 +476,18 @@ export interface PackImportPreview {
   memories: PackMemoryPreview[]
   /** 包里没带的引用，本机有没有（`null` = 相对路径，查不了）。 */
   external: (PackExternal & { found: boolean | null })[]
+  /** 导入后用的那一版里的触发卡片（没有是 `null`）：导入后都是关着的。 */
+  triggers: PackTriggerPreview | null
+}
+
+export interface PackTriggerPreview {
+  cards: number
+  /** 选的会话工作区这台机器上没有的卡片数。 */
+  workspaceMissing: number
+  /** 发进固定会话的卡片数（会话是导出那台机器上的，要重新选）。 */
+  fixed: number
+  /** 包里带的密钥文件数。 */
+  secrets: number
 }
 
 /** 包里的一条记忆，和本机记忆库比。 */

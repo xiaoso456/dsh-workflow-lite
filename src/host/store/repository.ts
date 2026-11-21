@@ -25,12 +25,14 @@
  */
 
 import type { TagColor } from '../../shared/tags.ts'
+import type { TriggerSettings } from '../../shared/trigger.ts'
 import type {
   Handoff,
   ListResult,
   NodeData,
   ValidationProblem,
   VersionEntry,
+  VersionSwitches,
   WorkflowDocument,
   WriteResult,
 } from '../../shared/types.ts'
@@ -102,11 +104,12 @@ export interface Repository {
   ): Promise<Outcome<{ entry: VersionEntry; document: WorkflowDocument }>>
   /**
    * 切到某个版本：现在的内容还没存成版本时先自动存一份（`saved`），再把那个版本写回工作流。
-   * 回新的整图哈希。
+   * 触发卡片的开关缺省恢复成那一版的，`switches: 'off'` 全部关掉。回新的整图哈希。
    */
   restoreVersion(
     workflow: string,
     n: number,
+    switches?: VersionSwitches,
   ): Promise<Outcome<{ hash: string; saved: VersionEntry | null }>>
   /** 改版本说明。 */
   noteVersion(workflow: string, n: number, note: string): Promise<Outcome<VersionEntry>>
@@ -145,8 +148,14 @@ export interface Repository {
   /** 加一张记忆卡（库里那一条由调用方先备好）。步骤不存在、已经有记忆了就拒绝。 */
   addMemory(workflow: string, request: MemoryCardRequest): Promise<Outcome<WriteResult>>
   writeInput(workflow: string, upsert: InputUpsert): Promise<Outcome<WriteResult>>
-  /** 新建或修改触发卡片的定义（开关等本机状态不在这里，见 `write_trigger` 的 `local`）。 */
+  /** 新建或修改触发卡片的定义；开关、工作区、地址和令牌这些设置不动（见 {@link writeTriggerSettings}）。 */
   writeTrigger(workflow: string, upsert: TriggerUpsert): Promise<Outcome<WriteResult>>
+  /** 换一张触发卡片的设置（触发器服务核对过的）。 */
+  writeTriggerSettings(
+    workflow: string,
+    node: string,
+    settings: TriggerSettings,
+  ): Promise<Outcome<WriteResult>>
   setLabel(workflow: string, node: string, label: string): Promise<Outcome<WriteResult>>
   /** 改工作流设置（产出根目录、执行方式、复用执行者、设定目标、记录运行状态）；给了的字段才改。 */
   configure(workflow: string, patch: SettingsPatch): Promise<Outcome<WriteResult>>
@@ -212,7 +221,7 @@ export function createRepository(options: RepositoryOptions): Repository {
     listVersions: (workflow) => versions.listVersions(workflow),
     saveVersion: (workflow, note) => versions.saveVersion(workflow, note),
     readVersion: (workflow, n) => versions.readVersion(workflow, n),
-    restoreVersion: (workflow, n) => versions.restoreVersion(workflow, n),
+    restoreVersion: (workflow, n, switches) => versions.restoreVersion(workflow, n, switches),
     noteVersion: (workflow, n, note) => versions.noteVersion(workflow, n, note),
     deleteVersion: (workflow, n) => versions.deleteVersion(workflow, n),
     importWorkflow: (request) => versions.importWorkflow(request),
@@ -226,6 +235,8 @@ export function createRepository(options: RepositoryOptions): Repository {
     addMemory: (workflow, request) => nodes.addMemory(workflow, request),
     writeInput: (workflow, upsert) => nodes.writeInput(workflow, upsert),
     writeTrigger: (workflow, upsert) => nodes.writeTrigger(workflow, upsert),
+    writeTriggerSettings: (workflow, node, settings) =>
+      nodes.writeTriggerSettings(workflow, node, settings),
     setLabel: (workflow, node, label) => nodes.setLabel(workflow, node, label),
     configure: (workflow, patch) => nodes.configure(workflow, patch),
     deleteNode: (workflow, node) => nodes.deleteNode(workflow, node),

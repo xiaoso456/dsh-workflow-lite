@@ -7,6 +7,7 @@
  * | `{memory}` | 记忆卡那一项的开头（`{memory}/<记忆 id>`，插件写，用户不改） | 插件的记忆库（`<dataDir>/memories/`）；导出成 skill 时换成 `{skill}/memory` |
  * | `{instance}` | 产出根目录、状态文件路径里任意位置 | 实例 id：插件建实例时换；通用口径（skill）由执行者自己取 |
  * | `{skill}` | 导出成 skill 时计划里包内路径的开头 | 加载 skill 时宿主给出的目录：执行者自己换，插件不换 |
+ * | `{workspace}` | 触发卡片的命令里任意位置、脚本工作目录的开头 | 卡片上选的会话工作区（插件跑命令前换） |
  *
  * 认、拼、取相对部分、换成实际值都**只在这里做**，旧写法（`{assets}` → `{workflow}`）的兼容也在这里。
  * 别处不写变量的字面量、不切字符串、不 split / join；讲给模型或用户的句子里要提变量，也用这里的常量拼。
@@ -90,6 +91,33 @@ export function bindWorkflowVar(command: string, dir: string): string {
     (text, token) => text.split(token).join(target),
     command,
   )
+}
+
+// ── {workspace}：触发卡片选的会话工作区 ──────────────────────────────
+
+/** 触发卡片的会话工作区的变量。 */
+export const WORKSPACE_VAR = '{workspace}'
+
+/** 这段文字（命令、目录）里有没有用到 {@link WORKSPACE_VAR}。 */
+export function hasWorkspaceVar(text: string): boolean {
+  return text.includes(WORKSPACE_VAR)
+}
+
+/** 这个路径是不是写在会话工作区里（`{workspace}` 本身或 `{workspace}/…`）。 */
+export function isWorkspacePath(path: string): boolean {
+  return leads(path, WORKSPACE_VAR)
+}
+
+/** 把 `{workspace}/…` 换成 `dir` 下的路径；别的路径原样返回。 */
+export function bindWorkspacePath(path: string, dir: string): string {
+  if (!isWorkspacePath(path)) return path
+  const rest = restAfter(path, WORKSPACE_VAR.length)
+  return rest === '' ? normalize(dir) : join(normalize(dir), rest)
+}
+
+/** 把一条命令里所有的 {@link WORKSPACE_VAR} 换成工作区（正斜杠写法），同 {@link bindWorkflowVar}。 */
+export function bindWorkspaceVar(command: string, dir: string): string {
+  return command.split(WORKSPACE_VAR).join(normalize(dir))
 }
 
 // ── {memory}：记忆库 ────────────────────────────────────────────

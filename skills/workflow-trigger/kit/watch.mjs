@@ -1,9 +1,9 @@
 /**
  * watch.mjs — 监视程序的底子（workflow-lite 触发卡片）。
  *
- * 插件把它放进工作流目录的 `triggers/` 下（不在或不一样就换成随插件的这份），监视脚本里 `import { … } from './watch.mjs'`。
+ * 插件在建第一张要跑命令的卡片时放一份到工作流目录的 `triggers/` 下，之后归工作流自己管（升级插件不换）。
+ * 各卡片目录里的脚本 `import { … } from '../watch.mjs'`；别改它，要的功能写在自己的脚本里。
  * 只用 Node 自带的模块（Node 18 起），不用装依赖；随工作流一起导出，到了别的机器上照样能跑。
- * 别手改：下次跑命令前会被换回去。
  *
  * 管的是每个监视程序都要、又最容易漏的那几样：
  * - emit：打一行事件（一件事一行，换行换掉）；log / warn：日志（不触发）；
@@ -31,11 +31,11 @@ import {
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-/** 脚本自己的数据目录：每张卡片单独一个，只在这台机器上，不导出；手动跑时落在当前目录的 .trigger-data。 */
+/** 脚本自己的数据目录：每张卡片单独一个（试运行另有一份），导出时缺省不带；手动跑时落在当前目录的 .trigger-data。 */
 export const dataDir = resolve(process.env.TRIGGER_DATA_DIR ?? '.trigger-data')
 mkdirSync(dataDir, { recursive: true })
 
-/** 用户放令牌、密钥、连接串的目录：每张卡片单独一个，真打开和试运行是同一处，不导出；手动跑时同数据目录。 */
+/** 用户放令牌、密钥、连接串的目录：每张卡片单独一个，真打开和试运行是同一处，导出时缺省不带；手动跑时同数据目录。 */
 export const secretsDir = resolve(process.env.TRIGGER_SECRETS_DIR ?? dataDir)
 
 // ── 输出 ─────────────────────────────────────────────
@@ -294,7 +294,7 @@ const INBOX = 'inject.jsonl'
 /**
  * 每隔 `every` 毫秒看一眼数据目录里有没有投进来的样本，有就逐条交给 `handle`（和真事件走同一个处理函数）。
  * 远端的事件（接口、数据库、聊天软件）没法在本地造时，`test_trigger` 的 `poke` 写
- * `node "{workflow}/triggers/watch.mjs" inject "{workflow}/triggers/samples/xxx.json"`。
+ * `node ../watch.mjs inject samples/xxx.json`（在卡片目录里跑，样本放卡片目录的 `samples/`）。
  * 平时没有这个文件，不影响什么。
  */
 export function injected(handle, { every = 1000 } = {}) {

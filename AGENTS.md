@@ -68,21 +68,6 @@ gh release create workflow-lite-v<ver> --title "v<ver>" --notes-file <notes 文�
 - 运行状态：DSH 口径由插件建实例、模型经 `state` 改；通用口径由模型自己建、改 `.workflow-lite/runs/{instance}/state.yaml`，计划里给出初始内容。
 - 加设置或改措辞两套一起写；`tests/shared/dialect.spec.ts` 用通用口径扫 `DSH_ONLY_TERMS`，新的工具名、插件说法要补进表。
 
-## 触发卡片
-
-`wfTrigger` 节点让工作流在某件事发生时自动执行：定时、条件轮询、监听程序、HTTP、另一个工作流跑完（设计、分期与各期落地情况见 `docs/触发器设计.md`）。工作流中心「触发」页集中列出各工作流的卡片，「全部暂停」也在那里。
-
-- 写在图里的只有定义（触发源、过滤、触发条件、触发说明、会话方式、保护）；开关、工作区、固定会话、命令确认、HTTP 令牌、轮询的上一次结果、接续触发看过的实例、全部暂停、触发记录是本机状态，存 `<数据目录>/triggers/`，不进工作流 JSON、不随导出。往卡片上加东西先分清是哪一类。
-- 宿主侧在 `src/host/triggers/`，各管一件事：`store`（本机状态）、`owner`（同一个数据目录只有一个进程负责）、`reconcile`（定时对账，只算不做）、`runtime`（常驻触发源的启停，只在负责的进程里）、`poller` / `listener` / `hooks`（三种常驻触发源）、`processes`（在本机跑命令）、`intake`（过滤）、`launcher`（发进会话）、`message`（发进去的那段话）、`claims`（实例认领来源）、`after`（接续触发的判定与说法；哪些实例结束了经 `RunWatch` 问实例那边，不 import runs）、`service`（串起来）。宿主的会话接口没有类型，只在 `sessions.ts` 里按结构取用。
-- 「失败」只算触发器自己干不了活（工作区或会话不在、会话建不出来、图编译不出计划、命令跑不起来、监听程序一启动就退出）；跳过的、条件不满足的、过滤掉的、端口被占用、发出去之后的事都不算，不计入自动停用。
-- 要在本机跑命令的卡片，开关只在确认过「这条命令在这个工作区」之后才打开（`approvalOf`）；两样改了任一样就回到「待确认」。确认只有两条路：用户在画布上确认，或模型经 `write_trigger` 的 `local.enabled` 打开；不要加别的绕过路径，新建的卡片缺省关着。
-- 触发卡片不是步骤：`isStep` 不含它，不连线；模型只能经 `write_trigger` 建、改它，`write_node` 拒绝。按节点类型分支的地方新加一种节点时要逐处看（`grep isInput(`）。
-- 卡片上的状态走 `ui/trigger/triggerEnv.ts` 的上下文，不进画布节点数据：轮询只换字和属性，不重建节点。
-- 卡片中间的速览按触发源换样子（`model/triggerGlance.ts` 算图里写着的部分，`ui/trigger/TriggerGlanceRow` 再读现场；画布卡片、面板、「何时触发」对话框共用的最近一行、地址、轮询进度）；每种触发源的图标、颜色在 `ui/trigger/TriggerMark.tsx`，主动 / 被动按 `triggerMode`。新加触发源三处都要补。
-- 全部暂停是一个总闸（`paused.json`），不动各卡片的开关：暂停着定时照常往后排但不发、常驻触发源全停、接续触发只记下看过的实例，恢复后都不补；「立即触发一次」不受它管。新加触发源时同样要想清楚暂停期间怎么办。
-- 测常驻触发源时 `TriggerService` 的 `runtime` 换成假的（拿到事件口自己喂），测接续触发时 `runs` 换成假的 `RunWatch`；跑命令、开端口的放在 `tests/host/triggerSources.spec.ts`。
-- 改了界面跑 `tests/cdp-triggers.mjs` 在一次性实例上走一遍；文档站的图是 `docs:shots trigger-card trigger-panel trigger-poll trigger-confirm trigger-filter trigger-http trigger-after trigger-hub`。
-
 ## 配色主题
 
 - 亮暗各四套（晴白、瑞士、雾蓝、林间 / 石板、墨黑、深海、暖夜），色值全在 `src/client/model/themes.ts`；默认晴白 + 石板。非默认几套照成熟方案配（Nord、Everforest、Geist、Tokyo Night、Gruvbox），一套换全套：线色、强调色、步骤图标色、状态色。
@@ -108,10 +93,10 @@ DSH_WEB_TOKEN=<token> DSH_BASE=http://127.0.0.1:3190 node --experimental-strip-t
 | `cdp-ui.mjs` | 画布编辑、资源、工作流切换 / 改名 / 删除 |
 | `cdp-runs.mjs` | 实例与运行状态 |
 | `cdp-inputs.mjs` | 执行前提问 |
-| `cdp-versions.mjs` | 版本、工作流中心「工作流」页 |
+| `cdp-versions.mjs` | 版本（含切到开着触发卡片的版本时选开关怎么办）、工作流中心「工作流」页 |
 | `cdp-config.mjs` | 「设置」页（含配色主题） |
-| `cdp-pack.mjs` | 导出、导入、导出成 Skill（装到本机用一次性名字，验完删掉） |
-| `cdp-triggers.mjs` | 触发卡片：卡片与面板、开关与状态、立即触发、触发记录、实例的来源；监听程序（命令确认、收到一行发进会话、最近的输出、改命令后待确认）、HTTP（端口设置、401 / 202）、换触发源、接续触发（选工作流、那边结束后发进会话）、工作流中心「触发」页（全部暂停与恢复、行尾开关、在画布上打开）（自备一次性实例，不用 `DSH_WEB_TOKEN`；假模型不调工具，认领来源、`decline` 只有单测） |
+| `cdp-pack.mjs` | 导出、导入（含触发卡片、触发脚本与密钥）、导出成 Skill（装到本机用一次性名字，验完删掉） |
+| `cdp-triggers.mjs` | 触发卡片：卡片与面板、开关与状态、立即触发、触发记录、实例的来源；监听程序（收到一行发进会话、最近的输出、改命令或 shell 后照新的重启）、HTTP（端口设置、401 / 202）、换触发源、定时检查（分两步填、试运行）、接续触发（选工作流、那边结束后发进会话）、工作流中心「触发」页（全部暂停与恢复、行尾开关、在画布上打开）（自备一次性实例，不用 `DSH_WEB_TOKEN`；假模型不调工具，认领来源、`decline` 只有单测） |
 | `cdp-big.mjs` | 400 张卡的大图：只挂视口附近的卡片之后，看全图、定位、拖卡片、平移、长线、展示卡挪出去再挪回来（自备一次性实例，不用 `DSH_WEB_TOKEN`） |
 
 ## 性能场景

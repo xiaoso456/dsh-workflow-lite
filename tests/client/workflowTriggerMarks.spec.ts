@@ -36,6 +36,7 @@ describe('切换工作流下拉里的小闪电', () => {
         entry('巡检', 'c', false),
         entry('发版', 'a', false),
       ],
+      hookOrigin: '',
     }
     const marks = workflowTriggerMarks(list, {})
     expect(marks.get('巡检')).toEqual({ on: 2, paused: false, unseen: false })
@@ -47,6 +48,7 @@ describe('切换工作流下拉里的小闪电', () => {
     const list: TriggerAllResponse = {
       triggers: [entry('巡检', 'a', true, 100), entry('发版', 'a', false, 50)],
       paused: 1,
+      hookOrigin: '',
     }
     const unseen = workflowTriggerMarks(list, {})
     expect(unseen.get('巡检')).toEqual({ on: 1, paused: true, unseen: true })

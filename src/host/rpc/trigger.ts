@@ -1,5 +1,5 @@
 /**
- * dsh-workflow-lite — `trigger/*`：触发卡片的状态、开关与本机设置（含确认命令、换令牌）、「立即触发一次」、
+ * dsh-workflow-lite — `trigger/*`：触发卡片的状态、「重新启用」自动停用了的卡片、HTTP 触发的缺省地址与令牌、「立即触发一次」、
  * 触发记录与一次触发的详情、取消排着的一次或清空一张卡片排着的、一段时间里的次数、最近的输出（摘要、几条的行、清空）、「试运行」命令与 HTTP 测试请求、本机的 shell，以及工作流中心「触发」页的全部卡片与「全部暂停」。
  *
  * @module @xiaoso/dsh-workflow-lite/host/rpc/trigger
@@ -55,43 +55,13 @@ export async function dispatchTrigger(
     case 'trigger/list':
       return ok(await deps.triggers.list(workflow))
 
-    case 'trigger/set': {
-      if (input.enabled !== undefined && typeof input.enabled !== 'boolean') {
-        throw new Error('enabled must be a boolean')
-      }
-      if (input.resetToken !== undefined && input.resetToken !== true) {
-        throw new Error('resetToken must be true')
-      }
-      if (input.prepareEndpoint !== undefined && input.prepareEndpoint !== true) {
-        throw new Error('prepareEndpoint must be true')
-      }
-      if (input.noToken !== undefined && typeof input.noToken !== 'boolean') {
-        throw new Error('noToken must be a boolean')
-      }
-      const workspace = clearableString(input, 'workspace')
-      const shell = clearableString(input, 'shell')
-      const session = clearableString(input, 'session')
-      const approve = clearableString(input, 'approve')
-      // 空串也送进去：由服务说「地址不能为空」，不悄悄当没给。
-      const hook = typeof input.hook === 'string' ? input.hook : undefined
-      const token = typeof input.token === 'string' ? input.token : undefined
-      const outcome = await deps.triggers.set({
-        workflow,
-        node: requireString(input, 'node'),
-        ...(input.enabled === undefined ? {} : { enabled: input.enabled }),
-        ...(workspace === undefined ? {} : { workspace }),
-        ...(shell === undefined ? {} : { shell }),
-        ...(session === undefined ? {} : { session }),
-        ...(approve === undefined ? {} : { approve }),
-        ...(input.resetToken === true ? { resetToken: true as const } : {}),
-        ...(input.prepareEndpoint === true ? { prepareEndpoint: true as const } : {}),
-        ...(hook === undefined ? {} : { hook }),
-        ...(token === undefined ? {} : { token }),
-        ...(input.noToken === undefined ? {} : { noToken: input.noToken }),
-      })
-      if (!outcome.ok) return failFrom(outcome.error)
-      return ok(outcome.result)
+    case 'trigger/reopen': {
+      const outcome = await deps.triggers.reopen(workflow, requireString(input, 'node'))
+      return outcome.ok ? ok(outcome.result) : failFrom(outcome.error)
     }
+
+    case 'trigger/endpoint':
+      return ok(await deps.triggers.endpoint(workflow, requireString(input, 'node')))
 
     case 'trigger/fire': {
       const info = optionalString(input, 'info')
@@ -122,12 +92,15 @@ export async function dispatchTrigger(
       const kind = input.kind
       if (kind !== 'check' && kind !== 'listen') throw new Error('kind must be check or listen')
       const shell = clearableString(input, 'shell')
+      const cwd = clearableString(input, 'cwd')
+      const workspace = clearableString(input, 'workspace')
       const outcome = await deps.triggers.tryCommand({
         workflow,
         node: requireString(input, 'node'),
         kind,
         command: requireString(input, 'command'),
-        workspace: requireString(input, 'workspace'),
+        ...(cwd === undefined ? {} : { cwd }),
+        ...(workspace === undefined ? {} : { workspace }),
         ...(shell === undefined ? {} : { shell }),
       })
       if (!outcome.ok) return failFrom(outcome.error)

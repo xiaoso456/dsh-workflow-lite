@@ -16,7 +16,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { sourceIssue } from '../../../shared/trigger.ts'
-import type { TriggerSource, TriggerSourceKind } from '../../../shared/types.ts'
+import type { TriggerData, TriggerSource, TriggerSourceKind } from '../../../shared/types.ts'
 import type { T } from '../../i18n.ts'
 import { triggerGlance } from '../../model/triggerGlance.ts'
 import { whenActionKey, whenDetail } from '../../model/triggerSummary.ts'
@@ -42,11 +42,13 @@ export function WhenCard(props: {
   t: T
   node: string
   name: string
-  source: TriggerSource
+  data: TriggerData
   env: TriggerEnv | null
-  onChange(source: TriggerSource): void
+  /** 改图里的卡片（换方式、对话框保存）。 */
+  onPatch(patch: Partial<TriggerData>): void
 }): React.JSX.Element {
-  const { t, source, env } = props
+  const { t, data, env } = props
+  const { source } = data
   const [editing, setEditing] = useState(false)
   const kept = useRef(new Map<TriggerSourceKind, TriggerSource>())
   const view = env?.triggers.view(props.node)
@@ -55,7 +57,7 @@ export function WhenCard(props: {
     view !== undefined && (view.state === 'waiting' || view.state === 'elsewhere')
       ? view.next
       : undefined
-  const url = view?.endpoint?.url
+  const url = view?.url
   const detail = whenDetail(t, source, { next: live, line: view?.line?.text, url }, new Date())
   const [copied, setCopied] = useCopied(url ?? '')
 
@@ -69,7 +71,7 @@ export function WhenCard(props: {
 
   const pick = (kind: TriggerSourceKind): void => {
     kept.current.set(source.kind, source)
-    props.onChange(switchSource(source, kind, kept.current))
+    props.onPatch({ source: switchSource(source, kind, kept.current) })
   }
 
   return (
@@ -139,11 +141,13 @@ export function WhenCard(props: {
           t={t}
           node={props.node}
           name={props.name}
-          source={source}
+          data={data}
           env={env}
-          onSave={(next) => {
-            if (next.kind !== source.kind) kept.current.set(source.kind, source)
-            props.onChange(next)
+          onSave={(patch) => {
+            if (patch.source !== undefined && patch.source.kind !== source.kind) {
+              kept.current.set(source.kind, source)
+            }
+            props.onPatch(patch)
           }}
           onClose={() => setEditing(false)}
         />

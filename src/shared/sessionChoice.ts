@@ -155,37 +155,81 @@ export function resolveSessionChoice(
   )
 }
 
-/** 去掉 `preset` / `model` / `permission`（导出时不带上用）；本来就没有原样返回。 */
+/** 导出时新建会话用的设置带不带：模型（服务商、模型、思考强度）、Agent 预设、运行权限，各一个总开关。 */
+export interface ChoiceKeep {
+  model: boolean
+  preset: boolean
+  permission: boolean
+}
+
+/** 缺省：模型、预设不带（导入的人按自己的默认跑），权限带上（关系到能做什么）。 */
+export const DEFAULT_CHOICE_KEEP: ChoiceKeep = { model: false, preset: false, permission: true }
+
+/** 去掉不带的那几项；都带、或本来就没有时原样返回。 */
+export function keptChoice<T extends SessionChoice>(value: T, keep: ChoiceKeep): T {
+  const drop =
+    (!keep.preset && value.preset !== undefined) ||
+    (!keep.model && value.model !== undefined) ||
+    (!keep.permission && value.permission !== undefined)
+  if (!drop) return value
+  const { preset, model, permission, ...rest } = value
+  return {
+    ...rest,
+    ...(keep.preset && preset !== undefined ? { preset } : {}),
+    ...(keep.model && model !== undefined ? { model } : {}),
+    ...(keep.permission && permission !== undefined ? { permission } : {}),
+  } as T
+}
+
+/** 去掉 `preset` / `model` / `permission`；本来就没有原样返回。 */
 export function withoutSessionChoice<T extends SessionChoice>(value: T): T {
-  if (!hasSessionChoice(value)) return value
-  const { preset: _preset, model: _model, permission: _permission, ...rest } = value
-  return rest as T
+  return keptChoice(value, { model: false, preset: false, permission: false })
 }
 
-/** 一张图里有没有写任何预设、模型、权限（工作流设置上的、触发卡片上的）。 */
-export function documentHasSessionChoice(document: WorkflowDocument): boolean {
-  return (
-    hasSessionChoice(document.settings) ||
-    document.nodes.some(
-      (node) => node.type === TRIGGER_TYPE && hasSessionChoice((node as TriggerNode).data.launch),
-    )
-  )
+/** 图里设了新建会话用的设置的一处：工作流设置（没有 `node`）或一张触发卡片。 */
+export interface ChoiceSpot {
+  /** 触发卡片的 id；工作流设置上的没有。 */
+  node?: string
+  /** 触发卡片的名字（有才给）。 */
+  label?: string
+  choice: SessionChoice
 }
 
-/** 去掉一张图里所有的预设、模型、权限（导出时不带上）：工作流设置上的、各触发卡片上的。没有就原样返回。 */
-export function documentWithoutSessionChoice(document: WorkflowDocument): WorkflowDocument {
-  if (!documentHasSessionChoice(document)) return document
-  const settings =
-    document.settings === undefined ? undefined : withoutSessionChoice(document.settings)
+/** 一张图里设了预设、模型、权限的几处（工作流设置在前，触发卡片按图里的顺序）；都没设是空的。 */
+export function documentChoices(document: WorkflowDocument): ChoiceSpot[] {
+  const spots: ChoiceSpot[] = []
+  const settings = readSessionChoice({ ...document.settings })
+  if (hasSessionChoice(settings)) spots.push({ choice: settings })
+  for (const node of document.nodes) {
+    if (node.type !== TRIGGER_TYPE) continue
+    const { data } = node as TriggerNode
+    const choice = readSessionChoice({ ...data.launch })
+    if (!hasSessionChoice(choice)) continue
+    spots.push({
+      node: node.id,
+      ...(data.label === undefined ? {} : { label: data.label }),
+      choice,
+    })
+  }
+  return spots
+}
+
+/** 按 `keep` 去掉一张图里不带的预设、模型、权限（工作流设置上的、各触发卡片上的）；没什么可去的原样返回。 */
+export function documentWithChoice(document: WorkflowDocument, keep: ChoiceKeep): WorkflowDocument {
+  let changed = false
   const nodes = document.nodes.map((node): WorkflowNode => {
     if (node.type !== TRIGGER_TYPE) return node
     const trigger = node as TriggerNode
     const launch = trigger.data.launch
-    if (launch === undefined || !hasSessionChoice(launch)) return node
-    const rest = withoutSessionChoice(launch)
+    if (launch === undefined) return node
+    const rest = keptChoice(launch, keep)
+    if (rest === launch) return node
+    changed = true
     const { launch: _launch, ...data } = trigger.data
     return { ...trigger, data: Object.keys(rest).length > 0 ? { ...data, launch: rest } : data }
   })
+  const settings = document.settings === undefined ? undefined : keptChoice(document.settings, keep)
+  if (!changed && settings === document.settings) return document
   const { settings: _settings, ...base } = document
   return {
     ...base,

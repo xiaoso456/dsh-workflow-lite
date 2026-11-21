@@ -8,12 +8,14 @@ import { nextFire, parseCron, scheduleIssue, scheduleProblem } from '../../src/s
 import {
   canonicalTrigger,
   commandOf,
+  endpointMissing,
   launchMissing,
   launchOf,
   readTriggerData,
   sourceIssue,
   sourceProblem,
   sourceText,
+  usesWorkspace,
 } from '../../src/shared/trigger.ts'
 import type { TriggerSchedule, WorkflowDocument } from '../../src/shared/types.ts'
 import { validateDocument } from '../../src/shared/validate.ts'
@@ -203,6 +205,11 @@ describe('定时检查、监听程序、HTTP', () => {
     )
     expect(commandOf(checked(60, 'node a.mjs'))).toBe('node a.mjs')
     expect(sourceProblem({ kind: 'http' })).toBeNull()
+    expect(endpointMissing({ kind: 'http' })).toBe(true)
+    expect(endpointMissing({ kind: 'http', hook: 'ci' })).toBe(true)
+    expect(endpointMissing({ kind: 'http', hook: 'ci', noToken: true })).toBe(false)
+    expect(endpointMissing({ kind: 'listen', command: 'x' })).toBe(false)
+    expect(sourceProblem({ kind: 'http', hook: 'a/b', token: 'x'.repeat(20) })).toContain('地址')
     expect(commandOf({ kind: 'http' })).toBeUndefined()
     expect(commandOf({ kind: 'listen', command: 'node a.mjs' })).toBe('node a.mjs')
     const check = (when: 'every' | 'success' | 'change') =>
@@ -240,22 +247,37 @@ describe('定时检查、监听程序、HTTP', () => {
       issue: { code: 'time', time: '25:00' },
     })
     expect(sourceIssue({ kind: 'http' })).toBeNull()
+    expect(sourceIssue({ kind: 'http', hook: 'ci', token: 'short' })).toEqual({
+      code: 'token',
+      issue: 'short',
+    })
+    expect(sourceIssue({ kind: 'http', hook: 'ci', token: 'x'.repeat(20) })).toBeNull()
   })
 
-  it('打开开关前本机还缺哪一样', () => {
+  it('打开开关前卡片上还缺哪一样：新建会话缺工作区，固定会话缺会话', () => {
     const listen = readTriggerData({ source: { kind: 'listen', command: 'x' } })
-    expect(launchMissing(listen, {})).toBe('workspace')
-    // 要跑命令的：发进固定会话也要工作区（命令在那里跑）。
+    expect(launchMissing(listen)).toBe('workspace')
+    expect(launchMissing({ ...listen, workspace: 'D:/w' })).toBeNull()
+    // 跑命令不再要工作区：命令在卡片目录里跑。
     const fixedListen = readTriggerData({
       source: { kind: 'listen', command: 'x' },
       launch: { session: 'fixed' },
     })
-    expect(launchMissing(fixedListen, { workspace: 'D:/w' })).toBe('session')
-    const fixedHttp = readTriggerData({ source: { kind: 'http' }, launch: { session: 'fixed' } })
-    expect(launchMissing(fixedHttp, {})).toBe('session')
-    expect(launchMissing(fixedHttp, { session: 's1' })).toBeNull()
-    const http = readTriggerData({ source: { kind: 'http' } })
-    expect(launchMissing(http, { workspace: 'D:/w' })).toBeNull()
+    expect(launchMissing(fixedListen)).toBe('session')
+    const fixedHttp = readTriggerData({
+      source: { kind: 'http' },
+      launch: { session: 'fixed', sessionId: 's1' },
+    })
+    expect(launchMissing(fixedHttp)).toBeNull()
+    // 命令、脚本目录里用了 {workspace} 的，发进固定会话也要工作区。
+    const fixedWorkspace = readTriggerData({
+      source: { kind: 'listen', command: 'node -e "1" "{workspace}/a.log"' },
+      launch: { session: 'fixed', sessionId: 's1' },
+    })
+    expect(usesWorkspace(fixedWorkspace)).toBe(true)
+    expect(launchMissing(fixedWorkspace)).toBe('workspace')
+    expect(launchMissing({ ...fixedWorkspace, workspace: 'D:/w' })).toBeNull()
+    expect(usesWorkspace({ ...fixedHttp, cwd: '{workspace}' })).toBe(true)
   })
 })
 

@@ -8,7 +8,8 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { findNode, isTrigger } from '../../../../shared/model.ts'
 import { resolveSessionChoice } from '../../../../shared/sessionChoice.ts'
-import { commandOf, launchMissing } from '../../../../shared/trigger.ts'
+import { launchMissing } from '../../../../shared/trigger.ts'
+import type { TriggerData } from '../../../../shared/types.ts'
 import { agentCatalog } from '../../../app/agents.ts'
 import type { SessionRow } from '../../../app/sessions.ts'
 import { createShellAccess } from '../../../app/shells.ts'
@@ -20,6 +21,7 @@ import {
 } from '../../../app/workflowRuns.ts'
 import type { T } from '../../../i18n.ts'
 import type { Selection } from '../../../model/editor.ts'
+import { switchPatch } from '../../../model/triggerSwitch.ts'
 import type { WorkflowLiteRpc } from '../../../rpc.ts'
 import {
   knownWorkspaces,
@@ -105,46 +107,39 @@ export function useTriggerScene(input: TriggerSceneInput): TriggerEnv {
   const doc = useRef(state.doc)
   doc.current = state.doc
 
-  /** 开不了：说出原因，选中这张卡片；缺的是本机设置（工作区、会话）就把面板里那一项带到眼前。 */
+  /** 开不了：说出原因，选中这张卡片；缺的是工作区、会话就把面板里那一项带到眼前。 */
   const refuse = useCallback(
     (node: string, problem: string): void => {
       wf.notify(problem, 'error')
       select({ kind: 'node', id: node })
       const card = doc.current === null ? undefined : findNode(doc.current, node)
       if (card === undefined || !isTrigger(card)) return
-      const field = launchMissing(card.data, triggers.view(node) ?? {})
+      const field = launchMissing(card.data)
       if (field !== null) setReveal({ node, field })
     },
-    [wf.notify, select, triggers.view],
+    [wf.notify, select],
+  )
+
+  // 改编辑器里的图并马上存下去：开关、设置要让宿主当场看到。
+  const patch = useCallback(
+    async (node: string, change: Partial<TriggerData>): Promise<string | null> => {
+      edit({ type: 'patchTrigger', id: node, patch: change })
+      return (await flush()) ? null : t('trigger.saveFailed')
+    },
+    [t, edit, flush],
   )
 
   const toggle = useCallback(
-    (node: string, on: boolean): 'confirm' | 'done' => {
+    (node: string, on: boolean): void => {
       const card = doc.current === null ? undefined : findNode(doc.current, node)
-      const command =
-        card !== undefined && isTrigger(card) ? commandOf(card.data.source) : undefined
-      const view = triggers.view(node)
-      // 要跑命令、还没确认过：有工作区就请点开关的那一处问一句；没有就先去选工作区。
-      if (on && command !== undefined && view?.approved !== true) {
-        if (view?.workspace !== undefined) return 'confirm'
-        refuse(node, t('trigger.needWorkspace'))
-        return 'done'
-      }
-      void triggers.set(node, { enabled: on }).then((problem) => {
-        if (problem !== null) refuse(node, problem)
-      })
-      return 'done'
+      if (card === undefined || !isTrigger(card)) return
+      void switchPatch(t, card.data, on, () => triggers.endpoint(node))
+        .then((change) => (typeof change === 'string' ? change : patch(node, change)))
+        .then((problem) => {
+          if (problem !== null) refuse(node, problem)
+        })
     },
-    [t, triggers.set, triggers.view, refuse],
-  )
-
-  const approve = useCallback(
-    (node: string, command: string): void => {
-      void triggers.set(node, { approve: command, enabled: true }).then((problem) => {
-        if (problem !== null) refuse(node, problem)
-      })
-    },
-    [triggers.set, refuse],
+    [t, triggers.endpoint, patch, refuse],
   )
 
   const takeReveal = useCallback(
@@ -179,8 +174,8 @@ export function useTriggerScene(input: TriggerSceneInput): TriggerEnv {
       agents,
       workflowChoice,
       enableRunState,
+      patch,
       toggle,
-      approve,
       reveal,
       takeReveal,
       editSource,
@@ -202,8 +197,8 @@ export function useTriggerScene(input: TriggerSceneInput): TriggerEnv {
       shells,
       sessions,
       workflows,
+      patch,
       toggle,
-      approve,
       reveal,
       takeReveal,
       editSource,

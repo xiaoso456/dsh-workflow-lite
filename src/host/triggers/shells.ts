@@ -121,9 +121,14 @@ async function onPath(name: string, env: NodeJS.ProcessEnv): Promise<string | un
   return undefined
 }
 
+/** Windows 自带的 PowerShell（5.1，各版本 Windows 都有）。 */
+export function windowsPowerShell(env: NodeJS.ProcessEnv): string {
+  const root = env.SystemRoot ?? env.SYSTEMROOT ?? 'C:\\Windows'
+  return join(root, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
+}
+
 /** Windows 上可能装着的几个 shell（不一定都在）。 */
 async function windowsCandidates(env: NodeJS.ProcessEnv): Promise<string[]> {
-  const root = env.SystemRoot ?? env.SYSTEMROOT ?? 'C:\\Windows'
   const programs = [env.ProgramFiles, env['ProgramFiles(x86)'], env.ProgramW6432].filter(
     (dir): dir is string => dir !== undefined,
   )
@@ -131,7 +136,7 @@ async function windowsCandidates(env: NodeJS.ProcessEnv): Promise<string[]> {
   const home = env.USERPROFILE
   return [
     systemShell('win32', env),
-    join(root, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'),
+    windowsPowerShell(env),
     // PowerShell 7：安装包装的、Microsoft Store 装的（别名）、dotnet tool、Scoop 装的，再看 PATH 里有没有别处的。
     // 同一个程序只留排在前面的那条路径（Store 的别名有两处，留短的那个）。
     ...programs.map((dir) => join(dir, 'PowerShell', '7', 'pwsh.exe')),

@@ -97,9 +97,13 @@ describe('触发面板的摘要', () => {
     })
   })
 
-  it('触发方式的第二行：HTTP 有了地址写谁能访问，没有地址、接续不写', () => {
+  it('触发方式的第二行：HTTP 有了地址写谁能访问，还没有地址说打开时生成；接续不写', () => {
     const now = new Date()
-    const http = { kind: 'http' } as const
+    expect(whenDetail(t, { kind: 'http' }, {}, now)).toEqual({
+      text: '打开时生成地址和令牌',
+      tone: 'plain',
+    })
+    const http = { kind: 'http', hook: 'ci', token: 'a'.repeat(20) } as const
     expect(whenDetail(t, http, {}, now).text).toBe('')
     expect(whenDetail(t, http, { url: 'http://127.0.0.1:3791/trigger/ci' }, now).text).toBe(
       '只有这台电脑上的程序能访问',

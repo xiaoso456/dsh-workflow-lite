@@ -116,7 +116,7 @@ describe('左栏：分组、排序、只看哪些', () => {
   it('要处理的是停着等人的几种状态，全部暂停不算', () => {
     expect(needsAction(list[2] as TriggerEntry)).toBe(true)
     expect(needsAction(entry('w', 'a', {}, { enabled: true, state: 'paused' }))).toBe(false)
-    expect(needsAction(entry('w', 'b', {}, { enabled: true, state: 'confirm' }))).toBe(true)
+    expect(needsAction(entry('w', 'b', {}, { enabled: true, state: 'invalid' }))).toBe(true)
   })
 
   it('按工作流分组：组按名称排，组里按名称排；三种只看各有几张', () => {

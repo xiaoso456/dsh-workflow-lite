@@ -49,7 +49,6 @@ export interface WorkflowLiteSettings {
   triggerHost: Volatile<string>
   /**
    * 定时检查、监听程序没单独选 shell 时用哪个：程序的完整路径；空串 = 系统的（Windows 是 cmd，其余是 sh）。
-   * 改了以后跟着默认的卡片都要重新确认命令。
    */
   triggerShell: Volatile<string>
   /** 定时检查、监听最近的输出每张卡片最多留几行，更早的丢掉（存在插件的数据库里）。 */

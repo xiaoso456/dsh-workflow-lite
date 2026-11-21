@@ -63,15 +63,17 @@ export interface WorkflowLiteArgs {
   reason?: string
 }
 
-/** write_trigger 的 local：这台机器上的设置与开关（与参数声明同构）。 */
+/** write_trigger 的 local：卡片的开关与设置（与参数声明同构）。 */
 export interface TriggerLocalArgs {
   enabled?: boolean
   workspace?: string
   shell?: string
+  cwd?: string
   session?: string
   hook?: string
   token?: string
   noToken?: boolean
+  resetToken?: boolean
 }
 
 /** write_trigger 的 trigger（与参数声明同构；形状由仓储按触发卡片的规矩读入）。 */

@@ -3,15 +3,15 @@
  * 以及新建会话时用的 agent 预设、模型、思考强度、运行权限（不写 = 跟随工作流设置；新建的卡片权限写着完全权限）。
  *
  * 画布面板（LaunchField）和工作流中心「触发」页的设置（SettingsPane）各按自己的样子摆，选项和存法都从这里拿：
- * 会话方式写在图里（`onLaunch`，缺省值不留）；工作区、固定的会话只存在这台机器上（`env.triggers.set`），
- * 存不下时 `failed` 是原因。要跑命令的卡片换了工作区，宿主让它回到「待确认」（这里不管、也不绕过）。
+ * 都写在图里：会话方式、固定的会话写进启动方式（`onLaunch`，缺省值不留），工作区写在卡片上（`env.patch`），
+ * 存不下时 `failed` 是原因。
  * 预设、模型写在图里；能选什么从 DSH 读（`env.agents`），实例视图没有现场时只列「跟随工作流」和已经设了的。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/trigger/useLaunchChoice
  */
 
 import { useState } from 'react'
-import { commandOf, launchOf, readTriggerData } from '../../../shared/trigger.ts'
+import { launchOf, readTriggerData, usesWorkspace } from '../../../shared/trigger.ts'
 import type {
   ModelChoice,
   TriggerData,
@@ -67,11 +67,11 @@ export interface LaunchChoice {
   mode: Choice<TriggerSessionMode>
   /** 固定到哪个会话：只在固定会话、有现场时有。 */
   fixed: Choice<string> | null
-  /** 工作区：有现场，且不是「固定会话又不跑命令」时有（要跑命令的不论会话方式都要选）。 */
+  /** 会话工作区：有现场，且不是「固定会话」（或命令里用了 `{workspace}`）时有。 */
   workspace: Choice<string> | null
-  /** 不用选工作区（固定会话、不跑命令）。 */
+  /** 不用选工作区（固定会话、命令里没用 `{workspace}`）。 */
   noWorkspace: boolean
-  /** 工作区、会话没存下去时的原因；没有是空串。 */
+  /** 工作区没存下去时的原因；没有是空串。 */
   failed: string
   agent: AgentChoices
 }
@@ -87,25 +87,24 @@ export function useLaunchChoice(props: {
 }): LaunchChoice {
   const { t, env, data } = props
   const launch = launchOf(data)
-  const view = env?.triggers.view(props.node)
   const [failed, setFailed] = useState('')
 
-  const store = async (change: { workspace?: string; session?: string }): Promise<void> => {
+  const storeWorkspace = async (path: string): Promise<void> => {
     if (env === null) return
-    setFailed((await env.triggers.set(props.node, change)) ?? '')
+    setFailed((await env.patch(props.node, { workspace: path === '' ? undefined : path })) ?? '')
   }
 
   const fixedMode = launch.session === 'fixed'
-  const noWorkspace = fixedMode && commandOf(data.source) === undefined
+  const noWorkspace = fixedMode && !usesWorkspace(data)
 
-  const session = view?.session ?? ''
+  const session = launch.sessionId ?? ''
   const known = env?.sessions ?? []
   const sessions =
     session === '' || known.some((item) => item.id === session)
       ? known
       : [...known, { id: session, title: session }]
 
-  const workspace = view?.workspace ?? ''
+  const workspace = data.workspace ?? ''
   const workspaces = env === null ? [] : [...new Set([...env.workspaces, workspace])]
 
   const catalog = useAgentCatalog(env?.agents)
@@ -187,7 +186,7 @@ export function useLaunchChoice(props: {
                     : item.title,
               })),
             ],
-            set: (id) => void store({ session: id }),
+            set: (id) => setLaunch({ sessionId: id === '' ? undefined : id }),
           },
     workspace:
       env === null || noWorkspace
@@ -203,7 +202,7 @@ export function useLaunchChoice(props: {
                     ? t('trigger.workspaceHere').replace('{name}', folderName(path))
                     : `${folderName(path)} · ${path}`,
             })),
-            set: (path) => void store({ workspace: path }),
+            set: (path) => void storeWorkspace(path),
           },
     noWorkspace,
     failed,

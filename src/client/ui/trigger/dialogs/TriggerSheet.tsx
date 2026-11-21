@@ -116,8 +116,10 @@ export function TriggerSheet(props: {
           >
             {t('common.cancel')}
           </button>
+          {/* 两个按钮各带 key：同一个元素只改 type 的话，点「下一步」后浏览器在默认动作里看到的已是 submit，当场就保存关掉了。 */}
           {props.advance === undefined ? (
             <button
+              key="save"
               type="submit"
               className={cx(ui.btn, ui.small, ui.primary)}
               disabled={!props.canSave}
@@ -129,6 +131,7 @@ export function TriggerSheet(props: {
             </button>
           ) : (
             <button
+              key="advance"
               type="button"
               className={cx(ui.btn, ui.small, ui.primary)}
               data-testid={props.advance.testId}

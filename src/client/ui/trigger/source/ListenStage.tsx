@@ -1,6 +1,6 @@
 /**
  * dsh-workflow-lite — 「触发方式」对话框里监听的设置。监听没有要选的规则：设置行写两句它怎么运作（每打一行 `::trigger::` 执行一次；
- * 打开即启动、关掉即结束、意外退出自动重启、命令要先确认）和工作区，工作台是常驻的命令（模板、试运行 5 秒、最近的输出）。
+ * 打开即启动、关掉即结束、意外退出自动重启）、工作区和脚本目录，工作台是常驻的命令（模板、试运行 5 秒、最近的输出）。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/trigger/source/ListenStage
  */
@@ -11,6 +11,7 @@ import { LISTEN_TEMPLATES } from '../../../model/commandTemplates.ts'
 import { Icon } from '../../kit/Icon.tsx'
 import type { TriggerEnv } from '../triggerEnv.ts'
 import { CommandBox } from './CommandBox.tsx'
+import { CwdRow } from './CwdRow.tsx'
 import type { RunDrafts } from './runDraft.ts'
 import { StageRow, StageRows } from './StageRow.tsx'
 import css from './sourceStage.module.css'
@@ -23,7 +24,7 @@ export function ListenStage(props: {
   node: string
   source: Listen
   env: TriggerEnv | null
-  /** 工作区、shell 的草稿。 */
+  /** 工作区、脚本目录、shell 的草稿。 */
   run: RunDrafts
   /** 放不放最近的输出（草稿的命令和跑着的那条一样才放）。 */
   showOutput: boolean
@@ -46,13 +47,22 @@ export function ListenStage(props: {
           </p>
         </StageRow>
         {env !== null && (
-          <WorkspaceRow
-            t={t}
-            env={env}
-            value={props.run.workspace.value}
-            saved={props.run.workspace.saved}
-            onChange={props.run.workspace.onChange}
-          />
+          <>
+            <WorkspaceRow
+              t={t}
+              env={env}
+              value={props.run.workspace.value}
+              saved={props.run.workspace.saved}
+              onChange={props.run.workspace.onChange}
+            />
+            <CwdRow
+              t={t}
+              env={env}
+              node={props.node}
+              draft={props.run.cwd}
+              workspace={props.run.workspace.value}
+            />
+          </>
         )}
       </StageRows>
       <CommandBox
@@ -61,10 +71,11 @@ export function ListenStage(props: {
         kind="listen"
         title={t('trigger.listen.command')}
         command={source.command}
-        placeholder={'node "{workflow}/triggers/watch.mjs"'}
+        placeholder="node watch-events.mjs"
         templates={LISTEN_TEMPLATES}
         env={env}
         workspace={runWorkspace(env, props.run.workspace)}
+        cwd={props.run.cwd.value}
         shell={props.run.shell}
         recent={props.showOutput}
         onChange={(command) => props.onChange({ ...source, command })}

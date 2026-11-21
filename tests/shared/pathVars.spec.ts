@@ -8,9 +8,13 @@ import { bindRoot, resolveItemPath, resolveOutputPath } from '../../src/shared/o
 import {
   bindInstance,
   bindWorkflowPath,
+  bindWorkspacePath,
+  bindWorkspaceVar,
   hasInstanceVar,
+  hasWorkspaceVar,
   isSkillPath,
   isWorkflowPath,
+  isWorkspacePath,
   skillPath,
   upgradeWorkflowPath,
   workflowPath,
@@ -164,5 +168,19 @@ describe('{skill}', () => {
 
   it('产出路径在 skill 目录里时不拼根目录', () => {
     expect(resolveOutputPath('out', '{skill}/assets//a.md')).toBe('{skill}/assets/a.md')
+  })
+})
+
+describe('{workspace}', () => {
+  it('触发卡片的命令里任意位置都换成工作区（正斜杠），脚本目录只认开头', () => {
+    expect(hasWorkspaceVar('git -C "{workspace}" log')).toBe(true)
+    expect(bindWorkspaceVar('git -C "{workspace}" log {workspace}/a', 'D:\\repo')).toBe(
+      'git -C "D:/repo" log D:/repo/a',
+    )
+    expect(isWorkspacePath('{workspace}/logs')).toBe(true)
+    expect(isWorkspacePath('x/{workspace}')).toBe(false)
+    expect(bindWorkspacePath('{workspace}//logs', 'D:\\repo')).toBe('D:/repo/logs')
+    expect(bindWorkspacePath('{workspace}', 'D:\\repo')).toBe('D:/repo')
+    expect(bindWorkspacePath('D:/other', 'D:\\repo')).toBe('D:/other')
   })
 })

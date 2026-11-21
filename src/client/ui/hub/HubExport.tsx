@@ -4,9 +4,10 @@
  * 两步：① 选版本（只导出存成了版本的内容；现在的内容没存成版本就提醒一句，不自动存）；
  * ② 资源清单：按资源种类分类（Skill、文件、文件夹、网址、自定义、资料目录）。能打包的几类在分类标题右端
  * 各有一个开关，开着才列出逐项的勾选（能打包的缺省勾上）和其余各项不打包的原因；资料目录总是整个带上。
+ * 图里有触发卡片、设了新建会话用的模型等时，后面再跟两类（见 `ExportTriggers.tsx`）。
  * 点「导出」主机打好 zip，前端一块块取回来交给浏览器下载。
  *
- * 顶上可以换成「导出成 Skill」（见 `shared/skillPack.ts`）：版本只能选一个，资源清单照旧勾，
+ * 顶上可以换成「导出成 Skill」（见 `shared/skillPack.ts`）：版本只能选一个，资源清单照旧勾（触发卡片、触发脚本不带，提醒一句），
  * 多一步「Skill 信息」（{@link HubSkillInfo}）填 SKILL.md 头部，再下载 zip 或直接装到本机。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/HubExport
@@ -16,6 +17,7 @@ import { type ComponentProps, useEffect, useState } from 'react'
 import { memoryTitle } from '../../../shared/memoryLib.ts'
 import type { PackScanItem, PackScanResponse } from '../../../shared/pack.ts'
 import { workflowRelative } from '../../../shared/pathVars.ts'
+import { type ChoiceKeep, DEFAULT_CHOICE_KEEP } from '../../../shared/sessionChoice.ts'
 import { SKILL_PATHS, suggestSkillName } from '../../../shared/skillPack.ts'
 import type { VersionEntry } from '../../../shared/types.ts'
 import { downloadPack, saveFile } from '../../app/packTransfer.ts'
@@ -35,10 +37,17 @@ import {
   type PackSwitches,
   packedBytes,
 } from '../../model/pack.ts'
+import {
+  defaultTriggerPick,
+  type TriggerPick,
+  toggleTrigger,
+  triggerBytes,
+  triggerRequest,
+} from '../../model/packTriggers.ts'
 import { shortTime } from '../../model/time.ts'
 import { errorMessage, type WorkflowLiteRpc } from '../../rpc.ts'
 import { cx } from '../kit/cx.ts'
-import { Icon, type IconName } from '../kit/Icon.tsx'
+import { Icon } from '../kit/Icon.tsx'
 import { KIND_ICON, KIND_LABEL } from '../kit/resourceUi.ts'
 import { Segmented } from '../kit/Segmented.tsx'
 import { Steps } from '../kit/Steps.tsx'
@@ -48,6 +57,8 @@ import { useResizeFlip } from '../motion/flip.ts'
 import { FadeStack, Staged } from '../motion/stage.tsx'
 import { SwapText } from '../motion/swapText.tsx'
 import { memoryTypeText } from '../resources/ResourcePresets.tsx'
+import { ExportCategory } from './ExportCategory.tsx'
+import { ChoiceCategory, TriggerCategory } from './ExportTriggers.tsx'
 import { HubSkillInfo, type SkillDraft } from './HubSkillInfo.tsx'
 import hub from './hub.module.css'
 import css from './hubExport.module.css'
@@ -89,8 +100,10 @@ export function HubExport(props: {
     folder: true,
     memory: true,
   })
-  /** 带上工作流、触发卡片上设的模型和预设（缺省不带：导入的人按自己的默认跑）。 */
-  const [withChoice, setWithChoice] = useState(false)
+  /** 新建会话用的设置带哪几项（缺省：模型、预设不带，导入的人按自己的默认跑；权限带上）。 */
+  const [choice, setChoice] = useState<ChoiceKeep>(DEFAULT_CHOICE_KEEP)
+  /** 触发卡片怎么带（每次盘点完重置成缺省：全留，密钥、脚本数据不带）。 */
+  const [triggers, setTriggers] = useState<TriggerPick | null>(null)
   const [error, setError] = useState<string | null>(null)
   /** 打包 / 下载中的那句进度；`null` = 没在忙。 */
   const [busy, setBusy] = useState<string | null>(null)
@@ -123,6 +136,7 @@ export function HubExport(props: {
       .then((result) => {
         setScan(result)
         setPacked(defaultPacked(result))
+        setTriggers(defaultTriggerPick(result))
       })
       .catch((caught: unknown) => {
         setError(errorMessage(caught))
@@ -138,7 +152,8 @@ export function HubExport(props: {
         name,
         versions: [...picked],
         pack: [...(scan === null ? [] : effectivePack(scan, packed, switches))],
-        ...(withChoice ? { sessionChoice: true } : {}),
+        choice,
+        ...(scan === null || triggers === null ? {} : triggerRequest(scan, triggers)),
         ...props.scope,
       })
       const bytes = await downloadPack(rpc, out.token, out.bytes, (done, total) =>
@@ -371,7 +386,7 @@ export function HubExport(props: {
             onPrev={() => setStep(1)}
             onDone={props.onDone}
           />
-        ) : scan === null ? (
+        ) : scan === null || triggers === null ? (
           <div className={pack.busy}>
             <span className={hub.spinner} />
             {t('pack.scanning')}
@@ -384,8 +399,12 @@ export function HubExport(props: {
             switches={switches}
             multi={multi}
             skill={skill}
-            withChoice={withChoice}
-            onChoice={setWithChoice}
+            rpc={rpc}
+            session={props.scope.session}
+            choice={choice}
+            onChoice={setChoice}
+            triggers={triggers}
+            onTrigger={(part, node, on) => setTriggers(toggleTrigger(triggers, part, node, on))}
             onSwitch={(kind, on) => setSwitches({ ...switches, [kind]: on })}
             onToggle={(key, on) => {
               const next = new Set(packed)
@@ -423,9 +442,14 @@ function Resources(props: {
   multi: boolean
   /** 导出成 skill：打包的放在 skill 里的位置不同，底下的按钮是「下一步」。 */
   skill: boolean
-  /** 带上模型和预设（只在图里设了、又不是导出成 skill 时问）。 */
-  withChoice: boolean
-  onChoice(on: boolean): void
+  rpc: WorkflowLiteRpc
+  session: string | undefined
+  /** 新建会话用的设置带哪几项（只在图里设了、又不是导出成 skill 时问）。 */
+  choice: ChoiceKeep
+  onChoice(keep: ChoiceKeep): void
+  /** 触发卡片怎么带（导出成 skill 时不带，只提醒一句）。 */
+  triggers: TriggerPick
+  onTrigger(part: keyof TriggerPick, node: string, on: boolean): void
   onToggle(key: string, on: boolean): void
   onSwitch(kind: PackSwitch, on: boolean): void
   onPrev(): void
@@ -435,7 +459,7 @@ function Resources(props: {
   // 展开、收起：下面的分类滑到新位置，像版本列表那样。
   const listRef = useResizeFlip()
   const effective = effectivePack(scan, packed, switches)
-  const total = packedBytes(scan, effective)
+  const total = packedBytes(scan, effective) + (skill ? 0 : triggerBytes(scan, props.triggers))
   const over = total > scan.limit
   const left = leftAbsolute(scan, effective)
   /** 展开着的分类：缺省有东西的都展开；和开关无关。 */
@@ -454,7 +478,6 @@ function Resources(props: {
     else next.delete(key)
     setExpanded(next)
   }
-  const [choiceOpen, setChoiceOpen] = useState(false)
   const used = (item: PackScanItem): string | null =>
     multi ? t('pack.inVersions').replace('{list}', versionList(item)) : null
 
@@ -540,6 +563,11 @@ function Resources(props: {
         (kind) =>
           categoryItems(scan, kind).packable.length + categoryItems(scan, kind).others.length === 0,
       ) && <Callout>{t('pack.nothing')}</Callout>}
+      {skill && scan.triggers.length > 0 && (
+        <Callout tone="warn" testId="wl-pack-skill-triggers">
+          {t('skillExport.noTriggers')}
+        </Callout>
+      )}
       <div className={cx(pack.scroll, ui.scrollFade)}>
         <div ref={listRef} className={pack.cats}>
           {PACK_CATEGORIES.map((kind) => {
@@ -548,7 +576,7 @@ function Resources(props: {
             const on = isSwitchable(kind) && switches[kind]
             const picked = packable.filter((item) => packed.has(item.key)).length
             return (
-              <Category
+              <ExportCategory
                 key={kind}
                 icon={kind === 'memory' ? 'memory' : KIND_ICON[kind]}
                 title={t(kind === 'memory' ? 'mem.title' : KIND_LABEL[kind])}
@@ -579,27 +607,27 @@ function Resources(props: {
               >
                 {packable.map((item) => packRow(item, on))}
                 {others.map(infoRow)}
-              </Category>
+              </ExportCategory>
             )
           })}
-          {!skill && scan.sessionChoice && (
-            <Category
-              icon="cube"
-              title={t('pack.choice')}
-              stats={t('pack.choiceStats')}
-              empty={false}
-              expanded={choiceOpen}
-              onExpand={setChoiceOpen}
-              switch={{ on: props.withChoice, disabled: false, onChange: props.onChoice }}
-              testId="wl-pack-cat-choice"
-            >
-              <p className={css.choiceLine} data-on={!props.withChoice || undefined}>
-                {t('pack.choiceOff')}
-              </p>
-              <p className={css.choiceLine} data-on={props.withChoice || undefined}>
-                {t('pack.choiceOn')}
-              </p>
-            </Category>
+          {!skill && scan.triggers.length > 0 && (
+            <TriggerCategory
+              t={t}
+              scan={scan}
+              pick={props.triggers}
+              multi={multi}
+              onPick={props.onTrigger}
+            />
+          )}
+          {!skill && scan.choices.length > 0 && (
+            <ChoiceCategory
+              t={t}
+              rpc={props.rpc}
+              session={props.session}
+              scan={scan}
+              keep={props.choice}
+              onKeep={props.onChoice}
+            />
           )}
         </div>
       </div>
@@ -657,65 +685,4 @@ function pathTitle(value: string): React.ReactNode {
 function textPreview(value: string): string {
   const line = value.split('\n', 1)[0] ?? ''
   return line.length > 80 ? `${line.slice(0, 80)}…` : line
-}
-
-/**
- * 一类资源。标题行左边是一个按钮「[›] [图标] 名称 统计」，点它展开 / 收起下面的清单；
- * 右端是这类的打包开关（只有 Skill、文件、文件夹有），开关只管打不打包，不管展开。
- * 这类一项都没有时也照样摆出来，写「无」，不能展开。
- */
-function Category(props: {
-  icon: IconName
-  title: string
-  stats: string
-  empty: boolean
-  expanded: boolean
-  onExpand(open: boolean): void
-  /** 不给 = 这类没有可打包的说法（网址、自定义、资料目录），不放开关。 */
-  switch?: { on: boolean; disabled: boolean; onChange(on: boolean): void }
-  children: React.ReactNode
-  testId: string
-}): React.JSX.Element {
-  const open = props.expanded && !props.empty
-  const lit = props.switch === undefined ? !props.empty : props.switch.on
-  return (
-    <section className={pack.section} data-testid={props.testId}>
-      <div className={css.catHead}>
-        <button
-          type="button"
-          className={css.catToggle}
-          aria-expanded={open}
-          disabled={props.empty}
-          data-testid={`${props.testId}-toggle`}
-          onClick={() => props.onExpand(!props.expanded)}
-        >
-          <span className={css.catChevron} data-opened={open}>
-            <Icon name="chevronRight" size={14} />
-          </span>
-          <span className={css.catIcon} data-on={lit}>
-            <Icon name={props.icon} size={14} />
-          </span>
-          <span className={css.catTitle}>{props.title}</span>
-          <span className={css.catStats}>{props.stats}</span>
-        </button>
-        {props.switch !== undefined && (
-          <button
-            type="button"
-            role="switch"
-            aria-checked={props.switch.on}
-            aria-label={props.title}
-            className={cx(ui.switch, css.catSwitch)}
-            disabled={props.switch.disabled}
-            data-testid={`${props.testId}-switch`}
-            onClick={() => props.switch?.onChange(!props.switch.on)}
-          >
-            <span className={ui.knob} />
-          </button>
-        )}
-      </div>
-      <Presence show={open}>
-        <div className={pack.catBody}>{props.children}</div>
-      </Presence>
-    </section>
-  )
 }

@@ -5,8 +5,6 @@
  * @module @xiaoso/dsh-workflow-lite/client/model/httpSnippets
  */
 
-import type { TriggerEndpoint } from '../../shared/wire/trigger.ts'
-
 export const SNIPPET_LANGS = ['curl', 'powershell', 'javascript', 'python'] as const
 export type SnippetLang = (typeof SNIPPET_LANGS)[number]
 
@@ -27,7 +25,7 @@ export const SAMPLE_BODY = '{"event":"deploy","ref":"main"}'
  */
 export function snippetOf(
   lang: SnippetLang,
-  endpoint: Pick<TriggerEndpoint, 'url'> & { token: string | null },
+  endpoint: { url: string; token: string | null },
 ): string {
   const { url, token } = endpoint
   const lines = (...items: (string | false)[]): string =>

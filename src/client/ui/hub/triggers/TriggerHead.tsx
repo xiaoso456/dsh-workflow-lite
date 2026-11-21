@@ -7,7 +7,7 @@
  * - 状态条一行：状态 | 下一次（时刻 + 还有多久，「每隔」的底边一条倒计时）|（有排着的）排队 3 个 | 立即触发一次；
  *   刚触发的结果几秒内占「下一次」那一格；
  * - 出了要人处理的事，状态后面亮一枚小图标（不另起一行、不挤动版面）：悬停、聚焦、点它浮出一张小卡，
- *   写着怎么回事，带能直接做的事（确认并打开、确认命令、重新打开）。全部暂停着也走这里（说明带「恢复」），
+ *   写着怎么回事，带能直接做的事（重新打开、去打开「记录运行状态」、视为已结束）。全部暂停着也走这里（说明带「恢复」），
  *   不在头部插一条说明把下面整栏往下推。
  *
  * 会自己走的字（还有多久、已运行多久）每秒换一次，只在状态条这一小块里换，不插拔元素。
@@ -54,6 +54,8 @@ export function TriggerHead(props: {
   onNotice(text: string, tone?: 'info' | 'error'): void
   /** 在这个工作流里开启「记录运行状态」；做不了回一句原因。 */
   onEnableRunState(workflow: string): Promise<string | null>
+  /** 改图里的开关。 */
+  onToggle(on: boolean): void
 }): React.JSX.Element {
   const { t, entry } = props
   const { source } = entry.data
@@ -64,7 +66,8 @@ export function TriggerHead(props: {
     t,
     hub: props.hub,
     entry,
-    testId: 'wl-hub-trg-approve',
+    testId: 'wl-hub-trg-switch-ask',
+    toggle: props.onToggle,
     onNotice: props.onNotice,
     enableRunState: props.onEnableRunState,
     onBlocked: () => setPin((count) => count + 1),
@@ -151,6 +154,7 @@ export function TriggerHead(props: {
         pin={pin}
         onNotice={props.onNotice}
         onEnableRunState={props.onEnableRunState}
+        onToggle={props.onToggle}
       />
     </div>
   )
@@ -164,6 +168,7 @@ function StatusBar(props: {
   pin: number
   onNotice(text: string, tone?: 'info' | 'error'): void
   onEnableRunState(workflow: string): Promise<string | null>
+  onToggle(on: boolean): void
 }): React.JSX.Element {
   const { t, entry } = props
   const { view } = entry
@@ -180,7 +185,8 @@ function StatusBar(props: {
     t,
     hub: props.hub,
     entry,
-    testId: 'wl-hub-trg-fix-approve',
+    testId: 'wl-hub-trg-fix',
+    toggle: props.onToggle,
     onNotice: props.onNotice,
     enableRunState: props.onEnableRunState,
     onBlocked: () => setPin((count) => count + 1),
@@ -202,8 +208,8 @@ function StatusBar(props: {
       fixer.ask(run)
       return
     }
-    if (run !== 'resume') {
-      fixer.turnOn()
+    if (run === 'reopen') {
+      fixer.reopen()
       return
     }
     void props.hub.pause(false).then((failed) => {

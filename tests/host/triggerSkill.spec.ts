@@ -89,7 +89,7 @@ describe('skill workflow-trigger', () => {
     const kit = read('kit/watch.mjs')
     let imports = 0
     for (const file of files()) {
-      for (const match of read(file).matchAll(/import \{([^}]+)\} from '\.\/watch\.mjs'/gu)) {
+      for (const match of read(file).matchAll(/import \{([^}]+)\} from '\.\.\/watch\.mjs'/gu)) {
         for (const name of (match[1] as string)
           .split(',')
           .map((item) => item.trim())
@@ -126,12 +126,12 @@ describe('skill workflow-trigger', () => {
       expect(read(file), `${file} 没点到示例`).toMatch(/`examples\/[\w-]+\.md`|「找示例」/u)
   })
 
-  it('监视的示例都用底子：import 自 ./watch.mjs，不自己再写一份 emit', () => {
+  it('监视的示例都用底子：卡片目录里的脚本 import 自 ../watch.mjs，不自己再写一份 emit', () => {
     for (const file of files().filter((file) => file.startsWith('examples/'))) {
       const text = read(file)
       expect(text, `${file} 自己写了 emit`).not.toMatch(/const emit =|console\.log\(`::trigger::/u)
       if (/^# .*（监视/u.test(text) && text.includes('```js')) {
-        expect(text, `${file} 没用底子`).toContain("from './watch.mjs'")
+        expect(text, `${file} 没用底子`).toContain("from '../watch.mjs'")
       }
     }
   })

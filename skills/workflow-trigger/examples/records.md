@@ -1,11 +1,11 @@
 # 接口、数据库里有新记录或记录改了（监视）
 
-工单、审批、订单这类系统只给查询接口时，按游标查：只要「上次之后改过的」，一条一件。命令 `node "{workflow}/triggers/records.mjs" "https://tracker.example.com/api/issues"`，令牌请用户放进密钥目录的 `token.txt`（`read` 卡片的 `local.secretsDir`）。
+工单、审批、订单这类系统只给查询接口时，按游标查：只要「上次之后改过的」，一条一件。命令 `node records.mjs "https://tracker.example.com/api/issues"`，令牌请用户放进密钥目录的 `token.txt`（`read` 卡片的 `local.secretsDir`）。
 
 下面按 `GET <地址>?updated_after=<时间>` 返回 `{ "items": [{ "id", "title", "status", "created_at", "updated_at", "url" }] }` 写，照对方的文档换掉参数名和字段名。
 
 ```js
-import { emit, getJson, injected, log, poll, remember, secret, seenIds } from './watch.mjs'
+import { emit, getJson, injected, log, poll, remember, secret, seenIds } from '../watch.mjs'
 
 const api = process.argv[2]
 const token = secret('token.txt', '访问令牌')
@@ -43,7 +43,7 @@ await poll(
 )
 ```
 
-- 查数据库：在 `dir/triggers/` 放 `package.json` 装好驱动（Postgres 用 `pg`），连接串放密钥目录的 `db.txt`，`getJson` 那一行换成 `select … where id > $1 order by id limit 100`，游标记最大的编号。
+- 查数据库：在卡片目录放 `package.json` 装好驱动（Postgres 用 `pg`），连接串放密钥目录的 `db.txt`，`getJson` 那一行换成 `select … where id > $1 order by id limit 100`，游标记最大的编号。
 - 一页拿不完要翻页，整批处理完再挪游标。
 
-试：存 `dir/triggers/samples/issue.json`：`{"id": 101, "title": "登录失败", "status": "新建", "created_at": "2026-11-20T08:00:00Z", "updated_at": "2026-11-20T08:00:00Z", "url": "https://tracker.example.com/issues/101"}`（照对方接口真实返回的一条改），`poke` 写 `node "{workflow}/triggers/watch.mjs" inject "{workflow}/triggers/samples/issue.json"`，`seconds` 写 15。`events` 里是那一行；`run.stderr` 里没有「返回 401」「返回 403」（有就是令牌或权限不对）。
+试：存卡片目录的 `samples/issue.json`：`{"id": 101, "title": "登录失败", "status": "新建", "created_at": "2026-11-20T08:00:00Z", "updated_at": "2026-11-20T08:00:00Z", "url": "https://tracker.example.com/issues/101"}`（照对方接口真实返回的一条改），`poke` 写 `node ../watch.mjs inject samples/issue.json`，`seconds` 写 15。`events` 里是那一行；`run.stderr` 里没有「返回 401」「返回 403」（有就是令牌或权限不对）。

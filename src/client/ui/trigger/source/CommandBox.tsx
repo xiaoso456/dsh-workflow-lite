@@ -50,8 +50,10 @@ export function CommandBox(props: {
   recent: boolean
   /** 工作台的名字。 */
   title: string
-  /** 命令在哪个工作区跑（对话框里选的，没选是当前会话的）；实例视图里没有。 */
+  /** 会话工作区（对话框里选的，没选是当前会话的），试运行时交给脚本；实例视图里没有。 */
   workspace: string | undefined
+  /** 脚本目录的草稿（`''` = 卡片目录）。 */
+  cwd: string
   /** 用哪个 shell 跑（对话框里选的草稿；空串是跟随默认）；实例视图里没有。 */
   shell: LocalDraft | undefined
 }): React.JSX.Element {
@@ -71,9 +73,7 @@ export function CommandBox(props: {
   const shell = env === null ? undefined : props.shell
   /** 自己挑的 shell 程序用不了时的原因。 */
   const [shellProblem, setShellProblem] = useState<string | null>(null)
-  const shellNote =
-    shellProblem ??
-    (shell !== undefined && shell.value !== shell.saved ? t('trigger.shellChanged') : null)
+  const shellNote = shellProblem
 
   const run = (): void => {
     if (env === null || workspace === undefined) return
@@ -85,6 +85,7 @@ export function CommandBox(props: {
         kind: props.kind,
         command: props.command,
         workspace,
+        ...(props.cwd === '' ? {} : { cwd: props.cwd }),
         ...(shell === undefined || shell.value === '' ? {} : { shell: shell.value }),
       })
       .then((result) =>

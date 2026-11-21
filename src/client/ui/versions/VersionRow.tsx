@@ -5,6 +5,7 @@
  *   下面的行滑下去让位（`VersionList` 的 useResizeFlip）；收起时下面的行滑回来；
  * - 「切换 / 编辑说明 / 删除」平时藏着，悬停或键盘移进来时浮在右端（和 `WorkflowRow` 一个做法）；
  * - 切换、删除都要再确认一次，确认卡浮在按钮旁边；编辑说明就在这一行原地换成输入框。
+ *   那一版里有开着的触发卡片时，切换的确认卡上问一句：开关恢复成当时的，还是全部关掉。
  *
  * 记忆的版本也用这一行：展开的那块换成「查看这一版的文件」（`onView`），第二行写文件数和大小。
  *
@@ -12,7 +13,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
-import type { VersionEntry } from '../../../shared/types.ts'
+import type { VersionEntry, VersionSwitches } from '../../../shared/types.ts'
 import type { VersionActions, VersionDiff, Versions } from '../../app/useVersions.ts'
 import type { T } from '../../i18n.ts'
 import { shortTime } from '../../model/time.ts'
@@ -21,6 +22,7 @@ import { cx } from '../kit/cx.ts'
 import { EditActions } from '../kit/EditActions.tsx'
 import { graphLine } from '../kit/graphLine.tsx'
 import { Icon } from '../kit/Icon.tsx'
+import { Segmented } from '../kit/Segmented.tsx'
 import ui from '../kit/ui.module.css'
 import { Presence, useLineExit } from '../motion/exits.tsx'
 import v from './versions.module.css'
@@ -33,7 +35,7 @@ const SLOW_MS = 180
 /** 一行版本要的：工作流的版本、记忆的版本都有这几样。 */
 export type RowEntry = Pick<
   VersionEntry,
-  'n' | 'createdAt' | 'note' | 'autoBefore' | 'current' | 'invalid'
+  'n' | 'createdAt' | 'note' | 'autoBefore' | 'current' | 'invalid' | 'switchedOn'
 >
 
 export function VersionRow(props: {
@@ -58,6 +60,8 @@ export function VersionRow(props: {
   const [editing, setEditing] = useState(false)
   const restore = useConfirm<HTMLButtonElement>()
   const remove = useConfirm<HTMLButtonElement>()
+  const [switches, setSwitches] = useState<VersionSwitches>('keep')
+  const switchedOn = entry.switchedOn ?? 0
   const busy = restore.open || remove.open
   const testId = `${props.testPrefix ?? 'wl-ver'}-${entry.n}`
   const view = props.detail === undefined ? props.onView : undefined
@@ -174,14 +178,31 @@ export function VersionRow(props: {
             ? t('ver.restoreAuto')
             : t('ver.restoreSafe').replace('{n}', String(props.currentN)),
           props.restoreNote,
+          switchedOn > 0 ? t('ver.switchesHint').replace('{n}', String(switchedOn)) : undefined,
         ]
           .filter((line) => line !== undefined)
           .join(' '),
+        ...(switchedOn > 0
+          ? {
+              children: (
+                <Segmented<VersionSwitches>
+                  label={t('ver.switches')}
+                  value={switches}
+                  testId={`${testId}-switches`}
+                  options={[
+                    { value: 'keep', label: t('ver.switchesKeep') },
+                    { value: 'off', label: t('ver.switchesOff') },
+                  ]}
+                  onChange={setSwitches}
+                />
+              ),
+            }
+          : {}),
         confirmText: t('ver.restoreConfirm'),
         testId: `${testId}-restore-confirm`,
         disabled: versions.busy,
         danger: false,
-        onConfirm: () => void versions.restore(entry.n),
+        onConfirm: () => void versions.restore(entry.n, switchedOn > 0 ? switches : undefined),
       })}
       {remove.render({
         t,

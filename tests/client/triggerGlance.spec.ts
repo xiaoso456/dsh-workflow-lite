@@ -129,10 +129,8 @@ describe('触发状态的颜色分组', () => {
     expect(stateTone('off', 'check')).toBe('off')
     expect(stateTone('elsewhere', 'schedule')).toBe('other')
     expect(
-      ['confirm', 'paused', 'restarting', 'unavailable'].map((s) =>
-        stateTone(s as never, 'listen'),
-      ),
-    ).toEqual(['warn', 'warn', 'warn', 'warn'])
+      ['paused', 'restarting', 'unavailable'].map((s) => stateTone(s as never, 'listen')),
+    ).toEqual(['warn', 'warn', 'warn'])
     expect(['error', 'invalid', 'stopped'].map((s) => stateTone(s as never, 'http'))).toEqual([
       'bad',
       'bad',

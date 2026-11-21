@@ -9,7 +9,7 @@
  * - 对上了实例、但它没有状态文件的也不算结束（看不出来）；
  * - 模型说了这次不做（`decline`）的算结束：那是模型自己的判断；
  * - 实例被删掉了的算结束：没有东西可等了；
- * - 用户点了「视为已结束」（本机状态 `waived` 是那一次的编号）的算结束。
+ * - 用户点了「视为已结束」（运行记录里 `waived` 是那一次的编号）的算结束。
  *
  * 以后加别的依据（比如看会话停没停）：在 `EndBasis` 里加一种，在 {@link RunEnds.previous} 里按依据分支，
  * 调用方（发起时的跳过、排队，每一轮放行排着的，卡片上「在等哪一次」）都不用改。
@@ -21,7 +21,8 @@ import { FINISHED_STATUSES, needsRunState } from '../../shared/trigger.ts'
 import type { TriggerData } from '../../shared/types.ts'
 import type { TriggerWaiting } from '../../shared/wire/trigger.ts'
 import type { RunWatch } from './after.ts'
-import type { TriggerLocal, TriggerStore } from './store.ts'
+import type { TriggerRun } from './runRecords.ts'
+import type { TriggerStore } from './store.ts'
 
 /** 怎么算一次执行结束了。 */
 export type EndBasis = 'state'
@@ -45,9 +46,9 @@ export class RunEnds {
   }
 
   /** 这张卡片上一次发出去的那次执行结束了没有（按 `basis`，现在只有运行状态一种）。 */
-  async previous(local: TriggerLocal, basis: EndBasis = 'state'): Promise<PreviousRun> {
-    const fire = local.lastFire
-    if (fire === undefined || fire === local.waived) return { ended: true }
+  async previous(run: TriggerRun, basis: EndBasis = 'state'): Promise<PreviousRun> {
+    const fire = run.lastFire
+    if (fire === undefined || fire === run.waived) return { ended: true }
     const detail = await this.store.detail(fire)
     if (detail === null) return { ended: true }
     const { record } = detail

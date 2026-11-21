@@ -13,12 +13,15 @@ import { assetsDir, pathKind, versionFile, workflowFile } from '../../src/host/s
 import type { Outcome } from '../../src/host/store/repoResult.ts'
 import { createRepository, type Repository } from '../../src/host/store/repository.ts'
 import { pluginVersion } from '../../src/host/version.ts'
-import { readDocument } from '../../src/shared/model.ts'
+import { isTrigger, readDocument } from '../../src/shared/model.ts'
 import { PACK_CHUNK_BYTES, PACK_FORMAT, PACK_KIND, PACK_PATHS } from '../../src/shared/pack.ts'
+import type { ChoiceKeep } from '../../src/shared/sessionChoice.ts'
 import {
   NODE_TYPE,
   RESOURCE_TYPE,
   type ResourceItem,
+  TRIGGER_TYPE,
+  type TriggerData,
   type WorkflowDocument,
 } from '../../src/shared/types.ts'
 
@@ -332,9 +335,9 @@ describe('导出 → 导入（新工作流）', () => {
   })
 })
 
-describe('导出时的模型和预设', () => {
-  /** 一张设了新建会话用的预设、模型的图，导出、再导入成 `name`，回导入后的第 1 版。 */
-  async function roundTrip(sessionChoice: boolean | undefined, name: string) {
+describe('导出时新建会话的设置', () => {
+  /** 一张设了新建会话用的预设、模型、权限的图，导出、再导入成 `name`，回导入后的第 1 版。 */
+  async function roundTrip(choice: ChoiceKeep | undefined, name: string) {
     const from = await side(`choice-${name}`)
     const document: WorkflowDocument = {
       ...graph([]),
@@ -342,17 +345,26 @@ describe('导出时的模型和预设', () => {
         runState: true,
         preset: 'ptc',
         model: { provider: 'deepseek', model: 'deepseek-v4', effort: 'high' },
+        permission: 'read-only',
       },
     }
     await makeWorkflow(from.repository, 'review', [document])
     const scan = expectOk(await scanPack(from.deps, { name: 'review', versions: [1] }))
-    expect(scan.sessionChoice).toBe(true)
+    expect(scan.choices).toEqual([
+      {
+        choice: {
+          preset: 'ptc',
+          model: { provider: 'deepseek', model: 'deepseek-v4', effort: 'high' },
+          permission: 'read-only',
+        },
+      },
+    ])
     const exported = expectOk(
       await exportPack(from.deps, {
         name: 'review',
         versions: [1],
         pack: [],
-        ...(sessionChoice === undefined ? {} : { sessionChoice }),
+        ...(choice === undefined ? {} : { choice }),
       }),
     )
     const token = await upload(from.dataDir, await download(from.dataDir, exported.token))
@@ -360,18 +372,154 @@ describe('导出时的模型和预设', () => {
     return expectOk(await from.repository.readVersion(name, 1)).document
   }
 
-  it('缺省不带：导入后跟随默认，别的设置照旧', async () => {
+  it('缺省不带模型和预设、带上权限，别的设置照旧', async () => {
     const imported = await roundTrip(undefined, 'plain')
-    expect(imported.settings).toEqual({ runState: true })
+    expect(imported.settings).toEqual({ runState: true, permission: 'read-only' })
   })
 
-  it('勾上才带：只有名字', async () => {
-    const imported = await roundTrip(true, 'kept')
+  it('按三个开关带：只有名字', async () => {
+    const imported = await roundTrip({ model: true, preset: true, permission: false }, 'kept')
     expect(imported.settings).toEqual({
       runState: true,
       preset: 'ptc',
       model: { provider: 'deepseek', model: 'deepseek-v4', effort: 'high' },
     })
+  })
+})
+
+describe('触发卡片', () => {
+  function card(id: string, data: TriggerData): WorkflowDocument['nodes'][number] {
+    return { id, type: TRIGGER_TYPE, position: { x: 0, y: 0 }, data }
+  }
+
+  /** 两张卡片：定时检查（开着、选了不在的工作区、发进固定会话）和 HTTP；卡片目录里有脚本、密钥、数据。 */
+  async function triggerSide(): Promise<Side> {
+    const from = await side('triggers')
+    const base = graph([])
+    const document: WorkflowDocument = {
+      ...base,
+      nodes: [
+        ...base.nodes,
+        card('tick', {
+          source: {
+            kind: 'schedule',
+            schedule: { kind: 'every', seconds: 300 },
+            check: { command: 'node check.mjs', when: 'success' },
+          },
+          enabled: true,
+          workspace: slash(join(root, 'nowhere')),
+          launch: { session: 'fixed', sessionId: 'abc' },
+        }),
+        card('hook', {
+          label: '收信',
+          source: { kind: 'http', hook: 'review', token: 'secret-token' },
+          enabled: true,
+        }),
+      ],
+    }
+    await makeWorkflow(from.repository, 'review', [document])
+    const dir = join(assetsDir(from.dataDir, 'review'), 'triggers')
+    const put = async (rel: string, text: string): Promise<void> => {
+      await mkdir(join(dir, rel, '..'), { recursive: true })
+      await writeFile(join(dir, rel), text)
+    }
+    await put('watch.mjs', 'export {}')
+    await put('tick/check.mjs', 'process.exit(0)')
+    await put('tick/samples/a.json', '{}')
+    await put('tick/secrets/key.txt', 'k1')
+    await put('tick/data/state.json', '{"n":1}')
+    await put('tick/data-test/state.json', '{}')
+    await put('hook/secrets/h.txt', 'h1')
+    await writeFile(join(assetsDir(from.dataDir, 'review'), 'notes.md'), 'n')
+    return from
+  }
+
+  async function packed(from: Side, request: Parameters<typeof exportPack>[1]) {
+    const exported = expectOk(await exportPack(from.deps, request))
+    return expectOk(openPack(await download(from.dataDir, exported.token)))
+  }
+
+  it('盘点：每张卡片、各自的密钥和数据，触发脚本单算，资料目录里不含触发器那一块', async () => {
+    const from = await triggerSide()
+    const scan = expectOk(await scanPack(from.deps, { name: 'review', versions: [1] }))
+    expect(scan.assets?.files).toBe(1)
+    expect(scan.triggerScripts?.files).toBe(3)
+    expect(scan.triggers).toEqual([
+      expect.objectContaining({
+        node: 'tick',
+        label: '',
+        command: true,
+        versions: [1],
+        secrets: { names: ['key.txt'], bytes: 2 },
+        data: { files: 1, bytes: 7 },
+      }),
+      expect.objectContaining({
+        node: 'hook',
+        label: '收信',
+        command: false,
+        secrets: { names: ['h.txt'], bytes: 2 },
+      }),
+    ])
+    expect(scan.triggers[1]?.data).toBeUndefined()
+  })
+
+  it('缺省：卡片全带、开关存成关、令牌带上；脚本带上，密钥、数据、试运行数据不带', async () => {
+    const from = await triggerSide()
+    const opened = await packed(from, { name: 'review', versions: [1], pack: [] })
+    expect(opened.manifest.assets.map((file) => file.path).sort()).toEqual([
+      'notes.md',
+      'triggers/tick/check.mjs',
+      'triggers/tick/samples/a.json',
+      'triggers/watch.mjs',
+    ])
+    const cards = opened.versions[0]?.document.nodes.filter(isTrigger) ?? []
+    expect(cards.map((node) => node.id)).toEqual(['tick', 'hook'])
+    expect(cards.every((node) => node.data.enabled === undefined)).toBe(true)
+    expect(cards[1]?.data.source).toMatchObject({ hook: 'review', token: 'secret-token' })
+  })
+
+  it('没勾的卡片从包里去掉；留下的都不跑命令时不带脚本；勾了才带密钥和数据', async () => {
+    const from = await triggerSide()
+    const opened = await packed(from, {
+      name: 'review',
+      versions: [1],
+      pack: [],
+      triggers: ['hook'],
+      secrets: ['hook', 'tick'],
+      triggerData: ['tick'],
+    })
+    expect(opened.manifest.assets.map((file) => file.path).sort()).toEqual([
+      'notes.md',
+      'triggers/hook/secrets/h.txt',
+    ])
+    const cards = opened.versions[0]?.document.nodes.filter(isTrigger) ?? []
+    expect(cards.map((node) => node.id)).toEqual(['hook'])
+  })
+
+  it('导入预览：几张卡片、工作区本机没有的、固定会话的、带了几个密钥文件；密钥落进卡片目录', async () => {
+    const from = await triggerSide()
+    const exported = expectOk(
+      await exportPack(from.deps, { name: 'review', versions: [1], pack: [], secrets: ['tick'] }),
+    )
+    const zip = await download(from.dataDir, exported.token)
+    const token = await upload(from.dataDir, zip)
+    const preview = expectOk(await inspectPack(from.deps, { token }))
+    expect(preview.triggers).toEqual({ cards: 2, workspaceMissing: 1, fixed: 1, secrets: 1 })
+    const to = await side('triggers-to')
+    const into = await upload(to.dataDir, zip)
+    expectOk(await applyPack(to.deps, { token: into, mode: 'new', name: 'review' }))
+    const secret = join(assetsDir(to.dataDir, 'review'), 'triggers', 'tick', 'secrets', 'key.txt')
+    expect(await readFile(secret, 'utf8')).toBe('k1')
+  })
+
+  it('没有卡片的包，导入预览里没有触发器那一段', async () => {
+    const from = await side('no-triggers')
+    await makeWorkflow(from.repository, 'review', [graph([])])
+    const exported = expectOk(
+      await exportPack(from.deps, { name: 'review', versions: [1], pack: [] }),
+    )
+    const token = await upload(from.dataDir, await download(from.dataDir, exported.token))
+    expect(expectOk(await inspectPack(from.deps, { token })).triggers).toBeNull()
   })
 })
 

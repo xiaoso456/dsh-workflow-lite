@@ -1,25 +1,27 @@
 /**
- * dsh-workflow-lite — `workflow_lite` 里触发卡片那几样：读一张卡片（定义 + 本机的情况，按需带触发记录、
- * 最近的输出、排队）、改本机设置、试一张卡片、处理排队。
+ * dsh-workflow-lite — `workflow_lite` 里触发卡片那几样：读一张卡片（定义 + 跑起来的情况，按需带触发记录、
+ * 最近的输出、排队）、改设置、试一张卡片、处理排队。
  *
- * 定义在图里（`write_trigger` 的 `trigger` 由仓储写），这里只管本机那一面，经 {@link TriggerPort} 找触发器服务。
- * 模型能自己开关：`local.enabled = true` 打开要跑命令的卡片时，同时确认「这条命令在这个工作区、用这个 shell 运行」
- * （和用户在画布上确认一样，命令、工作区、shell 改了要再确认）。
+ * 定义和设置都在图里：`write_trigger` 的 `trigger` 由仓储写，`local`（开关、工作区、shell、工作目录、固定会话、
+ * HTTP 地址和令牌）经 {@link TriggerPort} 交给触发器服务核对后写回图里。
  * 时刻一律写成本机时间的「YYYY-MM-DD HH:mm:ss」，模型照着念给用户。
  *
  * @module @xiaoso/dsh-workflow-lite/host/tool/triggerActions
  */
 
 import { upcomingFires } from '../../shared/schedule.ts'
-import { commandOf, filterOf, launchOf, sourceText } from '../../shared/trigger.ts'
+import { filterOf, launchOf, sourceText } from '../../shared/trigger.ts'
+import { hookPath } from '../../shared/triggerHttp.ts'
 import { TRIGGER_MARK } from '../../shared/triggerMark.ts'
 import type { TriggerIndexEntry, TriggerNode, TriggerSource } from '../../shared/types.ts'
-import type { FireRecord, TriggerSetRequest, TriggerView } from '../../shared/wire/trigger.ts'
+import type { FireRecord, TriggerListResponse, TriggerView } from '../../shared/wire/trigger.ts'
+import { assetsDir } from '../store/paths.ts'
 import type { Outcome } from '../store/repoResult.ts'
 import { fail, ok } from '../store/repoResult.ts'
+import { cardDataDir, cardDir, cardSecretsDir } from '../triggers/cardDirs.ts'
 import type { CardTestResult } from '../triggers/cardTest.ts'
 import type { TriggerService } from '../triggers/service.ts'
-import { cardDataDir, cardSecretsDir } from '../triggers/store.ts'
+import type { SettingsChange } from '../triggers/settings.ts'
 import type { TriggerLocalArgs, WorkflowLiteArgs } from './args.ts'
 
 /** 工具用到的触发器服务那一面。 */
@@ -92,22 +94,27 @@ function fireOf(record: FireRecord): Record<string, unknown> {
   }
 }
 
-/** 一张卡片在本机的情况（读、改完之后都回它）。 */
+/** 一张卡片的设置和跑起来的情况（读、改完之后都回它）。 */
 async function localOf(
   port: TriggerPort,
   dataDir: string,
   workflow: string,
   node: TriggerNode,
-  view: TriggerView | undefined,
+  list: TriggerListResponse,
   now: number,
 ): Promise<Record<string, unknown>> {
-  const { source } = node.data
-  const local = view ?? { node: node.id, enabled: false, state: 'off' as const }
+  const { data } = node
+  const { source } = data
+  const view: TriggerView = list.triggers.find((candidate) => candidate.node === node.id) ?? {
+    node: node.id,
+    enabled: data.enabled === true,
+    state: 'off',
+  }
   const upcoming =
-    local.enabled && source.kind === 'schedule'
+    view.enabled && source.kind === 'schedule'
       ? [
-          ...(local.next === undefined ? [] : [local.next]),
-          ...upcomingFires(source.schedule, new Date(local.next ?? now), UPCOMING).map((date) =>
+          ...(view.next === undefined ? [] : [view.next]),
+          ...upcomingFires(source.schedule, new Date(view.next ?? now), UPCOMING).map((date) =>
             date.getTime(),
           ),
         ].slice(0, UPCOMING)
@@ -115,38 +122,46 @@ async function localOf(
   const toEnable = await port.readiness(workflow, node.id)
   const retest = await port.untested(workflow, node.id)
   return {
-    enabled: local.enabled,
-    state: local.state,
-    ...(local.problem === undefined ? {} : { problem: local.problem }),
+    enabled: view.enabled,
+    state: view.state,
+    ...(view.problem === undefined ? {} : { problem: view.problem }),
     ...(toEnable.length === 0 ? {} : { toEnable }),
     ...(retest === null ? {} : { retest }),
-    ...(local.workspace === undefined ? {} : { workspace: local.workspace }),
-    ...(local.runShell === undefined ? {} : { shell: local.runShell }),
-    ...(local.approved === undefined ? {} : { approved: local.approved }),
-    ...(local.session === undefined ? {} : { session: local.session }),
-    ...(local.endpoint === undefined ? {} : { endpoint: local.endpoint }),
+    ...(data.workspace === undefined ? {} : { workspace: data.workspace }),
+    ...(view.runShell === undefined ? {} : { shell: view.runShell }),
+    ...(data.cwd === undefined ? {} : { cwd: data.cwd }),
+    ...(data.launch?.sessionId === undefined ? {} : { session: data.launch.sessionId }),
+    ...(source.kind === 'http' && source.hook !== undefined
+      ? {
+          endpoint: {
+            url: `${list.hookOrigin}${hookPath(source.hook)}`,
+            hook: source.hook,
+            ...(source.token === undefined ? {} : { token: source.token }),
+            ...(source.noToken === true ? { noToken: true } : {}),
+          },
+        }
+      : {}),
     ...(upcoming.length === 0 ? {} : { next: upcoming.map(stamp) }),
-    ...(local.checked === undefined
+    ...(view.checked === undefined
       ? {}
-      : { checked: { at: stamp(local.checked.at), met: local.checked.met } }),
-    ...(local.line === undefined
-      ? {}
-      : { line: { at: stamp(local.line.at), text: local.line.text } }),
-    ...(local.last === undefined ? {} : { last: fireOf(local.last) }),
-    ...(local.queued === undefined ? {} : { queued: local.queued }),
-    ...(local.waiting === undefined
+      : { checked: { at: stamp(view.checked.at), met: view.checked.met } }),
+    ...(view.line === undefined ? {} : { line: { at: stamp(view.line.at), text: view.line.text } }),
+    ...(view.last === undefined ? {} : { last: fireOf(view.last) }),
+    ...(view.queued === undefined ? {} : { queued: view.queued }),
+    ...(view.waiting === undefined
       ? {}
       : {
           waiting: {
-            fire: local.waiting.fire,
-            at: stamp(local.waiting.at),
-            ...(local.waiting.session === undefined ? {} : { session: local.waiting.session }),
-            ...(local.waiting.instance === undefined ? {} : { instance: local.waiting.instance }),
-            ...(local.waiting.status === undefined ? {} : { status: local.waiting.status }),
+            fire: view.waiting.fire,
+            at: stamp(view.waiting.at),
+            ...(view.waiting.session === undefined ? {} : { session: view.waiting.session }),
+            ...(view.waiting.instance === undefined ? {} : { instance: view.waiting.instance }),
+            ...(view.waiting.status === undefined ? {} : { status: view.waiting.status }),
           },
         }),
-    dataDir: cardDataDir(dataDir, workflow, node.id),
-    secretsDir: cardSecretsDir(dataDir, workflow, node.id),
+    cardDir: cardDir(assetsDir(dataDir, workflow), node.id),
+    dataDir: cardDataDir(assetsDir(dataDir, workflow), node.id),
+    secretsDir: cardSecretsDir(assetsDir(dataDir, workflow), node.id),
   }
 }
 
@@ -160,7 +175,6 @@ export async function readTrigger(
   now: number,
 ): Promise<Record<string, unknown>> {
   const list = await port.list(workflow)
-  const view = list.triggers.find((candidate) => candidate.node === node.id)
   const include = new Set(args.include ?? [])
   const limit = (fallback: number): number =>
     Math.min(Math.max(Math.trunc(args.limit ?? fallback), 1), HISTORY_MAX)
@@ -173,7 +187,7 @@ export async function readTrigger(
       filter: filterOf(node.data),
       launch: launchOf(node.data),
     },
-    local: await localOf(port, dataDir, workflow, node, view, now),
+    local: await localOf(port, dataDir, workflow, node, list, now),
     ...(list.paused === undefined ? {} : { paused: stamp(list.paused) }),
     ...(list.owner !== undefined && !list.owner.mine ? { elsewhere: list.owner.pid } : {}),
   }
@@ -247,7 +261,7 @@ export async function triggerOverview(
   }
 }
 
-/** 不带 node 的 `read`：每张触发卡片的定义，加上开没开、现在什么状态。 */
+/** 不带 node 的 `read`：每张触发卡片的定义和设置，加上现在什么状态。 */
 export async function triggerIndex(
   port: TriggerPort | undefined,
   workflow: string,
@@ -265,7 +279,6 @@ export async function triggerIndex(
       ...(view === undefined
         ? {}
         : {
-            enabled: view.enabled,
             state: view.state,
             ...(view.problem === undefined ? {} : { problem: view.problem }),
           }),
@@ -273,45 +286,42 @@ export async function triggerIndex(
   })
 }
 
-/**
- * write_trigger 的 local → 服务的设置请求；形状不对回一句原因。
- * 打开要跑命令的卡片时带上图里现在的命令作确认（服务按改完的工作区、shell 记下）。
- */
-export function localRequest(
-  workflow: string,
-  node: TriggerNode,
+/** write_trigger 的 local → 服务的设置改动；形状不对回一句原因。 */
+export function localChange(
   local: TriggerLocalArgs,
   currentSession: string | undefined,
-): TriggerSetRequest | string {
+): SettingsChange | string {
   if (typeof local !== 'object' || local === null) return 'local 要写成 { workspace, shell, … }'
-  const request: TriggerSetRequest = { workflow, node: node.id }
-  const command = commandOf(node.data.source)
+  const change: SettingsChange = {}
   if (local.enabled !== undefined) {
     if (typeof local.enabled !== 'boolean') return 'local.enabled 要是 true / false'
-    request.enabled = local.enabled
-    if (local.enabled && command !== undefined) request.approve = command
+    change.enabled = local.enabled
   }
-  for (const key of ['workspace', 'shell', 'hook', 'token'] as const) {
+  for (const key of ['workspace', 'shell', 'cwd', 'hook', 'token'] as const) {
     const value = local[key]
     if (value === undefined) continue
     if (typeof value !== 'string') return `local.${key} 要是文字`
-    request[key] = value
+    change[key] = value
   }
   if (local.session !== undefined) {
     if (typeof local.session !== 'string') return 'local.session 要是文字'
     if (local.session === 'current') {
       if (currentSession === undefined) return '拿不到当前会话的 id'
-      request.session = currentSession
-    } else request.session = local.session
+      change.session = currentSession
+    } else change.session = local.session
   }
   if (local.noToken !== undefined) {
     if (typeof local.noToken !== 'boolean') return 'local.noToken 要是 true / false'
-    request.noToken = local.noToken
+    change.noToken = local.noToken
   }
-  return request
+  if (local.resetToken !== undefined) {
+    if (local.resetToken !== true) return 'local.resetToken 只能是 true'
+    change.resetToken = true
+  }
+  return change
 }
 
-/** 一张卡片现在在本机的情况（写了定义、没改本机设置时也回给模型）。 */
+/** 一张卡片现在的设置和跑起来的情况（写了定义、没改设置时也回给模型）。 */
 export async function localNow(
   port: TriggerPort,
   dataDir: string,
@@ -319,8 +329,7 @@ export async function localNow(
   node: TriggerNode,
   now: number,
 ): Promise<Record<string, unknown>> {
-  const view = (await port.list(workflow)).triggers.find((candidate) => candidate.node === node.id)
-  return localOf(port, dataDir, workflow, node, view, now)
+  return localOf(port, dataDir, workflow, node, await port.list(workflow), now)
 }
 
 /** 带上 {@link outputRule}（有的话）。 */
@@ -337,7 +346,7 @@ export function nextStep(local: Record<string, unknown> | undefined): string {
   const retest = typeof local.retest === 'string' ? `${local.retest}。` : ''
   if (local.enabled === true) {
     if (toEnable) {
-      return `${retest}卡片开着但还不能触发：按 toEnable 补齐（命令、工作区、shell 改过的再给一次 local.enabled = true）。`
+      return `${retest}卡片开着但还不能触发：按 toEnable 补齐。`
     }
     return retest === '' ? '卡片开着。' : `${retest}卡片已经开着，按现在的脚本在跑。`
   }
@@ -349,20 +358,6 @@ export function nextStep(local: Record<string, unknown> | undefined): string {
   return toEnable
     ? '卡片关着：先用 test_trigger 试一遍，按 toEnable 补齐后用 local.enabled 打开。'
     : '卡片关着：先用 test_trigger 试一遍，再用 local.enabled 打开。'
-}
-
-/** 改完本机设置后回这张卡片的本机情况。 */
-export async function applyLocal(
-  port: TriggerPort,
-  dataDir: string,
-  node: TriggerNode,
-  request: TriggerSetRequest,
-  now: number,
-): Promise<Outcome<Record<string, unknown>>> {
-  const outcome = await port.set(request)
-  if (!outcome.ok) return outcome
-  const view = outcome.result.triggers.find((candidate) => candidate.node === node.id)
-  return ok(await localOf(port, dataDir, request.workflow, node, view, now))
 }
 
 /** test_trigger 的结果：时刻换成本机时间，带上打开前还差什么。 */

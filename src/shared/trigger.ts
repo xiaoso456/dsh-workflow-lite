@@ -10,6 +10,7 @@
  * @module @xiaoso/dsh-workflow-lite/shared/trigger
  */
 
+import { hasWorkspaceVar } from './pathVars.ts'
 import {
   type ScheduleIssue,
   scheduleIssue,
@@ -19,21 +20,33 @@ import {
   tidyTimes,
 } from './schedule.ts'
 import { readSessionChoice } from './sessionChoice.ts'
-import type {
-  AfterWhen,
-  CheckWhen,
-  TriggerCheck,
-  TriggerData,
-  TriggerFilter,
-  TriggerLaunch,
-  TriggerNode,
-  TriggerOverlap,
-  TriggerSchedule,
-  TriggerSessionMode,
-  TriggerSource,
-  TriggerSourceKind,
+import {
+  HOOK_MAX_LENGTH,
+  type HookIssue,
+  hookIssue,
+  TOKEN_MAX_LENGTH,
+  TOKEN_MIN_LENGTH,
+  type TokenIssue,
+  tokenIssue,
+} from './triggerHttp.ts'
+import {
+  type AfterWhen,
+  type CheckWhen,
+  TRIGGER_PERMISSION,
+  TRIGGER_TYPE,
+  type TriggerCheck,
+  type TriggerData,
+  type TriggerFilter,
+  type TriggerLaunch,
+  type TriggerNode,
+  type TriggerOverlap,
+  type TriggerSchedule,
+  type TriggerSessionMode,
+  type TriggerSource,
+  type TriggerSourceKind,
+  type WorkflowDocument,
+  type WorkflowNode,
 } from './types.ts'
-import { TRIGGER_PERMISSION } from './types.ts'
 
 /** 一次触发是怎么来的：哪一种触发源，或用户点了「立即触发一次」。 */
 export type FireChannel = TriggerSourceKind | 'now'
@@ -213,7 +226,16 @@ function readSource(raw: unknown): TriggerSource {
   const input = isPlainObject(raw) ? raw : {}
   const command = typeof input.command === 'string' ? input.command : ''
   if (input.kind === 'listen') return { kind: 'listen', command }
-  if (input.kind === 'http') return { kind: 'http' }
+  if (input.kind === 'http') {
+    const hook = filled(input.hook)?.normalize('NFC')
+    const token = filled(input.token)
+    return {
+      kind: 'http',
+      ...(hook === undefined ? {} : { hook }),
+      ...(token === undefined ? {} : { token }),
+      ...(input.noToken === true ? { noToken: true as const } : {}),
+    }
+  }
   if (input.kind === 'after') {
     return {
       kind: 'after',
@@ -264,6 +286,8 @@ function readLaunch(raw: unknown): TriggerLaunch | undefined {
   const launch: TriggerLaunch = {}
   const session = SESSION_MODES.find((mode) => mode === raw.session)
   if (session !== undefined && session !== 'new') launch.session = session
+  const sessionId = filled(raw.sessionId)
+  if (sessionId !== undefined) launch.sessionId = sessionId
   const overlap = OVERLAPS.find((mode) => mode === raw.overlap)
   if (overlap !== undefined && overlap !== 'skip') launch.overlap = overlap
   const queueMax = wholeIn(raw.queueMax, NO_LIMIT, Number.MAX_SAFE_INTEGER)
@@ -292,12 +316,26 @@ export function readTriggerData(raw: unknown): TriggerData {
   if (filter !== undefined) data.filter = filter
   const launch = readLaunch(input.launch)
   if (launch !== undefined) data.launch = launch
+  if (input.enabled === true) data.enabled = true
+  const workspace = filled(input.workspace)
+  if (workspace !== undefined) data.workspace = workspace
+  const shell = filled(input.shell)
+  if (shell !== undefined) data.shell = shell
+  const cwd = filled(input.cwd)
+  if (cwd !== undefined) data.cwd = cwd
   return data
 }
 
 function canonicalSource(source: TriggerSource): TriggerSource {
   if (source.kind === 'listen') return { kind: 'listen', command: source.command }
-  if (source.kind === 'http') return { kind: 'http' }
+  if (source.kind === 'http') {
+    return {
+      kind: 'http',
+      ...(source.hook === undefined ? {} : { hook: source.hook }),
+      ...(source.token === undefined ? {} : { token: source.token }),
+      ...(source.noToken === undefined ? {} : { noToken: source.noToken }),
+    }
+  }
   if (source.kind === 'after') {
     return {
       kind: 'after',
@@ -345,6 +383,7 @@ export function canonicalTrigger(data: TriggerData): TriggerData {
   if (launch !== undefined) {
     out.launch = {
       ...(launch.session === undefined ? {} : { session: launch.session }),
+      ...(launch.sessionId === undefined ? {} : { sessionId: launch.sessionId }),
       ...(launch.overlap === undefined ? {} : { overlap: launch.overlap }),
       ...(launch.queueMax === undefined ? {} : { queueMax: launch.queueMax }),
       ...(launch.catchUp === undefined ? {} : { catchUp: launch.catchUp }),
@@ -355,6 +394,10 @@ export function canonicalTrigger(data: TriggerData): TriggerData {
       ...(launch.permission === undefined ? {} : { permission: launch.permission }),
     }
   }
+  if (normalized.enabled === true) out.enabled = true
+  if (normalized.workspace !== undefined) out.workspace = normalized.workspace
+  if (normalized.shell !== undefined) out.shell = normalized.shell
+  if (normalized.cwd !== undefined) out.cwd = normalized.cwd
   return out
 }
 
@@ -378,6 +421,73 @@ export function patchTriggerData(
   return JSON.stringify(next) === JSON.stringify(data) ? null : next
 }
 
+/**
+ * 卡片上只经「设置」改的几项：开关、会话工作区、shell、脚本工作目录、固定会话、HTTP 地址和令牌。
+ * 都存在图里，但改的时候要核对（目录在不在、地址重没重、打开前齐没齐），所以画布的面板、模型的 `local`
+ * 都走触发器服务；写卡片定义（`write_trigger` 的 `trigger`）不动它们。
+ */
+export interface TriggerSettings {
+  enabled?: true
+  workspace?: string
+  shell?: string
+  cwd?: string
+  sessionId?: string
+  hook?: string
+  token?: string
+  noToken?: true
+}
+
+/** 一张卡片现在的设置。 */
+export function settingsOf(data: TriggerData): TriggerSettings {
+  const { source } = data
+  return {
+    ...(data.enabled === true ? { enabled: true as const } : {}),
+    ...(data.workspace === undefined ? {} : { workspace: data.workspace }),
+    ...(data.shell === undefined ? {} : { shell: data.shell }),
+    ...(data.cwd === undefined ? {} : { cwd: data.cwd }),
+    ...(data.launch?.sessionId === undefined ? {} : { sessionId: data.launch.sessionId }),
+    ...(source.kind === 'http' && source.hook !== undefined ? { hook: source.hook } : {}),
+    ...(source.kind === 'http' && source.token !== undefined ? { token: source.token } : {}),
+    ...(source.kind === 'http' && source.noToken === true ? { noToken: true as const } : {}),
+  }
+}
+
+/** 换上这份设置（没有的项清掉；地址、令牌只放进 HTTP 触发）。 */
+export function withSettings(data: TriggerData, settings: TriggerSettings): TriggerData {
+  const {
+    enabled: _enabled,
+    workspace: _workspace,
+    shell: _shell,
+    cwd: _cwd,
+    launch,
+    source,
+    ...rest
+  } = data
+  const { sessionId: _sessionId, ...launchRest } = launch ?? {}
+  const nextLaunch = {
+    ...launchRest,
+    ...(settings.sessionId === undefined ? {} : { sessionId: settings.sessionId }),
+  }
+  const nextSource: TriggerSource =
+    source.kind === 'http'
+      ? {
+          kind: 'http',
+          ...(settings.hook === undefined ? {} : { hook: settings.hook }),
+          ...(settings.token === undefined ? {} : { token: settings.token }),
+          ...(settings.noToken === true ? { noToken: true as const } : {}),
+        }
+      : source
+  return canonicalTrigger({
+    ...rest,
+    source: nextSource,
+    ...(Object.keys(nextLaunch).length === 0 ? {} : { launch: nextLaunch }),
+    ...(settings.enabled === true ? { enabled: true as const } : {}),
+    ...(settings.workspace === undefined ? {} : { workspace: settings.workspace }),
+    ...(settings.shell === undefined ? {} : { shell: settings.shell }),
+    ...(settings.cwd === undefined ? {} : { cwd: settings.cwd }),
+  })
+}
+
 // ─────────────────────────────────────────────────────────────
 // 补上缺省值
 // ─────────────────────────────────────────────────────────────
@@ -385,6 +495,8 @@ export function patchTriggerData(
 /** 启动方式里的各项，缺省值都补上了。 */
 export interface LaunchSettings {
   session: TriggerSessionMode
+  /** 「固定会话」发进的那个会话；还没选是 `undefined`。 */
+  sessionId?: string
   overlap: TriggerOverlap
   queueMax: number
   catchUp: boolean
@@ -404,6 +516,7 @@ export function needsRunState(data: TriggerData, runState: boolean): boolean {
 export function launchOf(data: TriggerData): LaunchSettings {
   return {
     session: data.launch?.session ?? 'new',
+    ...(data.launch?.sessionId === undefined ? {} : { sessionId: data.launch.sessionId }),
     overlap: data.launch?.overlap ?? 'skip',
     queueMax: data.launch?.queueMax ?? DEFAULT_QUEUE_MAX,
     catchUp: data.launch?.catchUp ?? false,
@@ -413,17 +526,23 @@ export function launchOf(data: TriggerData): LaunchSettings {
 }
 
 /**
- * 打开开关之前，这张卡片在本机还缺哪一样：要跑命令的（带检查的定时、监听）和新建 / 接着上一次会话的要工作区，
- * 发进固定会话的要选会话；都齐了是 `null`。
+ * 打开开关之前，这张卡片还缺哪一样：新建 / 接着上一次会话的要会话工作区，发进固定会话的要选会话；
+ * 命令、脚本目录里用了 `{workspace}` 的不论会话方式都要工作区。都齐了是 `null`。
  */
-export function launchMissing(
-  data: TriggerData,
-  local: { workspace?: string | undefined; session?: string | undefined },
-): 'workspace' | 'session' | null {
-  const needsWorkspace = commandOf(data.source) !== undefined || launchOf(data).session !== 'fixed'
-  if (needsWorkspace && local.workspace === undefined) return 'workspace'
-  if (launchOf(data).session === 'fixed' && local.session === undefined) return 'session'
+export function launchMissing(data: TriggerData): 'workspace' | 'session' | null {
+  const fixed = launchOf(data).session === 'fixed'
+  if ((!fixed || usesWorkspace(data)) && data.workspace === undefined) return 'workspace'
+  if (fixed && data.launch?.sessionId === undefined) return 'session'
   return null
+}
+
+/** 命令或脚本的工作目录里用到了会话工作区（`{workspace}`）。 */
+export function usesWorkspace(data: TriggerData): boolean {
+  const command = commandOf(data.source)
+  return (
+    (command !== undefined && hasWorkspaceVar(command)) ||
+    (data.cwd !== undefined && hasWorkspaceVar(data.cwd))
+  )
 }
 
 /** 过滤里的各项，缺省值都补上了。 */
@@ -489,6 +608,10 @@ export type SourceIssue =
   | { code: 'noCommand' }
   /** 到点直接执行的「每隔」太密（要带检查命令才能更短）。 */
   | { code: 'tooOften'; min: number }
+  /** HTTP 的地址写得不对。 */
+  | { code: 'hook'; issue: HookIssue }
+  /** HTTP 的令牌写得不对。 */
+  | { code: 'token'; issue: TokenIssue }
 
 /**
  * 触发源哪里写得不对；没问题是 `null`。
@@ -506,9 +629,26 @@ export function sourceIssue(source: TriggerSource): SourceIssue | null {
     }
     return check.command.trim() === '' ? { code: 'noCommand' } : null
   }
-  if (source.kind === 'http') return null
+  if (source.kind === 'http') {
+    if (source.hook !== undefined) {
+      const issue = hookIssue(source.hook)
+      if (issue !== null) return { code: 'hook', issue }
+    }
+    if (source.noToken === true || source.token === undefined) return null
+    const issue = tokenIssue(source.token)
+    return issue === null ? null : { code: 'token', issue }
+  }
   if (source.kind === 'after') return source.workflow === '' ? { code: 'noWorkflow' } : null
   return source.command.trim() === '' ? { code: 'noCommand' } : null
+}
+
+/**
+ * HTTP 触发还没有地址或令牌（换成 HTTP 之后还没打开过、也没进过对话框）。这不算写错：
+ * 打开开关时补上缺省的；开着却还缺（图被直接改过）时卡片显示设置有误。
+ */
+export function endpointMissing(source: TriggerSource): boolean {
+  if (source.kind !== 'http') return false
+  return source.hook === undefined || (source.noToken !== true && source.token === undefined)
 }
 
 /** 触发源写得不对时的一句原因（中文）；没问题是 `null`。 */
@@ -523,7 +663,21 @@ export function sourceProblem(source: TriggerSource): string | null {
   if (issue.code === 'tooOften') {
     return `到点直接执行的间隔最短 ${secondsText(issue.min)}；要更密得先跑命令检查`
   }
+  if (issue.code === 'hook') return HOOK_PROBLEM[issue.issue]
+  if (issue.code === 'token') return TOKEN_PROBLEM[issue.issue]
   return null
+}
+
+const HOOK_PROBLEM: Record<HookIssue, string> = {
+  empty: '地址不能为空',
+  chars: '地址只能用字母、数字、中文和 - _',
+  long: `地址最长 ${String(HOOK_MAX_LENGTH)} 个字`,
+}
+
+const TOKEN_PROBLEM: Record<TokenIssue, string> = {
+  short: `令牌至少 ${String(TOKEN_MIN_LENGTH)} 个字`,
+  chars: '令牌只能用字母、数字和 - _ . ~',
+  long: `令牌最长 ${String(TOKEN_MAX_LENGTH)} 个字`,
 }
 
 /** 检查命令的判定的一句话说法。 */
@@ -575,4 +729,26 @@ export function keywordMiss(filter: FilterSettings, info: string): string | null
     return `不含 ${filter.include.map((word) => `「${word}」`).join('、')} 中的任何一个`
   }
   return null
+}
+
+function switchedOn(node: WorkflowNode): node is TriggerNode {
+  return node.type === TRIGGER_TYPE && (node as TriggerNode).data.enabled === true
+}
+
+/** 图里开着的触发卡片有几张。 */
+export function switchedOnCount(document: WorkflowDocument): number {
+  return document.nodes.filter(switchedOn).length
+}
+
+/** 各触发卡片的开关都关掉；本来都关着原样返回。 */
+export function withSwitchesOff(document: WorkflowDocument): WorkflowDocument {
+  if (!document.nodes.some(switchedOn)) return document
+  return {
+    ...document,
+    nodes: document.nodes.map((node) => {
+      if (!switchedOn(node)) return node
+      const { enabled: _enabled, ...data } = node.data
+      return { ...node, data }
+    }),
+  }
 }

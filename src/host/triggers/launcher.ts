@@ -28,8 +28,9 @@ import type { FireOutcome, FireRecord, FireSettled } from '../../shared/wire/tri
 import type { TriggerDefinition } from './graphs.ts'
 import { fireMessage } from './message.ts'
 import { endProblem, type RunEnds } from './runEnd.ts'
+import type { TriggerRun } from './runRecords.ts'
 import type { SessionPort } from './sessions.ts'
-import { type FireDetail, newFireId, type TriggerLocal, type TriggerStore } from './store.ts'
+import { type FireDetail, newFireId, type TriggerStore } from './store.ts'
 
 /** 跳过时记的原因：上一次触发发起的执行还没结束（卡片据此提示「视为已结束」）。 */
 export const SKIP_UNFINISHED = '上次执行未结束（运行状态尚未改为结束）'
@@ -37,8 +38,8 @@ export const SKIP_UNFINISHED = '上次执行未结束（运行状态尚未改为
 export interface FireInput {
   workflow: string
   trigger: TriggerDefinition
-  /** 这张卡片在本机的设置（工作区、选定的会话、上一次的会话）。 */
-  local: TriggerLocal
+  /** 这张卡片的运行记录（上一次的会话、上一次的触发）。 */
+  run: TriggerRun
   channel: FireChannel
   /** 触发时刻（epoch 毫秒）。 */
   at: number
@@ -61,9 +62,9 @@ const reasonOf = (error: unknown): string =>
   error instanceof Error ? error.message : String(error)
 
 /** 发进哪个现成的会话：固定的那个、上一次的那个；每次新建是 `undefined`。 */
-function targetOf(launch: LaunchSettings, local: TriggerLocal): string | undefined {
-  if (launch.session === 'fixed') return local.session
-  if (launch.session === 'last') return local.lastSession
+function targetOf(launch: LaunchSettings, run: TriggerRun): string | undefined {
+  if (launch.session === 'fixed') return launch.sessionId
+  if (launch.session === 'last') return run.lastSession
   return undefined
 }
 
@@ -126,7 +127,7 @@ export class Launcher {
     if (input.channel !== 'now' && launch.overlap !== 'parallel') {
       const problem = endProblem(input.trigger.data, input.trigger.runState)
       if (problem !== null) return this.close(detail, 'skipped', { reason: problem })
-      const running = !(await this.ends.previous(input.local)).ended
+      const running = !(await this.ends.previous(input.run)).ended
       if (launch.overlap === 'skip' && running) {
         return this.close(detail, 'skipped', { reason: SKIP_UNFINISHED })
       }
@@ -142,7 +143,7 @@ export class Launcher {
         }
       }
     }
-    const delivery = await this.deliver(detail, input.trigger, input.local, launch)
+    const delivery = await this.deliver(detail, input.trigger, input.run, launch)
     const { outcome, ...extra } = delivery
     return this.close(detail, outcome, extra)
   }
@@ -154,10 +155,10 @@ export class Launcher {
   async release(
     detail: FireDetail,
     trigger: TriggerDefinition,
-    local: TriggerLocal,
+    run: TriggerRun,
     at: number,
   ): Promise<FireRecord | null> {
-    const delivery = await this.deliver(detail, trigger, local, launchOf(trigger.data))
+    const delivery = await this.deliver(detail, trigger, run, launchOf(trigger.data))
     return this.settleQueued(detail, delivery, at)
   }
 
@@ -183,12 +184,13 @@ export class Launcher {
   private async deliver(
     detail: FireDetail,
     trigger: TriggerDefinition,
-    local: TriggerLocal,
+    run: TriggerRun,
     launch: LaunchSettings,
   ): Promise<Delivery> {
     const unavailable = this.sessions.unavailable()
     if (unavailable !== null) return { outcome: 'failed', reason: unavailable }
-    const target = targetOf(launch, local)
+    const target = targetOf(launch, run)
+    const { workspace } = trigger.data
     if (launch.session === 'fixed' && target === undefined) {
       return { outcome: 'failed', reason: '还没选定发进哪个会话' }
     }
@@ -204,14 +206,14 @@ export class Launcher {
         // 「接着上一次的会话」：那个会话不在了就新建一个。
       }
     }
-    if (local.workspace === undefined) {
+    if (workspace === undefined) {
       return { outcome: 'failed', reason: '还没选在哪个工作区里新建会话' }
     }
     let session: string
     let fallbacks: ChoiceFallback[]
     try {
       ;({ session, fallbacks } = await this.sessions.open({
-        cwd: local.workspace,
+        cwd: workspace,
         title: sessionTitle(
           detail.record.workflow,
           trigger.data.label ?? sourceBrief(trigger.data.source),
@@ -222,7 +224,7 @@ export class Launcher {
     } catch (error) {
       return {
         outcome: 'failed',
-        reason: `在 ${local.workspace} 里新建不了会话：${reasonOf(error)}`,
+        reason: `在 ${workspace} 里新建不了会话：${reasonOf(error)}`,
       }
     }
     try {

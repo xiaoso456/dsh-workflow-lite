@@ -1,7 +1,7 @@
 /**
- * dsh-workflow-lite — 工作流中心「触发」页的数据：所有工作流里的触发卡片、全部暂停，以及改开关、立即触发、读触发记录。
+ * dsh-workflow-lite — 工作流中心「触发」页的数据：所有工作流里的触发卡片、全部暂停，以及重新启用、立即触发、读触发记录。
  *
- * 和画布上的 `useTriggers.ts` 是同一组开关：这里改了，画布那边下一轮轮询就跟上，反过来也一样。
+ * 开关和设置在图里：这一页直接改磁盘上的图（`triggerEdit.ts`），画布那边下一轮轮询就跟上，反过来也一样。
  * 每隔几秒问一次（右栏对话框里要的现场也从这里读，不另起一路轮询）；页面不可见时停下，回来马上补问一次。读回来的内容没变就交回同一个对象。
  *
  * @module @xiaoso/dsh-workflow-lite/client/app/useTriggerHub
@@ -13,6 +13,7 @@ import type {
   TriggerActivitySlot,
   TriggerAllResponse,
   TriggerDetailResponse,
+  TriggerEndpointResponse,
   TriggerPingResponse,
   TriggerTryRequest,
   TriggerTryResponse,
@@ -21,7 +22,7 @@ import { shareSame } from '../model/samePlain.ts'
 import { errorMessage, type WorkflowLiteRpc } from '../rpc.ts'
 import { createOutputAccess, type OutputAccess } from './triggerOutput.ts'
 import { useRefresher } from './useRefresher.ts'
-import { TRIGGER_POLL_MS, type TriggerChange } from './useTriggers.ts'
+import { TRIGGER_POLL_MS } from './useTriggers.ts'
 
 export interface TriggerHub {
   /** 还没读到是 `null`。 */
@@ -30,8 +31,10 @@ export interface TriggerHub {
   error: string | null
   /** 马上再读一次（改了图里的卡片之后）。 */
   refresh(): Promise<void>
-  /** 改一张卡片的开关、确认命令。改不成回一句原因，改成了回 `null`。 */
-  set(workflow: string, node: string, change: TriggerChange): Promise<string | null>
+  /** 「重新启用」自动停用了的卡片。做不了回一句原因。 */
+  reopen(workflow: string, node: string): Promise<string | null>
+  /** HTTP 触发：一个没被用的地址和一个随机令牌；问不到回一句原因。 */
+  endpoint(workflow: string, node: string): Promise<TriggerEndpointResponse | string>
   /** 全部暂停（`true`）或恢复。改不成回一句原因。 */
   pause(paused: boolean): Promise<string | null>
   /** 立即触发一次：回这次的记录；请求本身失败回一句原因。 */
@@ -88,18 +91,28 @@ export function useTriggerHub(rpc: WorkflowLiteRpc, flush: () => Promise<boolean
     }
   }, [lister])
 
-  const set = useCallback(
-    async (workflow: string, node: string, change: TriggerChange): Promise<string | null> => {
+  const reopen = useCallback(
+    async (workflow: string, node: string): Promise<string | null> => {
       try {
-        await flush()
-        await rpc.call('trigger/set', { workflow, node, ...change })
+        await rpc.call('trigger/reopen', { workflow, node })
         await lister.run(undefined)
         return null
       } catch (reason) {
         return errorMessage(reason)
       }
     },
-    [rpc, flush, lister],
+    [rpc, lister],
+  )
+
+  const endpoint = useCallback(
+    async (workflow: string, node: string): Promise<TriggerEndpointResponse | string> => {
+      try {
+        return await rpc.call('trigger/endpoint', { workflow, node })
+      } catch (reason) {
+        return errorMessage(reason)
+      }
+    },
+    [rpc],
   )
 
   const pause = useCallback(
@@ -250,7 +263,8 @@ export function useTriggerHub(rpc: WorkflowLiteRpc, flush: () => Promise<boolean
       list,
       error,
       refresh,
-      set,
+      reopen,
+      endpoint,
       pause,
       fire,
       history,
@@ -267,7 +281,8 @@ export function useTriggerHub(rpc: WorkflowLiteRpc, flush: () => Promise<boolean
       list,
       error,
       refresh,
-      set,
+      reopen,
+      endpoint,
       pause,
       fire,
       history,

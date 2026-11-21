@@ -4,13 +4,14 @@
  * 命令交给选定的 shell（没选是系统的：Windows 是 cmd，其余是 sh；怎么交见 `shells.ts`），
  * 以 DSH 进程的身份在选定的工作区里运行，不进沙箱——
  * 打开开关前用户确认过这条命令（见 `service.ts`）。DSH 自带的 Node 所在目录排在 `PATH` 最前，
- * 脚本写 `node …` 在各系统上都能跑。结束一个命令时连同它拉起的子进程一起结束（`tail -F | grep` 这类管道）。
+ * 脚本写 `node …` 在各系统上都能跑。结束一个命令时连同它拉起的子进程一起结束（见 `processTree.ts`）。
  *
  * @module @xiaoso/dsh-workflow-lite/host/triggers/processes
  */
 
 import { type ChildProcess, spawn } from 'node:child_process'
 import { basename, delimiter, dirname } from 'node:path'
+import { killTree } from './processTree.ts'
 import { shellLaunch } from './shells.ts'
 
 /** 一行最长多少字节；再长的截成几段。 */
@@ -88,32 +89,6 @@ function launch(spec: CommandSpec): ChildProcess {
   })
 }
 
-/** 结束命令连同它拉起的子进程。 */
-function killTree(child: ChildProcess): void {
-  const { pid } = child
-  if (pid === undefined || child.exitCode !== null || child.signalCode !== null) return
-  if (process.platform === 'win32') {
-    const killer = spawn('taskkill', ['/pid', String(pid), '/T', '/F'], {
-      windowsHide: true,
-      stdio: 'ignore',
-    })
-    killer.on('error', () => child.kill())
-    return
-  }
-  try {
-    process.kill(-pid, 'SIGTERM')
-  } catch {
-    child.kill('SIGTERM')
-  }
-  setTimeout(() => {
-    try {
-      process.kill(-pid, 'SIGKILL')
-    } catch {
-      // 已经退出了。
-    }
-  }, 3_000).unref()
-}
-
 /** 只留最后一截的文字（错误输出、最近的输出）。 */
 class Tail {
   private text = ''
@@ -177,6 +152,7 @@ export function runCommand(
 ): Promise<RunResult> {
   return new Promise((resolve) => {
     let child: ChildProcess
+    const startedAt = Date.now()
     try {
       child = launch(spec)
     } catch (error) {
@@ -203,7 +179,7 @@ export function runCommand(
     })
     const timer = setTimeout(() => {
       timedOut = true
-      killTree(child)
+      void killTree(child, startedAt)
     }, limits.timeoutMs)
     const finish = (result: RunResult): void => {
       if (settled) return
@@ -284,6 +260,7 @@ export function startProcess(
   let stopping = false
   let exited = false
   let child: ChildProcess
+  const startedAt = Date.now()
   const exitWaiters: Array<() => void> = []
   const exit = (info: ExitInfo): void => {
     if (exited) return
@@ -333,14 +310,15 @@ export function startProcess(
     stop: () => {
       stopping = true
       if (exited) return Promise.resolve()
-      killTree(child)
-      return new Promise<void>((resolve) => {
+      const killed = killTree(child, startedAt)
+      const gone = new Promise<void>((resolve) => {
         const timer = setTimeout(resolve, STOP_WAIT_MS)
         exitWaiters.push(() => {
           clearTimeout(timer)
           resolve()
         })
       })
+      return Promise.all([killed, gone]).then(() => {})
     },
   }
 }

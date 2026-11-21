@@ -4,7 +4,8 @@
  * @module @xiaoso/dsh-workflow-lite/host/rpc/pack
  */
 
-import type { PackMemoryAction, PackSkillAction } from '../../shared/pack.ts'
+import type { PackExportRequest, PackMemoryAction, PackSkillAction } from '../../shared/pack.ts'
+import type { ChoiceKeep } from '../../shared/sessionChoice.ts'
 import type { SkillBrowseRequest, SkillBuildRequest, SkillMeta } from '../../shared/skillPack.ts'
 import type { WorkflowLiteEndpoint } from '../../shared/wire.ts'
 import { exportPack, type PackDeps, scanPack } from '../pack/exporter.ts'
@@ -84,6 +85,41 @@ function draftMeta(meta: Record<string, unknown>): SkillMeta {
   }
 }
 
+/** 一列字符串；没给是 `undefined`。 */
+function optionalStrings(input: Record<string, unknown>, field: string): string[] | undefined {
+  const value = input[field]
+  if (value === undefined) return undefined
+  if (!Array.isArray(value) || !value.every((item) => typeof item === 'string')) {
+    throw new Error(`${field} must be a list of strings`)
+  }
+  return value as string[]
+}
+
+/** 新建会话用的设置带哪几项：三个开关都要给。 */
+function readChoiceKeep(raw: unknown): ChoiceKeep {
+  const input = asRecord(raw)
+  const flag = (field: keyof ChoiceKeep): boolean => {
+    if (typeof input[field] !== 'boolean') throw new Error(`choice.${field} must be a boolean`)
+    return input[field] as boolean
+  }
+  return { model: flag('model'), preset: flag('preset'), permission: flag('permission') }
+}
+
+/** 导出时触发卡片、会话设置怎么带（没给的项按缺省）。 */
+function readExportPicks(
+  input: Record<string, unknown>,
+): Pick<PackExportRequest, 'choice' | 'triggers' | 'secrets' | 'triggerData'> {
+  const triggers = optionalStrings(input, 'triggers')
+  const secrets = optionalStrings(input, 'secrets')
+  const triggerData = optionalStrings(input, 'triggerData')
+  return {
+    ...(input.choice === undefined ? {} : { choice: readChoiceKeep(input.choice) }),
+    ...(triggers === undefined ? {} : { triggers }),
+    ...(secrets === undefined ? {} : { secrets }),
+    ...(triggerData === undefined ? {} : { triggerData }),
+  }
+}
+
 /** 看 skill 时站在哪个会话、哪个工作区。 */
 function readScope(input: Record<string, unknown>): { cwd?: string; session?: string } {
   const cwd = optionalString(input, 'cwd')
@@ -132,6 +168,7 @@ export async function dispatchPack(
         name: requireString(input, 'name'),
         versions: requireNumbers(input, 'versions'),
         pack: pack as string[],
+        ...readExportPicks(input),
         ...readScope(input),
       })
       if (!outcome.ok) return failFrom(outcome.error)

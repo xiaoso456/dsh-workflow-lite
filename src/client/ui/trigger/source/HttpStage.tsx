@@ -2,16 +2,19 @@
  * dsh-workflow-lite — 「触发方式」对话框里 HTTP 的设置：设置行是地址和令牌，
  * 工作台是四种写法的调用示例，顶上一条右边「发一条测试请求」（带上令牌真的发一条，结果写在底栏）。
  *
- * 地址、令牌是本机状态：换到 HTTP 就先生成（不打开开关、不用先保存），打开前就能看、改、复制调用示例；
- * 开关关着时地址还不收请求，底栏写一句。实例视图里没有本机状态，只写说明。
+ * 地址、令牌写在触发源里，和对话框里别的设置一样是草稿：换到 HTTP 时先向宿主要一份缺省的补上
+ * （地址用工作流名、不和别的卡片重，令牌随机），「保存」才写进图。打开前就能看、改、复制调用示例；
+ * 测试请求发的是保存着的那个地址，开关关着或草稿改过时不能发，底栏写一句。实例视图里没有现场，只写说明。
  * 令牌遮着的时候调用示例里也遮着（截图、共享屏幕不露出来），复制出去的是真的。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/trigger/source/HttpStage
  */
 
-import { useEffect, useState } from 'react'
-import type { TriggerEndpoint, TriggerPingResponse } from '../../../../shared/wire/trigger.ts'
+import { useEffect, useRef, useState } from 'react'
+import type { TriggerSource } from '../../../../shared/types.ts'
+import type { TriggerPingResponse } from '../../../../shared/wire/trigger.ts'
 import type { T } from '../../../i18n.ts'
+import { type Endpoint, endpointOf } from '../../../model/httpEndpoint.ts'
 import {
   SNIPPET_LANGS,
   SNIPPET_NAME,
@@ -24,34 +27,69 @@ import { Icon } from '../../kit/Icon.tsx'
 import { Staged } from '../../motion/stage.tsx'
 import type { TriggerEnv } from '../triggerEnv.ts'
 import { Bench, BenchTabs, benchButton, benchPrimary } from './Bench.tsx'
-import { CopyIcon, HttpEndpoint, TOKEN_MASK } from './HttpEndpoint.tsx'
+import { CopyIcon, type EndpointChange, HttpEndpoint, TOKEN_MASK } from './HttpEndpoint.tsx'
 import css from './http.module.css'
 import { StageRow, StageRows } from './StageRow.tsx'
 import stage from './sourceStage.module.css'
+
+type HttpSource = Extract<TriggerSource, { kind: 'http' }>
+
+const NO_HOOKS: ReadonlySet<string> = new Set()
+
+/** 草稿里改地址、令牌。 */
+function withEndpoint(source: HttpSource, change: EndpointChange): HttpSource {
+  const { noToken: _noToken, ...rest } = source
+  const noToken = change.noToken ?? source.noToken === true
+  return {
+    ...rest,
+    ...(change.hook === undefined ? {} : { hook: change.hook }),
+    ...(change.token === undefined ? {} : { token: change.token }),
+    ...(noToken ? { noToken: true as const } : {}),
+  }
+}
 
 export function HttpStage(props: {
   t: T
   node: string
   env: TriggerEnv | null
+  source: HttpSource
+  /** 保存着的地址正在收请求（开关开着、由这里负责、草稿没改过）。 */
+  live: boolean
+  onChange(source: TriggerSource): void
 }): React.JSX.Element {
-  const { t, env } = props
-  const view = env?.triggers.view(props.node)
-  const endpoint = view?.endpoint
+  const { t, env, source } = props
   const [reveal, setReveal] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
-  const missing = env !== null && endpoint === undefined
-  const prepare = env?.triggers.set
-  // 还没有地址、令牌：先生成一份（不打开开关），列表随之带回来。
+  const [taken, setTaken] = useState<ReadonlySet<string>>(NO_HOOKS)
+  const latest = useRef(props)
+  latest.current = props
+  const hasEnv = env !== null
+  // 问一次宿主：别的卡片用了哪些地址；草稿里还没有地址、令牌就用它给的缺省补上。
   useEffect(() => {
-    if (!missing || prepare === undefined) return
+    const ask = latest.current.env?.triggers.endpoint
+    if (ask === undefined) return
     let alive = true
-    void prepare(props.node, { prepareEndpoint: true }).then((error) => {
-      if (alive) setProblem(error)
+    void ask(props.node).then((result) => {
+      if (!alive) return
+      if (typeof result === 'string') {
+        setProblem(result)
+        return
+      }
+      setTaken(new Set(result.taken))
+      const current = latest.current.source
+      if (current.hook === undefined || current.token === undefined) {
+        latest.current.onChange({
+          ...current,
+          hook: current.hook ?? result.hook,
+          token: current.token ?? result.token,
+        })
+      }
     })
     return () => {
       alive = false
     }
-  }, [missing, prepare, props.node])
+  }, [props.node, hasEnv])
+  const endpoint = env === null ? undefined : endpointOf(source, env.triggers.hookOrigin)
   if (env === null || endpoint === undefined) {
     return (
       <>
@@ -74,11 +112,11 @@ export function HttpStage(props: {
       <StageRows>
         <HttpEndpoint
           t={t}
-          node={props.node}
-          env={env}
           endpoint={endpoint}
+          taken={taken}
           reveal={reveal}
           onReveal={setReveal}
+          onChange={(change) => props.onChange(withEndpoint(source, change))}
         />
       </StageRows>
       <Snippets
@@ -87,7 +125,7 @@ export function HttpStage(props: {
         node={props.node}
         endpoint={endpoint}
         reveal={reveal}
-        live={view?.state === 'listening'}
+        live={props.live}
       />
     </>
   )
@@ -124,8 +162,8 @@ function Snippets(props: {
   t: T
   env: TriggerEnv
   node: string
-  endpoint: TriggerEndpoint
-  /** 地址正在收请求（开关开着、由这里负责）。 */
+  endpoint: Endpoint
+  /** 保存着的地址正在收请求（开关开着、由这里负责、草稿没改过）。 */
   live: boolean
   /** 令牌露不露出来（和设置行那一行一起）。 */
   reveal: boolean
@@ -134,7 +172,7 @@ function Snippets(props: {
   const [lang, setLang] = useState<SnippetLang>('curl')
   const [ping, setPing] = useState<TriggerPingResponse | string | 'sending' | null>(null)
   const confirm = useConfirm<HTMLButtonElement>()
-  const token = endpoint.noToken === true ? null : endpoint.token
+  const token = endpoint.noToken ? null : endpoint.token
   const code = snippetOf(lang, { url: endpoint.url, token })
   const shown =
     props.reveal || token === null

@@ -10,8 +10,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { DATABASE_FILE, PluginDatabase } from '../../src/host/store/database.ts'
 import { HookServer } from '../../src/host/triggers/hooks.ts'
 import { OutputLog } from '../../src/host/triggers/outputLog.ts'
+import type { LiveFile } from '../../src/host/triggers/runRecords.ts'
 import { type LiveSpec, TriggerRuntime } from '../../src/host/triggers/runtime.ts'
-import type { LiveFile, TriggerStore } from '../../src/host/triggers/store.ts'
 
 const NO_FILTER = { merge: 0, dedupe: 0, include: [], exclude: [] }
 
@@ -36,13 +36,8 @@ async function until(done: () => boolean, ms = 15_000): Promise<void> {
 
 function runtimeWith(outputs: OutputLog): { runtime: TriggerRuntime; live: LiveFile[] } {
   const live: LiveFile[] = []
-  const store = {
-    writeLive: async (file: LiveFile) => {
-      live.push(file)
-    },
-  } as Pick<TriggerStore, 'writeLive'> as TriggerStore
   const runtime = new TriggerRuntime({
-    store,
+    live: { writeLive: (file: LiveFile) => live.push(file) },
     outputs,
     keep: () => 300,
     listen: () => ({ host: '127.0.0.1', port: 0 }),

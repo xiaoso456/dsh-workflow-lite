@@ -8,7 +8,8 @@
 
 import { CONTROL_CHARS, MAX_VERSION_NOTE_CODEPOINTS, MAX_VERSIONS } from '../../shared/limits.ts'
 import { readDocument, writeDocument } from '../../shared/model.ts'
-import type { VersionEntry, WorkflowDocument } from '../../shared/types.ts'
+import { switchedOnCount, withSwitchesOff } from '../../shared/trigger.ts'
+import type { VersionEntry, VersionSwitches, WorkflowDocument } from '../../shared/types.ts'
 import {
   ensureDir,
   hashOf,
@@ -64,12 +65,14 @@ export interface ImportResult {
 
 /** 版本的线形状：`current` = 和磁盘上现在的内容一样（`key` 是现在那份的内容键）。 */
 function versionEntry(version: StoredVersion, key: string | null): VersionEntry {
+  const switchedOn = version.document === null ? 0 : switchedOnCount(version.document)
   return {
     n: version.n,
     createdAt: version.createdAt,
     note: version.note,
     ...(version.autoBefore === undefined ? {} : { autoBefore: version.autoBefore }),
     nodeCount: version.document?.nodes.length ?? 0,
+    ...(switchedOn === 0 ? {} : { switchedOn }),
     current: sameContent(version, key),
     ...(version.document === null ? { invalid: true as const } : {}),
   }
@@ -151,6 +154,7 @@ export class VersionStore {
   async restoreVersion(
     workflow: string,
     n: number,
+    switches: VersionSwitches = 'keep',
   ): Promise<Outcome<{ hash: string; saved: VersionEntry | null }>> {
     return this.core.withLock(async () => {
       const current = await this.currentContent(workflow)
@@ -158,10 +162,11 @@ export class VersionStore {
       const { name, key, document } = current.result
       const target = await this.findVersion(name, n)
       if (!target.ok) return target
-      const restored = target.result.document
-      if (restored === null) {
+      const stored = target.result.document
+      if (stored === null) {
         return fail('blocked', `版本 v${n} 的文件坏了，不能切换`, { workflow: name, n })
       }
+      const restored = switches === 'off' ? withSwitchesOff(stored) : stored
       const problems = this.core
         .validate(restored, name)
         .filter((problem) => problem.level === 'save')

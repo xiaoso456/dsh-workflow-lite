@@ -44,7 +44,8 @@ import { createRepository, type Repository, reportProblems } from './host/store/
 import { registerWorkflowLiteTool } from './host/tool/tool.ts'
 import { registerTriggerSkill } from './host/triggerSkill.ts'
 import { createFireClaims } from './host/triggers/claims.ts'
-import { createTriggerGraphs, followWorkflows } from './host/triggers/graphs.ts'
+import { createTriggerGraphs, followWorkflows, wakeOnGraphWrites } from './host/triggers/graphs.ts'
+import { OwnerLock } from './host/triggers/owner.ts'
 import { TriggerService } from './host/triggers/service.ts'
 import { createSessionPort } from './host/triggers/sessions.ts'
 import { TriggerStore } from './host/triggers/store.ts'
@@ -91,14 +92,15 @@ export async function apply(ctx: Context, config: WorkflowLiteSettings): Promise
   ctx.effect(() => () => database.close(), 'workflow-lite: database')
   // 触发卡片在这台机器上的状态（开关、工作区、触发记录）；工作流改名时跟着走。
   const triggerStore = new TriggerStore(dataDir, database)
-  const repository: Repository = followWorkflows(
+  // 触发服务读的那份；别处写图都经下面包了一层的 `repository`，存下就叫触发服务对一遍账。
+  const stored: Repository = followWorkflows(
     createRepository({ dataDir: dataDirAtStart, validate }),
     triggerStore,
   )
 
   // 首次启动按需建 `workflows/` 与 `templates/nodes/`；**不建 `.dispatch/`**
   // （那是派生物，编译时才出现）。目录不可用只是警告——工具会把它翻成 `invalid_args`。
-  const layout = await repository.ensureLayout()
+  const layout = await stored.ensureLayout()
   if (!layout.ok) {
     ctx.logger.warn(`[workflow-lite] 数据目录不可用：${layout.error.message}`)
   }
@@ -118,15 +120,17 @@ export async function apply(ctx: Context, config: WorkflowLiteSettings): Promise
   const triggers = new TriggerService({
     dataDir,
     store: triggerStore,
-    graphs: createTriggerGraphs(repository),
+    graphs: createTriggerGraphs(stored),
     sessions,
     listen: () => ({ host: config.triggerHost.get(), port: config.triggerPort.get() }),
     defaultShell: () => config.triggerShell.get(),
     outputLines: () => config.triggerOutputLines.get(),
     runs,
+    lock: new OwnerLock({ database }),
     warn: (message) => ctx.logger.warn(`[workflow-lite] ${message}`),
   })
   ctx.effect(() => triggers.start(), 'workflow-lite: triggers')
+  const repository = wakeOnGraphWrites(stored, () => triggers.graphsChanged())
 
   // 按需 skill：怎么设计一张图（workflow-authoring），运行状态的字段与 `state` 动作的用法（workflow-run-state），
   // 画布上的看板怎么写（workflow-board），触发卡片和触发脚本怎么写（workflow-trigger）。

@@ -208,9 +208,14 @@ export async function dispatchGraph(
 
     case 'graph/versionRestore': {
       const input = asRecord(payload)
+      const switches = input.switches
+      if (switches !== undefined && switches !== 'keep' && switches !== 'off') {
+        throw new Error('switches must be keep or off')
+      }
       const outcome = await deps.repository.restoreVersion(
         requireString(input, 'name'),
         requireVersion(input),
+        switches,
       )
       if (!outcome.ok) return failFrom(outcome.error)
       return ok(outcome.result)

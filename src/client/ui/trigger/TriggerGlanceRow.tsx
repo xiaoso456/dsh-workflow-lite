@@ -77,7 +77,7 @@ function renderShape(t: T, glance: TriggerGlance, view: TriggerView | undefined)
       )
     }
     case 'http': {
-      const raw = view?.endpoint?.url
+      const raw = view?.url
       const url = raw === undefined ? undefined : readableUrl(raw)
       return (
         <>

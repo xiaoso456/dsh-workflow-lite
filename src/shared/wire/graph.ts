@@ -12,6 +12,7 @@ import type {
   TemplateEntry,
   ValidationProblem,
   VersionEntry,
+  VersionSwitches,
   WorkflowDocument,
 } from '../types.ts'
 import type { WireWarning } from './common.ts'
@@ -176,6 +177,8 @@ export interface GraphVersionLoadResponse {
 export interface GraphVersionRestoreRequest {
   name: string
   n: number
+  /** 触发卡片的开关：恢复当时的（缺省），或全部关掉。 */
+  switches?: VersionSwitches
 }
 export interface GraphVersionRestoreResponse {
   /** 写回后的整图哈希。 */

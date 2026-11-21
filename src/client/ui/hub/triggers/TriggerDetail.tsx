@@ -202,6 +202,7 @@ ${tab}`,
             onRename={props.onRename}
             onNotice={props.onNotice}
             onEnableRunState={props.env.enableRunState}
+            onToggle={(on) => props.env.toggle(entry.view.node, on)}
           />
           <DetailTabs
             t={t}

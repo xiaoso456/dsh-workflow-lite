@@ -45,7 +45,7 @@ export function statusWhen(t: T, entry: TriggerEntry, now: number): StatusWhen {
     }
   }
   if (view.state === 'listening' && kind === 'http') {
-    const url = view.endpoint?.url
+    const url = view.url
     return {
       main: t('hub.trgAddressOpen'),
       aside: url === undefined ? '' : readableUrl(endpointPath(url)),

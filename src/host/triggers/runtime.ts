@@ -17,7 +17,7 @@ import { Intake, type IntakeBatch, joinerOf } from './intake.ts'
 import { Listener } from './listener.ts'
 import { type LineInput, type OutputLog, type RunEnd, stripAnsi } from './outputLog.ts'
 import { type PollCheck, Poller, type Probe } from './poller.ts'
-import type { LiveFile, LiveStatus, TriggerStore } from './store.ts'
+import type { LiveFile, LiveStatus, RunRecords } from './runRecords.ts'
 
 /** 一张该开着的卡片。 */
 export interface LiveSpec {
@@ -60,7 +60,8 @@ export interface RuntimeEvents {
 }
 
 export interface RuntimeDeps {
-  store: TriggerStore
+  /** 运行情况写在这里。 */
+  live: Pick<RunRecords, 'writeLive'>
   /** 最近的输出记在这里。 */
   outputs: OutputLog
   /** 每张卡片最近的输出留多少行（插件设置）。 */
@@ -369,7 +370,7 @@ export class TriggerRuntime implements LiveRuntime {
   }
 
   private async flush(): Promise<void> {
-    const { store } = this.deps
+    const { live } = this.deps
     if (this.liveDirty) {
       this.liveDirty = false
       const sources: LiveFile['sources'] = {}
@@ -384,7 +385,7 @@ export class TriggerRuntime implements LiveRuntime {
         }
         sources[workflow] = group
       }
-      await store.writeLive({
+      live.writeLive({
         pid: this.deps.pid ?? process.pid,
         sources,
         port: this.hooks.current(),

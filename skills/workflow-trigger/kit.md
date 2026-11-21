@@ -1,6 +1,6 @@
 # 监视的底子 `kit/watch.mjs`
 
-插件在写要跑命令的卡片、每次跑命令前，把它放进工作流目录的 `triggers/watch.mjs`。脚本放在同一层，直接 `import { … } from './watch.mjs'`，不用自己写进去，也别改它（会被换回去）；要的东西它没有，写在自己的脚本里。只用 Node 自带的模块；别的语言写的脚本用不上它，照 `listen.md` 的规矩自己打事件、记状态。各函数怎么搭配，看 SKILL.md「找示例」里的示例。
+插件在建第一张要跑命令的卡片时把它放进工作流目录的 `triggers/watch.mjs`，之后归工作流自己管、升级插件不换。各卡片的脚本在 `triggers/<卡片 id>/` 里，`import { … } from '../watch.mjs'`；别改它，要的东西它没有，写在自己的脚本里。只用 Node 自带的模块；别的语言写的脚本用不上它，照 `listen.md` 的规矩自己打事件、记状态。各函数怎么搭配，看 SKILL.md「找示例」里的示例。
 
 | 名字 | 做什么 |
 |---|---|
@@ -17,15 +17,15 @@
 | `heartbeat(describe?)` | 每 10 分钟打一句「还在运行」 |
 | `injected(handle)` | 试的时候把投进来的样本交给 `handle`（见下） |
 | `onStop(fn)` / `sleep(ms)` | 结束前要做的收尾 / 等一会儿 |
-| `dataDir` / `secretsDir` | 数据目录（试运行是另一份）/ 密钥目录（真打开和试运行是同一处） |
+| `dataDir` / `secretsDir` | 数据目录（卡片目录的 `data/`，试运行是 `data-test/`）/ 密钥目录（`secrets/`，真打开和试运行是同一处） |
 
 ## 试：投样本
 
 接口、数据库、聊天软件这类远端的事，`poke` 造不出来时投样本：
 
 1. 脚本里处理真事件的那个函数也交给 `injected(handle)`。
-2. 照对方真实的数据存一件到 `dir/triggers/samples/<名字>.json`（几件就写成数组；个人信息换成假的，它会随工作流导出）。
-3. `test_trigger` 的 `poke` 写 `node "{workflow}/triggers/watch.mjs" inject "{workflow}/triggers/samples/<名字>.json"`，`seconds` 写 5 以上。
+2. 照对方真实的数据存一件到卡片目录的 `samples/<名字>.json`（几件就写成数组；个人信息换成假的，它会随工作流导出）。
+3. `test_trigger` 的 `poke` 写 `node ../watch.mjs inject samples/<名字>.json`（`poke` 和命令在同一个目录里跑），`seconds` 写 5 以上。
 4. 看 `events`：一件一行、字段齐全；`run.stderr` 里没有连不上、鉴权失败。
 
 样本只走处理函数，不经过对方；真连接收不收得到，打开之后看「最近的输出」，或请用户真触发一次。

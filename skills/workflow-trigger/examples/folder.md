@@ -1,11 +1,11 @@
 # 文件夹里有新文件（监视）
 
-命令 `node "{workflow}/triggers/watch-folder.mjs" "D:/inbox"`。系统一通知就看，等文件写完再报；每分钟再扫一遍，补上没收到通知的（网络盘常这样）和 DSH 没开时进来的。第一次运行只记下已有的。
+命令 `node watch-folder.mjs "{workspace}/inbox"`（工作区外的文件夹写绝对路径）。系统一通知就看，等文件写完再报；每分钟再扫一遍，补上没收到通知的（网络盘常这样）和 DSH 没开时进来的。第一次运行只记下已有的。
 
 ```js
 import { readdirSync, watch } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { emit, heartbeat, poll, seenIds, settle } from './watch.mjs'
+import { emit, heartbeat, poll, seenIds, settle } from '../watch.mjs'
 
 const dir = resolve(process.argv[2])
 const seen = seenIds('seen.json', 20000)
@@ -42,4 +42,4 @@ await poll(() => scan(true), { every: 60_000 })
 - 一次拷进来一批：`filter.merge` 调到 30 左右，一批并成一次处理。
 - 子文件夹也要看：`watch` 加 `{ recursive: true }`，`readdirSync` 加 `{ recursive: true }`。
 
-试：`poke` 写 `node -e "require('fs').writeFileSync('D:/inbox/test-' + Date.now() + '.txt', 'x')"`，`seconds` 写 10。
+试：`poke` 写 `node -e "require('fs').writeFileSync(process.argv[1] + '/test-' + Date.now() + '.txt', 'x')" "{workspace}/inbox"`，`seconds` 写 10。

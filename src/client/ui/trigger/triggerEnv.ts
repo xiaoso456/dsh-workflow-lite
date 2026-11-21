@@ -1,5 +1,5 @@
 /**
- * dsh-workflow-lite — 触发卡片的现场：每张卡片此刻的状态、开关与本机设置怎么改、能选哪些工作区和会话。
+ * dsh-workflow-lite — 触发卡片的现场：每张卡片此刻的状态、开关与设置怎么改（改图）、能选哪些工作区和会话。
  *
  * 画布上的卡片和右栏的面板都从这里读（同一份状态，两处一起变）。模板视图给出来；
  * 实例视图不给（`null`）——那里的卡片只是执行时的快照，没有开关和状态。
@@ -8,7 +8,7 @@
  */
 
 import { createContext, useContext } from 'react'
-import type { SessionChoice as AgentChoice } from '../../../shared/types.ts'
+import type { SessionChoice as AgentChoice, TriggerData } from '../../../shared/types.ts'
 import type { GraphListResponse } from '../../../shared/wire/graph.ts'
 import type { HostAgentsResponse } from '../../../shared/wire/host.ts'
 import type { TriggerWaiting } from '../../../shared/wire/trigger.ts'
@@ -65,13 +65,15 @@ export interface TriggerEnv {
   /** 在另一个工作流的设置里打开「记录运行状态」（接续触发要靠它）；打不开回一句原因。 */
   enableRunState(workflow: string): Promise<string | null>
   /**
-   * 开、关一张卡片。
-   * - 要在本机跑命令、命令还没确认过：回 `'confirm'`，由点开关的那一处在开关旁边浮出确认卡（{@link approve}）；
-   * - 开不了（还没选工作区、会话…）：说出原因，选中这张卡片，把面板里要补的那一项带到眼前（{@link reveal}）。
+   * 改一张卡片写在图里的几项（同 `patchTriggerData`：`undefined` 的键清掉）：画布上改编辑器里的图并存下去，
+   * 工作流中心里直接改磁盘上的图。改不成回一句原因。
    */
-  toggle(node: string, on: boolean): 'confirm' | 'done'
-  /** 确认要运行的命令并打开开关；开不了时同 {@link toggle}。 */
-  approve(node: string, command: string): void
+  patch(node: string, patch: Partial<TriggerData>): Promise<string | null>
+  /**
+   * 开、关一张卡片（改图里的开关）。开不了（还没选工作区、会话）：说出原因，
+   * 画布上再选中这张卡片，把面板里要补的那一项带到眼前（{@link reveal}）。
+   */
+  toggle(node: string, on: boolean): void
   /** 刚请求面板接手的事；面板用 {@link takeReveal} 接手，接手后就清掉（重新挂上不会再来一次）。 */
   reveal: { node: string; field: RevealField } | null
   /** 面板接手 {@link reveal}：是这张卡片的、又是 `fields` 里的一项就回那一项并清掉，否则 `null`。 */

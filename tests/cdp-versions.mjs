@@ -3,7 +3,8 @@
  *
  * 存版本 → 改图 → 展开看切换会变什么 → 切回去（自动存一份现在的）→ 改说明 → 删版本 →
  * 在工作流中心给另一张没打开的工作流存版本 → 在那里给它改名（版本跟着走）→ 给正开着的那张改名 →
- * 删掉正开着的那张（编辑页空出来）→ 从那里打开另一张。
+ * 删掉正开着的那张（编辑页空出来）→ 从那里打开另一张 →
+ * 切到一版开着触发卡片的版本：确认卡里选开关怎么办，选「全部关掉」，切过去卡片是关着的。
  *
  * usage: DSH_WEB_TOKEN=<token> DSH_BASE=http://127.0.0.1:3190 node --experimental-strip-types tests/cdp-versions.mjs
  */
@@ -386,6 +387,57 @@ async function run(session) {
     `(document.querySelector('[data-testid="wl-switcher"]')?.textContent || '').trim() === ${JSON.stringify(RENAMED)}`,
   )
   pass('从工作流中心打开别的工作流')
+
+  // 13) 有一版里开着触发卡片（定时的，不跑命令）：切过去时确认卡里多一行开关怎么办；
+  //     选「全部关掉」，切过去的图里卡片在、开关是关的。
+  const trigger = {
+    id: 'tick',
+    type: 'wfTrigger',
+    position: { x: 0, y: -320 },
+    data: {
+      label: '夜巡',
+      source: { kind: 'schedule', schedule: { kind: 'daily', time: '03:00' } },
+      workspace: process.cwd(),
+      enabled: true,
+    },
+  }
+  await writeGraph(RENAMED, [stepNode('b', '别的', 0), trigger])
+  await rpc('graph/versionSave', { name: RENAMED, note: '带触发' })
+  const armed = (await versions(RENAMED)).find((entry) => entry.note === '带触发')
+  check(armed?.switchedOn === 1, `这一版应记着开着 1 张：${JSON.stringify(armed)}`)
+  await writeGraph(RENAMED, [stepNode('b', '别的', 0)])
+  await session.evaluate(`window.dispatchEvent(new Event('focus'))`)
+  await waitFor(session, `document.querySelector('.react-flow__node[data-id="b"]') !== null`)
+  await session.evaluate(clickTestId('wl-versions-open'))
+  const armedId = `wl-ver-${armed.n}`
+  await waitFor(session, exists(`${armedId}-restore`))
+  await session.evaluate(clickTestId(`${armedId}-restore`))
+  await waitFor(session, exists(`${armedId}-restore-confirm-pop`))
+  check(
+    (await session.evaluate(textOf(`${armedId}-restore-confirm-pop`))).includes('1 张触发卡片开着'),
+    '确认卡应说这一版开着几张触发卡片',
+  )
+  check(
+    (await session.evaluate(
+      `document.querySelector('[data-testid="${armedId}-switches-keep"]')?.getAttribute('aria-checked')`,
+    )) === 'true',
+    '开关缺省恢复当时的',
+  )
+  await session.evaluate(clickTestId(`${armedId}-switches-off`))
+  await sleep(250)
+  await screenshot(session, 'ver-06-restore-switches.png')
+  await session.evaluate(clickTestId(`${armedId}-restore-confirm`))
+  await waitFor(session, `document.querySelector('.react-flow__node[data-id="tick"]') !== null`)
+  const restored = (await rpc('graph/load', { name: RENAMED })).document.nodes.find(
+    (node) => node.id === 'tick',
+  )
+  check(
+    restored !== undefined && restored.data.enabled === undefined,
+    `切过去的卡片应是关着的：${JSON.stringify(restored?.data)}`,
+  )
+  await pressKey(session, 'Escape')
+  await waitFor(session, gone('wl-versions-dialog'))
+  pass('切到开着触发卡片的版本：确认卡里选「全部关掉」，切过去卡片关着')
 
   check(session.errors.length === 0, `页面不该有报错：${JSON.stringify(session.errors)}`)
   console.log('\n✅ 工作流版本验收全部通过')

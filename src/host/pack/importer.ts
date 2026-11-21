@@ -55,6 +55,7 @@ import { parseVersion } from '../store/versions.ts'
 import type { PackDeps } from './exporter.ts'
 import { discard, readIn } from './staging.ts'
 import { fingerprint, readTree, sha256, walkTree } from './tree.ts'
+import { previewTriggers } from './triggerPack.ts'
 
 /** 解开、校验过的包。 */
 export interface OpenedPack {
@@ -356,6 +357,16 @@ export async function inspectPack(
     external.push({ ...entry, found })
   }
 
+  const current = opened.result.versions.find((version) => version.n === manifest.current)
+  const triggers =
+    current === undefined
+      ? null
+      : await previewTriggers(
+          current.document,
+          manifest.assets.map((file) => file.path),
+          exists,
+        )
+
   return {
     ok: true,
     result: {
@@ -376,6 +387,7 @@ export async function inspectPack(
       skills,
       memories,
       external,
+      triggers,
     },
   }
 }

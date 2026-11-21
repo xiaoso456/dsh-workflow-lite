@@ -2,7 +2,7 @@
  * dsh-workflow-lite — 触发卡片面板里「现在怎么样」的两块，只在模板视图里出现（实例里的卡片是快照，没有现场）：
  *
  * - {@link TriggerStatus}（面板最上面）：一个框里左边是开关和状态（色点和画布卡片、「触发」页同一套），
- *   右边是「立即触发一次」；刚发出去的那句话几秒内写在状态行上。出了要人处理的事（没发出去、出错、待确认……）
+ *   右边是「立即触发一次」；刚发出去的那句话几秒内写在状态行上。出了要人处理的事（没发出去、出错、自动停用……）
  *   在按钮前面亮一枚图标（{@link ProblemMark}），悬停看说明、点小卡里的按钮处理——不在框下面另起一段字，不挤动下面的东西。
  *   要在本机跑命令、还没确认过的卡片，打开前在开关旁边浮出确认卡，列出命令和工作区；还有排着的，关之前问一句；
  *   有排着的时候状态行后半句写「排队 3 个」（比下一次、启动时刻要紧）；
@@ -14,7 +14,7 @@
  */
 
 import { useState } from 'react'
-import { commandOf, needsRunState } from '../../../shared/trigger.ts'
+import { needsRunState } from '../../../shared/trigger.ts'
 import type { TriggerData } from '../../../shared/types.ts'
 import { firesSignal, useFires } from '../../app/useFires.ts'
 import type { T } from '../../i18n.ts'
@@ -47,10 +47,10 @@ export function TriggerStatus(props: {
 }): React.JSX.Element {
   const { t, env, node, data } = props
   const view = env.triggers.view(node)
-  const on = view?.enabled === true
+  // 开关读图里的（刚点过马上变），状态等宿主读回来。
+  const on = data.enabled === true
   const state = view?.state ?? 'off'
-  const command = commandOf(data.source)
-  const approve = useSwitchConfirm<HTMLButtonElement>()
+  const asker = useSwitchConfirm<HTMLButtonElement>()
   const queued = view?.queued ?? 0
   // 打不开（没开「记录运行状态」）时点开关：递一下，把问题小卡钉开。
   const [pin, setPin] = useState(0)
@@ -65,37 +65,35 @@ export function TriggerStatus(props: {
   const firing = fired !== null && fired.tone !== 'bad'
   const face = sourceFace(data.source)
 
-  /** 开关：要跑命令、还没确认的，在开关旁边问一句；还有排着的，关之前问一句；别的直接开关。 */
+  const settle = (task: Promise<string | null>): void => {
+    void task.then((reason) => {
+      setFailed(reason)
+      if (reason !== null) setPin((count) => count + 1)
+    })
+  }
+
+  /** 开关：还有排着的，关之前问一句；别的直接开关。 */
   const onSwitch = (): void => {
-    if (approve.open) {
-      approve.hide()
+    if (asker.open) {
+      asker.hide()
       return
     }
     if (on && queued > 0) {
-      approve.ask('off')
+      asker.ask('off')
       return
     }
     if (!on && needsRunState(data, view?.runState === true)) {
       setPin((count) => count + 1)
       return
     }
-    if (env.toggle(node, !on) === 'confirm') approve.ask('approve')
+    env.toggle(node, !on)
   }
 
-  /**
-   * 小卡里的按钮：确认命令、去打开「记录运行状态」、视为已结束都在开关旁边问；
-   * 重新打开同点开关（要确认的照样先问）。
-   */
+  /** 小卡里的按钮：去打开「记录运行状态」、视为已结束在开关旁边问；重新启用直接做。 */
   const onFix = (run: ProblemFix): void => {
     setFailed(null)
-    if (run === 'runState' || run === 'waive') approve.ask(run)
-    else if (run === 'approve' || env.toggle(node, true) === 'confirm') approve.ask('approve')
-  }
-  const settle = (task: Promise<string | null>): void => {
-    void task.then((reason) => {
-      setFailed(reason)
-      if (reason !== null) setPin((count) => count + 1)
-    })
+    if (run === 'runState' || run === 'waive') asker.ask(run)
+    else if (run === 'reopen') settle(env.triggers.reopen(node))
   }
 
   // 「立即触发一次」没发出去的原因最要紧（刚点的），留到下一次。
@@ -112,7 +110,7 @@ export function TriggerStatus(props: {
     <section className={ins.field} data-testid="wl-trigger-status" data-state={state}>
       <div className={css.statusCard}>
         <button
-          ref={approve.anchorRef}
+          ref={asker.anchorRef}
           type="button"
           role="switch"
           aria-checked={on}
@@ -158,7 +156,7 @@ export function TriggerStatus(props: {
           {fireNow.button}
         </span>
       </div>
-      {approve.render(t, {
+      {asker.render(t, {
         off: {
           queued,
           testId: 'wl-trigger-off',
@@ -176,18 +174,6 @@ export function TriggerStatus(props: {
           testId: 'wl-trigger-waive',
           onConfirm: () => settle(env.triggers.waive(node)),
         },
-        approve:
-          command === undefined
-            ? undefined
-            : {
-                t,
-                command,
-                workspace: view?.workspace,
-                shell: view?.runShell,
-                noCwd: t('trigger.confirmNoCwd'),
-                testId: 'wl-trigger-approve',
-                onApprove: (approved) => env.approve(node, approved),
-              },
       })}
     </section>
   )

@@ -15,10 +15,11 @@ import type { Outcome } from '../../../src/host/store/repoResult.ts'
 import { createRepository, type Repository } from '../../../src/host/store/repository.ts'
 import { parseVersion, versionText } from '../../../src/host/store/versions.ts'
 import { MAX_VERSIONS } from '../../../src/shared/limits.ts'
-import { readDocument, writeDocument } from '../../../src/shared/model.ts'
+import { isTrigger, readDocument, writeDocument } from '../../../src/shared/model.ts'
 import {
   NODE_TYPE,
   type ToolError,
+  TRIGGER_TYPE,
   type WorkflowDocument,
   type WorkflowNode,
 } from '../../../src/shared/types.ts'
@@ -154,6 +155,34 @@ describe('切换版本', () => {
     expect(hash).not.toBe(loaded.hash)
     expectOk(await repo.save('w', doc([step('a', '接着改')]), { baseHash: hash }))
     expect((await graph('w'))?.nodes[0]?.data).toEqual({ prompt: '接着改' })
+  })
+
+  it('触发卡片的开关：版本上记着开着几张；切换时恢复当时的，或全部关掉', async () => {
+    const card = (id: string, enabled: boolean): WorkflowNode => ({
+      id,
+      type: TRIGGER_TYPE,
+      position: { x: 0, y: 0 },
+      data: {
+        source: { kind: 'schedule', schedule: { kind: 'daily', time: '09:00' } },
+        ...(enabled ? { enabled: true as const } : {}),
+      },
+    })
+    await seed('w', doc([step('a'), card('t1', true), card('t2', false)]))
+    expectOk(await repo.saveVersion('w', 'v1'))
+    expect(expectOk(await repo.listVersions('w'))[0]).toMatchObject({ n: 1, switchedOn: 1 })
+    await seed('w', doc([step('a', '改过')]))
+
+    expectOk(await repo.restoreVersion('w', 1))
+    const enabled = (document: WorkflowDocument | null) =>
+      document?.nodes.filter(isTrigger).map((node) => node.data.enabled === true)
+    expect(enabled(await graph('w'))).toEqual([true, false])
+
+    await seed('w', doc([step('a', '又改过')]))
+    expectOk(await repo.restoreVersion('w', 1, 'off'))
+    expect(enabled(await graph('w'))).toEqual([false, false])
+    expect(expectOk(await repo.listVersions('w')).find((entry) => entry.n === 2)?.switchedOn).toBe(
+      undefined,
+    )
   })
 
   it('不存在的版本、坏掉的版本文件都不切', async () => {

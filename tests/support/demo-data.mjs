@@ -91,7 +91,19 @@ async function seedMemories(dataDir) {
   }
 }
 
-async function seedWorkflows() {
+/** 演示里开着的两张卡片：开关和新建会话的工作区写在图里。 */
+const ENABLED = new Set(['workdays', 'every'])
+
+function switchOn(document, workspace) {
+  return {
+    ...document,
+    nodes: document.nodes.map((node) =>
+      ENABLED.has(node.id) ? { ...node, data: { ...node.data, workspace, enabled: true } } : node,
+    ),
+  }
+}
+
+async function seedWorkflows(session) {
   const workflows = [
     [UPSTREAM, workflow(['检查服务', '汇总异常'], [], 'ops-notes'), ['运维']],
     [
@@ -100,7 +112,11 @@ async function seedWorkflows() {
       ['研发', '发版'],
     ],
     [REVIEW, workflow(['读改动', '列问题', '写审查结论'], []), ['研发']],
-    [DEMO_WORKFLOW, workflow(['扫描改动', '跑检查', '写报告'], triggers), ['运维', '自动化']],
+    [
+      DEMO_WORKFLOW,
+      switchOn(workflow(['扫描改动', '跑检查', '写报告'], triggers), session.cwd),
+      ['运维', '自动化'],
+    ],
   ]
   const documents = new Map()
   for (const [name, document, tags] of workflows) {
@@ -186,20 +202,12 @@ async function seedTriggers(dataDir, session) {
   } finally {
     database.close()
   }
-  for (const node of ['workdays', 'every']) {
-    await rpc('trigger/set', {
-      workflow: DEMO_WORKFLOW,
-      node,
-      workspace: session.cwd,
-      enabled: true,
-    })
-  }
 }
 
 export async function seedDemo(dataDir, env) {
   const session = { id: env.sessionId, cwd: env.workspaceDir }
   await seedMemories(dataDir)
-  const documents = await seedWorkflows()
+  const documents = await seedWorkflows(session)
   const runs = await seedRuns(dataDir, session, documents)
   await seedTriggers(dataDir, session)
   return { workflows: documents.size, memories: memories.length, runs }

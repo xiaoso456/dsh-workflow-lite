@@ -261,9 +261,6 @@ describe('触发卡片：卡片上的字', () => {
     expect(stateText(t, { ...view, state: 'restarting', next: at }, 'listen', now)).toBe(
       '重启中 · 今天 07:55 重启',
     )
-    expect(stateText(t, { ...view, state: 'confirm' }, 'listen', now)).toBe(
-      '待确认 · 启用时确认命令',
-    )
     const checked = (schedule: TriggerSchedule) =>
       ({ kind: 'schedule', schedule, check: { command: 'x', when: 'every' } }) as const
     expect(sourceText(t, checked({ kind: 'every', seconds: 300 }))).toBe('每 5 分钟检查')

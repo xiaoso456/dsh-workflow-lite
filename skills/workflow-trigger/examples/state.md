@@ -1,9 +1,9 @@
 # 一个值、一个状态变了（监视）
 
-服务挂了、恢复了；磁盘、积压超过阈值；某个配置项、某个键的值变了。隔一阵读一次，只在变了时打一件，连着两次一样才认（挡掉偶尔一次超时）。命令 `node "{workflow}/triggers/health.mjs" "https://app.example.com/healthz"`（可以给好几个地址）。
+服务挂了、恢复了；磁盘、积压超过阈值；某个配置项、某个键的值变了。隔一阵读一次，只在变了时打一件，连着两次一样才认（挡掉偶尔一次超时）。命令 `node health.mjs "https://app.example.com/healthz"`（可以给好几个地址）。
 
 ```js
-import { edges, emit, injected, poll } from './watch.mjs'
+import { edges, emit, injected, poll } from '../watch.mjs'
 
 const targets = process.argv.slice(2)
 const state = edges('state.json', { confirm: 2 })
@@ -40,4 +40,4 @@ await poll(
 - 换成别的值只改 `read`：读出来回 `{ status }`。数值配阈值时分开告警线和恢复线，中间保持原样，免得在线上来回跳：`status = used >= 90 ? 'high' : used < 80 ? 'ok' : (state.value(key) ?? 'ok')`。
 - 要更快就调小 `every`；认下一次变化要 `every × confirm`。
 
-试：存 `dir/triggers/samples/down.json`：`{"url": "https://app.example.com/healthz", "status": "down", "reason": "返回 502"}`，`poke` 写 `node "{workflow}/triggers/watch.mjs" inject "{workflow}/triggers/samples/down.json"`。`events` 里正好一行。
+试：存卡片目录的 `samples/down.json`：`{"url": "https://app.example.com/healthz", "status": "down", "reason": "返回 502"}`，`poke` 写 `node ../watch.mjs inject samples/down.json`。`events` 里正好一行。

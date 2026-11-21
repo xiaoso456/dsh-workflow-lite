@@ -6,8 +6,9 @@ import { describe, expect, it } from 'vitest'
 import { readDocument, writeDocument } from '../../src/shared/model.ts'
 import { readOrigin } from '../../src/shared/runState.ts'
 import {
-  documentHasSessionChoice,
-  documentWithoutSessionChoice,
+  DEFAULT_CHOICE_KEEP,
+  documentChoices,
+  documentWithChoice,
   readModelChoice,
   readSessionAgent,
   readSessionChoice,
@@ -129,9 +130,10 @@ describe('运行权限', () => {
     expect(resolveSessionChoice({}, undefined)).toEqual({})
   })
 
-  it('导出不带模型和预设时一起去掉；回退项读得回来', () => {
-    const stripped = documentWithoutSessionChoice(
+  it('导出时三项都不带就一起去掉；回退项读得回来', () => {
+    const stripped = documentWithChoice(
       doc({ nodes: [trigger({ permission: 'read-only' })], settings: { permission: 'x' } }),
+      { model: false, preset: false, permission: false },
     )
     expect(stripped.settings).toBeUndefined()
     expect(stripped.nodes.map((node) => (node.data as TriggerData).launch)).toEqual([undefined])
@@ -154,27 +156,44 @@ describe('运行权限', () => {
   })
 })
 
-describe('导出时去掉', () => {
-  it('工作流设置、各触发卡片上的都去掉，别的照旧；没设的原样返回', () => {
-    const plain = doc({ nodes: [trigger({ session: 'last' })], settings: { runState: true } })
-    expect(documentHasSessionChoice(plain)).toBe(false)
-    expect(documentWithoutSessionChoice(plain)).toBe(plain)
-
+describe('导出时按三个总开关去掉', () => {
+  it('缺省去掉模型和预设、留下权限；工作流设置和各触发卡片一起，别的照旧', () => {
     const chosen = doc({
-      nodes: [trigger({ session: 'last', model: MODEL }), trigger({ preset: 'ptc' })],
-      settings: { runState: true, preset: 'ptc', model: MODEL },
+      nodes: [
+        trigger({ session: 'last', model: MODEL }),
+        trigger({ preset: 'ptc', permission: 'read-only' }),
+      ],
+      settings: { runState: true, preset: 'ptc', model: MODEL, permission: 'x' },
     })
-    expect(documentHasSessionChoice(chosen)).toBe(true)
-    const stripped = documentWithoutSessionChoice(chosen)
-    expect(stripped.settings).toEqual({ runState: true })
-    expect(stripped.nodes.map((node) => (node.data as TriggerData).launch)).toEqual([
+    const kept = documentWithChoice(chosen, DEFAULT_CHOICE_KEEP)
+    expect(kept.settings).toEqual({ runState: true, permission: 'x' })
+    expect(kept.nodes.map((node) => (node.data as TriggerData).launch)).toEqual([
       { session: 'last' },
-      undefined,
+      { permission: 'read-only' },
     ])
-    expect(documentHasSessionChoice(stripped)).toBe(false)
+    const all = documentWithChoice(chosen, { model: true, preset: true, permission: true })
+    expect(all).toBe(chosen)
+    const none = documentWithChoice(chosen, { model: false, preset: false, permission: false })
+    expect(none.settings).toEqual({ runState: true })
+    expect(documentChoices(none)).toEqual([])
 
     const onlyChoice = doc({ settings: { model: MODEL } })
-    expect(documentWithoutSessionChoice(onlyChoice).settings).toBeUndefined()
+    expect(documentWithChoice(onlyChoice, DEFAULT_CHOICE_KEEP).settings).toBeUndefined()
+  })
+
+  it('列出设了的几处：工作流设置在前，卡片带名字；没设的原样返回、列表是空的', () => {
+    const plain = doc({ nodes: [trigger({ session: 'last' })], settings: { runState: true } })
+    expect(documentChoices(plain)).toEqual([])
+    expect(documentWithChoice(plain, DEFAULT_CHOICE_KEEP)).toBe(plain)
+
+    const chosen = doc({
+      nodes: [trigger({ model: MODEL }), trigger({ session: 'last' })],
+      settings: { preset: 'ptc' },
+    })
+    const spots = documentChoices(chosen)
+    expect(spots.map((spot) => spot.choice)).toEqual([{ preset: 'ptc' }, { model: MODEL }])
+    expect(spots[0]?.node).toBeUndefined()
+    expect(spots[1]?.node).toBe(chosen.nodes[0]?.id)
   })
 })
 

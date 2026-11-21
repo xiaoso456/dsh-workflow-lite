@@ -32,7 +32,7 @@ import type {
   ValidationProblem,
   WorkflowDocument,
 } from '../../shared/types.ts'
-import { type Action, TOOL_NAME } from '../../shared/types.ts'
+import { type Action, TOOL_NAME, type TriggerNode } from '../../shared/types.ts'
 import { compileWorkflow } from '../plan.ts'
 import type { SessionRef } from '../runs/runCore.ts'
 import type { RunService } from '../runs/service.ts'
@@ -56,9 +56,8 @@ import { saveNodeAsTemplate } from './nodeTemplate.ts'
 import { displaySpecOf, resourceUpsertOf } from './resourceArgs.ts'
 import { DESCRIPTION, PARAMETERS } from './schema.ts'
 import {
-  applyLocal,
+  localChange,
   localNow,
-  localRequest,
   nextStep,
   queueAction,
   readTrigger,
@@ -613,36 +612,43 @@ export function createWorkflowLiteHandler(
             })
         if (written !== undefined && !written.ok) return errorValue(written)
         const id = written?.result.changed.find((entry) => entry.kind === 'node')?.id ?? given ?? ''
-        const load = await repository.load(name)
-        const card = load.document?.nodes.find(
-          (candidate) => isTrigger(candidate) && idKey(candidate.id) === idKey(id),
-        )
-        if (card === undefined || !isTrigger(card)) {
+        const loadCard = async (): Promise<TriggerNode | undefined> => {
+          const load = await repository.load(name)
+          const found = load.document?.nodes.find(
+            (candidate) => isTrigger(candidate) && idKey(candidate.id) === idKey(id),
+          )
+          return found !== undefined && isTrigger(found) ? found : undefined
+        }
+        let card = await loadCard()
+        if (card === undefined) {
           return errorValue({
             error: { code: 'not_found', message: `图 ${name} 里没有触发卡片 ${id}` },
           })
         }
-        // 要跑命令的卡片：把监视的底子放进 triggers/，脚本 import './watch.mjs' 现在就能用。
+        // 要跑命令的卡片：把监视的底子放进 triggers/，脚本 import '../watch.mjs' 现在就能用。
         if (commandOf(card.data.source) !== undefined)
           await placeKit(assetsDir(deps.dataDir(), name))
         let local: Record<string, unknown> | undefined
-        if (args.local !== undefined) {
-          if (deps.triggers === undefined) {
+        if (deps.triggers === undefined) {
+          if (args.local !== undefined) {
             return errorValue({
               error: {
                 code: 'invalid_args',
-                message: '触发卡片的本机设置不可用（插件没有装配触发器）',
+                message: '触发卡片的设置不可用（插件没有装配触发器）',
               },
             })
           }
-          const request = localRequest(name, card, args.local, session.id)
-          if (typeof request === 'string') {
-            return errorValue({ error: { code: 'invalid_args', message: request } })
+        } else {
+          const change = args.local === undefined ? {} : localChange(args.local, session.id)
+          if (typeof change === 'string') {
+            return errorValue({ error: { code: 'invalid_args', message: change } })
           }
-          const applied = await applyLocal(deps.triggers, deps.dataDir(), card, request, Date.now())
-          if (!applied.ok) return errorValue(applied)
-          local = applied.result
-        } else if (deps.triggers !== undefined) {
+          // 改了设置，或是还没有地址、令牌的 HTTP 卡片（服务顺手生成）：核对后写回图里，再读一次。
+          if (args.local !== undefined || card.data.source.kind === 'http') {
+            const applied = await deps.triggers.set(name, card.id, change)
+            if (!applied.ok) return errorValue(applied)
+            card = (await loadCard()) ?? card
+          }
           local = await localNow(deps.triggers, deps.dataDir(), name, card, Date.now())
         }
         return finish({

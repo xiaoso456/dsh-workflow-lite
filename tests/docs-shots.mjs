@@ -424,6 +424,8 @@ function triggerDocument() {
             schedule: { kind: 'daily', time: '02:30', weekdays: [1, 2, 3, 4, 5] },
           },
           note: t('只看 src 目录，报告写中文。', 'Only look at src/. Keep the report short.'),
+          enabled: true,
+          workspace: WORKSPACE,
         },
       },
     ],
@@ -449,12 +451,6 @@ async function triggerShots(session) {
       name: TRIGGER_NAME,
       document: triggerDocument(),
       baseHash: disk.hash,
-    })
-    await rpc('trigger/set', {
-      workflow: TRIGGER_NAME,
-      node: 'nightly',
-      workspace: WORKSPACE,
-      enabled: true,
     })
     await bootToCanvas(session, TRIGGER_NAME, {
       width: 1280,
@@ -507,13 +503,17 @@ const SOURCES_NAME = t('线上告警', 'alerts')
 const SOURCE_SHOTS = [
   'trigger-check',
   'trigger-try',
-  'trigger-confirm',
   'trigger-filter',
   'trigger-guard',
   'trigger-http',
 ]
 function sourcesDocument() {
-  const card = (id, x, data) => ({ id, type: 'wfTrigger', position: { x, y: 100 }, data })
+  const card = (id, x, data) => ({
+    id,
+    type: 'wfTrigger',
+    position: { x, y: 100 },
+    data: { ...data, workspace: WORKSPACE },
+  })
   return {
     nodes: [
       {
@@ -535,14 +535,19 @@ function sourcesDocument() {
       }),
       card('errors', 420, {
         label: t('日志报错', 'Log errors'),
-        source: { kind: 'listen', command: 'node "{workflow}/triggers/tail-log.mjs" logs/app.log' },
+        source: { kind: 'listen', command: 'node tail-log.mjs "{workspace}/logs/app.log"' },
         filter: { merge: 10, dedupe: 30, include: ['ERROR'], exclude: ['healthcheck'] },
         condition: t(
           '只处理支付模块的报错，其他模块的忽略。',
           'Only handle errors from the payment module; ignore the rest.',
         ),
       }),
-      card('ci', 760, { label: t('CI 通知', 'CI hook'), source: { kind: 'http' } }),
+      // 只有 HTTP 那张开着（不跑命令）：地址、令牌和开关一起写在卡片上。
+      card('ci', 760, {
+        label: t('CI 通知', 'CI hook'),
+        source: { kind: 'http', hook: 'ci', token: 'docs-shot-token-2026-0000' },
+        enabled: true,
+      }),
     ],
     edges: [],
     viewport: { x: 0, y: 0, zoom: 1 },
@@ -550,22 +555,9 @@ function sourcesDocument() {
   }
 }
 
-/** 几个元素合起来的外框（视口坐标），外扩 pad；找不到的跳过。 */
-const unionOf = (selectors, pad = 8) => `(() => {
-  const rects = ${JSON.stringify(selectors)}
-    .map((s) => document.querySelector(s))
-    .filter(Boolean)
-    .map((el) => el.getBoundingClientRect())
-  const left = Math.min(...rects.map((r) => r.left)) - ${pad}
-  const top = Math.min(...rects.map((r) => r.top)) - ${pad}
-  const right = Math.max(...rects.map((r) => r.right)) + ${pad}
-  const bottom = Math.max(...rects.map((r) => r.bottom)) + ${pad}
-  return { x: Math.max(0, left), y: Math.max(0, top), width: right - Math.max(0, left), height: bottom - Math.max(0, top) }
-})()`
-
 /**
- * 带命令、常驻的触发器：定时检查的「检查命令」一步与试运行、监视启用前的命令确认、过滤、保护、HTTP 的地址与令牌。
- * 只有 HTTP 那张真的启用（不用确认命令）；监视停在确认卡上，不真的跑命令。
+ * 带命令、常驻的触发器：定时检查的「检查命令」一步与试运行、过滤、保护、HTTP 的地址与令牌。
+ * 只有 HTTP 那张真的启用；监视不打开，不真的跑命令。
  * 试运行在草稿里换成「变为成功」和一条哪都能跑的命令（`git --version`），不保存。
  */
 async function triggerSourceShots(session) {
@@ -579,10 +571,6 @@ async function triggerSourceShots(session) {
       document: sourcesDocument(),
       baseHash: disk.hash,
     })
-    for (const node of ['remote', 'errors', 'ci']) {
-      await rpc('trigger/set', { workflow: SOURCES_NAME, node, workspace: WORKSPACE })
-    }
-    await rpc('trigger/set', { workflow: SOURCES_NAME, node: 'ci', enabled: true })
     await bootToCanvas(session, SOURCES_NAME, {
       width: 1280,
       height: 1100,
@@ -635,32 +623,10 @@ async function triggerSourceShots(session) {
     }
     await closeSheet(session, SOURCE_DIALOG)
 
-    // 监听程序：点开关，开关旁浮出确认卡。
+    // 监视：选中它，过滤、保护从它的面板里打开。
     await session.evaluate(nodeClick('errors'))
     await waitFor(session, has('wl-trigger-enable'))
     await sleep(800)
-    await session.evaluate(clickTestId('wl-trigger-enable'))
-    await waitFor(session, has('wl-trigger-approve-pop'))
-    await sleep(1000)
-    await mouseMove(session, { x: 8, y: 8 })
-    // 确认卡打开时焦点落在「取消」上：拍之前移走，图里不带焦点框。
-    await session.evaluate('document.activeElement?.blur()')
-    await sleep(300)
-    await snap(
-      session,
-      'trigger-confirm',
-      await session.evaluate(
-        unionOf(['[data-testid="wl-trigger-enable"]', '[data-testid="wl-trigger-approve-pop"]']),
-      ),
-    )
-    await session.evaluate(
-      `document.querySelector('[data-testid="wl-trigger-approve-pop"] [data-confirm="cancel"]')?.click()`,
-    )
-    await waitFor(
-      session,
-      `document.querySelector('[data-testid="wl-trigger-approve-pop"]') === null`,
-    )
-    await sleep(600)
 
     // 过滤：面板里那一行点开的对话框。
     await openSheet(session, 'wl-trigger-filter-edit', 'wl-trigger-filter-dialog')
@@ -700,7 +666,6 @@ async function triggerSourceShots(session) {
   } catch (error) {
     console.log(`  ✗ trigger sources：${String(error.message).split('\n')[0]}`)
   } finally {
-    await rpc('trigger/set', { workflow: SOURCES_NAME, node: 'ci', enabled: false }).catch(() => {})
     await rpc('graph/delete', { name: SOURCES_NAME }).catch(() => {})
   }
 }
@@ -727,6 +692,8 @@ function chainDocuments() {
         card('nightly', 80, {
           label: t('每晚', 'Nightly'),
           source: { kind: 'schedule', schedule: { kind: 'daily', time: '02:00' } },
+          enabled: true,
+          workspace: WORKSPACE,
         }),
       ],
     },
@@ -742,6 +709,8 @@ function chainDocuments() {
         card('after', 80, {
           label: t('构建完成后', 'After build'),
           source: { kind: 'after', workflow: CHAIN_UP },
+          enabled: true,
+          workspace: WORKSPACE,
         }),
         card('cleanup', 420, {
           label: t('构建失败善后', 'Build failed'),
@@ -806,12 +775,6 @@ async function triggerChainShots(session) {
     }
     await chainRuns(chainIds)
     await chainFires(store)
-    for (const [workflow, node] of [
-      [CHAIN_UP, 'nightly'],
-      [CHAIN_DOWN, 'after'],
-    ]) {
-      await rpc('trigger/set', { workflow, node, workspace: WORKSPACE, enabled: true })
-    }
     await bootToCanvas(session, CHAIN_DOWN, {
       width: 1280,
       height: 900,

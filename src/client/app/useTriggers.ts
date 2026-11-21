@@ -1,6 +1,7 @@
 /**
  * dsh-workflow-lite — 触发卡片的状态：每隔几秒问一次这个工作流里各张卡片现在的样子，
- * 以及改开关与本机设置（确认命令、换令牌）、「立即触发一次」、读触发记录和最近的输出、试运行命令与 HTTP 测试请求。
+ * 以及「重新启用」、「立即触发一次」、读触发记录和最近的输出、试运行命令与 HTTP 测试请求、HTTP 的缺省地址和令牌。
+ * 开关和设置都在图里，由调用方改图（见 `ui/trigger/triggerEnv.ts` 的 `patch`）。
  *
  * 只在图里有触发卡片时才问（没有就一次都不发）；页面不可见时停下，回来马上补问一次。
  * 读回来的内容没变就交回同一个对象，画布上的卡片不会跟着每次轮询重画。
@@ -13,6 +14,7 @@ import { idKey } from '../../shared/model.ts'
 import type {
   FireRecord,
   TriggerDetailResponse,
+  TriggerEndpointResponse,
   TriggerListResponse,
   TriggerOwner,
   TriggerPingResponse,
@@ -28,35 +30,17 @@ import { useRefresher } from './useRefresher.ts'
 /** 多久问一次。 */
 export const TRIGGER_POLL_MS = 5000
 
-/** 能在本机改的几样。 */
-export interface TriggerChange {
-  enabled?: boolean
-  workspace?: string
-  /** 用哪个 shell（程序的完整路径）；空串 = 跟随默认。 */
-  shell?: string
-  /** 空串 = 清掉。 */
-  session?: string
-  /** 确认要运行的命令：原样带上用户看到的那条。 */
-  approve?: string
-  /** HTTP 触发换一个随机的新令牌。 */
-  resetToken?: true
-  /** HTTP 触发：还没有地址、令牌就先生成（不打开开关）。 */
-  prepareEndpoint?: true
-  /** HTTP 触发：自己写的地址（`/trigger/` 后面那一段）。 */
-  hook?: string
-  /** HTTP 触发：自己写的令牌。 */
-  token?: string
-  /** HTTP 触发：不校验令牌（`false` = 恢复校验）。 */
-  noToken?: boolean
-}
-
 export interface Triggers {
   /** 一张卡片现在的样子；还没读到（或卡片还没保存）是 `undefined`。 */
   view(node: string): TriggerView | undefined
   /** 现在由哪个 DSH 进程负责触发。 */
   owner: TriggerOwner | undefined
-  /** 改开关、工作区、固定会话。改不成回一句原因，改成了回 `null`。 */
-  set(node: string, change: TriggerChange): Promise<string | null>
+  /** HTTP 触发别人连的网址开头（`http://地址:端口`）；还没读到是空串。 */
+  hookOrigin: string
+  /** 「重新启用」自动停用了的卡片。做不了回一句原因。 */
+  reopen(node: string): Promise<string | null>
+  /** HTTP 触发：一个没被用的地址和一个随机令牌（连同已经被用了的地址）；问不到回一句原因。 */
+  endpoint(node: string): Promise<TriggerEndpointResponse | string>
   /** 立即触发一次：回这次的记录；请求本身失败回一句原因。 */
   fire(node: string, info?: string): Promise<FireRecord | string>
   /** 这张卡片最近 `limit` 条触发记录，新的在前。 */
@@ -75,7 +59,7 @@ export interface Triggers {
   ping(node: string): Promise<TriggerPingResponse | string>
 }
 
-const EMPTY: TriggerListResponse = { triggers: [] }
+const EMPTY: TriggerListResponse = { triggers: [], hookOrigin: '' }
 
 /**
  * @param workflow - 正在编辑的工作流；`null` = 没打开。
@@ -128,19 +112,30 @@ export function useTriggers(
   )
   const view = useCallback((node: string) => views.get(idKey(node)), [views])
 
-  const set = useCallback(
-    async (node: string, change: TriggerChange): Promise<string | null> => {
+  const reopen = useCallback(
+    async (node: string): Promise<string | null> => {
       if (workflow === null) return null
       try {
-        await flush()
-        const result = await rpc.call('trigger/set', { workflow, node, ...change })
+        const result = await rpc.call('trigger/reopen', { workflow, node })
         setList((previous) => shareSame(previous, result))
         return null
       } catch (error) {
         return errorMessage(error)
       }
     },
-    [rpc, workflow, flush],
+    [rpc, workflow],
+  )
+
+  const endpoint = useCallback(
+    async (node: string): Promise<TriggerEndpointResponse | string> => {
+      if (workflow === null) return ''
+      try {
+        return await rpc.call('trigger/endpoint', { workflow, node })
+      } catch (error) {
+        return errorMessage(error)
+      }
+    },
+    [rpc, workflow],
   )
 
   const fire = useCallback(
@@ -245,7 +240,9 @@ export function useTriggers(
     () => ({
       view,
       owner: list.owner,
-      set,
+      hookOrigin: list.hookOrigin,
+      reopen,
+      endpoint,
       fire,
       history,
       detail,
@@ -255,6 +252,20 @@ export function useTriggers(
       tryCommand,
       ping,
     }),
-    [view, list.owner, set, fire, history, detail, cancel, waive, output, tryCommand, ping],
+    [
+      view,
+      list.owner,
+      list.hookOrigin,
+      reopen,
+      endpoint,
+      fire,
+      history,
+      detail,
+      cancel,
+      waive,
+      output,
+      tryCommand,
+      ping,
+    ],
   )
 }

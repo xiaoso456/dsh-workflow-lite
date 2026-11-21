@@ -68,7 +68,8 @@ const clickSearchResultExpr = (title) =>
  * 两种判据。给了 `sessionTitle` 走**会话搜索**：工作区分组的展开状态记在浏览器里
  * （`dsh.workspace.view.v5` 的 `groupExpansion`），而它按 origin 存——换个端口就是新 origin，
  * 于是所有分组都是折叠的，会话行压根不在 DOM 里，点不到。搜索结果不受展开状态影响。
- * 没给标题就退回按相对时间找第一条（刚建出来的会话显示「刚刚」，匹配不上，只在复用老会话时可靠）。
+ * 没给标题时取环境变量 `DSH_SESSION_TITLE`（一次性实例的夹具会话标题，跑脚本的人给）；
+ * 都没有就退回按相对时间找第一条（刚建出来的会话显示「刚刚」，匹配不上，只在复用老会话时可靠）。
  *
  * 找不到一律**抛**，不返回 `null`：这个函数返回空值意味着后面必然卡在别的地方，
  * 那种"这里静默、那里报错"的失败最难查。
@@ -78,7 +79,12 @@ const clickSearchResultExpr = (title) =>
  */
 export async function enterSession(
   session,
-  { timeoutMs = 30_000, searchLabel = '搜索会话', searchPlaceholder = '搜索会话名称', sessionTitle } = {},
+  {
+    timeoutMs = 30_000,
+    searchLabel = '搜索会话',
+    searchPlaceholder = '搜索会话名称',
+    sessionTitle = process.env.DSH_SESSION_TITLE,
+  } = {},
 ) {
   const opened = await session.evaluate(clickAriaExpr(searchLabel))
   if (opened !== true) throw new Error(`进不去会话列表：找不到 aria-label=${searchLabel} 的按钮`)

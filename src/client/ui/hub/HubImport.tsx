@@ -8,11 +8,15 @@
  * （skill 里的脚本会被 agent 执行）。名字撞了：另存为新名字（缺省），或并入已有的那张——
  * 并入**不自动存**本机现在的内容，没存成版本就提醒一句。
  *
+ * 带了触发卡片的包另有一段：几张卡片（导入后都关着）、哪些要重新选工作区或会话、带了几个密钥文件；
+ * 密钥、脚本数据和别的资料文件一样落进工作流目录，并入时撞了的照「保留本机的 / 用包里的」处理。
+ *
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/HubImport
  */
 
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { memoryTitle } from '../../../shared/memoryLib.ts'
+import type { PackTriggerPreview } from '../../../shared/pack.ts'
 import {
   PACK_SUFFIX,
   type PackImportPreview,
@@ -36,7 +40,7 @@ import { shortTime } from '../../model/time.ts'
 import { errorMessage, type WorkflowLiteRpc } from '../../rpc.ts'
 import { useConfirm } from '../kit/Confirm.tsx'
 import { cx } from '../kit/cx.ts'
-import { Icon } from '../kit/Icon.tsx'
+import { Icon, type IconName } from '../kit/Icon.tsx'
 import { KIND_ICON } from '../kit/resourceUi.ts'
 import { Segmented } from '../kit/Segmented.tsx'
 import ui from '../kit/ui.module.css'
@@ -574,6 +578,8 @@ function Preview(props: {
           </PackSection>
         )}
 
+        {preview.triggers !== null && <ImportTriggers t={t} triggers={preview.triggers} />}
+
         {preview.external.length > 0 && (
           <PackSection title={t('pack.sectionExternal')} testId="wl-pack-external">
             {preview.external.map((entry) => (
@@ -657,5 +663,58 @@ function Preview(props: {
         })}
       </div>
     </>
+  )
+}
+
+/** 包里的触发卡片：都关着，哪些打开前要重新选。 */
+function ImportTriggers(props: { t: T; triggers: PackTriggerPreview }): React.JSX.Element {
+  const { t, triggers } = props
+  const lines: {
+    key: string
+    icon: IconName
+    text: string
+    warn?: true
+  }[] = [
+    {
+      key: 'cards',
+      icon: 'bolt',
+      text: t('pack.trg.cards').replace('{n}', String(triggers.cards)),
+    },
+  ]
+  if (triggers.workspaceMissing > 0) {
+    lines.push({
+      key: 'workspace',
+      icon: 'folder',
+      text: t('pack.trg.workspaceMissing').replace('{n}', String(triggers.workspaceMissing)),
+      warn: true,
+    })
+  }
+  if (triggers.fixed > 0) {
+    lines.push({
+      key: 'fixed',
+      icon: 'handoff',
+      text: t('pack.trg.fixed').replace('{n}', String(triggers.fixed)),
+      warn: true,
+    })
+  }
+  if (triggers.secrets > 0) {
+    lines.push({
+      key: 'secrets',
+      icon: 'shield',
+      text: t('pack.trg.secretsIn').replace('{n}', String(triggers.secrets)),
+    })
+  }
+  return (
+    <PackSection title={t('pack.sectionTriggers')} testId="wl-pack-triggers">
+      {lines.map((line) => (
+        <PackRow
+          key={line.key}
+          icon={line.icon}
+          {...(line.warn === true ? { tone: 'warn' as const } : {})}
+          title={line.text}
+          testId={`wl-pack-triggers-${line.key}`}
+        />
+      ))}
+    </PackSection>
   )
 }

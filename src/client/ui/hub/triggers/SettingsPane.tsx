@@ -12,6 +12,7 @@
  */
 
 import { useState } from 'react'
+import { WORKFLOW_VAR, WORKSPACE_VAR } from '../../../../shared/pathVars.ts'
 import {
   afterWhen,
   commandOf,
@@ -159,9 +160,9 @@ export function SettingsPane(props: {
           t={t}
           node={view.node}
           name={name}
-          source={data.source}
+          data={data}
           env={env}
-          onSave={(source) => onPatch({ source })}
+          onSave={(change) => onPatch(change)}
           onClose={close}
         />
       )}
@@ -282,26 +283,28 @@ function sourceRows(t: T, entry: TriggerEntry): Row[] {
         return [
           rule,
           [t('trigger.checkWhen'), t(`trigger.checkWhen.${source.check.when}` as LocaleKey)],
+          [t('trigger.cwd'), cwdText(t, entry.data)],
           [t('trigger.shell'), shellText(t, entry)],
         ]
       }
       return [rule, [t('hub.trgNextRow'), next === undefined ? muted('—') : momentText(t, next)]]
     }
     case 'listen':
-      return [[t('trigger.shell'), shellText(t, entry)]]
-    case 'http': {
-      const endpoint = view.endpoint
+      return [
+        [t('trigger.cwd'), cwdText(t, entry.data)],
+        [t('trigger.shell'), shellText(t, entry)],
+      ]
+    case 'http':
       return [
         [
           t('trigger.url'),
-          endpoint === undefined ? muted(t('hub.trgNoUrl')) : mono(readableUrl(endpoint.url)),
+          view.url === undefined ? muted(t('hub.trgNoUrl')) : mono(readableUrl(view.url)),
         ],
         [
           t('trigger.token'),
-          t(endpoint?.noToken === true ? 'hub.trgNoToken' : 'trigger.tokenNeed.on'),
+          t(source.noToken === true ? 'hub.trgNoToken' : 'trigger.tokenNeed.on'),
         ],
       ]
-    }
     case 'after':
       return [
         [
@@ -313,12 +316,18 @@ function sourceRows(t: T, entry: TriggerEntry): Row[] {
   }
 }
 
+/** 脚本在哪个目录里跑：缺省的卡片目录、会话工作区、工作流目录写名字，别的写路径。 */
+function cwdText(t: T, data: TriggerData): React.ReactNode {
+  if (data.cwd === undefined) return t('trigger.cwd.card')
+  if (data.cwd === WORKSPACE_VAR) return t('trigger.cwd.workspace')
+  if (data.cwd === WORKFLOW_VAR) return t('trigger.cwd.workflow')
+  return mono(data.cwd)
+}
+
 /** 这张卡片用哪个 shell：自己选的写名字，没选写「跟随默认（…）」。 */
 function shellText(t: T, entry: TriggerEntry): string {
   const name = entry.view.runShell?.name ?? '…'
-  return entry.view.shell === undefined || entry.view.shell === ''
-    ? t('trigger.shell.follow').replace('{name}', name)
-    : name
+  return entry.data.shell === undefined ? t('trigger.shell.follow').replace('{name}', name) : name
 }
 
 function filterRows(t: T, data: TriggerData): Row[] {

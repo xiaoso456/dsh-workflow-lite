@@ -8,6 +8,13 @@
 
 import { type CronFieldName, dailyTimes, type ScheduleIssue } from '../../shared/schedule.ts'
 import { afterWhen, type SourceIssue } from '../../shared/trigger.ts'
+import {
+  HOOK_MAX_LENGTH,
+  type HookIssue,
+  TOKEN_MAX_LENGTH,
+  TOKEN_MIN_LENGTH,
+  type TokenIssue,
+} from '../../shared/triggerHttp.ts'
 import type {
   AfterWhen,
   TriggerSchedule,
@@ -228,7 +235,6 @@ const STATE_TEXT: Record<TriggerState, LocaleKey> = {
   restarting: 'trigger.state.restarting',
   error: 'trigger.state.error',
   invalid: 'trigger.state.invalid',
-  confirm: 'trigger.state.confirm',
   stopped: 'trigger.state.stopped',
   elsewhere: 'trigger.state.elsewhere',
   unavailable: 'trigger.state.unavailable',
@@ -283,6 +289,29 @@ export function scheduleIssueText(t: T, issue: ScheduleIssue): string {
   }
 }
 
+const HOOK_ISSUE: Record<HookIssue, LocaleKey> = {
+  empty: 'trigger.hookIssue.empty',
+  chars: 'trigger.hookIssue.chars',
+  long: 'trigger.hookIssue.long',
+}
+
+const TOKEN_ISSUE: Record<TokenIssue, LocaleKey> = {
+  short: 'trigger.tokenIssue.short',
+  chars: 'trigger.tokenIssue.chars',
+  long: 'trigger.tokenIssue.long',
+}
+
+/** HTTP 的地址写得不对的一句话（按界面语言）。 */
+export function hookIssueText(t: T, issue: HookIssue): string {
+  return t(HOOK_ISSUE[issue]).replace('{n}', String(HOOK_MAX_LENGTH))
+}
+
+/** HTTP 的令牌写得不对的一句话（按界面语言）。 */
+export function tokenIssueText(t: T, issue: TokenIssue): string {
+  const n = issue === 'long' ? TOKEN_MAX_LENGTH : TOKEN_MIN_LENGTH
+  return t(TOKEN_ISSUE[issue]).replace('{n}', String(n))
+}
+
 /** 触发源写得不对的一句话（按界面语言）。 */
 export function sourceIssueText(t: T, issue: SourceIssue): string {
   switch (issue.code) {
@@ -294,6 +323,10 @@ export function sourceIssueText(t: T, issue: SourceIssue): string {
       return t('trigger.issue.noCommand')
     case 'tooOften':
       return t('trigger.issue.tooOften')
+    case 'hook':
+      return hookIssueText(t, issue.issue)
+    case 'token':
+      return tokenIssueText(t, issue.issue)
   }
 }
 
@@ -320,8 +353,6 @@ function stateDetail(
       return view.since === undefined ? '' : at('trigger.started', view.since)
     case 'restarting':
       return view.next === undefined ? '' : at('trigger.restartAt', view.next)
-    case 'confirm':
-      return t('trigger.confirmHint')
     default:
       return ''
   }
@@ -356,7 +387,6 @@ const BADGE_TEXT: Record<TriggerState, LocaleKey> = {
   restarting: 'trigger.badge.restarting',
   error: 'trigger.badge.error',
   invalid: 'trigger.badge.invalid',
-  confirm: 'trigger.badge.confirm',
   stopped: 'trigger.badge.stopped',
   elsewhere: 'trigger.badge.elsewhere',
   unavailable: 'trigger.badge.unavailable',
@@ -403,7 +433,7 @@ export function stateNote(
  * - `armed` 开着、等时间或等别的工作流（强调色）：定时、接续的等待中；
  * - `live` 正在盯着外面（绿，圆点一呼一吸）：监听、HTTP 的接收中，定时检查的检查中；
  * - `other` 开着但不归这里管（石板灰）：由另一个 DSH 负责；
- * - `warn` 停着等人处理（琥珀）：待确认、已全部暂停、重启中、这里无法触发；
+ * - `warn` 停着等人处理（琥珀）：已全部暂停、重启中、这里无法触发；
  * - `bad` 出了问题（红）：出错、设置不对、已自动停用。
  */
 export type TriggerTone = 'off' | 'armed' | 'live' | 'other' | 'warn' | 'bad'
@@ -418,7 +448,6 @@ export function stateTone(state: TriggerState, face: SourceFace): TriggerTone {
       return 'live'
     case 'elsewhere':
       return 'other'
-    case 'confirm':
     case 'paused':
     case 'restarting':
     case 'unavailable':

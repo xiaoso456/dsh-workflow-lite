@@ -16,7 +16,7 @@
  * @module @xiaoso/dsh-workflow-lite/host/triggers/cardTest
  */
 
-import { bindWorkflowVar } from '../../shared/pathVars.ts'
+import { bindWorkflowVar, bindWorkspaceVar } from '../../shared/pathVars.ts'
 import { upcomingFires } from '../../shared/schedule.ts'
 import type { FireChannel } from '../../shared/trigger.ts'
 import {
@@ -36,6 +36,7 @@ import {
 } from '../../shared/triggerMark.ts'
 import type { TriggerSource } from '../../shared/types.ts'
 import { afterInfo, type FinishedRun } from './after.ts'
+import { CARD_WORKSPACE_ENV } from './cardDirs.ts'
 import type { TriggerDefinition } from './graphs.ts'
 import { INFO_MAX_CHARS, Intake, type IntakeBatch, type IntakeClock, joinerOf } from './intake.ts'
 import { HEALTHY_MS } from './listener.ts'
@@ -289,13 +290,16 @@ async function testListen(input: CardTestInput): Promise<CardTestResult> {
     const pokeCommand = input.options.poke?.trim()
     const pokeTimer = setTimeout(() => {
       if (pokeCommand === undefined || pokeCommand === '' || done) return
-      // 和卡片上的命令一样认 `{workflow}`（脚本里带的样本、注入事件的小工具都在工作流目录里）。
+      // 和卡片上的命令一样认 `{workflow}`、`{workspace}`（往工作区里的文件追加一行、投工作流目录里的样本）。
       const workflowDir = spec.env?.WORKFLOW_DIR
+      const workspace = spec.env?.[CARD_WORKSPACE_ENV]
+      const withWorkflow =
+        workflowDir === undefined ? pokeCommand : bindWorkflowVar(pokeCommand, workflowDir)
       poking = runCommand(
         {
           ...spec,
           command:
-            workflowDir === undefined ? pokeCommand : bindWorkflowVar(pokeCommand, workflowDir),
+            workspace === undefined ? withWorkflow : bindWorkspaceVar(withWorkflow, workspace),
         },
         { timeoutMs: POKE_TIMEOUT_MS, maxBytes: OUTPUT_CHARS * 4 },
       ).then((result) => {

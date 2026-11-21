@@ -43,7 +43,7 @@ export const DESCRIPTION = [
   '资源卡可以在画布上直接展示其中一项：write_resource 或 write_node 的 outputs 带 display（什么适合展示、各项怎么配见 skill workflow-authoring 的「在画布上展示」）。',
   '输入节点是执行前问用户的问题：write_node 带 input 新建或修改，connect 输入 → 步骤 = 把回答交给它。',
   '图里有输入节点时，compile 带 answers 给出用户的回答（没给的用默认值）；必填的没回答会回 problems，先问用户再编译。',
-  '触发卡片让工作流到点、条件满足、收到通知时自动执行：write_trigger 写定义（trigger）和本机设置（local）/ ',
+  '触发卡片让工作流到点、条件满足、收到通知时自动执行：write_trigger 写定义（trigger）和开关、运行设置（local）/ ',
   'read 带 node 看一张卡片的定义与本机情况（include 再带触发记录、最近的输出、排队）/ test_trigger 试一张卡片（跑一次脚本、看会不会触发）/ trigger_queue 处理排着的。',
   '试好之后用 local.enabled 打开；动手前读 skill workflow-trigger。',
   '收到触发卡片发来的消息、消息里有「触发条件」时，先判断要不要执行：不需要就用 decline 带 fire 和 reason 回报，然后结束。',
@@ -508,19 +508,22 @@ export const PARAMETERS = {
   },
   local: {
     type: 'object',
-    description: 'write_trigger：这台机器上的设置与开关（不进工作流文件；不给 trigger 时只改它）。',
+    description:
+      'write_trigger：开关和运行设置（和定义一样写在卡片上、随工作流导出；不给 trigger 时只改它）。',
     additionalProperties: false,
     properties: {
-      enabled: {
-        type: 'boolean',
-        description:
-          'true = 打开（要跑命令的同时确认这条命令在这个工作区、用这个 shell 运行；命令、工作区、shell 改过后再给一次 true）/ false = 关掉。',
-      },
+      enabled: { type: 'boolean', description: 'true = 打开 / false = 关掉。' },
       workspace: {
         type: 'string',
-        description: '命令在哪里运行、新会话建在哪（绝对路径）；空串 = 清除。',
+        description:
+          '会话工作区：新会话建在哪（绝对路径），也经环境变量 TRIGGER_WORKSPACE、{workspace} 交给脚本；空串 = 清除。',
       },
       shell: { type: 'string', description: '跑命令的 shell（程序完整路径）；空串 = 跟默认。' },
+      cwd: {
+        type: 'string',
+        description:
+          '命令在哪个目录里跑：缺省是卡片目录 {workflow}/triggers/<卡片 id>；可写 {workspace}/…、{workflow}/… 或绝对路径；空串 = 回到缺省。',
+      },
       session: {
         type: 'string',
         description: 'launch.session 为 fixed 时发进的会话 id；current = 当前会话。',
@@ -528,6 +531,7 @@ export const PARAMETERS = {
       hook: { type: 'string', description: 'http：地址的最后一段（字母、数字、中文、- _）。' },
       token: { type: 'string', description: 'http：令牌（至少 16 位）。' },
       noToken: { type: 'boolean', description: 'http：true = 不校验令牌。' },
+      resetToken: { type: 'boolean', description: 'http：true = 换一个随机的新令牌。' },
     },
   },
   include: {
@@ -539,13 +543,14 @@ export const PARAMETERS = {
   limit: { type: 'number', description: 'read 的 history / output 带几条（缺省 10，最多 50）。' },
   workspace: {
     type: 'string',
-    description: 'test_trigger：命令在哪个目录里试（绝对路径）；不给用卡片上选的。',
+    description:
+      'test_trigger：会话工作区（绝对路径），用来拼 {workspace} 和 TRIGGER_WORKSPACE；不给用卡片上选的。',
   },
   seconds: { type: 'number', description: 'test_trigger（listen）：跑几秒（缺省 10，最多 60）。' },
   poke: {
     type: 'string',
     description:
-      'test_trigger（listen）：启动 1 秒后跑这条命令制造一次事件；和卡片上的命令一样在同一个工作区、同样的环境变量里跑，认 {workflow}。',
+      'test_trigger（listen）：启动 1 秒后跑这条命令制造一次事件；和卡片上的命令在同一个目录、同样的环境变量里跑，认 {workflow}、{workspace}。',
   },
   body: { type: 'string', description: 'test_trigger（http）：拿来试的请求体。' },
   queue: {
