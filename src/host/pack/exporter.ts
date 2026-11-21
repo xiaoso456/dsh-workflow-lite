@@ -276,9 +276,10 @@ export async function scanState(
     versions.map(({ entry, document }) => ({ n: entry.n, document })),
     triggerFiles,
   )
-  const newest = versions.reduce((best, version) =>
-    version.entry.n > best.entry.n ? version : best,
-  )
+  const choices = versions.flatMap(({ entry, document }) => {
+    const spots = documentChoices(document)
+    return versions.length === 1 ? spots : spots.map((spot) => ({ ...spot, version: entry.n }))
+  })
 
   // 要打包的文件、文件夹在资料目录里叫什么：用原来的名字，和资料目录里已有的、彼此之间撞了就加序号。
   const taken = new Set<string>()
@@ -318,7 +319,7 @@ export async function scanState(
               },
         roots: [...roots],
         limit: PACK_MAX_BYTES,
-        choices: documentChoices(newest.document),
+        choices,
         triggers: cards.triggers,
         triggerScripts: cards.scripts,
       },
@@ -395,6 +396,10 @@ export async function exportPack(
 
   // 资料目录 + 触发器那一块里要带的 + 要打包的文件、文件夹 → assets/
   const keep = new Set(request.triggers ?? response.triggers.map((card) => card.node))
+  const triggerChoices =
+    request.triggerChoices === undefined
+      ? undefined
+      : new Map(request.triggerChoices.map(({ node, choice }) => [node, choice]))
   const picked = pickTriggerFiles(triggerFiles, response.triggers, {
     keep,
     secrets: new Set(request.secrets ?? []),
@@ -506,7 +511,11 @@ export async function exportPack(
           createdAt: entry.createdAt,
           note: entry.note,
           document: rewriteForPack(
-            packTriggers(documentWithChoice(document, request.choice ?? DEFAULT_CHOICE_KEEP), keep),
+            documentWithChoice(
+              packTriggers(document, keep),
+              request.choice ?? DEFAULT_CHOICE_KEEP,
+              triggerChoices,
+            ),
             renames,
           ),
         }),

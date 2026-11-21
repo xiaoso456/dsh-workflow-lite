@@ -143,6 +143,39 @@
   color: var(--wl-text-3);
 }
 
+/* 触发卡片的勾选留在行首，后面的标题和摘要一起展开。 */
+.rowDisclosure {
+  grid-column: 2 / -1;
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  min-height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: calc(6px * var(--wl-round, 1));
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rowDisclosure:focus-visible {
+  outline: 2px solid var(--wl-accent);
+}
+
+.rowChevron {
+  display: grid;
+  place-items: center;
+  color: var(--wl-text-3);
+  transition: transform 180ms var(--wl-ease-out);
+}
+
+.rowDisclosure[aria-expanded="true"] .rowChevron {
+  transform: rotate(90deg);
+}
+
 .rowLead[data-tone="warn"] {
   color: var(--wl-warn);
 }
@@ -217,7 +250,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sectionNote {
+  .sectionNote,
+  .rowChevron {
     transition: none;
   }
 }

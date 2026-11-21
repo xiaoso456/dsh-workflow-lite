@@ -51,6 +51,7 @@ export function scanTriggers(
         node: node.id,
         label: node.data.label ?? '',
         source: node.data.source,
+        ...(node.data.enabled === true ? { enabled: true } : {}),
         command: (seen?.command ?? false) || commandOf(node.data.source) !== undefined,
         versions: [...(seen?.versions ?? []), n],
       })

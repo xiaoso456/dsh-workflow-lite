@@ -4,7 +4,7 @@
  * 两步：① 选版本（只导出存成了版本的内容；现在的内容没存成版本就提醒一句，不自动存）；
  * ② 资源清单：按资源种类分类（Skill、文件、文件夹、网址、自定义、资料目录）。能打包的几类在分类标题右端
  * 各有一个开关，开着才列出逐项的勾选（能打包的缺省勾上）和其余各项不打包的原因；资料目录总是整个带上。
- * 图里有触发卡片、设了新建会话用的模型等时，后面再跟两类（见 `ExportTriggers.tsx`）。
+ * 工作流的会话设置放在清单最前，触发卡片及各自的会话设置在末尾（见 `ExportTriggers.tsx`）。
  * 点「导出」主机打好 zip，前端一块块取回来交给浏览器下载。
  *
  * 顶上可以换成「导出成 Skill」（见 `shared/skillPack.ts`）：版本只能选一个，资源清单照旧勾（触发卡片、触发脚本不带，提醒一句），
@@ -13,13 +13,14 @@
  * @module @xiaoso/dsh-workflow-lite/client/ui/hub/HubExport
  */
 
-import { type ComponentProps, useEffect, useState } from 'react'
+import { type ComponentProps, useCallback, useEffect, useState } from 'react'
 import { memoryTitle } from '../../../shared/memoryLib.ts'
 import type { PackScanItem, PackScanResponse } from '../../../shared/pack.ts'
 import { workflowRelative } from '../../../shared/pathVars.ts'
 import { type ChoiceKeep, DEFAULT_CHOICE_KEEP } from '../../../shared/sessionChoice.ts'
 import { SKILL_PATHS, suggestSkillName } from '../../../shared/skillPack.ts'
 import type { VersionEntry } from '../../../shared/types.ts'
+import { agentCatalog, useAgentCatalog } from '../../app/agents.ts'
 import { downloadPack, saveFile } from '../../app/packTransfer.ts'
 import type { LocaleKey, T } from '../../i18n.ts'
 import { formatBytes } from '../../model/fileKind.ts'
@@ -456,6 +457,10 @@ function Resources(props: {
   onExport(): void
 }): React.JSX.Element {
   const { t, scan, packed, switches, multi, skill } = props
+  const { rpc, session } = props
+  const readCatalog = useCallback(() => agentCatalog(rpc, session), [rpc, session])
+  const catalog = useAgentCatalog(!skill && scan.choices.length > 0 ? readCatalog : undefined)
+  const workflowChoices = scan.choices.filter((spot) => spot.node === undefined)
   // 展开、收起：下面的分类滑到新位置，像版本列表那样。
   const listRef = useResizeFlip()
   const effective = effectivePack(scan, packed, switches)
@@ -572,6 +577,15 @@ function Resources(props: {
       )}
       <div className={cx(pack.scroll, ui.scrollFade)}>
         <div ref={listRef} className={pack.cats}>
+          {!skill && (
+            <ChoiceCategory
+              t={t}
+              catalog={catalog}
+              spots={workflowChoices}
+              keep={props.choice}
+              onKeep={props.onChoice}
+            />
+          )}
           {PACK_CATEGORIES.map((kind) => {
             const { packable, others } = categoryItems(scan, kind)
             const count = packable.length + others.length
@@ -617,18 +631,9 @@ function Resources(props: {
               t={t}
               scan={scan}
               pick={props.triggers}
+              catalog={catalog}
               multi={multi}
               onPick={props.onTrigger}
-            />
-          )}
-          {!skill && scan.choices.length > 0 && (
-            <ChoiceCategory
-              t={t}
-              rpc={props.rpc}
-              session={props.session}
-              scan={scan}
-              keep={props.choice}
-              onKeep={props.onChoice}
             />
           )}
         </div>

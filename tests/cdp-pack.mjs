@@ -6,7 +6,7 @@
  * 导入同一个包：名字撞了，另存为新名字（预览里写明资料放到哪、skill 内容一样跳过）→ 确认卡 → 落盘、图里改成 {workflow}/… →
  * 再导入一次，选并入：版本全都重复，不再存。
  * 图里另有两张触发卡片（一张跑命令、关着；一张定时、开着），卡片目录里有脚本、密钥、脚本数据：
- * 导出清单里触发器缺省关闭，开了才选卡片；密钥和数据缺省不带，脚本跟着跑命令的卡片走；包里的开关照原样；
+ * 工作流设置、触发卡片有独立的会话设置勾选；触发器缺省关闭，开了才选卡片，展开卡片选择设置、密钥和脚本数据。
  * 包里的开关照原样；导入预览逐张列出卡片（开关照导出时的预选）、带了密钥；关掉一张导入后它关着，脚本、密钥落进新工作流的卡片目录。
  * 另外导出成 skill：换到「Skill」→ 单选版本 → 资源 → Skill 信息（名字、预填的描述、SKILL.md 预览）→
  * 下载 zip（看包里的布局）→ 装到本机 → 再装一次要先确认覆盖。
@@ -126,6 +126,7 @@ async function run(session) {
   await writeFile(join(inbox, 'data', 'seen.json'), '[]\n')
   const loaded = await rpc('graph/load', { name: NAME })
   const items = [{ kind: 'file', value: SPEC }]
+  const model = { provider: 'export-example', model: 'mock-model', effort: 'high' }
   if (skill !== undefined) items.push({ kind: 'skill', value: skill })
   await rpc('graph/save', {
     name: NAME,
@@ -142,6 +143,7 @@ async function run(session) {
             label: '收件',
             source: { kind: 'listen', command: 'node tick.mjs' },
             workspace: EXT,
+            launch: { model, permission: 'workspace-write' },
           },
         },
         {
@@ -160,6 +162,7 @@ async function run(session) {
         { id: 'docs->a', source: 'docs', target: 'a', sourceHandle: null, targetHandle: null },
       ],
       viewport: { x: 0, y: 0, zoom: 1 },
+      settings: { model, preset: 'ptc', permission: 'read-only' },
     },
   })
 
@@ -258,6 +261,22 @@ async function run(session) {
   await session.evaluate(clickTestId('wl-pack-cat-file-toggle'))
   await waitFor(session, `${attr('wl-pack-cat-file-toggle', 'aria-expanded')} === 'true'`)
 
+  const workflowSettings = 'wl-pack-cat-choice'
+  check(
+    (await session.evaluate(
+      `document.querySelector('[data-testid="${workflowSettings}"]').parentElement.firstElementChild.dataset.testid`,
+    )) === workflowSettings,
+    '工作流设置排在资源清单首位',
+  )
+  await session.evaluate(clickTestId(`${workflowSettings}-toggle`))
+  await waitFor(session, gone('wl-pack-choice-model'))
+  await session.evaluate(clickTestId(`${workflowSettings}-toggle`))
+  await waitFor(session, exists('wl-pack-choice-model'))
+  check(
+    !(await session.evaluate(textOf(workflowSettings))).includes('模型供应商只带名称'),
+    '工作流设置直接列选项',
+  )
+
   // 触发器：打开总开关后才显示逐张勾选；密钥、脚本数据缺省不带。
   await waitFor(session, exists('wl-pack-cat-triggers'))
   const triggerSwitch = 'wl-pack-cat-triggers-switch'
@@ -287,6 +306,36 @@ async function run(session) {
     )) === true,
     '触发卡片缺省都带',
   )
+  check(
+    (await session.evaluate(gone('wl-pack-trigger-secrets'))) &&
+      (await session.evaluate(`${cardRow('夜巡')}.textContent.includes('已开启')`)),
+    '卡片缺省收起，收起时显示卡片原有开关状态',
+  )
+  check(
+    await session.evaluate(`${cardRow('夜巡')}.querySelector('[aria-expanded]') === null`),
+    '没有附带项的触发卡片没有展开按钮',
+  )
+  const inboxToggle = `${cardRow('收件')}.querySelector('[aria-expanded]')`
+  await session.evaluate(`${inboxToggle}.click()`)
+  await waitFor(session, exists('wl-pack-trigger-choice-model'))
+  const inboxModel = `document.querySelector('[data-testid="wl-pack-trigger-choice-model"]')`
+  const inboxPermission = `document.querySelector('[data-testid="wl-pack-trigger-choice-permission"]')`
+  const workflowModel = `document.querySelector('[data-testid="wl-pack-choice-model"]')`
+  check(
+    (await session.evaluate(`${inboxModel}.textContent`)).includes(
+      'export-example · mock-model · 思考 high',
+    ),
+    '模型选项应列出供应商、模型名和思考强度',
+  )
+  await session.evaluate(`${box(inboxModel)}.click()`)
+  await waitFor(session, `${box(inboxModel)}.checked && !${box(workflowModel)}.checked`)
+  await session.evaluate(`${box(inboxModel)}.click()`)
+  await session.evaluate(`${box(inboxPermission)}.click()`)
+  await waitFor(session, `!${box(inboxPermission)}.checked`)
+  await session.evaluate(`${inboxToggle}.click()`)
+  await waitFor(session, gone('wl-pack-trigger-choice-permission'))
+  await session.evaluate(`${inboxToggle}.click()`)
+  await waitFor(session, `${box(inboxPermission)}?.checked === false`)
   check((await session.evaluate(`${box(secretsRow)}?.checked`)) === false, '密钥缺省不带')
   check((await session.evaluate(`${box(dataRow)}?.checked`)) === false, '脚本数据缺省不带')
   check(
@@ -332,9 +381,14 @@ async function run(session) {
     !packedNames.some((name) => name.startsWith('assets/triggers/inbox/data/')),
     `没勾脚本数据，包里不该有：${packedNames.join(', ')}`,
   )
-  const packedCards = JSON.parse(
-    strFromU8(packed[`${NAME}/versions/1.json`]),
-  ).document.nodes.filter((node) => node.type === 'wfTrigger')
+  const packedDocument = JSON.parse(strFromU8(packed[`${NAME}/versions/1.json`])).document
+  const packedCards = packedDocument.nodes.filter((node) => node.type === 'wfTrigger')
+  check(
+    packedDocument.settings?.permission === 'read-only' &&
+      packedDocument.settings?.model === undefined &&
+      packedCards.find((node) => node.id === 'inbox')?.data.launch === undefined,
+    '包里的工作流设置和卡片设置分别按勾选保留',
+  )
   check(
     packedCards.length === 2 &&
       packedCards.find((node) => node.id === 'nightly')?.data.enabled === true &&

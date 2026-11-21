@@ -1,5 +1,5 @@
 /**
- * 导出页上触发卡片、新建会话设置两块的算账：缺省勾选、多出的字节、交给宿主的几项、每个开关管着的几处。
+ * 导出页上触发卡片、会话设置两块的算账：缺省勾选、多出的字节、交给宿主的几项。
  */
 
 import { describe, expect, it } from 'vitest'
@@ -54,20 +54,27 @@ describe('触发卡片', () => {
       triggers: [],
       secrets: [],
       triggerData: [],
+      triggerChoices: [],
     })
     expect(triggerBytes(scan, { ...pick, enabled: true })).toBe(300)
     expect(triggerRequest(scan, { ...pick, enabled: true })).toEqual({
       triggers: ['tick', 'hook'],
       secrets: [],
       triggerData: [],
+      triggerChoices: [],
     })
   })
 
-  it('勾了密钥、数据才算；卡片去掉后它的密钥、数据跟着不带，不跑命令的留下时脚本也不带', () => {
+  it('去掉卡片时，它的密钥、数据和会话设置跟着去掉', () => {
+    const choice = { model: true, preset: false, permission: false }
     let pick = { ...defaultTriggerPick(scan), enabled: true }
     pick = toggleTrigger(pick, 'secrets', 'tick', true)
     pick = toggleTrigger(pick, 'data', 'tick', true)
     pick = toggleTrigger(pick, 'secrets', 'hook', true)
+    pick.choices = new Map([
+      ['tick', choice],
+      ['hook', choice],
+    ])
     expect(triggerBytes(scan, pick)).toBe(300 + 10 + 20 + 5)
     expect(packsAnySecrets(scan, pick)).toBe(true)
     expect(packsAnySecrets(scan, { ...pick, enabled: false })).toBe(false)
@@ -75,6 +82,7 @@ describe('触发卡片', () => {
       triggers: [],
       secrets: [],
       triggerData: [],
+      triggerChoices: [],
     })
     pick = toggleTrigger(pick, 'keep', 'tick', false)
     expect(triggerBytes(scan, pick)).toBe(5)
@@ -82,6 +90,7 @@ describe('触发卡片', () => {
       triggers: ['hook'],
       secrets: ['hook'],
       triggerData: [],
+      triggerChoices: [{ node: 'hook', choice }],
     })
   })
 })

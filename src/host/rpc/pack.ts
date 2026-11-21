@@ -108,12 +108,24 @@ function readChoiceKeep(raw: unknown): ChoiceKeep {
 /** 导出时触发卡片、会话设置怎么带（没给的项按缺省）。 */
 function readExportPicks(
   input: Record<string, unknown>,
-): Pick<PackExportRequest, 'choice' | 'triggers' | 'secrets' | 'triggerData'> {
+): Pick<PackExportRequest, 'choice' | 'triggerChoices' | 'triggers' | 'secrets' | 'triggerData'> {
+  const triggerChoices = input.triggerChoices
+  if (triggerChoices !== undefined && !Array.isArray(triggerChoices)) {
+    throw new Error('triggerChoices must be a list of card choices')
+  }
   const triggers = optionalStrings(input, 'triggers')
   const secrets = optionalStrings(input, 'secrets')
   const triggerData = optionalStrings(input, 'triggerData')
   return {
     ...(input.choice === undefined ? {} : { choice: readChoiceKeep(input.choice) }),
+    ...(triggerChoices === undefined
+      ? {}
+      : {
+          triggerChoices: triggerChoices.map((raw) => {
+            const item = asRecord(raw)
+            return { node: requireString(item, 'node'), choice: readChoiceKeep(item.choice) }
+          }),
+        }),
     ...(triggers === undefined ? {} : { triggers }),
     ...(secrets === undefined ? {} : { secrets }),
     ...(triggerData === undefined ? {} : { triggerData }),

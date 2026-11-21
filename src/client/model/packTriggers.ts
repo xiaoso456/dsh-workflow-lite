@@ -1,6 +1,6 @@
 /**
  * dsh-workflow-lite — 导出页上触发卡片和新建会话设置那两块的算账：缺省怎么勾、勾了之后多出多少字节、
- * 交给宿主的几项、每个总开关管着图里哪几处。纯函数，不碰 RPC。
+ * 交给宿主的几项、各处写了哪些会话设置。纯函数，不碰 RPC。
  *
  * @module @xiaoso/dsh-workflow-lite/client/model/packTriggers
  */
@@ -20,6 +20,7 @@ export interface TriggerPick {
   keep: ReadonlySet<string>
   secrets: ReadonlySet<string>
   data: ReadonlySet<string>
+  choices: ReadonlyMap<string, ChoiceKeep>
 }
 
 /** 缺省关闭；打开后卡片全选，密钥和脚本数据不勾。 */
@@ -29,6 +30,7 @@ export function defaultTriggerPick(scan: PackScanResponse): TriggerPick {
     keep: new Set(scan.triggers.map((card) => card.node)),
     secrets: new Set(),
     data: new Set(),
+    choices: new Map(),
   }
 }
 
@@ -78,19 +80,24 @@ export function triggerBytes(scan: PackScanResponse, pick: TriggerPick): number 
 export function triggerRequest(
   scan: PackScanResponse,
   pick: TriggerPick,
-): Pick<PackExportRequest, 'triggers' | 'secrets' | 'triggerData'> {
-  if (!pick.enabled) return { triggers: [], secrets: [], triggerData: [] }
+): Pick<PackExportRequest, 'triggers' | 'secrets' | 'triggerData' | 'triggerChoices'> {
+  if (!pick.enabled) return { triggers: [], secrets: [], triggerData: [], triggerChoices: [] }
+  const cards = scan.triggers.filter((card) => pick.keep.has(card.node))
   return {
-    triggers: scan.triggers.filter((card) => pick.keep.has(card.node)).map((card) => card.node),
+    triggers: cards.map((card) => card.node),
     secrets: scan.triggers.filter((card) => packsSecrets(pick, card)).map((card) => card.node),
     triggerData: scan.triggers.filter((card) => packsData(pick, card)).map((card) => card.node),
+    triggerChoices: cards.flatMap(({ node }) => {
+      const choice = pick.choices.get(node)
+      return choice === undefined ? [] : [{ node, choice }]
+    }),
   }
 }
 
-/** 三个总开关（呈现顺序）。 */
+/** 每处会话设置的三组选项（呈现顺序）。 */
 export const CHOICE_PARTS: readonly (keyof ChoiceKeep)[] = ['model', 'preset', 'permission']
 
-/** 一个总开关管着的几处：图里设了这一项的地方和它的值。 */
+/** 一组选项在各版本里设了什么，只留这一项的值。 */
 export function choicePlaces(
   spots: readonly ChoiceSpot[],
   part: keyof ChoiceKeep,

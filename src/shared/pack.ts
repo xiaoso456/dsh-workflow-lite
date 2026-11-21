@@ -352,7 +352,7 @@ export interface PackScanResponse {
   roots: string[]
   /** 总大小上限。 */
   limit: number
-  /** 新建会话用的设置在哪几处设了什么（按选中的最新版本；工作流设置、各触发卡片）：导出时三个总开关管带不带。 */
+  /** 各选中版本的工作流和触发卡片在哪些地方设了会话设置。 */
   choices: ChoiceSpot[]
   /** 选中的版本里的触发卡片（按 id 合并，取最新版本里的样子）。 */
   triggers: PackTrigger[]
@@ -366,6 +366,8 @@ export interface PackTrigger {
   /** 卡片名（没起名是空串）。 */
   label: string
   source: TriggerSource
+  /** 最新选中版本里卡片开着时才给。 */
+  enabled?: true
   /** 要跑命令（定时检查、监听）。 */
   command: boolean
   /** 出现在哪几个版本里。 */
@@ -384,8 +386,10 @@ export function packsScripts(triggers: readonly PackTrigger[], keep: ReadonlySet
 export interface PackExportRequest extends PackScanRequest {
   /** 要打包的项（`PackScanItem.key`）。 */
   pack: string[]
-  /** 新建会话用的设置带哪几项（缺省：模型、预设不带，权限带上）。 */
+  /** 工作流设置带哪些会话设置。旧请求没给 triggerChoices 时也用于所有触发卡片。 */
   choice?: ChoiceKeep
+  /** 各卡片单独勾选的会话设置。列表中未指定的卡片沿用缺省勾选。 */
+  triggerChoices?: { node: string; choice: ChoiceKeep }[]
   /** 留下的触发卡片（id）；不给 = 全留。没留的从包里各版本去掉。 */
   triggers?: string[]
   /** 带上密钥（`secrets/`）的卡片。 */

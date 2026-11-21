@@ -155,7 +155,7 @@ export function resolveSessionChoice(
   )
 }
 
-/** 导出时新建会话用的设置带不带：模型（服务商、模型、思考强度）、Agent 预设、运行权限，各一个总开关。 */
+/** 导出一处会话设置时要带的项：模型（服务商、模型、思考强度）、Agent 预设、运行权限。 */
 export interface ChoiceKeep {
   model: boolean
   preset: boolean
@@ -192,6 +192,8 @@ export interface ChoiceSpot {
   node?: string
   /** 触发卡片的名字（有才给）。 */
   label?: string
+  /** 同时选了多个版本时，这处设置所在的版本。 */
+  version?: number
   choice: SessionChoice
 }
 
@@ -214,15 +216,21 @@ export function documentChoices(document: WorkflowDocument): ChoiceSpot[] {
   return spots
 }
 
-/** 按 `keep` 去掉一张图里不带的预设、模型、权限（工作流设置上的、各触发卡片上的）；没什么可去的原样返回。 */
-export function documentWithChoice(document: WorkflowDocument, keep: ChoiceKeep): WorkflowDocument {
+/** 按工作流和各卡片的勾选去掉会话设置；旧请求没分开勾选时沿用同一份。 */
+export function documentWithChoice(
+  document: WorkflowDocument,
+  keep: ChoiceKeep,
+  triggerChoices?: ReadonlyMap<string, ChoiceKeep>,
+): WorkflowDocument {
   let changed = false
   const nodes = document.nodes.map((node): WorkflowNode => {
     if (node.type !== TRIGGER_TYPE) return node
     const trigger = node as TriggerNode
     const launch = trigger.data.launch
     if (launch === undefined) return node
-    const rest = keptChoice(launch, keep)
+    const choice =
+      triggerChoices === undefined ? keep : (triggerChoices.get(node.id) ?? DEFAULT_CHOICE_KEEP)
+    const rest = keptChoice(launch, choice)
     if (rest === launch) return node
     changed = true
     const { launch: _launch, ...data } = trigger.data

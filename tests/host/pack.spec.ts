@@ -385,6 +385,78 @@ describe('导出时新建会话的设置', () => {
       model: { provider: 'deepseek', model: 'deepseek-v4', effort: 'high' },
     })
   })
+
+  it('工作流和每张卡片分别勾选，选中的各版本保留自己的值', async () => {
+    const from = await side('choice-per-card')
+    const base = graph([])
+    const model = { provider: 'deepseek', model: 'deepseek-v4', effort: 'high' }
+    const trigger = (
+      id: string,
+      launch: TriggerData['launch'],
+    ): WorkflowDocument['nodes'][number] => ({
+      id,
+      type: TRIGGER_TYPE,
+      position: { x: 0, y: 0 },
+      data: { source: { kind: 'http' }, launch, enabled: true },
+    })
+    const first: WorkflowDocument = {
+      ...base,
+      settings: { model, preset: 'ptc', permission: 'read-only' },
+      nodes: [
+        ...base.nodes,
+        trigger('logs', { model, preset: 'ptc', permission: 'workspace-write', session: 'last' }),
+        trigger('backup', { model, preset: 'ptc', permission: 'read-only' }),
+      ],
+    }
+    const second: WorkflowDocument = {
+      ...first,
+      settings: { preset: 'ptc', permission: 'read-only' },
+      nodes: [
+        ...base.nodes,
+        trigger('logs', {
+          model: { ...model, effort: 'low' },
+          permission: 'workspace-write',
+          session: 'last',
+        }),
+        trigger('backup', { model, preset: 'ptc', permission: 'read-only' }),
+      ],
+    }
+    await makeWorkflow(from.repository, 'review', [first, second])
+    const scan = expectOk(await scanPack(from.deps, { name: 'review', versions: [1, 2] }))
+    const exported = expectOk(
+      await exportPack(from.deps, {
+        name: 'review',
+        versions: [1, 2],
+        pack: [],
+        choice: { model: true, preset: false, permission: false },
+        triggerChoices: [
+          { node: 'logs', choice: { model: true, preset: false, permission: false } },
+          { node: 'backup', choice: { model: false, preset: true, permission: true } },
+        ],
+      }),
+    )
+    const token = await upload(from.dataDir, await download(from.dataDir, exported.token))
+    expectOk(await applyPack(from.deps, { token, mode: 'new', name: 'picked' }))
+    const [older, newer] = await Promise.all(
+      [1, 2].map(async (n) => expectOk(await from.repository.readVersion('picked', n)).document),
+    )
+    expect(older.settings).toEqual({ model })
+    expect(newer.settings).toBeUndefined()
+    expect(
+      [older, newer].map((doc) => doc.nodes.filter(isTrigger).map(({ data }) => data.launch)),
+    ).toEqual([
+      [
+        { model, session: 'last' },
+        { preset: 'ptc', permission: 'read-only' },
+      ],
+      [
+        { model: { ...model, effort: 'low' }, session: 'last' },
+        { preset: 'ptc', permission: 'read-only' },
+      ],
+    ])
+    expect(scan.choices).toContainEqual({ version: 1, choice: first.settings })
+    expect(scan.triggers.find((card) => card.node === 'logs')?.enabled).toBe(true)
+  })
 })
 
 describe('触发卡片', () => {

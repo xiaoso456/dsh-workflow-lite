@@ -29,6 +29,8 @@ export function PackRow(props: {
   end?: React.ReactNode
   checked?: boolean
   onCheck?: (next: boolean) => void
+  /** 可展开的勾选行：勾选框和展开按钮各自操作。 */
+  disclosure?: { checkLabel: string; expanded: boolean; onToggle(): void }
   disabled?: boolean
   /** 没勾上：字淡一点。 */
   dim?: boolean
@@ -48,48 +50,81 @@ export function PackRow(props: {
     <Checkbox
       checked={props.checked === true}
       disabled={props.disabled}
+      aria-label={props.disclosure?.checkLabel}
       onChange={(event) => props.onCheck?.(event.currentTarget.checked)}
     />
   )
+  const lead = compact ? (
+    <span
+      className={css.rowLead}
+      data-tone={checkable ? undefined : props.lead?.tone}
+      data-tip={checkable ? undefined : props.lead?.tip}
+    >
+      {checkable ? checkbox : <Icon name={props.lead?.icon ?? 'info'} size={15} />}
+    </span>
+  ) : (
+    checkbox
+  )
+  const text = (
+    <span className={pack.rowText} data-tip={props.tip}>
+      <span className={css.rowTitle}>
+        <span className={cx(css.rowName, props.mono === true && css.mono)}>{props.title}</span>
+        {props.badge}
+      </span>
+      {meta.length > 0 && (
+        <span className={pack.rowMeta} data-tone={props.metaTone}>
+          {meta.map((part, index) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: 说明段按位置排，不会重排
+            <span key={index}>{part}</span>
+          ))}
+        </span>
+      )}
+    </span>
+  )
+  const end =
+    props.end !== undefined ? (
+      <span className={css.rowEnd} data-tone={props.metaTone}>
+        {props.end}
+      </span>
+    ) : (
+      <span />
+    )
+  if (props.disclosure !== undefined) {
+    return (
+      <div
+        className={pack.row}
+        data-check={checkable}
+        data-compact={true}
+        data-dim={props.dim === true}
+        data-testid={props.testId}
+      >
+        {lead}
+        <button
+          type="button"
+          className={css.rowDisclosure}
+          aria-expanded={props.disclosure.expanded}
+          data-testid={props.testId === undefined ? undefined : `${props.testId}-toggle`}
+          onClick={props.disclosure.onToggle}
+        >
+          <span className={css.rowChevron}>
+            <Icon name="chevronRight" size={12} />
+          </span>
+          {text}
+          {end}
+        </button>
+      </div>
+    )
+  }
   const body = (
     <>
-      {compact ? (
-        <span
-          className={css.rowLead}
-          data-tone={checkable ? undefined : props.lead?.tone}
-          data-tip={checkable ? undefined : props.lead?.tip}
-        >
-          {checkable ? checkbox : <Icon name={props.lead?.icon ?? 'info'} size={15} />}
-        </span>
-      ) : (
-        checkable && checkbox
-      )}
+      {lead}
       {props.icon !== undefined && (
         <span className={css.rowIcon} data-tone={props.tone}>
           <Icon name={props.icon} size={15} />
         </span>
       )}
-      <span className={pack.rowText} data-tip={props.tip}>
-        <span className={css.rowTitle}>
-          <span className={cx(css.rowName, props.mono === true && css.mono)}>{props.title}</span>
-          {props.badge}
-        </span>
-        {meta.length > 0 && (
-          <span className={pack.rowMeta} data-tone={props.metaTone}>
-            {meta.map((part, index) => (
-              // biome-ignore lint/suspicious/noArrayIndexKey: 说明段按位置排，不会重排
-              <span key={index}>{part}</span>
-            ))}
-          </span>
-        )}
-      </span>
-      {props.end !== undefined ? (
-        <span className={css.rowEnd} data-tone={props.metaTone}>
-          {props.end}
-        </span>
-      ) : (
-        <span />
-      )}
+      {text}
+      {end}
       {props.children !== undefined && <div className={pack.rowWide}>{props.children}</div>}
     </>
   )

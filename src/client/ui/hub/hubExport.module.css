@@ -149,13 +149,14 @@
 }
 
 /*
- * 一张触发卡片带的密钥、脚本数据：缩进到卡片名字下面，一条竖线从卡片的勾选框下来，每行一道短横接上。
+ * 触发卡片的附带项：一条竖线从展开箭头下来，每行一道短横接上。
  * 竖线画在各行自己身上（不是一整条）：最后一行只画到自己的中线，第一行往上伸进卡片那一行。
  */
 .trgKids {
   display: flex;
   flex-direction: column;
-  margin-left: 11px;
+  /* 紧凑行的勾选列 24px + 间距 8px + 半个箭头 6px。 */
+  margin-left: 38px;
   padding-left: 21px;
   animation: trgKidsIn 240ms var(--wl-ease) backwards;
   animation-delay: 84ms;
@@ -171,6 +172,18 @@
   left: -21px;
   content: "";
   pointer-events: none;
+}
+
+.trgState {
+  flex: none;
+  color: var(--wl-text-3);
+  font-size: var(--wl-fs-micro);
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.trgState[data-on="true"] {
+  color: var(--wl-ok);
 }
 
 .trgKids > *::before {
@@ -227,7 +240,7 @@
   }
 }
 
-/* 路径：文件名在前、所在目录淡一档跟在后面，太长从目录尾巴截。 */
+/* 放在标题后面的目录或设置值，淡一档显示。 */
 .dir {
   color: var(--wl-text-3);
   font-weight: 400;
@@ -251,14 +264,10 @@
   }
 }
 
-/* 「模型和预设」展开后的两句：开关现在对应的那句深一档。 */
+/* 会话设置的导出说明。 */
 .choiceLine {
   margin: 2px 0;
   color: var(--wl-text-3);
   font-size: var(--wl-fs-micro);
   line-height: 1.55;
-}
-
-.choiceLine[data-on] {
-  color: var(--wl-text);
 }
