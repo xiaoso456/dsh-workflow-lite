@@ -512,25 +512,16 @@
   cursor: pointer;
   transition:
     transform 120ms var(--wl-ease),
-    background-color 120ms linear,
     color 120ms linear;
 }
 
 .wfAction:hover,
 .wfAction[aria-expanded="true"] {
-  background: var(--wl-panel);
-  color: var(--wl-text);
-}
-
-.wfAction[data-danger="true"] {
-  transition:
-    background-color 120ms linear,
-    color 120ms linear;
+  color: var(--wl-accent-text);
 }
 
 .wfAction[data-danger="true"]:hover,
 .wfAction[data-danger="true"][aria-expanded="true"] {
-  background: var(--wl-danger-soft);
   color: var(--wl-danger);
 }
 

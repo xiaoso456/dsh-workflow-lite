@@ -153,7 +153,9 @@
 }
 
 /* 「移除」在行尾自己占一格：平时隐着，悬停这一行或键盘聚焦时显出来。 */
-.rowRemove {
+.row .rowRemove {
+  --btn-hover: transparent;
+
   flex: none;
   opacity: 0;
   transition: opacity 120ms linear;

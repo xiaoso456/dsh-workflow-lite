@@ -331,25 +331,16 @@ button.main {
   cursor: pointer;
   transition:
     transform 120ms var(--wl-ease),
-    background-color 120ms linear,
     color 120ms linear;
 }
 
 .action:hover,
 .action[aria-expanded="true"] {
-  background: var(--wl-fill-strong);
-  color: var(--wl-text);
-}
-
-.action[data-danger="true"] {
-  transition:
-    background-color 120ms linear,
-    color 120ms linear;
+  color: var(--wl-accent-text);
 }
 
 .action[data-danger="true"]:hover,
 .action[data-danger="true"][aria-expanded="true"] {
-  background: var(--wl-danger-soft);
   color: var(--wl-danger);
 }
 

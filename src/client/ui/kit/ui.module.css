@@ -61,7 +61,7 @@
 }
 
 .btn:hover {
-  color: var(--wl-text);
+  color: var(--btn-hover-text, var(--wl-text));
 }
 
 .btn:active {

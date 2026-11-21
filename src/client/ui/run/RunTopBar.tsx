@@ -318,6 +318,7 @@ export function RunMenuRow(props: {
           <button
             type="button"
             className={top.rowAction}
+            data-tone="ok"
             data-tip={t('run.setCurrent')}
             aria-label={t('run.setCurrent')}
             data-testid="wl-run-bind"

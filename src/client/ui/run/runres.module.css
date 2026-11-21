@@ -139,6 +139,9 @@
 
 /* 行尾的查看 / 打开：平时淡一些，悬停这一行或键盘聚焦时完全显出来。 */
 .actions {
+  --btn-hover: transparent;
+  --btn-hover-text: var(--wl-accent-text);
+
   display: flex;
   flex: none;
   gap: 1px;

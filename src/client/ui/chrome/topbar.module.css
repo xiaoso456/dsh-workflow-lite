@@ -255,25 +255,20 @@
   cursor: pointer;
   transition:
     transform 120ms var(--wl-ease),
-    background-color 120ms linear,
     color 120ms linear;
 }
 
 .rowAction:hover,
 .rowAction[aria-expanded="true"] {
-  background: var(--wl-hover);
-  color: var(--wl-text);
+  color: var(--wl-accent-text);
 }
 
-.rowAction[data-danger="true"] {
-  transition:
-    background-color 120ms linear,
-    color 120ms linear;
+.rowAction[data-tone="ok"]:hover {
+  color: var(--wl-ok);
 }
 
 .rowAction[data-danger="true"]:hover,
 .rowAction[data-danger="true"][aria-expanded="true"] {
-  background: var(--wl-danger-soft);
   color: var(--wl-danger);
 }
 

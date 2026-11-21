@@ -222,7 +222,7 @@ button.main:focus-visible {
   border: 0;
   border-radius: calc(6px * var(--wl-round, 1));
   background: transparent;
-  color: var(--wl-accent-text);
+  color: var(--wl-text-2);
   font: inherit;
   font-size: var(--wl-fs-micro);
   white-space: nowrap;
@@ -231,7 +231,7 @@ button.main:focus-visible {
   transform: translateY(-50%);
   transition:
     opacity 120ms linear,
-    background-color 120ms linear;
+    color 120ms linear;
 }
 
 .row:hover .run,
@@ -240,7 +240,7 @@ button.main:focus-visible {
 }
 
 .run:hover {
-  background: var(--wl-accent-soft);
+  color: var(--wl-accent-text);
 }
 
 .run:focus-visible {
