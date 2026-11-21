@@ -56,7 +56,7 @@ export async function tryCheck(
 ): Promise<TriggerTryResponse> {
   const started = Date.now()
   const result = await runCommand(spec, { timeoutMs, maxBytes: TRIAL_OUTPUT_CHARS * 4 })
-  const lines = [...split(result.output, 'out'), ...split(result.errors, 'err')]
+  const lines = [...split(result.output, 'out'), ...split(result.stderr ?? result.errors, 'err')]
   return {
     code: result.code,
     lines: tail(lines),

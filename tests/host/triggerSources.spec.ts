@@ -571,11 +571,11 @@ describe('试一试（「触发方式」对话框）', () => {
 
   it('检查试运行：退出码、输出（标准输出 + 错误输出）、用时；找不到命令给原因', async () => {
     const ok = await tryCheck({
-      command: `node -e "console.log('up');console.log('::trigger:: x');console.error('warn');process.exit(2)"`,
+      command: `node -e "console.log('up');console.log('::trigger:: x');console.error('  warn');process.exit(2)"`,
       cwd,
     })
     expect(ok.code).toBe(2)
-    expect(ownLines(ok.lines)).toEqual(['out up', 'out ::trigger:: x', 'err warn'])
+    expect(ownLines(ok.lines)).toEqual(['out up', 'out ::trigger:: x', 'err   warn'])
     expect(ok.events).toBe(1)
     expect(ok.ms).toBeGreaterThanOrEqual(0)
     expect(ok.failure).toBeUndefined()

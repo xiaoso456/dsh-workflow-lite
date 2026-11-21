@@ -8,7 +8,7 @@
  * 按钮上的字一换（模板名、shell 名），宽度跟着滑（{@link BenchFace}），不跳。
  * 「试运行」跑的是草稿里的命令，会话工作区用「执行设置」里选的（没选就用当前会话的）、用选的 shell；
  * 点了先在按钮旁边问一句（命令以 DSH 进程的身份运行、不进沙箱），确认了才跑。不打开开关、不发进会话。
- * 改了命令，上一次的结果就收起来（那是旧命令的）。跑着时按钮上的字不变、图标换成转圈，宽度不变，左边的按钮不挪。
+ * 改了命令或切换 shell 时收起旧结果。跑着时按钮上的字不变、图标换成转圈，宽度不变，左边的按钮不挪。
  * 自己挑的 shell 程序用不了时，编辑区底边一条提示。
  *
  * @module @xiaoso/dsh-workflow-lite/client/ui/trigger/source/CommandBox
@@ -59,6 +59,7 @@ export function CommandBox(props: {
 }): React.JSX.Element {
   const { t, env } = props
   const [trial, setTrial] = useState<Trial>({ kind: 'idle' })
+  const [trialShell, setTrialShell] = useState<string>()
   /** 输出台选的页签：有最近的输出就先看它；点了试运行换到试运行。 */
   const [tab, setTab] = useState<ConsoleTab>(props.recent ? 'recent' : 'try')
   const [menu, setMenu] = useState<MenuPlace | null>(null)
@@ -71,12 +72,15 @@ export function CommandBox(props: {
   /** 命令就是哪个模板（一字不差）；改过就不算。 */
   const template = props.templates.find((item) => item.command === props.command)
   const shell = env === null ? undefined : props.shell
+  const visibleTrial: Trial =
+    trial.kind === 'running' || trialShell === shell?.value ? trial : { kind: 'idle' }
   /** 自己挑的 shell 程序用不了时的原因。 */
   const [shellProblem, setShellProblem] = useState<string | null>(null)
   const shellNote = shellProblem
 
   const run = (): void => {
     if (env === null || workspace === undefined) return
+    setTrialShell(shell?.value)
     setTrial({ kind: 'running' })
     setTab('try')
     void env.triggers
@@ -254,7 +258,7 @@ export function CommandBox(props: {
           env={env}
           node={props.node}
           kind={props.kind}
-          trial={trial}
+          trial={visibleTrial}
           judge={props.judge}
           recent={props.recent}
           tab={tab}
