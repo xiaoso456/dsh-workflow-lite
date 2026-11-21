@@ -206,7 +206,7 @@ function Segment(props: {
   onLeave(): void
 }): React.JSX.Element {
   const { segRef } = props
-  const wheel = useWheelStep<HTMLSpanElement>((toward) => props.onStep(toward, true))
+  const wheel = useWheelStep<HTMLSpanElement>((toward) => props.onStep(toward === 1 ? -1 : 1, true))
   const ref = useCallback(
     (el: HTMLSpanElement | null) => {
       segRef.current = el
