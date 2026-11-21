@@ -75,11 +75,37 @@
   color: var(--wl-ok);
 }
 
+/*
+ * 一节的标题钉在滚动框顶上：滚到哪一节，那一节的标题留在上面，下一节的标题上来时把它顶走（钉的范围是自己这一节）。
+ * 上下各垫 6px 的底色（外边距抵回去，不占位置），盖住从底下滚过去的框和行。
+ */
 .sectionHead {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   display: flex;
   gap: 8px;
   align-items: baseline;
-  padding: 0 2px;
+  margin-block: -6px;
+  padding: 6px 2px;
+  background: var(--wl-panel);
+  container-type: scroll-state;
+}
+
+/* 钉住时下沿出一条细线，和从底下滚过去的内容分开；没钉住时不画。 */
+.sectionRule {
+  position: absolute;
+  inset: auto 0 0;
+  border-bottom: 1px solid var(--wl-line-strong);
+  opacity: 0;
+  transition: opacity 120ms linear;
+  pointer-events: none;
+}
+
+@container scroll-state(stuck: top) {
+  .sectionRule {
+    opacity: 1;
+  }
 }
 
 /* 标题不让：后面的说明（长路径）挤的时候是说明省略，不是标题折行。 */

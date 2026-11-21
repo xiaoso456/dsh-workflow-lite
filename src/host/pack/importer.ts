@@ -20,6 +20,7 @@ import { idKey, isResource } from '../../shared/model.ts'
 import { checkName, normalizeName } from '../../shared/naming.ts'
 import { isAbsoluteRoot } from '../../shared/outputPaths.ts'
 import {
+  defaultMemoryAction,
   freeName,
   isSafeRelative,
   PACK_MAX_BYTES,
@@ -38,6 +39,7 @@ import {
 } from '../../shared/pack.ts'
 import { renameMemoryRefs } from '../../shared/presets.ts'
 import type { WorkflowDocument } from '../../shared/types.ts'
+import type { HostAgentsResponse } from '../../shared/wire/host.ts'
 import { listSkills } from '../hostFs.ts'
 import { renameDir } from '../store/atomic.ts'
 import { freeMemoryId, readMemoryMeta, writeMemoryMeta } from '../store/memories.ts'
@@ -55,7 +57,7 @@ import { parseVersion } from '../store/versions.ts'
 import type { PackDeps } from './exporter.ts'
 import { discard, readIn } from './staging.ts'
 import { fingerprint, readTree, sha256, walkTree } from './tree.ts'
-import { previewTriggers } from './triggerPack.ts'
+import { previewTriggers, setSwitches } from './triggerPack.ts'
 
 /** 解开、校验过的包。 */
 export interface OpenedPack {
@@ -365,6 +367,7 @@ export async function inspectPack(
           current.document,
           manifest.assets.map((file) => file.path),
           exists,
+          () => hostCatalog(deps),
         )
 
   return {
@@ -518,14 +521,15 @@ export async function applyPack(
   const renames = new Map(
     plan.filter((entry) => entry.action === 'rename').map((entry) => [entry.skill.name, entry.as]),
   )
-  // 每条记忆怎么办：本机没有的照包里的建；已有的缺省用本机的，「另存一份」换新 id、图里跟着改。
+  // 每条记忆怎么办：本机没有的照包里的建；已有的缺省用导入的（只带了名称和描述时用本机的），
+  // 用导入的换新 id 存下、图里跟着改。
   const memoryPlan: { id: string; as: string; action: PackMemoryAction | 'create' }[] = []
   for (const memory of preview.result.memories) {
     if (!memory.exists) {
       memoryPlan.push({ id: memory.id, as: memory.id, action: 'create' })
       continue
     }
-    const action = request.memories?.[memory.id] ?? 'use'
+    const action = request.memories?.[memory.id] ?? defaultMemoryAction(memory)
     memoryPlan.push({ id: memory.id, as: action === 'copy' ? memory.rename : memory.id, action })
   }
   const memoryRenames = new Map(
@@ -533,10 +537,19 @@ export async function applyPack(
       .filter((entry) => entry.action === 'copy')
       .map((entry) => [idKey(entry.id), entry.as]),
   )
-  const imported = versions.map((version) => ({
-    ...version,
-    document: renameMemoryRefs(rewriteSkills(version.document, renames), memoryRenames),
-  }))
+  // 触发卡片的开关：当前那一版（和工作流现在的内容）照导入的人定的写，没给就照导出时的；
+  // 这台机器上打不开的（预览里写了原因）一律关掉。别的版本照包里的。
+  const cards = preview.result.triggers?.cards ?? []
+  const openable = new Set(cards.filter((card) => card.gaps.length === 0).map((card) => card.node))
+  const wanted = request.enable ?? cards.filter((card) => card.enabled).map((card) => card.node)
+  const enable = new Set(wanted.filter((node) => openable.has(node)))
+  const imported = versions.map((version) => {
+    const document = renameMemoryRefs(rewriteSkills(version.document, renames), memoryRenames)
+    return {
+      ...version,
+      document: version.n === manifest.current ? setSwitches(document, enable) : document,
+    }
+  })
   const current = imported.find((version) => version.n === manifest.current)
   if (current === undefined) return fail('invalid_args', '包坏了：找不到当前版本')
 
@@ -644,5 +657,15 @@ export async function applyPack(
       skills: plan.map((entry) => ({ name: entry.skill.name, as: entry.as, action: entry.action })),
       memories: memoryPlan,
     },
+  }
+}
+
+/** 这台机器上能选的服务商、模型、预设、权限；没接上、取不到时是 `undefined`（这几样不查）。 */
+async function hostCatalog(deps: PackDeps): Promise<HostAgentsResponse | undefined> {
+  if (deps.catalog === undefined) return undefined
+  try {
+    return await deps.catalog()
+  } catch {
+    return undefined
   }
 }

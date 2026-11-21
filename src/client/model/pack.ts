@@ -14,11 +14,14 @@ import type {
   PackScanResponse,
   PackSkillAction,
   PackSkillPreview,
+  PackTriggerGap,
 } from '../../shared/pack.ts'
+import { defaultMemoryAction } from '../../shared/pack.ts'
 import { isMemoryPath } from '../../shared/pathVars.ts'
 import type { SkillExisting, SkillPreviewResponse } from '../../shared/skillPack.ts'
 import type { ResourceKind, VersionEntry } from '../../shared/types.ts'
 import type { T } from '../i18n.ts'
+import { permissionName, presetName } from './sessionChoice.ts'
 
 /** 导出默认带哪些版本：和现在一样的那版；没有就最新的那版。 */
 export function defaultVersions(list: readonly VersionEntry[]): number[] {
@@ -172,6 +175,8 @@ export interface ImportChoice {
   skills: Record<string, PackSkillAction>
   /** 本机已有同 id 的记忆：用本机的，还是另存一份。 */
   memories: Record<string, PackMemoryAction>
+  /** 导入后开着的触发卡片（缺省照导出时的开关，这台机器上打不开的不算）。 */
+  enable: readonly string[]
 }
 
 export function defaultImportChoice(preview: PackImportPreview): ImportChoice {
@@ -183,16 +188,43 @@ export function defaultImportChoice(preview: PackImportPreview): ImportChoice {
       preview.skills.map((skill) => [skill.name, defaultSkillAction(skill)]),
     ),
     memories: {},
+    enable: (preview.triggers?.cards ?? [])
+      .filter((card) => card.enabled && card.gaps.length === 0)
+      .map((card) => card.node),
   }
 }
 
-/** 一条记忆怎么办：本机没有的就建；有的缺省用本机的。 */
+/** 触发卡片这台机器上缺的东西，一样一句（导入预览里说为什么打不开）。 */
+export function gapLines(t: T, gaps: readonly PackTriggerGap[]): string[] {
+  return gaps.map((gap) => gapLine(t, gap))
+}
+
+function gapLine(t: T, gap: PackTriggerGap): string {
+  switch (gap.kind) {
+    case 'workspace':
+      return t('pack.trg.gap.workspace')
+    case 'session':
+      return t('pack.trg.gap.session')
+    case 'shell':
+      return t('pack.trg.gap.shell').replace('{path}', gap.path)
+    case 'provider':
+      return t('pack.trg.gap.provider').replace('{name}', gap.provider)
+    case 'model':
+      return t('pack.trg.gap.model').replace('{name}', `${gap.provider} / ${gap.model}`)
+    case 'preset':
+      return t('pack.trg.gap.preset').replace('{name}', presetName(t, null, gap.preset))
+    case 'permission':
+      return t('pack.trg.gap.permission').replace('{name}', permissionName(t, null, gap.permission))
+  }
+}
+
+/** 一条记忆怎么办：本机没有的就建；有的缺省用导入的（包里只有名称和描述时用本机的）。 */
 export function memoryActionOf(
   choice: ImportChoice,
   memory: PackMemoryPreview,
 ): PackMemoryAction | 'create' {
   if (!memory.exists) return 'create'
-  return choice.memories[memory.id] ?? 'use'
+  return choice.memories[memory.id] ?? defaultMemoryAction(memory)
 }
 
 export function actionOf(choice: ImportChoice, skill: PackSkillPreview): PackSkillAction {
@@ -245,8 +277,9 @@ export function applyRequest(
     memories: Object.fromEntries(
       preview.memories
         .filter((memory) => memory.exists)
-        .map((memory) => [memory.id, choice.memories[memory.id] ?? 'use']),
+        .map((memory) => [memory.id, choice.memories[memory.id] ?? defaultMemoryAction(memory)]),
     ),
+    ...(preview.triggers === null ? {} : { enable: [...choice.enable] }),
     ...scope,
   }
 }

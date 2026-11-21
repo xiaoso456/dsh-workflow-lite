@@ -1,13 +1,14 @@
-import { writeFile } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { RunService } from '../../src/host/runs/service.ts'
 import { DATABASE_FILE, PluginDatabase } from '../../src/host/store/database.ts'
-import { memoryFolder } from '../../src/host/store/paths.ts'
+import { assetsDir, memoryFolder } from '../../src/host/store/paths.ts'
 import { newFireId, TriggerStore } from '../../src/host/triggers/store.ts'
 import { addGlobalMemory } from '../../src/shared/presets.ts'
 import { rpc } from '../lib/web-session.mjs'
 
 export const DEMO_WORKFLOW = '触发器一览'
+export const EXPORT_DEMO_WORKFLOW = '触发器导出演示'
 const UPSTREAM = '夜间巡检'
 const RELEASE = '发版检查'
 const REVIEW = '代码评审'
@@ -79,6 +80,115 @@ function workflow(steps, triggerData, memory) {
 function unwrap(outcome) {
   if (!outcome.ok) throw new Error(JSON.stringify(outcome.error))
   return outcome.result
+}
+
+/**
+ * 两个已保存的版本，方便核对触发卡片、触发脚本、密钥和脚本数据各自是否进包：
+ * 「服务状态检查」带两个密钥文件和脚本数据，「日志告警」只带脚本数据，「CI 部署通知」只在第二版里；
+ * 「工作日早报」开着（导入时预选打开），「周报发进固定会话」「夜间备份」（工作区不在）导入时打不开；
+ * 另读工作区里的一份文件和一个文件夹，让「文件」「文件夹」两类也有东西、清单长到要滚动。
+ */
+export async function seedExportDemo(dataDir, workspace) {
+  const name = EXPORT_DEMO_WORKFLOW
+  await rpc('graph/create', { name })
+  const assets = assetsDir(dataDir, name)
+  const checkDir = join(assets, 'triggers', 'check')
+  await mkdir(join(checkDir, 'secrets'), { recursive: true })
+  await mkdir(join(checkDir, 'data'), { recursive: true })
+  await writeFile(
+    join(assets, '巡检清单.md'),
+    '# 巡检清单\n\n- 核对服务状态\n- 汇总异常和处理结果\n',
+  )
+  await writeFile(join(checkDir, 'check.mjs'), 'console.log("::trigger:: 巡检样例：服务正常")\n')
+  await writeFile(join(checkDir, 'secrets', 'demo-key.txt'), 'demo-only-key\n')
+  await writeFile(join(checkDir, 'data', 'last-check.json'), '{"status":"ok"}\n')
+  await writeFile(join(checkDir, 'secrets', 'webhook-url.txt'), 'https://example.com/hook\n')
+  const logsDir = join(assets, 'triggers', 'logs')
+  await mkdir(join(logsDir, 'data'), { recursive: true })
+  await writeFile(
+    join(logsDir, 'watch-log.mjs'),
+    'process.stdin.resume()\nconsole.log("::trigger:: 日志里出现 ERROR")\n',
+  )
+  await writeFile(join(logsDir, 'data', 'offset.json'), '{"offset":0}\n')
+  const runbook = join(workspace, 'docs', '运维手册.md')
+  const reports = join(workspace, 'reports')
+  await mkdir(join(workspace, 'docs'), { recursive: true })
+  await mkdir(reports, { recursive: true })
+  await writeFile(runbook, '# 运维手册\n\n- 服务重启步骤\n- 告警升级联系人\n')
+  await writeFile(join(reports, '2026-11-20.md'), '# 巡检报告\n\n服务均正常。\n')
+
+  const sources = [
+    ['morning', '工作日早报', daily('09:00', [1, 2, 3, 4, 5])],
+    [
+      'check',
+      '服务状态检查',
+      { ...every(1800), check: { command: 'node check.mjs', when: 'change' } },
+    ],
+    ['logs', '日志告警', { kind: 'listen', command: 'node watch-log.mjs' }],
+    [
+      'hook',
+      'CI 部署通知',
+      { kind: 'http', hook: 'export-demo-ci', token: 'demo-only-ci-token-2026' },
+    ],
+    // 导入时打不开的两张，导出时都开着：发进固定会话的；工作区不在、权限这台机器上没有的
+    // （导入预览里开关灰掉，名字后面一个告警图标说为什么先关着）。
+    ['digest', '周报发进固定会话', daily('17:00', [5])],
+    ['backup', '夜间备份', daily('03:00')],
+  ]
+  const document = workflow(['收集巡检信息', '核对服务状态', '汇总巡检报告'], sources, 'ops-notes')
+  for (const node of document.nodes) {
+    if (node.type !== 'wfTrigger') continue
+    node.data.workspace = node.id === 'backup' ? join(workspace, '不存在的项目') : workspace
+    // 导出时开着的三张（都是定时，演示时不会自己跑起来）：morning 导入预览里开关预先打开，另两张打不开。
+    if (['morning', 'digest', 'backup'].includes(node.id)) node.data.enabled = true
+    if (node.id === 'digest') {
+      node.data.launch = { session: 'fixed', sessionId: 'demo-fixed-session' }
+    }
+    if (node.id === 'backup') node.data.launch = { permission: 'demo-ops-only' }
+  }
+  document.nodes.push({
+    id: 'checklist',
+    type: 'wfResource',
+    position: { x: -300, y: 180 },
+    data: { items: [{ kind: 'file', value: '{workflow}/巡检清单.md' }] },
+  })
+  document.nodes.push({
+    id: 'ops-docs',
+    type: 'wfResource',
+    position: { x: 300, y: 540 },
+    data: {
+      items: [
+        { kind: 'file', value: runbook },
+        { kind: 'folder', value: reports },
+      ],
+    },
+  })
+  document.edges.push({
+    id: 'ops-docs->step-2',
+    source: 'ops-docs',
+    target: 'step-2',
+    sourceHandle: null,
+    targetHandle: null,
+  })
+  document.edges.push({
+    id: 'checklist->step-1',
+    source: 'checklist',
+    target: 'step-1',
+    sourceHandle: null,
+    targetHandle: null,
+  })
+
+  const save = async (doc, note) => {
+    const { hash } = await rpc('graph/load', { name })
+    await rpc('graph/save', { name, document: doc, baseHash: hash })
+    await rpc('graph/versionSave', { name, note })
+  }
+  await save(
+    { ...document, nodes: document.nodes.filter((node) => node.id !== 'hook') },
+    '工作日早报与服务状态检查',
+  )
+  await save(document, '加入 CI 部署通知')
+  await rpc('graph/tags', { name, tags: ['自动化', '运维'] })
 }
 
 async function seedMemories(dataDir) {
@@ -208,7 +318,8 @@ export async function seedDemo(dataDir, env) {
   const session = { id: env.sessionId, cwd: env.workspaceDir }
   await seedMemories(dataDir)
   const documents = await seedWorkflows(session)
+  await seedExportDemo(dataDir, session.cwd)
   const runs = await seedRuns(dataDir, session, documents)
   await seedTriggers(dataDir, session)
-  return { workflows: documents.size, memories: memories.length, runs }
+  return { workflows: documents.size + 1, memories: memories.length, runs }
 }

@@ -16,14 +16,16 @@ import type { SessionChoice } from '../../shared/types.ts'
 
 /** 导出时各张卡片怎么带：留不留、带不带密钥、带不带脚本数据（都是卡片 id）。 */
 export interface TriggerPick {
+  enabled: boolean
   keep: ReadonlySet<string>
   secrets: ReadonlySet<string>
   data: ReadonlySet<string>
 }
 
-/** 缺省：卡片全留；密钥、脚本数据都不带。 */
+/** 缺省关闭；打开后卡片全选，密钥和脚本数据不勾。 */
 export function defaultTriggerPick(scan: PackScanResponse): TriggerPick {
   return {
+    enabled: false,
     keep: new Set(scan.triggers.map((card) => card.node)),
     secrets: new Set(),
     data: new Set(),
@@ -33,7 +35,7 @@ export function defaultTriggerPick(scan: PackScanResponse): TriggerPick {
 /** 换一张卡片的一项勾选。 */
 export function toggleTrigger(
   pick: TriggerPick,
-  part: keyof TriggerPick,
+  part: 'keep' | 'secrets' | 'data',
   node: string,
   on: boolean,
 ): TriggerPick {
@@ -48,6 +50,11 @@ export function packsSecrets(pick: TriggerPick, card: PackTrigger): boolean {
   return card.secrets !== undefined && pick.keep.has(card.node) && pick.secrets.has(card.node)
 }
 
+/** 包里有没有明文密钥：触发器这类打开着，且至少一张卡片的密钥真的带上。 */
+export function packsAnySecrets(scan: PackScanResponse, pick: TriggerPick): boolean {
+  return pick.enabled && scan.triggers.some((card) => packsSecrets(pick, card))
+}
+
 /** 这张卡片的脚本数据真的带进包。 */
 export function packsData(pick: TriggerPick, card: PackTrigger): boolean {
   return card.data !== undefined && pick.keep.has(card.node) && pick.data.has(card.node)
@@ -55,6 +62,7 @@ export function packsData(pick: TriggerPick, card: PackTrigger): boolean {
 
 /** 触发器那一块带进包的字节数。 */
 export function triggerBytes(scan: PackScanResponse, pick: TriggerPick): number {
+  if (!pick.enabled) return 0
   let total =
     scan.triggerScripts !== null && packsScripts(scan.triggers, pick.keep)
       ? scan.triggerScripts.bytes
@@ -71,6 +79,7 @@ export function triggerRequest(
   scan: PackScanResponse,
   pick: TriggerPick,
 ): Pick<PackExportRequest, 'triggers' | 'secrets' | 'triggerData'> {
+  if (!pick.enabled) return { triggers: [], secrets: [], triggerData: [] }
   return {
     triggers: scan.triggers.filter((card) => pick.keep.has(card.node)).map((card) => card.node),
     secrets: scan.triggers.filter((card) => packsSecrets(pick, card)).map((card) => card.node),

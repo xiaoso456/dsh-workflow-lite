@@ -463,7 +463,7 @@ describe('触发卡片', () => {
     expect(scan.triggers[1]?.data).toBeUndefined()
   })
 
-  it('缺省：卡片全带、开关存成关、令牌带上；脚本带上，密钥、数据、试运行数据不带', async () => {
+  it('缺省：卡片全带、开关照原样、令牌带上；脚本带上，密钥、数据、试运行数据不带', async () => {
     const from = await triggerSide()
     const opened = await packed(from, { name: 'review', versions: [1], pack: [] })
     expect(opened.manifest.assets.map((file) => file.path).sort()).toEqual([
@@ -474,7 +474,7 @@ describe('触发卡片', () => {
     ])
     const cards = opened.versions[0]?.document.nodes.filter(isTrigger) ?? []
     expect(cards.map((node) => node.id)).toEqual(['tick', 'hook'])
-    expect(cards.every((node) => node.data.enabled === undefined)).toBe(true)
+    expect(cards.map((node) => node.data.enabled)).toEqual([true, true])
     expect(cards[1]?.data.source).toMatchObject({ hook: 'review', token: 'secret-token' })
   })
 
@@ -496,7 +496,7 @@ describe('触发卡片', () => {
     expect(cards.map((node) => node.id)).toEqual(['hook'])
   })
 
-  it('导入预览：几张卡片、工作区本机没有的、固定会话的、带了几个密钥文件；密钥落进卡片目录', async () => {
+  it('导入预览：逐张列出卡片和这台机器上打不开的原因、带了几个密钥文件；密钥落进卡片目录', async () => {
     const from = await triggerSide()
     const exported = expectOk(
       await exportPack(from.deps, { name: 'review', versions: [1], pack: [], secrets: ['tick'] }),
@@ -504,12 +504,150 @@ describe('触发卡片', () => {
     const zip = await download(from.dataDir, exported.token)
     const token = await upload(from.dataDir, zip)
     const preview = expectOk(await inspectPack(from.deps, { token }))
-    expect(preview.triggers).toEqual({ cards: 2, workspaceMissing: 1, fixed: 1, secrets: 1 })
+    expect(preview.triggers).toEqual({
+      cards: [
+        { node: 'tick', label: '', kind: 'schedule', enabled: true, gaps: [{ kind: 'session' }] },
+        { node: 'hook', label: '收信', kind: 'http', enabled: true, gaps: [{ kind: 'workspace' }] },
+      ],
+      secrets: 1,
+    })
     const to = await side('triggers-to')
     const into = await upload(to.dataDir, zip)
     expectOk(await applyPack(to.deps, { token: into, mode: 'new', name: 'review' }))
     const secret = join(assetsDir(to.dataDir, 'review'), 'triggers', 'tick', 'secrets', 'key.txt')
     expect(await readFile(secret, 'utf8')).toBe('k1')
+  })
+
+  it('导入时的开关：不给照导出时的，给了照给的；只动当前版本和现在的内容，打不开的一律关', async () => {
+    const from = await side('triggers-enable')
+    const workspace = slash(join(from.dataDir, 'ws'))
+    await mkdir(workspace, { recursive: true })
+    const document = graph([])
+    await makeWorkflow(from.repository, 'nightly', [
+      {
+        ...document,
+        nodes: [
+          ...document.nodes,
+          card('a', { source: { kind: 'http', hook: 'a', token: 't' }, workspace, enabled: true }),
+          card('b', { source: { kind: 'http', hook: 'b', token: 't' }, workspace, enabled: true }),
+          // 开着导出，但没选工作区：这台机器上打不开。
+          card('c', { source: { kind: 'http', hook: 'c', token: 't' }, enabled: true }),
+        ],
+      },
+    ])
+    const exported = expectOk(
+      await exportPack(from.deps, { name: 'nightly', versions: [1], pack: [] }),
+    )
+    const zip = await download(from.dataDir, exported.token)
+    const token = await upload(from.dataDir, zip)
+    const preview = expectOk(await inspectPack(from.deps, { token }))
+    expect(preview.triggers?.cards.map((entry) => entry.gaps)).toEqual([
+      [],
+      [],
+      [{ kind: 'workspace' }],
+    ])
+    expectOk(await applyPack(from.deps, { token, mode: 'new', name: 'copy', enable: ['a', 'c'] }))
+    const switches = (doc: WorkflowDocument): (boolean | undefined)[] =>
+      doc.nodes.filter(isTrigger).map((node) => node.data.enabled)
+    const loaded = await from.repository.load('copy')
+    expect(switches(loaded.document ?? graph([]))).toEqual([true, undefined, undefined])
+    const saved = expectOk(await from.repository.readVersion('copy', 1))
+    expect(switches(saved.document)).toEqual([true, undefined, undefined])
+
+    // 不给：照导出时的开关，打不开的关掉。
+    const again = await upload(from.dataDir, zip)
+    expectOk(await applyPack(from.deps, { token: again, mode: 'new', name: 'copy-2' }))
+    const kept = await from.repository.load('copy-2')
+    expect(switches(kept.document ?? graph([]))).toEqual([true, true, undefined])
+  })
+
+  it('导入预览：shell、服务商、模型、预设、权限这台机器上没有的也算缺（卡片没写的看工作流的）；取不到就不查', async () => {
+    const from = await side('triggers-gaps')
+    const workspace = slash(join(from.dataDir, 'ws'))
+    await mkdir(workspace, { recursive: true })
+    const base = graph([])
+    const http = (hook: string) => ({ kind: 'http' as const, hook, token: 't' })
+    await makeWorkflow(from.repository, 'gaps', [
+      {
+        ...base,
+        settings: { model: { provider: 'ds', model: 'gone' } },
+        nodes: [
+          ...base.nodes,
+          card('a', {
+            source: http('a'),
+            workspace,
+            enabled: true,
+            shell: slash(join(from.dataDir, 'no-shell.exe')),
+            launch: {
+              model: { provider: 'nowhere', model: 'x' },
+              preset: 'ghost',
+              permission: 'never',
+            },
+          }),
+          // 卡片没写模型：跟着工作流的（这个服务商有，模型没有）。
+          card('b', { source: http('b'), workspace, launch: { preset: 'standard' } }),
+        ],
+      },
+    ])
+    // 导出时把模型、预设也带上（缺省只带权限）。
+    const exported = expectOk(
+      await exportPack(from.deps, {
+        name: 'gaps',
+        versions: [1],
+        pack: [],
+        choice: { model: true, preset: true, permission: true },
+      }),
+    )
+    const zip = await download(from.dataDir, exported.token)
+    let asked = 0
+    const host = {
+      ...from.deps,
+      catalog: async () => {
+        asked += 1
+        return {
+          presets: [{ id: 'standard', name: '', isDefault: true }],
+          providers: [
+            { id: 'ds', name: 'DeepSeek', models: [{ id: 'chat', name: 'chat', efforts: [] }] },
+          ],
+          failures: [],
+          modelSelectable: true,
+          permissions: {
+            options: [{ id: 'read-only', name: 'read-only' }],
+            defaultId: 'read-only',
+          },
+        }
+      },
+    } satisfies typeof from.deps
+    const preview = expectOk(await inspectPack(host, { token: await upload(from.dataDir, zip) }))
+    expect(asked).toBe(1)
+    expect(preview.triggers?.cards.map((entry) => entry.gaps)).toEqual([
+      [
+        { kind: 'shell', path: slash(join(from.dataDir, 'no-shell.exe')) },
+        { kind: 'provider', provider: 'nowhere' },
+        { kind: 'preset', preset: 'ghost' },
+        { kind: 'permission', permission: 'never' },
+      ],
+      [{ kind: 'model', provider: 'DeepSeek', model: 'gone' }],
+    ])
+    // 开着导出、却缺东西的，导入后关着。
+    expectOk(
+      await applyPack(host, { token: await upload(from.dataDir, zip), mode: 'new', name: 'copy' }),
+    )
+    const loaded = await from.repository.load('copy')
+    expect(
+      (loaded.document ?? graph([])).nodes.filter(isTrigger).map((n) => n.data.enabled),
+    ).toEqual([undefined, undefined])
+
+    // 取不到这台机器上的列表：只查 shell 这类地方。
+    const broken = {
+      ...from.deps,
+      catalog: () => Promise.reject(new Error('down')),
+    } satisfies typeof from.deps
+    const blind = expectOk(await inspectPack(broken, { token: await upload(from.dataDir, zip) }))
+    expect(blind.triggers?.cards.map((entry) => entry.gaps.map((gap) => gap.kind))).toEqual([
+      ['shell'],
+      [],
+    ])
   })
 
   it('没有卡片的包，导入预览里没有触发器那一段', async () => {

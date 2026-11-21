@@ -126,7 +126,7 @@ Run a workflow automatically when something happens, instead of clicking **Run**
 
 - **Use**: drag **Trigger** from **Basics** in the step library onto the canvas and pick how it fires: Schedule (optionally running a check command first), Watch, HTTP or After. You can also ask the model; it writes the script, test-runs it, and switches it on once it works.
 - **Manage**: the **Triggers** page in the Workflow hub shows every trigger's state, trigger history and recent output, and can pause them all.
-- **Export**: trigger cards travel with the workflow and are always saved switched off; secrets used by scripts are left out unless you tick them, and then go into the pack as plain text.
+- **Export**: triggers are left out by default; switch them on to pick cards one by one. Each card keeps its on/off state in the pack; on import the switches start from that state and can be changed card by card. Secrets used by scripts are left out unless you tick them, and then go into the pack as plain text.
 - **Limits**: triggers only fire while DSH is running. Check commands and watchers run on this machine as the DSH process, outside the sandbox, and start as soon as you switch the card on, so only enable commands you trust.
 
 ## How it works

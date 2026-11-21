@@ -207,7 +207,7 @@ describe('导出 → 导入', () => {
     expect(await readMemoryMeta(to.dataDir, 'review-write')).toMatchObject({ name: '写报告的做法' })
   })
 
-  it('本机已有同 id：缺省用本机的（内容不动）；选另存一份就换个 id，导入的工作流改用它', async () => {
+  it('本机已有同 id：缺省用导入的（换个 id 存下，导入的工作流改用它，本机那条不动）；选用本机的就不导入', async () => {
     const from = await sourceSide()
     const zip = await exported(from)
     const to = await side('to')
@@ -223,34 +223,37 @@ describe('导出 → 导入', () => {
       existingName: '本机的',
       rename: 'review-write-2',
     })
-    ok(await applyPack(to.deps, { token, mode: 'new', name: 'review' }))
-    expect(await readFile(join(memoryFolder(to.dataDir, 'review-write'), 'SKILL.md'), 'utf8')).toBe(
-      '# 本机',
-    )
-    const used = await to.repository.load('review')
-    expect(memoryRefs(used.document as WorkflowDocument)).toContain('review-write')
-
-    const again = await upload(to.dataDir, zip)
-    const applied = ok(
-      await applyPack(to.deps, {
-        token: again,
-        mode: 'new',
-        name: 'review-2',
-        memories: { 'review-write': 'copy' },
-      }),
-    )
+    const applied = ok(await applyPack(to.deps, { token, mode: 'new', name: 'review' }))
     expect(applied.memories).toEqual(
       expect.arrayContaining([{ id: 'review-write', as: 'review-write-2', action: 'copy' }]),
+    )
+    expect(await readFile(join(memoryFolder(to.dataDir, 'review-write'), 'SKILL.md'), 'utf8')).toBe(
+      '# 本机',
     )
     expect(
       await readFile(join(memoryFolder(to.dataDir, 'review-write-2'), 'SKILL.md'), 'utf8'),
     ).toBe('# 写报告')
-    const copied = await to.repository.load('review-2')
+    const copied = await to.repository.load('review')
     const refs = memoryRefs(copied.document as WorkflowDocument)
     expect(refs).toContain('review-write-2')
     expect(refs).not.toContain('review-write')
-    const versions = ok(await to.repository.listVersions('review-2'))
+    const versions = ok(await to.repository.listVersions('review'))
     expect(versions[0]?.current).toBe(true)
+
+    const again = await upload(to.dataDir, zip)
+    ok(
+      await applyPack(to.deps, {
+        token: again,
+        mode: 'new',
+        name: 'review-2',
+        memories: { 'review-write': 'use' },
+      }),
+    )
+    expect(await readFile(join(memoryFolder(to.dataDir, 'review-write'), 'SKILL.md'), 'utf8')).toBe(
+      '# 本机',
+    )
+    const used = await to.repository.load('review-2')
+    expect(memoryRefs(used.document as WorkflowDocument)).toContain('review-write')
   })
 })
 

@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 import {
   choicePlaces,
   defaultTriggerPick,
+  packsAnySecrets,
   toggleTrigger,
   triggerBytes,
   triggerRequest,
@@ -45,11 +46,17 @@ const scan: PackScanResponse = {
 }
 
 describe('触发卡片', () => {
-  it('缺省全留、密钥和数据都不带：只算触发脚本（有要跑命令的卡片）', () => {
+  it('缺省不带触发器，打开后才带选中的卡片和触发脚本', () => {
     const pick = defaultTriggerPick(scan)
-    expect([...pick.keep]).toEqual(['tick', 'hook'])
-    expect(triggerBytes(scan, pick)).toBe(300)
+    expect(pick.enabled).toBe(false)
+    expect(triggerBytes(scan, pick)).toBe(0)
     expect(triggerRequest(scan, pick)).toEqual({
+      triggers: [],
+      secrets: [],
+      triggerData: [],
+    })
+    expect(triggerBytes(scan, { ...pick, enabled: true })).toBe(300)
+    expect(triggerRequest(scan, { ...pick, enabled: true })).toEqual({
       triggers: ['tick', 'hook'],
       secrets: [],
       triggerData: [],
@@ -57,11 +64,18 @@ describe('触发卡片', () => {
   })
 
   it('勾了密钥、数据才算；卡片去掉后它的密钥、数据跟着不带，不跑命令的留下时脚本也不带', () => {
-    let pick = defaultTriggerPick(scan)
+    let pick = { ...defaultTriggerPick(scan), enabled: true }
     pick = toggleTrigger(pick, 'secrets', 'tick', true)
     pick = toggleTrigger(pick, 'data', 'tick', true)
     pick = toggleTrigger(pick, 'secrets', 'hook', true)
     expect(triggerBytes(scan, pick)).toBe(300 + 10 + 20 + 5)
+    expect(packsAnySecrets(scan, pick)).toBe(true)
+    expect(packsAnySecrets(scan, { ...pick, enabled: false })).toBe(false)
+    expect(triggerRequest(scan, { ...pick, enabled: false })).toEqual({
+      triggers: [],
+      secrets: [],
+      triggerData: [],
+    })
     pick = toggleTrigger(pick, 'keep', 'tick', false)
     expect(triggerBytes(scan, pick)).toBe(5)
     expect(triggerRequest(scan, pick)).toEqual({

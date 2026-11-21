@@ -476,19 +476,41 @@ export interface PackImportPreview {
   memories: PackMemoryPreview[]
   /** 包里没带的引用，本机有没有（`null` = 相对路径，查不了）。 */
   external: (PackExternal & { found: boolean | null })[]
-  /** 导入后用的那一版里的触发卡片（没有是 `null`）：导入后都是关着的。 */
+  /** 导入后用的那一版里的触发卡片（没有是 `null`）：按导出时的开关预选，导入的人逐张调整。 */
   triggers: PackTriggerPreview | null
 }
 
 export interface PackTriggerPreview {
-  cards: number
-  /** 选的会话工作区这台机器上没有的卡片数。 */
-  workspaceMissing: number
-  /** 发进固定会话的卡片数（会话是导出那台机器上的，要重新选）。 */
-  fixed: number
+  /** 用的那一版里的卡片，按图里的顺序。 */
+  cards: PackImportTrigger[]
   /** 包里带的密钥文件数。 */
   secrets: number
 }
+
+/** 包里的一张触发卡片。 */
+export interface PackImportTrigger {
+  node: string
+  label: string
+  kind: TriggerSource['kind']
+  /** 导出时开着（导入预览按这个预选）。 */
+  enabled: boolean
+  /** 卡片要用、这台机器上却没有的东西；有一样就打不开，导入后在卡片上配好再开。空的 = 打得开。 */
+  gaps: PackTriggerGap[]
+}
+
+/**
+ * 触发卡片依赖、这台机器上没有的一样东西：
+ * `workspace` 会话工作区；`session` 发进的固定会话（是导出那台机器上的）；`shell` 跑命令用的 shell；
+ * `provider` / `model` 新建会话用的服务商、模型；`preset` Agent 预设；`permission` 运行权限。
+ */
+export type PackTriggerGap =
+  | { kind: 'workspace' }
+  | { kind: 'session' }
+  | { kind: 'shell'; path: string }
+  | { kind: 'provider'; provider: string }
+  | { kind: 'model'; provider: string; model: string }
+  | { kind: 'preset'; preset: string }
+  | { kind: 'permission'; permission: string }
 
 /** 包里的一条记忆，和本机记忆库比。 */
 export interface PackMemoryPreview {
@@ -506,8 +528,13 @@ export interface PackMemoryPreview {
   rename: string
 }
 
-/** 包里的记忆已经有同 id 的：`use` 用本机已有的（包里那份不进），`copy` 换个新 id 另存一份。 */
+/** 包里的记忆已经有同 id 的：`use` 用本机已有的（包里那份不进），`copy` 用导入的（换个新 id 存下，工作流改用它）。 */
 export type PackMemoryAction = 'use' | 'copy'
+
+/** 本机已有同 id 的记忆，缺省怎么办：包里带了内容就用导入的；只带了名称和描述，用本机攒下的那条。 */
+export function defaultMemoryAction(memory: { files: number }): PackMemoryAction {
+  return memory.files > 0 ? 'copy' : 'use'
+}
 
 export type PackSkillAction = 'install' | 'skip' | 'overwrite' | 'rename'
 
@@ -522,6 +549,11 @@ export interface PackApplyRequest {
   skills?: Record<string, PackSkillAction>
   /** 已有同 id 的记忆怎么办；没给的用本机已有的。 */
   memories?: Record<string, PackMemoryAction>
+  /**
+   * 导入后开着的触发卡片，其余关掉（只认这台机器上打得开的）。
+   * 不给 = 照导出时的开关（打不开的关掉）。
+   */
+  enable?: string[]
   cwd?: string
   session?: string
 }

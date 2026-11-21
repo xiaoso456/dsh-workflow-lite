@@ -39,8 +39,8 @@ import {
 } from '../../model/pack.ts'
 import {
   defaultTriggerPick,
+  packsAnySecrets,
   type TriggerPick,
-  toggleTrigger,
   triggerBytes,
   triggerRequest,
 } from '../../model/packTriggers.ts'
@@ -102,7 +102,7 @@ export function HubExport(props: {
   })
   /** 新建会话用的设置带哪几项（缺省：模型、预设不带，导入的人按自己的默认跑；权限带上）。 */
   const [choice, setChoice] = useState<ChoiceKeep>(DEFAULT_CHOICE_KEEP)
-  /** 触发卡片怎么带（每次盘点完重置成缺省：全留，密钥、脚本数据不带）。 */
+  /** 触发卡片怎么带（每次盘点后重置，默认关）。 */
   const [triggers, setTriggers] = useState<TriggerPick | null>(null)
   const [error, setError] = useState<string | null>(null)
   /** 打包 / 下载中的那句进度；`null` = 没在忙。 */
@@ -404,7 +404,7 @@ export function HubExport(props: {
             choice={choice}
             onChoice={setChoice}
             triggers={triggers}
-            onTrigger={(part, node, on) => setTriggers(toggleTrigger(triggers, part, node, on))}
+            onTrigger={setTriggers}
             onSwitch={(kind, on) => setSwitches({ ...switches, [kind]: on })}
             onToggle={(key, on) => {
               const next = new Set(packed)
@@ -449,7 +449,7 @@ function Resources(props: {
   onChoice(keep: ChoiceKeep): void
   /** 触发卡片怎么带（导出成 skill 时不带，只提醒一句）。 */
   triggers: TriggerPick
-  onTrigger(part: keyof TriggerPick, node: string, on: boolean): void
+  onTrigger(pick: TriggerPick): void
   onToggle(key: string, on: boolean): void
   onSwitch(kind: PackSwitch, on: boolean): void
   onPrev(): void
@@ -556,13 +556,15 @@ function Resources(props: {
 
   return (
     <>
-      <p className={cx(pack.sectionHint, css.pageHint)}>
-        {t(skill ? 'skillExport.resourcesHint' : 'pack.resourcesHint')}
-      </p>
-      {PACK_CATEGORIES.every(
-        (kind) =>
-          categoryItems(scan, kind).packable.length + categoryItems(scan, kind).others.length === 0,
-      ) && <Callout>{t('pack.nothing')}</Callout>}
+      {skill && (
+        <p className={cx(pack.sectionHint, css.pageHint)}>{t('skillExport.resourcesHint')}</p>
+      )}
+      {(skill || scan.triggers.length === 0) &&
+        PACK_CATEGORIES.every(
+          (kind) =>
+            categoryItems(scan, kind).packable.length + categoryItems(scan, kind).others.length ===
+            0,
+        ) && <Callout>{t('pack.nothing')}</Callout>}
       {skill && scan.triggers.length > 0 && (
         <Callout tone="warn" testId="wl-pack-skill-triggers">
           {t('skillExport.noTriggers')}
@@ -640,6 +642,11 @@ function Resources(props: {
             <span>{t('pack.limit').replace('{size}', formatBytes(scan.limit))}</span>
           ) : (
             left > 0 && <span>{t('pack.leftAbsolute').replace('{n}', String(left))}</span>
+          )}
+          {!skill && packsAnySecrets(scan, props.triggers) && (
+            <span className={css.plainNote} data-testid="wl-pack-plain-note">
+              {t('pack.plainNote')}
+            </span>
           )}
         </div>
         <button type="button" className={cx(ui.btn, ui.small)} onClick={props.onPrev}>

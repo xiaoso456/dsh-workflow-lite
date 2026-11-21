@@ -9,7 +9,7 @@
  * - 记忆（`{memory}/<id>`）：元数据总是写进清单，内容（那份 skill 文件夹）勾了才打进 `memories/<id>/`，缺省勾上；
  * - 相对路径、产出、网址、自定义文本：原样留在图里。
  *
- * 新建会话用的设置（模型、预设、权限）按三个总开关带或不带；触发卡片一律存成关着的。
+ * 新建会话用的设置（模型、预设、权限）按三个总开关带或不带；触发卡片连同开关原样带走（导入时按它预选，导入的人再调整）。
  *
  * @module @xiaoso/dsh-workflow-lite/host/pack/exporter
  */
@@ -55,7 +55,7 @@ import {
   documentWithChoice,
 } from '../../shared/sessionChoice.ts'
 import { type VersionEntry, type WorkflowDocument, WRITABLE_KINDS } from '../../shared/types.ts'
-import type { HostSkillEntry } from '../../shared/wire/host.ts'
+import type { HostAgentsResponse, HostSkillEntry } from '../../shared/wire/host.ts'
 import { listSkills, type SkillViewer } from '../hostFs.ts'
 import { readMemoryMeta } from '../store/memories.ts'
 import { assetsDir, memoryFolder } from '../store/paths.ts'
@@ -77,6 +77,8 @@ export interface PackDeps {
   plugin: string
   /** 文档级校验（导出成 skill 时看有没有编译级问题）；没给就不查。 */
   validate?: DocumentValidator
+  /** 这台机器上能选的服务商、模型、预设、权限（导入时看触发卡片要用的在不在）；没给就不查。 */
+  catalog?: () => Promise<HostAgentsResponse>
   now?: () => number
 }
 

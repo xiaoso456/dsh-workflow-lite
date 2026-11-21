@@ -30,6 +30,7 @@ import {
   actionOf,
   applyRequest,
   defaultImportChoice,
+  gapLines,
   type ImportChoice,
   importSummary,
   memoryActionOf,
@@ -40,10 +41,11 @@ import { shortTime } from '../../model/time.ts'
 import { errorMessage, type WorkflowLiteRpc } from '../../rpc.ts'
 import { useConfirm } from '../kit/Confirm.tsx'
 import { cx } from '../kit/cx.ts'
-import { Icon, type IconName } from '../kit/Icon.tsx'
+import { Icon } from '../kit/Icon.tsx'
 import { KIND_ICON } from '../kit/resourceUi.ts'
 import { Segmented } from '../kit/Segmented.tsx'
 import ui from '../kit/ui.module.css'
+import { WarnMark } from '../kit/WarnMark.tsx'
 import { Presence } from '../motion/exits.tsx'
 import { Checkbox } from '../motion/marks.tsx'
 import { memoryTypeText } from '../resources/ResourcePresets.tsx'
@@ -553,8 +555,8 @@ function Preview(props: {
                         value={action === 'copy' ? 'copy' : 'use'}
                         testId={`wl-pack-memory-${memory.id}`}
                         options={[
-                          { value: 'use', label: t('pack.mem.use') },
                           { value: 'copy', label: t('pack.mem.copy') },
+                          { value: 'use', label: t('pack.mem.use') },
                         ]}
                         onChange={(next) =>
                           setChoice({
@@ -578,7 +580,14 @@ function Preview(props: {
           </PackSection>
         )}
 
-        {preview.triggers !== null && <ImportTriggers t={t} triggers={preview.triggers} />}
+        {preview.triggers !== null && (
+          <ImportTriggers
+            t={t}
+            triggers={preview.triggers}
+            enable={choice.enable}
+            onEnable={(enable) => setChoice({ ...choice, enable })}
+          />
+        )}
 
         {preview.external.length > 0 && (
           <PackSection title={t('pack.sectionExternal')} testId="wl-pack-external">
@@ -666,55 +675,85 @@ function Preview(props: {
   )
 }
 
-/** 包里的触发卡片：都关着，哪些打开前要重新选。 */
-function ImportTriggers(props: { t: T; triggers: PackTriggerPreview }): React.JSX.Element {
-  const { t, triggers } = props
-  const lines: {
-    key: string
-    icon: IconName
-    text: string
-    warn?: true
-  }[] = [
-    {
-      key: 'cards',
-      icon: 'bolt',
-      text: t('pack.trg.cards').replace('{n}', String(triggers.cards)),
-    },
-  ]
-  if (triggers.workspaceMissing > 0) {
-    lines.push({
-      key: 'workspace',
-      icon: 'folder',
-      text: t('pack.trg.workspaceMissing').replace('{n}', String(triggers.workspaceMissing)),
-      warn: true,
-    })
-  }
-  if (triggers.fixed > 0) {
-    lines.push({
-      key: 'fixed',
-      icon: 'handoff',
-      text: t('pack.trg.fixed').replace('{n}', String(triggers.fixed)),
-      warn: true,
-    })
-  }
-  if (triggers.secrets > 0) {
-    lines.push({
-      key: 'secrets',
-      icon: 'shield',
-      text: t('pack.trg.secretsIn').replace('{n}', String(triggers.secrets)),
-    })
-  }
+/**
+ * 包里的触发卡片：一张一行，右端一个开关决定导入后开不开（照导出时的开关预选）。
+ * 这台机器上缺东西的（工作区、会话、shell、服务商、模型、预设、权限）打不开：开关灰掉，悬停说缺什么；
+ * 导出时开着的，名字后面再挂一个告警图标，说导入后先关着、配好再打开。
+ * 带了密钥的，末尾一行说几个、放到哪。
+ */
+function ImportTriggers(props: {
+  t: T
+  triggers: PackTriggerPreview
+  enable: readonly string[]
+  onEnable(enable: string[]): void
+}): React.JSX.Element {
+  const { t, triggers, enable } = props
+  const on = new Set(enable)
   return (
-    <PackSection title={t('pack.sectionTriggers')} testId="wl-pack-triggers">
-      {lines.map((line) => (
+    <PackSection
+      title={t('pack.sectionTriggers')}
+      note={t('pack.trg.cards')
+        .replace('{n}', String(triggers.cards.length))
+        .replace('{m}', String(enable.length))}
+      testId="wl-pack-triggers"
+    >
+      {triggers.cards.map((card) => {
+        const name = card.label === '' ? t('pack.trg.unnamed') : card.label
+        const checked = on.has(card.node)
+        const gaps = gapLines(t, card.gaps)
+        const blocked = gaps.length > 0
+        return (
+          <PackRow
+            key={card.node}
+            icon="bolt"
+            {...(checked ? { tone: 'accent' as const } : {})}
+            title={
+              <>
+                {name}
+                {card.enabled && blocked && (
+                  <WarnMark
+                    title={t('pack.trg.offTitle')}
+                    lines={[...gaps, t('pack.trg.gapFix')]}
+                    testId={`wl-pack-trigger-gap-${card.node}`}
+                  />
+                )}
+              </>
+            }
+            badge={
+              <span className={hub.tag} data-tone="plain">
+                {t(`trigger.source.${card.kind}` as LocaleKey)}
+              </span>
+            }
+            end={
+              <button
+                type="button"
+                role="switch"
+                aria-checked={checked}
+                aria-label={t('pack.trg.switch').replace('{name}', name)}
+                className={ui.switch}
+                disabled={blocked}
+                data-tip={blocked ? [...gaps, t('pack.trg.gapFix')].join('\n') : undefined}
+                data-testid={`wl-pack-trigger-on-${card.node}`}
+                onClick={() =>
+                  props.onEnable(
+                    checked ? enable.filter((node) => node !== card.node) : [...enable, card.node],
+                  )
+                }
+              >
+                <span className={ui.knob} />
+              </button>
+            }
+            testId="wl-pack-import-trigger"
+          />
+        )
+      })}
+      {triggers.secrets > 0 && (
         <PackRow
-          key={line.key}
-          icon={line.icon}
-          {...(line.warn === true ? { tone: 'warn' as const } : {})}
-          title={line.text}
-          testId={`wl-pack-triggers-${line.key}`}
+          icon="shield"
+          title={t('pack.trg.secretsIn').replace('{n}', String(triggers.secrets))}
+          testId="wl-pack-triggers-secrets"
         />
-      ))}
+      )}
     </PackSection>
   )
 }

@@ -471,7 +471,7 @@ export interface TriggerData {
   condition?: string
   filter?: TriggerFilter
   launch?: TriggerLaunch
-  /** 开着（缺省关着；导出时一律存成关）。 */
+  /** 开着（缺省关着；导出时照原样带走，导入时按它预选）。 */
   enabled?: true
   /** 触发时在哪个工作区里新建会话（绝对路径）。 */
   workspace?: string

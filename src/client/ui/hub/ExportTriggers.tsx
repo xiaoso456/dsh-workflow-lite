@@ -1,9 +1,10 @@
 /**
  * dsh-workflow-lite — 导出清单里跟触发、新建会话有关的两类。
  *
- * - 「触发器」（{@link TriggerCategory}）：一张卡片一行（名字、触发方式、一句速览），缺省都留；
- *   卡片目录里有密钥、脚本数据的，紧跟一行各自勾选（缺省不带，勾上密钥时写明是明文进包）；
- *   末尾一行说触发脚本带不带（留下的卡片里有要跑命令的才整个带上）。
+ * - 「触发器」（{@link TriggerCategory}）：缺省关闭，打开后可逐张勾选。一张卡片一行（名字 + 触发方式），
+ *   怎么触发、出现在哪几版放进悬浮提示。卡片目录里有密钥、脚本数据的，缩进挂在卡片下面、用树线连回卡片，
+ *   各自勾选（缺省不带；勾上密钥时名字后面出一个告警三角，悬浮说明是明文进包，底栏也提一句）；
+ *   末尾一行是触发脚本，亮着是带、灰着是不带，原因在图标的悬浮提示里。
  * - 「新建会话的设置」（{@link ChoiceCategory}）：模型、Agent 预设、运行权限三个总开关，
  *   每个下面列出图里哪几处设了它（工作流设置、哪张卡片、设成什么）。
  *
@@ -22,10 +23,12 @@ import {
   packsData,
   packsSecrets,
   type TriggerPick,
+  toggleTrigger,
 } from '../../model/packTriggers.ts'
 import { choiceSummary } from '../../model/sessionChoice.ts'
 import { sourceText } from '../../model/triggerText.ts'
 import type { WorkflowLiteRpc } from '../../rpc.ts'
+import { Icon } from '../kit/Icon.tsx'
 import { ExportCategory } from './ExportCategory.tsx'
 import hub from './hub.module.css'
 import css from './hubExport.module.css'
@@ -41,15 +44,18 @@ export function TriggerCategory(props: {
   pick: TriggerPick
   /** 选了几个版本：多个时每张卡片写上出现在哪几版。 */
   multi: boolean
-  onPick(part: keyof TriggerPick, node: string, on: boolean): void
+  onPick(pick: TriggerPick): void
 }): React.JSX.Element {
   const { t, scan, pick } = props
-  const [open, setOpen] = useState(true)
+  // 缺省关着、收起；打开开关时顺手展开。关着也能展开看看有哪几张，各行灰掉、勾不了（同文件、Skill 那几类）。
+  const [open, setOpen] = useState(pick.enabled)
+  const enabled = pick.enabled
   const kept = scan.triggers.filter((card) => pick.keep.has(card.node)).length
   const scripts = scan.triggerScripts
   const row = (card: PackTrigger): React.JSX.Element[] => {
     const name = cardName(t, card)
-    const on = pick.keep.has(card.node)
+    const keep = pick.keep.has(card.node)
+    const on = enabled && keep
     const rows = [
       <PackRow
         key={card.node}
@@ -59,25 +65,44 @@ export function TriggerCategory(props: {
             {t(`trigger.source.${card.source.kind}` as LocaleKey)}
           </span>
         }
-        meta={[
+        tip={[
           sourceText(t, card.source),
           props.multi
             ? t('pack.inVersions').replace('{list}', card.versions.map((n) => `v${n}`).join('、'))
             : null,
-        ]}
-        checked={on}
+        ]
+          .filter((line) => line !== null)
+          .join('\n')}
+        checked={keep}
+        disabled={!enabled}
         dim={!on}
         testId="wl-pack-trigger"
-        onCheck={(next) => props.onPick('keep', card.node, next)}
+        onCheck={(next) => props.onPick(toggleTrigger(pick, 'keep', card.node, next))}
       />,
     ]
+    const kids: React.JSX.Element[] = []
     if (card.secrets !== undefined) {
-      const packed = packsSecrets(pick, card)
-      rows.push(
+      const packed = enabled && packsSecrets(pick, card)
+      kids.push(
         <PackRow
-          key={`${card.node}:secrets`}
-          title={t('pack.trg.secrets').replace('{name}', name)}
-          meta={packed ? [t('pack.trg.plain')] : [card.secrets.names.join('、')]}
+          key="secrets"
+          title={
+            <>
+              {t('pack.trg.secrets')}{' '}
+              <span className={css.dir}>{card.secrets.names.join('、')}</span>
+            </>
+          }
+          badge={
+            packed && (
+              <span
+                className={css.plainMark}
+                data-tip={t('pack.trg.plain')}
+                data-testid="wl-pack-trigger-plain"
+              >
+                <Icon name="alert" size={13} />
+              </span>
+            )
+          }
           {...(packed ? { metaTone: 'warn' as const } : {})}
           end={formatBytes(card.secrets.bytes)}
           tip={card.secrets.names.join('\n')}
@@ -85,49 +110,68 @@ export function TriggerCategory(props: {
           disabled={!on}
           dim={!packed}
           testId="wl-pack-trigger-secrets"
-          onCheck={(next) => props.onPick('secrets', card.node, next)}
+          onCheck={(next) => props.onPick(toggleTrigger(pick, 'secrets', card.node, next))}
         />,
       )
     }
     if (card.data !== undefined) {
-      rows.push(
+      kids.push(
         <PackRow
-          key={`${card.node}:data`}
-          title={t('pack.trg.data').replace('{name}', name)}
+          key="data"
+          title={t('pack.trg.data')}
           end={`${t('pack.files').replace('{n}', String(card.data.files))} · ${formatBytes(card.data.bytes)}`}
           checked={pick.data.has(card.node)}
           disabled={!on}
-          dim={!packsData(pick, card)}
+          dim={!(enabled && packsData(pick, card))}
           testId="wl-pack-trigger-data"
-          onCheck={(next) => props.onPick('data', card.node, next)}
+          onCheck={(next) => props.onPick(toggleTrigger(pick, 'data', card.node, next))}
         />,
+      )
+    }
+    if (kids.length > 0) {
+      rows.push(
+        <div key={`${card.node}:kids`} className={css.trgKids}>
+          {kids}
+        </div>,
       )
     }
     return rows
   }
-  const scriptsOn = scripts !== null && packsScripts(scan.triggers, pick.keep)
+  const scriptsOn = enabled && scripts !== null && packsScripts(scan.triggers, pick.keep)
   return (
     <ExportCategory
       icon="bolt"
       title={t('pack.trg.title')}
-      stats={t('pack.trg.stats')
+      stats={t(enabled ? 'pack.catPicked' : 'pack.catNone')
         .replace('{n}', String(scan.triggers.length))
         .replace('{m}', String(kept))}
       empty={false}
       expanded={open}
       onExpand={setOpen}
+      switch={{
+        on: pick.enabled,
+        disabled: false,
+        onChange: (next) => {
+          if (next) setOpen(true)
+          props.onPick({ ...pick, enabled: next })
+        },
+      }}
       testId="wl-pack-cat-triggers"
     >
-      <p className={css.choiceLine}>{t('pack.trg.hint')}</p>
       {scan.triggers.flatMap(row)}
       {scripts !== null && (
         <PackRow
           title={t('pack.trg.scripts')}
-          meta={[t(scriptsOn ? 'pack.trg.scriptsOn' : 'pack.trg.scriptsOff')]}
           end={`${t('pack.files').replace('{n}', String(scripts.files))} · ${formatBytes(scripts.bytes)}`}
           lead={{
             icon: 'terminal',
-            tip: t(scriptsOn ? 'pack.trg.scriptsOn' : 'pack.trg.scriptsOff'),
+            tip: t(
+              !enabled
+                ? 'pack.trg.scriptsNone'
+                : scriptsOn
+                  ? 'pack.trg.scriptsOn'
+                  : 'pack.trg.scriptsOff',
+            ),
           }}
           dim={!scriptsOn}
           testId="wl-pack-trigger-scripts"

@@ -6,8 +6,8 @@
  * 导入同一个包：名字撞了，另存为新名字（预览里写明资料放到哪、skill 内容一样跳过）→ 确认卡 → 落盘、图里改成 {workflow}/… →
  * 再导入一次，选并入：版本全都重复，不再存。
  * 图里另有两张触发卡片（一张跑命令、关着；一张定时、开着），卡片目录里有脚本、密钥、脚本数据：
- * 导出清单里卡片缺省都带、密钥和数据缺省不带、去掉跑命令的那张脚本就不带；包里的开关都是关的；
- * 导入预览写出几张卡片、带了密钥；导入后脚本、密钥落进新工作流的卡片目录。
+ * 导出清单里触发器缺省关闭，开了才选卡片；密钥和数据缺省不带，脚本跟着跑命令的卡片走；包里的开关照原样；
+ * 包里的开关照原样；导入预览逐张列出卡片（开关照导出时的预选）、带了密钥；关掉一张导入后它关着，脚本、密钥落进新工作流的卡片目录。
  * 另外导出成 skill：换到「Skill」→ 单选版本 → 资源 → Skill 信息（名字、预填的描述、SKILL.md 预览）→
  * 下载 zip（看包里的布局）→ 装到本机 → 再装一次要先确认覆盖。
  *
@@ -258,14 +258,23 @@ async function run(session) {
   await session.evaluate(clickTestId('wl-pack-cat-file-toggle'))
   await waitFor(session, `${attr('wl-pack-cat-file-toggle', 'aria-expanded')} === 'true'`)
 
-  // 触发器：两张卡片缺省都带，密钥、脚本数据缺省不带；有跑命令的卡片，触发脚本整个带上。
+  // 触发器：打开总开关后才显示逐张勾选；密钥、脚本数据缺省不带。
   await waitFor(session, exists('wl-pack-cat-triggers'))
+  const triggerSwitch = 'wl-pack-cat-triggers-switch'
+  check(
+    (await session.evaluate(attr(triggerSwitch, 'aria-checked'))) === 'false' &&
+      (await session.evaluate(gone('wl-pack-trigger'))),
+    '触发器总开关缺省关，卡片清单收起',
+  )
+  await session.evaluate(clickTestId(triggerSwitch))
+  await waitFor(session, exists('wl-pack-trigger'))
   const cardRow = (label) =>
     `[...document.querySelectorAll('[data-testid="wl-pack-trigger"]')].find((el) => el.textContent.includes(${JSON.stringify(label)}))`
   const secretsRow = `document.querySelector('[data-testid="wl-pack-trigger-secrets"]')`
   const dataRow = `document.querySelector('[data-testid="wl-pack-trigger-data"]')`
   const box = (row) => `(${row})?.querySelector('input')`
-  const scriptsText = textOf('wl-pack-trigger-scripts')
+  // 触发脚本带不带：原因写在行首图标的悬浮提示里。
+  const scriptsText = `(document.querySelector('[data-testid="wl-pack-trigger-scripts"] [data-tip]')?.getAttribute('data-tip') ?? '')`
   check(
     (await session.evaluate(
       `document.querySelectorAll('[data-testid="wl-pack-trigger"]').length`,
@@ -290,10 +299,15 @@ async function run(session) {
   check((await session.evaluate(`${box(secretsRow)}.disabled`)) === true, '卡片不带时密钥勾不了')
   await session.evaluate(`${box(cardRow('收件'))}.click()`)
   await waitFor(session, `${scriptsText}.includes('整个带上')`)
-  // 勾上密钥：写明是明文进包。
+  // 勾上密钥：名字后面出告警三角（悬浮说明明文进包），底栏也提一句。
+  check(await session.evaluate(gone('wl-pack-plain-note')), '没勾密钥时底栏不该提明文')
   await session.evaluate(`${box(secretsRow)}.click()`)
-  await waitFor(session, `(${secretsRow}).textContent.includes('明文')`)
-  pass('导出：触发器一类（卡片缺省都带，密钥、数据缺省不带，脚本跟着跑命令的卡片走）')
+  await waitFor(
+    session,
+    `(${secretsRow}).querySelector('[data-testid="wl-pack-trigger-plain"]')?.getAttribute('data-tip')?.includes('明文') === true`,
+  )
+  await waitFor(session, exists('wl-pack-plain-note'))
+  pass('导出：打开触发器总开关后逐张勾选，脚本跟着跑命令的卡片走')
   await screenshot(session, 'pack-02-resources.png')
   pass(
     `导出：外部资源清单（文件${skill === undefined ? '' : ` + skill ${skill}`}，分类展开收起、开关独立）`,
@@ -322,10 +336,12 @@ async function run(session) {
     strFromU8(packed[`${NAME}/versions/1.json`]),
   ).document.nodes.filter((node) => node.type === 'wfTrigger')
   check(
-    packedCards.length === 2 && packedCards.every((node) => node.data.enabled === undefined),
-    `包里两张触发卡片都该是关着的：${JSON.stringify(packedCards.map((node) => node.data))}`,
+    packedCards.length === 2 &&
+      packedCards.find((node) => node.id === 'nightly')?.data.enabled === true &&
+      packedCards.find((node) => node.id === 'inbox')?.data.enabled === undefined,
+    `包里的开关应照原样（夜巡开、收件关）：${JSON.stringify(packedCards.map((node) => node.data))}`,
   )
-  pass('导出：浏览器下载到 .wflite.zip（触发脚本、勾上的密钥在包里，数据不在，开关都关着）')
+  pass('导出：浏览器下载到 .wflite.zip（触发脚本、勾上的密钥在包里，数据不在，开关照原样）')
 
   // 结果条右边的 ✕：点了不是一下消失，条在原地淡出（影子没有 testid，带 aria-hidden），放完才没。
   const ghosts = `[...document.querySelectorAll('[aria-hidden="true"][inert]')].filter((el) => el.textContent.includes('.wflite.zip')).length`
@@ -498,9 +514,19 @@ async function run(session) {
     check(await session.evaluate(gone('wl-pack-trust')), '不装 skill 就不用勾确认')
   }
   const triggerPreview = await session.evaluate(textOf('wl-pack-triggers'))
-  check(triggerPreview.includes('2 张触发卡片'), `应写出几张触发卡片：${triggerPreview}`)
+  check(triggerPreview.includes('2 项'), `应写出几张触发卡片：${triggerPreview}`)
   check(await session.evaluate(exists('wl-pack-triggers-secrets')), '带了密钥应写出来')
-  check(await session.evaluate(gone('wl-pack-triggers-workspace')), '工作区本机有，不该提醒重选')
+  // 每张卡片一个开关，照导出时的预选（夜巡开、收件关）；工作区本机有，开关能拨。关掉「夜巡」，导入后它是关着的。
+  const importSwitch = (node) =>
+    `document.querySelector('[data-testid="wl-pack-trigger-on-${node}"]')`
+  check(
+    (await session.evaluate(
+      `${importSwitch('nightly')}?.getAttribute('aria-checked') === 'true' && ${importSwitch('inbox')}?.getAttribute('aria-checked') === 'false' && !${importSwitch('nightly')}.disabled && !${importSwitch('inbox')}.disabled`,
+    )) === true,
+    '导入的卡片照导出时的开关预选，工作区本机有时开关能拨',
+  )
+  await session.evaluate(`${importSwitch('nightly')}.click()`)
+  await waitFor(session, `${importSwitch('nightly')}.getAttribute('aria-checked') === 'false'`)
   await screenshot(session, 'pack-04-preview.png')
   pass('导入：预览（另存为新名字、资料目标路径、skill 状态、触发卡片与密钥）')
 
@@ -523,9 +549,12 @@ async function run(session) {
     '导入后应选中新的那张',
   )
   const copiedCards = copied.document.nodes.filter((node) => node.type === 'wfTrigger')
+  const switchOf = (id) => copiedCards.find((node) => node.id === id)?.data.enabled
   check(
-    copiedCards.length === 2 && copiedCards.every((node) => node.data.enabled === undefined),
-    '导入的触发卡片都该是关着的',
+    copiedCards.length === 2 &&
+      switchOf('nightly') === undefined &&
+      switchOf('inbox') === undefined,
+    `导入时关掉的「夜巡」和本来关着的「收件」都应关着：${JSON.stringify(copiedCards.map((node) => node.data))}`,
   )
   const copiedInbox = cardHome(data, COPY, 'inbox')
   check(
@@ -537,7 +566,9 @@ async function run(session) {
   const plan = await rpc('plan/build', { name: COPY })
   check(plan.plan.includes(`/assets/${COPY}/spec.md`), '计划里应是资料目录下的绝对路径')
   await screenshot(session, 'pack-06-done.png')
-  pass('导入：落盘，版本号保留，图里是 {workflow}/…，计划里是绝对路径，触发卡片关着、脚本密钥到位')
+  pass(
+    '导入：落盘，版本号保留，图里是 {workflow}/…，计划里是绝对路径，触发卡片照确认时的开关，脚本密钥到位',
+  )
 
   // 5) 并入原来那张（编辑页正开着它）：包里的 v1 路径改成了 {workflow}/…，和本机 v1 不一样，存成 v2；
   //    编辑页按磁盘重新加载，不拿旧图覆盖回去。

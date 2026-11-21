@@ -64,6 +64,7 @@ export function ExportCategory(props: {
             <span className={ui.knob} />
           </button>
         )}
+        <span className={css.catRule} aria-hidden="true" />
       </div>
       <Presence show={open}>
         <div className={pack.catBody}>{props.children}</div>

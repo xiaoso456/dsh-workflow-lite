@@ -160,6 +160,7 @@ export function PackSection(props: {
             <SwapText text={props.action.label} />
           </button>
         )}
+        <span className={css.sectionRule} aria-hidden="true" />
       </div>
       {props.hint !== undefined && <p className={pack.sectionHint}>{props.hint}</p>}
       {props.box === false ? props.children : <div className={hub.box}>{props.children}</div>}

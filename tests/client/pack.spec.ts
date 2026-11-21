@@ -9,6 +9,7 @@ import {
   defaultVersions,
   exportGroups,
   fromBase64,
+  gapLines,
   importSummary,
   leftAbsolute,
   memoryActionOf,
@@ -152,7 +153,14 @@ const preview: PackImportPreview = {
     },
   ],
   external: [],
-  triggers: null,
+  triggers: {
+    cards: [
+      { node: 'tick', label: '', kind: 'schedule', enabled: true, gaps: [] },
+      { node: 'hook', label: '收信', kind: 'http', enabled: true, gaps: [{ kind: 'workspace' }] },
+      { node: 'later', label: '', kind: 'listen', enabled: false, gaps: [] },
+    ],
+    secrets: 0,
+  },
 }
 
 describe('导入', () => {
@@ -182,7 +190,32 @@ describe('导入', () => {
     expect(skillDestination(preview, skill('same'), 'skip')).toBeNull()
   })
 
-  it('记忆：本机没有的就建；有的缺省用本机的，可以另存一份', () => {
+  it('触发卡片：缺省照导出时的开关，这台机器上打不开的不开；请求里写全开着的', () => {
+    const choice = defaultImportChoice(preview)
+    expect(choice.enable).toEqual(['tick'])
+    expect(applyRequest(preview, { ...choice, enable: [] }, {}).enable).toEqual([])
+    expect(applyRequest({ ...preview, triggers: null }, choice, {}).enable).toBeUndefined()
+  })
+
+  it('触发卡片缺的东西一样一句：预设、权限用显示名，模型带上服务商', () => {
+    const t = (key: string): string => key
+    expect(
+      gapLines(t as never, [
+        { kind: 'shell', path: '/bin/zsh' },
+        { kind: 'model', provider: 'DeepSeek', model: 'chat' },
+      ]),
+    ).toEqual(['pack.trg.gap.shell', 'pack.trg.gap.model'])
+  })
+
+  it('记忆：包里带了内容的缺省用导入的，只带了名称和描述的缺省用本机的', () => {
+    const withContent = {
+      ...(preview.memories[1] as PackImportPreview['memories'][number]),
+      files: 1,
+    }
+    expect(memoryActionOf(defaultImportChoice(preview), withContent)).toBe('copy')
+  })
+
+  it('记忆：本机没有的就建；有的可以选用本机的或用导入的', () => {
     const choice = defaultImportChoice(preview)
     expect(preview.memories.map((entry) => memoryActionOf(choice, entry))).toEqual([
       'create',
@@ -202,6 +235,7 @@ describe('导入', () => {
       assets: 'local' as const,
       skills: { 'k-different': 'overwrite' as const },
       memories: { 'w-review': 'copy' as const },
+      enable: ['tick'],
     }
     expect(importSummary(preview, choice)).toEqual({
       versions: 2,
@@ -221,6 +255,7 @@ describe('导入', () => {
         'k-far': 'skip',
       },
       memories: { 'w-review': 'copy' },
+      enable: ['tick'],
       session: 's',
     })
   })

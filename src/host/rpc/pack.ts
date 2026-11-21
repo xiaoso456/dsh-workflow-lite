@@ -138,6 +138,7 @@ function packDeps(deps: RpcDeps): PackDeps {
     skillsRoot: deps.pack.skillsRoot,
     plugin: deps.pack.plugin,
     ...(deps.pack.validate === undefined ? {} : { validate: deps.pack.validate }),
+    catalog: () => deps.sessions.catalog(),
   }
 }
 
@@ -238,6 +239,7 @@ export async function dispatchPack(
           memories[id] = action
         }
       }
+      const enable = optionalStrings(input, 'enable')
       const outcome = await applyPack(packDeps(deps), {
         token: requireString(input, 'token'),
         mode,
@@ -245,6 +247,7 @@ export async function dispatchPack(
         ...(assets === undefined ? {} : { assets }),
         skills,
         memories,
+        ...(enable === undefined ? {} : { enable }),
         ...readScope(input),
       })
       if (!outcome.ok) return failFrom(outcome.error)
