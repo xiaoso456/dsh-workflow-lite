@@ -12,7 +12,7 @@
 /*
  * 标题和最右的箭头共用一个按钮，打包开关在箭头左边，单独操作。
  * 钉在滚动框顶上：滚到哪一类，那一类的标题留在上面，下一类的标题上来时把它顶走（钉的范围是自己这一节）。
- * 左右各伸出 6px 盖住行的悬停底色（行往右伸了 6px），内容用同样的内边距推回原位。
+ * 左右各伸出 6px 盖住行的悬停底色，右侧控件与行末文字留同样的边距。
  */
 .catHead {
   position: sticky;
@@ -24,7 +24,7 @@
   align-items: center;
   min-height: 32px;
   margin-inline: -6px;
-  padding-inline: 6px;
+  padding-inline: 6px var(--wl-pack-end-padding);
   background: var(--wl-panel);
   container-type: scroll-state;
 }
@@ -54,8 +54,8 @@
   grid-template-columns: subgrid;
   align-items: center;
   min-width: 0;
-  margin: 0 0 0 -6px;
-  padding: 4px 0 4px 6px;
+  margin: 0 calc(-1 * var(--wl-pack-end-padding)) 0 -6px;
+  padding: 4px var(--wl-pack-end-padding) 4px 6px;
   border: 0;
   border-radius: calc(8px * var(--wl-round, 1));
   background: none;
@@ -218,6 +218,34 @@
 .dir {
   color: var(--wl-text-3);
   font-weight: 400;
+}
+
+.pathTitle {
+  display: flex;
+  gap: 6px;
+}
+
+.pathName,
+.pathDir > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pathName {
+  flex: none;
+  max-inline-size: 100%;
+}
+
+.pathDir {
+  display: flex;
+  min-inline-size: 0;
+  max-inline-size: 32ch;
+}
+
+/* 空间不足时先截前面的目录，把靠近文件的目录留下。 */
+.pathTail {
+  flex: none;
+  max-inline-size: 75%;
 }
 
 /* ── 导出成什么 ───────────────────────────────────────────── */

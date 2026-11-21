@@ -83,7 +83,7 @@
 /*
  * 紧凑的一行（导出清单）：没有框、没有分隔线；最左一格 24px，和上面分类标题的图标上下对齐，
  * 里面是勾选框，不能勾的放一个状态图标占位，名字因此都从同一条竖线起。
- * 右边往外伸 6px（伸进 .scroll 的内边距）：悬停底色留得出边，右端的大小又和分类的开关齐。
+ * 右边往外伸 6px（伸进 .scroll 的内边距），右端控件和文字统一留边。
  */
 .row[data-compact="true"] {
   grid-template-columns: 24px minmax(0, 1fr) auto;
@@ -91,6 +91,7 @@
   min-height: 34px;
   margin-right: -6px;
   padding: 4px 6px 4px 0;
+  padding-inline-end: var(--wl-pack-end-padding, 6px);
   border-top: 0;
   border-radius: calc(8px * var(--wl-round, 1));
 }
@@ -170,6 +171,8 @@ div.page {
 
 /* 几个分类排成一列：展开、收起时下面的分类滑到新位置（useResizeFlip），所以每个分类要有不透明的底。 */
 .cats {
+  --wl-pack-end-padding: 10px;
+
   display: flex;
   flex-direction: column;
   gap: 4px;

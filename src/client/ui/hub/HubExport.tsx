@@ -513,7 +513,6 @@ function Resources(props: {
               ? item.value
               : pathTitle(item.value)
         }
-        mono={memory === undefined && item.kind !== 'skill'}
         badge={
           tag !== undefined ? (
             <span className={hub.tag} data-tone="plain">
@@ -551,7 +550,6 @@ function Resources(props: {
       <PackRow
         key={item.key}
         title={item.kind === 'text' ? textPreview(item.value) : pathTitle(item.value)}
-        mono={item.kind === 'file' || item.kind === 'folder'}
         meta={[used(item)]}
         lead={lead}
         tip={item.value}
@@ -682,14 +680,20 @@ function Resources(props: {
   )
 }
 
-/** 路径当标题：文件名在前，所在目录淡一档跟在后面；不是路径（网址、skill 名）原样返回。 */
+/** 路径当标题：文件名在前，目录按最后两级分段，供单行布局优先保留末尾。 */
 function pathTitle(value: string): React.ReactNode {
   const cut = Math.max(value.lastIndexOf('/'), value.lastIndexOf('\\'))
   if (cut <= 0 || cut === value.length - 1 || /^[a-z][a-z0-9+.-]*:\/\//i.test(value)) return value
+  const directory = value.slice(0, cut)
+  const tail = directory.search(/[/\\][^/\\]+(?:[/\\][^/\\]+)?$/u)
   return (
-    <>
-      {value.slice(cut + 1)} <span className={css.dir}>{value.slice(0, cut)}</span>
-    </>
+    <span className={css.pathTitle}>
+      <span className={css.pathName}>{value.slice(cut + 1)}</span>{' '}
+      <span className={cx(css.dir, css.pathDir)}>
+        <span>{tail > 0 ? directory.slice(0, tail) : directory}</span>
+        {tail > 0 && <span className={css.pathTail}>{directory.slice(tail)}</span>}
+      </span>
+    </span>
   )
 }
 
