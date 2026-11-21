@@ -559,6 +559,9 @@ export const zh = {
   'trigger.pingOk': '收下了，会照常触发一次',
   'trigger.pingBad': '没收下',
   'trigger.pingOff': '启用后才能发测试请求',
+  'trigger.pingSave': '先保存触发方式的改动，再发测试请求',
+  'trigger.pingWaiting': '触发器还没开始接收请求',
+  'trigger.pingSending': '正在发送测试请求…',
   // ── 接续：选工作流 ────────────────────────────────────────
   'trigger.afterPick': '等哪个工作流',
   'trigger.afterSearch': '搜索工作流',
@@ -1148,6 +1151,9 @@ export const en: Record<keyof typeof zh, string> = {
   'trigger.pingOk': 'Accepted; it fires as usual',
   'trigger.pingBad': 'Not accepted',
   'trigger.pingOff': 'Enable it to send a test request',
+  'trigger.pingSave': 'Save the trigger changes before sending a test request',
+  'trigger.pingWaiting': 'The trigger has not started receiving requests yet',
+  'trigger.pingSending': 'Sending the test request…',
   // ── After: pick a workflow ────────────────────────────────
   'trigger.afterPick': 'Which workflow',
   'trigger.afterSearch': 'Search workflows',

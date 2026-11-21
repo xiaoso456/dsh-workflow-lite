@@ -28,6 +28,8 @@ export function SourceStage(props: {
   source: TriggerSource
   /** 图里存着的。 */
   saved: TriggerSource
+  /** 触发方式有未保存的改动。 */
+  sourceDirty: boolean
   /** 现场（草稿改过时不给）。 */
   view: TriggerView | undefined
   env: TriggerEnv | null
@@ -91,7 +93,8 @@ export function SourceStage(props: {
             node={props.node}
             env={env}
             source={source}
-            live={props.view?.state === 'listening'}
+            view={view}
+            sourceDirty={props.sourceDirty}
             onChange={props.onChange}
           />
         )}

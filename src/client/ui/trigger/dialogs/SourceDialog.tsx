@@ -125,6 +125,7 @@ export function SourceDialog(props: {
         node={props.node}
         source={draft}
         saved={saved}
+        sourceDirty={sourceDirty}
         view={view}
         env={env}
         run={{

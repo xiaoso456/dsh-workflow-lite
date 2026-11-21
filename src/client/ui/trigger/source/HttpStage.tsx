@@ -12,7 +12,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { TriggerSource } from '../../../../shared/types.ts'
-import type { TriggerPingResponse } from '../../../../shared/wire/trigger.ts'
+import type { TriggerPingResponse, TriggerView } from '../../../../shared/wire/trigger.ts'
 import type { T } from '../../../i18n.ts'
 import { type Endpoint, endpointOf } from '../../../model/httpEndpoint.ts'
 import {
@@ -21,6 +21,7 @@ import {
   type SnippetLang,
   snippetOf,
 } from '../../../model/httpSnippets.ts'
+import { stateText } from '../../../model/triggerText.ts'
 import { useConfirm } from '../../kit/Confirm.tsx'
 import { cx } from '../../kit/cx.ts'
 import { Icon } from '../../kit/Icon.tsx'
@@ -48,13 +49,26 @@ function withEndpoint(source: HttpSource, change: EndpointChange): HttpSource {
   }
 }
 
+/** 测试请求发往已保存且正在接收请求的地址。 */
+function pingBlockOf(
+  t: T,
+  view: TriggerView | undefined,
+  sourceDirty: boolean,
+): string | undefined {
+  if (sourceDirty) return t('trigger.pingSave')
+  if (view?.state === 'listening') return undefined
+  if (view?.state === 'off') return t('trigger.pingOff')
+  if (view === undefined || view.state === 'waiting') return t('trigger.pingWaiting')
+  return view.problem ?? stateText(t, view, 'http')
+}
+
 export function HttpStage(props: {
   t: T
   node: string
   env: TriggerEnv | null
   source: HttpSource
-  /** 保存着的地址正在收请求（开关开着、由这里负责、草稿没改过）。 */
-  live: boolean
+  view: TriggerView | undefined
+  sourceDirty: boolean
   onChange(source: TriggerSource): void
 }): React.JSX.Element {
   const { t, env, source } = props
@@ -125,7 +139,7 @@ export function HttpStage(props: {
         node={props.node}
         endpoint={endpoint}
         reveal={reveal}
-        live={props.live}
+        pingBlocked={pingBlockOf(t, props.view, props.sourceDirty)}
       />
     </>
   )
@@ -163,14 +177,14 @@ function Snippets(props: {
   env: TriggerEnv
   node: string
   endpoint: Endpoint
-  /** 保存着的地址正在收请求（开关开着、由这里负责、草稿没改过）。 */
-  live: boolean
+  pingBlocked: string | undefined
   /** 令牌露不露出来（和设置行那一行一起）。 */
   reveal: boolean
 }): React.JSX.Element {
   const { t, env, endpoint } = props
   const [lang, setLang] = useState<SnippetLang>('curl')
   const [ping, setPing] = useState<TriggerPingResponse | string | 'sending' | null>(null)
+  const blocked = ping === 'sending' ? t('trigger.pingSending') : props.pingBlocked
   const confirm = useConfirm<HTMLButtonElement>()
   const token = endpoint.noToken ? null : endpoint.token
   const code = snippetOf(lang, { url: endpoint.url, token })
@@ -211,8 +225,8 @@ function Snippets(props: {
             ref={confirm.anchorRef}
             type="button"
             className={cx(benchButton, benchPrimary)}
-            disabled={!props.live || ping === 'sending'}
-            data-tip={props.live ? undefined : t('trigger.pingOff')}
+            disabled={blocked !== undefined}
+            data-tip={blocked}
             data-testid="wl-trigger-ping"
             onClick={confirm.toggle}
           >
@@ -244,8 +258,12 @@ function Snippets(props: {
               </>
             )}
           </span>
-          <span className={css.offNote} hidden={props.live} data-testid="wl-trigger-http-off">
-            {t('trigger.httpOff')}
+          <span
+            className={css.offNote}
+            hidden={props.pingBlocked === undefined}
+            data-testid="wl-trigger-http-off"
+          >
+            {props.pingBlocked}
           </span>
           <ListenNote t={t} env={env} />
         </>
