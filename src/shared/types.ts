@@ -888,9 +888,30 @@ export interface ReadIndexResult {
   inputs?: InputIndexEntry[]
   /** 触发卡片的定义和设置（有才给），带上现在的状态；触发记录等读那张卡片才给。 */
   triggers?: TriggerIndexEntry[]
+  /** 本机的触发器 shell（仅在 include 要了 shells 时返回）。 */
+  triggerShells?: TriggerShellsResponse
   /** 阻塞编译的问题（有才给）。 */
   problems?: ValidationProblem[]
   warnings: ToolWarning[]
+}
+
+/** 跑命令用的 shell 是哪一类，决定命令怎么交给它。 */
+export type ShellFamily = 'cmd' | 'powershell' | 'posix'
+
+export interface ShellChoice {
+  /** 程序的完整路径。 */
+  path: string
+  name: string
+  family: ShellFamily
+}
+
+/** 触发器的 shell 清单，「跟随默认」实际用的是 fallback。 */
+export interface TriggerShellsResponse {
+  shells: ShellChoice[]
+  system: ShellChoice
+  /** Windows 设置为空时自动选的 shell。 */
+  automatic?: ShellChoice
+  fallback: ShellChoice
 }
 
 /** `read` 给了 `node=<id>` 时的单节点详情——这里才有正文。 */

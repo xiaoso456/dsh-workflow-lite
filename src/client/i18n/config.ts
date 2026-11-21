@@ -63,7 +63,7 @@ export const zh = {
     '缺省只接受本机的请求。要让别的机器调用，选「所有网卡」或某块网卡的地址；请求是明文 HTTP，只在信得过的网络里用，或放在 HTTPS 代理后面。',
   'cfg.triggerShell': '默认 shell',
   'cfg.triggerShellDesc': '带命令的触发器（定时检查、监视）没单独选 shell 时用它。',
-  'cfg.shellSystem': '系统默认',
+  'cfg.shellAutomatic': '自动',
   'cfg.triggerOutputLines': '最近的输出保留',
   'cfg.triggerOutputLinesDesc':
     '每个带命令的触发器最多留这么多行输出，更早的丢掉；一行超过 2000 字的截断。存在本机。',
@@ -168,7 +168,7 @@ export const en: Record<keyof typeof zh, string> = {
   'cfg.triggerShell': 'Default shell',
   'cfg.triggerShellDesc':
     'Used by triggers that run a command (scheduled checks, watch) and do not pick their own shell.',
-  'cfg.shellSystem': 'System default',
+  'cfg.shellAutomatic': 'Automatic',
   'cfg.triggerOutputLines': 'Recent output kept',
   'cfg.triggerOutputLinesDesc':
     'Each trigger that runs a command keeps at most this many lines of output and drops older ones; lines over 2000 characters are cut. Stored on this computer.',

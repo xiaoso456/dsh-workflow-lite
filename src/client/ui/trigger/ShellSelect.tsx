@@ -3,7 +3,7 @@
  * 最后一项「选择其他 shell…」打开选文件的对话框自己挑一个程序。
  *
  * 两种外形，同一份选项（{@link useShellChoices}）：
- * - {@link ShellSelect}：设置页「触发」组里的下拉（`default`：空着是「系统默认」）；
+ * - {@link ShellSelect}：设置页「触发」组里的下拉（`default`：空着按系统自动选择）；
  * - {@link ShellButton}：「触发方式」对话框命令工作台顶上一条里的小按钮，点开是同样的菜单
  *   （`card`：空着是「跟随默认」，指的是设置里的默认）。
  *
@@ -36,7 +36,7 @@ interface ShellProps {
   access: ShellAccess
   /** 选的程序的完整路径；空串 = 默认。 */
   value: string
-  /** `card`：空着跟随设置里的默认；`default`：设置页本身，空着是系统的。 */
+  /** `card`：空着跟随设置里的默认；`default`：设置页本身，空着按系统自动选择。 */
   mode: 'card' | 'default'
   testId: string
   onChange(path: string): void
@@ -72,11 +72,13 @@ function useShellChoices(props: ShellProps): {
     }
   }, [access])
 
-  const base = props.mode === 'card' ? catalog?.fallback : catalog?.system
+  const automatic = catalog?.automatic
+  const base = props.mode === 'card' ? catalog?.fallback : (automatic ?? catalog?.system)
+  const defaultLabel = automatic === undefined ? 'trigger.shell.system' : 'trigger.shell.automatic'
   const options: SelectOption<string>[] = [
     {
       value: '',
-      label: t(props.mode === 'card' ? 'trigger.shell.follow' : 'trigger.shell.system').replace(
+      label: t(props.mode === 'card' ? 'trigger.shell.follow' : defaultLabel).replace(
         '{name}',
         base?.name ?? '…',
       ),
@@ -91,8 +93,8 @@ function useShellChoices(props: ShellProps): {
     options.push({ value: choice.path, label: choice.name, desc: choice.path })
   }
   for (const shell of catalog?.shells ?? []) {
-    // 设置页里系统的那个就是「系统默认」，不再列一遍。
-    if (props.mode === 'default' && shell.path === catalog?.system.path) continue
+    if (props.mode === 'default' && automatic === undefined && shell.path === catalog?.system.path)
+      continue
     add(shell)
   }
   const detected = seen.has(props.value.toLowerCase())

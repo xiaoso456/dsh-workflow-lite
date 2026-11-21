@@ -8,7 +8,7 @@
  *   不用 `-EncodedCommand`：那样 Windows PowerShell 把错误输出写成 CLIXML（一堆 XML），找不到命令也认不出来。
  *   脚本前面让输出走 UTF-8、关掉进度条和颜色，后面按最后一条命令的结果退出（原生程序的退出码原样带出来，cmdlet 失败是 1）；
  * - `posix`（sh、bash、zsh…，Windows 上的 Git Bash 也是）：`shell -c 命令`。
- * 没选、也没设默认时用系统的（Windows 是 `ComSpec` 指的 cmd，别处是 `/bin/sh`），和以前一样。
+ * 触发器服务在 Windows 上优先用找到的 Git Bash、PowerShell 7、Windows PowerShell、cmd。
  *
  * 只列出能直接跑的：WSL 的 `bash.exe` 进的是 Linux，路径对不上，不列（自己选了照样能用）。
  * 从 Microsoft Store 装的 PowerShell 7 只在 `WindowsApps` 里留一个别名（链接到受保护的目录）：
@@ -55,7 +55,7 @@ export function shellName(path: string): string {
   return name
 }
 
-/** 没选、也没设默认时用的 shell（同 Node 的 `shell: true`）。 */
+/** 系统 shell（同 Node 的 `shell: true`）。 */
 export function systemShell(
   platform: NodeJS.Platform = process.platform,
   env: NodeJS.ProcessEnv = process.env,
@@ -135,8 +135,12 @@ async function windowsCandidates(env: NodeJS.ProcessEnv): Promise<string[]> {
   const git = await onPath('git.exe', env)
   const home = env.USERPROFILE
   return [
-    systemShell('win32', env),
-    windowsPowerShell(env),
+    // Git 装在哪，Git Bash 就在它的 bin 里（git.exe 在 cmd 或 bin 下面）。
+    ...(git === undefined ? [] : [join(dirname(dirname(git)), 'bin', 'bash.exe')]),
+    ...programs.map((dir) => join(dir, 'Git', 'bin', 'bash.exe')),
+    ...(env.LOCALAPPDATA === undefined
+      ? []
+      : [join(env.LOCALAPPDATA, 'Programs', 'Git', 'bin', 'bash.exe')]),
     // PowerShell 7：安装包装的、Microsoft Store 装的（别名）、dotnet tool、Scoop 装的，再看 PATH 里有没有别处的。
     // 同一个程序只留排在前面的那条路径（Store 的别名有两处，留短的那个）。
     ...programs.map((dir) => join(dir, 'PowerShell', '7', 'pwsh.exe')),
@@ -151,12 +155,8 @@ async function windowsCandidates(env: NodeJS.ProcessEnv): Promise<string[]> {
           join(home, 'scoop', 'apps', 'pwsh', 'current', 'pwsh.exe'),
         ]),
     (await onPath('pwsh.exe', env)) ?? '',
-    // Git 装在哪，Git Bash 就在它的 bin 里（git.exe 在 cmd 或 bin 下面）。
-    ...(git === undefined ? [] : [join(dirname(dirname(git)), 'bin', 'bash.exe')]),
-    ...programs.map((dir) => join(dir, 'Git', 'bin', 'bash.exe')),
-    ...(env.LOCALAPPDATA === undefined
-      ? []
-      : [join(env.LOCALAPPDATA, 'Programs', 'Git', 'bin', 'bash.exe')]),
+    windowsPowerShell(env),
+    systemShell('win32', env),
   ]
 }
 
@@ -174,7 +174,7 @@ async function posixCandidates(env: NodeJS.ProcessEnv): Promise<string[]> {
   return ['/bin/sh', env.SHELL ?? '', ...listed, (await onPath('pwsh', env)) ?? '']
 }
 
-/** 本机能用的 shell：系统缺省的排第一，同一个程序只列一次。 */
+/** 本机能用的 shell。Windows 按自动选择的优先级排列，别处 `/bin/sh` 在前。 */
 export async function detectShells(
   platform: NodeJS.Platform = process.platform,
   env: NodeJS.ProcessEnv = process.env,

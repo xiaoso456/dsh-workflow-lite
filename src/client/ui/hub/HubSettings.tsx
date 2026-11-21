@@ -385,7 +385,7 @@ function shown(
     case 'saveDebounceMs':
       return `${values.saveDebounceMs} ${t('cfg.ms')}`
     case 'triggerShell':
-      return values.triggerShell === '' ? t('cfg.shellSystem') : values.triggerShell
+      return values.triggerShell === '' ? t('cfg.shellAutomatic') : values.triggerShell
     default:
       return String(values[name])
   }

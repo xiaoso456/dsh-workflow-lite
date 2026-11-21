@@ -254,6 +254,9 @@ export function createWorkflowLiteHandler(
                   ),
                 }
               : {}),
+            ...(args.include?.includes('shells') && deps.triggers !== undefined
+              ? { triggerShells: await deps.triggers.shells() }
+              : {}),
             // 索引就是自检的入口：阻塞编译的问题也在这里给，不必为了看问题去编译（编译会建实例）。
             ...(compile.length === 0 ? {} : { problems: compile }),
             warnings,

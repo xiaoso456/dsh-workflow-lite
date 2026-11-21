@@ -52,7 +52,7 @@ Click **Try it** and confirm, and the command runs once in the chosen workspace 
 | Rule | Interval, Times, Cron | Daily 09:00 | With a command, **Interval** can be as short as 10 seconds. |
 | Fire when | On time, Every success, Becomes OK, Output changes | On time | **On time** drops the command and makes it a [scheduled trigger](/dsh-workflow-lite/en/trigger/schedule/). |
 | Workspace | Workspaces you have opened | None | The command runs here, and new sessions are created here. |
-| Shell | Default, System default, Choose another shell… | Default | **Default** uses **Default shell** in the [plugin settings](/dsh-workflow-lite/en/settings/plugin/). |
+| Shell | Default, installed shells, Choose another shell… | Default | **Default** uses **Default shell** in the [plugin settings](/dsh-workflow-lite/en/settings/plugin/). |
 
 ## Running commands
 

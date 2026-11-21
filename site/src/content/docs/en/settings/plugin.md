@@ -28,13 +28,14 @@ For settings marked **After restart**, restart DSH after saving.
 | Model | Guides for the model | On | Registers four guides the model reads on demand: designing a workflow, recording run state, writing a canvas dashboard, adding triggers. Takes effect after restart. |
 | Triggers | HTTP trigger listen address | This machine only (127.0.0.1) | Where [HTTP trigger](/dsh-workflow-lite/en/trigger/http/) requests are received: this machine only, all interfaces (0.0.0.0) or one interface address of this machine. Picking anything other than this machine asks for confirmation first: requests are plain HTTP, so use it only on a trusted network. |
 | Triggers | HTTP trigger port | 3791 | Port for HTTP trigger addresses; only taken while an HTTP trigger is enabled. Changing it changes the addresses, so update the callers. |
-| Triggers | Default shell | System default | Used by triggers that run a command ([scheduled checks](/dsh-workflow-lite/en/trigger/check/), [watches](/dsh-workflow-lite/en/trigger/listen/)) and do not pick their own shell; another shell installed on this machine can be chosen too. After changing it, triggers that follow the default need their command confirmed again. |
+| Triggers | Default shell | Automatic on Windows, System default elsewhere | Used by [scheduled checks](/dsh-workflow-lite/en/trigger/check/) and [watches](/dsh-workflow-lite/en/trigger/listen/) that follow the default. Windows picks the first available shell in this order, Git Bash, PowerShell 7, Windows PowerShell, then cmd. An installed shell can also be selected manually. |
 | Triggers | Recent output kept | 300 lines | How many lines of output each trigger that runs a command keeps (20 to 5000); older lines are dropped, and lines over 2000 characters are cut. |
 
 **Listening** at the bottom of the **Triggers** group shows whether HTTP triggers are being received right now and on which address; when the port cannot be opened (for example it is taken), the reason is shown there. After you change the listen address or port and save, it updates within a few seconds.
 
 ## Notes
 
+- On Windows, restart DSH after installing a shell to refresh the automatic choice.
 - Changing the **Data folder** does not move existing data; change it back to the original path to see it again.
 - Number settings accept digits only; hover to see the allowed range. When you leave the field, a value out of range snaps to the nearest limit and an empty one goes back to the saved value. Clearing **Data folder** also goes back to the saved path.
 - When the current DSH has no settings service, or its configuration does not allow editing here, the settings are read-only and the top of the page says why.

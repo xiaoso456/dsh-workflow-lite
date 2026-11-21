@@ -33,6 +33,7 @@ import { OwnerLock } from '../../src/host/triggers/owner.ts'
 import type { LiveRuntime, LiveSpec, RuntimeEvents } from '../../src/host/triggers/runtime.ts'
 import { LATE_MS, TriggerService } from '../../src/host/triggers/service.ts'
 import type { SessionPort } from '../../src/host/triggers/sessions.ts'
+import { detectShells, systemShell } from '../../src/host/triggers/shells.ts'
 import { TriggerStore } from '../../src/host/triggers/store.ts'
 import type { InstanceView, RunStatus } from '../../src/shared/runState.ts'
 import { sessionTitle } from '../../src/shared/sessionTitle.ts'
@@ -59,7 +60,7 @@ let gone: Set<string>
 let unavailable: string | null
 /** 插件设置里 HTTP 触发的监听地址。 */
 let listenHost = '127.0.0.1'
-/** 设置里的默认 shell（空串 = 系统的）。 */
+/** 设置里的默认 shell（空串 = 自动）。 */
 let defaultShell = ''
 let openError: string | null
 /** 假的实例：接续触发看的「哪些实例结束了」（按工作流）。 */
@@ -985,7 +986,7 @@ describe('常驻触发源', () => {
     const data = cardDataDir(assetsDir(dataDir, 'patrol'), 'tick')
     const secrets = cardSecretsDir(assetsDir(dataDir, 'patrol'), 'tick')
     for (const made of [card, data, secrets]) expect((await stat(made)).isDirectory()).toBe(true)
-    expect(live.specs).toEqual([
+    expect(live.specs).toMatchObject([
       {
         workflow: 'patrol',
         node: 'tick',
@@ -1065,7 +1066,17 @@ describe('常驻触发源', () => {
     await writeFile(bash, '')
 
     const triggers = await listening()
-    expect(live.specs[0]).not.toHaveProperty('shell')
+    const system = systemShell()
+    const expected =
+      process.platform === 'win32' ? ((await detectShells())[0]?.path ?? system) : system
+    const catalog = await triggers.shells()
+    expect(catalog.system.path).toBe(system)
+    expect(catalog.fallback.path).toBe(expected)
+    expect(catalog.automatic?.path).toBe(process.platform === 'win32' ? expected : undefined)
+    expect(live.specs[0]?.shell ?? system).toBe(expected)
+    expect((await triggers.list('patrol')).triggers[0]?.runShell?.path).toBe(expected)
+
+    defaultShell = bash
     await set(triggers, { shell: pwsh })
     await triggers.tick()
     expect(live.specs[0]?.shell).toBe(pwsh)
@@ -1075,12 +1086,35 @@ describe('常驻触发源', () => {
     })
 
     await set(triggers, { shell: '' })
-    defaultShell = bash
     await triggers.tick()
     expect(live.specs[0]?.shell).toBe(bash)
     expect((await triggers.list('patrol')).triggers[0]?.runShell).toEqual({
       path: bash,
       name: 'bash',
+    })
+  })
+
+  it('界面和模型都用触发器默认的 shell 试运行', async () => {
+    const triggers = service()
+    const { fallback } = await triggers.shells()
+    const command = {
+      cmd: 'if defined WORKFLOW_DIR echo shell-ok',
+      powershell: 'if ($env:WORKFLOW_DIR) { Write-Output "shell-ok" }',
+      posix: 'if [ -n "$WORKFLOW_DIR" ]; then echo shell-ok; fi',
+    }[fallback.family]
+    await saveGraph('patrol', {
+      source: {
+        kind: 'schedule',
+        schedule: { kind: 'every', seconds: 1800 },
+        check: { command, when: 'every' },
+      },
+    })
+    expect(
+      await triggers.tryCommand({ workflow: 'patrol', node: 'tick', kind: 'check', command }),
+    ).toMatchObject({ ok: true, result: { code: 0, lines: [{ stream: 'out', text: 'shell-ok' }] } })
+    expect(await triggers.test({ workflow: 'patrol', node: 'tick' })).toMatchObject({
+      ok: true,
+      result: { verdict: 'fire', info: 'shell-ok' },
     })
   })
 
@@ -1754,6 +1788,15 @@ describe('模型读、改、试触发卡片', () => {
     }
     expect(index.triggers).toEqual([expect.objectContaining({ id: 'tick', state: 'off' })])
     expect(index.triggers?.[0]).not.toHaveProperty('enabled')
+  })
+
+  it('模型新建第一张触发卡片前可以查询默认和可用的 shell', async () => {
+    await repository.create('patrol')
+    expect(await run({ action: 'read', workflow: 'patrol' })).not.toHaveProperty('triggerShells')
+    const { shells, fallback } = await triggers.shells()
+    expect(await run({ action: 'read', workflow: 'patrol', include: ['shells'] })).toMatchObject({
+      triggerShells: { fallback, shells },
+    })
   })
 
   it('改设置：只给 local 不碰定义、写进图里；HTTP 地址、令牌、当前会话', async () => {

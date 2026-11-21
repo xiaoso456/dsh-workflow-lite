@@ -52,7 +52,7 @@ sidebar:
 | 规则 | 间隔、时刻、Cron | 每天 09:00 | 带命令时「间隔」最短 10 秒。 |
 | 判定 | 到点就执行、每次成功、变为成功、输出变化 | 到点就执行 | 选「到点就执行」就去掉命令，成为[定时触发](/dsh-workflow-lite/trigger/schedule/)。 |
 | 工作区 | 已打开过的工作区 | 无 | 命令在这里运行，新会话也建在这里。 |
-| Shell | 跟随默认、系统默认、选择其他 shell… | 跟随默认 | 「跟随默认」用[插件设置](/dsh-workflow-lite/settings/plugin/)里的「默认 shell」。 |
+| Shell | 跟随默认、本机已有的 shell、选择其他 shell… | 跟随默认 | 「跟随默认」用[插件设置](/dsh-workflow-lite/settings/plugin/)里的「默认 shell」。 |
 
 ## 运行命令
 

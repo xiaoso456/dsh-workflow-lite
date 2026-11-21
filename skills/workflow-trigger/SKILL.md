@@ -50,6 +50,7 @@ const emit = (text, data) => {
 
 1. `read` 这个工作流：拿到工作流目录 `dir`，看 `triggers` 里是不是已经有卡片（有就改它，别重复建）。
 2. 选触发方式（见「选触发方式」），读对应的文件；再按「找示例」挑一份示例，后面照着它改，别从头写。拿不准用户要什么时先问：多久一次、等什么事、事情来了要做什么；监视还要问「多快算快」「能不能漏」，答案直接定了合并、排队、去重怎么配（`fast.md`）。
+   - 要写或改检查命令、监视程序时，先确认这张卡片实际用的 shell。已有卡片用 `read` 带 `node` 看 `local.shell`。新建时在第 1 步的 `read` 带 `include: ["shells"]`，用 `triggerShells.fallback` 看默认，用 `triggerShells.shells` 看可选程序。怎么选见 `scripts.md`。
 3. `write_trigger` 写定义（新卡片是关着的）；知道会话工作区的话，同一次带上 `local.workspace`。返回的 `local` 里有卡片目录 `cardDir`、数据目录 `dataDir`、密钥目录 `secretsDir`；要跑命令的卡片，`dir/triggers/` 里已经有底子 `watch.mjs`（第一次时插件放好，之后不换）。
 4. 要脚本就照示例写进卡片目录 `cardDir`（读 `scripts.md`），监视程序 `import … from '../watch.mjs'`（`kit.md`）。脚本要用的凭据：用户在对话里给了就写进 `secretsDir` 下的文件，没给就告诉用户放哪个文件。
 5. `test_trigger` 试（见「验证」）。结果不对就改脚本或定义，再试，直到对为止。之后每改一次脚本或命令，都要再试一次；卡片开着时改了监视程序的脚本，关掉再打开才换成新脚本（`listen.md`）。

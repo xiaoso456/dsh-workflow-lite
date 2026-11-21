@@ -30,6 +30,7 @@ export type TriggerPort = Pick<
   | 'decline'
   | 'list'
   | 'all'
+  | 'shells'
   | 'readiness'
   | 'untested'
   | 'set'

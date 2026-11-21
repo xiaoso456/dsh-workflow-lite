@@ -8,6 +8,8 @@ import type { RunStatus } from '../runState.ts'
 import type { FireChannel } from '../trigger.ts'
 import type { SessionAgent, SessionChoice, TriggerData } from '../types.ts'
 
+export type { ShellChoice, ShellFamily, TriggerShellsResponse } from '../types.ts'
+
 /**
  * 一次触发的结果：消息发进会话了 / 被跳过（没轮到它）/ 没发出去 / 排着队（上一次还没跑完，轮到了再发）。
  * 排着的轮到时原地改成发出去或没发出去；关掉卡片、取消的改成跳过。
@@ -456,28 +458,6 @@ export interface TriggerPingResponse {
   status: number
   /** 回应的正文（只留开头）。 */
   text: string
-}
-
-/** 跑命令用的 shell 是哪一类：决定命令怎么交给它（cmd、PowerShell、sh 一类）。 */
-export type ShellFamily = 'cmd' | 'powershell' | 'posix'
-
-/** 一个能用来跑触发命令的 shell。 */
-export interface ShellChoice {
-  /** 程序的完整路径。 */
-  path: string
-  /** 给人看的名字（cmd、PowerShell、Git Bash、zsh……）。 */
-  name: string
-  family: ShellFamily
-}
-
-/**
- * `trigger/shells`：本机找得到的 shell（系统的排第一），系统缺省的那个，
- * 以及「跟着默认」现在指的那个（设置里选了就是它，没选是系统的）。
- */
-export interface TriggerShellsResponse {
-  shells: ShellChoice[]
-  system: ShellChoice
-  fallback: ShellChoice
 }
 
 /** `trigger/shell`：认一个自己选的程序能不能当 shell 用。 */

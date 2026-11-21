@@ -143,7 +143,7 @@ export interface TriggerServiceDeps {
   sessions: SessionPort
   /** HTTP 触发的监听地址与端口（插件设置）。 */
   listen: () => HookBind
-  /** 定时检查、监听没单独选 shell 时用哪个（插件设置，程序的完整路径）；空串或不给 = 系统的。 */
+  /** 定时检查、监听没单独选 shell 时用哪个（插件设置，程序的完整路径）；空串或不给 = 自动。 */
   defaultShell?: () => string
   /** 每张定时检查、监听卡片最近的输出留多少行（插件设置）；不给是 {@link OUTPUT_LINES} 的缺省值。 */
   outputLines?: () => number
@@ -170,6 +170,8 @@ export class TriggerService {
   private readonly dataDir: () => string
   private readonly listen: () => HookBind
   private readonly defaultShell: () => string
+  /** 本次宿主运行自动选的 shell，避免每轮对账都扫描 Windows 的安装目录。 */
+  private automaticWindowsShell?: Promise<string>
   private readonly outputLines: () => number
   private readonly now: () => number
   private readonly warn: (message: string) => void
@@ -515,7 +517,13 @@ export class TriggerService {
       specs.push({
         ...base,
         source,
-        ...(await this.commandSpec(workflow, node, command, data, this.shellFor(data))),
+        ...(await this.commandSpec(
+          workflow,
+          node,
+          command,
+          data,
+          this.configuredShell(data.shell),
+        )),
         ...(source.kind === 'schedule'
           ? { catchUp: launchOf(data).catchUp, ...(probe === undefined ? {} : { probe }) }
           : {}),
@@ -772,7 +780,13 @@ export class TriggerService {
           ? { workflowChoice: trigger.workflowChoice }
           : {}),
         ...(await this.upstreamOf(source)),
-        ...(commandOf(source) === undefined ? {} : { runShell: shellLabel(this.shellFor(data)) }),
+        ...(commandOf(source) === undefined
+          ? {}
+          : {
+              runShell: shellLabel(
+                this.configuredShell(data.shell) || (await this.automaticShell()),
+              ),
+            }),
         ...(source.kind === 'http' && source.hook !== undefined
           ? { url: hookUrl(advertisedHost(scene.listen.host), scene.listen.port, source.hook) }
           : {}),
@@ -974,9 +988,17 @@ export class TriggerService {
     return ok({ ...detail.record, declined: text })
   }
 
-  /** 这张卡片实际用哪个 shell：自己选的，没选是设置里的默认；空串是系统的。 */
-  private shellFor(data: Pick<TriggerData, 'shell'>): string {
-    return data.shell ?? this.defaultShell()
+  private async automaticShell(shells?: readonly ShellChoice[]): Promise<string> {
+    if (process.platform !== 'win32') return ''
+    this.automaticWindowsShell ??= (
+      shells === undefined ? detectShells() : Promise.resolve(shells)
+    ).then((choices) => choices[0]?.path ?? systemShell())
+    return this.automaticWindowsShell
+  }
+
+  /** 卡片指定的优先，其次是插件设置；两处都没设时返回空串。 */
+  private configuredShell(override?: string): string {
+    return override || this.defaultShell()
   }
 
   /** 本机的 shell、系统缺省的那个、「跟着默认」现在指的那个（设置页、对话框里的下拉用）。 */
@@ -989,8 +1011,13 @@ export class TriggerService {
         family: familyOf(path) ?? (process.platform === 'win32' ? 'cmd' : 'posix'),
       }
     const system = describe(systemShell())
-    const chosen = this.defaultShell()
-    return { shells, system, fallback: chosen === '' ? system : describe(chosen) }
+    const automatic = await this.automaticShell(shells)
+    return {
+      shells,
+      system,
+      ...(automatic === '' ? {} : { automatic: describe(automatic) }),
+      fallback: describe(this.configuredShell() || automatic || system.path),
+    }
   }
 
   /** 认一个自己选的程序能不能当 shell 用。 */
@@ -1005,8 +1032,7 @@ export class TriggerService {
    */
   async tryCommand(request: TriggerTryRequest): Promise<Outcome<TriggerTryResponse>> {
     if (request.command.trim() === '') return fail('invalid_args', '命令是空的')
-    const shell =
-      request.shell === undefined || request.shell === '' ? this.defaultShell() : request.shell
+    const shell = this.configuredShell(request.shell)
     if (shell !== '') {
       const checked = await checkShell(shell)
       if (typeof checked === 'string') return fail('invalid_args', checked)
@@ -1060,6 +1086,7 @@ export class TriggerService {
     const data = cardDataDir(dir, node, trial)
     const secrets = cardSecretsDir(dir, node)
     for (const made of [home, data, secrets]) await ensureDir(made)
+    const runShell = shell || (await this.automaticShell())
     return {
       command: bind(bindWorkflowVar(command, dir)),
       cwd,
@@ -1069,7 +1096,7 @@ export class TriggerService {
         [CARD_DATA_ENV]: data,
         [CARD_SECRETS_ENV]: secrets,
       },
-      ...(shell === '' ? {} : { shell }),
+      ...(runShell === '' ? {} : { shell: runShell }),
     }
   }
 
@@ -1110,7 +1137,7 @@ export class TriggerService {
         request.node,
         command,
         place,
-        this.shellFor(data),
+        this.configuredShell(data.shell),
         true,
       )
       const where = await directoryProblem(spec.cwd, '脚本的工作目录')

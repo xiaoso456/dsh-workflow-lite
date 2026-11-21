@@ -159,9 +159,11 @@ async function run(session) {
   )
   pass('放弃：草稿回到已保存的值')
 
-  // 5b) 默认 shell：下拉列出本机找到的 shell（系统的那个就是「系统默认」），选一个保存，再恢复默认。
-  const { shells, system } = await rpc('trigger/shells', {})
-  const other = shells.find((shell) => shell.path !== system.path)
+  // 5b) Windows 可以从自动切到 cmd，再恢复自动。其他系统可以从系统默认切到别的 shell。
+  const { shells, system, automatic } = await rpc('trigger/shells', {})
+  const other = shells.find((shell) =>
+    automatic === undefined ? shell.path !== system.path : shell.path === system.path,
+  )
   if (other === undefined) {
     pass('默认 shell：本机只有系统的 shell，跳过')
   } else {
@@ -179,7 +181,7 @@ async function run(session) {
       `JSON.stringify([...document.querySelectorAll('[data-testid^="wl-cfg-triggerShell-"]')].map((el) => el.textContent))`,
     )
     for (const shell of shells) {
-      if (shell.path === system.path) continue
+      if (automatic === undefined && shell.path === system.path) continue
       check(
         listed.includes(JSON.stringify(shell.path).slice(1, -1)),
         `下拉里应有 ${shell.path}：${listed}`,
@@ -205,7 +207,14 @@ async function run(session) {
       back.values.triggerShell === '' && !back.overridden.includes('triggerShell'),
       `默认 shell 应已恢复：${JSON.stringify(back.values)}`,
     )
-    pass('默认 shell：列出本机的 shell，选了保存生效，恢复默认回到系统的')
+    const fallback = automatic ?? system
+    const label = `${automatic === undefined ? '系统默认' : '自动'}（${fallback.name}）`
+    await waitFor(
+      session,
+      `document.querySelector('[data-testid="wl-cfg-triggerShell"]').textContent.includes(${JSON.stringify(label)})`,
+    )
+    check((await rpc('trigger/shells', {})).fallback.path === fallback.path, '应恢复默认 shell')
+    pass('默认 shell：手动选择保存后生效，恢复默认后显示实际使用的 shell')
   }
 
   // 6) 外观：亮色、暗色各四套，点一下马上换（不进保存条），记在浏览器里，重新打开还在。

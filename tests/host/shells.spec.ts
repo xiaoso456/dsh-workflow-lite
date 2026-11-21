@@ -57,7 +57,7 @@ describe('认 shell', () => {
     expect(await checkShell(bash)).toEqual({ path: bash, name: 'bash', family: 'posix' })
   })
 
-  it('找本机的：只列在的，同一个只列一次，系统的排第一', async () => {
+  it('Windows 上按 Git Bash、PowerShell 7、Windows PowerShell、cmd 排列可用项', async () => {
     const root = join(dir, 'Windows')
     const ps = join(root, 'System32', 'WindowsPowerShell', 'v1.0')
     const git = join(dir, 'Git')
@@ -69,14 +69,24 @@ describe('认 shell', () => {
     await writeFile(join(ps, 'powershell.exe'), '')
     await writeFile(join(git, 'cmd', 'git.exe'), '')
     await writeFile(join(git, 'bin', 'bash.exe'), '')
-    const found = await detectShells('win32', {
+    const env = {
       ComSpec: cmd,
       SystemRoot: root,
       // 同一个目录写两遍、大小写不同：只列一次。
       Path: [join(git, 'cmd'), join(git, 'CMD')].join(process.platform === 'win32' ? ';' : ':'),
       ProgramFiles: dir,
-    })
-    expect(found.map((shell) => shell.name)).toEqual(['cmd', 'Windows PowerShell', 'Git Bash'])
+    }
+    const pwsh = join(dir, 'PowerShell', '7')
+    await mkdir(pwsh, { recursive: true })
+    const names = async () => (await detectShells('win32', env)).map((shell) => shell.name)
+    await writeFile(join(pwsh, 'pwsh.exe'), '')
+    expect(await names()).toEqual(['Git Bash', 'PowerShell 7', 'Windows PowerShell', 'cmd'])
+    await rm(join(git, 'bin', 'bash.exe'))
+    expect(await names()).toEqual(['PowerShell 7', 'Windows PowerShell', 'cmd'])
+    await rm(join(pwsh, 'pwsh.exe'))
+    expect(await names()).toEqual(['Windows PowerShell', 'cmd'])
+    await rm(join(ps, 'powershell.exe'))
+    expect(await names()).toEqual(['cmd'])
   })
 })
 

@@ -518,7 +518,11 @@ export const PARAMETERS = {
         description:
           '会话工作区：新会话建在哪（绝对路径），也经环境变量 TRIGGER_WORKSPACE、{workspace} 交给脚本；空串 = 清除。',
       },
-      shell: { type: 'string', description: '跑命令的 shell（程序完整路径）；空串 = 跟默认。' },
+      shell: {
+        type: 'string',
+        description:
+          '跑命令的 shell（程序完整路径）；空串 = 跟随默认。命令用了专有语法时，从 read 工作流的 triggerShells.shells 选对应的程序。',
+      },
       cwd: {
         type: 'string',
         description:
@@ -536,9 +540,9 @@ export const PARAMETERS = {
   },
   include: {
     type: 'array',
-    items: { type: 'string', enum: ['history', 'output', 'queue'] },
+    items: { type: 'string', enum: ['history', 'output', 'queue', 'shells'] },
     description:
-      'read 触发卡片时多带：history 触发记录 / output 检查命令、监视程序最近的输出 / queue 排着的。',
+      'read 工作流时用 shells 获取触发器默认及可用的 shell；read 触发卡片时可带 history 触发记录、output 最近的命令输出、queue 排着的。',
   },
   limit: { type: 'number', description: 'read 的 history / output 带几条（缺省 10，最多 50）。' },
   workspace: {
