@@ -49,4 +49,3 @@ By default, requests within 5 seconds are merged into one trigger; see [Filters]
 
 - When other machines call in, requests travel as plain HTTP and anyone on the same network can see the token; use it only on a trusted network or behind an HTTPS proxy. Do not choose **None** for the token while the address is open to the network.
 - When the port is taken by another program, or the chosen interface address is gone (after changing networks), the card shows **Error** with the reason; it recovers on its own once the port is free or another one is chosen in the settings.
-- The address and token are stored only on this machine and are not exported with the workflow; if the token leaks, click **New token**.
