@@ -217,6 +217,49 @@ async function run(session) {
   await waitFor(session, exists('wl-hub-wf-export'))
   pass('拖到页面上：宿主遮罩不出现、放下进导入、遮罩不卡住')
 
+  // 进出导出页时，两页的标题和图标对齐，且轮廓在原位插值。
+  const versionTitle = '[data-testid="wl-hub-wf-title"]'
+  const exportTitle = '[data-testid="wl-pack-export"] header p'
+  const turnHeading = async (action, fromTitle, toTitle) => {
+    const result = await session.evaluate(`(async () => {
+      const findOutline = () => document.querySelector('[data-testid="wl-hub-wf-morph-outline"]')
+      const outline = findOutline()
+      const position = (title) => {
+        const box = title.getBoundingClientRect()
+        const mark = outline.getBoundingClientRect()
+        return [box.left + parseFloat(getComputedStyle(title).paddingLeft), box.top, mark.left, mark.top]
+      }
+      const before = getComputedStyle(outline).clipPath
+      const start = position(document.querySelector(${JSON.stringify(fromTitle)}))
+      if (!${clickTestId(action)}) return '缺少切换按钮'
+
+      const target = () => document.querySelector(${JSON.stringify(toTitle)})
+      const deadline = performance.now() + 1500
+      while (!target() && performance.now() < deadline) await new Promise(requestAnimationFrame)
+      const title = target()
+      if (!title) return '没有切到目标页'
+      if (findOutline() !== outline) return '切换时重建了轮廓节点'
+      const end = position(title)
+      if (start.some((value, index) => Math.abs(value - end[index]) > 1)) return '页头位置变化'
+
+      const motion = outline.getAnimations().find((entry) => entry.transitionProperty === 'clip-path')
+      if (!motion) return '没有轮廓动画'
+      motion.pause()
+      motion.currentTime = motion.effect.getComputedTiming().duration / 2
+      const middle = getComputedStyle(outline).clipPath
+      motion.finish()
+      const after = getComputedStyle(outline).clipPath
+      return middle === before || middle === after || before === after ? '没有形变中间帧' : null
+    })()`)
+    check(result === null, `页头往返验收失败（${action}）${result}`)
+  }
+  await session.send('Emulation.setEmulatedMedia', {
+    features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }],
+  })
+  await turnHeading('wl-hub-wf-export', versionTitle, exportTitle)
+  await turnHeading('wl-pack-back', exportTitle, versionTitle)
+  pass('版本与导出页头：往返时位置对齐，轮廓有中间帧')
+
   // 1) 导出第一步：v1 缺省勾上（和现在一样），没有「没存成版本」的提醒。
   await session.evaluate(clickTestId('wl-hub-wf-export'))
   await waitFor(session, exists('wl-pack-ver-1'))

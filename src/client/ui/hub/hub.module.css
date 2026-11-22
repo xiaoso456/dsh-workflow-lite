@@ -618,13 +618,6 @@
   min-width: 0;
 }
 
-/* 头部左边的图标块（「工作流」页；和「触发」「记忆」页的同样大）。 */
-.headMark {
-  width: 38px;
-  height: 38px;
-  border-radius: calc(10px * var(--wl-round, 1));
-}
-
 /* 名字那一行（28px 高）里的「当前」：和名字、标签居中对齐。 */
 .nameTag {
   margin-top: 5px;
@@ -649,22 +642,6 @@
 
 .nameLine > [data-expanded="true"] {
   flex-basis: 100%;
-}
-
-/*
- * 「工作流」页的头会往下长（标签展开）：上沿对齐，图标块、按钮各自往下让一点，
- * 平时两行时和「触发」「记忆」页一样居中，展开了也不跟着往下漂。
- */
-.wfHeadTop {
-  align-items: flex-start;
-}
-
-.wfHeadTop > .headMark {
-  margin-top: 4px;
-}
-
-.wfHeadTop > :not(.headMark, .wfHeadText) {
-  margin-top: 10px;
 }
 
 .wfTitle {

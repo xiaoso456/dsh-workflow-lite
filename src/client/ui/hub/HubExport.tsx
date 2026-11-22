@@ -65,6 +65,8 @@ import hub from './hub.module.css'
 import css from './hubExport.module.css'
 import { Callout, PackRow, PackSection } from './PackRow.tsx'
 import pack from './pack.module.css'
+import { WorkflowHead } from './workflows/WorkflowHead.tsx'
+import detail from './workflows/workflowDetail.module.css'
 
 /** 导出成什么：工作流包（`.wflite.zip`，导回 workflow-lite）或 skill（不装插件也能用）。 */
 type ExportKind = 'pack' | 'skill'
@@ -239,10 +241,18 @@ export function HubExport(props: {
   }
 
   return (
-    <div className={cx(hub.wfDetail, hub.paneIn, pack.page)} data-testid="wl-pack-export">
-      <div className={hub.wfHead}>
-        <div className={hub.wfHeadText}>
-          <p className={hub.wfTitle}>{t('pack.exportTitle').replace('{name}', name)}</p>
+    <div
+      className={cx(hub.wfDetail, pack.page)}
+      data-detail-pane="export"
+      data-testid="wl-pack-export"
+    >
+      <WorkflowHead
+        title={
+          <p className={cx(hub.wfTitle, detail.title)}>
+            {t('pack.exportTitle').replace('{name}', name)}
+          </p>
+        }
+        subtitle={
           <p className={hub.wfSub}>
             {/* 两句叠在一格里：换导出种类时原地换，标题栏不跟着变高变矮。 */}
             <FadeStack
@@ -253,18 +263,20 @@ export function HubExport(props: {
               ]}
             />
           </p>
-        </div>
-        <button
-          type="button"
-          className={cx(ui.btn, ui.small)}
-          disabled={busy !== null}
-          data-testid="wl-pack-back"
-          onClick={props.onBack}
-        >
-          <Icon name="chevronLeft" size={14} />
-          {t('pack.back')}
-        </button>
-      </div>
+        }
+        actions={
+          <button
+            type="button"
+            className={cx(ui.btn, ui.small)}
+            disabled={busy !== null}
+            data-testid="wl-pack-back"
+            onClick={props.onBack}
+          >
+            <Icon name="chevronLeft" size={14} />
+            {t('pack.back')}
+          </button>
+        }
+      />
       <div className={css.kindRow}>
         <Segmented<ExportKind>
           label={t('pack.kindLabel')}

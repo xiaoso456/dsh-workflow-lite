@@ -1,0 +1,71 @@
+.layout {
+  --wl-workflow-detail-inline: 16px;
+  --wl-workflow-detail-top: 14px;
+  --wl-workflow-detail-mark: 38px;
+
+  display: grid;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+}
+
+.scope {
+  grid-area: 1 / 1;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  min-width: 0;
+}
+
+.scope > [data-detail-pane] {
+  padding-block-start: var(--wl-workflow-detail-top);
+  padding-inline: var(--wl-workflow-detail-inline);
+}
+
+/* 图标在切换范围外，两个页头共用这块位置，浏览器可直接插值同一条轮廓。 */
+.layout > .mark {
+  z-index: 1;
+  grid-area: 1 / 1;
+  align-self: start;
+  justify-self: start;
+  width: var(--wl-workflow-detail-mark);
+  height: var(--wl-workflow-detail-mark);
+  border-radius: calc(10px * var(--wl-round, 1));
+  margin-block-start: calc(var(--wl-workflow-detail-top) + 4px);
+  margin-inline-start: var(--wl-workflow-detail-inline);
+  pointer-events: none;
+}
+
+/* 标签展开时，页头从上沿向下长，右侧操作和图标留在原位。 */
+.layout .head {
+  align-items: flex-start;
+  padding-inline-start: calc(var(--wl-workflow-detail-mark) + 12px);
+}
+
+.actions {
+  margin-block-start: 10px;
+}
+
+/* 与可重命名标题的行高对齐。 */
+.title {
+  line-height: 28px;
+}
+
+/* 两页的页头原位交接，位移只给新进入的正文。 */
+.scope:global(:active-view-transition-type(wl-pane)::view-transition-old(root)),
+.scope:global(:active-view-transition-type(wl-pane)::view-transition-new(root)) {
+  --wl-pane-shift: 0px;
+}
+
+.scope:global(:active-view-transition-type(wl-forward)) > [data-detail-pane="export"] > header ~ *,
+.scope:global(:active-view-transition-type(wl-backward))
+  > [data-detail-pane="versions"]
+  > header
+  ~ * {
+  animation: bodyIn 180ms var(--wl-ease-out) both;
+}
+
+@keyframes bodyIn {
+  from {
+    transform: translateX(var(--wl-pane-shift));
+  }
+}
