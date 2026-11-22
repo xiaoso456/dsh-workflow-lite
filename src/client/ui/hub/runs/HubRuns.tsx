@@ -125,6 +125,8 @@ export function HubRuns(props: {
   sessionRows: readonly SessionRow[]
   sessionsReady: boolean
   runs: Runs
+  /** 从实例画布打开时选中的实例。 */
+  start?: string | undefined
   /** 打开实例；给了 `node` 就选中那一步。 */
   onOpenRun(id: string, node?: string): void
   onNotice(text: string, tone?: 'info' | 'error'): void
@@ -133,9 +135,10 @@ export function HubRuns(props: {
   const [items, setItems] = useState<InstanceSummary[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
-  const [view, changeView] = useListView(RUN_VIEW)
-  /** 点过的实例；没点过 = 排在最前的那个。 */
-  const [picked, setPicked] = useState<string | null>(null)
+  const [savedView, changeView] = useListView(RUN_VIEW)
+  const [revealStart, setRevealStart] = useState(props.start !== undefined)
+  /** 进入时指定或点过的实例。 */
+  const [picked, setPicked] = useState<string | null>(props.start ?? null)
   const [tab, setTab] = useState<RunTab>('overview')
   const [loading, setLoading] = useState(false)
   const selection = useRef(0)
@@ -204,6 +207,13 @@ export function HubRuns(props: {
     () => runListSpec(items ?? [], { cwd: hereCwd, session }),
     [items, hereCwd, session],
   )
+  // 当前实例被筛掉时，这次打开先显示全部，筛选偏好仍由用户显式更改。
+  const start =
+    revealStart && savedView.show !== 'all'
+      ? items?.find((item) => item.id === props.start)
+      : undefined
+  const show = start !== undefined && !spec.keep[savedView.show](start) ? 'all' : savedView.show
+  const view = useMemo(() => ({ ...savedView, show }), [savedView, show])
   const arranged = useMemo(() => {
     const matched = (items ?? []).filter((item) =>
       matchesQuery(item, item.session === undefined ? undefined : titles.get(item.session), query),
@@ -230,6 +240,7 @@ export function HubRuns(props: {
   const onView = (change: Partial<RunListView>): void => {
     cancelSelection()
     keepShown(picked, selected?.id, setPicked)
+    if (change.show !== undefined) setRevealStart(false)
     changeView(change)
   }
   // 会话列表到了（「本工作区」是哪个已经定下来）就把默认选中的那个记成点过的：

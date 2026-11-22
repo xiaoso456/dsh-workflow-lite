@@ -677,6 +677,8 @@ async function shoot(session, lang) {
     await writeFile(join(produced, 'dashboard.html'), boardHtml(copy.board))
 
     await session.evaluate(clickTestId('wl-hub-open'))
+    await waitFor(session, `document.querySelector('[data-testid="wl-hub-runs"]') !== null`)
+    await session.evaluate(clickTestId('wl-hub-runs'))
     await viewHubRun(session, instance)
     await waitFor(
       session,

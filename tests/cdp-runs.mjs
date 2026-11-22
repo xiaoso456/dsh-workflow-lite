@@ -29,6 +29,7 @@ import {
   revealHubRow,
   screenshot,
   setReactInput,
+  settleAnimations,
   viewHubRun,
 } from './lib/canvas-harness.mjs'
 import { openPage, waitFor } from './lib/cdp-session.mjs'
@@ -194,9 +195,14 @@ try {
   // `DSH_SESSION_TITLE`：一次性实例里按标题找会话（新建的会话行显示「刚刚」，按相对时间找不到）。
   await bootToCanvas(session, NAME, { sessionTitle: process.env.DSH_SESSION_TITLE })
   await session.evaluate(`document.querySelector('[data-testid="wl-hub-open"]').click()`)
+  await waitFor(session, `document.querySelector('[data-testid="wl-hub-runs"]') !== null`)
+  await session.evaluate(
+    `document.querySelector('[data-testid="wl-hub-runs"][aria-checked="false"]')?.click()`,
+  )
   // 两栏：左边全部实例（默认按工作区分组），右边选中那个实例的全貌。
   const wsItem = hubWorkspaceExpr(WORKSPACE)
   await waitFor(session, `(${wsItem}) != null`)
+  await settleAnimations(session)
   const side = await session.evaluate(`(() => {
     const head = ${wsItem};
     return { text: head.textContent, tip: head.querySelector('[data-tip]').dataset.tip };
@@ -349,6 +355,15 @@ try {
   pass(
     '工作流中心：左栏按工作区分组、右栏选中实例的全貌，各行对齐；搜索；存储页不闪、没有「派发缓存」',
   )
+
+  await viewHubRun(session, alternateInstance)
+  await waitFor(session, `document.querySelector('[data-testid="wl-root"]').dataset.mode === 'run'`)
+  await session.evaluate(clickTestIdExpr('wl-hub-open'))
+  await waitFor(
+    session,
+    `document.querySelector('[data-testid="wl-hub-run-detail"]')?.dataset.id === ${JSON.stringify(alternateInstance)}`,
+  )
+  pass('从实例画布打开工作流中心：选中正在看的实例')
 
   await viewHubRun(session, instance)
   await waitFor(session, `document.querySelector('[data-testid="wl-root"]').dataset.mode === 'run'`)
@@ -1464,7 +1479,9 @@ try {
   })
   check(untracked.ok && untracked.result.instance.statePath === undefined, '应建出不记状态的实例')
   instance = untracked.result.instance.id
-  await session.evaluate(`document.querySelector('[data-testid="wl-hub-open"]').click()`)
+  await session.evaluate(clickTestIdExpr('wl-hub-open'))
+  await waitFor(session, `document.querySelector('[data-testid="wl-hub-runs"]') !== null`)
+  await session.evaluate(clickTestIdExpr('wl-hub-runs'))
   await viewHubRun(session, instance)
   await waitFor(session, `document.querySelector('[data-testid="wl-run-untracked"]') !== null`)
   check(

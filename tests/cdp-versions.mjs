@@ -224,14 +224,11 @@ async function run(session) {
   await pressKey(session, 'Escape')
   await waitFor(session, gone('wl-versions-dialog'))
 
-  // 8) 工作流中心「工作流」页：选另一张（没打开），给它存版本。
+  // 8) 从编辑画布打开工作流中心，直接选中当前工作流。再选另一张给它存版本。
   await session.evaluate(clickTestId('wl-hub-open'))
-  await waitFor(session, exists('wl-hub-workflows'))
-  await session.evaluate(clickTestId('wl-hub-workflows'))
+  await waitFor(session, `${textOf('wl-hub-wf-title')} === ${JSON.stringify(NAME)}`)
   const otherSel = `[data-testid="wl-hub-wf"][data-value=${JSON.stringify(OTHER)}]`
   await waitFor(session, `document.querySelector(${JSON.stringify(otherSel)}) !== null`)
-  await session.evaluate(`document.querySelector(${JSON.stringify(hubRow(NAME))}).click()`)
-  await waitFor(session, `${textOf('wl-hub-wf-title')} === ${JSON.stringify(NAME)}`)
   check(
     await session.evaluate(
       `document.querySelector('[data-testid="wl-hub-wf-title"]').closest('div').parentElement.textContent.includes('1 个版本')`,

@@ -73,6 +73,8 @@ const SIDE: readonly { page: HubPage; label: LocaleKey; icon: IconName }[] = [
 
 /** 打开时停在哪一页：没给 `focus` 是「运行实例」。 */
 const FOCUS_PAGE: Record<HubFocus['kind'] | 'none', HubPage> = {
+  run: 'runs',
+  workflow: 'workflows',
   export: 'workflows',
   trigger: 'triggers',
   settings: 'settings',
@@ -81,6 +83,8 @@ const FOCUS_PAGE: Record<HubFocus['kind'] | 'none', HubPage> = {
 
 /** 工作流中心打开时停在哪。 */
 export type HubFocus =
+  | { kind: 'run'; id: string }
+  | { kind: 'workflow'; name: string }
   | { kind: 'export' }
   | { kind: 'trigger'; workflow: string; node: string }
   | { kind: 'settings'; jump?: SettingsJump }
@@ -116,7 +120,7 @@ export function HubDialog(props: {
     remove(name: string): Promise<boolean>
     onChanged(): void
   }
-  /** 打开时停在哪：顶栏「导出」进来停在「工作流」页、右栏是导出；触发卡片「全部记录」进来停在「触发」页、选中那张。 */
+  /** 打开时的页面和选中项。 */
   focus?: HubFocus
   onClose(): void
 }): React.JSX.Element {
@@ -199,6 +203,7 @@ export function HubDialog(props: {
             sessionRows={props.sessionRows}
             sessionsReady={props.sessionsReady}
             runs={runs}
+            start={props.focus?.kind === 'run' ? props.focus.id : undefined}
             onNotice={props.onNotice}
             onOpenRun={(id, node) => {
               props.onOpenRun(id, node)
@@ -210,6 +215,7 @@ export function HubDialog(props: {
             t={t}
             rpc={props.rpc}
             {...props.workflows}
+            start={props.focus?.kind === 'workflow' ? props.focus.name : undefined}
             startExport={props.focus?.kind === 'export'}
             onNotice={props.onNotice}
             onOpen={(name) => {

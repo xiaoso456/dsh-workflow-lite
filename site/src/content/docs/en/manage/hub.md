@@ -7,6 +7,8 @@ sidebar:
 
 Open the **Workflow hub** at the top left of the canvas to manage the instances of every session, all workflows and versions, triggers, the memory library, local data and settings.
 
+When viewing an instance, the hub opens **Instances** with that instance selected. When editing a workflow, it opens **Workflows** with that workflow selected.
+
 | Page | Use |
 |---|---|
 | Instances | See the progress, timeline and origin of every instance. |

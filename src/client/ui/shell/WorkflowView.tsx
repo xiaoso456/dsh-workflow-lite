@@ -147,10 +147,7 @@ function Shell(props: {
   /** 打开实例时要选中的那一步（工作流中心「在画布上看这一步」）；每次请求一个新对象。 */
   const [runStep, setRunStep] = useState<RunStepFocus | null>(null)
   const [hubOpen, setHubOpen] = useState(false)
-  /**
-   * 工作流中心打开时停在哪：顶栏「导出」进来停在「工作流」页、右栏是导出；
-   * 触发卡片的「全部记录」进来停在「触发」页、选中那张卡片；`null` = 从头（「运行实例」页）。
-   */
+  /** 工作流中心打开时的目标。没有目标时进「运行实例」。 */
   const [hubFocus, setHubFocus] = useState<HubFocus | null>(null)
   const [versionsOpen, setVersionsOpen] = useState(false)
   const { booting, setBooting, setTemplateSettled } = useBooting({ state, runs })
@@ -375,6 +372,12 @@ function Shell(props: {
       : null
   const canvasHold = useSwapHold(canvasLive, state.phase === 'loading', SWITCH_HOLD_MS)
   const shown = canvasHold.view
+  const openHub = (): void => {
+    const workflow = shown?.name ?? state.name
+    if (runId !== null) setHubFocus({ kind: 'run', id: runId })
+    else setHubFocus(workflow === null ? null : { kind: 'workflow', name: workflow })
+    setHubOpen(true)
+  }
   // 右侧面板（属性 / 步骤详情）开着没有：左下角的图例按剩下的宽度决定摊开还是收成按钮。
   const panelOpen =
     (runId !== null && runPanel && !narrow) ||
@@ -446,10 +449,7 @@ function Shell(props: {
                     slots={slots}
                     memories={memories.entries}
                     reloadRef={reloadRun}
-                    onOpenHub={() => {
-                      setHubFocus(null)
-                      setHubOpen(true)
-                    }}
+                    onOpenHub={openHub}
                     onSettled={() => setBooting(false)}
                     {...(props.desktop === undefined ? {} : { desktop: props.desktop })}
                   />
@@ -625,10 +625,7 @@ function Shell(props: {
                   runs={runs}
                   triggerMarks={triggerMarks}
                   onOpenRun={openRun}
-                  onOpenHub={() => {
-                    setHubFocus(null)
-                    setHubOpen(true)
-                  }}
+                  onOpenHub={openHub}
                   onExport={() => {
                     setHubFocus({ kind: 'export' })
                     setHubOpen(true)

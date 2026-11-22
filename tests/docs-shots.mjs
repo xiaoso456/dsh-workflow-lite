@@ -1090,6 +1090,7 @@ async function main(session) {
   await step('hub-runs', async () => {
     await session.evaluate(clickTestId('wl-hub-open'))
     await waitFor(session, has('wl-hub'))
+    await session.evaluate(clickTestId('wl-hub-runs'))
     await revealHubRow(session, instance)
     await sleep(1000)
     await snap(

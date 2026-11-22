@@ -42,7 +42,7 @@ export function HubLayer({
   openSession(id: string): boolean
   wf: Workflow
   sessionCwd: string | undefined
-  /** 打开时停在哪（导出、某张触发卡片）；`null` = 从头。 */
+  /** 打开时停在哪。 */
   hubFocus: HubFocus | null
   onClose(): void
   openTemplate(name: string): void

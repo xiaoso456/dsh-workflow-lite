@@ -26,7 +26,11 @@ import type { T } from '../../../i18n.ts'
 import { claimRowKey, forgetRowKey, type RowKeys } from '../../../model/rowKeys.ts'
 import { matchesWords, searchWords } from '../../../model/search.ts'
 import { shortTime } from '../../../model/time.ts'
-import { WORKFLOW_VIEW, type WorkflowListView } from '../../../model/workflowList.ts'
+import {
+  WORKFLOW_VIEW,
+  type WorkflowListView,
+  workflowListSpec,
+} from '../../../model/workflowList.ts'
 import { errorMessage, type WorkflowLiteRpc } from '../../../rpc.ts'
 import { deleteDesc } from '../../chrome/WorkflowRow.tsx'
 import { cx } from '../../kit/cx.ts'
@@ -66,6 +70,8 @@ export function HubWorkflows(props: {
   /** 看 skill 时站在哪个会话、哪个工作区（导入导出盘点 skill 用）。 */
   scope: PackScope
   flush(): Promise<boolean>
+  /** 从编辑画布打开时选中的工作流。 */
+  start?: string | undefined
   /** 一进来就是导出 `current` 那张（画布顶栏的「导出」），不是版本。 */
   startExport?: boolean
   /** 正开着的那张切了版本：编辑页按磁盘重新加载。 */
@@ -86,13 +92,14 @@ export function HubWorkflows(props: {
   /** 改过名的行沿用旧键（见 model/rowKeys.ts）。 */
   const rowKeys = useRef<RowKeys>(new Map())
   const [error, setError] = useState<string | null>(null)
-  const [picked, setPicked] = useState<string | null>(current)
+  const [picked, setPicked] = useState<string | null>(props.start ?? current)
   /** 第几次点左栏：读版本时又点了别的，先前那次读完不再换过去。 */
   const pickRevision = useRef(0)
   /** 点的那一行在哪一组（一张在几个标签组里都有时，选中底块落在这一组）。 */
   const [pickedGroup, setPickedGroup] = useState<string | undefined>(undefined)
   const [query, setQuery] = useState('')
-  const [view, changeView] = useListView(WORKFLOW_VIEW)
+  const [savedView, changeView] = useListView(WORKFLOW_VIEW)
+  const [revealStart, setRevealStart] = useState(props.start !== undefined)
   /** 按标签筛：挑了哪几个（只在这一次打开里记着）。 */
   const [tagFilter, setTagFilter] = useState<string[]>([])
   const [pane, setPane] = useState<Pane>(props.startExport === true ? 'export' : 'versions')
@@ -258,6 +265,14 @@ export function HubWorkflows(props: {
     )
   }
 
+  const start =
+    revealStart && savedView.show !== 'all'
+      ? workflows.find((entry) => entry.name === props.start)
+      : undefined
+  const view: WorkflowListView =
+    start !== undefined && !workflowListSpec(Date.now()).keep[savedView.show](start)
+      ? { ...savedView, show: 'all' }
+      : savedView
   const words = searchWords(query)
   const {
     catalog,
@@ -275,6 +290,7 @@ export function HubWorkflows(props: {
   // 换排法时右栏还看着原来那一项（没点过时它是第一项）。
   const onView = (change: Partial<WorkflowListView>): void => {
     keepShown(picked, selected?.name, setPicked)
+    if (change.show !== undefined) setRevealStart(false)
     changeView(change)
   }
   const filtered = view.show !== 'all' || filterTags.length > 0
