@@ -202,6 +202,68 @@
           }
         ]
       }
+    },
+    "0.11.0": {
+      "zh": {
+        "headline": "让工作流在事情发生时自动执行",
+        "items": [
+          {
+            "icon": "bolt",
+            "tone": "blue",
+            "title": "触发器",
+            "tag": "实验性",
+            "text": "定时、监视、HTTP、接续"
+          },
+          {
+            "icon": "clock",
+            "tone": "green",
+            "title": "条件执行",
+            "text": "检查命令成功或输出变化时才执行"
+          },
+          {
+            "icon": "sparkle",
+            "tone": "gold",
+            "title": "对话中创建",
+            "text": "由模型编写脚本、试运行并启用"
+          },
+          {
+            "icon": "tag",
+            "tone": "teal",
+            "title": "标签与分组",
+            "text": "工作流加标签，列表可分组"
+          }
+        ]
+      },
+      "en": {
+        "headline": "Run workflows when things happen",
+        "items": [
+          {
+            "icon": "bolt",
+            "tone": "blue",
+            "title": "Triggers",
+            "tag": "Beta",
+            "text": "Schedule, watch, HTTP, chain"
+          },
+          {
+            "icon": "clock",
+            "tone": "green",
+            "title": "Conditional run",
+            "text": "Check passes or output changes"
+          },
+          {
+            "icon": "sparkle",
+            "tone": "gold",
+            "title": "Create in chat",
+            "text": "Model writes, tests and enables"
+          },
+          {
+            "icon": "tag",
+            "tone": "teal",
+            "title": "Tags & groups",
+            "text": "Tag workflows, group lists"
+          }
+        ]
+      }
     }
   }
 }
