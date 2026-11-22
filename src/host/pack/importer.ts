@@ -262,6 +262,7 @@ async function takenWorkflowNames(dataDir: string): Promise<Set<string>> {
 export async function inspectPack(
   deps: PackDeps,
   request: { token: string; cwd?: string; session?: string },
+  destination?: string,
 ): Promise<Outcome<PackImportPreview>> {
   const zip = await readIn(deps.dataDir, request.token)
   if (!zip.ok) return zip
@@ -365,6 +366,7 @@ export async function inspectPack(
     current === undefined
       ? null
       : await previewTriggers(
+          destination ?? suggested,
           current.document,
           manifest.assets.map((file) => file.path),
           exists,
@@ -487,7 +489,7 @@ export async function applyPack(
   deps: PackDeps,
   request: PackApplyRequest,
 ): Promise<Outcome<PackApplyResponse>> {
-  const preview = await inspectPack(deps, request)
+  const preview = await inspectPack(deps, request, normalizeName(request.name))
   if (!preview.ok) return preview
   const zip = await readIn(deps.dataDir, request.token)
   if (!zip.ok) return zip

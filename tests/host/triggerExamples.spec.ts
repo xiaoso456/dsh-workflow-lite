@@ -173,6 +173,7 @@ describe.concurrent('skill 里的监视例子照文档原样能跑', () => {
     box.script(command, blocks(text, 'js')[0] as string)
     const result = await box.run(command, { poke: pokeOf(text), seconds: secondsOf(text) })
     expect(result.poke?.code).toBe(0)
+    expect(result.verdict, result.run?.stderr).toBe('fire')
     expect(passed(result)).toHaveLength(1)
     expect(passed(result)[0]).toContain('test-')
     expect(passed(result)[0]).not.toContain('old.txt')

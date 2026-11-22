@@ -70,7 +70,8 @@ function PaneTabButton<K extends string>({
     }
     const cancel = afterPaint(() => {
       const leaving = self.current?.getAnimations({ subtree: true }) ?? []
-      void Promise.all(leaving.map((animation) => animation.finished)).then(release, release)
+      // 有动画被取消时，仍要等同一页签里的其余动画结束。
+      void Promise.allSettled(leaving.map((animation) => animation.finished)).then(release)
     })
     return () => {
       active = false

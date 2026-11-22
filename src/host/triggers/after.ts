@@ -12,7 +12,7 @@
  */
 
 import type { RunStatus } from '../../shared/runState.ts'
-import type { FinishedStatus } from '../../shared/trigger.ts'
+import type { AfterDependencyProblem, FinishedStatus } from '../../shared/trigger.ts'
 import type { TriggerSource } from '../../shared/types.ts'
 
 /** 结束了的一个实例。 */
@@ -79,17 +79,37 @@ export function afterInfo(workflow: string, run: FinishedRun): string {
   return lines.join('\n')
 }
 
+type AfterTarget = { kind: 'missing' } | { kind: 'broken' } | { kind: 'ok'; runState: boolean }
+
+/** 接续触发能不能用，供触发器和导入预览共用。 */
+export function afterDependencyProblem(
+  self: string,
+  source: AfterSource,
+  target: AfterTarget,
+): AfterDependencyProblem | null {
+  if (source.workflow === '') return 'unselected'
+  if (source.workflow === self) return 'self'
+  if (target.kind === 'missing') return 'missing'
+  if (target.kind === 'ok' && !target.runState) return 'runState'
+  return null
+}
+
 /** 接续触发这张卡片现在能不能用；能用是 `null`。 */
 export function afterProblem(
   self: string,
   source: AfterSource,
-  target: { kind: 'missing' } | { kind: 'broken' } | { kind: 'ok'; runState: boolean },
+  target: AfterTarget,
 ): string | null {
-  if (source.workflow === '') return '还没选等哪个工作流跑完'
-  if (source.workflow === self) return '不能等自己跑完（会一直触发自己）'
-  if (target.kind === 'missing') return `工作流「${source.workflow}」不存在（改名了的话重新选一下）`
-  if (target.kind === 'ok' && !target.runState) {
-    return `工作流「${source.workflow}」没开「记录运行状态」，看不出它什么时候跑完`
+  switch (afterDependencyProblem(self, source, target)) {
+    case 'unselected':
+      return '还没选等哪个工作流跑完'
+    case 'self':
+      return '不能等自己跑完（会一直触发自己）'
+    case 'missing':
+      return `工作流「${source.workflow}」不存在（改名了的话重新选一下）`
+    case 'runState':
+      return `工作流「${source.workflow}」没开「记录运行状态」，看不出它什么时候跑完`
+    case null:
+      return null
   }
-  return null
 }

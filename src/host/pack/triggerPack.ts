@@ -30,7 +30,14 @@ import type {
 } from '../../shared/types.ts'
 import type { HostAgentsResponse } from '../../shared/wire/host.ts'
 import type { Repository } from '../store/repository.ts'
-import { createTriggerGraphs, enabledTriggerCards, groupHttpHooks } from '../triggers/graphs.ts'
+import { afterDependencyProblem } from '../triggers/after.ts'
+import {
+  createTriggerGraphs,
+  enabledTriggerCards,
+  groupHttpHooks,
+  type TriggerGraphs,
+} from '../triggers/graphs.ts'
+import { checkShell } from '../triggers/shells.ts'
 import type { Tree, TreeFile } from './tree.ts'
 
 /** 工作流目录分成两块：触发器那一块（`triggers/` 下）和别的。 */
@@ -136,6 +143,7 @@ export function packTriggers(
  * @param catalog 取这台机器上的服务商、模型、预设、权限（有卡片用到才取，只取一次）；拿不到（`undefined`）时这几样不查。
  */
 export async function previewTriggers(
+  destination: string,
   document: WorkflowDocument,
   assets: readonly string[],
   exists: (path: string) => Promise<boolean>,
@@ -145,6 +153,7 @@ export async function previewTriggers(
   const nodes = document.nodes.filter(isTrigger)
   if (nodes.length === 0) return null
   const hooks = await occupiedHttpHooks(repository, nodes)
+  const graphs = createTriggerGraphs(repository)
   let host: Promise<HostAgentsResponse | undefined> | undefined
   const cards: PackImportTrigger[] = []
   for (const node of nodes) {
@@ -160,6 +169,7 @@ export async function previewTriggers(
       enabled: data.enabled === true,
       gaps: [
         ...(await placeGaps(data, exists)),
+        ...(await afterGaps(destination, data, graphs)),
         ...(used ? choiceGaps(choice, await host) : []),
         ...hookGaps(data, hooks),
       ],
@@ -208,10 +218,24 @@ async function placeGaps(
   ) {
     gaps.push({ kind: 'workspace' })
   }
-  if (data.shell !== undefined && data.shell !== '' && !(await exists(data.shell))) {
+  if (
+    data.shell !== undefined &&
+    data.shell !== '' &&
+    typeof (await checkShell(data.shell)) === 'string'
+  ) {
     gaps.push({ kind: 'shell', path: data.shell })
   }
   return gaps
+}
+
+async function afterGaps(
+  destination: string,
+  { source }: TriggerData,
+  graphs: TriggerGraphs,
+): Promise<PackTriggerGap[]> {
+  if (source.kind !== 'after') return []
+  const reason = afterDependencyProblem(destination, source, await graphs.read(source.workflow))
+  return reason === null ? [] : [{ kind: 'after', workflow: source.workflow, reason }]
 }
 
 /** 新建会话用的设置（卡片写了的用卡片的，否则用工作流的）里，这台机器上没有的服务商、模型、预设、权限。 */

@@ -3,11 +3,12 @@
 命令 `node watch-folder.mjs "{workspace}/inbox"`（工作区外的文件夹写绝对路径）。系统一通知就看，等文件写完再报；每分钟再扫一遍，补上没收到通知的（网络盘常这样）和 DSH 没开时进来的。第一次运行只记下已有的。
 
 ```js
-import { readdirSync, watch } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { readdirSync, realpathSync, watch } from 'node:fs'
+import { join } from 'node:path'
 import { emit, heartbeat, poll, seenIds, settle } from '../watch.mjs'
 
-const dir = resolve(process.argv[2])
+// 先展开 Windows 短路径或链接，使 fs.watch 收到的路径与监视目录一致。
+const dir = realpathSync.native(process.argv[2])
 const seen = seenIds('seen.json', 20000)
 const waiting = new Set()
 

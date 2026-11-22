@@ -1573,6 +1573,7 @@ try {
       return dot?.dataset.on === 'true' && getComputedStyle(dot).opacity === '1';
     })()`,
   )
+  await settleAnimations(session, { quiet: true })
   const dotExit = await session.evaluate(`(async () => {
     const tab = document.querySelector('${timelineTab}');
     const dot = tab.querySelector('[role="img"]');
@@ -1585,8 +1586,12 @@ try {
     const before = anchor();
     const oldEdge = edge();
     const empty = document.querySelector('[data-testid="wl-hub-trg"][data-value="${NAME2}/morph-http"]');
+    // 模拟同一页签上的另一段动效中途被取消，红点的退场还要走完。
+    const interrupted = tab.animate([{ color: 'currentColor' }], 1200);
+    interrupted.finished.catch(() => {});
     empty.click();
     let fading = false;
+    let cancelled = false;
     let drift = 0;
     let earlyMove = 0;
     const afterFade = [];
@@ -1597,6 +1602,10 @@ try {
       const opacity = Number(getComputedStyle(dot).opacity);
       if (opacity > 0) {
         fading ||= opacity < 1;
+        if (!cancelled && opacity < 0.65) {
+          interrupted.cancel();
+          cancelled = true;
+        }
         drift = Math.max(drift, Math.abs(anchor() - before));
         earlyMove = Math.max(earlyMove, Math.abs(edge() - oldEdge));
         continue;
@@ -1608,11 +1617,11 @@ try {
     const smooth = afterFade.some(left => left > newEdge + 0.5 && left < oldEdge - 0.5);
     // 数没了时留着最后那个数淡出（标着 data-gone），所以看标记、不看字。
     const cleared = tab.querySelector('[data-gone]') !== null;
-    return { fading, drift, hidden: dot.getAttribute('aria-hidden') === 'true', cleared, emptySpace, earlyMove, smooth };
+    return { fading, cancelled, drift, hidden: dot.getAttribute('aria-hidden') === 'true', cleared, emptySpace, earlyMove, smooth };
   })()`)
   check(
     '切到没有记录的触发器时，时间线计数清空、红点原地退场',
-    dotExit.fading && dotExit.drift < 0.1 && dotExit.hidden && dotExit.cleared,
+    dotExit.fading && dotExit.cancelled && dotExit.drift < 0.1 && dotExit.hidden && dotExit.cleared,
     JSON.stringify(dotExit),
   )
   check('没有数字时，时间线页签不留空位', dotExit.emptySpace < 0.1, String(dotExit.emptySpace))

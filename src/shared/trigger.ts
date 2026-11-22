@@ -582,6 +582,8 @@ export function afterWhen(source: Extract<TriggerSource, { kind: 'after' }>): Af
   return source.when ?? 'done'
 }
 
+export type AfterDependencyProblem = 'unselected' | 'self' | 'missing' | 'runState'
+
 /** 一次执行结束时的结果（状态文件里的 done / failed / cancelled）。 */
 export type FinishedStatus = 'done' | 'failed' | 'cancelled'
 

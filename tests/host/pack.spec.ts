@@ -645,6 +645,100 @@ describe('触发卡片', () => {
     expect(local.document?.nodes.find(isTrigger)?.data.enabled).toBe(true)
   })
 
+  it('不能把名叫 bash 的目录当成可用的 shell 导入', async () => {
+    const from = await side('shell-directory')
+    const workspace = slash(from.dataDir)
+    const shell = slash(join(workspace, 'bash'))
+    await mkdir(shell)
+    const base = graph([])
+    await makeWorkflow(from.repository, 'review', [
+      {
+        ...base,
+        nodes: [
+          ...base.nodes,
+          card('check', {
+            source: {
+              kind: 'schedule',
+              schedule: { kind: 'daily', time: '03:00' },
+              check: { command: 'true', when: 'every' },
+            },
+            workspace,
+            shell,
+            enabled: true,
+          }),
+        ],
+      },
+    ])
+    const pack = expectOk(await exportPack(from.deps, { name: 'review', versions: [1], pack: [] }))
+    const token = await upload(from.dataDir, await download(from.dataDir, pack.token))
+    const preview = expectOk(await inspectPack(from.deps, { token }))
+    expect(preview.triggers?.cards[0]?.gaps).toEqual([{ kind: 'shell', path: shell }])
+    expectOk(await applyPack(from.deps, { token, mode: 'new', name: 'copy' }))
+    const copy = await from.repository.load('copy')
+    expect(copy.document?.nodes.find(isTrigger)?.data.enabled).toBeUndefined()
+  })
+
+  it('接续卡片在导入预览和确认时检查上游，能接续才保留开启', async () => {
+    const from = await side('chain-export')
+    const to = await side('chain-import')
+    const base = graph([])
+    const upstream = 'upstream'
+    await makeWorkflow(from.repository, 'downstream', [
+      {
+        ...base,
+        nodes: [
+          ...base.nodes,
+          card('chain', {
+            source: { kind: 'after', workflow: upstream },
+            workspace: slash(to.dataDir),
+            enabled: true,
+          }),
+        ],
+      },
+    ])
+    const pack = expectOk(
+      await exportPack(from.deps, { name: 'downstream', versions: [1], pack: [] }),
+    )
+    const zip = await download(from.dataDir, pack.token)
+    const token = await upload(to.dataDir, zip)
+    const gaps = async () =>
+      expectOk(await inspectPack(to.deps, { token })).triggers?.cards[0]?.gaps
+    expect(await gaps()).toEqual([{ kind: 'after', workflow: upstream, reason: 'missing' }])
+    await makeWorkflow(to.repository, upstream, [base])
+    expect(await gaps()).toEqual([{ kind: 'after', workflow: upstream, reason: 'runState' }])
+    const saveUpstream = async (runState: boolean) => {
+      const loaded = await to.repository.load(upstream)
+      expectOk(
+        await to.repository.save(
+          upstream,
+          { ...base, settings: runState ? { runState: true } : {} },
+          { baseHash: loaded.hash },
+        ),
+      )
+    }
+    await saveUpstream(true)
+    expect(await gaps()).toEqual([])
+    expectOk(await applyPack(to.deps, { token, mode: 'new', name: 'ready' }))
+    const ready = await to.repository.load('ready')
+    expect(ready.document?.nodes.find(isTrigger)?.data.enabled).toBe(true)
+
+    const staleToken = await upload(to.dataDir, zip)
+    expect(
+      expectOk(await inspectPack(to.deps, { token: staleToken })).triggers?.cards[0]?.gaps,
+    ).toEqual([])
+    await saveUpstream(false)
+    expectOk(
+      await applyPack(to.deps, {
+        token: staleToken,
+        mode: 'new',
+        name: 'blocked',
+        enable: ['chain'],
+      }),
+    )
+    const blocked = await to.repository.load('blocked')
+    expect(blocked.document?.nodes.find(isTrigger)?.data.enabled).toBeUndefined()
+  })
+
   it('导入预览：逐张列出卡片和这台机器上打不开的原因、带了几个密钥文件；密钥落进卡片目录', async () => {
     const from = await triggerSide()
     const exported = expectOk(

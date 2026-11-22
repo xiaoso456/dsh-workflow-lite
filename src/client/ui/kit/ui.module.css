@@ -1000,6 +1000,7 @@ label:hover > .checkbox > .checkInput:not(:disabled) + .check {
   line-height: 1.6;
   text-align: left;
   white-space: normal;
+  overflow-wrap: anywhere;
   cursor: auto;
   outline: none;
   user-select: text;

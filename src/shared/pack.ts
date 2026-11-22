@@ -25,6 +25,7 @@
 import { checkName } from './naming.ts'
 import type { ChoiceKeep, ChoiceSpot } from './sessionChoice.ts'
 import { normalizeTagColors, normalizeTags, type TagColor } from './tags.ts'
+import type { AfterDependencyProblem } from './trigger.ts'
 import { MEMORY_TYPES, type MemoryType, type ResourceKind, type TriggerSource } from './types.ts'
 
 /** 包格式的版本号（和插件版本分开算）。读到比它新的直接拒绝，叫用户先升级插件。 */
@@ -505,7 +506,7 @@ export interface PackImportTrigger {
 /**
  * 触发卡片在这台机器上缺的依赖，或已经被占用的地址：
  * `workspace` 会话工作区；`session` 发进的固定会话（是导出那台机器上的）；`shell` 跑命令用的 shell；
- * `provider` / `model` 新建会话用的服务商、模型；`preset` Agent 预设；`permission` 运行权限；`hook` HTTP 地址。
+ * `provider` / `model` 新建会话用的服务商、模型；`preset` Agent 预设；`permission` 运行权限；`hook` HTTP 地址；`after` 接续上游。
  */
 export type PackTriggerGap =
   | { kind: 'workspace' }
@@ -516,6 +517,7 @@ export type PackTriggerGap =
   | { kind: 'preset'; preset: string }
   | { kind: 'permission'; permission: string }
   | { kind: 'hook'; hook: string; workflow: string }
+  | { kind: 'after'; workflow: string; reason: AfterDependencyProblem }
 
 /** 并入会替换目标的当前图，所以目标原有的 HTTP 地址不算占用。 */
 export function importTriggerGaps(

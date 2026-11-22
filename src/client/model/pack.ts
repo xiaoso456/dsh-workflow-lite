@@ -230,6 +230,8 @@ function gapLine(t: T, gap: PackTriggerGap): string {
       return t('pack.trg.gap.permission').replace('{name}', permissionName(t, null, gap.permission))
     case 'hook':
       return t('pack.trg.gap.hook').replace('{hook}', gap.hook).replace('{name}', gap.workflow)
+    case 'after':
+      return t(`pack.trg.gap.after.${gap.reason}`).replace('{name}', gap.workflow)
   }
 }
 
