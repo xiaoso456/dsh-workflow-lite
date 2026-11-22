@@ -2,7 +2,7 @@
  * dsh-workflow-lite — 步骤指示：一步一个圆圈 + 名字，中间一段线，走到哪一步那一步亮起来（导出、「触发方式」的定时检查）。
  *
  * - 圆圈里写第几步，给了 `icon` 就换成图标；
- * - 给了 `onPick` 每一步都是按钮，能直接跳过去（不强制按顺序走）；
+ * - 给了 `onPick` 每一步都是按钮，可用 `disabled` 标记暂时不能跳到的一步；
  * - `alert` 的那一步名字后面一个小黄点（还缺东西）；
  * - 步数会变（导出成 Skill 多一步、定时换成到点就执行少一步）：多出的一步从前一步背后展开、少了的收回去（{@link useTrail}）。
  *
@@ -22,6 +22,7 @@ export interface StepItem {
   icon?: IconName
   /** 这一步还缺东西。 */
   alert?: boolean
+  disabled?: boolean
   testId?: string
 }
 
@@ -88,6 +89,7 @@ export function Steps(props: {
             key={index}
             type="button"
             {...shared}
+            disabled={step.disabled}
             onClick={() => onPick(index)}
           >
             {inner}

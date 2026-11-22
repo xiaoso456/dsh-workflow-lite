@@ -176,7 +176,7 @@ button.step:disabled {
   cursor: default;
 }
 
-button.step:not([aria-current="step"]):hover .labelDim {
+button.step:enabled:not([aria-current="step"]):hover .labelDim {
   color: var(--wl-text-2);
 }
 

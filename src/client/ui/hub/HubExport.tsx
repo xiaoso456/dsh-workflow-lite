@@ -84,6 +84,7 @@ export function HubExport(props: {
   onDone(text: string): void
 }): React.JSX.Element {
   const { t, rpc, name } = props
+  const { cwd, session } = props.scope
   const [kind, setKind] = useState<ExportKind>('pack')
   const [step, setStep] = useState<0 | 1 | 2>(0)
   const [draft, setDraft] = useState<SkillDraft>(() => ({
@@ -128,21 +129,56 @@ export function HubExport(props: {
     }
   }, [rpc, name])
 
-  const toResources = (): void => {
-    setStep(1)
-    setScan(null)
-    setError(null)
+  const skill = kind === 'skill'
+  const scanning = step !== 0 && scan === null
+
+  // 资源清单和 Skill 信息共用盘点。回到选版本或换导出种类时，丢弃过期的结果。
+  useEffect(() => {
+    if (!scanning) return
+    let live = true
     rpc
-      .call('pack/scan', { name, versions: [...picked], ...props.scope })
+      .call('pack/scan', { name, versions: [...picked], cwd, session })
       .then((result) => {
-        setScan(result)
-        setPacked(defaultPacked(result))
+        if (!live) return
+        const defaults = defaultPacked(result)
+        setPacked(defaults)
         setTriggers(defaultTriggerPick(result))
+        // 直达 Skill 信息时先核对大小。超限就打开清单，让用户调整勾选。
+        if (
+          skill &&
+          packedBytes(result, effectivePack(result, defaults, switches)) > result.limit
+        ) {
+          setStep((current) => (current === 2 ? 1 : current))
+        }
+        setScan(result)
       })
       .catch((caught: unknown) => {
+        if (!live) return
         setError(errorMessage(caught))
         setStep(0)
       })
+    return () => {
+      live = false
+    }
+  }, [scanning, skill, rpc, name, picked, cwd, session, switches])
+
+  const effective = scan === null ? new Set<string>() : effectivePack(scan, packed, switches)
+  const resourceBytes = scan === null ? 0 : packedBytes(scan, effective)
+  const total =
+    resourceBytes + (skill || scan === null || triggers === null ? 0 : triggerBytes(scan, triggers))
+  const canOpenSkillInfo = skill && picked.size > 0 && (scan === null || total <= scan.limit)
+
+  const moveTo = (next: number): void => {
+    if (busy !== null || next === step) return
+    if (next === 0 || (next === 1 && picked.size > 0) || (next === 2 && canOpenSkillInfo)) {
+      setError(null)
+      setStep(next)
+    }
+  }
+
+  const pickVersions = (next: ReadonlySet<number>): void => {
+    setPicked(next)
+    setScan(null)
   }
 
   const doExport = async (): Promise<void> => {
@@ -152,7 +188,7 @@ export function HubExport(props: {
       const out = await rpc.call('pack/export', {
         name,
         versions: [...picked],
-        pack: [...(scan === null ? [] : effectivePack(scan, packed, switches))],
+        pack: [...effective],
         choice,
         ...(scan === null || triggers === null ? {} : triggerRequest(scan, triggers)),
         ...props.scope,
@@ -179,7 +215,6 @@ export function HubExport(props: {
   const usable = (list ?? []).filter((entry) => entry.invalid !== true)
   const unsaved = list !== null && list.length > 0 && !list.some((entry) => entry.current)
   const multi = picked.size > 1
-  const skill = kind === 'skill'
 
   /** 下面那一块此刻是什么：换了就整块交接（往后一步从右边进、往回从左边进，读完了原地淡入）。 */
   const phase =
@@ -189,15 +224,16 @@ export function HubExport(props: {
         ? list === null
           ? 'loading'
           : 'ready'
-        : step === 2 || scan !== null
-          ? 'ready'
-          : 'loading'
+        : scanning
+          ? 'loading'
+          : 'ready'
 
   /** 换导出的种类：回到第一步；skill 只带一个版本，选了几个就留编号最大的那个。 */
   const switchKind = (next: ExportKind): void => {
     if (next === kind) return
     setKind(next)
     setStep(0)
+    setScan(null)
     setError(null)
     if (next === 'skill' && picked.size > 1) setPicked(new Set([Math.max(...picked)]))
   }
@@ -250,11 +286,29 @@ export function HubExport(props: {
         />
       </div>
       <Steps
-        steps={(skill
-          ? [t('pack.stepVersion'), t('pack.stepResources'), t('skillExport.step')]
-          : [t('pack.stepVersions'), t('pack.stepResources')]
-        ).map((label) => ({ label }))}
+        steps={[
+          {
+            label: t(skill ? 'pack.stepVersion' : 'pack.stepVersions'),
+            testId: 'wl-pack-step-versions',
+            disabled: busy !== null,
+          },
+          {
+            label: t('pack.stepResources'),
+            testId: 'wl-pack-step-resources',
+            disabled: busy !== null || picked.size === 0,
+          },
+          ...(skill
+            ? [
+                {
+                  label: t('skillExport.step'),
+                  testId: 'wl-pack-step-skill',
+                  disabled: busy !== null || !canOpenSkillInfo,
+                },
+              ]
+            : []),
+        ]}
         at={step}
+        onPick={moveTo}
       />
       <Presence show={error !== null}>
         {error !== null && <Callout tone="error">{error}</Callout>}
@@ -297,7 +351,7 @@ export function HubExport(props: {
                     label:
                       picked.size === usable.length ? t('pack.selectNone') : t('pack.selectAll'),
                     onClick: () =>
-                      setPicked(
+                      pickVersions(
                         picked.size === usable.length
                           ? new Set()
                           : new Set(usable.map((entry) => entry.n)),
@@ -335,13 +389,13 @@ export function HubExport(props: {
                       onCheck={(on) => {
                         // skill：单选，点哪个就是哪个（不能一个都不选）。
                         if (skill) {
-                          setPicked(new Set([entry.n]))
+                          if (!picked.has(entry.n)) pickVersions(new Set([entry.n]))
                           return
                         }
                         const next = new Set(picked)
                         if (on) next.add(entry.n)
                         else next.delete(entry.n)
-                        setPicked(next)
+                        pickVersions(next)
                       }}
                     />
                   ))}
@@ -364,7 +418,7 @@ export function HubExport(props: {
                   className={cx(ui.btn, ui.small, ui.primary)}
                   disabled={picked.size === 0}
                   data-testid="wl-pack-next"
-                  onClick={toResources}
+                  onClick={() => moveTo(1)}
                 >
                   {t('pack.next')}
                   <Icon name="chevronRight" size={14} />
@@ -378,7 +432,7 @@ export function HubExport(props: {
             rpc={rpc}
             name={name}
             version={[...picked][0] ?? 0}
-            pack={[...effectivePack(scan, packed, switches)]}
+            pack={[...effective]}
             scope={props.scope}
             draft={draft}
             onDraft={setDraft}
@@ -397,6 +451,8 @@ export function HubExport(props: {
             t={t}
             scan={scan}
             packed={packed}
+            effective={effective}
+            total={total}
             switches={switches}
             multi={multi}
             skill={skill}
@@ -413,8 +469,8 @@ export function HubExport(props: {
               else next.delete(key)
               setPacked(next)
             }}
-            onPrev={() => setStep(0)}
-            onExport={() => (skill ? setStep(2) : void doExport())}
+            onPrev={() => moveTo(0)}
+            onExport={() => (skill ? moveTo(2) : void doExport())}
           />
         )}
       </Staged>
@@ -439,6 +495,8 @@ function Resources(props: {
   t: T
   scan: PackScanResponse
   packed: ReadonlySet<string>
+  effective: ReadonlySet<string>
+  total: number
   switches: PackSwitches
   multi: boolean
   /** 导出成 skill：打包的放在 skill 里的位置不同，底下的按钮是「下一步」。 */
@@ -456,15 +514,13 @@ function Resources(props: {
   onPrev(): void
   onExport(): void
 }): React.JSX.Element {
-  const { t, scan, packed, switches, multi, skill } = props
+  const { t, scan, packed, effective, total, switches, multi, skill } = props
   const { rpc, session } = props
   const readCatalog = useCallback(() => agentCatalog(rpc, session), [rpc, session])
   const catalog = useAgentCatalog(!skill && scan.choices.length > 0 ? readCatalog : undefined)
   const workflowChoices = scan.choices.filter((spot) => spot.node === undefined)
   // 展开、收起：下面的分类滑到新位置，像版本列表那样。
   const listRef = useResizeFlip()
-  const effective = effectivePack(scan, packed, switches)
-  const total = packedBytes(scan, effective) + (skill ? 0 : triggerBytes(scan, props.triggers))
   const over = total > scan.limit
   const left = leftAbsolute(scan, effective)
   /** 展开着的分类：缺省有东西的都展开；和开关无关。 */

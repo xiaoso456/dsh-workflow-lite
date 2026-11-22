@@ -232,8 +232,27 @@ async function run(session) {
 
   // 2) 第二步：外部资源清单只有 Skill / 文件 / 文件夹三类，文件和 skill 缺省勾上；
   //    分类行点一下展开 / 收起，开关另管打不打包，互不牵连。
-  await session.evaluate(clickTestId('wl-pack-next'))
+  await session.evaluate(clickTestId('wl-pack-ver-1'))
+  check(
+    await session.evaluate(
+      `document.querySelector('[data-testid="wl-pack-step-resources"]')?.disabled === true`,
+    ),
+    '未选版本时，步骤条不能进入资源清单',
+  )
+  await session.evaluate(clickTestId('wl-pack-ver-1'))
+  await session.evaluate(clickTestId('wl-pack-step-resources'))
   await waitFor(session, exists('wl-pack-cat-file'))
+  const fileItem = '[data-testid="wl-pack-cat-file"] [data-testid="wl-pack-item"] input'
+  await session.evaluate(`document.querySelector(${JSON.stringify(fileItem)}).click()`)
+  await session.evaluate(clickTestId('wl-pack-step-versions'))
+  await waitFor(session, exists('wl-pack-ver-1'))
+  await session.evaluate(clickTestId('wl-pack-step-resources'))
+  await waitFor(session, exists('wl-pack-cat-file'))
+  check(
+    await session.evaluate(`document.querySelector(${JSON.stringify(fileItem)}).checked === false`),
+    '通过步骤条往返时，文件勾选应保留',
+  )
+  await session.evaluate(`document.querySelector(${JSON.stringify(fileItem)}).click()`)
   for (const gone_ of ['url', 'text', 'assets'])
     check(await session.evaluate(gone(`wl-pack-cat-${gone_}`)), `清单里不该有「${gone_}」一类`)
   const fileCat = await session.evaluate(textOf('wl-pack-cat-file'))
@@ -417,7 +436,15 @@ async function run(session) {
     ),
     'skill：v1 应缺省选上',
   )
-  await session.evaluate(clickTestId('wl-pack-next'))
+  check(
+    await session.evaluate(
+      `document.querySelector('[data-testid="wl-pack-step-skill"]')?.disabled === false`,
+    ),
+    '一切到 Skill，已有选中版本就能直接点「Skill 信息」',
+  )
+  await session.evaluate(clickTestId('wl-pack-step-skill'))
+  await waitFor(session, exists('wl-skill-name'), { timeoutMs: 30_000 })
+  await session.evaluate(clickTestId('wl-pack-step-resources'))
   await waitFor(session, exists('wl-pack-cat-file'))
   check(
     (await session.evaluate(textOf('wl-pack-do-export'))).includes('下一步'),
@@ -428,7 +455,7 @@ async function run(session) {
       (await session.evaluate(gone('wl-pack-cat-triggers'))),
     'skill：触发卡片不进 skill，应提醒一句、不列触发器一类',
   )
-  await session.evaluate(clickTestId('wl-pack-do-export'))
+  await session.evaluate(clickTestId('wl-pack-step-skill'))
   await waitFor(session, exists('wl-skill-name'), { timeoutMs: 30_000 })
   const value = (testId) =>
     session.evaluate(`document.querySelector('[data-testid="${testId}"]').value`)
@@ -443,7 +470,7 @@ async function run(session) {
   await waitFor(session, `!document.querySelector('[data-testid="wl-skill-download"]').disabled`)
   await sleep(400)
   await screenshot(session, 'pack-07-skill-info.png')
-  pass('导出成 skill：单选版本 → 资源 → Skill 信息（名字、描述预填，名字不合规矩不让导）')
+  pass('导出成 skill：切换格式后可直达 Skill 信息，也能返回资源清单')
 
   // 预览整个包：左边文件树、右边预览（同实例里看文件夹），一打开先看 SKILL.md。
   await session.evaluate(clickTestId('wl-skill-preview'))
@@ -652,6 +679,27 @@ async function run(session) {
   check((await mergeBack()).includes('没再存'), '并入同样的版本应说没再存')
   check((await rpc('graph/versions', { name: NAME })).versions.length === 2, '不该多出版本')
   pass('导入：重复的版本不再存')
+
+  // v1 用绝对路径，导入的 v2 用工作流目录。同一个文件在清单里只有 v1 可以单独勾选。
+  await session.evaluate(clickTestId('wl-hub-wf-export'))
+  for (const version of [1, 2]) {
+    await waitFor(session, exists('wl-pack-ver-2'))
+    for (const n of [1, 2]) {
+      const checked = await session.evaluate(
+        `document.querySelector('[data-testid="wl-pack-ver-${n}"] input').checked`,
+      )
+      if (checked !== (n === version)) await session.evaluate(clickTestId(`wl-pack-ver-${n}`))
+    }
+    await session.evaluate(clickTestId('wl-pack-step-resources'))
+    await waitFor(session, exists('wl-pack-cat-file'))
+    check(
+      (await session.evaluate(`document.querySelector(${JSON.stringify(fileItem)}) !== null`)) ===
+        (version === 1),
+      `资源清单应按 v${version} 重新扫描`,
+    )
+    await session.evaluate(clickTestId('wl-pack-step-versions'))
+  }
+  pass('导出：改选版本后，步骤条打开的是新版本的资源清单')
 
   check(session.errors.length === 0, `页面不该有报错：${JSON.stringify(session.errors)}`)
   console.log('\n✅ 导入导出验收全部通过')
