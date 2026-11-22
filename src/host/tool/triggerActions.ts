@@ -10,7 +10,7 @@
  */
 
 import { upcomingFires } from '../../shared/schedule.ts'
-import { filterOf, launchOf, sourceText } from '../../shared/trigger.ts'
+import { filterOf, launchOf, mapAfterWorkflow, sourceText } from '../../shared/trigger.ts'
 import { hookPath } from '../../shared/triggerHttp.ts'
 import { TRIGGER_MARK } from '../../shared/triggerMark.ts'
 import type { TriggerIndexEntry, TriggerNode, TriggerSource } from '../../shared/types.ts'
@@ -18,6 +18,7 @@ import type { FireRecord, TriggerListResponse, TriggerView } from '../../shared/
 import { assetsDir } from '../store/paths.ts'
 import type { Outcome } from '../store/repoResult.ts'
 import { fail, ok } from '../store/repoResult.ts'
+import type { Repository } from '../store/repository.ts'
 import { cardDataDir, cardDir, cardSecretsDir } from '../triggers/cardDirs.ts'
 import type { CardTestResult } from '../triggers/cardTest.ts'
 import type { TriggerService } from '../triggers/service.ts'
@@ -169,7 +170,7 @@ async function localOf(
 /** `read` 指到一张触发卡片：定义（连缺省值、一句话说法）+ 本机的情况，`include` 给了的再带上。 */
 export async function readTrigger(
   port: TriggerPort,
-  dataDir: string,
+  repository: Repository,
   workflow: string,
   node: TriggerNode,
   args: Pick<WorkflowLiteArgs, 'include' | 'limit' | 'fire'>,
@@ -179,16 +180,17 @@ export async function readTrigger(
   const include = new Set(args.include ?? [])
   const limit = (fallback: number): number =>
     Math.min(Math.max(Math.trunc(args.limit ?? fallback), 1), HISTORY_MAX)
+  const { source } = node.data
   const result: Record<string, unknown> = {
     workflow,
     node,
     effective: {
-      text: sourceText(node.data.source),
+      text: sourceText(mapAfterWorkflow(source, (id) => repository.workflowById(id)?.name)),
       ...withRule(node.data.source),
       filter: filterOf(node.data),
       launch: launchOf(node.data),
     },
-    local: await localOf(port, dataDir, workflow, node, list, now),
+    local: await localOf(port, repository.dataDir, workflow, node, list, now),
     ...(list.paused === undefined ? {} : { paused: stamp(list.paused) }),
     ...(list.owner !== undefined && !list.owner.mine ? { elsewhere: list.owner.pid } : {}),
   }

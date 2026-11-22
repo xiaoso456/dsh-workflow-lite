@@ -4,7 +4,7 @@
  * 开关在图里，运行记录在数据库里；这里把两边对上：
  * - 图里开着、没被自动停用、还没开始跑的：从现在开始跑（记下开始的时刻，清掉上一回的排期、失败计数、看过的实例）；
  * - 图里关了的：运行记录里这一回的东西清掉（开始的时刻、排期、失败计数、自动停用）；
- * - 工作流、卡片不在了：运行记录删掉（工作流暂时读不出来的先留着）。
+ * - 卡片不在了：运行记录删掉。工作流暂时读不出来时保留，删除工作流时由仓储清理。
  *
  * 只算不做：返回要写回运行记录的改动、在跑的卡片、到点的定时（只管到点直接执行的，
  * 带检查命令的由 `runtime.ts` 常驻着查）、最早的下一次时刻，由 `service.ts` 去写、去触发。
@@ -17,13 +17,13 @@
 import { nextFire } from '../../shared/schedule.ts'
 import { sourceProblem } from '../../shared/trigger.ts'
 import type { TriggerData, TriggerSchedule } from '../../shared/types.ts'
-import type { TriggerDefinition, TriggerGraphs } from './graphs.ts'
+import type { TriggerGraphs, WorkflowTrigger } from './graphs.ts'
 import type { TriggerRun, TriggerRuns } from './runRecords.ts'
 
 /** 这一轮在跑的一张卡片：图里开着、没被自动停用。 */
 export interface ActiveCard {
   workflow: string
-  trigger: TriggerDefinition
+  trigger: WorkflowTrigger
   /** 图现在执行不了的原因（有就发不出去）。 */
   blocked?: string
 }
@@ -45,8 +45,6 @@ export interface RoundPlan {
 }
 
 type Change =
-  /** 工作流不在了：它的记录整组删掉。 */
-  | { kind: 'dropWorkflow'; workflow: string }
   /** 卡片从图里删掉了。 */
   | { kind: 'dropNode'; workflow: string; node: string }
   /** 图里打开了：从这一刻开始跑。 */
@@ -117,20 +115,17 @@ export async function planRound(
   const fires: DueFire[] = []
   let next: number | undefined
 
-  const workflows = new Set([...(await graphs.names()), ...Object.keys(runs)])
-  for (const workflow of workflows) {
-    const records = runs[workflow] ?? {}
-    const graph = await graphs.read(workflow)
-    if (graph.kind === 'missing') {
-      if (runs[workflow] !== undefined) changes.push({ kind: 'dropWorkflow', workflow })
-      continue
-    }
-    // 图暂时读不出来：记录留着，等用户修好。
-    if (graph.kind === 'broken') continue
+  const keys = new Set([...(await graphs.names()).map(graphs.idOf), ...Object.keys(runs)])
+  for (const key of keys) {
+    if (key === undefined) continue
+    const graph = await graphs.readById(key)
+    // 改名时文件路径可能暂时不可用，工作流删除时由仓储清理记录。
+    if (graph.kind !== 'ok') continue
+    const records = runs[key] ?? {}
 
     const present = new Set(graph.triggers.map((trigger) => trigger.node))
     for (const node of Object.keys(records)) {
-      if (!present.has(node)) changes.push({ kind: 'dropNode', workflow, node })
+      if (!present.has(node)) changes.push({ kind: 'dropNode', workflow: key, node })
     }
 
     for (const trigger of graph.triggers) {
@@ -138,13 +133,13 @@ export async function planRound(
       const run = records[node]
       if (trigger.data.enabled !== true) {
         if (run?.since !== undefined || run?.stopped !== undefined) {
-          changes.push({ kind: 'stop', workflow, node })
+          changes.push({ kind: 'stop', workflow: key, node })
         }
         continue
       }
       if (!isActive(trigger.data, run)) continue
       const card: ActiveCard = {
-        workflow,
+        workflow: graph.workflow,
         trigger,
         ...(graph.blocked === undefined ? {} : { blocked: graph.blocked }),
       }
@@ -152,7 +147,7 @@ export async function planRound(
       let since = run?.since
       if (since === undefined) {
         since = now
-        changes.push({ kind: 'start', workflow, node, since })
+        changes.push({ kind: 'start', workflow: key, node, since })
       }
 
       // 只排到点直接执行的定时；带检查命令的定时、监听程序、HTTP 由 `runtime.ts` 常驻着做。
@@ -163,7 +158,7 @@ export async function planRound(
       const fresh = run?.since === undefined
       if (sourceProblem(source) !== null) {
         if (!fresh && (run?.due !== undefined || run?.rule !== rule)) {
-          changes.push({ kind: 'schedule', workflow, node, since, rule, due: undefined })
+          changes.push({ kind: 'schedule', workflow: key, node, since, rule, due: undefined })
         }
         continue
       }
@@ -180,7 +175,7 @@ export async function planRound(
         due = after(now)
       }
       if (fresh || due !== run?.due || rule !== run?.rule || since !== run?.since) {
-        changes.push({ kind: 'schedule', workflow, node, since, rule, due })
+        changes.push({ kind: 'schedule', workflow: key, node, since, rule, due })
       }
       if (due !== undefined && (next === undefined || due < next)) next = due
     }
@@ -192,10 +187,6 @@ export async function planRound(
     ...(next === undefined ? {} : { next }),
     apply(current) {
       for (const change of changes) {
-        if (change.kind === 'dropWorkflow') {
-          delete current[change.workflow]
-          continue
-        }
         const group = current[change.workflow] ?? {}
         current[change.workflow] = group
         if (change.kind === 'dropNode') {

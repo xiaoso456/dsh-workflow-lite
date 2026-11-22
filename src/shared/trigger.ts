@@ -59,9 +59,31 @@ export function isFireId(value: unknown): value is string {
   return typeof value === 'string' && /^f-\d{8}-\d{6}-[0-9a-f]{4}$/u.test(value)
 }
 
-/** 触发卡片的名字：没起名就用它的 id。 */
+/** 新建、复制用随机 ID。getRandomValues 在普通 HTTP 页面也可用。 */
+export function newTriggerId(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(16))
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
+  return `trigger-${hex}`
+}
+
+/** 没起名时，生成的 ID 只取开头用于显示。 */
+export function triggerIdLabel(id: string): string {
+  return /^trigger-[0-9a-f]{32}$/u.test(id) ? id.slice(0, 16) : id
+}
+
+/** 触发卡片的显示名。 */
 export function triggerName(node: Pick<TriggerNode, 'id' | 'data'>): string {
-  return node.data.label ?? node.id
+  return node.data.label?.trim() || triggerIdLabel(node.id)
+}
+
+/** 在导入、导出和显示边界替换接续引用，其他触发源沿用原对象。 */
+export function mapAfterWorkflow(
+  source: TriggerSource,
+  resolve: (workflow: string) => string | undefined,
+): TriggerSource {
+  if (source.kind !== 'after' || source.workflow === '') return source
+  const workflow = resolve(source.workflow) ?? ''
+  return workflow === source.workflow ? source : { ...source, workflow }
 }
 
 /** 新拖出来的触发卡片：每天 9 点。 */

@@ -29,7 +29,7 @@ const opened: PluginDatabase[] = []
 function open(): TriggerStore {
   const database = new PluginDatabase(() => join(dataDir, DATABASE_FILE))
   opened.push(database)
-  return new TriggerStore(() => dataDir, database)
+  return new TriggerStore({ dataDir, workflowById: () => undefined }, database)
 }
 
 let serial = 0
@@ -61,10 +61,10 @@ afterEach(async () => {
 describe('触发记录', () => {
   it('每张卡片各记各的：勤的卡片不挤掉别的，近况数得全', async () => {
     const store = open()
-    await store.record(fire('weekly'))
+    await store.record('wf', fire('weekly'))
     for (let n = 0; n < 250; n += 1) {
       clock += MINUTE
-      await store.record(fire('chatty', n % 5 === 0 ? 'skipped' : 'sent'))
+      await store.record('wf', fire('chatty', n % 5 === 0 ? 'skipped' : 'sent'))
     }
 
     expect((await store.last('wf', 'weekly'))?.node).toBe('weekly')
@@ -81,19 +81,15 @@ describe('触发记录', () => {
     expect(await store.sentSince('wf', 'chatty', clock - 10 * MINUTE)).toBe(8)
   })
 
-  it('列记录只给记录本身，原文在详情里；工作流改名跟着走，删掉连同另存的全文一起删', async () => {
+  it('列记录只给记录本身，原文在详情里；删除工作流连同另存的全文一起删', async () => {
     const store = open()
     const long = fire('tick', 'sent', { info: 'x'.repeat(INFO_INLINE_CHARS + 1) })
-    await store.record(long)
+    await store.record('wf', long)
     expect(existsSync(fireInfoFile(dataDir, long.record.id))).toBe(true)
     expect(await store.history('wf', 'tick', 10)).toEqual([long.record])
     expect((await store.detail(long.record.id))?.info).toBe(long.info)
 
-    await store.rename('wf', 'renamed')
-    expect(await store.history('wf', 'tick', 10)).toEqual([])
-    expect((await store.last('renamed', 'tick'))?.workflow).toBe('renamed')
-
-    await store.forget('renamed')
+    await store.forget('wf')
     expect(await store.detail(long.record.id)).toBeNull()
     expect(existsSync(fireInfoFile(dataDir, long.record.id))).toBe(false)
   })
@@ -102,11 +98,11 @@ describe('触发记录', () => {
     const store = open()
     const first = fire('tick', 'sent')
     first.record.session = 's1'
-    await store.record(first)
+    await store.record('wf', first)
     clock += MINUTE
     const second = fire('tick', 'sent')
     second.record.session = 's1'
-    await store.record(second)
+    await store.record('wf', second)
 
     expect((await store.unclaimed('wf', 's1', 0))?.id).toBe(first.record.id)
     await store.bind(first.record.id, 'run-1')
@@ -132,7 +128,7 @@ describe('触发记录', () => {
     const skipped = sent('s1', 'skipped')
     const elsewhere = sent('s2')
     for (const detail of [origin, before, during, declined, skipped, elsewhere]) {
-      await store.record(detail)
+      await store.record('wf', detail)
     }
     await store.bind(origin.record.id, 'run-1')
     await store.decline(declined.record.id, '没变化')
@@ -155,15 +151,15 @@ describe('触发记录', () => {
 
   it('最近一次失败的时刻：只看失败的，各卡片各算；没失败过是空的', async () => {
     const store = open()
-    await store.record(fire('tick', 'failed'))
+    await store.record('wf', fire('tick', 'failed'))
     const failedAt = clock
     clock += MINUTE
-    await store.record(fire('tick', 'sent'))
-    await store.record(fire('other', 'skipped'))
+    await store.record('wf', fire('tick', 'sent'))
+    await store.record('wf', fire('other', 'skipped'))
     expect(await store.lastFailure('wf', 'tick')).toBe(failedAt)
     expect(await store.lastFailure('wf', 'other')).toBeUndefined()
     clock += MINUTE
-    await store.record(fire('tick', 'failed'))
+    await store.record('wf', fire('tick', 'failed'))
     expect(await store.lastFailure('wf', 'tick')).toBe(clock)
   })
 
@@ -171,7 +167,7 @@ describe('触发记录', () => {
     const a = open()
     const b = open()
     await Promise.all(
-      Array.from({ length: 40 }, (_, n) => (n % 2 === 0 ? a : b).record(fire('tick'))),
+      Array.from({ length: 40 }, (_, n) => (n % 2 === 0 ? a : b).record('wf', fire('tick'))),
     )
     expect(await a.history('wf', 'tick', 100)).toHaveLength(40)
     expect(await b.history('wf', 'tick', 100)).toHaveLength(40)
@@ -179,13 +175,13 @@ describe('触发记录', () => {
 
   it('排着的：单独数得出；收下了就占每小时的次数；轮到时原地改结果、认领按轮到的时刻算；近况不数排着的', async () => {
     const store = open()
-    await store.record(fire('a'))
+    await store.record('wf', fire('a'))
     const first = fire('a', 'queued', { info: '第一条' })
-    await store.record(first)
+    await store.record('wf', first)
     clock += MINUTE
     const second = fire('a', 'queued')
-    await store.record(second)
-    await store.record(fire('b', 'queued'))
+    await store.record('wf', second)
+    await store.record('wf', fire('b', 'queued'))
     expect(await store.queuedCounts()).toEqual([
       { workflow: 'wf', node: 'a', count: 2 },
       { workflow: 'wf', node: 'b', count: 1 },
@@ -229,49 +225,26 @@ describe('触发记录', () => {
     expect(await store.queuedCounts()).toEqual([])
   })
 
-  /** 把库退回旧版的样子：第 3 版没有 `agent`，第 4 版（开发中）是一列 `fallback` 说明文字。 */
-  function downgrade(version: 3 | 4): void {
-    for (const database of opened.splice(0)) database.close()
-    const raw = new (process.getBuiltinModule('node:sqlite').DatabaseSync)(
-      join(dataDir, DATABASE_FILE),
-    )
-    raw.exec('ALTER TABLE trigger_fires DROP COLUMN agent')
-    if (version === 4) raw.exec('ALTER TABLE trigger_fires ADD COLUMN fallback TEXT')
-    raw.prepare('UPDATE schema_parts SET version = ? WHERE name = ?').run(version, 'trigger_fires')
-    raw.close()
-  }
-
   const AGENT = {
     preset: 'ptc',
     model: { provider: 'acme', model: 'big' },
     fallbacks: [{ kind: 'unsupported' as const }],
   }
 
-  it.each([3, 4] as const)(
-    '新建会话设的预设、模型跟着记录走；第 %i 版的库升上来只改这一列，旧记录都在',
-    async (version) => {
-      const store = open()
-      await store.record(fire('old'))
-      downgrade(version)
+  it('新建会话设的预设、模型随触发记录和排队放行保存', async () => {
+    const store = open()
+    clock += MINUTE
+    await store.record('wf', fire('direct', 'sent', {}))
+    const sent = fire('direct')
+    await store.record('wf', { ...sent, record: { ...sent.record, agent: AGENT } })
+    clock += MINUTE
+    const queued = fire('later', 'queued')
+    await store.record('wf', queued)
+    await store.release(queued.record.id, 'sent', { session: 's1', agent: AGENT }, clock)
 
-      const upgraded = open()
-      expect((await upgraded.history('wf', 'old', 10)).map((record) => record.node)).toEqual([
-        'old',
-      ])
-      clock += MINUTE
-      await upgraded.record(fire('direct', 'sent', {}))
-      const sent = fire('direct')
-      await upgraded.record({ ...sent, record: { ...sent.record, agent: AGENT } })
-      clock += MINUTE
-      const queued = fire('later', 'queued')
-      await upgraded.record(queued)
-      await upgraded.release(queued.record.id, 'sent', { session: 's1', agent: AGENT }, clock)
-
-      const [later] = await upgraded.history('wf', 'later', 10)
-      expect(later).toMatchObject({ outcome: 'sent', agent: AGENT })
-      const direct = await upgraded.history('wf', 'direct', 10)
-      expect(direct.map((record) => record.agent)).toEqual([AGENT, undefined])
-      expect((await upgraded.history('wf', 'old', 10))[0]?.agent).toBeUndefined()
-    },
-  )
+    const [later] = await store.history('wf', 'later', 10)
+    expect(later).toMatchObject({ outcome: 'sent', agent: AGENT })
+    const direct = await store.history('wf', 'direct', 10)
+    expect(direct.map((record) => record.agent)).toEqual([AGENT, undefined])
+  })
 })

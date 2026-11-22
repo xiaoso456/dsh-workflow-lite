@@ -53,6 +53,7 @@ import {
 import { readSessionChoice, withoutSessionChoice } from '../../shared/sessionChoice.ts'
 import {
   DEFAULT_TRIGGER,
+  newTriggerId,
   readTriggerData,
   SOURCE_KINDS,
   settingsOf,
@@ -157,7 +158,7 @@ export interface InputUpsert {
  * 开关、工作区、命令的确认是本机状态，不在这里——模型建的卡片一律是关着的，由用户打开。
  */
 export interface TriggerUpsert {
-  /** 卡片 id；缺省 = 新建，叫 `trigger`（被占了就 `trigger-2`……）。 */
+  /** 待修改的卡片 ID。省略时分配新 ID。 */
   id?: string
   label?: string
   note?: string
@@ -166,9 +167,6 @@ export interface TriggerUpsert {
   filter?: unknown
   launch?: unknown
 }
-
-/** 新建触发卡片缺省的 id。 */
-const TRIGGER_ID = 'trigger'
 
 /** `write_resource`：新建或修改一个资源节点。给了的字段才改；`items` 给了就整份替换；`display` 按字段合并。 */
 export interface ResourceUpsert {
@@ -211,7 +209,7 @@ function setPromptValue(data: NodeData, prompt: string | undefined): void {
 }
 
 /** 节点与边部分用到的核心能力：只有 `mutate`。 */
-type NodesCore = Pick<RepoCore, 'mutate'>
+type NodesCore = Pick<RepoCore, 'mutate' | 'identities'>
 
 /** 节点与边部分用到的模板能力：`write_node` 带 `fromTemplate` 时取模板的 `data`。 */
 type NodesTemplates = Pick<TemplateStore, 'readNodeTemplate'>
@@ -418,21 +416,13 @@ export class NodeWriter {
   async writeTrigger(workflow: string, upsert: TriggerUpsert): Promise<Outcome<WriteResult>> {
     return this.core.mutate(workflow, async (document) => {
       const found = upsert.id === undefined ? undefined : findNode(document, upsert.id)
+      if (upsert.id !== undefined && found === undefined) {
+        return fail('not_found', `图 ${workflow} 里没有触发卡片 ${upsert.id}`, { id: upsert.id })
+      }
       if (found !== undefined && !isTrigger(found)) {
         return fail('blocked', `${found.id} 不是触发卡片`, { id: found.id })
       }
-      let id = found?.id
-      if (id === undefined) {
-        const wanted = normalizeName(upsert.id ?? TRIGGER_ID)
-        const idIssue = checkName(wanted)
-        if (idIssue !== null) {
-          return fail('blocked', `节点 id 不合法：${idIssue.message}`, { code: idIssue.code })
-        }
-        id = wanted
-        for (let n = 2; upsert.id === undefined && findNode(document, id) !== undefined; n += 1) {
-          id = `${wanted}-${String(n)}`
-        }
-      }
+      const id = found?.id ?? newTriggerId()
       for (const key of ['source', 'filter', 'launch'] as const) {
         const value = upsert[key]
         if (value !== undefined && value !== null && !isPlainObject(value)) {
@@ -468,10 +458,22 @@ export class NodeWriter {
       const merged = recordOf(mergePatch(base, patch))
       merged.launch = { ...recordOf(merged.launch), ...kept }
       // 开关、工作区、地址和令牌这些设置要核对，只经触发器服务改（writeTriggerSettings）：模型在这里写的不认。
-      const data = withSettings(
+      let data = withSettings(
         readTriggerData(merged),
         found === undefined ? {} : settingsOf(found.data),
       )
+      if (
+        data.source.kind === 'after' &&
+        data.source.workflow !== '' &&
+        isPlainObject(upsert.source) &&
+        Object.hasOwn(upsert.source, 'workflow')
+      ) {
+        const upstream = this.core.identities.getByName(data.source.workflow)
+        if (upstream === undefined) {
+          return fail('not_found', `找不到接续触发的工作流「${data.source.workflow}」`)
+        }
+        data = { ...data, source: { ...data.source, workflow: upstream.id } }
+      }
       const problem = sourceProblem(data.source)
       if (problem !== null) {
         return fail('invalid_args', `触发设置不对：${problem}`, { code: 'trigger_invalid' })

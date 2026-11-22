@@ -58,7 +58,13 @@ import { parseVersion } from '../store/versions.ts'
 import type { PackDeps } from './exporter.ts'
 import { discard, readIn } from './staging.ts'
 import { fingerprint, readTree, sha256, walkTree } from './tree.ts'
-import { hookGaps, occupiedHttpHooks, previewTriggers, setSwitches } from './triggerPack.ts'
+import {
+  hookGaps,
+  mapAfterWorkflows,
+  occupiedHttpHooks,
+  previewTriggers,
+  setSwitches,
+} from './triggerPack.ts'
 
 /** 解开、校验过的包。 */
 export interface OpenedPack {
@@ -556,7 +562,10 @@ export async function applyPack(
   const wanted = request.enable ?? cards.filter((card) => card.enabled).map((card) => card.node)
   const enable = new Set(wanted.filter((node) => openable.has(node)))
   const imported = versions.map((version) => {
-    const document = renameMemoryRefs(rewriteSkills(version.document, renames), memoryRenames)
+    const document = mapAfterWorkflows(
+      renameMemoryRefs(rewriteSkills(version.document, renames), memoryRenames),
+      (name) => deps.repository.workflowByName(name)?.id,
+    )
     return {
       ...version,
       document: version.n === manifest.current ? setSwitches(document, enable) : document,

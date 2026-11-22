@@ -20,6 +20,7 @@ import type {
   TriggerSchedule,
   TriggerSource,
   TriggerSourceKind,
+  WorkflowEntry,
 } from '../../shared/types.ts'
 import type { TriggerState, TriggerView } from '../../shared/wire/trigger.ts'
 import type { LocaleKey, T } from '../i18n.ts'
@@ -200,8 +201,24 @@ const AFTER_TEXT: Record<AfterWhen, LocaleKey> = {
   any: 'trigger.rule.afterAny',
 }
 
+type WorkflowName = Pick<WorkflowEntry, 'workflowId' | 'name'>
+export type TriggerDisplaySource = TriggerSource & { upstreamMissing?: true }
+
+/** 草稿的接续目标由编辑器目录解析，已经保存的触发概览可直接用宿主给的名称。 */
+export function presentTriggerSource(
+  source: TriggerSource,
+  upstream: string | readonly WorkflowName[] | undefined,
+): TriggerDisplaySource {
+  if (source.kind !== 'after' || source.workflow === '') return source
+  const name =
+    typeof upstream === 'string'
+      ? upstream
+      : upstream?.find((entry) => entry.workflowId === source.workflow)?.name
+  return name === undefined ? { ...source, upstreamMissing: true } : { ...source, workflow: name }
+}
+
 /** 触发源的一句话（卡片上的第二行）：定时说规则（带检查的说「…检查」），监听、HTTP 说是什么，接续说等谁。 */
-export function sourceText(t: T, source: TriggerSource): string {
+export function sourceText(t: T, source: TriggerDisplaySource): string {
   if (source.kind === 'schedule') {
     const rule = ruleText(t, source.schedule)
     return source.check === undefined ? rule : fillSay(t('trigger.rule.check'), { rule })
@@ -210,7 +227,9 @@ export function sourceText(t: T, source: TriggerSource): string {
   if (source.kind === 'http') return t('trigger.rule.http')
   if (source.kind === 'after') {
     if (source.workflow === '') return t('trigger.rule.afterNone')
-    return t(AFTER_TEXT[afterWhen(source)]).replace('{name}', source.workflow)
+    return source.upstreamMissing === true
+      ? t('trigger.afterMissing')
+      : t(AFTER_TEXT[afterWhen(source)]).replace('{name}', source.workflow)
   }
   return ''
 }

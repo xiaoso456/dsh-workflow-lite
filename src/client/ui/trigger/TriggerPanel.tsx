@@ -18,7 +18,7 @@
 
 import { useState } from 'react'
 import { idKey } from '../../../shared/model.ts'
-import { filterKindOf, filterOf, triggerName } from '../../../shared/trigger.ts'
+import { filterKindOf, filterOf, triggerIdLabel, triggerName } from '../../../shared/trigger.ts'
 import type { TriggerData, TriggerNode } from '../../../shared/types.ts'
 import type { T } from '../../i18n.ts'
 import type { Edit, Selection } from '../../model/editor.ts'
@@ -90,7 +90,7 @@ export function TriggerPanel(props: TriggerPanelProps): React.JSX.Element {
           <TitleField
             t={t}
             value={data.label ?? ''}
-            placeholder={node.id}
+            placeholder={triggerIdLabel(node.id)}
             ariaLabel={t('trigger.name')}
             testId="wl-trigger-name"
             onType={(value) => patch({ label: cleanName(value) }, 'label')}

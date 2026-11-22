@@ -65,7 +65,13 @@ import type { Repository } from '../store/repository.ts'
 import { versionText } from '../store/versions.ts'
 import { newStage, writeOut } from './staging.ts'
 import { readTree, type Tree, type TreeFile, walkTree } from './tree.ts'
-import { packTriggers, pickTriggerFiles, scanTriggers, splitAssets } from './triggerPack.ts'
+import {
+  mapAfterWorkflows,
+  packTriggers,
+  pickTriggerFiles,
+  scanTriggers,
+  splitAssets,
+} from './triggerPack.ts'
 
 export interface PackDeps {
   dataDir: string
@@ -275,6 +281,7 @@ export async function scanState(
   const cards = scanTriggers(
     versions.map(({ entry, document }) => ({ n: entry.n, document })),
     triggerFiles,
+    (id) => deps.repository.workflowById(id)?.name,
   )
   const choices = versions.flatMap(({ entry, document }) => {
     const spots = documentChoices(document)
@@ -505,7 +512,10 @@ export async function exportPack(
   const packedVersions = versions.map(({ entry, document }) => {
     const packed = rewriteForPack(
       documentWithChoice(
-        packTriggers(document, keep),
+        mapAfterWorkflows(
+          packTriggers(document, keep),
+          (workflow) => deps.repository.workflowById(workflow)?.name,
+        ),
         request.choice ?? DEFAULT_CHOICE_KEEP,
         triggerChoices,
       ),

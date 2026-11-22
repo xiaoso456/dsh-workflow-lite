@@ -25,6 +25,7 @@ import type {
   ResourceView,
   ValidationProblem,
   WorkflowDocument,
+  WorkflowEntry,
 } from '../../../shared/types.ts'
 import { useStable } from '../../app/useStable.ts'
 import { rememberViewport } from '../../app/viewport.ts'
@@ -103,6 +104,8 @@ export interface CanvasProps {
   memories?: readonly MemoryEntry[] | null
   /** 正在编辑的工作流名（「另有几个工作流在用」不算它自己）。 */
   workflow?: string | null
+  /** 当前工作流目录，用于显示接续触发的上游名称。 */
+  workflows?: readonly WorkflowEntry[] | undefined
   /** 资源卡的画布展示从哪读、怎么打开（实例视图给出实例）；缺省 = 模板（文件还没生成，只摆占位）。 */
   display?: Omit<DisplayEnv, 't'>
 }
@@ -347,6 +350,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
         onMemory,
         memories: props.memories,
         workflow: props.workflow,
+        workflows: props.workflows,
         files,
         cache,
         sizes,
@@ -370,6 +374,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
       onMemory,
       props.memories,
       props.workflow,
+      props.workflows,
     ],
   )
 

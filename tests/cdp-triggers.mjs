@@ -23,6 +23,7 @@ import { fileURLToPath } from 'node:url'
 import { RunService } from '../src/host/runs/service.ts'
 import { DATABASE_FILE, PluginDatabase } from '../src/host/store/database.ts'
 import { assetsDir } from '../src/host/store/paths.ts'
+import { createRepository } from '../src/host/store/repository.ts'
 import { newFireId, TriggerStore } from '../src/host/triggers/store.ts'
 import {
   bootToCanvas,
@@ -634,6 +635,10 @@ try {
       `document.querySelectorAll('.react-flow__node-wfTrigger').length`,
     )
     check('拖进来之后有两张触发卡片', count === 2, String(count))
+    const id = await session.evaluate(
+      `[...document.querySelectorAll('.react-flow__node-wfTrigger')].find((node) => node.dataset.id !== 'nightly')?.dataset.id`,
+    )
+    check('新触发卡片分配独立的随机 ID', /^trigger-[0-9a-f]{32}$/u.test(id ?? ''), id)
     await capture(session, 'template-two-light.png')
   }
 
@@ -662,6 +667,8 @@ try {
   const instance = prepared.result.id
   const view = '[data-testid="wl-hub-detail-view"]'
   await session.evaluate(clickTestId('wl-hub-open'))
+  await waitFor(session, has('wl-hub-runs'))
+  await session.evaluate(clickTestId('wl-hub-runs'))
   await revealHubRow(session, instance)
   await waitFor(session, `document.querySelector('${view}') !== null`)
   const marker = await session.evaluate(
@@ -1212,6 +1219,7 @@ try {
 
   // ── 接续触发：hook 换成「等夜间巡检跑完」────────────────────
   const upstream = await rpc('graph/load', { name: NAME })
+  const upstreamId = upstream.document.workflowId
   await rpc('graph/save', {
     name: NAME,
     document: {
@@ -1294,12 +1302,15 @@ try {
   while (Date.now() < savedDeadline) {
     const loaded = await rpc('graph/load', { name: NAME2 })
     savedSource = loaded.document.nodes.find((node) => node.id === 'hook')?.data.source
-    if (savedSource?.kind === 'after' && savedSource.workflow === NAME) break
+    if (savedSource?.kind === 'after' && savedSource.workflow === upstreamId) break
     await sleep(500)
   }
   check(
-    '接续：图里存下等哪个工作流、什么结果',
-    savedSource?.kind === 'after' && savedSource.workflow === NAME && savedSource.when === 'any',
+    '接续：图里存下上游工作流的固定 ID 和触发结果',
+    typeof upstreamId === 'string' &&
+      savedSource?.kind === 'after' &&
+      savedSource.workflow === upstreamId &&
+      savedSource.when === 'any',
     JSON.stringify(savedSource),
   )
   await patchCard(NAME2, 'hook', { enabled: true })
@@ -1342,10 +1353,11 @@ try {
   // ── 工作流中心「触发」页 ─────────────────────────────────────
   const statsDatabase = new PluginDatabase(() => join(DATA_DIR, DATABASE_FILE))
   try {
-    const store = new TriggerStore(() => DATA_DIR, statsDatabase)
+    const repository = createRepository({ dataDir: DATA_DIR })
+    const store = new TriggerStore(repository, statsDatabase)
     const older = Date.now() - 2 * 60 * 60_000
     const failedAt = Date.now()
-    await store.record({
+    await store.record(repository.workflowByName(NAME).id, {
       record: {
         id: newFireId(new Date(failedAt)),
         workflow: NAME,
@@ -1359,7 +1371,7 @@ try {
     })
     for (let index = 0; index < 10; index++) {
       const at = older + index
-      await store.record({
+      await store.record(repository.workflowByName(NAME2).id, {
         record: {
           id: newFireId(new Date(at)),
           workflow: NAME2,
@@ -1939,6 +1951,26 @@ try {
     .then(() => true)
     .catch(() => false)
   check('在画布上打开：换到那个工作流并选中这张卡片', selectedCard)
+
+  const renamedUpstream = `${NAME}（改名后）`
+  await rpc('graph/rename', { name: NAME, to: renamedUpstream })
+  await session.evaluate(clickTestId('wl-hub-open'))
+  await waitFor(session, has('wl-hub-triggers'))
+  await session.evaluate(clickTestId('wl-hub-triggers'))
+  await waitFor(session, `document.querySelector('${hookRow}') !== null`)
+  await session.evaluate(`document.querySelector('${hookRow}').click()`)
+  await waitFor(session, has('wl-hub-trg-tab-live'))
+  await session.evaluate(clickTestId('wl-hub-trg-tab-live'))
+  const upstreamPane = '[data-testid="wl-hub-trg-upstream"]'
+  const keptHistory = await waitFor(
+    session,
+    `document.querySelector('${upstreamPane}')?.textContent.includes(${JSON.stringify(renamedUpstream)}) &&
+     document.querySelector('${upstreamPane}')?.textContent.includes(${JSON.stringify(finishedId)})`,
+    { timeoutMs: 8_000 },
+  )
+    .then(() => true)
+    .catch(() => false)
+  check('上游改名后仍显示之前的实例，并显示新名称', keptHistory)
   await patchCard(NAME2, 'hook', { enabled: undefined }).catch(() => {})
   await rpc('trigger/pause', { paused: false }).catch(() => {})
   await rpc('config/set', {

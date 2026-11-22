@@ -34,7 +34,13 @@ import {
 import { clockTime, durationText } from '../../../model/time.ts'
 import { matchesOutcome, type OutcomeFilter, upcomingAt } from '../../../model/triggerActivity.ts'
 import { statusWhen } from '../../../model/triggerNow.ts'
-import { sourceFace, sourceText, stateBadge, stateTone } from '../../../model/triggerText.ts'
+import {
+  presentTriggerSource,
+  sourceFace,
+  sourceText,
+  stateBadge,
+  stateTone,
+} from '../../../model/triggerText.ts'
 import { useConfirm } from '../../kit/Confirm.tsx'
 import { cx } from '../../kit/cx.ts'
 import { Icon } from '../../kit/Icon.tsx'
@@ -107,7 +113,7 @@ export function TimelinePane(props: {
   const waitingFor =
     ahead.length === 0 && live
       ? source.kind === 'after'
-        ? sourceText(t, source)
+        ? sourceText(t, presentTriggerSource(source, view.upstreamWorkflow))
         : t('hub.trgWaitOutside')
       : null
   const all = props.fires ?? []

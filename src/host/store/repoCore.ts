@@ -13,7 +13,13 @@
  */
 
 import { analyzeGraph } from '../../shared/graph.ts'
-import { cloneDocument, idKey, readDocument, writeDocument } from '../../shared/model.ts'
+import {
+  cloneDocument,
+  idKey,
+  readDocument,
+  withoutWorkflowId,
+  writeDocument,
+} from '../../shared/model.ts'
 import { checkName, normalizeName } from '../../shared/naming.ts'
 import type {
   ChangedEntry,
@@ -44,6 +50,7 @@ import {
   problemsToWarnings,
   saveProblem,
 } from './repoResult.ts'
+import { WorkflowIndex, workflowIdFromText } from './workflowIndex.ts'
 
 /** 合并-重试的上限：合并期间磁盘还在变就再读一次，超过这个次数即认输报 `conflict`。 */
 export const MAX_MERGE_ATTEMPTS = 5
@@ -84,6 +91,7 @@ function baselineKey(name: string, hash: string): string {
 /** 仓储核心。见文件头。 */
 export class RepoCore {
   readonly dataDir: string
+  readonly identities: WorkflowIndex
 
   private readonly validator: DocumentValidator | null
 
@@ -102,6 +110,7 @@ export class RepoCore {
 
   constructor(dataDir: string, validate?: DocumentValidator) {
     this.dataDir = dataDir
+    this.identities = new WorkflowIndex(dataDir)
     this.validator = validate ?? null
   }
 
@@ -214,6 +223,17 @@ export class RepoCore {
       )
     }
 
+    // 工作流归属由当前文件持有。画布、旧客户端和工具提交的图内容都不能改它。
+    const diskBefore = readDocument(text).document
+    const workflowId = diskBefore === null ? workflowIdFromText(text) : diskBefore.workflowId
+    const expectedId = baseDocument?.workflowId ?? (baseHash === null ? undefined : next.workflowId)
+    if (expectedId !== undefined && workflowId !== expectedId) {
+      return fail('conflict', `图 ${name} 的身份已经改变，请重新加载`, { workflow: name })
+    }
+    if (workflowId !== undefined && this.identities.getByName(name)?.id !== workflowId) {
+      return fail('blocked', '工作流 ID 被多个文件使用，请先处理副本', { workflow: name })
+    }
+    document = workflowId === undefined ? withoutWorkflowId(document) : { ...document, workflowId }
     const finalText = writeDocument(document)
     // 合并后的终稿必须先过保存级自检（合并可能造出悬空 edge），再落盘。
     const selfProblems = [
@@ -242,7 +262,7 @@ export class RepoCore {
       hash: writtenHash,
       document,
       // 稳定下来的 `text` 就是这一笔之前磁盘上的内容（最后一轮读到的、并已复核未再变）。
-      diskBefore: readDocument(text).document,
+      diskBefore,
       warnings: problemsToWarnings(this.validate(document, name)),
     })
   }

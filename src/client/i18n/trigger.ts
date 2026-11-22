@@ -239,6 +239,7 @@ export const zh = {
   'trigger.judge.error': '出错',
   // ── 接续（另一个工作流跑完）────────────────────────────────
   'trigger.afterNone': '选一个工作流',
+  'trigger.afterMissing': '找不到上游工作流',
   'trigger.afterWhen': '结果',
   'trigger.afterWhen.done': '成功时',
   'trigger.afterWhen.failed': '失败时',
@@ -809,6 +810,7 @@ export const en: Record<keyof typeof zh, string> = {
   'trigger.judge.skip': 'Skipped',
   'trigger.judge.error': 'err',
   'trigger.afterNone': 'Pick a workflow',
+  'trigger.afterMissing': 'Upstream workflow unavailable',
   'trigger.afterWhen': 'Result',
   'trigger.afterWhen.done': 'Succeeded',
   'trigger.afterWhen.failed': 'Failed',

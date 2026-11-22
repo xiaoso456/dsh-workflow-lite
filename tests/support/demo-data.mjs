@@ -1,8 +1,10 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { mapAfterWorkflows } from '../../src/host/pack/triggerPack.ts'
 import { RunService } from '../../src/host/runs/service.ts'
 import { DATABASE_FILE, PluginDatabase } from '../../src/host/store/database.ts'
 import { assetsDir, memoryFolder } from '../../src/host/store/paths.ts'
+import { createRepository } from '../../src/host/store/repository.ts'
 import { newFireId, TriggerStore } from '../../src/host/triggers/store.ts'
 import { addGlobalMemory } from '../../src/shared/presets.ts'
 import { rpc } from '../lib/web-session.mjs'
@@ -232,7 +234,8 @@ async function seedWorkflows(session) {
   for (const [name, document, tags] of workflows) {
     await rpc('graph/create', { name })
     const disk = await rpc('graph/load', { name })
-    await rpc('graph/save', { name, document, baseHash: disk.hash })
+    const linked = mapAfterWorkflows(document, (upstream) => documents.get(upstream)?.workflowId)
+    await rpc('graph/save', { name, document: linked, baseHash: disk.hash })
     await rpc('graph/tags', { name, tags })
     documents.set(name, (await rpc('graph/load', { name })).document)
   }
@@ -278,15 +281,18 @@ async function seedRuns(dataDir, session, documents) {
 async function seedTriggers(dataDir, session) {
   const database = new PluginDatabase(() => join(dataDir, DATABASE_FILE))
   try {
-    const store = new TriggerStore(() => dataDir, database)
+    const repository = createRepository({ dataDir })
+    const store = new TriggerStore(repository, database)
+    const workflowId = repository.workflowByName(DEMO_WORKFLOW).id
     const now = Date.now()
     for (let index = 0; index < 12; index++) {
       const at = now - (1 + index * 5) * 3_600_000
       const outcome = index === 0 ? 'failed' : index % 4 === 0 ? 'skipped' : 'sent'
-      await store.record({
+      await store.record(workflowId, {
         record: {
           id: newFireId(new Date(at)),
           workflow: DEMO_WORKFLOW,
+          workflowId,
           node: 'workdays',
           name: '工作日夜巡',
           channel: 'schedule',
@@ -297,10 +303,11 @@ async function seedTriggers(dataDir, session) {
       })
     }
     const at = now - 15 * 60_000
-    await store.record({
+    await store.record(workflowId, {
       record: {
         id: newFireId(new Date(at)),
         workflow: DEMO_WORKFLOW,
+        workflowId,
         node: 'listen',
         name: '新文件进来',
         channel: 'listen',

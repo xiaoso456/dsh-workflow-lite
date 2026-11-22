@@ -75,7 +75,11 @@ export function fireMessage(detail: FireDetail, data: TriggerData, infoFile?: st
     )
   }
   lines.push(...infoSection(detail, infoFile))
-  const run = `调用 ${TOOL_NAME}，action=compile，workflow=${record.workflow}，fire=${record.id}，然后按回来的计划做。`
+  const target =
+    record.workflowId === undefined
+      ? `workflow=${record.workflow}`
+      : `workflow_id=${record.workflowId}`
+  const run = `调用 ${TOOL_NAME}，action=compile，${target}，fire=${record.id}，然后按回来的计划做。`
   lines.push('', '## 现在要做的', '')
   if (detail.condition === undefined) {
     lines.push(`执行这个工作流：${run}`)

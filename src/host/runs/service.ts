@@ -87,11 +87,11 @@ export class RunService {
 
   /** 结束了的实例（接续触发用，见 {@link RunReader.finished}）。 */
   finished(
-    workflow: string,
+    workflowId: string,
     since: number,
     skip: ReadonlySet<string>,
   ): ReturnType<RunReader['finished']> {
-    return this.reader.finished(workflow, since, skip)
+    return this.reader.finished(workflowId, since, skip)
   }
 
   /** 一个实例的整体状态（触发器看上一次跑完没有，见 {@link RunReader.stateOf}）。 */
@@ -100,8 +100,8 @@ export class RunService {
   }
 
   /** 一个工作流最新的实例（接续触发的卡片上看，见 {@link RunReader.newest}）。 */
-  newest(workflow: string): ReturnType<RunReader['newest']> {
-    return this.reader.newest(workflow)
+  newest(workflowId: string): ReturnType<RunReader['newest']> {
+    return this.reader.newest(workflowId)
   }
 
   /** 会话的当前实例 id（没有就 `undefined`）。 */

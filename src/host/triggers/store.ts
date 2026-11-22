@@ -15,10 +15,12 @@
 
 import { randomBytes } from 'node:crypto'
 import { join } from 'node:path'
+import { isWorkflowId } from '../../shared/naming.ts'
 import type { SessionAgent } from '../../shared/types.ts'
 import type { FireRecord, FireSettled, TriggerActivitySlot } from '../../shared/wire/trigger.ts'
 import { ensureDir, unlinkFile, writeFileAtomic } from '../store/atomic.ts'
 import type { PluginDatabase } from '../store/database.ts'
+import type { Repository } from '../store/repository.ts'
 import { type FireDetail, FireLog, type QueuedCount } from './fireLog.ts'
 import { OutputLog } from './outputLog.ts'
 import { RunRecords } from './runRecords.ts'
@@ -48,36 +50,61 @@ export type { FireDetail }
 
 /** 触发器在本机的记录。 */
 export class TriggerStore {
-  private readonly dataDir: () => string
   private readonly log: FireLog
   /** 检查命令、监听程序最近的输出（负责的进程写，哪个进程都能读、清空）。 */
   readonly outputs: OutputLog
   /** 每张卡片的运行记录、负责的进程写下的运行情况、全部暂停。 */
   readonly runs: RunRecords
 
-  constructor(dataDir: () => string, database: PluginDatabase) {
-    this.dataDir = dataDir
+  constructor(
+    private readonly workflows: Pick<Repository, 'dataDir' | 'workflowById'>,
+    database: PluginDatabase,
+  ) {
     this.log = new FireLog(database)
     this.outputs = new OutputLog(database)
     this.runs = new RunRecords(database)
   }
 
+  name(id: string): string | undefined {
+    return this.workflows.workflowById(id)?.name
+  }
+
+  private display(record: FireRecord): FireRecord {
+    if (!isWorkflowId(record.workflow)) return record
+    return {
+      ...record,
+      workflow: this.name(record.workflow) ?? record.workflow,
+      workflowId: record.workflow,
+    }
+  }
+
   // ── 触发记录（插件数据库里，见 FireLog）────────────────────
 
   /** 记一次触发（连同那一刻的触发说明与背景信息）；背景信息太长时另存全文。 */
-  async record(detail: FireDetail): Promise<void> {
-    const dataDir = this.dataDir()
+  async record(workflowId: string, detail: FireDetail): Promise<void> {
+    const { dataDir } = this.workflows
     const long = detail.info !== undefined && detail.info.length > INFO_INLINE_CHARS
     if (long) {
       await ensureDir(join(triggersDir(dataDir), 'fires'))
       await writeFileAtomic(fireInfoFile(dataDir, detail.record.id), detail.info ?? '')
     }
-    this.log.record(detail, long)
+    const { record } = detail
+    this.log.record(
+      {
+        ...detail,
+        record: {
+          ...record,
+          workflow: workflowId,
+        },
+      },
+      long,
+    )
   }
 
   /** 一张卡片最近一次触发。 */
   async last(workflow: string, node: string): Promise<FireRecord | undefined> {
-    return this.log.last(workflow, node)
+    const record = this.log.last(workflow, node)
+    return record === undefined ? undefined : this.display(record)
   }
 
   /** 一张卡片最近一次失败的时刻；没失败过是 `undefined`。 */
@@ -87,7 +114,7 @@ export class TriggerStore {
 
   /** 最近 `limit` 次，新的在前；不给卡片就是这个工作流所有卡片的。 */
   async history(workflow: string, node: string | undefined, limit: number): Promise<FireRecord[]> {
-    return this.log.recent(workflow, node, limit)
+    return this.log.recent(workflow, node, limit).map((record) => this.display(record))
   }
 
   /** `since` 之后这张卡片收下了几次（发出去的、排着的）。 */
@@ -107,7 +134,7 @@ export class TriggerStore {
 
   /** 这张卡片排着的，先来的在前。 */
   async queuedFires(workflow: string, node: string): Promise<FireRecord[]> {
-    return this.log.queued(workflow, node)
+    return this.log.queued(workflow, node).map((record) => this.display(record))
   }
 
   /** 排着的这一次轮到了，记下结果；已经不是排着的回 `false`。 */
@@ -136,7 +163,8 @@ export class TriggerStore {
     session: string,
     since: number,
   ): Promise<FireRecord | undefined> {
-    return this.log.unclaimed(workflow, session, since)
+    const record = this.log.unclaimed(workflow, session, since)
+    return record === undefined ? undefined : this.display(record)
   }
 
   /** 这张卡片 `since` 到 `until` 每一小格各种结果几次。 */
@@ -151,12 +179,13 @@ export class TriggerStore {
 
   /** 一次触发的背景信息全文另存在哪（太长时才写这个文件）。 */
   infoPath(id: string): string {
-    return fireInfoFile(this.dataDir(), id)
+    return fireInfoFile(this.workflows.dataDir, id)
   }
 
   /** 一次触发的全部；编号不对、记录不在是 `null`。 */
   async detail(id: string): Promise<FireDetail | null> {
-    return this.log.detail(id)
+    const detail = this.log.detail(id)
+    return detail === null ? null : { ...detail, record: this.display(detail.record) }
   }
 
   /** 这次触发建出了哪个实例。 */
@@ -171,7 +200,7 @@ export class TriggerStore {
 
   /** 记到这个实例上的触发，从早到晚。 */
   async ofInstance(instance: string): Promise<FireRecord[]> {
-    return this.log.ofInstance(instance)
+    return this.log.ofInstance(instance).map((record) => this.display(record))
   }
 
   /** 模型按触发条件判断这次不需要执行：记下它给的原因。 */
@@ -179,18 +208,11 @@ export class TriggerStore {
     this.log.decline(id, reason)
   }
 
-  /** 工作流改名：运行记录、触发记录、最近的输出都跟着走。 */
-  async rename(from: string, to: string): Promise<void> {
-    this.log.rename(from, to)
-    this.outputs.rename(from, to)
-    this.runs.rename(from, to)
-  }
-
   /** 工作流删掉了：它的运行记录、触发记录连同另存的全文、最近的输出一起删。 */
   async forget(workflow: string): Promise<void> {
     this.outputs.forget(workflow)
     this.runs.forget(workflow)
     const files = this.log.forget(workflow)
-    await Promise.all(files.map((id) => unlinkFile(fireInfoFile(this.dataDir(), id))))
+    await Promise.all(files.map((id) => unlinkFile(fireInfoFile(this.workflows.dataDir, id))))
   }
 }

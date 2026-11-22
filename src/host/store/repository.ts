@@ -59,6 +59,7 @@ import {
   WorkflowStore,
 } from './repoWorkflows.ts'
 import { TagStore } from './tags.ts'
+import type { WorkflowIdentity } from './workflowIndex.ts'
 
 export interface RepositoryOptions {
   /** 数据根目录（Config 的 `dataDir`，默认 `~/.dsh/workflow-lite`）。 */
@@ -72,6 +73,8 @@ export interface Repository {
   /** 首次启动按需创建 `workflows/` 与 `templates/nodes/`（**不建 `.dispatch/`**）。 */
   ensureLayout(): Promise<Outcome<{ created: string[] }>>
   load(workflow: string): Promise<LoadResult>
+  workflowByName(name: string): WorkflowIdentity | undefined
+  workflowById(id: string): WorkflowIdentity | undefined
   save(workflow: string, next: WorkflowDocument, options: SaveOptions): Promise<Outcome<SaveResult>>
   list(): Promise<ListResult>
   create(workflow: string): Promise<Outcome<WriteResult>>
@@ -205,6 +208,8 @@ export function createRepository(options: RepositoryOptions): Repository {
     dataDir: core.dataDir,
     ensureLayout: () => core.ensureLayout(),
     load: (workflow) => workflows.load(workflow),
+    workflowByName: (name) => core.identities.getByName(name),
+    workflowById: (id) => core.identities.getById(id),
     save: (workflow, next, saveOptions) => workflows.save(workflow, next, saveOptions),
     list: () => lister.list(),
     create: (workflow) => workflows.create(workflow),

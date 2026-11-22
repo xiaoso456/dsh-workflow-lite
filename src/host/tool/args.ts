@@ -18,6 +18,7 @@ import type { InputUpsert } from '../store/repoNodes.ts'
 export interface WorkflowLiteArgs {
   action: Action
   workflow?: string
+  workflow_id?: string
   node?: string
   content?: string
   label?: string

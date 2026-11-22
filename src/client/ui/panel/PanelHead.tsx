@@ -67,7 +67,7 @@ function IdLine(props: { t: T; id: string }): React.JSX.Element {
       }}
     >
       <span className={css.idKey}>ID</span>
-      <code>{id}</code>
+      <code title={id}>{id}</code>
       <SwapIcon name={copied ? 'check' : 'copy'} size={11} />
     </button>
   )

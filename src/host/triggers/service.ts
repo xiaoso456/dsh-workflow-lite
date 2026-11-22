@@ -38,6 +38,7 @@ import {
   isLiveSource,
   launchMissing,
   launchOf,
+  mapAfterWorkflow,
   reachedLimit,
   settingsOf,
   sourceProblem,
@@ -67,7 +68,6 @@ import type {
   TriggerShellsResponse,
   TriggerTryRequest,
   TriggerTryResponse,
-  TriggerUpstream,
   TriggerView,
 } from '../../shared/wire/trigger.ts'
 import { ensureDir } from '../store/atomic.ts'
@@ -86,8 +86,8 @@ import { type CardTestOptions, type CardTestResult, testCard } from './cardTest.
 import {
   enabledTriggerCards,
   groupHttpHooks,
-  type TriggerDefinition,
   type TriggerGraphs,
+  type WorkflowTrigger,
 } from './graphs.ts'
 import { type HookBind, hookUrl, newHookId, newHookToken } from './hooks.ts'
 import type { IntakeBatch } from './intake.ts'
@@ -302,13 +302,13 @@ export class TriggerService {
     for (const card of plan.active) {
       if ((await this.cardProblem(card, clashes)) === null) ready.push(card)
     }
-    const isReady = new Set(ready.map((card) => cardKey(card.workflow, card.trigger.node)))
+    const isReady = new Set(ready.map(({ trigger }) => cardKey(trigger.workflowId, trigger.node)))
     // 暂停着：定时照样往后排（上面已经写回），到点的不触发。
     for (const due of paused ? [] : plan.fires) {
-      const run = runs[due.workflow]?.[due.trigger.node]
+      const run = runs[due.trigger.workflowId]?.[due.trigger.node]
       // 写回之前被自动停用了、设置有误：不触发。
       if (run === undefined || !isActive(due.trigger.data, run)) continue
-      if (!isReady.has(cardKey(due.workflow, due.trigger.node))) continue
+      if (!isReady.has(cardKey(due.trigger.workflowId, due.trigger.node))) continue
       await this.fireDue(due, run, now)
     }
     await this.fireAfter(ready, runs, now, paused)
@@ -325,24 +325,25 @@ export class TriggerService {
    * 卡片关掉了、删掉了的排着的都记成跳过；全部暂停时留着不发。
    */
   private async releaseQueued(runs: TriggerRuns, now: number, paused: boolean): Promise<void> {
-    for (const { workflow, node } of await this.store.queuedCounts()) {
-      const found = await this.definition(workflow, node)
+    for (const { workflow: key, node } of await this.store.queuedCounts()) {
+      const found = await this.definition(key, node, true)
       if (!found.ok) {
-        if (found.error.code === 'not_found') {
-          await this.store.drop(workflow, node, '触发器删掉了，排着的不再执行')
+        // 找不到整张图时让显式删除处理记录。改名时旧路径可能暂时消失。
+        if (found.error.code === 'not_found' && (await this.graphs.readById(key)).kind === 'ok') {
+          await this.store.drop(key, node, '触发器删掉了，排着的不再执行')
         }
         continue
       }
       const { trigger, blocked } = found.result
-      const run = runs[workflow]?.[node] ?? {}
+      const run = runs[key]?.[node] ?? {}
       if (!isActive(trigger.data, run)) {
-        await this.store.drop(workflow, node, DROPPED_OFF)
+        await this.store.drop(key, node, DROPPED_OFF)
         continue
       }
       if (paused) continue
       if (endProblem(trigger.data, trigger.runState) !== null) continue
       if (!(await this.ends.previous(run)).ended) continue
-      const [first] = await this.store.queuedFires(workflow, node)
+      const [first] = await this.store.queuedFires(key, node)
       const detail = first === undefined ? null : await this.store.detail(first.id)
       if (detail === null) continue
       if (!(await this.lock.holds())) return
@@ -350,7 +351,8 @@ export class TriggerService {
         blocked === undefined
           ? await this.launcher.release(detail, trigger, run, now)
           : await this.launcher.releaseFailed(detail, `工作流现在执行不了：${blocked}`, now)
-      if (record !== null) await this.settle(record, launchOf(trigger.data).maxFailures)
+      if (record !== null)
+        await this.settle(trigger.workflowId, record, launchOf(trigger.data).maxFailures)
     }
   }
 
@@ -368,7 +370,9 @@ export class TriggerService {
    * 下一轮放行排着的下一个。
    */
   async waive(workflow: string, node: string): Promise<Outcome<Record<string, never>>> {
-    const refused = this.store.runs.updateOne(workflow, node, (run): string | null => {
+    const key = this.graphs.idOf(workflow)
+    if (key === undefined) return fail('not_found', `工作流 ${workflow} 不存在`)
+    const refused = this.store.runs.updateOne(key, node, (run): string | null => {
       if (run.lastFire === undefined) return '这张卡片还没有发出去过'
       run.waived = run.lastFire
       return null
@@ -379,13 +383,17 @@ export class TriggerService {
   }
 
   /** 接续触发：等的那个工作流最新的实例（卡片上那颗点）。读不到当没有，不耽误卡片别的部分。 */
-  private async upstreamOf(source: TriggerSource): Promise<{ upstream?: TriggerUpstream }> {
+  private async upstreamOf(
+    source: TriggerSource,
+  ): Promise<Pick<TriggerView, 'upstream' | 'upstreamWorkflow'>> {
     if (source.kind !== 'after' || source.workflow === '') return {}
+    const upstreamWorkflow = this.graphs.nameOf(source.workflow)
+    if (upstreamWorkflow === undefined) return {}
     try {
-      const newest = await this.runs.newest(source.workflow)
-      return newest === null ? {} : { upstream: newest }
+      const upstream = await this.runs.newest(source.workflow)
+      return upstream === null ? { upstreamWorkflow } : { upstreamWorkflow, upstream }
     } catch {
-      return {}
+      return { upstreamWorkflow }
     }
   }
 
@@ -395,12 +403,11 @@ export class TriggerService {
    */
   private async queuedOf(
     scene: Scene,
-    workflow: string,
-    trigger: TriggerDefinition,
+    trigger: WorkflowTrigger,
     run: TriggerRun,
     recent: FireRecord | undefined,
   ): Promise<Pick<TriggerView, 'queued' | 'waiting'>> {
-    const queued = scene.queued.get(cardKey(workflow, trigger.node))
+    const queued = scene.queued.get(cardKey(trigger.workflowId, trigger.node))
     const skipping =
       launchOf(trigger.data).overlap === 'skip' &&
       recent?.outcome === 'skipped' &&
@@ -413,7 +420,8 @@ export class TriggerService {
 
   /** 清空一张卡片排着的（都记成跳过），回清掉了几个。 */
   async clearQueue(workflow: string, node: string): Promise<Outcome<{ cleared: number }>> {
-    return ok({ cleared: await this.store.drop(workflow, node, '手动清空') })
+    const key = this.graphs.idOf(workflow)
+    return ok({ cleared: key === undefined ? 0 : await this.store.drop(key, node, '手动清空') })
   }
 
   // ── 定时 ───────────────────────────────────────────────────
@@ -435,7 +443,7 @@ export class TriggerService {
       record = await this.launcher.fail(input, `工作流现在执行不了：${due.blocked}`)
     } else if (
       reachedLimit(
-        await this.sentWithinHour(due.workflow, due.trigger.node, now),
+        await this.store.sentSince(due.trigger.workflowId, due.trigger.node, now - HOUR_MS),
         launch.maxPerHour,
       )
     ) {
@@ -446,7 +454,7 @@ export class TriggerService {
     } else {
       record = await this.launcher.fire(input)
     }
-    await this.settle(record, launch.maxFailures)
+    await this.settle(due.trigger.workflowId, record, launch.maxFailures)
   }
 
   // ── 接续触发 ───────────────────────────────────────────────
@@ -464,15 +472,18 @@ export class TriggerService {
     for (const { workflow, trigger, blocked } of cards) {
       const { source } = trigger.data
       if (source.kind !== 'after') continue
+      const upstream = this.graphs.nameOf(source.workflow)
+      if (upstream === undefined) continue
       const { node } = trigger
-      const run = runs[workflow]?.[node] ?? {}
+      const key = trigger.workflowId
+      const run = runs[key]?.[node] ?? {}
       const seen = run.seen ?? []
       const found = await this.runs.finished(source.workflow, run.since ?? now, new Set(seen))
       const present = new Set(found.ids)
       const kept = seen.filter((id) => present.has(id))
       if (found.runs.length === 0 && kept.length === seen.length) continue
       const next = [...kept, ...found.runs.map((one) => one.id)]
-      const still = this.store.runs.updateOne(workflow, node, (current) => {
+      const still = this.store.runs.updateOne(key, node, (current) => {
         if (current.since === undefined || current.stopped !== undefined) return false
         if (next.length > 0) current.seen = next
         else delete current.seen
@@ -482,7 +493,7 @@ export class TriggerService {
       for (const finished of found.runs) {
         if (!afterMatches(source, finished.status)) continue
         // 一次一次地发：每次都按现读的运行记录（上一次的会话、停没停用）。
-        const current = this.store.runs.get(workflow, node)
+        const current = this.store.runs.get(key, node)
         if (current.since === undefined || current.stopped !== undefined) break
         await this.launchCounted(
           {
@@ -491,7 +502,7 @@ export class TriggerService {
             run: current,
             channel: 'after',
             at: now,
-            info: afterInfo(source.workflow, finished),
+            info: afterInfo(upstream, finished),
           },
           blocked,
         )
@@ -508,7 +519,8 @@ export class TriggerService {
       const { node, data } = trigger
       const { source } = data
       if (!isLiveSource(source)) continue
-      const base = { workflow, node, filter: filterOf(data) }
+      const key = trigger.workflowId
+      const base = { workflow: key, node, filter: filterOf(data) }
       if (source.kind === 'http') {
         if (source.hook === undefined) continue
         const token = source.noToken === true ? null : source.token
@@ -518,7 +530,7 @@ export class TriggerService {
       }
       const command = commandOf(source)
       if (command === undefined) continue
-      const probe = runs[workflow]?.[node]?.probe
+      const probe = runs[key]?.[node]?.probe
       specs.push({
         ...base,
         source,
@@ -551,13 +563,19 @@ export class TriggerService {
 
   /** 一张常驻的卡片现在的定义与运行记录；关掉了、停用了、删掉了是 `null`。 */
   private async liveInput(ref: LiveRef): Promise<{ input: FireInput; blocked?: string } | null> {
-    const found = await this.definition(ref.workflow, ref.node)
+    const found = await this.definition(ref.workflow, ref.node, true)
     if (!found.ok) return null
-    const { trigger, blocked } = found.result
+    const { trigger, blocked, workflow } = found.result
     const run = this.store.runs.get(ref.workflow, ref.node)
     if (!isActive(trigger.data, run)) return null
     return {
-      input: { workflow: ref.workflow, trigger, run, channel: ref.kind, at: this.now() },
+      input: {
+        workflow,
+        trigger,
+        run,
+        channel: ref.kind,
+        at: this.now(),
+      },
       ...(blocked === undefined ? {} : { blocked }),
     }
   }
@@ -582,16 +600,17 @@ export class TriggerService {
     // 常驻触发源的事件可能在负责权刚被接手、还没停下时到：不归自己负责就不发。
     if (!(await this.lock.holds())) return
     const launch = launchOf(input.trigger.data)
+    const workflowId = input.trigger.workflowId
     let record: FireRecord
     if (blocked !== undefined) {
       record = await this.launcher.fail(input, `工作流现在执行不了：${blocked}`)
     } else if (
       reachedLimit(
-        await this.sentWithinHour(input.workflow, input.trigger.node, input.at),
+        await this.store.sentSince(workflowId, input.trigger.node, input.at - HOUR_MS),
         launch.maxPerHour,
       )
     ) {
-      const key = cardKey(input.workflow, input.trigger.node)
+      const key = cardKey(workflowId, input.trigger.node)
       const noted = this.capNoted.get(key)
       if (noted !== undefined && input.at - noted < CAP_NOTE_MS) return
       this.capNoted.set(key, input.at)
@@ -602,7 +621,7 @@ export class TriggerService {
     } else {
       record = await this.launcher.fire(input)
     }
-    await this.settle(record, launch.maxFailures)
+    await this.settle(workflowId, record, launch.maxFailures)
   }
 
   /** 触发源自己出了问题（程序一启动就退出、命令跑不起来）：记一条、计一次失败。 */
@@ -611,7 +630,7 @@ export class TriggerService {
     const found = await this.liveInput(ref)
     if (found === null) return
     const record = await this.launcher.fail(found.input, reason)
-    await this.settle(record, launchOf(found.input.trigger.data).maxFailures)
+    await this.settle(ref.workflow, record, launchOf(found.input.trigger.data).maxFailures)
     // 可能刚被自动停用：马上对一遍账，把它停下。
     if (this.running) this.schedule(0)
   }
@@ -624,16 +643,12 @@ export class TriggerService {
 
   // ── 共用 ───────────────────────────────────────────────────
 
-  private sentWithinHour(workflow: string, node: string, now: number): Promise<number> {
-    return this.store.sentSince(workflow, node, now - HOUR_MS)
-  }
-
   /**
    * 一次触发之后：发出去了清掉失败计数、记下会话；连续失败到了次数就自动停用（不限制的不停用）。
    * 停用只记在运行记录里，图里的开关不动。
    */
-  private async settle(record: FireRecord, maxFailures: number): Promise<void> {
-    this.store.runs.updateOne(record.workflow, record.node, (run) => {
+  private async settle(workflowId: string, record: FireRecord, maxFailures: number): Promise<void> {
+    this.store.runs.updateOne(workflowId, record.node, (run) => {
       if (record.outcome === 'sent') {
         delete run.failures
         sentOn(run, record)
@@ -710,10 +725,10 @@ export class TriggerService {
    */
   private async freshChecks(): Promise<void> {
     const checks: { workflow: string; node: string }[] = []
-    for (const { workflow, trigger } of await enabledTriggerCards(this.graphs)) {
+    for (const { trigger } of await enabledTriggerCards(this.graphs)) {
       const { source } = trigger.data
       if (source.kind === 'schedule' && source.check !== undefined) {
-        checks.push({ workflow, node: trigger.node })
+        checks.push({ workflow: trigger.workflowId, node: trigger.node })
       }
     }
     if (checks.length === 0) return
@@ -749,24 +764,25 @@ export class TriggerService {
   private async views(
     workflow: string,
     scene: Scene,
-  ): Promise<{ trigger: TriggerDefinition; view: TriggerView }[]> {
+  ): Promise<{ trigger: WorkflowTrigger; view: TriggerView }[]> {
     const graph = await this.graphs.read(workflow)
     if (graph.kind !== 'ok') return []
-    const runs = scene.runs[workflow] ?? {}
+    const key = graph.workflowId
+    const runs = scene.runs[key] ?? {}
     const { owner, live, unavailable, paused, now } = scene
-    const cards: { trigger: TriggerDefinition; view: TriggerView }[] = []
+    const cards: { trigger: WorkflowTrigger; view: TriggerView }[] = []
     for (const trigger of graph.triggers) {
       const { data } = trigger
       const run = runs[trigger.node] ?? {}
-      const recent = await this.store.last(workflow, trigger.node)
-      const lastFailure = await this.store.lastFailure(workflow, trigger.node)
+      const recent = await this.store.last(key, trigger.node)
+      const lastFailure = await this.store.lastFailure(key, trigger.node)
       const { source } = data
       const base = {
         node: trigger.node,
         enabled: data.enabled === true,
         ...(recent === undefined ? {} : { last: recent }),
         ...(lastFailure === undefined ? {} : { lastFailure }),
-        ...(await this.queuedOf(scene, workflow, trigger, run, recent)),
+        ...(await this.queuedOf(scene, trigger, run, recent)),
         ...(trigger.runState ? { runState: true as const } : {}),
         ...(hasSessionChoice(trigger.workflowChoice)
           ? { workflowChoice: trigger.workflowChoice }
@@ -801,7 +817,7 @@ export class TriggerService {
         if (source.kind === 'after') return { ...base, state: 'waiting' }
         return {
           ...base,
-          ...liveView(source.kind, live?.sources[workflow]?.[trigger.node], live),
+          ...liveView(source.kind, live?.sources[key]?.[trigger.node], live),
         }
       })()
       cards.push({ trigger, view })
@@ -822,7 +838,7 @@ export class TriggerService {
     const problem = sourceProblem(source)
     if (problem !== null) return problem
     if (source.kind === 'after') {
-      const after = afterProblem(workflow, source, await this.graphs.read(source.workflow))
+      const after = await this.checkAfter(trigger.workflowId, source)
       if (after !== null) return after
     }
     const unjudged = endProblem(trigger.data, trigger.runState)
@@ -837,18 +853,33 @@ export class TriggerService {
     return null
   }
 
+  private async checkAfter(workflowId: string, source: Extract<TriggerSource, { kind: 'after' }>) {
+    const target = await this.graphs.readById(source.workflow)
+    return afterProblem(
+      workflowId,
+      source,
+      target,
+      target.kind === 'ok' ? target.workflow : undefined,
+    )
+  }
+
   private async definition(
     workflow: string,
     node: string,
-  ): Promise<Outcome<{ trigger: TriggerDefinition; blocked?: string }>> {
-    const graph = await this.graphs.read(workflow)
+    byKey = false,
+  ): Promise<Outcome<{ workflow: string; trigger: WorkflowTrigger; blocked?: string }>> {
+    const graph = await (byKey ? this.graphs.readById(workflow) : this.graphs.read(workflow))
     if (graph.kind === 'missing') return fail('not_found', `工作流 ${workflow} 不存在`)
     if (graph.kind === 'broken') return fail('blocked', graph.reason)
     const trigger = graph.triggers.find((candidate) => candidate.node === node)
     if (trigger === undefined) {
       return fail('not_found', `工作流 ${workflow} 里没有触发卡片 ${node}（刚加的卡片要先保存）`)
     }
-    return ok({ trigger, ...(graph.blocked === undefined ? {} : { blocked: graph.blocked }) })
+    return ok({
+      workflow: graph.workflow,
+      trigger,
+      ...(graph.blocked === undefined ? {} : { blocked: graph.blocked }),
+    })
   }
 
   /**
@@ -866,9 +897,8 @@ export class TriggerService {
     const { trigger } = found.result
     const { source } = trigger.data
     const blocked =
-      (source.kind === 'after'
-        ? afterProblem(workflow, source, await this.graphs.read(source.workflow))
-        : null) ?? endProblem(trigger.data, trigger.runState)
+      (source.kind === 'after' ? await this.checkAfter(trigger.workflowId, source) : null) ??
+      endProblem(trigger.data, trigger.runState)
     const settings = await changeSettings(change, {
       workflow,
       data: trigger.data,
@@ -884,7 +914,8 @@ export class TriggerService {
       const written = await this.graphs.writeSettings(workflow, node, settings.result)
       if (!written.ok) return written
     }
-    if (change.enabled === true) this.startNow(workflow, node, trigger.data.enabled !== true)
+    if (change.enabled === true)
+      this.startNow(trigger.workflowId, node, trigger.data.enabled !== true)
     if (this.running) this.schedule(0)
     return ok(await this.list(workflow))
   }
@@ -898,7 +929,7 @@ export class TriggerService {
   async reopen(workflow: string, node: string): Promise<Outcome<TriggerListResponse>> {
     const found = await this.definition(workflow, node)
     if (!found.ok) return found
-    this.startNow(workflow, node, false)
+    this.startNow(found.result.trigger.workflowId, node, false)
     if (this.running) this.schedule(0)
     return ok(await this.list(workflow))
   }
@@ -947,7 +978,7 @@ export class TriggerService {
     const input: FireInput = {
       workflow: request.workflow,
       trigger,
-      run: this.store.runs.get(request.workflow, request.node),
+      run: this.store.runs.get(trigger.workflowId, request.node),
       channel: 'now',
       at: this.now(),
       ...(request.info === undefined ? {} : { info: request.info }),
@@ -957,7 +988,7 @@ export class TriggerService {
         ? await this.launcher.fire(input)
         : await this.launcher.fail(input, `工作流现在执行不了：${blocked}`)
     if (record.outcome === 'sent') {
-      this.store.runs.updateOne(request.workflow, request.node, (run) => sentOn(run, record))
+      this.store.runs.updateOne(trigger.workflowId, request.node, (run) => sentOn(run, record))
     }
     return ok(record)
   }
@@ -1109,7 +1140,8 @@ export class TriggerService {
     const { source } = data
     const problem = sourceProblem(source)
     if (problem !== null) return fail('invalid_args', `触发设置不对：${problem}`)
-    const run = this.store.runs.get(request.workflow, request.node)
+    const workflowId = trigger.workflowId
+    const run = this.store.runs.get(workflowId, request.node)
     const command = commandOf(source)
     let spec: CommandSpec | undefined
     if (command !== undefined) {
@@ -1138,11 +1170,7 @@ export class TriggerService {
     const after =
       source.kind === 'after'
         ? {
-            problem: afterProblem(
-              request.workflow,
-              source,
-              await this.graphs.read(source.workflow),
-            ),
+            problem: await this.checkAfter(workflowId, source),
             runs:
               source.workflow === ''
                 ? []
@@ -1153,7 +1181,10 @@ export class TriggerService {
     const started = Date.now()
     const result = await testCard({
       workflow: request.workflow,
-      trigger,
+      trigger: {
+        ...trigger,
+        data: { ...data, source: mapAfterWorkflow(source, this.graphs.nameOf) },
+      },
       now: this.now(),
       ...(spec === undefined ? {} : { spec }),
       ...(run.probe === undefined ? {} : { probe: run.probe }),
@@ -1162,7 +1193,7 @@ export class TriggerService {
       options: request.options ?? {},
     })
     if (command !== undefined) {
-      this.store.runs.updateOne(request.workflow, request.node, (current) => {
+      this.store.runs.updateOne(workflowId, request.node, (current) => {
         current.tested = started
       })
     }
@@ -1179,7 +1210,7 @@ export class TriggerService {
     const { trigger, blocked } = found.result
     const { data } = trigger
     const { source } = data
-    const run = this.store.runs.get(workflow, node)
+    const run = this.store.runs.get(trigger.workflowId, node)
     const missing: string[] = []
     if (blocked !== undefined) {
       missing.push(`工作流现在执行不了（${blocked}）：先改好图，不然每次触发都算失败`)
@@ -1192,7 +1223,7 @@ export class TriggerService {
     const problem = sourceProblem(source)
     if (problem !== null) missing.push(`触发设置不对：${problem}`)
     if (source.kind === 'after') {
-      const after = afterProblem(workflow, source, await this.graphs.read(source.workflow))
+      const after = await this.checkAfter(trigger.workflowId, source)
       if (after !== null) missing.push(after)
     }
     const unjudged = endProblem(data, trigger.runState)
@@ -1214,7 +1245,7 @@ export class TriggerService {
   async untested(workflow: string, node: string): Promise<string | null> {
     const found = await this.definition(workflow, node)
     if (!found.ok || commandOf(found.result.trigger.data.source) === undefined) return null
-    const { tested } = this.store.runs.get(workflow, node)
+    const { tested } = this.store.runs.get(found.result.trigger.workflowId, node)
     if (tested === undefined) return '还没用 test_trigger 试过：先试一遍，看事件行、背景信息对不对'
     const changed = await changedScripts(assetsDir(this.dataDir(), workflow), node, tested)
     if (changed.length === 0) return null
@@ -1247,10 +1278,12 @@ export class TriggerService {
     const count = Number.isFinite(limit)
       ? Math.min(Math.max(Math.trunc(limit), 1), OUTPUT_PAGE_MAX)
       : OUTPUT_PAGE
-    return {
-      ...this.store.outputs.list(workflow, node, filter, count),
-      keep: this.outputLines(),
-    }
+    const key = this.graphs.idOf(workflow)
+    const output =
+      key === undefined
+        ? { entries: [], counts: { all: 0, met: 0, fail: 0 }, more: false, dropped: false }
+        : this.store.outputs.list(key, node, filter, count)
+    return { ...output, keep: this.outputLines() }
   }
 
   /** 最近的输出里几条的行；`tail` 给了就每条只要最后几行。 */
@@ -1262,14 +1295,19 @@ export class TriggerService {
   ): TriggerOutputLinesResponse {
     const last =
       tail === undefined || !Number.isFinite(tail) ? undefined : Math.max(1, Math.trunc(tail))
+    const key = this.graphs.idOf(workflow)
     return {
-      entries: this.store.outputs.lines(workflow, node, entries.slice(0, OUTPUT_PAGE_MAX), last),
+      entries:
+        key === undefined
+          ? []
+          : this.store.outputs.lines(key, node, entries.slice(0, OUTPUT_PAGE_MAX), last),
     }
   }
 
   /** 清空一张卡片最近的输出（正在跑的那次留着，接着记）。 */
   clearOutput(workflow: string, node: string): void {
-    this.store.outputs.clear(workflow, node)
+    const key = this.graphs.idOf(workflow)
+    if (key !== undefined) this.store.outputs.clear(key, node)
   }
 
   /** 触发记录，新的在前；给了卡片就只看它的。`limit` 缺省 {@link HISTORY_PAGE} 条，最多是存下的全部。 */
@@ -1277,7 +1315,8 @@ export class TriggerService {
     const count = Number.isFinite(limit)
       ? Math.min(Math.max(Math.trunc(limit), 1), HISTORY_MAX)
       : HISTORY_PAGE
-    return this.store.history(workflow, node, count)
+    const key = this.graphs.idOf(workflow)
+    return key === undefined ? [] : this.store.history(key, node, count)
   }
 
   /** 记到这个实例上的触发（建出它的那次、接着它做的几次），从早到晚。 */
@@ -1288,7 +1327,10 @@ export class TriggerService {
   /** 一张卡片 `since` 以来（最多往前 {@link ACTIVITY_DAYS} 天）每一小格各种结果几次。 */
   activity(workflow: string, node: string, since: number): Promise<TriggerActivitySlot[]> {
     const now = this.now()
-    return this.store.activity(workflow, node, Math.max(since, now - ACTIVITY_DAYS * DAY_MS), now)
+    const key = this.graphs.idOf(workflow)
+    return key === undefined
+      ? Promise.resolve([])
+      : this.store.activity(key, node, Math.max(since, now - ACTIVITY_DAYS * DAY_MS), now)
   }
 
   /** 一次触发那一刻带的触发说明、触发条件、背景信息（给界面看；背景信息太长只给开头）。 */

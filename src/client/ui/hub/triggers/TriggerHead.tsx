@@ -16,6 +16,7 @@
  */
 
 import { useState } from 'react'
+import { triggerIdLabel } from '../../../../shared/trigger.ts'
 import type { TriggerEntry } from '../../../../shared/wire/trigger.ts'
 import { useNow } from '../../../app/useNow.ts'
 import type { TriggerHub } from '../../../app/useTriggerHub.ts'
@@ -24,7 +25,12 @@ import { triggerMode } from '../../../model/triggerGlance.ts'
 import { statusWhen } from '../../../model/triggerNow.ts'
 import { type Problem, type ProblemFix, problemOf } from '../../../model/triggerProblem.ts'
 import { sourceSay } from '../../../model/triggerSay.ts'
-import { sourceFace, stateBadge, stateTone } from '../../../model/triggerText.ts'
+import {
+  presentTriggerSource,
+  sourceFace,
+  stateBadge,
+  stateTone,
+} from '../../../model/triggerText.ts'
 import { cx } from '../../kit/cx.ts'
 import { Icon } from '../../kit/Icon.tsx'
 import ui from '../../kit/ui.module.css'
@@ -58,7 +64,7 @@ export function TriggerHead(props: {
   onToggle(on: boolean): void
 }): React.JSX.Element {
   const { t, entry } = props
-  const { source } = entry.data
+  const source = presentTriggerSource(entry.data.source, entry.view.upstreamWorkflow)
   const kind = source.kind
   // 头部开关打不开（没开「记录运行状态」）：递给状态条，把问题小卡钉开。
   const [pin, setPin] = useState(0)
@@ -95,7 +101,7 @@ export function TriggerHead(props: {
               t={t}
               value={entry.data.label ?? ''}
               display={entry.name}
-              placeholder={entry.view.node}
+              placeholder={triggerIdLabel(entry.view.node)}
               maxLength={80}
               label={t('wf.rename')}
               testId="wl-hub-trg-name"

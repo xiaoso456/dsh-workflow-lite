@@ -14,9 +14,9 @@
  */
 
 import { afterWhen } from '../../shared/trigger.ts'
-import type { AfterWhen, CheckWhen, TriggerSource, TriggerSourceKind } from '../../shared/types.ts'
+import type { AfterWhen, CheckWhen, TriggerSourceKind } from '../../shared/types.ts'
 import type { LocaleKey, T } from '../i18n.ts'
-import { ruleText, weekdayChip } from './triggerText.ts'
+import { ruleText, type TriggerDisplaySource, weekdayChip } from './triggerText.ts'
 
 /** 主动：插件按时间自己去做（定时，带不带检查）；被动：等外面的事发生（监听、HTTP、接续）。 */
 export type TriggerMode = 'active' | 'passive'
@@ -56,7 +56,7 @@ const AFTER_WHEN: Record<AfterWhen, LocaleKey> = {
 }
 
 /** 卡片上的速览（只看图里写的）。 */
-export function triggerGlance(t: T, source: TriggerSource): TriggerGlance {
+export function triggerGlance(t: T, source: TriggerDisplaySource): TriggerGlance {
   switch (source.kind) {
     case 'schedule': {
       const { schedule, check } = source
@@ -95,6 +95,8 @@ export function triggerGlance(t: T, source: TriggerSource): TriggerGlance {
       return { shape: 'http', idle: t('trigger.glance.httpIdle') }
     case 'after': {
       if (source.workflow === '') return { shape: 'empty', text: t('trigger.rule.afterNone') }
+      if (source.upstreamMissing === true)
+        return { shape: 'empty', text: t('trigger.afterMissing') }
       const outcome = afterWhen(source)
       return { shape: 'after', workflow: source.workflow, outcome, when: t(AFTER_WHEN[outcome]) }
     }

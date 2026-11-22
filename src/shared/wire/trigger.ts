@@ -24,6 +24,8 @@ export interface FireRecord {
   /** 触发编号：写在发进会话的消息里，模型开始执行时带回来（实例据此记下来源）。 */
   id: string
   workflow: string
+  /** 本机工作流的固定身份。对外仍显示 workflow 名称。 */
+  workflowId?: string
   /** 触发卡片的 id 与当时的名字。 */
   node: string
   name: string
@@ -120,6 +122,8 @@ export interface TriggerView {
   workflowChoice?: SessionChoice
   /** 接续触发：等的那个工作流最新的实例现在怎样（选了工作流、它有实例时才给）。 */
   upstream?: TriggerUpstream
+  /** 接续目标的当前名称。目标未选或已不存在时省略。 */
+  upstreamWorkflow?: string
 }
 
 /** 接续触发等的那个工作流最新的实例。 */

@@ -15,7 +15,7 @@
 
 import type { Dirent } from 'node:fs'
 import { readdir } from 'node:fs/promises'
-import { readDocument, writeDocument } from '../../shared/model.ts'
+import { readDocument, withoutWorkflowId, writeDocument } from '../../shared/model.ts'
 import type { WorkflowDocument } from '../../shared/types.ts'
 import { readFileText } from './atomic.ts'
 import { isAbsentError, versionFile, versionsDir } from './paths.ts'
@@ -40,7 +40,7 @@ export function versionText(version: StoredVersion & { document: WorkflowDocumen
     createdAt: version.createdAt,
     note: version.note,
     ...(version.autoBefore === undefined ? {} : { autoBefore: version.autoBefore }),
-    document: JSON.parse(writeDocument(version.document)) as unknown,
+    document: JSON.parse(writeDocument(withoutWorkflowId(version.document))) as unknown,
   }
   return `${JSON.stringify(payload, null, 2)}\n`
 }
@@ -104,5 +104,5 @@ export async function countVersions(dataDir: string, name: string): Promise<numb
  * 卡片位置算（挪了卡片就是另一个样子，切换时会看到「布局」那一行）。
  */
 export function contentKey(document: WorkflowDocument): string {
-  return writeDocument({ ...document, viewport: { x: 0, y: 0, zoom: 1 } })
+  return writeDocument({ ...withoutWorkflowId(document), viewport: { x: 0, y: 0, zoom: 1 } })
 }

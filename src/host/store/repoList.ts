@@ -22,6 +22,7 @@ import type {
 import { readFileText } from './atomic.ts'
 import {
   type DirScan,
+  fileStamp,
   pathKind,
   scanTemplateDir,
   scanWorkflowDir,
@@ -33,6 +34,7 @@ import { describeProblems, onlyLevel, saveProblem } from './repoResult.ts'
 import { parseNodeData, templateProblems } from './repoTemplates.ts'
 import { TagStore } from './tags.ts'
 import { countVersions } from './versions.ts'
+import { duplicateWorkflowIds } from './workflowIndex.ts'
 
 /** 列举部分用到的核心能力。 */
 type ListCore = Pick<RepoCore, 'dataDir' | 'validate'>
@@ -45,17 +47,13 @@ type FileFacts =
   | { parsed: false; reason: string }
   | {
       parsed: true
+      workflowId?: string
       nodeCount: number
       triggers: number
       /** 开着「记录运行状态」。 */
       runState: boolean
       errors: ValidationProblem[]
     }
-
-/** 文件身份：换了文件（原子写入落下的是新文件）、改了大小或修改时间，都会变。 */
-function stampOf(stats: Stats): string {
-  return `${stats.ino}:${stats.size}:${stats.mtimeMs}:${stats.ctimeMs}`
-}
 
 /** 按 `items` 的次序给出结果，同时最多 `limit` 个在跑。 */
 async function mapLimited<T, R>(
@@ -120,6 +118,13 @@ export class WorkflowLister {
         ...(tags.length > 0 ? { tags } : {}),
       }
     })
+    const duplicates = duplicateWorkflowIds(workflows.map(({ workflowId }) => workflowId))
+    for (const entry of workflows) {
+      if (entry.workflowId !== undefined && duplicates.has(entry.workflowId)) {
+        entry.invalid = true
+        entry.reason = '工作流 ID 被多个文件使用，请先处理副本'
+      }
+    }
     // 不在了的图，记着的结论也不留。
     const present = new Set(scan.names)
     for (const name of this.facts.keys()) if (!present.has(name)) this.facts.delete(name)
@@ -166,7 +171,7 @@ export class WorkflowLister {
       return { name, nodeCount: 0, updatedAt: 0, invalid: true, reason: '文件在扫描后消失' }
     }
     const updatedAt = stats.mtimeMs
-    const facts = await this.factsOf(name, file, stampOf(stats))
+    const facts = await this.factsOf(name, file, fileStamp(stats))
     if (facts === null) {
       return { name, nodeCount: 0, updatedAt, invalid: true, reason: '文件在扫描后消失' }
     }
@@ -184,6 +189,7 @@ export class WorkflowLister {
     if (errors.length > 0) {
       return {
         name,
+        ...(facts.workflowId === undefined ? {} : { workflowId: facts.workflowId }),
         nodeCount: facts.nodeCount,
         updatedAt,
         invalid: true,
@@ -192,6 +198,7 @@ export class WorkflowLister {
     }
     return {
       name,
+      ...(facts.workflowId === undefined ? {} : { workflowId: facts.workflowId }),
       nodeCount: facts.nodeCount,
       updatedAt,
       ...(facts.triggers > 0 ? { triggers: facts.triggers } : {}),
@@ -211,6 +218,9 @@ export class WorkflowLister {
         ? { parsed: false, reason: describeProblems(onlyLevel(parsed.problems, 'save')) }
         : {
             parsed: true,
+            ...(parsed.document.workflowId === undefined
+              ? {}
+              : { workflowId: parsed.document.workflowId }),
             nodeCount: parsed.document.nodes.length,
             triggers: parsed.document.nodes.filter(isTrigger).length,
             runState: parsed.document.settings?.runState === true,

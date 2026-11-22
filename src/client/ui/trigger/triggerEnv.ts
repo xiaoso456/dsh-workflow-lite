@@ -30,6 +30,7 @@ export interface SessionChoice {
 /** 接续触发可以等的一个工作流。 */
 export interface WorkflowChoice {
   name: string
+  workflowId: string
   /** 开着「记录运行状态」（没开的看不出什么时候跑完）。 */
   runState: boolean
   /** 图里有几张卡片。 */
@@ -116,12 +117,11 @@ export function workflowChoices(
   self: string | null,
 ): WorkflowChoice[] {
   return (catalog?.workflows ?? [])
-    .filter((entry) => entry.name !== self)
-    .map((entry) => ({
-      name: entry.name,
-      runState: entry.runState === true,
-      nodes: entry.nodeCount,
-    }))
+    .flatMap(({ name, workflowId, invalid, runState, nodeCount }) =>
+      name === self || invalid === true || workflowId === undefined
+        ? []
+        : [{ name, workflowId, runState: runState === true, nodes: nodeCount }],
+    )
     .sort((a, b) => a.name.localeCompare(b.name))
 }
 

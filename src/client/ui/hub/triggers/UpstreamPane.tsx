@@ -28,30 +28,34 @@ export function UpstreamPane(props: {
 }): React.JSX.Element | null {
   const { t, rpc, entry } = props
   const { source } = entry.data
-  const [runs, setRuns] = useState<readonly RunBrief[] | null>(null)
-  const upstream = source.kind === 'after' ? source.workflow : ''
+  const [runsByWorkflow, setRunsByWorkflow] = useState<ReadonlyMap<string, readonly RunBrief[]>>()
+  const upstream = entry.view.upstreamWorkflow
+  const upstreamId = source.kind === 'after' ? source.workflow : undefined
   useEffect(() => {
-    if (upstream === '') return
+    if (upstream === undefined || upstreamId === undefined) return
     let alive = true
     void recentRuns(rpc).then((all) => {
-      if (alive) setRuns(all.get(upstream) ?? [])
+      if (alive) setRunsByWorkflow(all)
     })
     return () => {
       alive = false
     }
-  }, [rpc, upstream])
+  }, [rpc, upstream, upstreamId])
   if (source.kind !== 'after') return null
-  if (upstream === '') {
+  if (upstream === undefined) {
     return (
       <div className={css.empty}>
         <span className={css.emptyIcon}>
           <Icon name="after" size={20} />
         </span>
-        <p className={css.emptyTitle}>{t('trigger.rule.afterNone')}</p>
+        <p className={css.emptyTitle}>
+          {t(source.workflow === '' ? 'trigger.rule.afterNone' : 'trigger.afterMissing')}
+        </p>
       </div>
     )
   }
   const when = afterWhen(source)
+  const runs = runsByWorkflow === undefined ? null : (runsByWorkflow.get(source.workflow) ?? [])
   return (
     <div className={css.stack} data-testid="wl-hub-trg-upstream">
       <div className={css.upCard}>

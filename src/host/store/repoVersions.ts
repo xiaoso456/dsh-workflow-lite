@@ -6,8 +6,9 @@
  * @module @xiaoso/dsh-workflow-lite/host/store/repoVersions
  */
 
+import { randomUUID } from 'node:crypto'
 import { CONTROL_CHARS, MAX_VERSION_NOTE_CODEPOINTS, MAX_VERSIONS } from '../../shared/limits.ts'
-import { readDocument, writeDocument } from '../../shared/model.ts'
+import { readDocument, withoutWorkflowId, writeDocument } from '../../shared/model.ts'
 import { switchedOnCount, withSwitchesOff } from '../../shared/trigger.ts'
 import type { VersionEntry, VersionSwitches, WorkflowDocument } from '../../shared/types.ts'
 import {
@@ -35,6 +36,7 @@ import {
   type StoredVersion,
   versionText,
 } from './versions.ts'
+import { workflowIdFromText } from './workflowIndex.ts'
 
 /** 导入的一个版本。 */
 export interface ImportVersion {
@@ -159,14 +161,16 @@ export class VersionStore {
     return this.core.withLock(async () => {
       const current = await this.currentContent(workflow)
       if (!current.ok) return current
-      const { name, key, document } = current.result
+      const { name, key, document, workflowId } = current.result
       const target = await this.findVersion(name, n)
       if (!target.ok) return target
       const stored = target.result.document
       if (stored === null) {
         return fail('blocked', `版本 v${n} 的文件坏了，不能切换`, { workflow: name, n })
       }
-      const restored = switches === 'off' ? withSwitchesOff(stored) : stored
+      const content = switches === 'off' ? withSwitchesOff(stored) : stored
+      const restored =
+        workflowId === undefined ? withoutWorkflowId(content) : { ...content, workflowId }
       const problems = this.core
         .validate(restored, name)
         .filter((problem) => problem.level === 'save')
@@ -345,32 +349,43 @@ export class VersionStore {
       }
 
       const file = workflowFile(this.core.dataDir, name)
-      const text = writeDocument(request.current)
+      const existingText = request.mode === 'merge' ? await readFileText(file) : null
+      const workflowId = existingText === null ? undefined : workflowIdFromText(existingText)
+      const current = { ...request.current, workflowId: workflowId ?? randomUUID() }
+      const text = writeDocument(current)
       try {
         await writeFileAtomic(file, text)
       } catch (error) {
         return mapWriteFailure(error, file)
       }
-      this.core.rememberBaseline(name, await hashOf(text), request.current)
+      this.core.rememberBaseline(name, await hashOf(text), current)
       return ok({ name, versions: planned.map((entry) => entry.n), duplicates })
     })
   }
 
   /** 磁盘上现在那份：图名、内容键（比版本用）与文档；坏了的图 `document` / `key` 是 `null`。 */
-  private async currentContent(
-    workflow: string,
-  ): Promise<Outcome<{ name: string; key: string | null; document: WorkflowDocument | null }>> {
+  private async currentContent(workflow: string): Promise<
+    Outcome<{
+      name: string
+      key: string | null
+      document: WorkflowDocument | null
+      workflowId: string | undefined
+    }>
+  > {
     const resolved = this.core.resolveName(workflow)
     if (!resolved.ok) return resolved
     const name = resolved.result
     const text = await readFileText(workflowFile(this.core.dataDir, name))
     if (text === null) return fail('not_found', `图 ${name} 不存在`, { workflow: name })
     const parsed = readDocument(text)
+    const workflowId =
+      parsed.document === null ? workflowIdFromText(text) : parsed.document.workflowId
     const broken =
       parsed.document === null ||
       hasLevel([...parsed.problems, ...this.core.validate(parsed.document, name)], 'save')
-    if (broken || parsed.document === null) return ok({ name, key: null, document: null })
-    return ok({ name, key: contentKey(parsed.document), document: parsed.document })
+    if (broken || parsed.document === null)
+      return ok({ name, key: null, document: null, workflowId })
+    return ok({ name, key: contentKey(parsed.document), document: parsed.document, workflowId })
   }
 
   private async findVersion(name: string, n: number): Promise<Outcome<StoredVersion>> {

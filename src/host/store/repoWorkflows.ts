@@ -6,6 +6,7 @@
  * @module @xiaoso/dsh-workflow-lite/host/store/repoWorkflows
  */
 
+import { randomUUID } from 'node:crypto'
 import {
   idKey,
   readDocument,
@@ -138,6 +139,7 @@ function samePoint(a: Point, b: Point): boolean {
 type WorkflowsCore = Pick<
   RepoCore,
   | 'dataDir'
+  | 'identities'
   | 'withLock'
   | 'ensureLayout'
   | 'resolveName'
@@ -273,7 +275,7 @@ export class WorkflowStore {
       const ready = await this.core.ensureLayout()
       if (!ready.ok) return ready
 
-      const document = emptyDocument()
+      const document = { ...emptyDocument(), workflowId: randomUUID() }
 
       const warnings: ToolWarning[] = []
       const picked = await this.core.pickFreeName(requested, 'graphs', warnings)
@@ -420,6 +422,7 @@ export class WorkflowStore {
       if ((await pathKind(file)) !== 'file') {
         return fail('not_found', `图 ${name} 不存在`, { workflow: name })
       }
+      const workflowId = this.core.identities.getByName(name)?.id
       try {
         await unlinkFile(file)
         await removeTree(dispatchDir(this.core.dataDir, name))
@@ -431,7 +434,14 @@ export class WorkflowStore {
       this.core.dropBaselines(name)
       const tags = await this.tags.dropWorkflow(name)
       return ok({
-        changed: [{ kind: 'workflow', op: 'delete', id: name, detail: { dispatchRemoved: true } }],
+        changed: [
+          {
+            kind: 'workflow',
+            op: 'delete',
+            id: name,
+            detail: { dispatchRemoved: true, ...(workflowId === undefined ? {} : { workflowId }) },
+          },
+        ],
         warnings: tags.ok ? [] : [tagWarning(tags.error.message)],
       })
     })

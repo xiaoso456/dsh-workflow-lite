@@ -257,18 +257,16 @@ describe('最近的输出：清空、别的卡片、改名与删除', () => {
     expect(log.lines('wf', 'a', [id, 9999]).map((item) => item.id)).toEqual([id])
   })
 
-  it('工作流改名跟着走，删掉一起删；另一个连接读得到', () => {
+  it('删除工作流时清理输出，另一个连接读得到', () => {
     const writer = open()
     const reader = open()
     writer.check('wf', 'p', check(), 1)
     writer.check('wf', 'p', check({ out: 'x' }), 1)
-    writer.rename('wf', 'renamed')
-    expect(reader.list('wf', 'p', 'all', 10).entries).toHaveLength(0)
-    const moved = reader.list('renamed', 'p', 'all', 10)
+    const moved = reader.list('wf', 'p', 'all', 10)
     expect(moved.entries).toHaveLength(1)
     expect(moved.dropped).toBe(true)
-    writer.forget('renamed')
-    expect(reader.list('renamed', 'p', 'all', 10)).toMatchObject({ entries: [], dropped: false })
-    expect(reader.lines('renamed', 'p', [moved.entries[0]?.id ?? 0])).toEqual([])
+    writer.forget('wf')
+    expect(reader.list('wf', 'p', 'all', 10)).toMatchObject({ entries: [], dropped: false })
+    expect(reader.lines('wf', 'p', [moved.entries[0]?.id ?? 0])).toEqual([])
   })
 })

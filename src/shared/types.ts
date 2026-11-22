@@ -32,6 +32,8 @@ export const TRIGGER_TYPE = 'wfTrigger'
 
 /** 一张图 = 一个 JSON 的顶层形状（React Flow 原生三件套 + 可选的工作流设置）。 */
 export interface WorkflowDocument {
+  /** 仓储维护的工作流身份。版本和独立的图内容可以没有这个字段。 */
+  workflowId?: string
   nodes: WorkflowNode[]
   edges: WorkflowEdge[]
   viewport: Viewport
@@ -409,7 +411,7 @@ export type AfterWhen = 'done' | 'failed' | 'any'
  * - `listen` 监听程序：常驻的 `command`，往标准输出每打一行 `::trigger::` 就是一次触发，标记后面的是背景信息，别的输出都是日志（见 `triggerMark.ts`）；
  * - `http` 别的程序向插件的触发端口发请求，请求体是背景信息；`hook` 是地址里 `/trigger/` 后面那一段（缺省用工作流名），
  *   `token` 是别的程序调用时带上、插件拿来核对的令牌，`noToken` 不核对；
- * - `after` 另一个工作流（`workflow`）的一次执行结束了：那个实例的结果是背景信息。
+ * - `after` 另一个工作流（固定 ID 写在 `workflow`）的一次执行结束了：那个实例的结果是背景信息。
  *   那个工作流要开着「记录运行状态」，插件才看得出它什么时候结束。
  *
  * 命令里可以写 `{workflow}`（工作流目录，脚本放这里随工作流导出）；以 DSH 进程的身份运行，不进沙箱。
@@ -777,6 +779,7 @@ export interface TemplateEntry {
 
 export interface WorkflowEntry {
   name: string
+  workflowId?: string
   nodeCount: number
   /** 那份 JSON 的 mtime（选择器"最近修改"的判据）。 */
   updatedAt: number

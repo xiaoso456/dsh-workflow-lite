@@ -14,7 +14,7 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import type { Dirent } from 'node:fs'
+import type { Dirent, Stats } from 'node:fs'
 import { readdir, stat } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 
@@ -34,6 +34,11 @@ import type { PlanId } from '../../shared/types.ts'
 
 /** 图文件 / 模板文件的后缀。判据不区分大小写。 */
 export const JSON_SUFFIX = '.json'
+
+/** 原子替换或原地修改文件后都会改变的缓存键。 */
+export function fileStamp(stats: Stats): string {
+  return `${stats.ino}:${stats.size}:${stats.mtimeMs}:${stats.ctimeMs}`
+}
 
 /** 一个路径当前的占用形态。 */
 export type PathKind = 'file' | 'dir' | 'missing'

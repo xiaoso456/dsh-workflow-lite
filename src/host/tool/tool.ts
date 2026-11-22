@@ -33,7 +33,7 @@ import type {
   WorkflowDocument,
 } from '../../shared/types.ts'
 import { type Action, TOOL_NAME, type TriggerNode } from '../../shared/types.ts'
-import { compileWorkflow } from '../plan.ts'
+import { compileDocument } from '../plan.ts'
 import type { SessionRef } from '../runs/runCore.ts'
 import type { RunService } from '../runs/service.ts'
 import { hasMemory, listMemories, type MemoryDeps } from '../store/memories.ts'
@@ -271,7 +271,7 @@ export function createWorkflowLiteHandler(
         }
         if (isTrigger(node) && deps.triggers !== undefined) {
           return finish(
-            await readTrigger(deps.triggers, deps.dataDir(), name, node, args, Date.now()),
+            await readTrigger(deps.triggers, repository, name, node, args, Date.now()),
             warnings,
           )
         }
@@ -292,28 +292,18 @@ export function createWorkflowLiteHandler(
       }
 
       case 'compile': {
-        const name = requireWorkflow(args.workflow)
+        const workflowId = args.workflow_id
+        const identity = workflowId === undefined ? undefined : repository.workflowById(workflowId)
+        if (workflowId !== undefined && identity === undefined) {
+          return errorValue({ error: { code: 'not_found', message: '该 ID 的工作流不存在' } })
+        }
+        const requested = requireWorkflow(args.workflow)
+        const name = identity?.name ?? requested
         if (name === null) return missingWorkflow()
         const runs = deps.runs
         const answers = answersOf(args)
         if (typeof answers === 'string') {
           return errorValue({ error: { code: 'invalid_args', message: answers } })
-        }
-        // 整卷版是给人看的：不建实例，路径里留着 {instance}。
-        if (args.full === true || runs === undefined) {
-          const outcome = await compileWorkflow(
-            repository,
-            deps.dataDir(),
-            name,
-            {
-              ...(args.full === true ? { full: true } : {}),
-              ...(args.goal === undefined ? {} : { goal: args.goal }),
-              ...(answers === undefined ? {} : { answers }),
-            },
-            cwdOf(exec),
-          )
-          if (!outcome.ok) return errorValue(outcome)
-          return finish(outcome.result)
         }
         const load = await repository.load(name)
         if (!load.exists) {
@@ -327,6 +317,28 @@ export function createWorkflowLiteHandler(
               detail: { problems: load.problems },
             },
           })
+        }
+        if (workflowId !== undefined && load.document.workflowId !== workflowId) {
+          return errorValue({
+            error: { code: 'not_found', message: '该 ID 的工作流已改变，请重试' },
+          })
+        }
+        // 整卷版是给人看的：不建实例，路径里留着 {instance}。
+        if (args.full === true || runs === undefined) {
+          const outcome = await compileDocument(
+            deps.dataDir(),
+            name,
+            load.document,
+            load.problems,
+            {
+              ...(args.full === true ? { full: true } : {}),
+              ...(args.goal === undefined ? {} : { goal: args.goal }),
+              ...(answers === undefined ? {} : { answers }),
+            },
+            cwdOf(exec),
+          )
+          if (!outcome.ok) return errorValue(outcome)
+          return finish(outcome.result)
         }
         // 派发版：建一个工作流实例，按它出计划（和画布上点「执行」之后 resume 拿到的一样）。
         const outcome = await runs.compile({

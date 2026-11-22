@@ -23,7 +23,7 @@ import { whenPrimed } from '../../../app/whenPrimed.ts'
 import type { T } from '../../../i18n.ts'
 import { matchesWords, searchWords } from '../../../model/search.ts'
 import { arrangeTriggers, TRIGGER_VIEW, type TriggerListView } from '../../../model/triggerList.ts'
-import { sourceText } from '../../../model/triggerText.ts'
+import { presentTriggerSource, sourceText } from '../../../model/triggerText.ts'
 import type { WorkflowLiteRpc } from '../../../rpc.ts'
 import { cx } from '../../kit/cx.ts'
 import { Icon } from '../../kit/Icon.tsx'
@@ -80,7 +80,11 @@ export function HubTriggers(props: {
   const visible = useMemo(() => {
     const words = searchWords(query)
     return (list?.triggers ?? []).filter((entry) =>
-      matchesWords(words, [entry.name, entry.workflow, sourceText(t, entry.data.source)]),
+      matchesWords(words, [
+        entry.name,
+        entry.workflow,
+        sourceText(t, presentTriggerSource(entry.data.source, entry.view.upstreamWorkflow)),
+      ]),
     )
   }, [list, query, t])
   const arranged = useMemo(() => arrangeTriggers(visible, view), [visible, view])

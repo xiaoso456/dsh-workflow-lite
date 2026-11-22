@@ -69,10 +69,18 @@ export function AfterStage(props: {
   const when = afterWhen(source)
   const known = env?.workflows ?? []
   const choices: readonly WorkflowChoice[] =
-    source.workflow === '' || known.some((item) => item.name === source.workflow)
+    source.workflow === '' || known.some((item) => item.workflowId === source.workflow)
       ? known
-      : [{ name: source.workflow, runState: true, nodes: 0 }, ...known]
-  const picked = choices.find((item) => item.name === source.workflow)
+      : [
+          {
+            workflowId: source.workflow,
+            name: t('trigger.afterMissing'),
+            runState: true,
+            nodes: 0,
+          },
+          ...known,
+        ]
+  const picked = choices.find((item) => item.workflowId === source.workflow)
   const [runs, setRuns] = useState<ReadonlyMap<string, readonly RunBrief[]>>(new Map())
   useEffect(() => {
     if (env === null) return
@@ -86,14 +94,14 @@ export function AfterStage(props: {
   }, [env])
   const result = RESULTS.find((item) => item.value === when)
   const line = WHEN_COLOR[result?.line ?? 'pass']
-  const noState = known.find((item) => item.name === source.workflow)?.runState === false
-  const pickedRuns = picked === undefined ? undefined : runs.get(picked.name)
+  const noState = picked?.runState === false
+  const pickedRuns = picked === undefined ? undefined : runs.get(picked.workflowId)
   return (
     <>
       <StageRows>
         <StageRow
           label={t('trigger.afterLead')}
-          note={noState ? t('trigger.afterNeedsState').replace('{name}', source.workflow) : ''}
+          note={noState ? t('trigger.afterNeedsState').replace('{name}', picked.name) : ''}
           problem
           noteTestId="wl-trigger-after-state"
         >
@@ -144,7 +152,7 @@ export function AfterStage(props: {
                 <PickedName t={t} name={picked?.name} className={css.wfNameText} />
               </span>
               <span className={css.wfSub}>
-                <PickedLast t={t} name={picked?.name} runs={runs} />
+                <PickedLast t={t} workflowId={picked?.workflowId} runs={runs} />
               </span>
             </div>
             <span className={css.edge} data-empty={picked === undefined}>
@@ -244,7 +252,7 @@ function WorkflowPicker(props: {
   const { t, env } = props
   const [open, setOpen] = useState(false)
   const button = useRef<HTMLButtonElement>(null)
-  const picked = props.choices.find((item) => item.name === props.value)
+  const picked = props.choices.find((item) => item.workflowId === props.value)
   // 「去打开」：一张确认卡，挂在问着的那一行的按钮上。
   const enable = useConfirm<HTMLButtonElement>()
   const [asking, setAsking] = useState<string | null>(null)
@@ -287,7 +295,8 @@ function WorkflowPicker(props: {
     void env.enableRunState(name).then((problem) => {
       setBusy(null)
       if (problem === null) {
-        pick(name)
+        const row = props.choices.find((item) => item.name === name)
+        if (row !== undefined) pick(row.workflowId)
         return
       }
       setProblems((current) => new Map(current).set(name, problem))
@@ -329,7 +338,7 @@ function WorkflowPicker(props: {
             data-testid="wl-trigger-after-pick"
             onClick={() => (open ? close() : setOpen(true))}
           >
-            <PickedLine t={t} name={picked?.name} runs={props.runs} />
+            <PickedLine t={t} picked={picked} choices={props.choices} runs={props.runs} />
             <Icon name="chevronDown" size={13} />
           </button>
         }
@@ -372,14 +381,15 @@ interface EnableState {
  */
 function PickedLine(props: {
   t: T
-  name: string | undefined
+  picked: WorkflowChoice | undefined
+  choices: readonly WorkflowChoice[]
   runs: ReadonlyMap<string, readonly RunBrief[]>
 }): React.JSX.Element {
   const { t } = props
-  const last = useLatest(props.name)
+  const last = useLatest(props.picked)
   return (
     <FadeStack
-      at={props.name === undefined ? 'none' : 'picked'}
+      at={props.picked === undefined ? 'none' : 'picked'}
       className={css.pickedLine}
       items={[
         {
@@ -391,13 +401,17 @@ function PickedLine(props: {
           node:
             last === undefined ? null : (
               <SwapRoll
-                id={last}
+                id={last.workflowId}
                 className={css.pickedRow}
-                render={(name) => (
+                render={(id) => (
                   <>
-                    <span className={css.pickerName}>{name}</span>
+                    <span className={css.pickerName}>
+                      {id === last.workflowId
+                        ? last.name
+                        : props.choices.find((choice) => choice.workflowId === id)?.name}
+                    </span>
                     <span className={cx(css.last, css.pickerLast)}>
-                      <LastText t={t} run={props.runs.get(name)?.[0]} />
+                      <LastText t={t} run={props.runs.get(id)?.[0]} />
                     </span>
                   </>
                 )}
@@ -441,13 +455,13 @@ function PickedName(props: {
 /** 工作台卡片上那个工作流最近一次执行：没选时是空的，选上淡进来、换一个滚动换（同 {@link PickedName}）。 */
 function PickedLast(props: {
   t: T
-  name: string | undefined
+  workflowId: string | undefined
   runs: ReadonlyMap<string, readonly RunBrief[]>
 }): React.JSX.Element {
-  const last = useLatest(props.name)
+  const last = useLatest(props.workflowId)
   return (
     <FadeStack
-      at={props.name === undefined ? 'none' : 'picked'}
+      at={props.workflowId === undefined ? 'none' : 'picked'}
       className={css.pickedStack}
       items={[
         { key: 'none', node: null },
@@ -457,7 +471,7 @@ function PickedLast(props: {
             last === undefined ? null : (
               <SwapRoll
                 id={last}
-                render={(name) => <LastText t={props.t} run={props.runs.get(name)?.[0]} />}
+                render={(id) => <LastText t={props.t} run={props.runs.get(id)?.[0]} />}
               />
             ),
         },
@@ -517,14 +531,14 @@ function WorkflowList(props: {
       <div className={css.rows} role="radiogroup" aria-label={t('trigger.afterPick')}>
         {shown.map((item) => (
           <WorkflowRow
-            key={item.name}
+            key={item.workflowId}
             t={t}
             env={props.env}
             item={item}
-            run={props.runs.get(item.name)?.[0]}
-            on={item.name === props.value}
+            run={props.runs.get(item.workflowId)?.[0]}
+            on={item.workflowId === props.value}
             enabling={props.enabling}
-            onPick={() => props.onPick(item.name)}
+            onPick={() => props.onPick(item.workflowId)}
           />
         ))}
         <p className={ui.menuEmpty} hidden={shown.length > 0}>

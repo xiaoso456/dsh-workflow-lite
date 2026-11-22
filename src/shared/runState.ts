@@ -670,7 +670,10 @@ export function readOrigin(raw: unknown): OriginDetail | undefined {
 /** 实例索引 `instances.json` 里的一条（只有插件写）。 */
 export interface InstanceRecord {
   id: string
+  /** 建立时的工作流名，供校验这个实例写下的状态。 */
   workflow: string
+  /** 工作流的固定 id；旧实例索引可能只有工作流名。 */
+  workflowId?: string
   planId: string
   mode: ExecutionMode
   goal?: string
@@ -695,6 +698,7 @@ export interface InstanceRecord {
 export interface InstanceSummary {
   id: string
   workflow: string
+  workflowId?: string
   planId: string
   mode: ExecutionMode
   goal?: string

@@ -2,7 +2,7 @@
  * dsh-workflow-lite — 触发器看图：一个工作流里有哪些触发卡片、这张图现在能不能执行。
  *
  * 触发器不直接碰仓储，只认 {@link TriggerGraphs}：读卡片，以及把核对过的设置写回图里。负责触发的进程每隔几秒要对一遍，
- * 所以按文件的修改时间与大小留着上一次读出来的结果，文件没动就不重读、不重新校验。
+ * 所以按文件的状态留着上一次读出来的结果，文件没动就不重读、不重新校验。
  *
  * @module @xiaoso/dsh-workflow-lite/host/triggers/graphs
  */
@@ -12,7 +12,7 @@ import { isTrigger } from '../../shared/model.ts'
 import { resolveSessionChoice } from '../../shared/sessionChoice.ts'
 import { type TriggerSettings, triggerName } from '../../shared/trigger.ts'
 import type { SessionChoice, TriggerData } from '../../shared/types.ts'
-import { workflowFile } from '../store/paths.ts'
+import { fileStamp, workflowFile } from '../store/paths.ts'
 import type { Outcome } from '../store/repoResult.ts'
 import type { Repository } from '../store/repository.ts'
 import type { TriggerStore } from './store.ts'
@@ -30,6 +30,10 @@ export interface TriggerDefinition {
   workflowChoice: SessionChoice
 }
 
+export interface WorkflowTrigger extends TriggerDefinition {
+  workflowId: string
+}
+
 export type WorkflowTriggers =
   /** 工作流不在了。 */
   | { kind: 'missing' }
@@ -37,7 +41,9 @@ export type WorkflowTriggers =
   | { kind: 'broken'; reason: string }
   | {
       kind: 'ok'
-      triggers: TriggerDefinition[]
+      workflow: string
+      workflowId: string
+      triggers: WorkflowTrigger[]
       /** 图有编译级问题、出不了计划时的一句原因（触发了也执行不了）。 */
       blocked?: string
       /** 这张图开着「记录运行状态」（别的图的接续触发要靠它看出什么时候跑完）。 */
@@ -45,7 +51,10 @@ export type WorkflowTriggers =
     }
 
 export interface TriggerGraphs {
+  idOf(name: string): string | undefined
+  nameOf(id: string): string | undefined
   read(workflow: string): Promise<WorkflowTriggers>
+  readById(id: string): Promise<WorkflowTriggers>
   /** 图里有触发卡片的那些工作流（工作流中心「触发」页列它们）。 */
   names(): Promise<string[]>
   /** 换一张卡片的设置（开关、工作区、地址和令牌…，触发器服务核对过的）。 */
@@ -58,7 +67,7 @@ export interface TriggerGraphs {
 
 interface WorkflowTriggerCard {
   workflow: string
-  trigger: TriggerDefinition
+  trigger: WorkflowTrigger
 }
 
 /** 所有工作流里图上开着的卡片。 */
@@ -90,32 +99,43 @@ export function groupHttpHooks(
 }
 
 export function createTriggerGraphs(repository: Repository): TriggerGraphs {
-  const cache = new Map<string, { stamp: string; value: WorkflowTriggers }>()
-  return {
+  const idOf = (name: string) => repository.workflowByName(name)?.id
+  const nameOf = (id: string) => repository.workflowById(id)?.name
+  const cache = new Map<string, { stamp: string; workflowId: string; value: WorkflowTriggers }>()
+  const graphs: TriggerGraphs = {
+    idOf,
+    nameOf,
     async read(workflow) {
       let stamp: string
       try {
-        const info = await stat(workflowFile(repository.dataDir, workflow))
-        stamp = `${String(info.mtimeMs)}:${String(info.size)}`
+        stamp = fileStamp(await stat(workflowFile(repository.dataDir, workflow)))
       } catch {
         cache.delete(workflow)
         return { kind: 'missing' }
       }
+      const workflowId = idOf(workflow)
+      if (workflowId === undefined) return { kind: 'broken', reason: '无法确定工作流的唯一 ID' }
       const cached = cache.get(workflow)
-      if (cached !== undefined && cached.stamp === stamp) return cached.value
+      if (cached?.stamp === stamp && cached.workflowId === workflowId) return cached.value
       const load = await repository.load(workflow)
       if (!load.exists) return { kind: 'missing' }
       let value: WorkflowTriggers
       if (!load.loadable || load.document === null) {
         value = { kind: 'broken', reason: '工作流有保存级问题，读不出来' }
       } else {
+        if (load.document.workflowId !== workflowId) {
+          return { kind: 'broken', reason: '读取期间工作流的身份已改变' }
+        }
         const blocking = load.problems.filter((problem) => problem.level === 'compile')
         const settings = load.document.settings
         const runState = settings?.runState === true
         const workflowChoice = resolveSessionChoice(undefined, settings)
         value = {
           kind: 'ok',
+          workflow: load.name,
+          workflowId,
           triggers: load.document.nodes.filter(isTrigger).map((node) => ({
+            workflowId,
             node: node.id,
             name: triggerName(node),
             data: node.data,
@@ -129,33 +149,48 @@ export function createTriggerGraphs(repository: Repository): TriggerGraphs {
           runState,
         }
       }
-      cache.set(workflow, { stamp, value })
+      cache.set(workflow, { stamp, workflowId, value })
       return value
+    },
+    async readById(id) {
+      const current = nameOf(id)
+      if (current === undefined) return { kind: 'missing' }
+      const graph = await graphs.read(current)
+      return graph.kind === 'ok' && graph.workflowId !== id ? { kind: 'missing' } : graph
     },
     // 列表按文件身份记着每张图有几张触发卡片，没改过的图不重读。
     async names() {
       const listed = await repository.list()
       return listed.workflows
-        .filter((entry) => (entry.triggers ?? 0) > 0)
+        .filter((entry) => entry.invalid !== true && (entry.triggers ?? 0) > 0)
         .map((entry) => entry.name)
     },
     writeSettings: (workflow, node, settings) =>
       repository.writeTriggerSettings(workflow, node, settings),
   }
+  return graphs
 }
 
-/** 工作流改名时，触发卡片的运行记录、触发记录跟着走；删掉时一起删。 */
-export function followWorkflows(repository: Repository, store: TriggerStore): Repository {
+/** 工作流删除后清理其固定 ID 下的触发记录。 */
+export function followWorkflows(
+  repository: Repository,
+  store: TriggerStore,
+  warn: (message: string) => void = () => {},
+): Repository {
   return {
     ...repository,
-    rename: async (workflow, to) => {
-      const outcome = await repository.rename(workflow, to)
-      if (outcome.ok) await store.rename(workflow, to).catch(() => {})
-      return outcome
-    },
     remove: async (workflow) => {
       const outcome = await repository.remove(workflow)
-      if (outcome.ok) await store.forget(workflow).catch(() => {})
+      if (outcome.ok) {
+        const key = outcome.result.changed[0]?.detail?.workflowId
+        if (typeof key === 'string') {
+          try {
+            await store.forget(key)
+          } catch (error) {
+            warn(`工作流 ${workflow} 已删除，清理触发记录失败：${String(error)}`)
+          }
+        }
+      }
       return outcome
     },
   }

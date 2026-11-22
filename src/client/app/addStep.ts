@@ -7,7 +7,7 @@
 import { isInput, isResource, isStep, isTrigger } from '../../shared/model.ts'
 import { stepMemories } from '../../shared/presets.ts'
 import { outputResource } from '../../shared/resources.ts'
-import { DEFAULT_TRIGGER } from '../../shared/trigger.ts'
+import { DEFAULT_TRIGGER, newTriggerId } from '../../shared/trigger.ts'
 import type { MemoryType, NodeData, Point, WorkflowDocument } from '../../shared/types.ts'
 import type { T } from '../i18n.ts'
 import { type Edit, findNode, freeFilePath } from '../model/editor.ts'
@@ -18,7 +18,6 @@ import {
   PRESETS,
   presetData,
   type StepSource,
-  TRIGGER_ID,
 } from '../model/library.ts'
 import { copyTitle, takenLabels } from '../model/nodeName.ts'
 
@@ -114,7 +113,7 @@ export async function addFromSource(
   }
   if (source.kind === 'trigger') {
     // 不连线：落在原地，加完选中它，好接着设什么时候触发。
-    edit({ type: 'addTrigger', id: TRIGGER_ID, data: DEFAULT_TRIGGER, position })
+    edit({ type: 'addTrigger', id: newTriggerId(), data: DEFAULT_TRIGGER, position })
     return
   }
   let id: string
@@ -171,9 +170,8 @@ export function duplicateEdit(
     return { type: 'addResource', data: renamed(node.data), position, select: true }
   }
   if (isInput(node)) return { type: 'addInput', id: node.id, data: node.data, position }
-  // 开关、工作区这些本机设置不跟着复制：副本是关着的。
   if (isTrigger(node)) {
-    return { type: 'addTrigger', id: node.id, data: renamed(node.data), position }
+    return { type: 'addTrigger', id: newTriggerId(), data: renamed(node.data), position }
   }
   return { type: 'addNode', id: node.id, data: renamed({ ...node.data }), position }
 }

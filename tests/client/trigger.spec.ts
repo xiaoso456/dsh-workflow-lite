@@ -7,8 +7,11 @@ import { SNIPPET_LANGS, snippetOf } from '../../src/client/model/httpSnippets.ts
 import { cardSize, TRIGGER_H, TRIGGER_W, tidy, triggerSpot } from '../../src/client/model/layout.ts'
 import { decodeStepSource, encodeStepSource } from '../../src/client/model/library.ts'
 import { originText } from '../../src/client/model/originText.ts'
+import { triggerGlance } from '../../src/client/model/triggerGlance.ts'
+import { sourceSay } from '../../src/client/model/triggerSay.ts'
 import {
   momentText,
+  presentTriggerSource,
   ruleText,
   scheduleIssueText,
   sourceFace,
@@ -21,7 +24,7 @@ import { switchSource } from '../../src/client/ui/trigger/source/kinds.ts'
 import { analyzeGraph } from '../../src/shared/graph.ts'
 import { isTrigger } from '../../src/shared/model.ts'
 import { scheduleIssue } from '../../src/shared/schedule.ts'
-import { DEFAULT_TRIGGER, SOURCE_SEED, sourceIssue } from '../../src/shared/trigger.ts'
+import { DEFAULT_TRIGGER, SOURCE_SEED, sourceIssue, triggerName } from '../../src/shared/trigger.ts'
 import type {
   StepNode,
   TriggerData,
@@ -60,16 +63,34 @@ function triggers(state: EditorState): TriggerNode[] {
 }
 
 describe('触发卡片：编辑', () => {
-  it('加一张：选中它，放在整张图上面，重名的接着编号', () => {
+  it('加一张：选中它，放在整张图上面，重建获得新 id，撤销删除恢复旧 id', async () => {
     let state = loaded(doc({ nodes: [step('a', 100, 100)] }))
-    state = reduce(state, { type: 'addTrigger', id: 'trigger', data: DEFAULT_TRIGGER })
+    const add = () =>
+      addFromSource(
+        {
+          t,
+          doc: state.doc,
+          edit: (edit) => {
+            state = reduce(state, edit)
+          },
+          loadTemplate: async () => null,
+        },
+        { kind: 'trigger' },
+        triggerSpot(state.doc ?? doc()),
+      )
+    await add()
     const [first] = triggers(state)
-    expect(first?.id).toBe('trigger')
-    expect(state.selection).toEqual({ kind: 'node', id: 'trigger' })
-    expect(first?.position.y).toBeLessThan(100 - TRIGGER_H)
-    state = reduce(state, { type: 'addTrigger', id: 'trigger', data: DEFAULT_TRIGGER })
-    const ids = triggers(state).map((node) => node.id)
-    expect(new Set(ids).size).toBe(2)
+    if (first === undefined) throw new Error('缺少触发卡片')
+    expect(state.selection).toEqual({ kind: 'node', id: first.id })
+    expect(first.position.y).toBeLessThan(100 - TRIGGER_H)
+    expect(first.id).toMatch(/^trigger-[0-9a-f]{32}$/u)
+    expect(triggerName(first)).toBe(first.id.slice(0, 16))
+    state = reduce(state, { type: 'removeNode', id: first.id })
+    state = reduce(state, { type: 'undo' })
+    expect(triggers(state)[0]?.id).toBe(first.id)
+    state = reduce(state, { type: 'redo' })
+    await add()
+    expect(triggers(state)[0]?.id).not.toBe(first.id)
   })
 
   it('改规则、清掉一项；没变化不算一步', () => {
@@ -132,7 +153,12 @@ describe('触发卡片：从步骤库加进来、复制', () => {
       { x: 40, y: 50 },
     )
     expect(edits).toEqual([
-      { type: 'addTrigger', id: 'trigger', data: DEFAULT_TRIGGER, position: { x: 40, y: 50 } },
+      {
+        type: 'addTrigger',
+        id: expect.any(String),
+        data: DEFAULT_TRIGGER,
+        position: { x: 40, y: 50 },
+      },
     ])
   })
 
@@ -152,6 +178,7 @@ describe('触发卡片：从步骤库加进来、复制', () => {
     const edit = duplicateEdit(doc({ nodes: [trigger('tick', data)] }), 'tick', '副本')
     expect(edit?.type).toBe('addTrigger')
     if (edit?.type !== 'addTrigger') return
+    expect(edit.id).not.toBe('tick')
     expect(edit.data.source).toEqual(data.source)
     expect(edit.data.label).toContain('副本')
   })
@@ -287,6 +314,20 @@ describe('触发卡片：卡片上的字', () => {
       '已全部暂停',
     )
     expect(originText(t, { channel: 'after' })).toBe('接续触发')
+  })
+
+  it('接续触发的 UUID 显示为上游当前名称，找不到时显示原因', () => {
+    const workflow = 'c85cfbdc-db42-490c-bb4a-881c9052a418'
+    const source = { kind: 'after', workflow } as const
+    const names = [{ workflowId: workflow, name: '改名后的工作流' }]
+    expect(triggerGlance(t, presentTriggerSource(source, names))).toMatchObject({
+      workflow: '改名后的工作流',
+    })
+    expect(sourceText(t, presentTriggerSource(source, names))).toBe('「改名后的工作流」成功后')
+    expect(sourceSay(t, presentTriggerSource(source, names))).toContain('改名后的工作流')
+    expect(sourceSay(en, presentTriggerSource(source, undefined))).toBe(
+      'Upstream workflow unavailable',
+    )
   })
 
   it('关键字一格按中英文逗号、顿号、换行拆开；curl 带上令牌', () => {

@@ -39,15 +39,13 @@ const dataDir = join(root, 'data')
 const workspace = join(root, 'ws').replace(/\\/g, '/')
 await mkdir(workspace, { recursive: true })
 const database = new PluginDatabase(() => join(dataDir, DATABASE_FILE))
-const store = new TriggerStore(() => dataDir, database)
-const repository = followWorkflows(
-  createRepository({
-    dataDir,
-    validate: (document, workflow) =>
-      reportProblems(validateDocument(document, { workflowName: workflow, maxNodes: 200 })),
-  }),
-  store,
-)
+const workflows = createRepository({
+  dataDir,
+  validate: (document, workflow) =>
+    reportProblems(validateDocument(document, { workflowName: workflow, maxNodes: 200 })),
+})
+const store = new TriggerStore(workflows, database)
+const repository = followWorkflows(workflows, store)
 await repository.ensureLayout()
 const triggers = new TriggerService({
   dataDir: () => dataDir,
@@ -78,13 +76,16 @@ await repository.create('samples')
 const dir = assetsDir(dataDir, 'samples')
 
 let failed = 0
+const cardIds = new Map<string, string>()
+const pendingScripts = new Map<string, Map<string, string>>()
 
 /** 建 / 改一张卡片（会话工作区选好），回它的卡片目录。 */
 async function card(name: string, trigger: unknown): Promise<string | null> {
+  const previous = cardIds.get(name)
   const written: any = await run({
     action: 'write_trigger',
     workflow: 'samples',
-    node: name,
+    ...(previous === undefined ? {} : { node: previous }),
     trigger,
     local: { workspace },
   } as never)
@@ -93,14 +94,25 @@ async function card(name: string, trigger: unknown): Promise<string | null> {
     console.log(`✗ ${name}: write_trigger ${written.error.message}`)
     return null
   }
-  const home = cardDir(dir, name)
+  const id = written.trigger.id as string
+  cardIds.set(name, id)
+  const home = cardDir(dir, id)
   await mkdir(home, { recursive: true })
+  for (const [file, code] of pendingScripts.get(name) ?? []) await script(name, file, code)
+  pendingScripts.delete(name)
   return home
 }
 
 /** 把示例脚本写进卡片目录。 */
 async function script(name: string, file: string, text: string): Promise<void> {
-  const path = join(cardDir(dir, name), file)
+  const id = cardIds.get(name)
+  if (id === undefined) {
+    const files = pendingScripts.get(name) ?? new Map()
+    files.set(file, text)
+    pendingScripts.set(name, files)
+    return
+  }
+  const path = join(cardDir(dir, id), file)
   await mkdir(dirname(path), { recursive: true })
   await writeFile(path, text)
 }
@@ -113,7 +125,7 @@ async function test(
   const result: any = await run({
     action: 'test_trigger',
     workflow: 'samples',
-    node: name,
+    node: cardIds.get(name),
     ...args,
   } as never)
   if (process.env.DUMP === name) console.log(JSON.stringify(result, null, 2))

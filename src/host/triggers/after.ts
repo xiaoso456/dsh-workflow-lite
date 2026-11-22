@@ -99,6 +99,7 @@ export function afterProblem(
   self: string,
   source: AfterSource,
   target: AfterTarget,
+  name = source.workflow,
 ): string | null {
   switch (afterDependencyProblem(self, source, target)) {
     case 'unselected':
@@ -106,9 +107,9 @@ export function afterProblem(
     case 'self':
       return '不能等自己跑完（会一直触发自己）'
     case 'missing':
-      return `工作流「${source.workflow}」不存在（改名了的话重新选一下）`
+      return '等的工作流不存在，请重新选择'
     case 'runState':
-      return `工作流「${source.workflow}」没开「记录运行状态」，看不出它什么时候跑完`
+      return `工作流「${name}」没开「记录运行状态」，看不出它什么时候跑完`
     case null:
       return null
   }

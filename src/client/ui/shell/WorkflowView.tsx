@@ -465,6 +465,7 @@ function Shell(props: {
                       <Canvas
                         t={t}
                         doc={shown.doc}
+                        workflows={wf.catalog?.workflows}
                         analysis={shown.analysis}
                         loadKey={shown.key}
                         {...(shown.name === null ? {} : { viewKey: shown.name })}

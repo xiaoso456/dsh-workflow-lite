@@ -1,7 +1,7 @@
 /**
  * dsh-workflow-lite — 触发记录：插件数据库里的 `trigger_fires` 表（一次触发一行，连同那一刻的触发说明、触发条件、背景信息）。
  *
- * 每张卡片各记各的，互相不挤；工作流改名时跟着换名字，删掉时一起删。
+ * 每张卡片按工作流 ID 和节点 ID 归档；删除工作流时一起清理。
  * 上一次没跑完、卡片设成排队时，这一次先记成「排队中」（`queued`），轮到了原地改成发出去或没发出去（`sent_at` 记轮到的时刻）；
  * 排着的另有一个只收这些行的索引，每一轮问「哪些卡片有排着的」只碰这几行。
  * 读的都按「工作流 + 卡片 + 时刻」走索引：「触发」页 5 秒一次的列表只取每张卡片最近一次，不读整张表；
@@ -37,20 +37,13 @@ export interface FireDetail {
 
 /**
  * 表的样子。`seq` 是记下的先后（同一时刻的按它排）；`info_file` 是背景信息全文另存过文件；
- * `agent` 是新建了会话时设的预设、模型和没用上的那几项（JSON；第 5 版加的，从第 3、4 版升上来只改这一列，记录不丢）。
+ * `agent` 是新建了会话时设的预设、模型和没用上的那几项（JSON）。
  */
 const FIRES_PART: DatabasePart = {
   name: 'trigger_fires',
-  version: 5,
-  migrate(db, from) {
-    if (from === 3 || from === 4) {
-      db.exec('ALTER TABLE trigger_fires ADD COLUMN agent TEXT')
-      // 第 4 版的开发中试过一列说明文字，换成了 `agent`。
-      if (from === 4) db.exec('ALTER TABLE trigger_fires DROP COLUMN fallback')
-      return
-    }
+  version: 1,
+  migrate(db) {
     db.exec(`
-      DROP TABLE IF EXISTS trigger_fires;
       CREATE TABLE trigger_fires (
         seq INTEGER PRIMARY KEY,
         id TEXT NOT NULL UNIQUE,
@@ -421,11 +414,6 @@ export class FireLog {
   /** 模型按触发条件判断这次不需要执行：记下它给的原因。 */
   decline(id: string, reason: string): void {
     this.db.prepare('UPDATE trigger_fires SET declined = ? WHERE id = ?').run(reason, id)
-  }
-
-  /** 工作流改名：它的触发记录跟着换名字。 */
-  rename(from: string, to: string): void {
-    this.db.prepare('UPDATE trigger_fires SET workflow = ? WHERE workflow = ?').run(to, from)
   }
 
   /**

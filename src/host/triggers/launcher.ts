@@ -19,13 +19,14 @@ import {
   type FireChannel,
   type LaunchSettings,
   launchOf,
+  mapAfterWorkflow,
   reachedLimit,
   sourceBrief,
 } from '../../shared/trigger.ts'
 import type { SessionAgent } from '../../shared/types.ts'
 import type { ChoiceFallback } from '../../shared/wire/host.ts'
 import type { FireOutcome, FireRecord, FireSettled } from '../../shared/wire/trigger.ts'
-import type { TriggerDefinition } from './graphs.ts'
+import type { WorkflowTrigger } from './graphs.ts'
 import { fireMessage } from './message.ts'
 import { endProblem, type RunEnds } from './runEnd.ts'
 import type { TriggerRun } from './runRecords.ts'
@@ -37,7 +38,7 @@ export const SKIP_UNFINISHED = '上次执行未结束（运行状态尚未改为
 
 export interface FireInput {
   workflow: string
-  trigger: TriggerDefinition
+  trigger: WorkflowTrigger
   /** 这张卡片的运行记录（上一次的会话、上一次的触发）。 */
   run: TriggerRun
   channel: FireChannel
@@ -79,12 +80,14 @@ export class Launcher {
     this.ends = ends
   }
 
-  private detail(input: FireInput): FireDetail {
+  private detail(input: FireInput): FireDetail & { record: { workflowId: string } } {
     const info = input.info?.trim()
+    const workflowId = input.trigger.workflowId
     return {
       record: {
         id: newFireId(new Date(input.at)),
-        workflow: input.workflow,
+        workflow: this.store.name(workflowId) ?? input.workflow,
+        workflowId,
         node: input.trigger.node,
         name: input.trigger.name,
         channel: input.channel,
@@ -101,12 +104,12 @@ export class Launcher {
   }
 
   private async close(
-    detail: FireDetail,
+    detail: FireDetail & { record: { workflowId: string } },
     outcome: FireOutcome,
     extra: { reason?: string; session?: string; agent?: SessionAgent },
   ): Promise<FireRecord> {
     const record: FireRecord = { ...detail.record, outcome, ...extra }
-    await this.store.record({ ...detail, record })
+    await this.store.record(detail.record.workflowId, { ...detail, record })
     return record
   }
 
@@ -132,7 +135,7 @@ export class Launcher {
         return this.close(detail, 'skipped', { reason: SKIP_UNFINISHED })
       }
       if (launch.overlap === 'queue') {
-        const waiting = await this.store.queuedCount(input.workflow, input.trigger.node)
+        const waiting = await this.store.queuedCount(input.trigger.workflowId, input.trigger.node)
         if (running || waiting > 0) {
           if (reachedLimit(waiting, launch.queueMax)) {
             return this.close(detail, 'skipped', {
@@ -154,7 +157,7 @@ export class Launcher {
    */
   async release(
     detail: FireDetail,
-    trigger: TriggerDefinition,
+    trigger: WorkflowTrigger,
     run: TriggerRun,
     at: number,
   ): Promise<FireRecord | null> {
@@ -179,11 +182,11 @@ export class Launcher {
 
   /**
    * 选会话、发消息：发进现成的会话（固定的、上一次的），不在了（上一次的）就在工作区里新建一个。
-   * 新建时按卡片和工作流设的预设、模型建（{@link TriggerDefinition.choice}）；发进现成的会话时沿用那个会话的。
+   * 新建时按卡片和工作流设的预设、模型建（{@link WorkflowTrigger.choice}）；发进现成的会话时沿用那个会话的。
    */
   private async deliver(
     detail: FireDetail,
-    trigger: TriggerDefinition,
+    trigger: WorkflowTrigger,
     run: TriggerRun,
     launch: LaunchSettings,
   ): Promise<Delivery> {
@@ -194,7 +197,9 @@ export class Launcher {
     if (launch.session === 'fixed' && target === undefined) {
       return { outcome: 'failed', reason: '还没选定发进哪个会话' }
     }
-    const text = fireMessage(detail, trigger.data, this.store.infoPath(detail.record.id))
+    const source = mapAfterWorkflow(trigger.data.source, (id) => this.store.name(id))
+    const data = { ...trigger.data, source }
+    const text = fireMessage(detail, data, this.store.infoPath(detail.record.id))
     if (target !== undefined) {
       try {
         await this.sessions.send(target, text)
@@ -216,7 +221,7 @@ export class Launcher {
         cwd: workspace,
         title: sessionTitle(
           detail.record.workflow,
-          trigger.data.label ?? sourceBrief(trigger.data.source),
+          trigger.data.label ?? sourceBrief(data.source),
           new Date(detail.record.at),
         ),
         choice: trigger.choice,

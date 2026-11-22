@@ -1384,13 +1384,30 @@ describe('statRunPath：大文件夹', () => {
 })
 
 describe('结束了的实例（接续触发看的）', () => {
+  it('接续按工作流 ID 找实例，改名后仍能找到，同名新图没有旧实例', async () => {
+    const workflowId = (await repository.load('cr')).document?.workflowId
+    if (workflowId === undefined) throw new Error('缺少工作流 ID')
+    const compiled = await compileWithRuns()
+    const id = String(compiled.instance)
+    expect((await repository.rename('cr', 'review')).ok).toBe(true)
+    expect((await repository.create('cr')).ok).toBe(true)
+    await run({ action: 'state', instance: id, status: 'done' }, exec('s1'))
+    expect(await runs.newest(workflowId)).toMatchObject({ id, status: 'done' })
+    expect((await runs.finished(workflowId, 0, new Set())).runs).toMatchObject([{ id }])
+    const replacement = repository.workflowByName('cr')
+    if (replacement === undefined) throw new Error('缺少新工作流 ID')
+    expect(await runs.newest(replacement.id)).toBeNull()
+  })
+
   it('状态文件在 since 之后改过、已经结束、不在 skip 里的才算；另给出这个工作流全部实例的 id', async () => {
     const compiled = await compileWithRuns()
     const id = String(compiled.instance)
-    expect(await runs.finished('cr', 0, new Set())).toEqual({ runs: [], ids: [id] })
+    const workflowId = repository.workflowByName('cr')?.id
+    if (workflowId === undefined) throw new Error('缺少工作流 ID')
+    expect(await runs.finished(workflowId, 0, new Set())).toEqual({ runs: [], ids: [id] })
 
     await run({ action: 'state', instance: id, status: 'cancelled' }, exec('s1'))
-    const found = await runs.finished('cr', 0, new Set())
+    const found = await runs.finished(workflowId, 0, new Set())
     expect(found.ids).toEqual([id])
     expect(found.runs).toMatchObject([
       { id, status: 'cancelled', goal: '审一遍', cwd: workspace, statePath: compiled.statePath },
@@ -1398,8 +1415,8 @@ describe('结束了的实例（接续触发看的）', () => {
     expect(found.runs[0]?.total).toBe(4)
 
     const at = found.runs[0]?.at ?? 0
-    expect((await runs.finished('cr', at, new Set())).runs).toEqual([])
-    expect((await runs.finished('cr', 0, new Set([id]))).runs).toEqual([])
+    expect((await runs.finished(workflowId, at, new Set())).runs).toEqual([])
+    expect((await runs.finished(workflowId, 0, new Set([id]))).runs).toEqual([])
     expect(await runs.finished('other', 0, new Set())).toEqual({ runs: [], ids: [] })
   })
 
@@ -1422,11 +1439,13 @@ describe('结束了的实例（接续触发看的）', () => {
   it('一个工作流最新的实例：整体状态和最近一次动静的时刻；没有实例是 null', async () => {
     const compiled = await compileWithRuns()
     const id = String(compiled.instance)
-    const fresh = await runs.newest('cr')
+    const workflowId = repository.workflowByName('cr')?.id
+    if (workflowId === undefined) throw new Error('缺少工作流 ID')
+    const fresh = await runs.newest(workflowId)
     expect(fresh).toMatchObject({ id, status: 'pending' })
     expect(fresh?.at).toBeGreaterThan(0)
     await run({ action: 'state', instance: id, status: 'done' }, exec('s1'))
-    expect((await runs.newest('cr'))?.status).toBe('done')
+    expect((await runs.newest(workflowId))?.status).toBe('done')
     expect(await runs.newest('other')).toBeNull()
   })
 })

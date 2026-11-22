@@ -36,7 +36,7 @@ import { conventionsSection, executionSection } from './compile/rules.ts'
 import { bodySection, taskText } from './compile/tasks.ts'
 import type { GraphAnalysis } from './graph.ts'
 import { PLAN_SECTIONS } from './limits.ts'
-import { writeDocument } from './model.ts'
+import { withoutWorkflowId, writeDocument } from './model.ts'
 import type { PlanFacts, PlanId, PlanResult, WorkflowDocument } from './types.ts'
 
 export type { PlanOptions, RunStateSection, SkillPlan } from './compile/options.ts'
@@ -98,11 +98,14 @@ export function buildTaskTexts(
 }
 
 /**
- * 内容寻址：`planId` = **图内容哈希**前 8 位（canonical writer 的字节 ⇒ 同内容必得同 `planId`
+ * 内容寻址：`planId` = **图内容哈希**前 8 位（去掉工作流身份后的 canonical writer 字节 ⇒ 同内容必得同 `planId`
  * ⇒ 同目录幂等覆盖；异内容换目录，先前发出的计划不会被打穿）。
  */
 export function planIdOf(document: WorkflowDocument): PlanId {
-  return createHash('sha256').update(writeDocument(document), 'utf8').digest('hex').slice(0, 8)
+  return createHash('sha256')
+    .update(writeDocument(withoutWorkflowId(document)), 'utf8')
+    .digest('hex')
+    .slice(0, 8)
 }
 
 // ─────────────────────────────────────────────────────────────

@@ -20,6 +20,7 @@ import type { TriggerData, TriggerSource, TriggerSourceKind } from '../../../sha
 import type { T } from '../../i18n.ts'
 import { triggerGlance } from '../../model/triggerGlance.ts'
 import { whenActionKey, whenDetail } from '../../model/triggerSummary.ts'
+import { presentTriggerSource } from '../../model/triggerText.ts'
 import { copyText } from '../kit/clipboard.ts'
 import { cx } from '../kit/cx.ts'
 import { Icon } from '../kit/Icon.tsx'
@@ -108,7 +109,11 @@ export function WhenCard(props: {
               data-testid="wl-trigger-when-glance"
               onClick={() => setEditing(true)}
             >
-              <TriggerGlanceRow t={t} glance={triggerGlance(t, source)} view={view} />
+              <TriggerGlanceRow
+                t={t}
+                glance={triggerGlance(t, presentTriggerSource(source, env?.workflows))}
+                view={view}
+              />
             </button>
             {source.kind === 'http' && (
               <button

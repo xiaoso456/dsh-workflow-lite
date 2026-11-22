@@ -53,7 +53,7 @@ export type Notify = (session: string, text: string, summary: string) => Promise
 export interface OriginSource {
   /** 找这次编译对应的触发：给了触发编号按编号找，没给就看这个会话里有没有刚发过、还没认领的。 */
   find(input: {
-    workflow: string
+    workflowId: string
     session?: string
     fire?: string
   }): Promise<{ fire: string; origin: OriginDetail } | undefined>
@@ -63,7 +63,12 @@ export interface OriginSource {
    * 模型在实例里接着做（恢复它、改它的状态）：这个实例建立以来发进它的会话、还没对上实例的同一个工作流的触发，
    * 记成接进了这个实例（实例那边不记，要看就按实例编号查触发记录）。
    */
-  join(input: { workflow: string; session: string; instance: string; since: number }): Promise<void>
+  join(input: {
+    workflowId: string
+    session: string
+    instance: string
+    since: number
+  }): Promise<void>
 }
 
 export interface RunServiceDeps {
@@ -291,6 +296,7 @@ export class RunCore {
     const base: InstanceSummary = {
       id: record.id,
       workflow: record.workflow,
+      ...(record.workflowId === undefined ? {} : { workflowId: record.workflowId }),
       planId: record.planId,
       mode: record.mode,
       ...(record.goal === undefined ? {} : { goal: record.goal }),
@@ -322,9 +328,14 @@ export class RunCore {
 
   /** 模型在会话 `session` 里接着做这个实例：这期间发进来的触发记到它上面（{@link OriginSource.join}）。 */
   async joinFires(record: InstanceRecord, session: string | undefined): Promise<void> {
-    if (session === undefined) return
+    if (session === undefined || record.workflowId === undefined) return
     await this.deps.origins
-      ?.join({ workflow: record.workflow, session, instance: record.id, since: record.createdAt })
+      ?.join({
+        workflowId: record.workflowId,
+        session,
+        instance: record.id,
+        since: record.createdAt,
+      })
       .catch(() => {})
   }
 

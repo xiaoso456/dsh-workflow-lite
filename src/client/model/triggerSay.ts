@@ -5,9 +5,9 @@
  */
 
 import { afterWhen } from '../../shared/trigger.ts'
-import type { AfterWhen, CheckWhen, TriggerSource } from '../../shared/types.ts'
+import type { AfterWhen, CheckWhen } from '../../shared/types.ts'
 import type { LocaleKey, T } from '../i18n.ts'
-import { fillSay, rulePhrase } from './triggerText.ts'
+import { fillSay, rulePhrase, type TriggerDisplaySource } from './triggerText.ts'
 import { cronPhrase } from './triggerUpcoming.ts'
 
 const CHECK_WHEN: Record<CheckWhen, LocaleKey> = {
@@ -23,7 +23,7 @@ const AFTER_RESULT: Record<AfterWhen, LocaleKey> = {
 }
 
 /** 这张卡片什么时候执行的一句话。 */
-export function sourceSay(t: T, source: TriggerSource): string {
+export function sourceSay(t: T, source: TriggerDisplaySource): string {
   switch (source.kind) {
     case 'schedule': {
       const { schedule } = source
@@ -39,11 +39,13 @@ export function sourceSay(t: T, source: TriggerSource): string {
       return t(source.command.trim() === '' ? 'trigger.say.listenNone' : 'trigger.say.listen')
     case 'http':
       return fillSay(t('trigger.say.http'), { method: 'POST' })
-    case 'after':
+    case 'after': {
       if (source.workflow === '') return t('trigger.say.afterNone')
+      if (source.upstreamMissing === true) return t('trigger.afterMissing')
       return fillSay(t('trigger.say.after'), {
         name: source.workflow,
         result: t(AFTER_RESULT[afterWhen(source)]),
       })
+    }
   }
 }

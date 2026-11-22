@@ -309,7 +309,8 @@ function sourceRows(t: T, entry: TriggerEntry): Row[] {
       return [
         [
           t('trigger.afterLead'),
-          source.workflow === '' ? muted(t('trigger.rule.afterNone')) : source.workflow,
+          view.upstreamWorkflow ??
+            muted(t(source.workflow === '' ? 'trigger.rule.afterNone' : 'trigger.afterMissing')),
         ],
         [t('trigger.afterWhen'), t(`trigger.afterWhen.${afterWhen(source)}` as LocaleKey)],
       ]

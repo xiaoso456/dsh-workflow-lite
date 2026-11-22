@@ -15,9 +15,11 @@ import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parse, stringify } from 'yaml'
+import { mapAfterWorkflows } from '../src/host/pack/triggerPack.ts'
 import { RunHistory } from '../src/host/runs/history.ts'
 import { RunService } from '../src/host/runs/service.ts'
 import { DATABASE_FILE, PluginDatabase } from '../src/host/store/database.ts'
+import { createRepository } from '../src/host/store/repository.ts'
 import { newFireId, TriggerStore } from '../src/host/triggers/store.ts'
 import { addGlobalMemory } from '../src/shared/presets.ts'
 import {
@@ -726,11 +728,12 @@ function chainDocuments() {
  * 「构建完成后」近几天的触发记录（发出、模型判断不需要、跳过），「触发」页的概览和时间线才有东西：
  * 直接写进截图专用数据目录的数据库（和实例一样，只有这里在写），不点「立即触发一次」，免得侧栏多出会话。
  */
-async function chainFires(store) {
+async function chainFires(store, workflowId) {
   const now = Date.now()
   const hour = 3600_000
   const base = {
     workflow: CHAIN_DOWN,
+    workflowId,
     node: 'after',
     name: t('构建完成后', 'After build'),
     channel: 'after',
@@ -753,7 +756,7 @@ async function chainFires(store) {
   ]
   for (const [ago, outcome, extra] of plan) {
     const at = now - ago
-    await store.record({
+    await store.record(workflowId, {
       record: { ...base, id: newFireId(new Date(at)), at, outcome, ...extra },
       info: t('「夜间构建」的一次执行结束：成功。', 'A run of nightly-build ended: done.'),
     })
@@ -765,16 +768,21 @@ async function triggerChainShots(session) {
   if (!CHAIN_SHOTS.some(wants)) return
   const chainIds = []
   const database = new PluginDatabase(() => join(DATA_DIR, DATABASE_FILE))
-  const store = new TriggerStore(() => DATA_DIR, database)
+  const repository = createRepository({ dataDir: DATA_DIR })
+  const store = new TriggerStore(repository, database)
   try {
     for (const [name, document] of Object.entries(chainDocuments())) {
       await rpc('graph/delete', { name }).catch(() => {})
       await rpc('graph/create', { name })
       const disk = await rpc('graph/load', { name })
-      await rpc('graph/save', { name, document, baseHash: disk.hash })
+      const linked = mapAfterWorkflows(
+        document,
+        (upstream) => repository.workflowByName(upstream)?.id,
+      )
+      await rpc('graph/save', { name, document: linked, baseHash: disk.hash })
     }
     await chainRuns(chainIds)
-    await chainFires(store)
+    await chainFires(store, repository.workflowByName(CHAIN_DOWN).id)
     await bootToCanvas(session, CHAIN_DOWN, {
       width: 1280,
       height: 900,
@@ -830,7 +838,6 @@ async function triggerChainShots(session) {
     for (const id of chainIds) await rpc('run/delete', { id, withState: true }).catch(() => {})
     for (const name of [CHAIN_UP, CHAIN_DOWN]) {
       await rpc('graph/delete', { name }).catch(() => {})
-      await store.forget(name).catch(() => {})
     }
     database.close()
   }

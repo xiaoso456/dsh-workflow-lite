@@ -113,12 +113,12 @@ export class RunReader {
    * 以及它现在所有实例的 id。只读改过的那几个状态文件：没开运行状态、早就没动过的都只 stat 一下。
    */
   async finished(
-    workflow: string,
+    workflowId: string,
     since: number,
     skip: ReadonlySet<string>,
   ): Promise<{ runs: FinishedInstance[]; ids: string[] }> {
     const index = await this.core.store.read()
-    const records = index.instances.filter((record) => record.workflow === workflow)
+    const records = index.instances.filter((record) => record.workflowId === workflowId)
     const runs: FinishedInstance[] = []
     for (const record of records) {
       if (skip.has(record.id) || record.statePath === undefined) continue
@@ -164,11 +164,11 @@ export class RunReader {
   }
 
   /** 工作流 `workflow` 最新建的那个实例的整体状态与最近一次动静的时刻；没有实例是 `null`。 */
-  async newest(workflow: string): Promise<{ id: string; status?: RunStatus; at: number } | null> {
+  async newest(workflowId: string): Promise<{ id: string; status?: RunStatus; at: number } | null> {
     const index = await this.core.store.read()
     let record: (typeof index.instances)[number] | undefined
     for (const candidate of index.instances) {
-      if (candidate.workflow !== workflow) continue
+      if (candidate.workflowId !== workflowId) continue
       if (record === undefined || candidate.createdAt > record.createdAt) record = candidate
     }
     if (record === undefined) return null

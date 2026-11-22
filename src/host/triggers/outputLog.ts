@@ -392,18 +392,6 @@ export class OutputLog {
     })
   }
 
-  /** 工作流改名：输出跟着换名字。 */
-  rename(from: string, to: string): void {
-    const db = this.db
-    this.database.transaction(() => {
-      db.prepare('UPDATE trigger_output SET workflow = ? WHERE workflow = ?').run(to, from)
-      db.prepare('UPDATE OR REPLACE trigger_output_cards SET workflow = ? WHERE workflow = ?').run(
-        to,
-        from,
-      )
-    })
-  }
-
   /** 工作流删掉了：它的输出一起删。 */
   forget(workflow: string): void {
     const db = this.db

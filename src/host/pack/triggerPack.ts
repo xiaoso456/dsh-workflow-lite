@@ -20,7 +20,13 @@ import {
   packsScripts,
 } from '../../shared/pack.ts'
 import { resolveSessionChoice } from '../../shared/sessionChoice.ts'
-import { commandOf, launchMissing, launchOf, usesWorkspace } from '../../shared/trigger.ts'
+import {
+  commandOf,
+  launchMissing,
+  launchOf,
+  mapAfterWorkflow,
+  usesWorkspace,
+} from '../../shared/trigger.ts'
 import { triggerArea } from '../../shared/triggerDirs.ts'
 import type {
   SessionChoice,
@@ -55,6 +61,7 @@ export function splitAssets(tree: Tree): { rest: Tree; triggers: TreeFile[] } {
 export function scanTriggers(
   versions: readonly { n: number; document: WorkflowDocument }[],
   files: readonly TreeFile[],
+  upstreamName: (id: string) => string | undefined,
 ): { triggers: PackTrigger[]; scripts: { files: number; bytes: number } | null } {
   const cards = new Map<string, PackTrigger>()
   for (const { n, document } of [...versions].sort((a, b) => a.n - b.n)) {
@@ -64,7 +71,7 @@ export function scanTriggers(
       cards.set(node.id, {
         node: node.id,
         label: node.data.label ?? '',
-        source: node.data.source,
+        source: mapAfterWorkflow(node.data.source, upstreamName),
         ...(node.data.enabled === true ? { enabled: true } : {}),
         command: (seen?.command ?? false) || commandOf(node.data.source) !== undefined,
         versions: [...(seen?.versions ?? []), n],
@@ -135,6 +142,21 @@ export function packTriggers(
   return {
     ...document,
     nodes: document.nodes.filter((node) => !isTrigger(node) || keep.has(node.id)),
+  }
+}
+
+/** 包里按名称携带接续目标，落盘时换成本机工作流 ID。 */
+export function mapAfterWorkflows(
+  document: WorkflowDocument,
+  resolve: (workflow: string) => string | undefined,
+): WorkflowDocument {
+  return {
+    ...document,
+    nodes: document.nodes.map((node) => {
+      if (!isTrigger(node)) return node
+      const source = mapAfterWorkflow(node.data.source, resolve)
+      return source === node.data.source ? node : { ...node, data: { ...node.data, source } }
+    }),
   }
 }
 

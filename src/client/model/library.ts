@@ -90,9 +90,6 @@ export const BLANK_ID = 'step'
 /** 输入节点的建议 id。 */
 export const INPUT_ID = 'ask'
 
-/** 触发卡片的建议 id。 */
-export const TRIGGER_ID = 'trigger'
-
 /**
  * 输入的四种交互（呈现顺序）与文案。步骤库里只有一个「用户输入」，拖到画布上默认是一句话，
  * 在属性面板里切换交互方式。

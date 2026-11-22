@@ -168,8 +168,6 @@ async function sourceSide(): Promise<{ from: Side; ext: string; items: ResourceI
     { name: 'my-skill', path: join(skillDir, 'SKILL.md') },
     { name: 'web' },
   ])
-  await mkdir(assetsDir(from.dataDir, 'review'), { recursive: true })
-  await writeFile(join(assetsDir(from.dataDir, 'review'), 'notes.md'), '笔记')
   const items: ResourceItem[] = [
     { kind: 'file', value: slash(join(ext, 'spec.md')) },
     { kind: 'folder', value: slash(join(ext, 'docs')) },
@@ -180,6 +178,8 @@ async function sourceSide(): Promise<{ from: Side; ext: string; items: ResourceI
     { kind: 'url', value: 'https://example.com' },
   ]
   await makeWorkflow(from.repository, 'review', [graph(items, '第一版'), graph(items, '第二版')])
+  await mkdir(assetsDir(from.dataDir, 'review'), { recursive: true })
+  await writeFile(join(assetsDir(from.dataDir, 'review'), 'notes.md'), '笔记')
   return { from, ext, items }
 }
 
@@ -683,13 +683,16 @@ describe('触发卡片', () => {
     const to = await side('chain-import')
     const base = graph([])
     const upstream = 'upstream'
+    await makeWorkflow(from.repository, upstream, [{ ...base, settings: { runState: true } }])
+    const originalId = (await from.repository.load(upstream)).document?.workflowId
+    if (originalId === undefined) throw new Error('upstream workflow has no ID')
     await makeWorkflow(from.repository, 'downstream', [
       {
         ...base,
         nodes: [
           ...base.nodes,
           card('chain', {
-            source: { kind: 'after', workflow: upstream },
+            source: { kind: 'after', workflow: originalId },
             workspace: slash(to.dataDir),
             enabled: true,
           }),
@@ -721,6 +724,12 @@ describe('触发卡片', () => {
     expectOk(await applyPack(to.deps, { token, mode: 'new', name: 'ready' }))
     const ready = await to.repository.load('ready')
     expect(ready.document?.nodes.find(isTrigger)?.data.enabled).toBe(true)
+    const importedUpstreamId = (await to.repository.load(upstream)).document?.workflowId
+    expect(importedUpstreamId).not.toBe(originalId)
+    expect(ready.document?.nodes.find(isTrigger)?.data.source).toMatchObject({
+      kind: 'after',
+      workflow: importedUpstreamId,
+    })
 
     const staleToken = await upload(to.dataDir, zip)
     expect(

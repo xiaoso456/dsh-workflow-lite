@@ -17,6 +17,7 @@ import {
   resourceTitle,
   roleOf,
 } from '../../../../shared/resources.ts'
+import { triggerName } from '../../../../shared/trigger.ts'
 import type { Point, WorkflowDocument, WorkflowNode } from '../../../../shared/types.ts'
 import { findMemory } from '../../../app/memories.ts'
 import type { LocaleKey, T } from '../../../i18n.ts'
@@ -26,7 +27,7 @@ import type { Selection } from '../../../model/editor.ts'
 import { isCompactResource, RES_SHOWN } from '../../../model/layout.ts'
 import { samePlain } from '../../../model/samePlain.ts'
 import { triggerGlance } from '../../../model/triggerGlance.ts'
-import { sourceFace } from '../../../model/triggerText.ts'
+import { presentTriggerSource, sourceFace } from '../../../model/triggerText.ts'
 import { itemText } from '../../kit/resourceUi.ts'
 import { lookOf } from '../../kit/StepMark.tsx'
 import { resourceTint } from '../../resources/ResourcePresets.tsx'
@@ -104,6 +105,7 @@ export interface NodesInput {
   memories: CanvasProps['memories']
   /** `props.workflow`。 */
   workflow: CanvasProps['workflow']
+  workflows?: CanvasProps['workflows']
   files: Map<string, ResourceInfo>
   /** 节点对象缓存（传 ref 本身：读写的是调用那一刻的 `.current`）。 */
   cache: React.MutableRefObject<Map<string, CacheEntry>>
@@ -131,6 +133,7 @@ export function buildNodes({
   onMemory,
   memories,
   workflow,
+  workflows,
   files,
   cache,
   sizes,
@@ -183,8 +186,8 @@ export function buildNodes({
       const tone: Tone = reported?.tone ?? 'ok'
       const note = reported?.note ?? ''
       const dim = focusFile !== null
-      const title = node.data.label?.trim() || node.id
-      const glance = triggerGlance(t, node.data.source)
+      const title = triggerName(node)
+      const glance = triggerGlance(t, presentTriggerSource(node.data.source, workflows))
       const kind = node.data.source.kind
       const face = sourceFace(node.data.source)
       signature = `${selected}|${tone}|${note}|${dim}|${title}|${JSON.stringify(glance)}|${face}`

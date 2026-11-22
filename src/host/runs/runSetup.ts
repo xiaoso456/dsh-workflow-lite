@@ -8,7 +8,7 @@ import { rmdir } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { planIdOf } from '../../shared/compile.ts'
 import { checkAnswers, sameAnswers } from '../../shared/inputs.ts'
-import { isStep, writeDocument } from '../../shared/model.ts'
+import { isStep, withoutWorkflowId, writeDocument } from '../../shared/model.ts'
 import { bindRoot, rootOf } from '../../shared/outputPaths.ts'
 import {
   type InstanceRecord,
@@ -103,6 +103,7 @@ export class RunSetup {
     origin?: OriginDetail
   }): Promise<Outcome<InstanceRecord>> {
     const dataDir = this.core.deps.dataDir()
+    const workflowId = input.document.workflowId
     const origin: OriginDetail = input.origin ?? { channel: 'session' }
     const mode: ExecutionMode = input.document.settings?.mode ?? 'auto'
     const session = input.session.id
@@ -114,6 +115,7 @@ export class RunSetup {
       if (
         current !== undefined &&
         current.workflow === input.workflow &&
+        current.workflowId === workflowId &&
         current.planId === planIdOf(pinRoot(input.document, current.id)) &&
         sameOrigin(current.origin, origin) &&
         sameAnswers(await this.core.answersOf(current), input.answers ?? {})
@@ -133,7 +135,7 @@ export class RunSetup {
     const planId = planIdOf(snapshot)
     try {
       await ensureDir(runDir(dataDir, id))
-      await writeFileAtomic(graph, writeDocument(snapshot))
+      await writeFileAtomic(graph, writeDocument(withoutWorkflowId(snapshot)))
       const answers = input.answers ?? {}
       if (Object.keys(answers).length > 0) {
         await writeFileAtomic(answersFile(dataDir, id), `${JSON.stringify(answers, null, 2)}\n`)
@@ -167,6 +169,7 @@ export class RunSetup {
     const record: InstanceRecord = {
       id,
       workflow: input.workflow,
+      ...(workflowId === undefined ? {} : { workflowId }),
       planId,
       mode,
       ...(input.goal === undefined || input.goal === '' ? {} : { goal: input.goal }),
@@ -211,14 +214,18 @@ export class RunSetup {
       input.session.cwd,
     )
     if (!check.ok || check.result.problems.length > 0) return check
+    const { workflowId } = input.document
     // 触发卡片发起的：实例记下是哪次触发；找不到对应的触发就是模型在对话里自己发起的。
-    const fired = await this.core.deps.origins
-      ?.find({
-        workflow: input.workflow,
-        ...(input.session.id === undefined ? {} : { session: input.session.id }),
-        ...(input.fire === undefined ? {} : { fire: input.fire }),
-      })
-      .catch(() => undefined)
+    const fired =
+      workflowId === undefined
+        ? undefined
+        : await this.core.deps.origins
+            ?.find({
+              workflowId,
+              ...(input.session.id === undefined ? {} : { session: input.session.id }),
+              ...(input.fire === undefined ? {} : { fire: input.fire }),
+            })
+            .catch(() => undefined)
     const prepared = await this.prepare({
       workflow: input.workflow,
       document: input.document,

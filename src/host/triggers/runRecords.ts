@@ -41,7 +41,7 @@ export interface TriggerRun {
   tested?: number
 }
 
-/** 工作流名 → 卡片 id → 运行记录。 */
+/** 工作流 ID → 卡片 ID → 运行记录。 */
 export type TriggerRuns = Record<string, Record<string, TriggerRun>>
 
 /** 负责的进程写下的一张卡片的运行情况。 */
@@ -223,11 +223,6 @@ export class RunRecords {
       runs[workflow] = group
       return result
     })
-  }
-
-  /** 工作流改名：它的记录跟着走。 */
-  rename(from: string, to: string): void {
-    this.db().prepare('UPDATE trigger_runs SET workflow = ? WHERE workflow = ?').run(to, from)
   }
 
   /** 工作流删掉了：它的记录都删掉。 */

@@ -144,7 +144,11 @@ export const PARAMETERS = {
     required: true,
     description: '要做的动作。',
   },
-  workflow: { type: 'string', description: '图名（不带 .json）。除 list 外都需要。' },
+  workflow: { type: 'string', description: '图名（不带 .json）。' },
+  workflow_id: {
+    type: 'string',
+    description: 'compile：收到触发消息时按消息填工作流 ID，代替图名。',
+  },
   node: {
     type: 'string',
     description:
@@ -384,7 +388,7 @@ export const PARAMETERS = {
   trigger: {
     type: 'object',
     description:
-      'write_trigger：触发卡片的定义，存在工作流里（给了 node 且是已有的触发卡片就是修改；否则新建）。各项怎么配见 skill workflow-trigger。',
+      'write_trigger：触发卡片的定义，存在工作流里。省略 node 时新建并分配 ID，给 node 时修改对应的已有卡片。各项怎么配见 skill workflow-trigger。',
     additionalProperties: false,
     properties: {
       label: { type: 'string', description: '名字；空串 = 清除。' },

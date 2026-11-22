@@ -20,15 +20,15 @@ export const CLAIM_WINDOW_MS = 60 * 60_000
 
 export function createFireClaims(store: TriggerStore, now: () => number = Date.now): OriginSource {
   return {
-    async find({ workflow, session, fire }) {
+    async find({ workflowId, session, fire }) {
       if (fire !== undefined) {
         const named = await store.detail(fire)
-        if (named !== null && named.record.workflow === workflow) {
+        if (named?.record.workflowId === workflowId) {
           return { fire: named.record.id, origin: originOfFire(named) }
         }
       }
       if (session === undefined) return undefined
-      const pending = await store.unclaimed(workflow, session, now() - CLAIM_WINDOW_MS)
+      const pending = await store.unclaimed(workflowId, session, now() - CLAIM_WINDOW_MS)
       if (pending === undefined) return undefined
       const detail = await store.detail(pending.id)
       return detail === null ? undefined : { fire: pending.id, origin: originOfFire(detail) }
@@ -37,7 +37,7 @@ export function createFireClaims(store: TriggerStore, now: () => number = Date.n
     bind: (fire, instance) => store.bind(fire, instance),
 
     // 太久以前的同样不算（和认领一个窗口）。
-    join: ({ workflow, session, instance, since }) =>
-      store.join(workflow, session, Math.max(since, now() - CLAIM_WINDOW_MS), instance),
+    join: ({ workflowId, session, instance, since }) =>
+      store.join(workflowId, session, Math.max(since, now() - CLAIM_WINDOW_MS), instance),
   }
 }

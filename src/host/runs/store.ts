@@ -15,6 +15,7 @@
 
 import { randomBytes } from 'node:crypto'
 import { dirname, join } from 'node:path'
+import { isWorkflowId } from '../../shared/naming.ts'
 import { type InstanceRecord, originSummary, readOrigin } from '../../shared/runState.ts'
 import { EXECUTION_MODES } from '../../shared/types.ts'
 import { ensureDir, readFileText, renamePath, writeFileAtomic } from '../store/atomic.ts'
@@ -113,6 +114,7 @@ function readRecord(raw: unknown): InstanceRecord | null {
   return {
     id,
     workflow,
+    ...(isWorkflowId(raw.workflowId) ? { workflowId: raw.workflowId } : {}),
     planId,
     mode,
     ...(typeof raw.goal === 'string' ? { goal: raw.goal } : {}),

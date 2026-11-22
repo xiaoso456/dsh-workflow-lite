@@ -14,6 +14,7 @@
 
 import { isStepColor, isStepIcon } from './appearance.ts'
 import { COORD_DECIMALS } from './limits.ts'
+import { isWorkflowId } from './naming.ts'
 import { normalizeRoot, WORKSPACE_ROOT } from './outputPaths.ts'
 import { memoryPath, upgradeWorkflowPath } from './pathVars.ts'
 import { readSessionChoice, sameSessionChoice } from './sessionChoice.ts'
@@ -865,6 +866,7 @@ export function normalizeDocument(input: unknown): ParseOutcome {
   const settings = readSettings(input.settings)
   return {
     document: {
+      ...(isWorkflowId(input.workflowId) ? { workflowId: input.workflowId } : {}),
       nodes,
       edges,
       viewport: viewport ?? { x: 0, y: 0, zoom: 1 },
@@ -947,6 +949,7 @@ function pickEdge(edge: WorkflowEdge): Record<string, unknown> {
 export function writeDocument(document: WorkflowDocument): string {
   const settings = readSettings(document.settings)
   const payload = {
+    ...(document.workflowId === undefined ? {} : { workflowId: document.workflowId }),
     nodes: document.nodes.map(pickNode),
     edges: document.edges.map(pickEdge),
     viewport: {
@@ -976,6 +979,7 @@ export function writeDocument(document: WorkflowDocument): string {
 /** 深拷贝一份文档（工具做读-改-写时用，避免就地改调用方的对象）。 */
 export function cloneDocument(document: WorkflowDocument): WorkflowDocument {
   return {
+    ...(document.workflowId === undefined ? {} : { workflowId: document.workflowId }),
     nodes: document.nodes.map((node): WorkflowNode => {
       if (isInput(node)) {
         return { ...node, position: { ...node.position }, data: cloneInputData(node.data) }
@@ -994,6 +998,13 @@ export function cloneDocument(document: WorkflowDocument): WorkflowDocument {
     viewport: { ...document.viewport },
     ...(document.settings === undefined ? {} : { settings: { ...document.settings } }),
   }
+}
+
+/** 版本和执行计划只保留图的内容，工作流身份由当前文件持有。 */
+export function withoutWorkflowId(document: WorkflowDocument): WorkflowDocument {
+  if (document.workflowId === undefined) return document
+  const { workflowId: _workflowId, ...content } = document
+  return content
 }
 
 /** 按 `id` 找节点。 */

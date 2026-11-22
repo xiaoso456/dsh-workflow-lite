@@ -23,7 +23,7 @@ export interface RunBrief {
   at: number
 }
 
-/** 各工作流最近的几次执行（按工作流名，新建的在前，每个最多 {@link RECENT_RUNS} 个）；读不到是空的。 */
+/** 各工作流最近的几次执行（按工作流 ID，新建的在前，每个最多 {@link RECENT_RUNS} 个）。 */
 export async function recentRuns(
   rpc: WorkflowLiteRpc,
 ): Promise<ReadonlyMap<string, readonly RunBrief[]>> {
@@ -31,15 +31,16 @@ export async function recentRuns(
   try {
     const { instances } = await rpc.call('run/list', { all: true })
     for (const run of instances) {
+      if (run.workflowId === undefined) continue
       const updated = run.updatedAt === undefined ? Number.NaN : Date.parse(run.updatedAt)
-      const list = byWorkflow.get(run.workflow) ?? []
+      const list = byWorkflow.get(run.workflowId) ?? []
       list.push({
         id: run.id,
         created: run.createdAt,
         at: Number.isFinite(updated) ? updated : run.createdAt,
         ...(run.status === undefined ? {} : { status: run.status }),
       })
-      byWorkflow.set(run.workflow, list)
+      byWorkflow.set(run.workflowId, list)
     }
   } catch {
     // 读不到就不显示最近的执行。

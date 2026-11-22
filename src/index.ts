@@ -39,6 +39,7 @@ import { RunService } from './host/runs/service.ts'
 import { registerRunStateSkill } from './host/runs/skill.ts'
 import { createSkillViewer } from './host/skillView.ts'
 import { DATABASE_FILE, PluginDatabase } from './host/store/database.ts'
+import { upgradeWorkflowIdentity } from './host/store/migrations/workflowIdentity.ts'
 import { memoryMetaFile } from './host/store/paths.ts'
 import { createRepository, type Repository, reportProblems } from './host/store/repository.ts'
 import { registerWorkflowLiteTool } from './host/tool/tool.ts'
@@ -90,12 +91,12 @@ export async function apply(ctx: Context, config: WorkflowLiteSettings): Promise
   // 插件共用的 SQLite 数据库（各功能自己建表；第一次用到时才打开），插件停下时关掉。
   const database = new PluginDatabase(() => join(dataDirAtStart, DATABASE_FILE))
   ctx.effect(() => () => database.close(), 'workflow-lite: database')
-  // 触发卡片在这台机器上的状态（开关、工作区、触发记录）；工作流改名时跟着走。
-  const triggerStore = new TriggerStore(dataDir, database)
+  // 触发器的本机运行记录按固定工作流 ID 归属。
+  const workflows = createRepository({ dataDir: dataDirAtStart, validate })
+  const triggerStore = new TriggerStore(workflows, database)
   // 触发服务读的那份；别处写图都经下面包了一层的 `repository`，存下就叫触发服务对一遍账。
-  const stored: Repository = followWorkflows(
-    createRepository({ dataDir: dataDirAtStart, validate }),
-    triggerStore,
+  const stored: Repository = followWorkflows(workflows, triggerStore, (message) =>
+    ctx.logger.warn(`[workflow-lite] ${message}`),
   )
 
   // 首次启动按需建 `workflows/` 与 `templates/nodes/`；**不建 `.dispatch/`**
@@ -103,6 +104,8 @@ export async function apply(ctx: Context, config: WorkflowLiteSettings): Promise
   const layout = await stored.ensureLayout()
   if (!layout.ok) {
     ctx.logger.warn(`[workflow-lite] 数据目录不可用：${layout.error.message}`)
+  } else {
+    await upgradeWorkflowIdentity(dataDirAtStart)
   }
 
   // 工作流实例：建实例、出计划、读写运行状态、把用户的改动通知给模型。

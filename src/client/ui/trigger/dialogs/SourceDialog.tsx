@@ -18,6 +18,7 @@ import { useRef, useState } from 'react'
 import { sourceIssue } from '../../../../shared/trigger.ts'
 import type { TriggerData, TriggerSource, TriggerSourceKind } from '../../../../shared/types.ts'
 import type { T } from '../../../i18n.ts'
+import { presentTriggerSource } from '../../../model/triggerText.ts'
 import { cx } from '../../kit/cx.ts'
 import { Icon } from '../../kit/Icon.tsx'
 import ui from '../../kit/ui.module.css'
@@ -73,7 +74,14 @@ export function SourceDialog(props: {
           render={(kind) => <TriggerMark kind={kind as TriggerSourceKind} size={16} />}
         />
       }
-      head={<SourceSummary t={t} source={draft} view={view} dirty={dirty} />}
+      head={
+        <SourceSummary
+          t={t}
+          source={presentTriggerSource(draft, env?.workflows)}
+          view={view}
+          dirty={dirty}
+        />
+      }
       testId="wl-trigger-source-dialog"
       dirty={dirty}
       canSave={sourceIssue(draft) === null}

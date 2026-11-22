@@ -119,6 +119,7 @@ describe('create', () => {
     expect(loaded.exists).toBe(true)
     // 新建的默认记录运行状态。
     expect(loaded.document).toEqual({
+      workflowId: expect.any(String),
       nodes: [],
       edges: [],
       viewport: { x: 0, y: 0, zoom: 1 },

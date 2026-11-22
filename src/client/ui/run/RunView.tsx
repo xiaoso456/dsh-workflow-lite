@@ -473,6 +473,7 @@ export function RunView(props: RunViewProps): React.JSX.Element {
           <Canvas
             t={t}
             doc={held.doc}
+            workflows={props.workflows}
             analysis={held.analysis}
             loadKey={held.key}
             selection={swap.dim ? null : selection}

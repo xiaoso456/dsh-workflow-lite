@@ -10,7 +10,7 @@ import type { LocaleKey, T } from '../i18n.ts'
 import { durationText, pastTime } from './time.ts'
 import { endpointPath, readableUrl } from './triggerGlance.ts'
 import { nextOf, type TriggerSortBy } from './triggerList.ts'
-import { momentText, sourceText } from './triggerText.ts'
+import { momentText, presentTriggerSource, sourceText } from './triggerText.ts'
 
 /** 状态条里状态后面那一段：一句主话（时刻），一句淡的（还有多久、跑了多久、地址）。 */
 export interface StatusWhen {
@@ -51,7 +51,11 @@ export function statusWhen(t: T, entry: TriggerEntry, now: number): StatusWhen {
       aside: url === undefined ? '' : readableUrl(endpointPath(url)),
     }
   }
-  if (waiting && kind === 'after') return { main: sourceText(t, data.source), aside: '' }
+  if (waiting && kind === 'after')
+    return {
+      main: sourceText(t, presentTriggerSource(data.source, view.upstreamWorkflow)),
+      aside: '',
+    }
   if (view.state === 'restarting' && view.next !== undefined) {
     return { main: time('trigger.restartAt', view.next), aside: ahead(view.next) }
   }
@@ -77,7 +81,8 @@ export function rowNote(t: T, entry: TriggerEntry, byWorkflow: boolean, now: num
   if (view.state === 'listening' && kind === 'listen' && view.since !== undefined) {
     return t('trigger.started').replace('{time}', momentText(t, view.since, now))
   }
-  if (view.state === 'waiting' && kind === 'after') return sourceText(t, data.source)
+  if (view.state === 'waiting' && kind === 'after')
+    return sourceText(t, presentTriggerSource(data.source, view.upstreamWorkflow))
   return ''
 }
 

@@ -176,7 +176,9 @@ export function validateDocument(
       const { source } = node.data
       const problem =
         sourceProblem(source) ??
-        (source.kind === 'after' && source.workflow === options.workflowName
+        (source.kind === 'after' &&
+        source.workflow !== '' &&
+        source.workflow === (document.workflowId ?? options.workflowName)
           ? '不能等自己跑完（会一直触发自己）'
           : null)
       if (problem !== null) {
