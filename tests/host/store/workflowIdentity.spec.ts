@@ -1,8 +1,9 @@
-import { lstat, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { lstat, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { hashOf } from '../../../src/host/store/atomic.ts'
+import { DATABASE_FILE } from '../../../src/host/store/database.ts'
 import { upgradeWorkflowIdentity } from '../../../src/host/store/migrations/workflowIdentity.ts'
 import { assetsDir, dispatchDir, workflowFile } from '../../../src/host/store/paths.ts'
 import type { Outcome } from '../../../src/host/store/repoResult.ts'
@@ -236,5 +237,22 @@ describe('正式版工作流数据升级', () => {
     expect((await repository.load('日报')).document?.workflowId).toBe(id)
     expect(await readFile(join(root, 'assets', '日报', 'notes.md'), 'utf8')).toBe('旧资料')
     await expect(lstat(journal)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('全新安装不需要迁移：不打开数据库、不留迁移记录，数据目录不存在也不报错', async () => {
+    const sqlite = vi.spyOn(process, 'getBuiltinModule')
+    try {
+      await upgradeWorkflowIdentity(root)
+      await upgradeWorkflowIdentity(join(root, '尚未建立'))
+      check(await repository.create('新图'))
+      await upgradeWorkflowIdentity(root)
+      expect(sqlite).not.toHaveBeenCalled()
+    } finally {
+      sqlite.mockRestore()
+    }
+    await expect(lstat(join(root, '尚未建立'))).rejects.toMatchObject({ code: 'ENOENT' })
+    const left = await readdir(root)
+    expect(left).not.toContain(DATABASE_FILE)
+    expect(left).not.toContain('.migration-workflow-id.json')
   })
 })
