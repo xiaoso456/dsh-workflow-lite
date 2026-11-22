@@ -329,13 +329,13 @@ export class FireLog {
     return Number(result.changes)
   }
 
-  /** 这个会话里、`since` 以来发进去了还没对上实例的最早一次（实例认领来源用）。 */
+  /** 这个会话里、`since` 以来发进去的最早一次待认领触发，已拒绝的跳过。 */
   unclaimed(workflow: string, session: string, since: number): FireRecord | undefined {
     const row = this.db
       .prepare(
         `SELECT ${RECORD} FROM trigger_fires
          WHERE session = ? AND ${SENT_AT} >= ? AND workflow = ? AND outcome = 'sent'
-           AND instance IS NULL
+           AND instance IS NULL AND declined IS NULL
          ORDER BY ${SENT_AT}, seq LIMIT 1`,
       )
       .get(session, since, workflow)

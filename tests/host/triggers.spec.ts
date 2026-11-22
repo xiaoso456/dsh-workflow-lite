@@ -1020,6 +1020,38 @@ describe('实例记下的来源', () => {
     expect((await view(late)).origin).toEqual({ channel: 'session' })
   })
 
+  it('固定会话先拒绝一次触发，后一次漏传编号时仍关联到实际执行的那次', async () => {
+    const session = 'fixed-session'
+    await saveGraph('patrol', { launch: { session: 'fixed', sessionId: session } })
+    const triggers = service()
+    const success = await triggers.fireNow({
+      workflow: 'patrol',
+      node: 'tick',
+      info: '构建成功',
+    })
+    if (!success.ok) throw new Error('没触发')
+    expect(success.result.session).toBe(session)
+    expect((await triggers.decline(success.result.id, '只处理构建失败')).ok).toBe(true)
+
+    clock += MINUTE
+    const failure = await triggers.fireNow({
+      workflow: 'patrol',
+      node: 'tick',
+      info: '构建失败',
+    })
+    if (!failure.ok) throw new Error('没触发')
+    expect(failure.result.session).toBe(session)
+
+    const id = instanceOf(
+      await run({ action: 'compile', workflow_id: workflowKey('patrol') }, exec(session)),
+    )
+    expect((await view(id)).origin?.info).toBe('构建失败')
+    const [executed, declined] = await triggers.history('patrol')
+    expect(executed).toMatchObject({ id: failure.result.id, instance: id })
+    expect(declined).toMatchObject({ id: success.result.id, declined: '只处理构建失败' })
+    expect(declined?.instance).toBeUndefined()
+  })
+
   it('实例还在跑时又触发了、模型接着这个实例做：那次触发记到这个实例上；按实例编号查得到', async () => {
     await saveGraph('patrol', { launch: { session: 'last', overlap: 'parallel' } })
     const triggers = service()
