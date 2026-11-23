@@ -136,6 +136,12 @@
   flex: none;
 }
 
+/* 屏外的行按原行高占位。焦点行保留伸出行框的描边。 */
+.row:not(:focus-within) {
+  content-visibility: auto;
+  contain-intrinsic-block-size: var(--switch-row-h, 34px);
+}
+
 /* 一行的高跟着行高（标准 / 紧凑）走：变量由下拉的列表给（shell/workflowSwitcher.module.css 的 .listBody）。 */
 .row > .rowMain {
   min-height: var(--switch-row-h, 34px);
