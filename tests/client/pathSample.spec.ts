@@ -3,7 +3,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { flattenPath, measurePath } from '../../src/client/model/pathSample.ts'
+import { flattenPath, measurePath, sampleOrientedPath } from '../../src/client/model/pathSample.ts'
 import { flowPath } from '../../src/client/model/route.ts'
 
 describe('flattenPath', () => {
@@ -70,5 +70,27 @@ describe('measurePath', () => {
     expect(measurePath('')).toBeNull()
     expect(measurePath('M 5 5 L 5 5')).toBeNull()
     expect(measurePath('M 0 0 a 1 1 0 0 1 2 0')).toBeNull()
+  })
+})
+
+describe('sampleOrientedPath', () => {
+  it('在圆角折线上对齐行进方向，并保持首尾坐标', () => {
+    const path = measurePath('M 0 0 H 88 Q 100 0 100 12 V 100')
+    if (path === null) throw new Error('圆角折线路径应有效')
+    const samples = sampleOrientedPath(path, 24)
+    expect(samples[0]).toMatchObject({ x: 0, y: 0, angle: 0 })
+    expect(samples.at(-1)).toMatchObject({ x: 100, y: 100, angle: Math.PI / 2 })
+    expect(samples.some(({ angle }) => angle > 0 && angle < Math.PI / 2)).toBe(true)
+  })
+
+  it('向左绕行经过 180° 时连续转向，光带不会掉头转一圈', () => {
+    const path = measurePath('M 100 10 C 70 20 30 20 0 10')
+    if (path === null) throw new Error('向左曲线路径应有效')
+    const angles = sampleOrientedPath(path, 20).map(({ angle }) => angle)
+    expect(angles[0]).toBeLessThan(Math.PI)
+    expect(angles.at(-1)).toBeGreaterThan(Math.PI)
+    for (const [index, angle] of angles.entries()) {
+      expect(Math.abs(angle - (angles[index - 1] ?? angle))).toBeLessThan(Math.PI / 4)
+    }
   })
 })

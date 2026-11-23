@@ -18,6 +18,21 @@ export interface MeasuredPath {
   sample(count: number): { x: number; y: number; at: number }[]
 }
 
+/** 沿路径等距取样并估算行进角度。相邻角度连续，可直接用来插值旋转。 */
+export function sampleOrientedPath(path: MeasuredPath, count: number) {
+  const points = path.sample(count)
+  let angle = 0
+  return points.map((point, index) => {
+    const before = points[index - 1] ?? point
+    const after = points[index + 1] ?? point
+    // 原路折返时前后两点可能重合，此时用从当前位置出发的一段。
+    const from = before.x === after.x && before.y === after.y ? point : before
+    const turn = Math.atan2(after.y - from.y, after.x - from.x) - angle
+    angle += Math.atan2(Math.sin(turn), Math.cos(turn))
+    return { ...point, angle }
+  })
+}
+
 /** 一段曲线最少、最多压成几小段；按控制多边形的长度每这么多像素一段。 */
 const MIN_PARTS = 4
 const MAX_PARTS = 96

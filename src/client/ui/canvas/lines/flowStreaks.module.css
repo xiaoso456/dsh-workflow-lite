@@ -5,8 +5,7 @@
  */
 
 /*
- * 流动的光带（FlowStreaks）：一串沿线走的小点组成，贴着曲线弯、不伸出线头。
- * 外层位置全由 Web Animations 的 transform 关键帧给出；里层只管大小和颜色（头大尾小）。
+ * 光带用一枚渐变短条。Web Animations 按关键帧移动、旋转，在线的两端收短、淡掉。
  * 整组淡入淡出（只动 opacity）。`color` 只为让验收脚本读到解析后的颜色。
  */
 .streaks {
@@ -35,22 +34,22 @@
   }
 }
 
-.streakDot {
+.streak {
   position: absolute;
   top: 0;
   left: 0;
+  width: calc(2 * var(--wl-streak-half));
+  height: 4px;
+  margin: -2px 0 0 calc(-1 * var(--wl-streak-half));
+  border-radius: calc(2px * var(--wl-round, 1));
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--wl-streak) 57%,
+    color-mix(in srgb, var(--wl-streak) 70%, var(--wl-panel)) 88%,
+    var(--wl-streak)
+  );
   opacity: 0;
-}
-
-.streakDot > span {
-  display: block;
-  border-radius: 50%;
-  background: var(--wl-streak);
-}
-
-/* 光带的头：带一点同色的光晕。 */
-.streakDot[data-testid] > span {
-  box-shadow: 0 0 6px 1px color-mix(in srgb, var(--wl-streak) 60%, transparent);
 }
 
 @media (prefers-reduced-motion: reduce) {

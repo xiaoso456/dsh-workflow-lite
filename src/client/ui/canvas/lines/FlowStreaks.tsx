@@ -1,25 +1,11 @@
 /**
  * dsh-workflow-lite — 连线上"流动"的光带：选中步骤/文件时，沿着和它相连的线按数据的方向走。
  *
- * 一道光带是一串紧挨着的小圆点（头大尾小、头亮尾淡），每个点都**在线上**走、只是比前一个
- * 晚出发一点点——所以光带永远贴着曲线弯，也不会伸出线的两头压到卡片上。每个点走到线的两头
- * 时各自淡入淡出：光带是从端点里"长出来"、再"没进"另一头的。颜色永远跟所在的线一致。
+ * 每道光带是一枚渐变短条，头亮尾淡，颜色随线。沿路径取样，按行进方向旋转，在两端收短、淡入淡出。
  *
- * 只动 `transform` 与 `opacity`，交给合成线程跑，不占主线程、不触发重绘：
- * - 按路径字符串直接算出整条线的长度、等距取点（`model/pathSample.ts`，不碰 DOM），算出每点的位移与透明度；
- * - 每个点外层的 HTML 元素用 Web Animations 按这些点做 `translate` 关键帧（里层只管大小和颜色）；
- *   关键帧每条线只解析一次，各点拷一份再改延迟（逐个 `animate` 要把几十个关键帧各解析一遍，
- *   一条线几十个点，点一下卡片就要卡上几十毫秒）；短线只放一道光带，也只挂一道的点；
- * - 线变了只换关键帧，动画进度不重来；线在连续变（拖卡片时每帧都变）就先把整组淡出、不跟着换，
- *   停下来 {@link SETTLE_MS} 后按最终的线换一次再淡入——每帧给几十个点换关键帧是拖动卡顿的大头；
- * - 拖卡片期间（{@link StreaksMode} 为 `hold`）不看时间间隔，一律藏着、停着，松手才铺：机器一慢、
- *   两帧隔得比 {@link SETTLE_MS} 还久，按时间判断就会每帧都重铺一次，越铺越慢；
- * - 线"活"起来时整组淡入，不再活时整组淡出后才卸载——不会突然出现、突然消失。
- *
- * 点在合成线程上走，平时不占主线程；但只要主线程还在出帧（点卡片后的重渲染、卡片和线的淡入淡出），
- * 每一帧都要把所有在走的点的样式过一遍，点越多越贵。所以点卡片后先等 {@link ENTER_DELAY_MS}，
- * 等那一阵过渡走完再挂上光带；淡出时点停在原地，只让整组淡掉；平移、缩放画布时（每帧都出）点也停在
- * 原地，停手再接着走。停住的动画不用每帧过样式。
+ * 关键帧只改 `transform` 和 `opacity`。每道光带用一个元素和一个 Web Animations 动画。
+ * 线变了只换关键帧，保留动画时间。拖卡片时先隐藏、暂停，停稳后再按最终走线铺。
+ * 平移、缩放或弹窗盖住画布时停在原地，结束后接着走。
  *
  * 挂上、卸掉光带本身也贵：宿主页面的 `:has()` 规则让视图里任何一次插拔都把整页样式重算一遍。
  * 所以画布在动的时候（点卡片后挪出右栏、平移、拖卡片）不挂也不卸，停下来再做。
@@ -39,7 +25,7 @@ import {
   useState,
 } from 'react'
 import { afterPaint } from '../../../app/reveal.ts'
-import { type MeasuredPath, measurePath } from '../../../model/pathSample.ts'
+import { type MeasuredPath, measurePath, sampleOrientedPath } from '../../../model/pathSample.ts'
 import { useViewCovered } from '../../kit/viewCover.ts'
 import { useCanvasMoving } from '../../motion/canvasMoving.ts'
 import css from './flowStreaks.module.css'
@@ -49,12 +35,8 @@ import { OnLabels } from './LabelLayer.tsx'
 const MAX_STREAKS = 2
 /** 每多这么长放一道。 */
 const SPACING = 200
-/**
- * 一道光带由几个点组成、点与点沿线相隔多远（画布像素）。
- * 点再少就压不住了，尾巴会露出一颗颗的珠子（试过十个点、间隔 2.8）。
- */
-const TRAIL = 16
-const TRAIL_GAP = 1.7
+/** 光带半长（画布像素），样式也从这里取。 */
+const STREAK_HALF_LENGTH = 10
 /** 沿线走的速度（画布像素 / 秒）与一圈的时长上下限。 */
 const SPEED = 110
 const MIN_MS = 1300
@@ -96,24 +78,20 @@ function streakCount(length: number): number {
   return Math.max(1, Math.min(MAX_STREAKS, Math.round(length / SPACING)))
 }
 
-/** 光带里第 `index` 个点（0 = 头）的大小与透明度：头大尾小、头亮尾淡。 */
-function dotStyle(index: number): React.CSSProperties {
-  const t = index / (TRAIL - 1)
-  // 点比间距大，相邻的点互相压住，连成一条渐细的光带而不是一串珠子。
-  const size = 5 - 3 * t
-  return { width: size, height: size, margin: -size / 2, opacity: 1 - 0.9 * t * t }
-}
-
-/** 沿路径等距取点，带上两头的淡入淡出。 */
+/** 沿路径等距取点，短条随切线转向，两端收短再淡掉。 */
 function sample(path: MeasuredPath): Keyframe[] {
   const { length } = path
   const count = Math.max(16, Math.min(72, Math.round(length / 8)))
   const fade = Math.min(FADE, length / 3)
-  return path.sample(count).map((point, index) => ({
-    offset: index / (count - 1),
-    transform: `translate(${point.x}px, ${point.y}px)`,
-    opacity: Math.max(0, Math.min(1, point.at / fade, (length - point.at) / fade)),
-  }))
+  return sampleOrientedPath(path, count).map(({ at, x, y, angle }, index) => {
+    const room = Math.max(0, Math.min(at, length - at))
+    const scale = Math.min(1, room / STREAK_HALF_LENGTH)
+    return {
+      offset: index / (count - 1),
+      transform: `translate(${x}px, ${y}px) rotate(${angle}rad) scaleX(${scale})`,
+      opacity: Math.min(1, room / fade),
+    }
+  })
 }
 
 export function FlowStreaks(props: {
@@ -152,14 +130,14 @@ export function FlowStreaks(props: {
 function Trail(props: { path: string; color: string; leaving: boolean }): React.JSX.Element {
   const mode = useStreakMode()
   const held = mode === 'hold'
-  /** 点停在原地：整组在淡出，或画布正在平移、缩放。 */
+  /** 光带停在原地：整组在淡出，或画布正在平移、缩放。 */
   const stopped = props.leaving || mode === 'pause'
-  /** 挂几道光带的点（按线长；线变长、变短时跟着 `lay` 改）。 */
+  /** 挂几道光带（按线长；线变长、变短时跟着 `lay` 改）。 */
   const [slots, setSlots] = useState(() => {
     const path = measurePath(props.path)
     return path === null ? 1 : streakCount(path.length)
   })
-  const dots = useRef<(HTMLSpanElement | null)[]>([])
+  const streakElements = useRef<(HTMLSpanElement | null)[]>([])
   const running = useRef<(Animation | null)[]>([])
   const latest = useRef(props.path)
   latest.current = props.path
@@ -179,37 +157,30 @@ function Trail(props: { path: string; color: string; leaving: boolean }): React.
     const streaks = streakCount(length)
     setSlots(streaks)
     const duration = Math.min(MAX_MS, Math.max(MIN_MS, (length / SPEED) * 1000))
-    const lag = (TRAIL_GAP / SPEED) * 1000
-    // 关键帧只解析这一次：各点拷一份（拷贝不重新解析），再改各自的延迟。
+    // 同一条线的光带共用一套关键帧，错开起点。
     const base = new KeyframeEffect(null, sample(path), {
       duration,
       iterations: Number.POSITIVE_INFINITY,
       easing: 'linear',
     })
     for (let streak = 0; streak < MAX_STREAKS; streak += 1) {
-      for (let index = 0; index < TRAIL; index += 1) {
-        const slot = streak * TRAIL + index
-        const dot = dots.current[slot]
-        const current = running.current[slot] ?? null
-        if (dot === null || dot === undefined || streak >= streaks) {
-          current?.cancel()
-          running.current[slot] = null
-          continue
-        }
-        // 全是负的延迟：一挂上去就在半路，第 index 个点比头晚 index 个间隔。
-        const delay = index * lag - (duration * streak) / streaks - duration
-        const effect = new KeyframeEffect(base)
-        effect.target = dot
-        effect.updateTiming({ delay })
-        if (current !== null) {
-          // 换效果不换动画：当前进度留着，点接着从原来的位置走。
-          current.effect = effect
-          continue
-        }
-        const animation = new Animation(effect, document.timeline)
-        animation.play()
-        running.current[slot] = animation
+      const element = streakElements.current[streak]
+      const current = running.current[streak]
+      if (element == null || streak >= streaks) {
+        current?.cancel()
+        running.current[streak] = null
+        continue
       }
+      const effect = new KeyframeEffect(base)
+      effect.target = element
+      effect.updateTiming({ delay: -(duration * streak) / streaks - duration })
+      if (current != null) {
+        current.effect = effect
+        continue
+      }
+      const animation = new Animation(effect, document.timeline)
+      animation.play()
+      running.current[streak] = animation
     }
     if (stoppedRef.current) for (const animation of running.current) animation?.pause()
   }, [])
@@ -238,7 +209,7 @@ function Trail(props: { path: string; color: string; leaving: boolean }): React.
       lay(props.path)
       return
     }
-    // 线在连续变（或刚松手）：先淡出、暂停（藏着的点不必再占合成层），停下来再按最终的线铺一次。
+    // 线在连续变（或刚松手）：先淡出、暂停，停下来再按最终的线铺一次。
     if (settle.current !== null) clearTimeout(settle.current)
     else if (!frozen.current) hide()
     frozen.current = false
@@ -250,7 +221,7 @@ function Trail(props: { path: string; color: string; leaving: boolean }): React.
     }, SETTLE_MS)
   }, [props.path, held, lay])
 
-  // 淡出、平移缩放时点停在原地，又活过来 / 停手就接着走（藏着等铺的时候由铺完那一下接着走）。
+  // 淡出、平移缩放时停在原地，又活过来 / 停手就接着走（藏着等铺的时候由铺完那一下接着走）。
   useLayoutEffect(() => {
     if (stopped) {
       for (const animation of running.current) animation?.pause()
@@ -261,7 +232,7 @@ function Trail(props: { path: string; color: string; leaving: boolean }): React.
     }
   }, [stopped])
 
-  // 线变长、多出一道光带：新挂上的点等这次渲染完才有，这里补上它们的动画（藏着的时候松手再铺）。
+  // 线变长、多出一道光带：这里给刚挂上的元素补动画（藏着的时候松手再铺）。
   const laidSlots = useRef(slots)
   useLayoutEffect(() => {
     if (laidSlots.current === slots) return
@@ -284,20 +255,23 @@ function Trail(props: { path: string; color: string; leaving: boolean }): React.
         className={css.streaks}
         data-leaving={props.leaving}
         data-moving={moving}
-        style={{ '--wl-streak': props.color } as React.CSSProperties}
+        style={
+          {
+            '--wl-streak': props.color,
+            '--wl-streak-half': `${STREAK_HALF_LENGTH}px`,
+          } as React.CSSProperties
+        }
       >
-        {Array.from({ length: slots * TRAIL }, (_, slot) => (
+        {Array.from({ length: slots }, (_, slot) => (
           <span
-            // biome-ignore lint/suspicious/noArrayIndexKey: 点是固定的槽位，下标就是身份
+            // biome-ignore lint/suspicious/noArrayIndexKey: 光带是固定的槽位，下标就是身份
             key={slot}
             ref={(element) => {
-              dots.current[slot] = element
+              streakElements.current[slot] = element
             }}
-            className={css.streakDot}
-            data-testid={slot % TRAIL === 0 ? 'wl-flow-streak' : undefined}
-          >
-            <span style={dotStyle(slot % TRAIL)} />
-          </span>
+            className={css.streak}
+            data-testid="wl-flow-streak"
+          />
         ))}
       </div>
     </OnLabels>
