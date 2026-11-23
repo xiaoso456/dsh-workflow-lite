@@ -10,6 +10,7 @@
 页面上任何一个元素翻这种属性，都和插拔一样整页重算（「触发」页几千个元素时一次约 25ms）。量过的有：`data-open`、`role`、
 `data-slot`（宿主的规则，改不了）、`data-display`；`hidden`、`class`、`style`、`aria-expanded` 和其余 `data-*` 不会。
 所以开合状态写 `data-opened` 不写 `data-open`，自己的 `:has()` 里也不写会来回翻的属性（`tests/client/cssModules.spec.ts` 查）。
+平移每帧都会改视口的内联 `style`，CSS 也别通过祖先的 `[style]` 匹配后代。图标要跟着颜色变量走，可以直接读变量。
 
 所以前端的性能问题几乎都归结为两件事：
 

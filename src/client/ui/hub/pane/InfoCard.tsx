@@ -26,7 +26,7 @@ export function InfoCard(props: {
   action?: React.ReactNode
   children: React.ReactNode
 }): React.JSX.Element {
-  const style = props.tint === undefined ? undefined : { '--tint': props.tint }
+  const style = props.tint === undefined ? undefined : { '--wl-info-icon': props.tint }
   const edit = props.t('hub.trgEditCard').replace('{name}', props.title)
   return (
     <section className={css.card} style={style as React.CSSProperties} data-testid={props.testId}>

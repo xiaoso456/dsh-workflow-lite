@@ -38,8 +38,8 @@
   font-weight: 600;
 }
 
-.card[style] .cardTitle > svg {
-  color: var(--tint);
+.cardTitle > svg {
+  color: var(--wl-info-icon, inherit);
 }
 
 .pen {

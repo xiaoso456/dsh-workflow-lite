@@ -6,6 +6,7 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { basename, dirname, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { transform } from 'lightningcss'
 import { describe, expect, it } from 'vitest'
 
 const SRC = fileURLToPath(new URL('../../src/', import.meta.url))
@@ -166,6 +167,27 @@ describe('不翻 :has() 盯着的属性（翻一次就整页重算样式，见 s
     )
     expect(hits).toEqual([])
   })
+})
+
+it('不按祖先的内联 style 匹配后代（平移每帧都会写视口的 style）', () => {
+  const hits: string[] = []
+  for (const file of cssFiles) {
+    transform({
+      filename: file,
+      code: readFileSync(file),
+      visitor: {
+        Selector(selector) {
+          const style = selector.findIndex(
+            (part) => part.type === 'attribute' && part.name === 'style',
+          )
+          if (style < 0) return
+          const next = selector.slice(style + 1).find((part) => part.type === 'combinator')
+          if (next?.value === 'descendant' || next?.value === 'child') hits.push(show(file))
+        },
+      },
+    })
+  }
+  expect(hits).toEqual([])
 })
 
 describe('CSS 模块的类引用', () => {
